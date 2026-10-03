@@ -1,0 +1,143 @@
+"""Platform administration: overview, carrier onboarding and approval, central stations."""
+import uuid
+from typing import Literal, Optional
+
+from fastapi import APIRouter, Depends, Request
+from pydantic import BaseModel, EmailStr, Field
+
+from .. import db
+from ..deps import Principal, context_for, require_permission, require_portal
+from ..errors import ApiError, not_found
+from ..ledger import company_wallet
+from ..security import hash_password, password_problem
+from ..util import row_dict, rows
+
+router = APIRouter(prefix="/api/admin", tags=["admin"])
+platform = require_portal("PLATFORM")
+
+
+@router.get("/overview")
+async def overview(request: Request, pr: Principal = Depends(platform)):
+    async with db.transaction(context_for(request, pr)) as conn:
+        r = await conn.fetchrow(
+            """SELECT
+                 (SELECT count(*) FROM iam.company WHERE approval_status = 'APPROVED') AS carriers,
+                 (SELECT count(*) FROM iam.company WHERE approval_status = 'PENDING') AS carriers_pending,
+                 (SELECT count(*) FROM iam.app_user WHERE account_kind = 'CUSTOMER') AS passengers,
+                 (SELECT count(*) FROM ops.trip WHERE status IN ('PUBLISHED','BOARDING','DEPARTED')) AS active_trips,
+                 (SELECT count(*) FROM sales.booking WHERE status IN ('CONFIRMED','COMPLETED')) AS bookings,
+                 (SELECT coalesce(sum(total_amount), 0) FROM sales.booking WHERE status IN ('CONFIRMED','COMPLETED')) AS gmv,
+                 (SELECT count(*) FROM net.station WHERE status = 'ACTIVE') AS stations""")
+    return row_dict(r)
+
+
+@router.get("/companies")
+async def companies(request: Request, pr: Principal = Depends(platform)):
+    async with db.transaction(context_for(request, pr)) as conn:
+        recs = await conn.fetch(
+            """SELECT p.uid, p.legal_name, c.company_type, c.approval_status, c.created_at, cc.code3,
+                      (SELECT count(*) FROM fleet.vehicle v WHERE v.company_id = c.id) AS vehicles,
+                      (SELECT count(*) FROM ops.trip t WHERE t.company_id = c.id) AS trips
+                 FROM iam.company c JOIN iam.party p ON p.id = c.id
+                 LEFT JOIN net.carrier_code cc ON cc.company_id = c.id AND cc.status = 'ACTIVE'
+                ORDER BY c.created_at DESC""")
+    return {"companies": rows(recs)}
+
+
+class OnboardIn(BaseModel):
+    legal_name: str = Field(min_length=3, max_length=160)
+    code3: str = Field(pattern=r"^[A-Z]{3}$")
+    transport_license_no: Optional[str] = None
+    owner_name: str = Field(min_length=3, max_length=120)
+    owner_email: EmailStr
+    owner_password: str
+
+
+@router.post("/companies", status_code=201)
+async def onboard_carrier(body: OnboardIn, request: Request, pr: Principal = Depends(require_permission("company.approve"))):
+    if pr.portal != "PLATFORM":
+        raise ApiError(403, "FORBIDDEN", "platform portal only")
+    problem = password_problem(body.owner_password)
+    if problem:
+        raise ApiError(422, problem, "password does not meet the policy")
+    async with db.transaction(context_for(request, pr)) as conn:
+        if await conn.fetchval("SELECT 1 FROM net.carrier_code WHERE code3 = $1 UNION SELECT 1 FROM net.code_reservation WHERE code = $1",
+                               body.code3):
+            raise ApiError(409, "CODE_TAKEN", "carrier code is taken or reserved")
+        cid = await conn.fetchval(
+            "INSERT INTO iam.party (party_type, legal_name) VALUES ('COMPANY', $1) RETURNING id", body.legal_name.strip())
+        await conn.execute("INSERT INTO iam.party_role (party_id, role_code) VALUES ($1, 'OPERATOR')", cid)
+        await conn.execute(
+            """INSERT INTO iam.company (id, transport_license_no, approval_status, approved_by, approved_at)
+               VALUES ($1, $2, 'APPROVED', $3, now())""", cid, body.transport_license_no, pr.user_id)
+        await conn.execute(
+            "INSERT INTO net.carrier_code (company_id, code3, status, approved_by, valid_from) VALUES ($1, $2, 'ACTIVE', $3, current_date)",
+            cid, body.code3, pr.user_id)
+        owner_party = await conn.fetchval(
+            "INSERT INTO iam.party (party_type, legal_name, email) VALUES ('PERSON', $1, $2) RETURNING id",
+            body.owner_name.strip(), body.owner_email)
+        owner_user = await conn.fetchval(
+            """INSERT INTO iam.app_user (party_id, account_kind, email, password_hash, password_changed_at, status,
+                 preferred_locale, mfa_required) VALUES ($1, 'COMPANY', $2, $3, now(), 'ACTIVE', 'ar', true) RETURNING id""",
+            owner_party, body.owner_email, hash_password(body.owner_password))
+        await conn.execute("INSERT INTO iam.company_member (user_id, company_id, is_owner) VALUES ($1, $2, true)",
+                           owner_user, cid)
+        await company_wallet(conn, cid, "SYP")
+        uid = await conn.fetchval("SELECT uid FROM iam.party WHERE id = $1", cid)
+    request.state.audit = {"action": "company.onboard", "object_type": "company", "object_id": cid}
+    return {"uid": str(uid)}
+
+
+class StatusIn(BaseModel):
+    status: Literal["APPROVED", "SUSPENDED", "REJECTED"]
+    reason: str = Field(min_length=3, max_length=300)
+
+
+@router.post("/companies/{company_uid}/status")
+async def set_company_status(company_uid: uuid.UUID, body: StatusIn, request: Request,
+                             pr: Principal = Depends(require_permission("company.approve"))):
+    async with db.transaction(context_for(request, pr)) as conn:
+        cid = await conn.fetchval("SELECT id FROM iam.party WHERE uid = $1", company_uid)
+        n = await conn.execute(
+            "UPDATE iam.company SET approval_status = $2, approved_by = $3, approved_at = now() WHERE id = $1",
+            cid, body.status, pr.user_id)
+        if n.endswith(" 0"):
+            raise not_found("company")
+    request.state.audit = {"action": "company.status", "object_type": "company", "object_id": cid, "reason": body.reason}
+    return {"ok": True}
+
+
+@router.get("/stations")
+async def all_stations(request: Request, pr: Principal = Depends(platform)):
+    async with db.transaction(context_for(request, pr)) as conn:
+        recs = await conn.fetch(
+            """SELECT s.uid, s.code, s.name, s.station_class, s.status, c.code AS city_code, s.lat, s.lng,
+                      op.legal_name AS owner_name
+                 FROM net.station s JOIN ref.city c ON c.id = s.city_id LEFT JOIN iam.party op ON op.id = s.owner_company_id
+                ORDER BY s.code""")
+    return {"stations": rows(recs)}
+
+
+class StationIn(BaseModel):
+    city_code: str = Field(pattern=r"^[A-Z]{3}$")
+    number: int = Field(ge=1, le=999)
+    name: str = Field(min_length=3, max_length=160)
+    address: Optional[str] = None
+    lat: float = Field(ge=-90, le=90)
+    lng: float = Field(ge=-180, le=180)
+
+
+@router.post("/stations", status_code=201)
+async def add_central_station(body: StationIn, request: Request, pr: Principal = Depends(require_permission("station.approve"))):
+    async with db.transaction(context_for(request, pr)) as conn:
+        city = await conn.fetchrow("SELECT id, country_code FROM ref.city WHERE code = $1", body.city_code)
+        if city is None:
+            raise not_found("city")
+        code = f"{city['country_code']}-{body.city_code}-C{body.number:03d}"
+        sid = await conn.fetchval(
+            """INSERT INTO net.station (code, city_id, country_code, station_class, name, address, lat, lng, status,
+                 verified_by, verified_at)
+               VALUES ($1, $2, $3, 'CENTRAL', $4, $5, $6, $7, 'ACTIVE', $8, now()) RETURNING id""",
+            code, city["id"], city["country_code"], body.name.strip(), body.address, body.lat, body.lng, pr.user_id)
+    request.state.audit = {"action": "station.create", "object_type": "station", "object_id": sid}
+    return {"code": code}
