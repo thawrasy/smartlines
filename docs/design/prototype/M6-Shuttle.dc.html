@@ -11,10 +11,10 @@
 <body>
 <x-dc>
 <helmet>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500&amp;family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&amp;display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500&amp;family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&amp;family=Readex+Pro:wght@500;600;700&amp;display=swap">
 <style>
 body{margin:0}
-a{color:#006C4C}a:hover{color:#00382A}
+a{color:#0A5BD3}a:hover{color:#05285F}
 </style>
 </helmet>
 <div class="ms-root" dir="rtl" style="width: 390px; height: 844px; box-sizing: border-box; background: var(--surface-dim); display: flex; flex-direction: column; overflow: hidden; font-family: 'IBM Plex Sans Arabic', system-ui, sans-serif;">
@@ -26,7 +26,7 @@ a{color:#006C4C}a:hover{color:#00382A}
     <x-import component-from-global-scope="Masslak.StatusBadge" status="IN_PROGRESS">في الرحلة</x-import>
   </header>
   <div style="flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; gap: 12px; padding: 14px 16px;">
-    <section style="background: var(--primary); color: var(--on-primary); border-radius: 28px; padding: 18px; display: flex; flex-direction: column; gap: 12px; box-shadow: var(--elevation-2);">
+    <section style="background: var(--brand-navy); color: #FFFFFF; border-radius: 28px; padding: 18px; display: flex; flex-direction: column; gap: 12px; box-shadow: var(--elevation-2);">
       <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px; opacity: .92;">
         <span>المحطة الحالية</span>
         <span style="display: inline-flex; align-items: center; gap: 6px;"><x-import component-from-global-scope="Masslak.Icon" name="bluetooth" size="{{18}}"></x-import>قريب من جهاز السائق</span>
@@ -39,7 +39,7 @@ a{color:#006C4C}a:hover{color:#00382A}
       </div>
     </section>
     <x-import component-from-global-scope="Masslak.Banner" tone="warning" title="رصيدك لا يغطي المقطع التالي" action="{{topup}}">المحطة القادمة: باب توما. يمكنك المتابعة وسيُسجَّل الفرق أجرةً مستحقة دون فوائد.</x-import>
-    <section style="background: var(--surface); border-radius: 20px; box-shadow: var(--elevation-1); padding: 6px 16px;">
+    <section style="background: var(--surface); border-radius: 20px; box-shadow: inset 0 0 0 1px var(--outline-variant), var(--elevation-1); padding: 6px 16px;">
       <x-import component-from-global-scope="Masslak.StopTimeline" stops="{{stops}}"></x-import>
     </section>
   </div>

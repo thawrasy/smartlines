@@ -8,9 +8,10 @@
 <script>
   var M = window.Masslak, h = React.createElement;
   ReactDOM.createRoot(document.getElementById('root')).render(h('div',{className:'ms-row',style:{gap:32}},
-  h(M.Logo,{withName:true,size:40,tagline:'احجز، اركب، اشحن'}),
-  h(M.Logo,{withName:true,size:40,lang:'en',gold:true,tagline:'Book, ride, ship'}),
-  h(M.Logo,{size:56}), h(M.Logo,{size:32,gold:true})));
+  h(M.Logo,{withName:true,size:40,tagline:'منصة النقل والحجز الذكية'}),
+  h(M.Logo,{withName:true,size:40,lang:'en',tone:'outline'}),
+  h(M.Mark,{size:64}), h(M.Mark,{size:40,tone:'symbol'}),
+  h('span',{style:{background:'var(--brand-navy)',padding:12,borderRadius:16,display:'inline-flex'}},h(M.Logo,{withName:true,size:32,tone:'white'}))));
 </script>
 </body>
 </html>

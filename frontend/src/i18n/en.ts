@@ -90,7 +90,7 @@ const en = {
     WALLET_MISSING: "Wallet not found.",
   },
   home: {
-    eyebrow: "Official national booking platform",
+    eyebrow: "One transport network, starting in Syria",
     title: "Travel between cities, simply and safely",
     subtitle: "Compare licensed carriers, choose your seat and board with a secure digital ticket.",
     origin: "From", destination: "To", date: "Travel date", passengers: "Passengers", swap: "Swap cities",

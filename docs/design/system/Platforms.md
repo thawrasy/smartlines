@@ -4,7 +4,7 @@ One set of tokens and components, adapted to how each platform feels. The brand 
 
 ## Web (public site and portals)
 
-- **Public site:** translucent top bar (`surface` at 86 percent with a background blur, `divider` bottom edge), content centred at `size-content`, footer on `surface`. Hero uses the soft wash and `display-medium`.
+- **Public site:** translucent top bar (`surface` at 86 percent with a background blur, `divider` bottom edge, the active link underlined in `primary`), content centred at `size-content`, footer on `brand-navy`. Hero on `surface-dim` with a faint dot grid, a two-line `display-large` headline (navy, then `primary`), a one-line promise, three inline figures, a floating boarding pass and the search card overlapping the hero's lower edge.
 - **Portals:** `NavigationDrawer` at `size-drawer` on the reading-start side, sticky `TopAppBar` over content, content gutter `space-8`, maximum content width 1360px. Below 960px the drawer becomes a modal drawer opened from a menu button.
 - **Breakpoints:** compact under 600px, medium 600–959px, expanded 960–1279px, large 1280px and up (Material 3 window classes).
 - **Keyboard:** every action reachable by Tab; Escape closes dialogs and drawers; Enter submits forms. Visible focus ring on all controls.

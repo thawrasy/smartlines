@@ -1,4 +1,4 @@
-Masslak (مسلك, "the way through") is one platform for booking intercity trips, riding shuttle lines, sending shipments and running carrier, station, agency and government portals in Syria. The interface is light, calm and exact: Material 3 structure, the finish and restraint of Apple's platforms, and a colour story taken from the new Syrian visual identity (flag green, eagle gold, sand). Arabic (RTL) is the primary language; English (LTR) ships alongside it, and later locales (Turkish, French, Spanish) reuse the same tokens.
+Masslak (مسلك, "the way through") is one platform for booking intercity trips, riding shuttle lines, sending shipments and running carrier, station, agency and government portals in Syria. The interface is light, calm and exact: Material 3 structure with the restraint of Apple's platforms and the confidence of leading Gulf government-tech products. Deep navy carries authority, a clear blue carries action, and a green destination stop, taken from the Syrian flag green, marks arrival and success. Arabic (RTL) is the primary language; English (LTR) ships alongside it, and later locales (Turkish, French, Spanish) reuse the same tokens.
 
 Read this page first, then `Experience` (journeys and information architecture) and `Platforms` (web, Android and iOS rules). Every value below is a token in `tokens.json`; never paste raw hex or pixel values into product code.
 
@@ -7,15 +7,15 @@ Read this page first, then `Experience` (journeys and information architecture) 
 - **Promise:** every trip, ticket and payment is clear before the passenger commits. Nothing is hidden behind a tap.
 - **Character:** official enough for ministries and border authorities, warm enough for a family booking seats to Aleppo.
 - **Three words:** trustworthy, precise, welcoming.
-- **What we borrow from the national identity:** the flag green as the anchor colour, the gold of the eagle as the mark of value (loyalty, premium fares, the logo's route line), sand for print and signage. We never use the national emblem, the eagle drawing, the flag or the three stars inside the product: Masslak is a private platform and must not look like a government body.
+- **What we borrow from the national identity:** the flag green as the destination stop and the colour of success. We never use the national emblem, the eagle drawing, the flag or the three stars inside the product: Masslak is a private platform and must not look like a government body.
 
 ## Logo
 
-- The mark is a route: a curved line between two stops, on a rounded green square. Use `masslak-mark.svg` (wheat route) in product; `masslak-mark-gold.svg` (gold route) on marketing, app stores and print.
-- Use `masslak-symbol-green.svg` without the square on white or `surface-dim`, and `masslak-symbol-white.svg` on `primary` or `brand-green` grounds.
-- The wordmark is set, not drawn: "مسلك" in IBM Plex Sans Arabic 700, and "Masslak" in the same family for Latin, placed after the mark at a gap of `space-3`. In RTL the mark sits on the right of the word; in LTR on the left.
-- Clear space around the mark is one third of its width. Minimum size 24px on screen. Never recolour the square away from `primary` or `brand-green`, never add shadows or outlines, never rotate or stretch it.
-- App icons: `app-icon-ios.svg` is the full-bleed 1024px master (iOS applies the corner mask); `app-icon-android-foreground.svg` is the adaptive-icon foreground on a `primary` background layer.
+- The mark is a route: a wave that leaves a blue origin stop, climbs, dips and arrives at a green destination stop, on a deep navy rounded square. The route runs from `brand-blue` to a teal end in a short gradient; the stops are `brand-blue` and `brand-green`.
+- Files: `masslak-mark.svg` (navy square, the default everywhere), `masslak-mark-outline.svg` (white square with a navy outline and a `primary` route, for headers on white when a lighter touch is needed), `masslak-symbol.svg` (route alone in `primary` with a green stop, for white grounds), `masslak-symbol-white.svg` (white route with a green stop, for navy or photo grounds).
+- The wordmark is set, not drawn: "مسلك" in Readex Pro 700 in `on-surface` (navy in light, near-white in dark), followed on the same line by "masslak" in IBM Plex Sans Arabic 600 at 10px, letter-spaced 1.5px, in `on-surface-variant`. In English the name is "Masslak" in Readex Pro 700 alone. The mark sits on the reading-start side of the name at a gap of `space-3`.
+- Clear space is one quarter of the mark's width. Minimum size 20px on screen. Never recolour the square away from `brand-navy`, never swap the stop colours, never add shadows or rotate the mark.
+- App icons: `app-icon-ios.svg` is the full-bleed 1024px master (iOS applies the corner mask); `app-icon-android-foreground.svg` is the adaptive-icon foreground on a `brand-navy` background layer.
 
 ## Content fundamentals
 
@@ -34,18 +34,19 @@ Read this page first, then `Experience` (journeys and information architecture) 
 
 ### Colour
 
-- The product is light. Pages sit on `surface-dim`; cards, sheets and app bars on `surface`; quiet panels on `surface-container-low`. The dark theme exists only for the driver app at night and for OS-level dark mode on mobile.
-- `primary` carries the single most important action on a screen and the active navigation item. One filled `primary` button per view; everything else is tonal (`primary-container`), outlined or text.
-- `secondary` (wheat) marks money and waiting: fares, pending payments, boarding soon. `tertiary` (blue-grey) marks information and live tracking. `error` marks failure and destructive actions only.
-- Status colours always pair with a word and an icon (`StatusBadge`): green confirmed, wheat pending, blue in progress, red cancelled. Never rely on hue alone; green and red chips sit at similar lightness, so the word is mandatory.
-- Text: `on-surface` for content, `on-surface-variant` for labels and secondary lines. Both pass 8:1 on every surface token in light and dark.
-- Borders: inputs and outlined buttons use `outline` (3:1 or more). `outline-variant` and `divider` are decorative and never the only edge of a control.
-- Identity colours (`brand-green`, `brand-gold`, `brand-sand`, `brand-ink`) are for logos, app icons, covers, marketing and print. Inside product screens use the role tokens. Where gold must be read (a loyalty tier, a premium fare brand), use `brand-gold-ink`.
-- Gradients: only the soft hero wash from `primary-container` through `surface-container-low` to `secondary-soft`, on public heroes and auth side panels. No other gradients, no glass effects except the translucent top bar.
+- The product is light. Pages sit on `surface-dim`, optionally with a faint dot grid in `outline-variant` on public heroes; cards, sheets and app bars sit on `surface` with a 1px `outline-variant` hairline. The dark theme exists only for the driver app at night and for OS-level dark mode on mobile.
+- `brand-navy` and `on-surface` carry headlines; the second line of a display headline may switch to `primary` for emphasis ("مسارك واضح. / رحلتك محسوبة.").
+- `primary` (blue) carries the single most important action on a screen, links and the active navigation item. One filled `primary` button per view; everything else is tonal (`primary-container`), outlined or text.
+- `success` (green) means confirmed, valid, paid and arrived. `secondary` (amber) marks money and waiting: fares due, pending payments, boarding soon. `tertiary` (navy) marks live tracking and neutral emphasis. `error` marks failure and destructive actions only.
+- Status colours always pair with a word and an icon (`StatusBadge`): green confirmed, amber pending, blue in progress, red cancelled. Never rely on hue alone.
+- Text: `on-surface` for content, `on-surface-variant` for labels and secondary lines. Both pass 6.8:1 or more on every surface token in light and dark.
+- Borders: inputs and outlined buttons use `outline` (3:1 or more). `outline-variant` and `divider` are hairlines and never the only edge of a control.
+- Identity colours (`brand-navy`, `brand-blue`, `brand-green`) are for the logo, app icons, footers, the hero and print. Inside product screens use the role tokens. `brand-gold` survives only for loyalty tiers.
+- Gradients: only inside the logo route. Heroes use flat `surface-dim` with the dot grid, never colour washes.
 
 ### Typography
 
-- One family for everything: IBM Plex Sans Arabic (Google Fonts), which carries Arabic and Latin with matching weights. Use 400 for body, 500 for labels, 600 for titles, 700 for the wordmark and large prices.
+- Two families. Readex Pro (Google Fonts) for display and headline styles, prices, times and big numbers, at 600 to 700: geometric, confident and clear in Arabic. IBM Plex Sans Arabic for body, labels and UI text at 400 to 600.
 - IBM Plex Mono for booking references, ticket numbers, trip numbers and plates (`data-code`, `data-large`).
 - The scale is Material 3 with Arabic line heights opened by 4px to 6px so diacritics and descenders never collide. Use the styles by role: `headline-large` page titles on web, `headline-medium` on mobile, `title-large` card titles, `body-medium` default portal text, `body-large` default app text, `label-large` buttons.
 - Keep lines near 60 to 70 characters. Headings use `text-wrap: balance`. Never letter-space Arabic; the `letterSpacing` values apply to Latin only.
@@ -59,8 +60,8 @@ Read this page first, then `Experience` (journeys and information architecture) 
 
 ### Shape and elevation
 
-- Rounded and soft, following the radius scale: chips `radius-sm`, fields `radius-md`, cards `radius-lg`, dialogs, sheets and tickets `radius-xl`, buttons and pills `radius-full`.
-- Elevation is light and green-tinted: `elevation-1` for resting cards, `elevation-2` for hero cards, tickets and dialogs, `elevation-3` for sheets. Flat cards use a `divider` outline instead of a shadow. Never stack a shadow and a border on the same card.
+- Rounded but precise: chips `radius-sm`, buttons, fields and search cells `radius-md`, cards `radius-lg`, dialogs, sheets and tickets `radius-xl`; `radius-full` only for avatars, dots and the mobile navigation pill.
+- Hairlines first, shadows second: every card carries a 1px `outline-variant` hairline; `elevation-1` adds a barely visible lift, `elevation-2` is for the search card, dialogs and menus, `elevation-3` for sheets and the floating boarding pass in heroes.
 
 ### Motion
 
@@ -71,7 +72,7 @@ Read this page first, then `Experience` (journeys and information architecture) 
 ### States and interaction
 
 - Material 3 state layers over the element's own content colour: hover `state-hover`, focus `state-focus`, pressed `state-pressed`; disabled content at `state-disabled`.
-- Focus ring: a solid 3px `primary` outline offset by 2px on every interactive element. It reaches 6:1 on light surfaces and 10.9:1 on dark ones.
+- Focus ring: a solid 3px `primary` outline offset by 2px on every interactive element. It reaches 5.7:1 on light surfaces and 10.1:1 on dark ones.
 - Touch targets are at least `size-touch` on mobile; default controls are `size-control` high.
 - Loading: skeletons in `surface-container-highest` for lists and cards; a spinner only inside buttons and for short waits.
 - Empty states: an outlined icon in `outline`, a `title-medium` sentence that says what will appear, and one action.
@@ -79,7 +80,7 @@ Read this page first, then `Experience` (journeys and information architecture) 
 ### Imagery
 
 - Real Syrian places and roads, natural light, people in everyday travel. No stock clichés, no 3D illustrations, no AI-generated faces.
-- Maps use a light basemap tinted towards `surface-container-low`; routes draw in `primary`, live vehicles in `tertiary`.
+- Maps use a light basemap tinted towards `surface-container-low`; routes draw in `primary`, live vehicles in `tertiary`, destinations in `success`.
 
 ## Iconography
 

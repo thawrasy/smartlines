@@ -13,15 +13,29 @@ var ICONS = {"search":"M378-329q-108.16 0-183.08-75Q120-479 120-585t75-181q75-75
   var DIRECTIONAL = { arrow_back: 1, chevron_right: 1, logout: 1 };
   function Ic(name, size) { return name ? h(Icon, { name: name, size: size || 20, flip: !!DIRECTIONAL[name] }) : null; }
 
+  var ROUTE = "M16 43 C20 30 24 20 29.5 20 C35.5 20 35 38 41 38 C45 38 47 33.5 48.5 30";
+  function Mark(p) {
+    var s = p.size || 36, onDark = p.tone === "white";
+    var stroke = p.tone === "outline" || p.tone === "symbol" ? "#0A5BD3" : (onDark ? "#FFFFFF" : "url(#ms-route-g)");
+    var start = p.tone === "outline" || p.tone === "symbol" ? "#0A5BD3" : (onDark ? "#FFFFFF" : "#2F7BFF");
+    var bare = p.tone === "symbol" || onDark;
+    return h("svg", { className: "ms-logo-mark", width: s, height: s, viewBox: bare ? "10 14 44 34" : "0 0 64 64", "aria-hidden": "true" },
+      h("defs", null, h("linearGradient", { id: "ms-route-g", x1: 16, y1: 43, x2: 48.5, y2: 30, gradientUnits: "userSpaceOnUse" },
+        h("stop", { offset: 0, stopColor: "#2F7BFF" }), h("stop", { offset: 1, stopColor: "#22B8A0" }))),
+      bare ? null : (p.tone === "outline"
+        ? h("rect", { x: 2.5, y: 2.5, width: 59, height: 59, rx: 15, fill: "#FFFFFF", stroke: "#0B1F3F", strokeWidth: 4 })
+        : h("rect", { width: 64, height: 64, rx: 16, fill: "#0B1F3F" })),
+      h("path", { d: ROUTE, fill: "none", stroke: stroke, strokeWidth: 5.5, strokeLinecap: "round" }),
+      h("circle", { cx: 16, cy: 43, r: 4.6, fill: start }), h("circle", { cx: 48.5, cy: 30, r: 4.6, fill: "#12A06A" }));
+  }
   function Logo(p) {
-    var s = p.size || 36;
-    var mark = h("span", { className: "ms-logo-mark", style: { width: s, height: s, borderRadius: Math.round(s * 0.28) } },
-      h("svg", { viewBox: "0 0 64 64", width: s * 0.72, height: s * 0.72, "aria-hidden": "true" },
-        h("path", { d: "M14 42c8-14 16-20 36-22", stroke: p.gold ? "#C9A55A" : "#F6E7BF", strokeWidth: 6, fill: "none", strokeLinecap: "round" }),
-        h("circle", { cx: 16, cy: 42, r: 5, fill: "#FFFFFF" }), h("circle", { cx: 48, cy: 20, r: 5, fill: "#FFFFFF" })));
+    var mark = h(Mark, { size: p.size || 36, tone: p.tone });
     if (!p.withName) return mark;
-    return h("span", { className: "ms-logo" }, mark,
-      h("span", { className: "ms-logo-text" }, h("b", null, p.lang === "en" ? "Masslak" : "مسلك"), p.tagline ? h("small", null, p.tagline) : null));
+    var en = p.lang === "en";
+    return h("span", { className: cx("ms-logo", p.tone === "white" && "ms-logo-white") }, mark,
+      h("span", { className: "ms-logo-text" },
+        h("span", { className: "ms-logo-name" }, h("b", null, en ? "Masslak" : "مسلك"), en ? null : h("span", { className: "ms-logo-latin" }, "masslak")),
+        p.tagline ? h("small", null, p.tagline) : null));
   }
 
   function Button(p) {
@@ -190,7 +204,7 @@ var ICONS = {"search":"M378-329q-108.16 0-183.08-75Q120-479 120-585t75-181q75-75
     var L = p.labels || { date: "التاريخ", time: "الانطلاق", seat: "المقعد", passenger: "المسافر", ref: "رقم الحجز" };
     return h("article", { className: "ms-ticket" },
       h("div", { className: "ms-ticket-top" },
-        h("div", { className: "ms-ticket-carrier" }, h(Logo, { size: 28 }), h("span", null, p.carrier), p.status ? h(StatusBadge, { status: p.status }, p.statusLabel) : null),
+        h("div", { className: "ms-ticket-carrier" }, h(Mark, { size: 32 }), h("span", { className: "ms-ticket-id" }, h("span", { className: "ms-ticket-kicker" }, p.kicker || "BOARDING PASS"), h("span", null, p.carrier)), p.status ? h(StatusBadge, { status: p.status }, p.statusLabel) : null),
         h("div", { className: "ms-ticket-route" }, h("div", null, h("div", { className: "ms-ticket-city" }, p.from), h("div", { className: "ms-ticket-sub" }, p.fromStation)),
           h("span", { className: "ms-ticket-arrow" }, h(Icon, { name: "arrow_back", size: 22, className: "ms-route-arrow" })),
           h("div", null, h("div", { className: "ms-ticket-city" }, p.to), h("div", { className: "ms-ticket-sub" }, p.toStation)))),
@@ -230,7 +244,7 @@ var ICONS = {"search":"M378-329q-108.16 0-183.08-75Q120-479 120-585t75-181q75-75
   }
 
   var C = window;
-  C.Masslak = Object.assign(C.Masslak || {}, { Icon: Icon, Logo: Logo, Button: Button, IconButton: IconButton, TextField: TextField, Chip: Chip, StatusBadge: StatusBadge,
+  C.Masslak = Object.assign(C.Masslak || {}, { Icon: Icon, Logo: Logo, Mark: Mark, Button: Button, IconButton: IconButton, TextField: TextField, Chip: Chip, StatusBadge: StatusBadge,
     SegmentedButton: SegmentedButton, Card: Card, Stat: Stat, Banner: Banner, TopAppBar: TopAppBar, NavigationDrawer: NavigationDrawer, NavigationBar: NavigationBar,
     TripCard: TripCard, StopTimeline: StopTimeline, SeatMap: SeatMap, Ticket: Ticket, DataTable: DataTable, Dialog: Dialog, Snackbar: Snackbar, ICONS: ICONS });
 })();

@@ -1,43 +1,49 @@
 /* Masslak tokens as CSS variables for the prototype (light theme), generated from the design system's tokens.json */
 :root{
-  --primary: #006C4C;
+  --primary: #0A5BD3;
   --on-primary: #FFFFFF;
-  --primary-container: #CDEBDD;
-  --on-primary-container: #00382A;
-  --secondary: #6E5D2E;
+  --primary-container: #DCE7FD;
+  --on-primary-container: #05285F;
+  --primary-soft: #EEF4FF;
+  --secondary: #8A5A00;
   --on-secondary: #FFFFFF;
-  --secondary-container: #F6E7BF;
-  --on-secondary-container: #251A00;
-  --secondary-soft: #FFF8E6;
-  --tertiary: #3E6373;
+  --secondary-container: #FDE7C0;
+  --on-secondary-container: #2B1700;
+  --secondary-soft: #FFF8EC;
+  --tertiary: #1E3A5F;
   --on-tertiary: #FFFFFF;
-  --tertiary-container: #C2E8FB;
-  --on-tertiary-container: #001F2A;
-  --tertiary-soft: #EDF6FB;
+  --tertiary-container: #DFE6F0;
+  --on-tertiary-container: #0B1F3F;
+  --tertiary-soft: #F1F5FA;
+  --success: #0F7B53;
+  --on-success: #FFFFFF;
+  --success-container: #D3F1E1;
+  --on-success-container: #00391F;
+  --success-soft: #EDF9F2;
   --error: #B3261E;
   --on-error: #FFFFFF;
   --error-container: #F9DEDC;
   --on-error-container: #8C1D18;
   --surface: #FFFFFF;
-  --surface-dim: #F7F8F5;
-  --surface-container-low: #F5FBF7;
-  --surface-container: #EEF7F2;
-  --surface-container-high: #E9F3EE;
-  --surface-container-highest: #E1EAE5;
-  --on-surface: #1A1C1A;
-  --on-surface-variant: #424844;
-  --outline: #737873;
-  --outline-variant: #C3C8C2;
-  --divider: #E1E6E2;
-  --inverse-surface: #2F312F;
-  --inverse-on-surface: #F0F1EE;
-  --inverse-primary: #6CDBAC;
-  --scrim: #00140C;
-  --brand-green: #007A3D;
+  --surface-dim: #F6F7F9;
+  --surface-container-low: #F8FAFC;
+  --surface-container: #F1F4F8;
+  --surface-container-high: #E8EDF3;
+  --surface-container-highest: #DFE5EC;
+  --on-surface: #0F1B2D;
+  --on-surface-variant: #4B5565;
+  --outline: #6B7686;
+  --outline-variant: #D5DBE3;
+  --divider: #E6EAF0;
+  --inverse-surface: #1B2433;
+  --inverse-on-surface: #EEF2F7;
+  --inverse-primary: #A9C7FF;
+  --scrim: #0B1220;
+  --brand-navy: #0B1F3F;
+  --brand-blue: #2F7BFF;
+  --brand-green: #12A06A;
   --brand-gold: #C9A55A;
   --brand-gold-ink: #7A5900;
-  --brand-ink: #0E1511;
-  --brand-sand: #F3EBDD;
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
@@ -68,18 +74,19 @@
   --state-pressed: 0.10;
   --state-disabled: 0.38;
   --scrim-opacity: 0.32;
-  --elevation-1: 0 1px 2px rgba(0,56,42,0.06), 0 1px 3px rgba(0,56,42,0.08);
-  --elevation-2: 0 2px 6px rgba(0,56,42,0.06), 0 8px 24px rgba(0,56,42,0.08);
-  --elevation-3: 0 12px 40px rgba(0,56,42,0.14);
+  --elevation-1: 0 1px 2px rgba(15,27,45,0.05);
+  --elevation-2: 0 12px 32px rgba(15,27,45,0.08);
+  --elevation-3: 0 24px 60px rgba(15,27,45,0.14);
+  --font-display: "Readex Pro", "IBM Plex Sans Arabic", system-ui, sans-serif;
   --font-sans: "IBM Plex Sans Arabic", system-ui, -apple-system, "Segoe UI", Tahoma, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
 }
-.display-large { font-family: var(--font-sans); font-size: 57px; line-height: 68px; font-weight: 600; }
-.display-medium { font-family: var(--font-sans); font-size: 45px; line-height: 56px; font-weight: 600; }
-.display-small { font-family: var(--font-sans); font-size: 36px; line-height: 46px; font-weight: 600; }
-.headline-large { font-family: var(--font-sans); font-size: 32px; line-height: 42px; font-weight: 600; }
-.headline-medium { font-family: var(--font-sans); font-size: 28px; line-height: 38px; font-weight: 600; }
-.headline-small { font-family: var(--font-sans); font-size: 24px; line-height: 34px; font-weight: 600; }
+.display-large { font-family: var(--font-display); font-size: 57px; line-height: 68px; font-weight: 700; }
+.display-medium { font-family: var(--font-display); font-size: 45px; line-height: 56px; font-weight: 700; }
+.display-small { font-family: var(--font-display); font-size: 36px; line-height: 46px; font-weight: 700; }
+.headline-large { font-family: var(--font-display); font-size: 32px; line-height: 42px; font-weight: 600; }
+.headline-medium { font-family: var(--font-display); font-size: 28px; line-height: 38px; font-weight: 600; }
+.headline-small { font-family: var(--font-display); font-size: 24px; line-height: 34px; font-weight: 600; }
 .title-large { font-family: var(--font-sans); font-size: 22px; line-height: 30px; font-weight: 600; }
 .title-medium { font-family: var(--font-sans); font-size: 16px; line-height: 24px; font-weight: 600; }
 .title-small { font-family: var(--font-sans); font-size: 14px; line-height: 22px; font-weight: 600; }
@@ -92,3 +99,4 @@
 .data-code { font-family: var(--font-mono); font-size: 14px; line-height: 20px; font-weight: 500; }
 .data-large { font-family: var(--font-mono); font-size: 20px; line-height: 28px; font-weight: 500; }
 a.ms-btn { text-decoration: none; box-sizing: border-box; }
+.dots { background-color: var(--surface-dim); background-image: radial-gradient(var(--outline-variant) 1.2px, transparent 1.2px); background-size: 22px 22px; }

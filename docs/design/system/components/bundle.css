@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Readex+Pro:wght@500;600;700&display=swap");
 /* Masslak components. Colours, radii, spacing and sizes come from tokens.css; layout uses logical properties so RTL and LTR share one sheet. */
 .ms-root, .ms-root * { box-sizing: border-box; }
 .ms-root { font-family: var(--font-sans); color: var(--on-surface); font-size: 14px; line-height: 22px; -webkit-font-smoothing: antialiased; }
@@ -14,14 +14,17 @@
 
 /* Logo */
 .ms-logo { display: inline-flex; align-items: center; gap: var(--space-3); }
-.ms-logo-mark { display: inline-flex; align-items: center; justify-content: center; background: var(--primary); flex: none; }
+.ms-logo-mark { display: inline-block; flex: none; }
 .ms-logo-text { display: flex; flex-direction: column; line-height: 1.15; }
-.ms-logo-text b { font-weight: 700; font-size: 20px; color: var(--on-surface); }
+.ms-logo-name { display: inline-flex; align-items: baseline; gap: 8px; }
+.ms-logo-text b { font: 700 22px/1.1 var(--font-display); color: var(--on-surface); }
+.ms-logo-latin { font: 600 10px/1 var(--font-sans); letter-spacing: 1.5px; color: var(--on-surface-variant); }
+.ms-logo-white b, .ms-logo-white .ms-logo-latin, .ms-logo-white small { color: #FFFFFF; }
 .ms-logo-text small { font-size: 12px; color: var(--on-surface-variant); }
 
 /* Buttons */
 .ms-btn { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2); border: 0; cursor: pointer; font: 500 14px/20px var(--font-sans); letter-spacing: .1px;
-  height: var(--size-control); padding-inline: 24px; border-radius: var(--radius-full); white-space: nowrap; position: relative; transition: box-shadow .15s, background-color .15s; }
+  height: var(--size-control); padding-inline: 22px; border-radius: var(--radius-md); white-space: nowrap; position: relative; transition: box-shadow .15s, background-color .15s; }
 .ms-btn::after { content: ""; position: absolute; inset: 0; border-radius: inherit; background: currentColor; opacity: 0; transition: opacity .15s; pointer-events: none; }
 .ms-btn:hover::after { opacity: var(--state-hover); }
 .ms-btn:active::after { opacity: var(--state-pressed); }
@@ -66,16 +69,17 @@ textarea.ms-input { height: auto; min-height: 96px; padding-block: 12px; resize:
 .ms-chip { display: inline-flex; align-items: center; gap: var(--space-2); height: 36px; padding-inline: 14px; border-radius: var(--radius-sm); border: 1px solid var(--outline);
   background: var(--surface); color: var(--on-surface-variant); font: 500 13px/18px var(--font-sans); cursor: pointer; }
 .ms-chip:hover { background: var(--surface-container-low); }
-.ms-chip-on { background: var(--primary-container); color: var(--on-primary-container); border-color: transparent; }
+.ms-chip-on { background: var(--primary-container); color: var(--on-primary-container); border-color: var(--primary-container); }
 .ms-chip-on:hover { background: var(--primary-container); }
 .ms-chip-count { font-size: 12px; opacity: .8; }
 .ms-badge { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding-inline: 10px 12px; border-radius: var(--radius-sm); font: 500 12px/16px var(--font-sans); letter-spacing: .2px; white-space: nowrap; }
-.ms-badge-green { background: var(--primary-container); color: var(--on-primary-container); }
+.ms-badge-green { background: var(--success-container); color: var(--on-success-container); }
 .ms-badge-wheat { background: var(--secondary-container); color: var(--on-secondary-container); }
-.ms-badge-blue { background: var(--tertiary-container); color: var(--on-tertiary-container); }
+.ms-badge-blue { background: var(--primary-container); color: var(--on-primary-container); }
+.ms-badge-navy { background: var(--tertiary-container); color: var(--on-tertiary-container); }
 .ms-badge-red { background: var(--error-container); color: var(--on-error-container); }
 .ms-badge-neutral { background: var(--surface-container-high); color: var(--on-surface-variant); }
-.ms-seg { display: inline-flex; border-radius: var(--radius-full); box-shadow: inset 0 0 0 1px var(--outline); overflow: hidden; }
+.ms-seg { display: inline-flex; border-radius: var(--radius-md); box-shadow: inset 0 0 0 1px var(--outline); overflow: hidden; }
 .ms-seg-btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: 96px; height: 40px; padding-inline: 16px; border: 0; background: transparent;
   color: var(--on-surface); font: 500 14px/20px var(--font-sans); cursor: pointer; }
 .ms-seg-btn + .ms-seg-btn { box-shadow: inset 1px 0 0 var(--outline); }
@@ -84,26 +88,27 @@ textarea.ms-input { height: auto; min-height: 96px; padding-block: 12px; resize:
 
 /* Cards and stats */
 .ms-card { background: var(--surface); border-radius: var(--radius-lg); padding: var(--space-6); min-width: 0; }
-.ms-card-elevated { box-shadow: var(--elevation-1); }
+.ms-card-elevated { box-shadow: inset 0 0 0 1px var(--outline-variant), var(--elevation-1); }
 .ms-card-flat { box-shadow: inset 0 0 0 1px var(--divider); }
 .ms-card-tint { background: var(--surface-container-low); }
-.ms-card-hero { border-radius: var(--radius-xl); box-shadow: var(--elevation-2); }
+.ms-card-hero { border-radius: var(--radius-xl); box-shadow: inset 0 0 0 1px var(--outline-variant), var(--elevation-2); }
 .ms-card-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); margin-bottom: var(--space-4); }
 .ms-card-head h3 { margin: 0; }
-.ms-stat { background: var(--surface); border-radius: var(--radius-lg); padding: var(--space-5); box-shadow: var(--elevation-1); min-width: 0; }
+.ms-stat { background: var(--surface); border-radius: var(--radius-lg); padding: var(--space-5); box-shadow: inset 0 0 0 1px var(--outline-variant), var(--elevation-1); min-width: 0; }
 .ms-stat-label { display: flex; align-items: center; gap: var(--space-2); color: var(--on-surface-variant); font: 500 13px/18px var(--font-sans); }
 .ms-stat-ic { width: 36px; height: 36px; border-radius: var(--radius-md); display: inline-flex; align-items: center; justify-content: center; background: var(--primary-container); color: var(--on-primary-container); }
 .ms-stat-wheat .ms-stat-ic { background: var(--secondary-container); color: var(--on-secondary-container); }
 .ms-stat-blue .ms-stat-ic { background: var(--tertiary-container); color: var(--on-tertiary-container); }
+.ms-stat-success .ms-stat-ic { background: var(--success-container); color: var(--on-success-container); }
 .ms-stat-red .ms-stat-ic { background: var(--error-container); color: var(--on-error-container); }
-.ms-stat-value { font: 600 28px/36px var(--font-sans); margin-top: var(--space-2); font-variant-numeric: tabular-nums; }
+.ms-stat-value { font: 700 28px/36px var(--font-display); margin-top: var(--space-2); font-variant-numeric: tabular-nums; }
 .ms-stat-note { font-size: 12px; line-height: 18px; color: var(--on-surface-variant); margin-top: 2px; }
 
 /* Banners and snackbar */
 .ms-banner { display: flex; gap: var(--space-3); align-items: flex-start; padding: 14px 16px; border-radius: var(--radius-md); font-size: 14px; line-height: 22px; }
 .ms-banner-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.ms-banner-info { background: var(--tertiary-soft); color: var(--on-tertiary-container); }
-.ms-banner-success { background: var(--primary-container); color: var(--on-primary-container); }
+.ms-banner-info { background: var(--primary-soft); color: var(--on-primary-container); box-shadow: inset 0 0 0 1px var(--primary-container); }
+.ms-banner-success { background: var(--success-soft); color: var(--on-success-container); box-shadow: inset 0 0 0 1px var(--success-container); }
 .ms-banner-warning { background: var(--secondary-soft); color: var(--on-secondary-container); box-shadow: inset 0 0 0 1px var(--secondary-container); }
 .ms-banner-error { background: var(--error-container); color: var(--on-error-container); }
 .ms-snack { display: inline-flex; align-items: center; gap: var(--space-4); min-height: 48px; padding-inline: 16px 8px; border-radius: var(--radius-xs); background: var(--inverse-surface);
@@ -120,7 +125,7 @@ textarea.ms-input { height: auto; min-height: 96px; padding-block: 12px; resize:
 [dir="rtl"] .ms-drawer { box-shadow: inset 1px 0 0 var(--divider); }
 .ms-drawer > .ms-logo { padding: 8px 12px 20px; }
 .ms-drawer-title { font: 600 12px/16px var(--font-sans); color: var(--on-surface-variant); padding: 14px 16px 6px; letter-spacing: .3px; }
-.ms-nav-item { display: flex; align-items: center; gap: var(--space-3); height: 48px; padding-inline: 16px; border-radius: var(--radius-full); color: var(--on-surface-variant); text-decoration: none; font: 500 14px/20px var(--font-sans); }
+.ms-nav-item { display: flex; align-items: center; gap: var(--space-3); height: 44px; padding-inline: 14px; border-radius: var(--radius-md); color: var(--on-surface-variant); text-decoration: none; font: 500 14px/20px var(--font-sans); }
 .ms-nav-item:hover { background: var(--surface-container); }
 .ms-nav-on, .ms-nav-on:hover { background: var(--primary-container); color: var(--on-primary-container); }
 .ms-nav-badge { margin-inline-start: auto; font-size: 12px; font-weight: 600; min-width: 22px; height: 22px; padding-inline: 6px; border-radius: 11px; background: var(--error); color: var(--on-error);
@@ -134,12 +139,12 @@ textarea.ms-input { height: auto; min-height: 96px; padding-block: 12px; resize:
 .ms-navbar-on .ms-navbar-pill { background: var(--primary-container); color: var(--on-primary-container); }
 
 /* Trip card */
-.ms-trip { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-6); align-items: center; background: var(--surface); border-radius: var(--radius-lg); padding: var(--space-5) var(--space-6); box-shadow: var(--elevation-1); }
+.ms-trip { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-6); align-items: center; background: var(--surface); border-radius: var(--radius-lg); padding: var(--space-5) var(--space-6); box-shadow: inset 0 0 0 1px var(--outline-variant), var(--elevation-1); }
 .ms-trip-main { display: flex; flex-direction: column; gap: var(--space-4); min-width: 0; }
 .ms-trip-carrier { display: flex; align-items: center; gap: var(--space-3); }
 .ms-trip-logo { width: 36px; height: 36px; border-radius: var(--radius-md); background: var(--surface-container); color: var(--primary); display: inline-flex; align-items: center; justify-content: center; }
 .ms-trip-line { display: flex; align-items: center; gap: var(--space-4); }
-.ms-trip-time { font: 600 22px/30px var(--font-sans); font-variant-numeric: tabular-nums; }
+.ms-trip-time { font: 700 22px/30px var(--font-display); font-variant-numeric: tabular-nums; }
 .ms-trip-track { flex: 1; min-width: 72px; text-align: center; position: relative; padding-bottom: 10px; }
 .ms-trip-track i { position: absolute; inset-inline: 0; bottom: 0; height: 2px; background: var(--outline-variant); }
 .ms-trip-track i::before, .ms-trip-track i::after { content: ""; position: absolute; top: -4px; width: 10px; height: 10px; border-radius: 5px; }
@@ -148,7 +153,7 @@ textarea.ms-input { height: auto; min-height: 96px; padding-block: 12px; resize:
 .ms-trip-tags { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 .ms-tag { font-size: 12px; line-height: 16px; padding: 4px 10px; border-radius: var(--radius-sm); background: var(--surface-container-low); color: var(--on-surface-variant); }
 .ms-trip-side { display: flex; flex-direction: column; align-items: flex-end; gap: var(--space-2); text-align: end; }
-.ms-price { font: 700 24px/32px var(--font-sans); font-variant-numeric: tabular-nums; }
+.ms-price { font: 700 24px/32px var(--font-display); font-variant-numeric: tabular-nums; }
 .ms-price small { font-size: 13px; font-weight: 500; color: var(--on-surface-variant); }
 @media (max-width: 560px) { .ms-trip { grid-template-columns: minmax(0, 1fr); } .ms-trip-side { flex-direction: row; justify-content: space-between; align-items: center; text-align: start; } }
 
@@ -181,16 +186,17 @@ textarea.ms-input { height: auto; min-height: 96px; padding-block: 12px; resize:
 .ms-lg-mine { background: var(--primary); }
 
 /* Ticket */
-.ms-ticket { background: var(--surface); border-radius: var(--radius-xl); box-shadow: var(--elevation-2); overflow: hidden; max-width: 380px; width: 100%; }
-.ms-ticket-top { background: var(--primary); color: var(--on-primary); padding: var(--space-5) var(--space-6) var(--space-6); display: flex; flex-direction: column; gap: var(--space-5); }
+.ms-ticket { background: var(--surface); border-radius: var(--radius-xl); box-shadow: inset 0 0 0 1px var(--outline-variant), var(--elevation-3); overflow: hidden; max-width: 380px; width: 100%; }
+.ms-ticket-top { background: var(--surface); color: var(--on-surface); padding: var(--space-5) var(--space-6) var(--space-6); display: flex; flex-direction: column; gap: var(--space-5); }
 .ms-ticket-carrier { display: flex; align-items: center; gap: var(--space-2); font: 600 14px/20px var(--font-sans); }
-.ms-ticket-carrier .ms-logo-mark { background: rgba(255, 255, 255, .16); }
+.ms-ticket-id { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.ms-ticket-kicker { font: 600 10px/1 var(--font-sans); letter-spacing: 1.6px; color: var(--on-surface-variant); white-space: nowrap; }
 .ms-ticket-carrier .ms-badge { margin-inline-start: auto; }
 .ms-ticket-route { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
-.ms-ticket-city { font: 600 26px/34px var(--font-sans); }
-.ms-ticket-sub { font-size: 12px; opacity: .85; }
+.ms-ticket-city { font: 700 28px/36px var(--font-display); color: var(--on-surface); }
+.ms-ticket-sub { font-size: 12px; font-weight: 600; color: var(--primary); }
 .ms-ticket-route > div:last-child { text-align: end; }
-.ms-ticket-arrow { opacity: .9; display: flex; }
+.ms-ticket-arrow { color: var(--primary); display: flex; }
 .ms-ticket-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4) var(--space-6); padding: var(--space-5) var(--space-6); }
 .ms-ticket-cut { position: relative; height: 0; border-top: 2px dashed var(--divider); margin-inline: var(--space-6); }
 .ms-ticket-cut::before, .ms-ticket-cut::after { content: ""; position: absolute; top: -13px; width: 24px; height: 24px; border-radius: 12px; background: var(--surface-dim); }

@@ -26,9 +26,8 @@ function Brand({ to = "/" }: { to?: string }) {
   return (
     <Link to={to} className="brand">
       <Logo />
-      <span className="stack" style={{ gap: 0 }}>
-        <span>{t("app.name")}</span>
-      </span>
+      <span className="brand-name">{t("app.name")}</span>
+      <span className="brand-latin">masslak</span>
     </Link>
   );
 }
