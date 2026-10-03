@@ -10,22 +10,16 @@ export function Icon({ name, size, flip, className }: { name: IconName; size?: n
   );
 }
 
-const ROUTE = "M16 43 C20 30 24 20 29.5 20 C35.5 20 35 38 41 38 C45 38 47 33.5 48.5 30";
+const ROUTE = "M15.5 43.5 C20.5 32.5 24.5 22 32.5 22 C39.5 22 41.5 32.5 48.5 34.5";
 
-/** Masslak mark: a wave route from a blue origin stop to a green destination stop on a navy square. */
+/** Masslak mark: one arc from a light-blue origin stop to a green destination stop on a navy square. */
 export function Logo({ size = 36 }: { size?: number }) {
   return (
     <svg className="brand-mark" width={size} height={size} viewBox="0 0 64 64" aria-hidden="true">
-      <defs>
-        <linearGradient id="masslak-route" x1="16" y1="43" x2="48.5" y2="30" gradientUnits="userSpaceOnUse">
-          <stop offset="0" stopColor="#2F7BFF" />
-          <stop offset="1" stopColor="#22B8A0" />
-        </linearGradient>
-      </defs>
       <rect width="64" height="64" rx="16" fill="#0B1F3F" />
-      <path d={ROUTE} fill="none" stroke="url(#masslak-route)" strokeWidth="5.5" strokeLinecap="round" />
-      <circle cx="16" cy="43" r="4.6" fill="#2F7BFF" />
-      <circle cx="48.5" cy="30" r="4.6" fill="#12A06A" />
+      <path d={ROUTE} fill="none" stroke="#2F7BFF" strokeWidth="6" strokeLinecap="round" />
+      <circle cx="15.5" cy="43.5" r="5" fill="#7FB0FF" />
+      <circle cx="48.5" cy="34.5" r="5" fill="#12A06A" />
     </svg>
   );
 }

@@ -11,7 +11,7 @@ Read this page first, then `Experience` (journeys and information architecture) 
 
 ## Logo
 
-- The mark is a route: a wave that leaves a blue origin stop, climbs, dips and arrives at a green destination stop, on a deep navy rounded square. The route runs from `brand-blue` to a teal end in a short gradient; the stops are `brand-blue` and `brand-green`.
+- The mark is a route: one arc that leaves a light-blue origin stop (`brand-blue-soft`), rises in `brand-blue` and settles on a green destination stop (`brand-green`), on a deep navy rounded square (`brand-navy`). Blue is movement and trust; green is arrival, taken from the Syrian flag green. No gradients.
 - Files: `masslak-mark.svg` (navy square, the default everywhere), `masslak-mark-outline.svg` (white square with a navy outline and a `primary` route, for headers on white when a lighter touch is needed), `masslak-symbol.svg` (route alone in `primary` with a green stop, for white grounds), `masslak-symbol-white.svg` (white route with a green stop, for navy or photo grounds).
 - The wordmark is set, not drawn: "مسلك" in Readex Pro 700 in `on-surface` (navy in light, near-white in dark), followed on the same line by "masslak" in IBM Plex Sans Arabic 600 at 10px, letter-spaced 1.5px, in `on-surface-variant`. In English the name is "Masslak" in Readex Pro 700 alone. The mark sits on the reading-start side of the name at a gap of `space-3`.
 - Clear space is one quarter of the mark's width. Minimum size 20px on screen. Never recolour the square away from `brand-navy`, never swap the stop colours, never add shadows or rotate the mark.

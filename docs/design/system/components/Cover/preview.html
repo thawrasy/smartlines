@@ -7,7 +7,7 @@
   .cv { position: relative; width: 960px; height: 300px; overflow: hidden; background: var(--surface-dim); font-family: var(--font-display); }
   .cv svg { position: absolute; inset: 0; }
   .navy { fill: var(--brand-navy); } .prim { fill: var(--primary); } .pc { fill: var(--primary-container); }
-  .soft { fill: var(--tertiary-container); } .green { fill: var(--brand-green); } .blue { fill: var(--brand-blue); }
+  .soft { fill: var(--tertiary-container); } .green { fill: var(--brand-green); } .blue { fill: var(--brand-blue); } .bluesoft { fill: var(--brand-blue-soft); }
   .dot { fill: var(--outline-variant); }
   .route { fill: none; stroke: var(--brand-blue); stroke-width: 14; stroke-linecap: round; }
   .route2 { fill: none; stroke: var(--surface); stroke-width: 10; stroke-linecap: round; }
@@ -19,7 +19,7 @@
 <div class="cv">
   <!-- blocks: brand-navy slab 240x356 (radius-xl), primary 120x132 (radius-lg), primary-container 168x120 (radius-lg), tertiary-container 96x96 (radius-lg), brand-green disc r=22 (radius-full)
        arrangement: one tall navy slab bleeding off top and bottom with satellites stepping toward it, all right of x=480
-       pattern: literal motif, the Masslak wave route; one route from a blue stop to a green stop crosses the slab, a second white route crosses the primary block, on a dot grid at the space-6 pitch
+       pattern: literal motif, the Masslak arc route; one route from a light-blue stop to a green stop crosses the slab, a second white route crosses the primary block, on a dot grid at the space-6 pitch
        scales: dot pitch 24px (space-6), gaps 24px, corners radius-xl 28px and radius-lg 20px, route stroke 14px -->
   <svg width="960" height="300" viewBox="0 0 960 300" aria-hidden="true">
     <g>
@@ -32,9 +32,9 @@
     <rect class="pc" x="624" y="24" width="168" height="120" rx="20"/>
     <rect class="prim" x="624" y="168" width="120" height="132" rx="20"/>
     <rect class="navy" x="720" y="-28" width="240" height="356" rx="28"/>
-    <path class="route" d="M768 196 C784 140 800 110 822 110 C846 110 844 182 868 182 C884 182 892 164 898 152"/>
-    <circle class="blue" cx="768" cy="196" r="18"/>
-    <circle class="green" cx="898" cy="152" r="22"/>
+    <path class="route" d="M768 196 C788 152 804 110 836 110 C864 110 872 152 900 160"/>
+    <circle class="bluesoft" cx="768" cy="196" r="20"/>
+    <circle class="green" cx="900" cy="160" r="22"/>
     <path class="route2" d="M648 270 C664 236 676 214 690 230"/>
   </svg>
   <div class="txt">

@@ -13,20 +13,18 @@ var ICONS = {"search":"M378-329q-108.16 0-183.08-75Q120-479 120-585t75-181q75-75
   var DIRECTIONAL = { arrow_back: 1, chevron_right: 1, logout: 1 };
   function Ic(name, size) { return name ? h(Icon, { name: name, size: size || 20, flip: !!DIRECTIONAL[name] }) : null; }
 
-  var ROUTE = "M16 43 C20 30 24 20 29.5 20 C35.5 20 35 38 41 38 C45 38 47 33.5 48.5 30";
+  var ROUTE = "M15.5 43.5 C20.5 32.5 24.5 22 32.5 22 C39.5 22 41.5 32.5 48.5 34.5";
   function Mark(p) {
-    var s = p.size || 36, onDark = p.tone === "white";
-    var stroke = p.tone === "outline" || p.tone === "symbol" ? "#0A5BD3" : (onDark ? "#FFFFFF" : "url(#ms-route-g)");
-    var start = p.tone === "outline" || p.tone === "symbol" ? "#0A5BD3" : (onDark ? "#FFFFFF" : "#2F7BFF");
-    var bare = p.tone === "symbol" || onDark;
-    return h("svg", { className: "ms-logo-mark", width: s, height: s, viewBox: bare ? "10 14 44 34" : "0 0 64 64", "aria-hidden": "true" },
-      h("defs", null, h("linearGradient", { id: "ms-route-g", x1: 16, y1: 43, x2: 48.5, y2: 30, gradientUnits: "userSpaceOnUse" },
-        h("stop", { offset: 0, stopColor: "#2F7BFF" }), h("stop", { offset: 1, stopColor: "#22B8A0" }))),
-      bare ? null : (p.tone === "outline"
+    var s = p.size || 36, tone = p.tone || "navy", onLight = tone === "outline" || tone === "symbol", white = tone === "white";
+    var bare = tone === "symbol" || white;
+    var stroke = white ? "#FFFFFF" : (onLight ? "#0A5BD3" : "#2F7BFF");
+    var origin = white ? "#FFFFFF" : (onLight ? "#2F7BFF" : "#7FB0FF");
+    return h("svg", { className: "ms-logo-mark", width: s, height: s, viewBox: bare ? "8 12 48 40" : "0 0 64 64", "aria-hidden": "true" },
+      bare ? null : (tone === "outline"
         ? h("rect", { x: 2.5, y: 2.5, width: 59, height: 59, rx: 15, fill: "#FFFFFF", stroke: "#0B1F3F", strokeWidth: 4 })
         : h("rect", { width: 64, height: 64, rx: 16, fill: "#0B1F3F" })),
-      h("path", { d: ROUTE, fill: "none", stroke: stroke, strokeWidth: 5.5, strokeLinecap: "round" }),
-      h("circle", { cx: 16, cy: 43, r: 4.6, fill: start }), h("circle", { cx: 48.5, cy: 30, r: 4.6, fill: "#12A06A" }));
+      h("path", { d: ROUTE, fill: "none", stroke: stroke, strokeWidth: 6, strokeLinecap: "round" }),
+      h("circle", { cx: 15.5, cy: 43.5, r: 5, fill: origin }), h("circle", { cx: 48.5, cy: 34.5, r: 5, fill: "#12A06A" }));
   }
   function Logo(p) {
     var mark = h(Mark, { size: p.size || 36, tone: p.tone });

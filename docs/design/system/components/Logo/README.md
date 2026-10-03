@@ -1,4 +1,4 @@
-The Masslak mark and wordmark: a wave route from a blue origin stop to a green destination stop on a navy rounded square.
+The Masslak mark and wordmark: one arc from a light-blue origin stop to a green destination stop, on a navy rounded square.
 
 Use `withName` for the lockup in headers, drawers and auth screens; the bare mark for favicons, avatars and tight spaces.
 
