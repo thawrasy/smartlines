@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# يبني قاعدة بيانات مسلك من الصفر: ./db/build.sh <database> [psql connection args]
+# Builds the Masslak database from scratch: ./db/build.sh <database> [psql connection args]
 set -euo pipefail
 DB="${1:?database name}"; shift || true
 DIR="$(cd "$(dirname "$0")" && pwd)/schema"

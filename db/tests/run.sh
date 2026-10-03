@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# يبني قاعدة اختبار جديدة ويشغّل الاختبارات: ./db/tests/run.sh [psql connection args]
+# Builds a fresh test database and runs the tests: ./db/tests/run.sh [psql connection args]
 set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DB="masslak_test_$$"

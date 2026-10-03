@@ -1,36 +1,45 @@
 -- =====================================================================
--- 950: البيانات الأولية — المرجعية، المنصة، كتالوج الصلاحيات والأدوار، الإعدادات
--- كتالوج الصلاحيات والأدوار مأخوذ من مصفوفة الصلاحيات (القسم 33)
+-- 950: seed data — reference data, platform party, permission and role catalog, settings
+-- The permission and role catalog follows the permission matrix (section 33).
+-- All seed values are English; localized labels belong in ref.translation.
 -- =====================================================================
 
-INSERT INTO ref.currency (code, name_ar, name_en, minor_unit) VALUES
-  ('SYP','ليرة سورية','Syrian Pound',2), ('USD','دولار أمريكي','US Dollar',2), ('EUR','يورو','Euro',2),
-  ('SAR','ريال سعودي','Saudi Riyal',2), ('JOD','دينار أردني','Jordanian Dinar',3), ('LBP','ليرة لبنانية','Lebanese Pound',2),
-  ('TRY','ليرة تركية','Turkish Lira',2), ('IQD','دينار عراقي','Iraqi Dinar',3);
+-- Native names are endonyms shown in the language picker (display data, not schema)
+INSERT INTO ref.locale (code, name, native_name, direction, is_enabled, is_default) VALUES
+  ('en','English','English','LTR',true,true),
+  ('ar','Arabic',U&'\0627\0644\0639\0631\0628\064A\0629','RTL',true,false),
+  ('tr','Turkish',U&'T\00FCrk\00E7e','LTR',false,false),
+  ('fr','French',U&'Fran\00E7ais','LTR',false,false),
+  ('es','Spanish',U&'Espa\00F1ol','LTR',false,false);
 
-INSERT INTO ref.country (code, name_ar, name_en, phone_prefix, default_currency) VALUES
-  ('SY','سوريا','Syria','+963','SYP'), ('LB','لبنان','Lebanon','+961','LBP'), ('JO','الأردن','Jordan','+962','JOD'),
-  ('IQ','العراق','Iraq','+964','IQD'), ('TR','تركيا','Turkey','+90','TRY'), ('SA','السعودية','Saudi Arabia','+966','SAR');
+INSERT INTO ref.currency (code, name, minor_unit) VALUES
+  ('SYP','Syrian Pound',2), ('USD','US Dollar',2), ('EUR','Euro',2),
+  ('SAR','Saudi Riyal',2), ('JOD','Jordanian Dinar',3), ('LBP','Lebanese Pound',2),
+  ('TRY','Turkish Lira',2), ('IQD','Iraqi Dinar',3);
 
-INSERT INTO ref.city (code, country_code, region, name_ar, name_en, lat, lng) VALUES
-  ('DAM','SY','دمشق','دمشق','Damascus',33.513800,36.276500),
-  ('RDM','SY','ريف دمشق','ريف دمشق','Rif Dimashq',33.516700,36.483300),
-  ('ALP','SY','حلب','حلب','Aleppo',36.202100,37.134300),
-  ('HMS','SY','حمص','حمص','Homs',34.730800,36.709400),
-  ('HMA','SY','حماة','حماة','Hama',35.131800,36.757800),
-  ('LTK','SY','اللاذقية','اللاذقية','Latakia',35.523800,35.791700),
-  ('TRT','SY','طرطوس','طرطوس','Tartus',34.889000,35.886600),
-  ('IDL','SY','إدلب','إدلب','Idlib',35.930600,36.633900),
-  ('DRZ','SY','دير الزور','دير الزور','Deir ez-Zor',35.336000,40.140800),
-  ('RQA','SY','الرقة','الرقة','Raqqa',35.950000,39.016700),
-  ('HSK','SY','الحسكة','الحسكة','Al-Hasakah',36.502400,40.747700),
-  ('DRA','SY','درعا','درعا','Daraa',32.625000,36.106000),
-  ('SWD','SY','السويداء','السويداء','As-Suwayda',32.708900,36.569500),
-  ('QNT','SY','القنيطرة','القنيطرة','Quneitra',33.125600,35.824400),
-  ('BEY','LB','بيروت','بيروت','Beirut',33.893800,35.501800),
-  ('AMM','JO','عمّان','عمّان','Amman',31.945400,35.928400);
+INSERT INTO ref.country (code, name, phone_prefix, default_currency) VALUES
+  ('SY','Syria','+963','SYP'), ('LB','Lebanon','+961','LBP'), ('JO','Jordan','+962','JOD'),
+  ('IQ','Iraq','+964','IQD'), ('TR','Turkey','+90','TRY'), ('SA','Saudi Arabia','+966','SAR');
 
--- مراجع المفاتيح (المفاتيح نفسها في KMS)
+INSERT INTO ref.city (code, country_code, region, name, lat, lng) VALUES
+  ('DAM','SY','Damascus','Damascus',33.513800,36.276500),
+  ('RDM','SY','Rif Dimashq','Rif Dimashq',33.516700,36.483300),
+  ('ALP','SY','Aleppo','Aleppo',36.202100,37.134300),
+  ('HMS','SY','Homs','Homs',34.730800,36.709400),
+  ('HMA','SY','Hama','Hama',35.131800,36.757800),
+  ('LTK','SY','Latakia','Latakia',35.523800,35.791700),
+  ('TRT','SY','Tartus','Tartus',34.889000,35.886600),
+  ('IDL','SY','Idlib','Idlib',35.930600,36.633900),
+  ('DRZ','SY','Deir ez-Zor','Deir ez-Zor',35.336000,40.140800),
+  ('RQA','SY','Raqqa','Raqqa',35.950000,39.016700),
+  ('HSK','SY','Al-Hasakah','Al-Hasakah',36.502400,40.747700),
+  ('DRA','SY','Daraa','Daraa',32.625000,36.106000),
+  ('SWD','SY','As-Suwayda','As-Suwayda',32.708900,36.569500),
+  ('QNT','SY','Quneitra','Quneitra',33.125600,35.824400),
+  ('BEY','LB','Beirut','Beirut',33.893800,35.501800),
+  ('AMM','JO','Amman','Amman',31.945400,35.928400);
+
+-- Key references (the keys themselves live in KMS)
 INSERT INTO sec.key_registry (key_ref, purpose, data_class, algorithm) VALUES
   ('kms://masslak/field/restricted/v1', 'FIELD_ENCRYPTION', 'RESTRICTED', 'AES-256-GCM'),
   ('kms://masslak/field/confidential/v1', 'FIELD_ENCRYPTION', 'CONFIDENTIAL', 'AES-256-GCM'),
@@ -39,91 +48,91 @@ INSERT INTO sec.key_registry (key_ref, purpose, data_class, algorithm) VALUES
   ('kms://masslak/sign/qr/v1', 'QR_SIGNING', 'RESTRICTED', 'ECDSA-P256'),
   ('kms://masslak/webhook/v1', 'WEBHOOK_SECRET', 'RESTRICTED', 'AES-256-GCM');
 
--- طرف المنصة ومحافظها الداخلية
-INSERT INTO iam.party (party_type, legal_name, name_en, country_code, verification_status)
-VALUES ('COMPANY', 'منصة مسلك', 'Masslak Platform', 'SY', 'VERIFIED');
+-- Platform party and its internal wallets
+INSERT INTO iam.party (party_type, legal_name, country_code, verification_status)
+VALUES ('COMPANY', 'Masslak Platform', 'SY', 'VERIFIED');
 
 INSERT INTO fin.wallet (owner_party_id, wallet_type, label, currency, allow_negative)
 SELECT p.id, w.t, w.l, c.code, w.neg
 FROM iam.party p
-CROSS JOIN (VALUES ('PLATFORM','إيراد المنصة',false), ('ESCROW','أموال الضمان',false), ('COMMISSION','العمولات',false),
-                   ('TAX','الضرائب المحصلة',false), ('GATEWAY_CLEARING','مقاصة بوابات الدفع',true),
-                   ('BANK_CLEARING','مقاصة التحويلات البنكية',true), ('SPONSOR','ذمم الرعاة',true)) AS w(t, l, neg)
+CROSS JOIN (VALUES ('PLATFORM','Platform revenue',false), ('ESCROW','Escrow funds',false), ('COMMISSION','Commissions',false),
+                   ('TAX','Collected taxes',false), ('GATEWAY_CLEARING','Payment gateway clearing',true),
+                   ('BANK_CLEARING','Bank transfer clearing',true), ('SPONSOR','Sponsor receivables',true)) AS w(t, l, neg)
 CROSS JOIN (VALUES ('SYP'), ('USD')) AS c(code)
-WHERE p.name_en = 'Masslak Platform';
+WHERE p.legal_name = 'Masslak Platform' AND p.party_type = 'COMPANY';
 
 INSERT INTO sales.channel (code, channel_type) VALUES
   ('WEB','DIRECT'), ('APP_ANDROID','DIRECT'), ('APP_IOS','DIRECT'), ('COUNTER','COUNTER'), ('CALL_CENTER','CALL_CENTER');
 
--- ------------------------------ كتالوج الصلاحيات -----------------------
-INSERT INTO iam.permission (code, module, scope, description_ar, is_sensitive) VALUES
-  ('trip.search','sales','BOTH','البحث وعرض الرحلات',false),
-  ('booking.self','sales','BOTH','حجز وإلغاء حجز لنفسه',false),
-  ('booking.on_behalf','sales','COMPANY','حجز لعميل نيابة (رصيد الوكالة)',false),
-  ('sale.cash','sales','COMPANY','البيع النقدي',true),
-  ('wallet.self','fin','BOTH','إدارة المحفظة: شحن وكشف',false),
-  ('vehicle.manage','fleet','COMPANY','إنشاء وتعديل المركبات',false),
-  ('vehicle.ownership','fleet','COMPANY','ملكية المركبات وعقود الإيجار',false),
-  ('trip.publish','ops','COMPANY','نشر الرحلات وجدولتها',false),
-  ('trip.reschedule','ops','BOTH','إعادة جدولة رحلة',false),
-  ('trip.complete','ops','BOTH','إتمام الرحلة وتحرير الأموال',true),
-  ('trip.assign_crew','ops','COMPANY','تعيين السائق والطاقم',false),
-  ('driver.tracking','ops','COMPANY','إرسال الموقع وتسجيل المحطات',false),
-  ('boarding.scan','ops','BOTH','مسح QR وصعود الركاب',false),
-  ('manifest.view','ops','BOTH','قائمة الركاب',true),
-  ('tracking.own','ops','COMPANY','التتبع المباشر لرحلات الشركة',false),
-  ('tracking.all','ops','PLATFORM','التتبع والإنذارات لكل الرحلات',false),
-  ('travel_docs.verify','sec','PLATFORM','التحقق من وثائق السفر',true),
-  ('watchlist.manage','sec','PLATFORM','قوائم المنع والمراقبة',true),
-  ('company.staff','iam','COMPANY','إدارة موظفي الشركة وأدوارها',true),
-  ('company.login_log','audit','BOTH','سجل دخول موظفي الشركة',false),
-  ('company.billing','fin','BOTH','اشتراك الشركة وفواتيرها',false),
-  ('company.api_keys','iam','COMPANY','مفاتيح API للناقل',true),
-  ('company.payout_schedule','fin','BOTH','جدول تحويلات الشركة',true),
-  ('company.approve','iam','PLATFORM','فتح حساب ناقل واعتماده',true),
-  ('pricing.tax_commission','pricing','PLATFORM','مخططات الضرائب والعمولات',true),
-  ('policy.matrix','gov','PLATFORM','مصفوفة الصلاحيات وتغييرها',true),
-  ('campaign.manage','pricing','PLATFORM','إنشاء الحملات وتشغيلها',false),
-  ('campaign.approve_budget','pricing','PLATFORM','اعتماد ميزانية الحملات',true),
-  ('payment.fee_policy','fin','PLATFORM','سياسة رسوم الدفع',true),
-  ('cash.remittance','fin','PLATFORM','إيداع وتوريد النقد',true),
-  ('payout.run','fin','PLATFORM','تشغيل التحويلات والفوترة',true),
-  ('ledger.reconcile','fin','PLATFORM','الدفتر والمطابقة',true),
-  ('withdrawal.approve','fin','PLATFORM','اعتماد طلبات السحب',true),
-  ('case.handle','crm','BOTH','فتح الشكاوى ومتابعتها',false),
-  ('compensation.decide','crm','PLATFORM','قرار التعويض',true),
-  ('compensation.pay','fin','PLATFORM','اعتماد دفع التعويض',true),
-  ('ai.use','crm','BOTH','استعمال المساعد الذكي',false),
-  ('ai.manage','crm','PLATFORM','إدارة أدوات المساعد ومعرفته',true),
-  ('report.company','report','COMPANY','تقارير الناقل',false),
-  ('report.platform','report','PLATFORM','تقارير المنصة',false),
-  ('regulator.dashboard','gov','PLATFORM','لوحة الجهة الناظمة',false),
-  ('audit.view','audit','PLATFORM','سجل التدقيق',true),
-  ('privacy.manage','gov','PLATFORM','طلبات الخصوصية وحوادث البيانات',true),
-  ('loyalty.self','pricing','BOTH','كسب واستبدال نقاطي',false),
-  ('loyalty.manage','pricing','PLATFORM','إدارة برنامج الولاء',true),
-  ('obligation.manage','gov','PLATFORM','سجل الالتزامات التشريعية',false),
-  ('carrier_code.approve','net','PLATFORM','اعتماد رموز الناقلين',true),
-  ('license.approve_change','fleet','PLATFORM','اعتماد تعديل تواريخ التراخيص',true),
-  ('station.approve','net','PLATFORM','اعتماد نقاط الشركات',false),
-  ('security.ip_rules','sec','PLATFORM','إدارة حجب العناوين والنطاقات',true),
-  ('security.api_clients','sec','PLATFORM','إدارة عملاء API واعتمادهم',true),
-  ('einvoice.manage','acct','BOTH','الفوترة الإلكترونية والملف الضريبي',true),
-  ('incident.manage','ops','BOTH','الحوادث وقرارات الاستمرارية',false),
-  ('shariah.approve','gov','PLATFORM','اعتماد المنتجات المالية شرعياً',true);
+-- ------------------------------ Permission catalog ---------------------
+INSERT INTO iam.permission (code, module, scope, description, is_sensitive) VALUES
+  ('trip.search','sales','BOTH','Search and view trips',false),
+  ('booking.self','sales','BOTH','Book and cancel own bookings',false),
+  ('booking.on_behalf','sales','COMPANY','Book on behalf of a customer (agency balance)',false),
+  ('sale.cash','sales','COMPANY','Cash sales',true),
+  ('wallet.self','fin','BOTH','Wallet management: top-up and statement',false),
+  ('vehicle.manage','fleet','COMPANY','Create and edit vehicles',false),
+  ('vehicle.ownership','fleet','COMPANY','Vehicle ownership and lease contracts',false),
+  ('trip.publish','ops','COMPANY','Publish and schedule trips',false),
+  ('trip.reschedule','ops','BOTH','Reschedule a trip',false),
+  ('trip.complete','ops','BOTH','Complete a trip and release funds',true),
+  ('trip.assign_crew','ops','COMPANY','Assign driver and crew',false),
+  ('driver.tracking','ops','COMPANY','Send location and record stops',false),
+  ('boarding.scan','ops','BOTH','Scan QR and board passengers',false),
+  ('manifest.view','ops','BOTH','Passenger manifest',true),
+  ('tracking.own','ops','COMPANY','Live tracking of company trips',false),
+  ('tracking.all','ops','PLATFORM','Tracking and alerts for all trips',false),
+  ('travel_docs.verify','sec','PLATFORM','Verify travel documents',true),
+  ('watchlist.manage','sec','PLATFORM','Ban and watch lists',true),
+  ('company.staff','iam','COMPANY','Manage company staff and roles',true),
+  ('company.login_log','audit','BOTH','Company staff login log',false),
+  ('company.billing','fin','BOTH','Company subscription and invoices',false),
+  ('company.api_keys','iam','COMPANY','Carrier API keys',true),
+  ('company.payout_schedule','fin','BOTH','Company payout schedule',true),
+  ('company.approve','iam','PLATFORM','Open and approve a carrier account',true),
+  ('pricing.tax_commission','pricing','PLATFORM','Tax and commission schemes',true),
+  ('policy.matrix','gov','PLATFORM','Policy authority matrix and changes',true),
+  ('campaign.manage','pricing','PLATFORM','Create and run campaigns',false),
+  ('campaign.approve_budget','pricing','PLATFORM','Approve campaign budgets',true),
+  ('payment.fee_policy','fin','PLATFORM','Payment fee policy',true),
+  ('cash.remittance','fin','PLATFORM','Cash deposit and remittance',true),
+  ('payout.run','fin','PLATFORM','Run payouts and billing',true),
+  ('ledger.reconcile','fin','PLATFORM','Ledger and reconciliation',true),
+  ('withdrawal.approve','fin','PLATFORM','Approve withdrawal requests',true),
+  ('case.handle','crm','BOTH','Open and follow up complaints',false),
+  ('compensation.decide','crm','PLATFORM','Compensation decision',true),
+  ('compensation.pay','fin','PLATFORM','Approve compensation payment',true),
+  ('ai.use','crm','BOTH','Use the AI assistant',false),
+  ('ai.manage','crm','PLATFORM','Manage assistant tools and knowledge',true),
+  ('report.company','report','COMPANY','Carrier reports',false),
+  ('report.platform','report','PLATFORM','Platform reports',false),
+  ('regulator.dashboard','gov','PLATFORM','Regulator dashboard',false),
+  ('audit.view','audit','PLATFORM','Audit log',true),
+  ('privacy.manage','gov','PLATFORM','Privacy requests and data incidents',true),
+  ('loyalty.self','pricing','BOTH','Earn and redeem own points',false),
+  ('loyalty.manage','pricing','PLATFORM','Manage the loyalty program',true),
+  ('obligation.manage','gov','PLATFORM','Legal obligations register',false),
+  ('carrier_code.approve','net','PLATFORM','Approve carrier codes',true),
+  ('license.approve_change','fleet','PLATFORM','Approve license date changes',true),
+  ('station.approve','net','PLATFORM','Approve company points',false),
+  ('security.ip_rules','sec','PLATFORM','Manage IP and range blocking',true),
+  ('security.api_clients','sec','PLATFORM','Manage and approve API clients',true),
+  ('einvoice.manage','acct','BOTH','E-invoicing and tax profile',true),
+  ('incident.manage','ops','BOTH','Incidents and continuity decisions',false),
+  ('shariah.approve','gov','PLATFORM','Shariah approval of financial products',true);
 
--- ------------------------------ الأدوار النظامية ----------------------
-INSERT INTO iam.role (code, name_ar, scope, is_system) VALUES
-  ('PLATFORM_ADMIN','مسؤول المنصة','PLATFORM',true),
-  ('PLATFORM_FINANCE','المالية','PLATFORM',true),
-  ('PLATFORM_SECURITY','الأمن والامتثال','PLATFORM',true),
-  ('PLATFORM_SUPPORT','الدعم','PLATFORM',true),
-  ('REGULATOR','الجهة الناظمة','PLATFORM',true),
-  ('PLATFORM_MARKETING','التسويق','PLATFORM',true),
-  ('CARRIER_OPERATIONS','عمليات الناقل (قالب)','COMPANY',true),
-  ('CARRIER_COUNTER','موظف شباك (قالب)','COMPANY',true),
-  ('CARRIER_DRIVER','سائق (قالب)','COMPANY',true),
-  ('CARRIER_ACCOUNTANT','محاسب الناقل (قالب)','COMPANY',true);
+-- ------------------------------ System roles --------------------------
+INSERT INTO iam.role (code, name, scope, is_system) VALUES
+  ('PLATFORM_ADMIN','Platform administrator','PLATFORM',true),
+  ('PLATFORM_FINANCE','Finance','PLATFORM',true),
+  ('PLATFORM_SECURITY','Security and compliance','PLATFORM',true),
+  ('PLATFORM_SUPPORT','Support','PLATFORM',true),
+  ('REGULATOR','Regulator','PLATFORM',true),
+  ('PLATFORM_MARKETING','Marketing','PLATFORM',true),
+  ('CARRIER_OPERATIONS','Carrier operations (template)','COMPANY',true),
+  ('CARRIER_COUNTER','Counter agent (template)','COMPANY',true),
+  ('CARRIER_DRIVER','Driver (template)','COMPANY',true),
+  ('CARRIER_ACCOUNTANT','Carrier accountant (template)','COMPANY',true);
 
 INSERT INTO iam.role_permission (role_id, permission_code)
 SELECT r.id, x.p FROM iam.role r JOIN (VALUES
@@ -155,18 +164,18 @@ SELECT r.id, x.p FROM iam.role r JOIN (VALUES
   ('CARRIER_ACCOUNTANT','company.payout_schedule')
 ) AS x(r, p) ON x.r = r.code AND r.company_id IS NULL;
 
--- ------------------------------ الإعدادات الافتراضية -------------------
+-- ------------------------------ Default settings ----------------------
 INSERT INTO sys.setting (key, value, description) VALUES
-  ('security.auth_fail_ip',   '{"threshold":30,"window_min":60}', 'حجب آلي للعنوان بعد إخفاقات دخول متكررة (16.18)'),
-  ('security.auth_fail_user', '{"threshold":5,"window_min":15,"lock_min":15}', 'قفل الحساب بعد إخفاقات متكررة'),
-  ('security.admin_ip_allowlist_enforced', 'false', 'عند التفعيل: بوابة الإدارة لا تُفتح إلا من عناوين ALLOW بنطاق ADMIN'),
-  ('security.api_key_rotation_days', '90', 'مدة صلاحية مفتاح API'),
-  ('retention.audit_months', '84', 'مدة الاحتفاظ بسجلات التدقيق (7 سنوات، تُضبط قانونياً)'),
-  ('retention.geo_event_days', '7', 'مدة الاحتفاظ بمواقع التتبع للأفراد'),
-  ('booking.hold_minutes', '10', 'مدة الحجز المؤقت للمقاعد'),
-  ('booking.sales_cutoff_minutes', '15', 'إقفال البيع قبل المغادرة من المحطة'),
-  ('booking.post_departure_policy', '"PHYSICAL_FREE"', 'سياسة البيع بعد الانطلاق الافتراضية (القرار 71)'),
-  ('einvoice.mode', '"GENERATION"', 'وضع الفوترة الإلكترونية حتى تفعيل الربط الحكومي'),
-  ('features', '{"loyalty":true,"campaigns":true,"ai_assistant":true,"gov_integration":false,"international":false,"cargo":false}', 'مفاتيح التفعيل (2.8)');
+  ('security.auth_fail_ip',   '{"threshold":30,"window_min":60}', 'Automatic IP block after repeated login failures (16.18)'),
+  ('security.auth_fail_user', '{"threshold":5,"window_min":15,"lock_min":15}', 'Lock the account after repeated failures'),
+  ('security.admin_ip_allowlist_enforced', 'false', 'When enabled, the admin portal opens only from ALLOW addresses with ADMIN scope'),
+  ('security.api_key_rotation_days', '90', 'API key validity period'),
+  ('retention.audit_months', '84', 'Audit log retention (7 years, set by law)'),
+  ('retention.geo_event_days', '7', 'Retention of individual tracking positions'),
+  ('booking.hold_minutes', '10', 'Temporary seat hold duration'),
+  ('booking.sales_cutoff_minutes', '15', 'Sales cutoff before departure from the station'),
+  ('booking.post_departure_policy', '"PHYSICAL_FREE"', 'Default post-departure sales policy (Decision 71)'),
+  ('einvoice.mode', '"GENERATION"', 'E-invoicing mode until government integration is activated'),
+  ('features', '{"loyalty":true,"campaigns":true,"ai_assistant":true,"gov_integration":false,"international":false,"cargo":false}', 'Feature flags (2.8)');
 
 INSERT INTO sys.schema_migration (version, description) VALUES ('1.0.0', 'Phase 1 baseline schema');

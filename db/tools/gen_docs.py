@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""يولّد قاموس البيانات ومخططات ERD من قاعدة مبنية فعلياً (فلا تختلف الوثائق عن المخطط).
+"""Generates the data dictionary and ERD diagrams from a built database (so the docs never drift from the schema).
 
-الاستخدام:
+Usage:
     python3 db/tools/gen_docs.py <database> [psql connection args...]
-المخرجات:
-    db/DATA_DICTIONARY.md  — كل جدول بغرضه وأعمدته وأنواعها وقيودها
-    db/ERD.md              — مخطط Mermaid لكل وحدة من المفاتيح الأجنبية الفعلية
+Output:
+    db/DATA_DICTIONARY.md  — every table with its purpose, columns, types and constraints
+    db/ERD.md              — a Mermaid diagram per module from the actual foreign keys
 """
 import json
 import os
@@ -13,20 +13,20 @@ import subprocess
 import sys
 
 SCHEMAS = [
-    ("iam", "الهوية والأطراف والمستخدمون والصلاحيات وواجهات API"),
-    ("ref", "البيانات المرجعية والملفات"),
-    ("sys", "الإعدادات وصندوق الأحداث وWebhooks"),
-    ("net", "الشبكة: المحطات والخطوط ورموز الناقلين"),
-    ("fleet", "الأسطول: المركبات والمقاعد والطاقم والتراخيص والتأمين"),
-    ("pricing", "التسعير والضرائب والعمولات والحملات والولاء"),
-    ("ops", "الرحلات والمخزون والتشغيل والتتبع والحوادث"),
-    ("sales", "القنوات والحجوزات والمسافرون والتذاكر"),
-    ("fin", "المحافظ والدفتر والمدفوعات والتوزيع والتسوية"),
-    ("acct", "المحاسبة المبسطة والفوترة الإلكترونية والملف الضريبي"),
-    ("crm", "الشكاوى والتقييم والإشعارات والمساعد الذكي"),
-    ("gov", "الحوكمة والالتزامات وحماية البيانات"),
-    ("sec", "الأمن: قواعد IP والمخاطر والتوقيع ووحدة الأمن"),
-    ("audit", "سجلات الدخول والإجراءات (إلحاق فقط)"),
+    ("iam", "Identity, parties, users, permissions and API clients"),
+    ("ref", "Reference data, locales and files"),
+    ("sys", "Settings, outbox and webhooks"),
+    ("net", "Network: stations, routes and carrier codes"),
+    ("fleet", "Fleet: vehicles, seats, crew, licenses and insurance"),
+    ("pricing", "Pricing, taxes, commissions, campaigns and loyalty"),
+    ("ops", "Trips, inventory, operations, tracking and incidents"),
+    ("sales", "Channels, bookings, passengers and tickets"),
+    ("fin", "Wallets, ledger, payments, allocation and settlement"),
+    ("acct", "Simplified accounting, e-invoicing and tax profiles"),
+    ("crm", "Complaints, ratings, notifications and the AI assistant"),
+    ("gov", "Governance, obligations and data protection"),
+    ("sec", "Security: IP rules, risk, signing and the security hub"),
+    ("audit", "Login and activity logs (append-only)"),
 ]
 
 Q_TABLES = r"""
@@ -71,7 +71,7 @@ def q(db, args, sql):
     return json.loads(out.strip())
 
 
-# روابط "من نفّذ" وروابط البيانات المرجعية تُحذف من الرسم للوضوح (تبقى كاملة في قاموس البيانات)
+# "Who did it" links and reference-data links are omitted from diagrams for clarity (they remain in the data dictionary)
 ACTOR_COLS = {"created_by", "approved_by", "updated_by", "reviewed_by", "verified_by", "decided_by", "granted_by",
               "revoked_by", "requested_by", "closed_by", "uploaded_by", "changed_by", "by_user_id", "handled_by",
               "executed_by", "assigned_to", "owner_user_id", "reviewer_id", "second_approver", "payout_by",
@@ -98,16 +98,16 @@ def main():
     for t in tables:
         by_schema.setdefault(t["schema"], []).append(t)
 
-    # ---------------- قاموس البيانات ----------------
+    # ---------------- Data dictionary ----------------
     total_cols = sum(len(t["columns"]) for t in tables)
-    lines = ["# قاموس البيانات — قاعدة بيانات مسلك (المرحلة الأولى)", "",
-             "> مولَّد آلياً من القاعدة المبنية (`db/tools/gen_docs.py`)؛ لا يُعدَّل يدوياً.", "",
-             f"**{len(tables)} جدولاً، {total_cols} عموداً، في {len(by_schema)} مخططاً.**", "",
-             "الرموز: 🔑 مفتاح أساسي · 🔗 مفتاح أجنبي · ✱ إلزامي · 🛡️ عزل المستأجر (RLS) · 🧩 مقسّم شهرياً · 🔒 إلحاق فقط/محمي من التعديل", "",
-             "## الفهرس", ""]
+    lines = ["# Data Dictionary — Masslak Database (Phase 1)", "",
+             "> Generated from the built database (`db/tools/gen_docs.py`); do not edit by hand.", "",
+             f"**{len(tables)} tables, {total_cols} columns, in {len(by_schema)} schemas.**", "",
+             "Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant isolation (RLS) · 🧩 partitioned monthly · 🔒 append-only / change-protected", "",
+             "## Index", ""]
     for s, title in SCHEMAS:
         if s in by_schema:
-            lines.append(f"- [`{s}` — {title}](#{s}) ({len(by_schema[s])} جدولاً)")
+            lines.append(f"- [`{s}` — {title}](#{s}) ({len(by_schema[s])} tables)")
     lines.append("")
     for s, title in SCHEMAS:
         if s not in by_schema:
@@ -123,7 +123,7 @@ def main():
             if any(x.endswith("immutable") or x in ("einvoice_guard", "journal_guard", "license_locked", "ip_rule_no_delete") for x in trig):
                 flags.append("🔒")
             lines += [f"### `{s}.{t['name']}` {' '.join(flags)}", "", t["comment"] or "", "",
-                      "| العمود | النوع | قيود | افتراضي |", "|---|---|---|---|"]
+                      "| Column | Type | Constraints | Default |", "|---|---|---|---|"]
             for c in t["columns"]:
                 marks = ("🔑 " if c["pk"] else "") + (f"🔗 `{c['fk']}` " if c["fk"] else "") + ("✱" if c["notnull"] else "")
                 default = (c["default"] or "").replace("|", "\\|")
@@ -134,12 +134,12 @@ def main():
     open(os.path.join(root, "DATA_DICTIONARY.md"), "w", encoding="utf-8").write("\n".join(lines))
 
     # ---------------- ERD ----------------
-    out = ["# مخططات العلاقات (ERD) — قاعدة بيانات مسلك (المرحلة الأولى)", "",
-           "> مولَّدة آلياً من المفاتيح الأجنبية الفعلية في القاعدة المبنية. كل مخطط يعرض جداول الوحدة بأعمدتها الرئيسية،",
-           "> والجداول التي ترتبط بها من وحدات أخرى (بلا أعمدة). الخط المتصل = علاقة إلزامية، والمتقطع = اختيارية.",
-           "> للوضوح لا تُرسم روابط «من نفّذ» (created_by، approved_by...) إلى `iam.app_user`، ولا روابط العملة والدولة",
-           "> ومفاتيح التشفير والملفات؛ وهي كاملة في [قاموس البيانات](DATA_DICTIONARY.md).", "",
-           "## الصورة العامة: الوحدات وعلاقاتها", "", "```mermaid", "flowchart LR"]
+    out = ["# Entity-Relationship Diagrams — Masslak Database (Phase 1)", "",
+           "> Generated from the actual foreign keys of the built database. Each diagram shows the module's tables with their key columns,",
+           "> plus the tables they reference in other modules (without columns). Solid line = required relationship, dashed = optional.",
+           "> For clarity, \"who did it\" links (created_by, approved_by...) to `iam.app_user` and links to currency, country,",
+           "> encryption keys and files are not drawn; they are all listed in the [data dictionary](DATA_DICTIONARY.md).", "",
+           "## Overview: modules and their relationships", "", "```mermaid", "flowchart LR"]
     edges = {}
     for f in fks:
         if f["cs"] != f["ps"] and drawn(f):

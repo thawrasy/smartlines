@@ -1,14 +1,14 @@
 -- =====================================================================
--- 030: الشبكة (المحطات، الخطوط، رموز الناقلين، أرقام الخدمات)
---      والأسطول (المركبات، المقاعد، الملكية، الطاقم، التراخيص، التأمين)
--- المرجع: 4.3، 4.4، 4.11، 4.13، 4.14، 4.16، 4.17، 4.18، 7.12 أ
+-- 030: network (stations, routes, carrier codes, service numbers)
+--      and fleet (vehicles, seats, ownership, crew, licenses, insurance)
+-- Source: 4.3, 4.4, 4.11, 4.13, 4.14, 4.16, 4.17, 4.18, 7.12 a
 -- =====================================================================
 
 -- ============================== net ==================================
 CREATE TABLE net.compliance_profile (
   id            bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   subject       text NOT NULL DEFAULT 'STATION' CHECK (subject IN ('STATION','COMPANY','VEHICLE')),
-  country_code  text NOT NULL,                        -- '*' = كل الدول
+  country_code  text NOT NULL,                        -- '*' = all countries
   station_class text NOT NULL CHECK (station_class IN ('CENTRAL','COMPANY','EXTERNAL','*')),
   version       int NOT NULL,
   spec          jsonb NOT NULL,                       -- {required:[], optional:[], grace_days}
@@ -19,7 +19,7 @@ CREATE TABLE net.compliance_profile (
   UNIQUE (subject, country_code, station_class, version),
   CHECK (approved_by IS NULL OR approved_by <> created_by)
 );
-COMMENT ON TABLE net.compliance_profile IS 'ملف الامتثال بإصدارات لكل (دولة، فئة): الحقول المطلوبة ومهلة الاستكمال (4.11 ب)';
+COMMENT ON TABLE net.compliance_profile IS 'Versioned compliance profile per (country, class): required fields and completion grace period (4.11 b)';
 
 CREATE TABLE net.station (
   id                bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -29,9 +29,8 @@ CREATE TABLE net.station (
   country_code      char(2) NOT NULL REFERENCES ref.country(code),
   station_class     text NOT NULL CHECK (station_class IN ('CENTRAL','COMPANY','EXTERNAL')),
   subtype           text NOT NULL DEFAULT 'TERMINAL' CHECK (subtype IN ('TERMINAL','OFFICE','PICKUP','DEPOT','REST','BORDER')),
-  owner_company_id  bigint REFERENCES iam.company(id),  -- فارغ للمحطات المركزية
-  name_ar           text NOT NULL,
-  name_en           text,
+  owner_company_id  bigint REFERENCES iam.company(id),  -- empty for central stations
+  name              text NOT NULL,
   address           text,
   lat               numeric(9,6) NOT NULL,
   lng               numeric(9,6) NOT NULL,
@@ -43,11 +42,11 @@ CREATE TABLE net.station (
   license_no        text,
   license_authority text,
   license_expiry    date,
-  lead_min          int NOT NULL DEFAULT 30 CHECK (lead_min >= 0),   -- زمن الوصول قبل الانطلاق
+  lead_min          int NOT NULL DEFAULT 30 CHECK (lead_min >= 0),   -- recommended arrival time before departure
   status            text NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING','ACTIVE','SUSPENDED','REJECTED')),
   compliance_state  text NOT NULL DEFAULT 'OK' CHECK (compliance_state IN ('OK','ACTION_REQUIRED','NON_COMPLIANT')),
   compliance_profile_id bigint REFERENCES net.compliance_profile(id),
-  extra             jsonb NOT NULL DEFAULT '{}',      -- حقول يفرضها ملف الامتثال دون تغيير المخطط
+  extra             jsonb NOT NULL DEFAULT '{}',      -- fields required by the compliance profile without schema changes
   verified_by       bigint REFERENCES iam.app_user(id),
   verified_at       timestamptz,
   created_at        timestamptz NOT NULL DEFAULT now(),
@@ -55,9 +54,9 @@ CREATE TABLE net.station (
   CHECK (station_class = 'CENTRAL' OR owner_company_id IS NOT NULL)
 );
 CREATE INDEX station_city_idx ON net.station (city_id) WHERE status = 'ACTIVE';
-CREATE INDEX station_name_trgm ON net.station USING gin (name_ar gin_trgm_ops);
+CREATE INDEX station_name_trgm ON net.station USING gin (name gin_trgm_ops);
 CREATE TRIGGER station_updated BEFORE UPDATE ON net.station FOR EACH ROW EXECUTE FUNCTION sys.tg_set_updated_at();
-COMMENT ON TABLE net.station IS 'سجل المحطات ونقاط الانطلاق والوصول (مركزية، نقطة شركة، خارجية) بكود فريد (4.11)';
+COMMENT ON TABLE net.station IS 'Register of stations and departure/arrival points (central, company point, external) with a unique code (4.11)';
 
 CREATE TABLE net.station_contact (
   id          bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -68,7 +67,7 @@ CREATE TABLE net.station_contact (
   email       citext
 );
 
--- رمز الناقل (4.16 أ)
+-- Carrier code (4.16 a)
 CREATE TABLE net.carrier_code (
   id          bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   company_id  bigint NOT NULL REFERENCES iam.company(id),
@@ -83,16 +82,16 @@ CREATE TABLE net.carrier_code (
 CREATE UNIQUE INDEX carrier_code3_uq ON net.carrier_code (code3);
 CREATE UNIQUE INDEX carrier_code2_uq ON net.carrier_code (code2) WHERE code2 IS NOT NULL;
 CREATE UNIQUE INDEX carrier_one_active ON net.carrier_code (company_id) WHERE status = 'ACTIVE';
-COMMENT ON TABLE net.carrier_code IS 'رمز الناقل الثلاثي (والثنائي الاختياري)، فريد على مستوى المنصة ولا يُعاد قبل 24 شهراً';
+COMMENT ON TABLE net.carrier_code IS 'Three-letter carrier code (optional two-character code), unique platform-wide and not reissued for 24 months';
 
 CREATE TABLE net.code_reservation (
   code    text PRIMARY KEY,
   reason  text NOT NULL CHECK (reason IN ('RESERVED','CONFUSABLE','OFFENSIVE','RETIRED')),
   until   date
 );
-COMMENT ON TABLE net.code_reservation IS 'رموز محجوزة أو ممنوعة أو مسحوبة مؤقتاً';
+COMMENT ON TABLE net.code_reservation IS 'Reserved, prohibited or temporarily withdrawn codes';
 
--- قالب الخط للناقل (4.4 و4.12)
+-- Carrier route template (4.4, 4.12)
 CREATE TABLE net.route (
   id                bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   uid               uuid NOT NULL DEFAULT gen_random_uuid() UNIQUE,
@@ -109,7 +108,7 @@ CREATE TABLE net.route (
   UNIQUE (company_id, code),
   CHECK (origin_station_id <> dest_station_id)
 );
-COMMENT ON TABLE net.route IS 'قالب خط الناقل بين محطتين؛ تُنسخ محطاته إلى الرحلة عند توليدها (كتالوج الخطوط المعتمد 4.15 يضاف في المرحلة 2)';
+COMMENT ON TABLE net.route IS 'Carrier route template between two stations; its stops are copied to the trip when generated (the approved line catalog 4.15 is added in Phase 2)';
 
 CREATE TABLE net.route_stop (
   route_id      bigint NOT NULL REFERENCES net.route(id) ON DELETE CASCADE,
@@ -120,14 +119,14 @@ CREATE TABLE net.route_stop (
   dep_offset_min int NOT NULL DEFAULT 0,
   rest_min      smallint NOT NULL DEFAULT 0,
   dist_from_origin_km int,
-  fare_from_origin bigint CHECK (fare_from_origin >= 0),   -- سلّم الأسعار الافتراضي (4.12 ب)
+  fare_from_origin bigint CHECK (fare_from_origin >= 0),   -- default fare ladder (4.12 b)
   sellable      boolean NOT NULL DEFAULT true,
   PRIMARY KEY (route_id, seq),
   CHECK (dep_offset_min >= arr_offset_min)
 );
-COMMENT ON TABLE net.route_stop IS 'محطات الخط بالترتيب، وأزمنة الإزاحة، وسلّم السعر من الأصل';
+COMMENT ON TABLE net.route_stop IS 'Ordered route stops, time offsets and the fare ladder from the origin';
 
--- رقم الخدمة (4.16 ب)
+-- Service number (4.16 b)
 CREATE TABLE net.service_number (
   id          bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   company_id  bigint NOT NULL REFERENCES iam.company(id),
@@ -143,21 +142,21 @@ CREATE TABLE net.service_number (
     (block = 'SHUTTLE'   AND number BETWEEN 2000 AND 2999) OR
     (block = 'CARGO'     AND number BETWEEN 3000 AND 3999) OR
     (block = 'EXTRA'     AND number BETWEEN 5000 AND 9999)),
-  CHECK ((direction = 'OUTBOUND') = (number % 2 = 1) OR block = 'EXTRA'),   -- فردي ذهاب، زوجي عودة
+  CHECK ((direction = 'OUTBOUND') = (number % 2 = 1) OR block = 'EXTRA'),   -- odd = outbound, even = return
   EXCLUDE USING gist (company_id WITH =, number WITH =, valid WITH &&)
 );
-COMMENT ON TABLE net.service_number IS 'رقم الخدمة المتكررة من كتلة النوع؛ لا يتكرر للناقل في فترة متداخلة';
+COMMENT ON TABLE net.service_number IS 'Recurring service number from its type block; never repeated for a carrier in an overlapping period';
 
 -- ============================== fleet ================================
 CREATE TABLE fleet.seat_layout (
   id          bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  company_id  bigint REFERENCES iam.company(id),      -- فارغ = قالب عام
+  company_id  bigint REFERENCES iam.company(id),      -- empty = shared template
   name        text NOT NULL,
   total_seats smallint NOT NULL CHECK (total_seats > 0),
   decks       smallint NOT NULL DEFAULT 1 CHECK (decks IN (1,2)),
   created_at  timestamptz NOT NULL DEFAULT now()
 );
-COMMENT ON TABLE fleet.seat_layout IS 'مخططات المقاعد القابلة لإعادة الاستخدام';
+COMMENT ON TABLE fleet.seat_layout IS 'Reusable seat layouts';
 
 CREATE TABLE fleet.seat_layout_seat (
   layout_id   bigint NOT NULL REFERENCES fleet.seat_layout(id) ON DELETE CASCADE,
@@ -170,7 +169,7 @@ CREATE TABLE fleet.seat_layout_seat (
   PRIMARY KEY (layout_id, seat_no),
   UNIQUE (layout_id, deck, row_no, col_no)
 );
-COMMENT ON TABLE fleet.seat_layout_seat IS 'مقاعد الركاب في المخطط (مقاعد الطاقم لا تدخل المخزون 4.14)';
+COMMENT ON TABLE fleet.seat_layout_seat IS 'Passenger seats in the layout (crew seats are not part of the inventory, 4.14)';
 
 CREATE TABLE fleet.vehicle (
   id                bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -196,7 +195,7 @@ CREATE TABLE fleet.vehicle (
   ownership_type    text NOT NULL DEFAULT 'OWNED' CHECK (ownership_type IN ('OWNED','LEASED')),
   owner_party_id    bigint NOT NULL REFERENCES iam.party(id),
   status            text NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING','ACTIVE','BLOCKED','OUT_OF_SERVICE','IMPOUNDED','RETIRED')),
-  block_reason      text,                             -- مثل LICENSE_EXPIRED, INSURANCE_EXPIRED, LEASE_EXPIRED
+  block_reason      text,                             -- e.g. LICENSE_EXPIRED, INSURANCE_EXPIRED, LEASE_EXPIRED
   created_at        timestamptz NOT NULL DEFAULT now(),
   updated_at        timestamptz NOT NULL DEFAULT now(),
   UNIQUE (plate_country, plate_no),
@@ -204,7 +203,7 @@ CREATE TABLE fleet.vehicle (
 );
 CREATE INDEX vehicle_company_idx ON fleet.vehicle (company_id, status);
 CREATE TRIGGER vehicle_updated BEFORE UPDATE ON fleet.vehicle FOR EACH ROW EXECUTE FUNCTION sys.tg_set_updated_at();
-COMMENT ON TABLE fleet.vehicle IS 'المركبة: النوع والسعة الجالسة والواقفة، الملكية والمالك، والحالة التي تحجبها عن الإسناد (4.3، 4.13، 4.17، 4.18)';
+COMMENT ON TABLE fleet.vehicle IS 'Vehicle: type, seated and standing capacity, ownership and owner, and the status that blocks assignment (4.3, 4.13, 4.17, 4.18)';
 
 CREATE TABLE fleet.seat_price_rule (
   id            bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -212,12 +211,12 @@ CREATE TABLE fleet.seat_price_rule (
   vehicle_id    bigint REFERENCES fleet.vehicle(id),
   seat_layout_id bigint REFERENCES fleet.seat_layout(id),
   seat_nos      smallint[] NOT NULL,
-  price_delta   bigint NOT NULL,                      -- موجب للمميز، سالب للمخفض
+  price_delta   bigint NOT NULL,                      -- positive for premium, negative for discounted
   label         text NOT NULL,
   active        boolean NOT NULL DEFAULT true,
   CHECK (vehicle_id IS NOT NULL OR seat_layout_id IS NOT NULL)
 );
-COMMENT ON TABLE fleet.seat_price_rule IS 'أسعار المقاعد المميزة أو المخفضة يحددها الناقل (4.14 أ)';
+COMMENT ON TABLE fleet.seat_price_rule IS 'Premium or discounted seat prices set by the carrier (4.14 a)';
 
 CREATE TABLE fleet.vehicle_lease (
   id                bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -231,7 +230,7 @@ CREATE TABLE fleet.vehicle_lease (
   created_at        timestamptz NOT NULL DEFAULT now(),
   EXCLUDE USING gist (vehicle_id WITH =, period WITH &&) WHERE (status = 'ACTIVE')
 );
-COMMENT ON TABLE fleet.vehicle_lease IS 'عقد إيجار المركبة؛ مستأجر فعّال واحد لكل مركبة في الفترة (قيد استبعاد)';
+COMMENT ON TABLE fleet.vehicle_lease IS 'Vehicle lease contract; one active lessee per vehicle per period (exclusion constraint)';
 
 CREATE TABLE fleet.crew_profile (
   party_id      bigint PRIMARY KEY REFERENCES iam.party(id),
@@ -241,9 +240,9 @@ CREATE TABLE fleet.crew_profile (
   status        text NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('PENDING','ACTIVE','BLOCKED','LEFT')),
   created_at    timestamptz NOT NULL DEFAULT now()
 );
-COMMENT ON TABLE fleet.crew_profile IS 'السائقون والمضيفون؛ رخصهم وتواريخها في fleet.license_record';
+COMMENT ON TABLE fleet.crew_profile IS 'Drivers and hosts; their licenses and dates live in fleet.license_record';
 
--- سجل التراخيص الموحد (4.18): تاريخ انتهاء مقفل بعد الحفظ، وتعديل باعتماد مزدوج
+-- Unified license register (4.18): expiry date locked after saving, changes require dual approval
 CREATE TABLE fleet.license_record (
   id                bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   company_id        bigint REFERENCES iam.company(id),
@@ -266,7 +265,7 @@ CREATE TABLE fleet.license_record (
 );
 CREATE INDEX license_subject_idx ON fleet.license_record (subject_type, subject_id, license_type);
 CREATE INDEX license_expiry_idx  ON fleet.license_record (expiry_date) WHERE status IN ('VALID','EXPIRING');
-COMMENT ON TABLE fleet.license_record IS 'كل تاريخ انتهاء يحكم أهلية التشغيل (ترخيص، فحص، تأمين، رخصة قيادة)؛ مقفل بعد الحفظ';
+COMMENT ON TABLE fleet.license_record IS 'Every expiry date that governs operating eligibility (license, inspection, insurance, driving license); locked after saving';
 
 CREATE TABLE fleet.license_change_request (
   id                bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -284,16 +283,16 @@ CREATE TABLE fleet.license_change_request (
 );
 ALTER TABLE fleet.license_record ADD CONSTRAINT license_last_change_fk
   FOREIGN KEY (last_change_request_id) REFERENCES fleet.license_change_request(id);
-COMMENT ON TABLE fleet.license_change_request IS 'طلب تعديل ترخيص مقفل: مراجعة ثم اعتماد من مسؤول مختلف';
+COMMENT ON TABLE fleet.license_change_request IS 'Change request for a locked license: review, then approval by a different officer';
 
--- لا يُعدَّل رقم الترخيص أو تاريخه بعد الإقفال إلا بطلب معتمد جديد
+-- License number and dates cannot change after locking except through a new approved request
 CREATE OR REPLACE FUNCTION fleet.tg_license_locked() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
   IF OLD.locked AND (NEW.expiry_date IS DISTINCT FROM OLD.expiry_date
                   OR NEW.license_no  IS DISTINCT FROM OLD.license_no
                   OR NEW.issue_date  IS DISTINCT FROM OLD.issue_date) THEN
     IF NEW.source = 'GOV' AND OLD.source = 'GOV' THEN
-      RETURN NEW;                                       -- التحديث الحكومي هو المرجع (4.18 ج)
+      RETURN NEW;                                       -- the government update is the reference (4.18 c)
     END IF;
     IF NEW.last_change_request_id IS NOT DISTINCT FROM OLD.last_change_request_id
        OR NOT EXISTS (SELECT 1 FROM fleet.license_change_request r
@@ -317,7 +316,7 @@ CREATE TABLE fleet.insurance_policy (
   cargo_cover       boolean NOT NULL DEFAULT false,
   limits            jsonb,
   period            daterange NOT NULL,
-  license_record_id bigint REFERENCES fleet.license_record(id),   -- يحكم الحجب عند الانتهاء
+  license_record_id bigint REFERENCES fleet.license_record(id),   -- drives blocking on expiry
   document_id       bigint REFERENCES iam.document(id),
   source            text NOT NULL DEFAULT 'MANUAL' CHECK (source IN ('MANUAL','TRAFFIC','INSURER')),
   verified_at       timestamptz,
@@ -325,7 +324,7 @@ CREATE TABLE fleet.insurance_policy (
   created_at        timestamptz NOT NULL DEFAULT now(),
   UNIQUE (insurer_name, policy_no)
 );
-COMMENT ON TABLE fleet.insurance_policy IS 'عقد التأمين شرط لتفعيل المركبة؛ يُتحقق منه لاحقاً من المرور أو شركات التأمين (7.12 أ)';
+COMMENT ON TABLE fleet.insurance_policy IS 'Insurance contract, required to activate the vehicle; later verified with the traffic authority or insurers (7.12 a)';
 
 CREATE TABLE fleet.vehicle_qr_tag (
   id          bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -335,7 +334,7 @@ CREATE TABLE fleet.vehicle_qr_tag (
   revoked_at  timestamptz
 );
 CREATE UNIQUE INDEX vehicle_qr_one_active ON fleet.vehicle_qr_tag (vehicle_id) WHERE revoked_at IS NULL;
-COMMENT ON TABLE fleet.vehicle_qr_tag IS 'ملصق QR الموقّع على المركبة للتحقق الميداني (4.18 هـ)';
+COMMENT ON TABLE fleet.vehicle_qr_tag IS 'Signed QR sticker on the vehicle for field verification (4.18 e)';
 
 CREATE TABLE fleet.field_check_log (
   id                  bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -347,17 +346,17 @@ CREATE TABLE fleet.field_check_log (
   lng                 numeric(9,6),
   created_at          timestamptz NOT NULL DEFAULT now()
 );
-COMMENT ON TABLE fleet.field_check_log IS 'كل استعلام ميداني من رجال الأمن والجهات المخوّلة';
+COMMENT ON TABLE fleet.field_check_log IS 'Every field query by security officers and authorized bodies';
 
 CREATE TABLE fleet.vehicle_status_history (
   id            bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   vehicle_id    bigint NOT NULL REFERENCES fleet.vehicle(id),
   status        text NOT NULL,
   reason        text NOT NULL,
-  incident_id   bigint,                               -- FK بعد ops.incident
+  incident_id   bigint,                               -- FK added after ops.incident
   changed_by    bigint REFERENCES iam.app_user(id),
   release_document_id bigint REFERENCES iam.document(id),
   created_at    timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX vehicle_status_hist_idx ON fleet.vehicle_status_history (vehicle_id, created_at DESC);
-COMMENT ON TABLE fleet.vehicle_status_history IS 'تاريخ حالة المركبة (إيقاف بعد حادث، حجز، إفراج) بالسبب والدليل';
+COMMENT ON TABLE fleet.vehicle_status_history IS 'Vehicle status history (suspension after an incident, impoundment, release) with reason and evidence';

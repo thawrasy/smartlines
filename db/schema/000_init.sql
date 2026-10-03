@@ -1,41 +1,41 @@
 -- =====================================================================
--- Masslak (مسلك) — قاعدة بيانات المرحلة الأولى
--- 000: الامتدادات والمخططات والأدوار والدوال المساعدة
--- المرجع: الدراسة v2.4، القسم 29.1 (قواعد النقل إلى PostgreSQL)
---   المبالغ BIGINT بالوحدة الصغرى، الأزمنة TIMESTAMPTZ (UTC)،
---   JSONB للحقول المرنة، مفتاح داخلي BIGINT + معرّف عام UUID،
---   مفاتيح أجنبية صريحة، تقسيم الجداول الكبيرة زمنياً، تشفير حقلي.
+-- Masslak — Phase 1 database
+-- 000: extensions, schemas, roles and helper functions
+-- Source: study v2.4, section 29.1 (rules for the PostgreSQL production schema)
+--   amounts are BIGINT in minor currency units, timestamps are TIMESTAMPTZ (UTC),
+--   JSONB for flexible fields, internal BIGINT key + public UUID,
+--   explicit foreign keys, time partitioning for large tables, field-level encryption.
 -- =====================================================================
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto;    -- gen_random_uuid, digest
-CREATE EXTENSION IF NOT EXISTS citext;      -- بريد إلكتروني غير حساس لحالة الأحرف
-CREATE EXTENSION IF NOT EXISTS btree_gist;  -- قيود الاستبعاد (منع تداخل المركبة والسائق والإيجار)
-CREATE EXTENSION IF NOT EXISTS pg_trgm;     -- البحث النصي عن المحطات والمدن
+CREATE EXTENSION IF NOT EXISTS citext;      -- case-insensitive email addresses
+CREATE EXTENSION IF NOT EXISTS btree_gist;  -- exclusion constraints (no overlapping vehicle, crew or lease periods)
+CREATE EXTENSION IF NOT EXISTS pg_trgm;     -- text search on stations and cities
 
 -- ---------------------------------------------------------------------
--- المخططات (Schemas): كل وحدة في مخطط مستقل بصلاحيات مستقلة
+-- Schemas: one schema per module, each with its own privileges
 -- ---------------------------------------------------------------------
-CREATE SCHEMA IF NOT EXISTS sys;      -- الإعدادات، صندوق الأحداث، Webhooks، دوال مساعدة
-CREATE SCHEMA IF NOT EXISTS ref;      -- البيانات المرجعية: دول، عملات، مدن، ملفات
-CREATE SCHEMA IF NOT EXISTS iam;      -- الهوية والأطراف والمستخدمون والصلاحيات وAPI
-CREATE SCHEMA IF NOT EXISTS net;      -- الشبكة: المحطات والخطوط ورموز الناقلين
-CREATE SCHEMA IF NOT EXISTS fleet;    -- المركبات والمقاعد والطاقم والتراخيص والتأمين
-CREATE SCHEMA IF NOT EXISTS pricing;  -- الأسعار والعلامات والضرائب والعمولات والحملات والولاء
-CREATE SCHEMA IF NOT EXISTS ops;      -- الرحلات والمخزون والتشغيل والتتبع والحوادث
-CREATE SCHEMA IF NOT EXISTS sales;    -- الحجوزات والمسافرون والتذاكر والصعود
-CREATE SCHEMA IF NOT EXISTS fin;      -- المحافظ والدفتر والمدفوعات والتوزيع والتسوية
-CREATE SCHEMA IF NOT EXISTS acct;     -- المحاسبة المبسطة والفوترة الإلكترونية والملف الضريبي
-CREATE SCHEMA IF NOT EXISTS crm;      -- الشكاوى والتقييم والإشعارات والمساعد الذكي
-CREATE SCHEMA IF NOT EXISTS gov;      -- الحوكمة: مصفوفة الصلاحيات، الالتزامات، حماية البيانات
-CREATE SCHEMA IF NOT EXISTS sec;      -- الأمن: قواعد IP، المخاطر، المفاتيح، وحدة الأمن والامتثال
-CREATE SCHEMA IF NOT EXISTS audit;    -- سجلات الدخول والإجراءات (إلحاق فقط)
+CREATE SCHEMA IF NOT EXISTS sys;      -- settings, outbox, webhooks, helper functions
+CREATE SCHEMA IF NOT EXISTS ref;      -- reference data: countries, currencies, cities, locales, files
+CREATE SCHEMA IF NOT EXISTS iam;      -- identity, parties, users, permissions and API clients
+CREATE SCHEMA IF NOT EXISTS net;      -- network: stations, routes, carrier codes
+CREATE SCHEMA IF NOT EXISTS fleet;    -- vehicles, seats, crew, licenses and insurance
+CREATE SCHEMA IF NOT EXISTS pricing;  -- fares, brands, taxes, commissions, campaigns and loyalty
+CREATE SCHEMA IF NOT EXISTS ops;      -- trips, inventory, operations, tracking and incidents
+CREATE SCHEMA IF NOT EXISTS sales;    -- bookings, passengers, tickets and boarding
+CREATE SCHEMA IF NOT EXISTS fin;      -- wallets, ledger, payments, price allocation and settlement
+CREATE SCHEMA IF NOT EXISTS acct;     -- simplified accounting, e-invoicing and tax profiles
+CREATE SCHEMA IF NOT EXISTS crm;      -- complaints, ratings, notifications and the AI assistant
+CREATE SCHEMA IF NOT EXISTS gov;      -- governance: policy authority matrix, obligations, data protection
+CREATE SCHEMA IF NOT EXISTS sec;      -- security: IP rules, risk, keys, security & compliance hub
+CREATE SCHEMA IF NOT EXISTS audit;    -- login and activity logs (append-only)
 
 -- ---------------------------------------------------------------------
--- الأدوار (Roles) — أقل صلاحية (16.17: حسابات قاعدة بصلاحيات دنيا)
---   masslak_owner   : مالك المخطط، للترحيل فقط (لا يستخدمه التطبيق)
---   masslak_app     : التطبيق؛ يخضع لسياسات RLS، ولا يعدّل السجلات أو يحذفها
---   masslak_readonly: التقارير والقراءة
---   masslak_auditor : قراءة سجلات التدقيق والأمن فقط
+-- Roles — least privilege (16.17: database accounts with minimal privileges)
+--   masslak_owner   : schema owner, migrations only (never used by the application)
+--   masslak_app     : the application; subject to RLS, cannot modify or delete log records
+--   masslak_readonly: reporting and read access
+--   masslak_auditor : read access to audit and security logs only
 -- ---------------------------------------------------------------------
 DO $$
 BEGIN
@@ -46,8 +46,8 @@ BEGIN
 END $$;
 
 -- ---------------------------------------------------------------------
--- سياق الطلب: يضبطه التطبيق في بداية كل معاملة عبر sys.set_context()
--- فتستخدمه سياسات RLS وسجلات التدقيق
+-- Request context: set by the application at the start of every transaction via sys.set_context()
+-- and used by RLS policies and audit logs
 -- ---------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION sys.set_context(
   p_user_id       bigint,
@@ -83,30 +83,30 @@ CREATE OR REPLACE FUNCTION sys.ctx_request_id()    RETURNS uuid   LANGUAGE sql S
 CREATE OR REPLACE FUNCTION sys.ctx_ip()            RETURNS inet   LANGUAGE sql STABLE AS $$ SELECT nullif(current_setting('app.ip', true), '')::inet $$;
 CREATE OR REPLACE FUNCTION sys.ctx_is_platform()   RETURNS boolean LANGUAGE sql STABLE AS $$ SELECT coalesce(sys.ctx_scope() IN ('PLATFORM','SYSTEM'), false) $$;
 
--- عزل المستأجر: صف الشركة مرئي لموظف المنصة أو لمستخدم الشركة نفسها
+-- Tenant isolation: a company row is visible to platform staff or to users of that same company
 CREATE OR REPLACE FUNCTION sys.tenant_visible(p_company_id bigint) RETURNS boolean
 LANGUAGE sql STABLE AS $$
   SELECT sys.ctx_is_platform() OR (p_company_id IS NOT NULL AND p_company_id = sys.ctx_company_id())
 $$;
 
 -- ---------------------------------------------------------------------
--- دوال مشغّلات عامة
+-- Generic trigger functions
 -- ---------------------------------------------------------------------
--- تحديث updated_at آلياً
+-- Maintain updated_at automatically
 CREATE OR REPLACE FUNCTION sys.tg_set_updated_at() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
   NEW.updated_at := now();
   RETURN NEW;
 END $$;
 
--- منع التعديل والحذف (جداول الإلحاق فقط: الدفتر، السجلات، الفواتير المقفلة...)
+-- Block updates and deletes (append-only tables: ledger, logs, finalized invoices...)
 CREATE OR REPLACE FUNCTION sys.tg_forbid_mutation() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
   RAISE EXCEPTION 'IMMUTABLE_RECORD: % on %.% is not allowed', TG_OP, TG_TABLE_SCHEMA, TG_TABLE_NAME
     USING ERRCODE = 'P0001';
 END $$;
 
--- خانة تحقق Mod 11 (أرقام التتبع والمستندات، 4.16 ب)
+-- Mod 11 check digit (tracking and document numbers, 4.16 b)
 CREATE OR REPLACE FUNCTION sys.mod11_check_digit(p_digits text) RETURNS int
 LANGUAGE plpgsql IMMUTABLE AS $$
 DECLARE s int := 0; w int := 2; i int; r int;
@@ -119,5 +119,5 @@ BEGIN
   RETURN CASE WHEN r = 11 THEN 0 WHEN r = 10 THEN 1 ELSE r END;
 END $$;
 
-COMMENT ON FUNCTION sys.set_context IS 'يضبط سياق الطلب (المستخدم، الشركة، النطاق، عميل API، رقم الطلب، IP) لسياسات RLS والتدقيق';
-COMMENT ON FUNCTION sys.tg_forbid_mutation IS 'يمنع UPDATE وDELETE على جداول الإلحاق فقط';
+COMMENT ON FUNCTION sys.set_context IS 'Sets the request context (user, company, scope, API client, request id, IP) for RLS policies and auditing';
+COMMENT ON FUNCTION sys.tg_forbid_mutation IS 'Blocks UPDATE and DELETE on append-only tables';

@@ -1,7 +1,7 @@
 -- =====================================================================
--- اختبارات المخطط: تُشغَّل على قاعدة مبنية حديثاً بـ build.sh
+-- Schema tests: run against a freshly built database (build.sh)
 --   psql -d <db> -v ON_ERROR_STOP=1 -f db/tests/run_tests.sql
--- أي فشل يوقف التشغيل برسالة FAIL
+-- Any failure stops the run with a FAIL message
 -- =====================================================================
 \set QUIET on
 SET client_min_messages = notice;
@@ -25,31 +25,31 @@ BEGIN
   IF p_cond THEN RAISE NOTICE 'PASS  %', p_name; ELSE RAISE EXCEPTION 'FAIL  %', p_name; END IF;
 END $$;
 
--- ------------------------------ التهيئة (كمالك) ----------------------
+-- ------------------------------ Setup (as owner) ----------------------
 BEGIN;
-INSERT INTO iam.party (party_type, legal_name, name_en) VALUES ('COMPANY','شركة القدس للنقل','Al-Quds Transport'), ('COMPANY','شركة الشام','Al-Sham Lines'), ('PERSON','سائق تجريبي','Test Driver'), ('PERSON','مسافر تجريبي','Test Passenger');
-INSERT INTO iam.company (id, approval_status) SELECT id, 'APPROVED' FROM iam.party WHERE name_en IN ('Al-Quds Transport','Al-Sham Lines');
-INSERT INTO iam.app_user (party_id, account_kind, email, status, password_hash) SELECT id, 'COMPANY', 'owner@quds.test', 'ACTIVE', '$argon2id$v=19$m=65536,t=3,p=1$Zq9-PW-MARKER-7731' FROM iam.party WHERE name_en = 'Al-Quds Transport';
-INSERT INTO iam.app_user (party_id, account_kind, email, status) SELECT id, 'PLATFORM', 'admin@masslak.test', 'ACTIVE' FROM iam.party WHERE name_en = 'Masslak Platform';
-INSERT INTO iam.app_user (party_id, account_kind, email, status) SELECT id, 'PLATFORM', 'finance@masslak.test', 'ACTIVE' FROM iam.party WHERE name_en = 'Test Driver';
-INSERT INTO net.station (code, city_id, country_code, station_class, name_ar, lat, lng, status)
-SELECT 'SY-' || c.code || '-C001', c.id, 'SY', 'CENTRAL', 'محطة ' || c.name_ar, c.lat, c.lng, 'ACTIVE' FROM ref.city c WHERE c.code IN ('DAM','HMS','ALP');
+INSERT INTO iam.party (party_type, legal_name) VALUES ('COMPANY','Al-Quds Transport'), ('COMPANY','Al-Sham Lines'), ('PERSON','Test Driver'), ('PERSON','Test Passenger');
+INSERT INTO iam.company (id, approval_status) SELECT id, 'APPROVED' FROM iam.party WHERE legal_name IN ('Al-Quds Transport','Al-Sham Lines');
+INSERT INTO iam.app_user (party_id, account_kind, email, status, password_hash) SELECT id, 'COMPANY', 'owner@quds.test', 'ACTIVE', '$argon2id$v=19$m=65536,t=3,p=1$Zq9-PW-MARKER-7731' FROM iam.party WHERE legal_name = 'Al-Quds Transport';
+INSERT INTO iam.app_user (party_id, account_kind, email, status) SELECT id, 'PLATFORM', 'admin@masslak.test', 'ACTIVE' FROM iam.party WHERE legal_name = 'Masslak Platform';
+INSERT INTO iam.app_user (party_id, account_kind, email, status) SELECT id, 'PLATFORM', 'finance@masslak.test', 'ACTIVE' FROM iam.party WHERE legal_name = 'Test Driver';
+INSERT INTO net.station (code, city_id, country_code, station_class, name, lat, lng, status)
+SELECT 'SY-' || c.code || '-C001', c.id, 'SY', 'CENTRAL', c.name || ' Central Station', c.lat, c.lng, 'ACTIVE' FROM ref.city c WHERE c.code IN ('DAM','HMS','ALP');
 INSERT INTO net.route (company_id, code, origin_station_id, dest_station_id, service_type)
-SELECT (SELECT id FROM iam.party WHERE name_en='Al-Quds Transport'), 'DAM-ALP',
+SELECT (SELECT id FROM iam.party WHERE legal_name='Al-Quds Transport'), 'DAM-ALP',
        (SELECT id FROM net.station WHERE code='SY-DAM-C001'), (SELECT id FROM net.station WHERE code='SY-ALP-C001'), 'INDIRECT';
 INSERT INTO fleet.vehicle (company_id, vehicle_type, plate_no, chassis_no, passenger_seats, owner_party_id, status)
-SELECT id, 'COACH', '123456', 'CHS-A-1', 48, id, 'ACTIVE' FROM iam.party WHERE name_en='Al-Quds Transport';
+SELECT id, 'COACH', '123456', 'CHS-A-1', 48, id, 'ACTIVE' FROM iam.party WHERE legal_name='Al-Quds Transport';
 INSERT INTO fleet.vehicle (company_id, vehicle_type, plate_no, chassis_no, passenger_seats, owner_party_id, status)
-SELECT id, 'COACH', '654321', 'CHS-B-1', 40, id, 'ACTIVE' FROM iam.party WHERE name_en='Al-Sham Lines';
+SELECT id, 'COACH', '654321', 'CHS-B-1', 40, id, 'ACTIVE' FROM iam.party WHERE legal_name='Al-Sham Lines';
 INSERT INTO fleet.crew_profile (party_id, company_id, crew_type)
-SELECT (SELECT id FROM iam.party WHERE name_en='Test Driver'), (SELECT id FROM iam.party WHERE name_en='Al-Quds Transport'), 'DRIVER';
+SELECT (SELECT id FROM iam.party WHERE legal_name='Test Driver'), (SELECT id FROM iam.party WHERE legal_name='Al-Quds Transport'), 'DRIVER';
 COMMIT;
 
--- قيم مختصرة
-SELECT id AS ca FROM iam.party WHERE name_en='Al-Quds Transport' \gset
-SELECT id AS cb FROM iam.party WHERE name_en='Al-Sham Lines' \gset
-SELECT id AS driver FROM iam.party WHERE name_en='Test Driver' \gset
-SELECT id AS pax FROM iam.party WHERE name_en='Test Passenger' \gset
+-- Shorthand values
+SELECT id AS ca FROM iam.party WHERE legal_name='Al-Quds Transport' \gset
+SELECT id AS cb FROM iam.party WHERE legal_name='Al-Sham Lines' \gset
+SELECT id AS driver FROM iam.party WHERE legal_name='Test Driver' \gset
+SELECT id AS pax FROM iam.party WHERE legal_name='Test Passenger' \gset
 SELECT id AS ua FROM iam.app_user WHERE email='owner@quds.test' \gset
 SELECT id AS uadmin FROM iam.app_user WHERE email='admin@masslak.test' \gset
 SELECT id AS ufin FROM iam.app_user WHERE email='finance@masslak.test' \gset
@@ -57,10 +57,10 @@ SELECT id AS va FROM fleet.vehicle WHERE chassis_no='CHS-A-1' \gset
 SELECT id AS vb FROM fleet.vehicle WHERE chassis_no='CHS-B-1' \gset
 SELECT id AS route FROM net.route WHERE code='DAM-ALP' \gset
 
--- ------------------------------ كدور التطبيق (تخضع لـ RLS) ----------
+-- ------------------------------ As the application role (subject to RLS) ----------
 SET ROLE masslak_app;
 
--- 1) عزل المستأجر
+-- 1) Tenant isolation
 BEGIN;
 SELECT sys.set_context(:ua, :ca, 'COMPANY');
 SELECT pg_temp.ok((SELECT count(*) FROM fleet.vehicle) = 1, 'RLS: carrier A sees only its own vehicles');
@@ -73,7 +73,7 @@ BEGIN;
 SELECT pg_temp.ok((SELECT count(*) FROM fleet.vehicle) = 0, 'RLS: no context = no private rows visible (deny by default)');
 COMMIT;
 
--- 2) الرحلات: منع تعارض المركبة والطاقم
+-- 2) Trips: no vehicle or crew conflicts
 BEGIN;
 SELECT sys.set_context(:ua, :ca, 'COMPANY');
 INSERT INTO ops.trip (trip_no, company_id, route_id, vehicle_id, departure_at, arrival_at, status, seats_total, segments_count, currency, base_price, service_type)
@@ -96,7 +96,7 @@ SELECT pg_temp.expect_error(format($$INSERT INTO ops.crew_assignment (trip_id, p
   'conflicting key', 'Driver cannot be assigned to overlapping trips');
 COMMIT;
 
--- 3) الدفتر المزدوج
+-- 3) Double-entry ledger
 BEGIN;
 SELECT sys.set_context(:uadmin, NULL, 'SYSTEM');
 INSERT INTO fin.wallet (owner_party_id, wallet_type, currency) VALUES (:pax, 'USER', 'SYP');
@@ -117,7 +117,7 @@ SELECT pg_temp.expect_error('UPDATE fin.ledger_entry SET amount = 1', 'permissio
 SELECT pg_temp.expect_error($$INSERT INTO fin.ledger_txn (txn_type, currency, idempotency_key) VALUES ('TOPUP','SYP','t-1')$$, 'duplicate key', 'Ledger: idempotency key prevents double posting');
 COMMIT;
 
--- 4) آلة حالة الحجز
+-- 4) Booking state machine
 BEGIN;
 SELECT sys.set_context(:uadmin, NULL, 'SYSTEM');
 INSERT INTO sales.booking (booking_ref, trip_id, company_id, booker_party_id, channel_id, currency, total_amount, price_breakdown, rules_version, idempotency_key, status, confirmed_at)
@@ -132,12 +132,12 @@ SELECT pg_temp.ok((SELECT count(*) FROM sales.booking) = 1, 'RLS: passenger sees
 SELECT pg_temp.ok((SELECT count(*) FROM fin.wallet) = 1, 'RLS: passenger sees only own wallet');
 COMMIT;
 
--- 5) الفاتورة الإلكترونية
+-- 5) E-invoice
 BEGIN;
 SELECT sys.set_context(:uadmin, NULL, 'SYSTEM');
-INSERT INTO acct.tax_authority (code, country_code, name) VALUES ('SY-GCTF', 'SY', 'الهيئة العامة للضرائب والرسوم');
-INSERT INTO acct.tax_profile (party_id, authority_id, tax_status, tax_no, legal_name_ar)
-SELECT :ca, id, 'REGISTERED', '0101234567', 'شركة القدس للنقل' FROM acct.tax_authority WHERE code='SY-GCTF';
+INSERT INTO acct.tax_authority (code, country_code, name) VALUES ('SY-GCTF', 'SY', 'General Commission for Taxes and Fees');
+INSERT INTO acct.tax_profile (party_id, authority_id, tax_status, tax_no, legal_name)
+SELECT :ca, id, 'REGISTERED', '0101234567', 'Al-Quds Transport' FROM acct.tax_authority WHERE code='SY-GCTF';
 INSERT INTO acct.einvoice_unit (profile_id, authority_id, unit_code, number_prefix)
 SELECT p.id, p.authority_id, 'QDS-01', 'QDS-' FROM acct.tax_profile p WHERE party_id = :ca;
 SELECT id AS unit FROM acct.einvoice_unit WHERE unit_code='QDS-01' \gset
@@ -146,7 +146,7 @@ INSERT INTO acct.einvoice_document (doc_type, subtype, seller_profile_id, unit_i
 VALUES ('INVOICE','SIMPLIFIED', :prof, :unit, :ca, :pax, 'BOOKING', 1, 'SYP', 3000000, 500000, 3500000);
 SELECT max(id) AS inv FROM acct.einvoice_document \gset
 INSERT INTO acct.einvoice_line (document_id, line_no, description, unit_price, net_amount, tax_rate, tax_amount)
-VALUES (:inv, 1, 'تذكرة دمشق - حلب', 3000000, 3000000, 0.166667, 500000);
+VALUES (:inv, 1, 'Ticket Damascus - Aleppo', 3000000, 3000000, 0.166667, 500000);
 SELECT pg_temp.ok((acct.finalize_einvoice(:inv, 'HASH-1', 'SIG', 'QR-TLV')).number = 'QDS-0000000001', 'E-invoice: finalize assigns gapless number');
 SELECT pg_temp.ok((SELECT previous_hash FROM acct.einvoice_document WHERE id = :inv) = '0', 'E-invoice: first hash links to genesis');
 SELECT pg_temp.expect_error(format('UPDATE acct.einvoice_document SET total = 1, subtotal = 1, tax_total = 0 WHERE id = %s', :inv), 'IMMUTABLE_RECORD', 'E-invoice: finalized content cannot change');
@@ -165,11 +165,11 @@ SELECT max(id) AS cn2 FROM acct.einvoice_document \gset
 SELECT pg_temp.expect_error(format('SELECT acct.finalize_einvoice(%s, %L, %L, %L)', :cn2, 'H3', 'S', 'Q'), 'CREDIT_EXCEEDS_ORIGINAL', 'E-invoice: credit notes cannot exceed original');
 COMMIT;
 
--- 6) قفل تاريخ الترخيص
+-- 6) License date locking
 BEGIN;
 SELECT sys.set_context(:ua, :ca, 'COMPANY');
 INSERT INTO fleet.license_record (company_id, subject_type, subject_id, license_type, license_no, issuer, issue_date, expiry_date, status)
-VALUES (:ca, 'VEHICLE', :va, 'INSURANCE', 'POL-1', 'شركة التأمين', '2026-01-01', '2026-12-31', 'VALID');
+VALUES (:ca, 'VEHICLE', :va, 'INSURANCE', 'POL-1', 'Test Insurance Co.', '2026-01-01', '2026-12-31', 'VALID');
 SELECT max(id) AS lic FROM fleet.license_record \gset
 SELECT pg_temp.expect_error(format($$UPDATE fleet.license_record SET expiry_date = '2027-12-31' WHERE id = %s$$, :lic), 'LICENSE_LOCKED', 'License: locked expiry cannot be edited directly');
 COMMIT;
@@ -183,7 +183,7 @@ SELECT pg_temp.expect_error(format($$INSERT INTO fleet.license_change_request (l
   'license_change_request_check', 'License: requester cannot approve own change');
 COMMIT;
 
--- 7) قواعد IP والحجب الآلي
+-- 7) IP rules and automatic blocking
 BEGIN;
 SELECT sys.set_context(:uadmin, NULL, 'PLATFORM');
 INSERT INTO sec.ip_rule (rule_type, cidr, action, scope, reason) VALUES ('CIDR', '203.0.113.0/24', 'BLOCK', 'ALL', 'scraping');
@@ -208,7 +208,7 @@ SELECT pg_temp.ok((SELECT action FROM sec.ip_decision('192.0.2.44', 'PASSENGER')
 SELECT pg_temp.ok((SELECT expires_at > now() FROM sec.ip_rule WHERE source = 'AUTO_AUTH' LIMIT 1), 'Auto-block: automatic block is temporary');
 COMMIT;
 
--- 8) سجلات التدقيق
+-- 8) Audit logs
 BEGIN;
 SELECT sys.set_context(:ua, :ca, 'COMPANY', NULL, gen_random_uuid(), '10.0.0.5');
 INSERT INTO audit.activity_log (actor_type, user_id, company_id, ip, http_method, endpoint, action, object_type, object_id, result, http_status, ts)
@@ -231,9 +231,14 @@ SELECT pg_temp.ok(NOT EXISTS (SELECT 1 FROM audit.row_change WHERE new_values::t
 SELECT pg_temp.ok(audit.seal('activity_log') IS NOT NULL, 'Audit: activity log block sealed with hash chain');
 SELECT pg_temp.ok((SELECT row_count FROM audit.log_seal WHERE log_name = 'activity_log' ORDER BY id DESC LIMIT 1) = 2, 'Audit: seal covers all eligible rows');
 
--- 9) متفرقات
+-- 9) Miscellaneous
 SELECT pg_temp.ok(sys.mod11_check_digit('004512378') BETWEEN 0 AND 9, 'Tracking numbers: Mod-11 check digit function');
-SELECT pg_temp.expect_error($$INSERT INTO net.station (code, city_id, country_code, station_class, name_ar, lat, lng) VALUES ('BAD', 1, 'SY', 'CENTRAL', 'x', 0, 0)$$, 'station_code_check', 'Station code format enforced (SY-DAM-C001)');
+SELECT pg_temp.expect_error($$INSERT INTO net.station (code, city_id, country_code, station_class, name, lat, lng) VALUES ('BAD', 1, 'SY', 'CENTRAL', 'x', 0, 0)$$, 'station_code_check', 'Station code format enforced (SY-DAM-C001)');
 SELECT pg_temp.expect_error(format($$INSERT INTO net.service_number (company_id, number, block, direction) VALUES (%s, 1500, 'SCHEDULED', 'OUTBOUND')$$, :ca), 'service_number_check', 'Service number must be inside its block');
+
+SELECT pg_temp.ok((SELECT code FROM ref.locale WHERE is_default) = 'en', 'Locales: English is the single default locale');
+SELECT pg_temp.ok((SELECT direction FROM ref.locale WHERE code = 'ar') = 'RTL', 'Locales: Arabic UI locale is RTL');
+SELECT pg_temp.ok((SELECT preferred_locale FROM iam.app_user WHERE email = 'owner@quds.test') = 'en', 'Locales: users default to English');
+SELECT pg_temp.expect_error($$UPDATE iam.app_user SET preferred_locale = 'xx' WHERE email = 'owner@quds.test'$$, 'app_user_preferred_locale_fkey', 'Locales: unknown locale rejected');
 
 \echo '=== ALL TESTS PASSED ==='

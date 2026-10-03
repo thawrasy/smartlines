@@ -1,9 +1,9 @@
 -- =====================================================================
--- 050: الرحلات والمخزون حسب المقطع والطاقم والتشغيل والتتبع والحوادث
--- المرجع: 4.5، 4.12، 4.14 أ، 4.16 د، 7.8، 7.9، 7.12
--- منع التعارض بقيود استبعاد في القاعدة نفسها:
---   مركبة واحدة لا تُسند لرحلتين متداخلتين (مع هامش التجهيز)،
---   وفرد الطاقم لا يُسند لرحلتين متداخلتين.
+-- 050: trips, per-segment inventory, crew, operations, tracking and incidents
+-- Source: 4.5, 4.12, 4.14 a, 4.16 d, 7.8, 7.9, 7.12
+-- Conflicts are prevented by exclusion constraints in the database itself:
+--   a vehicle cannot be assigned to two overlapping trips (including turnaround),
+--   and a crew member cannot be assigned to two overlapping trips.
 -- =====================================================================
 
 CREATE TABLE ops.trip_template (
@@ -14,7 +14,7 @@ CREATE TABLE ops.trip_template (
   default_vehicle_id  bigint REFERENCES fleet.vehicle(id),
   departure_time      time NOT NULL,
   days_of_week        smallint[] NOT NULL DEFAULT '{1,2,3,4,5,6,7}',
-  recurrence_rule     text,                           -- RRULE اختياري للحالات المعقدة
+  recurrence_rule     text,                           -- optional RRULE for complex cases
   fare_brand_codes    text[] NOT NULL DEFAULT '{}',
   base_price          bigint NOT NULL CHECK (base_price >= 0),
   currency            char(3) NOT NULL REFERENCES ref.currency(code),
@@ -22,7 +22,7 @@ CREATE TABLE ops.trip_template (
   status              text NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE','PAUSED','RETIRED')),
   created_at          timestamptz NOT NULL DEFAULT now()
 );
-COMMENT ON TABLE ops.trip_template IS 'نمط الرحلة المتكررة الذي يولّد الرحلات الفعلية';
+COMMENT ON TABLE ops.trip_template IS 'Recurring trip pattern that generates the actual trips';
 
 CREATE TABLE ops.trip (
   id                    bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -41,7 +41,7 @@ CREATE TABLE ops.trip (
   departure_at          timestamptz NOT NULL,
   arrival_at            timestamptz NOT NULL,
   turnaround_min        smallint NOT NULL DEFAULT 30 CHECK (turnaround_min >= 0),
-  vehicle_busy          tstzrange,                    -- يُحسب آلياً: الانطلاق → الوصول + التجهيز
+  vehicle_busy          tstzrange,                    -- computed automatically: departure -> arrival + turnaround
   status                text NOT NULL DEFAULT 'DRAFT' CHECK (status IN ('DRAFT','PUBLISHED','BOARDING','DEPARTED','COMPLETED','CANCELLED')),
   capacity_mode         text NOT NULL DEFAULT 'SEATED' CHECK (capacity_mode IN ('SEATED','CAPACITY')),
   seat_selection_mode   text NOT NULL DEFAULT 'OPEN_PAID' CHECK (seat_selection_mode IN ('OPEN_PAID','FAMILY_ZONES','CARRIER_ASSIGNED')),
@@ -54,12 +54,12 @@ CREATE TABLE ops.trip (
   base_price            bigint NOT NULL CHECK (base_price >= 0),
   fare_brand_codes      text[] NOT NULL DEFAULT '{}',
   baggage_policy        jsonb NOT NULL DEFAULT '{}',
-  crew_snapshot         jsonb NOT NULL DEFAULT '{}',  -- لقطة الطاقم عند النشر (4.14)
+  crew_snapshot         jsonb NOT NULL DEFAULT '{}',  -- crew snapshot at publication (4.14)
   seat_prices_snapshot  jsonb NOT NULL DEFAULT '[]',
   post_departure_policy text NOT NULL DEFAULT 'PHYSICAL_FREE' CHECK (post_departure_policy IN ('PHYSICAL_FREE','FREED_ONLY')),
   sales_cutoff_min      smallint NOT NULL DEFAULT 15,
   hold_min              smallint NOT NULL DEFAULT 10,
-  shift_min             int NOT NULL DEFAULT 0,       -- إجمالي التأخير المتراكم (7.9)
+  shift_min             int NOT NULL DEFAULT 0,       -- cumulative delay (7.9)
   clearance_status      text NOT NULL DEFAULT 'NOT_REQUIRED' CHECK (clearance_status IN ('NOT_REQUIRED','PENDING','CLEARED','DENIED')),
   tracking_level        text NOT NULL DEFAULT 'NORMAL' CHECK (tracking_level IN ('NORMAL','STRICT')),
   published_at          timestamptz,
@@ -73,7 +73,7 @@ CREATE TABLE ops.trip (
 );
 CREATE INDEX trip_search_idx  ON ops.trip (route_id, departure_at) WHERE status IN ('PUBLISHED','BOARDING','DEPARTED');
 CREATE INDEX trip_company_idx ON ops.trip (company_id, departure_at DESC);
-COMMENT ON TABLE ops.trip IS 'الرحلة الفعلية (الكيان المحوري) برقمها والمركبة والسعة واللقطات والسياسات؛ قيد استبعاد يمنع تعارض المركبة';
+COMMENT ON TABLE ops.trip IS 'Actual trip (the pivotal entity) with its number, vehicle, capacity, snapshots and policies; an exclusion constraint prevents vehicle conflicts';
 
 CREATE OR REPLACE FUNCTION ops.tg_trip_busy() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
@@ -83,7 +83,7 @@ BEGIN
 END $$;
 CREATE TRIGGER trip_busy BEFORE INSERT OR UPDATE ON ops.trip FOR EACH ROW EXECUTE FUNCTION ops.tg_trip_busy();
 
--- لا تُسند لرحلة منشورة مركبة غير فعّالة (ترخيص/تأمين/إيجار منتهٍ يجعلها BLOCKED)
+-- A published trip cannot use an inactive vehicle (an expired license/insurance/lease makes it BLOCKED)
 CREATE OR REPLACE FUNCTION ops.tg_trip_vehicle_eligible() RETURNS trigger LANGUAGE plpgsql
 SECURITY DEFINER SET search_path = pg_catalog, public AS $$
 DECLARE v_status text; v_company bigint;
@@ -115,11 +115,11 @@ CREATE TABLE ops.trip_stop (
   actual_arr        timestamptz,
   actual_dep        timestamptz,
   rest_min          smallint NOT NULL DEFAULT 0,
-  fare_from_origin  bigint NOT NULL DEFAULT 0 CHECK (fare_from_origin >= 0),  -- سلّم السعر (4.12 ب)
+  fare_from_origin  bigint NOT NULL DEFAULT 0 CHECK (fare_from_origin >= 0),  -- fare ladder (4.12 b)
   sales_closed_at   timestamptz,
   PRIMARY KEY (trip_id, seq)
 );
-COMMENT ON TABLE ops.trip_stop IS 'محطات الرحلة (لقطة من الخط) بالأوقات الموعودة والفعلية وسلّم السعر';
+COMMENT ON TABLE ops.trip_stop IS 'Trip stops (snapshot of the route) with promised and actual times and the fare ladder';
 
 CREATE TABLE ops.trip_pair_fare (
   trip_id   bigint NOT NULL REFERENCES ops.trip(id) ON DELETE CASCADE,
@@ -129,25 +129,25 @@ CREATE TABLE ops.trip_pair_fare (
   PRIMARY KEY (trip_id, from_seq, to_seq),
   CHECK (to_seq > from_seq)
 );
-COMMENT ON TABLE ops.trip_pair_fare IS 'سعر استثنائي لزوج محطات يتجاوز فرق السلّم';
+COMMENT ON TABLE ops.trip_pair_fare IS 'Exceptional price for a station pair exceeding the ladder difference';
 
--- مخزون المقعد لكل مقطع: صف لكل (رحلة، مقعد، مقطع) — قفل ذري للمقاطع كلها أو الرفض
+-- Seat inventory per segment: one row per (trip, seat, segment) — atomic lock on all segments or reject
 CREATE TABLE ops.seat_segment (
   trip_id         bigint NOT NULL REFERENCES ops.trip(id) ON DELETE CASCADE,
   seat_no         smallint NOT NULL,
-  seg             smallint NOT NULL,                  -- المقطع i بين المحطة i والمحطة i+1
+  seg             smallint NOT NULL,                  -- segment i lies between stop i and stop i+1
   status          text NOT NULL DEFAULT 'AVAILABLE' CHECK (status IN ('AVAILABLE','LOCKED','SOLD','BLOCKED')),
   lock_token      uuid,
   lock_user_id    bigint,
   lock_expires_at timestamptz,
-  ticket_id       bigint,                             -- FK بعد sales.ticket
+  ticket_id       bigint,                             -- FK added after sales.ticket
   PRIMARY KEY (trip_id, seat_no, seg),
   CHECK (status <> 'LOCKED' OR (lock_token IS NOT NULL AND lock_expires_at IS NOT NULL)),
   CHECK (status <> 'SOLD' OR ticket_id IS NOT NULL)
 );
 CREATE INDEX seat_segment_avail ON ops.seat_segment (trip_id, seg) WHERE status = 'AVAILABLE';
 CREATE INDEX seat_segment_locks ON ops.seat_segment (lock_expires_at) WHERE status = 'LOCKED';
-COMMENT ON TABLE ops.seat_segment IS 'مخزون المقعد لكل مقطع (4.12 ج): المقعد يُباع للزوج إن كان شاغراً في كل مقاطعه';
+COMMENT ON TABLE ops.seat_segment IS 'Seat inventory per segment (4.12 c): a seat is sellable for a pair if it is vacant in all of the pair''s segments';
 
 CREATE TABLE ops.standing_segment (
   trip_id   bigint NOT NULL REFERENCES ops.trip(id) ON DELETE CASCADE,
@@ -157,7 +157,7 @@ CREATE TABLE ops.standing_segment (
   PRIMARY KEY (trip_id, seg),
   CHECK (used BETWEEN 0 AND capacity)
 );
-COMMENT ON TABLE ops.standing_segment IS 'عدّاد أماكن الوقوف لكل مقطع، لا يتجاوز السعة';
+COMMENT ON TABLE ops.standing_segment IS 'Standing places counter per segment, never above capacity';
 
 CREATE TABLE ops.family_zone (
   trip_id   bigint NOT NULL REFERENCES ops.trip(id) ON DELETE CASCADE,
@@ -165,20 +165,20 @@ CREATE TABLE ops.family_zone (
   label     text NOT NULL DEFAULT 'FAMILY',
   PRIMARY KEY (trip_id, label)
 );
-COMMENT ON TABLE ops.family_zone IS 'مناطق العائلات في الرحلة (4.14 أ)';
+COMMENT ON TABLE ops.family_zone IS 'Family zones on the trip (4.14 a)';
 
 CREATE TABLE ops.crew_assignment (
   id          bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   trip_id     bigint NOT NULL REFERENCES ops.trip(id) ON DELETE CASCADE,
   party_id    bigint NOT NULL REFERENCES fleet.crew_profile(party_id),
   crew_role   text NOT NULL CHECK (crew_role IN ('DRIVER','CO_DRIVER','HOST','ASSISTANT')),
-  busy        tstzrange NOT NULL,                     -- يُنسخ من الرحلة آلياً
+  busy        tstzrange NOT NULL,                     -- copied from the trip automatically
   status      text NOT NULL DEFAULT 'ASSIGNED' CHECK (status IN ('ASSIGNED','CONFIRMED','RELEASED')),
   created_at  timestamptz NOT NULL DEFAULT now(),
   UNIQUE (trip_id, party_id),
   EXCLUDE USING gist (party_id WITH =, busy WITH &&) WHERE (status <> 'RELEASED')
 );
-COMMENT ON TABLE ops.crew_assignment IS 'إسناد الطاقم للرحلة؛ قيد استبعاد يمنع إسناد الفرد لرحلتين متداخلتين';
+COMMENT ON TABLE ops.crew_assignment IS 'Crew assignment to the trip; an exclusion constraint prevents assigning a person to two overlapping trips';
 
 CREATE OR REPLACE FUNCTION ops.tg_crew_busy() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
@@ -199,7 +199,7 @@ CREATE TABLE ops.trip_stop_event (
   created_at  timestamptz NOT NULL DEFAULT now(),
   FOREIGN KEY (trip_id, seq) REFERENCES ops.trip_stop(trip_id, seq)
 );
-COMMENT ON TABLE ops.trip_stop_event IS 'الوصول والمغادرة الفعليان لكل محطة (أساس الالتزام بالموعد 4.12 ح)';
+COMMENT ON TABLE ops.trip_stop_event IS 'Actual arrival and departure at each stop (basis of on-time performance 4.12 h)';
 
 CREATE TABLE ops.trip_change (
   id              bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -212,7 +212,7 @@ CREATE TABLE ops.trip_change (
   by_user_id      bigint REFERENCES iam.app_user(id),
   created_at      timestamptz NOT NULL DEFAULT now()
 );
-COMMENT ON TABLE ops.trip_change IS 'سجل تغييرات الرحلة وأسبابها (7.9)';
+COMMENT ON TABLE ops.trip_change IS 'Trip change log with reasons (7.9)';
 
 CREATE TABLE ops.vehicle_swap (
   id              bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -225,9 +225,9 @@ CREATE TABLE ops.vehicle_swap (
   created_at      timestamptz NOT NULL DEFAULT now(),
   CHECK (from_vehicle_id <> to_vehicle_id)
 );
-COMMENT ON TABLE ops.vehicle_swap IS 'تبديل مركبة الرحلة دون تغيير رقمها (4.16 د)';
+COMMENT ON TABLE ops.vehicle_swap IS 'Swapping the trip vehicle without changing the trip number (4.16 d)';
 
--- ------------------------------ التتبع (مقسّم شهرياً) ----------------
+-- ------------------------------ Tracking (partitioned monthly) ----------------
 CREATE TABLE ops.geo_event (
   id            bigint GENERATED ALWAYS AS IDENTITY,
   ts            timestamptz NOT NULL,
@@ -243,7 +243,7 @@ CREATE TABLE ops.geo_event (
   PRIMARY KEY (id, ts)
 ) PARTITION BY RANGE (ts);
 CREATE INDEX geo_event_trip_idx ON ops.geo_event (trip_id, ts);
-COMMENT ON TABLE ops.geo_event IS 'مواقع التتبع؛ مقسّم شهرياً، ومدة احتفاظ قصيرة (16.13: 7 أيام افتراضياً للأفراد)؛ بلا FK لأداء الإدخال';
+COMMENT ON TABLE ops.geo_event IS 'Tracking positions; partitioned monthly, short retention (16.13: 7 days by default for individuals); no FKs for insert performance';
 
 CREATE TABLE ops.tracking_alert (
   id          bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -258,7 +258,7 @@ CREATE TABLE ops.tracking_alert (
 );
 CREATE INDEX tracking_alert_open ON ops.tracking_alert (trip_id) WHERE status = 'OPEN';
 
--- ------------------------------ الحوادث واستمرارية الرحلة (7.12) ------
+-- ------------------------------ Incidents and trip continuity (7.12) ------
 CREATE TABLE ops.incident (
   id                bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   uid               uuid NOT NULL DEFAULT gen_random_uuid() UNIQUE,
@@ -278,7 +278,7 @@ CREATE TABLE ops.incident (
   status            text NOT NULL DEFAULT 'OPEN' CHECK (status IN ('OPEN','UNDER_REVIEW','CLOSED')),
   created_at        timestamptz NOT NULL DEFAULT now()
 );
-COMMENT ON TABLE ops.incident IS 'الحادث أو العطل؛ الجسيم منه يوقف المركبة فوراً ويطلب قرار استمرارية';
+COMMENT ON TABLE ops.incident IS 'Incident or breakdown; a serious one takes the vehicle out of service immediately and requires a continuity decision';
 
 ALTER TABLE fleet.vehicle_status_history ADD CONSTRAINT vsh_incident_fk FOREIGN KEY (incident_id) REFERENCES ops.incident(id);
 
@@ -300,7 +300,7 @@ CREATE TABLE ops.incident_external_link (
   last_sync_at  timestamptz,
   UNIQUE (incident_id, authority)
 );
-COMMENT ON TABLE ops.incident_external_link IS 'الربط مع المرور والشرطة وشركات التأمين (يُفعَّل بعد الربط الحكومي)';
+COMMENT ON TABLE ops.incident_external_link IS 'Integration with traffic police, police and insurers (activated after government integration)';
 
 CREATE TABLE ops.trip_disruption (
   id                    bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -315,4 +315,4 @@ CREATE TABLE ops.trip_disruption (
   status                text NOT NULL DEFAULT 'AWAITING_DECISION' CHECK (status IN ('AWAITING_DECISION','DECIDED','AUTO_FALLBACK','CLOSED')),
   created_at            timestamptz NOT NULL DEFAULT now()
 );
-COMMENT ON TABLE ops.trip_disruption IS 'قرار استمرارية الرحلة: بديلة، استئجار، تعاون، إنقاذ، إيقاف (7.12 ج)';
+COMMENT ON TABLE ops.trip_disruption IS 'Trip continuity decision: replacement, lease, interline, rescue, cancellation (7.12 c)';

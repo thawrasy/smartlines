@@ -1,14 +1,14 @@
 -- =====================================================================
--- 110: سجلات التدقيق — كل دخول وكل إجراء لكل مستخدم أو عميل API
--- المبادئ:
---   * إلحاق فقط: لا UPDATE ولا DELETE (مشغّل + سحب الصلاحية من دور التطبيق)
---   * لكل صف تجزئة SHA-256 لمحتواه (row_hash)، وتُختم الكتل دورياً بسلسلة
---     تجزئة موقّعة (audit.log_seal) فيُكشف أي حذف أو تعديل أو إدراج لاحق
---   * تقسيم شهري للأداء والاحتفاظ؛ الحذف بإسقاط الأقسام بعد المدة النظامية فقط
---   * لا تُخزَّن كلمات مرور ولا رموز ولا قيم مشفرة في السجلات (تنقيح آلي)
+-- 110: audit logs — every login and every action by every user or API client
+-- Principles:
+--   * append-only: no UPDATE or DELETE (trigger + privileges revoked from the application role)
+--   * every row carries a SHA-256 hash of its content (row_hash), and blocks are periodically sealed in a
+--     signed hash chain (audit.log_seal), so any later deletion, change or insertion is detected
+--   * monthly partitions for performance and retention; deletion only by dropping partitions after the statutory period
+--   * no passwords, tokens or encrypted values are stored in logs (automatic redaction)
 -- =====================================================================
 
--- ------------------------------ دوال الأقسام الشهرية -----------------
+-- ------------------------------ Monthly partition functions -----------------
 CREATE OR REPLACE FUNCTION sys.ensure_monthly_partitions(p_parent text, p_months_ahead int DEFAULT 3, p_months_back int DEFAULT 1)
 RETURNS void LANGUAGE plpgsql AS $$
 DECLARE m date; part text; sch text := split_part(p_parent, '.', 1); tbl text := split_part(p_parent, '.', 2);
@@ -27,7 +27,7 @@ BEGIN
     EXECUTE format('CREATE TABLE %s PARTITION OF %s DEFAULT', part, p_parent);
   END IF;
 END $$;
-COMMENT ON FUNCTION sys.ensure_monthly_partitions IS 'ينشئ أقسام الأشهر القادمة (يُشغَّل يومياً بمهمة مجدولة)؛ القسم الافتراضي شبكة أمان فقط';
+COMMENT ON FUNCTION sys.ensure_monthly_partitions IS 'Creates partitions for the coming months (run daily by a scheduled job); the default partition is only a safety net';
 
 CREATE OR REPLACE FUNCTION sys.drop_partitions_older_than(p_parent text, p_keep_months int)
 RETURNS int LANGUAGE plpgsql AS $$
@@ -43,9 +43,9 @@ BEGIN
   END LOOP;
   RETURN n;
 END $$;
-COMMENT ON FUNCTION sys.drop_partitions_older_than IS 'الحذف وفق جدول الاحتفاظ فقط (بعد الختم والأرشفة في النسخ غير القابلة للتعديل)';
+COMMENT ON FUNCTION sys.drop_partitions_older_than IS 'Deletion only per the retention schedule (after sealing and archiving to immutable backups)';
 
--- تنقيح: إزالة الحقول المشفرة والأسرار من أي JSON قبل حفظه في السجل
+-- Redaction: remove encrypted fields and secrets from any JSON before it is logged
 CREATE OR REPLACE FUNCTION audit.redact(p jsonb) RETURNS jsonb LANGUAGE sql IMMUTABLE AS $$
   SELECT coalesce(jsonb_object_agg(k, CASE
            WHEN k ~ '(_enc|_hash|_bidx|password|secret|token|signature|template)$' OR k ~ '^(password|secret|token)'
@@ -53,14 +53,14 @@ CREATE OR REPLACE FUNCTION audit.redact(p jsonb) RETURNS jsonb LANGUAGE sql IMMU
   FROM jsonb_each(p) AS e(k, v)
 $$;
 
--- تجزئة الصف (تُحسب عند الإدراج)
+-- Row hash (computed on insert)
 CREATE OR REPLACE FUNCTION audit.tg_row_hash() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
   NEW.row_hash := digest(convert_to((to_jsonb(NEW) - 'row_hash')::text, 'UTF8'), 'sha256');
   RETURN NEW;
 END $$;
 
--- ------------------------------ سجل الدخول --------------------------
+-- ------------------------------ Login log --------------------------
 CREATE TABLE audit.auth_event (
   id              bigint GENERATED ALWAYS AS IDENTITY,
   ts              timestamptz NOT NULL DEFAULT now(),
@@ -72,7 +72,7 @@ CREATE TABLE audit.auth_event (
   user_id         bigint,
   api_client_id   bigint,
   api_key_id      bigint,
-  identifier_hash bytea,                              -- معرّف الدخول المحاول (مجزأ) عند فشل بلا مستخدم معروف
+  identifier_hash bytea,                              -- attempted login identifier (hashed) when no user is known
   portal          text,
   company_id      bigint,
   session_id      bigint,
@@ -92,9 +92,9 @@ CREATE INDEX auth_event_ip_idx   ON audit.auth_event (ip, ts DESC);
 CREATE INDEX auth_event_client_idx ON audit.auth_event (api_client_id, ts DESC) WHERE api_client_id IS NOT NULL;
 CREATE TRIGGER auth_event_hash BEFORE INSERT ON audit.auth_event FOR EACH ROW EXECUTE FUNCTION audit.tg_row_hash();
 CREATE TRIGGER auth_event_immutable BEFORE UPDATE OR DELETE ON audit.auth_event FOR EACH ROW EXECUTE FUNCTION sys.tg_forbid_mutation();
-COMMENT ON TABLE audit.auth_event IS 'كل محاولة دخول أو خروج أو تحقق أو استخدام مفتاح API، ناجحة أو فاشلة، بالعنوان والجهاز والبوابة';
+COMMENT ON TABLE audit.auth_event IS 'Every login, logout, verification or API key use, successful or failed, with address, device and portal';
 
--- شبكة أمان في القاعدة: إخفاقات متكررة من العنوان نفسه ← حجب آلي متصاعد
+-- Database safety net: repeated failures from the same address -> escalating automatic block
 CREATE OR REPLACE FUNCTION audit.tg_auth_fail_autoblock() RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public AS $$
 DECLARE thr int; win int; fails int;
 BEGIN
@@ -113,7 +113,7 @@ BEGIN
 END $$;
 CREATE TRIGGER auth_event_autoblock AFTER INSERT ON audit.auth_event FOR EACH ROW EXECUTE FUNCTION audit.tg_auth_fail_autoblock();
 
--- ------------------------------ سجل الإجراءات ------------------------
+-- ------------------------------ Activity log ------------------------
 CREATE TABLE audit.activity_log (
   id            bigint GENERATED ALWAYS AS IDENTITY,
   ts            timestamptz NOT NULL DEFAULT now(),
@@ -128,15 +128,15 @@ CREATE TABLE audit.activity_log (
   user_agent    text,
   http_method   text,
   endpoint      text,
-  action        text NOT NULL,                        -- رمز الصلاحية أو الإجراء: booking.create, trip.publish ...
+  action        text NOT NULL,                        -- permission or action code: booking.create, trip.publish ...
   object_type   text,
   object_id     bigint,
   object_uid    uuid,
   result        text NOT NULL CHECK (result IN ('SUCCESS','DENIED','ERROR','BLOCKED','RATE_LIMITED')),
   http_status   smallint,
   latency_ms    int,
-  reason        text,                                 -- إلزامي للإجراءات الحساسة
-  changes       jsonb,                                -- قبل/بعد بعد التنقيح
+  reason        text,                                 -- mandatory for sensitive actions
+  changes       jsonb,                                -- before/after, redacted
   row_hash      bytea,
   PRIMARY KEY (id, ts)
 ) PARTITION BY RANGE (ts);
@@ -147,9 +147,9 @@ CREATE INDEX activity_object_idx  ON audit.activity_log (object_type, object_id)
 CREATE INDEX activity_ip_idx      ON audit.activity_log (ip, ts DESC);
 CREATE TRIGGER activity_hash BEFORE INSERT ON audit.activity_log FOR EACH ROW EXECUTE FUNCTION audit.tg_row_hash();
 CREATE TRIGGER activity_immutable BEFORE UPDATE OR DELETE ON audit.activity_log FOR EACH ROW EXECUTE FUNCTION sys.tg_forbid_mutation();
-COMMENT ON TABLE audit.activity_log IS 'كل طلب أو إجراء في المنصة أو عبر API: من، متى، من أين، ماذا، على أي كيان، والنتيجة';
+COMMENT ON TABLE audit.activity_log IS 'Every request or action on the platform or via API: who, when, from where, what, on which entity, and the result';
 
--- ------------------------------ سجل الاطلاع على البيانات السرية -------
+-- ------------------------------ Sensitive data access log -------
 CREATE TABLE audit.data_access_log (
   id            bigint GENERATED ALWAYS AS IDENTITY,
   ts            timestamptz NOT NULL DEFAULT now(),
@@ -159,8 +159,8 @@ CREATE TABLE audit.data_access_log (
   ip            inet,
   object_type   text NOT NULL,
   object_id     bigint NOT NULL,
-  fields        text[] NOT NULL,                      -- مثل {passport_no, id_no}
-  purpose       text NOT NULL,                        -- السبب الإلزامي (16.13: وصول بدور مع سبب)
+  fields        text[] NOT NULL,                      -- e.g. {passport_no, id_no}
+  purpose       text NOT NULL,                        -- mandatory reason (16.13: role-based access with a reason)
   request_id    uuid,
   row_hash      bytea,
   PRIMARY KEY (id, ts)
@@ -169,9 +169,9 @@ CREATE INDEX data_access_object_idx ON audit.data_access_log (object_type, objec
 CREATE INDEX data_access_user_idx ON audit.data_access_log (user_id, ts DESC);
 CREATE TRIGGER data_access_hash BEFORE INSERT ON audit.data_access_log FOR EACH ROW EXECUTE FUNCTION audit.tg_row_hash();
 CREATE TRIGGER data_access_immutable BEFORE UPDATE OR DELETE ON audit.data_access_log FOR EACH ROW EXECUTE FUNCTION sys.tg_forbid_mutation();
-COMMENT ON TABLE audit.data_access_log IS 'كل كشف لحقل سري (جواز، هوية، IBAN) بالسبب';
+COMMENT ON TABLE audit.data_access_log IS 'Every reveal of a sensitive field (passport, ID, IBAN) with its reason';
 
--- ------------------------------ التقاط التغييرات على مستوى القاعدة ----
+-- ------------------------------ Database-level change capture ----
 CREATE TABLE audit.row_change (
   id            bigint GENERATED ALWAYS AS IDENTITY,
   ts            timestamptz NOT NULL DEFAULT now(),
@@ -194,14 +194,14 @@ CREATE TABLE audit.row_change (
 CREATE INDEX row_change_obj_idx ON audit.row_change (schema_name, table_name, row_pk);
 CREATE TRIGGER row_change_hash BEFORE INSERT ON audit.row_change FOR EACH ROW EXECUTE FUNCTION audit.tg_row_hash();
 CREATE TRIGGER row_change_immutable BEFORE UPDATE OR DELETE ON audit.row_change FOR EACH ROW EXECUTE FUNCTION sys.tg_forbid_mutation();
-COMMENT ON TABLE audit.row_change IS 'التقاط آلي لأي تغيير على الجداول الحساسة حتى لو تم خارج التطبيق (مع هوية المستخدم من سياق الطلب)';
+COMMENT ON TABLE audit.row_change IS 'Automatic capture of any change to sensitive tables, even outside the application (with the user identity from the request context)';
 
 CREATE OR REPLACE FUNCTION audit.tg_capture_change() RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public AS $$
 DECLARE o jsonb; n jsonb; pk text;
 BEGIN
   IF TG_OP <> 'INSERT' THEN o := audit.redact(to_jsonb(OLD)); END IF;
   IF TG_OP <> 'DELETE' THEN n := audit.redact(to_jsonb(NEW)); END IF;
-  IF TG_OP = 'UPDATE' THEN               -- احفظ الحقول المتغيرة فقط
+  IF TG_OP = 'UPDATE' THEN               -- store changed fields only
     SELECT jsonb_object_agg(k, o->k), jsonb_object_agg(k, n->k) INTO o, n
       FROM jsonb_object_keys(n) k WHERE (o->k) IS DISTINCT FROM (n->k) AND k NOT IN ('updated_at');
     IF n IS NULL THEN RETURN NULL; END IF;
@@ -235,23 +235,23 @@ BEGIN
   END LOOP;
 END $$;
 
--- ------------------------------ ختم السجلات بسلسلة تجزئة -------------
+-- ------------------------------ Hash-chain sealing of logs -------------
 CREATE TABLE audit.log_seal (
   id          bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   log_name    text NOT NULL CHECK (log_name IN ('auth_event','activity_log','data_access_log','row_change')),
   from_id     bigint NOT NULL,
   to_id       bigint NOT NULL,
   row_count   bigint NOT NULL,
-  block_hash  bytea NOT NULL,                         -- تجزئة متتالية لتجزئات الصفوف بالترتيب
+  block_hash  bytea NOT NULL,                         -- sequential hash over the row hashes in order
   prev_seal_hash bytea,
   seal_hash   bytea NOT NULL,                         -- sha256(prev_seal_hash || block_hash || range)
   key_id      int REFERENCES sec.key_registry(id),
-  signature   bytea,                                  -- توقيع خارجي من KMS (يُضاف من خدمة الختم)
+  signature   bytea,                                  -- external KMS signature (added by the sealing service)
   created_at  timestamptz NOT NULL DEFAULT now(),
   UNIQUE (log_name, from_id)
 );
 CREATE TRIGGER log_seal_immutable BEFORE UPDATE OR DELETE ON audit.log_seal FOR EACH ROW EXECUTE FUNCTION sys.tg_forbid_mutation();
-COMMENT ON TABLE audit.log_seal IS 'ختم دوري لكتل السجلات بسلسلة تجزئة (وتوقيع KMS) يكشف أي حذف أو تعديل';
+COMMENT ON TABLE audit.log_seal IS 'Periodic sealing of log blocks with a hash chain (and KMS signature) that reveals any deletion or modification';
 
 CREATE OR REPLACE FUNCTION audit.seal(p_log text, p_max_rows int DEFAULT 100000) RETURNS bigint
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public AS $$
@@ -269,9 +269,9 @@ BEGIN
   VALUES (p_log, f, t, cnt, bh, last_hash, sh) RETURNING id INTO sid;
   RETURN sid;
 END $$;
-COMMENT ON FUNCTION audit.seal IS 'يختم الكتلة التالية من السجل (مهمة مجدولة كل دقائق)؛ التحقق بإعادة الحساب ومقارنة السلسلة';
+COMMENT ON FUNCTION audit.seal IS 'Seals the next block of the log (scheduled every few minutes); verification by recomputing and comparing the chain';
 
--- الأقسام الأولية
+-- Initial partitions
 DO $$
 BEGIN
   PERFORM sys.ensure_monthly_partitions('audit.auth_event');

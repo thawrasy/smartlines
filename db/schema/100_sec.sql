@@ -1,13 +1,13 @@
 -- =====================================================================
--- 100: الأمن — قواعد حجب العناوين والنطاقات، المخاطر والاحتيال، الأحداث الأمنية،
---      توقيع المستندات ومنع العبث، ووحدة الأمن والامتثال (الربط مع الجهات)
--- المرجع: 4.9، 16.4، 16.8، 16.17، 16.20، 16.25
+-- 100: security — IP and range blocking rules, risk and fraud, security events,
+--      document signing and anti-tampering, and the security & compliance hub (authority integration)
+-- Source: 4.9, 16.4, 16.8, 16.17, 16.20, 16.25
 -- =====================================================================
 
--- ------------------------------ قواعد IP --------------------------------
--- حجب أو سماح أو إبطاء أو تحدٍّ لعنوان أو نطاق (CIDR) أو دولة أو مزود (ASN)،
--- على مستوى المنصة كلها أو بوابة بعينها أو عميل API بعينه، يدوياً أو آلياً بمهلة.
--- تُنسخ القواعد إلى الحافة (WAF/بوابة API/Redis) عبر صندوق الأحداث فور تغيّرها.
+-- ------------------------------ IP rules --------------------------------
+-- Block, allow, throttle or challenge an address, range (CIDR), country or provider (ASN),
+-- platform-wide, for a specific portal or a specific API client, manually or automatically with expiry.
+-- Rules are pushed to the edge (WAF/API gateway/Redis) through the outbox as soon as they change.
 CREATE TABLE sec.ip_rule (
   id            bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   rule_type     text NOT NULL CHECK (rule_type IN ('CIDR','COUNTRY','ASN')),
@@ -16,29 +16,29 @@ CREATE TABLE sec.ip_rule (
   asn           int,
   action        text NOT NULL CHECK (action IN ('BLOCK','ALLOW','THROTTLE','CHALLENGE')),
   scope         text NOT NULL DEFAULT 'ALL' CHECK (scope IN ('ALL','PASSENGER','OPERATOR','AGENCY','ADMIN','API','PAYMENT_WEBHOOK','DRIVER')),
-  api_client_id bigint REFERENCES iam.api_client(id), -- قاعدة خاصة بعميل API واحد
-  priority      smallint NOT NULL DEFAULT 100,        -- الأعلى يُطبَّق أولاً
+  api_client_id bigint REFERENCES iam.api_client(id), -- rule for a single API client
+  priority      smallint NOT NULL DEFAULT 100,        -- higher applies first
   reason        text NOT NULL,
   source        text NOT NULL DEFAULT 'MANUAL' CHECK (source IN ('MANUAL','AUTO_RATE','AUTO_AUTH','AUTO_ABUSE','WAF','THREAT_FEED','SOC','AUTHORITY')),
   evidence      jsonb,
-  hit_count     bigint NOT NULL DEFAULT 0,            -- يُحدَّث دورياً من سجلات الحافة
+  hit_count     bigint NOT NULL DEFAULT 0,            -- updated periodically from edge logs
   last_hit_at   timestamptz,
   created_by    bigint REFERENCES iam.app_user(id),
   approved_by   bigint REFERENCES iam.app_user(id),
   created_at    timestamptz NOT NULL DEFAULT now(),
-  expires_at    timestamptz,                          -- فارغ = دائم
+  expires_at    timestamptz,                          -- empty = permanent
   revoked_at    timestamptz,
   revoked_by    bigint REFERENCES iam.app_user(id),
   revoke_reason text,
   CHECK ((rule_type = 'CIDR' AND cidr IS NOT NULL) OR (rule_type = 'COUNTRY' AND country_code IS NOT NULL) OR (rule_type = 'ASN' AND asn IS NOT NULL)),
-  CHECK (source NOT LIKE 'AUTO%' OR expires_at IS NOT NULL)   -- الحجب الآلي مؤقت دائماً
+  CHECK (source NOT LIKE 'AUTO%' OR expires_at IS NOT NULL)   -- automatic blocks are always temporary
 );
 CREATE INDEX ip_rule_cidr_gist ON sec.ip_rule USING gist (cidr inet_ops) WHERE revoked_at IS NULL AND rule_type = 'CIDR';
 CREATE INDEX ip_rule_country ON sec.ip_rule (country_code) WHERE revoked_at IS NULL AND rule_type = 'COUNTRY';
 CREATE INDEX ip_rule_asn ON sec.ip_rule (asn) WHERE revoked_at IS NULL AND rule_type = 'ASN';
-COMMENT ON TABLE sec.ip_rule IS 'حجب/سماح/إبطاء عنوان أو نطاق أو دولة أو ASN لكل بوابة أو عميل API؛ يدوي أو آلي بمهلة';
+COMMENT ON TABLE sec.ip_rule IS 'Block/allow/throttle an address, range, country or ASN per portal or API client; manual or automatic with expiry';
 
--- القرار لعنوان معيّن: الأعلى أولوية ثم الأدق نطاقاً
+-- Decision for a given address: highest priority first, then the most specific range
 CREATE OR REPLACE FUNCTION sec.ip_decision(
   p_ip inet, p_scope text, p_country char(2) DEFAULT NULL, p_asn int DEFAULT NULL, p_api_client_id bigint DEFAULT NULL
 ) RETURNS TABLE (action text, rule_id bigint, reason text)
@@ -57,9 +57,9 @@ LANGUAGE sql STABLE AS $$
            CASE r.action WHEN 'BLOCK' THEN 0 WHEN 'CHALLENGE' THEN 1 WHEN 'THROTTLE' THEN 2 ELSE 3 END
   LIMIT 1
 $$;
-COMMENT ON FUNCTION sec.ip_decision IS 'يعيد القرار المطبق على عنوان IP لبوابة معيّنة (فارغ = لا قاعدة، يُسمح)';
+COMMENT ON FUNCTION sec.ip_decision IS 'Returns the decision applied to an IP address for a given portal (empty = no rule, allowed)';
 
--- حجب آلي متصاعد: كل تكرار خلال 30 يوماً يضاعف المدة (حتى 30 يوماً)
+-- Escalating automatic block: every repeat within 30 days doubles the duration (up to 30 days)
 CREATE OR REPLACE FUNCTION sec.auto_block_ip(
   p_ip inet, p_scope text, p_source text, p_reason text, p_base_minutes int DEFAULT 15, p_evidence jsonb DEFAULT NULL
 ) RETURNS bigint LANGUAGE plpgsql AS $$
@@ -75,9 +75,9 @@ BEGIN
   RETURNING id INTO rid;
   RETURN rid;
 END $$;
-COMMENT ON FUNCTION sec.auto_block_ip IS 'حجب آلي مؤقت لعنوان يستغل المنصة (محاولات دخول، إغراق، كشط) بمدة متصاعدة';
+COMMENT ON FUNCTION sec.auto_block_ip IS 'Temporary automatic block of an address abusing the platform (login attempts, flooding, scraping) with escalating duration';
 
--- نشر أي تغيير في القواعد إلى الحافة فوراً
+-- Publish every rule change to the edge immediately
 CREATE OR REPLACE FUNCTION sec.tg_ip_rule_publish() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
   INSERT INTO sys.outbox_event (event_type, aggregate_type, aggregate_id, payload)
@@ -87,7 +87,7 @@ END $$;
 CREATE TRIGGER ip_rule_publish AFTER INSERT OR UPDATE ON sec.ip_rule FOR EACH ROW EXECUTE FUNCTION sec.tg_ip_rule_publish();
 CREATE TRIGGER ip_rule_no_delete BEFORE DELETE ON sec.ip_rule FOR EACH ROW EXECUTE FUNCTION sys.tg_forbid_mutation();
 
--- هل العنوان ضمن قائمة السماح لعميل API (إن وُجدت)؟
+-- Is the address within the API client's allowlist (if any)?
 CREATE OR REPLACE FUNCTION sec.api_client_ip_allowed(p_api_client_id bigint, p_ip inet) RETURNS boolean
 LANGUAGE sql STABLE AS $$
   SELECT CASE WHEN c.ip_allowlist IS NULL OR cardinality(c.ip_allowlist) = 0 THEN true
@@ -95,7 +95,7 @@ LANGUAGE sql STABLE AS $$
   FROM iam.api_client c WHERE c.id = p_api_client_id
 $$;
 
--- ------------------------------ المخاطر والاحتيال (16.4) -------------
+-- ------------------------------ Risk and fraud (16.4) -------------
 CREATE TABLE sec.blocklist_entry (
   id          bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   entry_type  text NOT NULL CHECK (entry_type IN ('DEVICE','PHONE','EMAIL','IBAN','ID_DOC','CARD_BIN')),
@@ -106,7 +106,7 @@ CREATE TABLE sec.blocklist_entry (
   expires_at  timestamptz,
   UNIQUE (entry_type, value_hash)
 );
-COMMENT ON TABLE sec.blocklist_entry IS 'قائمة حظر بالقيم المجزأة (جهاز، هاتف، IBAN، وثيقة)';
+COMMENT ON TABLE sec.blocklist_entry IS 'Blocklist of hashed values (device, phone, IBAN, document)';
 
 CREATE TABLE sec.risk_assessment (
   id            bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -142,12 +142,12 @@ CREATE TABLE sec.security_event (
   ip              inet,
   details         jsonb NOT NULL,
   correlation_id  uuid,
-  ip_rule_id      bigint REFERENCES sec.ip_rule(id),  -- إن نتج عنه حجب
+  ip_rule_id      bigint REFERENCES sec.ip_rule(id),  -- if it resulted in a block
   created_at      timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX security_event_ip_idx ON sec.security_event (ip, created_at DESC);
 CREATE TRIGGER security_event_immutable BEFORE UPDATE OR DELETE ON sec.security_event FOR EACH ROW EXECUTE FUNCTION sys.tg_forbid_mutation();
-COMMENT ON TABLE sec.security_event IS 'الأحداث الأمنية لمركز العمليات (SOC) وقواعد الكشف (16.20)';
+COMMENT ON TABLE sec.security_event IS 'Security events for the SOC and detection rules (16.20)';
 
 CREATE TABLE sec.access_review (
   id          bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -167,9 +167,9 @@ CREATE TABLE sec.break_glass_log (
   ended_at    timestamptz,
   CHECK (approver_id IS NULL OR approver_id <> actor_id)
 );
-COMMENT ON TABLE sec.break_glass_log IS 'وصول الطوارئ بصلاحيات مرتفعة: بسبب وموافقة ومدة';
+COMMENT ON TABLE sec.break_glass_log IS 'Break-glass access with elevated privileges: reason, approval and duration';
 
--- ------------------------------ منع العبث وتوقيع المستندات (16.25) ----
+-- ------------------------------ Anti-tampering and document signing (16.25) ----
 CREATE TABLE sec.document_signature (
   id          bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   doc_type    text NOT NULL CHECK (doc_type IN ('TICKET','INVOICE','RECEIPT','BOARDING_PASS','MANIFEST','STATEMENT')),
@@ -183,7 +183,7 @@ CREATE TABLE sec.document_signature (
   revoked_at  timestamptz
 );
 CREATE INDEX document_signature_ref_idx ON sec.document_signature (doc_type, doc_ref_id);
-COMMENT ON TABLE sec.document_signature IS 'كل مستند رسمي يصدره الخادم موقّعاً؛ صفحة التحقق تقارن به فيُكشف أي مستند معدَّل';
+COMMENT ON TABLE sec.document_signature IS 'Every official document issued by the server is signed; the verification page compares against it so any altered document is detected';
 
 CREATE TABLE sec.tamper_event (
   id            bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -197,9 +197,9 @@ CREATE TABLE sec.tamper_event (
   created_at    timestamptz NOT NULL DEFAULT now()
 );
 CREATE TRIGGER tamper_event_immutable BEFORE UPDATE OR DELETE ON sec.tamper_event FOR EACH ROW EXECUTE FUNCTION sys.tg_forbid_mutation();
-COMMENT ON TABLE sec.tamper_event IS 'محاولات إرسال قيم تخالف المحسوب في الخادم (سعر، تاريخ، حالة دفع)';
+COMMENT ON TABLE sec.tamper_event IS 'Attempts to submit values that contradict the server-side computation (price, date, payment status)';
 
--- ------------------------------ وحدة الأمن والامتثال (4.9) -----------
+-- ------------------------------ Security & compliance hub (4.9) -----------
 CREATE TABLE sec.authority_profile (
   id            bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   code          text NOT NULL UNIQUE,
@@ -213,7 +213,7 @@ CREATE TABLE sec.authority_profile (
   sla_ms        int,
   active        boolean NOT NULL DEFAULT false
 );
-COMMENT ON TABLE sec.authority_profile IS 'تعريف الجهة الأمنية ومحوّلها (تعريف بلا ربط في المرحلة 1 — القرار 88)';
+COMMENT ON TABLE sec.authority_profile IS 'Security authority definition and its adapter (definition without integration in Phase 1 — Decision 88)';
 
 CREATE TABLE sec.authority_policy (
   id            bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -259,7 +259,7 @@ CREATE TABLE sec.watchlist_entry (
   created_by      bigint REFERENCES iam.app_user(id),
   UNIQUE (identifier_type, identifier_hash, authority_id)
 );
-COMMENT ON TABLE sec.watchlist_entry IS 'قائمة المراقبة والمنع بالمطابقة المجزأة دون نسخ البيانات الكاملة';
+COMMENT ON TABLE sec.watchlist_entry IS 'Watch and ban list with hashed matching, without copying full data';
 
 CREATE TABLE sec.manifest_submission (
   id            bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -278,7 +278,7 @@ CREATE TABLE sec.manifest_submission (
   sent_at       timestamptz,
   UNIQUE (trip_id, manifest_type, version)
 );
-COMMENT ON TABLE sec.manifest_submission IS 'المنافست (يدوي في المرحلة 1) بإصدارات وتوقيع';
+COMMENT ON TABLE sec.manifest_submission IS 'Manifest (manual in Phase 1), versioned and signed';
 
 CREATE TABLE sec.authority_order (
   id            bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -308,7 +308,7 @@ CREATE TABLE sec.authority_data_request (
   created_at    timestamptz NOT NULL DEFAULT now(),
   CHECK (approved_by IS NULL OR approved_by <> requested_by)
 );
-COMMENT ON TABLE sec.authority_data_request IS 'طلب بيانات رسمي بتفويض ثنائي؛ لا تسليم لأي جهة خارج هذا المسار';
+COMMENT ON TABLE sec.authority_data_request IS 'Official data request with dual authorization; nothing is delivered to any authority outside this path';
 
 CREATE TABLE sec.sos_event (
   id            bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,

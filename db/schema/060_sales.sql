@@ -1,6 +1,6 @@
 -- =====================================================================
--- 060: القنوات والحجوزات والمسافرون والتذاكر والصعود والاسترداد
--- المرجع: 4.5، 4.12، 5.9، 7.1، 7.3، 7.4، 28 (آلات الحالة)
+-- 060: channels, bookings, passengers, tickets, boarding and refunds
+-- Source: 4.5, 4.12, 5.9, 7.1, 7.3, 7.4, 28 (state machines)
 -- =====================================================================
 
 CREATE TABLE sales.channel (
@@ -13,14 +13,14 @@ CREATE TABLE sales.channel (
   status        text NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE','SUSPENDED')),
   created_at    timestamptz NOT NULL DEFAULT now()
 );
-COMMENT ON TABLE sales.channel IS 'قناة البيع (مباشر، شباك، وكالة، شريك API)؛ الاتفاقيات والحصص في المرحلة 9';
+COMMENT ON TABLE sales.channel IS 'Sales channel (direct, counter, agency, API partner); agreements and quotas come in Phase 9';
 
 CREATE TABLE sales.booking (
   id                  bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   uid                 uuid NOT NULL DEFAULT gen_random_uuid() UNIQUE,
-  booking_ref         text NOT NULL UNIQUE CHECK (booking_ref ~ '^[A-Z0-9]{6,8}$'),   -- رمز الحجز (PNR)
+  booking_ref         text NOT NULL UNIQUE CHECK (booking_ref ~ '^[A-Z0-9]{6,8}$'),   -- booking reference (PNR)
   trip_id             bigint NOT NULL REFERENCES ops.trip(id),
-  company_id          bigint NOT NULL REFERENCES iam.company(id),   -- الناقل (لعزل المستأجر)
+  company_id          bigint NOT NULL REFERENCES iam.company(id),   -- the carrier (for tenant isolation)
   booker_party_id     bigint NOT NULL REFERENCES iam.party(id),
   booker_user_id      bigint REFERENCES iam.app_user(id),
   channel_id          bigint NOT NULL REFERENCES sales.channel(id),
@@ -28,9 +28,9 @@ CREATE TABLE sales.booking (
   pay_method          text CHECK (pay_method IN ('WALLET','CARD','BANK','CASH','POINTS','MIXED')),
   currency            char(3) NOT NULL REFERENCES ref.currency(code),
   total_amount        bigint NOT NULL CHECK (total_amount >= 0),
-  price_breakdown     jsonb NOT NULL,                 -- لقطة السعر وقت الحجز (price_snapshot)
+  price_breakdown     jsonb NOT NULL,                 -- price snapshot at booking time (price_snapshot)
   rules_version       text NOT NULL,
-  price_allocation_id bigint,                         -- FK بعد fin.price_allocation
+  price_allocation_id bigint,                         -- FK added after fin.price_allocation
   idempotency_key     text NOT NULL,
   hold_expires_at     timestamptz,
   confirmed_at        timestamptz,
@@ -46,9 +46,9 @@ CREATE INDEX booking_booker_idx  ON sales.booking (booker_party_id, created_at D
 CREATE INDEX booking_company_idx ON sales.booking (company_id, created_at DESC);
 CREATE INDEX booking_hold_idx    ON sales.booking (hold_expires_at) WHERE status = 'PENDING_PAYMENT';
 CREATE TRIGGER booking_updated BEFORE UPDATE ON sales.booking FOR EACH ROW EXECUTE FUNCTION sys.tg_set_updated_at();
-COMMENT ON TABLE sales.booking IS 'الحجز: لقطة السعر، والقناة، وشجرة التوزيع، ومفتاح عدم التكرار؛ حالاته وفق القسم 28';
+COMMENT ON TABLE sales.booking IS 'Booking: price snapshot, channel, allocation tree and idempotency key; statuses per section 28';
 
--- انتقالات الحالة المسموحة فقط (28: أي انتقال غير مدرج مرفوض)
+-- Allowed status transitions only (28: any unlisted transition is rejected)
 CREATE OR REPLACE FUNCTION sales.tg_booking_transition() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
   IF NEW.status IS DISTINCT FROM OLD.status AND NOT (
@@ -63,14 +63,14 @@ CREATE TRIGGER booking_transition BEFORE UPDATE OF status ON sales.booking FOR E
 CREATE TABLE sales.passenger (
   id                  bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   booking_id          bigint NOT NULL REFERENCES sales.booking(id) ON DELETE CASCADE,
-  party_id            bigint REFERENCES iam.party(id),   -- إن كان للمسافر حساب
+  party_id            bigint REFERENCES iam.party(id),   -- if the passenger has an account
   full_name           text NOT NULL,
   passenger_category  text NOT NULL DEFAULT 'ADULT' CHECK (passenger_category IN ('ADULT','CHILD','INFANT','STUDENT','SENIOR','DISABLED')),
   id_type             text CHECK (id_type IN ('NATIONAL_ID','PASSPORT','RESIDENCE','OTHER')),
   id_no_enc           bytea,
   id_no_bidx          bytea,
   id_no_last4         text,
-  passport_no_enc     bytea,                          -- جاهزية الدولي (القرار 88)
+  passport_no_enc     bytea,                          -- international readiness (Decision 88)
   passport_no_bidx    bytea,
   passport_country    char(2) REFERENCES ref.country(code),
   passport_expiry     date,
@@ -84,7 +84,7 @@ CREATE TABLE sales.passenger (
 );
 CREATE INDEX passenger_booking_idx ON sales.passenger (booking_id);
 CREATE INDEX passenger_id_bidx ON sales.passenger (id_no_bidx) WHERE id_no_bidx IS NOT NULL;
-COMMENT ON TABLE sales.passenger IS 'بيانات المسافر في الحجز؛ أرقام الوثائق مشفرة بفهرس أعمى للفحص الأمني والمنافست';
+COMMENT ON TABLE sales.passenger IS 'Passenger data on the booking; document numbers encrypted with a blind index for security screening and the manifest';
 
 CREATE TABLE sales.ticket (
   id                        bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -95,7 +95,7 @@ CREATE TABLE sales.ticket (
   trip_id                   bigint NOT NULL REFERENCES ops.trip(id),
   from_seq                  smallint NOT NULL,
   to_seq                    smallint NOT NULL,
-  seat_no                   smallint,                 -- فارغ في الوضع المقفل أو للوقوف
+  seat_no                   smallint,                 -- empty in carrier-assigned mode or for standing
   is_standing               boolean NOT NULL DEFAULT false,
   assigned_seat_at_boarding smallint,
   cabin                     text NOT NULL DEFAULT 'ECONOMY',
@@ -105,9 +105,9 @@ CREATE TABLE sales.ticket (
   baggage_pieces            smallint NOT NULL DEFAULT 0,
   baggage_fee               bigint NOT NULL DEFAULT 0 CHECK (baggage_fee >= 0),
   total_amount              bigint NOT NULL CHECK (total_amount >= 0),
-  rules_snapshot            jsonb NOT NULL,           -- شروط الاسترداد والتعديل والأمتعة وقت الإصدار
+  rules_snapshot            jsonb NOT NULL,           -- refund, change and baggage conditions at issue time
   qr_key_id                 int REFERENCES sec.key_registry(id),
-  qr_serial                 int NOT NULL DEFAULT 0,   -- يتجدد مع QR المتجدد (16.18)
+  qr_serial                 int NOT NULL DEFAULT 0,   -- renews with the rotating QR (16.18)
   status                    text NOT NULL DEFAULT 'ISSUED' CHECK (status IN ('ISSUED','BOARDED','NO_SHOW','CANCELLED','HOLD')),
   boarded_at                timestamptz,
   created_at                timestamptz NOT NULL DEFAULT now(),
@@ -118,7 +118,7 @@ CREATE TABLE sales.ticket (
 );
 CREATE INDEX ticket_trip_idx ON sales.ticket (trip_id, status);
 CREATE INDEX ticket_booking_idx ON sales.ticket (booking_id);
-COMMENT ON TABLE sales.ticket IS 'التذكرة لكل مسافر وزوج محطات، بمقعد مرقَّم أو مضمون أو وقوف، ولقطة الشروط وQR موقّع';
+COMMENT ON TABLE sales.ticket IS 'Ticket per passenger and station pair, with a numbered, guaranteed or standing place, a conditions snapshot and a signed QR';
 
 CREATE OR REPLACE FUNCTION sales.tg_ticket_transition() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
@@ -151,7 +151,7 @@ CREATE TABLE sales.boarding_event (
 CREATE INDEX boarding_trip_idx ON sales.boarding_event (trip_id, ts);
 CREATE TRIGGER boarding_event_immutable BEFORE UPDATE OR DELETE ON sales.boarding_event
   FOR EACH ROW EXECUTE FUNCTION sys.tg_forbid_mutation();
-COMMENT ON TABLE sales.boarding_event IS 'أحداث الصعود والنزول بالمسح (أساس التفويج والتسوية والمنافست)؛ إلحاق فقط';
+COMMENT ON TABLE sales.boarding_event IS 'Boarding and alighting scan events (basis for dispatch, settlement and the manifest); append-only';
 
 CREATE TABLE sales.refund_request (
   id                bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -164,12 +164,12 @@ CREATE TABLE sales.refund_request (
   status            text NOT NULL DEFAULT 'REQUESTED' CHECK (status IN ('REQUESTED','APPROVED','REJECTED','PAID')),
   requested_by      bigint REFERENCES iam.app_user(id),
   decided_by        bigint REFERENCES iam.app_user(id),
-  credit_note_id    bigint,                           -- FK بعد acct.einvoice_document
+  credit_note_id    bigint,                           -- FK added after acct.einvoice_document
   created_at        timestamptz NOT NULL DEFAULT now(),
   decided_at        timestamptz,
   CHECK (amount_approved IS NULL OR amount_approved <= amount_requested)
 );
-COMMENT ON TABLE sales.refund_request IS 'طلب الاسترداد بلقطة السياسة؛ لا يُحرَّر المبلغ قبل إقفال الإشعار الدائن (BR-EIN-03)';
+COMMENT ON TABLE sales.refund_request IS 'Refund request with a policy snapshot; funds are not released before the credit note is finalized (BR-EIN-03)';
 
 CREATE TABLE sales.campaign_redemption (
   id              bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -182,7 +182,7 @@ CREATE TABLE sales.campaign_redemption (
   created_at      timestamptz NOT NULL DEFAULT now(),
   UNIQUE (campaign_id, booking_id)
 );
-COMMENT ON TABLE sales.campaign_redemption IS 'استخدام الحملة في حجز ومن يموّل الخصم';
+COMMENT ON TABLE sales.campaign_redemption IS 'Campaign use on a booking and who funds the discount';
 
 CREATE TABLE sales.passenger_compensation (
   id                  bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -191,8 +191,8 @@ CREATE TABLE sales.passenger_compensation (
   type                text NOT NULL CHECK (type IN ('REFUND','CREDIT','POINTS')),
   amount              bigint NOT NULL CHECK (amount >= 0),
   charged_to_company_id bigint REFERENCES iam.company(id),
-  credit_note_id      bigint,                         -- FK بعد acct.einvoice_document
+  credit_note_id      bigint,                         -- FK added after acct.einvoice_document
   status              text NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING','APPROVED','PAID','REJECTED')),
   created_at          timestamptz NOT NULL DEFAULT now()
 );
-COMMENT ON TABLE sales.passenger_compensation IS 'تعويض المسافرين عن الإلغاء أو التعطل، ويُحمَّل على الناقل المتسبب';
+COMMENT ON TABLE sales.passenger_compensation IS 'Passenger compensation for cancellation or disruption, charged to the carrier at fault';

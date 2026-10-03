@@ -1,28 +1,28 @@
-# مخططات العلاقات (ERD) — قاعدة بيانات مسلك (المرحلة الأولى)
+# Entity-Relationship Diagrams — Masslak Database (Phase 1)
 
-> مولَّدة آلياً من المفاتيح الأجنبية الفعلية في القاعدة المبنية. كل مخطط يعرض جداول الوحدة بأعمدتها الرئيسية،
-> والجداول التي ترتبط بها من وحدات أخرى (بلا أعمدة). الخط المتصل = علاقة إلزامية، والمتقطع = اختيارية.
-> للوضوح لا تُرسم روابط «من نفّذ» (created_by، approved_by...) إلى `iam.app_user`، ولا روابط العملة والدولة
-> ومفاتيح التشفير والملفات؛ وهي كاملة في [قاموس البيانات](DATA_DICTIONARY.md).
+> Generated from the actual foreign keys of the built database. Each diagram shows the module's tables with their key columns,
+> plus the tables they reference in other modules (without columns). Solid line = required relationship, dashed = optional.
+> For clarity, "who did it" links (created_by, approved_by...) to `iam.app_user` and links to currency, country,
+> encryption keys and files are not drawn; they are all listed in the [data dictionary](DATA_DICTIONARY.md).
 
-## الصورة العامة: الوحدات وعلاقاتها
+## Overview: modules and their relationships
 
 ```mermaid
 flowchart LR
-  iam["iam<br/>الهوية والأطراف والمستخدمون والصلاحيات وواجهات API"]
-  ref["ref<br/>البيانات المرجعية والملفات"]
-  sys["sys<br/>الإعدادات وصندوق الأحداث وWebhooks"]
-  net["net<br/>الشبكة: المحطات والخطوط ورموز الناقلين"]
-  fleet["fleet<br/>الأسطول: المركبات والمقاعد والطاقم والتراخيص والتأمين"]
-  pricing["pricing<br/>التسعير والضرائب والعمولات والحملات والولاء"]
-  ops["ops<br/>الرحلات والمخزون والتشغيل والتتبع والحوادث"]
-  sales["sales<br/>القنوات والحجوزات والمسافرون والتذاكر"]
-  fin["fin<br/>المحافظ والدفتر والمدفوعات والتوزيع والتسوية"]
-  acct["acct<br/>المحاسبة المبسطة والفوترة الإلكترونية والملف الضريبي"]
-  crm["crm<br/>الشكاوى والتقييم والإشعارات والمساعد الذكي"]
-  gov["gov<br/>الحوكمة والالتزامات وحماية البيانات"]
-  sec["sec<br/>الأمن: قواعد IP والمخاطر والتوقيع ووحدة الأمن"]
-  audit["audit<br/>سجلات الدخول والإجراءات (إلحاق فقط)"]
+  iam["iam<br/>Identity, parties, users, permissions and API clients"]
+  ref["ref<br/>Reference data, locales and files"]
+  sys["sys<br/>Settings, outbox and webhooks"]
+  net["net<br/>Network: stations, routes and carrier codes"]
+  fleet["fleet<br/>Fleet: vehicles, seats, crew, licenses and insurance"]
+  pricing["pricing<br/>Pricing, taxes, commissions, campaigns and loyalty"]
+  ops["ops<br/>Trips, inventory, operations, tracking and incidents"]
+  sales["sales<br/>Channels, bookings, passengers and tickets"]
+  fin["fin<br/>Wallets, ledger, payments, allocation and settlement"]
+  acct["acct<br/>Simplified accounting, e-invoicing and tax profiles"]
+  crm["crm<br/>Complaints, ratings, notifications and the AI assistant"]
+  gov["gov<br/>Governance, obligations and data protection"]
+  sec["sec<br/>Security: IP rules, risk, signing and the security hub"]
+  audit["audit<br/>Login and activity logs (append-only)"]
   acct -->|2| fin
   acct -->|10| iam
   acct -->|2| net
@@ -30,6 +30,7 @@ flowchart LR
   crm -->|1| fin
   crm -->|9| iam
   crm -->|3| ops
+  crm -->|1| ref
   crm -->|3| sales
   fin -->|10| iam
   fin -->|1| ops
@@ -39,6 +40,7 @@ flowchart LR
   fleet -->|1| ops
   gov -->|5| iam
   gov -->|1| sec
+  iam -->|1| ref
   net -->|4| iam
   net -->|1| ref
   ops -->|7| fleet
@@ -58,7 +60,7 @@ flowchart LR
   sys -->|2| iam
 ```
 
-## `iam` — الهوية والأطراف والمستخدمون والصلاحيات وواجهات API
+## `iam` — Identity, parties, users, permissions and API clients
 
 ```mermaid
 erDiagram
@@ -83,6 +85,7 @@ erDiagram
     uuid uid
     bigint party_id FK
     text status
+    text preferred_locale FK
   }
   iam_auth_token {
     bigint id PK
@@ -185,6 +188,9 @@ erDiagram
     bigint provider_id FK
     bigint reviewer_id FK
   }
+  ref_locale {
+    ref external
+  }
   iam_api_key }o--|| iam_api_client : "api_client_id"
   iam_user_role }o--|| iam_app_user : "user_id"
   iam_company_member }o--|| iam_app_user : "user_id"
@@ -213,9 +219,10 @@ erDiagram
   iam_role_permission }o--|| iam_role : "role_id"
   iam_user_role }o--|| iam_role : "role_id"
   iam_company_member }o..o| iam_role : "role_id"
+  iam_app_user }o--|| ref_locale : "preferred_locale"
 ```
 
-## `ref` — البيانات المرجعية والملفات
+## `ref` — Reference data, locales and files
 
 ```mermaid
 erDiagram
@@ -242,9 +249,17 @@ erDiagram
     integer enc_key_id FK
     bigint uploaded_by FK
   }
+  ref_locale {
+    text code PK
+  }
+  ref_translation {
+    bigint id PK
+    text locale FK
+  }
+  ref_translation }o--|| ref_locale : "locale"
 ```
 
-## `sys` — الإعدادات وصندوق الأحداث وWebhooks
+## `sys` — Settings, outbox and webhooks
 
 ```mermaid
 erDiagram
@@ -288,7 +303,7 @@ erDiagram
   sys_webhook_delivery }o--|| sys_webhook_endpoint : "endpoint_id"
 ```
 
-## `net` — الشبكة: المحطات والخطوط ورموز الناقلين
+## `net` — Network: stations, routes and carrier codes
 
 ```mermaid
 erDiagram
@@ -362,7 +377,7 @@ erDiagram
   net_station }o--|| ref_city : "city_id"
 ```
 
-## `fleet` — الأسطول: المركبات والمقاعد والطاقم والتراخيص والتأمين
+## `fleet` — Fleet: vehicles, seats, crew, licenses and insurance
 
 ```mermaid
 erDiagram
@@ -486,7 +501,7 @@ erDiagram
   fleet_vehicle_status_history }o..o| ops_incident : "incident_id"
 ```
 
-## `pricing` — التسعير والضرائب والعمولات والحملات والولاء
+## `pricing` — Pricing, taxes, commissions, campaigns and loyalty
 
 ```mermaid
 erDiagram
@@ -647,7 +662,7 @@ erDiagram
   pricing_points_ledger }o..o| sales_booking : "booking_id"
 ```
 
-## `ops` — الرحلات والمخزون والتشغيل والتتبع والحوادث
+## `ops` — Trips, inventory, operations, tracking and incidents
 
 ```mermaid
 erDiagram
@@ -820,7 +835,7 @@ erDiagram
   ops_seat_segment }o..o| sales_ticket : "ticket_id"
 ```
 
-## `sales` — القنوات والحجوزات والمسافرون والتذاكر
+## `sales` — Channels, bookings, passengers and tickets
 
 ```mermaid
 erDiagram
@@ -965,7 +980,7 @@ erDiagram
   sales_refund_request }o..o| sales_ticket : "ticket_id"
 ```
 
-## `fin` — المحافظ والدفتر والمدفوعات والتوزيع والتسوية
+## `fin` — Wallets, ledger, payments, allocation and settlement
 
 ```mermaid
 erDiagram
@@ -1153,7 +1168,7 @@ erDiagram
   fin_price_allocation }o..o| sales_booking : "booking_id"
 ```
 
-## `acct` — المحاسبة المبسطة والفوترة الإلكترونية والملف الضريبي
+## `acct` — Simplified accounting, e-invoicing and tax profiles
 
 ```mermaid
 erDiagram
@@ -1377,7 +1392,7 @@ erDiagram
   acct_einvoice_line }o..o| pricing_tax_scheme : "tax_scheme_id"
 ```
 
-## `crm` — الشكاوى والتقييم والإشعارات والمساعد الذكي
+## `crm` — Complaints, ratings, notifications and the AI assistant
 
 ```mermaid
 erDiagram
@@ -1429,7 +1444,7 @@ erDiagram
   crm_notification_template {
     text code PK
     text channel PK
-    text lang PK
+    text locale PK
     bigint approved_by FK
   }
   crm_trip_rating {
@@ -1452,6 +1467,9 @@ erDiagram
     ref external
   }
   ops_trip {
+    ref external
+  }
+  ref_locale {
     ref external
   }
   sales_booking {
@@ -1478,12 +1496,13 @@ erDiagram
   crm_trip_rating }o--|| ops_trip : "trip_id"
   crm_notification }o..o| ops_trip : "trip_id"
   crm_case }o..o| ops_trip : "trip_id"
+  crm_notification_template }o--|| ref_locale : "locale"
   crm_notification }o..o| sales_booking : "booking_id"
   crm_case }o..o| sales_booking : "booking_id"
   crm_trip_rating }o--|| sales_ticket : "ticket_id"
 ```
 
-## `gov` — الحوكمة والالتزامات وحماية البيانات
+## `gov` — Governance, obligations and data protection
 
 ```mermaid
 erDiagram
@@ -1558,7 +1577,7 @@ erDiagram
   gov_privacy_incident }o..o| sec_security_event : "security_event_id"
 ```
 
-## `sec` — الأمن: قواعد IP والمخاطر والتوقيع ووحدة الأمن
+## `sec` — Security: IP rules, risk, signing and the security hub
 
 ```mermaid
 erDiagram
@@ -1696,7 +1715,7 @@ erDiagram
   sec_screening_result }o--|| sec_screening_request : "request_id"
 ```
 
-## `audit` — سجلات الدخول والإجراءات (إلحاق فقط)
+## `audit` — Login and activity logs (append-only)
 
 ```mermaid
 erDiagram

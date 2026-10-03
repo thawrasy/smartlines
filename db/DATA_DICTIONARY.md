@@ -1,36 +1,36 @@
-# قاموس البيانات — قاعدة بيانات مسلك (المرحلة الأولى)
+# Data Dictionary — Masslak Database (Phase 1)
 
-> مولَّد آلياً من القاعدة المبنية (`db/tools/gen_docs.py`)؛ لا يُعدَّل يدوياً.
+> Generated from the built database (`db/tools/gen_docs.py`); do not edit by hand.
 
-**181 جدولاً، 1885 عموداً، في 14 مخططاً.**
+**183 tables, 1893 columns, in 14 schemas.**
 
-الرموز: 🔑 مفتاح أساسي · 🔗 مفتاح أجنبي · ✱ إلزامي · 🛡️ عزل المستأجر (RLS) · 🧩 مقسّم شهرياً · 🔒 إلحاق فقط/محمي من التعديل
+Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant isolation (RLS) · 🧩 partitioned monthly · 🔒 append-only / change-protected
 
-## الفهرس
+## Index
 
-- [`iam` — الهوية والأطراف والمستخدمون والصلاحيات وواجهات API](#iam) (23 جدولاً)
-- [`ref` — البيانات المرجعية والملفات](#ref) (5 جدولاً)
-- [`sys` — الإعدادات وصندوق الأحداث وWebhooks](#sys) (6 جدولاً)
-- [`net` — الشبكة: المحطات والخطوط ورموز الناقلين](#net) (8 جدولاً)
-- [`fleet` — الأسطول: المركبات والمقاعد والطاقم والتراخيص والتأمين](#fleet) (12 جدولاً)
-- [`pricing` — التسعير والضرائب والعمولات والحملات والولاء](#pricing) (19 جدولاً)
-- [`ops` — الرحلات والمخزون والتشغيل والتتبع والحوادث](#ops) (17 جدولاً)
-- [`sales` — القنوات والحجوزات والمسافرون والتذاكر](#sales) (8 جدولاً)
-- [`fin` — المحافظ والدفتر والمدفوعات والتوزيع والتسوية](#fin) (16 جدولاً)
-- [`acct` — المحاسبة المبسطة والفوترة الإلكترونية والملف الضريبي](#acct) (24 جدولاً)
-- [`crm` — الشكاوى والتقييم والإشعارات والمساعد الذكي](#crm) (9 جدولاً)
-- [`gov` — الحوكمة والالتزامات وحماية البيانات](#gov) (10 جدولاً)
-- [`sec` — الأمن: قواعد IP والمخاطر والتوقيع ووحدة الأمن](#sec) (19 جدولاً)
-- [`audit` — سجلات الدخول والإجراءات (إلحاق فقط)](#audit) (5 جدولاً)
+- [`iam` — Identity, parties, users, permissions and API clients](#iam) (23 tables)
+- [`ref` — Reference data, locales and files](#ref) (7 tables)
+- [`sys` — Settings, outbox and webhooks](#sys) (6 tables)
+- [`net` — Network: stations, routes and carrier codes](#net) (8 tables)
+- [`fleet` — Fleet: vehicles, seats, crew, licenses and insurance](#fleet) (12 tables)
+- [`pricing` — Pricing, taxes, commissions, campaigns and loyalty](#pricing) (19 tables)
+- [`ops` — Trips, inventory, operations, tracking and incidents](#ops) (17 tables)
+- [`sales` — Channels, bookings, passengers and tickets](#sales) (8 tables)
+- [`fin` — Wallets, ledger, payments, allocation and settlement](#fin) (16 tables)
+- [`acct` — Simplified accounting, e-invoicing and tax profiles](#acct) (24 tables)
+- [`crm` — Complaints, ratings, notifications and the AI assistant](#crm) (9 tables)
+- [`gov` — Governance, obligations and data protection](#gov) (10 tables)
+- [`sec` — Security: IP rules, risk, signing and the security hub](#sec) (19 tables)
+- [`audit` — Login and activity logs (append-only)](#audit) (5 tables)
 
 <a id="iam"></a>
-## `iam` — الهوية والأطراف والمستخدمون والصلاحيات وواجهات API
+## `iam` — Identity, parties, users, permissions and API clients
 
 ### `iam.api_client` 🛡️
 
-عملاء API (ناقل، قناة، شريك، جهة): نطاقات وحد معدل وقائمة IP مسموحة وmTLS اختياري
+API clients (carrier, channel, partner, authority): scopes, rate limit, IP allowlist and optional mTLS
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `uid` | `uuid` | ✱ | `gen_random_uuid()` |
@@ -52,9 +52,9 @@
 
 ### `iam.api_key` 
 
-مفاتيح API مجزأة؛ مفتاحان فعالان كحد أقصى أثناء التدوير
+Hashed API keys; at most two active keys during rotation
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `api_client_id` | `bigint` | 🔗 `iam.api_client` ✱ |  |
@@ -72,9 +72,9 @@
 
 ### `iam.app_user` 
 
-حساب الدخول؛ نوع الحساب يحدد البوابة: المنصة، الشركة، الوكالة، العميل
+Login account; the account kind determines the portal: platform, company, agency, customer
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `uid` | `uuid` | ✱ | `gen_random_uuid()` |
@@ -90,15 +90,15 @@
 | `locked_until` | `timestamp with time zone` |  |  |
 | `last_login_at` | `timestamp with time zone` |  |  |
 | `last_login_ip` | `inet` |  |  |
-| `preferred_lang` | `text` | ✱ | `'ar'::text` |
+| `preferred_locale` | `text` | 🔗 `ref.locale` ✱ | `'en'::text` |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 | `updated_at` | `timestamp with time zone` | ✱ | `now()` |
 
 ### `iam.auth_token` 
 
-رموز الدعوة والاسترجاع وOTP (لمرة واحدة، مخزنة مجزأة)
+Invitation, reset and OTP tokens (single use, stored hashed)
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `user_id` | `bigint` | 🔗 `iam.app_user`  |  |
@@ -112,9 +112,9 @@
 
 ### `iam.bank_account` 
 
-الحسابات البنكية للسحب والتسوية (IBAN مشفر)
+Bank accounts for withdrawals and settlement (encrypted IBAN)
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `party_id` | `bigint` | 🔗 `iam.party` ✱ |  |
@@ -131,9 +131,9 @@
 
 ### `iam.beneficial_owner` 
 
-المالكون المستفيدون للشركة (امتثال وأمن)
+Beneficial owners of the company (compliance and security)
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `company_id` | `bigint` | 🔑 🔗 `iam.company` ✱ |  |
 | `party_id` | `bigint` | 🔑 🔗 `iam.party` ✱ |  |
@@ -141,9 +141,9 @@
 
 ### `iam.biometric_template` 
 
-القالب الحيوي للوجه مشفراً بمفتاح منفصل ومعزولاً (3.8 ج)
+Facial biometric template, encrypted with a separate key and stored in isolation (3.8 c)
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `party_id` | `bigint` | 🔑 🔗 `iam.party` ✱ |  |
 | `template_enc` | `bytea` | ✱ |  |
@@ -154,9 +154,9 @@
 
 ### `iam.company` 🛡️
 
-الشركة الناقلة (Tenant): ملف 1:1 مع party؛ كل بيانات الشركة معزولة بـ company_id
+Carrier company (tenant): 1:1 profile with party; all company data is isolated by company_id
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 🔗 `iam.party` ✱ |  |
 | `company_type` | `text` | ✱ | `'CARRIER'::text` |
@@ -173,9 +173,9 @@
 
 ### `iam.company_member` 🛡️
 
-مستخدمو الشركة (المقاعد) ودورهم؛ مالك واحد لكل شركة لا يُعدَّل من داخلها
+Company users (seats) and their role; one owner per company, not editable from inside the company
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `user_id` | `bigint` | 🔑 🔗 `iam.app_user` ✱ |  |
 | `company_id` | `bigint` | 🔑 🔗 `iam.company` ✱ |  |
@@ -186,9 +186,9 @@
 
 ### `iam.device` 
 
-الأجهزة المسجلة لكل مستخدم (3.5 و16.8)؛ جهاز المشغّل الجديد يحتاج اعتماداً
+Registered devices per user (3.5, 16.8); a new operator device requires approval
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `user_id` | `bigint` | 🔗 `iam.app_user` ✱ |  |
@@ -203,9 +203,9 @@
 
 ### `iam.document` 
 
-المستندات لأي كيان (مرجع متعدد الأشكال) مع الملف والمراجعة وتاريخ الانتهاء
+Documents for any entity (polymorphic reference) with file, review and expiry date
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `uid` | `uuid` | ✱ | `gen_random_uuid()` |
@@ -226,9 +226,9 @@
 
 ### `iam.gov_identity_link` 
 
-ربط الحساب بالهوية الرقمية الوطنية (جاهزية على نمط نفاذ)
+Link between the account and the national digital identity (readiness for a Nafath-style system)
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `party_id` | `bigint` | 🔑 🔗 `iam.party` ✱ |  |
 | `provider_id` | `bigint` | 🔑 🔗 `iam.identity_provider` ✱ |  |
@@ -239,9 +239,9 @@
 
 ### `iam.identity_provider` 
 
-محوّلات التحقق: مزود KYC، السجل الوطني، الاتصالات، الهوية الرقمية (تُفعَّل في المرحلة 5)
+Verification adapters: KYC vendor, national registry, telecom, digital identity (activated in Phase 5)
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `code` | `text` | ✱ |  |
@@ -253,9 +253,9 @@
 
 ### `iam.mfa_factor` 
 
-عوامل التحقق المتعدد (TOTP بسر مشفر، مفاتيح المرور، رموز احتياطية)
+MFA factors (TOTP with encrypted secret, passkeys, recovery codes)
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `user_id` | `bigint` | 🔗 `iam.app_user` ✱ |  |
@@ -269,15 +269,15 @@
 
 ### `iam.party` 
 
-الطرف الموحد: شخص أو شركة أو كيان؛ يُسجَّل مرة واحدة ويحمل أدواراً متعددة (مسافر، سائق، مالك مركبة...)
+Unified party: person, company or entity; registered once and holds multiple roles (passenger, driver, vehicle owner...)
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `uid` | `uuid` | ✱ | `gen_random_uuid()` |
 | `party_type` | `text` | ✱ |  |
 | `legal_name` | `text` | ✱ |  |
-| `name_en` | `text` |  |  |
+| `name_latin` | `text` |  |  |
 | `id_type` | `text` |  |  |
 | `id_no_enc` | `bytea` |  |  |
 | `id_no_bidx` | `bytea` |  |  |
@@ -303,9 +303,9 @@
 
 ### `iam.party_role` 
 
-أدوار الطرف (عدة أدوار لطرف واحد)
+Party roles (several roles per party)
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `party_id` | `bigint` | 🔑 🔗 `iam.party` ✱ |  |
 | `role_code` | `text` | 🔑 ✱ |  |
@@ -315,21 +315,21 @@
 
 ### `iam.permission` 
 
-كتالوج الصلاحيات (القسم 33)
+Permission catalog (section 33)
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `code` | `text` | 🔑 ✱ |  |
 | `module` | `text` | ✱ |  |
 | `scope` | `text` | ✱ |  |
-| `description_ar` | `text` | ✱ |  |
+| `description` | `text` | ✱ |  |
 | `is_sensitive` | `boolean` | ✱ | `false` |
 
 ### `iam.push_token` 
 
 
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `device_id` | `bigint` | 🔑 🔗 `iam.device` ✱ |  |
 | `token` | `text` | ✱ |  |
@@ -338,13 +338,13 @@
 
 ### `iam.role` 
 
-الأدوار: أدوار المنصة، وقوالب أدوار الشركة، وأدوار تحددها كل شركة لنفسها (3.4 ج)
+Roles: platform roles, company role templates, and roles each company defines for itself (3.4 c)
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `code` | `text` | ✱ |  |
-| `name_ar` | `text` | ✱ |  |
+| `name` | `text` | ✱ |  |
 | `scope` | `text` | ✱ |  |
 | `company_id` | `bigint` | 🔗 `iam.company`  |  |
 | `is_system` | `boolean` | ✱ | `false` |
@@ -354,16 +354,16 @@
 
 
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `role_id` | `bigint` | 🔑 🔗 `iam.role` ✱ |  |
 | `permission_code` | `text` | 🔑 🔗 `iam.permission` ✱ |  |
 
 ### `iam.user_role` 
 
-أدوار موظفي المنصة
+Platform staff roles
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `user_id` | `bigint` | 🔑 🔗 `iam.app_user` ✱ |  |
 | `role_id` | `bigint` | 🔑 🔗 `iam.role` ✱ |  |
@@ -373,9 +373,9 @@
 
 ### `iam.user_session` 
 
-الجلسات الفعالة؛ إلغاؤها ينهي الدخول فوراً
+Active sessions; revoking one ends the login immediately
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `user_id` | `bigint` | 🔗 `iam.app_user` ✱ |  |
@@ -395,9 +395,9 @@
 
 ### `iam.verification` 
 
-سجل كل تحقق (هوية بمستويات L0..L3، شركة، مركبة، مستند)؛ يدوي الآن وآلي بعد الربط
+Record of every verification (identity levels L0..L3, company, vehicle, document); manual now, automatic after integration
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `subject_type` | `text` | ✱ |  |
@@ -418,20 +418,19 @@
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
 <a id="ref"></a>
-## `ref` — البيانات المرجعية والملفات
+## `ref` — Reference data, locales and files
 
 ### `ref.city` 
 
-المدن (محلية ودولية)
+Cities (domestic and international)
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `code` | `text` | ✱ |  |
 | `country_code` | `character(2)` | 🔗 `ref.country` ✱ |  |
 | `region` | `text` |  |  |
-| `name_ar` | `text` | ✱ |  |
-| `name_en` | `text` | ✱ |  |
+| `name` | `text` | ✱ |  |
 | `lat` | `numeric(9,6)` |  |  |
 | `lng` | `numeric(9,6)` |  |  |
 | `timezone` | `text` | ✱ | `'Asia/Damascus'::text` |
@@ -439,34 +438,32 @@
 
 ### `ref.country` 
 
-الدول (حزمة الدولة 12.4): سوريا أساساً ثم التوسع
+Countries (Country Pack 12.4): Syria first, then expansion
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `code` | `character(2)` | 🔑 ✱ |  |
-| `name_ar` | `text` | ✱ |  |
-| `name_en` | `text` | ✱ |  |
+| `name` | `text` | ✱ |  |
 | `phone_prefix` | `text` |  |  |
 | `default_currency` | `character(3)` | 🔗 `ref.currency`  |  |
 | `is_active` | `boolean` | ✱ | `true` |
 
 ### `ref.currency` 
 
-العملات؛ كل المبالغ في النظام BIGINT بالوحدة الصغرى لهذه العملة
+Currencies; every amount in the system is a BIGINT in the minor unit of its currency
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `code` | `character(3)` | 🔑 ✱ |  |
-| `name_ar` | `text` | ✱ |  |
-| `name_en` | `text` | ✱ |  |
+| `name` | `text` | ✱ |  |
 | `minor_unit` | `smallint` | ✱ | `2` |
 | `is_active` | `boolean` | ✱ | `true` |
 
 ### `ref.exchange_rate` 
 
-أسعار الصرف بتاريخ سريان؛ يُثبَّت السعر المستخدم في كل عملية (القسم 12)
+Exchange rates with an effective date; the rate used is fixed on every transaction (section 12)
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `base_currency` | `character(3)` | 🔗 `ref.currency` ✱ |  |
@@ -478,9 +475,9 @@
 
 ### `ref.file_object` 
 
-بيانات وصفية لكل ملف مرفوع (مستندات، صور، PDF موقّع)؛ المحتوى في تخزين الكائنات المشفر
+Metadata for every uploaded file (documents, images, signed PDFs); content is in encrypted object storage
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `uid` | `uuid` | ✱ | `gen_random_uuid()` |
@@ -495,14 +492,41 @@
 | `retain_until` | `timestamp with time zone` |  |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
+### `ref.locale` 
+
+Supported UI locales with text direction; English is the system default, other locales are UI-only
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `code` | `text` | 🔑 ✱ |  |
+| `name` | `text` | ✱ |  |
+| `native_name` | `text` |  |  |
+| `direction` | `text` | ✱ | `'LTR'::text` |
+| `is_enabled` | `boolean` | ✱ | `false` |
+| `is_default` | `boolean` | ✱ | `false` |
+
+### `ref.translation` 
+
+Localized display values for reference data; the English value in the source row is the fallback
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `entity` | `text` | ✱ |  |
+| `entity_key` | `text` | ✱ |  |
+| `field` | `text` | ✱ |  |
+| `locale` | `text` | 🔗 `ref.locale` ✱ |  |
+| `value` | `text` | ✱ |  |
+| `updated_at` | `timestamp with time zone` | ✱ | `now()` |
+
 <a id="sys"></a>
-## `sys` — الإعدادات وصندوق الأحداث وWebhooks
+## `sys` — Settings, outbox and webhooks
 
 ### `sys.company_setting` 🛡️
 
-إعدادات خاصة بكل ناقل (سياسة البيع بعد الانطلاق، مهل الإقفال، أوضاع المقاعد...)
+Per-carrier settings (post-departure sales policy, cutoffs, seat selection modes...)
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `company_id` | `bigint` | 🔑 🔗 `iam.company` ✱ |  |
 | `key` | `text` | 🔑 ✱ |  |
@@ -512,9 +536,9 @@
 
 ### `sys.outbox_event` 
 
-صندوق الأحداث الصادرة (Outbox): يُكتب في معاملة التغيير نفسها، ثم يُنشر للخدمات والشركاء
+Transactional outbox: written in the same transaction as the change, then published to services and partners
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `event_uid` | `uuid` | ✱ | `gen_random_uuid()` |
@@ -532,9 +556,9 @@
 
 ### `sys.schema_migration` 
 
-إصدارات المخطط المطبقة
+Applied schema versions
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `version` | `text` | 🔑 ✱ |  |
 | `description` | `text` |  |  |
@@ -543,9 +567,9 @@
 
 ### `sys.setting` 
 
-الإعدادات العامة ومفاتيح التفعيل (مبدأ البناء الكامل والتفعيل بالإعدادات 2.8)
+Global settings and feature flags (full-build, activate-by-configuration principle 2.8)
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `key` | `text` | 🔑 ✱ |  |
 | `value` | `jsonb` | ✱ |  |
@@ -556,9 +580,9 @@
 
 ### `sys.webhook_delivery` 
 
-محاولات التسليم وإعادة المحاولة والرسائل المتعثرة (DEAD)
+Delivery attempts, retries and dead letters (DEAD)
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `endpoint_id` | `bigint` | 🔗 `sys.webhook_endpoint` ✱ |  |
@@ -574,9 +598,9 @@
 
 ### `sys.webhook_endpoint` 
 
-اشتراكات Webhooks للشركاء والتكاملات (14 و13.10)، موقّعة HMAC-SHA256
+Webhook subscriptions for partners and integrations (14, 13.10), signed with HMAC-SHA256
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `uid` | `uuid` | ✱ | `gen_random_uuid()` |
@@ -594,13 +618,13 @@
 | `last_success_at` | `timestamp with time zone` |  |  |
 
 <a id="net"></a>
-## `net` — الشبكة: المحطات والخطوط ورموز الناقلين
+## `net` — Network: stations, routes and carrier codes
 
 ### `net.carrier_code` 
 
-رمز الناقل الثلاثي (والثنائي الاختياري)، فريد على مستوى المنصة ولا يُعاد قبل 24 شهراً
+Three-letter carrier code (optional two-character code), unique platform-wide and not reissued for 24 months
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
@@ -614,9 +638,9 @@
 
 ### `net.code_reservation` 
 
-رموز محجوزة أو ممنوعة أو مسحوبة مؤقتاً
+Reserved, prohibited or temporarily withdrawn codes
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `code` | `text` | 🔑 ✱ |  |
 | `reason` | `text` | ✱ |  |
@@ -624,9 +648,9 @@
 
 ### `net.compliance_profile` 
 
-ملف الامتثال بإصدارات لكل (دولة، فئة): الحقول المطلوبة ومهلة الاستكمال (4.11 ب)
+Versioned compliance profile per (country, class): required fields and completion grace period (4.11 b)
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `subject` | `text` | ✱ | `'STATION'::text` |
@@ -641,9 +665,9 @@
 
 ### `net.route` 🛡️
 
-قالب خط الناقل بين محطتين؛ تُنسخ محطاته إلى الرحلة عند توليدها (كتالوج الخطوط المعتمد 4.15 يضاف في المرحلة 2)
+Carrier route template between two stations; its stops are copied to the trip when generated (the approved line catalog 4.15 is added in Phase 2)
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `uid` | `uuid` | ✱ | `gen_random_uuid()` |
@@ -660,9 +684,9 @@
 
 ### `net.route_stop` 
 
-محطات الخط بالترتيب، وأزمنة الإزاحة، وسلّم السعر من الأصل
+Ordered route stops, time offsets and the fare ladder from the origin
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `route_id` | `bigint` | 🔑 🔗 `net.route` ✱ |  |
 | `seq` | `smallint` | 🔑 ✱ |  |
@@ -677,9 +701,9 @@
 
 ### `net.service_number` 🛡️
 
-رقم الخدمة المتكررة من كتلة النوع؛ لا يتكرر للناقل في فترة متداخلة
+Recurring service number from its type block; never repeated for a carrier in an overlapping period
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
@@ -692,9 +716,9 @@
 
 ### `net.station` 🛡️
 
-سجل المحطات ونقاط الانطلاق والوصول (مركزية، نقطة شركة، خارجية) بكود فريد (4.11)
+Register of stations and departure/arrival points (central, company point, external) with a unique code (4.11)
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `uid` | `uuid` | ✱ | `gen_random_uuid()` |
@@ -704,8 +728,7 @@
 | `station_class` | `text` | ✱ |  |
 | `subtype` | `text` | ✱ | `'TERMINAL'::text` |
 | `owner_company_id` | `bigint` | 🔗 `iam.company`  |  |
-| `name_ar` | `text` | ✱ |  |
-| `name_en` | `text` |  |  |
+| `name` | `text` | ✱ |  |
 | `address` | `text` |  |  |
 | `lat` | `numeric(9,6)` | ✱ |  |
 | `lng` | `numeric(9,6)` | ✱ |  |
@@ -731,7 +754,7 @@
 
 
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `station_id` | `bigint` | 🔗 `net.station` ✱ |  |
@@ -741,13 +764,13 @@
 | `email` | `citext` |  |  |
 
 <a id="fleet"></a>
-## `fleet` — الأسطول: المركبات والمقاعد والطاقم والتراخيص والتأمين
+## `fleet` — Fleet: vehicles, seats, crew, licenses and insurance
 
 ### `fleet.crew_profile` 🛡️
 
-السائقون والمضيفون؛ رخصهم وتواريخها في fleet.license_record
+Drivers and hosts; their licenses and dates live in fleet.license_record
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `party_id` | `bigint` | 🔑 🔗 `iam.party` ✱ |  |
 | `company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
@@ -758,9 +781,9 @@
 
 ### `fleet.field_check_log` 
 
-كل استعلام ميداني من رجال الأمن والجهات المخوّلة
+Every field query by security officers and authorized bodies
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `inspector_user_id` | `bigint` | 🔗 `iam.app_user` ✱ |  |
@@ -773,9 +796,9 @@
 
 ### `fleet.insurance_policy` 🛡️
 
-عقد التأمين شرط لتفعيل المركبة؛ يُتحقق منه لاحقاً من المرور أو شركات التأمين (7.12 أ)
+Insurance contract, required to activate the vehicle; later verified with the traffic authority or insurers (7.12 a)
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `vehicle_id` | `bigint` | 🔗 `fleet.vehicle` ✱ |  |
@@ -796,9 +819,9 @@
 
 ### `fleet.license_change_request` 
 
-طلب تعديل ترخيص مقفل: مراجعة ثم اعتماد من مسؤول مختلف
+Change request for a locked license: review, then approval by a different officer
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `license_record_id` | `bigint` | 🔗 `fleet.license_record` ✱ |  |
@@ -814,9 +837,9 @@
 
 ### `fleet.license_record` 🛡️ 🔒
 
-كل تاريخ انتهاء يحكم أهلية التشغيل (ترخيص، فحص، تأمين، رخصة قيادة)؛ مقفل بعد الحفظ
+Every expiry date that governs operating eligibility (license, inspection, insurance, driving license); locked after saving
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `company_id` | `bigint` | 🔗 `iam.company`  |  |
@@ -838,9 +861,9 @@
 
 ### `fleet.seat_layout` 
 
-مخططات المقاعد القابلة لإعادة الاستخدام
+Reusable seat layouts
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `company_id` | `bigint` | 🔗 `iam.company`  |  |
@@ -851,9 +874,9 @@
 
 ### `fleet.seat_layout_seat` 
 
-مقاعد الركاب في المخطط (مقاعد الطاقم لا تدخل المخزون 4.14)
+Passenger seats in the layout (crew seats are not part of the inventory, 4.14)
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `layout_id` | `bigint` | 🔑 🔗 `fleet.seat_layout` ✱ |  |
 | `seat_no` | `smallint` | 🔑 ✱ |  |
@@ -865,9 +888,9 @@
 
 ### `fleet.seat_price_rule` 🛡️
 
-أسعار المقاعد المميزة أو المخفضة يحددها الناقل (4.14 أ)
+Premium or discounted seat prices set by the carrier (4.14 a)
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
@@ -880,9 +903,9 @@
 
 ### `fleet.vehicle` 🛡️
 
-المركبة: النوع والسعة الجالسة والواقفة، الملكية والمالك، والحالة التي تحجبها عن الإسناد (4.3، 4.13، 4.17، 4.18)
+Vehicle: type, seated and standing capacity, ownership and owner, and the status that blocks assignment (4.3, 4.13, 4.17, 4.18)
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `uid` | `uuid` | ✱ | `gen_random_uuid()` |
@@ -913,9 +936,9 @@
 
 ### `fleet.vehicle_lease` 🛡️
 
-عقد إيجار المركبة؛ مستأجر فعّال واحد لكل مركبة في الفترة (قيد استبعاد)
+Vehicle lease contract; one active lessee per vehicle per period (exclusion constraint)
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `vehicle_id` | `bigint` | 🔗 `fleet.vehicle` ✱ |  |
@@ -929,9 +952,9 @@
 
 ### `fleet.vehicle_qr_tag` 
 
-ملصق QR الموقّع على المركبة للتحقق الميداني (4.18 هـ)
+Signed QR sticker on the vehicle for field verification (4.18 e)
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `vehicle_id` | `bigint` | 🔗 `fleet.vehicle` ✱ |  |
@@ -941,9 +964,9 @@
 
 ### `fleet.vehicle_status_history` 
 
-تاريخ حالة المركبة (إيقاف بعد حادث، حجز، إفراج) بالسبب والدليل
+Vehicle status history (suspension after an incident, impoundment, release) with reason and evidence
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `vehicle_id` | `bigint` | 🔗 `fleet.vehicle` ✱ |  |
@@ -955,13 +978,13 @@
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
 <a id="pricing"></a>
-## `pricing` — التسعير والضرائب والعمولات والحملات والولاء
+## `pricing` — Pricing, taxes, commissions, campaigns and loyalty
 
 ### `pricing.allocation_template` 
 
-قالب شجرة توزيع السعر على المستفيدين (ناقل، منصة، ضريبة، وسيط)
+Template of the price allocation tree across beneficiaries (carrier, platform, tax, intermediary)
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `code` | `text` | ✱ |  |
@@ -978,7 +1001,7 @@
 
 
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `template_id` | `bigint` | 🔑 🔗 `pricing.allocation_template` ✱ |  |
 | `code` | `text` | 🔑 ✱ |  |
@@ -995,9 +1018,9 @@
 
 ### `pricing.campaign` 
 
-الحملة: الجمهور والنطاق والميزة والتمويل والميزانية والحدود (شرط ← إجراء)
+Campaign: audience, scope, benefit, funding, budget and limits (condition -> action)
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `uid` | `uuid` | ✱ | `gen_random_uuid()` |
@@ -1025,7 +1048,7 @@
 
 
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `scheme_id` | `bigint` | 🔗 `pricing.commission_scheme` ✱ |  |
@@ -1039,9 +1062,9 @@
 
 ### `pricing.commission_scheme` 
 
-مخطط عمولة (منصة، وسيط، دفع، إحالة) بممول ومستفيد وإصدارات
+Commission scheme (platform, intermediary, payment, referral) with funder, beneficiary and versions
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `code` | `text` | ✱ |  |
@@ -1059,14 +1082,13 @@
 
 ### `pricing.fare_brand` 
 
-علامات الأسعار وشروط التذكرة والأمتعة والاسترداد؛ تُنسخ لقطتها إلى التذكرة
+Fare brands with ticket, baggage and refund conditions; a snapshot is copied to the ticket
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `code` | `text` | 🔑 ✱ |  |
 | `company_id` | `bigint` | 🔗 `iam.company`  |  |
-| `name_ar` | `text` | ✱ |  |
-| `name_en` | `text` |  |  |
+| `name` | `text` | ✱ |  |
 | `factor` | `numeric(6,4)` | ✱ | `1` |
 | `rules` | `jsonb` | ✱ |  |
 | `sort` | `smallint` | ✱ | `0` |
@@ -1074,9 +1096,9 @@
 
 ### `pricing.fare_table` 
 
-جدول أجرة مركزي (مقفل) أو للناقل ضمن حدود (5.2)
+Central (locked) fare table or carrier fare table within limits (5.2)
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `scope` | `text` | ✱ |  |
@@ -1097,7 +1119,7 @@
 
 
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `fare_table_id` | `bigint` | 🔑 🔗 `pricing.fare_table` ✱ |  |
 | `from_station_id` | `bigint` | 🔑 🔗 `net.station` ✱ |  |
@@ -1108,9 +1130,9 @@
 
 ### `pricing.jurisdiction` 
 
-الاختصاص الضريبي (دولة، منطقة، منفذ، محلي)
+Tax jurisdiction (country, region, border crossing, local)
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `country_code` | `character(2)` | 🔗 `ref.country` ✱ |  |
@@ -1122,11 +1144,11 @@
 
 
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `code` | `text` | ✱ |  |
-| `name_ar` | `text` | ✱ |  |
+| `name` | `text` | ✱ |  |
 | `point_value` | `bigint` | ✱ |  |
 | `currency` | `character(3)` | 🔗 `ref.currency` ✱ |  |
 | `expiry_months` | `smallint` | ✱ | `24` |
@@ -1137,7 +1159,7 @@
 
 
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `program_id` | `bigint` | 🔗 `pricing.loyalty_program` ✱ |  |
@@ -1153,20 +1175,20 @@
 
 
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `program_id` | `bigint` | 🔗 `pricing.loyalty_program` ✱ |  |
 | `code` | `text` | ✱ |  |
-| `name_ar` | `text` | ✱ |  |
+| `name` | `text` | ✱ |  |
 | `min_points` | `bigint` | ✱ | `0` |
 | `benefits` | `jsonb` | ✱ | `'{}'::jsonb` |
 
 ### `pricing.points_account` 
 
-حساب النقاط؛ الرصيد مخزَّن ويُطابَق مع دفتر النقاط
+Points account; the balance is stored and reconciled with the points ledger
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `program_id` | `bigint` | 🔗 `pricing.loyalty_program` ✱ |  |
@@ -1178,9 +1200,9 @@
 
 ### `pricing.points_ledger` 🔒
 
-دفتر النقاط: إلحاق فقط، والتصحيح بقيد عكسي
+Points ledger: append-only, corrections by reversing entry
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `account_id` | `bigint` | 🔗 `pricing.points_account` ✱ |  |
@@ -1196,9 +1218,9 @@
 
 ### `pricing.pricing_modifier` 
 
-المعدّلات الديناميكية بالترتيب (5.3)
+Dynamic pricing modifiers applied in order (5.3)
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `company_id` | `bigint` | 🔗 `iam.company`  |  |
@@ -1214,7 +1236,7 @@
 
 
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `campaign_id` | `bigint` | 🔗 `pricing.campaign` ✱ |  |
@@ -1225,9 +1247,9 @@
 
 ### `pricing.rate_band` 
 
-شرائح الاحتساب لقاعدة ضريبة أو عمولة
+Calculation bands for a tax or commission rule
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `tax_rule_id` | `bigint` | 🔗 `pricing.tax_rule`  |  |
@@ -1243,7 +1265,7 @@
 
 
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `scheme_id` | `bigint` | 🔗 `pricing.tax_scheme` ✱ |  |
@@ -1262,9 +1284,9 @@
 
 ### `pricing.tax_scheme` 
 
-مخطط ضريبة أو رسم بمعالجته واختصاصه وجهة تحصيله، بإصدارات واعتماد مزدوج
+Tax or fee scheme with its treatment, jurisdiction and collecting party, versioned with dual approval
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `code` | `text` | ✱ |  |
@@ -1283,13 +1305,13 @@
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
 <a id="ops"></a>
-## `ops` — الرحلات والمخزون والتشغيل والتتبع والحوادث
+## `ops` — Trips, inventory, operations, tracking and incidents
 
 ### `ops.crew_assignment` 
 
-إسناد الطاقم للرحلة؛ قيد استبعاد يمنع إسناد الفرد لرحلتين متداخلتين
+Crew assignment to the trip; an exclusion constraint prevents assigning a person to two overlapping trips
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `trip_id` | `bigint` | 🔗 `ops.trip` ✱ |  |
@@ -1301,9 +1323,9 @@
 
 ### `ops.family_zone` 
 
-مناطق العائلات في الرحلة (4.14 أ)
+Family zones on the trip (4.14 a)
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `trip_id` | `bigint` | 🔑 🔗 `ops.trip` ✱ |  |
 | `seat_nos` | `smallint[]` | ✱ |  |
@@ -1311,9 +1333,9 @@
 
 ### `ops.geo_event` 🧩
 
-مواقع التتبع؛ مقسّم شهرياً، ومدة احتفاظ قصيرة (16.13: 7 أيام افتراضياً للأفراد)؛ بلا FK لأداء الإدخال
+Tracking positions; partitioned monthly, short retention (16.13: 7 days by default for individuals); no FKs for insert performance
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `ts` | `timestamp with time zone` | 🔑 ✱ |  |
@@ -1329,9 +1351,9 @@
 
 ### `ops.incident` 🛡️
 
-الحادث أو العطل؛ الجسيم منه يوقف المركبة فوراً ويطلب قرار استمرارية
+Incident or breakdown; a serious one takes the vehicle out of service immediately and requires a continuity decision
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `uid` | `uuid` | ✱ | `gen_random_uuid()` |
@@ -1355,7 +1377,7 @@
 
 
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `incident_id` | `bigint` | 🔗 `ops.incident` ✱ |  |
@@ -1366,9 +1388,9 @@
 
 ### `ops.incident_external_link` 
 
-الربط مع المرور والشرطة وشركات التأمين (يُفعَّل بعد الربط الحكومي)
+Integration with traffic police, police and insurers (activated after government integration)
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `incident_id` | `bigint` | 🔗 `ops.incident` ✱ |  |
@@ -1379,9 +1401,9 @@
 
 ### `ops.seat_segment` 
 
-مخزون المقعد لكل مقطع (4.12 ج): المقعد يُباع للزوج إن كان شاغراً في كل مقاطعه
+Seat inventory per segment (4.12 c): a seat is sellable for a pair if it is vacant in all of the pair's segments
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `trip_id` | `bigint` | 🔑 🔗 `ops.trip` ✱ |  |
 | `seat_no` | `smallint` | 🔑 ✱ |  |
@@ -1394,9 +1416,9 @@
 
 ### `ops.standing_segment` 
 
-عدّاد أماكن الوقوف لكل مقطع، لا يتجاوز السعة
+Standing places counter per segment, never above capacity
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `trip_id` | `bigint` | 🔑 🔗 `ops.trip` ✱ |  |
 | `seg` | `smallint` | 🔑 ✱ |  |
@@ -1407,7 +1429,7 @@
 
 
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `trip_id` | `bigint` | 🔗 `ops.trip` ✱ |  |
@@ -1421,9 +1443,9 @@
 
 ### `ops.trip` 🛡️
 
-الرحلة الفعلية (الكيان المحوري) برقمها والمركبة والسعة واللقطات والسياسات؛ قيد استبعاد يمنع تعارض المركبة
+Actual trip (the pivotal entity) with its number, vehicle, capacity, snapshots and policies; an exclusion constraint prevents vehicle conflicts
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `uid` | `uuid` | ✱ | `gen_random_uuid()` |
@@ -1469,9 +1491,9 @@
 
 ### `ops.trip_change` 
 
-سجل تغييرات الرحلة وأسبابها (7.9)
+Trip change log with reasons (7.9)
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `trip_id` | `bigint` | 🔗 `ops.trip` ✱ |  |
@@ -1485,9 +1507,9 @@
 
 ### `ops.trip_disruption` 
 
-قرار استمرارية الرحلة: بديلة، استئجار، تعاون، إنقاذ، إيقاف (7.12 ج)
+Trip continuity decision: replacement, lease, interline, rescue, cancellation (7.12 c)
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `trip_id` | `bigint` | 🔗 `ops.trip` ✱ |  |
@@ -1503,9 +1525,9 @@
 
 ### `ops.trip_pair_fare` 
 
-سعر استثنائي لزوج محطات يتجاوز فرق السلّم
+Exceptional price for a station pair exceeding the ladder difference
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `trip_id` | `bigint` | 🔑 🔗 `ops.trip` ✱ |  |
 | `from_seq` | `smallint` | 🔑 ✱ |  |
@@ -1514,9 +1536,9 @@
 
 ### `ops.trip_stop` 
 
-محطات الرحلة (لقطة من الخط) بالأوقات الموعودة والفعلية وسلّم السعر
+Trip stops (snapshot of the route) with promised and actual times and the fare ladder
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `trip_id` | `bigint` | 🔑 🔗 `ops.trip` ✱ |  |
 | `seq` | `smallint` | 🔑 ✱ |  |
@@ -1533,9 +1555,9 @@
 
 ### `ops.trip_stop_event` 
 
-الوصول والمغادرة الفعليان لكل محطة (أساس الالتزام بالموعد 4.12 ح)
+Actual arrival and departure at each stop (basis of on-time performance 4.12 h)
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `trip_id` | `bigint` | 🔗 `ops.trip` ✱ |  |
@@ -1549,9 +1571,9 @@
 
 ### `ops.trip_template` 🛡️
 
-نمط الرحلة المتكررة الذي يولّد الرحلات الفعلية
+Recurring trip pattern that generates the actual trips
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
@@ -1570,9 +1592,9 @@
 
 ### `ops.vehicle_swap` 
 
-تبديل مركبة الرحلة دون تغيير رقمها (4.16 د)
+Swapping the trip vehicle without changing the trip number (4.16 d)
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `trip_id` | `bigint` | 🔗 `ops.trip` ✱ |  |
@@ -1584,13 +1606,13 @@
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
 <a id="sales"></a>
-## `sales` — القنوات والحجوزات والمسافرون والتذاكر
+## `sales` — Channels, bookings, passengers and tickets
 
 ### `sales.boarding_event` 🔒
 
-أحداث الصعود والنزول بالمسح (أساس التفويج والتسوية والمنافست)؛ إلحاق فقط
+Boarding and alighting scan events (basis for dispatch, settlement and the manifest); append-only
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `ticket_id` | `bigint` | 🔗 `sales.ticket` ✱ |  |
@@ -1607,9 +1629,9 @@
 
 ### `sales.booking` 🛡️
 
-الحجز: لقطة السعر، والقناة، وشجرة التوزيع، ومفتاح عدم التكرار؛ حالاته وفق القسم 28
+Booking: price snapshot, channel, allocation tree and idempotency key; statuses per section 28
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `uid` | `uuid` | ✱ | `gen_random_uuid()` |
@@ -1636,9 +1658,9 @@
 
 ### `sales.campaign_redemption` 
 
-استخدام الحملة في حجز ومن يموّل الخصم
+Campaign use on a booking and who funds the discount
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `campaign_id` | `bigint` | 🔗 `pricing.campaign` ✱ |  |
@@ -1651,9 +1673,9 @@
 
 ### `sales.channel` 
 
-قناة البيع (مباشر، شباك، وكالة، شريك API)؛ الاتفاقيات والحصص في المرحلة 9
+Sales channel (direct, counter, agency, API partner); agreements and quotas come in Phase 9
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `uid` | `uuid` | ✱ | `gen_random_uuid()` |
@@ -1666,9 +1688,9 @@
 
 ### `sales.passenger` 
 
-بيانات المسافر في الحجز؛ أرقام الوثائق مشفرة بفهرس أعمى للفحص الأمني والمنافست
+Passenger data on the booking; document numbers encrypted with a blind index for security screening and the manifest
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `booking_id` | `bigint` | 🔗 `sales.booking` ✱ |  |
@@ -1692,9 +1714,9 @@
 
 ### `sales.passenger_compensation` 
 
-تعويض المسافرين عن الإلغاء أو التعطل، ويُحمَّل على الناقل المتسبب
+Passenger compensation for cancellation or disruption, charged to the carrier at fault
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `booking_id` | `bigint` | 🔗 `sales.booking` ✱ |  |
@@ -1708,9 +1730,9 @@
 
 ### `sales.refund_request` 
 
-طلب الاسترداد بلقطة السياسة؛ لا يُحرَّر المبلغ قبل إقفال الإشعار الدائن (BR-EIN-03)
+Refund request with a policy snapshot; funds are not released before the credit note is finalized (BR-EIN-03)
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `booking_id` | `bigint` | 🔗 `sales.booking` ✱ |  |
@@ -1728,9 +1750,9 @@
 
 ### `sales.ticket` 
 
-التذكرة لكل مسافر وزوج محطات، بمقعد مرقَّم أو مضمون أو وقوف، ولقطة الشروط وQR موقّع
+Ticket per passenger and station pair, with a numbered, guaranteed or standing place, a conditions snapshot and a signed QR
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `uid` | `uuid` | ✱ | `gen_random_uuid()` |
@@ -1758,13 +1780,13 @@
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
 <a id="fin"></a>
-## `fin` — المحافظ والدفتر والمدفوعات والتوزيع والتسوية
+## `fin` — Wallets, ledger, payments, allocation and settlement
 
 ### `fin.bank_reconciliation` 
 
-المطابقة اليومية: رصيد البنك = إجمالي المحافظ + المستحقات
+Daily reconciliation: bank balance = total wallets + receivables
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `recon_date` | `date` | ✱ |  |
@@ -1780,9 +1802,9 @@
 
 ### `fin.bank_transfer_topup` 
 
-شحن المحفظة بتحويل بنكي بمرجع فريد ومطابقة تلقائية
+Wallet top-up by bank transfer with a unique reference and automatic matching
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `wallet_id` | `bigint` | 🔗 `fin.wallet` ✱ |  |
@@ -1796,9 +1818,9 @@
 
 ### `fin.ledger_entry` 🔒
 
-سطر القيد (مدين/دائن)؛ إلحاق فقط، ويحدّث رصيد المحفظة ذرياً
+Ledger entry (debit/credit); append-only, updates the wallet balance atomically
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `txn_id` | `bigint` | 🔗 `fin.ledger_txn` ✱ |  |
@@ -1810,9 +1832,9 @@
 
 ### `fin.ledger_txn` 🔒
 
-رأس القيد المالي؛ غير قابل للتعديل، ومفتاح عدم التكرار يمنع القيد المزدوج
+Ledger transaction header; immutable, and the idempotency key prevents double posting
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `uid` | `uuid` | ✱ | `gen_random_uuid()` |
@@ -1828,9 +1850,9 @@
 
 ### `fin.payment` 
 
-الدفعة؛ لا تصبح SUCCESS إلا بإشعار موقّع من البوابة وقيد في الدفتر (16.25)
+Payment; becomes SUCCESS only with a signed gateway notification and a ledger entry (16.25)
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `uid` | `uuid` | ✱ | `gen_random_uuid()` |
@@ -1854,9 +1876,9 @@
 
 ### `fin.payment_notification` 🔒
 
-إشعارات البوابة الموقّعة كما وردت (مرجع حالة الدفع، ومنع التكرار)
+Signed gateway notifications as received (source of payment status, deduplication)
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `provider_id` | `bigint` | 🔗 `fin.payment_provider` ✱ |  |
@@ -1870,9 +1892,9 @@
 
 ### `fin.payment_provider` 
 
-مزود الدفع بمحوّل موحد قابل للاستبدال
+Payment provider behind a unified, replaceable adapter
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `code` | `text` | ✱ |  |
@@ -1885,9 +1907,9 @@
 
 ### `fin.payout` 🛡️
 
-التحويل البنكي للناقل بحسب جدوله
+Bank payout to the carrier according to its schedule
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `uid` | `uuid` | ✱ | `gen_random_uuid()` |
@@ -1908,7 +1930,7 @@
 
 
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `company_id` | `bigint` | 🔑 🔗 `iam.company` ✱ |  |
 | `frequency` | `text` | ✱ | `'WEEKLY'::text` |
@@ -1921,9 +1943,9 @@
 
 ### `fin.price_allocation` 
 
-رأس شجرة توزيع السعر لكل حجز أو تذكرة أو شحنة
+Price allocation tree header for each booking, ticket or shipment
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `uid` | `uuid` | ✱ | `gen_random_uuid()` |
@@ -1938,9 +1960,9 @@
 
 ### `fin.price_allocation_line` 
 
-أسطر الشجرة: أجرة، ضريبة، عمولة، رسم، خصم؛ كل ورقة تُحرَّر لمحفظة مستفيدها عند حدثها
+Tree lines: fare, tax, commission, fee, discount; each leaf is released to its beneficiary's wallet on its event
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `allocation_id` | `bigint` | 🔗 `fin.price_allocation` ✱ |  |
@@ -1963,9 +1985,9 @@
 
 ### `fin.settlement_batch` 🛡️
 
-كشف تسوية الناقل لفترة؛ لا تتداخل الفترات
+Carrier settlement statement for a period; periods never overlap
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `uid` | `uuid` | ✱ | `gen_random_uuid()` |
@@ -1985,7 +2007,7 @@
 
 
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `batch_id` | `bigint` | 🔗 `fin.settlement_batch` ✱ |  |
@@ -1998,9 +2020,9 @@
 
 ### `fin.tax_ledger` 🛡️ 🔒
 
-دفتر الضرائب المحصلة والمستردة لكل مخطط واختصاص وفترة (أساس الإقرار)
+Ledger of taxes collected and refunded per scheme, jurisdiction and period (basis of the tax return)
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `jurisdiction_id` | `bigint` | 🔗 `pricing.jurisdiction` ✱ |  |
@@ -2016,9 +2038,9 @@
 
 ### `fin.wallet` 🛡️
 
-المحفظة: مستخدم، شركة، منصة، ضمان Escrow، عمولة، ضريبة، مقاصة؛ الرصيد يُطابَق مع القيود
+Wallet: user, company, platform, escrow, commission, tax, clearing; the balance is reconciled with the entries
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `uid` | `uuid` | ✱ | `gen_random_uuid()` |
@@ -2036,9 +2058,9 @@
 
 ### `fin.withdrawal_request` 
 
-طلب السحب بحدود ومراجعة وموافقتين للمبالغ الكبيرة
+Withdrawal request with limits, review and two approvals for large amounts
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `wallet_id` | `bigint` | 🔗 `fin.wallet` ✱ |  |
@@ -2053,13 +2075,13 @@
 | `decided_at` | `timestamp with time zone` |  |  |
 
 <a id="acct"></a>
-## `acct` — المحاسبة المبسطة والفوترة الإلكترونية والملف الضريبي
+## `acct` — Simplified accounting, e-invoicing and tax profiles
 
 ### `acct.account_mapping` 
 
 
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `connection_id` | `bigint` | 🔑 🔗 `acct.accounting_connection` ✱ |  |
 | `local_type` | `text` | 🔑 ✱ |  |
@@ -2069,9 +2091,9 @@
 
 ### `acct.accounting_connection` 🛡️
 
-ربط المنصة أو الشركة بنظام محاسبي خارجي (Odoo، Zoho، الأمين، ملف، API)
+Link between the platform or a company and an external accounting system (Odoo, Zoho, Al-Ameen, file, API)
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `company_id` | `bigint` | 🔗 `iam.company`  |  |
@@ -2086,20 +2108,20 @@
 
 
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `company_id` | `bigint` | 🔗 `iam.company`  |  |
 | `code` | `text` | ✱ |  |
-| `name_ar` | `text` | ✱ |  |
+| `name` | `text` | ✱ |  |
 | `route_id` | `bigint` | 🔗 `net.route`  |  |
 | `station_id` | `bigint` | 🔗 `net.station`  |  |
 
 ### `acct.einvoice_activation` 
 
-تفعيل الإلزام بالموجات لكل فئة ونوع مستند وتاريخ
+Phased mandate activation per taxpayer category, document type and date
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `authority_id` | `bigint` | 🔗 `acct.tax_authority` ✱ |  |
@@ -2111,9 +2133,9 @@
 
 ### `acct.einvoice_document` 🛡️ 🔒
 
-الفاتورة والإشعار الدائن والمدين؛ بعد الإقفال لا يتغير إلا الحالة ورد الجهة، ولا حذف إطلاقاً
+Invoice, credit note and debit note; after finalization only the status and the authority's response may change, and deletion is never allowed
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `uuid` | `uuid` | ✱ | `gen_random_uuid()` |
@@ -2150,7 +2172,7 @@
 
 
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `document_id` | `bigint` | 🔗 `acct.einvoice_document` ✱ |  |
@@ -2168,9 +2190,9 @@
 
 ### `acct.einvoice_submission` 🔒
 
-كل محاولة دفع للجهة الحكومية وردها كما ورد (إلحاق فقط)
+Every submission attempt to the government authority and its response as received (append-only)
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `document_id` | `bigint` | 🔗 `acct.einvoice_document` ✱ |  |
@@ -2188,7 +2210,7 @@
 
 
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `authority_id` | `bigint` | 🔗 `acct.tax_authority` ✱ |  |
@@ -2200,9 +2222,9 @@
 
 ### `acct.einvoice_unit` 
 
-وحدة الإصدار لكل بائع: العداد وتجزئة آخر فاتورة والشهادة
+Issuing unit per seller: counter, last invoice hash and certificate
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `profile_id` | `bigint` | 🔗 `acct.tax_profile` ✱ |  |
@@ -2218,14 +2240,14 @@
 
 ### `acct.gl_account` 🛡️
 
-دليل الحسابات المبسط لكل دفتر (المنصة أو الشركة) بقالب جاهز قابل للتعديل (13.3)
+Simplified chart of accounts per book (platform or company) from an editable template (13.3)
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `company_id` | `bigint` | 🔗 `iam.company`  |  |
 | `code` | `text` | ✱ |  |
-| `name_ar` | `text` | ✱ |  |
+| `name` | `text` | ✱ |  |
 | `account_type` | `text` | ✱ |  |
 | `parent_id` | `bigint` | 🔗 `acct.gl_account`  |  |
 | `currency` | `character(3)` | 🔗 `ref.currency`  |  |
@@ -2237,7 +2259,7 @@
 
 
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `company_id` | `bigint` | 🔗 `iam.company`  |  |
 | `period` | `date` | ✱ |  |
@@ -2247,9 +2269,9 @@
 
 ### `acct.journal_entry` 🛡️ 🔒
 
-القيد المحاسبي؛ بعد الترحيل لا يُعدَّل والتصحيح بقيد عكسي
+Journal entry; after posting it is never modified, corrections by reversing entry
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `uid` | `uuid` | ✱ | `gen_random_uuid()` |
@@ -2272,7 +2294,7 @@
 
 
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `entry_id` | `bigint` | 🔗 `acct.journal_entry` ✱ |  |
@@ -2286,9 +2308,9 @@
 
 ### `acct.posting_rule` 
 
-قواعد الترحيل: الأحداث تُحوَّل إلى قيود، ولا تكتب أي وحدة في الأستاذ مباشرة (13.4)
+Posting rules: events become journal entries; no module writes to the ledger directly (13.4)
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `event_type` | `text` | ✱ |  |
@@ -2301,9 +2323,9 @@
 
 ### `acct.sync_item` 
 
-سجل دفع القيود والفواتير إلى النظام الخارجي عبر API، بإعادة محاولة ومنع تكرار (13.12)
+Log of journal entries and invoices pushed to the external system via API, with retries and deduplication (13.12)
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `connection_id` | `bigint` | 🔗 `acct.accounting_connection` ✱ |  |
@@ -2320,9 +2342,9 @@
 
 ### `acct.tax_authority` 
 
-الجهة الضريبية ومحوّلها: وضع الإصدار قبل الربط، ثم الإبلاغ أو الاعتماد المسبق
+Tax authority and its adapter: generation mode before integration, then reporting or clearance
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `code` | `text` | ✱ |  |
@@ -2335,9 +2357,9 @@
 
 ### `acct.tax_collection_no_file` 
 
-ضرائب ورسوم تُحصَّل من طرف بلا ملف ضريبي (ترانزيت، مقطوع) بإيصال تحصيل
+Taxes and fees collected from a party without a tax file (transit, flat-rate) with a collection receipt
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `payer_party_id` | `bigint` | 🔗 `iam.party` ✱ |  |
@@ -2355,7 +2377,7 @@
 
 
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `profile_id` | `bigint` | 🔗 `acct.tax_profile`  |  |
@@ -2370,9 +2392,9 @@
 
 ### `acct.tax_profile` 
 
-الملف الضريبي لكل شركة أو مالك أو شريك بإصدارات زمنية غير متداخلة
+Tax profile of each company, owner or partner, with non-overlapping time versions
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `party_id` | `bigint` | 🔗 `iam.party` ✱ |  |
@@ -2381,7 +2403,7 @@
 | `tax_no` | `text` |  |  |
 | `cr_no` | `text` |  |  |
 | `branch_code` | `text` |  |  |
-| `legal_name_ar` | `text` | ✱ |  |
+| `legal_name` | `text` | ✱ |  |
 | `einvoice_mandatory` | `boolean` | ✱ | `false` |
 | `issuer_mode` | `text` | ✱ | `'PLATFORM'::text` |
 | `verified_source` | `text` | ✱ | `'MANUAL'::text` |
@@ -2391,15 +2413,15 @@
 
 ### `acct.tax_profile_field` 
 
-حقول ضريبية ديناميكية يضيفها المسؤول لكل دولة أو جهة دون برمجة
+Dynamic tax fields added by the administrator per country or authority without code changes
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `country_code` | `character(2)` | 🔗 `ref.country` ✱ |  |
 | `authority_id` | `bigint` | 🔗 `acct.tax_authority`  |  |
 | `code` | `text` | ✱ |  |
-| `label_ar` | `text` | ✱ |  |
+| `label` | `text` | ✱ |  |
 | `data_type` | `text` | ✱ |  |
 | `required` | `boolean` | ✱ | `false` |
 | `validation` | `jsonb` |  |  |
@@ -2408,7 +2430,7 @@
 
 
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `profile_id` | `bigint` | 🔑 🔗 `acct.tax_profile` ✱ |  |
 | `field_id` | `bigint` | 🔑 🔗 `acct.tax_profile_field` ✱ |  |
@@ -2418,7 +2440,7 @@
 
 
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `profile_id` | `bigint` | 🔗 `acct.tax_profile` ✱ |  |
@@ -2428,9 +2450,9 @@
 
 ### `acct.tax_return` 
 
-مسودة الإقرار الضريبي لكل مكلف وفترة بخانات نموذج الجهة
+Draft tax return per taxpayer and period using the authority's form boxes
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `profile_id` | `bigint` | 🔗 `acct.tax_profile` ✱ |  |
@@ -2446,7 +2468,7 @@
 
 
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `return_id` | `bigint` | 🔑 🔗 `acct.tax_return` ✱ |  |
 | `box_code` | `text` | 🔑 ✱ |  |
@@ -2454,13 +2476,13 @@
 | `source_note` | `text` |  |  |
 
 <a id="crm"></a>
-## `crm` — الشكاوى والتقييم والإشعارات والمساعد الذكي
+## `crm` — Complaints, ratings, notifications and the AI assistant
 
 ### `crm.ai_conversation` 
 
 
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `uid` | `uuid` | ✱ | `gen_random_uuid()` |
@@ -2477,7 +2499,7 @@
 
 
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `conversation_id` | `bigint` | 🔗 `crm.ai_conversation` ✱ |  |
@@ -2487,9 +2509,9 @@
 
 ### `crm.ai_policy` 
 
-أدوات المساعد ومستوى إجراء كل أداة وحدودها وشرط تأكيد المستخدم
+Assistant tools, each tool's action level, limits and user confirmation requirement
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `tool` | `text` | 🔑 ✱ |  |
 | `action_level` | `smallint` | ✱ |  |
@@ -2499,9 +2521,9 @@
 
 ### `crm.ai_tool_call` 🔒
 
-كل أداة نفذها المساعد بصلاحية العميل وتأكيده (إلحاق فقط)
+Every tool executed by the assistant with the customer's permissions and confirmation (append-only)
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `conversation_id` | `bigint` | 🔗 `crm.ai_conversation` ✱ |  |
@@ -2514,9 +2536,9 @@
 
 ### `crm.case` 🛡️
 
-الشكوى أو المطالبة أو الاستفسار بمهل الخدمة والتعويض وفصل المهام (7.6)
+Complaint, claim or inquiry with service levels, compensation and segregation of duties (7.6)
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `uid` | `uuid` | ✱ | `gen_random_uuid()` |
@@ -2552,7 +2574,7 @@
 
 
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `case_id` | `bigint` | 🔗 `crm.case` ✱ |  |
@@ -2568,7 +2590,7 @@
 
 
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `user_id` | `bigint` | 🔗 `iam.app_user`  |  |
@@ -2589,13 +2611,13 @@
 
 ### `crm.notification_template` 
 
-قوالب الإشعارات المعتمدة (كتالوج الإشعارات 34)
+Approved notification templates (notification catalog 34)
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `code` | `text` | 🔑 ✱ |  |
 | `channel` | `text` | 🔑 ✱ |  |
-| `lang` | `text` | 🔑 ✱ | `'ar'::text` |
+| `locale` | `text` | 🔑 🔗 `ref.locale` ✱ | `'en'::text` |
 | `subject` | `text` |  |  |
 | `body` | `text` | ✱ |  |
 | `approved_by` | `bigint` | 🔗 `iam.app_user`  |  |
@@ -2603,9 +2625,9 @@
 
 ### `crm.trip_rating` 
 
-تقييم الرحلة (تذكرة واحدة = تقييم واحد) ويغذي ترتيب الناقل (7.7)
+Trip rating (one ticket = one rating), feeds carrier ranking (7.7)
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `ticket_id` | `bigint` | 🔗 `sales.ticket` ✱ |  |
@@ -2621,13 +2643,13 @@
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
 <a id="gov"></a>
-## `gov` — الحوكمة والالتزامات وحماية البيانات
+## `gov` — Governance, obligations and data protection
 
 ### `gov.consent` 
 
-الموافقات بإصدار السياسة وتاريخ السحب
+Consents with policy version and withdrawal date
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `party_id` | `bigint` | 🔗 `iam.party` ✱ |  |
@@ -2640,9 +2662,9 @@
 
 ### `gov.data_inventory` 
 
-جرد البيانات وتصنيفها وغرضها ومدة احتفاظها (يقود الحذف الآلي)
+Data inventory with classification, purpose and retention (drives automatic deletion)
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `dataset` | `text` | 🔑 ✱ |  |
 | `data_class` | `text` | ✱ |  |
@@ -2657,7 +2679,7 @@
 
 
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `feature` | `text` | ✱ |  |
@@ -2669,14 +2691,14 @@
 
 ### `gov.obligation_register` 
 
-سجل الالتزامات التشريعية وربطها بالضوابط والأدلة
+Register of legal obligations mapped to controls and evidence
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `source` | `text` | ✱ |  |
 | `ref_no` | `text` | ✱ |  |
-| `title_ar` | `text` | ✱ |  |
+| `title` | `text` | ✱ |  |
 | `effective_date` | `date` |  |  |
 | `control_ref` | `text` |  |  |
 | `evidence_file_id` | `bigint` | 🔗 `ref.file_object`  |  |
@@ -2686,9 +2708,9 @@
 
 ### `gov.partner_dpa` 
 
-اتفاقيات معالجة البيانات مع الشركاء والمزودين
+Data processing agreements with partners and providers
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `partner_party_id` | `bigint` | 🔗 `iam.party` ✱ |  |
@@ -2702,9 +2724,9 @@
 
 ### `gov.policy_authority` 
 
-من يقرر في كل مجال سياسة (المنصة، الناقل ضمن حدود، الجهة الناظمة، مزدوج)
+Who decides each policy domain (platform, carrier within limits, regulator, dual)
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `domain_code` | `text` | 🔗 `gov.policy_domain` ✱ |  |
@@ -2719,9 +2741,9 @@
 
 ### `gov.policy_change` 
 
-تغيير سياسة بإصدار واعتماد بحسب المصفوفة؛ المقترح لا يعتمد نفسه
+Versioned policy change approved according to the matrix; the proposer cannot approve
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `domain_code` | `text` | 🔗 `gov.policy_domain` ✱ |  |
@@ -2739,10 +2761,10 @@
 
 
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `code` | `text` | 🔑 ✱ |  |
-| `name_ar` | `text` | ✱ |  |
+| `name` | `text` | ✱ |  |
 | `class` | `text` | ✱ |  |
 | `regulated_bounds` | `jsonb` |  |  |
 
@@ -2750,7 +2772,7 @@
 
 
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `detected_at` | `timestamp with time zone` | ✱ |  |
@@ -2766,7 +2788,7 @@
 
 
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `party_id` | `bigint` | 🔗 `iam.party` ✱ |  |
@@ -2778,13 +2800,13 @@
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
 <a id="sec"></a>
-## `sec` — الأمن: قواعد IP والمخاطر والتوقيع ووحدة الأمن
+## `sec` — Security: IP rules, risk, signing and the security hub
 
 ### `sec.access_review` 
 
 
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `user_id` | `bigint` | 🔗 `iam.app_user` ✱ |  |
@@ -2795,9 +2817,9 @@
 
 ### `sec.authority_data_request` 
 
-طلب بيانات رسمي بتفويض ثنائي؛ لا تسليم لأي جهة خارج هذا المسار
+Official data request with dual authorization; nothing is delivered to any authority outside this path
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `authority_id` | `bigint` | 🔗 `sec.authority_profile` ✱ |  |
@@ -2815,7 +2837,7 @@
 
 
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `authority_id` | `bigint` | 🔗 `sec.authority_profile` ✱ |  |
@@ -2832,7 +2854,7 @@
 
 
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `authority_id` | `bigint` | 🔗 `sec.authority_profile` ✱ |  |
@@ -2843,9 +2865,9 @@
 
 ### `sec.authority_profile` 
 
-تعريف الجهة الأمنية ومحوّلها (تعريف بلا ربط في المرحلة 1 — القرار 88)
+Security authority definition and its adapter (definition without integration in Phase 1 — Decision 88)
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `code` | `text` | ✱ |  |
@@ -2861,9 +2883,9 @@
 
 ### `sec.blocklist_entry` 
 
-قائمة حظر بالقيم المجزأة (جهاز، هاتف، IBAN، وثيقة)
+Blocklist of hashed values (device, phone, IBAN, document)
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `entry_type` | `text` | ✱ |  |
@@ -2875,9 +2897,9 @@
 
 ### `sec.break_glass_log` 
 
-وصول الطوارئ بصلاحيات مرتفعة: بسبب وموافقة ومدة
+Break-glass access with elevated privileges: reason, approval and duration
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `actor_id` | `bigint` | 🔗 `iam.app_user` ✱ |  |
@@ -2888,9 +2910,9 @@
 
 ### `sec.document_signature` 
 
-كل مستند رسمي يصدره الخادم موقّعاً؛ صفحة التحقق تقارن به فيُكشف أي مستند معدَّل
+Every official document issued by the server is signed; the verification page compares against it so any altered document is detected
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `doc_type` | `text` | ✱ |  |
@@ -2907,7 +2929,7 @@
 
 
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `subject_type` | `text` | ✱ |  |
@@ -2921,9 +2943,9 @@
 
 ### `sec.ip_rule` 🛡️ 🔒
 
-حجب/سماح/إبطاء عنوان أو نطاق أو دولة أو ASN لكل بوابة أو عميل API؛ يدوي أو آلي بمهلة
+Block/allow/throttle an address, range, country or ASN per portal or API client; manual or automatic with expiry
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `rule_type` | `text` | ✱ |  |
@@ -2949,9 +2971,9 @@
 
 ### `sec.key_registry` 
 
-سجل مفاتيح التشفير والتوقيع (16.8 و16.18): المرجع فقط، والمفتاح في KMS؛ كل حقل مشفر يحمل key_id
+Registry of encryption and signing keys (16.8, 16.18): references only, keys live in KMS; every encrypted field carries its key_id
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `integer` | 🔑 ✱ | `identity` |
 | `key_ref` | `text` | ✱ |  |
@@ -2966,9 +2988,9 @@
 
 ### `sec.manifest_submission` 
 
-المنافست (يدوي في المرحلة 1) بإصدارات وتوقيع
+Manifest (manual in Phase 1), versioned and signed
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `trip_id` | `bigint` | 🔗 `ops.trip` ✱ |  |
@@ -2989,7 +3011,7 @@
 
 
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `subject_type` | `text` | ✱ |  |
@@ -3004,7 +3026,7 @@
 
 
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `authority_id` | `bigint` | 🔗 `sec.authority_profile` ✱ |  |
@@ -3020,7 +3042,7 @@
 
 
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `request_id` | `bigint` | 🔑 🔗 `sec.screening_request` ✱ |  |
 | `decision` | `text` | ✱ |  |
@@ -3033,9 +3055,9 @@
 
 ### `sec.security_event` 🛡️ 🔒
 
-الأحداث الأمنية لمركز العمليات (SOC) وقواعد الكشف (16.20)
+Security events for the SOC and detection rules (16.20)
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `source` | `text` | ✱ |  |
@@ -3053,7 +3075,7 @@
 
 
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `trip_id` | `bigint` | 🔗 `ops.trip`  |  |
@@ -3067,9 +3089,9 @@
 
 ### `sec.tamper_event` 🔒
 
-محاولات إرسال قيم تخالف المحسوب في الخادم (سعر، تاريخ، حالة دفع)
+Attempts to submit values that contradict the server-side computation (price, date, payment status)
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `user_id` | `bigint` |  |  |
@@ -3083,9 +3105,9 @@
 
 ### `sec.watchlist_entry` 
 
-قائمة المراقبة والمنع بالمطابقة المجزأة دون نسخ البيانات الكاملة
+Watch and ban list with hashed matching, without copying full data
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `authority_id` | `bigint` | 🔗 `sec.authority_profile`  |  |
@@ -3098,13 +3120,13 @@
 | `created_by` | `bigint` | 🔗 `iam.app_user`  |  |
 
 <a id="audit"></a>
-## `audit` — سجلات الدخول والإجراءات (إلحاق فقط)
+## `audit` — Login and activity logs (append-only)
 
 ### `audit.activity_log` 🧩 🔒
 
-كل طلب أو إجراء في المنصة أو عبر API: من، متى، من أين، ماذا، على أي كيان، والنتيجة
+Every request or action on the platform or via API: who, when, from where, what, on which entity, and the result
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `ts` | `timestamp with time zone` | 🔑 ✱ | `now()` |
@@ -3132,9 +3154,9 @@
 
 ### `audit.auth_event` 🧩 🔒
 
-كل محاولة دخول أو خروج أو تحقق أو استخدام مفتاح API، ناجحة أو فاشلة، بالعنوان والجهاز والبوابة
+Every login, logout, verification or API key use, successful or failed, with address, device and portal
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `ts` | `timestamp with time zone` | 🔑 ✱ | `now()` |
@@ -3159,9 +3181,9 @@
 
 ### `audit.data_access_log` 🧩 🔒
 
-كل كشف لحقل سري (جواز، هوية، IBAN) بالسبب
+Every reveal of a sensitive field (passport, ID, IBAN) with its reason
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `ts` | `timestamp with time zone` | 🔑 ✱ | `now()` |
@@ -3178,9 +3200,9 @@
 
 ### `audit.log_seal` 🔒
 
-ختم دوري لكتل السجلات بسلسلة تجزئة (وتوقيع KMS) يكشف أي حذف أو تعديل
+Periodic sealing of log blocks with a hash chain (and KMS signature) that reveals any deletion or modification
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `log_name` | `text` | ✱ |  |
@@ -3196,9 +3218,9 @@
 
 ### `audit.row_change` 🧩 🔒
 
-التقاط آلي لأي تغيير على الجداول الحساسة حتى لو تم خارج التطبيق (مع هوية المستخدم من سياق الطلب)
+Automatic capture of any change to sensitive tables, even outside the application (with the user identity from the request context)
 
-| العمود | النوع | قيود | افتراضي |
+| Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `ts` | `timestamp with time zone` | 🔑 ✱ | `now()` |

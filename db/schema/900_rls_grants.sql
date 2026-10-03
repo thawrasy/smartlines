@@ -1,10 +1,10 @@
 -- =====================================================================
--- 900: عزل المستأجرين (Row Level Security) والصلاحيات على مستوى القاعدة
--- دور التطبيق masslak_app ليس مالك الجداول، فتنطبق عليه السياسات دائماً.
--- إن لم يُضبط سياق الطلب (sys.set_context) لا يُرى أي صف خاص (الرفض افتراضي).
+-- 900: tenant isolation (Row Level Security) and database privileges
+-- The masslak_app role does not own the tables, so policies always apply to it.
+-- If the request context (sys.set_context) is not set, no private row is visible (deny by default).
 -- =====================================================================
 
--- ------------------------------ الصلاحيات العامة ---------------------
+-- ------------------------------ General privileges ---------------------
 DO $$
 DECLARE s text;
 BEGIN
@@ -17,12 +17,12 @@ BEGIN
   END LOOP;
 END $$;
 
--- السجلات: التطبيق يضيف فقط، والمدقق يقرأ فقط
+-- Logs: the application inserts only, the auditor reads only
 GRANT INSERT ON audit.auth_event, audit.activity_log, audit.data_access_log TO masslak_app;
 GRANT SELECT ON ALL TABLES IN SCHEMA audit TO masslak_auditor;
 GRANT SELECT ON ALL TABLES IN SCHEMA sec   TO masslak_auditor;
 
--- جداول الإلحاق فقط: سحب التعديل والحذف صراحة (إضافة إلى المشغّلات)
+-- Append-only tables: explicitly revoke update and delete (in addition to triggers)
 REVOKE UPDATE, DELETE ON
   fin.ledger_txn, fin.ledger_entry, fin.tax_ledger, fin.payment_notification,
   pricing.points_ledger, sales.boarding_event, acct.einvoice_submission,
@@ -30,16 +30,16 @@ REVOKE UPDATE, DELETE ON
 FROM masslak_app;
 REVOKE DELETE ON acct.einvoice_document, acct.journal_entry, sec.ip_rule, iam.party, sales.booking, sales.ticket, fin.payment FROM masslak_app;
 
--- مفاتيح التشفير: قراءة المرجع فقط للتطبيق
+-- Encryption keys: the application may only read the references
 REVOKE INSERT, UPDATE, DELETE ON sec.key_registry FROM masslak_app;
 
--- الدوال الإدارية: ليست للتطبيق
+-- Administrative functions: not for the application
 REVOKE EXECUTE ON FUNCTION audit.seal(text, int) FROM PUBLIC;
 REVOKE EXECUTE ON FUNCTION sys.drop_partitions_older_than(text, int) FROM PUBLIC;
 REVOKE EXECUTE ON FUNCTION sys.ensure_monthly_partitions(text, int, int) FROM PUBLIC;
 
--- ------------------------------ سياسات العزل ------------------------
--- (أ) جداول خاصة بالناقل بالكامل
+-- ------------------------------ Isolation policies ------------------------
+-- (a) Tables fully private to the carrier
 DO $$
 DECLARE t text;
 BEGIN
@@ -54,15 +54,15 @@ BEGIN
   END LOOP;
 END $$;
 
--- التأمين وعقد الإيجار عبر المركبة
+-- Insurance and leases through the vehicle
 ALTER TABLE fleet.insurance_policy ENABLE ROW LEVEL SECURITY;
 CREATE POLICY tenant_isolation ON fleet.insurance_policy
-  USING (EXISTS (SELECT 1 FROM fleet.vehicle v WHERE v.id = vehicle_id));   -- يرث سياسة المركبة
+  USING (EXISTS (SELECT 1 FROM fleet.vehicle v WHERE v.id = vehicle_id));   -- inherits the vehicle policy
 ALTER TABLE fleet.vehicle_lease ENABLE ROW LEVEL SECURITY;
 CREATE POLICY tenant_isolation ON fleet.vehicle_lease
   USING (sys.tenant_visible(lessee_company_id)) WITH CHECK (sys.tenant_visible(lessee_company_id));
 
--- (ب) الشركة وأعضاؤها
+-- (b) The company and its members
 ALTER TABLE iam.company ENABLE ROW LEVEL SECURITY;
 CREATE POLICY company_read ON iam.company FOR SELECT USING (approval_status = 'APPROVED' OR sys.tenant_visible(id));
 CREATE POLICY company_write ON iam.company FOR ALL USING (sys.tenant_visible(id)) WITH CHECK (sys.tenant_visible(id));
@@ -72,7 +72,7 @@ CREATE POLICY member_isolation ON iam.company_member
   USING (sys.tenant_visible(company_id) OR user_id = sys.ctx_user_id())
   WITH CHECK (sys.tenant_visible(company_id));
 
--- (ج) كتالوج عام للقراءة، والكتابة للناقل فقط
+-- (c) Public catalog for reading, writing by the carrier only
 ALTER TABLE net.route ENABLE ROW LEVEL SECURITY;
 CREATE POLICY route_read  ON net.route FOR SELECT USING (status = 'ACTIVE' OR sys.tenant_visible(company_id));
 CREATE POLICY route_write ON net.route FOR ALL USING (sys.tenant_visible(company_id)) WITH CHECK (sys.tenant_visible(company_id));
@@ -87,7 +87,7 @@ CREATE POLICY station_write ON net.station FOR ALL
   USING (sys.ctx_is_platform() OR (station_class <> 'CENTRAL' AND owner_company_id = sys.ctx_company_id()))
   WITH CHECK (sys.ctx_is_platform() OR (station_class <> 'CENTRAL' AND owner_company_id = sys.ctx_company_id()));
 
--- (د) بيانات يراها الناقل المعني أو صاحبها
+-- (d) Data visible to the carrier concerned or to its owner
 ALTER TABLE sales.booking ENABLE ROW LEVEL SECURITY;
 CREATE POLICY booking_isolation ON sales.booking
   USING (sys.tenant_visible(company_id) OR booker_party_id = sys.ctx_party_id())
@@ -105,7 +105,7 @@ ALTER TABLE crm.case ENABLE ROW LEVEL SECURITY;
 CREATE POLICY case_isolation ON crm.case
   USING (sys.tenant_visible(company_id) OR party_id = sys.ctx_party_id());
 
--- (هـ) الدفاتر: دفاتر المنصة (company_id فارغ) للمنصة فقط
+-- (e) Books: platform books (empty company_id) for the platform only
 DO $$
 DECLARE t text;
 BEGIN
@@ -115,12 +115,12 @@ BEGIN
   END LOOP;
 END $$;
 
--- (و) مفاتيح API: الناقل يرى مفاتيحه، والمنصة الكل
+-- (f) API clients: a carrier sees its own keys, the platform sees all
 ALTER TABLE iam.api_client ENABLE ROW LEVEL SECURITY;
 CREATE POLICY api_client_isolation ON iam.api_client
   USING (sys.ctx_is_platform() OR (company_id IS NOT NULL AND company_id = sys.ctx_company_id()) OR id = sys.ctx_api_client_id());
 
--- (ز) قواعد IP والأحداث الأمنية: المنصة فقط
+-- (g) IP rules and security events: platform only
 ALTER TABLE sec.ip_rule ENABLE ROW LEVEL SECURITY;
 CREATE POLICY ip_rule_platform ON sec.ip_rule USING (sys.ctx_is_platform()) WITH CHECK (sys.ctx_is_platform());
 ALTER TABLE sec.security_event ENABLE ROW LEVEL SECURITY;

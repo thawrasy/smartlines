@@ -1,30 +1,29 @@
 -- =====================================================================
--- 040: التسعير والعلامات والضرائب والعمولات وقوالب التوزيع والحملات والولاء
--- المرجع: 4.6، 4.12 ب، 5.1 إلى 5.9، 5.12، 5.13
--- كل قاعدة مالية بإصدار واعتماد مزدوج (منشئ ≠ معتمد)، والسعر يُثبَّت في الحجز.
+-- 040: fares, brands, taxes, commissions, allocation templates, campaigns and loyalty
+-- Source: 4.6, 4.12 b, 5.1 to 5.9, 5.12, 5.13
+-- Every financial rule is versioned with dual approval (creator <> approver), and the price is frozen on the booking.
 -- =====================================================================
 
--- ------------------------------ علامات الأسعار (5.9) -----------------
+-- ------------------------------ Fare brands (5.9) -----------------
 CREATE TABLE pricing.fare_brand (
   code        text PRIMARY KEY,                       -- ECONOMY_SAVER, FLEX ...
-  company_id  bigint REFERENCES iam.company(id),      -- فارغ = علامة عامة
-  name_ar     text NOT NULL,
-  name_en     text,
+  company_id  bigint REFERENCES iam.company(id),      -- empty = shared brand
+  name        text NOT NULL,
   factor      numeric(6,4) NOT NULL DEFAULT 1 CHECK (factor > 0),
   rules       jsonb NOT NULL,                         -- {refundable, refund:[[hours,pct]], changeable, change_fee_pct, bags_included, kg_per_piece, priority_boarding}
   sort        smallint NOT NULL DEFAULT 0,
   active      boolean NOT NULL DEFAULT true
 );
-COMMENT ON TABLE pricing.fare_brand IS 'علامات الأسعار وشروط التذكرة والأمتعة والاسترداد؛ تُنسخ لقطتها إلى التذكرة';
+COMMENT ON TABLE pricing.fare_brand IS 'Fare brands with ticket, baggage and refund conditions; a snapshot is copied to the ticket';
 
--- ------------------------------ جداول الأجرة -------------------------
+-- ------------------------------ Fare tables -------------------------
 CREATE TABLE pricing.fare_table (
   id          bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   scope       text NOT NULL CHECK (scope IN ('CENTRAL','COMPANY')),
   company_id  bigint REFERENCES iam.company(id),
   route_id    bigint REFERENCES net.route(id),
   currency    char(3) NOT NULL REFERENCES ref.currency(code),
-  locked      boolean NOT NULL DEFAULT false,         -- مقفل = تسعير مركزي لا تعدّله الشركة
+  locked      boolean NOT NULL DEFAULT false,         -- locked = central pricing the company cannot change
   min_price   bigint CHECK (min_price >= 0),
   max_price   bigint CHECK (max_price >= 0),
   valid       tstzrange NOT NULL,
@@ -36,7 +35,7 @@ CREATE TABLE pricing.fare_table (
   CHECK (scope = 'CENTRAL' OR company_id IS NOT NULL),
   CHECK (min_price IS NULL OR max_price IS NULL OR min_price <= max_price)
 );
-COMMENT ON TABLE pricing.fare_table IS 'جدول أجرة مركزي (مقفل) أو للناقل ضمن حدود (5.2)';
+COMMENT ON TABLE pricing.fare_table IS 'Central (locked) fare table or carrier fare table within limits (5.2)';
 
 CREATE TABLE pricing.fare_table_item (
   fare_table_id      bigint NOT NULL REFERENCES pricing.fare_table(id) ON DELETE CASCADE,
@@ -59,9 +58,9 @@ CREATE TABLE pricing.pricing_modifier (
   valid         tstzrange NOT NULL,
   active        boolean NOT NULL DEFAULT true
 );
-COMMENT ON TABLE pricing.pricing_modifier IS 'المعدّلات الديناميكية بالترتيب (5.3)';
+COMMENT ON TABLE pricing.pricing_modifier IS 'Dynamic pricing modifiers applied in order (5.3)';
 
--- ------------------------------ الضرائب (5.6 و5.8) -------------------
+-- ------------------------------ Taxes (5.6, 5.8) -------------------
 CREATE TABLE pricing.jurisdiction (
   id            bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   country_code  char(2) NOT NULL REFERENCES ref.country(code),
@@ -69,7 +68,7 @@ CREATE TABLE pricing.jurisdiction (
   parent_id     bigint REFERENCES pricing.jurisdiction(id),
   name          text NOT NULL
 );
-COMMENT ON TABLE pricing.jurisdiction IS 'الاختصاص الضريبي (دولة، منطقة، منفذ، محلي)';
+COMMENT ON TABLE pricing.jurisdiction IS 'Tax jurisdiction (country, region, border crossing, local)';
 
 CREATE TABLE pricing.tax_scheme (
   id                  bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -78,7 +77,7 @@ CREATE TABLE pricing.tax_scheme (
   jurisdiction_id     bigint NOT NULL REFERENCES pricing.jurisdiction(id),
   tax_type            text NOT NULL CHECK (tax_type IN ('VAT','SALES','LEVY','FEE','STAMP','WITHHOLDING','OTHER')),
   treatment           text NOT NULL DEFAULT 'STANDARD' CHECK (treatment IN ('STANDARD','ZERO','EXEMPT','OUT_OF_SCOPE','REVERSE')),
-  scope               jsonb NOT NULL DEFAULT '{}',    -- على ماذا يُطبَّق: نوع الرحلة، الخدمة، الفئة...
+  scope               jsonb NOT NULL DEFAULT '{}',    -- what it applies to: trip type, service, category...
   collected_by        text NOT NULL CHECK (collected_by IN ('CARRIER','PLATFORM','AUTHORITY')),
   payable_to_party_id bigint REFERENCES iam.party(id),
   valid               tstzrange NOT NULL,
@@ -90,7 +89,7 @@ CREATE TABLE pricing.tax_scheme (
   UNIQUE (code, version),
   CHECK (approved_by IS NULL OR approved_by <> created_by)
 );
-COMMENT ON TABLE pricing.tax_scheme IS 'مخطط ضريبة أو رسم بمعالجته واختصاصه وجهة تحصيله، بإصدارات واعتماد مزدوج';
+COMMENT ON TABLE pricing.tax_scheme IS 'Tax or fee scheme with its treatment, jurisdiction and collecting party, versioned with dual approval';
 
 CREATE TABLE pricing.tax_rule (
   id            bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -113,7 +112,7 @@ CREATE TABLE pricing.tax_rule (
 CREATE TABLE pricing.rate_band (
   id          bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   tax_rule_id bigint REFERENCES pricing.tax_rule(id) ON DELETE CASCADE,
-  commission_rule_id bigint,                          -- FK بعد commission_rule
+  commission_rule_id bigint,                          -- FK added after commission_rule
   dimension   text NOT NULL CHECK (dimension IN ('AMOUNT','DISTANCE','WEIGHT','VOLUME','SALES')),
   from_value  numeric(18,4) NOT NULL,
   to_value    numeric(18,4),
@@ -122,9 +121,9 @@ CREATE TABLE pricing.rate_band (
   mode        text NOT NULL DEFAULT 'WHOLE' CHECK (mode IN ('MARGINAL','WHOLE')),
   CHECK ((tax_rule_id IS NULL) <> (commission_rule_id IS NULL))
 );
-COMMENT ON TABLE pricing.rate_band IS 'شرائح الاحتساب لقاعدة ضريبة أو عمولة';
+COMMENT ON TABLE pricing.rate_band IS 'Calculation bands for a tax or commission rule';
 
--- ------------------------------ العمولات ------------------------------
+-- ------------------------------ Commissions ------------------------------
 CREATE TABLE pricing.commission_scheme (
   id                bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   code              text NOT NULL,
@@ -156,9 +155,9 @@ CREATE TABLE pricing.commission_rule (
   UNIQUE (scheme_id, seq)
 );
 ALTER TABLE pricing.rate_band ADD CONSTRAINT rate_band_commission_fk FOREIGN KEY (commission_rule_id) REFERENCES pricing.commission_rule(id) ON DELETE CASCADE;
-COMMENT ON TABLE pricing.commission_scheme IS 'مخطط عمولة (منصة، وسيط، دفع، إحالة) بممول ومستفيد وإصدارات';
+COMMENT ON TABLE pricing.commission_scheme IS 'Commission scheme (platform, intermediary, payment, referral) with funder, beneficiary and versions';
 
--- ------------------------------ قوالب توزيع السعر (5.7) --------------
+-- ------------------------------ Price allocation templates (5.7) --------------
 CREATE TABLE pricing.allocation_template (
   id                 bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   code               text NOT NULL,
@@ -189,15 +188,15 @@ CREATE TABLE pricing.allocation_template_line (
   refundable      boolean NOT NULL DEFAULT true,
   PRIMARY KEY (template_id, code)
 );
-COMMENT ON TABLE pricing.allocation_template IS 'قالب شجرة توزيع السعر على المستفيدين (ناقل، منصة، ضريبة، وسيط)';
+COMMENT ON TABLE pricing.allocation_template IS 'Template of the price allocation tree across beneficiaries (carrier, platform, tax, intermediary)';
 
--- ------------------------------ الحملات والعروض (5.4 و5.12) ----------
+-- ------------------------------ Campaigns and offers (5.4, 5.12) ----------
 CREATE TABLE pricing.campaign (
   id              bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   uid             uuid NOT NULL DEFAULT gen_random_uuid() UNIQUE,
   code            text NOT NULL UNIQUE,
   name            text NOT NULL,
-  company_id      bigint REFERENCES iam.company(id),  -- فارغ = حملة منصة
+  company_id      bigint REFERENCES iam.company(id),  -- empty = platform campaign
   audience_rule   jsonb NOT NULL DEFAULT '{}',
   scope_rule      jsonb NOT NULL DEFAULT '{}',
   trigger         text NOT NULL DEFAULT 'AUTO' CHECK (trigger IN ('AUTO','CODE','BIN','LOYALTY_TIER')),
@@ -217,7 +216,7 @@ CREATE TABLE pricing.campaign (
   CHECK (approved_by IS NULL OR approved_by <> created_by),
   CHECK (budget_total IS NULL OR budget_spent <= budget_total)
 );
-COMMENT ON TABLE pricing.campaign IS 'الحملة: الجمهور والنطاق والميزة والتمويل والميزانية والحدود (شرط ← إجراء)';
+COMMENT ON TABLE pricing.campaign IS 'Campaign: audience, scope, benefit, funding, budget and limits (condition -> action)';
 
 CREATE TABLE pricing.promo_code (
   id          bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -225,19 +224,19 @@ CREATE TABLE pricing.promo_code (
   code        citext NOT NULL UNIQUE,
   max_uses    int,
   uses        int NOT NULL DEFAULT 0,
-  owner_party_id bigint REFERENCES iam.party(id),     -- وكالة أو إحالة
+  owner_party_id bigint REFERENCES iam.party(id),     -- agency or referral
   CHECK (max_uses IS NULL OR uses <= max_uses)
 );
 
--- ------------------------------ الولاء (5.5 و5.13) -------------------
+-- ------------------------------ Loyalty (5.5, 5.13) -------------------
 CREATE TABLE pricing.loyalty_program (
   id            bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   code          text NOT NULL UNIQUE,
-  name_ar       text NOT NULL,
-  point_value   bigint NOT NULL,                      -- قيمة النقطة بالوحدة الصغرى (القرار 74)
+  name          text NOT NULL,
+  point_value   bigint NOT NULL,                      -- point value in minor units (Decision 74)
   currency      char(3) NOT NULL REFERENCES ref.currency(code),
   expiry_months smallint NOT NULL DEFAULT 24,
-  tax_treatment jsonb NOT NULL DEFAULT '{}',          -- المعالجة الضريبية لكل حركة (5.13 ز)
+  tax_treatment jsonb NOT NULL DEFAULT '{}',          -- tax treatment per movement type (5.13 g)
   status        text NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE','PAUSED','CLOSED'))
 );
 
@@ -245,7 +244,7 @@ CREATE TABLE pricing.loyalty_tier (
   id          bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   program_id  bigint NOT NULL REFERENCES pricing.loyalty_program(id),
   code        text NOT NULL,
-  name_ar     text NOT NULL,
+  name        text NOT NULL,
   min_points  bigint NOT NULL DEFAULT 0,
   benefits    jsonb NOT NULL DEFAULT '{}',
   UNIQUE (program_id, code)
@@ -273,14 +272,14 @@ CREATE TABLE pricing.points_account (
   created_at  timestamptz NOT NULL DEFAULT now(),
   UNIQUE (program_id, party_id)
 );
-COMMENT ON TABLE pricing.points_account IS 'حساب النقاط؛ الرصيد مخزَّن ويُطابَق مع دفتر النقاط';
+COMMENT ON TABLE pricing.points_account IS 'Points account; the balance is stored and reconciled with the points ledger';
 
 CREATE TABLE pricing.points_ledger (
   id              bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   account_id      bigint NOT NULL REFERENCES pricing.points_account(id),
   txn_type        text NOT NULL CHECK (txn_type IN ('EARN','REDEEM','EXPIRE','ADJUST','REVERSE')),
-  points          bigint NOT NULL CHECK (points <> 0),   -- موجب للكسب، سالب للاستبدال والانتهاء
-  booking_id      bigint,                             -- FK بعد sales.booking
+  points          bigint NOT NULL CHECK (points <> 0),   -- positive for earning, negative for redemption and expiry
+  booking_id      bigint,                             -- FK added after sales.booking
   rule_id         bigint REFERENCES pricing.loyalty_rule(id),
   funded_by       text,
   idempotency_key text NOT NULL UNIQUE,
@@ -291,4 +290,4 @@ CREATE TABLE pricing.points_ledger (
 CREATE INDEX points_ledger_account_idx ON pricing.points_ledger (account_id, created_at);
 CREATE TRIGGER points_ledger_immutable BEFORE UPDATE OR DELETE ON pricing.points_ledger
   FOR EACH ROW EXECUTE FUNCTION sys.tg_forbid_mutation();
-COMMENT ON TABLE pricing.points_ledger IS 'دفتر النقاط: إلحاق فقط، والتصحيح بقيد عكسي';
+COMMENT ON TABLE pricing.points_ledger IS 'Points ledger: append-only, corrections by reversing entry';

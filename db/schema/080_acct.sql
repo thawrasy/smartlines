@@ -1,16 +1,16 @@
 -- =====================================================================
--- 080: المحاسبة المبسطة، مركز الربط المحاسبي، الفوترة الإلكترونية والملف الضريبي
--- المرجع: 13.2 إلى 13.7، 13.11 إلى 13.14
--- الفاتورة الإلكترونية: مسودة ← مقفلة بعد الدفع (رقم بلا فجوات + تجزئة متسلسلة + QR)
---   ← مدفوعة للجهة ← مؤكدة (إقفال كلي). لا تعديل ولا حذف، والإلغاء بإشعار دائن مرتبط.
+-- 080: simplified accounting, accounting integration hub, e-invoicing and tax profiles
+-- Source: 13.2 to 13.7, 13.11 to 13.14
+-- E-invoice: draft -> finalized after payment (gapless number + chained hash + QR)
+--   -> submitted to the authority -> confirmed (fully locked). No updates, no deletes; cancellation only by a linked credit note.
 -- =====================================================================
 
--- ------------------------------ دليل الحسابات والقيود ----------------
+-- ------------------------------ Chart of accounts and journal entries ----------------
 CREATE TABLE acct.gl_account (
   id            bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  company_id    bigint REFERENCES iam.company(id),    -- فارغ = دفاتر المنصة
+  company_id    bigint REFERENCES iam.company(id),    -- empty = platform books
   code          text NOT NULL,
-  name_ar       text NOT NULL,
+  name          text NOT NULL,
   account_type  text NOT NULL CHECK (account_type IN ('ASSET','LIABILITY','EQUITY','REVENUE','EXPENSE')),
   parent_id     bigint REFERENCES acct.gl_account(id),
   currency      char(3) REFERENCES ref.currency(code),
@@ -19,11 +19,11 @@ CREATE TABLE acct.gl_account (
   active        boolean NOT NULL DEFAULT true
 );
 CREATE UNIQUE INDEX gl_account_code_uq ON acct.gl_account (coalesce(company_id, 0), code);
-COMMENT ON TABLE acct.gl_account IS 'دليل الحسابات المبسط لكل دفتر (المنصة أو الشركة) بقالب جاهز قابل للتعديل (13.3)';
+COMMENT ON TABLE acct.gl_account IS 'Simplified chart of accounts per book (platform or company) from an editable template (13.3)';
 
 CREATE TABLE acct.gl_period (
   company_id  bigint REFERENCES iam.company(id),
-  period      date NOT NULL,                          -- أول يوم في الشهر
+  period      date NOT NULL,                          -- first day of the month
   status      text NOT NULL DEFAULT 'OPEN' CHECK (status IN ('OPEN','CLOSED')),
   closed_by   bigint REFERENCES iam.app_user(id),
   closed_at   timestamptz
@@ -34,7 +34,7 @@ CREATE TABLE acct.cost_center (
   id          bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   company_id  bigint REFERENCES iam.company(id),
   code        text NOT NULL,
-  name_ar     text NOT NULL,
+  name        text NOT NULL,
   route_id    bigint REFERENCES net.route(id),
   station_id  bigint REFERENCES net.station(id)
 );
@@ -52,7 +52,7 @@ CREATE TABLE acct.posting_rule (
   UNIQUE (event_type, version),
   CHECK (approved_by IS NULL OR approved_by <> created_by)
 );
-COMMENT ON TABLE acct.posting_rule IS 'قواعد الترحيل: الأحداث تُحوَّل إلى قيود، ولا تكتب أي وحدة في الأستاذ مباشرة (13.4)';
+COMMENT ON TABLE acct.posting_rule IS 'Posting rules: events become journal entries; no module writes to the ledger directly (13.4)';
 
 CREATE TABLE acct.journal_entry (
   id              bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -74,7 +74,7 @@ CREATE TABLE acct.journal_entry (
 );
 CREATE UNIQUE INDEX journal_entry_no_uq ON acct.journal_entry (coalesce(company_id, 0), entry_no);
 CREATE INDEX journal_entry_source_idx ON acct.journal_entry (source_type, source_id);
-COMMENT ON TABLE acct.journal_entry IS 'القيد المحاسبي؛ بعد الترحيل لا يُعدَّل والتصحيح بقيد عكسي';
+COMMENT ON TABLE acct.journal_entry IS 'Journal entry; after posting it is never modified, corrections by reversing entry';
 
 CREATE TABLE acct.journal_line (
   id              bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -128,18 +128,18 @@ BEGIN
 END $$;
 CREATE TRIGGER journal_line_guard BEFORE INSERT OR UPDATE OR DELETE ON acct.journal_line FOR EACH ROW EXECUTE FUNCTION acct.tg_journal_line_guard();
 
--- ------------------------------ مركز الربط المحاسبي (13.5) ----------
+-- ------------------------------ Accounting integration hub (13.5) ----------
 CREATE TABLE acct.accounting_connection (
   id              bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   company_id      bigint REFERENCES iam.company(id),
   system_type     text NOT NULL CHECK (system_type IN ('ODOO','ZOHO','D365','SAP','ORACLE','ALAMEEN','FILE','API')),
-  credentials_ref text,                               -- مرجع الخزنة، لا السر نفسه
+  credentials_ref text,                               -- vault reference, not the secret itself
   settings        jsonb NOT NULL DEFAULT '{}',
   mode            text NOT NULL DEFAULT 'DAILY' CHECK (mode IN ('REALTIME','DAILY','FILE')),
   status          text NOT NULL DEFAULT 'INACTIVE' CHECK (status IN ('ACTIVE','INACTIVE','ERROR')),
   created_at      timestamptz NOT NULL DEFAULT now()
 );
-COMMENT ON TABLE acct.accounting_connection IS 'ربط المنصة أو الشركة بنظام محاسبي خارجي (Odoo، Zoho، الأمين، ملف، API)';
+COMMENT ON TABLE acct.accounting_connection IS 'Link between the platform or a company and an external accounting system (Odoo, Zoho, Al-Ameen, file, API)';
 
 CREATE TABLE acct.account_mapping (
   connection_id bigint NOT NULL REFERENCES acct.accounting_connection(id) ON DELETE CASCADE,
@@ -165,9 +165,9 @@ CREATE TABLE acct.sync_item (
   sent_at       timestamptz
 );
 CREATE INDEX sync_item_pending ON acct.sync_item (connection_id) WHERE status IN ('PENDING','FAILED');
-COMMENT ON TABLE acct.sync_item IS 'سجل دفع القيود والفواتير إلى النظام الخارجي عبر API، بإعادة محاولة ومنع تكرار (13.12)';
+COMMENT ON TABLE acct.sync_item IS 'Log of journal entries and invoices pushed to the external system via API, with retries and deduplication (13.12)';
 
--- ------------------------------ الجهة الضريبية والملف الضريبي (13.11) -
+-- ------------------------------ Tax authority and tax profile (13.11) -
 CREATE TABLE acct.tax_authority (
   id                    bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   code                  text NOT NULL UNIQUE,
@@ -178,7 +178,7 @@ CREATE TABLE acct.tax_authority (
   api_base              text,
   status                text NOT NULL DEFAULT 'INACTIVE' CHECK (status IN ('ACTIVE','INACTIVE'))
 );
-COMMENT ON TABLE acct.tax_authority IS 'الجهة الضريبية ومحوّلها: وضع الإصدار قبل الربط، ثم الإبلاغ أو الاعتماد المسبق';
+COMMENT ON TABLE acct.tax_authority IS 'Tax authority and its adapter: generation mode before integration, then reporting or clearance';
 
 CREATE TABLE acct.einvoice_template (
   id            bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -200,7 +200,7 @@ CREATE TABLE acct.einvoice_activation (
   mode              text NOT NULL CHECK (mode IN ('GENERATION','REPORTING','CLEARANCE')),
   active            boolean NOT NULL DEFAULT false
 );
-COMMENT ON TABLE acct.einvoice_activation IS 'تفعيل الإلزام بالموجات لكل فئة ونوع مستند وتاريخ';
+COMMENT ON TABLE acct.einvoice_activation IS 'Phased mandate activation per taxpayer category, document type and date';
 
 CREATE TABLE acct.tax_profile (
   id                  bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -210,7 +210,7 @@ CREATE TABLE acct.tax_profile (
   tax_no              text,
   cr_no               text,
   branch_code         text,
-  legal_name_ar       text NOT NULL,
+  legal_name          text NOT NULL,
   einvoice_mandatory  boolean NOT NULL DEFAULT false,
   issuer_mode         text NOT NULL DEFAULT 'PLATFORM' CHECK (issuer_mode IN ('PLATFORM','OWN_SYSTEM')),
   verified_source     text NOT NULL DEFAULT 'MANUAL' CHECK (verified_source IN ('MANUAL','GOV')),
@@ -220,14 +220,14 @@ CREATE TABLE acct.tax_profile (
   CHECK (tax_status <> 'REGISTERED' OR tax_no IS NOT NULL),
   EXCLUDE USING gist (party_id WITH =, valid WITH &&)
 );
-COMMENT ON TABLE acct.tax_profile IS 'الملف الضريبي لكل شركة أو مالك أو شريك بإصدارات زمنية غير متداخلة';
+COMMENT ON TABLE acct.tax_profile IS 'Tax profile of each company, owner or partner, with non-overlapping time versions';
 
 CREATE TABLE acct.tax_profile_field (
   id            bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   country_code  char(2) NOT NULL REFERENCES ref.country(code),
   authority_id  bigint REFERENCES acct.tax_authority(id),
   code          text NOT NULL,
-  label_ar      text NOT NULL,
+  label         text NOT NULL,
   data_type     text NOT NULL CHECK (data_type IN ('TEXT','NUMBER','DATE','BOOL','FILE','CHOICE')),
   required      boolean NOT NULL DEFAULT false,
   validation    jsonb,
@@ -239,7 +239,7 @@ CREATE TABLE acct.tax_profile_value (
   value       jsonb NOT NULL,
   PRIMARY KEY (profile_id, field_id)
 );
-COMMENT ON TABLE acct.tax_profile_field IS 'حقول ضريبية ديناميكية يضيفها المسؤول لكل دولة أو جهة دون برمجة';
+COMMENT ON TABLE acct.tax_profile_field IS 'Dynamic tax fields added by the administrator per country or authority without code changes';
 
 CREATE TABLE acct.tax_registration (
   id                bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -249,22 +249,22 @@ CREATE TABLE acct.tax_registration (
   registered        daterange NOT NULL
 );
 
--- ------------------------------ الفاتورة الإلكترونية -----------------
+-- ------------------------------ E-invoice -----------------
 CREATE TABLE acct.einvoice_unit (
   id              bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   profile_id      bigint NOT NULL REFERENCES acct.tax_profile(id),
   authority_id    bigint NOT NULL REFERENCES acct.tax_authority(id),
   unit_code       text NOT NULL,
-  number_prefix   text NOT NULL,                      -- بادئة الترقيم للبائع/الوحدة
-  certificate_ref text,                               -- شهادة الجهة في الخزنة
+  number_prefix   text NOT NULL,                      -- numbering prefix for the seller/unit
+  certificate_ref text,                               -- authority certificate in the vault
   cert_expiry     timestamptz,
   signing_key_id  int REFERENCES sec.key_registry(id),
-  counter_value   bigint NOT NULL DEFAULT 0,          -- عداد لا يُعاد ضبطه
-  last_hash       text NOT NULL DEFAULT '0',          -- تجزئة آخر فاتورة (سلسلة)
+  counter_value   bigint NOT NULL DEFAULT 0,          -- counter that is never reset
+  last_hash       text NOT NULL DEFAULT '0',          -- hash of the last invoice (chain)
   status          text NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ONBOARDING','ACTIVE','SUSPENDED')),
   UNIQUE (authority_id, unit_code)
 );
-COMMENT ON TABLE acct.einvoice_unit IS 'وحدة الإصدار لكل بائع: العداد وتجزئة آخر فاتورة والشهادة';
+COMMENT ON TABLE acct.einvoice_unit IS 'Issuing unit per seller: counter, last invoice hash and certificate';
 
 CREATE TABLE acct.einvoice_document (
   id                bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -273,7 +273,7 @@ CREATE TABLE acct.einvoice_document (
   subtype           text NOT NULL CHECK (subtype IN ('STANDARD','SIMPLIFIED')),
   seller_profile_id bigint NOT NULL REFERENCES acct.tax_profile(id),
   unit_id           bigint NOT NULL REFERENCES acct.einvoice_unit(id),
-  company_id        bigint REFERENCES iam.company(id),  -- لعزل المستأجر
+  company_id        bigint REFERENCES iam.company(id),  -- for tenant isolation
   buyer_party_id    bigint REFERENCES iam.party(id),
   buyer_tax_no      text,
   source_type       text NOT NULL CHECK (source_type IN ('BOOKING','TICKET','SHIPMENT','SUBSCRIPTION','COMMISSION','REFUND','OTHER')),
@@ -305,7 +305,7 @@ CREATE TABLE acct.einvoice_document (
 CREATE UNIQUE INDEX einvoice_number_uq ON acct.einvoice_document (unit_id, number) WHERE number IS NOT NULL;
 CREATE INDEX einvoice_source_idx ON acct.einvoice_document (source_type, source_id);
 CREATE INDEX einvoice_pending_idx ON acct.einvoice_document (finalized_at) WHERE status IN ('FINALIZED','SUBMITTED');
-COMMENT ON TABLE acct.einvoice_document IS 'الفاتورة والإشعار الدائن والمدين؛ بعد الإقفال لا يتغير إلا الحالة ورد الجهة، ولا حذف إطلاقاً';
+COMMENT ON TABLE acct.einvoice_document IS 'Invoice, credit note and debit note; after finalization only the status and the authority''s response may change, and deletion is never allowed';
 
 CREATE OR REPLACE FUNCTION acct.tg_einvoice_guard() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
@@ -354,7 +354,7 @@ BEGIN
 END $$;
 CREATE TRIGGER einvoice_line_guard BEFORE INSERT OR UPDATE OR DELETE ON acct.einvoice_line FOR EACH ROW EXECUTE FUNCTION acct.tg_einvoice_line_guard();
 
--- الإقفال: رقم بلا فجوات وتجزئة متسلسلة (قفل صف الوحدة يمنع السباق)
+-- Finalization: gapless number and chained hash (the unit row lock prevents races)
 CREATE OR REPLACE FUNCTION acct.finalize_einvoice(
   p_document_id bigint, p_hash text, p_signature text, p_qr_payload text,
   p_xml_file_id bigint DEFAULT NULL, p_pdf_file_id bigint DEFAULT NULL
@@ -384,7 +384,7 @@ BEGIN
   WHERE id = p_document_id RETURNING * INTO d;
   RETURN d;
 END $$;
-COMMENT ON FUNCTION acct.finalize_einvoice IS 'يقفل الفاتورة بعد الدفع: رقم تسلسلي بلا فجوات، تجزئة مرتبطة بالسابقة، توقيع وQR';
+COMMENT ON FUNCTION acct.finalize_einvoice IS 'Finalizes the invoice after payment: gapless sequential number, hash linked to the previous one, signature and QR';
 
 CREATE TABLE acct.einvoice_submission (
   id              bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -402,12 +402,12 @@ CREATE TABLE acct.einvoice_submission (
 );
 CREATE TRIGGER einvoice_submission_immutable BEFORE UPDATE OR DELETE ON acct.einvoice_submission
   FOR EACH ROW EXECUTE FUNCTION sys.tg_forbid_mutation();
-COMMENT ON TABLE acct.einvoice_submission IS 'كل محاولة دفع للجهة الحكومية وردها كما ورد (إلحاق فقط)';
+COMMENT ON TABLE acct.einvoice_submission IS 'Every submission attempt to the government authority and its response as received (append-only)';
 
 ALTER TABLE sales.refund_request ADD CONSTRAINT refund_credit_note_fk FOREIGN KEY (credit_note_id) REFERENCES acct.einvoice_document(id);
 ALTER TABLE sales.passenger_compensation ADD CONSTRAINT compensation_credit_note_fk FOREIGN KEY (credit_note_id) REFERENCES acct.einvoice_document(id);
 
--- ------------------------------ الإقرارات والتحصيل --------------------
+-- ------------------------------ Tax returns and collections --------------------
 CREATE TABLE acct.tax_return (
   id            bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   profile_id    bigint NOT NULL REFERENCES acct.tax_profile(id),
@@ -427,7 +427,7 @@ CREATE TABLE acct.tax_return_line (
   source_note text,
   PRIMARY KEY (return_id, box_code)
 );
-COMMENT ON TABLE acct.tax_return IS 'مسودة الإقرار الضريبي لكل مكلف وفترة بخانات نموذج الجهة';
+COMMENT ON TABLE acct.tax_return IS 'Draft tax return per taxpayer and period using the authority''s form boxes';
 
 CREATE TABLE acct.tax_collection_no_file (
   id              bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -442,11 +442,11 @@ CREATE TABLE acct.tax_collection_no_file (
   remitted_payment_id bigint,
   created_at      timestamptz NOT NULL DEFAULT now()
 );
-COMMENT ON TABLE acct.tax_collection_no_file IS 'ضرائب ورسوم تُحصَّل من طرف بلا ملف ضريبي (ترانزيت، مقطوع) بإيصال تحصيل';
+COMMENT ON TABLE acct.tax_collection_no_file IS 'Taxes and fees collected from a party without a tax file (transit, flat-rate) with a collection receipt';
 
 CREATE TABLE acct.tax_payment (
   id            bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  profile_id    bigint REFERENCES acct.tax_profile(id),  -- فارغ = المنصة بصفتها جهة تحصيل
+  profile_id    bigint REFERENCES acct.tax_profile(id),  -- empty = the platform acting as collection agent
   authority_id  bigint NOT NULL REFERENCES acct.tax_authority(id),
   tax_return_id bigint REFERENCES acct.tax_return(id),
   tax_scheme_id bigint NOT NULL REFERENCES pricing.tax_scheme(id),

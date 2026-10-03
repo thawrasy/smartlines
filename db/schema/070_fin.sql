@@ -1,24 +1,24 @@
 -- =====================================================================
--- 070: المحافظ والدفتر المزدوج والمدفوعات وتوزيع السعر والتسوية
--- المرجع: 4.7، 5.7، 5.8، 6.1 إلى 6.3، 6.6، 16.25
--- الثوابت المالية مفروضة في القاعدة نفسها:
---   (1) لكل قيد: مجموع المدين = مجموع الدائن (يُفحص عند الالتزام COMMIT)
---   (2) القيود لا تُعدَّل ولا تُحذف؛ التصحيح بقيد عكسي
---   (3) رصيد المحفظة يُحدَّث ذرياً ولا يصبح سالباً إلا لمحافظ المقاصة
---   (4) مجموع أوراق شجرة التوزيع = إجمالي السعر
+-- 070: wallets, double-entry ledger, payments, price allocation and settlement
+-- Source: 4.7, 5.7, 5.8, 6.1 to 6.3, 6.6, 16.25
+-- Financial invariants enforced by the database itself:
+--   (1) every transaction: total debits = total credits (checked at COMMIT)
+--   (2) entries are never updated or deleted; corrections by reversing entry
+--   (3) wallet balances are updated atomically and never go negative except clearing wallets
+--   (4) the sum of allocation tree leaves = the total price
 -- =====================================================================
 
 CREATE TABLE fin.wallet (
   id              bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   uid             uuid NOT NULL DEFAULT gen_random_uuid() UNIQUE,
-  owner_party_id  bigint REFERENCES iam.party(id),    -- فارغ لمحافظ المنصة الداخلية
-  company_id      bigint REFERENCES iam.company(id),  -- لعزل المستأجر
+  owner_party_id  bigint REFERENCES iam.party(id),    -- empty for internal platform wallets
+  company_id      bigint REFERENCES iam.company(id),  -- for tenant isolation
   wallet_type     text NOT NULL CHECK (wallet_type IN ('USER','COMPANY','PLATFORM','ESCROW','COMMISSION','TAX','SPONSOR','GATEWAY_CLEARING','BANK_CLEARING','CASH_COLLECT','DEPOSIT','EXPENSE')),
   label           text,
   currency        char(3) NOT NULL REFERENCES ref.currency(code),
-  balance         bigint NOT NULL DEFAULT 0,          -- رصيد مخزَّن = Σ دائن − Σ مدين
+  balance         bigint NOT NULL DEFAULT 0,          -- stored balance = sum(credits) - sum(debits)
   hold_balance    bigint NOT NULL DEFAULT 0 CHECK (hold_balance >= 0),
-  allow_negative  boolean NOT NULL DEFAULT false,     -- لمحافظ المقاصة فقط
+  allow_negative  boolean NOT NULL DEFAULT false,     -- clearing wallets only
   kyc_level       smallint NOT NULL DEFAULT 0,
   status          text NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE','FROZEN','CLOSED')),
   created_at      timestamptz NOT NULL DEFAULT now(),
@@ -27,7 +27,7 @@ CREATE TABLE fin.wallet (
 );
 CREATE UNIQUE INDEX wallet_owner_uq ON fin.wallet (owner_party_id, wallet_type, currency) WHERE owner_party_id IS NOT NULL;
 CREATE INDEX wallet_company_idx ON fin.wallet (company_id);
-COMMENT ON TABLE fin.wallet IS 'المحفظة: مستخدم، شركة، منصة، ضمان Escrow، عمولة، ضريبة، مقاصة؛ الرصيد يُطابَق مع القيود';
+COMMENT ON TABLE fin.wallet IS 'Wallet: user, company, platform, escrow, commission, tax, clearing; the balance is reconciled with the entries';
 
 CREATE TABLE fin.ledger_txn (
   id              bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -43,7 +43,7 @@ CREATE TABLE fin.ledger_txn (
   created_at      timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX ledger_txn_ref_idx ON fin.ledger_txn (ref_type, ref_id);
-COMMENT ON TABLE fin.ledger_txn IS 'رأس القيد المالي؛ غير قابل للتعديل، ومفتاح عدم التكرار يمنع القيد المزدوج';
+COMMENT ON TABLE fin.ledger_txn IS 'Ledger transaction header; immutable, and the idempotency key prevents double posting';
 
 CREATE TABLE fin.ledger_entry (
   id            bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -51,14 +51,14 @@ CREATE TABLE fin.ledger_entry (
   wallet_id     bigint NOT NULL REFERENCES fin.wallet(id),
   direction     char(2) NOT NULL CHECK (direction IN ('DR','CR')),
   amount        bigint NOT NULL CHECK (amount > 0),
-  balance_after bigint,                               -- يُحسب آلياً
+  balance_after bigint,                               -- computed automatically
   created_at    timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX ledger_entry_wallet_idx ON fin.ledger_entry (wallet_id, id);
 CREATE INDEX ledger_entry_txn_idx ON fin.ledger_entry (txn_id);
-COMMENT ON TABLE fin.ledger_entry IS 'سطر القيد (مدين/دائن)؛ إلحاق فقط، ويحدّث رصيد المحفظة ذرياً';
+COMMENT ON TABLE fin.ledger_entry IS 'Ledger entry (debit/credit); append-only, updates the wallet balance atomically';
 
--- تحديث الرصيد ذرياً مع قفل صف المحفظة، وفحص العملة
+-- Update the balance atomically with a wallet row lock, and check the currency
 CREATE OR REPLACE FUNCTION fin.tg_ledger_entry_apply() RETURNS trigger LANGUAGE plpgsql AS $$
 DECLARE w fin.wallet%ROWTYPE; t_currency char(3); delta bigint;
 BEGIN
@@ -72,12 +72,12 @@ BEGIN
   END IF;
   delta := CASE WHEN NEW.direction = 'CR' THEN NEW.amount ELSE -NEW.amount END;
   UPDATE fin.wallet SET balance = balance + delta WHERE id = NEW.wallet_id
-    RETURNING balance INTO NEW.balance_after;            -- قيد CHECK على المحفظة يرفض الرصيد السالب
+    RETURNING balance INTO NEW.balance_after;            -- a CHECK constraint on the wallet rejects negative balances
   RETURN NEW;
 END $$;
 CREATE TRIGGER ledger_entry_apply BEFORE INSERT ON fin.ledger_entry FOR EACH ROW EXECUTE FUNCTION fin.tg_ledger_entry_apply();
 
--- توازن القيد عند الالتزام (Deferred)
+-- Transaction balance check at commit (deferred)
 CREATE OR REPLACE FUNCTION fin.tg_ledger_txn_balanced() RETURNS trigger LANGUAGE plpgsql AS $$
 DECLARE dr bigint; cr bigint; n int;
 BEGIN
@@ -95,18 +95,18 @@ CREATE CONSTRAINT TRIGGER ledger_txn_balanced AFTER INSERT ON fin.ledger_entry
 CREATE TRIGGER ledger_txn_immutable   BEFORE UPDATE OR DELETE ON fin.ledger_txn   FOR EACH ROW EXECUTE FUNCTION sys.tg_forbid_mutation();
 CREATE TRIGGER ledger_entry_immutable BEFORE UPDATE OR DELETE ON fin.ledger_entry FOR EACH ROW EXECUTE FUNCTION sys.tg_forbid_mutation();
 
--- ------------------------------ المدفوعات -----------------------------
+-- ------------------------------ Payments -----------------------------
 CREATE TABLE fin.payment_provider (
   id          bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   code        text NOT NULL UNIQUE,
   name        text NOT NULL,
   kind        text NOT NULL CHECK (kind IN ('CARD','BANK','E_WALLET','CASH_AGENT')),
-  config      jsonb NOT NULL DEFAULT '{}',            -- بلا أسرار
-  fee_policy  jsonb NOT NULL DEFAULT '{}',            -- نسبة/ثابت/من يتحمل (5.11 ج)
+  config      jsonb NOT NULL DEFAULT '{}',            -- no secrets
+  fee_policy  jsonb NOT NULL DEFAULT '{}',            -- percentage/fixed/who bears it (5.11 c)
   clearing_wallet_id bigint REFERENCES fin.wallet(id),
   status      text NOT NULL DEFAULT 'INACTIVE' CHECK (status IN ('ACTIVE','INACTIVE'))
 );
-COMMENT ON TABLE fin.payment_provider IS 'مزود الدفع بمحوّل موحد قابل للاستبدال';
+COMMENT ON TABLE fin.payment_provider IS 'Payment provider behind a unified, replaceable adapter';
 
 CREATE TABLE fin.payment (
   id              bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -132,7 +132,7 @@ CREATE TABLE fin.payment (
   CHECK (status <> 'SUCCESS' OR ledger_txn_id IS NOT NULL)
 );
 CREATE INDEX payment_booking_idx ON fin.payment (booking_id);
-COMMENT ON TABLE fin.payment IS 'الدفعة؛ لا تصبح SUCCESS إلا بإشعار موقّع من البوابة وقيد في الدفتر (16.25)';
+COMMENT ON TABLE fin.payment IS 'Payment; becomes SUCCESS only with a signed gateway notification and a ledger entry (16.25)';
 
 CREATE OR REPLACE FUNCTION fin.tg_payment_transition() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
@@ -162,7 +162,7 @@ CREATE TABLE fin.payment_notification (
 );
 CREATE TRIGGER payment_notification_immutable BEFORE DELETE ON fin.payment_notification
   FOR EACH ROW EXECUTE FUNCTION sys.tg_forbid_mutation();
-COMMENT ON TABLE fin.payment_notification IS 'إشعارات البوابة الموقّعة كما وردت (مرجع حالة الدفع، ومنع التكرار)';
+COMMENT ON TABLE fin.payment_notification IS 'Signed gateway notifications as received (source of payment status, deduplication)';
 
 CREATE TABLE fin.bank_transfer_topup (
   id          bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -175,7 +175,7 @@ CREATE TABLE fin.bank_transfer_topup (
   ledger_txn_id bigint REFERENCES fin.ledger_txn(id),
   created_at  timestamptz NOT NULL DEFAULT now()
 );
-COMMENT ON TABLE fin.bank_transfer_topup IS 'شحن المحفظة بتحويل بنكي بمرجع فريد ومطابقة تلقائية';
+COMMENT ON TABLE fin.bank_transfer_topup IS 'Wallet top-up by bank transfer with a unique reference and automatic matching';
 
 CREATE TABLE fin.withdrawal_request (
   id              bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -185,16 +185,16 @@ CREATE TABLE fin.withdrawal_request (
   status          text NOT NULL DEFAULT 'REQUESTED' CHECK (status IN ('REQUESTED','APPROVED','REJECTED','PAID','FAILED')),
   requested_by    bigint NOT NULL REFERENCES iam.app_user(id),
   approved_by     bigint REFERENCES iam.app_user(id),
-  second_approver bigint REFERENCES iam.app_user(id),   -- للمبالغ فوق الحد (موافقتان)
+  second_approver bigint REFERENCES iam.app_user(id),   -- for amounts above the limit (two approvals)
   ledger_txn_id   bigint REFERENCES fin.ledger_txn(id),
   created_at      timestamptz NOT NULL DEFAULT now(),
   decided_at      timestamptz,
   CHECK (approved_by IS NULL OR approved_by <> requested_by),
   CHECK (second_approver IS NULL OR (second_approver <> requested_by AND second_approver <> approved_by))
 );
-COMMENT ON TABLE fin.withdrawal_request IS 'طلب السحب بحدود ومراجعة وموافقتين للمبالغ الكبيرة';
+COMMENT ON TABLE fin.withdrawal_request IS 'Withdrawal request with limits, review and two approvals for large amounts';
 
--- ------------------------------ توزيع السعر (5.7) -------------------
+-- ------------------------------ Price allocation (5.7) -------------------
 CREATE TABLE fin.price_allocation (
   id            bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   uid           uuid NOT NULL DEFAULT gen_random_uuid() UNIQUE,
@@ -209,7 +209,7 @@ CREATE TABLE fin.price_allocation (
   UNIQUE (subject_type, subject_id)
 );
 ALTER TABLE sales.booking ADD CONSTRAINT booking_allocation_fk FOREIGN KEY (price_allocation_id) REFERENCES fin.price_allocation(id);
-COMMENT ON TABLE fin.price_allocation IS 'رأس شجرة توزيع السعر لكل حجز أو تذكرة أو شحنة';
+COMMENT ON TABLE fin.price_allocation IS 'Price allocation tree header for each booking, ticket or shipment';
 
 CREATE TABLE fin.price_allocation_line (
   id                    bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -224,7 +224,7 @@ CREATE TABLE fin.price_allocation_line (
   commission_scheme_id  bigint REFERENCES pricing.commission_scheme(id),
   basis                 text NOT NULL,
   rate                  numeric(18,6),
-  amount                bigint NOT NULL,              -- قد يكون سالباً للخصم
+  amount                bigint NOT NULL,              -- may be negative for discounts
   wallet_id             bigint REFERENCES fin.wallet(id),
   release_event         text NOT NULL,
   released_at           timestamptz,
@@ -232,7 +232,7 @@ CREATE TABLE fin.price_allocation_line (
   status                text NOT NULL DEFAULT 'HELD' CHECK (status IN ('HELD','RELEASED','REFUNDED','PARTIAL_REFUND')),
   UNIQUE (allocation_id, code)
 );
-COMMENT ON TABLE fin.price_allocation_line IS 'أسطر الشجرة: أجرة، ضريبة، عمولة، رسم، خصم؛ كل ورقة تُحرَّر لمحفظة مستفيدها عند حدثها';
+COMMENT ON TABLE fin.price_allocation_line IS 'Tree lines: fare, tax, commission, fee, discount; each leaf is released to its beneficiary''s wallet on its event';
 
 CREATE OR REPLACE FUNCTION fin.tg_allocation_balanced() RETURNS trigger LANGUAGE plpgsql AS $$
 DECLARE s bigint; t bigint;
@@ -252,7 +252,7 @@ CREATE TABLE fin.tax_ledger (
   jurisdiction_id     bigint NOT NULL REFERENCES pricing.jurisdiction(id),
   tax_scheme_id       bigint NOT NULL REFERENCES pricing.tax_scheme(id),
   company_id          bigint REFERENCES iam.company(id),
-  period              date NOT NULL,                  -- أول يوم في الشهر
+  period              date NOT NULL,                  -- first day of the month
   direction           text NOT NULL CHECK (direction IN ('COLLECTED','REFUNDED')),
   currency            char(3) NOT NULL REFERENCES ref.currency(code),
   base                bigint NOT NULL,
@@ -262,9 +262,9 @@ CREATE TABLE fin.tax_ledger (
 );
 CREATE INDEX tax_ledger_period_idx ON fin.tax_ledger (tax_scheme_id, period);
 CREATE TRIGGER tax_ledger_immutable BEFORE UPDATE OR DELETE ON fin.tax_ledger FOR EACH ROW EXECUTE FUNCTION sys.tg_forbid_mutation();
-COMMENT ON TABLE fin.tax_ledger IS 'دفتر الضرائب المحصلة والمستردة لكل مخطط واختصاص وفترة (أساس الإقرار)';
+COMMENT ON TABLE fin.tax_ledger IS 'Ledger of taxes collected and refunded per scheme, jurisdiction and period (basis of the tax return)';
 
--- ------------------------------ التسوية والتحويل --------------------
+-- ------------------------------ Settlement and payouts --------------------
 CREATE TABLE fin.settlement_batch (
   id          bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   uid         uuid NOT NULL DEFAULT gen_random_uuid() UNIQUE,
@@ -281,7 +281,7 @@ CREATE TABLE fin.settlement_batch (
   created_at  timestamptz NOT NULL DEFAULT now(),
   EXCLUDE USING gist (company_id WITH =, period WITH &&) WHERE (status <> 'DISPUTED')
 );
-COMMENT ON TABLE fin.settlement_batch IS 'كشف تسوية الناقل لفترة؛ لا تتداخل الفترات';
+COMMENT ON TABLE fin.settlement_batch IS 'Carrier settlement statement for a period; periods never overlap';
 
 CREATE TABLE fin.settlement_line (
   id          bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -322,7 +322,7 @@ CREATE TABLE fin.payout (
   created_at          timestamptz NOT NULL DEFAULT now(),
   UNIQUE (company_id, period)
 );
-COMMENT ON TABLE fin.payout IS 'التحويل البنكي للناقل بحسب جدوله';
+COMMENT ON TABLE fin.payout IS 'Bank payout to the carrier according to its schedule';
 
 CREATE TABLE fin.bank_reconciliation (
   id            bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -338,4 +338,4 @@ CREATE TABLE fin.bank_reconciliation (
   created_at    timestamptz NOT NULL DEFAULT now(),
   UNIQUE (recon_date, account_label, currency)
 );
-COMMENT ON TABLE fin.bank_reconciliation IS 'المطابقة اليومية: رصيد البنك = إجمالي المحافظ + المستحقات';
+COMMENT ON TABLE fin.bank_reconciliation IS 'Daily reconciliation: bank balance = total wallets + receivables';

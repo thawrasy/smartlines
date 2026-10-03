@@ -1,53 +1,62 @@
-# قاعدة بيانات مسلك — المرحلة الأولى
+# Masslak Database — Phase 1
 
-مبنية حصراً على **دراسة التحليل والتصميم v2.4** (`docs/Masslak_Analysis_and_Design_AR_v2.4.docx`)، وفق نطاق المرحلة الأولى في القسمين 21 و22.2 (النواة، الأسطول والجدولة، الحجز والمال، التشغيل، التصليب)، مع الحقول والجداول التي قرر المالك بناءها منذ المرحلة الأولى (القرار 88).
+Built solely from the **Analysis and Design Study v2.4** (`docs/Masslak_Analysis_and_Design_AR_v2.4.docx`), within the Phase 1 scope of sections 21 and 22.2 (core, fleet and scheduling, booking and money, operations, hardening), plus the fields and tables the owner decided to build from Phase 1 onwards (Decision 88).
 
 | | |
 |---|---|
-| المحرك | PostgreSQL 16 (امتدادات: pgcrypto، citext، btree_gist، pg_trgm) |
-| المخططات | 14 مخططاً مستقلاً بصلاحيات مستقلة |
-| الجداول | 181 جدولاً، 1,885 عموداً، 422 مفتاحاً أجنبياً |
-| الاختبارات | 48 اختباراً آلياً ناجحاً على قاعدة حقيقية |
-| الوثائق | [قاموس البيانات](DATA_DICTIONARY.md) · [مخططات العلاقات ERD](ERD.md) (مولَّدان آلياً من القاعدة) |
+| Engine | PostgreSQL 16 (extensions: pgcrypto, citext, btree_gist, pg_trgm) |
+| Schemas | 14 separate schemas, each with its own privileges |
+| Tables | 183 tables, 1,893 columns, 425 foreign keys |
+| Tests | 52 automated checks passing against a real database |
+| Docs | [Data dictionary](DATA_DICTIONARY.md) · [ERD diagrams](ERD.md) (both generated from the database) |
 
-## التشغيل
+## Language and localization policy
+
+- **English only** for the database and code: schema, table and column names, enum values, comments, seed data, tests, scripts and generated docs.
+- **Localization belongs to the UI layer.** No table has per-language columns (`name_ar`, `name_en`...). Each reference row has one English `name`.
+- **`ref.locale`** lists supported UI locales with their text direction. English (`en`, LTR) is the default, Arabic (`ar`, RTL) is enabled, and Turkish, French and Spanish are seeded disabled for later phases. Adding a language is a row insert plus UI resource files, with no schema change.
+- **`ref.translation`** (entity, entity_key, field, locale, value) holds localized display values for reference data such as city, station, fare brand and role names. The English value in the source row is always the fallback.
+- **User preferences:** `iam.app_user.preferred_locale` and `crm.notification_template.locale` reference `ref.locale`.
+- **User-entered data** may be in any script, for example a party's legal name as registered. `iam.party.name_latin` holds an optional Latin transliteration.
+
+## Running
 
 ```bash
 createdb masslak
-./db/build.sh masslak                 # يبني المخطط بالترتيب (000 ← 950)
-./db/tests/run.sh                     # يبني قاعدة مؤقتة ويشغّل الاختبارات ثم يحذفها
-python3 db/tools/gen_docs.py masslak  # يعيد توليد قاموس البيانات وERD
+./db/build.sh masslak                 # builds the schema in order (000 -> 950)
+./db/tests/run.sh                     # builds a temporary database, runs the tests, then drops it
+python3 db/tools/gen_docs.py masslak  # regenerates the data dictionary and ERD
 ```
-يمكن تمرير معاملات الاتصال لـ psql بعد اسم القاعدة، مثل: `./db/build.sh masslak -h host -U owner`.
+psql connection arguments can follow the database name, e.g. `./db/build.sh masslak -h host -U owner`.
 
-| الملف | المحتوى |
+| File | Contents |
 |---|---|
-| `000_init.sql` | الامتدادات، المخططات، الأدوار، سياق الطلب، الدوال المساعدة |
-| `010_ref_sys.sql` | الدول، العملات، أسعار الصرف، المدن، الملفات، مفاتيح التشفير، الإعدادات، Outbox وWebhooks |
-| `020_iam.sql` | الأطراف، الشركات، المستخدمون، الأدوار والصلاحيات، الجلسات والأجهزة وMFA، عملاء ومفاتيح API، التحقق من الهوية (KYC) |
-| `030_net_fleet.sql` | المحطات وملفات الامتثال، الخطوط، رموز الناقلين وأرقام الخدمات، المركبات والمقاعد، الإيجار، الطاقم، التراخيص المقفلة، التأمين |
-| `040_pricing.sql` | علامات الأسعار، جداول الأجرة، المعدّلات، الضرائب والعمولات، قوالب التوزيع، الحملات، الولاء |
-| `050_ops.sql` | أنماط الرحلات، الرحلات، المحطات، المخزون لكل مقطع، الطاقم، التغييرات، التتبع، الحوادث واستمرارية الرحلة |
-| `060_sales.sql` | القنوات، الحجوزات، المسافرون، التذاكر، الصعود، الاسترداد، التعويض |
-| `070_fin.sql` | المحافظ، الدفتر المزدوج، المدفوعات وإشعاراتها، السحب، توزيع السعر، دفتر الضرائب، التسوية والتحويل والمطابقة |
-| `080_acct.sql` | دليل الحسابات والقيود، الربط المحاسبي، الجهة الضريبية والملف الضريبي، الفاتورة الإلكترونية، الإقرارات |
-| `090_crm_gov.sql` | الشكاوى، التقييم، الإشعارات، المساعد الذكي، مصفوفة الصلاحيات، الالتزامات، حماية البيانات |
-| `100_sec.sql` | قواعد حجب IP، المخاطر والاحتيال، الأحداث الأمنية، توقيع المستندات، وحدة الأمن والامتثال |
-| `110_audit.sql` | سجلات الدخول والإجراءات والاطلاع والتغييرات، الختم، الأقسام الشهرية |
-| `900_rls_grants.sql` | عزل المستأجرين وصلاحيات الأدوار |
-| `950_seed.sql` | البيانات الأولية: العملات، الدول، المدن، محافظ المنصة، كتالوج الصلاحيات والأدوار، الإعدادات |
+| `000_init.sql` | Extensions, schemas, roles, request context, helper functions |
+| `010_ref_sys.sql` | Locales and translations, countries, currencies, exchange rates, cities, files, encryption keys, settings, outbox and webhooks |
+| `020_iam.sql` | Parties, companies, users, roles and permissions, sessions, devices and MFA, API clients and keys, identity verification (KYC) |
+| `030_net_fleet.sql` | Stations and compliance profiles, routes, carrier codes and service numbers, vehicles and seats, leases, crew, locked licenses, insurance |
+| `040_pricing.sql` | Fare brands, fare tables, modifiers, taxes and commissions, allocation templates, campaigns, loyalty |
+| `050_ops.sql` | Trip templates, trips, stops, per-segment inventory, crew, changes, tracking, incidents and trip continuity |
+| `060_sales.sql` | Channels, bookings, passengers, tickets, boarding, refunds, compensation |
+| `070_fin.sql` | Wallets, double-entry ledger, payments and notifications, withdrawals, price allocation, tax ledger, settlement, payouts and reconciliation |
+| `080_acct.sql` | Chart of accounts and journals, accounting integration, tax authority and tax profiles, e-invoices, tax returns |
+| `090_crm_gov.sql` | Complaints, ratings, notifications, AI assistant, policy authority matrix, obligations, data protection |
+| `100_sec.sql` | IP blocking rules, risk and fraud, security events, document signing, security & compliance hub |
+| `110_audit.sql` | Login, activity, data-access and change logs, sealing, monthly partitions |
+| `900_rls_grants.sql` | Tenant isolation and role privileges |
+| `950_seed.sql` | Seed data: locales, currencies, countries, cities, platform wallets, permission and role catalog, settings |
 
-## قواعد التصميم (الدراسة 29.1)
+## Design rules (study 29.1)
 
-- **المبالغ** `bigint` بالوحدة الصغرى للعملة، ولا أعداد عائمة؛ وكل مبلغ معه عملته.
-- **الأزمنة** `timestamptz` بتوقيت UTC، والعرض بتوقيت المدينة.
-- **المعرّفات**: مفتاح داخلي `bigint` للعلاقات، ومعرّف عام `uid` (UUID) فقط في الواجهات والروابط، فلا تُكشف الأرقام المتسلسلة.
-- **الحالات** نصوص بقيود `CHECK` (لا أنواع enum) فتُضاف حالة جديدة بتعديل قيد لا بإعادة بناء.
-- **المرونة** بحقول `jsonb` محددة الغرض (لقطات السعر والشروط، حقول ملف الامتثال، الإعدادات)، لا كبديل عن الأعمدة.
-- **المفاتيح الأجنبية** معلنة صراحة في كل علاقة، عدا جدول المواقع عالي الكثافة (لأداء الإدخال).
-- **الإعداد قبل البرمجة**: مفاتيح التفعيل والسياسات في `sys.setting` و`sys.company_setting` (مبدأ 2.8).
+- **Amounts:** `bigint` in the currency's minor unit, never floating point. Every amount carries its currency.
+- **Timestamps:** `timestamptz` in UTC. Times are displayed in the city's time zone.
+- **Identifiers:** an internal `bigint` key for relationships and a public `uid` (UUID) for interfaces and links only, so sequential numbers are never exposed.
+- **Statuses:** text with `CHECK` constraints (no enum types). Adding a status means changing a constraint, not rebuilding the table.
+- **Flexibility:** purpose-specific `jsonb` fields (price and terms snapshots, compliance-profile fields, settings), never as a substitute for columns.
+- **Foreign keys:** declared explicitly on every relationship, except the high-volume tracking table, which skips them for insert performance.
+- **Configuration before code:** feature flags and policies live in `sys.setting` and `sys.company_setting` (principle 2.8).
 
-## العلاقات المحورية
+## Core relationships
 
 ```mermaid
 flowchart LR
@@ -71,94 +80,96 @@ flowchart LR
   booking --> inv[acct.einvoice_document]
 ```
 
-- **الطرف الموحد** (`iam.party`): أي شخص أو شركة أو كيان يُسجَّل مرة واحدة ويحمل أدواراً متعددة (مسافر، سائق، مالك مركبة...). الشركة الناقلة ملف 1:1 مع طرفها، وهي المستأجر (Tenant).
-- **الرحلة** (`ops.trip`) لقطة ثابتة من الخط ومحطاته وأسعاره وطاقمه عند النشر؛ والمخزون صف لكل (رحلة، مقعد، مقطع)، فيُباع المقعد لأي زوج محطات شاغر في كل مقاطعه (4.12).
-- **الحجز** يحمل لقطة السعر وشجرة توزيعه على المستفيدين (ناقل، منصة، ضريبة، وسيط)، وكل ورقة في الشجرة تُحرَّر لمحفظة مستفيدها عبر قيد في الدفتر.
-- **الفاتورة الإلكترونية** تُنشأ لكل حجز وتُقفل بعد الدفع، والاسترداد بإشعار دائن مرتبط بها.
+- **Unified party** (`iam.party`): any person, company or entity is registered once and can hold several roles (passenger, driver, vehicle owner...). A carrier company is a 1:1 profile of its party and is the tenant.
+- **Trip** (`ops.trip`): a fixed snapshot of the route, its stops, fares and crew at publication. Inventory has one row per (trip, seat, segment), so a seat can be sold for any station pair whose segments are all vacant (4.12).
+- **Booking:** carries the price snapshot and its allocation tree across beneficiaries (carrier, platform, tax, intermediary). Each leaf is released to its beneficiary's wallet through a ledger entry.
+- **E-invoice:** created for every booking and locked after payment. A refund is a credit note linked to it.
 
-## الثوابت التي تفرضها القاعدة نفسها
+## Invariants enforced by the database
 
-هذه القواعد لا يمكن تجاوزها من التطبيق ولا من استعلام مباشر، وكلها مغطاة بالاختبارات:
+Neither the application nor a direct query can bypass these rules, and every one is covered by the tests:
 
-| الثابت | الآلية |
+| Invariant | Mechanism |
 |---|---|
-| لا تُسند مركبة لرحلتين متداخلتين (مع هامش التجهيز) | قيد استبعاد `EXCLUDE USING gist` |
-| لا يُسند سائق أو مضيف لرحلتين متداخلتين | قيد استبعاد على إسناد الطاقم |
-| مستأجر فعّال واحد للمركبة في الفترة | قيد استبعاد على عقود الإيجار |
-| لا تُنشر رحلة على مركبة محجوبة (ترخيص أو تأمين أو إيجار منتهٍ) أو لا يملكها الناقل أو يستأجرها | مشغّل يرفض الإسناد |
-| كل قيد مالي متوازن (مدين = دائن) | مشغّل قيد مؤجل يُفحص عند الالتزام |
-| القيود المالية لا تُعدَّل ولا تُحذف | مشغّل + سحب الصلاحية |
-| رصيد المحفظة لا يصبح سالباً (عدا محافظ المقاصة) | قيد CHECK مع تحديث ذري للرصيد |
-| مفتاح عدم التكرار يمنع القيد أو الحجز أو الدفع المزدوج | فهارس فريدة |
-| مجموع أوراق شجرة التوزيع = إجمالي السعر | مشغّل قيد مؤجل |
-| الفاتورة المقفلة لا تتغير، ولا تُحذف أبداً | مشغّل يسمح فقط بانتقال الحالة ورد الجهة |
-| ترقيم الفواتير بلا فجوات بسلسلة تجزئة | دالة `acct.finalize_einvoice` بقفل صف الوحدة |
-| الإشعارات الدائنة لا تتجاوز الفاتورة الأصلية | فحص عند الإقفال |
-| تاريخ انتهاء الترخيص مقفل، والتعديل بطلب معتمد من مسؤول مختلف | مشغّل + قيد CHECK |
-| انتقالات الحالة المسموحة فقط (الحجز، التذكرة، الدفعة، الفاتورة) | مشغّلات وفق القسم 28 |
-| القواعد المالية بإصدارات، والمنشئ لا يعتمد ما أنشأه | قيود CHECK على كل مخطط ضريبة وعمولة وحملة وتوزيع |
+| A vehicle cannot be assigned to two overlapping trips (including turnaround) | `EXCLUDE USING gist` constraint |
+| A driver or host cannot be assigned to two overlapping trips | Exclusion constraint on crew assignment |
+| One active lessee per vehicle per period | Exclusion constraint on leases |
+| No trip is published on a blocked vehicle (expired license, insurance or lease) or one the carrier neither owns nor leases | Trigger rejects the assignment |
+| Every ledger transaction balances (debits = credits) | Deferred constraint trigger checked at commit |
+| Ledger entries are never updated or deleted | Trigger plus revoked privileges |
+| Wallet balances never go negative (except clearing wallets) | CHECK constraint with atomic balance update |
+| Idempotency keys prevent double postings, bookings and payments | Unique indexes |
+| Allocation tree leaves sum to the total price | Deferred constraint trigger |
+| A finalized invoice never changes and is never deleted | Trigger allows only status transitions and the authority's response |
+| Gapless invoice numbering with a hash chain | `acct.finalize_einvoice` with a unit row lock |
+| Credit notes cannot exceed the original invoice | Check at finalization |
+| License expiry dates are locked; changes need approval by a different officer | Trigger plus CHECK constraint |
+| Only allowed status transitions (booking, ticket, payment, invoice) | Triggers per section 28 |
+| Financial rules are versioned, and the creator cannot approve their own rule | CHECK constraints on every tax, commission, campaign and allocation scheme |
+| Users and templates reference a supported locale only | Foreign keys to `ref.locale` |
 
-## الأمان والتشفير وحماية البيانات
+## Security, encryption and data protection
 
-**التشفير الحقلي (16.18):** الحقول السرية العالية (أرقام الهوية والجواز، IBAN، أسرار MFA وWebhooks، القوالب الحيوية) تُخزَّن في أعمدة `*_enc` مشفرة بـ AES-256-GCM في طبقة التطبيق، بمفتاح بيانات لكل صنف ومفتاح رئيس في KMS. ولكل منها:
-- `*_bidx`: فهرس أعمى HMAC-SHA256 بمفتاح منفصل، للبحث والتفرّد (مثل منع تكرار الهوية) دون فك التشفير.
-- `*_last4`: للعرض المقنَّع فقط.
-- `enc_key_id`: مرجع المفتاح في `sec.key_registry`، فيدور المفتاح سنوياً دون فقدان البيانات القديمة.
+**Field-level encryption (16.18):** highly sensitive fields (ID and passport numbers, IBAN, MFA and webhook secrets, biometric templates) are stored in `*_enc` columns. They are encrypted with AES-256-GCM in the application layer, using a data key per class and a master key in KMS. Each such field also has:
+- `*_bidx`: an HMAC-SHA256 blind index with a separate key, for lookup and uniqueness (for example, preventing duplicate IDs) without decryption.
+- `*_last4`: for masked display only.
+- `enc_key_id`: the key reference in `sec.key_registry`, so keys rotate yearly without losing older data.
 
-القاعدة لا تحمل المفاتيح نفسها أبداً، فسرقة نسخة منها لا تكشف هذه الحقول. وكلمات المرور مجزأة Argon2id، ومفاتيح API ورموز الجلسات وOTP مخزنة مجزأة SHA-256 فقط.
+The database never holds the keys themselves, so a stolen copy does not reveal these fields. Passwords are hashed with Argon2id. API keys, session tokens and OTPs are stored only as SHA-256 hashes.
 
-**عزل المستأجرين (RLS):** يضبط التطبيق سياق كل طلب بـ `sys.set_context(user, company, scope, api_client, request_id, ip, session, party)`، وتطبّق القاعدة سياسات تمنع أي ناقل من رؤية بيانات ناقل آخر أو تعديلها، وتحصر رؤية المسافر في حجوزاته ومحفظته وفواتيره. وإن لم يُضبط السياق لا يُرى أي صف خاص (الرفض افتراضي).
+**Tenant isolation (RLS):** the application sets each request's context with `sys.set_context(user, company, scope, api_client, request_id, ip, session, party)`. Policies then stop any carrier from seeing or changing another carrier's data, and limit a passenger to their own bookings, wallet and invoices. If the context is not set, no private row is visible (deny by default).
 
-**أقل صلاحية (16.17):**
+**Least privilege (16.17):**
 
-| الدور | الصلاحية |
+| Role | Privileges |
 |---|---|
-| `masslak_owner` | مالك المخطط للترحيل فقط، ولا يتصل به التطبيق |
-| `masslak_app` | التطبيق: يخضع لـ RLS، ولا يعدّل جداول الإلحاق ولا يحذفها، ويضيف إلى السجلات دون قراءتها |
-| `masslak_readonly` | التقارير |
-| `masslak_auditor` | قراءة سجلات التدقيق والأمن فقط |
+| `masslak_owner` | Schema owner, used for migrations only; the application never connects as it |
+| `masslak_app` | The application: subject to RLS, cannot modify or delete append-only tables, and can write logs but not read them |
+| `masslak_readonly` | Reporting |
+| `masslak_auditor` | Read access to audit and security logs only |
 
-## سجلات التدقيق: كل دخول وكل إجراء
+## Audit logs: every login and every action
 
-| السجل | ماذا يحفظ | من يكتبه |
+| Log | What it records | Written by |
 |---|---|---|
-| `audit.auth_event` | كل محاولة دخول أو خروج أو MFA أو OTP أو تجديد رمز أو استخدام مفتاح API، ناجحة أو فاشلة: المستخدم أو العميل، البوابة، الجهاز، IP، الدولة، ASN، السبب | التطبيق وبوابة API |
-| `audit.activity_log` | كل طلب أو إجراء (واجهة أو API): من، متى، من أي IP، أي نقطة، أي صلاحية، أي كيان، النتيجة (نجاح، رفض، حجب، تجاوز حد)، زمن الاستجابة، والتغييرات قبل/بعد | التطبيق (وسيط لكل طلب) |
-| `audit.data_access_log` | كل كشف لحقل سري (جواز، هوية، IBAN) مع السبب الإلزامي | التطبيق |
-| `audit.row_change` | أي إضافة أو تعديل أو حذف على 58 جدولاً حساساً، حتى لو تم خارج التطبيق، مع هوية المستخدم وIP من سياق الطلب | مشغّلات القاعدة آلياً |
+| `audit.auth_event` | Every login, logout, MFA, OTP, token refresh or API key use, successful or failed. Includes user or client, portal, device, IP, country, ASN and reason | Application and API gateway |
+| `audit.activity_log` | Every request or action (UI or API): who, when, from which IP, which endpoint, which permission, which entity, the outcome (success, denied, blocked, rate-limited), latency and before/after changes | Application (per-request middleware) |
+| `audit.data_access_log` | Every reveal of a sensitive field (passport, ID, IBAN), with a mandatory reason | Application |
+| `audit.row_change` | Any insert, update or delete on 58 sensitive tables, even outside the application. Includes the user identity and IP from the request context | Database triggers, automatically |
 
-- **إلحاق فقط:** مشغّل يرفض التعديل والحذف حتى من مالك الجداول، ودور التطبيق لا يملك صلاحية التعديل أصلاً ولا قراءة السجلات.
-- **كشف العبث:** لكل صف تجزئة SHA-256 لمحتواه، وتختم الدالة `audit.seal()` (مهمة مجدولة كل بضع دقائق) كل كتلة جديدة بسلسلة تجزئة تربطها بالكتلة السابقة، مع خانة لتوقيع KMS. أي حذف أو تعديل أو إدراج لاحق يكسر السلسلة ويُكشف عند التحقق.
-- **التنقيح:** لا تُحفظ كلمات المرور ولا الرموز ولا القيم المشفرة في أي سجل (تُستبدل بـ `***` آلياً).
-- **الأداء والاحتفاظ:** السجلات مقسّمة شهرياً، فتبقى سريعة مع ملايين الصفوف، وتُحذف فقط بإسقاط الأقسام بعد المدة النظامية (افتراضياً 84 شهراً، تُضبط قانونياً) وبعد أرشفتها.
+- **Append-only:** a trigger rejects updates and deletes, even from the table owner. The application role has no update privilege and cannot read the logs.
+- **Tamper evidence:** every row carries a SHA-256 hash of its content. `audit.seal()`, a job scheduled every few minutes, seals each new block into a hash chain linked to the previous block, with a slot for a KMS signature. Any later deletion, change or insertion breaks the chain and is detected on verification.
+- **Redaction:** passwords, tokens and encrypted values are never stored in any log; they are automatically replaced with `***`.
+- **Performance and retention:** logs are partitioned monthly, so they stay fast with millions of rows. They are removed only by dropping partitions after the statutory period and after archiving. The default period is 84 months, to be set by legal counsel.
 
-## حجب العناوين والنطاقات (IP)
+## IP and range blocking
 
-الجدول `sec.ip_rule` يحجب أو يسمح أو يبطئ أو يتحدى:
-- **ما يُستهدف:** عنوان واحد، أو نطاق CIDR (IPv4 وIPv6)، أو دولة، أو مزود شبكة (ASN).
-- **أين تُطبَّق:** على المنصة كلها، أو على بوابة بعينها (المسافر، المشغّل، الوكالة، الإدارة، API، إشعارات الدفع، السائق)، أو على عميل API واحد.
-- **الأولوية:** القاعدة الأعلى أولوية ثم الأدق نطاقاً، فيمكن حجب نطاق كامل مع السماح لعنوان شريك بعينه على API فقط (مختبر).
-- **المدة:** دائمة أو مؤقتة. والقاعدة لا تُحذف بل تُلغى بسبب ومن ألغاها، فيبقى أثرها.
-- **الحجب الآلي:** `sec.auto_block_ip()` تحجب عنواناً يستغل المنصة أو يُغرقها، بمدة تتضاعف مع كل تكرار خلال 30 يوماً (من 15 دقيقة حتى 30 يوماً). وكشبكة أمان داخل القاعدة نفسها: 30 محاولة دخول فاشلة من عنوان خلال ساعة تحجبه تلقائياً (قابلة للضبط في `sys.setting`).
-- **التطبيق الفوري على الحافة:** كل تغيير يُنشر عبر صندوق الأحداث إلى WAF وبوابة API (وذاكرة Redis)، فيُرفض الطلب قبل أن يصل إلى التطبيق ولا تُستهلك موارده.
-- **قوائم السماح لعملاء API:** لكل عميل قائمة عناوين مسموحة اختيارية وmTLS اختياري، ويمكن قصر بوابة الإدارة على عناوين محددة بتفعيل إعداد واحد.
+`sec.ip_rule` can block, allow, throttle or challenge traffic:
+- **Targets:** a single address, a CIDR range (IPv4 and IPv6), a country, or a network provider (ASN).
+- **Scope:** the whole platform, a specific portal (passenger, operator, agency, admin, API, payment webhooks, driver), or a single API client.
+- **Priority:** the highest-priority rule wins, then the most specific range. A whole range can therefore be blocked while one partner address is still allowed on the API only (tested).
+- **Duration:** permanent or temporary. Rules are never deleted. They are revoked with a reason and the name of the revoker, so a trace remains.
+- **Automatic blocking:** `sec.auto_block_ip()` blocks an address that abuses or floods the platform. The duration doubles with each repeat within 30 days, from 15 minutes up to 30 days. As a safety net inside the database itself, 30 failed logins from one address within an hour block it automatically (configurable in `sys.setting`).
+- **Immediate enforcement at the edge:** every change is published through the outbox to the WAF, the API gateway and the Redis cache. Requests are rejected before they reach the application and consume no application resources.
+- **API client allowlists:** each client can have an optional address allowlist and optional mTLS. The admin portal can be restricted to specific addresses by enabling a single setting.
 
-## ما يُضاف في المراحل اللاحقة دون إخلال
+## Later phases, added without disruption
 
-النواة مصممة لتستقبل المراحل التالية بجداول جديدة ترتبط بها، دون تعديل الجداول القائمة:
+The core is designed so that later phases add new tables that link to it, without changing existing tables:
 
-| المرحلة | ما يُضاف | يرتبط بـ |
+| Phase | Added | Links to |
 |---|---|---|
-| 2. الترددي | كتالوج الخطوط المعتمد وإصداراته ومساراته (يُستحسن PostGIS للهندسة)، الاشتراكات، QR/NFC، أجهزة الصعود | `ops.trip` (حقول السعة جاهزة)، `fin.wallet` |
-| 3. الشحن | الشحنة والطرد والمراحل ووحدات المناولة والأحمال والمراجع الخارجية | `ops.trip.cargo_capacity_kg`، `fin.price_allocation.subject_type` |
-| 4 و6. الدولي والحدود | المنافذ وقواعد الدخول ووثائق التذكرة والمنافست الآلي | `sales.passenger` (حقول الجواز جاهزة)، `sec.manifest_submission` |
-| 5. الربط الحكومي | تفعيل محوّلات `iam.identity_provider` و`sec.authority_profile` و`acct.tax_authority` | الجداول قائمة، والتفعيل بالإعداد |
-| 9. المنصات الوسيطة | اتفاقيات القنوات والحصص، الباقات والاشتراكات، محطات الوقود والاستراحات | `sales.channel`، `pricing.commission_scheme` |
+| 2. Shuttle | Approved line catalog with versions and paths (PostGIS recommended for geometry), subscriptions, QR/NFC, boarding devices | `ops.trip` (capacity fields ready), `fin.wallet` |
+| 3. Cargo | Shipments, parcels, legs, handling units, loads and external references | `ops.trip.cargo_capacity_kg`, `fin.price_allocation.subject_type` |
+| 4 & 6. International and borders | Border crossings, entry rules, ticket documents, automated manifest | `sales.passenger` (passport fields ready), `sec.manifest_submission` |
+| 5. Government integration | Activate the adapters in `iam.identity_provider`, `sec.authority_profile` and `acct.tax_authority` | Tables exist; activation by configuration |
+| 9. Intermediary platforms | Channel agreements and quotas, bundles and subscriptions, fuel stations and rest stops | `sales.channel`, `pricing.commission_scheme` |
+| Any. Additional UI languages | Enable the locale in `ref.locale` and add `ref.translation` rows and UI resources | `ref.locale`, `ref.translation` |
 
-## نقاط تحتاج حسماً قبل الإنتاج
+## Open points before production
 
-1. **رمز العملة السورية:** مُدخلة حالياً `SYP` بخانتين عشريتين. إن اعتُمد رمز أو تقسيم مختلف لليرة الجديدة يُحدَّث سجل العملة وحده.
-2. **مدد الاحتفاظ:** السجلات 84 شهراً والمواقع 7 أيام قيم افتراضية؛ يحددها المستشار القانوني والمحاسبي.
-3. **مزود KMS:** الجداول تحمل مراجع المفاتيح فقط؛ يلزم اختيار KMS أو Vault قبل الإطلاق (القسم 18).
-4. **تقسيم الدفتر المالي:** غير مقسّم في المرحلة الأولى للبساطة وسلامة المفاتيح الأجنبية؛ يُقسَّم زمنياً عند تجاوز عشرات الملايين من القيود.
-5. **مالك المخطط في الإنتاج:** يُشغَّل الترحيل بدور `masslak_owner`، ويتصل التطبيق بمستخدم عضو في `masslak_app` فقط.
+1. **Syrian currency code:** currently `SYP` with two decimal places. If a different code or subdivision is adopted for the new pound, only the currency row needs updating.
+2. **Retention periods:** 84 months for logs and 7 days for tracking positions are defaults, to be set by legal and accounting advisors.
+3. **KMS provider:** tables hold key references only. A KMS or Vault must be chosen before launch (section 18).
+4. **Ledger partitioning:** not partitioned in Phase 1, to keep things simple and preserve foreign-key integrity. Partition it by time once it passes tens of millions of entries.
+5. **Production schema owner:** migrations run as `masslak_owner`. The application connects as a user that is only a member of `masslak_app`.
