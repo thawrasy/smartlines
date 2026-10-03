@@ -38,7 +38,7 @@ async def my_trips(request: Request, pr: Principal = Depends(driver)):
                 ORDER BY t.departure_at LIMIT 20""", pr.party_id)
         stops = await conn.fetch(
             """SELECT ts.trip_id, ts.seq, ts.kind, ts.sched_arr, ts.sched_dep, ts.actual_arr, ts.actual_dep,
-                      s.name AS station_name, c.code AS city_code
+                      s.name AS station_name, s.code AS station_code, c.code AS city_code
                  FROM ops.trip_stop ts JOIN net.station s ON s.id = ts.station_id JOIN ref.city c ON c.id = s.city_id
                 WHERE ts.trip_id = ANY($1::bigint[]) ORDER BY ts.trip_id, ts.seq""", [t["id"] for t in trips])
     by_trip: dict[int, list] = {}

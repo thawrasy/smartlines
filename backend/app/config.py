@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     signing_secret: str = "change-me-in-production-0123456789abcdef"
     session_hours: int = 12
     cookie_secure: bool = True
-    # Comma-separated proxy addresses whose X-Forwarded-For header is trusted
+    # Comma-separated proxy addresses or CIDR ranges whose X-Forwarded-For header is trusted
     trusted_proxies: str = "127.0.0.1,::1"
     # Directory of the built web interface served by the API (frontend/dist)
     static_dir: str = "../frontend/dist"

@@ -221,8 +221,8 @@ async def my_bookings(request: Request, pr: Principal = Depends(passenger)):
         recs = await conn.fetch(
             """SELECT b.booking_ref, b.status, b.total_amount, b.currency, b.created_at, t.trip_no, t.uid AS trip_uid,
                       cp.legal_name AS carrier_name,
-                      (SELECT jsonb_build_object('from_station', sa.name, 'from_city', ca.code, 'departs_at', a.sched_dep,
-                                                 'to_station', sb.name, 'to_city', cb.code, 'arrives_at', z.sched_arr)
+                      (SELECT jsonb_build_object('from_station', sa.name, 'from_code', sa.code, 'from_city', ca.code, 'departs_at', a.sched_dep,
+                                                 'to_station', sb.name, 'to_code', sb.code, 'to_city', cb.code, 'arrives_at', z.sched_arr)
                          FROM sales.ticket k
                          JOIN ops.trip_stop a ON a.trip_id = k.trip_id AND a.seq = k.from_seq
                          JOIN net.station sa ON sa.id = a.station_id JOIN ref.city ca ON ca.id = sa.city_id
@@ -246,8 +246,8 @@ async def booking_detail(ref: str, request: Request, pr: Principal = Depends(pas
         async with db.system_scope(conn, context_for(request, pr)):
             tickets = await conn.fetch(
                 """SELECT k.uid, k.ticket_no, k.seat_no, k.status, k.fare_brand_code, k.total_amount, k.from_seq, k.to_seq,
-                          p.full_name, sa.name AS from_station, ca.code AS from_city, a.sched_dep AS departs_at,
-                          sb.name AS to_station, cb.code AS to_city, z.sched_arr AS arrives_at, k.rules_snapshot
+                          p.full_name, sa.name AS from_station, sa.code AS from_code, ca.code AS from_city, a.sched_dep AS departs_at,
+                          sb.name AS to_station, sb.code AS to_code, cb.code AS to_city, z.sched_arr AS arrives_at, k.rules_snapshot
                      FROM sales.ticket k JOIN sales.passenger p ON p.id = k.passenger_id
                      JOIN ops.trip_stop a ON a.trip_id = k.trip_id AND a.seq = k.from_seq
                      JOIN net.station sa ON sa.id = a.station_id JOIN ref.city ca ON ca.id = sa.city_id
@@ -277,7 +277,7 @@ async def ticket_qr(ticket_uid: uuid.UUID, request: Request, pr: Principal = Dep
     if ok not in ("ISSUED", "BOARDED"):
         raise ApiError(409, "TICKET_NOT_VALID", "ticket is not valid for boarding")
     token, valid_until = ticket_qr_token(str(ticket_uid))
-    return {"token": token, "valid_until": valid_until}
+    return {"token": token, "valid_until": valid_until, "window": get_settings().qr_window_seconds}
 
 
 def refund_pct(rules: dict, hours_left: float) -> int:

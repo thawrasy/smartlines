@@ -1,0 +1,71 @@
+# Masslak test/production stack: PostgreSQL, a one-shot migration, the API (which also serves the web
+# interface) and Caddy as the HTTPS front. Configure with deploy/.env (copy deploy/.env.example).
+name: masslak
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-masslak}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in deploy/.env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      retries: 20
+    networks: [internal]
+
+  migrate:
+    build:
+      context: .
+      args:
+        VITE_SHOW_DEMO: ${MASSLAK_SEED_DEMO:-false}
+    image: masslak:latest
+    command: ["/app/deploy/migrate.sh"]
+    env_file: deploy/.env
+    environment:
+      PGHOST: db
+    depends_on:
+      db: { condition: service_healthy }
+    restart: "no"
+    networks: [internal]
+
+  app:
+    image: masslak:latest
+    restart: unless-stopped
+    env_file: deploy/.env
+    environment:
+      MASSLAK_DATABASE_URL: postgresql://masslak_api:${MASSLAK_API_PASSWORD}@db:5432/${POSTGRES_DB:-masslak}
+      MASSLAK_AUDIT_DATABASE_URL: postgresql://masslak_audit:${MASSLAK_AUDIT_PASSWORD}@db:5432/${POSTGRES_DB:-masslak}
+      # Only the Caddy container on the front network may set X-Forwarded-For
+      MASSLAK_TRUSTED_PROXIES: 172.30.0.0/24
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    networks: [internal, front]
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports: ["80:80", "443:443"]
+    environment:
+      MASSLAK_DOMAIN: ${MASSLAK_DOMAIN:-localhost}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+    depends_on: [app]
+    networks: [front]
+
+networks:
+  internal:
+    internal: true
+  front:
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24
+
+volumes:
+  pgdata:
+  caddy_data:

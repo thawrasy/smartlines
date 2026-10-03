@@ -47,7 +47,7 @@ async def dashboard(request: Request, pr: Principal = Depends(operator)):
                     AND t.departure_at > now() - interval '30 days') x""", pr.company_id)
         trips = await conn.fetch(
             """SELECT t.uid, t.trip_no, t.status, t.departure_at, t.seats_total, v.plate_no,
-                      so.name AS origin, sd.name AS destination,
+                      so.name AS origin, sd.name AS destination, so.code AS origin_code, sd.code AS dest_code,
                       (SELECT count(*) FROM sales.ticket k WHERE k.trip_id = t.id AND k.status <> 'CANCELLED') AS sold
                  FROM ops.trip t JOIN net.route r ON r.id = t.route_id
                  JOIN net.station so ON so.id = r.origin_station_id JOIN net.station sd ON sd.id = r.dest_station_id
@@ -195,7 +195,7 @@ async def routes(request: Request, pr: Principal = Depends(operator)):
                  FROM net.route r WHERE r.company_id = $1 ORDER BY r.code""", pr.company_id)
         stops = await conn.fetch(
             """SELECT rs.route_id, rs.seq, rs.kind, rs.arr_offset_min, rs.dep_offset_min, rs.fare_from_origin,
-                      s.uid AS station_uid, s.name AS station_name, c.code AS city_code
+                      s.uid AS station_uid, s.name AS station_name, s.code AS station_code, c.code AS city_code
                  FROM net.route_stop rs JOIN net.station s ON s.id = rs.station_id JOIN ref.city c ON c.id = s.city_id
                 WHERE rs.route_id = ANY($1::bigint[]) ORDER BY rs.route_id, rs.seq""", [r["id"] for r in recs])
     by_route: dict[int, list] = {}
@@ -254,7 +254,7 @@ async def trips(request: Request, pr: Principal = Depends(operator)):
     async with db.transaction(context_for(request, pr)) as conn:
         recs = await conn.fetch(
             """SELECT t.uid, t.trip_no, t.status, t.departure_at, t.arrival_at, t.seats_total, t.segments_count,
-                      v.plate_no, r.code AS route_code, so.name AS origin, sd.name AS destination,
+                      v.plate_no, r.code AS route_code, so.name AS origin, sd.name AS destination, so.code AS origin_code, sd.code AS dest_code,
                       (SELECT count(*) FROM sales.ticket k WHERE k.trip_id = t.id AND k.status <> 'CANCELLED') AS sold,
                       (SELECT p.legal_name FROM ops.crew_assignment ca JOIN iam.party p ON p.id = ca.party_id
                         WHERE ca.trip_id = t.id AND ca.crew_role = 'DRIVER' LIMIT 1) AS driver_name
@@ -343,7 +343,7 @@ async def manifest(trip_uid: uuid.UUID, request: Request, pr: Principal = Depend
         t = await _own_trip(conn, pr, trip_uid)
         recs = await conn.fetch(
             """SELECT k.ticket_no, k.seat_no, k.status, p.full_name, p.id_type, p.id_no_last4, b.booking_ref,
-                      sa.name AS from_station, sb.name AS to_station, k.boarded_at
+                      sa.name AS from_station, sb.name AS to_station, sa.code AS from_code, sb.code AS to_code, k.boarded_at
                  FROM sales.ticket k JOIN sales.passenger p ON p.id = k.passenger_id JOIN sales.booking b ON b.id = k.booking_id
                  JOIN ops.trip_stop a ON a.trip_id = k.trip_id AND a.seq = k.from_seq JOIN net.station sa ON sa.id = a.station_id
                  JOIN ops.trip_stop z ON z.trip_id = k.trip_id AND z.seq = k.to_seq JOIN net.station sb ON sb.id = z.station_id

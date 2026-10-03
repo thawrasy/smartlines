@@ -1,0 +1,9 @@
+# HTTPS front for Masslak. With a real domain in MASSLAK_DOMAIN, Caddy obtains and renews the certificate.
+{$MASSLAK_DOMAIN} {
+	encode zstd gzip
+	reverse_proxy app:8000
+	header Strict-Transport-Security "max-age=31536000; includeSubDomains"
+	request_body {
+		max_size 2MB
+	}
+}

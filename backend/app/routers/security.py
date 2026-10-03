@@ -39,7 +39,7 @@ async def ip_rules(request: Request, pr: Principal = Depends(can_rules), include
     async with db.transaction(context_for(request, pr)) as conn:
         recs = await conn.fetch(
             """SELECT id, rule_type, host(cidr) || '/' || masklen(cidr) AS cidr, country_code, asn, action, scope, priority,
-                      reason, source, created_at, expires_at, revoked_at
+                      reason, source, hit_count, last_hit_at, created_at, expires_at, revoked_at
                  FROM sec.ip_rule
                 WHERE $1 OR (revoked_at IS NULL AND (expires_at IS NULL OR expires_at > now()))
                 ORDER BY created_at DESC LIMIT 300""", include_inactive)

@@ -1,0 +1,141 @@
+import { useEffect, useState, type ReactNode } from "react";
+import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { useI18n, LOCALES, type Locale } from "../i18n";
+import { useAuth, homeFor } from "../auth";
+import { api } from "../api";
+import { Icon, Logo } from "./ui";
+import type { IconName } from "./icons";
+
+export function LangSwitch({ compact }: { compact?: boolean }) {
+  const { locale, setLocale, t } = useI18n();
+  const { me } = useAuth();
+  const next = (Object.keys(LOCALES) as Locale[]).find((l) => l !== locale) ?? locale;
+  const change = () => {
+    setLocale(next);
+    if (me) void api.patch("/api/auth/me/locale", { locale: next }).catch(() => {});
+  };
+  return (
+    <button className={compact ? "icon-btn" : "btn text"} onClick={change} title={t("lang.switchTo")}>
+      <Icon name="language" />{!compact && <span>{t(`lang.${next}`)}</span>}
+    </button>
+  );
+}
+
+function Brand({ to = "/" }: { to?: string }) {
+  const { t } = useI18n();
+  return (
+    <Link to={to} className="brand">
+      <Logo />
+      <span className="stack" style={{ gap: 0 }}>
+        <span>{t("app.name")}</span>
+      </span>
+    </Link>
+  );
+}
+
+export function PublicLayout() {
+  const { t } = useI18n();
+  const { me, logout } = useAuth();
+  const nav = useNavigate();
+  const passenger = me?.portal === "PASSENGER";
+  return (
+    <>
+      <header className="topbar">
+        <Brand />
+        <nav className="topnav grow">
+          <NavLink to="/" end>{t("nav.search")}</NavLink>
+          {passenger && <NavLink to="/trips">{t("nav.myTrips")}</NavLink>}
+          {passenger && <NavLink to="/wallet">{t("nav.wallet")}</NavLink>}
+          <NavLink to="/verify">{t("nav.verify")}</NavLink>
+        </nav>
+        <div className="row nowrap" style={{ gap: 4, marginInlineStart: "auto" }}>
+          <LangSwitch />
+          {me ? (
+            <>
+              {!passenger && <Link className="btn tonal small" to={homeFor(me)}>{t("nav.portals")}</Link>}
+              <button className="icon-btn" title={t("nav.logout")} onClick={async () => { await logout(); nav("/"); }}>
+                <Icon name="logout" flip />
+              </button>
+            </>
+          ) : (
+            <Link className="btn small" to="/login">{t("nav.login")}</Link>
+          )}
+        </div>
+      </header>
+      <Outlet />
+      <footer className="footer">
+        <div className="row between">
+          <span>{t("app.footer")}</span>
+          <span className="row" style={{ gap: 16 }}>
+            <Link to="/verify">{t("nav.verify")}</Link>
+            <Link to="/login?portal=OPERATOR">{t("nav.portals")}</Link>
+          </span>
+        </div>
+      </footer>
+      {passenger && <MobileNav />}
+    </>
+  );
+}
+
+function MobileNav() {
+  const { t } = useI18n();
+  const items: [string, IconName, string][] = [["/", "search", t("nav.search")], ["/trips", "confirmation_number", t("nav.myTrips")], ["/wallet", "account_balance_wallet", t("nav.wallet")]];
+  return (
+    <nav className="navbar mobile-only">
+      {items.map(([to, icon, label]) => (
+        <NavLink key={to} to={to} end={to === "/"}><span className="pill"><Icon name={icon} /></span>{label}</NavLink>
+      ))}
+    </nav>
+  );
+}
+
+export interface NavItem { to: string; icon: IconName; label: string; end?: boolean; show?: boolean }
+
+export function PortalShell({ title, items, children }: { title: string; items: NavItem[]; children?: ReactNode }) {
+  const { t } = useI18n();
+  const { me, logout } = useAuth();
+  const nav = useNavigate();
+  const loc = useLocation();
+  const [open, setOpen] = useState(false);
+  useEffect(() => setOpen(false), [loc.pathname]);
+  const current = items.find((i) => (i.end ? loc.pathname === i.to : loc.pathname.startsWith(i.to)));
+  return (
+    <div className="shell">
+      {open && <div className="scrim" onClick={() => setOpen(false)} />}
+      <aside className={`drawer${open ? " open" : ""}`}>
+        <Brand to={me ? homeFor(me) : "/"} />
+        <div className="drawer-section">{title}</div>
+        {items.filter((i) => i.show !== false).map((i) => (
+          <NavLink key={i.to} to={i.to} end={i.end} className={({ isActive }) => `nav-item${isActive ? " active" : ""}`}>
+            <Icon name={i.icon} />{i.label}
+          </NavLink>
+        ))}
+        {children}
+        <div className="org-card">
+          <div style={{ fontWeight: 600 }}>{me?.company?.name ?? me?.name}</div>
+          <div className="muted ltr">{me?.email}</div>
+          <div className="row" style={{ marginTop: 8, gap: 4 }}>
+            <LangSwitch compact />
+            <button className="icon-btn" title={t("nav.logout")} onClick={async () => { await logout(); nav("/login"); }}><Icon name="logout" flip /></button>
+          </div>
+        </div>
+      </aside>
+      <div className="main">
+        <div className="main-bar">
+          <button className="icon-btn menu-btn" onClick={() => setOpen(true)} aria-label={t("nav.menu")}><Icon name="menu" /></button>
+          <h3>{current?.label ?? title}</h3>
+        </div>
+        <div className="main-content"><Outlet /></div>
+      </div>
+    </div>
+  );
+}
+
+export function PageHead({ title, sub, children }: { title: string; sub?: string; children?: ReactNode }) {
+  return (
+    <div className="page-head">
+      <div><h1 style={{ fontSize: 28 }}>{title}</h1>{sub && <p>{sub}</p>}</div>
+      {children && <div className="row">{children}</div>}
+    </div>
+  );
+}

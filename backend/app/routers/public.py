@@ -6,6 +6,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, Query, Request
 
 from .. import db
+from ..config import get_settings
 from ..deps import base_context, optional_principal, Principal
 from ..errors import ApiError, not_found
 from ..util import row_dict, rows
@@ -36,7 +37,7 @@ async def reference(request: Request):
             "SELECT code, name, native_name, direction, is_default FROM ref.locale WHERE is_enabled ORDER BY is_default DESC, code")
         brands = await conn.fetch(
             "SELECT code, name, factor, rules FROM pricing.fare_brand WHERE active AND company_id IS NULL ORDER BY sort")
-    return {"cities": rows(cities), "locales": rows(locales),
+    return {"cities": rows(cities), "locales": rows(locales), "platform_fee": get_settings().platform_fee,
             "fare_brands": [{**row_dict(b), "factor": float(b["factor"]),
                              "rules": json.loads(b["rules"]) if isinstance(b["rules"], str) else b["rules"]} for b in brands]}
 

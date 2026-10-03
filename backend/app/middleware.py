@@ -29,18 +29,40 @@ def portal_scope_for_path(path: str) -> str:
     return "PASSENGER"
 
 
+def _trusted_networks():
+    nets = []
+    for item in get_settings().trusted_proxies.split(","):
+        if item.strip():
+            nets.append(ipaddress.ip_network(item.strip(), strict=False))
+    return nets
+
+
+def _is_trusted(addr: str, nets) -> bool:
+    try:
+        ip = ipaddress.ip_address(addr)
+    except ValueError:
+        return False
+    return any(ip in n for n in nets)
+
+
 def client_ip(request: Request) -> str:
+    """The client address. X-Forwarded-For is honoured only when the peer is a trusted proxy, and it is read
+    from the right: each proxy appends the address it saw, so the first untrusted hop from the right is the
+    client. Entries further left are supplied by the client and cannot be trusted."""
     peer = request.client.host if request.client else "127.0.0.1"
-    trusted = {p.strip() for p in get_settings().trusted_proxies.split(",") if p.strip()}
+    nets = _trusted_networks()
     forwarded = request.headers.get("x-forwarded-for")
-    if forwarded and peer in trusted:
-        candidate = forwarded.split(",")[0].strip()
+    if not forwarded or not _is_trusted(peer, nets):
+        return peer
+    hops = [h.strip() for h in forwarded.split(",") if h.strip()]
+    for hop in reversed(hops):
         try:
-            ipaddress.ip_address(candidate)
-            return candidate
+            ipaddress.ip_address(hop)
         except ValueError:
-            pass
-    return peer
+            return peer
+        if not _is_trusted(hop, nets):
+            return hop
+    return hops[0] if hops else peer
 
 
 class RequestContextMiddleware(BaseHTTPMiddleware):
