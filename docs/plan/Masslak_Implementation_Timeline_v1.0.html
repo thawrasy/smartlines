@@ -1,0 +1,511 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"></head><body>
+<title>Masslak Implementation Timeline</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Arabic:wght@400;500;600&family=Readex+Pro:wght@500;600;700&display=swap">
+<style>
+/* Layout: a departure-board style Gantt. Label column on the reading-start side, time flows in the reading direction (right-to-left in Arabic). */
+:root {
+  --bg: #F4F5F1; --surface: #FFFFFF; --fg: #17201C; --muted: #59645E; --line: #DDE1DA; --line-strong: #C3C9C0;
+  --ink: #1E3A31;
+  --ui: #2E6BD8; --dev: #0D8566; --db: #B4761B; --ops: #8A4EC1;
+  --holiday: rgba(180, 118, 27, .10); --today: #C23A2B;
+  --f-display: "Readex Pro", "IBM Plex Sans Arabic", system-ui, sans-serif;
+  --f-body: "IBM Plex Sans Arabic", "Segoe UI", Tahoma, system-ui, sans-serif;
+  --f-data: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  --label-w: 250px;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #101613; --surface: #17201B; --fg: #E5EBE7; --muted: #9AA59F; --line: #29322D; --line-strong: #3A453F;
+  --ink: #CFE3D9; --ui: #79A4FF; --dev: #3FC79F; --db: #E3A94E; --ops: #BB91F2;
+  --holiday: rgba(227, 169, 78, .10); --today: #FF6B5B; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #101613; --surface: #17201B; --fg: #E5EBE7; --muted: #9AA59F; --line: #29322D; --line-strong: #3A453F;
+  --ink: #CFE3D9; --ui: #79A4FF; --dev: #3FC79F; --db: #E3A94E; --ops: #BB91F2;
+  --holiday: rgba(227, 169, 78, .10); --today: #FF6B5B; color-scheme: dark }
+
+* { box-sizing: border-box }
+body { background: var(--bg); color: var(--fg); font-family: var(--f-body); font-size: 14px; line-height: 1.55 }
+.wrap { max-width: 1440px; margin: 0 auto; padding-inline: 24px; padding-block: 28px 56px; display: grid; gap: 22px }
+@media (max-width: 640px) { .wrap { padding-inline: 16px } :root { --label-w: 158px } }
+
+header.top { display: flex; flex-wrap: wrap; gap: 16px 32px; align-items: end; justify-content: space-between }
+.top h1 { font-family: var(--f-display); font-weight: 700; font-size: clamp(22px, 3vw, 30px); line-height: 1.2; margin: 0; color: var(--ink); text-wrap: balance }
+.top p { margin: 6px 0 0; color: var(--muted); max-width: 70ch }
+.lang { display: inline-flex; border: 1px solid var(--line-strong); border-radius: 6px; overflow: hidden }
+.lang button { font: 500 13px var(--f-body); background: transparent; color: var(--muted); border: 0; padding: 6px 12px; cursor: pointer }
+.lang button[aria-pressed="true"] { background: var(--ink); color: var(--bg) }
+
+.keys { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 0; border-block: 1px solid var(--line-strong) }
+.key { padding: 12px 16px; border-inline-start: 1px solid var(--line); min-width: 0 }
+.key:first-child { border-inline-start: 0; padding-inline-start: 0 }
+.key .k { font-size: 12px; color: var(--muted); letter-spacing: .02em }
+.key .v { font-family: var(--f-display); font-weight: 600; font-size: 18px; color: var(--ink) }
+.key .s { font-family: var(--f-data); font-size: 12px; color: var(--muted) }
+
+.controls { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; justify-content: space-between }
+.tabs { display: inline-flex; gap: 4px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 3px }
+.tabs button { font: 500 13px var(--f-body); border: 0; background: transparent; color: var(--muted); padding: 7px 14px; border-radius: 6px; cursor: pointer }
+.tabs button[aria-selected="true"] { background: var(--ink); color: var(--bg) }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; align-items: center }
+.chips .hint { font-size: 12px; color: var(--muted) }
+.chip { display: inline-flex; align-items: center; gap: 7px; font: 500 13px var(--f-body); color: var(--fg); background: var(--surface); border: 1px solid var(--line-strong); border-radius: 999px; padding: 4px 12px 4px 10px; cursor: pointer }
+.chip i { width: 10px; height: 10px; border-radius: 2px; background: var(--c) }
+.chip[aria-pressed="false"] { opacity: .45; text-decoration: line-through }
+button:focus-visible { outline: 2px solid var(--today); outline-offset: 2px }
+
+.legend { display: flex; flex-wrap: wrap; gap: 6px 22px; font-size: 12px; color: var(--muted) }
+.legend span { display: inline-flex; align-items: center; gap: 7px }
+.sw { display: inline-block; width: 26px; height: 10px; border-radius: 2px; border: 1px solid var(--dev); background: color-mix(in srgb, var(--dev) 18%, var(--surface)); position: relative; overflow: hidden }
+.sw.done::before { content: ""; position: absolute; inset-block: 0; inset-inline-start: 0; width: 55%; background: var(--dev) }
+.sw.dia { width: 10px; height: 10px; transform: rotate(45deg); background: var(--ink); border: 0 }
+.sw.swh { background: var(--holiday); border: 1px dashed var(--db) }
+.sw.swt { width: 2px; height: 14px; background: var(--today); border: 0; border-radius: 0 }
+
+.chart { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; overflow-x: auto; position: relative }
+.grid { position: relative; min-width: calc(var(--label-w) + var(--tl-w)) }
+.row { display: grid; grid-template-columns: var(--label-w) 1fr; min-height: 30px; border-top: 1px solid var(--line) }
+.row:first-child { border-top: 0 }
+.lab { position: sticky; inset-inline-start: 0; z-index: 3; background: var(--surface); padding: 6px 12px; border-inline-end: 1px solid var(--line); font-size: 13px; line-height: 1.35; display: flex; align-items: center; gap: 8px; min-width: 0 }
+.lab .ref { font-family: var(--f-data); font-size: 10.5px; color: var(--muted); margin-inline-start: auto; white-space: nowrap }
+.tl { position: relative; min-width: 0 }
+.grp .lab { font-family: var(--f-display); font-weight: 600; font-size: 13px; color: var(--ink); letter-spacing: .01em }
+.grp .lab i { width: 10px; height: 10px; border-radius: 2px; background: var(--c) }
+.grp { background: color-mix(in srgb, var(--c, var(--ink)) 6%, var(--surface)); }
+.grp .lab { background: color-mix(in srgb, var(--c, var(--ink)) 6%, var(--surface)) }
+
+.hdr .lab { font-size: 11.5px; color: var(--muted) }
+.hdr.months { min-height: 26px }
+.tick { position: absolute; inset-block: 0; display: flex; align-items: center; padding-inline-start: 5px; font-size: 11px; color: var(--muted); white-space: nowrap; border-inline-start: 1px solid var(--line) }
+.tick.y { font-family: var(--f-data); font-weight: 500; color: var(--fg) }
+.band { position: absolute; inset-block: 4px; border-radius: 4px; background: color-mix(in srgb, var(--ink) 10%, var(--surface)); border: 1px solid color-mix(in srgb, var(--ink) 25%, var(--surface)); display: flex; align-items: center; justify-content: center; font: 600 11.5px var(--f-display); color: var(--ink); overflow: hidden; white-space: nowrap; padding-inline: 4px }
+.band.alt { background: color-mix(in srgb, var(--ink) 4%, var(--surface)) }
+
+.overlay { position: absolute; inset-block: 0; inset-inline-start: var(--label-w); inset-inline-end: 0; pointer-events: none; z-index: 1 }
+.vline { position: absolute; inset-block: 0; border-inline-start: 1px solid var(--line); opacity: .7 }
+.vline.y { border-inline-start: 1px solid var(--line-strong); opacity: 1 }
+.hol { position: absolute; inset-block: 0; background: var(--holiday); border-inline: 1px dashed color-mix(in srgb, var(--db) 50%, transparent) }
+.hol span { position: absolute; bottom: 4px; inset-inline-start: 4px; font-size: 10px; color: var(--db); white-space: nowrap; writing-mode: horizontal-tb }
+.today { position: absolute; inset-block: 0; border-inline-start: 2px solid var(--today); z-index: 2 }
+.today span { position: absolute; top: 2px; inset-inline-start: 4px; font: 500 10.5px var(--f-data); color: var(--today); white-space: nowrap; background: var(--surface); padding-inline: 3px }
+
+.bar { position: absolute; top: 8px; height: 14px; border-radius: 3px; border: 1px solid var(--c); background: color-mix(in srgb, var(--c) 18%, var(--surface)); padding: 0; cursor: pointer; z-index: 2; overflow: hidden; min-width: 6px }
+.bar .done { position: absolute; inset-block: 0; inset-inline-start: 0; background: var(--c) }
+.bar:hover, .bar:focus-visible { box-shadow: 0 0 0 2px color-mix(in srgb, var(--c) 35%, transparent) }
+.ms { position: absolute; top: 8px; width: 14px; height: 14px; margin-inline-start: -7px; transform: rotate(45deg); background: var(--ink); border: 2px solid var(--surface); padding: 0; cursor: pointer; z-index: 2 }
+.ms.key { background: var(--today) }
+
+.rm .row { min-height: 52px }
+.rm .tl .span { position: absolute; inset-block: 6px; border-radius: 4px; background: color-mix(in srgb, var(--ink) 5%, var(--surface)); border: 1px solid var(--line-strong); cursor: pointer; padding: 0; z-index: 2 }
+.rm .tl .span.ind { border-style: dashed }
+.rm .lane { position: absolute; height: 5px; border-radius: 2px; background: var(--c) }
+.rm .lab b { font-family: var(--f-data); font-weight: 500; font-size: 12px; color: var(--muted); min-width: 2.2em }
+
+#tip { position: fixed; z-index: 50; max-width: 330px; background: var(--surface); color: var(--fg); border: 1px solid var(--line-strong); border-radius: 8px; box-shadow: 0 8px 28px rgba(0,0,0,.18); padding: 10px 12px; font-size: 13px; pointer-events: none }
+#tip h4 { margin: 0 0 4px; font: 600 13.5px var(--f-display); color: var(--ink); display: flex; gap: 8px; align-items: center }
+#tip h4 i { width: 9px; height: 9px; border-radius: 2px; background: var(--c); flex: none }
+#tip .d { font-family: var(--f-data); font-size: 11.5px; color: var(--muted) }
+#tip p { margin: 6px 0 0 }
+#tip .built { margin-top: 6px; font-size: 12px; color: var(--dev) }
+
+.notes { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 28px }
+.notes section { min-width: 0 }
+.notes h2 { font: 600 15px var(--f-display); color: var(--ink); margin: 0 0 8px }
+.notes ul { margin: 0; padding-inline-start: 18px; display: grid; gap: 6px; color: var(--fg) }
+.notes li { max-width: 68ch }
+.notes li::marker { color: var(--muted) }
+.foot { font-size: 12px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 12px }
+@media (prefers-reduced-motion: no-preference) { .bar, .ms, .span { transition: box-shadow .12s } }
+</style>
+
+<div class="wrap" id="app">
+  <header class="top">
+    <div>
+      <h1 id="t-title"></h1>
+      <p id="t-sub"></p>
+    </div>
+    <div class="lang" role="group" aria-label="Language">
+      <button id="l-ar" type="button">العربية</button>
+      <button id="l-en" type="button">English</button>
+    </div>
+  </header>
+
+  <div class="keys" id="keys"></div>
+
+  <div class="controls">
+    <div class="tabs" role="tablist">
+      <button id="v-detail" role="tab" type="button"></button>
+      <button id="v-road" role="tab" type="button"></button>
+    </div>
+    <div class="chips" id="chips"></div>
+  </div>
+  <div class="legend" id="legend"></div>
+
+  <div class="chart" id="chart"></div>
+
+  <div class="notes" id="notes"></div>
+  <div class="foot" id="foot"></div>
+</div>
+<div id="tip" hidden></div>
+
+<script>
+const WS = ["ui", "dev", "db", "ops"];
+const T = {
+  ar: {
+    dir: "rtl", locale: "ar-SY",
+    title: "الخطة الزمنية لتنفيذ مسلك",
+    sub: "الواجهات والبرمجة وقواعد البيانات وتجهيز النظام، من المرحلة 0 حتى الإطلاق، مبنية على الأقسام 20 إلى 22 من دراسة التحليل والتصميم v2.5. البداية الاثنين 5 تشرين الأول 2026.",
+    detail: "المراحل 0 إلى 2 بالتفصيل", road: "خارطة المراحل كاملة",
+    ws: { ui: "الواجهات", dev: "البرمجة", db: "قواعد البيانات", ops: "تجهيز النظام", ms: "المعالم" },
+    show: "إظهار:",
+    lg: { bar: "مهمة مخططة", done: "جزء منجز في المستودع", ms: "معلَم", hol: "رمضان والأعياد (تقريبي)", today: "اليوم" },
+    keys: [["نهاية المرحلة 0", "p0end"], ["الإطلاق التجريبي", "pilot"], ["إغلاق المرحلة 1", "p1end"], ["تشغيل النقل الترددي", "p2end"]],
+    phaseRow: "المراحل", monthRow: "الأشهر", yearRow: "السنوات",
+    today: "اليوم", built: (p) => `منجز في المستودع: نحو ${p}% (يحتاج مراجعة وتقوية ضمن مدته)`,
+    weeks: (n) => n === 1 ? "أسبوع واحد" : n === 2 ? "أسبوعان" : n <= 10 ? `${n} أسابيع` : `${n} أسبوعاً`,
+    months: (n) => n <= 2 ? `${n} شهر` : n <= 10 ? `${n} أشهر` : `${n} شهراً`,
+    ref: "الدراسة", reused: "يعيد استخدام",
+    indicative: "تواريخ استرشادية",
+    depends: "يعتمد على جاهزية الجهات الحكومية",
+    notesT: ["افتراضات الخطة", "الفريق المقترح للمرحلة 1 (22.3)", "ما هو منجز حالياً"],
+    notes: [
+      [
+        "تبدأ المرحلة 0 يوم الاثنين 5 تشرين الأول 2026 بعد اعتماد الدراسة وحسم القرارات ذات الأولوية (القسم 24).",
+        "المدد مأخوذة من الجدول 22.1، وأخذنا الحد الأعلى حيث يوجد مدى: 8 أسابيع للمرحلة 0، و12 شهراً للمرحلة 1 بخمس دورات وإطلاق تجريبي.",
+        "تسير المراحل بالتتابع بفريق واحد. المرحلتان 5 و6 تعتمدان على جاهزية الجهات الحكومية، فقد تتغير تواريخهما.",
+        "مواعيد رمضان والأعياد تقريبية لأنها قمرية. الإطلاق التجريبي والتجربة الميدانية للنقل الترددي موضوعان خارجها.",
+        "تواريخ المراحل 10 إلى 12 استرشادية، وتبدأ بقرار من المالك بعد استقرار التتبع والاتفاق مع الجهة الناظمة.",
+      ],
+      [
+        "مدير منتج، ومحلل أعمال، ومعماري حلول.",
+        "4 إلى 5 مطوري خلفية، و2 واجهات ويب، و2 تطبيقات موبايل، ومصمم تجربة مستخدم.",
+        "2 ضمان جودة، ومهندس DevOps، ومسؤول أمن بدوام جزئي، ومستشار قانوني ومالي.",
+        "قبل الإطلاق التجريبي بثلاثة أشهر: فريق SRE وأمن التطبيقات ومهندس أداء ودعم L1 وعقد مع مزود SOC مُدار (20.4).",
+      ],
+      [
+        "مخطط قاعدة البيانات للمرحلة 1 بالإنكليزية فقط (16 ملف ترحيل حتى الإصدار 1.2.0) مع أمان مستوى الصفوف والبيانات المرجعية.",
+        "واجهة برمجية خلفية تغطي الحجز والمحفظة والناقل والسائق والإدارة والأمن والجهة الناظمة والتحقق، مع اختبارات شاملة.",
+        "واجهة ويب عربية RTL وإنكليزية، وحزمة نشر (Docker وCaddy).",
+        "الجزء الممتلئ من كل شريط يمثل هذا المنجز. لم نقصّر المدد بسببه: يبقى المنجز بحاجة لمراجعة وتقوية، والفارق يصبح احتياطياً زمنياً.",
+      ],
+    ],
+    foot: "المصدر: دراسة التحليل والتصميم v2.5، الأقسام 20.4 و21 و22، ومحتوى المستودع حتى 3 تشرين الأول 2026. الإصدار 1.0.",
+  },
+  en: {
+    dir: "ltr", locale: "en-GB",
+    title: "Masslak Implementation Timeline",
+    sub: "Interfaces, programming, databases and system preparation from Phase 0 to launch, based on sections 20 to 22 of the Analysis and Design Study v2.5. Work starts on Monday 5 October 2026.",
+    detail: "Phases 0 to 2 in detail", road: "Full phase roadmap",
+    ws: { ui: "Interfaces", dev: "Programming", db: "Databases", ops: "System preparation", ms: "Milestones" },
+    show: "Show:",
+    lg: { bar: "Planned task", done: "Already built in the repository", ms: "Milestone", hol: "Ramadan and Eid (approximate)", today: "Today" },
+    keys: [["End of Phase 0", "p0end"], ["Pilot launch", "pilot"], ["Phase 1 closed", "p1end"], ["Shuttle go-live", "p2end"]],
+    phaseRow: "Phases", monthRow: "Months", yearRow: "Years",
+    today: "Today", built: (p) => `Already in the repository: about ${p}% (still reviewed and hardened in this slot)`,
+    weeks: (n) => `${n} week${n === 1 ? "" : "s"}`,
+    months: (n) => `${n} month${n === 1 ? "" : "s"}`,
+    ref: "Study", reused: "Reuses",
+    indicative: "Indicative dates",
+    depends: "Depends on the authorities' readiness",
+    notesT: ["Planning assumptions", "Proposed Phase 1 team (22.3)", "What is already built"],
+    notes: [
+      [
+        "Phase 0 starts on Monday 5 October 2026, after the study is approved and the priority decisions are resolved (section 24).",
+        "Durations come from table 22.1, using the upper bound where a range is given: 8 weeks for Phase 0, and 12 months for Phase 1 with five sprints and a pilot launch.",
+        "Phases run in sequence with one team. Phases 5 and 6 depend on the government authorities' readiness, so their dates may move.",
+        "Ramadan and Eid dates are approximate because they follow the lunar calendar. The pilot launch and the shuttle field trial are placed outside them.",
+        "Dates for Phases 10 to 12 are indicative. They start on the owner's decision, after tracking is stable and the regulator agrees.",
+      ],
+      [
+        "A product manager, a business analyst and a solution architect.",
+        "4 to 5 backend developers, 2 web frontend developers, 2 mobile developers and a UX designer.",
+        "2 QA engineers, a DevOps engineer, a part-time security officer, and legal and financial counsel.",
+        "Three months before the pilot: SRE and AppSec engineers, a performance engineer, L1 support, and a managed SOC (MSSP) contract (20.4).",
+      ],
+      [
+        "The Phase 1 database schema, in English only (16 migrations up to version 1.2.0), with row-level security and reference data.",
+        "A backend API covering booking, wallet, carrier, driver, admin, security, regulator and verification, with end-to-end tests.",
+        "An Arabic RTL and English web interface, and a deployment stack (Docker and Caddy).",
+        "The solid part of each bar marks this work. Durations were not shortened for it: it still needs review and hardening, and the head start becomes schedule buffer.",
+      ],
+    ],
+    foot: "Source: Analysis and Design Study v2.5, sections 20.4, 21 and 22, and the repository contents as of 3 October 2026. Version 1.0.",
+  },
+};
+
+// ---- Phase 0 to 2 bands
+const BANDS = [
+  ["2026-10-05", "2026-11-27", { ar: "المرحلة 0", en: "Phase 0" }],
+  ["2026-11-30", "2027-01-22", { ar: "دورة أ: الأساس", en: "Sprint a: core" }],
+  ["2027-01-25", "2027-03-19", { ar: "دورة ب: الأسطول والجدولة", en: "Sprint b: fleet" }],
+  ["2027-03-22", "2027-06-11", { ar: "دورة ج: الحجز والمال", en: "Sprint c: booking and money" }],
+  ["2027-06-14", "2027-08-06", { ar: "دورة د: التشغيل", en: "Sprint d: operations" }],
+  ["2027-08-09", "2027-10-01", { ar: "دورة هـ: التقوية والإطلاق", en: "Sprint e: hardening" }],
+  ["2027-10-04", "2027-11-26", { ar: "تجريبي", en: "Pilot" }],
+  ["2027-11-29", "2028-04-07", { ar: "المرحلة 2: النقل الترددي", en: "Phase 2: shuttle" }],
+];
+const HOLIDAYS = [
+  ["2027-02-08", "2027-03-09", { ar: "رمضان", en: "Ramadan" }],
+  ["2027-03-10", "2027-03-12", { ar: "الفطر", en: "Eid al-Fitr" }],
+  ["2027-05-16", "2027-05-19", { ar: "الأضحى", en: "Eid al-Adha" }],
+  ["2028-01-28", "2028-02-25", { ar: "رمضان", en: "Ramadan" }],
+  ["2028-02-26", "2028-02-28", { ar: "الفطر", en: "Eid al-Fitr" }],
+];
+
+// [ws, start, end, ar, en, studyRef, builtPct, noteAr, noteEn]
+const TASKS = [
+  ["ms", "2026-11-27", null, "اجتياز بوابة المرحلة 0", "Phase 0 gate passed", "22.1", 0, "الدراسة معتمدة، الاستضافة مختارة، الاتفاق المصرفي والقانوني موقّع.", "Study approved, hosting chosen, banking and legal agreement signed.", "p0end"],
+  ["ms", "2027-01-22", null, "تسجيل الشركات واعتمادها", "Company registration and approval", "22.2 a", 0, "مخرج الدورة أ.", "Sprint a deliverable."],
+  ["ms", "2027-03-19", null, "رحلات منشورة", "Trips published", "22.2 b", 0, "مخرج الدورة ب.", "Sprint b deliverable."],
+  ["ms", "2027-06-11", null, "حجز ودفع كاملان", "Full booking and payment", "22.2 c", 0, "مخرج الدورة ج.", "Sprint c deliverable."],
+  ["ms", "2027-08-06", null, "الجاهزية التشغيلية", "Operational readiness", "22.2 d", 0, "مخرج الدورة د.", "Sprint d deliverable."],
+  ["ms", "2027-10-04", null, "الإطلاق التجريبي", "Pilot launch", "22.3", 0, "خط أو خطان مع 2 إلى 3 شركات شريكة.", "One or two routes with 2 to 3 partner carriers.", "pilot", true],
+  ["ms", "2027-11-26", null, "إغلاق المرحلة 1", "Phase 1 closed", "2.7", 0, "بحزمة التوثيق الكاملة للمرحلة.", "With the phase's full documentation package.", "p1end"],
+  ["ms", "2028-04-07", null, "تشغيل النقل الترددي", "Shuttle go-live", "21", 0, "بعد التجربة الميدانية.", "After the field trial.", "p2end", true],
+
+  ["ui", "2026-10-05", "2026-11-20", "الهوية البصرية ونظام التصميم", "Visual identity and design system", "3.6", 0, "مستوحاة من الهوية البصرية للدولة السورية الجديدة، بمكونات عربية RTL وإنكليزية.", "Inspired by the new Syrian state identity, with Arabic RTL and English components."],
+  ["ui", "2026-10-12", "2026-11-27", "بحث تجربة المستخدم ونموذج أولي للبوابات", "UX research and portal prototype", "24", 0, "بوابات المسافر والشركة والوكالة والإدارة.", "Passenger, carrier, agency and admin portals."],
+  ["ui", "2026-10-05", "2026-12-18", "إطار الواجهة العربية والإنكليزية", "Arabic and English interface shell", "3.5", 60, "التبديل بين RTL وLTR وملفات اللغات.", "RTL/LTR switching and locale files."],
+  ["ui", "2026-11-30", "2027-01-22", "شاشات التسجيل والدخول واعتماد الشركات", "Sign-up, sign-in and carrier approval screens", "32", 35, "", ""],
+  ["ui", "2027-01-25", "2027-03-19", "شاشات الأسطول والمحطات والخطوط وأنماط الرحلات", "Fleet, station, route and trip pattern screens", "32", 15, "بوابة الشركة الناقلة.", "Carrier portal."],
+  ["ui", "2027-03-22", "2027-06-11", "البحث وخريطة المقاعد والدفع والمحفظة والتذاكر", "Search, seat map, checkout, wallet and tickets", "32", 25, "بوابة المسافر.", "Passenger portal."],
+  ["ui", "2027-04-19", "2027-07-02", "بوابة الوكالات ولوحة الإدارة", "Agency portal and admin back office", "3.5", 10, "", ""],
+  ["ui", "2027-02-15", "2027-09-03", "تطبيقا Android وiOS للمسافر والمشغّل", "Android and iOS apps for passengers and operators", "3.5", 0, "تحتاج مطوري موبايل اثنين من الدورة ب.", "Needs two mobile developers from sprint b."],
+  ["ui", "2027-06-14", "2027-08-27", "تطبيق السائق: مسح QR والكشف وقفل الموقع", "Driver app: QR scan, manifest and location lock", "7.13", 0, "", ""],
+  ["ui", "2027-07-05", "2027-08-06", "لوحة الجهة الناظمة وشاشات التقارير", "Regulator dashboard and report screens", "35", 10, "عرض فقط.", "Read-only."],
+  ["ui", "2027-08-09", "2027-09-10", "اختبار قابلية الاستخدام وإمكانية الوصول", "Usability and accessibility testing", "36", 0, "", ""],
+  ["ui", "2027-11-29", "2028-02-25", "شاشات الترددي: الاشتراكات وملصق المركبة والأجرة بين المحطات", "Shuttle screens: subscriptions, vehicle sticker, segment fares", "7.13", 0, "", ""],
+
+  ["dev", "2026-10-05", "2026-11-27", "قرارات المعمارية وتصميم OpenAPI", "Architecture decisions and OpenAPI design", "24", 20, "للحجز والمحفظة والتسعير.", "For booking, wallet and pricing."],
+  ["dev", "2026-11-30", "2027-01-22", "الهوية والصلاحيات والأطراف والشركات والوثائق والتدقيق", "Identity, permissions, parties, carriers, documents, audit", "22.2 a", 50, "", ""],
+  ["dev", "2026-12-14", "2027-01-22", "سجل الالتزامات القانونية وتوقيع الوثائق", "Legal obligations register and document signing", "16.24", 0, "", ""],
+  ["dev", "2027-01-25", "2027-03-19", "المركبات والمقاعد والطواقم والمحطات والخطوط وترقيم الرحلات", "Vehicles, seats, crews, stations, routes, trip numbering", "22.2 b", 30, "مع ملكية المركبات وأكواد الناقلين.", "Including vehicle ownership and carrier codes."],
+  ["dev", "2027-03-22", "2027-05-14", "البحث وحجز المقاعد مؤقتاً والتسعير والعروض والتذاكر", "Search, seat holds, pricing, offers and tickets", "22.2 c", 30, "", ""],
+  ["dev", "2027-03-22", "2027-06-11", "المحفظة ومحولات الدفع والضمان والتسويات", "Wallet, payment adapters, escrow and settlements", "6.4", 25, "النقد أولاً ثم المحافظ والبنوك.", "Cash first, then wallets and banks."],
+  ["dev", "2027-04-05", "2027-06-11", "محرك الضرائب والعمولات وتوزيع السعر والمحاسبة المبسطة", "Tax, commission and allocation engine, simplified accounting", "5.6", 10, "", ""],
+  ["dev", "2027-05-03", "2027-06-25", "الولاء الأساسي ومساعد المحادثة للمسافر", "Core loyalty and passenger chat assistant", "5.13", 0, "", ""],
+  ["dev", "2027-06-14", "2027-08-06", "خلفية تطبيق السائق والإرسال بالـQR والكشف والتقارير", "Driver backend, QR dispatch, manifest and reports", "22.2 d", 20, "", ""],
+  ["dev", "2027-08-09", "2027-10-15", "موصلات ERP: Odoo ثم Zoho", "ERP connectors: Odoo, then Zoho", "22.1", 0, "3 إلى 6 أسابيع لكل موصل.", "3 to 6 weeks per connector."],
+  ["dev", "2027-08-09", "2027-10-01", "مراجعة شيفرة المحفظة والدفتر وإصلاح العيوب", "Wallet and ledger code review, defect fixing", "22.2 e", 0, "", ""],
+  ["dev", "2027-11-29", "2028-03-10", "الترددي: كتالوج الخطوط والسعة والأجرة بين المحطات والتواجد القريب", "Shuttle: line catalog, capacity, segment fares, Nearby presence", "4.15", 0, "", ""],
+
+  ["db", "2026-10-05", "2026-11-06", "النموذج التفصيلي من الـERD: الأنواع والفهارس والقيود", "Detailed model from the ERD: types, indexes, constraints", "29", 85, "", ""],
+  ["db", "2026-10-19", "2026-11-27", "خطة السعة والتقسيم", "Capacity and partitioning plan", "17", 0, "", ""],
+  ["db", "2026-11-30", "2026-12-24", "أدوات الترحيل والإصدارات وبيانات الاختبار", "Migration tooling, versioning and test data", "29", 40, "", ""],
+  ["db", "2026-12-07", "2027-01-22", "أمان مستوى الصفوف والأدوار لكل مستأجر", "Row-level security and roles per tenant", "16.13", 50, "", ""],
+  ["db", "2027-01-25", "2027-03-19", "جداول الأسطول والشبكة ومخططات المقاعد", "Fleet and network tables, seat layouts", "4", 40, "", ""],
+  ["db", "2027-03-22", "2027-06-11", "الدفتر مزدوج القيد والمحفظة وجداول التسعير والتوزيع", "Double-entry ledger, wallet, pricing and allocation tables", "13", 35, "", ""],
+  ["db", "2027-06-14", "2027-08-06", "عروض التقارير والكشف وأحداث الموقع", "Report views, manifest and location events", "35", 20, "", ""],
+  ["db", "2027-07-12", "2027-09-03", "تحميل البيانات المرجعية للتجربة: المدن والمحطات والشركات", "Pilot reference data: cities, stations, carriers", "4.11", 30, "", ""],
+  ["db", "2027-08-09", "2027-10-01", "ضبط الأداء والتقسيم والنسخ المتماثل والنسخ الاحتياطي", "Performance tuning, partitioning, replication, backups", "18", 0, "مع الاستعادة لنقطة زمنية.", "Including point-in-time recovery."],
+  ["db", "2027-09-13", "2027-09-24", "تمرين الاستعادة من الكوارث", "Disaster recovery exercise", "22.2 e", 0, "", ""],
+  ["db", "2027-11-29", "2028-01-14", "مخطط الترددي: الخطوط والأجرة بين المحطات والمبالغ المعلقة", "Shuttle schema: lines, segment fares, outstanding fares", "7.13", 0, "", ""],
+
+  ["ops", "2026-10-05", "2026-11-27", "الاتفاق المصرفي والقانوني والعلامة التجارية والنطاق", "Banking and legal agreement, trademark and domain", "24", 0, "", ""],
+  ["ops", "2026-10-05", "2026-11-27", "نموذج التهديدات وقرار الاستضافة وخطة السعة", "Threat model, hosting decision and capacity plan", "16", 0, "", ""],
+  ["ops", "2026-10-05", "2026-12-18", "تعيين الأدوار الأساسية", "Hire core roles", "20.4", 0, "معماري أمن، قائد SRE، مدير قواعد بيانات، مهندس شبكات، مستشار قانوني.", "Security architect, SRE lead, DBA, network engineer, legal counsel."],
+  ["ops", "2026-11-30", "2027-01-08", "بيئات التطوير والاختبار وCI/CD مع فحص الشيفرة", "Dev and staging environments, CI/CD with code scanning", "18", 30, "", ""],
+  ["ops", "2027-02-01", "2027-04-30", "المراقبة والسجلات والتنبيهات", "Monitoring, logging and alerting", "18", 0, "", ""],
+  ["ops", "2027-07-05", "2027-08-27", "تعيين فريق التشغيل قبل الإطلاق بثلاثة أشهر", "Hire operations team three months before the pilot", "20.4", 0, "SRE وأمن التطبيقات ومهندس أداء ودعم L1.", "SRE, AppSec, performance engineer, L1 support."],
+  ["ops", "2027-07-12", "2027-08-27", "بيئة الإنتاج ومناطق الشبكة", "Production environment and network zones", "19", 0, "", ""],
+  ["ops", "2027-08-16", "2027-09-17", "اختبارات الحمل والإجهاد والتحمل", "Load, stress and soak tests", "22.2 e", 0, "", ""],
+  ["ops", "2027-08-30", "2027-09-24", "اختبار اختراق خارجي", "External penetration test", "22.2 e", 0, "", ""],
+  ["ops", "2027-08-09", "2027-10-01", "SOC مُدار وأدلة التشغيل وتدريب الدعم", "Managed SOC, runbooks and support training", "20.3", 0, "", ""],
+  ["ops", "2027-10-04", "2027-11-26", "تشغيل الإطلاق التجريبي", "Pilot operations", "22.3", 0, "خط أو خطان مع 2 إلى 3 شركات.", "One or two routes with 2 to 3 carriers."],
+  ["ops", "2027-11-08", "2027-11-26", "حزمة توثيق المرحلة وإغلاقها", "Phase documentation package and closure", "2.7", 0, "", ""],
+  ["ops", "2028-02-28", "2028-04-07", "التجربة الميدانية للنقل الترددي", "Shuttle field trial", "4.15", 0, "4 إلى 6 أسابيع على خطوط الطلب الأعلى (القرار 89).", "4 to 6 weeks on the busiest lines (Decision 89)."],
+];
+
+// ---- full roadmap: [num, start, end, ar, en, deliverablesAr, deliverablesEn, flags]
+const PHASES = [
+  ["0", "2026-10-05", "2026-11-27", "التهيئة", "Initiation", "التحليل التفصيلي وتجربة المستخدم والاتفاق المصرفي والقانوني ونموذج التهديدات وقرار الاستضافة.", "Detailed analysis, UX, banking and legal agreement, threat model, hosting decision."],
+  ["1", "2026-11-30", "2027-11-26", "الرحلات المجدولة (MVP)", "Scheduled trips (MVP)", "خمس دورات مع المحاسبة المبسطة ومحرك الضرائب والعمولات والتقوية، ثم الإطلاق التجريبي.", "Five sprints with simplified accounting, the tax and commission engine and hardening, then the pilot launch."],
+  ["2", "2027-11-29", "2028-04-07", "النقل الترددي", "Shuttle", "الاشتراكات والـQR والحساب الفردي والأجرة بين المحطات والتجربة الميدانية.", "Subscriptions, QR, individual accounts, segment fares and the field trial."],
+  ["3", "2028-04-10", "2028-10-06", "الشحن والطرود", "Shipments and consignments", "الطرود وسعة الشحن وحجز B2B والدفع عند الاستلام وشركات التوصيل ومراكز الفرز.", "Parcels, cargo capacity, B2B booking, COD, courier companies and sorting hubs."],
+  ["4", "2028-10-09", "2029-02-02", "الرحلات الدولية", "International trips", "المعابر وجوازات السفر والتأشيرات والعملات والناقلون الأجانب.", "Border crossings, passports, visas, currencies and foreign carriers."],
+  ["5–6", "2029-02-05", "2029-07-27", "التكامل الحكومي وأنظمة الحدود", "Government integration and borders", "محولات التحقق وتبادل الكشوف مع الحدود.", "Verification adapters and manifest exchange with borders.", "dep"],
+  ["7", "2029-07-30", "2029-12-21", "التتبع والمحطات", "Tracking and stations", "أجهزة GPS المستقلة وبوابات المحطات وشاشاتها.", "Independent GPS devices, station gates and displays."],
+  ["8", "2030-01-07", "2030-06-28", "الشاحنات والترانزيت", "Trucks and transit", "الشاحنات والعقود والمراحل والميناء والترانزيت.", "Trucks, contracts, legs, port and transit."],
+  ["9", "2030-07-01", "2030-10-25", "المنصات الوسيطة", "Intermediary platforms", "القنوات والعمولات والحصص والتسوية وشركاء الوقود والاستراحات والولاء.", "Channels, commissions, quotas, settlement, and fuel, rest-stop and loyalty partners."],
+  ["10", "2030-10-28", "2031-04-25", "السكك الحديدية", "Rail", "مخططات العربات والرحلات الموصولة وفئات الحجز.", "Carriage layouts, connecting journeys and booking classes.", "ind"],
+  ["11", "2031-04-28", "2031-11-21", "التاكسي", "Taxi", "التسجيل والتتبع والطلب والعدّاد.", "Registration, tracking, requests and the meter.", "ind"],
+  ["12", "2031-11-24", "2032-06-18", "تأجير السيارات", "Car rental", "الشركات والفروع والأسطول والحجز والعقود والتتبع.", "Companies, branches, fleet, booking, contracts and tracking.", "ind"],
+];
+// share of each phase used by each workstream (later phases follow this typical split)
+const LANE = { db: [0, .32], dev: [.1, .85], ui: [.2, .92], ops: [.72, 1] };
+
+const TODAY = "2026-10-03";
+const DAY = 864e5;
+const d = (s) => Date.UTC(+s.slice(0, 4), +s.slice(5, 7) - 1, +s.slice(8, 10));
+let lang = "ar", view = "detail";
+const on = { ui: true, dev: true, db: true, ops: true };
+try { const s = JSON.parse(localStorage.getItem("masslak-tl") || "{}"); if (s.lang) lang = s.lang; if (s.view) view = s.view; } catch (e) {}
+const save = () => { try { localStorage.setItem("masslak-tl", JSON.stringify({ lang, view })); } catch (e) {} };
+
+const fmt = (s, opt = { day: "numeric", month: "long", year: "numeric" }) => new Intl.DateTimeFormat(T[lang].locale, { ...opt, timeZone: "UTC" }).format(new Date(d(s)));
+const weeks = (a, b) => Math.max(1, Math.round((d(b) - d(a) + 3 * DAY) / (7 * DAY)));
+const monthsBetween = (a, b) => Math.max(1, Math.round((d(b) - d(a)) / (30.44 * DAY)));
+const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+function scale(a, b) { const A = d(a), B = d(b); return (s) => ((d(s) - A) / (B - A)) * 100; }
+
+function render() {
+  const L = T[lang];
+  document.documentElement.lang = lang; document.documentElement.dir = L.dir;
+  document.getElementById("t-title").textContent = L.title;
+  document.getElementById("t-sub").textContent = L.sub;
+  document.getElementById("l-ar").setAttribute("aria-pressed", lang === "ar");
+  document.getElementById("l-en").setAttribute("aria-pressed", lang === "en");
+  const vd = document.getElementById("v-detail"), vr = document.getElementById("v-road");
+  vd.textContent = L.detail; vr.textContent = L.road;
+  vd.setAttribute("aria-selected", view === "detail"); vr.setAttribute("aria-selected", view === "road");
+
+  const keys = document.getElementById("keys"); keys.innerHTML = "";
+  for (const [k, tag] of L.keys) {
+    const t = TASKS.find((x) => x[9] === tag);
+    const box = el("div", "key");
+    box.append(el("div", "k", esc(k)), el("div", "v", esc(fmt(t[1], { month: "long", year: "numeric" }))), el("div", "s", esc(fmt(t[1], { weekday: "long", day: "numeric" }))));
+    keys.append(box);
+  }
+
+  const chips = document.getElementById("chips"); chips.innerHTML = "";
+  chips.append(el("span", "hint", esc(L.show)));
+  for (const w of WS) {
+    const b = el("button", "chip", `<i></i>${esc(L.ws[w])}`); b.type = "button";
+    b.style.setProperty("--c", `var(--${w})`); b.setAttribute("aria-pressed", on[w]);
+    b.onclick = () => { on[w] = !on[w]; render(); };
+    chips.append(b);
+  }
+
+  const lg = document.getElementById("legend");
+  lg.innerHTML = `<span><i class="sw"></i>${esc(L.lg.bar)}</span><span><i class="sw done"></i>${esc(L.lg.done)}</span><span><i class="sw dia"></i>${esc(L.lg.ms)}</span>` +
+    (view === "detail" ? `<span><i class="sw swh"></i>${esc(L.lg.hol)}</span>` : "") + `<span><i class="sw swt"></i>${esc(L.lg.today)}</span>`;
+
+  const chart = document.getElementById("chart"); chart.innerHTML = "";
+  chart.append(view === "detail" ? detail() : roadmap());
+
+  const notes = document.getElementById("notes"); notes.innerHTML = "";
+  L.notesT.forEach((h, i) => { const s = el("section"); s.append(el("h2", null, esc(h))); const ul = el("ul"); L.notes[i].forEach((n) => ul.append(el("li", null, esc(n)))); s.append(ul); notes.append(s); });
+  document.getElementById("foot").textContent = L.foot;
+}
+
+function overlay(x, ticks, today) {
+  const ov = el("div", "overlay");
+  for (const t of ticks) { const v = el("div", "vline" + (t.y ? " y" : "")); v.style.insetInlineStart = x(t.s) + "%"; ov.append(v); }
+  if (today) { const t = el("div", "today", `<span>${esc(T[lang].today)}</span>`); t.style.insetInlineStart = x(TODAY) + "%"; ov.append(t); }
+  return ov;
+}
+
+function detail() {
+  const L = T[lang], A = "2026-10-01", B = "2028-04-30", x = scale(A, B);
+  const g = el("div", "grid"); g.style.setProperty("--tl-w", "1500px");
+  const ticks = [];
+  for (let y = 2026, m = 9; y < 2028 || m <= 3; m++) { if (m > 11) { m = 0; y++; } if (y === 2028 && m > 3) break; ticks.push({ s: `${y}-${String(m + 1).padStart(2, "0")}-01`, y: m === 0 }); }
+
+  const hp = el("div", "row hdr"); hp.append(el("div", "lab", esc(L.phaseRow)));
+  const tp = el("div", "tl"); tp.style.minHeight = "34px";
+  BANDS.forEach(([s, e, n], i) => { const b = el("div", "band" + (i % 2 ? " alt" : ""), esc(n[lang])); b.style.insetInlineStart = x(s) + "%"; b.style.width = (x(e) - x(s)) + "%"; b.title = n[lang]; tp.append(b); });
+  hp.append(tp); g.append(hp);
+
+  const hm = el("div", "row hdr months"); hm.append(el("div", "lab", esc(L.monthRow)));
+  const tm = el("div", "tl");
+  ticks.forEach((t, i) => { const nx = ticks[i + 1] ? x(ticks[i + 1].s) : 100; const k = el("div", "tick" + (t.y || i === 0 ? " y" : ""), esc(t.y || i === 0 ? fmt(t.s, { month: "short", year: "numeric" }) : fmt(t.s, { month: "short" }))); k.style.insetInlineStart = x(t.s) + "%"; k.style.width = (nx - x(t.s)) + "%"; tm.append(k); });
+  hm.append(tm); g.append(hm);
+
+  const body = el("div"); body.style.position = "relative";
+  for (const w of ["ms", ...WS]) {
+    if (w !== "ms" && !on[w]) continue;
+    const gr = el("div", "row grp"); gr.style.setProperty("--c", w === "ms" ? "var(--ink)" : `var(--${w})`);
+    gr.append(el("div", "lab", `<i></i>${esc(L.ws[w])}`), el("div", "tl")); body.append(gr);
+    for (const t of TASKS.filter((t) => t[0] === w)) {
+      const [ws, s, e, ar, en, ref, built, nar, nen] = t;
+      const r = el("div", "row"); r.append(el("div", "lab", `<span>${esc(lang === "ar" ? ar : en)}</span><span class="ref">${esc(ref)}</span>`));
+      const tl = el("div", "tl");
+      let m;
+      if (ws === "ms") { m = el("button", "ms" + (t[10] ? " key" : "")); m.style.insetInlineStart = x(s) + "%"; }
+      else {
+        m = el("button", "bar"); m.style.setProperty("--c", `var(--${ws})`);
+        m.style.insetInlineStart = x(s) + "%"; m.style.width = (x(e) - x(s) + 100 / ((d(B) - d(A)) / DAY)) + "%";
+        if (built) { const dn = el("span", "done"); dn.style.width = built + "%"; m.append(dn); }
+      }
+      m.type = "button"; m.setAttribute("aria-label", `${lang === "ar" ? ar : en}, ${fmt(s)}${e ? " – " + fmt(e) : ""}`);
+      tip(m, () => ({ c: ws === "ms" ? "var(--ink)" : `var(--${ws})`, h: lang === "ar" ? ar : en, dates: e ? `${fmt(s)} → ${fmt(e)} · ${L.weeks(weeks(s, e))}` : fmt(s, { weekday: "long", day: "numeric", month: "long", year: "numeric" }), p: (lang === "ar" ? nar : nen), ref, built }));
+      tl.append(m); r.append(tl); body.append(r);
+    }
+  }
+  const ov = overlay(x, ticks, true);
+  for (const [s, e, n] of HOLIDAYS) { const h = el("div", "hol", n[lang].length && d(e) - d(s) > 10 * DAY ? `<span>${esc(n[lang])}</span>` : ""); h.style.insetInlineStart = x(s) + "%"; h.style.width = Math.max(.25, x(e) - x(s)) + "%"; h.title = n[lang]; ov.append(h); }
+  body.append(ov);
+  // overlay must stay under the sticky label column: shift it past the label
+  g.append(body);
+  return g;
+}
+
+function roadmap() {
+  const L = T[lang], A = "2026-10-01", B = "2032-09-30", x = scale(A, B);
+  const g = el("div", "grid rm"); g.style.setProperty("--tl-w", "1180px");
+  const ticks = [];
+  for (let y = 2026; y <= 2032; y++) for (let q = 0; q < 4; q++) { const s = `${y}-${String(q * 3 + 1).padStart(2, "0")}-01`; if (d(s) >= d(A) && d(s) <= d(B)) ticks.push({ s, y: q === 0 }); }
+  const hy = el("div", "row hdr months"); hy.append(el("div", "lab", esc(L.yearRow)));
+  const ty = el("div", "tl");
+  for (let y = 2026; y <= 2032; y++) { const s = y === 2026 ? A : `${y}-01-01`, e = y === 2032 ? B : `${y + 1}-01-01`; const k = el("div", "tick y", esc(new Intl.NumberFormat(L.locale, { useGrouping: false }).format(y))); k.style.insetInlineStart = x(s) + "%"; k.style.width = (x(e) - x(s)) + "%"; ty.append(k); }
+  hy.append(ty); g.append(hy);
+
+  const body = el("div"); body.style.position = "relative";
+  // Phase 0 and 1 lanes come from the detailed tasks; later phases use the typical split
+  const span = (ws, a, b) => { const ts = TASKS.filter((t) => t[0] === ws && d(t[1]) >= d(a) && d(t[1]) <= d(b)); return ts.length ? [ts.reduce((m, t) => Math.min(m, d(t[1])), Infinity), ts.reduce((m, t) => Math.max(m, d(t[2])), 0)] : null; };
+  for (const [num, s, e, ar, en, dar, den, flag] of PHASES) {
+    const r = el("div", "row");
+    r.append(el("div", "lab", `<b>${esc(num)}</b><span>${esc(lang === "ar" ? ar : en)}</span>`));
+    const tl = el("div", "tl");
+    const sp = el("button", "span" + (flag === "ind" || flag === "dep" ? " ind" : "")); sp.type = "button";
+    sp.style.insetInlineStart = x(s) + "%"; sp.style.width = (x(e) - x(s)) + "%";
+    sp.setAttribute("aria-label", `${lang === "ar" ? ar : en}, ${fmt(s)} – ${fmt(e)}`);
+    WS.forEach((w, i) => {
+      if (!on[w]) return;
+      let a, b;
+      const real = ["0", "1", "2"].includes(num) ? span(w, s, e) : null;
+      if (real) { a = (real[0] - d(s)) / (d(e) - d(s)); b = (real[1] - d(s)) / (d(e) - d(s)); } else [a, b] = LANE[w];
+      a = Math.max(0, a); b = Math.min(1, b);
+      const ln = el("span", "lane"); ln.style.setProperty("--c", `var(--${w})`);
+      ln.style.top = (6 + i * 8) + "px"; ln.style.insetInlineStart = (a * 100) + "%"; ln.style.width = Math.max(2, (b - a) * 100) + "%";
+      sp.append(ln);
+    });
+    const note = flag === "dep" ? L.depends : flag === "ind" ? L.indicative : "";
+    tip(sp, () => ({ c: "var(--ink)", h: `${num} · ${lang === "ar" ? ar : en}`, dates: `${fmt(s, { month: "long", year: "numeric" })} → ${fmt(e, { month: "long", year: "numeric" })} · ${L.months(monthsBetween(s, e))}`, p: (lang === "ar" ? dar : den) + (note ? ` (${note})` : ""), ref: num === "0" || num === "1" ? "22.1, 22.2" : "21, 22.1" }));
+    tl.append(sp); r.append(tl); body.append(r);
+  }
+  body.append(overlay(x, ticks, true));
+  g.append(body);
+  return g;
+}
+
+const tipEl = document.getElementById("tip");
+function tip(node, fn) {
+  const show = () => {
+    const o = fn(), L = T[lang];
+    tipEl.dir = L.dir; tipEl.style.setProperty("--c", o.c);
+    tipEl.innerHTML = `<h4><i></i>${esc(o.h)}</h4><div class="d">${esc(o.dates)}</div>` + (o.p ? `<p>${esc(o.p)}</p>` : "") +
+      `<div class="d" style="margin-top:6px">${esc(L.ref)} ${esc(o.ref)}</div>` + (o.built ? `<div class="built">${esc(L.built(o.built))}</div>` : "");
+    tipEl.hidden = false;
+    const r = node.getBoundingClientRect(), tw = tipEl.offsetWidth, th = tipEl.offsetHeight;
+    let left = r.left + Math.min(r.width, 60) / 2 - 20; left = Math.max(8, Math.min(left, innerWidth - tw - 8));
+    let top = r.bottom + 8; if (top + th > innerHeight - 8) top = r.top - th - 8;
+    tipEl.style.left = left + "px"; tipEl.style.top = Math.max(8, top) + "px";
+  };
+  const hide = () => { tipEl.hidden = true; };
+  node.addEventListener("mouseenter", show); node.addEventListener("mouseleave", hide);
+  node.addEventListener("focus", show); node.addEventListener("blur", hide);
+  node.addEventListener("click", show);
+}
+document.getElementById("chart").addEventListener("scroll", () => { tipEl.hidden = true; });
+addEventListener("scroll", () => { tipEl.hidden = true; }, { passive: true });
+
+document.getElementById("l-ar").onclick = () => { lang = "ar"; save(); render(); };
+document.getElementById("l-en").onclick = () => { lang = "en"; save(); render(); };
+document.getElementById("v-detail").onclick = () => { view = "detail"; save(); render(); };
+document.getElementById("v-road").onclick = () => { view = "road"; save(); render(); };
+render();
+</script>
+</body></html>
