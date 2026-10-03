@@ -1688,6 +1688,8 @@ Sales channel (direct, counter, agency, API partner); agreements and quotas come
 
 ### `sales.passenger` 
 
+Name rule (constraint `passenger_name_parts`, migration 1.2.0): every new passenger has a nationality, first name and family name; Syrian citizens (`nationality = 'SY'`) also need the father's and grandfather's names. Other nationalities enter the names exactly as on the passport or ID, with the father's and grandfather's names only when the document carries them. `full_name` is the composed display name in document order.
+
 Passenger data on the booking; document numbers encrypted with a blind index for security screening and the manifest
 
 | Column | Type | Constraints | Default |
@@ -1696,6 +1698,10 @@ Passenger data on the booking; document numbers encrypted with a blind index for
 | `booking_id` | `bigint` | 🔗 `sales.booking` ✱ |  |
 | `party_id` | `bigint` | 🔗 `iam.party`  |  |
 | `full_name` | `text` | ✱ |  |
+| `first_name` | `text` |  |  |
+| `father_name` | `text` |  |  |
+| `grandfather_name` | `text` |  |  |
+| `last_name` | `text` |  |  |
 | `passenger_category` | `text` | ✱ | `'ADULT'::text` |
 | `id_type` | `text` |  |  |
 | `id_no_enc` | `bytea` |  |  |

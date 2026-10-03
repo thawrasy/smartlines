@@ -342,7 +342,7 @@ async def manifest(trip_uid: uuid.UUID, request: Request, pr: Principal = Depend
     async with db.transaction(context_for(request, pr)) as conn:
         t = await _own_trip(conn, pr, trip_uid)
         recs = await conn.fetch(
-            """SELECT k.ticket_no, k.seat_no, k.status, p.full_name, p.id_type, p.id_no_last4, b.booking_ref,
+            """SELECT k.ticket_no, k.seat_no, k.status, p.full_name, p.nationality, p.id_type, p.id_no_last4, b.booking_ref,
                       sa.name AS from_station, sb.name AS to_station, sa.code AS from_code, sb.code AS to_code, k.boarded_at
                  FROM sales.ticket k JOIN sales.passenger p ON p.id = k.passenger_id JOIN sales.booking b ON b.id = k.booking_id
                  JOIN ops.trip_stop a ON a.trip_id = k.trip_id AND a.seq = k.from_seq JOIN net.station sa ON sa.id = a.station_id

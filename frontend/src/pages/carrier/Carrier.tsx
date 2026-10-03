@@ -137,10 +137,11 @@ function NewTrip({ onClose, onDone }: { onClose: () => void; onDone: () => void 
   );
 }
 
-interface Manifest { trip_no: string; passengers: { ticket_no: string; seat_no: number; status: string; full_name: string; id_type: string | null; id_no_last4: string | null; booking_ref: string; from_station: string; to_station: string; from_code: string; to_code: string; boarded_at: string | null }[] }
+interface Manifest { trip_no: string; passengers: { ticket_no: string; seat_no: number; status: string; full_name: string; nationality: string | null; id_type: string | null; id_no_last4: string | null; booking_ref: string; from_station: string; to_station: string; from_code: string; to_code: string; boarded_at: string | null }[] }
 
 function ManifestModal({ uid, onClose }: { uid: string; onClose: () => void }) {
-  const { t, station, time } = useI18n();
+  const { t, station, time, locale } = useI18n();
+  const regions = new Intl.DisplayNames([locale], { type: "region" });
   const state = useLoad(() => api.get<Manifest>(`/api/carrier/trips/${uid}/manifest`), [uid]);
   return (
     <Modal title={t("carrier.manifest")} onClose={onClose} wide>
@@ -149,10 +150,11 @@ function ManifestModal({ uid, onClose }: { uid: string; onClose: () => void }) {
           <div className="row between"><span className="chip outline mono">{m.trip_no}</span><span className="small muted">{t("carrier.exportHint")}</span></div>
           {m.passengers.length === 0 ? <Empty icon="group" title={t("common.noData")} /> : (
             <div className="table-wrap"><table className="table">
-              <thead><tr><th>{t("common.seat")}</th><th>{t("common.passenger")}</th><th>{t("carrier.idDoc")}</th><th>{t("common.from")}</th><th>{t("common.to")}</th><th>{t("booking.ref")}</th><th>{t("common.status")}</th></tr></thead>
+              <thead><tr><th>{t("common.seat")}</th><th>{t("common.passenger")}</th><th>{t("checkout.nationality")}</th><th>{t("carrier.idDoc")}</th><th>{t("common.from")}</th><th>{t("common.to")}</th><th>{t("booking.ref")}</th><th>{t("common.status")}</th></tr></thead>
               <tbody>{m.passengers.map((p) => (
                 <tr key={p.ticket_no}>
                   <td><span className="chip green">{p.seat_no}</span></td><td>{p.full_name}</td>
+                  <td className="small">{p.nationality ? regions.of(p.nationality) : "—"}</td>
                   <td className="small">{p.id_type ? t(`checkout.idTypes.${p.id_type}`) : "—"} {p.id_no_last4 && <span className="mono">•••{p.id_no_last4}</span>}</td>
                   <td className="small">{station(p.from_code, p.from_station)}</td><td className="small">{station(p.to_code, p.to_station)}</td>
                   <td className="mono small">{p.booking_ref}</td>

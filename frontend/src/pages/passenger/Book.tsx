@@ -4,10 +4,10 @@ import { api, newKey, type FareBrand, type TripDetail } from "../../api";
 import { useI18n } from "../../i18n";
 import { useAuth } from "../../auth";
 import { minutesBetween } from "../../dates";
-import { ErrorBox, Field, Icon, Spinner, useLoad } from "../../components/ui";
+import { ErrorBox, Icon, Spinner, useLoad } from "../../components/ui";
+import { PassengerFields, blankPassenger, namesFor, passengerValid, type PassengerDraft } from "./PassengerFields";
 
 interface Hold { hold_token: string; expires_at: string }
-interface Pax { full_name: string; id_type: string; id_last4: string }
 
 const roundUnit = (minor: number) => Math.round(minor / 100) * 100;
 
@@ -59,13 +59,13 @@ export default function Book() {
   const loc = useLocation();
 
   const detail = useLoad(() => api.get<TripDetail>(`/api/trips/${uid}`, { from_seq: fromSeq, to_seq: toSeq }), [uid, fromSeq, toSeq]);
-  const ref = useLoad(() => api.get<{ fare_brands: FareBrand[]; platform_fee: number }>("/api/ref"));
+  const ref = useLoad(() => api.get<{ fare_brands: FareBrand[]; platform_fee: number; countries: string[] }>("/api/ref"));
   const wallet = useLoad(() => (me?.portal === "PASSENGER" ? api.get<{ balance: number }>("/api/wallet") : Promise.resolve(null)), [me]);
 
   const [selected, setSelected] = useState<number[]>([]);
   const [hold, setHold] = useState<Hold | null>(null);
   const [brand, setBrand] = useState("STANDARD");
-  const [pax, setPax] = useState<Pax[]>([]);
+  const [pax, setPax] = useState<PassengerDraft[]>([]);
   const [agree, setAgree] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
@@ -82,6 +82,7 @@ export default function Book() {
   const d = detail.data;
   const from = d.stops.find((s) => s.seq === d.from_seq)!, to = d.stops.find((s) => s.seq === d.to_seq)!;
   const brands = ref.data.fare_brands;
+  const countries = ref.data.countries;
   const fb = brands.find((b) => b.code === brand) ?? brands[0];
   const farePer = roundUnit(d.price * fb.factor);
   const total = farePer * paxCount + ref.data.platform_fee;
@@ -94,7 +95,7 @@ export default function Book() {
     try {
       const h = await api.post<Hold>("/api/holds", { trip_uid: uid, from_seq: fromSeq, to_seq: toSeq, seat_nos: selected });
       setHold(h);
-      setPax(selected.map((_, i) => pax[i] ?? { full_name: i === 0 ? me.name : "", id_type: "NATIONAL_ID", id_last4: "" }));
+      setPax(selected.map((_, i) => pax[i] ?? blankPassenger()));
     } catch (e) {
       setError(e); detail.reload(); setSelected([]);
     } finally { setBusy(false); }
@@ -111,7 +112,7 @@ export default function Book() {
     try {
       const r = await api.post<{ booking_ref: string }>("/api/bookings", {
         hold_token: hold.hold_token, trip_uid: uid, from_seq: fromSeq, to_seq: toSeq, fare_brand: brand, idempotency_key: idemKey,
-        passengers: selected.map((seat, i) => ({ seat_no: seat, full_name: pax[i].full_name, id_type: pax[i].id_type, id_last4: pax[i].id_last4 || null })),
+        passengers: selected.map((seat, i) => ({ seat_no: seat, ...namesFor(pax[i]), id_type: pax[i].id_type, id_last4: pax[i].id_last4 || null })),
       });
       holdRef.current = null;
       nav(`/booking/${r.booking_ref}?new=1`);
@@ -121,7 +122,7 @@ export default function Book() {
     } finally { setBusy(false); }
   };
 
-  const paxValid = pax.length === selected.length && pax.every((p) => p.full_name.trim().length >= 3 && (!p.id_last4 || /^[0-9A-Za-z]{3,4}$/.test(p.id_last4)));
+  const paxValid = pax.length === selected.length && pax.every(passengerValid);
   const mm = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}`;
 
   return (
@@ -186,21 +187,8 @@ export default function Book() {
             {selected.map((seat, i) => (
               <div key={seat} className="card stack">
                 <div className="row between"><h3>{t("common.passenger")} {i + 1}</h3><span className="chip green">{t("common.seat")} {seat}</span></div>
-                <div className="grid cols-3">
-                  <Field label={t("checkout.fullName")}>
-                    <input className="input" value={pax[i]?.full_name ?? ""} required minLength={3}
-                           onChange={(e) => setPax((p) => p.map((x, j) => (j === i ? { ...x, full_name: e.target.value } : x)))} />
-                  </Field>
-                  <Field label={t("checkout.idType")}>
-                    <select className="input" value={pax[i]?.id_type} onChange={(e) => setPax((p) => p.map((x, j) => (j === i ? { ...x, id_type: e.target.value } : x)))}>
-                      {["NATIONAL_ID", "PASSPORT", "RESIDENCE", "OTHER"].map((k) => <option key={k} value={k}>{t(`checkout.idTypes.${k}`)}</option>)}
-                    </select>
-                  </Field>
-                  <Field label={`${t("checkout.idLast4")} (${t("common.optional")})`}>
-                    <input className="input ltr" inputMode="numeric" maxLength={4} value={pax[i]?.id_last4 ?? ""}
-                           onChange={(e) => setPax((p) => p.map((x, j) => (j === i ? { ...x, id_last4: e.target.value.trim() } : x)))} />
-                  </Field>
-                </div>
+                <PassengerFields value={pax[i] ?? blankPassenger()} countries={countries}
+                                 onChange={(v) => setPax((p) => p.map((x, j) => (j === i ? v : x)))} />
               </div>
             ))}
           </div>

@@ -45,6 +45,7 @@ const ar: Messages = {
   errors: {
     generic: "حدث خطأ ما. يرجى المحاولة مرة أخرى.",
     network: "تعذر الاتصال بالخادم. تحقق من الاتصال.",
+    NAME_PARTS_REQUIRED: "يجب إدخال الاسم الأول واسم الأب واسم الجد والكنية للمواطن السوري.",
     ACCOUNT_LOCKED: "تم قفل الحساب لمدة 15 دقيقة بعد محاولات فاشلة متكررة.",
     ALREADY_REGISTERED: "يوجد حساب مسجل بهذا البريد أو الجوال.",
     ALREADY_EXISTS: "هذا السجل موجود مسبقاً.",
@@ -119,7 +120,12 @@ const ar: Messages = {
   checkout: {
     title: "بيانات الركاب والدفع", fare: "الفئة السعرية", brandHint: "اختر الفئة التي تناسبك",
     refundable: "قابلة للاسترداد", nonRefundable: "غير قابلة للاسترداد", refundRule: "استرداد {pct}% حتى {h} ساعة قبل الانطلاق",
-    bags: "{n} × حقيبة {kg} كغ", flexChange: "تعديل مجاني", fullName: "الاسم الكامل كما في الهوية", idType: "نوع الوثيقة",
+    bags: "{n} × حقيبة {kg} كغ", flexChange: "تعديل مجاني", idType: "نوع الوثيقة",
+    nationality: "الجنسية", firstName: "الاسم الأول", fatherName: "اسم الأب", grandfatherName: "اسم الجد",
+    lastName: "الكنية (اسم العائلة)", givenNames: "الاسم الأول", familyName: "اسم العائلة",
+    syrianHint: "اكتب الأسماء الأربعة كما وردت في الهوية الشخصية السورية: الاسم الأول واسم الأب واسم الجد والكنية.",
+    foreignHint: "اكتب الاسم مطابقاً تماماً لجواز السفر أو وثيقة إثبات الشخصية وبنفس التهجئة.",
+    moreNames: "تتضمن الوثيقة اسم الأب واسم الجد أيضاً", namePreview: "الاسم على التذكرة",
     idLast4: "آخر 4 أرقام من الوثيقة", idTypes: { NATIONAL_ID: "هوية وطنية", PASSPORT: "جواز سفر", RESIDENCE: "إقامة", OTHER: "أخرى" },
     summary: "ملخص الدفع", fares: "الأجور ({n} راكب)", fee: "رسم خدمة المنصة", pay: "ادفع {amount} من المحفظة",
     walletBalance: "رصيد المحفظة", topupFirst: "اشحن المحفظة", holdLeft: "المقاعد محجوزة لمدة {t}",

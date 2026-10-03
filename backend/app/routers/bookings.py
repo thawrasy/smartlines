@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, Request
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from .. import db
 from ..config import get_settings
@@ -74,12 +74,38 @@ async def release_hold(hold_token: uuid.UUID, request: Request, pr: Principal = 
     return {"ok": True, "released_seats": released}
 
 
+# One name part: letters in any script, single spaces, hyphens, apostrophes or dots between them
+NAME_PART = r"^[^\W\d_]+(?:[ '\-.][^\W\d_]+)*\.?$"
+
+
 class PassengerIn(BaseModel):
-    full_name: str = Field(min_length=3, max_length=120)
+    """Passenger names exactly as on the identity document. Syrian citizens give the four parts of the
+    national ID (first, father, grandfather, family). Other nationalities give the given and family names
+    of the passport or ID; father's and grandfather's names only when the document carries them."""
+    nationality: str = Field(default="SY", pattern=r"^[A-Z]{2}$")
+    first_name: str = Field(min_length=1, max_length=60, pattern=NAME_PART)
+    father_name: Optional[str] = Field(default=None, min_length=1, max_length=60, pattern=NAME_PART)
+    grandfather_name: Optional[str] = Field(default=None, min_length=1, max_length=60, pattern=NAME_PART)
+    last_name: str = Field(min_length=1, max_length=60, pattern=NAME_PART)
     seat_no: int
     id_type: Optional[Literal["NATIONAL_ID", "PASSPORT", "RESIDENCE", "OTHER"]] = None
     id_last4: Optional[str] = Field(default=None, pattern=r"^[0-9A-Za-z]{3,4}$")
     mobile: Optional[str] = Field(default=None, pattern=r"^\+?[0-9]{8,15}$")
+
+    @field_validator("first_name", "father_name", "grandfather_name", "last_name", mode="before")
+    @classmethod
+    def _tidy(cls, v):
+        return " ".join(v.split()) or None if isinstance(v, str) else v
+
+    @model_validator(mode="after")
+    def _syrian_four_part_name(self):
+        if self.nationality == "SY" and not (self.father_name and self.grandfather_name):
+            raise ValueError("NAME_PARTS_REQUIRED: Syrian citizens need first, father, grandfather and family names")
+        return self
+
+    @property
+    def full_name(self) -> str:
+        return " ".join(p for p in (self.first_name, self.father_name, self.grandfather_name, self.last_name) if p)
 
 
 class BookingIn(BaseModel):
@@ -164,9 +190,11 @@ async def create_booking(body: BookingIn, request: Request, pr: Principal = Depe
             tickets = []
             for i, p in enumerate(body.passengers, start=1):
                 pid = await conn.fetchval(
-                    """INSERT INTO sales.passenger (booking_id, full_name, id_type, id_no_last4, mobile)
-                       VALUES ($1, $2, $3, $4, $5) RETURNING id""",
-                    booking_id, p.full_name.strip(), p.id_type, p.id_last4, p.mobile)
+                    """INSERT INTO sales.passenger (booking_id, full_name, first_name, father_name, grandfather_name,
+                         last_name, nationality, id_type, id_no_last4, mobile)
+                       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id""",
+                    booking_id, p.full_name, p.first_name, p.father_name, p.grandfather_name, p.last_name,
+                    p.nationality, p.id_type, p.id_last4, p.mobile)
                 tid = await conn.fetchval(
                     """INSERT INTO sales.ticket (ticket_no, booking_id, passenger_id, trip_id, from_seq, to_seq, seat_no,
                          fare_brand_code, fare_amount, total_amount, rules_snapshot)
@@ -246,7 +274,7 @@ async def booking_detail(ref: str, request: Request, pr: Principal = Depends(pas
         async with db.system_scope(conn, context_for(request, pr)):
             tickets = await conn.fetch(
                 """SELECT k.uid, k.ticket_no, k.seat_no, k.status, k.fare_brand_code, k.total_amount, k.from_seq, k.to_seq,
-                          p.full_name, sa.name AS from_station, sa.code AS from_code, ca.code AS from_city, a.sched_dep AS departs_at,
+                          p.full_name, p.nationality, sa.name AS from_station, sa.code AS from_code, ca.code AS from_city, a.sched_dep AS departs_at,
                           sb.name AS to_station, sb.code AS to_code, cb.code AS to_city, z.sched_arr AS arrives_at, k.rules_snapshot
                      FROM sales.ticket k JOIN sales.passenger p ON p.id = k.passenger_id
                      JOIN ops.trip_stop a ON a.trip_id = k.trip_id AND a.seq = k.from_seq

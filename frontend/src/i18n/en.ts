@@ -43,6 +43,7 @@ const en = {
   errors: {
     generic: "Something went wrong. Please try again.",
     network: "Cannot reach the server. Check your connection.",
+    NAME_PARTS_REQUIRED: "Syrian citizens must enter the first, father's, grandfather's and family names.",
     ACCOUNT_LOCKED: "The account is locked for 15 minutes after repeated failed attempts.",
     ALREADY_REGISTERED: "An account already exists for this email or mobile.",
     ALREADY_EXISTS: "This record already exists.",
@@ -117,7 +118,12 @@ const en = {
   checkout: {
     title: "Passenger details and payment", fare: "Fare", brandHint: "Choose the fare that suits you",
     refundable: "Refundable", nonRefundable: "Non-refundable", refundRule: "{pct}% refund up to {h} h before departure",
-    bags: "{n} × {kg} kg bags", flexChange: "Free changes", fullName: "Full name as on ID", idType: "ID type",
+    bags: "{n} × {kg} kg bags", flexChange: "Free changes", idType: "ID type",
+    nationality: "Nationality", firstName: "First name", fatherName: "Father's name", grandfatherName: "Grandfather's name",
+    lastName: "Family name", givenNames: "Given name(s)", familyName: "Family name (surname)",
+    syrianHint: "Write the four names exactly as on the Syrian national ID: first name, father's name, grandfather's name and family name.",
+    foreignHint: "Write the names exactly as in the passport or identity document, in the same spelling.",
+    moreNames: "The document also shows the father's and grandfather's names", namePreview: "Name on the ticket",
     idLast4: "Last 4 digits of ID", idTypes: { NATIONAL_ID: "National ID", PASSPORT: "Passport", RESIDENCE: "Residence permit", OTHER: "Other" },
     summary: "Payment summary", fares: "Fares ({n} passengers)", fee: "Platform service fee", pay: "Pay {amount} from wallet",
     walletBalance: "Wallet balance", topupFirst: "Top up your wallet", holdLeft: "Seats held for {t}",

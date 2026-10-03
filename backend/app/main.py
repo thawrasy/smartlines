@@ -31,9 +31,12 @@ app.add_exception_handler(asyncpg.PostgresError, db_error_handler)
 
 @app.exception_handler(RequestValidationError)
 async def validation_handler(_: Request, exc: RequestValidationError):
-    fields = [".".join(str(p) for p in e["loc"][1:]) for e in exc.errors()]
-    return JSONResponse({"error": {"code": "VALIDATION_FAILED", "message": "invalid request", "fields": fields}},
-                        status_code=422)
+    errors = exc.errors()
+    fields = [".".join(str(p) for p in e["loc"][1:]) for e in errors]
+    # Model rules raise "CODE: message"; the first such code becomes the error code
+    code = next((e["msg"].split("Value error, ", 1)[-1].split(":", 1)[0] for e in errors
+                 if e.get("type") == "value_error" and ":" in e["msg"]), "VALIDATION_FAILED")
+    return JSONResponse({"error": {"code": code, "message": "invalid request", "fields": fields}}, status_code=422)
 
 
 @app.middleware("http")

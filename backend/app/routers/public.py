@@ -35,9 +35,11 @@ async def reference(request: Request):
             "SELECT id, code, name, country_code, lat, lng FROM ref.city WHERE is_active ORDER BY name")
         locales = await conn.fetch(
             "SELECT code, name, native_name, direction, is_default FROM ref.locale WHERE is_enabled ORDER BY is_default DESC, code")
+        countries = await conn.fetch("SELECT code FROM ref.country ORDER BY code")
         brands = await conn.fetch(
             "SELECT code, name, factor, rules FROM pricing.fare_brand WHERE active AND company_id IS NULL ORDER BY sort")
     return {"cities": rows(cities), "locales": rows(locales), "platform_fee": get_settings().platform_fee,
+            "countries": [c["code"] for c in countries],
             "fare_brands": [{**row_dict(b), "factor": float(b["factor"]),
                              "rules": json.loads(b["rules"]) if isinstance(b["rules"], str) else b["rules"]} for b in brands]}
 

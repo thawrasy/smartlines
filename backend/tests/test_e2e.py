@@ -87,11 +87,15 @@ def hold(c, t, seats):
     return c.post("/api/holds", json={"trip_uid": t["uid"], "from_seq": t["from_seq"], "to_seq": t["to_seq"], "seat_nos": seats})
 
 
-def book(c, t, token, seats, brand="STANDARD", key=None):
+def syrian(seat):
+    return {"nationality": "SY", "first_name": "Rami", "father_name": "Khaled", "grandfather_name": "Omar",
+            "last_name": f"Haddad{chr(65 + seat % 26)}", "seat_no": seat, "id_type": "NATIONAL_ID", "id_last4": "1234"}
+
+
+def book(c, t, token, seats, brand="STANDARD", key=None, passengers=None):
     return c.post("/api/bookings", json={
         "hold_token": token, "trip_uid": t["uid"], "from_seq": t["from_seq"], "to_seq": t["to_seq"], "fare_brand": brand,
-        "idempotency_key": key or uuid.uuid4().hex,
-        "passengers": [{"full_name": f"Passenger {s}", "seat_no": s, "id_type": "NATIONAL_ID", "id_last4": "1234"} for s in seats]})
+        "idempotency_key": key or uuid.uuid4().hex, "passengers": passengers or [syrian(s) for s in seats]})
 
 
 def test_security_headers_and_client_header(pax):
@@ -149,6 +153,32 @@ def test_booking_paid_from_wallet_is_idempotent_and_balanced(pax, trip):
     assert not next(s for s in seg if s["seat_no"] == seats[0])["free"]
     pytest.booking_ref = ref
     pytest.ticket_uid = detail["tickets"][0]["uid"]
+
+
+def test_passenger_names_follow_the_identity_document(pax, trip):
+    a, b = free_seats(pax, trip, 2)
+    h = hold(pax, trip, [a, b]).json()["hold_token"]
+    # A Syrian citizen without the grandfather's name is refused before anything is written
+    incomplete = {**syrian(a), "grandfather_name": None}
+    r = book(pax, trip, h, [a, b], passengers=[incomplete, syrian(b)])
+    assert r.status_code == 422 and r.json()["error"]["code"] == "NAME_PARTS_REQUIRED"
+    bad = book(pax, trip, h, [a, b], passengers=[{**syrian(a), "first_name": "R4mi"}, syrian(b)])
+    assert bad.status_code == 422 and bad.json()["error"]["code"] == "VALIDATION_FAILED"
+    # A foreign passport holder with two names, written as in the passport
+    foreign = {"nationality": "FR", "first_name": "Marie Claire", "last_name": "Dubois", "seat_no": b, "id_type": "PASSPORT"}
+    r = book(pax, trip, h, [a, b], passengers=[{**syrian(a), "first_name": "  Rami  "}, foreign])
+    assert r.status_code == 201, r.text
+    tickets = pax.get(f"/api/bookings/{r.json()['booking_ref']}").json()["tickets"]
+    names = {k["seat_no"]: (k["full_name"], k["nationality"]) for k in tickets}
+    assert names[a] == (f"Rami Khaled Omar {syrian(a)['last_name']}", "SY")
+    assert names[b] == ("Marie Claire Dubois", "FR")
+
+
+@pytest.mark.skipif(not OWNER_URL, reason="needs MASSLAK_OWNER_URL")
+def test_database_enforces_name_parts():
+    with pytest.raises(asyncpg.CheckViolationError):
+        owner_sql("""INSERT INTO sales.passenger (booking_id, full_name, first_name, last_name, nationality)
+                     SELECT id, 'Rami Haddad', 'Rami', 'Haddad', 'SY' FROM sales.booking LIMIT 1""")
 
 
 def test_other_user_cannot_see_booking(pax):
