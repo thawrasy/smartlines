@@ -1,0 +1,6 @@
+fastapi==0.142.2
+uvicorn[standard]==0.50.2
+asyncpg==0.31.0
+argon2-cffi==25.1.0
+pydantic[email]==2.13.4
+pydantic-settings==2.14.2
