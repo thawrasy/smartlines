@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>اختيار المقعد</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="masslak-theme.css">
+<link rel="stylesheet" href="ds/masslak/components/bundle.css">
+<script src="ds/masslak/components/bundle.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500&amp;family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#006C4C}a:hover{color:#00382A}
+</style>
+</helmet>
+<div class="ms-root" dir="rtl" style="width: 390px; height: 844px; box-sizing: border-box; background: var(--surface-dim); display: flex; flex-direction: column; overflow: hidden; font-family: 'IBM Plex Sans Arabic', system-ui, sans-serif;">
+  <header style="display: flex; align-items: center; gap: 8px; height: 64px; padding-inline: 8px 16px; background: var(--surface); box-shadow: inset 0 -1px 0 var(--divider);">
+    <a href="M2-Results.dc.html" aria-label="رجوع" style="width: 48px; height: 48px; border-radius: 24px; display: inline-flex; align-items: center; justify-content: center; color: var(--on-surface-variant);"><x-import component-from-global-scope="Masslak.Icon" name="arrow_back" flip="{{yes}}"></x-import></a>
+    <div style="flex: 1; min-width: 0;">
+      <div class="title-medium">اختر مقعدك</div>
+      <div class="body-small" style="color: var(--on-surface-variant);">بولمان الشام · VIP · 14:30</div>
+    </div>
+  </header>
+  <div style="flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 14px; padding: 14px 16px;">
+    <x-import component-from-global-scope="Masslak.Banner" tone="info" title="نحجز المقعد لك 9:42 دقيقة">أكمل بيانات المسافر قبل انتهاء المهلة.</x-import>
+    <x-import component-from-global-scope="Masslak.SeatMap" rows="{{8}}" taken="{{taken}}" selected="{{selected}}"></x-import>
+  </div>
+  <footer style="display: flex; align-items: center; gap: 12px; padding: 14px 16px 18px; background: var(--surface); box-shadow: 0 -1px 0 var(--divider);">
+    <div style="flex: 1; min-width: 0;">
+      <div class="body-small" style="color: var(--on-surface-variant);">المقعد 11 · نافذة</div>
+      <div style="font-size: 20px; line-height: 28px; font-weight: 700; font-variant-numeric: tabular-nums;">85,000 <span style="font-size: 13px; font-weight: 500; color: var(--on-surface-variant);">ل.س</span></div>
+    </div>
+    <a class="ms-btn ms-btn-filled ms-btn-lg" href="M4-Checkout.dc.html">متابعة</a>
+  </footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { yes: true, taken: [1, 2, 5, 6, 9, 10, 14, 17, 18, 22, 25, 26, 29, 30], selected: [11] };
+  }
+}
+</script>
+</body>
+</html>

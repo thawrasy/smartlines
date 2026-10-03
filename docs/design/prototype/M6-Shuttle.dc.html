@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>رحلة النقل الترددي</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="masslak-theme.css">
+<link rel="stylesheet" href="ds/masslak/components/bundle.css">
+<script src="ds/masslak/components/bundle.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500&amp;family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#006C4C}a:hover{color:#00382A}
+</style>
+</helmet>
+<div class="ms-root" dir="rtl" style="width: 390px; height: 844px; box-sizing: border-box; background: var(--surface-dim); display: flex; flex-direction: column; overflow: hidden; font-family: 'IBM Plex Sans Arabic', system-ui, sans-serif;">
+  <header style="display: flex; align-items: center; gap: 8px; height: 64px; padding-inline: 16px 8px; background: var(--surface); box-shadow: inset 0 -1px 0 var(--divider);">
+    <div style="flex: 1; min-width: 0;">
+      <div class="title-medium">خط المزة ← باب توما</div>
+      <div class="body-small" style="color: var(--on-surface-variant);">ميكروباص <span dir="ltr">دمشق 512-347</span></div>
+    </div>
+    <x-import component-from-global-scope="Masslak.StatusBadge" status="IN_PROGRESS">في الرحلة</x-import>
+  </header>
+  <div style="flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; gap: 12px; padding: 14px 16px;">
+    <section style="background: var(--primary); color: var(--on-primary); border-radius: 28px; padding: 18px; display: flex; flex-direction: column; gap: 12px; box-shadow: var(--elevation-2);">
+      <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px; opacity: .92;">
+        <span>المحطة الحالية</span>
+        <span style="display: inline-flex; align-items: center; gap: 6px;"><x-import component-from-global-scope="Masslak.Icon" name="bluetooth" size="{{18}}"></x-import>قريب من جهاز السائق</span>
+      </div>
+      <div style="font-size: 28px; line-height: 36px; font-weight: 600;">جسر الرئيس</div>
+      <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; font-size: 12px;">
+        <div style="background: rgba(255,255,255,.14); border-radius: 14px; padding: 10px;"><div style="opacity: .85;">دفعت حتى الآن</div><b style="font-size: 16px;">2,000</b></div>
+        <div style="background: rgba(255,255,255,.14); border-radius: 14px; padding: 10px;"><div style="opacity: .85;">المقطع التالي</div><b style="font-size: 16px;">500</b></div>
+        <div style="background: rgba(255,255,255,.14); border-radius: 14px; padding: 10px;"><div style="opacity: .85;">رصيدك</div><b style="font-size: 16px;">300</b></div>
+      </div>
+    </section>
+    <x-import component-from-global-scope="Masslak.Banner" tone="warning" title="رصيدك لا يغطي المقطع التالي" action="{{topup}}">المحطة القادمة: باب توما. يمكنك المتابعة وسيُسجَّل الفرق أجرةً مستحقة دون فوائد.</x-import>
+    <section style="background: var(--surface); border-radius: 20px; box-shadow: var(--elevation-1); padding: 6px 16px;">
+      <x-import component-from-global-scope="Masslak.StopTimeline" stops="{{stops}}"></x-import>
+    </section>
+  </div>
+  <footer style="display: flex; gap: 10px; padding: 12px 16px 18px; background: var(--surface); box-shadow: 0 -1px 0 var(--divider);">
+    <x-import component-from-global-scope="Masslak.Button" variant="outlined" icon="qr_code_scanner" style="flex: 1;">امسح رمز المحطة</x-import>
+    <x-import component-from-global-scope="Masslak.Button" variant="tonal" style="flex: 1;">أنهِ الرحلة</x-import>
+  </footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const h = window.React.createElement, M = window.Masslak;
+    return {
+      topup: M ? h(M.Button, { variant: 'text', size: 'sm' }, 'اشحن') : null,
+      stops: [
+        { name: 'المزة · الجامعة', time: '08:02', state: 'done', note: 'صعدت هنا · 1,000 ل.س' },
+        { name: 'البرامكة', time: '08:09', state: 'done', note: '500 ل.س' },
+        { name: 'جسر الرئيس', time: '08:14', state: 'current', note: '500 ل.س' },
+        { name: 'باب توما', time: '08:23', note: 'المقطع التالي · 500 ل.س' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

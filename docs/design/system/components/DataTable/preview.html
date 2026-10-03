@@ -1,0 +1,17 @@
+<!-- @dsCard group="Display" height=300 -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>DataTable preview</title>
+<style>body{margin:0;background:var(--surface-dim)} #root{padding:20px}</style></head>
+<body>
+<div id="root" class="ms-root" dir="rtl"></div>
+<script>
+  var M = window.Masslak, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(h(M.DataTable,{columns:[{key:'trip',label:'الرحلة',mono:true},{key:'route',label:'المسار'},{key:'dep',label:'الانطلاق'},{key:'seats',label:'المقاعد',align:'end'},{key:'rev',label:'الإيراد (ل.س)',align:'end'},{key:'st',label:'الحالة',status:true}],
+ rows:[{trip:'SY 1042',route:'دمشق ← حلب',dep:'14:30',seats:'38/45',rev:'3,230,000',st:{status:'PUBLISHED',label:'منشورة'}},
+  {trip:'SY 1044',route:'دمشق ← حمص',dep:'15:00',seats:'45/45',rev:'2,025,000',st:{status:'BOARDING',label:'صعود'}},
+  {trip:'SY 1050',route:'دمشق ← اللاذقية',dep:'16:15',seats:'12/45',rev:'1,020,000',st:{status:'DRAFT',label:'مسودة'}},
+  {trip:'SY 1038',route:'دمشق ← درعا',dep:'09:00',seats:'0/45',rev:'0',st:{status:'CANCELLED',label:'ملغاة'}}]}));
+</script>
+</body>
+</html>

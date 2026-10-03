@@ -1,0 +1,13 @@
+<!-- @dsCard group="Booking" height=640 -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Ticket preview</title>
+<style>body{margin:0;background:var(--surface-dim)} #root{padding:20px}</style></head>
+<body>
+<div id="root" class="ms-root" dir="rtl"></div>
+<script>
+  var M = window.Masslak, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(h('div',{style:{display:'flex',justifyContent:'center'}},h(M.Ticket,{carrier:'بولمان الشام',status:'CONFIRMED',statusLabel:'مؤكد',from:'دمشق',fromStation:'كراجات البولمان',to:'حلب',toStation:'الراموسة',date:'الجمعة 14 تشرين الثاني',time:'14:30',seat:'11 · VIP',passenger:'أحمد محمد خالد العلي',reference:'7Q4K2P',offline:'محفوظة على جهازك'})));
+</script>
+</body>
+</html>

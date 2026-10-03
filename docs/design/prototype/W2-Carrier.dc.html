@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>بوابة الشركة الناقلة: لوحة التحكم</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="masslak-theme.css">
+<link rel="stylesheet" href="ds/masslak/components/bundle.css">
+<script src="ds/masslak/components/bundle.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500&amp;family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#006C4C}a:hover{color:#00382A}
+.ms-drawer{min-height:1000px}
+</style>
+</helmet>
+<div class="ms-root" dir="rtl" style="min-height: 1000px; background: var(--surface-dim); font-family: 'IBM Plex Sans Arabic', system-ui, sans-serif; display: flex; flex-wrap: wrap; align-items: stretch;">
+  <div style="flex: 1 1 272px; max-width: 272px; display: flex;">
+    <x-import component-from-global-scope="Masslak.NavigationDrawer" brand="{{brand}}" sections="{{sections}}" footer="{{org}}"></x-import>
+  </div>
+  <main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column;">
+    <header style="display: flex; align-items: center; gap: 12px; padding: 20px 32px 8px; flex-wrap: wrap;">
+      <div style="flex: 1; min-width: 220px;">
+        <h1 class="headline-large" style="margin: 0;">لوحة التحكم</h1>
+        <p class="body-medium" style="margin: 2px 0 0; color: var(--on-surface-variant);">الأحد 15 تشرين الثاني 2026 · بولمان الشام</p>
+      </div>
+      <x-import component-from-global-scope="Masslak.IconButton" icon="notifications" label="الإشعارات" badge="{{yes}}"></x-import>
+      <x-import component-from-global-scope="Masslak.Button" variant="outlined" icon="route">الجدول الأسبوعي</x-import>
+      <x-import component-from-global-scope="Masslak.Button" icon="add">رحلة جديدة</x-import>
+    </header>
+    <div style="padding: 16px 32px 40px; display: flex; flex-direction: column; gap: 20px;">
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;">
+        <x-import component-from-global-scope="Masslak.Stat" icon="confirmation_number" label="تذاكر اليوم" value="1,284" note="+8% عن الأحد الماضي"></x-import>
+        <x-import component-from-global-scope="Masslak.Stat" icon="account_balance_wallet" label="مبيعات اليوم (ل.س)" value="96.4M" tone="wheat" note="التسوية القادمة: الثلاثاء"></x-import>
+        <x-import component-from-global-scope="Masslak.Stat" icon="directions_bus" label="رحلات جارية" value="37" tone="blue" note="3 متأخرة أكثر من 15 دقيقة"></x-import>
+        <x-import component-from-global-scope="Masslak.Stat" icon="error" label="شكاوى مفتوحة" value="5" tone="red" note="اثنتان قرب انتهاء المهلة"></x-import>
+      </div>
+      <div style="display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-start;">
+        <section style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 12px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;">
+            <h2 class="title-large" style="margin: 0;">رحلات اليوم</h2>
+            <x-import component-from-global-scope="Masslak.SegmentedButton" label="الفترة" options="{{periods}}"></x-import>
+          </div>
+          <x-import component-from-global-scope="Masslak.DataTable" columns="{{cols}}" rows="{{rows}}"></x-import>
+        </section>
+        <aside style="flex: 1 1 300px; min-width: 0; display: flex; flex-direction: column; gap: 12px;">
+          <h2 class="title-large" style="margin: 0;">يحتاج إلى إجراء</h2>
+          <x-import component-from-global-scope="Masslak.Banner" tone="error" title="رخصة المركبة دمشق 512-347 تنتهي بعد 6 أيام">جدّد الرخصة لتبقى الرحلات المجدولة عليها منشورة.</x-import>
+          <x-import component-from-global-scope="Masslak.Banner" tone="warning" title="سائقان دون تعيين لرحلات الغد">رحلتا SY 1060 وSY 1062.</x-import>
+          <section style="background: var(--surface); border-radius: 20px; box-shadow: var(--elevation-1); padding: 18px; display: flex; flex-direction: column; gap: 8px; font-size: 14px; font-variant-numeric: tabular-nums;">
+            <b class="title-small">التسوية القادمة · الثلاثاء 17 تشرين 2</b>
+            <div style="display: flex; justify-content: space-between;"><span style="color: var(--on-surface-variant);">المبيعات المستحقة</span><span>412,600,000</span></div>
+            <div style="display: flex; justify-content: space-between;"><span style="color: var(--on-surface-variant);">عمولة المنصة</span><span>-20,630,000</span></div>
+            <div style="display: flex; justify-content: space-between;"><span style="color: var(--on-surface-variant);">الضرائب المقتطعة</span><span>-8,252,000</span></div>
+            <div style="height: 1px; background: var(--divider);"></div>
+            <div style="display: flex; justify-content: space-between; font-weight: 700;"><span>صافي التحويل (ل.س)</span><span>383,718,000</span></div>
+          </section>
+        </aside>
+      </div>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const h = window.React.createElement, M = window.Masslak;
+    return {
+      yes: true,
+      brand: M ? h(M.Logo, { withName: true, tagline: 'بوابة الشركات' }) : null,
+      org: h('div', null, h('b', null, 'بولمان الشام'), h('div', { style: { color: 'var(--on-surface-variant)' } }, 'الباقة الاحترافية · 14 مستخدماً')),
+      sections: [
+        { items: [{ icon: 'dashboard', label: 'لوحة التحكم', active: true }, { icon: 'route', label: 'الرحلات والجدولة' }, { icon: 'directions_bus', label: 'الأسطول' }, { icon: 'group', label: 'الطواقم' }, { icon: 'location_on', label: 'الخطوط والمحطات' }] },
+        { title: 'المبيعات والمال', items: [{ icon: 'confirmation_number', label: 'الحجوزات', badge: 3 }, { icon: 'qr_code_2', label: 'الكشوف' }, { icon: 'account_balance_wallet', label: 'التسويات' }] },
+        { title: 'الشركة', items: [{ icon: 'verified', label: 'الوثائق والتراخيص' }, { icon: 'person', label: 'المستخدمون والأدوار' }, { icon: 'settings', label: 'الإعدادات' }] }
+      ],
+      periods: [{ value: 'today', label: 'اليوم' }, { value: 'tomorrow', label: 'الغد' }, { value: 'week', label: 'الأسبوع' }],
+      cols: [{ key: 'trip', label: 'الرحلة', mono: true }, { key: 'route', label: 'المسار' }, { key: 'dep', label: 'الانطلاق' }, { key: 'bus', label: 'المركبة' }, { key: 'seats', label: 'المقاعد', align: 'end' }, { key: 'rev', label: 'الإيراد (ل.س)', align: 'end' }, { key: 'st', label: 'الحالة', status: true }],
+      rows: [
+        { trip: 'SY 1042', route: 'دمشق ← حلب', dep: '14:30', bus: '512-347', seats: '38/45', rev: '3,230,000', st: { status: 'BOARDING', label: 'صعود' } },
+        { trip: 'SY 1044', route: 'دمشق ← حمص', dep: '15:00', bus: '498-112', seats: '45/45', rev: '2,025,000', st: { status: 'PUBLISHED', label: 'مكتملة' } },
+        { trip: 'SY 1046', route: 'دمشق ← اللاذقية', dep: '15:45', bus: '530-901', seats: '29/45', rev: '1,450,000', st: { status: 'PUBLISHED', label: 'منشورة' } },
+        { trip: 'SY 1040', route: 'دمشق ← طرطوس', dep: '12:00', bus: '477-020', seats: '41/45', rev: '1,845,000', st: { status: 'DEPARTED', label: 'انطلقت' } },
+        { trip: 'SY 1050', route: 'دمشق ← درعا', dep: '17:15', bus: '—', seats: '12/45', rev: '216,000', st: { status: 'DRAFT', label: 'مسودة' } },
+        { trip: 'SY 1038', route: 'دمشق ← السويداء', dep: '09:00', bus: '466-310', seats: '0/45', rev: '0', st: { status: 'CANCELLED', label: 'ملغاة' } }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

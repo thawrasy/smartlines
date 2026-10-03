@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>لوحة الجهة الناظمة</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="masslak-theme.css">
+<link rel="stylesheet" href="ds/masslak/components/bundle.css">
+<script src="ds/masslak/components/bundle.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500&amp;family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#006C4C}a:hover{color:#00382A}
+.ms-drawer{min-height:1000px}
+.bar-row{display:grid;grid-template-columns:120px minmax(0,1fr) 48px;gap:12px;align-items:center;font-size:13px}
+.bar-track{height:10px;border-radius:5px;background:var(--surface-container-high);overflow:hidden}
+.bar-fill{height:100%;border-radius:5px;background:var(--primary)}
+.bar-fill.warn{background:var(--secondary)}
+</style>
+</helmet>
+<div class="ms-root" dir="rtl" style="min-height: 1000px; background: var(--surface-dim); font-family: 'IBM Plex Sans Arabic', system-ui, sans-serif; display: flex; flex-wrap: wrap; align-items: stretch;">
+  <div style="flex: 1 1 272px; max-width: 272px; display: flex;">
+    <x-import component-from-global-scope="Masslak.NavigationDrawer" brand="{{brand}}" sections="{{sections}}" footer="{{org}}"></x-import>
+  </div>
+  <main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column;">
+    <header style="display: flex; align-items: center; gap: 12px; padding: 20px 32px 8px; flex-wrap: wrap;">
+      <div style="flex: 1; min-width: 220px;">
+        <h1 class="headline-large" style="margin: 0;">نظرة عامة على قطاع النقل</h1>
+        <p class="body-medium" style="margin: 2px 0 0; color: var(--on-surface-variant);">تشرين الثاني 2026 · كل المحافظات</p>
+      </div>
+      <x-import component-from-global-scope="Masslak.SegmentedButton" label="الفترة" value="month" options="{{periods}}"></x-import>
+    </header>
+    <div style="padding: 16px 32px 40px; display: flex; flex-direction: column; gap: 20px;">
+      <x-import component-from-global-scope="Masslak.Banner" tone="info" title="عرض فقط · بيانات مجمّعة">لا تظهر بيانات شخصية إلا بطلب رسمي موثّق عبر مركز الأمن والامتثال.</x-import>
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;">
+        <x-import component-from-global-scope="Masslak.Stat" icon="verified" label="شركات معتمدة" value="124" note="6 طلبات قيد المراجعة"></x-import>
+        <x-import component-from-global-scope="Masslak.Stat" icon="route" label="خطوط مرخّصة نشطة" value="318" tone="blue"></x-import>
+        <x-import component-from-global-scope="Masslak.Stat" icon="account_balance_wallet" label="رسوم وضرائب محصّلة (ل.س)" value="2.41B" tone="wheat"></x-import>
+        <x-import component-from-global-scope="Masslak.Stat" icon="error" label="شكاوى تجاوزت المهلة" value="11" tone="red"></x-import>
+      </div>
+      <div style="display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-start;">
+        <section style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 12px;">
+          <h2 class="title-large" style="margin: 0;">الالتزام بالتعرفة حسب الخط</h2>
+          <x-import component-from-global-scope="Masslak.DataTable" columns="{{cols}}" rows="{{rows}}"></x-import>
+        </section>
+        <aside style="flex: 1 1 300px; min-width: 0; background: var(--surface); border-radius: 20px; box-shadow: var(--elevation-1); padding: 18px; display: flex; flex-direction: column; gap: 12px;">
+          <b class="title-small">الشكاوى المغلقة ضمن المهلة</b>
+          <div class="bar-row"><span>الخدمة</span><div class="bar-track"><div class="bar-fill" style="width: 92%;"></div></div><span>92%</span></div>
+          <div class="bar-row"><span>التأخير</span><div class="bar-track"><div class="bar-fill" style="width: 84%;"></div></div><span>84%</span></div>
+          <div class="bar-row"><span>الاسترداد</span><div class="bar-track"><div class="bar-fill warn" style="width: 71%;"></div></div><span>71%</span></div>
+          <div class="bar-row"><span>الأمتعة</span><div class="bar-track"><div class="bar-fill warn" style="width: 66%;"></div></div><span>66%</span></div>
+          <p class="body-small" style="margin: 0; color: var(--on-surface-variant);">المستهدف 85% ضمن مهلة الخدمة المعتمدة.</p>
+        </aside>
+      </div>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const h = window.React.createElement, M = window.Masslak;
+    return {
+      brand: M ? h(M.Logo, { withName: true, tagline: 'الجهة الناظمة' }) : null,
+      org: h('div', null, h('b', null, 'وزارة النقل'), h('div', { style: { color: 'var(--on-surface-variant)' } }, 'صلاحية عرض فقط')),
+      sections: [
+        { items: [{ icon: 'dashboard', label: 'نظرة عامة', active: true }, { icon: 'verified', label: 'الشركات المعتمدة' }, { icon: 'route', label: 'الخطوط والتراخيص' }, { icon: 'account_balance_wallet', label: 'التعرفة والرسوم' }] },
+        { title: 'الرقابة', items: [{ icon: 'error', label: 'الشكاوى والمهل' }, { icon: 'my_location', label: 'تنبيهات التتبع' }, { icon: 'shield', label: 'الطلبات الرسمية' }] }
+      ],
+      periods: [{ value: 'week', label: 'الأسبوع' }, { value: 'month', label: 'الشهر' }, { value: 'quarter', label: 'الربع' }],
+      cols: [{ key: 'line', label: 'الخط' }, { key: 'carriers', label: 'الشركات', align: 'end' }, { key: 'trips', label: 'رحلات', align: 'end' }, { key: 'tariff', label: 'التعرفة (ل.س)', align: 'end' }, { key: 'avg', label: 'متوسط البيع', align: 'end' }, { key: 'st', label: 'الالتزام', status: true }],
+      rows: [
+        { line: 'دمشق ← حلب', carriers: '18', trips: '1,436', tariff: '55,000–95,000', avg: '71,200', st: { status: 'APPROVED', label: 'ملتزم' } },
+        { line: 'دمشق ← اللاذقية', carriers: '12', trips: '928', tariff: '50,000–90,000', avg: '64,800', st: { status: 'APPROVED', label: 'ملتزم' } },
+        { line: 'حمص ← طرطوس', carriers: '7', trips: '655', tariff: '20,000–30,000', avg: '31,500', st: { status: 'REVIEW', label: 'تجاوز 5%' } },
+        { line: 'المزة ← باب توما (ترددي)', carriers: '4', trips: '8,210', tariff: '500 لكل مقطع', avg: '500', st: { status: 'APPROVED', label: 'ملتزم' } },
+        { line: 'دمشق ← درعا', carriers: '6', trips: '512', tariff: '18,000–28,000', avg: '29,900', st: { status: 'DENY', label: 'مخالفة' } }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

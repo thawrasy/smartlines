@@ -1,0 +1,30 @@
+{
+ "v": 3,
+ "createdOnFiles": {"v": 1, "at": "2026-10-03T23:50:00Z"},
+ "title": "Masslak Portal Prototype",
+ "launch": {"view": "canvas"},
+ "pages": [],
+ "boards": {
+  "Main.dc.html": {"x": 0, "y": 0, "w": 1440, "h": 900, "title": "Masslak · identity and screen index", "is_interactive": true},
+  "M1-Home.dc.html": {"x": 0, "y": 1380, "w": 390, "h": 844, "title": "App · Home", "is_interactive": true},
+  "M2-Results.dc.html": {"x": 470, "y": 1380, "w": 390, "h": 844, "title": "App · Search results", "is_interactive": true},
+  "M3-Seats.dc.html": {"x": 940, "y": 1380, "w": 390, "h": 844, "title": "App · Seat selection", "is_interactive": true},
+  "M4-Checkout.dc.html": {"x": 1410, "y": 1380, "w": 390, "h": 844, "title": "App · Passenger and payment", "is_interactive": true},
+  "M5-Ticket.dc.html": {"x": 1880, "y": 1380, "w": 390, "h": 844, "title": "App · Ticket", "is_interactive": true},
+  "M6-Shuttle.dc.html": {"x": 2350, "y": 1380, "w": 390, "h": 844, "title": "App · Shuttle live ride"},
+  "M7-Driver.dc.html": {"x": 2820, "y": 1380, "w": 390, "h": 844, "title": "Driver app · Boarding"},
+  "W1-Website.dc.html": {"x": 0, "y": 2584, "w": 1440, "h": 1480, "title": "Website · Home", "expand": "fill", "is_interactive": true},
+  "W2-Carrier.dc.html": {"x": 1520, "y": 2584, "w": 1440, "h": 1000, "title": "Carrier portal · Dashboard", "expand": "fill"},
+  "W3-Agency.dc.html": {"x": 0, "y": 4434, "w": 1440, "h": 980, "title": "Agency portal · Sell tickets", "expand": "fill"},
+  "W4-Regulator.dc.html": {"x": 1520, "y": 4434, "w": 1440, "h": 1000, "title": "Regulator · Oversight dashboard", "expand": "fill"}
+ },
+ "order": ["Main.dc.html", "M1-Home.dc.html", "M2-Results.dc.html", "M3-Seats.dc.html", "M4-Checkout.dc.html", "M5-Ticket.dc.html", "M6-Shuttle.dc.html", "M7-Driver.dc.html", "W1-Website.dc.html", "W2-Carrier.dc.html", "W3-Agency.dc.html", "W4-Regulator.dc.html"],
+ "notes": {
+  "rowApp": {"x": 0, "y": 1130, "text": "Mobile apps: passenger booking flow, shuttle and driver", "kind": "title1", "maxW": 3210},
+  "rowWeb": {"x": 0, "y": 2334, "text": "Web: public website and carrier portal", "kind": "title1", "maxW": 2960},
+  "rowWeb2": {"x": 0, "y": 4184, "text": "Web: agency and regulator portals", "kind": "title1", "maxW": 2960}
+ },
+ "designSystems": [
+  {"title": "Masslak", "namespace": "masslak", "artifact": "https://claude.ai/artifact/QYFnZxJJatkay9rwqJVDXL", "version": "1791068861-ba3e", "copiedAt": "2026-10-03T23:50:00Z"}
+ ]
+}

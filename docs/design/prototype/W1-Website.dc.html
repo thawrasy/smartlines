@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>موقع مسلك: الرئيسية</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="masslak-theme.css">
+<link rel="stylesheet" href="ds/masslak/components/bundle.css">
+<script src="ds/masslak/components/bundle.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500&amp;family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#006C4C}a:hover{color:#00382A}
+.topnav a{padding:8px 14px;border-radius:18px;color:var(--on-surface-variant);font-weight:500;font-size:14px;text-decoration:none}
+.topnav a:hover{background:var(--surface-container)}
+.topnav a.on{background:var(--primary-container);color:var(--on-primary-container)}
+.route-card{background:var(--surface);border-radius:20px;box-shadow:var(--elevation-1);padding:18px;display:flex;flex-direction:column;gap:8px;text-decoration:none;color:var(--on-surface)}
+.route-card:hover{box-shadow:var(--elevation-2);color:var(--on-surface)}
+@media (max-width:900px){.search-row{grid-template-columns:1fr 1fr !important}.hero-title{font-size:34px !important;line-height:44px !important}}
+@media (max-width:600px){.search-row{grid-template-columns:1fr !important}.topnav{display:none !important}}
+</style>
+</helmet>
+<div class="ms-root" dir="rtl" style="min-height: 1480px; background: var(--surface-dim); font-family: 'IBM Plex Sans Arabic', system-ui, sans-serif; display: flex; flex-direction: column;">
+  <header style="position: relative; z-index: 2; display: flex; align-items: center; gap: 24px; height: 68px; padding-inline: max(24px, calc((100% - 1200px) / 2)); background: rgba(255,255,255,.86); backdrop-filter: saturate(180%) blur(16px); box-shadow: inset 0 -1px 0 var(--divider); flex-wrap: wrap;">
+    <x-import component-from-global-scope="Masslak.Logo" with-name="{{yes}}" size="{{36}}"></x-import>
+    <nav class="topnav" style="display: flex; gap: 4px; flex: 1;">
+      <a class="on" href="#">الرحلات</a><a href="M6-Shuttle.dc.html">النقل الترددي</a><a href="#">الشحن</a><a href="#">للشركات</a><a href="#">المساعدة</a>
+    </nav>
+    <div style="display: flex; gap: 8px; align-items: center;">
+      <x-import component-from-global-scope="Masslak.Button" variant="text" icon="language">English</x-import>
+      <x-import component-from-global-scope="Masslak.Button" variant="tonal">تسجيل الدخول</x-import>
+    </div>
+  </header>
+  <section style="background: linear-gradient(160deg, #CDEBDD 0%, #F5FBF7 55%, #FFF8E6 100%); box-shadow: inset 0 -1px 0 var(--divider);">
+    <div style="max-width: 1200px; margin: 0 auto; padding: 64px 24px 72px; display: flex; flex-direction: column; gap: 28px;">
+      <span class="ms-badge ms-badge-green" style="align-self: flex-start;">أكثر من 120 شركة نقل مرخّصة</span>
+      <h1 class="hero-title" style="margin: 0; font-size: 45px; line-height: 56px; font-weight: 600; max-width: 760px; text-wrap: balance;">احجز رحلتك بين المدن السورية بسعر واضح وتذكرة على هاتفك</h1>
+      <p class="body-large" style="margin: 0; color: var(--on-surface-variant); max-width: 640px;">قارن الرحلات والمقاعد، وادفع من محفظتك، واصعد بمسح رمز واحد حتى دون اتصال.</p>
+      <section style="background: var(--surface); border-radius: 28px; box-shadow: var(--elevation-2); padding: 20px; display: flex; flex-direction: column; gap: 14px;">
+        <x-import component-from-global-scope="Masslak.SegmentedButton" label="نوع الرحلة" options="{{tripTypes}}"></x-import>
+        <div class="search-row" style="display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 200px 160px auto; gap: 12px; align-items: end;">
+          <x-import component-from-global-scope="Masslak.TextField" label="من" icon="location_on" value="دمشق"></x-import>
+          <x-import component-from-global-scope="Masslak.TextField" label="إلى" icon="location_on" value="حلب"></x-import>
+          <x-import component-from-global-scope="Masslak.TextField" label="التاريخ" icon="event" value="الجمعة 14 تشرين 2"></x-import>
+          <x-import component-from-global-scope="Masslak.TextField" label="المسافرون" icon="group" value="مسافر واحد"></x-import>
+          <a class="ms-btn ms-btn-filled ms-btn-lg" href="M2-Results.dc.html" style="height: 52px;">ابحث</a>
+        </div>
+      </section>
+    </div>
+  </section>
+  <section style="max-width: 1200px; width: 100%; box-sizing: border-box; margin: 0 auto; padding: 56px 24px 24px; display: flex; flex-direction: column; gap: 20px;">
+    <div style="display: flex; justify-content: space-between; align-items: end; gap: 12px; flex-wrap: wrap;">
+      <h2 class="headline-small" style="margin: 0;">الخطوط الأكثر طلباً</h2>
+      <a href="#" style="font-weight: 500; font-size: 14px;">كل الخطوط</a>
+    </div>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px;">
+      <a class="route-card" href="M2-Results.dc.html"><b class="title-medium">دمشق ← حلب</b><span class="body-small" style="color: var(--on-surface-variant);">48 رحلة يومياً · من 4س 25د</span><span style="font-size: 18px; font-weight: 700;">من 55,000 <span style="font-size: 12px; font-weight: 500; color: var(--on-surface-variant);">ل.س</span></span></a>
+      <a class="route-card" href="M2-Results.dc.html"><b class="title-medium">دمشق ← اللاذقية</b><span class="body-small" style="color: var(--on-surface-variant);">31 رحلة يومياً · من 4س 10د</span><span style="font-size: 18px; font-weight: 700;">من 50,000 <span style="font-size: 12px; font-weight: 500; color: var(--on-surface-variant);">ل.س</span></span></a>
+      <a class="route-card" href="M2-Results.dc.html"><b class="title-medium">حمص ← طرطوس</b><span class="body-small" style="color: var(--on-surface-variant);">22 رحلة يومياً · من 1س 20د</span><span style="font-size: 18px; font-weight: 700;">من 20,000 <span style="font-size: 12px; font-weight: 500; color: var(--on-surface-variant);">ل.س</span></span></a>
+      <a class="route-card" href="M2-Results.dc.html"><b class="title-medium">دمشق ← درعا</b><span class="body-small" style="color: var(--on-surface-variant);">19 رحلة يومياً · من 1س 30د</span><span style="font-size: 18px; font-weight: 700;">من 18,000 <span style="font-size: 12px; font-weight: 500; color: var(--on-surface-variant);">ل.س</span></span></a>
+    </div>
+  </section>
+  <section style="max-width: 1200px; width: 100%; box-sizing: border-box; margin: 0 auto; padding: 32px 24px 56px; display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px;">
+    <div style="display: flex; gap: 14px; align-items: flex-start;"><span style="width: 48px; height: 48px; border-radius: 16px; flex: none; display: inline-flex; align-items: center; justify-content: center; background: var(--primary-container); color: var(--on-primary-container);"><x-import component-from-global-scope="Masslak.Icon" name="verified"></x-import></span><div><b class="title-medium">شركات مرخّصة فقط</b><p class="body-medium" style="margin: 4px 0 0; color: var(--on-surface-variant);">كل شركة ومركبة وسائق موثّق قبل نشر أي رحلة.</p></div></div>
+    <div style="display: flex; gap: 14px; align-items: flex-start;"><span style="width: 48px; height: 48px; border-radius: 16px; flex: none; display: inline-flex; align-items: center; justify-content: center; background: var(--secondary-container); color: var(--on-secondary-container);"><x-import component-from-global-scope="Masslak.Icon" name="account_balance_wallet"></x-import></span><div><b class="title-medium">سعر نهائي قبل الدفع</b><p class="body-medium" style="margin: 4px 0 0; color: var(--on-surface-variant);">تفصيل الأجرة والرسوم والضرائب يظهر قبل أن تدفع.</p></div></div>
+    <div style="display: flex; gap: 14px; align-items: flex-start;"><span style="width: 48px; height: 48px; border-radius: 16px; flex: none; display: inline-flex; align-items: center; justify-content: center; background: var(--tertiary-container); color: var(--on-tertiary-container);"><x-import component-from-global-scope="Masslak.Icon" name="qr_code_2"></x-import></span><div><b class="title-medium">تذكرة تعمل دون اتصال</b><p class="body-medium" style="margin: 4px 0 0; color: var(--on-surface-variant);">رمز الصعود محفوظ على هاتفك ويُمسح في ثانية.</p></div></div>
+  </section>
+  <section style="max-width: 1200px; width: 100%; box-sizing: border-box; margin: 0 auto 56px; padding: 0 24px;">
+    <div style="background: var(--primary); color: var(--on-primary); border-radius: 28px; padding: 36px; display: flex; align-items: center; gap: 24px; flex-wrap: wrap;">
+      <div style="flex: 1; min-width: 260px;"><h2 class="headline-small" style="margin: 0;">حمّل تطبيق مسلك</h2><p class="body-medium" style="margin: 6px 0 0; opacity: .9;">التذاكر والمحفظة والنقل الترددي في تطبيق واحد على Android وiOS.</p></div>
+      <x-import component-from-global-scope="Masslak.Button" variant="wheat" size="lg">Google Play</x-import>
+      <x-import component-from-global-scope="Masslak.Button" variant="wheat" size="lg">App Store</x-import>
+    </div>
+  </section>
+  <footer style="margin-top: auto; background: var(--surface); box-shadow: inset 0 1px 0 var(--divider); padding: 28px max(24px, calc((100% - 1200px) / 2)); display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; font-size: 13px; color: var(--on-surface-variant);">
+    <x-import component-from-global-scope="Masslak.Logo" with-name="{{yes}}" size="{{28}}"></x-import>
+    <span>الشروط · الخصوصية · تواصل معنا · <span dir="ltr">masslak.com</span></span>
+  </footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1480}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { yes: true, tripTypes: [{ value: 'one', label: 'ذهاب' }, { value: 'round', label: 'ذهاب وعودة' }] };
+  }
+}
+</script>
+</body>
+</html>

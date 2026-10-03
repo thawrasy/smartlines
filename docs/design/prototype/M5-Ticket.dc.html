@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>التذكرة</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="masslak-theme.css">
+<link rel="stylesheet" href="ds/masslak/components/bundle.css">
+<script src="ds/masslak/components/bundle.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500&amp;family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#006C4C}a:hover{color:#00382A}
+</style>
+</helmet>
+<div class="ms-root" dir="rtl" style="width: 390px; height: 844px; box-sizing: border-box; background: var(--surface-dim); display: flex; flex-direction: column; overflow: hidden; font-family: 'IBM Plex Sans Arabic', system-ui, sans-serif;">
+  <header style="display: flex; align-items: center; gap: 8px; height: 64px; padding-inline: 8px 8px; background: var(--surface-dim);">
+    <a href="M1-Home.dc.html" aria-label="إغلاق" style="width: 48px; height: 48px; border-radius: 24px; display: inline-flex; align-items: center; justify-content: center; color: var(--on-surface-variant);"><x-import component-from-global-scope="Masslak.Icon" name="close"></x-import></a>
+    <div class="title-large" style="flex: 1;">تذكرتك</div>
+    <x-import component-from-global-scope="Masslak.StatusBadge" status="CONFIRMED">تم الدفع</x-import>
+  </header>
+  <div style="flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 0 16px 12px;">
+    <x-import component-from-global-scope="Masslak.Ticket" carrier="بولمان الشام" status="CONFIRMED" status-label="مؤكد" from="دمشق" from-station="كراجات البولمان" to="حلب" to-station="الراموسة" date="الجمعة 14 تشرين 2" time="14:30" seat="11 · VIP" passenger="أحمد محمد خالد العلي" reference="7Q4K2P" offline="محفوظة على جهازك"></x-import>
+    <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; width: 100%;">
+      <x-import component-from-global-scope="Masslak.Button" variant="tonal" icon="add">أضف إلى المحفظة</x-import>
+      <x-import component-from-global-scope="Masslak.Button" variant="outlined" icon="route">تفاصيل الرحلة</x-import>
+    </div>
+  </div>
+  <x-import component-from-global-scope="Masslak.NavigationBar" items="{{nav}}"></x-import>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { nav: [{ icon: 'home', label: 'الرئيسية' }, { icon: 'confirmation_number', label: 'رحلاتي', active: true }, { icon: 'qr_code_scanner', label: 'الترددي' }, { icon: 'account_balance_wallet', label: 'المحفظة' }, { icon: 'person', label: 'حسابي' }] };
+  }
+}
+</script>
+</body>
+</html>

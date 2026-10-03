@@ -1,0 +1,13 @@
+<!-- @dsCard group="Booking" height=470 -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>SeatMap preview</title>
+<style>body{margin:0;background:var(--surface-dim)} #root{padding:20px}</style></head>
+<body>
+<div id="root" class="ms-root" dir="rtl"></div>
+<script>
+  var M = window.Masslak, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(h(M.SeatMap,{rows:7,taken:[1,2,5,9,10,14,17,22],selected:[11]}));
+</script>
+</body>
+</html>

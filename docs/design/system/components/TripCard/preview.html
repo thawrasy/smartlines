@@ -1,0 +1,14 @@
+<!-- @dsCard group="Booking" height=190 -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>TripCard preview</title>
+<style>body{margin:0;background:var(--surface-dim)} #root{padding:20px}</style></head>
+<body>
+<div id="root" class="ms-root" dir="rtl"></div>
+<script>
+  var M = window.Masslak, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(h('div',{className:'ms-stack',style:{gap:12}},
+ h(M.TripCard,{carrier:'بولمان الشام',fareBrand:'VIP · مقعد واسع',depart:'14:30',arrive:'19:05',from:'دمشق · كراجات البولمان',to:'حلب · الراموسة',duration:'4س 35د',price:'85,000',seatsLeft:4,tags:['واي فاي','حقيبة 20 كغ'],action:h(M.Button,{size:'sm'},'اختر')})));
+</script>
+</body>
+</html>

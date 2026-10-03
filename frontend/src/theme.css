@@ -1,5 +1,5 @@
-/* Masslak design tokens: Material 3 light roles with a light touch of the new Syrian identity
-   (green primary, wheat secondary). Layout uses logical properties so RTL and LTR share one stylesheet. */
+/* Masslak design tokens: Material 3 light roles inspired by the new Syrian identity
+   (flag green, eagle gold, wheat, sand). Source of truth: docs/design/system/tokens.json. Layout uses logical properties so RTL and LTR share one stylesheet. */
 :root {
   --primary: #006C4C;
   --on-primary: #FFFFFF;
@@ -26,6 +26,15 @@
   --outline: #737873;
   --outline-variant: #C3C8C2;
   --divider: #E1E6E2;
+  --surface-container-low: #F5FBF7;
+  --surface-container-highest: #E1EAE5;
+  --inverse-surface: #2F312F;
+  --inverse-on-surface: #F0F1EE;
+  --brand-green: #007A3D;
+  --brand-gold: #C9A55A;
+  --brand-gold-ink: #7A5900;
+  --brand-sand: #F3EBDD;
+  --font-mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
   --shadow-1: 0 1px 2px rgba(0, 56, 42, .06), 0 1px 3px rgba(0, 56, 42, .08);
   --shadow-2: 0 2px 6px rgba(0, 56, 42, .06), 0 8px 24px rgba(0, 56, 42, .08);
   --radius-s: 12px;
@@ -88,7 +97,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .btn.tonal { background: var(--primary-container); color: var(--on-primary-container); }
 .btn.tonal:hover { background: color-mix(in srgb, var(--primary-container) 85%, var(--primary)); }
 .btn.wheat { background: var(--secondary-container); color: var(--on-secondary-container); }
-.btn.outlined { background: transparent; color: var(--primary); border: 1px solid var(--outline-variant); }
+.btn.outlined { background: transparent; color: var(--primary); border: 1px solid var(--outline); }
 .btn.outlined:hover { background: var(--surface-tint); }
 .btn.text { background: transparent; color: var(--primary); padding: 0 12px; }
 .btn.text:hover { background: var(--surface-container); box-shadow: none; }
@@ -137,7 +146,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .field > span { font-size: 13px; color: var(--on-surface-variant); font-weight: 500; }
 .input, select.input, textarea.input {
-  height: 52px; padding: 0 16px; border-radius: var(--radius-s); border: 1px solid var(--outline-variant);
+  height: 52px; padding: 0 16px; border-radius: var(--radius-s); border: 1px solid var(--outline);
   background: var(--surface); outline: none; width: 100%; transition: border-color .15s, box-shadow .15s;
 }
 textarea.input { height: auto; padding: 12px 16px; min-height: 96px; }

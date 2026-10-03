@@ -1,0 +1,18 @@
+<!-- @dsCard group="Inputs" height=88 -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Chip preview</title>
+<style>body{margin:0;background:var(--surface-dim)} #root{padding:20px}</style></head>
+<body>
+<div id="root" class="ms-root" dir="rtl"></div>
+<script>
+  var M = window.Masslak, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render((function(){var C=function(){var s=React.useState(['morning']);function t(k){s[1](s[0].indexOf(k)>=0?s[0].filter(function(x){return x!==k}):s[0].concat([k]));}
+ return h('div',{className:'ms-row',style:{gap:8}},
+  h(M.Chip,{selected:s[0].indexOf('morning')>=0,onClick:function(){t('morning')},count:12},'صباحاً'),
+  h(M.Chip,{selected:s[0].indexOf('vip')>=0,onClick:function(){t('vip')},icon:'airline_seat_recline_normal'},'VIP'),
+  h(M.Chip,{selected:s[0].indexOf('wifi')>=0,onClick:function(){t('wifi')}},'واي فاي'),
+  h(M.Chip,{selected:s[0].indexOf('direct')>=0,onClick:function(){t('direct')},icon:'route'},'رحلة مباشرة'));};return h(C);})());
+</script>
+</body>
+</html>

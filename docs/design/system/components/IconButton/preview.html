@@ -1,0 +1,18 @@
+<!-- @dsCard group="Actions" height=88 -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>IconButton preview</title>
+<style>body{margin:0;background:var(--surface-dim)} #root{padding:20px}</style></head>
+<body>
+<div id="root" class="ms-root" dir="rtl"></div>
+<script>
+  var M = window.Masslak, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(h('div',{className:'ms-row'},
+  h(M.IconButton,{icon:'menu',label:'القائمة'}),
+  h(M.IconButton,{icon:'notifications',label:'الإشعارات',badge:true}),
+  h(M.IconButton,{icon:'swap_horiz',label:'تبديل المدينتين',variant:'tonal'}),
+  h(M.IconButton,{icon:'qr_code_scanner',label:'مسح الرمز',variant:'filled'}),
+  h(M.IconButton,{icon:'arrow_back',label:'رجوع'})));
+</script>
+</body>
+</html>

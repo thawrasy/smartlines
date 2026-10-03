@@ -1,0 +1,13 @@
+<!-- @dsCard group="Navigation" height=110 -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>NavigationBar preview</title>
+<style>body{margin:0;background:var(--surface-dim)} #root{padding:20px}</style></head>
+<body>
+<div id="root" class="ms-root" dir="rtl"></div>
+<script>
+  var M = window.Masslak, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(h('div',{style:{maxWidth:420,margin:'0 auto',borderRadius:16,overflow:'hidden'}},h(M.NavigationBar,{items:[{icon:'home',label:'الرئيسية',active:true},{icon:'confirmation_number',label:'رحلاتي'},{icon:'qr_code_scanner',label:'الترددي'},{icon:'account_balance_wallet',label:'المحفظة',badge:true},{icon:'person',label:'حسابي'}]})));
+</script>
+</body>
+</html>

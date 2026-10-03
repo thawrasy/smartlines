@@ -1,0 +1,41 @@
+<!-- @dsCard height=300 -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Masslak cover</title>
+<style>
+  body { margin: 0; background: var(--surface-dim); }
+  .cv { position: relative; width: 960px; height: 300px; overflow: hidden; background: var(--surface-dim); font-family: var(--font-sans); }
+  .cv svg { position: absolute; inset: 0; }
+  .green { fill: var(--brand-green); } .prim { fill: var(--primary); } .gold { fill: var(--brand-gold); }
+  .wheat { fill: var(--secondary-container); } .sand { fill: var(--brand-sand); } .ground { fill: var(--surface-dim); }
+  .route { fill: none; stroke: var(--brand-gold); stroke-width: 12; stroke-linecap: round; }
+  .route-w { fill: none; stroke: var(--secondary-container); stroke-width: 12; stroke-linecap: round; }
+  .stop { fill: var(--surface); }
+  .txt { position: absolute; left: 40px; bottom: 36px; max-width: 420px; }
+  .name { font-weight: 600; font-size: 96px; line-height: .95; color: var(--on-surface); letter-spacing: -1px; }
+  .tag { margin-top: 12px; font-size: 14px; line-height: 20px; color: var(--on-surface-variant); }
+</style></head>
+<body>
+<div class="cv">
+  <!-- blocks: brand-green slab 216x300 (radius-xl corner), primary 168x144, secondary-container 168x132, brand-sand 120x120, brand-gold 48 disc (radius-full)
+       arrangement: one tall slab bleeding off the top and bottom with satellites stacked toward it, all right of x=480
+       pattern: literal motif, the Masslak route; two route arcs with stops cross the blocks, because the mark is a curved route between two stops
+       scales: gaps space-6 (24px), corners radius-xl (28px) and radius-lg (20px), stroke 12px (3 x space-1), stops r=12 -->
+  <svg width="960" height="300" viewBox="0 0 960 300" aria-hidden="true">
+    <rect class="sand" x="504" y="156" width="120" height="120" rx="20"/>
+    <rect class="wheat" x="552" y="0" width="168" height="132" rx="28"/>
+    <rect class="prim" x="648" y="156" width="96" height="144" rx="20"/>
+    <rect class="green" x="744" y="-28" width="216" height="356" rx="28"/>
+    <circle class="gold" cx="600" cy="216" r="24"/>
+    <path class="route" d="M600 216 C 680 120, 760 90, 900 80"/>
+    <circle class="stop" cx="900" cy="80" r="12"/>
+    <path class="route-w" d="M690 250 C 760 200, 820 190, 920 196"/>
+    <circle class="stop" cx="690" cy="250" r="10"/>
+  </svg>
+  <div class="txt">
+    <div class="name">Masslak</div>
+    <div class="tag">مسلك · Book, ride and ship across Syria, in one calm interface.</div>
+  </div>
+</div>
+</body>
+</html>

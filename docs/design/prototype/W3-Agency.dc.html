@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>بوابة الوكالات: بيع التذاكر</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="masslak-theme.css">
+<link rel="stylesheet" href="ds/masslak/components/bundle.css">
+<script src="ds/masslak/components/bundle.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500&amp;family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#006C4C}a:hover{color:#00382A}
+.ms-drawer{min-height:980px}
+.quota{height:8px;border-radius:4px;background:var(--surface-container-high);overflow:hidden}
+.quota>div{height:100%;border-radius:4px;background:var(--primary)}
+</style>
+</helmet>
+<div class="ms-root" dir="rtl" style="min-height: 980px; background: var(--surface-dim); font-family: 'IBM Plex Sans Arabic', system-ui, sans-serif; display: flex; flex-wrap: wrap; align-items: stretch;">
+  <div style="flex: 1 1 272px; max-width: 272px; display: flex;">
+    <x-import component-from-global-scope="Masslak.NavigationDrawer" brand="{{brand}}" sections="{{sections}}" footer="{{org}}"></x-import>
+  </div>
+  <main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column;">
+    <header style="display: flex; align-items: center; gap: 12px; padding: 20px 32px 8px; flex-wrap: wrap;">
+      <div style="flex: 1; min-width: 220px;">
+        <h1 class="headline-large" style="margin: 0;">بيع تذكرة</h1>
+        <p class="body-medium" style="margin: 2px 0 0; color: var(--on-surface-variant);">مكتب الياسمين للسياحة والسفر · فرع الصالحية</p>
+      </div>
+      <x-import component-from-global-scope="Masslak.Button" variant="outlined" icon="confirmation_number">حجوزات اليوم</x-import>
+    </header>
+    <div style="padding: 16px 32px 40px; display: flex; flex-direction: column; gap: 20px;">
+      <section style="background: var(--surface); border-radius: 20px; box-shadow: var(--elevation-1); padding: 18px; display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; align-items: end;">
+        <x-import component-from-global-scope="Masslak.TextField" label="من" icon="location_on" value="دمشق"></x-import>
+        <x-import component-from-global-scope="Masslak.TextField" label="إلى" icon="location_on" value="اللاذقية"></x-import>
+        <x-import component-from-global-scope="Masslak.TextField" label="التاريخ" icon="event" value="2026-11-20" dir="ltr"></x-import>
+        <x-import component-from-global-scope="Masslak.TextField" label="المسافرون" icon="group" value="3"></x-import>
+        <x-import component-from-global-scope="Masslak.Button" icon="search" size="lg">ابحث في كل الشركات</x-import>
+      </section>
+      <div style="display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-start;">
+        <section style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 12px;">
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <x-import component-from-global-scope="Masslak.Chip" selected="{{yes}}" count="{{14}}">كل الشركات</x-import>
+            <x-import component-from-global-scope="Masslak.Chip">ضمن حصتي</x-import>
+            <x-import component-from-global-scope="Masslak.Chip">أجرة تفضيلية</x-import>
+            <x-import component-from-global-scope="Masslak.Chip">مساءً</x-import>
+          </div>
+          <x-import component-from-global-scope="Masslak.DataTable" columns="{{cols}}" rows="{{rows}}"></x-import>
+        </section>
+        <aside style="flex: 1 1 300px; min-width: 0; display: flex; flex-direction: column; gap: 12px;">
+          <section style="background: var(--surface); border-radius: 20px; box-shadow: var(--elevation-1); padding: 18px; display: flex; flex-direction: column; gap: 14px;">
+            <b class="title-small">الحصص هذا الأسبوع</b>
+            <div style="display: flex; flex-direction: column; gap: 6px; font-size: 13px;"><div style="display: flex; justify-content: space-between;"><span>القدموس</span><span style="color: var(--on-surface-variant);">82 / 120 مقعداً</span></div><div class="quota"><div style="width: 68%;"></div></div></div>
+            <div style="display: flex; flex-direction: column; gap: 6px; font-size: 13px;"><div style="display: flex; justify-content: space-between;"><span>بولمان الشام</span><span style="color: var(--on-surface-variant);">47 / 60 مقعداً</span></div><div class="quota"><div style="width: 78%;"></div></div></div>
+            <div style="display: flex; flex-direction: column; gap: 6px; font-size: 13px;"><div style="display: flex; justify-content: space-between;"><span>الأهلية للنقل</span><span style="color: var(--on-surface-variant);">20 / 80 مقعداً</span></div><div class="quota"><div style="width: 25%;"></div></div></div>
+          </section>
+          <x-import component-from-global-scope="Masslak.Stat" icon="account_balance_wallet" label="عمولتك هذا الشهر (ل.س)" value="4,860,000" tone="wheat" note="كشف الحساب يصدر في 1 كانون الأول"></x-import>
+        </aside>
+      </div>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":980}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const h = window.React.createElement, M = window.Masslak;
+    return {
+      yes: true,
+      brand: M ? h(M.Logo, { withName: true, tagline: 'بوابة الوكالات' }) : null,
+      org: h('div', null, h('b', null, 'مكتب الياسمين'), h('div', { style: { color: 'var(--on-surface-variant)' } }, 'وكيل معتمد · 3 وكلاء فرعيين')),
+      sections: [
+        { items: [{ icon: 'search', label: 'بيع تذكرة', active: true }, { icon: 'confirmation_number', label: 'الحجوزات' }, { icon: 'route', label: 'الحصص' }] },
+        { title: 'المال', items: [{ icon: 'account_balance_wallet', label: 'العمولات والكشوف' }, { icon: 'group', label: 'الوكلاء الفرعيون' }] }
+      ],
+      cols: [{ key: 'carrier', label: 'الشركة' }, { key: 'dep', label: 'الانطلاق' }, { key: 'arr', label: 'الوصول' }, { key: 'brand', label: 'فئة الأجرة' }, { key: 'seats', label: 'متاح', align: 'end' }, { key: 'price', label: 'السعر (ل.س)', align: 'end' }, { key: 'com', label: 'عمولتك', align: 'end' }],
+      rows: [
+        { carrier: 'القدموس', dep: '07:00', arr: '11:10', brand: 'رجال أعمال', seats: '12', price: '90,000', com: '4,500' },
+        { carrier: 'بولمان الشام', dep: '08:30', arr: '12:45', brand: 'VIP', seats: '6', price: '80,000', com: '4,000' },
+        { carrier: 'الأهلية للنقل', dep: '09:15', arr: '13:40', brand: 'عادي', seats: '27', price: '50,000', com: '2,000' },
+        { carrier: 'القدموس', dep: '13:00', arr: '17:10', brand: 'عادي', seats: '19', price: '52,000', com: '2,600' },
+        { carrier: 'الزنوبيا', dep: '16:30', arr: '20:50', brand: 'VIP', seats: '3', price: '78,000', com: '3,900' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

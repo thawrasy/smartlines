@@ -1,0 +1,17 @@
+<!-- @dsCard group="Surfaces" height=210 -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Card preview</title>
+<style>body{margin:0;background:var(--surface-dim)} #root{padding:20px}</style></head>
+<body>
+<div id="root" class="ms-root" dir="rtl"></div>
+<script>
+  var M = window.Masslak, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(200px,1fr))',gap:16}},
+  h(M.Card,{title:'رحلتك القادمة',action:h(M.StatusBadge,{status:'CONFIRMED'},'مؤكد')},h('div',{className:'body-medium ms-muted'},'دمشق ← حلب · الجمعة 14:30')),
+  h(M.Card,{variant:'flat',title:'بطاقة مسطّحة'},h('div',{className:'body-medium ms-muted'},'للمحتوى الكثيف داخل البوابات.')),
+  h(M.Card,{variant:'tint',title:'بطاقة ملوّنة'},h('div',{className:'body-medium ms-muted'},'لمعلومات هادئة أو ملخصات.')),
+  h(M.Card,{variant:'hero',title:'بطاقة رئيسية'},h('div',{className:'body-medium ms-muted'},'لنموذج البحث والتذكرة.'))));
+</script>
+</body>
+</html>
