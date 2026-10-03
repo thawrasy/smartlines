@@ -30,7 +30,7 @@ async def summary(pr: Principal = Depends(can_audit)):
                  (SELECT count(*) FROM audit.activity_log WHERE ts > now() - interval '24 hours' AND result = 'BLOCKED') AS blocked_24h,
                  (SELECT count(*) FROM sec.ip_rule WHERE revoked_at IS NULL AND (expires_at IS NULL OR expires_at > now())
                      AND source LIKE 'AUTO%') AS auto_blocks_active,
-                 (SELECT max(sealed_at) FROM audit.log_seal) AS last_seal""")
+                 (SELECT max(created_at) FROM audit.log_seal) AS last_seal""")
     return row_dict(r)
 
 

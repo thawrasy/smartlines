@@ -7,7 +7,7 @@ They exercise the real database: RLS, triggers, the ledger and the audit logs.
 import asyncio
 import os
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import asyncpg
 import httpx
@@ -34,6 +34,16 @@ def day(offset: int) -> str:
     return (datetime.utcnow() + timedelta(hours=3) + timedelta(days=offset)).date().isoformat()
 
 
+
+
+def new_passenger() -> httpx.Client:
+    c = client()
+    email = f"u{uuid.uuid4().hex[:8]}@example.com"
+    assert c.post("/api/auth/register", json={"full_name": "Test User", "email": email,
+                                              "password": "another-long-password"}).status_code == 201
+    assert c.post("/api/auth/login", json={"identifier": email, "password": "another-long-password",
+                                           "portal": "PASSENGER"}).status_code == 200
+    return c
 
 
 def owner_sql(sql: str, *args):
@@ -103,7 +113,8 @@ def test_passenger_cannot_open_carrier_api(pax):
     assert r.status_code == 403
 
 
-def test_seat_map_and_hold_conflict(pax, trip):
+def test_seat_map_and_hold_conflict(trip):
+    pax = new_passenger()          # holds count against a per-user limit, so each run uses a fresh account
     r = pax.get(f"/api/trips/{trip['uid']}", params={"from_seq": trip["from_seq"], "to_seq": trip["to_seq"]})
     assert r.status_code == 200 and len(r.json()["seats"]) == trip["seats_total"]
     a, b = free_seats(pax, trip, 2)
@@ -111,7 +122,12 @@ def test_seat_map_and_hold_conflict(pax, trip):
     assert first.status_code == 201
     second = hold(pax, trip, [a, b])          # seat a already held: the whole hold is refused
     assert second.status_code == 409 and second.json()["error"]["code"] == "SEAT_TAKEN"
-    assert hold(pax, trip, [b]).status_code == 201    # nothing was half-locked by the failed attempt
+    third = hold(pax, trip, [b])
+    assert third.status_code == 201                   # nothing was half-locked by the failed attempt
+    for token in (first.json()["hold_token"], third.json()["hold_token"]):
+        assert pax.delete(f"/api/holds/{token}").json()["released_seats"] == 1
+    seats = pax.get(f"/api/trips/{trip['uid']}", params={"from_seq": trip["from_seq"], "to_seq": trip["to_seq"]}).json()["seats"]
+    assert all(x["free"] for x in seats if x["seat_no"] in (a, b))
 
 
 def test_booking_paid_from_wallet_is_idempotent_and_balanced(pax, trip):
@@ -136,17 +152,16 @@ def test_booking_paid_from_wallet_is_idempotent_and_balanced(pax, trip):
 
 
 def test_other_user_cannot_see_booking(pax):
-    other = client()
-    email = f"u{uuid.uuid4().hex[:8]}@example.com"
-    assert other.post("/api/auth/register", json={"full_name": "Other User", "email": email,
-                                                   "password": "another-long-password"}).status_code == 201
-    assert other.post("/api/auth/login", json={"identifier": email, "password": "another-long-password",
-                                               "portal": "PASSENGER"}).status_code == 200
+    other = new_passenger()
     assert other.get(f"/api/bookings/{pytest.booking_ref}").status_code == 404
 
 
 def test_cancel_refund_follows_brand(pax):
-    trip = pax.get("/api/trips/search", params={"origin": "DAM", "destination": "HMA", "on": day(3)}).json()["trips"][0]
+    # A trip more than 24 hours away, so the STANDARD brand refunds the whole fare
+    later = [t for d in range(2, 7) for t in pax.get("/api/trips/search", params={"origin": "DAM", "destination": "HMA",
+                                                                               "on": day(d)}).json()["trips"]
+             if datetime.fromisoformat(t["departs_at"]) > datetime.now(timezone.utc) + timedelta(hours=25)]
+    trip = later[-1]
     [seat] = free_seats(pax, trip, 1)
     h = hold(pax, trip, [seat]).json()["hold_token"]
     ref = book(pax, trip, h, [seat], brand="STANDARD").json()["booking_ref"]
@@ -236,6 +251,9 @@ def test_admin_onboarding_ip_rules_and_audit():
     activity = a.get("/api/security/activity").json()["activity"]
     assert any(x["action"] == "security.ip_rule.create" for x in activity)
     assert a.get("/api/regulator/dashboard").status_code == 200
+    summary = a.get("/api/security/summary").json()
+    assert summary["logins_24h"] >= 1 and "last_seal" in summary
+    assert httpx.get(f"{BASE}/api/ref").json()["fare_brands"][1]["rules"]["refund"] == [[24, 100], [2, 50]]
 
 
 def test_regulator_is_read_only():
@@ -246,7 +264,9 @@ def test_regulator_is_read_only():
 
 
 def test_lockout_after_failed_logins():
+    # Failed logins also feed the automatic IP block, so they come from a random benchmark-range address
     c = client()
+    c.headers["X-Forwarded-For"] = f"198.18.{uuid.uuid4().int % 250}.{uuid.uuid4().int % 250 + 1}"
     email = f"lock{uuid.uuid4().hex[:8]}@example.com"
     c.post("/api/auth/register", json={"full_name": "Lock Test", "email": email, "password": "correct-long-password"})
     codes = [c.post("/api/auth/login", json={"identifier": email, "password": "wrong-password", "portal": "PASSENGER"}).status_code

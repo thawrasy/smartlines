@@ -1,4 +1,5 @@
 """Public catalog: reference data, stations, trip search and trip details with the seat map."""
+import json
 from datetime import date
 from typing import Optional
 
@@ -36,7 +37,8 @@ async def reference(request: Request):
         brands = await conn.fetch(
             "SELECT code, name, factor, rules FROM pricing.fare_brand WHERE active AND company_id IS NULL ORDER BY sort")
     return {"cities": rows(cities), "locales": rows(locales),
-            "fare_brands": [{**row_dict(b), "factor": float(b["factor"])} for b in brands]}
+            "fare_brands": [{**row_dict(b), "factor": float(b["factor"]),
+                             "rules": json.loads(b["rules"]) if isinstance(b["rules"], str) else b["rules"]} for b in brands]}
 
 
 @router.get("/stations")

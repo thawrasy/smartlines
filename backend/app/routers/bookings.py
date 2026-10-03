@@ -63,6 +63,17 @@ async def create_hold(body: HoldIn, request: Request, pr: Principal = Depends(pa
     return {"hold_token": str(token), "expires_at": locked[0]["lock_expires_at"].isoformat()}
 
 
+@router.delete("/holds/{hold_token}")
+async def release_hold(hold_token: uuid.UUID, request: Request, pr: Principal = Depends(passenger)):
+    async with db.transaction(context_for(request, pr)) as conn:
+        released = await conn.fetchval(
+            """WITH r AS (UPDATE ops.seat_segment SET status = 'AVAILABLE', lock_token = NULL, lock_user_id = NULL,
+                            lock_expires_at = NULL
+                          WHERE lock_token = $1 AND lock_user_id = $2 AND status = 'LOCKED' RETURNING seat_no)
+               SELECT count(DISTINCT seat_no) FROM r""", hold_token, pr.user_id)
+    return {"ok": True, "released_seats": released}
+
+
 class PassengerIn(BaseModel):
     full_name: str = Field(min_length=3, max_length=120)
     seat_no: int
