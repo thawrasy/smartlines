@@ -7,6 +7,7 @@ import { Icon, Logo } from "./ui";
 import wordmarkAr from "../assets/brand/masslak-wordmark-ar.svg";
 import wordmarkEn from "../assets/brand/masslak-wordmark-en.svg";
 import type { IconName } from "./icons";
+import { NotificationBell } from "./Notifications";
 
 export function LangSwitch({ compact }: { compact?: boolean }) {
   const { locale, setLocale, t } = useI18n();
@@ -58,6 +59,7 @@ export function PublicLayout() {
           <LangSwitch />
           {me ? (
             <>
+              <NotificationBell />
               {!passenger && <Link className="btn tonal small" to={homeFor(me)}>{t("nav.portals")}</Link>}
               <button className="icon-btn" title={t("nav.logout")} onClick={async () => { await logout(); nav("/"); }}>
                 <Icon name="logout" flip />
@@ -129,7 +131,8 @@ export function PortalShell({ title, items, children }: { title: string; items: 
       <div className="main">
         <div className="main-bar">
           <button className="icon-btn menu-btn" onClick={() => setOpen(true)} aria-label={t("nav.menu")}><Icon name="menu" /></button>
-          <h3>{current?.label ?? title}</h3>
+          <h3 className="grow">{current?.label ?? title}</h3>
+          <NotificationBell />
         </div>
         <div className="main-content"><Outlet /></div>
       </div>

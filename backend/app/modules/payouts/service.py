@@ -17,6 +17,7 @@ from ...deps import Principal
 from ...errors import ApiError, forbidden, not_found
 from ...ledger import company_wallet, platform_wallet, post_txn
 from ...util import row_dict, rows
+from ..notify.outbox import emit
 from . import iban as IBAN
 from . import repository as repo
 
@@ -187,6 +188,8 @@ async def reject(conn, pr: Principal, withdrawal_uid: uuid.UUID, reason: str) ->
         "UPDATE fin.withdrawal_request SET status = 'REJECTED', reject_reason = $2, decided_at = now() WHERE id = $1",
         w["id"], reason)
     await repo.set_hold(conn, w["wallet_id"], -w["amount"])
+    await emit(conn, "withdrawal.rejected", "withdrawal", w["id"], {"amount": w["amount"], "reason": reason},
+               company_id=w["company_id"])
     return w["id"]
 
 
@@ -209,6 +212,8 @@ async def mark_paid(conn, ctx: db.Context, pr: Principal, withdrawal_uid: uuid.U
         await conn.execute(
             """UPDATE fin.withdrawal_request SET status = 'PAID', bank_ref = $2, ledger_txn_id = $3, paid_by = $4, paid_at = now()
                 WHERE id = $1""", w["id"], bank_ref, txn, pr.user_id)
+        await emit(conn, "withdrawal.paid", "withdrawal", w["id"], {"amount": w["amount"], "bank_ref": bank_ref,
+                                                                    "iban_last4": w["iban_last4"]}, company_id=w["company_id"])
     return w["id"]
 
 

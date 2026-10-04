@@ -285,6 +285,15 @@ const en = {
     types: { CR: "Commercial register", TAX_CERT: "Tax certificate", TRANSPORT_LICENSE: "Transport licence",
              INSURANCE_POLICY: "Insurance policy", VEHICLE_REG: "Vehicle registration", AGENCY_LICENSE: "Travel agency licence", OTHER: "Other" },
   },
+  notify: {
+    title: "Notifications", none: "Nothing new.",
+    booking_confirmed: { title: "Booking {booking_ref} confirmed", body: "{from_city} to {to_city}, {departs_local}, {passengers} passenger(s), {total_amount}." },
+    booking_cancelled: { title: "Booking {booking_ref} cancelled", body: "Refund: {refund_amount}." },
+    withdrawal_paid: { title: "Payout of {amount} sent", body: "Transferred to the account ending {iban_last4}. Reference {bank_ref}." },
+    withdrawal_rejected: { title: "Withdrawal of {amount} not approved", body: "{reason}. The amount is available again." },
+    document_approved: { title: "{doc_type} approved", body: "Reviewed and approved by the platform." },
+    document_rejected: { title: "{doc_type} needs attention", body: "{note}. Please upload a corrected document." },
+  },
   agency: {
     dashboard: "Dashboard", sell: "Sell tickets", sellHint: "Search any approved carrier and sell at the public price",
     bookings: "Bookings", statement: "Statement", staff: "Staff", balance: "Prepaid balance", soldToday: "Sold today",

@@ -11,14 +11,16 @@ record() { echo "INSERT INTO sys.schema_file (file, sha256) VALUES (:'file', :'s
 DB="${1:?database name}"; shift || true
 PSQL_ARGS=("$@")
 DIR="$(cd "$(dirname "$0")" && pwd)"
+# Schema files in numeric order of their prefix (000 ... 990, 1000 ...), so numbering can grow past three digits
+schema_files() { ls "$DIR"/schema/[0-9]*_*.sql | awk -F/ '{ n = $NF; sub(/_.*/, "", n); print n "\t" $0 }' | sort -n | cut -f2-; }
 BASELINE="970"
 
 # "tracked" only once at least one file is recorded, so an interrupted first run is safe to repeat
 tracked="$(psql "$@" -d "$DB" -Atqc "SELECT to_regclass('sys.schema_file') IS NOT NULL AND EXISTS (SELECT 1 FROM sys.schema_file)")"
 psql "$@" -d "$DB" -v ON_ERROR_STOP=1 -q -f "$DIR/schema_file.sql"
-for f in "$DIR"/schema/[0-9][0-9][0-9]_*.sql; do
+for f in $(schema_files); do
   name="$(basename "$f")"; sha="$(sha256sum "$f" | cut -d' ' -f1)"
-  if [ "$tracked" = "f" ] && [ "${name:0:3}" -le "$BASELINE" ]; then
+  if [ "$tracked" = "f" ] && [ "$((10#${name%%_*}))" -le "$BASELINE" ]; then
     record "$name" "$sha"
     continue
   fi

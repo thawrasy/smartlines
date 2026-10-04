@@ -287,6 +287,15 @@ const ar: Messages = {
     types: { CR: "السجل التجاري", TAX_CERT: "الشهادة الضريبية", TRANSPORT_LICENSE: "رخصة النقل",
              INSURANCE_POLICY: "بوليصة التأمين", VEHICLE_REG: "رخصة سير المركبة", AGENCY_LICENSE: "ترخيص وكالة السفر", OTHER: "أخرى" },
   },
+  notify: {
+    title: "الإشعارات", none: "لا جديد.",
+    booking_confirmed: { title: "تم تأكيد الحجز {booking_ref}", body: "من {from_city} إلى {to_city}، {departs_local}، عدد الركاب {passengers}، {total_amount}." },
+    booking_cancelled: { title: "تم إلغاء الحجز {booking_ref}", body: "المبلغ المسترد: {refund_amount}." },
+    withdrawal_paid: { title: "تم صرف {amount}", body: "حُوّل إلى الحساب المنتهي بـ {iban_last4}. المرجع {bank_ref}." },
+    withdrawal_rejected: { title: "لم تتم الموافقة على سحب {amount}", body: "{reason}. عاد المبلغ متاحاً." },
+    document_approved: { title: "اعتُمدت {doc_type}", body: "راجعتها المنصة واعتمدتها." },
+    document_rejected: { title: "{doc_type} بحاجة إلى تعديل", body: "{note}. يرجى رفع وثيقة مصححة." },
+  },
   agency: {
     dashboard: "لوحة المتابعة", sell: "بيع التذاكر", sellHint: "ابحث لدى أي ناقل معتمد وبِع بالسعر المعلن",
     bookings: "الحجوزات", statement: "كشف الحساب", staff: "الموظفون", balance: "الرصيد المسبق", soldToday: "مبيعات اليوم",

@@ -1,0 +1,54 @@
+"""Delivery channels. Each provider sends one message and raises on failure; the worker retries.
+
+    MASSLAK_NOTIFY_EMAIL = log | smtp       MASSLAK_SMTP_URL = smtp://user:password@host:587  (STARTTLS)
+    MASSLAK_NOTIFY_SMS   = log | http       MASSLAK_SMS_URL = https://gateway/send, MASSLAK_SMS_TOKEN = <bearer>
+
+The log provider writes each message as one JSON line under data/messages/, for development and tests.
+"""
+import json
+import os
+import smtplib
+import ssl
+import urllib.request
+from datetime import datetime, timezone
+from email.message import EmailMessage
+from pathlib import Path
+from urllib.parse import urlparse
+
+from ...config import get_settings
+
+
+def _log(channel: str, to: str, subject: str, body: str) -> None:
+    folder = Path(get_settings().files_dir).resolve().parent / "messages"
+    folder.mkdir(parents=True, exist_ok=True)
+    with open(folder / f"{channel.lower()}.jsonl", "a", encoding="utf-8") as f:
+        f.write(json.dumps({"at": datetime.now(timezone.utc).isoformat(), "to": to, "subject": subject, "body": body},
+                           ensure_ascii=False) + "\n")
+
+
+def send_email(to: str, subject: str, body: str) -> None:
+    if os.environ.get("MASSLAK_NOTIFY_EMAIL", "log") != "smtp":
+        return _log("EMAIL", to, subject, body)
+    url = urlparse(os.environ["MASSLAK_SMTP_URL"])
+    msg = EmailMessage()
+    msg["From"] = os.environ.get("MASSLAK_MAIL_FROM", "Masslak <no-reply@masslak.sy>")
+    msg["To"], msg["Subject"] = to, subject
+    msg.set_content(body)
+    with smtplib.SMTP(url.hostname, url.port or 587, timeout=15) as s:
+        s.starttls(context=ssl.create_default_context())
+        if url.username:
+            s.login(url.username, url.password or "")
+        s.send_message(msg)
+
+
+def send_sms(to: str, body: str) -> None:
+    if os.environ.get("MASSLAK_NOTIFY_SMS", "log") != "http":
+        return _log("SMS", to, "", body)
+    req = urllib.request.Request(os.environ["MASSLAK_SMS_URL"], data=json.dumps({"to": to, "text": body}).encode(),
+                                 headers={"Content-Type": "application/json",
+                                          "Authorization": f"Bearer {os.environ['MASSLAK_SMS_TOKEN']}"}, method="POST")
+    if not req.full_url.startswith("https://"):
+        raise RuntimeError("the SMS gateway must use HTTPS")
+    with urllib.request.urlopen(req, timeout=15) as r:
+        if r.status >= 300:
+            raise RuntimeError(f"SMS gateway answered {r.status}")

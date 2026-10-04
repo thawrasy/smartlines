@@ -9,6 +9,7 @@ from ... import crypto, db
 from ...deps import Principal
 from ...errors import ApiError, forbidden, not_found
 from ...util import rows
+from ..notify.outbox import emit
 from . import storage
 
 DOC_TYPES = ("CR", "TAX_CERT", "TRANSPORT_LICENSE", "INSURANCE_POLICY", "VEHICLE_REG", "AGENCY_LICENSE", "OTHER")
@@ -98,7 +99,7 @@ async def read_file(conn: asyncpg.Connection, ctx: db.Context, pr: Principal, do
 async def decide(conn: asyncpg.Connection, pr: Principal, doc_uid: uuid.UUID, approve: bool, note: Optional[str]) -> int:
     if pr.portal != "PLATFORM" or "company.approve" not in pr.permissions:
         raise forbidden("missing permission: company.approve")
-    d = await conn.fetchrow("SELECT id, status, uploaded_by FROM iam.document WHERE uid = $1 FOR UPDATE", doc_uid)
+    d = await conn.fetchrow("SELECT id, status, uploaded_by, doc_type, company_id FROM iam.document WHERE uid = $1 FOR UPDATE", doc_uid)
     if d is None:
         raise not_found("document")
     if d["status"] != "PENDING":
@@ -108,4 +109,7 @@ async def decide(conn: asyncpg.Connection, pr: Principal, doc_uid: uuid.UUID, ap
     await conn.execute(
         "UPDATE iam.document SET status = $2, review_note = $3, reviewed_by = $4, reviewed_at = now() WHERE id = $1",
         d["id"], "APPROVED" if approve else "REJECTED", note, pr.user_id)
+    if d["uploaded_by"]:
+        await emit(conn, "document.approved" if approve else "document.rejected", "document", d["id"],
+                   {"doc_type": d["doc_type"], "note": note, "uploaded_by": d["uploaded_by"]}, company_id=d["company_id"])
     return d["id"]

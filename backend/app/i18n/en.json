@@ -1,0 +1,33 @@
+{
+  "booking.confirmed": {
+    "subject": "Booking {booking_ref} confirmed",
+    "body": "Your booking {booking_ref} is confirmed: {from_city} to {to_city}, departing {departs_local}, {passengers} passenger(s), SYP {total_amount}. Show the QR code in the app or on the website when you board.",
+    "sms": "Masslak: booking {booking_ref} confirmed. {from_city} to {to_city}, {departs_local}. Show your QR code when boarding."
+  },
+  "booking.cancelled": {
+    "subject": "Booking {booking_ref} cancelled",
+    "body": "Your booking {booking_ref} is cancelled. Refund: SYP {refund_amount}.",
+    "sms": "Masslak: booking {booking_ref} cancelled. Refund SYP {refund_amount}."
+  },
+  "withdrawal.paid": {
+    "subject": "Payout of SYP {amount} sent",
+    "body": "Your withdrawal of SYP {amount} was transferred to your bank account ending {iban_last4}. Bank reference: {bank_ref}."
+  },
+  "withdrawal.rejected": {
+    "subject": "Withdrawal of SYP {amount} not approved",
+    "body": "Your withdrawal of SYP {amount} was not approved: {reason}. The amount is available in your balance again."
+  },
+  "document.approved": {
+    "subject": "{doc_type} approved",
+    "body": "Your {doc_type} was reviewed and approved."
+  },
+  "document.rejected": {
+    "subject": "{doc_type} needs attention",
+    "body": "Your {doc_type} was not approved: {note}. Please upload a corrected document."
+  },
+  "cities": {"ALP": "Aleppo", "DAM": "Damascus", "DRA": "Daraa", "HMA": "Hama", "HMS": "Homs", "LTK": "Latakia", "TRT": "Tartus",
+             "SWD": "As-Suwayda", "IDL": "Idlib", "RQA": "Raqqa", "DRZ": "Deir ez-Zor", "HSK": "Al-Hasakah", "QNT": "Quneitra", "RDM": "Rif Dimashq",
+             "AMM": "Amman", "BEY": "Beirut"},
+  "doc_types": {"CR": "Commercial register", "TAX_CERT": "Tax certificate", "TRANSPORT_LICENSE": "Transport licence",
+                "INSURANCE_POLICY": "Insurance policy", "VEHICLE_REG": "Vehicle registration", "AGENCY_LICENSE": "Travel agency licence", "OTHER": "Document"}
+}

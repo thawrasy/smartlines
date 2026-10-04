@@ -17,6 +17,7 @@ from ...config import get_settings
 from ...errors import ApiError, not_found
 from ...ledger import company_wallet, platform_wallet, post_txn, user_wallet
 from ...util import booking_ref, row_dict, ticket_name, ticket_no
+from ..notify.outbox import emit
 from . import repository as repo
 from .models import MAX_LOCKED_SEATS, BookingIn, HoldIn
 
@@ -194,6 +195,16 @@ async def create_booking(conn: asyncpg.Connection, ctx: db.Context, buyer: Buyer
                        [(wallet["id"], "DR", total), (escrow["id"], "CR", total)],
                        ref_type="booking", ref_id=booking_id, user_id=buyer.user_id, memo=ref)
         await conn.execute("UPDATE sales.booking SET status = 'CONFIRMED', confirmed_at = now() WHERE id = $1", booking_id)
+        journey = await conn.fetchrow(
+            """SELECT ca.code AS from_city, cb.code AS to_city,
+                      to_char(a.sched_dep AT TIME ZONE 'Asia/Damascus', 'YYYY-MM-DD HH24:MI') AS departs_local
+                 FROM ops.trip_stop a JOIN net.station sa ON sa.id = a.station_id JOIN ref.city ca ON ca.id = sa.city_id,
+                      ops.trip_stop z JOIN net.station sb ON sb.id = z.station_id JOIN ref.city cb ON cb.id = sb.city_id
+                WHERE a.trip_id = $1 AND a.seq = $2 AND z.trip_id = $1 AND z.seq = $3""", trip["id"], body.from_seq, body.to_seq)
+        await emit(conn, "booking.confirmed", "booking", booking_id, {
+            "booking_ref": ref, "trip_no": trip["trip_no"], **dict(journey), "passengers": len(body.passengers),
+            "total_amount": total, "booker_user_id": buyer.user_id, "agency_id": buyer.agency_id,
+            "contact_mobile": buyer.contact_mobile}, company_id=trip["company_id"])
     return {"booking_id": booking_id, "booking_ref": ref, "total": total, "currency": trip["currency"],
             "commission": q["commission"] if buyer.agency_id else None}
 
@@ -253,4 +264,7 @@ async def cancel_booking(conn: asyncpg.Connection, ctx: db.Context, b: asyncpg.R
         if commission:
             await repo.refund_allocation_line(conn, b["price_allocation_id"], "AGENCY_COMMISSION", commission - kept)
         await repo.refund_allocation_line(conn, b["price_allocation_id"], "CARRIER_FARE", refund - (commission - kept))
+        await emit(conn, "booking.cancelled", "booking", b["id"], {
+            "booking_ref": b["booking_ref"], "refund_amount": refund, "booker_user_id": b["booker_user_id"],
+            "agency_id": b["agency_id"], "contact_mobile": b["contact_mobile"]}, company_id=b["company_id"])
     return {"ok": True, "refund": refund, "currency": b["currency"], "commission_kept": kept if commission else None}

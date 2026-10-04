@@ -8,12 +8,14 @@ record() { echo "INSERT INTO sys.schema_file (file, sha256) VALUES (:'file', :'s
 DB="${1:?database name}"; shift || true
 PSQL_ARGS=("$@")
 DIR="$(cd "$(dirname "$0")" && pwd)"
-for f in "$DIR"/schema/[0-9][0-9][0-9]_*.sql; do
+# Schema files in numeric order of their prefix (000 ... 990, 1000 ...), so numbering can grow past three digits
+schema_files() { ls "$DIR"/schema/[0-9]*_*.sql | awk -F/ '{ n = $NF; sub(/_.*/, "", n); print n "\t" $0 }' | sort -n | cut -f2-; }
+for f in $(schema_files); do
   echo ">> $(basename "$f")"
   psql "$@" -d "$DB" -v ON_ERROR_STOP=1 -q -f "$f"
 done
 psql "$@" -d "$DB" -v ON_ERROR_STOP=1 -q -f "$DIR/schema_file.sql"
-for f in "$DIR"/schema/[0-9][0-9][0-9]_*.sql; do
+for f in $(schema_files); do
   record "$(basename "$f")" "$(sha256sum "$f" | cut -d' ' -f1)"
 done
 echo "OK: schema built in $DB"

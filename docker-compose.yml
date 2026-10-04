@@ -50,6 +50,22 @@ services:
       migrate: { condition: service_completed_successfully }
     networks: [internal, front]
 
+  # Sends notifications from the transactional outbox (several replicas can run: events are claimed with SKIP LOCKED)
+  worker:
+    image: masslak:latest
+    restart: unless-stopped
+    env_file: deploy/.env
+    command: ["python", "-m", "app.modules.notify.worker"]
+    environment:
+      MASSLAK_DATABASE_URL: postgresql://masslak_api:${MASSLAK_API_PASSWORD}@db:5432/${POSTGRES_DB:-masslak}
+      MASSLAK_AUDIT_DATABASE_URL: postgresql://masslak_audit:${MASSLAK_AUDIT_PASSWORD}@db:5432/${POSTGRES_DB:-masslak}
+      MASSLAK_FILES_DIR: /data/files
+    volumes:
+      - files:/data/files
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    networks: [internal]
+
   caddy:
     image: caddy:2-alpine
     restart: unless-stopped

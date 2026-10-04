@@ -1,5 +1,11 @@
 // Material Symbols (rounded, Apache-2.0), bundled at build time. Generated list: add a name here to use it.
 
+import i_notifications from "@material-symbols/svg-400/rounded/notifications.svg?raw";
+import i_devices from "@material-symbols/svg-400/rounded/devices.svg?raw";
+import i_privacy_tip from "@material-symbols/svg-400/rounded/privacy_tip.svg?raw";
+import i_key from "@material-symbols/svg-400/rounded/key.svg?raw";
+import i_delete from "@material-symbols/svg-400/rounded/delete.svg?raw";
+import i_password from "@material-symbols/svg-400/rounded/password.svg?raw";
 import i_search from "@material-symbols/svg-400/rounded/search.svg?raw";
 import i_swap_horiz from "@material-symbols/svg-400/rounded/swap_horiz.svg?raw";
 import i_directions_bus from "@material-symbols/svg-400/rounded/directions_bus.svg?raw";
@@ -92,6 +98,12 @@ export const ICONS = {
   trending_up: i_trending_up,
   warning: i_warning,
   menu: i_menu,
+  password: i_password,
+  delete: i_delete,
+  key: i_key,
+  privacy_tip: i_privacy_tip,
+  devices: i_devices,
+  notifications: i_notifications,
   close: i_close,
   refresh: i_refresh,
   event_seat: i_event_seat,

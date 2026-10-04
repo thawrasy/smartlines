@@ -1,0 +1,33 @@
+{
+  "booking.confirmed": {
+    "subject": "تم تأكيد الحجز {booking_ref}",
+    "body": "تم تأكيد حجزك {booking_ref}: من {from_city} إلى {to_city}، الانطلاق {departs_local}، عدد الركاب {passengers}، المبلغ {total_amount} ل.س. أظهر رمز QR في التطبيق أو الموقع عند الصعود.",
+    "sms": "مسلك: تم تأكيد الحجز {booking_ref}. من {from_city} إلى {to_city}، {departs_local}. أظهر رمز QR عند الصعود."
+  },
+  "booking.cancelled": {
+    "subject": "تم إلغاء الحجز {booking_ref}",
+    "body": "تم إلغاء حجزك {booking_ref}. المبلغ المسترد: {refund_amount} ل.س.",
+    "sms": "مسلك: أُلغي الحجز {booking_ref}. المسترد {refund_amount} ل.س."
+  },
+  "withdrawal.paid": {
+    "subject": "تم صرف {amount} ل.س",
+    "body": "حُوّل طلب السحب بقيمة {amount} ل.س إلى حسابك المصرفي المنتهي بـ {iban_last4}. مرجع الحوالة: {bank_ref}."
+  },
+  "withdrawal.rejected": {
+    "subject": "لم تتم الموافقة على سحب {amount} ل.س",
+    "body": "لم تتم الموافقة على طلب السحب بقيمة {amount} ل.س: {reason}. عاد المبلغ متاحاً في رصيدك."
+  },
+  "document.approved": {
+    "subject": "اعتُمدت {doc_type}",
+    "body": "رُوجعت {doc_type} واعتُمدت."
+  },
+  "document.rejected": {
+    "subject": "{doc_type} بحاجة إلى تعديل",
+    "body": "لم تُعتمد {doc_type}: {note}. يرجى رفع وثيقة مصححة."
+  },
+  "cities": {"ALP": "حلب", "DAM": "دمشق", "DRA": "درعا", "HMA": "حماة", "HMS": "حمص", "LTK": "اللاذقية", "TRT": "طرطوس",
+             "SWD": "السويداء", "IDL": "إدلب", "RQA": "الرقة", "DRZ": "دير الزور", "HSK": "الحسكة", "QNT": "القنيطرة", "RDM": "ريف دمشق",
+             "AMM": "عمّان", "BEY": "بيروت"},
+  "doc_types": {"CR": "السجل التجاري", "TAX_CERT": "الشهادة الضريبية", "TRANSPORT_LICENSE": "رخصة النقل",
+                "INSURANCE_POLICY": "بوليصة التأمين", "VEHICLE_REG": "رخصة سير المركبة", "AGENCY_LICENSE": "ترخيص وكالة السفر", "OTHER": "الوثيقة"}
+}

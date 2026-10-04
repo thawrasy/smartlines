@@ -370,3 +370,13 @@ table.table { width: 100%; border-collapse: collapse; font-size: 14px; }
 /* ---------- Two-step sign-in ---------- */
 .recovery-codes { list-style: none; margin: 0; padding: 16px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 24px;
   background: var(--surface-container-low); border: 1px solid var(--divider); border-radius: var(--radius-s); font-size: 15px; }
+
+/* Notification bell */
+.bell { position: relative; }
+.bell-badge { position: absolute; top: 2px; inset-inline-end: 2px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px;
+  background: var(--error); color: #fff; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+.bell-panel { position: absolute; top: 46px; inset-inline-end: 0; width: min(380px, calc(100vw - 32px)); max-height: 70vh; overflow: auto;
+  z-index: 60; display: flex; flex-direction: column; gap: 8px; box-shadow: 0 12px 32px rgba(11, 31, 63, .16); }
+.bell-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.bell-list li { display: flex; flex-direction: column; gap: 2px; padding: 10px 4px; border-top: 1px solid var(--divider); }
+.bell-list li.unread { background: var(--surface-tint); }
