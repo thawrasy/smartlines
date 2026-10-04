@@ -334,4 +334,53 @@ SELECT pg_temp.ok((SELECT direction FROM ref.locale WHERE code = 'ar') = 'RTL', 
 SELECT pg_temp.ok((SELECT preferred_locale FROM iam.app_user WHERE email = 'owner@quds.test') = 'en', 'Locales: users default to English');
 SELECT pg_temp.expect_error($$UPDATE iam.app_user SET preferred_locale = 'xx' WHERE email = 'owner@quds.test'$$, 'app_user_preferred_locale_fkey', 'Locales: unknown locale rejected');
 
+
+-- 10) Extensibility and annex D readiness (1003)
+SELECT pg_temp.ok((SELECT count(*) FROM ref.party_role_type WHERE code IN ('EDU_INSTITUTION','EMPLOYER','GUARDIAN','ATTENDANT')) = 4, 'Reference: contracted-transport party roles exist');
+SELECT pg_temp.ok((SELECT count(*) FROM ref.trip_type WHERE code IN ('TRANSIT_PAX','CONTRACT')) = 2, 'Reference: passenger transit and contract trip types exist');
+SELECT pg_temp.ok((SELECT dangerous FROM ref.cargo_category WHERE code = 'DANGEROUS'), 'Reference: cargo categories carry the hazard flag');
+SELECT pg_temp.ok((SELECT value->>'transit_passengers' = 'false' AND value->>'contract_transport' = 'false' FROM sys.setting WHERE key = 'features'), 'Feature flags: new modules ship disabled');
+SELECT pg_temp.expect_error(format($$INSERT INTO iam.party_role (party_id, role_code) VALUES (%s, 'MADE_UP')$$, :pax), 'party_role_role_code_fk', 'Reference: unknown party role rejected by foreign key');
+SELECT pg_temp.expect_error($$UPDATE ops.trip SET trip_type = 'NOPE' WHERE trip_no = 'QDS222/03OCT26'$$, 'trip_trip_type_fk', 'Reference: unknown trip type rejected by foreign key');
+INSERT INTO net.station (code, city_id, country_code, station_class, subtype, name, lat, lng, status)
+SELECT v.code, c.id, 'SY', 'CENTRAL', 'BORDER', v.name, c.lat, c.lng, 'ACTIVE'
+  FROM (VALUES ('SY-DRA-X001','DRA','Nassib border crossing'), ('SY-IDL-X001','IDL','Bab al-Hawa border crossing')) v(code, city, name)
+  JOIN ref.city c ON c.code = v.city;
+SELECT id AS b_in FROM net.station WHERE code = 'SY-DRA-X001' \gset
+SELECT id AS b_out FROM net.station WHERE code = 'SY-IDL-X001' \gset
+SELECT id AS st_dam FROM net.station WHERE code = 'SY-DAM-C001' \gset
+SELECT id AS t_tr FROM ops.trip WHERE trip_no = 'QDS214/03OCT26' \gset
+
+SET ROLE masslak_app;
+BEGIN;
+SELECT sys.set_context(:uadmin, NULL, 'PLATFORM');
+INSERT INTO ref.party_role_type (code, name, module) VALUES ('SCHOOL_BOARD', 'School board', 'contract_transport');
+SELECT pg_temp.ok(true, 'Reference: the platform adds a new role without a schema change');
+SELECT pg_temp.expect_error($$DELETE FROM ref.trip_type WHERE code = 'SCHEDULED'$$, 'SYSTEM_VALUE', 'Reference: system values cannot be deleted');
+COMMIT;
+BEGIN;
+SELECT sys.set_context(:ua, :ca, 'COMPANY');
+SELECT pg_temp.expect_error($$INSERT INTO ref.trip_type (code, name) VALUES ('MINE', 'Mine')$$, 'row-level security', 'Reference: a carrier cannot change reference lists');
+INSERT INTO ops.trip_crossing_plan (trip_id, seq, exit_station_id, entry_station_id) VALUES (:t_tr, 1, :b_out, :b_in);
+SELECT pg_temp.ok(true, 'Transit: the carrier records the trip''s border crossing plan');
+SELECT pg_temp.expect_error(format($$INSERT INTO ops.trip_crossing_plan (trip_id, seq, exit_station_id, entry_station_id) VALUES (%s, 2, %s, %s)$$, :t_tr, :st_dam, :b_in),
+  'NOT_A_BORDER_POINT', 'Transit: crossing points must be border stations');
+INSERT INTO ops.crossing_event (trip_id, station_id, direction, source, occurred_at) VALUES (:t_tr, :b_in, 'ENTRY', 'DRIVER', now());
+SELECT pg_temp.ok(true, 'Transit: the driver records the entry crossing');
+SELECT pg_temp.expect_error($$UPDATE ops.crossing_event SET direction = 'EXIT'$$, 'permission denied', 'Transit: crossing events are append-only');
+INSERT INTO ctr.service_contract (kind, client_party_id, carrier_company_id, starts_on, ends_on, pricing_mode, price)
+VALUES ('SCHOOL', :pax, :ca, '2026-09-01', '2027-06-30', 'MONTHLY', 150000000);
+SELECT pg_temp.ok((SELECT count(*) FROM ctr.service_contract) = 1, 'Contracts: the carrier sees its contract');
+COMMIT;
+BEGIN;
+SELECT sys.set_context(NULL, :cb, 'COMPANY');
+SELECT pg_temp.ok((SELECT count(*) FROM ctr.service_contract) = 0, 'Contracts: another carrier cannot see the contract');
+SELECT pg_temp.ok((SELECT count(*) FROM ops.crossing_event) = 0, 'Transit: another carrier cannot see crossing events');
+SELECT pg_temp.expect_error(format($$INSERT INTO ctr.service_contract (kind, client_party_id, carrier_company_id, starts_on, ends_on, pricing_mode, price)
+  VALUES ('STAFF', %s, %s, '2026-09-01', '2027-06-30', 'MONTHLY', 1)$$, :pax, :ca), 'row-level security', 'Contracts: a carrier cannot create a contract for another carrier');
+COMMIT;
+RESET ROLE;
+INSERT INTO iam.party_role (party_id, role_code) VALUES (:pax, 'SCHOOL_BOARD');
+SELECT pg_temp.ok(true, 'Reference: a party takes the newly added role');
+
 \echo '=== ALL TESTS PASSED ==='
