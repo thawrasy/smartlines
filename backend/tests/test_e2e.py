@@ -172,6 +172,10 @@ def test_passenger_names_follow_the_identity_document(pax, trip):
     names = {k["seat_no"]: (k["full_name"], k["nationality"]) for k in tickets}
     assert names[a] == (f"Rami Khaled Omar {syrian(a)['last_name']}", "SY")
     assert names[b] == ("Marie Claire Dubois", "FR")
+    # The ticket prints the first and last name only; the booking keeps the full document name
+    printed = {k["seat_no"]: k["ticket_name"] for k in tickets}
+    assert printed[a] == f"Rami {syrian(a)['last_name']}"
+    assert printed[b] == "Marie Claire Dubois"
 
 
 @pytest.mark.skipif(not OWNER_URL, reason="needs MASSLAK_OWNER_URL")

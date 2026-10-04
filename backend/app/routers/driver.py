@@ -9,7 +9,7 @@ from .. import db
 from ..deps import Principal, context_for, require_portal
 from ..errors import ApiError, not_found
 from ..security import verify_ticket_qr
-from ..util import row_dict, rows
+from ..util import row_dict, rows, ticket_name
 
 router = APIRouter(prefix="/api/driver", tags=["driver"])
 driver = require_portal("DRIVER")
@@ -62,7 +62,7 @@ async def scan(body: ScanIn, request: Request, pr: Principal = Depends(driver)):
         if ticket_uid is None:
             return {"result": "INVALID_QR"}
         k = await conn.fetchrow(
-            """SELECT k.id, k.trip_id, k.status, k.seat_no, p.full_name FROM sales.ticket k
+            """SELECT k.id, k.trip_id, k.status, k.seat_no, p.full_name, p.first_name, p.last_name FROM sales.ticket k
                  JOIN sales.passenger p ON p.id = k.passenger_id WHERE k.uid = $1""", uuid.UUID(ticket_uid))
         if k is None:
             return {"result": "INVALID_QR"}
@@ -82,7 +82,7 @@ async def scan(body: ScanIn, request: Request, pr: Principal = Depends(driver)):
             if t["status"] == "PUBLISHED":
                 await conn.execute("UPDATE ops.trip SET status = 'BOARDING' WHERE id = $1", t["id"])
     request.state.audit = {"action": "boarding.scan", "object_type": "ticket", "object_id": k["id"]}
-    return {"result": result, "seat_no": k["seat_no"], "passenger": k["full_name"]}
+    return {"result": result, "seat_no": k["seat_no"], "passenger": ticket_name(k["first_name"], k["last_name"], k["full_name"])}
 
 
 class StopEventIn(BaseModel):

@@ -1,4 +1,6 @@
 @import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Readex+Pro:wght@500;600;700&display=swap");
+@font-face { font-family: "Hayyakum Allah"; src: url("../fonts/HayyakumAllah-Bold.woff2") format("woff2"); font-weight: 700; font-display: swap; }
+@font-face { font-family: "Hayyakum Allah"; src: url("../fonts/HayyakumAllah-Medium.woff2") format("woff2"); font-weight: 500; font-display: swap; }
 /* Masslak components. Colours, radii, spacing and sizes come from tokens.css; layout uses logical properties so RTL and LTR share one sheet. */
 .ms-root, .ms-root * { box-sizing: border-box; }
 .ms-root { font-family: var(--font-sans); color: var(--on-surface); font-size: 14px; line-height: 22px; -webkit-font-smoothing: antialiased; }
@@ -17,8 +19,8 @@
 .ms-logo-mark { display: inline-block; flex: none; }
 .ms-logo-text { display: flex; flex-direction: column; line-height: 1.15; }
 .ms-logo-name { display: inline-flex; align-items: baseline; gap: 8px; }
-.ms-logo-text b { font: 700 22px/1.1 var(--font-display); color: var(--on-surface); }
-.ms-logo-latin { font: 600 10px/1 var(--font-sans); letter-spacing: 1.5px; color: var(--on-surface-variant); }
+.ms-logo-text b { font: 700 24px/1.1 "Hayyakum Allah", var(--font-display); color: var(--on-surface); }
+.ms-logo-latin { font: 700 13px/1 "Hayyakum Allah", var(--font-sans); color: var(--on-surface-variant); }
 .ms-logo-white b, .ms-logo-white .ms-logo-latin, .ms-logo-white small { color: #FFFFFF; }
 .ms-logo-text small { font-size: 12px; color: var(--on-surface-variant); }
 

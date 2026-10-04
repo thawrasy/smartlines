@@ -4,6 +4,8 @@ import { useI18n, LOCALES, type Locale } from "../i18n";
 import { useAuth, homeFor } from "../auth";
 import { api } from "../api";
 import { Icon, Logo } from "./ui";
+import wordmarkAr from "../assets/brand/masslak-wordmark-ar.svg";
+import wordmarkEn from "../assets/brand/masslak-wordmark-en.svg";
 import type { IconName } from "./icons";
 
 export function LangSwitch({ compact }: { compact?: boolean }) {
@@ -26,8 +28,8 @@ function Brand({ to = "/" }: { to?: string }) {
   return (
     <Link to={to} className="brand">
       <Logo />
-      <span className="brand-name">{t("app.name")}</span>
-      <span className="brand-latin">masslak</span>
+      <img className="brand-name" src={wordmarkAr} alt={t("app.name")} />
+      <img className="brand-latin" src={wordmarkEn} alt="" aria-hidden="true" />
     </Link>
   );
 }

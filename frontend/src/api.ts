@@ -74,7 +74,8 @@ export interface FareBrand {
 
 export interface Ticket {
   uid: string; ticket_no: string; seat_no: number; status: string; fare_brand_code: string; total_amount: number;
-  full_name: string; from_station: string; from_code: string; from_city: string; departs_at: string;
+  /** Full name as on the identity document; the ticket prints ticket_name (first and last name). */
+  full_name: string; ticket_name: string; from_station: string; from_code: string; from_city: string; departs_at: string;
   to_station: string; to_code: string; to_city: string; arrives_at: string;
 }
 

@@ -95,7 +95,7 @@ export default function Booking() {
                 </div>
                 <div style={{ padding: 24 }} className="stack">
                   <dl className="kv">
-                    <dt>{t("common.passenger")}</dt><dd>{k.full_name}</dd>
+                    <dt>{t("common.passenger")}</dt><dd>{k.ticket_name || k.full_name}</dd>
                     <dt>{t("common.date")}</dt><dd>{date(k.departs_at, { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</dd>
                     <dt>{t("common.from")}</dt><dd>{station(k.from_code, k.from_station)}</dd>
                     <dt>{t("common.to")}</dt><dd>{station(k.to_code, k.to_station)}</dd>

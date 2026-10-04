@@ -13,7 +13,7 @@ Read this page first, then `Experience` (journeys and information architecture) 
 
 - The mark is a route: one arc that leaves a light-blue origin stop (`brand-blue-soft`), rises in `brand-blue` and settles on a green destination stop (`brand-green`), on a deep navy rounded square (`brand-navy`). Blue is movement and trust; green is arrival, taken from the Syrian flag green. No gradients.
 - Files: `masslak-mark.svg` (navy square, the default everywhere), `masslak-mark-outline.svg` (white square with a navy outline and a `primary` route, for headers on white when a lighter touch is needed), `masslak-symbol.svg` (route alone in `primary` with a green stop, for white grounds), `masslak-symbol-white.svg` (white route with a green stop, for navy or photo grounds).
-- The wordmark is set, not drawn: "مسلك" in Readex Pro 700 in `on-surface` (navy in light, near-white in dark), followed on the same line by "masslak" in IBM Plex Sans Arabic 600 at 10px, letter-spaced 1.5px, in `on-surface-variant`. In English the name is "Masslak" in Readex Pro 700 alone. The mark sits on the reading-start side of the name at a gap of `space-3`.
+- The wordmark is "مســلك" (with the tatweel between the seen and the lam) and "masslak" in lower case, both in Hayyakum Allah Bold (SIL Open Font License, ALMASBAK Type Foundry), in `on-surface` (navy in light, near-white in dark). Use the outlined lockup files for print and stores; in product code use the `wordmark` style with the bundled font. In the Arabic lockup the mark sits on the right of the name; in the English lockup on the left; gap `space-4`. Hayyakum is for the wordmark only: headings stay in Readex Pro and text in IBM Plex Sans Arabic.
 - Clear space is one quarter of the mark's width. Minimum size 20px on screen. Never recolour the square away from `brand-navy`, never swap the stop colours, never add shadows or rotate the mark.
 - App icons: `app-icon-ios.svg` is the full-bleed 1024px master (iOS applies the corner mask); `app-icon-android-foreground.svg` is the adaptive-icon foreground on a `brand-navy` background layer.
 
@@ -26,7 +26,7 @@ Read this page first, then `Experience` (journeys and information architecture) 
 - **Confirmations name the result:** "تم تأكيد الحجز" / "Booking confirmed", "تم خصم 2,500 ل.س" / "SYP 2,500 deducted".
 - **Case:** sentence case in English for every title, button and label. No ALL CAPS except booking references and plate numbers.
 - **Digits:** Western digits (0–9) in both languages, set tabular, matching identity documents, plates and phone numbers (`ar-SY-u-nu-latn`). Money: amount then currency, "85,000 ل.س" in Arabic, "SYP 85,000" in English. Time: 24-hour, "14:30".
-- **Names:** passenger names follow the identity document; Syrian citizens show four parts (first, father, grandfather, family).
+- **Names:** the booking captures the passenger's full name exactly as on the identity document, every field (four parts for Syrian citizens: first, father, grandfather, family). The ticket, the boarding pass and the driver's scan result print the first and last name only. Manifests for carriers and authorities keep the full name.
 - **No emoji** in product UI, notifications or receipts. Status is carried by colour, icon and word together.
 - **Bidirectional text:** wrap Latin codes, plates, phone numbers and emails in an LTR isolate inside Arabic sentences so their characters never reorder.
 

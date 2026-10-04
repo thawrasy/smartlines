@@ -44,3 +44,8 @@ def row_dict(row) -> dict:
 
 def rows(records) -> list[dict]:
     return [row_dict(r) for r in records]
+
+
+def ticket_name(first: str | None, last: str | None, full: str) -> str:
+    """Name printed on a ticket: first and last name only. The booking and manifests keep the full document name."""
+    return " ".join(p for p in (first, last) if p) or full

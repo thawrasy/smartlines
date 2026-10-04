@@ -190,8 +190,9 @@ table.table { width: 100%; border-collapse: collapse; font-size: 14px; }
 .brand { display: inline-flex; align-items: center; gap: 10px; font-weight: 700; font-size: 20px; color: var(--on-surface); }
 .brand:hover { text-decoration: none; }
 .brand-mark { width: 36px; height: 36px; display: inline-flex; flex: none; }
-.brand-name { font-family: var(--font-display); font-weight: 700; color: var(--brand-navy); }
-.brand-latin { font-size: 10px; font-weight: 600; letter-spacing: 1.5px; color: var(--on-surface-variant); margin-inline-start: 6px; }
+/* Wordmark: outlined Hayyakum Allah Bold (docs/design/system/assets/logos), so no font download is needed. */
+.brand-name { height: 24px; width: auto; display: block; }
+.brand-latin { height: 13px; width: auto; display: block; opacity: .6; margin-top: 8px; }
 .brand-sub { font-size: 12px; font-weight: 400; color: var(--on-surface-variant); }
 .topnav { display: flex; gap: 4px; }
 .topnav a { position: relative; padding: 23px 12px; color: var(--on-surface-variant); font-weight: 500; font-size: 14px; }

@@ -32,7 +32,7 @@ var ICONS = {"search":"M378-329q-108.16 0-183.08-75Q120-479 120-585t75-181q75-75
     var en = p.lang === "en";
     return h("span", { className: cx("ms-logo", p.tone === "white" && "ms-logo-white") }, mark,
       h("span", { className: "ms-logo-text" },
-        h("span", { className: "ms-logo-name" }, h("b", null, en ? "Masslak" : "مسلك"), en ? null : h("span", { className: "ms-logo-latin" }, "masslak")),
+        h("span", { className: "ms-logo-name" }, h("b", null, en ? "masslak" : "مســلك"), en ? null : h("span", { className: "ms-logo-latin" }, "masslak")),
         p.tagline ? h("small", null, p.tagline) : null));
   }
 

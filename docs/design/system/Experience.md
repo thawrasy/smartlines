@@ -38,7 +38,7 @@ Each portal uses the same shell for its platform (Platforms): a navigation drawe
 - **Search results:** trip cards sorted by departure, filters as chips (time of day, carrier, fare brand, amenities).
 - **Trip:** stops timeline, vehicle, fare brands, baggage, cancellation terms.
 - **Seat selection:** seat map with a 10-minute hold countdown.
-- **Passenger details:** structured names by identity document (four parts for Syrian citizens), nationality, document number.
+- **Passenger details:** structured names by identity document, every field (four parts for Syrian citizens), nationality, document number. The ticket then prints the first and last name only.
 - **Checkout:** price breakdown, payment method (wallet, cash at agency, card later), terms.
 - **Ticket:** QR code, booking reference in `data-large`, boarding window, offline badge.
 - **Trips, Wallet, Account:** bottom navigation tabs on mobile, top navigation on web.

@@ -13,7 +13,7 @@ from ..deps import Principal, context_for, require_portal
 from ..errors import ApiError, forbidden, not_found
 from ..ledger import platform_wallet, post_txn, user_wallet, company_wallet
 from ..security import document_token, ticket_qr_token
-from ..util import booking_ref, row_dict, rows, ticket_no
+from ..util import booking_ref, row_dict, rows, ticket_no, ticket_name
 
 router = APIRouter(prefix="/api", tags=["bookings"])
 passenger = require_portal("PASSENGER")
@@ -274,7 +274,7 @@ async def booking_detail(ref: str, request: Request, pr: Principal = Depends(pas
         async with db.system_scope(conn, context_for(request, pr)):
             tickets = await conn.fetch(
                 """SELECT k.uid, k.ticket_no, k.seat_no, k.status, k.fare_brand_code, k.total_amount, k.from_seq, k.to_seq,
-                          p.full_name, p.nationality, sa.name AS from_station, sa.code AS from_code, ca.code AS from_city, a.sched_dep AS departs_at,
+                          p.full_name, p.first_name, p.last_name, p.nationality, sa.name AS from_station, sa.code AS from_code, ca.code AS from_city, a.sched_dep AS departs_at,
                           sb.name AS to_station, sb.code AS to_code, cb.code AS to_city, z.sched_arr AS arrives_at, k.rules_snapshot
                      FROM sales.ticket k JOIN sales.passenger p ON p.id = k.passenger_id
                      JOIN ops.trip_stop a ON a.trip_id = k.trip_id AND a.seq = k.from_seq
@@ -290,6 +290,7 @@ async def booking_detail(ref: str, request: Request, pr: Principal = Depends(pas
     for t in tickets:
         d = row_dict(t)
         d["rules_snapshot"] = json.loads(d["rules_snapshot"]) if isinstance(d["rules_snapshot"], str) else d["rules_snapshot"]
+        d["ticket_name"] = ticket_name(d.pop("first_name"), d.pop("last_name"), d["full_name"])
         tk.append(d)
     return {"booking": booking, "tickets": tk}
 
