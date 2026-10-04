@@ -11,7 +11,9 @@ import sys
 
 ALLOWED = {"frontend/src/i18n/ar.ts", "backend/app/i18n/ar.json", "mobile/src/i18n/ar.ts"}
 BINARY = (".docx", ".pdf", ".png", ".jpg", ".jpeg", ".webp", ".ico", ".woff", ".woff2", ".ttf", ".otf", ".zip", ".gz")
-ARABIC = re.compile(r"[؀-ۿݐ-ݿࢠ-ࣿﭐ-﷿ﹰ-﻿]")
+# Arabic script blocks, built from code points so this file itself contains no Arabic characters
+ARABIC_BLOCKS = [(0x0600, 0x06FF), (0x0750, 0x077F), (0x08A0, 0x08FF), (0xFB50, 0xFDFF), (0xFE70, 0xFEFF)]
+ARABIC = re.compile("[" + "".join(f"{chr(a)}-{chr(b)}" for a, b in ARABIC_BLOCKS) + "]")
 
 
 def main() -> int:

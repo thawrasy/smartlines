@@ -26,7 +26,7 @@ jobs:
           --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
     env: { PGPASSWORD: postgres }
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Build a fresh database and run the checks
         run: db/tests/run.sh -h localhost -U postgres
       - name: Upgrading an existing database applies nothing twice
@@ -57,8 +57,8 @@ jobs:
       MASSLAK_RATE_AUTH_PER_MINUTE: "600"
       MASSLAK_TEST_URL: http://localhost:8077
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with: { python-version: "3.11", cache: pip, cache-dependency-path: backend/requirements*.txt }
       - run: pip install -r backend/requirements-dev.txt
       - name: Schema, login roles and demo data
@@ -85,8 +85,8 @@ jobs:
     runs-on: ubuntu-latest
     defaults: { run: { working-directory: frontend } }
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with: { node-version: "22", cache: npm, cache-dependency-path: frontend/package-lock.json }
       - run: npm ci
       - run: npm run build
@@ -95,10 +95,10 @@ jobs:
     name: Security and policy checks
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with: { python-version: "3.11" }
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with: { node-version: "22" }
       - run: pip install bandit pip-audit
       - name: Language policy (English code, data and docs; Arabic only in locale files)
@@ -115,5 +115,5 @@ jobs:
     name: Container image builds
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - run: docker build -t masslak:ci .
