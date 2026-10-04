@@ -148,7 +148,7 @@ flowchart LR
 
 ## 3. Database integration map
 
-The schema has 13 business schemas and 183 tables in 16 migrations (`db/schema/000` to `980`). The diagram shows the relationships that the Phase 1 flows use.
+The schema has 22 business schemas and 415 tables in the files `db/schema/000` to `1029` (the complete model of study v2.6; later-phase modules are disabled behind feature flags). The full design, with an ERD per module in the study's colours, is `docs/database/Masslak_Database_Design_and_ERD_v2.0.docx`. The diagram shows the relationships that the Phase 1 flows use.
 
 ```mermaid
 erDiagram
@@ -389,7 +389,7 @@ bundled for both platforms in CI, but have not yet been run on physical devices.
 ```
 docker compose up            # PostgreSQL, API, web, Caddy
 cd backend && pytest tests   # 83 tests: unit and end to end against a running API
-db/tests/run.sh              # 87 schema checks
+db/tests/run.sh              # 111 schema checks
 cd mobile && npm test        # core unit tests of the apps
 ```
 
