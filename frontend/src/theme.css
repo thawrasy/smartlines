@@ -73,6 +73,8 @@ p { margin: 0; }
 button, input, select, textarea { font: inherit; color: inherit; }
 :focus-visible { outline: 3px solid color-mix(in srgb, var(--primary) 45%, transparent); outline-offset: 2px; }
 .ltr { direction: ltr; unicode-bidi: isolate; display: inline-block; }
+/* In a table the cell keeps its table layout; only the text direction changes */
+td.ltr, th.ltr { display: table-cell; text-align: start; }
 .muted { color: var(--on-surface-variant); }
 .small { font-size: 13px; }
 .mono { font-variant-numeric: tabular-nums; letter-spacing: .02em; }

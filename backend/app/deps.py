@@ -116,11 +116,13 @@ STAFF_PORTALS = {"OPERATOR", "AGENCY", "PLATFORM", "INSPECTOR"}
 
 
 def mfa_required_for(portal: str, account_requires: bool, enrolled: bool) -> bool:
-    """Staff portals need a second factor when the account requires it, when the user enrolled one, and always
-    for platform staff outside the sandbox."""
+    """Anyone who enrolled a second factor always uses it (passengers may opt in). Staff portals also need one when
+    the account requires it, and platform staff always outside the sandbox."""
+    if enrolled:
+        return True
     if portal not in STAFF_PORTALS:
         return False
-    return account_requires or enrolled or (portal == "PLATFORM" and not get_settings().sandbox)
+    return account_requires or (portal == "PLATFORM" and not get_settings().sandbox)
 
 
 async def require_session(principal: Optional[Principal] = Depends(optional_principal)) -> Principal:

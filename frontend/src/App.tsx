@@ -19,6 +19,7 @@ import { CarrierCrew, CarrierDashboard, CarrierRoutes, CarrierTrips, CarrierVehi
 import { CarrierLayouts } from "./pages/carrier/Layouts";
 import { AdminFinance, CompanyFinance } from "./pages/finance/Finance";
 import { AdminDocuments, CompanyDocuments } from "./pages/documents/Documents";
+import { AccountPage, AdminPrivacy } from "./pages/account/Account";
 import { DriverLayout, DriverTrip, DriverTrips } from "./pages/driver/Driver";
 import { AdminAgencies, AdminCompanies, AdminOverview, AdminStations } from "./pages/admin/Admin";
 import { AgencyBookings, AgencyDashboard, AgencySell, AgencyStaff, AgencyStatement } from "./pages/agency/Agency";
@@ -31,6 +32,14 @@ function RequirePortal({ portal, children }: { portal: Portal; children: ReactNo
   const loc = useLocation();
   if (!ready) return <Spinner />;
   if (!me || me.portal !== portal) return <Navigate to={`/login?portal=${portal}&next=${encodeURIComponent(loc.pathname + loc.search)}`} replace />;
+  return <>{children}</>;
+}
+
+function RequireUser({ children }: { children: ReactNode }) {
+  const { me, ready } = useAuth();
+  const loc = useLocation();
+  if (!ready) return <Spinner />;
+  if (!me) return <Navigate to={`/login?next=${encodeURIComponent(loc.pathname)}`} replace />;
   return <>{children}</>;
 }
 
@@ -49,6 +58,7 @@ function PlatformShell() {
       { to: "/security/rules", icon: "block", label: t("security.rules"), show: can("security.ip_rules") },
       { to: "/security/auth", icon: "lock", label: t("security.authEvents"), show: can("audit.view", "security.ip_rules") },
       { to: "/security/activity", icon: "history", label: t("security.activity"), show: can("audit.view", "security.ip_rules") },
+      { to: "/admin/privacy", icon: "privacy_tip", label: t("account.privacyRequests"), show: can("privacy.manage") },
       { to: "/regulator", icon: "gavel", label: t("nav.regulator"), show: can("regulator.dashboard", "report.platform") },
     ]} />
   );
@@ -103,6 +113,7 @@ export default function App() {
           <Route path="trips" element={<RequirePortal portal="PASSENGER"><MyTrips /></RequirePortal>} />
           <Route path="wallet" element={<RequirePortal portal="PASSENGER"><Wallet /></RequirePortal>} />
           <Route path="verify" element={<Verify />} />
+          <Route path="account" element={<RequireUser><AccountPage /></RequireUser>} />
           <Route path="login" element={<Login />} />
           <Route path="register" element={<Register />} />
           <Route path="mfa" element={<Mfa />} />
@@ -139,6 +150,7 @@ export default function App() {
           <Route path="admin/agencies" element={<AdminAgencies />} />
           <Route path="admin/finance" element={<AdminFinance />} />
           <Route path="admin/documents" element={<AdminDocuments />} />
+          <Route path="admin/privacy" element={<AdminPrivacy />} />
           <Route path="admin/stations" element={<AdminStations />} />
           <Route path="security" element={<SecurityOverview />} />
           <Route path="security/rules" element={<SecurityRules />} />

@@ -53,6 +53,7 @@ export function PublicLayout() {
           <NavLink to="/" end>{t("nav.search")}</NavLink>
           {passenger && <NavLink to="/trips">{t("nav.myTrips")}</NavLink>}
           {passenger && <NavLink to="/wallet">{t("nav.wallet")}</NavLink>}
+          {passenger && <NavLink to="/account">{t("nav.account")}</NavLink>}
           <NavLink to="/verify">{t("nav.verify")}</NavLink>
         </nav>
         <div className="row nowrap" style={{ gap: 4, marginInlineStart: "auto" }}>
@@ -124,6 +125,7 @@ export function PortalShell({ title, items, children }: { title: string; items: 
           <div className="muted ltr">{me?.email}</div>
           <div className="row" style={{ marginTop: 8, gap: 4 }}>
             <LangSwitch compact />
+            <Link className="icon-btn" to="/account" title={t("nav.account")} aria-label={t("nav.account")}><Icon name="person" /></Link>
             <button className="icon-btn" title={t("nav.logout")} onClick={async () => { await logout(); nav("/login"); }}><Icon name="logout" flip /></button>
           </div>
         </div>
