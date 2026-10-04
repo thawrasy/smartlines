@@ -16,18 +16,28 @@ SCHEMAS = [
     ("iam", "Identity, parties, users, permissions and API clients"),
     ("ref", "Reference data, locales and files"),
     ("sys", "Settings, outbox and webhooks"),
-    ("net", "Network: stations, routes and carrier codes"),
-    ("fleet", "Fleet: vehicles, seats, crew, licenses and insurance"),
+    ("net", "Network: stations, routes, lines, corridors and geofences"),
+    ("fleet", "Fleet: vehicles, trucks, trailers, seats, crew, licenses and insurance"),
     ("pricing", "Pricing, taxes, commissions, campaigns and loyalty"),
-    ("ops", "Trips, inventory, operations, tracking and incidents"),
-    ("sales", "Channels, bookings, passengers and tickets"),
-    ("fin", "Wallets, ledger, payments, allocation and settlement"),
+    ("ops", "Trips, inventory, operations, shuttle rides, tracking and incidents"),
+    ("sales", "Channels, bookings, passengers, tickets, subscriptions and travel documents"),
+    ("fin", "Wallets, ledger, payments, allocation, settlement and float"),
     ("acct", "Simplified accounting, e-invoicing and tax profiles"),
-    ("crm", "Complaints, ratings, notifications and the AI assistant"),
+    ("bill", "Carrier subscriptions, metering and platform invoices"),
+    ("crm", "Complaints, ratings, notifications, the AI assistant and the contact center"),
     ("gov", "Governance, obligations and data protection"),
-    ("sec", "Security: IP rules, risk, signing and the security hub"),
+    ("sec", "Security: IP rules, risk, signing, the security hub and government adapters"),
+    ("ptn", "Service partners: fuel stations, rest stops and maintenance"),
+    ("ship", "Shipments and the integrated shipping network"),
+    ("frt", "Trucking, heavy transport and transit freight"),
+    ("brd", "Border manifest gateway"),
+    ("ctr", "Contracted transport: schools, universities and employees"),
+    ("rail", "Rail extension"),
+    ("taxi", "Taxis"),
+    ("rent", "Car rental"),
     ("audit", "Login and activity logs (append-only)"),
 ]
+SCHEMA_LIST = ",".join(f"'{s}'" for s, _ in SCHEMAS)
 
 Q_TABLES = r"""
 SELECT coalesce(json_agg(t ORDER BY t.schema, t.name), '[]') FROM (
@@ -47,9 +57,9 @@ SELECT coalesce(json_agg(t ORDER BY t.schema, t.name), '[]') FROM (
            WHERE tg.tgrelid = c.oid AND NOT tg.tgisinternal) AS triggers
   FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
   WHERE c.relkind IN ('r', 'p') AND NOT c.relispartition
-    AND n.nspname IN ('sys','ref','iam','net','fleet','pricing','ops','sales','fin','acct','crm','gov','sec','audit')
+    AND n.nspname IN (%s)
 ) t
-"""
+""" % SCHEMA_LIST
 
 Q_FKS = r"""
 SELECT coalesce(json_agg(x), '[]') FROM (
@@ -75,7 +85,8 @@ def q(db, args, sql):
 ACTOR_COLS = {"created_by", "approved_by", "updated_by", "reviewed_by", "verified_by", "decided_by", "granted_by",
               "revoked_by", "requested_by", "closed_by", "uploaded_by", "changed_by", "by_user_id", "handled_by",
               "executed_by", "assigned_to", "owner_user_id", "reviewer_id", "second_approver", "payout_by",
-              "scanned_by_user_id", "reported_by", "added_by", "inspector_user_id", "approver_id", "actor_id"}
+              "scanned_by_user_id", "reported_by", "added_by", "inspector_user_id", "approver_id", "actor_id",
+              "resolved_by", "recorded_by", "released_by", "opened_by", "handed_over_to", "scorer_user_id", "actor_user_id"}
 REF_TABLES = {("ref", "currency"), ("ref", "country"), ("sec", "key_registry"), ("ref", "file_object")}
 
 
@@ -100,7 +111,7 @@ def main():
 
     # ---------------- Data dictionary ----------------
     total_cols = sum(len(t["columns"]) for t in tables)
-    lines = ["# Data Dictionary — Masslak Database (Phase 1)", "",
+    lines = ["# Data Dictionary — Masslak Database (study v2.6)", "",
              "> Generated from the built database (`db/tools/gen_docs.py`); do not edit by hand.", "",
              f"**{len(tables)} tables, {total_cols} columns, in {len(by_schema)} schemas.**", "",
              "Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant isolation (RLS) · 🧩 partitioned monthly · 🔒 append-only / change-protected", "",
@@ -120,7 +131,7 @@ def main():
             if t["partitioned"]:
                 flags.append("🧩")
             trig = t["triggers"] or []
-            if any(x.endswith("immutable") or x in ("einvoice_guard", "journal_guard", "license_locked", "ip_rule_no_delete") for x in trig):
+            if any(x.endswith("immutable") or x in ("forbid_mutation", "einvoice_guard", "journal_guard", "license_locked", "ip_rule_no_delete") for x in trig):
                 flags.append("🔒")
             lines += [f"### `{s}.{t['name']}` {' '.join(flags)}", "", t["comment"] or "", "",
                       "| Column | Type | Constraints | Default |", "|---|---|---|---|"]
@@ -134,7 +145,7 @@ def main():
     open(os.path.join(root, "DATA_DICTIONARY.md"), "w", encoding="utf-8").write("\n".join(lines))
 
     # ---------------- ERD ----------------
-    out = ["# Entity-Relationship Diagrams — Masslak Database (Phase 1)", "",
+    out = ["# Entity-Relationship Diagrams — Masslak Database (study v2.6)", "",
            "> Generated from the actual foreign keys of the built database. Each diagram shows the module's tables with their key columns,",
            "> plus the tables they reference in other modules (without columns). Solid line = required relationship, dashed = optional.",
            "> For clarity, \"who did it\" links (created_by, approved_by...) to `iam.app_user` and links to currency, country,",

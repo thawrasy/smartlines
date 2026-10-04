@@ -1,13 +1,18 @@
-# Masslak Database — Phase 1
+# Masslak Database
 
-Built solely from the **Analysis and Design Study v2.4** (`docs/Masslak_Analysis_and_Design_AR_v2.4.docx`), within the Phase 1 scope of sections 21 and 22.2 (core, fleet and scheduling, booking and money, operations, hardening), plus the fields and tables the owner decided to build from Phase 1 onwards (Decision 88).
+Built from the **Analysis and Design Study v2.6** (`docs/Masslak_Analysis_and_Design_EN_v2.6.docx`). Files 000 to 998
+cover the Phase 1 scope of sections 21 and 22.2 and the fields the owner decided to build from Phase 1 onwards
+(Decision 88). Files 1003 and 1010 to 1029 complete the model against every entity the study defines, including the
+modules of later phases (sections 4.10, 9, 10, 11, 13, 14, 21 and appendix D). Those modules stay disabled behind
+feature flags until their phase starts (2.8, decision D-6).
 
 | | |
 |---|---|
 | Engine | PostgreSQL 16 (extensions: pgcrypto, citext, btree_gist, pg_trgm) |
-| Schemas | 14 separate schemas, each with its own privileges |
-| Tables | 183 tables, 1,893 columns, 425 foreign keys |
-| Tests | 52 automated checks passing against a real database |
+| Schemas | 23 separate schemas, each with its own privileges |
+| Tables | 415 tables, 4,083 columns, 1,123 foreign keys |
+| Tests | 110 automated checks passing against a real database |
+| Design | [Database design and ERD document](../docs/database/) with diagrams in the study's colors |
 | Docs | [Data dictionary](DATA_DICTIONARY.md) · [ERD diagrams](ERD.md) (both generated from the database) |
 
 ## Language and localization policy
@@ -55,6 +60,25 @@ is a new file. A database built before file tracking is treated as having every 
 | `970_passenger_names.sql` | Structured passenger names by identity document, full country list |
 | `980_mfa.sql` | Two-factor sign-in: replay protection, one active factor, failure count per session |
 | `990_agency.sql` | Travel agencies: agreements (commission, daily limit), booking attribution and its RLS, agency roles |
+| `995`–`998` | Seat layouts, default locale, payouts, company documents |
+| `1000`–`1002` | Notifications, privacy self-service, mobile devices |
+| `1003_extensibility.sql` | Reference tables for extensible lists; passenger transit and contracted transport readiness (appendix D) |
+| `1010_model_helpers.sql` | New schemas (bill, ptn, ship, frt, brd, rail, taxi, rent) and the row-level security and privilege helpers |
+| `1011_core_fleet.sql` | Crew additions, driving hours, vehicle service status, insurance claims, authority alerts, trucks, trailers, validators |
+| `1012_lines_shuttle.sql` | Approved lines, versions, permits, tariffs and timetables (4.15); shuttle rides and proximity (7.13); subscriptions and passes |
+| `1013_trips_booking.sql` | Seat locks, cancellation policies, waiting lists, entry rules, ticket documents, inspections, tracking state, station gates |
+| `1014_service_partners.sql` | Fuel stations and rest stops: contracts, fuel cards, sessions, odometer, anomalies, sales, orders, settlement (14.11) |
+| `1015_loyalty_campaigns.sql` | Loyalty partners, rewards, vouchers, transfers, points liability, sponsors, BIN ranges, override policies |
+| `1016_billing_finance.sql` | Plans, agreements, subscriptions, metering and carrier invoices; cash remittances; float and deposit placements |
+| `1017_shipping.sql` | Shipments, parcels, handling units, loads, couriers, hubs, zones, rates, delivery, claims and partner integration (9) |
+| `1018_freight.sql` | Freight requests, bids, contracts, containers, handovers, ports, transit declarations, weighbridge, claims (10, D.3) |
+| `1019_border_manifest.sql` | Border points, crossing profiles, manifests with persons, vehicles and cargo, responses and discrepancies (11) |
+| `1020_accounting_ops.sql` | Sales invoices, credit notes, cash boxes and sessions, receipts and payments, tax codes, sync jobs (13.7) |
+| `1021_channels.sql` | Channel agreements, allotments, API profiles, statements and memos, supplier sources and mappings (14.7) |
+| `1022_contact_center_gov.sql` | AI-first contact center (7.11) and government registry adapters (phase 5) |
+| `1023_rail_taxi.sql` | Rail fare classes, coaches, compositions and connected journeys; taxi permits, shifts, dispatch and rides |
+| `1024_car_rental.sql` | Rental companies, branches, fleet, rates, bookings, contracts, inspections, deposits and telematics |
+| `1029_model_flags.sql` | Feature flags of the new modules (all off) and schema version 1.12.0 |
 
 ## Design rules (study 29.1)
 

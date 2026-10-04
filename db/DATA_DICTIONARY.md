@@ -1,26 +1,35 @@
-# Data Dictionary — Masslak Database (Phase 1)
+# Data Dictionary — Masslak Database (study v2.6)
 
 > Generated from the built database (`db/tools/gen_docs.py`); do not edit by hand.
 
-**183 tables, 1893 columns, in 14 schemas.**
+**415 tables, 4083 columns, in 23 schemas.**
 
 Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant isolation (RLS) · 🧩 partitioned monthly · 🔒 append-only / change-protected
 
 ## Index
 
-- [`iam` — Identity, parties, users, permissions and API clients](#iam) (23 tables)
-- [`ref` — Reference data, locales and files](#ref) (7 tables)
-- [`sys` — Settings, outbox and webhooks](#sys) (6 tables)
-- [`net` — Network: stations, routes and carrier codes](#net) (8 tables)
-- [`fleet` — Fleet: vehicles, seats, crew, licenses and insurance](#fleet) (12 tables)
-- [`pricing` — Pricing, taxes, commissions, campaigns and loyalty](#pricing) (19 tables)
-- [`ops` — Trips, inventory, operations, tracking and incidents](#ops) (17 tables)
-- [`sales` — Channels, bookings, passengers and tickets](#sales) (8 tables)
-- [`fin` — Wallets, ledger, payments, allocation and settlement](#fin) (16 tables)
-- [`acct` — Simplified accounting, e-invoicing and tax profiles](#acct) (24 tables)
-- [`crm` — Complaints, ratings, notifications and the AI assistant](#crm) (9 tables)
+- [`iam` — Identity, parties, users, permissions and API clients](#iam) (24 tables)
+- [`ref` — Reference data, locales and files](#ref) (12 tables)
+- [`sys` — Settings, outbox and webhooks](#sys) (7 tables)
+- [`net` — Network: stations, routes, lines, corridors and geofences](#net) (21 tables)
+- [`fleet` — Fleet: vehicles, trucks, trailers, seats, crew, licenses and insurance](#fleet) (20 tables)
+- [`pricing` — Pricing, taxes, commissions, campaigns and loyalty](#pricing) (32 tables)
+- [`ops` — Trips, inventory, operations, shuttle rides, tracking and incidents](#ops) (30 tables)
+- [`sales` — Channels, bookings, passengers, tickets, subscriptions and travel documents](#sales) (27 tables)
+- [`fin` — Wallets, ledger, payments, allocation, settlement and float](#fin) (20 tables)
+- [`acct` — Simplified accounting, e-invoicing and tax profiles](#acct) (35 tables)
+- [`bill` — Carrier subscriptions, metering and platform invoices](#bill) (7 tables)
+- [`crm` — Complaints, ratings, notifications, the AI assistant and the contact center](#crm) (19 tables)
 - [`gov` — Governance, obligations and data protection](#gov) (10 tables)
-- [`sec` — Security: IP rules, risk, signing and the security hub](#sec) (19 tables)
+- [`sec` — Security: IP rules, risk, signing, the security hub and government adapters](#sec) (22 tables)
+- [`ptn` — Service partners: fuel stations, rest stops and maintenance](#ptn) (14 tables)
+- [`ship` — Shipments and the integrated shipping network](#ship) (55 tables)
+- [`frt` — Trucking, heavy transport and transit freight](#frt) (14 tables)
+- [`brd` — Border manifest gateway](#brd) (8 tables)
+- [`ctr` — Contracted transport: schools, universities and employees](#ctr) (6 tables)
+- [`rail` — Rail extension](#rail) (5 tables)
+- [`taxi` — Taxis](#taxi) (7 tables)
+- [`rent` — Car rental](#rent) (15 tables)
 - [`audit` — Login and activity logs (append-only)](#audit) (5 tables)
 
 <a id="iam"></a>
@@ -110,7 +119,7 @@ Invitation, reset and OTP tokens (single use, stored hashed)
 | `used_at` | `timestamp with time zone` |  |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
-### `iam.bank_account` 
+### `iam.bank_account` 🛡️
 
 Bank accounts for withdrawals and settlement (encrypted IBAN)
 
@@ -128,6 +137,9 @@ Bank accounts for withdrawals and settlement (encrypted IBAN)
 | `verified` | `boolean` | ✱ | `false` |
 | `status` | `text` | ✱ | `'ACTIVE'::text` |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `verified_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `verified_at` | `timestamp with time zone` |  |  |
 
 ### `iam.beneficial_owner` 
 
@@ -170,6 +182,7 @@ Carrier company (tenant): 1:1 profile with party; all company data is isolated b
 | `approved_at` | `timestamp with time zone` |  |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 | `updated_at` | `timestamp with time zone` | ✱ | `now()` |
+| `payout_bank_account_id` | `bigint` | 🔗 `iam.bank_account`  |  |
 
 ### `iam.company_member` 🛡️
 
@@ -201,7 +214,22 @@ Registered devices per user (3.5, 16.8); a new operator device requires approval
 | `last_seen_at` | `timestamp with time zone` | ✱ | `now()` |
 | `revoked_at` | `timestamp with time zone` |  |  |
 
-### `iam.document` 
+### `iam.device_permission_state` 🛡️
+
+Current location and Nearby permissions per device; a change writes ops.permission_event
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `device_id` | `bigint` | 🔑 🔗 `iam.device` ✱ |  |
+| `user_id` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `location_permission` | `text` | ✱ |  |
+| `location_services_on` | `boolean` | ✱ |  |
+| `bluetooth_on` | `boolean` | ✱ |  |
+| `nearby_permission` | `boolean` | ✱ |  |
+| `app_version` | `text` |  |  |
+| `updated_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `iam.document` 🛡️
 
 Documents for any entity (polymorphic reference) with file, review and expiry date
 
@@ -223,6 +251,9 @@ Documents for any entity (polymorphic reference) with file, review and expiry da
 | `reviewed_by` | `bigint` | 🔗 `iam.app_user`  |  |
 | `reviewed_at` | `timestamp with time zone` |  |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `company_id` | `bigint` | 🔗 `iam.company`  |  |
+| `uploaded_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `review_note` | `text` |  |  |
 
 ### `iam.gov_identity_link` 
 
@@ -266,6 +297,8 @@ MFA factors (TOTP with encrypted secret, passkeys, recovery codes)
 | `verified_at` | `timestamp with time zone` |  |  |
 | `disabled_at` | `timestamp with time zone` |  |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `last_used_step` | `bigint` |  |  |
+| `label` | `text` |  |  |
 
 ### `iam.party` 
 
@@ -308,7 +341,7 @@ Party roles (several roles per party)
 | Column | Type | Constraints | Default |
 |---|---|---|---|
 | `party_id` | `bigint` | 🔑 🔗 `iam.party` ✱ |  |
-| `role_code` | `text` | 🔑 ✱ |  |
+| `role_code` | `text` | 🔑 🔗 `ref.party_role_type` ✱ |  |
 | `status` | `text` | ✱ | `'ACTIVE'::text` |
 | `valid_from` | `date` | ✱ | `CURRENT_DATE` |
 | `valid_to` | `date` |  |  |
@@ -392,6 +425,10 @@ Active sessions; revoking one ends the login immediately
 | `expires_at` | `timestamp with time zone` | ✱ |  |
 | `revoked_at` | `timestamp with time zone` |  |  |
 | `revoke_reason` | `text` |  |  |
+| `mfa_failures` | `smallint` | ✱ | `0` |
+| `access_expires_at` | `timestamp with time zone` |  |  |
+| `prev_refresh_hash` | `bytea` |  |  |
+| `client` | `text` | ✱ | `'web'::text` |
 
 ### `iam.verification` 
 
@@ -419,6 +456,22 @@ Record of every verification (identity levels L0..L3, company, vehicle, document
 
 <a id="ref"></a>
 ## `ref` — Reference data, locales and files
+
+### `ref.cargo_category` 🛡️
+
+Cargo categories as additional information for transit and freight (annex D.3)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `code` | `text` | 🔑 ✱ |  |
+| `name` | `text` | ✱ |  |
+| `module` | `text` | ✱ | `'core'::text` |
+| `is_system` | `boolean` | ✱ | `false` |
+| `is_active` | `boolean` | ✱ | `true` |
+| `sort` | `integer` | ✱ | `100` |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `dangerous` | `boolean` | ✱ | `false` |
+| `needs_temperature` | `boolean` | ✱ | `false` |
 
 ### `ref.city` 
 
@@ -473,7 +526,7 @@ Exchange rates with an effective date; the rate used is fixed on every transacti
 | `valid_from` | `timestamp with time zone` | ✱ |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
-### `ref.file_object` 
+### `ref.file_object` 🛡️
 
 Metadata for every uploaded file (documents, images, signed PDFs); content is in encrypted object storage
 
@@ -491,6 +544,7 @@ Metadata for every uploaded file (documents, images, signed PDFs); content is in
 | `uploaded_by` | `bigint` | 🔗 `iam.app_user`  |  |
 | `retain_until` | `timestamp with time zone` |  |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `company_id` | `bigint` | 🔗 `iam.company`  |  |
 
 ### `ref.locale` 
 
@@ -505,6 +559,34 @@ Supported UI locales with text direction; English is the system default, other l
 | `is_enabled` | `boolean` | ✱ | `false` |
 | `is_default` | `boolean` | ✱ | `false` |
 
+### `ref.party_role_type` 🛡️
+
+Party roles (2.1); rows replace the former fixed list
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `code` | `text` | 🔑 ✱ |  |
+| `name` | `text` | ✱ |  |
+| `module` | `text` | ✱ | `'core'::text` |
+| `is_system` | `boolean` | ✱ | `false` |
+| `is_active` | `boolean` | ✱ | `true` |
+| `sort` | `integer` | ✱ | `100` |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `ref.station_subtype` 🛡️
+
+Station subtypes (BORDER marks a border crossing point)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `code` | `text` | 🔑 ✱ |  |
+| `name` | `text` | ✱ |  |
+| `module` | `text` | ✱ | `'core'::text` |
+| `is_system` | `boolean` | ✱ | `false` |
+| `is_active` | `boolean` | ✱ | `true` |
+| `sort` | `integer` | ✱ | `100` |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
 ### `ref.translation` 
 
 Localized display values for reference data; the English value in the source row is the fallback
@@ -518,6 +600,34 @@ Localized display values for reference data; the English value in the source row
 | `locale` | `text` | 🔗 `ref.locale` ✱ |  |
 | `value` | `text` | ✱ |  |
 | `updated_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `ref.trip_type` 🛡️
+
+Trip types: one trip entity with many types (2.1)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `code` | `text` | 🔑 ✱ |  |
+| `name` | `text` | ✱ |  |
+| `module` | `text` | ✱ | `'core'::text` |
+| `is_system` | `boolean` | ✱ | `false` |
+| `is_active` | `boolean` | ✱ | `true` |
+| `sort` | `integer` | ✱ | `100` |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `ref.vehicle_class` 🛡️
+
+Vehicle classes
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `code` | `text` | 🔑 ✱ |  |
+| `name` | `text` | ✱ |  |
+| `module` | `text` | ✱ | `'core'::text` |
+| `is_system` | `boolean` | ✱ | `false` |
+| `is_active` | `boolean` | ✱ | `true` |
+| `sort` | `integer` | ✱ | `100` |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
 <a id="sys"></a>
 ## `sys` — Settings, outbox and webhooks
@@ -534,7 +644,7 @@ Per-carrier settings (post-departure sales policy, cutoffs, seat selection modes
 | `updated_at` | `timestamp with time zone` | ✱ | `now()` |
 | `updated_by` | `bigint` |  |  |
 
-### `sys.outbox_event` 
+### `sys.outbox_event` 🛡️
 
 Transactional outbox: written in the same transaction as the change, then published to services and partners
 
@@ -553,6 +663,16 @@ Transactional outbox: written in the same transaction as the change, then publis
 | `last_error` | `text` |  |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 | `published_at` | `timestamp with time zone` |  |  |
+
+### `sys.schema_file` 
+
+Schema files applied to this database, with their SHA-256 at the time
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `file` | `text` | 🔑 ✱ |  |
+| `sha256` | `text` | ✱ |  |
+| `applied_at` | `timestamp with time zone` | ✱ | `now()` |
 
 ### `sys.schema_migration` 
 
@@ -618,7 +738,17 @@ Webhook subscriptions for partners and integrations (14, 13.10), signed with HMA
 | `last_success_at` | `timestamp with time zone` |  |  |
 
 <a id="net"></a>
-## `net` — Network: stations, routes and carrier codes
+## `net` — Network: stations, routes, lines, corridors and geofences
+
+### `net.approved_rest_stop` 🛡️
+
+The only places where a transit trip may stop on its corridor
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `corridor_id` | `bigint` | 🔑 🔗 `net.corridor` ✱ |  |
+| `station_id` | `bigint` | 🔑 🔗 `net.station` ✱ |  |
+| `max_minutes` | `integer` | ✱ | `30` |
 
 ### `net.carrier_code` 
 
@@ -662,6 +792,144 @@ Versioned compliance profile per (country, class): required fields and completio
 | `created_by` | `bigint` | 🔗 `iam.app_user`  |  |
 | `approved_by` | `bigint` | 🔗 `iam.app_user`  |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `net.corridor` 🛡️
+
+Approved transit corridor: route and tolerance; leaving it raises a tracking alert (annex D.1.3)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `code` | `text` | ✱ |  |
+| `name` | `text` | ✱ |  |
+| `country_code` | `character(2)` | 🔗 `ref.country` ✱ |  |
+| `path` | `jsonb` | ✱ |  |
+| `buffer_m` | `integer` | ✱ | `500` |
+| `status` | `text` | ✱ | `'ACTIVE'::text` |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `net.geofence` 🛡️
+
+Geofenced areas (ports, borders, depots, restricted zones) that raise arrival, departure and violation events
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `code` | `text` | ✱ |  |
+| `kind` | `text` | ✱ |  |
+| `station_id` | `bigint` | 🔗 `net.station`  |  |
+| `polygon` | `jsonb` |  |  |
+| `center_lat` | `numeric(9,6)` |  |  |
+| `center_lng` | `numeric(9,6)` |  |  |
+| `radius_m` | `integer` |  |  |
+| `status` | `text` | ✱ | `'ACTIVE'::text` |
+
+### `net.line` 🛡️
+
+The official line approved by the regulator (4.15); carriers operate it under a permit
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `code` | `text` | ✱ |  |
+| `name` | `text` | ✱ |  |
+| `kind` | `text` | ✱ |  |
+| `fare_regime` | `text` | ✱ |  |
+| `city_id` | `bigint` | 🔗 `ref.city`  |  |
+| `status` | `text` | ✱ | `'DRAFT'::text` |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `net.line_fare` 🛡️
+
+Fare rows of a tariff (line_fare and line_fare_table in the study): pair, band, flat or per kilometre
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `tariff_id` | `bigint` | 🔗 `net.line_tariff` ✱ |  |
+| `from_station_id` | `bigint` | 🔗 `net.station`  |  |
+| `to_station_id` | `bigint` | 🔗 `net.station`  |  |
+| `passenger_category` | `text` | ✱ | `'ADULT'::text` |
+| `fare` | `bigint` | ✱ |  |
+| `band_to_seq` | `smallint` |  |  |
+| `per_km` | `bigint` |  |  |
+
+### `net.line_permit` 🛡️
+
+A carrier's permit to operate a line, with its vehicle and daily-trip limits
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `line_id` | `bigint` | 🔗 `net.line` ✱ |  |
+| `company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `valid` | `daterange` | ✱ |  |
+| `max_vehicles` | `integer` |  |  |
+| `max_trips_day` | `integer` |  |  |
+| `permit_no` | `text` |  |  |
+| `status` | `text` | ✱ | `'PENDING'::text` |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `net.line_stop` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `line_version_id` | `bigint` | 🔑 🔗 `net.line_version` ✱ |  |
+| `seq` | `smallint` | 🔑 ✱ |  |
+| `station_id` | `bigint` | 🔗 `net.station` ✱ |  |
+| `mandatory` | `boolean` | ✱ | `true` |
+| `geofence_m` | `integer` | ✱ | `60` |
+| `arr_offset_min` | `integer` |  |  |
+| `dep_offset_min` | `integer` |  |  |
+
+### `net.line_tariff` 🛡️
+
+Versioned tariff of a line (4.15); the mode decides how ops.shuttle_ride is charged (7.13)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `line_id` | `bigint` | 🔗 `net.line` ✱ |  |
+| `version` | `integer` | ✱ |  |
+| `regime` | `text` | ✱ |  |
+| `mode` | `text` | ✱ |  |
+| `currency` | `character(3)` | 🔗 `ref.currency` ✱ | `'SYP'::bpchar` |
+| `valid_from` | `date` | ✱ |  |
+| `status` | `text` | ✱ | `'DRAFT'::text` |
+| `approved_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `approved_at` | `timestamp with time zone` |  |  |
+
+### `net.line_version` 🛡️
+
+A version of the line with its route; trips keep the version they were generated from
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `line_id` | `bigint` | 🔗 `net.line` ✱ |  |
+| `version` | `integer` | ✱ |  |
+| `geometry` | `jsonb` | ✱ |  |
+| `corridor_m` | `integer` | ✱ | `150` |
+| `distance_km` | `numeric(7,2)` | ✱ |  |
+| `typical_min` | `integer` | ✱ |  |
+| `effective_from` | `date` |  |  |
+| `status` | `text` | ✱ | `'DRAFT'::text` |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `net.line_version_approval` 🛡️
+
+Four-eyes approval of a line version (approved_by[] in 4.15), one row per approver
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `line_version_id` | `bigint` | 🔑 🔗 `net.line_version` ✱ |  |
+| `user_id` | `bigint` | 🔑 🔗 `iam.app_user` ✱ |  |
+| `role` | `text` | ✱ |  |
+| `approved_at` | `timestamp with time zone` | ✱ | `now()` |
 
 ### `net.route` 🛡️
 
@@ -726,7 +994,7 @@ Register of stations and departure/arrival points (central, company point, exter
 | `city_id` | `bigint` | 🔗 `ref.city` ✱ |  |
 | `country_code` | `character(2)` | 🔗 `ref.country` ✱ |  |
 | `station_class` | `text` | ✱ |  |
-| `subtype` | `text` | ✱ | `'TERMINAL'::text` |
+| `subtype` | `text` | 🔗 `ref.station_subtype` ✱ | `'TERMINAL'::text` |
 | `owner_company_id` | `bigint` | 🔗 `iam.company`  |  |
 | `name` | `text` | ✱ |  |
 | `address` | `text` |  |  |
@@ -763,8 +1031,69 @@ Register of stations and departure/arrival points (central, company point, exter
 | `phone` | `text` |  |  |
 | `email` | `citext` |  |  |
 
+### `net.station_display` 🛡️
+
+Departure and arrival boards in stations (phase 7)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `station_id` | `bigint` | 🔗 `net.station` ✱ |  |
+| `gate_id` | `bigint` | 🔗 `net.station_gate`  |  |
+| `device_serial` | `text` | ✱ |  |
+| `kind` | `text` | ✱ |  |
+| `last_seen_at` | `timestamp with time zone` |  |  |
+| `status` | `text` | ✱ | `'ACTIVE'::text` |
+
+### `net.station_gate` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `station_id` | `bigint` | 🔗 `net.station` ✱ |  |
+| `code` | `text` | ✱ |  |
+| `gate_type` | `text` | ✱ | `'PLATFORM'::text` |
+| `status` | `text` | ✱ | `'ACTIVE'::text` |
+
+### `net.timetable_template` 🛡️
+
+Shuttle timetable: fixed times or a headway within a window
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `line_id` | `bigint` | 🔗 `net.line` ✱ |  |
+| `company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `kind` | `text` | ✱ |  |
+| `days` | `smallint[]` | ✱ | `'{1,2,3,4,5,6,7}'::smallint[]` |
+| `times` | `time without time zone[]` |  |  |
+| `headway_min` | `integer` |  |  |
+| `window_from` | `time without time zone` |  |  |
+| `window_to` | `time without time zone` |  |  |
+| `valid` | `daterange` | ✱ |  |
+| `status` | `text` | ✱ | `'ACTIVE'::text` |
+
 <a id="fleet"></a>
-## `fleet` — Fleet: vehicles, seats, crew, licenses and insurance
+## `fleet` — Fleet: vehicles, trucks, trailers, seats, crew, licenses and insurance
+
+### `fleet.boarding_validator` 🛡️
+
+Gate device on the vehicle that validates QR codes and NFC cards offline
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `device_serial` | `text` | ✱ |  |
+| `vehicle_id` | `bigint` | 🔗 `fleet.vehicle`  |  |
+| `validator_type` | `text` | ✱ |  |
+| `firmware` | `text` |  |  |
+| `deny_list_version` | `integer` | ✱ | `0` |
+| `last_sync_at` | `timestamp with time zone` |  |  |
+| `status` | `text` | ✱ | `'ACTIVE'::text` |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
 ### `fleet.crew_profile` 🛡️
 
@@ -777,6 +1106,27 @@ Drivers and hosts; their licenses and dates live in fleet.license_record
 | `crew_type` | `text` | ✱ |  |
 | `license_class` | `text` |  |  |
 | `status` | `text` | ✱ | `'ACTIVE'::text` |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `job_title` | `text` |  |  |
+| `certificate_no` | `text` |  |  |
+| `heavy_class` | `boolean` | ✱ | `false` |
+| `cross_border` | `boolean` | ✱ | `false` |
+| `hazmat_certified` | `boolean` | ✱ | `false` |
+
+### `fleet.driving_hours_log` 🛡️
+
+Driving and rest periods per driver (10.4); feeds the rest-time rules
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `party_id` | `bigint` | 🔗 `fleet.crew_profile` ✱ |  |
+| `trip_id` | `bigint` | 🔗 `ops.trip`  |  |
+| `kind` | `text` | ✱ |  |
+| `started_at` | `timestamp with time zone` | ✱ |  |
+| `ended_at` | `timestamp with time zone` |  |  |
+| `source` | `text` | ✱ | `'APP'::text` |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
 ### `fleet.field_check_log` 
@@ -792,6 +1142,23 @@ Every field query by security officers and authorized bodies
 | `result` | `text` | ✱ |  |
 | `lat` | `numeric(9,6)` |  |  |
 | `lng` | `numeric(9,6)` |  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `fleet.insurance_claim` 🛡️
+
+Claim notified to the insurer for an incident (7.10 c)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `incident_id` | `bigint` | 🔗 `ops.incident` ✱ |  |
+| `policy_id` | `bigint` | 🔗 `fleet.insurance_policy` ✱ |  |
+| `insurer_ref` | `text` |  |  |
+| `amount` | `bigint` |  |  |
+| `currency` | `character(3)` | 🔗 `ref.currency` ✱ | `'SYP'::bpchar` |
+| `status` | `text` | ✱ | `'NOTIFIED'::text` |
+| `last_sync_at` | `timestamp with time zone` |  |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
 ### `fleet.insurance_policy` 🛡️
@@ -859,7 +1226,7 @@ Every expiry date that governs operating eligibility (license, inspection, insur
 | `last_gov_sync_at` | `timestamp with time zone` |  |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
-### `fleet.seat_layout` 
+### `fleet.seat_layout` 🛡️
 
 Reusable seat layouts
 
@@ -871,8 +1238,12 @@ Reusable seat layouts
 | `total_seats` | `smallint` | ✱ |  |
 | `decks` | `smallint` | ✱ | `1` |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `grid` | `jsonb` |  |  |
+| `status` | `text` | ✱ | `'ACTIVE'::text` |
+| `created_by` | `bigint` | 🔗 `iam.app_user`  |  |
 
-### `fleet.seat_layout_seat` 
+### `fleet.seat_layout_seat` 🛡️
 
 Passenger seats in the layout (crew seats are not part of the inventory, 4.14)
 
@@ -901,6 +1272,61 @@ Premium or discounted seat prices set by the carrier (4.14 a)
 | `label` | `text` | ✱ |  |
 | `active` | `boolean` | ✱ | `true` |
 
+### `fleet.trailer` 🛡️
+
+Trailers with their own plate and licence documents (10.4)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `ownership_type` | `text` | ✱ | `'OWNED'::text` |
+| `owner_party_id` | `bigint` | 🔗 `iam.party`  |  |
+| `plate_no` | `text` | ✱ |  |
+| `plate_country` | `character(2)` | 🔗 `ref.country` ✱ | `'SY'::bpchar` |
+| `chassis_no` | `text` |  |  |
+| `trailer_type` | `text` | ✱ |  |
+| `payload_kg` | `integer` | ✱ |  |
+| `volume_m3` | `numeric(8,2)` |  |  |
+| `length_m` | `numeric(5,2)` |  |  |
+| `axles` | `smallint` |  |  |
+| `container_capacity` | `smallint` |  |  |
+| `temp_min_c` | `numeric(4,1)` |  |  |
+| `temp_max_c` | `numeric(4,1)` |  |  |
+| `status` | `text` | ✱ | `'ACTIVE'::text` |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `fleet.truck_combination` 🛡️
+
+Truck, trailer and driver coupled for a period; trailers can be swapped without overlap (10.4)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `truck_vehicle_id` | `bigint` | 🔗 `fleet.truck_unit` ✱ |  |
+| `trailer_id` | `bigint` | 🔗 `fleet.trailer`  |  |
+| `driver_party_id` | `bigint` | 🔗 `fleet.crew_profile`  |  |
+| `period` | `tstzrange` | ✱ |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `fleet.truck_unit` 🛡️
+
+Truck extension of fleet.vehicle (vehicle_class TRUCK); plate, chassis, ownership and licences stay on the vehicle (10.4, 4.17)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `vehicle_id` | `bigint` | 🔑 🔗 `fleet.vehicle` ✱ |  |
+| `axle_config` | `text` | ✱ |  |
+| `gvw_kg` | `integer` | ✱ |  |
+| `tare_kg` | `integer` | ✱ |  |
+| `fuel_type` | `text` | ✱ | `'DIESEL'::text` |
+| `gps_device_ref` | `text` |  |  |
+| `hazmat_certified` | `boolean` | ✱ | `false` |
+| `cross_border_permit_no` | `text` |  |  |
+| `cross_border_permit_expiry` | `date` |  |  |
+
 ### `fleet.vehicle` 🛡️
 
 Vehicle: type, seated and standing capacity, ownership and owner, and the status that blocks assignment (4.3, 4.13, 4.17, 4.18)
@@ -910,7 +1336,7 @@ Vehicle: type, seated and standing capacity, ownership and owner, and the status
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `uid` | `uuid` | ✱ | `gen_random_uuid()` |
 | `company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
-| `vehicle_class` | `text` | ✱ | `'BUS'::text` |
+| `vehicle_class` | `text` | 🔗 `ref.vehicle_class` ✱ | `'BUS'::text` |
 | `vehicle_type` | `text` | ✱ |  |
 | `make` | `text` |  |  |
 | `model` | `text` |  |  |
@@ -933,6 +1359,20 @@ Vehicle: type, seated and standing capacity, ownership and owner, and the status
 | `block_reason` | `text` |  |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 | `updated_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `fleet.vehicle_fuel_profile` 🛡️
+
+Expected consumption and tolerance, per vehicle or per class, for fuel anomaly checks (14.11 f)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `company_id` | `bigint` | 🔗 `iam.company`  |  |
+| `vehicle_id` | `bigint` | 🔗 `fleet.vehicle`  |  |
+| `vehicle_class` | `text` | 🔗 `ref.vehicle_class`  |  |
+| `tank_capacity_l` | `numeric(7,1)` | ✱ |  |
+| `expected_l_per_100km` | `numeric(5,1)` | ✱ |  |
+| `tolerance_pct` | `numeric(4,1)` | ✱ | `15` |
 
 ### `fleet.vehicle_lease` 🛡️
 
@@ -961,6 +1401,23 @@ Signed QR sticker on the vehicle for field verification (4.18 e)
 | `token_hash` | `bytea` | ✱ |  |
 | `issued_at` | `timestamp with time zone` | ✱ | `now()` |
 | `revoked_at` | `timestamp with time zone` |  |  |
+
+### `fleet.vehicle_service_status` 🛡️
+
+Out-of-service and impound periods; a vehicle in such a period cannot be assigned (7.10 c)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `vehicle_id` | `bigint` | 🔗 `fleet.vehicle` ✱ |  |
+| `status` | `text` | ✱ |  |
+| `reason` | `text` | ✱ |  |
+| `incident_id` | `bigint` | 🔗 `ops.incident`  |  |
+| `period` | `tstzrange` | ✱ | `tstzrange(now(), NULL::timestamp with...` |
+| `released_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `release_evidence_id` | `bigint` | 🔗 `ref.file_object`  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
 ### `fleet.vehicle_status_history` 
 
@@ -1016,6 +1473,36 @@ Template of the price allocation tree across beneficiaries (carrier, platform, t
 | `release_event` | `text` | ✱ | `'TRIP_COMPLETED'::text` |
 | `refundable` | `boolean` | ✱ | `true` |
 
+### `pricing.award_seat_rule` 🛡️
+
+Seats a carrier releases for points on a line or route, with blackout dates
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `line_id` | `bigint` | 🔗 `net.line`  |  |
+| `route_id` | `bigint` | 🔗 `net.route`  |  |
+| `cabin` | `text` |  |  |
+| `points_cost` | `bigint` | ✱ |  |
+| `quota` | `integer` | ✱ |  |
+| `blackout_dates` | `date[]` | ✱ | `'{}'::date[]` |
+| `valid` | `daterange` | ✱ | `daterange(CURRENT_DATE, NULL::date)` |
+| `status` | `text` | ✱ | `'ACTIVE'::text` |
+
+### `pricing.bin_range` 🛡️
+
+Card number ranges of a bank, used to target bank-funded campaigns
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `bank_party_id` | `bigint` | 🔗 `iam.party` ✱ |  |
+| `from_bin` | `character(8)` | ✱ |  |
+| `to_bin` | `character(8)` | ✱ |  |
+| `card_type` | `text` | ✱ |  |
+| `status` | `text` | ✱ | `'ACTIVE'::text` |
+
 ### `pricing.campaign` 
 
 Campaign: audience, scope, benefit, funding, budget and limits (condition -> action)
@@ -1043,6 +1530,24 @@ Campaign: audience, scope, benefit, funding, budget and limits (condition -> act
 | `created_by` | `bigint` | 🔗 `iam.app_user`  |  |
 | `approved_by` | `bigint` | 🔗 `iam.app_user`  |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `budget_alert_pct` | `smallint` |  |  |
+| `sponsor_account_id` | `bigint` | 🔗 `pricing.sponsor_account`  |  |
+
+### `pricing.cancellation_policy` 🛡️
+
+Refund percentages by time before departure; refund requests keep a snapshot of it
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `company_id` | `bigint` | 🔗 `iam.company`  |  |
+| `code` | `text` | ✱ |  |
+| `name` | `text` | ✱ |  |
+| `rules` | `jsonb` | ✱ |  |
+| `version` | `integer` | ✱ | `1` |
+| `valid` | `daterange` | ✱ | `daterange(CURRENT_DATE, NULL::date)` |
+| `status` | `text` | ✱ | `'ACTIVE'::text` |
+| `approved_by` | `bigint` | 🔗 `iam.app_user`  |  |
 
 ### `pricing.commission_rule` 
 
@@ -1140,6 +1645,24 @@ Tax jurisdiction (country, region, border crossing, local)
 | `parent_id` | `bigint` | 🔗 `pricing.jurisdiction`  |  |
 | `name` | `text` | ✱ |  |
 
+### `pricing.loyalty_partner` 🛡️
+
+Earn and burn partner of the loyalty program (5.13 f); extends the partner register
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `program_id` | `bigint` | 🔗 `pricing.loyalty_program` ✱ |  |
+| `party_id` | `bigint` | 🔗 `iam.party` ✱ |  |
+| `service_partner_id` | `bigint` | 🔗 `ptn.partner`  |  |
+| `partner_type` | `text` | ✱ |  |
+| `earn_rate` | `numeric(8,4)` | ✱ | `0` |
+| `burn_rate` | `numeric(8,4)` | ✱ | `0` |
+| `conversion_ratio` | `numeric(10,4)` |  |  |
+| `settlement_cycle` | `text` | ✱ | `'MONTHLY'::text` |
+| `contract_ref` | `text` |  |  |
+| `status` | `text` | ✱ | `'PENDING'::text` |
+
 ### `pricing.loyalty_program` 
 
 
@@ -1184,6 +1707,41 @@ Tax jurisdiction (country, region, border crossing, local)
 | `min_points` | `bigint` | ✱ | `0` |
 | `benefits` | `jsonb` | ✱ | `'{}'::jsonb` |
 
+### `pricing.override_policy` 🛡️
+
+An approved individual exception to a fee or discount rule, with its reason and period
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `target_type` | `text` | ✱ |  |
+| `user_id` | `bigint` | 🔗 `iam.app_user`  |  |
+| `company_id` | `bigint` | 🔗 `iam.company`  |  |
+| `policy_key` | `text` | ✱ |  |
+| `value` | `jsonb` | ✱ |  |
+| `valid` | `tstzrange` | ✱ |  |
+| `reason` | `text` | ✱ |  |
+| `created_by` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `approved_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `pricing.partner_redemption` 🛡️ 🔒
+
+Points spent at a partner; the basis of partner settlement and of the liability release
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `loyalty_partner_id` | `bigint` | 🔗 `pricing.loyalty_partner` ✱ |  |
+| `voucher_id` | `bigint` | 🔗 `pricing.reward_voucher`  |  |
+| `token_id` | `bigint` | 🔗 `pricing.redemption_token`  |  |
+| `partner_sale_id` | `bigint` | 🔗 `ptn.partner_sale`  |  |
+| `points` | `bigint` | ✱ |  |
+| `value` | `bigint` | ✱ |  |
+| `commission` | `bigint` | ✱ | `0` |
+| `currency` | `character(3)` | 🔗 `ref.currency` ✱ | `'SYP'::bpchar` |
+| `redeemed_at` | `timestamp with time zone` | ✱ | `now()` |
+
 ### `pricing.points_account` 
 
 Points account; the balance is stored and reconciled with the points ledger
@@ -1214,6 +1772,40 @@ Points ledger: append-only, corrections by reversing entry
 | `idempotency_key` | `text` | ✱ |  |
 | `expires_at` | `timestamp with time zone` |  |  |
 | `reverses_id` | `bigint` | 🔗 `pricing.points_ledger`  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `pricing.points_liability` 🛡️
+
+Accounting liability of outstanding points per issuer and period, with estimated breakage
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `program_id` | `bigint` | 🔗 `pricing.loyalty_program` ✱ |  |
+| `issuer_party_id` | `bigint` | 🔗 `iam.party`  |  |
+| `period` | `daterange` | ✱ |  |
+| `issued` | `bigint` | ✱ | `0` |
+| `redeemed` | `bigint` | ✱ | `0` |
+| `expired` | `bigint` | ✱ | `0` |
+| `breakage_est` | `bigint` | ✱ | `0` |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `pricing.points_transfer` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `account_id` | `bigint` | 🔗 `pricing.points_account` ✱ |  |
+| `loyalty_partner_id` | `bigint` | 🔗 `pricing.loyalty_partner` ✱ |  |
+| `direction` | `text` | ✱ |  |
+| `points` | `bigint` | ✱ |  |
+| `external_units` | `numeric(14,2)` | ✱ |  |
+| `ratio` | `numeric(10,4)` | ✱ |  |
+| `external_ref` | `text` |  |  |
+| `points_ledger_id` | `bigint` | 🔗 `pricing.points_ledger`  |  |
+| `status` | `text` | ✱ | `'PENDING'::text` |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
 ### `pricing.pricing_modifier` 
@@ -1261,6 +1853,86 @@ Calculation bands for a tax or commission rule
 | `amount` | `bigint` |  |  |
 | `mode` | `text` | ✱ | `'WHOLE'::text` |
 
+### `pricing.redemption_channel` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `code` | `text` | 🔑 ✱ |  |
+| `rules` | `jsonb` | ✱ | `'{}'::jsonb` |
+| `min_points` | `bigint` | ✱ | `0` |
+| `max_points` | `bigint` |  |  |
+| `active` | `boolean` | ✱ | `true` |
+
+### `pricing.redemption_token` 🛡️
+
+Single-use temporary token presented at a partner to redeem points
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `user_id` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `channel_code` | `text` | 🔗 `pricing.redemption_channel` ✱ |  |
+| `token_hash` | `bytea` | ✱ |  |
+| `method` | `text` | ✱ |  |
+| `expires_at` | `timestamp with time zone` | ✱ |  |
+| `used_at` | `timestamp with time zone` |  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `pricing.reward_catalog` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `program_id` | `bigint` | 🔗 `pricing.loyalty_program` ✱ |  |
+| `loyalty_partner_id` | `bigint` | 🔗 `pricing.loyalty_partner`  |  |
+| `reward_type` | `text` | ✱ |  |
+| `name` | `text` | ✱ |  |
+| `points_cost` | `bigint` | ✱ |  |
+| `conversion_value` | `bigint` | ✱ |  |
+| `currency` | `character(3)` | 🔗 `ref.currency` ✱ | `'SYP'::bpchar` |
+| `commission_bp` | `integer` | ✱ | `0` |
+| `external_code` | `text` |  |  |
+| `valid` | `daterange` | ✱ | `daterange(CURRENT_DATE, NULL::date)` |
+| `status` | `text` | ✱ | `'ACTIVE'::text` |
+
+### `pricing.reward_voucher` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `user_id` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `catalog_id` | `bigint` | 🔗 `pricing.reward_catalog`  |  |
+| `loyalty_partner_id` | `bigint` | 🔗 `pricing.loyalty_partner`  |  |
+| `points_ledger_id` | `bigint` | 🔗 `pricing.points_ledger`  |  |
+| `code_hash` | `bytea` | ✱ |  |
+| `points` | `bigint` | ✱ |  |
+| `value` | `bigint` | ✱ |  |
+| `currency` | `character(3)` | 🔗 `ref.currency` ✱ | `'SYP'::bpchar` |
+| `expires_at` | `timestamp with time zone` | ✱ |  |
+| `used_at` | `timestamp with time zone` |  |  |
+| `status` | `text` | ✱ | `'ISSUED'::text` |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `pricing.sponsor_account` 🛡️
+
+Who funds a discount, and what they owe the platform for it
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `kind` | `text` | ✱ |  |
+| `party_id` | `bigint` | 🔗 `iam.party` ✱ |  |
+| `wallet_id` | `bigint` | 🔗 `fin.wallet`  |  |
+| `receivable_balance` | `bigint` | ✱ | `0` |
+| `currency` | `character(3)` | 🔗 `ref.currency` ✱ | `'SYP'::bpchar` |
+| `status` | `text` | ✱ | `'ACTIVE'::text` |
+
 ### `pricing.tax_rule` 
 
 
@@ -1305,7 +1977,7 @@ Tax or fee scheme with its treatment, jurisdiction and collecting party, version
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
 <a id="ops"></a>
-## `ops` — Trips, inventory, operations, tracking and incidents
+## `ops` — Trips, inventory, operations, shuttle rides, tracking and incidents
 
 ### `ops.crew_assignment` 
 
@@ -1320,6 +1992,36 @@ Crew assignment to the trip; an exclusion constraint prevents assigning a person
 | `busy` | `tstzrange` | ✱ |  |
 | `status` | `text` | ✱ | `'ASSIGNED'::text` |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `ops.crossing_event` 🛡️
+
+Border entry and exit of a trip (11.3 CROSSING_EVENT); append-only
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `trip_id` | `bigint` | 🔗 `ops.trip` ✱ |  |
+| `station_id` | `bigint` | 🔗 `net.station` ✱ |  |
+| `direction` | `text` | ✱ |  |
+| `source` | `text` | ✱ |  |
+| `occurred_at` | `timestamp with time zone` | ✱ |  |
+| `lat` | `numeric(9,6)` |  |  |
+| `lng` | `numeric(9,6)` |  |  |
+| `recorded_by_user_id` | `bigint` | 🔗 `iam.app_user`  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `ops.driver_notice` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `user_id` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `trip_id` | `bigint` | 🔗 `ops.trip`  |  |
+| `body` | `text` | ✱ |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `ack_at` | `timestamp with time zone` |  |  |
 
 ### `ops.family_zone` 
 
@@ -1399,6 +2101,93 @@ Integration with traffic police, police and insurers (activated after government
 | `status` | `text` | ✱ | `'PENDING'::text` |
 | `last_sync_at` | `timestamp with time zone` |  |  |
 
+### `ops.permission_event` 🛡️ 🔒
+
+Lock and restore log of app permissions; feeds ops.tracking_alert for drivers; append-only
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `user_id` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `device_id` | `bigint` | 🔗 `iam.device`  |  |
+| `trip_id` | `bigint` | 🔗 `ops.trip`  |  |
+| `kind` | `text` | ✱ |  |
+| `ts` | `timestamp with time zone` | ✱ | `now()` |
+
+### `ops.presence_beacon` 🛡️
+
+Rotating signed presence tokens per trip that passengers' phones detect over Nearby
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `trip_id` | `bigint` | 🔗 `ops.trip` ✱ |  |
+| `vehicle_id` | `bigint` | 🔗 `fleet.vehicle`  |  |
+| `source` | `text` | ✱ |  |
+| `key_id` | `text` | ✱ |  |
+| `rotation_sec` | `integer` | ✱ | `30` |
+| `active` | `tstzrange` | ✱ |  |
+
+### `ops.proximity_sample` 🛡️
+
+Proximity samples between passenger and vehicle; deleted after the retention period (16.13)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `ride_id` | `bigint` | 🔑 🔗 `ops.shuttle_ride` ✱ |  |
+| `ts` | `timestamp with time zone` | 🔑 ✱ |  |
+| `rssi` | `smallint` |  |  |
+| `est_distance_m` | `numeric(6,1)` |  |  |
+| `co_moving` | `boolean` |  |  |
+| `source` | `text` | ✱ |  |
+
+### `ops.ride_segment_charge` 🛡️ 🔒
+
+One row per deduction: the receipt lines of a shuttle ride; append-only
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `ride_id` | `bigint` | 🔗 `ops.shuttle_ride` ✱ |  |
+| `seq_from` | `smallint` | ✱ |  |
+| `seq_to` | `smallint` | ✱ |  |
+| `amount` | `bigint` | ✱ |  |
+| `kind` | `text` | ✱ |  |
+| `ledger_txn_id` | `bigint` | 🔗 `fin.ledger_txn`  |  |
+| `ts` | `timestamp with time zone` | ✱ | `now()` |
+
+### `ops.route_adherence_event` 🛡️ 🔒
+
+Deviations from the line version measured by tracking; append-only
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `trip_id` | `bigint` | 🔗 `ops.trip` ✱ |  |
+| `kind` | `text` | ✱ |  |
+| `ts` | `timestamp with time zone` | ✱ |  |
+| `lat` | `numeric(9,6)` |  |  |
+| `lng` | `numeric(9,6)` |  |  |
+| `detail` | `jsonb` | ✱ | `'{}'::jsonb` |
+
+### `ops.seat_lock` 🛡️
+
+Database copy of seat locks for audit; the live lock is held in memory (4.5)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `trip_id` | `bigint` | 🔗 `ops.trip` ✱ |  |
+| `seat_no` | `text` | ✱ |  |
+| `from_seq` | `smallint` | ✱ |  |
+| `to_seq` | `smallint` | ✱ |  |
+| `user_id` | `bigint` | 🔗 `iam.app_user`  |  |
+| `session_ref` | `text` | ✱ |  |
+| `expires_at` | `timestamp with time zone` | ✱ |  |
+| `released_at` | `timestamp with time zone` |  |  |
+| `outcome` | `text` |  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
 ### `ops.seat_segment` 
 
 Seat inventory per segment (4.12 c): a seat is sellable for a pair if it is vacant in all of the pair's segments
@@ -1413,6 +2202,34 @@ Seat inventory per segment (4.12 c): a seat is sellable for a pair if it is vaca
 | `lock_user_id` | `bigint` |  |  |
 | `lock_expires_at` | `timestamp with time zone` |  |  |
 | `ticket_id` | `bigint` | 🔗 `sales.ticket`  |  |
+
+### `ops.shuttle_ride` 🛡️
+
+One open ride per user, charged stop by stop until alighting (7.13)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `user_id` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `wallet_id` | `bigint` | 🔗 `fin.wallet` ✱ |  |
+| `trip_id` | `bigint` | 🔗 `ops.trip` ✱ |  |
+| `line_id` | `bigint` | 🔗 `net.line` ✱ |  |
+| `tariff_id` | `bigint` | 🔗 `net.line_tariff`  |  |
+| `boarding_event_id` | `bigint` | 🔗 `sales.boarding_event`  |  |
+| `board_station_id` | `bigint` | 🔗 `net.station` ✱ |  |
+| `board_ts` | `timestamp with time zone` | ✱ |  |
+| `alight_station_id` | `bigint` | 🔗 `net.station`  |  |
+| `alight_ts` | `timestamp with time zone` |  |  |
+| `alight_method` | `text` |  |  |
+| `companions` | `smallint` | ✱ | `0` |
+| `charged_amount` | `bigint` | ✱ | `0` |
+| `outstanding_amount` | `bigint` | ✱ | `0` |
+| `currency` | `character(3)` | 🔗 `ref.currency` ✱ | `'SYP'::bpchar` |
+| `last_charged_seq` | `smallint` |  |  |
+| `counts_in_capacity` | `boolean` | ✱ | `true` |
+| `status` | `text` | ✱ | `'OPEN'::text` |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
 ### `ops.standing_segment` 
 
@@ -1441,6 +2258,35 @@ Standing places counter per segment, never above capacity
 | `opened_at` | `timestamp with time zone` | ✱ | `now()` |
 | `resolved_at` | `timestamp with time zone` |  |  |
 
+### `ops.tracking_state` 🛡️
+
+Current tracking status of a trip; positions themselves are in ops.geo_event (trip_position in 7.8)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `trip_id` | `bigint` | 🔑 🔗 `ops.trip` ✱ |  |
+| `driver_user_id` | `bigint` | 🔗 `iam.app_user`  |  |
+| `last_ping_at` | `timestamp with time zone` |  |  |
+| `status` | `text` | ✱ | `'OFF'::text` |
+| `off_reason` | `text` |  |  |
+| `level` | `text` | ✱ | `'NORMAL'::text` |
+| `updated_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `ops.transit_reconciliation` 🛡️
+
+Transit passengers leaving Syria must match those who entered (annex D.1.5)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `trip_id` | `bigint` | 🔑 🔗 `ops.trip` ✱ |  |
+| `entry_count` | `integer` | ✱ | `0` |
+| `exit_count` | `integer` | ✱ | `0` |
+| `missing_ticket_ids` | `bigint[]` | ✱ | `'{}'::bigint[]` |
+| `status` | `text` | ✱ | `'OPEN'::text` |
+| `resolved_by_user_id` | `bigint` | 🔗 `iam.app_user`  |  |
+| `resolved_at` | `timestamp with time zone` |  |  |
+| `note` | `text` |  |  |
+
 ### `ops.trip` 🛡️
 
 Actual trip (the pivotal entity) with its number, vehicle, capacity, snapshots and policies; an exclusion constraint prevents vehicle conflicts
@@ -1455,7 +2301,7 @@ Actual trip (the pivotal entity) with its number, vehicle, capacity, snapshots a
 | `section_suffix` | `character(1)` |  |  |
 | `template_id` | `bigint` | 🔗 `ops.trip_template`  |  |
 | `route_id` | `bigint` | 🔗 `net.route` ✱ |  |
-| `trip_type` | `text` | ✱ | `'SCHEDULED'::text` |
+| `trip_type` | `text` | 🔗 `ref.trip_type` ✱ | `'SCHEDULED'::text` |
 | `transport_mode` | `text` | ✱ | `'BUS'::text` |
 | `service_type` | `text` | ✱ | `'DIRECT'::text` |
 | `has_rest` | `boolean` | ✱ | `false` |
@@ -1488,6 +2334,12 @@ Actual trip (the pivotal entity) with its number, vehicle, capacity, snapshots a
 | `external_ref` | `text` |  |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 | `updated_at` | `timestamp with time zone` | ✱ | `now()` |
+| `seat_map` | `jsonb` |  |  |
+| `corridor_id` | `bigint` | 🔗 `net.corridor`  |  |
+| `transit_max_minutes` | `integer` |  |  |
+| `line_version_id` | `bigint` | 🔗 `net.line_version`  |  |
+| `timetable_slot` | `time without time zone` |  |  |
+| `fare_regime` | `text` |  |  |
 
 ### `ops.trip_change` 
 
@@ -1504,6 +2356,33 @@ Trip change log with reasons (7.9)
 | `reason` | `text` | ✱ |  |
 | `by_user_id` | `bigint` | 🔗 `iam.app_user`  |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `ops.trip_crossing_plan` 🛡️
+
+The trip's border crossings in order (11.6); a transit trip has two: into Syria, then out of it
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `trip_id` | `bigint` | 🔗 `ops.trip` ✱ |  |
+| `seq` | `smallint` | ✱ |  |
+| `exit_station_id` | `bigint` | 🔗 `net.station` ✱ |  |
+| `entry_station_id` | `bigint` | 🔗 `net.station` ✱ |  |
+| `planned_at` | `timestamp with time zone` |  |  |
+
+### `ops.trip_delay` 🛡️ 🔒
+
+Delay estimates per stop that feed station displays and passenger notifications (phase 7)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `trip_id` | `bigint` | 🔗 `ops.trip` ✱ |  |
+| `stop_seq` | `smallint` |  |  |
+| `delay_min` | `integer` | ✱ |  |
+| `cause` | `text` | ✱ |  |
+| `source` | `text` | ✱ |  |
+| `reported_at` | `timestamp with time zone` | ✱ | `now()` |
 
 ### `ops.trip_disruption` 
 
@@ -1552,6 +2431,7 @@ Trip stops (snapshot of the route) with promised and actual times and the fare l
 | `rest_min` | `smallint` | ✱ | `0` |
 | `fare_from_origin` | `bigint` | ✱ | `0` |
 | `sales_closed_at` | `timestamp with time zone` |  |  |
+| `gate_id` | `bigint` | 🔗 `net.station_gate`  |  |
 
 ### `ops.trip_stop_event` 
 
@@ -1606,7 +2486,24 @@ Swapping the trip vehicle without changing the trip number (4.16 d)
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
 <a id="sales"></a>
-## `sales` — Channels, bookings, passengers and tickets
+## `sales` — Channels, bookings, passengers, tickets, subscriptions and travel documents
+
+### `sales.agency_agreement` 🛡️
+
+Agency terms: commission in basis points of the fares and a daily sales limit
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `agency_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `commission_bp` | `integer` | ✱ |  |
+| `daily_limit` | `bigint` | ✱ |  |
+| `currency` | `character(3)` | 🔗 `ref.currency` ✱ | `'SYP'::bpchar` |
+| `status` | `text` | ✱ | `'ACTIVE'::text` |
+| `valid_from` | `date` | ✱ | `CURRENT_DATE` |
+| `created_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `updated_at` | `timestamp with time zone` | ✱ | `now()` |
 
 ### `sales.boarding_event` 🔒
 
@@ -1615,7 +2512,7 @@ Boarding and alighting scan events (basis for dispatch, settlement and the manif
 | Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
-| `ticket_id` | `bigint` | 🔗 `sales.ticket` ✱ |  |
+| `ticket_id` | `bigint` | 🔗 `sales.ticket`  |  |
 | `trip_id` | `bigint` | 🔗 `ops.trip` ✱ |  |
 | `stop_seq` | `smallint` | ✱ |  |
 | `event_type` | `text` | ✱ |  |
@@ -1626,6 +2523,14 @@ Boarding and alighting scan events (basis for dispatch, settlement and the manif
 | `lat` | `numeric(9,6)` |  |  |
 | `lng` | `numeric(9,6)` |  |  |
 | `ts` | `timestamp with time zone` | ✱ | `now()` |
+| `device_scan_id` | `text` |  |  |
+| `scanned_at` | `timestamp with time zone` |  |  |
+| `companions` | `smallint` | ✱ | `0` |
+| `offline_token` | `text` |  |  |
+| `geo_match` | `boolean` |  |  |
+| `vehicle_tag_id` | `bigint` | 🔗 `fleet.vehicle_qr_tag`  |  |
+| `validator_id` | `bigint` | 🔗 `fleet.boarding_validator`  |  |
+| `nfc_card_id` | `bigint` | 🔗 `sales.nfc_card`  |  |
 
 ### `sales.booking` 🛡️
 
@@ -1655,6 +2560,8 @@ Booking: price snapshot, channel, allocation tree and idempotency key; statuses 
 | `cancel_reason` | `text` |  |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 | `updated_at` | `timestamp with time zone` | ✱ | `now()` |
+| `agency_id` | `bigint` | 🔗 `iam.company`  |  |
+| `contact_mobile` | `text` |  |  |
 
 ### `sales.campaign_redemption` 
 
@@ -1685,10 +2592,188 @@ Sales channel (direct, counter, agency, API partner); agreements and quotas come
 | `api_client_id` | `bigint` | 🔗 `iam.api_client`  |  |
 | `status` | `text` | ✱ | `'ACTIVE'::text` |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `relationship` | `text` |  |  |
+
+### `sales.channel_agreement` 🛡️
+
+Terms between a channel and the platform or a carrier; links to the commission scheme (5.8)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `channel_id` | `bigint` | 🔗 `sales.channel` ✱ |  |
+| `company_id` | `bigint` | 🔗 `iam.company`  |  |
+| `model` | `text` | ✱ |  |
+| `rate_bp` | `integer` |  |  |
+| `commission_scheme_id` | `bigint` | 🔗 `pricing.commission_scheme`  |  |
+| `scope` | `jsonb` | ✱ | `'{}'::jsonb` |
+| `fare_visibility` | `jsonb` | ✱ | `'{}'::jsonb` |
+| `markup_policy` | `jsonb` | ✱ | `'{}'::jsonb` |
+| `settlement_cycle` | `text` | ✱ | `'WEEKLY'::text` |
+| `label` | `text` | ✱ |  |
+| `valid` | `daterange` | ✱ |  |
+| `status` | `text` | ✱ | `'DRAFT'::text` |
+| `created_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `approved_by` | `bigint` | 🔗 `iam.app_user`  |  |
+
+### `sales.channel_api_profile` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `channel_id` | `bigint` | 🔑 🔗 `sales.channel` ✱ |  |
+| `api_client_id` | `bigint` | 🔗 `iam.api_client` ✱ |  |
+| `api_schema` | `text` | ✱ | `'NATIVE'::text` |
+| `rate_limit_per_min` | `integer` | ✱ | `600` |
+| `look_to_book_limit` | `integer` |  |  |
+| `cache_ttl_sec` | `integer` | ✱ | `60` |
+| `ip_allow` | `cidr[]` | ✱ | `'{}'::cidr[]` |
+| `mtls_cert_ref` | `text` |  |  |
+
+### `sales.channel_booking_ref` 🛡️
+
+The booking reference in the channel's own system
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `booking_id` | `bigint` | 🔑 🔗 `sales.booking` ✱ |  |
+| `channel_id` | `bigint` | 🔗 `sales.channel` ✱ |  |
+| `external_locator` | `text` | ✱ |  |
+| `agent_ref` | `text` |  |  |
+| `sub_agent_ref` | `text` |  |  |
+
+### `sales.channel_inventory_rule` 🛡️
+
+Seats allotted to a channel per route or trip type, and when unsold seats return
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `channel_id` | `bigint` | 🔗 `sales.channel` ✱ |  |
+| `company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `route_id` | `bigint` | 🔗 `net.route`  |  |
+| `trip_type` | `text` | 🔗 `ref.trip_type`  |  |
+| `allotment_seats` | `integer` |  |  |
+| `cutoff_min` | `integer` | ✱ | `60` |
+| `release_rule` | `text` | ✱ | `'AT_CUTOFF'::text` |
+| `visibility` | `text` | ✱ | `'VISIBLE'::text` |
+
+### `sales.channel_memo` 🛡️
+
+Debit and credit memos that correct a channel statement (ADM/ACM pattern)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `channel_id` | `bigint` | 🔗 `sales.channel` ✱ |  |
+| `statement_id` | `bigint` | 🔗 `sales.channel_statement`  |  |
+| `memo_type` | `text` | ✱ |  |
+| `reason` | `text` | ✱ |  |
+| `amount` | `bigint` | ✱ |  |
+| `currency` | `character(3)` | 🔗 `ref.currency` ✱ | `'SYP'::bpchar` |
+| `ref` | `text` |  |  |
+| `status` | `text` | ✱ | `'ISSUED'::text` |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `sales.channel_statement` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `channel_id` | `bigint` | 🔗 `sales.channel` ✱ |  |
+| `period` | `daterange` | ✱ |  |
+| `gross_sales` | `bigint` | ✱ | `0` |
+| `refunds` | `bigint` | ✱ | `0` |
+| `commission` | `bigint` | ✱ | `0` |
+| `taxes` | `bigint` | ✱ | `0` |
+| `net_due` | `bigint` | ✱ | `0` |
+| `currency` | `character(3)` | 🔗 `ref.currency` ✱ | `'SYP'::bpchar` |
+| `ledger_txn_id` | `bigint` | 🔗 `fin.ledger_txn`  |  |
+| `status` | `text` | ✱ | `'DRAFT'::text` |
+
+### `sales.channel_statement_line` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `statement_id` | `bigint` | 🔑 🔗 `sales.channel_statement` ✱ |  |
+| `line_no` | `integer` | 🔑 ✱ |  |
+| `booking_id` | `bigint` | 🔗 `sales.booking`  |  |
+| `kind` | `text` | ✱ |  |
+| `gross` | `bigint` | ✱ |  |
+| `commission` | `bigint` | ✱ | `0` |
+| `tax` | `bigint` | ✱ | `0` |
+| `net` | `bigint` | ✱ |  |
+
+### `sales.entry_rule` 🛡️
+
+Data-driven document rules per destination or transit country and nationality, four-eyes approved (11.9)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `country_code` | `character(2)` | 🔗 `ref.country` ✱ |  |
+| `country_role` | `text` | ✱ | `'DESTINATION'::text` |
+| `nationality` | `character(2)` | 🔗 `ref.country`  |  |
+| `doc_required` | `text[]` | ✱ | `'{PASSPORT}'::text[]` |
+| `security_approval` | `boolean` | ✱ | `false` |
+| `passport_min_days` | `integer` | ✱ | `180` |
+| `enforcement` | `text` | ✱ | `'BLOCK'::text` |
+| `label` | `text` | ✱ |  |
+| `version` | `integer` | ✱ | `1` |
+| `status` | `text` | ✱ | `'DRAFT'::text` |
+| `created_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `approved_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `sales.external_mapping` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `source_id` | `bigint` | 🔑 🔗 `sales.supplier_source` ✱ |  |
+| `local_type` | `text` | 🔑 ✱ |  |
+| `local_id` | `bigint` | ✱ |  |
+| `external_id` | `text` | 🔑 ✱ |  |
+
+### `sales.inspection_check` 🛡️ 🔒
+
+Random fare inspection on board; append-only
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `inspector_party_id` | `bigint` | 🔗 `iam.party` ✱ |  |
+| `vehicle_id` | `bigint` | 🔗 `fleet.vehicle`  |  |
+| `trip_id` | `bigint` | 🔗 `ops.trip`  |  |
+| `boarding_event_id` | `bigint` | 🔗 `sales.boarding_event`  |  |
+| `result` | `text` | ✱ |  |
+| `fee_charged` | `bigint` | ✱ | `0` |
+| `currency` | `character(3)` | 🔗 `ref.currency` ✱ | `'SYP'::bpchar` |
+| `lat` | `numeric(9,6)` |  |  |
+| `lng` | `numeric(9,6)` |  |  |
+| `ts` | `timestamp with time zone` | ✱ | `now()` |
+
+### `sales.nfc_card` 🛡️
+
+Prepaid card linked to a wallet; validators keep a deny list of blocked cards (7.6 e)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `card_uid_hash` | `bytea` | ✱ |  |
+| `wallet_id` | `bigint` | 🔗 `fin.wallet`  |  |
+| `party_id` | `bigint` | 🔗 `iam.party`  |  |
+| `status` | `text` | ✱ | `'ACTIVE'::text` |
+| `issued_at` | `timestamp with time zone` | ✱ | `now()` |
 
 ### `sales.passenger` 
-
-Name rule (constraint `passenger_name_parts`, migration 1.2.0): every new passenger has a nationality, first name and family name; Syrian citizens (`nationality = 'SY'`) also need the father's and grandfather's names. Other nationalities enter the names exactly as on the passport or ID, with the father's and grandfather's names only when the document carries them. `full_name` is the composed display name in document order.
 
 Passenger data on the booking; document numbers encrypted with a blind index for security screening and the manifest
 
@@ -1698,10 +2783,6 @@ Passenger data on the booking; document numbers encrypted with a blind index for
 | `booking_id` | `bigint` | 🔗 `sales.booking` ✱ |  |
 | `party_id` | `bigint` | 🔗 `iam.party`  |  |
 | `full_name` | `text` | ✱ |  |
-| `first_name` | `text` |  |  |
-| `father_name` | `text` |  |  |
-| `grandfather_name` | `text` |  |  |
-| `last_name` | `text` |  |  |
 | `passenger_category` | `text` | ✱ | `'ADULT'::text` |
 | `id_type` | `text` |  |  |
 | `id_no_enc` | `bytea` |  |  |
@@ -1717,6 +2798,10 @@ Passenger data on the booking; document numbers encrypted with a blind index for
 | `gender` | `text` |  |  |
 | `mobile` | `text` |  |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `first_name` | `text` |  |  |
+| `father_name` | `text` |  |  |
+| `grandfather_name` | `text` |  |  |
+| `last_name` | `text` |  |  |
 
 ### `sales.passenger_compensation` 
 
@@ -1754,6 +2839,87 @@ Refund request with a policy snapshot; funds are not released before the credit 
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 | `decided_at` | `timestamp with time zone` |  |  |
 
+### `sales.shuttle_pass` 🛡️
+
+The pass carried by the subscriber: a signed QR or an NFC card
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `subscription_id` | `bigint` | 🔗 `sales.subscription` ✱ |  |
+| `pass_no` | `text` | ✱ |  |
+| `medium` | `text` | ✱ |  |
+| `nfc_card_id` | `bigint` | 🔗 `sales.nfc_card`  |  |
+| `qr_key_id` | `text` |  |  |
+| `status` | `text` | ✱ | `'ACTIVE'::text` |
+
+### `sales.shuttle_zone` 🛡️
+
+Fare zone for zone-based shuttle subscriptions
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `code` | `text` | ✱ |  |
+| `name` | `text` | ✱ |  |
+| `city_id` | `bigint` | 🔗 `ref.city` ✱ |  |
+| `polygon` | `jsonb` | ✱ |  |
+| `status` | `text` | ✱ | `'ACTIVE'::text` |
+
+### `sales.subscription` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `plan_id` | `bigint` | 🔗 `sales.subscription_plan` ✱ |  |
+| `company_id` | `bigint` | 🔗 `iam.company`  |  |
+| `party_id` | `bigint` | 🔗 `iam.party` ✱ |  |
+| `wallet_id` | `bigint` | 🔗 `fin.wallet`  |  |
+| `starts_on` | `date` | ✱ |  |
+| `ends_on` | `date` | ✱ |  |
+| `rides_used` | `integer` | ✱ | `0` |
+| `price_paid` | `bigint` | ✱ |  |
+| `currency` | `character(3)` | 🔗 `ref.currency` ✱ | `'SYP'::bpchar` |
+| `ledger_txn_id` | `bigint` | 🔗 `fin.ledger_txn`  |  |
+| `status` | `text` | ✱ | `'ACTIVE'::text` |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `sales.subscription_plan` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `company_id` | `bigint` | 🔗 `iam.company`  |  |
+| `code` | `text` | ✱ |  |
+| `name` | `text` | ✱ |  |
+| `line_id` | `bigint` | 🔗 `net.line`  |  |
+| `zone_id` | `bigint` | 🔗 `sales.shuttle_zone`  |  |
+| `period_days` | `smallint` | ✱ |  |
+| `rides_limit` | `integer` |  |  |
+| `passenger_category` | `text` | ✱ | `'ADULT'::text` |
+| `price` | `bigint` | ✱ |  |
+| `currency` | `character(3)` | 🔗 `ref.currency` ✱ | `'SYP'::bpchar` |
+| `status` | `text` | ✱ | `'ACTIVE'::text` |
+
+### `sales.supplier_source` 🛡️
+
+Inbound content source: an external rail or bus system whose inventory is sold on the platform (14.8)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `name` | `text` | ✱ |  |
+| `source_type` | `text` | ✱ |  |
+| `company_id` | `bigint` | 🔗 `iam.company`  |  |
+| `protocol` | `text` | ✱ |  |
+| `credentials_ref` | `text` |  |  |
+| `status` | `text` | ✱ | `'TESTING'::text` |
+
 ### `sales.ticket` 
 
 Ticket per passenger and station pair, with a numbered, guaranteed or standing place, a conditions snapshot and a signed QR
@@ -1784,9 +2950,59 @@ Ticket per passenger and station pair, with a numbered, guaranteed or standing p
 | `status` | `text` | ✱ | `'ISSUED'::text` |
 | `boarded_at` | `timestamp with time zone` |  |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `travel_category` | `text` |  |  |
+
+### `sales.ticket_doc` 🛡️
+
+Travel documents of one international ticket; numbers are encrypted (11.9, D.1.4)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `ticket_id` | `bigint` | 🔑 🔗 `sales.ticket` ✱ |  |
+| `entry_rule_id` | `bigint` | 🔗 `sales.entry_rule`  |  |
+| `dest_country` | `character(2)` | 🔗 `ref.country` ✱ |  |
+| `passport_expiry` | `date` |  |  |
+| `visa_type` | `text` |  |  |
+| `visa_no_enc` | `bytea` |  |  |
+| `visa_country` | `character(2)` | 🔗 `ref.country`  |  |
+| `visa_valid` | `daterange` |  |  |
+| `visa_entries` | `text` |  |  |
+| `residence_no_enc` | `bytea` |  |  |
+| `residence_country` | `character(2)` | 🔗 `ref.country`  |  |
+| `residence_expiry` | `date` |  |  |
+| `security_no_enc` | `bytea` |  |  |
+| `security_authority` | `text` |  |  |
+| `security_expiry` | `date` |  |  |
+| `transit_visa_no_enc` | `bytea` |  |  |
+| `transit_permit_no` | `text` |  |  |
+| `transit_permit_valid` | `daterange` |  |  |
+| `enc_key_id` | `integer` | 🔗 `sec.key_registry`  |  |
+| `status` | `text` | ✱ | `'PENDING'::text` |
+| `issues` | `jsonb` | ✱ | `'[]'::jsonb` |
+| `verified_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `verified_at` | `timestamp with time zone` |  |  |
+| `source` | `text` | ✱ | `'PASSENGER'::text` |
+
+### `sales.waitlist_entry` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `trip_id` | `bigint` | 🔗 `ops.trip` ✱ |  |
+| `party_id` | `bigint` | 🔗 `iam.party` ✱ |  |
+| `from_seq` | `smallint` | ✱ |  |
+| `to_seq` | `smallint` | ✱ |  |
+| `seats` | `smallint` | ✱ | `1` |
+| `status` | `text` | ✱ | `'WAITING'::text` |
+| `offered_at` | `timestamp with time zone` |  |  |
+| `offer_expires_at` | `timestamp with time zone` |  |  |
+| `booking_id` | `bigint` | 🔗 `sales.booking`  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
 <a id="fin"></a>
-## `fin` — Wallets, ledger, payments, allocation and settlement
+## `fin` — Wallets, ledger, payments, allocation, settlement and float
 
 ### `fin.bank_reconciliation` 
 
@@ -1820,6 +3036,67 @@ Wallet top-up by bank transfer with a unique reference and automatic matching
 | `status` | `text` | ✱ | `'AWAITING'::text` |
 | `matched_at` | `timestamp with time zone` |  |  |
 | `ledger_txn_id` | `bigint` | 🔗 `fin.ledger_txn`  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `fin.cash_remittance` 🛡️
+
+Cash collected by a carrier from cash sales and remitted to the platform (6.5)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `amount` | `bigint` | ✱ |  |
+| `currency` | `character(3)` | 🔗 `ref.currency` ✱ | `'SYP'::bpchar` |
+| `method` | `text` | ✱ |  |
+| `ref` | `text` |  |  |
+| `ledger_txn_id` | `bigint` | 🔗 `fin.ledger_txn`  |  |
+| `recorded_by` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `reconciled_at` | `timestamp with time zone` |  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `fin.deposit_placement` 🛡️
+
+Maturity ladder of placements; client funds stay withdrawable at any time
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `account_id` | `bigint` | 🔗 `fin.float_account` ✱ |  |
+| `product` | `text` | ✱ |  |
+| `principal` | `bigint` | ✱ |  |
+| `rate_bp` | `integer` | ✱ |  |
+| `starts_on` | `date` | ✱ |  |
+| `matures_on` | `date` | ✱ |  |
+| `status` | `text` | ✱ | `'ACTIVE'::text` |
+
+### `fin.float_account` 🛡️
+
+Bank accounts holding wallet funds, each matched by a ledger wallet (6.8 c)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `bank_party_id` | `bigint` | 🔗 `iam.party` ✱ |  |
+| `kind` | `text` | ✱ |  |
+| `currency` | `character(3)` | 🔗 `ref.currency` ✱ |  |
+| `account_ref` | `text` | ✱ |  |
+| `ledger_wallet_id` | `bigint` | 🔗 `fin.wallet`  |  |
+| `status` | `text` | ✱ | `'ACTIVE'::text` |
+
+### `fin.float_report` 🛡️
+
+Daily coverage of wallet liabilities by bank assets
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `report_date` | `date` | 🔑 ✱ |  |
+| `currency` | `character(3)` | 🔑 🔗 `ref.currency` ✱ |  |
+| `liabilities` | `bigint` | ✱ |  |
+| `assets` | `bigint` | ✱ |  |
+| `coverage_ratio` | `numeric(6,4)` | ✱ |  |
+| `liquid_ratio` | `numeric(6,4)` | ✱ |  |
+| `yield_accrued` | `bigint` | ✱ | `0` |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
 ### `fin.ledger_entry` 🔒
@@ -1988,6 +3265,8 @@ Tree lines: fare, tax, commission, fee, discount; each leaf is released to its b
 | `released_at` | `timestamp with time zone` |  |  |
 | `refunded_amount` | `bigint` | ✱ | `0` |
 | `status` | `text` | ✱ | `'HELD'::text` |
+| `sponsor_account_id` | `bigint` | 🔗 `pricing.sponsor_account`  |  |
+| `funded_by` | `text` |  |  |
 
 ### `fin.settlement_batch` 🛡️
 
@@ -2008,8 +3287,10 @@ Carrier settlement statement for a period; periods never overlap
 | `status` | `text` | ✱ | `'DRAFT'::text` |
 | `approved_by` | `bigint` | 🔗 `iam.app_user`  |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `created_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `approved_at` | `timestamp with time zone` |  |  |
 
-### `fin.settlement_line` 
+### `fin.settlement_line` 🛡️
 
 
 
@@ -2023,6 +3304,7 @@ Carrier settlement statement for a period; periods never overlap
 | `tax` | `bigint` | ✱ |  |
 | `refunds` | `bigint` | ✱ | `0` |
 | `net` | `bigint` | ✱ |  |
+| `trip_no` | `text` |  |  |
 
 ### `fin.tax_ledger` 🛡️ 🔒
 
@@ -2062,7 +3344,7 @@ Wallet: user, company, platform, escrow, commission, tax, clearing; the balance 
 | `status` | `text` | ✱ | `'ACTIVE'::text` |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
-### `fin.withdrawal_request` 
+### `fin.withdrawal_request` 🛡️
 
 Withdrawal request with limits, review and two approvals for large amounts
 
@@ -2079,6 +3361,15 @@ Withdrawal request with limits, review and two approvals for large amounts
 | `ledger_txn_id` | `bigint` | 🔗 `fin.ledger_txn`  |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 | `decided_at` | `timestamp with time zone` |  |  |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `company_id` | `bigint` | 🔗 `iam.company`  |  |
+| `currency` | `character(3)` | 🔗 `ref.currency` ✱ | `'SYP'::bpchar` |
+| `needs_second` | `boolean` | ✱ | `false` |
+| `idempotency_key` | `text` |  |  |
+| `bank_ref` | `text` |  |  |
+| `reject_reason` | `text` |  |  |
+| `paid_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `paid_at` | `timestamp with time zone` |  |  |
 
 <a id="acct"></a>
 ## `acct` — Simplified accounting, e-invoicing and tax profiles
@@ -2110,6 +3401,82 @@ Link between the platform or a company and an external accounting system (Odoo, 
 | `status` | `text` | ✱ | `'INACTIVE'::text` |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
+### `acct.cash_box` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `company_id` | `bigint` | 🔗 `iam.company`  |  |
+| `owner_party_id` | `bigint` | 🔗 `iam.party` ✱ |  |
+| `station_id` | `bigint` | 🔗 `net.station`  |  |
+| `currency` | `character(3)` | 🔗 `ref.currency` ✱ | `'SYP'::bpchar` |
+| `account_id` | `bigint` | 🔗 `acct.gl_account`  |  |
+| `status` | `text` | ✱ | `'ACTIVE'::text` |
+
+### `acct.cash_payment` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `company_id` | `bigint` | 🔗 `iam.company`  |  |
+| `voucher_no` | `text` | ✱ |  |
+| `method` | `text` | ✱ |  |
+| `cash_session_id` | `bigint` | 🔗 `acct.cash_session`  |  |
+| `wallet_id` | `bigint` | 🔗 `fin.wallet`  |  |
+| `bank_account_id` | `bigint` | 🔗 `iam.bank_account`  |  |
+| `party_id` | `bigint` | 🔗 `iam.party` ✱ |  |
+| `amount` | `bigint` | ✱ |  |
+| `currency` | `character(3)` | 🔗 `ref.currency` ✱ | `'SYP'::bpchar` |
+| `purpose` | `text` | ✱ |  |
+| `account_id` | `bigint` | 🔗 `acct.gl_account`  |  |
+| `payment_date` | `date` | ✱ | `CURRENT_DATE` |
+| `approved_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `journal_entry_id` | `bigint` | 🔗 `acct.journal_entry`  |  |
+
+### `acct.cash_receipt` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `company_id` | `bigint` | 🔗 `iam.company`  |  |
+| `receipt_no` | `text` | ✱ |  |
+| `method` | `text` | ✱ |  |
+| `cash_session_id` | `bigint` | 🔗 `acct.cash_session`  |  |
+| `wallet_id` | `bigint` | 🔗 `fin.wallet`  |  |
+| `bank_account_id` | `bigint` | 🔗 `iam.bank_account`  |  |
+| `party_id` | `bigint` | 🔗 `iam.party` ✱ |  |
+| `invoice_id` | `bigint` | 🔗 `acct.sales_invoice`  |  |
+| `amount` | `bigint` | ✱ |  |
+| `currency` | `character(3)` | 🔗 `ref.currency` ✱ | `'SYP'::bpchar` |
+| `ref` | `text` |  |  |
+| `receipt_date` | `date` | ✱ | `CURRENT_DATE` |
+| `journal_entry_id` | `bigint` | 🔗 `acct.journal_entry`  |  |
+
+### `acct.cash_session` 🛡️
+
+A shift of a cash box: opening, closing, variance and hand-over
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `cash_box_id` | `bigint` | 🔗 `acct.cash_box` ✱ |  |
+| `opened_by` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `opened_at` | `timestamp with time zone` | ✱ | `now()` |
+| `opening_amount` | `bigint` | ✱ | `0` |
+| `closed_at` | `timestamp with time zone` |  |  |
+| `closing_amount` | `bigint` |  |  |
+| `expected_amount` | `bigint` |  |  |
+| `variance` | `bigint` |  | `(closing_amount - expected_amount)` |
+| `handed_over_at` | `timestamp with time zone` |  |  |
+| `handed_over_to` | `bigint` | 🔗 `iam.app_user`  |  |
+| `status` | `text` | ✱ | `'OPEN'::text` |
+
 ### `acct.cost_center` 🛡️
 
 
@@ -2122,6 +3489,24 @@ Link between the platform or a company and an external accounting system (Odoo, 
 | `name` | `text` | ✱ |  |
 | `route_id` | `bigint` | 🔗 `net.route`  |  |
 | `station_id` | `bigint` | 🔗 `net.station`  |  |
+| `trip_id` | `bigint` | 🔗 `ops.trip`  |  |
+
+### `acct.credit_note` 🛡️
+
+The only way to reduce an issued invoice (refunds); goes through e-invoicing like the invoice
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `company_id` | `bigint` | 🔗 `iam.company`  |  |
+| `credit_no` | `text` | ✱ |  |
+| `invoice_id` | `bigint` | 🔗 `acct.sales_invoice` ✱ |  |
+| `reason` | `text` | ✱ |  |
+| `amount` | `bigint` | ✱ |  |
+| `tax` | `bigint` | ✱ | `0` |
+| `einvoice_document_id` | `bigint` | 🔗 `acct.einvoice_document`  |  |
+| `status` | `text` | ✱ | `'DRAFT'::text` |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
 ### `acct.einvoice_activation` 
 
@@ -2244,6 +3629,21 @@ Issuing unit per seller: counter, last invoice hash and certificate
 | `last_hash` | `text` | ✱ | `'0'::text` |
 | `status` | `text` | ✱ | `'ACTIVE'::text` |
 
+### `acct.export_batch` 🛡️
+
+File export of the books for systems without an API, with its checksum
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `company_id` | `bigint` | 🔗 `iam.company`  |  |
+| `format` | `text` | ✱ |  |
+| `period` | `daterange` | ✱ |  |
+| `file_id` | `bigint` | 🔗 `ref.file_object`  |  |
+| `checksum` | `text` |  |  |
+| `created_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
 ### `acct.gl_account` 🛡️
 
 Simplified chart of accounts per book (platform or company) from an editable template (13.3)
@@ -2327,6 +3727,61 @@ Posting rules: events become journal entries; no module writes to the ledger dir
 | `created_by` | `bigint` | 🔗 `iam.app_user`  |  |
 | `approved_by` | `bigint` | 🔗 `iam.app_user`  |  |
 
+### `acct.sales_invoice` 🛡️
+
+Sales invoice of the books with gapless numbering per company; linked to its e-invoice when one is required
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `company_id` | `bigint` | 🔗 `iam.company`  |  |
+| `invoice_no` | `text` | ✱ |  |
+| `customer_party_id` | `bigint` | 🔗 `iam.party` ✱ |  |
+| `issue_date` | `date` | ✱ |  |
+| `due_date` | `date` |  |  |
+| `currency` | `character(3)` | 🔗 `ref.currency` ✱ | `'SYP'::bpchar` |
+| `subtotal` | `bigint` | ✱ | `0` |
+| `tax` | `bigint` | ✱ | `0` |
+| `total` | `bigint` | ✱ | `0` |
+| `source_type` | `text` |  |  |
+| `source_id` | `bigint` |  |  |
+| `einvoice_document_id` | `bigint` | 🔗 `acct.einvoice_document`  |  |
+| `journal_entry_id` | `bigint` | 🔗 `acct.journal_entry`  |  |
+| `status` | `text` | ✱ | `'DRAFT'::text` |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `acct.sales_invoice_line` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `invoice_id` | `bigint` | 🔑 🔗 `acct.sales_invoice` ✱ |  |
+| `line_no` | `smallint` | 🔑 ✱ |  |
+| `description` | `text` | ✱ |  |
+| `qty` | `numeric(12,3)` | ✱ | `1` |
+| `unit_price` | `bigint` | ✱ |  |
+| `tax_code_id` | `bigint` | 🔗 `acct.tax_code`  |  |
+| `tax_amount` | `bigint` | ✱ | `0` |
+| `amount` | `bigint` | ✱ |  |
+| `account_id` | `bigint` | 🔗 `acct.gl_account`  |  |
+| `cost_center_id` | `bigint` | 🔗 `acct.cost_center`  |  |
+
+### `acct.sync_conflict` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `item_id` | `bigint` | 🔗 `acct.sync_item` ✱ |  |
+| `conflict_type` | `text` | ✱ |  |
+| `detail` | `jsonb` | ✱ | `'{}'::jsonb` |
+| `resolution` | `text` |  |  |
+| `resolved_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `resolved_at` | `timestamp with time zone` |  |  |
+
 ### `acct.sync_item` 
 
 Log of journal entries and invoices pushed to the external system via API, with retries and deduplication (13.12)
@@ -2345,6 +3800,22 @@ Log of journal entries and invoices pushed to the external system via API, with 
 | `error` | `text` |  |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 | `sent_at` | `timestamp with time zone` |  |  |
+| `job_id` | `bigint` | 🔗 `acct.sync_job`  |  |
+
+### `acct.sync_job` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `connection_id` | `bigint` | 🔗 `acct.accounting_connection` ✱ |  |
+| `batch_ref` | `text` | ✱ |  |
+| `started_at` | `timestamp with time zone` | ✱ | `now()` |
+| `finished_at` | `timestamp with time zone` |  |  |
+| `items_total` | `integer` | ✱ | `0` |
+| `items_failed` | `integer` | ✱ | `0` |
+| `status` | `text` | ✱ | `'RUNNING'::text` |
 
 ### `acct.tax_authority` 
 
@@ -2360,6 +3831,21 @@ Tax authority and its adapter: generation mode before integration, then reportin
 | `report_deadline_hours` | `integer` |  |  |
 | `api_base` | `text` |  |  |
 | `status` | `text` | ✱ | `'INACTIVE'::text` |
+
+### `acct.tax_code` 🛡️
+
+Tax code of the books, mapped to a GL account and to the pricing engine's tax rule
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `company_id` | `bigint` | 🔗 `iam.company`  |  |
+| `code` | `text` | ✱ |  |
+| `name` | `text` | ✱ |  |
+| `rate` | `numeric(6,3)` | ✱ |  |
+| `account_id` | `bigint` | 🔗 `acct.gl_account`  |  |
+| `tax_rule_id` | `bigint` | 🔗 `pricing.tax_rule`  |  |
+| `active` | `boolean` | ✱ | `true` |
 
 ### `acct.tax_collection_no_file` 
 
@@ -2481,8 +3967,135 @@ Draft tax return per taxpayer and period using the authority's form boxes
 | `amount` | `bigint` | ✱ |  |
 | `source_note` | `text` |  |  |
 
+<a id="bill"></a>
+## `bill` — Carrier subscriptions, metering and platform invoices
+
+### `bill.billed_usage` 🛡️
+
+What has already been billed of the overage, so usage is never billed twice
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `subscription_id` | `bigint` | 🔗 `bill.company_subscription` ✱ |  |
+| `invoice_id` | `bigint` | 🔗 `bill.carrier_invoice` ✱ |  |
+| `kind` | `text` | ✱ |  |
+| `qty` | `integer` | ✱ |  |
+| `period_start` | `date` | ✱ |  |
+
+### `bill.carrier_agreement` 🛡️
+
+A negotiated agreement with one carrier, four-eyes approved
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `label` | `text` | ✱ |  |
+| `terms` | `jsonb` | ✱ |  |
+| `valid_days` | `integer` | ✱ |  |
+| `status` | `text` | ✱ | `'PENDING'::text` |
+| `created_by` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `approved_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `bill.carrier_invoice` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `subscription_id` | `bigint` | 🔗 `bill.company_subscription`  |  |
+| `kind` | `text` | ✱ |  |
+| `period_start` | `date` | ✱ |  |
+| `period_end` | `date` | ✱ |  |
+| `subtotal` | `bigint` | ✱ | `0` |
+| `discount` | `bigint` | ✱ | `0` |
+| `tax` | `bigint` | ✱ | `0` |
+| `total` | `bigint` | ✱ | `0` |
+| `currency` | `character(3)` | 🔗 `ref.currency` ✱ | `'SYP'::bpchar` |
+| `status` | `text` | ✱ | `'DUE'::text` |
+| `einvoice_document_id` | `bigint` | 🔗 `acct.einvoice_document`  |  |
+| `ledger_txn_id` | `bigint` | 🔗 `fin.ledger_txn`  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `bill.carrier_invoice_line` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `invoice_id` | `bigint` | 🔑 🔗 `bill.carrier_invoice` ✱ |  |
+| `line_no` | `smallint` | 🔑 ✱ |  |
+| `kind` | `text` | ✱ |  |
+| `description` | `text` | ✱ |  |
+| `qty` | `numeric(12,2)` | ✱ | `1` |
+| `unit_price` | `bigint` | ✱ |  |
+| `amount` | `bigint` | ✱ |  |
+
+### `bill.company_subscription` 🛡️
+
+One active subscription per company; terms are copied at start
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `source` | `text` | ✱ |  |
+| `plan_id` | `bigint` | 🔗 `bill.plan`  |  |
+| `agreement_id` | `bigint` | 🔗 `bill.carrier_agreement`  |  |
+| `status` | `text` | ✱ | `'ACTIVE'::text` |
+| `starts_at` | `timestamp with time zone` | ✱ |  |
+| `ends_at` | `timestamp with time zone` | ✱ |  |
+| `terms` | `jsonb` | ✱ |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `bill.plan` 🛡️
+
+Package catalog: three carrier plans and two shuttle plans with included quantities and overage (5.11 d)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `code` | `text` | ✱ |  |
+| `kind` | `text` | ✱ |  |
+| `name` | `text` | ✱ |  |
+| `annual_fee` | `bigint` | ✱ |  |
+| `currency` | `character(3)` | 🔗 `ref.currency` ✱ | `'SYP'::bpchar` |
+| `included_users` | `integer` | ✱ | `1` |
+| `extra_user_fee` | `bigint` | ✱ | `0` |
+| `max_extra_users` | `integer` |  |  |
+| `included_invoices` | `integer` | ✱ | `0` |
+| `included_api_calls` | `integer` | ✱ | `0` |
+| `included_whatsapp` | `integer` | ✱ | `0` |
+| `commission_bp` | `integer` | ✱ | `0` |
+| `overage_invoice_fee` | `bigint` | ✱ | `0` |
+| `overage_api_per_1000` | `bigint` | ✱ | `0` |
+| `overage_whatsapp_fee` | `bigint` | ✱ | `0` |
+| `self_service` | `boolean` | ✱ | `true` |
+| `status` | `text` | ✱ | `'ACTIVE'::text` |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `bill.usage_event` 🛡️ 🔒
+
+Metering log; append-only
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `kind` | `text` | ✱ |  |
+| `qty` | `integer` | ✱ | `1` |
+| `ref_type` | `text` |  |  |
+| `ref_id` | `bigint` |  |  |
+| `ts` | `timestamp with time zone` | ✱ | `now()` |
+
 <a id="crm"></a>
-## `crm` — Complaints, ratings, notifications and the AI assistant
+## `crm` — Complaints, ratings, notifications, the AI assistant and the contact center
 
 ### `crm.ai_conversation` 
 
@@ -2500,6 +4113,20 @@ Draft tax return per taxpayer and period using the authority's form boxes
 | `resolved` | `boolean` |  |  |
 | `escalated_case_id` | `bigint` | 🔗 `crm.case`  |  |
 | `csat` | `smallint` |  |  |
+
+### `crm.ai_eval_case` 🛡️
+
+Test set of the assistant per dialect, run before each model or policy change
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `lang_dialect` | `text` | ✱ |  |
+| `input` | `text` | ✱ |  |
+| `expected` | `text` | ✱ |  |
+| `last_result` | `text` |  |  |
+| `last_run_at` | `timestamp with time zone` |  |  |
+| `active` | `boolean` | ✱ | `true` |
 
 ### `crm.ai_message` 
 
@@ -2539,6 +4166,125 @@ Every tool executed by the assistant with the customer's permissions and confirm
 | `confirmed_by_user` | `boolean` | ✱ | `false` |
 | `result_status` | `text` | ✱ |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `crm.call` 🛡️
+
+Every call: AI first, warm transfer to an agent when needed (7.11)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `direction` | `text` | ✱ |  |
+| `caller_hash` | `bytea` | ✱ |  |
+| `line_ref` | `text` |  |  |
+| `queue_id` | `bigint` | 🔗 `crm.call_queue`  |  |
+| `party_id` | `bigint` | 🔗 `iam.party`  |  |
+| `company_id` | `bigint` | 🔗 `iam.company`  |  |
+| `case_id` | `bigint` | 🔗 `crm.case`  |  |
+| `ai_conversation_id` | `bigint` | 🔗 `crm.ai_conversation`  |  |
+| `agent_id` | `bigint` | 🔗 `crm.call_agent`  |  |
+| `handled_by` | `text` |  |  |
+| `state` | `text` | ✱ | `'RINGING'::text` |
+| `started_at` | `timestamp with time zone` | ✱ | `now()` |
+| `answered_at` | `timestamp with time zone` |  |  |
+| `ended_at` | `timestamp with time zone` |  |  |
+| `outcome` | `text` |  |  |
+| `recording_file_id` | `bigint` | 🔗 `ref.file_object`  |  |
+| `transcript_file_id` | `bigint` | 🔗 `ref.file_object`  |  |
+| `csat` | `smallint` |  |  |
+
+### `crm.call_agent` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `user_id` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `shift` | `jsonb` | ✱ | `'{}'::jsonb` |
+| `status` | `text` | ✱ | `'OFFLINE'::text` |
+
+### `crm.call_agent_skill` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `agent_id` | `bigint` | 🔑 🔗 `crm.call_agent` ✱ |  |
+| `skill_code` | `text` | 🔑 🔗 `crm.call_skill` ✱ |  |
+| `level` | `smallint` | ✱ | `1` |
+
+### `crm.call_event` 🛡️ 🔒
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `call_id` | `bigint` | 🔗 `crm.call` ✱ |  |
+| `ts` | `timestamp with time zone` | ✱ | `now()` |
+| `kind` | `text` | ✱ |  |
+| `detail_redacted` | `jsonb` | ✱ | `'{}'::jsonb` |
+
+### `crm.call_qa` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `call_id` | `bigint` | 🔗 `crm.call` ✱ |  |
+| `scorer` | `text` | ✱ |  |
+| `scorer_user_id` | `bigint` | 🔗 `iam.app_user`  |  |
+| `score` | `numeric(5,2)` | ✱ |  |
+| `flags` | `text[]` | ✱ | `'{}'::text[]` |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `crm.call_queue` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `code` | `text` | ✱ |  |
+| `name` | `text` | ✱ |  |
+| `channel` | `text` | ✱ | `'VOICE'::text` |
+| `sla_target_sec` | `integer` | ✱ | `60` |
+| `status` | `text` | ✱ | `'ACTIVE'::text` |
+
+### `crm.call_queue_skill` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `queue_id` | `bigint` | 🔑 🔗 `crm.call_queue` ✱ |  |
+| `skill_code` | `text` | 🔑 🔗 `crm.call_skill` ✱ |  |
+
+### `crm.call_skill` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `code` | `text` | 🔑 ✱ |  |
+| `name` | `text` | ✱ |  |
+
+### `crm.callback_request` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `call_id` | `bigint` | 🔗 `crm.call`  |  |
+| `phone_hash` | `bytea` | ✱ |  |
+| `reason` | `text` | ✱ |  |
+| `due_at` | `timestamp with time zone` | ✱ |  |
+| `assigned_agent_id` | `bigint` | 🔗 `crm.call_agent`  |  |
+| `status` | `text` | ✱ | `'PENDING'::text` |
 
 ### `crm.case` 🛡️
 
@@ -2592,7 +4338,7 @@ Complaint, claim or inquiry with service levels, compensation and segregation of
 | `file_id` | `bigint` | 🔗 `ref.file_object`  |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
-### `crm.notification` 
+### `crm.notification` 🛡️
 
 
 
@@ -2614,6 +4360,8 @@ Complaint, claim or inquiry with service levels, compensation and segregation of
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 | `sent_at` | `timestamp with time zone` |  |  |
 | `read_at` | `timestamp with time zone` |  |  |
+| `event_uid` | `uuid` |  |  |
+| `last_error` | `text` |  |  |
 
 ### `crm.notification_template` 
 
@@ -2651,7 +4399,7 @@ Trip rating (one ticket = one rating), feeds carrier ranking (7.7)
 <a id="gov"></a>
 ## `gov` — Governance, obligations and data protection
 
-### `gov.consent` 
+### `gov.consent` 🛡️
 
 Consents with policy version and withdrawal date
 
@@ -2790,7 +4538,7 @@ Versioned policy change approved according to the matrix; the proposer cannot ap
 | `notified_subjects_at` | `timestamp with time zone` |  |  |
 | `security_event_id` | `bigint` | 🔗 `sec.security_event`  |  |
 
-### `gov.subject_request` 
+### `gov.subject_request` 🛡️
 
 
 
@@ -2804,9 +4552,13 @@ Versioned policy change approved according to the matrix; the proposer cannot ap
 | `result` | `text` |  |  |
 | `handled_by` | `bigint` | 🔗 `iam.app_user`  |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `user_id` | `bigint` | 🔗 `iam.app_user`  |  |
+| `reason` | `text` |  |  |
+| `handled_at` | `timestamp with time zone` |  |  |
 
 <a id="sec"></a>
-## `sec` — Security: IP rules, risk, signing and the security hub
+## `sec` — Security: IP rules, risk, signing, the security hub and government adapters
 
 ### `sec.access_review` 
 
@@ -2820,6 +4572,23 @@ Versioned policy change approved according to the matrix; the proposer cannot ap
 | `reviewer_id` | `bigint` | 🔗 `iam.app_user` ✱ |  |
 | `decision` | `text` | ✱ |  |
 | `reviewed_on` | `date` | ✱ | `CURRENT_DATE` |
+
+### `sec.authority_alert` 🛡️
+
+Notifications to the regulator: a vehicle operating with an expired licence or an unregistered trip (4.16 g)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `vehicle_id` | `bigint` | 🔗 `fleet.vehicle`  |  |
+| `trip_id` | `bigint` | 🔗 `ops.trip`  |  |
+| `authority_id` | `bigint` | 🔗 `sec.authority_profile`  |  |
+| `alert_type` | `text` | ✱ |  |
+| `evidence_file_id` | `bigint` | 🔗 `ref.file_object`  |  |
+| `sent_to_authority` | `boolean` | ✱ | `false` |
+| `sent_at` | `timestamp with time zone` |  |  |
+| `response_ref` | `text` |  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
 ### `sec.authority_data_request` 
 
@@ -2946,6 +4715,22 @@ Every official document issued by the server is signed; the verification page co
 | `outcome` | `text` |  |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 | `closed_at` | `timestamp with time zone` |  |  |
+
+### `sec.gov_adapter_config` 🛡️
+
+Adapter to a government registry; field mapping changes by configuration (phase 5)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `authority_id` | `bigint` | 🔗 `sec.authority_profile` ✱ |  |
+| `adapter_type` | `text` | ✱ |  |
+| `endpoint` | `text` | ✱ |  |
+| `protocol` | `text` | ✱ |  |
+| `cert_ref` | `text` |  |  |
+| `mapping` | `jsonb` | ✱ | `'{}'::jsonb` |
+| `timeout_ms` | `integer` | ✱ | `5000` |
+| `status` | `text` | ✱ | `'TESTING'::text` |
 
 ### `sec.ip_rule` 🛡️ 🔒
 
@@ -3109,6 +4894,24 @@ Attempts to submit values that contradict the server-side computation (price, da
 | `server_value` | `text` |  |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
+### `sec.verification_job` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `adapter_id` | `bigint` | 🔗 `sec.gov_adapter_config` ✱ |  |
+| `verification_id` | `bigint` | 🔗 `iam.verification`  |  |
+| `subject_type` | `text` | ✱ |  |
+| `subject_id` | `bigint` | ✱ |  |
+| `request_ref` | `text` |  |  |
+| `status` | `text` | ✱ | `'QUEUED'::text` |
+| `attempts` | `integer` | ✱ | `0` |
+| `result` | `jsonb` |  |  |
+| `requested_at` | `timestamp with time zone` | ✱ | `now()` |
+| `completed_at` | `timestamp with time zone` |  |  |
+
 ### `sec.watchlist_entry` 
 
 Watch and ban list with hashed matching, without copying full data
@@ -3124,6 +4927,2047 @@ Watch and ban list with hashed matching, without copying full data
 | `source_ref` | `text` |  |  |
 | `status` | `text` | ✱ | `'ACTIVE'::text` |
 | `created_by` | `bigint` | 🔗 `iam.app_user`  |  |
+
+<a id="ptn"></a>
+## `ptn` — Service partners: fuel stations, rest stops and maintenance
+
+### `ptn.fuel_anomaly` 🛡️
+
+Fuel quantity that does not match tank size, distance or expected consumption (14.11 f)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `session_id` | `bigint` | 🔗 `ptn.fuel_session` ✱ |  |
+| `anomaly_type` | `text` | ✱ |  |
+| `severity` | `text` | ✱ |  |
+| `distance_odometer_km` | `numeric(9,1)` |  |  |
+| `distance_gps_km` | `numeric(9,1)` |  |  |
+| `distance_trips_km` | `numeric(9,1)` |  |  |
+| `liters` | `numeric(8,2)` |  |  |
+| `evidence` | `jsonb` | ✱ | `'{}'::jsonb` |
+| `status` | `text` | ✱ | `'OPEN'::text` |
+| `resolved_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `resolved_at` | `timestamp with time zone` |  |  |
+
+### `ptn.fuel_card` 🛡️
+
+Virtual fuel card of a carrier, bound to a vehicle or a driver, with limits
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `vehicle_id` | `bigint` | 🔗 `fleet.vehicle`  |  |
+| `driver_party_id` | `bigint` | 🔗 `fleet.crew_profile`  |  |
+| `daily_limit` | `bigint` |  |  |
+| `monthly_limit` | `bigint` |  |  |
+| `currency` | `character(3)` | 🔗 `ref.currency` ✱ | `'SYP'::bpchar` |
+| `fuel_types` | `text[]` | ✱ | `'{DIESEL}'::text[]` |
+| `status` | `text` | ✱ | `'ACTIVE'::text` |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `ptn.fuel_price` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `partner_id` | `bigint` | 🔗 `ptn.partner` ✱ |  |
+| `fuel_type` | `text` | ✱ |  |
+| `unit_price` | `bigint` | ✱ |  |
+| `currency` | `character(3)` | 🔗 `ref.currency` ✱ | `'SYP'::bpchar` |
+| `valid_from` | `timestamp with time zone` | ✱ | `now()` |
+
+### `ptn.fuel_session` 🛡️
+
+Refuelling session that precedes the sale and carries the odometer evidence (14.11 f)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `partner_id` | `bigint` | 🔗 `ptn.partner` ✱ |  |
+| `pump_ref` | `text` |  |  |
+| `station_employee_id` | `bigint` | 🔗 `ptn.station_employee` ✱ |  |
+| `company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `vehicle_id` | `bigint` | 🔗 `fleet.vehicle` ✱ |  |
+| `driver_party_id` | `bigint` | 🔗 `fleet.crew_profile`  |  |
+| `trip_id` | `bigint` | 🔗 `ops.trip`  |  |
+| `fuel_card_id` | `bigint` | 🔗 `ptn.fuel_card`  |  |
+| `opened_at` | `timestamp with time zone` | ✱ | `now()` |
+| `closed_at` | `timestamp with time zone` |  |  |
+| `status` | `text` | ✱ | `'OPEN'::text` |
+
+### `ptn.odometer_reading` 🛡️ 🔒
+
+Series of odometer readings per vehicle; append-only
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `vehicle_id` | `bigint` | 🔗 `fleet.vehicle` ✱ |  |
+| `session_id` | `bigint` | 🔗 `ptn.fuel_session`  |  |
+| `value_km` | `integer` | ✱ |  |
+| `photo_file_id` | `bigint` | 🔗 `ref.file_object`  |  |
+| `ocr_value` | `integer` |  |  |
+| `driver_confirmed` | `boolean` | ✱ | `false` |
+| `employee_confirmed` | `boolean` | ✱ | `false` |
+| `source` | `text` | ✱ |  |
+| `lat` | `numeric(9,6)` |  |  |
+| `lng` | `numeric(9,6)` |  |  |
+| `ts` | `timestamp with time zone` | ✱ | `now()` |
+
+### `ptn.partner` 🛡️
+
+A contracted service partner, registered on the station pattern (14.11, 4.11)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `party_id` | `bigint` | 🔗 `iam.party` ✱ |  |
+| `company_id` | `bigint` | 🔗 `iam.company`  |  |
+| `partner_type` | `text` | ✱ |  |
+| `code` | `text` | ✱ |  |
+| `station_id` | `bigint` | 🔗 `net.station`  |  |
+| `lat` | `numeric(9,6)` |  |  |
+| `lng` | `numeric(9,6)` |  |  |
+| `geofence_m` | `integer` | ✱ | `150` |
+| `license_no` | `text` |  |  |
+| `license_expiry` | `date` |  |  |
+| `hours` | `jsonb` | ✱ | `'{}'::jsonb` |
+| `menu_enabled` | `boolean` | ✱ | `false` |
+| `preorder_enabled` | `boolean` | ✱ | `false` |
+| `avg_service_min` | `smallint` |  |  |
+| `compliance_state` | `text` | ✱ | `'PENDING'::text` |
+| `status` | `text` | ✱ | `'PENDING'::text` |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `ptn.partner_contract` 🛡️
+
+Versioned commission contract with dual approval; one active contract per period
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `partner_id` | `bigint` | 🔗 `ptn.partner` ✱ |  |
+| `version` | `integer` | ✱ | `1` |
+| `commission_model` | `text` | ✱ |  |
+| `rate_bp` | `integer` |  |  |
+| `fixed_fee` | `bigint` |  |  |
+| `tiers` | `jsonb` |  |  |
+| `carrier_fee` | `bigint` | ✱ | `0` |
+| `carrier_share_pct` | `numeric(5,2)` | ✱ | `0` |
+| `currency` | `character(3)` | 🔗 `ref.currency` ✱ | `'SYP'::bpchar` |
+| `settlement_cycle` | `text` | ✱ | `'WEEKLY'::text` |
+| `credit_terms` | `jsonb` | ✱ | `'{}'::jsonb` |
+| `valid` | `daterange` | ✱ |  |
+| `status` | `text` | ✱ | `'DRAFT'::text` |
+| `created_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `approved_by` | `bigint` | 🔗 `iam.app_user`  |  |
+
+### `ptn.partner_menu_item` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `partner_id` | `bigint` | 🔗 `ptn.partner` ✱ |  |
+| `name` | `text` | ✱ |  |
+| `category` | `text` | ✱ | `'FOOD'::text` |
+| `price` | `bigint` | ✱ |  |
+| `currency` | `character(3)` | 🔗 `ref.currency` ✱ | `'SYP'::bpchar` |
+| `available` | `boolean` | ✱ | `true` |
+
+### `ptn.partner_order` 🛡️
+
+Pre-order at a rest stop on the trip (14.11 e); its lines are ptn.partner_order_item
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `partner_id` | `bigint` | 🔗 `ptn.partner` ✱ |  |
+| `user_id` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `trip_id` | `bigint` | 🔗 `ops.trip`  |  |
+| `amount` | `bigint` | ✱ |  |
+| `currency` | `character(3)` | 🔗 `ref.currency` ✱ | `'SYP'::bpchar` |
+| `pickup_eta` | `timestamp with time zone` |  |  |
+| `status` | `text` | ✱ | `'PLACED'::text` |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `ptn.partner_order_item` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `order_id` | `bigint` | 🔑 🔗 `ptn.partner_order` ✱ |  |
+| `menu_item_id` | `bigint` | 🔑 🔗 `ptn.partner_menu_item` ✱ |  |
+| `qty` | `smallint` | ✱ |  |
+| `unit_price` | `bigint` | ✱ |  |
+
+### `ptn.partner_sale` 🛡️
+
+The shared sale transaction for fuel and rest stops, posted through the ledger
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `partner_id` | `bigint` | 🔗 `ptn.partner` ✱ |  |
+| `session_id` | `bigint` | 🔗 `ptn.fuel_session`  |  |
+| `order_id` | `bigint` | 🔗 `ptn.partner_order`  |  |
+| `company_id` | `bigint` | 🔗 `iam.company`  |  |
+| `user_id` | `bigint` | 🔗 `iam.app_user`  |  |
+| `vehicle_id` | `bigint` | 🔗 `fleet.vehicle`  |  |
+| `driver_party_id` | `bigint` | 🔗 `iam.party`  |  |
+| `trip_id` | `bigint` | 🔗 `ops.trip`  |  |
+| `fuel_type` | `text` |  |  |
+| `qty` | `numeric(10,2)` |  |  |
+| `unit_price` | `bigint` |  |  |
+| `amount` | `bigint` | ✱ |  |
+| `points_used` | `bigint` | ✱ | `0` |
+| `currency` | `character(3)` | 🔗 `ref.currency` ✱ | `'SYP'::bpchar` |
+| `method` | `text` | ✱ |  |
+| `odometer_km` | `integer` |  |  |
+| `lat` | `numeric(9,6)` |  |  |
+| `lng` | `numeric(9,6)` |  |  |
+| `status` | `text` | ✱ | `'COMPLETED'::text` |
+| `ledger_txn_id` | `bigint` | 🔗 `fin.ledger_txn`  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `ptn.partner_settlement` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `partner_id` | `bigint` | 🔗 `ptn.partner` ✱ |  |
+| `period` | `daterange` | ✱ |  |
+| `gross` | `bigint` | ✱ | `0` |
+| `commission` | `bigint` | ✱ | `0` |
+| `carrier_share` | `bigint` | ✱ | `0` |
+| `redemptions` | `bigint` | ✱ | `0` |
+| `net` | `bigint` | ✱ | `0` |
+| `currency` | `character(3)` | 🔗 `ref.currency` ✱ | `'SYP'::bpchar` |
+| `ledger_txn_id` | `bigint` | 🔗 `fin.ledger_txn`  |  |
+| `status` | `text` | ✱ | `'DRAFT'::text` |
+
+### `ptn.rest_stop_rating` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `partner_id` | `bigint` | 🔗 `ptn.partner` ✱ |  |
+| `user_id` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `trip_id` | `bigint` | 🔗 `ops.trip`  |  |
+| `overall` | `smallint` | ✱ |  |
+| `cleanliness` | `smallint` |  |  |
+| `service` | `smallint` |  |  |
+| `value` | `smallint` |  |  |
+| `comment` | `text` |  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `ptn.station_employee` 🛡️
+
+A personal account per attendant, so every fuel session has a named employee
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `partner_id` | `bigint` | 🔗 `ptn.partner` ✱ |  |
+| `user_id` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `role` | `text` | ✱ |  |
+| `status` | `text` | ✱ | `'ACTIVE'::text` |
+
+<a id="ship"></a>
+## `ship` — Shipments and the integrated shipping network
+
+### `ship.access_point` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `station_id` | `bigint` | 🔗 `net.station` ✱ |  |
+| `partner_party_id` | `bigint` | 🔗 `iam.party`  |  |
+| `point_type` | `text` | ✱ |  |
+| `capacity` | `integer` |  |  |
+| `hours` | `jsonb` | ✱ | `'{}'::jsonb` |
+| `services` | `text[]` | ✱ | `'{DROP_OFF,PICK_UP}'::text[]` |
+| `hold_days` | `smallint` | ✱ | `5` |
+| `commission_bp` | `integer` | ✱ | `0` |
+| `status` | `text` | ✱ | `'ACTIVE'::text` |
+
+### `ship.address` 🛡️
+
+Structured address with a short code, for areas without formal addresses (9.21)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `party_id` | `bigint` | 🔗 `iam.party`  |  |
+| `geo_zone_id` | `bigint` | 🔗 `ship.geo_zone`  |  |
+| `lat` | `numeric(9,6)` |  |  |
+| `lng` | `numeric(9,6)` |  |  |
+| `address_text` | `text` | ✱ |  |
+| `landmark` | `text` |  |  |
+| `short_code` | `text` |  |  |
+| `verified` | `boolean` | ✱ | `false` |
+| `last_delivered_at` | `timestamp with time zone` |  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `ship.capacity_booking` 🛡️
+
+B2B capacity bought on a load, trip or route by a courier company; generalizes cargo_booking
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `load_id` | `bigint` | 🔗 `ship.load`  |  |
+| `trip_id` | `bigint` | 🔗 `ops.trip`  |  |
+| `route_id` | `bigint` | 🔗 `net.route`  |  |
+| `seller_company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `buyer_company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `reserved_weight_kg` | `numeric(10,2)` | ✱ |  |
+| `reserved_volume_m3` | `numeric(8,2)` |  |  |
+| `positions` | `smallint` |  |  |
+| `rate` | `bigint` | ✱ |  |
+| `currency` | `character(3)` | 🔗 `ref.currency` ✱ | `'SYP'::bpchar` |
+| `status` | `text` | ✱ | `'REQUESTED'::text` |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `ship.cargo_claim` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `shipment_id` | `bigint` | 🔗 `ship.shipment` ✱ |  |
+| `claim_type` | `text` | ✱ |  |
+| `amount` | `bigint` | ✱ |  |
+| `currency` | `character(3)` | 🔗 `ref.currency` ✱ | `'SYP'::bpchar` |
+| `liable_leg_id` | `bigint` | 🔗 `ship.shipment_leg`  |  |
+| `case_id` | `bigint` | 🔗 `crm.case`  |  |
+| `status` | `text` | ✱ | `'OPEN'::text` |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `ship.cargo_rate_card` 🛡️
+
+A bus carrier's rates for parcels in the luggage hold (9.4); feeds the pricing engine
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `route_id` | `bigint` | 🔗 `net.route`  |  |
+| `service_id` | `bigint` | 🔗 `ship.service_product`  |  |
+| `weight_from_kg` | `numeric(9,2)` | ✱ | `0` |
+| `weight_to_kg` | `numeric(9,2)` | ✱ |  |
+| `volume_to_m3` | `numeric(8,3)` |  |  |
+| `price` | `bigint` | ✱ |  |
+| `currency` | `character(3)` | 🔗 `ref.currency` ✱ | `'SYP'::bpchar` |
+| `valid` | `daterange` | ✱ |  |
+
+### `ship.carrier_scorecard` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `carrier_company_id` | `bigint` | 🔗 `iam.company`  |  |
+| `access_point_id` | `bigint` | 🔗 `ship.access_point`  |  |
+| `period` | `daterange` | ✱ |  |
+| `otd_pct` | `numeric(5,2)` |  |  |
+| `fadr_pct` | `numeric(5,2)` |  |  |
+| `scan_pct` | `numeric(5,2)` |  |  |
+| `damage_pct` | `numeric(5,2)` |  |  |
+| `loss_pct` | `numeric(5,2)` |  |  |
+| `score` | `numeric(5,2)` |  |  |
+
+### `ship.cod_collection` 🛡️
+
+Cash on delivery, passed through the ledger to the merchant
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `shipment_id` | `bigint` | 🔗 `ship.shipment` ✱ |  |
+| `amount` | `bigint` | ✱ |  |
+| `currency` | `character(3)` | 🔗 `ref.currency` ✱ | `'SYP'::bpchar` |
+| `collected_at` | `timestamp with time zone` |  |  |
+| `collected_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `ledger_txn_id` | `bigint` | 🔗 `fin.ledger_txn`  |  |
+| `status` | `text` | ✱ | `'PENDING'::text` |
+
+### `ship.courier_assignment` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `courier_route_id` | `bigint` | 🔗 `ship.courier_route` ✱ |  |
+| `stop_seq` | `smallint` | ✱ |  |
+| `kind` | `text` | ✱ |  |
+| `shipment_id` | `bigint` | 🔗 `ship.shipment`  |  |
+| `pickup_request_id` | `bigint` | 🔗 `ship.pickup_request`  |  |
+| `eta` | `timestamp with time zone` |  |  |
+| `status` | `text` | ✱ | `'PENDING'::text` |
+
+### `ship.courier_route` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `hub_id` | `bigint` | 🔗 `ship.hub`  |  |
+| `courier_user_id` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `vehicle_id` | `bigint` | 🔗 `fleet.vehicle`  |  |
+| `route_date` | `date` | ✱ |  |
+| `status` | `text` | ✱ | `'PLANNED'::text` |
+
+### `ship.custody_transfer` 🛡️ 🔒
+
+Chain of custody between carriers, couriers and points; append-only
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `shipment_id` | `bigint` | 🔗 `ship.shipment`  |  |
+| `unit_id` | `bigint` | 🔗 `ship.handling_unit`  |  |
+| `from_party_id` | `bigint` | 🔗 `iam.party` ✱ |  |
+| `to_party_id` | `bigint` | 🔗 `iam.party` ✱ |  |
+| `method` | `text` | ✱ |  |
+| `signature_file_id` | `bigint` | 🔗 `ref.file_object`  |  |
+| `ts` | `timestamp with time zone` | ✱ | `now()` |
+
+### `ship.delivery_attempt` 🛡️ 🔒
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `shipment_id` | `bigint` | 🔗 `ship.shipment` ✱ |  |
+| `attempt_no` | `smallint` | ✱ |  |
+| `courier_user_id` | `bigint` | 🔗 `iam.app_user`  |  |
+| `result` | `text` | ✱ |  |
+| `reason_code` | `text` |  |  |
+| `responsible` | `text` |  |  |
+| `lat` | `numeric(9,6)` |  |  |
+| `lng` | `numeric(9,6)` |  |  |
+| `ts` | `timestamp with time zone` | ✱ | `now()` |
+
+### `ship.delivery_preference` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `shipment_id` | `bigint` | 🔗 `ship.shipment`  |  |
+| `party_id` | `bigint` | 🔗 `iam.party`  |  |
+| `pref_type` | `text` | ✱ |  |
+| `value` | `jsonb` | ✱ |  |
+| `requested_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `fee` | `bigint` | ✱ | `0` |
+| `status` | `text` | ✱ | `'REQUESTED'::text` |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `ship.delivery_proof` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `shipment_id` | `bigint` | 🔑 🔗 `ship.shipment` ✱ |  |
+| `attempt_id` | `bigint` | 🔗 `ship.delivery_attempt`  |  |
+| `method` | `text` | ✱ |  |
+| `evidence_file_id` | `bigint` | 🔗 `ref.file_object`  |  |
+| `delivered_to` | `text` | ✱ |  |
+| `ts` | `timestamp with time zone` | ✱ | `now()` |
+
+### `ship.fuel_surcharge_index` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `period` | `daterange` | ✱ |  |
+| `diesel_price_ref` | `bigint` | ✱ |  |
+| `pct` | `numeric(5,2)` | ✱ |  |
+| `published_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `ship.geo_zone` 🛡️
+
+Delivery zone served by a hub, with its class (remote areas carry a surcharge)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `country_code` | `character(2)` | 🔗 `ref.country` ✱ |  |
+| `governorate` | `text` |  |  |
+| `city_id` | `bigint` | 🔗 `ref.city`  |  |
+| `district` | `text` |  |  |
+| `polygon` | `jsonb` |  |  |
+| `zone_class` | `text` | ✱ | `'NORMAL'::text` |
+| `servicing_hub_id` | `bigint` | 🔗 `ship.hub`  |  |
+| `delivery_days` | `smallint[]` | ✱ | `'{1,2,3,4,5,6}'::smallint[]` |
+
+### `ship.guarantee_claim` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `shipment_id` | `bigint` | 🔗 `ship.shipment` ✱ |  |
+| `committed_at` | `timestamp with time zone` | ✱ |  |
+| `delivered_at` | `timestamp with time zone` |  |  |
+| `eligible` | `boolean` |  |  |
+| `exclusion_reason` | `text` |  |  |
+| `refund_amount` | `bigint` |  |  |
+| `ledger_txn_id` | `bigint` | 🔗 `fin.ledger_txn`  |  |
+| `chargeback_leg_id` | `bigint` | 🔗 `ship.shipment_leg`  |  |
+| `status` | `text` | ✱ | `'OPEN'::text` |
+
+### `ship.handling_unit` 🛡️
+
+Bag, cage, pallet or container; units nest, and a unit's scan is inherited by its contents
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `unit_type` | `text` | ✱ |  |
+| `parent_unit_id` | `bigint` | 🔗 `ship.handling_unit`  |  |
+| `label_no` | `text` | ✱ |  |
+| `seal_no` | `text` |  |  |
+| `current_station_id` | `bigint` | 🔗 `net.station`  |  |
+| `status` | `text` | ✱ | `'OPEN'::text` |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `ship.handling_unit_item` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `unit_id` | `bigint` | 🔗 `ship.handling_unit` ✱ |  |
+| `shipment_id` | `bigint` | 🔗 `ship.shipment`  |  |
+| `parcel_id` | `bigint` | 🔗 `ship.parcel`  |  |
+| `added_at` | `timestamp with time zone` | ✱ | `now()` |
+| `removed_at` | `timestamp with time zone` |  |  |
+
+### `ship.hub` 🛡️
+
+Sorting hub on a depot station (9.9)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `station_id` | `bigint` | 🔗 `net.station` ✱ |  |
+| `company_id` | `bigint` | 🔗 `iam.company`  |  |
+| `sort_capacity` | `integer` |  |  |
+| `hours` | `jsonb` | ✱ | `'{}'::jsonb` |
+| `status` | `text` | ✱ | `'ACTIVE'::text` |
+
+### `ship.integration_message` 🛡️
+
+Outbox, inbox and dead-letter queue of partner messages
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `partner_id` | `bigint` | 🔗 `ship.integration_partner` ✱ |  |
+| `direction` | `text` | ✱ |  |
+| `message_type` | `text` | ✱ |  |
+| `shipment_id` | `bigint` | 🔗 `ship.shipment`  |  |
+| `sequence_no` | `bigint` |  |  |
+| `idempotency_key` | `text` | ✱ |  |
+| `payload_file_id` | `bigint` | 🔗 `ref.file_object`  |  |
+| `status` | `text` | ✱ | `'PENDING'::text` |
+| `attempts` | `integer` | ✱ | `0` |
+| `next_retry_at` | `timestamp with time zone` |  |  |
+| `error_code` | `text` |  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `ship.integration_partner` 🛡️
+
+Global and local partners connected by configuration, not custom development (9.25)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `party_id` | `bigint` | 🔗 `iam.party` ✱ |  |
+| `api_client_id` | `bigint` | 🔗 `iam.api_client`  |  |
+| `partner_type` | `text` | ✱ |  |
+| `name` | `text` | ✱ |  |
+| `protocol` | `text` | ✱ | `'REST'::text` |
+| `status` | `text` | ✱ | `'SANDBOX'::text` |
+
+### `ship.linehaul_schedule` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `origin_hub_id` | `bigint` | 🔗 `ship.hub` ✱ |  |
+| `dest_hub_id` | `bigint` | 🔗 `ship.hub` ✱ |  |
+| `departure_time` | `time without time zone` | ✱ |  |
+| `arrival_time` | `time without time zone` | ✱ |  |
+| `days` | `smallint[]` | ✱ | `'{1,2,3,4,5,6}'::smallint[]` |
+| `mode` | `text` | ✱ |  |
+| `carrier_company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `capacity_kg` | `numeric(10,2)` |  |  |
+| `status` | `text` | ✱ | `'ACTIVE'::text` |
+
+### `ship.load` 🛡️
+
+Truck or hold load with capacity by weight, volume and pallet positions; no booking once full (9.9)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `trip_id` | `bigint` | 🔗 `ops.trip`  |  |
+| `vehicle_id` | `bigint` | 🔗 `fleet.vehicle`  |  |
+| `truck_combination_id` | `bigint` | 🔗 `fleet.truck_combination`  |  |
+| `load_type` | `text` | ✱ |  |
+| `origin_hub_id` | `bigint` | 🔗 `ship.hub`  |  |
+| `dest_hub_id` | `bigint` | 🔗 `ship.hub`  |  |
+| `max_weight_kg` | `numeric(10,2)` | ✱ |  |
+| `max_volume_m3` | `numeric(8,2)` |  |  |
+| `pallet_positions` | `smallint` |  |  |
+| `used_weight_kg` | `numeric(10,2)` | ✱ | `0` |
+| `used_volume_m3` | `numeric(8,2)` | ✱ | `0` |
+| `seal_no` | `text` |  |  |
+| `status` | `text` | ✱ | `'PLANNED'::text` |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `ship.load_plan` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `load_id` | `bigint` | 🔑 🔗 `ship.load` ✱ |  |
+| `handling_unit_id` | `bigint` | 🔑 🔗 `ship.handling_unit` ✱ |  |
+| `stop_seq` | `smallint` | ✱ |  |
+| `position` | `text` |  |  |
+
+### `ship.load_stop` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `load_id` | `bigint` | 🔑 🔗 `ship.load` ✱ |  |
+| `seq` | `smallint` | 🔑 ✱ |  |
+| `station_id` | `bigint` | 🔗 `net.station` ✱ |  |
+| `planned_at` | `timestamp with time zone` |  |  |
+| `actual_at` | `timestamp with time zone` |  |  |
+
+### `ship.locker_compartment` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `access_point_id` | `bigint` | 🔗 `ship.access_point` ✱ |  |
+| `code` | `text` | ✱ |  |
+| `size` | `text` | ✱ |  |
+| `shipment_id` | `bigint` | 🔗 `ship.shipment`  |  |
+| `pin_hash` | `bytea` |  |  |
+| `expires_at` | `timestamp with time zone` |  |  |
+| `status` | `text` | ✱ | `'FREE'::text` |
+
+### `ship.parcel` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `shipment_id` | `bigint` | 🔗 `ship.shipment` ✱ |  |
+| `piece_no` | `smallint` | ✱ |  |
+| `label_no` | `text` | ✱ |  |
+| `weight_kg` | `numeric(9,2)` | ✱ |  |
+| `length_cm` | `numeric(7,1)` |  |  |
+| `width_cm` | `numeric(7,1)` |  |  |
+| `height_cm` | `numeric(7,1)` |  |  |
+| `content_desc` | `text` | ✱ |  |
+| `hs_code` | `text` |  |  |
+| `fragile` | `boolean` | ✱ | `false` |
+
+### `ship.partner_command` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `partner_id` | `bigint` | 🔗 `ship.integration_partner` ✱ |  |
+| `shipment_id` | `bigint` | 🔗 `ship.shipment` ✱ |  |
+| `command_type` | `text` | ✱ |  |
+| `payload_file_id` | `bigint` | 🔗 `ref.file_object`  |  |
+| `idempotency_key` | `text` | ✱ |  |
+| `status` | `text` | ✱ | `'RECEIVED'::text` |
+| `applied_at` | `timestamp with time zone` |  |  |
+
+### `ship.partner_contract` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `partner_id` | `bigint` | 🔗 `ship.integration_partner` ✱ |  |
+| `roles` | `text[]` | ✱ |  |
+| `services` | `text[]` | ✱ | `'{}'::text[]` |
+| `territory` | `text[]` | ✱ | `'{SY}'::text[]` |
+| `exclusive` | `boolean` | ✱ | `false` |
+| `sla` | `jsonb` | ✱ | `'{}'::jsonb` |
+| `fees` | `jsonb` | ✱ | `'{}'::jsonb` |
+| `liability_cap` | `bigint` |  |  |
+| `currency` | `character(3)` | 🔗 `ref.currency` ✱ | `'USD'::bpchar` |
+| `valid` | `daterange` | ✱ |  |
+| `status` | `text` | ✱ | `'DRAFT'::text` |
+
+### `ship.partner_pre_alert` 🛡️
+
+Incoming manifest that creates shipments with status EXPECTED
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `partner_id` | `bigint` | 🔗 `ship.integration_partner` ✱ |  |
+| `manifest_no` | `text` | ✱ |  |
+| `flight_or_trip_ref` | `text` |  |  |
+| `expected_at` | `timestamp with time zone` |  |  |
+| `item_count` | `integer` | ✱ |  |
+| `status` | `text` | ✱ | `'RECEIVED'::text` |
+
+### `ship.partner_reconciliation` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `partner_id` | `bigint` | 🔗 `ship.integration_partner` ✱ |  |
+| `recon_date` | `date` | ✱ |  |
+| `matched` | `integer` | ✱ | `0` |
+| `missing_in_platform` | `integer` | ✱ | `0` |
+| `missing_in_partner` | `integer` | ✱ | `0` |
+| `amount_diff` | `bigint` | ✱ | `0` |
+| `status` | `text` | ✱ | `'OPEN'::text` |
+
+### `ship.partner_settlement` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `partner_id` | `bigint` | 🔗 `ship.integration_partner` ✱ |  |
+| `period` | `daterange` | ✱ |  |
+| `service_fees` | `bigint` | ✱ | `0` |
+| `collected_on_behalf` | `bigint` | ✱ | `0` |
+| `claims` | `bigint` | ✱ | `0` |
+| `net_amount` | `bigint` | ✱ | `0` |
+| `currency` | `character(3)` | 🔗 `ref.currency` ✱ | `'USD'::bpchar` |
+| `fx_rate` | `numeric(18,8)` |  |  |
+| `ledger_txn_id` | `bigint` | 🔗 `fin.ledger_txn`  |  |
+| `status` | `text` | ✱ | `'DRAFT'::text` |
+
+### `ship.partner_status_map` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `partner_id` | `bigint` | 🔑 🔗 `ship.integration_partner` ✱ |  |
+| `direction` | `text` | 🔑 ✱ |  |
+| `external_code` | `text` | 🔑 ✱ |  |
+| `external_reason` | `text` | 🔑 ✱ | `''::text` |
+| `milestone` | `text` | ✱ |  |
+| `reason_code` | `text` |  |  |
+| `version` | `integer` | 🔑 ✱ | `1` |
+
+### `ship.pickup_request` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `shipper_party_id` | `bigint` | 🔗 `iam.party` ✱ |  |
+| `address_id` | `bigint` | 🔗 `ship.address` ✱ |  |
+| `pickup_window` | `tstzrange` | ✱ |  |
+| `pieces` | `integer` | ✱ | `1` |
+| `courier_route_id` | `bigint` | 🔗 `ship.courier_route`  |  |
+| `status` | `text` | ✱ | `'REQUESTED'::text` |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `ship.pricing_agreement` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `company_id` | `bigint` | 🔗 `iam.company`  |  |
+| `discounts` | `jsonb` | ✱ | `'{}'::jsonb` |
+| `earned_tiers` | `jsonb` | ✱ | `'[]'::jsonb` |
+| `min_charge_override` | `bigint` |  |  |
+| `valid` | `daterange` | ✱ |  |
+| `status` | `text` | ✱ | `'ACTIVE'::text` |
+| `account_id` | `bigint` | 🔗 `ship.shipper_account`  |  |
+
+### `ship.pricing_zone_chart` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `origin_zone_id` | `bigint` | 🔑 🔗 `ship.geo_zone` ✱ |  |
+| `dest_zone_id` | `bigint` | 🔑 🔗 `ship.geo_zone` ✱ |  |
+| `price_zone` | `text` | ✱ |  |
+| `valid` | `daterange` | 🔑 ✱ | `daterange(CURRENT_DATE, NULL::date)` |
+
+### `ship.prohibited_item` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `code` | `text` | ✱ |  |
+| `name` | `text` | ✱ |  |
+| `hs_prefix` | `text` |  |  |
+| `rule` | `text` | ✱ |  |
+| `country_code` | `character(2)` | 🔗 `ref.country`  |  |
+
+### `ship.rate_table` 🛡️
+
+Published rate table per service: price by zone and weight break (9.21)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `company_id` | `bigint` | 🔗 `iam.company`  |  |
+| `service_id` | `bigint` | 🔗 `ship.service_product` ✱ |  |
+| `currency` | `character(3)` | 🔗 `ref.currency` ✱ | `'SYP'::bpchar` |
+| `valid` | `daterange` | ✱ |  |
+| `status` | `text` | ✱ | `'DRAFT'::text` |
+
+### `ship.rate_table_entry` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `rate_table_id` | `bigint` | 🔑 🔗 `ship.rate_table` ✱ |  |
+| `price_zone` | `text` | 🔑 ✱ |  |
+| `weight_break` | `numeric(9,2)` | 🔑 ✱ |  |
+| `price` | `bigint` | ✱ |  |
+| `per_kg_over` | `bigint` | ✱ | `0` |
+| `min_charge` | `bigint` | ✱ | `0` |
+
+### `ship.return_authorization` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `original_shipment_id` | `bigint` | 🔗 `ship.shipment` ✱ |  |
+| `merchant_account_id` | `bigint` | 🔗 `ship.shipper_account`  |  |
+| `reason` | `text` | ✱ |  |
+| `return_shipment_id` | `bigint` | 🔗 `ship.shipment`  |  |
+| `status` | `text` | ✱ | `'REQUESTED'::text` |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `ship.routing_rule` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `company_id` | `bigint` | 🔗 `iam.company`  |  |
+| `service_id` | `bigint` | 🔗 `ship.service_product` ✱ |  |
+| `origin_zone_id` | `bigint` | 🔗 `ship.geo_zone`  |  |
+| `dest_zone_id` | `bigint` | 🔗 `ship.geo_zone`  |  |
+| `preferred_modes` | `text[]` | ✱ |  |
+| `cutoff_time` | `time without time zone` |  |  |
+| `transit_days` | `smallint` |  |  |
+| `priority` | `integer` | ✱ | `100` |
+
+### `ship.service_option` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `code` | `text` | ✱ |  |
+| `name` | `text` | ✱ |  |
+| `applicable_services` | `text[]` | ✱ | `'{}'::text[]` |
+| `surcharge_id` | `bigint` | 🔗 `ship.surcharge_definition`  |  |
+
+### `ship.service_product` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `code` | `text` | ✱ |  |
+| `name` | `text` | ✱ |  |
+| `cutoff_time` | `time without time zone` |  |  |
+| `guaranteed` | `boolean` | ✱ | `false` |
+| `max_weight_kg` | `numeric(9,2)` |  |  |
+| `max_dims_cm` | `integer[]` |  |  |
+| `network_model` | `text` | ✱ | `'NETWORK'::text` |
+| `status` | `text` | ✱ | `'ACTIVE'::text` |
+
+### `ship.shipment` 🛡️
+
+A consignment from sender to receiver, independent of the vehicles that carry it (9.4, 9.9)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `tracking_no` | `text` | ✱ |  |
+| `master_tracking_no` | `text` |  |  |
+| `company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `shipper_party_id` | `bigint` | 🔗 `iam.party` ✱ |  |
+| `shipper_account_id` | `bigint` | 🔗 `ship.shipper_account`  |  |
+| `merchant_ref` | `text` |  |  |
+| `service_id` | `bigint` | 🔗 `ship.service_product` ✱ |  |
+| `shipper_type` | `text` | ✱ | `'INDIVIDUAL'::text` |
+| `origin_station_id` | `bigint` | 🔗 `net.station`  |  |
+| `dest_station_id` | `bigint` | 🔗 `net.station`  |  |
+| `origin_address_id` | `bigint` | 🔗 `ship.address`  |  |
+| `dest_address_id` | `bigint` | 🔗 `ship.address`  |  |
+| `payer_type` | `text` | ✱ | `'SENDER'::text` |
+| `payer_account_id` | `bigint` | 🔗 `ship.shipper_account`  |  |
+| `declared_value` | `bigint` | ✱ | `0` |
+| `cod_amount` | `bigint` | ✱ | `0` |
+| `currency` | `character(3)` | 🔗 `ref.currency` ✱ | `'SYP'::bpchar` |
+| `billable_weight_kg` | `numeric(9,2)` |  |  |
+| `dim_weight_kg` | `numeric(9,2)` |  |  |
+| `cargo_category` | `text` | 🔗 `ref.cargo_category`  |  |
+| `routing_code` | `text` |  |  |
+| `committed_delivery_at` | `timestamp with time zone` |  |  |
+| `signature_level` | `text` | ✱ | `'NONE'::text` |
+| `price_breakdown` | `jsonb` |  |  |
+| `current_leg_seq` | `smallint` |  |  |
+| `eta` | `timestamp with time zone` |  |  |
+| `status` | `text` | ✱ | `'CREATED'::text` |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `updated_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `ship.shipment_leg` 🛡️
+
+One leg per mode and carrier; generalizes cargo_assignment (9.4) and the freight leg (10.9)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `shipment_id` | `bigint` | 🔗 `ship.shipment`  |  |
+| `seq` | `smallint` | ✱ |  |
+| `mode` | `text` | ✱ |  |
+| `carrier_company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `trip_id` | `bigint` | 🔗 `ops.trip`  |  |
+| `load_id` | `bigint` | 🔗 `ship.load`  |  |
+| `courier_route_id` | `bigint` | 🔗 `ship.courier_route`  |  |
+| `from_station_id` | `bigint` | 🔗 `net.station`  |  |
+| `to_station_id` | `bigint` | 🔗 `net.station`  |  |
+| `from_seq` | `smallint` |  |  |
+| `to_seq` | `smallint` |  |  |
+| `price` | `bigint` |  |  |
+| `currency` | `character(3)` | 🔗 `ref.currency` ✱ | `'SYP'::bpchar` |
+| `status` | `text` | ✱ | `'PLANNED'::text` |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `contract_id` | `bigint` | 🔗 `frt.freight_contract`  |  |
+
+### `ship.shipment_option` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `shipment_id` | `bigint` | 🔑 🔗 `ship.shipment` ✱ |  |
+| `option_id` | `bigint` | 🔑 🔗 `ship.service_option` ✱ |  |
+| `value` | `jsonb` |  |  |
+
+### `ship.shipment_party` 🛡️
+
+Sender and receiver data required for security screening; identity numbers are encrypted
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `shipment_id` | `bigint` | 🔑 🔗 `ship.shipment` ✱ |  |
+| `role` | `text` | 🔑 ✱ |  |
+| `party_id` | `bigint` | 🔗 `iam.party`  |  |
+| `name` | `text` | ✱ |  |
+| `id_type` | `text` |  |  |
+| `id_no_enc` | `bytea` |  |  |
+| `id_no_bidx` | `bytea` |  |  |
+| `enc_key_id` | `integer` | 🔗 `sec.key_registry`  |  |
+| `mobile` | `text` | ✱ |  |
+| `address_id` | `bigint` | 🔗 `ship.address`  |  |
+
+### `ship.shipment_reference` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `shipment_id` | `bigint` | 🔗 `ship.shipment` ✱ |  |
+| `parcel_id` | `bigint` | 🔗 `ship.parcel`  |  |
+| `ref_type` | `text` | ✱ |  |
+| `issuer_party_id` | `bigint` | 🔗 `iam.party` ✱ |  |
+| `value` | `text` | ✱ |  |
+| `normalized_value` | `text` | ✱ |  |
+| `pushed_to_issuer_at` | `timestamp with time zone` |  |  |
+
+### `ship.shipper_account` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `account_no` | `text` | ✱ |  |
+| `party_id` | `bigint` | 🔗 `iam.party` ✱ |  |
+| `company_id` | `bigint` | 🔗 `iam.company`  |  |
+| `account_type` | `text` | ✱ |  |
+| `credit_limit` | `bigint` |  |  |
+| `billing_cycle` | `text` |  |  |
+| `wallet_id` | `bigint` | 🔗 `fin.wallet`  |  |
+| `pricing_agreement_id` | `bigint` | 🔗 `ship.pricing_agreement`  |  |
+| `status` | `text` | ✱ | `'ACTIVE'::text` |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `ship.sort_window` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `hub_id` | `bigint` | 🔗 `ship.hub` ✱ |  |
+| `direction` | `text` | ✱ |  |
+| `starts_at` | `time without time zone` | ✱ |  |
+| `ends_at` | `time without time zone` | ✱ |  |
+| `cutoff` | `time without time zone` | ✱ |  |
+
+### `ship.surcharge_definition` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `code` | `text` | ✱ |  |
+| `name` | `text` | ✱ |  |
+| `trigger_rule` | `jsonb` | ✱ | `'{}'::jsonb` |
+| `calc_method` | `text` | ✱ |  |
+| `value` | `numeric(12,4)` | ✱ |  |
+| `currency` | `character(3)` | 🔗 `ref.currency` ✱ | `'SYP'::bpchar` |
+| `valid` | `daterange` | ✱ | `daterange(CURRENT_DATE, NULL::date)` |
+
+### `ship.tracking_event` 🛡️ 🔒
+
+Scans and milestones of a shipment, unit or load; append-only (generalizes shipment_event)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `shipment_id` | `bigint` | 🔗 `ship.shipment`  |  |
+| `unit_id` | `bigint` | 🔗 `ship.handling_unit`  |  |
+| `load_id` | `bigint` | 🔗 `ship.load`  |  |
+| `leg_id` | `bigint` | 🔗 `ship.shipment_leg`  |  |
+| `milestone` | `text` | ✱ |  |
+| `reason_code` | `text` |  |  |
+| `station_id` | `bigint` | 🔗 `net.station`  |  |
+| `actor_user_id` | `bigint` | 🔗 `iam.app_user`  |  |
+| `device_id` | `bigint` | 🔗 `iam.device`  |  |
+| `lat` | `numeric(9,6)` |  |  |
+| `lng` | `numeric(9,6)` |  |  |
+| `ts` | `timestamp with time zone` | ✱ | `now()` |
+
+### `ship.transit_time_matrix` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `origin_zone_id` | `bigint` | 🔑 🔗 `ship.geo_zone` ✱ |  |
+| `dest_zone_id` | `bigint` | 🔑 🔗 `ship.geo_zone` ✱ |  |
+| `service_id` | `bigint` | 🔑 🔗 `ship.service_product` ✱ |  |
+| `transit_days` | `smallint` | ✱ |  |
+| `delivery_by_time` | `time without time zone` |  |  |
+
+### `ship.trip_cargo_capacity` 🛡️
+
+Hold capacity of a passenger trip offered to parcels (9.4)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `trip_id` | `bigint` | 🔑 🔗 `ops.trip` ✱ |  |
+| `max_weight_kg` | `numeric(9,2)` | ✱ |  |
+| `max_volume_m3` | `numeric(7,2)` |  |  |
+| `max_items` | `integer` |  |  |
+| `used_weight_kg` | `numeric(9,2)` | ✱ | `0` |
+| `used_volume_m3` | `numeric(7,2)` | ✱ | `0` |
+| `used_items` | `integer` | ✱ | `0` |
+
+### `ship.weight_audit` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `parcel_id` | `bigint` | 🔗 `ship.parcel` ✱ |  |
+| `measured_weight_kg` | `numeric(9,2)` | ✱ |  |
+| `measured_dims_cm` | `integer[]` |  |  |
+| `photo_file_id` | `bigint` | 🔗 `ref.file_object`  |  |
+| `device_id` | `bigint` | 🔗 `iam.device`  |  |
+| `delta_kg` | `numeric(9,2)` | ✱ |  |
+| `adjustment_amount` | `bigint` |  |  |
+| `dispute_status` | `text` | ✱ | `'NONE'::text` |
+| `ts` | `timestamp with time zone` | ✱ | `now()` |
+
+<a id="frt"></a>
+## `frt` — Trucking, heavy transport and transit freight
+
+### `frt.container` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `container_no` | `text` | ✱ |  |
+| `size_type` | `text` | ✱ |  |
+| `owner_party_id` | `bigint` | 🔗 `iam.party`  |  |
+| `tare_kg` | `integer` |  |  |
+| `status` | `text` | ✱ | `'EMPTY'::text` |
+
+### `frt.detention_claim` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `contract_id` | `bigint` | 🔗 `frt.freight_contract` ✱ |  |
+| `leg_id` | `bigint` | 🔗 `ship.shipment_leg`  |  |
+| `station_id` | `bigint` | 🔗 `net.station`  |  |
+| `waiting` | `tstzrange` | ✱ |  |
+| `free_minutes` | `integer` | ✱ | `120` |
+| `rate_per_hour` | `bigint` | ✱ |  |
+| `amount` | `bigint` | ✱ | `0` |
+| `currency` | `character(3)` | 🔗 `ref.currency` ✱ | `'SYP'::bpchar` |
+| `status` | `text` | ✱ | `'OPEN'::text` |
+
+### `frt.escort_assignment` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `leg_id` | `bigint` | 🔗 `ship.shipment_leg` ✱ |  |
+| `escort_party_id` | `bigint` | 🔗 `iam.party` ✱ |  |
+| `period` | `tstzrange` | ✱ |  |
+| `status` | `text` | ✱ | `'ASSIGNED'::text` |
+
+### `frt.freight_bid` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `request_id` | `bigint` | 🔗 `frt.freight_request` ✱ |  |
+| `carrier_company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `truck_vehicle_id` | `bigint` | 🔗 `fleet.truck_unit`  |  |
+| `price` | `bigint` | ✱ |  |
+| `currency` | `character(3)` | 🔗 `ref.currency` ✱ | `'SYP'::bpchar` |
+| `valid_until` | `timestamp with time zone` | ✱ |  |
+| `status` | `text` | ✱ | `'SUBMITTED'::text` |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `frt.freight_claim` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `contract_id` | `bigint` | 🔗 `frt.freight_contract` ✱ |  |
+| `leg_id` | `bigint` | 🔗 `ship.shipment_leg`  |  |
+| `claim_type` | `text` | ✱ |  |
+| `amount` | `bigint` | ✱ |  |
+| `currency` | `character(3)` | 🔗 `ref.currency` ✱ | `'SYP'::bpchar` |
+| `case_id` | `bigint` | 🔗 `crm.case`  |  |
+| `status` | `text` | ✱ | `'OPEN'::text` |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `frt.freight_contract` 🛡️
+
+Contract from an awarded request; it produces one or more legs
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `request_id` | `bigint` | 🔗 `frt.freight_request` ✱ |  |
+| `carrier_company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `accepted_bid_id` | `bigint` | 🔗 `frt.freight_bid`  |  |
+| `terms` | `jsonb` | ✱ |  |
+| `price` | `bigint` | ✱ |  |
+| `currency` | `character(3)` | 🔗 `ref.currency` ✱ | `'SYP'::bpchar` |
+| `price_breakdown` | `jsonb` |  |  |
+| `advance_pct` | `numeric(5,2)` | ✱ | `0` |
+| `status` | `text` | ✱ | `'DRAFT'::text` |
+| `signed_at` | `timestamp with time zone` |  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `frt.freight_document` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `contract_id` | `bigint` | 🔗 `frt.freight_contract`  |  |
+| `leg_id` | `bigint` | 🔗 `ship.shipment_leg`  |  |
+| `doc_type` | `text` | ✱ |  |
+| `doc_no` | `text` | ✱ |  |
+| `file_id` | `bigint` | 🔗 `ref.file_object`  |  |
+| `status` | `text` | ✱ | `'UPLOADED'::text` |
+| `verified_by` | `bigint` | 🔗 `iam.app_user`  |  |
+
+### `frt.freight_request` 🛡️
+
+The shipper's request with the cargo data of D.3 (category, description, weight, UN number and hazard class)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `shipper_party_id` | `bigint` | 🔗 `iam.party` ✱ |  |
+| `shipper_company_id` | `bigint` | 🔗 `iam.company`  |  |
+| `origin_station_id` | `bigint` | 🔗 `net.station`  |  |
+| `origin_address_id` | `bigint` | 🔗 `ship.address`  |  |
+| `dest_station_id` | `bigint` | 🔗 `net.station`  |  |
+| `dest_address_id` | `bigint` | 🔗 `ship.address`  |  |
+| `cargo_category` | `text` | 🔗 `ref.cargo_category` ✱ |  |
+| `cargo_description` | `text` | ✱ |  |
+| `hs_code` | `text` |  |  |
+| `declared_weight_kg` | `numeric(10,1)` | ✱ |  |
+| `volume_m3` | `numeric(8,2)` |  |  |
+| `packages` | `integer` |  |  |
+| `container_count` | `smallint` | ✱ | `0` |
+| `un_number` | `text` |  |  |
+| `adr_class` | `text` |  |  |
+| `temp_min_c` | `numeric(4,1)` |  |  |
+| `temp_max_c` | `numeric(4,1)` |  |  |
+| `required_trailer_type` | `text` |  |  |
+| `pickup_window` | `tstzrange` | ✱ |  |
+| `delivery_window` | `tstzrange` |  |  |
+| `mode` | `text` | ✱ |  |
+| `target_price` | `bigint` |  |  |
+| `currency` | `character(3)` | 🔗 `ref.currency` ✱ | `'SYP'::bpchar` |
+| `status` | `text` | ✱ | `'DRAFT'::text` |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `frt.gate_event` 🛡️ 🔒
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `appointment_id` | `bigint` | 🔗 `frt.port_appointment`  |  |
+| `port_station_id` | `bigint` | 🔗 `net.station` ✱ |  |
+| `truck_vehicle_id` | `bigint` | 🔗 `fleet.truck_unit` ✱ |  |
+| `direction` | `text` | ✱ |  |
+| `ts` | `timestamp with time zone` | ✱ | `now()` |
+
+### `frt.handover_event` 🛡️ 🔒
+
+Handover between carriers in the yard: seal, weight, documents and both signatures; append-only
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `leg_id` | `bigint` | 🔗 `ship.shipment_leg` ✱ |  |
+| `next_leg_id` | `bigint` | 🔗 `ship.shipment_leg`  |  |
+| `from_company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `to_company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `station_id` | `bigint` | 🔗 `net.station`  |  |
+| `seal_no` | `text` |  |  |
+| `weight_kg` | `numeric(10,1)` |  |  |
+| `docs_checked` | `boolean` | ✱ | `false` |
+| `from_signature_file_id` | `bigint` | 🔗 `ref.file_object`  |  |
+| `to_signature_file_id` | `bigint` | 🔗 `ref.file_object`  |  |
+| `ts` | `timestamp with time zone` | ✱ | `now()` |
+
+### `frt.leg_container` 🛡️
+
+Containers carried on a leg, with the seal and gross weight of that leg
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `leg_id` | `bigint` | 🔑 🔗 `ship.shipment_leg` ✱ |  |
+| `container_id` | `bigint` | 🔑 🔗 `frt.container` ✱ |  |
+| `seal_no` | `text` |  |  |
+| `gross_weight_kg` | `integer` |  |  |
+
+### `frt.port_appointment` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `port_station_id` | `bigint` | 🔗 `net.station` ✱ |  |
+| `truck_vehicle_id` | `bigint` | 🔗 `fleet.truck_unit` ✱ |  |
+| `leg_id` | `bigint` | 🔗 `ship.shipment_leg`  |  |
+| `slot` | `tstzrange` | ✱ |  |
+| `status` | `text` | ✱ | `'BOOKED'::text` |
+
+### `frt.transit_declaration` 🛡️
+
+Transit across the country on a corridor with a deadline; carries the D.3 cargo data for the authorities
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `leg_id` | `bigint` | 🔗 `ship.shipment_leg` ✱ |  |
+| `declaration_no` | `text` | ✱ |  |
+| `entry_station_id` | `bigint` | 🔗 `net.station` ✱ |  |
+| `exit_station_id` | `bigint` | 🔗 `net.station` ✱ |  |
+| `corridor_id` | `bigint` | 🔗 `net.corridor`  |  |
+| `deadline` | `timestamp with time zone` | ✱ |  |
+| `cargo_category` | `text` | 🔗 `ref.cargo_category` ✱ |  |
+| `cargo_description` | `text` | ✱ |  |
+| `hs_code` | `text` |  |  |
+| `declared_weight_kg` | `numeric(10,1)` | ✱ |  |
+| `packages` | `integer` |  |  |
+| `un_number` | `text` |  |  |
+| `adr_class` | `text` |  |  |
+| `temp_min_c` | `numeric(4,1)` |  |  |
+| `temp_max_c` | `numeric(4,1)` |  |  |
+| `status` | `text` | ✱ | `'OPEN'::text` |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `frt.weighbridge_reading` 🛡️ 🔒
+
+Weighbridge weight compared with the declared weight; a difference raises an alert (10.7, D.3)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `leg_id` | `bigint` | 🔗 `ship.shipment_leg`  |  |
+| `station_id` | `bigint` | 🔗 `net.station` ✱ |  |
+| `vehicle_id` | `bigint` | 🔗 `fleet.vehicle` ✱ |  |
+| `gross_kg` | `integer` | ✱ |  |
+| `declared_kg` | `integer` |  |  |
+| `alert` | `boolean` | ✱ | `false` |
+| `ts` | `timestamp with time zone` | ✱ | `now()` |
+
+<a id="brd"></a>
+## `brd` — Border manifest gateway
+
+### `brd.border_point` 🛡️
+
+Border crossing point; extends a station of subtype BORDER (11.6)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `station_id` | `bigint` | 🔑 🔗 `net.station` ✱ |  |
+| `point_type` | `text` | ✱ |  |
+| `country_code` | `character(2)` | 🔗 `ref.country` ✱ |  |
+| `counterpart_station_id` | `bigint` | 🔗 `brd.border_point`  |  |
+| `authority_id` | `bigint` | 🔗 `sec.authority_profile`  |  |
+| `hours` | `jsonb` | ✱ | `'{}'::jsonb` |
+| `status` | `text` | ✱ | `'ACTIVE'::text` |
+
+### `brd.crossing_profile` 🛡️
+
+What each authority requires at a crossing; changed by configuration, not code
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `border_point_id` | `bigint` | 🔗 `brd.border_point` ✱ |  |
+| `authority_id` | `bigint` | 🔗 `sec.authority_profile` ✱ |  |
+| `required_fields` | `jsonb` | ✱ |  |
+| `lead_time_min` | `integer` | ✱ | `60` |
+| `schema_version` | `text` | ✱ |  |
+| `formats` | `text[]` | ✱ | `'{JSON}'::text[]` |
+| `fail_policy` | `text` | ✱ | `'BLOCK'::text` |
+| `valid` | `daterange` | ✱ | `daterange(CURRENT_DATE, NULL::date)` |
+| `status` | `text` | ✱ | `'ACTIVE'::text` |
+
+### `brd.manifest` 🛡️
+
+Manifest header: a versioned snapshot per trip and border point (11.6)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `trip_id` | `bigint` | 🔗 `ops.trip` ✱ |  |
+| `crossing_plan_id` | `bigint` | 🔗 `ops.trip_crossing_plan`  |  |
+| `border_point_id` | `bigint` | 🔗 `brd.border_point` ✱ |  |
+| `profile_id` | `bigint` | 🔗 `brd.crossing_profile`  |  |
+| `version` | `integer` | ✱ | `1` |
+| `manifest_type` | `text` | ✱ |  |
+| `content_type` | `text` | ✱ | `'PASSENGER'::text` |
+| `submission_id` | `bigint` | 🔗 `sec.manifest_submission`  |  |
+| `status` | `text` | ✱ | `'DRAFT'::text` |
+| `closed_at` | `timestamp with time zone` |  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `brd.manifest_cargo` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `manifest_id` | `bigint` | 🔗 `brd.manifest` ✱ |  |
+| `shipment_id` | `bigint` | 🔗 `ship.shipment`  |  |
+| `leg_id` | `bigint` | 🔗 `ship.shipment_leg`  |  |
+| `cargo_category` | `text` | 🔗 `ref.cargo_category` ✱ |  |
+| `cargo_description` | `text` | ✱ |  |
+| `hs_code` | `text` |  |  |
+| `declared_weight_kg` | `numeric(10,1)` | ✱ |  |
+| `packages` | `integer` |  |  |
+| `container_no` | `text` |  |  |
+| `seal_no` | `text` |  |  |
+| `un_number` | `text` |  |  |
+| `adr_class` | `text` |  |  |
+| `temp_min_c` | `numeric(4,1)` |  |  |
+| `temp_max_c` | `numeric(4,1)` |  |  |
+
+### `brd.manifest_discrepancy` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `manifest_id` | `bigint` | 🔗 `brd.manifest` ✱ |  |
+| `discrepancy_type` | `text` | ✱ |  |
+| `subject_type` | `text` | ✱ |  |
+| `subject_id` | `bigint` |  |  |
+| `detail` | `jsonb` | ✱ | `'{}'::jsonb` |
+| `resolved_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `resolved_at` | `timestamp with time zone` |  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `brd.manifest_person` 🛡️
+
+Snapshot of a passenger or crew member; transit passengers carry their Syrian entry and exit points (D.1.8)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `manifest_id` | `bigint` | 🔗 `brd.manifest` ✱ |  |
+| `person_role` | `text` | ✱ |  |
+| `ticket_id` | `bigint` | 🔗 `sales.ticket`  |  |
+| `crew_party_id` | `bigint` | 🔗 `iam.party`  |  |
+| `doc_type` | `text` | ✱ |  |
+| `doc_no_enc` | `bytea` | ✱ |  |
+| `doc_no_bidx` | `bytea` | ✱ |  |
+| `enc_key_id` | `integer` | 🔗 `sec.key_registry` ✱ |  |
+| `issuing_country` | `character(2)` | 🔗 `ref.country` ✱ |  |
+| `doc_expiry` | `date` |  |  |
+| `nationality` | `character(2)` | 🔗 `ref.country` ✱ |  |
+| `birth_date` | `date` | ✱ |  |
+| `sex` | `character(1)` |  |  |
+| `embark_station_id` | `bigint` | 🔗 `net.station`  |  |
+| `disembark_station_id` | `bigint` | 🔗 `net.station`  |  |
+| `visa_ref` | `text` |  |  |
+| `passenger_category` | `text` |  |  |
+| `syria_entry_point_id` | `bigint` | 🔗 `brd.border_point`  |  |
+| `syria_exit_point_id` | `bigint` | 🔗 `brd.border_point`  |  |
+
+### `brd.manifest_response` 🛡️ 🔒
+
+Authority decisions per manifest or subject; silent flags are visible to the platform only; append-only
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `manifest_id` | `bigint` | 🔗 `brd.manifest` ✱ |  |
+| `subject_type` | `text` | ✱ |  |
+| `subject_id` | `bigint` |  |  |
+| `decision` | `text` | ✱ |  |
+| `reason_code` | `text` |  |  |
+| `silent_flag` | `boolean` | ✱ | `false` |
+| `received_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `brd.manifest_vehicle` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `manifest_id` | `bigint` | 🔑 🔗 `brd.manifest` ✱ |  |
+| `vehicle_id` | `bigint` | 🔑 🔗 `fleet.vehicle` ✱ |  |
+| `trailer_id` | `bigint` | 🔗 `fleet.trailer`  |  |
+| `plate_no` | `text` | ✱ |  |
+| `plate_country` | `character(2)` | 🔗 `ref.country` ✱ |  |
+| `chassis_no` | `text` |  |  |
+
+<a id="ctr"></a>
+## `ctr` — Contracted transport: schools, universities and employees
+
+### `ctr.attendance_event` 🛡️
+
+Boarding, alighting, absence and hand-over; append-only
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `trip_id` | `bigint` | 🔗 `ops.trip` ✱ |  |
+| `rider_id` | `bigint` | 🔗 `ctr.contract_rider` ✱ |  |
+| `event` | `text` | ✱ |  |
+| `received_by_party_id` | `bigint` | 🔗 `iam.party`  |  |
+| `occurred_at` | `timestamp with time zone` | ✱ |  |
+| `lat` | `numeric(9,6)` |  |  |
+| `lng` | `numeric(9,6)` |  |  |
+| `source` | `text` | ✱ |  |
+
+### `ctr.authorized_receiver` 🛡️
+
+People allowed to receive a child at drop-off (D.2.4)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `rider_id` | `bigint` | 🔑 🔗 `ctr.contract_rider` ✱ |  |
+| `party_id` | `bigint` | 🔑 🔗 `iam.party` ✱ |  |
+| `relation` | `text` | ✱ |  |
+| `verified_at` | `timestamp with time zone` |  |  |
+
+### `ctr.contract_invoice` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `contract_id` | `bigint` | 🔗 `ctr.service_contract` ✱ |  |
+| `period_start` | `date` | ✱ |  |
+| `period_end` | `date` | ✱ |  |
+| `amount` | `bigint` | ✱ |  |
+| `currency` | `character(3)` | 🔗 `ref.currency` ✱ | `'SYP'::bpchar` |
+| `status` | `text` | ✱ | `'DRAFT'::text` |
+
+### `ctr.contract_rider` 🛡️
+
+Riders on the contract; minors need guardian consent (D.2.4)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `contract_id` | `bigint` | 🔗 `ctr.service_contract` ✱ |  |
+| `passenger_party_id` | `bigint` | 🔗 `iam.party` ✱ |  |
+| `guardian_party_id` | `bigint` | 🔗 `iam.party`  |  |
+| `pickup_station_id` | `bigint` | 🔗 `net.station`  |  |
+| `dropoff_station_id` | `bigint` | 🔗 `net.station`  |  |
+| `guardian_consent_at` | `timestamp with time zone` |  |  |
+| `status` | `text` | ✱ | `'ACTIVE'::text` |
+
+### `ctr.contract_route` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `contract_id` | `bigint` | 🔗 `ctr.service_contract` ✱ |  |
+| `route_id` | `bigint` | 🔗 `net.route`  |  |
+| `direction` | `text` | ✱ |  |
+| `operating_days` | `smallint[]` | ✱ | `'{1,2,3,4,5}'::smallint[]` |
+| `depart_time` | `time without time zone` | ✱ |  |
+| `vehicle_id` | `bigint` | 🔗 `fleet.vehicle`  |  |
+| `driver_party_id` | `bigint` | 🔗 `iam.party`  |  |
+| `attendant_party_id` | `bigint` | 🔗 `iam.party`  |  |
+
+### `ctr.service_contract` 🛡️
+
+Contract between an institution or employer and a carrier (annex D.2.2)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `kind` | `text` | ✱ |  |
+| `client_party_id` | `bigint` | 🔗 `iam.party` ✱ |  |
+| `client_company_id` | `bigint` | 🔗 `iam.company`  |  |
+| `carrier_company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `starts_on` | `date` | ✱ |  |
+| `ends_on` | `date` | ✱ |  |
+| `pricing_mode` | `text` | ✱ |  |
+| `price` | `bigint` | ✱ |  |
+| `currency` | `character(3)` | 🔗 `ref.currency` ✱ | `'SYP'::bpchar` |
+| `terms` | `jsonb` | ✱ | `'{}'::jsonb` |
+| `status` | `text` | ✱ | `'DRAFT'::text` |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+<a id="rail"></a>
+## `rail` — Rail extension
+
+### `rail.coach_layout` 🛡️
+
+A coach type built on the seat layout model (4.13)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `code` | `text` | ✱ |  |
+| `coach_type` | `text` | ✱ |  |
+| `seat_layout_id` | `bigint` | 🔗 `fleet.seat_layout`  |  |
+| `berths` | `smallint` |  |  |
+| `fare_class_id` | `bigint` | 🔗 `rail.fare_class`  |  |
+| `status` | `text` | ✱ | `'ACTIVE'::text` |
+
+### `rail.fare_class` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `code` | `text` | ✱ |  |
+| `name` | `text` | ✱ |  |
+| `cabin_rank` | `smallint` | ✱ | `2` |
+| `refundable` | `boolean` | ✱ | `true` |
+| `changeable` | `boolean` | ✱ | `true` |
+| `status` | `text` | ✱ | `'ACTIVE'::text` |
+
+### `rail.journey` 🛡️
+
+Connected journey: several tickets on connecting trips sold and protected as one (phase 10)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `party_id` | `bigint` | 🔗 `iam.party` ✱ |  |
+| `origin_station_id` | `bigint` | 🔗 `net.station` ✱ |  |
+| `dest_station_id` | `bigint` | 🔗 `net.station` ✱ |  |
+| `status` | `text` | ✱ | `'BOOKED'::text` |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `rail.journey_leg` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `journey_id` | `bigint` | 🔑 🔗 `rail.journey` ✱ |  |
+| `seq` | `smallint` | 🔑 ✱ |  |
+| `ticket_id` | `bigint` | 🔗 `sales.ticket` ✱ |  |
+| `trip_id` | `bigint` | 🔗 `ops.trip` ✱ |  |
+| `min_connection_min` | `smallint` | ✱ | `15` |
+
+### `rail.train_composition` 🛡️
+
+Coaches of a train trip in order; seats are addressed as coach number plus seat
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `trip_id` | `bigint` | 🔑 🔗 `ops.trip` ✱ |  |
+| `position` | `smallint` | 🔑 ✱ |  |
+| `coach_no` | `text` | ✱ |  |
+| `coach_layout_id` | `bigint` | 🔗 `rail.coach_layout` ✱ |  |
+
+<a id="taxi"></a>
+## `taxi` — Taxis
+
+### `taxi.dispatch_offer` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `request_id` | `bigint` | 🔗 `taxi.ride_request` ✱ |  |
+| `shift_id` | `bigint` | 🔗 `taxi.taxi_shift` ✱ |  |
+| `distance_m` | `integer` |  |  |
+| `offered_at` | `timestamp with time zone` | ✱ | `now()` |
+| `expires_at` | `timestamp with time zone` | ✱ |  |
+| `response` | `text` |  |  |
+| `responded_at` | `timestamp with time zone` |  |  |
+
+### `taxi.meter_tariff` 🛡️
+
+Regulated meter tariff per city (4.15, 2.5)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `city_id` | `bigint` | 🔗 `ref.city` ✱ |  |
+| `version` | `integer` | ✱ |  |
+| `flag_fall` | `bigint` | ✱ |  |
+| `per_km` | `bigint` | ✱ |  |
+| `per_wait_min` | `bigint` | ✱ | `0` |
+| `night_factor` | `numeric(4,2)` | ✱ | `1.0` |
+| `min_fare` | `bigint` | ✱ | `0` |
+| `currency` | `character(3)` | 🔗 `ref.currency` ✱ | `'SYP'::bpchar` |
+| `valid` | `daterange` | ✱ |  |
+| `status` | `text` | ✱ | `'DRAFT'::text` |
+| `approved_by` | `bigint` | 🔗 `iam.app_user`  |  |
+
+### `taxi.ride` 🛡️
+
+A taxi ride from a request or a street hail, metered or at a fixed price
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `request_id` | `bigint` | 🔗 `taxi.ride_request`  |  |
+| `shift_id` | `bigint` | 🔗 `taxi.taxi_shift` ✱ |  |
+| `rider_user_id` | `bigint` | 🔗 `iam.app_user`  |  |
+| `trip_id` | `bigint` | 🔗 `ops.trip`  |  |
+| `tariff_id` | `bigint` | 🔗 `taxi.meter_tariff`  |  |
+| `fare_mode` | `text` | ✱ |  |
+| `started_at` | `timestamp with time zone` |  |  |
+| `ended_at` | `timestamp with time zone` |  |  |
+| `distance_km` | `numeric(7,2)` |  |  |
+| `wait_min` | `integer` |  |  |
+| `fare` | `bigint` |  |  |
+| `currency` | `character(3)` | 🔗 `ref.currency` ✱ | `'SYP'::bpchar` |
+| `payment_method` | `text` |  |  |
+| `ledger_txn_id` | `bigint` | 🔗 `fin.ledger_txn`  |  |
+| `share_token` | `text` |  |  |
+| `status` | `text` | ✱ | `'ARRIVING'::text` |
+
+### `taxi.ride_request` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `rider_user_id` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `kind` | `text` | ✱ |  |
+| `city_id` | `bigint` | 🔗 `ref.city` ✱ |  |
+| `pickup_lat` | `numeric(9,6)` | ✱ |  |
+| `pickup_lng` | `numeric(9,6)` | ✱ |  |
+| `pickup_text` | `text` |  |  |
+| `dropoff_lat` | `numeric(9,6)` |  |  |
+| `dropoff_lng` | `numeric(9,6)` |  |  |
+| `dropoff_text` | `text` |  |  |
+| `requested_for` | `timestamp with time zone` | ✱ | `now()` |
+| `seats` | `smallint` | ✱ | `1` |
+| `fare_estimate` | `bigint` |  |  |
+| `currency` | `character(3)` | 🔗 `ref.currency` ✱ | `'SYP'::bpchar` |
+| `status` | `text` | ✱ | `'SEARCHING'::text` |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `taxi.taxi_office` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `city_id` | `bigint` | 🔗 `ref.city` ✱ |  |
+| `license_no` | `text` |  |  |
+| `status` | `text` | ✱ | `'PENDING'::text` |
+
+### `taxi.taxi_permit` 🛡️
+
+Taxi licence of a car; ownership and the owner stay on fleet.vehicle (4.17)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `permit_no` | `text` | ✱ |  |
+| `vehicle_id` | `bigint` | 🔗 `fleet.vehicle` ✱ |  |
+| `company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `office_id` | `bigint` | 🔗 `taxi.taxi_office`  |  |
+| `city_id` | `bigint` | 🔗 `ref.city` ✱ |  |
+| `scope` | `text` | ✱ | `'INTRACITY'::text` |
+| `gps_required` | `boolean` | ✱ | `false` |
+| `valid` | `daterange` | ✱ |  |
+| `status` | `text` | ✱ | `'ACTIVE'::text` |
+
+### `taxi.taxi_shift` 🛡️
+
+A driver on a car for a shift; tracking runs only inside a shift (privacy, 21.1)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `permit_id` | `bigint` | 🔗 `taxi.taxi_permit` ✱ |  |
+| `vehicle_id` | `bigint` | 🔗 `fleet.vehicle` ✱ |  |
+| `driver_party_id` | `bigint` | 🔗 `fleet.crew_profile` ✱ |  |
+| `period` | `tstzrange` | ✱ |  |
+| `status` | `text` | ✱ | `'ON'::text` |
+
+<a id="rent"></a>
+## `rent` — Car rental
+
+### `rent.contract_driver` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `contract_id` | `bigint` | 🔑 🔗 `rent.rental_contract` ✱ |  |
+| `party_id` | `bigint` | 🔑 🔗 `iam.party` ✱ |  |
+| `is_primary` | `boolean` | ✱ | `false` |
+| `license_verified` | `boolean` | ✱ | `false` |
+
+### `rent.deposit_hold` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `contract_id` | `bigint` | 🔗 `rent.rental_contract` ✱ |  |
+| `method` | `text` | ✱ |  |
+| `amount` | `bigint` | ✱ |  |
+| `currency` | `character(3)` | 🔗 `ref.currency` ✱ | `'SYP'::bpchar` |
+| `wallet_id` | `bigint` | 🔗 `fin.wallet`  |  |
+| `provider_ref` | `text` |  |  |
+| `captured_amount` | `bigint` | ✱ | `0` |
+| `case_id` | `bigint` | 🔗 `crm.case`  |  |
+| `status` | `text` | ✱ | `'HELD'::text` |
+
+### `rent.rental_addon` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `company_id` | `bigint` | 🔗 `rent.rental_company` ✱ |  |
+| `code` | `text` | ✱ |  |
+| `price` | `bigint` | ✱ |  |
+| `unit` | `text` | ✱ |  |
+| `currency` | `character(3)` | 🔗 `ref.currency` ✱ | `'SYP'::bpchar` |
+| `active` | `boolean` | ✱ | `true` |
+
+### `rent.rental_booking` 🛡️
+
+A rental across any company from unified search; a car cannot be double-booked
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `company_id` | `bigint` | 🔗 `rent.rental_company` ✱ |  |
+| `renter_party_id` | `bigint` | 🔗 `iam.party` ✱ |  |
+| `rental_class` | `text` | 🔗 `rent.rental_vehicle_class` ✱ |  |
+| `vehicle_id` | `bigint` | 🔗 `rent.rental_fleet`  |  |
+| `rate_id` | `bigint` | 🔗 `rent.rental_rate`  |  |
+| `pickup_branch_id` | `bigint` | 🔗 `rent.rental_branch` ✱ |  |
+| `return_branch_id` | `bigint` | 🔗 `rent.rental_branch` ✱ |  |
+| `period` | `tstzrange` | ✱ |  |
+| `quoted_total` | `bigint` | ✱ |  |
+| `currency` | `character(3)` | 🔗 `ref.currency` ✱ | `'SYP'::bpchar` |
+| `status` | `text` | ✱ | `'CONFIRMED'::text` |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `rent.rental_booking_addon` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `booking_id` | `bigint` | 🔑 🔗 `rent.rental_booking` ✱ |  |
+| `addon_id` | `bigint` | 🔑 🔗 `rent.rental_addon` ✱ |  |
+| `qty` | `smallint` | ✱ | `1` |
+| `amount` | `bigint` | ✱ |  |
+
+### `rent.rental_branch` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `company_id` | `bigint` | 🔗 `rent.rental_company` ✱ |  |
+| `station_id` | `bigint` | 🔗 `net.station` ✱ |  |
+| `branch_type` | `text` | ✱ |  |
+| `hours` | `jsonb` | ✱ | `'{}'::jsonb` |
+| `status` | `text` | ✱ | `'ACTIVE'::text` |
+
+### `rent.rental_company` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `company_id` | `bigint` | 🔑 🔗 `iam.company` ✱ |  |
+| `brand` | `text` | ✱ |  |
+| `status` | `text` | ✱ | `'PENDING'::text` |
+
+### `rent.rental_contract` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `contract_no` | `text` | ✱ |  |
+| `booking_id` | `bigint` | 🔗 `rent.rental_booking` ✱ |  |
+| `vehicle_id` | `bigint` | 🔗 `rent.rental_fleet` ✱ |  |
+| `terms` | `jsonb` | ✱ |  |
+| `signed_at` | `timestamp with time zone` |  |  |
+| `signature_file_id` | `bigint` | 🔗 `ref.file_object`  |  |
+| `closed_at` | `timestamp with time zone` |  |  |
+| `final_amount` | `bigint` |  |  |
+| `status` | `text` | ✱ | `'OPEN'::text` |
+
+### `rent.rental_fleet` 🛡️
+
+Rental extension of fleet.vehicle: its class and home branch
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `vehicle_id` | `bigint` | 🔑 🔗 `fleet.vehicle` ✱ |  |
+| `company_id` | `bigint` | 🔗 `rent.rental_company` ✱ |  |
+| `rental_class` | `text` | 🔗 `rent.rental_vehicle_class` ✱ |  |
+| `home_branch_id` | `bigint` | 🔗 `rent.rental_branch`  |  |
+| `status` | `text` | ✱ | `'AVAILABLE'::text` |
+
+### `rent.rental_inspection` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `contract_id` | `bigint` | 🔗 `rent.rental_contract` ✱ |  |
+| `stage` | `text` | ✱ |  |
+| `odometer_km` | `integer` | ✱ |  |
+| `fuel_level_pct` | `smallint` | ✱ |  |
+| `damage` | `jsonb` | ✱ | `'[]'::jsonb` |
+| `photo_file_ids` | `bigint[]` | ✱ | `'{}'::bigint[]` |
+| `inspector_user_id` | `bigint` | 🔗 `iam.app_user`  |  |
+| `renter_confirmed` | `boolean` | ✱ | `false` |
+| `ts` | `timestamp with time zone` | ✱ | `now()` |
+
+### `rent.rental_rate` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `company_id` | `bigint` | 🔗 `rent.rental_company` ✱ |  |
+| `rental_class` | `text` | 🔗 `rent.rental_vehicle_class` ✱ |  |
+| `branch_id` | `bigint` | 🔗 `rent.rental_branch`  |  |
+| `unit` | `text` | ✱ |  |
+| `price` | `bigint` | ✱ |  |
+| `km_included_per_day` | `integer` |  |  |
+| `extra_km_price` | `bigint` | ✱ | `0` |
+| `deposit_amount` | `bigint` | ✱ | `0` |
+| `currency` | `character(3)` | 🔗 `ref.currency` ✱ | `'SYP'::bpchar` |
+| `valid` | `daterange` | ✱ |  |
+| `status` | `text` | ✱ | `'ACTIVE'::text` |
+
+### `rent.rental_vehicle_class` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `code` | `text` | 🔑 ✱ |  |
+| `name` | `text` | ✱ |  |
+| `sort` | `integer` | ✱ | `100` |
+
+### `rent.renter_rule` 🛡️
+
+Renter eligibility as data-driven rules: age, licence years and documents (11.9 pattern)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `renter_kind` | `text` | ✱ |  |
+| `rental_class` | `text` | 🔗 `rent.rental_vehicle_class`  |  |
+| `min_age` | `smallint` | ✱ | `21` |
+| `min_license_years` | `smallint` | ✱ | `1` |
+| `docs_required` | `text[]` | ✱ |  |
+| `version` | `integer` | ✱ | `1` |
+| `status` | `text` | ✱ | `'DRAFT'::text` |
+| `approved_by` | `bigint` | 🔗 `iam.app_user`  |  |
+
+### `rent.telematics_device` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `company_id` | `bigint` | 🔗 `rent.rental_company` ✱ |  |
+| `vehicle_id` | `bigint` | 🔗 `fleet.vehicle`  |  |
+| `imei_hash` | `bytea` | ✱ |  |
+| `provider` | `text` | ✱ |  |
+| `installed_at` | `timestamp with time zone` |  |  |
+| `status` | `text` | ✱ | `'ACTIVE'::text` |
+
+### `rent.vehicle_trip_log` 🛡️
+
+Trips recorded by the telematics device; access limited to the company for safety and recovery (21.2)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `device_id` | `bigint` | 🔗 `rent.telematics_device` ✱ |  |
+| `vehicle_id` | `bigint` | 🔗 `fleet.vehicle` ✱ |  |
+| `contract_id` | `bigint` | 🔗 `rent.rental_contract`  |  |
+| `started_at` | `timestamp with time zone` | ✱ |  |
+| `ended_at` | `timestamp with time zone` |  |  |
+| `distance_km` | `numeric(8,2)` |  |  |
+| `max_speed_kmh` | `smallint` |  |  |
+| `geofence_violations` | `integer` | ✱ | `0` |
 
 <a id="audit"></a>
 ## `audit` — Login and activity logs (append-only)

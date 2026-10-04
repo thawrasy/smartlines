@@ -1,4 +1,4 @@
-# Entity-Relationship Diagrams — Masslak Database (Phase 1)
+# Entity-Relationship Diagrams — Masslak Database (study v2.6)
 
 > Generated from the actual foreign keys of the built database. Each diagram shows the module's tables with their key columns,
 > plus the tables they reference in other modules (without columns). Solid line = required relationship, dashed = optional.
@@ -12,52 +12,121 @@ flowchart LR
   iam["iam<br/>Identity, parties, users, permissions and API clients"]
   ref["ref<br/>Reference data, locales and files"]
   sys["sys<br/>Settings, outbox and webhooks"]
-  net["net<br/>Network: stations, routes and carrier codes"]
-  fleet["fleet<br/>Fleet: vehicles, seats, crew, licenses and insurance"]
+  net["net<br/>Network: stations, routes, lines, corridors and geofences"]
+  fleet["fleet<br/>Fleet: vehicles, trucks, trailers, seats, crew, licenses and insurance"]
   pricing["pricing<br/>Pricing, taxes, commissions, campaigns and loyalty"]
-  ops["ops<br/>Trips, inventory, operations, tracking and incidents"]
-  sales["sales<br/>Channels, bookings, passengers and tickets"]
-  fin["fin<br/>Wallets, ledger, payments, allocation and settlement"]
+  ops["ops<br/>Trips, inventory, operations, shuttle rides, tracking and incidents"]
+  sales["sales<br/>Channels, bookings, passengers, tickets, subscriptions and travel documents"]
+  fin["fin<br/>Wallets, ledger, payments, allocation, settlement and float"]
   acct["acct<br/>Simplified accounting, e-invoicing and tax profiles"]
-  crm["crm<br/>Complaints, ratings, notifications and the AI assistant"]
+  bill["bill<br/>Carrier subscriptions, metering and platform invoices"]
+  crm["crm<br/>Complaints, ratings, notifications, the AI assistant and the contact center"]
   gov["gov<br/>Governance, obligations and data protection"]
-  sec["sec<br/>Security: IP rules, risk, signing and the security hub"]
+  sec["sec<br/>Security: IP rules, risk, signing, the security hub and government adapters"]
+  ptn["ptn<br/>Service partners: fuel stations, rest stops and maintenance"]
+  ship["ship<br/>Shipments and the integrated shipping network"]
+  frt["frt<br/>Trucking, heavy transport and transit freight"]
+  brd["brd<br/>Border manifest gateway"]
+  ctr["ctr<br/>Contracted transport: schools, universities and employees"]
+  rail["rail<br/>Rail extension"]
+  taxi["taxi<br/>Taxis"]
+  rent["rent<br/>Car rental"]
   audit["audit<br/>Login and activity logs (append-only)"]
-  acct -->|2| fin
-  acct -->|10| iam
-  acct -->|2| net
-  acct -->|5| pricing
+  acct -->|4| fin
+  acct -->|23| iam
+  acct -->|3| net
+  acct -->|1| ops
+  acct -->|6| pricing
+  bill -->|1| acct
+  bill -->|1| fin
+  bill -->|5| iam
+  brd -->|2| fleet
+  brd -->|1| iam
+  brd -->|3| net
+  brd -->|2| ops
+  brd -->|1| ref
+  brd -->|1| sales
+  brd -->|3| sec
+  brd -->|2| ship
   crm -->|1| fin
-  crm -->|9| iam
+  crm -->|12| iam
   crm -->|3| ops
   crm -->|1| ref
   crm -->|3| sales
-  fin -->|10| iam
+  ctr -->|1| fleet
+  ctr -->|9| iam
+  ctr -->|3| net
+  ctr -->|1| ops
+  fin -->|14| iam
   fin -->|1| ops
-  fin -->|5| pricing
+  fin -->|6| pricing
   fin -->|2| sales
-  fleet -->|15| iam
-  fleet -->|1| ops
-  gov -->|5| iam
+  fleet -->|23| iam
+  fleet -->|4| ops
+  fleet -->|2| ref
+  frt -->|1| crm
+  frt -->|4| fleet
+  frt -->|8| iam
+  frt -->|10| net
+  frt -->|2| ref
+  frt -->|12| ship
+  gov -->|6| iam
   gov -->|1| sec
-  iam -->|1| ref
-  net -->|4| iam
-  net -->|1| ref
-  ops -->|7| fleet
-  ops -->|5| iam
-  ops -->|5| net
-  ops -->|1| sales
-  pricing -->|7| iam
-  pricing -->|3| net
+  iam -->|2| ref
+  net -->|7| iam
+  net -->|3| ref
+  ops -->|2| fin
+  ops -->|8| fleet
+  ops -->|13| iam
+  ops -->|15| net
+  ops -->|1| ref
+  ops -->|2| sales
+  pricing -->|1| fin
+  pricing -->|17| iam
+  pricing -->|5| net
+  pricing -->|2| ptn
   pricing -->|1| sales
+  ptn -->|2| fin
+  ptn -->|6| fleet
+  ptn -->|10| iam
+  ptn -->|1| net
+  ptn -->|4| ops
+  rail -->|1| fleet
+  rail -->|3| iam
+  rail -->|2| net
+  rail -->|2| ops
+  rail -->|1| sales
+  ref -->|1| iam
+  rent -->|1| crm
+  rent -->|1| fin
+  rent -->|3| fleet
+  rent -->|3| iam
+  rent -->|1| net
   sales -->|2| acct
-  sales -->|1| fin
-  sales -->|9| iam
-  sales -->|6| ops
-  sales -->|3| pricing
-  sec -->|5| iam
-  sec -->|3| ops
+  sales -->|5| fin
+  sales -->|3| fleet
+  sales -->|22| iam
+  sales -->|2| net
+  sales -->|8| ops
+  sales -->|4| pricing
+  sales -->|2| ref
+  sec -->|1| fleet
+  sec -->|6| iam
+  sec -->|4| ops
+  ship -->|1| crm
+  ship -->|4| fin
+  ship -->|3| fleet
+  ship -->|1| frt
+  ship -->|33| iam
+  ship -->|11| net
+  ship -->|4| ops
+  ship -->|2| ref
   sys -->|2| iam
+  taxi -->|1| fin
+  taxi -->|3| fleet
+  taxi -->|4| iam
+  taxi -->|1| ops
+  taxi -->|4| ref
 ```
 
 ## `iam` — Identity, parties, users, permissions and API clients
@@ -97,6 +166,8 @@ erDiagram
     integer enc_key_id FK
     character currency FK
     text status
+    uuid uid
+    bigint verified_by FK
   }
   iam_beneficial_owner {
     bigint company_id PK
@@ -109,6 +180,7 @@ erDiagram
   iam_company {
     bigint id PK
     bigint approved_by FK
+    bigint payout_bank_account_id FK
   }
   iam_company_member {
     bigint user_id PK
@@ -120,6 +192,10 @@ erDiagram
     bigint id PK
     bigint user_id FK
   }
+  iam_device_permission_state {
+    bigint device_id PK
+    bigint user_id FK
+  }
   iam_document {
     bigint id PK
     uuid uid
@@ -127,6 +203,8 @@ erDiagram
     bigint file_id FK
     text status
     bigint reviewed_by FK
+    bigint company_id FK
+    bigint uploaded_by FK
   }
   iam_gov_identity_link {
     bigint party_id PK
@@ -191,6 +269,9 @@ erDiagram
   ref_locale {
     ref external
   }
+  ref_party_role_type {
+    ref external
+  }
   iam_api_key }o--|| iam_api_client : "api_client_id"
   iam_user_role }o--|| iam_app_user : "user_id"
   iam_company_member }o--|| iam_app_user : "user_id"
@@ -198,12 +279,16 @@ erDiagram
   iam_mfa_factor }o--|| iam_app_user : "user_id"
   iam_user_session }o--|| iam_app_user : "user_id"
   iam_auth_token }o..o| iam_app_user : "user_id"
+  iam_device_permission_state }o--|| iam_app_user : "user_id"
+  iam_company }o..o| iam_bank_account : "payout_bank_account_id"
   iam_beneficial_owner }o--|| iam_company : "company_id"
   iam_company_member }o--|| iam_company : "company_id"
   iam_role }o..o| iam_company : "company_id"
   iam_user_session }o..o| iam_company : "company_id"
   iam_api_client }o..o| iam_company : "company_id"
+  iam_document }o..o| iam_company : "company_id"
   iam_push_token }o--|| iam_device : "device_id"
+  iam_device_permission_state }o--|| iam_device : "device_id"
   iam_user_session }o..o| iam_device : "device_id"
   iam_gov_identity_link }o--|| iam_identity_provider : "provider_id"
   iam_verification }o..o| iam_identity_provider : "provider_id"
@@ -220,12 +305,16 @@ erDiagram
   iam_user_role }o--|| iam_role : "role_id"
   iam_company_member }o..o| iam_role : "role_id"
   iam_app_user }o--|| ref_locale : "preferred_locale"
+  iam_party_role }o--|| ref_party_role_type : "role_code"
 ```
 
 ## `ref` — Reference data, locales and files
 
 ```mermaid
 erDiagram
+  ref_cargo_category {
+    text code PK
+  }
   ref_city {
     bigint id PK
     text code
@@ -248,14 +337,31 @@ erDiagram
     uuid uid
     integer enc_key_id FK
     bigint uploaded_by FK
+    bigint company_id FK
   }
   ref_locale {
+    text code PK
+  }
+  ref_party_role_type {
+    text code PK
+  }
+  ref_station_subtype {
     text code PK
   }
   ref_translation {
     bigint id PK
     text locale FK
   }
+  ref_trip_type {
+    text code PK
+  }
+  ref_vehicle_class {
+    text code PK
+  }
+  iam_company {
+    ref external
+  }
+  ref_file_object }o..o| iam_company : "company_id"
   ref_translation }o--|| ref_locale : "locale"
 ```
 
@@ -270,6 +376,9 @@ erDiagram
   sys_outbox_event {
     bigint id PK
     text status
+  }
+  sys_schema_file {
+    text file PK
   }
   sys_schema_migration {
     text version PK
@@ -303,10 +412,14 @@ erDiagram
   sys_webhook_delivery }o--|| sys_webhook_endpoint : "endpoint_id"
 ```
 
-## `net` — Network: stations, routes and carrier codes
+## `net` — Network: stations, routes, lines, corridors and geofences
 
 ```mermaid
 erDiagram
+  net_approved_rest_stop {
+    bigint corridor_id PK
+    bigint station_id PK
+  }
   net_carrier_code {
     bigint id PK
     bigint company_id FK
@@ -321,6 +434,59 @@ erDiagram
     text status
     bigint created_by FK
     bigint approved_by FK
+  }
+  net_corridor {
+    bigint id PK
+    uuid uid
+    text code
+    character country_code FK
+    text status
+  }
+  net_geofence {
+    bigint id PK
+    text code
+    bigint station_id FK
+    text status
+  }
+  net_line {
+    bigint id PK
+    uuid uid
+    text code
+    bigint city_id FK
+    text status
+  }
+  net_line_fare {
+    bigint id PK
+    bigint tariff_id FK
+    bigint from_station_id FK
+    bigint to_station_id FK
+  }
+  net_line_permit {
+    bigint id PK
+    bigint line_id FK
+    bigint company_id FK
+    text status
+  }
+  net_line_stop {
+    bigint line_version_id PK
+    smallint seq PK
+    bigint station_id FK
+  }
+  net_line_tariff {
+    bigint id PK
+    bigint line_id FK
+    character currency FK
+    text status
+    bigint approved_by FK
+  }
+  net_line_version {
+    bigint id PK
+    bigint line_id FK
+    text status
+  }
+  net_line_version_approval {
+    bigint line_version_id PK
+    bigint user_id PK
   }
   net_route {
     bigint id PK
@@ -348,6 +514,7 @@ erDiagram
     text code
     bigint city_id FK
     character country_code FK
+    text subtype FK
     bigint owner_company_id FK
     text status
     bigint compliance_profile_id FK
@@ -357,39 +524,104 @@ erDiagram
     bigint id PK
     bigint station_id FK
   }
+  net_station_display {
+    bigint id PK
+    bigint station_id FK
+    bigint gate_id FK
+    text status
+  }
+  net_station_gate {
+    bigint id PK
+    bigint station_id FK
+    text code
+    text status
+  }
+  net_timetable_template {
+    bigint id PK
+    bigint line_id FK
+    bigint company_id FK
+    text status
+  }
+  iam_app_user {
+    ref external
+  }
   iam_company {
     ref external
   }
   ref_city {
     ref external
   }
+  ref_station_subtype {
+    ref external
+  }
+  net_line_version_approval }o--|| iam_app_user : "user_id"
   net_carrier_code }o--|| iam_company : "company_id"
   net_service_number }o--|| iam_company : "company_id"
   net_route }o--|| iam_company : "company_id"
+  net_line_permit }o--|| iam_company : "company_id"
+  net_timetable_template }o--|| iam_company : "company_id"
   net_station }o..o| iam_company : "owner_company_id"
   net_station }o..o| net_compliance_profile : "compliance_profile_id"
+  net_approved_rest_stop }o--|| net_corridor : "corridor_id"
+  net_line_version }o--|| net_line : "line_id"
+  net_line_permit }o--|| net_line : "line_id"
+  net_line_tariff }o--|| net_line : "line_id"
+  net_timetable_template }o--|| net_line : "line_id"
+  net_line_fare }o--|| net_line_tariff : "tariff_id"
+  net_line_version_approval }o--|| net_line_version : "line_version_id"
+  net_line_stop }o--|| net_line_version : "line_version_id"
   net_route_stop }o--|| net_route : "route_id"
   net_service_number }o..o| net_route : "route_id"
   net_station_contact }o--|| net_station : "station_id"
+  net_approved_rest_stop }o--|| net_station : "station_id"
+  net_station_gate }o--|| net_station : "station_id"
+  net_station_display }o--|| net_station : "station_id"
   net_route_stop }o--|| net_station : "station_id"
+  net_line_stop }o--|| net_station : "station_id"
+  net_line_fare }o..o| net_station : "from_station_id"
+  net_line_fare }o..o| net_station : "to_station_id"
+  net_geofence }o..o| net_station : "station_id"
   net_route }o--|| net_station : "origin_station_id"
   net_route }o--|| net_station : "dest_station_id"
+  net_station_display }o..o| net_station_gate : "gate_id"
   net_station }o--|| ref_city : "city_id"
+  net_line }o..o| ref_city : "city_id"
+  net_station }o--|| ref_station_subtype : "subtype"
 ```
 
-## `fleet` — Fleet: vehicles, seats, crew, licenses and insurance
+## `fleet` — Fleet: vehicles, trucks, trailers, seats, crew, licenses and insurance
 
 ```mermaid
 erDiagram
+  fleet_boarding_validator {
+    bigint id PK
+    bigint company_id FK
+    bigint vehicle_id FK
+    text status
+  }
   fleet_crew_profile {
     bigint party_id PK
     bigint company_id FK
     text status
   }
+  fleet_driving_hours_log {
+    bigint id PK
+    bigint company_id FK
+    bigint party_id FK
+    bigint trip_id FK
+  }
   fleet_field_check_log {
     bigint id PK
     bigint inspector_user_id FK
     bigint vehicle_id FK
+  }
+  fleet_insurance_claim {
+    bigint id PK
+    bigint company_id FK
+    bigint incident_id FK
+    bigint policy_id FK
+    character currency FK
+    text status
   }
   fleet_insurance_policy {
     bigint id PK
@@ -419,6 +651,9 @@ erDiagram
   fleet_seat_layout {
     bigint id PK
     bigint company_id FK
+    uuid uid
+    text status
+    bigint created_by FK
   }
   fleet_seat_layout_seat {
     bigint layout_id PK
@@ -430,14 +665,39 @@ erDiagram
     bigint vehicle_id FK
     bigint seat_layout_id FK
   }
+  fleet_trailer {
+    bigint id PK
+    uuid uid
+    bigint company_id FK
+    bigint owner_party_id FK
+    character plate_country FK
+    text status
+  }
+  fleet_truck_combination {
+    bigint id PK
+    bigint company_id FK
+    bigint truck_vehicle_id FK
+    bigint trailer_id FK
+    bigint driver_party_id FK
+  }
+  fleet_truck_unit {
+    bigint vehicle_id PK
+  }
   fleet_vehicle {
     bigint id PK
     uuid uid
     bigint company_id FK
+    text vehicle_class FK
     character plate_country FK
     bigint seat_layout_id FK
     bigint owner_party_id FK
     text status
+  }
+  fleet_vehicle_fuel_profile {
+    bigint id PK
+    bigint company_id FK
+    bigint vehicle_id FK
+    text vehicle_class FK
   }
   fleet_vehicle_lease {
     bigint id PK
@@ -450,6 +710,15 @@ erDiagram
   fleet_vehicle_qr_tag {
     bigint id PK
     bigint vehicle_id FK
+  }
+  fleet_vehicle_service_status {
+    bigint id PK
+    bigint company_id FK
+    bigint vehicle_id FK
+    text status
+    bigint incident_id FK
+    bigint released_by FK
+    bigint release_evidence_id FK
   }
   fleet_vehicle_status_history {
     bigint id PK
@@ -471,23 +740,45 @@ erDiagram
   ops_incident {
     ref external
   }
+  ops_trip {
+    ref external
+  }
+  ref_vehicle_class {
+    ref external
+  }
+  fleet_driving_hours_log }o--|| fleet_crew_profile : "party_id"
+  fleet_truck_combination }o..o| fleet_crew_profile : "driver_party_id"
+  fleet_insurance_claim }o--|| fleet_insurance_policy : "policy_id"
   fleet_license_record }o..o| fleet_license_change_request : "last_change_request_id"
   fleet_license_change_request }o--|| fleet_license_record : "license_record_id"
   fleet_insurance_policy }o..o| fleet_license_record : "license_record_id"
   fleet_seat_layout_seat }o--|| fleet_seat_layout : "layout_id"
   fleet_seat_price_rule }o..o| fleet_seat_layout : "seat_layout_id"
   fleet_vehicle }o..o| fleet_seat_layout : "seat_layout_id"
+  fleet_truck_combination }o..o| fleet_trailer : "trailer_id"
+  fleet_truck_combination }o--|| fleet_truck_unit : "truck_vehicle_id"
+  fleet_truck_unit }o--|| fleet_vehicle : "vehicle_id"
   fleet_vehicle_lease }o--|| fleet_vehicle : "vehicle_id"
   fleet_insurance_policy }o--|| fleet_vehicle : "vehicle_id"
   fleet_vehicle_qr_tag }o--|| fleet_vehicle : "vehicle_id"
   fleet_vehicle_status_history }o--|| fleet_vehicle : "vehicle_id"
   fleet_seat_price_rule }o..o| fleet_vehicle : "vehicle_id"
   fleet_field_check_log }o..o| fleet_vehicle : "vehicle_id"
+  fleet_vehicle_service_status }o--|| fleet_vehicle : "vehicle_id"
+  fleet_vehicle_fuel_profile }o..o| fleet_vehicle : "vehicle_id"
+  fleet_boarding_validator }o..o| fleet_vehicle : "vehicle_id"
   fleet_seat_layout }o..o| iam_company : "company_id"
   fleet_seat_price_rule }o--|| iam_company : "company_id"
   fleet_crew_profile }o--|| iam_company : "company_id"
   fleet_license_record }o..o| iam_company : "company_id"
+  fleet_driving_hours_log }o--|| iam_company : "company_id"
+  fleet_vehicle_service_status }o--|| iam_company : "company_id"
+  fleet_insurance_claim }o--|| iam_company : "company_id"
+  fleet_truck_combination }o--|| iam_company : "company_id"
+  fleet_boarding_validator }o--|| iam_company : "company_id"
+  fleet_vehicle_fuel_profile }o..o| iam_company : "company_id"
   fleet_vehicle }o--|| iam_company : "company_id"
+  fleet_trailer }o--|| iam_company : "company_id"
   fleet_vehicle_lease }o--|| iam_company : "lessee_company_id"
   fleet_license_change_request }o..o| iam_document : "document_id"
   fleet_vehicle_lease }o..o| iam_document : "document_id"
@@ -497,8 +788,14 @@ erDiagram
   fleet_crew_profile }o--|| iam_party : "party_id"
   fleet_vehicle_lease }o--|| iam_party : "owner_party_id"
   fleet_insurance_policy }o..o| iam_party : "insurer_party_id"
+  fleet_trailer }o..o| iam_party : "owner_party_id"
   fleet_vehicle }o--|| iam_party : "owner_party_id"
+  fleet_insurance_claim }o--|| ops_incident : "incident_id"
   fleet_vehicle_status_history }o..o| ops_incident : "incident_id"
+  fleet_vehicle_service_status }o..o| ops_incident : "incident_id"
+  fleet_driving_hours_log }o..o| ops_trip : "trip_id"
+  fleet_vehicle }o--|| ref_vehicle_class : "vehicle_class"
+  fleet_vehicle_fuel_profile }o..o| ref_vehicle_class : "vehicle_class"
 ```
 
 ## `pricing` — Pricing, taxes, commissions, campaigns and loyalty
@@ -516,6 +813,18 @@ erDiagram
     bigint template_id PK
     text code PK
   }
+  pricing_award_seat_rule {
+    bigint id PK
+    bigint company_id FK
+    bigint line_id FK
+    bigint route_id FK
+    text status
+  }
+  pricing_bin_range {
+    bigint id PK
+    bigint bank_party_id FK
+    text status
+  }
   pricing_campaign {
     bigint id PK
     uuid uid
@@ -523,6 +832,14 @@ erDiagram
     bigint company_id FK
     text status
     bigint created_by FK
+    bigint approved_by FK
+    bigint sponsor_account_id FK
+  }
+  pricing_cancellation_policy {
+    bigint id PK
+    bigint company_id FK
+    text code
+    text status
     bigint approved_by FK
   }
   pricing_commission_rule {
@@ -561,6 +878,13 @@ erDiagram
     character country_code FK
     bigint parent_id FK
   }
+  pricing_loyalty_partner {
+    bigint id PK
+    bigint program_id FK
+    bigint party_id FK
+    bigint service_partner_id FK
+    text status
+  }
   pricing_loyalty_program {
     bigint id PK
     text code
@@ -576,6 +900,21 @@ erDiagram
     bigint program_id FK
     text code
   }
+  pricing_override_policy {
+    bigint id PK
+    bigint user_id FK
+    bigint company_id FK
+    bigint created_by FK
+    bigint approved_by FK
+  }
+  pricing_partner_redemption {
+    bigint id PK
+    bigint loyalty_partner_id FK
+    bigint voucher_id FK
+    bigint token_id FK
+    bigint partner_sale_id FK
+    character currency FK
+  }
   pricing_points_account {
     bigint id PK
     bigint program_id FK
@@ -589,6 +928,18 @@ erDiagram
     bigint booking_id FK
     bigint rule_id FK
     bigint reverses_id FK
+  }
+  pricing_points_liability {
+    bigint id PK
+    bigint program_id FK
+    bigint issuer_party_id FK
+  }
+  pricing_points_transfer {
+    bigint id PK
+    bigint account_id FK
+    bigint loyalty_partner_id FK
+    bigint points_ledger_id FK
+    text status
   }
   pricing_pricing_modifier {
     bigint id PK
@@ -605,6 +956,37 @@ erDiagram
     bigint tax_rule_id FK
     bigint commission_rule_id FK
   }
+  pricing_redemption_channel {
+    text code PK
+  }
+  pricing_redemption_token {
+    bigint id PK
+    bigint user_id FK
+    text channel_code FK
+  }
+  pricing_reward_catalog {
+    bigint id PK
+    bigint program_id FK
+    bigint loyalty_partner_id FK
+    character currency FK
+    text status
+  }
+  pricing_reward_voucher {
+    bigint id PK
+    bigint user_id FK
+    bigint catalog_id FK
+    bigint loyalty_partner_id FK
+    bigint points_ledger_id FK
+    character currency FK
+    text status
+  }
+  pricing_sponsor_account {
+    bigint id PK
+    bigint party_id FK
+    bigint wallet_id FK
+    character currency FK
+    text status
+  }
   pricing_tax_rule {
     bigint id PK
     bigint scheme_id FK
@@ -618,10 +1000,19 @@ erDiagram
     bigint created_by FK
     bigint approved_by FK
   }
+  fin_wallet {
+    ref external
+  }
+  iam_app_user {
+    ref external
+  }
   iam_company {
     ref external
   }
   iam_party {
+    ref external
+  }
+  net_line {
     ref external
   }
   net_route {
@@ -630,17 +1021,36 @@ erDiagram
   net_station {
     ref external
   }
+  ptn_partner {
+    ref external
+  }
+  ptn_partner_sale {
+    ref external
+  }
   sales_booking {
     ref external
   }
+  pricing_sponsor_account }o..o| fin_wallet : "wallet_id"
+  pricing_redemption_token }o--|| iam_app_user : "user_id"
+  pricing_reward_voucher }o--|| iam_app_user : "user_id"
+  pricing_override_policy }o..o| iam_app_user : "user_id"
   pricing_fare_brand }o..o| iam_company : "company_id"
   pricing_pricing_modifier }o..o| iam_company : "company_id"
+  pricing_cancellation_policy }o..o| iam_company : "company_id"
+  pricing_award_seat_rule }o--|| iam_company : "company_id"
   pricing_fare_table }o..o| iam_company : "company_id"
+  pricing_override_policy }o..o| iam_company : "company_id"
   pricing_campaign }o..o| iam_company : "company_id"
+  pricing_bin_range }o--|| iam_party : "bank_party_id"
   pricing_points_account }o--|| iam_party : "party_id"
+  pricing_loyalty_partner }o--|| iam_party : "party_id"
+  pricing_points_liability }o..o| iam_party : "issuer_party_id"
+  pricing_sponsor_account }o--|| iam_party : "party_id"
   pricing_promo_code }o..o| iam_party : "owner_party_id"
   pricing_tax_scheme }o..o| iam_party : "payable_to_party_id"
+  pricing_award_seat_rule }o..o| net_line : "line_id"
   pricing_fare_table }o..o| net_route : "route_id"
+  pricing_award_seat_rule }o..o| net_route : "route_id"
   pricing_fare_table_item }o--|| net_station : "from_station_id"
   pricing_fare_table_item }o--|| net_station : "to_station_id"
   pricing_allocation_template_line }o--|| pricing_allocation_template : "template_id"
@@ -650,19 +1060,36 @@ erDiagram
   pricing_fare_table_item }o--|| pricing_fare_table : "fare_table_id"
   pricing_jurisdiction }o..o| pricing_jurisdiction : "parent_id"
   pricing_tax_scheme }o--|| pricing_jurisdiction : "jurisdiction_id"
+  pricing_partner_redemption }o--|| pricing_loyalty_partner : "loyalty_partner_id"
+  pricing_reward_catalog }o..o| pricing_loyalty_partner : "loyalty_partner_id"
+  pricing_points_transfer }o--|| pricing_loyalty_partner : "loyalty_partner_id"
+  pricing_reward_voucher }o..o| pricing_loyalty_partner : "loyalty_partner_id"
   pricing_loyalty_tier }o--|| pricing_loyalty_program : "program_id"
   pricing_loyalty_rule }o--|| pricing_loyalty_program : "program_id"
   pricing_points_account }o--|| pricing_loyalty_program : "program_id"
+  pricing_loyalty_partner }o--|| pricing_loyalty_program : "program_id"
+  pricing_reward_catalog }o--|| pricing_loyalty_program : "program_id"
+  pricing_points_liability }o--|| pricing_loyalty_program : "program_id"
   pricing_points_ledger }o..o| pricing_loyalty_rule : "rule_id"
   pricing_points_account }o..o| pricing_loyalty_tier : "tier_id"
   pricing_points_ledger }o--|| pricing_points_account : "account_id"
+  pricing_points_transfer }o--|| pricing_points_account : "account_id"
+  pricing_reward_voucher }o..o| pricing_points_ledger : "points_ledger_id"
+  pricing_points_transfer }o..o| pricing_points_ledger : "points_ledger_id"
   pricing_points_ledger }o..o| pricing_points_ledger : "reverses_id"
+  pricing_redemption_token }o--|| pricing_redemption_channel : "channel_code"
+  pricing_partner_redemption }o..o| pricing_redemption_token : "token_id"
+  pricing_reward_voucher }o..o| pricing_reward_catalog : "catalog_id"
+  pricing_partner_redemption }o..o| pricing_reward_voucher : "voucher_id"
+  pricing_campaign }o..o| pricing_sponsor_account : "sponsor_account_id"
   pricing_rate_band }o..o| pricing_tax_rule : "tax_rule_id"
   pricing_tax_rule }o--|| pricing_tax_scheme : "scheme_id"
+  pricing_loyalty_partner }o..o| ptn_partner : "service_partner_id"
+  pricing_partner_redemption }o..o| ptn_partner_sale : "partner_sale_id"
   pricing_points_ledger }o..o| sales_booking : "booking_id"
 ```
 
-## `ops` — Trips, inventory, operations, tracking and incidents
+## `ops` — Trips, inventory, operations, shuttle rides, tracking and incidents
 
 ```mermaid
 erDiagram
@@ -671,6 +1098,17 @@ erDiagram
     bigint trip_id FK
     bigint party_id FK
     text status
+  }
+  ops_crossing_event {
+    bigint id PK
+    bigint trip_id FK
+    bigint station_id FK
+    bigint recorded_by_user_id FK
+  }
+  ops_driver_notice {
+    bigint id PK
+    bigint user_id FK
+    bigint trip_id FK
   }
   ops_family_zone {
     bigint trip_id PK
@@ -701,12 +1139,55 @@ erDiagram
     bigint incident_id FK
     text status
   }
+  ops_permission_event {
+    bigint id PK
+    bigint user_id FK
+    bigint device_id FK
+    bigint trip_id FK
+  }
+  ops_presence_beacon {
+    bigint id PK
+    bigint trip_id FK
+    bigint vehicle_id FK
+  }
+  ops_proximity_sample {
+    bigint ride_id PK
+    timestamp_with_time_zone ts PK
+  }
+  ops_ride_segment_charge {
+    bigint id PK
+    bigint ride_id FK
+    bigint ledger_txn_id FK
+  }
+  ops_route_adherence_event {
+    bigint id PK
+    bigint trip_id FK
+  }
+  ops_seat_lock {
+    bigint id PK
+    bigint trip_id FK
+    bigint user_id FK
+  }
   ops_seat_segment {
     bigint trip_id PK
     smallint seat_no PK
     smallint seg PK
     text status
     bigint ticket_id FK
+  }
+  ops_shuttle_ride {
+    bigint id PK
+    uuid uid
+    bigint user_id FK
+    bigint wallet_id FK
+    bigint trip_id FK
+    bigint line_id FK
+    bigint tariff_id FK
+    bigint boarding_event_id FK
+    bigint board_station_id FK
+    bigint alight_station_id FK
+    character currency FK
+    text status
   }
   ops_standing_segment {
     bigint trip_id PK
@@ -717,6 +1198,16 @@ erDiagram
     bigint trip_id FK
     text status
   }
+  ops_tracking_state {
+    bigint trip_id PK
+    bigint driver_user_id FK
+    text status
+  }
+  ops_transit_reconciliation {
+    bigint trip_id PK
+    text status
+    bigint resolved_by_user_id FK
+  }
   ops_trip {
     bigint id PK
     uuid uid
@@ -725,14 +1216,27 @@ erDiagram
     bigint service_number_id FK
     bigint template_id FK
     bigint route_id FK
+    text trip_type FK
     bigint vehicle_id FK
     text status
     character currency FK
+    bigint corridor_id FK
+    bigint line_version_id FK
   }
   ops_trip_change {
     bigint id PK
     bigint trip_id FK
     bigint by_user_id FK
+  }
+  ops_trip_crossing_plan {
+    bigint id PK
+    bigint trip_id FK
+    bigint exit_station_id FK
+    bigint entry_station_id FK
+  }
+  ops_trip_delay {
+    bigint id PK
+    bigint trip_id FK
   }
   ops_trip_disruption {
     bigint id PK
@@ -752,6 +1256,7 @@ erDiagram
     bigint trip_id PK
     smallint seq PK
     bigint station_id FK
+    bigint gate_id FK
   }
   ops_trip_stop_event {
     bigint id PK
@@ -774,16 +1279,40 @@ erDiagram
     bigint to_vehicle_id FK
     bigint approved_by FK
   }
+  fin_ledger_txn {
+    ref external
+  }
+  fin_wallet {
+    ref external
+  }
   fleet_crew_profile {
     ref external
   }
   fleet_vehicle {
     ref external
   }
+  iam_app_user {
+    ref external
+  }
   iam_company {
     ref external
   }
+  iam_device {
+    ref external
+  }
   iam_party {
+    ref external
+  }
+  net_corridor {
+    ref external
+  }
+  net_line {
+    ref external
+  }
+  net_line_tariff {
+    ref external
+  }
+  net_line_version {
     ref external
   }
   net_route {
@@ -795,56 +1324,111 @@ erDiagram
   net_station {
     ref external
   }
+  net_station_gate {
+    ref external
+  }
+  ref_trip_type {
+    ref external
+  }
+  sales_boarding_event {
+    ref external
+  }
   sales_ticket {
     ref external
   }
+  ops_ride_segment_charge }o..o| fin_ledger_txn : "ledger_txn_id"
+  ops_shuttle_ride }o--|| fin_wallet : "wallet_id"
   ops_crew_assignment }o--|| fleet_crew_profile : "party_id"
   ops_vehicle_swap }o--|| fleet_vehicle : "from_vehicle_id"
+  ops_presence_beacon }o..o| fleet_vehicle : "vehicle_id"
   ops_vehicle_swap }o--|| fleet_vehicle : "to_vehicle_id"
   ops_incident }o..o| fleet_vehicle : "vehicle_id"
   ops_trip_template }o..o| fleet_vehicle : "default_vehicle_id"
   ops_trip_disruption }o..o| fleet_vehicle : "replacement_vehicle_id"
   ops_trip }o..o| fleet_vehicle : "vehicle_id"
+  ops_permission_event }o--|| iam_app_user : "user_id"
+  ops_tracking_state }o..o| iam_app_user : "driver_user_id"
+  ops_driver_notice }o--|| iam_app_user : "user_id"
+  ops_shuttle_ride }o--|| iam_app_user : "user_id"
+  ops_transit_reconciliation }o..o| iam_app_user : "resolved_by_user_id"
+  ops_seat_lock }o..o| iam_app_user : "user_id"
+  ops_crossing_event }o..o| iam_app_user : "recorded_by_user_id"
   ops_trip_template }o--|| iam_company : "company_id"
   ops_incident }o--|| iam_company : "company_id"
   ops_trip }o--|| iam_company : "company_id"
   ops_trip_disruption }o..o| iam_company : "partner_company_id"
+  ops_permission_event }o..o| iam_device : "device_id"
   ops_incident }o..o| iam_party : "driver_party_id"
+  ops_trip }o..o| net_corridor : "corridor_id"
+  ops_shuttle_ride }o--|| net_line : "line_id"
+  ops_shuttle_ride }o..o| net_line_tariff : "tariff_id"
+  ops_trip }o..o| net_line_version : "line_version_id"
   ops_trip_template }o--|| net_route : "route_id"
   ops_trip }o--|| net_route : "route_id"
   ops_trip_template }o..o| net_service_number : "service_number_id"
   ops_trip }o..o| net_service_number : "service_number_id"
   ops_trip_stop }o--|| net_station : "station_id"
+  ops_crossing_event }o--|| net_station : "station_id"
+  ops_trip_crossing_plan }o--|| net_station : "exit_station_id"
+  ops_trip_crossing_plan }o--|| net_station : "entry_station_id"
+  ops_shuttle_ride }o--|| net_station : "board_station_id"
+  ops_shuttle_ride }o..o| net_station : "alight_station_id"
+  ops_trip_stop }o..o| net_station_gate : "gate_id"
   ops_incident_evidence }o--|| ops_incident : "incident_id"
   ops_incident_external_link }o--|| ops_incident : "incident_id"
   ops_trip_disruption }o..o| ops_incident : "incident_id"
+  ops_proximity_sample }o--|| ops_shuttle_ride : "ride_id"
+  ops_ride_segment_charge }o--|| ops_shuttle_ride : "ride_id"
   ops_trip_stop }o--|| ops_trip : "trip_id"
   ops_trip_pair_fare }o--|| ops_trip : "trip_id"
   ops_seat_segment }o--|| ops_trip : "trip_id"
   ops_standing_segment }o--|| ops_trip : "trip_id"
   ops_family_zone }o--|| ops_trip : "trip_id"
+  ops_transit_reconciliation }o--|| ops_trip : "trip_id"
+  ops_tracking_state }o--|| ops_trip : "trip_id"
   ops_crew_assignment }o--|| ops_trip : "trip_id"
   ops_trip_stop_event }o--|| ops_trip : "trip_id"
   ops_trip_change }o--|| ops_trip : "trip_id"
   ops_vehicle_swap }o--|| ops_trip : "trip_id"
   ops_tracking_alert }o--|| ops_trip : "trip_id"
   ops_trip_disruption }o--|| ops_trip : "trip_id"
+  ops_trip_crossing_plan }o--|| ops_trip : "trip_id"
+  ops_crossing_event }o--|| ops_trip : "trip_id"
+  ops_route_adherence_event }o--|| ops_trip : "trip_id"
+  ops_presence_beacon }o--|| ops_trip : "trip_id"
+  ops_seat_lock }o--|| ops_trip : "trip_id"
+  ops_trip_delay }o--|| ops_trip : "trip_id"
+  ops_driver_notice }o..o| ops_trip : "trip_id"
+  ops_permission_event }o..o| ops_trip : "trip_id"
   ops_incident }o..o| ops_trip : "trip_id"
+  ops_shuttle_ride }o--|| ops_trip : "trip_id"
   ops_trip_stop_event }o--|| ops_trip_stop : "trip_id,seq"
   ops_trip }o..o| ops_trip_template : "template_id"
+  ops_trip }o--|| ref_trip_type : "trip_type"
+  ops_shuttle_ride }o..o| sales_boarding_event : "boarding_event_id"
   ops_seat_segment }o..o| sales_ticket : "ticket_id"
 ```
 
-## `sales` — Channels, bookings, passengers and tickets
+## `sales` — Channels, bookings, passengers, tickets, subscriptions and travel documents
 
 ```mermaid
 erDiagram
+  sales_agency_agreement {
+    bigint id PK
+    bigint agency_id FK
+    character currency FK
+    text status
+    bigint created_by FK
+  }
   sales_boarding_event {
     bigint id PK
     bigint ticket_id FK
     bigint trip_id FK
     bigint scanned_by_user_id FK
     bigint device_id FK
+    bigint vehicle_tag_id FK
+    bigint validator_id FK
+    bigint nfc_card_id FK
   }
   sales_booking {
     bigint id PK
@@ -858,6 +1442,7 @@ erDiagram
     text status
     character currency FK
     bigint price_allocation_id FK
+    bigint agency_id FK
   }
   sales_campaign_redemption {
     bigint id PK
@@ -872,6 +1457,77 @@ erDiagram
     text code
     bigint party_id FK
     bigint api_client_id FK
+    text status
+  }
+  sales_channel_agreement {
+    bigint id PK
+    bigint channel_id FK
+    bigint company_id FK
+    bigint commission_scheme_id FK
+    text status
+    bigint created_by FK
+    bigint approved_by FK
+  }
+  sales_channel_api_profile {
+    bigint channel_id PK
+    bigint api_client_id FK
+  }
+  sales_channel_booking_ref {
+    bigint booking_id PK
+    bigint channel_id FK
+  }
+  sales_channel_inventory_rule {
+    bigint id PK
+    bigint channel_id FK
+    bigint company_id FK
+    bigint route_id FK
+    text trip_type FK
+  }
+  sales_channel_memo {
+    bigint id PK
+    bigint channel_id FK
+    bigint statement_id FK
+    character currency FK
+    text status
+  }
+  sales_channel_statement {
+    bigint id PK
+    bigint channel_id FK
+    character currency FK
+    bigint ledger_txn_id FK
+    text status
+  }
+  sales_channel_statement_line {
+    bigint statement_id PK
+    integer line_no PK
+    bigint booking_id FK
+  }
+  sales_entry_rule {
+    bigint id PK
+    character country_code FK
+    character nationality FK
+    text status
+    bigint created_by FK
+    bigint approved_by FK
+  }
+  sales_external_mapping {
+    bigint source_id PK
+    text local_type PK
+    text external_id PK
+  }
+  sales_inspection_check {
+    bigint id PK
+    bigint company_id FK
+    bigint inspector_party_id FK
+    bigint vehicle_id FK
+    bigint trip_id FK
+    bigint boarding_event_id FK
+    character currency FK
+  }
+  sales_nfc_card {
+    bigint id PK
+    bigint wallet_id FK
+    bigint party_id FK
     text status
   }
   sales_passenger {
@@ -899,6 +1555,43 @@ erDiagram
     bigint decided_by FK
     bigint credit_note_id FK
   }
+  sales_shuttle_pass {
+    bigint id PK
+    bigint subscription_id FK
+    bigint nfc_card_id FK
+    text status
+  }
+  sales_shuttle_zone {
+    bigint id PK
+    text code
+    bigint city_id FK
+    text status
+  }
+  sales_subscription {
+    bigint id PK
+    uuid uid
+    bigint plan_id FK
+    bigint company_id FK
+    bigint party_id FK
+    bigint wallet_id FK
+    character currency FK
+    bigint ledger_txn_id FK
+    text status
+  }
+  sales_subscription_plan {
+    bigint id PK
+    bigint company_id FK
+    text code
+    bigint line_id FK
+    bigint zone_id FK
+    character currency FK
+    text status
+  }
+  sales_supplier_source {
+    bigint id PK
+    bigint company_id FK
+    text status
+  }
   sales_ticket {
     bigint id PK
     uuid uid
@@ -909,10 +1602,42 @@ erDiagram
     integer qr_key_id FK
     text status
   }
+  sales_ticket_doc {
+    bigint ticket_id PK
+    bigint entry_rule_id FK
+    character dest_country FK
+    character visa_country FK
+    character residence_country FK
+    integer enc_key_id FK
+    text status
+    bigint verified_by FK
+  }
+  sales_waitlist_entry {
+    bigint id PK
+    bigint trip_id FK
+    bigint party_id FK
+    text status
+    bigint booking_id FK
+  }
   acct_einvoice_document {
     ref external
   }
+  fin_ledger_txn {
+    ref external
+  }
   fin_price_allocation {
+    ref external
+  }
+  fin_wallet {
+    ref external
+  }
+  fleet_boarding_validator {
+    ref external
+  }
+  fleet_vehicle {
+    ref external
+  }
+  fleet_vehicle_qr_tag {
     ref external
   }
   iam_api_client {
@@ -930,6 +1655,12 @@ erDiagram
   iam_party {
     ref external
   }
+  net_line {
+    ref external
+  }
+  net_route {
+    ref external
+  }
   ops_trip {
     ref external
   }
@@ -942,45 +1673,101 @@ erDiagram
   pricing_campaign {
     ref external
   }
+  pricing_commission_scheme {
+    ref external
+  }
   pricing_fare_brand {
     ref external
   }
   pricing_promo_code {
     ref external
   }
+  ref_city {
+    ref external
+  }
+  ref_trip_type {
+    ref external
+  }
   sales_passenger_compensation }o..o| acct_einvoice_document : "credit_note_id"
   sales_refund_request }o..o| acct_einvoice_document : "credit_note_id"
+  sales_channel_statement }o..o| fin_ledger_txn : "ledger_txn_id"
+  sales_subscription }o..o| fin_ledger_txn : "ledger_txn_id"
   sales_booking }o..o| fin_price_allocation : "price_allocation_id"
+  sales_nfc_card }o..o| fin_wallet : "wallet_id"
+  sales_subscription }o..o| fin_wallet : "wallet_id"
+  sales_boarding_event }o..o| fleet_boarding_validator : "validator_id"
+  sales_inspection_check }o..o| fleet_vehicle : "vehicle_id"
+  sales_boarding_event }o..o| fleet_vehicle_qr_tag : "vehicle_tag_id"
+  sales_channel_api_profile }o--|| iam_api_client : "api_client_id"
   sales_channel }o..o| iam_api_client : "api_client_id"
   sales_booking }o..o| iam_app_user : "booker_user_id"
+  sales_agency_agreement }o--|| iam_company : "agency_id"
+  sales_subscription_plan }o..o| iam_company : "company_id"
+  sales_inspection_check }o--|| iam_company : "company_id"
+  sales_channel_agreement }o..o| iam_company : "company_id"
+  sales_channel_inventory_rule }o--|| iam_company : "company_id"
+  sales_subscription }o..o| iam_company : "company_id"
+  sales_supplier_source }o..o| iam_company : "company_id"
   sales_booking }o--|| iam_company : "company_id"
   sales_passenger_compensation }o..o| iam_company : "charged_to_company_id"
+  sales_booking }o..o| iam_company : "agency_id"
   sales_boarding_event }o..o| iam_device : "device_id"
   sales_passenger }o..o| iam_party : "party_id"
+  sales_waitlist_entry }o--|| iam_party : "party_id"
+  sales_inspection_check }o--|| iam_party : "inspector_party_id"
   sales_channel }o..o| iam_party : "party_id"
+  sales_nfc_card }o..o| iam_party : "party_id"
   sales_campaign_redemption }o--|| iam_party : "party_id"
+  sales_subscription }o--|| iam_party : "party_id"
   sales_booking }o--|| iam_party : "booker_party_id"
+  sales_subscription_plan }o..o| net_line : "line_id"
+  sales_channel_inventory_rule }o..o| net_route : "route_id"
+  sales_waitlist_entry }o--|| ops_trip : "trip_id"
   sales_boarding_event }o--|| ops_trip : "trip_id"
   sales_booking }o--|| ops_trip : "trip_id"
+  sales_inspection_check }o..o| ops_trip : "trip_id"
   sales_ticket }o--|| ops_trip : "trip_id"
   sales_passenger_compensation }o..o| ops_trip_disruption : "trip_disruption_id"
   sales_ticket }o--|| ops_trip_stop : "trip_id,from_seq"
   sales_ticket }o--|| ops_trip_stop : "trip_id,to_seq"
   sales_campaign_redemption }o--|| pricing_campaign : "campaign_id"
+  sales_channel_agreement }o..o| pricing_commission_scheme : "commission_scheme_id"
   sales_ticket }o..o| pricing_fare_brand : "fare_brand_code"
   sales_campaign_redemption }o..o| pricing_promo_code : "promo_code_id"
+  sales_shuttle_zone }o--|| ref_city : "city_id"
+  sales_channel_inventory_rule }o..o| ref_trip_type : "trip_type"
+  sales_inspection_check }o..o| sales_boarding_event : "boarding_event_id"
+  sales_channel_booking_ref }o--|| sales_booking : "booking_id"
   sales_passenger }o--|| sales_booking : "booking_id"
   sales_refund_request }o--|| sales_booking : "booking_id"
   sales_passenger_compensation }o--|| sales_booking : "booking_id"
+  sales_channel_statement_line }o..o| sales_booking : "booking_id"
   sales_ticket }o--|| sales_booking : "booking_id"
   sales_campaign_redemption }o--|| sales_booking : "booking_id"
+  sales_waitlist_entry }o..o| sales_booking : "booking_id"
+  sales_channel_api_profile }o--|| sales_channel : "channel_id"
+  sales_channel_agreement }o--|| sales_channel : "channel_id"
+  sales_channel_inventory_rule }o--|| sales_channel : "channel_id"
+  sales_channel_booking_ref }o--|| sales_channel : "channel_id"
+  sales_channel_statement }o--|| sales_channel : "channel_id"
+  sales_channel_memo }o--|| sales_channel : "channel_id"
   sales_booking }o--|| sales_channel : "channel_id"
+  sales_channel_statement_line }o--|| sales_channel_statement : "statement_id"
+  sales_channel_memo }o..o| sales_channel_statement : "statement_id"
+  sales_ticket_doc }o..o| sales_entry_rule : "entry_rule_id"
+  sales_shuttle_pass }o..o| sales_nfc_card : "nfc_card_id"
+  sales_boarding_event }o..o| sales_nfc_card : "nfc_card_id"
   sales_ticket }o--|| sales_passenger : "passenger_id"
-  sales_boarding_event }o--|| sales_ticket : "ticket_id"
+  sales_subscription_plan }o..o| sales_shuttle_zone : "zone_id"
+  sales_shuttle_pass }o--|| sales_subscription : "subscription_id"
+  sales_subscription }o--|| sales_subscription_plan : "plan_id"
+  sales_external_mapping }o--|| sales_supplier_source : "source_id"
+  sales_ticket_doc }o--|| sales_ticket : "ticket_id"
+  sales_boarding_event }o..o| sales_ticket : "ticket_id"
   sales_refund_request }o..o| sales_ticket : "ticket_id"
 ```
 
-## `fin` — Wallets, ledger, payments, allocation and settlement
+## `fin` — Wallets, ledger, payments, allocation, settlement and float
 
 ```mermaid
 erDiagram
@@ -995,6 +1782,29 @@ erDiagram
     bigint wallet_id FK
     text status
     bigint ledger_txn_id FK
+  }
+  fin_cash_remittance {
+    bigint id PK
+    bigint company_id FK
+    character currency FK
+    bigint ledger_txn_id FK
+    bigint recorded_by FK
+  }
+  fin_deposit_placement {
+    bigint id PK
+    bigint account_id FK
+    text status
+  }
+  fin_float_account {
+    bigint id PK
+    bigint bank_party_id FK
+    character currency FK
+    bigint ledger_wallet_id FK
+    text status
+  }
+  fin_float_report {
+    date report_date PK
+    character currency PK
   }
   fin_ledger_entry {
     bigint id PK
@@ -1061,6 +1871,7 @@ erDiagram
     bigint commission_scheme_id FK
     bigint wallet_id FK
     text status
+    bigint sponsor_account_id FK
   }
   fin_settlement_batch {
     bigint id PK
@@ -1069,11 +1880,13 @@ erDiagram
     character currency FK
     text status
     bigint approved_by FK
+    bigint created_by FK
   }
   fin_settlement_line {
     bigint id PK
     bigint batch_id FK
     bigint trip_id FK
+    text trip_no
   }
   fin_tax_ledger {
     bigint id PK
@@ -1100,6 +1913,13 @@ erDiagram
     bigint approved_by FK
     bigint second_approver FK
     bigint ledger_txn_id FK
+    uuid uid
+    bigint company_id FK
+    character currency FK
+    bigint paid_by FK
+  }
+  iam_app_user {
+    ref external
   }
   iam_bank_account {
     ref external
@@ -1122,13 +1942,18 @@ erDiagram
   pricing_jurisdiction {
     ref external
   }
+  pricing_sponsor_account {
+    ref external
+  }
   pricing_tax_scheme {
     ref external
   }
   sales_booking {
     ref external
   }
+  fin_deposit_placement }o--|| fin_float_account : "account_id"
   fin_ledger_entry }o--|| fin_ledger_txn : "txn_id"
+  fin_cash_remittance }o..o| fin_ledger_txn : "ledger_txn_id"
   fin_bank_transfer_topup }o..o| fin_ledger_txn : "ledger_txn_id"
   fin_ledger_txn }o..o| fin_ledger_txn : "reverses_txn_id"
   fin_withdrawal_request }o..o| fin_ledger_txn : "ledger_txn_id"
@@ -1145,16 +1970,21 @@ erDiagram
   fin_bank_transfer_topup }o--|| fin_wallet : "wallet_id"
   fin_withdrawal_request }o--|| fin_wallet : "wallet_id"
   fin_ledger_entry }o--|| fin_wallet : "wallet_id"
+  fin_float_account }o..o| fin_wallet : "ledger_wallet_id"
   fin_payment_provider }o..o| fin_wallet : "clearing_wallet_id"
   fin_payment }o..o| fin_wallet : "wallet_id"
   fin_price_allocation_line }o..o| fin_wallet : "wallet_id"
+  fin_withdrawal_request }o..o| iam_app_user : "paid_by"
   fin_withdrawal_request }o--|| iam_bank_account : "bank_account_id"
   fin_payout }o..o| iam_bank_account : "bank_account_id"
   fin_payout_schedule }o--|| iam_company : "company_id"
+  fin_cash_remittance }o--|| iam_company : "company_id"
   fin_settlement_batch }o--|| iam_company : "company_id"
   fin_payout }o--|| iam_company : "company_id"
   fin_wallet }o..o| iam_company : "company_id"
   fin_tax_ledger }o..o| iam_company : "company_id"
+  fin_withdrawal_request }o..o| iam_company : "company_id"
+  fin_float_account }o--|| iam_party : "bank_party_id"
   fin_wallet }o..o| iam_party : "owner_party_id"
   fin_payment }o--|| iam_party : "payer_party_id"
   fin_price_allocation_line }o..o| iam_party : "beneficiary_party_id"
@@ -1162,6 +1992,7 @@ erDiagram
   fin_price_allocation }o..o| pricing_allocation_template : "template_id"
   fin_price_allocation_line }o..o| pricing_commission_scheme : "commission_scheme_id"
   fin_tax_ledger }o--|| pricing_jurisdiction : "jurisdiction_id"
+  fin_price_allocation_line }o..o| pricing_sponsor_account : "sponsor_account_id"
   fin_tax_ledger }o--|| pricing_tax_scheme : "tax_scheme_id"
   fin_price_allocation_line }o..o| pricing_tax_scheme : "tax_scheme_id"
   fin_payment }o..o| sales_booking : "booking_id"
@@ -1182,12 +2013,59 @@ erDiagram
     bigint company_id FK
     text status
   }
+  acct_cash_box {
+    bigint id PK
+    bigint company_id FK
+    bigint owner_party_id FK
+    bigint station_id FK
+    character currency FK
+    bigint account_id FK
+    text status
+  }
+  acct_cash_payment {
+    bigint id PK
+    bigint company_id FK
+    bigint cash_session_id FK
+    bigint wallet_id FK
+    bigint bank_account_id FK
+    bigint party_id FK
+    character currency FK
+    bigint account_id FK
+    bigint approved_by FK
+    bigint journal_entry_id FK
+  }
+  acct_cash_receipt {
+    bigint id PK
+    bigint company_id FK
+    bigint cash_session_id FK
+    bigint wallet_id FK
+    bigint bank_account_id FK
+    bigint party_id FK
+    bigint invoice_id FK
+    character currency FK
+    bigint journal_entry_id FK
+  }
+  acct_cash_session {
+    bigint id PK
+    bigint cash_box_id FK
+    bigint opened_by FK
+    bigint handed_over_to FK
+    text status
+  }
   acct_cost_center {
     bigint id PK
     bigint company_id FK
     text code
     bigint route_id FK
     bigint station_id FK
+    bigint trip_id FK
+  }
+  acct_credit_note {
+    bigint id PK
+    bigint company_id FK
+    bigint invoice_id FK
+    bigint einvoice_document_id FK
+    text status
   }
   acct_einvoice_activation {
     bigint id PK
@@ -1228,6 +2106,12 @@ erDiagram
     integer signing_key_id FK
     text status
   }
+  acct_export_batch {
+    bigint id PK
+    bigint company_id FK
+    bigint file_id FK
+    bigint created_by FK
+  }
   acct_gl_account {
     bigint id PK
     bigint company_id FK
@@ -1262,7 +2146,35 @@ erDiagram
     bigint created_by FK
     bigint approved_by FK
   }
+  acct_sales_invoice {
+    bigint id PK
+    uuid uid
+    bigint company_id FK
+    bigint customer_party_id FK
+    character currency FK
+    bigint einvoice_document_id FK
+    bigint journal_entry_id FK
+    text status
+  }
+  acct_sales_invoice_line {
+    bigint invoice_id PK
+    smallint line_no PK
+    bigint tax_code_id FK
+    bigint account_id FK
+    bigint cost_center_id FK
+  }
+  acct_sync_conflict {
+    bigint id PK
+    bigint item_id FK
+    bigint resolved_by FK
+  }
   acct_sync_item {
+    bigint id PK
+    bigint connection_id FK
+    text status
+    bigint job_id FK
+  }
+  acct_sync_job {
     bigint id PK
     bigint connection_id FK
     text status
@@ -1272,6 +2184,13 @@ erDiagram
     text code
     character country_code FK
     text status
+  }
+  acct_tax_code {
+    bigint id PK
+    bigint company_id FK
+    text code
+    bigint account_id FK
+    bigint tax_rule_id FK
   }
   acct_tax_collection_no_file {
     bigint id PK
@@ -1327,6 +2246,12 @@ erDiagram
   fin_price_allocation_line {
     ref external
   }
+  fin_wallet {
+    ref external
+  }
+  iam_bank_account {
+    ref external
+  }
   iam_company {
     ref external
   }
@@ -1339,21 +2264,46 @@ erDiagram
   net_station {
     ref external
   }
+  ops_trip {
+    ref external
+  }
+  pricing_tax_rule {
+    ref external
+  }
   pricing_tax_scheme {
     ref external
   }
   acct_account_mapping }o--|| acct_accounting_connection : "connection_id"
   acct_sync_item }o--|| acct_accounting_connection : "connection_id"
+  acct_sync_job }o--|| acct_accounting_connection : "connection_id"
+  acct_cash_session }o--|| acct_cash_box : "cash_box_id"
+  acct_cash_receipt }o..o| acct_cash_session : "cash_session_id"
+  acct_cash_payment }o..o| acct_cash_session : "cash_session_id"
   acct_journal_line }o..o| acct_cost_center : "cost_center_id"
+  acct_sales_invoice_line }o..o| acct_cost_center : "cost_center_id"
   acct_einvoice_line }o--|| acct_einvoice_document : "document_id"
   acct_einvoice_submission }o--|| acct_einvoice_document : "document_id"
+  acct_credit_note }o..o| acct_einvoice_document : "einvoice_document_id"
   acct_einvoice_document }o..o| acct_einvoice_document : "original_doc_id"
+  acct_sales_invoice }o..o| acct_einvoice_document : "einvoice_document_id"
   acct_einvoice_document }o--|| acct_einvoice_unit : "unit_id"
   acct_journal_line }o--|| acct_gl_account : "account_id"
   acct_gl_account }o..o| acct_gl_account : "parent_id"
+  acct_tax_code }o..o| acct_gl_account : "account_id"
+  acct_cash_box }o..o| acct_gl_account : "account_id"
+  acct_sales_invoice_line }o..o| acct_gl_account : "account_id"
+  acct_cash_payment }o..o| acct_gl_account : "account_id"
   acct_journal_line }o--|| acct_journal_entry : "entry_id"
   acct_journal_entry }o..o| acct_journal_entry : "reversed_by_id"
+  acct_cash_receipt }o..o| acct_journal_entry : "journal_entry_id"
+  acct_sales_invoice }o..o| acct_journal_entry : "journal_entry_id"
+  acct_cash_payment }o..o| acct_journal_entry : "journal_entry_id"
   acct_journal_entry }o..o| acct_posting_rule : "posting_rule_id"
+  acct_sales_invoice_line }o--|| acct_sales_invoice : "invoice_id"
+  acct_credit_note }o--|| acct_sales_invoice : "invoice_id"
+  acct_cash_receipt }o..o| acct_sales_invoice : "invoice_id"
+  acct_sync_conflict }o--|| acct_sync_item : "item_id"
+  acct_sync_item }o..o| acct_sync_job : "job_id"
   acct_einvoice_template }o--|| acct_tax_authority : "authority_id"
   acct_einvoice_activation }o--|| acct_tax_authority : "authority_id"
   acct_tax_profile }o..o| acct_tax_authority : "authority_id"
@@ -1361,6 +2311,7 @@ erDiagram
   acct_einvoice_unit }o--|| acct_tax_authority : "authority_id"
   acct_tax_return }o--|| acct_tax_authority : "authority_id"
   acct_tax_payment }o--|| acct_tax_authority : "authority_id"
+  acct_sales_invoice_line }o..o| acct_tax_code : "tax_code_id"
   acct_tax_collection_no_file }o..o| acct_tax_payment : "remitted_payment_id"
   acct_tax_profile_value }o--|| acct_tax_profile : "profile_id"
   acct_tax_registration }o--|| acct_tax_profile : "profile_id"
@@ -1373,18 +2324,36 @@ erDiagram
   acct_tax_payment }o..o| acct_tax_return : "tax_return_id"
   acct_tax_payment }o..o| fin_ledger_txn : "ledger_txn_id"
   acct_einvoice_line }o..o| fin_price_allocation_line : "allocation_line_id"
+  acct_cash_receipt }o..o| fin_wallet : "wallet_id"
+  acct_cash_payment }o..o| fin_wallet : "wallet_id"
+  acct_cash_receipt }o..o| iam_bank_account : "bank_account_id"
+  acct_cash_payment }o..o| iam_bank_account : "bank_account_id"
   acct_gl_period }o..o| iam_company : "company_id"
   acct_gl_account }o..o| iam_company : "company_id"
   acct_cost_center }o..o| iam_company : "company_id"
   acct_accounting_connection }o..o| iam_company : "company_id"
+  acct_tax_code }o..o| iam_company : "company_id"
+  acct_credit_note }o..o| iam_company : "company_id"
+  acct_cash_box }o..o| iam_company : "company_id"
+  acct_cash_receipt }o..o| iam_company : "company_id"
+  acct_cash_payment }o..o| iam_company : "company_id"
+  acct_export_batch }o..o| iam_company : "company_id"
   acct_journal_entry }o..o| iam_company : "company_id"
+  acct_sales_invoice }o..o| iam_company : "company_id"
   acct_einvoice_document }o..o| iam_company : "company_id"
   acct_tax_profile }o--|| iam_party : "party_id"
   acct_tax_collection_no_file }o--|| iam_party : "payer_party_id"
+  acct_cash_box }o--|| iam_party : "owner_party_id"
   acct_journal_line }o..o| iam_party : "party_id"
+  acct_sales_invoice }o--|| iam_party : "customer_party_id"
   acct_einvoice_document }o..o| iam_party : "buyer_party_id"
+  acct_cash_receipt }o--|| iam_party : "party_id"
+  acct_cash_payment }o--|| iam_party : "party_id"
   acct_cost_center }o..o| net_route : "route_id"
+  acct_cash_box }o..o| net_station : "station_id"
   acct_cost_center }o..o| net_station : "station_id"
+  acct_cost_center }o..o| ops_trip : "trip_id"
+  acct_tax_code }o..o| pricing_tax_rule : "tax_rule_id"
   acct_tax_registration }o--|| pricing_tax_scheme : "tax_scheme_id"
   acct_tax_collection_no_file }o--|| pricing_tax_scheme : "tax_scheme_id"
   acct_tax_return }o--|| pricing_tax_scheme : "tax_scheme_id"
@@ -1392,7 +2361,79 @@ erDiagram
   acct_einvoice_line }o..o| pricing_tax_scheme : "tax_scheme_id"
 ```
 
-## `crm` — Complaints, ratings, notifications and the AI assistant
+## `bill` — Carrier subscriptions, metering and platform invoices
+
+```mermaid
+erDiagram
+  bill_billed_usage {
+    bigint id PK
+    bigint company_id FK
+    bigint subscription_id FK
+    bigint invoice_id FK
+  }
+  bill_carrier_agreement {
+    bigint id PK
+    bigint company_id FK
+    text status
+    bigint created_by FK
+    bigint approved_by FK
+  }
+  bill_carrier_invoice {
+    bigint id PK
+    uuid uid
+    bigint company_id FK
+    bigint subscription_id FK
+    character currency FK
+    text status
+    bigint einvoice_document_id FK
+    bigint ledger_txn_id FK
+  }
+  bill_carrier_invoice_line {
+    bigint invoice_id PK
+    smallint line_no PK
+  }
+  bill_company_subscription {
+    bigint id PK
+    bigint company_id FK
+    bigint plan_id FK
+    bigint agreement_id FK
+    text status
+  }
+  bill_plan {
+    bigint id PK
+    text code
+    character currency FK
+    text status
+  }
+  bill_usage_event {
+    bigint id PK
+    bigint company_id FK
+  }
+  acct_einvoice_document {
+    ref external
+  }
+  fin_ledger_txn {
+    ref external
+  }
+  iam_company {
+    ref external
+  }
+  bill_carrier_invoice }o..o| acct_einvoice_document : "einvoice_document_id"
+  bill_company_subscription }o..o| bill_carrier_agreement : "agreement_id"
+  bill_carrier_invoice_line }o--|| bill_carrier_invoice : "invoice_id"
+  bill_billed_usage }o--|| bill_carrier_invoice : "invoice_id"
+  bill_billed_usage }o--|| bill_company_subscription : "subscription_id"
+  bill_carrier_invoice }o..o| bill_company_subscription : "subscription_id"
+  bill_company_subscription }o..o| bill_plan : "plan_id"
+  bill_carrier_invoice }o..o| fin_ledger_txn : "ledger_txn_id"
+  bill_carrier_agreement }o--|| iam_company : "company_id"
+  bill_company_subscription }o--|| iam_company : "company_id"
+  bill_usage_event }o--|| iam_company : "company_id"
+  bill_billed_usage }o--|| iam_company : "company_id"
+  bill_carrier_invoice }o--|| iam_company : "company_id"
+```
+
+## `crm` — Complaints, ratings, notifications, the AI assistant and the contact center
 
 ```mermaid
 erDiagram
@@ -1402,6 +2443,9 @@ erDiagram
     bigint party_id FK
     bigint company_id FK
     bigint escalated_case_id FK
+  }
+  crm_ai_eval_case {
+    bigint id PK
   }
   crm_ai_message {
     bigint id PK
@@ -1414,6 +2458,54 @@ erDiagram
     bigint id PK
     bigint conversation_id FK
     text tool FK
+  }
+  crm_call {
+    bigint id PK
+    uuid uid
+    bigint queue_id FK
+    bigint party_id FK
+    bigint company_id FK
+    bigint case_id FK
+    bigint ai_conversation_id FK
+    bigint agent_id FK
+    bigint recording_file_id FK
+    bigint transcript_file_id FK
+  }
+  crm_call_agent {
+    bigint id PK
+    bigint user_id FK
+    text status
+  }
+  crm_call_agent_skill {
+    bigint agent_id PK
+    text skill_code PK
+  }
+  crm_call_event {
+    bigint id PK
+    bigint call_id FK
+  }
+  crm_call_qa {
+    bigint id PK
+    bigint call_id FK
+    bigint scorer_user_id FK
+  }
+  crm_call_queue {
+    bigint id PK
+    text code
+    text status
+  }
+  crm_call_queue_skill {
+    bigint queue_id PK
+    text skill_code PK
+  }
+  crm_call_skill {
+    text code PK
+  }
+  crm_callback_request {
+    bigint id PK
+    bigint call_id FK
+    bigint assigned_agent_id FK
+    text status
   }
   crm_case {
     bigint id PK
@@ -1480,18 +2572,33 @@ erDiagram
   }
   crm_ai_message }o--|| crm_ai_conversation : "conversation_id"
   crm_ai_tool_call }o--|| crm_ai_conversation : "conversation_id"
+  crm_call }o..o| crm_ai_conversation : "ai_conversation_id"
   crm_ai_tool_call }o--|| crm_ai_policy : "tool"
+  crm_call_event }o--|| crm_call : "call_id"
+  crm_callback_request }o..o| crm_call : "call_id"
+  crm_call_qa }o--|| crm_call : "call_id"
+  crm_call_agent_skill }o--|| crm_call_agent : "agent_id"
+  crm_callback_request }o..o| crm_call_agent : "assigned_agent_id"
+  crm_call }o..o| crm_call_agent : "agent_id"
+  crm_call_queue_skill }o--|| crm_call_queue : "queue_id"
+  crm_call }o..o| crm_call_queue : "queue_id"
+  crm_call_agent_skill }o--|| crm_call_skill : "skill_code"
+  crm_call_queue_skill }o--|| crm_call_skill : "skill_code"
   crm_case_event }o--|| crm_case : "case_id"
   crm_ai_conversation }o..o| crm_case : "escalated_case_id"
+  crm_call }o..o| crm_case : "case_id"
   crm_case }o..o| fin_ledger_txn : "payout_ledger_txn_id"
   crm_notification }o..o| iam_app_user : "user_id"
+  crm_call_agent }o--|| iam_app_user : "user_id"
   crm_trip_rating }o--|| iam_company : "company_id"
   crm_ai_conversation }o..o| iam_company : "company_id"
+  crm_call }o..o| iam_company : "company_id"
   crm_notification }o..o| iam_company : "charged_company_id"
   crm_case }o..o| iam_company : "company_id"
   crm_notification }o..o| iam_party : "party_id"
   crm_ai_conversation }o..o| iam_party : "party_id"
   crm_trip_rating }o--|| iam_party : "party_id"
+  crm_call }o..o| iam_party : "party_id"
   crm_case }o..o| iam_party : "party_id"
   crm_trip_rating }o--|| ops_trip : "trip_id"
   crm_notification }o..o| ops_trip : "trip_id"
@@ -1554,6 +2661,8 @@ erDiagram
     bigint party_id FK
     text status
     bigint handled_by FK
+    uuid uid
+    bigint user_id FK
   }
   iam_app_user {
     ref external
@@ -1570,6 +2679,7 @@ erDiagram
   gov_policy_authority }o--|| gov_policy_domain : "domain_code"
   gov_policy_change }o--|| gov_policy_domain : "domain_code"
   gov_policy_change }o--|| iam_app_user : "proposer_id"
+  gov_subject_request }o..o| iam_app_user : "user_id"
   gov_policy_change }o..o| iam_company : "company_id"
   gov_partner_dpa }o--|| iam_party : "partner_party_id"
   gov_consent }o--|| iam_party : "party_id"
@@ -1577,7 +2687,7 @@ erDiagram
   gov_privacy_incident }o..o| sec_security_event : "security_event_id"
 ```
 
-## `sec` — Security: IP rules, risk, signing and the security hub
+## `sec` — Security: IP rules, risk, signing, the security hub and government adapters
 
 ```mermaid
 erDiagram
@@ -1586,6 +2696,13 @@ erDiagram
     bigint user_id FK
     bigint role_id FK
     bigint reviewer_id FK
+  }
+  sec_authority_alert {
+    bigint id PK
+    bigint vehicle_id FK
+    bigint trip_id FK
+    bigint authority_id FK
+    bigint evidence_file_id FK
   }
   sec_authority_data_request {
     bigint id PK
@@ -1626,6 +2743,11 @@ erDiagram
     bigint id PK
     text status
     bigint assigned_to FK
+  }
+  sec_gov_adapter_config {
+    bigint id PK
+    bigint authority_id FK
+    text status
   }
   sec_ip_rule {
     bigint id PK
@@ -1673,11 +2795,20 @@ erDiagram
   sec_tamper_event {
     bigint id PK
   }
+  sec_verification_job {
+    bigint id PK
+    bigint adapter_id FK
+    bigint verification_id FK
+    text status
+  }
   sec_watchlist_entry {
     bigint id PK
     bigint authority_id FK
     text status
     bigint created_by FK
+  }
+  fleet_vehicle {
+    ref external
   }
   iam_api_client {
     ref external
@@ -1691,28 +2822,1485 @@ erDiagram
   iam_role {
     ref external
   }
+  iam_verification {
+    ref external
+  }
   ops_incident {
     ref external
   }
   ops_trip {
     ref external
   }
+  sec_authority_alert }o..o| fleet_vehicle : "vehicle_id"
   sec_ip_rule }o..o| iam_api_client : "api_client_id"
   sec_access_review }o--|| iam_app_user : "user_id"
   sec_sos_event }o..o| iam_app_user : "triggered_by"
   sec_key_registry }o..o| iam_company : "company_id"
   sec_access_review }o..o| iam_role : "role_id"
+  sec_verification_job }o..o| iam_verification : "verification_id"
   sec_sos_event }o..o| ops_incident : "incident_id"
   sec_manifest_submission }o--|| ops_trip : "trip_id"
   sec_sos_event }o..o| ops_trip : "trip_id"
+  sec_authority_alert }o..o| ops_trip : "trip_id"
   sec_authority_policy }o--|| sec_authority_profile : "authority_id"
   sec_screening_request }o--|| sec_authority_profile : "authority_id"
   sec_watchlist_entry }o..o| sec_authority_profile : "authority_id"
   sec_authority_order }o--|| sec_authority_profile : "authority_id"
   sec_authority_data_request }o--|| sec_authority_profile : "authority_id"
+  sec_gov_adapter_config }o--|| sec_authority_profile : "authority_id"
   sec_manifest_submission }o..o| sec_authority_profile : "authority_id"
+  sec_authority_alert }o..o| sec_authority_profile : "authority_id"
+  sec_verification_job }o--|| sec_gov_adapter_config : "adapter_id"
   sec_security_event }o..o| sec_ip_rule : "ip_rule_id"
   sec_screening_result }o--|| sec_screening_request : "request_id"
+```
+
+## `ptn` — Service partners: fuel stations, rest stops and maintenance
+
+```mermaid
+erDiagram
+  ptn_fuel_anomaly {
+    bigint id PK
+    bigint session_id FK
+    text status
+    bigint resolved_by FK
+  }
+  ptn_fuel_card {
+    bigint id PK
+    uuid uid
+    bigint company_id FK
+    bigint vehicle_id FK
+    bigint driver_party_id FK
+    character currency FK
+    text status
+  }
+  ptn_fuel_price {
+    bigint id PK
+    bigint partner_id FK
+    character currency FK
+  }
+  ptn_fuel_session {
+    bigint id PK
+    bigint partner_id FK
+    bigint station_employee_id FK
+    bigint company_id FK
+    bigint vehicle_id FK
+    bigint driver_party_id FK
+    bigint trip_id FK
+    bigint fuel_card_id FK
+    text status
+  }
+  ptn_odometer_reading {
+    bigint id PK
+    bigint vehicle_id FK
+    bigint session_id FK
+    bigint photo_file_id FK
+  }
+  ptn_partner {
+    bigint id PK
+    uuid uid
+    bigint party_id FK
+    bigint company_id FK
+    text code
+    bigint station_id FK
+    text status
+  }
+  ptn_partner_contract {
+    bigint id PK
+    bigint partner_id FK
+    character currency FK
+    text status
+    bigint created_by FK
+    bigint approved_by FK
+  }
+  ptn_partner_menu_item {
+    bigint id PK
+    bigint partner_id FK
+    character currency FK
+  }
+  ptn_partner_order {
+    bigint id PK
+    uuid uid
+    bigint partner_id FK
+    bigint user_id FK
+    bigint trip_id FK
+    character currency FK
+    text status
+  }
+  ptn_partner_order_item {
+    bigint order_id PK
+    bigint menu_item_id PK
+  }
+  ptn_partner_sale {
+    bigint id PK
+    uuid uid
+    bigint partner_id FK
+    bigint session_id FK
+    bigint order_id FK
+    bigint company_id FK
+    bigint user_id FK
+    bigint vehicle_id FK
+    bigint driver_party_id FK
+    bigint trip_id FK
+    character currency FK
+    text status
+    bigint ledger_txn_id FK
+  }
+  ptn_partner_settlement {
+    bigint id PK
+    bigint partner_id FK
+    character currency FK
+    bigint ledger_txn_id FK
+    text status
+  }
+  ptn_rest_stop_rating {
+    bigint id PK
+    bigint partner_id FK
+    bigint user_id FK
+    bigint trip_id FK
+  }
+  ptn_station_employee {
+    bigint id PK
+    bigint partner_id FK
+    bigint user_id FK
+    text status
+  }
+  fin_ledger_txn {
+    ref external
+  }
+  fleet_crew_profile {
+    ref external
+  }
+  fleet_vehicle {
+    ref external
+  }
+  iam_app_user {
+    ref external
+  }
+  iam_company {
+    ref external
+  }
+  iam_party {
+    ref external
+  }
+  net_station {
+    ref external
+  }
+  ops_trip {
+    ref external
+  }
+  ptn_partner_settlement }o..o| fin_ledger_txn : "ledger_txn_id"
+  ptn_partner_sale }o..o| fin_ledger_txn : "ledger_txn_id"
+  ptn_fuel_card }o..o| fleet_crew_profile : "driver_party_id"
+  ptn_fuel_session }o..o| fleet_crew_profile : "driver_party_id"
+  ptn_odometer_reading }o--|| fleet_vehicle : "vehicle_id"
+  ptn_fuel_card }o..o| fleet_vehicle : "vehicle_id"
+  ptn_fuel_session }o--|| fleet_vehicle : "vehicle_id"
+  ptn_partner_sale }o..o| fleet_vehicle : "vehicle_id"
+  ptn_station_employee }o--|| iam_app_user : "user_id"
+  ptn_rest_stop_rating }o--|| iam_app_user : "user_id"
+  ptn_partner_order }o--|| iam_app_user : "user_id"
+  ptn_partner_sale }o..o| iam_app_user : "user_id"
+  ptn_fuel_card }o--|| iam_company : "company_id"
+  ptn_partner }o..o| iam_company : "company_id"
+  ptn_fuel_session }o--|| iam_company : "company_id"
+  ptn_partner_sale }o..o| iam_company : "company_id"
+  ptn_partner }o--|| iam_party : "party_id"
+  ptn_partner_sale }o..o| iam_party : "driver_party_id"
+  ptn_partner }o..o| net_station : "station_id"
+  ptn_rest_stop_rating }o..o| ops_trip : "trip_id"
+  ptn_partner_order }o..o| ops_trip : "trip_id"
+  ptn_fuel_session }o..o| ops_trip : "trip_id"
+  ptn_partner_sale }o..o| ops_trip : "trip_id"
+  ptn_fuel_session }o..o| ptn_fuel_card : "fuel_card_id"
+  ptn_fuel_anomaly }o--|| ptn_fuel_session : "session_id"
+  ptn_odometer_reading }o..o| ptn_fuel_session : "session_id"
+  ptn_partner_sale }o..o| ptn_fuel_session : "session_id"
+  ptn_partner_contract }o--|| ptn_partner : "partner_id"
+  ptn_station_employee }o--|| ptn_partner : "partner_id"
+  ptn_fuel_price }o--|| ptn_partner : "partner_id"
+  ptn_fuel_session }o--|| ptn_partner : "partner_id"
+  ptn_partner_menu_item }o--|| ptn_partner : "partner_id"
+  ptn_partner_settlement }o--|| ptn_partner : "partner_id"
+  ptn_rest_stop_rating }o--|| ptn_partner : "partner_id"
+  ptn_partner_order }o--|| ptn_partner : "partner_id"
+  ptn_partner_sale }o--|| ptn_partner : "partner_id"
+  ptn_partner_order_item }o--|| ptn_partner_menu_item : "menu_item_id"
+  ptn_partner_order_item }o--|| ptn_partner_order : "order_id"
+  ptn_partner_sale }o..o| ptn_partner_order : "order_id"
+  ptn_fuel_session }o--|| ptn_station_employee : "station_employee_id"
+```
+
+## `ship` — Shipments and the integrated shipping network
+
+```mermaid
+erDiagram
+  ship_access_point {
+    bigint id PK
+    bigint station_id FK
+    bigint partner_party_id FK
+    text status
+  }
+  ship_address {
+    bigint id PK
+    bigint party_id FK
+    bigint geo_zone_id FK
+  }
+  ship_capacity_booking {
+    bigint id PK
+    bigint load_id FK
+    bigint trip_id FK
+    bigint route_id FK
+    bigint seller_company_id FK
+    bigint buyer_company_id FK
+    character currency FK
+    text status
+  }
+  ship_cargo_claim {
+    bigint id PK
+    bigint shipment_id FK
+    character currency FK
+    bigint liable_leg_id FK
+    bigint case_id FK
+    text status
+  }
+  ship_cargo_rate_card {
+    bigint id PK
+    bigint company_id FK
+    bigint route_id FK
+    bigint service_id FK
+    character currency FK
+  }
+  ship_carrier_scorecard {
+    bigint id PK
+    bigint carrier_company_id FK
+    bigint access_point_id FK
+  }
+  ship_cod_collection {
+    bigint id PK
+    bigint shipment_id FK
+    character currency FK
+    bigint collected_by FK
+    bigint ledger_txn_id FK
+    text status
+  }
+  ship_courier_assignment {
+    bigint id PK
+    bigint courier_route_id FK
+    bigint shipment_id FK
+    bigint pickup_request_id FK
+    text status
+  }
+  ship_courier_route {
+    bigint id PK
+    bigint company_id FK
+    bigint hub_id FK
+    bigint courier_user_id FK
+    bigint vehicle_id FK
+    text status
+  }
+  ship_custody_transfer {
+    bigint id PK
+    bigint shipment_id FK
+    bigint unit_id FK
+    bigint from_party_id FK
+    bigint to_party_id FK
+    bigint signature_file_id FK
+  }
+  ship_delivery_attempt {
+    bigint id PK
+    bigint shipment_id FK
+    bigint courier_user_id FK
+  }
+  ship_delivery_preference {
+    bigint id PK
+    bigint shipment_id FK
+    bigint party_id FK
+    bigint requested_by FK
+    text status
+  }
+  ship_delivery_proof {
+    bigint shipment_id PK
+    bigint attempt_id FK
+    bigint evidence_file_id FK
+  }
+  ship_fuel_surcharge_index {
+    bigint id PK
+  }
+  ship_geo_zone {
+    bigint id PK
+    character country_code FK
+    bigint city_id FK
+    bigint servicing_hub_id FK
+  }
+  ship_guarantee_claim {
+    bigint id PK
+    bigint shipment_id FK
+    bigint ledger_txn_id FK
+    bigint chargeback_leg_id FK
+    text status
+  }
+  ship_handling_unit {
+    bigint id PK
+    bigint company_id FK
+    bigint parent_unit_id FK
+    bigint current_station_id FK
+    text status
+  }
+  ship_handling_unit_item {
+    bigint id PK
+    bigint unit_id FK
+    bigint shipment_id FK
+    bigint parcel_id FK
+  }
+  ship_hub {
+    bigint id PK
+    bigint station_id FK
+    bigint company_id FK
+    text status
+  }
+  ship_integration_message {
+    bigint id PK
+    bigint partner_id FK
+    bigint shipment_id FK
+    bigint payload_file_id FK
+    text status
+  }
+  ship_integration_partner {
+    bigint id PK
+    bigint party_id FK
+    bigint api_client_id FK
+    text status
+  }
+  ship_linehaul_schedule {
+    bigint id PK
+    bigint origin_hub_id FK
+    bigint dest_hub_id FK
+    bigint carrier_company_id FK
+    text status
+  }
+  ship_load {
+    bigint id PK
+    uuid uid
+    bigint company_id FK
+    bigint trip_id FK
+    bigint vehicle_id FK
+    bigint truck_combination_id FK
+    bigint origin_hub_id FK
+    bigint dest_hub_id FK
+    text status
+  }
+  ship_load_plan {
+    bigint load_id PK
+    bigint handling_unit_id PK
+  }
+  ship_load_stop {
+    bigint load_id PK
+    smallint seq PK
+    bigint station_id FK
+  }
+  ship_locker_compartment {
+    bigint id PK
+    bigint access_point_id FK
+    text code
+    bigint shipment_id FK
+    text status
+  }
+  ship_parcel {
+    bigint id PK
+    bigint shipment_id FK
+  }
+  ship_partner_command {
+    bigint id PK
+    bigint partner_id FK
+    bigint shipment_id FK
+    bigint payload_file_id FK
+    text status
+  }
+  ship_partner_contract {
+    bigint id PK
+    bigint partner_id FK
+    character currency FK
+    text status
+  }
+  ship_partner_pre_alert {
+    bigint id PK
+    bigint partner_id FK
+    text status
+  }
+  ship_partner_reconciliation {
+    bigint id PK
+    bigint partner_id FK
+    text status
+  }
+  ship_partner_settlement {
+    bigint id PK
+    bigint partner_id FK
+    character currency FK
+    bigint ledger_txn_id FK
+    text status
+  }
+  ship_partner_status_map {
+    bigint partner_id PK
+    text direction PK
+    text external_code PK
+    text external_reason PK
+    integer version PK
+  }
+  ship_pickup_request {
+    bigint id PK
+    bigint company_id FK
+    bigint shipper_party_id FK
+    bigint address_id FK
+    bigint courier_route_id FK
+    text status
+  }
+  ship_pricing_agreement {
+    bigint id PK
+    bigint company_id FK
+    text status
+    bigint account_id FK
+  }
+  ship_pricing_zone_chart {
+    bigint origin_zone_id PK
+    bigint dest_zone_id PK
+    daterange valid PK
+  }
+  ship_prohibited_item {
+    bigint id PK
+    text code
+    character country_code FK
+  }
+  ship_rate_table {
+    bigint id PK
+    bigint company_id FK
+    bigint service_id FK
+    character currency FK
+    text status
+  }
+  ship_rate_table_entry {
+    bigint rate_table_id PK
+    text price_zone PK
+    numeric weight_break PK
+  }
+  ship_return_authorization {
+    bigint id PK
+    bigint original_shipment_id FK
+    bigint merchant_account_id FK
+    bigint return_shipment_id FK
+    text status
+  }
+  ship_routing_rule {
+    bigint id PK
+    bigint company_id FK
+    bigint service_id FK
+    bigint origin_zone_id FK
+    bigint dest_zone_id FK
+  }
+  ship_service_option {
+    bigint id PK
+    text code
+    bigint surcharge_id FK
+  }
+  ship_service_product {
+    bigint id PK
+    text code
+    text status
+  }
+  ship_shipment {
+    bigint id PK
+    uuid uid
+    bigint company_id FK
+    bigint shipper_party_id FK
+    bigint shipper_account_id FK
+    bigint service_id FK
+    bigint origin_station_id FK
+    bigint dest_station_id FK
+    bigint origin_address_id FK
+    bigint dest_address_id FK
+    bigint payer_account_id FK
+    character currency FK
+    text cargo_category FK
+    text status
+  }
+  ship_shipment_leg {
+    bigint id PK
+    bigint shipment_id FK
+    bigint carrier_company_id FK
+    bigint trip_id FK
+    bigint load_id FK
+    bigint courier_route_id FK
+    bigint from_station_id FK
+    bigint to_station_id FK
+    character currency FK
+    text status
+    bigint contract_id FK
+  }
+  ship_shipment_option {
+    bigint shipment_id PK
+    bigint option_id PK
+  }
+  ship_shipment_party {
+    bigint shipment_id PK
+    text role PK
+    bigint party_id FK
+    integer enc_key_id FK
+    bigint address_id FK
+  }
+  ship_shipment_reference {
+    bigint id PK
+    bigint shipment_id FK
+    bigint parcel_id FK
+    bigint issuer_party_id FK
+  }
+  ship_shipper_account {
+    bigint id PK
+    bigint party_id FK
+    bigint company_id FK
+    bigint wallet_id FK
+    bigint pricing_agreement_id FK
+    text status
+  }
+  ship_sort_window {
+    bigint id PK
+    bigint hub_id FK
+  }
+  ship_surcharge_definition {
+    bigint id PK
+    text code
+    character currency FK
+  }
+  ship_tracking_event {
+    bigint id PK
+    bigint shipment_id FK
+    bigint unit_id FK
+    bigint load_id FK
+    bigint leg_id FK
+    bigint station_id FK
+    bigint actor_user_id FK
+    bigint device_id FK
+  }
+  ship_transit_time_matrix {
+    bigint origin_zone_id PK
+    bigint dest_zone_id PK
+    bigint service_id PK
+  }
+  ship_trip_cargo_capacity {
+    bigint trip_id PK
+  }
+  ship_weight_audit {
+    bigint id PK
+    bigint parcel_id FK
+    bigint photo_file_id FK
+    bigint device_id FK
+  }
+  crm_case {
+    ref external
+  }
+  fin_ledger_txn {
+    ref external
+  }
+  fin_wallet {
+    ref external
+  }
+  fleet_truck_combination {
+    ref external
+  }
+  fleet_vehicle {
+    ref external
+  }
+  frt_freight_contract {
+    ref external
+  }
+  iam_api_client {
+    ref external
+  }
+  iam_app_user {
+    ref external
+  }
+  iam_company {
+    ref external
+  }
+  iam_device {
+    ref external
+  }
+  iam_party {
+    ref external
+  }
+  net_route {
+    ref external
+  }
+  net_station {
+    ref external
+  }
+  ops_trip {
+    ref external
+  }
+  ref_cargo_category {
+    ref external
+  }
+  ref_city {
+    ref external
+  }
+  ship_cargo_claim }o..o| crm_case : "case_id"
+  ship_cod_collection }o..o| fin_ledger_txn : "ledger_txn_id"
+  ship_guarantee_claim }o..o| fin_ledger_txn : "ledger_txn_id"
+  ship_partner_settlement }o..o| fin_ledger_txn : "ledger_txn_id"
+  ship_shipper_account }o..o| fin_wallet : "wallet_id"
+  ship_load }o..o| fleet_truck_combination : "truck_combination_id"
+  ship_load }o..o| fleet_vehicle : "vehicle_id"
+  ship_courier_route }o..o| fleet_vehicle : "vehicle_id"
+  ship_shipment_leg }o..o| frt_freight_contract : "contract_id"
+  ship_integration_partner }o..o| iam_api_client : "api_client_id"
+  ship_courier_route }o--|| iam_app_user : "courier_user_id"
+  ship_delivery_attempt }o..o| iam_app_user : "courier_user_id"
+  ship_cod_collection }o..o| iam_app_user : "collected_by"
+  ship_rate_table }o..o| iam_company : "company_id"
+  ship_cargo_rate_card }o--|| iam_company : "company_id"
+  ship_pricing_agreement }o..o| iam_company : "company_id"
+  ship_handling_unit }o--|| iam_company : "company_id"
+  ship_courier_route }o--|| iam_company : "company_id"
+  ship_pickup_request }o--|| iam_company : "company_id"
+  ship_routing_rule }o..o| iam_company : "company_id"
+  ship_carrier_scorecard }o..o| iam_company : "carrier_company_id"
+  ship_hub }o..o| iam_company : "company_id"
+  ship_load }o--|| iam_company : "company_id"
+  ship_shipper_account }o..o| iam_company : "company_id"
+  ship_shipment }o--|| iam_company : "company_id"
+  ship_shipment_leg }o--|| iam_company : "carrier_company_id"
+  ship_capacity_booking }o--|| iam_company : "seller_company_id"
+  ship_capacity_booking }o--|| iam_company : "buyer_company_id"
+  ship_linehaul_schedule }o--|| iam_company : "carrier_company_id"
+  ship_weight_audit }o..o| iam_device : "device_id"
+  ship_tracking_event }o..o| iam_device : "device_id"
+  ship_address }o..o| iam_party : "party_id"
+  ship_integration_partner }o--|| iam_party : "party_id"
+  ship_shipper_account }o--|| iam_party : "party_id"
+  ship_access_point }o..o| iam_party : "partner_party_id"
+  ship_shipment_party }o..o| iam_party : "party_id"
+  ship_pickup_request }o--|| iam_party : "shipper_party_id"
+  ship_delivery_preference }o..o| iam_party : "party_id"
+  ship_custody_transfer }o--|| iam_party : "from_party_id"
+  ship_custody_transfer }o--|| iam_party : "to_party_id"
+  ship_shipment_reference }o--|| iam_party : "issuer_party_id"
+  ship_shipment }o--|| iam_party : "shipper_party_id"
+  ship_cargo_rate_card }o..o| net_route : "route_id"
+  ship_capacity_booking }o..o| net_route : "route_id"
+  ship_hub }o--|| net_station : "station_id"
+  ship_access_point }o--|| net_station : "station_id"
+  ship_load_stop }o--|| net_station : "station_id"
+  ship_handling_unit }o..o| net_station : "current_station_id"
+  ship_tracking_event }o..o| net_station : "station_id"
+  ship_shipment_leg }o..o| net_station : "from_station_id"
+  ship_shipment_leg }o..o| net_station : "to_station_id"
+  ship_shipment }o..o| net_station : "origin_station_id"
+  ship_shipment }o..o| net_station : "dest_station_id"
+  ship_trip_cargo_capacity }o--|| ops_trip : "trip_id"
+  ship_capacity_booking }o..o| ops_trip : "trip_id"
+  ship_load }o..o| ops_trip : "trip_id"
+  ship_shipment_leg }o..o| ops_trip : "trip_id"
+  ship_shipment }o..o| ref_cargo_category : "cargo_category"
+  ship_geo_zone }o..o| ref_city : "city_id"
+  ship_locker_compartment }o--|| ship_access_point : "access_point_id"
+  ship_carrier_scorecard }o..o| ship_access_point : "access_point_id"
+  ship_pickup_request }o--|| ship_address : "address_id"
+  ship_shipment_party }o..o| ship_address : "address_id"
+  ship_shipment }o..o| ship_address : "origin_address_id"
+  ship_shipment }o..o| ship_address : "dest_address_id"
+  ship_courier_assignment }o--|| ship_courier_route : "courier_route_id"
+  ship_pickup_request }o..o| ship_courier_route : "courier_route_id"
+  ship_shipment_leg }o..o| ship_courier_route : "courier_route_id"
+  ship_delivery_proof }o..o| ship_delivery_attempt : "attempt_id"
+  ship_pricing_zone_chart }o--|| ship_geo_zone : "origin_zone_id"
+  ship_transit_time_matrix }o--|| ship_geo_zone : "origin_zone_id"
+  ship_pricing_zone_chart }o--|| ship_geo_zone : "dest_zone_id"
+  ship_transit_time_matrix }o--|| ship_geo_zone : "dest_zone_id"
+  ship_address }o..o| ship_geo_zone : "geo_zone_id"
+  ship_routing_rule }o..o| ship_geo_zone : "origin_zone_id"
+  ship_routing_rule }o..o| ship_geo_zone : "dest_zone_id"
+  ship_handling_unit_item }o--|| ship_handling_unit : "unit_id"
+  ship_load_plan }o--|| ship_handling_unit : "handling_unit_id"
+  ship_tracking_event }o..o| ship_handling_unit : "unit_id"
+  ship_custody_transfer }o..o| ship_handling_unit : "unit_id"
+  ship_handling_unit }o..o| ship_handling_unit : "parent_unit_id"
+  ship_linehaul_schedule }o--|| ship_hub : "origin_hub_id"
+  ship_sort_window }o--|| ship_hub : "hub_id"
+  ship_courier_route }o..o| ship_hub : "hub_id"
+  ship_linehaul_schedule }o--|| ship_hub : "dest_hub_id"
+  ship_geo_zone }o..o| ship_hub : "servicing_hub_id"
+  ship_load }o..o| ship_hub : "origin_hub_id"
+  ship_load }o..o| ship_hub : "dest_hub_id"
+  ship_partner_status_map }o--|| ship_integration_partner : "partner_id"
+  ship_partner_contract }o--|| ship_integration_partner : "partner_id"
+  ship_partner_pre_alert }o--|| ship_integration_partner : "partner_id"
+  ship_partner_command }o--|| ship_integration_partner : "partner_id"
+  ship_integration_message }o--|| ship_integration_partner : "partner_id"
+  ship_partner_reconciliation }o--|| ship_integration_partner : "partner_id"
+  ship_partner_settlement }o--|| ship_integration_partner : "partner_id"
+  ship_load_stop }o--|| ship_load : "load_id"
+  ship_load_plan }o--|| ship_load : "load_id"
+  ship_capacity_booking }o..o| ship_load : "load_id"
+  ship_tracking_event }o..o| ship_load : "load_id"
+  ship_shipment_leg }o..o| ship_load : "load_id"
+  ship_weight_audit }o--|| ship_parcel : "parcel_id"
+  ship_shipment_reference }o..o| ship_parcel : "parcel_id"
+  ship_handling_unit_item }o..o| ship_parcel : "parcel_id"
+  ship_courier_assignment }o..o| ship_pickup_request : "pickup_request_id"
+  ship_shipper_account }o..o| ship_pricing_agreement : "pricing_agreement_id"
+  ship_rate_table_entry }o--|| ship_rate_table : "rate_table_id"
+  ship_shipment_option }o--|| ship_service_option : "option_id"
+  ship_transit_time_matrix }o--|| ship_service_product : "service_id"
+  ship_rate_table }o--|| ship_service_product : "service_id"
+  ship_routing_rule }o--|| ship_service_product : "service_id"
+  ship_cargo_rate_card }o..o| ship_service_product : "service_id"
+  ship_shipment }o--|| ship_service_product : "service_id"
+  ship_shipment_party }o--|| ship_shipment : "shipment_id"
+  ship_shipment_option }o--|| ship_shipment : "shipment_id"
+  ship_delivery_proof }o--|| ship_shipment : "shipment_id"
+  ship_parcel }o--|| ship_shipment : "shipment_id"
+  ship_shipment_leg }o..o| ship_shipment : "shipment_id"
+  ship_tracking_event }o..o| ship_shipment : "shipment_id"
+  ship_custody_transfer }o..o| ship_shipment : "shipment_id"
+  ship_delivery_attempt }o--|| ship_shipment : "shipment_id"
+  ship_delivery_preference }o..o| ship_shipment : "shipment_id"
+  ship_cod_collection }o--|| ship_shipment : "shipment_id"
+  ship_guarantee_claim }o--|| ship_shipment : "shipment_id"
+  ship_return_authorization }o--|| ship_shipment : "original_shipment_id"
+  ship_cargo_claim }o--|| ship_shipment : "shipment_id"
+  ship_shipment_reference }o--|| ship_shipment : "shipment_id"
+  ship_handling_unit_item }o..o| ship_shipment : "shipment_id"
+  ship_partner_command }o--|| ship_shipment : "shipment_id"
+  ship_courier_assignment }o..o| ship_shipment : "shipment_id"
+  ship_locker_compartment }o..o| ship_shipment : "shipment_id"
+  ship_return_authorization }o..o| ship_shipment : "return_shipment_id"
+  ship_integration_message }o..o| ship_shipment : "shipment_id"
+  ship_tracking_event }o..o| ship_shipment_leg : "leg_id"
+  ship_cargo_claim }o..o| ship_shipment_leg : "liable_leg_id"
+  ship_guarantee_claim }o..o| ship_shipment_leg : "chargeback_leg_id"
+  ship_return_authorization }o..o| ship_shipper_account : "merchant_account_id"
+  ship_shipment }o..o| ship_shipper_account : "shipper_account_id"
+  ship_pricing_agreement }o..o| ship_shipper_account : "account_id"
+  ship_shipment }o..o| ship_shipper_account : "payer_account_id"
+  ship_service_option }o..o| ship_surcharge_definition : "surcharge_id"
+```
+
+## `frt` — Trucking, heavy transport and transit freight
+
+```mermaid
+erDiagram
+  frt_container {
+    bigint id PK
+    bigint owner_party_id FK
+    text status
+  }
+  frt_detention_claim {
+    bigint id PK
+    bigint contract_id FK
+    bigint leg_id FK
+    bigint station_id FK
+    character currency FK
+    text status
+  }
+  frt_escort_assignment {
+    bigint id PK
+    bigint leg_id FK
+    bigint escort_party_id FK
+    text status
+  }
+  frt_freight_bid {
+    bigint id PK
+    bigint request_id FK
+    bigint carrier_company_id FK
+    bigint truck_vehicle_id FK
+    character currency FK
+    text status
+  }
+  frt_freight_claim {
+    bigint id PK
+    bigint contract_id FK
+    bigint leg_id FK
+    character currency FK
+    bigint case_id FK
+    text status
+  }
+  frt_freight_contract {
+    bigint id PK
+    uuid uid
+    bigint request_id FK
+    bigint carrier_company_id FK
+    bigint accepted_bid_id FK
+    character currency FK
+    text status
+  }
+  frt_freight_document {
+    bigint id PK
+    bigint contract_id FK
+    bigint leg_id FK
+    bigint file_id FK
+    text status
+    bigint verified_by FK
+  }
+  frt_freight_request {
+    bigint id PK
+    uuid uid
+    bigint shipper_party_id FK
+    bigint shipper_company_id FK
+    bigint origin_station_id FK
+    bigint origin_address_id FK
+    bigint dest_station_id FK
+    bigint dest_address_id FK
+    text cargo_category FK
+    character currency FK
+    text status
+  }
+  frt_gate_event {
+    bigint id PK
+    bigint appointment_id FK
+    bigint port_station_id FK
+    bigint truck_vehicle_id FK
+  }
+  frt_handover_event {
+    bigint id PK
+    bigint leg_id FK
+    bigint next_leg_id FK
+    bigint from_company_id FK
+    bigint to_company_id FK
+    bigint station_id FK
+    bigint from_signature_file_id FK
+    bigint to_signature_file_id FK
+  }
+  frt_leg_container {
+    bigint leg_id PK
+    bigint container_id PK
+  }
+  frt_port_appointment {
+    bigint id PK
+    bigint port_station_id FK
+    bigint truck_vehicle_id FK
+    bigint leg_id FK
+    text status
+  }
+  frt_transit_declaration {
+    bigint id PK
+    bigint leg_id FK
+    bigint entry_station_id FK
+    bigint exit_station_id FK
+    bigint corridor_id FK
+    text cargo_category FK
+    text status
+  }
+  frt_weighbridge_reading {
+    bigint id PK
+    bigint leg_id FK
+    bigint station_id FK
+    bigint vehicle_id FK
+  }
+  crm_case {
+    ref external
+  }
+  fleet_truck_unit {
+    ref external
+  }
+  fleet_vehicle {
+    ref external
+  }
+  iam_company {
+    ref external
+  }
+  iam_party {
+    ref external
+  }
+  net_corridor {
+    ref external
+  }
+  net_station {
+    ref external
+  }
+  ref_cargo_category {
+    ref external
+  }
+  ship_address {
+    ref external
+  }
+  ship_shipment_leg {
+    ref external
+  }
+  frt_freight_claim }o..o| crm_case : "case_id"
+  frt_port_appointment }o--|| fleet_truck_unit : "truck_vehicle_id"
+  frt_freight_bid }o..o| fleet_truck_unit : "truck_vehicle_id"
+  frt_gate_event }o--|| fleet_truck_unit : "truck_vehicle_id"
+  frt_weighbridge_reading }o--|| fleet_vehicle : "vehicle_id"
+  frt_leg_container }o--|| frt_container : "container_id"
+  frt_freight_contract }o..o| frt_freight_bid : "accepted_bid_id"
+  frt_freight_document }o..o| frt_freight_contract : "contract_id"
+  frt_detention_claim }o--|| frt_freight_contract : "contract_id"
+  frt_freight_claim }o--|| frt_freight_contract : "contract_id"
+  frt_freight_bid }o--|| frt_freight_request : "request_id"
+  frt_freight_contract }o--|| frt_freight_request : "request_id"
+  frt_gate_event }o..o| frt_port_appointment : "appointment_id"
+  frt_freight_bid }o--|| iam_company : "carrier_company_id"
+  frt_freight_request }o..o| iam_company : "shipper_company_id"
+  frt_freight_contract }o--|| iam_company : "carrier_company_id"
+  frt_handover_event }o--|| iam_company : "from_company_id"
+  frt_handover_event }o--|| iam_company : "to_company_id"
+  frt_freight_request }o--|| iam_party : "shipper_party_id"
+  frt_escort_assignment }o--|| iam_party : "escort_party_id"
+  frt_container }o..o| iam_party : "owner_party_id"
+  frt_transit_declaration }o..o| net_corridor : "corridor_id"
+  frt_port_appointment }o--|| net_station : "port_station_id"
+  frt_gate_event }o--|| net_station : "port_station_id"
+  frt_weighbridge_reading }o--|| net_station : "station_id"
+  frt_transit_declaration }o--|| net_station : "entry_station_id"
+  frt_detention_claim }o..o| net_station : "station_id"
+  frt_freight_request }o..o| net_station : "origin_station_id"
+  frt_transit_declaration }o--|| net_station : "exit_station_id"
+  frt_handover_event }o..o| net_station : "station_id"
+  frt_freight_request }o..o| net_station : "dest_station_id"
+  frt_transit_declaration }o--|| ref_cargo_category : "cargo_category"
+  frt_freight_request }o--|| ref_cargo_category : "cargo_category"
+  frt_freight_request }o..o| ship_address : "origin_address_id"
+  frt_freight_request }o..o| ship_address : "dest_address_id"
+  frt_leg_container }o--|| ship_shipment_leg : "leg_id"
+  frt_handover_event }o--|| ship_shipment_leg : "leg_id"
+  frt_transit_declaration }o--|| ship_shipment_leg : "leg_id"
+  frt_escort_assignment }o--|| ship_shipment_leg : "leg_id"
+  frt_weighbridge_reading }o..o| ship_shipment_leg : "leg_id"
+  frt_handover_event }o..o| ship_shipment_leg : "next_leg_id"
+  frt_freight_document }o..o| ship_shipment_leg : "leg_id"
+  frt_detention_claim }o..o| ship_shipment_leg : "leg_id"
+  frt_freight_claim }o..o| ship_shipment_leg : "leg_id"
+  frt_port_appointment }o..o| ship_shipment_leg : "leg_id"
+```
+
+## `brd` — Border manifest gateway
+
+```mermaid
+erDiagram
+  brd_border_point {
+    bigint station_id PK
+    character country_code FK
+    bigint counterpart_station_id FK
+    bigint authority_id FK
+    text status
+  }
+  brd_crossing_profile {
+    bigint id PK
+    bigint border_point_id FK
+    bigint authority_id FK
+    text status
+  }
+  brd_manifest {
+    bigint id PK
+    uuid uid
+    bigint trip_id FK
+    bigint crossing_plan_id FK
+    bigint border_point_id FK
+    bigint profile_id FK
+    bigint submission_id FK
+    text status
+  }
+  brd_manifest_cargo {
+    bigint id PK
+    bigint manifest_id FK
+    bigint shipment_id FK
+    bigint leg_id FK
+    text cargo_category FK
+  }
+  brd_manifest_discrepancy {
+    bigint id PK
+    bigint manifest_id FK
+    bigint resolved_by FK
+  }
+  brd_manifest_person {
+    bigint id PK
+    bigint manifest_id FK
+    bigint ticket_id FK
+    bigint crew_party_id FK
+    integer enc_key_id FK
+    character issuing_country FK
+    character nationality FK
+    bigint embark_station_id FK
+    bigint disembark_station_id FK
+    bigint syria_entry_point_id FK
+    bigint syria_exit_point_id FK
+  }
+  brd_manifest_response {
+    bigint id PK
+    bigint manifest_id FK
+  }
+  brd_manifest_vehicle {
+    bigint manifest_id PK
+    bigint vehicle_id PK
+    bigint trailer_id FK
+    character plate_country FK
+  }
+  fleet_trailer {
+    ref external
+  }
+  fleet_vehicle {
+    ref external
+  }
+  iam_party {
+    ref external
+  }
+  net_station {
+    ref external
+  }
+  ops_trip {
+    ref external
+  }
+  ops_trip_crossing_plan {
+    ref external
+  }
+  ref_cargo_category {
+    ref external
+  }
+  sales_ticket {
+    ref external
+  }
+  sec_authority_profile {
+    ref external
+  }
+  sec_manifest_submission {
+    ref external
+  }
+  ship_shipment {
+    ref external
+  }
+  ship_shipment_leg {
+    ref external
+  }
+  brd_crossing_profile }o--|| brd_border_point : "border_point_id"
+  brd_border_point }o..o| brd_border_point : "counterpart_station_id"
+  brd_manifest }o--|| brd_border_point : "border_point_id"
+  brd_manifest_person }o..o| brd_border_point : "syria_entry_point_id"
+  brd_manifest_person }o..o| brd_border_point : "syria_exit_point_id"
+  brd_manifest }o..o| brd_crossing_profile : "profile_id"
+  brd_manifest_vehicle }o--|| brd_manifest : "manifest_id"
+  brd_manifest_person }o--|| brd_manifest : "manifest_id"
+  brd_manifest_cargo }o--|| brd_manifest : "manifest_id"
+  brd_manifest_response }o--|| brd_manifest : "manifest_id"
+  brd_manifest_discrepancy }o--|| brd_manifest : "manifest_id"
+  brd_manifest_vehicle }o..o| fleet_trailer : "trailer_id"
+  brd_manifest_vehicle }o--|| fleet_vehicle : "vehicle_id"
+  brd_manifest_person }o..o| iam_party : "crew_party_id"
+  brd_border_point }o--|| net_station : "station_id"
+  brd_manifest_person }o..o| net_station : "embark_station_id"
+  brd_manifest_person }o..o| net_station : "disembark_station_id"
+  brd_manifest }o--|| ops_trip : "trip_id"
+  brd_manifest }o..o| ops_trip_crossing_plan : "crossing_plan_id"
+  brd_manifest_cargo }o--|| ref_cargo_category : "cargo_category"
+  brd_manifest_person }o..o| sales_ticket : "ticket_id"
+  brd_crossing_profile }o--|| sec_authority_profile : "authority_id"
+  brd_border_point }o..o| sec_authority_profile : "authority_id"
+  brd_manifest }o..o| sec_manifest_submission : "submission_id"
+  brd_manifest_cargo }o..o| ship_shipment : "shipment_id"
+  brd_manifest_cargo }o..o| ship_shipment_leg : "leg_id"
+```
+
+## `ctr` — Contracted transport: schools, universities and employees
+
+```mermaid
+erDiagram
+  ctr_attendance_event {
+    bigint id PK
+    bigint trip_id FK
+    bigint rider_id FK
+    bigint received_by_party_id FK
+  }
+  ctr_authorized_receiver {
+    bigint rider_id PK
+    bigint party_id PK
+  }
+  ctr_contract_invoice {
+    bigint id PK
+    bigint contract_id FK
+    character currency FK
+    text status
+  }
+  ctr_contract_rider {
+    bigint id PK
+    bigint contract_id FK
+    bigint passenger_party_id FK
+    bigint guardian_party_id FK
+    bigint pickup_station_id FK
+    bigint dropoff_station_id FK
+    text status
+  }
+  ctr_contract_route {
+    bigint id PK
+    bigint contract_id FK
+    bigint route_id FK
+    bigint vehicle_id FK
+    bigint driver_party_id FK
+    bigint attendant_party_id FK
+  }
+  ctr_service_contract {
+    bigint id PK
+    uuid uid
+    bigint client_party_id FK
+    bigint client_company_id FK
+    bigint carrier_company_id FK
+    character currency FK
+    text status
+  }
+  fleet_vehicle {
+    ref external
+  }
+  iam_company {
+    ref external
+  }
+  iam_party {
+    ref external
+  }
+  net_route {
+    ref external
+  }
+  net_station {
+    ref external
+  }
+  ops_trip {
+    ref external
+  }
+  ctr_authorized_receiver }o--|| ctr_contract_rider : "rider_id"
+  ctr_attendance_event }o--|| ctr_contract_rider : "rider_id"
+  ctr_contract_route }o--|| ctr_service_contract : "contract_id"
+  ctr_contract_rider }o--|| ctr_service_contract : "contract_id"
+  ctr_contract_invoice }o--|| ctr_service_contract : "contract_id"
+  ctr_contract_route }o..o| fleet_vehicle : "vehicle_id"
+  ctr_service_contract }o..o| iam_company : "client_company_id"
+  ctr_service_contract }o--|| iam_company : "carrier_company_id"
+  ctr_authorized_receiver }o--|| iam_party : "party_id"
+  ctr_contract_rider }o--|| iam_party : "passenger_party_id"
+  ctr_service_contract }o--|| iam_party : "client_party_id"
+  ctr_contract_rider }o..o| iam_party : "guardian_party_id"
+  ctr_attendance_event }o..o| iam_party : "received_by_party_id"
+  ctr_contract_route }o..o| iam_party : "driver_party_id"
+  ctr_contract_route }o..o| iam_party : "attendant_party_id"
+  ctr_contract_route }o..o| net_route : "route_id"
+  ctr_contract_rider }o..o| net_station : "pickup_station_id"
+  ctr_contract_rider }o..o| net_station : "dropoff_station_id"
+  ctr_attendance_event }o--|| ops_trip : "trip_id"
+```
+
+## `rail` — Rail extension
+
+```mermaid
+erDiagram
+  rail_coach_layout {
+    bigint id PK
+    bigint company_id FK
+    text code
+    bigint seat_layout_id FK
+    bigint fare_class_id FK
+    text status
+  }
+  rail_fare_class {
+    bigint id PK
+    bigint company_id FK
+    text code
+    text status
+  }
+  rail_journey {
+    bigint id PK
+    uuid uid
+    bigint party_id FK
+    bigint origin_station_id FK
+    bigint dest_station_id FK
+    text status
+  }
+  rail_journey_leg {
+    bigint journey_id PK
+    smallint seq PK
+    bigint ticket_id FK
+    bigint trip_id FK
+  }
+  rail_train_composition {
+    bigint trip_id PK
+    smallint position PK
+    bigint coach_layout_id FK
+  }
+  fleet_seat_layout {
+    ref external
+  }
+  iam_company {
+    ref external
+  }
+  iam_party {
+    ref external
+  }
+  net_station {
+    ref external
+  }
+  ops_trip {
+    ref external
+  }
+  sales_ticket {
+    ref external
+  }
+  rail_coach_layout }o..o| fleet_seat_layout : "seat_layout_id"
+  rail_fare_class }o--|| iam_company : "company_id"
+  rail_coach_layout }o--|| iam_company : "company_id"
+  rail_journey }o--|| iam_party : "party_id"
+  rail_journey }o--|| net_station : "origin_station_id"
+  rail_journey }o--|| net_station : "dest_station_id"
+  rail_train_composition }o--|| ops_trip : "trip_id"
+  rail_journey_leg }o--|| ops_trip : "trip_id"
+  rail_train_composition }o--|| rail_coach_layout : "coach_layout_id"
+  rail_coach_layout }o..o| rail_fare_class : "fare_class_id"
+  rail_journey_leg }o--|| rail_journey : "journey_id"
+  rail_journey_leg }o--|| sales_ticket : "ticket_id"
+```
+
+## `taxi` — Taxis
+
+```mermaid
+erDiagram
+  taxi_dispatch_offer {
+    bigint id PK
+    bigint request_id FK
+    bigint shift_id FK
+  }
+  taxi_meter_tariff {
+    bigint id PK
+    bigint city_id FK
+    character currency FK
+    text status
+    bigint approved_by FK
+  }
+  taxi_ride {
+    bigint id PK
+    uuid uid
+    bigint request_id FK
+    bigint shift_id FK
+    bigint rider_user_id FK
+    bigint trip_id FK
+    bigint tariff_id FK
+    character currency FK
+    bigint ledger_txn_id FK
+    text status
+  }
+  taxi_ride_request {
+    bigint id PK
+    uuid uid
+    bigint rider_user_id FK
+    bigint city_id FK
+    character currency FK
+    text status
+  }
+  taxi_taxi_office {
+    bigint id PK
+    bigint company_id FK
+    bigint city_id FK
+    text status
+  }
+  taxi_taxi_permit {
+    bigint id PK
+    bigint vehicle_id FK
+    bigint company_id FK
+    bigint office_id FK
+    bigint city_id FK
+    text status
+  }
+  taxi_taxi_shift {
+    bigint id PK
+    bigint permit_id FK
+    bigint vehicle_id FK
+    bigint driver_party_id FK
+    text status
+  }
+  fin_ledger_txn {
+    ref external
+  }
+  fleet_crew_profile {
+    ref external
+  }
+  fleet_vehicle {
+    ref external
+  }
+  iam_app_user {
+    ref external
+  }
+  iam_company {
+    ref external
+  }
+  ops_trip {
+    ref external
+  }
+  ref_city {
+    ref external
+  }
+  taxi_ride }o..o| fin_ledger_txn : "ledger_txn_id"
+  taxi_taxi_shift }o--|| fleet_crew_profile : "driver_party_id"
+  taxi_taxi_permit }o--|| fleet_vehicle : "vehicle_id"
+  taxi_taxi_shift }o--|| fleet_vehicle : "vehicle_id"
+  taxi_ride_request }o--|| iam_app_user : "rider_user_id"
+  taxi_ride }o..o| iam_app_user : "rider_user_id"
+  taxi_taxi_office }o--|| iam_company : "company_id"
+  taxi_taxi_permit }o--|| iam_company : "company_id"
+  taxi_ride }o..o| ops_trip : "trip_id"
+  taxi_meter_tariff }o--|| ref_city : "city_id"
+  taxi_taxi_office }o--|| ref_city : "city_id"
+  taxi_ride_request }o--|| ref_city : "city_id"
+  taxi_taxi_permit }o--|| ref_city : "city_id"
+  taxi_ride }o..o| taxi_meter_tariff : "tariff_id"
+  taxi_dispatch_offer }o--|| taxi_ride_request : "request_id"
+  taxi_ride }o..o| taxi_ride_request : "request_id"
+  taxi_taxi_permit }o..o| taxi_taxi_office : "office_id"
+  taxi_taxi_shift }o--|| taxi_taxi_permit : "permit_id"
+  taxi_dispatch_offer }o--|| taxi_taxi_shift : "shift_id"
+  taxi_ride }o--|| taxi_taxi_shift : "shift_id"
+```
+
+## `rent` — Car rental
+
+```mermaid
+erDiagram
+  rent_contract_driver {
+    bigint contract_id PK
+    bigint party_id PK
+  }
+  rent_deposit_hold {
+    bigint id PK
+    bigint contract_id FK
+    character currency FK
+    bigint wallet_id FK
+    bigint case_id FK
+    text status
+  }
+  rent_rental_addon {
+    bigint id PK
+    bigint company_id FK
+    text code
+    character currency FK
+  }
+  rent_rental_booking {
+    bigint id PK
+    uuid uid
+    bigint company_id FK
+    bigint renter_party_id FK
+    text rental_class FK
+    bigint vehicle_id FK
+    bigint rate_id FK
+    bigint pickup_branch_id FK
+    bigint return_branch_id FK
+    character currency FK
+    text status
+  }
+  rent_rental_booking_addon {
+    bigint booking_id PK
+    bigint addon_id PK
+  }
+  rent_rental_branch {
+    bigint id PK
+    bigint company_id FK
+    bigint station_id FK
+    text status
+  }
+  rent_rental_company {
+    bigint company_id PK
+    text status
+  }
+  rent_rental_contract {
+    bigint id PK
+    bigint booking_id FK
+    bigint vehicle_id FK
+    bigint signature_file_id FK
+    text status
+  }
+  rent_rental_fleet {
+    bigint vehicle_id PK
+    bigint company_id FK
+    text rental_class FK
+    bigint home_branch_id FK
+    text status
+  }
+  rent_rental_inspection {
+    bigint id PK
+    bigint contract_id FK
+    bigint inspector_user_id FK
+  }
+  rent_rental_rate {
+    bigint id PK
+    bigint company_id FK
+    text rental_class FK
+    bigint branch_id FK
+    character currency FK
+    text status
+  }
+  rent_rental_vehicle_class {
+    text code PK
+  }
+  rent_renter_rule {
+    bigint id PK
+    text rental_class FK
+    text status
+    bigint approved_by FK
+  }
+  rent_telematics_device {
+    bigint id PK
+    bigint company_id FK
+    bigint vehicle_id FK
+    text status
+  }
+  rent_vehicle_trip_log {
+    bigint id PK
+    bigint device_id FK
+    bigint vehicle_id FK
+    bigint contract_id FK
+  }
+  crm_case {
+    ref external
+  }
+  fin_wallet {
+    ref external
+  }
+  fleet_vehicle {
+    ref external
+  }
+  iam_company {
+    ref external
+  }
+  iam_party {
+    ref external
+  }
+  net_station {
+    ref external
+  }
+  rent_deposit_hold }o..o| crm_case : "case_id"
+  rent_deposit_hold }o..o| fin_wallet : "wallet_id"
+  rent_rental_fleet }o--|| fleet_vehicle : "vehicle_id"
+  rent_telematics_device }o..o| fleet_vehicle : "vehicle_id"
+  rent_vehicle_trip_log }o--|| fleet_vehicle : "vehicle_id"
+  rent_rental_company }o--|| iam_company : "company_id"
+  rent_contract_driver }o--|| iam_party : "party_id"
+  rent_rental_booking }o--|| iam_party : "renter_party_id"
+  rent_rental_branch }o--|| net_station : "station_id"
+  rent_rental_booking_addon }o--|| rent_rental_addon : "addon_id"
+  rent_rental_booking_addon }o--|| rent_rental_booking : "booking_id"
+  rent_rental_contract }o--|| rent_rental_booking : "booking_id"
+  rent_rental_fleet }o..o| rent_rental_branch : "home_branch_id"
+  rent_rental_rate }o..o| rent_rental_branch : "branch_id"
+  rent_rental_booking }o--|| rent_rental_branch : "pickup_branch_id"
+  rent_rental_booking }o--|| rent_rental_branch : "return_branch_id"
+  rent_rental_branch }o--|| rent_rental_company : "company_id"
+  rent_rental_fleet }o--|| rent_rental_company : "company_id"
+  rent_rental_rate }o--|| rent_rental_company : "company_id"
+  rent_rental_addon }o--|| rent_rental_company : "company_id"
+  rent_telematics_device }o--|| rent_rental_company : "company_id"
+  rent_rental_booking }o--|| rent_rental_company : "company_id"
+  rent_contract_driver }o--|| rent_rental_contract : "contract_id"
+  rent_rental_inspection }o--|| rent_rental_contract : "contract_id"
+  rent_deposit_hold }o--|| rent_rental_contract : "contract_id"
+  rent_vehicle_trip_log }o..o| rent_rental_contract : "contract_id"
+  rent_rental_contract }o--|| rent_rental_fleet : "vehicle_id"
+  rent_rental_booking }o..o| rent_rental_fleet : "vehicle_id"
+  rent_rental_booking }o..o| rent_rental_rate : "rate_id"
+  rent_rental_fleet }o--|| rent_rental_vehicle_class : "rental_class"
+  rent_rental_rate }o--|| rent_rental_vehicle_class : "rental_class"
+  rent_renter_rule }o..o| rent_rental_vehicle_class : "rental_class"
+  rent_rental_booking }o--|| rent_rental_vehicle_class : "rental_class"
+  rent_vehicle_trip_log }o--|| rent_telematics_device : "device_id"
 ```
 
 ## `audit` — Login and activity logs (append-only)

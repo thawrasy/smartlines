@@ -383,4 +383,106 @@ RESET ROLE;
 INSERT INTO iam.party_role (party_id, role_code) VALUES (:pax, 'SCHOOL_BOARD');
 SELECT pg_temp.ok(true, 'Reference: a party takes the newly added role');
 
+
+-- 11) Full data model of study v2.6 (files 1010 to 1029)
+SELECT pg_temp.ok(NOT EXISTS (SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+  WHERE c.relkind = 'r' AND n.nspname IN ('bill','ptn','ship','frt','brd','rail','taxi','rent') AND NOT c.relrowsecurity),
+  'Model: every table of the new modules has row-level security');
+SELECT pg_temp.ok(NOT EXISTS (SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+  WHERE c.relkind = 'r' AND n.nspname IN ('bill','ptn','ship','frt','brd','rail','taxi','rent')
+    AND NOT has_table_privilege('masslak_app', c.oid, 'SELECT')), 'Model: the application role can reach every new table');
+SELECT pg_temp.ok((SELECT value->>'car_rental' = 'false' AND value->>'freight' = 'false' AND value->>'border_manifest' = 'false'
+  FROM sys.setting WHERE key = 'features'), 'Model: the new modules ship disabled behind feature flags');
+SELECT pg_temp.expect_error(format($$INSERT INTO brd.border_point (station_id, point_type, country_code) VALUES (%s, 'LAND', 'SY')$$, :st_dam),
+  'NOT_A_BORDER_POINT', 'Border: a border point must be a BORDER station');
+SELECT pg_temp.expect_error($$INSERT INTO frt.container (container_no, size_type) VALUES ('ABC1234567', '22G1')$$,
+  'container_container_no_check', 'Freight: container numbers follow ISO 6346');
+
+INSERT INTO iam.party (party_type, legal_name) VALUES ('COMPANY','Third Courier'), ('COMPANY','North Fuel');
+INSERT INTO iam.company (id, approval_status, company_type) SELECT id, 'APPROVED', CASE legal_name WHEN 'North Fuel' THEN 'PARTNER' ELSE 'CARRIER' END
+  FROM iam.party WHERE legal_name IN ('Third Courier','North Fuel');
+SELECT id AS cc FROM iam.party WHERE legal_name = 'Third Courier' \gset
+SELECT id AS cfuel FROM iam.party WHERE legal_name = 'North Fuel' \gset
+INSERT INTO ship.service_product (code, name) VALUES ('EXPRESS_1D', 'Express next day');
+INSERT INTO ship.shipment (tracking_no, company_id, shipper_party_id, service_id, origin_station_id, dest_station_id)
+SELECT 'MSL0000000017', :ca, :pax, id, :st_dam, :b_in FROM ship.service_product WHERE code = 'EXPRESS_1D';
+SELECT id AS shp FROM ship.shipment WHERE tracking_no = 'MSL0000000017' \gset
+INSERT INTO ship.shipment_leg (shipment_id, seq, mode, carrier_company_id, trip_id) VALUES (:shp, 1, 'BUS_HOLD', :cb, :t_tr);
+INSERT INTO brd.border_point (station_id, point_type, country_code) VALUES (:b_in, 'LAND', 'SY');
+INSERT INTO brd.manifest (trip_id, border_point_id, manifest_type) VALUES (:t_tr, :b_in, 'PRE_ARRIVAL');
+SELECT id AS mf FROM brd.manifest WHERE trip_id = :t_tr \gset
+INSERT INTO brd.manifest_response (manifest_id, subject_type, decision) VALUES (:mf, 'MANIFEST', 'OK');
+INSERT INTO brd.manifest_response (manifest_id, subject_type, subject_id, decision, silent_flag) VALUES (:mf, 'PERSON', 1, 'OK', true);
+INSERT INTO ptn.partner (party_id, company_id, partner_type, code, status) VALUES (:cfuel, :cfuel, 'FUEL', 'FUEL-001', 'ACTIVE');
+SELECT id AS ptnr FROM ptn.partner WHERE code = 'FUEL-001' \gset
+INSERT INTO ptn.partner_contract (partner_id, commission_model, rate_bp, valid, status) VALUES (:ptnr, 'PERCENT', 150, daterange(current_date, NULL), 'ACTIVE');
+INSERT INTO frt.freight_request (shipper_party_id, shipper_company_id, origin_station_id, dest_station_id, cargo_category, cargo_description,
+  declared_weight_kg, pickup_window, mode, status)
+VALUES (:pax, :ca, :st_dam, :b_in, 'GENERAL', 'Textiles', 12000, tstzrange(now(), now() + interval '2 days'), 'BID', 'OPEN'),
+       (:pax, :ca, :st_dam, :b_in, 'FOOD', 'Olive oil', 8000, tstzrange(now(), now() + interval '2 days'), 'BID', 'DRAFT');
+INSERT INTO fleet.truck_unit (vehicle_id, axle_config, gvw_kg, tare_kg) VALUES (:va, '6x4', 40000, 9000);
+INSERT INTO fleet.trailer (company_id, plate_no, trailer_type, payload_kg) VALUES (:ca, 'TR-1001', 'CURTAIN', 24000);
+SELECT id AS trl FROM fleet.trailer WHERE plate_no = 'TR-1001' \gset
+INSERT INTO fin.wallet (owner_party_id, wallet_type, currency) VALUES (:pax, 'USER', 'SYP') ON CONFLICT DO NOTHING;
+SELECT id AS wpax FROM fin.wallet WHERE owner_party_id = :pax AND wallet_type = 'USER' AND currency = 'SYP' \gset
+INSERT INTO net.line (code, name, kind, fare_regime, status) VALUES ('DAM-L1', 'Damascus line 1', 'SHUTTLE', 'REGULATED', 'ACTIVE');
+SELECT id AS ln FROM net.line WHERE code = 'DAM-L1' \gset
+
+SET ROLE masslak_app;
+BEGIN;
+SELECT sys.set_context(NULL, :cb, 'COMPANY');
+SELECT pg_temp.ok((SELECT count(*) FROM ship.shipment WHERE id = :shp) = 1, 'Shipping: the carrier of a leg sees the shipment');
+SELECT pg_temp.ok((SELECT count(*) FROM frt.freight_request) = 1, 'Freight: other carriers see open bid requests only, not drafts');
+INSERT INTO frt.freight_bid (request_id, carrier_company_id, price, valid_until)
+SELECT id, :cb, 9000000, now() + interval '1 day' FROM frt.freight_request WHERE status = 'OPEN';
+SELECT pg_temp.ok(true, 'Freight: a carrier bids on an open request');
+SELECT pg_temp.ok((SELECT count(*) FROM ptn.partner) = 1 AND (SELECT count(*) FROM ptn.partner_contract) = 0,
+  'Partners: carriers see active partners but not their contracts');
+COMMIT;
+BEGIN;
+SELECT sys.set_context(NULL, :cc, 'COMPANY');
+SELECT pg_temp.ok((SELECT count(*) FROM ship.shipment) = 0 AND (SELECT count(*) FROM ship.shipment_leg) = 0,
+  'Shipping: an unrelated company sees neither the shipment nor its legs');
+SELECT pg_temp.ok((SELECT count(*) FROM frt.freight_bid) = 0, 'Freight: a carrier cannot see another carrier''s bid');
+COMMIT;
+BEGIN;
+SELECT sys.set_context(NULL, NULL, 'PASSENGER', NULL, NULL, NULL, NULL, :pax);
+SELECT pg_temp.ok((SELECT count(*) FROM ship.shipment) = 1, 'Shipping: the shipper sees its own shipment');
+COMMIT;
+BEGIN;
+SELECT sys.set_context(:ua, :ca, 'COMPANY');
+SELECT pg_temp.ok((SELECT count(*) FROM brd.manifest_response) = 1, 'Border: the carrier never sees silent authority flags');
+SELECT pg_temp.expect_error(format($$INSERT INTO brd.manifest_response (manifest_id, subject_type, decision) VALUES (%s, 'MANIFEST', 'DENY')$$, :mf),
+  'row-level security', 'Border: only the platform records authority decisions');
+INSERT INTO fleet.truck_combination (company_id, truck_vehicle_id, trailer_id, period) VALUES (:ca, :va, :trl, tstzrange(now(), now() + interval '1 day'));
+SELECT pg_temp.expect_error(format($$INSERT INTO fleet.truck_combination (company_id, truck_vehicle_id, trailer_id, period)
+  VALUES (%s, %s, %s, tstzrange(now() + interval '2 hours', now() + interval '3 hours'))$$, :ca, :va, :trl),
+  'exclusion constraint', 'Fleet: a truck or trailer cannot be coupled twice at the same time');
+INSERT INTO ops.shuttle_ride (user_id, wallet_id, trip_id, line_id, board_station_id, board_ts) VALUES (:ua, :wpax, :t_tr, :ln, :st_dam, now());
+SELECT pg_temp.expect_error(format($$INSERT INTO ops.shuttle_ride (user_id, wallet_id, trip_id, line_id, board_station_id, board_ts)
+  VALUES (%s, %s, %s, %s, %s, now())$$, :ua, :wpax, :t_tr, :ln, :st_dam), 'shuttle_ride_one_open', 'Shuttle: one open ride per user');
+SELECT pg_temp.expect_error($$UPDATE ops.ride_segment_charge SET amount = 0$$, 'permission denied', 'Shuttle: ride charges are append-only');
+INSERT INTO ship.tracking_event (shipment_id, milestone) VALUES (:shp, 'RECEIVED_AT_HUB');
+SELECT pg_temp.expect_error($$UPDATE ship.tracking_event SET milestone = 'DELIVERED'$$, 'permission denied', 'Shipping: tracking events are append-only');
+SELECT pg_temp.expect_error(format($$INSERT INTO acct.sales_invoice (company_id, invoice_no, customer_party_id, issue_date, subtotal, tax, total)
+  VALUES (%s, 'INV-1', %s, current_date, 1000, 100, 1200)$$, :ca, :pax), 'sales_invoice_check', 'Accounting: invoice total must equal subtotal plus tax');
+COMMIT;
+BEGIN;
+SELECT sys.set_context(NULL, :cfuel, 'COMPANY');
+SELECT pg_temp.ok((SELECT count(*) FROM ptn.partner_contract) = 1, 'Partners: partner staff see their own contract (no policy recursion)');
+COMMIT;
+BEGIN;
+SELECT sys.set_context(:uadmin, NULL, 'PLATFORM');
+SELECT pg_temp.ok((SELECT count(*) FROM brd.manifest_response) = 2, 'Border: the platform sees every authority decision');
+INSERT INTO bill.plan (code, kind, name, annual_fee) VALUES ('BASIC', 'STANDARD', 'Basic', 1200000);
+SELECT pg_temp.expect_error(format($$INSERT INTO bill.carrier_agreement (company_id, label, terms, valid_days, created_by, approved_by)
+  VALUES (%s, 'Special', '{}', 365, %s, %s)$$, :ca, :uadmin, :uadmin), 'carrier_agreement_check', 'Billing: an agreement needs a second approver');
+INSERT INTO bill.company_subscription (company_id, source, plan_id, starts_at, ends_at, terms)
+SELECT :ca, 'PLAN', id, now(), now() + interval '1 year', '{}' FROM bill.plan WHERE code = 'BASIC';
+SELECT pg_temp.expect_error(format($$INSERT INTO bill.company_subscription (company_id, source, plan_id, starts_at, ends_at, terms)
+  SELECT %s, 'PLAN', id, now(), now() + interval '1 year', '{}' FROM bill.plan WHERE code = 'BASIC'$$, :ca),
+  'company_subscription_one_active', 'Billing: one active subscription per company');
+COMMIT;
+RESET ROLE;
+
 \echo '=== ALL TESTS PASSED ==='
