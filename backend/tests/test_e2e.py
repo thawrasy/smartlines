@@ -6,6 +6,7 @@ They exercise the real database: RLS, triggers, the ledger and the audit logs.
 """
 import asyncio
 import os
+import secrets
 import uuid
 from datetime import datetime, timedelta, timezone
 
@@ -16,7 +17,10 @@ import pytest
 BASE = os.environ.get("MASSLAK_TEST_URL", "http://localhost:8077")
 OWNER_URL = os.environ.get("MASSLAK_OWNER_URL")
 PASSWORD = os.environ.get("MASSLAK_DEMO_PASSWORD", "Masslak-Demo-2026")
-H = {"X-Masslak-Client": "web"}
+# Each run speaks from its own address in the benchmarking range (RFC 2544), passed through the trusted local
+# proxy hop. The automatic IP blocking counts failed sign-ins per address, so runs stay independent of each other.
+RUN_IP = f"198.18.{secrets.randbelow(256)}.{1 + secrets.randbelow(254)}"
+H = {"X-Masslak-Client": "web", "X-Forwarded-For": RUN_IP}
 
 
 def client() -> httpx.Client:
@@ -66,17 +70,43 @@ def pax():
     return c
 
 
-@pytest.fixture(scope="module")
-def trip(pax):
-    # The completion test moves its trip into the past, so each run takes the next bookable trip of the week
+def bookable_trip(pax):
     for offset in range(1, 7):
         r = pax.get("/api/trips/search", params={"origin": "DAM", "destination": "HMA", "on": day(offset), "passengers": 2})
         assert r.status_code == 200
         trips = [t for t in r.json()["trips"] if t["bookable"] and t["seats_left"] >= 4]
         if trips:
-            break
-    assert trips, "no bookable trips left this week; reseed the demo data"
-    t = trips[0]
+            return trips[0]
+    return None
+
+
+def publish_fresh_trip() -> None:
+    """The demo week runs out after many runs (the completion test moves a trip into the past each time), so the
+    suite publishes its own trip through the carrier API, the same way a carrier clerk would."""
+    o = login("owner@carrier.test", "OPERATOR")
+    route = next(r for r in o.get("/api/carrier/routes").json()["routes"] if r["code"] == "DAM-ALP")
+    vehicles = [v["uid"] for v in o.get("/api/carrier/vehicles").json()["vehicles"] if v["status"] == "ACTIVE"]
+    drivers = [c["uid"] for c in o.get("/api/carrier/crew").json()["crew"]
+               if c["status"] == "ACTIVE" and c["email"] in ("driver@carrier.test", "driver2@carrier.test", "driver3@carrier.test")]
+    for offset in range(2, 7):
+        for hour in (5, 23, 4, 22, 3):
+            minute = secrets.randbelow(60)
+            for v in vehicles:
+                for d in drivers:
+                    r = o.post("/api/carrier/trips", json={"route_uid": route["uid"], "vehicle_uid": v, "driver_uid": d,
+                                                           "departure_local": f"{day(offset)}T{hour:02d}:{minute:02d}:00"})
+                    if r.status_code == 201:
+                        return
+    pytest.fail("could not publish a fresh trip: every vehicle or driver is busy")
+
+
+@pytest.fixture(scope="module")
+def trip(pax):
+    t = bookable_trip(pax)
+    if t is None:
+        publish_fresh_trip()
+        t = bookable_trip(pax)
+    assert t, "no bookable trip found after publishing one"
     assert t["price"] == 2800000 and t["from_seq"] == 0 and t["to_seq"] == 2  # ladder: Hama 28,000 - Damascus 0
     return t
 
@@ -104,7 +134,8 @@ def book(c, t, token, seats, brand="STANDARD", key=None, passengers=None):
 
 
 def test_security_headers_and_client_header(pax):
-    r = httpx.post(f"{BASE}/api/auth/login", json={"identifier": "x@y.z", "password": "x", "portal": "PASSENGER"})
+    r = httpx.post(f"{BASE}/api/auth/login", json={"identifier": "x@y.z", "password": "x", "portal": "PASSENGER"},
+                   headers={"X-Forwarded-For": RUN_IP})
     assert r.status_code == 400 and r.json()["error"]["code"] == "CLIENT_HEADER_REQUIRED"
     r = pax.get("/api/auth/me")
     assert r.headers["x-content-type-options"] == "nosniff" and "frame-ancestors 'none'" in r.headers["content-security-policy"]
@@ -191,11 +222,10 @@ def test_document_number_is_stored_encrypted(pax, trip):
     r = book(pax, trip, h, [a], passengers=[p])
     assert r.status_code == 201, r.text
     pytest.encrypted_ref = r.json()["booking_ref"]
-    # A number without its document type is refused
-    h2 = hold(pax, trip, free_seats(pax, trip, 1)).json()["hold_token"]
+    # A number without its document type is refused before any hold is needed
     seat = free_seats(pax, trip, 1)[0]
-    bad = book(pax, trip, h2, [seat], passengers=[{**syrian(seat), "id_type": None, "id_no": "0102030405"}])
-    assert bad.status_code == 422
+    bad = book(pax, trip, str(uuid.uuid4()), [seat], passengers=[{**syrian(seat), "id_type": None, "id_no": "0102030405"}])
+    assert bad.status_code == 422 and bad.json()["error"]["code"] == "ID_TYPE_REQUIRED"
 
 
 @pytest.mark.skipif(not OWNER_URL, reason="needs MASSLAK_OWNER_URL")
@@ -309,7 +339,7 @@ def test_admin_onboarding_ip_rules_and_audit():
     assert httpx.get(f"{BASE}/api/health", headers={"X-Forwarded-For": "198.51.100.1"}).status_code == 200
     assert a.post(f"/api/security/ip-rules/{rule}/revoke", json={"reason": "test done"}).status_code == 200
     assert httpx.get(f"{BASE}/api/health", headers={"X-Forwarded-For": "203.0.113.9"}).status_code == 200
-    assert a.post("/api/security/ip-rules", json={"target": "127.0.0.0/8", "reason": "oops"}).json()["error"]["code"] == "SELF_BLOCK"
+    assert a.post("/api/security/ip-rules", json={"target": f"{RUN_IP}/32", "reason": "oops"}).json()["error"]["code"] == "SELF_BLOCK"
     events = a.get("/api/security/auth-events").json()["events"]
     assert any(e["event"] == "LOGIN_SUCCESS" for e in events)
     activity = a.get("/api/security/activity").json()["activity"]
@@ -317,7 +347,7 @@ def test_admin_onboarding_ip_rules_and_audit():
     assert a.get("/api/regulator/dashboard").status_code == 200
     summary = a.get("/api/security/summary").json()
     assert summary["logins_24h"] >= 1 and "last_seal" in summary
-    assert httpx.get(f"{BASE}/api/ref").json()["fare_brands"][1]["rules"]["refund"] == [[24, 100], [2, 50]]
+    assert httpx.get(f"{BASE}/api/ref", headers={"X-Forwarded-For": RUN_IP}).json()["fare_brands"][1]["rules"]["refund"] == [[24, 100], [2, 50]]
 
 
 def test_regulator_is_read_only():
@@ -343,10 +373,10 @@ def test_lockout_after_failed_logins():
 def test_public_verification_detects_forgery(pax):
     detail = pax.get(f"/api/bookings/{pytest.booking_ref}").json()
     token = detail["booking"]["verify_token"]
-    ok = httpx.get(f"{BASE}/api/verify", params={"token": token}).json()
+    ok = httpx.get(f"{BASE}/api/verify", params={"token": token}, headers={"X-Forwarded-For": RUN_IP}).json()
     assert ok["valid"] and ok["booking_ref"] == pytest.booking_ref
     forged = token.replace(pytest.booking_ref, "AAAAAA")
-    assert httpx.get(f"{BASE}/api/verify", params={"token": forged}).json() == {"valid": False, "reason": "SIGNATURE_INVALID"}
+    assert httpx.get(f"{BASE}/api/verify", params={"token": forged}, headers={"X-Forwarded-For": RUN_IP}).json() == {"valid": False, "reason": "SIGNATURE_INVALID"}
 
 
 @pytest.mark.skipif(not OWNER_URL, reason="needs MASSLAK_OWNER_URL to reset the account afterwards")
