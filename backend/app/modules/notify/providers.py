@@ -44,11 +44,13 @@ def send_email(to: str, subject: str, body: str) -> None:
 def send_sms(to: str, body: str) -> None:
     if os.environ.get("MASSLAK_NOTIFY_SMS", "log") != "http":
         return _log("SMS", to, "", body)
-    req = urllib.request.Request(os.environ["MASSLAK_SMS_URL"], data=json.dumps({"to": to, "text": body}).encode(),
+    url = os.environ["MASSLAK_SMS_URL"]
+    if not url.startswith("https://"):
+        raise RuntimeError("the SMS gateway must use HTTPS")
+    req = urllib.request.Request(url, data=json.dumps({"to": to, "text": body}).encode(),
                                  headers={"Content-Type": "application/json",
                                           "Authorization": f"Bearer {os.environ['MASSLAK_SMS_TOKEN']}"}, method="POST")
-    if not req.full_url.startswith("https://"):
-        raise RuntimeError("the SMS gateway must use HTTPS")
-    with urllib.request.urlopen(req, timeout=15) as r:
+    # The scheme is checked to be https above, so file:// and custom schemes can never be opened
+    with urllib.request.urlopen(req, timeout=15) as r:  # nosec B310
         if r.status >= 300:
             raise RuntimeError(f"SMS gateway answered {r.status}")

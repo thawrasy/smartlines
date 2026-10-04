@@ -1,0 +1,11 @@
+# Tool settings for the backend (the application itself is configured through MASSLAK_* environment variables).
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.bandit]
+# B608 (SQL built from strings) is skipped on purpose: every query passes values as bound parameters ($1, $2 ...),
+# and the only interpolated pieces are constant SQL fragments defined in the same module (column lists, the free
+# seat condition, the journey subquery). Code review keeps it that way: no request value is ever formatted into SQL.
+skips = ["B608"]
+exclude_dirs = ["tests"]

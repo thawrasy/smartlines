@@ -5,6 +5,8 @@
 # (980 onwards) must be idempotent (IF NOT EXISTS, ON CONFLICT DO NOTHING, DROP POLICY IF EXISTS ...).
 # A database built before file tracking existed is assumed to have every file up to the baseline below.
 set -euo pipefail
+# Idempotent files print NOTICEs ("already exists, skipping"); show warnings and errors only
+export PGOPTIONS="${PGOPTIONS:--c client_min_messages=warning}"
 # psql substitutes :'variables' only in scripts, not in -c, so the statement goes through stdin
 record() { echo "INSERT INTO sys.schema_file (file, sha256) VALUES (:'file', :'sha') ON CONFLICT (file) DO NOTHING" |
            psql "${PSQL_ARGS[@]}" -d "$DB" -v ON_ERROR_STOP=1 -q -v file="$1" -v sha="$2" -f -; }

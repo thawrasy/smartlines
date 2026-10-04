@@ -1,0 +1,119 @@
+# Continuous integration: every push and pull request runs the schema tests, the API end-to-end tests against a
+# real PostgreSQL with row-level security, the web build, the security scans and the language policy.
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  database:
+    name: Schema tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env: { POSTGRES_PASSWORD: postgres }
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    env: { PGPASSWORD: postgres }
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build a fresh database and run the checks
+        run: db/tests/run.sh -h localhost -U postgres
+      - name: Upgrading an existing database applies nothing twice
+        run: |
+          createdb -h localhost -U postgres upgrade_check
+          db/build.sh upgrade_check -h localhost -U postgres > /dev/null
+          db/upgrade.sh upgrade_check -h localhost -U postgres | tee upgrade.log
+          ! grep -q '^>>' upgrade.log
+
+  api:
+    name: API end-to-end tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env: { POSTGRES_PASSWORD: postgres, POSTGRES_DB: masslak }
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      PGPASSWORD: postgres
+      MASSLAK_DATABASE_URL: postgresql://masslak_api:ci-api-password@localhost:5432/masslak
+      MASSLAK_AUDIT_DATABASE_URL: postgresql://masslak_audit:ci-audit-password@localhost:5432/masslak
+      MASSLAK_OWNER_URL: postgresql://postgres:postgres@localhost:5432/masslak
+      MASSLAK_SANDBOX: "true"
+      MASSLAK_COOKIE_SECURE: "false"
+      MASSLAK_SIGNING_SECRET: ci-signing-secret-not-for-production-use
+      MASSLAK_RATE_AUTH_PER_MINUTE: "600"
+      MASSLAK_TEST_URL: http://localhost:8077
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11", cache: pip, cache-dependency-path: backend/requirements*.txt }
+      - run: pip install -r backend/requirements-dev.txt
+      - name: Schema, login roles and demo data
+        run: |
+          db/build.sh masslak -h localhost -U postgres > /dev/null
+          psql -h localhost -U postgres -d masslak -v ON_ERROR_STOP=1 -q -v api_password=ci-api-password \
+               -v audit_password=ci-audit-password -f db/create_login_roles.sql
+          python backend/scripts/seed_demo.py
+      - name: Start the API
+        working-directory: backend
+        run: |
+          nohup python -m uvicorn app.main:app --port 8077 > ../api.log 2>&1 &
+          for i in $(seq 1 30); do curl -sf localhost:8077/api/health && exit 0; sleep 1; done
+          cat ../api.log; exit 1
+      - name: Unit and end-to-end tests
+        working-directory: backend
+        run: python -m pytest tests -q
+      - name: API log on failure
+        if: failure()
+        run: tail -200 api.log
+
+  web:
+    name: Web build
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: frontend } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "22", cache: npm, cache-dependency-path: frontend/package-lock.json }
+      - run: npm ci
+      - run: npm run build
+
+  security:
+    name: Security and policy checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+      - uses: actions/setup-node@v4
+        with: { node-version: "22" }
+      - run: pip install bandit pip-audit
+      - name: Language policy (English code, data and docs; Arabic only in locale files)
+        run: python scripts/check_language.py
+      - name: Static analysis of the API (bandit)
+        run: bandit -q -c backend/pyproject.toml -r backend/app -ll
+      - name: Known vulnerabilities in Python dependencies
+        run: pip-audit -r backend/requirements.txt
+      - name: Known vulnerabilities in web dependencies
+        working-directory: frontend
+        run: npm audit --omit=dev --audit-level=high
+
+  image:
+    name: Container image builds
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t masslak:ci .

@@ -34,7 +34,7 @@ def test_rendering_follows_the_reader_language():
     subject, body = render("booking.confirmed", "EMAIL", "en", values)
     assert subject == "Booking AB12CD confirmed" and "Damascus to Aleppo" in body and "SYP 57,000" in body
     _, sms = render("booking.confirmed", "SMS", "ar", values)
-    assert "AB12CD" in sms and "دمشق" in sms            # Damascus in Arabic script
+    assert "AB12CD" in sms and "\u062f\u0645\u0634\u0642" in sms            # Damascus in Arabic script
     assert mask("owner@carrier.test") == "o***@carrier.test" and mask("+963944000111") == "+9639******11"
 
 
