@@ -8,7 +8,7 @@ from pydantic import BaseModel, EmailStr, Field
 from .. import db
 from ..deps import Principal, context_for, require_permission, require_portal
 from ..errors import ApiError, not_found
-from ..ledger import company_wallet
+from ..ledger import company_wallet, platform_wallet, post_txn
 from ..security import hash_password, password_problem
 from ..util import row_dict, rows
 
@@ -141,3 +141,116 @@ async def add_central_station(body: StationIn, request: Request, pr: Principal =
             code, city["id"], city["country_code"], body.name.strip(), body.address, body.lat, body.lng, pr.user_id)
     request.state.audit = {"action": "station.create", "object_type": "station", "object_id": sid}
     return {"code": code}
+
+
+# ------------------------------------------------------------------ agencies
+class AgencyIn(BaseModel):
+    legal_name: str = Field(min_length=3, max_length=160)
+    license_no: Optional[str] = Field(default=None, max_length=60)
+    owner_name: str = Field(min_length=3, max_length=120)
+    owner_email: EmailStr
+    owner_password: str
+    commission_bp: int = Field(ge=0, le=2000)            # basis points of the fares, at most 20%
+    daily_limit: int = Field(gt=0, le=100_000_000_000)   # minor units
+
+
+@router.post("/agencies", status_code=201)
+async def onboard_agency(body: AgencyIn, request: Request, pr: Principal = Depends(require_permission("company.approve"))):
+    if pr.portal != "PLATFORM":
+        raise ApiError(403, "FORBIDDEN", "platform portal only")
+    problem = password_problem(body.owner_password)
+    if problem:
+        raise ApiError(422, problem, "password does not meet the policy")
+    async with db.transaction(context_for(request, pr)) as conn:
+        aid = await conn.fetchval(
+            "INSERT INTO iam.party (party_type, legal_name) VALUES ('COMPANY', $1) RETURNING id", body.legal_name.strip())
+        await conn.execute("INSERT INTO iam.party_role (party_id, role_code) VALUES ($1, 'AGENCY')", aid)
+        await conn.execute(
+            """INSERT INTO iam.company (id, company_type, transport_license_no, approval_status, approved_by, approved_at)
+               VALUES ($1, 'AGENCY', $2, 'APPROVED', $3, now())""", aid, body.license_no, pr.user_id)
+        await conn.execute(
+            """INSERT INTO sales.agency_agreement (agency_id, commission_bp, daily_limit, created_by)
+               VALUES ($1, $2, $3, $4)""", aid, body.commission_bp, body.daily_limit, pr.user_id)
+        owner_party = await conn.fetchval(
+            "INSERT INTO iam.party (party_type, legal_name, email) VALUES ('PERSON', $1, $2) RETURNING id",
+            body.owner_name.strip(), body.owner_email)
+        owner_user = await conn.fetchval(
+            """INSERT INTO iam.app_user (party_id, account_kind, email, password_hash, password_changed_at, status,
+                 preferred_locale, mfa_required) VALUES ($1, 'AGENCY', $2, $3, now(), 'ACTIVE', 'ar', true) RETURNING id""",
+            owner_party, body.owner_email, hash_password(body.owner_password))
+        await conn.execute("INSERT INTO iam.company_member (user_id, company_id, is_owner) VALUES ($1, $2, true)",
+                           owner_user, aid)
+        await company_wallet(conn, aid, "SYP", label="Agency wallet")
+        uid = await conn.fetchval("SELECT uid FROM iam.party WHERE id = $1", aid)
+    request.state.audit = {"action": "agency.onboard", "object_type": "company", "object_id": aid}
+    return {"uid": str(uid)}
+
+
+async def _agency_id(conn, agency_uid: uuid.UUID) -> int:
+    aid = await conn.fetchval(
+        "SELECT c.id FROM iam.company c JOIN iam.party p ON p.id = c.id WHERE p.uid = $1 AND c.company_type = 'AGENCY'",
+        agency_uid)
+    if aid is None:
+        raise not_found("agency")
+    return aid
+
+
+@router.get("/agencies")
+async def agencies(request: Request, pr: Principal = Depends(require_permission("company.approve", "cash.remittance"))):
+    async with db.transaction(context_for(request, pr)) as conn:
+        recs = await conn.fetch(
+            """SELECT p.uid, p.legal_name, c.approval_status, a.commission_bp, a.daily_limit, a.status AS agreement_status,
+                      w.balance, w.currency,
+                      (SELECT count(*) FROM sales.booking b WHERE b.agency_id = c.id AND b.status <> 'CANCELLED') AS bookings
+                 FROM iam.company c JOIN iam.party p ON p.id = c.id
+                 LEFT JOIN sales.agency_agreement a ON a.agency_id = c.id AND a.status <> 'ENDED'
+                 LEFT JOIN fin.wallet w ON w.owner_party_id = c.id AND w.wallet_type = 'COMPANY' AND w.currency = 'SYP'
+                WHERE c.company_type = 'AGENCY' ORDER BY p.legal_name""")
+    return {"agencies": rows(recs)}
+
+
+class AgreementIn(BaseModel):
+    commission_bp: int = Field(ge=0, le=2000)
+    daily_limit: int = Field(gt=0, le=100_000_000_000)
+    status: Literal["ACTIVE", "SUSPENDED"] = "ACTIVE"
+    reason: str = Field(min_length=3, max_length=300)
+
+
+@router.post("/agencies/{agency_uid}/agreement")
+async def update_agreement(agency_uid: uuid.UUID, body: AgreementIn, request: Request,
+                           pr: Principal = Depends(require_permission("company.approve"))):
+    """Changes apply to new sales only; each booking keeps the commission in its price snapshot."""
+    async with db.transaction(context_for(request, pr)) as conn:
+        aid = await _agency_id(conn, agency_uid)
+        n = await conn.execute(
+            """UPDATE sales.agency_agreement SET commission_bp = $2, daily_limit = $3, status = $4
+                WHERE agency_id = $1 AND status <> 'ENDED'""", aid, body.commission_bp, body.daily_limit, body.status)
+        if n.endswith(" 0"):
+            raise not_found("agreement")
+    request.state.audit = {"action": "agency.agreement", "object_type": "company", "object_id": aid, "reason": body.reason}
+    return {"ok": True}
+
+
+class DepositIn(BaseModel):
+    amount: int = Field(gt=0, le=100_000_000_000)        # minor units
+    bank_reference: str = Field(min_length=3, max_length=60, pattern=r"^[0-9A-Za-z\-/]+$")
+    idempotency_key: str = Field(min_length=8, max_length=80)
+
+
+@router.post("/agencies/{agency_uid}/deposit")
+async def agency_deposit(agency_uid: uuid.UUID, body: DepositIn, request: Request,
+                         pr: Principal = Depends(require_permission("cash.remittance"))):
+    """Credits an agency's prepaid balance after finance has seen the bank transfer arrive."""
+    async with db.transaction(context_for(request, pr)) as conn:
+        aid = await _agency_id(conn, agency_uid)
+        wallet = await company_wallet(conn, aid, "SYP", label="Agency wallet")
+        clearing = await platform_wallet(conn, "BANK_CLEARING", "SYP")
+        if await conn.fetchval("SELECT 1 FROM fin.ledger_txn WHERE idempotency_key = $1", f"agency-deposit:{body.idempotency_key}"):
+            return {"ok": True, "replayed": True}
+        await post_txn(conn, "TOPUP", "SYP", f"agency-deposit:{body.idempotency_key}",
+                       [(clearing["id"], "DR", body.amount), (wallet["id"], "CR", body.amount)],
+                       ref_type="company", ref_id=aid, user_id=pr.user_id, memo=f"Bank transfer {body.bank_reference}")
+        balance = await conn.fetchval("SELECT balance FROM fin.wallet WHERE id = $1", wallet["id"])
+    request.state.audit = {"action": "agency.deposit", "object_type": "company", "object_id": aid,
+                           "reason": body.bank_reference}
+    return {"ok": True, "balance": balance}

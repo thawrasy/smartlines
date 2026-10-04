@@ -122,11 +122,13 @@ async def login(body: LoginIn, request: Request, response: Response):
 
     async with db.transaction(ctx) as conn:
         company_id = None
-        if body.portal in ("OPERATOR", "DRIVER"):
+        if body.portal in ("OPERATOR", "DRIVER", "AGENCY"):
+            # Agency staff open only the agency portal, carrier staff only the carrier and driver portals
             company_id = await conn.fetchval(
                 """SELECT m.company_id FROM iam.company_member m JOIN iam.company c ON c.id = m.company_id
                     WHERE m.user_id = $1 AND m.status = 'ACTIVE' AND c.approval_status = 'APPROVED'
-                    ORDER BY m.is_owner DESC LIMIT 1""", user["id"])
+                      AND (c.company_type = 'AGENCY') = ($2 = 'AGENCY')
+                    ORDER BY m.is_owner DESC LIMIT 1""", user["id"], body.portal)
             if company_id is None:
                 raise ApiError(403, "COMPANY_NOT_ACTIVE", "no approved company for this account")
             if body.portal == "DRIVER" and not await conn.fetchval(

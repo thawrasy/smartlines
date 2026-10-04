@@ -1,4 +1,5 @@
-"""Demo data for a test server: platform staff, a carrier with fleet, routes and a week of trips, and a passenger.
+"""Demo data for a test server: platform staff, a carrier with fleet, routes and a week of trips, a travel agency
+and a passenger.
 
 Usage (owner connection, never the API role):
     MASSLAK_OWNER_URL=postgresql://postgres@localhost/masslak python3 backend/scripts/seed_demo.py
@@ -48,13 +49,38 @@ async def user(conn, party_type, name, email, kind, locale="ar"):
     return pid, uid
 
 
+async def seed_agency(conn) -> bool:
+    """A travel agency with a 5% commission, a daily limit of SYP 500,000 and a prepaid SYP 200,000. Idempotent, so it
+    can be added to a database seeded before agencies existed."""
+    if await conn.fetchval("SELECT 1 FROM iam.app_user WHERE email = 'agency@agency.test'"):
+        return False
+    admin = await conn.fetchval("SELECT id FROM iam.app_user WHERE email = 'admin@masslak.test'")
+    agency = await conn.fetchval("INSERT INTO iam.party (party_type, legal_name) VALUES ('COMPANY', 'Demo Travel Agency') RETURNING id")
+    await conn.execute("INSERT INTO iam.party_role (party_id, role_code) VALUES ($1, 'AGENCY')", agency)
+    await conn.execute("INSERT INTO iam.company (id, company_type, approval_status, approved_by, approved_at) VALUES ($1, 'AGENCY', 'APPROVED', $2, now())",
+                       agency, admin)
+    await conn.execute("INSERT INTO sales.agency_agreement (agency_id, commission_bp, daily_limit, created_by) VALUES ($1, 500, 50000000, $2)",
+                       agency, admin)
+    wallet = await conn.fetchval("INSERT INTO fin.wallet (owner_party_id, company_id, wallet_type, label, currency) VALUES ($1, $1, 'COMPANY', 'Agency wallet', 'SYP') RETURNING id",
+                                 agency)
+    _, owner = await user(conn, "PERSON", "Rana (agency owner)", "agency@agency.test", "AGENCY")
+    await conn.execute("INSERT INTO iam.company_member (user_id, company_id, is_owner) VALUES ($1, $2, true)", owner, agency)
+    clearing = await conn.fetchval(
+        """SELECT w.id FROM fin.wallet w JOIN iam.party p ON p.id = w.owner_party_id
+            WHERE p.legal_name = 'Masslak Platform' AND w.wallet_type = 'BANK_CLEARING' AND w.currency = 'SYP'""")
+    txn = await conn.fetchval("INSERT INTO fin.ledger_txn (txn_type, currency, idempotency_key, memo) VALUES ('TOPUP', 'SYP', 'demo-agency-deposit-1', 'demo') RETURNING id")
+    await conn.execute("INSERT INTO fin.ledger_entry (txn_id, wallet_id, direction, amount) VALUES ($1, $2, 'DR', 20000000), ($1, $3, 'CR', 20000000)",
+                       txn, clearing, wallet)
+    return True
+
+
 async def main():
     url = os.environ.get("MASSLAK_OWNER_URL", "postgresql://postgres@localhost:5432/masslak")
     conn = await asyncpg.connect(url)
     async with conn.transaction():
         await conn.execute("SELECT sys.set_context(NULL, NULL, 'SYSTEM')")
         if await conn.fetchval("SELECT 1 FROM iam.app_user WHERE email = 'admin@masslak.test'"):
-            print("demo data already present")
+            print("demo agency added" if await seed_agency(conn) else "demo data already present")
             return
         # Platform staff
         _, admin = await user(conn, "PERSON", "Platform Administrator", "admin@masslak.test", "PLATFORM")
@@ -156,6 +182,8 @@ async def main():
                                        tid, drivers[[v for v, _ in vehicles].index(vid)])
                     n_trips += 1
 
+        await seed_agency(conn)
+
         # Passenger with a funded wallet
         await conn.execute("SELECT sys.set_context(NULL, NULL, 'SYSTEM')")
         pparty, _ = await user(conn, "PERSON", "Samer Al-Halabi", "passenger@masslak.test", "CUSTOMER")
@@ -172,7 +200,7 @@ async def main():
     print(f"demo data created: {n_trips} trips")
     print(f"accounts (password: {PASSWORD}):")
     for e, p in (("passenger@masslak.test", "PASSENGER"), ("owner@carrier.test", "OPERATOR"), ("driver@carrier.test", "DRIVER"),
-                 ("admin@masslak.test", "PLATFORM"), ("regulator@masslak.test", "PLATFORM")):
+                 ("agency@agency.test", "AGENCY"), ("admin@masslak.test", "PLATFORM"), ("regulator@masslak.test", "PLATFORM")):
         print(f"  {e:28s} portal {p}")
 
 

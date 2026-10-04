@@ -38,14 +38,15 @@ async def user_wallet(conn: asyncpg.Connection, party_id: int, currency: str) ->
     return w
 
 
-async def company_wallet(conn: asyncpg.Connection, company_id: int, currency: str) -> asyncpg.Record:
+async def company_wallet(conn: asyncpg.Connection, company_id: int, currency: str,
+                         label: str = "Carrier wallet") -> asyncpg.Record:
     w = await conn.fetchrow(
         "SELECT * FROM fin.wallet WHERE owner_party_id = $1 AND wallet_type = 'COMPANY' AND currency = $2",
         company_id, currency)
     if w is None:
         w = await conn.fetchrow(
             """INSERT INTO fin.wallet (owner_party_id, company_id, wallet_type, label, currency)
-               VALUES ($1, $1, 'COMPANY', 'Carrier wallet', $2) RETURNING *""", company_id, currency)
+               VALUES ($1, $1, 'COMPANY', $3, $2) RETURNING *""", company_id, currency, label)
     return w
 
 

@@ -380,8 +380,7 @@ async def complete_trip(trip_uid: uuid.UUID, request: Request, pr: Principal = D
                                [(escrow["id"], "DR", released), *entries],
                                ref_type="trip", ref_id=t["id"], user_id=pr.user_id, memo=t["trip_no"])
             await conn.execute(
-                "UPDATE fin.price_allocation_line SET status = 'RELEASED', released_at = now() WHERE id = ANY($1::bigint[]) "
-                "AND status = 'HELD'", [l["id"] for l in lines])
+                "UPDATE fin.price_allocation_line SET status = 'RELEASED', released_at = now() WHERE id = ANY($1::bigint[])", [l["id"] for l in lines])
             await conn.execute("UPDATE sales.booking SET status = 'COMPLETED' WHERE trip_id = $1 AND status = 'CONFIRMED'",
                                t["id"])
             await conn.execute("UPDATE sales.ticket SET status = 'NO_SHOW' WHERE trip_id = $1 AND status = 'ISSUED'", t["id"])
