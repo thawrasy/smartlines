@@ -117,12 +117,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - name: Settings with fresh random secrets
+      - name: One-command installation (secrets, build, start, first administrator)
         run: |
-          ./deploy/init-env.sh --domain localhost --demo
+          sudo ./deploy/install.sh --domain localhost --admin-email admin@install.test --demo --skip-server-setup
+          sudo chown "$USER" deploy/.env deploy/FIRST_LOGIN.txt
           sed -i "s|^MASSLAK_BACKUP_DIR=.*|MASSLAK_BACKUP_DIR=$RUNNER_TEMP/backups|" deploy/.env
-      - name: Build and start
-        run: docker compose --env-file deploy/.env up -d --build
+      - name: The first administrator signs in with the generated password
+        run: |
+          pw="$(sed -n 's/^Password: *//p' deploy/FIRST_LOGIN.txt)"
+          test "$(stat -c %a deploy/FIRST_LOGIN.txt)" = 600
+          curl -fsSk -H 'X-Masslak-Client: web' -H 'Content-Type: application/json' \
+               -d "{\"identifier\":\"admin@install.test\",\"password\":\"$pw\",\"portal\":\"PLATFORM\"}" https://localhost/api/auth/login | grep -q '"mfa":"ENROLL"'
       - name: Site answers over HTTPS through Caddy
         run: |
           for i in $(seq 60); do curl -fsSk https://localhost/api/health && break; sleep 3; done

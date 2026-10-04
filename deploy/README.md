@@ -22,6 +22,24 @@ full backup and restore (`.github/workflows/ci.yml`, job `stack`).
 
 ## 2. First start
 
+### One command
+
+On the prepared domain (section 1), as root:
+
+```sh
+sudo apt-get update && sudo apt-get install -y git
+sudo git clone <repository URL> /opt/masslak && cd /opt/masslak
+sudo ./deploy/install.sh --domain masslak.com --email ops@masslak.com --admin-email admin@masslak.com
+```
+
+It prepares the server, writes `deploy/.env` with fresh secrets, builds and starts the stack, creates the first
+platform administrator with a random password generated on the server, and prints the sign-in details (also saved
+in `deploy/FIRST_LOGIN.txt`, mode 600). The administrator enrols a second factor at the first sign-in. Move the
+details and the keys section of `deploy/.env` to a password manager, then `shred -u deploy/FIRST_LOGIN.txt`.
+Add `--demo` for a test server with demo data. CI runs this installer on every push (job `stack`).
+
+### Step by step
+
 ```sh
 sudo apt-get update && sudo apt-get install -y git
 sudo git clone <repository URL> /opt/masslak && cd /opt/masslak
