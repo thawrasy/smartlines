@@ -47,7 +47,10 @@ export interface Me {
   uid: string; name: string; email: string; portal: Portal; locale: string; is_owner: boolean;
   company: { name: string; uid: string; code: string | null } | null;
   roles: string[]; permissions: string[];
+  mfa?: { enrolled: boolean; required: boolean };
 }
+
+export type MfaStep = "VERIFY" | "ENROLL";
 
 export interface TripResult {
   uid: string; trip_no: string; service_type: string; has_rest: boolean; seats_total: number; currency: string;

@@ -1,11 +1,12 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
-import { api, type Me, type Portal } from "./api";
+import { api, type Me, type MfaStep, type Portal } from "./api";
 import { useI18n, LOCALES, type Locale } from "./i18n";
 
 interface Auth {
   me: Me | null;
   ready: boolean;
-  login: (identifier: string, password: string, portal: Portal) => Promise<Me>;
+  /** Resolves with the account, or with the second-factor step a staff sign-in still needs. */
+  login: (identifier: string, password: string, portal: Portal) => Promise<Me | { mfa: MfaStep }>;
   logout: () => Promise<void>;
   refresh: () => Promise<void>;
   can: (...perms: string[]) => boolean;
@@ -31,7 +32,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => { void refresh(); }, [refresh]);
 
   const login = useCallback(async (identifier: string, password: string, portal: Portal) => {
-    await api.post("/api/auth/login", { identifier, password, portal });
+    const res = await api.post<{ mfa: MfaStep | null }>("/api/auth/login", { identifier, password, portal });
+    if (res.mfa) return { mfa: res.mfa };
     const m = await api.get<Me>("/api/auth/me");
     setMe(m);
     if (m.locale in LOCALES) setLocale(m.locale as Locale);

@@ -6,6 +6,7 @@ import asyncpg
 from fastapi import Depends, Request
 
 from . import db
+from .config import get_settings
 from .errors import ApiError, forbidden
 from .security import token_hash
 
@@ -36,6 +37,9 @@ class Principal:
     permissions: set[str] = field(default_factory=set)
     roles: set[str] = field(default_factory=set)
     is_owner: bool = False
+    mfa_pending: bool = False       # staff session that still owes its second factor
+    mfa_enrolled: bool = False
+    mfa_required: bool = False
 
 
 def base_context(request: Request) -> db.Context:
@@ -46,7 +50,9 @@ async def load_principal(conn: asyncpg.Connection, token: str) -> Optional[Princ
     row = await conn.fetchrow(
         """
         SELECT s.id AS session_id, s.portal, s.company_id, u.id AS user_id, u.uid, u.party_id, u.email,
-               u.preferred_locale, p.legal_name
+               u.preferred_locale, p.legal_name, s.mfa_passed, u.mfa_required,
+               EXISTS (SELECT 1 FROM iam.mfa_factor f WHERE f.user_id = u.id AND f.factor_type = 'TOTP'
+                          AND f.verified_at IS NOT NULL AND f.disabled_at IS NULL) AS mfa_enrolled
           FROM iam.user_session s
           JOIN iam.app_user u ON u.id = s.user_id
           JOIN iam.party p ON p.id = u.party_id
@@ -61,6 +67,9 @@ async def load_principal(conn: asyncpg.Connection, token: str) -> Optional[Princ
         portal=row["portal"], company_id=row["company_id"], display_name=row["legal_name"], email=row["email"],
         locale=row["preferred_locale"],
     )
+    pr.mfa_enrolled = row["mfa_enrolled"]
+    pr.mfa_required = mfa_required_for(pr.portal, row["mfa_required"], pr.mfa_enrolled)
+    pr.mfa_pending = pr.mfa_required and not row["mfa_passed"]
     if pr.portal in ("PLATFORM", "INSPECTOR"):
         rows = await conn.fetch(
             """SELECT r.code, rp.permission_code FROM iam.user_role ur JOIN iam.role r ON r.id = ur.role_id
@@ -103,9 +112,28 @@ async def optional_principal(request: Request) -> Optional[Principal]:
     return pr
 
 
-async def require_user(principal: Optional[Principal] = Depends(optional_principal)) -> Principal:
+STAFF_PORTALS = {"OPERATOR", "AGENCY", "PLATFORM", "INSPECTOR"}
+
+
+def mfa_required_for(portal: str, account_requires: bool, enrolled: bool) -> bool:
+    """Staff portals need a second factor when the account requires it, when the user enrolled one, and always
+    for platform staff outside the sandbox."""
+    if portal not in STAFF_PORTALS:
+        return False
+    return account_requires or enrolled or (portal == "PLATFORM" and not get_settings().sandbox)
+
+
+async def require_session(principal: Optional[Principal] = Depends(optional_principal)) -> Principal:
+    """A valid session, even one that still owes its second factor (used by the MFA endpoints)."""
     if principal is None:
         raise ApiError(401, "AUTH_REQUIRED", "login required")
+    return principal
+
+
+async def require_user(principal: Principal = Depends(require_session)) -> Principal:
+    if principal.mfa_pending:
+        raise ApiError(401, "MFA_REQUIRED", "enter the code from your authenticator app",
+                       next="VERIFY" if principal.mfa_enrolled else "ENROLL")
     return principal
 
 

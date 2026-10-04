@@ -347,3 +347,46 @@ def test_public_verification_detects_forgery(pax):
     assert ok["valid"] and ok["booking_ref"] == pytest.booking_ref
     forged = token.replace(pytest.booking_ref, "AAAAAA")
     assert httpx.get(f"{BASE}/api/verify", params={"token": forged}).json() == {"valid": False, "reason": "SIGNATURE_INVALID"}
+
+
+@pytest.mark.skipif(not OWNER_URL, reason="needs MASSLAK_OWNER_URL to reset the account afterwards")
+def test_two_factor_sign_in_for_staff():
+    from app import mfa
+    email = "regulator@masslak.test"
+    uid = owner_sql("SELECT id FROM iam.app_user WHERE email = $1", email)
+    owner_sql("UPDATE iam.mfa_factor SET disabled_at = now() WHERE user_id = $1 AND disabled_at IS NULL", uid)
+    try:
+        c = login(email, "PLATFORM")
+        start = c.post("/api/auth/mfa/enroll").json()
+        assert start["uri"].startswith("otpauth://totp/") and len(start["secret"]) >= 32
+        secret = owner_sql("SELECT secret_enc FROM iam.mfa_factor WHERE user_id = $1 AND verified_at IS NULL", uid)
+        assert start["secret"].encode() not in secret                        # stored encrypted
+        assert c.post("/api/auth/mfa/confirm", json={"code": "000000"}).status_code == 422
+        done = c.post("/api/auth/mfa/confirm", json={"code": mfa.code_at(start["secret"], mfa.current_step())})
+        assert done.status_code == 200, done.text
+        recovery = done.json()["recovery_codes"]
+        assert len(recovery) == 10
+
+        # The next sign-in stops at the second factor
+        c2 = client()
+        r = c2.post("/api/auth/login", json={"identifier": email, "password": PASSWORD, "portal": "PLATFORM"})
+        assert r.json()["mfa"] == "VERIFY"
+        blocked = c2.get("/api/auth/me")
+        assert blocked.status_code == 401 and blocked.json()["error"]["code"] == "MFA_REQUIRED"
+        # The code already used at enrolment is refused (replay), a recovery code works once
+        wrong = c2.post("/api/auth/mfa/verify", json={"code": mfa.code_at(start["secret"], mfa.current_step())})
+        assert wrong.status_code == 422 and wrong.json()["error"]["attempts_left"] == 4
+        assert c2.post("/api/auth/mfa/verify", json={"code": recovery[0]}).json()["recovery_code_used"]
+        assert c2.get("/api/auth/me").json()["mfa"]["enrolled"] is True
+
+        # The same recovery code cannot open another session; five wrong codes revoke the session
+        c3 = client()
+        c3.post("/api/auth/login", json={"identifier": email, "password": PASSWORD, "portal": "PLATFORM"})
+        assert c3.post("/api/auth/mfa/verify", json={"code": recovery[0]}).status_code == 422
+        for _ in range(3):
+            c3.post("/api/auth/mfa/verify", json={"code": "999999"})
+        last = c3.post("/api/auth/mfa/verify", json={"code": "999999"})
+        assert last.status_code == 401 and last.json()["error"]["code"] == "MFA_TOO_MANY_ATTEMPTS"
+        assert c3.get("/api/auth/me").status_code == 401
+    finally:
+        owner_sql("UPDATE iam.mfa_factor SET disabled_at = now() WHERE user_id = $1 AND disabled_at IS NULL", uid)

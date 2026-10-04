@@ -46,9 +46,14 @@ export default function Login() {
     e.preventDefault();
     setBusy(true); setError(null);
     try {
-      const me = await login(identifier.trim(), password, portal);
+      const res = await login(identifier.trim(), password, portal);
       const next = params.get("next");
-      nav(next && next.startsWith("/") && !next.startsWith("//") ? next : homeFor(me), { replace: true });
+      const safeNext = next && next.startsWith("/") && !next.startsWith("//") ? next : null;
+      if ("mfa" in res) {
+        nav(`/mfa?mode=${res.mfa}${safeNext ? `&next=${encodeURIComponent(safeNext)}` : ""}`, { replace: true });
+        return;
+      }
+      nav(safeNext ?? homeFor(res), { replace: true });
     } catch (err) { setError(err); } finally { setBusy(false); }
   };
 

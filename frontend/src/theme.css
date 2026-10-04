@@ -352,3 +352,7 @@ table.table { width: 100%; border-collapse: collapse; font-size: 14px; }
 .seat.mine:hover:not(:disabled) { color: var(--on-primary); border-color: var(--primary); }
 .eyebrow { align-self: flex-start; }
 .table td.mono { white-space: nowrap; }
+
+/* ---------- Two-step sign-in ---------- */
+.recovery-codes { list-style: none; margin: 0; padding: 16px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 24px;
+  background: var(--surface-container-low); border: 1px solid var(--divider); border-radius: var(--radius-s); font-size: 15px; }

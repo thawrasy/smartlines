@@ -5,9 +5,11 @@ from typing import Literal, Optional
 from fastapi import APIRouter, Depends, Request, Response
 from pydantic import BaseModel, EmailStr, Field
 
-from .. import db
+import json
+
+from .. import crypto, db, mfa
 from ..config import get_settings
-from ..deps import SESSION_COOKIE, Principal, base_context, require_user
+from ..deps import SESSION_COOKIE, Principal, base_context, mfa_required_for, require_session, require_user
 from ..errors import ApiError
 from ..security import hash_password, identifier_hash, new_token, password_problem, verify_password
 
@@ -86,7 +88,9 @@ async def login(body: LoginIn, request: Request, response: Response):
     ctx.scope = "SYSTEM"
     async with db.transaction(ctx) as conn:
         user = await conn.fetchrow(
-            """SELECT id, account_kind, password_hash, status, locked_until, failed_attempts
+            """SELECT id, account_kind, password_hash, status, locked_until, failed_attempts, mfa_required,
+                      EXISTS (SELECT 1 FROM iam.mfa_factor f WHERE f.user_id = app_user.id AND f.factor_type = 'TOTP'
+                                 AND f.verified_at IS NOT NULL AND f.disabled_at IS NULL) AS mfa_enrolled
                  FROM iam.app_user WHERE email = $1 OR mobile = $1""", ident)
         if user is None:
             verify_password(None, body.password)
@@ -143,11 +147,13 @@ async def login(body: LoginIn, request: Request, response: Response):
                           company_id=company_id, session_id=session_id)
     response.set_cookie(SESSION_COOKIE, token, max_age=s.session_hours * 3600, httponly=True,
                         secure=s.cookie_secure, samesite="strict", path="/")
-    return {"ok": True, "portal": body.portal}
+    needs = mfa_required_for(body.portal, user["mfa_required"], user["mfa_enrolled"])
+    return {"ok": True, "portal": body.portal,
+            "mfa": ("VERIFY" if user["mfa_enrolled"] else "ENROLL") if needs else None}
 
 
 @router.post("/logout")
-async def logout(request: Request, response: Response, principal: Principal = Depends(require_user)):
+async def logout(request: Request, response: Response, principal: Principal = Depends(require_session)):
     ctx = base_context(request)
     ctx.scope = "SYSTEM"
     async with db.transaction(ctx) as conn:
@@ -176,6 +182,7 @@ async def me(request: Request, principal: Principal = Depends(require_user)):
         "uid": principal.user_uid, "name": principal.display_name, "email": principal.email,
         "portal": principal.portal, "locale": principal.locale, "company": company,
         "roles": sorted(principal.roles), "permissions": sorted(principal.permissions), "is_owner": principal.is_owner,
+        "mfa": {"enrolled": principal.mfa_enrolled, "required": principal.mfa_required},
     }
 
 
@@ -191,4 +198,161 @@ async def set_locale(body: LocaleIn, request: Request, principal: Principal = De
         if not await conn.fetchval("SELECT 1 FROM ref.locale WHERE code = $1 AND is_enabled", body.locale):
             raise ApiError(422, "LOCALE_NOT_ENABLED", "locale is not enabled")
         await conn.execute("UPDATE iam.app_user SET preferred_locale = $2 WHERE id = $1", principal.user_id, body.locale)
+    return {"ok": True}
+
+
+# ---------------------------------------------------------------- two-factor sign-in (TOTP)
+MFA_MAX_FAILURES = 5
+SECRET_COLUMN = "iam.mfa_factor.secret"
+RECOVERY_COLUMN = "iam.mfa_factor.recovery"
+
+
+class CodeIn(BaseModel):
+    code: str = Field(min_length=6, max_length=20)
+
+
+def _system(request: Request):
+    ctx = base_context(request)
+    ctx.scope = "SYSTEM"
+    return ctx
+
+
+async def _issue_recovery_codes(conn, fc: crypto.FieldCipher, user_id: int) -> list[str]:
+    codes = mfa.new_recovery_codes()
+    sealed = fc.encrypt(json.dumps([mfa.hash_recovery_code(c) for c in codes]), RECOVERY_COLUMN)
+    await conn.execute("UPDATE iam.mfa_factor SET disabled_at = now() WHERE user_id = $1 "
+                       "AND factor_type = 'RECOVERY_CODES' AND disabled_at IS NULL", user_id)
+    await conn.execute("""INSERT INTO iam.mfa_factor (user_id, factor_type, secret_enc, enc_key_id, verified_at)
+                          VALUES ($1, 'RECOVERY_CODES', $2, $3, now())""", user_id, sealed.ciphertext, sealed.key_id)
+    return codes
+
+
+@router.post("/mfa/enroll")
+async def mfa_enroll(request: Request, pr: Principal = Depends(require_session)):
+    """Starts enrolment: returns a new secret and its otpauth URI for the authenticator app."""
+    if pr.mfa_enrolled and pr.mfa_pending:
+        raise ApiError(409, "MFA_VERIFY_FIRST", "confirm your current code before enrolling a new device")
+    secret = mfa.new_secret()
+    async with db.transaction(_system(request)) as conn:
+        fc = await crypto.cipher(conn)
+        sealed = fc.encrypt(secret, SECRET_COLUMN)
+        await conn.execute("DELETE FROM iam.mfa_factor WHERE user_id = $1 AND factor_type = 'TOTP' AND verified_at IS NULL",
+                           pr.user_id)
+        await conn.execute("""INSERT INTO iam.mfa_factor (user_id, factor_type, secret_enc, enc_key_id, label)
+                              VALUES ($1, 'TOTP', $2, $3, 'pending')""", pr.user_id, sealed.ciphertext, sealed.key_id)
+    return {"secret": secret, "uri": mfa.provisioning_uri(secret, pr.email or pr.user_uid),
+            "digits": mfa.DIGITS, "period": mfa.STEP_SECONDS}
+
+
+@router.post("/mfa/confirm")
+async def mfa_confirm(body: CodeIn, request: Request, pr: Principal = Depends(require_session)):
+    """Finishes enrolment with the first code; returns ten single-use recovery codes, shown only once."""
+    async with db.transaction(_system(request)) as conn:
+        fc = await crypto.cipher(conn)
+        f = await conn.fetchrow("""SELECT id, secret_enc, enc_key_id FROM iam.mfa_factor
+                                    WHERE user_id = $1 AND factor_type = 'TOTP' AND verified_at IS NULL
+                                    ORDER BY id DESC LIMIT 1""", pr.user_id)
+        if f is None:
+            raise ApiError(409, "MFA_NOT_STARTED", "start enrolment first")
+        step = mfa.verify(fc.decrypt(f["secret_enc"], f["enc_key_id"], SECRET_COLUMN), body.code, None)
+        if step is None:
+            await _auth_event(conn, request, "MFA_FAILED", "FAILURE", user_id=pr.user_id, portal=pr.portal,
+                              session_id=pr.session_id, reason="enrol_wrong_code")
+            raise ApiError(422, "MFA_CODE_INVALID", "the code does not match; check the time on your phone")
+        await conn.execute("UPDATE iam.mfa_factor SET disabled_at = now() WHERE user_id = $1 AND factor_type = 'TOTP' "
+                           "AND verified_at IS NOT NULL AND disabled_at IS NULL", pr.user_id)
+        await conn.execute("UPDATE iam.mfa_factor SET verified_at = now(), last_used_step = $2, label = 'authenticator' "
+                           "WHERE id = $1", f["id"], step)
+        codes = await _issue_recovery_codes(conn, fc, pr.user_id)
+        await conn.execute("UPDATE iam.user_session SET mfa_passed = true, mfa_failures = 0 WHERE id = $1", pr.session_id)
+        await _auth_event(conn, request, "MFA_SUCCESS", "SUCCESS", user_id=pr.user_id, portal=pr.portal,
+                          session_id=pr.session_id, reason="enrolled")
+    request.state.audit = {"action": "auth.mfa_enrol", "object_type": "app_user", "object_id": pr.user_id}
+    return {"ok": True, "recovery_codes": codes}
+
+
+@router.post("/mfa/verify")
+async def mfa_verify(body: CodeIn, request: Request, response: Response, pr: Principal = Depends(require_session)):
+    """Second step of sign-in: a code from the authenticator app, or one of the recovery codes."""
+    if not pr.mfa_pending:
+        return {"ok": True}
+    async with db.transaction(_system(request)) as conn:
+        fc = await crypto.cipher(conn)
+        ok, used_recovery = False, False
+        f = await conn.fetchrow("""SELECT id, secret_enc, enc_key_id, last_used_step FROM iam.mfa_factor
+                                    WHERE user_id = $1 AND factor_type = 'TOTP' AND verified_at IS NOT NULL
+                                      AND disabled_at IS NULL FOR UPDATE""", pr.user_id)
+        if f and body.code.strip().isdigit():
+            step = mfa.verify(fc.decrypt(f["secret_enc"], f["enc_key_id"], SECRET_COLUMN), body.code, f["last_used_step"])
+            if step is not None:
+                await conn.execute("UPDATE iam.mfa_factor SET last_used_step = $2 WHERE id = $1", f["id"], step)
+                ok = True
+        elif f:
+            r = await conn.fetchrow("""SELECT id, secret_enc, enc_key_id FROM iam.mfa_factor WHERE user_id = $1
+                                        AND factor_type = 'RECOVERY_CODES' AND disabled_at IS NULL FOR UPDATE""", pr.user_id)
+            if r:
+                hashes = json.loads(fc.decrypt(r["secret_enc"], r["enc_key_id"], RECOVERY_COLUMN))
+                h = mfa.hash_recovery_code(body.code)
+                if h in hashes:
+                    hashes.remove(h)
+                    sealed = fc.encrypt(json.dumps(hashes), RECOVERY_COLUMN)
+                    await conn.execute("UPDATE iam.mfa_factor SET secret_enc = $2, enc_key_id = $3 WHERE id = $1",
+                                       r["id"], sealed.ciphertext, sealed.key_id)
+                    ok = used_recovery = True
+        if ok:
+            await conn.execute("UPDATE iam.user_session SET mfa_passed = true, mfa_failures = 0 WHERE id = $1",
+                               pr.session_id)
+            await _auth_event(conn, request, "MFA_SUCCESS", "SUCCESS", user_id=pr.user_id, portal=pr.portal,
+                              session_id=pr.session_id, reason="recovery_code" if used_recovery else "totp")
+        else:
+            fails = await conn.fetchval("UPDATE iam.user_session SET mfa_failures = mfa_failures + 1 WHERE id = $1 "
+                                        "RETURNING mfa_failures", pr.session_id)
+            await _auth_event(conn, request, "MFA_FAILED", "FAILURE", user_id=pr.user_id, portal=pr.portal,
+                              session_id=pr.session_id, reason="wrong_code")
+            if fails >= MFA_MAX_FAILURES:
+                await conn.execute("UPDATE iam.user_session SET revoked_at = now(), revoke_reason = 'mfa_failures' "
+                                   "WHERE id = $1", pr.session_id)
+                await _auth_event(conn, request, "SESSION_REVOKED", "BLOCKED", user_id=pr.user_id, portal=pr.portal,
+                                  session_id=pr.session_id, reason="mfa_failures")
+    if not ok:
+        if fails >= MFA_MAX_FAILURES:
+            response.delete_cookie(SESSION_COOKIE, path="/")
+            raise ApiError(401, "MFA_TOO_MANY_ATTEMPTS", "too many wrong codes; sign in again")
+        raise ApiError(422, "MFA_CODE_INVALID", "the code is not valid", attempts_left=MFA_MAX_FAILURES - fails)
+    return {"ok": True, "recovery_code_used": used_recovery}
+
+
+@router.post("/mfa/recovery-codes")
+async def mfa_new_recovery_codes(body: CodeIn, request: Request, pr: Principal = Depends(require_user)):
+    """Replaces the recovery codes; needs a current authenticator code."""
+    async with db.transaction(_system(request)) as conn:
+        fc = await crypto.cipher(conn)
+        f = await conn.fetchrow("""SELECT id, secret_enc, enc_key_id, last_used_step FROM iam.mfa_factor
+                                    WHERE user_id = $1 AND factor_type = 'TOTP' AND verified_at IS NOT NULL
+                                      AND disabled_at IS NULL FOR UPDATE""", pr.user_id)
+        step = f and mfa.verify(fc.decrypt(f["secret_enc"], f["enc_key_id"], SECRET_COLUMN), body.code, f["last_used_step"])
+        if not step:
+            raise ApiError(422, "MFA_CODE_INVALID", "the code is not valid")
+        await conn.execute("UPDATE iam.mfa_factor SET last_used_step = $2 WHERE id = $1", f["id"], step)
+        codes = await _issue_recovery_codes(conn, fc, pr.user_id)
+    request.state.audit = {"action": "auth.mfa_recovery_codes", "object_type": "app_user", "object_id": pr.user_id}
+    return {"recovery_codes": codes}
+
+
+@router.post("/mfa/disable")
+async def mfa_disable(body: CodeIn, request: Request, pr: Principal = Depends(require_user)):
+    """Turns the second factor off, unless the account or portal requires it."""
+    async with db.transaction(_system(request)) as conn:
+        account_requires = await conn.fetchval("SELECT mfa_required FROM iam.app_user WHERE id = $1", pr.user_id)
+        if mfa_required_for(pr.portal, account_requires, False):
+            raise ApiError(409, "MFA_REQUIRED_BY_POLICY", "two-factor sign-in is required for this account")
+        fc = await crypto.cipher(conn)
+        f = await conn.fetchrow("""SELECT id, secret_enc, enc_key_id, last_used_step FROM iam.mfa_factor
+                                    WHERE user_id = $1 AND factor_type = 'TOTP' AND verified_at IS NOT NULL
+                                      AND disabled_at IS NULL FOR UPDATE""", pr.user_id)
+        if not f or not mfa.verify(fc.decrypt(f["secret_enc"], f["enc_key_id"], SECRET_COLUMN), body.code, f["last_used_step"]):
+            raise ApiError(422, "MFA_CODE_INVALID", "the code is not valid")
+        await conn.execute("UPDATE iam.mfa_factor SET disabled_at = now() WHERE user_id = $1 AND disabled_at IS NULL",
+                           pr.user_id)
+    request.state.audit = {"action": "auth.mfa_disable", "object_type": "app_user", "object_id": pr.user_id}
     return {"ok": True}

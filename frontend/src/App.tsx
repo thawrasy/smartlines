@@ -13,6 +13,7 @@ import MyTrips from "./pages/passenger/MyTrips";
 import Wallet from "./pages/passenger/Wallet";
 import Login from "./pages/auth/Login";
 import Register from "./pages/auth/Register";
+import Mfa from "./pages/auth/Mfa";
 import Verify from "./pages/Verify";
 import { CarrierCrew, CarrierDashboard, CarrierRoutes, CarrierTrips, CarrierVehicles } from "./pages/carrier/Carrier";
 import { DriverLayout, DriverTrip, DriverTrips } from "./pages/driver/Driver";
@@ -78,6 +79,7 @@ export default function App() {
           <Route path="verify" element={<Verify />} />
           <Route path="login" element={<Login />} />
           <Route path="register" element={<Register />} />
+          <Route path="mfa" element={<Mfa />} />
           <Route path="*" element={<NotFound />} />
         </Route>
         <Route element={<RequirePortal portal="OPERATOR"><CarrierShell /></RequirePortal>}>
