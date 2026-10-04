@@ -28,6 +28,13 @@ async def health():
     return {"ok": True}
 
 
+@router.get("/public/keys/ticket")
+async def ticket_key():
+    """Public key for verifying offline ticket credentials (Ed25519). Apps pin it and can check tickets offline."""
+    from ..security import ticket_public_key
+    return {"alg": "Ed25519", "kid": "ticket-credential/v1", "public_key": ticket_public_key()}
+
+
 @router.get("/ref")
 async def reference(request: Request):
     async with db.transaction(_ctx(request)) as conn:

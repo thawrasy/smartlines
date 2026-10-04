@@ -73,6 +73,35 @@ async def change_password(conn, ctx: db.Context, pr: Principal, current: str, ne
     await auth_event(conn, ctx, pr, "PASSWORD_CHANGED")
 
 
+# ------------------------------------------------------------------ mobile devices
+async def devices(conn, pr: Principal) -> list[dict]:
+    return rows(await conn.fetch(
+        """SELECT d.id, d.platform, d.app_version, d.first_seen_at, d.last_seen_at, d.revoked_at,
+                  d.id = (SELECT device_id FROM iam.user_session WHERE id = $2) AS current
+             FROM iam.device d WHERE d.user_id = $1 ORDER BY d.last_seen_at DESC""", pr.user_id, pr.session_id))
+
+
+async def revoke_device(conn, ctx: db.Context, pr: Principal, device_id: int) -> None:
+    """A lost phone: the device can no longer sign in or refresh, and its sessions end now."""
+    n = await conn.execute("UPDATE iam.device SET revoked_at = now(), trust_status = 'REVOKED' WHERE id = $1 AND user_id = $2 AND revoked_at IS NULL",
+                           device_id, pr.user_id)
+    if n.endswith(" 0"):
+        raise not_found("device")
+    await conn.execute("UPDATE iam.user_session SET revoked_at = now(), revoke_reason = 'DEVICE_REVOKED' WHERE device_id = $1 AND revoked_at IS NULL",
+                       device_id)
+    await conn.execute("DELETE FROM iam.push_token WHERE device_id = $1", device_id)
+    await auth_event(conn, ctx, pr, "SESSION_REVOKED", "device signed out")
+
+
+async def register_push(conn, pr: Principal, token: str) -> None:
+    device = await conn.fetchval("SELECT device_id FROM iam.user_session WHERE id = $1", pr.session_id)
+    if device is None:
+        raise ApiError(409, "NOT_A_DEVICE", "push tokens are registered from the mobile apps")
+    await conn.execute(
+        """INSERT INTO iam.push_token (device_id, token) VALUES ($1, $2)
+           ON CONFLICT (device_id) DO UPDATE SET token = EXCLUDED.token, updated_at = now()""", device, token)
+
+
 # ------------------------------------------------------------------ privacy
 async def consents(conn, pr: Principal) -> list[dict]:
     latest = await conn.fetch(

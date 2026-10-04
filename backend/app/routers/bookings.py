@@ -104,6 +104,19 @@ def qr_response(ticket_uid: uuid.UUID, status) -> dict:
     return {"token": token, "valid_until": valid_until, "window": get_settings().qr_window_seconds}
 
 
+@router.get("/tickets/{ticket_uid}/offline")
+async def ticket_offline(ticket_uid: uuid.UUID, request: Request, pr: Principal = Depends(passenger)):
+    """Signed credential the app stores to show the ticket with no connection (the driver app verifies it offline)."""
+    ctx = context_for(request, pr)
+    async with db.transaction(ctx) as conn:
+        owned = await conn.fetchval(
+            """SELECT 1 FROM sales.ticket k JOIN sales.booking b ON b.id = k.booking_id
+                WHERE k.uid = $1 AND b.booker_party_id = $2""", ticket_uid, pr.party_id)
+        if not owned:
+            raise not_found("ticket")
+        return await sales.offline_credential(conn, ctx, ticket_uid)
+
+
 @router.post("/bookings/{ref}/cancel")
 async def cancel_booking(ref: str, request: Request, pr: Principal = Depends(passenger)):
     ctx = context_for(request, pr)

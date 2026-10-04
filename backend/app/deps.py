@@ -57,6 +57,7 @@ async def load_principal(conn: asyncpg.Connection, token: str) -> Optional[Princ
           JOIN iam.app_user u ON u.id = s.user_id
           JOIN iam.party p ON p.id = u.party_id
          WHERE s.token_hash = $1 AND s.revoked_at IS NULL AND s.expires_at > now() AND u.status = 'ACTIVE'
+           AND (s.access_expires_at IS NULL OR s.access_expires_at > now())
         """,
         token_hash(token),
     )
@@ -98,8 +99,16 @@ async def load_principal(conn: asyncpg.Connection, token: str) -> Optional[Princ
     return pr
 
 
+def _presented_token(request: Request) -> Optional[str]:
+    """The web uses the HttpOnly session cookie; mobile apps send their access token as a bearer token."""
+    auth = request.headers.get("authorization", "")
+    if auth.lower().startswith("bearer ") and request.headers.get("x-masslak-client") in ("android", "ios"):
+        return auth[7:].strip() or None
+    return request.cookies.get(SESSION_COOKIE)
+
+
 async def optional_principal(request: Request) -> Optional[Principal]:
-    token = request.cookies.get(SESSION_COOKIE)
+    token = _presented_token(request)
     if not token:
         return None
     ctx = base_context(request)

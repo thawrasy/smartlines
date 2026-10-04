@@ -2,8 +2,11 @@
 import base64
 import hashlib
 import hmac
+import json
+import os
 import secrets
 import time
+from functools import lru_cache
 
 from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHashError, VerificationError, VerifyMismatchError
@@ -101,3 +104,46 @@ def verify_document_token(token: str) -> tuple[str, str] | None:
     if version != "D1" or not hmac.compare_digest(sig, _sign(payload)):
         return None
     return kind, uid
+
+
+# ------------------------------------------------------------------ offline ticket credentials (Ed25519)
+# A credential lets the driver app check a ticket with no connection. The platform signs it with a private key
+# that never leaves the server (MASSLAK_TICKET_SIGNING_KEY, a base64 Ed25519 seed; in development a key derived
+# from the signing secret); apps hold only the public key, which can verify but never create a ticket.
+# A credential is valid for one trip, so a copy can board at most once and shows as a duplicate.
+
+@lru_cache(maxsize=1)
+def _ticket_key():
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+    from cryptography.hazmat.primitives.hashes import SHA256
+    from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+    raw = os.environ.get("MASSLAK_TICKET_SIGNING_KEY", "").strip()
+    seed = base64.b64decode(raw) if raw else HKDF(algorithm=SHA256(), length=32, salt=b"masslak-dev-keys",
+                                                   info=b"ticket-credential").derive(get_settings().signing_secret.encode())
+    return Ed25519PrivateKey.from_private_bytes(seed)
+
+
+def ticket_public_key() -> str:
+    from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
+    return _b64(_ticket_key().public_key().public_bytes(Encoding.Raw, PublicFormat.Raw))
+
+
+def ticket_credential(claims: dict) -> str:
+    """T2.<payload>.<signature>, both base64url; claims: k ticket, t trip, s seat, n name, a/b stops, x expiry."""
+    payload = _b64(json.dumps({"v": 2, **claims}, separators=(",", ":"), ensure_ascii=False).encode())
+    return f"T2.{payload}.{_b64(_ticket_key().sign(payload.encode()))}"
+
+
+def verify_ticket_credential(token: str, now: float | None = None) -> dict | None:
+    from cryptography.exceptions import InvalidSignature
+    try:
+        version, payload, sig = token.split(".")
+        if version != "T2":
+            return None
+        _ticket_key().public_key().verify(base64.urlsafe_b64decode(sig + "=" * (-len(sig) % 4)), payload.encode())
+        claims = json.loads(base64.urlsafe_b64decode(payload + "=" * (-len(payload) % 4)))
+    except (ValueError, InvalidSignature):
+        return None
+    if claims.get("x", 0) < (now or time.time()):
+        return None
+    return claims

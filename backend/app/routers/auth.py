@@ -1,17 +1,17 @@
-"""Registration, login, logout and the current user."""
+"""Registration, login (web cookie or mobile tokens), token refresh, logout and the current user."""
+import hmac
+import json
 from datetime import datetime, timedelta, timezone
 from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, Request, Response
 from pydantic import BaseModel, EmailStr, Field
 
-import json
-
 from .. import crypto, db, mfa
 from ..config import get_settings
 from ..deps import SESSION_COOKIE, Principal, base_context, mfa_required_for, require_session, require_user
 from ..errors import ApiError
-from ..security import hash_password, identifier_hash, new_token, password_problem, verify_password
+from ..security import hash_password, identifier_hash, new_token, password_problem, token_hash, verify_password
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -37,6 +37,13 @@ class LoginIn(BaseModel):
     identifier: str = Field(min_length=3, max_length=200)
     password: str = Field(min_length=1, max_length=200)
     portal: Portal = "PASSENGER"
+    # Mobile apps only: a random identifier the app generates at install and keeps in the device keystore
+    device_id: Optional[str] = Field(default=None, min_length=16, max_length=64, pattern=r"^[A-Za-z0-9_-]+$")
+    app_version: Optional[str] = Field(default=None, max_length=20)
+
+
+MOBILE_CLIENTS = {"android": "ANDROID", "ios": "IOS"}
+ACCESS_MINUTES, MOBILE_SESSION_DAYS = 15, 30
 
 
 async def _auth_event(conn, request: Request, event: str, result: str, *, user_id=None, portal=None,
@@ -138,22 +145,88 @@ async def login(body: LoginIn, request: Request, response: Response):
                     "WHERE u.id = $1 AND cp.company_id = $2 AND cp.status = 'ACTIVE'", user["id"], company_id):
                 raise ApiError(403, "NOT_A_DRIVER", "the account is not registered as crew")
         token, thash = new_token()
-        expires = datetime.now(timezone.utc) + timedelta(hours=s.session_hours)
+        client = request.headers.get("x-masslak-client", "web")
+        now = datetime.now(timezone.utc)
+        refresh = refresh_hash = device = access_expires = None
+        if client in MOBILE_CLIENTS:
+            # Mobile: a 15-minute access token and a rotating refresh token, bound to this installation
+            if not body.device_id:
+                raise ApiError(422, "DEVICE_REQUIRED", "mobile sign-in needs the app's device identifier")
+            device = await conn.fetchval(
+                """INSERT INTO iam.device (user_id, fingerprint_hash, platform, app_version, trust_status)
+                   VALUES ($1, $2, $3, $4, 'TRUSTED')
+                   ON CONFLICT (user_id, fingerprint_hash) DO UPDATE SET last_seen_at = now(), app_version = EXCLUDED.app_version
+                   WHERE iam.device.revoked_at IS NULL
+                   RETURNING id""", user["id"], token_hash(body.device_id), MOBILE_CLIENTS[client], body.app_version)
+            if device is None:
+                raise ApiError(403, "DEVICE_REVOKED", "this device was signed out by the account holder")
+            refresh, refresh_hash = new_token()
+            access_expires = now + timedelta(minutes=ACCESS_MINUTES)
+            expires = now + timedelta(days=MOBILE_SESSION_DAYS)
+        else:
+            client, expires = "web", now + timedelta(hours=s.session_hours)
         session_id = await conn.fetchval(
-            """INSERT INTO iam.user_session (user_id, portal, company_id, token_hash, ip, user_agent, expires_at)
-               VALUES ($1, $2, $3, $4, $5::inet, $6, $7) RETURNING id""",
+            """INSERT INTO iam.user_session (user_id, portal, company_id, token_hash, ip, user_agent, expires_at,
+                 client, device_id, refresh_hash, access_expires_at)
+               VALUES ($1, $2, $3, $4, $5::inet, $6, $7, $8, $9, $10, $11) RETURNING id""",
             user["id"], body.portal, company_id, thash, request.state.client_ip,
-            request.headers.get("user-agent", "")[:300], expires)
+            request.headers.get("user-agent", "")[:300], expires, client, device, refresh_hash, access_expires)
         await conn.execute(
             "UPDATE iam.app_user SET failed_attempts = 0, locked_until = NULL, last_login_at = now(), "
             "last_login_ip = $2::inet WHERE id = $1", user["id"], request.state.client_ip)
         await _auth_event(conn, request, "LOGIN_SUCCESS", "SUCCESS", user_id=user["id"], portal=body.portal,
                           company_id=company_id, session_id=session_id)
+    needs = mfa_required_for(body.portal, user["mfa_required"], user["mfa_enrolled"])
+    out = {"ok": True, "portal": body.portal, "mfa": ("VERIFY" if user["mfa_enrolled"] else "ENROLL") if needs else None}
+    if refresh:
+        # Mobile apps keep both tokens in the Keychain or Android Keystore; nothing goes into a cookie
+        return {**out, "access_token": token, "refresh_token": refresh, "access_expires_at": access_expires.isoformat(),
+                "session_expires_at": expires.isoformat()}
     response.set_cookie(SESSION_COOKIE, token, max_age=s.session_hours * 3600, httponly=True,
                         secure=s.cookie_secure, samesite="strict", path="/")
-    needs = mfa_required_for(body.portal, user["mfa_required"], user["mfa_enrolled"])
-    return {"ok": True, "portal": body.portal,
-            "mfa": ("VERIFY" if user["mfa_enrolled"] else "ENROLL") if needs else None}
+    return out
+
+
+class RefreshIn(BaseModel):
+    refresh_token: str = Field(min_length=20, max_length=100)
+    device_id: str = Field(min_length=16, max_length=64, pattern=r"^[A-Za-z0-9_-]+$")
+
+
+@router.post("/refresh")
+async def refresh(body: RefreshIn, request: Request):
+    """Rotates a mobile session's tokens. A refresh token works once: presenting a rotated one again means it was
+    copied, so the whole session is revoked and the person must sign in again."""
+    ctx = base_context(request)
+    ctx.scope = "SYSTEM"
+    presented = token_hash(body.refresh_token)
+    async with db.transaction(ctx) as conn:
+        sess = await conn.fetchrow(
+            """SELECT s.id, s.user_id, s.portal, s.company_id, d.fingerprint_hash FROM iam.user_session s
+                 JOIN iam.device d ON d.id = s.device_id
+                WHERE s.refresh_hash = $1 AND s.revoked_at IS NULL AND s.expires_at > now() AND d.revoked_at IS NULL
+                FOR UPDATE OF s""", presented)
+        if sess is None:
+            reused = await conn.fetchrow(
+                "SELECT id, user_id, portal FROM iam.user_session WHERE prev_refresh_hash = $1 AND revoked_at IS NULL", presented)
+            if reused:
+                await conn.execute("UPDATE iam.user_session SET revoked_at = now(), revoke_reason = 'REFRESH_REUSE' WHERE id = $1",
+                                   reused["id"])
+                await _auth_event(conn, request, "SESSION_REVOKED", "BLOCKED", user_id=reused["user_id"],
+                                  portal=reused["portal"], session_id=reused["id"], reason="refresh_token_reuse")
+        elif not hmac.compare_digest(bytes(sess["fingerprint_hash"]), token_hash(body.device_id)):
+            sess = None                                   # a token moved to another installation is refused
+    if sess is None:
+        raise ApiError(401, "SESSION_EXPIRED", "sign in again")
+    token, thash = new_token()
+    refresh_token, rhash = new_token()
+    access_expires = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_MINUTES)
+    async with db.transaction(ctx) as conn:
+        await conn.execute(
+            """UPDATE iam.user_session SET token_hash = $2, prev_refresh_hash = refresh_hash, refresh_hash = $3,
+                 access_expires_at = $4, last_seen_at = now() WHERE id = $1""", sess["id"], thash, rhash, access_expires)
+        await _auth_event(conn, request, "TOKEN_REFRESH", "SUCCESS", user_id=sess["user_id"], portal=sess["portal"],
+                          company_id=sess["company_id"], session_id=sess["id"])
+    return {"access_token": token, "refresh_token": refresh_token, "access_expires_at": access_expires.isoformat()}
 
 
 @router.post("/logout")

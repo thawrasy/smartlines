@@ -48,6 +48,31 @@ async def change_password(body: PasswordIn, request: Request, pr: Principal = De
     return {"ok": True}
 
 
+@router.get("/devices")
+async def devices(request: Request, pr: Principal = Depends(require_user)):
+    async with db.transaction(context_for(request, pr)) as conn:
+        return {"devices": await service.devices(conn, pr)}
+
+
+@router.post("/devices/{device_id}/revoke")
+async def revoke_device(device_id: int, request: Request, pr: Principal = Depends(require_user)):
+    ctx = context_for(request, pr)
+    async with db.transaction(ctx) as conn:
+        await service.revoke_device(conn, ctx, pr, device_id)
+    return {"ok": True}
+
+
+class PushIn(BaseModel):
+    token: str = Field(min_length=10, max_length=300, pattern=r"^[A-Za-z0-9_:\-\[\]\.]+$")
+
+
+@router.post("/push-token")
+async def push_token(body: PushIn, request: Request, pr: Principal = Depends(require_user)):
+    async with db.transaction(context_for(request, pr)) as conn:
+        await service.register_push(conn, pr, body.token)
+    return {"ok": True}
+
+
 @router.get("/consents")
 async def consents(request: Request, pr: Principal = Depends(require_user)):
     async with db.transaction(context_for(request, pr)) as conn:

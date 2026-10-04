@@ -7,7 +7,7 @@ from pydantic import BaseModel, EmailStr, Field
 
 from ... import db
 from ...deps import Principal, context_for, require_portal
-from ...errors import ApiError
+from ...errors import ApiError, not_found
 from ...routers.bookings import qr_response
 from ...security import password_problem
 from ..sales import service as sales
@@ -80,6 +80,15 @@ async def ticket_qr(ticket_uid: uuid.UUID, request: Request, pr: Principal = Dep
     async with db.transaction(context_for(request, pr)) as conn:
         status = await repo.ticket_status(conn, service.require_agency(pr), ticket_uid)
     return qr_response(ticket_uid, status)
+
+
+@router.get("/tickets/{ticket_uid}/offline")
+async def ticket_offline(ticket_uid: uuid.UUID, request: Request, pr: Principal = Depends(agency)):
+    ctx = context_for(request, pr)
+    async with db.transaction(ctx) as conn:
+        if await repo.ticket_status(conn, service.require_agency(pr), ticket_uid) is None:
+            raise not_found("ticket")
+        return await sales.offline_credential(conn, ctx, ticket_uid)
 
 
 @router.get("/statement")

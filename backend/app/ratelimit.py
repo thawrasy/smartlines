@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 
 from .config import get_settings
 
-AUTH_PATHS = ("/api/auth/login", "/api/auth/register", "/api/auth/mfa", "/api/auth/password", "/api/account/password")
+AUTH_PATHS = ("/api/auth/login", "/api/auth/register", "/api/auth/mfa", "/api/auth/password", "/api/auth/refresh", "/api/account/password")
 PUBLIC_PATHS = ("/api/public/", "/api/trips", "/api/verify")
 
 

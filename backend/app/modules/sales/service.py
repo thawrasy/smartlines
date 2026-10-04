@@ -229,6 +229,28 @@ async def booking_view(conn: asyncpg.Connection, ctx: db.Context, b: asyncpg.Rec
     return {"booking": booking, "tickets": out}
 
 
+async def offline_credential(conn: asyncpg.Connection, ctx: db.Context, ticket_uid: uuid.UUID) -> dict:
+    """Signed credential for showing a ticket with no connection; the caller has already checked ownership."""
+    from ...security import ticket_credential
+    async with db.system_scope(conn, ctx):
+        k = await conn.fetchrow(
+            """SELECT k.uid, k.status, k.seat_no, k.from_seq, k.to_seq, t.uid AS trip_uid, t.arrival_at, t.trip_no,
+                      p.first_name, p.last_name, p.full_name,
+                      (SELECT s ->> 'label' FROM jsonb_array_elements(t.seat_map -> 'seats') s
+                        WHERE (s ->> 'n')::int = k.seat_no) AS seat_label
+                 FROM sales.ticket k JOIN ops.trip t ON t.id = k.trip_id JOIN sales.passenger p ON p.id = k.passenger_id
+                WHERE k.uid = $1""", ticket_uid)
+    if k is None:
+        raise not_found("ticket")
+    if k["status"] not in ("ISSUED", "BOARDED"):
+        raise ApiError(409, "TICKET_NOT_VALID", "ticket is not valid for boarding")
+    expires = int(k["arrival_at"].timestamp()) + 6 * 3600
+    token = ticket_credential({"k": str(k["uid"]), "t": str(k["trip_uid"]), "s": k["seat_label"] or str(k["seat_no"]),
+                               "n": ticket_name(k["first_name"], k["last_name"], k["full_name"]),
+                               "a": k["from_seq"], "b": k["to_seq"], "x": expires})
+    return {"credential": token, "valid_until": expires, "trip_no": k["trip_no"]}
+
+
 async def cancel_booking(conn: asyncpg.Connection, ctx: db.Context, b: asyncpg.Record, buyer: Buyer,
                          reason: str = "CUSTOMER") -> dict:
     """Cancels a confirmed booking before boarding and refunds by the fare brand schedule to the buyer's wallet.

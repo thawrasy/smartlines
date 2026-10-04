@@ -1,5 +1,6 @@
 """Driver app: assigned trips, boarding scan, stop arrival/departure and location reports."""
 import uuid
+from datetime import datetime, timezone
 from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, Request
@@ -8,7 +9,7 @@ from pydantic import BaseModel, Field
 from .. import db
 from ..deps import Principal, context_for, require_portal
 from ..errors import ApiError, not_found
-from ..security import verify_ticket_qr
+from ..security import ticket_public_key, verify_ticket_credential, verify_ticket_qr
 from ..util import row_dict, rows, ticket_name
 
 router = APIRouter(prefix="/api/driver", tags=["driver"])
@@ -50,39 +51,121 @@ async def my_trips(request: Request, pr: Principal = Depends(driver)):
 
 class ScanIn(BaseModel):
     trip_uid: uuid.UUID
-    token: str = Field(min_length=10, max_length=200)
+    token: str = Field(min_length=10, max_length=600)
     stop_seq: int = Field(default=0, ge=0)
 
 
-@router.post("/scan")
-async def scan(body: ScanIn, request: Request, pr: Principal = Depends(driver)):
-    ticket_uid = verify_ticket_qr(body.token.strip())
-    async with db.transaction(context_for(request, pr)) as conn:
-        t = await _assigned_trip(conn, pr, body.trip_uid)
-        if ticket_uid is None:
-            return {"result": "INVALID_QR"}
-        k = await conn.fetchrow(
-            """SELECT k.id, k.trip_id, k.status, k.seat_no, p.full_name, p.first_name, p.last_name FROM sales.ticket k
-                 JOIN sales.passenger p ON p.id = k.passenger_id WHERE k.uid = $1""", uuid.UUID(ticket_uid))
-        if k is None:
-            return {"result": "INVALID_QR"}
-        result = "OK"
+def _ticket_from_token(token: str, trip_uid: uuid.UUID) -> tuple[Optional[str], Optional[str]]:
+    """(ticket uid, early result). Accepts the rotating online code (T1) and the signed offline credential (T2)."""
+    token = token.strip()
+    if token.startswith("T2."):
+        claims = verify_ticket_credential(token)
+        if claims is None:
+            return None, "INVALID_QR"
+        if claims.get("t") != str(trip_uid):
+            return claims["k"], "WRONG_TRIP"
+        return claims["k"], None
+    uid = verify_ticket_qr(token)
+    return uid, None if uid else "INVALID_QR"
+
+
+async def _board(conn, pr: Principal, t, ticket_uid: Optional[str], early: Optional[str], stop_seq: int,
+                 method: str = "AGENT_SCAN", device_scan_id: Optional[str] = None, scanned_at=None) -> dict:
+    """Applies one boarding decision and records it. A repeated device scan id is answered from the first record."""
+    if device_scan_id:
+        prior = await conn.fetchrow(
+            "SELECT result FROM sales.boarding_event WHERE scanned_by_user_id = $1 AND device_scan_id = $2",
+            pr.user_id, device_scan_id)
+        if prior:
+            return {"result": prior["result"], "replayed": True}
+    if ticket_uid is None:
+        return {"result": early or "INVALID_QR"}
+    k = await conn.fetchrow(
+        """SELECT k.id, k.trip_id, k.status, k.seat_no, p.full_name, p.first_name, p.last_name FROM sales.ticket k
+             JOIN sales.passenger p ON p.id = k.passenger_id WHERE k.uid = $1""", uuid.UUID(ticket_uid))
+    if k is None:
+        return {"result": "INVALID_QR"}
+    result = early or "OK"
+    if result == "OK":
         if k["trip_id"] != t["id"]:
             result = "WRONG_TRIP"
         elif k["status"] == "BOARDED":
             result = "DUPLICATE"
         elif k["status"] != "ISSUED":
             result = "INVALID_QR"
-        await conn.execute(
-            """INSERT INTO sales.boarding_event (ticket_id, trip_id, stop_seq, event_type, method, result, scanned_by_user_id)
-               VALUES ($1, $2, $3, $4, 'AGENT_SCAN', $5, $6)""",
-            k["id"], t["id"], body.stop_seq, "BOARD" if result == "OK" else "DENIED", result, pr.user_id)
-        if result == "OK":
-            await conn.execute("UPDATE sales.ticket SET status = 'BOARDED', boarded_at = now() WHERE id = $1", k["id"])
-            if t["status"] == "PUBLISHED":
-                await conn.execute("UPDATE ops.trip SET status = 'BOARDING' WHERE id = $1", t["id"])
-    request.state.audit = {"action": "boarding.scan", "object_type": "ticket", "object_id": k["id"]}
-    return {"result": result, "seat_no": k["seat_no"], "passenger": ticket_name(k["first_name"], k["last_name"], k["full_name"])}
+    await conn.execute(
+        """INSERT INTO sales.boarding_event (ticket_id, trip_id, stop_seq, event_type, method, result, scanned_by_user_id,
+             device_scan_id, scanned_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)""",
+        k["id"], t["id"], stop_seq, "BOARD" if result == "OK" else "DENIED", method, result, pr.user_id,
+        device_scan_id, scanned_at)
+    if result == "OK":
+        await conn.execute("UPDATE sales.ticket SET status = 'BOARDED', boarded_at = coalesce($2, now()) WHERE id = $1",
+                           k["id"], scanned_at)
+        if t["status"] == "PUBLISHED":
+            await conn.execute("UPDATE ops.trip SET status = 'BOARDING' WHERE id = $1", t["id"])
+    return {"result": result, "ticket_id": k["id"], "seat_no": k["seat_no"],
+            "passenger": ticket_name(k["first_name"], k["last_name"], k["full_name"])}
+
+
+@router.post("/scan")
+async def scan(body: ScanIn, request: Request, pr: Principal = Depends(driver)):
+    ticket_uid, early = _ticket_from_token(body.token, body.trip_uid)
+    async with db.transaction(context_for(request, pr)) as conn:
+        t = await _assigned_trip(conn, pr, body.trip_uid)
+        out = await _board(conn, pr, t, ticket_uid, early, body.stop_seq)
+    if "ticket_id" in out:
+        request.state.audit = {"action": "boarding.scan", "object_type": "ticket", "object_id": out.pop("ticket_id")}
+    return out
+
+
+@router.get("/trips/{trip_uid}/offline")
+async def offline_pack(trip_uid: uuid.UUID, request: Request, pr: Principal = Depends(driver)):
+    """Everything the driver app needs to board this trip with no connection: the ticket list with seat and status
+    (to refuse cancelled tickets and catch duplicates) and the public key that verifies credentials. Names are the
+    ticket names only; document numbers never leave the server."""
+    async with db.transaction(context_for(request, pr)) as conn:
+        t = await _assigned_trip(conn, pr, trip_uid)
+        async with db.system_scope(conn, context_for(request, pr)):
+            tickets = await conn.fetch(
+                """SELECT k.uid, k.status, k.seat_no, k.from_seq, k.to_seq, p.first_name, p.last_name, p.full_name
+                     FROM sales.ticket k JOIN sales.passenger p ON p.id = k.passenger_id
+                    WHERE k.trip_id = $1 AND k.status IN ('ISSUED','BOARDED','CANCELLED') ORDER BY k.seat_no""", t["id"])
+    return {"trip_uid": str(trip_uid), "trip_no": t["trip_no"], "generated_at": datetime.now(timezone.utc).isoformat(),
+            "public_key": ticket_public_key(),
+            "tickets": [{"uid": str(k["uid"]), "status": k["status"], "seat_no": k["seat_no"], "from_seq": k["from_seq"],
+                         "to_seq": k["to_seq"], "name": ticket_name(k["first_name"], k["last_name"], k["full_name"])}
+                        for k in tickets]}
+
+
+class OfflineScan(BaseModel):
+    scan_id: str = Field(min_length=8, max_length=64, pattern=r"^[A-Za-z0-9_-]+$")   # generated on the device
+    token: str = Field(min_length=10, max_length=600)
+    scanned_at: datetime
+    stop_seq: int = Field(default=0, ge=0)
+
+
+class BatchIn(BaseModel):
+    trip_uid: uuid.UUID
+    scans: list[OfflineScan] = Field(min_length=1, max_length=200)
+
+
+@router.post("/scans/batch")
+async def scans_batch(body: BatchIn, request: Request, pr: Principal = Depends(driver)):
+    """Uploads scans made offline, in the order they happened. Each is applied once (the device scan id makes a
+    retried upload harmless); the server's answer is final, so the app corrects its local state from it."""
+    now = datetime.now(timezone.utc)
+    results = []
+    async with db.transaction(context_for(request, pr)) as conn:
+        t = await _assigned_trip(conn, pr, body.trip_uid)
+        for sc in sorted(body.scans, key=lambda x: x.scanned_at):
+            when = min(sc.scanned_at if sc.scanned_at.tzinfo else sc.scanned_at.replace(tzinfo=timezone.utc), now)
+            ticket_uid, early = _ticket_from_token(sc.token, body.trip_uid)
+            out = await _board(conn, pr, t, ticket_uid, early, sc.stop_seq, "OFFLINE_SCAN", sc.scan_id, when)
+            out.pop("ticket_id", None)
+            results.append({"scan_id": sc.scan_id, **out})
+    request.state.audit = {"action": "boarding.offline_batch", "object_type": "trip", "object_id": t["id"]}
+    return {"results": results}
 
 
 class StopEventIn(BaseModel):
