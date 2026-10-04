@@ -388,7 +388,7 @@ bundled for both platforms in CI, but have not yet been run on physical devices.
 
 ```
 docker compose up            # PostgreSQL, API, web, Caddy
-cd backend && pytest tests   # 98 tests: unit and end to end against a running API
+cd backend && pytest tests   # 104 tests: unit and end to end against a running API
 db/tests/run.sh              # 111 schema checks
 cd mobile && npm test        # core unit tests of the apps
 ```
@@ -438,6 +438,22 @@ Every module opens on a dashboard (`backend/app/modular/dashboards.py`): three t
 totals with an optional status filter and time window), status breakdowns, a 30-day daily trend and the five latest
 records. A portal sees only the widgets whose resource it may read, and every query runs under row-level security, so a
 carrier sees its own numbers and the platform sees the whole market. Tiles open the screen they summarise.
+
+### Workflows
+
+Beyond record keeping, the modules carry the steps people take (`backend/app/modular/workflows.py`, screens in
+`frontend/src/modules/workflows/`). Rules are checked in the caller's scope; bookkeeping the caller may not touch (the
+operator's wallet, pass inventory) runs in the platform scope of the same transaction, with the caller still audited.
+
+| Module | Who | Workflow |
+| --- | --- | --- |
+| Shuttle subscriptions | passenger | buy a plan from the wallet; subscription starts today and a QR pass is issued; one active subscription per plan |
+| Cargo | passenger, public | quote by zone and weight from the published rate table, send and pay from the wallet, public tracking without names or phone numbers (`/track`) |
+| Taxi | passenger | fare estimate from the city's approved meter tariff, request now or later (20 minutes to 7 days ahead), cancel while searching |
+| Car rental | passenger | classes, prices and available cars at a branch for a period, booking for the rental company to confirm, cancel |
+| Freight | passenger, carrier | post a load, carriers bid once each from the load board, the shipper awards one bid: the others are declined and a contract is drafted |
+
+Parcels sent from the site record the recipient and contents (file 1031).
 
 ### Demo data
 

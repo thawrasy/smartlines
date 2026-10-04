@@ -15,6 +15,7 @@ import Login from "./pages/auth/Login";
 import Register from "./pages/auth/Register";
 import Mfa from "./pages/auth/Mfa";
 import Verify from "./pages/Verify";
+import Track from "./pages/Track";
 import { CarrierCrew, CarrierDashboard, CarrierRoutes, CarrierTrips, CarrierVehicles } from "./pages/carrier/Carrier";
 import { CarrierLayouts } from "./pages/carrier/Layouts";
 import { AdminFinance, CompanyFinance } from "./pages/finance/Finance";
@@ -135,6 +136,8 @@ export default function App() {
           <Route path="trips" element={<RequirePortal portal="PASSENGER"><MyTrips /></RequirePortal>} />
           <Route path="wallet" element={<RequirePortal portal="PASSENGER"><Wallet /></RequirePortal>} />
           <Route path="verify" element={<Verify />} />
+          <Route path="track" element={<Track />} />
+          <Route path="track/:no" element={<Track />} />
           <Route path="account" element={<RequireUser><AccountPage /></RequireUser>} />
           <Route path="m/:module" element={<RequirePortal portal="PASSENGER"><div className="page"><ModulePage /></div></RequirePortal>} />
           <Route path="services" element={<RequirePortal portal="PASSENGER"><ServicesPage /></RequirePortal>} />

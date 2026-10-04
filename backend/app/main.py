@@ -19,6 +19,7 @@ from .modules.documents import api as documents_api
 from .modules.notify import api as notify_api
 from .modules.account import api as account_api
 from .modular import api as modular_api
+from .modular import workflows as modular_workflows
 from .routers import admin, auth, bookings, carrier, driver, public, regulator, security, verify, wallet
 
 
@@ -66,7 +67,7 @@ for r in (auth.router, public.router, bookings.router, wallet.router, carrier.ro
           admin.router, security.router, regulator.router, verify.router, agency_api.router,
           fleet_api.router, payouts_api.company, payouts_api.platform,
           documents_api.company, documents_api.platform, notify_api.router,
-          account_api.router, account_api.platform, modular_api.router):
+          account_api.router, account_api.platform, modular_api.router, modular_workflows.router):
     app.include_router(r)
 
 

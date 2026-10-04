@@ -47,7 +47,7 @@ export function PublicLayout() {
   const { me, logout } = useAuth();
   const nav = useNavigate();
   const passenger = me?.portal === "PASSENGER";
-  const { modules } = useModules();
+  const { modules, on } = useModules();
   const L = useLabels();
   const mine = passenger ? modules.filter((m) => m.resources.length > 0) : [];
   return (
@@ -83,6 +83,7 @@ export function PublicLayout() {
           <span>{t("app.footer")}</span>
           <span className="row" style={{ gap: 16 }}>
             <Link to="/verify">{t("nav.verify")}</Link>
+            {on("cargo") && <Link to="/track">{t("wf.track.title")}</Link>}
             <Link to="/login?portal=OPERATOR">{t("nav.portals")}</Link>
           </span>
         </div>

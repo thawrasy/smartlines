@@ -189,7 +189,11 @@ PLAN = [
     # ---------------------------------------------------------------- freight
     ("fleet.truck_unit", 6, {"vehicle_id": "@trucks", "gvw_kg": 40000, "tare_kg": cycle(8200, 8800, 9100)}),
     ("fleet.trailer", 6, {"status": weighted(("ACTIVE", 4), ("PENDING", 1), ("BLOCKED", 1)), "created_at": lambda i: ago(60)}),
-    ("frt.freight_request", 36, {"created_at": lambda i: ago(30), "target_price": money(800000, 9000000, 50000),
+    ("frt.freight_request", 36, {"mode": "BID", "shipper_company_id": None,
+                                 "cargo_category": cycle("GENERAL", "FOOD", "GENERAL", "REFRIGERATED", "VEHICLES", "CONTAINERS"),
+                                 "cargo_description": cycle("Olive oil, 40 pallets", "Flour sacks for bakeries", "Cement bags", "Citrus from the coast",
+                                                            "Generator sets", "Two 40ft containers", "Steel rebar", "Cotton bales"),
+                                 "declared_weight_kg": cycle(18000, 24000, 30000, 12000, 8000, 26000), "packages": cycle(40, 600, 1200, 900, 4, 2),"created_at": lambda i: ago(30), "target_price": money(800000, 9000000, 50000),
                                  "status": weighted(("OPEN", 4), ("AWARDED", 2), ("CONTRACTED", 4), ("CANCELLED", 1), ("EXPIRED", 1))}),
     ("frt.freight_bid", 70, {"carrier_company_id": "@companies", "request_id": ref_by(lambda i: i // 5), "created_at": lambda i: ago(30), "price": money(700000, 9500000, 50000),
                              "status": weighted(("SUBMITTED", 4), ("ACCEPTED", 2), ("REJECTED", 3), ("WITHDRAWN", 1))}),
@@ -215,7 +219,8 @@ PLAN = [
     ("taxi.meter_tariff", 3, {"status": weighted(("ACTIVE", 2), ("DRAFT", 1)), "flag_fall": 3000, "per_km": 1500, "per_wait_min": 300,
                               "min_fare": 6000}),
     ("taxi.taxi_shift", 10, {"vehicle_id": "@taxis", "status": weighted(("ON", 5), ("PAUSED", 1), ("ENDED", 4))}),
-    ("taxi.ride_request", 80, {"created_at": lambda i: ago(30), "fare_estimate": money(6000, 45000),
+    ("taxi.ride_request", 80, {"pickup_text": cycle("Marjeh Square", "Umayyad Square", "Mazzeh", "Bab Touma", "Abu Rummaneh", "Midan"),
+                               "dropoff_text": cycle("Damascus University", "Jaramana", "Hamidiyeh Souq", "Damascus Airport", "Mazzeh", "Marjeh Square"),"created_at": lambda i: ago(30), "fare_estimate": money(6000, 45000),
                                "status": weighted(("COMPLETED", 8), ("SEARCHING", 1), ("ASSIGNED", 1), ("CANCELLED", 2), ("EXPIRED", 1))}),
     ("taxi.ride", 64, {"fare_mode": "METER", "tariff_id": REF, "started_at": lambda i: day_at(i, 64),
                        "ended_at": lambda i: day_at(i, 64) + timedelta(minutes=18 + i % 25), "fare": money(6000, 45000),
@@ -223,7 +228,6 @@ PLAN = [
     # ---------------------------------------------------------------- car rental
     ("rent.rental_company", 2, {"company_id": "@companies", "brand": cycle("Masslak Rent", "Sham Rent a Car"), "status": "ACTIVE"}),
     ("rent.rental_branch", 4, {"name": cycle("Damascus airport", "Mazzeh branch", "Aleppo centre", "Latakia corniche")}),
-    ("rent.rental_vehicle_class", 4, {}),
     ("rent.rental_fleet", 16, {"vehicle_id": "@cars", "status": weighted(("AVAILABLE", 6), ("RENTED", 4), ("MAINTENANCE", 1))}),
     ("rent.rental_rate", 6, {"price": money(150000, 600000, 5000), "deposit_amount": money(500000, 2000000, 50000), "status": "ACTIVE"}),
     ("rent.rental_addon", 4, {"price": money(10000, 60000, 5000)}),
@@ -455,11 +459,9 @@ class Seeder:
             if col == "company_id" and c.ref:
                 vals[col] = self.company
             elif col in ("party_id", "customer_party_id", "passenger_party_id") and c.ref and table.split(".")[0] in ("sales", "taxi", "rent", "ship"):
-                vals[col] = self.passenger if i % 3 else None
-                if vals[col] is None and not c.notnull:
-                    vals.pop(col)
-                elif vals[col] is None:
-                    vals[col] = self.passenger
+                # one row in five belongs to the demo passenger, the rest to other people
+                others = [p for p in await self.refs(c.ref) if p != self.passenger]
+                vals[col] = self.passenger if i % 5 == 0 or not others else others[(i + k) % len(others)]
             elif c.has_default and col not in ("status", "state"):
                 continue
             elif c.ref:

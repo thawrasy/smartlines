@@ -40,12 +40,16 @@ export function Empty({ icon = "travel_explore", title, hint, children }: { icon
 const STATUS_TONE: Record<string, string> = {
   PUBLISHED: "green", CONFIRMED: "green", ISSUED: "green", ACTIVE: "green", APPROVED: "green", SUCCESS: "green", COMPLETED: "blue",
   BOARDED: "blue", BOARDING: "wheat", DEPARTED: "wheat", PENDING: "wheat", PENDING_PAYMENT: "wheat", DRAFT: "", MAINTENANCE: "wheat",
+  DELIVERED: "blue", RETURNED: "", EXCEPTION: "red", SEARCHING: "wheat", ASSIGNED: "blue", ARRIVING: "wheat", ON_TRIP: "blue",
+  OPEN: "green", AWARDED: "blue", CONTRACTED: "blue", SUBMITTED: "wheat", ACCEPTED: "green", WITHDRAWN: "", CREATED: "wheat",
+  PICKED_UP: "blue", IN_NETWORK: "blue", OUT_FOR_DELIVERY: "wheat", LIVE: "green", PAUSED: "wheat",
   CANCELLED: "red", BLOCKED: "red", SUSPENDED: "red", REJECTED: "red", FAILURE: "red", FAILED: "red", DENIED: "red", EXPIRED: "red", LOCKED: "red",
 };
 
 export function Status({ value }: { value: string }) {
   const { t, has } = useI18n();
-  return <span className={`chip ${STATUS_TONE[value] ?? ""}`}>{has(`status.${value}`) ? t(`status.${value}`) : value}</span>;
+  const label = has(`status.${value}`) ? t(`status.${value}`) : has(`val.${value}`) ? t(`val.${value}`) : value;
+  return <span className={`chip ${STATUS_TONE[value] ?? ""}`}>{label}</span>;
 }
 
 export function ErrorBox({ error }: { error: unknown }) {
