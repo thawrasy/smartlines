@@ -112,6 +112,46 @@ jobs:
       - name: Known vulnerabilities in app dependencies
         run: npm audit --omit=dev --audit-level=critical
 
+  stack:
+    name: Deployment stack (compose, HTTPS, backup and restore)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Settings with fresh random secrets
+        run: |
+          ./deploy/init-env.sh --domain localhost --demo
+          sed -i "s|^MASSLAK_BACKUP_DIR=.*|MASSLAK_BACKUP_DIR=$RUNNER_TEMP/backups|" deploy/.env
+      - name: Build and start
+        run: docker compose --env-file deploy/.env up -d --build
+      - name: Site answers over HTTPS through Caddy
+        run: |
+          for i in $(seq 60); do curl -fsSk https://localhost/api/health && break; sleep 3; done
+          curl -fsSk https://localhost/api/health
+          curl -fsSk https://localhost/ | grep -q '<div id="root">'
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost/)" = 308       # plain HTTP redirects
+          curl -sSkI https://localhost/ | grep -qi '^strict-transport-security'
+      - name: Sign in and search (demo data)
+        run: |
+          curl -fsSk -c jar -H 'X-Masslak-Client: web' -H 'Content-Type: application/json' \
+               -d '{"identifier":"passenger@masslak.test","password":"Masslak-Demo-2026","portal":"PASSENGER"}' https://localhost/api/auth/login
+          curl -fsSk -b jar -H 'X-Masslak-Client: web' https://localhost/api/auth/me | grep -q passenger@masslak.test
+          curl -fsSk "https://localhost/api/trips/search?origin=DAM&destination=ALP&on=$(TZ=Asia/Damascus date -d tomorrow +%F)" | grep -q '"trips"'
+          curl -fsSk https://localhost/api/public/keys/ticket | grep -q public_key
+      - name: Only Caddy is reachable from outside
+        run: |
+          ! timeout 3 bash -c '</dev/tcp/127.0.0.1/5432'
+          ! timeout 3 bash -c '</dev/tcp/127.0.0.1/8000'
+      - name: Backup, restore, and the site still works
+        run: |
+          ./deploy/backup.sh
+          ./deploy/restore.sh "$(ls -d $RUNNER_TEMP/backups/*/ | tail -1)" --yes
+          for i in $(seq 60); do curl -fsSk https://localhost/api/health && break; sleep 3; done
+          curl -fsSk -H 'X-Masslak-Client: web' -H 'Content-Type: application/json' \
+               -d '{"identifier":"passenger@masslak.test","password":"Masslak-Demo-2026","portal":"PASSENGER"}' https://localhost/api/auth/login
+      - name: Logs on failure
+        if: failure()
+        run: docker compose --env-file deploy/.env logs --tail 200
+
   security:
     name: Security and policy checks
     runs-on: ubuntu-latest

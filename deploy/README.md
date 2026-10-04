@@ -1,82 +1,131 @@
 # Deploying Masslak
 
-One image contains the API (FastAPI), the built web interface and the database scripts. Docker Compose runs
-PostgreSQL 16, a one-shot migration, the application and Caddy (automatic HTTPS).
+One image contains the API (FastAPI), the built web interface and the database scripts. Docker Compose runs:
 
-## Requirements
+| Service | Role | Reachable from |
+|---|---|---|
+| `caddy` | HTTPS front, automatic certificates, HTTP/3 | the internet (ports 80, 443) |
+| `app` | API and web interface | Caddy only |
+| `worker` | sends e-mail and SMS from the notification outbox | nothing (outbound only) |
+| `migrate` | one-shot: builds or upgrades the schema, sets login roles, then exits | nothing |
+| `db` | PostgreSQL 16 | internal network only |
 
-- A Linux server with Docker Engine and the Compose plugin (2 vCPU and 4 GB RAM are enough for a test server)
-- Ports 80 and 443 open, and a DNS record pointing the domain to the server
+CI starts this exact stack on every push and checks HTTPS, sign-in, search, that only Caddy is reachable, and a
+full backup and restore (`.github/workflows/ci.yml`, job `stack`).
 
-## First start
+## 1. Server and domain
+
+- A Linux server, Ubuntu 22.04 or 24.04. A test server needs 2 vCPU, 4 GB RAM and 40 GB disk; size production
+  from load tests (start at 4 vCPU and 8 GB).
+- A domain, with DNS `A` (and `AAAA` if the server has IPv6) records for `masslak.example.sy` and
+  `www.masslak.example.sy` pointing at the server. Set them first: the certificate is issued on first start.
+
+## 2. First start
 
 ```sh
-git clone <repository> masslak && cd masslak
-cp deploy/.env.example deploy/.env
-# fill in the passwords and the signing secret, e.g. with: openssl rand -base64 36
-nano deploy/.env
-docker compose --env-file deploy/.env up -d --build
-docker compose --env-file deploy/.env logs -f migrate app
+sudo apt-get update && sudo apt-get install -y git
+sudo git clone <repository URL> /opt/masslak && cd /opt/masslak
+sudo ./deploy/server-setup.sh                 # Docker, firewall (22/80/443), fail2ban, security updates, nightly backup
+sudo ./deploy/init-env.sh --domain masslak.example.sy --email ops@example.sy
+sudo docker compose --env-file deploy/.env up -d --build
+sudo docker compose --env-file deploy/.env logs -f migrate app
 ```
 
-The `migrate` service builds the schema on an empty database, creates the `masslak_api` and `masslak_audit`
-login roles, and exits. The application starts after it succeeds. The site is then served at
-`https://<MASSLAK_DOMAIN>`.
+`init-env.sh` writes `deploy/.env` (mode 600) with random passwords and keys. **Copy its keys section to a
+password manager or secret store right away.** Without those keys, the encrypted identity numbers, MFA secrets
+and documents cannot be read, even from a backup.
+
+The site is then at `https://masslak.example.sy`. Caddy obtains and renews the certificate by itself.
 
 ### Test server with demo data
 
-Set `MASSLAK_SANDBOX=true` and `MASSLAK_SEED_DEMO=true` in `deploy/.env` before the first start. This loads
-seven central stations, a demo carrier with three vehicles and drivers, and four routes with a week of trips.
-It also creates the accounts below. They share the password `Masslak-Demo-2026`, which a demo build shows on
-the sign-in page.
+Add `--demo` to `init-env.sh`. This turns on the simulated payment gateway and loads demo stations, a carrier with
+vehicles and drivers, four routes with a week of trips, and these accounts. They share the password
+`Masslak-Demo-2026`, which a demo build shows on the sign-in page.
 
 | Account | Portal |
 |---|---|
 | passenger@masslak.test (wallet 500,000 SYP) | Passenger |
 | owner@carrier.test | Carrier |
+| agency@agency.test | Agency |
 | driver@carrier.test, driver2@carrier.test, driver3@carrier.test | Driver |
 | admin@masslak.test (administration, security, finance) | Platform |
+| finance@masslak.test | Platform (finance) |
 | regulator@masslak.test (read-only dashboard) | Platform |
 
-Sandbox mode simulates the payment gateway for wallet top-ups. Never enable either option in production.
+Never use `--demo` on a server with real users.
+
+### Local trial on your own computer
+
+```sh
+./deploy/init-env.sh --domain localhost --demo
+docker compose --env-file deploy/.env up -d --build
+```
+
+Then open `https://localhost` and accept the browser warning (the certificate comes from Caddy's local CA).
 
 ### Production: first administrator
 
 ```sh
-docker compose --env-file deploy/.env run --rm \
-  -e MASSLAK_OWNER_URL=postgresql://postgres:<POSTGRES_PASSWORD>@db/masslak \
+sudo docker compose --env-file deploy/.env run --rm \
+  -e MASSLAK_OWNER_URL="postgresql://postgres:$(grep ^POSTGRES_PASSWORD= deploy/.env | cut -d= -f2)@db/masslak" \
   migrate python /app/backend/scripts/create_admin.py admin@example.gov "Full Name"
 ```
 
-Create further staff, carriers and stations from the administration portal.
+Create further staff, carriers, agencies and stations from the administration portal.
+
+## 3. Updating
+
+```sh
+cd /opt/masslak && sudo ./deploy/update.sh
+```
+
+The script backs up first, pulls the code, rebuilds and restarts. The `migrate` service applies new schema files
+(`db/upgrade.sh`, recorded in `sys.schema_file`) before the new API starts.
+
+## 4. Backups
+
+`server-setup.sh` schedules `deploy/backup.sh` every night at 02:15 (`/etc/cron.d/masslak-backup`). Each backup
+holds a `pg_dump` of the database and the document store, with SHA-256 checksums, kept for
+`MASSLAK_BACKUP_KEEP_DAYS` days in `MASSLAK_BACKUP_DIR`.
+
+- To encrypt backups, install `age`, create a key pair on another machine (`age-keygen -o masslak-backup.key`) and
+  put the public key in `MASSLAK_BACKUP_AGE_RECIPIENT`. Keep the private key off the server.
+- Copy the backup directory to a second location (another site or an object store) every day.
+- Restore, which replaces all current data:
+  `sudo ./deploy/restore.sh /var/backups/masslak/<timestamp> --yes`
+  It needs the same keys in `deploy/.env` as when the backup was taken.
+- Rehearse a restore on a test server at least once a quarter.
+
+## 5. Mobile apps
+
+Build the apps against the production domain and pin its certificate chain. Let's Encrypt changes the server key
+on renewal, so pin the CA keys rather than the leaf: ISRG Root X1 as the current pin and ISRG Root X2 as the
+backup.
+
+```sh
+for c in isrgrootx1 isrg-root-x2; do
+  curl -fsS https://letsencrypt.org/certs/$c.pem | openssl x509 -pubkey -noout |
+    openssl pkey -pubin -outform der | openssl dgst -sha256 -binary | base64
+done
+MASSLAK_API_URL=https://masslak.example.sy MASSLAK_API_PINS=<pin1>,<pin2> npx eas build ...
+```
 
 ## Security notes
 
 - The API connects as `masslak_api`, which row-level security restricts. The security console reads the logs
-  through `masslak_audit`. Only the migration step uses the PostgreSQL superuser.
-- The database network is internal. Only Caddy publishes ports.
+  through `masslak_audit`. Only the migration step and backups use the PostgreSQL superuser.
+- The database network is internal. Only Caddy publishes ports, and the firewall allows only 22, 80 and 443.
 - `MASSLAK_TRUSTED_PROXIES` is the Caddy subnet. IP rules, automatic blocking and the logs all use the client
-  address. The app takes that address from `X-Forwarded-For` only when the request comes from this subnet.
-  It reads the header from the right, so a client cannot choose its own address.
-- `MASSLAK_SIGNING_SECRET` signs ticket QR codes and verification links. Changing it invalidates every one
-  already issued.
-- `MASSLAK_FIELD_KEYS` and `MASSLAK_BIDX_KEY` encrypt identity document numbers and MFA secrets
-  (AES-256-GCM) and build their blind indexes. Keep them in a secret store, never in the repository or the
-  database. To rotate, register a new key reference in `sec.key_registry`, add it to `MASSLAK_FIELD_KEYS`
-  and move the old reference to `DECRYPT_ONLY`; existing rows still decrypt with their own key. Without
-  these variables the app falls back to keys derived from the signing secret and logs a warning.
-- Back up the database, for example:
-  `docker compose exec db pg_dump -U postgres -Fc masslak > masslak.dump`.
-
-## Updating
-
-```sh
-git pull
-docker compose --env-file deploy/.env up -d --build
-```
-
-Schema changes made after the first start ship as numbered files in `db/schema`. For now, apply each new file
-with `psql` and record it in `sys.schema_migration`. An automatic upgrade step comes with the next release.
+  address. The app takes that address from `X-Forwarded-For` only when the request comes from this subnet. It
+  reads the header from the right, so a client cannot choose its own address.
+- `MASSLAK_SIGNING_SECRET` signs ticket QR codes and verification links, and `MASSLAK_TICKET_SIGNING_KEY` signs
+  offline ticket credentials. Changing either invalidates everything already issued.
+- `MASSLAK_FIELD_KEYS` and `MASSLAK_BIDX_KEY` encrypt identity numbers, MFA secrets and documents (AES-256-GCM)
+  and build their blind indexes. To rotate a field key, register a new key reference in `sec.key_registry`, add
+  it to `MASSLAK_FIELD_KEYS` and move the old reference to `DECRYPT_ONLY`; existing rows still decrypt with their
+  own key. Never change `MASSLAK_BIDX_KEY` after launch.
+- Container logs rotate at 20 MB × 5 files (`/etc/docker/daemon.json`).
 
 ## Local development without Docker
 
@@ -91,8 +140,5 @@ MASSLAK_SANDBOX=true MASSLAK_COOKIE_SECURE=false uvicorn app.main:app --port 807
 cd ../frontend && npm install && npm run dev   # http://localhost:5173, /api is proxied to 8077
 ```
 
-To run the tests, go to `backend`:
-
-- Unit tests: `pytest tests/test_client_ip.py`
-- End-to-end tests, with the API running on demo data:
-  `MASSLAK_TEST_URL=http://localhost:8077 MASSLAK_OWNER_URL=postgresql:///masslak_dev pytest`
+Tests, from `backend`, with the API running on demo data:
+`MASSLAK_TEST_URL=http://localhost:8077 MASSLAK_OWNER_URL=postgresql:///masslak_dev pytest`

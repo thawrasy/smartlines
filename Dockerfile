@@ -7,7 +7,8 @@ COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci --no-audit --no-fund
 COPY frontend/ ./
 ARG VITE_SHOW_DEMO=false
-ENV VITE_SHOW_DEMO=$VITE_SHOW_DEMO
+ARG VITE_DEFAULT_LOCALE=ar
+ENV VITE_SHOW_DEMO=$VITE_SHOW_DEMO VITE_DEFAULT_LOCALE=$VITE_DEFAULT_LOCALE
 RUN npm run build
 
 # ---- API ----
@@ -25,7 +26,7 @@ COPY db/ /app/db/
 COPY deploy/migrate.sh /app/deploy/migrate.sh
 COPY --from=web /web/dist /app/static
 # The encrypted document store is a volume owned by the unprivileged app user
-RUN mkdir -p /data/files && chown masslak /data/files
+RUN mkdir -p /data/files /data/messages && chown masslak /data/files /data/messages
 USER masslak
 EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health')"

@@ -23,6 +23,7 @@ services:
       context: .
       args:
         VITE_SHOW_DEMO: ${MASSLAK_SEED_DEMO:-false}
+        VITE_DEFAULT_LOCALE: ${MASSLAK_DEFAULT_LOCALE:-ar}
     image: masslak:latest
     command: ["/app/deploy/migrate.sh"]
     env_file: deploy/.env
@@ -48,6 +49,7 @@ services:
       - files:/data/files
     depends_on:
       migrate: { condition: service_completed_successfully }
+    # front gives outbound access to the SMTP server and SMS gateway; no port is published
     networks: [internal, front]
 
   # Sends notifications from the transactional outbox (several replicas can run: events are claimed with SKIP LOCKED)
@@ -62,19 +64,24 @@ services:
       MASSLAK_FILES_DIR: /data/files
     volumes:
       - files:/data/files
+      # With MASSLAK_NOTIFY_EMAIL/SMS=log, messages are written here instead of being sent
+      - messages:/data/messages
     depends_on:
       migrate: { condition: service_completed_successfully }
-    networks: [internal]
+    # front gives outbound access to the SMTP server and SMS gateway; no port is published
+    networks: [internal, front]
 
   caddy:
     image: caddy:2-alpine
     restart: unless-stopped
-    ports: ["80:80", "443:443"]
+    ports: ["80:80", "443:443", "443:443/udp"]
     environment:
       MASSLAK_DOMAIN: ${MASSLAK_DOMAIN:-localhost}
+      MASSLAK_ACME_EMAIL: ${MASSLAK_ACME_EMAIL:-}
     volumes:
       - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
+      - caddy_config:/config
     depends_on: [app]
     networks: [front]
 
@@ -89,4 +96,6 @@ networks:
 volumes:
   pgdata:
   files:
+  messages:
   caddy_data:
+  caddy_config:

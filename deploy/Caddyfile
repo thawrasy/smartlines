@@ -1,9 +1,36 @@
-# HTTPS front for Masslak. With a real domain in MASSLAK_DOMAIN, Caddy obtains and renews the certificate.
+# HTTPS front for Masslak. With a real domain in MASSLAK_DOMAIN, Caddy obtains and renews the certificate
+# (Let's Encrypt, falling back to ZeroSSL); with "localhost" it serves a certificate from its own local CA.
+{
+	email {$MASSLAK_ACME_EMAIL:admin@localhost}
+	servers {
+		protocols h1 h2 h3
+	}
+}
+
 {$MASSLAK_DOMAIN} {
 	encode zstd gzip
-	reverse_proxy app:8000
-	header Strict-Transport-Security "max-age=31536000; includeSubDomains"
 	request_body {
 		max_size 6MB
 	}
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		-Server
+		-Via
+	}
+	# Built assets carry a content hash in their name, so they can be cached for a year
+	@assets path /assets/*
+	header @assets Cache-Control "public, max-age=31536000, immutable"
+	reverse_proxy app:8000 {
+		health_uri /api/health
+		health_interval 15s
+	}
+	log {
+		output stdout
+		format json
+	}
+}
+
+# Visitors typing www. land on the main domain
+www.{$MASSLAK_DOMAIN} {
+	redir https://{$MASSLAK_DOMAIN}{uri} permanent
 }
