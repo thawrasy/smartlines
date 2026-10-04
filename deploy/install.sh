@@ -68,6 +68,12 @@ echo "$created"
 case "$created" in *"already exists"*) admin_password="(unchanged: the account existed before this run)" ;; esac
 
 url="https://$domain"
+step "Waiting for the site to answer over HTTPS (certificate and proxy health check)"
+for i in $(seq 1 60); do
+  curl -fsSk --resolve "$domain:443:127.0.0.1" "$url/api/health" >/dev/null 2>&1 && break
+  [ "$i" = 60 ] && echo "warning: $url does not answer yet; check DNS and: docker compose --env-file deploy/.env logs caddy" >&2
+  sleep 3
+done
 umask 077
 cat > deploy/FIRST_LOGIN.txt <<EOF
 Masslak installation, $(date -u '+%Y-%m-%d %H:%M UTC')
