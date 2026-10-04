@@ -7,7 +7,7 @@ from typing import Literal, Optional
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-from .. import db
+from .. import crypto, db
 from ..config import get_settings
 from ..deps import Principal, context_for, require_portal
 from ..errors import ApiError, forbidden, not_found
@@ -89,6 +89,8 @@ class PassengerIn(BaseModel):
     last_name: str = Field(min_length=1, max_length=60, pattern=NAME_PART)
     seat_no: int
     id_type: Optional[Literal["NATIONAL_ID", "PASSPORT", "RESIDENCE", "OTHER"]] = None
+    # Full document number: stored only as AES-256-GCM ciphertext, a blind index and the masked last 4
+    id_no: Optional[str] = Field(default=None, min_length=4, max_length=24, pattern=r"^[0-9A-Za-z \-/]+$")
     id_last4: Optional[str] = Field(default=None, pattern=r"^[0-9A-Za-z]{3,4}$")
     mobile: Optional[str] = Field(default=None, pattern=r"^\+?[0-9]{8,15}$")
 
@@ -101,6 +103,12 @@ class PassengerIn(BaseModel):
     def _syrian_four_part_name(self):
         if self.nationality == "SY" and not (self.father_name and self.grandfather_name):
             raise ValueError("NAME_PARTS_REQUIRED: Syrian citizens need first, father, grandfather and family names")
+        return self
+
+    @model_validator(mode="after")
+    def _document_needs_type(self):
+        if self.id_no and not self.id_type:
+            raise ValueError("ID_TYPE_REQUIRED: give the document type with the document number")
         return self
 
     @property
@@ -187,14 +195,22 @@ async def create_booking(body: BookingIn, request: Request, pr: Principal = Depe
             json.dumps(breakdown), body.idempotency_key)
 
         async with db.system_scope(conn, ctx):
+            fc = await crypto.cipher(conn)
             tickets = []
             for i, p in enumerate(body.passengers, start=1):
+                enc = bidx = key_id = None
+                masked = p.id_last4
+                if p.id_no:
+                    sealed = fc.encrypt(p.id_no, "sales.passenger.id_no")
+                    enc, key_id = sealed.ciphertext, sealed.key_id
+                    bidx = fc.blind_index(p.id_no, f"{p.id_type}:{p.nationality}")
+                    masked = crypto.last4(p.id_no)
                 pid = await conn.fetchval(
                     """INSERT INTO sales.passenger (booking_id, full_name, first_name, father_name, grandfather_name,
-                         last_name, nationality, id_type, id_no_last4, mobile)
-                       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id""",
+                         last_name, nationality, id_type, id_no_last4, mobile, id_no_enc, id_no_bidx, enc_key_id)
+                       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING id""",
                     booking_id, p.full_name, p.first_name, p.father_name, p.grandfather_name, p.last_name,
-                    p.nationality, p.id_type, p.id_last4, p.mobile)
+                    p.nationality, p.id_type, masked, p.mobile, enc, bidx, key_id)
                 tid = await conn.fetchval(
                     """INSERT INTO sales.ticket (ticket_no, booking_id, passenger_id, trip_id, from_seq, to_seq, seat_no,
                          fare_brand_code, fare_amount, total_amount, rules_snapshot)

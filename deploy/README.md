@@ -60,6 +60,11 @@ Create further staff, carriers and stations from the administration portal.
   It reads the header from the right, so a client cannot choose its own address.
 - `MASSLAK_SIGNING_SECRET` signs ticket QR codes and verification links. Changing it invalidates every one
   already issued.
+- `MASSLAK_FIELD_KEYS` and `MASSLAK_BIDX_KEY` encrypt identity document numbers and MFA secrets
+  (AES-256-GCM) and build their blind indexes. Keep them in a secret store, never in the repository or the
+  database. To rotate, register a new key reference in `sec.key_registry`, add it to `MASSLAK_FIELD_KEYS`
+  and move the old reference to `DECRYPT_ONLY`; existing rows still decrypt with their own key. Without
+  these variables the app falls back to keys derived from the signing secret and logs a warning.
 - Back up the database, for example:
   `docker compose exec db pg_dump -U postgres -Fc masslak > masslak.dump`.
 

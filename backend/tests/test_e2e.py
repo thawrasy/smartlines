@@ -46,11 +46,11 @@ def new_passenger() -> httpx.Client:
     return c
 
 
-def owner_sql(sql: str, *args):
+def owner_sql(sql: str, *args, fetch: bool = False):
     async def run():
         conn = await asyncpg.connect(OWNER_URL)
         try:
-            return await conn.fetchval(sql, *args)
+            return await (conn.fetchrow(sql, *args) if fetch else conn.fetchval(sql, *args))
         finally:
             await conn.close()
     return asyncio.run(run())
@@ -58,7 +58,12 @@ def owner_sql(sql: str, *args):
 
 @pytest.fixture(scope="module")
 def pax():
-    return login("passenger@masslak.test", "PASSENGER")
+    c = login("passenger@masslak.test", "PASSENGER")
+    # Bookings spend from the shared demo wallet; a sandbox top-up keeps repeated runs independent
+    for _ in range(3):
+        r = c.post("/api/wallet/topup", json={"amount": 10000000, "idempotency_key": uuid.uuid4().hex})
+        assert r.status_code == 200, r.text
+    return c
 
 
 @pytest.fixture(scope="module")
@@ -176,6 +181,31 @@ def test_passenger_names_follow_the_identity_document(pax, trip):
     printed = {k["seat_no"]: k["ticket_name"] for k in tickets}
     assert printed[a] == f"Rami {syrian(a)['last_name']}"
     assert printed[b] == "Marie Claire Dubois"
+
+
+def test_document_number_is_stored_encrypted(pax, trip):
+    (a,) = free_seats(pax, trip, 1)
+    h = hold(pax, trip, [a]).json()["hold_token"]
+    p = {**syrian(a), "id_no": "010-2030-4057"}
+    p.pop("id_last4")
+    r = book(pax, trip, h, [a], passengers=[p])
+    assert r.status_code == 201, r.text
+    pytest.encrypted_ref = r.json()["booking_ref"]
+    # A number without its document type is refused
+    h2 = hold(pax, trip, free_seats(pax, trip, 1)).json()["hold_token"]
+    seat = free_seats(pax, trip, 1)[0]
+    bad = book(pax, trip, h2, [seat], passengers=[{**syrian(seat), "id_type": None, "id_no": "0102030405"}])
+    assert bad.status_code == 422
+
+
+@pytest.mark.skipif(not OWNER_URL, reason="needs MASSLAK_OWNER_URL")
+def test_document_number_never_reaches_the_database_in_plaintext():
+    row = owner_sql("""SELECT p.id_no_enc, p.id_no_bidx, p.id_no_last4, p.enc_key_id
+                         FROM sales.passenger p JOIN sales.booking b ON b.id = p.booking_id
+                        WHERE b.booking_ref = $1""", pytest.encrypted_ref, fetch=True)
+    assert row["id_no_last4"] == "4057" and row["enc_key_id"] is not None
+    assert b"0102030405" not in row["id_no_enc"] and row["id_no_enc"][:1] == b"\x01"
+    assert len(row["id_no_bidx"]) == 32
 
 
 @pytest.mark.skipif(not OWNER_URL, reason="needs MASSLAK_OWNER_URL")

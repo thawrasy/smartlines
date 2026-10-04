@@ -7,7 +7,7 @@ from fastapi import Request
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from . import db
+from . import db, ratelimit
 from .config import get_settings
 
 MUTATING = {"POST", "PUT", "PATCH", "DELETE"}
@@ -86,6 +86,12 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
                             reason=f"ip_rule {decision['rule_id']}")
             return JSONResponse({"error": {"code": "IP_BLOCKED", "message": "access from this address is blocked"}},
                                 status_code=403)
+
+        wait = ratelimit.limiter().check(request.state.client_ip, ratelimit.bucket_for(path))
+        if wait:
+            await self._log(request, scope, "request.rate_limited", "BLOCKED", 429, started, reason="rate limit")
+            return JSONResponse({"error": {"code": "RATE_LIMITED", "message": "too many requests, try again shortly"}},
+                                status_code=429, headers={"Retry-After": str(max(1, round(wait)))})
 
         # CSRF defence in depth: browsers cannot add this header cross-site without CORS approval
         if request.method in MUTATING and not path.startswith("/api/payments/notify") \

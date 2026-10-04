@@ -24,6 +24,10 @@ class Settings(BaseSettings):
     sandbox: bool = False
     platform_fee: int = 100000            # flat platform fee per booking, minor units (SYP 1,000.00)
     qr_window_seconds: int = 90
+    # Requests per minute per client address (token buckets, see ratelimit.py)
+    rate_auth_per_minute: int = 20
+    rate_public_per_minute: int = 240
+    rate_api_per_minute: int = 1200
 
 
 @lru_cache
