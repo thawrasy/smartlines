@@ -5,6 +5,7 @@ import { useI18n } from "../../i18n";
 import { useAuth } from "../../auth";
 import { PageHead } from "../../components/layout";
 import { Empty, ErrorBox, Field, Icon, Loaded, Modal, Stat, Status, useLoad, useToast } from "../../components/ui";
+import { LayoutPreview, type LayoutRow } from "./Layouts";
 
 export interface CarrierTrip {
   uid: string; trip_no: string; status: string; departure_at: string; arrival_at?: string; seats_total: number; segments_count?: number;
@@ -18,7 +19,7 @@ interface Route {
   uid: string; code: string; service_type: string; status: string; std_duration_min: number;
   stops: { seq: number; station_uid: string; station_name: string; station_code: string; city_code: string; arr_offset_min: number; dep_offset_min: number; fare_from_origin: number }[];
 }
-interface Vehicle { uid: string; plate_no: string; vehicle_type: string; make: string | null; model: string | null; manufacture_year: number | null; passenger_seats: number; status: string; next_expiry: string | null }
+interface Vehicle { uid: string; plate_no: string; vehicle_type: string; make: string | null; model: string | null; manufacture_year: number | null; passenger_seats: number; status: string; next_expiry: string | null; seat_layout_uid: string | null; seat_layout_name: string | null }
 interface Crew { uid: string; full_name: string; crew_type: string; license_class: string | null; status: string; email: string | null }
 interface Station { uid: string; code: string; name: string; city_code: string }
 
@@ -215,8 +216,11 @@ export function CarrierVehicles() {
   const { t } = useI18n();
   const toast = useToast();
   const state = useLoad(() => api.get<{ vehicles: Vehicle[] }>("/api/carrier/vehicles"));
+  const layouts = useLoad(() => api.get<{ layouts: LayoutRow[] }>("/api/carrier/seat-layouts"));
   const [open, setOpen] = useState(false);
-  const blank = { plate_no: "", chassis_no: "", vehicle_type: "COACH", make: "", model: "", manufacture_year: "", passenger_seats: "44", insurance_no: "", insurer: "", insurance_issue: "", insurance_expiry: "" };
+  const [relayout, setRelayout] = useState<Vehicle | null>(null);
+  const [newLayout, setNewLayout] = useState("");
+  const blank = { plate_no: "", chassis_no: "", vehicle_type: "COACH", make: "", model: "", manufacture_year: "", seat_layout_uid: "", insurance_no: "", insurer: "", insurance_issue: "", insurance_expiry: "" };
   const [f, setF] = useState(blank);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
@@ -225,20 +229,32 @@ export function CarrierVehicles() {
     setBusy(true); setError(null);
     try {
       await api.post("/api/carrier/vehicles", { ...f, make: f.make || null, model: f.model || null,
-        manufacture_year: f.manufacture_year ? Number(f.manufacture_year) : null, passenger_seats: Number(f.passenger_seats) });
+        manufacture_year: f.manufacture_year ? Number(f.manufacture_year) : null, seat_layout_uid: f.seat_layout_uid || null });
       setOpen(false); setF(blank); toast(t("common.saved")); state.reload();
     } catch (e) { setError(e); } finally { setBusy(false); }
   };
+  const changeLayout = async () => {
+    if (!relayout) return;
+    setBusy(true); setError(null);
+    try {
+      await api.post(`/api/carrier/vehicles/${relayout.uid}/layout`, { layout_uid: newLayout });
+      setRelayout(null); toast(t("layout.changed")); state.reload(); layouts.reload();
+    } catch (e) { setError(e); } finally { setBusy(false); }
+  };
+  const layoutOptions = (layouts.data?.layouts ?? []).map((l) => <option key={l.uid} value={l.uid}>{l.name} · {t("layout.total", { n: l.total_seats })}</option>);
   return (
     <div className="stack">
       <PageHead title={t("carrier.vehicles")}><button className="btn" onClick={() => setOpen(true)}><Icon name="add" />{t("carrier.newVehicle")}</button></PageHead>
       <Loaded state={state}>{({ vehicles }) => vehicles.length === 0 ? <div className="card"><Empty icon="directions_car" title={t("common.noData")} /></div> : (
         <div className="table-wrap"><table className="table">
-          <thead><tr><th>{t("carrier.plate")}</th><th>{t("carrier.vtype")}</th><th>{t("carrier.make")}</th><th>{t("carrier.year")}</th><th>{t("carrier.seatsCount")}</th><th>{t("carrier.nextExpiry")}</th><th>{t("common.status")}</th></tr></thead>
+          <thead><tr><th>{t("carrier.plate")}</th><th>{t("carrier.vtype")}</th><th>{t("carrier.make")}</th><th>{t("carrier.year")}</th><th>{t("carrier.seatsCount")}</th><th>{t("layout.layout")}</th><th>{t("carrier.nextExpiry")}</th><th>{t("common.status")}</th><th>{t("common.actions")}</th></tr></thead>
           <tbody>{vehicles.map((v) => (
             <tr key={v.uid}>
               <td className="mono">{v.plate_no}</td><td>{t(`carrier.vtypes.${v.vehicle_type}`)}</td><td>{[v.make, v.model].filter(Boolean).join(" ")}</td>
-              <td>{v.manufacture_year}</td><td className="num">{v.passenger_seats}</td><td className="mono small">{v.next_expiry}</td><td><Status value={v.status} /></td>
+              <td>{v.manufacture_year}</td><td className="num">{v.passenger_seats}</td>
+              <td>{v.seat_layout_name ?? <span className="chip" style={{ color: "var(--error)" }}>{t("layout.missing")}</span>}</td>
+              <td className="mono small">{v.next_expiry}</td><td><Status value={v.status} /></td>
+              <td><button className="btn tonal small" onClick={() => { setRelayout(v); setNewLayout(v.seat_layout_uid ?? ""); setError(null); }}>{t("layout.change")}</button></td>
             </tr>
           ))}</tbody>
         </table></div>
@@ -259,12 +275,33 @@ export function CarrierVehicles() {
               <Field label={t("carrier.make")}><input className="input" value={f.make} onChange={set("make")} /></Field>
               <Field label={t("carrier.model")}><input className="input" value={f.model} onChange={set("model")} /></Field>
               <Field label={t("carrier.year")}><input className="input ltr" type="number" value={f.manufacture_year} onChange={set("manufacture_year")} /></Field>
-              <Field label={t("carrier.seatsCount")}><input className="input ltr" type="number" min={4} max={80} value={f.passenger_seats} onChange={set("passenger_seats")} /></Field>
+              <Field label={t("layout.layout")} hint={t("layout.vehicleHint")}>
+                <select className="input" value={f.seat_layout_uid} onChange={set("seat_layout_uid")} required>
+                  <option value="" disabled>{t("layout.choose")}</option>{layoutOptions}
+                </select>
+              </Field>
               <Field label={t("carrier.insuranceNo")}><input className="input ltr" value={f.insurance_no} onChange={set("insurance_no")} /></Field>
               <Field label={t("carrier.insurer")}><input className="input" value={f.insurer} onChange={set("insurer")} /></Field>
               <Field label={t("carrier.insuranceIssue")}><input className="input ltr" type="date" value={f.insurance_issue} onChange={set("insurance_issue")} /></Field>
               <Field label={t("carrier.insuranceExpiry")}><input className="input ltr" type="date" value={f.insurance_expiry} onChange={set("insurance_expiry")} /></Field>
             </div>
+            {f.seat_layout_uid && <LayoutPreview uid={f.seat_layout_uid} />}
+          </div>
+        </Modal>
+      )}
+      {relayout && (
+        <Modal title={`${t("layout.change")} · ${relayout.plate_no}`} onClose={() => setRelayout(null)} wide
+               actions={<><button className="btn text" onClick={() => setRelayout(null)}>{t("common.cancel")}</button>
+                 <button className="btn" disabled={busy || !newLayout || newLayout === relayout.seat_layout_uid} onClick={changeLayout}>{t("common.confirm")}</button></>}>
+          <div className="stack">
+            <ErrorBox error={error} />
+            <Field label={t("layout.layout")}>
+              <select className="input" value={newLayout} onChange={(e) => setNewLayout(e.target.value)}>
+                <option value="" disabled>{t("layout.choose")}</option>{layoutOptions}
+              </select>
+            </Field>
+            <div className="alert info"><Icon name="event_seat" /><span>{t("layout.changeNote")}</span></div>
+            {newLayout && <LayoutPreview uid={newLayout} />}
           </div>
         </Modal>
       )}

@@ -15,6 +15,8 @@ from pathlib import Path
 import asyncpg
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import json  # noqa: E402
+from app.modules.fleet import layout as seat_layout  # noqa: E402
 from app.security import hash_password  # noqa: E402
 from app.util import LOCAL_TZ  # noqa: E402
 
@@ -49,6 +51,39 @@ async def user(conn, party_type, name, email, kind, locale="en"):
     return pid, uid
 
 
+DEMO_LAYOUTS = [
+    # name, grid: 44 seats in eleven 2+2 rows; 32 seats in 2+1 rows with the door on the right of the last row
+    ("Coach 2+2, 44 seats", seat_layout.preset("2+2", 11)),
+    ("VIP 2+1, 32 seats", seat_layout.preset("2+1", 11, door_row=11)),
+]
+
+
+async def seed_layouts(conn) -> bool:
+    """Seat layouts for the demo carrier's vehicles, and the matching seat map on trips that have none. Idempotent."""
+    company = await conn.fetchval("SELECT id FROM iam.party WHERE legal_name = 'Demo Carrier A' AND party_type = 'COMPANY'")
+    if company is None or await conn.fetchval("SELECT 1 FROM fleet.seat_layout WHERE company_id = $1", company):
+        return False
+    by_seats = {}
+    for name, decks in DEMO_LAYOUTS:
+        seats = seat_layout.build(decks)
+        lid = await conn.fetchval(
+            """INSERT INTO fleet.seat_layout (company_id, name, total_seats, decks, grid)
+               VALUES ($1, $2, $3, $4, $5::jsonb) RETURNING id""", company, name, len(seats), len(decks), json.dumps(decks))
+        await conn.executemany(
+            "INSERT INTO fleet.seat_layout_seat (layout_id, seat_no, label, row_no, col_no, deck, cabin) VALUES ($1, $2, $3, $4, $5, $6, $7)",
+            [(lid, s.n, s.label, s.row, s.col, s.deck, s.cabin) for s in seats])
+        snapshot = {"layout": str(await conn.fetchval("SELECT uid FROM fleet.seat_layout WHERE id = $1", lid)), "name": name,
+                    "decks": decks, "seats": [s.as_dict() for s in seats]}
+        by_seats[len(seats)] = (lid, snapshot)
+    for vid, n in await conn.fetch("SELECT id, passenger_seats FROM fleet.vehicle WHERE company_id = $1", company):
+        if n in by_seats:
+            lid, snapshot = by_seats[n]
+            await conn.execute("UPDATE fleet.vehicle SET seat_layout_id = $2 WHERE id = $1", vid, lid)
+            await conn.execute("UPDATE ops.trip SET seat_map = $2::jsonb WHERE vehicle_id = $1 AND seat_map IS NULL AND seats_total = $3",
+                               vid, json.dumps(snapshot), n)
+    return True
+
+
 async def seed_agency(conn) -> bool:
     """A travel agency with a 5% commission, a daily limit of SYP 500,000 and a prepaid SYP 200,000. Idempotent, so it
     can be added to a database seeded before agencies existed."""
@@ -80,7 +115,8 @@ async def main():
     async with conn.transaction():
         await conn.execute("SELECT sys.set_context(NULL, NULL, 'SYSTEM')")
         if await conn.fetchval("SELECT 1 FROM iam.app_user WHERE email = 'admin@masslak.test'"):
-            print("demo agency added" if await seed_agency(conn) else "demo data already present")
+            added = [what for what, done in (("agency", await seed_agency(conn)), ("seat layouts", await seed_layouts(conn))) if done]
+            print(f"demo {' and '.join(added)} added" if added else "demo data already present")
             return
         # Platform staff
         _, admin = await user(conn, "PERSON", "Platform Administrator", "admin@masslak.test", "PLATFORM")
@@ -183,6 +219,7 @@ async def main():
                     n_trips += 1
 
         await seed_agency(conn)
+        await seed_layouts(conn)
 
         # Passenger with a funded wallet
         await conn.execute("SELECT sys.set_context(NULL, NULL, 'SYSTEM')")

@@ -102,7 +102,7 @@ export default function Booking() {
                     <dt>{t("common.date")}</dt><dd>{date(k.departs_at, { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</dd>
                     <dt>{t("common.from")}</dt><dd>{station(k.from_code, k.from_station)}</dd>
                     <dt>{t("common.to")}</dt><dd>{station(k.to_code, k.to_station)}</dd>
-                    <dt>{t("common.seat")}</dt><dd><span className="chip green">{k.seat_no}</span></dd>
+                    <dt>{t("common.seat")}</dt><dd><span className="chip green">{k.seat_label ?? k.seat_no}</span></dd>
                     <dt>{t("booking.fare")}</dt><dd>{k.fare_brand_code} · {money(k.total_amount)}</dd>
                     <dt>{t("common.status")}</dt><dd><Status value={k.status} /></dd>
                   </dl>

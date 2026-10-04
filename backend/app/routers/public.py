@@ -109,7 +109,7 @@ async def trip_detail(trip_uid: str, request: Request, from_seq: int = Query(...
         t = await conn.fetchrow(
             """SELECT t.id, t.uid, t.trip_no, t.status, t.seats_total, t.currency, t.seat_selection_mode, t.hold_min,
                       t.service_type, t.segments_count, t.departure_at, t.arrival_at, t.baggage_policy,
-                      t.seat_prices_snapshot, cp.legal_name AS carrier_name, cc.code3 AS carrier_code
+                      t.seat_prices_snapshot, t.seat_map, cp.legal_name AS carrier_name, cc.code3 AS carrier_code
                  FROM ops.trip t JOIN iam.party cp ON cp.id = t.company_id
                  LEFT JOIN net.carrier_code cc ON cc.company_id = t.company_id AND cc.status = 'ACTIVE'
                 WHERE t.uid = $1::uuid AND t.status IN ('PUBLISHED','BOARDING')""", trip_uid)
@@ -133,5 +133,7 @@ async def trip_detail(trip_uid: str, request: Request, from_seq: int = Query(...
     price = pf if pf is not None else ladder[to_seq] - ladder[from_seq]
     trip = row_dict(t)
     trip.pop("id")
-    return {"trip": trip, "stops": rows(stops), "price": price, "from_seq": from_seq, "to_seq": to_seq,
+    seat_map = trip.pop("seat_map")
+    seat_map = json.loads(seat_map) if isinstance(seat_map, str) else seat_map
+    return {"seat_map": seat_map, "trip": trip, "stops": rows(stops), "price": price, "from_seq": from_seq, "to_seq": to_seq,
             "seats": [{"seat_no": s["seat_no"], "free": s["free"]} for s in seats]}

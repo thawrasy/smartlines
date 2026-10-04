@@ -11,6 +11,7 @@ from .. import db
 from ..deps import Principal, context_for, require_permission, require_portal
 from ..errors import ApiError, forbidden, not_found
 from ..ledger import platform_wallet, post_txn
+from ..modules.fleet import service as fleet
 from ..security import hash_password, password_problem
 from ..util import LOCAL_TZ, row_dict, rows
 
@@ -87,7 +88,9 @@ class VehicleIn(BaseModel):
     make: Optional[str] = None
     model: Optional[str] = None
     manufacture_year: Optional[int] = Field(default=None, ge=1970, le=2100)
-    passenger_seats: int = Field(ge=4, le=80)
+    # The seat layout defines rows, seats per row, aisle and doors; the seat count comes from it
+    seat_layout_uid: Optional[uuid.UUID] = None
+    passenger_seats: Optional[int] = Field(default=None, ge=1, le=99)
     insurance_no: str = Field(min_length=3, max_length=40)
     insurer: str = Field(min_length=2, max_length=120)
     insurance_issue: date
@@ -99,10 +102,11 @@ async def vehicles(request: Request, pr: Principal = Depends(operator)):
     async with db.transaction(context_for(request, pr)) as conn:
         recs = await conn.fetch(
             """SELECT v.uid, v.plate_no, v.vehicle_type, v.make, v.model, v.manufacture_year, v.passenger_seats,
-                      v.status, v.block_reason, v.ownership_type,
+                      v.status, v.block_reason, v.ownership_type, l.uid AS seat_layout_uid, l.name AS seat_layout_name,
                       (SELECT min(l.expiry_date) FROM fleet.license_record l
                         WHERE l.subject_type = 'VEHICLE' AND l.subject_id = v.id) AS next_expiry
-                 FROM fleet.vehicle v WHERE v.company_id = $1 ORDER BY v.plate_no""", pr.company_id)
+                 FROM fleet.vehicle v LEFT JOIN fleet.seat_layout l ON l.id = v.seat_layout_id
+                WHERE v.company_id = $1 ORDER BY v.plate_no""", pr.company_id)
     return {"vehicles": rows(recs)}
 
 
@@ -112,12 +116,13 @@ async def add_vehicle(body: VehicleIn, request: Request, pr: Principal = Depends
     if body.insurance_expiry <= max(body.insurance_issue, date.today()):
         raise ApiError(422, "INSURANCE_EXPIRED", "a valid insurance policy is required to register a vehicle")
     async with db.transaction(context_for(request, pr)) as conn:
+        layout_id, seats = await fleet.layout_for_new_vehicle(conn, body.seat_layout_uid, body.passenger_seats)
         vid = await conn.fetchval(
             """INSERT INTO fleet.vehicle (company_id, vehicle_type, make, model, manufacture_year, plate_no, chassis_no,
-                 passenger_seats, owner_party_id, status)
-               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $1, 'ACTIVE') RETURNING id""",
+                 passenger_seats, seat_layout_id, owner_party_id, status)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $1, 'ACTIVE') RETURNING id""",
             pr.company_id, body.vehicle_type, body.make, body.model, body.manufacture_year, body.plate_no.strip(),
-            body.chassis_no.strip().upper(), body.passenger_seats)
+            body.chassis_no.strip().upper(), seats, layout_id)
         await conn.execute(
             """INSERT INTO fleet.license_record (company_id, subject_type, subject_id, license_type, license_no, issuer,
                  issue_date, expiry_date, status)
@@ -287,13 +292,16 @@ async def create_trip(body: TripIn, request: Request, pr: Principal = Depends(op
         n = len(stops)
         arrival = dep + timedelta(minutes=stops[-1]["arr_offset_min"])
         status = "PUBLISHED" if body.publish else "DRAFT"
+        # The trip keeps the vehicle's seat map as it is today, so seats sold never move if the layout changes
+        seat_map = await fleet.trip_seat_map(conn, vehicle["id"])
         trip_id = await conn.fetchval(
             """INSERT INTO ops.trip (trip_no, company_id, route_id, service_type, vehicle_id, departure_at, arrival_at,
-                 status, seats_total, segments_count, currency, base_price, published_at)
-               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'SYP', $11, CASE WHEN $8 = 'PUBLISHED' THEN now() END)
+                 status, seats_total, segments_count, currency, base_price, published_at, seat_map)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'SYP', $11, CASE WHEN $8 = 'PUBLISHED' THEN now() END,
+                       $12::jsonb)
                RETURNING id""",
             trip_no, pr.company_id, route["id"], "INDIRECT" if n > 2 else "DIRECT", vehicle["id"], dep, arrival, status,
-            vehicle["passenger_seats"], n - 1, stops[-1]["fare_from_origin"])
+            vehicle["passenger_seats"], n - 1, stops[-1]["fare_from_origin"], json.dumps(seat_map) if seat_map else None)
         await conn.executemany(
             """INSERT INTO ops.trip_stop (trip_id, seq, station_id, kind, sched_arr, sched_dep, fare_from_origin, rest_min)
                VALUES ($1, $2, $3, $4, $5, $6, $7, $8)""",

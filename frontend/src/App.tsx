@@ -16,6 +16,7 @@ import Register from "./pages/auth/Register";
 import Mfa from "./pages/auth/Mfa";
 import Verify from "./pages/Verify";
 import { CarrierCrew, CarrierDashboard, CarrierRoutes, CarrierTrips, CarrierVehicles } from "./pages/carrier/Carrier";
+import { CarrierLayouts } from "./pages/carrier/Layouts";
 import { DriverLayout, DriverTrip, DriverTrips } from "./pages/driver/Driver";
 import { AdminAgencies, AdminCompanies, AdminOverview, AdminStations } from "./pages/admin/Admin";
 import { AgencyBookings, AgencyDashboard, AgencySell, AgencyStaff, AgencyStatement } from "./pages/agency/Agency";
@@ -57,6 +58,7 @@ function CarrierShell() {
       { to: "/carrier/trips", icon: "directions_bus", label: t("carrier.trips") },
       { to: "/carrier/routes", icon: "route", label: t("carrier.routes") },
       { to: "/carrier/vehicles", icon: "directions_car", label: t("carrier.vehicles") },
+      { to: "/carrier/layouts", icon: "event_seat", label: t("layout.title") },
       { to: "/carrier/crew", icon: "badge", label: t("carrier.crew") },
     ]} />
   );
@@ -103,6 +105,7 @@ export default function App() {
           <Route path="carrier/trips" element={<CarrierTrips />} />
           <Route path="carrier/routes" element={<CarrierRoutes />} />
           <Route path="carrier/vehicles" element={<CarrierVehicles />} />
+          <Route path="carrier/layouts" element={<CarrierLayouts />} />
           <Route path="carrier/crew" element={<CarrierCrew />} />
         </Route>
         <Route element={<RequirePortal portal="AGENCY"><AgencyShell /></RequirePortal>}>

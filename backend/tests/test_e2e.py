@@ -27,9 +27,9 @@ def client() -> httpx.Client:
     return httpx.Client(base_url=BASE, headers=H, timeout=20)
 
 
-def login(email: str, portal: str) -> httpx.Client:
+def login(email: str, portal: str, password: str = PASSWORD) -> httpx.Client:
     c = client()
-    r = c.post("/api/auth/login", json={"identifier": email, "password": PASSWORD, "portal": portal})
+    r = c.post("/api/auth/login", json={"identifier": email, "password": password, "portal": portal})
     assert r.status_code == 200, r.text
     return c
 
@@ -80,24 +80,30 @@ def bookable_trip(pax):
     return None
 
 
+FRESH_DRIVER_PASSWORD = "fresh-driver-password"
+FRESH_DRIVERS: list[str] = []          # drivers created by publish_fresh_trip, tried by the boarding test
+
+
 def publish_fresh_trip() -> None:
     """The demo week runs out after many runs (the completion test moves a trip into the past each time), so the
-    suite publishes its own trip through the carrier API, the same way a carrier clerk would."""
+    suite publishes its own trip through the carrier API, the same way a carrier clerk would. It registers its own
+    vehicle and driver for it, so the trip never clashes with the demo schedules."""
     o = login("owner@carrier.test", "OPERATOR")
     route = next(r for r in o.get("/api/carrier/routes").json()["routes"] if r["code"] == "DAM-ALP")
-    vehicles = [v["uid"] for v in o.get("/api/carrier/vehicles").json()["vehicles"] if v["status"] == "ACTIVE"]
-    drivers = [c["uid"] for c in o.get("/api/carrier/crew").json()["crew"]
-               if c["status"] == "ACTIVE" and c["email"] in ("driver@carrier.test", "driver2@carrier.test", "driver3@carrier.test")]
-    for offset in range(2, 7):
-        for hour in (5, 23, 4, 22, 3):
-            minute = secrets.randbelow(60)
-            for v in vehicles:
-                for d in drivers:
-                    r = o.post("/api/carrier/trips", json={"route_uid": route["uid"], "vehicle_uid": v, "driver_uid": d,
-                                                           "departure_local": f"{day(offset)}T{hour:02d}:{minute:02d}:00"})
-                    if r.status_code == 201:
-                        return
-    pytest.fail("could not publish a fresh trip: every vehicle or driver is busy")
+    layout = next(x for x in o.get("/api/carrier/seat-layouts").json()["layouts"] if x["total_seats"] == 44)
+    plate = str(100000 + secrets.randbelow(900000))
+    r = o.post("/api/carrier/vehicles", json={
+        "plate_no": plate, "chassis_no": f"CHS-T{plate}", "vehicle_type": "COACH", "seat_layout_uid": layout["uid"],
+        "insurance_no": f"POL-T{plate}", "insurer": "Test", "insurance_issue": "2026-01-01", "insurance_expiry": "2030-01-01"})
+    assert r.status_code == 201, r.text
+    vehicle = r.json()["uid"]
+    email = f"driver{uuid.uuid4().hex[:8]}@example.com"
+    r = o.post("/api/carrier/crew", json={"full_name": "Test Driver", "email": email, "password": FRESH_DRIVER_PASSWORD})
+    assert r.status_code == 201, r.text
+    FRESH_DRIVERS.append(email)
+    r = o.post("/api/carrier/trips", json={"route_uid": route["uid"], "vehicle_uid": vehicle, "driver_uid": r.json()["uid"],
+                                           "departure_local": f"{day(2)}T07:{secrets.randbelow(60):02d}:00"})
+    assert r.status_code == 201, r.text
 
 
 @pytest.fixture(scope="module")
@@ -280,8 +286,9 @@ def test_driver_boarding_scan(trip):
     pax = login("passenger@masslak.test", "PASSENGER")
     token = pax.get(f"/api/tickets/{pytest.ticket_uid}/qr").json()["token"]
     # The demo trips rotate three vehicles and three drivers; find the driver assigned to this trip
-    for email in ("driver@carrier.test", "driver2@carrier.test", "driver3@carrier.test"):
-        d = login(email, "DRIVER")
+    drivers = [(e, PASSWORD) for e in ("driver@carrier.test", "driver2@carrier.test", "driver3@carrier.test")]
+    for email, password in drivers + [(e, FRESH_DRIVER_PASSWORD) for e in FRESH_DRIVERS]:
+        d = login(email, "DRIVER", password)
         if any(t["uid"] == trip["uid"] for t in d.get("/api/driver/trips").json()["trips"]):
             break
     r = d.post("/api/driver/scan", json={"trip_uid": trip["uid"], "token": token})

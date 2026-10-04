@@ -132,6 +132,19 @@ SELECT pg_temp.ok((SELECT count(*) FROM sales.booking) = 1, 'RLS: passenger sees
 SELECT pg_temp.ok((SELECT count(*) FROM fin.wallet) = 1, 'RLS: passenger sees only own wallet');
 COMMIT;
 
+-- 4a) Seat layouts: private to the carrier, and a vehicle always carries exactly its layout's seats
+BEGIN;
+SELECT sys.set_context(:ua, :ca, 'COMPANY');
+INSERT INTO fleet.seat_layout (company_id, name, total_seats, grid) VALUES (:ca, 'Test 2+2', 8, '[["SS_SS","SS_SS"]]');
+SELECT pg_temp.ok((SELECT count(*) FROM fleet.seat_layout WHERE name = 'Test 2+2') = 1, 'Layouts: carrier sees its own layout');
+SELECT pg_temp.expect_error(format($$UPDATE fleet.vehicle SET seat_layout_id = (SELECT id FROM fleet.seat_layout WHERE name = 'Test 2+2') WHERE id = %s$$, :va),
+  'SEAT_COUNT_MISMATCH', 'Layouts: vehicle seat count must equal the layout');
+COMMIT;
+BEGIN;
+SELECT sys.set_context(NULL, :cb, 'COMPANY');
+SELECT pg_temp.ok((SELECT count(*) FROM fleet.seat_layout WHERE name = 'Test 2+2') = 0, 'RLS: another carrier cannot see the layout');
+COMMIT;
+
 -- 4b) Agencies: an agency sees the bookings it sold and nothing else; only the platform sets its terms
 BEGIN;
 SELECT sys.set_context(:uadmin, NULL, 'SYSTEM');

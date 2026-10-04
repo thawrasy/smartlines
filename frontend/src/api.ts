@@ -68,6 +68,8 @@ export interface TripDetail {
   trip: { uid: string; trip_no: string; status: string; seats_total: number; currency: string; hold_min: number;
           service_type: string; departure_at: string; arrival_at: string; carrier_name: string; carrier_code: string | null };
   stops: TripStop[]; price: number; from_seq: number; to_seq: number; seats: { seat_no: number; free: boolean }[];
+  /** The vehicle's real layout, frozen when the trip was created (null for trips created before layouts existed). */
+  seat_map: import("./components/SeatGrid").SeatMapData | null;
 }
 
 export interface FareBrand {
@@ -76,7 +78,7 @@ export interface FareBrand {
 }
 
 export interface Ticket {
-  uid: string; ticket_no: string; seat_no: number; status: string; fare_brand_code: string; total_amount: number;
+  uid: string; ticket_no: string; seat_no: number; seat_label: string | null; status: string; fare_brand_code: string; total_amount: number;
   /** Full name as on the identity document; the ticket prints ticket_name (first and last name). */
   full_name: string; ticket_name: string; from_station: string; from_code: string; from_city: string; departs_at: string;
   to_station: string; to_code: string; to_city: string; arrives_at: string;

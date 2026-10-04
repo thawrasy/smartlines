@@ -74,7 +74,9 @@ async def pair_price(conn, trip_id: int, from_seq: int, to_seq: int) -> int:
 
 async def tickets_of(conn, booking_id: int) -> list[asyncpg.Record]:
     return await conn.fetch(
-        """SELECT k.uid, k.ticket_no, k.seat_no, k.status, k.fare_brand_code, k.total_amount, k.from_seq, k.to_seq,
+        """SELECT k.uid, k.ticket_no, k.seat_no, k.status,
+                  (SELECT s ->> 'label' FROM ops.trip t, jsonb_array_elements(t.seat_map -> 'seats') s
+                    WHERE t.id = k.trip_id AND (s ->> 'n')::int = k.seat_no) AS seat_label, k.fare_brand_code, k.total_amount, k.from_seq, k.to_seq,
                   p.full_name, p.first_name, p.last_name, p.nationality, p.id_type, p.id_no_last4,
                   sa.name AS from_station, sa.code AS from_code, ca.code AS from_city, a.sched_dep AS departs_at,
                   sb.name AS to_station, sb.code AS to_code, cb.code AS to_city, z.sched_arr AS arrives_at, k.rules_snapshot

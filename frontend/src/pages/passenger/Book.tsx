@@ -6,6 +6,7 @@ import { useAuth } from "../../auth";
 import { minutesBetween } from "../../dates";
 import { ErrorBox, Icon, Spinner, useLoad } from "../../components/ui";
 import { useChannel } from "../../channel";
+import { SeatGrid } from "../../components/SeatGrid";
 import { PassengerFields, blankPassenger, namesFor, passengerValid, type PassengerDraft } from "./PassengerFields";
 
 interface Hold { hold_token: string; expires_at: string }
@@ -14,11 +15,29 @@ interface Funds { balance: number; remaining_today?: number; agreement?: { commi
 
 const roundUnit = (minor: number) => Math.round(minor / 100) * 100;
 
-function SeatMap({ seats, selected, toggle, max }: { seats: TripDetail["seats"]; selected: number[]; toggle: (n: number) => void; max: number }) {
+function SeatMap({ seats, map, selected, toggle, max }: { seats: TripDetail["seats"]; map: TripDetail["seat_map"]; selected: number[]; toggle: (n: number) => void; max: number }) {
   const { t } = useI18n();
+  const freeOf = new Map(seats.map((s) => [s.seat_no, s.free]));
+  if (map) {
+    // The real layout of this trip's vehicle: rows, aisle, doors and WC exactly as the carrier defined them
+    return (
+      <div className="stack">
+        <SeatGrid data={map} renderSeat={(s) => {
+          const mine = selected.includes(s.n), free = !!freeOf.get(s.n);
+          return (
+            <button type="button" className={`seat${mine ? " mine" : !free ? " taken" : ""}${s.cabin === "ACCESSIBLE" ? " accessible" : ""}`}
+                    disabled={!free || (!mine && selected.length >= max)} onClick={() => toggle(s.n)} aria-pressed={mine}
+                    aria-label={`${t("common.seat")} ${s.label}`}>{s.label}</button>
+          );
+        }} />
+        <Legend />
+      </div>
+    );
+  }
   const cells: (number | null)[] = [];
+  // Trips created before seat layouts existed: a plain 2+2 drawing
   seats.forEach((s, i) => { cells.push(s.seat_no); if (i % 4 === 1) cells.push(null); });
-  const free = new Map(seats.map((s) => [s.seat_no, s.free]));
+  const free = freeOf;
   return (
     <div className="stack">
       <div className="bus">
@@ -31,12 +50,19 @@ function SeatMap({ seats, selected, toggle, max }: { seats: TripDetail["seats"];
           ))}
         </div>
       </div>
+      <Legend />
+    </div>
+  );
+}
+
+function Legend() {
+  const { t } = useI18n();
+  return (
       <div className="legend">
         <span><i />{t("seats.free")}</span>
         <span><i style={{ background: "var(--surface-container-high)", borderColor: "transparent" }} />{t("seats.taken")}</span>
         <span><i style={{ background: "var(--primary)", borderColor: "var(--primary)" }} />{t("seats.mine")}</span>
       </div>
-    </div>
   );
 }
 
@@ -94,6 +120,7 @@ export default function Book() {
   const farePer = roundUnit(d.price * fb.factor);
   const total = farePer * paxCount + ref.data.platform_fee;
 
+  const seatLabel = (n: number) => d.seat_map?.seats.find((s) => s.n === n)?.label ?? String(n);
   const toggle = (n: number) => setSelected((s) => (s.includes(n) ? s.filter((x) => x !== n) : [...s, n].slice(-paxCount)));
 
   const doHold = async () => {
@@ -159,11 +186,11 @@ export default function Book() {
       {!hold ? (
         <div className="grid cols-2" style={{ alignItems: "start" }}>
           <div className="card"><div className="card-title"><h3>{t("seats.title")}</h3><span className="muted">{t("seats.pick", { n: paxCount })}</span></div>
-            <SeatMap seats={d.seats} selected={selected} toggle={toggle} max={paxCount} />
+            <SeatMap seats={d.seats} map={d.seat_map} selected={selected} toggle={toggle} max={paxCount} />
           </div>
           <div className="card stack">
             <h3>{t("seats.selected")}</h3>
-            <div className="row">{selected.length ? selected.map((s) => <span key={s} className="chip green">{t("common.seat")} {s}</span>) : <span className="muted">—</span>}</div>
+            <div className="row">{selected.length ? selected.map((s) => <span key={s} className="chip green">{t("common.seat")} {seatLabel(s)}</span>) : <span className="muted">—</span>}</div>
             <div className="divider" />
             <div className="row between"><span className="muted">{t("results.perPassenger")}</span><span className="price" style={{ fontSize: 20 }}>{money(d.price)}</span></div>
             <p className="small muted"><Icon name="lock" size={16} /> {t("seats.holdFor", { n: d.trip.hold_min })}</p>
@@ -204,7 +231,7 @@ export default function Book() {
             )}
             {selected.map((seat, i) => (
               <div key={seat} className="card stack">
-                <div className="row between"><h3>{t("common.passenger")} {i + 1}</h3><span className="chip green">{t("common.seat")} {seat}</span></div>
+                <div className="row between"><h3>{t("common.passenger")} {i + 1}</h3><span className="chip green">{t("common.seat")} {seatLabel(seat)}</span></div>
                 <PassengerFields value={pax[i] ?? blankPassenger()} countries={countries}
                                  onChange={(v) => setPax((p) => p.map((x, j) => (j === i ? v : x)))} />
               </div>

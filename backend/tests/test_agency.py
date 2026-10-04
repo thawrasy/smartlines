@@ -89,6 +89,7 @@ def test_agency_sells_at_the_public_price_and_earns_commission(agency, trip):
     detail = agency.get(f"/api/agency/bookings/{out['booking_ref']}").json()
     assert detail["booking"]["commission"] == out["commission"]
     assert detail["booking"]["contact_mobile"] == "+963944000111"
+    assert all(t["seat_label"] for t in detail["tickets"])     # printed from the vehicle layout, e.g. "3C"
     assert all(t["ticket_name"].startswith("Rami Haddad") and "Khaled" not in t["ticket_name"] for t in detail["tickets"])
     qr = agency.get(f"/api/agency/tickets/{detail['tickets'][0]['uid']}/qr")
     assert qr.status_code == 200 and qr.json()["token"]
