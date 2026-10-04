@@ -132,6 +132,53 @@ SELECT pg_temp.ok((SELECT count(*) FROM sales.booking) = 1, 'RLS: passenger sees
 SELECT pg_temp.ok((SELECT count(*) FROM fin.wallet) = 1, 'RLS: passenger sees only own wallet');
 COMMIT;
 
+-- 4b) Agencies: an agency sees the bookings it sold and nothing else; only the platform sets its terms
+BEGIN;
+SELECT sys.set_context(:uadmin, NULL, 'SYSTEM');
+INSERT INTO iam.party (party_type, legal_name) VALUES ('COMPANY','Barada Travel'), ('COMPANY','Orontes Travel');
+INSERT INTO iam.company (id, company_type, approval_status)
+SELECT id, 'AGENCY', 'APPROVED' FROM iam.party WHERE legal_name IN ('Barada Travel','Orontes Travel');
+COMMIT;
+SELECT id AS ag1 FROM iam.party WHERE legal_name='Barada Travel' \gset
+SELECT id AS ag2 FROM iam.party WHERE legal_name='Orontes Travel' \gset
+
+BEGIN;
+SELECT sys.set_context(:uadmin, NULL, 'SYSTEM');
+INSERT INTO sales.agency_agreement (agency_id, commission_bp, daily_limit) VALUES (:ag1, 500, 10000000), (:ag2, 300, 10000000);
+SELECT pg_temp.expect_error(format($$INSERT INTO sales.agency_agreement (agency_id, commission_bp, daily_limit) VALUES (%s, 2500, 1)$$, :ag2),
+  'commission_bp', 'Agency: commission above 20% rejected');
+INSERT INTO sales.booking (booking_ref, trip_id, company_id, booker_party_id, channel_id, currency, total_amount, price_breakdown,
+                           rules_version, idempotency_key, status, confirmed_at, agency_id, contact_mobile)
+SELECT 'AGN001', t.id, :ca, :ag1, (SELECT id FROM sales.channel WHERE code='AGENCY'), 'SYP', 3500000, '{}', 'r1', 'a-1',
+       'CONFIRMED', now(), :ag1, '+963944000111'
+FROM ops.trip t WHERE trip_no = 'QDS214/03OCT26';
+COMMIT;
+
+BEGIN;
+SELECT sys.set_context(NULL, :ag1, 'AGENCY');
+SELECT pg_temp.ok((SELECT count(*) FROM sales.booking) = 1, 'RLS: agency sees the booking it sold');
+SELECT pg_temp.ok((SELECT count(*) FROM sales.booking WHERE booking_ref = 'ABC123') = 0, 'RLS: agency cannot see a passenger''s booking');
+SELECT pg_temp.ok((SELECT count(*) FROM sales.agency_agreement) = 1, 'RLS: agency reads only its own agreement');
+UPDATE sales.agency_agreement SET commission_bp = 2000;
+SELECT pg_temp.expect_error(format($$INSERT INTO sales.agency_agreement (agency_id, commission_bp, daily_limit) VALUES (%s, 2000, 1)$$, :ag1),
+  'row-level security', 'RLS: agency cannot write its own terms');
+COMMIT;
+
+BEGIN;
+SELECT sys.set_context(NULL, :ag2, 'AGENCY');
+SELECT pg_temp.ok((SELECT count(*) FROM sales.booking) = 0, 'RLS: another agency cannot see that booking');
+COMMIT;
+
+BEGIN;
+SELECT sys.set_context(NULL, :ag1, 'COMPANY');
+SELECT pg_temp.ok((SELECT count(*) FROM sales.booking) = 0, 'RLS: agency visibility needs the AGENCY scope');
+COMMIT;
+
+BEGIN;
+SELECT sys.set_context(:uadmin, NULL, 'SYSTEM');
+SELECT pg_temp.ok((SELECT commission_bp FROM sales.agency_agreement WHERE agency_id = :ag1) = 500, 'Agency: terms unchanged by the agency''s update');
+COMMIT;
+
 -- 5) E-invoice
 BEGIN;
 SELECT sys.set_context(:uadmin, NULL, 'SYSTEM');

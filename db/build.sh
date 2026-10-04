@@ -1,10 +1,19 @@
 #!/usr/bin/env bash
 # Builds the Masslak database from scratch: ./db/build.sh <database> [psql connection args]
+# Every applied file is recorded in sys.schema_file, so ./db/upgrade.sh later applies only newer files.
 set -euo pipefail
+# psql substitutes :'variables' only in scripts, not in -c, so the statement goes through stdin
+record() { echo "INSERT INTO sys.schema_file (file, sha256) VALUES (:'file', :'sha') ON CONFLICT (file) DO NOTHING" |
+           psql "${PSQL_ARGS[@]}" -d "$DB" -v ON_ERROR_STOP=1 -q -v file="$1" -v sha="$2" -f -; }
 DB="${1:?database name}"; shift || true
-DIR="$(cd "$(dirname "$0")" && pwd)/schema"
-for f in "$DIR"/[0-9][0-9][0-9]_*.sql; do
+PSQL_ARGS=("$@")
+DIR="$(cd "$(dirname "$0")" && pwd)"
+for f in "$DIR"/schema/[0-9][0-9][0-9]_*.sql; do
   echo ">> $(basename "$f")"
   psql "$@" -d "$DB" -v ON_ERROR_STOP=1 -q -f "$f"
+done
+psql "$@" -d "$DB" -v ON_ERROR_STOP=1 -q -f "$DIR/schema_file.sql"
+for f in "$DIR"/schema/[0-9][0-9][0-9]_*.sql; do
+  record "$(basename "$f")" "$(sha256sum "$f" | cut -d' ' -f1)"
 done
 echo "OK: schema built in $DB"

@@ -23,11 +23,17 @@ Built solely from the **Analysis and Design Study v2.4** (`docs/Masslak_Analysis
 
 ```bash
 createdb masslak
-./db/build.sh masslak                 # builds the schema in order (000 -> 950)
+./db/build.sh masslak                 # builds the schema in order (000 -> 990) and records each file
+./db/upgrade.sh masslak               # on an existing database: applies only the files it has not run yet
 ./db/tests/run.sh                     # builds a temporary database, runs the tests, then drops it
 python3 db/tools/gen_docs.py masslak  # regenerates the data dictionary and ERD
 ```
 psql connection arguments can follow the database name, e.g. `./db/build.sh masslak -h host -U owner`.
+
+**Upgrades.** Applied files are recorded with their SHA-256 in `sys.schema_file`. `upgrade.sh` runs each newer file
+in its own transaction and records it. Files from 980 on are upgrade files: they are written to be idempotent
+(`IF NOT EXISTS`, `ON CONFLICT DO NOTHING`, `DROP POLICY IF EXISTS`) and are never edited once released; a change
+is a new file. A database built before file tracking is treated as having every file up to 970.
 
 | File | Contents |
 |---|---|
@@ -45,6 +51,10 @@ psql connection arguments can follow the database name, e.g. `./db/build.sh mass
 | `110_audit.sql` | Login, activity, data-access and change logs, sealing, monthly partitions |
 | `900_rls_grants.sql` | Tenant isolation and role privileges |
 | `950_seed.sql` | Seed data: locales, currencies, countries, cities, platform wallets, permission and role catalog, settings |
+| `960_platform_config.sql` | Fare brands, sandbox payment provider, API permissions |
+| `970_passenger_names.sql` | Structured passenger names by identity document, full country list |
+| `980_mfa.sql` | Two-factor sign-in: replay protection, one active factor, failure count per session |
+| `990_agency.sql` | Travel agencies: agreements (commission, daily limit), booking attribution and its RLS, agency roles |
 
 ## Design rules (study 29.1)
 

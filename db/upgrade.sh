@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# Applies schema files that an existing database has not run yet: ./db/upgrade.sh <database> [psql connection args]
+#
+# Files are applied in name order, each in its own transaction, and recorded in sys.schema_file. Upgrade files
+# (980 onwards) must be idempotent (IF NOT EXISTS, ON CONFLICT DO NOTHING, DROP POLICY IF EXISTS ...).
+# A database built before file tracking existed is assumed to have every file up to the baseline below.
+set -euo pipefail
+# psql substitutes :'variables' only in scripts, not in -c, so the statement goes through stdin
+record() { echo "INSERT INTO sys.schema_file (file, sha256) VALUES (:'file', :'sha') ON CONFLICT (file) DO NOTHING" |
+           psql "${PSQL_ARGS[@]}" -d "$DB" -v ON_ERROR_STOP=1 -q -v file="$1" -v sha="$2" -f -; }
+DB="${1:?database name}"; shift || true
+PSQL_ARGS=("$@")
+DIR="$(cd "$(dirname "$0")" && pwd)"
+BASELINE="970"
+
+# "tracked" only once at least one file is recorded, so an interrupted first run is safe to repeat
+tracked="$(psql "$@" -d "$DB" -Atqc "SELECT to_regclass('sys.schema_file') IS NOT NULL AND EXISTS (SELECT 1 FROM sys.schema_file)")"
+psql "$@" -d "$DB" -v ON_ERROR_STOP=1 -q -f "$DIR/schema_file.sql"
+for f in "$DIR"/schema/[0-9][0-9][0-9]_*.sql; do
+  name="$(basename "$f")"; sha="$(sha256sum "$f" | cut -d' ' -f1)"
+  if [ "$tracked" = "f" ] && [ "${name:0:3}" -le "$BASELINE" ]; then
+    record "$name" "$sha"
+    continue
+  fi
+  done_sha="$(echo "SELECT sha256 FROM sys.schema_file WHERE file = :'file'" | psql "$@" -d "$DB" -Atq -v file="$name" -f -)"
+  if [ -n "$done_sha" ]; then
+    [ "$done_sha" = "$sha" ] || echo "warning: $name changed after it was applied (upgrade files are never edited; add a new file)"
+    continue
+  fi
+  echo ">> $name"
+  psql "$@" -d "$DB" -v ON_ERROR_STOP=1 -q --single-transaction -f "$f"
+  record "$name" "$sha"
+done
+echo "OK: $DB is up to date"
