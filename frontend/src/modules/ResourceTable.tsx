@@ -242,7 +242,7 @@ export function ResourceTable({ res, fixed, title, sub, extra }: { res: string; 
   const cols = s.list.filter((c) => !fixed || !(c.name in fixed));
   const total = rows.data?.total ?? 0;
   return (
-    <div className="card flat stack">
+    <div className="card flat stack" id={`res-${res}`} style={{ scrollMarginTop: 16 }}>
       <div className="row between">
         <div>
           <h3 style={{ margin: 0 }}>{title ?? L.res(res)}</h3>

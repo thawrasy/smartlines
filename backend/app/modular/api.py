@@ -12,6 +12,7 @@
     DELETE /api/r/{res}/{key}                delete (where allowed)
     POST /api/r/{res}/{key}/do/{action}      state action
     GET  /api/r/{res}/lookup/{column}        choices for a reference column
+    GET  /api/m/{module}/dashboard           tiles, breakdowns, trend and latest records for the caller's portal
 """
 import json
 import re
@@ -23,7 +24,7 @@ from pydantic import BaseModel
 from .. import db
 from ..deps import Principal, context_for, optional_principal, require_permission, require_user
 from ..errors import ApiError, not_found
-from . import engine, features
+from . import dashboards, engine, features
 from .registry import BY_KEY, MODULES
 from .specs import RESOURCES
 
@@ -188,3 +189,13 @@ async def act(res_key: str, key: str, action: str, request: Request, pr: Princip
         row = await engine.run_action(conn, res, pr, _key(key), action)
     request.state.audit = {"action": f"{res.key}.{action}", "object_type": res.table, "reason": "key " + key}
     return row
+
+
+@router.get("/api/m/{module}/dashboard")
+async def dashboard(module: str, request: Request, pr: Principal = Depends(require_user)):
+    if module not in BY_KEY or pr.portal not in BY_KEY[module].portals:
+        raise not_found("module")
+    if not await features.is_on(module):
+        raise ApiError(404, "MODULE_DISABLED", f"module {module} is switched off")
+    async with db.transaction(context_for(request, pr)) as conn:
+        return await dashboards.build(conn, module, pr)

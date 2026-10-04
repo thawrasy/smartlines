@@ -388,7 +388,7 @@ bundled for both platforms in CI, but have not yet been run on physical devices.
 
 ```
 docker compose up            # PostgreSQL, API, web, Caddy
-cd backend && pytest tests   # 92 tests: unit and end to end against a running API
+cd backend && pytest tests   # 98 tests: unit and end to end against a running API
 db/tests/run.sh              # 111 schema checks
 cd mobile && npm test        # core unit tests of the apps
 ```
@@ -430,6 +430,21 @@ types, `CHECK` choices, foreign keys and primary keys from the PostgreSQL catalo
 | `POST /api/r/{res}`, `GET`/`PATCH`/`DELETE /api/r/{res}/{key}` | records |
 | `POST /api/r/{res}/{key}/do/{action}` | state-machine action |
 | `GET /api/r/{res}/lookup/{column}` | options for a reference column |
+| `GET /api/m/{module}/dashboard` | dashboard of a module for the signed-in portal |
+
+### Module dashboards
+
+Every module opens on a dashboard (`backend/app/modular/dashboards.py`): three to five headline tiles (counts or money
+totals with an optional status filter and time window), status breakdowns, a 30-day daily trend and the five latest
+records. A portal sees only the widgets whose resource it may read, and every query runs under row-level security, so a
+carrier sees its own numbers and the platform sees the whole market. Tiles open the screen they summarise.
+
+### Demo data
+
+`backend/scripts/seed_modules.py` fills every module table on a test server (about 3,000 rows in 219 tables, spread over
+the last 30 days) after `seed_demo.py`. It reads each table from the catalog, so required columns, references and
+`CHECK` lists are satisfied, and it respects the business rules enforced by the schema (one open ride per passenger,
+one accepted bid per request, one active version per line). `install.sh --demo` and CI run it.
 
 ### Module catalogue
 

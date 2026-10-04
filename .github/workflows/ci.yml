@@ -67,6 +67,7 @@ jobs:
           psql -h localhost -U postgres -d masslak -v ON_ERROR_STOP=1 -q -v api_password=ci-api-password \
                -v audit_password=ci-audit-password -f db/create_login_roles.sql
           python backend/scripts/seed_demo.py
+          python backend/scripts/seed_modules.py
       - name: Start the API
         working-directory: backend
         run: |

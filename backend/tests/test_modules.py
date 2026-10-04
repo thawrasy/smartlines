@@ -153,3 +153,33 @@ def test_four_eyes_actions_refuse_the_author(admin, all_on):
     assert r.json()["status"] == "DRAFT"
     r = admin.post(f"/api/r/entry-rule/{r.json()['_key']}/do/approve")
     assert r.status_code == 409 and r.json()["error"]["code"] == "FOUR_EYES"
+
+
+def test_dashboard_specs_name_real_resources():
+    from app.modular import dashboards
+    assert dashboards.check() == []
+
+
+@pytest.mark.parametrize("who", ["admin", "carrier", "agency", "passenger"])
+def test_every_module_dashboard_answers_for_its_portals(request, who, all_on):
+    client = request.getfixturevalue(who)
+    for m in client.get("/api/modules").json()["modules"]:
+        r = client.get(f"/api/m/{m['key']}/dashboard")
+        assert r.status_code == 200, (m["key"], r.text)
+        d = r.json()
+        visible = {x["key"] for x in m["resources"]}
+        assert {t["res"] for t in d["tiles"]} <= visible
+        if d["trend"]:
+            assert len(d["trend"]["points"]) == 30
+
+
+def test_dashboards_follow_portals_and_switches(admin, carrier, agency, all_on):
+    assert agency.get("/api/m/approved_lines/dashboard").status_code == 404      # not an agency module
+    switch(admin, "rail", False)
+    try:
+        time.sleep(CACHE_SECONDS)
+        r = carrier.get("/api/m/rail/dashboard")
+        assert r.status_code == 404 and r.json()["error"]["code"] == "MODULE_DISABLED"
+    finally:
+        switch(admin, "rail", True)
+        time.sleep(CACHE_SECONDS)

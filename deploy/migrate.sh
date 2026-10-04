@@ -22,5 +22,6 @@ psql -d "$DB" -v ON_ERROR_STOP=1 -q -v api_password="${MASSLAK_API_PASSWORD:?}" 
 
 if [ "${MASSLAK_SEED_DEMO:-false}" = "true" ]; then
   MASSLAK_OWNER_URL="postgresql://$PGUSER:$PGPASSWORD@$PGHOST/$DB" python /app/backend/scripts/seed_demo.py
+  MASSLAK_OWNER_URL="postgresql://$PGUSER:$PGPASSWORD@$PGHOST/$DB" python /app/backend/scripts/seed_modules.py
 fi
 echo "database ready"

@@ -151,6 +151,7 @@ MASSLAK_API_URL=https://masslak.com MASSLAK_API_PINS=<pin1>,<pin2> npx eas build
 ./db/build.sh masslak_dev        # PostgreSQL 16 with the contrib extensions
 psql -d masslak_dev -v api_password=devapi -v audit_password=devaudit -f db/create_login_roles.sql
 MASSLAK_OWNER_URL=postgresql:///masslak_dev python3 backend/scripts/seed_demo.py
+MASSLAK_OWNER_URL=postgresql:///masslak_dev python3 backend/scripts/seed_modules.py   # demo data for every module
 cd backend && pip install -r requirements-dev.txt
 MASSLAK_DATABASE_URL=postgresql://masslak_api:devapi@localhost/masslak_dev \
 MASSLAK_AUDIT_DATABASE_URL=postgresql://masslak_audit:devaudit@localhost/masslak_dev \

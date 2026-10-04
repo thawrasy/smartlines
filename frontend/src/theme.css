@@ -403,3 +403,33 @@ textarea.invalid { border-color: var(--error); }
 .module-card.on { border-color: color-mix(in srgb, var(--success, #12A06A) 50%, transparent); }
 .menu-anchor { position: relative; }
 .menu-pop { position: absolute; top: 44px; inset-inline-start: 0; background: var(--surface); border-radius: var(--radius-s); box-shadow: var(--shadow-2); padding: 8px; min-width: 240px; z-index: 30; display: flex; flex-direction: column; }
+
+/* Module dashboards */
+.dash-tiles { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+.dash-tile .value { white-space: nowrap; font-size: clamp(20px, 2vw, 28px); display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
+.dash-tile .value .unit { font-size: 13px; font-weight: 500; color: var(--on-surface-variant); font-family: var(--font-body, inherit); }
+.dash-tile { border: 0; text-align: start; cursor: pointer; font: inherit; display: flex; flex-direction: column; gap: 2px; }
+.dash-tile:hover { box-shadow: var(--shadow-2, var(--shadow-1)); outline: 1px solid var(--outline-variant); }
+.dash-tile .label::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--primary); flex: none; }
+.dash-tile.good .label::before { background: var(--success); }
+.dash-tile.warn .label::before { background: #B07A00; }
+.dash-tile.bad .label::before { background: var(--error); }
+.dash-card h3 { margin: 0; font-size: 16px; }
+.dash-card { display: flex; flex-direction: column; gap: 14px; }
+.hbars { display: flex; flex-direction: column; gap: 10px; }
+.hbar { display: grid; grid-template-columns: minmax(90px, 30%) 1fr auto; align-items: center; gap: 10px; font-size: 13px; }
+.hbar-label { color: var(--on-surface-variant); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hbar-track { height: 10px; border-radius: 4px; background: color-mix(in srgb, var(--outline-variant) 45%, transparent); overflow: hidden; }
+.hbar-fill { display: block; height: 100%; min-width: 4px; border-radius: 4px; background: var(--primary); }
+.hbar-value { font-variant-numeric: tabular-nums; font-weight: 600; color: var(--on-surface); min-width: 2ch; text-align: end; }
+svg.trend { width: 100%; height: auto; display: block; }
+.trend-bar { fill: var(--primary); opacity: .85; }
+.trend-bar.on { opacity: 1; fill: var(--brand-navy); }
+.trend-axis { stroke: var(--outline-variant); stroke-width: 1; }
+.trend-tick { font-size: 11px; fill: var(--on-surface-variant); }
+@media (max-width: 760px) {
+  .dash-row.grid.cols-2 { grid-template-columns: minmax(0, 1fr); }
+  .dash-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .dash-tile { padding: 14px; }
+  .dash-tile .value { font-size: 20px; }
+}
