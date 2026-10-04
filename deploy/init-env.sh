@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Creates deploy/.env from .env.example with fresh random secrets. Never overwrites an existing file.
-#   ./deploy/init-env.sh --domain masslak.example.sy --email ops@example.sy            production
-#   ./deploy/init-env.sh --domain test.masslak.example.sy --email ops@example.sy --demo  test server with demo data
+#   ./deploy/init-env.sh --domain masslak.com --email ops@masslak.com            production
+#   ./deploy/init-env.sh --domain test.masslak.com --email ops@masslak.com --demo  test server with demo data
 #   ./deploy/init-env.sh --domain localhost --demo                                    local trial
 set -euo pipefail
 cd "$(dirname "$0")"

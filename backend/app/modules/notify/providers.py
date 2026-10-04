@@ -31,7 +31,7 @@ def send_email(to: str, subject: str, body: str) -> None:
         return _log("EMAIL", to, subject, body)
     url = urlparse(os.environ["MASSLAK_SMTP_URL"])
     msg = EmailMessage()
-    msg["From"] = os.environ.get("MASSLAK_MAIL_FROM", "Masslak <no-reply@masslak.sy>")
+    msg["From"] = os.environ.get("MASSLAK_MAIL_FROM", "Masslak <no-reply@masslak.com>")
     msg["To"], msg["Subject"] = to, subject
     msg.set_content(body)
     with smtplib.SMTP(url.hostname, url.port or 587, timeout=15) as s:

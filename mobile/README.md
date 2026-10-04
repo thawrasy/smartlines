@@ -15,7 +15,7 @@ certificate pinning) need a development build: `npx expo run:android` or `npx ex
 | Variable | Purpose |
 |---|---|
 | `APP_VARIANT` | `passenger` (default) or `driver` |
-| `MASSLAK_API_URL` | API origin, e.g. `https://api.masslak.sy` |
+| `MASSLAK_API_URL` | API origin, e.g. `https://masslak.com` |
 | `MASSLAK_API_PINS` | Comma-separated SHA-256 SPKI pins of the API certificate: current key and at least one backup |
 
 A release build refuses to start without an `https://` API URL and at least two pins.

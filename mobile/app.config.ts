@@ -1,5 +1,5 @@
 // One code base, two apps. Build with APP_VARIANT=passenger (default) or APP_VARIANT=driver.
-//   MASSLAK_API_URL   https base address of the API, e.g. https://masslak.example.sy
+//   MASSLAK_API_URL   https base address of the API, e.g. https://masslak.com
 //   MASSLAK_API_PINS  comma-separated base64 SHA-256 hashes of the API certificate's public key (at least two:
 //                     the current key and a backup), enforced by native certificate pinning in release builds
 import type { ConfigContext, ExpoConfig } from "expo/config";
@@ -12,7 +12,7 @@ const VARIANTS = {
 export default ({ config }: ConfigContext): ExpoConfig => {
   const variant = (process.env.APP_VARIANT === "driver" ? "driver" : "passenger") as keyof typeof VARIANTS;
   const v = VARIANTS[variant];
-  const apiUrl = process.env.MASSLAK_API_URL ?? "https://masslak.example.sy";
+  const apiUrl = process.env.MASSLAK_API_URL ?? "https://masslak.com";
   if (!apiUrl.startsWith("https://") && process.env.NODE_ENV === "production") {
     throw new Error("MASSLAK_API_URL must use https in release builds");
   }

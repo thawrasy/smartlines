@@ -17,8 +17,8 @@ full backup and restore (`.github/workflows/ci.yml`, job `stack`).
 
 - A Linux server, Ubuntu 22.04 or 24.04. A test server needs 2 vCPU, 4 GB RAM and 40 GB disk; size production
   from load tests (start at 4 vCPU and 8 GB).
-- A domain, with DNS `A` (and `AAAA` if the server has IPv6) records for `masslak.example.sy` and
-  `www.masslak.example.sy` pointing at the server. Set them first: the certificate is issued on first start.
+- A domain, with DNS `A` (and `AAAA` if the server has IPv6) records for `masslak.com` and
+  `www.masslak.com` pointing at the server. Set them first: the certificate is issued on first start.
 
 ## 2. First start
 
@@ -26,7 +26,7 @@ full backup and restore (`.github/workflows/ci.yml`, job `stack`).
 sudo apt-get update && sudo apt-get install -y git
 sudo git clone <repository URL> /opt/masslak && cd /opt/masslak
 sudo ./deploy/server-setup.sh                 # Docker, firewall (22/80/443), fail2ban, security updates, nightly backup
-sudo ./deploy/init-env.sh --domain masslak.example.sy --email ops@example.sy
+sudo ./deploy/init-env.sh --domain masslak.com --email ops@masslak.com
 sudo docker compose --env-file deploy/.env up -d --build
 sudo docker compose --env-file deploy/.env logs -f migrate app
 ```
@@ -35,7 +35,7 @@ sudo docker compose --env-file deploy/.env logs -f migrate app
 password manager or secret store right away.** Without those keys, the encrypted identity numbers, MFA secrets
 and documents cannot be read, even from a backup.
 
-The site is then at `https://masslak.example.sy`. Caddy obtains and renews the certificate by itself.
+The site is then at `https://masslak.com`. Caddy obtains and renews the certificate by itself.
 
 ### Test server with demo data
 
@@ -108,7 +108,7 @@ for c in isrgrootx1 isrg-root-x2; do
   curl -fsS https://letsencrypt.org/certs/$c.pem | openssl x509 -pubkey -noout |
     openssl pkey -pubin -outform der | openssl dgst -sha256 -binary | base64
 done
-MASSLAK_API_URL=https://masslak.example.sy MASSLAK_API_PINS=<pin1>,<pin2> npx eas build ...
+MASSLAK_API_URL=https://masslak.com MASSLAK_API_PINS=<pin1>,<pin2> npx eas build ...
 ```
 
 ## Security notes
