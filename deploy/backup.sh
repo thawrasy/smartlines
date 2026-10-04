@@ -7,7 +7,8 @@
 # is encrypted with age before it is written. Copy the backup directory off the server (another site or bucket).
 set -euo pipefail
 cd "$(dirname "$0")/.."
-set -a; . deploy/.env; set +a
+# deploy/.env is KEY=VALUE data, not shell code (values may hold <, spaces or $): export each line as is
+while IFS= read -r line; do case "$line" in ''|\#*) ;; *) export "$line" ;; esac; done < deploy/.env
 dir="${MASSLAK_BACKUP_DIR:-/var/backups/masslak}/$(date -u +%Y%m%dT%H%M%SZ)"
 keep="${MASSLAK_BACKUP_KEEP_DAYS:-14}"
 compose() { docker compose --env-file deploy/.env "$@"; }

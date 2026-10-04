@@ -5,7 +5,8 @@
 set -euo pipefail
 src="${1:?backup directory}"; [ "${2:-}" = "--yes" ] || { echo "this replaces all current data; re-run with --yes" >&2; exit 2; }
 cd "$(dirname "$0")/.."
-set -a; . deploy/.env; set +a
+# deploy/.env is KEY=VALUE data, not shell code (values may hold <, spaces or $): export each line as is
+while IFS= read -r line; do case "$line" in ''|\#*) ;; *) export "$line" ;; esac; done < deploy/.env
 compose() { docker compose --env-file deploy/.env "$@"; }
 open() {                                   # backup file -> stdout, decrypting with age when needed
   if [ -f "$src/$1.age" ]; then age -d -i "${MASSLAK_BACKUP_AGE_IDENTITY:?set MASSLAK_BACKUP_AGE_IDENTITY to the age key file}" "$src/$1.age"
