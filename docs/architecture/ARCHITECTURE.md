@@ -1,6 +1,6 @@
 # Masslak system architecture
 
-Version 1.0, 4 October 2026. Based on the Analysis and Design Study v2.5 (English), the Use Case and Data Flow Diagrams v1.0 and the repository as it stands on branch `claude/land-shipping-development-dz68oz`.
+Version 1.0, 4 October 2026. Based on the Analysis and Design Study v2.6 (English; v2.5 plus appendix D, additional phases 13 to 15), the Use Case and Data Flow Diagrams v1.0 and the repository as it stands on branch `claude/land-shipping-development-dz68oz`.
 
 This document answers four questions:
 
@@ -210,9 +210,9 @@ sequenceDiagram
 * **Idempotency keys** on bookings and top-ups, so a mobile retry on a weak network never charges twice.
 * **Exclusion constraints** stop a vehicle or a driver being assigned to overlapping trips.
 * **Events leave through `sys.outbox_event`**, written in the same transaction as the change, and are published by a worker. Notifications, webhooks and ERP sync all read the outbox; nothing calls an external system inside a request.
-* **Extensible lists are reference tables** (`ref.party_role_type`, `ref.trip_type`, `ref.vehicle_class`, `ref.station_subtype`, `ref.cargo_category`), referenced by foreign keys. The platform adds a value as a row; system values cannot be deleted (schema file 1003, study annex D.4).
+* **Extensible lists are reference tables** (`ref.party_role_type`, `ref.trip_type`, `ref.vehicle_class`, `ref.station_subtype`, `ref.cargo_category`), referenced by foreign keys. The platform adds a value as a row; system values cannot be deleted (schema file 1003, study appendix D.4).
 
-### Readiness for later modules (study annex D, schema file 1003)
+### Readiness for later modules (study appendix D, schema file 1003)
 
 * **Passenger transit across Syria:** trip type `TRANSIT_PAX`, `net.corridor` and `net.approved_rest_stop`, `ops.trip_crossing_plan` (border entry and exit points, border stations only), append-only `ops.crossing_event`, `ops.transit_reconciliation`, and `sales.ticket.travel_category`.
 * **Contracted transport for schools, universities and employers:** its own schema `ctr` (contracts, routes, riders, authorised receivers, attendance, invoices), visible only to the carrier and the client institution.
