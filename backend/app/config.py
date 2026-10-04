@@ -22,6 +22,9 @@ class Settings(BaseSettings):
     static_dir: str = "../frontend/dist"
     # Sandbox mode enables the simulated payment gateway; never enable in production
     sandbox: bool = False
+    # Encrypted file store for uploaded documents (a mounted volume; an object store adapter replaces it later)
+    files_dir: str = "../data/files"
+    max_upload_bytes: int = 4 * 1024 * 1024
     platform_fee: int = 100000            # flat platform fee per booking, minor units (SYP 1,000.00)
     qr_window_seconds: int = 90
     # Requests per minute per client address (token buckets, see ratelimit.py)

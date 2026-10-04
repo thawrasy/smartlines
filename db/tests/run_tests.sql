@@ -164,6 +164,20 @@ SELECT pg_temp.expect_error(format($$UPDATE fin.withdrawal_request SET status = 
   'check', 'Payouts: the requester cannot approve their own withdrawal');
 COMMIT;
 
+-- 4a3) Documents: a company uploads but never decides on its own documents
+BEGIN;
+SELECT sys.set_context(:ua, :ca, 'COMPANY');
+INSERT INTO ref.file_object (storage_key, mime_type, size_bytes, sha256, company_id) VALUES ('t/doc1', 'application/pdf', 10, '\x00', :ca);
+INSERT INTO iam.document (owner_type, owner_id, doc_type, file_id, company_id)
+SELECT 'COMPANY', :ca, 'CR', id, :ca FROM ref.file_object WHERE storage_key = 't/doc1';
+SELECT pg_temp.expect_error($$UPDATE iam.document SET status = 'APPROVED' WHERE doc_type = 'CR'$$, 'only the platform reviews', 'Documents: company cannot approve its own document');
+COMMIT;
+BEGIN;
+SELECT sys.set_context(NULL, :cb, 'COMPANY');
+SELECT pg_temp.ok((SELECT count(*) FROM iam.document) = 0 AND (SELECT count(*) FROM ref.file_object WHERE storage_key = 't/doc1') = 0,
+  'RLS: another company sees neither the document nor its file');
+COMMIT;
+
 -- 4b) Agencies: an agency sees the bookings it sold and nothing else; only the platform sets its terms
 BEGIN;
 SELECT sys.set_context(:uadmin, NULL, 'SYSTEM');

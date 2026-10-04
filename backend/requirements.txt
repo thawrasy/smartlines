@@ -4,3 +4,5 @@ asyncpg==0.31.0
 argon2-cffi==25.1.0
 pydantic[email]==2.13.4
 pydantic-settings==2.14.2
+cryptography==49.0.0
+python-multipart==0.0.32

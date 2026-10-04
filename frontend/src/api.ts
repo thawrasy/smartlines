@@ -8,12 +8,13 @@ export class ApiError extends Error {
 
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
   let res: Response;
+  const form = body instanceof FormData;   // file uploads: the browser sets the multipart boundary itself
   try {
     res = await fetch(path, {
       method,
       credentials: "same-origin",
-      headers: { "X-Masslak-Client": "web", ...(body !== undefined ? { "Content-Type": "application/json" } : {}) },
-      body: body !== undefined ? JSON.stringify(body) : undefined,
+      headers: { "X-Masslak-Client": "web", ...(body !== undefined && !form ? { "Content-Type": "application/json" } : {}) },
+      body: body === undefined ? undefined : form ? body : JSON.stringify(body),
     });
   } catch {
     throw new ApiError(0, "NETWORK", "network error");
@@ -34,6 +35,7 @@ export const api = {
   post: <T>(path: string, body: unknown = {}) => request<T>("POST", path, body),
   patch: <T>(path: string, body: unknown = {}) => request<T>("PATCH", path, body),
   del: <T>(path: string) => request<T>("DELETE", path),
+  upload: <T>(path: string, form: FormData) => request<T>("POST", path, form),
 };
 
 export function newKey() {

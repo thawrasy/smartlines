@@ -1,5 +1,6 @@
 """Seat layouts end to end: a carrier defines the real arrangement, vehicles carry it, trips snapshot it and the
 passenger sees it; tickets print the seat label."""
+import secrets
 import uuid
 
 import pytest
@@ -46,7 +47,8 @@ def test_layout_vehicle_and_trip_snapshot(owner):
     # A trip on this vehicle shows passengers the real layout
     route = next(x for x in owner.get("/api/carrier/routes").json()["routes"] if x["code"] == "DAM-DRA")
     r = owner.post("/api/carrier/trips", json={"route_uid": route["uid"], "vehicle_uid": vehicle,
-                                               "departure_local": "2027-03-03T06:" + f"{uuid.uuid4().int % 60:02d}"})
+                                               "departure_local": f"2027-{1 + secrets.randbelow(12):02d}-{1 + secrets.randbelow(28):02d}"
+                                                                  f"T{6 + secrets.randbelow(12):02d}:{secrets.randbelow(60):02d}"})
     assert r.status_code == 201, r.text
     detail = client().get(f"/api/trips/{r.json()['uid']}", params={"from_seq": 0, "to_seq": 1}).json()
     assert detail["seat_map"]["decks"] == grid and len(detail["seat_map"]["seats"]) == 27

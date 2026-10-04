@@ -54,3 +54,12 @@ def test_normalising_and_masking():
 def test_no_active_key_refuses_to_encrypt():
     with pytest.raises(Exception):
         make(active=False).encrypt("x", "sales.passenger.id_no")
+
+
+def test_files_are_bound_to_their_storage_key():
+    fc = make()
+    data = b"%PDF-1.4 contents"
+    s = fc.encrypt_bytes(data, "file:ab/cd")
+    assert data not in s.ciphertext and fc.decrypt_bytes(s.ciphertext, 7, "file:ab/cd") == data
+    with pytest.raises(Exception):
+        fc.decrypt_bytes(s.ciphertext, 7, "file:ab/ce")      # a file moved to another key fails to decrypt

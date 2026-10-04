@@ -101,8 +101,13 @@ def publish_fresh_trip() -> None:
     r = o.post("/api/carrier/crew", json={"full_name": "Test Driver", "email": email, "password": FRESH_DRIVER_PASSWORD})
     assert r.status_code == 201, r.text
     FRESH_DRIVERS.append(email)
-    r = o.post("/api/carrier/trips", json={"route_uid": route["uid"], "vehicle_uid": vehicle, "driver_uid": r.json()["uid"],
-                                           "departure_local": f"{day(2)}T07:{secrets.randbelow(60):02d}:00"})
+    driver = r.json()["uid"]
+    # Trip numbers carry the route, date and departure minute, so another run may already hold a minute: try others
+    for _ in range(10):
+        r = o.post("/api/carrier/trips", json={"route_uid": route["uid"], "vehicle_uid": vehicle, "driver_uid": driver,
+                                               "departure_local": f"{day(2)}T{6 + secrets.randbelow(12):02d}:{secrets.randbelow(60):02d}:00"})
+        if r.status_code != 409:
+            break
     assert r.status_code == 201, r.text
 
 

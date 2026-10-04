@@ -115,6 +115,22 @@ class FieldCipher:
         ct = AESGCM(self._keys[key_id]).encrypt(nonce, value.encode(), column.encode())
         return Sealed(_VERSION + nonce + ct, key_id)
 
+    def encrypt_bytes(self, data: bytes, purpose: str, key_ref: str = RESTRICTED_REF) -> Sealed:
+        """Same scheme for files: the purpose (for example "file:<storage key>") is the associated data."""
+        key_id = self._active.get(key_ref)
+        if key_id is None:
+            raise CryptoConfigError(f"no active key for {key_ref}")
+        nonce = os.urandom(12)
+        return Sealed(_VERSION + nonce + AESGCM(self._keys[key_id]).encrypt(nonce, data, purpose.encode()), key_id)
+
+    def decrypt_bytes(self, blob: bytes, key_id: int, purpose: str) -> bytes:
+        if not blob or blob[:1] != _VERSION:
+            raise ValueError("unknown ciphertext version")
+        key = self._keys.get(key_id)
+        if key is None:
+            raise CryptoConfigError(f"key {key_id} is not available to this process")
+        return AESGCM(key).decrypt(blob[1:13], blob[13:], purpose.encode())
+
     def decrypt(self, blob: bytes, key_id: int, column: str) -> str:
         if not blob or blob[:1] != _VERSION:
             raise ValueError("unknown ciphertext version")

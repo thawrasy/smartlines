@@ -24,6 +24,8 @@ COPY backend/ ./
 COPY db/ /app/db/
 COPY deploy/migrate.sh /app/deploy/migrate.sh
 COPY --from=web /web/dist /app/static
+# The encrypted document store is a volume owned by the unprivileged app user
+RUN mkdir -p /data/files && chown masslak /data/files
 USER masslak
 EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health')"

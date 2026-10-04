@@ -42,6 +42,10 @@ services:
       MASSLAK_AUDIT_DATABASE_URL: postgresql://masslak_audit:${MASSLAK_AUDIT_PASSWORD}@db:5432/${POSTGRES_DB:-masslak}
       # Only the Caddy container on the front network may set X-Forwarded-For
       MASSLAK_TRUSTED_PROXIES: 172.30.0.0/24
+      # Uploaded documents, stored AES-256-GCM encrypted
+      MASSLAK_FILES_DIR: /data/files
+    volumes:
+      - files:/data/files
     depends_on:
       migrate: { condition: service_completed_successfully }
     networks: [internal, front]
@@ -68,4 +72,5 @@ networks:
 
 volumes:
   pgdata:
+  files:
   caddy_data:
