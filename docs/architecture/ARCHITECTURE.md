@@ -363,13 +363,26 @@ flowchart TB
 
 Passenger: Home, Search results, Seat selection, Passenger details and checkout, Ticket, Trips, Wallet, Account, Shuttle live ride. Driver: Today, Boarding scan, Route, Incidents and SOS, Profile.
 
+### 6.5 Status
+
+Built (`mobile/`, see `mobile/README.md`): backend items 1 to 4 of 6.3; passenger search, seat selection on the
+carrier's real layout, names, wallet payment, bookings, offline ticket; driver trips, offline pack, camera boarding
+online and offline with a synced queue; app lock, screen-capture blocking, pinning, root detection, keystore-only
+storage; English and Arabic. Layers: `core` (pure, Node-tested), `platform`, `ui`, `app` (routes), `i18n`.
+
+Not yet built: attestation (6.3 item 5, Play Integrity and App Attest), push notification delivery to devices,
+shuttle live ride, incidents and SOS, the driver route screen. The apps have been type-checked, unit-tested and
+bundled for both platforms in CI, but have not yet been run on physical devices.
+
 ---
 
 ## 7. Running and testing
 
 ```
 docker compose up            # PostgreSQL, API, web, Caddy
-cd backend && pytest tests   # 37 tests: unit (crypto, MFA, rate limit) and end to end against a running API
+cd backend && pytest tests   # 83 tests: unit and end to end against a running API
+db/tests/run.sh              # 69 schema checks
+cd mobile && npm test        # core unit tests of the apps
 ```
 
 The end-to-end suite is self-sufficient: each run uses its own test address and publishes its own trip when the demo week runs out.
