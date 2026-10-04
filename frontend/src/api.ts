@@ -41,7 +41,7 @@ export function newKey() {
 }
 
 // ---------- Response types ----------
-export type Portal = "PASSENGER" | "OPERATOR" | "DRIVER" | "PLATFORM";
+export type Portal = "PASSENGER" | "OPERATOR" | "DRIVER" | "AGENCY" | "PLATFORM";
 
 export interface Me {
   uid: string; name: string; email: string; portal: Portal; locale: string; is_owner: boolean;
@@ -84,7 +84,7 @@ export interface Ticket {
 
 export interface BookingDetail {
   booking: { booking_ref: string; status: string; total_amount: number; currency: string; trip_no: string; carrier_name: string;
-             created_at: string; verify_token: string;
+             created_at: string; verify_token: string; contact_mobile?: string; commission?: number | null;
              price_breakdown: { fare_per_passenger: number; passengers: number; fares_total: number; platform_fee: number; total: number; fare_brand: string } };
   tickets: Ticket[];
 }

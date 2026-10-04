@@ -5,11 +5,11 @@ import { useI18n } from "../../i18n";
 import { useAuth, homeFor } from "../../auth";
 import { ErrorBox, Field, Icon } from "../../components/ui";
 
-const PORTALS: Portal[] = ["PASSENGER", "OPERATOR", "DRIVER", "PLATFORM"];
+const PORTALS: Portal[] = ["PASSENGER", "OPERATOR", "DRIVER", "AGENCY", "PLATFORM"];
 // Demo accounts are listed only in the test environment build
 const DEMO: Record<Portal, string[]> = {
   PASSENGER: ["passenger@masslak.test"], OPERATOR: ["owner@carrier.test"], DRIVER: ["driver@carrier.test", "driver2@carrier.test", "driver3@carrier.test"],
-  PLATFORM: ["admin@masslak.test", "regulator@masslak.test"],
+  AGENCY: ["agency@agency.test"], PLATFORM: ["admin@masslak.test", "regulator@masslak.test"],
 };
 const SHOW_DEMO = import.meta.env.VITE_SHOW_DEMO !== "false";
 
@@ -49,8 +49,8 @@ export default function Login() {
       const res = await login(identifier.trim(), password, portal);
       const next = params.get("next");
       const safeNext = next && next.startsWith("/") && !next.startsWith("//") ? next : null;
-      if ("mfa" in res) {
-        nav(`/mfa?mode=${res.mfa}${safeNext ? `&next=${encodeURIComponent(safeNext)}` : ""}`, { replace: true });
+      if ("mfaStep" in res) {
+        nav(`/mfa?mode=${res.mfaStep}${safeNext ? `&next=${encodeURIComponent(safeNext)}` : ""}`, { replace: true });
         return;
       }
       nav(safeNext ?? homeFor(res), { replace: true });

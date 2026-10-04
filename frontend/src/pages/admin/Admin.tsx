@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { api } from "../../api";
+import { api, newKey } from "../../api";
 import { useI18n } from "../../i18n";
 import { useAuth } from "../../auth";
 import { PageHead } from "../../components/layout";
@@ -159,6 +159,129 @@ export function AdminStations() {
               <Field label={t("admin.lat")}><input className="input ltr" type="number" step="0.0001" value={f.lat} onChange={set("lat")} /></Field>
               <Field label={t("admin.lng")}><input className="input ltr" type="number" step="0.0001" value={f.lng} onChange={set("lng")} /></Field>
             </div>
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+// ------------------------------------------------------------------ agencies
+interface AdminAgency {
+  uid: string; legal_name: string; approval_status: string; commission_bp: number | null; daily_limit: number | null;
+  agreement_status: string | null; balance: number | null; currency: string | null; bookings: number;
+}
+
+// Amounts are typed in whole Syrian pounds and sent in minor units
+const toMinor = (v: string) => Math.round(Number(v || 0) * 100);
+
+export function AdminAgencies() {
+  const { t, money } = useI18n();
+  const { can } = useAuth();
+  const toast = useToast();
+  const state = useLoad(() => api.get<{ agencies: AdminAgency[] }>("/api/admin/agencies"));
+  const blank = { legal_name: "", license_no: "", owner_name: "", owner_email: "", owner_password: "", commission_pct: "5", daily_limit: "500000" };
+  const [f, setF] = useState(blank);
+  const [mode, setMode] = useState<null | "new" | { terms: AdminAgency } | { deposit: AdminAgency }>(null);
+  const [terms, setTerms] = useState({ commission_pct: "", daily_limit: "", status: "ACTIVE", reason: "" });
+  const [dep, setDep] = useState({ amount: "", bank_reference: "", key: newKey() });
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<unknown>(null);
+  const set = (k: keyof typeof blank) => (e: React.ChangeEvent<HTMLInputElement>) => setF({ ...f, [k]: e.target.value });
+  const close = () => { setMode(null); setError(null); };
+  const run = async (fn: () => Promise<unknown>) => {
+    setBusy(true); setError(null);
+    try { await fn(); close(); toast(t("common.saved")); state.reload(); } catch (e) { setError(e); } finally { setBusy(false); }
+  };
+
+  const onboard = () => run(() => api.post("/api/admin/agencies", {
+    legal_name: f.legal_name, license_no: f.license_no || null, owner_name: f.owner_name, owner_email: f.owner_email,
+    owner_password: f.owner_password, commission_bp: Math.round(Number(f.commission_pct) * 100), daily_limit: toMinor(f.daily_limit),
+  }).then(() => setF(blank)));
+  const saveTerms = (a: AdminAgency) => run(() => api.post(`/api/admin/agencies/${a.uid}/agreement`, {
+    commission_bp: Math.round(Number(terms.commission_pct) * 100), daily_limit: toMinor(terms.daily_limit), status: terms.status, reason: terms.reason,
+  }));
+  const deposit = (a: AdminAgency) => run(() => api.post(`/api/admin/agencies/${a.uid}/deposit`, {
+    amount: toMinor(dep.amount), bank_reference: dep.bank_reference.trim(), idempotency_key: dep.key,
+  }));
+  const openTerms = (a: AdminAgency) => {
+    setTerms({ commission_pct: String((a.commission_bp ?? 0) / 100), daily_limit: String((a.daily_limit ?? 0) / 100), status: a.agreement_status === "SUSPENDED" ? "SUSPENDED" : "ACTIVE", reason: "" });
+    setMode({ terms: a });
+  };
+  const openDeposit = (a: AdminAgency) => { setDep({ amount: "", bank_reference: "", key: newKey() }); setMode({ deposit: a }); };
+  const actions = (ok: () => void, disabled = false) => (
+    <><button className="btn text" onClick={close}>{t("common.cancel")}</button><button className="btn" disabled={busy || disabled} onClick={ok}>{t("common.confirm")}</button></>
+  );
+
+  return (
+    <div className="stack">
+      <PageHead title={t("admin.agencies")} sub={t("admin.agenciesHint")}>
+        {can("company.approve") && <button className="btn" onClick={() => setMode("new")}><Icon name="add" />{t("admin.onboardAgency")}</button>}
+      </PageHead>
+      <ErrorBox error={!mode ? error : null} />
+      <Loaded state={state}>{({ agencies }) => agencies.length === 0 ? <div className="card"><Empty icon="store" title={t("common.noData")} /></div> : (
+        <div className="table-wrap"><table className="table">
+          <thead><tr><th>{t("admin.legalName")}</th><th className="num">{t("agency.rate")}</th><th className="num">{t("admin.dailyLimit")}</th>
+            <th className="num">{t("agency.balance")}</th><th className="num">{t("agency.bookings")}</th><th>{t("common.status")}</th><th>{t("common.actions")}</th></tr></thead>
+          <tbody>{agencies.map((a) => (
+            <tr key={a.uid}>
+              <td style={{ fontWeight: 500 }}>{a.legal_name}</td>
+              <td className="num">{a.commission_bp != null ? `${a.commission_bp / 100}%` : "—"}</td>
+              <td className="num">{a.daily_limit != null ? money(a.daily_limit) : "—"}</td>
+              <td className="num">{a.balance != null ? money(a.balance) : "—"}</td>
+              <td className="num">{a.bookings}</td>
+              <td><Status value={a.agreement_status ?? a.approval_status} /></td>
+              <td><div className="row nowrap" style={{ gap: 4 }}>
+                {can("company.approve") && <button className="btn tonal small" onClick={() => openTerms(a)}>{t("admin.terms")}</button>}
+                {can("cash.remittance") && <button className="btn outlined small" onClick={() => openDeposit(a)}>{t("admin.deposit")}</button>}
+              </div></td>
+            </tr>
+          ))}</tbody>
+        </table></div>
+      )}</Loaded>
+
+      {mode === "new" && (
+        <Modal title={t("admin.onboardAgency")} onClose={close} actions={actions(onboard)}>
+          <div className="stack">
+            <ErrorBox error={error} />
+            <Field label={t("admin.legalName")}><input className="input" value={f.legal_name} onChange={set("legal_name")} /></Field>
+            <div className="grid cols-2">
+              <Field label={`${t("admin.license")} (${t("common.optional")})`}><input className="input ltr" value={f.license_no} onChange={set("license_no")} /></Field>
+              <Field label={t("admin.commissionPct")} hint={t("admin.commissionHint")}><input className="input ltr" type="number" min={0} max={20} step={0.25} value={f.commission_pct} onChange={set("commission_pct")} /></Field>
+              <Field label={t("admin.dailyLimitSyp")}><input className="input ltr" type="number" min={1} value={f.daily_limit} onChange={set("daily_limit")} /></Field>
+              <Field label={t("admin.ownerName")}><input className="input" value={f.owner_name} onChange={set("owner_name")} /></Field>
+            </div>
+            <Field label={t("admin.ownerEmail")}><input className="input ltr" type="email" value={f.owner_email} onChange={set("owner_email")} /></Field>
+            <Field label={t("admin.ownerPassword")} hint={t("auth.passwordHint")}><input className="input ltr" type="password" autoComplete="new-password" value={f.owner_password} onChange={set("owner_password")} /></Field>
+          </div>
+        </Modal>
+      )}
+      {mode && typeof mode === "object" && "terms" in mode && (
+        <Modal title={`${t("admin.terms")} · ${mode.terms.legal_name}`} onClose={close} actions={actions(() => saveTerms(mode.terms), terms.reason.trim().length < 3)}>
+          <div className="stack">
+            <ErrorBox error={error} />
+            <div className="grid cols-2">
+              <Field label={t("admin.commissionPct")} hint={t("admin.commissionHint")}><input className="input ltr" type="number" min={0} max={20} step={0.25} value={terms.commission_pct} onChange={(e) => setTerms({ ...terms, commission_pct: e.target.value })} /></Field>
+              <Field label={t("admin.dailyLimitSyp")}><input className="input ltr" type="number" min={1} value={terms.daily_limit} onChange={(e) => setTerms({ ...terms, daily_limit: e.target.value })} /></Field>
+            </div>
+            <Field label={t("common.status")}>
+              <select className="input" value={terms.status} onChange={(e) => setTerms({ ...terms, status: e.target.value })}>
+                <option value="ACTIVE">{t("status.ACTIVE")}</option><option value="SUSPENDED">{t("status.SUSPENDED")}</option>
+              </select>
+            </Field>
+            <Field label={t("common.reason")}><textarea className="input" value={terms.reason} onChange={(e) => setTerms({ ...terms, reason: e.target.value })} /></Field>
+            <p className="small muted">{t("admin.termsNote")}</p>
+          </div>
+        </Modal>
+      )}
+      {mode && typeof mode === "object" && "deposit" in mode && (
+        <Modal title={`${t("admin.deposit")} · ${mode.deposit.legal_name}`} onClose={close}
+               actions={actions(() => deposit(mode.deposit), !(Number(dep.amount) > 0) || dep.bank_reference.trim().length < 3)}>
+          <div className="stack">
+            <ErrorBox error={error} />
+            <Field label={t("admin.depositAmount")}><input className="input ltr" type="number" min={1} value={dep.amount} onChange={(e) => setDep({ ...dep, amount: e.target.value })} /></Field>
+            <Field label={t("admin.bankReference")}><input className="input ltr mono" value={dep.bank_reference} onChange={(e) => setDep({ ...dep, bank_reference: e.target.value.replace(/[^0-9A-Za-z\-/]/g, "") })} /></Field>
+            {Number(dep.amount) > 0 && <div className="alert info"><Icon name="account_balance_wallet" /><span>{t("admin.depositConfirm", { amount: money(toMinor(dep.amount)), name: mode.deposit.legal_name })}</span></div>}
           </div>
         </Modal>
       )}

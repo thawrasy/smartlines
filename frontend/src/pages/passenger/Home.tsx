@@ -5,6 +5,7 @@ import { useI18n } from "../../i18n";
 import { localDate } from "../../dates";
 import { Field, Icon, useLoad } from "../../components/ui";
 import type { IconName } from "../../components/icons";
+import { useChannel } from "../../channel";
 
 interface Ref { cities: { code: string; country_code: string }[] }
 
@@ -20,6 +21,7 @@ export function useCities() {
 export function SearchForm({ initial }: { initial?: { from: string; to: string; on: string; pax: number } }) {
   const { t } = useI18n();
   const nav = useNavigate();
+  const ch = useChannel();
   const cities = useCities();
   const [from, setFrom] = useState(initial?.from ?? "DAM");
   const [to, setTo] = useState(initial?.to ?? "ALP");
@@ -27,7 +29,7 @@ export function SearchForm({ initial }: { initial?: { from: string; to: string; 
   const [pax, setPax] = useState(initial?.pax ?? 1);
   const submit = (e: FormEvent) => {
     e.preventDefault();
-    if (from && to && from !== to) nav(`/search?from=${from}&to=${to}&on=${on}&pax=${pax}`);
+    if (from && to && from !== to) nav(ch.link(`/search?from=${from}&to=${to}&on=${on}&pax=${pax}`));
   };
   const select = (value: string, set: (v: string) => void) => (
     <select className="input" value={value} onChange={(e) => set(e.target.value)} required>

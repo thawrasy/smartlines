@@ -1,5 +1,4 @@
 """Agency portal API: /api/agency. Sell tickets for any approved carrier, follow bookings, statements, staff."""
-import json
 import uuid
 from typing import Literal, Optional
 
@@ -11,7 +10,6 @@ from ...deps import Principal, context_for, require_portal
 from ...errors import ApiError
 from ...routers.bookings import qr_response
 from ...security import password_problem
-from ...util import row_dict
 from ..sales import service as sales
 from ..sales.models import AgencyBookingIn, HoldIn
 from . import repository as repo
@@ -58,13 +56,7 @@ async def sell(body: AgencyBookingIn, request: Request, pr: Principal = Depends(
 async def bookings(request: Request, q: Optional[str] = Query(default=None, max_length=20, pattern=r"^[0-9A-Za-z+]+$"),
                    pr: Principal = Depends(agency)):
     async with db.transaction(context_for(request, pr)) as conn:
-        recs = await repo.bookings(conn, service.require_agency(pr), q)
-    out = []
-    for r in recs:
-        d = row_dict(r)
-        d["journey"] = json.loads(d["journey"]) if isinstance(d["journey"], str) else d["journey"]
-        out.append(d)
-    return {"bookings": out}
+        return {"bookings": await service.bookings(conn, pr, q)}
 
 
 @router.get("/bookings/{ref}")

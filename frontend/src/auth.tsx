@@ -6,7 +6,8 @@ interface Auth {
   me: Me | null;
   ready: boolean;
   /** Resolves with the account, or with the second-factor step a staff sign-in still needs. */
-  login: (identifier: string, password: string, portal: Portal) => Promise<Me | { mfa: MfaStep }>;
+  /** The signed-in user, or the second-factor step the session still owes (Me also has an "mfa" field). */
+  login: (identifier: string, password: string, portal: Portal) => Promise<Me | { mfaStep: MfaStep }>;
   logout: () => Promise<void>;
   refresh: () => Promise<void>;
   can: (...perms: string[]) => boolean;
@@ -33,7 +34,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(async (identifier: string, password: string, portal: Portal) => {
     const res = await api.post<{ mfa: MfaStep | null }>("/api/auth/login", { identifier, password, portal });
-    if (res.mfa) return { mfa: res.mfa };
+    if (res.mfa) return { mfaStep: res.mfa };
     const m = await api.get<Me>("/api/auth/me");
     setMe(m);
     if (m.locale in LOCALES) setLocale(m.locale as Locale);
@@ -60,6 +61,7 @@ export function homeFor(me: Me): string {
   switch (me.portal) {
     case "OPERATOR": return "/carrier";
     case "DRIVER": return "/driver";
+    case "AGENCY": return "/agency";
     case "PLATFORM":
       if (me.permissions.includes("company.approve")) return "/admin";
       if (me.permissions.includes("security.ip_rules") || me.permissions.includes("audit.view")) return "/security";

@@ -5,9 +5,12 @@ import { useI18n } from "../../i18n";
 import { useAuth } from "../../auth";
 import { minutesBetween } from "../../dates";
 import { ErrorBox, Icon, Spinner, useLoad } from "../../components/ui";
+import { useChannel } from "../../channel";
 import { PassengerFields, blankPassenger, namesFor, passengerValid, type PassengerDraft } from "./PassengerFields";
 
 interface Hold { hold_token: string; expires_at: string }
+// Passenger wallet, or the agency's dashboard figures that matter at checkout
+interface Funds { balance: number; remaining_today?: number; agreement?: { commission_bp: number } | null }
 
 const roundUnit = (minor: number) => Math.round(minor / 100) * 100;
 
@@ -55,12 +58,16 @@ export default function Book() {
   const fromSeq = Number(params.get("from") ?? 0), toSeq = Number(params.get("to") ?? 1), paxCount = Number(params.get("pax") ?? 1);
   const { t, money, time, date, station, duration } = useI18n();
   const { me } = useAuth();
+  const ch = useChannel();
   const nav = useNavigate();
   const loc = useLocation();
 
   const detail = useLoad(() => api.get<TripDetail>(`/api/trips/${uid}`, { from_seq: fromSeq, to_seq: toSeq }), [uid, fromSeq, toSeq]);
   const ref = useLoad(() => api.get<{ fare_brands: FareBrand[]; platform_fee: number; countries: string[] }>("/api/ref"));
-  const wallet = useLoad(() => (me?.portal === "PASSENGER" ? api.get<{ balance: number }>("/api/wallet") : Promise.resolve(null)), [me]);
+  // Passengers pay from their wallet; an agency pays from its prepaid balance within its daily limit
+  const wallet = useLoad<Funds | null>(() => (me?.portal !== ch.portal ? Promise.resolve(null)
+    : api.get<Funds>(ch.agency ? "/api/agency/dashboard" : "/api/wallet")), [me, ch.portal]);
+  const [contact, setContact] = useState("");
 
   const [selected, setSelected] = useState<number[]>([]);
   const [hold, setHold] = useState<Hold | null>(null);
@@ -75,7 +82,7 @@ export default function Book() {
   // Release the hold if the passenger leaves the page without paying
   const holdRef = useRef<string | null>(null);
   useEffect(() => { holdRef.current = hold?.hold_token ?? null; }, [hold]);
-  useEffect(() => () => { if (holdRef.current) void api.del(`/api/holds/${holdRef.current}`).catch(() => {}); }, []);
+  useEffect(() => () => { if (holdRef.current) void api.del(`${ch.api}/holds/${holdRef.current}`).catch(() => {}); }, [ch.api]);
 
   if (detail.error) return <div className="page"><ErrorBox error={detail.error} /></div>;
   if (!detail.data || !ref.data) return <Spinner />;
@@ -90,10 +97,10 @@ export default function Book() {
   const toggle = (n: number) => setSelected((s) => (s.includes(n) ? s.filter((x) => x !== n) : [...s, n].slice(-paxCount)));
 
   const doHold = async () => {
-    if (!me || me.portal !== "PASSENGER") { nav(`/login?next=${encodeURIComponent(loc.pathname + loc.search)}`); return; }
+    if (!me || me.portal !== ch.portal) { nav(`/login?portal=${ch.portal}&next=${encodeURIComponent(loc.pathname + loc.search)}`); return; }
     setBusy(true); setError(null);
     try {
-      const h = await api.post<Hold>("/api/holds", { trip_uid: uid, from_seq: fromSeq, to_seq: toSeq, seat_nos: selected });
+      const h = await api.post<Hold>(`${ch.api}/holds`, { trip_uid: uid, from_seq: fromSeq, to_seq: toSeq, seat_nos: selected });
       setHold(h);
       setPax(selected.map((_, i) => pax[i] ?? blankPassenger()));
     } catch (e) {
@@ -102,7 +109,7 @@ export default function Book() {
   };
 
   const release = async () => {
-    if (hold) await api.del(`/api/holds/${hold.hold_token}`).catch(() => {});
+    if (hold) await api.del(`${ch.api}/holds/${hold.hold_token}`).catch(() => {});
     setHold(null); detail.reload();
   };
 
@@ -110,23 +117,27 @@ export default function Book() {
     if (!hold) return;
     setBusy(true); setError(null);
     try {
-      const r = await api.post<{ booking_ref: string }>("/api/bookings", {
+      const r = await api.post<{ booking_ref: string }>(`${ch.api}/bookings`, {
         hold_token: hold.hold_token, trip_uid: uid, from_seq: fromSeq, to_seq: toSeq, fare_brand: brand, idempotency_key: idemKey,
+        ...(ch.agency ? { contact_mobile: contact.trim() } : {}),
         passengers: selected.map((seat, i) => ({ seat_no: seat, ...namesFor(pax[i]), id_type: pax[i].id_type, id_last4: pax[i].id_last4 || null })),
       });
       holdRef.current = null;
-      nav(`/booking/${r.booking_ref}?new=1`);
+      nav(ch.link(`/booking/${r.booking_ref}?new=1`));
     } catch (e) {
       setError(e);
       if (e instanceof Error && "code" in e && (e as { code: string }).code === "HOLD_EXPIRED") { setHold(null); detail.reload(); }
     } finally { setBusy(false); }
   };
 
-  const paxValid = pax.length === selected.length && pax.every(passengerValid);
+  const contactValid = !ch.agency || /^\+?[0-9]{8,15}$/.test(contact.trim());
+  const paxValid = pax.length === selected.length && pax.every(passengerValid) && contactValid;
+  const commission = ch.agency && wallet.data?.agreement
+    ? Math.floor(farePer * paxCount * wallet.data.agreement.commission_bp / 10000 / 100) * 100 : null;
   const mm = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}`;
 
   return (
-    <div className="page stack">
+    <div className={ch.agency ? "stack" : "page stack"}>
       {/* Journey header */}
       <div className="card row between">
         <div className="stack tight">
@@ -157,7 +168,7 @@ export default function Book() {
             <div className="row between"><span className="muted">{t("results.perPassenger")}</span><span className="price" style={{ fontSize: 20 }}>{money(d.price)}</span></div>
             <p className="small muted"><Icon name="lock" size={16} /> {t("seats.holdFor", { n: d.trip.hold_min })}</p>
             <button className="btn large block" disabled={selected.length !== paxCount || busy} onClick={doHold}>
-              {me?.portal === "PASSENGER" ? t("seats.hold") : t("seats.signInFirst")}
+              {me?.portal === ch.portal ? t("seats.hold") : t("seats.signInFirst")}
             </button>
           </div>
         </div>
@@ -184,6 +195,13 @@ export default function Book() {
                 ))}
               </div>
             </div>
+            {ch.agency && (
+              <div className="card stack">
+                <div><h3>{t("agency.contact")}</h3><p className="small muted">{t("agency.contactHint")}</p></div>
+                <input className="input ltr" inputMode="tel" autoComplete="off" placeholder="+9639XXXXXXXX" value={contact}
+                       onChange={(e) => setContact(e.target.value)} aria-invalid={contact !== "" && !contactValid} />
+              </div>
+            )}
             {selected.map((seat, i) => (
               <div key={seat} className="card stack">
                 <div className="row between"><h3>{t("common.passenger")} {i + 1}</h3><span className="chip green">{t("common.seat")} {seat}</span></div>
@@ -198,14 +216,20 @@ export default function Book() {
             <div className="row between"><span className="muted">{t("checkout.fee")}</span><span>{money(ref.data.platform_fee)}</span></div>
             <div className="divider" />
             <div className="row between"><strong>{t("common.total")}</strong><span className="price">{money(total)}</span></div>
+            {commission !== null && (
+              <div className="row between"><span className="muted">{t("agency.commissionEarned")}</span><span style={{ color: "var(--success)" }}>{money(commission)}</span></div>
+            )}
             {wallet.data && (
               <div className={`alert ${wallet.data.balance >= total ? "info" : "error"}`}>
                 <Icon name="account_balance_wallet" />
-                <span className="grow">{t("checkout.walletBalance")}: <strong>{money(wallet.data.balance)}</strong></span>
-                {wallet.data.balance < total && <Link to="/wallet">{t("checkout.topupFirst")}</Link>}
+                <span className="grow">{t(ch.agency ? "agency.balance" : "checkout.walletBalance")}: <strong>{money(wallet.data.balance)}</strong></span>
+                {wallet.data.balance < total && !ch.agency && <Link to="/wallet">{t("checkout.topupFirst")}</Link>}
               </div>
             )}
-            <label className="check small"><input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} />{t("checkout.agree")}</label>
+            {wallet.data?.remaining_today !== undefined && wallet.data.remaining_today < total && (
+              <div className="alert error"><Icon name="warning" /><span>{t("errors.AGENCY_DAILY_LIMIT")}</span></div>
+            )}
+            <label className="check small"><input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} />{t(ch.agency ? "agency.agree" : "checkout.agree")}</label>
             <button className="btn large block" disabled={busy || !agree || !paxValid || left === 0} onClick={pay}>
               <Icon name="lock" />{t("checkout.pay", { amount: money(total) })}
             </button>

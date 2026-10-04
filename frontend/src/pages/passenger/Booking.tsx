@@ -4,11 +4,13 @@ import QRCode from "qrcode";
 import { api, type BookingDetail, type Ticket } from "../../api";
 import { useI18n } from "../../i18n";
 import { ErrorBox, Icon, Loaded, Status, useLoad, useToast } from "../../components/ui";
+import { useChannel } from "../../channel";
 
 // The QR code is a short-lived signed token fetched from the server; it is refreshed before it expires,
 // so a screenshot stops working after a minute or two.
 function RotatingQr({ ticket }: { ticket: Ticket }) {
   const { t } = useI18n();
+  const ch = useChannel();
   const [img, setImg] = useState<string | null>(null);
   const [until, setUntil] = useState(0);
   const [now, setNow] = useState(Date.now());
@@ -19,7 +21,7 @@ function RotatingQr({ ticket }: { ticket: Ticket }) {
     let live = true, timer = 0;
     const load = async () => {
       try {
-        const r = await api.get<{ token: string; valid_until: number; window: number }>(`/api/tickets/${ticket.uid}/qr`);
+        const r = await api.get<{ token: string; valid_until: number; window: number }>(`${ch.api}/tickets/${ticket.uid}/qr`);
         const url = await QRCode.toDataURL(r.token, { margin: 1, width: 440, errorCorrectionLevel: "M", color: { dark: "#00382A", light: "#FFFFFF" } });
         if (!live) return;
         setImg(url); setError(null);
@@ -34,7 +36,7 @@ function RotatingQr({ ticket }: { ticket: Ticket }) {
     void load();
     const tick = window.setInterval(() => setNow(Date.now()), 1000);
     return () => { live = false; clearTimeout(timer); clearInterval(tick); };
-  }, [ticket.uid]);
+  }, [ticket.uid, ch.api]);
 
   if (error && !img) return <ErrorBox error={error} />;
   const remaining = Math.max(0, Math.round((until - now) / 1000));
@@ -52,7 +54,8 @@ export default function Booking() {
   const [params] = useSearchParams();
   const { t, money, time, date, station, city } = useI18n();
   const toast = useToast();
-  const state = useLoad(() => api.get<BookingDetail>(`/api/bookings/${ref}`), [ref]);
+  const ch = useChannel();
+  const state = useLoad(() => api.get<BookingDetail>(`${ch.api}/bookings/${ref}`), [ref, ch.api]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
 
@@ -60,14 +63,14 @@ export default function Booking() {
     if (!confirm(t("booking.cancelConfirm"))) return;
     setBusy(true); setError(null);
     try {
-      const r = await api.post<{ refund: number }>(`/api/bookings/${ref}/cancel`);
-      toast(r.refund > 0 ? t("booking.cancelled", { amount: money(r.refund) }) : t("booking.cancelledNoRefund"));
+      const r = await api.post<{ refund: number }>(`${ch.api}/bookings/${ref}/cancel`);
+      toast(r.refund > 0 ? t(ch.agency ? "agency.cancelled" : "booking.cancelled", { amount: money(r.refund) }) : t("booking.cancelledNoRefund"));
       state.reload();
     } catch (e) { setError(e); } finally { setBusy(false); }
   };
 
   return (
-    <div className="page narrow stack">
+    <div className={ch.agency ? "stack" : "page narrow stack"} style={ch.agency ? { maxWidth: 760 } : undefined}>
       <Loaded state={state}>{({ booking: b, tickets }) => {
         const first = tickets[0];
         const verifyUrl = `${location.origin}/verify?token=${encodeURIComponent(b.verify_token)}`;
@@ -121,6 +124,10 @@ export default function Booking() {
               <div className="row between"><span className="muted">{t("checkout.fee")}</span><span>{money(b.price_breakdown.platform_fee)}</span></div>
               <div className="divider" />
               <div className="row between"><strong>{t("common.total")}</strong><span className="price" style={{ fontSize: 20 }}>{money(b.total_amount)}</span></div>
+              {ch.agency && b.commission != null && (
+                <div className="row between"><span className="muted">{t("agency.commissionEarned")}</span><span style={{ color: "var(--success)" }}>{money(b.commission)}</span></div>
+              )}
+              {b.contact_mobile && <div className="row between"><span className="muted">{t("agency.contact")}</span><span className="ltr mono">{b.contact_mobile}</span></div>}
             </div>
             <div className="card stack tight">
               <h3>{t("booking.verifyLink")}</h3>

@@ -4,10 +4,12 @@ import { useI18n } from "../../i18n";
 import { localDate, minutesBetween } from "../../dates";
 import { Empty, ErrorBox, Icon, Spinner, useLoad } from "../../components/ui";
 import { SearchForm } from "./Home";
+import { useChannel } from "../../channel";
 
 export default function Results() {
   const { t, city, money, time, date, station, duration } = useI18n();
   const [params, setParams] = useSearchParams();
+  const ch = useChannel();
   const from = params.get("from") ?? "DAM", to = params.get("to") ?? "ALP";
   const on = params.get("on") ?? localDate(1), pax = Number(params.get("pax") ?? 1);
   const res = useLoad(() => api.get<{ trips: TripResult[] }>("/api/trips/search", { origin: from, destination: to, on, passengers: pax }), [from, to, on, pax]);
@@ -16,12 +18,16 @@ export default function Results() {
 
   return (
     <>
-      <section className="hero-band">
-        <div className="hero-inner" style={{ paddingBlock: 24 }}>
-          <div className="card hero"><SearchForm key={`${from}${to}${on}${pax}`} initial={{ from, to, on, pax }} /></div>
-        </div>
-      </section>
-      <div className="page stack">
+      {ch.agency ? (
+        <div className="card"><SearchForm key={`${from}${to}${on}${pax}`} initial={{ from, to, on, pax }} /></div>
+      ) : (
+        <section className="hero-band">
+          <div className="hero-inner" style={{ paddingBlock: 24 }}>
+            <div className="card hero"><SearchForm key={`${from}${to}${on}${pax}`} initial={{ from, to, on, pax }} /></div>
+          </div>
+        </section>
+      )}
+      <div className={ch.agency ? "stack" : "page stack"} style={ch.agency ? { marginTop: 16 } : undefined}>
         <div className="row between">
           <div>
             <h2>{t("results.title", { from: city(from), to: city(to) })}</h2>
@@ -59,7 +65,7 @@ export default function Results() {
                   <Icon name="event_seat" size={16} /> {trip.bookable ? t("results.seatsLeft", { n: trip.seats_left }) : t("results.soldOut")}
                 </span>
                 {trip.bookable ? (
-                  <Link className="btn" to={`/trip/${trip.uid}?from=${trip.from_seq}&to=${trip.to_seq}&pax=${pax}`}>{t("results.choose")}</Link>
+                  <Link className="btn" to={ch.link(`/trip/${trip.uid}?from=${trip.from_seq}&to=${trip.to_seq}&pax=${pax}`)}>{t("results.choose")}</Link>
                 ) : <button className="btn" disabled>{t("results.choose")}</button>}
               </div>
             </div>

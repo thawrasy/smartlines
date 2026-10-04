@@ -4,6 +4,7 @@ The agency pays from its prepaid company wallet. The traveller's price is the sa
 carrier funds the agency's commission out of its fare. Selling and the daily limit are checked under a per-agency lock,
 so two clerks selling at the same moment cannot pass the limit together.
 """
+import json
 from datetime import date, datetime, timedelta
 
 import asyncpg
@@ -16,6 +17,19 @@ from ...util import LOCAL_TZ, row_dict, rows
 from ..sales import service as sales
 from ..sales.models import AgencyBookingIn
 from . import repository as repo
+
+
+def booking_rows(recs) -> list[dict]:
+    out = []
+    for r in recs:
+        d = row_dict(r)
+        d["journey"] = json.loads(d["journey"]) if isinstance(d["journey"], str) else d["journey"]
+        out.append(d)
+    return out
+
+
+async def bookings(conn: asyncpg.Connection, pr: Principal, query: str | None) -> list[dict]:
+    return booking_rows(await repo.bookings(conn, require_agency(pr), query))
 
 
 def _today() -> date:
@@ -64,7 +78,7 @@ async def dashboard(conn: asyncpg.Connection, pr: Principal) -> dict:
                                              "daily_limit": a["daily_limit"]},
         "sold_today": sold, "remaining_today": max(0, (a["daily_limit"] if a else 0) - sold),
         "commission_held": com["held"], "commission_released": com["released"],
-        "recent": rows(recent),
+        "recent": booking_rows(recent),
     }
 
 
