@@ -14,6 +14,7 @@ from .errors import ApiError, api_error_handler, db_error_handler
 from .middleware import RequestContextMiddleware
 from .modules.agency import api as agency_api
 from .modules.fleet import api as fleet_api
+from .modules.payouts import api as payouts_api
 from .routers import admin, auth, bookings, carrier, driver, public, regulator, security, verify, wallet
 
 
@@ -59,7 +60,7 @@ async def security_headers(request: Request, call_next):
 
 for r in (auth.router, public.router, bookings.router, wallet.router, carrier.router, driver.router,
           admin.router, security.router, regulator.router, verify.router, agency_api.router,
-          fleet_api.router):
+          fleet_api.router, payouts_api.company, payouts_api.platform):
     app.include_router(r)
 
 

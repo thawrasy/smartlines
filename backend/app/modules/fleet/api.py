@@ -19,9 +19,6 @@ def _manage(pr: Principal) -> None:
         raise forbidden("missing permission: vehicle.manage")
 
 
-Row = Field(min_length=2, max_length=7, pattern=r"^[SsHh_DdCcRrXx ]+$")
-
-
 class GridIn(BaseModel):
     decks: list[list[str]] = Field(min_length=1, max_length=2)
 

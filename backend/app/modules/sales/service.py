@@ -127,9 +127,9 @@ async def create_booking(conn: asyncpg.Connection, ctx: db.Context, buyer: Buyer
     if before_payment:
         await before_payment(conn, total)
     wallet = await buyer.wallet(conn, trip["currency"])
-    if wallet["balance"] < total:
-        raise ApiError(402, "INSUFFICIENT_BALANCE", "wallet balance is not enough", required=total,
-                       balance=wallet["balance"])
+    available = wallet["balance"] - wallet["hold_balance"]      # money held for a pending withdrawal is not spendable
+    if available < total:
+        raise ApiError(402, "INSUFFICIENT_BALANCE", "wallet balance is not enough", required=total, balance=available)
 
     channel_id = await conn.fetchval("SELECT id FROM sales.channel WHERE code = $1", buyer.channel)
     ref = booking_ref()

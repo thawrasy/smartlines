@@ -17,6 +17,7 @@ import Mfa from "./pages/auth/Mfa";
 import Verify from "./pages/Verify";
 import { CarrierCrew, CarrierDashboard, CarrierRoutes, CarrierTrips, CarrierVehicles } from "./pages/carrier/Carrier";
 import { CarrierLayouts } from "./pages/carrier/Layouts";
+import { AdminFinance, CompanyFinance } from "./pages/finance/Finance";
 import { DriverLayout, DriverTrip, DriverTrips } from "./pages/driver/Driver";
 import { AdminAgencies, AdminCompanies, AdminOverview, AdminStations } from "./pages/admin/Admin";
 import { AgencyBookings, AgencyDashboard, AgencySell, AgencyStaff, AgencyStatement } from "./pages/agency/Agency";
@@ -40,6 +41,7 @@ function PlatformShell() {
       { to: "/admin", end: true, icon: "dashboard", label: t("admin.overview"), show: can("company.approve", "station.approve") },
       { to: "/admin/companies", icon: "apartment", label: t("admin.companies"), show: can("company.approve") },
       { to: "/admin/agencies", icon: "store", label: t("admin.agencies"), show: can("company.approve", "cash.remittance") },
+      { to: "/admin/finance", icon: "payments", label: t("finance.desk"), show: can("withdrawal.approve", "payout.run") },
       { to: "/admin/stations", icon: "location_on", label: t("admin.stations"), show: can("station.approve") },
       { to: "/security", end: true, icon: "shield", label: t("security.title"), show: can("audit.view", "security.ip_rules") },
       { to: "/security/rules", icon: "block", label: t("security.rules"), show: can("security.ip_rules") },
@@ -60,6 +62,7 @@ function CarrierShell() {
       { to: "/carrier/vehicles", icon: "directions_car", label: t("carrier.vehicles") },
       { to: "/carrier/layouts", icon: "event_seat", label: t("layout.title") },
       { to: "/carrier/crew", icon: "badge", label: t("carrier.crew") },
+      { to: "/carrier/finance", icon: "payments", label: t("finance.title") },
     ]} />
   );
 }
@@ -74,6 +77,7 @@ function AgencyShell() {
       { to: "/agency/bookings", icon: "confirmation_number", label: t("agency.bookings") },
       { to: "/agency/statement", icon: "receipt_long", label: t("agency.statement"), show: can("report.company", "company.billing", "booking.on_behalf") },
       { to: "/agency/staff", icon: "badge", label: t("agency.staff"), show: can("company.staff") },
+      { to: "/agency/finance", icon: "payments", label: t("finance.title"), show: can("company.payout_schedule", "company.billing") },
     ]} />
   );
 }
@@ -106,6 +110,7 @@ export default function App() {
           <Route path="carrier/routes" element={<CarrierRoutes />} />
           <Route path="carrier/vehicles" element={<CarrierVehicles />} />
           <Route path="carrier/layouts" element={<CarrierLayouts />} />
+          <Route path="carrier/finance" element={<CompanyFinance />} />
           <Route path="carrier/crew" element={<CarrierCrew />} />
         </Route>
         <Route element={<RequirePortal portal="AGENCY"><AgencyShell /></RequirePortal>}>
@@ -116,6 +121,7 @@ export default function App() {
           <Route path="agency/bookings" element={<AgencyBookings />} />
           <Route path="agency/statement" element={<AgencyStatement />} />
           <Route path="agency/staff" element={<AgencyStaff />} />
+          <Route path="agency/finance" element={<CompanyFinance />} />
         </Route>
         <Route element={<RequirePortal portal="DRIVER"><DriverLayout /></RequirePortal>}>
           <Route path="driver" element={<DriverTrips />} />
@@ -125,6 +131,7 @@ export default function App() {
           <Route path="admin" element={<AdminOverview />} />
           <Route path="admin/companies" element={<AdminCompanies />} />
           <Route path="admin/agencies" element={<AdminAgencies />} />
+          <Route path="admin/finance" element={<AdminFinance />} />
           <Route path="admin/stations" element={<AdminStations />} />
           <Route path="security" element={<SecurityOverview />} />
           <Route path="security/rules" element={<SecurityRules />} />

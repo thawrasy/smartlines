@@ -145,6 +145,25 @@ SELECT sys.set_context(NULL, :cb, 'COMPANY');
 SELECT pg_temp.ok((SELECT count(*) FROM fleet.seat_layout WHERE name = 'Test 2+2') = 0, 'RLS: another carrier cannot see the layout');
 COMMIT;
 
+-- 4a2) Payouts: a company cannot verify its own bank account; withdrawals follow their state machine and four eyes
+BEGIN;
+SELECT sys.set_context(:ua, :ca, 'COMPANY');
+SELECT pg_temp.expect_error(format($$INSERT INTO iam.bank_account (party_id, bank_name, holder_name, iban_enc, iban_bidx, iban_last4, enc_key_id, currency, verified)
+  VALUES (%s, 'B', 'H', '\x01', '\x02', '1234', 1, 'SYP', true)$$, :ca), 'only platform finance verifies', 'Payouts: company cannot self-verify a bank account');
+INSERT INTO iam.bank_account (party_id, bank_name, holder_name, iban_enc, iban_bidx, iban_last4, enc_key_id, currency)
+VALUES (:ca, 'B', 'H', '\x01', '\x03', '1234', 1, 'SYP');
+SELECT pg_temp.ok(true, 'Payouts: company registers an unverified bank account');
+COMMIT;
+BEGIN;
+SELECT sys.set_context(:uadmin, NULL, 'SYSTEM');
+INSERT INTO fin.wallet (owner_party_id, company_id, wallet_type, currency) VALUES (:ca, :ca, 'COMPANY', 'SYP') ON CONFLICT DO NOTHING;
+INSERT INTO fin.withdrawal_request (wallet_id, bank_account_id, company_id, amount, requested_by)
+SELECT w.id, a.id, :ca, 100, :ua FROM fin.wallet w, iam.bank_account a WHERE w.owner_party_id = :ca AND w.wallet_type = 'COMPANY' AND a.party_id = :ca;
+SELECT pg_temp.expect_error($$UPDATE fin.withdrawal_request SET status = 'PAID' WHERE status = 'REQUESTED'$$, 'INVALID_TRANSITION', 'Payouts: a request cannot jump to paid');
+SELECT pg_temp.expect_error(format($$UPDATE fin.withdrawal_request SET status = 'APPROVED', approved_by = %s WHERE status = 'REQUESTED'$$, :ua),
+  'check', 'Payouts: the requester cannot approve their own withdrawal');
+COMMIT;
+
 -- 4b) Agencies: an agency sees the bookings it sold and nothing else; only the platform sets its terms
 BEGIN;
 SELECT sys.set_context(:uadmin, NULL, 'SYSTEM');
