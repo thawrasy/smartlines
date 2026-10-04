@@ -1,0 +1,97 @@
+"""Trucking, heavy transport and transit freight (study 10, phase 8) with the cargo data of phase 15 (D.3)."""
+from ._base import Action, P, O, PA, Resource, c, retire
+
+M = "freight"
+OPS = {P: "freight.manage", O: "freight.operate"}
+
+RESOURCES = [
+    # ------------------------------------------------------------- fleet for heavy transport (10.4)
+    Resource("truck", M, "fleet.truck_unit",
+             c("vehicle_id axle_config gvw_kg tare_kg fuel_type hazmat_certified cross_border_permit_no cross_border_permit_expiry"),
+             c("vehicle_id axle_config gvw_kg tare_kg fuel_type gps_device_ref hazmat_certified cross_border_permit_no cross_border_permit_expiry"),
+             OPS, order="vehicle_id DESC", group="fleet"),
+    Resource("trailer", M, "fleet.trailer",
+             c("plate_no plate_country trailer_type payload_kg volume_m3 axles container_capacity ownership_type status"),
+             c("plate_no plate_country chassis_no trailer_type payload_kg volume_m3 length_m axles container_capacity "
+               "temp_min_c temp_max_c ownership_type owner_party_id"), OPS, company_col="company_id", group="fleet",
+             actions=(Action("block", {"status": "BLOCKED"}, {"status": ["ACTIVE", "PENDING"]}),
+                      Action("activate", {"status": "ACTIVE"}, {"status": ["PENDING", "BLOCKED"]}),
+                      retire(("ACTIVE", "BLOCKED")))),
+    Resource("truck-combination", M, "fleet.truck_combination", c("truck_vehicle_id trailer_id driver_party_id period"),
+             c("truck_vehicle_id trailer_id driver_party_id period"), OPS, company_col="company_id", group="fleet"),
+
+    # ------------------------------------------------------------- marketplace (10.9)
+    Resource("freight-request", M, "frt.freight_request",
+             c("uid shipper_party_id origin_station_id dest_station_id cargo_category cargo_description declared_weight_kg "
+               "container_count required_trailer_type pickup_window mode target_price currency status created_at"),
+             c("origin_station_id origin_address_id dest_station_id dest_address_id cargo_category cargo_description hs_code "
+               "declared_weight_kg volume_m3 packages container_count un_number adr_class temp_min_c temp_max_c "
+               "required_trailer_type pickup_window delivery_window mode target_price currency"),
+             {P: "freight.manage", O: "freight.operate", PA: None}, company_col="shipper_company_id", owner_col="shipper_party_id", owner_from_company=True,
+             filters=c("status mode cargo_category"), group="market",
+             actions=(Action("publish", {"status": "OPEN"}, {"status": ["DRAFT"]}, portals=(O, PA)),
+                      Action("cancel", {"status": "CANCELLED"}, {"status": ["DRAFT", "OPEN"]}, portals=(O, PA, P)))),
+    Resource("freight-bid", M, "frt.freight_bid", c("request_id carrier_company_id truck_vehicle_id price currency valid_until status created_at"),
+             c("request_id truck_vehicle_id price currency valid_until"), {P: None, O: "freight.operate", PA: None},
+             company_col="carrier_company_id", readonly_portals=(P, PA), group="market",
+             actions=(Action("withdraw", {"status": "WITHDRAWN"}, {"status": ["SUBMITTED"]}, portals=(O,)),)),
+    Resource("freight-contract", M, "frt.freight_contract",
+             c("uid request_id carrier_company_id price currency advance_pct status signed_at"), (),
+             {P: "freight.manage", O: None, PA: None}, create=False, update=False, group="market",
+             actions=(Action("sign", {"status": "SIGNED"}, {"status": ["DRAFT"]}, stamp="signed_at", portals=(O, PA)),
+                      Action("start", {"status": "IN_PROGRESS"}, {"status": ["SIGNED"]}, portals=(O,)),
+                      Action("complete", {"status": "COMPLETED"}, {"status": ["IN_PROGRESS"]}, portals=(O, P)),
+                      Action("dispute", {"status": "DISPUTED"}, {"status": ["SIGNED", "IN_PROGRESS", "COMPLETED"]}, portals=(O, PA)),
+                      Action("cancel", {"status": "CANCELLED"}, {"status": ["DRAFT"]}, portals=(O, PA, P)))),
+
+    # ------------------------------------------------------------- execution
+    Resource("container", M, "frt.container", c("container_no size_type owner_party_id tare_kg status"),
+             c("container_no size_type owner_party_id tare_kg"), {P: None, O: None}, group="execution"),
+    Resource("leg-container", M, "frt.leg_container", c("leg_id container_id seal_no gross_weight_kg"),
+             c("leg_id container_id seal_no gross_weight_kg"), OPS, delete=True, order="leg_id DESC", group="execution"),
+    Resource("handover", M, "frt.handover_event",
+             c("leg_id next_leg_id from_company_id to_company_id station_id seal_no weight_kg docs_checked ts"),
+             c("leg_id next_leg_id to_company_id station_id seal_no weight_kg docs_checked"), OPS,
+             company_col="from_company_id", update=False, order="ts DESC", group="execution"),
+    Resource("port-appointment", M, "frt.port_appointment", c("port_station_id truck_vehicle_id leg_id slot status"),
+             c("port_station_id truck_vehicle_id leg_id slot"), OPS, group="execution",
+             actions=(Action("arrived", {"status": "ARRIVED"}, {"status": ["BOOKED"]}),
+                      Action("complete", {"status": "COMPLETED"}, {"status": ["ARRIVED"]}),
+                      Action("missed", {"status": "MISSED"}, {"status": ["BOOKED"]}),
+                      Action("cancel", {"status": "CANCELLED"}, {"status": ["BOOKED"]}))),
+    Resource("gate-event", M, "frt.gate_event", c("appointment_id port_station_id truck_vehicle_id direction ts"),
+             c("appointment_id port_station_id truck_vehicle_id direction"), OPS, update=False, order="ts DESC", group="execution"),
+    Resource("transit-declaration", M, "frt.transit_declaration",
+             c("declaration_no leg_id entry_station_id exit_station_id corridor_id deadline cargo_category declared_weight_kg status"),
+             c("declaration_no leg_id entry_station_id exit_station_id corridor_id deadline cargo_category cargo_description "
+               "hs_code declared_weight_kg packages un_number adr_class temp_min_c temp_max_c"), OPS, group="execution",
+             actions=(Action("enter", {"status": "IN_TRANSIT"}, {"status": ["OPEN"]}),
+                      Action("discharge", {"status": "DISCHARGED"}, {"status": ["IN_TRANSIT"]}, portals=(P,)),
+                      Action("overdue", {"status": "OVERDUE"}, {"status": ["IN_TRANSIT"]}, portals=(P,)),
+                      Action("cancel", {"status": "CANCELLED"}, {"status": ["OPEN"]}))),
+    Resource("escort", M, "frt.escort_assignment", c("leg_id escort_party_id period status"),
+             c("leg_id escort_party_id period"), {P: "freight.manage", O: None}, readonly_portals=(O,), group="execution",
+             actions=(Action("start", {"status": "ACTIVE"}, {"status": ["ASSIGNED"]}),
+                      Action("complete", {"status": "COMPLETED"}, {"status": ["ACTIVE"]}),
+                      Action("cancel", {"status": "CANCELLED"}, {"status": ["ASSIGNED"]}))),
+    Resource("freight-document", M, "frt.freight_document", c("contract_id leg_id doc_type doc_no file_id status"),
+             c("contract_id leg_id doc_type doc_no file_id"), OPS, group="execution",
+             actions=(Action("verify", {"status": "VERIFIED"}, {"status": ["UPLOADED"]}, by="verified_by", portals=(P,)),
+                      Action("reject", {"status": "REJECTED"}, {"status": ["UPLOADED"]}, by="verified_by", portals=(P,)))),
+    Resource("weighbridge", M, "frt.weighbridge_reading", c("leg_id station_id vehicle_id gross_kg declared_kg alert ts"),
+             c("leg_id station_id vehicle_id gross_kg declared_kg alert"), OPS, update=False, order="ts DESC", group="execution"),
+    Resource("detention-claim", M, "frt.detention_claim",
+             c("contract_id leg_id station_id waiting free_minutes rate_per_hour amount currency status"),
+             c("contract_id leg_id station_id waiting free_minutes rate_per_hour amount currency"), OPS, group="claims",
+             actions=(Action("approve", {"status": "APPROVED"}, {"status": ["OPEN"]}, portals=(P,)),
+                      Action("reject", {"status": "REJECTED"}, {"status": ["OPEN"]}, portals=(P,)),
+                      Action("paid", {"status": "PAID"}, {"status": ["APPROVED"]}, portals=(P,)))),
+    Resource("freight-claim", M, "frt.freight_claim", c("contract_id leg_id claim_type amount currency status created_at"),
+             c("contract_id leg_id claim_type amount currency"), {P: "freight.manage", O: "freight.operate", PA: None}, group="claims",
+             actions=(Action("review", {"status": "UNDER_REVIEW"}, {"status": ["OPEN"]}, portals=(P,)),
+                      Action("approve", {"status": "APPROVED"}, {"status": ["UNDER_REVIEW"]}, portals=(P,)),
+                      Action("reject", {"status": "REJECTED"}, {"status": ["OPEN", "UNDER_REVIEW"]}, portals=(P,)))),
+    Resource("geofence", M, "net.geofence", c("code kind station_id radius_m status"),
+             c("code kind station_id polygon center_lat center_lng radius_m"), {P: "freight.manage", O: None},
+             readonly_portals=(O,), group="execution", actions=(retire(),)),
+]

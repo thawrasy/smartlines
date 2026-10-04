@@ -25,6 +25,21 @@ import { AdminAgencies, AdminCompanies, AdminOverview, AdminStations } from "./p
 import { AgencyBookings, AgencyDashboard, AgencySell, AgencyStaff, AgencyStatement } from "./pages/agency/Agency";
 import { SecurityActivity, SecurityAuthLog, SecurityOverview, SecurityRules } from "./pages/security/Security";
 import Regulator from "./pages/regulator/Regulator";
+import { ModulePage } from "./modules/ModulePage";
+import { ServicesPage } from "./modules/ServicesPage";
+import { AdminModules } from "./modules/AdminModules";
+import { useModules } from "./modules/context";
+import { useLabels } from "./modules/labels";
+import type { NavItem } from "./components/layout";
+import type { IconName } from "./components/icons";
+
+/** Menu entries for the switched-on modules the signed-in user can open. */
+function useModuleNav(base: string): NavItem[] {
+  const { modules } = useModules();
+  const L = useLabels();
+  return modules.filter((m) => m.resources.length > 0)
+    .map((m) => ({ to: `${base}/m/${m.key}`, icon: m.icon as IconName, label: L.module(m.key) }));
+}
 
 // Guards only shape the interface; every permission is enforced again by the API and the database.
 function RequirePortal({ portal, children }: { portal: Portal; children: ReactNode }) {
@@ -46,6 +61,7 @@ function RequireUser({ children }: { children: ReactNode }) {
 function PlatformShell() {
   const { t } = useI18n();
   const { can } = useAuth();
+  const mods = useModuleNav("/admin");
   return (
     <PortalShell title={t("nav.portals")} items={[
       { to: "/admin", end: true, icon: "dashboard", label: t("admin.overview"), show: can("company.approve", "station.approve") },
@@ -60,12 +76,15 @@ function PlatformShell() {
       { to: "/security/activity", icon: "history", label: t("security.activity"), show: can("audit.view", "security.ip_rules") },
       { to: "/admin/privacy", icon: "privacy_tip", label: t("account.privacyRequests"), show: can("privacy.manage") },
       { to: "/regulator", icon: "gavel", label: t("nav.regulator"), show: can("regulator.dashboard", "report.platform") },
+      { to: "/admin/modules", icon: "apps", label: t("modules.title"), show: can("modules.manage") },
+      ...mods,
     ]} />
   );
 }
 
 function CarrierShell() {
   const { t } = useI18n();
+  const mods = useModuleNav("/carrier");
   return (
     <PortalShell title={t("nav.carrier")} items={[
       { to: "/carrier", end: true, icon: "dashboard", label: t("carrier.dashboard") },
@@ -76,6 +95,7 @@ function CarrierShell() {
       { to: "/carrier/crew", icon: "badge", label: t("carrier.crew") },
       { to: "/carrier/documents", icon: "fact_check", label: t("documents.title") },
       { to: "/carrier/finance", icon: "payments", label: t("finance.title") },
+      ...mods,
     ]} />
   );
 }
@@ -83,6 +103,7 @@ function CarrierShell() {
 function AgencyShell() {
   const { t } = useI18n();
   const { can } = useAuth();
+  const mods = useModuleNav("/agency");
   return (
     <PortalShell title={t("nav.agency")} items={[
       { to: "/agency", end: true, icon: "dashboard", label: t("agency.dashboard") },
@@ -92,6 +113,7 @@ function AgencyShell() {
       { to: "/agency/staff", icon: "badge", label: t("agency.staff"), show: can("company.staff") },
       { to: "/agency/documents", icon: "fact_check", label: t("documents.title"), show: can("company.staff", "company.billing") },
       { to: "/agency/finance", icon: "payments", label: t("finance.title"), show: can("company.payout_schedule", "company.billing") },
+      ...mods,
     ]} />
   );
 }
@@ -114,6 +136,8 @@ export default function App() {
           <Route path="wallet" element={<RequirePortal portal="PASSENGER"><Wallet /></RequirePortal>} />
           <Route path="verify" element={<Verify />} />
           <Route path="account" element={<RequireUser><AccountPage /></RequireUser>} />
+          <Route path="m/:module" element={<RequirePortal portal="PASSENGER"><div className="page"><ModulePage /></div></RequirePortal>} />
+          <Route path="services" element={<RequirePortal portal="PASSENGER"><ServicesPage /></RequirePortal>} />
           <Route path="login" element={<Login />} />
           <Route path="register" element={<Register />} />
           <Route path="mfa" element={<Mfa />} />
@@ -128,6 +152,7 @@ export default function App() {
           <Route path="carrier/finance" element={<CompanyFinance />} />
           <Route path="carrier/documents" element={<CompanyDocuments />} />
           <Route path="carrier/crew" element={<CarrierCrew />} />
+          <Route path="carrier/m/:module" element={<ModulePage />} />
         </Route>
         <Route element={<RequirePortal portal="AGENCY"><AgencyShell /></RequirePortal>}>
           <Route path="agency" element={<AgencyDashboard />} />
@@ -138,6 +163,7 @@ export default function App() {
           <Route path="agency/statement" element={<AgencyStatement />} />
           <Route path="agency/staff" element={<AgencyStaff />} />
           <Route path="agency/finance" element={<CompanyFinance />} />
+          <Route path="agency/m/:module" element={<ModulePage />} />
           <Route path="agency/documents" element={<CompanyDocuments />} />
         </Route>
         <Route element={<RequirePortal portal="DRIVER"><DriverLayout /></RequirePortal>}>
@@ -152,6 +178,8 @@ export default function App() {
           <Route path="admin/documents" element={<AdminDocuments />} />
           <Route path="admin/privacy" element={<AdminPrivacy />} />
           <Route path="admin/stations" element={<AdminStations />} />
+          <Route path="admin/modules" element={<AdminModules />} />
+          <Route path="admin/m/:module" element={<ModulePage />} />
           <Route path="security" element={<SecurityOverview />} />
           <Route path="security/rules" element={<SecurityRules />} />
           <Route path="security/auth" element={<SecurityAuthLog />} />

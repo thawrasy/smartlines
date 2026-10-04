@@ -63,6 +63,33 @@ import i_person_add from "@material-symbols/svg-400/rounded/person_add.svg?raw";
 import i_download from "@material-symbols/svg-400/rounded/download.svg?raw";
 import i_content_copy from "@material-symbols/svg-400/rounded/content_copy.svg?raw";
 
+import i_package_2 from "@material-symbols/svg-400/rounded/package_2.svg?raw";
+import i_train from "@material-symbols/svg-400/rounded/train.svg?raw";
+import i_local_taxi from "@material-symbols/svg-400/rounded/local_taxi.svg?raw";
+import i_car_rental from "@material-symbols/svg-400/rounded/car_rental.svg?raw";
+import i_move_up from "@material-symbols/svg-400/rounded/move_up.svg?raw";
+import i_school from "@material-symbols/svg-400/rounded/school.svg?raw";
+import i_account_balance from "@material-symbols/svg-400/rounded/account_balance.svg?raw";
+import i_monitor from "@material-symbols/svg-400/rounded/monitor.svg?raw";
+import i_hub from "@material-symbols/svg-400/rounded/hub.svg?raw";
+import i_public from "@material-symbols/svg-400/rounded/public.svg?raw";
+import i_assignment_ind from "@material-symbols/svg-400/rounded/assignment_ind.svg?raw";
+import i_card_membership from "@material-symbols/svg-400/rounded/card_membership.svg?raw";
+import i_campaign from "@material-symbols/svg-400/rounded/campaign.svg?raw";
+import i_toggle_on from "@material-symbols/svg-400/rounded/toggle_on.svg?raw";
+import i_toggle_off from "@material-symbols/svg-400/rounded/toggle_off.svg?raw";
+import i_tune from "@material-symbols/svg-400/rounded/tune.svg?raw";
+import i_edit from "@material-symbols/svg-400/rounded/edit.svg?raw";
+import i_filter_list from "@material-symbols/svg-400/rounded/filter_list.svg?raw";
+import i_chevron_left from "@material-symbols/svg-400/rounded/chevron_left.svg?raw";
+import i_chevron_right from "@material-symbols/svg-400/rounded/chevron_right.svg?raw";
+import i_extension from "@material-symbols/svg-400/rounded/extension.svg?raw";
+import i_more_vert from "@material-symbols/svg-400/rounded/more_vert.svg?raw";
+import i_warehouse from "@material-symbols/svg-400/rounded/warehouse.svg?raw";
+import i_map from "@material-symbols/svg-400/rounded/map.svg?raw";
+import i_storefront from "@material-symbols/svg-400/rounded/storefront.svg?raw";
+import i_apps from "@material-symbols/svg-400/rounded/apps.svg?raw";
+import i_visibility from "@material-symbols/svg-400/rounded/visibility.svg?raw";
 export const ICONS = {
   search: i_search,
   swap_horiz: i_swap_horiz,
@@ -126,6 +153,33 @@ export const ICONS = {
   person_add: i_person_add,
   download: i_download,
   content_copy: i_content_copy,
+  package_2: i_package_2,
+  train: i_train,
+  local_taxi: i_local_taxi,
+  car_rental: i_car_rental,
+  move_up: i_move_up,
+  school: i_school,
+  account_balance: i_account_balance,
+  monitor: i_monitor,
+  hub: i_hub,
+  public: i_public,
+  assignment_ind: i_assignment_ind,
+  card_membership: i_card_membership,
+  campaign: i_campaign,
+  toggle_on: i_toggle_on,
+  toggle_off: i_toggle_off,
+  tune: i_tune,
+  edit: i_edit,
+  filter_list: i_filter_list,
+  chevron_left: i_chevron_left,
+  chevron_right: i_chevron_right,
+  extension: i_extension,
+  more_vert: i_more_vert,
+  warehouse: i_warehouse,
+  map: i_map,
+  storefront: i_storefront,
+  apps: i_apps,
+  visibility: i_visibility,
 } as const;
 
 export type IconName = keyof typeof ICONS;

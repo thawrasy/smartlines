@@ -388,9 +388,74 @@ bundled for both platforms in CI, but have not yet been run on physical devices.
 
 ```
 docker compose up            # PostgreSQL, API, web, Caddy
-cd backend && pytest tests   # 83 tests: unit and end to end against a running API
+cd backend && pytest tests   # 92 tests: unit and end to end against a running API
 db/tests/run.sh              # 111 schema checks
 cd mobile && npm test        # core unit tests of the apps
 ```
 
 The end-to-end suite is self-sufficient: each run uses its own test address and publishes its own trip when the demo week runs out.
+
+---
+
+## 8. Switchable modules
+
+Every service beyond the Phase 1 core can be switched on or off by a platform administrator at **Administration → Modules**.
+The switch is one key of the `sys.setting` document `features`; changing it needs the `modules.manage` permission and a reason,
+and is written to the audit log. A switched-off module:
+
+- answers `404 MODULE_DISABLED` on every endpoint (the check runs before any query; switches are cached for five seconds);
+- disappears from the menus of every portal (`GET /api/modules` returns only what the signed-in person may use);
+- keeps all its tables and data, so switching it back on restores it exactly as it was.
+
+### Generic resource engine
+
+Most module screens are generated from declarative specs (`backend/app/modular/specs/`). A spec names the table, the list and
+form columns, the portals with the permission each needs, ownership columns and state-machine actions. The engine reads column
+types, `CHECK` choices, foreign keys and primary keys from the PostgreSQL catalog, so the API and the web forms follow the schema.
+
+- Identifiers come only from specs; every value is a bound parameter.
+- Queries run inside the caller's transaction with `sys.set_context`, so row-level security decides what each company sees.
+- Company, owner, user and creator columns are filled from the session and cannot be set from the request.
+- Actions declare the states they start from (`409 INVALID_STATE` otherwise); four-eyes actions refuse the record's author
+  (`409 FOUR_EYES`).
+- Money columns are integer minor units; the web shows pounds.
+
+| Endpoint | Purpose |
+| --- | --- |
+| `GET /api/features` | public list of switched-on modules |
+| `GET /api/modules` | modules and screens for the signed-in portal |
+| `GET`/`PUT /api/admin/modules[/{key}]` | module switches (with reason) |
+| `GET /api/r/{res}/_spec` | columns, types, choices, references, actions |
+| `GET /api/r/{res}` | list with `q`, `f_<column>`, `limit`, `offset` |
+| `POST /api/r/{res}`, `GET`/`PATCH`/`DELETE /api/r/{res}/{key}` | records |
+| `POST /api/r/{res}/{key}/do/{action}` | state-machine action |
+| `GET /api/r/{res}/lookup/{column}` | options for a reference column |
+
+### Module catalogue
+
+| Module | Key | Study phase | Portals | Screens |
+| --- | --- | --- | --- | --- |
+| Approved lines | `approved_lines` | 2 | Platform, Operator | 9 |
+| Shuttle rides | `shuttle_rides` | 2 | Platform, Operator, Passenger, Driver | 3 |
+| Shuttle subscriptions | `shuttle_subscriptions` | 2 | Platform, Operator, Passenger | 5 |
+| Cargo and parcels | `cargo` | 3 | Platform, Operator, Passenger | 52 |
+| International travel | `international` | 4 | Platform, Operator | 2 |
+| Border manifests | `border_manifest` | 4-6 | Platform, Operator | 9 |
+| Government links | `gov_adapters` | 5 | Platform | 2 |
+| Stations and tracking | `tracking_stations` | 7 | Platform, Operator | 9 |
+| Freight | `freight` | 8 | Platform, Operator, Passenger | 18 |
+| Sales channels | `intermediary_platforms` | 9 | Platform, Agency | 9 |
+| Rail | `rail` | 10 | Platform, Operator | 5 |
+| Taxi | `taxi` | 11 | Platform, Operator, Passenger | 7 |
+| Car rental | `car_rental` | 12 | Platform, Operator, Passenger | 14 |
+| Transit passengers | `transit_passengers` | 13 | Platform, Operator | 5 |
+| Contract transport | `contract_transport` | 14 | Platform, Operator | 6 |
+| Carrier billing | `carrier_billing` | core | Platform, Operator, Agency | 6 |
+| Service partners | `service_partners` | core | Platform, Operator, Passenger | 13 |
+| Loyalty partners | `loyalty_partners` | core | Platform, Passenger | 8 |
+| Campaigns | `campaigns` | core | Platform | 5 |
+| Accounting operations | `accounting_ops` | core | Platform, Operator, Agency | 12 |
+| Contact centre | `contact_center` | core | Platform | 10 |
+
+Interface names for every screen, column, value and action are in `frontend/src/i18n/en.ts` and `ar.ts`; English falls back to
+readable column names.

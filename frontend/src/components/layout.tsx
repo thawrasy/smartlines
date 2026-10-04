@@ -8,6 +8,8 @@ import wordmarkAr from "../assets/brand/masslak-wordmark-ar.svg";
 import wordmarkEn from "../assets/brand/masslak-wordmark-en.svg";
 import type { IconName } from "./icons";
 import { NotificationBell } from "./Notifications";
+import { useModules } from "../modules/context";
+import { useLabels } from "../modules/labels";
 
 export function LangSwitch({ compact }: { compact?: boolean }) {
   const { locale, setLocale, t } = useI18n();
@@ -19,7 +21,7 @@ export function LangSwitch({ compact }: { compact?: boolean }) {
   };
   return (
     <button className={compact ? "icon-btn" : "btn text"} onClick={change} title={t("lang.switchTo")}>
-      <Icon name="language" />{!compact && <span>{LOCALES[next].messages.lang[next]}</span>}
+      <Icon name="language" />{!compact && <span className="lang-label">{LOCALES[next].messages.lang[next]}</span>}
     </button>
   );
 }
@@ -45,6 +47,9 @@ export function PublicLayout() {
   const { me, logout } = useAuth();
   const nav = useNavigate();
   const passenger = me?.portal === "PASSENGER";
+  const { modules } = useModules();
+  const L = useLabels();
+  const mine = passenger ? modules.filter((m) => m.resources.length > 0) : [];
   return (
     <>
       <header className="topbar">
@@ -53,6 +58,7 @@ export function PublicLayout() {
           <NavLink to="/" end>{t("nav.search")}</NavLink>
           {passenger && <NavLink to="/trips">{t("nav.myTrips")}</NavLink>}
           {passenger && <NavLink to="/wallet">{t("nav.wallet")}</NavLink>}
+          {mine.length > 0 && <ModulesMenu items={mine.map((m) => ({ to: `/m/${m.key}`, icon: m.icon as IconName, label: L.module(m.key) }))} />}
           {passenger && <NavLink to="/account">{t("nav.account")}</NavLink>}
           <NavLink to="/verify">{t("nav.verify")}</NavLink>
         </nav>
@@ -81,14 +87,34 @@ export function PublicLayout() {
           </span>
         </div>
       </footer>
-      {passenger && <MobileNav />}
+      {passenger && <MobileNav services={mine.length ? "/services" : undefined} />}
     </>
   );
 }
 
-function MobileNav() {
+function ModulesMenu({ items }: { items: NavItem[] }) {
+  const { t } = useI18n();
+  const [open, setOpen] = useState(false);
+  const loc = useLocation();
+  useEffect(() => setOpen(false), [loc.pathname]);
+  return (
+    <div className="menu-anchor">
+      <button className={`btn text${loc.pathname.startsWith("/m/") ? " active" : ""}`} onClick={() => setOpen((o) => !o)} aria-expanded={open}>
+        <Icon name="apps" />{t("modules.services")}
+      </button>
+      {open && (
+        <div className="menu-pop">
+          {items.map((i) => <NavLink key={i.to} to={i.to} className="nav-item"><Icon name={i.icon} />{i.label}</NavLink>)}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MobileNav({ services }: { services?: string }) {
   const { t } = useI18n();
   const items: [string, IconName, string][] = [["/", "search", t("nav.search")], ["/trips", "confirmation_number", t("nav.myTrips")], ["/wallet", "account_balance_wallet", t("nav.wallet")]];
+  if (services) items.push([services, "apps", t("modules.services")]);
   return (
     <nav className="navbar mobile-only">
       {items.map(([to, icon, label]) => (
