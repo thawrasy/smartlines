@@ -5,3 +5,5 @@ __pycache__/
 node_modules/
 frontend/dist/
 data/
+docs/database/build/
+docs/database/erd/dot/
