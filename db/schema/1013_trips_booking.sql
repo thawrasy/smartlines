@@ -113,7 +113,7 @@ ALTER TABLE sales.boarding_event ADD COLUMN IF NOT EXISTS validator_id bigint RE
 ALTER TABLE sales.boarding_event ADD COLUMN IF NOT EXISTS nfc_card_id bigint REFERENCES sales.nfc_card(id);
 ALTER TABLE sales.boarding_event DROP CONSTRAINT IF EXISTS boarding_event_method_check;
 ALTER TABLE sales.boarding_event ADD CONSTRAINT boarding_event_method_check
-  CHECK (method IN ('AGENT_SCAN','SELF_SCAN','VALIDATOR_QR','VALIDATOR_NFC','MANUAL','CASH'));
+  CHECK (method IN ('AGENT_SCAN','SELF_SCAN','VALIDATOR_QR','VALIDATOR_NFC','MANUAL','OFFLINE_SCAN','CASH'));
 -- Shuttle boardings by card or cash have no ticket; every other boarding still needs one
 ALTER TABLE sales.boarding_event ALTER COLUMN ticket_id DROP NOT NULL;
 DO $$ BEGIN

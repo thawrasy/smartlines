@@ -11,7 +11,7 @@ feature flags until their phase starts (2.8, decision D-6).
 | Engine | PostgreSQL 16 (extensions: pgcrypto, citext, btree_gist, pg_trgm) |
 | Schemas | 23 separate schemas, each with its own privileges |
 | Tables | 415 tables, 4,083 columns, 1,123 foreign keys |
-| Tests | 110 automated checks passing against a real database |
+| Tests | 111 automated checks passing against a real database |
 | Design | [Database design and ERD document](../docs/database/) with diagrams in the study's colors |
 | Docs | [Data dictionary](DATA_DICTIONARY.md) · [ERD diagrams](ERD.md) (both generated from the database) |
 

@@ -99,7 +99,7 @@ front.push(table(["Item", "Details"], [
   ["Basis", "Analysis and Design Study v2.6 (English) and the Use Case and Data Flow Diagrams v1.0"],
   ["Scope", `${schemas.length} schemas, ${tableCount} tables, ${colCount} columns, ${fkCount} foreign keys; all phases 1 to 15`],
   ["Engine", "PostgreSQL 16 with row-level security; schema files db/schema/000 to 1029"],
-  ["Status", "Built and verified: fresh build and upgrade identical, 110 automated checks passing"],
+  ["Status", "Built and verified: fresh build and upgrade identical, 111 automated checks passing"],
   ["Website", "masslak.com"],
 ], [2800, 6946]));
 
@@ -316,7 +316,7 @@ const verify = [H(HeadingLevel.HEADING_1, "9. Verification", { pageBreak: true }
     ["Fresh build (db/build.sh)", `all schema files apply in order; ${tableCount} tables, ${fkCount} foreign keys`],
     ["Upgrade (db/upgrade.sh)", "a database of the previous release upgrades to a schema identical to a fresh build (pg_dump compared)"],
     ["Idempotence", "every new file runs twice without error"],
-    ["Automated tests (db/tests/run.sh)", "110 checks passing, 23 of them on the new model: isolation of shipments, bids, partners, manifests; "
+    ["Automated tests (db/tests/run.sh)", "111 checks passing, 24 of them on the new model: isolation of shipments, bids, partners, manifests; "
       + "exclusion and uniqueness rules; append-only tables; four-eyes approvals; feature flags off"],
     ["Coverage", "every table of the new modules has row-level security, a policy and grants (checked by the tests)"],
     ["Documents", "this document, db/DATA_DICTIONARY.md and db/ERD.md are generated from the built database"],

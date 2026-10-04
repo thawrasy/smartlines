@@ -393,6 +393,8 @@ SELECT pg_temp.ok(NOT EXISTS (SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.
     AND NOT has_table_privilege('masslak_app', c.oid, 'SELECT')), 'Model: the application role can reach every new table');
 SELECT pg_temp.ok((SELECT value->>'car_rental' = 'false' AND value->>'freight' = 'false' AND value->>'border_manifest' = 'false'
   FROM sys.setting WHERE key = 'features'), 'Model: the new modules ship disabled behind feature flags');
+SELECT pg_temp.ok((SELECT pg_get_constraintdef(oid) LIKE '%OFFLINE_SCAN%' AND pg_get_constraintdef(oid) LIKE '%CASH%'
+  FROM pg_constraint WHERE conname = 'boarding_event_method_check'), 'Boarding: offline driver scans (1002) and cash shuttle boardings are both accepted');
 SELECT pg_temp.expect_error(format($$INSERT INTO brd.border_point (station_id, point_type, country_code) VALUES (%s, 'LAND', 'SY')$$, :st_dam),
   'NOT_A_BORDER_POINT', 'Border: a border point must be a BORDER station');
 SELECT pg_temp.expect_error($$INSERT INTO frt.container (container_no, size_type) VALUES ('ABC1234567', '22G1')$$,
