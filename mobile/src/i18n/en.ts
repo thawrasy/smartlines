@@ -1,0 +1,60 @@
+// English messages: the keys every other locale file must provide.
+const en = {
+  app: { passenger: "Masslak", driver: "Masslak Driver" },
+  city: {
+    ALP: "Aleppo", AMM: "Amman", BEY: "Beirut", DAM: "Damascus", DRA: "Daraa", DRZ: "Deir ez-Zor", HMA: "Hama",
+    HMS: "Homs", HSK: "Al-Hasakah", IDL: "Idlib", LTK: "Latakia", QNT: "Quneitra", RDM: "Rif Dimashq", RQA: "Raqqa",
+    SWD: "As-Suwayda", TRT: "Tartus",
+  },
+  extra: { booked: "Booked · {ref}", seatsChosen: "{n} of {max} seats chosen", stops: "{n} stops", direct: "Direct",
+           ticketStatus: { ISSUED: "Valid", BOARDED: "Boarded", CANCELLED: "Cancelled", REFUNDED: "Refunded" },
+           noTickets: "No trips today.", trip: "Trip {no}", openTicket: "Show ticket" },
+  txn: { BOOKING_PAY: "Trip booking", REFUND: "Refund", TOPUP: "Wallet top-up", RELEASE: "Settlement", PAYOUT: "Bank payout" },
+  common: {
+    signIn: "Sign in", signOut: "Sign out", email: "Email or mobile", password: "Password", continue: "Continue",
+    cancel: "Cancel", retry: "Try again", loading: "Loading…", seat: "Seat", seats: "Seats", total: "Total",
+    from: "From", to: "To", date: "Date", passengers: "Passengers", back: "Back", save: "Save", offline: "Offline",
+    online: "Online", sync: "Sync now", language: "Language", currency: "SYP",
+  },
+  security: {
+    locked: "Masslak is locked", unlock: "Unlock", unlockPrompt: "Unlock your tickets and wallet",
+    rooted: "This device appears to be rooted or jailbroken. Your tickets and wallet are less protected on it.",
+    driverRooted: "Boarding is not available on a rooted or jailbroken device.",
+    insecure: "This build cannot connect securely. Install the official app.",
+    noPasscode: "Set a screen lock on this device to protect your tickets and wallet.",
+  },
+  auth: { title: "Sign in to Masslak", code: "Code from your authenticator app", verify: "Verify",
+          enrollOnWeb: "Set up two-step sign-in on the website first, then sign in here." },
+  tabs: { search: "Book", trips: "My trips", wallet: "Wallet", account: "Account", today: "Today" },
+  search: { title: "Where to?", origin: "From", destination: "To", date: "Travel date", find: "Search trips",
+            none: "No trips on this date.", seatsLeft: "{n} seats left", choose: "Choose" },
+  trip: { seats: "Choose your seats", hold: "Hold seats", held: "Seats held for {t}", front: "Front", driver: "Driver",
+          passenger: "Passenger {n}", first: "First name", father: "Father's name", grandfather: "Grandfather's name",
+          last: "Family name", nationality: "Nationality", syrian: "Syrian citizen", otherNationality: "Other nationality",
+          namesHint: "As on the identity document. Syrian citizens: all four names.", pay: "Pay {amount} from wallet",
+          balance: "Wallet balance: {amount}" },
+  ticket: { title: "Your ticket", show: "Show this code to the driver", offlineReady: "Saved on this phone: works offline",
+            notSaved: "Open this ticket once online to save it for offline use.", valid: "Valid", boarded: "Boarded" },
+  trips: { none: "No trips yet.", upcoming: "Upcoming", past: "Past" },
+  wallet: { balance: "Balance", history: "History", topup: "Add test credit" },
+  account: { devices: "Signed-in devices", thisDevice: "This device", language: "Language", english: "English",
+             arabic: "Arabic", restart: "Restart the app to switch the layout direction." },
+  driver: {
+    today: "Your trips", board: "Boarding", download: "Download for offline", downloaded: "Ready offline · {n} tickets",
+    scan: "Point the camera at the ticket code", pending: "{n} scans waiting to sync", synced: "All scans synced",
+    boardedCount: "{n} of {total} boarded", camera: "Allow the camera to scan tickets", allow: "Allow camera",
+    results: { OK: "Valid — board", DUPLICATE: "Already boarded", INVALID_QR: "Not a valid ticket",
+               WRONG_TRIP: "Ticket for another trip", CANCELLED: "Ticket cancelled", NOT_IN_PACK: "Not in the offline list — check online" },
+  },
+  errors: {
+    NETWORK: "No connection. Offline features still work.", INVALID_CREDENTIALS: "Wrong email or password.",
+    ACCOUNT_LOCKED: "Too many attempts. The account is locked for 15 minutes.", MFA_CODE_INVALID: "That code is not valid.",
+    SEAT_TAKEN: "A seat was just taken. Choose again.", HOLD_EXPIRED: "The hold expired. Choose your seats again.",
+    INSUFFICIENT_BALANCE: "Your wallet balance is not enough.", NAME_PARTS_REQUIRED: "Syrian citizens need all four names.",
+    DEVICE_REVOKED: "This device was signed out from your account.", SESSION_EXPIRED: "Please sign in again.",
+    RATE_LIMITED: "Too many attempts. Wait a moment.", generic: "Something went wrong. Try again.",
+  },
+};
+
+export type Messages = typeof en;
+export default en;

@@ -1,0 +1,42 @@
+{
+  "name": "masslak-mobile",
+  "version": "1.0.0",
+  "main": "expo-router/entry",
+  "dependencies": {
+    "@noble/ed25519": "3.2.0",
+    "@noble/hashes": "2.4.0",
+    "expo": "57.0.26",
+    "expo-camera": "57.0.6",
+    "expo-constants": "57.0.20",
+    "expo-crypto": "57.0.3",
+    "expo-device": "57.0.2",
+    "expo-linking": "57.0.11",
+    "expo-local-authentication": "57.0.3",
+    "expo-localization": "57.0.2",
+    "expo-router": "57.0.24",
+    "expo-screen-capture": "57.0.3",
+    "expo-secure-store": "57.0.4",
+    "expo-status-bar": "57.0.1",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "react-native": "0.86.3",
+    "react-native-qrcode-svg": "6.3.26",
+    "react-native-safe-area-context": "5.7.0",
+    "react-native-screens": "4.26.2",
+    "react-native-ssl-public-key-pinning": "1.2.6",
+    "react-native-svg": "15.15.4"
+  },
+  "devDependencies": {
+    "@types/react": "~19.2.2",
+    "typescript": "~6.0.3"
+  },
+  "scripts": {
+    "start": "expo start",
+    "start:driver": "APP_VARIANT=driver expo start",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test --experimental-strip-types test/core.test.ts test/interop.test.ts"
+  },
+  "private": true
+}

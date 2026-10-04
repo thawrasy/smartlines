@@ -91,6 +91,27 @@ jobs:
       - run: npm ci
       - run: npm run build
 
+  mobile:
+    name: Mobile apps
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: mobile } }
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with: { node-version: "22", cache: npm, cache-dependency-path: mobile/package-lock.json }
+      - run: npm ci
+      - name: Type check
+        run: npm run typecheck
+      - name: Core unit tests (session, ticket credentials, offline boarding)
+        run: npm test
+      - name: Bundle both variants (Metro resolves every import)
+        env: { CI: "1", EXPO_OFFLINE: "1" }
+        run: |
+          npx expo export --platform android --output-dir /tmp/passenger
+          APP_VARIANT=driver npx expo export --platform ios --output-dir /tmp/driver
+      - name: Known vulnerabilities in app dependencies
+        run: npm audit --omit=dev --audit-level=critical
+
   security:
     name: Security and policy checks
     runs-on: ubuntu-latest
