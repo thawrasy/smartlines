@@ -78,7 +78,7 @@ async def onboard_carrier(body: OnboardIn, request: Request, pr: Principal = Dep
             body.owner_name.strip(), body.owner_email)
         owner_user = await conn.fetchval(
             """INSERT INTO iam.app_user (party_id, account_kind, email, password_hash, password_changed_at, status,
-                 preferred_locale, mfa_required) VALUES ($1, 'COMPANY', $2, $3, now(), 'ACTIVE', 'ar', true) RETURNING id""",
+                 preferred_locale, mfa_required) VALUES ($1, 'COMPANY', $2, $3, now(), 'ACTIVE', (SELECT value #>> '{}' FROM sys.setting WHERE key = 'ui.default_locale'), true) RETURNING id""",
             owner_party, body.owner_email, hash_password(body.owner_password))
         await conn.execute("INSERT INTO iam.company_member (user_id, company_id, is_owner) VALUES ($1, $2, true)",
                            owner_user, cid)
@@ -176,7 +176,7 @@ async def onboard_agency(body: AgencyIn, request: Request, pr: Principal = Depen
             body.owner_name.strip(), body.owner_email)
         owner_user = await conn.fetchval(
             """INSERT INTO iam.app_user (party_id, account_kind, email, password_hash, password_changed_at, status,
-                 preferred_locale, mfa_required) VALUES ($1, 'AGENCY', $2, $3, now(), 'ACTIVE', 'ar', true) RETURNING id""",
+                 preferred_locale, mfa_required) VALUES ($1, 'AGENCY', $2, $3, now(), 'ACTIVE', (SELECT value #>> '{}' FROM sys.setting WHERE key = 'ui.default_locale'), true) RETURNING id""",
             owner_party, body.owner_email, hash_password(body.owner_password))
         await conn.execute("INSERT INTO iam.company_member (user_id, company_id, is_owner) VALUES ($1, $2, true)",
                            owner_user, aid)

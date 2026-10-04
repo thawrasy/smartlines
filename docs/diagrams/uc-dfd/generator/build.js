@@ -57,7 +57,7 @@ const spacer = () => new Paragraph({ children: [], spacing: { after: 160 } });
 
 // ---------------------------------------------------------------- content
 const cover = [
-  new Paragraph({ spacing: { before: 2400, after: 200 }, alignment: AlignmentType.CENTER, children: [run("Masslak (مسلك)", { size: 56, bold: true, color: NAVY })] }),
+  new Paragraph({ spacing: { before: 2400, after: 200 }, alignment: AlignmentType.CENTER, children: [run("Masslak", { size: 56, bold: true, color: NAVY })] }),
   new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 120 }, children: [run("Use Case and Data Flow Diagrams", { size: 40, bold: true })] }),
   new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 600 }, children: [run("How actors use the platform and how data moves inside it", { size: 24, color: "5B6B7F" })] }),
   kvTable([["Version", "1.0"], ["Date", "3 October 2026"], ["Source", "Analysis and Design Study v2.5 (English edition) — the only source used"],

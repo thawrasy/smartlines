@@ -6,7 +6,7 @@ const en = {
     sandbox: "Test environment",
     footer: "Masslak national platform for land transport. All amounts in Syrian pounds.",
   },
-  lang: { ar: "العربية", en: "English", switchTo: "Language" },
+  lang: { ar: "Arabic", en: "English", switchTo: "Language" },
   nav: {
     search: "Book a trip", myTrips: "My trips", wallet: "Wallet", verify: "Verify a document", login: "Sign in",
     register: "Create account", logout: "Sign out", portals: "Business portals", home: "Home",

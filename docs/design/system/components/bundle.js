@@ -32,7 +32,7 @@ var ICONS = {"search":"M378-329q-108.16 0-183.08-75Q120-479 120-585t75-181q75-75
     var en = p.lang === "en";
     return h("span", { className: cx("ms-logo", p.tone === "white" && "ms-logo-white") }, mark,
       h("span", { className: "ms-logo-text" },
-        h("span", { className: "ms-logo-name" }, h("b", null, en ? "masslak" : "مســلك"), en ? null : h("span", { className: "ms-logo-latin" }, "masslak")),
+        h("span", { className: "ms-logo-name" }, h("b", null, en ? "masslak" : "masslak"), en ? null : h("span", { className: "ms-logo-latin" }, "masslak")),
         p.tagline ? h("small", null, p.tagline) : null));
   }
 
@@ -150,8 +150,8 @@ var ICONS = {"search":"M378-329q-108.16 0-183.08-75Q120-479 120-585t75-181q75-75
           h("div", { className: "ms-trip-end" }, h("div", { className: "ms-trip-time" }, p.arrive), h("div", { className: "body-small ms-muted" }, p.to))),
         p.tags ? h("div", { className: "ms-trip-tags" }, p.tags.map(function (t, i) { return h("span", { key: i, className: "ms-tag" }, t); })) : null),
       h("div", { className: "ms-trip-side" },
-        h("div", { className: "ms-price" }, p.price, h("small", null, " " + (p.currency || "ل.س"))),
-        p.seatsLeft != null ? h("div", { className: cx("body-small", p.seatsLeft <= 5 ? "ms-warn-text" : "ms-muted") }, p.seatsLabel || ("متبقٍ " + p.seatsLeft + " مقاعد")) : null,
+        h("div", { className: "ms-price" }, p.price, h("small", null, " " + (p.currency || "SYP"))),
+        p.seatsLeft != null ? h("div", { className: cx("body-small", p.seatsLeft <= 5 ? "ms-warn-text" : "ms-muted") }, p.seatsLabel || (p.seatsLeft + " seats left")) : null,
         p.action || null));
   }
 
@@ -175,12 +175,12 @@ var ICONS = {"search":"M378-329q-108.16 0-183.08-75Q120-479 120-585t75-181q75-75
         n++;
         var num = n, isT = taken.indexOf(num) >= 0, isM = mine.indexOf(num) >= 0;
         cells.push(h("button", { key: r + "-" + c, type: "button", className: cx("ms-seat", isT && "ms-seat-taken", isM && "ms-seat-mine"), disabled: isT,
-          "aria-pressed": isM, "aria-label": (p.seatWord || "مقعد") + " " + num, onClick: (function (k) { return function () { toggle(k); }; })(num) }, num));
+          "aria-pressed": isM, "aria-label": (p.seatWord || "Seat") + " " + num, onClick: (function (k) { return function () { toggle(k); }; })(num) }, num));
       }
     }
-    var L = p.legend || ["متاح", "محجوز", "اختيارك"];
+    var L = p.legend || ["Available", "Taken", "Your pick"];
     return h("div", { className: "ms-seatmap" },
-      h("div", { className: "ms-bus", dir: "ltr" }, h("div", { className: "ms-bus-front" }, h("span", { className: "ms-wheel" }, Ic("directions_bus", 18)), h("span", null, p.frontLabel || "الأمام")),
+      h("div", { className: "ms-bus", dir: "ltr" }, h("div", { className: "ms-bus-front" }, h("span", { className: "ms-wheel" }, Ic("directions_bus", 18)), h("span", null, p.frontLabel || "Front")),
         h("div", { className: "ms-seats" }, cells)),
       h("div", { className: "ms-legend" }, h("span", null, h("i", { className: "ms-lg-free" }), L[0]), h("span", null, h("i", { className: "ms-lg-taken" }), L[1]), h("span", null, h("i", { className: "ms-lg-mine" }), L[2])));
   }
@@ -199,7 +199,7 @@ var ICONS = {"search":"M378-329q-108.16 0-183.08-75Q120-479 120-585t75-181q75-75
   }
 
   function Ticket(p) {
-    var L = p.labels || { date: "التاريخ", time: "الانطلاق", seat: "المقعد", passenger: "المسافر", ref: "رقم الحجز" };
+    var L = p.labels || { date: "Date", time: "Departure", seat: "Seat", passenger: "Passenger", ref: "Booking reference" };
     return h("article", { className: "ms-ticket" },
       h("div", { className: "ms-ticket-top" },
         h("div", { className: "ms-ticket-carrier" }, h(Mark, { size: 32 }), h("span", { className: "ms-ticket-id" }, h("span", { className: "ms-ticket-kicker" }, p.kicker || "BOARDING PASS"), h("span", null, p.carrier)), p.status ? h(StatusBadge, { status: p.status }, p.statusLabel) : null),

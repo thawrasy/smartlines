@@ -46,7 +46,8 @@ def test_blind_index_matches_the_same_document_only():
 
 def test_normalising_and_masking():
     assert normalise_identifier("n 12-34/56") == "N123456"
-    assert normalise_identifier("٠١٢٣") == "0123"
+    # Arabic-Indic digits zero to three (U+0660..U+0663), as typed on an Arabic keyboard
+    assert normalise_identifier("\u0660\u0661\u0662\u0663") == "0123"
     assert last4("N 1234-5678") == "5678"
 
 

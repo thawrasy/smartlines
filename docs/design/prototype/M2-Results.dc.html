@@ -1,8 +1,8 @@
 <!doctype html>
-<html lang="ar" dir="rtl">
+<html lang="en" dir="ltr">
 <head>
 <meta charset="utf-8">
-<title>نتائج البحث</title>
+<title>Search results</title>
 <script src="./support.js"></script>
 <link rel="stylesheet" href="masslak-theme.css">
 <link rel="stylesheet" href="ds/masslak/components/bundle.css">
@@ -20,34 +20,34 @@ a{color:#0A5BD3}a:hover{color:#05285F}
 .trip-link .ms-trip-side{flex-direction:row;justify-content:space-between;align-items:center;text-align:start}
 </style>
 </helmet>
-<div class="ms-root" dir="rtl" style="width: 390px; height: 844px; box-sizing: border-box; background: var(--surface-dim); display: flex; flex-direction: column; overflow: hidden; font-family: 'IBM Plex Sans Arabic', system-ui, sans-serif;">
+<div class="ms-root" dir="ltr" style="width: 390px; height: 844px; box-sizing: border-box; background: var(--surface-dim); display: flex; flex-direction: column; overflow: hidden; font-family: 'IBM Plex Sans Arabic', system-ui, sans-serif;">
   <header style="display: flex; align-items: center; gap: 8px; height: 64px; padding-inline: 8px 16px; background: var(--surface); box-shadow: inset 0 -1px 0 var(--divider);">
-    <a href="M1-Home.dc.html" aria-label="رجوع" style="width: 48px; height: 48px; border-radius: 24px; display: inline-flex; align-items: center; justify-content: center; color: var(--on-surface-variant);"><x-import component-from-global-scope="Masslak.Icon" name="arrow_back" flip="{{yes}}"></x-import></a>
+    <a href="M1-Home.dc.html" aria-label="Back" style="width: 48px; height: 48px; border-radius: 24px; display: inline-flex; align-items: center; justify-content: center; color: var(--on-surface-variant);"><x-import component-from-global-scope="Masslak.Icon" name="arrow_back" flip="{{yes}}"></x-import></a>
     <div style="flex: 1; min-width: 0;">
-      <div class="title-medium">دمشق ← حلب</div>
-      <div class="body-small" style="color: var(--on-surface-variant);">الجمعة 14 تشرين الثاني · مسافر واحد</div>
+      <div class="title-medium">Damascus → Aleppo</div>
+      <div class="body-small" style="color: var(--on-surface-variant);">Friday 14 November · 1 passenger</div>
     </div>
-    <x-import component-from-global-scope="Masslak.IconButton" icon="settings" label="تعديل البحث"></x-import>
+    <x-import component-from-global-scope="Masslak.IconButton" icon="settings" label="Edit search"></x-import>
   </header>
   <div style="display: flex; gap: 8px; padding: 12px 16px; overflow: hidden; white-space: nowrap;">
-    <x-import component-from-global-scope="Masslak.Chip" selected="{{yes}}" count="{{6}}">صباحاً</x-import>
+    <x-import component-from-global-scope="Masslak.Chip" selected="{{yes}}" count="{{6}}">Morning</x-import>
     <x-import component-from-global-scope="Masslak.Chip" icon="airline_seat_recline_normal">VIP</x-import>
-    <x-import component-from-global-scope="Masslak.Chip" icon="route">مباشرة</x-import>
-    <x-import component-from-global-scope="Masslak.Chip">واي فاي</x-import>
+    <x-import component-from-global-scope="Masslak.Chip" icon="route">Direct</x-import>
+    <x-import component-from-global-scope="Masslak.Chip">Wi-Fi</x-import>
   </div>
   <div style="padding: 0 16px 6px; display: flex; justify-content: space-between; align-items: center;">
-    <span class="body-small" style="color: var(--on-surface-variant);">9 رحلات · مرتبة حسب الانطلاق</span>
-    <span class="body-small" style="color: var(--primary); font-weight: 500;">الأسعار نهائية شاملة الرسوم</span>
+    <span class="body-small" style="color: var(--on-surface-variant);">9 trips · sorted by departure</span>
+    <span class="body-small" style="color: var(--primary); font-weight: 500;">Final prices including fees</span>
   </div>
   <div style="flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; gap: 12px; padding: 4px 16px 16px;">
     <a class="trip-link" href="M3-Seats.dc.html">
-      <x-import component-from-global-scope="Masslak.TripCard" carrier="بولمان الشام" fare-brand="VIP · مقعد واسع" depart="14:30" arrive="19:05" from="دمشق" to="حلب" duration="4س 35د" price="85,000" seats-left="{{4}}" tags="{{tagsA}}"></x-import>
+      <x-import component-from-global-scope="Masslak.TripCard" carrier="Pullman Al-Sham" fare-brand="VIP · Wide seat" depart="14:30" arrive="19:05" from="Damascus" to="Aleppo" duration="4h 35m" price="85,000" seats-left="{{4}}" tags="{{tagsA}}"></x-import>
     </a>
     <a class="trip-link" href="M3-Seats.dc.html">
-      <x-import component-from-global-scope="Masslak.TripCard" carrier="الأهلية للنقل" fare-brand="عادي" depart="15:00" arrive="19:50" from="دمشق" to="حلب" duration="4س 50د" price="55,000" seats-left="{{18}}" tags="{{tagsB}}"></x-import>
+      <x-import component-from-global-scope="Masslak.TripCard" carrier="Al-Ahliya Transport" fare-brand="Standard" depart="15:00" arrive="19:50" from="Damascus" to="Aleppo" duration="4h 50m" price="55,000" seats-left="{{18}}" tags="{{tagsB}}"></x-import>
     </a>
     <a class="trip-link" href="M3-Seats.dc.html">
-      <x-import component-from-global-scope="Masslak.TripCard" carrier="القدموس" fare-brand="رجال أعمال" depart="16:15" arrive="20:40" from="دمشق" to="حلب" duration="4س 25د" price="95,000" seats-left="{{9}}" tags="{{tagsC}}"></x-import>
+      <x-import component-from-global-scope="Masslak.TripCard" carrier="Al-Qadmous" fare-brand="Business" depart="16:15" arrive="20:40" from="Damascus" to="Aleppo" duration="4h 25m" price="95,000" seats-left="{{9}}" tags="{{tagsC}}"></x-import>
     </a>
   </div>
 </div>
@@ -57,9 +57,9 @@ class Component extends DCLogic {
   renderVals() {
     return {
       yes: true,
-      tagsA: ['واي فاي', 'حقيبة 20 كغ', 'مباشرة'],
-      tagsB: ['حقيبة 20 كغ', 'توقف في حمص'],
-      tagsC: ['واي فاي', 'وجبة خفيفة']
+      tagsA: ['Wi-Fi', '20 kg bag', 'Direct'],
+      tagsB: ['20 kg bag', 'Stop in Homs'],
+      tagsC: ['Wi-Fi', 'Snack']
     };
   }
 }

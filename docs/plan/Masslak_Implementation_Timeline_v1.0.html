@@ -124,10 +124,6 @@ button:focus-visible { outline: 2px solid var(--today); outline-offset: 2px }
       <h1 id="t-title"></h1>
       <p id="t-sub"></p>
     </div>
-    <div class="lang" role="group" aria-label="Language">
-      <button id="l-ar" type="button">العربية</button>
-      <button id="l-en" type="button">English</button>
-    </div>
   </header>
 
   <div class="keys" id="keys"></div>
@@ -151,46 +147,6 @@ button:focus-visible { outline: 2px solid var(--today); outline-offset: 2px }
 <script>
 const WS = ["ui", "dev", "db", "ops"];
 const T = {
-  ar: {
-    dir: "rtl", locale: "ar-SY",
-    title: "الخطة الزمنية لتنفيذ مسلك",
-    sub: "الواجهات والبرمجة وقواعد البيانات وتجهيز النظام، من المرحلة 0 حتى الإطلاق، مبنية على الأقسام 20 إلى 22 من دراسة التحليل والتصميم v2.5. البداية الاثنين 5 تشرين الأول 2026.",
-    detail: "المراحل 0 إلى 2 بالتفصيل", road: "خارطة المراحل كاملة",
-    ws: { ui: "الواجهات", dev: "البرمجة", db: "قواعد البيانات", ops: "تجهيز النظام", ms: "المعالم" },
-    show: "إظهار:",
-    lg: { bar: "مهمة مخططة", done: "جزء منجز في المستودع", ms: "معلَم", hol: "رمضان والأعياد (تقريبي)", today: "اليوم" },
-    keys: [["نهاية المرحلة 0", "p0end"], ["الإطلاق التجريبي", "pilot"], ["إغلاق المرحلة 1", "p1end"], ["تشغيل النقل الترددي", "p2end"]],
-    phaseRow: "المراحل", monthRow: "الأشهر", yearRow: "السنوات",
-    today: "اليوم", built: (p) => `منجز في المستودع: نحو ${p}% (يحتاج مراجعة وتقوية ضمن مدته)`,
-    weeks: (n) => n === 1 ? "أسبوع واحد" : n === 2 ? "أسبوعان" : n <= 10 ? `${n} أسابيع` : `${n} أسبوعاً`,
-    months: (n) => n <= 2 ? `${n} شهر` : n <= 10 ? `${n} أشهر` : `${n} شهراً`,
-    ref: "الدراسة", reused: "يعيد استخدام",
-    indicative: "تواريخ استرشادية",
-    depends: "يعتمد على جاهزية الجهات الحكومية",
-    notesT: ["افتراضات الخطة", "الفريق المقترح للمرحلة 1 (22.3)", "ما هو منجز حالياً"],
-    notes: [
-      [
-        "تبدأ المرحلة 0 يوم الاثنين 5 تشرين الأول 2026 بعد اعتماد الدراسة وحسم القرارات ذات الأولوية (القسم 24).",
-        "المدد مأخوذة من الجدول 22.1، وأخذنا الحد الأعلى حيث يوجد مدى: 8 أسابيع للمرحلة 0، و12 شهراً للمرحلة 1 بخمس دورات وإطلاق تجريبي.",
-        "تسير المراحل بالتتابع بفريق واحد. المرحلتان 5 و6 تعتمدان على جاهزية الجهات الحكومية، فقد تتغير تواريخهما.",
-        "مواعيد رمضان والأعياد تقريبية لأنها قمرية. الإطلاق التجريبي والتجربة الميدانية للنقل الترددي موضوعان خارجها.",
-        "تواريخ المراحل 10 إلى 12 استرشادية، وتبدأ بقرار من المالك بعد استقرار التتبع والاتفاق مع الجهة الناظمة.",
-      ],
-      [
-        "مدير منتج، ومحلل أعمال، ومعماري حلول.",
-        "4 إلى 5 مطوري خلفية، و2 واجهات ويب، و2 تطبيقات موبايل، ومصمم تجربة مستخدم.",
-        "2 ضمان جودة، ومهندس DevOps، ومسؤول أمن بدوام جزئي، ومستشار قانوني ومالي.",
-        "قبل الإطلاق التجريبي بثلاثة أشهر: فريق SRE وأمن التطبيقات ومهندس أداء ودعم L1 وعقد مع مزود SOC مُدار (20.4).",
-      ],
-      [
-        "مخطط قاعدة البيانات للمرحلة 1 بالإنكليزية فقط (16 ملف ترحيل حتى الإصدار 1.2.0) مع أمان مستوى الصفوف والبيانات المرجعية.",
-        "واجهة برمجية خلفية تغطي الحجز والمحفظة والناقل والسائق والإدارة والأمن والجهة الناظمة والتحقق، مع اختبارات شاملة.",
-        "واجهة ويب عربية RTL وإنكليزية، وحزمة نشر (Docker وCaddy).",
-        "الجزء الممتلئ من كل شريط يمثل هذا المنجز. لم نقصّر المدد بسببه: يبقى المنجز بحاجة لمراجعة وتقوية، والفارق يصبح احتياطياً زمنياً.",
-      ],
-    ],
-    foot: "المصدر: دراسة التحليل والتصميم v2.5، الأقسام 20.4 و21 و22، ومحتوى المستودع حتى 3 تشرين الأول 2026. الإصدار 1.0.",
-  },
   en: {
     dir: "ltr", locale: "en-GB",
     title: "Masslak Implementation Timeline",
@@ -235,101 +191,101 @@ const T = {
 
 // ---- Phase 0 to 2 bands
 const BANDS = [
-  ["2026-10-05", "2026-11-27", { ar: "المرحلة 0", en: "Phase 0" }],
-  ["2026-11-30", "2027-01-22", { ar: "دورة أ: الأساس", en: "Sprint a: core" }],
-  ["2027-01-25", "2027-03-19", { ar: "دورة ب: الأسطول والجدولة", en: "Sprint b: fleet" }],
-  ["2027-03-22", "2027-06-11", { ar: "دورة ج: الحجز والمال", en: "Sprint c: booking and money" }],
-  ["2027-06-14", "2027-08-06", { ar: "دورة د: التشغيل", en: "Sprint d: operations" }],
-  ["2027-08-09", "2027-10-01", { ar: "دورة هـ: التقوية والإطلاق", en: "Sprint e: hardening" }],
-  ["2027-10-04", "2027-11-26", { ar: "تجريبي", en: "Pilot" }],
-  ["2027-11-29", "2028-04-07", { ar: "المرحلة 2: النقل الترددي", en: "Phase 2: shuttle" }],
+  ["2026-10-05", "2026-11-27", { en: "Phase 0" }],
+  ["2026-11-30", "2027-01-22", { en: "Sprint a: core" }],
+  ["2027-01-25", "2027-03-19", { en: "Sprint b: fleet" }],
+  ["2027-03-22", "2027-06-11", { en: "Sprint c: booking and money" }],
+  ["2027-06-14", "2027-08-06", { en: "Sprint d: operations" }],
+  ["2027-08-09", "2027-10-01", { en: "Sprint e: hardening" }],
+  ["2027-10-04", "2027-11-26", { en: "Pilot" }],
+  ["2027-11-29", "2028-04-07", { en: "Phase 2: shuttle" }],
 ];
 const HOLIDAYS = [
-  ["2027-02-08", "2027-03-09", { ar: "رمضان", en: "Ramadan" }],
-  ["2027-03-10", "2027-03-12", { ar: "الفطر", en: "Eid al-Fitr" }],
-  ["2027-05-16", "2027-05-19", { ar: "الأضحى", en: "Eid al-Adha" }],
-  ["2028-01-28", "2028-02-25", { ar: "رمضان", en: "Ramadan" }],
-  ["2028-02-26", "2028-02-28", { ar: "الفطر", en: "Eid al-Fitr" }],
+  ["2027-02-08", "2027-03-09", { en: "Ramadan" }],
+  ["2027-03-10", "2027-03-12", { en: "Eid al-Fitr" }],
+  ["2027-05-16", "2027-05-19", { en: "Eid al-Adha" }],
+  ["2028-01-28", "2028-02-25", { en: "Ramadan" }],
+  ["2028-02-26", "2028-02-28", { en: "Eid al-Fitr" }],
 ];
 
 // [ws, start, end, ar, en, studyRef, builtPct, noteAr, noteEn]
 const TASKS = [
-  ["ms", "2026-11-27", null, "اجتياز بوابة المرحلة 0", "Phase 0 gate passed", "22.1", 0, "الدراسة معتمدة، الاستضافة مختارة، الاتفاق المصرفي والقانوني موقّع.", "Study approved, hosting chosen, banking and legal agreement signed.", "p0end"],
-  ["ms", "2027-01-22", null, "تسجيل الشركات واعتمادها", "Company registration and approval", "22.2 a", 0, "مخرج الدورة أ.", "Sprint a deliverable."],
-  ["ms", "2027-03-19", null, "رحلات منشورة", "Trips published", "22.2 b", 0, "مخرج الدورة ب.", "Sprint b deliverable."],
-  ["ms", "2027-06-11", null, "حجز ودفع كاملان", "Full booking and payment", "22.2 c", 0, "مخرج الدورة ج.", "Sprint c deliverable."],
-  ["ms", "2027-08-06", null, "الجاهزية التشغيلية", "Operational readiness", "22.2 d", 0, "مخرج الدورة د.", "Sprint d deliverable."],
-  ["ms", "2027-10-04", null, "الإطلاق التجريبي", "Pilot launch", "22.3", 0, "خط أو خطان مع 2 إلى 3 شركات شريكة.", "One or two routes with 2 to 3 partner carriers.", "pilot", true],
-  ["ms", "2027-11-26", null, "إغلاق المرحلة 1", "Phase 1 closed", "2.7", 0, "بحزمة التوثيق الكاملة للمرحلة.", "With the phase's full documentation package.", "p1end"],
-  ["ms", "2028-04-07", null, "تشغيل النقل الترددي", "Shuttle go-live", "21", 0, "بعد التجربة الميدانية.", "After the field trial.", "p2end", true],
+  ["ms", "2026-11-27", null, "", "Phase 0 gate passed", "22.1", 0, "", "Study approved, hosting chosen, banking and legal agreement signed.", "p0end"],
+  ["ms", "2027-01-22", null, "", "Company registration and approval", "22.2 a", 0, "", "Sprint a deliverable."],
+  ["ms", "2027-03-19", null, "", "Trips published", "22.2 b", 0, "", "Sprint b deliverable."],
+  ["ms", "2027-06-11", null, "", "Full booking and payment", "22.2 c", 0, "", "Sprint c deliverable."],
+  ["ms", "2027-08-06", null, "", "Operational readiness", "22.2 d", 0, "", "Sprint d deliverable."],
+  ["ms", "2027-10-04", null, "", "Pilot launch", "22.3", 0, "", "One or two routes with 2 to 3 partner carriers.", "pilot", true],
+  ["ms", "2027-11-26", null, "", "Phase 1 closed", "2.7", 0, "", "With the phase's full documentation package.", "p1end"],
+  ["ms", "2028-04-07", null, "", "Shuttle go-live", "21", 0, "", "After the field trial.", "p2end", true],
 
-  ["ui", "2026-10-05", "2026-11-20", "الهوية البصرية ونظام التصميم", "Visual identity and design system", "3.6", 0, "مستوحاة من الهوية البصرية للدولة السورية الجديدة، بمكونات عربية RTL وإنكليزية.", "Inspired by the new Syrian state identity, with Arabic RTL and English components."],
-  ["ui", "2026-10-12", "2026-11-27", "بحث تجربة المستخدم ونموذج أولي للبوابات", "UX research and portal prototype", "24", 0, "بوابات المسافر والشركة والوكالة والإدارة.", "Passenger, carrier, agency and admin portals."],
-  ["ui", "2026-10-05", "2026-12-18", "إطار الواجهة العربية والإنكليزية", "Arabic and English interface shell", "3.5", 60, "التبديل بين RTL وLTR وملفات اللغات.", "RTL/LTR switching and locale files."],
-  ["ui", "2026-11-30", "2027-01-22", "شاشات التسجيل والدخول واعتماد الشركات", "Sign-up, sign-in and carrier approval screens", "32", 35, "", ""],
-  ["ui", "2027-01-25", "2027-03-19", "شاشات الأسطول والمحطات والخطوط وأنماط الرحلات", "Fleet, station, route and trip pattern screens", "32", 15, "بوابة الشركة الناقلة.", "Carrier portal."],
-  ["ui", "2027-03-22", "2027-06-11", "البحث وخريطة المقاعد والدفع والمحفظة والتذاكر", "Search, seat map, checkout, wallet and tickets", "32", 25, "بوابة المسافر.", "Passenger portal."],
-  ["ui", "2027-04-19", "2027-07-02", "بوابة الوكالات ولوحة الإدارة", "Agency portal and admin back office", "3.5", 10, "", ""],
-  ["ui", "2027-02-15", "2027-09-03", "تطبيقا Android وiOS للمسافر والمشغّل", "Android and iOS apps for passengers and operators", "3.5", 0, "تحتاج مطوري موبايل اثنين من الدورة ب.", "Needs two mobile developers from sprint b."],
-  ["ui", "2027-06-14", "2027-08-27", "تطبيق السائق: مسح QR والكشف وقفل الموقع", "Driver app: QR scan, manifest and location lock", "7.13", 0, "", ""],
-  ["ui", "2027-07-05", "2027-08-06", "لوحة الجهة الناظمة وشاشات التقارير", "Regulator dashboard and report screens", "35", 10, "عرض فقط.", "Read-only."],
-  ["ui", "2027-08-09", "2027-09-10", "اختبار قابلية الاستخدام وإمكانية الوصول", "Usability and accessibility testing", "36", 0, "", ""],
-  ["ui", "2027-11-29", "2028-02-25", "شاشات الترددي: الاشتراكات وملصق المركبة والأجرة بين المحطات", "Shuttle screens: subscriptions, vehicle sticker, segment fares", "7.13", 0, "", ""],
+  ["ui", "2026-10-05", "2026-11-20", "", "Visual identity and design system", "3.6", 0, "", "Inspired by the new Syrian state identity, with Arabic RTL and English components."],
+  ["ui", "2026-10-12", "2026-11-27", "", "UX research and portal prototype", "24", 0, "", "Passenger, carrier, agency and admin portals."],
+  ["ui", "2026-10-05", "2026-12-18", "", "Arabic and English interface shell", "3.5", 60, "", "RTL/LTR switching and locale files."],
+  ["ui", "2026-11-30", "2027-01-22", "", "Sign-up, sign-in and carrier approval screens", "32", 35, "", ""],
+  ["ui", "2027-01-25", "2027-03-19", "", "Fleet, station, route and trip pattern screens", "32", 15, "", "Carrier portal."],
+  ["ui", "2027-03-22", "2027-06-11", "", "Search, seat map, checkout, wallet and tickets", "32", 25, "", "Passenger portal."],
+  ["ui", "2027-04-19", "2027-07-02", "", "Agency portal and admin back office", "3.5", 10, "", ""],
+  ["ui", "2027-02-15", "2027-09-03", "", "Android and iOS apps for passengers and operators", "3.5", 0, "", "Needs two mobile developers from sprint b."],
+  ["ui", "2027-06-14", "2027-08-27", "", "Driver app: QR scan, manifest and location lock", "7.13", 0, "", ""],
+  ["ui", "2027-07-05", "2027-08-06", "", "Regulator dashboard and report screens", "35", 10, "", "Read-only."],
+  ["ui", "2027-08-09", "2027-09-10", "", "Usability and accessibility testing", "36", 0, "", ""],
+  ["ui", "2027-11-29", "2028-02-25", "", "Shuttle screens: subscriptions, vehicle sticker, segment fares", "7.13", 0, "", ""],
 
-  ["dev", "2026-10-05", "2026-11-27", "قرارات المعمارية وتصميم OpenAPI", "Architecture decisions and OpenAPI design", "24", 20, "للحجز والمحفظة والتسعير.", "For booking, wallet and pricing."],
-  ["dev", "2026-11-30", "2027-01-22", "الهوية والصلاحيات والأطراف والشركات والوثائق والتدقيق", "Identity, permissions, parties, carriers, documents, audit", "22.2 a", 50, "", ""],
-  ["dev", "2026-12-14", "2027-01-22", "سجل الالتزامات القانونية وتوقيع الوثائق", "Legal obligations register and document signing", "16.24", 0, "", ""],
-  ["dev", "2027-01-25", "2027-03-19", "المركبات والمقاعد والطواقم والمحطات والخطوط وترقيم الرحلات", "Vehicles, seats, crews, stations, routes, trip numbering", "22.2 b", 30, "مع ملكية المركبات وأكواد الناقلين.", "Including vehicle ownership and carrier codes."],
-  ["dev", "2027-03-22", "2027-05-14", "البحث وحجز المقاعد مؤقتاً والتسعير والعروض والتذاكر", "Search, seat holds, pricing, offers and tickets", "22.2 c", 30, "", ""],
-  ["dev", "2027-03-22", "2027-06-11", "المحفظة ومحولات الدفع والضمان والتسويات", "Wallet, payment adapters, escrow and settlements", "6.4", 25, "النقد أولاً ثم المحافظ والبنوك.", "Cash first, then wallets and banks."],
-  ["dev", "2027-04-05", "2027-06-11", "محرك الضرائب والعمولات وتوزيع السعر والمحاسبة المبسطة", "Tax, commission and allocation engine, simplified accounting", "5.6", 10, "", ""],
-  ["dev", "2027-05-03", "2027-06-25", "الولاء الأساسي ومساعد المحادثة للمسافر", "Core loyalty and passenger chat assistant", "5.13", 0, "", ""],
-  ["dev", "2027-06-14", "2027-08-06", "خلفية تطبيق السائق والإرسال بالـQR والكشف والتقارير", "Driver backend, QR dispatch, manifest and reports", "22.2 d", 20, "", ""],
-  ["dev", "2027-08-09", "2027-10-15", "موصلات ERP: Odoo ثم Zoho", "ERP connectors: Odoo, then Zoho", "22.1", 0, "3 إلى 6 أسابيع لكل موصل.", "3 to 6 weeks per connector."],
-  ["dev", "2027-08-09", "2027-10-01", "مراجعة شيفرة المحفظة والدفتر وإصلاح العيوب", "Wallet and ledger code review, defect fixing", "22.2 e", 0, "", ""],
-  ["dev", "2027-11-29", "2028-03-10", "الترددي: كتالوج الخطوط والسعة والأجرة بين المحطات والتواجد القريب", "Shuttle: line catalog, capacity, segment fares, Nearby presence", "4.15", 0, "", ""],
+  ["dev", "2026-10-05", "2026-11-27", "", "Architecture decisions and OpenAPI design", "24", 20, "", "For booking, wallet and pricing."],
+  ["dev", "2026-11-30", "2027-01-22", "", "Identity, permissions, parties, carriers, documents, audit", "22.2 a", 50, "", ""],
+  ["dev", "2026-12-14", "2027-01-22", "", "Legal obligations register and document signing", "16.24", 0, "", ""],
+  ["dev", "2027-01-25", "2027-03-19", "", "Vehicles, seats, crews, stations, routes, trip numbering", "22.2 b", 30, "", "Including vehicle ownership and carrier codes."],
+  ["dev", "2027-03-22", "2027-05-14", "", "Search, seat holds, pricing, offers and tickets", "22.2 c", 30, "", ""],
+  ["dev", "2027-03-22", "2027-06-11", "", "Wallet, payment adapters, escrow and settlements", "6.4", 25, "", "Cash first, then wallets and banks."],
+  ["dev", "2027-04-05", "2027-06-11", "", "Tax, commission and allocation engine, simplified accounting", "5.6", 10, "", ""],
+  ["dev", "2027-05-03", "2027-06-25", "", "Core loyalty and passenger chat assistant", "5.13", 0, "", ""],
+  ["dev", "2027-06-14", "2027-08-06", "", "Driver backend, QR dispatch, manifest and reports", "22.2 d", 20, "", ""],
+  ["dev", "2027-08-09", "2027-10-15", "", "ERP connectors: Odoo, then Zoho", "22.1", 0, "", "3 to 6 weeks per connector."],
+  ["dev", "2027-08-09", "2027-10-01", "", "Wallet and ledger code review, defect fixing", "22.2 e", 0, "", ""],
+  ["dev", "2027-11-29", "2028-03-10", "", "Shuttle: line catalog, capacity, segment fares, Nearby presence", "4.15", 0, "", ""],
 
-  ["db", "2026-10-05", "2026-11-06", "النموذج التفصيلي من الـERD: الأنواع والفهارس والقيود", "Detailed model from the ERD: types, indexes, constraints", "29", 85, "", ""],
-  ["db", "2026-10-19", "2026-11-27", "خطة السعة والتقسيم", "Capacity and partitioning plan", "17", 0, "", ""],
-  ["db", "2026-11-30", "2026-12-24", "أدوات الترحيل والإصدارات وبيانات الاختبار", "Migration tooling, versioning and test data", "29", 40, "", ""],
-  ["db", "2026-12-07", "2027-01-22", "أمان مستوى الصفوف والأدوار لكل مستأجر", "Row-level security and roles per tenant", "16.13", 50, "", ""],
-  ["db", "2027-01-25", "2027-03-19", "جداول الأسطول والشبكة ومخططات المقاعد", "Fleet and network tables, seat layouts", "4", 40, "", ""],
-  ["db", "2027-03-22", "2027-06-11", "الدفتر مزدوج القيد والمحفظة وجداول التسعير والتوزيع", "Double-entry ledger, wallet, pricing and allocation tables", "13", 35, "", ""],
-  ["db", "2027-06-14", "2027-08-06", "عروض التقارير والكشف وأحداث الموقع", "Report views, manifest and location events", "35", 20, "", ""],
-  ["db", "2027-07-12", "2027-09-03", "تحميل البيانات المرجعية للتجربة: المدن والمحطات والشركات", "Pilot reference data: cities, stations, carriers", "4.11", 30, "", ""],
-  ["db", "2027-08-09", "2027-10-01", "ضبط الأداء والتقسيم والنسخ المتماثل والنسخ الاحتياطي", "Performance tuning, partitioning, replication, backups", "18", 0, "مع الاستعادة لنقطة زمنية.", "Including point-in-time recovery."],
-  ["db", "2027-09-13", "2027-09-24", "تمرين الاستعادة من الكوارث", "Disaster recovery exercise", "22.2 e", 0, "", ""],
-  ["db", "2027-11-29", "2028-01-14", "مخطط الترددي: الخطوط والأجرة بين المحطات والمبالغ المعلقة", "Shuttle schema: lines, segment fares, outstanding fares", "7.13", 0, "", ""],
+  ["db", "2026-10-05", "2026-11-06", "", "Detailed model from the ERD: types, indexes, constraints", "29", 85, "", ""],
+  ["db", "2026-10-19", "2026-11-27", "", "Capacity and partitioning plan", "17", 0, "", ""],
+  ["db", "2026-11-30", "2026-12-24", "", "Migration tooling, versioning and test data", "29", 40, "", ""],
+  ["db", "2026-12-07", "2027-01-22", "", "Row-level security and roles per tenant", "16.13", 50, "", ""],
+  ["db", "2027-01-25", "2027-03-19", "", "Fleet and network tables, seat layouts", "4", 40, "", ""],
+  ["db", "2027-03-22", "2027-06-11", "", "Double-entry ledger, wallet, pricing and allocation tables", "13", 35, "", ""],
+  ["db", "2027-06-14", "2027-08-06", "", "Report views, manifest and location events", "35", 20, "", ""],
+  ["db", "2027-07-12", "2027-09-03", "", "Pilot reference data: cities, stations, carriers", "4.11", 30, "", ""],
+  ["db", "2027-08-09", "2027-10-01", "", "Performance tuning, partitioning, replication, backups", "18", 0, "", "Including point-in-time recovery."],
+  ["db", "2027-09-13", "2027-09-24", "", "Disaster recovery exercise", "22.2 e", 0, "", ""],
+  ["db", "2027-11-29", "2028-01-14", "", "Shuttle schema: lines, segment fares, outstanding fares", "7.13", 0, "", ""],
 
-  ["ops", "2026-10-05", "2026-11-27", "الاتفاق المصرفي والقانوني والعلامة التجارية والنطاق", "Banking and legal agreement, trademark and domain", "24", 0, "", ""],
-  ["ops", "2026-10-05", "2026-11-27", "نموذج التهديدات وقرار الاستضافة وخطة السعة", "Threat model, hosting decision and capacity plan", "16", 0, "", ""],
-  ["ops", "2026-10-05", "2026-12-18", "تعيين الأدوار الأساسية", "Hire core roles", "20.4", 0, "معماري أمن، قائد SRE، مدير قواعد بيانات، مهندس شبكات، مستشار قانوني.", "Security architect, SRE lead, DBA, network engineer, legal counsel."],
-  ["ops", "2026-11-30", "2027-01-08", "بيئات التطوير والاختبار وCI/CD مع فحص الشيفرة", "Dev and staging environments, CI/CD with code scanning", "18", 30, "", ""],
-  ["ops", "2027-02-01", "2027-04-30", "المراقبة والسجلات والتنبيهات", "Monitoring, logging and alerting", "18", 0, "", ""],
-  ["ops", "2027-07-05", "2027-08-27", "تعيين فريق التشغيل قبل الإطلاق بثلاثة أشهر", "Hire operations team three months before the pilot", "20.4", 0, "SRE وأمن التطبيقات ومهندس أداء ودعم L1.", "SRE, AppSec, performance engineer, L1 support."],
-  ["ops", "2027-07-12", "2027-08-27", "بيئة الإنتاج ومناطق الشبكة", "Production environment and network zones", "19", 0, "", ""],
-  ["ops", "2027-08-16", "2027-09-17", "اختبارات الحمل والإجهاد والتحمل", "Load, stress and soak tests", "22.2 e", 0, "", ""],
-  ["ops", "2027-08-30", "2027-09-24", "اختبار اختراق خارجي", "External penetration test", "22.2 e", 0, "", ""],
-  ["ops", "2027-08-09", "2027-10-01", "SOC مُدار وأدلة التشغيل وتدريب الدعم", "Managed SOC, runbooks and support training", "20.3", 0, "", ""],
-  ["ops", "2027-10-04", "2027-11-26", "تشغيل الإطلاق التجريبي", "Pilot operations", "22.3", 0, "خط أو خطان مع 2 إلى 3 شركات.", "One or two routes with 2 to 3 carriers."],
-  ["ops", "2027-11-08", "2027-11-26", "حزمة توثيق المرحلة وإغلاقها", "Phase documentation package and closure", "2.7", 0, "", ""],
-  ["ops", "2028-02-28", "2028-04-07", "التجربة الميدانية للنقل الترددي", "Shuttle field trial", "4.15", 0, "4 إلى 6 أسابيع على خطوط الطلب الأعلى (القرار 89).", "4 to 6 weeks on the busiest lines (Decision 89)."],
+  ["ops", "2026-10-05", "2026-11-27", "", "Banking and legal agreement, trademark and domain", "24", 0, "", ""],
+  ["ops", "2026-10-05", "2026-11-27", "", "Threat model, hosting decision and capacity plan", "16", 0, "", ""],
+  ["ops", "2026-10-05", "2026-12-18", "", "Hire core roles", "20.4", 0, "", "Security architect, SRE lead, DBA, network engineer, legal counsel."],
+  ["ops", "2026-11-30", "2027-01-08", "", "Dev and staging environments, CI/CD with code scanning", "18", 30, "", ""],
+  ["ops", "2027-02-01", "2027-04-30", "", "Monitoring, logging and alerting", "18", 0, "", ""],
+  ["ops", "2027-07-05", "2027-08-27", "", "Hire operations team three months before the pilot", "20.4", 0, "", "SRE, AppSec, performance engineer, L1 support."],
+  ["ops", "2027-07-12", "2027-08-27", "", "Production environment and network zones", "19", 0, "", ""],
+  ["ops", "2027-08-16", "2027-09-17", "", "Load, stress and soak tests", "22.2 e", 0, "", ""],
+  ["ops", "2027-08-30", "2027-09-24", "", "External penetration test", "22.2 e", 0, "", ""],
+  ["ops", "2027-08-09", "2027-10-01", "", "Managed SOC, runbooks and support training", "20.3", 0, "", ""],
+  ["ops", "2027-10-04", "2027-11-26", "", "Pilot operations", "22.3", 0, "", "One or two routes with 2 to 3 carriers."],
+  ["ops", "2027-11-08", "2027-11-26", "", "Phase documentation package and closure", "2.7", 0, "", ""],
+  ["ops", "2028-02-28", "2028-04-07", "", "Shuttle field trial", "4.15", 0, "", "4 to 6 weeks on the busiest lines (Decision 89)."],
 ];
 
 // ---- full roadmap: [num, start, end, ar, en, deliverablesAr, deliverablesEn, flags]
 const PHASES = [
-  ["0", "2026-10-05", "2026-11-27", "التهيئة", "Initiation", "التحليل التفصيلي وتجربة المستخدم والاتفاق المصرفي والقانوني ونموذج التهديدات وقرار الاستضافة.", "Detailed analysis, UX, banking and legal agreement, threat model, hosting decision."],
-  ["1", "2026-11-30", "2027-11-26", "الرحلات المجدولة (MVP)", "Scheduled trips (MVP)", "خمس دورات مع المحاسبة المبسطة ومحرك الضرائب والعمولات والتقوية، ثم الإطلاق التجريبي.", "Five sprints with simplified accounting, the tax and commission engine and hardening, then the pilot launch."],
-  ["2", "2027-11-29", "2028-04-07", "النقل الترددي", "Shuttle", "الاشتراكات والـQR والحساب الفردي والأجرة بين المحطات والتجربة الميدانية.", "Subscriptions, QR, individual accounts, segment fares and the field trial."],
-  ["3", "2028-04-10", "2028-10-06", "الشحن والطرود", "Shipments and consignments", "الطرود وسعة الشحن وحجز B2B والدفع عند الاستلام وشركات التوصيل ومراكز الفرز.", "Parcels, cargo capacity, B2B booking, COD, courier companies and sorting hubs."],
-  ["4", "2028-10-09", "2029-02-02", "الرحلات الدولية", "International trips", "المعابر وجوازات السفر والتأشيرات والعملات والناقلون الأجانب.", "Border crossings, passports, visas, currencies and foreign carriers."],
-  ["5–6", "2029-02-05", "2029-07-27", "التكامل الحكومي وأنظمة الحدود", "Government integration and borders", "محولات التحقق وتبادل الكشوف مع الحدود.", "Verification adapters and manifest exchange with borders.", "dep"],
-  ["7", "2029-07-30", "2029-12-21", "التتبع والمحطات", "Tracking and stations", "أجهزة GPS المستقلة وبوابات المحطات وشاشاتها.", "Independent GPS devices, station gates and displays."],
-  ["8", "2030-01-07", "2030-06-28", "الشاحنات والترانزيت", "Trucks and transit", "الشاحنات والعقود والمراحل والميناء والترانزيت.", "Trucks, contracts, legs, port and transit."],
-  ["9", "2030-07-01", "2030-10-25", "المنصات الوسيطة", "Intermediary platforms", "القنوات والعمولات والحصص والتسوية وشركاء الوقود والاستراحات والولاء.", "Channels, commissions, quotas, settlement, and fuel, rest-stop and loyalty partners."],
-  ["10", "2030-10-28", "2031-04-25", "السكك الحديدية", "Rail", "مخططات العربات والرحلات الموصولة وفئات الحجز.", "Carriage layouts, connecting journeys and booking classes.", "ind"],
-  ["11", "2031-04-28", "2031-11-21", "التاكسي", "Taxi", "التسجيل والتتبع والطلب والعدّاد.", "Registration, tracking, requests and the meter.", "ind"],
-  ["12", "2031-11-24", "2032-06-18", "تأجير السيارات", "Car rental", "الشركات والفروع والأسطول والحجز والعقود والتتبع.", "Companies, branches, fleet, booking, contracts and tracking.", "ind"],
+  ["0", "2026-10-05", "2026-11-27", "", "Initiation", "", "Detailed analysis, UX, banking and legal agreement, threat model, hosting decision."],
+  ["1", "2026-11-30", "2027-11-26", "", "Scheduled trips (MVP)", "", "Five sprints with simplified accounting, the tax and commission engine and hardening, then the pilot launch."],
+  ["2", "2027-11-29", "2028-04-07", "", "Shuttle", "", "Subscriptions, QR, individual accounts, segment fares and the field trial."],
+  ["3", "2028-04-10", "2028-10-06", "", "Shipments and consignments", "", "Parcels, cargo capacity, B2B booking, COD, courier companies and sorting hubs."],
+  ["4", "2028-10-09", "2029-02-02", "", "International trips", "", "Border crossings, passports, visas, currencies and foreign carriers."],
+  ["5–6", "2029-02-05", "2029-07-27", "", "Government integration and borders", "", "Verification adapters and manifest exchange with borders.", "dep"],
+  ["7", "2029-07-30", "2029-12-21", "", "Tracking and stations", "", "Independent GPS devices, station gates and displays."],
+  ["8", "2030-01-07", "2030-06-28", "", "Trucks and transit", "", "Trucks, contracts, legs, port and transit."],
+  ["9", "2030-07-01", "2030-10-25", "", "Intermediary platforms", "", "Channels, commissions, quotas, settlement, and fuel, rest-stop and loyalty partners."],
+  ["10", "2030-10-28", "2031-04-25", "", "Rail", "", "Carriage layouts, connecting journeys and booking classes.", "ind"],
+  ["11", "2031-04-28", "2031-11-21", "", "Taxi", "", "Registration, tracking, requests and the meter.", "ind"],
+  ["12", "2031-11-24", "2032-06-18", "", "Car rental", "", "Companies, branches, fleet, booking, contracts and tracking.", "ind"],
 ];
 // share of each phase used by each workstream (later phases follow this typical split)
 const LANE = { db: [0, .32], dev: [.1, .85], ui: [.2, .92], ops: [.72, 1] };
@@ -337,10 +293,10 @@ const LANE = { db: [0, .32], dev: [.1, .85], ui: [.2, .92], ops: [.72, 1] };
 const TODAY = "2026-10-03";
 const DAY = 864e5;
 const d = (s) => Date.UTC(+s.slice(0, 4), +s.slice(5, 7) - 1, +s.slice(8, 10));
-let lang = "ar", view = "detail";
+const lang = "en"; let view = "detail";
 const on = { ui: true, dev: true, db: true, ops: true };
-try { const s = JSON.parse(localStorage.getItem("masslak-tl") || "{}"); if (s.lang) lang = s.lang; if (s.view) view = s.view; } catch (e) {}
-const save = () => { try { localStorage.setItem("masslak-tl", JSON.stringify({ lang, view })); } catch (e) {} };
+try { const s = JSON.parse(localStorage.getItem("masslak-tl") || "{}"); if (s.view) view = s.view; } catch (e) {}
+const save = () => { try { localStorage.setItem("masslak-tl", JSON.stringify({ view })); } catch (e) {} };
 
 const fmt = (s, opt = { day: "numeric", month: "long", year: "numeric" }) => new Intl.DateTimeFormat(T[lang].locale, { ...opt, timeZone: "UTC" }).format(new Date(d(s)));
 const weeks = (a, b) => Math.max(1, Math.round((d(b) - d(a) + 3 * DAY) / (7 * DAY)));
@@ -355,8 +311,6 @@ function render() {
   document.documentElement.lang = lang; document.documentElement.dir = L.dir;
   document.getElementById("t-title").textContent = L.title;
   document.getElementById("t-sub").textContent = L.sub;
-  document.getElementById("l-ar").setAttribute("aria-pressed", lang === "ar");
-  document.getElementById("l-en").setAttribute("aria-pressed", lang === "en");
   const vd = document.getElementById("v-detail"), vr = document.getElementById("v-road");
   vd.textContent = L.detail; vr.textContent = L.road;
   vd.setAttribute("aria-selected", view === "detail"); vr.setAttribute("aria-selected", view === "road");
@@ -420,7 +374,7 @@ function detail() {
     gr.append(el("div", "lab", `<i></i>${esc(L.ws[w])}`), el("div", "tl")); body.append(gr);
     for (const t of TASKS.filter((t) => t[0] === w)) {
       const [ws, s, e, ar, en, ref, built, nar, nen] = t;
-      const r = el("div", "row"); r.append(el("div", "lab", `<span>${esc(lang === "ar" ? ar : en)}</span><span class="ref">${esc(ref)}</span>`));
+      const r = el("div", "row"); r.append(el("div", "lab", `<span>${esc(en)}</span><span class="ref">${esc(ref)}</span>`));
       const tl = el("div", "tl");
       let m;
       if (ws === "ms") { m = el("button", "ms" + (t[10] ? " key" : "")); m.style.insetInlineStart = x(s) + "%"; }
@@ -429,8 +383,8 @@ function detail() {
         m.style.insetInlineStart = x(s) + "%"; m.style.width = (x(e) - x(s) + 100 / ((d(B) - d(A)) / DAY)) + "%";
         if (built) { const dn = el("span", "done"); dn.style.width = built + "%"; m.append(dn); }
       }
-      m.type = "button"; m.setAttribute("aria-label", `${lang === "ar" ? ar : en}, ${fmt(s)}${e ? " – " + fmt(e) : ""}`);
-      tip(m, () => ({ c: ws === "ms" ? "var(--ink)" : `var(--${ws})`, h: lang === "ar" ? ar : en, dates: e ? `${fmt(s)} → ${fmt(e)} · ${L.weeks(weeks(s, e))}` : fmt(s, { weekday: "long", day: "numeric", month: "long", year: "numeric" }), p: (lang === "ar" ? nar : nen), ref, built }));
+      m.type = "button"; m.setAttribute("aria-label", `${en}, ${fmt(s)}${e ? " – " + fmt(e) : ""}`);
+      tip(m, () => ({ c: ws === "ms" ? "var(--ink)" : `var(--${ws})`, h: en, dates: e ? `${fmt(s)} → ${fmt(e)} · ${L.weeks(weeks(s, e))}` : fmt(s, { weekday: "long", day: "numeric", month: "long", year: "numeric" }), p: nen, ref, built }));
       tl.append(m); r.append(tl); body.append(r);
     }
   }
@@ -457,11 +411,11 @@ function roadmap() {
   const span = (ws, a, b) => { const ts = TASKS.filter((t) => t[0] === ws && d(t[1]) >= d(a) && d(t[1]) <= d(b)); return ts.length ? [ts.reduce((m, t) => Math.min(m, d(t[1])), Infinity), ts.reduce((m, t) => Math.max(m, d(t[2])), 0)] : null; };
   for (const [num, s, e, ar, en, dar, den, flag] of PHASES) {
     const r = el("div", "row");
-    r.append(el("div", "lab", `<b>${esc(num)}</b><span>${esc(lang === "ar" ? ar : en)}</span>`));
+    r.append(el("div", "lab", `<b>${esc(num)}</b><span>${esc(en)}</span>`));
     const tl = el("div", "tl");
     const sp = el("button", "span" + (flag === "ind" || flag === "dep" ? " ind" : "")); sp.type = "button";
     sp.style.insetInlineStart = x(s) + "%"; sp.style.width = (x(e) - x(s)) + "%";
-    sp.setAttribute("aria-label", `${lang === "ar" ? ar : en}, ${fmt(s)} – ${fmt(e)}`);
+    sp.setAttribute("aria-label", `${en}, ${fmt(s)} – ${fmt(e)}`);
     WS.forEach((w, i) => {
       if (!on[w]) return;
       let a, b;
@@ -473,7 +427,7 @@ function roadmap() {
       sp.append(ln);
     });
     const note = flag === "dep" ? L.depends : flag === "ind" ? L.indicative : "";
-    tip(sp, () => ({ c: "var(--ink)", h: `${num} · ${lang === "ar" ? ar : en}`, dates: `${fmt(s, { month: "long", year: "numeric" })} → ${fmt(e, { month: "long", year: "numeric" })} · ${L.months(monthsBetween(s, e))}`, p: (lang === "ar" ? dar : den) + (note ? ` (${note})` : ""), ref: num === "0" || num === "1" ? "22.1, 22.2" : "21, 22.1" }));
+    tip(sp, () => ({ c: "var(--ink)", h: `${num} · ${en}`, dates: `${fmt(s, { month: "long", year: "numeric" })} → ${fmt(e, { month: "long", year: "numeric" })} · ${L.months(monthsBetween(s, e))}`, p: den + (note ? ` (${note})` : ""), ref: num === "0" || num === "1" ? "22.1, 22.2" : "21, 22.1" }));
     tl.append(sp); r.append(tl); body.append(r);
   }
   body.append(overlay(x, ticks, true));
@@ -502,8 +456,6 @@ function tip(node, fn) {
 document.getElementById("chart").addEventListener("scroll", () => { tipEl.hidden = true; });
 addEventListener("scroll", () => { tipEl.hidden = true; }, { passive: true });
 
-document.getElementById("l-ar").onclick = () => { lang = "ar"; save(); render(); };
-document.getElementById("l-en").onclick = () => { lang = "en"; save(); render(); };
 document.getElementById("v-detail").onclick = () => { view = "detail"; save(); render(); };
 document.getElementById("v-road").onclick = () => { view = "road"; save(); render(); };
 render();

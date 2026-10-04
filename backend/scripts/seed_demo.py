@@ -40,7 +40,7 @@ DEPARTURES = {"DAM-ALP": ["07:30", "10:00", "15:00"], "ALP-DAM": ["08:00", "16:0
               "DAM-DRA": ["08:30", "13:30", "18:00"]}
 
 
-async def user(conn, party_type, name, email, kind, locale="ar"):
+async def user(conn, party_type, name, email, kind, locale="en"):
     pid = await conn.fetchval("INSERT INTO iam.party (party_type, legal_name, email) VALUES ($1, $2, $3) RETURNING id",
                               party_type, name, email)
     uid = await conn.fetchval(

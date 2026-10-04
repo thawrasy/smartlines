@@ -4,13 +4,13 @@
 <head><meta charset="utf-8"><title>NavigationDrawer preview</title>
 <style>body{margin:0;background:var(--surface-dim)} #root{padding:0}</style></head>
 <body>
-<div id="root" class="ms-root" dir="rtl"></div>
+<div id="root" class="ms-root" dir="ltr"></div>
 <script>
   var M = window.Masslak, h = React.createElement;
-  ReactDOM.createRoot(document.getElementById('root')).render(h('div',{style:{height:400,display:'flex'}},h(M.NavigationDrawer,{brand:h(M.Logo,{withName:true,tagline:'بوابة الشركات'}),
-  sections:[{items:[{icon:'dashboard',label:'لوحة التحكم',active:true},{icon:'route',label:'الرحلات والجدولة'},{icon:'directions_bus',label:'الأسطول'},{icon:'group',label:'الطواقم'}]},
-   {title:'المبيعات والمال',items:[{icon:'confirmation_number',label:'الحجوزات',badge:3},{icon:'account_balance_wallet',label:'التسويات'}]}],
-  footer:h('div',null,h('b',null,'بولمان الشام'),h('div',{className:'ms-muted'},'الباقة الاحترافية'))})));
+  ReactDOM.createRoot(document.getElementById('root')).render(h('div',{style:{height:400,display:'flex'}},h(M.NavigationDrawer,{brand:h(M.Logo,{withName:true,tagline:'Carrier portal'}),
+  sections:[{items:[{icon:'dashboard',label:'Dashboard',active:true},{icon:'route',label:'Trips and schedule'},{icon:'directions_bus',label:'Fleet'},{icon:'group',label:'Crews'}]},
+   {title:'Sales and money',items:[{icon:'confirmation_number',label:'Bookings',badge:3},{icon:'account_balance_wallet',label:'Settlements'}]}],
+  footer:h('div',null,h('b',null,'Pullman Al-Sham'),h('div',{className:'ms-muted'},'Professional plan'))})));
 </script>
 </body>
 </html>

@@ -8,7 +8,7 @@ One set of tokens and components, adapted to how each platform feels. The brand 
 - **Portals:** `NavigationDrawer` at `size-drawer` on the reading-start side, sticky `TopAppBar` over content, content gutter `space-8`, maximum content width 1360px. Below 960px the drawer becomes a modal drawer opened from a menu button.
 - **Breakpoints:** compact under 600px, medium 600–959px, expanded 960–1279px, large 1280px and up (Material 3 window classes).
 - **Keyboard:** every action reachable by Tab; Escape closes dialogs and drawers; Enter submits forms. Visible focus ring on all controls.
-- **Direction:** `<html lang="ar" dir="rtl">` by default; switching language flips `dir` without reloading. Logical CSS properties only.
+- **Direction:** `<html lang="en" dir="ltr">` by default; switching language flips `dir` without reloading. Logical CSS properties only.
 
 ## Android (Material 3)
 

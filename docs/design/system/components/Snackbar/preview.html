@@ -4,10 +4,10 @@
 <head><meta charset="utf-8"><title>Snackbar preview</title>
 <style>body{margin:0;background:var(--surface-dim)} #root{padding:20px}</style></head>
 <body>
-<div id="root" class="ms-root" dir="rtl"></div>
+<div id="root" class="ms-root" dir="ltr"></div>
 <script>
   var M = window.Masslak, h = React.createElement;
-  ReactDOM.createRoot(document.getElementById('root')).render(h('div',{className:'ms-row'},h(M.Snackbar,{message:'تم خصم 2,500 ل.س من محفظتك',action:'عرض'}),h(M.Snackbar,{message:'تم نسخ رقم الحجز'})));
+  ReactDOM.createRoot(document.getElementById('root')).render(h('div',{className:'ms-row'},h(M.Snackbar,{message:'SYP 2,500 charged to your wallet',action:'View'}),h(M.Snackbar,{message:'Booking reference copied'})));
 </script>
 </body>
 </html>

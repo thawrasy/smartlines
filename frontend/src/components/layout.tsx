@@ -18,18 +18,23 @@ export function LangSwitch({ compact }: { compact?: boolean }) {
   };
   return (
     <button className={compact ? "icon-btn" : "btn text"} onClick={change} title={t("lang.switchTo")}>
-      <Icon name="language" />{!compact && <span>{t(`lang.${next}`)}</span>}
+      <Icon name="language" />{!compact && <span>{LOCALES[next].messages.lang[next]}</span>}
     </button>
   );
 }
 
 function Brand({ to = "/" }: { to?: string }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
+  // The English interface shows the Latin wordmark; the Arabic one shows the Arabic wordmark with the Latin beside it
   return (
     <Link to={to} className="brand">
       <Logo />
-      <img className="brand-name" src={wordmarkAr} alt={t("app.name")} />
-      <img className="brand-latin" src={wordmarkEn} alt="" aria-hidden="true" />
+      {locale === "ar" ? (
+        <>
+          <img className="brand-name" src={wordmarkAr} alt={t("app.name")} />
+          <img className="brand-latin" src={wordmarkEn} alt="" aria-hidden="true" />
+        </>
+      ) : <img className="brand-name" src={wordmarkEn} alt={t("app.name")} />}
     </Link>
   );
 }

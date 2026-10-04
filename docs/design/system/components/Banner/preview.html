@@ -4,14 +4,14 @@
 <head><meta charset="utf-8"><title>Banner preview</title>
 <style>body{margin:0;background:var(--surface-dim)} #root{padding:20px}</style></head>
 <body>
-<div id="root" class="ms-root" dir="rtl"></div>
+<div id="root" class="ms-root" dir="ltr"></div>
 <script>
   var M = window.Masslak, h = React.createElement;
   ReactDOM.createRoot(document.getElementById('root')).render(h('div',{className:'ms-stack',style:{gap:12}},
-  h(M.Banner,{tone:'warning',title:'رصيدك لا يغطي المقطع التالي',action:h(M.Button,{variant:'text',size:'sm'},'اشحن')},'المحطة القادمة: باب توما. يمكنك المتابعة وسيُسجّل المبلغ كأجرة مستحقة دون فوائد.'),
-  h(M.Banner,{tone:'info'},'أنت غير متصل. التذاكر والمسح ما زالت تعمل.'),
-  h(M.Banner,{tone:'success',title:'تم تأكيد الحجز'}),
-  h(M.Banner,{tone:'error',title:'رخصة المركبة منتهية'},'جدّد الرخصة قبل نشر الرحلة.')));
+  h(M.Banner,{tone:'warning',title:'Your balance does not cover the next segment',action:h(M.Button,{variant:'text',size:'sm'},'Top up')},'Next station: Bab Touma. You can continue; the amount is recorded as an interest-free outstanding fare.'),
+  h(M.Banner,{tone:'info'},'You're offline. Tickets and scans still work.'),
+  h(M.Banner,{tone:'success',title:'Booking confirmed'}),
+  h(M.Banner,{tone:'error',title:'Vehicle licence expired'},'Renew the licence before publishing the trip.')));
 </script>
 </body>
 </html>

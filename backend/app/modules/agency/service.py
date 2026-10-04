@@ -166,7 +166,7 @@ async def add_staff(conn: asyncpg.Connection, pr: Principal, full_name: str, ema
     await conn.execute("INSERT INTO iam.party_role (party_id, role_code) VALUES ($1, 'AGENCY')", party_id)
     user_id = await conn.fetchval(
         """INSERT INTO iam.app_user (party_id, account_kind, email, mobile, password_hash, password_changed_at, status,
-             preferred_locale, mfa_required) VALUES ($1, 'AGENCY', $2, $3, $4, now(), 'ACTIVE', 'ar', true) RETURNING id""",
+             preferred_locale, mfa_required) VALUES ($1, 'AGENCY', $2, $3, $4, now(), 'ACTIVE', (SELECT value #>> '{}' FROM sys.setting WHERE key = 'ui.default_locale'), true) RETURNING id""",
         party_id, email, mobile, hash_password(password))
     await conn.execute("INSERT INTO iam.company_member (user_id, company_id, role_id) VALUES ($1, $2, $3)",
                        user_id, agency_id, role_id)

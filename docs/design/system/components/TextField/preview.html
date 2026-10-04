@@ -4,14 +4,14 @@
 <head><meta charset="utf-8"><title>TextField preview</title>
 <style>body{margin:0;background:var(--surface-dim)} #root{padding:20px}</style></head>
 <body>
-<div id="root" class="ms-root" dir="rtl"></div>
+<div id="root" class="ms-root" dir="ltr"></div>
 <script>
   var M = window.Masslak, h = React.createElement;
   ReactDOM.createRoot(document.getElementById('root')).render(h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(220px,1fr))',gap:16}},
-  h(M.TextField,{label:'من',icon:'location_on',value:'دمشق',required:true}),
-  h(M.TextField,{label:'رقم الهاتف',value:'+963 944 123 456',dir:'ltr',hint:'سنرسل رمز التحقق إلى هذا الرقم'}),
-  h(M.TextField,{label:'الاسم الأول',value:'',placeholder:'كما في الهوية',error:'أدخل الاسم الأول كما في الهوية'}),
-  h(M.TextField,{label:'تاريخ السفر',icon:'event',value:'2026-11-14',filled:true})));
+  h(M.TextField,{label:'From',icon:'location_on',value:'Damascus',required:true}),
+  h(M.TextField,{label:'Phone number',value:'+963 944 123 456',dir:'ltr',hint:'We'll send a verification code to this number'}),
+  h(M.TextField,{label:'First name',value:'',placeholder:'As on the ID',error:'Enter the first name as on the ID'}),
+  h(M.TextField,{label:'Travel date',icon:'event',value:'2026-11-14',filled:true})));
 </script>
 </body>
 </html>

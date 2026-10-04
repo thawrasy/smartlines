@@ -162,7 +162,7 @@ async def add_driver(body: DriverIn, request: Request, pr: Principal = Depends(o
         await conn.execute("INSERT INTO iam.party_role (party_id, role_code) VALUES ($1, 'DRIVER')", party_id)
         user_id = await conn.fetchval(
             """INSERT INTO iam.app_user (party_id, account_kind, email, mobile, password_hash, password_changed_at, status,
-                 preferred_locale) VALUES ($1, 'COMPANY', $2, $3, $4, now(), 'ACTIVE', 'ar') RETURNING id""",
+                 preferred_locale) VALUES ($1, 'COMPANY', $2, $3, $4, now(), 'ACTIVE', (SELECT value #>> '{}' FROM sys.setting WHERE key = 'ui.default_locale')) RETURNING id""",
             party_id, body.email, body.mobile, hash_password(body.password))
         await conn.execute("INSERT INTO iam.company_member (user_id, company_id, role_id) VALUES ($1, $2, $3)",
                            user_id, pr.company_id, role_id)

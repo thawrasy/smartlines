@@ -8,7 +8,7 @@ How Masslak should feel and flow for each person who uses it. Build every screen
 2. **One clear next step.** Each screen has one filled `primary` action. Secondary paths are tonal, outlined or text.
 3. **Works on a weak network.** Tickets, QR codes, the driver manifest and the inspector check work offline and sync later. Every write shows its sync state.
 4. **Same pattern, every portal.** A carrier clerk, a passenger and an authority officer meet the same buttons, tables, chips and dialogs. Learning one portal teaches the others.
-5. **Arabic first, never translated-looking.** Layouts are designed in RTL first and mirrored to LTR, not the other way round. Copy is written in Arabic, then English.
+5. **English first, Arabic complete.** English is the default interface language. Every screen also ships a complete Arabic right-to-left interface that never looks translated: layouts use logical properties so they mirror correctly, and Arabic copy is written natively, not word for word. Arabic can be made the default by configuration.
 6. **Respect for money and identity.** Wallet amounts, deductions and personal data are shown with care: masked by default where sensitive, always with a reason when collected.
 7. **Calm for operators.** Dense portals stay quiet: one accent colour, status by chips, alerts only when action is needed.
 
@@ -16,7 +16,7 @@ How Masslak should feel and flow for each person who uses it. Build every screen
 
 | Person | Where | Main goal | What matters |
 | --- | --- | --- | --- |
-| Passenger | Mobile app, website | Find a trip, book a seat, travel with a QR ticket | Price clarity, speed, offline ticket, Arabic first |
+| Passenger | Mobile app, website | Find a trip, book a seat, travel with a QR ticket | Price clarity, speed, offline ticket, English and Arabic |
 | Shuttle rider | Mobile app | Ride a city or intercity shuttle line and pay per segment | One-tap boarding by scanning the vehicle sticker, balance warnings before each station |
 | Shipper and recipient | Mobile app, website | Send a parcel and track it to delivery | Price before drop-off, live status, proof of delivery |
 | Carrier owner and clerks | Web portal | Run fleet, crews, trips, sales and settlements | Fast data entry, clear revenue, approvals |

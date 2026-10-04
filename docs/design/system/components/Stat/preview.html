@@ -4,14 +4,14 @@
 <head><meta charset="utf-8"><title>Stat preview</title>
 <style>body{margin:0;background:var(--surface-dim)} #root{padding:20px}</style></head>
 <body>
-<div id="root" class="ms-root" dir="rtl"></div>
+<div id="root" class="ms-root" dir="ltr"></div>
 <script>
   var M = window.Masslak, h = React.createElement;
   ReactDOM.createRoot(document.getElementById('root')).render(h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(170px,1fr))',gap:16}},
-  h(M.Stat,{icon:'confirmation_number',label:'تذاكر اليوم',value:'1,284',note:'+8% عن أمس'}),
-  h(M.Stat,{icon:'account_balance_wallet',label:'إيرادات اليوم',value:'96.4M',tone:'wheat',note:'ل.س'}),
-  h(M.Stat,{icon:'directions_bus',label:'رحلات جارية',value:'37',tone:'blue'}),
-  h(M.Stat,{icon:'error',label:'شكاوى مفتوحة',value:'5',tone:'red'})));
+  h(M.Stat,{icon:'confirmation_number',label:'Tickets today',value:'1,284',note:'+8% vs yesterday'}),
+  h(M.Stat,{icon:'account_balance_wallet',label:'Today's revenue',value:'96.4M',tone:'wheat',note:'SYP'}),
+  h(M.Stat,{icon:'directions_bus',label:'Trips under way',value:'37',tone:'blue'}),
+  h(M.Stat,{icon:'error',label:'Open complaints',value:'5',tone:'red'})));
 </script>
 </body>
 </html>

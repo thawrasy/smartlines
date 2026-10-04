@@ -1,8 +1,8 @@
 <!doctype html>
-<html lang="ar" dir="rtl">
+<html lang="en" dir="ltr">
 <head>
 <meta charset="utf-8">
-<title>التذكرة</title>
+<title>Ticket</title>
 <script src="./support.js"></script>
 <link rel="stylesheet" href="masslak-theme.css">
 <link rel="stylesheet" href="ds/masslak/components/bundle.css">
@@ -17,17 +17,17 @@ body{margin:0}
 a{color:#0A5BD3}a:hover{color:#05285F}
 </style>
 </helmet>
-<div class="ms-root" dir="rtl" style="width: 390px; height: 844px; box-sizing: border-box; background: var(--surface-dim); display: flex; flex-direction: column; overflow: hidden; font-family: 'IBM Plex Sans Arabic', system-ui, sans-serif;">
+<div class="ms-root" dir="ltr" style="width: 390px; height: 844px; box-sizing: border-box; background: var(--surface-dim); display: flex; flex-direction: column; overflow: hidden; font-family: 'IBM Plex Sans Arabic', system-ui, sans-serif;">
   <header style="display: flex; align-items: center; gap: 8px; height: 64px; padding-inline: 8px 8px; background: var(--surface-dim);">
-    <a href="M1-Home.dc.html" aria-label="إغلاق" style="width: 48px; height: 48px; border-radius: 24px; display: inline-flex; align-items: center; justify-content: center; color: var(--on-surface-variant);"><x-import component-from-global-scope="Masslak.Icon" name="close"></x-import></a>
-    <div class="title-large" style="flex: 1;">تذكرتك</div>
-    <x-import component-from-global-scope="Masslak.StatusBadge" status="CONFIRMED">تم الدفع</x-import>
+    <a href="M1-Home.dc.html" aria-label="Close" style="width: 48px; height: 48px; border-radius: 24px; display: inline-flex; align-items: center; justify-content: center; color: var(--on-surface-variant);"><x-import component-from-global-scope="Masslak.Icon" name="close"></x-import></a>
+    <div class="title-large" style="flex: 1;">Your ticket</div>
+    <x-import component-from-global-scope="Masslak.StatusBadge" status="CONFIRMED">Paid</x-import>
   </header>
   <div style="flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 0 16px 12px;">
-    <x-import component-from-global-scope="Masslak.Ticket" carrier="بولمان الشام" status="CONFIRMED" status-label="مؤكد" from="دمشق" from-station="كراجات البولمان" to="حلب" to-station="الراموسة" date="الجمعة 14 تشرين 2" time="14:30" seat="11 · VIP" passenger="أحمد العلي" reference="7Q4K2P" offline="محفوظة على جهازك"></x-import>
+    <x-import component-from-global-scope="Masslak.Ticket" carrier="Pullman Al-Sham" status="CONFIRMED" status-label="Confirmed" from="Damascus" from-station="Pullman Garages" to="Aleppo" to-station="Ramouseh" date="Friday 14 November 2" time="14:30" seat="11 · VIP" passenger="Ahmad Al-Ali" reference="7Q4K2P" offline="Saved on your device"></x-import>
     <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; width: 100%;">
-      <x-import component-from-global-scope="Masslak.Button" variant="tonal" icon="add">أضف إلى المحفظة</x-import>
-      <x-import component-from-global-scope="Masslak.Button" variant="outlined" icon="route">تفاصيل الرحلة</x-import>
+      <x-import component-from-global-scope="Masslak.Button" variant="tonal" icon="add">Add to wallet</x-import>
+      <x-import component-from-global-scope="Masslak.Button" variant="outlined" icon="route">Trip details</x-import>
     </div>
   </div>
   <x-import component-from-global-scope="Masslak.NavigationBar" items="{{nav}}"></x-import>
@@ -36,7 +36,7 @@ a{color:#0A5BD3}a:hover{color:#05285F}
 <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
 class Component extends DCLogic {
   renderVals() {
-    return { nav: [{ icon: 'home', label: 'الرئيسية' }, { icon: 'confirmation_number', label: 'رحلاتي', active: true }, { icon: 'qr_code_scanner', label: 'الترددي' }, { icon: 'account_balance_wallet', label: 'المحفظة' }, { icon: 'person', label: 'حسابي' }] };
+    return { nav: [{ icon: 'home', label: 'Home' }, { icon: 'confirmation_number', label: 'My trips', active: true }, { icon: 'qr_code_scanner', label: 'Shuttle' }, { icon: 'account_balance_wallet', label: 'Wallet' }, { icon: 'person', label: 'Account' }] };
   }
 }
 </script>

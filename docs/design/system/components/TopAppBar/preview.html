@@ -4,12 +4,12 @@
 <head><meta charset="utf-8"><title>TopAppBar preview</title>
 <style>body{margin:0;background:var(--surface-dim)} #root{padding:20px}</style></head>
 <body>
-<div id="root" class="ms-root" dir="rtl"></div>
+<div id="root" class="ms-root" dir="ltr"></div>
 <script>
   var M = window.Masslak, h = React.createElement;
   ReactDOM.createRoot(document.getElementById('root')).render(h('div',{className:'ms-stack',style:{gap:12}},
- h(M.TopAppBar,{title:'رحلاتي',leading:h(M.IconButton,{icon:'arrow_back',label:'رجوع'}),actions:[h(M.IconButton,{key:1,icon:'search',label:'بحث'}),h(M.IconButton,{key:2,icon:'notifications',label:'الإشعارات',badge:true})]}),
- h(M.TopAppBar,{title:'لوحة الشركة الناقلة',subtitle:'بولمان الشام',translucent:true,leading:h(M.IconButton,{icon:'menu',label:'القائمة'}),actions:h(M.Button,{size:'sm',icon:'add'},'رحلة جديدة')})));
+ h(M.TopAppBar,{title:'My trips',leading:h(M.IconButton,{icon:'arrow_back',label:'Back'}),actions:[h(M.IconButton,{key:1,icon:'search',label:'Search'}),h(M.IconButton,{key:2,icon:'notifications',label:'Notifications',badge:true})]}),
+ h(M.TopAppBar,{title:'Carrier dashboard',subtitle:'Pullman Al-Sham',translucent:true,leading:h(M.IconButton,{icon:'menu',label:'Menu'}),actions:h(M.Button,{size:'sm',icon:'add'},'New trip')})));
 </script>
 </body>
 </html>

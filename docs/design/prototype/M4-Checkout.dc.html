@@ -1,8 +1,8 @@
 <!doctype html>
-<html lang="ar" dir="rtl">
+<html lang="en" dir="ltr">
 <head>
 <meta charset="utf-8">
-<title>المسافر والدفع</title>
+<title>Passenger and payment</title>
 <script src="./support.js"></script>
 <link rel="stylesheet" href="masslak-theme.css">
 <link rel="stylesheet" href="ds/masslak/components/bundle.css">
@@ -20,44 +20,44 @@ a{color:#0A5BD3}a:hover{color:#05285F}
 .pay-opt input{accent-color:#0A5BD3;width:20px;height:20px;margin:0}
 </style>
 </helmet>
-<div class="ms-root" dir="rtl" style="width: 390px; height: 844px; box-sizing: border-box; background: var(--surface-dim); display: flex; flex-direction: column; overflow: hidden; font-family: 'IBM Plex Sans Arabic', system-ui, sans-serif;">
+<div class="ms-root" dir="ltr" style="width: 390px; height: 844px; box-sizing: border-box; background: var(--surface-dim); display: flex; flex-direction: column; overflow: hidden; font-family: 'IBM Plex Sans Arabic', system-ui, sans-serif;">
   <header style="display: flex; align-items: center; gap: 8px; height: 64px; padding-inline: 8px 16px; background: var(--surface); box-shadow: inset 0 -1px 0 var(--divider);">
-    <a href="M3-Seats.dc.html" aria-label="رجوع" style="width: 48px; height: 48px; border-radius: 24px; display: inline-flex; align-items: center; justify-content: center; color: var(--on-surface-variant);"><x-import component-from-global-scope="Masslak.Icon" name="arrow_back" flip="{{yes}}"></x-import></a>
+    <a href="M3-Seats.dc.html" aria-label="Back" style="width: 48px; height: 48px; border-radius: 24px; display: inline-flex; align-items: center; justify-content: center; color: var(--on-surface-variant);"><x-import component-from-global-scope="Masslak.Icon" name="arrow_back" flip="{{yes}}"></x-import></a>
     <div style="flex: 1; min-width: 0;">
-      <div class="title-medium">المسافر والدفع</div>
-      <div class="body-small" style="color: var(--on-surface-variant);">الخطوة 2 من 2</div>
+      <div class="title-medium">Passenger and payment</div>
+      <div class="body-small" style="color: var(--on-surface-variant);">Step 2 of 2</div>
     </div>
   </header>
   <div style="flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; gap: 14px; padding: 14px 16px;">
     <section style="background: var(--surface); border-radius: 20px; box-shadow: inset 0 0 0 1px var(--outline-variant), var(--elevation-1); padding: 16px; display: flex; flex-direction: column; gap: 10px;">
       <div style="display: flex; justify-content: space-between; align-items: center;">
-        <b class="title-small">المسافر · مواطن سوري</b>
-        <span class="body-small" style="color: var(--on-surface-variant);">كما في الهوية</span>
+        <b class="title-small">Passenger · Syrian citizen</b>
+        <span class="body-small" style="color: var(--on-surface-variant);">As on the ID</span>
       </div>
       <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px;">
-        <x-import component-from-global-scope="Masslak.TextField" label="الاسم الأول" value="أحمد" required="{{yes}}"></x-import>
-        <x-import component-from-global-scope="Masslak.TextField" label="اسم الأب" value="محمد" required="{{yes}}"></x-import>
-        <x-import component-from-global-scope="Masslak.TextField" label="اسم الجد" value="خالد" required="{{yes}}"></x-import>
-        <x-import component-from-global-scope="Masslak.TextField" label="الكنية" value="العلي" required="{{yes}}"></x-import>
+        <x-import component-from-global-scope="Masslak.TextField" label="First name" value="Ahmad" required="{{yes}}"></x-import>
+        <x-import component-from-global-scope="Masslak.TextField" label="Father's name" value="Mohammad" required="{{yes}}"></x-import>
+        <x-import component-from-global-scope="Masslak.TextField" label="Grandfather's name" value="Khaled" required="{{yes}}"></x-import>
+        <x-import component-from-global-scope="Masslak.TextField" label="Family name" value="Al-Ali" required="{{yes}}"></x-import>
       </div>
-      <x-import component-from-global-scope="Masslak.TextField" label="الرقم الوطني" value="01020304050" dir="ltr"></x-import>
+      <x-import component-from-global-scope="Masslak.TextField" label="National number" value="01020304050" dir="ltr"></x-import>
     </section>
     <section style="display: flex; flex-direction: column; gap: 8px;">
-      <b class="title-small">طريقة الدفع</b>
-      <label class="pay-opt on"><input type="radio" name="pay" checked="checked"><x-import component-from-global-scope="Masslak.Icon" name="account_balance_wallet"></x-import><span style="flex: 1;">المحفظة · الرصيد 125,000 ل.س</span></label>
-      <label class="pay-opt"><input type="radio" name="pay"><x-import component-from-global-scope="Masslak.Icon" name="group"></x-import><span style="flex: 1;">نقداً لدى وكيل معتمد</span></label>
+      <b class="title-small">Payment method</b>
+      <label class="pay-opt on"><input type="radio" name="pay" checked="checked"><x-import component-from-global-scope="Masslak.Icon" name="account_balance_wallet"></x-import><span style="flex: 1;">Wallet · Balance SYP 125,000</span></label>
+      <label class="pay-opt"><input type="radio" name="pay"><x-import component-from-global-scope="Masslak.Icon" name="group"></x-import><span style="flex: 1;">Cash at an approved agent</span></label>
     </section>
     <section style="background: var(--surface-container-low); border-radius: 16px; padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-variant-numeric: tabular-nums;">
-      <div style="display: flex; justify-content: space-between;"><span style="color: var(--on-surface-variant);">أجرة VIP</span><span>78,500</span></div>
-      <div style="display: flex; justify-content: space-between;"><span style="color: var(--on-surface-variant);">رسم المحطة</span><span>3,000</span></div>
-      <div style="display: flex; justify-content: space-between;"><span style="color: var(--on-surface-variant);">ضريبة الخدمة</span><span>3,500</span></div>
+      <div style="display: flex; justify-content: space-between;"><span style="color: var(--on-surface-variant);">Fare VIP</span><span>78,500</span></div>
+      <div style="display: flex; justify-content: space-between;"><span style="color: var(--on-surface-variant);">Station fee</span><span>3,000</span></div>
+      <div style="display: flex; justify-content: space-between;"><span style="color: var(--on-surface-variant);">Service tax</span><span>3,500</span></div>
       <div style="height: 1px; background: var(--divider); margin-block: 4px;"></div>
-      <div style="display: flex; justify-content: space-between; font-weight: 700; font-size: 15px;"><span>الإجمالي</span><span>85,000 ل.س</span></div>
-      <div class="body-small" style="color: var(--on-surface-variant);">الرصيد بعد الدفع: 40,000 ل.س · إلغاء مجاني حتى ساعتين قبل الانطلاق</div>
+      <div style="display: flex; justify-content: space-between; font-weight: 700; font-size: 15px;"><span>Total</span><span>85,000 SYP</span></div>
+      <div class="body-small" style="color: var(--on-surface-variant);">Balance after payment: SYP 40,000 · Free cancellation up to 2 hours before departure</div>
     </section>
   </div>
   <footer style="padding: 12px 16px 18px; background: var(--surface); box-shadow: 0 -1px 0 var(--divider);">
-    <a class="ms-btn ms-btn-filled ms-btn-lg ms-block" href="M5-Ticket.dc.html">ادفع 85,000 ل.س</a>
+    <a class="ms-btn ms-btn-filled ms-btn-lg ms-block" href="M5-Ticket.dc.html">Pay SYP 85,000</a>
   </footer>
 </div>
 </x-dc>

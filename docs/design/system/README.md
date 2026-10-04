@@ -1,4 +1,4 @@
-Masslak (مسلك, "the way through") is one platform for booking intercity trips, riding shuttle lines, sending shipments and running carrier, station, agency and government portals in Syria. The interface is light, calm and exact: Material 3 structure with the restraint of Apple's platforms and the confidence of leading Gulf government-tech products. Deep navy carries authority, a clear blue carries action, and a green destination stop, taken from the Syrian flag green, marks arrival and success. Arabic (RTL) is the primary language; English (LTR) ships alongside it, and later locales (Turkish, French, Spanish) reuse the same tokens.
+Masslak ("the way through") is one platform for booking intercity trips, riding shuttle lines, sending shipments and running carrier, station, agency and government portals in Syria. The interface is light, calm and exact: Material 3 structure with the restraint of Apple's platforms and the confidence of leading Gulf government-tech products. Deep navy carries authority, a clear blue carries action, and a green destination stop, taken from the Syrian flag green, marks arrival and success. English (LTR) is the working and default language of the product; a complete Arabic (RTL) interface ships as a translation and can be made the default by configuration. Later locales (Turkish, French, Spanish) reuse the same tokens. Code, data and documentation are English only.
 
 Read this page first, then `Experience` (journeys and information architecture) and `Platforms` (web, Android and iOS rules). Every value below is a token in `tokens.json`; never paste raw hex or pixel values into product code.
 
@@ -13,29 +13,29 @@ Read this page first, then `Experience` (journeys and information architecture) 
 
 - The mark is a route: one arc that leaves a light-blue origin stop (`brand-blue-soft`), rises in `brand-blue` and settles on a green destination stop (`brand-green`), on a deep navy rounded square (`brand-navy`). Blue is movement and trust; green is arrival, taken from the Syrian flag green. No gradients.
 - Files: `masslak-mark.svg` (navy square, the default everywhere), `masslak-mark-outline.svg` (white square with a navy outline and a `primary` route, for headers on white when a lighter touch is needed), `masslak-symbol.svg` (route alone in `primary` with a green stop, for white grounds), `masslak-symbol-white.svg` (white route with a green stop, for navy or photo grounds).
-- The wordmark is "مســلك" (with the tatweel between the seen and the lam) and "masslak" in lower case, both in Hayyakum Allah Bold (SIL Open Font License, ALMASBAK Type Foundry), in `on-surface` (navy in light, near-white in dark). Use the outlined lockup files for print and stores; in product code use the `wordmark` style with the bundled font. In the Arabic lockup the mark sits on the right of the name; in the English lockup on the left; gap `space-4`. Hayyakum is for the wordmark only: headings stay in Readex Pro and text in IBM Plex Sans Arabic.
+- The wordmark is "masslak" in lower case (Latin lockup) with a matching Arabic-script lockup for the Arabic interface, both in Hayyakum Allah Bold (SIL Open Font License, ALMASBAK Type Foundry), in `on-surface` (navy in light, near-white in dark). Use the outlined lockup files for print and stores; in product code use the `wordmark` style with the bundled font. In the Arabic lockup the mark sits on the right of the name; in the English lockup on the left; gap `space-4`. Hayyakum is for the wordmark only: headings stay in Readex Pro and text in IBM Plex Sans Arabic.
 - Clear space is one quarter of the mark's width. Minimum size 20px on screen. Never recolour the square away from `brand-navy`, never swap the stop colours, never add shadows or rotate the mark.
 - App icons: `app-icon-ios.svg` is the full-bleed 1024px master (iOS applies the corner mask); `app-icon-android-foreground.svg` is the adaptive-icon foreground on a `brand-navy` background layer.
 
 ## Content fundamentals
 
-- **Voice:** plain Modern Standard Arabic that a Syrian passenger reads at a glance. Short sentences, active verbs, no slogans inside the product.
-- **Address the user directly** with the second person in both languages: "احجز مقعدك", "Choose your seat". Refer to the platform as "we" only in policies and help.
-- **Buttons say the action:** "احجز الآن / Book now", "ادفع 85,000 ل.س / Pay SYP 85,000", "امسح الرمز / Scan code". Never "OK", "Submit" or "Yes".
-- **Errors explain and fix:** "الرصيد غير كافٍ للمقطع الأول. اشحن 15,000 ل.س على الأقل." / "Your balance doesn't cover the first segment. Top up at least SYP 15,000." No apologies, no error codes shown to passengers (codes go to logs and support views).
-- **Confirmations name the result:** "تم تأكيد الحجز" / "Booking confirmed", "تم خصم 2,500 ل.س" / "SYP 2,500 deducted".
+- **Voice:** plain English that a passenger reads at a glance; the Arabic translation uses plain Modern Standard Arabic. Short sentences, active verbs, no slogans inside the product.
+- **Address the user directly** with the second person in both languages: "Book your seat", "Choose your seat". Refer to the platform as "we" only in policies and help.
+- **Buttons say the action:** "Book now", "Pay SYP 85,000", "Scan the code". Never "OK", "Submit" or "Yes".
+- **Errors explain and fix:** "Your balance doesn't cover the first segment. Top up at least SYP 15,000." No apologies, no error codes shown to passengers (codes go to logs and support views).
+- **Confirmations name the result:** "Booking confirmed", "SYP 2,500 charged".
 - **Case:** sentence case in English for every title, button and label. No ALL CAPS except booking references and plate numbers.
-- **Digits:** Western digits (0–9) in both languages, set tabular, matching identity documents, plates and phone numbers (`ar-SY-u-nu-latn`). Money: amount then currency, "85,000 ل.س" in Arabic, "SYP 85,000" in English. Time: 24-hour, "14:30".
+- **Digits:** Western digits (0–9) in both languages, set tabular, matching identity documents, plates and phone numbers (`ar-SY-u-nu-latn`). Money: amount then currency, "SYP 85,000" in English; the Arabic translation writes the amount then the currency. Time: 24-hour, "14:30".
 - **Names:** the booking captures the passenger's full name exactly as on the identity document, every field (four parts for Syrian citizens: first, father, grandfather, family). The ticket, the boarding pass and the driver's scan result print the first and last name only. Manifests for carriers and authorities keep the full name.
 - **No emoji** in product UI, notifications or receipts. Status is carried by colour, icon and word together.
-- **Bidirectional text:** wrap Latin codes, plates, phone numbers and emails in an LTR isolate inside Arabic sentences so their characters never reorder.
+- **Bidirectional text:** wrap Latin codes, plates, phone numbers and emails in an LTR isolate inside Arabic sentences of the Arabic interface so their characters never reorder.
 
 ## Visual foundations
 
 ### Colour
 
 - The product is light. Pages sit on `surface-dim`, optionally with a faint dot grid in `outline-variant` on public heroes; cards, sheets and app bars sit on `surface` with a 1px `outline-variant` hairline. The dark theme exists only for the driver app at night and for OS-level dark mode on mobile.
-- `brand-navy` and `on-surface` carry headlines; the second line of a display headline may switch to `primary` for emphasis ("مسارك واضح. / رحلتك محسوبة.").
+- `brand-navy` and `on-surface` carry headlines; the second line of a display headline may switch to `primary` for emphasis ("Your route, made clear. / Your trip, accounted for.").
 - `primary` (blue) carries the single most important action on a screen, links and the active navigation item. One filled `primary` button per view; everything else is tonal (`primary-container`), outlined or text.
 - `success` (green) means confirmed, valid, paid and arrived. `secondary` (amber) marks money and waiting: fares due, pending payments, boarding soon. `tertiary` (navy) marks live tracking and neutral emphasis. `error` marks failure and destructive actions only.
 - Status colours always pair with a word and an icon (`StatusBadge`): green confirmed, amber pending, blue in progress, red cancelled. Never rely on hue alone.

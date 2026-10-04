@@ -1,8 +1,8 @@
 <!doctype html>
-<html lang="ar" dir="rtl">
+<html lang="en" dir="ltr">
 <head>
 <meta charset="utf-8">
-<title>مسلك: الهوية وفهرس الشاشات</title>
+<title>Masslak: identity and screen index</title>
 <script src="./support.js"></script>
 <link rel="stylesheet" href="masslak-theme.css">
 <link rel="stylesheet" href="ds/masslak/components/bundle.css">
@@ -19,48 +19,48 @@ a{color:#0A5BD3}a:hover{color:#05285F}
 .screen-link:hover{box-shadow:inset 0 0 0 1px #0A5BD3,0 12px 32px rgba(15,27,45,.08);color:#0F1B2D}
 </style>
 </helmet>
-<div class="ms-root" dir="rtl" style="width: 1440px; height: 900px; box-sizing: border-box; background: #F6F7F9; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); font-family: 'IBM Plex Sans Arabic', system-ui, sans-serif; color: #0F1B2D;">
+<div class="ms-root" dir="ltr" style="width: 1440px; height: 900px; box-sizing: border-box; background: #F6F7F9; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); font-family: 'IBM Plex Sans Arabic', system-ui, sans-serif; color: #0F1B2D;">
   <section class="dots" style="padding: 72px 72px 56px; box-shadow: inset -1px 0 0 #E6EAF0; display: flex; flex-direction: column; gap: 28px;">
-    <x-import component-from-global-scope="Masslak.Logo" with-name="{{yes}}" size="{{56}}" tagline="منصة النقل والحجز الذكية"></x-import>
+    <x-import component-from-global-scope="Masslak.Logo" with-name="{{yes}}" size="{{56}}" tagline="The smart transport and booking platform"></x-import>
     <div style="display: flex; flex-direction: column; gap: 12px;">
-      <h1 style="margin: 0; font: 700 48px/60px 'Readex Pro', sans-serif;"><span style="display: block; color: #0B1F3F;">بوابات مسلك.</span><span style="display: block; color: #0A5BD3;">نموذج أولي واضح.</span></h1>
-      <p style="margin: 0; font-size: 16px; line-height: 26px; color: #4B5565; max-width: 560px;">واجهات فاتحة بهيكلية Material 3 ودقة تطبيقات Apple: كحلي للثقة، أزرق للحركة، وأخضر للوصول مستوحى من أخضر العلم السوري. العربية أولاً من اليمين إلى اليسار، والإنكليزية معها.</p>
+      <h1 style="margin: 0; font: 700 48px/60px 'Readex Pro', sans-serif;"><span style="display: block; color: #0B1F3F;">Masslak portals.</span><span style="display: block; color: #0A5BD3;">A clear prototype.</span></h1>
+      <p style="margin: 0; font-size: 16px; line-height: 26px; color: #4B5565; max-width: 560px;">Light interfaces with the structure of Material 3 and the precision of Apple: Navy for trust, blue for movement, and green for arrival, inspired by the green of the Syrian flag. English first; the Arabic right-to-left interface follows.</p>
     </div>
     <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-      <span class="ms-badge ms-badge-blue">الوضوح قبل الدفع</span>
-      <span class="ms-badge ms-badge-navy">إجراء رئيسي واحد في كل شاشة</span>
-      <span class="ms-badge ms-badge-green">يعمل دون اتصال</span>
-      <span class="ms-badge ms-badge-neutral">نمط واحد لكل البوابات</span>
+      <span class="ms-badge ms-badge-blue">Clarity before payment</span>
+      <span class="ms-badge ms-badge-navy">One primary action on every screen</span>
+      <span class="ms-badge ms-badge-green">Works offline</span>
+      <span class="ms-badge ms-badge-neutral">One pattern for every portal</span>
     </div>
     <div style="margin-top: auto; display: grid; grid-template-columns: 2fr 1.2fr 1fr 1fr 1fr; gap: 12px; height: 132px;">
-      <div style="background: #0B1F3F; border-radius: 20px; padding: 14px; color: #FFFFFF; display: flex; flex-direction: column; justify-content: flex-end; font-size: 12px;"><b style="font-size: 14px;">كحلي الهوية</b><span dir="ltr" style="text-align: end;">#0B1F3F</span></div>
+      <div style="background: #0B1F3F; border-radius: 20px; padding: 14px; color: #FFFFFF; display: flex; flex-direction: column; justify-content: flex-end; font-size: 12px;"><b style="font-size: 14px;">Brand navy</b><span dir="ltr" style="text-align: end;">#0B1F3F</span></div>
       <div style="background: #0A5BD3; border-radius: 20px; padding: 14px; color: #FFFFFF; display: flex; flex-direction: column; justify-content: flex-end; font-size: 12px;"><b style="font-size: 14px;">Primary</b><span dir="ltr" style="text-align: end;">#0A5BD3</span></div>
-      <div style="background: #12A06A; border-radius: 20px; padding: 14px; color: #0B1F3F; display: flex; flex-direction: column; justify-content: flex-end; font-size: 12px;"><b style="font-size: 14px;">الوجهة</b><span dir="ltr" style="text-align: end;">#12A06A</span></div>
-      <div style="background: #DCE7FD; border-radius: 20px; padding: 14px; color: #05285F; display: flex; flex-direction: column; justify-content: flex-end; font-size: 12px;"><b style="font-size: 14px;">أزرق فاتح</b><span dir="ltr" style="text-align: end;">#DCE7FD</span></div>
-      <div style="background: #FFFFFF; border-radius: 20px; padding: 14px; color: #0F1B2D; display: flex; flex-direction: column; justify-content: flex-end; font-size: 12px; box-shadow: inset 0 0 0 1px #E6EAF0;"><b style="font-size: 14px;">سطح</b><span dir="ltr" style="text-align: end;">#F6F7F9</span></div>
+      <div style="background: #12A06A; border-radius: 20px; padding: 14px; color: #0B1F3F; display: flex; flex-direction: column; justify-content: flex-end; font-size: 12px;"><b style="font-size: 14px;">Destination</b><span dir="ltr" style="text-align: end;">#12A06A</span></div>
+      <div style="background: #DCE7FD; border-radius: 20px; padding: 14px; color: #05285F; display: flex; flex-direction: column; justify-content: flex-end; font-size: 12px;"><b style="font-size: 14px;">Light blue</b><span dir="ltr" style="text-align: end;">#DCE7FD</span></div>
+      <div style="background: #FFFFFF; border-radius: 20px; padding: 14px; color: #0F1B2D; display: flex; flex-direction: column; justify-content: flex-end; font-size: 12px; box-shadow: inset 0 0 0 1px #E6EAF0;"><b style="font-size: 14px;">Desktop</b><span dir="ltr" style="text-align: end;">#F6F7F9</span></div>
     </div>
   </section>
   <section style="padding: 72px 64px 56px; display: flex; flex-direction: column; gap: 22px; min-width: 0;">
     <div style="display: flex; align-items: center; justify-content: space-between;">
-      <h2 style="margin: 0; font: 600 24px/34px 'Readex Pro', sans-serif; color: #0B1F3F;">الشاشات</h2>
-      <span style="font-size: 13px; color: #4B5565;">اضغط تشغيل ثم اختر شاشة للتجربة</span>
+      <h2 style="margin: 0; font: 600 24px/34px 'Readex Pro', sans-serif; color: #0B1F3F;">Screens</h2>
+      <span style="font-size: 13px; color: #4B5565;">Press play, then pick a screen to try</span>
     </div>
-    <div style="font-size: 13px; font-weight: 600; color: #4B5565;">تطبيق الموبايل</div>
+    <div style="font-size: 13px; font-weight: 600; color: #4B5565;">Mobile app</div>
     <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px;">
-      <a class="screen-link" href="M1-Home.dc.html"><x-import component-from-global-scope="Masslak.Icon" name="home"></x-import><span><b style="display: block; font-size: 14px;">الرئيسية والبحث</b><span style="font-size: 12px; color: #4B5565;">بداية رحلة الحجز</span></span></a>
-      <a class="screen-link" href="M2-Results.dc.html"><x-import component-from-global-scope="Masslak.Icon" name="search"></x-import><span><b style="display: block; font-size: 14px;">نتائج البحث</b><span style="font-size: 12px; color: #4B5565;">بطاقات الرحلات والفلاتر</span></span></a>
-      <a class="screen-link" href="M3-Seats.dc.html"><x-import component-from-global-scope="Masslak.Icon" name="airline_seat_recline_normal"></x-import><span><b style="display: block; font-size: 14px;">اختيار المقعد</b><span style="font-size: 12px; color: #4B5565;">مع مهلة الحجز المؤقت</span></span></a>
-      <a class="screen-link" href="M4-Checkout.dc.html"><x-import component-from-global-scope="Masslak.Icon" name="person"></x-import><span><b style="display: block; font-size: 14px;">المسافر والدفع</b><span style="font-size: 12px; color: #4B5565;">الاسم الرباعي وتفصيل السعر</span></span></a>
-      <a class="screen-link" href="M5-Ticket.dc.html"><x-import component-from-global-scope="Masslak.Icon" name="confirmation_number"></x-import><span><b style="display: block; font-size: 14px;">التذكرة</b><span style="font-size: 12px; color: #4B5565;">رمز QR محفوظ دون اتصال</span></span></a>
-      <a class="screen-link" href="M6-Shuttle.dc.html"><x-import component-from-global-scope="Masslak.Icon" name="qr_code_scanner"></x-import><span><b style="display: block; font-size: 14px;">رحلة النقل الترددي</b><span style="font-size: 12px; color: #4B5565;">أجرة بين المحطات وتحذير الرصيد</span></span></a>
-      <a class="screen-link" href="M7-Driver.dc.html"><x-import component-from-global-scope="Masslak.Icon" name="directions_bus"></x-import><span><b style="display: block; font-size: 14px;">تطبيق السائق</b><span style="font-size: 12px; color: #4B5565;">مسح التذاكر والكشف</span></span></a>
+      <a class="screen-link" href="M1-Home.dc.html"><x-import component-from-global-scope="Masslak.Icon" name="home"></x-import><span><b style="display: block; font-size: 14px;">Home and search</b><span style="font-size: 12px; color: #4B5565;">Start of the booking journey</span></span></a>
+      <a class="screen-link" href="M2-Results.dc.html"><x-import component-from-global-scope="Masslak.Icon" name="search"></x-import><span><b style="display: block; font-size: 14px;">Search results</b><span style="font-size: 12px; color: #4B5565;">Trip cards and filters</span></span></a>
+      <a class="screen-link" href="M3-Seats.dc.html"><x-import component-from-global-scope="Masslak.Icon" name="airline_seat_recline_normal"></x-import><span><b style="display: block; font-size: 14px;">Seat selection</b><span style="font-size: 12px; color: #4B5565;">with the seat hold timer</span></span></a>
+      <a class="screen-link" href="M4-Checkout.dc.html"><x-import component-from-global-scope="Masslak.Icon" name="person"></x-import><span><b style="display: block; font-size: 14px;">Passenger and payment</b><span style="font-size: 12px; color: #4B5565;">Four-part name and price breakdown</span></span></a>
+      <a class="screen-link" href="M5-Ticket.dc.html"><x-import component-from-global-scope="Masslak.Icon" name="confirmation_number"></x-import><span><b style="display: block; font-size: 14px;">Ticket</b><span style="font-size: 12px; color: #4B5565;">Code QR Saved offline</span></span></a>
+      <a class="screen-link" href="M6-Shuttle.dc.html"><x-import component-from-global-scope="Masslak.Icon" name="qr_code_scanner"></x-import><span><b style="display: block; font-size: 14px;">Shuttle ride</b><span style="font-size: 12px; color: #4B5565;">Fare between stations and balance warning</span></span></a>
+      <a class="screen-link" href="M7-Driver.dc.html"><x-import component-from-global-scope="Masslak.Icon" name="directions_bus"></x-import><span><b style="display: block; font-size: 14px;">Driver app</b><span style="font-size: 12px; color: #4B5565;">Ticket scanning and manifest</span></span></a>
     </div>
-    <div style="font-size: 13px; font-weight: 600; color: #4B5565; margin-top: 6px;">الويب</div>
+    <div style="font-size: 13px; font-weight: 600; color: #4B5565; margin-top: 6px;">Web</div>
     <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px;">
-      <a class="screen-link" href="W1-Website.dc.html"><x-import component-from-global-scope="Masslak.Icon" name="language"></x-import><span><b style="display: block; font-size: 14px;">الموقع العام</b><span style="font-size: 12px; color: #4B5565;">البحث والخطوط الشائعة</span></span></a>
-      <a class="screen-link" href="W2-Carrier.dc.html"><x-import component-from-global-scope="Masslak.Icon" name="dashboard"></x-import><span><b style="display: block; font-size: 14px;">بوابة الشركة الناقلة</b><span style="font-size: 12px; color: #4B5565;">لوحة التحكم والرحلات</span></span></a>
-      <a class="screen-link" href="W3-Agency.dc.html"><x-import component-from-global-scope="Masslak.Icon" name="group"></x-import><span><b style="display: block; font-size: 14px;">بوابة الوكالات</b><span style="font-size: 12px; color: #4B5565;">بيع التذاكر والحصص</span></span></a>
-      <a class="screen-link" href="W4-Regulator.dc.html"><x-import component-from-global-scope="Masslak.Icon" name="shield"></x-import><span><b style="display: block; font-size: 14px;">لوحة الجهة الناظمة</b><span style="font-size: 12px; color: #4B5565;">مؤشرات مجمّعة للعرض فقط</span></span></a>
+      <a class="screen-link" href="W1-Website.dc.html"><x-import component-from-global-scope="Masslak.Icon" name="language"></x-import><span><b style="display: block; font-size: 14px;">Public website</b><span style="font-size: 12px; color: #4B5565;">Search and popular routes</span></span></a>
+      <a class="screen-link" href="W2-Carrier.dc.html"><x-import component-from-global-scope="Masslak.Icon" name="dashboard"></x-import><span><b style="display: block; font-size: 14px;">Carrier portal</b><span style="font-size: 12px; color: #4B5565;">Dashboard and trips</span></span></a>
+      <a class="screen-link" href="W3-Agency.dc.html"><x-import component-from-global-scope="Masslak.Icon" name="group"></x-import><span><b style="display: block; font-size: 14px;">Agency portal</b><span style="font-size: 12px; color: #4B5565;">Ticket sales and quotas</span></span></a>
+      <a class="screen-link" href="W4-Regulator.dc.html"><x-import component-from-global-scope="Masslak.Icon" name="shield"></x-import><span><b style="display: block; font-size: 14px;">Regulator dashboard</b><span style="font-size: 12px; color: #4B5565;">Aggregated indicators, view only</span></span></a>
     </div>
   </section>
 </div>

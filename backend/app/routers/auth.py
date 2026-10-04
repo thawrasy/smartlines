@@ -30,7 +30,7 @@ class RegisterIn(BaseModel):
     email: EmailStr
     mobile: Optional[str] = Field(default=None, pattern=r"^\+?[0-9]{8,15}$")
     password: str = Field(min_length=1, max_length=200)
-    locale: str = "ar"
+    locale: Optional[str] = None             # defaults to the platform setting
 
 
 class LoginIn(BaseModel):
@@ -62,8 +62,10 @@ async def register(body: RegisterIn, request: Request):
         if await conn.fetchval("SELECT 1 FROM iam.app_user WHERE email = $1 OR ($2::text IS NOT NULL AND mobile = $2)",
                                body.email, body.mobile):
             raise ApiError(409, "ALREADY_REGISTERED", "an account already exists for this email or mobile")
-        locale = body.locale if await conn.fetchval("SELECT 1 FROM ref.locale WHERE code = $1 AND is_enabled",
-                                                     body.locale) else "en"
+        # The chosen language if enabled, otherwise the platform default (sys.setting ui.default_locale)
+        locale = body.locale if body.locale and await conn.fetchval(
+            "SELECT 1 FROM ref.locale WHERE code = $1 AND is_enabled", body.locale) else await conn.fetchval(
+            "SELECT coalesce((SELECT value #>> '{}' FROM sys.setting WHERE key = 'ui.default_locale'), 'en')")
         party_id = await conn.fetchval(
             "INSERT INTO iam.party (party_type, legal_name, email, mobile) VALUES ('PERSON', $1, $2, $3) RETURNING id",
             body.full_name.strip(), body.email, body.mobile)

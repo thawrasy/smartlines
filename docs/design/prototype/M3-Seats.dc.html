@@ -1,8 +1,8 @@
 <!doctype html>
-<html lang="ar" dir="rtl">
+<html lang="en" dir="ltr">
 <head>
 <meta charset="utf-8">
-<title>اختيار المقعد</title>
+<title>Seat selection</title>
 <script src="./support.js"></script>
 <link rel="stylesheet" href="masslak-theme.css">
 <link rel="stylesheet" href="ds/masslak/components/bundle.css">
@@ -17,24 +17,24 @@ body{margin:0}
 a{color:#0A5BD3}a:hover{color:#05285F}
 </style>
 </helmet>
-<div class="ms-root" dir="rtl" style="width: 390px; height: 844px; box-sizing: border-box; background: var(--surface-dim); display: flex; flex-direction: column; overflow: hidden; font-family: 'IBM Plex Sans Arabic', system-ui, sans-serif;">
+<div class="ms-root" dir="ltr" style="width: 390px; height: 844px; box-sizing: border-box; background: var(--surface-dim); display: flex; flex-direction: column; overflow: hidden; font-family: 'IBM Plex Sans Arabic', system-ui, sans-serif;">
   <header style="display: flex; align-items: center; gap: 8px; height: 64px; padding-inline: 8px 16px; background: var(--surface); box-shadow: inset 0 -1px 0 var(--divider);">
-    <a href="M2-Results.dc.html" aria-label="رجوع" style="width: 48px; height: 48px; border-radius: 24px; display: inline-flex; align-items: center; justify-content: center; color: var(--on-surface-variant);"><x-import component-from-global-scope="Masslak.Icon" name="arrow_back" flip="{{yes}}"></x-import></a>
+    <a href="M2-Results.dc.html" aria-label="Back" style="width: 48px; height: 48px; border-radius: 24px; display: inline-flex; align-items: center; justify-content: center; color: var(--on-surface-variant);"><x-import component-from-global-scope="Masslak.Icon" name="arrow_back" flip="{{yes}}"></x-import></a>
     <div style="flex: 1; min-width: 0;">
-      <div class="title-medium">اختر مقعدك</div>
-      <div class="body-small" style="color: var(--on-surface-variant);">بولمان الشام · VIP · 14:30</div>
+      <div class="title-medium">Choose your seat</div>
+      <div class="body-small" style="color: var(--on-surface-variant);">Pullman Al-Sham · VIP · 14:30</div>
     </div>
   </header>
   <div style="flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 14px; padding: 14px 16px;">
-    <x-import component-from-global-scope="Masslak.Banner" tone="info" title="نحجز المقعد لك 9:42 دقيقة">أكمل بيانات المسافر قبل انتهاء المهلة.</x-import>
+    <x-import component-from-global-scope="Masslak.Banner" tone="info" title="Seat held for you · 9:42">Complete the passenger details before the hold expires.</x-import>
     <x-import component-from-global-scope="Masslak.SeatMap" rows="{{8}}" taken="{{taken}}" selected="{{selected}}"></x-import>
   </div>
   <footer style="display: flex; align-items: center; gap: 12px; padding: 14px 16px 18px; background: var(--surface); box-shadow: 0 -1px 0 var(--divider);">
     <div style="flex: 1; min-width: 0;">
-      <div class="body-small" style="color: var(--on-surface-variant);">المقعد 11 · نافذة</div>
-      <div style="font-size: 20px; line-height: 28px; font-weight: 700; font-variant-numeric: tabular-nums;">85,000 <span style="font-size: 13px; font-weight: 500; color: var(--on-surface-variant);">ل.س</span></div>
+      <div class="body-small" style="color: var(--on-surface-variant);">Seat 11 · Window</div>
+      <div style="font-size: 20px; line-height: 28px; font-weight: 700; font-variant-numeric: tabular-nums;">85,000 <span style="font-size: 13px; font-weight: 500; color: var(--on-surface-variant);">SYP</span></div>
     </div>
-    <a class="ms-btn ms-btn-filled ms-btn-lg" href="M4-Checkout.dc.html">متابعة</a>
+    <a class="ms-btn ms-btn-filled ms-btn-lg" href="M4-Checkout.dc.html">Continue</a>
   </footer>
 </div>
 </x-dc>

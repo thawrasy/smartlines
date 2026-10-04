@@ -1,8 +1,8 @@
 <!doctype html>
-<html lang="ar" dir="rtl">
+<html lang="en" dir="ltr">
 <head>
 <meta charset="utf-8">
-<title>تطبيق السائق: الصعود</title>
+<title>Driver app: boarding</title>
 <script src="./support.js"></script>
 <link rel="stylesheet" href="masslak-theme.css">
 <link rel="stylesheet" href="ds/masslak/components/bundle.css">
@@ -17,38 +17,38 @@ body{margin:0}
 a{color:#0A5BD3}a:hover{color:#05285F}
 </style>
 </helmet>
-<div class="ms-root" dir="rtl" style="width: 390px; height: 844px; box-sizing: border-box; background: var(--surface-dim); display: flex; flex-direction: column; overflow: hidden; font-family: 'IBM Plex Sans Arabic', system-ui, sans-serif;">
+<div class="ms-root" dir="ltr" style="width: 390px; height: 844px; box-sizing: border-box; background: var(--surface-dim); display: flex; flex-direction: column; overflow: hidden; font-family: 'IBM Plex Sans Arabic', system-ui, sans-serif;">
   <header style="display: flex; align-items: center; gap: 8px; height: 64px; padding-inline: 16px 8px; background: var(--surface); box-shadow: inset 0 -1px 0 var(--divider);">
     <div style="flex: 1; min-width: 0;">
-      <div class="title-medium">الصعود · <span dir="ltr" style="font-family: 'IBM Plex Mono', monospace;">SY 1042</span></div>
-      <div class="body-small" style="color: var(--on-surface-variant);">دمشق ← حلب · الانطلاق 14:30</div>
+      <div class="title-medium">Boarding · <span dir="ltr" style="font-family: 'IBM Plex Mono', monospace;">SY 1042</span></div>
+      <div class="body-small" style="color: var(--on-surface-variant);">Damascus → Aleppo · Departure 14:30</div>
     </div>
-    <button type="button" aria-label="طوارئ" style="height: 40px; padding-inline: 14px; border: 0; border-radius: 20px; background: var(--error); color: var(--on-error); font: 600 13px 'IBM Plex Sans Arabic', sans-serif; display: inline-flex; align-items: center; gap: 6px;"><x-import component-from-global-scope="Masslak.Icon" name="sos" size="{{20}}"></x-import>طوارئ</button>
+    <button type="button" aria-label="Emergency" style="height: 40px; padding-inline: 14px; border: 0; border-radius: 20px; background: var(--error); color: var(--on-error); font: 600 13px 'IBM Plex Sans Arabic', sans-serif; display: inline-flex; align-items: center; gap: 6px;"><x-import component-from-global-scope="Masslak.Icon" name="sos" size="{{20}}"></x-import>Emergency</button>
   </header>
   <div style="flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; gap: 12px; padding: 14px 16px;">
     <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px;">
-      <x-import component-from-global-scope="Masslak.Stat" icon="group" label="صعدوا" value="38 / 45"></x-import>
-      <x-import component-from-global-scope="Masslak.Stat" icon="schedule" label="حتى الانطلاق" value="06:40" tone="wheat"></x-import>
+      <x-import component-from-global-scope="Masslak.Stat" icon="group" label="Boarded" value="38 / 45"></x-import>
+      <x-import component-from-global-scope="Masslak.Stat" icon="schedule" label="until departure" value="06:40" tone="wheat"></x-import>
     </div>
     <div style="position: relative; height: 230px; border-radius: 20px; background: #0F1411; display: flex; align-items: center; justify-content: center; overflow: hidden;">
       <div style="width: 170px; height: 170px; border-radius: 24px; box-shadow: 0 0 0 3px #2F7BFF, 0 0 0 999px rgba(0,0,0,.35);"></div>
-      <div style="position: absolute; bottom: 12px; inset-inline: 0; text-align: center; color: #E0E3DF; font-size: 13px;">وجّه الكاميرا إلى رمز التذكرة</div>
+      <div style="position: absolute; bottom: 12px; inset-inline: 0; text-align: center; color: #E0E3DF; font-size: 13px;">Point the camera at the ticket code</div>
     </div>
     <div style="border-radius: 20px; padding: 16px; display: flex; gap: 14px; align-items: center; background: var(--success-container); color: var(--on-success-container);">
       <x-import component-from-global-scope="Masslak.Icon" name="check_circle" size="{{36}}"></x-import>
       <div style="flex: 1; min-width: 0;">
-        <div style="font-size: 18px; line-height: 26px; font-weight: 700;">تذكرة صالحة · المقعد 11</div>
-        <div style="font-size: 13px;">أحمد العلي · <span dir="ltr" style="font-family: 'IBM Plex Mono', monospace;">7Q4K2P</span></div>
+        <div style="font-size: 18px; line-height: 26px; font-weight: 700;">Valid ticket · Seat 11</div>
+        <div style="font-size: 13px;">Ahmad Al-Ali · <span dir="ltr" style="font-family: 'IBM Plex Mono', monospace;">7Q4K2P</span></div>
       </div>
     </div>
     <div style="display: flex; flex-direction: column; gap: 6px; font-size: 13px;">
-      <div style="display: flex; justify-content: space-between; color: var(--on-surface-variant);"><span>آخر عمليات المسح</span><span>3 بانتظار المزامنة</span></div>
-      <div style="display: flex; align-items: center; gap: 8px; background: var(--surface); border-radius: 12px; padding: 10px 12px;"><x-import component-from-global-scope="Masslak.StatusBadge" status="VALID">صالحة</x-import><span style="flex: 1;">المقعد 24 · سمر حداد</span><span style="color: var(--on-surface-variant);">14:21</span></div>
-      <div style="display: flex; align-items: center; gap: 8px; background: var(--surface); border-radius: 12px; padding: 10px 12px;"><x-import component-from-global-scope="Masslak.StatusBadge" status="INVALID">رحلة أخرى</x-import><span style="flex: 1;">تذكرة SY 1044</span><span style="color: var(--on-surface-variant);">14:19</span></div>
+      <div style="display: flex; justify-content: space-between; color: var(--on-surface-variant);"><span>Latest scans</span><span>3 Waiting to sync</span></div>
+      <div style="display: flex; align-items: center; gap: 8px; background: var(--surface); border-radius: 12px; padding: 10px 12px;"><x-import component-from-global-scope="Masslak.StatusBadge" status="VALID">Valid</x-import><span style="flex: 1;">Seat 24 · Samar Haddad</span><span style="color: var(--on-surface-variant);">14:21</span></div>
+      <div style="display: flex; align-items: center; gap: 8px; background: var(--surface); border-radius: 12px; padding: 10px 12px;"><x-import component-from-global-scope="Masslak.StatusBadge" status="INVALID">Another trip</x-import><span style="flex: 1;">Ticket SY 1044</span><span style="color: var(--on-surface-variant);">14:19</span></div>
     </div>
   </div>
   <footer style="padding: 12px 16px 18px; background: var(--surface); box-shadow: 0 -1px 0 var(--divider);">
-    <x-import component-from-global-scope="Masslak.Button" size="lg" block="{{yes}}" icon="directions_bus">أغلق الصعود وانطلق</x-import>
+    <x-import component-from-global-scope="Masslak.Button" size="lg" block="{{yes}}" icon="directions_bus">Close boarding and depart</x-import>
   </footer>
 </div>
 </x-dc>

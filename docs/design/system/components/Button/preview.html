@@ -4,20 +4,20 @@
 <head><meta charset="utf-8"><title>Button preview</title>
 <style>body{margin:0;background:var(--surface-dim)} #root{padding:20px}</style></head>
 <body>
-<div id="root" class="ms-root" dir="rtl"></div>
+<div id="root" class="ms-root" dir="ltr"></div>
 <script>
   var M = window.Masslak, h = React.createElement;
   ReactDOM.createRoot(document.getElementById('root')).render(h('div',{className:'ms-stack'},
  h('div',{className:'ms-row'},
-  h(M.Button,{icon:'confirmation_number'},'احجز الآن'),
-  h(M.Button,{variant:'tonal',icon:'add'},'إضافة مسافر'),
-  h(M.Button,{variant:'outlined'},'تفاصيل الرحلة'),
-  h(M.Button,{variant:'text'},'إلغاء'),
-  h(M.Button,{variant:'wheat',icon:'account_balance_wallet'},'اشحن المحفظة')),
+  h(M.Button,{icon:'confirmation_number'},'Book now'),
+  h(M.Button,{variant:'tonal',icon:'add'},'Add passenger'),
+  h(M.Button,{variant:'outlined'},'Trip details'),
+  h(M.Button,{variant:'text'},'Cancel'),
+  h(M.Button,{variant:'wheat',icon:'account_balance_wallet'},'Top up wallet')),
  h('div',{className:'ms-row'},
-  h(M.Button,{size:'lg',icon:'check_circle'},'ادفع 85,000 ل.س'),
-  h(M.Button,{variant:'danger',size:'sm'},'إلغاء الحجز'),
-  h(M.Button,{disabled:true},'غير متاح'))));
+  h(M.Button,{size:'lg',icon:'check_circle'},'Pay SYP 85,000'),
+  h(M.Button,{variant:'danger',size:'sm'},'Cancel booking'),
+  h(M.Button,{disabled:true},'Unavailable'))));
 </script>
 </body>
 </html>

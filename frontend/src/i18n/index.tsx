@@ -9,7 +9,8 @@ export const LOCALES = {
   en: { messages: en, dir: "ltr", intl: "en-GB" },
 } as const;
 export type Locale = keyof typeof LOCALES;
-export const DEFAULT_LOCALE: Locale = "ar";
+// English is the default; building with VITE_DEFAULT_LOCALE=ar makes the Arabic interface the default
+export const DEFAULT_LOCALE: Locale = import.meta.env.VITE_DEFAULT_LOCALE === "ar" ? "ar" : "en";
 export const TZ = "Asia/Damascus";
 
 type Vars = Record<string, string | number>;
