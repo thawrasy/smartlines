@@ -1,17 +1,18 @@
 # Masslak Database
 
-Built from the **Analysis and Design Study v2.6** (`docs/Masslak_Analysis_and_Design_EN_v2.6.docx`). Files 000 to 998
+Built from the **Analysis and Design Study v2.7** (`docs/Masslak_Analysis_and_Design_EN_v2.7.docx`). Files 000 to 998
 cover the Phase 1 scope of sections 21 and 22.2 and the fields the owner decided to build from Phase 1 onwards
-(Decision 88). Files 1003 and 1010 to 1029 complete the model against every entity the study defines, including the
+(Decision 88). Files 1003 and 1010 to 1032 complete the model against every entity the study defines, including the
 modules of later phases (sections 4.10, 9, 10, 11, 13, 14, 21 and appendix D). Those modules stay disabled behind
-feature flags until their phase starts (2.8, decision D-6).
+feature flags until their phase starts (2.8, decision D-6). File 1033 applies the relationship rules of design v3.0:
+every table has a primary key, every reference is a foreign key (or documents why not), and every foreign key is indexed.
 
 | | |
 |---|---|
 | Engine | PostgreSQL 16 (extensions: pgcrypto, citext, btree_gist, pg_trgm) |
 | Schemas | 23 separate schemas, each with its own privileges |
-| Tables | 415 tables, 4,083 columns, 1,123 foreign keys |
-| Tests | 111 automated checks passing against a real database |
+| Tables | 415 tables, 4,092 columns, 1,126 foreign keys |
+| Tests | 114 automated checks passing against a real database |
 | Design | [Database design and ERD document](../docs/database/) with diagrams in the study's colors |
 | Docs | [Data dictionary](DATA_DICTIONARY.md) · [ERD diagrams](ERD.md) (both generated from the database) |
 

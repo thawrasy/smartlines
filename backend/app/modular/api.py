@@ -134,7 +134,7 @@ async def lookup(res_key: str, column: str, request: Request, q: Optional[str] =
         ref = meta.cols[column].ref if column in meta.cols else None
         if not ref:
             raise not_found("reference")
-        return {"options": await engine.lookup(conn, ref, q)}
+        return {"options": await engine.lookup(conn, ref, q, key=meta.cols[column].ref_col)}
 
 
 @router.post("/api/r/{res_key}", status_code=201)

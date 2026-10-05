@@ -185,13 +185,13 @@
 <!-- net__station_contact&#45;&gt;net__station -->
 <g id="edge5" class="edge">
 <title>net__station_contact&#45;&gt;net__station</title>
-<path fill="none" stroke="#595959" stroke-width="1.1" d="M376.55,-192C376.55,-192 487,-192 487,-192 487,-192 487,-512.87 487,-512.87"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="370.15,-192 362.15,-188.4 366.15,-192 362.15,-192 362.15,-192 362.15,-192 366.15,-192 362.15,-195.6 370.15,-192 370.15,-192"/>
-<ellipse fill="none" stroke="#595959" stroke-width="1.1" cx="373.35" cy="-192" rx="3.2" ry="3.2"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="491,-520.07 483,-520.07 483,-518.47 491,-518.47 491,-520.07"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="487,-520.87 487,-516.87 "/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="491,-516.07 483,-516.07 483,-514.47 491,-514.47 491,-516.07"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="487,-516.87 487,-512.87 "/>
+<path fill="none" stroke="#548235" stroke-width="2.2" d="M376.55,-192C376.55,-192 487,-192 487,-192 487,-192 487,-512.87 487,-512.87"/>
+<polygon fill="#548235" stroke="#548235" stroke-width="2.2" points="370.15,-192 362.15,-188.4 366.15,-192 362.15,-192 362.15,-192 362.15,-192 366.15,-192 362.15,-195.6 370.15,-192 370.15,-192"/>
+<ellipse fill="none" stroke="#548235" stroke-width="2.2" cx="373.35" cy="-192" rx="3.2" ry="3.2"/>
+<polygon fill="#548235" stroke="#548235" stroke-width="2.2" points="491,-520.07 483,-520.07 483,-518.47 491,-518.47 491,-520.07"/>
+<polyline fill="none" stroke="#548235" stroke-width="2.2" points="487,-520.87 487,-516.87 "/>
+<polygon fill="#548235" stroke="#548235" stroke-width="2.2" points="491,-516.07 483,-516.07 483,-514.47 491,-514.47 491,-516.07"/>
+<polyline fill="none" stroke="#548235" stroke-width="2.2" points="487,-516.87 487,-512.87 "/>
 </g>
 <!-- net__station_gate -->
 <g id="node4" class="node">
@@ -435,13 +435,13 @@
 <!-- net__route_stop&#45;&gt;net__route -->
 <g id="edge12" class="edge">
 <title>net__route_stop&#45;&gt;net__route</title>
-<path fill="none" stroke="#595959" stroke-width="1.1" d="M150.58,-751.25C150.58,-751.25 217.67,-751.25 217.67,-751.25"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="217.67,-751.25 225.67,-754.85 221.67,-751.25 225.67,-751.25 225.67,-751.25 225.67,-751.25 221.67,-751.25 225.67,-747.65 217.67,-751.25 217.67,-751.25"/>
-<ellipse fill="none" stroke="#595959" stroke-width="1.1" cx="214.47" cy="-751.25" rx="3.2" ry="3.2"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="136.98,-755.25 136.98,-747.25 138.58,-747.25 138.58,-755.25 136.98,-755.25"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="136.18,-751.25 140.18,-751.25 "/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="140.98,-755.25 140.98,-747.25 142.58,-747.25 142.58,-755.25 140.98,-755.25"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="140.18,-751.25 144.18,-751.25 "/>
+<path fill="none" stroke="#548235" stroke-width="2.2" d="M150.58,-751.25C150.58,-751.25 217.67,-751.25 217.67,-751.25"/>
+<polygon fill="#548235" stroke="#548235" stroke-width="2.2" points="217.67,-751.25 225.67,-754.85 221.67,-751.25 225.67,-751.25 225.67,-751.25 225.67,-751.25 221.67,-751.25 225.67,-747.65 217.67,-751.25 217.67,-751.25"/>
+<ellipse fill="none" stroke="#548235" stroke-width="2.2" cx="214.47" cy="-751.25" rx="3.2" ry="3.2"/>
+<polygon fill="#548235" stroke="#548235" stroke-width="2.2" points="136.98,-755.25 136.98,-747.25 138.58,-747.25 138.58,-755.25 136.98,-755.25"/>
+<polyline fill="none" stroke="#548235" stroke-width="2.2" points="136.18,-751.25 140.18,-751.25 "/>
+<polygon fill="#548235" stroke="#548235" stroke-width="2.2" points="140.98,-755.25 140.98,-747.25 142.58,-747.25 142.58,-755.25 140.98,-755.25"/>
+<polyline fill="none" stroke="#548235" stroke-width="2.2" points="140.18,-751.25 144.18,-751.25 "/>
 </g>
 <!-- net__carrier_code -->
 <g id="node8" class="node">
@@ -635,13 +635,13 @@
 <!-- net__approved_rest_stop&#45;&gt;net__corridor -->
 <g id="edge17" class="edge">
 <title>net__approved_rest_stop&#45;&gt;net__corridor</title>
-<path fill="none" stroke="#595959" stroke-width="1.1" d="M385.21,-59C385.21,-59 490.69,-59 490.69,-59"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="490.69,-59 498.69,-62.6 494.69,-59 498.69,-59 498.69,-59 498.69,-59 494.69,-59 498.69,-55.4 490.69,-59 490.69,-59"/>
-<ellipse fill="none" stroke="#595959" stroke-width="1.1" cx="487.49" cy="-59" rx="3.2" ry="3.2"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="371.61,-63 371.61,-55 373.21,-55 373.21,-63 371.61,-63"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="370.81,-59 374.81,-59 "/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="375.61,-63 375.61,-55 377.21,-55 377.21,-63 375.61,-63"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="374.81,-59 378.81,-59 "/>
+<path fill="none" stroke="#548235" stroke-width="2.2" d="M385.21,-59C385.21,-59 490.69,-59 490.69,-59"/>
+<polygon fill="#548235" stroke="#548235" stroke-width="2.2" points="490.69,-59 498.69,-62.6 494.69,-59 498.69,-59 498.69,-59 498.69,-59 494.69,-59 498.69,-55.4 490.69,-59 490.69,-59"/>
+<ellipse fill="none" stroke="#548235" stroke-width="2.2" cx="487.49" cy="-59" rx="3.2" ry="3.2"/>
+<polygon fill="#548235" stroke="#548235" stroke-width="2.2" points="371.61,-63 371.61,-55 373.21,-55 373.21,-63 371.61,-63"/>
+<polyline fill="none" stroke="#548235" stroke-width="2.2" points="370.81,-59 374.81,-59 "/>
+<polygon fill="#548235" stroke="#548235" stroke-width="2.2" points="375.61,-63 375.61,-55 377.21,-55 377.21,-63 375.61,-63"/>
+<polyline fill="none" stroke="#548235" stroke-width="2.2" points="374.81,-59 378.81,-59 "/>
 </g>
 <!-- net__geofence -->
 <g id="node13" class="node">

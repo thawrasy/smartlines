@@ -367,13 +367,13 @@
 <!-- iam__role_permission&#45;&gt;iam__role -->
 <g id="edge11" class="edge">
 <title>iam__role_permission&#45;&gt;iam__role</title>
-<path fill="none" stroke="#595959" stroke-width="1.1" d="M170.89,-71.5C170.89,-71.5 249,-71.5 249,-71.5 249,-71.5 249,-91.03 249,-91.03"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="164.49,-71.5 156.49,-67.9 160.49,-71.5 156.49,-71.5 156.49,-71.5 156.49,-71.5 160.49,-71.5 156.49,-75.1 164.49,-71.5 164.49,-71.5"/>
-<ellipse fill="none" stroke="#595959" stroke-width="1.1" cx="167.69" cy="-71.5" rx="3.2" ry="3.2"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="253,-98.23 245,-98.23 245,-96.63 253,-96.63 253,-98.23"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="249,-99.03 249,-95.03 "/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="253,-94.23 245,-94.23 245,-92.63 253,-92.63 253,-94.23"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="249,-95.03 249,-91.03 "/>
+<path fill="none" stroke="#2e74b5" stroke-width="2.2" d="M170.89,-71.5C170.89,-71.5 249,-71.5 249,-71.5 249,-71.5 249,-91.03 249,-91.03"/>
+<polygon fill="#2e74b5" stroke="#2e74b5" stroke-width="2.2" points="164.49,-71.5 156.49,-67.9 160.49,-71.5 156.49,-71.5 156.49,-71.5 156.49,-71.5 160.49,-71.5 156.49,-75.1 164.49,-71.5 164.49,-71.5"/>
+<ellipse fill="none" stroke="#2e74b5" stroke-width="2.2" cx="167.69" cy="-71.5" rx="3.2" ry="3.2"/>
+<polygon fill="#2e74b5" stroke="#2e74b5" stroke-width="2.2" points="253,-98.23 245,-98.23 245,-96.63 253,-96.63 253,-98.23"/>
+<polyline fill="none" stroke="#2e74b5" stroke-width="2.2" points="249,-99.03 249,-95.03 "/>
+<polygon fill="#2e74b5" stroke="#2e74b5" stroke-width="2.2" points="253,-94.23 245,-94.23 245,-92.63 253,-92.63 253,-94.23"/>
+<polyline fill="none" stroke="#2e74b5" stroke-width="2.2" points="249,-95.03 249,-91.03 "/>
 </g>
 <!-- iam__permission -->
 <g id="node8" class="node">

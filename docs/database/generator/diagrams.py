@@ -239,6 +239,21 @@ GROUPS = [
       "rent.contract_driver", "rent.rental_inspection", "rent.deposit_hold", "rent.telematics_device", "rent.vehicle_trip_log"]),
 ]
 
+# Focus diagrams: one business rule across modules; tables keep their own module colour (family None)
+FOCUS = [
+    ("F01", "Travel documents on international trips", "11.9, 11.9.1 (v2.7)", None,
+     "Passport by default, approved exceptions per destination or transit country and nationality. The segment's countries come from "
+     "the trip's stops; the entry rule is looked up most specific first; the passenger's document and the rule applied are recorded "
+     "on the ticket.",
+     ["sales.entry_rule", "ops.trip", "ops.trip_stop", "net.station", "ref.country", "sales.booking", "sales.passenger",
+      "sales.ticket", "sales.ticket_doc", "iam.app_user"]),
+    ("F02", "Booking spine: from trip to ledger", "4.5, 4.6, 4.12, 5.8", None,
+     "The core relationships every sale goes through: a trip's stops and seat segments, the booking with its passengers and tickets, "
+     "the payment and the ledger transaction, and the price allocation of the ticket.",
+     ["ops.trip", "ops.trip_stop", "ops.seat_segment", "sales.booking", "sales.passenger", "sales.ticket", "fin.payment",
+      "fin.ledger_txn", "fin.price_allocation", "fin.price_allocation_line", "iam.company", "iam.party"]),
+]
+
 # Data stores of the use case and data flow diagrams v1.0 (section 6) mapped to the groups that implement them
 DATA_STORES = [
     ("D1", "Identity and access", ["E02"], ["iam.app_user", "iam.role", "iam.permission"]),

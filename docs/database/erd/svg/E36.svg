@@ -195,13 +195,13 @@
 <!-- rail__train_composition&#45;&gt;ops__trip -->
 <g id="edge6" class="edge">
 <title>rail__train_composition&#45;&gt;ops__trip</title>
-<path fill="none" stroke="#595959" stroke-width="1.1" stroke-dasharray="5,2" d="M154,-771.72C154,-771.72 154,-649 154,-649 154,-649 284.96,-649 284.96,-649"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="154,-778.12 150.4,-786.12 154,-782.12 154,-786.12 154,-786.12 154,-786.12 154,-782.12 157.6,-786.12 154,-778.12 154,-778.12"/>
-<ellipse fill="none" stroke="#595959" stroke-width="1.1" cx="154" cy="-774.92" rx="3.2" ry="3.2"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="292.16,-645 292.16,-653 290.56,-653 290.56,-645 292.16,-645"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="292.96,-649 288.96,-649 "/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="288.16,-645 288.16,-653 286.56,-653 286.56,-645 288.16,-645"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="288.96,-649 284.96,-649 "/>
+<path fill="none" stroke="#bf8f00" stroke-width="2.2" stroke-dasharray="5,2" d="M154,-771.72C154,-771.72 154,-649 154,-649 154,-649 284.96,-649 284.96,-649"/>
+<polygon fill="#bf8f00" stroke="#bf8f00" stroke-width="2.2" points="154,-778.12 150.4,-786.12 154,-782.12 154,-786.12 154,-786.12 154,-786.12 154,-782.12 157.6,-786.12 154,-778.12 154,-778.12"/>
+<ellipse fill="none" stroke="#bf8f00" stroke-width="2.2" cx="154" cy="-774.92" rx="3.2" ry="3.2"/>
+<polygon fill="#bf8f00" stroke="#bf8f00" stroke-width="2.2" points="292.16,-645 292.16,-653 290.56,-653 290.56,-645 292.16,-645"/>
+<polyline fill="none" stroke="#bf8f00" stroke-width="2.2" points="292.96,-649 288.96,-649 "/>
+<polygon fill="#bf8f00" stroke="#bf8f00" stroke-width="2.2" points="288.16,-645 288.16,-653 286.56,-653 286.56,-645 288.16,-645"/>
+<polyline fill="none" stroke="#bf8f00" stroke-width="2.2" points="288.96,-649 284.96,-649 "/>
 </g>
 <!-- rail__journey -->
 <g id="node4" class="node">
@@ -332,13 +332,13 @@
 <!-- rail__journey_leg&#45;&gt;rail__journey -->
 <g id="edge10" class="edge">
 <title>rail__journey_leg&#45;&gt;rail__journey</title>
-<path fill="none" stroke="#595959" stroke-width="1.1" d="M158.67,-694.5C158.67,-694.5 233.84,-694.5 233.84,-694.5"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="233.84,-694.5 241.84,-698.1 237.84,-694.5 241.84,-694.5 241.84,-694.5 241.84,-694.5 237.84,-694.5 241.84,-690.9 233.84,-694.5 233.84,-694.5"/>
-<ellipse fill="none" stroke="#595959" stroke-width="1.1" cx="230.64" cy="-694.5" rx="3.2" ry="3.2"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="145.07,-698.5 145.07,-690.5 146.67,-690.5 146.67,-698.5 145.07,-698.5"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="144.27,-694.5 148.27,-694.5 "/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="149.07,-698.5 149.07,-690.5 150.67,-690.5 150.67,-698.5 149.07,-698.5"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="148.27,-694.5 152.27,-694.5 "/>
+<path fill="none" stroke="#bf8f00" stroke-width="2.2" d="M158.67,-694.5C158.67,-694.5 233.84,-694.5 233.84,-694.5"/>
+<polygon fill="#bf8f00" stroke="#bf8f00" stroke-width="2.2" points="233.84,-694.5 241.84,-698.1 237.84,-694.5 241.84,-694.5 241.84,-694.5 241.84,-694.5 237.84,-694.5 241.84,-690.9 233.84,-694.5 233.84,-694.5"/>
+<ellipse fill="none" stroke="#bf8f00" stroke-width="2.2" cx="230.64" cy="-694.5" rx="3.2" ry="3.2"/>
+<polygon fill="#bf8f00" stroke="#bf8f00" stroke-width="2.2" points="145.07,-698.5 145.07,-690.5 146.67,-690.5 146.67,-698.5 145.07,-698.5"/>
+<polyline fill="none" stroke="#bf8f00" stroke-width="2.2" points="144.27,-694.5 148.27,-694.5 "/>
+<polygon fill="#bf8f00" stroke="#bf8f00" stroke-width="2.2" points="149.07,-698.5 149.07,-690.5 150.67,-690.5 150.67,-698.5 149.07,-698.5"/>
+<polyline fill="none" stroke="#bf8f00" stroke-width="2.2" points="148.27,-694.5 152.27,-694.5 "/>
 </g>
 <!-- rail__journey_leg&#45;&gt;ops__trip -->
 <g id="edge12" class="edge">

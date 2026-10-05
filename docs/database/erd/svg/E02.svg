@@ -237,14 +237,14 @@
 <!-- iam__device_permission_state&#45;&gt;iam__device -->
 <g id="edge7" class="edge">
 <title>iam__device_permission_state&#45;&gt;iam__device</title>
-<path fill="none" stroke="#595959" stroke-width="1.1" d="M373,-690.52C373,-690.52 373,-672.75 373,-672.75 373,-672.75 457.1,-672.75 457.1,-672.75"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="377,-700.12 369,-700.12 369,-698.52 377,-698.52 377,-700.12"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="373,-700.92 373,-696.92 "/>
-<ellipse fill="none" stroke="#595959" stroke-width="1.1" cx="373" cy="-693.72" rx="3.2" ry="3.2"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="464.3,-668.75 464.3,-676.75 462.7,-676.75 462.7,-668.75 464.3,-668.75"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="465.1,-672.75 461.1,-672.75 "/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="460.3,-668.75 460.3,-676.75 458.7,-676.75 458.7,-668.75 460.3,-668.75"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="461.1,-672.75 457.1,-672.75 "/>
+<path fill="none" stroke="#2e74b5" stroke-width="2.2" d="M373,-690.52C373,-690.52 373,-672.75 373,-672.75 373,-672.75 457.1,-672.75 457.1,-672.75"/>
+<polygon fill="#2e74b5" stroke="#2e74b5" stroke-width="2.2" points="377,-700.12 369,-700.12 369,-698.52 377,-698.52 377,-700.12"/>
+<polyline fill="none" stroke="#2e74b5" stroke-width="2.2" points="373,-700.92 373,-696.92 "/>
+<ellipse fill="none" stroke="#2e74b5" stroke-width="2.2" cx="373" cy="-693.72" rx="3.2" ry="3.2"/>
+<polygon fill="#2e74b5" stroke="#2e74b5" stroke-width="2.2" points="464.3,-668.75 464.3,-676.75 462.7,-676.75 462.7,-668.75 464.3,-668.75"/>
+<polyline fill="none" stroke="#2e74b5" stroke-width="2.2" points="465.1,-672.75 461.1,-672.75 "/>
+<polygon fill="#2e74b5" stroke="#2e74b5" stroke-width="2.2" points="460.3,-668.75 460.3,-676.75 458.7,-676.75 458.7,-668.75 460.3,-668.75"/>
+<polyline fill="none" stroke="#2e74b5" stroke-width="2.2" points="461.1,-672.75 457.1,-672.75 "/>
 </g>
 <!-- iam__device_permission_state&#45;&gt;iam__app_user -->
 <g id="edge8" class="edge">
@@ -277,14 +277,14 @@
 <!-- iam__push_token&#45;&gt;iam__device -->
 <g id="edge9" class="edge">
 <title>iam__push_token&#45;&gt;iam__device</title>
-<path fill="none" stroke="#595959" stroke-width="1.1" d="M361.62,-635C361.62,-635 457.48,-635 457.48,-635"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="464.68,-631 464.68,-639 463.08,-639 463.08,-631 464.68,-631"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="465.48,-635 461.48,-635 "/>
-<ellipse fill="none" stroke="#595959" stroke-width="1.1" cx="458.28" cy="-635" rx="3.2" ry="3.2"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="352.02,-639 352.02,-631 353.62,-631 353.62,-639 352.02,-639"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="351.22,-635 355.22,-635 "/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="356.02,-639 356.02,-631 357.62,-631 357.62,-639 356.02,-639"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="355.22,-635 359.22,-635 "/>
+<path fill="none" stroke="#2e74b5" stroke-width="2.2" d="M361.62,-635C361.62,-635 457.48,-635 457.48,-635"/>
+<polygon fill="#2e74b5" stroke="#2e74b5" stroke-width="2.2" points="464.68,-631 464.68,-639 463.08,-639 463.08,-631 464.68,-631"/>
+<polyline fill="none" stroke="#2e74b5" stroke-width="2.2" points="465.48,-635 461.48,-635 "/>
+<ellipse fill="none" stroke="#2e74b5" stroke-width="2.2" cx="458.28" cy="-635" rx="3.2" ry="3.2"/>
+<polygon fill="#2e74b5" stroke="#2e74b5" stroke-width="2.2" points="352.02,-639 352.02,-631 353.62,-631 353.62,-639 352.02,-639"/>
+<polyline fill="none" stroke="#2e74b5" stroke-width="2.2" points="351.22,-635 355.22,-635 "/>
+<polygon fill="#2e74b5" stroke="#2e74b5" stroke-width="2.2" points="356.02,-639 356.02,-631 357.62,-631 357.62,-639 356.02,-639"/>
+<polyline fill="none" stroke="#2e74b5" stroke-width="2.2" points="355.22,-635 359.22,-635 "/>
 </g>
 <!-- iam__api_client -->
 <g id="node7" class="node">

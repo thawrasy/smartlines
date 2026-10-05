@@ -358,13 +358,13 @@
 <!-- brd__manifest_person&#45;&gt;brd__manifest -->
 <g id="edge14" class="edge">
 <title>brd__manifest_person&#45;&gt;brd__manifest</title>
-<path fill="none" stroke="#595959" stroke-width="1.1" d="M160,-586.37C160,-586.37 160,-512.33 160,-512.33 160,-512.33 236.74,-512.33 236.74,-512.33"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="160,-592.77 156.4,-600.77 160,-596.77 160,-600.77 160,-600.77 160,-600.77 160,-596.77 163.6,-600.77 160,-592.77 160,-592.77"/>
-<ellipse fill="none" stroke="#595959" stroke-width="1.1" cx="160" cy="-589.57" rx="3.2" ry="3.2"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="243.94,-508.33 243.94,-516.33 242.34,-516.33 242.34,-508.33 243.94,-508.33"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="244.74,-512.33 240.74,-512.33 "/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="239.94,-508.33 239.94,-516.33 238.34,-516.33 238.34,-508.33 239.94,-508.33"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="240.74,-512.33 236.74,-512.33 "/>
+<path fill="none" stroke="#b03a2e" stroke-width="2.2" d="M160,-586.37C160,-586.37 160,-512.33 160,-512.33 160,-512.33 236.74,-512.33 236.74,-512.33"/>
+<polygon fill="#b03a2e" stroke="#b03a2e" stroke-width="2.2" points="160,-592.77 156.4,-600.77 160,-596.77 160,-600.77 160,-600.77 160,-600.77 160,-596.77 163.6,-600.77 160,-592.77 160,-592.77"/>
+<ellipse fill="none" stroke="#b03a2e" stroke-width="2.2" cx="160" cy="-589.57" rx="3.2" ry="3.2"/>
+<polygon fill="#b03a2e" stroke="#b03a2e" stroke-width="2.2" points="243.94,-508.33 243.94,-516.33 242.34,-516.33 242.34,-508.33 243.94,-508.33"/>
+<polyline fill="none" stroke="#b03a2e" stroke-width="2.2" points="244.74,-512.33 240.74,-512.33 "/>
+<polygon fill="#b03a2e" stroke="#b03a2e" stroke-width="2.2" points="239.94,-508.33 239.94,-516.33 238.34,-516.33 238.34,-508.33 239.94,-508.33"/>
+<polyline fill="none" stroke="#b03a2e" stroke-width="2.2" points="240.74,-512.33 236.74,-512.33 "/>
 </g>
 <!-- iam__party -->
 <g id="node11" class="node">
@@ -455,13 +455,13 @@
 <!-- brd__manifest_vehicle&#45;&gt;brd__manifest -->
 <g id="edge18" class="edge">
 <title>brd__manifest_vehicle&#45;&gt;brd__manifest</title>
-<path fill="none" stroke="#595959" stroke-width="1.1" d="M161.07,-330.25C161.07,-330.25 258,-330.25 258,-330.25 258,-330.25 258,-331.73 258,-331.73"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="154.67,-330.25 146.67,-326.65 150.67,-330.25 146.67,-330.25 146.67,-330.25 146.67,-330.25 150.67,-330.25 146.67,-333.85 154.67,-330.25 154.67,-330.25"/>
-<ellipse fill="none" stroke="#595959" stroke-width="1.1" cx="157.87" cy="-330.25" rx="3.2" ry="3.2"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="262,-338.93 254,-338.93 254,-337.33 262,-337.33 262,-338.93"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="258,-339.73 258,-335.73 "/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="262,-334.93 254,-334.93 254,-333.33 262,-333.33 262,-334.93"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="258,-335.73 258,-331.73 "/>
+<path fill="none" stroke="#b03a2e" stroke-width="2.2" d="M161.07,-330.25C161.07,-330.25 258,-330.25 258,-330.25 258,-330.25 258,-331.73 258,-331.73"/>
+<polygon fill="#b03a2e" stroke="#b03a2e" stroke-width="2.2" points="154.67,-330.25 146.67,-326.65 150.67,-330.25 146.67,-330.25 146.67,-330.25 146.67,-330.25 150.67,-330.25 146.67,-333.85 154.67,-330.25 154.67,-330.25"/>
+<ellipse fill="none" stroke="#b03a2e" stroke-width="2.2" cx="157.87" cy="-330.25" rx="3.2" ry="3.2"/>
+<polygon fill="#b03a2e" stroke="#b03a2e" stroke-width="2.2" points="262,-338.93 254,-338.93 254,-337.33 262,-337.33 262,-338.93"/>
+<polyline fill="none" stroke="#b03a2e" stroke-width="2.2" points="258,-339.73 258,-335.73 "/>
+<polygon fill="#b03a2e" stroke="#b03a2e" stroke-width="2.2" points="262,-334.93 254,-334.93 254,-333.33 262,-333.33 262,-334.93"/>
+<polyline fill="none" stroke="#b03a2e" stroke-width="2.2" points="258,-335.73 258,-331.73 "/>
 </g>
 <!-- fleet__trailer -->
 <g id="node9" class="node">
@@ -540,13 +540,13 @@
 <!-- brd__manifest_cargo&#45;&gt;brd__manifest -->
 <g id="edge23" class="edge">
 <title>brd__manifest_cargo&#45;&gt;brd__manifest</title>
-<path fill="none" stroke="#595959" stroke-width="1.1" d="M152,-190.08C152,-190.08 152,-354.5 152,-354.5 152,-354.5 236.9,-354.5 236.9,-354.5"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="152,-183.68 155.6,-175.68 152,-179.68 152,-175.68 152,-175.68 152,-175.68 152,-179.68 148.4,-175.68 152,-183.68 152,-183.68"/>
-<ellipse fill="none" stroke="#595959" stroke-width="1.1" cx="152" cy="-186.88" rx="3.2" ry="3.2"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="244.1,-350.5 244.1,-358.5 242.5,-358.5 242.5,-350.5 244.1,-350.5"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="244.9,-354.5 240.9,-354.5 "/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="240.1,-350.5 240.1,-358.5 238.5,-358.5 238.5,-350.5 240.1,-350.5"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="240.9,-354.5 236.9,-354.5 "/>
+<path fill="none" stroke="#b03a2e" stroke-width="2.2" d="M152,-190.08C152,-190.08 152,-354.5 152,-354.5 152,-354.5 236.9,-354.5 236.9,-354.5"/>
+<polygon fill="#b03a2e" stroke="#b03a2e" stroke-width="2.2" points="152,-183.68 155.6,-175.68 152,-179.68 152,-175.68 152,-175.68 152,-175.68 152,-179.68 148.4,-175.68 152,-183.68 152,-183.68"/>
+<ellipse fill="none" stroke="#b03a2e" stroke-width="2.2" cx="152" cy="-186.88" rx="3.2" ry="3.2"/>
+<polygon fill="#b03a2e" stroke="#b03a2e" stroke-width="2.2" points="244.1,-350.5 244.1,-358.5 242.5,-358.5 242.5,-350.5 244.1,-350.5"/>
+<polyline fill="none" stroke="#b03a2e" stroke-width="2.2" points="244.9,-354.5 240.9,-354.5 "/>
+<polygon fill="#b03a2e" stroke="#b03a2e" stroke-width="2.2" points="240.1,-350.5 240.1,-358.5 238.5,-358.5 238.5,-350.5 240.1,-350.5"/>
+<polyline fill="none" stroke="#b03a2e" stroke-width="2.2" points="240.9,-354.5 236.9,-354.5 "/>
 </g>
 <!-- ref__cargo_category -->
 <g id="node15" class="node">

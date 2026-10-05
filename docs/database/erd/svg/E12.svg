@@ -511,13 +511,13 @@
 <!-- sales__channel_statement_line&#45;&gt;sales__channel_statement -->
 <g id="edge18" class="edge">
 <title>sales__channel_statement_line&#45;&gt;sales__channel_statement</title>
-<path fill="none" stroke="#595959" stroke-width="1.1" d="M171.45,-638.75C171.45,-638.75 253.34,-638.75 253.34,-638.75"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="253.34,-638.75 261.34,-642.35 257.34,-638.75 261.34,-638.75 261.34,-638.75 261.34,-638.75 257.34,-638.75 261.34,-635.15 253.34,-638.75 253.34,-638.75"/>
-<ellipse fill="none" stroke="#595959" stroke-width="1.1" cx="250.14" cy="-638.75" rx="3.2" ry="3.2"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="157.85,-642.75 157.85,-634.75 159.45,-634.75 159.45,-642.75 157.85,-642.75"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="157.05,-638.75 161.05,-638.75 "/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="161.85,-642.75 161.85,-634.75 163.45,-634.75 163.45,-642.75 161.85,-642.75"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="161.05,-638.75 165.05,-638.75 "/>
+<path fill="none" stroke="#c55a11" stroke-width="2.2" d="M171.45,-638.75C171.45,-638.75 253.34,-638.75 253.34,-638.75"/>
+<polygon fill="#c55a11" stroke="#c55a11" stroke-width="2.2" points="253.34,-638.75 261.34,-642.35 257.34,-638.75 261.34,-638.75 261.34,-638.75 261.34,-638.75 257.34,-638.75 261.34,-635.15 253.34,-638.75 253.34,-638.75"/>
+<ellipse fill="none" stroke="#c55a11" stroke-width="2.2" cx="250.14" cy="-638.75" rx="3.2" ry="3.2"/>
+<polygon fill="#c55a11" stroke="#c55a11" stroke-width="2.2" points="157.85,-642.75 157.85,-634.75 159.45,-634.75 159.45,-642.75 157.85,-642.75"/>
+<polyline fill="none" stroke="#c55a11" stroke-width="2.2" points="157.05,-638.75 161.05,-638.75 "/>
+<polygon fill="#c55a11" stroke="#c55a11" stroke-width="2.2" points="161.85,-642.75 161.85,-634.75 163.45,-634.75 163.45,-642.75 161.85,-642.75"/>
+<polyline fill="none" stroke="#c55a11" stroke-width="2.2" points="161.05,-638.75 165.05,-638.75 "/>
 </g>
 <!-- sales__channel_statement_line&#45;&gt;sales__booking -->
 <g id="edge17" class="edge">
@@ -664,13 +664,13 @@
 <!-- sales__external_mapping&#45;&gt;sales__supplier_source -->
 <g id="edge22" class="edge">
 <title>sales__external_mapping&#45;&gt;sales__supplier_source</title>
-<path fill="none" stroke="#595959" stroke-width="1.1" d="M155.2,-59C155.2,-59 266.13,-59 266.13,-59"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="266.13,-59 274.13,-62.6 270.13,-59 274.13,-59 274.13,-59 274.13,-59 270.13,-59 274.13,-55.4 266.13,-59 266.13,-59"/>
-<ellipse fill="none" stroke="#595959" stroke-width="1.1" cx="262.93" cy="-59" rx="3.2" ry="3.2"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="141.6,-63 141.6,-55 143.2,-55 143.2,-63 141.6,-63"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="140.8,-59 144.8,-59 "/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="145.6,-63 145.6,-55 147.2,-55 147.2,-63 145.6,-63"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="144.8,-59 148.8,-59 "/>
+<path fill="none" stroke="#c55a11" stroke-width="2.2" d="M155.2,-59C155.2,-59 266.13,-59 266.13,-59"/>
+<polygon fill="#c55a11" stroke="#c55a11" stroke-width="2.2" points="266.13,-59 274.13,-62.6 270.13,-59 274.13,-59 274.13,-59 274.13,-59 270.13,-59 274.13,-55.4 266.13,-59 266.13,-59"/>
+<ellipse fill="none" stroke="#c55a11" stroke-width="2.2" cx="262.93" cy="-59" rx="3.2" ry="3.2"/>
+<polygon fill="#c55a11" stroke="#c55a11" stroke-width="2.2" points="141.6,-63 141.6,-55 143.2,-55 143.2,-63 141.6,-63"/>
+<polyline fill="none" stroke="#c55a11" stroke-width="2.2" points="140.8,-59 144.8,-59 "/>
+<polygon fill="#c55a11" stroke="#c55a11" stroke-width="2.2" points="145.6,-63 145.6,-55 147.2,-55 147.2,-63 145.6,-63"/>
+<polyline fill="none" stroke="#c55a11" stroke-width="2.2" points="144.8,-59 148.8,-59 "/>
 </g>
 </g>
 </svg>

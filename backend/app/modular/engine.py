@@ -450,10 +450,11 @@ async def run_action(conn: asyncpg.Connection, res: Resource, pr: Principal, key
     return await get_row(conn, res, key)
 
 
-async def lookup(conn: asyncpg.Connection, table: str, q: Optional[str], limit: int = 30) -> list:
+async def lookup(conn: asyncpg.Connection, table: str, q: Optional[str], limit: int = 30, key: Optional[str] = None) -> list:
+    """Options for a reference column; key is the referenced column when the foreign key does not point at the primary key."""
     meta = await table_meta(conn, table)
     lab = await label_expr(conn, table)
-    key = meta.pk[0]
+    key = key if key in meta.cols else meta.pk[0]
     params: list = [limit]
     where = "true"
     if q:

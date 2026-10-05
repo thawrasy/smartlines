@@ -440,13 +440,13 @@
 <!-- frt__leg_container&#45;&gt;ship__shipment_leg -->
 <g id="edge16" class="edge">
 <title>frt__leg_container&#45;&gt;ship__shipment_leg</title>
-<path fill="none" stroke="#595959" stroke-width="1.1" stroke-dasharray="5,2" d="M620.41,-1710C620.41,-1710 966,-1710 966,-1710 966,-1710 966,-1301.14 966,-1301.14"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="614.01,-1710 606.01,-1706.4 610.01,-1710 606.01,-1710 606.01,-1710 606.01,-1710 610.01,-1710 606.01,-1713.6 614.01,-1710 614.01,-1710"/>
-<ellipse fill="none" stroke="#595959" stroke-width="1.1" cx="617.21" cy="-1710" rx="3.2" ry="3.2"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="962,-1293.94 970,-1293.94 970,-1295.54 962,-1295.54 962,-1293.94"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="966,-1293.14 966,-1297.14 "/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="962,-1297.94 970,-1297.94 970,-1299.54 962,-1299.54 962,-1297.94"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="966,-1297.14 966,-1301.14 "/>
+<path fill="none" stroke="#bf8f00" stroke-width="2.2" stroke-dasharray="5,2" d="M620.41,-1710C620.41,-1710 966,-1710 966,-1710 966,-1710 966,-1301.14 966,-1301.14"/>
+<polygon fill="#bf8f00" stroke="#bf8f00" stroke-width="2.2" points="614.01,-1710 606.01,-1706.4 610.01,-1710 606.01,-1710 606.01,-1710 606.01,-1710 610.01,-1710 606.01,-1713.6 614.01,-1710 614.01,-1710"/>
+<ellipse fill="none" stroke="#bf8f00" stroke-width="2.2" cx="617.21" cy="-1710" rx="3.2" ry="3.2"/>
+<polygon fill="#bf8f00" stroke="#bf8f00" stroke-width="2.2" points="962,-1293.94 970,-1293.94 970,-1295.54 962,-1295.54 962,-1293.94"/>
+<polyline fill="none" stroke="#bf8f00" stroke-width="2.2" points="966,-1293.14 966,-1297.14 "/>
+<polygon fill="#bf8f00" stroke="#bf8f00" stroke-width="2.2" points="962,-1297.94 970,-1297.94 970,-1299.54 962,-1299.54 962,-1297.94"/>
+<polyline fill="none" stroke="#bf8f00" stroke-width="2.2" points="966,-1297.14 966,-1301.14 "/>
 </g>
 <!-- frt__handover_event -->
 <g id="node6" class="node">

@@ -197,13 +197,13 @@
 <!-- fleet__seat_layout_seat&#45;&gt;fleet__seat_layout -->
 <g id="edge6" class="edge">
 <title>fleet__seat_layout_seat&#45;&gt;fleet__seat_layout</title>
-<path fill="none" stroke="#595959" stroke-width="1.1" d="M623.73,-753.5C623.73,-753.5 717,-753.5 717,-753.5 717,-753.5 717,-535.55 717,-535.55"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="617.33,-753.5 609.33,-749.9 613.33,-753.5 609.33,-753.5 609.33,-753.5 609.33,-753.5 613.33,-753.5 609.33,-757.1 617.33,-753.5 617.33,-753.5"/>
-<ellipse fill="none" stroke="#595959" stroke-width="1.1" cx="620.53" cy="-753.5" rx="3.2" ry="3.2"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="713,-528.35 721,-528.35 721,-529.95 713,-529.95 713,-528.35"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="717,-527.55 717,-531.55 "/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="713,-532.35 721,-532.35 721,-533.95 713,-533.95 713,-532.35"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="717,-531.55 717,-535.55 "/>
+<path fill="none" stroke="#548235" stroke-width="2.2" d="M623.73,-753.5C623.73,-753.5 717,-753.5 717,-753.5 717,-753.5 717,-535.55 717,-535.55"/>
+<polygon fill="#548235" stroke="#548235" stroke-width="2.2" points="617.33,-753.5 609.33,-749.9 613.33,-753.5 609.33,-753.5 609.33,-753.5 609.33,-753.5 613.33,-753.5 609.33,-757.1 617.33,-753.5 617.33,-753.5"/>
+<ellipse fill="none" stroke="#548235" stroke-width="2.2" cx="620.53" cy="-753.5" rx="3.2" ry="3.2"/>
+<polygon fill="#548235" stroke="#548235" stroke-width="2.2" points="713,-528.35 721,-528.35 721,-529.95 713,-529.95 713,-528.35"/>
+<polyline fill="none" stroke="#548235" stroke-width="2.2" points="717,-527.55 717,-531.55 "/>
+<polygon fill="#548235" stroke="#548235" stroke-width="2.2" points="713,-532.35 721,-532.35 721,-533.95 713,-533.95 713,-532.35"/>
+<polyline fill="none" stroke="#548235" stroke-width="2.2" points="717,-531.55 717,-535.55 "/>
 </g>
 <!-- fleet__seat_price_rule -->
 <g id="node4" class="node">

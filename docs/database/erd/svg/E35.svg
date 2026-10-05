@@ -159,13 +159,13 @@
 <!-- ctr__contract_route&#45;&gt;ctr__service_contract -->
 <g id="edge5" class="edge">
 <title>ctr__contract_route&#45;&gt;ctr__service_contract</title>
-<path fill="none" stroke="#595959" stroke-width="1.1" d="M400,-657.08C400,-657.08 400,-664.17 400,-664.17 400,-664.17 486.74,-664.17 486.74,-664.17"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="400,-650.68 403.6,-642.68 400,-646.68 400,-642.68 400,-642.68 400,-642.68 400,-646.68 396.4,-642.68 400,-650.68 400,-650.68"/>
-<ellipse fill="none" stroke="#595959" stroke-width="1.1" cx="400" cy="-653.88" rx="3.2" ry="3.2"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="493.94,-660.17 493.94,-668.17 492.34,-668.17 492.34,-660.17 493.94,-660.17"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="494.74,-664.17 490.74,-664.17 "/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="489.94,-660.17 489.94,-668.17 488.34,-668.17 488.34,-660.17 489.94,-660.17"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="490.74,-664.17 486.74,-664.17 "/>
+<path fill="none" stroke="#bf8f00" stroke-width="2.2" d="M400,-657.08C400,-657.08 400,-664.17 400,-664.17 400,-664.17 486.74,-664.17 486.74,-664.17"/>
+<polygon fill="#bf8f00" stroke="#bf8f00" stroke-width="2.2" points="400,-650.68 403.6,-642.68 400,-646.68 400,-642.68 400,-642.68 400,-642.68 400,-646.68 396.4,-642.68 400,-650.68 400,-650.68"/>
+<ellipse fill="none" stroke="#bf8f00" stroke-width="2.2" cx="400" cy="-653.88" rx="3.2" ry="3.2"/>
+<polygon fill="#bf8f00" stroke="#bf8f00" stroke-width="2.2" points="493.94,-660.17 493.94,-668.17 492.34,-668.17 492.34,-660.17 493.94,-660.17"/>
+<polyline fill="none" stroke="#bf8f00" stroke-width="2.2" points="494.74,-664.17 490.74,-664.17 "/>
+<polygon fill="#bf8f00" stroke="#bf8f00" stroke-width="2.2" points="489.94,-660.17 489.94,-668.17 488.34,-668.17 488.34,-660.17 489.94,-660.17"/>
+<polyline fill="none" stroke="#bf8f00" stroke-width="2.2" points="490.74,-664.17 486.74,-664.17 "/>
 </g>
 <!-- fleet__vehicle -->
 <g id="node7" class="node">
@@ -274,13 +274,13 @@
 <!-- ctr__contract_rider&#45;&gt;ctr__service_contract -->
 <g id="edge9" class="edge">
 <title>ctr__contract_rider&#45;&gt;ctr__service_contract</title>
-<path fill="none" stroke="#595959" stroke-width="1.1" d="M409,-317.92C409,-317.92 409,-653.33 409,-653.33 409,-653.33 487,-653.33 487,-653.33"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="409,-311.52 412.6,-303.52 409,-307.52 409,-303.52 409,-303.52 409,-303.52 409,-307.52 405.4,-303.52 409,-311.52 409,-311.52"/>
-<ellipse fill="none" stroke="#595959" stroke-width="1.1" cx="409" cy="-314.72" rx="3.2" ry="3.2"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="494.2,-649.33 494.2,-657.33 492.6,-657.33 492.6,-649.33 494.2,-649.33"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="495,-653.33 491,-653.33 "/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="490.2,-649.33 490.2,-657.33 488.6,-657.33 488.6,-649.33 490.2,-649.33"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="491,-653.33 487,-653.33 "/>
+<path fill="none" stroke="#bf8f00" stroke-width="2.2" d="M409,-317.92C409,-317.92 409,-653.33 409,-653.33 409,-653.33 487,-653.33 487,-653.33"/>
+<polygon fill="#bf8f00" stroke="#bf8f00" stroke-width="2.2" points="409,-311.52 412.6,-303.52 409,-307.52 409,-303.52 409,-303.52 409,-303.52 409,-307.52 405.4,-303.52 409,-311.52 409,-311.52"/>
+<ellipse fill="none" stroke="#bf8f00" stroke-width="2.2" cx="409" cy="-314.72" rx="3.2" ry="3.2"/>
+<polygon fill="#bf8f00" stroke="#bf8f00" stroke-width="2.2" points="494.2,-649.33 494.2,-657.33 492.6,-657.33 492.6,-649.33 494.2,-649.33"/>
+<polyline fill="none" stroke="#bf8f00" stroke-width="2.2" points="495,-653.33 491,-653.33 "/>
+<polygon fill="#bf8f00" stroke="#bf8f00" stroke-width="2.2" points="490.2,-649.33 490.2,-657.33 488.6,-657.33 488.6,-649.33 490.2,-649.33"/>
+<polyline fill="none" stroke="#bf8f00" stroke-width="2.2" points="491,-653.33 487,-653.33 "/>
 </g>
 <!-- ctr__contract_rider&#45;&gt;iam__party -->
 <g id="edge11" class="edge">
@@ -355,13 +355,13 @@
 <!-- ctr__authorized_receiver&#45;&gt;ctr__contract_rider -->
 <g id="edge15" class="edge">
 <title>ctr__authorized_receiver&#45;&gt;ctr__contract_rider</title>
-<path fill="none" stroke="#595959" stroke-width="1.1" d="M164.53,-273.75C164.53,-273.75 235.83,-273.75 235.83,-273.75"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="235.83,-273.75 243.83,-277.35 239.83,-273.75 243.83,-273.75 243.83,-273.75 243.83,-273.75 239.83,-273.75 243.83,-270.15 235.83,-273.75 235.83,-273.75"/>
-<ellipse fill="none" stroke="#595959" stroke-width="1.1" cx="232.63" cy="-273.75" rx="3.2" ry="3.2"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="150.93,-277.75 150.93,-269.75 152.53,-269.75 152.53,-277.75 150.93,-277.75"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="150.13,-273.75 154.13,-273.75 "/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="154.93,-277.75 154.93,-269.75 156.53,-269.75 156.53,-277.75 154.93,-277.75"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="154.13,-273.75 158.13,-273.75 "/>
+<path fill="none" stroke="#bf8f00" stroke-width="2.2" d="M164.53,-273.75C164.53,-273.75 235.83,-273.75 235.83,-273.75"/>
+<polygon fill="#bf8f00" stroke="#bf8f00" stroke-width="2.2" points="235.83,-273.75 243.83,-277.35 239.83,-273.75 243.83,-273.75 243.83,-273.75 243.83,-273.75 239.83,-273.75 243.83,-270.15 235.83,-273.75 235.83,-273.75"/>
+<ellipse fill="none" stroke="#bf8f00" stroke-width="2.2" cx="232.63" cy="-273.75" rx="3.2" ry="3.2"/>
+<polygon fill="#bf8f00" stroke="#bf8f00" stroke-width="2.2" points="150.93,-277.75 150.93,-269.75 152.53,-269.75 152.53,-277.75 150.93,-277.75"/>
+<polyline fill="none" stroke="#bf8f00" stroke-width="2.2" points="150.13,-273.75 154.13,-273.75 "/>
+<polygon fill="#bf8f00" stroke="#bf8f00" stroke-width="2.2" points="154.93,-277.75 154.93,-269.75 156.53,-269.75 156.53,-277.75 154.93,-277.75"/>
+<polyline fill="none" stroke="#bf8f00" stroke-width="2.2" points="154.13,-273.75 158.13,-273.75 "/>
 </g>
 <!-- ctr__authorized_receiver&#45;&gt;iam__party -->
 <g id="edge14" class="edge">

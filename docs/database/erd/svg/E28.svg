@@ -395,13 +395,13 @@
 <!-- ship__rate_table_entry&#45;&gt;ship__rate_table -->
 <g id="edge11" class="edge">
 <title>ship__rate_table_entry&#45;&gt;ship__rate_table</title>
-<path fill="none" stroke="#595959" stroke-width="1.1" d="M179.51,-252C179.51,-252 246.75,-252 246.75,-252"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="246.75,-252 254.75,-255.6 250.75,-252 254.75,-252 254.75,-252 254.75,-252 250.75,-252 254.75,-248.4 246.75,-252 246.75,-252"/>
-<ellipse fill="none" stroke="#595959" stroke-width="1.1" cx="243.55" cy="-252" rx="3.2" ry="3.2"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="165.91,-256 165.91,-248 167.51,-248 167.51,-256 165.91,-256"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="165.11,-252 169.11,-252 "/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="169.91,-256 169.91,-248 171.51,-248 171.51,-256 169.91,-256"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="169.11,-252 173.11,-252 "/>
+<path fill="none" stroke="#548235" stroke-width="2.2" d="M179.51,-252C179.51,-252 246.75,-252 246.75,-252"/>
+<polygon fill="#548235" stroke="#548235" stroke-width="2.2" points="246.75,-252 254.75,-255.6 250.75,-252 254.75,-252 254.75,-252 254.75,-252 250.75,-252 254.75,-248.4 246.75,-252 246.75,-252"/>
+<ellipse fill="none" stroke="#548235" stroke-width="2.2" cx="243.55" cy="-252" rx="3.2" ry="3.2"/>
+<polygon fill="#548235" stroke="#548235" stroke-width="2.2" points="165.91,-256 165.91,-248 167.51,-248 167.51,-256 165.91,-256"/>
+<polyline fill="none" stroke="#548235" stroke-width="2.2" points="165.11,-252 169.11,-252 "/>
+<polygon fill="#548235" stroke="#548235" stroke-width="2.2" points="169.91,-256 169.91,-248 171.51,-248 171.51,-256 169.91,-256"/>
+<polyline fill="none" stroke="#548235" stroke-width="2.2" points="169.11,-252 173.11,-252 "/>
 </g>
 <!-- ship__fuel_surcharge_index -->
 <g id="node9" class="node">

@@ -332,13 +332,13 @@
 <!-- crm__call_agent_skill&#45;&gt;crm__call_agent -->
 <g id="edge9" class="edge">
 <title>crm__call_agent_skill&#45;&gt;crm__call_agent</title>
-<path fill="none" stroke="#595959" stroke-width="1.1" d="M307,-391.29C307,-391.29 307,-340.17 307,-340.17 307,-340.17 457.25,-340.17 457.25,-340.17"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="307,-397.69 303.4,-405.69 307,-401.69 307,-405.69 307,-405.69 307,-405.69 307,-401.69 310.6,-405.69 307,-397.69 307,-397.69"/>
-<ellipse fill="none" stroke="#595959" stroke-width="1.1" cx="307" cy="-394.49" rx="3.2" ry="3.2"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="464.45,-336.17 464.45,-344.17 462.85,-344.17 462.85,-336.17 464.45,-336.17"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="465.25,-340.17 461.25,-340.17 "/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="460.45,-336.17 460.45,-344.17 458.85,-344.17 458.85,-336.17 460.45,-336.17"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="461.25,-340.17 457.25,-340.17 "/>
+<path fill="none" stroke="#0e7c86" stroke-width="2.2" d="M307,-391.29C307,-391.29 307,-340.17 307,-340.17 307,-340.17 457.25,-340.17 457.25,-340.17"/>
+<polygon fill="#0e7c86" stroke="#0e7c86" stroke-width="2.2" points="307,-397.69 303.4,-405.69 307,-401.69 307,-405.69 307,-405.69 307,-405.69 307,-401.69 310.6,-405.69 307,-397.69 307,-397.69"/>
+<ellipse fill="none" stroke="#0e7c86" stroke-width="2.2" cx="307" cy="-394.49" rx="3.2" ry="3.2"/>
+<polygon fill="#0e7c86" stroke="#0e7c86" stroke-width="2.2" points="464.45,-336.17 464.45,-344.17 462.85,-344.17 462.85,-336.17 464.45,-336.17"/>
+<polyline fill="none" stroke="#0e7c86" stroke-width="2.2" points="465.25,-340.17 461.25,-340.17 "/>
+<polygon fill="#0e7c86" stroke="#0e7c86" stroke-width="2.2" points="460.45,-336.17 460.45,-344.17 458.85,-344.17 458.85,-336.17 460.45,-336.17"/>
+<polyline fill="none" stroke="#0e7c86" stroke-width="2.2" points="461.25,-340.17 457.25,-340.17 "/>
 </g>
 <!-- crm__call_queue_skill -->
 <g id="node7" class="node">
@@ -364,13 +364,13 @@
 <!-- crm__call_queue_skill&#45;&gt;crm__call_queue -->
 <g id="edge11" class="edge">
 <title>crm__call_queue_skill&#45;&gt;crm__call_queue</title>
-<path fill="none" stroke="#595959" stroke-width="1.1" d="M379.54,-548C379.54,-548 517,-548 517,-548 517,-548 517,-532.44 517,-532.44"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="373.14,-548 365.14,-544.4 369.14,-548 365.14,-548 365.14,-548 365.14,-548 369.14,-548 365.14,-551.6 373.14,-548 373.14,-548"/>
-<ellipse fill="none" stroke="#595959" stroke-width="1.1" cx="376.34" cy="-548" rx="3.2" ry="3.2"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="513,-525.24 521,-525.24 521,-526.84 513,-526.84 513,-525.24"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="517,-524.44 517,-528.44 "/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="513,-529.24 521,-529.24 521,-530.84 513,-530.84 513,-529.24"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="517,-528.44 517,-532.44 "/>
+<path fill="none" stroke="#0e7c86" stroke-width="2.2" d="M379.54,-548C379.54,-548 517,-548 517,-548 517,-548 517,-532.44 517,-532.44"/>
+<polygon fill="#0e7c86" stroke="#0e7c86" stroke-width="2.2" points="373.14,-548 365.14,-544.4 369.14,-548 365.14,-548 365.14,-548 365.14,-548 369.14,-548 365.14,-551.6 373.14,-548 373.14,-548"/>
+<ellipse fill="none" stroke="#0e7c86" stroke-width="2.2" cx="376.34" cy="-548" rx="3.2" ry="3.2"/>
+<polygon fill="#0e7c86" stroke="#0e7c86" stroke-width="2.2" points="513,-525.24 521,-525.24 521,-526.84 513,-526.84 513,-525.24"/>
+<polyline fill="none" stroke="#0e7c86" stroke-width="2.2" points="517,-524.44 517,-528.44 "/>
+<polygon fill="#0e7c86" stroke="#0e7c86" stroke-width="2.2" points="513,-529.24 521,-529.24 521,-530.84 513,-530.84 513,-529.24"/>
+<polyline fill="none" stroke="#0e7c86" stroke-width="2.2" points="517,-528.44 517,-532.44 "/>
 </g>
 <!-- crm__call_queue_skill&#45;&gt;crm__call_skill -->
 <g id="edge12" class="edge">

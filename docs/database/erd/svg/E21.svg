@@ -90,13 +90,13 @@
 <!-- acct__account_mapping&#45;&gt;acct__accounting_connection -->
 <g id="edge2" class="edge">
 <title>acct__account_mapping&#45;&gt;acct__accounting_connection</title>
-<path fill="none" stroke="#595959" stroke-width="1.1" d="M574.59,-204.75C574.59,-204.75 630.71,-204.75 630.71,-204.75"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="630.71,-204.75 638.71,-208.35 634.71,-204.75 638.71,-204.75 638.71,-204.75 638.71,-204.75 634.71,-204.75 638.71,-201.15 630.71,-204.75 630.71,-204.75"/>
-<ellipse fill="none" stroke="#595959" stroke-width="1.1" cx="627.51" cy="-204.75" rx="3.2" ry="3.2"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="560.99,-208.75 560.99,-200.75 562.59,-200.75 562.59,-208.75 560.99,-208.75"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="560.19,-204.75 564.19,-204.75 "/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="564.99,-208.75 564.99,-200.75 566.59,-200.75 566.59,-208.75 564.99,-208.75"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="564.19,-204.75 568.19,-204.75 "/>
+<path fill="none" stroke="#7030a0" stroke-width="2.2" d="M574.59,-204.75C574.59,-204.75 630.71,-204.75 630.71,-204.75"/>
+<polygon fill="#7030a0" stroke="#7030a0" stroke-width="2.2" points="630.71,-204.75 638.71,-208.35 634.71,-204.75 638.71,-204.75 638.71,-204.75 638.71,-204.75 634.71,-204.75 638.71,-201.15 630.71,-204.75 630.71,-204.75"/>
+<ellipse fill="none" stroke="#7030a0" stroke-width="2.2" cx="627.51" cy="-204.75" rx="3.2" ry="3.2"/>
+<polygon fill="#7030a0" stroke="#7030a0" stroke-width="2.2" points="560.99,-208.75 560.99,-200.75 562.59,-200.75 562.59,-208.75 560.99,-208.75"/>
+<polyline fill="none" stroke="#7030a0" stroke-width="2.2" points="560.19,-204.75 564.19,-204.75 "/>
+<polygon fill="#7030a0" stroke="#7030a0" stroke-width="2.2" points="564.99,-208.75 564.99,-200.75 566.59,-200.75 566.59,-208.75 564.99,-208.75"/>
+<polyline fill="none" stroke="#7030a0" stroke-width="2.2" points="564.19,-204.75 568.19,-204.75 "/>
 </g>
 <!-- acct__sync_job -->
 <g id="node3" class="node">

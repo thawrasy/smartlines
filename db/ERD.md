@@ -77,7 +77,7 @@ flowchart LR
   net -->|3| ref
   ops -->|2| fin
   ops -->|8| fleet
-  ops -->|13| iam
+  ops -->|14| iam
   ops -->|15| net
   ops -->|1| ref
   ops -->|2| sales
@@ -1149,6 +1149,7 @@ erDiagram
     bigint id PK
     bigint trip_id FK
     bigint vehicle_id FK
+    text key_id FK
   }
   ops_proximity_sample {
     bigint ride_id PK
@@ -1173,6 +1174,7 @@ erDiagram
     smallint seat_no PK
     smallint seg PK
     text status
+    bigint lock_user_id FK
     bigint ticket_id FK
   }
   ops_shuttle_ride {
@@ -1350,6 +1352,7 @@ erDiagram
   ops_tracking_state }o..o| iam_app_user : "driver_user_id"
   ops_driver_notice }o--|| iam_app_user : "user_id"
   ops_shuttle_ride }o--|| iam_app_user : "user_id"
+  ops_seat_segment }o..o| iam_app_user : "lock_user_id"
   ops_transit_reconciliation }o..o| iam_app_user : "resolved_by_user_id"
   ops_seat_lock }o..o| iam_app_user : "user_id"
   ops_crossing_event }o..o| iam_app_user : "recorded_by_user_id"
@@ -1559,6 +1562,7 @@ erDiagram
     bigint id PK
     bigint subscription_id FK
     bigint nfc_card_id FK
+    text qr_key_id FK
     text status
   }
   sales_shuttle_zone {
@@ -2123,6 +2127,7 @@ erDiagram
     bigint company_id FK
     text status
     bigint closed_by FK
+    bigint id PK
   }
   acct_journal_entry {
     bigint id PK

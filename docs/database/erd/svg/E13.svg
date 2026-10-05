@@ -162,13 +162,13 @@
 <!-- pricing__fare_table_item&#45;&gt;pricing__fare_table -->
 <g id="edge4" class="edge">
 <title>pricing__fare_table_item&#45;&gt;pricing__fare_table</title>
-<path fill="none" stroke="#595959" stroke-width="1.1" d="M189.41,-377.5C189.41,-377.5 260,-377.5 260,-377.5 260,-377.5 260,-493.81 260,-493.81"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="183.01,-377.5 175.01,-373.9 179.01,-377.5 175.01,-377.5 175.01,-377.5 175.01,-377.5 179.01,-377.5 175.01,-381.1 183.01,-377.5 183.01,-377.5"/>
-<ellipse fill="none" stroke="#595959" stroke-width="1.1" cx="186.21" cy="-377.5" rx="3.2" ry="3.2"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="264,-501.01 256,-501.01 256,-499.41 264,-499.41 264,-501.01"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="260,-501.81 260,-497.81 "/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="264,-497.01 256,-497.01 256,-495.41 264,-495.41 264,-497.01"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="260,-497.81 260,-493.81 "/>
+<path fill="none" stroke="#7030a0" stroke-width="2.2" d="M189.41,-377.5C189.41,-377.5 260,-377.5 260,-377.5 260,-377.5 260,-493.81 260,-493.81"/>
+<polygon fill="#7030a0" stroke="#7030a0" stroke-width="2.2" points="183.01,-377.5 175.01,-373.9 179.01,-377.5 175.01,-377.5 175.01,-377.5 175.01,-377.5 179.01,-377.5 175.01,-381.1 183.01,-377.5 183.01,-377.5"/>
+<ellipse fill="none" stroke="#7030a0" stroke-width="2.2" cx="186.21" cy="-377.5" rx="3.2" ry="3.2"/>
+<polygon fill="#7030a0" stroke="#7030a0" stroke-width="2.2" points="264,-501.01 256,-501.01 256,-499.41 264,-499.41 264,-501.01"/>
+<polyline fill="none" stroke="#7030a0" stroke-width="2.2" points="260,-501.81 260,-497.81 "/>
+<polygon fill="#7030a0" stroke="#7030a0" stroke-width="2.2" points="264,-497.01 256,-497.01 256,-495.41 264,-495.41 264,-497.01"/>
+<polyline fill="none" stroke="#7030a0" stroke-width="2.2" points="260,-497.81 260,-493.81 "/>
 </g>
 <!-- net__station -->
 <g id="node17" class="node">
@@ -424,13 +424,13 @@
 <!-- pricing__tax_rule&#45;&gt;pricing__tax_scheme -->
 <g id="edge12" class="edge">
 <title>pricing__tax_rule&#45;&gt;pricing__tax_scheme</title>
-<path fill="none" stroke="#595959" stroke-width="1.1" d="M398.19,-869.5C398.19,-869.5 463.69,-869.5 463.69,-869.5"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="463.69,-869.5 471.69,-873.1 467.69,-869.5 471.69,-869.5 471.69,-869.5 471.69,-869.5 467.69,-869.5 471.69,-865.9 463.69,-869.5 463.69,-869.5"/>
-<ellipse fill="none" stroke="#595959" stroke-width="1.1" cx="460.49" cy="-869.5" rx="3.2" ry="3.2"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="384.59,-873.5 384.59,-865.5 386.19,-865.5 386.19,-873.5 384.59,-873.5"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="383.79,-869.5 387.79,-869.5 "/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="388.59,-873.5 388.59,-865.5 390.19,-865.5 390.19,-873.5 388.59,-873.5"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="387.79,-869.5 391.79,-869.5 "/>
+<path fill="none" stroke="#7030a0" stroke-width="2.2" d="M398.19,-869.5C398.19,-869.5 463.69,-869.5 463.69,-869.5"/>
+<polygon fill="#7030a0" stroke="#7030a0" stroke-width="2.2" points="463.69,-869.5 471.69,-873.1 467.69,-869.5 471.69,-869.5 471.69,-869.5 471.69,-869.5 467.69,-869.5 471.69,-865.9 463.69,-869.5 463.69,-869.5"/>
+<ellipse fill="none" stroke="#7030a0" stroke-width="2.2" cx="460.49" cy="-869.5" rx="3.2" ry="3.2"/>
+<polygon fill="#7030a0" stroke="#7030a0" stroke-width="2.2" points="384.59,-873.5 384.59,-865.5 386.19,-865.5 386.19,-873.5 384.59,-873.5"/>
+<polyline fill="none" stroke="#7030a0" stroke-width="2.2" points="383.79,-869.5 387.79,-869.5 "/>
+<polygon fill="#7030a0" stroke="#7030a0" stroke-width="2.2" points="388.59,-873.5 388.59,-865.5 390.19,-865.5 390.19,-873.5 388.59,-873.5"/>
+<polyline fill="none" stroke="#7030a0" stroke-width="2.2" points="387.79,-869.5 391.79,-869.5 "/>
 </g>
 <!-- pricing__rate_band -->
 <g id="node9" class="node">
@@ -474,12 +474,12 @@
 <!-- pricing__rate_band&#45;&gt;pricing__tax_rule -->
 <g id="edge14" class="edge">
 <title>pricing__rate_band&#45;&gt;pricing__tax_rule</title>
-<path fill="none" stroke="#595959" stroke-width="1.1" d="M181.14,-838C181.14,-838 252.73,-838 252.73,-838"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="255.13,-838 263.13,-841.6 259.13,-838 263.13,-838 263.13,-838 263.13,-838 259.13,-838 263.13,-834.4 255.13,-838 255.13,-838"/>
-<ellipse fill="none" stroke="#595959" stroke-width="1.1" cx="251.93" cy="-838" rx="3.2" ry="3.2"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="167.54,-842 167.54,-834 169.14,-834 169.14,-842 167.54,-842"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="166.74,-838 170.74,-838 "/>
-<ellipse fill="none" stroke="#595959" stroke-width="1.1" cx="173.94" cy="-838" rx="3.2" ry="3.2"/>
+<path fill="none" stroke="#7030a0" stroke-width="2.2" d="M181.14,-838C181.14,-838 252.73,-838 252.73,-838"/>
+<polygon fill="#7030a0" stroke="#7030a0" stroke-width="2.2" points="255.13,-838 263.13,-841.6 259.13,-838 263.13,-838 263.13,-838 263.13,-838 259.13,-838 263.13,-834.4 255.13,-838 255.13,-838"/>
+<ellipse fill="none" stroke="#7030a0" stroke-width="2.2" cx="251.93" cy="-838" rx="3.2" ry="3.2"/>
+<polygon fill="#7030a0" stroke="#7030a0" stroke-width="2.2" points="167.54,-842 167.54,-834 169.14,-834 169.14,-842 167.54,-842"/>
+<polyline fill="none" stroke="#7030a0" stroke-width="2.2" points="166.74,-838 170.74,-838 "/>
+<ellipse fill="none" stroke="#7030a0" stroke-width="2.2" cx="173.94" cy="-838" rx="3.2" ry="3.2"/>
 </g>
 <!-- pricing__commission_rule -->
 <g id="node11" class="node">
@@ -512,12 +512,12 @@
 <!-- pricing__rate_band&#45;&gt;pricing__commission_rule -->
 <g id="edge13" class="edge">
 <title>pricing__rate_band&#45;&gt;pricing__commission_rule</title>
-<path fill="none" stroke="#595959" stroke-width="1.1" d="M181.14,-746C181.14,-746 252.73,-746 252.73,-746"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="255.13,-746 263.13,-749.6 259.13,-746 263.13,-746 263.13,-746 263.13,-746 259.13,-746 263.13,-742.4 255.13,-746 255.13,-746"/>
-<ellipse fill="none" stroke="#595959" stroke-width="1.1" cx="251.93" cy="-746" rx="3.2" ry="3.2"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="167.54,-750 167.54,-742 169.14,-742 169.14,-750 167.54,-750"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="166.74,-746 170.74,-746 "/>
-<ellipse fill="none" stroke="#595959" stroke-width="1.1" cx="173.94" cy="-746" rx="3.2" ry="3.2"/>
+<path fill="none" stroke="#7030a0" stroke-width="2.2" d="M181.14,-746C181.14,-746 252.73,-746 252.73,-746"/>
+<polygon fill="#7030a0" stroke="#7030a0" stroke-width="2.2" points="255.13,-746 263.13,-749.6 259.13,-746 263.13,-746 263.13,-746 263.13,-746 259.13,-746 263.13,-742.4 255.13,-746 255.13,-746"/>
+<ellipse fill="none" stroke="#7030a0" stroke-width="2.2" cx="251.93" cy="-746" rx="3.2" ry="3.2"/>
+<polygon fill="#7030a0" stroke="#7030a0" stroke-width="2.2" points="167.54,-750 167.54,-742 169.14,-742 169.14,-750 167.54,-750"/>
+<polyline fill="none" stroke="#7030a0" stroke-width="2.2" points="166.74,-746 170.74,-746 "/>
+<ellipse fill="none" stroke="#7030a0" stroke-width="2.2" cx="173.94" cy="-746" rx="3.2" ry="3.2"/>
 </g>
 <!-- pricing__commission_scheme -->
 <g id="node10" class="node">
@@ -554,13 +554,13 @@
 <!-- pricing__commission_rule&#45;&gt;pricing__commission_scheme -->
 <g id="edge15" class="edge">
 <title>pricing__commission_rule&#45;&gt;pricing__commission_scheme</title>
-<path fill="none" stroke="#595959" stroke-width="1.1" d="M398.19,-719.25C398.19,-719.25 482.6,-719.25 482.6,-719.25"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="482.6,-719.25 490.6,-722.85 486.6,-719.25 490.6,-719.25 490.6,-719.25 490.6,-719.25 486.6,-719.25 490.6,-715.65 482.6,-719.25 482.6,-719.25"/>
-<ellipse fill="none" stroke="#595959" stroke-width="1.1" cx="479.4" cy="-719.25" rx="3.2" ry="3.2"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="384.59,-723.25 384.59,-715.25 386.19,-715.25 386.19,-723.25 384.59,-723.25"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="383.79,-719.25 387.79,-719.25 "/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="388.59,-723.25 388.59,-715.25 390.19,-715.25 390.19,-723.25 388.59,-723.25"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="387.79,-719.25 391.79,-719.25 "/>
+<path fill="none" stroke="#7030a0" stroke-width="2.2" d="M398.19,-719.25C398.19,-719.25 482.6,-719.25 482.6,-719.25"/>
+<polygon fill="#7030a0" stroke="#7030a0" stroke-width="2.2" points="482.6,-719.25 490.6,-722.85 486.6,-719.25 490.6,-719.25 490.6,-719.25 490.6,-719.25 486.6,-719.25 490.6,-715.65 482.6,-719.25 482.6,-719.25"/>
+<ellipse fill="none" stroke="#7030a0" stroke-width="2.2" cx="479.4" cy="-719.25" rx="3.2" ry="3.2"/>
+<polygon fill="#7030a0" stroke="#7030a0" stroke-width="2.2" points="384.59,-723.25 384.59,-715.25 386.19,-715.25 386.19,-723.25 384.59,-723.25"/>
+<polyline fill="none" stroke="#7030a0" stroke-width="2.2" points="383.79,-719.25 387.79,-719.25 "/>
+<polygon fill="#7030a0" stroke="#7030a0" stroke-width="2.2" points="388.59,-723.25 388.59,-715.25 390.19,-715.25 390.19,-723.25 388.59,-723.25"/>
+<polyline fill="none" stroke="#7030a0" stroke-width="2.2" points="387.79,-719.25 391.79,-719.25 "/>
 </g>
 <!-- pricing__allocation_template -->
 <g id="node12" class="node">
@@ -615,13 +615,13 @@
 <!-- pricing__allocation_template_line&#45;&gt;pricing__allocation_template -->
 <g id="edge16" class="edge">
 <title>pricing__allocation_template_line&#45;&gt;pricing__allocation_template</title>
-<path fill="none" stroke="#595959" stroke-width="1.1" d="M183.12,-1002.5C183.12,-1002.5 248.23,-1002.5 248.23,-1002.5"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="248.23,-1002.5 256.23,-1006.1 252.23,-1002.5 256.23,-1002.5 256.23,-1002.5 256.23,-1002.5 252.23,-1002.5 256.23,-998.9 248.23,-1002.5 248.23,-1002.5"/>
-<ellipse fill="none" stroke="#595959" stroke-width="1.1" cx="245.03" cy="-1002.5" rx="3.2" ry="3.2"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="169.52,-1006.5 169.52,-998.5 171.12,-998.5 171.12,-1006.5 169.52,-1006.5"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="168.72,-1002.5 172.72,-1002.5 "/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="173.52,-1006.5 173.52,-998.5 175.12,-998.5 175.12,-1006.5 173.52,-1006.5"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="172.72,-1002.5 176.72,-1002.5 "/>
+<path fill="none" stroke="#7030a0" stroke-width="2.2" d="M183.12,-1002.5C183.12,-1002.5 248.23,-1002.5 248.23,-1002.5"/>
+<polygon fill="#7030a0" stroke="#7030a0" stroke-width="2.2" points="248.23,-1002.5 256.23,-1006.1 252.23,-1002.5 256.23,-1002.5 256.23,-1002.5 256.23,-1002.5 252.23,-1002.5 256.23,-998.9 248.23,-1002.5 248.23,-1002.5"/>
+<ellipse fill="none" stroke="#7030a0" stroke-width="2.2" cx="245.03" cy="-1002.5" rx="3.2" ry="3.2"/>
+<polygon fill="#7030a0" stroke="#7030a0" stroke-width="2.2" points="169.52,-1006.5 169.52,-998.5 171.12,-998.5 171.12,-1006.5 169.52,-1006.5"/>
+<polyline fill="none" stroke="#7030a0" stroke-width="2.2" points="168.72,-1002.5 172.72,-1002.5 "/>
+<polygon fill="#7030a0" stroke="#7030a0" stroke-width="2.2" points="173.52,-1006.5 173.52,-998.5 175.12,-998.5 175.12,-1006.5 173.52,-1006.5"/>
+<polyline fill="none" stroke="#7030a0" stroke-width="2.2" points="172.72,-1002.5 176.72,-1002.5 "/>
 </g>
 </g>
 </svg>

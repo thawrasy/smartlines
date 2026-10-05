@@ -148,7 +148,7 @@ flowchart LR
 
 ## 3. Database integration map
 
-The schema has 22 business schemas and 415 tables in the files `db/schema/000` to `1029` (the complete model of study v2.6; later-phase modules are disabled behind feature flags). The full design, with an ERD per module in the study's colours, is `docs/database/Masslak_Database_Design_and_ERD_v2.0.docx`. The diagram shows the relationships that the Phase 1 flows use.
+The schema has 22 business schemas and 415 tables in the files `db/schema/000` to `1033` (the complete model of study v2.7; later-phase modules are disabled behind feature flags). The full design, with an ERD per module in the study's colours, is `docs/database/Masslak_Database_Design_and_ERD_v3.0.docx`; file 1033 enforces its relationship rules (primary keys, declared and indexed foreign keys), checked by db/tests. The diagram shows the relationships that the Phase 1 flows use.
 
 ```mermaid
 erDiagram

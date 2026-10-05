@@ -487,4 +487,25 @@ SELECT pg_temp.expect_error(format($$INSERT INTO bill.company_subscription (comp
 COMMIT;
 RESET ROLE;
 
+-- Relational design rules (1033): primary keys, references, foreign key indexes
+SELECT pg_temp.ok(NOT EXISTS (
+  SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+   WHERE c.relkind IN ('r','p') AND NOT c.relispartition AND n.nspname NOT IN ('pg_catalog','information_schema')
+     AND NOT EXISTS (SELECT 1 FROM pg_constraint k WHERE k.conrelid = c.oid AND k.contype = 'p')),
+  'Design: every table has a primary key');
+SELECT pg_temp.ok(NOT EXISTS (
+  SELECT 1 FROM pg_attribute a JOIN pg_class c ON c.oid = a.attrelid JOIN pg_namespace n ON n.oid = c.relnamespace
+   WHERE c.relkind IN ('r','p') AND NOT c.relispartition AND n.nspname NOT IN ('pg_catalog','information_schema')
+     AND a.attnum > 0 AND NOT a.attisdropped AND a.attname LIKE '%\_id'
+     AND NOT EXISTS (SELECT 1 FROM pg_constraint k WHERE k.conrelid = c.oid AND k.contype IN ('f','p') AND a.attnum = ANY (k.conkey))
+     AND coalesce(col_description(c.oid, a.attnum), '') !~ '^(Polymorphic|External|No FK):'),
+  'Design: every reference column is a foreign key or says why not');
+SELECT pg_temp.ok(NOT EXISTS (
+  SELECT 1 FROM pg_constraint k JOIN pg_class rc ON rc.oid = k.confrelid JOIN pg_namespace rn ON rn.oid = rc.relnamespace
+   JOIN pg_attribute a ON a.attrelid = k.conrelid AND a.attnum = k.conkey[1]
+   WHERE k.contype = 'f' AND NOT (rn.nspname = 'ref' AND rc.relname <> 'file_object')
+     AND NOT (rc.oid = 'iam.app_user'::regclass AND a.attname ~ '(_by|_by_user_id)$|^(actor_id|reviewer_id|proposer_id|approver_id|second_approver|by_user_id|scorer_user_id)$')
+     AND NOT EXISTS (SELECT 1 FROM pg_index i WHERE i.indrelid = k.conrelid AND i.indkey[0] = k.conkey[1])),
+  'Design: every foreign key has a supporting index');
+
 \echo '=== ALL TESTS PASSED ==='

@@ -2,7 +2,7 @@
 
 > Generated from the built database (`db/tools/gen_docs.py`); do not edit by hand.
 
-**415 tables, 4083 columns, in 23 schemas.**
+**415 tables, 4092 columns, in 23 schemas.**
 
 Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant isolation (RLS) · 🧩 partitioned monthly · 🔒 append-only / change-protected
 
@@ -2124,7 +2124,7 @@ Rotating signed presence tokens per trip that passengers' phones detect over Nea
 | `trip_id` | `bigint` | 🔗 `ops.trip` ✱ |  |
 | `vehicle_id` | `bigint` | 🔗 `fleet.vehicle`  |  |
 | `source` | `text` | ✱ |  |
-| `key_id` | `text` | ✱ |  |
+| `key_id` | `text` | 🔗 `sec.key_registry` ✱ |  |
 | `rotation_sec` | `integer` | ✱ | `30` |
 | `active` | `tstzrange` | ✱ |  |
 
@@ -2199,7 +2199,7 @@ Seat inventory per segment (4.12 c): a seat is sellable for a pair if it is vaca
 | `seg` | `smallint` | 🔑 ✱ |  |
 | `status` | `text` | ✱ | `'AVAILABLE'::text` |
 | `lock_token` | `uuid` |  |  |
-| `lock_user_id` | `bigint` |  |  |
+| `lock_user_id` | `bigint` | 🔗 `iam.app_user`  |  |
 | `lock_expires_at` | `timestamp with time zone` |  |  |
 | `ticket_id` | `bigint` | 🔗 `sales.ticket`  |  |
 
@@ -2729,6 +2729,9 @@ Data-driven document rules per destination or transit country and nationality, f
 | `created_by` | `bigint` | 🔗 `iam.app_user`  |  |
 | `approved_by` | `bigint` | 🔗 `iam.app_user`  |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `valid` | `daterange` |  |  |
+| `legal_basis` | `text` |  |  |
+| `note` | `text` |  |  |
 
 ### `sales.external_mapping` 🛡️
 
@@ -2850,7 +2853,7 @@ The pass carried by the subscriber: a signed QR or an NFC card
 | `pass_no` | `text` | ✱ |  |
 | `medium` | `text` | ✱ |  |
 | `nfc_card_id` | `bigint` | 🔗 `sales.nfc_card`  |  |
-| `qr_key_id` | `text` |  |  |
+| `qr_key_id` | `text` | 🔗 `sec.key_registry`  |  |
 | `status` | `text` | ✱ | `'ACTIVE'::text` |
 
 ### `sales.shuttle_zone` 🛡️
@@ -2982,6 +2985,8 @@ Travel documents of one international ticket; numbers are encrypted (11.9, D.1.4
 | `verified_by` | `bigint` | 🔗 `iam.app_user`  |  |
 | `verified_at` | `timestamp with time zone` |  |  |
 | `source` | `text` | ✱ | `'PASSENGER'::text` |
+| `doc_type` | `text` |  |  |
+| `exception` | `boolean` | ✱ | `false` |
 
 ### `sales.waitlist_entry` 🛡️
 
@@ -3672,6 +3677,7 @@ Simplified chart of accounts per book (platform or company) from an editable tem
 | `status` | `text` | ✱ | `'OPEN'::text` |
 | `closed_by` | `bigint` | 🔗 `iam.app_user`  |  |
 | `closed_at` | `timestamp with time zone` |  |  |
+| `id` | `bigint` | 🔑 ✱ | `identity` |
 
 ### `acct.journal_entry` 🛡️ 🔒
 
@@ -5889,6 +5895,9 @@ A consignment from sender to receiver, independent of the vehicles that carry it
 | `status` | `text` | ✱ | `'CREATED'::text` |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 | `updated_at` | `timestamp with time zone` | ✱ | `now()` |
+| `recipient_name` | `text` |  |  |
+| `recipient_mobile` | `text` |  |  |
+| `contents` | `text` |  |  |
 
 ### `ship.shipment_leg` 🛡️
 

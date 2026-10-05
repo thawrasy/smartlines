@@ -646,13 +646,13 @@
 <!-- ops__trip_crossing_plan&#45;&gt;ops__trip -->
 <g id="edge22" class="edge">
 <title>ops__trip_crossing_plan&#45;&gt;ops__trip</title>
-<path fill="none" stroke="#595959" stroke-width="1.1" stroke-dasharray="5,2" d="M424.22,-97.5C424.22,-97.5 465,-97.5 465,-97.5 465,-97.5 465,-793.62 465,-793.62 465,-793.62 495.77,-793.62 495.77,-793.62"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="417.82,-97.5 409.82,-93.9 413.82,-97.5 409.82,-97.5 409.82,-97.5 409.82,-97.5 413.82,-97.5 409.82,-101.1 417.82,-97.5 417.82,-97.5"/>
-<ellipse fill="none" stroke="#595959" stroke-width="1.1" cx="421.02" cy="-97.5" rx="3.2" ry="3.2"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="502.97,-789.63 502.97,-797.63 501.37,-797.63 501.37,-789.63 502.97,-789.63"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="503.77,-793.62 499.77,-793.63 "/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="498.97,-789.63 498.97,-797.63 497.37,-797.63 497.37,-789.63 498.97,-789.63"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="499.77,-793.63 495.77,-793.63 "/>
+<path fill="none" stroke="#bf8f00" stroke-width="2.2" stroke-dasharray="5,2" d="M424.22,-97.5C424.22,-97.5 465,-97.5 465,-97.5 465,-97.5 465,-793.62 465,-793.62 465,-793.62 495.77,-793.62 495.77,-793.62"/>
+<polygon fill="#bf8f00" stroke="#bf8f00" stroke-width="2.2" points="417.82,-97.5 409.82,-93.9 413.82,-97.5 409.82,-97.5 409.82,-97.5 409.82,-97.5 413.82,-97.5 409.82,-101.1 417.82,-97.5 417.82,-97.5"/>
+<ellipse fill="none" stroke="#bf8f00" stroke-width="2.2" cx="421.02" cy="-97.5" rx="3.2" ry="3.2"/>
+<polygon fill="#bf8f00" stroke="#bf8f00" stroke-width="2.2" points="502.97,-789.63 502.97,-797.63 501.37,-797.63 501.37,-789.63 502.97,-789.63"/>
+<polyline fill="none" stroke="#bf8f00" stroke-width="2.2" points="503.77,-793.62 499.77,-793.63 "/>
+<polygon fill="#bf8f00" stroke="#bf8f00" stroke-width="2.2" points="498.97,-789.63 498.97,-797.63 497.37,-797.63 497.37,-789.63 498.97,-789.63"/>
+<polyline fill="none" stroke="#bf8f00" stroke-width="2.2" points="499.77,-793.63 495.77,-793.63 "/>
 </g>
 <!-- ops__crossing_event -->
 <g id="node12" class="node">

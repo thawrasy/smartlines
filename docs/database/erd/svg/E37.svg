@@ -583,13 +583,13 @@
 <!-- rent__rental_booking_addon&#45;&gt;rent__rental_booking -->
 <g id="edge21" class="edge">
 <title>rent__rental_booking_addon&#45;&gt;rent__rental_booking</title>
-<path fill="none" stroke="#595959" stroke-width="1.1" d="M363.54,-794.5C363.54,-794.5 419.59,-794.5 419.59,-794.5"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="419.59,-794.5 427.59,-798.1 423.59,-794.5 427.59,-794.5 427.59,-794.5 427.59,-794.5 423.59,-794.5 427.59,-790.9 419.59,-794.5 419.59,-794.5"/>
-<ellipse fill="none" stroke="#595959" stroke-width="1.1" cx="416.39" cy="-794.5" rx="3.2" ry="3.2"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="349.94,-798.5 349.94,-790.5 351.54,-790.5 351.54,-798.5 349.94,-798.5"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="349.14,-794.5 353.14,-794.5 "/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="353.94,-798.5 353.94,-790.5 355.54,-790.5 355.54,-798.5 353.94,-798.5"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="353.14,-794.5 357.14,-794.5 "/>
+<path fill="none" stroke="#bf8f00" stroke-width="2.2" d="M363.54,-794.5C363.54,-794.5 419.59,-794.5 419.59,-794.5"/>
+<polygon fill="#bf8f00" stroke="#bf8f00" stroke-width="2.2" points="419.59,-794.5 427.59,-798.1 423.59,-794.5 427.59,-794.5 427.59,-794.5 427.59,-794.5 423.59,-794.5 427.59,-790.9 419.59,-794.5 419.59,-794.5"/>
+<ellipse fill="none" stroke="#bf8f00" stroke-width="2.2" cx="416.39" cy="-794.5" rx="3.2" ry="3.2"/>
+<polygon fill="#bf8f00" stroke="#bf8f00" stroke-width="2.2" points="349.94,-798.5 349.94,-790.5 351.54,-790.5 351.54,-798.5 349.94,-798.5"/>
+<polyline fill="none" stroke="#bf8f00" stroke-width="2.2" points="349.14,-794.5 353.14,-794.5 "/>
+<polygon fill="#bf8f00" stroke="#bf8f00" stroke-width="2.2" points="353.94,-798.5 353.94,-790.5 355.54,-790.5 355.54,-798.5 353.94,-798.5"/>
+<polyline fill="none" stroke="#bf8f00" stroke-width="2.2" points="353.14,-794.5 357.14,-794.5 "/>
 </g>
 <!-- rent__rental_contract -->
 <g id="node10" class="node">
@@ -680,13 +680,13 @@
 <!-- rent__contract_driver&#45;&gt;rent__rental_contract -->
 <g id="edge24" class="edge">
 <title>rent__contract_driver&#45;&gt;rent__rental_contract</title>
-<path fill="none" stroke="#595959" stroke-width="1.1" d="M62,-759.88C62,-759.88 62,-640.25 62,-640.25 62,-640.25 204.37,-640.25 204.37,-640.25"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="62,-766.28 58.4,-774.28 62,-770.28 62,-774.28 62,-774.28 62,-774.28 62,-770.28 65.6,-774.28 62,-766.28 62,-766.28"/>
-<ellipse fill="none" stroke="#595959" stroke-width="1.1" cx="62" cy="-763.08" rx="3.2" ry="3.2"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="211.57,-636.25 211.57,-644.25 209.97,-644.25 209.97,-636.25 211.57,-636.25"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="212.37,-640.25 208.37,-640.25 "/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="207.57,-636.25 207.57,-644.25 205.97,-644.25 205.97,-636.25 207.57,-636.25"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="208.37,-640.25 204.37,-640.25 "/>
+<path fill="none" stroke="#bf8f00" stroke-width="2.2" d="M62,-759.88C62,-759.88 62,-640.25 62,-640.25 62,-640.25 204.37,-640.25 204.37,-640.25"/>
+<polygon fill="#bf8f00" stroke="#bf8f00" stroke-width="2.2" points="62,-766.28 58.4,-774.28 62,-770.28 62,-774.28 62,-774.28 62,-774.28 62,-770.28 65.6,-774.28 62,-766.28 62,-766.28"/>
+<ellipse fill="none" stroke="#bf8f00" stroke-width="2.2" cx="62" cy="-763.08" rx="3.2" ry="3.2"/>
+<polygon fill="#bf8f00" stroke="#bf8f00" stroke-width="2.2" points="211.57,-636.25 211.57,-644.25 209.97,-644.25 209.97,-636.25 211.57,-636.25"/>
+<polyline fill="none" stroke="#bf8f00" stroke-width="2.2" points="212.37,-640.25 208.37,-640.25 "/>
+<polygon fill="#bf8f00" stroke="#bf8f00" stroke-width="2.2" points="207.57,-636.25 207.57,-644.25 205.97,-644.25 205.97,-636.25 207.57,-636.25"/>
+<polyline fill="none" stroke="#bf8f00" stroke-width="2.2" points="208.37,-640.25 204.37,-640.25 "/>
 </g>
 <!-- rent__contract_driver&#45;&gt;iam__party -->
 <g id="edge25" class="edge">

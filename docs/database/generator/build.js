@@ -1,6 +1,6 @@
 // Builds the database design document from ../build/model.json and the rendered ERDs, in the study's styling
 // (Arial, headings in #2E74B5, table headers in #1F3A5F with white text, alternating #F2F6FA rows, #B7C3D0 borders).
-// Usage: node build.js   (after render.py and trace.py)  ->  ../Masslak_Database_Design_and_ERD_v2.0.docx
+// Usage: node build.js   (after render.py and trace.py)  ->  ../Masslak_Database_Design_and_ERD_v3.0.docx
 const fs = require("fs");
 const path = require("path");
 const {
@@ -11,8 +11,8 @@ const {
 const HERE = __dirname;
 const model = JSON.parse(fs.readFileSync(path.join(HERE, "..", "build", "model.json"), "utf8"));
 const PNG = path.join(HERE, "..", "erd", "png");
-const VERSION = "2.0";
-const DATE = "4 October 2026";
+const VERSION = "3.0";
+const DATE = "5 October 2026";
 const FONT = "Arial";
 const C = { navy: "1F3A5F", blue: "2E74B5", blue2: "1F4D78", grid: "B7C3D0", alt: "F2F6FA", grey: "595959" };
 
@@ -23,6 +23,14 @@ const colCount = model.tables.reduce((n, t) => n + t.columns.length, 0);
 const fkCount = model.tables.reduce((n, t) => n + (t.fks || []).length, 0);
 const rlsCount = model.tables.filter((t) => t.rls).length;
 const schemas = [...new Set(model.tables.map((t) => t.schema))];
+const allFks = model.tables.flatMap((t) => (t.fks || []).map((f) => ({ ...f, table: `${t.schema}.${t.name}` })));
+const ACTOR = /(_by|_by_user_id)$|^(actor_id|reviewer_id|proposer_id|approver_id|second_approver|by_user_id|scorer_user_id)$/;
+const indexClass = (f) => f.indexed ? "indexed" : (f.ref.startsWith("ref.") && f.ref !== "ref.file_object") ? "lookup"
+  : (f.ref === "iam.app_user" && ACTOR.test(f.cols[0])) ? "actor" : "missing";
+const idxCount = (k) => allFks.filter((f) => indexClass(f) === k).length;
+const cascadeCount = allFks.filter((f) => f.on_delete === "c").length;
+const noFk = model.tables.flatMap((t) => t.columns.filter((c) => /^(Polymorphic|External|No FK):/.test(c.comment || ""))
+  .map((c) => ({ table: `${t.schema}.${t.name}`, col: c.name, kind: c.comment.split(":")[0], why: c.comment.slice(c.comment.indexOf(":") + 1).trim() })));
 
 // ------------------------------ building blocks ------------------------------
 const run = (text, o = {}) => new TextRun({ text, font: FONT, size: o.size || 22, bold: o.bold, italics: o.italics, color: o.color });
@@ -92,32 +100,50 @@ front.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 16
 front.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 160 },
   children: [new TextRun({ text: "Database Design and Entity-Relationship Diagrams", font: FONT, size: 30, bold: true, color: C.blue })] }));
 front.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 1200 },
-  children: [run(`Complete relational model of the Analysis and Design Study v2.6: ${tableCount} tables, ${fkCount} relationships`, { color: "7F7F7F" })] }));
+  children: [run(`Complete relational model of the Analysis and Design Study v2.7: ${tableCount} tables, ${fkCount} relationships`, { color: "7F7F7F" })] }));
 front.push(table(["Item", "Details"], [
-  ["Version", `${VERSION} (complete model of study v2.6, replacing the Phase 1 data model 1.0)`],
+  ["Version", `${VERSION} (relationships redesigned for study v2.7; replaces version 2.0)`],
   ["Date", DATE],
-  ["Basis", "Analysis and Design Study v2.6 (English) and the Use Case and Data Flow Diagrams v1.0"],
+  ["Basis", "Analysis and Design Study v2.7 (English) and the Use Case and Data Flow Diagrams v1.0"],
   ["Scope", `${schemas.length} schemas, ${tableCount} tables, ${colCount} columns, ${fkCount} foreign keys; all phases 1 to 15`],
-  ["Engine", "PostgreSQL 16 with row-level security; schema files db/schema/000 to 1029"],
-  ["Status", "Built and verified: fresh build and upgrade identical, 111 automated checks passing"],
+  ["Engine", "PostgreSQL 16 with row-level security; schema files db/schema/000 to 1033"],
+  ["Status", "Built and verified: fresh build and upgrade identical, 114 automated checks passing, every foreign key indexed or exempt by rule"],
   ["Website", "masslak.com"],
 ], [2800, 6946]));
 
 const toc = [H(HeadingLevel.HEADING_1, "Contents", { pageBreak: true })];
-const tocLines = ["1. Introduction", "2. Database architecture", "3. Design rules", "4. Security model in the database",
+const tocLines = ["Changes in version 3.0", "1. Introduction", "2. Database architecture", "3. Design rules", "4. Security model in the database",
   "5. Data stores of the data flow diagrams", "6. Entity-relationship diagrams by module",
-  ...model.groups.map((g, i) => `      6.${i + 1} ${g[0]} ${g[1]}`), "7. Table definitions", "8. Traceability to the study", "9. Verification",
-  "Appendix A: Feature flags", "Appendix B: Generalizations and naming decisions"];
+  ...model.groups.map((g, i) => `      6.${i + 1} ${g[0]} ${g[1]}`), "      6.38 Focus diagrams: rules that span modules",
+  "7. Table definitions", "8. Traceability to the study", "9. Verification",
+  "Appendix A: Feature flags", "Appendix B: Generalizations and naming decisions", "Appendix C: References without a foreign key"];
 for (const l of tocLines) toc.push(P(l, { after: 40, size: 20 }));
+
+// ------------------------------ changes in 3.0 ------------------------------
+const changes = [H(HeadingLevel.HEADING_1, "Changes in version 3.0", { pageBreak: true }),
+  P("Version 3.0 redesigns the relationships of the database from the start against the Analysis and Design Study v2.7. Every foreign key of "
+    + "the built schema was audited against four rules (chapter 3.2) and the gaps were closed in schema file 1033_relational_integrity.sql. "
+    + "The rules are now checked by the automated tests, so a later schema change cannot break them unnoticed."),
+  table(["Change", "Before (2.0)", "Now (3.0)"], [
+    ["Study basis", "v2.6", "v2.7: passport required on international trips, approved document exceptions (11.9.1)"],
+    ["Tables without a primary key", "1 (acct.gl_period)", "0"],
+    ["Foreign keys", "1,123", `${fkCount}, of which ${cascadeCount} are compositions (cascade)`],
+    ["Reference columns without a foreign key", "64, undocumented", `0 undocumented; ${noFk.length} justified exceptions (appendix C)`],
+    ["Foreign keys with a supporting index", "246", `${idxCount("indexed")}; the other ${idxCount("lookup") + idxCount("actor")} point at fixed lookup lists or record an actor; ${idxCount("missing")} missing`],
+    ["Polymorphic references", "partly indexed", "every (type, id) pair indexed and documented"],
+    ["Travel documents (11.9)", "entry rule with documents only", "validity period, legal basis, note, four-eyes approval, document type and exception on the ticket"],
+    ["Diagrams", "37 module diagrams", "37 module diagrams with compositions in the module colour, plus 2 focus diagrams across modules"],
+  ], [2700, 2400, 4646], { boldFirst: true }),
+];
 
 // ------------------------------ 1. introduction ------------------------------
 const intro = [H(HeadingLevel.HEADING_1, "1. Introduction", { pageBreak: true }),
   H(HeadingLevel.HEADING_2, "1.1 Purpose"),
   P("This document is the database design of the Masslak platform. It redevelops the data model so that every entity and relationship "
-    + "of the Analysis and Design Study v2.6 has a table, keys and constraints in the database, and it draws the relationships of each module "
+    + "of the Analysis and Design Study v2.7 has a table, keys and constraints in the database, and it draws the relationships of each module "
     + "as an entity-relationship diagram in the colours of the study."),
   H(HeadingLevel.HEADING_2, "1.2 Sources and scope"),
-  bullet("the Analysis and Design Study v2.6 (English), including appendix D (additional phases 13 to 15);", "Study"),
+  bullet("the Analysis and Design Study v2.7 (English), including appendix D (additional phases 13 to 15) and the revised travel document rules of 11.9.1;", "Study"),
   bullet("the Use Case and Data Flow Diagrams v1.0, whose data stores D1 to D17 are mapped to tables in chapter 5;", "Diagrams"),
   bullet("the PostgreSQL schema in db/schema, built and tested; every diagram and table definition here is generated from the built database, "
     + "so the document cannot drift from the schema.", "Database"),
@@ -127,7 +153,8 @@ const intro = [H(HeadingLevel.HEADING_1, "1. Introduction", { pageBreak: true })
   H(HeadingLevel.HEADING_2, "1.3 Notation"),
   P("Each diagram shows one module. A box is a table: the coloured band and header follow the module's colour family from the study's figure 4.1; "
     + "rows list the primary key (PK), the foreign keys (FK), unique keys (UQ) and the main attributes, with required columns in bold. The number "
-    + "of remaining columns is given at the bottom of the box; every column is listed in chapter 7. Dashed grey boxes are tables of other modules."),
+    + "of remaining columns is given at the bottom of the box; every column is listed in chapter 7. Dashed grey boxes are tables of other modules. "
+    + "Heavy lines in the module colour are compositions: the child rows are part of the parent and are deleted with it."),
   image(path.join(PNG, "legend.png"), 620, 260),
   P("Lines use crow's foot notation: the crow's foot with a circle at the child means zero or many; two bars at the parent mean exactly one "
     + "(the foreign key is required); a bar and a circle mean zero or one (the foreign key is optional). A bar and a circle at the child mean the "
@@ -196,12 +223,28 @@ const rules = [H(HeadingLevel.HEADING_1, "3. Design rules", { pageBreak: true })
   ], [2400, 7346], { boldFirst: true }),
   gap(),
   H(HeadingLevel.HEADING_2, "3.2 Relationship rules"),
-  bullet("Every relationship is a declared foreign key; the only exception is the high-volume position table ops.geo_event, which skips them for insert speed.", "Declared"),
-  bullet("CASCADE only for children that cannot exist without the parent (route stops, invoice lines, manifest persons); everything else is NO ACTION, so history is never deleted by accident.", "Delete rules"),
+  P("Four rules govern every relationship. They are checked by db/tests on every build, together with the security rules of chapter 4."),
+  table(["Rule", "Statement", "How it is checked"], [
+    ["R1 Keys", "Every table has a primary key: a bigint identity, a shared key with its parent (extensions) or a composite key (association and child tables).",
+      "test: every table has a primary key"],
+    ["R2 Declared references", "Every column that names another row is a foreign key. The only exceptions carry a column comment that starts with "
+      + "Polymorphic (a type and id pair naming rows of several tables), External (an identifier issued outside the platform) or No FK "
+      + "(append-only logs and partitioned telemetry kept after the referenced row is gone). They are listed in appendix C.",
+      "test: every reference column is a foreign key or says why not"],
+    ["R3 Indexed references", "Every foreign key is the leading column of an index, so joins from the parent and deletes of the parent never scan the "
+      + "child. Exempt by rule: references to fixed lookup lists (ref.currency, ref.country, ...) and actor columns (created_by, approved_by, ...).",
+      "test: every foreign key has a supporting index"],
+    ["R4 Delete behaviour", "CASCADE only from a parent to the rows that are part of it (route stops, invoice lines, manifest persons, seat segments). "
+      + "Everything else is NO ACTION or RESTRICT; rows that carry money or legal effect are never deleted, they change status.",
+      "review of every cascade (chapter 6 lists the delete rule of each relationship)"],
+  ], [1700, 5546, 2500], { boldFirst: true }),
+  gap(),
   bullet("A required relationship has a NOT NULL foreign key; an optional one is nullable; one to one is a unique foreign key or a shared primary key (iam.company, fleet.truck_unit, brd.border_point).", "Cardinality"),
   bullet("Many to many relationships are association tables with a composite key: role_permission, call_agent_skill, leg_container, rental_booking_addon.", "Many to many"),
   bullet("Extensions share the parent's primary key: a company is a party, a truck unit is a vehicle, a border point is a station, a rental car is a vehicle.", "Extensions"),
   bullet("Alternative parents are nullable foreign keys with a CHECK such as num_nonnulls(trip_id, load_id, route_id) = 1.", "Exclusive arcs"),
+  bullet("A foreign key may point at a unique business key instead of the identity when that key is what other systems carry: signing keys are referenced by key_ref.", "Business keys"),
+  bullet("New foreign keys on existing tables are added NOT VALID and validated in the same file; rows written before the rule are reported, never silently rewritten.", "Upgrades"),
   H(HeadingLevel.HEADING_2, "3.3 Integrity enforced by the database"),
   table(["Mechanism", "Examples"], [
     ["Exclusion constraints", "a vehicle, trailer, driver or lease cannot overlap in time; one active contract per partner and period; no double rental of a car"],
@@ -263,11 +306,45 @@ model.groups.forEach((g, i) => {
   children.push(land ? image(file, 960, 520) : image(file, 640, 760));
   const rels = [];
   for (const full of tabs) for (const f of T[full].fks || []) {
-    rels.push([`${full}.${f.cols.join(", ")}`, f.ref, f.unique ? "one to one" : "many to one", f.required ? "required" : "optional", ON_DELETE[f.on_delete]]);
+    rels.push([`${full}.${f.cols.join(", ")}`, f.ref, f.unique ? "one to one" : "many to one", f.required ? "required" : "optional",
+      ON_DELETE[f.on_delete], indexClass(f)]);
   }
   children.push(H(HeadingLevel.HEADING_3, `Relationships of ${gid} (${rels.length})`));
-  const ws = land ? [5200, 3600, 2200, 1900, 1938] : [3500, 2500, 1350, 1150, 1246];
-  children.push(table(["Child (foreign key)", "Parent", "Cardinality", "Child side", "On delete"], rels, ws, { size: 16 }));
+  const ws = land ? [4700, 3300, 2000, 1700, 1600, 1538] : [3100, 2300, 1250, 1050, 1000, 1046];
+  children.push(table(["Child (foreign key)", "Parent", "Cardinality", "Child side", "On delete", "Index"], rels, ws, { size: 16 }));
+  erdSections.push(section(land ? LANDSCAPE : PORTRAIT, children));
+});
+
+(model.focus || []).forEach((g, i) => {
+  const [gid, title, secs, , desc, tabs] = g;
+  const file = path.join(PNG, `${gid}.png`);
+  const { w, h } = pngSize(file);
+  const land = w / h > 1.05;
+  const children = [];
+  if (i === 0) {
+    children.push(H(HeadingLevel.HEADING_2, `6.${model.groups.length + 1} Focus diagrams: rules that span modules`));
+    children.push(P("A focus diagram follows one business rule across modules. Each table keeps the colour of its own module, and only the "
+      + "links among the tables shown are drawn, including who approves when that is part of the rule."));
+  }
+  children.push(H(HeadingLevel.HEADING_3, `${gid} ${title}`));
+  children.push(P([run(`Study: ${secs}  ·  ${tabs.length} tables`, { size: 18, color: C.grey })], { after: 60 }));
+  children.push(P(desc, { after: 100 }));
+  children.push(land ? image(file, 960, 520) : image(file, 640, 760));
+  if (gid === "F01") {
+    children.push(table(["Step", "Tables and keys", "Rule (study 11.9.1)"], [
+      ["1. Segment countries", "sales.ticket (trip_id, from_seq, to_seq) -> ops.trip_stop (trip_id, seq) -> net.station.country_code -> ref.country",
+        "international when the last stop, or a stop on the way, is in another country than the first"],
+      ["2. Rule lookup", "sales.entry_rule (country_code, country_role, nationality, valid, status = ACTIVE), index entry_rule_lookup",
+        "the passenger's nationality first, then any nationality, then the platform default travel.international_default in sys.setting"],
+      ["3. Several borders", "one entry_rule per destination and transit country", "only documents accepted at every border remain; none in common means passport"],
+      ["4. Exceptions", "doc_required other than PASSPORT needs legal_basis (constraint entry_rule_exception_basis); approved_by <> created_by",
+        "drafted by one officer, approved by another; approving a version retires the previous one"],
+      ["5. Record on the ticket", "sales.ticket_doc (ticket_id PK and FK, entry_rule_id, doc_type, exception, dest_country, verified_by)",
+        "every international ticket keeps the document type used and the rule that allowed it"],
+      ["6. Passenger", "sales.passenger (id_type, nationality, passport_country, passport_expiry)",
+        "the passport must stay valid passport_min_days after departure (default 180)"],
+    ], land ? [2600, 6738, 5500] : [1700, 4346, 3700], { size: 16, boldFirst: true }));
+  }
   erdSections.push(section(land ? LANDSCAPE : PORTRAIT, children));
 });
 
@@ -316,8 +393,10 @@ const verify = [H(HeadingLevel.HEADING_1, "9. Verification", { pageBreak: true }
     ["Fresh build (db/build.sh)", `all schema files apply in order; ${tableCount} tables, ${fkCount} foreign keys`],
     ["Upgrade (db/upgrade.sh)", "a database of the previous release upgrades to a schema identical to a fresh build (pg_dump compared)"],
     ["Idempotence", "every new file runs twice without error"],
-    ["Automated tests (db/tests/run.sh)", "111 checks passing, 24 of them on the new model: isolation of shipments, bids, partners, manifests; "
-      + "exclusion and uniqueness rules; append-only tables; four-eyes approvals; feature flags off"],
+    ["Automated tests (db/tests/run.sh)", "114 checks passing: isolation of shipments, bids, partners, manifests; exclusion and uniqueness rules; "
+      + "append-only tables; four-eyes approvals; feature flags off; and the relationship rules R1 to R3"],
+    ["Relationship audit", `${fkCount} foreign keys: ${idxCount("indexed")} indexed, ${idxCount("lookup")} to lookup lists, ${idxCount("actor")} actor columns, ${idxCount("missing")} missing an index; ${noFk.length} documented references without a foreign key`],
+    ["Application", "109 API tests passing on a fresh database seeded with the demo and module data"],
     ["Coverage", "every table of the new modules has row-level security, a policy and grants (checked by the tests)"],
     ["Documents", "this document, db/DATA_DICTIONARY.md and db/ERD.md are generated from the built database"],
   ], [3200, 6546], { boldFirst: true }),
@@ -350,6 +429,11 @@ const gens = [H(HeadingLevel.HEADING_1, "Appendix B: Generalizations and naming 
   ], [3200, 3400, 3146], { size: 17 }),
 ];
 
+const appC = [H(HeadingLevel.HEADING_1, "Appendix C: References without a foreign key", { pageBreak: true }),
+  P(`Rule R2 allows a reference column without a foreign key only when its comment says why. These are the ${noFk.length} such columns, read from the database.`),
+  table(["Table", "Column", "Kind", "Reason"], noFk.map((r) => [r.table, r.col, r.kind, r.why]), [2700, 1800, 1300, 3946], { size: 16 }),
+];
+
 // ------------------------------ assemble ------------------------------
 const doc = new Document({
   creator: "Masslak", title: `Masslak: Database Design and ERD (Version ${VERSION})`,
@@ -367,9 +451,9 @@ const doc = new Document({
   numbering: { config: [{ reference: "bullets", levels: [{ level: 0, format: LevelFormat.BULLET, text: "•", alignment: AlignmentType.LEFT,
     style: { paragraph: { indent: { left: 540, hanging: 270 } } } }] }] },
   sections: [
-    section(PORTRAIT, [...front, ...toc, ...intro, ...arch, ...rules, ...security, ...stores]),
+    section(PORTRAIT, [...front, ...toc, ...changes, ...intro, ...arch, ...rules, ...security, ...stores]),
     ...erdSections,
-    section(PORTRAIT, [...defs, ...trace, ...verify, ...flags, ...gens]),
+    section(PORTRAIT, [...defs, ...trace, ...verify, ...flags, ...gens, ...appC]),
   ],
 });
 const out = path.join(HERE, "..", `Masslak_Database_Design_and_ERD_v${VERSION}.docx`);

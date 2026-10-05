@@ -741,13 +741,13 @@
 <!-- ptn__partner_order_item&#45;&gt;ptn__partner_order -->
 <g id="edge26" class="edge">
 <title>ptn__partner_order_item&#45;&gt;ptn__partner_order</title>
-<path fill="none" stroke="#595959" stroke-width="1.1" d="M314,-730.15C314,-730.15 314,-887.33 314,-887.33 314,-887.33 481.9,-887.33 481.9,-887.33"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="314,-723.75 317.6,-715.75 314,-719.75 314,-715.75 314,-715.75 314,-715.75 314,-719.75 310.4,-715.75 314,-723.75 314,-723.75"/>
-<ellipse fill="none" stroke="#595959" stroke-width="1.1" cx="314" cy="-726.95" rx="3.2" ry="3.2"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="489.1,-883.33 489.1,-891.33 487.5,-891.33 487.5,-883.33 489.1,-883.33"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="489.9,-887.33 485.9,-887.33 "/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="485.1,-883.33 485.1,-891.33 483.5,-891.33 483.5,-883.33 485.1,-883.33"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="485.9,-887.33 481.9,-887.33 "/>
+<path fill="none" stroke="#0e7c86" stroke-width="2.2" d="M314,-730.15C314,-730.15 314,-887.33 314,-887.33 314,-887.33 481.9,-887.33 481.9,-887.33"/>
+<polygon fill="#0e7c86" stroke="#0e7c86" stroke-width="2.2" points="314,-723.75 317.6,-715.75 314,-719.75 314,-715.75 314,-715.75 314,-715.75 314,-719.75 310.4,-715.75 314,-723.75 314,-723.75"/>
+<ellipse fill="none" stroke="#0e7c86" stroke-width="2.2" cx="314" cy="-726.95" rx="3.2" ry="3.2"/>
+<polygon fill="#0e7c86" stroke="#0e7c86" stroke-width="2.2" points="489.1,-883.33 489.1,-891.33 487.5,-891.33 487.5,-883.33 489.1,-883.33"/>
+<polyline fill="none" stroke="#0e7c86" stroke-width="2.2" points="489.9,-887.33 485.9,-887.33 "/>
+<polygon fill="#0e7c86" stroke="#0e7c86" stroke-width="2.2" points="485.1,-883.33 485.1,-891.33 483.5,-891.33 483.5,-883.33 485.1,-883.33"/>
+<polyline fill="none" stroke="#0e7c86" stroke-width="2.2" points="485.9,-887.33 481.9,-887.33 "/>
 </g>
 <!-- ptn__partner_sale -->
 <g id="node12" class="node">

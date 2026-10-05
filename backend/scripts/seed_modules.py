@@ -331,7 +331,13 @@ class Seeder:
         self.partial: dict = {}
         self.uniq: dict = {}
 
-    async def refs(self, table):
+    async def refs(self, table, key=None):
+        if key and (table, key) not in self.ids:
+            meta = await engine.table_meta(self.conn, table)
+            if key not in meta.pk:      # the foreign key points at a unique column other than the primary key
+                self.ids[(table, key)] = [r[0] for r in await self.conn.fetch(f"SELECT {key} FROM {table} ORDER BY 1 LIMIT 200")]
+        if key and (table, key) in self.ids:
+            return self.ids[(table, key)]
         if table not in self.ids:
             meta = await engine.table_meta(self.conn, table)
             key = meta.pk[0]
@@ -455,7 +461,7 @@ class Seeder:
                         raise LookupError(f"no rows in {c.ref}")
                     v = ids[v[1](i) % len(ids)]
                 elif v == REF:
-                    ids = await self.refs(c.ref)
+                    ids = await self.refs(c.ref, c.ref_col)
                     if not ids:
                         raise LookupError(f"no rows in {c.ref}")
                     v = ids[(i + k) % len(ids)]
@@ -475,7 +481,7 @@ class Seeder:
             elif c.has_default and col not in ("status", "state"):
                 continue
             elif c.ref:
-                ids = await self.refs(c.ref)
+                ids = await self.refs(c.ref, c.ref_col)
                 if not ids:
                     if c.notnull:
                         raise LookupError(f"no rows in {c.ref}")

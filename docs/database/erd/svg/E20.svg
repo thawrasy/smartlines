@@ -534,13 +534,13 @@
 <!-- acct__tax_profile_value&#45;&gt;acct__tax_profile -->
 <g id="edge18" class="edge">
 <title>acct__tax_profile_value&#45;&gt;acct__tax_profile</title>
-<path fill="none" stroke="#595959" stroke-width="1.1" d="M612,-723.4C612,-723.4 612,-735.8 612,-735.8 612,-735.8 710.53,-735.8 710.53,-735.8"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="612,-717 615.6,-709 612,-713 612,-709 612,-709 612,-709 612,-713 608.4,-709 612,-717 612,-717"/>
-<ellipse fill="none" stroke="#595959" stroke-width="1.1" cx="612" cy="-720.2" rx="3.2" ry="3.2"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="717.73,-731.8 717.73,-739.8 716.13,-739.8 716.13,-731.8 717.73,-731.8"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="718.53,-735.8 714.53,-735.8 "/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="713.73,-731.8 713.73,-739.8 712.13,-739.8 712.13,-731.8 713.73,-731.8"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="714.53,-735.8 710.53,-735.8 "/>
+<path fill="none" stroke="#7030a0" stroke-width="2.2" d="M612,-723.4C612,-723.4 612,-735.8 612,-735.8 612,-735.8 710.53,-735.8 710.53,-735.8"/>
+<polygon fill="#7030a0" stroke="#7030a0" stroke-width="2.2" points="612,-717 615.6,-709 612,-713 612,-709 612,-709 612,-709 612,-713 608.4,-709 612,-717 612,-717"/>
+<ellipse fill="none" stroke="#7030a0" stroke-width="2.2" cx="612" cy="-720.2" rx="3.2" ry="3.2"/>
+<polygon fill="#7030a0" stroke="#7030a0" stroke-width="2.2" points="717.73,-731.8 717.73,-739.8 716.13,-739.8 716.13,-731.8 717.73,-731.8"/>
+<polyline fill="none" stroke="#7030a0" stroke-width="2.2" points="718.53,-735.8 714.53,-735.8 "/>
+<polygon fill="#7030a0" stroke="#7030a0" stroke-width="2.2" points="713.73,-731.8 713.73,-739.8 712.13,-739.8 712.13,-731.8 713.73,-731.8"/>
+<polyline fill="none" stroke="#7030a0" stroke-width="2.2" points="714.53,-735.8 710.53,-735.8 "/>
 </g>
 <!-- acct__tax_profile_value&#45;&gt;acct__tax_profile_field -->
 <g id="edge17" class="edge">
@@ -713,13 +713,13 @@
 <!-- acct__tax_return_line&#45;&gt;acct__tax_return -->
 <g id="edge24" class="edge">
 <title>acct__tax_return_line&#45;&gt;acct__tax_return</title>
-<path fill="none" stroke="#595959" stroke-width="1.1" d="M394.15,-296C394.15,-296 469.7,-296 469.7,-296"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="469.7,-296 477.7,-299.6 473.7,-296 477.7,-296 477.7,-296 477.7,-296 473.7,-296 477.7,-292.4 469.7,-296 469.7,-296"/>
-<ellipse fill="none" stroke="#595959" stroke-width="1.1" cx="466.5" cy="-296" rx="3.2" ry="3.2"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="380.55,-300 380.55,-292 382.15,-292 382.15,-300 380.55,-300"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="379.75,-296 383.75,-296 "/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="384.55,-300 384.55,-292 386.15,-292 386.15,-300 384.55,-300"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="383.75,-296 387.75,-296 "/>
+<path fill="none" stroke="#7030a0" stroke-width="2.2" d="M394.15,-296C394.15,-296 469.7,-296 469.7,-296"/>
+<polygon fill="#7030a0" stroke="#7030a0" stroke-width="2.2" points="469.7,-296 477.7,-299.6 473.7,-296 477.7,-296 477.7,-296 477.7,-296 473.7,-296 477.7,-292.4 469.7,-296 469.7,-296"/>
+<ellipse fill="none" stroke="#7030a0" stroke-width="2.2" cx="466.5" cy="-296" rx="3.2" ry="3.2"/>
+<polygon fill="#7030a0" stroke="#7030a0" stroke-width="2.2" points="380.55,-300 380.55,-292 382.15,-292 382.15,-300 380.55,-300"/>
+<polyline fill="none" stroke="#7030a0" stroke-width="2.2" points="379.75,-296 383.75,-296 "/>
+<polygon fill="#7030a0" stroke="#7030a0" stroke-width="2.2" points="384.55,-300 384.55,-292 386.15,-292 386.15,-300 384.55,-300"/>
+<polyline fill="none" stroke="#7030a0" stroke-width="2.2" points="383.75,-296 387.75,-296 "/>
 </g>
 <!-- acct__tax_collection_no_file -->
 <g id="node14" class="node">

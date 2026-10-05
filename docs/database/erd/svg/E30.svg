@@ -370,13 +370,13 @@
 <!-- ship__load_stop&#45;&gt;ship__load -->
 <g id="edge13" class="edge">
 <title>ship__load_stop&#45;&gt;ship__load</title>
-<path fill="none" stroke="#595959" stroke-width="1.1" d="M387.85,-484.5C387.85,-484.5 477,-484.5 477,-484.5 477,-484.5 477,-550.88 477,-550.88"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="381.45,-484.5 373.45,-480.9 377.45,-484.5 373.45,-484.5 373.45,-484.5 373.45,-484.5 377.45,-484.5 373.45,-488.1 381.45,-484.5 381.45,-484.5"/>
-<ellipse fill="none" stroke="#595959" stroke-width="1.1" cx="384.65" cy="-484.5" rx="3.2" ry="3.2"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="481,-558.08 473,-558.08 473,-556.48 481,-556.48 481,-558.08"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="477,-558.88 477,-554.88 "/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="481,-554.08 473,-554.08 473,-552.48 481,-552.48 481,-554.08"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="477,-554.88 477,-550.88 "/>
+<path fill="none" stroke="#548235" stroke-width="2.2" d="M387.85,-484.5C387.85,-484.5 477,-484.5 477,-484.5 477,-484.5 477,-550.88 477,-550.88"/>
+<polygon fill="#548235" stroke="#548235" stroke-width="2.2" points="381.45,-484.5 373.45,-480.9 377.45,-484.5 373.45,-484.5 373.45,-484.5 373.45,-484.5 377.45,-484.5 373.45,-488.1 381.45,-484.5 381.45,-484.5"/>
+<ellipse fill="none" stroke="#548235" stroke-width="2.2" cx="384.65" cy="-484.5" rx="3.2" ry="3.2"/>
+<polygon fill="#548235" stroke="#548235" stroke-width="2.2" points="481,-558.08 473,-558.08 473,-556.48 481,-556.48 481,-558.08"/>
+<polyline fill="none" stroke="#548235" stroke-width="2.2" points="477,-558.88 477,-554.88 "/>
+<polygon fill="#548235" stroke="#548235" stroke-width="2.2" points="481,-554.08 473,-554.08 473,-552.48 481,-552.48 481,-554.08"/>
+<polyline fill="none" stroke="#548235" stroke-width="2.2" points="477,-554.88 477,-550.88 "/>
 </g>
 <!-- ship__load_stop&#45;&gt;net__station -->
 <g id="edge14" class="edge">
@@ -415,13 +415,13 @@
 <!-- ship__load_plan&#45;&gt;ship__load -->
 <g id="edge16" class="edge">
 <title>ship__load_plan&#45;&gt;ship__load</title>
-<path fill="none" stroke="#595959" stroke-width="1.1" d="M401.94,-634.5C401.94,-634.5 462.29,-634.5 462.29,-634.5"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="462.29,-634.5 470.29,-638.1 466.29,-634.5 470.29,-634.5 470.29,-634.5 470.29,-634.5 466.29,-634.5 470.29,-630.9 462.29,-634.5 462.29,-634.5"/>
-<ellipse fill="none" stroke="#595959" stroke-width="1.1" cx="459.09" cy="-634.5" rx="3.2" ry="3.2"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="388.34,-638.5 388.34,-630.5 389.94,-630.5 389.94,-638.5 388.34,-638.5"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="387.54,-634.5 391.54,-634.5 "/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="392.34,-638.5 392.34,-630.5 393.94,-630.5 393.94,-638.5 392.34,-638.5"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="391.54,-634.5 395.54,-634.5 "/>
+<path fill="none" stroke="#548235" stroke-width="2.2" d="M401.94,-634.5C401.94,-634.5 462.29,-634.5 462.29,-634.5"/>
+<polygon fill="#548235" stroke="#548235" stroke-width="2.2" points="462.29,-634.5 470.29,-638.1 466.29,-634.5 470.29,-634.5 470.29,-634.5 470.29,-634.5 466.29,-634.5 470.29,-630.9 462.29,-634.5 462.29,-634.5"/>
+<ellipse fill="none" stroke="#548235" stroke-width="2.2" cx="459.09" cy="-634.5" rx="3.2" ry="3.2"/>
+<polygon fill="#548235" stroke="#548235" stroke-width="2.2" points="388.34,-638.5 388.34,-630.5 389.94,-630.5 389.94,-638.5 388.34,-638.5"/>
+<polyline fill="none" stroke="#548235" stroke-width="2.2" points="387.54,-634.5 391.54,-634.5 "/>
+<polygon fill="#548235" stroke="#548235" stroke-width="2.2" points="392.34,-638.5 392.34,-630.5 393.94,-630.5 393.94,-638.5 392.34,-638.5"/>
+<polyline fill="none" stroke="#548235" stroke-width="2.2" points="391.54,-634.5 395.54,-634.5 "/>
 </g>
 <!-- ship__handling_unit -->
 <g id="node7" class="node">
@@ -731,13 +731,13 @@
 <!-- ship__courier_assignment&#45;&gt;ship__courier_route -->
 <g id="edge27" class="edge">
 <title>ship__courier_assignment&#45;&gt;ship__courier_route</title>
-<path fill="none" stroke="#595959" stroke-width="1.1" d="M77,-1081.92C77,-1081.92 77,-1280.83 77,-1280.83 77,-1280.83 471.99,-1280.83 471.99,-1280.83"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="77,-1075.52 80.6,-1067.52 77,-1071.52 77,-1067.52 77,-1067.52 77,-1067.52 77,-1071.52 73.4,-1067.52 77,-1075.52 77,-1075.52"/>
-<ellipse fill="none" stroke="#595959" stroke-width="1.1" cx="77" cy="-1078.72" rx="3.2" ry="3.2"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="479.19,-1276.83 479.19,-1284.83 477.59,-1284.83 477.59,-1276.83 479.19,-1276.83"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="479.99,-1280.83 475.99,-1280.83 "/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="475.19,-1276.83 475.19,-1284.83 473.59,-1284.83 473.59,-1276.83 475.19,-1276.83"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="475.99,-1280.83 471.99,-1280.83 "/>
+<path fill="none" stroke="#548235" stroke-width="2.2" d="M77,-1081.92C77,-1081.92 77,-1280.83 77,-1280.83 77,-1280.83 471.99,-1280.83 471.99,-1280.83"/>
+<polygon fill="#548235" stroke="#548235" stroke-width="2.2" points="77,-1075.52 80.6,-1067.52 77,-1071.52 77,-1067.52 77,-1067.52 77,-1067.52 77,-1071.52 73.4,-1067.52 77,-1075.52 77,-1075.52"/>
+<ellipse fill="none" stroke="#548235" stroke-width="2.2" cx="77" cy="-1078.72" rx="3.2" ry="3.2"/>
+<polygon fill="#548235" stroke="#548235" stroke-width="2.2" points="479.19,-1276.83 479.19,-1284.83 477.59,-1284.83 477.59,-1276.83 479.19,-1276.83"/>
+<polyline fill="none" stroke="#548235" stroke-width="2.2" points="479.99,-1280.83 475.99,-1280.83 "/>
+<polygon fill="#548235" stroke="#548235" stroke-width="2.2" points="475.19,-1276.83 475.19,-1284.83 473.59,-1284.83 473.59,-1276.83 475.19,-1276.83"/>
+<polyline fill="none" stroke="#548235" stroke-width="2.2" points="475.99,-1280.83 471.99,-1280.83 "/>
 </g>
 <!-- ship__pickup_request -->
 <g id="node11" class="node">

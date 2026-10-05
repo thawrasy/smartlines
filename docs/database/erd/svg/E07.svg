@@ -340,14 +340,14 @@
 <!-- fleet__truck_unit&#45;&gt;fleet__vehicle -->
 <g id="edge12" class="edge">
 <title>fleet__truck_unit&#45;&gt;fleet__vehicle</title>
-<path fill="none" stroke="#595959" stroke-width="1.1" stroke-dasharray="5,2" d="M403.94,-150C403.94,-150 581,-150 581,-150 581,-150 581,-122.28 581,-122.28"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="394.34,-154 394.34,-146 395.94,-146 395.94,-154 394.34,-154"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="393.54,-150 397.54,-150 "/>
-<ellipse fill="none" stroke="#595959" stroke-width="1.1" cx="400.74" cy="-150" rx="3.2" ry="3.2"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="577,-115.08 585,-115.08 585,-116.68 577,-116.68 577,-115.08"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="581,-114.28 581,-118.28 "/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="577,-119.08 585,-119.08 585,-120.68 577,-120.68 577,-119.08"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="581,-118.28 581,-122.28 "/>
+<path fill="none" stroke="#548235" stroke-width="2.2" stroke-dasharray="5,2" d="M403.94,-150C403.94,-150 581,-150 581,-150 581,-150 581,-122.28 581,-122.28"/>
+<polygon fill="#548235" stroke="#548235" stroke-width="2.2" points="394.34,-154 394.34,-146 395.94,-146 395.94,-154 394.34,-154"/>
+<polyline fill="none" stroke="#548235" stroke-width="2.2" points="393.54,-150 397.54,-150 "/>
+<ellipse fill="none" stroke="#548235" stroke-width="2.2" cx="400.74" cy="-150" rx="3.2" ry="3.2"/>
+<polygon fill="#548235" stroke="#548235" stroke-width="2.2" points="577,-115.08 585,-115.08 585,-116.68 577,-116.68 577,-115.08"/>
+<polyline fill="none" stroke="#548235" stroke-width="2.2" points="581,-114.28 581,-118.28 "/>
+<polygon fill="#548235" stroke="#548235" stroke-width="2.2" points="577,-119.08 585,-119.08 585,-120.68 577,-120.68 577,-119.08"/>
+<polyline fill="none" stroke="#548235" stroke-width="2.2" points="581,-118.28 581,-122.28 "/>
 </g>
 <!-- fleet__trailer -->
 <g id="node7" class="node">

@@ -197,13 +197,13 @@
 <!-- ship__shipment_reference&#45;&gt;ship__shipment -->
 <g id="edge6" class="edge">
 <title>ship__shipment_reference&#45;&gt;ship__shipment</title>
-<path fill="none" stroke="#595959" stroke-width="1.1" stroke-dasharray="5,2" d="M167.15,-1082.17C167.15,-1082.17 265,-1082.17 265,-1082.17 265,-1082.17 265,-1003.73 265,-1003.73"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="160.75,-1082.17 152.75,-1078.57 156.75,-1082.17 152.75,-1082.17 152.75,-1082.17 152.75,-1082.17 156.75,-1082.17 152.75,-1085.77 160.75,-1082.17 160.75,-1082.17"/>
-<ellipse fill="none" stroke="#595959" stroke-width="1.1" cx="163.95" cy="-1082.17" rx="3.2" ry="3.2"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="261,-996.53 269,-996.53 269,-998.13 261,-998.13 261,-996.53"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="265,-995.73 265,-999.73 "/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="261,-1000.53 269,-1000.53 269,-1002.13 261,-1002.13 261,-1000.53"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="265,-999.73 265,-1003.73 "/>
+<path fill="none" stroke="#548235" stroke-width="2.2" stroke-dasharray="5,2" d="M167.15,-1082.17C167.15,-1082.17 265,-1082.17 265,-1082.17 265,-1082.17 265,-1003.73 265,-1003.73"/>
+<polygon fill="#548235" stroke="#548235" stroke-width="2.2" points="160.75,-1082.17 152.75,-1078.57 156.75,-1082.17 152.75,-1082.17 152.75,-1082.17 152.75,-1082.17 156.75,-1082.17 152.75,-1085.77 160.75,-1082.17 160.75,-1082.17"/>
+<ellipse fill="none" stroke="#548235" stroke-width="2.2" cx="163.95" cy="-1082.17" rx="3.2" ry="3.2"/>
+<polygon fill="#548235" stroke="#548235" stroke-width="2.2" points="261,-996.53 269,-996.53 269,-998.13 261,-998.13 261,-996.53"/>
+<polyline fill="none" stroke="#548235" stroke-width="2.2" points="265,-995.73 265,-999.73 "/>
+<polygon fill="#548235" stroke="#548235" stroke-width="2.2" points="261,-1000.53 269,-1000.53 269,-1002.13 261,-1002.13 261,-1000.53"/>
+<polyline fill="none" stroke="#548235" stroke-width="2.2" points="265,-999.73 265,-1003.73 "/>
 </g>
 <!-- ship__partner_status_map -->
 <g id="node4" class="node">

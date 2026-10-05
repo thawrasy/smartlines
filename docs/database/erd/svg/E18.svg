@@ -343,13 +343,13 @@
 <!-- bill__carrier_invoice_line&#45;&gt;bill__carrier_invoice -->
 <g id="edge10" class="edge">
 <title>bill__carrier_invoice_line&#45;&gt;bill__carrier_invoice</title>
-<path fill="none" stroke="#595959" stroke-width="1.1" d="M154.2,-312C154.2,-312 218.79,-312 218.79,-312"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="218.79,-312 226.79,-315.6 222.79,-312 226.79,-312 226.79,-312 226.79,-312 222.79,-312 226.79,-308.4 218.79,-312 218.79,-312"/>
-<ellipse fill="none" stroke="#595959" stroke-width="1.1" cx="215.59" cy="-312" rx="3.2" ry="3.2"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="140.6,-316 140.6,-308 142.2,-308 142.2,-316 140.6,-316"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="139.8,-312 143.8,-312 "/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="144.6,-316 144.6,-308 146.2,-308 146.2,-316 144.6,-316"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="143.8,-312 147.8,-312 "/>
+<path fill="none" stroke="#7030a0" stroke-width="2.2" d="M154.2,-312C154.2,-312 218.79,-312 218.79,-312"/>
+<polygon fill="#7030a0" stroke="#7030a0" stroke-width="2.2" points="218.79,-312 226.79,-315.6 222.79,-312 226.79,-312 226.79,-312 226.79,-312 222.79,-312 226.79,-308.4 218.79,-312 218.79,-312"/>
+<ellipse fill="none" stroke="#7030a0" stroke-width="2.2" cx="215.59" cy="-312" rx="3.2" ry="3.2"/>
+<polygon fill="#7030a0" stroke="#7030a0" stroke-width="2.2" points="140.6,-316 140.6,-308 142.2,-308 142.2,-316 140.6,-316"/>
+<polyline fill="none" stroke="#7030a0" stroke-width="2.2" points="139.8,-312 143.8,-312 "/>
+<polygon fill="#7030a0" stroke="#7030a0" stroke-width="2.2" points="144.6,-316 144.6,-308 146.2,-308 146.2,-316 144.6,-316"/>
+<polyline fill="none" stroke="#7030a0" stroke-width="2.2" points="143.8,-312 147.8,-312 "/>
 </g>
 <!-- bill__billed_usage -->
 <g id="node7" class="node">

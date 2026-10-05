@@ -304,13 +304,13 @@
 <!-- ops__proximity_sample&#45;&gt;ops__shuttle_ride -->
 <g id="edge11" class="edge">
 <title>ops__proximity_sample&#45;&gt;ops__shuttle_ride</title>
-<path fill="none" stroke="#595959" stroke-width="1.1" d="M153.08,-287C153.08,-287 219.68,-287 219.68,-287"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="219.68,-287 227.68,-290.6 223.68,-287 227.68,-287 227.68,-287 227.68,-287 223.68,-287 227.68,-283.4 219.68,-287 219.68,-287"/>
-<ellipse fill="none" stroke="#595959" stroke-width="1.1" cx="216.48" cy="-287" rx="3.2" ry="3.2"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="139.48,-291 139.48,-283 141.08,-283 141.08,-291 139.48,-291"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="138.68,-287 142.68,-287 "/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="143.48,-291 143.48,-283 145.08,-283 145.08,-291 143.48,-291"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="142.68,-287 146.68,-287 "/>
+<path fill="none" stroke="#bf8f00" stroke-width="2.2" d="M153.08,-287C153.08,-287 219.68,-287 219.68,-287"/>
+<polygon fill="#bf8f00" stroke="#bf8f00" stroke-width="2.2" points="219.68,-287 227.68,-290.6 223.68,-287 227.68,-287 227.68,-287 227.68,-287 223.68,-287 227.68,-283.4 219.68,-287 219.68,-287"/>
+<ellipse fill="none" stroke="#bf8f00" stroke-width="2.2" cx="216.48" cy="-287" rx="3.2" ry="3.2"/>
+<polygon fill="#bf8f00" stroke="#bf8f00" stroke-width="2.2" points="139.48,-291 139.48,-283 141.08,-283 141.08,-291 139.48,-291"/>
+<polyline fill="none" stroke="#bf8f00" stroke-width="2.2" points="138.68,-287 142.68,-287 "/>
+<polygon fill="#bf8f00" stroke="#bf8f00" stroke-width="2.2" points="143.48,-291 143.48,-283 145.08,-283 145.08,-291 143.48,-291"/>
+<polyline fill="none" stroke="#bf8f00" stroke-width="2.2" points="142.68,-287 146.68,-287 "/>
 </g>
 <!-- ops__presence_beacon -->
 <g id="node4" class="node">
@@ -652,13 +652,13 @@
 <!-- sales__shuttle_pass&#45;&gt;sales__subscription -->
 <g id="edge23" class="edge">
 <title>sales__shuttle_pass&#45;&gt;sales__subscription</title>
-<path fill="none" stroke="#595959" stroke-width="1.1" d="M163.42,-713.25C163.42,-713.25 233.74,-713.25 233.74,-713.25"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="233.74,-713.25 241.74,-716.85 237.74,-713.25 241.74,-713.25 241.74,-713.25 241.74,-713.25 237.74,-713.25 241.74,-709.65 233.74,-713.25 233.74,-713.25"/>
-<ellipse fill="none" stroke="#595959" stroke-width="1.1" cx="230.54" cy="-713.25" rx="3.2" ry="3.2"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="149.82,-717.25 149.82,-709.25 151.42,-709.25 151.42,-717.25 149.82,-717.25"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="149.02,-713.25 153.02,-713.25 "/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="153.82,-717.25 153.82,-709.25 155.42,-709.25 155.42,-717.25 153.82,-717.25"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="153.02,-713.25 157.02,-713.25 "/>
+<path fill="none" stroke="#bf8f00" stroke-width="2.2" d="M163.42,-713.25C163.42,-713.25 233.74,-713.25 233.74,-713.25"/>
+<polygon fill="#bf8f00" stroke="#bf8f00" stroke-width="2.2" points="233.74,-713.25 241.74,-716.85 237.74,-713.25 241.74,-713.25 241.74,-713.25 241.74,-713.25 237.74,-713.25 241.74,-709.65 233.74,-713.25 233.74,-713.25"/>
+<ellipse fill="none" stroke="#bf8f00" stroke-width="2.2" cx="230.54" cy="-713.25" rx="3.2" ry="3.2"/>
+<polygon fill="#bf8f00" stroke="#bf8f00" stroke-width="2.2" points="149.82,-717.25 149.82,-709.25 151.42,-709.25 151.42,-717.25 149.82,-717.25"/>
+<polyline fill="none" stroke="#bf8f00" stroke-width="2.2" points="149.02,-713.25 153.02,-713.25 "/>
+<polygon fill="#bf8f00" stroke="#bf8f00" stroke-width="2.2" points="153.82,-717.25 153.82,-709.25 155.42,-709.25 155.42,-717.25 153.82,-717.25"/>
+<polyline fill="none" stroke="#bf8f00" stroke-width="2.2" points="153.02,-713.25 157.02,-713.25 "/>
 </g>
 <!-- sales__nfc_card -->
 <g id="node9" class="node">

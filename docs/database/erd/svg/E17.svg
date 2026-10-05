@@ -448,13 +448,13 @@
 <!-- fin__settlement_line&#45;&gt;fin__settlement_batch -->
 <g id="edge15" class="edge">
 <title>fin__settlement_line&#45;&gt;fin__settlement_batch</title>
-<path fill="none" stroke="#595959" stroke-width="1.1" d="M149.65,-406.75C149.65,-406.75 231.71,-406.75 231.71,-406.75"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="231.71,-406.75 239.71,-410.35 235.71,-406.75 239.71,-406.75 239.71,-406.75 239.71,-406.75 235.71,-406.75 239.71,-403.15 231.71,-406.75 231.71,-406.75"/>
-<ellipse fill="none" stroke="#595959" stroke-width="1.1" cx="228.51" cy="-406.75" rx="3.2" ry="3.2"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="136.05,-410.75 136.05,-402.75 137.65,-402.75 137.65,-410.75 136.05,-410.75"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="135.25,-406.75 139.25,-406.75 "/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="140.05,-410.75 140.05,-402.75 141.65,-402.75 141.65,-410.75 140.05,-410.75"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="139.25,-406.75 143.25,-406.75 "/>
+<path fill="none" stroke="#7030a0" stroke-width="2.2" d="M149.65,-406.75C149.65,-406.75 231.71,-406.75 231.71,-406.75"/>
+<polygon fill="#7030a0" stroke="#7030a0" stroke-width="2.2" points="231.71,-406.75 239.71,-410.35 235.71,-406.75 239.71,-406.75 239.71,-406.75 239.71,-406.75 235.71,-406.75 239.71,-403.15 231.71,-406.75 231.71,-406.75"/>
+<ellipse fill="none" stroke="#7030a0" stroke-width="2.2" cx="228.51" cy="-406.75" rx="3.2" ry="3.2"/>
+<polygon fill="#7030a0" stroke="#7030a0" stroke-width="2.2" points="136.05,-410.75 136.05,-402.75 137.65,-402.75 137.65,-410.75 136.05,-410.75"/>
+<polyline fill="none" stroke="#7030a0" stroke-width="2.2" points="135.25,-406.75 139.25,-406.75 "/>
+<polygon fill="#7030a0" stroke="#7030a0" stroke-width="2.2" points="140.05,-410.75 140.05,-402.75 141.65,-402.75 141.65,-410.75 140.05,-410.75"/>
+<polyline fill="none" stroke="#7030a0" stroke-width="2.2" points="139.25,-406.75 143.25,-406.75 "/>
 </g>
 <!-- ops__trip -->
 <g id="node17" class="node">

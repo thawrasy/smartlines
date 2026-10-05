@@ -12,7 +12,7 @@ import os
 import subprocess
 import sys
 
-from diagrams import (DATA_STORES, EDGE, FAMILY, GRID, GROUPS, INK, NAVY, ROW_ALT, SCHEMA_FAMILY)
+from diagrams import (DATA_STORES, EDGE, FAMILY, FOCUS, GRID, GROUPS, INK, NAVY, ROW_ALT, SCHEMA_FAMILY)
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(HERE, "..", "erd")
@@ -56,7 +56,8 @@ SELECT json_agg(json_build_object(
        'ref_cols', (SELECT json_agg(a.attname) FROM unnest(f.confkey) k JOIN pg_attribute a ON a.attrelid = f.confrelid AND a.attnum = k),
        'on_delete', f.confdeltype,
        'required', (SELECT bool_and(a.attnotnull) FROM unnest(f.conkey) k JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = k),
-       'unique', EXISTS (SELECT 1 FROM pg_constraint u WHERE u.conrelid = t.oid AND u.contype IN ('u','p') AND u.conkey = f.conkey))
+       'unique', EXISTS (SELECT 1 FROM pg_constraint u WHERE u.conrelid = t.oid AND u.contype IN ('u','p') AND u.conkey = f.conkey),
+       'indexed', EXISTS (SELECT 1 FROM pg_index i WHERE i.indrelid = t.oid AND i.indkey[0] = f.conkey[1]))
        ORDER BY f.conname)
      FROM pg_constraint f JOIN pg_class fc ON fc.oid = f.confrelid JOIN pg_namespace fn ON fn.oid = fc.relnamespace
      WHERE f.conrelid = t.oid AND f.contype = 'f')
@@ -84,15 +85,15 @@ def short_type(t):
     return t if len(t) <= 16 else t[:15] + "…"
 
 
-def drawn(fk, group_tables):
+def drawn(fk, group_tables, focus=False):
     if len(fk["cols"]) == 1 and fk["cols"][0] in ACTOR_COLS:
-        return False
+        return focus and fk["ref"] in group_tables   # a focus diagram shows who approves, when that is the point
     return not (fk["ref"] in QUIET_REFS and fk["ref"] not in group_tables)
 
 
-def entity_label(t, fam, group_tables):
+def entity_label(t, fam, group_tables, focus=False):
     pk = set(t["pk"] or [])
-    fkcols = {c for f in (t["fks"] or []) if drawn(f, group_tables) for c in f["cols"]}
+    fkcols = {c for f in (t["fks"] or []) if drawn(f, group_tables, focus) for c in f["cols"]}
     uq = {u[0] for u in (t["unique"] or []) if len(u) == 1}
     shown = [c for c in t["columns"] if c["name"] in pk or c["name"] in fkcols]
     extra = [c for c in t["columns"] if c not in shown and (c["name"] in NOTABLE or c["name"] in uq)][:3]
@@ -138,18 +139,22 @@ def group_dot(group, model):
     edges = []
     for full in tables:
         t = model[full]
-        lines.append(f'  {node_id(full)} [label={entity_label(t, fam, tset)}];')
+        tfam = fam or SCHEMA_FAMILY.get(t["schema"], "core")
+        lines.append(f'  {node_id(full)} [label={entity_label(t, tfam, tset, fam is None)}];')
         for f in t["fks"] or []:
-            if not drawn(f, tset):
+            if not drawn(f, tset, fam is None):
                 continue
             tail = "teeodot" if f["unique"] else "crowodot"
             head = "teetee" if f["required"] else "teeodot"
-            col = f["cols"][0]
+            # composition (ON DELETE CASCADE): the child is part of the parent, drawn heavier in the module colour
+            comp = f', color="{FAMILY[tfam]["band"]}", penwidth=2.2' if f["on_delete"] == "c" else ""
+            if fam is None and f["ref"] not in tset:
+                continue            # focus diagrams show only the links among their own tables
             if f["ref"] in tset:
-                edges.append(f'  {node_id(full)} -> {node_id(f["ref"])} [arrowtail={tail}, arrowhead={head}];')
+                edges.append(f'  {node_id(full)} -> {node_id(f["ref"])} [arrowtail={tail}, arrowhead={head}{comp}];')
             else:
                 externals.add(f["ref"])
-                edges.append(f'  {node_id(full)} -> {node_id(f["ref"])} [arrowtail={tail}, arrowhead={head}, style=dashed];')
+                edges.append(f'  {node_id(full)} -> {node_id(f["ref"])} [arrowtail={tail}, arrowhead={head}, style=dashed{comp}];')
     for ext in sorted(externals):
         efam = SCHEMA_FAMILY.get(ext.split(".")[0], "core")
         lines.append(f'  {node_id(ext)} [shape=box, style="rounded,dashed,filled", fillcolor="#F7F7F7", color="#8C8C8C", '
@@ -205,10 +210,13 @@ def legend_dot():
         f'  child [label={ent("child", [(fk, "<B>parent_id</B>", "r"), (fk, "other_id", "o"), ("", "status", "s")])}];',
         f'  parent [label={ent("parent", [(pk, "<B>id</B>", "id")])}];',
         f'  other [label={ent("other", [(pk, "<B>id</B>", "id")])}];',
+        f'  whole [label={ent("whole", [(pk, "<B>id</B>", "id")])}];',
+        f'  part [label={ent("part", [(fk, "<B>whole_id</B>", "w")])}];',
         '  ext [shape=box, style="rounded,dashed,filled", fillcolor="#F7F7F7", color="#8C8C8C", fontsize=9, label="schema.table (other module)"];',
         f'  child:r -> parent:id [arrowtail=crowodot, arrowhead=teetee, label="required: many to exactly one"];',
         f'  child:o -> other:id [arrowtail=crowodot, arrowhead=teeodot, label="optional: many to zero or one"];',
         f'  child:s -> ext [arrowtail=teeodot, arrowhead=teetee, style=dashed, label="one to one (unique key), to another module"];',
+        f'  part:w -> whole:id [arrowtail=crowodot, arrowhead=teetee, color="{FAMILY[fam]["band"]}", penwidth=2.2, label="composition: deleted with the parent (cascade)"];',
         "}"])
 
 
@@ -235,9 +243,11 @@ def main():
     render("legend", legend_dot())
     for g in GROUPS:
         render(f"{g[0]}", group_dot(g, model))
+    for g in FOCUS:
+        render(f"{g[0]}", group_dot(g, model))
     os.makedirs(BUILD, exist_ok=True)
-    json.dump({"tables": tables, "groups": GROUPS, "stores": DATA_STORES}, open(os.path.join(BUILD, "model.json"), "w"), indent=0)
-    print(f"rendered {len(GROUPS) + 2} diagrams for {len(tables)} tables")
+    json.dump({"tables": tables, "groups": GROUPS, "focus": FOCUS, "stores": DATA_STORES}, open(os.path.join(BUILD, "model.json"), "w"), indent=0)
+    print(f"rendered {len(GROUPS) + len(FOCUS) + 2} diagrams for {len(tables)} tables")
 
 
 if __name__ == "__main__":
