@@ -325,7 +325,7 @@ def _minor(text: str) -> int:
     return int((v * 100).quantize(Decimal("1")))
 
 
-FIELDS = {"value_date": ("value_date", "date", "booking_date", "تاريخ"), "amount": ("amount", "credit", "مبلغ"),
+FIELDS = {"value_date": ("value_date", "date", "booking_date"), "amount": ("amount", "credit"),
           "currency": ("currency",), "reference": ("reference", "description", "details", "narrative"),
           "payer": ("payer", "name", "sender", "remitter"), "bank_ref": ("bank_ref", "transaction_id", "transaction", "ref", "id")}
 
