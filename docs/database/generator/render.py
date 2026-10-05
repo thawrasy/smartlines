@@ -7,12 +7,11 @@ Writes ../erd/svg/*.svg, ../erd/png/*.png and ../build/model.json (input of buil
 """
 import html
 import json
-import math
 import os
 import subprocess
 import sys
 
-from diagrams import (DATA_STORES, EDGE, FAMILY, FOCUS, GRID, GROUPS, INK, NAVY, ROW_ALT, SCHEMA_FAMILY)
+from diagrams import (DATA_STORES, EDGE, FAMILY, FOCUS, GROUPS, INK, NAVY, ROW_ALT, SCHEMA_FAMILY)
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(HERE, "..", "erd")
@@ -156,7 +155,6 @@ def group_dot(group, model):
                 externals.add(f["ref"])
                 edges.append(f'  {node_id(full)} -> {node_id(f["ref"])} [arrowtail={tail}, arrowhead={head}, style=dashed{comp}];')
     for ext in sorted(externals):
-        efam = SCHEMA_FAMILY.get(ext.split(".")[0], "core")
         lines.append(f'  {node_id(ext)} [shape=box, style="rounded,dashed,filled", fillcolor="#F7F7F7", color="#8C8C8C", '
                      f'fontcolor="#404040", fontsize=9, margin="0.12,0.05", label="{esc(ext)}"];')
     lines += edges
@@ -213,9 +211,9 @@ def legend_dot():
         f'  whole [label={ent("whole", [(pk, "<B>id</B>", "id")])}];',
         f'  part [label={ent("part", [(fk, "<B>whole_id</B>", "w")])}];',
         '  ext [shape=box, style="rounded,dashed,filled", fillcolor="#F7F7F7", color="#8C8C8C", fontsize=9, label="schema.table (other module)"];',
-        f'  child:r -> parent:id [arrowtail=crowodot, arrowhead=teetee, label="required: many to exactly one"];',
-        f'  child:o -> other:id [arrowtail=crowodot, arrowhead=teeodot, label="optional: many to zero or one"];',
-        f'  child:s -> ext [arrowtail=teeodot, arrowhead=teetee, style=dashed, label="one to one (unique key), to another module"];',
+        '  child:r -> parent:id [arrowtail=crowodot, arrowhead=teetee, label="required: many to exactly one"];',
+        '  child:o -> other:id [arrowtail=crowodot, arrowhead=teeodot, label="optional: many to zero or one"];',
+        '  child:s -> ext [arrowtail=teeodot, arrowhead=teetee, style=dashed, label="one to one (unique key), to another module"];',
         f'  part:w -> whole:id [arrowtail=crowodot, arrowhead=teetee, color="{FAMILY[fam]["band"]}", penwidth=2.2, label="composition: deleted with the parent (cascade)"];',
         "}"])
 

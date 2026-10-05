@@ -76,7 +76,7 @@ export function TravelRules() {
           {res && (
             <div className={`alert ${res.exception ? "ok" : "info"}`}><Icon name={res.exception ? "verified" : "badge"} />
               <span>{res.international ? `${t("wf.travel.result", { docs: res.docs.map(doc).join(t("checkout.or")) })}${res.docs.includes("PASSPORT") && res.passport_min_days > 0 ? ` ${t("wf.travel.minDays", { n: res.passport_min_days })}.` : ""}` : t("wf.travel.domestic")}
-                {res.rules.length > 0 && <> · {res.rules.join("، ")}</>}</span>
+                {res.rules.length > 0 && <> · {res.rules.join(" · ")}</>}</span>
             </div>
           )}
         </div>
