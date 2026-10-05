@@ -1,5 +1,7 @@
 """Outbox worker: python -m app.modules.notify.worker [--once]
 
+Also sends scheduled reports (app.modules.reports.scheduler) once a minute when no event is waiting.
+
 Claims one pending event at a time (FOR UPDATE SKIP LOCKED, so several workers can run), records an in-app
 notification per recipient and sends email or SMS. A failure rolls the event back and retries it later with
 exponential backoff; after MAX_ATTEMPTS it is marked FAILED for operators to inspect.
@@ -83,10 +85,16 @@ async def run_once() -> bool:
 async def main(once: bool) -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     await db.open_pools()
+    last_reports = 0.0
     try:
         while True:
             busy = await run_once()
             if not busy:
+                # scheduled reports are checked once a minute, between events
+                if once or asyncio.get_running_loop().time() - last_reports > 60:
+                    from ..reports.scheduler import run_due
+                    await run_due()
+                    last_reports = asyncio.get_running_loop().time()
                 if once:
                     return
                 await asyncio.sleep(2)

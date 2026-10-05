@@ -25,9 +25,642 @@
     "subject": "{doc_type} بحاجة إلى تعديل",
     "body": "لم تُعتمد {doc_type}: {note}. يرجى رفع وثيقة مصححة."
   },
-  "cities": {"ALP": "حلب", "DAM": "دمشق", "DRA": "درعا", "HMA": "حماة", "HMS": "حمص", "LTK": "اللاذقية", "TRT": "طرطوس",
-             "SWD": "السويداء", "IDL": "إدلب", "RQA": "الرقة", "DRZ": "دير الزور", "HSK": "الحسكة", "QNT": "القنيطرة", "RDM": "ريف دمشق",
-             "AMM": "عمّان", "BEY": "بيروت"},
-  "doc_types": {"CR": "السجل التجاري", "TAX_CERT": "الشهادة الضريبية", "TRANSPORT_LICENSE": "رخصة النقل",
-                "INSURANCE_POLICY": "بوليصة التأمين", "VEHICLE_REG": "رخصة سير المركبة", "AGENCY_LICENSE": "ترخيص وكالة السفر", "OTHER": "الوثيقة"}
+  "cities": {
+    "ALP": "حلب",
+    "DAM": "دمشق",
+    "DRA": "درعا",
+    "HMA": "حماة",
+    "HMS": "حمص",
+    "LTK": "اللاذقية",
+    "TRT": "طرطوس",
+    "SWD": "السويداء",
+    "IDL": "إدلب",
+    "RQA": "الرقة",
+    "DRZ": "دير الزور",
+    "HSK": "الحسكة",
+    "QNT": "القنيطرة",
+    "RDM": "ريف دمشق",
+    "AMM": "عمّان",
+    "BEY": "بيروت"
+  },
+  "doc_types": {
+    "CR": "السجل التجاري",
+    "TAX_CERT": "الشهادة الضريبية",
+    "TRANSPORT_LICENSE": "رخصة النقل",
+    "INSURANCE_POLICY": "بوليصة التأمين",
+    "VEHICLE_REG": "رخصة سير المركبة",
+    "AGENCY_LICENSE": "ترخيص وكالة السفر",
+    "OTHER": "الوثيقة"
+  },
+  "reports": {
+    "period": "الفترة",
+    "generated": "أُنشئ",
+    "page": "صفحة",
+    "rows": "السجلات",
+    "total": "الإجمالي",
+    "empty": "لا توجد بيانات في هذه الفترة.",
+    "truncated": "أول السجلات فقط؛ ضيّق المرشحات لعرض البقية",
+    "report_kind": "تقرير",
+    "yes": "نعم",
+    "no": "لا",
+    "all_time": "كل السجلات",
+    "custom": "تقرير مخصص",
+    "brand": "مسلك",
+    "email_subject": "تقرير مسلك: {title}",
+    "email_body": "مرفق التقرير {frequency} «{title}» للفترة {period}: {rows} سجلاً.\n\nجدول هذا التقرير {owner}. لإيقافه افتح التقارير ← الجدولة على masslak.com.",
+    "frequency": {
+      "DAILY": "اليومي",
+      "WEEKLY": "الأسبوعي",
+      "MONTHLY": "الشهري"
+    },
+    "categories": {
+      "sales": "المبيعات",
+      "operations": "التشغيل",
+      "finance": "المالية",
+      "shipping": "الشحن",
+      "services": "الخدمات",
+      "fleet": "الأسطول والامتثال",
+      "international": "السفر الدولي",
+      "platform": "المنصة",
+      "security": "الأمن"
+    },
+    "titles": {
+      "sales.daily": {
+        "title": "المبيعات اليومية",
+        "description": "الحجوزات المؤكدة والركاب والمبالغ لكل يوم"
+      },
+      "sales.monthly": {
+        "title": "المبيعات الشهرية",
+        "description": "الأجور ورسوم المنصة والإجمالي لكل شهر"
+      },
+      "sales.by_carrier": {
+        "title": "المبيعات حسب الناقل",
+        "description": "حجوزات وإيرادات كل ناقل"
+      },
+      "sales.by_route": {
+        "title": "المبيعات حسب المسار",
+        "description": "الركاب والإيرادات بين كل مدينتين"
+      },
+      "sales.by_channel": {
+        "title": "المبيعات حسب القناة",
+        "description": "المبيعات المباشرة وعبر الوكالات والقنوات"
+      },
+      "sales.bookings": {
+        "title": "سجل الحجوزات",
+        "description": "كل حجز برحلته وقناته ومبلغه"
+      },
+      "sales.cancellations": {
+        "title": "الإلغاءات",
+        "description": "الحجوزات الملغاة وأسبابها"
+      },
+      "sales.agency": {
+        "title": "سجل مبيعات الوكالات",
+        "description": "الحجوزات المباعة عبر وكالات السفر"
+      },
+      "sales.by_agency": {
+        "title": "المبيعات حسب الوكالة",
+        "description": "حجوزات ومبالغ كل وكالة"
+      },
+      "sales.tickets": {
+        "title": "سجل التذاكر",
+        "description": "التذاكر بالراكب والمقطع والفئة والمقعد"
+      },
+      "sales.by_fare_brand": {
+        "title": "المبيعات حسب الفئة السعرية",
+        "description": "التذاكر والإيرادات لكل فئة سعرية"
+      },
+      "ops.load_factor": {
+        "title": "نسبة إشغال الرحلات",
+        "description": "المقاعد المباعة والصاعدون والإيراد لكل رحلة"
+      },
+      "ops.by_route": {
+        "title": "التشغيل حسب المسار",
+        "description": "الرحلات والمقاعد المعروضة والمباعة لكل مسار"
+      },
+      "ops.punctuality": {
+        "title": "الالتزام بالمواعيد حسب الناقل",
+        "description": "متوسط وأطول تأخير في الانطلاق"
+      },
+      "ops.trips_by_status": {
+        "title": "الرحلات حسب الحالة",
+        "description": "عدد الرحلات في كل حالة"
+      },
+      "ops.incidents": {
+        "title": "سجل الحوادث",
+        "description": "الحوادث بشدتها ومركبتها ورحلتها"
+      },
+      "ops.incidents_by_type": {
+        "title": "الحوادث حسب النوع",
+        "description": "عدد الحوادث حسب النوع والشدة"
+      },
+      "fin.wallet_movements": {
+        "title": "حركات المحافظ",
+        "description": "كل قيد دائن ومدين مع الرصيد بعده"
+      },
+      "fin.movements_by_type": {
+        "title": "الحركات حسب النوع",
+        "description": "الدائن والمدين لكل نوع عملية"
+      },
+      "fin.topups": {
+        "title": "شحن المحافظ",
+        "description": "عمليات الشحن الناجحة لكل يوم وطريقة"
+      },
+      "fin.payments": {
+        "title": "سجل المدفوعات",
+        "description": "المدفوعات الواردة عبر كل مزود"
+      },
+      "fin.settlements": {
+        "title": "كشوف التسوية",
+        "description": "الإجمالي والعمولة والضريبة والاستردادات والصافي لكل شركة"
+      },
+      "fin.withdrawals": {
+        "title": "طلبات السحب",
+        "description": "طلبات السحب وصرفها"
+      },
+      "fin.invoices": {
+        "title": "فواتير المبيعات",
+        "description": "الفواتير الصادرة بالضريبة والإجمالي"
+      },
+      "fin.invoices_monthly": {
+        "title": "الفواتير حسب الشهر",
+        "description": "المبالغ المفوترة والضريبة لكل شهر"
+      },
+      "ship.shipments": {
+        "title": "سجل الشحنات",
+        "description": "الشحنات بمسارها وخدمتها ووزنها وسعرها"
+      },
+      "ship.by_status": {
+        "title": "الشحنات حسب الحالة",
+        "description": "الشحنات والوزن والإيراد في كل حالة"
+      },
+      "ship.by_route": {
+        "title": "الشحنات حسب المسار",
+        "description": "الشحنات بين كل مدينتين"
+      },
+      "svc.subscriptions": {
+        "title": "اشتراكات النقل الترددي",
+        "description": "الاشتراكات والرحلات المستخدمة والإيراد لكل باقة"
+      },
+      "svc.taxi": {
+        "title": "طلبات التكسي",
+        "description": "الطلبات والأجور التقديرية لكل مدينة"
+      },
+      "svc.rentals": {
+        "title": "تأجير السيارات",
+        "description": "حجوزات التأجير بتواريخها ومبالغها"
+      },
+      "svc.freight": {
+        "title": "طلبات الشحن الثقيل",
+        "description": "الحمولات وعروضها وأفضل عرض"
+      },
+      "fleet.vehicles": {
+        "title": "سجل الأسطول",
+        "description": "المركبات بفئتها وطرازها ومقاعدها"
+      },
+      "fleet.expiring_documents": {
+        "title": "الوثائق القريبة الانتهاء",
+        "description": "الوثائق التي تنتهي خلال 60 يوماً"
+      },
+      "intl.travel_documents": {
+        "title": "وثائق السفر حسب الوجهة",
+        "description": "المسافرون الدوليون حسب الوجهة والوثيقة"
+      },
+      "intl.exceptions": {
+        "title": "الاستثناءات المستخدمة",
+        "description": "التذاكر الصادرة بموجب استثناء وثائق معتمد"
+      },
+      "plat.companies": {
+        "title": "سجل الشركات",
+        "description": "الناقلون والوكالات وحالة اعتمادهم"
+      },
+      "sec.failed_sign_ins": {
+        "title": "محاولات الدخول الفاشلة",
+        "description": "محاولات الدخول الفاشلة والمحظورة لكل يوم وبوابة"
+      }
+    },
+    "columns": {
+      "booking_ref": "الحجز",
+      "created_at": "التاريخ والوقت",
+      "created_date": "التاريخ",
+      "created_month": "الشهر",
+      "status": "الحالة",
+      "carrier": "الناقل",
+      "trip_no": "الرحلة",
+      "departure_date": "تاريخ الانطلاق",
+      "departure_at": "الانطلاق",
+      "origin_city": "من",
+      "dest_city": "إلى",
+      "channel": "القناة",
+      "agency": "الوكالة",
+      "pay_method": "طريقة الدفع",
+      "passengers": "الركاب",
+      "fares": "الأجور",
+      "platform_fee": "رسم المنصة",
+      "total_amount": "المبلغ",
+      "cancelled_at": "تاريخ الإلغاء",
+      "cancel_reason": "السبب",
+      "contact_mobile": "الجوال",
+      "ticket_no": "التذكرة",
+      "from_station": "محطة الصعود",
+      "to_station": "محطة النزول",
+      "fare_brand": "الفئة السعرية",
+      "seat_no": "المقعد",
+      "passenger": "الراكب",
+      "nationality": "الجنسية",
+      "travel_category": "فئة السفر",
+      "boarded_at": "وقت الصعود",
+      "trip_type": "نوع الرحلة",
+      "vehicle": "المركبة",
+      "seats_total": "المقاعد",
+      "seats_sold": "المباعة",
+      "boarded": "الصاعدون",
+      "load_factor": "نسبة الإشغال %",
+      "revenue": "الإيراد",
+      "departure_delay_min": "التأخير (دقيقة)",
+      "occurred_at": "وقت الحادث",
+      "occurred_date": "التاريخ",
+      "type": "النوع",
+      "severity": "الشدة",
+      "injuries": "إصابات",
+      "police_report_no": "محضر الشرطة",
+      "txn_type": "العملية",
+      "direction": "الاتجاه",
+      "wallet_type": "المحفظة",
+      "wallet_owner": "المالك",
+      "credit": "دائن",
+      "debit": "مدين",
+      "balance_after": "الرصيد بعدها",
+      "reference": "المرجع",
+      "purpose": "الغرض",
+      "provider": "المزود",
+      "method": "الطريقة",
+      "amount": "المبلغ",
+      "fee": "الرسم",
+      "provider_ref": "مرجع المزود",
+      "card_last4": "البطاقة",
+      "settled_at": "وقت التسوية",
+      "company": "الشركة",
+      "period_from": "من",
+      "period_to": "إلى",
+      "gross": "الإجمالي",
+      "commission": "العمولة",
+      "tax": "الضريبة",
+      "refunds": "الاستردادات",
+      "net": "الصافي",
+      "approved_at": "وقت الاعتماد",
+      "needs_second": "اعتماد ثانٍ",
+      "decided_at": "وقت القرار",
+      "paid_at": "وقت الصرف",
+      "bank_ref": "المرجع المصرفي",
+      "invoice_no": "الفاتورة",
+      "issue_date": "تاريخ الإصدار",
+      "issue_month": "الشهر",
+      "due_date": "تاريخ الاستحقاق",
+      "customer": "العميل",
+      "subtotal": "قبل الضريبة",
+      "total": "الإجمالي",
+      "tracking_no": "رقم التتبع",
+      "service": "الخدمة",
+      "cargo_category": "نوع البضاعة",
+      "weight_kg": "الوزن (كغ)",
+      "declared_value": "القيمة المصرّح بها",
+      "cod_amount": "الدفع عند الاستلام",
+      "price": "السعر",
+      "recipient": "المستلم",
+      "plan": "الباقة",
+      "operator": "المشغّل",
+      "starts_on": "البداية",
+      "ends_on": "النهاية",
+      "rides_used": "الرحلات المستخدمة",
+      "price_paid": "المدفوع",
+      "subscriber": "المشترك",
+      "city": "المدينة",
+      "kind": "النوع",
+      "seats": "المقاعد",
+      "fare_estimate": "الأجرة التقديرية",
+      "pickup": "الانطلاق",
+      "dropoff": "الوجهة",
+      "rental_class": "الفئة",
+      "pickup_at": "الاستلام",
+      "return_at": "الإرجاع",
+      "days": "الأيام",
+      "quoted_total": "المبلغ المعروض",
+      "renter": "المستأجر",
+      "shipper": "الشاحن",
+      "target_price": "السعر المستهدف",
+      "bids": "العروض",
+      "best_bid": "أفضل عرض",
+      "plate_no": "اللوحة",
+      "vehicle_class": "الفئة",
+      "vehicle_type": "النوع",
+      "make": "الصانع",
+      "model": "الطراز",
+      "manufacture_year": "سنة الصنع",
+      "passenger_seats": "المقاعد",
+      "owner_type": "يخص",
+      "doc_type": "الوثيقة",
+      "issuer": "جهة الإصدار",
+      "expiry_date": "تاريخ الانتهاء",
+      "days_left": "الأيام المتبقية",
+      "dest_country": "الوجهة",
+      "exception": "استثناء",
+      "passport_expiry": "انتهاء الجواز",
+      "name": "الاسم",
+      "company_type": "النوع",
+      "approval_status": "الاعتماد",
+      "cr_no": "السجل التجاري",
+      "cr_expiry": "انتهاء السجل",
+      "settlement_cycle": "دورة التسوية",
+      "ts": "الوقت",
+      "date": "التاريخ",
+      "event": "الحدث",
+      "portal": "البوابة",
+      "result": "النتيجة",
+      "reason": "السبب",
+      "ip": "عنوان IP",
+      "country": "الدولة"
+    },
+    "aggregates": {
+      "count": "عدد {col}",
+      "count_distinct": "عدد {col} المختلفة",
+      "sum": "{col}",
+      "avg": "متوسط {col}",
+      "min": "أدنى {col}",
+      "max": "أعلى {col}",
+      "count_rows": "العدد"
+    },
+    "values": {
+      "booking_status": {
+        "PENDING_PAYMENT": "بانتظار الدفع",
+        "CONFIRMED": "مؤكد",
+        "CANCELLED": "ملغى",
+        "COMPLETED": "مكتمل",
+        "EXPIRED": "منتهي"
+      },
+      "ticket_status": {
+        "ISSUED": "صادرة",
+        "BOARDED": "صعد",
+        "CANCELLED": "ملغاة",
+        "REFUNDED": "مستردة",
+        "NO_SHOW": "لم يحضر"
+      },
+      "trip_status": {
+        "DRAFT": "مسودة",
+        "PUBLISHED": "منشورة",
+        "BOARDING": "صعود",
+        "DEPARTED": "انطلقت",
+        "COMPLETED": "مكتملة",
+        "CANCELLED": "ملغاة"
+      },
+      "channel": {
+        "DIRECT": "مباشر",
+        "AGENCY": "وكالة",
+        "CHANNEL": "قناة شريكة"
+      },
+      "pay_method": {
+        "WALLET": "المحفظة",
+        "CARD": "بطاقة",
+        "CASH": "نقداً",
+        "AGENCY": "رصيد الوكالة",
+        "BANK_TRANSFER": "حوالة مصرفية",
+        "PARTNER_WALLET": "محفظة شريكة"
+      },
+      "txn_type": {
+        "BOOKING_PAY": "حجز رحلة",
+        "REFUND": "استرداد",
+        "TOPUP": "شحن",
+        "RELEASE": "تسوية",
+        "PAYOUT": "صرف مصرفي",
+        "SHIPMENT_PAY": "طرد",
+        "SUBSCRIPTION_PAY": "اشتراك نقل ترددي",
+        "WITHDRAWAL": "سحب",
+        "COMMISSION": "عمولة"
+      },
+      "direction": {
+        "CR": "دائن",
+        "DR": "مدين"
+      },
+      "wallet_type": {
+        "PASSENGER": "مسافر",
+        "COMPANY": "شركة",
+        "AGENCY": "وكالة",
+        "ESCROW": "أمانات",
+        "PLATFORM": "المنصة"
+      },
+      "payment_purpose": {
+        "TOPUP": "شحن",
+        "BOOKING": "حجز"
+      },
+      "payment_status": {
+        "PENDING": "قيد الانتظار",
+        "SUCCESS": "ناجح",
+        "FAILED": "فاشل",
+        "REFUNDED": "مسترد"
+      },
+      "settlement_status": {
+        "DRAFT": "مسودة",
+        "APPROVED": "معتمد",
+        "PAID": "مصروف"
+      },
+      "withdrawal_status": {
+        "PENDING": "قيد الانتظار",
+        "APPROVED": "معتمد",
+        "REJECTED": "مرفوض",
+        "PAID": "مصروف"
+      },
+      "invoice_status": {
+        "DRAFT": "مسودة",
+        "ISSUED": "صادرة",
+        "PAID": "مدفوعة",
+        "PARTIALLY_PAID": "مدفوعة جزئياً",
+        "CANCELLED": "ملغاة"
+      },
+      "shipment_status": {
+        "EXPECTED": "متوقعة",
+        "CREATED": "مسجلة",
+        "RECEIVED": "مستلمة",
+        "IN_TRANSIT": "في الطريق",
+        "OUT_FOR_DELIVERY": "خرجت للتسليم",
+        "DELIVERED": "مسلّمة",
+        "RETURNED": "مرتجعة",
+        "CANCELLED": "ملغاة",
+        "EXCEPTION": "استثناء"
+      },
+      "subscription_status": {
+        "ACTIVE": "فعّال",
+        "EXPIRED": "منتهي",
+        "PENDING": "قيد الانتظار",
+        "CANCELLED": "ملغى"
+      },
+      "taxi_status": {
+        "SEARCHING": "بحث عن سائق",
+        "ASSIGNED": "مُسند",
+        "ON_TRIP": "في الرحلة",
+        "COMPLETED": "مكتمل",
+        "CANCELLED": "ملغى"
+      },
+      "rental_status": {
+        "REQUESTED": "مطلوب",
+        "CONFIRMED": "مؤكد",
+        "ACTIVE": "جارٍ",
+        "COMPLETED": "مكتمل",
+        "CANCELLED": "ملغى"
+      },
+      "freight_status": {
+        "OPEN": "مفتوح",
+        "AWARDED": "مُرسى",
+        "IN_TRANSIT": "في الطريق",
+        "DELIVERED": "مسلّم",
+        "CANCELLED": "ملغى"
+      },
+      "vehicle_status": {
+        "ACTIVE": "فعّالة",
+        "BLOCKED": "محظورة",
+        "OUT_OF_SERVICE": "خارج الخدمة",
+        "PENDING": "قيد المراجعة"
+      },
+      "document_status": {
+        "PENDING": "قيد المراجعة",
+        "APPROVED": "معتمدة",
+        "REJECTED": "مرفوضة",
+        "EXPIRED": "منتهية"
+      },
+      "doc_check_status": {
+        "PENDING": "قيد التحقق",
+        "VERIFIED": "متحقق منها",
+        "REJECTED": "مرفوضة"
+      },
+      "travel_doc": {
+        "PASSPORT": "جواز سفر",
+        "NATIONAL_ID": "هوية وطنية",
+        "RESIDENCE": "إقامة",
+        "LAISSEZ_PASSER": "وثيقة مرور",
+        "TRAVEL_DOCUMENT": "وثيقة سفر",
+        "OTHER": "أخرى"
+      },
+      "approval_status": {
+        "PENDING": "قيد المراجعة",
+        "APPROVED": "معتمدة",
+        "REJECTED": "مرفوضة",
+        "SUSPENDED": "معلّقة"
+      },
+      "company_type": {
+        "CARRIER": "ناقل",
+        "AGENCY": "وكالة",
+        "PARTNER": "شريك"
+      },
+      "portal": {
+        "PASSENGER": "مسافر",
+        "OPERATOR": "ناقل",
+        "DRIVER": "سائق",
+        "AGENCY": "وكالة",
+        "PLATFORM": "المنصة"
+      },
+      "severity": {
+        "LOW": "منخفضة",
+        "MEDIUM": "متوسطة",
+        "HIGH": "عالية",
+        "CRITICAL": "حرجة"
+      },
+      "incident_status": {
+        "OPEN": "مفتوح",
+        "INVESTIGATING": "قيد التحقيق",
+        "CLOSED": "مغلق"
+      },
+      "travel_category": {
+        "DOMESTIC": "داخلي",
+        "DEPARTING": "مغادر",
+        "ARRIVING": "قادم",
+        "TRANSIT": "عابر"
+      },
+      "trip_type": {
+        "SCHEDULED": "مجدولة",
+        "SHUTTLE": "نقل ترددي",
+        "INTERNATIONAL": "دولية",
+        "CARGO": "شحن",
+        "EXTRA": "إضافية",
+        "TRANSIT_PAX": "عبور ركاب",
+        "CONTRACT": "تعاقدية",
+        "FREIGHT": "شحن ثقيل"
+      },
+      "vehicle_class": {
+        "BUS": "حافلة",
+        "TRUCK": "شاحنة",
+        "TRAIN": "قطار",
+        "CAR": "سيارة",
+        "OTHER": "أخرى"
+      },
+      "cargo_category": {
+        "GENERAL": "بضائع عامة",
+        "FOOD": "أغذية",
+        "REFRIGERATED": "مبرّدة",
+        "LIQUID": "سوائل",
+        "DANGEROUS": "بضائع خطرة",
+        "LIVESTOCK": "مواشٍ",
+        "VEHICLES": "مركبات",
+        "CONTAINERS": "حاويات",
+        "OTHER": "أخرى"
+      },
+      "taxi_kind": {
+        "INSTANT": "فوري",
+        "SCHEDULED": "مجدول",
+        "SHARED": "مشترك",
+        "INTERCITY": "بين المدن"
+      },
+      "owner_type": {
+        "COMPANY": "شركة",
+        "VEHICLE": "مركبة",
+        "DRIVER": "سائق",
+        "PARTY": "شخص",
+        "STATION": "محطة"
+      },
+      "incident_type": {
+        "COLLISION": "تصادم",
+        "BREAKDOWN": "عطل",
+        "MEDICAL": "طبي",
+        "SECURITY": "أمني",
+        "FIRE": "حريق",
+        "OTHER": "أخرى"
+      },
+      "doc_type": {
+        "CR": "السجل التجاري",
+        "TAX_CERT": "شهادة ضريبية",
+        "TRANSPORT_LICENSE": "ترخيص النقل",
+        "INSURANCE_POLICY": "بوليصة التأمين",
+        "VEHICLE_REG": "رخصة المركبة",
+        "AGENCY_LICENSE": "ترخيص الوكالة",
+        "DRIVING_LICENSE": "رخصة القيادة"
+      },
+      "cities": {
+        "ALP": "حلب",
+        "AMM": "عمّان",
+        "BEY": "بيروت",
+        "DAM": "دمشق",
+        "DRA": "درعا",
+        "DRZ": "دير الزور",
+        "HMA": "حماة",
+        "HMS": "حمص",
+        "HSK": "الحسكة",
+        "IDL": "إدلب",
+        "LTK": "اللاذقية",
+        "QNT": "القنيطرة",
+        "RDM": "ريف دمشق",
+        "RQA": "الرقة",
+        "SWD": "السويداء",
+        "TRT": "طرطوس",
+        "IST": "إسطنبول",
+        "BGW": "بغداد"
+      },
+      "countries": {
+        "SY": "سوريا",
+        "LB": "لبنان",
+        "JO": "الأردن",
+        "TR": "تركيا",
+        "IQ": "العراق",
+        "SA": "السعودية",
+        "AE": "الإمارات",
+        "EG": "مصر"
+      }
+    }
+  }
 }

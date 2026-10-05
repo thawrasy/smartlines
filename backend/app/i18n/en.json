@@ -25,9 +25,642 @@
     "subject": "{doc_type} needs attention",
     "body": "Your {doc_type} was not approved: {note}. Please upload a corrected document."
   },
-  "cities": {"ALP": "Aleppo", "DAM": "Damascus", "DRA": "Daraa", "HMA": "Hama", "HMS": "Homs", "LTK": "Latakia", "TRT": "Tartus",
-             "SWD": "As-Suwayda", "IDL": "Idlib", "RQA": "Raqqa", "DRZ": "Deir ez-Zor", "HSK": "Al-Hasakah", "QNT": "Quneitra", "RDM": "Rif Dimashq",
-             "AMM": "Amman", "BEY": "Beirut"},
-  "doc_types": {"CR": "Commercial register", "TAX_CERT": "Tax certificate", "TRANSPORT_LICENSE": "Transport licence",
-                "INSURANCE_POLICY": "Insurance policy", "VEHICLE_REG": "Vehicle registration", "AGENCY_LICENSE": "Travel agency licence", "OTHER": "Document"}
+  "cities": {
+    "ALP": "Aleppo",
+    "DAM": "Damascus",
+    "DRA": "Daraa",
+    "HMA": "Hama",
+    "HMS": "Homs",
+    "LTK": "Latakia",
+    "TRT": "Tartus",
+    "SWD": "As-Suwayda",
+    "IDL": "Idlib",
+    "RQA": "Raqqa",
+    "DRZ": "Deir ez-Zor",
+    "HSK": "Al-Hasakah",
+    "QNT": "Quneitra",
+    "RDM": "Rif Dimashq",
+    "AMM": "Amman",
+    "BEY": "Beirut"
+  },
+  "doc_types": {
+    "CR": "Commercial register",
+    "TAX_CERT": "Tax certificate",
+    "TRANSPORT_LICENSE": "Transport licence",
+    "INSURANCE_POLICY": "Insurance policy",
+    "VEHICLE_REG": "Vehicle registration",
+    "AGENCY_LICENSE": "Travel agency licence",
+    "OTHER": "Document"
+  },
+  "reports": {
+    "period": "Period",
+    "generated": "Generated",
+    "page": "Page",
+    "rows": "Rows",
+    "total": "Total",
+    "empty": "No data for this period.",
+    "truncated": "first rows only; narrow the filters for the rest",
+    "report_kind": "Report",
+    "yes": "Yes",
+    "no": "No",
+    "all_time": "All records",
+    "custom": "Custom report",
+    "brand": "Masslak",
+    "email_subject": "Masslak report: {title}",
+    "email_body": "Attached is the {frequency} report \"{title}\" for {period}: {rows} rows.\n\nThis report was scheduled by {owner}. To stop it, open Reports > Schedules on masslak.com.",
+    "frequency": {
+      "DAILY": "daily",
+      "WEEKLY": "weekly",
+      "MONTHLY": "monthly"
+    },
+    "categories": {
+      "sales": "Sales",
+      "operations": "Operations",
+      "finance": "Finance",
+      "shipping": "Shipping",
+      "services": "Services",
+      "fleet": "Fleet and compliance",
+      "international": "International travel",
+      "platform": "Platform",
+      "security": "Security"
+    },
+    "titles": {
+      "sales.daily": {
+        "title": "Daily sales",
+        "description": "Confirmed bookings, passengers and amounts per day"
+      },
+      "sales.monthly": {
+        "title": "Monthly sales",
+        "description": "Fares, platform fees and totals per month"
+      },
+      "sales.by_carrier": {
+        "title": "Sales by carrier",
+        "description": "Bookings and revenue of every carrier"
+      },
+      "sales.by_route": {
+        "title": "Sales by route",
+        "description": "Passengers and revenue between each pair of cities"
+      },
+      "sales.by_channel": {
+        "title": "Sales by channel",
+        "description": "Direct, agency and partner channel sales"
+      },
+      "sales.bookings": {
+        "title": "Bookings register",
+        "description": "Every booking with its trip, channel and amount"
+      },
+      "sales.cancellations": {
+        "title": "Cancellations",
+        "description": "Cancelled bookings with their reasons"
+      },
+      "sales.agency": {
+        "title": "Agency sales register",
+        "description": "Bookings sold by travel agencies"
+      },
+      "sales.by_agency": {
+        "title": "Sales by agency",
+        "description": "Bookings and amounts of every agency"
+      },
+      "sales.tickets": {
+        "title": "Tickets register",
+        "description": "Tickets with passenger, segment, fare and seat"
+      },
+      "sales.by_fare_brand": {
+        "title": "Sales by fare class",
+        "description": "Tickets and revenue per fare class"
+      },
+      "ops.load_factor": {
+        "title": "Trip load factor",
+        "description": "Seats sold, boarded and revenue of each trip"
+      },
+      "ops.by_route": {
+        "title": "Operations by route",
+        "description": "Trips, seats offered and sold per route"
+      },
+      "ops.punctuality": {
+        "title": "Punctuality by carrier",
+        "description": "Average and longest departure delays"
+      },
+      "ops.trips_by_status": {
+        "title": "Trips by status",
+        "description": "Number of trips in each status"
+      },
+      "ops.incidents": {
+        "title": "Incidents register",
+        "description": "Incidents with severity, vehicle and trip"
+      },
+      "ops.incidents_by_type": {
+        "title": "Incidents by type",
+        "description": "Number of incidents by type and severity"
+      },
+      "fin.wallet_movements": {
+        "title": "Wallet movements",
+        "description": "Every credit and debit with the balance after it"
+      },
+      "fin.movements_by_type": {
+        "title": "Movements by type",
+        "description": "Credits and debits per transaction type"
+      },
+      "fin.topups": {
+        "title": "Wallet top-ups",
+        "description": "Successful top-ups per day and method"
+      },
+      "fin.payments": {
+        "title": "Payments register",
+        "description": "Payments received through every provider"
+      },
+      "fin.settlements": {
+        "title": "Settlement statements",
+        "description": "Gross, commission, tax, refunds and net per company"
+      },
+      "fin.withdrawals": {
+        "title": "Withdrawals",
+        "description": "Withdrawal requests and their payment"
+      },
+      "fin.invoices": {
+        "title": "Sales invoices",
+        "description": "Issued invoices with tax and totals"
+      },
+      "fin.invoices_monthly": {
+        "title": "Invoices by month",
+        "description": "Invoiced amounts and tax per month"
+      },
+      "ship.shipments": {
+        "title": "Shipments register",
+        "description": "Shipments with route, service, weight and price"
+      },
+      "ship.by_status": {
+        "title": "Shipments by status",
+        "description": "Shipments, weight and revenue in each status"
+      },
+      "ship.by_route": {
+        "title": "Shipments by route",
+        "description": "Shipments between each pair of cities"
+      },
+      "svc.subscriptions": {
+        "title": "Shuttle subscriptions",
+        "description": "Subscriptions, rides used and revenue per plan"
+      },
+      "svc.taxi": {
+        "title": "Taxi requests",
+        "description": "Requests and estimated fares per city"
+      },
+      "svc.rentals": {
+        "title": "Car rentals",
+        "description": "Rental bookings with dates and amounts"
+      },
+      "svc.freight": {
+        "title": "Freight requests",
+        "description": "Loads with bids and the best offer"
+      },
+      "fleet.vehicles": {
+        "title": "Fleet register",
+        "description": "Vehicles with class, model and seats"
+      },
+      "fleet.expiring_documents": {
+        "title": "Expiring documents",
+        "description": "Documents that expire within 60 days"
+      },
+      "intl.travel_documents": {
+        "title": "Travel documents by destination",
+        "description": "International passengers by destination and document"
+      },
+      "intl.exceptions": {
+        "title": "Document exceptions used",
+        "description": "Tickets issued under an approved document exception"
+      },
+      "plat.companies": {
+        "title": "Companies register",
+        "description": "Carriers and agencies with their approval status"
+      },
+      "sec.failed_sign_ins": {
+        "title": "Failed sign-ins",
+        "description": "Failed and blocked sign-ins per day and portal"
+      }
+    },
+    "columns": {
+      "booking_ref": "Booking",
+      "created_at": "Created",
+      "created_date": "Date",
+      "created_month": "Month",
+      "status": "Status",
+      "carrier": "Carrier",
+      "trip_no": "Trip",
+      "departure_date": "Departure date",
+      "departure_at": "Departure",
+      "origin_city": "From",
+      "dest_city": "To",
+      "channel": "Channel",
+      "agency": "Agency",
+      "pay_method": "Payment method",
+      "passengers": "Passengers",
+      "fares": "Fares",
+      "platform_fee": "Platform fee",
+      "total_amount": "Amount",
+      "cancelled_at": "Cancelled",
+      "cancel_reason": "Reason",
+      "contact_mobile": "Mobile",
+      "ticket_no": "Ticket",
+      "from_station": "Boarding",
+      "to_station": "Alighting",
+      "fare_brand": "Fare class",
+      "seat_no": "Seat",
+      "passenger": "Passenger",
+      "nationality": "Nationality",
+      "travel_category": "Travel category",
+      "boarded_at": "Boarded",
+      "trip_type": "Trip type",
+      "vehicle": "Vehicle",
+      "seats_total": "Seats",
+      "seats_sold": "Sold",
+      "boarded": "Boarded",
+      "load_factor": "Load factor %",
+      "revenue": "Revenue",
+      "departure_delay_min": "Delay (min)",
+      "occurred_at": "Occurred",
+      "occurred_date": "Date",
+      "type": "Type",
+      "severity": "Severity",
+      "injuries": "Injuries",
+      "police_report_no": "Police report",
+      "txn_type": "Transaction",
+      "direction": "Direction",
+      "wallet_type": "Wallet",
+      "wallet_owner": "Owner",
+      "credit": "Credit",
+      "debit": "Debit",
+      "balance_after": "Balance after",
+      "reference": "Reference",
+      "purpose": "Purpose",
+      "provider": "Provider",
+      "method": "Method",
+      "amount": "Amount",
+      "fee": "Fee",
+      "provider_ref": "Provider reference",
+      "card_last4": "Card",
+      "settled_at": "Settled",
+      "company": "Company",
+      "period_from": "From",
+      "period_to": "To",
+      "gross": "Gross",
+      "commission": "Commission",
+      "tax": "Tax",
+      "refunds": "Refunds",
+      "net": "Net",
+      "approved_at": "Approved",
+      "needs_second": "Second approval",
+      "decided_at": "Decided",
+      "paid_at": "Paid",
+      "bank_ref": "Bank reference",
+      "invoice_no": "Invoice",
+      "issue_date": "Issued",
+      "issue_month": "Month",
+      "due_date": "Due",
+      "customer": "Customer",
+      "subtotal": "Subtotal",
+      "total": "Total",
+      "tracking_no": "Tracking number",
+      "service": "Service",
+      "cargo_category": "Cargo type",
+      "weight_kg": "Weight (kg)",
+      "declared_value": "Declared value",
+      "cod_amount": "Cash on delivery",
+      "price": "Price",
+      "recipient": "Recipient",
+      "plan": "Plan",
+      "operator": "Operator",
+      "starts_on": "Starts",
+      "ends_on": "Ends",
+      "rides_used": "Rides used",
+      "price_paid": "Paid",
+      "subscriber": "Subscriber",
+      "city": "City",
+      "kind": "Kind",
+      "seats": "Seats",
+      "fare_estimate": "Estimated fare",
+      "pickup": "Pickup",
+      "dropoff": "Drop-off",
+      "rental_class": "Class",
+      "pickup_at": "Pickup",
+      "return_at": "Return",
+      "days": "Days",
+      "quoted_total": "Quoted total",
+      "renter": "Renter",
+      "shipper": "Shipper",
+      "target_price": "Target price",
+      "bids": "Bids",
+      "best_bid": "Best bid",
+      "plate_no": "Plate",
+      "vehicle_class": "Class",
+      "vehicle_type": "Type",
+      "make": "Make",
+      "model": "Model",
+      "manufacture_year": "Year",
+      "passenger_seats": "Seats",
+      "owner_type": "Belongs to",
+      "doc_type": "Document",
+      "issuer": "Issuer",
+      "expiry_date": "Expires",
+      "days_left": "Days left",
+      "dest_country": "Destination",
+      "exception": "Exception",
+      "passport_expiry": "Passport expiry",
+      "name": "Name",
+      "company_type": "Type",
+      "approval_status": "Approval",
+      "cr_no": "Commercial register",
+      "cr_expiry": "Register expiry",
+      "settlement_cycle": "Settlement cycle",
+      "ts": "Time",
+      "date": "Date",
+      "event": "Event",
+      "portal": "Portal",
+      "result": "Result",
+      "reason": "Reason",
+      "ip": "IP address",
+      "country": "Country"
+    },
+    "aggregates": {
+      "count": "{col}: count",
+      "count_distinct": "{col}: distinct",
+      "sum": "{col}",
+      "avg": "Average {col}",
+      "min": "Lowest {col}",
+      "max": "Highest {col}",
+      "count_rows": "Count"
+    },
+    "values": {
+      "booking_status": {
+        "PENDING_PAYMENT": "Awaiting payment",
+        "CONFIRMED": "Confirmed",
+        "CANCELLED": "Cancelled",
+        "COMPLETED": "Completed",
+        "EXPIRED": "Expired"
+      },
+      "ticket_status": {
+        "ISSUED": "Issued",
+        "BOARDED": "Boarded",
+        "CANCELLED": "Cancelled",
+        "REFUNDED": "Refunded",
+        "NO_SHOW": "No show"
+      },
+      "trip_status": {
+        "DRAFT": "Draft",
+        "PUBLISHED": "Published",
+        "BOARDING": "Boarding",
+        "DEPARTED": "Departed",
+        "COMPLETED": "Completed",
+        "CANCELLED": "Cancelled"
+      },
+      "channel": {
+        "DIRECT": "Direct",
+        "AGENCY": "Agency",
+        "CHANNEL": "Partner channel"
+      },
+      "pay_method": {
+        "WALLET": "Wallet",
+        "CARD": "Card",
+        "CASH": "Cash",
+        "AGENCY": "Agency balance",
+        "BANK_TRANSFER": "Bank transfer",
+        "PARTNER_WALLET": "Partner wallet"
+      },
+      "txn_type": {
+        "BOOKING_PAY": "Trip booking",
+        "REFUND": "Refund",
+        "TOPUP": "Top-up",
+        "RELEASE": "Settlement release",
+        "PAYOUT": "Bank payout",
+        "SHIPMENT_PAY": "Parcel",
+        "SUBSCRIPTION_PAY": "Shuttle pass",
+        "WITHDRAWAL": "Withdrawal",
+        "COMMISSION": "Commission"
+      },
+      "direction": {
+        "CR": "Credit",
+        "DR": "Debit"
+      },
+      "wallet_type": {
+        "PASSENGER": "Passenger",
+        "COMPANY": "Company",
+        "AGENCY": "Agency",
+        "ESCROW": "Escrow",
+        "PLATFORM": "Platform"
+      },
+      "payment_purpose": {
+        "TOPUP": "Top-up",
+        "BOOKING": "Booking"
+      },
+      "payment_status": {
+        "PENDING": "Pending",
+        "SUCCESS": "Successful",
+        "FAILED": "Failed",
+        "REFUNDED": "Refunded"
+      },
+      "settlement_status": {
+        "DRAFT": "Draft",
+        "APPROVED": "Approved",
+        "PAID": "Paid"
+      },
+      "withdrawal_status": {
+        "PENDING": "Pending",
+        "APPROVED": "Approved",
+        "REJECTED": "Rejected",
+        "PAID": "Paid"
+      },
+      "invoice_status": {
+        "DRAFT": "Draft",
+        "ISSUED": "Issued",
+        "PAID": "Paid",
+        "PARTIALLY_PAID": "Partly paid",
+        "CANCELLED": "Cancelled"
+      },
+      "shipment_status": {
+        "EXPECTED": "Expected",
+        "CREATED": "Created",
+        "RECEIVED": "Received",
+        "IN_TRANSIT": "In transit",
+        "OUT_FOR_DELIVERY": "Out for delivery",
+        "DELIVERED": "Delivered",
+        "RETURNED": "Returned",
+        "CANCELLED": "Cancelled",
+        "EXCEPTION": "Exception"
+      },
+      "subscription_status": {
+        "ACTIVE": "Active",
+        "EXPIRED": "Expired",
+        "PENDING": "Pending",
+        "CANCELLED": "Cancelled"
+      },
+      "taxi_status": {
+        "SEARCHING": "Searching",
+        "ASSIGNED": "Assigned",
+        "ON_TRIP": "On trip",
+        "COMPLETED": "Completed",
+        "CANCELLED": "Cancelled"
+      },
+      "rental_status": {
+        "REQUESTED": "Requested",
+        "CONFIRMED": "Confirmed",
+        "ACTIVE": "Active",
+        "COMPLETED": "Completed",
+        "CANCELLED": "Cancelled"
+      },
+      "freight_status": {
+        "OPEN": "Open",
+        "AWARDED": "Awarded",
+        "IN_TRANSIT": "In transit",
+        "DELIVERED": "Delivered",
+        "CANCELLED": "Cancelled"
+      },
+      "vehicle_status": {
+        "ACTIVE": "Active",
+        "BLOCKED": "Blocked",
+        "OUT_OF_SERVICE": "Out of service",
+        "PENDING": "Pending"
+      },
+      "document_status": {
+        "PENDING": "Under review",
+        "APPROVED": "Approved",
+        "REJECTED": "Rejected",
+        "EXPIRED": "Expired"
+      },
+      "doc_check_status": {
+        "PENDING": "Pending",
+        "VERIFIED": "Verified",
+        "REJECTED": "Rejected"
+      },
+      "travel_doc": {
+        "PASSPORT": "Passport",
+        "NATIONAL_ID": "National ID",
+        "RESIDENCE": "Residence permit",
+        "LAISSEZ_PASSER": "Laissez-passer",
+        "TRAVEL_DOCUMENT": "Travel document",
+        "OTHER": "Other"
+      },
+      "approval_status": {
+        "PENDING": "Pending",
+        "APPROVED": "Approved",
+        "REJECTED": "Rejected",
+        "SUSPENDED": "Suspended"
+      },
+      "company_type": {
+        "CARRIER": "Carrier",
+        "AGENCY": "Agency",
+        "PARTNER": "Partner"
+      },
+      "portal": {
+        "PASSENGER": "Passenger",
+        "OPERATOR": "Carrier",
+        "DRIVER": "Driver",
+        "AGENCY": "Agency",
+        "PLATFORM": "Platform"
+      },
+      "severity": {
+        "LOW": "Low",
+        "MEDIUM": "Medium",
+        "HIGH": "High",
+        "CRITICAL": "Critical"
+      },
+      "incident_status": {
+        "OPEN": "Open",
+        "INVESTIGATING": "Investigating",
+        "CLOSED": "Closed"
+      },
+      "travel_category": {
+        "DOMESTIC": "Domestic",
+        "DEPARTING": "Departing",
+        "ARRIVING": "Arriving",
+        "TRANSIT": "Transit"
+      },
+      "trip_type": {
+        "SCHEDULED": "Scheduled",
+        "SHUTTLE": "Shuttle",
+        "INTERNATIONAL": "International",
+        "CARGO": "Cargo",
+        "EXTRA": "Extra",
+        "TRANSIT_PAX": "Passenger transit",
+        "CONTRACT": "Contracted",
+        "FREIGHT": "Freight"
+      },
+      "vehicle_class": {
+        "BUS": "Bus",
+        "TRUCK": "Truck",
+        "TRAIN": "Train",
+        "CAR": "Car",
+        "OTHER": "Other"
+      },
+      "cargo_category": {
+        "GENERAL": "General goods",
+        "FOOD": "Food",
+        "REFRIGERATED": "Refrigerated",
+        "LIQUID": "Liquids",
+        "DANGEROUS": "Dangerous goods",
+        "LIVESTOCK": "Livestock",
+        "VEHICLES": "Vehicles",
+        "CONTAINERS": "Containers",
+        "OTHER": "Other"
+      },
+      "taxi_kind": {
+        "INSTANT": "Now",
+        "SCHEDULED": "Scheduled",
+        "SHARED": "Shared",
+        "INTERCITY": "Intercity"
+      },
+      "owner_type": {
+        "COMPANY": "Company",
+        "VEHICLE": "Vehicle",
+        "DRIVER": "Driver",
+        "PARTY": "Person",
+        "STATION": "Station"
+      },
+      "incident_type": {
+        "COLLISION": "Collision",
+        "BREAKDOWN": "Breakdown",
+        "MEDICAL": "Medical",
+        "SECURITY": "Security",
+        "FIRE": "Fire",
+        "OTHER": "Other"
+      },
+      "doc_type": {
+        "CR": "Commercial register",
+        "TAX_CERT": "Tax certificate",
+        "TRANSPORT_LICENSE": "Transport licence",
+        "INSURANCE_POLICY": "Insurance policy",
+        "VEHICLE_REG": "Vehicle registration",
+        "AGENCY_LICENSE": "Agency licence",
+        "DRIVING_LICENSE": "Driving licence"
+      },
+      "cities": {
+        "ALP": "Aleppo",
+        "AMM": "Amman",
+        "BEY": "Beirut",
+        "DAM": "Damascus",
+        "DRA": "Daraa",
+        "DRZ": "Deir ez-Zor",
+        "HMA": "Hama",
+        "HMS": "Homs",
+        "HSK": "Al-Hasakah",
+        "IDL": "Idlib",
+        "LTK": "Latakia",
+        "QNT": "Quneitra",
+        "RDM": "Rif Dimashq",
+        "RQA": "Raqqa",
+        "SWD": "As-Suwayda",
+        "TRT": "Tartus",
+        "IST": "Istanbul",
+        "BGW": "Baghdad"
+      },
+      "countries": {
+        "SY": "Syria",
+        "LB": "Lebanon",
+        "JO": "Jordan",
+        "TR": "Turkey",
+        "IQ": "Iraq",
+        "SA": "Saudi Arabia",
+        "AE": "United Arab Emirates",
+        "EG": "Egypt"
+      }
+    }
+  }
 }
