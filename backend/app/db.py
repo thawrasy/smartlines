@@ -39,12 +39,13 @@ class Context:
     party_id: Optional[int] = None
     scope: str = "PASSENGER"          # PLATFORM | COMPANY | AGENCY | PASSENGER | API | SYSTEM
     session_id: Optional[int] = None
+    api_client_id: Optional[int] = None   # set for calls made with an integration API key
 
 
 async def apply_context(conn: asyncpg.Connection, ctx: Context, scope: Optional[str] = None) -> None:
     await conn.execute(
-        "SELECT sys.set_context($1, $2, $3, NULL, $4, $5::inet, $6, $7)",
-        ctx.user_id, ctx.company_id, scope or ctx.scope, ctx.request_id, ctx.ip, ctx.session_id, ctx.party_id,
+        "SELECT sys.set_context($1, $2, $3, $8, $4, $5::inet, $6, $7)",
+        ctx.user_id, ctx.company_id, scope or ctx.scope, ctx.request_id, ctx.ip, ctx.session_id, ctx.party_id, ctx.api_client_id,
     )
 
 

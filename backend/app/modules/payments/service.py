@@ -24,6 +24,7 @@ import asyncpg
 from ... import db
 from ...errors import ApiError, not_found
 from ...ledger import company_wallet, platform_wallet, post_txn, user_wallet
+from ..notify.outbox import emit
 from . import adapters
 
 OTP_MAX_ATTEMPTS = 5
@@ -446,6 +447,18 @@ async def ignore_line(conn, ctx: db.Context, user_id: int, line_id: int, note: s
 
 
 # ------------------------------------------------------------------ agency counters
+async def passenger_by_mobile(conn, mobile: str, required: bool = True):
+    """The active passenger account registered with this mobile (local or international form). The caller holds the system scope."""
+    digits = re.sub(r"\D", "", mobile)
+    person = await conn.fetchrow(
+        """SELECT p.id, p.legal_name FROM iam.party p JOIN iam.app_user u ON u.party_id = p.id
+            WHERE regexp_replace(coalesce(p.mobile, u.mobile, ''), '\\D', '', 'g') IN ($1, '963' || ltrim($1, '0'))
+              AND u.status = 'ACTIVE' AND p.party_type = 'PERSON' LIMIT 1""", digits)
+    if person is None and required:
+        raise ApiError(404, "PASSENGER_NOT_FOUND", "no passenger account with this mobile")
+    return person
+
+
 async def agency_topup(conn, ctx: db.Context, agency_id: int, user_id: int, mobile: str, amount: int, key: str) -> dict:
     """Cash paid at an agency counter: the agency's prepaid balance pays the passenger's wallet."""
     p = await provider(conn, "AGENT")
@@ -453,18 +466,12 @@ async def agency_topup(conn, ctx: db.Context, agency_id: int, user_id: int, mobi
         raise ApiError(409, "PAYMENT_METHOD_UNAVAILABLE", "agency top-ups are not available")
     if not p["min_amount"] <= amount <= p["max_amount"]:
         raise ApiError(422, "PAYMENT_AMOUNT_OUT_OF_RANGE", "amount outside the limits", min_amount=p["min_amount"], max_amount=p["max_amount"])
-    digits = re.sub(r"\D", "", mobile)
     async with db.system_scope(conn, ctx):
         done = await conn.fetchrow("SELECT p.*, pv.code AS provider_code FROM fin.payment p JOIN fin.payment_provider pv ON pv.id = p.provider_id "
                                    "WHERE p.idempotency_key = $1 AND p.agency_company_id = $2", key, agency_id)
         if done:
             return {**_payment_out(done), "replayed": True}
-        person = await conn.fetchrow(
-            """SELECT p.id, p.legal_name FROM iam.party p JOIN iam.app_user u ON u.party_id = p.id
-                WHERE regexp_replace(coalesce(p.mobile, u.mobile, ''), '\\D', '', 'g') IN ($1, '963' || ltrim($1, '0'))
-                  AND u.status = 'ACTIVE' AND p.party_type = 'PERSON' LIMIT 1""", digits)
-        if person is None:
-            raise ApiError(404, "PASSENGER_NOT_FOUND", "no passenger account with this mobile")
+        person = await passenger_by_mobile(conn, mobile)
         aw = await company_wallet(conn, agency_id, "SYP", label="Agency wallet")
         if aw["balance"] - aw["hold_balance"] < amount:
             raise ApiError(402, "INSUFFICIENT_BALANCE", "the agency balance is not enough")
@@ -477,6 +484,38 @@ async def agency_topup(conn, ctx: db.Context, agency_id: int, user_id: int, mobi
         pay = await _succeed(conn, p, pay, user_id, None)
     first = (person["legal_name"] or "").split(" ")[0]
     return {**_payment_out(pay), "provider": "AGENT", "receipt": pay["provider_ref"], "passenger": first}
+
+
+async def partner_credit(conn, ctx: db.Context, client_id: int, provider_id: int, mobile: str, amount: int, reference: str) -> dict:
+    """A bank or e-wallet partner collected the money (branch, app, ATM) and credits the passenger's wallet through the API.
+
+    The partner's reference is its idempotency key: sending it again returns the first result, and reusing it for another
+    amount or mobile is refused. The partner owes the amount to the platform through its clearing account until settled."""
+    async with db.system_scope(conn, ctx):
+        p = provider_dict(await conn.fetchrow("SELECT * FROM fin.payment_provider WHERE id = $1", provider_id))
+        done = await conn.fetchrow("SELECT p.*, pv.code AS provider_code FROM fin.payment p JOIN fin.payment_provider pv ON pv.id = p.provider_id "
+                                   "WHERE p.api_client_id = $1 AND p.provider_ref = $2", client_id, reference)
+        if done:
+            if done["amount"] != amount or done["payer_mobile_mask"] != mask(mobile):
+                raise ApiError(409, "REFERENCE_REUSED", "this reference was already used for another credit")
+            return {**_payment_out(done), "reference": reference, "replayed": True}
+        if p["status"] != "ACTIVE":
+            raise ApiError(409, "PAYMENT_METHOD_UNAVAILABLE", "wallet credits by this partner are not available")
+        if not p["min_amount"] <= amount <= p["max_amount"]:
+            raise ApiError(422, "PAYMENT_AMOUNT_OUT_OF_RANGE", "amount outside the limits", min_amount=p["min_amount"], max_amount=p["max_amount"])
+        person = await passenger_by_mobile(conn, mobile)
+        w = await user_wallet(conn, person["id"], "SYP")
+        pay = await conn.fetchrow(
+            """INSERT INTO fin.payment (provider_id, purpose, payer_party_id, wallet_id, method, currency, amount, idempotency_key, provider_ref,
+                                        api_client_id, payer_mobile_mask)
+               VALUES ($1, 'TOPUP', $2, $3, $4, 'SYP', $5, $6, $7, $8, $9) RETURNING *""",
+            p["id"], person["id"], w["id"], "E_WALLET" if p["kind"] == "E_WALLET" else "BANK", amount, f"api:{client_id}:{reference}",
+            reference, client_id, mask(mobile))
+        pay = await _succeed(conn, p, pay, None, None)
+        await emit(conn, "wallet.credited", "payment", pay["id"], {"payment": str(pay["uid"]), "reference": reference, "amount": amount,
+                                                                   "currency": "SYP", "api_client_id": client_id})
+    first = (person["legal_name"] or "").split(" ")[0]
+    return {**_payment_out(pay), "provider": p["code"], "reference": reference, "passenger": first}
 
 
 # ------------------------------------------------------------------ refunds to the original method

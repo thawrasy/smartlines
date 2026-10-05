@@ -26,6 +26,8 @@ def portal_scope_for_path(path: str) -> str:
         return "AGENCY"
     if path.startswith("/api/payments/notify"):
         return "PAYMENT_WEBHOOK"
+    if path.startswith("/api/v1/"):
+        return "API"
     return "PASSENGER"
 
 
@@ -70,6 +72,7 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
         request.state.request_id = uuid.uuid4()
         request.state.client_ip = client_ip(request)
         request.state.principal = None
+        request.state.api_client_id = None  # set by the integration API key check
         request.state.audit = None          # handlers may set {"action","object_type","object_id","reason"}
         path = request.url.path
         started = time.monotonic()
@@ -94,12 +97,16 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
                                 status_code=429, headers={"Retry-After": str(max(1, round(wait)))})
 
         # CSRF defence in depth: browsers cannot add this header cross-site without CORS approval
-        if request.method in MUTATING and not path.startswith("/api/payments/notify") \
+        # (the integration API authenticates with keys in a header, never cookies, so it needs no such header)
+        if request.method in MUTATING and not path.startswith(("/api/payments/notify", "/api/v1/")) \
                 and request.headers.get(CLIENT_HEADER) not in ("web", "android", "ios"):
             return JSONResponse({"error": {"code": "CLIENT_HEADER_REQUIRED", "message": "missing client header"}},
                                 status_code=400)
 
         response = await call_next(request)
+        if request.state.api_client_id:
+            from .modules.integration.auth import record_usage
+            await record_usage(request.state.api_client_id, response.status_code >= 400)
         if request.method in MUTATING or request.state.audit:
             result = "SUCCESS" if response.status_code < 400 else ("DENIED" if response.status_code in (401, 403) else "ERROR")
             await self._log(request, scope, None, result, response.status_code, started)
@@ -116,14 +123,14 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
                 await conn.execute(
                     """INSERT INTO audit.activity_log (request_id, actor_type, user_id, company_id, session_id, portal, ip,
                          user_agent, http_method, endpoint, action, object_type, object_id, result, http_status,
-                         latency_ms, reason)
-                       VALUES ($1, $2, $3, $4, $5, $6, $7::inet, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)""",
-                    request.state.request_id, "USER" if pr else "SYSTEM",
+                         latency_ms, reason, api_client_id)
+                       VALUES ($1, $2, $3, $4, $5, $6, $7::inet, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)""",
+                    request.state.request_id, "API_CLIENT" if request.state.api_client_id else "USER" if pr else "SYSTEM",
                     pr.user_id if pr else None, pr.company_id if pr else None, pr.session_id if pr else None,
                     pr.portal if pr else scope, request.state.client_ip, request.headers.get("user-agent", "")[:300],
                     request.method, request.url.path[:300], str(action)[:120], audit.get("object_type"),
                     audit.get("object_id"), result, status, int((time.monotonic() - started) * 1000),
-                    reason or audit.get("reason"),
+                    reason or audit.get("reason"), request.state.api_client_id,
                 )
         except Exception:  # the activity log must never break the request itself
             pass

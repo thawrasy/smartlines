@@ -34,6 +34,7 @@ import { useLabels } from "./modules/labels";
 import type { NavItem } from "./components/layout";
 import { ReportsPage } from "./pages/reports/Reports";
 import { AgencyTopup, PaymentsDesk } from "./pages/finance/Payments";
+import { IntegrationsPage } from "./pages/integrations/Integrations";
 import { TestGateway } from "./pages/passenger/Wallet";
 import type { IconName } from "./components/icons";
 
@@ -82,6 +83,7 @@ function PlatformShell() {
       { to: "/regulator", icon: "gavel", label: t("nav.regulator"), show: can("regulator.dashboard", "report.platform") },
       { to: "/admin/reports", icon: "summarize", label: t("rpt.nav"), show: can("report.platform") },
       { to: "/admin/payments", icon: "account_balance", label: t("pay.nav"), show: can("ledger.reconcile", "payment.fee_policy", "compensation.pay") },
+      { to: "/admin/integrations", icon: "api", label: t("api.nav"), show: can("security.api_clients") },
       { to: "/admin/modules", icon: "apps", label: t("modules.title"), show: can("modules.manage") },
       ...mods,
     ]} />
@@ -103,6 +105,7 @@ function CarrierShell() {
       { to: "/carrier/documents", icon: "fact_check", label: t("documents.title") },
       { to: "/carrier/finance", icon: "payments", label: t("finance.title") },
       { to: "/carrier/reports", icon: "summarize", label: t("rpt.nav"), show: can("report.company") },
+      { to: "/carrier/integrations", icon: "api", label: t("api.nav"), show: can("company.api_keys") },
       ...mods,
     ]} />
   );
@@ -123,6 +126,7 @@ function AgencyShell() {
       { to: "/agency/finance", icon: "payments", label: t("finance.title"), show: can("company.payout_schedule", "company.billing") },
       { to: "/agency/topup", icon: "account_balance_wallet", label: t("pay.agencyNav"), show: can("booking.on_behalf", "sale.cash") },
       { to: "/agency/reports", icon: "summarize", label: t("rpt.nav"), show: can("report.company") },
+      { to: "/agency/integrations", icon: "api", label: t("api.nav"), show: can("company.api_keys") },
       ...mods,
     ]} />
   );
@@ -172,6 +176,7 @@ export default function App() {
           <Route path="carrier/crew" element={<CarrierCrew />} />
           <Route path="carrier/m/:module" element={<ModulePage />} />
           <Route path="carrier/reports" element={<ReportsPage />} />
+          <Route path="carrier/integrations" element={<IntegrationsPage />} />
         </Route>
         <Route element={<RequirePortal portal="AGENCY"><AgencyShell /></RequirePortal>}>
           <Route path="agency" element={<AgencyDashboard />} />
@@ -186,6 +191,7 @@ export default function App() {
           <Route path="agency/documents" element={<CompanyDocuments />} />
           <Route path="agency/reports" element={<ReportsPage />} />
           <Route path="agency/topup" element={<AgencyTopup />} />
+          <Route path="agency/integrations" element={<IntegrationsPage />} />
         </Route>
         <Route element={<RequirePortal portal="DRIVER"><DriverLayout /></RequirePortal>}>
           <Route path="driver" element={<DriverTrips />} />
@@ -203,6 +209,7 @@ export default function App() {
           <Route path="admin/m/:module" element={<ModulePage />} />
           <Route path="admin/reports" element={<ReportsPage />} />
           <Route path="admin/payments" element={<PaymentsDesk />} />
+          <Route path="admin/integrations" element={<IntegrationsPage />} />
           <Route path="security" element={<SecurityOverview />} />
           <Route path="security/rules" element={<SecurityRules />} />
           <Route path="security/auth" element={<SecurityAuthLog />} />

@@ -493,3 +493,19 @@ table.table.compact td { padding: 8px 10px; }
 .method-card:hover { border-color: var(--primary); }
 .method-card.on { border-color: var(--primary); background: var(--primary-soft, rgba(10, 91, 211, .06)); box-shadow: 0 0 0 1px var(--primary) inset; }
 .method-card .ms { color: var(--primary); }
+
+/* Integration console */
+tr.clickable { cursor: pointer; }
+tr.clickable:hover td { background: var(--surface-container-low, rgba(10, 91, 211, .04)); }
+.check-row { display: flex; align-items: flex-start; gap: 10px; cursor: pointer; line-height: 1.5; }
+.check-row input { margin-top: 4px; accent-color: var(--primary); }
+.code-block { margin: 0; padding: 12px 14px; border-radius: 10px; background: #0B1F3F; color: #E6EEFF; font-family: "IBM Plex Mono", monospace;
+  font-size: 13px; overflow-x: auto; white-space: pre; direction: ltr; text-align: left; }
+.secret-box { display: flex; align-items: center; gap: 8px; padding: 12px; border: 1px dashed var(--outline); border-radius: 10px; background: var(--surface); }
+.secret-box code { flex: 1; min-width: 0; word-break: break-all; font-family: "IBM Plex Mono", monospace; font-size: 13px; }
+.hook-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding: 12px 0; border-top: 1px solid var(--outline-variant); }
+.usage-bars { display: flex; align-items: flex-end; gap: 3px; height: 110px; padding-top: 4px; direction: ltr; }
+.usage-bar { position: relative; flex: 1; max-width: 22px; height: 100%; display: flex; align-items: flex-end; }
+.usage-bar span { display: block; width: 100%; min-height: 2px; border-radius: 3px 3px 0 0; background: var(--primary); opacity: .85; }
+.usage-bar i { position: absolute; bottom: 0; left: 0; right: 0; background: var(--error); border-radius: 3px 3px 0 0; }
+@media (max-width: 600px) { .hook-row { flex-direction: column; } }

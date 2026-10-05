@@ -71,6 +71,12 @@ async def load_principal(conn: asyncpg.Connection, token: str) -> Optional[Princ
     pr.mfa_enrolled = row["mfa_enrolled"]
     pr.mfa_required = mfa_required_for(pr.portal, row["mfa_required"], pr.mfa_enrolled)
     pr.mfa_pending = pr.mfa_required and not row["mfa_passed"]
+    await load_permissions(conn, pr)
+    return pr
+
+
+async def load_permissions(conn: asyncpg.Connection, pr: Principal) -> None:
+    """Roles and permissions of the user in the portal (and company) of the principal."""
     if pr.portal in ("PLATFORM", "INSPECTOR"):
         rows = await conn.fetch(
             """SELECT r.code, rp.permission_code FROM iam.user_role ur JOIN iam.role r ON r.id = ur.role_id
@@ -96,7 +102,6 @@ async def load_principal(conn: asyncpg.Connection, token: str) -> Optional[Princ
     if pr.is_owner:
         perms = await conn.fetch("SELECT code FROM iam.permission WHERE scope IN ('COMPANY','BOTH')")
         pr.permissions |= {p["code"] for p in perms}
-    return pr
 
 
 def _presented_token(request: Request) -> Optional[str]:
@@ -171,6 +176,7 @@ def context_for(request: Request, principal: Optional[Principal]) -> db.Context:
         ctx.user_id, ctx.party_id, ctx.session_id = principal.user_id, principal.party_id, principal.session_id
         ctx.company_id = principal.company_id
         ctx.scope = PORTAL_SCOPE.get(principal.portal, "PASSENGER")
+    ctx.api_client_id = getattr(request.state, "api_client_id", None)
     return ctx
 
 

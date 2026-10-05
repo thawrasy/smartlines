@@ -20,6 +20,8 @@ from .modules.notify import api as notify_api
 from .modules.account import api as account_api
 from .modules.reports import api as reports_api
 from .modules.payments import api as payments_api
+from .modules.integration import console as integration_console
+from .modules.integration import v1 as integration_v1
 from .modular import api as modular_api
 from .modular import workflows as modular_workflows
 from .routers import admin, auth, bookings, carrier, driver, public, regulator, security, verify, wallet
@@ -69,7 +71,8 @@ for r in (auth.router, public.router, bookings.router, wallet.router, carrier.ro
           admin.router, security.router, regulator.router, verify.router, agency_api.router,
           fleet_api.router, payouts_api.company, payouts_api.platform,
           documents_api.company, documents_api.platform, notify_api.router,
-          account_api.router, account_api.platform, modular_api.router, modular_workflows.router, reports_api.router, payments_api.router):
+          account_api.router, account_api.platform, modular_api.router, modular_workflows.router, reports_api.router, payments_api.router,
+          integration_console.router, integration_v1.router):
     app.include_router(r)
 
 

@@ -102,6 +102,13 @@ import i_description from "@material-symbols/svg-400/rounded/description.svg?raw
 import i_calendar_month from "@material-symbols/svg-400/rounded/calendar_month.svg?raw";
 import i_insert_chart from "@material-symbols/svg-400/rounded/insert_chart.svg?raw";
 import i_data_table from "@material-symbols/svg-400/rounded/data_table.svg?raw";
+import i_webhook from "@material-symbols/svg-400/rounded/webhook.svg?raw";
+import i_api from "@material-symbols/svg-400/rounded/api.svg?raw";
+import i_send from "@material-symbols/svg-400/rounded/send.svg?raw";
+import i_autorenew from "@material-symbols/svg-400/rounded/autorenew.svg?raw";
+import i_code from "@material-symbols/svg-400/rounded/code.svg?raw";
+import i_pause from "@material-symbols/svg-400/rounded/pause.svg?raw";
+
 export const ICONS = {
   search: i_search,
   swap_horiz: i_swap_horiz,
@@ -204,6 +211,12 @@ export const ICONS = {
   calendar_month: i_calendar_month,
   insert_chart: i_insert_chart,
   data_table: i_data_table,
+  webhook: i_webhook,
+  api: i_api,
+  send: i_send,
+  autorenew: i_autorenew,
+  code: i_code,
+  pause: i_pause,
 } as const;
 
 export type IconName = keyof typeof ICONS;

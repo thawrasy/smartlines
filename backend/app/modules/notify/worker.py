@@ -65,6 +65,8 @@ async def run_once() -> bool:
             event_id = event["id"]
             payload = json.loads(event["payload"]) if isinstance(event["payload"], str) else event["payload"]
             n = await _deliver(conn, event, payload)
+            from ..integration.webhooks import fanout
+            n += await fanout(conn, event, payload)
             await conn.execute("UPDATE sys.outbox_event SET status = 'PUBLISHED', published_at = now(), attempts = attempts + 1 WHERE id = $1",
                                event_id)
             log.info("notify.published event=%s type=%s deliveries=%s", event["event_uid"], event["event_type"], n)
@@ -91,6 +93,8 @@ async def main(once: bool) -> None:
         while True:
             busy = await run_once()
             if not busy:
+                from ..integration.webhooks import deliver_due
+                await deliver_due()
                 # scheduled reports are checked once a minute, between events
                 if once or asyncio.get_running_loop().time() - last_reports > 60:
                     from ..reports.scheduler import run_due

@@ -93,7 +93,7 @@ class FieldCipher:
     async def load(cls, conn: asyncpg.Connection) -> "FieldCipher":
         rows = await conn.fetch(
             """SELECT id, key_ref, status FROM sec.key_registry
-                WHERE purpose = 'FIELD_ENCRYPTION' AND status IN ('ACTIVE', 'DECRYPT_ONLY')""")
+                WHERE purpose IN ('FIELD_ENCRYPTION', 'WEBHOOK_SECRET') AND status IN ('ACTIVE', 'DECRYPT_ONLY')""")
         configured = _configured_field_keys()
         if not configured and not get_settings().sandbox:
             log.warning("MASSLAK_FIELD_KEYS is not set; using keys derived from the signing secret")
