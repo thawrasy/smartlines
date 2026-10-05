@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { api } from "../api";
 import { useI18n } from "../i18n";
 import { PageHead } from "../components/layout";
@@ -19,6 +20,7 @@ export function AdminModules() {
   const [pending, setPending] = useState<Mod | null>(null);
   const [reason, setReason] = useState("");
   const [error, setError] = useState<unknown>(null);
+  const [view, setView] = useState<"overview" | "switches">("overview");
   const confirm = async () => {
     if (!pending) return;
     setError(null);
@@ -31,7 +33,17 @@ export function AdminModules() {
   return (
     <div className="stack">
       <PageHead title={t("modules.title")} sub={t("modules.sub")} />
-      <Loaded state={state}>{(d) => (
+      <div className="segmented" role="tablist" style={{ alignSelf: "flex-start" }}>
+        {(["overview", "switches"] as const).map((v) => (
+          <button key={v} role="tab" aria-selected={view === v} className={view === v ? "on" : ""} onClick={() => setView(v)}>{t(v === "overview" ? "modules.viewOverview" : "modules.viewSwitches")}</button>
+        ))}
+      </div>
+      {view === "overview" && (
+        <div className="grid cols-3">
+          {modules.modules.filter((m) => m.resources.length > 0).map((m) => <ModuleSummary key={m.key} module={m.key} icon={m.icon} />)}
+        </div>
+      )}
+      {view === "switches" && <Loaded state={state}>{(d) => (
         <div className="grid cols-3">
           {d.modules.map((m) => (
             <div key={m.key} className={`card module-card${m.enabled ? " on" : ""}`}>
@@ -49,7 +61,7 @@ export function AdminModules() {
             </div>
           ))}
         </div>
-      )}</Loaded>
+      )}</Loaded>}
       {pending && (
         <Modal title={pending.enabled ? t("modules.confirmOff", { name: L.module(pending.key) }) : t("modules.confirmOn", { name: L.module(pending.key) })}
                onClose={() => setPending(null)}
@@ -61,5 +73,30 @@ export function AdminModules() {
         </Modal>
       )}
     </div>
+  );
+}
+
+interface Tile { id: string; value: number; money: boolean; tone: string }
+
+/** One switched-on module on the overview: its headline numbers and a way in. */
+function ModuleSummary({ module, icon }: { module: string; icon: string }) {
+  const { t, money, num } = useI18n();
+  const L = useLabels();
+  const state = useLoad(() => api.get<{ tiles: Tile[] }>(`/api/m/${module}/dashboard`), [module]);
+  if (state.data && state.data.tiles.length === 0) return null;      // nothing this role may see here
+  return (
+    <Link to={`/admin/m/${module}`} className="card module-card on summary-card">
+      <div className="row nowrap" style={{ gap: 10 }}>
+        <span className="badge-ic"><Icon name={icon as IconName} /></span>
+        <h3 style={{ margin: 0 }}>{L.module(module)}</h3>
+      </div>
+      {state.data ? (
+        <dl className="summary-tiles">
+          {state.data.tiles.slice(0, 3).map((x) => (
+            <div key={x.id} className={x.tone}><dt>{t(`dash.${x.id}`)}</dt><dd>{x.money ? money(x.value) : num(x.value)}</dd></div>
+          ))}
+        </dl>
+      ) : <div className="muted small">{t("common.loading")}</div>}
+    </Link>
   );
 }

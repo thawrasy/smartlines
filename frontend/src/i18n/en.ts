@@ -488,7 +488,7 @@ const en = {
     "onNote": "The module appears in the portals that use it straight away.", "phase": "Phase {n}",
     "reason": "Reason (kept in the audit log)", "screens": "{n} screens", "services": "Services",
     "sub": "Switch services on when you need them. Data stays in place when a module is off.", "switchedOff": "Module switched off",
-    "switchedOn": "Module switched on", "title": "Modules",
+    "switchedOn": "Module switched on", "title": "Modules", "viewOverview": "Overview", "viewSwitches": "Switches",
   },
   dash: {
     "adapters_active": "Live links", "adherence_7d": "Route deviations (7 days)", "agents_available": "Agents available",
