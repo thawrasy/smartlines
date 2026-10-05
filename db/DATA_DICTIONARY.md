@@ -2,13 +2,13 @@
 
 > Generated from the built database (`db/tools/gen_docs.py`); do not edit by hand.
 
-**415 tables, 4092 columns, in 23 schemas.**
+**422 tables, 4201 columns, in 24 schemas.**
 
 Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant isolation (RLS) · 🧩 partitioned monthly · 🔒 append-only / change-protected
 
 ## Index
 
-- [`iam` — Identity, parties, users, permissions and API clients](#iam) (24 tables)
+- [`iam` — Identity, parties, users, permissions and API clients](#iam) (25 tables)
 - [`ref` — Reference data, locales and files](#ref) (12 tables)
 - [`sys` — Settings, outbox and webhooks](#sys) (7 tables)
 - [`net` — Network: stations, routes, lines, corridors and geofences](#net) (21 tables)
@@ -16,7 +16,7 @@ Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant i
 - [`pricing` — Pricing, taxes, commissions, campaigns and loyalty](#pricing) (32 tables)
 - [`ops` — Trips, inventory, operations, shuttle rides, tracking and incidents](#ops) (30 tables)
 - [`sales` — Channels, bookings, passengers, tickets, subscriptions and travel documents](#sales) (27 tables)
-- [`fin` — Wallets, ledger, payments, allocation, settlement and float](#fin) (20 tables)
+- [`fin` — Wallets, ledger, payments, allocation, settlement and float](#fin) (23 tables)
 - [`acct` — Simplified accounting, e-invoicing and tax profiles](#acct) (35 tables)
 - [`bill` — Carrier subscriptions, metering and platform invoices](#bill) (7 tables)
 - [`crm` — Complaints, ratings, notifications, the AI assistant and the contact center](#crm) (19 tables)
@@ -30,6 +30,7 @@ Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant i
 - [`rail` — Rail extension](#rail) (5 tables)
 - [`taxi` — Taxis](#taxi) (7 tables)
 - [`rent` — Car rental](#rent) (15 tables)
+- [`rpt` — Report definitions, runs and schedules](#rpt) (3 tables)
 - [`audit` — Login and activity logs (append-only)](#audit) (5 tables)
 
 <a id="iam"></a>
@@ -58,8 +59,14 @@ API clients (carrier, channel, partner, authority): scopes, rate limit, IP allow
 | `approved_by` | `bigint` | 🔗 `iam.app_user`  |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 | `updated_at` | `timestamp with time zone` | ✱ | `now()` |
+| `description` | `text` |  |  |
+| `contact_email` | `text` |  |  |
+| `acting_user_id` | `bigint` | 🔗 `iam.app_user`  |  |
+| `payment_provider_id` | `bigint` | 🔗 `fin.payment_provider`  |  |
+| `status_reason` | `text` |  |  |
+| `authority_id` | `bigint` | 🔗 `sec.authority_profile`  |  |
 
-### `iam.api_key` 
+### `iam.api_key` 🛡️
 
 Hashed API keys; at most two active keys during rotation
 
@@ -78,6 +85,18 @@ Hashed API keys; at most two active keys during rotation
 | `revoked_at` | `timestamp with time zone` |  |  |
 | `revoked_by` | `bigint` | 🔗 `iam.app_user`  |  |
 | `revoke_reason` | `text` |  |  |
+
+### `iam.api_usage_daily` 🛡️
+
+Calls per API client and day, for the client console and capacity planning
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `api_client_id` | `bigint` | 🔑 🔗 `iam.api_client` ✱ |  |
+| `day` | `date` | 🔑 ✱ |  |
+| `requests` | `integer` | ✱ | `0` |
+| `errors` | `integer` | ✱ | `0` |
+| `last_at` | `timestamp with time zone` | ✱ | `now()` |
 
 ### `iam.app_user` 
 
@@ -698,7 +717,7 @@ Global settings and feature flags (full-build, activate-by-configuration princip
 | `updated_at` | `timestamp with time zone` | ✱ | `now()` |
 | `updated_by` | `bigint` | 🔗 `iam.app_user`  |  |
 
-### `sys.webhook_delivery` 
+### `sys.webhook_delivery` 🛡️
 
 Delivery attempts, retries and dead letters (DEAD)
 
@@ -715,8 +734,10 @@ Delivery attempts, retries and dead letters (DEAD)
 | `last_error` | `text` |  |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 | `delivered_at` | `timestamp with time zone` |  |  |
+| `response_ms` | `integer` |  |  |
+| `event_type` | `text` |  |  |
 
-### `sys.webhook_endpoint` 
+### `sys.webhook_endpoint` 🛡️
 
 Webhook subscriptions for partners and integrations (14, 13.10), signed with HMAC-SHA256
 
@@ -3027,6 +3048,41 @@ Daily reconciliation: bank balance = total wallets + receivables
 | `reviewed_by` | `bigint` | 🔗 `iam.app_user`  |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
+### `fin.bank_statement_import` 🛡️
+
+A bank statement file imported by finance; the same file cannot be imported twice
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `account_label` | `text` | ✱ |  |
+| `file_sha256` | `bytea` | ✱ |  |
+| `line_count` | `integer` | ✱ |  |
+| `matched_count` | `integer` | ✱ | `0` |
+| `imported_by` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `fin.bank_statement_line` 🛡️
+
+One credit line of an imported statement: matched to a top-up by reference and amount, or decided by finance
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `import_id` | `bigint` | 🔗 `fin.bank_statement_import` ✱ |  |
+| `value_date` | `date` | ✱ |  |
+| `amount` | `bigint` | ✱ |  |
+| `currency` | `character(3)` | 🔗 `ref.currency` ✱ |  |
+| `reference` | `text` |  |  |
+| `payer` | `text` |  |  |
+| `bank_ref` | `text` | ✱ |  |
+| `status` | `text` | ✱ | `'UNMATCHED'::text` |
+| `topup_id` | `bigint` | 🔗 `fin.bank_transfer_topup`  |  |
+| `note` | `text` |  |  |
+| `decided_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `decided_at` | `timestamp with time zone` |  |  |
+
 ### `fin.bank_transfer_topup` 
 
 Wallet top-up by bank transfer with a unique reference and automatic matching
@@ -3042,6 +3098,11 @@ Wallet top-up by bank transfer with a unique reference and automatic matching
 | `matched_at` | `timestamp with time zone` |  |  |
 | `ledger_txn_id` | `bigint` | 🔗 `fin.ledger_txn`  |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `payment_id` | `bigint` | 🔗 `fin.payment`  |  |
+| `expires_at` | `timestamp with time zone` |  |  |
+| `matched_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `statement_line_id` | `bigint` | 🔗 `fin.bank_statement_line`  |  |
 
 ### `fin.cash_remittance` 🛡️
 
@@ -3161,6 +3222,15 @@ Payment; becomes SUCCESS only with a signed gateway notification and a ledger en
 | `card_last4` | `text` |  |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 | `settled_at` | `timestamp with time zone` |  |  |
+| `stage` | `text` | ✱ | `'CREATED'::text` |
+| `checkout_url` | `text` |  |  |
+| `expires_at` | `timestamp with time zone` |  |  |
+| `failure_code` | `text` |  |  |
+| `payer_mobile_mask` | `text` |  |  |
+| `otp_attempts` | `smallint` | ✱ | `0` |
+| `refunded_amount` | `bigint` | ✱ | `0` |
+| `agency_company_id` | `bigint` | 🔗 `iam.company`  |  |
+| `api_client_id` | `bigint` | 🔗 `iam.api_client`  |  |
 
 ### `fin.payment_notification` 🔒
 
@@ -3192,6 +3262,32 @@ Payment provider behind a unified, replaceable adapter
 | `fee_policy` | `jsonb` | ✱ | `'{}'::jsonb` |
 | `clearing_wallet_id` | `bigint` | 🔗 `fin.wallet`  |  |
 | `status` | `text` | ✱ | `'INACTIVE'::text` |
+| `adapter` | `text` | ✱ | `'SANDBOX'::text` |
+| `min_amount` | `bigint` | ✱ | `100000` |
+| `max_amount` | `bigint` | ✱ | `100000000` |
+| `purposes` | `text[]` | ✱ | `ARRAY['TOPUP'::text]` |
+| `sort_order` | `smallint` | ✱ | `100` |
+| `updated_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `updated_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `fin.payment_refund` 🛡️
+
+Money returned to the card or e-wallet it came from; the wallet is debited in the same transaction
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `payment_id` | `bigint` | 🔗 `fin.payment` ✱ |  |
+| `amount` | `bigint` | ✱ |  |
+| `reason` | `text` | ✱ |  |
+| `status` | `text` | ✱ | `'PENDING'::text` |
+| `provider_ref` | `text` |  |  |
+| `ledger_txn_id` | `bigint` | 🔗 `fin.ledger_txn`  |  |
+| `requested_by` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `idempotency_key` | `text` | ✱ |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `completed_at` | `timestamp with time zone` |  |  |
 
 ### `fin.payout` 🛡️
 
@@ -6977,6 +7073,72 @@ Trips recorded by the telematics device; access limited to the company for safet
 | `distance_km` | `numeric(8,2)` |  |  |
 | `max_speed_kmh` | `smallint` |  |  |
 | `geofence_violations` | `integer` | ✱ | `0` |
+
+<a id="rpt"></a>
+## `rpt` — Report definitions, runs and schedules
+
+### `rpt.report_definition` 🛡️
+
+Custom report built from a whitelisted dataset; spec holds columns, filters, group_by, totals and sort by column key only
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `company_id` | `bigint` | 🔗 `iam.company`  |  |
+| `owner_user_id` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `audience` | `text` | ✱ |  |
+| `name` | `text` | ✱ |  |
+| `description` | `text` |  |  |
+| `dataset` | `text` | ✱ |  |
+| `spec` | `jsonb` | ✱ |  |
+| `shared` | `boolean` | ✱ | `false` |
+| `status` | `text` | ✱ | `'ACTIVE'::text` |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `updated_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `rpt.report_run` 🛡️ 🔒
+
+Every report preview and export: who, which report, parameters, rows and file digest (append-only)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `report_code` | `text` |  |  |
+| `definition_id` | `bigint` | 🔗 `rpt.report_definition`  |  |
+| `user_id` | `bigint` | 🔗 `iam.app_user`  |  |
+| `api_client_id` | `bigint` | 🔗 `iam.api_client`  |  |
+| `company_id` | `bigint` | 🔗 `iam.company`  |  |
+| `portal` | `text` | ✱ |  |
+| `params` | `jsonb` | ✱ | `'{}'::jsonb` |
+| `format` | `text` | ✱ |  |
+| `row_count` | `integer` | ✱ |  |
+| `sha256` | `bytea` |  |  |
+| `duration_ms` | `integer` | ✱ |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `rpt.report_schedule` 🛡️
+
+Report delivered by e-mail on a cycle; the outbox worker runs it with the owner's rights
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `report_code` | `text` |  |  |
+| `definition_id` | `bigint` | 🔗 `rpt.report_definition`  |  |
+| `owner_user_id` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `company_id` | `bigint` | 🔗 `iam.company`  |  |
+| `portal` | `text` | ✱ |  |
+| `frequency` | `text` | ✱ |  |
+| `format` | `text` | ✱ |  |
+| `locale` | `text` | 🔗 `ref.locale` ✱ | `'ar'::text` |
+| `recipients` | `text[]` | ✱ |  |
+| `params` | `jsonb` | ✱ | `'{}'::jsonb` |
+| `next_run_at` | `timestamp with time zone` | ✱ |  |
+| `last_run_at` | `timestamp with time zone` |  |  |
+| `active` | `boolean` | ✱ | `true` |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
 <a id="audit"></a>
 ## `audit` — Login and activity logs (append-only)

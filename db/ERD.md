@@ -31,6 +31,7 @@ flowchart LR
   rail["rail<br/>Rail extension"]
   taxi["taxi<br/>Taxis"]
   rent["rent<br/>Car rental"]
+  rpt["rpt<br/>Report definitions, runs and schedules"]
   audit["audit<br/>Login and activity logs (append-only)"]
   acct -->|4| fin
   acct -->|23| iam
@@ -57,7 +58,7 @@ flowchart LR
   ctr -->|9| iam
   ctr -->|3| net
   ctr -->|1| ops
-  fin -->|14| iam
+  fin -->|18| iam
   fin -->|1| ops
   fin -->|6| pricing
   fin -->|2| sales
@@ -72,7 +73,9 @@ flowchart LR
   frt -->|12| ship
   gov -->|6| iam
   gov -->|1| sec
+  iam -->|1| fin
   iam -->|2| ref
+  iam -->|1| sec
   net -->|7| iam
   net -->|3| ref
   ops -->|2| fin
@@ -102,6 +105,8 @@ flowchart LR
   rent -->|3| fleet
   rent -->|3| iam
   rent -->|1| net
+  rpt -->|5| iam
+  rpt -->|1| ref
   sales -->|2| acct
   sales -->|5| fin
   sales -->|3| fleet
@@ -141,6 +146,9 @@ erDiagram
     text status
     bigint created_by FK
     bigint approved_by FK
+    bigint acting_user_id FK
+    bigint payment_provider_id FK
+    bigint authority_id FK
   }
   iam_api_key {
     bigint id PK
@@ -148,6 +156,10 @@ erDiagram
     text status
     bigint created_by FK
     bigint revoked_by FK
+  }
+  iam_api_usage_daily {
+    bigint api_client_id PK
+    date day PK
   }
   iam_app_user {
     bigint id PK
@@ -266,12 +278,20 @@ erDiagram
     bigint provider_id FK
     bigint reviewer_id FK
   }
+  fin_payment_provider {
+    ref external
+  }
   ref_locale {
     ref external
   }
   ref_party_role_type {
     ref external
   }
+  sec_authority_profile {
+    ref external
+  }
+  iam_api_client }o..o| fin_payment_provider : "payment_provider_id"
+  iam_api_usage_daily }o--|| iam_api_client : "api_client_id"
   iam_api_key }o--|| iam_api_client : "api_client_id"
   iam_user_role }o--|| iam_app_user : "user_id"
   iam_company_member }o--|| iam_app_user : "user_id"
@@ -280,6 +300,7 @@ erDiagram
   iam_user_session }o--|| iam_app_user : "user_id"
   iam_auth_token }o..o| iam_app_user : "user_id"
   iam_device_permission_state }o--|| iam_app_user : "user_id"
+  iam_api_client }o..o| iam_app_user : "acting_user_id"
   iam_company }o..o| iam_bank_account : "payout_bank_account_id"
   iam_beneficial_owner }o--|| iam_company : "company_id"
   iam_company_member }o--|| iam_company : "company_id"
@@ -306,6 +327,7 @@ erDiagram
   iam_company_member }o..o| iam_role : "role_id"
   iam_app_user }o--|| ref_locale : "preferred_locale"
   iam_party_role }o--|| ref_party_role_type : "role_code"
+  iam_api_client }o..o| sec_authority_profile : "authority_id"
 ```
 
 ## `ref` — Reference data, locales and files
@@ -1781,11 +1803,28 @@ erDiagram
     text status
     bigint reviewed_by FK
   }
+  fin_bank_statement_import {
+    bigint id PK
+    uuid uid
+    bigint imported_by FK
+  }
+  fin_bank_statement_line {
+    bigint id PK
+    bigint import_id FK
+    character currency FK
+    text status
+    bigint topup_id FK
+    bigint decided_by FK
+  }
   fin_bank_transfer_topup {
     bigint id PK
     bigint wallet_id FK
     text status
     bigint ledger_txn_id FK
+    uuid uid
+    bigint payment_id FK
+    bigint matched_by FK
+    bigint statement_line_id FK
   }
   fin_cash_remittance {
     bigint id PK
@@ -1832,6 +1871,8 @@ erDiagram
     character currency FK
     text status
     bigint ledger_txn_id FK
+    bigint agency_company_id FK
+    bigint api_client_id FK
   }
   fin_payment_notification {
     bigint id PK
@@ -1843,6 +1884,15 @@ erDiagram
     text code
     bigint clearing_wallet_id FK
     text status
+    bigint updated_by FK
+  }
+  fin_payment_refund {
+    bigint id PK
+    uuid uid
+    bigint payment_id FK
+    text status
+    bigint ledger_txn_id FK
+    bigint requested_by FK
   }
   fin_payout {
     bigint id PK
@@ -1922,6 +1972,9 @@ erDiagram
     character currency FK
     bigint paid_by FK
   }
+  iam_api_client {
+    ref external
+  }
   iam_app_user {
     ref external
   }
@@ -1955,15 +2008,21 @@ erDiagram
   sales_booking {
     ref external
   }
+  fin_bank_statement_line }o--|| fin_bank_statement_import : "import_id"
+  fin_bank_transfer_topup }o..o| fin_bank_statement_line : "statement_line_id"
+  fin_bank_statement_line }o..o| fin_bank_transfer_topup : "topup_id"
   fin_deposit_placement }o--|| fin_float_account : "account_id"
   fin_ledger_entry }o--|| fin_ledger_txn : "txn_id"
   fin_cash_remittance }o..o| fin_ledger_txn : "ledger_txn_id"
   fin_bank_transfer_topup }o..o| fin_ledger_txn : "ledger_txn_id"
+  fin_payment_refund }o..o| fin_ledger_txn : "ledger_txn_id"
   fin_ledger_txn }o..o| fin_ledger_txn : "reverses_txn_id"
   fin_withdrawal_request }o..o| fin_ledger_txn : "ledger_txn_id"
   fin_payout }o..o| fin_ledger_txn : "ledger_txn_id"
   fin_payment }o..o| fin_ledger_txn : "ledger_txn_id"
+  fin_payment_refund }o--|| fin_payment : "payment_id"
   fin_payment_notification }o..o| fin_payment : "payment_id"
+  fin_bank_transfer_topup }o..o| fin_payment : "payment_id"
   fin_payment_notification }o--|| fin_payment_provider : "provider_id"
   fin_payment }o--|| fin_payment_provider : "provider_id"
   fin_price_allocation_line }o--|| fin_price_allocation : "allocation_id"
@@ -1978,6 +2037,9 @@ erDiagram
   fin_payment_provider }o..o| fin_wallet : "clearing_wallet_id"
   fin_payment }o..o| fin_wallet : "wallet_id"
   fin_price_allocation_line }o..o| fin_wallet : "wallet_id"
+  fin_payment }o..o| iam_api_client : "api_client_id"
+  fin_bank_statement_import }o--|| iam_app_user : "imported_by"
+  fin_bank_transfer_topup }o..o| iam_app_user : "matched_by"
   fin_withdrawal_request }o..o| iam_app_user : "paid_by"
   fin_withdrawal_request }o--|| iam_bank_account : "bank_account_id"
   fin_payout }o..o| iam_bank_account : "bank_account_id"
@@ -1988,6 +2050,7 @@ erDiagram
   fin_wallet }o..o| iam_company : "company_id"
   fin_tax_ledger }o..o| iam_company : "company_id"
   fin_withdrawal_request }o..o| iam_company : "company_id"
+  fin_payment }o..o| iam_company : "agency_company_id"
   fin_float_account }o--|| iam_party : "bank_party_id"
   fin_wallet }o..o| iam_party : "owner_party_id"
   fin_payment }o--|| iam_party : "payer_party_id"
@@ -4306,6 +4369,54 @@ erDiagram
   rent_renter_rule }o..o| rent_rental_vehicle_class : "rental_class"
   rent_rental_booking }o--|| rent_rental_vehicle_class : "rental_class"
   rent_vehicle_trip_log }o--|| rent_telematics_device : "device_id"
+```
+
+## `rpt` — Report definitions, runs and schedules
+
+```mermaid
+erDiagram
+  rpt_report_definition {
+    bigint id PK
+    uuid uid
+    bigint company_id FK
+    bigint owner_user_id FK
+    text status
+  }
+  rpt_report_run {
+    bigint id PK
+    bigint definition_id FK
+    bigint user_id FK
+    bigint api_client_id FK
+    bigint company_id FK
+  }
+  rpt_report_schedule {
+    bigint id PK
+    uuid uid
+    bigint definition_id FK
+    bigint owner_user_id FK
+    bigint company_id FK
+    text locale FK
+  }
+  iam_api_client {
+    ref external
+  }
+  iam_app_user {
+    ref external
+  }
+  iam_company {
+    ref external
+  }
+  ref_locale {
+    ref external
+  }
+  rpt_report_run }o..o| iam_api_client : "api_client_id"
+  rpt_report_run }o..o| iam_app_user : "user_id"
+  rpt_report_definition }o..o| iam_company : "company_id"
+  rpt_report_run }o..o| iam_company : "company_id"
+  rpt_report_schedule }o..o| iam_company : "company_id"
+  rpt_report_schedule }o--|| ref_locale : "locale"
+  rpt_report_run }o..o| rpt_report_definition : "definition_id"
+  rpt_report_schedule }o..o| rpt_report_definition : "definition_id"
 ```
 
 ## `audit` — Login and activity logs (append-only)

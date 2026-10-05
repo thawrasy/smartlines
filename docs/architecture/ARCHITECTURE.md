@@ -378,6 +378,12 @@ carrier's real layout, names, wallet payment, bookings, offline ticket; driver t
 online and offline with a synced queue; app lock, screen-capture blocking, pinning, root detection, keystore-only
 storage; English and Arabic. Layers: `core` (pure, Node-tested), `platform`, `ui`, `app` (routes), `i18n`.
 
+Added since: a third variant, **Masslak Business** (`APP_VARIANT=operator`, OPERATOR portal): the carrier's day, trips
+with the passenger manifest, publish and complete, and every module the role can work in through the generic resource
+engine (section 8), with the website's interface names; in the passenger app, a services tab (shuttle passes with QR,
+parcels and tracking, taxi, car rental, each shown only when its module is on) and every wallet top-up method of
+section 10.
+
 Not yet built: attestation (6.3 item 5, Play Integrity and App Attest), push notification delivery to devices,
 shuttle live ride, incidents and SOS, the driver route screen. The apps have been type-checked, unit-tested and
 bundled for both platforms in CI, but have not yet been run on physical devices.
@@ -388,8 +394,8 @@ bundled for both platforms in CI, but have not yet been run on physical devices.
 
 ```
 docker compose up            # PostgreSQL, API, web, Caddy
-cd backend && pytest tests   # 109 tests: unit and end to end against a running API
-db/tests/run.sh              # 111 schema checks
+cd backend && pytest tests   # 133 tests: unit and end to end against a running API
+db/tests/run.sh              # 114 schema checks
 cd mobile && npm test        # core unit tests of the apps
 ```
 
@@ -506,3 +512,65 @@ one accepted bid per request, one active version per line). `install.sh --demo` 
 
 Interface names for every screen, column, value and action are in `frontend/src/i18n/en.ts` and `ar.ts`; English falls back to
 readable column names.
+
+
+---
+
+## 9. Reports
+
+`backend/app/modules/reports` (schema file 1034, `rpt` schema).
+
+* **Datasets** (`datasets.py`): 20 vetted SQL sources, each with typed columns that say whether they can be grouped,
+  filtered or totalled, which portals may read them, and the company and agency columns that scope rows. Columns marked
+  personal are never offered to the regulator. Audit datasets are read through the read-only audit connection.
+* **Catalog** (`catalog.py`): 38 ready reports per portal (sales, operations, finance, shipping, services, fleet,
+  international, platform, security).
+* **Engine** (`engine.py`): turns a spec (columns, filters, grouping, totals, sort) into parameterised SQL; only
+  dataset columns and whitelisted operators reach SQL; a 25 s statement timeout; preview 500 rows, export 50,000, PDF 5,000.
+* **Custom reports** are saved definitions (`report.custom`), private or shared within the company.
+* **Exports** (`export.py`): PDF (right-to-left Arabic with the brand fonts), XLSX, CSV (UTF-8 with BOM), TXT
+  (tab-separated, for other systems) and JSON. Every run and export is logged in `rpt.report_run` with its SHA-256.
+* **Schedules** (`report.schedule`): daily, weekly or monthly e-mail with the file attached, run by the notify worker with
+  the owner's current rights (a schedule stops when those rights are gone).
+
+## 10. Payments and wallet top-up
+
+`backend/app/modules/payments` (schema file 1035). Every way money enters a wallet goes through a provider adapter:
+
+| Adapter | How it works | Credited when |
+| --- | --- | --- |
+| `HOSTED_CARD` | the payer is sent to the bank's hosted page | the gateway's signed server notification arrives |
+| `PARTNER_WALLET` | payment request on the payer's e-wallet mobile, confirmed by a one-time code | the partner confirms the code |
+| `BANK_TRANSFER` | a unique reference (`MSL` + 9 digits + mod-97 check) and the platform IBAN | the line is matched on the imported bank statement |
+| `CASH_AGENT` | cash at an agency counter | at once, from the agency's prepaid balance |
+| `API_PARTNER` | a bank or e-wallet credits the wallet through the integration API (section 11) | at once; the partner owes the amount through its clearing account |
+| `SANDBOX` | simulated gateway (refused unless `MASSLAK_SANDBOX=true`) | on approval in the test page |
+
+Rules: the browser never decides a payment; notifications are HMAC-signed with a five-minute window and stored even when
+rejected; a payment is credited once (row lock and ledger idempotency key); one-time codes are limited; provider secrets
+live in the environment, never in the database. Finance imports bank statements (CSV), matches or ignores lines, and
+refunds card and e-wallet payments to their source. Passenger, finance desk and agency counter screens are on the web and
+the passenger app.
+
+## 11. Integration API v1
+
+`backend/app/modules/integration` (schema file 1036), served at `/api/v1`, described in `/api/v1/openapi.json`.
+
+* **Clients and keys**: `iam.api_client` (kind, company, scopes, rate limit, IP allowlist, optional mTLS, acting staff
+  account, payment provider or authority link) and `iam.api_key` (SHA-256 only, shown once, at most two active, expiry
+  from `security.api_key_rotation_days`). Company owners create clients for their company; platform security creates
+  bank, e-wallet and authority clients; approval is four-eyes. Keys travel in `X-Api-Key`; `/api/v1` never reads cookies.
+* **Scopes by kind**: carrier (trips, bookings, manifests, shipments, reports), sales channel (also holds, sales and
+  cancellations from the agency balance), bank or e-wallet partner (passenger lookup, idempotent wallet credits,
+  reconciliation listing), authority (border manifests of its own border points with full document numbers, and
+  decisions on them; regulator reports), integration (bookings and reports for ERP and accounting).
+* **Acting account**: scopes that touch company data run as the client's staff account and its current permissions,
+  so removing a person's rights also cuts the API. Calls carry the client id into the database context and the activity
+  log; reads of personal data are logged.
+* **Webhooks**: the notify worker fans outbox events out to subscribed endpoints of clients allowed to see them (own
+  company, own agency sales, own credits, own border points); personal fields are removed unless approved. Deliveries are
+  signed (`X-Masslak-Signature: t=..,v1=HMAC-SHA256`), retried for about two hours and kept as dead letters; the target
+  address is checked against private ranges at every attempt (SSRF). Secrets are encrypted with
+  `kms://masslak/webhook/v1`.
+* **Console**: `/admin/integrations` (platform security), `/carrier/integrations` and `/agency/integrations` (owners):
+  keys, scopes, allowed addresses, webhooks, deliveries and daily usage.

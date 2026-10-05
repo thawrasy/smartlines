@@ -35,6 +35,7 @@ SCHEMAS = [
     ("rail", "Rail extension"),
     ("taxi", "Taxis"),
     ("rent", "Car rental"),
+    ("rpt", "Report definitions, runs and schedules"),
     ("audit", "Login and activity logs (append-only)"),
 ]
 SCHEMA_LIST = ",".join(f"'{s}'" for s, _ in SCHEMAS)
