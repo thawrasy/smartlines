@@ -81,8 +81,10 @@ async def _board(conn, pr: Principal, t, ticket_uid: Optional[str], early: Optio
     if ticket_uid is None:
         return {"result": early or "INVALID_QR"}
     k = await conn.fetchrow(
-        """SELECT k.id, k.trip_id, k.status, k.seat_no, p.full_name, p.first_name, p.last_name FROM sales.ticket k
-             JOIN sales.passenger p ON p.id = k.passenger_id WHERE k.uid = $1""", uuid.UUID(ticket_uid))
+        """SELECT k.id, k.trip_id, k.status, k.seat_no, p.full_name, p.first_name, p.last_name,
+                  (SELECT s ->> 'label' FROM ops.trip t, jsonb_array_elements(t.seat_map -> 'seats') s
+                    WHERE t.id = k.trip_id AND (s ->> 'n')::int = k.seat_no) AS seat_label
+             FROM sales.ticket k JOIN sales.passenger p ON p.id = k.passenger_id WHERE k.uid = $1""", uuid.UUID(ticket_uid))
     if k is None:
         return {"result": "INVALID_QR"}
     result = early or "OK"
@@ -104,7 +106,7 @@ async def _board(conn, pr: Principal, t, ticket_uid: Optional[str], early: Optio
                            k["id"], scanned_at)
         if t["status"] == "PUBLISHED":
             await conn.execute("UPDATE ops.trip SET status = 'BOARDING' WHERE id = $1", t["id"])
-    return {"result": result, "ticket_id": k["id"], "seat_no": k["seat_no"],
+    return {"result": result, "ticket_id": k["id"], "seat_no": k["seat_no"], "seat_label": k["seat_label"] or str(k["seat_no"]),
             "passenger": ticket_name(k["first_name"], k["last_name"], k["full_name"])}
 
 

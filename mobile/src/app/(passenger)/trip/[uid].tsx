@@ -11,7 +11,7 @@ import { color } from "../../../ui/theme";
 import { useLoad } from "../../../ui/useLoad";
 
 interface Detail {
-  seat_map: SeatMapData; price: number; from_seq: number; to_seq: number; seats: { seat_no: number; free: boolean }[];
+  seat_map: SeatMapData | null; price: number; from_seq: number; to_seq: number; seats: { seat_no: number; free: boolean }[];
   trip: { trip_no: string; carrier_name: string; currency: string; hold_min: number };
   stops: { seq: number; station_name: string; sched_dep: string | null; sched_arr: string | null }[];
 }
@@ -54,7 +54,16 @@ export default function Trip() {
   useEffect(() => { const id = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(id); }, []);
 
   const free = useMemo(() => new Map((detail.data?.seats ?? []).map((x) => [x.seat_no, x.free])), [detail.data]);
-  const label = (n: number) => detail.data?.seat_map.seats.find((x) => x.n === n)?.label ?? String(n);
+  // Trips created before seat layouts existed have no map: draw a plain 2+2 coach from the seat numbers, as the website does
+  const seatMap = useMemo<SeatMapData | null>(() => {
+    const d = detail.data;
+    if (!d) return null;
+    if (d.seat_map) return d.seat_map;
+    const rows = Math.ceil(d.seats.length / 4);
+    return { decks: [Array.from({ length: rows }, () => "SS_SS")],
+             seats: d.seats.map((x, i) => ({ n: x.seat_no, label: String(x.seat_no), deck: 1, row: Math.floor(i / 4) + 1, col: [1, 2, 4, 5][i % 4], cabin: "STANDARD" })) };
+  }, [detail.data]);
+  const label = (n: number) => seatMap?.seats.find((x) => x.n === n)?.label ?? String(n);
   const left = hold ? Math.max(0, Math.round((new Date(hold.expires_at).getTime() - now) / 1000)) : 0;
   const countries = new Set(ref.data?.countries ?? []);
   const complete = (x?: Names) => !!x && !!x.first_name.trim() && !!x.last_name.trim()
@@ -103,7 +112,7 @@ export default function Trip() {
         <>
           <Text style={s.h2}>{t("trip.seats")}</Text>
           <Text style={s.small}>{t("extra.seatsChosen", { n: selected.length, max })}</Text>
-          <SeatMap map={d.seat_map} free={free} selected={selected} max={max}
+          <SeatMap map={seatMap!} free={free} selected={selected} max={max}
                    onToggle={(n) => setSelected((cur) => (cur.includes(n) ? cur.filter((x) => x !== n) : [...cur, n]))} />
           <Button label={t("trip.hold")} busy={busy} disabled={selected.length !== max} onPress={doHold} />
         </>

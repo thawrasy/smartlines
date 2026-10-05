@@ -11,7 +11,7 @@ const ar: Messages = {
   extra: { booked: "تم الحجز · {ref}", seatsChosen: "اخترت {n} من {max} مقاعد", stops: "{n} محطات", direct: "مباشر",
            ticketStatus: { ISSUED: "صالحة", BOARDED: "تم الصعود", CANCELLED: "ملغاة", REFUNDED: "مستردة" },
            noTickets: "لا رحلات اليوم.", trip: "الرحلة {no}", openTicket: "عرض التذكرة" },
-  txn: { BOOKING_PAY: "حجز رحلة", REFUND: "استرداد", TOPUP: "شحن المحفظة", RELEASE: "تسوية", PAYOUT: "صرف مصرفي" },
+  txn: { SHIPMENT_PAY: "إرسال طرد", SUBSCRIPTION_PAY: "اشتراك نقل ترددي", BOOKING_PAY: "حجز رحلة", REFUND: "استرداد", TOPUP: "شحن المحفظة", RELEASE: "تسوية", PAYOUT: "صرف مصرفي" },
   common: {
     signIn: "تسجيل الدخول", signOut: "تسجيل الخروج", email: "البريد أو الجوال", password: "كلمة المرور", continue: "متابعة",
     cancel: "إلغاء", retry: "أعد المحاولة", loading: "جارٍ التحميل…", seat: "المقعد", seats: "المقاعد", total: "الإجمالي",

@@ -9,7 +9,7 @@ const en = {
   extra: { booked: "Booked · {ref}", seatsChosen: "{n} of {max} seats chosen", stops: "{n} stops", direct: "Direct",
            ticketStatus: { ISSUED: "Valid", BOARDED: "Boarded", CANCELLED: "Cancelled", REFUNDED: "Refunded" },
            noTickets: "No trips today.", trip: "Trip {no}", openTicket: "Show ticket" },
-  txn: { BOOKING_PAY: "Trip booking", REFUND: "Refund", TOPUP: "Wallet top-up", RELEASE: "Settlement", PAYOUT: "Bank payout" },
+  txn: { SHIPMENT_PAY: "Parcel", SUBSCRIPTION_PAY: "Shuttle pass", BOOKING_PAY: "Trip booking", REFUND: "Refund", TOPUP: "Wallet top-up", RELEASE: "Settlement", PAYOUT: "Bank payout" },
   common: {
     signIn: "Sign in", signOut: "Sign out", email: "Email or mobile", password: "Password", continue: "Continue",
     cancel: "Cancel", retry: "Try again", loading: "Loading…", seat: "Seat", seats: "Seats", total: "Total",

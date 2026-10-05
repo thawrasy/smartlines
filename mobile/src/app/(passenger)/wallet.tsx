@@ -8,7 +8,7 @@ import { Button, Card, ErrorText, Loading, Screen, Title, s } from "../../ui/kit
 import { color } from "../../ui/theme";
 import { useLoad } from "../../ui/useLoad";
 
-interface Wallet { balance: number; sandbox: boolean; entries: { direction: "DEBIT" | "CREDIT"; amount: number; created_at: string; txn_type: string }[] }
+interface Wallet { balance: number; sandbox: boolean; entries: { direction: "DR" | "CR"; amount: number; created_at: string; txn_type: string }[] }
 
 export default function WalletScreen() {
   usePreventScreenCapture();
@@ -36,8 +36,8 @@ export default function WalletScreen() {
           {w.data.entries.map((e, i) => (
             <View key={i} style={[s.between, { paddingVertical: 8, borderBottomWidth: 1, borderColor: color.outline }]}>
               <View><Text style={s.label}>{t(`txn.${e.txn_type}`) === `txn.${e.txn_type}` ? e.txn_type : t(`txn.${e.txn_type}`)}</Text><Text style={s.small}>{date(e.created_at)} · {time(e.created_at)}</Text></View>
-              <Text style={{ fontWeight: "600", color: e.direction === "CREDIT" ? color.green : color.text }}>
-                {e.direction === "CREDIT" ? "+" : "−"}{money(e.amount)}
+              <Text style={{ fontWeight: "600", color: e.direction === "CR" ? color.green : color.text }}>
+                {e.direction === "CR" ? "+" : "−"}{money(e.amount)}
               </Text>
             </View>
           ))}

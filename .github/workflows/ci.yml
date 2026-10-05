@@ -109,7 +109,7 @@ jobs:
         env: { CI: "1", EXPO_OFFLINE: "1" }
         run: |
           npx expo export --platform android --output-dir /tmp/passenger
-          APP_VARIANT=driver npx expo export --platform ios --output-dir /tmp/driver
+          APP_VARIANT=driver npx expo export --clear --platform ios --output-dir /tmp/driver
       - name: Known vulnerabilities in app dependencies
         run: npm audit --omit=dev --audit-level=critical
 

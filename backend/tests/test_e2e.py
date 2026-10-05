@@ -6,6 +6,7 @@ They exercise the real database: RLS, triggers, the ledger and the audit logs.
 """
 import asyncio
 import os
+import re
 import secrets
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -298,6 +299,8 @@ def test_driver_boarding_scan(trip):
             break
     r = d.post("/api/driver/scan", json={"trip_uid": trip["uid"], "token": token})
     assert r.json()["result"] == "OK", r.text
+    # The driver sees the seat as printed on the ticket (2C), not the internal seat number
+    assert re.fullmatch(r"\d+[A-Z]", r.json()["seat_label"]), r.text
     assert d.post("/api/driver/scan", json={"trip_uid": trip["uid"], "token": token}).json()["result"] == "DUPLICATE"
     assert d.post("/api/driver/scan", json={"trip_uid": trip["uid"], "token": token[:-3] + "AAA"}).json()["result"] == "INVALID_QR"
     pytest.driver_email = email

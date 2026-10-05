@@ -23,13 +23,13 @@ export const loadScans = async (tripUid: string) => (await getJSON<LocalScan[]>(
 export async function scan(tripUid: string, token: string): Promise<Outcome> {
   const history = await loadScans(tripUid);
   try {
-    const r = await api.post<{ result: string; seat_no?: number; passenger?: string }>("/api/driver/scan", { trip_uid: tripUid, token });
+    const r = await api.post<{ result: string; seat_no?: number; seat_label?: string; passenger?: string }>("/api/driver/scan", { trip_uid: tripUid, token });
     const claims = token.startsWith("T2.") ? verifyCredential(token, (await loadPack(tripUid))?.public_key ?? "") : null;
     // Remember online boardings too, so a second scan of the same ticket is caught if the connection drops.
     history.push({ scan_id: scanId(), token, ticket_uid: claims?.ok ? claims.claims.k : null, result: r.result as ScanResult,
                    scanned_at: new Date().toISOString(), synced: true });
     await putJSON(cacheKey.scans(tripUid), history.slice(-500));
-    return { result: r.result, seat: r.seat_no !== undefined ? String(r.seat_no) : undefined, name: r.passenger, offline: false };
+    return { result: r.result, seat: r.seat_label ?? (r.seat_no !== undefined ? String(r.seat_no) : undefined), name: r.passenger, offline: false };
   } catch (e) {
     if (!(e instanceof ApiError) || e.status !== 0) throw e;
   }
