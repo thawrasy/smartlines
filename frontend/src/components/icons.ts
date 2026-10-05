@@ -90,6 +90,18 @@ import i_map from "@material-symbols/svg-400/rounded/map.svg?raw";
 import i_storefront from "@material-symbols/svg-400/rounded/storefront.svg?raw";
 import i_apps from "@material-symbols/svg-400/rounded/apps.svg?raw";
 import i_visibility from "@material-symbols/svg-400/rounded/visibility.svg?raw";
+import i_summarize from "@material-symbols/svg-400/rounded/summarize.svg?raw";
+import i_bar_chart from "@material-symbols/svg-400/rounded/bar_chart.svg?raw";
+import i_table_chart from "@material-symbols/svg-400/rounded/table_chart.svg?raw";
+import i_picture_as_pdf from "@material-symbols/svg-400/rounded/picture_as_pdf.svg?raw";
+import i_schedule_send from "@material-symbols/svg-400/rounded/schedule_send.svg?raw";
+import i_filter_alt from "@material-symbols/svg-400/rounded/filter_alt.svg?raw";
+import i_save from "@material-symbols/svg-400/rounded/save.svg?raw";
+import i_print from "@material-symbols/svg-400/rounded/print.svg?raw";
+import i_description from "@material-symbols/svg-400/rounded/description.svg?raw";
+import i_calendar_month from "@material-symbols/svg-400/rounded/calendar_month.svg?raw";
+import i_insert_chart from "@material-symbols/svg-400/rounded/insert_chart.svg?raw";
+import i_data_table from "@material-symbols/svg-400/rounded/data_table.svg?raw";
 export const ICONS = {
   search: i_search,
   swap_horiz: i_swap_horiz,
@@ -180,6 +192,18 @@ export const ICONS = {
   storefront: i_storefront,
   apps: i_apps,
   visibility: i_visibility,
+  summarize: i_summarize,
+  bar_chart: i_bar_chart,
+  table_chart: i_table_chart,
+  picture_as_pdf: i_picture_as_pdf,
+  schedule_send: i_schedule_send,
+  filter_alt: i_filter_alt,
+  save: i_save,
+  print: i_print,
+  description: i_description,
+  calendar_month: i_calendar_month,
+  insert_chart: i_insert_chart,
+  data_table: i_data_table,
 } as const;
 
 export type IconName = keyof typeof ICONS;

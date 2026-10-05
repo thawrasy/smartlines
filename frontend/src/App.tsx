@@ -32,6 +32,7 @@ import { AdminModules } from "./modules/AdminModules";
 import { useModules } from "./modules/context";
 import { useLabels } from "./modules/labels";
 import type { NavItem } from "./components/layout";
+import { ReportsPage } from "./pages/reports/Reports";
 import type { IconName } from "./components/icons";
 
 /** Menu entries for the switched-on modules the signed-in user can open. */
@@ -77,6 +78,7 @@ function PlatformShell() {
       { to: "/security/activity", icon: "history", label: t("security.activity"), show: can("audit.view", "security.ip_rules") },
       { to: "/admin/privacy", icon: "privacy_tip", label: t("account.privacyRequests"), show: can("privacy.manage") },
       { to: "/regulator", icon: "gavel", label: t("nav.regulator"), show: can("regulator.dashboard", "report.platform") },
+      { to: "/admin/reports", icon: "summarize", label: t("rpt.nav"), show: can("report.platform") },
       { to: "/admin/modules", icon: "apps", label: t("modules.title"), show: can("modules.manage") },
       ...mods,
     ]} />
@@ -85,6 +87,7 @@ function PlatformShell() {
 
 function CarrierShell() {
   const { t } = useI18n();
+  const { can } = useAuth();
   const mods = useModuleNav("/carrier");
   return (
     <PortalShell title={t("nav.carrier")} items={[
@@ -96,6 +99,7 @@ function CarrierShell() {
       { to: "/carrier/crew", icon: "badge", label: t("carrier.crew") },
       { to: "/carrier/documents", icon: "fact_check", label: t("documents.title") },
       { to: "/carrier/finance", icon: "payments", label: t("finance.title") },
+      { to: "/carrier/reports", icon: "summarize", label: t("rpt.nav"), show: can("report.company") },
       ...mods,
     ]} />
   );
@@ -114,6 +118,7 @@ function AgencyShell() {
       { to: "/agency/staff", icon: "badge", label: t("agency.staff"), show: can("company.staff") },
       { to: "/agency/documents", icon: "fact_check", label: t("documents.title"), show: can("company.staff", "company.billing") },
       { to: "/agency/finance", icon: "payments", label: t("finance.title"), show: can("company.payout_schedule", "company.billing") },
+      { to: "/agency/reports", icon: "summarize", label: t("rpt.nav"), show: can("report.company") },
       ...mods,
     ]} />
   );
@@ -156,6 +161,7 @@ export default function App() {
           <Route path="carrier/documents" element={<CompanyDocuments />} />
           <Route path="carrier/crew" element={<CarrierCrew />} />
           <Route path="carrier/m/:module" element={<ModulePage />} />
+          <Route path="carrier/reports" element={<ReportsPage />} />
         </Route>
         <Route element={<RequirePortal portal="AGENCY"><AgencyShell /></RequirePortal>}>
           <Route path="agency" element={<AgencyDashboard />} />
@@ -168,6 +174,7 @@ export default function App() {
           <Route path="agency/finance" element={<CompanyFinance />} />
           <Route path="agency/m/:module" element={<ModulePage />} />
           <Route path="agency/documents" element={<CompanyDocuments />} />
+          <Route path="agency/reports" element={<ReportsPage />} />
         </Route>
         <Route element={<RequirePortal portal="DRIVER"><DriverLayout /></RequirePortal>}>
           <Route path="driver" element={<DriverTrips />} />
@@ -183,6 +190,7 @@ export default function App() {
           <Route path="admin/stations" element={<AdminStations />} />
           <Route path="admin/modules" element={<AdminModules />} />
           <Route path="admin/m/:module" element={<ModulePage />} />
+          <Route path="admin/reports" element={<ReportsPage />} />
           <Route path="security" element={<SecurityOverview />} />
           <Route path="security/rules" element={<SecurityRules />} />
           <Route path="security/auth" element={<SecurityAuthLog />} />
