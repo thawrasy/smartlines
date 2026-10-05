@@ -492,10 +492,12 @@ async def refund(conn, ctx: db.Context, user_id: int, uid: uuid.UUID, amount: in
             raise ApiError(409, "REFUND_NOT_ALLOWED", "only successful card and e-wallet payments go back to their source")
         if amount > pay["amount"] - pay["refunded_amount"]:
             raise ApiError(422, "REFUND_TOO_LARGE", "more than what is left to refund", refundable=pay["amount"] - pay["refunded_amount"])
+        p = provider_dict(await conn.fetchrow("SELECT * FROM fin.payment_provider WHERE id = $1", pay["provider_id"]))
+        if p["adapter"] not in ("HOSTED_CARD", "PARTNER_WALLET"):
+            raise ApiError(409, "REFUND_NOT_ALLOWED", "test payments have no source to refund to")
         w = await conn.fetchrow("SELECT * FROM fin.wallet WHERE id = $1 FOR UPDATE", pay["wallet_id"])
         if w["balance"] - w["hold_balance"] < amount:
             raise ApiError(402, "INSUFFICIENT_BALANCE", "the wallet no longer holds this amount")
-        p = provider_dict(await conn.fetchrow("SELECT * FROM fin.payment_provider WHERE id = $1", pay["provider_id"]))
         rid = await conn.fetchval("INSERT INTO fin.payment_refund (payment_id, amount, reason, requested_by, idempotency_key) "
                                   "VALUES ($1, $2, $3, $4, $5) RETURNING id", pay["id"], amount, reason, user_id, key)
         provider_ref = adapters.ADAPTERS[p["adapter"]].refund(p, {"provider_ref": pay["provider_ref"]}, amount, f"refund:{rid}")

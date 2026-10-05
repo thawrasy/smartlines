@@ -332,7 +332,7 @@ table.table { width: 100%; border-collapse: collapse; font-size: 14px; }
 .auth-form .card { width: 100%; max-width: 440px; }
 @media (max-width: 900px) { .auth-wrap { grid-template-columns: 1fr; } .auth-side { display: none; } }
 .segmented { display: flex; border: 1px solid var(--outline); border-radius: 12px; overflow: hidden; flex-wrap: wrap; }
-.segmented button { flex: 1; height: 40px; border: 0; background: transparent; cursor: pointer; font-size: 13px; font-weight: 500; color: var(--on-surface-variant); min-width: 80px; }
+.segmented button { flex: 1 1 auto; height: 40px; border: 0; background: transparent; cursor: pointer; font-size: 13px; font-weight: 500; color: var(--on-surface-variant); min-width: 80px; white-space: nowrap; padding: 0 14px; }
 .segmented button + button { border-inline-start: 1px solid var(--outline-variant); }
 .segmented button.on { background: var(--primary-container); color: var(--on-primary-container); }
 
@@ -487,3 +487,9 @@ table.table.compact td { padding: 8px 10px; }
   .report-table { font-size: 11px; }
   .report-table thead th { background: #0B1F3F !important; color: #fff !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
+
+/* Payment methods */
+.method-card { display: flex; align-items: center; gap: 12px; width: 100%; text-align: start; cursor: pointer; border: 1.5px solid var(--outline-variant); background: var(--surface); font: inherit; color: inherit; padding: 14px 16px; }
+.method-card:hover { border-color: var(--primary); }
+.method-card.on { border-color: var(--primary); background: var(--primary-soft, rgba(10, 91, 211, .06)); box-shadow: 0 0 0 1px var(--primary) inset; }
+.method-card .ms { color: var(--primary); }

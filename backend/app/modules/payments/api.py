@@ -162,7 +162,7 @@ async def test_page(uid: uuid.UUID, request: Request):
     ctx = _system(request)
     async with db.transaction(ctx) as conn:
         row = await _test_payment(conn, ctx, uid)
-    return {"uid": str(row["uid"]), "amount": row["amount"], "currency": row["currency"], "status": row["status"], "provider": row["name"]}
+    return {"uid": str(row["uid"]), "amount": row["amount"], "currency": row["currency"], "status": row["status"], "provider": row["name"], "code": row["code"]}
 
 
 class TestDecision(BaseModel):
@@ -346,3 +346,16 @@ async def agency_topups(request: Request, pr: Principal = Depends(agency)):
                 """SELECT uid, amount, provider_ref AS receipt, payer_mobile_mask AS mobile, created_at FROM fin.payment
                     WHERE agency_company_id = $1 AND method = 'CASH' ORDER BY id DESC LIMIT 50""", pr.company_id)
     return {"topups": [{**dict(r), "uid": str(r["uid"]), "created_at": r["created_at"].isoformat()} for r in rows]}
+
+
+@router.get("/api/admin/payments/recent")
+async def recent(request: Request, method: Optional[str] = Query(default=None, pattern=r"^(CARD|E_WALLET|BANK|CASH)$"),
+                 pr: Principal = Depends(platform)):
+    _need(pr, "ledger.reconcile", "compensation.pay")
+    async with db.transaction(context_for(request, pr)) as conn:
+        rows = await conn.fetch(
+            """SELECT p.uid, p.created_at, p.method, p.status, p.stage, p.amount, p.refunded_amount, p.fee, p.provider_ref, p.card_last4,
+                      p.payer_mobile_mask, p.failure_code, pv.code AS provider, pa.legal_name AS payer
+                 FROM fin.payment p JOIN fin.payment_provider pv ON pv.id = p.provider_id LEFT JOIN iam.party pa ON pa.id = p.payer_party_id
+                WHERE p.purpose = 'TOPUP' AND ($1::text IS NULL OR p.method = $1) ORDER BY p.id DESC LIMIT 100""", method)
+    return {"payments": [{**dict(r), "uid": str(r["uid"]), "created_at": r["created_at"].isoformat()} for r in rows]}

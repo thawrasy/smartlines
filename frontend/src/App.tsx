@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes, useLocation, useParams } from "react-router-dom";
 import type { Portal } from "./api";
 import { useAuth } from "./auth";
 import { useI18n } from "./i18n";
@@ -33,6 +33,8 @@ import { useModules } from "./modules/context";
 import { useLabels } from "./modules/labels";
 import type { NavItem } from "./components/layout";
 import { ReportsPage } from "./pages/reports/Reports";
+import { AgencyTopup, PaymentsDesk } from "./pages/finance/Payments";
+import { TestGateway } from "./pages/passenger/Wallet";
 import type { IconName } from "./components/icons";
 
 /** Menu entries for the switched-on modules the signed-in user can open. */
@@ -79,6 +81,7 @@ function PlatformShell() {
       { to: "/admin/privacy", icon: "privacy_tip", label: t("account.privacyRequests"), show: can("privacy.manage") },
       { to: "/regulator", icon: "gavel", label: t("nav.regulator"), show: can("regulator.dashboard", "report.platform") },
       { to: "/admin/reports", icon: "summarize", label: t("rpt.nav"), show: can("report.platform") },
+      { to: "/admin/payments", icon: "account_balance", label: t("pay.nav"), show: can("ledger.reconcile", "payment.fee_policy", "compensation.pay") },
       { to: "/admin/modules", icon: "apps", label: t("modules.title"), show: can("modules.manage") },
       ...mods,
     ]} />
@@ -118,10 +121,16 @@ function AgencyShell() {
       { to: "/agency/staff", icon: "badge", label: t("agency.staff"), show: can("company.staff") },
       { to: "/agency/documents", icon: "fact_check", label: t("documents.title"), show: can("company.staff", "company.billing") },
       { to: "/agency/finance", icon: "payments", label: t("finance.title"), show: can("company.payout_schedule", "company.billing") },
+      { to: "/agency/topup", icon: "account_balance_wallet", label: t("pay.agencyNav"), show: can("booking.on_behalf", "sale.cash") },
       { to: "/agency/reports", icon: "summarize", label: t("rpt.nav"), show: can("report.company") },
       ...mods,
     ]} />
   );
+}
+
+function TestGatewayRoute() {
+  const { uid } = useParams();
+  return <TestGateway uid={uid ?? ""} />;
 }
 
 function NotFound() {
@@ -142,6 +151,7 @@ export default function App() {
           <Route path="wallet" element={<RequirePortal portal="PASSENGER"><Wallet /></RequirePortal>} />
           <Route path="verify" element={<Verify />} />
           <Route path="track" element={<Track />} />
+          <Route path="pay/test/:uid" element={<RequirePortal portal="PASSENGER"><TestGatewayRoute /></RequirePortal>} />
           <Route path="track/:no" element={<Track />} />
           <Route path="account" element={<RequireUser><AccountPage /></RequireUser>} />
           <Route path="m/:module" element={<RequirePortal portal="PASSENGER"><div className="page"><ModulePage /></div></RequirePortal>} />
@@ -175,6 +185,7 @@ export default function App() {
           <Route path="agency/m/:module" element={<ModulePage />} />
           <Route path="agency/documents" element={<CompanyDocuments />} />
           <Route path="agency/reports" element={<ReportsPage />} />
+          <Route path="agency/topup" element={<AgencyTopup />} />
         </Route>
         <Route element={<RequirePortal portal="DRIVER"><DriverLayout /></RequirePortal>}>
           <Route path="driver" element={<DriverTrips />} />
@@ -191,6 +202,7 @@ export default function App() {
           <Route path="admin/modules" element={<AdminModules />} />
           <Route path="admin/m/:module" element={<ModulePage />} />
           <Route path="admin/reports" element={<ReportsPage />} />
+          <Route path="admin/payments" element={<PaymentsDesk />} />
           <Route path="security" element={<SecurityOverview />} />
           <Route path="security/rules" element={<SecurityRules />} />
           <Route path="security/auth" element={<SecurityAuthLog />} />
