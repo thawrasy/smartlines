@@ -67,8 +67,10 @@ async def system_scope(conn: asyncpg.Connection, ctx: Context) -> AsyncIterator[
     await apply_context(conn, ctx, scope="SYSTEM")
     try:
         yield conn
-    finally:
-        await apply_context(conn, ctx)
+    except BaseException:
+        # the transaction is failing: restoring the context would only hide the real error behind "transaction aborted"
+        raise
+    await apply_context(conn, ctx)
 
 
 @asynccontextmanager

@@ -3,6 +3,7 @@
 The message is a developer-facing English text; user interfaces translate the code (i18n),
 and no logic depends on the message (study section 31).
 """
+import logging
 import re
 
 import asyncpg
@@ -45,4 +46,6 @@ async def db_error_handler(_: Request, exc: asyncpg.PostgresError) -> JSONRespon
     m = _DB_CODE.match(msg)
     if isinstance(exc, asyncpg.RaiseError) and m:
         return JSONResponse({"error": {"code": m.group(1), "message": msg}}, status_code=409)
+    # unexpected: keep the database's own message in the server log (never in the response)
+    logging.getLogger("masslak.db").error("unexpected database error %s: %s", getattr(exc, "sqlstate", "?"), msg)
     return JSONResponse({"error": {"code": "SERVER_ERROR", "message": "unexpected database error"}}, status_code=500)

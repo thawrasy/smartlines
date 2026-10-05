@@ -1,6 +1,7 @@
 """Outbox worker: python -m app.modules.notify.worker [--once]
 
-Also sends scheduled reports (app.modules.reports.scheduler) once a minute when no event is waiting.
+Also sends scheduled reports (app.modules.reports.scheduler) and expires unpaid payment requests once a minute when no
+event is waiting.
 
 Claims one pending event at a time (FOR UPDATE SKIP LOCKED, so several workers can run), records an in-app
 notification per recipient and sends email or SMS. A failure rolls the event back and retries it later with
@@ -94,6 +95,9 @@ async def main(once: bool) -> None:
                 if once or asyncio.get_running_loop().time() - last_reports > 60:
                     from ..reports.scheduler import run_due
                     await run_due()
+                    from ..payments.service import expire_stale
+                    async with db.transaction(_ctx()) as conn:
+                        await expire_stale(conn)
                     last_reports = asyncio.get_running_loop().time()
                 if once:
                     return
