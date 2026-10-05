@@ -388,7 +388,7 @@ bundled for both platforms in CI, but have not yet been run on physical devices.
 
 ```
 docker compose up            # PostgreSQL, API, web, Caddy
-cd backend && pytest tests   # 104 tests: unit and end to end against a running API
+cd backend && pytest tests   # 109 tests: unit and end to end against a running API
 db/tests/run.sh              # 111 schema checks
 cd mobile && npm test        # core unit tests of the apps
 ```
@@ -454,6 +454,22 @@ operator's wallet, pass inventory) runs in the platform scope of the same transa
 | Freight | passenger, carrier | post a load, carriers bid once each from the load board, the shipper awards one bid: the others are declined and a contract is drafted |
 
 Parcels sent from the site record the recipient and contents (file 1031).
+
+### Travel documents on international trips (study 11.9, revised in v2.7)
+
+A trip segment that ends in, or stops on the way in, another country is international. Every passenger on it needs a
+valid passport (by default valid 180 days after departure, `sys.setting` `travel.international_default`), unless an active
+entry rule accepts other documents for that destination or transit country and the passenger's nationality: national ID,
+residence permit, laissez-passer or travel document (file 1032, `backend/app/modules/sales/documents.py`).
+
+- Rules are looked up most specific first: the passenger's nationality, then any nationality, then the default. Across
+  several borders the passenger needs a document accepted at every one of them.
+- An exception cites its legal basis, may be limited to a period and carries a note shown at checkout. One platform
+  officer drafts it and another approves it; approving a version retires the previous one, retiring restores the passport rule.
+- Bookings check every passenger before payment (`DOCUMENT_REQUIRED`, `DOCUMENT_NOT_ACCEPTED`, `PASSPORT_EXPIRY_REQUIRED`,
+  `PASSPORT_EXPIRES_TOO_SOON`) and record a `sales.ticket_doc` per international ticket with the rule and document used.
+- `GET /api/trips/{uid}/documents` tells the checkout what each nationality needs; the platform manages rules in
+  International travel → Travel documents (`/api/w/travel-rules`), with a tester for any destination and nationality.
 
 ### Demo data
 

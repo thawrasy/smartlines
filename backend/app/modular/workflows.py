@@ -27,6 +27,13 @@
     POST /api/w/freight/requests/{uid}/bid       bid on a load
     POST /api/w/freight/bids/{id}/withdraw
 
+    Platform
+    GET  /api/w/travel-rules                     document rules of international trips and the platform default
+    POST /api/w/travel-rules                     draft a rule or an exception (other documents than a passport)
+    POST /api/w/travel-rules/{id}/approve        second officer approves (four-eyes); replaces the active version
+    POST /api/w/travel-rules/{id}/retire
+    GET  /api/w/travel-rules/check               effective requirement for a destination and nationality
+
 Rules are checked in the caller's own scope (row-level security decides what they can see); the bookkeeping the caller
 may not touch directly (the operator's wallet, the inventory of passes) runs in the platform scope of the same
 transaction, with the caller still recorded in the audit trail.
@@ -47,6 +54,7 @@ from ..deps import Principal, context_for, require_user
 from ..errors import ApiError, not_found
 from ..ledger import company_wallet, post_txn, user_wallet
 from ..modules.notify.outbox import emit
+from ..modules.sales import documents
 from . import features
 
 router = APIRouter(tags=["workflows"])
@@ -677,3 +685,127 @@ async def withdraw_bid(bid_id: int, request: Request, pr: Principal = Depends(re
         if n.endswith(" 0"):
             raise ApiError(409, "INVALID_STATE", "only a submitted bid of your company can be withdrawn")
     return {"status": "WITHDRAWN"}
+
+
+# ------------------------------------------------------------------ travel document rules (platform)
+
+DOCS = ("PASSPORT", "NATIONAL_ID", "RESIDENCE", "LAISSEZ_PASSER", "TRAVEL_DOCUMENT", "OTHER")
+
+
+class TravelRuleIn(BaseModel):
+    country_code: str = Field(pattern=r"^[A-Z]{2}$")
+    country_role: str = Field(default="DESTINATION", pattern="^(DESTINATION|TRANSIT)$")
+    nationality: Optional[str] = Field(default=None, pattern=r"^[A-Z]{2}$")
+    doc_required: list[str] = Field(min_length=1, max_length=6)
+    passport_min_days: int = Field(default=180, ge=0, le=730)
+    security_approval: bool = False
+    enforcement: str = Field(default="BLOCK", pattern="^(BLOCK|ALLOW_PENDING)$")
+    valid_from: Optional[date] = None
+    valid_to: Optional[date] = None
+    legal_basis: Optional[str] = Field(default=None, max_length=300)
+    note: Optional[str] = Field(default=None, max_length=300)
+    label: str = Field(min_length=3, max_length=120)
+
+
+def _rule_manager(pr: Principal) -> None:
+    if pr.portal != "PLATFORM" or "border.manage" not in pr.permissions:
+        raise ApiError(403, "FORBIDDEN", "missing permission: border.manage")
+
+
+_RULE_COLS = """r.id, r.country_code, r.country_role, r.nationality, r.doc_required, r.passport_min_days, r.security_approval,
+       r.enforcement, lower(r.valid) AS valid_from, upper(r.valid) AS valid_to, r.legal_basis, r.note, r.label, r.version,
+       r.status, r.created_at, cu.email AS created_by, au.email AS approved_by, (r.created_by = $1) AS mine"""
+
+
+@router.get("/api/w/travel-rules")
+async def travel_rules(request: Request, pr: Principal = Depends(require_user)):
+    await _ready("international", pr, "PLATFORM")
+    _rule_manager(pr)
+    async with db.transaction(context_for(request, pr)) as conn:
+        rows = await conn.fetch(
+            f"""SELECT {_RULE_COLS} FROM sales.entry_rule r
+                  LEFT JOIN iam.app_user cu ON cu.id = r.created_by LEFT JOIN iam.app_user au ON au.id = r.approved_by
+                 ORDER BY (r.status = 'RETIRED'), r.country_code, r.country_role, r.nationality NULLS FIRST, r.version DESC""", pr.user_id)
+        default = await conn.fetchval("SELECT value FROM sys.setting WHERE key = 'travel.international_default'")
+        countries = await conn.fetch("SELECT code, name FROM ref.country WHERE is_active ORDER BY name")
+    default = json.loads(default) if isinstance(default, str) else default
+    return {"rules": [dict(r) for r in rows], "default": default or {"docs": ["PASSPORT"], "passport_min_days": 180},
+            "countries": [dict(c) for c in countries]}
+
+
+@router.post("/api/w/travel-rules", status_code=201)
+async def add_travel_rule(body: TravelRuleIn, request: Request, pr: Principal = Depends(require_user)):
+    await _ready("international", pr, "PLATFORM")
+    _rule_manager(pr)
+    docs = list(dict.fromkeys(body.doc_required))
+    if any(d not in DOCS for d in docs):
+        raise ApiError(422, "UNKNOWN_DOCUMENT", "unknown document type")
+    exception = docs != ["PASSPORT"]
+    if exception and len((body.legal_basis or "").strip()) < 5:
+        raise ApiError(422, "LEGAL_BASIS_REQUIRED", "an exception must cite the agreement, decree or circular that allows it")
+    if body.valid_from and body.valid_to and body.valid_to <= body.valid_from:
+        raise ApiError(422, "BAD_PERIOD", "the end of the period must be after its start")
+    if body.nationality == body.country_code and body.country_role == "TRANSIT":
+        raise ApiError(422, "BAD_RULE", "a transit rule for the country's own citizens has no effect")
+    async with db.transaction(context_for(request, pr)) as conn:
+        version = await conn.fetchval(
+            """SELECT coalesce(max(version), 0) + 1 FROM sales.entry_rule
+                WHERE country_code = $1 AND country_role = $2 AND nationality IS NOT DISTINCT FROM $3""",
+            body.country_code, body.country_role, body.nationality)
+        rid = await conn.fetchval(
+            """INSERT INTO sales.entry_rule (country_code, country_role, nationality, doc_required, security_approval, passport_min_days,
+                 enforcement, valid, legal_basis, note, label, version, status, created_by)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, CASE WHEN $8::date IS NULL AND $9::date IS NULL THEN NULL ELSE daterange($8, $9) END,
+                       $10, $11, $12, $13, 'DRAFT', $14) RETURNING id""",
+            body.country_code, body.country_role, body.nationality, docs, body.security_approval, body.passport_min_days,
+            body.enforcement, body.valid_from, body.valid_to, (body.legal_basis or "").strip() or None, (body.note or "").strip() or None,
+            body.label.strip(), version, pr.user_id)
+    request.state.audit = {"action": "entry_rule.create", "object_type": "sales.entry_rule", "reason": f"rule {rid} docs {','.join(docs)}"}
+    return {"id": rid, "status": "DRAFT", "version": version, "exception": exception}
+
+
+@router.post("/api/w/travel-rules/{rule_id}/approve")
+async def approve_travel_rule(rule_id: int, request: Request, pr: Principal = Depends(require_user)):
+    await _ready("international", pr, "PLATFORM")
+    _rule_manager(pr)
+    async with db.transaction(context_for(request, pr)) as conn:
+        r = await conn.fetchrow("SELECT * FROM sales.entry_rule WHERE id = $1 FOR UPDATE", rule_id)
+        if r is None:
+            raise not_found("rule")
+        if r["status"] != "DRAFT":
+            raise ApiError(409, "INVALID_STATE", "only a draft rule can be approved")
+        if r["created_by"] == pr.user_id:
+            raise ApiError(409, "FOUR_EYES", "someone other than the author must approve this rule")
+        # the approved version replaces the active one for the same country, role and nationality
+        await conn.execute(
+            """UPDATE sales.entry_rule SET status = 'RETIRED' WHERE status = 'ACTIVE' AND id <> $1 AND country_code = $2
+                AND country_role = $3 AND nationality IS NOT DISTINCT FROM $4""", r["id"], r["country_code"], r["country_role"], r["nationality"])
+        await conn.execute("UPDATE sales.entry_rule SET status = 'ACTIVE', approved_by = $2 WHERE id = $1", r["id"], pr.user_id)
+    request.state.audit = {"action": "entry_rule.approve", "object_type": "sales.entry_rule", "reason": f"rule {rule_id}"}
+    return {"id": rule_id, "status": "ACTIVE"}
+
+
+@router.post("/api/w/travel-rules/{rule_id}/retire")
+async def retire_travel_rule(rule_id: int, request: Request, pr: Principal = Depends(require_user)):
+    await _ready("international", pr, "PLATFORM")
+    _rule_manager(pr)
+    async with db.transaction(context_for(request, pr)) as conn:
+        n = await conn.execute("UPDATE sales.entry_rule SET status = 'RETIRED' WHERE id = $1 AND status IN ('DRAFT', 'ACTIVE')", rule_id)
+        if n.endswith(" 0"):
+            raise ApiError(409, "INVALID_STATE", "this rule is already retired")
+    request.state.audit = {"action": "entry_rule.retire", "object_type": "sales.entry_rule", "reason": f"rule {rule_id}"}
+    return {"id": rule_id, "status": "RETIRED"}
+
+
+@router.get("/api/w/travel-rules/check")
+async def check_travel_rule(request: Request, destination: str, nationality: str, origin: str = "SY", transit: str = "",
+                            on: Optional[date] = None, pr: Principal = Depends(require_user)):
+    """What a passenger of this nationality needs from origin to destination (through the transit countries) on a day."""
+    await _ready("international", pr, "PLATFORM", "OPERATOR", "AGENCY")
+    codes = [destination, nationality, origin, *[t for t in transit.split(",") if t]]
+    if any(len(c) != 2 or not c.isalpha() or not c.isupper() for c in codes):
+        raise ApiError(422, "BAD_COUNTRY", "countries are two-letter ISO codes")
+    async with db.transaction(context_for(request, pr)) as conn:
+        req = await documents.requirement_for(conn, origin, destination, [t for t in transit.split(",") if t], nationality,
+                                              on or date.today())
+    return req.public()

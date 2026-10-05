@@ -93,6 +93,15 @@ async def seed_finance(conn) -> bool:
     return True
 
 
+async def seed_security(conn) -> bool:
+    """A security officer, so travel-document exceptions drafted by the administrator are approved by someone else."""
+    if await conn.fetchval("SELECT 1 FROM iam.app_user WHERE email = 'security@masslak.test'"):
+        return False
+    _, uid = await user(conn, "PERSON", "Security Officer", "security@masslak.test", "PLATFORM")
+    await conn.execute("INSERT INTO iam.user_role (user_id, role_id) SELECT $1, id FROM iam.role WHERE code = 'PLATFORM_SECURITY' AND company_id IS NULL", uid)
+    return True
+
+
 async def seed_agency(conn) -> bool:
     """A travel agency with a 5% commission, a daily limit of SYP 500,000 and a prepaid SYP 200,000. Idempotent, so it
     can be added to a database seeded before agencies existed."""
@@ -125,7 +134,8 @@ async def main():
         await conn.execute("SELECT sys.set_context(NULL, NULL, 'SYSTEM')")
         if await conn.fetchval("SELECT 1 FROM iam.app_user WHERE email = 'admin@masslak.test'"):
             added = [what for what, done in (("agency", await seed_agency(conn)), ("seat layouts", await seed_layouts(conn)),
-                                                    ("finance user", await seed_finance(conn))) if done]
+                                                    ("finance user", await seed_finance(conn)),
+                                                    ("security officer", await seed_security(conn))) if done]
             print(f"demo {' and '.join(added)} added" if added else "demo data already present")
             return
         # Platform staff
@@ -231,6 +241,7 @@ async def main():
         await seed_agency(conn)
         await seed_layouts(conn)
         await seed_finance(conn)
+        await seed_security(conn)
 
         # Passenger with a funded wallet
         await conn.execute("SELECT sys.set_context(NULL, NULL, 'SYSTEM')")
@@ -248,7 +259,7 @@ async def main():
     print(f"demo data created: {n_trips} trips")
     print(f"accounts (password: {PASSWORD}):")
     for e, p in (("passenger@masslak.test", "PASSENGER"), ("owner@carrier.test", "OPERATOR"), ("driver@carrier.test", "DRIVER"),
-                 ("agency@agency.test", "AGENCY"), ("finance@masslak.test", "PLATFORM"), ("admin@masslak.test", "PLATFORM"), ("regulator@masslak.test", "PLATFORM")):
+                 ("agency@agency.test", "AGENCY"), ("finance@masslak.test", "PLATFORM"), ("security@masslak.test", "PLATFORM"), ("admin@masslak.test", "PLATFORM"), ("regulator@masslak.test", "PLATFORM")):
         print(f"  {e:28s} portal {p}")
 
 

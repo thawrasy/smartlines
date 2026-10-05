@@ -28,7 +28,7 @@ const en = {
   tabs: { search: "Book", trips: "My trips", wallet: "Wallet", account: "Account", today: "Today" },
   search: { title: "Where to?", origin: "From", destination: "To", date: "Travel date", find: "Search trips",
             none: "No trips on this date.", seatsLeft: "{n} seats left", choose: "Choose" },
-  trip: { seats: "Choose your seats", hold: "Hold seats", held: "Seats held for {t}", front: "Front", driver: "Driver",
+  trip: { docNumber: "Document number", passportExpiry: "Passport expiry (valid until at least {date})", passportNeeded: "International trip: a passport valid at least {days} days after departure is required.", docException: "International trip: an approved exception accepts {docs}.", docTypes: { PASSPORT: "Passport", NATIONAL_ID: "National ID", RESIDENCE: "Residence permit", LAISSEZ_PASSER: "Laissez-passer", TRAVEL_DOCUMENT: "Travel document", OTHER: "Other" }, seats: "Choose your seats", hold: "Hold seats", held: "Seats held for {t}", front: "Front", driver: "Driver",
           passenger: "Passenger {n}", first: "First name", father: "Father's name", grandfather: "Grandfather's name",
           last: "Family name", nationality: "Nationality", syrian: "Syrian citizen", otherNationality: "Other nationality",
           namesHint: "As on the identity document. Syrian citizens: all four names.", pay: "Pay {amount} from wallet",

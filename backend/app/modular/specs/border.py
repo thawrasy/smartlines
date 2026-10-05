@@ -6,8 +6,8 @@ M_INT, M_BRD = "international", "border_manifest"
 RESOURCES = [
     # ------------------------------------------------------------- travel document rules (11.9)
     Resource("entry-rule", M_INT, "sales.entry_rule",
-             c("country_code country_role nationality doc_required security_approval passport_min_days enforcement label version status"),
-             c("country_code country_role nationality doc_required security_approval passport_min_days enforcement label version"),
+             c("country_code country_role nationality doc_required passport_min_days valid enforcement label version status"),
+             c("country_code country_role nationality doc_required security_approval passport_min_days enforcement valid legal_basis note label version"),
              {P: "border.manage", O: None}, readonly_portals=(O,), creator_col="created_by", group="documents",
              actions=(Action("approve", {"status": "ACTIVE"}, {"status": ["DRAFT"]}, four_eyes=("created_by", "approved_by")),
                       retire())),

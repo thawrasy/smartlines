@@ -7,7 +7,7 @@ import { minutesBetween } from "../../dates";
 import { ErrorBox, Icon, Spinner, useLoad } from "../../components/ui";
 import { useChannel } from "../../channel";
 import { SeatGrid } from "../../components/SeatGrid";
-import { PassengerFields, blankPassenger, namesFor, passengerValid, type PassengerDraft } from "./PassengerFields";
+import { PassengerFields, blankPassenger, documentFor, namesFor, passengerValid, type PassengerDraft, type TravelDocs } from "./PassengerFields";
 
 interface Hold { hold_token: string; expires_at: string }
 // Passenger wallet, or the agency's dashboard figures that matter at checkout
@@ -82,7 +82,8 @@ export default function Book() {
   const { uid = "" } = useParams();
   const [params] = useSearchParams();
   const fromSeq = Number(params.get("from") ?? 0), toSeq = Number(params.get("to") ?? 1), paxCount = Number(params.get("pax") ?? 1);
-  const { t, money, time, date, station, duration } = useI18n();
+  const { t, money, time, date, station, duration, locale } = useI18n();
+  const countryName = (code: string) => (code ? new Intl.DisplayNames([locale], { type: "region" }).of(code) ?? code : "");
   const { me } = useAuth();
   const ch = useChannel();
   const nav = useNavigate();
@@ -99,6 +100,23 @@ export default function Book() {
   const [hold, setHold] = useState<Hold | null>(null);
   const [brand, setBrand] = useState("STANDARD");
   const [pax, setPax] = useState<PassengerDraft[]>([]);
+  // Documents each nationality needs on this segment: a passport on international trips unless an exception applies
+  const [docs, setDocs] = useState<Record<string, TravelDocs>>({});
+  const nationalities = [...new Set(["SY", ...pax.map((p) => p.nationality)])];
+  useEffect(() => {
+    const missing = nationalities.filter((n) => !(n in docs));
+    if (!uid || missing.length === 0) return;
+    Promise.all(missing.map((n) => api.get<TravelDocs>(`/api/trips/${uid}/documents`, { from_seq: fromSeq, to_seq: toSeq, nationality: n })
+      .then((r) => [n, r] as const))).then((rs) => setDocs((d) => ({ ...d, ...Object.fromEntries(rs) }))).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [uid, fromSeq, toSeq, nationalities.join(",")]);
+  useEffect(() => {
+    // keep each passenger on a document type the rules accept for their nationality
+    setPax((ps) => ps.map((p) => {
+      const r = docs[p.nationality];
+      return r?.international && !r.docs.includes(p.id_type) ? { ...p, id_type: r.docs[0] } : p;
+    }));
+  }, [docs]);
   const [agree, setAgree] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
@@ -147,7 +165,7 @@ export default function Book() {
       const r = await api.post<{ booking_ref: string }>(`${ch.api}/bookings`, {
         hold_token: hold.hold_token, trip_uid: uid, from_seq: fromSeq, to_seq: toSeq, fare_brand: brand, idempotency_key: idemKey,
         ...(ch.agency ? { contact_mobile: contact.trim() } : {}),
-        passengers: selected.map((seat, i) => ({ seat_no: seat, ...namesFor(pax[i]), id_type: pax[i].id_type, id_last4: pax[i].id_last4 || null })),
+        passengers: selected.map((seat, i) => ({ seat_no: seat, ...namesFor(pax[i]), ...documentFor(pax[i], docs[pax[i].nationality]) })),
       });
       holdRef.current = null;
       nav(ch.link(`/booking/${r.booking_ref}?new=1`));
@@ -158,7 +176,8 @@ export default function Book() {
   };
 
   const contactValid = !ch.agency || /^\+?[0-9]{8,15}$/.test(contact.trim());
-  const paxValid = pax.length === selected.length && pax.every(passengerValid) && contactValid;
+  const paxValid = pax.length === selected.length && pax.every((p) => passengerValid(p, docs[p.nationality])) && contactValid;
+  const tripDocs = docs.SY;
   const commission = ch.agency && wallet.data?.agreement
     ? Math.floor(farePer * paxCount * wallet.data.agreement.commission_bp / 10000 / 100) * 100 : null;
   const mm = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}`;
@@ -204,6 +223,12 @@ export default function Book() {
           <div className="stack">
             <h2>{t("checkout.title")}</h2>
             <div className="alert warn"><Icon name="schedule" /><span>{left > 0 ? t("checkout.holdLeft", { t: mm }) : t("checkout.holdExpired")}</span></div>
+            {tripDocs?.international && (
+              <div className="alert info"><Icon name="public" />
+                <span><strong>{t("checkout.international", { country: countryName(tripDocs.destination ?? "") })}</strong>{" "}
+                  {t("checkout.passportRule")}</span>
+              </div>
+            )}
             <div className="card stack">
               <div><h3>{t("checkout.fare")}</h3><p className="small muted">{t("checkout.brandHint")}</p></div>
               <div className="grid cols-3">
@@ -232,7 +257,7 @@ export default function Book() {
             {selected.map((seat, i) => (
               <div key={seat} className="card stack">
                 <div className="row between"><h3>{t("common.passenger")} {i + 1}</h3><span className="chip green">{t("common.seat")} {seatLabel(seat)}</span></div>
-                <PassengerFields value={pax[i] ?? blankPassenger()} countries={countries}
+                <PassengerFields value={pax[i] ?? blankPassenger()} countries={countries} docs={docs[(pax[i] ?? blankPassenger()).nationality]}
                                  onChange={(v) => setPax((p) => p.map((x, j) => (j === i ? v : x)))} />
               </div>
             ))}

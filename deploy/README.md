@@ -69,6 +69,7 @@ vehicles and drivers, four routes with a week of trips, and these accounts. They
 | driver@carrier.test, driver2@carrier.test, driver3@carrier.test | Driver |
 | admin@masslak.test (administration, security, finance) | Platform |
 | finance@masslak.test | Platform (finance) |
+| security@masslak.test | Platform (security: approves travel-document exceptions drafted by the administrator) |
 | regulator@masslak.test (read-only dashboard) | Platform |
 
 Never use `--demo` on a server with real users.

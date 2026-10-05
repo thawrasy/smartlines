@@ -158,10 +158,20 @@ PLAN = [
     ("ship.handling_unit", 12, {"created_at": lambda i: ago(20)}),
     ("ship.load", 10, {"created_at": lambda i: ago(25), "status": weighted(("CLOSED", 4), ("IN_TRANSIT", 2), ("LOADING", 2), ("PLANNED", 2))}),
     # ---------------------------------------------------------------- international and border
-    ("sales.entry_rule", 6, {"country_code": cycle("LB", "JO", "TR", "IQ", "LB", "JO"), "version": lambda i: 100 + i,
-                             "label": cycle("Lebanon entry, Syrian citizens", "Jordan entry, Syrian citizens", "Turkey entry",
-                                            "Iraq entry", "Lebanon entry, residents", "Jordan entry, residents"),
-                             "status": weighted(("ACTIVE", 4), ("DRAFT", 1), ("RETIRED", 1)), "created_at": lambda i: ago(60)}),
+    # Travel documents: passport by default; exceptions name the documents accepted and their legal basis (11.9)
+    ("sales.entry_rule", 6, {"country_code": cycle("LB", "LB", "JO", "TR", "IQ", "JO"), "country_role": "DESTINATION",
+                             "nationality": cycle("SY", "LB", None, None, "SY", "SY"),
+                             "doc_required": cycle(["PASSPORT", "NATIONAL_ID"], ["NATIONAL_ID", "PASSPORT"], ["PASSPORT"], ["PASSPORT"],
+                                                   ["PASSPORT"], ["PASSPORT", "LAISSEZ_PASSER"]),
+                             "passport_min_days": cycle(0, 0, 180, 150, 180, 180), "enforcement": "BLOCK",
+                             "legal_basis": cycle("Syrian-Lebanese bilateral arrangement on crossing with national ID", "Citizens returning home",
+                                                  None, None, None, "Draft: Jordanian circular on laissez-passer holders"),
+                             "note": cycle("Bring the original national ID card, issued less than 10 years ago.", None, None, None, None, None),
+                             "label": cycle("Syrians to Lebanon: national ID or passport", "Lebanese returning home", "Jordan: passport",
+                                            "Turkey: passport", "Iraq: passport for Syrians", "Jordan: laissez-passer (pending)"),
+                             "version": lambda i: 1, "valid": None, "security_approval": False,
+                             "created_by": REF, "approved_by": cycle(REF, REF, REF, REF, REF, None),
+                             "status": cycle("ACTIVE", "ACTIVE", "ACTIVE", "ACTIVE", "ACTIVE", "DRAFT"), "created_at": lambda i: ago(60)}),
     ("sales.ticket_doc", 12, {"status": weighted(("VERIFIED", 5), ("PENDING", 3), ("REJECTED", 1))}),
     ("brd.border_point", 2, {"station_id": BORDER, "code": cycle("JDY", "NSB", "BAH", "KSB"), "name": cycle("Jdeidet Yabous", "Nasib", "Bab al-Hawa", "Kasab"),
                              "status": weighted(("ACTIVE", 3), ("RESTRICTED", 1))}),
@@ -489,6 +499,8 @@ class Seeder:
             typ = meta.cols[k].pg_type
             if isinstance(v, (datetime, date)):
                 v = v.isoformat()
+            if isinstance(v, list) and typ.endswith("[]"):
+                v = "{" + ",".join(str(x) for x in v) + "}"
             if isinstance(v, (dict, list)):
                 v = json.dumps(v)
             params.append(v if isinstance(v, bytes) else str(v))

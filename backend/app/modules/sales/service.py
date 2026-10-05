@@ -18,7 +18,7 @@ from ...errors import ApiError, not_found
 from ...ledger import company_wallet, platform_wallet, post_txn, user_wallet
 from ...util import booking_ref, row_dict, ticket_name, ticket_no
 from ..notify.outbox import emit
-from . import repository as repo
+from . import documents, repository as repo
 from .models import MAX_LOCKED_SEATS, BookingIn, HoldIn
 
 
@@ -124,6 +124,20 @@ async def create_booking(conn: asyncpg.Connection, ctx: db.Context, buyer: Buyer
             or len({p.seat_no for p in body.passengers}) != len(body.passengers):
         raise ApiError(409, "HOLD_EXPIRED", "the seat hold has expired; choose seats again")
 
+    # International segments: every passenger needs a document accepted at each border crossed (11.9)
+    departs = await conn.fetchval(
+        "SELECT (sched_dep AT TIME ZONE 'Asia/Damascus')::date FROM ops.trip_stop WHERE trip_id = $1 AND seq = $2",
+        trip["id"], body.from_seq)
+    reqs: dict = {}
+    doc_issues = []
+    for i, p in enumerate(body.passengers, start=1):
+        if p.nationality not in reqs:
+            reqs[p.nationality] = await documents.requirement(conn, trip["id"], body.from_seq, body.to_seq, p.nationality, departs)
+        r = reqs[p.nationality]
+        codes = documents.check(r, p.id_type, p.id_no, p.passport_expiry, departs)
+        documents.enforce(r, [(i, codes)])
+        doc_issues.append(codes)
+
     total = q["total"]
     if before_payment:
         await before_payment(conn, total)
@@ -157,16 +171,27 @@ async def create_booking(conn: asyncpg.Connection, ctx: db.Context, buyer: Buyer
                 masked = crypto.last4(p.id_no)
             pid = await conn.fetchval(
                 """INSERT INTO sales.passenger (booking_id, full_name, first_name, father_name, grandfather_name,
-                     last_name, nationality, id_type, id_no_last4, mobile, id_no_enc, id_no_bidx, enc_key_id)
-                   VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING id""",
+                     last_name, nationality, id_type, id_no_last4, mobile, id_no_enc, id_no_bidx, enc_key_id,
+                     passport_expiry, passport_country)
+                   VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING id""",
                 booking_id, p.full_name, p.first_name, p.father_name, p.grandfather_name, p.last_name,
-                p.nationality, p.id_type, masked, p.mobile, enc, bidx, key_id)
+                p.nationality, p.id_type, masked, p.mobile, enc, bidx, key_id,
+                p.passport_expiry if p.id_type == "PASSPORT" else None, p.nationality if p.id_type == "PASSPORT" else None)
             tid = await conn.fetchval(
                 """INSERT INTO sales.ticket (ticket_no, booking_id, passenger_id, trip_id, from_seq, to_seq, seat_no,
                      fare_brand_code, fare_amount, total_amount, rules_snapshot)
                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $9, $10::jsonb) RETURNING id""",
                 ticket_no(ref, i), booking_id, pid, trip["id"], body.from_seq, body.to_seq, p.seat_no,
                 q["brand"]["code"], q["fare"], json.dumps({"brand": q["brand"]["code"], **q["rules"]}))
+            r = reqs[p.nationality]
+            if r.international:
+                await conn.execute(
+                    """INSERT INTO sales.ticket_doc (ticket_id, entry_rule_id, dest_country, passport_expiry, doc_type, exception,
+                         status, issues, source)
+                       VALUES ($1, $2, $3, $4, $5, $6, 'PENDING', $7::jsonb, $8)""",
+                    tid, r.destination_rule_id, r.destination, p.passport_expiry if p.id_type == "PASSPORT" else None, p.id_type,
+                    p.id_type is not None and p.id_type != "PASSPORT", json.dumps(doc_issues[i - 1]),
+                    "AGENT" if buyer.agency_id else "PASSENGER")
             await conn.execute(
                 """UPDATE ops.seat_segment SET status = 'SOLD', ticket_id = $4, lock_token = NULL,
                      lock_user_id = NULL, lock_expires_at = NULL

@@ -30,7 +30,7 @@ const ar: Messages = {
   tabs: { search: "احجز", trips: "رحلاتي", wallet: "المحفظة", account: "الحساب", today: "اليوم" },
   search: { title: "إلى أين؟", origin: "من", destination: "إلى", date: "تاريخ السفر", find: "ابحث عن رحلة",
             none: "لا توجد رحلات في هذا التاريخ.", seatsLeft: "متبقٍ {n} مقعداً", choose: "اختر" },
-  trip: { seats: "اختر مقاعدك", hold: "احجز المقاعد مؤقتاً", held: "المقاعد محجوزة لمدة {t}", front: "الأمام", driver: "السائق",
+  trip: { docNumber: "رقم الوثيقة", passportExpiry: "انتهاء الجواز (صالح حتى {date} على الأقل)", passportNeeded: "رحلة دولية: يلزم جواز سفر صالح لمدة {days} يوماً على الأقل بعد الانطلاق.", docException: "رحلة دولية: يوجد استثناء معتمد يقبل {docs}.", docTypes: { PASSPORT: "جواز سفر", NATIONAL_ID: "هوية وطنية", RESIDENCE: "إقامة", LAISSEZ_PASSER: "وثيقة مرور", TRAVEL_DOCUMENT: "وثيقة سفر", OTHER: "أخرى" }, seats: "اختر مقاعدك", hold: "احجز المقاعد مؤقتاً", held: "المقاعد محجوزة لمدة {t}", front: "الأمام", driver: "السائق",
           passenger: "الراكب {n}", first: "الاسم الأول", father: "اسم الأب", grandfather: "اسم الجد",
           last: "الكنية", nationality: "الجنسية", syrian: "مواطن سوري", otherNationality: "جنسية أخرى",
           namesHint: "كما في وثيقة الهوية. للسوريين: الأسماء الأربعة.", pay: "ادفع {amount} من المحفظة",

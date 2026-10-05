@@ -1,4 +1,5 @@
 """Request models for holds and bookings. Shared by the passenger and agency channels."""
+from datetime import date
 import uuid
 from typing import Literal, Optional
 
@@ -28,11 +29,13 @@ class PassengerIn(BaseModel):
     grandfather_name: Optional[str] = Field(default=None, min_length=1, max_length=60, pattern=NAME_PART)
     last_name: str = Field(min_length=1, max_length=60, pattern=NAME_PART)
     seat_no: int
-    id_type: Optional[Literal["NATIONAL_ID", "PASSPORT", "RESIDENCE", "OTHER"]] = None
+    id_type: Optional[Literal["NATIONAL_ID", "PASSPORT", "RESIDENCE", "LAISSEZ_PASSER", "TRAVEL_DOCUMENT", "OTHER"]] = None
     # Full document number: stored only as AES-256-GCM ciphertext, a blind index and the masked last 4
     id_no: Optional[str] = Field(default=None, min_length=4, max_length=24, pattern=r"^[0-9A-Za-z \-/]+$")
     id_last4: Optional[str] = Field(default=None, pattern=r"^[0-9A-Za-z]{3,4}$")
     mobile: Optional[str] = Field(default=None, pattern=MOBILE)
+    # International trips: the passport's expiry date (checked against the rule's minimum validity)
+    passport_expiry: Optional[date] = None
 
     @field_validator("first_name", "father_name", "grandfather_name", "last_name", mode="before")
     @classmethod

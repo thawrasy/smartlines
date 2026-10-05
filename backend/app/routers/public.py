@@ -9,6 +9,7 @@ from .. import db
 from ..config import get_settings
 from ..deps import base_context, optional_principal, Principal
 from ..errors import ApiError, not_found
+from ..modules.sales import documents
 from ..util import row_dict, rows
 
 router = APIRouter(prefix="/api", tags=["public"])
@@ -106,6 +107,27 @@ async def search(request: Request, origin: str = Query(..., min_length=3, max_le
         t.pop("id"); t.pop("company_id")
         t["bookable"] = t["seats_left"] >= passengers
     return {"trips": trips}
+
+
+@router.get("/trips/{trip_uid}/documents")
+async def trip_documents(trip_uid: str, request: Request, from_seq: int = Query(..., ge=0), to_seq: int = Query(..., ge=1),
+                         nationality: str = Query("SY", pattern=r"^[A-Z]{2}$")):
+    """Documents a passenger of this nationality needs on this segment: passport by default on international trips,
+    or the other documents an approved exception accepts (11.9)."""
+    if to_seq <= from_seq:
+        raise ApiError(422, "INVALID_PAIR", "to_seq must be after from_seq")
+    async with db.transaction(_ctx(request)) as conn:
+        t = await conn.fetchrow(
+            "SELECT id FROM ops.trip WHERE uid = $1::uuid AND status IN ('PUBLISHED','BOARDING')", trip_uid)
+        if t is None:
+            raise not_found("trip")
+        departs = await conn.fetchval(
+            "SELECT (sched_dep AT TIME ZONE 'Asia/Damascus')::date FROM ops.trip_stop WHERE trip_id = $1 AND seq = $2",
+            t["id"], from_seq)
+        if departs is None:
+            raise ApiError(422, "INVALID_PAIR", "unknown stop")
+        req = await documents.requirement(conn, t["id"], from_seq, to_seq, nationality, departs)
+    return {**req.public(), "departs": departs.isoformat()}
 
 
 @router.get("/trips/{trip_uid}")

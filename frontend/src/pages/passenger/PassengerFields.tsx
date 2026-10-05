@@ -9,11 +9,21 @@ import { Field, Icon } from "../../components/ui";
 export interface PassengerDraft {
   nationality: string; first_name: string; father_name: string; grandfather_name: string; last_name: string;
   more_names: boolean; id_type: string; id_last4: string;
+  id_no: string; passport_expiry: string;          // international trips only
 }
+
+/** Documents a nationality needs on the trip (GET /api/trips/{uid}/documents). */
+export interface TravelDocs {
+  international: boolean; destination: string | null; transit: string[]; docs: string[]; passport_min_days: number;
+  exception: boolean; notes: string[]; departs: string;
+}
+
+const addDays = (iso: string, n: number) => { const d = new Date(`${iso}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+export const minPassportExpiry = (req: TravelDocs) => addDays(req.departs, req.passport_min_days);
 
 export const blankPassenger = (): PassengerDraft => ({
   nationality: "SY", first_name: "", father_name: "", grandfather_name: "", last_name: "", more_names: false,
-  id_type: "NATIONAL_ID", id_last4: "",
+  id_type: "NATIONAL_ID", id_last4: "", id_no: "", passport_expiry: "",
 });
 
 // Mirrors the API rule: letters in any script, single spaces, hyphens, apostrophes or dots between them
@@ -33,7 +43,20 @@ export function namesFor(p: PassengerDraft) {
   };
 }
 
-export function passengerValid(p: PassengerDraft) {
+/** The document part of a passenger on an international trip: an accepted type, the full number, a valid passport. */
+export function documentValid(p: PassengerDraft, req?: TravelDocs) {
+  if (!req?.international) return true;
+  if (!req.docs.includes(p.id_type) || !/^[0-9A-Za-z \-/]{4,24}$/.test(p.id_no.trim())) return false;
+  return p.id_type !== "PASSPORT" || (!!p.passport_expiry && p.passport_expiry >= minPassportExpiry(req));
+}
+
+export function documentFor(p: PassengerDraft, req?: TravelDocs) {
+  if (!req?.international) return { id_type: p.id_type, id_last4: p.id_last4 || null };
+  return { id_type: p.id_type, id_no: p.id_no.trim(), passport_expiry: p.id_type === "PASSPORT" ? p.passport_expiry : null };
+}
+
+export function passengerValid(p: PassengerDraft, req?: TravelDocs) {
+  if (!documentValid(p, req)) return false;
   const n = namesFor(p);
   const optionalOk = (v: string | null) => v === null || validPart(v);
   if (!validPart(n.first_name) || !validPart(n.last_name) || !optionalOk(n.father_name) || !optionalOk(n.grandfather_name)) return false;
@@ -41,8 +64,9 @@ export function passengerValid(p: PassengerDraft) {
   return !p.id_last4 || /^[0-9A-Za-z]{3,4}$/.test(p.id_last4);
 }
 
-export function PassengerFields({ value, onChange, countries }: { value: PassengerDraft; onChange: (p: PassengerDraft) => void; countries: string[] }) {
-  const { t, locale } = useI18n();
+export function PassengerFields({ value, onChange, countries, docs }: { value: PassengerDraft; onChange: (p: PassengerDraft) => void; countries: string[]; docs?: TravelDocs }) {
+  const { t, locale, date } = useI18n();
+  const intl = !!docs?.international;
   const syrian = value.nationality === "SY";
   const set = (patch: Partial<PassengerDraft>) => onChange({ ...value, ...patch });
 
@@ -71,21 +95,44 @@ export function PassengerFields({ value, onChange, countries }: { value: Passeng
       <div className="grid cols-3">
         <Field label={t("checkout.nationality")}>
           <select className="input" value={value.nationality}
-                  onChange={(e) => set({ nationality: e.target.value, id_type: e.target.value === "SY" ? "NATIONAL_ID" : "PASSPORT", more_names: false })}>
+                  onChange={(e) => set({ nationality: e.target.value, id_type: intl || e.target.value !== "SY" ? "PASSPORT" : "NATIONAL_ID", more_names: false })}>
             {options.map((o) => <option key={o.code} value={o.code}>{o.name}</option>)}
           </select>
         </Field>
         <Field label={t("checkout.idType")}>
           <select className="input" value={value.id_type} onChange={(e) => set({ id_type: e.target.value })}>
-            {(syrian ? ["NATIONAL_ID", "PASSPORT"] : ["PASSPORT", "RESIDENCE", "NATIONAL_ID", "OTHER"]).map((k) =>
+            {(intl ? docs!.docs : syrian ? ["NATIONAL_ID", "PASSPORT"] : ["PASSPORT", "RESIDENCE", "NATIONAL_ID", "OTHER"]).map((k) =>
               <option key={k} value={k}>{t(`checkout.idTypes.${k}`)}</option>)}
           </select>
         </Field>
-        <Field label={`${t("checkout.idLast4")} (${t("common.optional")})`}>
-          <input className="input ltr" inputMode="numeric" maxLength={4} value={value.id_last4} onChange={(e) => set({ id_last4: e.target.value.trim() })} />
-        </Field>
+        {intl ? (
+          <Field label={t("checkout.docNumber")}>
+            <input className="input ltr" required maxLength={24} autoComplete="off" value={value.id_no}
+                   aria-invalid={value.id_no !== "" && !/^[0-9A-Za-z \-/]{4,24}$/.test(value.id_no.trim())}
+                   onChange={(e) => set({ id_no: e.target.value })} />
+          </Field>
+        ) : (
+          <Field label={`${t("checkout.idLast4")} (${t("common.optional")})`}>
+            <input className="input ltr" inputMode="numeric" maxLength={4} value={value.id_last4} onChange={(e) => set({ id_last4: e.target.value.trim() })} />
+          </Field>
+        )}
       </div>
+      {intl && value.id_type === "PASSPORT" && (
+        <div className="grid cols-3">
+          <Field label={t("checkout.passportExpiry")} hint={t("checkout.passportMin", { date: date(`${minPassportExpiry(docs!)}T12:00:00Z`, { day: "numeric", month: "long", year: "numeric" }) })}>
+            <input className="input ltr" type="date" required min={minPassportExpiry(docs!)} value={value.passport_expiry}
+                   aria-invalid={value.passport_expiry !== "" && value.passport_expiry < minPassportExpiry(docs!)}
+                   onChange={(e) => set({ passport_expiry: e.target.value })} />
+          </Field>
+        </div>
+      )}
 
+      {intl && docs!.exception && (
+        <div className="alert ok small"><Icon name="verified" size={20} />
+          <span>{t("checkout.exceptionHint", { docs: docs!.docs.map((k) => t(`checkout.idTypes.${k}`)).join(t("checkout.or")) })}
+            {docs!.notes.length > 0 && <> {docs!.notes.join(" ")}</>}</span>
+        </div>
+      )}
       <div className="alert info small"><Icon name="badge" size={20} /><span>{syrian ? t("checkout.syrianHint") : t("checkout.foreignHint")}</span></div>
 
       {syrian ? (

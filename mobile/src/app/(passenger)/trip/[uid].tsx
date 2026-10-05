@@ -15,8 +15,17 @@ interface Detail {
   trip: { trip_no: string; carrier_name: string; currency: string; hold_min: number };
   stops: { seq: number; station_name: string; sched_dep: string | null; sched_arr: string | null }[];
 }
-interface Names { syrian: boolean; country: string; first_name: string; father_name: string; grandfather_name: string; last_name: string }
-const blank: Names = { syrian: true, country: "", first_name: "", father_name: "", grandfather_name: "", last_name: "" };
+interface Names {
+  syrian: boolean; country: string; first_name: string; father_name: string; grandfather_name: string; last_name: string;
+  id_type: string; id_no: string; passport_expiry: string;           // international trips
+}
+const blank: Names = { syrian: true, country: "", first_name: "", father_name: "", grandfather_name: "", last_name: "",
+                       id_type: "PASSPORT", id_no: "", passport_expiry: "" };
+// What a nationality needs on this segment: a passport on international trips unless an approved exception applies
+interface Docs { international: boolean; docs: string[]; passport_min_days: number; exception: boolean; notes: string[]; departs: string }
+const minExpiry = (d: Docs) => { const x = new Date(`${d.departs}T12:00:00Z`); x.setUTCDate(x.getUTCDate() + d.passport_min_days); return x.toISOString().slice(0, 10); };
+const docOk = (x: Names, d?: Docs) => !d?.international || (d.docs.includes(x.id_type) && /^[0-9A-Za-z \-/]{4,24}$/.test(x.id_no.trim())
+  && (x.id_type !== "PASSPORT" || (/^\d{4}-\d{2}-\d{2}$/.test(x.passport_expiry) && x.passport_expiry >= minExpiry(d))));
 
 export default function Trip() {
   const { t, money, time } = useI18n();
@@ -31,6 +40,16 @@ export default function Trip() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const idem = useRef(randomUUID());
+  const [docs, setDocs] = useState<Record<string, Docs>>({});
+  const nat = (x?: Names) => (!x || x.syrian ? "SY" : x.country);
+  const nats = [...new Set(["SY", ...Object.values(names).map(nat)])].filter((c) => /^[A-Z]{2}$/.test(c));
+  useEffect(() => {
+    nats.filter((c) => !(c in docs)).forEach((c) => {
+      api.get<Docs>(`/api/trips/${p.uid}/documents?from_seq=${p.from_seq}&to_seq=${p.to_seq}&nationality=${c}`)
+        .then((r) => setDocs((cur) => ({ ...cur, [c]: r }))).catch(() => {});
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nats.join(","), p.uid]);
   const [now, setNow] = useState(Date.now());
   useEffect(() => { const id = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(id); }, []);
 
@@ -39,7 +58,8 @@ export default function Trip() {
   const left = hold ? Math.max(0, Math.round((new Date(hold.expires_at).getTime() - now) / 1000)) : 0;
   const countries = new Set(ref.data?.countries ?? []);
   const complete = (x?: Names) => !!x && !!x.first_name.trim() && !!x.last_name.trim()
-    && (x.syrian ? !!x.father_name.trim() && !!x.grandfather_name.trim() : countries.has(x.country) && x.country !== "SY");
+    && (x.syrian ? !!x.father_name.trim() && !!x.grandfather_name.trim() : countries.has(x.country) && x.country !== "SY")
+    && docOk(x, docs[nat(x)]);
 
   const doHold = async () => {
     setBusy(true); setError(null);
@@ -56,8 +76,10 @@ export default function Trip() {
         hold_token: hold.hold_token, trip_uid: p.uid, from_seq: Number(p.from_seq), to_seq: Number(p.to_seq), idempotency_key: idem.current,
         passengers: selected.map((n) => {
           const x = names[n];
+          const d = docs[nat(x)];
           return { seat_no: n, nationality: x.syrian ? "SY" : x.country, first_name: x.first_name.trim(), last_name: x.last_name.trim(),
-                   father_name: x.father_name.trim() || null, grandfather_name: x.grandfather_name.trim() || null };
+                   father_name: x.father_name.trim() || null, grandfather_name: x.grandfather_name.trim() || null,
+                   ...(d?.international ? { id_type: x.id_type, id_no: x.id_no.trim(), passport_expiry: x.id_type === "PASSPORT" ? x.passport_expiry : null } : {}) };
         }),
       });
       await saveBooking(out.booking_ref).catch(() => {});
@@ -112,6 +134,28 @@ export default function Trip() {
                 {x.syrian ? <Field label={t("trip.father")} value={x.father_name} onChangeText={(v) => set({ father_name: v })} autoComplete="off" /> : null}
                 {x.syrian ? <Field label={t("trip.grandfather")} value={x.grandfather_name} onChangeText={(v) => set({ grandfather_name: v })} autoComplete="off" /> : null}
                 <Field label={t("trip.last")} value={x.last_name} onChangeText={(v) => set({ last_name: v })} autoComplete="off" />
+                {docs[nat(x)]?.international ? (() => {
+                  const d = docs[nat(x)];
+                  const type = d.docs.includes(x.id_type) ? x.id_type : d.docs[0];
+                  return (
+                    <View style={{ gap: 8 }}>
+                      <Text style={s.small}>{d.exception ? t("trip.docException", { docs: d.docs.map((k) => t(`trip.docTypes.${k}`)).join(" / ") })
+                                                         : t("trip.passportNeeded", { days: d.passport_min_days })}{d.notes.length ? ` ${d.notes.join(" ")}` : ""}</Text>
+                      {d.docs.length > 1 ? (
+                        <View style={s.row}>{d.docs.map((k) => (
+                          <Pressable key={k} onPress={() => set({ id_type: k })} accessibilityRole="radio" accessibilityState={{ checked: type === k }}
+                                     style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, borderWidth: 1,
+                                              borderColor: type === k ? color.primary : color.outline, backgroundColor: type === k ? color.primarySoft : color.surface }}>
+                            <Text>{t(`trip.docTypes.${k}`)}</Text>
+                          </Pressable>
+                        ))}</View>
+                      ) : null}
+                      <Field label={t("trip.docNumber")} value={x.id_no} onChangeText={(v) => set({ id_no: v, id_type: type })} autoComplete="off" autoCapitalize="characters" />
+                      {type === "PASSPORT" ? <Field label={t("trip.passportExpiry", { date: minExpiry(d) })} value={x.passport_expiry} placeholder="YYYY-MM-DD"
+                                                    onChangeText={(v) => set({ passport_expiry: v.trim(), id_type: type })} maxLength={10} /> : null}
+                    </View>
+                  );
+                })() : null}
               </Card>
             );
           })}
