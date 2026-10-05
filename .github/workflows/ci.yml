@@ -110,6 +110,7 @@ jobs:
         run: |
           npx expo export --platform android --output-dir /tmp/passenger
           APP_VARIANT=driver npx expo export --clear --platform ios --output-dir /tmp/driver
+          APP_VARIANT=operator npx expo export --clear --platform android --output-dir /tmp/operator
       - name: Known vulnerabilities in app dependencies
         run: npm audit --omit=dev --audit-level=critical
 

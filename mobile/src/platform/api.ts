@@ -62,7 +62,11 @@ export async function request<T>(method: string, path: string, body?: unknown): 
 }
 
 export const api = {
-  get: <T>(path: string) => request<T>("GET", path),
+  get: <T>(path: string, params?: Record<string, string | number | undefined>) => {
+    const q = params ? Object.entries(params).filter(([, v]) => v !== undefined && v !== "")
+      .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`).join("&") : "";
+    return request<T>("GET", q ? `${path}?${q}` : path);
+  },
   post: <T>(path: string, body: unknown = {}) => request<T>("POST", path, body),
   del: <T>(path: string) => request<T>("DELETE", path),
 };

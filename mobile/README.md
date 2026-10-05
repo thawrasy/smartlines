@@ -1,11 +1,12 @@
 # Masslak mobile apps
 
-One Expo (React Native) code base builds two apps:
+One Expo (React Native) code base builds three apps:
 
 | Variant | Command | Bundle id | Portal |
 |---|---|---|---|
 | Passenger | `npm start` | `sy.masslak.app` | `PASSENGER` |
 | Driver | `npm run start:driver` | `sy.masslak.driver` | `DRIVER` |
+| Operator (Masslak Business) | `npm run start:operator` | `sy.masslak.business` | `OPERATOR` |
 
 `APP_VARIANT` selects the variant at build time (`app.config.ts`). Native modules (keystore, camera, biometrics,
 certificate pinning) need a development build: `npx expo run:android` or `npx expo run:ios`. Expo Go is not enough.
@@ -14,7 +15,7 @@ certificate pinning) need a development build: `npx expo run:android` or `npx ex
 
 | Variable | Purpose |
 |---|---|
-| `APP_VARIANT` | `passenger` (default) or `driver` |
+| `APP_VARIANT` | `passenger` (default), `driver` or `operator` |
 | `MASSLAK_API_URL` | API origin, e.g. `https://masslak.com` |
 | `MASSLAK_API_PINS` | Comma-separated SHA-256 SPKI pins of the API certificate: current key and at least one backup |
 
@@ -23,7 +24,7 @@ A release build refuses to start without an `https://` API URL and at least two 
 ## Layers
 
 ```
-src/app/        screens (expo-router): login, mfa, (passenger)/…, driver/…
+src/app/        screens (expo-router): login, mfa, (passenger)/… (trips, services, wallet), driver/…, operator/…
 src/ui/         theme, components, SeatMap (the carrier's real layout), AppLock
 src/platform/   React Native adapters: keystore, API client, auth, tickets, boarding, integrity, config
 src/core/       pure TypeScript, unit-tested with Node: session refresh, ticket credentials, offline boarding
@@ -70,3 +71,14 @@ CI also bundles the app with Metro (`expo export`) to catch missing modules.
 is `decode-uri-component` under `expo-router`'s `query-string@7` (denial of service with a crafted deep link). The
 patched releases are ESM-only and break `expo-router`'s `require` call, so it is tracked for the next SDK upgrade.
 CI fails on any critical advisory.
+
+## What each app does
+
+* **Passenger**: search and book trips, tickets that work offline, wallet with top-up by card (bank page), partner e-wallet
+  (one-time code), bank transfer (payment reference) or cash at an agency; services: shuttle passes (QR), parcels with
+  tracking, taxi at the meter tariff, car rental. A service appears only when its module is switched on.
+* **Driver**: today's trips, offline boarding by ticket QR, sync.
+* **Operator**: the carrier's day (sales, load, alerts, next departures), trips with the passenger manifest, publish and
+  complete; and every module the role can work in, through the platform's generic records engine: indicators, records
+  by status, record details and the actions their state allows. Module, field and status names come from the website's
+  locale files (the `fw` section of `src/i18n/en.ts` and `ar.ts`).

@@ -79,7 +79,50 @@ export const s = StyleSheet.create({
   buttonText: { fontSize: 16, fontWeight: "600" },
   input: { minHeight: 52, borderRadius: radius.md, borderWidth: 1, borderColor: color.outline, backgroundColor: color.surface,
            paddingHorizontal: space(4), fontSize: 16, color: color.text, textAlign: "auto" },
-  chip: { alignSelf: "flex-start", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, fontSize: 13, fontWeight: "600", overflow: "hidden" },
+  chip: { alignSelf: "flex-start", flexShrink: 0, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, fontSize: 13, fontWeight: "600", overflow: "hidden" },
   row: { flexDirection: "row", alignItems: "center", gap: space(2) },
   between: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: space(2) },
 });
+
+/** One choice among a few: wrapped chips (cities, services, durations). */
+export function Choice<T extends string | number>({ label, options, value, onChange }: {
+  label?: string; options: { value: T; label: string }[]; value: T | null; onChange: (v: T) => void;
+}) {
+  return (
+    <View style={{ gap: 6 }}>
+      {label ? <Text style={s.label}>{label}</Text> : null}
+      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+        {options.map((o) => {
+          const on = o.value === value;
+          return (
+            <Pressable key={String(o.value)} accessibilityRole="button" accessibilityState={{ selected: on }} onPress={() => onChange(o.value)}
+                       style={{ paddingHorizontal: 14, paddingVertical: 9, borderRadius: 999, borderWidth: 1,
+                                borderColor: on ? color.primary : color.outline, backgroundColor: on ? color.primary : color.surface }}>
+              <Text style={{ color: on ? "#fff" : color.text, fontWeight: on ? "600" : "400" }}>{o.label}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
+/** A tappable list row with a chevron. */
+export function Row({ title, sub, right, onPress }: { title: string; sub?: string; right?: ReactNode; onPress?: () => void }) {
+  return (
+    <Pressable accessibilityRole={onPress ? "button" : undefined} disabled={!onPress} onPress={onPress}
+               style={({ pressed }) => [s.between, { paddingVertical: 12, borderBottomWidth: 1, borderColor: color.outline, opacity: pressed ? 0.7 : 1 }]}>
+      <View style={{ flex: 1, gap: 2 }}>
+        <Text style={s.label}>{title}</Text>
+        {sub ? <Text style={s.small}>{sub}</Text> : null}
+      </View>
+      {right}
+    </Pressable>
+  );
+}
+
+export function Notice({ text, tone = "blue" }: { text: string; tone?: "blue" | "amber" | "green" }) {
+  const bg = tone === "amber" ? color.amberSoft : tone === "green" ? color.greenSoft : color.primarySoft;
+  const fg = tone === "amber" ? color.amber : tone === "green" ? color.green : color.primary;
+  return <Text style={[s.small, { backgroundColor: bg, color: fg, padding: 12, borderRadius: radius.sm, overflow: "hidden" }]}>{text}</Text>;
+}

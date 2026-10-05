@@ -1,4 +1,4 @@
-// One code base, two apps. Build with APP_VARIANT=passenger (default) or APP_VARIANT=driver.
+// One code base, three apps. Build with APP_VARIANT=passenger (default), APP_VARIANT=driver or APP_VARIANT=operator.
 //   MASSLAK_API_URL   https base address of the API, e.g. https://masslak.com
 //   MASSLAK_API_PINS  comma-separated base64 SHA-256 hashes of the API certificate's public key (at least two:
 //                     the current key and a backup), enforced by native certificate pinning in release builds
@@ -7,10 +7,12 @@ import type { ConfigContext, ExpoConfig } from "expo/config";
 const VARIANTS = {
   passenger: { name: "Masslak", slug: "masslak", id: "sy.masslak.app" },
   driver: { name: "Masslak Driver", slug: "masslak-driver", id: "sy.masslak.driver" },
+  operator: { name: "Masslak Business", slug: "masslak-business", id: "sy.masslak.business" },
 } as const;
 
 export default ({ config }: ConfigContext): ExpoConfig => {
-  const variant = (process.env.APP_VARIANT === "driver" ? "driver" : "passenger") as keyof typeof VARIANTS;
+  const wanted = process.env.APP_VARIANT;
+  const variant = (wanted === "driver" || wanted === "operator" ? wanted : "passenger") as keyof typeof VARIANTS;
   const v = VARIANTS[variant];
   const apiUrl = process.env.MASSLAK_API_URL ?? "https://masslak.com";
   if (!apiUrl.startsWith("https://") && process.env.NODE_ENV === "production") {
@@ -31,6 +33,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       infoPlist: {
         NSCameraUsageDescription: variant === "driver"
           ? "The camera scans passengers' ticket codes when they board."
+          : variant === "operator" ? "The camera scans ticket and parcel codes."
           : "The camera scans the code inside the vehicle when you ride a shuttle.",
         NSFaceIDUsageDescription: "Face ID unlocks your tickets and wallet.",
         ITSAppUsesNonExemptEncryption: false,

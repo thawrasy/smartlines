@@ -22,7 +22,10 @@ function lookup(m: Messages, key: string): string | undefined {
 
 interface I18n {
   locale: Locale; rtl: boolean; setLocale: (l: Locale) => Promise<boolean>;
-  t: (key: string, vars?: Vars) => string; money: (minor: number) => string; time: (iso: string) => string; date: (iso: string) => string;
+  t: (key: string, vars?: Vars) => string; has: (key: string) => boolean; money: (minor: number) => string; time: (iso: string) => string;
+  date: (iso: string) => string; dateTime: (iso: string) => string; city: (code: string) => string;
+  /** Station names are stored in English; central and numbered stations are rendered from the city code. */
+  station: (code: string | null | undefined, fallback?: string | null) => string;
 }
 
 const Ctx = createContext<I18n | null>(null);
@@ -45,8 +48,18 @@ export function I18nProvider({ children }: { children: ReactNode }) {
       const s = lookup(m, key) ?? lookup(en, key) ?? key;
       return vars ? s.replace(/\{(\w+)\}/g, (_, k) => (k in vars ? String(vars[k]) : `{${k}}`)) : s;
     };
+    const has = (key: string) => lookup(m, key) !== undefined || lookup(en, key) !== undefined;
+    const city = (code: string) => (has(`city.${code}`) ? t(`city.${code}`) : code);
     return {
-      locale, rtl: LOCALES[locale].rtl, setLocale, t,
+      locale, rtl: LOCALES[locale].rtl, setLocale, t, has, city,
+      station: (code, fallback) => {
+        const x = code ? /^SY-([A-Z]{3})-([A-Z])(\d{3})$/.exec(code) : null;
+        if (!x) return fallback ?? code ?? "";
+        const n = Number(x[3]);
+        return x[2] === "C" && n === 1 ? t("station.central", { city: city(x[1]) }) : t("station.numbered", { city: city(x[1]), n });
+      },
+      dateTime: (iso) => new Intl.DateTimeFormat(intl, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hour12: false,
+                                                         timeZone: "Asia/Damascus" }).format(new Date(iso)),
       money: (minor) => `${Math.round(minor / 100).toLocaleString("en-US")} ${t("common.currency")}`,
       time: (iso) => new Intl.DateTimeFormat(intl, { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Damascus" }).format(new Date(iso)),
       date: (iso) => new Intl.DateTimeFormat(intl, { weekday: "short", day: "numeric", month: "short", timeZone: "Asia/Damascus" }).format(new Date(iso)),

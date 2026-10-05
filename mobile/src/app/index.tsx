@@ -8,5 +8,5 @@ export default function Index() {
   if (status === "loading") return <Loading />;
   if (status === "signedOut") return <Redirect href="/login" />;
   if (status === "mfa") return <Redirect href="/mfa" />;
-  return <Redirect href={VARIANT === "driver" ? "/driver" : "/book"} />;
+  return <Redirect href={VARIANT === "driver" ? "/driver" : VARIANT === "operator" ? "/operator" : "/book"} />;
 }
