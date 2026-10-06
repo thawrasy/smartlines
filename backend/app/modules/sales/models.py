@@ -28,7 +28,16 @@ class PassengerIn(BaseModel):
     father_name: Optional[str] = Field(default=None, min_length=1, max_length=60, pattern=NAME_PART)
     grandfather_name: Optional[str] = Field(default=None, min_length=1, max_length=60, pattern=NAME_PART)
     last_name: str = Field(min_length=1, max_length=60, pattern=NAME_PART)
-    seat_no: int
+    # Empty only for an infant travelling on an adult's lap (carriers whose infant band needs no seat)
+    seat_no: Optional[int] = None
+    # Adult, child or infant (4.19); the date of birth decides on the travel date, so it is required for children and infants
+    category: Optional[Literal["ADULT", "CHILD", "INFANT"]] = None
+    birth_date: Optional[date] = None
+    gender: Optional[Literal["M", "F"]] = None
+    # A registered member of the booker's family (4.20): counts for family offers; their stored document is used if none is given
+    family_member_uid: Optional[uuid.UUID] = None
+    # A lap infant: the position (1-based) of the adult on this booking who carries them; default the first adult
+    with_adult: Optional[int] = Field(default=None, ge=1, le=MAX_SEATS * 2)
     id_type: Optional[Literal["NATIONAL_ID", "PASSPORT", "RESIDENCE", "LAISSEZ_PASSER", "TRAVEL_DOCUMENT", "OTHER"]] = None
     # Full document number: stored only as AES-256-GCM ciphertext, a blind index and the masked last 4
     id_no: Optional[str] = Field(default=None, min_length=4, max_length=24, pattern=r"^[0-9A-Za-z \-/]+$")
@@ -65,8 +74,23 @@ class BookingIn(BaseModel):
     from_seq: int
     to_seq: int
     fare_brand: str = "STANDARD"
-    passengers: list[PassengerIn] = Field(min_length=1, max_length=MAX_SEATS)
+    # seats are capped at MAX_SEATS; lap infants come on top of them
+    passengers: list[PassengerIn] = Field(min_length=1, max_length=MAX_SEATS * 2)
     idempotency_key: str = Field(min_length=8, max_length=80)
+    # Family bookings (4.20): the head may pay from the family trips account; a member's own booking is paid as the head set
+    pay_from: Literal["WALLET", "FAMILY_ACCOUNT"] = "WALLET"
+
+    @model_validator(mode="after")
+    def _seats(self):
+        if sum(p.seat_no is not None for p in self.passengers) > MAX_SEATS:
+            raise ValueError(f"TOO_MANY_SEATS: at most {MAX_SEATS} seats per booking")
+        return self
+
+
+class QuoteIn(BookingIn):
+    """A booking request priced before seats are held or paid for."""
+    hold_token: Optional[uuid.UUID] = None
+    idempotency_key: str = "quote-only"
 
 
 class AgencyBookingIn(BookingIn):

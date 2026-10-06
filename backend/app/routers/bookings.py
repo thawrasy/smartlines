@@ -13,7 +13,7 @@ from ..deps import Principal, context_for, require_portal
 from ..errors import ApiError, not_found
 from ..modules.sales import repository as sales_repo
 from ..modules.sales import service as sales
-from ..modules.sales.models import BookingIn, HoldIn
+from ..modules.sales.models import BookingIn, HoldIn, QuoteIn
 from ..security import ticket_qr_token
 from ..util import row_dict
 
@@ -23,6 +23,14 @@ passenger = require_portal("PASSENGER")
 
 def _buyer(pr: Principal) -> sales.Buyer:
     return sales.Buyer(party_id=pr.party_id, user_id=pr.user_id, channel="WEB")
+
+
+@router.post("/bookings/quote")
+async def quote(body: QuoteIn, request: Request, pr: Principal = Depends(passenger)):
+    """The price of every traveller (adult, child, infant) and any family offer, before paying."""
+    ctx = context_for(request, pr)
+    async with db.transaction(ctx) as conn:
+        return await sales.quote(conn, ctx, body, _buyer(pr))
 
 
 @router.post("/holds", status_code=201)
@@ -51,12 +59,16 @@ async def create_booking(body: BookingIn, request: Request, pr: Principal = Depe
     return {"booking_ref": out["booking_ref"], "total": out["total"], "currency": out["currency"]}
 
 
-async def _booking_for(conn, pr: Principal, ref: str):
+async def _booking_for(conn, pr: Principal, ref: str, family: bool = False):
+    """The caller's own booking; with family=True also one the caller's family bought (as its head) or that the caller
+    travels on (4.20). Changing a booking stays with whoever booked it."""
     b = await conn.fetchrow(
         """SELECT b.*, t.trip_no, t.uid AS trip_uid, t.departure_at, t.status AS trip_status,
                   cp.legal_name AS carrier_name
              FROM sales.booking b JOIN ops.trip t ON t.id = b.trip_id JOIN iam.party cp ON cp.id = b.company_id
-            WHERE b.booking_ref = $1 AND b.booker_party_id = $2""", ref.upper(), pr.party_id)
+            WHERE b.booking_ref = $1 AND (b.booker_party_id = $2
+                  OR ($3 AND ((b.family_id IS NOT NULL AND iam.is_family_head(b.family_id)) OR sales.travels_on(b.id))))""",
+        ref.upper(), pr.party_id, family)
     if b is None:
         raise not_found("booking")
     return b
@@ -69,7 +81,8 @@ async def my_bookings(request: Request, pr: Principal = Depends(passenger)):
             f"""SELECT b.booking_ref, b.status, b.total_amount, b.currency, b.created_at, t.trip_no, t.uid AS trip_uid,
                        cp.legal_name AS carrier_name, {sales_repo.JOURNEY_SQL}
                   FROM sales.booking b JOIN ops.trip t ON t.id = b.trip_id JOIN iam.party cp ON cp.id = b.company_id
-                 WHERE b.booker_party_id = $1 ORDER BY b.created_at DESC LIMIT 50""", pr.party_id)
+                 WHERE b.booker_party_id = $1 OR (b.family_id IS NOT NULL AND iam.is_family_head(b.family_id)) OR sales.travels_on(b.id)
+                 ORDER BY b.created_at DESC LIMIT 50""", pr.party_id)
     out = []
     for r in recs:
         d = row_dict(r)
@@ -82,7 +95,7 @@ async def my_bookings(request: Request, pr: Principal = Depends(passenger)):
 async def booking_detail(ref: str, request: Request, pr: Principal = Depends(passenger)):
     ctx = context_for(request, pr)
     async with db.transaction(ctx) as conn:
-        b = await _booking_for(conn, pr, ref)
+        b = await _booking_for(conn, pr, ref, family=True)
         return await sales.booking_view(conn, ctx, b)
 
 

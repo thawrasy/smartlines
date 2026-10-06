@@ -99,13 +99,14 @@ def receives(client, endpoint_events: list[str], event, payload: dict) -> bool:
     if client["kind"] == "PARTNER":
         return payload.get("api_client_id") == client["client_id"]
     if client["kind"] == "AUTHORITY":
-        return True
+        # a notice addressed to one authority reaches that authority only
+        return "authority_id" not in payload or payload["authority_id"] == client.get("authority_id")
     cid = client["company_id"]
     return cid is not None and (event["company_id"] == cid or payload.get("agency_id") == cid)
 
 
 def envelope(event_uid, event_type: str, created_at, payload: dict, include_pii: bool) -> dict:
-    data = {k: v for k, v in payload.items() if (include_pii or k not in PERSONAL_FIELDS) and k != "api_client_id"}
+    data = {k: v for k, v in payload.items() if (include_pii or k not in PERSONAL_FIELDS) and k not in ("api_client_id", "authority_id")}
     return {"id": str(event_uid), "type": event_type, "created_at": created_at.isoformat() if created_at else None,
             "api_version": "v1", "data": data}
 
@@ -113,7 +114,7 @@ def envelope(event_uid, event_type: str, created_at, payload: dict, include_pii:
 async def fanout(conn: asyncpg.Connection, event, payload: dict) -> int:
     """Called by the notify worker inside the event's transaction: one delivery row per receiving endpoint."""
     rows = await conn.fetch(
-        """SELECT e.id, e.events, c.id AS client_id, c.kind, c.company_id FROM sys.webhook_endpoint e
+        """SELECT e.id, e.events, c.id AS client_id, c.kind, c.company_id, c.authority_id FROM sys.webhook_endpoint e
              JOIN iam.api_client c ON c.id = e.api_client_id
             WHERE e.status = 'ACTIVE' AND c.status = 'ACTIVE' AND $1 = ANY(e.events)""", event["event_type"])
     n = 0

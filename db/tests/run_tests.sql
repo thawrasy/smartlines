@@ -434,9 +434,11 @@ SET ROLE masslak_app;
 BEGIN;
 SELECT sys.set_context(NULL, :cb, 'COMPANY');
 SELECT pg_temp.ok((SELECT count(*) FROM ship.shipment WHERE id = :shp) = 1, 'Shipping: the carrier of a leg sees the shipment');
-SELECT pg_temp.ok((SELECT count(*) FROM frt.freight_request) = 1, 'Freight: other carriers see open bid requests only, not drafts');
+SELECT pg_temp.ok((SELECT count(*) FROM frt.open_loads()) = 1, 'Freight: other carriers see open bid requests only, not drafts');
+SELECT pg_temp.ok((SELECT count(*) FROM frt.freight_request) = 0,
+  'Isolation: a competing carrier cannot read the shipper''s request (identity, addresses), only the market view');
 INSERT INTO frt.freight_bid (request_id, carrier_company_id, price, valid_until)
-SELECT id, :cb, 9000000, now() + interval '1 day' FROM frt.freight_request WHERE status = 'OPEN';
+SELECT id, :cb, 9000000, now() + interval '1 day' FROM frt.open_loads();
 SELECT pg_temp.ok(true, 'Freight: a carrier bids on an open request');
 SELECT pg_temp.ok((SELECT count(*) FROM ptn.partner) = 1 AND (SELECT count(*) FROM ptn.partner_contract) = 0,
   'Partners: carriers see active partners but not their contracts');
@@ -517,6 +519,81 @@ SELECT pg_temp.ok((SELECT count(*) FROM sales.ticket t JOIN sales.booking b ON b
   'RLS: tickets follow the visibility of their booking');
 SELECT pg_temp.ok((SELECT count(*) FROM fin.payment p JOIN sales.booking b ON b.id = p.booking_id WHERE b.company_id = :ca) = 0,
   'RLS: another carrier cannot see payments of a booking');
+COMMIT;
+RESET ROLE;
+
+-- Passenger categories, families, manifests and commercial isolation (1038)
+INSERT INTO iam.party (party_type, legal_name) VALUES ('PERSON','Family Head'), ('PERSON','Family Son'), ('PERSON','Stranger');
+SELECT id AS fhead FROM iam.party WHERE legal_name = 'Family Head' \gset
+SELECT id AS fson FROM iam.party WHERE legal_name = 'Family Son' \gset
+SELECT id AS fstranger FROM iam.party WHERE legal_name = 'Stranger' \gset
+INSERT INTO iam.family (head_party_id, name) VALUES (:fhead, 'Head family');
+SELECT id AS fam FROM iam.family WHERE head_party_id = :fhead \gset
+INSERT INTO iam.family_member (family_id, party_id, relation, first_name, last_name, birth_date)
+VALUES (:fam, :fhead, 'SELF', 'Head', 'Family', '1980-01-01'), (:fam, :fson, 'SON', 'Son', 'Family', '2016-05-01');
+SELECT id AS fsonm FROM iam.family_member WHERE party_id = :fson \gset
+INSERT INTO frt.container (container_no, size_type, owner_party_id) VALUES ('MSKU1234565', '40HC', :ca);
+INSERT INTO ship.rate_table (company_id, service_id, valid, status, currency)
+SELECT :ca, id, daterange(current_date, NULL), 'PUBLISHED', 'SYP' FROM ship.service_product ORDER BY id LIMIT 1;
+INSERT INTO sec.authority_profile (code, name, authority_type, protocol) VALUES ('TEST-POLICE', 'Test police', 'POLICE', 'REST');
+SELECT id AS auth FROM sec.authority_profile WHERE code = 'TEST-POLICE' \gset
+SET ROLE masslak_app;
+BEGIN;
+SELECT sys.set_context(:ua, :ca, 'COMPANY');
+SELECT pg_temp.expect_error(format($$INSERT INTO pricing.passenger_age_band (company_id, category, min_age, max_age) VALUES (%s, 'CHILD', 2, 12), (%s, 'INFANT', 0, 3)$$, :ca, :ca),
+  'passenger_age_band', 'Categories: a carrier''s age bands cannot overlap');
+INSERT INTO pricing.passenger_age_band (company_id, category, min_age, max_age, seat_required, needs_adult, max_per_adult)
+VALUES (:ca, 'INFANT', 0, 3, false, true, 1), (:ca, 'CHILD', 3, 14, true, true, NULL), (:ca, 'ADULT', 14, NULL, true, false, NULL);
+SELECT pg_temp.ok((SELECT count(*) FROM pricing.passenger_age_band WHERE company_id = :ca) = 3, 'Categories: a carrier sets its own age bands');
+SELECT pg_temp.expect_error($$INSERT INTO pricing.passenger_age_band (company_id, category, min_age, max_age) VALUES (NULL, 'CHILD', 1, 5)$$,
+  'row-level security', 'Categories: a carrier cannot change the platform default');
+SELECT pg_temp.ok((SELECT count(*) FROM frt.container WHERE container_no = 'MSKU1234565') = 1, 'Isolation: the owner sees its container');
+COMMIT;
+BEGIN;
+SELECT sys.set_context(NULL, :cb, 'COMPANY');
+SELECT pg_temp.ok((SELECT count(*) FROM pricing.passenger_age_band WHERE company_id = :ca) = 3, 'Categories: age bands are public so travellers see who counts as a child');
+SELECT pg_temp.ok((SELECT count(*) FROM frt.container WHERE container_no = 'MSKU1234565') = 0, 'Isolation: another company cannot see the container');
+SELECT pg_temp.ok((SELECT count(*) FROM ship.rate_table WHERE company_id = :ca) = 0, 'Isolation: a competing carrier cannot read another carrier''s rate table');
+COMMIT;
+BEGIN;
+SELECT sys.set_context(NULL, NULL, 'PASSENGER', NULL, NULL, NULL, NULL, :fstranger);
+SELECT pg_temp.ok((SELECT count(*) FROM ship.rate_table WHERE company_id = :ca) = 1, 'Isolation: a customer still reads published prices');
+SELECT pg_temp.ok((SELECT count(*) FROM iam.family_member) = 0 AND (SELECT count(*) FROM iam.family) = 0, 'Families: a stranger sees no family or member');
+SELECT pg_temp.expect_error(format($$INSERT INTO iam.family_member (family_id, party_id, relation, first_name, last_name, birth_date) VALUES (%s, %s, 'OTHER', 'X', 'Y', '2000-01-01')$$, :fam, :fstranger),
+  'row-level security', 'Families: only the head adds members');
+COMMIT;
+BEGIN;
+SELECT sys.set_context(NULL, NULL, 'PASSENGER', NULL, NULL, NULL, NULL, :fhead);
+SELECT pg_temp.ok((SELECT count(*) FROM iam.family_member WHERE family_id = :fam) = 2, 'Families: the head sees every member');
+INSERT INTO iam.family_travel_rule (member_id, rule_type, days, start_time, end_time) VALUES (:fsonm, 'TIME_WINDOW', '{1,2,3,4,5}', '06:00', '18:00');
+SELECT pg_temp.ok(true, 'Families: the head limits a member to school days and hours');
+COMMIT;
+BEGIN;
+SELECT sys.set_context(NULL, NULL, 'PASSENGER', NULL, NULL, NULL, NULL, :fson);
+SELECT pg_temp.ok((SELECT count(*) FROM iam.family_member) = 0, 'Families: a member without a linked account sees nothing');
+COMMIT;
+RESET ROLE;
+UPDATE iam.family_member SET account_status = 'LINKED', linked_user_id = :ua WHERE id = :fsonm;
+SET ROLE masslak_app;
+BEGIN;
+SELECT sys.set_context(NULL, NULL, 'PASSENGER', NULL, NULL, NULL, NULL, :fson);
+SELECT pg_temp.ok((SELECT count(*) FROM iam.family_member) = 1 AND (SELECT count(*) FROM iam.family_travel_rule) = 1,
+  'Families: a linked member sees only their own record and rules');
+UPDATE iam.family_member SET funding = 'FAMILY_ACCOUNT', daily_limit = 999999999 WHERE id = :fsonm;
+SELECT pg_temp.ok((SELECT funding = 'HEAD_WALLET' AND daily_limit IS NULL FROM iam.family_member WHERE id = :fsonm),
+  'Families: a member cannot change their own funding or limits');
+COMMIT;
+BEGIN;
+SELECT sys.set_context(:uadmin, NULL, 'PLATFORM');
+SELECT pg_temp.expect_error(format($$INSERT INTO brd.manifest_route (authority_id, scope, channel, legal_basis, status, created_by, approved_by) VALUES (%s, 'ALL', 'API_PULL', 'Law 1 of 2026', 'ACTIVE', %s, %s)$$, :auth, :uadmin, :uadmin),
+  'manifest_route', 'Manifests: the officer who drafts a route cannot approve it');
+INSERT INTO brd.manifest_route (authority_id, scope, channel, legal_basis, status, created_by, approved_by, approved_at)
+VALUES (:auth, 'DOMESTIC', 'API_PULL', 'Law 1 of 2026', 'ACTIVE', :uadmin, :ufin, now());
+SELECT pg_temp.ok(true, 'Manifests: a route goes live with a second officer''s approval');
+COMMIT;
+BEGIN;
+SELECT sys.set_context(NULL, :ca, 'COMPANY');
+SELECT pg_temp.ok((SELECT count(*) FROM brd.manifest_route) = 0, 'Manifests: carriers do not see the authorities'' routing rules');
 COMMIT;
 RESET ROLE;
 

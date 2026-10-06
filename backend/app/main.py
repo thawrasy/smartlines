@@ -22,6 +22,8 @@ from .modules.reports import api as reports_api
 from .modules.payments import api as payments_api
 from .modules.integration import console as integration_console
 from .modules.integration import v1 as integration_v1
+from .modules.family import api as family_api
+from .modules.manifests import api as manifests_api
 from .modules.seo import pages as seo_pages
 from .modules.seo.app_shell import shell as app_shell
 from .modular import api as modular_api
@@ -75,7 +77,8 @@ for r in (auth.router, public.router, bookings.router, wallet.router, carrier.ro
           fleet_api.router, payouts_api.company, payouts_api.platform,
           documents_api.company, documents_api.platform, notify_api.router,
           account_api.router, account_api.platform, modular_api.router, modular_workflows.router, reports_api.router, payments_api.router,
-          integration_console.router, integration_v1.router, seo_pages.router):
+          integration_console.router, integration_v1.router, family_api.router, manifests_api.carrier, manifests_api.platform,
+          seo_pages.router):
     app.include_router(r)
 
 app.add_middleware(HeadAsGet)          # added last, so it wraps everything else

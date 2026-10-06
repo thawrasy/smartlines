@@ -11,6 +11,7 @@ SCOPES = {
     "wallet:credit": "Credit passenger wallets with money collected by the partner (banks and e-wallets)",
     "border:read": "Read submitted border manifests (authorities)",
     "border:respond": "Send decisions on border manifests (authorities)",
+    "manifests:receive": "Receive and acknowledge the trip manifests routed to the authority, domestic and international",
     "webhooks:manage": "Subscribe to events and manage webhook endpoints",
 }
 
@@ -19,7 +20,7 @@ KIND_SCOPES = {
     "CARRIER": {"trips:read", "bookings:read", "manifests:read", "shipments:read", "reports:read", "webhooks:manage"},
     "CHANNEL": {"trips:read", "bookings:read", "bookings:write", "shipments:read", "reports:read", "webhooks:manage"},
     "PARTNER": {"trips:read", "wallet:credit", "webhooks:manage"},
-    "AUTHORITY": {"trips:read", "border:read", "border:respond", "reports:read", "webhooks:manage"},
+    "AUTHORITY": {"trips:read", "border:read", "border:respond", "manifests:receive", "reports:read", "webhooks:manage"},
     "INTEGRATION": {"bookings:read", "reports:read", "webhooks:manage"},
     "INTERNAL": set(SCOPES),
 }
@@ -56,6 +57,8 @@ EVENTS = {
     "document.rejected": {"CARRIER", "CHANNEL", "INTERNAL"},
     "wallet.credited": {"PARTNER", "INTERNAL"},
     "border.manifest_submitted": {"AUTHORITY", "INTERNAL"},
+    "manifest.issued": {"CARRIER", "INTEGRATION", "INTERNAL"},
+    "manifest.available": {"AUTHORITY", "INTERNAL"},
     "webhook.ping": set(KIND_SCOPES),
 }
 

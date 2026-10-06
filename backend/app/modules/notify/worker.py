@@ -93,6 +93,11 @@ async def main(once: bool) -> None:
         while True:
             busy = await run_once()
             if not busy:
+                # manifests waiting for a push become webhook notices (outbox events), sent on the next pass
+                from ..manifests.service import push_due
+                async with db.transaction(_ctx()) as conn:
+                    if await push_due(conn):
+                        continue
                 from ..integration.webhooks import deliver_due
                 # a single pass (--once, used by cron and tests) sends everything due, not just one batch
                 while await deliver_due() >= 20 and once:

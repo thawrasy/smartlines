@@ -36,5 +36,8 @@ MODULES = (
     Module("campaigns", "core", "campaign", ("PLATFORM",)),
     Module("accounting_ops", "core", "account_balance_wallet", ("PLATFORM", "OPERATOR", "AGENCY")),
     Module("contact_center", "core", "support_agent", ("PLATFORM",)),
+    Module("passenger_categories", "core", "family_restroom", ("PLATFORM", "OPERATOR")),
+    Module("family_accounts", "core", "diversity_3", ("PLATFORM", "PASSENGER")),
+    Module("trip_manifests", "core", "fact_check", ("PLATFORM", "OPERATOR")),
 )
 BY_KEY = {m.key: m for m in MODULES}

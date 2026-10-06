@@ -635,14 +635,11 @@ async def accept_bid(bid_id: int, request: Request, pr: Principal = Depends(requ
 async def freight_market(request: Request, pr: Principal = Depends(require_user)):
     await _ready("freight", pr, "OPERATOR")
     async with db.transaction(context_for(request, pr)) as conn:
+        # the market view (16.26): open loads without the shipper's identity, addresses or contacts
         rows = await conn.fetch(
-            f"""SELECT {_REQUEST_COLS}, (SELECT count(*) FROM frt.freight_bid b WHERE b.request_id = r.id) AS bids,
-                       (SELECT jsonb_build_object('id', b.id, 'price', b.price, 'status', b.status, 'valid_until', b.valid_until)
-                          FROM frt.freight_bid b WHERE b.request_id = r.id AND b.carrier_company_id = $1) AS my_bid
-                  FROM frt.freight_request r
-                  LEFT JOIN net.station os ON os.id = r.origin_station_id LEFT JOIN net.station ds ON ds.id = r.dest_station_id
-                 WHERE r.status = 'OPEN' AND r.mode = 'BID' AND r.shipper_company_id IS DISTINCT FROM $1
-                 ORDER BY lower(r.pickup_window) LIMIT 100""", pr.company_id)
+            """SELECT r.*, (SELECT jsonb_build_object('id', b.id, 'price', b.price, 'status', b.status, 'valid_until', b.valid_until)
+                              FROM frt.freight_bid b WHERE b.request_id = r.id AND b.carrier_company_id = $1) AS my_bid
+                 FROM frt.open_loads() r ORDER BY r.pickup_from LIMIT 100""", pr.company_id)
         trucks = await conn.fetch(
             """SELECT v.id, v.plate_no FROM fleet.truck_unit t JOIN fleet.vehicle v ON v.id = t.vehicle_id
                 WHERE v.company_id = $1 AND v.status = 'ACTIVE' ORDER BY v.plate_no""", pr.company_id)
@@ -656,11 +653,12 @@ async def place_bid(uid: uuid.UUID, body: BidIn, request: Request, pr: Principal
     if "freight.operate" not in pr.permissions:
         raise ApiError(403, "FORBIDDEN", "missing permission: freight.operate")
     async with db.transaction(context_for(request, pr)) as conn:
-        req = await conn.fetchrow("SELECT * FROM frt.freight_request WHERE uid = $1", uid)
-        if req is None or req["status"] != "OPEN" or req["mode"] != "BID":
+        req = await conn.fetchrow("SELECT id, currency FROM frt.open_loads() WHERE uid = $1", uid)
+        if req is None:
+            own = await conn.fetchval("SELECT 1 FROM frt.freight_request WHERE uid = $1 AND shipper_company_id = $2", uid, pr.company_id)
+            if own:
+                raise ApiError(409, "OWN_LOAD", "you cannot bid on your own load")
             raise ApiError(409, "INVALID_STATE", "this load is not open for bids")
-        if req["shipper_company_id"] == pr.company_id:
-            raise ApiError(409, "OWN_LOAD", "you cannot bid on your own load")
         if body.truck_vehicle_id and not await conn.fetchval(
                 "SELECT 1 FROM fleet.truck_unit t JOIN fleet.vehicle v ON v.id = t.vehicle_id WHERE t.vehicle_id = $1 AND v.company_id = $2",
                 body.truck_vehicle_id, pr.company_id):

@@ -2,6 +2,7 @@
 import json
 from datetime import date
 from typing import Optional
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Query, Request
 
@@ -9,6 +10,7 @@ from .. import db
 from ..config import get_settings
 from ..deps import base_context
 from ..errors import ApiError, not_found
+from ..modules.fares import categories as cat
 from ..modules.sales import documents
 from ..util import row_dict, rows
 
@@ -137,7 +139,7 @@ async def trip_detail(trip_uid: str, request: Request, from_seq: int = Query(...
         raise ApiError(422, "INVALID_PAIR", "to_seq must be after from_seq")
     async with db.transaction(_ctx(request)) as conn:
         t = await conn.fetchrow(
-            """SELECT t.id, t.uid, t.trip_no, t.status, t.seats_total, t.currency, t.seat_selection_mode, t.hold_min,
+            """SELECT t.id, t.company_id, t.route_id, t.uid, t.trip_no, t.status, t.seats_total, t.currency, t.seat_selection_mode, t.hold_min,
                       t.service_type, t.segments_count, t.departure_at, t.arrival_at, t.baggage_policy,
                       t.seat_prices_snapshot, t.seat_map, cp.legal_name AS carrier_name, cc.code3 AS carrier_code
                  FROM ops.trip t JOIN iam.party cp ON cp.id = t.company_id
@@ -159,11 +161,26 @@ async def trip_detail(trip_uid: str, request: Request, from_seq: int = Query(...
                  GROUP BY s.seat_no ORDER BY s.seat_no""", t["id"], from_seq, to_seq)
         pf = await conn.fetchval("SELECT price FROM ops.trip_pair_fare WHERE trip_id = $1 AND from_seq = $2 AND to_seq = $3",
                                  t["id"], from_seq, to_seq)
-    ladder = {s["seq"]: s["fare_from_origin"] for s in stops}
-    price = pf if pf is not None else ladder[to_seq] - ladder[from_seq]
+        ladder = {s["seq"]: s["fare_from_origin"] for s in stops}
+        price = pf if pf is not None else ladder[to_seq] - ladder[from_seq]
+        # Who counts as a child or an infant on this carrier, and what each pays on this segment (4.19)
+        travel = next(s["sched_dep"] for s in stops if s["seq"] == from_seq).astimezone(ZoneInfo("Asia/Damascus")).date()
+        b = await cat.bands(conn, t["company_id"])
+        categories = []
+        for c in ("ADULT", "CHILD", "INFANT"):
+            if c in b:
+                fare = await cat.category_fare(conn, t["company_id"], t["route_id"], c, price, travel, t["currency"])
+                categories.append(b[c].public() | {"fare": fare})
+        offers = await conn.fetch(
+            """SELECT code, name, applies_to, min_members, min_adults, min_minors, discount_type, discount_value, max_discount
+                 FROM pricing.family_offer WHERE company_id = $1 AND status = 'ACTIVE' AND valid @> $2::date
+                  AND applies_to IN ('TICKETS','BOTH') AND (route_id IS NULL OR route_id = $3) ORDER BY code""",
+            t["company_id"], travel, t["route_id"])
     trip = row_dict(t)
-    trip.pop("id")
+    for k in ("id", "company_id", "route_id"):
+        trip.pop(k)
     seat_map = trip.pop("seat_map")
     seat_map = json.loads(seat_map) if isinstance(seat_map, str) else seat_map
     return {"seat_map": seat_map, "trip": trip, "stops": rows(stops), "price": price, "from_seq": from_seq, "to_seq": to_seq,
-            "seats": [{"seat_no": s["seat_no"], "free": s["free"]} for s in seats]}
+            "seats": [{"seat_no": s["seat_no"], "free": s["free"]} for s in seats], "categories": categories,
+            "family_offers": [dict(o) | {"discount_value": float(o["discount_value"])} for o in offers]}

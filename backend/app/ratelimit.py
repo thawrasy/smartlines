@@ -12,7 +12,8 @@ from dataclasses import dataclass, field
 
 from .config import get_settings
 
-AUTH_PATHS = ("/api/auth/login", "/api/auth/register", "/api/auth/mfa", "/api/auth/password", "/api/auth/refresh", "/api/account/password")
+AUTH_PATHS = ("/api/auth/login", "/api/auth/register", "/api/auth/mfa", "/api/auth/password", "/api/auth/refresh", "/api/account/password",
+              "/api/family/join")      # family invite codes are guessed like passwords
 PUBLIC_PATHS = ("/api/public/", "/api/trips", "/api/verify")
 
 

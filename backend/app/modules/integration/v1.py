@@ -446,6 +446,111 @@ async def border_decide(uid: uuid.UUID, body: DecisionsIn, request: Request, cal
     return {"manifest": str(uid), "status": status, "recorded": len(body.decisions)}
 
 
+# ------------------------------------------------------------------ routed manifests (authorities, domestic and international)
+_DELIVERIES = """SELECT d.id, d.uid, d.status, d.channel, d.created_at, d.acknowledged_at, d.ack_ref, r.include_documents,
+                        m.id AS manifest_id, m.uid AS manifest_uid, m.scope, m.manifest_type, m.version, m.status AS manifest_status,
+                        m.issued_at, m.persons_count, encode(m.payload_sha256, 'hex') AS sha256, t.trip_no, t.departure_at,
+                        cp.legal_name AS carrier, s.code AS border_point
+                   FROM brd.manifest_delivery d JOIN brd.manifest_route r ON r.id = d.route_id JOIN brd.manifest m ON m.id = d.manifest_id
+                   JOIN ops.trip t ON t.id = m.trip_id JOIN iam.party cp ON cp.id = t.company_id
+                   LEFT JOIN net.station s ON s.id = m.border_point_id
+                  WHERE d.authority_id = $1 AND d.channel IN ('API_PULL','API_PUSH') AND d.status <> 'PENDING'"""
+
+
+def _delivery_row(r) -> dict:
+    return {"uid": str(r["uid"]), "status": r["status"], "manifest_uid": str(r["manifest_uid"]), "scope": r["scope"],
+            "type": r["manifest_type"], "version": r["version"], "manifest_status": r["manifest_status"], "trip_no": r["trip_no"],
+            "departure_at": _iso(r["departure_at"]), "carrier": r["carrier"], "border_point": r["border_point"],
+            "persons": r["persons_count"], "sha256": r["sha256"], "issued_at": _iso(r["issued_at"]), "ack_ref": r["ack_ref"]}
+
+
+@router.get("/manifests/deliveries")
+async def manifest_deliveries(request: Request, status: Optional[Literal["AVAILABLE", "SENT", "ACKNOWLEDGED", "REJECTED"]] = None,
+                              caller: Caller = Depends(api_caller)):
+    """Manifests the platform routed to this authority (study 11.10), newest first, at most 500."""
+    authority = _authority(caller, "manifests:receive")
+    ctx = context(request, caller)
+    async with db.transaction(ctx) as conn:
+        async with db.system_scope(conn, ctx):
+            rows = await conn.fetch(_DELIVERIES + " AND ($2::text IS NULL OR d.status = $2) ORDER BY d.id DESC LIMIT 500", authority, status)
+    return {"deliveries": [_delivery_row(r) for r in rows]}
+
+
+async def _delivery(conn, authority: int, uid: uuid.UUID):
+    d = await conn.fetchrow(_DELIVERIES + " AND d.uid = $2", authority, uid)
+    if d is None:
+        raise not_found("delivery")
+    return d
+
+
+@router.get("/manifests/deliveries/{uid}")
+async def manifest_delivery(uid: uuid.UUID, request: Request, caller: Caller = Depends(api_caller)):
+    """The manifest of one delivery. Full document numbers only where the route was approved for them; otherwise the
+    last four characters."""
+    authority = _authority(caller, "manifests:receive")
+    ctx = context(request, caller)
+    async with db.transaction(ctx) as conn:
+        async with db.system_scope(conn, ctx):
+            d = await _delivery(conn, authority, uid)
+            people = await conn.fetch(
+                """SELECT mp.id, mp.person_role, mp.full_name, mp.age_category, mp.doc_type, mp.doc_no_enc, mp.enc_key_id, mp.doc_last4,
+                          mp.issuing_country, mp.doc_expiry, mp.nationality, mp.birth_date, mp.sex, mp.seat_label,
+                          se.code AS embark, sd.code AS disembark
+                     FROM brd.manifest_person mp LEFT JOIN net.station se ON se.id = mp.embark_station_id
+                     LEFT JOIN net.station sd ON sd.id = mp.disembark_station_id WHERE mp.manifest_id = $1 ORDER BY mp.person_role, mp.id""",
+                d["manifest_id"])
+            vehicles = await conn.fetch("SELECT plate_no, plate_country, chassis_no FROM brd.manifest_vehicle WHERE manifest_id = $1",
+                                        d["manifest_id"])
+            c = await cipher(conn)
+    out = []
+    for p in people:
+        doc_no = None
+        if d["include_documents"] and p["doc_no_enc"]:
+            try:
+                doc_no = c.decrypt(p["doc_no_enc"], p["enc_key_id"], "brd.manifest_person.doc_no")
+            except Exception:
+                doc_no = None
+        out.append({"id": p["id"], "role": p["person_role"], "full_name": p["full_name"], "category": p["age_category"],
+                    "doc_type": p["doc_type"], "doc_no": doc_no, "doc_last4": p["doc_last4"], "issuing_country": p["issuing_country"],
+                    "doc_expiry": _iso(p["doc_expiry"]), "nationality": p["nationality"], "birth_date": _iso(p["birth_date"]), "sex": p["sex"],
+                    "seat": p["seat_label"], "embark": p["embark"], "disembark": p["disembark"]})
+    request.state.audit = {"action": "manifest.delivery_read", "object_type": "brd.manifest_delivery", "object_id": d["id"]}
+    return {**_delivery_row(d), "people": out, "vehicles": [dict(v) for v in vehicles]}
+
+
+class DeliveryAck(BaseModel):
+    status: Literal["ACKNOWLEDGED", "REJECTED"]
+    ack_ref: Optional[str] = Field(default=None, max_length=80)
+    reason: Optional[str] = Field(default=None, max_length=300)
+    decisions: list[Decision] = Field(default_factory=list, max_length=500)
+
+
+@router.post("/manifests/deliveries/{uid}/ack")
+async def manifest_ack(uid: uuid.UUID, body: DeliveryAck, request: Request, caller: Caller = Depends(api_caller)):
+    """The authority confirms receipt (or refuses the manifest with a reason) and may send decisions on single people."""
+    authority = _authority(caller, "manifests:receive")
+    ctx = context(request, caller)
+    async with db.transaction(ctx) as conn:
+        async with db.system_scope(conn, ctx):
+            d = await _delivery(conn, authority, uid)
+            if d["status"] in ("ACKNOWLEDGED", "REJECTED"):
+                raise ApiError(409, "ALREADY_ANSWERED", "this delivery was already answered", delivery_status=d["status"])
+            for x in body.decisions:
+                if x.subject == "PERSON" and not (x.subject_id and await conn.fetchval(
+                        "SELECT 1 FROM brd.manifest_person WHERE id = $1 AND manifest_id = $2", x.subject_id, d["manifest_id"])):
+                    raise ApiError(422, "SUBJECT_NOT_IN_MANIFEST", "this subject is not part of the manifest", subject_id=x.subject_id)
+            await conn.executemany(
+                """INSERT INTO brd.manifest_response (manifest_id, subject_type, subject_id, decision, reason_code, silent_flag)
+                   VALUES ($1, $2, $3, $4, $5, $6)""",
+                [(d["manifest_id"], x.subject, x.subject_id, x.decision, x.reason_code, x.silent) for x in body.decisions])
+            await conn.execute(
+                """UPDATE brd.manifest_delivery SET status = $2, ack_ref = $3, reject_reason = $4, acknowledged_at = now() WHERE id = $1""",
+                d["id"], body.status, body.ack_ref, body.reason)
+    request.state.audit = {"action": "manifest.delivery_ack", "object_type": "brd.manifest_delivery", "object_id": d["id"],
+                           "reason": body.status}
+    return {"delivery": str(uid), "status": body.status, "decisions": len(body.decisions)}
+
+
 # ------------------------------------------------------------------ webhooks (self-service for the client)
 class WebhookIn(BaseModel):
     url: str = Field(min_length=10, max_length=500)

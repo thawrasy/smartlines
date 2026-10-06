@@ -25,6 +25,14 @@
     "subject": "{doc_type} needs attention",
     "body": "Your {doc_type} was not approved: {note}. Please upload a corrected document."
   },
+  "family.link_requested": {
+    "subject": "A family member asks to link their account",
+    "body": "A family member entered your code on another device ({device_label}). Open Family in the app to approve or reject the account."
+  },
+  "family.link_approved": {
+    "subject": "Your account is linked to {family}",
+    "body": "The head of {family} approved your account. Trips and passes you buy are now paid as the head decided, within the times and routes they allow."
+  },
   "cities": {
     "ALP": "Aleppo",
     "DAM": "Damascus",

@@ -7,7 +7,7 @@ ledger postings are identical for both, so they live here once.
 import json
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import Optional
 
 import asyncpg
@@ -17,6 +17,8 @@ from ...config import get_settings
 from ...errors import ApiError, not_found
 from ...ledger import company_wallet, platform_wallet, post_txn, user_wallet
 from ...util import booking_ref, row_dict, ticket_name, ticket_no
+from ..family import service as fam
+from ..fares import categories as cat
 from ..notify.outbox import emit
 from . import documents, repository as repo
 from .models import MAX_LOCKED_SEATS, BookingIn, HoldIn
@@ -82,23 +84,155 @@ async def release_hold(conn: asyncpg.Connection, user_id: int, token: uuid.UUID)
     return await repo.release_segments(conn, token, user_id)
 
 
-async def quote(conn: asyncpg.Connection, trip: asyncpg.Record, body: BookingIn, buyer: Buyer) -> dict:
+@dataclass
+class Traveller:
+    """One passenger of a booking request, with the identity resolved from a family member when one is named."""
+    index: int                      # 1-based position on the booking
+    nationality: str
+    first_name: str
+    father_name: Optional[str]
+    grandfather_name: Optional[str]
+    last_name: str
+    seat_no: Optional[int]
+    id_type: Optional[str]
+    id_no: Optional[str]
+    id_last4: Optional[str]
+    passport_expiry: Optional[date]
+    birth_date: Optional[date]
+    gender: Optional[str]
+    mobile: Optional[str]
+    claimed: Optional[str]
+    with_adult: Optional[int]
+    member: Optional[asyncpg.Record] = None
+    category: str = "ADULT"
+    fare: int = 0
+
+    @property
+    def full_name(self) -> str:
+        return " ".join(p for p in (self.first_name, self.father_name, self.grandfather_name, self.last_name) if p)
+
+
+async def travellers(conn: asyncpg.Connection, ctx: db.Context, body: BookingIn, membership: Optional[fam.Membership]) -> list[Traveller]:
+    """The passengers as booked; a family member's stored identity replaces whatever the form sent for them."""
+    out, seen = [], set()
+    for i, p in enumerate(body.passengers, start=1):
+        t = Traveller(i, p.nationality, p.first_name, p.father_name, p.grandfather_name, p.last_name, p.seat_no, p.id_type, p.id_no,
+                      p.id_last4, p.passport_expiry, p.birth_date, p.gender, p.mobile, p.category, p.with_adult)
+        if p.family_member_uid:
+            if membership is None:
+                raise ApiError(404, "NOT_IN_FAMILY", "this traveller is not a member of your family")
+            if p.family_member_uid in seen:
+                raise ApiError(422, "DUPLICATE_MEMBER", "a family member is booked twice")
+            seen.add(p.family_member_uid)
+            async with db.system_scope(conn, ctx):
+                m = await conn.fetchrow(
+                    "SELECT * FROM iam.family_member WHERE family_id = $1 AND uid = $2 AND status = 'ACTIVE'",
+                    membership.family["id"], p.family_member_uid)
+                if m is None:
+                    raise ApiError(404, "NOT_IN_FAMILY", "this traveller is not a member of your family")
+                if membership.role == "MEMBER" and m["id"] != membership.member["id"]:
+                    raise ApiError(403, "FAMILY_HEAD_ONLY", "only the head books for other family members")
+                doc = await fam.member_document(conn, m) if not p.id_no else None
+            t.member = m
+            # the register is the source; a name part it lacks (the head's own record, built from the account) comes from the form
+            t.nationality, t.first_name, t.father_name = m["nationality"], m["first_name"], m["father_name"] or p.father_name
+            t.grandfather_name, t.last_name = m["grandfather_name"] or p.grandfather_name, m["last_name"]
+            t.birth_date, t.gender = m["birth_date"], m["gender"] or p.gender
+            t.mobile = p.mobile or m["mobile"]
+            if doc:
+                t.id_type, t.id_no, t.passport_expiry = m["id_type"], doc, m["passport_expiry"]
+        out.append(t)
+    return out
+
+
+async def price(conn: asyncpg.Connection, trip: asyncpg.Record, body: BookingIn, buyer: Buyer, people: list[Traveller],
+                travel: date) -> dict:
+    """Fare of every traveller by category (4.19), the carrier's family offer, and the totals.
+
+    An infant on a lap has no seat and pays the infant fare; an infant given a seat pays the child fare. Children and
+    infants whose band needs an adult cannot travel without one, and each adult carries at most max_per_adult lap infants.
+    """
     brand = await conn.fetchrow(
         "SELECT code, name, factor, rules FROM pricing.fare_brand WHERE code = $1 AND active", body.fare_brand)
     if brand is None:
         raise ApiError(422, "UNKNOWN_FARE_BRAND", "unknown fare brand")
     pair = await repo.pair_price(conn, trip["id"], body.from_seq, body.to_seq)
-    fare = round_unit(pair * float(brand["factor"]))
-    fares_total = fare * len(body.passengers)
+    adult_fare = round_unit(pair * float(brand["factor"]))
+    b = await cat.bands(conn, trip["company_id"])
+    for t in people:
+        t.category = cat.category_for(b, t.birth_date, travel, t.claimed)
+        if t.seat_no is None:
+            infant = b.get("INFANT")
+            if t.category != "INFANT" or infant is None or infant.seat_required:
+                raise ApiError(422, "SEAT_REQUIRED", f"passenger {t.index} needs a seat", passenger=t.index)
+    adults = [t for t in people if t.category == "ADULT"]
+    if not adults and any(b[t.category].needs_adult for t in people if t.category in b):
+        raise ApiError(422, "ADULT_REQUIRED", "children and infants travel with an adult on the same booking")
+    laps = [t for t in people if t.seat_no is None]
+    if laps:
+        per = b["INFANT"].max_per_adult or 1
+        load = {a.index: 0 for a in adults}
+        for t in laps:
+            if t.with_adult is None:
+                t.with_adult = next((i for i, n in load.items() if n < per), None)
+                if t.with_adult is None:
+                    raise ApiError(422, "TOO_MANY_LAP_INFANTS", f"one adult carries at most {per} infant(s) on the lap")
+            if t.with_adult not in load:
+                raise ApiError(422, "LAP_ADULT_INVALID", "an infant on a lap must be carried by an adult on this booking", passenger=t.index)
+            load[t.with_adult] += 1
+            if load[t.with_adult] > per:
+                raise ApiError(422, "TOO_MANY_LAP_INFANTS", f"one adult carries at most {per} infant(s) on the lap")
+    for t in people:
+        charged = "CHILD" if t.category == "INFANT" and t.seat_no is not None and "CHILD" in b else t.category
+        t.fare = await cat.category_fare(conn, trip["company_id"], trip["route_id"], charged, adult_fare, travel, trip["currency"])
+    gross = sum(t.fare for t in people)
+    family = [t for t in people if t.member is not None]
+    offer = None
+    if len(family) >= 2:
+        fa = sum(t.category == "ADULT" for t in family)
+        offer = await cat.family_offer(conn, trip["company_id"], trip["route_id"], "TICKETS", travel, len(family), fa,
+                                       len(family) - fa, sum(t.fare for t in family), len(family))
+    discount = offer.discount if offer else 0
+    if discount:                                  # spread over the family's tickets so each ticket keeps its own fare
+        left = discount
+        fam_fares = sum(t.fare for t in family)
+        for k, t in enumerate(family):
+            cut = left if k == len(family) - 1 else (discount * t.fare // fam_fares) // 100 * 100 if fam_fares else 0
+            cut = min(cut, t.fare)
+            t.fare -= cut
+            left -= cut
+    fares_total = sum(t.fare for t in people)
     fee = get_settings().platform_fee
     commission = commission_for(fares_total, buyer.commission_bp)
-    breakdown = {"pair_price": pair, "fare_brand": brand["code"], "factor": float(brand["factor"]),
-                 "fare_per_passenger": fare, "passengers": len(body.passengers), "fares_total": fares_total,
-                 "platform_fee": fee, "total": fares_total + fee, "currency": trip["currency"]}
+    breakdown = {"pair_price": pair, "fare_brand": brand["code"], "factor": float(brand["factor"]), "fare_per_passenger": adult_fare,
+                 "passengers": len(people),
+                 "lines": [{"passenger": t.index, "category": t.category, "seat": t.seat_no is not None, "fare": t.fare} for t in people],
+                 "fares_gross": gross, "fares_total": fares_total, "platform_fee": fee, "total": fares_total + fee,
+                 "currency": trip["currency"]}
+    if offer:
+        breakdown["family_offer"] = {"code": offer.code, "name": offer.name, "discount": discount}
     if buyer.agency_id:
         breakdown["agency_commission"] = commission     # funded by the carrier; the traveller pays the same price
-    return {"brand": brand, "rules": _json(brand["rules"]), "fare": fare, "fares_total": fares_total, "fee": fee,
-            "commission": commission, "total": fares_total + fee, "breakdown": breakdown}
+    return {"brand": brand, "rules": _json(brand["rules"]), "fares_total": fares_total, "fee": fee, "commission": commission,
+            "total": fares_total + fee, "breakdown": breakdown, "offer": offer}
+
+
+async def quote(conn: asyncpg.Connection, ctx: db.Context, body: BookingIn, buyer: Buyer) -> dict:
+    """The price of a booking request before paying, with the line of every traveller."""
+    trip = await conn.fetchrow(
+        "SELECT id, company_id, currency, trip_no, route_id FROM ops.trip WHERE uid = $1 AND status IN ('PUBLISHED','BOARDING')",
+        body.trip_uid)
+    if trip is None:
+        raise not_found("trip")
+    m = await fam.membership(conn, buyer.party_id) if not buyer.agency_id else None
+    people = await travellers(conn, ctx, body, m)
+    travel = await _travel_date(conn, trip["id"], body.from_seq)
+    return (await price(conn, trip, body, buyer, people, travel))["breakdown"]
+
+
+async def _travel_date(conn: asyncpg.Connection, trip_id: int, seq: int) -> date:
+    return await conn.fetchval(
+        "SELECT (sched_dep AT TIME ZONE 'Asia/Damascus')::date FROM ops.trip_stop WHERE trip_id = $1 AND seq = $2", trip_id, seq)
 
 
 async def create_booking(conn: asyncpg.Connection, ctx: db.Context, buyer: Buyer, body: BookingIn,
@@ -106,6 +240,8 @@ async def create_booking(conn: asyncpg.Connection, ctx: db.Context, buyer: Buyer
     """Books held seats and pays from the buyer's wallet in one transaction.
 
     before_payment(conn, total) lets a channel add its own checks (an agency's daily limit) once the price is known.
+    A family head may pay from the family trips account; a linked family member's own booking is paid the way the
+    head chose for them, within the member's limits and travel rules (4.20).
     """
     existing = await conn.fetchval(
         "SELECT booking_ref FROM sales.booking WHERE booker_party_id = $1 AND idempotency_key = $2",
@@ -114,37 +250,59 @@ async def create_booking(conn: asyncpg.Connection, ctx: db.Context, buyer: Buyer
         return {"booking_ref": existing, "replayed": True}
 
     trip = await conn.fetchrow(
-        "SELECT id, company_id, currency, trip_no FROM ops.trip WHERE uid = $1 AND status IN ('PUBLISHED','BOARDING')",
+        "SELECT id, company_id, currency, trip_no, route_id FROM ops.trip WHERE uid = $1 AND status IN ('PUBLISHED','BOARDING')",
         body.trip_uid)
     if trip is None:
         raise not_found("trip")
-    q = await quote(conn, trip, body, buyer)
-    if {p.seat_no for p in body.passengers} != await repo.held_seats(
-            conn, trip["id"], body.hold_token, buyer.user_id, body.from_seq, body.to_seq) \
-            or len({p.seat_no for p in body.passengers}) != len(body.passengers):
+    if buyer.agency_id and any(p.family_member_uid for p in body.passengers):
+        raise ApiError(422, "FAMILY_NOT_AT_AGENCY", "family members are booked from the passenger's own account")
+    membership = await fam.membership(conn, buyer.party_id) if not buyer.agency_id else None
+    people = await travellers(conn, ctx, body, membership)
+    departs = await _travel_date(conn, trip["id"], body.from_seq)
+    q = await price(conn, trip, body, buyer, people, departs)
+    seated = [t.seat_no for t in people if t.seat_no is not None]
+    if set(seated) != await repo.held_seats(conn, trip["id"], body.hold_token, buyer.user_id, body.from_seq, body.to_seq) \
+            or len(set(seated)) != len(seated):
         raise ApiError(409, "HOLD_EXPIRED", "the seat hold has expired; choose seats again")
 
     # International segments: every passenger needs a document accepted at each border crossed (11.9)
-    departs = await conn.fetchval(
-        "SELECT (sched_dep AT TIME ZONE 'Asia/Damascus')::date FROM ops.trip_stop WHERE trip_id = $1 AND seq = $2",
-        trip["id"], body.from_seq)
     reqs: dict = {}
     doc_issues = []
-    for i, p in enumerate(body.passengers, start=1):
-        if p.nationality not in reqs:
-            reqs[p.nationality] = await documents.requirement(conn, trip["id"], body.from_seq, body.to_seq, p.nationality, departs)
-        r = reqs[p.nationality]
-        codes = documents.check(r, p.id_type, p.id_no, p.passport_expiry, departs)
-        documents.enforce(r, [(i, codes)])
+    for t in people:
+        if t.nationality not in reqs:
+            reqs[t.nationality] = await documents.requirement(conn, trip["id"], body.from_seq, body.to_seq, t.nationality, departs)
+        r = reqs[t.nationality]
+        codes = documents.check(r, t.id_type, t.id_no, t.passport_expiry, departs)
+        documents.enforce(r, [(t.index, codes)])
         doc_issues.append(codes)
 
     total = q["total"]
     if before_payment:
         await before_payment(conn, total)
-    wallet = await buyer.wallet(conn, trip["currency"])
+
+    # Who pays (4.20): the buyer, the family trips account, or the head's wallet for a linked member
+    funding, member_payer = "OWN", None
+    if membership and membership.role == "HEAD" and body.pay_from == "FAMILY_ACCOUNT":
+        funding = "FAMILY_ACCOUNT"
+    elif membership and membership.role == "MEMBER" and membership.member["funding"] != "OWN":
+        funding, member_payer = membership.member["funding"], membership.member
+        stops = await conn.fetchrow(
+            """SELECT a.sched_dep, sa.city_id AS from_city, sb.city_id AS to_city
+                 FROM ops.trip_stop a JOIN net.station sa ON sa.id = a.station_id, ops.trip_stop z JOIN net.station sb ON sb.id = z.station_id
+                WHERE a.trip_id = $1 AND a.seq = $2 AND z.trip_id = $1 AND z.seq = $3""", trip["id"], body.from_seq, body.to_seq)
+        await fam.check_rules(conn, member_payer, fam.Journey(stops["sched_dep"], stops["from_city"], stops["to_city"]))
+        await fam.check_limits(conn, member_payer, total)
+    elif body.pay_from == "FAMILY_ACCOUNT":
+        raise ApiError(409, "NO_FAMILY_ACCOUNT", "only the family head pays from the family trips account")
+    if funding == "OWN":
+        wallet = await buyer.wallet(conn, trip["currency"])
+    else:
+        async with db.system_scope(conn, ctx):
+            wallet = await fam.funding_wallet(conn, membership.family, funding, trip["currency"])
     available = wallet["balance"] - wallet["hold_balance"]      # money held for a pending withdrawal is not spendable
     if available < total:
         raise ApiError(402, "INSUFFICIENT_BALANCE", "wallet balance is not enough", required=total, balance=available)
+    family_id = membership.family["id"] if membership and (funding != "OWN" or any(t.member for t in people)) else None
 
     channel_id = await conn.fetchval("SELECT id FROM sales.channel WHERE code = $1", buyer.channel)
     ref = booking_ref()
@@ -153,50 +311,57 @@ async def create_booking(conn: asyncpg.Connection, ctx: db.Context, buyer: Buyer
     booking_id = await conn.fetchval(
         """INSERT INTO sales.booking (booking_ref, trip_id, company_id, booker_party_id, booker_user_id, channel_id,
              status, pay_method, currency, total_amount, price_breakdown, rules_version, idempotency_key,
-             agency_id, contact_mobile)
-           VALUES ($1, $2, $3, $4, $5, $6, 'PENDING_PAYMENT', 'WALLET', $7, $8, $9::jsonb, 'v1', $10, $11, $12)
+             agency_id, contact_mobile, family_id, funded_by_party_id, funding_source)
+           VALUES ($1, $2, $3, $4, $5, $6, 'PENDING_PAYMENT', 'WALLET', $7, $8, $9::jsonb, 'v1', $10, $11, $12, $13, $14, $15)
            RETURNING id""",
         ref, trip["id"], trip["company_id"], buyer.party_id, buyer.user_id, channel_id, trip["currency"], total,
-        json.dumps(q["breakdown"]), body.idempotency_key, buyer.agency_id, buyer.contact_mobile)
+        json.dumps(q["breakdown"]), body.idempotency_key, buyer.agency_id, buyer.contact_mobile, family_id,
+        membership.family["head_party_id"] if funding != "OWN" else None, funding if family_id else None)
 
     async with db.system_scope(conn, ctx):
         fc = await crypto.cipher(conn)
-        for i, p in enumerate(body.passengers, start=1):
+        pids: dict[int, int] = {}
+        for t in sorted(people, key=lambda x: x.seat_no is None):       # adults and seated travellers first, lap infants last
             enc = bidx = key_id = None
-            masked = p.id_last4
-            if p.id_no:
-                sealed = fc.encrypt(p.id_no, "sales.passenger.id_no")
+            masked = t.id_last4
+            if t.id_no:
+                sealed = fc.encrypt(t.id_no, "sales.passenger.id_no")
                 enc, key_id = sealed.ciphertext, sealed.key_id
-                bidx = fc.blind_index(p.id_no, f"{p.id_type}:{p.nationality}")
-                masked = crypto.last4(p.id_no)
+                bidx = fc.blind_index(t.id_no, f"{t.id_type}:{t.nationality}")
+                masked = crypto.last4(t.id_no)
             pid = await conn.fetchval(
                 """INSERT INTO sales.passenger (booking_id, full_name, first_name, father_name, grandfather_name,
                      last_name, nationality, id_type, id_no_last4, mobile, id_no_enc, id_no_bidx, enc_key_id,
-                     passport_expiry, passport_country)
-                   VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING id""",
-                booking_id, p.full_name, p.first_name, p.father_name, p.grandfather_name, p.last_name,
-                p.nationality, p.id_type, masked, p.mobile, enc, bidx, key_id,
-                p.passport_expiry if p.id_type == "PASSPORT" else None, p.nationality if p.id_type == "PASSPORT" else None)
+                     passport_expiry, passport_country, passenger_category, birth_date, gender, party_id, family_member_id,
+                     accompanied_by_passenger_id)
+                   VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21) RETURNING id""",
+                booking_id, t.full_name, t.first_name, t.father_name, t.grandfather_name, t.last_name,
+                t.nationality, t.id_type, masked, t.mobile, enc, bidx, key_id,
+                t.passport_expiry if t.id_type == "PASSPORT" else None, t.nationality if t.id_type == "PASSPORT" else None,
+                t.category, t.birth_date, t.gender, t.member["party_id"] if t.member else None, t.member["id"] if t.member else None,
+                pids.get(t.with_adult) if t.seat_no is None else None)
+            pids[t.index] = pid
             tid = await conn.fetchval(
                 """INSERT INTO sales.ticket (ticket_no, booking_id, passenger_id, trip_id, from_seq, to_seq, seat_no,
                      fare_brand_code, fare_amount, total_amount, rules_snapshot)
                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $9, $10::jsonb) RETURNING id""",
-                ticket_no(ref, i), booking_id, pid, trip["id"], body.from_seq, body.to_seq, p.seat_no,
-                q["brand"]["code"], q["fare"], json.dumps({"brand": q["brand"]["code"], **q["rules"]}))
-            r = reqs[p.nationality]
+                ticket_no(ref, t.index), booking_id, pid, trip["id"], body.from_seq, body.to_seq, t.seat_no,
+                q["brand"]["code"], t.fare, json.dumps({"brand": q["brand"]["code"], **q["rules"], "category": t.category}))
+            r = reqs[t.nationality]
             if r.international:
                 await conn.execute(
                     """INSERT INTO sales.ticket_doc (ticket_id, entry_rule_id, dest_country, passport_expiry, doc_type, exception,
                          status, issues, source)
                        VALUES ($1, $2, $3, $4, $5, $6, 'PENDING', $7::jsonb, $8)""",
-                    tid, r.destination_rule_id, r.destination, p.passport_expiry if p.id_type == "PASSPORT" else None, p.id_type,
-                    p.id_type is not None and p.id_type != "PASSPORT", json.dumps(doc_issues[i - 1]),
+                    tid, r.destination_rule_id, r.destination, t.passport_expiry if t.id_type == "PASSPORT" else None, t.id_type,
+                    t.id_type is not None and t.id_type != "PASSPORT", json.dumps(doc_issues[t.index - 1]),
                     "AGENT" if buyer.agency_id else "PASSENGER")
-            await conn.execute(
-                """UPDATE ops.seat_segment SET status = 'SOLD', ticket_id = $4, lock_token = NULL,
-                     lock_user_id = NULL, lock_expires_at = NULL
-                   WHERE trip_id = $1 AND seat_no = $2 AND lock_token = $3""",
-                trip["id"], p.seat_no, body.hold_token, tid)
+            if t.seat_no is not None:
+                await conn.execute(
+                    """UPDATE ops.seat_segment SET status = 'SOLD', ticket_id = $4, lock_token = NULL,
+                         lock_user_id = NULL, lock_expires_at = NULL
+                       WHERE trip_id = $1 AND seat_no = $2 AND lock_token = $3""",
+                    trip["id"], t.seat_no, body.hold_token, tid)
 
         # Price allocation (5.7): every leaf waits in escrow until the trip completes
         platform = await platform_wallet(conn, "PLATFORM", trip["currency"])
@@ -216,9 +381,12 @@ async def create_booking(conn: asyncpg.Connection, ctx: db.Context, buyer: Buyer
             [(alloc_id, *line) for line in lines])
         await conn.execute("UPDATE sales.booking SET price_allocation_id = $2 WHERE id = $1", booking_id, alloc_id)
 
-        await post_txn(conn, "BOOKING_PAY", trip["currency"], f"booking:{booking_id}:pay",
+        pay_txn = await post_txn(conn, "BOOKING_PAY", trip["currency"], f"booking:{booking_id}:pay",
                        [(wallet["id"], "DR", total), (escrow["id"], "CR", total)],
                        ref_type="booking", ref_id=booking_id, user_id=buyer.user_id, memo=ref)
+        if member_payer is not None:
+            await fam.log_spend(conn, membership.family["id"], member_payer["id"], funding, total, trip["currency"], "booking",
+                                booking_id, buyer.user_id, pay_txn)
         await conn.execute("UPDATE sales.booking SET status = 'CONFIRMED', confirmed_at = now() WHERE id = $1", booking_id)
         journey = await conn.fetchrow(
             """SELECT ca.code AS from_city, cb.code AS to_city,
@@ -227,7 +395,7 @@ async def create_booking(conn: asyncpg.Connection, ctx: db.Context, buyer: Buyer
                       ops.trip_stop z JOIN net.station sb ON sb.id = z.station_id JOIN ref.city cb ON cb.id = sb.city_id
                 WHERE a.trip_id = $1 AND a.seq = $2 AND z.trip_id = $1 AND z.seq = $3""", trip["id"], body.from_seq, body.to_seq)
         await emit(conn, "booking.confirmed", "booking", booking_id, {
-            "booking_ref": ref, "trip_no": trip["trip_no"], **dict(journey), "passengers": len(body.passengers),
+            "booking_ref": ref, "trip_no": trip["trip_no"], **dict(journey), "passengers": len(people),
             "total_amount": total, "booker_user_id": buyer.user_id, "agency_id": buyer.agency_id,
             "contact_mobile": buyer.contact_mobile}, company_id=trip["company_id"])
     return {"booking_id": booking_id, "booking_ref": ref, "total": total, "currency": trip["currency"],
@@ -299,10 +467,19 @@ async def cancel_booking(conn: asyncpg.Connection, ctx: db.Context, b: asyncpg.R
         await repo.mark_cancelled(conn, b["id"], reason)
         if refund > 0:
             escrow = await platform_wallet(conn, "ESCROW", b["currency"])
-            wallet = await buyer.wallet(conn, b["currency"])
-            await post_txn(conn, "REFUND", b["currency"], f"booking:{b['id']}:refund",
-                           [(escrow["id"], "DR", refund), (wallet["id"], "CR", refund)],
-                           ref_type="booking", ref_id=b["id"], user_id=buyer.user_id, memo=b["booking_ref"])
+            family = None
+            if b.get("funding_source") in ("HEAD_WALLET", "FAMILY_ACCOUNT"):    # back to whoever paid (4.20)
+                family = await conn.fetchrow("SELECT * FROM iam.family WHERE id = $1", b["family_id"])
+                wallet = await fam.funding_wallet(conn, family, b["funding_source"], b["currency"])
+            else:
+                wallet = await buyer.wallet(conn, b["currency"])
+            txn = await post_txn(conn, "REFUND", b["currency"], f"booking:{b['id']}:refund",
+                                 [(escrow["id"], "DR", refund), (wallet["id"], "CR", refund)],
+                                 ref_type="booking", ref_id=b["id"], user_id=buyer.user_id, memo=b["booking_ref"])
+            spent = await conn.fetchrow("SELECT member_id FROM iam.family_spend WHERE ref_type = 'booking' AND ref_id = $1", b["id"])
+            if family and spent:
+                await fam.log_spend(conn, family["id"], spent["member_id"], b["funding_source"], refund, b["currency"], "refund",
+                                    b["id"], buyer.user_id, txn)
         commission = await conn.fetchval(
             "SELECT amount FROM fin.price_allocation_line WHERE allocation_id = $1 AND code = 'AGENCY_COMMISSION'",
             b["price_allocation_id"]) or 0
