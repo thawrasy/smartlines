@@ -148,7 +148,7 @@ flowchart LR
 
 ## 3. Database integration map
 
-The schema has 22 business schemas and 415 tables in the files `db/schema/000` to `1033` (the complete model of study v2.7; later-phase modules are disabled behind feature flags). The full design, with an ERD per module in the study's colours, is `docs/database/Masslak_Database_Design_and_ERD_v3.0.docx`; file 1033 enforces its relationship rules (primary keys, declared and indexed foreign keys), checked by db/tests. The diagram shows the relationships that the Phase 1 flows use.
+The schema has 24 business schemas and 432 tables in the files `db/schema/000` to `1038` (the complete model of study v2.8; later-phase modules are disabled behind feature flags). The full design, with an ERD per module in the study's colours, is `docs/database/Masslak_Database_Design_and_ERD_v3.2.docx`; file 1033 enforces its relationship rules (primary keys, declared and indexed foreign keys), checked by db/tests. The diagram shows the relationships that the Phase 1 flows use.
 
 ```mermaid
 erDiagram
@@ -262,6 +262,11 @@ Policies follow five patterns (helpers in `1010_model_helpers.sql`, coverage com
 Left to the application layer and grants on purpose: sign-in tables (users, sessions, tokens, MFA factors) that are
 read before a request context exists; public timetable rows of published trips; append-only ledgers (update and
 delete revoked, mutation trigger); ratings shown on public trip pages; SOS events that a passenger raises on any trip.
+
+Company isolation (study 16.26, file 1038): `backend/tests/test_isolation.py` signs in as every company under the
+application role and counts the rows of other companies in every table that has a company column. The only rows allowed
+are listed in the test with the reason (public catalog data, or the two parties of one deal); a new table without a
+policy fails it. Carriers reach the freight market through `frt.open_loads()`, which hides the shipper until award.
 
 ### 4.3 Encryption and keys
 
@@ -511,6 +516,9 @@ one accepted bid per request, one active version per line). `install.sh --demo` 
 | Cargo and parcels | `cargo` | 3 | Platform, Operator, Passenger | 52 |
 | International travel | `international` | 4 | Platform, Operator | 2 |
 | Border manifests | `border_manifest` | 4-6 | Platform, Operator | 9 |
+| Trip manifests | `trip_manifests` | 4-6 (v2.8) | Platform, Operator | 3 |
+| Passenger categories | `passenger_categories` | 1 (v2.8) | Platform, Operator | 3 |
+| Family accounts | `family_accounts` | 1 (v2.8) | Platform, Passenger | 2 |
 | Government links | `gov_adapters` | 5 | Platform | 2 |
 | Stations and tracking | `tracking_stations` | 7 | Platform, Operator | 9 |
 | Freight | `freight` | 8 | Platform, Operator, Passenger | 18 |
@@ -591,3 +599,29 @@ the passenger app.
   `kms://masslak/webhook/v1`.
 * **Console**: `/admin/integrations` (platform security), `/carrier/integrations` and `/agency/integrations` (owners):
   keys, scopes, allowed addresses, webhooks, deliveries and daily usage.
+
+
+---
+
+## 12. Passenger categories, families and carrier-issued manifests (study v2.8)
+
+Schema file 1038 (migration 1.21.0). Feature flags `passenger_categories`, `family_accounts`, `trip_manifests`.
+
+* **Categories (4.19)**: `pricing.passenger_age_band` (platform defaults with `company_id` NULL, replaced by a carrier's
+  own bands; overlaps refused by an exclusion constraint) and `pricing.category_fare_rule` (percentage of the adult fare,
+  fixed or free). `backend/app/modules/fares/categories.py` decides the category from the date of birth on the travel
+  date and prices it. `POST /api/bookings/quote` prices every traveller before payment; booking prices again on the server.
+  Lap infants have no seat and are linked to an adult of the booking (`sales.passenger.accompanied_by_passenger_id`).
+* **Family offers**: `pricing.family_offer`, applied automatically when enough travellers come from the buyer's family
+  register; the discount is spread over the family's tickets (`lines[].fare` after, `lines[].list_fare` before).
+* **Families (4.20)**: `iam.family` (head, FAMILY wallet for trips), `iam.family_member` (encrypted document number),
+  `iam.family_link_request` (one-time code hashed with HMAC, 24 hours, rate limited at `/api/family/join`),
+  `iam.family_travel_rule` (times, routes, lines) and the append-only `iam.family_spend`. API under `/api/family`
+  (`backend/app/modules/family`). A member's purchase on the family's money is checked against the rules and the limits
+  before payment; refunds go back to the wallet that paid. Screens: web `/family`, mobile Services → My family, and the
+  family picker in booking on both.
+* **Manifests (11.10)**: the carrier issues versions (`POST /api/carrier/trips/{uid}/manifests`: before departure, final,
+  amendment, cancellation); each is a snapshot with a SHA-256 of its content. `brd.manifest_route` rules (four-eyes) send
+  each version to one or several authorities as `brd.manifest_delivery`: authorities pull through
+  `/api/v1/manifests/deliveries` (scope `manifests:receive`) and acknowledge, or receive a signed `manifest.available`
+  webhook (six attempts, then failed). Webhooks of authority clients carry only their own deliveries.

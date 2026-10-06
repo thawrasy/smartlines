@@ -219,11 +219,12 @@ GROUPS = [
      ["frt.freight_request", "frt.freight_bid", "frt.freight_contract", "frt.container", "frt.leg_container",
       "frt.handover_event", "frt.port_appointment", "frt.gate_event", "frt.transit_declaration", "frt.escort_assignment",
       "frt.freight_document", "frt.weighbridge_reading", "frt.detention_claim", "frt.freight_claim"]),
-    ("E34", "Border manifest gateway", "11, D.1.8", "security",
+    ("E34", "Border manifest gateway and trip manifests", "11, 11.10 (v2.8), D.1.8", "security",
      "Border points extend border stations; crossing profiles hold each authority's requirements; a manifest is a versioned "
-     "snapshot of persons, vehicles and cargo, answered by responses and checked by discrepancies.",
+     "snapshot of persons, vehicles and cargo, issued by the carrier for domestic and international trips, answered by responses "
+     "and checked by discrepancies. Approved routing rules send each version to one or several authorities as deliveries.",
      ["brd.border_point", "brd.crossing_profile", "brd.manifest", "brd.manifest_person", "brd.manifest_vehicle",
-      "brd.manifest_cargo", "brd.manifest_response", "brd.manifest_discrepancy"]),
+      "brd.manifest_cargo", "brd.manifest_response", "brd.manifest_discrepancy", "brd.manifest_route", "brd.manifest_delivery"]),
     ("E35", "Contracted transport", "D.2", "trip",
      "Contracts between an institution or employer and a carrier, with routes, riders, authorised receivers, attendance and "
      "invoices.",
@@ -244,6 +245,12 @@ GROUPS = [
      "Saved custom report definitions (private or shared within the company), the append-only log of every report run and export "
      "with the file's SHA-256, and scheduled e-mail delivery.",
      ["rpt.report_definition", "rpt.report_run", "rpt.report_schedule"]),
+    ("E39", "Passenger categories and family accounts", "4.19, 4.20 (v2.8)", "booking",
+     "Age bands and child and infant fares per carrier (platform defaults where the carrier sets none) and family offers; a family "
+     "headed by one passenger with its members, link requests from members' own devices, travel rules per member and the "
+     "append-only spending log.",
+     ["pricing.passenger_age_band", "pricing.category_fare_rule", "pricing.family_offer", "iam.family", "iam.family_member",
+      "iam.family_link_request", "iam.family_travel_rule", "iam.family_spend"]),
 ]
 
 # Focus diagrams: one business rule across modules; tables keep their own module colour (family None)
@@ -275,7 +282,7 @@ DATA_STORES = [
     ("D3", "Fleet and crews", ["E06", "E07"], []),
     ("D4", "Network and tariffs", ["E04", "E05"], ["ref.city"]),
     ("D5", "Trips and inventory", ["E08"], []),
-    ("D6", "Bookings and tickets", ["E11"], []),
+    ("D6", "Bookings and tickets", ["E11", "E39"], []),
     ("D7", "Pricing and allocation", ["E13", "E14"], ["fin.price_allocation", "fin.price_allocation_line"]),
     ("D8", "Wallets and ledger", ["E16"], ["fin.payout", "fin.payout_schedule"]),
     ("D9", "Tracking and operations", ["E09"], ["ops.trip_stop_event"]),

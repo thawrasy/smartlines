@@ -11,7 +11,7 @@ const {
 const HERE = __dirname;
 const model = JSON.parse(fs.readFileSync(path.join(HERE, "..", "build", "model.json"), "utf8"));
 const PNG = path.join(HERE, "..", "erd", "png");
-const VERSION = "3.1";
+const VERSION = "3.2";
 const DATE = "5 October 2026";
 const FONT = "Arial";
 const C = { navy: "1F3A5F", blue: "2E74B5", blue2: "1F4D78", grid: "B7C3D0", alt: "F2F6FA", grey: "595959" };
@@ -100,11 +100,11 @@ front.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 16
 front.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 160 },
   children: [new TextRun({ text: "Database Design and Entity-Relationship Diagrams", font: FONT, size: 30, bold: true, color: C.blue })] }));
 front.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 1200 },
-  children: [run(`Complete relational model of the Analysis and Design Study v2.7: ${tableCount} tables, ${fkCount} relationships`, { color: "7F7F7F" })] }));
+  children: [run(`Complete relational model of the Analysis and Design Study v2.8: ${tableCount} tables, ${fkCount} relationships`, { color: "7F7F7F" })] }));
 front.push(table(["Item", "Details"], [
   ["Version", `${VERSION} (reports, payment integration and the integration API on the relational design of 3.0; replaces version 3.0)`],
   ["Date", DATE],
-  ["Basis", "Analysis and Design Study v2.7 (English) and the Use Case and Data Flow Diagrams v1.0"],
+  ["Basis", "Analysis and Design Study v2.8 (English) and the Use Case and Data Flow Diagrams v1.0"],
   ["Scope", `${schemas.length} schemas, ${tableCount} tables, ${colCount} columns, ${fkCount} foreign keys; all phases 1 to 15`],
   ["Engine", "PostgreSQL 16 with row-level security; schema files db/schema/000 to 1036"],
   ["Status", "Built and verified: fresh build and upgrade identical, 114 automated checks passing, every foreign key indexed or exempt by rule"],
@@ -112,12 +112,37 @@ front.push(table(["Item", "Details"], [
 ], [2800, 6946]));
 
 const toc = [H(HeadingLevel.HEADING_1, "Contents", { pageBreak: true })];
-const tocLines = ["Changes in version 3.1", "Changes in version 3.0", "1. Introduction", "2. Database architecture", "3. Design rules", "4. Security model in the database",
+const tocLines = ["Changes in version 3.2", "Changes in version 3.1", "Changes in version 3.0", "1. Introduction", "2. Database architecture", "3. Design rules", "4. Security model in the database",
   "5. Data stores of the data flow diagrams", "6. Entity-relationship diagrams by module",
   ...model.groups.map((g, i) => `      6.${i + 1} ${g[0]} ${g[1]}`), `      6.${model.groups.length + 1} Focus diagrams: rules that span modules`,
   "7. Table definitions", "8. Traceability to the study", "9. Verification",
   "Appendix A: Feature flags", "Appendix B: Generalizations and naming decisions", "Appendix C: References without a foreign key"];
 for (const l of tocLines) toc.push(P(l, { after: 40, size: 20 }));
+
+// ------------------------------ changes in 3.2 ------------------------------
+const changes32 = [H(HeadingLevel.HEADING_1, "Changes in version 3.2", { pageBreak: true }),
+  P("Version 3.2 follows the Analysis and Design Study v2.8: passenger categories and family accounts (4.19, 4.20), manifests issued by "
+    + "the carrier for domestic and international trips and routed to the linked authorities (11.10), and the isolation of data between "
+    + "companies, carriers and shippers (16.26). The four relationship rules of chapter 3.2 hold for every new table and column."),
+  table(["Schema file", "Migration", "What it adds"], [
+    ["1038_passengers_families_manifests.sql", "1.21.0", "Age bands per carrier with platform defaults that may not overlap (exclusion constraint), child and infant "
+      + "fare rules, family offers; families with members (encrypted document numbers), link requests from members' own devices, travel rules "
+      + "per member and an append-only spending log; a FAMILY wallet type; family and funding columns on bookings, passengers and subscriptions, "
+      + "the fare category and the carrying adult of lap infants. Diagram E39."],
+    ["1038_passengers_families_manifests.sql", "1.21.0", "Manifests of domestic trips (border point optional, scope, issuer, SHA-256 of the content, superseded version), persons with "
+      + "the fare category and seat label, documents required only on international manifests; four-eyes routing rules to authorities and one delivery "
+      + "per manifest version and authority. Diagram E34."],
+    ["1038_passengers_families_manifests.sql", "1.21.0", "Row-level security added or tightened on containers, freight requests, rate cards and tables, hubs, routing rules, linehaul "
+      + "schedules, rental fleet and rates, award seat rules and staff sessions; a market view of open loads without the shipper's identity. "
+      + "An automated sweep checks that no company sees another company's rows."],
+  ], [2300, 1100, 6346], { boldFirst: true }),
+  gap(),
+  table(["Measure", "Version 3.1", "Version 3.2"], [
+    ["Schemas", "24", `${schemas.length}`],
+    ["Module diagrams", "38", `${model.groups.length} (new: E39 passenger categories and family accounts)`],
+    ["Focus diagrams", "3", `${(model.focus || []).length}`],
+  ], [2700, 2400, 4646], { boldFirst: true }),
+];
 
 // ------------------------------ changes in 3.1 ------------------------------
 const changes31 = [H(HeadingLevel.HEADING_1, "Changes in version 3.1", { pageBreak: true }),
@@ -165,10 +190,10 @@ const changes = [H(HeadingLevel.HEADING_1, "Changes in version 3.0", { pageBreak
 const intro = [H(HeadingLevel.HEADING_1, "1. Introduction", { pageBreak: true }),
   H(HeadingLevel.HEADING_2, "1.1 Purpose"),
   P("This document is the database design of the Masslak platform. It redevelops the data model so that every entity and relationship "
-    + "of the Analysis and Design Study v2.7 has a table, keys and constraints in the database, and it draws the relationships of each module "
+    + "of the Analysis and Design Study v2.8 has a table, keys and constraints in the database, and it draws the relationships of each module "
     + "as an entity-relationship diagram in the colours of the study."),
   H(HeadingLevel.HEADING_2, "1.2 Sources and scope"),
-  bullet("the Analysis and Design Study v2.7 (English), including appendix D (additional phases 13 to 15) and the revised travel document rules of 11.9.1;", "Study"),
+  bullet("the Analysis and Design Study v2.8 (English), including appendix D (additional phases 13 to 15), the travel document rules of 11.9.1, passenger categories and family accounts (4.19, 4.20), carrier-issued manifests (11.10) and data isolation (16.26);", "Study"),
   bullet("the Use Case and Data Flow Diagrams v1.0, whose data stores D1 to D17 are mapped to tables in chapter 5;", "Diagrams"),
   bullet("the PostgreSQL schema in db/schema, built and tested; every diagram and table definition here is generated from the built database, "
     + "so the document cannot drift from the schema.", "Database"),
@@ -476,7 +501,7 @@ const doc = new Document({
   numbering: { config: [{ reference: "bullets", levels: [{ level: 0, format: LevelFormat.BULLET, text: "•", alignment: AlignmentType.LEFT,
     style: { paragraph: { indent: { left: 540, hanging: 270 } } } }] }] },
   sections: [
-    section(PORTRAIT, [...front, ...toc, ...changes31, ...changes, ...intro, ...arch, ...rules, ...security, ...stores]),
+    section(PORTRAIT, [...front, ...toc, ...changes32, ...changes31, ...changes, ...intro, ...arch, ...rules, ...security, ...stores]),
     ...erdSections,
     section(PORTRAIT, [...defs, ...trace, ...verify, ...flags, ...gens, ...appC]),
   ],

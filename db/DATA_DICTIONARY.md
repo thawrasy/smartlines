@@ -2,18 +2,18 @@
 
 > Generated from the built database (`db/tools/gen_docs.py`); do not edit by hand.
 
-**422 tables, 4201 columns, in 24 schemas.**
+**432 tables, 4371 columns, in 24 schemas.**
 
 Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant isolation (RLS) · 🧩 partitioned monthly · 🔒 append-only / change-protected
 
 ## Index
 
-- [`iam` — Identity, parties, users, permissions and API clients](#iam) (25 tables)
+- [`iam` — Identity, parties, users, permissions and API clients](#iam) (30 tables)
 - [`ref` — Reference data, locales and files](#ref) (12 tables)
 - [`sys` — Settings, outbox and webhooks](#sys) (7 tables)
 - [`net` — Network: stations, routes, lines, corridors and geofences](#net) (21 tables)
 - [`fleet` — Fleet: vehicles, trucks, trailers, seats, crew, licenses and insurance](#fleet) (20 tables)
-- [`pricing` — Pricing, taxes, commissions, campaigns and loyalty](#pricing) (32 tables)
+- [`pricing` — Pricing, taxes, commissions, campaigns and loyalty](#pricing) (35 tables)
 - [`ops` — Trips, inventory, operations, shuttle rides, tracking and incidents](#ops) (30 tables)
 - [`sales` — Channels, bookings, passengers, tickets, subscriptions and travel documents](#sales) (27 tables)
 - [`fin` — Wallets, ledger, payments, allocation, settlement and float](#fin) (23 tables)
@@ -25,7 +25,7 @@ Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant i
 - [`ptn` — Service partners: fuel stations, rest stops and maintenance](#ptn) (14 tables)
 - [`ship` — Shipments and the integrated shipping network](#ship) (55 tables)
 - [`frt` — Trucking, heavy transport and transit freight](#frt) (14 tables)
-- [`brd` — Border manifest gateway](#brd) (8 tables)
+- [`brd` — Border manifest gateway](#brd) (10 tables)
 - [`ctr` — Contracted transport: schools, universities and employees](#ctr) (6 tables)
 - [`rail` — Rail extension](#rail) (5 tables)
 - [`taxi` — Taxis](#taxi) (7 tables)
@@ -274,6 +274,119 @@ Documents for any entity (polymorphic reference) with file, review and expiry da
 | `uploaded_by` | `bigint` | 🔗 `iam.app_user`  |  |
 | `review_note` | `text` |  |  |
 
+### `iam.family` 🛡️
+
+A passenger's family: the head pays for, books for and controls its members (4.20)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `head_party_id` | `bigint` | 🔗 `iam.party` ✱ |  |
+| `name` | `text` | ✱ |  |
+| `trips_wallet_id` | `bigint` | 🔗 `fin.wallet`  |  |
+| `status` | `text` | ✱ | `'ACTIVE'::text` |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `updated_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `iam.family_link_request` 🛡️
+
+Linking a member's own account opened on another device: the member enters the head's code, the head approves the account and its funding (4.20 c)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `family_id` | `bigint` | 🔗 `iam.family` ✱ |  |
+| `member_id` | `bigint` | 🔗 `iam.family_member` ✱ |  |
+| `invite_code_hash` | `bytea` | ✱ |  |
+| `requester_user_id` | `bigint` | 🔗 `iam.app_user`  |  |
+| `requester_party_id` | `bigint` | 🔗 `iam.party`  |  |
+| `device_label` | `text` |  |  |
+| `device_hash` | `bytea` |  |  |
+| `ip` | `inet` |  |  |
+| `funding` | `text` |  |  |
+| `attempts` | `smallint` | ✱ | `0` |
+| `status` | `text` | ✱ | `'INVITED'::text` |
+| `expires_at` | `timestamp with time zone` | ✱ |  |
+| `submitted_at` | `timestamp with time zone` |  |  |
+| `decided_at` | `timestamp with time zone` |  |  |
+| `decided_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `iam.family_member` 🛡️
+
+A member of a family with full identity details (document number encrypted); funding and limits apply to purchases the member makes on their own device (4.20)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `family_id` | `bigint` | 🔗 `iam.family` ✱ |  |
+| `party_id` | `bigint` | 🔗 `iam.party` ✱ |  |
+| `relation` | `text` | ✱ |  |
+| `first_name` | `text` | ✱ |  |
+| `father_name` | `text` |  |  |
+| `grandfather_name` | `text` |  |  |
+| `last_name` | `text` | ✱ |  |
+| `nationality` | `character(2)` | 🔗 `ref.country` ✱ | `'SY'::bpchar` |
+| `birth_date` | `date` | ✱ |  |
+| `gender` | `text` |  |  |
+| `id_type` | `text` |  |  |
+| `id_no_enc` | `bytea` |  |  |
+| `id_no_bidx` | `bytea` |  |  |
+| `id_no_last4` | `text` |  |  |
+| `passport_expiry` | `date` |  |  |
+| `enc_key_id` | `integer` | 🔗 `sec.key_registry`  |  |
+| `mobile` | `text` |  |  |
+| `account_status` | `text` | ✱ | `'NONE'::text` |
+| `linked_user_id` | `bigint` | 🔗 `iam.app_user`  |  |
+| `funding` | `text` | ✱ | `'HEAD_WALLET'::text` |
+| `per_trip_limit` | `bigint` |  |  |
+| `daily_limit` | `bigint` |  |  |
+| `monthly_limit` | `bigint` |  |  |
+| `status` | `text` | ✱ | `'ACTIVE'::text` |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `updated_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `iam.family_spend` 🛡️ 🔒
+
+Every charge to the head's wallet or the family trips account on behalf of a member; limits are checked against it; append-only
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `family_id` | `bigint` | 🔗 `iam.family` ✱ |  |
+| `member_id` | `bigint` | 🔗 `iam.family_member` ✱ |  |
+| `source` | `text` | ✱ |  |
+| `amount` | `bigint` | ✱ |  |
+| `currency` | `character(3)` | 🔗 `ref.currency` ✱ | `'SYP'::bpchar` |
+| `ref_type` | `text` | ✱ |  |
+| `ref_id` | `bigint` | ✱ |  |
+| `initiated_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `ledger_txn_id` | `bigint` | 🔗 `fin.ledger_txn`  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `iam.family_travel_rule` 🛡️
+
+When and where a member may travel on the family's money: time windows by weekday, city-to-city routes, shuttle lines; no rule of a type means no limit of that type (4.20 d)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `member_id` | `bigint` | 🔗 `iam.family_member` ✱ |  |
+| `rule_type` | `text` | ✱ |  |
+| `days` | `smallint[]` |  |  |
+| `start_time` | `time without time zone` |  |  |
+| `end_time` | `time without time zone` |  |  |
+| `from_city_id` | `bigint` | 🔗 `ref.city`  |  |
+| `to_city_id` | `bigint` | 🔗 `ref.city`  |  |
+| `both_ways` | `boolean` | ✱ | `true` |
+| `line_id` | `bigint` | 🔗 `net.line`  |  |
+| `active` | `boolean` | ✱ | `true` |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
 ### `iam.gov_identity_link` 
 
 Link between the account and the national digital identity (readiness for a Nafath-style system)
@@ -423,7 +536,7 @@ Platform staff roles
 | `granted_at` | `timestamp with time zone` | ✱ | `now()` |
 | `valid_to` | `timestamp with time zone` |  |  |
 
-### `iam.user_session` 
+### `iam.user_session` 🛡️
 
 Active sessions; revoking one ends the login immediately
 
@@ -1570,6 +1683,24 @@ Refund percentages by time before departure; refund requests keep a snapshot of 
 | `status` | `text` | ✱ | `'ACTIVE'::text` |
 | `approved_by` | `bigint` | 🔗 `iam.app_user`  |  |
 
+### `pricing.category_fare_rule` 🛡️
+
+Fare of children and infants: a share of the adult fare, a fixed fare or free; route rows win over carrier rows, carrier rows over the platform default (4.19)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `company_id` | `bigint` | 🔗 `iam.company`  |  |
+| `category` | `text` | ✱ |  |
+| `route_id` | `bigint` | 🔗 `net.route`  |  |
+| `method` | `text` | ✱ |  |
+| `value` | `numeric(12,2)` | ✱ | `0` |
+| `currency` | `character(3)` | 🔗 `ref.currency`  |  |
+| `valid` | `daterange` | ✱ | `daterange(CURRENT_DATE, NULL::date)` |
+| `status` | `text` | ✱ | `'ACTIVE'::text` |
+| `created_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
 ### `pricing.commission_rule` 
 
 
@@ -1604,6 +1735,30 @@ Commission scheme (platform, intermediary, payment, referral) with funder, benef
 | `status` | `text` | ✱ | `'PENDING'::text` |
 | `created_by` | `bigint` | 🔗 `iam.app_user`  |  |
 | `approved_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `pricing.family_offer` 🛡️
+
+Carrier offer for a family travelling or subscribing together; applies when enough registered members of one family are on the booking (4.19 d)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `code` | `text` | ✱ |  |
+| `name` | `text` | ✱ |  |
+| `applies_to` | `text` | ✱ | `'TICKETS'::text` |
+| `min_members` | `smallint` | ✱ | `3` |
+| `min_adults` | `smallint` | ✱ | `1` |
+| `min_minors` | `smallint` | ✱ | `1` |
+| `discount_type` | `text` | ✱ |  |
+| `discount_value` | `numeric(12,2)` | ✱ |  |
+| `max_discount` | `bigint` |  |  |
+| `route_id` | `bigint` | 🔗 `net.route`  |  |
+| `valid` | `daterange` | ✱ | `daterange(CURRENT_DATE, NULL::date)` |
+| `status` | `text` | ✱ | `'DRAFT'::text` |
+| `created_by` | `bigint` | 🔗 `iam.app_user`  |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
 ### `pricing.fare_brand` 🛡️
@@ -1762,6 +1917,25 @@ Points spent at a partner; the basis of partner settlement and of the liability 
 | `commission` | `bigint` | ✱ | `0` |
 | `currency` | `character(3)` | 🔗 `ref.currency` ✱ | `'SYP'::bpchar` |
 | `redeemed_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `pricing.passenger_age_band` 🛡️
+
+Age bands of adults, children and infants set by each carrier; the platform row applies until a carrier sets its own (4.19)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `company_id` | `bigint` | 🔗 `iam.company`  |  |
+| `category` | `text` | ✱ |  |
+| `min_age` | `smallint` | ✱ |  |
+| `max_age` | `smallint` |  |  |
+| `seat_required` | `boolean` | ✱ | `true` |
+| `needs_adult` | `boolean` | ✱ | `false` |
+| `max_per_adult` | `smallint` |  |  |
+| `status` | `text` | ✱ | `'ACTIVE'::text` |
+| `created_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `updated_at` | `timestamp with time zone` | ✱ | `now()` |
 
 ### `pricing.points_account` 
 
@@ -2583,6 +2757,9 @@ Booking: price snapshot, channel, allocation tree and idempotency key; statuses 
 | `updated_at` | `timestamp with time zone` | ✱ | `now()` |
 | `agency_id` | `bigint` | 🔗 `iam.company`  |  |
 | `contact_mobile` | `text` |  |  |
+| `family_id` | `bigint` | 🔗 `iam.family`  |  |
+| `funded_by_party_id` | `bigint` | 🔗 `iam.party`  |  |
+| `funding_source` | `text` |  |  |
 
 ### `sales.campaign_redemption` 🛡️
 
@@ -2826,6 +3003,8 @@ Passenger data on the booking; document numbers encrypted with a blind index for
 | `father_name` | `text` |  |  |
 | `grandfather_name` | `text` |  |  |
 | `last_name` | `text` |  |  |
+| `family_member_id` | `bigint` | 🔗 `iam.family_member`  |  |
+| `accompanied_by_passenger_id` | `bigint` | 🔗 `sales.passenger`  |  |
 
 ### `sales.passenger_compensation` 🛡️
 
@@ -2910,6 +3089,9 @@ Fare zone for zone-based shuttle subscriptions
 | `ledger_txn_id` | `bigint` | 🔗 `fin.ledger_txn`  |  |
 | `status` | `text` | ✱ | `'ACTIVE'::text` |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `family_id` | `bigint` | 🔗 `iam.family`  |  |
+| `purchased_by_party_id` | `bigint` | 🔗 `iam.party`  |  |
+| `family_offer_id` | `bigint` | 🔗 `pricing.family_offer`  |  |
 
 ### `sales.subscription_plan` 🛡️
 
@@ -6456,7 +6638,7 @@ Manifest header: a versioned snapshot per trip and border point (11.6)
 | `uid` | `uuid` | ✱ | `gen_random_uuid()` |
 | `trip_id` | `bigint` | 🔗 `ops.trip` ✱ |  |
 | `crossing_plan_id` | `bigint` | 🔗 `ops.trip_crossing_plan`  |  |
-| `border_point_id` | `bigint` | 🔗 `brd.border_point` ✱ |  |
+| `border_point_id` | `bigint` | 🔗 `brd.border_point`  |  |
 | `profile_id` | `bigint` | 🔗 `brd.crossing_profile`  |  |
 | `version` | `integer` | ✱ | `1` |
 | `manifest_type` | `text` | ✱ |  |
@@ -6465,6 +6647,12 @@ Manifest header: a versioned snapshot per trip and border point (11.6)
 | `status` | `text` | ✱ | `'DRAFT'::text` |
 | `closed_at` | `timestamp with time zone` |  |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `scope` | `text` | ✱ | `'INTERNATIONAL'::text` |
+| `issued_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `issued_at` | `timestamp with time zone` |  |  |
+| `payload_sha256` | `bytea` |  |  |
+| `persons_count` | `integer` |  |  |
+| `supersedes_id` | `bigint` | 🔗 `brd.manifest`  |  |
 
 ### `brd.manifest_cargo` 🛡️
 
@@ -6487,6 +6675,28 @@ Manifest header: a versioned snapshot per trip and border point (11.6)
 | `adr_class` | `text` |  |  |
 | `temp_min_c` | `numeric(4,1)` |  |  |
 | `temp_max_c` | `numeric(4,1)` |  |  |
+
+### `brd.manifest_delivery` 🛡️
+
+One delivery of a manifest version to one authority: pushed, offered for pull, or handled by hand; the carrier sees its status (11.10)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `manifest_id` | `bigint` | 🔗 `brd.manifest` ✱ |  |
+| `route_id` | `bigint` | 🔗 `brd.manifest_route` ✱ |  |
+| `authority_id` | `bigint` | 🔗 `sec.authority_profile` ✱ |  |
+| `channel` | `text` | ✱ |  |
+| `status` | `text` | ✱ | `'PENDING'::text` |
+| `attempts` | `smallint` | ✱ | `0` |
+| `next_attempt_at` | `timestamp with time zone` | ✱ | `now()` |
+| `ack_ref` | `text` |  |  |
+| `reject_reason` | `text` |  |  |
+| `last_error` | `text` |  |  |
+| `sent_at` | `timestamp with time zone` |  |  |
+| `acknowledged_at` | `timestamp with time zone` |  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
 ### `brd.manifest_discrepancy` 🛡️
 
@@ -6515,14 +6725,14 @@ Snapshot of a passenger or crew member; transit passengers carry their Syrian en
 | `person_role` | `text` | ✱ |  |
 | `ticket_id` | `bigint` | 🔗 `sales.ticket`  |  |
 | `crew_party_id` | `bigint` | 🔗 `iam.party`  |  |
-| `doc_type` | `text` | ✱ |  |
-| `doc_no_enc` | `bytea` | ✱ |  |
-| `doc_no_bidx` | `bytea` | ✱ |  |
-| `enc_key_id` | `integer` | 🔗 `sec.key_registry` ✱ |  |
-| `issuing_country` | `character(2)` | 🔗 `ref.country` ✱ |  |
+| `doc_type` | `text` |  |  |
+| `doc_no_enc` | `bytea` |  |  |
+| `doc_no_bidx` | `bytea` |  |  |
+| `enc_key_id` | `integer` | 🔗 `sec.key_registry`  |  |
+| `issuing_country` | `character(2)` | 🔗 `ref.country`  |  |
 | `doc_expiry` | `date` |  |  |
 | `nationality` | `character(2)` | 🔗 `ref.country` ✱ |  |
-| `birth_date` | `date` | ✱ |  |
+| `birth_date` | `date` |  |  |
 | `sex` | `character(1)` |  |  |
 | `embark_station_id` | `bigint` | 🔗 `net.station`  |  |
 | `disembark_station_id` | `bigint` | 🔗 `net.station`  |  |
@@ -6530,6 +6740,10 @@ Snapshot of a passenger or crew member; transit passengers carry their Syrian en
 | `passenger_category` | `text` |  |  |
 | `syria_entry_point_id` | `bigint` | 🔗 `brd.border_point`  |  |
 | `syria_exit_point_id` | `bigint` | 🔗 `brd.border_point`  |  |
+| `full_name` | `text` |  |  |
+| `age_category` | `text` |  |  |
+| `doc_last4` | `text` |  |  |
+| `seat_label` | `text` |  |  |
 
 ### `brd.manifest_response` 🛡️ 🔒
 
@@ -6545,6 +6759,32 @@ Authority decisions per manifest or subject; silent flags are visible to the pla
 | `reason_code` | `text` |  |  |
 | `silent_flag` | `boolean` | ✱ | `false` |
 | `received_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `brd.manifest_route` 🛡️
+
+Which authority receives which manifests and how; activated only by a second platform officer; empty filters match every trip (11.10)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `authority_id` | `bigint` | 🔗 `sec.authority_profile` ✱ |  |
+| `scope` | `text` | ✱ |  |
+| `content_type` | `text` | ✱ | `'ALL'::text` |
+| `manifest_types` | `text[]` | ✱ | `'{PRE_DEPARTURE,FINAL,AMENDMENT,CANCE...` |
+| `country_code` | `character(2)` | 🔗 `ref.country`  |  |
+| `border_point_id` | `bigint` | 🔗 `brd.border_point`  |  |
+| `city_id` | `bigint` | 🔗 `ref.city`  |  |
+| `company_id` | `bigint` | 🔗 `iam.company`  |  |
+| `channel` | `text` | ✱ |  |
+| `format` | `text` | ✱ | `'JSON'::text` |
+| `include_documents` | `boolean` | ✱ | `false` |
+| `legal_basis` | `text` | ✱ |  |
+| `status` | `text` | ✱ | `'DRAFT'::text` |
+| `created_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `approved_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `approved_at` | `timestamp with time zone` |  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
 ### `brd.manifest_vehicle` 🛡️
 

@@ -42,12 +42,12 @@ flowchart LR
   bill -->|1| fin
   bill -->|5| iam
   brd -->|2| fleet
-  brd -->|1| iam
+  brd -->|3| iam
   brd -->|3| net
   brd -->|2| ops
-  brd -->|1| ref
+  brd -->|2| ref
   brd -->|1| sales
-  brd -->|3| sec
+  brd -->|5| sec
   brd -->|2| ship
   crm -->|1| fin
   crm -->|12| iam
@@ -73,8 +73,9 @@ flowchart LR
   frt -->|12| ship
   gov -->|6| iam
   gov -->|1| sec
-  iam -->|1| fin
-  iam -->|2| ref
+  iam -->|3| fin
+  iam -->|1| net
+  iam -->|4| ref
   iam -->|1| sec
   net -->|7| iam
   net -->|3| ref
@@ -85,8 +86,8 @@ flowchart LR
   ops -->|1| ref
   ops -->|2| sales
   pricing -->|1| fin
-  pricing -->|17| iam
-  pricing -->|5| net
+  pricing -->|20| iam
+  pricing -->|7| net
   pricing -->|2| ptn
   pricing -->|1| sales
   ptn -->|2| fin
@@ -110,10 +111,10 @@ flowchart LR
   sales -->|2| acct
   sales -->|5| fin
   sales -->|3| fleet
-  sales -->|22| iam
+  sales -->|27| iam
   sales -->|2| net
   sales -->|8| ops
-  sales -->|4| pricing
+  sales -->|5| pricing
   sales -->|2| ref
   sec -->|1| fleet
   sec -->|6| iam
@@ -218,6 +219,49 @@ erDiagram
     bigint company_id FK
     bigint uploaded_by FK
   }
+  iam_family {
+    bigint id PK
+    uuid uid
+    bigint head_party_id FK
+    bigint trips_wallet_id FK
+    text status
+  }
+  iam_family_link_request {
+    bigint id PK
+    uuid uid
+    bigint family_id FK
+    bigint member_id FK
+    bigint requester_user_id FK
+    bigint requester_party_id FK
+    text status
+    bigint decided_by FK
+  }
+  iam_family_member {
+    bigint id PK
+    uuid uid
+    bigint family_id FK
+    bigint party_id FK
+    character nationality FK
+    integer enc_key_id FK
+    bigint linked_user_id FK
+    text status
+  }
+  iam_family_spend {
+    bigint id PK
+    bigint family_id FK
+    bigint member_id FK
+    character currency FK
+    bigint initiated_by FK
+    bigint ledger_txn_id FK
+  }
+  iam_family_travel_rule {
+    bigint id PK
+    uuid uid
+    bigint member_id FK
+    bigint from_city_id FK
+    bigint to_city_id FK
+    bigint line_id FK
+  }
   iam_gov_identity_link {
     bigint party_id PK
     bigint provider_id PK
@@ -278,7 +322,19 @@ erDiagram
     bigint provider_id FK
     bigint reviewer_id FK
   }
+  fin_ledger_txn {
+    ref external
+  }
   fin_payment_provider {
+    ref external
+  }
+  fin_wallet {
+    ref external
+  }
+  net_line {
+    ref external
+  }
+  ref_city {
     ref external
   }
   ref_locale {
@@ -290,7 +346,9 @@ erDiagram
   sec_authority_profile {
     ref external
   }
+  iam_family_spend }o..o| fin_ledger_txn : "ledger_txn_id"
   iam_api_client }o..o| fin_payment_provider : "payment_provider_id"
+  iam_family }o..o| fin_wallet : "trips_wallet_id"
   iam_api_usage_daily }o--|| iam_api_client : "api_client_id"
   iam_api_key }o--|| iam_api_client : "api_client_id"
   iam_user_role }o--|| iam_app_user : "user_id"
@@ -300,7 +358,10 @@ erDiagram
   iam_user_session }o--|| iam_app_user : "user_id"
   iam_auth_token }o..o| iam_app_user : "user_id"
   iam_device_permission_state }o--|| iam_app_user : "user_id"
+  iam_family_link_request }o..o| iam_app_user : "requester_user_id"
+  iam_family_spend }o..o| iam_app_user : "initiated_by"
   iam_api_client }o..o| iam_app_user : "acting_user_id"
+  iam_family_member }o..o| iam_app_user : "linked_user_id"
   iam_company }o..o| iam_bank_account : "payout_bank_account_id"
   iam_beneficial_owner }o--|| iam_company : "company_id"
   iam_company_member }o--|| iam_company : "company_id"
@@ -311,6 +372,12 @@ erDiagram
   iam_push_token }o--|| iam_device : "device_id"
   iam_device_permission_state }o--|| iam_device : "device_id"
   iam_user_session }o..o| iam_device : "device_id"
+  iam_family_spend }o--|| iam_family : "family_id"
+  iam_family_member }o--|| iam_family : "family_id"
+  iam_family_link_request }o--|| iam_family : "family_id"
+  iam_family_travel_rule }o--|| iam_family_member : "member_id"
+  iam_family_spend }o--|| iam_family_member : "member_id"
+  iam_family_link_request }o--|| iam_family_member : "member_id"
   iam_gov_identity_link }o--|| iam_identity_provider : "provider_id"
   iam_verification }o..o| iam_identity_provider : "provider_id"
   iam_party_role }o--|| iam_party : "party_id"
@@ -320,11 +387,17 @@ erDiagram
   iam_beneficial_owner }o--|| iam_party : "party_id"
   iam_bank_account }o--|| iam_party : "party_id"
   iam_app_user }o--|| iam_party : "party_id"
+  iam_family }o--|| iam_party : "head_party_id"
+  iam_family_member }o--|| iam_party : "party_id"
   iam_api_client }o--|| iam_party : "owner_party_id"
+  iam_family_link_request }o..o| iam_party : "requester_party_id"
   iam_role_permission }o--|| iam_permission : "permission_code"
   iam_role_permission }o--|| iam_role : "role_id"
   iam_user_role }o--|| iam_role : "role_id"
   iam_company_member }o..o| iam_role : "role_id"
+  iam_family_travel_rule }o..o| net_line : "line_id"
+  iam_family_travel_rule }o..o| ref_city : "from_city_id"
+  iam_family_travel_rule }o..o| ref_city : "to_city_id"
   iam_app_user }o--|| ref_locale : "preferred_locale"
   iam_party_role }o--|| ref_party_role_type : "role_code"
   iam_api_client }o..o| sec_authority_profile : "authority_id"
@@ -864,6 +937,14 @@ erDiagram
     text status
     bigint approved_by FK
   }
+  pricing_category_fare_rule {
+    bigint id PK
+    bigint company_id FK
+    bigint route_id FK
+    character currency FK
+    text status
+    bigint created_by FK
+  }
   pricing_commission_rule {
     bigint id PK
     bigint scheme_id FK
@@ -874,6 +955,15 @@ erDiagram
     text status
     bigint created_by FK
     bigint approved_by FK
+  }
+  pricing_family_offer {
+    bigint id PK
+    uuid uid
+    bigint company_id FK
+    text code
+    bigint route_id FK
+    text status
+    bigint created_by FK
   }
   pricing_fare_brand {
     text code PK
@@ -936,6 +1026,12 @@ erDiagram
     bigint token_id FK
     bigint partner_sale_id FK
     character currency FK
+  }
+  pricing_passenger_age_band {
+    bigint id PK
+    bigint company_id FK
+    text status
+    bigint created_by FK
   }
   pricing_points_account {
     bigint id PK
@@ -1060,7 +1156,10 @@ erDiagram
   pricing_pricing_modifier }o..o| iam_company : "company_id"
   pricing_cancellation_policy }o..o| iam_company : "company_id"
   pricing_award_seat_rule }o--|| iam_company : "company_id"
+  pricing_passenger_age_band }o..o| iam_company : "company_id"
+  pricing_category_fare_rule }o..o| iam_company : "company_id"
   pricing_fare_table }o..o| iam_company : "company_id"
+  pricing_family_offer }o--|| iam_company : "company_id"
   pricing_override_policy }o..o| iam_company : "company_id"
   pricing_campaign }o..o| iam_company : "company_id"
   pricing_bin_range }o--|| iam_party : "bank_party_id"
@@ -1073,6 +1172,8 @@ erDiagram
   pricing_award_seat_rule }o..o| net_line : "line_id"
   pricing_fare_table }o..o| net_route : "route_id"
   pricing_award_seat_rule }o..o| net_route : "route_id"
+  pricing_category_fare_rule }o..o| net_route : "route_id"
+  pricing_family_offer }o..o| net_route : "route_id"
   pricing_fare_table_item }o--|| net_station : "from_station_id"
   pricing_fare_table_item }o--|| net_station : "to_station_id"
   pricing_allocation_template_line }o--|| pricing_allocation_template : "template_id"
@@ -1468,6 +1569,8 @@ erDiagram
     character currency FK
     bigint price_allocation_id FK
     bigint agency_id FK
+    bigint family_id FK
+    bigint funded_by_party_id FK
   }
   sales_campaign_redemption {
     bigint id PK
@@ -1562,6 +1665,8 @@ erDiagram
     character passport_country FK
     integer enc_key_id FK
     character nationality FK
+    bigint family_member_id FK
+    bigint accompanied_by_passenger_id FK
   }
   sales_passenger_compensation {
     bigint id PK
@@ -1603,6 +1708,9 @@ erDiagram
     character currency FK
     bigint ledger_txn_id FK
     text status
+    bigint family_id FK
+    bigint purchased_by_party_id FK
+    bigint family_offer_id FK
   }
   sales_subscription_plan {
     bigint id PK
@@ -1678,6 +1786,12 @@ erDiagram
   iam_device {
     ref external
   }
+  iam_family {
+    ref external
+  }
+  iam_family_member {
+    ref external
+  }
   iam_party {
     ref external
   }
@@ -1700,6 +1814,9 @@ erDiagram
     ref external
   }
   pricing_commission_scheme {
+    ref external
+  }
+  pricing_family_offer {
     ref external
   }
   pricing_fare_brand {
@@ -1738,6 +1855,9 @@ erDiagram
   sales_passenger_compensation }o..o| iam_company : "charged_to_company_id"
   sales_booking }o..o| iam_company : "agency_id"
   sales_boarding_event }o..o| iam_device : "device_id"
+  sales_subscription }o..o| iam_family : "family_id"
+  sales_booking }o..o| iam_family : "family_id"
+  sales_passenger }o..o| iam_family_member : "family_member_id"
   sales_passenger }o..o| iam_party : "party_id"
   sales_waitlist_entry }o--|| iam_party : "party_id"
   sales_inspection_check }o--|| iam_party : "inspector_party_id"
@@ -1746,6 +1866,8 @@ erDiagram
   sales_campaign_redemption }o--|| iam_party : "party_id"
   sales_subscription }o--|| iam_party : "party_id"
   sales_booking }o--|| iam_party : "booker_party_id"
+  sales_subscription }o..o| iam_party : "purchased_by_party_id"
+  sales_booking }o..o| iam_party : "funded_by_party_id"
   sales_subscription_plan }o..o| net_line : "line_id"
   sales_channel_inventory_rule }o..o| net_route : "route_id"
   sales_waitlist_entry }o--|| ops_trip : "trip_id"
@@ -1758,6 +1880,7 @@ erDiagram
   sales_ticket }o--|| ops_trip_stop : "trip_id,to_seq"
   sales_campaign_redemption }o--|| pricing_campaign : "campaign_id"
   sales_channel_agreement }o..o| pricing_commission_scheme : "commission_scheme_id"
+  sales_subscription }o..o| pricing_family_offer : "family_offer_id"
   sales_ticket }o..o| pricing_fare_brand : "fare_brand_code"
   sales_campaign_redemption }o..o| pricing_promo_code : "promo_code_id"
   sales_shuttle_zone }o--|| ref_city : "city_id"
@@ -1784,6 +1907,7 @@ erDiagram
   sales_shuttle_pass }o..o| sales_nfc_card : "nfc_card_id"
   sales_boarding_event }o..o| sales_nfc_card : "nfc_card_id"
   sales_ticket }o--|| sales_passenger : "passenger_id"
+  sales_passenger }o..o| sales_passenger : "accompanied_by_passenger_id"
   sales_subscription_plan }o..o| sales_shuttle_zone : "zone_id"
   sales_shuttle_pass }o--|| sales_subscription : "subscription_id"
   sales_subscription }o--|| sales_subscription_plan : "plan_id"
@@ -3866,6 +3990,8 @@ erDiagram
     bigint profile_id FK
     bigint submission_id FK
     text status
+    bigint issued_by FK
+    bigint supersedes_id FK
   }
   brd_manifest_cargo {
     bigint id PK
@@ -3873,6 +3999,14 @@ erDiagram
     bigint shipment_id FK
     bigint leg_id FK
     text cargo_category FK
+  }
+  brd_manifest_delivery {
+    bigint id PK
+    uuid uid
+    bigint manifest_id FK
+    bigint route_id FK
+    bigint authority_id FK
+    text status
   }
   brd_manifest_discrepancy {
     bigint id PK
@@ -3896,6 +4030,18 @@ erDiagram
     bigint id PK
     bigint manifest_id FK
   }
+  brd_manifest_route {
+    bigint id PK
+    uuid uid
+    bigint authority_id FK
+    character country_code FK
+    bigint border_point_id FK
+    bigint city_id FK
+    bigint company_id FK
+    text status
+    bigint created_by FK
+    bigint approved_by FK
+  }
   brd_manifest_vehicle {
     bigint manifest_id PK
     bigint vehicle_id PK
@@ -3906,6 +4052,12 @@ erDiagram
     ref external
   }
   fleet_vehicle {
+    ref external
+  }
+  iam_app_user {
+    ref external
+  }
+  iam_company {
     ref external
   }
   iam_party {
@@ -3921,6 +4073,9 @@ erDiagram
     ref external
   }
   ref_cargo_category {
+    ref external
+  }
+  ref_city {
     ref external
   }
   sales_ticket {
@@ -3940,7 +4095,8 @@ erDiagram
   }
   brd_crossing_profile }o--|| brd_border_point : "border_point_id"
   brd_border_point }o..o| brd_border_point : "counterpart_station_id"
-  brd_manifest }o--|| brd_border_point : "border_point_id"
+  brd_manifest }o..o| brd_border_point : "border_point_id"
+  brd_manifest_route }o..o| brd_border_point : "border_point_id"
   brd_manifest_person }o..o| brd_border_point : "syria_entry_point_id"
   brd_manifest_person }o..o| brd_border_point : "syria_exit_point_id"
   brd_manifest }o..o| brd_crossing_profile : "profile_id"
@@ -3949,8 +4105,13 @@ erDiagram
   brd_manifest_cargo }o--|| brd_manifest : "manifest_id"
   brd_manifest_response }o--|| brd_manifest : "manifest_id"
   brd_manifest_discrepancy }o--|| brd_manifest : "manifest_id"
+  brd_manifest_delivery }o--|| brd_manifest : "manifest_id"
+  brd_manifest }o..o| brd_manifest : "supersedes_id"
+  brd_manifest_delivery }o--|| brd_manifest_route : "route_id"
   brd_manifest_vehicle }o..o| fleet_trailer : "trailer_id"
   brd_manifest_vehicle }o--|| fleet_vehicle : "vehicle_id"
+  brd_manifest }o..o| iam_app_user : "issued_by"
+  brd_manifest_route }o..o| iam_company : "company_id"
   brd_manifest_person }o..o| iam_party : "crew_party_id"
   brd_border_point }o--|| net_station : "station_id"
   brd_manifest_person }o..o| net_station : "embark_station_id"
@@ -3958,9 +4119,12 @@ erDiagram
   brd_manifest }o--|| ops_trip : "trip_id"
   brd_manifest }o..o| ops_trip_crossing_plan : "crossing_plan_id"
   brd_manifest_cargo }o--|| ref_cargo_category : "cargo_category"
+  brd_manifest_route }o..o| ref_city : "city_id"
   brd_manifest_person }o..o| sales_ticket : "ticket_id"
   brd_crossing_profile }o--|| sec_authority_profile : "authority_id"
+  brd_manifest_route }o--|| sec_authority_profile : "authority_id"
   brd_border_point }o..o| sec_authority_profile : "authority_id"
+  brd_manifest_delivery }o--|| sec_authority_profile : "authority_id"
   brd_manifest }o..o| sec_manifest_submission : "submission_id"
   brd_manifest_cargo }o..o| ship_shipment : "shipment_id"
   brd_manifest_cargo }o..o| ship_shipment_leg : "leg_id"
