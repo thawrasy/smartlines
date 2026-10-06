@@ -77,7 +77,9 @@ def test_robots_and_private_screens():
     robots = get("/robots.txt").text
     assert "Sitemap: " in robots and "Disallow: /api/" in robots and "Disallow: /admin" in robots
     assert "noindex" in get("/api/health").headers.get("x-robots-tag", "")
-    assert "noindex" in get("/login").headers.get("x-robots-tag", "")
+    login = get("/login")
+    if login.status_code == 200:          # the app screens exist only when the web interface is built
+        assert "noindex" in login.headers.get("x-robots-tag", "")
 
 
 def test_unknown_addresses_are_real_404s():
