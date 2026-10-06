@@ -287,3 +287,33 @@ def test_family_passes_bought_together_with_the_family_offer(owner):
         owner_sql("UPDATE sales.subscription_plan SET status = 'RETIRED' WHERE id = $1", plan)
         if not was_on:
             switch(admin, "shuttle_subscriptions", False)
+
+
+def test_head_manages_members_and_rules_from_the_phone():
+    """The requests the mobile app sends: add a member with blanks left empty, change limits (0 removes one), add and remove
+    a time window and a route, then remove the member."""
+    head = new_passenger()
+    assert head.post("/api/family", json={"name": "Phone family"}).status_code == 201
+    r = head.post("/api/family/members", json={
+        "funding": "FAMILY_ACCOUNT", "per_trip_limit": 500_000, "daily_limit": None, "monthly_limit": None, "relation": "SON",
+        "first_name": "Adam", "father_name": None, "grandfather_name": None, "last_name": "Haddad", "nationality": "SY",
+        "birth_date": years_ago(9), "gender": None, "mobile": None})
+    assert r.status_code == 201, r.text
+    uid = r.json()["uid"]
+    r = head.patch(f"/api/family/members/{uid}", json={"funding": "HEAD_WALLET", "per_trip_limit": 0, "daily_limit": 200_000,
+                                                       "monthly_limit": 0, "mobile": None, "id_type": "PASSPORT", "id_no": "N1234567",
+                                                       "passport_expiry": years_ago(-3)})
+    assert r.status_code == 200, r.text
+    m = next(x for x in head.get("/api/family").json()["members"] if x["uid"] == uid)
+    assert (m["funding"], m["per_trip_limit"], m["daily_limit"], m["id_last4"]) == ("HEAD_WALLET", None, 200_000, "4567")
+    rules = f"/api/family/members/{uid}/rules"
+    assert head.post(rules, json={"rule_type": "TIME_WINDOW", "days": [1, 2, 3, 4, 5], "start_time": "07:00", "end_time": "15:00"}).status_code == 201
+    assert head.post(rules, json={"rule_type": "ROUTE", "from_city": "DAM", "to_city": "HMS", "both_ways": True}).status_code == 201
+    bad = head.post(rules, json={"rule_type": "TIME_WINDOW", "days": [1], "start_time": "15:00", "end_time": "07:00"})
+    assert bad.status_code == 422 and bad.json()["error"]["code"] == "TIME_WINDOW_INVALID"
+    listed = head.get(rules).json()["rules"]
+    assert [(x["rule_type"], x["from_city"]) for x in listed] == [("TIME_WINDOW", None), ("ROUTE", "DAM")]
+    for x in listed:
+        assert head.delete(f"/api/family/rules/{x['uid']}").status_code == 200
+    assert head.delete(f"/api/family/members/{uid}").status_code == 200
+    assert all(x["uid"] != uid for x in head.get("/api/family").json()["members"])
