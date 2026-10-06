@@ -132,8 +132,9 @@ def make_family(head, *members):
 
 def test_family_register_offer_and_booking_for_the_whole_family(owner, trip):
     code = "FAM" + uuid.uuid4().hex[:6].upper()
-    r = owner.post("/api/r/family-offer", json={"code": code, "name": "Family 10%", "applies_to": "BOTH", "min_members": 3,
-                                                 "min_adults": 1, "min_minors": 1, "discount_type": "PCT", "discount_value": 10})
+    # 15% so it is the best offer on the trip whatever else the carrier runs (the demo data has a 10% one)
+    r = owner.post("/api/r/family-offer", json={"code": code, "name": "Family 15%", "applies_to": "BOTH", "min_members": 3,
+                                                 "min_adults": 1, "min_minors": 1, "discount_type": "PCT", "discount_value": 15})
     assert r.status_code == 201, r.text
     offer = r.json()["_key"]
     assert owner.post(f"/api/r/family-offer/{offer}/do/activate").status_code == 200
@@ -151,7 +152,7 @@ def test_family_register_offer_and_booking_for_the_whole_family(owner, trip):
         r = head.post("/api/bookings", json=body(trip, people, h))
         assert r.status_code == 201, r.text
         b = head.get(f"/api/bookings/{r.json()['booking_ref']}").json()["booking"]["price_breakdown"]
-        assert b["family_offer"]["code"] == code and b["family_offer"]["discount"] == round(b["fares_gross"] * 0.10 / 100) * 100
+        assert b["family_offer"]["code"] == code and b["family_offer"]["discount"] == round(b["fares_gross"] * 0.15 / 100) * 100
         assert sum(x["list_fare"] for x in b["lines"]) - sum(x["fare"] for x in b["lines"]) == b["family_offer"]["discount"]
         assert [x["category"] for x in b["lines"]] == ["ADULT", "ADULT", "CHILD"]
         # the spouse's stored document travelled onto the booking, still encrypted
