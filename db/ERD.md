@@ -38,10 +38,12 @@ flowchart LR
   acct -->|3| net
   acct -->|1| ops
   acct -->|6| pricing
+  acct -->|6| sales
+  acct -->|2| ship
   bill -->|1| acct
   bill -->|1| fin
   bill -->|5| iam
-  brd -->|2| fleet
+  brd -->|4| fleet
   brd -->|3| iam
   brd -->|3| net
   brd -->|2| ops
@@ -61,9 +63,12 @@ flowchart LR
   fin -->|18| iam
   fin -->|1| ops
   fin -->|6| pricing
-  fin -->|2| sales
-  fleet -->|23| iam
+  fin -->|5| sales
+  fin -->|2| ship
+  fleet -->|25| iam
+  fleet -->|1| net
   fleet -->|4| ops
+  fleet -->|1| ptn
   fleet -->|2| ref
   frt -->|1| crm
   frt -->|4| fleet
@@ -71,10 +76,13 @@ flowchart LR
   frt -->|10| net
   frt -->|2| ref
   frt -->|12| ship
-  gov -->|6| iam
+  gov -->|9| iam
   gov -->|1| sec
   iam -->|3| fin
-  iam -->|1| net
+  iam -->|5| fleet
+  iam -->|6| gov
+  iam -->|3| net
+  iam -->|1| ops
   iam -->|4| ref
   iam -->|1| sec
   net -->|7| iam
@@ -111,14 +119,18 @@ flowchart LR
   sales -->|2| acct
   sales -->|5| fin
   sales -->|3| fleet
+  sales -->|2| gov
   sales -->|27| iam
   sales -->|2| net
   sales -->|8| ops
   sales -->|5| pricing
   sales -->|2| ref
-  sec -->|1| fleet
-  sec -->|6| iam
-  sec -->|4| ops
+  sec -->|6| fin
+  sec -->|5| fleet
+  sec -->|1| gov
+  sec -->|27| iam
+  sec -->|6| ops
+  sec -->|5| sales
   ship -->|1| crm
   ship -->|4| fin
   ship -->|3| fleet
@@ -218,6 +230,16 @@ erDiagram
     bigint reviewed_by FK
     bigint company_id FK
     bigint uploaded_by FK
+    bigint owner_lease_id FK
+    bigint owner_party_id FK
+    bigint owner_company_id FK
+    bigint owner_license_id FK
+    bigint owner_station_id FK
+    bigint owner_vehicle_id FK
+    bigint owner_incident_id FK
+    bigint owner_insurance_id FK
+    bigint retention_policy_id FK
+    bigint erasure_request_id FK
   }
   iam_family {
     bigint id PK
@@ -245,6 +267,8 @@ erDiagram
     integer enc_key_id FK
     bigint linked_user_id FK
     text status
+    bigint retention_policy_id FK
+    bigint erasure_request_id FK
   }
   iam_family_spend {
     bigint id PK
@@ -285,6 +309,8 @@ erDiagram
     character country_code FK
     character tax_country FK
     text status
+    bigint retention_policy_id FK
+    bigint erasure_request_id FK
   }
   iam_party_role {
     bigint party_id PK
@@ -306,6 +332,10 @@ erDiagram
     bigint role_id PK
     text permission_code PK
   }
+  iam_role_scope {
+    bigint id PK
+    bigint role_id FK
+  }
   iam_user_role {
     bigint user_id PK
     bigint role_id PK
@@ -317,10 +347,19 @@ erDiagram
     bigint device_id FK
     bigint company_id FK
   }
+  iam_user_station_scope {
+    bigint user_id PK
+    bigint station_id PK
+    bigint company_id FK
+  }
   iam_verification {
     bigint id PK
     bigint provider_id FK
     bigint reviewer_id FK
+    bigint subject_party_id FK
+    bigint subject_company_id FK
+    bigint subject_vehicle_id FK
+    bigint subject_document_id FK
   }
   fin_ledger_txn {
     ref external
@@ -331,7 +370,31 @@ erDiagram
   fin_wallet {
     ref external
   }
+  fleet_insurance_policy {
+    ref external
+  }
+  fleet_license_record {
+    ref external
+  }
+  fleet_vehicle {
+    ref external
+  }
+  fleet_vehicle_lease {
+    ref external
+  }
+  gov_retention_policy {
+    ref external
+  }
+  gov_subject_request {
+    ref external
+  }
   net_line {
+    ref external
+  }
+  net_station {
+    ref external
+  }
+  ops_incident {
     ref external
   }
   ref_city {
@@ -349,10 +412,22 @@ erDiagram
   iam_family_spend }o..o| fin_ledger_txn : "ledger_txn_id"
   iam_api_client }o..o| fin_payment_provider : "payment_provider_id"
   iam_family }o..o| fin_wallet : "trips_wallet_id"
+  iam_document }o..o| fleet_insurance_policy : "owner_insurance_id"
+  iam_document }o..o| fleet_license_record : "owner_license_id"
+  iam_verification }o..o| fleet_vehicle : "subject_vehicle_id"
+  iam_document }o..o| fleet_vehicle : "owner_vehicle_id"
+  iam_document }o..o| fleet_vehicle_lease : "owner_lease_id"
+  iam_party }o..o| gov_retention_policy : "retention_policy_id"
+  iam_document }o..o| gov_retention_policy : "retention_policy_id"
+  iam_family_member }o..o| gov_retention_policy : "retention_policy_id"
+  iam_party }o..o| gov_subject_request : "erasure_request_id"
+  iam_document }o..o| gov_subject_request : "erasure_request_id"
+  iam_family_member }o..o| gov_subject_request : "erasure_request_id"
   iam_api_usage_daily }o--|| iam_api_client : "api_client_id"
   iam_api_key }o--|| iam_api_client : "api_client_id"
   iam_user_role }o--|| iam_app_user : "user_id"
   iam_company_member }o--|| iam_app_user : "user_id"
+  iam_user_station_scope }o--|| iam_app_user : "user_id"
   iam_device }o--|| iam_app_user : "user_id"
   iam_mfa_factor }o--|| iam_app_user : "user_id"
   iam_user_session }o--|| iam_app_user : "user_id"
@@ -365,13 +440,17 @@ erDiagram
   iam_company }o..o| iam_bank_account : "payout_bank_account_id"
   iam_beneficial_owner }o--|| iam_company : "company_id"
   iam_company_member }o--|| iam_company : "company_id"
+  iam_user_station_scope }o--|| iam_company : "company_id"
   iam_role }o..o| iam_company : "company_id"
   iam_user_session }o..o| iam_company : "company_id"
   iam_api_client }o..o| iam_company : "company_id"
   iam_document }o..o| iam_company : "company_id"
+  iam_verification }o..o| iam_company : "subject_company_id"
+  iam_document }o..o| iam_company : "owner_company_id"
   iam_push_token }o--|| iam_device : "device_id"
   iam_device_permission_state }o--|| iam_device : "device_id"
   iam_user_session }o..o| iam_device : "device_id"
+  iam_verification }o..o| iam_document : "subject_document_id"
   iam_family_spend }o--|| iam_family : "family_id"
   iam_family_member }o--|| iam_family : "family_id"
   iam_family_link_request }o--|| iam_family : "family_id"
@@ -391,11 +470,17 @@ erDiagram
   iam_family_member }o--|| iam_party : "party_id"
   iam_api_client }o--|| iam_party : "owner_party_id"
   iam_family_link_request }o..o| iam_party : "requester_party_id"
+  iam_verification }o..o| iam_party : "subject_party_id"
+  iam_document }o..o| iam_party : "owner_party_id"
   iam_role_permission }o--|| iam_permission : "permission_code"
   iam_role_permission }o--|| iam_role : "role_id"
   iam_user_role }o--|| iam_role : "role_id"
+  iam_role_scope }o--|| iam_role : "role_id"
   iam_company_member }o..o| iam_role : "role_id"
   iam_family_travel_rule }o..o| net_line : "line_id"
+  iam_user_station_scope }o--|| net_station : "station_id"
+  iam_document }o..o| net_station : "owner_station_id"
+  iam_document }o..o| ops_incident : "owner_incident_id"
   iam_family_travel_rule }o..o| ref_city : "from_city_id"
   iam_family_travel_rule }o..o| ref_city : "to_city_id"
   iam_app_user }o--|| ref_locale : "preferred_locale"
@@ -440,6 +525,9 @@ erDiagram
   ref_party_role_type {
     text code PK
   }
+  ref_seed_version {
+    bigint id PK
+  }
   ref_station_subtype {
     text code PK
   }
@@ -468,6 +556,9 @@ erDiagram
     bigint company_id PK
     text key PK
   }
+  sys_module_gate {
+    text schema_name PK
+  }
   sys_outbox_event {
     bigint id PK
     text status
@@ -481,6 +572,9 @@ erDiagram
   sys_setting {
     text key PK
     bigint updated_by FK
+  }
+  sys_table_class {
+    text table_name PK
   }
   sys_webhook_delivery {
     bigint id PK
@@ -742,6 +836,12 @@ erDiagram
     text status
     bigint verified_by FK
     bigint last_change_request_id FK
+    bigint subject_driver_id FK
+    bigint subject_company_id FK
+    bigint subject_partner_id FK
+    bigint subject_station_id FK
+    bigint subject_trailer_id FK
+    bigint subject_vehicle_id FK
   }
   fleet_seat_layout {
     bigint id PK
@@ -832,10 +932,16 @@ erDiagram
   iam_party {
     ref external
   }
+  net_station {
+    ref external
+  }
   ops_incident {
     ref external
   }
   ops_trip {
+    ref external
+  }
+  ptn_partner {
     ref external
   }
   ref_vehicle_class {
@@ -851,6 +957,7 @@ erDiagram
   fleet_seat_price_rule }o..o| fleet_seat_layout : "seat_layout_id"
   fleet_vehicle }o..o| fleet_seat_layout : "seat_layout_id"
   fleet_truck_combination }o..o| fleet_trailer : "trailer_id"
+  fleet_license_record }o..o| fleet_trailer : "subject_trailer_id"
   fleet_truck_combination }o--|| fleet_truck_unit : "truck_vehicle_id"
   fleet_truck_unit }o--|| fleet_vehicle : "vehicle_id"
   fleet_vehicle_lease }o--|| fleet_vehicle : "vehicle_id"
@@ -862,6 +969,7 @@ erDiagram
   fleet_vehicle_service_status }o--|| fleet_vehicle : "vehicle_id"
   fleet_vehicle_fuel_profile }o..o| fleet_vehicle : "vehicle_id"
   fleet_boarding_validator }o..o| fleet_vehicle : "vehicle_id"
+  fleet_license_record }o..o| fleet_vehicle : "subject_vehicle_id"
   fleet_seat_layout }o..o| iam_company : "company_id"
   fleet_seat_price_rule }o--|| iam_company : "company_id"
   fleet_crew_profile }o--|| iam_company : "company_id"
@@ -875,6 +983,7 @@ erDiagram
   fleet_vehicle }o--|| iam_company : "company_id"
   fleet_trailer }o--|| iam_company : "company_id"
   fleet_vehicle_lease }o--|| iam_company : "lessee_company_id"
+  fleet_license_record }o..o| iam_company : "subject_company_id"
   fleet_license_change_request }o..o| iam_document : "document_id"
   fleet_vehicle_lease }o..o| iam_document : "document_id"
   fleet_vehicle_status_history }o..o| iam_document : "release_document_id"
@@ -884,11 +993,14 @@ erDiagram
   fleet_vehicle_lease }o--|| iam_party : "owner_party_id"
   fleet_insurance_policy }o..o| iam_party : "insurer_party_id"
   fleet_trailer }o..o| iam_party : "owner_party_id"
+  fleet_license_record }o..o| iam_party : "subject_driver_id"
   fleet_vehicle }o--|| iam_party : "owner_party_id"
+  fleet_license_record }o..o| net_station : "subject_station_id"
   fleet_insurance_claim }o--|| ops_incident : "incident_id"
   fleet_vehicle_status_history }o..o| ops_incident : "incident_id"
   fleet_vehicle_service_status }o..o| ops_incident : "incident_id"
   fleet_driving_hours_log }o..o| ops_trip : "trip_id"
+  fleet_license_record }o..o| ptn_partner : "subject_partner_id"
   fleet_vehicle }o--|| ref_vehicle_class : "vehicle_class"
   fleet_vehicle_fuel_profile }o..o| ref_vehicle_class : "vehicle_class"
 ```
@@ -1528,6 +1640,8 @@ erDiagram
   ops_permission_event }o..o| ops_trip : "trip_id"
   ops_incident }o..o| ops_trip : "trip_id"
   ops_shuttle_ride }o--|| ops_trip : "trip_id"
+  ops_trip_pair_fare }o--|| ops_trip_stop : "trip_id,from_seq"
+  ops_trip_pair_fare }o--|| ops_trip_stop : "trip_id,to_seq"
   ops_trip_stop_event }o--|| ops_trip_stop : "trip_id,seq"
   ops_trip }o..o| ops_trip_template : "template_id"
   ops_trip }o--|| ref_trip_type : "trip_type"
@@ -1667,6 +1781,8 @@ erDiagram
     character nationality FK
     bigint family_member_id FK
     bigint accompanied_by_passenger_id FK
+    bigint retention_policy_id FK
+    bigint erasure_request_id FK
   }
   sales_passenger_compensation {
     bigint id PK
@@ -1774,6 +1890,12 @@ erDiagram
   fleet_vehicle_qr_tag {
     ref external
   }
+  gov_retention_policy {
+    ref external
+  }
+  gov_subject_request {
+    ref external
+  }
   iam_api_client {
     ref external
   }
@@ -1841,6 +1963,8 @@ erDiagram
   sales_boarding_event }o..o| fleet_boarding_validator : "validator_id"
   sales_inspection_check }o..o| fleet_vehicle : "vehicle_id"
   sales_boarding_event }o..o| fleet_vehicle_qr_tag : "vehicle_tag_id"
+  sales_passenger }o..o| gov_retention_policy : "retention_policy_id"
+  sales_passenger }o..o| gov_subject_request : "erasure_request_id"
   sales_channel_api_profile }o--|| iam_api_client : "api_client_id"
   sales_channel }o..o| iam_api_client : "api_client_id"
   sales_booking }o..o| iam_app_user : "booker_user_id"
@@ -1984,6 +2108,7 @@ erDiagram
     character currency FK
     bigint reverses_txn_id FK
     bigint created_by FK
+    bigint posting_batch_id FK
   }
   fin_payment {
     bigint id PK
@@ -2032,12 +2157,23 @@ erDiagram
     bigint company_id PK
     text status
   }
+  fin_posting_batch {
+    bigint id PK
+    uuid uid
+    character currency FK
+    bigint created_by FK
+  }
   fin_price_allocation {
     bigint id PK
     uuid uid
     bigint booking_id FK
     character currency FK
     bigint template_id FK
+    bigint subject_ticket_id FK
+    bigint subject_booking_id FK
+    bigint subject_shipment_id FK
+    bigint subject_freight_leg_id FK
+    bigint subject_subscription_id FK
   }
   fin_price_allocation_line {
     bigint id PK
@@ -2081,6 +2217,9 @@ erDiagram
     bigint company_id FK
     character currency FK
     text status
+  }
+  fin_wallet_reconciliation {
+    bigint id PK
   }
   fin_withdrawal_request {
     bigint id PK
@@ -2132,6 +2271,18 @@ erDiagram
   sales_booking {
     ref external
   }
+  sales_subscription {
+    ref external
+  }
+  sales_ticket {
+    ref external
+  }
+  ship_shipment {
+    ref external
+  }
+  ship_shipment_leg {
+    ref external
+  }
   fin_bank_statement_line }o--|| fin_bank_statement_import : "import_id"
   fin_bank_transfer_topup }o..o| fin_bank_statement_line : "statement_line_id"
   fin_bank_statement_line }o..o| fin_bank_transfer_topup : "topup_id"
@@ -2149,6 +2300,7 @@ erDiagram
   fin_bank_transfer_topup }o..o| fin_payment : "payment_id"
   fin_payment_notification }o--|| fin_payment_provider : "provider_id"
   fin_payment }o--|| fin_payment_provider : "provider_id"
+  fin_ledger_txn }o..o| fin_posting_batch : "posting_batch_id"
   fin_price_allocation_line }o--|| fin_price_allocation : "allocation_id"
   fin_price_allocation_line }o..o| fin_price_allocation_line : "parent_line_id"
   fin_tax_ledger }o..o| fin_price_allocation_line : "allocation_line_id"
@@ -2188,6 +2340,11 @@ erDiagram
   fin_price_allocation_line }o..o| pricing_tax_scheme : "tax_scheme_id"
   fin_payment }o..o| sales_booking : "booking_id"
   fin_price_allocation }o..o| sales_booking : "booking_id"
+  fin_price_allocation }o..o| sales_booking : "subject_booking_id"
+  fin_price_allocation }o..o| sales_subscription : "subject_subscription_id"
+  fin_price_allocation }o..o| sales_ticket : "subject_ticket_id"
+  fin_price_allocation }o..o| ship_shipment : "subject_shipment_id"
+  fin_price_allocation }o..o| ship_shipment_leg : "subject_freight_leg_id"
 ```
 
 ## `acct` — Simplified accounting, e-invoicing and tax profiles
@@ -2274,6 +2431,11 @@ erDiagram
     bigint xml_file_id FK
     bigint pdf_file_id FK
     text status
+    bigint source_refund_id FK
+    bigint source_ticket_id FK
+    bigint source_booking_id FK
+    bigint source_shipment_id FK
+    bigint source_subscription_id FK
   }
   acct_einvoice_line {
     bigint id PK
@@ -2347,6 +2509,9 @@ erDiagram
     bigint einvoice_document_id FK
     bigint journal_entry_id FK
     text status
+    bigint source_booking_id FK
+    bigint source_shipment_id FK
+    bigint source_subscription_id FK
   }
   acct_sales_invoice_line {
     bigint invoice_id PK
@@ -2465,6 +2630,21 @@ erDiagram
   pricing_tax_scheme {
     ref external
   }
+  sales_booking {
+    ref external
+  }
+  sales_refund_request {
+    ref external
+  }
+  sales_subscription {
+    ref external
+  }
+  sales_ticket {
+    ref external
+  }
+  ship_shipment {
+    ref external
+  }
   acct_account_mapping }o--|| acct_accounting_connection : "connection_id"
   acct_sync_item }o--|| acct_accounting_connection : "connection_id"
   acct_sync_job }o--|| acct_accounting_connection : "connection_id"
@@ -2551,6 +2731,14 @@ erDiagram
   acct_tax_return }o--|| pricing_tax_scheme : "tax_scheme_id"
   acct_tax_payment }o--|| pricing_tax_scheme : "tax_scheme_id"
   acct_einvoice_line }o..o| pricing_tax_scheme : "tax_scheme_id"
+  acct_sales_invoice }o..o| sales_booking : "source_booking_id"
+  acct_einvoice_document }o..o| sales_booking : "source_booking_id"
+  acct_einvoice_document }o..o| sales_refund_request : "source_refund_id"
+  acct_sales_invoice }o..o| sales_subscription : "source_subscription_id"
+  acct_einvoice_document }o..o| sales_subscription : "source_subscription_id"
+  acct_einvoice_document }o..o| sales_ticket : "source_ticket_id"
+  acct_sales_invoice }o..o| ship_shipment : "source_shipment_id"
+  acct_einvoice_document }o..o| ship_shipment : "source_shipment_id"
 ```
 
 ## `bill` — Carrier subscriptions, metering and platform invoices
@@ -2812,10 +3000,25 @@ erDiagram
   gov_data_inventory {
     text dataset PK
   }
+  gov_data_purpose {
+    text code PK
+  }
+  gov_erasure_log {
+    bigint id PK
+    bigint party_id FK
+    bigint request_id FK
+    bigint done_by FK
+  }
   gov_feature_compliance_review {
     bigint id PK
     bigint dpia_file_id FK
     bigint approved_by FK
+  }
+  gov_legal_hold {
+    bigint id PK
+    uuid uid
+    bigint placed_by FK
+    bigint released_by FK
   }
   gov_obligation_register {
     bigint id PK
@@ -2848,6 +3051,10 @@ erDiagram
     text status
     bigint security_event_id FK
   }
+  gov_retention_policy {
+    bigint id PK
+    text code
+  }
   gov_subject_request {
     bigint id PK
     bigint party_id FK
@@ -2870,12 +3077,16 @@ erDiagram
   }
   gov_policy_authority }o--|| gov_policy_domain : "domain_code"
   gov_policy_change }o--|| gov_policy_domain : "domain_code"
+  gov_erasure_log }o..o| gov_subject_request : "request_id"
   gov_policy_change }o--|| iam_app_user : "proposer_id"
+  gov_erasure_log }o..o| iam_app_user : "done_by"
+  gov_legal_hold }o--|| iam_app_user : "placed_by"
   gov_subject_request }o..o| iam_app_user : "user_id"
   gov_policy_change }o..o| iam_company : "company_id"
   gov_partner_dpa }o--|| iam_party : "partner_party_id"
   gov_consent }o--|| iam_party : "party_id"
   gov_subject_request }o--|| iam_party : "party_id"
+  gov_erasure_log }o--|| iam_party : "party_id"
   gov_privacy_incident }o..o| sec_security_event : "security_event_id"
 ```
 
@@ -2908,6 +3119,16 @@ erDiagram
     bigint authority_id FK
     text status
     bigint executed_by FK
+    bigint target_trip_id FK
+    bigint target_user_id FK
+    bigint target_party_id FK
+    bigint target_ticket_id FK
+    bigint target_wallet_id FK
+    bigint target_booking_id FK
+    bigint target_company_id FK
+    bigint target_payment_id FK
+    bigint target_vehicle_id FK
+    bigint target_document_id FK
   }
   sec_authority_policy {
     bigint id PK
@@ -2916,6 +3137,12 @@ erDiagram
   sec_authority_profile {
     bigint id PK
     text code
+  }
+  sec_authority_scope {
+    bigint id PK
+    bigint authority_id FK
+    bigint created_by FK
+    bigint approved_by FK
   }
   sec_blocklist_entry {
     bigint id PK
@@ -2935,6 +3162,14 @@ erDiagram
     bigint id PK
     text status
     bigint assigned_to FK
+    bigint subject_user_id FK
+    bigint subject_party_id FK
+    bigint subject_device_id FK
+    bigint subject_booking_id FK
+    bigint subject_company_id FK
+    bigint subject_payment_id FK
+    bigint subject_api_client_id FK
+    bigint subject_withdrawal_id FK
   }
   sec_gov_adapter_config {
     bigint id PK
@@ -2961,13 +3196,32 @@ erDiagram
     text status
     bigint created_by FK
   }
+  sec_policy_decision {
+    bigint id PK
+    bigint user_id FK
+    bigint company_id FK
+    text purpose_code FK
+  }
   sec_risk_assessment {
     bigint id PK
+    bigint subject_user_id FK
+    bigint subject_party_id FK
+    bigint subject_booking_id FK
+    bigint subject_payment_id FK
+    bigint subject_api_client_id FK
+    bigint subject_withdrawal_id FK
   }
   sec_screening_request {
     bigint id PK
     bigint authority_id FK
     text status
+    bigint subject_host_id FK
+    bigint subject_driver_id FK
+    bigint subject_company_id FK
+    bigint subject_vehicle_id FK
+    bigint subject_passenger_id FK
+    bigint context_trip_id FK
+    bigint context_booking_id FK
   }
   sec_screening_result {
     bigint request_id PK
@@ -2992,6 +3246,11 @@ erDiagram
     bigint adapter_id FK
     bigint verification_id FK
     text status
+    bigint subject_party_id FK
+    bigint subject_company_id FK
+    bigint subject_license_id FK
+    bigint subject_vehicle_id FK
+    bigint subject_document_id FK
   }
   sec_watchlist_entry {
     bigint id PK
@@ -2999,7 +3258,22 @@ erDiagram
     text status
     bigint created_by FK
   }
+  fin_payment {
+    ref external
+  }
+  fin_wallet {
+    ref external
+  }
+  fin_withdrawal_request {
+    ref external
+  }
+  fleet_license_record {
+    ref external
+  }
   fleet_vehicle {
+    ref external
+  }
+  gov_data_purpose {
     ref external
   }
   iam_api_client {
@@ -3009,6 +3283,15 @@ erDiagram
     ref external
   }
   iam_company {
+    ref external
+  }
+  iam_device {
+    ref external
+  }
+  iam_document {
+    ref external
+  }
+  iam_party {
     ref external
   }
   iam_role {
@@ -3023,23 +3306,69 @@ erDiagram
   ops_trip {
     ref external
   }
+  sales_booking {
+    ref external
+  }
+  sales_ticket {
+    ref external
+  }
+  sec_risk_assessment }o..o| fin_payment : "subject_payment_id"
+  sec_fraud_case }o..o| fin_payment : "subject_payment_id"
+  sec_authority_order }o..o| fin_payment : "target_payment_id"
+  sec_authority_order }o..o| fin_wallet : "target_wallet_id"
+  sec_risk_assessment }o..o| fin_withdrawal_request : "subject_withdrawal_id"
+  sec_fraud_case }o..o| fin_withdrawal_request : "subject_withdrawal_id"
+  sec_verification_job }o..o| fleet_license_record : "subject_license_id"
   sec_authority_alert }o..o| fleet_vehicle : "vehicle_id"
+  sec_screening_request }o..o| fleet_vehicle : "subject_vehicle_id"
+  sec_verification_job }o..o| fleet_vehicle : "subject_vehicle_id"
+  sec_authority_order }o..o| fleet_vehicle : "target_vehicle_id"
+  sec_policy_decision }o..o| gov_data_purpose : "purpose_code"
   sec_ip_rule }o..o| iam_api_client : "api_client_id"
+  sec_risk_assessment }o..o| iam_api_client : "subject_api_client_id"
+  sec_fraud_case }o..o| iam_api_client : "subject_api_client_id"
   sec_access_review }o--|| iam_app_user : "user_id"
   sec_sos_event }o..o| iam_app_user : "triggered_by"
+  sec_policy_decision }o..o| iam_app_user : "user_id"
+  sec_risk_assessment }o..o| iam_app_user : "subject_user_id"
+  sec_fraud_case }o..o| iam_app_user : "subject_user_id"
+  sec_authority_order }o..o| iam_app_user : "target_user_id"
   sec_key_registry }o..o| iam_company : "company_id"
+  sec_policy_decision }o..o| iam_company : "company_id"
+  sec_screening_request }o..o| iam_company : "subject_company_id"
+  sec_verification_job }o..o| iam_company : "subject_company_id"
+  sec_fraud_case }o..o| iam_company : "subject_company_id"
+  sec_authority_order }o..o| iam_company : "target_company_id"
+  sec_fraud_case }o..o| iam_device : "subject_device_id"
+  sec_verification_job }o..o| iam_document : "subject_document_id"
+  sec_authority_order }o..o| iam_document : "target_document_id"
+  sec_risk_assessment }o..o| iam_party : "subject_party_id"
+  sec_screening_request }o..o| iam_party : "subject_host_id"
+  sec_fraud_case }o..o| iam_party : "subject_party_id"
+  sec_screening_request }o..o| iam_party : "subject_driver_id"
+  sec_verification_job }o..o| iam_party : "subject_party_id"
+  sec_authority_order }o..o| iam_party : "target_party_id"
+  sec_screening_request }o..o| iam_party : "subject_passenger_id"
   sec_access_review }o..o| iam_role : "role_id"
   sec_verification_job }o..o| iam_verification : "verification_id"
   sec_sos_event }o..o| ops_incident : "incident_id"
   sec_manifest_submission }o--|| ops_trip : "trip_id"
   sec_sos_event }o..o| ops_trip : "trip_id"
   sec_authority_alert }o..o| ops_trip : "trip_id"
+  sec_authority_order }o..o| ops_trip : "target_trip_id"
+  sec_screening_request }o..o| ops_trip : "context_trip_id"
+  sec_risk_assessment }o..o| sales_booking : "subject_booking_id"
+  sec_fraud_case }o..o| sales_booking : "subject_booking_id"
+  sec_screening_request }o..o| sales_booking : "context_booking_id"
+  sec_authority_order }o..o| sales_booking : "target_booking_id"
+  sec_authority_order }o..o| sales_ticket : "target_ticket_id"
   sec_authority_policy }o--|| sec_authority_profile : "authority_id"
   sec_screening_request }o--|| sec_authority_profile : "authority_id"
   sec_watchlist_entry }o..o| sec_authority_profile : "authority_id"
   sec_authority_order }o--|| sec_authority_profile : "authority_id"
   sec_authority_data_request }o--|| sec_authority_profile : "authority_id"
   sec_gov_adapter_config }o--|| sec_authority_profile : "authority_id"
+  sec_authority_scope }o--|| sec_authority_profile : "authority_id"
   sec_manifest_submission }o..o| sec_authority_profile : "authority_id"
   sec_authority_alert }o..o| sec_authority_profile : "authority_id"
   sec_verification_job }o--|| sec_gov_adapter_config : "adapter_id"
@@ -4012,6 +4341,9 @@ erDiagram
     bigint id PK
     bigint manifest_id FK
     bigint resolved_by FK
+    bigint subject_cargo_id FK
+    bigint subject_person_id FK
+    bigint subject_vehicle_id FK
   }
   brd_manifest_person {
     bigint id PK
@@ -4029,6 +4361,9 @@ erDiagram
   brd_manifest_response {
     bigint id PK
     bigint manifest_id FK
+    bigint subject_cargo_id FK
+    bigint subject_person_id FK
+    bigint subject_vehicle_id FK
   }
   brd_manifest_route {
     bigint id PK
@@ -4107,9 +4442,15 @@ erDiagram
   brd_manifest_discrepancy }o--|| brd_manifest : "manifest_id"
   brd_manifest_delivery }o--|| brd_manifest : "manifest_id"
   brd_manifest }o..o| brd_manifest : "supersedes_id"
+  brd_manifest_response }o..o| brd_manifest_cargo : "subject_cargo_id"
+  brd_manifest_discrepancy }o..o| brd_manifest_cargo : "subject_cargo_id"
+  brd_manifest_response }o..o| brd_manifest_person : "subject_person_id"
+  brd_manifest_discrepancy }o..o| brd_manifest_person : "subject_person_id"
   brd_manifest_delivery }o--|| brd_manifest_route : "route_id"
   brd_manifest_vehicle }o..o| fleet_trailer : "trailer_id"
   brd_manifest_vehicle }o--|| fleet_vehicle : "vehicle_id"
+  brd_manifest_response }o..o| fleet_vehicle : "subject_vehicle_id"
+  brd_manifest_discrepancy }o..o| fleet_vehicle : "subject_vehicle_id"
   brd_manifest }o..o| iam_app_user : "issued_by"
   brd_manifest_route }o..o| iam_company : "company_id"
   brd_manifest_person }o..o| iam_party : "crew_party_id"

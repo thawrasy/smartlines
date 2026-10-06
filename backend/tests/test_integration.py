@@ -5,6 +5,7 @@ own creator), a key reaching another company's rows or a scope it was not grante
 a webhook carrying another company's events or personal data it was not approved for, or an unsigned delivery.
 """
 import datetime as dt
+from zoneinfo import ZoneInfo
 import hashlib
 import hmac
 import ipaddress
@@ -108,6 +109,11 @@ def test_keys_are_checked_and_cookies_ignored(owner):
     assert httpx.Client(base_url=BASE, cookies=owner.cookies, timeout=20).get("/api/v1/me").status_code == 401
 
 
+
+def local_today() -> dt.date:
+    """The API counts days in Damascus time; after 21:00 UTC that is already tomorrow."""
+    return dt.datetime.now(ZoneInfo("Asia/Damascus")).date()
+
 def test_carrier_key_reads_only_its_company(carrier_client, trip):
     _, key = carrier_client
     c = api(key)
@@ -196,12 +202,12 @@ def test_partner_credits_a_wallet_once(partner):
     assert pax.get("/api/wallet").json()["balance"] == before + 5_000_000
     assert c.post("/api/v1/wallet/credits", json={"mobile": mobile, "amount": 6_000_000, "reference": ref}).json()["error"]["code"] == "REFERENCE_REUSED"
     assert c.get(f"/api/v1/wallet/credits/{ref}").json()["status"] == "SUCCESS"
-    listing = c.get("/api/v1/wallet/credits", params={"from": str(dt.date.today())}).json()
+    listing = c.get("/api/v1/wallet/credits", params={"from": str(local_today())}).json()
     assert ref in [x["reference"] for x in listing["credits"]]
     # the ledger: the partner's clearing account owes what the wallet received
     txn = owner_sql("SELECT ledger_txn_id FROM fin.payment WHERE uid = $1", uuid.UUID(r.json()["uid"]))
     assert owner_sql("SELECT sum(CASE WHEN direction = 'DR' THEN amount ELSE -amount END) FROM fin.ledger_entry WHERE txn_id = $1", txn) == 0
-    assert c.get("/api/v1/bookings", params={"from": str(dt.date.today())}).json()["error"]["code"] == "SCOPE_MISSING"
+    assert c.get("/api/v1/bookings", params={"from": str(local_today())}).json()["error"]["code"] == "SCOPE_MISSING"
 
 
 def test_client_rate_limit(partner, admin):
@@ -231,7 +237,7 @@ def test_channel_sells_through_the_api(agency, admin, trip):
     assert c.post("/api/v1/bookings", json=body).json().get("replayed") is True
     got = c.get(f"/api/v1/bookings/{ref}").json()
     assert got["booking"]["channel"] == "AGENCY" and len(got["tickets"]) == 1
-    assert ref in [x["booking_ref"] for x in c.get("/api/v1/bookings", params={"from": str(dt.date.today())}).json()["bookings"]]
+    assert ref in [x["booking_ref"] for x in c.get("/api/v1/bookings", params={"from": str(local_today())}).json()["bookings"]]
     row = owner_sql("SELECT actor_type, user_id IS NOT NULL AS by_user FROM audit.activity_log WHERE action = 'agency.sell' "
                     "AND api_client_id = (SELECT id FROM iam.api_client WHERE uid = $1) ORDER BY id DESC LIMIT 1", uuid.UUID(uid), fetch=True)
     assert row["actor_type"] == "API_CLIENT" and row["by_user"]
@@ -241,11 +247,15 @@ def test_channel_sells_through_the_api(agency, admin, trip):
 def test_border_authority_reads_and_decides(admin, security):
     authority = owner_sql("SELECT bp.authority_id FROM brd.border_point bp WHERE bp.authority_id IS NOT NULL ORDER BY bp.station_id LIMIT 1")
     code = owner_sql("SELECT code FROM sec.authority_profile WHERE id = $1", authority)
-    src = owner_sql("""SELECT m.trip_id, m.border_point_id, (SELECT max(version) FROM brd.manifest x WHERE x.trip_id = m.trip_id
-                         AND x.border_point_id = m.border_point_id) AS v FROM brd.manifest m JOIN brd.border_point bp ON bp.station_id = m.border_point_id
+    src = owner_sql("""SELECT m.trip_id, m.border_point_id, last.id AS prev_id, last.version AS v
+                         FROM brd.manifest m JOIN brd.border_point bp ON bp.station_id = m.border_point_id
+                         CROSS JOIN LATERAL (SELECT x.id, x.version FROM brd.manifest x WHERE x.trip_id = m.trip_id
+                                              AND x.border_point_id = m.border_point_id ORDER BY x.version DESC LIMIT 1) last
                         WHERE bp.authority_id = $1 LIMIT 1""", authority, fetch=True)
-    mid = owner_sql("""INSERT INTO brd.manifest (trip_id, border_point_id, version, manifest_type, status) VALUES ($1, $2, $3, 'PRE_DEPARTURE', 'SUBMITTED')
-                       RETURNING id""", src["trip_id"], src["border_point_id"], src["v"] + 1)
+    # a new version supersedes the last one of the same trip and crossing (the database enforces the chain)
+    mid = owner_sql("""INSERT INTO brd.manifest (trip_id, border_point_id, version, manifest_type, status, supersedes_id)
+                       VALUES ($1, $2, $3, 'PRE_DEPARTURE', 'SUBMITTED', $4) RETURNING id""",
+                    src["trip_id"], src["border_point_id"], src["v"] + 1, src["prev_id"])
     sys.path.insert(0, BACKEND)
     from app.crypto import RESTRICTED_REF, FieldCipher, _derive
     sealed = FieldCipher({1: _derive(RESTRICTED_REF)}, {RESTRICTED_REF: 1}, b"x" * 32).encrypt("N7654321", "brd.manifest_person.doc_no")

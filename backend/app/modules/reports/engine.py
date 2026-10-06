@@ -53,6 +53,7 @@ class Result:
     totals: dict = field(default_factory=dict)
     truncated: bool = False
     duration_ms: int = 0
+    data_as_of: Optional[datetime] = None     # the moment the figures reflect (replica replay time or now)
 
 
 def can_read(ds: Dataset, v: Viewer) -> bool:

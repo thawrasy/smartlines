@@ -12,7 +12,7 @@ from datetime import date, timedelta
 
 import asyncpg
 
-from ... import crypto, db
+from ... import crypto, db, policy
 from ...deps import Principal
 from ...errors import ApiError, forbidden, not_found
 from ...ledger import company_wallet, platform_wallet, post_txn
@@ -146,6 +146,8 @@ async def reveal_iban(conn, ctx: db.Context, pr: Principal, withdrawal_uid: uuid
     if w["status"] != "APPROVED":
         raise ApiError(409, "NOT_APPROVED", "the IBAN is shown only for an approved withdrawal")
     acct = await conn.fetchrow("SELECT id, iban_enc, enc_key_id FROM iam.bank_account WHERE id = $1", w["bank_account_id"])
+    await policy.authorize(ctx, "iam.bank_account.iban", "READ", "PAYOUT_EXECUTION", f"payout transfer for withdrawal {w['uid']}",
+                           "payout.run")
     async with db.system_scope(conn, ctx):
         fc = await crypto.cipher(conn)
         await conn.execute(

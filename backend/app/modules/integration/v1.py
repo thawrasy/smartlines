@@ -27,7 +27,7 @@ from fastapi import APIRouter, Depends, Query, Request
 from fastapi.openapi.utils import get_openapi
 from pydantic import BaseModel, Field
 
-from ... import db
+from ... import db, policy
 from ...crypto import cipher
 from ...errors import ApiError, not_found
 from ...util import LOCAL_TZ
@@ -382,6 +382,8 @@ async def border_manifest(uid: uuid.UUID, request: Request, caller: Caller = Dep
                 """SELECT id, cargo_category, cargo_description, hs_code, declared_weight_kg, packages, container_no, seal_no, un_number, adr_class
                      FROM brd.manifest_cargo WHERE manifest_id = $1 ORDER BY id""", m["id"])
             c = await cipher(conn)
+    # the decision to show document numbers is recorded with its purpose (review 3.11)
+    await policy.authorize(ctx, "brd.manifest_person.doc_no", "READ", "AUTHORITY_MANIFEST", f"border manifest {uid} for its authority")
     out_people = []
     for p in people:
         try:
@@ -502,6 +504,8 @@ async def manifest_delivery(uid: uuid.UUID, request: Request, caller: Caller = D
             vehicles = await conn.fetch("SELECT plate_no, plate_country, chassis_no FROM brd.manifest_vehicle WHERE manifest_id = $1",
                                         d["manifest_id"])
             c = await cipher(conn)
+    if d["include_documents"]:
+        await policy.authorize(ctx, "brd.manifest_person.doc_no", "READ", "AUTHORITY_MANIFEST", f"manifest delivery {uid} on an approved route")
     out = []
     for p in people:
         doc_no = None

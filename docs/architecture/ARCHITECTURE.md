@@ -259,9 +259,18 @@ Policies follow five patterns (helpers in `1010_model_helpers.sql`, coverage com
 | Catalog | Everyone reads, only the platform writes | reference lists, tax schemes, payment providers |
 | Platform | Platform staff only | governance registers, screening, watchlists, fraud cases |
 
-Left to the application layer and grants on purpose: sign-in tables (users, sessions, tokens, MFA factors) that are
-read before a request context exists; public timetable rows of published trips; append-only ledgers (update and
-delete revoked, mutation trigger); ratings shown on public trip pages; SOS events that a passenger raises on any trip.
+Since file 1039 (database architecture review, study 16.27) no table is left to the application layer: every table has
+row-level security and a data class in `sys.table_class` (public catalog, platform confidential, company private,
+personal, restricted security, append-only audit, system), and `sys.v_security_inventory` shows class, owner path, RLS,
+owner and privileges in one query. Sign-in reads accounts, factors and sessions in a narrow `AUTH` scope; an empty
+context sees no account, session or person. Timetable rows of published trips are public through their trip; a passenger
+may take a free seat or free their own hold, and only the sale marks a seat sold. Ledger rows follow their wallet.
+Reporting has no access to restricted tables, and row security is forced on credentials, factors and biometrics.
+Validation triggers run as the owner with a fixed search path, so a rule sees the rows it checks. Tables of a module
+whose switch is off are closed by a restrictive policy (`sys.module_gate`). Reads of restricted values (document numbers
+for authorities, IBANs for payouts) pass `sec.authorize` (`backend/app/policy.py`), which records purpose, reason and
+decision in `sec.policy_decision`. Sources of truth (study 16.28): seats live only in PostgreSQL, and the ledger stays in
+schema `fin` of the same database, written in the booking's transaction.
 
 Company isolation (study 16.26, file 1038): `backend/tests/test_isolation.py` signs in as every company under the
 application role and counts the rows of other companies in every table that has a company column. The only rows allowed

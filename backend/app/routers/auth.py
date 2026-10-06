@@ -64,7 +64,7 @@ async def register(body: RegisterIn, request: Request):
     if problem:
         raise ApiError(422, problem, "password does not meet the policy")
     ctx = base_context(request)
-    ctx.scope = "SYSTEM"
+    ctx.scope = "SYSTEM"                   # creates the person, the account and the wallet in one step
     async with db.transaction(ctx) as conn:
         if await conn.fetchval("SELECT 1 FROM iam.app_user WHERE email = $1 OR ($2::text IS NOT NULL AND mobile = $2)",
                                body.email, body.mobile):
@@ -94,7 +94,7 @@ async def login(body: LoginIn, request: Request, response: Response):
     s = get_settings()
     ident = body.identifier.strip()
     ctx = base_context(request)
-    ctx.scope = "SYSTEM"
+    ctx.scope = "AUTH"                     # opens accounts, factors and sessions only, not the rest of the platform
     async with db.transaction(ctx) as conn:
         user = await conn.fetchrow(
             """SELECT id, account_kind, password_hash, status, locked_until, failed_attempts, mfa_required,
@@ -129,6 +129,7 @@ async def login(body: LoginIn, request: Request, response: Response):
     if body.portal not in PORTALS_BY_KIND.get(user["account_kind"], set()):
         raise ApiError(403, "PORTAL_NOT_ALLOWED", "this account cannot open the requested portal")
 
+    ctx.user_id = user["id"]
     async with db.transaction(ctx) as conn:
         company_id = None
         if body.portal in ("OPERATOR", "DRIVER", "AGENCY"):
@@ -140,6 +141,8 @@ async def login(body: LoginIn, request: Request, response: Response):
                     ORDER BY m.is_owner DESC LIMIT 1""", user["id"], body.portal)
             if company_id is None:
                 raise ApiError(403, "COMPANY_NOT_ACTIVE", "no approved company for this account")
+            ctx.company_id = company_id
+            await db.apply_context(conn, ctx)  # the crew check below reads rows of that company
             if body.portal == "DRIVER" and not await conn.fetchval(
                     "SELECT 1 FROM fleet.crew_profile cp JOIN iam.app_user u ON u.party_id = cp.party_id "
                     "WHERE u.id = $1 AND cp.company_id = $2 AND cp.status = 'ACTIVE'", user["id"], company_id):
@@ -197,7 +200,7 @@ async def refresh(body: RefreshIn, request: Request):
     """Rotates a mobile session's tokens. A refresh token works once: presenting a rotated one again means it was
     copied, so the whole session is revoked and the person must sign in again."""
     ctx = base_context(request)
-    ctx.scope = "SYSTEM"
+    ctx.scope = "AUTH"
     presented = token_hash(body.refresh_token)
     async with db.transaction(ctx) as conn:
         sess = await conn.fetchrow(

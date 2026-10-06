@@ -1,5 +1,4 @@
 """Account and privacy use cases for the signed-in person, and the platform side of erasure requests."""
-import secrets
 import uuid
 from datetime import datetime, timezone
 
@@ -183,8 +182,8 @@ async def open_requests(conn) -> list[dict]:
 
 
 async def complete_erasure(conn, pr: Principal, request_uid: uuid.UUID) -> int:
-    """Anonymises the account and party (name, email, mobile, password, second factor) and ends every session.
-    Refused while the person has an upcoming trip. Bookings, tickets, passenger manifests and ledger entries of past
+    """Anonymises the account and party (name, identity, email, mobile, password, second factor) and ends every session.
+    Refused while the person has an upcoming trip or is under a legal hold. Bookings, tickets, passenger manifests and ledger entries of past
     trips remain under the anonymised party, as financial, tax and transport records must be kept."""
     privacy_staff(pr)
     r = await conn.fetchrow("SELECT * FROM gov.subject_request WHERE uid = $1 FOR UPDATE", request_uid)
@@ -196,15 +195,10 @@ async def complete_erasure(conn, pr: Principal, request_uid: uuid.UUID) -> int:
             """SELECT 1 FROM sales.booking b JOIN ops.trip t ON t.id = b.trip_id
                 WHERE b.booker_party_id = $1 AND b.status = 'CONFIRMED' AND t.departure_at > now()""", r["party_id"]):
         raise ApiError(409, "UPCOMING_TRIPS", "the person has upcoming trips; erase after they travel or cancel")
-    tag = secrets.token_hex(6)
-    await conn.execute("UPDATE iam.party SET legal_name = 'Erased user', email = NULL, mobile = NULL WHERE id = $1", r["party_id"])
-    await conn.execute(
-        """UPDATE iam.app_user SET email = $2, mobile = NULL, password_hash = NULL, status = 'CLOSED'
-            WHERE id = $1""", r["user_id"], f"erased-{tag}@invalid.masslak")
+    # gov.erase_party pseudonymises the person and their old passenger rows, withdraws consents, refuses under a
+    # legal hold, writes gov.erasure_log and closes the request (review 3.15)
+    await conn.fetchval("SELECT gov.erase_party($1, $2)::text", r["party_id"], r["id"])
     await conn.execute("UPDATE iam.user_session SET revoked_at = now(), revoke_reason = 'ERASED' WHERE user_id = $1 AND revoked_at IS NULL",
                        r["user_id"])
     await conn.execute("DELETE FROM iam.mfa_factor WHERE user_id = $1", r["user_id"])
-    await conn.execute(
-        "UPDATE gov.subject_request SET status = 'DONE', handled_by = $2, handled_at = now(), result = 'anonymised' WHERE id = $1",
-        r["id"], pr.user_id)
     return r["id"]

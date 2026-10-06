@@ -249,42 +249,42 @@
 <!-- ops__trip_stop -->
 <g id="node3" class="node">
 <title>ops__trip_stop</title>
-<polygon fill="#bf8f00" stroke="transparent" points="517.5,-511 517.5,-515 640.5,-515 640.5,-511 517.5,-511"/>
-<polygon fill="#fff2cc" stroke="transparent" points="517.5,-482 517.5,-511 640.5,-511 640.5,-482 517.5,-482"/>
-<text text-anchor="start" x="551.5" y="-498.2" font-family="DejaVu Sans" font-weight="bold" font-size="11.00">trip_stop</text>
-<text text-anchor="start" x="571" y="-489.6" font-family="DejaVu Sans" font-size="8.00" fill="#595959">ops</text>
-<polygon fill="#ffffff" stroke="transparent" points="517.5,-465 517.5,-482 539.5,-482 539.5,-465 517.5,-465"/>
-<text text-anchor="start" x="520.5" y="-472" font-family="DejaVu Sans" font-weight="bold" font-size="10.00" fill="#1f3a5f">PK</text>
-<polygon fill="#ffffff" stroke="transparent" points="539.5,-465 539.5,-482 601.5,-482 601.5,-465 539.5,-465"/>
-<text text-anchor="start" x="542.5" y="-472" font-family="DejaVu Sans" font-weight="bold" font-size="10.00">trip_id</text>
-<polygon fill="#ffffff" stroke="transparent" points="601.5,-465 601.5,-482 640.5,-482 640.5,-465 601.5,-465"/>
-<text text-anchor="start" x="604.5" y="-471.6" font-family="DejaVu Sans" font-size="8.00" fill="#7f7f7f">bigint</text>
-<polygon fill="#f2f6fa" stroke="transparent" points="517.5,-448 517.5,-465 539.5,-465 539.5,-448 517.5,-448"/>
+<polygon fill="#bf8f00" stroke="transparent" points="517.5,-494 517.5,-498 640.5,-498 640.5,-494 517.5,-494"/>
+<polygon fill="#fff2cc" stroke="transparent" points="517.5,-465 517.5,-494 640.5,-494 640.5,-465 517.5,-465"/>
+<text text-anchor="start" x="551.5" y="-481.2" font-family="DejaVu Sans" font-weight="bold" font-size="11.00">trip_stop</text>
+<text text-anchor="start" x="571" y="-472.6" font-family="DejaVu Sans" font-size="8.00" fill="#595959">ops</text>
+<polygon fill="#ffffff" stroke="transparent" points="517.5,-448 517.5,-465 539.5,-465 539.5,-448 517.5,-448"/>
 <text text-anchor="start" x="520.5" y="-455" font-family="DejaVu Sans" font-weight="bold" font-size="10.00" fill="#1f3a5f">PK</text>
-<polygon fill="#f2f6fa" stroke="transparent" points="539.5,-448 539.5,-465 601.5,-465 601.5,-448 539.5,-448"/>
-<text text-anchor="start" x="542.5" y="-455" font-family="DejaVu Sans" font-weight="bold" font-size="10.00">seq</text>
-<polygon fill="#f2f6fa" stroke="transparent" points="601.5,-448 601.5,-465 640.5,-465 640.5,-448 601.5,-448"/>
-<text text-anchor="start" x="604.5" y="-454.6" font-family="DejaVu Sans" font-size="8.00" fill="#7f7f7f">smallint</text>
-<polygon fill="#ffffff" stroke="transparent" points="517.5,-431 517.5,-448 539.5,-448 539.5,-431 517.5,-431"/>
-<text text-anchor="start" x="520.5" y="-438" font-family="DejaVu Sans" font-weight="bold" font-size="10.00" fill="#bf8f00">FK</text>
-<polygon fill="#ffffff" stroke="transparent" points="539.5,-431 539.5,-448 601.5,-448 601.5,-431 539.5,-431"/>
-<text text-anchor="start" x="542.5" y="-438" font-family="DejaVu Sans" font-weight="bold" font-size="10.00">station_id</text>
-<polygon fill="#ffffff" stroke="transparent" points="601.5,-431 601.5,-448 640.5,-448 640.5,-431 601.5,-431"/>
-<text text-anchor="start" x="604.5" y="-437.6" font-family="DejaVu Sans" font-size="8.00" fill="#7f7f7f">bigint</text>
-<polygon fill="#f2f6fa" stroke="transparent" points="517.5,-414 517.5,-431 539.5,-431 539.5,-414 517.5,-414"/>
+<polygon fill="#ffffff" stroke="transparent" points="539.5,-448 539.5,-465 601.5,-465 601.5,-448 539.5,-448"/>
+<text text-anchor="start" x="542.5" y="-455" font-family="DejaVu Sans" font-weight="bold" font-size="10.00">trip_id</text>
+<polygon fill="#ffffff" stroke="transparent" points="601.5,-448 601.5,-465 640.5,-465 640.5,-448 601.5,-448"/>
+<text text-anchor="start" x="604.5" y="-454.6" font-family="DejaVu Sans" font-size="8.00" fill="#7f7f7f">bigint</text>
+<polygon fill="#f2f6fa" stroke="transparent" points="517.5,-431 517.5,-448 539.5,-448 539.5,-431 517.5,-431"/>
+<text text-anchor="start" x="520.5" y="-438" font-family="DejaVu Sans" font-weight="bold" font-size="10.00" fill="#1f3a5f">PK</text>
+<polygon fill="#f2f6fa" stroke="transparent" points="539.5,-431 539.5,-448 601.5,-448 601.5,-431 539.5,-431"/>
+<text text-anchor="start" x="542.5" y="-438" font-family="DejaVu Sans" font-weight="bold" font-size="10.00">seq</text>
+<polygon fill="#f2f6fa" stroke="transparent" points="601.5,-431 601.5,-448 640.5,-448 640.5,-431 601.5,-431"/>
+<text text-anchor="start" x="604.5" y="-437.6" font-family="DejaVu Sans" font-size="8.00" fill="#7f7f7f">smallint</text>
+<polygon fill="#ffffff" stroke="transparent" points="517.5,-414 517.5,-431 539.5,-431 539.5,-414 517.5,-414"/>
 <text text-anchor="start" x="520.5" y="-421" font-family="DejaVu Sans" font-weight="bold" font-size="10.00" fill="#bf8f00">FK</text>
-<polygon fill="#f2f6fa" stroke="transparent" points="539.5,-414 539.5,-431 601.5,-431 601.5,-414 539.5,-414"/>
-<text text-anchor="start" x="542.5" y="-420" font-family="DejaVu Sans" font-size="10.00">gate_id</text>
-<polygon fill="#f2f6fa" stroke="transparent" points="601.5,-414 601.5,-431 640.5,-431 640.5,-414 601.5,-414"/>
+<polygon fill="#ffffff" stroke="transparent" points="539.5,-414 539.5,-431 601.5,-431 601.5,-414 539.5,-414"/>
+<text text-anchor="start" x="542.5" y="-421" font-family="DejaVu Sans" font-weight="bold" font-size="10.00">station_id</text>
+<polygon fill="#ffffff" stroke="transparent" points="601.5,-414 601.5,-431 640.5,-431 640.5,-414 601.5,-414"/>
 <text text-anchor="start" x="604.5" y="-420.6" font-family="DejaVu Sans" font-size="8.00" fill="#7f7f7f">bigint</text>
-<polygon fill="#ffffff" stroke="transparent" points="517.5,-397 517.5,-414 539.5,-414 539.5,-397 517.5,-397"/>
-<polygon fill="#ffffff" stroke="transparent" points="539.5,-397 539.5,-414 601.5,-414 601.5,-397 539.5,-397"/>
-<text text-anchor="start" x="542.5" y="-404" font-family="DejaVu Sans" font-weight="bold" font-size="10.00">kind</text>
-<polygon fill="#ffffff" stroke="transparent" points="601.5,-397 601.5,-414 640.5,-414 640.5,-397 601.5,-397"/>
-<text text-anchor="start" x="604.5" y="-403.6" font-family="DejaVu Sans" font-size="8.00" fill="#7f7f7f">text</text>
-<polygon fill="#ffffff" stroke="transparent" points="517.5,-382 517.5,-397 640.5,-397 640.5,-382 517.5,-382"/>
-<text text-anchor="start" x="520.5" y="-388.6" font-family="DejaVu Sans" font-style="italic" font-size="8.00" fill="#7f7f7f">+ 8 more columns</text>
-<path fill="none" stroke="#404040" d="M528,-381.5C528,-381.5 629,-381.5 629,-381.5 635,-381.5 641,-387.5 641,-393.5 641,-393.5 641,-504.5 641,-504.5 641,-510.5 635,-516.5 629,-516.5 629,-516.5 528,-516.5 528,-516.5 522,-516.5 516,-510.5 516,-504.5 516,-504.5 516,-393.5 516,-393.5 516,-387.5 522,-381.5 528,-381.5"/>
+<polygon fill="#f2f6fa" stroke="transparent" points="517.5,-397 517.5,-414 539.5,-414 539.5,-397 517.5,-397"/>
+<text text-anchor="start" x="520.5" y="-404" font-family="DejaVu Sans" font-weight="bold" font-size="10.00" fill="#bf8f00">FK</text>
+<polygon fill="#f2f6fa" stroke="transparent" points="539.5,-397 539.5,-414 601.5,-414 601.5,-397 539.5,-397"/>
+<text text-anchor="start" x="542.5" y="-403" font-family="DejaVu Sans" font-size="10.00">gate_id</text>
+<polygon fill="#f2f6fa" stroke="transparent" points="601.5,-397 601.5,-414 640.5,-414 640.5,-397 601.5,-397"/>
+<text text-anchor="start" x="604.5" y="-403.6" font-family="DejaVu Sans" font-size="8.00" fill="#7f7f7f">bigint</text>
+<polygon fill="#ffffff" stroke="transparent" points="517.5,-380 517.5,-397 539.5,-397 539.5,-380 517.5,-380"/>
+<polygon fill="#ffffff" stroke="transparent" points="539.5,-380 539.5,-397 601.5,-397 601.5,-380 539.5,-380"/>
+<text text-anchor="start" x="542.5" y="-387" font-family="DejaVu Sans" font-weight="bold" font-size="10.00">kind</text>
+<polygon fill="#ffffff" stroke="transparent" points="601.5,-380 601.5,-397 640.5,-397 640.5,-380 601.5,-380"/>
+<text text-anchor="start" x="604.5" y="-386.6" font-family="DejaVu Sans" font-size="8.00" fill="#7f7f7f">text</text>
+<polygon fill="#ffffff" stroke="transparent" points="517.5,-365 517.5,-380 640.5,-380 640.5,-365 517.5,-365"/>
+<text text-anchor="start" x="520.5" y="-371.6" font-family="DejaVu Sans" font-style="italic" font-size="8.00" fill="#7f7f7f">+ 8 more columns</text>
+<path fill="none" stroke="#404040" d="M528,-364.5C528,-364.5 629,-364.5 629,-364.5 635,-364.5 641,-370.5 641,-376.5 641,-376.5 641,-487.5 641,-487.5 641,-493.5 635,-499.5 629,-499.5 629,-499.5 528,-499.5 528,-499.5 522,-499.5 516,-493.5 516,-487.5 516,-487.5 516,-376.5 516,-376.5 516,-370.5 522,-364.5 528,-364.5"/>
 </g>
 <!-- ops__trip_stop&#45;&gt;ops__trip -->
 <g id="edge6" class="edge">
@@ -370,13 +370,13 @@
 <!-- ops__trip_stop&#45;&gt;net__station -->
 <g id="edge5" class="edge">
 <title>ops__trip_stop&#45;&gt;net__station</title>
-<path fill="none" stroke="#595959" stroke-width="1.1" d="M655.42,-498.25C655.42,-498.25 758.93,-498.25 758.93,-498.25"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="758.93,-498.25 766.93,-501.85 762.93,-498.25 766.93,-498.25 766.93,-498.25 766.93,-498.25 762.93,-498.25 766.93,-494.65 758.93,-498.25 758.93,-498.25"/>
-<ellipse fill="none" stroke="#595959" stroke-width="1.1" cx="755.73" cy="-498.25" rx="3.2" ry="3.2"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="641.82,-502.25 641.82,-494.25 643.42,-494.25 643.42,-502.25 641.82,-502.25"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="641.02,-498.25 645.02,-498.25 "/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="645.82,-502.25 645.82,-494.25 647.42,-494.25 647.42,-502.25 645.82,-502.25"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="645.02,-498.25 649.02,-498.25 "/>
+<path fill="none" stroke="#595959" stroke-width="1.1" d="M655.42,-489.75C655.42,-489.75 758.93,-489.75 758.93,-489.75"/>
+<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="758.93,-489.75 766.93,-493.35 762.93,-489.75 766.93,-489.75 766.93,-489.75 766.93,-489.75 762.93,-489.75 766.93,-486.15 758.93,-489.75 758.93,-489.75"/>
+<ellipse fill="none" stroke="#595959" stroke-width="1.1" cx="755.73" cy="-489.75" rx="3.2" ry="3.2"/>
+<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="641.82,-493.75 641.82,-485.75 643.42,-485.75 643.42,-493.75 641.82,-493.75"/>
+<polyline fill="none" stroke="#595959" stroke-width="1.1" points="641.02,-489.75 645.02,-489.75 "/>
+<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="645.82,-493.75 645.82,-485.75 647.42,-485.75 647.42,-493.75 645.82,-493.75"/>
+<polyline fill="none" stroke="#595959" stroke-width="1.1" points="645.02,-489.75 649.02,-489.75 "/>
 </g>
 <!-- net__station&#45;&gt;ref__country -->
 <g id="edge7" class="edge">
@@ -557,9 +557,21 @@
 <text text-anchor="start" x="495.5" y="-698" font-family="DejaVu Sans" font-size="10.00">accompanied_by_passenger_id</text>
 <polygon fill="#ffffff" stroke="transparent" points="651.5,-692 651.5,-709 687.5,-709 687.5,-692 651.5,-692"/>
 <text text-anchor="start" x="654.5" y="-698.6" font-family="DejaVu Sans" font-size="8.00" fill="#7f7f7f">bigint</text>
-<polygon fill="#ffffff" stroke="transparent" points="470.5,-677 470.5,-692 687.5,-692 687.5,-677 470.5,-677"/>
-<text text-anchor="start" x="473.5" y="-683.6" font-family="DejaVu Sans" font-style="italic" font-size="8.00" fill="#7f7f7f">+ 18 more columns</text>
-<path fill="none" stroke="#404040" d="M481,-676.5C481,-676.5 676,-676.5 676,-676.5 682,-676.5 688,-682.5 688,-688.5 688,-688.5 688,-833.5 688,-833.5 688,-839.5 682,-845.5 676,-845.5 676,-845.5 481,-845.5 481,-845.5 475,-845.5 469,-839.5 469,-833.5 469,-833.5 469,-688.5 469,-688.5 469,-682.5 475,-676.5 481,-676.5"/>
+<polygon fill="#f2f6fa" stroke="transparent" points="470.5,-675 470.5,-692 492.5,-692 492.5,-675 470.5,-675"/>
+<text text-anchor="start" x="473.5" y="-682" font-family="DejaVu Sans" font-weight="bold" font-size="10.00" fill="#c55a11">FK</text>
+<polygon fill="#f2f6fa" stroke="transparent" points="492.5,-675 492.5,-692 651.5,-692 651.5,-675 492.5,-675"/>
+<text text-anchor="start" x="495.5" y="-681" font-family="DejaVu Sans" font-size="10.00">retention_policy_id</text>
+<polygon fill="#f2f6fa" stroke="transparent" points="651.5,-675 651.5,-692 687.5,-692 687.5,-675 651.5,-675"/>
+<text text-anchor="start" x="654.5" y="-681.6" font-family="DejaVu Sans" font-size="8.00" fill="#7f7f7f">bigint</text>
+<polygon fill="#ffffff" stroke="transparent" points="470.5,-658 470.5,-675 492.5,-675 492.5,-658 470.5,-658"/>
+<text text-anchor="start" x="473.5" y="-665" font-family="DejaVu Sans" font-weight="bold" font-size="10.00" fill="#c55a11">FK</text>
+<polygon fill="#ffffff" stroke="transparent" points="492.5,-658 492.5,-675 651.5,-675 651.5,-658 492.5,-658"/>
+<text text-anchor="start" x="495.5" y="-664" font-family="DejaVu Sans" font-size="10.00">erasure_request_id</text>
+<polygon fill="#ffffff" stroke="transparent" points="651.5,-658 651.5,-675 687.5,-675 687.5,-658 651.5,-658"/>
+<text text-anchor="start" x="654.5" y="-664.6" font-family="DejaVu Sans" font-size="8.00" fill="#7f7f7f">bigint</text>
+<polygon fill="#ffffff" stroke="transparent" points="470.5,-643 470.5,-658 687.5,-658 687.5,-643 470.5,-643"/>
+<text text-anchor="start" x="473.5" y="-649.6" font-family="DejaVu Sans" font-style="italic" font-size="8.00" fill="#7f7f7f">+ 20 more columns</text>
+<path fill="none" stroke="#404040" d="M481,-642.5C481,-642.5 676,-642.5 676,-642.5 682,-642.5 688,-648.5 688,-654.5 688,-654.5 688,-833.5 688,-833.5 688,-839.5 682,-845.5 676,-845.5 676,-845.5 481,-845.5 481,-845.5 475,-845.5 469,-839.5 469,-833.5 469,-833.5 469,-654.5 469,-654.5 469,-648.5 475,-642.5 481,-642.5"/>
 </g>
 <!-- sales__passenger&#45;&gt;ref__country -->
 <g id="edge13" class="edge">
@@ -584,20 +596,20 @@
 <!-- sales__passenger&#45;&gt;sales__booking -->
 <g id="edge12" class="edge">
 <title>sales__passenger&#45;&gt;sales__booking</title>
-<path fill="none" stroke="#c55a11" stroke-width="2.2" d="M665,-661.84C665,-661.84 665,-414.5 665,-414.5 665,-414.5 766.94,-414.5 766.94,-414.5"/>
-<polygon fill="#c55a11" stroke="#c55a11" stroke-width="2.2" points="665,-668.24 661.4,-676.24 665,-672.24 665,-676.24 665,-676.24 665,-676.24 665,-672.24 668.6,-676.24 665,-668.24 665,-668.24"/>
-<ellipse fill="none" stroke="#c55a11" stroke-width="2.2" cx="665" cy="-665.04" rx="3.2" ry="3.2"/>
-<polygon fill="#c55a11" stroke="#c55a11" stroke-width="2.2" points="774.14,-410.5 774.14,-418.5 772.54,-418.5 772.54,-410.5 774.14,-410.5"/>
-<polyline fill="none" stroke="#c55a11" stroke-width="2.2" points="774.94,-414.5 770.94,-414.5 "/>
-<polygon fill="#c55a11" stroke="#c55a11" stroke-width="2.2" points="770.14,-410.5 770.14,-418.5 768.54,-418.5 768.54,-410.5 770.14,-410.5"/>
-<polyline fill="none" stroke="#c55a11" stroke-width="2.2" points="770.94,-414.5 766.94,-414.5 "/>
+<path fill="none" stroke="#c55a11" stroke-width="2.2" d="M665,-627.73C665,-627.73 665,-406 665,-406 665,-406 766.94,-406 766.94,-406"/>
+<polygon fill="#c55a11" stroke="#c55a11" stroke-width="2.2" points="665,-634.13 661.4,-642.13 665,-638.13 665,-642.13 665,-642.13 665,-642.13 665,-638.13 668.6,-642.13 665,-634.13 665,-634.13"/>
+<ellipse fill="none" stroke="#c55a11" stroke-width="2.2" cx="665" cy="-630.93" rx="3.2" ry="3.2"/>
+<polygon fill="#c55a11" stroke="#c55a11" stroke-width="2.2" points="774.14,-402 774.14,-410 772.54,-410 772.54,-402 774.14,-402"/>
+<polyline fill="none" stroke="#c55a11" stroke-width="2.2" points="774.94,-406 770.94,-406 "/>
+<polygon fill="#c55a11" stroke="#c55a11" stroke-width="2.2" points="770.14,-402 770.14,-410 768.54,-410 768.54,-402 770.14,-402"/>
+<polyline fill="none" stroke="#c55a11" stroke-width="2.2" points="770.94,-406 766.94,-406 "/>
 </g>
 <!-- sales__passenger&#45;&gt;sales__passenger -->
 <g id="edge11" class="edge">
 <title>sales__passenger&#45;&gt;sales__passenger</title>
-<path fill="none" stroke="#595959" stroke-width="1.1" d="M454.23,-761C454.23,-761 430,-761 430,-761 430,-761 430,-860.5 430,-860.5 430,-860.5 728,-860.5 728,-860.5 728,-860.5 728,-838.25 728,-838.25 728,-838.25 698.73,-838.25 698.73,-838.25"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="460.63,-761 468.63,-764.6 464.63,-761 468.63,-761 468.63,-761 468.63,-761 464.63,-761 468.63,-757.4 460.63,-761 460.63,-761"/>
-<ellipse fill="none" stroke="#595959" stroke-width="1.1" cx="457.43" cy="-761" rx="3.2" ry="3.2"/>
+<path fill="none" stroke="#595959" stroke-width="1.1" d="M454.23,-744C454.23,-744 430,-744 430,-744 430,-744 430,-860.5 430,-860.5 430,-860.5 728,-860.5 728,-860.5 728,-860.5 728,-838.25 728,-838.25 728,-838.25 698.73,-838.25 698.73,-838.25"/>
+<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="460.63,-744 468.63,-747.6 464.63,-744 468.63,-744 468.63,-744 468.63,-744 464.63,-744 468.63,-740.4 460.63,-744 460.63,-744"/>
+<ellipse fill="none" stroke="#595959" stroke-width="1.1" cx="457.43" cy="-744" rx="3.2" ry="3.2"/>
 <polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="689.13,-842.25 689.13,-834.25 690.73,-834.25 690.73,-842.25 689.13,-842.25"/>
 <polyline fill="none" stroke="#595959" stroke-width="1.1" points="688.33,-838.25 692.33,-838.25 "/>
 <ellipse fill="none" stroke="#595959" stroke-width="1.1" cx="695.53" cy="-838.25" rx="3.2" ry="3.2"/>
@@ -605,79 +617,79 @@
 <!-- sales__ticket -->
 <g id="node8" class="node">
 <title>sales__ticket</title>
-<polygon fill="#c55a11" stroke="transparent" points="237.5,-554 237.5,-558 387.5,-558 387.5,-554 237.5,-554"/>
-<polygon fill="#fce4d6" stroke="transparent" points="237.5,-525 237.5,-554 387.5,-554 387.5,-525 237.5,-525"/>
-<text text-anchor="start" x="294.5" y="-541.2" font-family="DejaVu Sans" font-weight="bold" font-size="11.00">ticket</text>
-<text text-anchor="start" x="301.5" y="-532.6" font-family="DejaVu Sans" font-size="8.00" fill="#595959">sales</text>
-<polygon fill="#ffffff" stroke="transparent" points="237.5,-508 237.5,-525 260.5,-525 260.5,-508 237.5,-508"/>
-<text text-anchor="start" x="240.5" y="-515" font-family="DejaVu Sans" font-weight="bold" font-size="10.00" fill="#1f3a5f">PK</text>
-<polygon fill="#ffffff" stroke="transparent" points="260.5,-508 260.5,-525 348.5,-525 348.5,-508 260.5,-508"/>
-<text text-anchor="start" x="263.5" y="-515" font-family="DejaVu Sans" font-weight="bold" font-size="10.00">id</text>
-<polygon fill="#ffffff" stroke="transparent" points="348.5,-508 348.5,-525 387.5,-525 387.5,-508 348.5,-508"/>
-<text text-anchor="start" x="351.5" y="-514.6" font-family="DejaVu Sans" font-size="8.00" fill="#7f7f7f">bigint</text>
-<polygon fill="#f2f6fa" stroke="transparent" points="237.5,-491 237.5,-508 260.5,-508 260.5,-491 237.5,-491"/>
-<text text-anchor="start" x="240.5" y="-498" font-family="DejaVu Sans" font-weight="bold" font-size="10.00" fill="#c55a11">FK</text>
-<polygon fill="#f2f6fa" stroke="transparent" points="260.5,-491 260.5,-508 348.5,-508 348.5,-491 260.5,-491"/>
-<text text-anchor="start" x="263.5" y="-498" font-family="DejaVu Sans" font-weight="bold" font-size="10.00">booking_id</text>
-<polygon fill="#f2f6fa" stroke="transparent" points="348.5,-491 348.5,-508 387.5,-508 387.5,-491 348.5,-491"/>
+<polygon fill="#c55a11" stroke="transparent" points="237.5,-537 237.5,-541 387.5,-541 387.5,-537 237.5,-537"/>
+<polygon fill="#fce4d6" stroke="transparent" points="237.5,-508 237.5,-537 387.5,-537 387.5,-508 237.5,-508"/>
+<text text-anchor="start" x="294.5" y="-524.2" font-family="DejaVu Sans" font-weight="bold" font-size="11.00">ticket</text>
+<text text-anchor="start" x="301.5" y="-515.6" font-family="DejaVu Sans" font-size="8.00" fill="#595959">sales</text>
+<polygon fill="#ffffff" stroke="transparent" points="237.5,-491 237.5,-508 260.5,-508 260.5,-491 237.5,-491"/>
+<text text-anchor="start" x="240.5" y="-498" font-family="DejaVu Sans" font-weight="bold" font-size="10.00" fill="#1f3a5f">PK</text>
+<polygon fill="#ffffff" stroke="transparent" points="260.5,-491 260.5,-508 348.5,-508 348.5,-491 260.5,-491"/>
+<text text-anchor="start" x="263.5" y="-498" font-family="DejaVu Sans" font-weight="bold" font-size="10.00">id</text>
+<polygon fill="#ffffff" stroke="transparent" points="348.5,-491 348.5,-508 387.5,-508 387.5,-491 348.5,-491"/>
 <text text-anchor="start" x="351.5" y="-497.6" font-family="DejaVu Sans" font-size="8.00" fill="#7f7f7f">bigint</text>
-<polygon fill="#ffffff" stroke="transparent" points="237.5,-474 237.5,-491 260.5,-491 260.5,-474 237.5,-474"/>
+<polygon fill="#f2f6fa" stroke="transparent" points="237.5,-474 237.5,-491 260.5,-491 260.5,-474 237.5,-474"/>
 <text text-anchor="start" x="240.5" y="-481" font-family="DejaVu Sans" font-weight="bold" font-size="10.00" fill="#c55a11">FK</text>
-<polygon fill="#ffffff" stroke="transparent" points="260.5,-474 260.5,-491 348.5,-491 348.5,-474 260.5,-474"/>
-<text text-anchor="start" x="263.5" y="-481" font-family="DejaVu Sans" font-weight="bold" font-size="10.00">passenger_id</text>
-<polygon fill="#ffffff" stroke="transparent" points="348.5,-474 348.5,-491 387.5,-491 387.5,-474 348.5,-474"/>
+<polygon fill="#f2f6fa" stroke="transparent" points="260.5,-474 260.5,-491 348.5,-491 348.5,-474 260.5,-474"/>
+<text text-anchor="start" x="263.5" y="-481" font-family="DejaVu Sans" font-weight="bold" font-size="10.00">booking_id</text>
+<polygon fill="#f2f6fa" stroke="transparent" points="348.5,-474 348.5,-491 387.5,-491 387.5,-474 348.5,-474"/>
 <text text-anchor="start" x="351.5" y="-480.6" font-family="DejaVu Sans" font-size="8.00" fill="#7f7f7f">bigint</text>
-<polygon fill="#f2f6fa" stroke="transparent" points="237.5,-457 237.5,-474 260.5,-474 260.5,-457 237.5,-457"/>
+<polygon fill="#ffffff" stroke="transparent" points="237.5,-457 237.5,-474 260.5,-474 260.5,-457 237.5,-457"/>
 <text text-anchor="start" x="240.5" y="-464" font-family="DejaVu Sans" font-weight="bold" font-size="10.00" fill="#c55a11">FK</text>
-<polygon fill="#f2f6fa" stroke="transparent" points="260.5,-457 260.5,-474 348.5,-474 348.5,-457 260.5,-457"/>
-<text text-anchor="start" x="263.5" y="-464" font-family="DejaVu Sans" font-weight="bold" font-size="10.00">trip_id</text>
-<polygon fill="#f2f6fa" stroke="transparent" points="348.5,-457 348.5,-474 387.5,-474 387.5,-457 348.5,-457"/>
+<polygon fill="#ffffff" stroke="transparent" points="260.5,-457 260.5,-474 348.5,-474 348.5,-457 260.5,-457"/>
+<text text-anchor="start" x="263.5" y="-464" font-family="DejaVu Sans" font-weight="bold" font-size="10.00">passenger_id</text>
+<polygon fill="#ffffff" stroke="transparent" points="348.5,-457 348.5,-474 387.5,-474 387.5,-457 348.5,-457"/>
 <text text-anchor="start" x="351.5" y="-463.6" font-family="DejaVu Sans" font-size="8.00" fill="#7f7f7f">bigint</text>
-<polygon fill="#ffffff" stroke="transparent" points="237.5,-440 237.5,-457 260.5,-457 260.5,-440 237.5,-440"/>
+<polygon fill="#f2f6fa" stroke="transparent" points="237.5,-440 237.5,-457 260.5,-457 260.5,-440 237.5,-440"/>
 <text text-anchor="start" x="240.5" y="-447" font-family="DejaVu Sans" font-weight="bold" font-size="10.00" fill="#c55a11">FK</text>
-<polygon fill="#ffffff" stroke="transparent" points="260.5,-440 260.5,-457 348.5,-457 348.5,-440 260.5,-440"/>
-<text text-anchor="start" x="263.5" y="-447" font-family="DejaVu Sans" font-weight="bold" font-size="10.00">from_seq</text>
-<polygon fill="#ffffff" stroke="transparent" points="348.5,-440 348.5,-457 387.5,-457 387.5,-440 348.5,-440"/>
-<text text-anchor="start" x="351.5" y="-446.6" font-family="DejaVu Sans" font-size="8.00" fill="#7f7f7f">smallint</text>
-<polygon fill="#f2f6fa" stroke="transparent" points="237.5,-423 237.5,-440 260.5,-440 260.5,-423 237.5,-423"/>
+<polygon fill="#f2f6fa" stroke="transparent" points="260.5,-440 260.5,-457 348.5,-457 348.5,-440 260.5,-440"/>
+<text text-anchor="start" x="263.5" y="-447" font-family="DejaVu Sans" font-weight="bold" font-size="10.00">trip_id</text>
+<polygon fill="#f2f6fa" stroke="transparent" points="348.5,-440 348.5,-457 387.5,-457 387.5,-440 348.5,-440"/>
+<text text-anchor="start" x="351.5" y="-446.6" font-family="DejaVu Sans" font-size="8.00" fill="#7f7f7f">bigint</text>
+<polygon fill="#ffffff" stroke="transparent" points="237.5,-423 237.5,-440 260.5,-440 260.5,-423 237.5,-423"/>
 <text text-anchor="start" x="240.5" y="-430" font-family="DejaVu Sans" font-weight="bold" font-size="10.00" fill="#c55a11">FK</text>
-<polygon fill="#f2f6fa" stroke="transparent" points="260.5,-423 260.5,-440 348.5,-440 348.5,-423 260.5,-423"/>
-<text text-anchor="start" x="263.5" y="-430" font-family="DejaVu Sans" font-weight="bold" font-size="10.00">to_seq</text>
-<polygon fill="#f2f6fa" stroke="transparent" points="348.5,-423 348.5,-440 387.5,-440 387.5,-423 348.5,-423"/>
+<polygon fill="#ffffff" stroke="transparent" points="260.5,-423 260.5,-440 348.5,-440 348.5,-423 260.5,-423"/>
+<text text-anchor="start" x="263.5" y="-430" font-family="DejaVu Sans" font-weight="bold" font-size="10.00">from_seq</text>
+<polygon fill="#ffffff" stroke="transparent" points="348.5,-423 348.5,-440 387.5,-440 387.5,-423 348.5,-423"/>
 <text text-anchor="start" x="351.5" y="-429.6" font-family="DejaVu Sans" font-size="8.00" fill="#7f7f7f">smallint</text>
-<polygon fill="#ffffff" stroke="transparent" points="237.5,-406 237.5,-423 260.5,-423 260.5,-406 237.5,-406"/>
+<polygon fill="#f2f6fa" stroke="transparent" points="237.5,-406 237.5,-423 260.5,-423 260.5,-406 237.5,-406"/>
 <text text-anchor="start" x="240.5" y="-413" font-family="DejaVu Sans" font-weight="bold" font-size="10.00" fill="#c55a11">FK</text>
-<polygon fill="#ffffff" stroke="transparent" points="260.5,-406 260.5,-423 348.5,-423 348.5,-406 260.5,-406"/>
-<text text-anchor="start" x="263.5" y="-412" font-family="DejaVu Sans" font-size="10.00">fare_brand_code</text>
-<polygon fill="#ffffff" stroke="transparent" points="348.5,-406 348.5,-423 387.5,-423 387.5,-406 348.5,-406"/>
-<text text-anchor="start" x="351.5" y="-412.6" font-family="DejaVu Sans" font-size="8.00" fill="#7f7f7f">text</text>
-<polygon fill="#f2f6fa" stroke="transparent" points="237.5,-389 237.5,-406 260.5,-406 260.5,-389 237.5,-389"/>
-<text text-anchor="start" x="240.5" y="-396" font-family="DejaVu Sans" font-weight="bold" font-size="10.00" fill="#595959">UQ</text>
-<polygon fill="#f2f6fa" stroke="transparent" points="260.5,-389 260.5,-406 348.5,-406 348.5,-389 260.5,-389"/>
-<text text-anchor="start" x="263.5" y="-396" font-family="DejaVu Sans" font-weight="bold" font-size="10.00">uid</text>
-<polygon fill="#f2f6fa" stroke="transparent" points="348.5,-389 348.5,-406 387.5,-406 387.5,-389 348.5,-389"/>
-<text text-anchor="start" x="351.5" y="-395.6" font-family="DejaVu Sans" font-size="8.00" fill="#7f7f7f">uuid</text>
-<polygon fill="#ffffff" stroke="transparent" points="237.5,-372 237.5,-389 260.5,-389 260.5,-372 237.5,-372"/>
+<polygon fill="#f2f6fa" stroke="transparent" points="260.5,-406 260.5,-423 348.5,-423 348.5,-406 260.5,-406"/>
+<text text-anchor="start" x="263.5" y="-413" font-family="DejaVu Sans" font-weight="bold" font-size="10.00">to_seq</text>
+<polygon fill="#f2f6fa" stroke="transparent" points="348.5,-406 348.5,-423 387.5,-423 387.5,-406 348.5,-406"/>
+<text text-anchor="start" x="351.5" y="-412.6" font-family="DejaVu Sans" font-size="8.00" fill="#7f7f7f">smallint</text>
+<polygon fill="#ffffff" stroke="transparent" points="237.5,-389 237.5,-406 260.5,-406 260.5,-389 237.5,-389"/>
+<text text-anchor="start" x="240.5" y="-396" font-family="DejaVu Sans" font-weight="bold" font-size="10.00" fill="#c55a11">FK</text>
+<polygon fill="#ffffff" stroke="transparent" points="260.5,-389 260.5,-406 348.5,-406 348.5,-389 260.5,-389"/>
+<text text-anchor="start" x="263.5" y="-395" font-family="DejaVu Sans" font-size="10.00">fare_brand_code</text>
+<polygon fill="#ffffff" stroke="transparent" points="348.5,-389 348.5,-406 387.5,-406 387.5,-389 348.5,-389"/>
+<text text-anchor="start" x="351.5" y="-395.6" font-family="DejaVu Sans" font-size="8.00" fill="#7f7f7f">text</text>
+<polygon fill="#f2f6fa" stroke="transparent" points="237.5,-372 237.5,-389 260.5,-389 260.5,-372 237.5,-372"/>
 <text text-anchor="start" x="240.5" y="-379" font-family="DejaVu Sans" font-weight="bold" font-size="10.00" fill="#595959">UQ</text>
-<polygon fill="#ffffff" stroke="transparent" points="260.5,-372 260.5,-389 348.5,-389 348.5,-372 260.5,-372"/>
-<text text-anchor="start" x="263.5" y="-379" font-family="DejaVu Sans" font-weight="bold" font-size="10.00">ticket_no</text>
-<polygon fill="#ffffff" stroke="transparent" points="348.5,-372 348.5,-389 387.5,-389 387.5,-372 348.5,-372"/>
-<text text-anchor="start" x="351.5" y="-378.6" font-family="DejaVu Sans" font-size="8.00" fill="#7f7f7f">text</text>
-<polygon fill="#f2f6fa" stroke="transparent" points="237.5,-355 237.5,-372 260.5,-372 260.5,-355 237.5,-355"/>
-<polygon fill="#f2f6fa" stroke="transparent" points="260.5,-355 260.5,-372 348.5,-372 348.5,-355 260.5,-355"/>
-<text text-anchor="start" x="263.5" y="-362" font-family="DejaVu Sans" font-weight="bold" font-size="10.00">status</text>
-<polygon fill="#f2f6fa" stroke="transparent" points="348.5,-355 348.5,-372 387.5,-372 387.5,-355 348.5,-355"/>
+<polygon fill="#f2f6fa" stroke="transparent" points="260.5,-372 260.5,-389 348.5,-389 348.5,-372 260.5,-372"/>
+<text text-anchor="start" x="263.5" y="-379" font-family="DejaVu Sans" font-weight="bold" font-size="10.00">uid</text>
+<polygon fill="#f2f6fa" stroke="transparent" points="348.5,-372 348.5,-389 387.5,-389 387.5,-372 348.5,-372"/>
+<text text-anchor="start" x="351.5" y="-378.6" font-family="DejaVu Sans" font-size="8.00" fill="#7f7f7f">uuid</text>
+<polygon fill="#ffffff" stroke="transparent" points="237.5,-355 237.5,-372 260.5,-372 260.5,-355 237.5,-355"/>
+<text text-anchor="start" x="240.5" y="-362" font-family="DejaVu Sans" font-weight="bold" font-size="10.00" fill="#595959">UQ</text>
+<polygon fill="#ffffff" stroke="transparent" points="260.5,-355 260.5,-372 348.5,-372 348.5,-355 260.5,-355"/>
+<text text-anchor="start" x="263.5" y="-362" font-family="DejaVu Sans" font-weight="bold" font-size="10.00">ticket_no</text>
+<polygon fill="#ffffff" stroke="transparent" points="348.5,-355 348.5,-372 387.5,-372 387.5,-355 348.5,-355"/>
 <text text-anchor="start" x="351.5" y="-361.6" font-family="DejaVu Sans" font-size="8.00" fill="#7f7f7f">text</text>
-<polygon fill="#ffffff" stroke="transparent" points="237.5,-340 237.5,-355 387.5,-355 387.5,-340 237.5,-340"/>
-<text text-anchor="start" x="240.5" y="-346.6" font-family="DejaVu Sans" font-style="italic" font-size="8.00" fill="#7f7f7f">+ 15 more columns</text>
-<path fill="none" stroke="#404040" d="M248.5,-339C248.5,-339 376.5,-339 376.5,-339 382.5,-339 388.5,-345 388.5,-351 388.5,-351 388.5,-547 388.5,-547 388.5,-553 382.5,-559 376.5,-559 376.5,-559 248.5,-559 248.5,-559 242.5,-559 236.5,-553 236.5,-547 236.5,-547 236.5,-351 236.5,-351 236.5,-345 242.5,-339 248.5,-339"/>
+<polygon fill="#f2f6fa" stroke="transparent" points="237.5,-338 237.5,-355 260.5,-355 260.5,-338 237.5,-338"/>
+<polygon fill="#f2f6fa" stroke="transparent" points="260.5,-338 260.5,-355 348.5,-355 348.5,-338 260.5,-338"/>
+<text text-anchor="start" x="263.5" y="-345" font-family="DejaVu Sans" font-weight="bold" font-size="10.00">status</text>
+<polygon fill="#f2f6fa" stroke="transparent" points="348.5,-338 348.5,-355 387.5,-355 387.5,-338 348.5,-338"/>
+<text text-anchor="start" x="351.5" y="-344.6" font-family="DejaVu Sans" font-size="8.00" fill="#7f7f7f">text</text>
+<polygon fill="#ffffff" stroke="transparent" points="237.5,-323 237.5,-338 387.5,-338 387.5,-323 237.5,-323"/>
+<text text-anchor="start" x="240.5" y="-329.6" font-family="DejaVu Sans" font-style="italic" font-size="8.00" fill="#7f7f7f">+ 15 more columns</text>
+<path fill="none" stroke="#404040" d="M248.5,-322C248.5,-322 376.5,-322 376.5,-322 382.5,-322 388.5,-328 388.5,-334 388.5,-334 388.5,-530 388.5,-530 388.5,-536 382.5,-542 376.5,-542 376.5,-542 248.5,-542 248.5,-542 242.5,-542 236.5,-536 236.5,-530 236.5,-530 236.5,-334 236.5,-334 236.5,-328 242.5,-322 248.5,-322"/>
 </g>
 <!-- sales__ticket&#45;&gt;ops__trip -->
 <g id="edge17" class="edge">
 <title>sales__ticket&#45;&gt;ops__trip</title>
-<path fill="none" stroke="#595959" stroke-width="1.1" d="M313,-324.4C313,-324.4 313,-88.25 313,-88.25 313,-88.25 1011.68,-88.25 1011.68,-88.25"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="313,-330.8 309.4,-338.8 313,-334.8 313,-338.8 313,-338.8 313,-338.8 313,-334.8 316.6,-338.8 313,-330.8 313,-330.8"/>
-<ellipse fill="none" stroke="#595959" stroke-width="1.1" cx="313" cy="-327.6" rx="3.2" ry="3.2"/>
+<path fill="none" stroke="#595959" stroke-width="1.1" d="M313,-307.42C313,-307.42 313,-88.25 313,-88.25 313,-88.25 1011.68,-88.25 1011.68,-88.25"/>
+<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="313,-313.82 309.4,-321.82 313,-317.82 313,-321.82 313,-321.82 313,-321.82 313,-317.82 316.6,-321.82 313,-313.82 313,-313.82"/>
+<ellipse fill="none" stroke="#595959" stroke-width="1.1" cx="313" cy="-310.62" rx="3.2" ry="3.2"/>
 <polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="1018.88,-84.25 1018.88,-92.25 1017.28,-92.25 1017.28,-84.25 1018.88,-84.25"/>
 <polyline fill="none" stroke="#595959" stroke-width="1.1" points="1019.68,-88.25 1015.68,-88.25 "/>
 <polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="1014.88,-84.25 1014.88,-92.25 1013.28,-92.25 1013.28,-84.25 1014.88,-84.25"/>
@@ -686,46 +698,46 @@
 <!-- sales__ticket&#45;&gt;ops__trip_stop -->
 <g id="edge18" class="edge">
 <title>sales__ticket&#45;&gt;ops__trip_stop</title>
-<path fill="none" stroke="#595959" stroke-width="1.1" d="M403.12,-426.5C403.12,-426.5 507.72,-426.5 507.72,-426.5"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="507.72,-426.5 515.72,-430.1 511.72,-426.5 515.72,-426.5 515.72,-426.5 515.72,-426.5 511.72,-426.5 515.72,-422.9 507.72,-426.5 507.72,-426.5"/>
-<ellipse fill="none" stroke="#595959" stroke-width="1.1" cx="504.52" cy="-426.5" rx="3.2" ry="3.2"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="389.52,-430.5 389.52,-422.5 391.12,-422.5 391.12,-430.5 389.52,-430.5"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="388.72,-426.5 392.72,-426.5 "/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="393.52,-430.5 393.52,-422.5 395.12,-422.5 395.12,-430.5 393.52,-430.5"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="392.72,-426.5 396.72,-426.5 "/>
+<path fill="none" stroke="#595959" stroke-width="1.1" d="M403.12,-409.5C403.12,-409.5 507.72,-409.5 507.72,-409.5"/>
+<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="507.72,-409.5 515.72,-413.1 511.72,-409.5 515.72,-409.5 515.72,-409.5 515.72,-409.5 511.72,-409.5 515.72,-405.9 507.72,-409.5 507.72,-409.5"/>
+<ellipse fill="none" stroke="#595959" stroke-width="1.1" cx="504.52" cy="-409.5" rx="3.2" ry="3.2"/>
+<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="389.52,-413.5 389.52,-405.5 391.12,-405.5 391.12,-413.5 389.52,-413.5"/>
+<polyline fill="none" stroke="#595959" stroke-width="1.1" points="388.72,-409.5 392.72,-409.5 "/>
+<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="393.52,-413.5 393.52,-405.5 395.12,-405.5 395.12,-413.5 393.52,-413.5"/>
+<polyline fill="none" stroke="#595959" stroke-width="1.1" points="392.72,-409.5 396.72,-409.5 "/>
 </g>
 <!-- sales__ticket&#45;&gt;ops__trip_stop -->
 <g id="edge19" class="edge">
 <title>sales__ticket&#45;&gt;ops__trip_stop</title>
-<path fill="none" stroke="#595959" stroke-width="1.1" d="M403.12,-471.5C403.12,-471.5 507.72,-471.5 507.72,-471.5"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="507.72,-471.5 515.72,-475.1 511.72,-471.5 515.72,-471.5 515.72,-471.5 515.72,-471.5 511.72,-471.5 515.72,-467.9 507.72,-471.5 507.72,-471.5"/>
-<ellipse fill="none" stroke="#595959" stroke-width="1.1" cx="504.52" cy="-471.5" rx="3.2" ry="3.2"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="389.52,-475.5 389.52,-467.5 391.12,-467.5 391.12,-475.5 389.52,-475.5"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="388.72,-471.5 392.72,-471.5 "/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="393.52,-475.5 393.52,-467.5 395.12,-467.5 395.12,-475.5 393.52,-475.5"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="392.72,-471.5 396.72,-471.5 "/>
+<path fill="none" stroke="#595959" stroke-width="1.1" d="M403.12,-454.5C403.12,-454.5 507.72,-454.5 507.72,-454.5"/>
+<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="507.72,-454.5 515.72,-458.1 511.72,-454.5 515.72,-454.5 515.72,-454.5 515.72,-454.5 511.72,-454.5 515.72,-450.9 507.72,-454.5 507.72,-454.5"/>
+<ellipse fill="none" stroke="#595959" stroke-width="1.1" cx="504.52" cy="-454.5" rx="3.2" ry="3.2"/>
+<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="389.52,-458.5 389.52,-450.5 391.12,-450.5 391.12,-458.5 389.52,-458.5"/>
+<polyline fill="none" stroke="#595959" stroke-width="1.1" points="388.72,-454.5 392.72,-454.5 "/>
+<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="393.52,-458.5 393.52,-450.5 395.12,-450.5 395.12,-458.5 393.52,-458.5"/>
+<polyline fill="none" stroke="#595959" stroke-width="1.1" points="392.72,-454.5 396.72,-454.5 "/>
 </g>
 <!-- sales__ticket&#45;&gt;sales__booking -->
 <g id="edge15" class="edge">
 <title>sales__ticket&#45;&gt;sales__booking</title>
-<path fill="none" stroke="#595959" stroke-width="1.1" d="M403.05,-360.25C403.05,-360.25 766.78,-360.25 766.78,-360.25"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="766.78,-360.25 774.78,-363.85 770.78,-360.25 774.78,-360.25 774.78,-360.25 774.78,-360.25 770.78,-360.25 774.78,-356.65 766.78,-360.25 766.78,-360.25"/>
-<ellipse fill="none" stroke="#595959" stroke-width="1.1" cx="763.58" cy="-360.25" rx="3.2" ry="3.2"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="389.45,-364.25 389.45,-356.25 391.05,-356.25 391.05,-364.25 389.45,-364.25"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="388.65,-360.25 392.65,-360.25 "/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="393.45,-364.25 393.45,-356.25 395.05,-356.25 395.05,-364.25 393.45,-364.25"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="392.65,-360.25 396.65,-360.25 "/>
+<path fill="none" stroke="#595959" stroke-width="1.1" d="M403.05,-343.25C403.05,-343.25 766.78,-343.25 766.78,-343.25"/>
+<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="766.78,-343.25 774.78,-346.85 770.78,-343.25 774.78,-343.25 774.78,-343.25 774.78,-343.25 770.78,-343.25 774.78,-339.65 766.78,-343.25 766.78,-343.25"/>
+<ellipse fill="none" stroke="#595959" stroke-width="1.1" cx="763.58" cy="-343.25" rx="3.2" ry="3.2"/>
+<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="389.45,-347.25 389.45,-339.25 391.05,-339.25 391.05,-347.25 389.45,-347.25"/>
+<polyline fill="none" stroke="#595959" stroke-width="1.1" points="388.65,-343.25 392.65,-343.25 "/>
+<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="393.45,-347.25 393.45,-339.25 395.05,-339.25 395.05,-347.25 393.45,-347.25"/>
+<polyline fill="none" stroke="#595959" stroke-width="1.1" points="392.65,-343.25 396.65,-343.25 "/>
 </g>
 <!-- sales__ticket&#45;&gt;sales__passenger -->
 <g id="edge16" class="edge">
 <title>sales__ticket&#45;&gt;sales__passenger</title>
-<path fill="none" stroke="#595959" stroke-width="1.1" d="M402.93,-537.75C402.93,-537.75 493,-537.75 493,-537.75 493,-537.75 493,-668.28 493,-668.28"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="396.53,-537.75 388.53,-534.15 392.53,-537.75 388.53,-537.75 388.53,-537.75 388.53,-537.75 392.53,-537.75 388.53,-541.35 396.53,-537.75 396.53,-537.75"/>
-<ellipse fill="none" stroke="#595959" stroke-width="1.1" cx="399.73" cy="-537.75" rx="3.2" ry="3.2"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="497,-675.48 489,-675.48 489,-673.88 497,-673.88 497,-675.48"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="493,-676.28 493,-672.28 "/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="497,-671.48 489,-671.48 489,-669.88 497,-669.88 497,-671.48"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="493,-672.28 493,-668.28 "/>
+<path fill="none" stroke="#595959" stroke-width="1.1" d="M402.93,-520.75C402.93,-520.75 493,-520.75 493,-520.75 493,-520.75 493,-634.17 493,-634.17"/>
+<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="396.53,-520.75 388.53,-517.15 392.53,-520.75 388.53,-520.75 388.53,-520.75 388.53,-520.75 392.53,-520.75 388.53,-524.35 396.53,-520.75 396.53,-520.75"/>
+<ellipse fill="none" stroke="#595959" stroke-width="1.1" cx="399.73" cy="-520.75" rx="3.2" ry="3.2"/>
+<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="497,-641.37 489,-641.37 489,-639.77 497,-639.77 497,-641.37"/>
+<polyline fill="none" stroke="#595959" stroke-width="1.1" points="493,-642.17 493,-638.17 "/>
+<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="497,-637.37 489,-637.37 489,-635.77 497,-635.77 497,-637.37"/>
+<polyline fill="none" stroke="#595959" stroke-width="1.1" points="493,-638.17 493,-634.17 "/>
 </g>
 <!-- sales__ticket_doc -->
 <g id="node9" class="node">
@@ -823,14 +835,14 @@
 <!-- sales__ticket_doc&#45;&gt;sales__ticket -->
 <g id="edge23" class="edge">
 <title>sales__ticket_doc&#45;&gt;sales__ticket</title>
-<path fill="none" stroke="#595959" stroke-width="1.1" d="M52,-962.92C52,-962.92 52,-449 52,-449 52,-449 228.45,-449 228.45,-449"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="56,-972.52 48,-972.52 48,-970.92 56,-970.92 56,-972.52"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="52,-973.32 52,-969.32 "/>
-<ellipse fill="none" stroke="#595959" stroke-width="1.1" cx="52" cy="-966.12" rx="3.2" ry="3.2"/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="235.65,-445 235.65,-453 234.05,-453 234.05,-445 235.65,-445"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="236.45,-449 232.45,-449 "/>
-<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="231.65,-445 231.65,-453 230.05,-453 230.05,-445 231.65,-445"/>
-<polyline fill="none" stroke="#595959" stroke-width="1.1" points="232.45,-449 228.45,-449 "/>
+<path fill="none" stroke="#595959" stroke-width="1.1" d="M52,-962.85C52,-962.85 52,-432 52,-432 52,-432 228.45,-432 228.45,-432"/>
+<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="56,-972.45 48,-972.45 48,-970.85 56,-970.85 56,-972.45"/>
+<polyline fill="none" stroke="#595959" stroke-width="1.1" points="52,-973.25 52,-969.25 "/>
+<ellipse fill="none" stroke="#595959" stroke-width="1.1" cx="52" cy="-966.05" rx="3.2" ry="3.2"/>
+<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="235.65,-428 235.65,-436 234.05,-436 234.05,-428 235.65,-428"/>
+<polyline fill="none" stroke="#595959" stroke-width="1.1" points="236.45,-432 232.45,-432 "/>
+<polygon fill="#595959" stroke="#595959" stroke-width="1.1" points="231.65,-428 231.65,-436 230.05,-436 230.05,-428 231.65,-428"/>
+<polyline fill="none" stroke="#595959" stroke-width="1.1" points="232.45,-432 228.45,-432 "/>
 </g>
 <!-- sales__ticket_doc&#45;&gt;iam__app_user -->
 <g id="edge24" class="edge">

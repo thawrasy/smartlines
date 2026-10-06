@@ -45,6 +45,12 @@ INSERT INTO fleet.crew_profile (party_id, company_id, crew_type)
 SELECT (SELECT id FROM iam.party WHERE legal_name='Test Driver'), (SELECT id FROM iam.party WHERE legal_name='Al-Quds Transport'), 'DRIVER';
 COMMIT;
 
+-- The phase modules exercised below are switched on, as the platform does before a phase starts (1039 closes the
+-- tables of a module whose switch is off). The shipped defaults are kept to check them below.
+SELECT value AS shipped_features FROM sys.setting WHERE key = 'features' \gset
+UPDATE sys.setting SET value = value || '{"cargo":true,"freight":true,"border_manifest":true,"carrier_billing":true,"service_partners":true,
+  "rail":true,"taxi":true,"car_rental":true,"contract_transport":true}'::jsonb WHERE key = 'features';
+
 -- Shorthand values
 SELECT id AS ca FROM iam.party WHERE legal_name='Al-Quds Transport' \gset
 SELECT id AS cb FROM iam.party WHERE legal_name='Al-Sham Lines' \gset
@@ -249,11 +255,11 @@ UPDATE acct.einvoice_document SET status = 'SUBMITTED' WHERE id = :inv;
 UPDATE acct.einvoice_document SET status = 'CLEARED', authority_ref = 'GOV-777', confirmed_at = now() WHERE id = :inv;
 SELECT pg_temp.expect_error(format($$UPDATE acct.einvoice_document SET status = 'FINALIZED' WHERE id = %s$$, :inv), 'INVALID_TRANSITION', 'E-invoice: confirmed invoice is fully locked');
 INSERT INTO acct.einvoice_document (doc_type, subtype, seller_profile_id, unit_id, company_id, buyer_party_id, source_type, source_id, original_doc_id, reason_code, currency, subtotal, tax_total, total)
-VALUES ('CREDIT_NOTE','SIMPLIFIED', :prof, :unit, :ca, :pax, 'REFUND', 1, :inv, 'CANCEL', 'SYP', 3000000, 500000, 3500000);
+VALUES ('CREDIT_NOTE','SIMPLIFIED', :prof, :unit, :ca, :pax, 'BOOKING', 1, :inv, 'CANCEL', 'SYP', 3000000, 500000, 3500000);
 SELECT max(id) AS cn FROM acct.einvoice_document \gset
 SELECT pg_temp.ok((SELECT (acct.finalize_einvoice(:cn, 'HASH-2', 'SIG', 'QR2')).previous_hash) = 'HASH-1', 'E-invoice: credit note chained to previous hash');
 INSERT INTO acct.einvoice_document (doc_type, subtype, seller_profile_id, unit_id, company_id, buyer_party_id, source_type, source_id, original_doc_id, reason_code, currency, subtotal, tax_total, total)
-VALUES ('CREDIT_NOTE','SIMPLIFIED', :prof, :unit, :ca, :pax, 'REFUND', 1, :inv, 'CANCEL', 'SYP', 100, 0, 100);
+VALUES ('CREDIT_NOTE','SIMPLIFIED', :prof, :unit, :ca, :pax, 'BOOKING', 1, :inv, 'CANCEL', 'SYP', 100, 0, 100);
 SELECT max(id) AS cn2 FROM acct.einvoice_document \gset
 SELECT pg_temp.expect_error(format('SELECT acct.finalize_einvoice(%s, %L, %L, %L)', :cn2, 'H3', 'S', 'Q'), 'CREDIT_EXCEEDS_ORIGINAL', 'E-invoice: credit notes cannot exceed original');
 COMMIT;
@@ -339,7 +345,7 @@ SELECT pg_temp.expect_error($$UPDATE iam.app_user SET preferred_locale = 'xx' WH
 SELECT pg_temp.ok((SELECT count(*) FROM ref.party_role_type WHERE code IN ('EDU_INSTITUTION','EMPLOYER','GUARDIAN','ATTENDANT')) = 4, 'Reference: contracted-transport party roles exist');
 SELECT pg_temp.ok((SELECT count(*) FROM ref.trip_type WHERE code IN ('TRANSIT_PAX','CONTRACT')) = 2, 'Reference: passenger transit and contract trip types exist');
 SELECT pg_temp.ok((SELECT dangerous FROM ref.cargo_category WHERE code = 'DANGEROUS'), 'Reference: cargo categories carry the hazard flag');
-SELECT pg_temp.ok((SELECT value->>'transit_passengers' = 'false' AND value->>'contract_transport' = 'false' FROM sys.setting WHERE key = 'features'), 'Feature flags: new modules ship disabled');
+SELECT pg_temp.ok((SELECT value->>'transit_passengers' = 'false' AND value->>'contract_transport' = 'false' FROM (SELECT :'shipped_features'::jsonb AS value) f), 'Feature flags: new modules ship disabled');
 SELECT pg_temp.expect_error(format($$INSERT INTO iam.party_role (party_id, role_code) VALUES (%s, 'MADE_UP')$$, :pax), 'party_role_role_code_fk', 'Reference: unknown party role rejected by foreign key');
 SELECT pg_temp.expect_error($$UPDATE ops.trip SET trip_type = 'NOPE' WHERE trip_no = 'QDS222/03OCT26'$$, 'trip_trip_type_fk', 'Reference: unknown trip type rejected by foreign key');
 INSERT INTO net.station (code, city_id, country_code, station_class, subtype, name, lat, lng, status)
@@ -392,7 +398,7 @@ SELECT pg_temp.ok(NOT EXISTS (SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.
   WHERE c.relkind = 'r' AND n.nspname IN ('bill','ptn','ship','frt','brd','rail','taxi','rent')
     AND NOT has_table_privilege('masslak_app', c.oid, 'SELECT')), 'Model: the application role can reach every new table');
 SELECT pg_temp.ok((SELECT value->>'car_rental' = 'false' AND value->>'freight' = 'false' AND value->>'border_manifest' = 'false'
-  FROM sys.setting WHERE key = 'features'), 'Model: the new modules ship disabled behind feature flags');
+  FROM (SELECT :'shipped_features'::jsonb AS value) f), 'Model: the new modules ship disabled behind feature flags');
 SELECT pg_temp.ok((SELECT pg_get_constraintdef(oid) LIKE '%OFFLINE_SCAN%' AND pg_get_constraintdef(oid) LIKE '%CASH%'
   FROM pg_constraint WHERE conname = 'boarding_event_method_check'), 'Boarding: offline driver scans (1002) and cash shuttle boardings are both accepted');
 SELECT pg_temp.expect_error(format($$INSERT INTO brd.border_point (station_id, point_type, country_code) VALUES (%s, 'LAND', 'SY')$$, :st_dam),
@@ -414,7 +420,9 @@ INSERT INTO brd.border_point (station_id, point_type, country_code) VALUES (:b_i
 INSERT INTO brd.manifest (trip_id, border_point_id, manifest_type) VALUES (:t_tr, :b_in, 'PRE_ARRIVAL');
 SELECT id AS mf FROM brd.manifest WHERE trip_id = :t_tr \gset
 INSERT INTO brd.manifest_response (manifest_id, subject_type, decision) VALUES (:mf, 'MANIFEST', 'OK');
-INSERT INTO brd.manifest_response (manifest_id, subject_type, subject_id, decision, silent_flag) VALUES (:mf, 'PERSON', 1, 'OK', true);
+INSERT INTO brd.manifest_person (manifest_id, person_role, crew_party_id, nationality) VALUES (:mf, 'CREW', :driver, 'SY');
+SELECT id AS mperson FROM brd.manifest_person WHERE manifest_id = :mf \gset
+INSERT INTO brd.manifest_response (manifest_id, subject_type, subject_id, decision, silent_flag) VALUES (:mf, 'PERSON', :mperson, 'OK', true);
 INSERT INTO ptn.partner (party_id, company_id, partner_type, code, status) VALUES (:cfuel, :cfuel, 'FUEL', 'FUEL-001', 'ACTIVE');
 SELECT id AS ptnr FROM ptn.partner WHERE code = 'FUEL-001' \gset
 INSERT INTO ptn.partner_contract (partner_id, commission_model, rate_bp, valid, status) VALUES (:ptnr, 'PERCENT', 150, daterange(current_date, NULL), 'ACTIVE');
@@ -617,5 +625,224 @@ SELECT pg_temp.ok(NOT EXISTS (
      AND NOT (rc.oid = 'iam.app_user'::regclass AND a.attname ~ '(_by|_by_user_id)$|^(actor_id|reviewer_id|proposer_id|approver_id|second_approver|by_user_id|scorer_user_id)$')
      AND NOT EXISTS (SELECT 1 FROM pg_index i WHERE i.indrelid = k.conrelid AND i.indkey[0] = k.conkey[1])),
   'Design: every foreign key has a supporting index');
+
+
+-- =====================================================================
+-- Review hardening (1039): the acceptance matrix of the database architecture review, section 6
+-- =====================================================================
+-- Classification and RLS coverage (3.1, 3.2)
+SELECT pg_temp.ok(NOT EXISTS (SELECT 1 FROM sys.v_security_inventory WHERE data_class IS NULL), 'Review 3.2: every table has a data class');
+SELECT pg_temp.ok(NOT EXISTS (SELECT 1 FROM sys.v_security_inventory WHERE NOT rls), 'Review 3.2: every table has row-level security');
+SELECT pg_temp.ok(NOT EXISTS (SELECT 1 FROM sys.v_security_inventory WHERE data_class IN ('TENANT_PRIVATE','USER_PRIVATE') AND tenant_path IS NULL),
+  'Review 3.4: every private table has a documented owner path');
+SELECT pg_temp.ok(NOT EXISTS (SELECT 1 FROM sys.v_security_inventory WHERE data_class = 'RESTRICTED_SECURITY' AND reporting_select),
+  'Review 3.2: reporting never reads restricted security tables');
+SELECT pg_temp.ok((SELECT bool_and(rls_forced) FROM sys.v_security_inventory WHERE table_name IN ('iam.auth_token','iam.mfa_factor','iam.biometric_template')),
+  'Review 3.2: row security is forced on credentials, factors and biometrics');
+SELECT pg_temp.ok(NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname IN ('masslak_app','masslak_api','masslak_readonly','masslak_auditor','masslak_audit')
+  AND (rolsuper OR rolbypassrls)) AND NOT EXISTS (SELECT 1 FROM sys.v_security_inventory WHERE owner LIKE 'masslak_a%' OR owner = 'masslak_readonly'),
+  'RLS bypass: runtime roles own no table and cannot bypass row security');
+SET ROLE masslak_app;
+SELECT pg_temp.expect_error('ALTER TABLE iam.auth_token DISABLE ROW LEVEL SECURITY', 'must be owner', 'RLS bypass: the application cannot switch row security off');
+
+-- Tenant isolation sweep: carrier A sees no row of carrier B in any table that carries a company
+BEGIN;
+SELECT sys.set_context(:ua, :ca, 'COMPANY');
+DO $$
+DECLARE r record; n bigint; cb bigint := (SELECT id FROM iam.party WHERE legal_name = 'Al-Sham Lines'); leaks text := '';
+BEGIN
+  FOR r IN SELECT n.nspname, c.relname FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+             JOIN pg_attribute a ON a.attrelid = c.oid AND a.attname = 'company_id' AND NOT a.attisdropped
+            WHERE c.relkind IN ('r','p') AND NOT c.relispartition AND n.nspname NOT IN ('pg_catalog','information_schema','audit')
+              AND has_table_privilege('masslak_app', c.oid, 'SELECT') LOOP
+    EXECUTE format('SELECT count(*) FROM %I.%I WHERE company_id = $1', r.nspname, r.relname) INTO n USING cb;
+    IF n > 0 AND NOT (r.nspname = 'pricing' OR (r.nspname, r.relname) IN (('iam','role'), ('net','route'), ('ops','trip'))) THEN
+      leaks := leaks || format(' %s.%s(%s)', r.nspname, r.relname, n);
+    END IF;
+  END LOOP;
+  IF leaks <> '' THEN RAISE EXCEPTION 'FAIL  Tenant isolation sweep: carrier A sees carrier B rows in%', leaks; END IF;
+  RAISE NOTICE 'PASS  Tenant isolation sweep: carrier A sees no private row of carrier B in any table';
+END $$;
+SELECT pg_temp.ok((SELECT count(*) FROM iam.auth_token) = 0 AND (SELECT count(*) FROM iam.mfa_factor) = 0,
+  'Review 3.2: a company session reads no sign-in tokens or factors of anyone');
+COMMIT;
+BEGIN;
+SELECT pg_temp.ok((SELECT count(*) FROM iam.app_user) = 0 AND (SELECT count(*) FROM iam.user_session) = 0
+  AND (SELECT count(*) FROM iam.party WHERE party_type = 'PERSON') = 0,
+  'Review 3.2: an anonymous request reads no accounts, sessions or people');
+SELECT sys.set_context(NULL, NULL, 'AUTH');
+SELECT pg_temp.ok((SELECT count(*) FROM iam.app_user WHERE email = 'owner@quds.test') = 1 AND (SELECT count(*) FROM fin.wallet) = 0,
+  'Review 3.2: the sign-in scope reads accounts and nothing else');
+COMMIT;
+
+-- Polymorphic references become real foreign keys (3.3)
+BEGIN;
+SELECT sys.set_context(:ua, :ca, 'COMPANY');
+INSERT INTO iam.document (owner_type, owner_id, doc_type, company_id) VALUES ('VEHICLE', :va, 'REGISTRATION', :ca);
+SELECT pg_temp.ok((SELECT owner_vehicle_id FROM iam.document WHERE owner_type = 'VEHICLE' AND owner_id = :va ORDER BY id DESC LIMIT 1) = :va,
+  'Review 3.3: a document of a vehicle carries a real foreign key to it');
+SELECT pg_temp.expect_error(format($$INSERT INTO iam.document (owner_type, owner_id, doc_type, company_id) VALUES ('VEHICLE', 987654321, 'REGISTRATION', %s)$$, :ca),
+  'foreign key', 'Review 3.3: a document cannot point to a vehicle that does not exist');
+COMMIT;
+
+-- A reference never crosses companies (3.4)
+RESET ROLE;
+BEGIN;
+INSERT INTO net.route (company_id, code, origin_station_id, dest_station_id, service_type)
+SELECT :cb, 'SHAM-1', origin_station_id, dest_station_id, 'DIRECT' FROM net.route WHERE id = :route;
+SELECT pg_temp.expect_error(format($$INSERT INTO ops.trip (trip_no, company_id, route_id, departure_at, arrival_at, status, seats_total, segments_count, currency, base_price)
+  VALUES ('QDS900/09OCT26', %s, (SELECT id FROM net.route WHERE code = 'SHAM-1'), '2026-10-09 06:00+00', '2026-10-09 09:00+00', 'DRAFT', 40, 1, 'SYP', 1)$$, :ca),
+  'TENANT_MISMATCH', 'Review 3.4: a trip cannot run on another company''s route');
+COMMIT;
+SET ROLE masslak_app;
+
+-- Ledger (3.5): reversals mirror the original, balances move only through entries, reconciliation is clean
+BEGIN;
+SELECT sys.set_context(:uadmin, NULL, 'SYSTEM');
+WITH t AS (INSERT INTO fin.ledger_txn (txn_type, currency, idempotency_key, source_event_id) VALUES ('TOPUP','SYP','rv-1', '11111111-1111-1111-1111-111111111111') RETURNING id)
+INSERT INTO fin.ledger_entry (txn_id, wallet_id, direction, amount) SELECT t.id, x.w, x.d, 1000 FROM t, (VALUES (:w_gw, 'DR'), (:w_user, 'CR')) AS x(w, d);
+SELECT id AS rv1 FROM fin.ledger_txn WHERE idempotency_key = 'rv-1' \gset
+SELECT pg_temp.expect_error(format($$INSERT INTO fin.ledger_txn (txn_type, currency, idempotency_key, reverses_txn_id) VALUES ('REVERSAL','SYP','rv-x', %s)$$, :rv1),
+  'reversal_reason', 'Review 3.5: a reversal states its reason');
+SELECT pg_temp.expect_error(format($$WITH t AS (INSERT INTO fin.ledger_txn (txn_type, currency, idempotency_key, reverses_txn_id, reversal_reason)
+  VALUES ('REVERSAL','SYP','rv-bad', %s, 'customer refund') RETURNING id)
+  INSERT INTO fin.ledger_entry (txn_id, wallet_id, direction, amount) SELECT t.id, x.w, x.d, 999 FROM t, (VALUES (%s,'DR'),(%s,'CR')) x(w,d)$$, :rv1, :w_user, :w_gw),
+  'REVERSAL_NOT_MIRROR', 'Review 3.5: a reversal must mirror the original amounts and wallets');
+WITH t AS (INSERT INTO fin.ledger_txn (txn_type, currency, idempotency_key, reverses_txn_id, reversal_reason)
+           VALUES ('REVERSAL','SYP','rv-ok', :rv1, 'customer refund') RETURNING id)
+INSERT INTO fin.ledger_entry (txn_id, wallet_id, direction, amount) SELECT t.id, x.w, x.d, 1000 FROM t, (VALUES (:w_user, 'DR'), (:w_gw, 'CR')) AS x(w, d);
+SET CONSTRAINTS ALL IMMEDIATE;
+SELECT pg_temp.ok(true, 'Review 3.5: an exact mirror reverses the transaction');
+SELECT pg_temp.expect_error($$INSERT INTO fin.ledger_txn (txn_type, currency, idempotency_key, source_event_id) VALUES ('TOPUP','SYP','rv-2', '11111111-1111-1111-1111-111111111111')$$,
+  'ledger_txn_source_event', 'Payment replay: the same provider event posts once');
+SELECT pg_temp.expect_error(format('UPDATE fin.wallet SET balance = balance + 1 WHERE id = %s', :w_user), 'BALANCE_WRITE_FORBIDDEN',
+  'Review 3.5: a wallet balance never changes without a ledger entry');
+SELECT pg_temp.expect_error(format($$WITH t AS (INSERT INTO fin.ledger_txn (txn_type, currency, idempotency_key) VALUES ('FX','USD','fx-1') RETURNING id)
+  INSERT INTO fin.ledger_entry (txn_id, wallet_id, direction, amount) SELECT t.id, x.w, x.d, 10 FROM t, (VALUES (%s,'DR'),(%s,'CR')) x(w,d)$$, :w_gw, :w_user),
+  'CURRENCY_MISMATCH', 'Multi-currency: a transaction never mixes currencies');
+COMMIT;
+RESET ROLE;
+SELECT pg_temp.ok((fin.reconcile_wallets()).mismatches = 0, 'Review 3.5: every wallet balance equals the sum of its entries');
+SET ROLE masslak_app;
+
+-- Seats (3.8): a sold segment belongs to its ticket; a passenger only holds free seats
+BEGIN;
+SELECT sys.set_context(:uadmin, NULL, 'SYSTEM');
+SELECT id AS t214 FROM ops.trip WHERE trip_no = 'QDS214/03OCT26' \gset
+INSERT INTO ops.trip_stop (trip_id, seq, station_id, kind, sched_dep) VALUES (:t214, 0, (SELECT id FROM net.station WHERE code = 'SY-DAM-C001'), 'STATION', '2026-10-03 06:00+00');
+INSERT INTO ops.trip_stop (trip_id, seq, station_id, kind, sched_arr, sched_dep) VALUES (:t214, 1, (SELECT id FROM net.station WHERE code = 'SY-HMS-C001'), 'STATION', '2026-10-03 08:00+00', '2026-10-03 08:15+00');
+INSERT INTO ops.trip_stop (trip_id, seq, station_id, kind, sched_arr) VALUES (:t214, 2, (SELECT id FROM net.station WHERE code = 'SY-ALP-C001'), 'STATION', '2026-10-03 11:00+00');
+INSERT INTO ops.seat_segment (trip_id, seat_no, seg) VALUES (:t214, 7, 0), (:t214, 7, 1);
+INSERT INTO sales.passenger (booking_id, full_name, first_name, last_name, nationality, father_name, grandfather_name, passenger_category)
+SELECT id, 'Test Passenger', 'Test', 'Passenger', 'JO', NULL, NULL, 'ADULT' FROM sales.booking WHERE booking_ref = 'ABC123';
+INSERT INTO sales.ticket (ticket_no, booking_id, passenger_id, trip_id, from_seq, to_seq, seat_no, fare_amount, total_amount, rules_snapshot)
+SELECT 'TK-REV-1', b.id, p.id, :t214, 0, 1, 7, 100, 100, '{}' FROM sales.booking b JOIN sales.passenger p ON p.booking_id = b.id WHERE b.booking_ref = 'ABC123' LIMIT 1;
+INSERT INTO sales.ticket (ticket_no, booking_id, passenger_id, trip_id, from_seq, to_seq, seat_no, fare_amount, total_amount, rules_snapshot)
+SELECT 'TK-REV-3', booking_id, passenger_id, trip_id, 1, 2, 7, 100, 100, '{}' FROM sales.ticket WHERE ticket_no = 'TK-REV-1';
+SELECT id AS tk1 FROM sales.ticket WHERE ticket_no = 'TK-REV-1' \gset
+SELECT id AS tk3 FROM sales.ticket WHERE ticket_no = 'TK-REV-3' \gset
+SELECT pg_temp.expect_error(format('UPDATE ops.seat_segment SET status = %L, ticket_id = %s WHERE trip_id = %s AND seat_no = 7 AND seg = 1', 'SOLD', :tk1, :t214),
+  'SEAT_TICKET_MISMATCH', 'Seat contention: a ticket only takes the segments it covers');
+UPDATE ops.seat_segment SET status = 'SOLD', ticket_id = :tk1 WHERE trip_id = :t214 AND seat_no = 7 AND seg = 0;
+SELECT pg_temp.expect_error(format($$INSERT INTO sales.ticket (ticket_no, booking_id, passenger_id, trip_id, from_seq, to_seq, seat_no, fare_amount, total_amount, rules_snapshot)
+  SELECT 'TK-REV-2', booking_id, passenger_id, trip_id, 0, 5, 7, 1, 1, '{}' FROM sales.ticket WHERE id = %s$$, :tk1),
+  'ticket_trip_id_to_seq_fkey', 'Review 3.14: a ticket ends at a stop of its trip');
+COMMIT;
+BEGIN;
+SELECT sys.set_context(:ua, NULL, 'PASSENGER');
+WITH x AS (UPDATE ops.seat_segment SET status = 'AVAILABLE', ticket_id = NULL WHERE trip_id = :t214 AND seat_no = 7 AND seg = 0 RETURNING 1)
+SELECT pg_temp.ok((SELECT count(*) FROM x) = 0, 'Seat contention: a passenger cannot free a sold seat');
+UPDATE ops.seat_segment SET status = 'LOCKED', lock_token = gen_random_uuid(), lock_user_id = :ua, lock_expires_at = now() + interval '5 minutes'
+ WHERE trip_id = :t214 AND seat_no = 7 AND seg = 1;
+SELECT pg_temp.ok((SELECT status FROM ops.seat_segment WHERE trip_id = :t214 AND seat_no = 7 AND seg = 1) = 'LOCKED', 'Seat contention: a passenger holds a free seat for themselves');
+SELECT pg_temp.expect_error(format($$UPDATE ops.seat_segment SET status = 'SOLD', ticket_id = %s WHERE trip_id = %s AND seat_no = 7 AND seg = 1$$, :tk3, :t214),
+  'row-level security', 'Seat contention: only the sale, not the passenger, marks a seat sold');
+COMMIT;
+
+-- Business rules (3.14)
+RESET ROLE;
+BEGIN;
+SELECT pg_temp.expect_error(format($$INSERT INTO iam.beneficial_owner (company_id, party_id, ownership_pct) VALUES (%s, %s, 70), (%s, %s, 40)$$, :ca, :pax, :ca, :driver),
+  'OWNERSHIP_OVER_100', 'Review 3.14: beneficial owners never exceed 100%');
+SELECT pg_temp.expect_error(format($$INSERT INTO sales.passenger (booking_id, full_name, first_name, last_name, nationality, passenger_category)
+  SELECT id, 'Baby', 'Baby', 'One', 'JO', 'INFANT' FROM sales.booking WHERE booking_ref = 'ABC123'$$),
+  'passenger_infant_birth_date', 'Review 3.14: an infant has a date of birth');
+SELECT id AS adult FROM sales.passenger WHERE full_name = 'Test Passenger' ORDER BY id LIMIT 1 \gset
+SELECT pg_temp.expect_error(format($$INSERT INTO sales.passenger (booking_id, full_name, first_name, last_name, nationality, passenger_category, birth_date, accompanied_by_passenger_id)
+  SELECT b.id, n, n, 'Lap', 'JO', 'INFANT', current_date - 200, %s FROM sales.booking b, (VALUES ('Baby A'), ('Baby B')) v(n) WHERE b.booking_ref = 'ABC123'$$, :adult),
+  'TOO_MANY_LAP_INFANTS', 'Review 3.14: one adult carries one infant on the lap');
+SELECT pg_temp.expect_error(format($$UPDATE ops.trip SET seats_total = 60 WHERE id = %s$$, :t214),
+  'CAPACITY_EXCEEDS_VEHICLE', 'Review 3.14: a trip never sells more seats than its vehicle has');
+INSERT INTO fleet.license_record (company_id, subject_type, subject_id, license_type, license_no, issuer, issue_date, expiry_date, status)
+VALUES (:ca, 'VEHICLE', :va, 'INSPECTION', 'INS-REV-1', 'Traffic', '2025-01-01', '2026-10-20', 'VALID');
+SELECT pg_temp.expect_error(format($$INSERT INTO ops.trip (trip_no, company_id, route_id, vehicle_id, departure_at, arrival_at, status, seats_total, segments_count, currency, base_price)
+  VALUES ('QDS901/25OCT26', %s, %s, %s, '2026-10-25 06:00+00', '2026-10-25 09:00+00', 'PUBLISHED', 40, 1, 'SYP', 1)$$, :ca, :route, :va),
+  'LICENSE_EXPIRED', 'License expiry race: a trip after the vehicle''s licence ends is not published');
+INSERT INTO net.line (code, name, kind, fare_regime) VALUES ('L-REV', 'Review line', 'SHUTTLE', 'REGULATED') ON CONFLICT DO NOTHING;
+SELECT pg_temp.expect_error(format($$INSERT INTO net.line_permit (line_id, company_id, valid, status, permit_no) SELECT id, %s, daterange('2030-01-01','2030-12-31'), 'ACTIVE', 'P-REV' FROM net.line WHERE code = 'L-REV'$$, :ca),
+  'PERMIT_OUTSIDE_VALIDITY', 'Review 3.14: a line permit is not activated outside its validity');
+COMMIT;
+
+-- Manifests (3.14): the version chain, and delivery only to the route's authority
+BEGIN;
+SELECT pg_temp.expect_error(format($$INSERT INTO brd.manifest (trip_id, border_point_id, version, manifest_type) VALUES (%s, %s, 2, 'PRE_ARRIVAL')$$, :t_tr, :b_in),
+  'MANIFEST_CHAIN', 'Manifest retry: a new version supersedes the previous one of the same crossing');
+INSERT INTO sec.authority_profile (code, name, authority_type, protocol) VALUES ('REV-A', 'Authority A', 'BORDER', 'REST'), ('REV-B', 'Authority B', 'BORDER', 'REST');
+INSERT INTO brd.manifest_route (authority_id, scope, content_type, manifest_types, channel, legal_basis, status, created_by, approved_by, approved_at)
+SELECT id, 'ALL', 'ALL', ARRAY['PRE_ARRIVAL'], 'API_PULL', 'Border law', 'ACTIVE', :uadmin, :ufin, now() FROM sec.authority_profile WHERE code = 'REV-A';
+SELECT pg_temp.expect_error(format($$INSERT INTO brd.manifest_delivery (manifest_id, route_id, authority_id, channel)
+  SELECT %s, r.id, (SELECT id FROM sec.authority_profile WHERE code = 'REV-B'), 'API_PULL' FROM brd.manifest_route r JOIN sec.authority_profile a ON a.id = r.authority_id WHERE a.code = 'REV-A'$$, :mf),
+  'AUTHORITY_SCOPE', 'Authority scope: authority B never receives a manifest routed to authority A');
+COMMIT;
+
+-- Restricted reads need a purpose and a reason, and every decision is kept (3.11)
+SET ROLE masslak_app;
+BEGIN;
+SELECT sys.set_context(:ufin, NULL, 'PLATFORM');
+SELECT pg_temp.ok(NOT sec.authorize('sales.passenger.id_no', 'READ', 'SUPPORT_CASE', ''), 'Document access: a read without a reason is refused');
+SELECT pg_temp.ok(sec.authorize('sales.passenger.id_no', 'READ', 'SUPPORT_CASE', 'case 2026-118, identity check'), 'Document access: a read with purpose and reason is allowed');
+SELECT pg_temp.ok((SELECT count(*) FROM sec.policy_decision WHERE resource = 'sales.passenger.id_no') = 2
+  AND (SELECT count(*) FROM sec.policy_decision WHERE resource = 'sales.passenger.id_no' AND decision = 'DENY') = 1,
+  'Document access: allowed and refused decisions are both recorded');
+COMMIT;
+
+-- Dormant modules are closed at the database (3.10)
+RESET ROLE;
+UPDATE sys.setting SET value = value || '{"cargo":false}'::jsonb WHERE key = 'features';
+SET ROLE masslak_app;
+BEGIN;
+SELECT sys.set_context(:ua, :ca, 'COMPANY');
+SELECT pg_temp.ok((SELECT count(*) FROM ship.service_product) = 0 AND (SELECT count(*) FROM ship.shipment) = 0,
+  'Feature flag safety: a company reads nothing of a module that is off');
+SELECT pg_temp.expect_error($$INSERT INTO ship.service_product (code, name) VALUES ('X_OFF', 'Off')$$, 'row-level security',
+  'Feature flag safety: nor writes to it');
+SELECT sys.set_context(:uadmin, NULL, 'PLATFORM');
+SELECT pg_temp.ok((SELECT count(*) FROM ship.service_product) > 0, 'Feature flag safety: the platform still prepares a module before launch');
+COMMIT;
+RESET ROLE;
+UPDATE sys.setting SET value = value || '{"cargo":true}'::jsonb WHERE key = 'features';
+
+-- Keys (3.12): no new data under a retired key, one active key per purpose
+BEGIN;
+INSERT INTO sec.key_registry (key_ref, purpose, data_class, algorithm, status) VALUES ('kms://masslak/field/restricted/v0', 'FIELD_ENCRYPTION', 'RESTRICTED', 'AES-256-GCM', 'DECRYPT_ONLY');
+SELECT pg_temp.expect_error(format($$UPDATE iam.party SET id_no_enc = '\x01', id_no_bidx = '\x02', enc_key_id = (SELECT id FROM sec.key_registry WHERE key_ref = 'kms://masslak/field/restricted/v0') WHERE id = %s$$, :pax),
+  'KEY_NOT_ACTIVE', 'Review 3.12: nothing new is encrypted under a decrypt-only key');
+SELECT pg_temp.expect_error($$INSERT INTO sec.key_registry (key_ref, purpose, data_class, algorithm, status) VALUES ('kms://masslak/field/restricted/v9', 'FIELD_ENCRYPTION', 'RESTRICTED', 'AES-256-GCM', 'ACTIVE')$$,
+  'key_registry_one_active', 'Review 3.12: one active key per purpose and class');
+COMMIT;
+
+-- Retention and erasure (3.15)
+BEGIN;
+SELECT sys.set_context(:uadmin, NULL, 'PLATFORM');
+INSERT INTO gov.legal_hold (scope_type, scope_id, reason, case_ref, placed_by) VALUES ('PARTY', :driver, 'Accident investigation', 'COURT-2026-44', :uadmin);
+SELECT pg_temp.expect_error(format('SELECT gov.erase_party(%s)', :driver), 'LEGAL_HOLD', 'Erasure request: refused while a legal hold covers the person');
+SELECT pg_temp.ok((gov.erase_party(:pax)) ->> 'party' = 'PSEUDONYMISED', 'Erasure request: the person is pseudonymised');
+SELECT pg_temp.ok((SELECT legal_name LIKE 'Erased person%' AND mobile IS NULL AND email IS NULL FROM iam.party WHERE id = :pax)
+  AND EXISTS (SELECT 1 FROM sales.booking WHERE booker_party_id = :pax), 'Erasure request: identity is gone, the bookings and their money stay');
+COMMIT;
+
+-- Tracking partitions and the daily job (3.7)
+SELECT pg_temp.ok((sys.run_maintenance()) ->> 'wallet_mismatches' = '0', 'Restore and upkeep: the daily job runs and the ledger reconciles');
+SELECT pg_temp.ok((SELECT count(*) FROM pg_inherits WHERE inhparent = 'ops.geo_event'::regclass) >= 4, 'Tracking burst: position partitions exist months ahead');
 
 \echo '=== ALL TESTS PASSED ==='

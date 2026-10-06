@@ -128,15 +128,26 @@ def to_txt(res: Result, meta: Meta) -> bytes:
     return ("\n".join(lines) + "\n").encode("utf-8")
 
 
+SOURCE_VERSION = "masslak-db-1.21.0"      # schema release the figures were computed against
+
+
+def provenance(res: Result) -> dict:
+    """Where a figure comes from: the moment the data reflects, the schema release, the time zone and the currency."""
+    as_of = getattr(res, "data_as_of", None)
+    return {"data_as_of": as_of.astimezone(ZoneInfo("UTC")).isoformat().replace("+00:00", "Z") if as_of else None,
+            "source_version": SOURCE_VERSION, "timezone": "Asia/Damascus", "currency": "SYP"}
+
+
 def to_json(res: Result, meta: Meta) -> bytes:
     doc = {
+        **provenance(res),
         "report": meta.code, "title": meta.title, "period": meta.period, "dataset": res.dataset,
         "generated_at": meta.generated_at.astimezone(ZoneInfo("UTC")).isoformat().replace("+00:00", "Z"),
         "columns": [{"key": c.key, "label": label(c, meta.locale), "type": c.type, **({"aggregate": c.agg} if c.agg else {})}
                     for c in res.columns],
         "rows": [{c.key: machine(c, r[c.key]) for c in res.columns} for r in res.rows],
         "totals": {k: (str(pounds(v)) if _col(res, k).type == MONEY else machine(_col(res, k), v)) for k, v in res.totals.items()},
-        "truncated": res.truncated, "currency": "SYP",
+        "truncated": res.truncated,
     }
     return json.dumps(doc, ensure_ascii=False, indent=1, default=str).encode("utf-8")
 

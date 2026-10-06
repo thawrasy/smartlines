@@ -34,6 +34,11 @@ from .routers import admin, auth, bookings, carrier, driver, public, regulator, 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     await db.open_pools()
+    if not get_settings().sandbox:
+        # fail at start, not at the first booking: production needs real keys from KMS or Vault (review 3.12)
+        from . import crypto
+        async with db.raw_connection() as conn:
+            await crypto.cipher(conn)
     yield
     await db.close_pools()
 

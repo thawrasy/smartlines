@@ -160,14 +160,16 @@ async def catalog(request: Request, locale: Optional[str] = None, pr: Principal 
 
 async def _execute(request: Request, pr: Principal, v: engine.Viewer, body: RunIn, limit: int):
     """Resolves the report, runs it (audit datasets through the audit connection) and returns what the log needs."""
-    async with db.transaction(context_for(request, pr)) as conn:
+    async with db.reports_transaction(context_for(request, pr)) as conn:
         dataset, spec, params, code, def_id = await _resolve(conn, v, pr, body)
         name = await conn.fetchval("SELECT name FROM rpt.report_definition WHERE id = $1", def_id) if def_id else None
         if DATASETS.get(dataset) is None or DATASETS[dataset].reader == "app":
             res = await engine.run(conn, v, dataset=dataset, spec=spec, params=params, limit=limit)
+            res.data_as_of = await db.data_as_of(conn)
             return res, dataset, params, code, def_id, name
     async with db.audit_reader() as aconn:
         res = await engine.run(aconn, v, dataset=dataset, spec=spec, params=params, limit=limit)
+        res.data_as_of = await db.data_as_of(aconn)
     return res, dataset, params, code, def_id, name
 
 
@@ -185,6 +187,7 @@ async def run(body: RunIn, request: Request, pr: Principal = Depends(require_use
         "labels": {c.key: _value_labels(c.values, loc) for c in res.columns if c.values},
         "totals": {k: _plain(v) for k, v in res.totals.items()},
         "period": _period_text(params, loc),
+        **export.provenance(res),
     }
 
 

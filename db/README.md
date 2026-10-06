@@ -11,8 +11,8 @@ every table has a primary key, every reference is a foreign key (or documents wh
 |---|---|
 | Engine | PostgreSQL 16 (extensions: pgcrypto, citext, btree_gist, pg_trgm) |
 | Schemas | 23 separate schemas, each with its own privileges |
-| Tables | 415 tables, 4,092 columns, 1,126 foreign keys |
-| Tests | 114 automated checks passing against a real database |
+| Tables | 445 tables, 4,557 columns, 1,304 foreign keys; row-level security and a data class on every table |
+| Tests | 188 automated checks passing against a real database, including the acceptance matrix of the architecture review |
 | Design | [Database design and ERD document](../docs/database/) with diagrams in the study's colors |
 | Docs | [Data dictionary](DATA_DICTIONARY.md) · [ERD diagrams](ERD.md) (both generated from the database) |
 
@@ -80,6 +80,8 @@ is a new file. A database built before file tracking is treated as having every 
 | `1023_rail_taxi.sql` | Rail fare classes, coaches, compositions and connected journeys; taxi permits, shifts, dispatch and rides |
 | `1024_car_rental.sql` | Rental companies, branches, fleet, rates, bookings, contracts, inspections, deposits and telematics |
 | `1029_model_flags.sql` | Feature flags of the new modules (all off) and schema version 1.12.0 |
+| `1030`–`1038` | Module permissions, workflows, travel documents, relationship rules, reports, payments, integration API, RLS coverage, passenger categories, families and manifests |
+| `1039_review_hardening.sql` | Database architecture review: RLS and a data class on every table, AUTH scope, typed foreign keys behind polymorphic references, same-company checks, ledger reversals and reconciliation, seat rules, business rules, retention and erasure, scopes and decision log, key rules, module gates (see `docs/database/REVIEW_RESPONSE.md`) |
 
 ## Design rules (study 29.1)
 
@@ -204,7 +206,7 @@ The core is designed so that later phases add new tables that link to it, withou
 ## Open points before production
 
 1. **Syrian currency code:** currently `SYP` with two decimal places. If a different code or subdivision is adopted for the new pound, only the currency row needs updating.
-2. **Retention periods:** 84 months for logs and 7 days for tracking positions are defaults, to be set by legal and accounting advisors.
-3. **KMS provider:** tables hold key references only. A KMS or Vault must be chosen before launch (section 18).
+2. **Retention periods:** defaults live in `gov.retention_policy` and `gov.data_inventory` (positions 90 days, logs 7 years) and are applied daily by `sys.run_maintenance` (worker `--maintenance`) unless a legal hold applies; the final values are set by legal and accounting advisors.
+3. **KMS provider:** tables hold key references only. A KMS or Vault must be chosen before launch (section 18); outside the sandbox the API refuses to start without `MASSLAK_FIELD_KEYS` and `MASSLAK_BIDX_KEY`, and `python -m app.tools.rekey` re-encrypts after a rotation.
 4. **Ledger partitioning:** not partitioned in Phase 1, to keep things simple and preserve foreign-key integrity. Partition it by time once it passes tens of millions of entries.
 5. **Production schema owner:** migrations run as `masslak_owner`. The application connects as a user that is only a member of `masslak_app`.

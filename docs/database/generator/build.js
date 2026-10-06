@@ -11,8 +11,8 @@ const {
 const HERE = __dirname;
 const model = JSON.parse(fs.readFileSync(path.join(HERE, "..", "build", "model.json"), "utf8"));
 const PNG = path.join(HERE, "..", "erd", "png");
-const VERSION = "3.2";
-const DATE = "5 October 2026";
+const VERSION = "3.3";
+const DATE = "6 October 2026";
 const FONT = "Arial";
 const C = { navy: "1F3A5F", blue: "2E74B5", blue2: "1F4D78", grid: "B7C3D0", alt: "F2F6FA", grey: "595959" };
 
@@ -100,24 +100,62 @@ front.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 16
 front.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 160 },
   children: [new TextRun({ text: "Database Design and Entity-Relationship Diagrams", font: FONT, size: 30, bold: true, color: C.blue })] }));
 front.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 1200 },
-  children: [run(`Complete relational model of the Analysis and Design Study v2.8: ${tableCount} tables, ${fkCount} relationships`, { color: "7F7F7F" })] }));
+  children: [run(`Complete relational model of the Analysis and Design Study v2.9: ${tableCount} tables, ${fkCount} relationships`, { color: "7F7F7F" })] }));
 front.push(table(["Item", "Details"], [
-  ["Version", `${VERSION} (reports, payment integration and the integration API on the relational design of 3.0; replaces version 3.0)`],
+  ["Version", `${VERSION} (hardening after the independent database architecture review; replaces version 3.2)`],
   ["Date", DATE],
-  ["Basis", "Analysis and Design Study v2.8 (English) and the Use Case and Data Flow Diagrams v1.0"],
+  ["Basis", "Analysis and Design Study v2.9 (English), the Use Case and Data Flow Diagrams v1.0 and the Database Architecture Review v1.0"],
   ["Scope", `${schemas.length} schemas, ${tableCount} tables, ${colCount} columns, ${fkCount} foreign keys; all phases 1 to 15`],
-  ["Engine", "PostgreSQL 16 with row-level security; schema files db/schema/000 to 1036"],
-  ["Status", "Built and verified: fresh build and upgrade identical, 114 automated checks passing, every foreign key indexed or exempt by rule"],
+  ["Engine", "PostgreSQL 16 with row-level security on every table; schema files db/schema/000 to 1039"],
+  ["Status", "Built and verified: fresh build and upgrade identical, 188 database checks and 171 API tests passing, every foreign key indexed or exempt by rule"],
   ["Website", "masslak.com"],
 ], [2800, 6946]));
 
 const toc = [H(HeadingLevel.HEADING_1, "Contents", { pageBreak: true })];
-const tocLines = ["Changes in version 3.2", "Changes in version 3.1", "Changes in version 3.0", "1. Introduction", "2. Database architecture", "3. Design rules", "4. Security model in the database",
+const tocLines = ["Changes in version 3.3", "Changes in version 3.2", "Changes in version 3.1", "Changes in version 3.0", "1. Introduction", "2. Database architecture", "3. Design rules", "4. Security model in the database",
   "5. Data stores of the data flow diagrams", "6. Entity-relationship diagrams by module",
   ...model.groups.map((g, i) => `      6.${i + 1} ${g[0]} ${g[1]}`), `      6.${model.groups.length + 1} Focus diagrams: rules that span modules`,
   "7. Table definitions", "8. Traceability to the study", "9. Verification",
   "Appendix A: Feature flags", "Appendix B: Generalizations and naming decisions", "Appendix C: References without a foreign key"];
 for (const l of tocLines) toc.push(P(l, { after: 40, size: 20 }));
+
+// ------------------------------ changes in 3.3 ------------------------------
+const changes33 = [H(HeadingLevel.HEADING_1, "Changes in version 3.3", { pageBreak: true }),
+  P("An independent review of the study and of this design (Database Architecture Review v1.0) found no need to redesign and asked for "
+    + "targeted hardening. Schema file 1039_review_hardening.sql (migration 1.21.0) closes every finding the database can close; "
+    + "docs/database/REVIEW_RESPONSE.md maps each finding to its fix and to the test that proves it. The study moves to v2.9 (sections 16.27 and 16.28)."),
+  table(["Finding", "What the database now does", "Evidence"], [
+    ["3.1 Proof of the build", "The SQL, the tests and the generators are in the repository; sys.v_security_inventory lists every table with its class, "
+      + "owner path, RLS state, owner and privileges", "db/schema, db/tests, this document regenerated from the built database"],
+    ["3.2 RLS coverage", `Row-level security on all ${tableCount} tables (83 more than in 3.2), each with a data class in sys.table_class; reporting has no access `
+      + "to restricted tables; row security forced on credentials, factors and biometrics; sign-in in its own AUTH scope", "tests: classification, sweep, bypass"],
+    ["3.3 Polymorphic references", "Decision records (documents, verifications, screening, risk, authority orders, fraud cases, licences, allocations, "
+      + "manifest responses, invoices) carry one real foreign key per type, set by a trigger; at most one is set", "test: a document of a missing vehicle"],
+    ["3.4 Ownership", "Every private table has a documented owner path; 80 references are checked to stay inside one company (TENANT_MISMATCH)",
+      "tests: owner path, cross-company route"],
+    ["3.5 Ledger", "Reversals mirror the original (deferred check), one reversal per transaction with a reason, posting batches with control totals, "
+      + "provider events post once, balances move only through entries, daily reconciliation", "tests: mirror, reason, replay, direct write, reconciliation"],
+    ["3.6 Ledger location", "Decision: the ledger stays in schema fin of the same database, written in the booking's local transaction (study 16.28)", "study v2.9"],
+    ["3.7 Tracking", "sys.run_maintenance creates partitions ahead, drops positions past their retention unless a legal hold applies, and runs daily",
+      "test: partitions ahead; worker --maintenance"],
+    ["3.8 Seats", "PostgreSQL is the only seat record; a sold segment must match its ticket; a passenger only takes free seats or frees their own hold; "
+      + "expired holds are released", "tests: mismatch, passenger cannot sell or free; 20 concurrent holds, one winner"],
+    ["3.9 Reference data", "ref.seed_version records the version and hash of reference sets; sys.v_check_inventory sorts every CHECK into lifecycle or business list", "views"],
+    ["3.10 Phases", "A restrictive policy closes the tables of a module whose switch is off (sys.module_gate)", "test: feature flag safety"],
+    ["3.11 Authorisation", "Scopes by role, station and authority; sec.authorize records every restricted read with purpose, reason and policy version", "tests: document access"],
+    ["3.12 Keys", "Key versions and envelope fields; one active key per purpose; no new data under a non-active key; the API refuses to start without keys",
+      "tests: decrypt-only key, two active keys, production start"],
+    ["3.14 Business rules", "Ownership up to 100%, lap infants, infant date of birth, stop order, pair fares on existing stops, capacity, licence and permit "
+      + "at publication, permit activation, manifest chain, delivery scope, four-eyes authority requests", "one test per rule"],
+    ["3.15 Retention", "gov.retention_policy, gov.legal_hold, erasure by pseudonymisation (gov.erase_party) with gov.erasure_log", "tests: hold refuses, pseudonymised"],
+  ], [1900, 5346, 2500], { boldFirst: true }),
+  gap(),
+  table(["Measure", "Version 3.2", "Version 3.3"], [
+    ["Tables", "432", `${tableCount}`],
+    ["Tables with row-level security", "349", `${rlsCount}`],
+    ["Database checks", "141", "188"],
+  ], [2700, 2400, 4646], { boldFirst: true }),
+];
 
 // ------------------------------ changes in 3.2 ------------------------------
 const changes32 = [H(HeadingLevel.HEADING_1, "Changes in version 3.2", { pageBreak: true }),
@@ -318,8 +356,14 @@ const policyKinds = [
   ["Shared parties", "both sides of a relationship: carrier and client, seller and buyer, shipper and leg carriers", "ctr.service_contract, ship.capacity_booking, ship.shipment"],
 ];
 const security = [H(HeadingLevel.HEADING_1, "4. Security model in the database", { pageBreak: true }),
-  P(`Row-level security is enabled on ${rlsCount} of the ${tableCount} tables, including every table of the new modules. The application connects `
-    + "as a role that does not own the tables, so the policies always apply; without a request context no private row is visible."),
+  P(`Row-level security is enabled on ${rlsCount} of the ${tableCount} tables. The application connects as a role that does not own the tables and `
+    + "cannot bypass row security, so the policies always apply; without a request context no private row is visible. Every table carries a data "
+    + "class in sys.table_class (public catalog, platform confidential, company private, personal, restricted security, append-only audit, system) "
+    + "and a documented owner path, and sys.v_security_inventory shows the whole picture in one query (version 3.3)."),
+  P("Sign-in runs in a narrow AUTH scope that opens accounts, second factors and sessions only. Reporting has no access to restricted tables, "
+    + "and row security is forced on credentials, factors and biometrics. Tables of a module whose switch is off are closed by a restrictive "
+    + "policy for everyone but the platform. Validation triggers run as the owner with a fixed search path, so a rule sees the rows it checks "
+    + "even when the caller's policies hide them. Reads of restricted values pass sec.authorize, which records purpose, reason and decision."),
   table(["Policy", "Rule", "Examples"], policyKinds, [1700, 4646, 3400], { boldFirst: true }),
   gap(),
   P("Where a policy must look into another table that is itself protected (a shipment seen by the carrier of one of its legs, a partner's staff, "
@@ -443,11 +487,12 @@ const verify = [H(HeadingLevel.HEADING_1, "9. Verification", { pageBreak: true }
     ["Fresh build (db/build.sh)", `all schema files apply in order; ${tableCount} tables, ${fkCount} foreign keys`],
     ["Upgrade (db/upgrade.sh)", "a database of the previous release upgrades to a schema identical to a fresh build (pg_dump compared)"],
     ["Idempotence", "every new file runs twice without error"],
-    ["Automated tests (db/tests/run.sh)", "114 checks passing: isolation of shipments, bids, partners, manifests; exclusion and uniqueness rules; "
-      + "append-only tables; four-eyes approvals; feature flags off; and the relationship rules R1 to R3"],
+    ["Automated tests (db/tests/run.sh)", "188 checks passing: isolation of shipments, bids, partners, manifests; exclusion and uniqueness rules; "
+      + "append-only tables; four-eyes approvals; feature flags off; the relationship rules R1 to R3; and the acceptance matrix of the architecture review "
+      + "(classification, isolation sweep, RLS bypass, typed references, tenant checks, ledger, seats, business rules, scopes, keys, erasure, tracking)"],
     ["Relationship audit", `${fkCount} foreign keys: ${idxCount("indexed")} indexed, ${idxCount("lookup")} to lookup lists, ${idxCount("actor")} actor columns, ${idxCount("missing")} missing an index; ${noFk.length} documented references without a foreign key`],
-    ["Application", "109 API tests passing on a fresh database seeded with the demo and module data"],
-    ["Coverage", "every table of the new modules has row-level security, a policy and grants (checked by the tests)"],
+    ["Application", "171 API tests passing, among them 20 concurrent holds on one seat (one winner) and sign-in in the AUTH scope"],
+    ["Coverage", "every table has row-level security, a data class and an owner path (checked by the tests)"],
     ["Documents", "this document, db/DATA_DICTIONARY.md and db/ERD.md are generated from the built database"],
   ], [3200, 6546], { boldFirst: true }),
 ];
@@ -501,7 +546,7 @@ const doc = new Document({
   numbering: { config: [{ reference: "bullets", levels: [{ level: 0, format: LevelFormat.BULLET, text: "•", alignment: AlignmentType.LEFT,
     style: { paragraph: { indent: { left: 540, hanging: 270 } } } }] }] },
   sections: [
-    section(PORTRAIT, [...front, ...toc, ...changes32, ...changes31, ...changes, ...intro, ...arch, ...rules, ...security, ...stores]),
+    section(PORTRAIT, [...front, ...toc, ...changes33, ...changes32, ...changes31, ...changes, ...intro, ...arch, ...rules, ...security, ...stores]),
     ...erdSections,
     section(PORTRAIT, [...defs, ...trace, ...verify, ...flags, ...gens, ...appC]),
   ],

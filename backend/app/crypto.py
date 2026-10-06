@@ -11,7 +11,9 @@ with a blind index (keyed HMAC-SHA256) in *_bidx columns for exact matching and 
 * Associated data binds a ciphertext to its column ("sales.passenger.id_no"), so a value copied into another
   column fails to decrypt.
 * Rotation: a new key is registered as ACTIVE and the old one moved to DECRYPT_ONLY; rows keep their own key id
-  and are re-encrypted in the background.
+  and are re-encrypted by `python -m app.tools.rekey` (the database refuses new data under a non-active key).
+* Outside the sandbox the API refuses to start without MASSLAK_FIELD_KEYS and MASSLAK_BIDX_KEY: there is no fallback
+  to keys derived from another secret (review 3.12).
 """
 from __future__ import annotations
 
@@ -71,7 +73,8 @@ def _bidx_key() -> bytes:
     if raw:
         return _decode_key(raw, "MASSLAK_BIDX_KEY")
     if not get_settings().sandbox:
-        log.warning("MASSLAK_BIDX_KEY is not set; using a key derived from the signing secret")
+        # review 3.12: real data is never protected by a key derived from another secret
+        raise CryptoConfigError("MASSLAK_BIDX_KEY must be set outside the sandbox (injected from KMS or Vault)")
     return _derive("blind-index")
 
 
@@ -96,7 +99,7 @@ class FieldCipher:
                 WHERE purpose IN ('FIELD_ENCRYPTION', 'WEBHOOK_SECRET') AND status IN ('ACTIVE', 'DECRYPT_ONLY')""")
         configured = _configured_field_keys()
         if not configured and not get_settings().sandbox:
-            log.warning("MASSLAK_FIELD_KEYS is not set; using keys derived from the signing secret")
+            raise CryptoConfigError("MASSLAK_FIELD_KEYS must be set outside the sandbox (injected from KMS or Vault)")
         keys, active = {}, {}
         for r in rows:
             key = configured.get(r["key_ref"]) or (None if configured else _derive(r["key_ref"]))

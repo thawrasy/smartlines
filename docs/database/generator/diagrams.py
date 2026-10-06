@@ -37,7 +37,7 @@ GROUPS = [
      "A party is a person, company or entity; a company is a party acting as a tenant. Roles, memberships, beneficial owners, "
      "bank accounts, documents and verifications all hang off the party.",
      ["iam.party", "iam.party_role", "iam.company", "iam.company_member", "iam.app_user", "iam.role", "iam.role_permission",
-      "iam.permission", "iam.user_role", "iam.beneficial_owner", "iam.bank_account", "iam.document", "iam.verification",
+      "iam.permission", "iam.user_role", "iam.role_scope", "iam.user_station_scope", "iam.beneficial_owner", "iam.bank_account", "iam.document", "iam.verification",
       "ref.party_role_type"]),
     ("E02", "Sessions, devices and API access", "16.8, 16.9, 14.2", "core",
      "Sign-in sessions and tokens, second factors, bound devices with their permission state, push tokens, integration API clients "
@@ -48,7 +48,7 @@ GROUPS = [
      "Countries, currencies, cities, locales and translations, files, the extensible reference lists of appendix D, settings, "
      "the outbox and webhooks.",
      ["ref.country", "ref.currency", "ref.exchange_rate", "ref.city", "ref.locale", "ref.translation", "ref.file_object",
-      "ref.trip_type", "ref.vehicle_class", "ref.station_subtype", "ref.cargo_category", "sys.setting", "sys.company_setting",
+      "ref.trip_type", "ref.vehicle_class", "ref.station_subtype", "ref.cargo_category", "sys.setting", "sys.company_setting", "sys.table_class", "sys.module_gate", "ref.seed_version",
       "sys.outbox_event", "sys.webhook_endpoint", "sys.webhook_delivery", "sys.schema_migration", "sys.schema_file"]),
     ("E04", "Stations, routes, carrier codes and corridors", "4.4, 4.11, 4.16, D.1", "asset",
      "The station register with compliance profiles, gates and displays; carrier routes and their stops; carrier codes and "
@@ -121,7 +121,7 @@ GROUPS = [
      "Wallets and the double-entry ledger, payment providers (card gateway, partner e-wallet, bank transfer, agency cash, partner API), "
      "payments and their signed notifications, refunds to the source, bank transfer references matched from imported bank statements, "
      "withdrawals and cash remittances.",
-     ["fin.wallet", "fin.ledger_txn", "fin.ledger_entry", "fin.payment_provider", "fin.payment", "fin.payment_notification",
+     ["fin.wallet", "fin.ledger_txn", "fin.ledger_entry", "fin.posting_batch", "fin.wallet_reconciliation", "fin.payment_provider", "fin.payment", "fin.payment_notification",
       "fin.payment_refund", "fin.bank_transfer_topup", "fin.bank_statement_import", "fin.bank_statement_line",
       "fin.withdrawal_request", "fin.cash_remittance"]),
     ("E17", "Price allocation, settlement, payouts and float", "5.7, 6.6-6.8", "money",
@@ -164,20 +164,20 @@ GROUPS = [
     ("E24", "Security and compliance hub", "4.9, 8, 4.10", "security",
      "Authority profiles and policies, screening requests and results, watchlists, manifest submissions, authority orders and "
      "data requests, SOS events, authority alerts, and the government adapters with their verification jobs.",
-     ["sec.authority_profile", "sec.authority_policy", "sec.screening_request", "sec.screening_result", "sec.watchlist_entry",
+     ["sec.authority_profile", "sec.authority_policy", "sec.authority_scope", "sec.screening_request", "sec.screening_result", "sec.watchlist_entry",
       "sec.manifest_submission", "sec.authority_order", "sec.authority_data_request", "sec.sos_event", "sec.authority_alert",
       "sec.gov_adapter_config", "sec.verification_job"]),
     ("E25", "Platform protection and audit logs", "16", "security",
      "IP rules, risk assessments, fraud cases, blocklists, security events, encryption key registry, access reviews, "
      "break-glass log, document signatures and tamper events; and the append-only audit logs with their seals.",
      ["sec.ip_rule", "sec.risk_assessment", "sec.fraud_case", "sec.blocklist_entry", "sec.security_event", "sec.key_registry",
-      "sec.access_review", "sec.break_glass_log", "sec.document_signature", "sec.tamper_event", "audit.auth_event",
+      "sec.access_review", "sec.break_glass_log", "sec.policy_decision", "sec.document_signature", "sec.tamper_event", "audit.auth_event",
       "audit.activity_log", "audit.data_access_log", "audit.row_change", "audit.log_seal"]),
     ("E26", "Governance and data protection", "2.5, 16.13-16.15", "security",
      "The policy authority matrix with its changes, the obligation register, the data inventory, consents, subject requests, "
      "privacy incidents, partner data processing agreements and feature compliance reviews.",
      ["gov.policy_domain", "gov.policy_authority", "gov.policy_change", "gov.obligation_register", "gov.data_inventory",
-      "gov.consent", "gov.subject_request", "gov.privacy_incident", "gov.partner_dpa", "gov.feature_compliance_review"]),
+      "gov.consent", "gov.subject_request", "gov.retention_policy", "gov.legal_hold", "gov.erasure_log", "gov.data_purpose", "gov.privacy_incident", "gov.partner_dpa", "gov.feature_compliance_review"]),
     ("E27", "Service partners: fuel and rest stops", "14.11", "service",
      "Partners on the station pattern with versioned contracts and attendants; fuel prices, fuel cards and sessions with odometer "
      "readings and anomalies; menus and pre-orders; the shared sale, settlement and ratings.",

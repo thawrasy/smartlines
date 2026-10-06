@@ -85,10 +85,23 @@ async def run_once() -> bool:
         return True
 
 
+async def maintenance() -> dict:
+    """Daily database upkeep (sys.run_maintenance): partitions ahead, tracking retention, expired seat holds and the
+    reconciliation of every wallet balance with its ledger entries."""
+    async with db.transaction(_ctx()) as conn:
+        out = json.loads(await conn.fetchval("SELECT sys.run_maintenance()::text"))
+    if out.get("wallet_mismatches"):
+        log.error("ledger reconciliation found %s wallet(s) out of balance", out["wallet_mismatches"])
+    else:
+        log.info("maintenance done: %s", out)
+    return out
+
+
 async def main(once: bool) -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     await db.open_pools()
     last_reports = 0.0
+    last_maintenance = None if not once else 0.0     # a long-running worker maintains at start, then daily
     try:
         while True:
             busy = await run_once()
@@ -110,6 +123,10 @@ async def main(once: bool) -> None:
                     async with db.transaction(_ctx()) as conn:
                         await expire_stale(conn)
                     last_reports = asyncio.get_running_loop().time()
+                now = asyncio.get_running_loop().time()
+                if not once and (last_maintenance is None or now - last_maintenance > 24 * 3600):
+                    await maintenance()
+                    last_maintenance = now
                 if once:
                     return
                 await asyncio.sleep(2)
@@ -117,5 +134,15 @@ async def main(once: bool) -> None:
         await db.close_pools()
 
 
+async def maintenance_once() -> None:
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    await db.open_pools()
+    try:
+        await maintenance()
+    finally:
+        await db.close_pools()
+
+
 if __name__ == "__main__":
-    asyncio.run(main("--once" in sys.argv))
+    # --maintenance: run the daily upkeep once and exit (for cron); --once: one pass of events and jobs
+    asyncio.run(maintenance_once() if "--maintenance" in sys.argv else main("--once" in sys.argv))

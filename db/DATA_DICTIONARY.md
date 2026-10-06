@@ -2,26 +2,26 @@
 
 > Generated from the built database (`db/tools/gen_docs.py`); do not edit by hand.
 
-**432 tables, 4371 columns, in 24 schemas.**
+**445 tables, 4557 columns, in 24 schemas.**
 
 Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant isolation (RLS) · 🧩 partitioned monthly · 🔒 append-only / change-protected
 
 ## Index
 
-- [`iam` — Identity, parties, users, permissions and API clients](#iam) (30 tables)
-- [`ref` — Reference data, locales and files](#ref) (12 tables)
-- [`sys` — Settings, outbox and webhooks](#sys) (7 tables)
+- [`iam` — Identity, parties, users, permissions and API clients](#iam) (32 tables)
+- [`ref` — Reference data, locales and files](#ref) (13 tables)
+- [`sys` — Settings, outbox and webhooks](#sys) (9 tables)
 - [`net` — Network: stations, routes, lines, corridors and geofences](#net) (21 tables)
 - [`fleet` — Fleet: vehicles, trucks, trailers, seats, crew, licenses and insurance](#fleet) (20 tables)
 - [`pricing` — Pricing, taxes, commissions, campaigns and loyalty](#pricing) (35 tables)
 - [`ops` — Trips, inventory, operations, shuttle rides, tracking and incidents](#ops) (30 tables)
 - [`sales` — Channels, bookings, passengers, tickets, subscriptions and travel documents](#sales) (27 tables)
-- [`fin` — Wallets, ledger, payments, allocation, settlement and float](#fin) (23 tables)
+- [`fin` — Wallets, ledger, payments, allocation, settlement and float](#fin) (25 tables)
 - [`acct` — Simplified accounting, e-invoicing and tax profiles](#acct) (35 tables)
 - [`bill` — Carrier subscriptions, metering and platform invoices](#bill) (7 tables)
 - [`crm` — Complaints, ratings, notifications, the AI assistant and the contact center](#crm) (19 tables)
-- [`gov` — Governance, obligations and data protection](#gov) (10 tables)
-- [`sec` — Security: IP rules, risk, signing, the security hub and government adapters](#sec) (22 tables)
+- [`gov` — Governance, obligations and data protection](#gov) (14 tables)
+- [`sec` — Security: IP rules, risk, signing, the security hub and government adapters](#sec) (24 tables)
 - [`ptn` — Service partners: fuel stations, rest stops and maintenance](#ptn) (14 tables)
 - [`ship` — Shipments and the integrated shipping network](#ship) (55 tables)
 - [`frt` — Trucking, heavy transport and transit freight](#frt) (14 tables)
@@ -98,7 +98,7 @@ Calls per API client and day, for the client console and capacity planning
 | `errors` | `integer` | ✱ | `0` |
 | `last_at` | `timestamp with time zone` | ✱ | `now()` |
 
-### `iam.app_user` 
+### `iam.app_user` 🛡️
 
 Login account; the account kind determines the portal: platform, company, agency, customer
 
@@ -122,7 +122,7 @@ Login account; the account kind determines the portal: platform, company, agency
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 | `updated_at` | `timestamp with time zone` | ✱ | `now()` |
 
-### `iam.auth_token` 
+### `iam.auth_token` 🛡️
 
 Invitation, reset and OTP tokens (single use, stored hashed)
 
@@ -170,7 +170,7 @@ Beneficial owners of the company (compliance and security)
 | `party_id` | `bigint` | 🔑 🔗 `iam.party` ✱ |  |
 | `ownership_pct` | `numeric(5,2)` | ✱ |  |
 
-### `iam.biometric_template` 
+### `iam.biometric_template` 🛡️
 
 Facial biometric template, encrypted with a separate key and stored in isolation (3.8 c)
 
@@ -216,7 +216,7 @@ Company users (seats) and their role; one owner per company, not editable from i
 | `status` | `text` | ✱ | `'ACTIVE'::text` |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
-### `iam.device` 
+### `iam.device` 🛡️
 
 Registered devices per user (3.5, 16.8); a new operator device requires approval
 
@@ -273,6 +273,18 @@ Documents for any entity (polymorphic reference) with file, review and expiry da
 | `company_id` | `bigint` | 🔗 `iam.company`  |  |
 | `uploaded_by` | `bigint` | 🔗 `iam.app_user`  |  |
 | `review_note` | `text` |  |  |
+| `owner_lease_id` | `bigint` | 🔗 `fleet.vehicle_lease`  |  |
+| `owner_party_id` | `bigint` | 🔗 `iam.party`  |  |
+| `owner_company_id` | `bigint` | 🔗 `iam.company`  |  |
+| `owner_license_id` | `bigint` | 🔗 `fleet.license_record`  |  |
+| `owner_station_id` | `bigint` | 🔗 `net.station`  |  |
+| `owner_vehicle_id` | `bigint` | 🔗 `fleet.vehicle`  |  |
+| `owner_incident_id` | `bigint` | 🔗 `ops.incident`  |  |
+| `owner_insurance_id` | `bigint` | 🔗 `fleet.insurance_policy`  |  |
+| `retention_policy_id` | `bigint` | 🔗 `gov.retention_policy`  |  |
+| `legal_hold` | `boolean` | ✱ | `false` |
+| `anonymized_at` | `timestamp with time zone` |  |  |
+| `erasure_request_id` | `bigint` | 🔗 `gov.subject_request`  |  |
 
 ### `iam.family` 🛡️
 
@@ -348,6 +360,10 @@ A member of a family with full identity details (document number encrypted); fun
 | `status` | `text` | ✱ | `'ACTIVE'::text` |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 | `updated_at` | `timestamp with time zone` | ✱ | `now()` |
+| `retention_policy_id` | `bigint` | 🔗 `gov.retention_policy`  |  |
+| `legal_hold` | `boolean` | ✱ | `false` |
+| `anonymized_at` | `timestamp with time zone` |  |  |
+| `erasure_request_id` | `bigint` | 🔗 `gov.subject_request`  |  |
 
 ### `iam.family_spend` 🛡️ 🔒
 
@@ -387,7 +403,7 @@ When and where a member may travel on the family's money: time windows by weekda
 | `active` | `boolean` | ✱ | `true` |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
-### `iam.gov_identity_link` 
+### `iam.gov_identity_link` 🛡️
 
 Link between the account and the national digital identity (readiness for a Nafath-style system)
 
@@ -400,7 +416,7 @@ Link between the account and the national digital identity (readiness for a Nafa
 | `linked_at` | `timestamp with time zone` | ✱ | `now()` |
 | `last_verified_at` | `timestamp with time zone` |  |  |
 
-### `iam.identity_provider` 
+### `iam.identity_provider` 🛡️
 
 Verification adapters: KYC vendor, national registry, telecom, digital identity (activated in Phase 5)
 
@@ -414,7 +430,7 @@ Verification adapters: KYC vendor, national registry, telecom, digital identity 
 | `config` | `jsonb` | ✱ | `'{}'::jsonb` |
 | `status` | `text` | ✱ | `'INACTIVE'::text` |
 
-### `iam.mfa_factor` 
+### `iam.mfa_factor` 🛡️
 
 MFA factors (TOTP with encrypted secret, passkeys, recovery codes)
 
@@ -432,7 +448,7 @@ MFA factors (TOTP with encrypted secret, passkeys, recovery codes)
 | `last_used_step` | `bigint` |  |  |
 | `label` | `text` |  |  |
 
-### `iam.party` 
+### `iam.party` 🛡️
 
 Unified party: person, company or entity; registered once and holds multiple roles (passenger, driver, vehicle owner...)
 
@@ -465,8 +481,12 @@ Unified party: person, company or entity; registered once and holds multiple rol
 | `external_ref` | `text` |  |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 | `updated_at` | `timestamp with time zone` | ✱ | `now()` |
+| `retention_policy_id` | `bigint` | 🔗 `gov.retention_policy`  |  |
+| `legal_hold` | `boolean` | ✱ | `false` |
+| `anonymized_at` | `timestamp with time zone` |  |  |
+| `erasure_request_id` | `bigint` | 🔗 `gov.subject_request`  |  |
 
-### `iam.party_role` 
+### `iam.party_role` 🛡️
 
 Party roles (several roles per party)
 
@@ -490,7 +510,7 @@ Permission catalog (section 33)
 | `description` | `text` | ✱ |  |
 | `is_sensitive` | `boolean` | ✱ | `false` |
 
-### `iam.push_token` 
+### `iam.push_token` 🛡️
 
 
 
@@ -515,7 +535,7 @@ Roles: platform roles, company role templates, and roles each company defines fo
 | `is_system` | `boolean` | ✱ | `false` |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
-### `iam.role_permission` 
+### `iam.role_permission` 🛡️
 
 
 
@@ -524,7 +544,18 @@ Roles: platform roles, company role templates, and roles each company defines fo
 | `role_id` | `bigint` | 🔑 🔗 `iam.role` ✱ |  |
 | `permission_code` | `text` | 🔑 🔗 `iam.permission` ✱ |  |
 
-### `iam.user_role` 
+### `iam.role_scope` 🛡️
+
+Limits a role to some stations, routes, lines, cities, countries or trip types
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `role_id` | `bigint` | 🔗 `iam.role` ✱ |  |
+| `scope_type` | `text` | ✱ |  |
+| `scope_value` | `text` | ✱ |  |
+
+### `iam.user_role` 🛡️
 
 Platform staff roles
 
@@ -562,7 +593,18 @@ Active sessions; revoking one ends the login immediately
 | `prev_refresh_hash` | `bytea` |  |  |
 | `client` | `text` | ✱ | `'web'::text` |
 
-### `iam.verification` 
+### `iam.user_station_scope` 🛡️
+
+Station staff act only at their stations
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `user_id` | `bigint` | 🔑 🔗 `iam.app_user` ✱ |  |
+| `station_id` | `bigint` | 🔑 🔗 `net.station` ✱ |  |
+| `company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `valid` | `daterange` | ✱ | `daterange(CURRENT_DATE, NULL::date)` |
+
+### `iam.verification` 🛡️
 
 Record of every verification (identity levels L0..L3, company, vehicle, document); manual now, automatic after integration
 
@@ -585,6 +627,10 @@ Record of every verification (identity levels L0..L3, company, vehicle, document
 | `reviewer_id` | `bigint` | 🔗 `iam.app_user`  |  |
 | `gov_ref` | `text` |  |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `subject_party_id` | `bigint` | 🔗 `iam.party`  |  |
+| `subject_company_id` | `bigint` | 🔗 `iam.company`  |  |
+| `subject_vehicle_id` | `bigint` | 🔗 `fleet.vehicle`  |  |
+| `subject_document_id` | `bigint` | 🔗 `iam.document`  |  |
 
 <a id="ref"></a>
 ## `ref` — Reference data, locales and files
@@ -705,6 +751,22 @@ Party roles (2.1); rows replace the former fixed list
 | `sort` | `integer` | ✱ | `100` |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
+### `ref.seed_version` 🛡️
+
+Version, hash and approval of each reference data set (review 3.9)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `dataset` | `text` | ✱ |  |
+| `version` | `text` | ✱ |  |
+| `sha256` | `bytea` | ✱ |  |
+| `source` | `text` | ✱ |  |
+| `signed_by` | `text` |  |  |
+| `signature` | `bytea` |  |  |
+| `effective` | `daterange` | ✱ | `daterange(CURRENT_DATE, NULL::date)` |
+| `applied_at` | `timestamp with time zone` | ✱ | `now()` |
+
 ### `ref.station_subtype` 🛡️
 
 Station subtypes (BORDER marks a border crossing point)
@@ -776,6 +838,16 @@ Per-carrier settings (post-departure sales policy, cutoffs, seat selection modes
 | `updated_at` | `timestamp with time zone` | ✱ | `now()` |
 | `updated_by` | `bigint` |  |  |
 
+### `sys.module_gate` 🛡️
+
+Which feature switch opens the tables of each phase schema (review 3.10)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `schema_name` | `text` | 🔑 ✱ |  |
+| `feature_keys` | `text[]` | ✱ |  |
+| `phase` | `text` | ✱ |  |
+
 ### `sys.outbox_event` 🛡️
 
 Transactional outbox: written in the same transaction as the change, then published to services and partners
@@ -796,7 +868,7 @@ Transactional outbox: written in the same transaction as the change, then publis
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 | `published_at` | `timestamp with time zone` |  |  |
 
-### `sys.schema_file` 
+### `sys.schema_file` 🛡️
 
 Schema files applied to this database, with their SHA-256 at the time
 
@@ -806,7 +878,7 @@ Schema files applied to this database, with their SHA-256 at the time
 | `sha256` | `text` | ✱ |  |
 | `applied_at` | `timestamp with time zone` | ✱ | `now()` |
 
-### `sys.schema_migration` 
+### `sys.schema_migration` 🛡️
 
 Applied schema versions
 
@@ -817,7 +889,7 @@ Applied schema versions
 | `checksum` | `text` |  |  |
 | `applied_at` | `timestamp with time zone` | ✱ | `now()` |
 
-### `sys.setting` 
+### `sys.setting` 🛡️
 
 Global settings and feature flags (full-build, activate-by-configuration principle 2.8)
 
@@ -829,6 +901,17 @@ Global settings and feature flags (full-build, activate-by-configuration princip
 | `description` | `text` |  |  |
 | `updated_at` | `timestamp with time zone` | ✱ | `now()` |
 | `updated_by` | `bigint` | 🔗 `iam.app_user`  |  |
+
+### `sys.table_class` 🛡️
+
+Data class of every table (review 3.2). A test fails when a table has no class or its RLS does not match its class
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `table_name` | `text` | 🔑 ✱ |  |
+| `data_class` | `text` | ✱ |  |
+| `tenant_path` | `text` |  |  |
+| `note` | `text` |  |  |
 
 ### `sys.webhook_delivery` 🛡️
 
@@ -900,7 +983,7 @@ Three-letter carrier code (optional two-character code), unique platform-wide an
 | `valid_from` | `date` |  |  |
 | `retired_at` | `date` |  |  |
 
-### `net.code_reservation` 
+### `net.code_reservation` 🛡️
 
 Reserved, prohibited or temporarily withdrawn codes
 
@@ -1084,7 +1167,7 @@ Carrier route template between two stations; its stops are copied to the trip wh
 | `status` | `text` | ✱ | `'ACTIVE'::text` |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
-### `net.route_stop` 
+### `net.route_stop` 🛡️
 
 Ordered route stops, time offsets and the fare ladder from the origin
 
@@ -1152,7 +1235,7 @@ Register of stations and departure/arrival points (central, company point, exter
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 | `updated_at` | `timestamp with time zone` | ✱ | `now()` |
 
-### `net.station_contact` 
+### `net.station_contact` 🛡️
 
 
 
@@ -1263,7 +1346,7 @@ Driving and rest periods per driver (10.4); feeds the rest-time rules
 | `source` | `text` | ✱ | `'APP'::text` |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
-### `fleet.field_check_log` 
+### `fleet.field_check_log` 🛡️
 
 Every field query by security officers and authorized bodies
 
@@ -1318,7 +1401,7 @@ Insurance contract, required to activate the vehicle; later verified with the tr
 | `status` | `text` | ✱ | `'PENDING'::text` |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
-### `fleet.license_change_request` 
+### `fleet.license_change_request` 🛡️
 
 Change request for a locked license: review, then approval by a different officer
 
@@ -1359,6 +1442,12 @@ Every expiry date that governs operating eligibility (license, inspection, insur
 | `last_change_request_id` | `bigint` | 🔗 `fleet.license_change_request`  |  |
 | `last_gov_sync_at` | `timestamp with time zone` |  |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `subject_driver_id` | `bigint` | 🔗 `iam.party`  |  |
+| `subject_company_id` | `bigint` | 🔗 `iam.company`  |  |
+| `subject_partner_id` | `bigint` | 🔗 `ptn.partner`  |  |
+| `subject_station_id` | `bigint` | 🔗 `net.station`  |  |
+| `subject_trailer_id` | `bigint` | 🔗 `fleet.trailer`  |  |
+| `subject_vehicle_id` | `bigint` | 🔗 `fleet.vehicle`  |  |
 
 ### `fleet.seat_layout` 🛡️
 
@@ -1524,7 +1613,7 @@ Vehicle lease contract; one active lessee per vehicle per period (exclusion cons
 | `status` | `text` | ✱ | `'ACTIVE'::text` |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
-### `fleet.vehicle_qr_tag` 
+### `fleet.vehicle_qr_tag` 🛡️
 
 Signed QR sticker on the vehicle for field verification (4.18 e)
 
@@ -1553,7 +1642,7 @@ Out-of-service and impound periods; a vehicle in such a period cannot be assigne
 | `release_evidence_id` | `bigint` | 🔗 `ref.file_object`  |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
-### `fleet.vehicle_status_history` 
+### `fleet.vehicle_status_history` 🛡️
 
 Vehicle status history (suspension after an incident, impoundment, release) with reason and evidence
 
@@ -1571,7 +1660,7 @@ Vehicle status history (suspension after an incident, impoundment, release) with
 <a id="pricing"></a>
 ## `pricing` — Pricing, taxes, commissions, campaigns and loyalty
 
-### `pricing.allocation_template` 
+### `pricing.allocation_template` 🛡️
 
 Template of the price allocation tree across beneficiaries (carrier, platform, tax, intermediary)
 
@@ -1588,7 +1677,7 @@ Template of the price allocation tree across beneficiaries (carrier, platform, t
 | `approved_by` | `bigint` | 🔗 `iam.app_user`  |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
-### `pricing.allocation_template_line` 
+### `pricing.allocation_template_line` 🛡️
 
 
 
@@ -1701,7 +1790,7 @@ Fare of children and infants: a share of the adult fare, a fixed fare or free; r
 | `created_by` | `bigint` | 🔗 `iam.app_user`  |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
-### `pricing.commission_rule` 
+### `pricing.commission_rule` 🛡️
 
 
 
@@ -1717,7 +1806,7 @@ Fare of children and infants: a share of the adult fare, a fixed fare or free; r
 | `max_amount` | `bigint` |  |  |
 | `cap_period` | `text` |  |  |
 
-### `pricing.commission_scheme` 
+### `pricing.commission_scheme` 🛡️
 
 Commission scheme (platform, intermediary, payment, referral) with funder, beneficiary and versions
 
@@ -1796,7 +1885,7 @@ Central (locked) fare table or carrier fare table within limits (5.2)
 | `approved_by` | `bigint` | 🔗 `iam.app_user`  |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
-### `pricing.fare_table_item` 
+### `pricing.fare_table_item` 🛡️
 
 
 
@@ -1839,7 +1928,7 @@ Earn and burn partner of the loyalty program (5.13 f); extends the partner regis
 | `contract_ref` | `text` |  |  |
 | `status` | `text` | ✱ | `'PENDING'::text` |
 
-### `pricing.loyalty_program` 
+### `pricing.loyalty_program` 🛡️
 
 
 
@@ -1854,7 +1943,7 @@ Earn and burn partner of the loyalty program (5.13 f); extends the partner regis
 | `tax_treatment` | `jsonb` | ✱ | `'{}'::jsonb` |
 | `status` | `text` | ✱ | `'ACTIVE'::text` |
 
-### `pricing.loyalty_rule` 
+### `pricing.loyalty_rule` 🛡️
 
 
 
@@ -1870,7 +1959,7 @@ Earn and burn partner of the loyalty program (5.13 f); extends the partner regis
 | `version` | `integer` | ✱ | `1` |
 | `active` | `boolean` | ✱ | `true` |
 
-### `pricing.loyalty_tier` 
+### `pricing.loyalty_tier` 🛡️
 
 
 
@@ -1936,8 +2025,9 @@ Age bands of adults, children and infants set by each carrier; the platform row 
 | `created_by` | `bigint` | 🔗 `iam.app_user`  |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 | `updated_at` | `timestamp with time zone` | ✱ | `now()` |
+| `document_required` | `boolean` | ✱ | `false` |
 
-### `pricing.points_account` 
+### `pricing.points_account` 🛡️
 
 Points account; the balance is stored and reconciled with the points ledger
 
@@ -1951,7 +2041,7 @@ Points account; the balance is stored and reconciled with the points ledger
 | `status` | `text` | ✱ | `'ACTIVE'::text` |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
-### `pricing.points_ledger` 🔒
+### `pricing.points_ledger` 🛡️ 🔒
 
 Points ledger: append-only, corrections by reversing entry
 
@@ -2019,7 +2109,7 @@ Dynamic pricing modifiers applied in order (5.3)
 | `valid` | `tstzrange` | ✱ |  |
 | `active` | `boolean` | ✱ | `true` |
 
-### `pricing.promo_code` 
+### `pricing.promo_code` 🛡️
 
 
 
@@ -2032,7 +2122,7 @@ Dynamic pricing modifiers applied in order (5.3)
 | `uses` | `integer` | ✱ | `0` |
 | `owner_party_id` | `bigint` | 🔗 `iam.party`  |  |
 
-### `pricing.rate_band` 
+### `pricing.rate_band` 🛡️
 
 Calculation bands for a tax or commission rule
 
@@ -2218,7 +2308,7 @@ Border entry and exit of a trip (11.3 CROSSING_EVENT); append-only
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 | `ack_at` | `timestamp with time zone` |  |  |
 
-### `ops.family_zone` 
+### `ops.family_zone` 🛡️
 
 Family zones on the trip (4.14 a)
 
@@ -2228,7 +2318,7 @@ Family zones on the trip (4.14 a)
 | `seat_nos` | `smallint[]` | ✱ |  |
 | `label` | `text` | 🔑 ✱ | `'FAMILY'::text` |
 
-### `ops.geo_event` 🧩
+### `ops.geo_event` 🛡️ 🧩
 
 Tracking positions; partitioned monthly, short retention (16.13: 7 days by default for individuals); no FKs for insert performance
 
@@ -2270,7 +2360,7 @@ Incident or breakdown; a serious one takes the vehicle out of service immediatel
 | `status` | `text` | ✱ | `'OPEN'::text` |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
-### `ops.incident_evidence` 
+### `ops.incident_evidence` 🛡️
 
 
 
@@ -2283,7 +2373,7 @@ Incident or breakdown; a serious one takes the vehicle out of service immediatel
 | `uploaded_by` | `bigint` | 🔗 `iam.app_user`  |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
-### `ops.incident_external_link` 
+### `ops.incident_external_link` 🛡️
 
 Integration with traffic police, police and insurers (activated after government integration)
 
@@ -2383,7 +2473,7 @@ Database copy of seat locks for audit; the live lock is held in memory (4.5)
 | `outcome` | `text` |  |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
-### `ops.seat_segment` 
+### `ops.seat_segment` 🛡️
 
 Seat inventory per segment (4.12 c): a seat is sellable for a pair if it is vacant in all of the pair's segments
 
@@ -2397,6 +2487,7 @@ Seat inventory per segment (4.12 c): a seat is sellable for a pair if it is vaca
 | `lock_user_id` | `bigint` | 🔗 `iam.app_user`  |  |
 | `lock_expires_at` | `timestamp with time zone` |  |  |
 | `ticket_id` | `bigint` | 🔗 `sales.ticket`  |  |
+| `version` | `integer` | ✱ | `0` |
 
 ### `ops.shuttle_ride` 🛡️
 
@@ -2426,7 +2517,7 @@ One open ride per user, charged stop by stop until alighting (7.13)
 | `status` | `text` | ✱ | `'OPEN'::text` |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
-### `ops.standing_segment` 
+### `ops.standing_segment` 🛡️
 
 Standing places counter per segment, never above capacity
 
@@ -2579,7 +2670,7 @@ Delay estimates per stop that feed station displays and passenger notifications 
 | `source` | `text` | ✱ |  |
 | `reported_at` | `timestamp with time zone` | ✱ | `now()` |
 
-### `ops.trip_disruption` 
+### `ops.trip_disruption` 🛡️
 
 Trip continuity decision: replacement, lease, interline, rescue, cancellation (7.12 c)
 
@@ -2597,7 +2688,7 @@ Trip continuity decision: replacement, lease, interline, rescue, cancellation (7
 | `status` | `text` | ✱ | `'AWAITING_DECISION'::text` |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
-### `ops.trip_pair_fare` 
+### `ops.trip_pair_fare` 🛡️
 
 Exceptional price for a station pair exceeding the ladder difference
 
@@ -2608,7 +2699,7 @@ Exceptional price for a station pair exceeding the ladder difference
 | `to_seq` | `smallint` | 🔑 ✱ |  |
 | `price` | `bigint` | ✱ |  |
 
-### `ops.trip_stop` 
+### `ops.trip_stop` 🛡️
 
 Trip stops (snapshot of the route) with promised and actual times and the fare ladder
 
@@ -2700,7 +2791,7 @@ Agency terms: commission in basis points of the fares and a daily sales limit
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 | `updated_at` | `timestamp with time zone` | ✱ | `now()` |
 
-### `sales.boarding_event` 🔒
+### `sales.boarding_event` 🛡️ 🔒
 
 Boarding and alighting scan events (basis for dispatch, settlement and the manifest); append-only
 
@@ -2776,7 +2867,7 @@ Campaign use on a booking and who funds the discount
 | `sponsor_amount` | `bigint` | ✱ | `0` |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
-### `sales.channel` 
+### `sales.channel` 🛡️
 
 Sales channel (direct, counter, agency, API partner); agreements and quotas come in Phase 9
 
@@ -3005,6 +3096,10 @@ Passenger data on the booking; document numbers encrypted with a blind index for
 | `last_name` | `text` |  |  |
 | `family_member_id` | `bigint` | 🔗 `iam.family_member`  |  |
 | `accompanied_by_passenger_id` | `bigint` | 🔗 `sales.passenger`  |  |
+| `retention_policy_id` | `bigint` | 🔗 `gov.retention_policy`  |  |
+| `legal_hold` | `boolean` | ✱ | `false` |
+| `anonymized_at` | `timestamp with time zone` |  |  |
+| `erasure_request_id` | `bigint` | 🔗 `gov.subject_request`  |  |
 
 ### `sales.passenger_compensation` 🛡️
 
@@ -3265,7 +3360,7 @@ One credit line of an imported statement: matched to a top-up by reference and a
 | `decided_by` | `bigint` | 🔗 `iam.app_user`  |  |
 | `decided_at` | `timestamp with time zone` |  |  |
 
-### `fin.bank_transfer_topup` 
+### `fin.bank_transfer_topup` 🛡️
 
 Wallet top-up by bank transfer with a unique reference and automatic matching
 
@@ -3347,7 +3442,7 @@ Daily coverage of wallet liabilities by bank assets
 | `yield_accrued` | `bigint` | ✱ | `0` |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
-### `fin.ledger_entry` 🔒
+### `fin.ledger_entry` 🛡️ 🔒
 
 Ledger entry (debit/credit); append-only, updates the wallet balance atomically
 
@@ -3361,7 +3456,7 @@ Ledger entry (debit/credit); append-only, updates the wallet balance atomically
 | `balance_after` | `bigint` |  |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
-### `fin.ledger_txn` 🔒
+### `fin.ledger_txn` 🛡️ 🔒
 
 Ledger transaction header; immutable, and the idempotency key prevents double posting
 
@@ -3378,6 +3473,9 @@ Ledger transaction header; immutable, and the idempotency key prevents double po
 | `reverses_txn_id` | `bigint` | 🔗 `fin.ledger_txn`  |  |
 | `created_by` | `bigint` | 🔗 `iam.app_user`  |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `posting_batch_id` | `bigint` | 🔗 `fin.posting_batch`  |  |
+| `source_event_id` | `uuid` |  |  |
+| `reversal_reason` | `text` |  |  |
 
 ### `fin.payment` 🛡️
 
@@ -3414,7 +3512,7 @@ Payment; becomes SUCCESS only with a signed gateway notification and a ledger en
 | `agency_company_id` | `bigint` | 🔗 `iam.company`  |  |
 | `api_client_id` | `bigint` | 🔗 `iam.api_client`  |  |
 
-### `fin.payment_notification` 🔒
+### `fin.payment_notification` 🛡️ 🔒
 
 Signed gateway notifications as received (source of payment status, deduplication)
 
@@ -3507,6 +3605,22 @@ Bank payout to the carrier according to its schedule
 | `status` | `text` | ✱ | `'ACTIVE'::text` |
 | `updated_at` | `timestamp with time zone` | ✱ | `now()` |
 
+### `fin.posting_batch` 🛡️
+
+A group of ledger transactions posted together; closing it checks the control total (review 3.5)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `source` | `text` | ✱ |  |
+| `currency` | `character(3)` | 🔗 `ref.currency` ✱ |  |
+| `control_total` | `bigint` | ✱ |  |
+| `entry_count` | `integer` | ✱ |  |
+| `closed_at` | `timestamp with time zone` |  |  |
+| `created_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
 ### `fin.price_allocation` 🛡️
 
 Price allocation tree header for each booking, ticket or shipment
@@ -3523,6 +3637,11 @@ Price allocation tree header for each booking, ticket or shipment
 | `template_id` | `bigint` | 🔗 `pricing.allocation_template`  |  |
 | `rules_version` | `text` | ✱ |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `subject_ticket_id` | `bigint` | 🔗 `sales.ticket`  |  |
+| `subject_booking_id` | `bigint` | 🔗 `sales.booking`  |  |
+| `subject_shipment_id` | `bigint` | 🔗 `ship.shipment`  |  |
+| `subject_freight_leg_id` | `bigint` | 🔗 `ship.shipment_leg`  |  |
+| `subject_subscription_id` | `bigint` | 🔗 `sales.subscription`  |  |
 
 ### `fin.price_allocation_line` 🛡️
 
@@ -3627,6 +3746,18 @@ Wallet: user, company, platform, escrow, commission, tax, clearing; the balance 
 | `status` | `text` | ✱ | `'ACTIVE'::text` |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
+### `fin.wallet_reconciliation` 🛡️
+
+Result of each balance-versus-entries reconciliation (review 3.5); a mismatch raises an alert
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `run_at` | `timestamp with time zone` | ✱ | `now()` |
+| `wallets` | `integer` | ✱ |  |
+| `mismatches` | `integer` | ✱ |  |
+| `detail` | `jsonb` | ✱ | `'[]'::jsonb` |
+
 ### `fin.withdrawal_request` 🛡️
 
 Withdrawal request with limits, review and two approvals for large amounts
@@ -3657,7 +3788,7 @@ Withdrawal request with limits, review and two approvals for large amounts
 <a id="acct"></a>
 ## `acct` — Simplified accounting, e-invoicing and tax profiles
 
-### `acct.account_mapping` 
+### `acct.account_mapping` 🛡️
 
 
 
@@ -3791,7 +3922,7 @@ The only way to reduce an issued invoice (refunds); goes through e-invoicing lik
 | `status` | `text` | ✱ | `'DRAFT'::text` |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
-### `acct.einvoice_activation` 
+### `acct.einvoice_activation` 🛡️
 
 Phased mandate activation per taxpayer category, document type and date
 
@@ -3841,8 +3972,13 @@ Invoice, credit note and debit note; after finalization only the status and the 
 | `finalized_at` | `timestamp with time zone` |  |  |
 | `confirmed_at` | `timestamp with time zone` |  |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `source_refund_id` | `bigint` | 🔗 `sales.refund_request`  |  |
+| `source_ticket_id` | `bigint` | 🔗 `sales.ticket`  |  |
+| `source_booking_id` | `bigint` | 🔗 `sales.booking`  |  |
+| `source_shipment_id` | `bigint` | 🔗 `ship.shipment`  |  |
+| `source_subscription_id` | `bigint` | 🔗 `sales.subscription`  |  |
 
-### `acct.einvoice_line` 
+### `acct.einvoice_line` 🛡️
 
 
 
@@ -3862,7 +3998,7 @@ Invoice, credit note and debit note; after finalization only the status and the 
 | `tax_amount` | `bigint` | ✱ | `0` |
 | `allocation_line_id` | `bigint` | 🔗 `fin.price_allocation_line`  |  |
 
-### `acct.einvoice_submission` 🔒
+### `acct.einvoice_submission` 🛡️ 🔒
 
 Every submission attempt to the government authority and its response as received (append-only)
 
@@ -3880,7 +4016,7 @@ Every submission attempt to the government authority and its response as receive
 | `warnings` | `jsonb` |  |  |
 | `errors` | `jsonb` |  |  |
 
-### `acct.einvoice_template` 
+### `acct.einvoice_template` 🛡️
 
 
 
@@ -3894,7 +4030,7 @@ Every submission attempt to the government authority and its response as receive
 | `xml_schema_ref` | `text` |  |  |
 | `valid_from` | `timestamp with time zone` | ✱ |  |
 
-### `acct.einvoice_unit` 
+### `acct.einvoice_unit` 🛡️
 
 Issuing unit per seller: counter, last invoice hash and certificate
 
@@ -3980,7 +4116,7 @@ Journal entry; after posting it is never modified, corrections by reversing entr
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 | `posted_at` | `timestamp with time zone` |  |  |
 
-### `acct.journal_line` 
+### `acct.journal_line` 🛡️
 
 
 
@@ -3996,7 +4132,7 @@ Journal entry; after posting it is never modified, corrections by reversing entr
 | `amount_fc` | `bigint` |  |  |
 | `memo` | `text` |  |  |
 
-### `acct.posting_rule` 
+### `acct.posting_rule` 🛡️
 
 Posting rules: events become journal entries; no module writes to the ledger directly (13.4)
 
@@ -4034,6 +4170,9 @@ Sales invoice of the books with gapless numbering per company; linked to its e-i
 | `journal_entry_id` | `bigint` | 🔗 `acct.journal_entry`  |  |
 | `status` | `text` | ✱ | `'DRAFT'::text` |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `source_booking_id` | `bigint` | 🔗 `sales.booking`  |  |
+| `source_shipment_id` | `bigint` | 🔗 `ship.shipment`  |  |
+| `source_subscription_id` | `bigint` | 🔗 `sales.subscription`  |  |
 
 ### `acct.sales_invoice_line` 🛡️
 
@@ -4066,7 +4205,7 @@ Sales invoice of the books with gapless numbering per company; linked to its e-i
 | `resolved_by` | `bigint` | 🔗 `iam.app_user`  |  |
 | `resolved_at` | `timestamp with time zone` |  |  |
 
-### `acct.sync_item` 
+### `acct.sync_item` 🛡️
 
 Log of journal entries and invoices pushed to the external system via API, with retries and deduplication (13.12)
 
@@ -4131,7 +4270,7 @@ Tax code of the books, mapped to a GL account and to the pricing engine's tax ru
 | `tax_rule_id` | `bigint` | 🔗 `pricing.tax_rule`  |  |
 | `active` | `boolean` | ✱ | `true` |
 
-### `acct.tax_collection_no_file` 
+### `acct.tax_collection_no_file` 🛡️
 
 Taxes and fees collected from a party without a tax file (transit, flat-rate) with a collection receipt
 
@@ -4149,7 +4288,7 @@ Taxes and fees collected from a party without a tax file (transit, flat-rate) wi
 | `remitted_payment_id` | `bigint` | 🔗 `acct.tax_payment`  |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
-### `acct.tax_payment` 
+### `acct.tax_payment` 🛡️
 
 
 
@@ -4166,7 +4305,7 @@ Taxes and fees collected from a party without a tax file (transit, flat-rate) wi
 | `ref` | `text` |  |  |
 | `ledger_txn_id` | `bigint` | 🔗 `fin.ledger_txn`  |  |
 
-### `acct.tax_profile` 
+### `acct.tax_profile` 🛡️
 
 Tax profile of each company, owner or partner, with non-overlapping time versions
 
@@ -4187,7 +4326,7 @@ Tax profile of each company, owner or partner, with non-overlapping time version
 | `valid` | `tstzrange` | ✱ | `tstzrange(now(), NULL::timestamp with...` |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
-### `acct.tax_profile_field` 
+### `acct.tax_profile_field` 🛡️
 
 Dynamic tax fields added by the administrator per country or authority without code changes
 
@@ -4202,7 +4341,7 @@ Dynamic tax fields added by the administrator per country or authority without c
 | `required` | `boolean` | ✱ | `false` |
 | `validation` | `jsonb` |  |  |
 
-### `acct.tax_profile_value` 
+### `acct.tax_profile_value` 🛡️
 
 
 
@@ -4212,7 +4351,7 @@ Dynamic tax fields added by the administrator per country or authority without c
 | `field_id` | `bigint` | 🔑 🔗 `acct.tax_profile_field` ✱ |  |
 | `value` | `jsonb` | ✱ |  |
 
-### `acct.tax_registration` 
+### `acct.tax_registration` 🛡️
 
 
 
@@ -4224,7 +4363,7 @@ Dynamic tax fields added by the administrator per country or authority without c
 | `filing_frequency` | `text` | ✱ |  |
 | `registered` | `daterange` | ✱ |  |
 
-### `acct.tax_return` 
+### `acct.tax_return` 🛡️
 
 Draft tax return per taxpayer and period using the authority's form boxes
 
@@ -4240,7 +4379,7 @@ Draft tax return per taxpayer and period using the authority's form boxes
 | `authority_ref` | `text` |  |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
-### `acct.tax_return_line` 
+### `acct.tax_return_line` 🛡️
 
 
 
@@ -4412,7 +4551,7 @@ Test set of the assistant per dialect, run before each model or policy change
 | `last_run_at` | `timestamp with time zone` |  |  |
 | `active` | `boolean` | ✱ | `true` |
 
-### `crm.ai_message` 
+### `crm.ai_message` 🛡️
 
 
 
@@ -4436,7 +4575,7 @@ Assistant tools, each tool's action level, limits and user confirmation requirem
 | `requires_confirmation` | `boolean` | ✱ | `true` |
 | `enabled` | `boolean` | ✱ | `false` |
 
-### `crm.ai_tool_call` 🔒
+### `crm.ai_tool_call` 🛡️ 🔒
 
 Every tool executed by the assistant with the customer's permissions and confirmation (append-only)
 
@@ -4606,7 +4745,7 @@ Complaint, claim or inquiry with service levels, compensation and segregation of
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 | `updated_at` | `timestamp with time zone` | ✱ | `now()` |
 
-### `crm.case_event` 🔒
+### `crm.case_event` 🛡️ 🔒
 
 
 
@@ -4661,7 +4800,7 @@ Approved notification templates (notification catalog 34)
 | `approved_by` | `bigint` | 🔗 `iam.app_user`  |  |
 | `active` | `boolean` | ✱ | `true` |
 
-### `crm.trip_rating` 
+### `crm.trip_rating` 🛡️
 
 Trip rating (one ticket = one rating), feeds carrier ranking (7.7)
 
@@ -4713,6 +4852,31 @@ Data inventory with classification, purpose and retention (drives automatic dele
 | `location` | `text` | ✱ | `'PRIMARY_DC'::text` |
 | `processors` | `text[]` | ✱ | `'{}'::text[]` |
 
+### `gov.data_purpose` 🛡️
+
+Why restricted data is read; some purposes need a written reason or a second officer
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `code` | `text` | 🔑 ✱ |  |
+| `description` | `text` | ✱ |  |
+| `requires_reason` | `boolean` | ✱ | `true` |
+| `requires_second_approval` | `boolean` | ✱ | `false` |
+
+### `gov.erasure_log` 🛡️
+
+Each erasure: what was pseudonymised, what was kept and why
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `party_id` | `bigint` | 🔗 `iam.party` ✱ |  |
+| `request_id` | `bigint` | 🔗 `gov.subject_request`  |  |
+| `outcome` | `text` | ✱ |  |
+| `detail` | `jsonb` | ✱ |  |
+| `done_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `done_at` | `timestamp with time zone` | ✱ | `now()` |
+
 ### `gov.feature_compliance_review` 🛡️
 
 
@@ -4726,6 +4890,24 @@ Data inventory with classification, purpose and retention (drives automatic dele
 | `decision` | `text` | ✱ |  |
 | `approved_by` | `bigint` | 🔗 `iam.app_user`  |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `gov.legal_hold` 🛡️
+
+Records that must not be deleted or anonymised while a case is open; release needs a second officer
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `scope_type` | `text` | ✱ |  |
+| `scope_id` | `bigint` |  |  |
+| `dataset` | `text` |  |  |
+| `reason` | `text` | ✱ |  |
+| `case_ref` | `text` | ✱ |  |
+| `placed_by` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `placed_at` | `timestamp with time zone` | ✱ | `now()` |
+| `released_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `released_at` | `timestamp with time zone` |  |  |
 
 ### `gov.obligation_register` 🛡️
 
@@ -4822,6 +5004,20 @@ Versioned policy change approved according to the matrix; the proposer cannot ap
 | `notified_subjects_at` | `timestamp with time zone` |  |  |
 | `security_event_id` | `bigint` | 🔗 `sec.security_event`  |  |
 
+### `gov.retention_policy` 🛡️
+
+How long each kind of record is kept and what happens after (review 3.15)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `code` | `text` | ✱ |  |
+| `dataset` | `text` | ✱ |  |
+| `retention_days` | `integer` | ✱ |  |
+| `action` | `text` | ✱ |  |
+| `legal_basis` | `text` | ✱ |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
 ### `gov.subject_request` 🛡️
 
 
@@ -4874,7 +5070,7 @@ Notifications to the regulator: a vehicle operating with an expired licence or a
 | `response_ref` | `text` |  |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
-### `sec.authority_data_request` 
+### `sec.authority_data_request` 🛡️
 
 Official data request with dual authorization; nothing is delivered to any authority outside this path
 
@@ -4892,7 +5088,7 @@ Official data request with dual authorization; nothing is delivered to any autho
 | `delivery_ref` | `text` |  |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
-### `sec.authority_order` 
+### `sec.authority_order` 🛡️
 
 
 
@@ -4908,8 +5104,18 @@ Official data request with dual authorization; nothing is delivered to any autho
 | `received_at` | `timestamp with time zone` | ✱ | `now()` |
 | `executed_at` | `timestamp with time zone` |  |  |
 | `executed_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `target_trip_id` | `bigint` | 🔗 `ops.trip`  |  |
+| `target_user_id` | `bigint` | 🔗 `iam.app_user`  |  |
+| `target_party_id` | `bigint` | 🔗 `iam.party`  |  |
+| `target_ticket_id` | `bigint` | 🔗 `sales.ticket`  |  |
+| `target_wallet_id` | `bigint` | 🔗 `fin.wallet`  |  |
+| `target_booking_id` | `bigint` | 🔗 `sales.booking`  |  |
+| `target_company_id` | `bigint` | 🔗 `iam.company`  |  |
+| `target_payment_id` | `bigint` | 🔗 `fin.payment`  |  |
+| `target_vehicle_id` | `bigint` | 🔗 `fleet.vehicle`  |  |
+| `target_document_id` | `bigint` | 🔗 `iam.document`  |  |
 
-### `sec.authority_policy` 
+### `sec.authority_policy` 🛡️
 
 
 
@@ -4922,7 +5128,7 @@ Official data request with dual authorization; nothing is delivered to any autho
 | `mandatory` | `boolean` | ✱ | `true` |
 | `decision_map` | `jsonb` | ✱ | `'{}'::jsonb` |
 
-### `sec.authority_profile` 
+### `sec.authority_profile` 🛡️
 
 Security authority definition and its adapter (definition without integration in Phase 1 — Decision 88)
 
@@ -4939,6 +5145,22 @@ Security authority definition and its adapter (definition without integration in
 | `fail_policy` | `text` | ✱ | `'ALLOW_QUEUE'::text` |
 | `sla_ms` | `integer` |  |  |
 | `active` | `boolean` | ✱ | `false` |
+
+### `sec.authority_scope` 🛡️
+
+What each authority may receive, where, on which legal basis, approved by a second officer
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `authority_id` | `bigint` | 🔗 `sec.authority_profile` ✱ |  |
+| `data_category` | `text` | ✱ |  |
+| `scope_type` | `text` | ✱ |  |
+| `scope_value` | `text` |  |  |
+| `legal_basis` | `text` | ✱ |  |
+| `valid` | `daterange` | ✱ |  |
+| `created_by` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `approved_by` | `bigint` | 🔗 `iam.app_user`  |  |
 
 ### `sec.blocklist_entry` 🛡️
 
@@ -4967,7 +5189,7 @@ Break-glass access with elevated privileges: reason, approval and duration
 | `started_at` | `timestamp with time zone` | ✱ | `now()` |
 | `ended_at` | `timestamp with time zone` |  |  |
 
-### `sec.document_signature` 
+### `sec.document_signature` 🛡️
 
 Every official document issued by the server is signed; the verification page compares against it so any altered document is detected
 
@@ -4999,6 +5221,14 @@ Every official document issued by the server is signed; the verification page co
 | `outcome` | `text` |  |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 | `closed_at` | `timestamp with time zone` |  |  |
+| `subject_user_id` | `bigint` | 🔗 `iam.app_user`  |  |
+| `subject_party_id` | `bigint` | 🔗 `iam.party`  |  |
+| `subject_device_id` | `bigint` | 🔗 `iam.device`  |  |
+| `subject_booking_id` | `bigint` | 🔗 `sales.booking`  |  |
+| `subject_company_id` | `bigint` | 🔗 `iam.company`  |  |
+| `subject_payment_id` | `bigint` | 🔗 `fin.payment`  |  |
+| `subject_api_client_id` | `bigint` | 🔗 `iam.api_client`  |  |
+| `subject_withdrawal_id` | `bigint` | 🔗 `fin.withdrawal_request`  |  |
 
 ### `sec.gov_adapter_config` 🛡️
 
@@ -5060,6 +5290,9 @@ Registry of encryption and signing keys (16.8, 16.18): references only, keys liv
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 | `rotated_at` | `timestamp with time zone` |  |  |
 | `expires_at` | `timestamp with time zone` |  |  |
+| `key_version` | `integer` | ✱ | `1` |
+| `kms_key_id` | `text` |  |  |
+| `wrapped_dek` | `bytea` |  |  |
 
 ### `sec.manifest_submission` 🛡️
 
@@ -5082,6 +5315,26 @@ Manifest (manual in Phase 1), versioned and signed
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 | `sent_at` | `timestamp with time zone` |  |  |
 
+### `sec.policy_decision` 🛡️ 🔒
+
+Every decision to read restricted data, with its purpose, reason and policy version (review 3.11)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `decided_at` | `timestamp with time zone` | ✱ | `now()` |
+| `request_id` | `uuid` |  |  |
+| `user_id` | `bigint` | 🔗 `iam.app_user`  |  |
+| `company_id` | `bigint` | 🔗 `iam.company`  |  |
+| `scope` | `text` |  |  |
+| `resource` | `text` | ✱ |  |
+| `action` | `text` | ✱ |  |
+| `purpose_code` | `text` | 🔗 `gov.data_purpose`  |  |
+| `reason` | `text` |  |  |
+| `decision` | `text` | ✱ |  |
+| `rule` | `text` | ✱ |  |
+| `policy_version` | `text` | ✱ |  |
+
 ### `sec.risk_assessment` 🛡️
 
 
@@ -5096,6 +5349,12 @@ Manifest (manual in Phase 1), versioned and signed
 | `signals` | `jsonb` | ✱ |  |
 | `decision` | `text` | ✱ |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `subject_user_id` | `bigint` | 🔗 `iam.app_user`  |  |
+| `subject_party_id` | `bigint` | 🔗 `iam.party`  |  |
+| `subject_booking_id` | `bigint` | 🔗 `sales.booking`  |  |
+| `subject_payment_id` | `bigint` | 🔗 `fin.payment`  |  |
+| `subject_api_client_id` | `bigint` | 🔗 `iam.api_client`  |  |
+| `subject_withdrawal_id` | `bigint` | 🔗 `fin.withdrawal_request`  |  |
 
 ### `sec.screening_request` 🛡️
 
@@ -5112,6 +5371,13 @@ Manifest (manual in Phase 1), versioned and signed
 | `identifier_hash` | `bytea` | ✱ |  |
 | `status` | `text` | ✱ | `'PENDING'::text` |
 | `requested_at` | `timestamp with time zone` | ✱ | `now()` |
+| `subject_host_id` | `bigint` | 🔗 `iam.party`  |  |
+| `subject_driver_id` | `bigint` | 🔗 `iam.party`  |  |
+| `subject_company_id` | `bigint` | 🔗 `iam.company`  |  |
+| `subject_vehicle_id` | `bigint` | 🔗 `fleet.vehicle`  |  |
+| `subject_passenger_id` | `bigint` | 🔗 `iam.party`  |  |
+| `context_trip_id` | `bigint` | 🔗 `ops.trip`  |  |
+| `context_booking_id` | `bigint` | 🔗 `sales.booking`  |  |
 
 ### `sec.screening_result` 🛡️
 
@@ -5146,7 +5412,7 @@ Security events for the SOC and detection rules (16.20)
 | `ip_rule_id` | `bigint` | 🔗 `sec.ip_rule`  |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
-### `sec.sos_event` 
+### `sec.sos_event` 🛡️
 
 
 
@@ -5162,7 +5428,7 @@ Security events for the SOC and detection rules (16.20)
 | `incident_id` | `bigint` | 🔗 `ops.incident`  |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
-### `sec.tamper_event` 🔒
+### `sec.tamper_event` 🛡️ 🔒
 
 Attempts to submit values that contradict the server-side computation (price, date, payment status)
 
@@ -5195,6 +5461,11 @@ Attempts to submit values that contradict the server-side computation (price, da
 | `result` | `jsonb` |  |  |
 | `requested_at` | `timestamp with time zone` | ✱ | `now()` |
 | `completed_at` | `timestamp with time zone` |  |  |
+| `subject_party_id` | `bigint` | 🔗 `iam.party`  |  |
+| `subject_company_id` | `bigint` | 🔗 `iam.company`  |  |
+| `subject_license_id` | `bigint` | 🔗 `fleet.license_record`  |  |
+| `subject_vehicle_id` | `bigint` | 🔗 `fleet.vehicle`  |  |
+| `subject_document_id` | `bigint` | 🔗 `iam.document`  |  |
 
 ### `sec.watchlist_entry` 🛡️
 
@@ -6713,6 +6984,9 @@ One delivery of a manifest version to one authority: pushed, offered for pull, o
 | `resolved_by` | `bigint` | 🔗 `iam.app_user`  |  |
 | `resolved_at` | `timestamp with time zone` |  |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `subject_cargo_id` | `bigint` | 🔗 `brd.manifest_cargo`  |  |
+| `subject_person_id` | `bigint` | 🔗 `brd.manifest_person`  |  |
+| `subject_vehicle_id` | `bigint` | 🔗 `fleet.vehicle`  |  |
 
 ### `brd.manifest_person` 🛡️
 
@@ -6759,6 +7033,9 @@ Authority decisions per manifest or subject; silent flags are visible to the pla
 | `reason_code` | `text` |  |  |
 | `silent_flag` | `boolean` | ✱ | `false` |
 | `received_at` | `timestamp with time zone` | ✱ | `now()` |
+| `subject_cargo_id` | `bigint` | 🔗 `brd.manifest_cargo`  |  |
+| `subject_person_id` | `bigint` | 🔗 `brd.manifest_person`  |  |
+| `subject_vehicle_id` | `bigint` | 🔗 `fleet.vehicle`  |  |
 
 ### `brd.manifest_route` 🛡️
 
@@ -7383,7 +7660,7 @@ Report delivered by e-mail on a cycle; the outbox worker runs it with the owner'
 <a id="audit"></a>
 ## `audit` — Login and activity logs (append-only)
 
-### `audit.activity_log` 🧩 🔒
+### `audit.activity_log` 🛡️ 🧩 🔒
 
 Every request or action on the platform or via API: who, when, from where, what, on which entity, and the result
 
@@ -7413,7 +7690,7 @@ Every request or action on the platform or via API: who, when, from where, what,
 | `changes` | `jsonb` |  |  |
 | `row_hash` | `bytea` |  |  |
 
-### `audit.auth_event` 🧩 🔒
+### `audit.auth_event` 🛡️ 🧩 🔒
 
 Every login, logout, verification or API key use, successful or failed, with address, device and portal
 
@@ -7440,7 +7717,7 @@ Every login, logout, verification or API key use, successful or failed, with add
 | `request_id` | `uuid` |  |  |
 | `row_hash` | `bytea` |  |  |
 
-### `audit.data_access_log` 🧩 🔒
+### `audit.data_access_log` 🛡️ 🧩 🔒
 
 Every reveal of a sensitive field (passport, ID, IBAN) with its reason
 
@@ -7459,7 +7736,7 @@ Every reveal of a sensitive field (passport, ID, IBAN) with its reason
 | `request_id` | `uuid` |  |  |
 | `row_hash` | `bytea` |  |  |
 
-### `audit.log_seal` 🔒
+### `audit.log_seal` 🛡️ 🔒
 
 Periodic sealing of log blocks with a hash chain (and KMS signature) that reveals any deletion or modification
 
@@ -7477,7 +7754,7 @@ Periodic sealing of log blocks with a hash chain (and KMS signature) that reveal
 | `signature` | `bytea` |  |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
-### `audit.row_change` 🧩 🔒
+### `audit.row_change` 🛡️ 🧩 🔒
 
 Automatic capture of any change to sensitive tables, even outside the application (with the user identity from the request context)
 

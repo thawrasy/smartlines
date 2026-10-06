@@ -82,6 +82,6 @@ def test_erasure_anonymises_the_account():
     row = owner_sql("""SELECT u.status, u.email LIKE 'erased-%' AS hidden, p.legal_name FROM iam.app_user u
                          JOIN iam.party p ON p.id = u.party_id JOIN gov.subject_request r ON r.user_id = u.id
                         WHERE r.uid = $1""", uuid.UUID(req["uid"]), fetch=True)
-    assert row["status"] == "CLOSED" and row["hidden"] and row["legal_name"] == "Erased user"
+    assert row["status"] == "CLOSED" and row["hidden"] and row["legal_name"].startswith("Erased person")
     pax = login("passenger@masslak.test", "PASSENGER")
     assert pax.get("/api/admin/privacy/requests").status_code == 403
