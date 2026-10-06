@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { useI18n } from "../../i18n";
 import { Field, Icon } from "../../components/ui";
+import type { Category, CategoryFare, FamilyMember } from "../../api";
 
 // Names exactly as on the identity document. Syrian citizens: the four parts of the national ID.
 // Other nationalities: given and family names as in the passport or ID; father's and grandfather's names
@@ -10,6 +11,10 @@ export interface PassengerDraft {
   nationality: string; first_name: string; father_name: string; grandfather_name: string; last_name: string;
   more_names: boolean; id_type: string; id_last4: string;
   id_no: string; passport_expiry: string;          // international trips only
+  birth_date: string;                              // decides adult, child or infant on the travel date (4.19)
+  family_member_uid: string;                       // filled from the family register (4.20); the server uses the register
+  stored_doc: boolean;                             // the register holds the document number (encrypted): no need to type it
+  lap: boolean;                                    // an infant on an adult's lap, without a seat
 }
 
 /** Documents a nationality needs on the trip (GET /api/trips/{uid}/documents). */
@@ -21,10 +26,37 @@ export interface TravelDocs {
 const addDays = (iso: string, n: number) => { const d = new Date(`${iso}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
 export const minPassportExpiry = (req: TravelDocs) => addDays(req.departs, req.passport_min_days);
 
-export const blankPassenger = (): PassengerDraft => ({
+export const blankPassenger = (lap = false): PassengerDraft => ({
   nationality: "SY", first_name: "", father_name: "", grandfather_name: "", last_name: "", more_names: false,
-  id_type: "NATIONAL_ID", id_last4: "", id_no: "", passport_expiry: "",
+  id_type: "NATIONAL_ID", id_last4: "", id_no: "", passport_expiry: "", birth_date: "", family_member_uid: "", stored_doc: false, lap,
 });
+
+/** A traveller filled from the family register: names, nationality, date of birth and document type as registered. */
+export function fromMember(m: FamilyMember, lap = false): PassengerDraft {
+  return {
+    nationality: m.nationality, first_name: m.first_name, father_name: m.father_name ?? "", grandfather_name: m.grandfather_name ?? "",
+    last_name: m.last_name, more_names: !!(m.father_name || m.grandfather_name) && m.nationality !== "SY",
+    id_type: m.id_type ?? (m.nationality === "SY" ? "NATIONAL_ID" : "PASSPORT"), id_last4: m.id_last4 ?? "", id_no: "",
+    passport_expiry: m.passport_expiry ?? "", birth_date: m.birth_date, family_member_uid: m.uid, stored_doc: !!m.id_last4, lap,
+  };
+}
+
+/** Completed years on a day, as the API counts them. */
+export function ageOn(birth: string, day: string) {
+  const [by, bm, bd] = birth.split("-").map(Number), [y, m, d] = day.split("-").map(Number);
+  return y - by - (m < bm || (m === bm && d < bd) ? 1 : 0);
+}
+
+/** The category the API will apply, or null when it cannot be known yet (no date of birth). */
+export function categoryOf(p: PassengerDraft, bands: CategoryFare[], travel: string): Category | null {
+  if (!p.birth_date) return p.lap ? null : "ADULT";
+  const age = ageOn(p.birth_date, travel);
+  const hit = (["INFANT", "CHILD", "ADULT"] as Category[]).find((c) => {
+    const b = bands.find((x) => x.category === c);
+    return b && age >= b.min_age && (b.max_age === null || age < b.max_age);
+  });
+  return hit ?? "ADULT";
+}
 
 // Mirrors the API rule: letters in any script, single spaces, hyphens, apostrophes or dots between them
 const NAME_PART = /^\p{L}+(?:[ '\-.]\p{L}+)*\.?$/u;
@@ -46,17 +78,20 @@ export function namesFor(p: PassengerDraft) {
 /** The document part of a passenger on an international trip: an accepted type, the full number, a valid passport. */
 export function documentValid(p: PassengerDraft, req?: TravelDocs) {
   if (!req?.international) return true;
+  if (p.stored_doc && req.docs.includes(p.id_type)) return true;     // the register's document is copied by the server
   if (!req.docs.includes(p.id_type) || !/^[0-9A-Za-z \-/]{4,24}$/.test(p.id_no.trim())) return false;
   return p.id_type !== "PASSPORT" || (!!p.passport_expiry && p.passport_expiry >= minPassportExpiry(req));
 }
 
 export function documentFor(p: PassengerDraft, req?: TravelDocs) {
+  if (p.stored_doc && !p.id_no.trim()) return { id_type: p.id_type };
   if (!req?.international) return { id_type: p.id_type, id_last4: p.id_last4 || null };
   return { id_type: p.id_type, id_no: p.id_no.trim(), passport_expiry: p.id_type === "PASSPORT" ? p.passport_expiry : null };
 }
 
 export function passengerValid(p: PassengerDraft, req?: TravelDocs) {
   if (!documentValid(p, req)) return false;
+  if (p.lap && !p.birth_date) return false;
   const n = namesFor(p);
   const optionalOk = (v: string | null) => v === null || validPart(v);
   if (!validPart(n.first_name) || !validPart(n.last_name) || !optionalOk(n.father_name) || !optionalOk(n.grandfather_name)) return false;
@@ -64,9 +99,15 @@ export function passengerValid(p: PassengerDraft, req?: TravelDocs) {
   return !p.id_last4 || /^[0-9A-Za-z]{3,4}$/.test(p.id_last4);
 }
 
-export function PassengerFields({ value, onChange, countries, docs }: { value: PassengerDraft; onChange: (p: PassengerDraft) => void; countries: string[]; docs?: TravelDocs }) {
-  const { t, locale, date } = useI18n();
+export function PassengerFields({ value, onChange, countries, docs, bands, travel }: {
+  value: PassengerDraft; onChange: (p: PassengerDraft) => void; countries: string[]; docs?: TravelDocs; bands?: CategoryFare[]; travel?: string;
+}) {
+  const { t, locale, date, money } = useI18n();
   const intl = !!docs?.international;
+  const locked = !!value.family_member_uid;
+  const cat = bands && travel ? categoryOf(value, bands, travel) : null;
+  const band = cat ? bands?.find((b) => b.category === cat) : undefined;
+  const lapNotInfant = value.lap && cat !== null && cat !== "INFANT";
   const syrian = value.nationality === "SY";
   const set = (patch: Partial<PassengerDraft>) => onChange({ ...value, ...patch });
 
@@ -83,7 +124,7 @@ export function PassengerFields({ value, onChange, countries, docs }: { value: P
     const bad = v.trim() !== "" && !validPart(v);
     return (
       <Field label={required ? label : `${label} (${t("common.optional")})`}>
-        <input className="input" value={v} required={required} maxLength={60} autoComplete="off" aria-invalid={bad}
+        <input className="input" value={v} required={required} maxLength={60} autoComplete="off" aria-invalid={bad} readOnly={locked}
                style={bad ? { borderColor: "var(--error)" } : undefined} onChange={(e) => set({ [key]: e.target.value } as Partial<PassengerDraft>)} />
       </Field>
     );
@@ -92,9 +133,24 @@ export function PassengerFields({ value, onChange, countries, docs }: { value: P
 
   return (
     <div className="stack">
+      {locked && <div className="alert ok small"><Icon name="diversity_3" size={20} /><span>{t("family.fromRegister")}</span></div>}
+      <div className="grid cols-3">
+        <Field label={value.lap ? t("pax.birthDate") : `${t("pax.birthDate")} (${t("pax.birthHint")})`}>
+          <input className="input ltr" type="date" value={value.birth_date} max={travel} readOnly={locked} required={value.lap}
+                 aria-invalid={lapNotInfant} onChange={(e) => set({ birth_date: e.target.value })} />
+        </Field>
+        <Field label={t("pax.category")}>
+          <div className="row" style={{ minHeight: 40 }}>
+            {cat ? <span className={`chip ${cat === "ADULT" ? "outline" : "green"}`}>{t(`pax.cat.${cat}`)}{band ? ` · ${money(band.fare)}` : ""}</span>
+                 : <span className="muted small">{t("pax.categoryUnknown")}</span>}
+            {value.lap && <span className="chip outline"><Icon name="child_care" size={16} />{t("pax.onLap")}</span>}
+          </div>
+        </Field>
+      </div>
+      {lapNotInfant && <div className="alert error small"><Icon name="warning" size={20} /><span>{t("errors.SEAT_REQUIRED")}</span></div>}
       <div className="grid cols-3">
         <Field label={t("checkout.nationality")}>
-          <select className="input" value={value.nationality}
+          <select className="input" value={value.nationality} disabled={locked}
                   onChange={(e) => set({ nationality: e.target.value, id_type: intl || e.target.value !== "SY" ? "PASSPORT" : "NATIONAL_ID", more_names: false })}>
             {options.map((o) => <option key={o.code} value={o.code}>{o.name}</option>)}
           </select>
@@ -105,7 +161,11 @@ export function PassengerFields({ value, onChange, countries, docs }: { value: P
               <option key={k} value={k}>{t(`checkout.idTypes.${k}`)}</option>)}
           </select>
         </Field>
-        {intl ? (
+        {value.stored_doc && !value.id_no ? (
+          <Field label={t("checkout.docNumber")}>
+            <input className="input ltr" readOnly value={`•••• ${value.id_last4}`} />
+          </Field>
+        ) : intl ? (
           <Field label={t("checkout.docNumber")}>
             <input className="input ltr" required maxLength={24} autoComplete="off" value={value.id_no}
                    aria-invalid={value.id_no !== "" && !/^[0-9A-Za-z \-/]{4,24}$/.test(value.id_no.trim())}

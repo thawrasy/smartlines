@@ -55,7 +55,7 @@ def _popular(cat: data.Catalog, limit: int = 16, international: bool | None = Fa
 # ------------------------------------------------------------------ robots, sitemap, images
 @router.get("/robots.txt")
 async def robots():
-    private = ["/api/", "/admin", "/carrier", "/agency", "/driver", "/inspector", "/regulator", "/account", "/wallet", "/trips",
+    private = ["/api/", "/admin", "/carrier", "/agency", "/driver", "/inspector", "/regulator", "/account", "/wallet", "/family", "/trips",
                "/booking/", "/pay/", "/m/", "/mfa", "/search", "/trip/"]
     lines = ["User-agent: *", "Allow: /", *[f"Disallow: {p}" for p in private], "", f"Sitemap: {base()}/sitemap.xml", ""]
     return PlainTextResponse("\n".join(lines), headers=CACHE)

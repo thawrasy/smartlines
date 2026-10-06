@@ -87,10 +87,21 @@ class BookingIn(BaseModel):
         return self
 
 
+class QuotePassenger(PassengerIn):
+    """A traveller to price: names are not needed until the booking itself."""
+    first_name: str = Field(default="Traveller", min_length=1, max_length=60, pattern=NAME_PART)
+    last_name: str = Field(default="Traveller", min_length=1, max_length=60, pattern=NAME_PART)
+
+    @model_validator(mode="after")
+    def _syrian_four_part_name(self):
+        return self
+
+
 class QuoteIn(BookingIn):
     """A booking request priced before seats are held or paid for."""
     hold_token: Optional[uuid.UUID] = None
     idempotency_key: str = "quote-only"
+    passengers: list[QuotePassenger] = Field(min_length=1, max_length=MAX_SEATS * 2)
 
 
 class AgencyBookingIn(BookingIn):

@@ -102,7 +102,8 @@ export default function Booking() {
                     <dt>{t("common.date")}</dt><dd>{date(k.departs_at, { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</dd>
                     <dt>{t("common.from")}</dt><dd>{station(k.from_code, k.from_station)}</dd>
                     <dt>{t("common.to")}</dt><dd>{station(k.to_code, k.to_station)}</dd>
-                    <dt>{t("common.seat")}</dt><dd><span className="chip green">{k.seat_label ?? k.seat_no}</span></dd>
+                    <dt>{t("common.seat")}</dt><dd>{k.seat_no === null ? <span className="chip outline">{t("pax.onLap")}</span>
+                      : <span className="chip green">{k.seat_label ?? k.seat_no}</span>}</dd>
                     <dt>{t("booking.fare")}</dt><dd>{k.fare_brand_code} · {money(k.total_amount)}</dd>
                     <dt>{t("common.status")}</dt><dd><Status value={k.status} /></dd>
                   </dl>
@@ -120,7 +121,12 @@ export default function Booking() {
             ))}
             <div className="card stack">
               <h3>{t("booking.breakdown")}</h3>
-              <div className="row between"><span className="muted">{t("checkout.fares", { n: b.price_breakdown.passengers })}</span><span>{money(b.price_breakdown.fares_total)}</span></div>
+              {b.price_breakdown.lines ? b.price_breakdown.lines.map((l) => (
+                <div key={l.passenger} className="row between small"><span className="muted">{t("common.passenger")} {l.passenger} · {t(`pax.cat.${l.category}`)}{!l.seat ? ` · ${t("pax.onLap")}` : ""}</span><span>{money(l.fare)}</span></div>
+              )) : <div className="row between"><span className="muted">{t("checkout.fares", { n: b.price_breakdown.passengers })}</span><span>{money(b.price_breakdown.fares_total)}</span></div>}
+              {b.price_breakdown.family_offer && (
+                <div className="row between small" style={{ color: "var(--success)" }}><span>{b.price_breakdown.family_offer.name}</span><span>−{money(b.price_breakdown.family_offer.discount)}</span></div>
+              )}
               <div className="row between"><span className="muted">{t("checkout.fee")}</span><span>{money(b.price_breakdown.platform_fee)}</span></div>
               <div className="divider" />
               <div className="row between"><strong>{t("common.total")}</strong><span className="price" style={{ fontSize: 20 }}>{money(b.total_amount)}</span></div>

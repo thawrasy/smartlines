@@ -91,8 +91,8 @@ if (_static / "index.html").exists():
     app.mount("/assets", StaticFiles(directory=_static / "assets"), name="assets")
 
     # top-level paths of the web app; anything else is a real 404 (no "soft 404" pages for search engines)
-    APP_PATHS = {"", "account", "admin", "agency", "booking", "carrier", "driver", "login", "m", "mfa", "pay", "register", "regulator",
-                 "search", "security", "services", "track", "trip", "trips", "verify", "wallet"}
+    APP_PATHS = {"", "account", "admin", "agency", "booking", "carrier", "driver", "family", "login", "m", "mfa", "pay", "register",
+                 "regulator", "search", "security", "services", "track", "trip", "trips", "verify", "wallet"}
 
     @app.get("/{path:path}", include_in_schema=False)
     async def spa(path: str):

@@ -9,7 +9,7 @@ All demo accounts share the password printed at the end. Never run this on a pro
 import asyncio
 import os
 import sys
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 import asyncpg
@@ -127,6 +127,47 @@ async def seed_agency(conn) -> bool:
     return True
 
 
+async def seed_families(conn) -> bool:
+    """A family offer of the demo carrier, the demo passenger's family (spouse, a child and an infant), and a domestic
+    manifest route to a traffic authority approved by the security officer (4.19, 4.20, 11.10). Idempotent."""
+    if await conn.fetchval("SELECT 1 FROM iam.family f JOIN iam.app_user u ON u.party_id = f.head_party_id WHERE u.email = 'passenger@masslak.test'"):
+        return False
+    carrier = await conn.fetchval("SELECT id FROM iam.party WHERE legal_name = 'Demo Carrier A' AND party_type = 'COMPANY'")
+    owner = await conn.fetchval("SELECT id FROM iam.app_user WHERE email = 'owner@carrier.test'")
+    await conn.execute(
+        """INSERT INTO pricing.family_offer (company_id, code, name, applies_to, min_members, min_adults, min_minors, discount_type,
+             discount_value, max_discount, status, created_by)
+           VALUES ($1, 'FAMILY10', 'Family travel: 10% off', 'BOTH', 3, 1, 1, 'PCT', 10, 2000000, 'ACTIVE', $2) ON CONFLICT DO NOTHING""",
+        carrier, owner)
+    head = await conn.fetchrow("SELECT u.party_id, p.legal_name FROM iam.app_user u JOIN iam.party p ON p.id = u.party_id WHERE u.email = 'passenger@masslak.test'")
+    fam = await conn.fetchval("INSERT INTO iam.family (head_party_id, name) VALUES ($1, 'Al-Halabi family') RETURNING id", head["party_id"])
+    today = date.today()
+    members = (("SELF", "Samer", "Fadi", "Nabil", "Al-Halabi", today.replace(year=today.year - 38), "M", head["party_id"]),
+               ("SPOUSE", "Rasha", "Adel", "Hassan", "Al-Halabi", today.replace(year=today.year - 34), "F", None),
+               ("DAUGHTER", "Lana", "Samer", "Fadi", "Al-Halabi", today.replace(year=today.year - 8), "F", None),
+               ("SON", "Karim", "Samer", "Fadi", "Al-Halabi", today.replace(year=today.year - 1), "M", None))
+    for relation, first, father, grand, last, born, sex, party in members:
+        if party is None:
+            party = await conn.fetchval(
+                """INSERT INTO iam.party (party_type, legal_name, nationality, birth_date, gender, country_code)
+                   VALUES ('PERSON', $1, 'SY', $2, $3, 'SY') RETURNING id""", f"{first} {father} {grand} {last}", born, sex)
+        await conn.execute(
+            """INSERT INTO iam.family_member (family_id, party_id, relation, first_name, father_name, grandfather_name, last_name,
+                 nationality, birth_date, gender, funding) VALUES ($1, $2, $3, $4, $5, $6, $7, 'SY', $8, $9, $10)""",
+            fam, party, relation, first, father, grand, last, born, sex, "OWN" if relation == "SELF" else "HEAD_WALLET")
+    authority = await conn.fetchval(
+        """INSERT INTO sec.authority_profile (code, name, authority_type, protocol, active) VALUES ('TRAFFIC', 'Traffic police', 'TRAFFIC', 'REST', true)
+           ON CONFLICT (code) DO UPDATE SET active = true RETURNING id""")
+    admin = await conn.fetchval("SELECT id FROM iam.app_user WHERE email = 'admin@masslak.test'")
+    security = await conn.fetchval("SELECT id FROM iam.app_user WHERE email = 'security@masslak.test'")
+    if security:
+        await conn.execute(
+            """INSERT INTO brd.manifest_route (authority_id, scope, channel, legal_basis, status, created_by, approved_by, approved_at)
+               VALUES ($1, 'DOMESTIC', 'API_PULL', 'Demo: passenger lists of domestic coach trips', 'ACTIVE', $2, $3, now())""",
+            authority, admin, security)
+    return True
+
+
 async def main():
     url = os.environ.get("MASSLAK_OWNER_URL", "postgresql://postgres@localhost:5432/masslak")
     conn = await asyncpg.connect(url)
@@ -135,7 +176,8 @@ async def main():
         if await conn.fetchval("SELECT 1 FROM iam.app_user WHERE email = 'admin@masslak.test'"):
             added = [what for what, done in (("agency", await seed_agency(conn)), ("seat layouts", await seed_layouts(conn)),
                                                     ("finance user", await seed_finance(conn)),
-                                                    ("security officer", await seed_security(conn))) if done]
+                                                    ("security officer", await seed_security(conn)),
+                                                    ("family and manifest route", await seed_families(conn))) if done]
             print(f"demo {' and '.join(added)} added" if added else "demo data already present")
             return
         # Platform staff
@@ -255,6 +297,7 @@ async def main():
         txn = await conn.fetchval("INSERT INTO fin.ledger_txn (txn_type, currency, idempotency_key, memo) VALUES ('TOPUP', 'SYP', 'demo-topup-1', 'demo') RETURNING id")
         await conn.execute("INSERT INTO fin.ledger_entry (txn_id, wallet_id, direction, amount) VALUES ($1, $2, 'DR', 50000000), ($1, $3, 'CR', 50000000)",
                            txn, clearing, wallet)
+        await seed_families(conn)
     await conn.close()
     print(f"demo data created: {n_trips} trips")
     print(f"accounts (password: {PASSWORD}):")

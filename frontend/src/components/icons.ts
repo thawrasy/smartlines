@@ -108,6 +108,18 @@ import i_send from "@material-symbols/svg-400/rounded/send.svg?raw";
 import i_autorenew from "@material-symbols/svg-400/rounded/autorenew.svg?raw";
 import i_code from "@material-symbols/svg-400/rounded/code.svg?raw";
 import i_pause from "@material-symbols/svg-400/rounded/pause.svg?raw";
+import i_diversity_3 from "@material-symbols/svg-400/rounded/diversity_3.svg?raw";
+import i_child_care from "@material-symbols/svg-400/rounded/child_care.svg?raw";
+import i_family_restroom from "@material-symbols/svg-400/rounded/family_restroom.svg?raw";
+import i_link from "@material-symbols/svg-400/rounded/link.svg?raw";
+import i_how_to_reg from "@material-symbols/svg-400/rounded/how_to_reg.svg?raw";
+import i_upload from "@material-symbols/svg-400/rounded/upload.svg?raw";
+import i_rule from "@material-symbols/svg-400/rounded/rule.svg?raw";
+import i_savings from "@material-symbols/svg-400/rounded/savings.svg?raw";
+import i_fingerprint from "@material-symbols/svg-400/rounded/fingerprint.svg?raw";
+import i_group_add from "@material-symbols/svg-400/rounded/group_add.svg?raw";
+import i_sell from "@material-symbols/svg-400/rounded/sell.svg?raw";
+import i_verified_user from "@material-symbols/svg-400/rounded/verified_user.svg?raw";
 
 export const ICONS = {
   search: i_search,
@@ -217,6 +229,18 @@ export const ICONS = {
   autorenew: i_autorenew,
   code: i_code,
   pause: i_pause,
+  diversity_3: i_diversity_3,
+  child_care: i_child_care,
+  family_restroom: i_family_restroom,
+  link: i_link,
+  how_to_reg: i_how_to_reg,
+  upload: i_upload,
+  rule: i_rule,
+  savings: i_savings,
+  fingerprint: i_fingerprint,
+  group_add: i_group_add,
+  sell: i_sell,
+  verified_user: i_verified_user,
 } as const;
 
 export type IconName = keyof typeof ICONS;

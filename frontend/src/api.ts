@@ -73,6 +73,46 @@ export interface TripDetail {
   stops: TripStop[]; price: number; from_seq: number; to_seq: number; seats: { seat_no: number; free: boolean }[];
   /** The vehicle's real layout, frozen when the trip was created (null for trips created before layouts existed). */
   seat_map: import("./components/SeatGrid").SeatMapData | null;
+  /** Who counts as an adult, a child or an infant on this carrier, and what each pays on this segment (4.19). */
+  categories: CategoryFare[];
+  family_offers: FamilyOfferBrief[];
+}
+
+export type Category = "ADULT" | "CHILD" | "INFANT";
+export interface CategoryFare {
+  category: Category; min_age: number; max_age: number | null; seat_required: boolean; needs_adult: boolean;
+  max_per_adult: number | null; fare: number;
+}
+export interface FamilyOfferBrief {
+  code: string; name: string; applies_to: string; min_members: number; min_adults: number; min_minors: number;
+  discount_type: "PCT" | "FIXED_PER_MEMBER"; discount_value: number; max_discount: number | null;
+}
+
+/** POST /api/bookings/quote: the fare of every traveller and any family offer, before paying. */
+export interface Quote {
+  fare_per_passenger: number; passengers: number; fares_gross: number; fares_total: number; platform_fee: number; total: number;
+  lines: { passenger: number; category: Category; seat: boolean; fare: number }[];
+  family_offer?: { code: string; name: string; discount: number };
+}
+
+export interface FamilyMember {
+  uid: string; relation: string; first_name: string; father_name: string | null; grandfather_name: string | null; last_name: string;
+  full_name: string; nationality: string; birth_date: string; age: number; gender: "M" | "F" | null; id_type: string | null;
+  id_last4: string | null; passport_expiry: string | null; mobile: string | null;
+  account_status: "NONE" | "INVITED" | "PENDING" | "LINKED" | "REVOKED"; funding: "OWN" | "HEAD_WALLET" | "FAMILY_ACCOUNT";
+  per_trip_limit: number | null; daily_limit: number | null; monthly_limit: number | null;
+}
+export interface FamilyRule {
+  uid: string; rule_type: "TIME_WINDOW" | "ROUTE" | "LINE"; days: number[] | null; start_time: string | null; end_time: string | null;
+  from_city?: string | null; to_city?: string | null; both_ways: boolean; line_id: number | null; line?: string | null;
+}
+export interface FamilyView {
+  role: "HEAD" | "MEMBER" | null;
+  family?: { uid: string; name: string };
+  account?: { balance: number; currency: string };
+  members?: FamilyMember[];
+  requests?: { uid: string; status: string; device_label: string | null; submitted_at: string | null; expires_at: string; member_uid: string; member: string }[];
+  me?: FamilyMember; rules?: FamilyRule[];
 }
 
 export interface FareBrand {
@@ -81,7 +121,7 @@ export interface FareBrand {
 }
 
 export interface Ticket {
-  uid: string; ticket_no: string; seat_no: number; seat_label: string | null; status: string; fare_brand_code: string; total_amount: number;
+  uid: string; ticket_no: string; seat_no: number | null; seat_label: string | null; status: string; fare_brand_code: string; total_amount: number;
   /** Full name as on the identity document; the ticket prints ticket_name (first and last name). */
   full_name: string; ticket_name: string; from_station: string; from_code: string; from_city: string; departs_at: string;
   to_station: string; to_code: string; to_city: string; arrives_at: string;
@@ -90,7 +130,8 @@ export interface Ticket {
 export interface BookingDetail {
   booking: { booking_ref: string; status: string; total_amount: number; currency: string; trip_no: string; carrier_name: string;
              created_at: string; verify_token: string; contact_mobile?: string; commission?: number | null;
-             price_breakdown: { fare_per_passenger: number; passengers: number; fares_total: number; platform_fee: number; total: number; fare_brand: string } };
+             price_breakdown: { fare_per_passenger: number; passengers: number; fares_total: number; platform_fee: number; total: number; fare_brand: string;
+                                lines?: Quote["lines"]; family_offer?: Quote["family_offer"] } };
   tickets: Ticket[];
 }
 

@@ -57,8 +57,8 @@ def test_manifest_issued_routed_pulled_and_acknowledged(owner, admin, security, 
         assert r.status_code == 201, r.text
         first = r.json()["issued"][0]
         assert first["scope"] == "DOMESTIC" and first["persons"] >= 1 and len(first["sha256"]) == 64
-        mine = [d for d in first["deliveries"] if d["status"] == "AVAILABLE"]
-        assert len(mine) == 1 and mine[0]["channel"] == "API_PULL"
+        mine = [d for d in first["deliveries"] if d["authority"] == "Traffic police (test)"]
+        assert len(mine) == 1 and mine[0]["channel"] == "API_PULL" and mine[0]["status"] == "AVAILABLE"
 
         r = owner.post(f"/api/carrier/trips/{trip['uid']}/manifests", json={"type": "AMENDMENT"})
         second = r.json()["issued"][0]

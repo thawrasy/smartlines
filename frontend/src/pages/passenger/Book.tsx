@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { api, newKey, type FareBrand, type TripDetail } from "../../api";
+import { api, newKey, type FamilyView, type FareBrand, type Quote, type TripDetail } from "../../api";
 import { useI18n } from "../../i18n";
 import { useAuth } from "../../auth";
 import { minutesBetween } from "../../dates";
 import { ErrorBox, Icon, Spinner, useLoad } from "../../components/ui";
 import { useChannel } from "../../channel";
 import { SeatGrid } from "../../components/SeatGrid";
-import { PassengerFields, blankPassenger, documentFor, namesFor, passengerValid, type PassengerDraft, type TravelDocs } from "./PassengerFields";
+import { PassengerFields, blankPassenger, documentFor, fromMember, namesFor, passengerValid, type PassengerDraft, type TravelDocs } from "./PassengerFields";
 
 interface Hold { hold_token: string; expires_at: string }
 // Passenger wallet, or the agency's dashboard figures that matter at checkout
@@ -95,6 +95,12 @@ export default function Book() {
   const wallet = useLoad<Funds | null>(() => (me?.portal !== ch.portal ? Promise.resolve(null)
     : api.get<Funds>(ch.agency ? "/api/agency/dashboard" : "/api/wallet")), [me, ch.portal]);
   const [contact, setContact] = useState("");
+  // The passenger's family register (4.20): members can be picked as travellers; the head may pay from the family account
+  const family = useLoad<FamilyView | null>(() => (ch.agency || me?.portal !== "PASSENGER" ? Promise.resolve(null)
+    : api.get<FamilyView>("/api/family").catch(() => null)), [me, ch.agency]);
+  const [payFrom, setPayFrom] = useState<"WALLET" | "FAMILY_ACCOUNT">("WALLET");
+  const [quote, setQuote] = useState<Quote | null>(null);
+  const [quoteError, setQuoteError] = useState<unknown>(null);
 
   const [selected, setSelected] = useState<number[]>([]);
   const [hold, setHold] = useState<Hold | null>(null);
@@ -128,6 +134,21 @@ export default function Book() {
   useEffect(() => { holdRef.current = hold?.hold_token ?? null; }, [hold]);
   useEffect(() => () => { if (holdRef.current) void api.del(`${ch.api}/holds/${holdRef.current}`).catch(() => {}); }, [ch.api]);
 
+  // The server prices every traveller (adult, child, infant) and the family offer; the summary shows its answer
+  const quoteKey = JSON.stringify([hold?.hold_token, brand, pax.map((p) => [p.lap, p.birth_date, p.family_member_uid, p.nationality])]);
+  useEffect(() => {
+    if (!hold || ch.agency || pax.length === 0) { setQuote(null); return; }
+    const id = setTimeout(() => {
+      const body = { trip_uid: uid, from_seq: fromSeq, to_seq: toSeq, fare_brand: brand,
+        passengers: pax.map((p, i) => ({ seat_no: p.lap ? null : selected[i] ?? null, nationality: p.nationality,
+          ...(p.birth_date ? { birth_date: p.birth_date } : {}), ...(p.family_member_uid ? { family_member_uid: p.family_member_uid } : {}) })) };
+      api.post<Quote>("/api/bookings/quote", body).then((q) => { setQuote(q); setQuoteError(null); })
+        .catch((e) => { setQuote(null); setQuoteError(e); });
+    }, 350);
+    return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [quoteKey]);
+
   if (detail.error) return <div className="page"><ErrorBox error={detail.error} /></div>;
   if (!detail.data || !ref.data) return <Spinner />;
   const d = detail.data;
@@ -158,14 +179,19 @@ export default function Book() {
     setHold(null); detail.reload();
   };
 
+  const travellers = () => pax.map((p, i) => ({
+    seat_no: p.lap ? null : selected[i], ...namesFor(p), ...documentFor(p, docs[p.nationality]),
+    ...(p.birth_date ? { birth_date: p.birth_date } : {}), ...(p.family_member_uid ? { family_member_uid: p.family_member_uid } : {}),
+  }));
+
   const pay = async () => {
     if (!hold) return;
     setBusy(true); setError(null);
     try {
       const r = await api.post<{ booking_ref: string }>(`${ch.api}/bookings`, {
         hold_token: hold.hold_token, trip_uid: uid, from_seq: fromSeq, to_seq: toSeq, fare_brand: brand, idempotency_key: idemKey,
-        ...(ch.agency ? { contact_mobile: contact.trim() } : {}),
-        passengers: selected.map((seat, i) => ({ seat_no: seat, ...namesFor(pax[i]), ...documentFor(pax[i], docs[pax[i].nationality]) })),
+        ...(ch.agency ? { contact_mobile: contact.trim() } : { pay_from: payFrom }),
+        passengers: travellers(),
       });
       holdRef.current = null;
       nav(ch.link(`/booking/${r.booking_ref}?new=1`));
@@ -176,7 +202,15 @@ export default function Book() {
   };
 
   const contactValid = !ch.agency || /^\+?[0-9]{8,15}$/.test(contact.trim());
-  const paxValid = pax.length === selected.length && pax.every((p) => passengerValid(p, docs[p.nationality])) && contactValid;
+  const seated = pax.filter((p) => !p.lap).length;
+  const paxValid = seated === selected.length && pax.every((p) => passengerValid(p, docs[p.nationality])) && contactValid;
+  const infantBand = d.categories?.find((c) => c.category === "INFANT");
+  const laps = pax.filter((p) => p.lap).length;
+  const canAddLap = !!infantBand && !infantBand.seat_required && laps < selected.length;
+  const travelDate = from.sched_dep.slice(0, 10);
+  const used = new Set(pax.map((p) => p.family_member_uid).filter(Boolean));
+  const members = family.data?.role === "HEAD" ? family.data.members ?? [] : family.data?.role === "MEMBER" && family.data.me ? [family.data.me] : [];
+  const shownTotal = quote?.total ?? total;
   const tripDocs = docs.SY;
   const commission = ch.agency && wallet.data?.agreement
     ? Math.floor(farePer * paxCount * wallet.data.agreement.commission_bp / 10000 / 100) * 100 : null;
@@ -212,6 +246,20 @@ export default function Book() {
             <div className="row">{selected.length ? selected.map((s) => <span key={s} className="chip green">{t("common.seat")} {seatLabel(s)}</span>) : <span className="muted">—</span>}</div>
             <div className="divider" />
             <div className="row between"><span className="muted">{t("results.perPassenger")}</span><span className="price" style={{ fontSize: 20 }}>{money(d.price)}</span></div>
+            {d.categories?.length > 0 && (
+              <div className="stack tight">
+                {d.categories.filter((c) => c.category !== "ADULT").map((c) => (
+                  <div key={c.category} className="row between small">
+                    <span className="muted">{t(`pax.cat.${c.category}`)} · {t("pax.ages", { from: c.min_age, to: c.max_age ?? "+" })}{!c.seat_required ? ` · ${t("pax.onLap")}` : ""}</span>
+                    <span>{money(c.fare)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {d.family_offers?.map((o) => (
+              <div key={o.code} className="alert ok small"><Icon name="family_restroom" size={20} />
+                <span><strong>{o.name}</strong> · {t("pax.familyOfferHint", { n: o.min_members })}</span></div>
+            ))}
             <p className="small muted"><Icon name="lock" size={16} /> {t("seats.holdFor", { n: d.trip.hold_min })}</p>
             <button className="btn large block" disabled={selected.length !== paxCount || busy} onClick={doHold}>
               {me?.portal === ch.portal ? t("seats.hold") : t("seats.signInFirst")}
@@ -254,36 +302,79 @@ export default function Book() {
                        onChange={(e) => setContact(e.target.value)} aria-invalid={contact !== "" && !contactValid} />
               </div>
             )}
-            {selected.map((seat, i) => (
-              <div key={seat} className="card stack">
-                <div className="row between"><h3>{t("common.passenger")} {i + 1}</h3><span className="chip green">{t("common.seat")} {seatLabel(seat)}</span></div>
-                <PassengerFields value={pax[i] ?? blankPassenger()} countries={countries} docs={docs[(pax[i] ?? blankPassenger()).nationality]}
-                                 onChange={(v) => setPax((p) => p.map((x, j) => (j === i ? v : x)))} />
+            {pax.map((p, i) => (
+              <div key={i} className="card stack">
+                <div className="row between">
+                  <h3>{p.lap ? t("pax.lapInfant") : `${t("common.passenger")} ${i + 1}`}</h3>
+                  <div className="row">
+                    {members.length > 0 && (
+                      <select className="input" style={{ width: "auto" }} value={p.family_member_uid}
+                              onChange={(e) => { const m = members.find((x) => x.uid === e.target.value);
+                                setPax((ps) => ps.map((x, j) => (j === i ? (m ? fromMember(m, x.lap) : blankPassenger(x.lap)) : x))); }}>
+                        <option value="">{t("family.pickMember")}</option>
+                        {members.filter((m) => m.uid === p.family_member_uid || !used.has(m.uid)).map((m) =>
+                          <option key={m.uid} value={m.uid}>{m.full_name} · {t(`family.rel.${m.relation}`)}</option>)}
+                      </select>
+                    )}
+                    {p.lap ? <button className="btn text" onClick={() => setPax((ps) => ps.filter((_, j) => j !== i))}><Icon name="close" />{t("common.remove")}</button>
+                           : <span className="chip green">{t("common.seat")} {seatLabel(selected[i])}</span>}
+                  </div>
+                </div>
+                <PassengerFields value={p} countries={countries} docs={docs[p.nationality]} bands={d.categories} travel={travelDate}
+                                 onChange={(v) => setPax((ps) => ps.map((x, j) => (j === i ? v : x)))} />
               </div>
             ))}
+            {canAddLap && !ch.agency && (
+              <button className="btn outline" onClick={() => setPax((ps) => [...ps, blankPassenger(true)])}>
+                <Icon name="child_care" />{t("pax.addLapInfant")}
+              </button>
+            )}
           </div>
           <div className="card stack" style={{ position: "sticky", top: 84 }}>
             <h3>{t("checkout.summary")}</h3>
-            <div className="row between"><span className="muted">{t("checkout.fares", { n: paxCount })}</span><span>{money(farePer * paxCount)}</span></div>
+            {quoteError != null && <ErrorBox error={quoteError} />}
+            {quote ? (
+              <>
+                {quote.lines.map((l) => (
+                  <div key={l.passenger} className="row between small"><span className="muted">{t("common.passenger")} {l.passenger} · {t(`pax.cat.${l.category}`)}{!l.seat ? ` · ${t("pax.onLap")}` : ""}</span><span>{money(l.fare)}</span></div>
+                ))}
+                {quote.family_offer && (
+                  <div className="row between small" style={{ color: "var(--success)" }}><span><Icon name="family_restroom" size={16} /> {quote.family_offer.name}</span><span>−{money(quote.family_offer.discount)}</span></div>
+                )}
+              </>
+            ) : (
+              <div className="row between"><span className="muted">{t("checkout.fares", { n: paxCount })}</span><span>{money(farePer * paxCount)}</span></div>
+            )}
             <div className="row between"><span className="muted">{t("checkout.fee")}</span><span>{money(ref.data.platform_fee)}</span></div>
             <div className="divider" />
-            <div className="row between"><strong>{t("common.total")}</strong><span className="price">{money(total)}</span></div>
+            <div className="row between"><strong>{t("common.total")}</strong><span className="price">{money(shownTotal)}</span></div>
+            {family.data?.role === "HEAD" && (family.data.account?.balance ?? 0) > 0 && (
+              <div className="stack tight">
+                <span className="small muted">{t("family.payFrom")}</span>
+                <label className="check small"><input type="radio" checked={payFrom === "WALLET"} onChange={() => setPayFrom("WALLET")} />{t("checkout.walletBalance")}</label>
+                <label className="check small"><input type="radio" checked={payFrom === "FAMILY_ACCOUNT"} onChange={() => setPayFrom("FAMILY_ACCOUNT")} />
+                  {t("family.account")}: {money(family.data.account!.balance)}</label>
+              </div>
+            )}
+            {family.data?.role === "MEMBER" && family.data.me && family.data.me.funding !== "OWN" && (
+              <div className="alert info small"><Icon name="diversity_3" size={20} /><span>{t("family.paidByHead")}</span></div>
+            )}
             {commission !== null && (
               <div className="row between"><span className="muted">{t("agency.commissionEarned")}</span><span style={{ color: "var(--success)" }}>{money(commission)}</span></div>
             )}
             {wallet.data && (
-              <div className={`alert ${wallet.data.balance >= total ? "info" : "error"}`}>
+              <div className={`alert ${wallet.data.balance >= shownTotal || payFrom === "FAMILY_ACCOUNT" ? "info" : "error"}`}>
                 <Icon name="account_balance_wallet" />
                 <span className="grow">{t(ch.agency ? "agency.balance" : "checkout.walletBalance")}: <strong>{money(wallet.data.balance)}</strong></span>
-                {wallet.data.balance < total && !ch.agency && <Link to="/wallet">{t("checkout.topupFirst")}</Link>}
+                {wallet.data.balance < shownTotal && payFrom === "WALLET" && !ch.agency && <Link to="/wallet">{t("checkout.topupFirst")}</Link>}
               </div>
             )}
             {wallet.data?.remaining_today !== undefined && wallet.data.remaining_today < total && (
               <div className="alert error"><Icon name="warning" /><span>{t("errors.AGENCY_DAILY_LIMIT")}</span></div>
             )}
             <label className="check small"><input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} />{t(ch.agency ? "agency.agree" : "checkout.agree")}</label>
-            <button className="btn large block" disabled={busy || !agree || !paxValid || left === 0} onClick={pay}>
-              <Icon name="lock" />{t("checkout.pay", { amount: money(total) })}
+            <button className="btn large block" disabled={busy || !agree || !paxValid || left === 0 || quoteError != null} onClick={pay}>
+              <Icon name="lock" />{t("checkout.pay", { amount: money(shownTotal) })}
             </button>
             <button className="btn text" onClick={release}>{t("common.back")}</button>
           </div>
