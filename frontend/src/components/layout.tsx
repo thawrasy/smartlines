@@ -43,7 +43,7 @@ function Brand({ to = "/" }: { to?: string }) {
 }
 
 export function PublicLayout() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const { me, logout } = useAuth();
   const nav = useNavigate();
   const passenger = me?.portal === "PASSENGER";
@@ -82,6 +82,9 @@ export function PublicLayout() {
         <div className="row between">
           <span>{t("app.footer")}</span>
           <span className="row" style={{ gap: 16 }}>
+            <a href={`/${locale}#routes`}>{t("nav.routes")}</a>
+            <a href={`/${locale}/international`}>{t("nav.international")}</a>
+            <a href={`/${locale}/faq`}>{t("nav.faq")}</a>
             <Link to="/verify">{t("nav.verify")}</Link>
             {on("cargo") && <Link to="/track">{t("wf.track.title")}</Link>}
             <Link to="/login?portal=OPERATOR">{t("nav.portals")}</Link>

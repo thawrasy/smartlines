@@ -5,7 +5,7 @@ from pathlib import Path
 import asyncpg
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import db
@@ -22,6 +22,8 @@ from .modules.reports import api as reports_api
 from .modules.payments import api as payments_api
 from .modules.integration import console as integration_console
 from .modules.integration import v1 as integration_v1
+from .modules.seo import pages as seo_pages
+from .modules.seo.app_shell import shell as app_shell
 from .modular import api as modular_api
 from .modular import workflows as modular_workflows
 from .routers import admin, auth, bookings, carrier, driver, public, regulator, security, verify, wallet
@@ -64,6 +66,7 @@ async def security_headers(request: Request, call_next):
         "font-src 'self' https://fonts.gstatic.com; script-src 'self'; connect-src 'self'; frame-ancestors 'none'")
     if request.url.path.startswith("/api/"):
         response.headers.setdefault("Cache-Control", "no-store")
+        response.headers.setdefault("X-Robots-Tag", "noindex, nofollow")
     return response
 
 
@@ -72,7 +75,7 @@ for r in (auth.router, public.router, bookings.router, wallet.router, carrier.ro
           fleet_api.router, payouts_api.company, payouts_api.platform,
           documents_api.company, documents_api.platform, notify_api.router,
           account_api.router, account_api.platform, modular_api.router, modular_workflows.router, reports_api.router, payments_api.router,
-          integration_console.router, integration_v1.router):
+          integration_console.router, integration_v1.router, seo_pages.router):
     app.include_router(r)
 
 
@@ -82,6 +85,10 @@ _static = Path(get_settings().static_dir).resolve()
 if (_static / "index.html").exists():
     app.mount("/assets", StaticFiles(directory=_static / "assets"), name="assets")
 
+    # top-level paths of the web app; anything else is a real 404 (no "soft 404" pages for search engines)
+    APP_PATHS = {"", "account", "admin", "agency", "booking", "carrier", "driver", "login", "m", "mfa", "pay", "register", "regulator",
+                 "search", "security", "services", "track", "trip", "trips", "verify", "wallet"}
+
     @app.get("/{path:path}", include_in_schema=False)
     async def spa(path: str):
         if path.startswith("api/"):
@@ -89,4 +96,7 @@ if (_static / "index.html").exists():
         candidate = (_static / path).resolve()
         if path and candidate.is_file() and _static in candidate.parents:
             return FileResponse(candidate)
-        return FileResponse(_static / "index.html")
+        known = path.split("/", 1)[0] in APP_PATHS
+        # the app's own screens are not landing pages: only the home page is indexed, the /ar and /en pages carry the content
+        headers = {} if path == "" else {"X-Robots-Tag": "noindex, follow"}
+        return HTMLResponse(app_shell(_static / "index.html"), status_code=200 if known else 404, headers=headers)

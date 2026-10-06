@@ -47,6 +47,14 @@ interface I18n {
 const Ctx = createContext<I18n | null>(null);
 
 function initialLocale(): Locale {
+  // a link from the landing pages carries the visitor's language (?lang=ar|en)
+  try {
+    const wanted = new URLSearchParams(window.location.search).get("lang");
+    if (wanted && wanted in LOCALES) {
+      localStorage.setItem("masslak.locale", wanted);
+      return wanted as Locale;
+    }
+  } catch { /* storage unavailable */ }
   try {
     const saved = localStorage.getItem("masslak.locale");
     if (saved && saved in LOCALES) return saved as Locale;

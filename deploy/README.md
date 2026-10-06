@@ -93,6 +93,19 @@ sudo docker compose --env-file deploy/.env run --rm \
 
 Create further staff, carriers, agencies and stations from the administration portal.
 
+## Search engines
+
+The public landing pages (`/ar`, `/en`, routes under `/ar/bus/...`, cities, services, FAQ) are rendered on the server
+with canonical links, Arabic and English alternates and structured data; `/sitemap.xml` lists them all and
+`/robots.txt` keeps the private portals out. After the first start:
+
+1. Add the site in Google Search Console and Bing Webmaster Tools (domain property), put the verification tokens in
+   `MASSLAK_GOOGLE_SITE_VERIFICATION` and `MASSLAK_BING_SITE_VERIFICATION` in `deploy/.env`, and restart `app`.
+2. Submit `https://<domain>/sitemap.xml` in both consoles.
+3. Create a Google Business Profile for the company with the same name, address and phone as on the site.
+
+Canonical addresses use `https://$MASSLAK_DOMAIN` (set in `docker-compose.yml`).
+
 ## 3. Updating
 
 ```sh

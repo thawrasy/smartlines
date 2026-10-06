@@ -662,5 +662,300 @@
         "EG": "Egypt"
       }
     }
+  },
+  "seo": {
+    "brand": "Masslak",
+    "tagline": "Syria's national platform for land travel and shipping",
+    "nav": {
+      "home": "Home",
+      "routes": "Bus routes",
+      "cities": "Cities",
+      "international": "International",
+      "services": "Services",
+      "faq": "FAQ",
+      "about": "About",
+      "book": "Book a ticket",
+      "signin": "Sign in",
+      "lang_name": "English"
+    },
+    "footer": {
+      "text": "Masslak connects licensed bus companies, travel agencies and passengers across Syria and to neighbouring countries. All prices in Syrian pounds.",
+      "rights": "© {year} Masslak. All rights reserved.",
+      "popular": "Popular routes",
+      "company": "Masslak"
+    },
+    "common": {
+      "currency": "SYP",
+      "from_price": "from {price}",
+      "km": "about {km} km",
+      "duration": "about {h} h {m} min",
+      "duration_h": "about {h} hours",
+      "search_cta": "Search trips and book",
+      "see_all": "See all",
+      "breadcrumb_home": "Masslak",
+      "updated": "Times and prices are updated continuously from the bus companies."
+    },
+    "home": {
+      "title": "Bus Tickets in Syria – Book Online | Masslak",
+      "description": "Book bus and coach tickets online between Damascus, Aleppo, Homs, Latakia and every Syrian city, and to Beirut and Amman. Compare times and prices, pick your seat, pay by card or e-wallet.",
+      "h1": "Book bus tickets in Syria online",
+      "lead": "Every licensed bus company on one platform: intercity travel inside Syria, international trips to and from Syria, parcels, taxis and car rental.",
+      "intro": "Masslak is the national booking platform for land transport in Syria. Search the departures of all licensed carriers between Damascus, Aleppo, Homs, Hama, Latakia, Tartus, Daraa, As-Suwayda, Deir ez-Zor, Al-Hasakah and Raqqa, and the international lines to Beirut and Amman. You see the real seat map of the coach, choose your seat, and receive an electronic ticket that works on your phone even without internet.",
+      "popular_title": "Popular bus routes in Syria",
+      "intl_title": "International travel to and from Syria",
+      "intl_text": "Coaches between Syria and Lebanon or Jordan, with the travel documents each border requires checked when you book.",
+      "services_title": "More than bus tickets",
+      "cities_title": "Travel from your city",
+      "why_title": "Why book with Masslak",
+      "why": [
+        {
+          "title": "Licensed carriers only",
+          "text": "Every bus company is verified and every trip is published by its carrier."
+        },
+        {
+          "title": "Choose your seat",
+          "text": "The coach's real seat map, with women-only seats where the carrier offers them."
+        },
+        {
+          "title": "Pay your way",
+          "text": "Bank card, e-wallet, bank transfer, or cash at any travel agency."
+        },
+        {
+          "title": "Ticket on your phone",
+          "text": "A signed QR ticket the driver scans, even offline."
+        }
+      ],
+      "how_title": "How to book a bus ticket",
+      "how": [
+        "Choose the departure city, the destination and the travel day.",
+        "Compare departure times, prices and carriers, then pick your seats.",
+        "Enter the passenger names as on their ID, pay, and get your e-ticket."
+      ]
+    },
+    "route": {
+      "title": "{from} to {to} Bus – Times, Prices & Tickets | Masslak",
+      "description": "Book a bus from {from} to {to} online{price_part}. Compare departure times and carriers, choose your seat and get an e-ticket. {duration_part}",
+      "price_part": " from {price}",
+      "duration_part": "Journey about {duration}.",
+      "h1": "Bus from {from} to {to}",
+      "lead": "Book your {from} – {to} bus ticket online with all licensed carriers.",
+      "intro": "Travelling from {from} to {to}? Masslak lists the departures of every licensed bus company on this route, with live seat availability and prices. The road distance is {distance} and the journey takes {duration} depending on stops and traffic.",
+      "facts_title": "{from} – {to} at a glance",
+      "fact": {
+        "distance": "Distance",
+        "duration": "Journey time",
+        "trips": "Departures in the next 7 days",
+        "price": "Cheapest ticket",
+        "first": "First departure",
+        "last": "Last departure",
+        "carriers": "Bus companies",
+        "border": "Border crossing"
+      },
+      "schedule_title": "Next departures from {from} to {to}",
+      "col": {
+        "date": "Date",
+        "time": "Departure",
+        "carrier": "Carrier",
+        "price": "Price",
+        "seats": "Seats left"
+      },
+      "no_trips": "No departures are published for the next days yet. Search another date: carriers publish new trips every day.",
+      "cta": "Search {from} → {to} trips",
+      "how_title": "How to book your {from} – {to} ticket",
+      "needs_title": "What to bring",
+      "needs_domestic": "A valid Syrian national ID (or passport for other nationalities). Names on the ticket must match the ID.",
+      "needs_international": "A passport valid for at least six months after departure, and any visa or entry approval the destination requires. Masslak checks the document rules of the destination when you book.",
+      "return_link": "Return trip: {to} to {from}",
+      "more_title": "Other routes from {from}",
+      "faq_title": "{from} – {to} bus: frequently asked questions",
+      "faq": [
+        {
+          "q": "How long is the bus from {from} to {to}?",
+          "a": "The journey takes {duration} for a road distance of {distance}."
+        },
+        {
+          "q": "How much is a bus ticket from {from} to {to}?",
+          "a": "{price_answer} Prices differ by company, time and fare brand; the exact price is shown before you pay."
+        },
+        {
+          "q": "Can I book a {from} – {to} ticket online?",
+          "a": "Yes. Search the route on Masslak, choose your seat and pay by bank card, e-wallet, bank transfer or cash at a travel agency. Your e-ticket arrives at once."
+        },
+        {
+          "q": "Are there buses from {from} to {to} today?",
+          "a": "{today_answer}"
+        },
+        {
+          "q": "Can I cancel my ticket?",
+          "a": "Yes, from My trips. The refund follows the fare rules shown when you booked and goes back to your Masslak wallet."
+        }
+      ],
+      "price_answer": "Tickets start from {price}.",
+      "price_unknown": "Prices appear as soon as carriers publish their trips.",
+      "today_yes": "Yes: {n} departures are planned in the next 7 days, the first at {time}. Check today's seats in the search.",
+      "today_no": "Search the route for today's date: carriers publish new departures every day."
+    },
+    "city": {
+      "title": "Buses to and from {city} – Book Tickets | Masslak",
+      "description": "Book bus tickets from {city} to every Syrian city and abroad, and buses to {city}. Departure times, prices and bus stations in {city}.",
+      "h1": "Buses from and to {city}",
+      "intro": "All intercity and international coach departures from {city}, and the buses arriving in {city}, with live seats and prices from licensed carriers.",
+      "from_title": "Buses from {city}",
+      "to_title": "Buses to {city}",
+      "stations_title": "Bus stations in {city}"
+    },
+    "intl": {
+      "title": "Buses from Syria to Lebanon & Jordan – Beirut, Amman | Masslak",
+      "description": "International bus tickets between Damascus, Beirut and Amman. Border crossings, travel documents and departures from licensed carriers.",
+      "h1": "International bus travel to and from Syria",
+      "intro": "Licensed carriers run coaches between Syria and its neighbours. Masslak checks the passport and entry rules of the destination when you book, prepares the border manifest with the carrier, and keeps your ticket on your phone.",
+      "docs_title": "Travel documents"
+    },
+    "services": {
+      "title_index": "Masslak services",
+      "items": {
+        "shipping": {
+          "slug": "shipping",
+          "title": "Parcel Shipping in Syria – Send & Track Parcels | Masslak",
+          "description": "Send parcels between Syrian cities on scheduled coaches. Instant price by weight and zone, online payment and live tracking.",
+          "h1": "Send parcels between Syrian cities",
+          "body": "Drop your parcel at a bus station and it travels on the next scheduled coach. The price comes from the published rate table for the weight and the zone; you pay online and follow every step with the tracking number.",
+          "points": [
+            "Instant quote by weight and destination",
+            "Online payment from your wallet",
+            "Tracking number and status updates",
+            "Declared value for compensation"
+          ],
+          "cta": "Send a parcel"
+        },
+        "taxi": {
+          "slug": "taxi",
+          "title": "Taxi in Damascus & Aleppo – Book at the Meter Tariff | Masslak",
+          "description": "Request a licensed taxi in Syrian cities at the approved meter tariff. See the fare estimate before you ride.",
+          "h1": "Licensed taxis at the approved meter tariff",
+          "body": "Choose your pickup and drop-off, see the estimated fare from the city's approved tariff, and request a licensed taxi.",
+          "points": [
+            "Approved city tariff",
+            "Fare estimate before the ride",
+            "Licensed drivers and offices",
+            "Cancel before pickup"
+          ],
+          "cta": "Request a taxi"
+        },
+        "car-rental": {
+          "slug": "car-rental",
+          "title": "Car Rental in Syria – Compare Prices & Book | Masslak",
+          "description": "Rent a car in Damascus, Aleppo and other Syrian cities. Prices per class, deposits and availability from rental companies.",
+          "h1": "Car rental in Syria",
+          "body": "Pick a branch, the pickup day and the length of your rental; compare classes with their total price, deposit and included kilometres, and book.",
+          "points": [
+            "Total price shown upfront",
+            "Daily, weekly and monthly rates",
+            "Branches at bus stations",
+            "Confirmed by the rental company"
+          ],
+          "cta": "Find a car"
+        },
+        "shuttle-passes": {
+          "slug": "shuttle-passes",
+          "title": "Monthly Bus Passes for City & University Lines | Masslak",
+          "description": "Buy weekly and monthly shuttle passes for city and university bus lines online. Your pass is a QR code on your phone.",
+          "h1": "Shuttle and university bus passes",
+          "body": "Choose a plan from the operator of your line, pay from your wallet and show the QR pass to the driver or at the gate.",
+          "points": [
+            "Weekly and monthly plans",
+            "Pass on your phone",
+            "Ride count shown",
+            "Renew in seconds"
+          ],
+          "cta": "See plans"
+        },
+        "freight": {
+          "slug": "freight",
+          "title": "Freight Trucking in Syria – Post a Load, Get Bids | Masslak",
+          "description": "Post your load and receive bids from licensed trucking companies for full and partial loads inside Syria and across borders.",
+          "h1": "Freight by truck: post a load, compare bids",
+          "body": "Describe the cargo, weight and trailer type; licensed carriers bid, you accept the best offer and a contract is created.",
+          "points": [
+            "Full and partial loads",
+            "Bids from licensed carriers",
+            "Refrigerated, tanker, container",
+            "Cross-border transit"
+          ],
+          "cta": "Post a load"
+        }
+      }
+    },
+    "faq": {
+      "title": "Bus Travel in Syria – Frequently Asked Questions | Masslak",
+      "description": "Answers about booking bus tickets in Syria online: payment, e-tickets, cancellation, luggage, international travel and parcels.",
+      "h1": "Frequently asked questions",
+      "items": [
+        {
+          "q": "How do I book a bus ticket in Syria online?",
+          "a": "Choose the departure city, destination and date on Masslak, compare trips, pick your seat, enter the passenger names and pay. The e-ticket arrives at once."
+        },
+        {
+          "q": "How can I pay?",
+          "a": "By bank card on the bank's secure page, partner e-wallet, bank transfer with your payment reference, or cash at any travel agency working with Masslak."
+        },
+        {
+          "q": "Do I need to print my ticket?",
+          "a": "No. Show the QR code in the app or on your phone; the driver scans it, even without internet."
+        },
+        {
+          "q": "Can I cancel or change my booking?",
+          "a": "You can cancel from My trips. The refund follows the fare rules shown at booking and is returned to your wallet."
+        },
+        {
+          "q": "What documents do I need for international trips?",
+          "a": "A passport valid for the period the destination requires (usually six months), plus any visa or entry approval. Masslak checks these rules when you book."
+        },
+        {
+          "q": "Are the bus companies licensed?",
+          "a": "Yes. Every carrier is verified by the platform with its licences and documents before it can sell tickets."
+        },
+        {
+          "q": "Can I send a parcel with the bus?",
+          "a": "Yes. Masslak prices the parcel by weight and zone, you pay online, and you track it with its number."
+        },
+        {
+          "q": "Is there a Masslak mobile app?",
+          "a": "Yes, for passengers, drivers and transport companies, on Android and iPhone."
+        }
+      ]
+    },
+    "about": {
+      "title": "About Masslak – National Land Transport Platform of Syria",
+      "description": "Masslak connects licensed bus companies, travel agencies, parcel networks and passengers on one secure platform for land travel in Syria.",
+      "h1": "About Masslak",
+      "body": [
+        "Masslak is the national digital platform for land transport in Syria: intercity and international coaches, shuttle lines, parcels, freight, taxis and car rental.",
+        "Carriers publish their trips and seats; passengers and travel agencies book and pay securely; payments are held until the trip is completed and then settled to each carrier.",
+        "Personal data is encrypted and every access is recorded, in line with Syrian regulations."
+      ]
+    },
+    "notfound": {
+      "title": "Page not found | Masslak",
+      "h1": "This page does not exist",
+      "text": "Search bus trips or browse the popular routes below."
+    },
+    "app": {
+      "title": "Masslak – Book Bus Tickets in Syria",
+      "description": "Book bus and coach tickets between Syrian cities and to Beirut and Amman. Choose your seat and pay online."
+    },
+    "border": {
+      "BEY": "Jdeidet Yabous – Masnaa",
+      "AMM": "Nassib – Jaber"
+    },
+    "station": {
+      "central": "{city} Central Station",
+      "numbered": "{city} Station {n}"
+    },
+    "form": {
+      "from": "From",
+      "to": "To",
+      "on": "Travel date"
+    }
   }
 }

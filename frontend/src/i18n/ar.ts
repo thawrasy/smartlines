@@ -10,6 +10,7 @@ const ar: Messages = {
   },
   lang: { ar: "العربية", en: "English", switchTo: "اللغة" },
   nav: {
+    routes: "خطوط السفر", international: "السفر الدولي", faq: "الأسئلة الشائعة",
     search: "احجز رحلة", myTrips: "رحلاتي", wallet: "المحفظة", verify: "التحقق من وثيقة", login: "تسجيل الدخول",
     register: "إنشاء حساب", logout: "تسجيل الخروج", portals: "بوابات الأعمال", home: "الرئيسية",
     carrier: "بوابة الناقل", driver: "تطبيق السائق", admin: "إدارة المنصة", security: "الأمن والتدقيق",

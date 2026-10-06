@@ -20,6 +20,11 @@ class Settings(BaseSettings):
     trusted_proxies: str = "127.0.0.1,::1"
     # Directory of the built web interface served by the API (frontend/dist)
     static_dir: str = "../frontend/dist"
+    # Public address of the site, used in canonical links, the sitemap and share cards (no trailing slash)
+    public_url: str = "https://masslak.com"
+    # Search console ownership tokens (the content of the verification meta tag), optional
+    google_site_verification: str = ""
+    bing_site_verification: str = ""
     # Sandbox mode enables the simulated payment gateway; never enable in production
     sandbox: bool = False
     # Encrypted file store for uploaded documents (a mounted volume; an object store adapter replaces it later)

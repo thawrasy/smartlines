@@ -8,6 +8,7 @@ const en = {
   },
   lang: { ar: "Arabic", en: "English", switchTo: "Language" },
   nav: {
+    routes: "Bus routes", international: "International travel", faq: "FAQ",
     search: "Book a trip", myTrips: "My trips", wallet: "Wallet", verify: "Verify a document", login: "Sign in",
     register: "Create account", logout: "Sign out", portals: "Business portals", home: "Home",
     carrier: "Carrier portal", driver: "Driver app", admin: "Platform administration", security: "Security and audit",

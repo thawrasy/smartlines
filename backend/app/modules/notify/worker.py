@@ -94,7 +94,9 @@ async def main(once: bool) -> None:
             busy = await run_once()
             if not busy:
                 from ..integration.webhooks import deliver_due
-                await deliver_due()
+                # a single pass (--once, used by cron and tests) sends everything due, not just one batch
+                while await deliver_due() >= 20 and once:
+                    pass
                 # scheduled reports are checked once a minute, between events
                 if once or asyncio.get_running_loop().time() - last_reports > 60:
                     from ..reports.scheduler import run_due
