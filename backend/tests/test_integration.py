@@ -23,7 +23,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 import httpx
 import pytest
 
-from test_e2e import BASE, H, OWNER_URL, book, free_seats, login, owner_sql, pax, trip  # noqa: F401  (pax and trip are fixtures)
+from test_e2e import BASE, H, OWNER_URL, book, free_seats, login, owner_sql, pax, trip  # noqa: F401, F811  (pax and trip are fixtures)
 
 pytestmark = pytest.mark.skipif(not OWNER_URL, reason="needs MASSLAK_OWNER_URL")
 BACKEND = os.path.join(os.path.dirname(__file__), "..")

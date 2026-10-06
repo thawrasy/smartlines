@@ -1,8 +1,7 @@
 """Account and privacy use cases for the signed-in person, and the platform side of erasure requests."""
-import json
 import secrets
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 import asyncpg
 

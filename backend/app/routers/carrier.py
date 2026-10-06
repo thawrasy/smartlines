@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, EmailStr, Field
 
 from .. import db
-from ..deps import Principal, context_for, require_permission, require_portal
+from ..deps import Principal, context_for, require_portal
 from ..errors import ApiError, forbidden, not_found
 from ..ledger import platform_wallet, post_txn
 from ..modules.fleet import service as fleet
@@ -381,14 +381,14 @@ async def complete_trip(trip_uid: uuid.UUID, request: Request, pr: Principal = D
                      JOIN sales.booking b ON b.id = a.booking_id
                     WHERE b.trip_id = $1 AND l.is_leaf AND l.release_event = 'TRIP_COMPLETED'
                       AND l.status IN ('HELD','PARTIAL_REFUND')""", t["id"])
-            entries = [(l["wallet_id"], "CR", l["due"]) for l in lines if l["due"] > 0]
+            entries = [(ln["wallet_id"], "CR", ln["due"]) for ln in lines if ln["due"] > 0]
             released = sum(e[2] for e in entries)
             if released:
                 await post_txn(conn, "RELEASE", t["currency"], f"trip:{t['id']}:release",
                                [(escrow["id"], "DR", released), *entries],
                                ref_type="trip", ref_id=t["id"], user_id=pr.user_id, memo=t["trip_no"])
             await conn.execute(
-                "UPDATE fin.price_allocation_line SET status = 'RELEASED', released_at = now() WHERE id = ANY($1::bigint[])", [l["id"] for l in lines])
+                "UPDATE fin.price_allocation_line SET status = 'RELEASED', released_at = now() WHERE id = ANY($1::bigint[])", [ln["id"] for ln in lines])
             await conn.execute("UPDATE sales.booking SET status = 'COMPLETED' WHERE trip_id = $1 AND status = 'CONFIRMED'",
                                t["id"])
             await conn.execute("UPDATE sales.ticket SET status = 'NO_SHOW' WHERE trip_id = $1 AND status = 'ISSUED'", t["id"])

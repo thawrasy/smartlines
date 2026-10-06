@@ -134,3 +134,24 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
                 )
         except Exception:  # the activity log must never break the request itself
             pass
+
+
+class HeadAsGet:
+    """Answers HEAD like GET without the body. FastAPI routes declare GET only, and monitors and crawlers that check
+    a page with HEAD would otherwise get 405."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http" or scope["method"] != "HEAD":
+            return await self.app(scope, receive, send)
+
+        async def send_headers_only(message):
+            if message["type"] == "http.response.body":
+                if message.get("more_body"):
+                    return
+                message = {"type": "http.response.body", "body": b"", "more_body": False}
+            await send(message)
+
+        await self.app({**scope, "method": "GET"}, receive, send_headers_only)

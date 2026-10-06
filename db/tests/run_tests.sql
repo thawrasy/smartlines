@@ -487,6 +487,39 @@ SELECT pg_temp.expect_error(format($$INSERT INTO bill.company_subscription (comp
 COMMIT;
 RESET ROLE;
 
+-- Row-level security coverage (1037): private data never relies on the application layer alone
+SELECT pg_temp.ok(NOT EXISTS (
+  SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+   WHERE c.relkind IN ('r','p') AND NOT c.relispartition AND NOT c.relrowsecurity
+     AND n.nspname NOT IN ('pg_catalog','information_schema','public','audit')
+     AND EXISTS (SELECT 1 FROM pg_attribute a WHERE a.attrelid = c.oid AND a.attnum > 0 AND NOT a.attisdropped
+                  AND a.attname IN ('company_id','booking_id'))
+     AND (n.nspname || '.' || c.relname) NOT IN ('iam.user_session','pricing.points_ledger','crm.trip_rating')),
+  'Governance: every table holding company or booking rows has row-level security');
+SELECT pg_temp.ok(NOT EXISTS (
+  SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+   WHERE c.relkind = 'r' AND NOT c.relrowsecurity AND n.nspname IN ('gov','sec')
+     AND (n.nspname || '.' || c.relname) NOT IN ('sec.sos_event','sec.authority_order','sec.authority_data_request','sec.authority_policy',
+                                                  'sec.authority_profile','sec.document_signature','sec.tamper_event')),
+  'Governance: governance and security registers are isolated');
+SET ROLE masslak_app;
+BEGIN;
+SELECT sys.set_context(:ua, :ca, 'COMPANY');
+SELECT pg_temp.ok((SELECT count(*) FROM ref.currency) > 0, 'RLS: catalogs stay readable by every portal');
+SELECT pg_temp.expect_error($$INSERT INTO ref.currency DEFAULT VALUES$$, 'row-level security', 'RLS: a carrier cannot change a catalog');
+SELECT pg_temp.expect_error($$INSERT INTO sec.watchlist_entry DEFAULT VALUES$$, 'row-level security', 'RLS: a carrier cannot write the watchlist');
+SELECT pg_temp.ok((SELECT count(*) FROM gov.privacy_incident) = 0, 'RLS: a carrier cannot read privacy incidents');
+COMMIT;
+BEGIN;
+SELECT sys.set_context(NULL, :cb, 'COMPANY');
+SELECT pg_temp.ok((SELECT count(*) FROM sales.ticket t JOIN sales.booking b ON b.id = t.booking_id WHERE b.company_id = :ca) = 0
+                  AND (SELECT count(*) FROM sales.ticket) = (SELECT count(*) FROM sales.ticket t WHERE EXISTS (SELECT 1 FROM sales.booking b WHERE b.id = t.booking_id)),
+  'RLS: tickets follow the visibility of their booking');
+SELECT pg_temp.ok((SELECT count(*) FROM fin.payment p JOIN sales.booking b ON b.id = p.booking_id WHERE b.company_id = :ca) = 0,
+  'RLS: another carrier cannot see payments of a booking');
+COMMIT;
+RESET ROLE;
+
 -- Relational design rules (1033): primary keys, references, foreign key indexes
 SELECT pg_temp.ok(NOT EXISTS (
   SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace

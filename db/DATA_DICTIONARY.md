@@ -63,8 +63,8 @@ API clients (carrier, channel, partner, authority): scopes, rate limit, IP allow
 | `contact_email` | `text` |  |  |
 | `acting_user_id` | `bigint` | 🔗 `iam.app_user`  |  |
 | `payment_provider_id` | `bigint` | 🔗 `fin.payment_provider`  |  |
-| `status_reason` | `text` |  |  |
 | `authority_id` | `bigint` | 🔗 `sec.authority_profile`  |  |
+| `status_reason` | `text` |  |  |
 
 ### `iam.api_key` 🛡️
 
@@ -160,7 +160,7 @@ Bank accounts for withdrawals and settlement (encrypted IBAN)
 | `verified_by` | `bigint` | 🔗 `iam.app_user`  |  |
 | `verified_at` | `timestamp with time zone` |  |  |
 
-### `iam.beneficial_owner` 
+### `iam.beneficial_owner` 🛡️
 
 Beneficial owners of the company (compliance and security)
 
@@ -365,7 +365,7 @@ Party roles (several roles per party)
 | `valid_from` | `date` | ✱ | `CURRENT_DATE` |
 | `valid_to` | `date` |  |  |
 
-### `iam.permission` 
+### `iam.permission` 🛡️
 
 Permission catalog (section 33)
 
@@ -388,7 +388,7 @@ Permission catalog (section 33)
 | `consent` | `boolean` | ✱ | `true` |
 | `updated_at` | `timestamp with time zone` | ✱ | `now()` |
 
-### `iam.role` 
+### `iam.role` 🛡️
 
 Roles: platform roles, company role templates, and roles each company defines for itself (3.4 c)
 
@@ -492,7 +492,7 @@ Cargo categories as additional information for transit and freight (annex D.3)
 | `dangerous` | `boolean` | ✱ | `false` |
 | `needs_temperature` | `boolean` | ✱ | `false` |
 
-### `ref.city` 
+### `ref.city` 🛡️
 
 Cities (domestic and international)
 
@@ -508,7 +508,7 @@ Cities (domestic and international)
 | `timezone` | `text` | ✱ | `'Asia/Damascus'::text` |
 | `is_active` | `boolean` | ✱ | `true` |
 
-### `ref.country` 
+### `ref.country` 🛡️
 
 Countries (Country Pack 12.4): Syria first, then expansion
 
@@ -520,7 +520,7 @@ Countries (Country Pack 12.4): Syria first, then expansion
 | `default_currency` | `character(3)` | 🔗 `ref.currency`  |  |
 | `is_active` | `boolean` | ✱ | `true` |
 
-### `ref.currency` 
+### `ref.currency` 🛡️
 
 Currencies; every amount in the system is a BIGINT in the minor unit of its currency
 
@@ -531,7 +531,7 @@ Currencies; every amount in the system is a BIGINT in the minor unit of its curr
 | `minor_unit` | `smallint` | ✱ | `2` |
 | `is_active` | `boolean` | ✱ | `true` |
 
-### `ref.exchange_rate` 
+### `ref.exchange_rate` 🛡️
 
 Exchange rates with an effective date; the rate used is fixed on every transaction (section 12)
 
@@ -565,7 +565,7 @@ Metadata for every uploaded file (documents, images, signed PDFs); content is in
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 | `company_id` | `bigint` | 🔗 `iam.company`  |  |
 
-### `ref.locale` 
+### `ref.locale` 🛡️
 
 Supported UI locales with text direction; English is the system default, other locales are UI-only
 
@@ -606,7 +606,7 @@ Station subtypes (BORDER marks a border crossing point)
 | `sort` | `integer` | ✱ | `100` |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
-### `ref.translation` 
+### `ref.translation` 🛡️
 
 Localized display values for reference data; the English value in the source row is the fallback
 
@@ -771,7 +771,7 @@ The only places where a transit trip may stop on its corridor
 | `station_id` | `bigint` | 🔑 🔗 `net.station` ✱ |  |
 | `max_minutes` | `integer` | ✱ | `30` |
 
-### `net.carrier_code` 
+### `net.carrier_code` 🛡️
 
 Three-letter carrier code (optional two-character code), unique platform-wide and not reissued for 24 months
 
@@ -797,7 +797,7 @@ Reserved, prohibited or temporarily withdrawn codes
 | `reason` | `text` | ✱ |  |
 | `until` | `date` |  |  |
 
-### `net.compliance_profile` 
+### `net.compliance_profile` 🛡️
 
 Versioned compliance profile per (country, class): required fields and completion grace period (4.11 b)
 
@@ -1524,7 +1524,7 @@ Card number ranges of a bank, used to target bank-funded campaigns
 | `card_type` | `text` | ✱ |  |
 | `status` | `text` | ✱ | `'ACTIVE'::text` |
 
-### `pricing.campaign` 
+### `pricing.campaign` 🛡️
 
 Campaign: audience, scope, benefit, funding, budget and limits (condition -> action)
 
@@ -1606,7 +1606,7 @@ Commission scheme (platform, intermediary, payment, referral) with funder, benef
 | `approved_by` | `bigint` | 🔗 `iam.app_user`  |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
-### `pricing.fare_brand` 
+### `pricing.fare_brand` 🛡️
 
 Fare brands with ticket, baggage and refund conditions; a snapshot is copied to the ticket
 
@@ -1620,7 +1620,7 @@ Fare brands with ticket, baggage and refund conditions; a snapshot is copied to 
 | `sort` | `smallint` | ✱ | `0` |
 | `active` | `boolean` | ✱ | `true` |
 
-### `pricing.fare_table` 
+### `pricing.fare_table` 🛡️
 
 Central (locked) fare table or carrier fare table within limits (5.2)
 
@@ -1654,7 +1654,7 @@ Central (locked) fare table or carrier fare table within limits (5.2)
 | `passenger_category` | `text` | 🔑 ✱ | `'ADULT'::text` |
 | `base_price` | `bigint` | ✱ |  |
 
-### `pricing.jurisdiction` 
+### `pricing.jurisdiction` 🛡️
 
 Tax jurisdiction (country, region, border crossing, local)
 
@@ -1829,7 +1829,7 @@ Accounting liability of outstanding points per issuer and period, with estimated
 | `status` | `text` | ✱ | `'PENDING'::text` |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
-### `pricing.pricing_modifier` 
+### `pricing.pricing_modifier` 🛡️
 
 Dynamic pricing modifiers applied in order (5.3)
 
@@ -1954,7 +1954,7 @@ Who funds a discount, and what they owe the platform for it
 | `currency` | `character(3)` | 🔗 `ref.currency` ✱ | `'SYP'::bpchar` |
 | `status` | `text` | ✱ | `'ACTIVE'::text` |
 
-### `pricing.tax_rule` 
+### `pricing.tax_rule` 🛡️
 
 
 
@@ -1975,7 +1975,7 @@ Who funds a discount, and what they owe the platform for it
 | `applies_per` | `text` | ✱ | `'TICKET'::text` |
 | `priority` | `smallint` | ✱ | `100` |
 
-### `pricing.tax_scheme` 
+### `pricing.tax_scheme` 🛡️
 
 Tax or fee scheme with its treatment, jurisdiction and collecting party, versioned with dual approval
 
@@ -2000,7 +2000,7 @@ Tax or fee scheme with its treatment, jurisdiction and collecting party, version
 <a id="ops"></a>
 ## `ops` — Trips, inventory, operations, shuttle rides, tracking and incidents
 
-### `ops.crew_assignment` 
+### `ops.crew_assignment` 🛡️
 
 Crew assignment to the trip; an exclusion constraint prevents assigning a person to two overlapping trips
 
@@ -2263,7 +2263,7 @@ Standing places counter per segment, never above capacity
 | `capacity` | `smallint` | ✱ |  |
 | `used` | `smallint` | ✱ | `0` |
 
-### `ops.tracking_alert` 
+### `ops.tracking_alert` 🛡️
 
 
 
@@ -2362,7 +2362,7 @@ Actual trip (the pivotal entity) with its number, vehicle, capacity, snapshots a
 | `timetable_slot` | `time without time zone` |  |  |
 | `fare_regime` | `text` |  |  |
 
-### `ops.trip_change` 
+### `ops.trip_change` 🛡️
 
 Trip change log with reasons (7.9)
 
@@ -2454,7 +2454,7 @@ Trip stops (snapshot of the route) with promised and actual times and the fare l
 | `sales_closed_at` | `timestamp with time zone` |  |  |
 | `gate_id` | `bigint` | 🔗 `net.station_gate`  |  |
 
-### `ops.trip_stop_event` 
+### `ops.trip_stop_event` 🛡️
 
 Actual arrival and departure at each stop (basis of on-time performance 4.12 h)
 
@@ -2491,7 +2491,7 @@ Recurring trip pattern that generates the actual trips
 | `status` | `text` | ✱ | `'ACTIVE'::text` |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
-### `ops.vehicle_swap` 
+### `ops.vehicle_swap` 🛡️
 
 Swapping the trip vehicle without changing the trip number (4.16 d)
 
@@ -2584,7 +2584,7 @@ Booking: price snapshot, channel, allocation tree and idempotency key; statuses 
 | `agency_id` | `bigint` | 🔗 `iam.company`  |  |
 | `contact_mobile` | `text` |  |  |
 
-### `sales.campaign_redemption` 
+### `sales.campaign_redemption` 🛡️
 
 Campaign use on a booking and who funds the discount
 
@@ -2797,7 +2797,7 @@ Prepaid card linked to a wallet; validators keep a deny list of blocked cards (7
 | `status` | `text` | ✱ | `'ACTIVE'::text` |
 | `issued_at` | `timestamp with time zone` | ✱ | `now()` |
 
-### `sales.passenger` 
+### `sales.passenger` 🛡️
 
 Passenger data on the booking; document numbers encrypted with a blind index for security screening and the manifest
 
@@ -2827,7 +2827,7 @@ Passenger data on the booking; document numbers encrypted with a blind index for
 | `grandfather_name` | `text` |  |  |
 | `last_name` | `text` |  |  |
 
-### `sales.passenger_compensation` 
+### `sales.passenger_compensation` 🛡️
 
 Passenger compensation for cancellation or disruption, charged to the carrier at fault
 
@@ -2843,7 +2843,7 @@ Passenger compensation for cancellation or disruption, charged to the carrier at
 | `status` | `text` | ✱ | `'PENDING'::text` |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
-### `sales.refund_request` 
+### `sales.refund_request` 🛡️
 
 Refund request with a policy snapshot; funds are not released before the credit note is finalized (BR-EIN-03)
 
@@ -2944,7 +2944,7 @@ Inbound content source: an external rail or bus system whose inventory is sold o
 | `credentials_ref` | `text` |  |  |
 | `status` | `text` | ✱ | `'TESTING'::text` |
 
-### `sales.ticket` 
+### `sales.ticket` 🛡️
 
 Ticket per passenger and station pair, with a numbered, guaranteed or standing place, a conditions snapshot and a signed QR
 
@@ -3030,7 +3030,7 @@ Travel documents of one international ticket; numbers are encrypted (11.9, D.1.4
 <a id="fin"></a>
 ## `fin` — Wallets, ledger, payments, allocation, settlement and float
 
-### `fin.bank_reconciliation` 
+### `fin.bank_reconciliation` 🛡️
 
 Daily reconciliation: bank balance = total wallets + receivables
 
@@ -3197,7 +3197,7 @@ Ledger transaction header; immutable, and the idempotency key prevents double po
 | `created_by` | `bigint` | 🔗 `iam.app_user`  |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
-### `fin.payment` 
+### `fin.payment` 🛡️
 
 Payment; becomes SUCCESS only with a signed gateway notification and a ledger entry (16.25)
 
@@ -3248,7 +3248,7 @@ Signed gateway notifications as received (source of payment status, deduplicatio
 | `received_at` | `timestamp with time zone` | ✱ | `now()` |
 | `processed_at` | `timestamp with time zone` |  |  |
 
-### `fin.payment_provider` 
+### `fin.payment_provider` 🛡️
 
 Payment provider behind a unified, replaceable adapter
 
@@ -3325,7 +3325,7 @@ Bank payout to the carrier according to its schedule
 | `status` | `text` | ✱ | `'ACTIVE'::text` |
 | `updated_at` | `timestamp with time zone` | ✱ | `now()` |
 
-### `fin.price_allocation` 
+### `fin.price_allocation` 🛡️
 
 Price allocation tree header for each booking, ticket or shipment
 
@@ -3342,7 +3342,7 @@ Price allocation tree header for each booking, ticket or shipment
 | `rules_version` | `text` | ✱ |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
-### `fin.price_allocation_line` 
+### `fin.price_allocation_line` 🛡️
 
 Tree lines: fare, tax, commission, fee, discount; each leaf is released to its beneficiary's wallet on its event
 
@@ -3762,7 +3762,7 @@ Simplified chart of accounts per book (platform or company) from an editable tem
 | `external_code` | `text` |  |  |
 | `active` | `boolean` | ✱ | `true` |
 
-### `acct.gl_period` 
+### `acct.gl_period` 🛡️
 
 
 
@@ -3919,7 +3919,7 @@ Log of journal entries and invoices pushed to the external system via API, with 
 | `items_failed` | `integer` | ✱ | `0` |
 | `status` | `text` | ✱ | `'RUNNING'::text` |
 
-### `acct.tax_authority` 
+### `acct.tax_authority` 🛡️
 
 Tax authority and its adapter: generation mode before integration, then reporting or clearance
 
@@ -4199,7 +4199,7 @@ Metering log; append-only
 <a id="crm"></a>
 ## `crm` — Complaints, ratings, notifications, the AI assistant and the contact center
 
-### `crm.ai_conversation` 
+### `crm.ai_conversation` 🛡️
 
 
 
@@ -4242,7 +4242,7 @@ Test set of the assistant per dialect, run before each model or policy change
 | `redacted_text` | `text` | ✱ |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
-### `crm.ai_policy` 
+### `crm.ai_policy` 🛡️
 
 Assistant tools, each tool's action level, limits and user confirmation requirement
 
@@ -4465,7 +4465,7 @@ Complaint, claim or inquiry with service levels, compensation and segregation of
 | `event_uid` | `uuid` |  |  |
 | `last_error` | `text` |  |  |
 
-### `crm.notification_template` 
+### `crm.notification_template` 🛡️
 
 Approved notification templates (notification catalog 34)
 
@@ -4516,7 +4516,7 @@ Consents with policy version and withdrawal date
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 | `withdrawn_at` | `timestamp with time zone` |  |  |
 
-### `gov.data_inventory` 
+### `gov.data_inventory` 🛡️
 
 Data inventory with classification, purpose and retention (drives automatic deletion)
 
@@ -4531,7 +4531,7 @@ Data inventory with classification, purpose and retention (drives automatic dele
 | `location` | `text` | ✱ | `'PRIMARY_DC'::text` |
 | `processors` | `text[]` | ✱ | `'{}'::text[]` |
 
-### `gov.feature_compliance_review` 
+### `gov.feature_compliance_review` 🛡️
 
 
 
@@ -4545,7 +4545,7 @@ Data inventory with classification, purpose and retention (drives automatic dele
 | `approved_by` | `bigint` | 🔗 `iam.app_user`  |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
-### `gov.obligation_register` 
+### `gov.obligation_register` 🛡️
 
 Register of legal obligations mapped to controls and evidence
 
@@ -4562,7 +4562,7 @@ Register of legal obligations mapped to controls and evidence
 | `status` | `text` | ✱ | `'OPEN'::text` |
 | `next_review` | `date` |  |  |
 
-### `gov.partner_dpa` 
+### `gov.partner_dpa` 🛡️
 
 Data processing agreements with partners and providers
 
@@ -4578,7 +4578,7 @@ Data processing agreements with partners and providers
 | `review_at` | `date` | ✱ |  |
 | `file_id` | `bigint` | 🔗 `ref.file_object`  |  |
 
-### `gov.policy_authority` 
+### `gov.policy_authority` 🛡️
 
 Who decides each policy domain (platform, carrier within limits, regulator, dual)
 
@@ -4595,7 +4595,7 @@ Who decides each policy domain (platform, carrier within limits, regulator, dual
 | `approved_by` | `bigint[]` | ✱ | `'{}'::bigint[]` |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
-### `gov.policy_change` 
+### `gov.policy_change` 🛡️
 
 Versioned policy change approved according to the matrix; the proposer cannot approve
 
@@ -4613,7 +4613,7 @@ Versioned policy change approved according to the matrix; the proposer cannot ap
 | `effective_from` | `timestamp with time zone` |  |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
-### `gov.policy_domain` 
+### `gov.policy_domain` 🛡️
 
 
 
@@ -4624,7 +4624,7 @@ Versioned policy change approved according to the matrix; the proposer cannot ap
 | `class` | `text` | ✱ |  |
 | `regulated_bounds` | `jsonb` |  |  |
 
-### `gov.privacy_incident` 
+### `gov.privacy_incident` 🛡️
 
 
 
@@ -4662,7 +4662,7 @@ Versioned policy change approved according to the matrix; the proposer cannot ap
 <a id="sec"></a>
 ## `sec` — Security: IP rules, risk, signing, the security hub and government adapters
 
-### `sec.access_review` 
+### `sec.access_review` 🛡️
 
 
 
@@ -4758,7 +4758,7 @@ Security authority definition and its adapter (definition without integration in
 | `sla_ms` | `integer` |  |  |
 | `active` | `boolean` | ✱ | `false` |
 
-### `sec.blocklist_entry` 
+### `sec.blocklist_entry` 🛡️
 
 Blocklist of hashed values (device, phone, IBAN, document)
 
@@ -4772,7 +4772,7 @@ Blocklist of hashed values (device, phone, IBAN, document)
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 | `expires_at` | `timestamp with time zone` |  |  |
 
-### `sec.break_glass_log` 
+### `sec.break_glass_log` 🛡️
 
 Break-glass access with elevated privileges: reason, approval and duration
 
@@ -4802,7 +4802,7 @@ Every official document issued by the server is signed; the verification page co
 | `issued_at` | `timestamp with time zone` | ✱ | `now()` |
 | `revoked_at` | `timestamp with time zone` |  |  |
 
-### `sec.fraud_case` 
+### `sec.fraud_case` 🛡️
 
 
 
@@ -4862,7 +4862,7 @@ Block/allow/throttle an address, range, country or ASN per portal or API client;
 | `revoked_by` | `bigint` | 🔗 `iam.app_user`  |  |
 | `revoke_reason` | `text` |  |  |
 
-### `sec.key_registry` 
+### `sec.key_registry` 🛡️
 
 Registry of encryption and signing keys (16.8, 16.18): references only, keys live in KMS; every encrypted field carries its key_id
 
@@ -4879,7 +4879,7 @@ Registry of encryption and signing keys (16.8, 16.18): references only, keys liv
 | `rotated_at` | `timestamp with time zone` |  |  |
 | `expires_at` | `timestamp with time zone` |  |  |
 
-### `sec.manifest_submission` 
+### `sec.manifest_submission` 🛡️
 
 Manifest (manual in Phase 1), versioned and signed
 
@@ -4900,7 +4900,7 @@ Manifest (manual in Phase 1), versioned and signed
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 | `sent_at` | `timestamp with time zone` |  |  |
 
-### `sec.risk_assessment` 
+### `sec.risk_assessment` 🛡️
 
 
 
@@ -4915,7 +4915,7 @@ Manifest (manual in Phase 1), versioned and signed
 | `decision` | `text` | ✱ |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
-### `sec.screening_request` 
+### `sec.screening_request` 🛡️
 
 
 
@@ -4931,7 +4931,7 @@ Manifest (manual in Phase 1), versioned and signed
 | `status` | `text` | ✱ | `'PENDING'::text` |
 | `requested_at` | `timestamp with time zone` | ✱ | `now()` |
 
-### `sec.screening_result` 
+### `sec.screening_result` 🛡️
 
 
 
@@ -5014,7 +5014,7 @@ Attempts to submit values that contradict the server-side computation (price, da
 | `requested_at` | `timestamp with time zone` | ✱ | `now()` |
 | `completed_at` | `timestamp with time zone` |  |  |
 
-### `sec.watchlist_entry` 
+### `sec.watchlist_entry` 🛡️
 
 Watch and ban list with hashed matching, without copying full data
 

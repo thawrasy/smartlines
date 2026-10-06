@@ -11,7 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from . import db
 from .config import get_settings
 from .errors import ApiError, api_error_handler, db_error_handler
-from .middleware import RequestContextMiddleware
+from .middleware import HeadAsGet, RequestContextMiddleware
 from .modules.agency import api as agency_api
 from .modules.fleet import api as fleet_api
 from .modules.payouts import api as payouts_api
@@ -77,6 +77,8 @@ for r in (auth.router, public.router, bookings.router, wallet.router, carrier.ro
           account_api.router, account_api.platform, modular_api.router, modular_workflows.router, reports_api.router, payments_api.router,
           integration_console.router, integration_v1.router, seo_pages.router):
     app.include_router(r)
+
+app.add_middleware(HeadAsGet)          # added last, so it wraps everything else
 
 
 # The built web interface (frontend/dist) is served by the same process; unknown paths fall back to

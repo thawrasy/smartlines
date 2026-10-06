@@ -9,3 +9,10 @@ testpaths = ["tests"]
 # seat condition, the journey subquery). Code review keeps it that way: no request value is ever formatted into SQL.
 skips = ["B608"]
 exclude_dirs = ["tests"]
+
+[tool.ruff]
+line-length = 160
+
+[tool.ruff.lint]
+# pytest fixtures are imported from test_e2e and then named as test arguments, which pyflakes reads as a redefinition
+per-file-ignores = { "tests/*" = ["F811"] }

@@ -33,7 +33,8 @@ def render(template: str, channel: str, locale: str, values: dict) -> tuple[str,
         elif k == "doc_type":
             v = words.get("doc_types", {}).get(v, v)
         vals[k] = v
-    fill = lambda s: _VAR.sub(lambda m: str(vals.get(m.group(1), m.group(0))), s)
+    def fill(s: str) -> str:
+        return _VAR.sub(lambda m: str(vals.get(m.group(1), m.group(0))), s)
     body = t["sms"] if channel == "SMS" and "sms" in t else t["body"]
     return fill(t["subject"]), fill(body)
 

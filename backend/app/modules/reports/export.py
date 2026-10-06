@@ -121,7 +121,8 @@ def to_csv(res: Result, meta: Meta) -> bytes:
 
 
 def to_txt(res: Result, meta: Meta) -> bytes:
-    clean = lambda v: "" if v is None else str(v).replace("\t", " ").replace("\r", " ").replace("\n", " ")
+    def clean(v) -> str:
+        return "" if v is None else str(v).replace("\t", " ").replace("\r", " ").replace("\n", " ")
     lines = ["\t".join(c.key for c in res.columns)]
     lines += ["\t".join(clean(machine(c, r[c.key])) for c in res.columns) for r in res.rows]
     return ("\n".join(lines) + "\n").encode("utf-8")
@@ -239,8 +240,8 @@ def to_pdf(res: Result, meta: Meta) -> bytes:
     w = words(meta.locale)
     page = landscape(A4)
     align = 2 if rtl else 0
-    st = lambda size, f=regular, col=INK, al=align: ParagraphStyle("s", fontName=f, fontSize=size, leading=size * 1.45,
-                                                                    textColor=colors.HexColor(col), alignment=al)
+    def st(size, f=regular, col=INK, al=align):
+        return ParagraphStyle("s", fontName=f, fontSize=size, leading=size * 1.45, textColor=colors.HexColor(col), alignment=al)
     cell_style = st(8)
     num_style = st(8, al=0 if rtl else 2)
     head_style = st(8, bold, "#FFFFFF", 1)

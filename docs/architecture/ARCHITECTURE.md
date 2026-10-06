@@ -246,6 +246,23 @@ flowchart TB
 | Internal | Fleet, routes, tariffs | Disk encryption, RLS by company | Company members | Yes |
 | Public | Stations, published trips, verification result | — | Anyone | Yes |
 
+### 4.2a Row-level security coverage
+
+Every table that holds company or booking rows has a policy, and `db/tests` fails the build if a new one does not.
+Policies follow five patterns (helpers in `1010_model_helpers.sql`, coverage completed in `1037_rls_coverage.sql`):
+
+| Pattern | Who sees the rows | Examples |
+| --- | --- | --- |
+| Tenant | The owning company and the platform | fleet, settlements, GL periods, carrier codes |
+| Parent | Whoever sees the parent row | passengers, tickets, allocations and refunds of a booking |
+| Trip operations | The trip's company and the platform | crew, stop events, trip changes, manifests |
+| Catalog | Everyone reads, only the platform writes | reference lists, tax schemes, payment providers |
+| Platform | Platform staff only | governance registers, screening, watchlists, fraud cases |
+
+Left to the application layer and grants on purpose: sign-in tables (users, sessions, tokens, MFA factors) that are
+read before a request context exists; public timetable rows of published trips; append-only ledgers (update and
+delete revoked, mutation trigger); ratings shown on public trip pages; SOS events that a passenger raises on any trip.
+
 ### 4.3 Encryption and keys
 
 ```mermaid
@@ -394,8 +411,8 @@ bundled for both platforms in CI, but have not yet been run on physical devices.
 
 ```
 docker compose up            # PostgreSQL, API, web, Caddy
-cd backend && pytest tests   # 133 tests: unit and end to end against a running API
-db/tests/run.sh              # 114 schema checks
+cd backend && pytest tests   # 151 tests: unit and end to end against a running API
+db/tests/run.sh              # 122 schema checks
 cd mobile && npm test        # core unit tests of the apps
 ```
 

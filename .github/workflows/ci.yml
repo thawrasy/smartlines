@@ -169,9 +169,11 @@ jobs:
         with: { python-version: "3.11" }
       - uses: actions/setup-node@v5
         with: { node-version: "22" }
-      - run: pip install bandit pip-audit
+      - run: pip install bandit pip-audit ruff==0.15.20
       - name: Language policy (English code, data and docs; Arabic only in locale files)
         run: python scripts/check_language.py
+      - name: Lint the API and its tests (ruff)
+        run: ruff check backend/app backend/tests
       - name: Static analysis of the API (bandit)
         run: bandit -q -c backend/pyproject.toml -r backend/app -ll
       - name: Known vulnerabilities in Python dependencies

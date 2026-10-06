@@ -100,3 +100,12 @@ def test_share_images():
     for path in ("/og-ar.png", "/og-en.png", "/logo.png"):
         r = get(path)
         assert r.status_code == 200 and r.content[:8] == b"\x89PNG\r\n\x1a\n"
+
+
+def test_head_requests_answer_like_get():
+    """Uptime monitors and some crawlers check pages with HEAD."""
+    for path in ("/ar", "/en/bus/beirut-to-damascus", "/sitemap.xml", "/api/health"):
+        r = httpx.head(BASE + path, timeout=30)
+        assert r.status_code == 200, path
+        assert r.content == b""
+    assert httpx.head(BASE + "/en/nowhere", timeout=30).status_code == 404

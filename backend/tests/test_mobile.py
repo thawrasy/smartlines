@@ -110,7 +110,8 @@ def test_offline_credential_verifies_with_the_public_key_alone(boarding):
     cred = boarding["pax"].get(f"/api/tickets/{boarding['tickets'][0]['uid']}/offline").json()["credential"]
     key = e2e.client().get("/api/public/keys/ticket").json()
     _, payload, sig = cred.split(".")
-    unb64 = lambda s: base64.urlsafe_b64decode(s + "=" * (-len(s) % 4))
+    def unb64(s):
+        return base64.urlsafe_b64decode(s + "=" * (-len(s) % 4))
     Ed25519PublicKey.from_public_bytes(unb64(key["public_key"])).verify(unb64(sig), payload.encode())   # raises if forged
     claims = json.loads(unb64(payload))
     assert claims["k"] == boarding["tickets"][0]["uid"] and claims["t"] == boarding["trip"] and claims["s"] == boarding["tickets"][0]["seat_label"]

@@ -3,11 +3,11 @@ import json
 from datetime import date
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Query, Request
 
 from .. import db
 from ..config import get_settings
-from ..deps import base_context, optional_principal, Principal
+from ..deps import base_context
 from ..errors import ApiError, not_found
 from ..modules.sales import documents
 from ..util import row_dict, rows
@@ -104,7 +104,8 @@ async def search(request: Request, origin: str = Query(..., min_length=3, max_le
             """, origin.upper(), destination.upper(), on)
     trips = [row_dict(r) for r in recs]
     for t in trips:
-        t.pop("id"); t.pop("company_id")
+        t.pop("id")
+        t.pop("company_id")
         t["bookable"] = t["seats_left"] >= passengers
     return {"trips": trips}
 

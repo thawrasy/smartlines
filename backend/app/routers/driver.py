@@ -10,7 +10,7 @@ from .. import db
 from ..deps import Principal, context_for, require_portal
 from ..errors import ApiError, not_found
 from ..security import ticket_public_key, verify_ticket_credential, verify_ticket_qr
-from ..util import row_dict, rows, ticket_name
+from ..util import row_dict, ticket_name
 
 router = APIRouter(prefix="/api/driver", tags=["driver"])
 driver = require_portal("DRIVER")

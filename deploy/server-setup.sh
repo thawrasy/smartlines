@@ -41,8 +41,19 @@ ufw --force enable
 
 systemctl enable --now fail2ban unattended-upgrades
 
-# Nightly backup at 02:15 server time, if the application lives in /opt/masslak
-if [ -x /opt/masslak/deploy/backup.sh ]; then
-  echo "15 2 * * * root /opt/masslak/deploy/backup.sh >> /var/log/masslak-backup.log 2>&1" > /etc/cron.d/masslak-backup
+# Small servers: the first image build (web interface and Python packages) needs more than 2 GB of memory
+mem_mb=$(awk '/MemTotal/ {print int($2/1024)}' /proc/meminfo)
+if [ "$mem_mb" -lt 3800 ] && [ "$(swapon --noheadings | wc -l)" = 0 ] && [ ! -e /swapfile ]; then
+  echo "adding a 2 GB swap file (server has ${mem_mb} MB of memory)"
+  fallocate -l 2G /swapfile && chmod 600 /swapfile && mkswap /swapfile >/dev/null && swapon /swapfile
+  echo "/swapfile none swap sw 0 0" >> /etc/fstab
 fi
-echo "server ready: clone the repository to /opt/masslak and follow deploy/README.md"
+
+# Nightly backup at 02:15 server time, for the installation this script belongs to (the default is /opt/masslak)
+app_dir="$(cd "$(dirname "$0")/.." 2>/dev/null && pwd || true)"
+[ -x "$app_dir/deploy/backup.sh" ] || app_dir=/opt/masslak
+if [ -x "$app_dir/deploy/backup.sh" ]; then
+  echo "15 2 * * * root $app_dir/deploy/backup.sh >> /var/log/masslak-backup.log 2>&1" > /etc/cron.d/masslak-backup
+  echo "nightly backup scheduled for $app_dir"
+fi
+echo "server ready: put the application in /opt/masslak and follow deploy/README.md"
