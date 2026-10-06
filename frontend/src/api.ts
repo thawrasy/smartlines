@@ -91,7 +91,7 @@ export interface FamilyOfferBrief {
 /** POST /api/bookings/quote: the fare of every traveller and any family offer, before paying. */
 export interface Quote {
   fare_per_passenger: number; passengers: number; fares_gross: number; fares_total: number; platform_fee: number; total: number;
-  lines: { passenger: number; category: Category; seat: boolean; fare: number }[];
+  lines: { passenger: number; category: Category; seat: boolean; fare: number; list_fare?: number }[];
   family_offer?: { code: string; name: string; discount: number };
 }
 

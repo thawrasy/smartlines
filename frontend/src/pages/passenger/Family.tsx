@@ -404,7 +404,9 @@ interface Plan { id: number; name: string; operator: string; price: number; peri
 function FamilyPasses({ members, account, onDone }: { members: FamilyMember[]; account: number; onDone: () => void }) {
   const { t, money } = useI18n();
   const toast = useToast();
-  const plans = useLoad(() => api.get<{ plans: Plan[] }>("/api/w/subscriptions/plans").catch(() => ({ plans: [] as Plan[] })));
+  // passes exist only where the platform runs shuttle subscriptions; ask before calling so the page stays quiet otherwise
+  const plans = useLoad(async () => (await api.get<{ enabled: string[] }>("/api/features")).enabled.includes("shuttle_subscriptions")
+    ? api.get<{ plans: Plan[] }>("/api/w/subscriptions/plans").catch(() => ({ plans: [] as Plan[] })) : { plans: [] as Plan[] });
   const [plan, setPlan] = useState<number | "">("");
   const [chosen, setChosen] = useState<string[]>([]);
   const [payFrom, setPayFrom] = useState<"HEAD_WALLET" | "FAMILY_ACCOUNT">("HEAD_WALLET");

@@ -122,7 +122,7 @@ export default function Booking() {
             <div className="card stack">
               <h3>{t("booking.breakdown")}</h3>
               {b.price_breakdown.lines ? b.price_breakdown.lines.map((l) => (
-                <div key={l.passenger} className="row between small"><span className="muted">{t("common.passenger")} {l.passenger} · {t(`pax.cat.${l.category}`)}{!l.seat ? ` · ${t("pax.onLap")}` : ""}</span><span>{money(l.fare)}</span></div>
+                <div key={l.passenger} className="row between small"><span className="muted">{t("common.passenger")} {l.passenger} · {t(`pax.cat.${l.category}`)}{!l.seat ? ` · ${t("pax.onLap")}` : ""}</span><span>{money(l.list_fare ?? l.fare)}</span></div>
               )) : <div className="row between"><span className="muted">{t("checkout.fares", { n: b.price_breakdown.passengers })}</span><span>{money(b.price_breakdown.fares_total)}</span></div>}
               {b.price_breakdown.family_offer && (
                 <div className="row between small" style={{ color: "var(--success)" }}><span>{b.price_breakdown.family_offer.name}</span><span>−{money(b.price_breakdown.family_offer.discount)}</span></div>

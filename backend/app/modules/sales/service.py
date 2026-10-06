@@ -163,6 +163,9 @@ async def price(conn: asyncpg.Connection, trip: asyncpg.Record, body: BookingIn,
         t.category = cat.category_for(b, t.birth_date, travel, t.claimed)
         if t.seat_no is None:
             infant = b.get("INFANT")
+            if t.birth_date is None and infant is not None and not infant.seat_required:
+                # a lap traveller is an infant only by date of birth: ask for it rather than for a seat
+                raise ApiError(422, "BIRTH_DATE_REQUIRED", f"passenger {t.index} needs a date of birth", passenger=t.index)
             if t.category != "INFANT" or infant is None or infant.seat_required:
                 raise ApiError(422, "SEAT_REQUIRED", f"passenger {t.index} needs a seat", passenger=t.index)
     adults = [t for t in people if t.category == "ADULT"]
@@ -186,6 +189,7 @@ async def price(conn: asyncpg.Connection, trip: asyncpg.Record, body: BookingIn,
         charged = "CHILD" if t.category == "INFANT" and t.seat_no is not None and "CHILD" in b else t.category
         t.fare = await cat.category_fare(conn, trip["company_id"], trip["route_id"], charged, adult_fare, travel, trip["currency"])
     gross = sum(t.fare for t in people)
+    listed = {t.index: t.fare for t in people}       # before any family offer, as the summary shows it
     family = [t for t in people if t.member is not None]
     offer = None
     if len(family) >= 2:
@@ -206,7 +210,8 @@ async def price(conn: asyncpg.Connection, trip: asyncpg.Record, body: BookingIn,
     commission = commission_for(fares_total, buyer.commission_bp)
     breakdown = {"pair_price": pair, "fare_brand": brand["code"], "factor": float(brand["factor"]), "fare_per_passenger": adult_fare,
                  "passengers": len(people),
-                 "lines": [{"passenger": t.index, "category": t.category, "seat": t.seat_no is not None, "fare": t.fare} for t in people],
+                 "lines": [{"passenger": t.index, "category": t.category, "seat": t.seat_no is not None, "fare": t.fare,
+                            "list_fare": listed[t.index]} for t in people],
                  "fares_gross": gross, "fares_total": fares_total, "platform_fee": fee, "total": fares_total + fee,
                  "currency": trip["currency"]}
     if offer:

@@ -73,6 +73,7 @@ def test_quote_prices_each_traveller_and_enforces_the_rules(pax, trip):
     assert err([person(1), person(None, "A", birth_date=years_ago(0, 60)), person(None, "B", birth_date=years_ago(1))]) == "TOO_MANY_LAP_INFANTS"
     assert err([person(1), person(2, "Lina", birth_date=years_ago(5), category="ADULT")]) == "CATEGORY_MISMATCH"
     assert err([person(1), person(None, "Lina", birth_date=years_ago(6))]) == "SEAT_REQUIRED"
+    assert err([person(1), person(None, "Sami")]) == "BIRTH_DATE_REQUIRED"           # a lap traveller is an infant only by date of birth
 
 
 def test_booking_with_a_child_and_an_infant_on_the_lap(pax, trip):
@@ -151,6 +152,7 @@ def test_family_register_offer_and_booking_for_the_whole_family(owner, trip):
         assert r.status_code == 201, r.text
         b = head.get(f"/api/bookings/{r.json()['booking_ref']}").json()["booking"]["price_breakdown"]
         assert b["family_offer"]["code"] == code and b["family_offer"]["discount"] == round(b["fares_gross"] * 0.10 / 100) * 100
+        assert sum(x["list_fare"] for x in b["lines"]) - sum(x["fare"] for x in b["lines"]) == b["family_offer"]["discount"]
         assert [x["category"] for x in b["lines"]] == ["ADULT", "ADULT", "CHILD"]
         # the spouse's stored document travelled onto the booking, still encrypted
         assert owner_sql("""SELECT p.id_no_last4 FROM sales.passenger p JOIN sales.booking k ON k.id = p.booking_id
