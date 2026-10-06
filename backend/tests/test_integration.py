@@ -386,3 +386,27 @@ def test_openapi_contract():
     for path in ("/api/v1/wallet/credits", "/api/v1/bookings", "/api/v1/border/manifests/{uid}/decisions", "/api/v1/webhooks"):
         assert path in spec["paths"]
     assert all(p.startswith("/api/v1/") for p in spec["paths"])
+
+
+def test_delivery_falls_back_to_the_next_address(monkeypatch):
+    """A host that resolves to an unreachable address first (an IPv6 address on an IPv4-only endpoint, say) still gets
+    its webhook through the next checked address."""
+    import socket
+    from app.modules.integration import webhooks
+    rx = Receiver()
+    port = int(rx.url.split(":")[2].split("/")[0])
+    real_resolve, real_connect = socket.getaddrinfo, socket.create_connection
+    monkeypatch.setattr(webhooks.socket, "getaddrinfo", lambda host, *a, **k: [
+        (socket.AF_INET6, socket.SOCK_STREAM, 6, "", ("::1", port, 0, 0)), *real_resolve("127.0.0.1", port, type=socket.SOCK_STREAM)])
+    tried = []
+
+    def connect(addr, *a, **k):
+        tried.append(addr[0])
+        if addr[0] == "::1":
+            raise ConnectionRefusedError(111, "Connection refused")
+        return real_connect(addr, *a, **k)
+    monkeypatch.setattr(webhooks.socket, "create_connection", connect)
+    monkeypatch.setenv("MASSLAK_WEBHOOK_ALLOW_PRIVATE", "true")
+    monkeypatch.setenv("MASSLAK_WEBHOOK_CA_FILE", rx.cert)
+    assert webhooks.post(rx.url, b"{}", {"Content-Type": "application/json"}) == 200
+    assert tried == ["::1", "127.0.0.1"] and len(rx.got) == 1

@@ -147,7 +147,15 @@ def post(url: str, body: bytes, headers: dict) -> int:
     extra_ca = os.environ.get("MASSLAK_WEBHOOK_CA_FILE")
     if extra_ca and get_settings().sandbox:
         ctx.load_verify_locations(extra_ca)
-    raw = socket.create_connection((addrs[0], port), timeout=TIMEOUT)
+    raw = None
+    for addr in dict.fromkeys(addrs):         # every checked address in DNS order, as a normal client would
+        try:
+            raw = socket.create_connection((addr, port), timeout=TIMEOUT)
+            break
+        except OSError as exc:
+            last = exc
+    if raw is None:
+        raise last
     conn = http.client.HTTPSConnection(host, port, timeout=TIMEOUT, context=ctx)
     try:
         conn.sock = ctx.wrap_socket(raw, server_hostname=host)
