@@ -211,13 +211,29 @@ def test_a_member_on_another_device_books_within_the_heads_rules(trip):
     assert [(x["rule_type"], x["from_city"], x["to_city"]) for x in seen] == [("ROUTE", "ALP", "LTK")]
     for x in head.get(f"/api/family/members/{me}/rules").json()["rules"]:
         head.delete(f"/api/family/rules/{x['uid']}")
+    # line rules: a trip that runs on no allowed line is refused, one generated from the allowed line passes (below)
+    code = "FAM-" + uuid.uuid4().hex[:6].upper()
+    line = owner_sql("INSERT INTO net.line (code, name, kind, fare_regime, status) VALUES ($1, 'Family test line', 'INTERCITY', 'FREE', 'ACTIVE') RETURNING id", code)
+    version = owner_sql("""INSERT INTO net.line_version (line_id, version, geometry, distance_km, typical_min, status)
+                           VALUES ($1, 1, '{"type": "LineString", "coordinates": []}', 10, 20, 'ACTIVE') RETURNING id""", line)
+    assert code in [x["code"] for x in head.get("/api/family/lines").json()["lines"]]
+    r = head.post(f"/api/family/members/{me}/rules", json={"rule_type": "LINE", "line_id": line})
+    assert r.status_code == 201, r.text
+    assert [x["line"] for x in member.get("/api/family").json()["rules"]] == ["Family test line"]
+    r = book()
+    assert r.status_code == 403 and r.json()["error"]["code"] == "FAMILY_LINE_NOT_ALLOWED"
+    owner_sql("UPDATE ops.trip SET line_version_id = $2 WHERE uid = $1", uuid.UUID(trip["uid"]), version)
     assert head.patch(f"/api/family/members/{me}", json={"per_trip_limit": 100_000}).status_code == 200
     r = book()
     assert r.status_code == 403 and r.json()["error"]["code"] == "FAMILY_LIMIT_PER_TRIP"
     assert head.patch(f"/api/family/members/{me}", json={"per_trip_limit": 0}).status_code == 200
 
     head_before, member_before = head.get("/api/wallet").json()["balance"], member.get("/api/wallet").json()["balance"]
-    r = book()
+    try:
+        r = book()                                                   # on the allowed line now
+    finally:
+        owner_sql("UPDATE ops.trip SET line_version_id = NULL WHERE uid = $1", uuid.UUID(trip["uid"]))
+        owner_sql("UPDATE net.line SET status = 'RETIRED' WHERE id = $1", line)
     assert r.status_code == 201, r.text
     total, ref = r.json()["total"], r.json()["booking_ref"]
     assert head.get("/api/wallet").json()["balance"] == head_before - total          # paid by the head, as approved

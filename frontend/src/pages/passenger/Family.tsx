@@ -111,11 +111,11 @@ function RuleList({ rules, onDelete }: { rules: FamilyRule[]; onDelete?: (r: Fam
       {rules.map((r) => (
         <div key={r.uid} className="row between">
           <span>
-            <Icon name={r.rule_type === "TIME_WINDOW" ? "schedule" : "route"} size={18} />{" "}
+            <Icon name={r.rule_type === "TIME_WINDOW" ? "schedule" : r.rule_type === "LINE" ? "directions_bus" : "route"} size={18} />{" "}
             {r.rule_type === "TIME_WINDOW"
               ? `${(r.days ?? DAYS).map((d) => t(`family.day.${d}`)).join(t("common.listSep"))} · ${r.start_time}–${r.end_time}`
               : r.rule_type === "ROUTE" ? `${city(r.from_city ?? "")} ${r.both_ways ? "⇄" : "→"} ${city(r.to_city ?? "")}`
-              : r.line ?? `#${r.line_id}`}
+              : `${t("family.ruleLine")}: ${r.line ?? `#${r.line_id}`}`}
           </span>
           {onDelete && <button className="btn text" onClick={() => onDelete(r)}><Icon name="delete" /></button>}
         </div>
@@ -344,7 +344,9 @@ function RulesModal({ member, onClose }: { member: FamilyMember; onClose: () => 
   const { t, city } = useI18n();
   const rules = useLoad(() => api.get<{ rules: FamilyRule[] }>(`/api/family/members/${member.uid}/rules`));
   const ref = useLoad(() => api.get<{ cities: City[] }>("/api/ref"));
-  const [type, setType] = useState<"TIME_WINDOW" | "ROUTE">("TIME_WINDOW");
+  const lines = useLoad(() => api.get<{ lines: Line[] }>("/api/family/lines"));
+  const [type, setType] = useState<"TIME_WINDOW" | "ROUTE" | "LINE">("TIME_WINDOW");
+  const [line, setLine] = useState("");
   const [days, setDays] = useState<number[]>([1, 2, 3, 4, 5]);
   const [from, setFrom] = useState("07:00"), [to, setTo] = useState("15:00");
   const [a, setA] = useState(""), [b, setB] = useState("");
@@ -353,7 +355,8 @@ function RulesModal({ member, onClose }: { member: FamilyMember; onClose: () => 
     setError(null);
     try {
       await api.post(`/api/family/members/${member.uid}/rules`, type === "TIME_WINDOW"
-        ? { rule_type: type, days, start_time: from, end_time: to } : { rule_type: type, from_city: a, to_city: b, both_ways: true });
+        ? { rule_type: type, days, start_time: from, end_time: to }
+        : type === "LINE" ? { rule_type: type, line_id: Number(line) } : { rule_type: type, from_city: a, to_city: b, both_ways: true });
       rules.reload();
     } catch (e) { setError(e); }
   };
@@ -368,6 +371,7 @@ function RulesModal({ member, onClose }: { member: FamilyMember; onClose: () => 
         <div className="row">
           <label className="check"><input type="radio" checked={type === "TIME_WINDOW"} onChange={() => setType("TIME_WINDOW")} />{t("family.ruleTime")}</label>
           <label className="check"><input type="radio" checked={type === "ROUTE"} onChange={() => setType("ROUTE")} />{t("family.ruleRoute")}</label>
+          <label className="check"><input type="radio" checked={type === "LINE"} onChange={() => setType("LINE")} />{t("family.ruleLine")}</label>
         </div>
         {type === "TIME_WINDOW" ? (
           <div className="stack tight">
@@ -379,6 +383,16 @@ function RulesModal({ member, onClose }: { member: FamilyMember; onClose: () => 
               <Field label={t("family.from")}><input className="input ltr" type="time" value={from} onChange={(e) => setFrom(e.target.value)} /></Field>
               <Field label={t("family.to")}><input className="input ltr" type="time" value={to} onChange={(e) => setTo(e.target.value)} /></Field>
             </div>
+          </div>
+        ) : type === "LINE" ? (
+          <div className="stack tight">
+            <Field label={t("family.line")}>
+              <select className="input" value={line} onChange={(e) => setLine(e.target.value)}>
+                <option value="">—</option>
+                {(lines.data?.lines ?? []).map((l) => <option key={l.id} value={l.id}>{l.code} · {l.name}{l.city ? ` · ${city(l.city)}` : ""}</option>)}
+              </select>
+            </Field>
+            <p className="small muted">{t("family.lineHint")}</p>
           </div>
         ) : (
           <div className="grid cols-3">
@@ -393,11 +407,13 @@ function RulesModal({ member, onClose }: { member: FamilyMember; onClose: () => 
           </div>
         )}
         <button className="btn" style={{ alignSelf: "start" }} onClick={add}
-                disabled={type === "TIME_WINDOW" ? days.length === 0 || from >= to : !a || !b || a === b}><Icon name="add" />{t("family.addRule")}</button>
+                disabled={type === "TIME_WINDOW" ? days.length === 0 || from >= to : type === "LINE" ? !line : !a || !b || a === b}><Icon name="add" />{t("family.addRule")}</button>
       </div>
     </Modal>
   );
 }
+
+interface Line { id: number; code: string; name: string; kind: string; city: string | null }
 
 interface Plan { id: number; name: string; operator: string; price: number; period_days: number; passenger_category: string }
 

@@ -427,7 +427,7 @@ async def add_rule(uid: uuid.UUID, body: RuleIn, request: Request, pr: Principal
                 if cid is None:
                     raise not_found("city")
                 cities[code] = cid
-        if body.line_id and not await conn.fetchval("SELECT 1 FROM net.line WHERE id = $1", body.line_id):
+        if body.line_id and not await conn.fetchval("SELECT 1 FROM net.line WHERE id = $1 AND status = 'ACTIVE'", body.line_id):
             raise not_found("line")
         r = await conn.fetchrow(
             """INSERT INTO iam.family_travel_rule (member_id, rule_type, days, start_time, end_time, from_city_id, to_city_id,
@@ -481,6 +481,17 @@ async def spend(request: Request, pr: Principal = Depends(passenger)):
                  FROM iam.family_spend s JOIN iam.family_member m ON m.id = s.member_id
                 WHERE s.family_id = $1 ORDER BY s.created_at DESC LIMIT 200""", f["id"])
     return {"spend": [dict(r) | {"member_uid": str(r["member_uid"])} for r in rows]}
+
+
+@router.get("/lines")
+async def lines(request: Request, pr: Principal = Depends(passenger)):
+    """The approved lines a head can allow a member to travel on (LINE rules)."""
+    await _on()
+    async with db.transaction(context_for(request, pr)) as conn:
+        rows = await conn.fetch(
+            """SELECT l.id, l.code, l.name, l.kind, c.code AS city FROM net.line l LEFT JOIN ref.city c ON c.id = l.city_id
+                WHERE l.status = 'ACTIVE' ORDER BY c.code NULLS LAST, l.code""")
+    return {"lines": [dict(r) for r in rows]}
 
 
 # ------------------------------------------------------------------ offers and passes for the whole family

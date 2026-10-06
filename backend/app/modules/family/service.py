@@ -150,7 +150,8 @@ async def check_rules(conn: asyncpg.Connection, member: asyncpg.Record, journey:
                  for r in by_type["ROUTE"])
         if not ok:
             raise ApiError(403, "FAMILY_ROUTE_NOT_ALLOWED", "this route is not allowed for this family member")
-    if journey.line_id and "LINE" in by_type and not any(r["line_id"] == journey.line_id for r in by_type["LINE"]):
+    # with line rules the trip must run on one of those lines; a trip on no approved line does not match
+    if "LINE" in by_type and not any(r["line_id"] == journey.line_id for r in by_type["LINE"]):
         raise ApiError(403, "FAMILY_LINE_NOT_ALLOWED", "this line is not allowed for this family member")
 
 

@@ -292,10 +292,11 @@ async def create_booking(conn: asyncpg.Connection, ctx: db.Context, buyer: Buyer
     elif membership and membership.role == "MEMBER" and membership.member["funding"] != "OWN":
         funding, member_payer = membership.member["funding"], membership.member
         stops = await conn.fetchrow(
-            """SELECT a.sched_dep, sa.city_id AS from_city, sb.city_id AS to_city
+            """SELECT a.sched_dep, sa.city_id AS from_city, sb.city_id AS to_city,
+                      (SELECT v.line_id FROM ops.trip t JOIN net.line_version v ON v.id = t.line_version_id WHERE t.id = $1) AS line_id
                  FROM ops.trip_stop a JOIN net.station sa ON sa.id = a.station_id, ops.trip_stop z JOIN net.station sb ON sb.id = z.station_id
                 WHERE a.trip_id = $1 AND a.seq = $2 AND z.trip_id = $1 AND z.seq = $3""", trip["id"], body.from_seq, body.to_seq)
-        await fam.check_rules(conn, member_payer, fam.Journey(stops["sched_dep"], stops["from_city"], stops["to_city"]))
+        await fam.check_rules(conn, member_payer, fam.Journey(stops["sched_dep"], stops["from_city"], stops["to_city"], stops["line_id"]))
         await fam.check_limits(conn, member_payer, total)
     elif body.pay_from == "FAMILY_ACCOUNT":
         raise ApiError(409, "NO_FAMILY_ACCOUNT", "only the family head pays from the family trips account")

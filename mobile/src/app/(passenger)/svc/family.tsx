@@ -269,7 +269,9 @@ function Rules({ member, run, busy }: { member: Member; run: Run; busy: boolean 
   const { t, city } = useI18n();
   const rules = useLoad(() => api.get<{ rules: Rule[] }>(`/api/family/members/${member.uid}/rules`), [member.uid]);
   const ref = useLoad(() => api.get<{ cities: { code: string }[] }>("/api/ref"));
-  const [type, setType] = useState<"TIME_WINDOW" | "ROUTE">("TIME_WINDOW");
+  const lines = useLoad(() => api.get<{ lines: { id: number; code: string; name: string; city: string | null }[] }>("/api/family/lines"));
+  const [type, setType] = useState<"TIME_WINDOW" | "ROUTE" | "LINE">("TIME_WINDOW");
+  const [line, setLine] = useState<number | null>(null);
   const [days, setDays] = useState<number[]>([1, 2, 3, 4, 5]);
   const [start, setStart] = useState("07:00");
   const [end, setEnd] = useState("15:00");
@@ -277,10 +279,12 @@ function Rules({ member, run, busy }: { member: Member; run: Run; busy: boolean 
   const [to, setTo] = useState<string | null>(null);
   const hhmm = (x: string) => /^([01][0-9]|2[0-3]):[0-5][0-9]$/.test(x);
   const cities = (ref.data?.cities ?? []).map((c) => ({ value: c.code, label: city(c.code) }));
-  const valid = type === "TIME_WINDOW" ? days.length > 0 && hhmm(start) && hhmm(end) && start < end : !!from && !!to && from !== to;
+  const valid = type === "TIME_WINDOW" ? days.length > 0 && hhmm(start) && hhmm(end) && start < end
+    : type === "LINE" ? line != null : !!from && !!to && from !== to;
   const add = () => run(async () => {
     await api.post(`/api/family/members/${member.uid}/rules`, type === "TIME_WINDOW"
       ? { rule_type: type, days: [...days].sort(), start_time: start, end_time: end }
+      : type === "LINE" ? { rule_type: type, line_id: line }
       : { rule_type: type, from_city: from, to_city: to, both_ways: true });
     rules.reload();
   });
@@ -296,7 +300,8 @@ function Rules({ member, run, busy }: { member: Member; run: Run; busy: boolean 
              right={<Button kind="text" label={t("common.remove")} onPress={() => del(r)} />} />
       ))}
       <Choice value={type} onChange={setType}
-              options={[{ value: "TIME_WINDOW", label: t("family.ruleTime") }, { value: "ROUTE", label: t("family.ruleRoute") }]} />
+              options={[{ value: "TIME_WINDOW", label: t("family.ruleTime") }, { value: "ROUTE", label: t("family.ruleRoute") },
+                        { value: "LINE", label: t("family.ruleLine") }]} />
       {type === "TIME_WINDOW" ? (
         <>
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
@@ -309,6 +314,12 @@ function Rules({ member, run, busy }: { member: Member; run: Run; busy: boolean 
             <View style={{ flex: 1 }}><Field label={t("family.from")} value={start} placeholder="07:00" maxLength={5} onChangeText={(x) => setStart(x.trim())} /></View>
             <View style={{ flex: 1 }}><Field label={t("family.to")} value={end} placeholder="15:00" maxLength={5} onChangeText={(x) => setEnd(x.trim())} /></View>
           </View>
+        </>
+      ) : type === "LINE" ? (
+        <>
+          <Choice label={t("family.line")} value={line} onChange={setLine}
+                  options={(lines.data?.lines ?? []).map((l) => ({ value: l.id, label: `${l.code} · ${l.name}${l.city ? ` · ${city(l.city)}` : ""}` }))} />
+          <Text style={s.small}>{t("family.lineHint")}</Text>
         </>
       ) : (
         <>
