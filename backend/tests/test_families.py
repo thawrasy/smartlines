@@ -204,6 +204,8 @@ def test_a_member_on_another_device_books_within_the_heads_rules(trip):
     assert head.post(f"/api/family/members/{me}/rules", json={"rule_type": "ROUTE", "from_city": "ALP", "to_city": "LTK"}).status_code == 201
     r = book()
     assert r.status_code == 403 and r.json()["error"]["code"] == "FAMILY_ROUTE_NOT_ALLOWED"
+    seen = member.get("/api/family").json()["rules"]                 # the member sees their own rules, as the apps show them
+    assert [(x["rule_type"], x["from_city"], x["to_city"]) for x in seen] == [("ROUTE", "ALP", "LTK")]
     for x in head.get(f"/api/family/members/{me}/rules").json()["rules"]:
         head.delete(f"/api/family/rules/{x['uid']}")
     assert head.patch(f"/api/family/members/{me}", json={"per_trip_limit": 100_000}).status_code == 200

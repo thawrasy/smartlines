@@ -29,6 +29,7 @@ export default function PassengerLayout() {
       <Tabs.Screen name="svc/taxi" options={{ href: null }} />
       <Tabs.Screen name="svc/rental" options={{ href: null }} />
       <Tabs.Screen name="svc/track" options={{ href: null }} />
+      <Tabs.Screen name="svc/family" options={{ href: null }} />
     </Tabs>
   );
 }

@@ -152,9 +152,8 @@ class FamilyPasses(BaseModel):
 async def _summary(conn: asyncpg.Connection, ctx: db.Context, m: fam.Membership) -> dict:
     f = m.family
     if m.role == "MEMBER":
-        rules = await conn.fetch("SELECT * FROM iam.family_travel_rule WHERE member_id = $1 AND active ORDER BY id", m.member["id"])
         return {"role": "MEMBER", "family": {"uid": str(f["uid"]), "name": f["name"]}, "me": fam.member_view(m.member),
-                "rules": [_rule_view(r) for r in rules]}
+                "rules": await _member_rules(conn, m.member["id"])}
     members = await conn.fetch(
         "SELECT * FROM iam.family_member WHERE family_id = $1 AND status = 'ACTIVE' ORDER BY relation <> 'SELF', birth_date", f["id"])
     requests = await conn.fetch(
@@ -392,6 +391,14 @@ def _rule_view(r) -> dict:
             "from_city_id": r["from_city_id"], "to_city_id": r["to_city_id"], "both_ways": r["both_ways"], "line_id": r["line_id"]}
 
 
+async def _member_rules(conn: asyncpg.Connection, member_id: int) -> list[dict]:
+    rows = await conn.fetch(
+        """SELECT r.*, a.code AS from_city, b.code AS to_city, l.name AS line FROM iam.family_travel_rule r
+             LEFT JOIN ref.city a ON a.id = r.from_city_id LEFT JOIN ref.city b ON b.id = r.to_city_id
+             LEFT JOIN net.line l ON l.id = r.line_id WHERE r.member_id = $1 AND r.active ORDER BY r.id""", member_id)
+    return [_rule_view(r) | {"from_city": r["from_city"], "to_city": r["to_city"], "line": r["line"]} for r in rows]
+
+
 def _time(v: Optional[str]) -> Optional[time]:
     return time.fromisoformat(v) if v else None
 
@@ -402,11 +409,7 @@ async def rules(uid: uuid.UUID, request: Request, pr: Principal = Depends(passen
     async with db.transaction(context_for(request, pr)) as conn:
         f = await fam.head_family(conn, pr.party_id)
         m = await fam.member_by_uid(conn, f["id"], uid)
-        rows = await conn.fetch(
-            """SELECT r.*, a.code AS from_city, b.code AS to_city, l.name AS line FROM iam.family_travel_rule r
-                 LEFT JOIN ref.city a ON a.id = r.from_city_id LEFT JOIN ref.city b ON b.id = r.to_city_id
-                 LEFT JOIN net.line l ON l.id = r.line_id WHERE r.member_id = $1 AND r.active ORDER BY r.id""", m["id"])
-    return {"rules": [_rule_view(r) | {"from_city": r["from_city"], "to_city": r["to_city"], "line": r["line"]} for r in rows]}
+        return {"rules": await _member_rules(conn, m["id"])}
 
 
 @router.post("/members/{uid}/rules", status_code=201)

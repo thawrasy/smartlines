@@ -13,6 +13,7 @@ const SERVICES = [
   { key: "taxi", module: "taxi", glyph: "◆", href: "/svc/taxi" },
   { key: "rental", module: "car_rental", glyph: "◇", href: "/svc/rental" },
   { key: "track", module: "cargo", glyph: "⌖", href: "/svc/track" },
+  { key: "family", module: "family_accounts", glyph: "◎", href: "/svc/family" },
 ] as const;
 
 /** Everything beyond intercity trips, shown only when the platform has the module switched on. */
