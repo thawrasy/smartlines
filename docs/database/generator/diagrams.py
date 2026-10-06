@@ -28,6 +28,7 @@ SCHEMA_FAMILY = {
     "sales": "booking", "crm": "service", "ptn": "service",
     "ship": "asset", "frt": "trip",
     "sec": "security", "brd": "security", "gov": "security", "audit": "security",
+    "rpt": "core",
 }
 
 # (id, title, study sections, family, description, tables)
@@ -39,10 +40,10 @@ GROUPS = [
       "iam.permission", "iam.user_role", "iam.beneficial_owner", "iam.bank_account", "iam.document", "iam.verification",
       "ref.party_role_type"]),
     ("E02", "Sessions, devices and API access", "16.8, 16.9, 14.2", "core",
-     "Sign-in sessions and tokens, second factors, bound devices with their permission state, push tokens, API clients and keys, "
-     "identity providers and government identity links.",
+     "Sign-in sessions and tokens, second factors, bound devices with their permission state, push tokens, integration API clients "
+     "with their keys and daily usage, identity providers and government identity links.",
      ["iam.user_session", "iam.auth_token", "iam.mfa_factor", "iam.device", "iam.device_permission_state", "iam.push_token",
-      "iam.api_client", "iam.api_key", "iam.identity_provider", "iam.gov_identity_link", "iam.biometric_template"]),
+      "iam.api_client", "iam.api_key", "iam.api_usage_daily", "iam.identity_provider", "iam.gov_identity_link", "iam.biometric_template"]),
     ("E03", "Reference data and system", "2.8, 4.10, D.4", "core",
      "Countries, currencies, cities, locales and translations, files, the extensible reference lists of appendix D, settings, "
      "the outbox and webhooks.",
@@ -117,10 +118,12 @@ GROUPS = [
       "pricing.reward_catalog", "pricing.redemption_channel", "pricing.redemption_token", "pricing.reward_voucher",
       "pricing.partner_redemption", "pricing.award_seat_rule"]),
     ("E16", "Wallets, ledger and payments", "6.1-6.5", "money",
-     "Wallets and the double-entry ledger, payment providers, payments and their signed notifications, bank top-ups, "
+     "Wallets and the double-entry ledger, payment providers (card gateway, partner e-wallet, bank transfer, agency cash, partner API), "
+     "payments and their signed notifications, refunds to the source, bank transfer references matched from imported bank statements, "
      "withdrawals and cash remittances.",
      ["fin.wallet", "fin.ledger_txn", "fin.ledger_entry", "fin.payment_provider", "fin.payment", "fin.payment_notification",
-      "fin.bank_transfer_topup", "fin.withdrawal_request", "fin.cash_remittance"]),
+      "fin.payment_refund", "fin.bank_transfer_topup", "fin.bank_statement_import", "fin.bank_statement_line",
+      "fin.withdrawal_request", "fin.cash_remittance"]),
     ("E17", "Price allocation, settlement, payouts and float", "5.7, 6.6-6.8", "money",
      "The allocation tree of each price, the tax ledger, settlement batches and lines, payout schedules and payouts, bank "
      "reconciliation, float accounts, deposit placements and the daily float report.",
@@ -237,6 +240,10 @@ GROUPS = [
      ["rent.rental_company", "rent.rental_branch", "rent.rental_vehicle_class", "rent.rental_fleet", "rent.rental_rate",
       "rent.rental_addon", "rent.renter_rule", "rent.rental_booking", "rent.rental_booking_addon", "rent.rental_contract",
       "rent.contract_driver", "rent.rental_inspection", "rent.deposit_hold", "rent.telematics_device", "rent.vehicle_trip_log"]),
+    ("E38", "Reports", "13, 16.15", "core",
+     "Saved custom report definitions (private or shared within the company), the append-only log of every report run and export "
+     "with the file's SHA-256, and scheduled e-mail delivery.",
+     ["rpt.report_definition", "rpt.report_run", "rpt.report_schedule"]),
 ]
 
 # Focus diagrams: one business rule across modules; tables keep their own module colour (family None)
@@ -252,6 +259,13 @@ FOCUS = [
      "the payment and the ledger transaction, and the price allocation of the ticket.",
      ["ops.trip", "ops.trip_stop", "ops.seat_segment", "sales.booking", "sales.passenger", "sales.ticket", "fin.payment",
       "fin.ledger_txn", "fin.price_allocation", "fin.price_allocation_line", "iam.company", "iam.party"]),
+    ("F03", "Wallet top-up and partner integration", "6.1-6.5, 14", None,
+     "How money enters a wallet: the provider adapter, the payment and its signed notifications, the bank transfer reference matched from "
+     "the bank statement, refunds to the source, and the ledger transaction; partner API clients with their keys credit wallets and "
+     "receive outbox events through signed webhook deliveries.",
+     ["fin.payment_provider", "fin.payment", "fin.payment_notification", "fin.payment_refund", "fin.bank_transfer_topup",
+      "fin.bank_statement_line", "fin.wallet", "fin.ledger_txn", "iam.api_client", "iam.api_key", "sys.outbox_event",
+      "sys.webhook_endpoint", "sys.webhook_delivery"]),
 ]
 
 # Data stores of the use case and data flow diagrams v1.0 (section 6) mapped to the groups that implement them
@@ -282,5 +296,5 @@ SCHEMA_TITLE = {
     "rail": "Rail", "taxi": "Taxis", "rent": "Car rental",
     "sales": "Bookings, tickets, channels", "pricing": "Fares, tax, loyalty", "fin": "Wallets, ledger",
     "acct": "Books, e-invoicing", "bill": "Carrier billing", "crm": "Cases, AI, calls", "ptn": "Fuel, rest stops",
-    "sec": "Security hub", "brd": "Border manifest", "gov": "Data protection", "audit": "Audit logs",
+    "sec": "Security hub", "brd": "Border manifest", "gov": "Data protection", "audit": "Audit logs", "rpt": "Reports",
 }

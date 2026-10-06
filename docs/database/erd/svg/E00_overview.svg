@@ -17,7 +17,7 @@
 <path fill="none" stroke="#404040" d="M22,-686.5C22,-686.5 188,-686.5 188,-686.5 194,-686.5 200,-692.5 200,-698.5 200,-698.5 200,-736.5 200,-736.5 200,-742.5 194,-748.5 188,-748.5 188,-748.5 22,-748.5 22,-748.5 16,-748.5 10,-742.5 10,-736.5 10,-736.5 10,-698.5 10,-698.5 10,-692.5 16,-686.5 22,-686.5"/>
 <text text-anchor="start" x="62" y="-719.3" font-family="DejaVu Sans" font-weight="bold" font-size="13.00">iam</text>
 <text text-anchor="start" x="90" y="-719.3" font-family="DejaVu Sans" font-size="14.00"> </text>
-<text text-anchor="start" x="95" y="-719.3" font-family="DejaVu Sans" font-size="10.00">(24 tables)</text>
+<text text-anchor="start" x="95" y="-719.3" font-family="DejaVu Sans" font-size="10.00">(25 tables)</text>
 <text text-anchor="start" x="57" y="-708.5" font-family="DejaVu Sans" font-size="10.00">Parties, users, roles</text>
 <path fill="#dce6f2" stroke="transparent" d="M222,-686.5C222,-686.5 388,-686.5 388,-686.5 394,-686.5 400,-692.5 400,-698.5 400,-698.5 400,-736.5 400,-736.5 400,-742.5 394,-748.5 388,-748.5 388,-748.5 222,-748.5 222,-748.5 216,-748.5 210,-742.5 210,-736.5 210,-736.5 210,-698.5 210,-698.5 210,-692.5 216,-686.5 222,-686.5"/>
 <path fill="none" stroke="#404040" d="M222,-686.5C222,-686.5 388,-686.5 388,-686.5 394,-686.5 400,-692.5 400,-698.5 400,-698.5 400,-736.5 400,-736.5 400,-742.5 394,-748.5 388,-748.5 388,-748.5 222,-748.5 222,-748.5 216,-748.5 210,-742.5 210,-736.5 210,-736.5 210,-698.5 210,-698.5 210,-692.5 216,-686.5 222,-686.5"/>
@@ -31,6 +31,12 @@
 <text text-anchor="start" x="491" y="-719.3" font-family="DejaVu Sans" font-size="14.00"> </text>
 <text text-anchor="start" x="496" y="-719.3" font-family="DejaVu Sans" font-size="10.00">(7 tables)</text>
 <text text-anchor="start" x="465" y="-708.5" font-family="DejaVu Sans" font-size="10.00">Settings, outbox</text>
+<path fill="#dce6f2" stroke="transparent" d="M622,-686.5C622,-686.5 788,-686.5 788,-686.5 794,-686.5 800,-692.5 800,-698.5 800,-698.5 800,-736.5 800,-736.5 800,-742.5 794,-748.5 788,-748.5 788,-748.5 622,-748.5 622,-748.5 616,-748.5 610,-742.5 610,-736.5 610,-736.5 610,-698.5 610,-698.5 610,-692.5 616,-686.5 622,-686.5"/>
+<path fill="none" stroke="#404040" d="M622,-686.5C622,-686.5 788,-686.5 788,-686.5 794,-686.5 800,-692.5 800,-698.5 800,-698.5 800,-736.5 800,-736.5 800,-742.5 794,-748.5 788,-748.5 788,-748.5 622,-748.5 622,-748.5 616,-748.5 610,-742.5 610,-736.5 610,-736.5 610,-698.5 610,-698.5 610,-692.5 616,-686.5 622,-686.5"/>
+<text text-anchor="start" x="668" y="-719.3" font-family="DejaVu Sans" font-weight="bold" font-size="13.00">rpt</text>
+<text text-anchor="start" x="690" y="-719.3" font-family="DejaVu Sans" font-size="14.00"> </text>
+<text text-anchor="start" x="695" y="-719.3" font-family="DejaVu Sans" font-size="10.00">(3 tables)</text>
+<text text-anchor="start" x="686" y="-708.5" font-family="DejaVu Sans" font-size="10.00">Reports</text>
 <text text-anchor="start" x="16" y="-661.1" font-family="DejaVu Sans" font-weight="bold" font-size="13.00" fill="#333333">2. ASSETS, NETWORK AND SHIPPING</text>
 <path fill="#e2efda" stroke="transparent" d="M22,-578.5C22,-578.5 188,-578.5 188,-578.5 194,-578.5 200,-584.5 200,-590.5 200,-590.5 200,-628.5 200,-628.5 200,-634.5 194,-640.5 188,-640.5 188,-640.5 22,-640.5 22,-640.5 16,-640.5 10,-634.5 10,-628.5 10,-628.5 10,-590.5 10,-590.5 10,-584.5 16,-578.5 22,-578.5"/>
 <path fill="none" stroke="#404040" d="M22,-578.5C22,-578.5 188,-578.5 188,-578.5 194,-578.5 200,-584.5 200,-590.5 200,-590.5 200,-628.5 200,-628.5 200,-634.5 194,-640.5 188,-640.5 188,-640.5 22,-640.5 22,-640.5 16,-640.5 10,-634.5 10,-628.5 10,-628.5 10,-590.5 10,-590.5 10,-584.5 16,-578.5 22,-578.5"/>
@@ -111,7 +117,7 @@
 <path fill="none" stroke="#404040" d="M422,-254.5C422,-254.5 588,-254.5 588,-254.5 594,-254.5 600,-260.5 600,-266.5 600,-266.5 600,-304.5 600,-304.5 600,-310.5 594,-316.5 588,-316.5 588,-316.5 422,-316.5 422,-316.5 416,-316.5 410,-310.5 410,-304.5 410,-304.5 410,-266.5 410,-266.5 410,-260.5 416,-254.5 422,-254.5"/>
 <text text-anchor="start" x="466.5" y="-287.3" font-family="DejaVu Sans" font-weight="bold" font-size="13.00">fin</text>
 <text text-anchor="start" x="485.5" y="-287.3" font-family="DejaVu Sans" font-size="14.00"> </text>
-<text text-anchor="start" x="490.5" y="-287.3" font-family="DejaVu Sans" font-size="10.00">(20 tables)</text>
+<text text-anchor="start" x="490.5" y="-287.3" font-family="DejaVu Sans" font-size="10.00">(23 tables)</text>
 <text text-anchor="start" x="468.5" y="-276.5" font-family="DejaVu Sans" font-size="10.00">Wallets, ledger</text>
 <path fill="#e4dfec" stroke="transparent" d="M622,-254.5C622,-254.5 788,-254.5 788,-254.5 794,-254.5 800,-260.5 800,-266.5 800,-266.5 800,-304.5 800,-304.5 800,-310.5 794,-316.5 788,-316.5 788,-316.5 622,-316.5 622,-316.5 616,-316.5 610,-310.5 610,-304.5 610,-304.5 610,-266.5 610,-266.5 610,-260.5 616,-254.5 622,-254.5"/>
 <path fill="none" stroke="#404040" d="M622,-254.5C622,-254.5 788,-254.5 788,-254.5 794,-254.5 800,-260.5 800,-266.5 800,-266.5 800,-304.5 800,-304.5 800,-310.5 794,-316.5 788,-316.5 788,-316.5 622,-316.5 622,-316.5 616,-316.5 610,-310.5 610,-304.5 610,-304.5 610,-266.5 610,-266.5 610,-260.5 616,-254.5 622,-254.5"/>
@@ -157,7 +163,7 @@
 <text text-anchor="start" x="698" y="-71.3" font-family="DejaVu Sans" font-size="14.00"> </text>
 <text text-anchor="start" x="703" y="-71.3" font-family="DejaVu Sans" font-size="10.00">(5 tables)</text>
 <text text-anchor="start" x="680.5" y="-60.5" font-family="DejaVu Sans" font-size="10.00">Audit logs</text>
-<text text-anchor="start" x="1080" y="-16.5" font-family="DejaVu Sans" font-size="10.00" fill="#595959">23 schemas, 415 tables</text>
+<text text-anchor="start" x="1080" y="-16.5" font-family="DejaVu Sans" font-size="10.00" fill="#595959">24 schemas, 422 tables</text>
 </g>
 </g>
 </svg>

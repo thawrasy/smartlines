@@ -536,7 +536,7 @@
 <polygon fill="#ffffff" stroke="transparent" points="123,-1244 123,-1261 153,-1261 153,-1244 123,-1244"/>
 <text text-anchor="start" x="126" y="-1250.6" font-family="DejaVu Sans" font-size="8.00" fill="#7f7f7f">text</text>
 <polygon fill="#ffffff" stroke="transparent" points="1,-1229 1,-1244 153,-1244 153,-1229 1,-1229"/>
-<text text-anchor="start" x="4" y="-1235.6" font-family="DejaVu Sans" font-style="italic" font-size="8.00" fill="#7f7f7f">+ 6 more columns</text>
+<text text-anchor="start" x="4" y="-1235.6" font-family="DejaVu Sans" font-style="italic" font-size="8.00" fill="#7f7f7f">+ 8 more columns</text>
 <path fill="none" stroke="#404040" d="M12,-1228.5C12,-1228.5 142,-1228.5 142,-1228.5 148,-1228.5 154,-1234.5 154,-1240.5 154,-1240.5 154,-1351.5 154,-1351.5 154,-1357.5 148,-1363.5 142,-1363.5 142,-1363.5 12,-1363.5 12,-1363.5 6,-1363.5 0,-1357.5 0,-1351.5 0,-1351.5 0,-1240.5 0,-1240.5 0,-1234.5 6,-1228.5 12,-1228.5"/>
 </g>
 <!-- sys__webhook_delivery&#45;&gt;sys__outbox_event -->

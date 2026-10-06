@@ -239,6 +239,13 @@ def main():
     model = {f'{t["schema"]}.{t["name"]}': t for t in tables}
     render("E00_overview", overview_dot(model))
     render("legend", legend_dot())
+    # every table of the database belongs to exactly one module diagram; a new table must be placed in diagrams.py
+    names = {f"{t['schema']}.{t['name']}" for t in tables}
+    placed = [t for g in GROUPS for t in g[5]]
+    unplaced, stale = sorted(names - set(placed)), sorted(set(placed) - names)
+    twice = sorted({t for t in placed if placed.count(t) > 1})
+    if unplaced or stale or twice:
+        sys.exit(f"diagram groups out of date: not placed {unplaced}, unknown {stale}, placed twice {twice}")
     for g in GROUPS:
         render(f"{g[0]}", group_dot(g, model))
     for g in FOCUS:

@@ -1,6 +1,6 @@
 // Builds the database design document from ../build/model.json and the rendered ERDs, in the study's styling
 // (Arial, headings in #2E74B5, table headers in #1F3A5F with white text, alternating #F2F6FA rows, #B7C3D0 borders).
-// Usage: node build.js   (after render.py and trace.py)  ->  ../Masslak_Database_Design_and_ERD_v3.0.docx
+// Usage: node build.js   (after render.py and trace.py)  ->  ../Masslak_Database_Design_and_ERD_v<VERSION>.docx
 const fs = require("fs");
 const path = require("path");
 const {
@@ -11,7 +11,7 @@ const {
 const HERE = __dirname;
 const model = JSON.parse(fs.readFileSync(path.join(HERE, "..", "build", "model.json"), "utf8"));
 const PNG = path.join(HERE, "..", "erd", "png");
-const VERSION = "3.0";
+const VERSION = "3.1";
 const DATE = "5 October 2026";
 const FONT = "Arial";
 const C = { navy: "1F3A5F", blue: "2E74B5", blue2: "1F4D78", grid: "B7C3D0", alt: "F2F6FA", grey: "595959" };
@@ -102,22 +102,47 @@ front.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 16
 front.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 1200 },
   children: [run(`Complete relational model of the Analysis and Design Study v2.7: ${tableCount} tables, ${fkCount} relationships`, { color: "7F7F7F" })] }));
 front.push(table(["Item", "Details"], [
-  ["Version", `${VERSION} (relationships redesigned for study v2.7; replaces version 2.0)`],
+  ["Version", `${VERSION} (reports, payment integration and the integration API on the relational design of 3.0; replaces version 3.0)`],
   ["Date", DATE],
   ["Basis", "Analysis and Design Study v2.7 (English) and the Use Case and Data Flow Diagrams v1.0"],
   ["Scope", `${schemas.length} schemas, ${tableCount} tables, ${colCount} columns, ${fkCount} foreign keys; all phases 1 to 15`],
-  ["Engine", "PostgreSQL 16 with row-level security; schema files db/schema/000 to 1033"],
+  ["Engine", "PostgreSQL 16 with row-level security; schema files db/schema/000 to 1036"],
   ["Status", "Built and verified: fresh build and upgrade identical, 114 automated checks passing, every foreign key indexed or exempt by rule"],
   ["Website", "masslak.com"],
 ], [2800, 6946]));
 
 const toc = [H(HeadingLevel.HEADING_1, "Contents", { pageBreak: true })];
-const tocLines = ["Changes in version 3.0", "1. Introduction", "2. Database architecture", "3. Design rules", "4. Security model in the database",
+const tocLines = ["Changes in version 3.1", "Changes in version 3.0", "1. Introduction", "2. Database architecture", "3. Design rules", "4. Security model in the database",
   "5. Data stores of the data flow diagrams", "6. Entity-relationship diagrams by module",
-  ...model.groups.map((g, i) => `      6.${i + 1} ${g[0]} ${g[1]}`), "      6.38 Focus diagrams: rules that span modules",
+  ...model.groups.map((g, i) => `      6.${i + 1} ${g[0]} ${g[1]}`), `      6.${model.groups.length + 1} Focus diagrams: rules that span modules`,
   "7. Table definitions", "8. Traceability to the study", "9. Verification",
   "Appendix A: Feature flags", "Appendix B: Generalizations and naming decisions", "Appendix C: References without a foreign key"];
 for (const l of tocLines) toc.push(P(l, { after: 40, size: 20 }));
+
+// ------------------------------ changes in 3.1 ------------------------------
+const changes31 = [H(HeadingLevel.HEADING_1, "Changes in version 3.1", { pageBreak: true }),
+  P("Version 3.1 adds the database support of three platform services built on the relational design of version 3.0: the reports centre, "
+    + "the payment integration of the wallet, and the public integration API for carriers, sales channels, banks, e-wallets and authorities. "
+    + "The four relationship rules of chapter 3.2 hold for every new table and column, and the automated checks still pass."),
+  table(["Schema file", "Migration", "What it adds"], [
+    ["1034_reports.sql", "1.17.0", "Schema rpt: report definitions (private or shared within a company), the append-only log of report runs and exports "
+      + "with the file's SHA-256, and scheduled e-mail delivery; permissions report.custom and report.schedule. Diagram E38."],
+    ["1035_payments.sql", "1.18.0", "Provider adapters (hosted card page, partner e-wallet, bank transfer, agency cash, sandbox) with limits and purposes; "
+      + "payment stages, expiry and failure codes; refunds to the source (fin.payment_refund); imported bank statements and their lines "
+      + "(fin.bank_statement_import, fin.bank_statement_line) matched to transfer references; a bank clearing wallet. Diagram E16."],
+    ["1036_integration.sql", "1.19.0", "API clients act for their company through an acting staff account and may be linked to a payment provider or an "
+      + "authority; daily usage per client (iam.api_usage_daily); row-level security on keys, webhook endpoints and deliveries; partner "
+      + "wallet credits on fin.payment with a unique (client, reference) pair; the API_PARTNER adapter. Diagrams E02 and F03."],
+  ], [2300, 1100, 6346], { boldFirst: true }),
+  gap(),
+  table(["Measure", "Version 3.0", "Version 3.1"], [
+    ["Schemas", "23", `${schemas.length}`],
+    ["Tables", "415", `${tableCount}`],
+    ["Module diagrams", "37", `${model.groups.length}`],
+    ["Focus diagrams", "2", `${(model.focus || []).length} (new: F03 wallet top-up and partner integration)`],
+    ["Diagram coverage", "checked by hand", "checked by the generator: it stops when a table is in no diagram or in two"],
+  ], [2700, 2400, 4646], { boldFirst: true }),
+];
 
 // ------------------------------ changes in 3.0 ------------------------------
 const changes = [H(HeadingLevel.HEADING_1, "Changes in version 3.0", { pageBreak: true }),
@@ -287,7 +312,7 @@ const stores = [H(HeadingLevel.HEADING_1, "5. Data stores of the data flow diagr
   }), [800, 1900, 1300, 5746], { size: 16, boldFirst: true }),
   gap(),
   P("The stores added by the study after v1.0 of the diagrams (approved lines, shipping network, freight, border manifest, billing, service "
-    + "partners, contracted transport, rail, taxi and car rental) are listed with their diagrams in chapter 6."),
+    + "partners, contracted transport, rail, taxi, car rental, reports, payment integration and the integration API) are listed with their diagrams in chapter 6."),
 ];
 
 // ------------------------------ 6. ERD chapter ------------------------------
@@ -451,7 +476,7 @@ const doc = new Document({
   numbering: { config: [{ reference: "bullets", levels: [{ level: 0, format: LevelFormat.BULLET, text: "•", alignment: AlignmentType.LEFT,
     style: { paragraph: { indent: { left: 540, hanging: 270 } } } }] }] },
   sections: [
-    section(PORTRAIT, [...front, ...toc, ...changes, ...intro, ...arch, ...rules, ...security, ...stores]),
+    section(PORTRAIT, [...front, ...toc, ...changes31, ...changes, ...intro, ...arch, ...rules, ...security, ...stores]),
     ...erdSections,
     section(PORTRAIT, [...defs, ...trace, ...verify, ...flags, ...gens, ...appC]),
   ],
