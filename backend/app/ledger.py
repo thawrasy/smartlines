@@ -54,7 +54,9 @@ async def post_txn(conn: asyncpg.Connection, txn_type: str, currency: str, idemp
                    entries: Iterable[tuple[int, str, int]], *, ref_type: Optional[str] = None,
                    ref_id: Optional[int] = None, user_id: Optional[int] = None, memo: Optional[str] = None) -> int:
     """Writes one balanced transaction; entries are (wallet_id, 'DR'|'CR', amount)."""
-    entries = [e for e in entries if e[2] > 0]
+    # each entry updates its wallet's balance; touching wallets in ascending id keeps two transactions that move money
+    # between the same wallets in opposite directions from deadlocking (lock order: docs/database/STANDARDS.md)
+    entries = sorted((e for e in entries if e[2] > 0), key=lambda e: e[0])
     txn_id = await conn.fetchval(
         """INSERT INTO fin.ledger_txn (txn_type, currency, ref_type, ref_id, idempotency_key, memo, created_by)
            VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id""",

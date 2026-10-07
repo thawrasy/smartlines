@@ -219,7 +219,7 @@ GROUPS = [
      ["frt.freight_request", "frt.freight_bid", "frt.freight_contract", "frt.container", "frt.leg_container",
       "frt.handover_event", "frt.port_appointment", "frt.gate_event", "frt.transit_declaration", "frt.escort_assignment",
       "frt.freight_document", "frt.weighbridge_reading", "frt.detention_claim", "frt.freight_claim"]),
-    ("E34", "Border manifest gateway and trip manifests", "11, 11.10 (v2.8), D.1.8", "security",
+    ("E34", "Border manifest gateway and trip manifests", "11, 11.10 (since v2.8), D.1.8", "security",
      "Border points extend border stations; crossing profiles hold each authority's requirements; a manifest is a versioned "
      "snapshot of persons, vehicles and cargo, issued by the carrier for domestic and international trips, answered by responses "
      "and checked by discrepancies. Approved routing rules send each version to one or several authorities as deliveries.",
@@ -245,7 +245,7 @@ GROUPS = [
      "Saved custom report definitions (private or shared within the company), the append-only log of every report run and export "
      "with the file's SHA-256, and scheduled e-mail delivery.",
      ["rpt.report_definition", "rpt.report_run", "rpt.report_schedule"]),
-    ("E39", "Passenger categories and family accounts", "4.19, 4.20 (v2.8)", "booking",
+    ("E39", "Passenger categories and family accounts", "4.19, 4.20 (since v2.8)", "booking",
      "Age bands and child and infant fares per carrier (platform defaults where the carrier sets none) and family offers; a family "
      "headed by one passenger with its members, link requests from members' own devices, travel rules per member and the "
      "append-only spending log.",

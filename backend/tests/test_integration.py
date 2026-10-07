@@ -259,7 +259,8 @@ def test_border_authority_reads_and_decides(admin, security):
     sys.path.insert(0, BACKEND)
     from app.crypto import RESTRICTED_REF, FieldCipher, _derive
     sealed = FieldCipher({1: _derive(RESTRICTED_REF)}, {RESTRICTED_REF: 1}, b"x" * 32).encrypt("N7654321", "brd.manifest_person.doc_no")
-    ticket = owner_sql("SELECT id FROM sales.ticket ORDER BY id DESC LIMIT 1")
+    # a manifest lists tickets of its own trip only (1040); a passenger without a platform ticket has none
+    ticket = owner_sql("SELECT id FROM sales.ticket WHERE trip_id = $1 ORDER BY id DESC LIMIT 1", src["trip_id"])
     pid = owner_sql("""INSERT INTO brd.manifest_person (manifest_id, person_role, ticket_id, doc_type, doc_no_enc, doc_no_bidx, enc_key_id,
                          issuing_country, nationality, birth_date) VALUES ($1, 'PASSENGER', $2, 'PASSPORT', $3, $4, 1, 'SY', 'SY', '1990-01-01') RETURNING id""",
                     mid, ticket, sealed.ciphertext, secrets.token_bytes(32))

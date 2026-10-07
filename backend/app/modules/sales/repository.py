@@ -4,7 +4,7 @@ from typing import Optional
 
 import asyncpg
 
-FREE_SEG = "(status = 'AVAILABLE' OR (status = 'LOCKED' AND lock_expires_at < now()))"
+FREE_SEG = "(s.status = 'AVAILABLE' OR (s.status = 'LOCKED' AND s.lock_expires_at < now()))"
 
 JOURNEY_SQL = """
     (SELECT jsonb_build_object('from_station', sa.name, 'from_code', sa.code, 'from_city', ca.code, 'departs_at', a.sched_dep,
@@ -34,12 +34,20 @@ async def seats_held_by(conn: asyncpg.Connection, user_id: int) -> int:
 
 async def lock_segments(conn, trip_id: int, seat_nos: list[int], from_seq: int, to_seq: int, token: uuid.UUID,
                         user_id: int, minutes: int) -> list[asyncpg.Record]:
+    # Rows are locked in one fixed order (seat, then segment) before they change, so two overlapping multi-seat
+    # holds wait for each other instead of deadlocking (lock order: docs/database/STANDARDS.md).
     return await conn.fetch(
-        f"""UPDATE ops.seat_segment
+        f"""WITH wanted AS (
+                SELECT seat_no, seg FROM ops.seat_segment
+                 WHERE trip_id = $1 AND seat_no = ANY($2::smallint[]) AND seg >= $3 AND seg < $7
+                 ORDER BY seat_no, seg FOR UPDATE)
+            UPDATE ops.seat_segment s
                SET status = 'LOCKED', lock_token = $4, lock_user_id = $5,
                    lock_expires_at = now() + make_interval(mins => $6)
-             WHERE trip_id = $1 AND seat_no = ANY($2::smallint[]) AND seg >= $3 AND seg < $7 AND {FREE_SEG}
-         RETURNING seat_no, lock_expires_at""",
+              FROM wanted w
+             WHERE s.trip_id = $1 AND s.seat_no = w.seat_no AND s.seg = w.seg
+               AND {FREE_SEG}
+         RETURNING s.seat_no, s.lock_expires_at""",
         trip_id, seat_nos, from_seq, token, user_id, minutes, to_seq)
 
 

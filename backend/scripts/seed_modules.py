@@ -69,6 +69,12 @@ def ref_by(index):
     return ("!refi", index)
 
 
+def derive(sql, dep):
+    """Pick the column from the rows `sql` returns for the value already chosen for column `dep` of the same row,
+    e.g. a manifest lists a ticket of the manifest's own trip."""
+    return ("!derive", sql, dep)
+
+
 def money(lo, hi, step=500):
     return lambda i: rnd.randrange(lo // step, hi // step + 1) * step
 
@@ -178,7 +184,9 @@ PLAN = [
     ("brd.crossing_profile", 3, {"status": "ACTIVE"}),
     ("brd.manifest", 22, {"created_at": lambda i: ago(30),
                           "status": weighted(("ACKNOWLEDGED", 6), ("SUBMITTED", 3), ("DRAFT", 2), ("REJECTED", 1), ("CLOSED", 1))}),
-    ("brd.manifest_person", 80, {"person_role": "PASSENGER", "ticket_id": REF, "crew_party_id": None}),
+    ("brd.manifest_person", 80, {"person_role": "PASSENGER", "crew_party_id": None,
+                                  "ticket_id": derive("SELECT k.id FROM sales.ticket k JOIN brd.manifest m ON m.trip_id = k.trip_id"
+                                                      " WHERE m.id = $1 ORDER BY k.id", "manifest_id")}),
     ("ops.trip_crossing_plan", 4, {"exit_station_id": BORDER, "entry_station_id": "@border2", "seq": 1}),
     ("brd.manifest_discrepancy", 6, {"created_at": lambda i: ago(30), "resolved_at": cycle(None, None, ago(5))}),
     # ---------------------------------------------------------------- government links
@@ -296,7 +304,8 @@ PLAN = [
     ("ship.delivery_preference", 6, {"shipment_id": REF, "party_id": None}),
     ("ship.integration_partner", 3, {"party_id": "@partners", "name": cycle("Aramex Syria", "DHL partner desk", "Local Express")}),
     ("ship.handling_unit_item", 10, {"shipment_id": REF, "parcel_id": None}),
-    ("ship.shipment_leg", 30, {"trip_id": REF, "load_id": None, "courier_route_id": None, "created_at": lambda i: ago(30)}),
+    ("ship.shipment_leg", 30, {"load_id": None, "courier_route_id": None, "created_at": lambda i: ago(30),
+                                "trip_id": derive("SELECT id FROM ops.trip WHERE company_id = $1 ORDER BY id", "carrier_company_id")}),
     ("pricing.sponsor_account", 3, {}),
     # ---------------------------------------------------------------- accounting operations
     ("acct.tax_code", 3, {}),
@@ -455,7 +464,10 @@ class Seeder:
             if col in overrides:
                 v = overrides[col]
                 v = v(i) if callable(v) and not isinstance(v, tuple) else v
-                if isinstance(v, tuple) and v[0] == "!refi":
+                if isinstance(v, tuple) and v[0] == "!derive":
+                    found = [r[0] for r in await self.conn.fetch(v[1], vals.get(v[2]))] if vals.get(v[2]) is not None else []
+                    v = found[i % len(found)] if found else None
+                elif isinstance(v, tuple) and v[0] == "!refi":
                     ids = await self.refs(c.ref)
                     if not ids:
                         raise LookupError(f"no rows in {c.ref}")

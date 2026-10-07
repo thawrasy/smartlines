@@ -5,6 +5,9 @@ Design v3.2 without access to the repository. This file answers each finding aga
 existed, what was changed, and the automated test that proves it. The changes are in `db/schema/1039_review_hardening.sql`
 (migration 1.21.0), the API, the study v2.9 (sections 16.27 and 16.28) and the design document v3.3.
 
+A second, strategic review and its relationship audit register followed; `INTEGRITY_AUDIT.md` answers it (file 1040,
+design v3.4).
+
 Verification on a fresh build: 188 database checks (`db/tests/run.sh`, 47 of them new) and 171 API tests
 (`backend/tests`, 7 new in `test_review_hardening.py`), all passing.
 

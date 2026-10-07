@@ -92,7 +92,7 @@ flowchart LR
   ops -->|14| iam
   ops -->|15| net
   ops -->|1| ref
-  ops -->|2| sales
+  ops -->|3| sales
   pricing -->|1| fin
   pricing -->|20| iam
   pricing -->|7| net
@@ -1647,6 +1647,7 @@ erDiagram
   ops_trip }o--|| ref_trip_type : "trip_type"
   ops_shuttle_ride }o..o| sales_boarding_event : "boarding_event_id"
   ops_seat_segment }o..o| sales_ticket : "ticket_id"
+  ops_seat_segment }o..o| sales_ticket : "trip_id,ticket_id"
 ```
 
 ## `sales` — Channels, bookings, passengers, tickets, subscriptions and travel documents
@@ -2017,6 +2018,7 @@ erDiagram
   sales_channel_statement_line }o..o| sales_booking : "booking_id"
   sales_ticket }o--|| sales_booking : "booking_id"
   sales_campaign_redemption }o--|| sales_booking : "booking_id"
+  sales_ticket }o--|| sales_booking : "booking_id,trip_id"
   sales_waitlist_entry }o..o| sales_booking : "booking_id"
   sales_channel_api_profile }o--|| sales_channel : "channel_id"
   sales_channel_agreement }o--|| sales_channel : "channel_id"
@@ -2031,6 +2033,7 @@ erDiagram
   sales_shuttle_pass }o..o| sales_nfc_card : "nfc_card_id"
   sales_boarding_event }o..o| sales_nfc_card : "nfc_card_id"
   sales_ticket }o--|| sales_passenger : "passenger_id"
+  sales_ticket }o--|| sales_passenger : "booking_id,passenger_id"
   sales_passenger }o..o| sales_passenger : "accompanied_by_passenger_id"
   sales_subscription_plan }o..o| sales_shuttle_zone : "zone_id"
   sales_shuttle_pass }o--|| sales_subscription : "subscription_id"

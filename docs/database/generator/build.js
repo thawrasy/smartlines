@@ -11,8 +11,8 @@ const {
 const HERE = __dirname;
 const model = JSON.parse(fs.readFileSync(path.join(HERE, "..", "build", "model.json"), "utf8"));
 const PNG = path.join(HERE, "..", "erd", "png");
-const VERSION = "3.3";
-const DATE = "6 October 2026";
+const VERSION = "3.4";
+const DATE = "7 October 2026";
 const FONT = "Arial";
 const C = { navy: "1F3A5F", blue: "2E74B5", blue2: "1F4D78", grid: "B7C3D0", alt: "F2F6FA", grey: "595959" };
 
@@ -102,22 +102,59 @@ front.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 16
 front.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 1200 },
   children: [run(`Complete relational model of the Analysis and Design Study v2.9: ${tableCount} tables, ${fkCount} relationships`, { color: "7F7F7F" })] }));
 front.push(table(["Item", "Details"], [
-  ["Version", `${VERSION} (hardening after the independent database architecture review; replaces version 3.2)`],
+  ["Version", `${VERSION} (integrity audit of every relationship after the strategic database review; replaces version 3.3)`],
   ["Date", DATE],
-  ["Basis", "Analysis and Design Study v2.9 (English), the Use Case and Data Flow Diagrams v1.0 and the Database Architecture Review v1.0"],
+  ["Basis", "Analysis and Design Study v2.9 (English), the Use Case and Data Flow Diagrams v1.0, the Database Architecture Review v1.0, the Strategic Database Review and its relationship audit register"],
   ["Scope", `${schemas.length} schemas, ${tableCount} tables, ${colCount} columns, ${fkCount} foreign keys; all phases 1 to 15`],
-  ["Engine", "PostgreSQL 16 with row-level security on every table; schema files db/schema/000 to 1039"],
-  ["Status", "Built and verified: fresh build and upgrade identical, 188 database checks and 171 API tests passing, every foreign key indexed or exempt by rule"],
+  ["Engine", "PostgreSQL 16 with row-level security on every table; schema files db/schema/000 to 1040"],
+  ["Status", "Built and verified: fresh build and upgrade identical, 209 database checks and 175 API tests passing, every foreign key indexed or exempt by rule"],
   ["Website", "masslak.com"],
 ], [2800, 6946]));
 
 const toc = [H(HeadingLevel.HEADING_1, "Contents", { pageBreak: true })];
-const tocLines = ["Changes in version 3.3", "Changes in version 3.2", "Changes in version 3.1", "Changes in version 3.0", "1. Introduction", "2. Database architecture", "3. Design rules", "4. Security model in the database",
+const tocLines = ["Changes in version 3.4", "Changes in version 3.3", "Changes in version 3.2", "Changes in version 3.1", "Changes in version 3.0", "1. Introduction", "2. Database architecture", "3. Design rules", "4. Security model in the database",
   "5. Data stores of the data flow diagrams", "6. Entity-relationship diagrams by module",
   ...model.groups.map((g, i) => `      6.${i + 1} ${g[0]} ${g[1]}`), `      6.${model.groups.length + 1} Focus diagrams: rules that span modules`,
   "7. Table definitions", "8. Traceability to the study", "9. Verification",
   "Appendix A: Feature flags", "Appendix B: Generalizations and naming decisions", "Appendix C: References without a foreign key"];
 for (const l of tocLines) toc.push(P(l, { after: 40, size: 20 }));
+
+// ------------------------------ changes in 3.4 ------------------------------
+const changes34 = [H(HeadingLevel.HEADING_1, "Changes in version 3.4", { pageBreak: true }),
+  P("A strategic review of the study and of version 3.3 approved the architecture and the model as the baseline and asked that the "
+    + "critical controls be proven, not only designed. Its audit register classified all 1,304 relationships of version 3.3 and flagged "
+    + "136 for review. Each flagged relationship was checked against the built database; the disposition of every one is in "
+    + "docs/database/INTEGRITY_AUDIT.md. Schema file 1040_integrity_audit.sql (migration 1.22.0) adds what the check found missing; "
+    + "its three composite keys bring the relationships to " + fkCount + ". No table was added or removed."),
+  table(["Finding", "What the database now does", "Evidence"], [
+    ["C-03, F-001, F-002 Cross-entity integrity", "A ticket travels on the trip of its booking and belongs to a passenger of that booking; a sold seat belongs to "
+      + "the trip of its ticket: validated composite foreign keys. A scan of another trip's ticket is recorded only as WRONG_TRIP; a manifest lists "
+      + "only tickets of its own trip; a cargo leg rides a trip of its carrier; a payment draws only on the payer's own wallet; a ticket sells only "
+      + "its carrier's fare brands", "one test per rule"],
+    ["F-003, F-004 Tenant references", "27 more references are guarded inside one company, 9 vehicle references by ownership or lease. Vehicles follow ownership or an active lease (fleet.vehicle_usable_by): a "
+      + "same-company key, as proposed, would refuse every leased vehicle. Crew profiles are keyed by party. References to service partners stay "
+      + "open by design: a partner is a company of its own", "tests: leased vehicle accepted, other company's vehicle refused, COPY checked"],
+    ["F-003 Guard quality", "Every tenant guard is a row trigger, BEFORE INSERT OR UPDATE, enabled and not deferrable; bulk loading fires it",
+      "test: trigger shape sweep"],
+    ["H-02, F-006 Company wallet", "One COMPANY wallet per company and currency (wallet_company_currency_uq); cash and expense wallets stay per owner", "test"],
+    ["C-01 Seat hold", "ops.seat_lock is an audit trail only; the hold is the LOCKED row of ops.seat_segment, taken in a fixed seat and segment order",
+      "tests: 36 overlapping requests, multi-seat holds in opposite orders"],
+    ["C-04 Pooling", "The request context is transaction-local (set_config with is_local); a reused connection carries nothing to the next request",
+      "API test on one shared physical connection"],
+    ["H-01 References without a key", "14 of the 25 polymorphic pairs are backed by real foreign keys (1039); their comments now say so. The other "
+      + "references are integration mappings, event metadata and append-only logs (appendix C)", "appendix C"],
+    ["H-07, M-02 Governance", "sys.v_schema_dependency and sys.v_jsonb_inventory; a new two-way schema dependency or a JSONB field in a policy, key or "
+      + "index fails the build (docs/database/STANDARDS.md)", "tests: dependency baseline, JSONB rule"],
+    ["FK-0414 Jurisdictions", "Tax jurisdictions form a tree without loops", "test"],
+  ], [2200, 5146, 2400], { boldFirst: true }),
+  gap(),
+  table(["Measure", "Version 3.3", "Version 3.4"], [
+    ["Tables", `${tableCount}`, `${tableCount}`],
+    ["References guarded inside one company", "79", "106, and 9 vehicle references by ownership or lease"],
+    ["Database checks", "188", "209"],
+    ["API tests", "171", "175"],
+  ], [2700, 2400, 4646], { boldFirst: true }),
+];
 
 // ------------------------------ changes in 3.3 ------------------------------
 const changes33 = [H(HeadingLevel.HEADING_1, "Changes in version 3.3", { pageBreak: true }),
@@ -228,16 +265,16 @@ const changes = [H(HeadingLevel.HEADING_1, "Changes in version 3.0", { pageBreak
 const intro = [H(HeadingLevel.HEADING_1, "1. Introduction", { pageBreak: true }),
   H(HeadingLevel.HEADING_2, "1.1 Purpose"),
   P("This document is the database design of the Masslak platform. It redevelops the data model so that every entity and relationship "
-    + "of the Analysis and Design Study v2.8 has a table, keys and constraints in the database, and it draws the relationships of each module "
+    + "of the Analysis and Design Study v2.9 has a table, keys and constraints in the database, and it draws the relationships of each module "
     + "as an entity-relationship diagram in the colours of the study."),
   H(HeadingLevel.HEADING_2, "1.2 Sources and scope"),
-  bullet("the Analysis and Design Study v2.8 (English), including appendix D (additional phases 13 to 15), the travel document rules of 11.9.1, passenger categories and family accounts (4.19, 4.20), carrier-issued manifests (11.10) and data isolation (16.26);", "Study"),
+  bullet("the Analysis and Design Study v2.9 (English), including appendix D (additional phases 13 to 15), the travel document rules of 11.9.1, passenger categories and family accounts (4.19, 4.20), carrier-issued manifests (11.10) and data isolation (16.26);", "Study"),
   bullet("the Use Case and Data Flow Diagrams v1.0, whose data stores D1 to D17 are mapped to tables in chapter 5;", "Diagrams"),
   bullet("the PostgreSQL schema in db/schema, built and tested; every diagram and table definition here is generated from the built database, "
     + "so the document cannot drift from the schema.", "Database"),
   P("The model covers the core of Phase 1 and every later phase: shuttle and approved lines, shipping, international trips and the border manifest, "
     + "government integration, tracking and stations, trucks and transit, intermediary platforms, rail, taxi, car rental, and the additional phases "
-    + "13 to 15. Modules of later phases are built now and stay disabled behind feature flags until their phase starts (study 2.8, decision D-6)."),
+    + "13 to 15. Modules of later phases are built now and stay disabled behind feature flags until their phase starts (study v2.9, decision D-6)."),
   H(HeadingLevel.HEADING_2, "1.3 Notation"),
   P("Each diagram shows one module. A box is a table: the coloured band and header follow the module's colour family from the study's figure 4.1; "
     + "rows list the primary key (PK), the foreign keys (FK), unique keys (UQ) and the main attributes, with required columns in bold. The number "
@@ -487,11 +524,14 @@ const verify = [H(HeadingLevel.HEADING_1, "9. Verification", { pageBreak: true }
     ["Fresh build (db/build.sh)", `all schema files apply in order; ${tableCount} tables, ${fkCount} foreign keys`],
     ["Upgrade (db/upgrade.sh)", "a database of the previous release upgrades to a schema identical to a fresh build (pg_dump compared)"],
     ["Idempotence", "every new file runs twice without error"],
-    ["Automated tests (db/tests/run.sh)", "188 checks passing: isolation of shipments, bids, partners, manifests; exclusion and uniqueness rules; "
+    ["Automated tests (db/tests/run.sh)", "209 checks passing: isolation of shipments, bids, partners, manifests; exclusion and uniqueness rules; "
       + "append-only tables; four-eyes approvals; feature flags off; the relationship rules R1 to R3; and the acceptance matrix of the architecture review "
-      + "(classification, isolation sweep, RLS bypass, typed references, tenant checks, ledger, seats, business rules, scopes, keys, erasure, tracking)"],
+      + "(classification, isolation sweep, RLS bypass, typed references, tenant checks, ledger, seats, business rules, scopes, keys, erasure, tracking) "
+      + "and of the integrity audit (sale chain, manifests, cargo legs, wallets, leased vehicles, COPY, guard shape, schema dependencies, JSONB)"],
     ["Relationship audit", `${fkCount} foreign keys: ${idxCount("indexed")} indexed, ${idxCount("lookup")} to lookup lists, ${idxCount("actor")} actor columns, ${idxCount("missing")} missing an index; ${noFk.length} documented references without a foreign key`],
-    ["Application", "171 API tests passing, among them 20 concurrent holds on one seat (one winner) and sign-in in the AUTH scope"],
+    ["Application", "175 API tests passing, among them 20 concurrent holds on one seat (one winner), 36 overlapping-segment requests, multi-seat "
+      + "holds in opposite orders without deadlock, concurrent wallet bookings that reconcile, a pooled connection that carries no company "
+      + "into the next request, and sign-in in the AUTH scope"],
     ["Coverage", "every table has row-level security, a data class and an owner path (checked by the tests)"],
     ["Documents", "this document, db/DATA_DICTIONARY.md and db/ERD.md are generated from the built database"],
   ], [3200, 6546], { boldFirst: true }),
@@ -546,7 +586,7 @@ const doc = new Document({
   numbering: { config: [{ reference: "bullets", levels: [{ level: 0, format: LevelFormat.BULLET, text: "•", alignment: AlignmentType.LEFT,
     style: { paragraph: { indent: { left: 540, hanging: 270 } } } }] }] },
   sections: [
-    section(PORTRAIT, [...front, ...toc, ...changes33, ...changes32, ...changes31, ...changes, ...intro, ...arch, ...rules, ...security, ...stores]),
+    section(PORTRAIT, [...front, ...toc, ...changes34, ...changes33, ...changes32, ...changes31, ...changes, ...intro, ...arch, ...rules, ...security, ...stores]),
     ...erdSections,
     section(PORTRAIT, [...defs, ...trace, ...verify, ...flags, ...gens, ...appC]),
   ],

@@ -415,7 +415,7 @@ INSERT INTO ship.service_product (code, name) VALUES ('EXPRESS_1D', 'Express nex
 INSERT INTO ship.shipment (tracking_no, company_id, shipper_party_id, service_id, origin_station_id, dest_station_id)
 SELECT 'MSL0000000017', :ca, :pax, id, :st_dam, :b_in FROM ship.service_product WHERE code = 'EXPRESS_1D';
 SELECT id AS shp FROM ship.shipment WHERE tracking_no = 'MSL0000000017' \gset
-INSERT INTO ship.shipment_leg (shipment_id, seq, mode, carrier_company_id, trip_id) VALUES (:shp, 1, 'BUS_HOLD', :cb, :t_tr);
+INSERT INTO ship.shipment_leg (shipment_id, seq, mode, carrier_company_id) VALUES (:shp, 1, 'BUS_HOLD', :cb);
 INSERT INTO brd.border_point (station_id, point_type, country_code) VALUES (:b_in, 'LAND', 'SY');
 INSERT INTO brd.manifest (trip_id, border_point_id, manifest_type) VALUES (:t_tr, :b_in, 'PRE_ARRIVAL');
 SELECT id AS mf FROM brd.manifest WHERE trip_id = :t_tr \gset
@@ -844,5 +844,98 @@ COMMIT;
 -- Tracking partitions and the daily job (3.7)
 SELECT pg_temp.ok((sys.run_maintenance()) ->> 'wallet_mismatches' = '0', 'Restore and upkeep: the daily job runs and the ledger reconciles');
 SELECT pg_temp.ok((SELECT count(*) FROM pg_inherits WHERE inhparent = 'ops.geo_event'::regclass) >= 4, 'Tracking burst: position partitions exist months ahead');
+
+-- =====================================================================
+-- Integrity audit (1040): relationships that are each valid alone but must agree with each other
+-- =====================================================================
+RESET ROLE;
+SELECT id AS t222 FROM ops.trip WHERE trip_no = 'QDS222/03OCT26' \gset
+SELECT id AS bk FROM sales.booking WHERE booking_ref = 'ABC123' \gset
+BEGIN;
+INSERT INTO ops.trip_stop (trip_id, seq, station_id, kind, sched_dep) VALUES (:t222, 0, :st_dam, 'STATION', '2026-10-03 08:00+00');
+INSERT INTO ops.trip_stop (trip_id, seq, station_id, kind, sched_arr) VALUES (:t222, 1, (SELECT id FROM net.station WHERE code = 'SY-HMS-C001'), 'STATION', '2026-10-03 10:00+00');
+SELECT pg_temp.expect_error(format($$INSERT INTO sales.ticket (ticket_no, booking_id, passenger_id, trip_id, from_seq, to_seq, seat_no, fare_amount, total_amount, rules_snapshot)
+  VALUES ('TK-X-1', %s, %s, %s, 0, 1, 9, 1, 1, '{}')$$, :bk, :adult, :t222),
+  'ticket_booking_trip_fk', 'Audit F-002: a ticket travels on the trip of its booking');
+INSERT INTO sales.booking (booking_ref, trip_id, company_id, booker_party_id, channel_id, currency, total_amount, price_breakdown, rules_version, idempotency_key, status)
+VALUES ('XYZ999', :t214, :ca, :pax, (SELECT id FROM sales.channel WHERE code = 'WEB'), 'SYP', 1, '{}', 'r1', 'b-audit', 'PENDING_PAYMENT');
+SELECT pg_temp.expect_error(format($$INSERT INTO sales.ticket (ticket_no, booking_id, passenger_id, trip_id, from_seq, to_seq, seat_no, fare_amount, total_amount, rules_snapshot)
+  SELECT 'TK-X-2', id, %s, %s, 0, 1, 9, 1, 1, '{}' FROM sales.booking WHERE booking_ref = 'XYZ999'$$, :adult, :t214),
+  'ticket_passenger_booking_fk', 'Audit F-002: a ticket is issued to a passenger of its own booking');
+INSERT INTO ops.seat_segment (trip_id, seat_no, seg) VALUES (:t222, 9, 0);
+SELECT pg_temp.expect_error(format($$UPDATE ops.seat_segment SET status = 'SOLD', ticket_id = %s WHERE trip_id = %s AND seat_no = 9 AND seg = 0$$, :tk1, :t222),
+  'SEAT_TICKET_MISMATCH', 'Audit F-001: a seat is sold only to a ticket of its own trip (the 1039 seat guard)');
+SELECT pg_temp.ok((SELECT count(*) FROM pg_constraint WHERE convalidated AND conname IN ('seat_segment_ticket_trip_fk','ticket_booking_trip_fk','ticket_passenger_booking_fk')) = 3,
+  'Audit F-001/F-002: the sale chain is also held by validated composite keys, which no trigger setting switches off');
+SELECT pg_temp.expect_error(format($$INSERT INTO sales.boarding_event (ticket_id, trip_id, stop_seq, event_type, method, result) VALUES (%s, %s, 0, 'BOARD', 'AGENT_SCAN', 'OK')$$, :tk1, :t222),
+  'TICKET_OTHER_TRIP', 'Audit C-03: a boarding on another trip is never recorded as valid');
+INSERT INTO sales.boarding_event (ticket_id, trip_id, stop_seq, event_type, method, result) VALUES (:tk1, :t222, 0, 'DENIED', 'AGENT_SCAN', 'WRONG_TRIP');
+SELECT pg_temp.ok(true, 'Audit C-03: a ticket presented on the wrong trip is still recorded, as WRONG_TRIP');
+INSERT INTO brd.manifest (trip_id, border_point_id, manifest_type) VALUES (:t222, :b_in, 'PRE_ARRIVAL');
+SELECT pg_temp.expect_error(format($$INSERT INTO brd.manifest_person (manifest_id, person_role, ticket_id, nationality) SELECT id, 'PASSENGER', %s, 'SY' FROM brd.manifest WHERE trip_id = %s$$, :tk1, :t222),
+  'MANIFEST_TICKET_OTHER_TRIP', 'Audit C-03: a manifest lists only tickets of its own trip');
+SELECT pg_temp.expect_error(format($$INSERT INTO ship.shipment_leg (shipment_id, seq, mode, carrier_company_id, trip_id) VALUES (%s, 2, 'BUS_HOLD', %s, %s)$$, :shp, :cb, :t214),
+  'LEG_TRIP_OTHER_CARRIER', 'Audit C-03: a cargo leg rides a trip of its own carrier');
+INSERT INTO ship.shipment_leg (shipment_id, seq, mode, carrier_company_id, trip_id) VALUES (:shp, 2, 'BUS_HOLD', :ca, :t214);
+SELECT pg_temp.ok(true, 'Audit C-03: the trip operator carries the leg');
+SELECT pg_temp.expect_error(format($$INSERT INTO fin.payment (provider_id, purpose, booking_id, payer_party_id, wallet_id, method, currency, amount, idempotency_key)
+  SELECT p.id, 'BOOKING', %s, %s, %s, 'E_WALLET', 'SYP', 100, 'audit-pay-1' FROM fin.payment_provider p WHERE p.code = 'SANDBOX'$$, :bk, :driver, :wpax),
+  'WALLET_NOT_PAYERS', 'Audit C-03: nobody pays from another person''s wallet');
+INSERT INTO pricing.fare_brand (code, name, company_id, rules) VALUES ('SHAM_PLUS', 'Sham Plus', :cb, '{}');
+SELECT pg_temp.expect_error(format($$UPDATE sales.ticket SET fare_brand_code = 'SHAM_PLUS' WHERE id = %s$$, :tk1),
+  'TENANT_MISMATCH', 'Audit FK-0327: a ticket never sells another carrier''s fare brand');
+INSERT INTO pricing.jurisdiction (country_code, level, name) VALUES ('SY', 'COUNTRY', 'Audit Syria');
+INSERT INTO pricing.jurisdiction (country_code, level, name, parent_id) SELECT 'SY', 'REGION', 'Audit Damascus', id FROM pricing.jurisdiction WHERE name = 'Audit Syria';
+SELECT pg_temp.expect_error($$UPDATE pricing.jurisdiction SET parent_id = (SELECT id FROM pricing.jurisdiction WHERE name = 'Audit Damascus') WHERE name = 'Audit Syria'$$,
+  'JURISDICTION_CYCLE', 'Audit FK-0414: tax jurisdictions form a tree without loops');
+ROLLBACK;
+
+-- Tenant guards on the references that had none; a vehicle follows ownership or an active lease (F-003, F-004)
+BEGIN;
+SELECT pg_temp.expect_error(format($$INSERT INTO ops.incident (company_id, vehicle_id, type, severity, occurred_at) VALUES (%s, %s, 'BREAKDOWN', 'MINOR', now())$$, :ca, :vb),
+  'VEHICLE_NOT_OWNED_OR_LEASED', 'Audit F-004: an incident cannot name another company''s vehicle');
+INSERT INTO fleet.vehicle_lease (vehicle_id, owner_party_id, lessee_company_id, contract_no, period, status)
+VALUES (:vb, :cb, :ca, 'LEASE-AUDIT-1', daterange(current_date - 1, current_date + 90), 'ACTIVE');
+INSERT INTO ops.incident (company_id, vehicle_id, type, severity, occurred_at) VALUES (:ca, :vb, 'BREAKDOWN', 'MINOR', now());
+SELECT pg_temp.ok(true, 'Audit F-004: a leased vehicle serves its lessee (a plain same-company key would refuse it)');
+SELECT pg_temp.expect_error(format($$INSERT INTO fleet.driving_hours_log (party_id, company_id, kind, started_at) VALUES (%s, %s, 'DRIVING', now())$$, :driver, :cb),
+  'TENANT_MISMATCH', 'Audit F-004: another company cannot log hours for a driver who is not theirs');
+-- the guards are not bypassed by bulk loading: COPY fires them like INSERT
+SELECT pg_temp.expect_error(format($$COPY ops.incident (company_id, vehicle_id, type, severity, occurred_at) FROM PROGRAM 'printf "%s,%s,COLLISION,MINOR,2026-10-01 10:00+00\n"' WITH (FORMAT csv)$$, :cb, :va),
+  'VEHICLE_NOT_OWNED_OR_LEASED', 'Audit F-003: bulk loading (COPY) is checked like every insert');
+ROLLBACK;
+
+-- Every tenant guard is a row trigger that runs before insert and update, enabled and never deferred (F-003)
+SELECT pg_temp.ok((SELECT count(*) FROM pg_trigger t JOIN pg_proc p ON p.oid = t.tgfoid
+                    WHERE NOT t.tgisinternal AND p.proname IN ('tg_same_company','tg_vehicle_of_company')) >= 110
+  AND NOT EXISTS (SELECT 1 FROM pg_trigger t JOIN pg_proc p ON p.oid = t.tgfoid
+                   WHERE NOT t.tgisinternal AND p.proname IN ('tg_same_company','tg_vehicle_of_company','tg_boarding_ticket_trip','tg_manifest_person_trip','tg_leg_trip_carrier','tg_payment_wallet_owner')
+                     AND (t.tgtype & 1 = 0 OR t.tgtype & 2 = 0 OR t.tgtype & 4 = 0 OR t.tgtype & 16 = 0 OR t.tgenabled <> 'O' OR t.tgdeferrable)),
+  'Audit F-003: tenant guards are row-level, BEFORE INSERT OR UPDATE, enabled and not deferrable');
+
+-- One COMPANY wallet per company and currency (H-02)
+BEGIN;
+INSERT INTO fin.wallet (owner_party_id, company_id, wallet_type, currency) VALUES (NULL, :ca, 'COMPANY', 'USD');
+SELECT pg_temp.expect_error(format($$INSERT INTO fin.wallet (owner_party_id, company_id, wallet_type, currency) VALUES (NULL, %s, 'COMPANY', 'USD')$$, :ca),
+  'wallet_company_currency_uq', 'Audit H-02: one company wallet per company and currency');
+ROLLBACK;
+
+-- Governance: no new two-way dependency between schemas without review (H-07), no JSONB in security or keys (M-02)
+SELECT pg_temp.ok(NOT EXISTS (
+  SELECT 1 FROM sys.v_schema_dependency a JOIN sys.v_schema_dependency b ON a.from_schema = b.to_schema AND a.to_schema = b.from_schema
+   WHERE a.from_schema < a.to_schema
+     AND (a.from_schema || '<->' || a.to_schema) <> ALL (ARRAY[
+       'acct<->sales','fin<->iam','fin<->ops','fin<->pricing','fin<->sales','fin<->ship','fleet<->iam','fleet<->ops','fleet<->ptn',
+       'frt<->ship','gov<->iam','gov<->sec','iam<->net','iam<->ops','iam<->ref','iam<->sec','ops<->sales','ops<->sec','pricing<->sales',
+       'ref<->sec','sales<->sec'])),
+  'Audit H-07: no new two-way dependency between schemas outside the reviewed baseline');
+SELECT pg_temp.ok(NOT EXISTS (SELECT 1 FROM pg_policy WHERE coalesce(pg_get_expr(polqual, polrelid), '') || coalesce(pg_get_expr(polwithcheck, polrelid), '') ~ '->')
+  AND NOT EXISTS (SELECT 1 FROM pg_index WHERE pg_get_indexdef(indexrelid) ~ '->>|->')
+  AND NOT EXISTS (SELECT 1 FROM pg_constraint c JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = ANY (c.conkey)
+                   WHERE c.contype = 'f' AND a.atttypid = 'jsonb'::regtype),
+  'Audit M-02: no security policy, key or index depends on a JSONB field');
+SELECT pg_temp.ok(obj_description('ops.seat_lock'::regclass) LIKE 'Audit trail%' AND obj_description('ops.seat_lock'::regclass) NOT LIKE '%memory%',
+  'Audit C-01: the seat hold has one record, the LOCKED seat segment');
+SET ROLE masslak_app;
 
 \echo '=== ALL TESTS PASSED ==='

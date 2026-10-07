@@ -272,6 +272,12 @@ for authorities, IBANs for payouts) pass `sec.authorize` (`backend/app/policy.py
 decision in `sec.policy_decision`. Sources of truth (study 16.28): seats live only in PostgreSQL, and the ledger stays in
 schema `fin` of the same database, written in the booking's transaction.
 
+File 1040 (integrity audit, `docs/database/INTEGRITY_AUDIT.md`) makes related rows agree: a ticket, its booking, its
+passenger and its sold seats share one trip (composite foreign keys); manifests list tickets of their own trip; a cargo
+leg rides its carrier's trip; a payment draws only on the payer's own wallet; a vehicle serves its owner or an active
+lessee. Concurrent transactions lock seats, then the booking, the payment and wallets in ascending id, so they queue
+instead of deadlocking (`docs/database/STANDARDS.md`).
+
 Company isolation (study 16.26, file 1038): `backend/tests/test_isolation.py` signs in as every company under the
 application role and counts the rows of other companies in every table that has a company column. The only rows allowed
 are listed in the test with the reason (public catalog data, or the two parties of one deal); a new table without a

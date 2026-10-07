@@ -2457,7 +2457,7 @@ Deviations from the line version measured by tracking; append-only
 
 ### `ops.seat_lock` 🛡️
 
-Database copy of seat locks for audit; the live lock is held in memory (4.5)
+Audit trail of seat holds. Never read to decide availability: the hold itself is the LOCKED row of ops.seat_segment (study 16.28)
 
 | Column | Type | Constraints | Default |
 |---|---|---|---|

@@ -82,6 +82,7 @@ is a new file. A database built before file tracking is treated as having every 
 | `1029_model_flags.sql` | Feature flags of the new modules (all off) and schema version 1.12.0 |
 | `1030`–`1038` | Module permissions, workflows, travel documents, relationship rules, reports, payments, integration API, RLS coverage, passenger categories, families and manifests |
 | `1039_review_hardening.sql` | Database architecture review: RLS and a data class on every table, AUTH scope, typed foreign keys behind polymorphic references, same-company checks, ledger reversals and reconciliation, seat rules, business rules, retention and erasure, scopes and decision log, key rules, module gates (see `docs/database/REVIEW_RESPONSE.md`) |
+| `1040_integrity_audit.sql` | Strategic review and relationship audit: composite keys for the sale chain (ticket, booking, passenger, seat, trip), guards for boarding scans, manifest persons, cargo legs, payment wallets and fare brands, 27 more tenant guards and 9 vehicle guards (ownership or lease), one company wallet per currency, jurisdiction tree, schema dependency and JSONB inventories (see `docs/database/INTEGRITY_AUDIT.md`) |
 
 ## Design rules (study 29.1)
 
