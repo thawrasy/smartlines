@@ -91,7 +91,7 @@ flowchart LR
   net -->|3| ref
   ops -->|2| fin
   ops -->|9| fleet
-  ops -->|16| iam
+  ops -->|17| iam
   ops -->|17| net
   ops -->|1| ref
   ops -->|3| sales
@@ -116,7 +116,7 @@ flowchart LR
   rent -->|3| fleet
   rent -->|3| iam
   rent -->|1| net
-  rpt -->|5| iam
+  rpt -->|7| iam
   rpt -->|1| ref
   sales -->|2| acct
   sales -->|5| fin
@@ -146,7 +146,7 @@ flowchart LR
   ship -->|11| net
   ship -->|4| ops
   ship -->|2| ref
-  sys -->|3| iam
+  sys -->|4| iam
   sys -->|1| ref
   taxi -->|1| fin
   taxi -->|3| fleet
@@ -573,6 +573,18 @@ erDiagram
     text code PK
     bigint updated_by FK
   }
+  sys_delivery_retry_request {
+    bigint id PK
+    uuid uid
+    bigint delivery_id FK
+    bigint api_client_id FK
+    bigint requested_by FK
+    text status
+    bigint decided_by FK
+  }
+  sys_job_run {
+    bigint id PK
+  }
   sys_json_contract {
     text table_name PK
     text column_name PK
@@ -649,12 +661,14 @@ erDiagram
     ref external
   }
   sys_webhook_endpoint }o..o| iam_api_client : "api_client_id"
+  sys_delivery_retry_request }o..o| iam_api_client : "api_client_id"
   sys_requirement_change }o--|| iam_app_user : "proposed_by"
   sys_company_setting }o--|| iam_company : "company_id"
   sys_city_rollout }o--|| ref_city : "city_id"
   sys_requirement_change }o--|| sys_compliance_requirement : "code"
   sys_webhook_delivery }o--|| sys_outbox_event : "outbox_event_id"
   sys_table_phase }o--|| sys_project_phase : "phase_code"
+  sys_delivery_retry_request }o--|| sys_webhook_delivery : "delivery_id"
   sys_webhook_delivery }o--|| sys_webhook_endpoint : "endpoint_id"
 ```
 
@@ -1442,6 +1456,7 @@ erDiagram
   ops_geo_event {
     bigint id PK
     timestamp_with_time_zone ts PK
+    bigint device_id FK
   }
   ops_incident {
     bigint id PK
@@ -1708,6 +1723,7 @@ erDiagram
   ops_trip }o--|| iam_company : "company_id"
   ops_trip_disruption }o..o| iam_company : "partner_company_id"
   ops_permission_event }o..o| iam_device : "device_id"
+  ops_geo_event }o..o| iam_device : "device_id"
   ops_incident }o..o| iam_party : "driver_party_id"
   ops_route_violation }o..o| iam_party : "driver_party_id"
   ops_trip }o..o| net_corridor : "corridor_id"
@@ -5178,6 +5194,14 @@ erDiagram
     bigint owner_user_id FK
     text status
   }
+  rpt_report_delivery {
+    bigint id PK
+    uuid uid
+    bigint schedule_id FK
+    bigint report_run_id FK
+    bigint recipient_user_id FK
+    bigint file_id FK
+  }
   rpt_report_run {
     bigint id PK
     bigint definition_id FK
@@ -5192,6 +5216,7 @@ erDiagram
     bigint owner_user_id FK
     bigint company_id FK
     text locale FK
+    bigint consent_by FK
   }
   iam_api_client {
     ref external
@@ -5207,12 +5232,16 @@ erDiagram
   }
   rpt_report_run }o..o| iam_api_client : "api_client_id"
   rpt_report_run }o..o| iam_app_user : "user_id"
+  rpt_report_delivery }o--|| iam_app_user : "recipient_user_id"
+  rpt_report_schedule }o..o| iam_app_user : "consent_by"
   rpt_report_definition }o..o| iam_company : "company_id"
   rpt_report_run }o..o| iam_company : "company_id"
   rpt_report_schedule }o..o| iam_company : "company_id"
   rpt_report_schedule }o--|| ref_locale : "locale"
   rpt_report_run }o..o| rpt_report_definition : "definition_id"
   rpt_report_schedule }o..o| rpt_report_definition : "definition_id"
+  rpt_report_delivery }o--|| rpt_report_run : "report_run_id"
+  rpt_report_delivery }o--|| rpt_report_schedule : "schedule_id"
 ```
 
 ## `audit` — Login and activity logs (append-only)

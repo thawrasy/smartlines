@@ -186,6 +186,7 @@ section.
 | `security.break_glass_opened` | Someone holds break-glass access now | The security officer confirms the incident and the approver (section 11) |
 | `security.break_glass_expired` | A break-glass access reached its expiry | Revoke any credential issued for it (Vault token, database role); the review is due |
 | `security.break_glass_unreviewed` | A break-glass access ended more than 24 hours ago without a review | The security officer and the data owner review it now |
+| `integrity.payments_mismatch` | Payments, refunds, provider notices and the ledger disagree | Severity 1: freeze payouts; reconcile (section 16) |
 | `security.file_rejected` | An uploaded file failed the scan | Check the uploader's account and other recent uploads; the file stays in quarantine (section 12) |
 | `compliance.requirement_proposed`, `compliance.requirement_changed` | A regulatory requirement change is waiting, or was applied | A second administrator decides it; notify the carriers affected (section 13) |
 
@@ -272,6 +273,51 @@ section.
   HTTP must all answer 403.
 - **A delivery fails with `EGRESS_REFUSED`:** read the proxy log (`docker compose exec egress tail /var/log/squid/access.log`).
   A partner endpoint that resolves to a private address stays refused: this is the intended protection.
+
+## 15. Position evidence and violation review (T3-11)
+
+- **Trust grade:** every position gets a grade when it is stored (`ops.tg_geo_event_trust`). The thresholds are settings
+  the platform can tune:
+
+| Flag | Rule (setting) | Grade |
+|---|---|---|
+| `MOCK_LOCATION` | the phone reports a mock location provider | REJECTED |
+| `FUTURE_TIME` | device time more than 2 minutes ahead of the server | REJECTED |
+| `NO_FIX` | accuracy worse than `tracking.reject_accuracy_m` (500 m) | REJECTED |
+| `DEVICE_REVOKED`, `DEVICE_FAILED` | the session's device was revoked, or failed attestation | REJECTED |
+| `INACCURATE` | accuracy worse than `tracking.max_accuracy_m` (50 m), or unknown | LOW |
+| `LATE` | received more than `tracking.late_minutes` (10) after the device took it | LOW |
+| `OUT_OF_ORDER` | sequence not above the previous position's | LOW |
+| `IMPOSSIBLE_SPEED` | a jump faster than `tracking.max_speed_kmh` (200 km/h) | LOW |
+| `NETWORK_ONLY` | position from cell or Wi-Fi only | LOW |
+| `NO_DEVICE`, `NOT_ATTESTED` | only when `tracking.device_attestation` is REQUIRED | LOW |
+
+- **Duplicates:** a position whose device event id was already stored is dropped (replay).
+- **Devices:** mobile sessions are bound to a registered device, and each position records it. The driver app sends
+  an attestation (Play Integrity or App Attest) to `POST /api/driver/device/attestation`. The verifier service is
+  configured by `MASSLAK_ATTESTATION_URL`; until then attestation is refused, never assumed.
+- **Review:** a violation built on LOW positions counts only after review. A person with `violation.review` (platform
+  administrator or regulator) opens `GET /api/admin/violations/review` and reads the evidence. They then confirm or
+  dismiss with a note: `POST /api/admin/violations/{uid}/review`.
+
+  The metric `masslak_violations_awaiting_review` shows the queue. Review within 2 working days.
+
+## 16. Resending money and authority events (T3-12)
+
+- **Request:** a partner's retry of a FAILED or DEAD delivery is applied at once for ordinary events. For a payment,
+  refund, wallet, withdrawal, payout, settlement, manifest, authority or cancellation event, it becomes a request instead.
+- **Approval:** a person with `events.replay_approve` (platform administrator or finance), other than the requester,
+  approves or rejects it: `GET /api/admin/delivery-retries`, `POST /api/admin/delivery-retries/{uid}/decision`.
+- **Before approving:** confirm with the partner that they did not apply the event already. Their inbox should make a
+  repeat harmless (`docs/integration/EVENTS.md`), but money is checked twice.
+- **Daily reconciliation:** the daily upkeep runs `fin.reconcile_payments()`, which checks:
+  - refunds against refunded amounts;
+  - refunds and payments without a ledger transaction;
+  - currency mismatches;
+  - provider notices not applied after an hour.
+
+  Any mismatch raises `integrity.payments_mismatch` and the `masslak_payment_mismatches` metric. **Severity 1:** freeze
+  payouts, then reconcile the named payments one by one.
 
 ## Rehearsal schedule
 

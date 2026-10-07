@@ -1,0 +1,39 @@
+# promtool test rules deploy/monitoring/alerts_test.yml  (audit T3-16: the alerts fire on the conditions they name)
+rule_files: [alerts.yml]
+evaluation_interval: 1m
+tests:
+  - interval: 1m
+    input_series:
+      - series: masslak_wallet_mismatches
+        values: "0 0 2 2"
+      - series: masslak_outbox_oldest_pending_seconds
+        values: "10 400 400 400 400 400 400 400 400 400 400 400 400 400"
+      - series: masslak_geo_partitions_missing
+        values: "0x5 1x20"
+      - series: masslak_db_archive_mode_on
+        values: "1x20"
+      - series: masslak_db_wal_archive_last_success_age_seconds
+        values: "30 400 460 520 580 640 700 760 820 880"
+      - series: 'masslak_http_requests_total{group="booking",status="2xx",method="POST",route="/api/bookings"}'
+        values: "0+100x70"
+      - series: 'masslak_http_requests_total{group="booking",status="5xx",method="POST",route="/api/bookings"}'
+        values: "0+10x70"
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: WalletMismatch
+        exp_alerts: [{ exp_labels: { severity: page }, exp_annotations: { summary: "Wallet balances disagree with the ledger: freeze payouts", runbook: "RUNBOOKS.md#8-alerts-the-database-raises" } }]
+      - eval_time: 12m
+        alertname: OutboxBacklog
+        exp_alerts: [{ exp_labels: { severity: page }, exp_annotations: { summary: "Events wait more than 5 minutes in the outbox (worker down or stuck)", runbook: "RUNBOOKS.md#3-failover" } }]
+      - eval_time: 25m
+        alertname: PositionPartitionMissing
+        exp_alerts: [{ exp_labels: { severity: page }, exp_annotations: { summary: "Today's or tomorrow's position partition is missing (daily upkeep not running)", runbook: "RUNBOOKS.md#9-data-lifecycle-r-11" } }]
+      - eval_time: 9m
+        alertname: WalArchiveStale
+        exp_alerts: [{ exp_labels: { severity: page }, exp_annotations: { summary: "No WAL archived for 5 minutes: point-in-time recovery is at risk (RPO)", runbook: "RUNBOOKS.md#2-backup-and-point-in-time-restore-rpo-and-rto" } }]
+      - eval_time: 65m
+        alertname: BookingErrorBudgetFastBurn
+        exp_alerts: [{ exp_labels: { severity: page }, exp_annotations: { summary: "Bookings or payments are failing (2 % of the monthly error budget in one hour)", runbook: "RUNBOOKS.md#1-incident-response" } }]
+      - eval_time: 1m
+        alertname: WalletMismatch
+        exp_alerts: []

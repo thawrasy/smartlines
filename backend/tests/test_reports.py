@@ -154,7 +154,8 @@ def test_custom_report_saved_shared_and_isolated(owner, agency, admin):
 
 
 def test_scheduled_report_is_delivered_with_the_owner_rights(admin):
-    r = admin.post("/api/reports/schedules", json={"code": "sales.daily", "frequency": "DAILY", "format": "XLSX", "locale": "ar",
+    # a report without personal or money columns may go to the platform's own domain as an attachment (T3-05)
+    r = admin.post("/api/reports/schedules", json={"code": "ops.trips_by_status", "frequency": "DAILY", "format": "XLSX", "locale": "ar",
                                                    "recipients": ["finance-team@masslak.com"]})
     assert r.status_code == 201, r.text
     uid = r.json()["uid"]

@@ -14,7 +14,7 @@ const PNG = path.join(HERE, "..", "erd", "png");
 // numbers of the verification run that built this document (verification.py), never typed by hand (audit T3-17)
 const V = JSON.parse(fs.readFileSync(path.join(HERE, "..", "build", "verification.json"), "utf8"));
 const lastFile = V.last_schema_file.split("_")[0];
-const VERSION = "3.8";
+const VERSION = "3.9";
 const DATE = "7 October 2026";
 const FONT = "Arial";
 const C = { navy: "1F3A5F", blue: "2E74B5", blue2: "1F4D78", grid: "B7C3D0", alt: "F2F6FA", grey: "595959" };
@@ -110,9 +110,9 @@ front.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 16
 front.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 1200 },
   children: [run(`Complete relational model of the Analysis and Design Study v3.0: ${tableCount} tables, ${fkCount} relationships`, { color: "7F7F7F" })] }));
 front.push(table(["Item", "Details"], [
-  ["Version", `${VERSION} (the technical audit of design document 3.7: checked references for signatures and money, break-glass expiry, daily position partitions and evidence, two-person requirement changes, file quarantine; replaces version 3.7)`],
+  ["Version", `${VERSION} (the re-audit of design document 3.8: outbound connection controls, monitoring, sensitive report links, device-bound positions, approved resends and payment reconciliation, with measured recovery, migration and load evidence; replaces version 3.8)`],
   ["Date", DATE],
-  ["Basis", "Analysis and Design Study v3.0 (English), the Use Case and Data Flow Diagrams v1.0, the Database Architecture Review v1.0, the Strategic Database Review and its relationship audit register, the Third-Party Technical Audit, and the Technical Audit of design document 3.7"],
+  ["Basis", "Analysis and Design Study v3.0 (English), the Use Case and Data Flow Diagrams v1.0, the Database Architecture Review v1.0, the Strategic Database Review and its relationship audit register, the Third-Party Technical Audit, the Technical Audit of design document 3.7 and its re-audit of 3.8"],
   ["Scope", `${schemas.length} schemas, ${tableCount} tables, ${colCount} columns, ${fkCount} foreign keys; all phases 1 to 15`],
   ["Engine", `PostgreSQL ${V.postgres} with row-level security on every table; PostGIS ${V.postgis} in schema gis; ${V.schema_files} schema files, db/schema/000 to ${lastFile}`],
   ["Status", `Built and verified at commit ${V.source_commit} (migration ${V.migration}, schema SHA-256 ${V.schema_sha256.slice(0, 16)}): fresh build and upgrade identical, ${V.db_checks} database checks and ${V.api_tests} API tests passing, every foreign key indexed or exempt by rule`],
@@ -120,7 +120,7 @@ front.push(table(["Item", "Details"], [
 ], [2800, 6946]));
 
 const toc = [H(HeadingLevel.HEADING_1, "Contents", { pageBreak: true })];
-const tocLines = ["Changes in version 3.8", "Changes in version 3.7", "Changes in version 3.6", "Changes in version 3.5", "Changes in version 3.4", "Changes in version 3.3", "Changes in version 3.2", "Changes in version 3.1", "Changes in version 3.0", "1. Introduction", "2. Database architecture", "3. Design rules", "4. Security model in the database",
+const tocLines = ["Changes in version 3.9", "Changes in version 3.8", "Changes in version 3.7", "Changes in version 3.6", "Changes in version 3.5", "Changes in version 3.4", "Changes in version 3.3", "Changes in version 3.2", "Changes in version 3.1", "Changes in version 3.0", "1. Introduction", "2. Database architecture", "3. Design rules", "4. Security model in the database",
   "5. Data stores of the data flow diagrams", "6. Entity-relationship diagrams by module",
   ...model.groups.map((g, i) => `      6.${i + 1} ${g[0]} ${g[1]}`), `      6.${model.groups.length + 1} Focus diagrams: rules that span modules`,
   "7. Table definitions", "8. Traceability to the study", "9. Verification",
@@ -162,6 +162,55 @@ const changes38 = [H(HeadingLevel.HEADING_2, "b. Hardening after the third-party
     + "infrastructure and moves to Phase 5.", "Owner decisions"),
   P("Schema-level two-way dependencies (21, frozen by test H-07) differ from phase-level dependencies, of which there are none backwards: "
     + "the earlier wording is clarified accordingly. db/tools/audit_pack.sh builds the evidence pack for the second phase of the audit."),
+];
+
+// ------------------------------ changes in 3.9 (re-audit of design 3.8) ------------------------------
+const changes3_9 = [H(HeadingLevel.HEADING_1, "Changes in version 3.9", { pageBreak: true }),
+  P("The auditors re-read version 3.8 without access to the build: 10 findings closed on paper, 6 partly addressed, 4 open or "
+    + "deferred, and no general launch before recovery (T3-01) and egress (T3-02) are proven. Schema file 1049_recheck_operations.sql "
+    + "(migration 1.31.0), the application and the operations tooling close what the repository can close, and the raw evidence of "
+    + "this build is packed for the auditors to re-run (db/tools/evidence_pack.sh; docs/database/DESIGN_AUDIT_T3_RECHECK.md)."),
+  H(HeadingLevel.HEADING_2, "a. Outbound connections (T3-02)"),
+  P("Version 3.8 described only the transport rule of government endpoints; the controls on partner webhooks existed but were not "
+    + "written here. Two layers now stand between the platform and any outside address:"),
+  bullet("A webhook URL must be https without credentials; a literal private, loopback, link-local, metadata or reserved address "
+    + "(IPv4, IPv6 and IPv4-mapped IPv6) is refused at registration. At every delivery the name is resolved again, every address "
+    + "checked, and the connection made to the checked address with the name kept for TLS, so a name that rebinds to an internal "
+    + "address is refused. No redirect is followed, the certificate is verified, personal fields are removed unless enabled, and "
+    + "each request is signed (HMAC-SHA256 with a timestamp).", "Application"),
+  bullet("Every outbound connection (webhooks, payment providers, SMS, SMTP) goes through the egress proxy, and production refuses "
+    + "to start without it; the API and worker containers have no route out. The proxy tunnels only ports 443, 465 and 587, "
+    + "refuses private, loopback, link-local, metadata and reserved addresses after its own DNS lookup, and allows only "
+    + "allowlisted names: the fixed providers, and the partner endpoints the worker writes every minute.", "Egress proxy"),
+  P("Tests: 10 application cases (http, credentials, metadata, private, IPv6, IPv4-mapped, rebinding at delivery, redirects), the "
+    + "proxy tunnel and its refusals (also against a real Squid), a self-test where every forbidden target answers 403, and a CI "
+    + "step proving the containers cannot reach the internet directly."),
+  H(HeadingLevel.HEADING_2, "b. Database and application (file 1049)"),
+  bullet("sys.ops_metrics() and the job log sys.job_run feed /api/metrics: outbox age, deliveries, partitions, scans, jobs, WAL "
+    + "archiving, connections, locks, long transactions, deadlocks, vacuum, wraparound, replica lag, payments and review queues, "
+    + "with request counts and latency per route. 24 alert rules proven by promtool unit tests, a dashboard, and SLOs proposed for "
+    + "approval (docs/operations/SLO.md).", "Monitoring (T3-16)"),
+  bullet("A scheduled report with personal or money columns needs the owner's recorded consent, goes only to named accounts, and "
+    + "arrives as a per-recipient link valid 72 hours (rpt.report_delivery keeps only the token hash); every download is counted "
+    + "and logged.", "Sensitive reports (T3-05)"),
+  bullet("Positions record the registered device of the mobile session; a revoked device or a failed attestation rejects them, and "
+    + "attestation (Play Integrity, App Attest) becomes required by configuration (tracking.device_attestation). Violations on "
+    + "low-trust evidence are reviewed by a person with violation.review.", "Positions (T3-11)"),
+  bullet("Resending a money or authority event to a partner waits for a second person's approval (sys.delivery_retry_request); "
+    + "fin.reconcile_payments() checks payments, refunds, provider notices and the ledger every day and alerts on any mismatch.", "Events and money (T3-12)"),
+  H(HeadingLevel.HEADING_2, "c. Measured evidence (development environment)"),
+  table(["Run", "Result", "Evidence file"], [
+    ["Restore drill (T3-01)", "PASS: point-in-time restore exact; server lost without warning: 3.2 s of writes lost, usable in 4.9 s; "
+      + "wallets, ledger, orphans, audit seals, schema hash and counts all checked", "restore_drill_2026-10-07.json"],
+    ["Migration rehearsal of 1048 (T3-08)", "200,000 rows per table under traffic: 5.2 s, 87 MB WAL, longest exclusive lock 1.98 s, "
+      + "traffic p99 3 ms, 0 errors; cause and live-database plan in MIGRATION_PLANS.md", "migration_rehearsal_1048_2026-10-07.json"],
+    ["End-to-end load (T3-09)", "booking, payment, refund, tracking and reports at 10 to 50 users: 0 errors, 0 deadlocks; 3,582 "
+      + "bookings and refunds reconciled with 0 mismatches", "load_test_full_mix_2026-10-07.json"],
+  ], [2400, 5146, 2200], { boldFirst: true }),
+  P("These runs prove the mechanisms; the capacity, recovery-time and migration figures for production come from the same tools on "
+    + "staging with production-size data, which remains a launch gate together with the monitoring deployment, the audit archive "
+    + "account, the ClamAV service and an external penetration test. docs/operations/RELEASE_MAP.md, generated from this database, "
+    + "states what each release brings into service: launch scope 1A and 1B, with 92 tables closed until their switch opens."),
 ];
 
 // ------------------------------ changes in 3.8 (technical audit of design 3.7) ------------------------------
@@ -652,12 +701,13 @@ const verify = [H(HeadingLevel.HEADING_1, "9. Verification", { pageBreak: true }
       + "(classification, isolation sweep, RLS bypass, typed references, tenant checks, ledger, seats, business rules, scopes, keys, erasure, tracking) "
       + "and of the integrity audit (sale chain, manifests, cargo legs, wallets, leased vehicles, COPY, guard shape, schema dependencies, JSONB), "
       + "the third-party audit (orphans, contact data, phase gate, change log, JSON contracts, lifecycle, policy matrix) and the technical audit "
-      + "of design 3.7 (references, break-glass, positions, requirement changes, quarantine, access reviews, envelope)"],
+      + "of design 3.7 and its re-audit (references, break-glass, positions, devices, requirement changes, quarantine, access reviews, "
+      + "envelope, metrics, job log, payment reconciliation, resend approvals)"],
     ["Relationship audit", `${fkCount} foreign keys: ${idxCount("indexed")} indexed, ${idxCount("lookup")} to lookup lists, ${idxCount("actor")} actor columns, ${idxCount("missing")} missing an index; ${noFk.length} documented references without a foreign key`],
     ["Application", `${V.api_tests} API tests passing, among them 20 concurrent holds on one seat (one winner), 36 overlapping-segment requests, multi-seat `
       + "holds in opposite orders without deadlock, concurrent wallet bookings that reconcile, a pooled connection that carries no company "
-      + "into the next request, sign-in in the AUTH scope, file quarantine, report recipients, position evidence and two-person "
-      + "requirement changes"],
+      + "into the next request, sign-in in the AUTH scope, file quarantine, report recipients and links, position evidence and devices, "
+      + "two-person requirement changes and resends, metrics, and the egress proxy and webhook address checks"],
     ["Evidence of this build", `commit ${V.source_commit}; migration ${V.migration}; last schema file ${V.last_schema_file}; schema SHA-256 `
       + `${V.schema_sha256}; PostgreSQL ${V.postgres}, PostGIS ${V.postgis}; collected ${V.generated_at} by generator/verification.py from the `
       + "console output of the same run. A database check is one PASS line of db/tests/run_tests.sql; an API test is one pytest test"],
@@ -715,7 +765,7 @@ const doc = new Document({
   numbering: { config: [{ reference: "bullets", levels: [{ level: 0, format: LevelFormat.BULLET, text: "•", alignment: AlignmentType.LEFT,
     style: { paragraph: { indent: { left: 540, hanging: 270 } } } }] }] },
   sections: [
-    section(PORTRAIT, [...front, ...toc, ...changes3_8, ...changes37, ...changes38, ...changes39, ...changes36, ...changes35, ...changes34, ...changes33, ...changes32, ...changes31, ...changes, ...intro, ...arch, ...rules, ...security, ...stores]),
+    section(PORTRAIT, [...front, ...toc, ...changes3_9, ...changes3_8, ...changes37, ...changes38, ...changes39, ...changes36, ...changes35, ...changes34, ...changes33, ...changes32, ...changes31, ...changes, ...intro, ...arch, ...rules, ...security, ...stores]),
     ...erdSections,
     section(PORTRAIT, [...defs, ...trace, ...verify, ...flags, ...gens, ...appC]),
   ],

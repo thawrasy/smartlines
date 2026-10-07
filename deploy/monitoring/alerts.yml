@@ -1,0 +1,125 @@
+# Alert rules (audit T3-16). Each alert names its SLO or check and the runbook section to follow
+# (docs/operations/RUNBOOKS.md); severity "page" wakes the on-call engineer, "ticket" waits for working hours.
+groups:
+  - name: masslak-slo
+    rules:
+      # Booking, payment and search availability: fast and slow burn of the 99.9 % error budget (multi-window)
+      - alert: BookingErrorBudgetFastBurn
+        expr: |
+          (sum(rate(masslak_http_requests_total{group=~"booking|payment",status="5xx"}[5m])) / clamp_min(sum(rate(masslak_http_requests_total{group=~"booking|payment"}[5m])), 1e-9) > 14.4 * 0.001)
+          and
+          (sum(rate(masslak_http_requests_total{group=~"booking|payment",status="5xx"}[1h])) / clamp_min(sum(rate(masslak_http_requests_total{group=~"booking|payment"}[1h])), 1e-9) > 14.4 * 0.001)
+        labels: { severity: page }
+        annotations: { summary: "Bookings or payments are failing (2 % of the monthly error budget in one hour)", runbook: "RUNBOOKS.md#1-incident-response" }
+      - alert: BookingErrorBudgetSlowBurn
+        expr: |
+          (sum(rate(masslak_http_requests_total{group=~"booking|payment",status="5xx"}[6h])) / clamp_min(sum(rate(masslak_http_requests_total{group=~"booking|payment"}[6h])), 1e-9) > 6 * 0.001)
+        for: 30m
+        labels: { severity: ticket }
+        annotations: { summary: "Bookings or payments fail more than the SLO allows", runbook: "RUNBOOKS.md#1-incident-response" }
+      - alert: BookingLatencyHigh
+        expr: histogram_quantile(0.99, sum by (le) (rate(masslak_http_request_duration_seconds_bucket{group="booking"}[10m]))) > 1.5
+        for: 10m
+        labels: { severity: page }
+        annotations: { summary: "Booking p99 latency above 1.5 s", runbook: "RUNBOOKS.md#10-load-and-capacity-r-12" }
+      - alert: SearchLatencyHigh
+        expr: histogram_quantile(0.95, sum by (le) (rate(masslak_http_request_duration_seconds_bucket{group="search"}[10m]))) > 0.5
+        for: 15m
+        labels: { severity: ticket }
+        annotations: { summary: "Search p95 latency above 0.5 s", runbook: "RUNBOOKS.md#10-load-and-capacity-r-12" }
+      - alert: TrackingIngestionFailing
+        expr: sum(rate(masslak_http_requests_total{group="tracking",status="5xx"}[10m])) / clamp_min(sum(rate(masslak_http_requests_total{group="tracking"}[10m])), 1e-9) > 0.005
+        for: 10m
+        labels: { severity: page }
+        annotations: { summary: "Driver positions are being refused (above 0.5 %)", runbook: "RUNBOOKS.md#1-incident-response" }
+  - name: masslak-pipeline
+    rules:
+      - alert: OutboxBacklog
+        expr: masslak_outbox_oldest_pending_seconds > 300
+        for: 10m
+        labels: { severity: page }
+        annotations: { summary: "Events wait more than 5 minutes in the outbox (worker down or stuck)", runbook: "RUNBOOKS.md#3-failover" }
+      - alert: WebhookDeliveriesDead
+        expr: increase(masslak_webhook_deliveries{status="DEAD"}[1h]) > 0 or masslak_webhook_deliveries{status="DEAD"} > 20
+        labels: { severity: ticket }
+        annotations: { summary: "Partner webhook deliveries gave up after eight attempts", runbook: "../integration/EVENTS.md#replays" }
+      - alert: FilesWaitingForScan
+        expr: masslak_files_oldest_pending_scan_seconds > 900
+        for: 5m
+        labels: { severity: ticket }
+        annotations: { summary: "Uploaded files wait more than 15 minutes for the virus scan (ClamAV down?)", runbook: "RUNBOOKS.md#12-file-scanning-t3-15" }
+      - alert: PositionPartitionMissing
+        expr: masslak_geo_partitions_missing > 0
+        for: 15m
+        labels: { severity: page }
+        annotations: { summary: "Today's or tomorrow's position partition is missing (daily upkeep not running)", runbook: "RUNBOOKS.md#9-data-lifecycle-r-11" }
+      - alert: MaintenanceStale
+        expr: masslak_job_last_success_age_seconds{job="maintenance"} > 26 * 3600
+        labels: { severity: page }
+        annotations: { summary: "The daily upkeep has not succeeded for more than 26 hours", runbook: "RUNBOOKS.md#9-data-lifecycle-r-11" }
+      - alert: WalletMismatch
+        expr: masslak_wallet_mismatches > 0
+        labels: { severity: page }
+        annotations: { summary: "Wallet balances disagree with the ledger: freeze payouts", runbook: "RUNBOOKS.md#8-alerts-the-database-raises" }
+      - alert: PaymentMismatch
+        expr: masslak_payment_mismatches > 0
+        labels: { severity: page }
+        annotations: { summary: "Payments, refunds, provider notices and the ledger disagree: freeze payouts", runbook: "RUNBOOKS.md#16-resending-money-and-authority-events-t3-12" }
+      - alert: ReviewQueuesWaiting
+        expr: masslak_violations_awaiting_review > 0 or masslak_delivery_retries_waiting > 0
+        for: 48h
+        labels: { severity: ticket }
+        annotations: { summary: "Violations on low-trust evidence or resends of money events wait for a person for 2 days", runbook: "RUNBOOKS.md#15-position-evidence-and-violation-review-t3-11" }
+      - alert: BreakGlassUnreviewed
+        expr: masslak_break_glass_unreviewed > 0
+        labels: { severity: ticket }
+        annotations: { summary: "A break-glass access ended more than 24 hours ago without a review", runbook: "RUNBOOKS.md#11-break-glass-access-t3-03" }
+  - name: masslak-database
+    rules:
+      - alert: DatabaseDown
+        expr: masslak_db_up == 0 or up{job="masslak-api"} == 0
+        for: 2m
+        labels: { severity: page }
+        annotations: { summary: "The API cannot read the database, or the API is down", runbook: "RUNBOOKS.md#3-failover" }
+      - alert: WalArchiveStale
+        expr: masslak_db_archive_mode_on == 1 and masslak_db_wal_archive_last_success_age_seconds > 300
+        for: 5m
+        labels: { severity: page }
+        annotations: { summary: "No WAL archived for 5 minutes: point-in-time recovery is at risk (RPO)", runbook: "RUNBOOKS.md#2-backup-and-point-in-time-restore-rpo-and-rto" }
+      - alert: WalArchiveFailing
+        expr: increase(masslak_db_wal_archive_failed_total[15m]) > 0
+        labels: { severity: page }
+        annotations: { summary: "WAL archiving fails", runbook: "RUNBOOKS.md#2-backup-and-point-in-time-restore-rpo-and-rto" }
+      - alert: ReplicaLagging
+        expr: max(masslak_db_replication_lag_seconds) > 30
+        for: 5m
+        labels: { severity: page }
+        annotations: { summary: "The standby is more than 30 s behind: a failover would lose data", runbook: "RUNBOOKS.md#3-failover" }
+      - alert: ConnectionsNearLimit
+        expr: sum(masslak_db_connections) / max(masslak_db_connections_max) > 0.8
+        for: 5m
+        labels: { severity: ticket }
+        annotations: { summary: "Database connections above 80 % of the limit", runbook: "RUNBOOKS.md#10-load-and-capacity-r-12" }
+      - alert: LockQueue
+        expr: masslak_db_lock_waiters > 10
+        for: 2m
+        labels: { severity: page }
+        annotations: { summary: "More than 10 sessions wait on locks", runbook: "../database/MIGRATION_PLANS.md#stop-criteria" }
+      - alert: LongTransaction
+        expr: masslak_db_longest_transaction_seconds > 300 or masslak_db_idle_in_transaction > 5
+        for: 5m
+        labels: { severity: ticket }
+        annotations: { summary: "A transaction runs for more than 5 minutes, or sessions sit idle inside transactions", runbook: "RUNBOOKS.md#4-migrations-on-a-live-database" }
+      - alert: Deadlocks
+        expr: increase(masslak_db_deadlocks_total[15m]) > 0
+        labels: { severity: ticket }
+        annotations: { summary: "Deadlocks occurred (the booking path is designed to have none)", runbook: "RUNBOOKS.md#10-load-and-capacity-r-12" }
+      - alert: VacuumBehind
+        expr: max(masslak_db_dead_tuples) > 5e6 or masslak_db_vacuum_age_seconds > 7 * 86400
+        for: 1h
+        labels: { severity: ticket }
+        annotations: { summary: "Autovacuum is falling behind on a hot table", runbook: "RUNBOOKS.md#10-load-and-capacity-r-12" }
+      - alert: WraparoundRisk
+        expr: masslak_db_xid_age > 1.2e9
+        labels: { severity: page }
+        annotations: { summary: "Transaction id age approaching wraparound", runbook: "RUNBOOKS.md#1-incident-response" }

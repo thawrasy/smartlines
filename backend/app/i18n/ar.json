@@ -76,6 +76,7 @@
     "brand": "مسلك",
     "email_subject": "تقرير مسلك: {title}",
     "email_body": "مرفق التقرير {frequency} «{title}» للفترة {period}: {rows} سجلاً.\n\nجدول هذا التقرير {owner}. لإيقافه افتح التقارير ← الجدولة على masslak.com.",
+    "email_body_link": "التقرير {frequency} «{title}» للفترة {period} ({rows} سجلاً) يحتوي على بيانات شخصية أو مالية، لذلك لم يُرفق. نزّله بعد تسجيل الدخول: {link}\nالرابط لك وحدك ويعمل حتى {expires}.\n\nجدول هذا التقرير {owner}. لإيقافه افتح التقارير ← الجدولة على masslak.com.",
     "frequency": {
       "DAILY": "اليومي",
       "WEEKLY": "الأسبوعي",

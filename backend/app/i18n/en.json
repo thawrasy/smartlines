@@ -76,6 +76,7 @@
     "brand": "Masslak",
     "email_subject": "Masslak report: {title}",
     "email_body": "Attached is the {frequency} report \"{title}\" for {period}: {rows} rows.\n\nThis report was scheduled by {owner}. To stop it, open Reports > Schedules on masslak.com.",
+    "email_body_link": "The {frequency} report \"{title}\" for {period} ({rows} rows) holds personal or financial data, so it is not attached. Download it after signing in: {link}\nThe link is for you only and works until {expires}.\n\nThis report was scheduled by {owner}. To stop it, open Reports > Schedules on masslak.com.",
     "frequency": {
       "DAILY": "daily",
       "WEEKLY": "weekly",

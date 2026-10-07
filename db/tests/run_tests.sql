@@ -1426,4 +1426,59 @@ SELECT pg_temp.ok((SELECT array_agg(aggregate_seq ORDER BY id) FROM sys.outbox_e
 ROLLBACK;
 SET ROLE masslak_app;
 
+-- =====================================================================
+-- Re-audit of design 3.8 (1049)
+-- =====================================================================
+RESET ROLE;
+BEGIN;
+SELECT sys.run_maintenance() IS NOT NULL AS ran \gset
+SELECT pg_temp.ok((SELECT ok AND finished_at IS NOT NULL FROM sys.job_run WHERE job = 'maintenance' ORDER BY id DESC LIMIT 1)
+  AND (SELECT value FROM sys.ops_metrics() WHERE metric = 'masslak_job_last_success_age_seconds') < 60,
+  'Audit T3-16: every run of the daily upkeep is recorded with its result, and monitoring sees how old the last success is');
+SELECT pg_temp.ok((SELECT count(DISTINCT metric) FROM sys.ops_metrics() WHERE metric IN ('masslak_outbox_oldest_pending_seconds',
+                   'masslak_geo_partitions_missing', 'masslak_wallet_mismatches', 'masslak_db_wal_archive_last_success_age_seconds',
+                   'masslak_db_lock_waiters', 'masslak_db_longest_transaction_seconds', 'masslak_db_deadlocks_total', 'masslak_db_xid_age',
+                   'masslak_files_pending_scan', 'masslak_break_glass_open')) = 10
+  AND (SELECT value FROM sys.ops_metrics() WHERE metric = 'masslak_geo_partitions_missing') = 0,
+  'Audit T3-16: the operational metrics cover the outbox, partitions, money, WAL archiving, locks, transactions and scans');
+SELECT pg_temp.ok(NOT has_function_privilege('public', 'sys.ops_metrics()', 'EXECUTE') AND has_function_privilege('masslak_app', 'sys.ops_metrics()', 'EXECUTE'),
+  'Audit T3-16: only the application and reporting roles read the operational metrics');
+ROLLBACK;
+BEGIN;
+-- T3-11: devices
+INSERT INTO iam.device (user_id, fingerprint_hash, platform, trust_status) VALUES (:ua, '\x0101', 'ANDROID', 'TRUSTED');
+SELECT max(id) AS dev FROM iam.device \gset
+INSERT INTO ops.geo_event (ts, vehicle_id, lat, lng, accuracy_m, provider, event_id, device_id)
+VALUES (now(), :va, 33.51, 36.29, 6, 'GPS', '00000000-0000-4000-8000-0000000000a1', :dev);
+UPDATE iam.device SET revoked_at = now(), trust_status = 'REVOKED' WHERE id = :dev;
+INSERT INTO ops.geo_event (ts, vehicle_id, lat, lng, accuracy_m, provider, event_id, device_id)
+VALUES (now() + interval '1 second', :va, 33.51, 36.29, 6, 'GPS', '00000000-0000-4000-8000-0000000000a2', :dev);
+SELECT pg_temp.ok((SELECT trust FROM ops.geo_event WHERE event_id = '00000000-0000-4000-8000-0000000000a1') = 'HIGH'
+  AND (SELECT trust = 'REJECTED' AND trust_flags @> '{DEVICE_REVOKED}' FROM ops.geo_event WHERE event_id = '00000000-0000-4000-8000-0000000000a2'),
+  'Audit T3-11: positions from a revoked device are rejected');
+SELECT pg_temp.set_requirement('tracking.device_attestation', 'REQUIRED');
+INSERT INTO ops.geo_event (ts, vehicle_id, lat, lng, accuracy_m, provider, event_id)
+VALUES (now() + interval '2 seconds', :vb, 33.51, 36.29, 6, 'GPS', '00000000-0000-4000-8000-0000000000a3');
+INSERT INTO ops.geo_event (ts, vehicle_id, lat, lng, accuracy_m, provider, event_id, device_ts)
+VALUES (now() + interval '3 seconds', :vb, 33.51, 36.29, 6, 'GPS', '00000000-0000-4000-8000-0000000000a4', now() + interval '10 minutes');
+INSERT INTO ops.geo_event (ts, vehicle_id, lat, lng, accuracy_m, provider, event_id, device_ts)
+VALUES (now() + interval '4 seconds', :vb, 33.51, 36.29, 6, 'GPS', '00000000-0000-4000-8000-0000000000a5', now() - interval '30 minutes');
+SELECT pg_temp.ok((SELECT trust = 'LOW' AND trust_flags @> '{NO_DEVICE}' FROM ops.geo_event WHERE event_id = '00000000-0000-4000-8000-0000000000a3')
+  AND (SELECT trust = 'REJECTED' AND trust_flags @> '{FUTURE_TIME}' FROM ops.geo_event WHERE event_id = '00000000-0000-4000-8000-0000000000a4')
+  AND (SELECT trust_flags @> '{LATE}' FROM ops.geo_event WHERE event_id = '00000000-0000-4000-8000-0000000000a5'),
+  'Audit T3-11: with attestation required a position without a device is low-trust; a device clock 10 minutes ahead is rejected and 30 minutes behind is late');
+ROLLBACK;
+
+BEGIN;
+-- T3-12: resends of money events, payment reconciliation
+SELECT pg_temp.ok((SELECT sum(value::bigint) FROM jsonb_each_text(fin.reconcile_payments() - 'at')) = 0,
+  'Audit T3-12: payments, refunds, provider notices and the ledger reconcile');
+SELECT pg_temp.ok((sys.run_maintenance()) ? 'payment_mismatches', 'Audit T3-12: the daily upkeep reconciles payments');
+SELECT pg_temp.ok(EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'sys.delivery_retry_request'::regclass
+                            AND pg_get_constraintdef(oid) LIKE '%decided_by IS DISTINCT FROM requested_by%')
+  AND NOT has_table_privilege('masslak_app', 'sys.delivery_retry_request', 'DELETE'),
+  'Audit T3-12: a resend request cannot be approved by its requester and is never deleted');
+ROLLBACK;
+SET ROLE masslak_app;
+
 \echo '=== ALL TESTS PASSED ==='

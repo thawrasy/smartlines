@@ -8,7 +8,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import db
+from . import db, metrics
 from .config import get_settings
 from .errors import ApiError, api_error_handler, db_error_handler
 from .middleware import HeadAsGet, RequestContextMiddleware
@@ -79,7 +79,7 @@ async def security_headers(request: Request, call_next):
     return response
 
 
-for r in (auth.router, public.router, bookings.router, wallet.router, carrier.router, driver.router,
+for r in (metrics.router, auth.router, public.router, bookings.router, wallet.router, carrier.router, driver.router,
           admin.router, security.router, regulator.router, verify.router, agency_api.router,
           fleet_api.router, payouts_api.company, payouts_api.platform,
           documents_api.company, documents_api.platform, notify_api.router,
@@ -88,6 +88,7 @@ for r in (auth.router, public.router, bookings.router, wallet.router, carrier.ro
           seo_pages.router):
     app.include_router(r)
 
+app.add_middleware(metrics.MetricsMiddleware)   # request counts and latency per route (T3-16)
 app.add_middleware(HeadAsGet)          # added last, so it wraps everything else
 
 

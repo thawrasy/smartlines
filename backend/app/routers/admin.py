@@ -305,3 +305,75 @@ async def decide_requirement(uid: uuid.UUID, body: RequirementDecisionIn, reques
         status = await conn.fetchval("SELECT sys.decide_requirement_change($1, $2, $3)", cid, body.approve, body.note)
     request.state.audit = {"action": "compliance.requirement.decide", "object_type": "requirement_change", "object_id": cid}
     return {"status": status}
+
+
+
+# ------------------------------------------------------------------ resends of money and authority events (audit T3-12)
+class RetryDecisionIn(BaseModel):
+    approve: bool
+    note: Optional[str] = Field(default=None, max_length=300)
+
+
+@router.get("/delivery-retries")
+async def delivery_retries(request: Request, pr: Principal = Depends(require_permission("events.replay_approve"))):
+    async with db.transaction(context_for(request, pr)) as conn:
+        out = await conn.fetch(
+            """SELECT r.uid, r.event_type, r.reason, r.status, r.created_at, r.decided_at, r.decision_note, c.name AS client,
+                      d.delivery_uid, d.attempts, d.last_error
+                 FROM sys.delivery_retry_request r JOIN sys.webhook_delivery d ON d.id = r.delivery_id
+                 LEFT JOIN iam.api_client c ON c.id = r.api_client_id
+                ORDER BY (r.status = 'PENDING') DESC, r.created_at DESC LIMIT 200""")
+    return {"requests": rows(out)}
+
+
+@router.post("/delivery-retries/{uid}/decision")
+async def decide_delivery_retry(uid: uuid.UUID, body: RetryDecisionIn, request: Request,
+                                pr: Principal = Depends(require_permission("events.replay_approve"))):
+    async with db.transaction(context_for(request, pr)) as conn:
+        r = await conn.fetchrow("SELECT id, delivery_id, requested_by, status FROM sys.delivery_retry_request WHERE uid = $1 FOR UPDATE", uid)
+        if r is None:
+            raise not_found("retry request")
+        if r["status"] != "PENDING":
+            raise ApiError(409, "INVALID_TRANSITION", "this request was already decided")
+        if r["requested_by"] == pr.user_id:
+            raise ApiError(409, "RETRY_SELF_APPROVAL", "a second person approves a resend")
+        await conn.execute("""UPDATE sys.delivery_retry_request SET status = $2, decided_by = $3, decided_at = now(), decision_note = $4
+                               WHERE id = $1""", r["id"], "APPROVED" if body.approve else "REJECTED", pr.user_id, body.note)
+        if body.approve:
+            await conn.execute("""UPDATE sys.webhook_delivery SET status = 'PENDING', next_attempt_at = now(), attempts = 0
+                                   WHERE id = $1 AND status IN ('DEAD', 'FAILED')""", r["delivery_id"])
+    request.state.audit = {"action": "webhook.retry.decide", "object_type": "delivery_retry_request", "object_id": r["id"]}
+    return {"status": "APPROVED" if body.approve else "REJECTED"}
+
+
+# ------------------------------------------------------------------ violations on low-trust positions (audit T3-11)
+class ViolationReviewIn(BaseModel):
+    decision: Literal["CONFIRM", "DISMISS"]
+    note: str = Field(min_length=10, max_length=500)
+
+
+@router.get("/violations/review")
+async def violations_to_review(request: Request, pr: Principal = Depends(require_permission("violation.review"))):
+    """Violations whose evidence is graded low-trust: they count only after a person looks at the positions behind them."""
+    async with db.transaction(context_for(request, pr)) as conn:
+        out = await conn.fetch(
+            """SELECT v.uid, v.kind, v.started_at, v.ended_at, v.max_distance_m, v.in_service, v.carrying_passengers, v.status,
+                      v.evidence, v.tracking_source, p.legal_name AS company, fv.plate_no
+                 FROM ops.route_violation v JOIN iam.party p ON p.id = v.company_id LEFT JOIN fleet.vehicle fv ON fv.id = v.vehicle_id
+                WHERE v.evidence_trust = 'LOW' AND v.reviewed_by IS NULL AND v.status = 'OPEN'
+                ORDER BY v.started_at LIMIT 200""")
+    return {"violations": rows(out)}
+
+
+@router.post("/violations/{uid}/review")
+async def review_violation(uid: uuid.UUID, body: ViolationReviewIn, request: Request,
+                           pr: Principal = Depends(require_permission("violation.review"))):
+    async with db.transaction(context_for(request, pr)) as conn:
+        vid = await conn.fetchval(
+            """UPDATE ops.route_violation SET reviewed_by = $2, status = $3, justification = $4
+                WHERE uid = $1 AND evidence_trust = 'LOW' AND reviewed_by IS NULL AND status = 'OPEN' RETURNING id""",
+            uid, pr.user_id, "CONFIRMED" if body.decision == "CONFIRM" else "CLOSED", body.note.strip())
+        if vid is None:
+            raise ApiError(409, "VIOLATION_NOT_AWAITING_REVIEW", "only an open violation on low-trust evidence is reviewed here")
+    request.state.audit = {"action": "violation.review", "object_type": "route_violation", "object_id": vid}
+    return {"status": "CONFIRMED" if body.decision == "CONFIRM" else "CLOSED"}

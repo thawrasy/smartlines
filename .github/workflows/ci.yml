@@ -59,6 +59,7 @@ jobs:
       MASSLAK_RATE_PUBLIC_PER_MINUTE: "20000"
       MASSLAK_RATE_API_PER_MINUTE: "20000"
       MASSLAK_TEST_URL: http://localhost:8077
+      MASSLAK_METRICS_TOKEN: ci-metrics-token
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
@@ -181,6 +182,11 @@ jobs:
       - uses: actions/setup-node@v5
         with: { node-version: "22" }
       - run: pip install bandit pip-audit ruff==0.15.20
+      - name: Alert rules are valid and fire on their conditions (promtool, T3-16)
+        run: |
+          curl -sSL https://github.com/prometheus/prometheus/releases/download/v2.53.2/prometheus-2.53.2.linux-amd64.tar.gz | tar xz
+          prometheus-2.53.2.linux-amd64/promtool check rules deploy/monitoring/alerts.yml
+          (cd deploy/monitoring && ../../prometheus-2.53.2.linux-amd64/promtool test rules alerts_test.yml)
       - name: Language policy (English code, data and docs; Arabic only in locale files)
         run: python scripts/check_language.py
       - name: Lint the API and its tests (ruff)

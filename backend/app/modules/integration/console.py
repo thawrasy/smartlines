@@ -190,7 +190,7 @@ async def webhook_action(uid: uuid.UUID, wuid: uuid.UUID, action: Literal["rotat
 async def retry_delivery(uid: uuid.UUID, duid: uuid.UUID, request: Request, c: Console = Depends(console)):
     async with db.transaction(context_for(request, c.pr)) as conn:
         cl = await _client(conn, c, uid)
-        out = await service.redeliver(conn, cl["id"], duid)
+        out = await service.redeliver(conn, cl["id"], duid, user_id=c.pr.user_id)
     # a replay is recorded with who asked for it (event contract, docs/integration/EVENTS.md)
     request.state.audit = {"action": "webhook.redeliver", "object_type": "webhook_delivery", "object_id": None}
     return out

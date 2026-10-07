@@ -221,16 +221,43 @@ async def location(body: LocationIn, request: Request, pr: Principal = Depends(d
     ts = taken if taken and now - timedelta(days=6) < taken <= now + timedelta(minutes=2) else now
     async with db.transaction(context_for(request, pr)) as conn:
         t = await _assigned_trip(conn, pr, body.trip_uid)
+        # the installation the driver signed in from (mobile sessions are bound to a registered device) (T3-11)
+        device = await conn.fetchval("SELECT device_id FROM iam.user_session WHERE id = $1", pr.session_id)
         row = await conn.fetchrow(
             """INSERT INTO ops.geo_event (ts, trip_id, vehicle_id, driver_user_id, lat, lng, speed_kmh, accuracy_m,
-                                          event_id, seq, device_ts, provider, is_mock)
-               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+                                          event_id, seq, device_ts, provider, is_mock, device_id)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
                ON CONFLICT (event_id, ts) DO NOTHING RETURNING trust, trust_flags""",
             ts, t["id"], t["vehicle_id"], pr.user_id, body.lat, body.lng, body.speed_kmh, body.accuracy_m,
-            body.event_id, body.seq, taken, body.provider, body.is_mock)
+            body.event_id, body.seq, taken, body.provider, body.is_mock, device)
         if row is None:
             return {"ok": True, "duplicate": True}
         await conn.execute(
             "UPDATE ops.tracking_alert SET status = 'RESOLVED', resolved_at = now() WHERE trip_id = $1 AND status = 'OPEN' "
             "AND kind IN ('SIGNAL_LOST','TRACKING_OFF')", t["id"])
     return {"ok": True, "trust": row["trust"], "flags": list(row["trust_flags"])}
+
+
+
+# ------------------------------------------------------------------ device attestation (audit T3-11)
+class AttestationIn(BaseModel):
+    provider: Literal["PLAY_INTEGRITY", "APP_ATTEST", "SIMULATED"]
+    token: str = Field(min_length=8, max_length=8000)
+
+
+@router.post("/device/attestation")
+async def device_attestation(body: AttestationIn, request: Request, pr: Principal = Depends(driver)):
+    """The driver app proves it runs unmodified on a genuine device. The verdict is kept on the device; positions from a
+    device that failed are rejected, and with tracking.device_attestation REQUIRED only attested devices count."""
+    from ..attestation import verify
+    passed = await verify(body.provider, body.token)
+    async with db.transaction(context_for(request, pr)) as conn:
+        device = await conn.fetchval("SELECT device_id FROM iam.user_session WHERE id = $1", pr.session_id)
+        if device is None:
+            raise ApiError(409, "DEVICE_REQUIRED", "attestation needs the mobile app's registered device")
+        await conn.execute(
+            """UPDATE iam.device SET attestation_state = $2, attested_at = now(), attestation_provider = $3
+                WHERE id = $1 AND user_id = $4 AND revoked_at IS NULL""",
+            device, "PASSED" if passed else "FAILED", body.provider, pr.user_id)
+    request.state.audit = {"action": "device.attestation", "object_type": "device", "object_id": device}
+    return {"attestation": "PASSED" if passed else "FAILED"}

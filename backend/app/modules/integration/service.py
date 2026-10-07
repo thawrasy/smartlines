@@ -286,7 +286,29 @@ async def ping(conn: asyncpg.Connection, ctx: db.Context, client_id: int, uid: u
     return {"delivery": str(d), "status": "PENDING"}
 
 
-async def redeliver(conn: asyncpg.Connection, client_id: int, delivery_uid: uuid.UUID) -> dict:
+# Events whose resending moves money or reaches an authority: a repeat must be approved by the platform (audit T3-12)
+GUARDED_EVENTS = ("payment.", "refund.", "wallet.", "withdrawal.", "payout.", "settlement.", "manifest.", "authority.", "booking.cancelled")
+
+
+def guarded(event_type: str) -> bool:
+    return any(event_type == g or (g.endswith(".") and event_type.startswith(g)) for g in GUARDED_EVENTS)
+
+
+async def redeliver(conn: asyncpg.Connection, client_id: int, delivery_uid: uuid.UUID, user_id: Optional[int] = None,
+                    reason: Optional[str] = None) -> dict:
+    d = await conn.fetchrow(
+        """SELECT d.id, d.event_type, d.status FROM sys.webhook_delivery d JOIN sys.webhook_endpoint e ON e.id = d.endpoint_id
+            WHERE e.api_client_id = $1 AND d.delivery_uid = $2 AND e.status = 'ACTIVE'""", client_id, delivery_uid)
+    if d is not None and d["status"] in ("DEAD", "FAILED") and guarded(d["event_type"]):
+        # a money or authority event: the request waits for a platform approval instead of resending at once
+        async with db.system_scope(conn, db.Context(request_id=uuid.uuid4(), ip="127.0.0.1", scope="SYSTEM")):
+            if await conn.fetchval("SELECT 1 FROM sys.delivery_retry_request WHERE delivery_id = $1 AND status = 'PENDING'", d["id"]):
+                return {"ok": True, "status": "APPROVAL_PENDING"}
+            uid = await conn.fetchval(
+                """INSERT INTO sys.delivery_retry_request (delivery_id, event_type, api_client_id, requested_by, reason)
+                   VALUES ($1, $2, $3, $4, $5) RETURNING uid""",
+                d["id"], d["event_type"], client_id, user_id, (reason or "resend requested by the partner").strip()[:300])
+        return {"ok": True, "status": "APPROVAL_PENDING", "request": str(uid)}
     n = await conn.execute(
         """UPDATE sys.webhook_delivery d SET status = 'PENDING', next_attempt_at = now(), attempts = 0
              FROM sys.webhook_endpoint e WHERE e.id = d.endpoint_id AND e.api_client_id = $1 AND d.delivery_uid = $2

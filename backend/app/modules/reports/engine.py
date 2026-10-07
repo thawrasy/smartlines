@@ -268,3 +268,22 @@ def resolve(code: Optional[str], v: Viewer) -> Report:
     if r is None or r not in visible_reports(v):
         raise ApiError(404, "REPORT_NOT_FOUND", "unknown report")
     return r
+
+
+def sensitive(ds: Dataset, spec: dict) -> bool:
+    """A report is sensitive when it shows a personal or a money column (audit T3-05): scheduled copies then go by
+    short-lived link to named accounts, with the owner's consent, never as an attachment."""
+    keys: set[str] = set()
+
+    def walk(x):
+        if isinstance(x, str):
+            keys.add(x)
+        elif isinstance(x, dict):
+            for k, v in x.items():
+                keys.add(k)
+                walk(v)
+        elif isinstance(x, (list, tuple)):
+            for v in x:
+                walk(v)
+    walk(spec)
+    return any(c.key in keys and (c.personal or c.type == MONEY) for c in ds.columns)

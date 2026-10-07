@@ -12,7 +12,7 @@ from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import Response
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, Field, field_validator
 
 from ... import db
 from ...deps import Principal, context_for, require_user
@@ -292,7 +292,17 @@ class ScheduleIn(BaseModel):
     frequency: Literal["DAILY", "WEEKLY", "MONTHLY"]
     format: Literal["PDF", "XLSX", "CSV", "TXT"]
     locale: Literal["ar", "en"] = "ar"
-    recipients: list[EmailStr] = Field(min_length=1, max_length=10)
+    # checked against the accounts of the company (or the platform's domains), so the format check stays simple
+    recipients: list[str] = Field(min_length=1, max_length=10)
+    # a report with personal or money columns needs the owner's explicit consent to be sent at all (audit T3-05)
+    confirm_sensitive: bool = False
+
+    @field_validator("recipients")
+    @classmethod
+    def _emails(cls, v: list[str]) -> list[str]:
+        if any(not EMAIL.match(e.strip()) for e in v):
+            raise ValueError("REPORT_RECIPIENT_INVALID: give e-mail addresses")
+        return [e.strip().lower() for e in v]
 
 
 def next_run(frequency: str, after: datetime) -> datetime:
@@ -310,7 +320,10 @@ def next_run(frequency: str, after: datetime) -> datetime:
     return nxt.astimezone(timezone.utc)
 
 
-async def recipients_not_allowed(conn, portal: str, company_id: Optional[int], emails: list[str]) -> list[str]:
+EMAIL = re.compile(r"^[^@\s]{1,64}@[^@\s]+\.[^@\s]{2,}$")
+
+
+async def recipients_not_allowed(conn, portal: str, company_id: Optional[int], emails: list[str], accounts_only: bool = False) -> list[str]:
     """A scheduled report goes only to approved identities (audit T3-05): active members of the owner's company, or for
     platform reports active platform accounts and the platform's own mail domains (setting reports.platform_recipient_domains)."""
     emails = [e.lower() for e in emails]
@@ -321,7 +334,8 @@ async def recipients_not_allowed(conn, portal: str, company_id: Optional[int], e
             emails)}
         domains = await conn.fetchval("SELECT value FROM sys.setting WHERE key = 'reports.platform_recipient_domains'")
         domains = {d.lower() for d in (json.loads(domains) if isinstance(domains, str) else (domains or []))}
-        return [e for e in emails if e not in known and e.rsplit("@", 1)[-1] not in domains]
+        # a sensitive report goes to named platform accounts only, never to a whole domain
+        return [e for e in emails if e not in known and (accounts_only or e.rsplit("@", 1)[-1] not in domains)]
     known = {r["email"] for r in await conn.fetch(
         """SELECT lower(u.email) AS email FROM iam.app_user u JOIN iam.company_member m ON m.user_id = u.id
             WHERE u.status = 'ACTIVE' AND m.company_id = $1 AND m.status = 'ACTIVE' AND lower(u.email) = ANY($2::text[])""",
@@ -350,15 +364,21 @@ async def create_schedule(body: ScheduleIn, request: Request, pr: Principal = De
     async with db.transaction(context_for(request, pr)) as conn:
         def_id = None
         if body.code:
-            engine.resolve(body.code, v)
+            r = engine.resolve(body.code, v)
+            sensitive = engine.sensitive(DATASETS[r.dataset], r.spec)
         elif body.definition:
-            def_id = await conn.fetchval("SELECT id FROM rpt.report_definition WHERE uid = $1 AND status = 'ACTIVE'", body.definition)
-            if not def_id:
+            d = await conn.fetchrow("SELECT id, dataset, spec FROM rpt.report_definition WHERE uid = $1 AND status = 'ACTIVE'", body.definition)
+            if not d:
                 raise not_found("report")
+            def_id = d["id"]
+            sensitive = engine.sensitive(DATASETS[d["dataset"]], as_dict(d["spec"]))
         else:
             raise ApiError(422, "REPORT_BAD_SPEC", "name a report or a saved definition")
+        if sensitive and not body.confirm_sensitive:
+            raise ApiError(422, "REPORT_CONSENT_REQUIRED", "this report holds personal or financial data: confirm that it may be "
+                           "sent; it goes by a link valid for a few days, to named accounts only", sensitive=True)
         async with db.system_scope(conn, context_for(request, pr)):
-            refused = await recipients_not_allowed(conn, pr.portal, pr.company_id, [str(e) for e in body.recipients])
+            refused = await recipients_not_allowed(conn, pr.portal, pr.company_id, body.recipients, accounts_only=sensitive)
         if refused:
             raise ApiError(422, "REPORT_RECIPIENT_NOT_ALLOWED",
                            "reports go only to members of your company (or the platform's own addresses)", recipients=refused)
@@ -367,12 +387,13 @@ async def create_schedule(body: ScheduleIn, request: Request, pr: Principal = De
             raise ApiError(409, "REPORT_SCHEDULE_LIMIT", "at most 20 active schedules")
         uid = await conn.fetchval(
             """INSERT INTO rpt.report_schedule (report_code, definition_id, owner_user_id, company_id, portal, frequency, format, locale,
-                                                recipients, next_run_at)
-               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING uid""",
+                                                recipients, next_run_at, sensitive, consent_by, consent_at)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, CASE WHEN $11 THEN $3::bigint END, CASE WHEN $11 THEN now() END)
+               RETURNING uid""",
             body.code if not def_id else None, def_id, pr.user_id, pr.company_id, pr.portal, body.frequency, body.format, body.locale,
-            [str(e).lower() for e in body.recipients], next_run(body.frequency, datetime.now(timezone.utc)))
+            body.recipients, next_run(body.frequency, datetime.now(timezone.utc)), sensitive)
     request.state.audit = {"action": "report.schedule.create", "object_type": "report_schedule", "object_id": None}
-    return {"uid": str(uid)}
+    return {"uid": str(uid), "sensitive": sensitive}
 
 
 @router.delete("/schedules/{uid}")
@@ -384,3 +405,44 @@ async def stop_schedule(uid: uuid.UUID, request: Request, pr: Principal = Depend
     if not done:
         raise not_found("schedule")
     return {"ok": True}
+
+
+# ------------------------------------------------------------------ links to sensitive scheduled reports (audit T3-05)
+@router.get("/deliveries/{token}")
+async def download_delivery(token: str, request: Request, pr: Principal = Depends(require_user)):
+    """The recipient, signed in, downloads a sensitive report sent by link. Each download is counted and logged; the link
+    stops working when it expires, when it is revoked, or when the recipient no longer belongs to the owner's company."""
+    import hashlib
+
+    from ... import crypto
+    from ..documents import storage
+    if len(token) > 100:
+        raise not_found("report")
+    ctx = context_for(request, pr)
+    async with db.transaction(ctx) as conn:
+        async with db.system_scope(conn, ctx):
+            d = await conn.fetchrow(
+                """SELECT d.id, d.recipient, d.recipient_user_id, d.expires_at, d.revoked_at, d.file_name, s.portal, s.company_id, s.active,
+                          f.storage_key, f.enc_key_id, f.sha256, f.mime_type
+                     FROM rpt.report_delivery d JOIN rpt.report_schedule s ON s.id = d.schedule_id JOIN ref.file_object f ON f.id = d.file_id
+                    WHERE d.token_hash = $1 FOR UPDATE OF d""", hashlib.sha256(token.encode()).digest())
+            # someone else's link reads exactly like a link that does not exist
+            if d is None or d["recipient_user_id"] != pr.user_id:
+                raise not_found("report")
+            if d["revoked_at"] is not None or d["expires_at"] < datetime.now(timezone.utc):
+                raise ApiError(410, "REPORT_LINK_EXPIRED", "this link has expired; the next scheduled report brings a new one")
+            if await recipients_not_allowed(conn, d["portal"], d["company_id"], [d["recipient"]], accounts_only=True):
+                raise ApiError(403, "REPORT_RECIPIENT_NOT_ALLOWED", "you are no longer among the people this report may be sent to")
+            await conn.execute(
+                """UPDATE rpt.report_delivery SET download_count = download_count + 1, last_downloaded_at = now(),
+                          first_downloaded_at = coalesce(first_downloaded_at, now()) WHERE id = $1""", d["id"])
+            await conn.execute(
+                """INSERT INTO audit.data_access_log (user_id, company_id, ip, object_type, object_id, fields, purpose, request_id)
+                   VALUES ($1, $2, $3::inet, 'report_delivery', $4, ARRAY['report'], 'scheduled report download', $5)""",
+                pr.user_id, d["company_id"], ctx.ip, d["id"], ctx.request_id)
+            fc = await crypto.cipher(conn)
+    data = storage.get(fc, d["storage_key"], d["enc_key_id"], bytes(d["sha256"]))
+    request.state.audit = {"action": "report.delivery.download", "object_type": "report_delivery", "object_id": d["id"]}
+    return Response(content=data, media_type=d["mime_type"],
+                    headers={"Content-Disposition": f'attachment; filename="{d["file_name"]}"', "Cache-Control": "no-store",
+                             "X-Content-Type-Options": "nosniff"})

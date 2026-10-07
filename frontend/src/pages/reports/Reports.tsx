@@ -492,18 +492,24 @@ function ScheduleModal({ target, onClose, onDone }: { target: Target; onClose: (
   const [lang, setLang] = useState(locale);
   const [recipients, setRecipients] = useState(me?.email ?? "");
   const [error, setError] = useState<unknown>(null);
+  // a report with personal or financial data needs explicit consent; it then goes by a short-lived link (audit T3-05)
+  const [sensitive, setSensitive] = useState(false);
+  const [consent, setConsent] = useState(false);
   const save = async () => {
     try {
       await api.post("/api/reports/schedules", {
         ...(target.kind === "code" ? { code: target.report.code } : target.kind === "saved" ? { definition: target.saved.uid } : {}),
-        frequency, format, locale: lang, recipients: recipients.split(/[,\s]+/).filter(Boolean),
+        frequency, format, locale: lang, recipients: recipients.split(/[,\s]+/).filter(Boolean), confirm_sensitive: consent,
       });
       onDone();
-    } catch (e) { setError(e); }
+    } catch (e) {
+      if (e instanceof Error && "code" in e && (e as { code: string }).code === "REPORT_CONSENT_REQUIRED") { setSensitive(true); setError(null); return; }
+      setError(e);
+    }
   };
   return (
     <Modal title={t("rpt.scheduleTitle")} onClose={onClose} actions={<><button className="btn text" onClick={onClose}>{t("common.cancel")}</button>
-      <button className="btn" disabled={!recipients.trim()} onClick={save}><Icon name="schedule_send" />{t("rpt.schedule")}</button></>}>
+      <button className="btn" disabled={!recipients.trim() || (sensitive && !consent)} onClick={save}><Icon name="schedule_send" />{t("rpt.schedule")}</button></>}>
       <div className="grid cols-3">
         <Field label={t("rpt.frequency")}><select value={frequency} onChange={(e) => setFrequency(e.target.value)}>
           {["DAILY", "WEEKLY", "MONTHLY"].map((f) => <option key={f} value={f}>{t(`rpt.freq.${f}`)}</option>)}</select></Field>
@@ -514,6 +520,7 @@ function ScheduleModal({ target, onClose, onDone }: { target: Target; onClose: (
       </div>
       <Field label={t("rpt.recipients")} hint={t("rpt.recipientsHint")}><input className="input" value={recipients} onChange={(e) => setRecipients(e.target.value)} /></Field>
       <p className="small muted">{t("rpt.scheduleNote")}</p>
+      {sensitive && <label className="row" style={{ gap: 8 }}><input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} />{t("rpt.sensitiveConsent")}</label>}
       <ErrorBox error={error} />
     </Modal>
   );

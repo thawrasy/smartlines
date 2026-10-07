@@ -67,7 +67,7 @@ def test_a_file_waiting_for_its_scan_is_not_served_or_approved(carrier, admin):
 
 # ------------------------------------------------------------------ T3-05 recipients
 def test_a_report_goes_only_to_approved_recipients(carrier, admin):
-    body = {"code": "sales.daily", "frequency": "WEEKLY", "format": "CSV"}
+    body = {"code": "ops.trips_by_status", "frequency": "WEEKLY", "format": "CSV"}
     r = carrier.post("/api/reports/schedules", json={**body, "recipients": ["someone@outside.example"]})
     assert r.status_code == 422 and r.json()["error"]["code"] == "REPORT_RECIPIENT_NOT_ALLOWED"
     assert r.json()["error"]["recipients"] == ["someone@outside.example"]

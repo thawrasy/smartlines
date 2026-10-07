@@ -54,6 +54,40 @@ async def _viewer(conn, s) -> engine.Viewer | None:
     return v
 
 
+async def _deliveries(conn, ctx, s, run_id: int, recipients: list[str], name: str, data: bytes) -> dict:
+    """Stores a sensitive report encrypted and makes one short-lived link per recipient; only token hashes are kept."""
+    import hashlib
+    import secrets
+
+    from ...config import get_settings
+    from ... import crypto
+    from ..documents import storage
+    hours = 72
+    async with db.system_scope(conn, ctx):
+        hours = int(await conn.fetchval("SELECT coalesce((SELECT value::int FROM sys.setting WHERE key = 'reports.link_hours'), 72)"))
+        fc = await crypto.cipher(conn)
+        stored = storage.put(fc, data, generated_mime=export.MIME[s["format"]].split(";")[0])
+        file_id = await conn.fetchval(
+            """INSERT INTO ref.file_object (storage_key, file_name, mime_type, size_bytes, sha256, data_class, enc_key_id, company_id,
+                                            scan_status, scanned_at, scan_engine, retain_until)
+               VALUES ($1, $2, $3, $4, $5, 'RESTRICTED', $6, $7, 'CLEAN', now(), 'generated', now() + make_interval(hours => $8))
+               RETURNING id""",
+            stored.storage_key, name, stored.mime_type, stored.size, stored.sha256, stored.key_id, s["company_id"], hours)
+        users = {r["email"]: r["id"] for r in await conn.fetch(
+            "SELECT lower(email) AS email, id FROM iam.app_user WHERE lower(email) = ANY($1::text[])", [e.lower() for e in recipients])}
+        out = {}
+        base = get_settings().public_url.rstrip("/")
+        for to in recipients:
+            token = secrets.token_urlsafe(32)
+            expires = await conn.fetchval(
+                """INSERT INTO rpt.report_delivery (schedule_id, report_run_id, recipient, recipient_user_id, file_id, file_name, token_hash,
+                                                    expires_at)
+                   VALUES ($1, $2, $3, $4, $5, $6, $7, now() + make_interval(hours => $8)) RETURNING expires_at""",
+                s["id"], run_id, to.lower(), users[to.lower()], file_id, name, hashlib.sha256(token.encode()).digest(), hours)
+            out[to.lower()] = (f"{base}/api/reports/deliveries/{token}", expires)
+    return out
+
+
 async def run_one(schedule_id: int) -> bool:
     """Runs one due schedule under its owner's context. Returns whether a report was sent."""
     sys_ctx = db.Context(request_id=uuid.uuid4(), ip="127.0.0.1", scope="SYSTEM")
@@ -74,7 +108,8 @@ async def run_one(schedule_id: int) -> bool:
                 await conn.execute("UPDATE rpt.report_schedule SET active = false WHERE id = $1", s["id"])
                 return False
         # recipients are checked again at every run: someone who left the company stops receiving the report
-        refused = set(await recipients_not_allowed(conn, s["portal"], s["company_id"], list(s["recipients"])))
+        refused = set(await recipients_not_allowed(conn, s["portal"], s["company_id"], list(s["recipients"]),
+                                                   accounts_only=s["sensitive"]))
         recipients = [e for e in s["recipients"] if e.lower() not in refused]
         if refused:
             log.info("reports.recipients_dropped id=%s count=%s", s["id"], len(refused))
@@ -106,18 +141,30 @@ async def run_one(schedule_id: int) -> bool:
         meta = export.Meta(code, title, period, v.name, datetime.now(timezone.utc), loc)
         data, digest = export.render(s["format"], res, meta)
         import json
-        await conn.execute(
+        run_id = await conn.fetchval(
             """INSERT INTO rpt.report_run (report_code, definition_id, user_id, company_id, portal, params, format, row_count, sha256, duration_ms)
-               VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, $8, $9, $10)""",
+               VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, $8, $9, $10) RETURNING id""",
             None if s["definition_id"] else code, s["definition_id"], v.user_id, v.company_id, s["portal"],
             json.dumps({**params, "schedule": str(s["uid"])}, default=str), s["format"], len(res.rows), bytes.fromhex(digest), res.duration_ms)
+        name = f"masslak-{code}-{today:%Y%m%d}.{export.EXT[s['format']]}".replace("/", "-")
+        links = {}
+        if s["sensitive"]:
+            links = await _deliveries(conn, ctx, s, run_id, recipients, name, data)
     w = export.words(loc)
     subject = w.get("email_subject", "Masslak report: {title}").replace("{title}", title)
     body = (w.get("email_body", "{title}").replace("{title}", title).replace("{period}", period).replace("{rows}", str(len(res.rows)))
             .replace("{owner}", v.name).replace("{frequency}", w.get("frequency", {}).get(s["frequency"], s["frequency"])))
-    name = f"masslak-{code}-{today:%Y%m%d}.{export.EXT[s['format']]}".replace("/", "-")
     for to in recipients:
-        await asyncio.to_thread(providers.send_email, to, subject, body, ((name, export.MIME[s["format"]], data),))
+        if s["sensitive"]:
+            # personal or financial data: a link for this recipient only, never the file itself (audit T3-05)
+            link, expires = links[to.lower()]
+            text = (w.get("email_body_link", "{link}").replace("{title}", title).replace("{period}", period)
+                    .replace("{rows}", str(len(res.rows))).replace("{owner}", v.name).replace("{link}", link)
+                    .replace("{expires}", f"{expires:%Y-%m-%d %H:%M} UTC")
+                    .replace("{frequency}", w.get("frequency", {}).get(s["frequency"], s["frequency"])))
+            await asyncio.to_thread(providers.send_email, to, subject, text, ())
+        else:
+            await asyncio.to_thread(providers.send_email, to, subject, body, ((name, export.MIME[s["format"]], data),))
     log.info("reports.schedule_sent id=%s rows=%s recipients=%s", s["id"], len(res.rows), len(recipients))
     return True
 

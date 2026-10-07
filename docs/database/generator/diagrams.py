@@ -51,7 +51,7 @@ GROUPS = [
       "ref.trip_type", "ref.vehicle_class", "ref.station_subtype", "ref.cargo_category", "sys.setting", "sys.company_setting", "sys.table_class", "sys.module_gate", "sys.project_phase", "sys.table_phase", "ref.seed_version",
       "sys.outbox_event", "sys.webhook_endpoint", "sys.webhook_delivery", "sys.schema_migration", "sys.schema_file",
       "sys.compliance_requirement", "gis.spatial_ref_sys", "sys.polymorphic_reference", "sys.orphan_check", "sys.json_contract",
-      "sys.requirement_change", "sys.outbox_sequence"]),
+      "sys.requirement_change", "sys.outbox_sequence", "sys.job_run", "sys.delivery_retry_request"]),
     ("E04", "Stations, routes, carrier codes and corridors", "4.4, 4.11, 4.16, D.1", "asset",
      "The station register with compliance profiles, gates and displays; carrier routes and their stops; carrier codes and "
      "service numbers; transit corridors, approved rest stops and geofences.",
@@ -247,7 +247,7 @@ GROUPS = [
     ("E38", "Reports", "13, 16.15", "core",
      "Saved custom report definitions (private or shared within the company), the append-only log of every report run and export "
      "with the file's SHA-256, and scheduled e-mail delivery.",
-     ["rpt.report_definition", "rpt.report_run", "rpt.report_schedule"]),
+     ["rpt.report_definition", "rpt.report_run", "rpt.report_schedule", "rpt.report_delivery"]),
     ("E39", "Passenger categories and family accounts", "4.19, 4.20 (since v2.8)", "booking",
      "Age bands and child and infant fares per carrier (platform defaults where the carrier sets none) and family offers; a family "
      "headed by one passenger with its members, link requests from members' own devices, travel rules per member and the "

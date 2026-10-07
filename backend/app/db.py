@@ -17,6 +17,13 @@ _audit_pool: Optional[asyncpg.Pool] = None
 _reports_pool: Optional[asyncpg.Pool] = None
 
 
+def pool_stats() -> Optional[dict]:
+    """Size and idle connections of the main pool, for the metrics endpoint."""
+    if _pool is None:
+        return None
+    return {"size": _pool.get_size(), "idle": _pool.get_idle_size()}
+
+
 async def open_pools() -> None:
     global _pool, _audit_pool, _reports_pool
     s = get_settings()

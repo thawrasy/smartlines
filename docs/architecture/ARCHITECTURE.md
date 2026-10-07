@@ -306,6 +306,15 @@ File 1048 answers the technical audit of design 3.7 (`docs/database/DESIGN_AUDIT
 - **Files:** uploads stay in quarantine until the scanner clears them.
 - **Events:** outbox events carry a schema version, correlation id and per-record sequence (`docs/integration/EVENTS.md`).
 
+File 1049 and the operations tooling answer the re-audit of design 3.8 (`docs/database/DESIGN_AUDIT_T3_RECHECK.md`):
+- **Outbound traffic:** leaves only through an egress proxy (`deploy/egress`).
+- **Monitoring:** `/api/metrics` feeds alert rules and SLOs (`deploy/monitoring`, `docs/operations/SLO.md`).
+- **Recovery and migrations:** both are rehearsed and measured (`db/tools/restore_drill.py`,
+  `db/tools/migration_rehearsal.py`).
+- **Sensitive reports:** they travel as personal links.
+- **Positions:** they carry the device that sent them.
+- **Resends of money events:** they need a second person's approval.
+
 Company isolation (study 16.26, file 1038): `backend/tests/test_isolation.py` signs in as every company under the
 application role and counts the rows of other companies in every table that has a company column. The only rows allowed
 are listed in the test with the reason (public catalog data, or the two parties of one deal); a new table without a

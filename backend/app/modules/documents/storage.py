@@ -49,12 +49,14 @@ def _path(storage_key: str) -> Path:
     return path
 
 
-def put(cipher: FieldCipher, data: bytes) -> Stored:
+def put(cipher: FieldCipher, data: bytes, generated_mime: str | None = None) -> Stored:
+    """Stores an upload (its type recognised from its first bytes), or a file the platform generated itself
+    (generated_mime, e.g. a scheduled report), which skips the upload limits."""
     if not data:
         raise FileRejected("FILE_EMPTY: the file is empty")
-    if len(data) > get_settings().max_upload_bytes:
+    if generated_mime is None and len(data) > get_settings().max_upload_bytes:
         raise FileRejected("FILE_TOO_LARGE: the file is larger than allowed")
-    mime = detect(data)
+    mime = generated_mime or detect(data)
     key = f"{secrets.token_hex(2)}/{secrets.token_hex(16)}"
     sealed = cipher.encrypt_bytes(data, f"file:{key}")
     path = _path(key)

@@ -2,7 +2,7 @@
 
 > Generated from the built database (`db/tools/gen_docs.py`); do not edit by hand.
 
-**472 tables, 4869 columns, in 26 schemas.**
+**475 tables, 4908 columns, in 26 schemas.**
 
 Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant isolation (RLS) · 🧩 partitioned monthly · 🔒 append-only / change-protected
 
@@ -10,7 +10,7 @@ Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant i
 
 - [`iam` — Identity, parties, users, permissions and API clients](#iam) (32 tables)
 - [`ref` — Reference data, locales and files](#ref) (13 tables)
-- [`sys` — Settings, outbox and webhooks](#sys) (18 tables)
+- [`sys` — Settings, outbox and webhooks](#sys) (20 tables)
 - [`net` — Network: stations, routes, lines, corridors and geofences](#net) (22 tables)
 - [`fleet` — Fleet: vehicles, trucks, trailers, seats, crew, licenses and insurance](#fleet) (22 tables)
 - [`pricing` — Pricing, taxes, commissions, campaigns and loyalty](#pricing) (35 tables)
@@ -32,7 +32,7 @@ Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant i
 - [`rail` — Rail extension](#rail) (5 tables)
 - [`taxi` — Taxis](#taxi) (7 tables)
 - [`rent` — Car rental](#rent) (15 tables)
-- [`rpt` — Report definitions, runs and schedules](#rpt) (3 tables)
+- [`rpt` — Report definitions, runs and schedules](#rpt) (4 tables)
 - [`audit` — Login and activity logs (append-only)](#audit) (6 tables)
 
 <a id="iam"></a>
@@ -234,6 +234,8 @@ Registered devices per user (3.5, 16.8); a new operator device requires approval
 | `first_seen_at` | `timestamp with time zone` | ✱ | `now()` |
 | `last_seen_at` | `timestamp with time zone` | ✱ | `now()` |
 | `revoked_at` | `timestamp with time zone` |  |  |
+| `attested_at` | `timestamp with time zone` |  |  |
+| `attestation_provider` | `text` |  |  |
 
 ### `iam.device_permission_state` 🛡️
 
@@ -879,6 +881,38 @@ Licences, tracking and reporting duties a regulator may impose, each switched OF
 | `description` | `text` | ✱ |  |
 | `updated_at` | `timestamp with time zone` | ✱ | `now()` |
 | `updated_by` | `bigint` | 🔗 `iam.app_user`  |  |
+
+### `sys.delivery_retry_request` 🛡️
+
+A request to resend a money or authority event to a partner: applied only after a platform approval (audit T3-12)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `delivery_id` | `bigint` | 🔗 `sys.webhook_delivery` ✱ |  |
+| `event_type` | `text` | ✱ |  |
+| `api_client_id` | `bigint` | 🔗 `iam.api_client`  |  |
+| `requested_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `reason` | `text` | ✱ |  |
+| `status` | `text` | ✱ | `'PENDING'::text` |
+| `decided_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `decided_at` | `timestamp with time zone` |  |  |
+| `decision_note` | `text` |  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `sys.job_run` 🛡️
+
+Every run of a scheduled job (daily upkeep), so monitoring can alert when one stops or fails (audit T3-16)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `job` | `text` | ✱ |  |
+| `started_at` | `timestamp with time zone` | ✱ | `now()` |
+| `finished_at` | `timestamp with time zone` |  |  |
+| `ok` | `boolean` |  |  |
+| `detail` | `jsonb` | ✱ | `'{}'::jsonb` |
 
 ### `sys.json_contract` 🛡️
 
@@ -2539,6 +2573,7 @@ Tracking positions; partitioned monthly, short retention (16.13: 7 days by defau
 | `is_mock` | `boolean` | ✱ | `false` |
 | `trust` | `text` | ✱ | `'HIGH'::text` |
 | `trust_flags` | `text[]` | ✱ | `'{}'::text[]` |
+| `device_id` | `bigint` | 🔗 `iam.device`  |  |
 
 ### `ops.incident` 🛡️
 
@@ -8105,6 +8140,28 @@ Custom report built from a whitelisted dataset; spec holds columns, filters, gro
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 | `updated_at` | `timestamp with time zone` | ✱ | `now()` |
 
+### `rpt.report_delivery` 🛡️
+
+One link per recipient of a sensitive scheduled report: only a hash of the token is kept; every download is counted and logged (audit T3-05)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `schedule_id` | `bigint` | 🔗 `rpt.report_schedule` ✱ |  |
+| `report_run_id` | `bigint` | 🔗 `rpt.report_run` ✱ |  |
+| `recipient` | `text` | ✱ |  |
+| `recipient_user_id` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `file_id` | `bigint` | 🔗 `ref.file_object` ✱ |  |
+| `file_name` | `text` | ✱ |  |
+| `token_hash` | `bytea` | ✱ |  |
+| `expires_at` | `timestamp with time zone` | ✱ |  |
+| `first_downloaded_at` | `timestamp with time zone` |  |  |
+| `last_downloaded_at` | `timestamp with time zone` |  |  |
+| `download_count` | `integer` | ✱ | `0` |
+| `revoked_at` | `timestamp with time zone` |  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
 ### `rpt.report_run` 🛡️ 🔒
 
 Every report preview and export: who, which report, parameters, rows and file digest (append-only)
@@ -8147,6 +8204,9 @@ Report delivered by e-mail on a cycle; the outbox worker runs it with the owner'
 | `last_run_at` | `timestamp with time zone` |  |  |
 | `active` | `boolean` | ✱ | `true` |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `sensitive` | `boolean` | ✱ | `false` |
+| `consent_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `consent_at` | `timestamp with time zone` |  |  |
 
 <a id="audit"></a>
 ## `audit` — Login and activity logs (append-only)
