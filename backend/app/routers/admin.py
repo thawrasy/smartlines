@@ -74,8 +74,8 @@ async def onboard_carrier(body: OnboardIn, request: Request, pr: Principal = Dep
             "INSERT INTO net.carrier_code (company_id, code3, status, approved_by, valid_from) VALUES ($1, $2, 'ACTIVE', $3, current_date)",
             cid, body.code3, pr.user_id)
         owner_party = await conn.fetchval(
-            "INSERT INTO iam.party (party_type, legal_name, email) VALUES ('PERSON', $1, $2) RETURNING id",
-            body.owner_name.strip(), body.owner_email)
+            "INSERT INTO iam.party (party_type, legal_name) VALUES ('PERSON', $1) RETURNING id",   # contact on the account
+            body.owner_name.strip())
         owner_user = await conn.fetchval(
             """INSERT INTO iam.app_user (party_id, account_kind, email, password_hash, password_changed_at, status,
                  preferred_locale, mfa_required) VALUES ($1, 'COMPANY', $2, $3, now(), 'ACTIVE', (SELECT value #>> '{}' FROM sys.setting WHERE key = 'ui.default_locale'), true) RETURNING id""",
@@ -172,8 +172,8 @@ async def onboard_agency(body: AgencyIn, request: Request, pr: Principal = Depen
             """INSERT INTO sales.agency_agreement (agency_id, commission_bp, daily_limit, created_by)
                VALUES ($1, $2, $3, $4)""", aid, body.commission_bp, body.daily_limit, pr.user_id)
         owner_party = await conn.fetchval(
-            "INSERT INTO iam.party (party_type, legal_name, email) VALUES ('PERSON', $1, $2) RETURNING id",
-            body.owner_name.strip(), body.owner_email)
+            "INSERT INTO iam.party (party_type, legal_name) VALUES ('PERSON', $1) RETURNING id",   # contact on the account
+            body.owner_name.strip())
         owner_user = await conn.fetchval(
             """INSERT INTO iam.app_user (party_id, account_kind, email, password_hash, password_changed_at, status,
                  preferred_locale, mfa_required) VALUES ($1, 'AGENCY', $2, $3, now(), 'ACTIVE', (SELECT value #>> '{}' FROM sys.setting WHERE key = 'ui.default_locale'), true) RETURNING id""",

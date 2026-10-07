@@ -576,9 +576,16 @@ erDiagram
   sys_module_gate {
     text schema_name PK
   }
+  sys_orphan_check {
+    bigint id PK
+  }
   sys_outbox_event {
     bigint id PK
     text status
+  }
+  sys_polymorphic_reference {
+    text table_name PK
+    text type_col PK
   }
   sys_project_phase {
     text code PK

@@ -161,8 +161,7 @@ async def add_staff(conn: asyncpg.Connection, pr: Principal, full_name: str, ema
     need(pr, "company.staff")
     role_id = await conn.fetchval("SELECT id FROM iam.role WHERE code = $1 AND company_id IS NULL", f"AGENCY_{role}")
     party_id = await conn.fetchval(
-        "INSERT INTO iam.party (party_type, legal_name, email, mobile) VALUES ('PERSON', $1, $2, $3) RETURNING id",
-        full_name.strip(), email, mobile)
+        "INSERT INTO iam.party (party_type, legal_name) VALUES ('PERSON', $1) RETURNING id", full_name.strip())   # contact on the account
     await conn.execute("INSERT INTO iam.party_role (party_id, role_code) VALUES ($1, 'AGENCY')", party_id)
     user_id = await conn.fetchval(
         """INSERT INTO iam.app_user (party_id, account_kind, email, mobile, password_hash, password_changed_at, status,

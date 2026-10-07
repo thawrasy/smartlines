@@ -2,7 +2,7 @@
 
 > Generated from the built database (`db/tools/gen_docs.py`); do not edit by hand.
 
-**466 tables, 4786 columns, in 26 schemas.**
+**468 tables, 4802 columns, in 26 schemas.**
 
 Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant isolation (RLS) · 🧩 partitioned monthly · 🔒 append-only / change-protected
 
@@ -10,7 +10,7 @@ Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant i
 
 - [`iam` — Identity, parties, users, permissions and API clients](#iam) (32 tables)
 - [`ref` — Reference data, locales and files](#ref) (13 tables)
-- [`sys` — Settings, outbox and webhooks](#sys) (13 tables)
+- [`sys` — Settings, outbox and webhooks](#sys) (15 tables)
 - [`net` — Network: stations, routes, lines, corridors and geofences](#net) (22 tables)
 - [`fleet` — Fleet: vehicles, trucks, trailers, seats, crew, licenses and insurance](#fleet) (22 tables)
 - [`pricing` — Pricing, taxes, commissions, campaigns and loyalty](#pricing) (35 tables)
@@ -366,6 +366,8 @@ A member of a family with full identity details (document number encrypted); fun
 | `legal_hold` | `boolean` | ✱ | `false` |
 | `anonymized_at` | `timestamp with time zone` |  |  |
 | `erasure_request_id` | `bigint` | 🔗 `gov.subject_request`  |  |
+| `mobile_enc` | `bytea` |  |  |
+| `mobile_last4` | `text` |  |  |
 
 ### `iam.family_spend` 🛡️ 🔒
 
@@ -883,6 +885,17 @@ Which feature switch opens the tables of each phase schema (review 3.10)
 | `feature_keys` | `text[]` | ✱ |  |
 | `phase` | `text` | ✱ |  |
 
+### `sys.orphan_check` 🛡️
+
+Result of each orphan sweep over the registered references; any orphan raises an integrity.orphans_found event
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `checked_at` | `timestamp with time zone` | ✱ | `now()` |
+| `orphans` | `bigint` | ✱ |  |
+| `findings` | `jsonb` | ✱ |  |
+
 ### `sys.outbox_event` 🛡️
 
 Transactional outbox: written in the same transaction as the change, then published to services and partners
@@ -903,6 +916,20 @@ Transactional outbox: written in the same transaction as the change, then publis
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 | `published_at` | `timestamp with time zone` |  |  |
 
+### `sys.polymorphic_reference` 🛡️
+
+Every (type, id) reference: TYPED ones are backed by real foreign keys, BUSINESS ones are swept for orphans weekly, METADATA ones outlive their rows on purpose (third-party audit R-03)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `table_name` | `text` | 🔑 ✱ |  |
+| `type_col` | `text` | 🔑 ✱ |  |
+| `id_col` | `text` | ✱ |  |
+| `kind` | `text` | ✱ |  |
+| `targets` | `jsonb` | ✱ | `'{}'::jsonb` |
+| `owner` | `text` | ✱ |  |
+| `reason` | `text` | ✱ |  |
+
 ### `sys.project_phase` 🛡️
 
 Project phases of the study roadmap (22); Phase 1 split into releases 1A and 1B (review decision 3)
@@ -914,6 +941,7 @@ Project phases of the study roadmap (22); Phase 1 split into releases 1A and 1B 
 | `name` | `text` | ✱ |  |
 | `study_ref` | `text` | ✱ |  |
 | `scope` | `text` | ✱ |  |
+| `feature_keys` | `text[]` | ✱ | `'{}'::text[]` |
 
 ### `sys.schema_file` 🛡️
 
@@ -3265,6 +3293,8 @@ Passenger data on the booking; document numbers encrypted with a blind index for
 | `legal_hold` | `boolean` | ✱ | `false` |
 | `anonymized_at` | `timestamp with time zone` |  |  |
 | `erasure_request_id` | `bigint` | 🔗 `gov.subject_request`  |  |
+| `mobile_enc` | `bytea` |  |  |
+| `mobile_last4` | `text` |  |  |
 
 ### `sales.passenger_compensation` 🛡️
 

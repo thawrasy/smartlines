@@ -30,11 +30,14 @@ class Column:
     aad: str                         # the associated data the value was sealed with
     where: str = "true"              # extra filter, when one table holds values sealed for different purposes
     key_ref: str = crypto.RESTRICTED_REF
+    also: tuple = ()                 # other (column, associated data) pairs of the row that share its enc_key_id
 
 
 COLUMNS = [
-    Column("sales.passenger", "id_no_enc", "sales.passenger.id_no"),
-    Column("iam.family_member", "id_no_enc", "iam.family_member.id_no"),
+    Column("sales.passenger", "id_no_enc", "sales.passenger.id_no", also=(("mobile_enc", "sales.passenger.mobile"),)),
+    Column("sales.passenger", "mobile_enc", "sales.passenger.mobile", "id_no_enc IS NULL"),
+    Column("iam.family_member", "id_no_enc", "iam.family_member.id_no", also=(("mobile_enc", "iam.family_member.mobile"),)),
+    Column("iam.family_member", "mobile_enc", "iam.family_member.mobile", "id_no_enc IS NULL"),
     Column("brd.manifest_person", "doc_no_enc", "brd.manifest_person.doc_no"),
     Column("iam.bank_account", "iban_enc", "iam.bank_account.iban"),
     Column("iam.mfa_factor", "secret_enc", "iam.mfa_factor.secret", "factor_type = 'TOTP'"),
@@ -63,16 +66,21 @@ async def rekey_column(col: Column, apply: bool) -> tuple[int, int]:
     while True:
         async with db.transaction(_ctx()) as conn:
             fc = await crypto.cipher(conn)
+            extra = "".join(f", t.{c} AS also_{i}" for i, (c, _) in enumerate(col.also))
             rows = await conn.fetch(
-                f"""SELECT t.id, t.{col.enc} AS blob, t.enc_key_id FROM {col.table} t JOIN sec.key_registry k ON k.id = t.enc_key_id
+                f"""SELECT t.id, t.{col.enc} AS blob, t.enc_key_id{extra} FROM {col.table} t JOIN sec.key_registry k ON k.id = t.enc_key_id
                      WHERE t.{col.enc} IS NOT NULL AND k.status <> 'ACTIVE' AND {col.where} AND t.id > $1
                      ORDER BY t.id LIMIT {BATCH} FOR UPDATE OF t""", last_id)
             if not rows:
                 return found, done
             for r in rows:
                 sealed = fc.encrypt(fc.decrypt(bytes(r["blob"]), r["enc_key_id"], col.aad), col.aad, key_ref=col.key_ref)
-                await conn.execute(f"UPDATE {col.table} SET {col.enc} = $2, enc_key_id = $3 WHERE id = $1",
-                                   r["id"], sealed.ciphertext, sealed.key_id)
+                sets, args = [f"{col.enc} = $2", "enc_key_id = $3"], [r["id"], sealed.ciphertext, sealed.key_id]
+                for i, (c, aad) in enumerate(col.also):     # siblings move to the same key in the same update
+                    if r[f"also_{i}"] is not None:
+                        args.append(fc.encrypt(fc.decrypt(bytes(r[f"also_{i}"]), r["enc_key_id"], aad), aad, key_ref=col.key_ref).ciphertext)
+                        sets.append(f"{c} = ${len(args)}")
+                await conn.execute(f"UPDATE {col.table} SET {', '.join(sets)} WHERE id = $1", *args)
                 done += 1
             last_id = rows[-1]["id"]
 

@@ -191,8 +191,9 @@ def test_agency_counter_topup(pax):
     mobile = f"+9639{secrets.randbelow(10**8):08d}"
     email = f"t{secrets.token_hex(4)}@example.com"
     reg = client()
-    assert reg.post("/api/auth/register", json={"full_name": "Counter Customer", "email": email, "password": "another-long-password"}).status_code == 201
-    owner_sql("UPDATE iam.party SET mobile = $2 WHERE id = (SELECT party_id FROM iam.app_user WHERE email = $1)", email, mobile)
+    r = reg.post("/api/auth/register", json={"full_name": "Counter Customer", "email": email, "mobile": mobile,
+                                             "password": "another-long-password"})
+    assert r.status_code == 201, r.text                                  # the phone is the account's (never the party's)
     c = login(email, "PASSENGER", "another-long-password")
     before = balance(c)
     agency_before = agency.get("/api/agency/dashboard").json()

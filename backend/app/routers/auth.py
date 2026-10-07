@@ -74,8 +74,8 @@ async def register(body: RegisterIn, request: Request):
             "SELECT 1 FROM ref.locale WHERE code = $1 AND is_enabled", body.locale) else await conn.fetchval(
             "SELECT coalesce((SELECT value #>> '{}' FROM sys.setting WHERE key = 'ui.default_locale'), 'en')")
         party_id = await conn.fetchval(
-            "INSERT INTO iam.party (party_type, legal_name, email, mobile) VALUES ('PERSON', $1, $2, $3) RETURNING id",
-            body.full_name.strip(), body.email, body.mobile)
+            "INSERT INTO iam.party (party_type, legal_name) VALUES ('PERSON', $1) RETURNING id",   # contact lives on the account
+            body.full_name.strip())
         await conn.execute("INSERT INTO iam.party_role (party_id, role_code) VALUES ($1, 'PASSENGER')", party_id)
         user_id = await conn.fetchval(
             """INSERT INTO iam.app_user (party_id, account_kind, email, mobile, password_hash, password_changed_at,

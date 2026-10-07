@@ -283,7 +283,7 @@
 <polygon fill="#ffffff" stroke="transparent" points="868.5,-15.5 868.5,-32.5 898.5,-32.5 898.5,-15.5 868.5,-15.5"/>
 <text text-anchor="start" x="871.5" y="-22.1" font-family="DejaVu Sans" font-size="8.00" fill="#7f7f7f">bigint</text>
 <polygon fill="#ffffff" stroke="transparent" points="687.5,-0.5 687.5,-15.5 898.5,-15.5 898.5,-0.5 687.5,-0.5"/>
-<text text-anchor="start" x="690.5" y="-7.1" font-family="DejaVu Sans" font-style="italic" font-size="8.00" fill="#7f7f7f">+ 22 more columns</text>
+<text text-anchor="start" x="690.5" y="-7.1" font-family="DejaVu Sans" font-style="italic" font-size="8.00" fill="#7f7f7f">+ 24 more columns</text>
 <path fill="none" stroke="#404040" d="M698,0C698,0 887,0 887,0 893,0 899,-6 899,-12 899,-12 899,-157 899,-157 899,-163 893,-169 887,-169 887,-169 698,-169 698,-169 692,-169 686,-163 686,-157 686,-157 686,-12 686,-12 686,-6 692,0 698,0"/>
 </g>
 <!-- sales__passenger&#45;&gt;sales__booking -->

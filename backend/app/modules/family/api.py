@@ -189,16 +189,20 @@ async def create_family(body: FamilyIn, request: Request, pr: Principal = Depend
         if await fam.membership(conn, pr.party_id):
             raise ApiError(409, "ALREADY_IN_FAMILY", "you already head or belong to a family")
         async with db.system_scope(conn, ctx):
-            me = await conn.fetchrow("SELECT legal_name, birth_date, gender, nationality, mobile FROM iam.party WHERE id = $1", pr.party_id)
+            me = await conn.fetchrow(
+                """SELECT p.legal_name, p.birth_date, p.gender, p.nationality, u.mobile FROM iam.party p
+                     LEFT JOIN iam.app_user u ON u.party_id = p.id WHERE p.id = $1 ORDER BY u.id LIMIT 1""", pr.party_id)
+            menc, mlast4, mkey = await fam.seal_mobile(conn, me["mobile"])
         f = await conn.fetchrow("INSERT INTO iam.family (head_party_id, name) VALUES ($1, $2) RETURNING *", pr.party_id, body.name)
         parts = (me["legal_name"] or "").split()
         first, last = (parts[0], parts[-1]) if len(parts) > 1 else ((parts or ["-"])[0], "-")
         father, grandfather = (parts[1], parts[2]) if len(parts) == 4 else (None, None)
         await conn.execute(
             """INSERT INTO iam.family_member (family_id, party_id, relation, first_name, father_name, grandfather_name, last_name,
-                 nationality, birth_date, gender, mobile, funding) VALUES ($1, $2, 'SELF', $3, $4, $5, $6, $7, $8, $9, $10, 'OWN')""",
+                 nationality, birth_date, gender, mobile_enc, mobile_last4, enc_key_id, funding)
+               VALUES ($1, $2, 'SELF', $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'OWN')""",
             f["id"], pr.party_id, first, father, grandfather, last, me["nationality"] or "SY", me["birth_date"] or date(1990, 1, 1),
-            me["gender"], me["mobile"])
+            me["gender"], menc, mlast4, mkey)
         request.state.audit = {"action": "family.create", "object_type": "iam.family", "object_id": f["id"]}
         return await _summary(conn, ctx, await fam.membership(conn, pr.party_id))
 
@@ -214,16 +218,17 @@ async def add_member(body: MemberIn, request: Request, pr: Principal = Depends(p
         name = " ".join(p for p in (body.first_name, body.father_name, body.grandfather_name, body.last_name) if p)
         async with db.system_scope(conn, ctx):
             party = await conn.fetchval(
-                """INSERT INTO iam.party (party_type, legal_name, nationality, birth_date, gender, mobile, country_code)
-                   VALUES ('PERSON', $1, $2, $3, $4, $5, 'SY') RETURNING id""", name, body.nationality, body.birth_date, body.gender, body.mobile)
+                """INSERT INTO iam.party (party_type, legal_name, nationality, birth_date, gender, country_code)
+                   VALUES ('PERSON', $1, $2, $3, $4, 'SY') RETURNING id""", name, body.nationality, body.birth_date, body.gender)
             enc, bidx, last4, key = await fam.seal_document(conn, body.id_type, body.id_no, body.nationality)
+            menc, mlast4, mkey = await fam.seal_mobile(conn, body.mobile)
         m = await conn.fetchrow(
             """INSERT INTO iam.family_member (family_id, party_id, relation, first_name, father_name, grandfather_name, last_name,
-                 nationality, birth_date, gender, id_type, id_no_enc, id_no_bidx, id_no_last4, enc_key_id, passport_expiry, mobile,
-                 funding, per_trip_limit, daily_limit, monthly_limit)
-               VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21) RETURNING *""",
+                 nationality, birth_date, gender, id_type, id_no_enc, id_no_bidx, id_no_last4, enc_key_id, passport_expiry, mobile_enc,
+                 mobile_last4, funding, per_trip_limit, daily_limit, monthly_limit)
+               VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22) RETURNING *""",
             f["id"], party, body.relation, body.first_name, body.father_name, body.grandfather_name, body.last_name, body.nationality,
-            body.birth_date, body.gender, body.id_type, enc, bidx, last4, key, body.passport_expiry, body.mobile, body.funding,
+            body.birth_date, body.gender, body.id_type, enc, bidx, last4, key or mkey, body.passport_expiry, menc, mlast4, body.funding,
             body.per_trip_limit, body.daily_limit, body.monthly_limit)
         request.state.audit = {"action": "family.member_add", "object_type": "iam.family_member", "object_id": m["id"]}
     return fam.member_view(m)
@@ -242,19 +247,26 @@ async def update_member(uid: uuid.UUID, body: MemberPatch, request: Request, pr:
             args.append(val)
             sets.append(f"{col} = ${len(args)}")
         data = body.model_dump(exclude_unset=True)
-        for col in ("mobile", "passport_expiry", "funding"):
+        for col in ("passport_expiry", "funding"):
             if col in data:
                 put(col, data[col])
         for col in ("per_trip_limit", "daily_limit", "monthly_limit"):
             if col in data:
                 put(col, data[col] or None)
-        if data.get("id_no"):
+        if data.get("id_no") or "mobile" in data:
+            # the document and the phone share one key reference, so both are sealed again together under the active key
             id_type = data.get("id_type") or m["id_type"]
-            if not id_type:
+            if data.get("id_no") and not id_type:
                 raise ApiError(422, "ID_TYPE_REQUIRED", "give the document type with the document number")
             async with db.system_scope(conn, ctx):
-                enc, bidx, last4, key = await fam.seal_document(conn, id_type, data["id_no"], m["nationality"])
-            for col, val in (("id_type", id_type), ("id_no_enc", enc), ("id_no_bidx", bidx), ("id_no_last4", last4), ("enc_key_id", key)):
+                doc = data.get("id_no") or await fam.member_document(conn, m)
+                mobile = data["mobile"] if "mobile" in data else await fam.member_mobile(conn, m)
+                enc, bidx, last4, key = await fam.seal_document(conn, id_type, doc, m["nationality"])
+                menc, mlast4, mkey = await fam.seal_mobile(conn, mobile)
+            if doc:
+                for col, val in (("id_type", id_type), ("id_no_enc", enc), ("id_no_bidx", bidx), ("id_no_last4", last4)):
+                    put(col, val)
+            for col, val in (("mobile_enc", menc), ("mobile_last4", mlast4), ("enc_key_id", key or mkey)):
                 put(col, val)
         if m["relation"] == "SELF" and data.get("funding") not in (None, "OWN"):
             raise ApiError(409, "HEAD_PAYS_OWN", "the head always pays from their own wallet")

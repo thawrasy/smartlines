@@ -452,7 +452,7 @@ async def passenger_by_mobile(conn, mobile: str, required: bool = True):
     digits = re.sub(r"\D", "", mobile)
     person = await conn.fetchrow(
         """SELECT p.id, p.legal_name FROM iam.party p JOIN iam.app_user u ON u.party_id = p.id
-            WHERE regexp_replace(coalesce(p.mobile, u.mobile, ''), '\\D', '', 'g') IN ($1, '963' || ltrim($1, '0'))
+            WHERE regexp_replace(coalesce(u.mobile, ''), '\\D', '', 'g') IN ($1, '963' || ltrim($1, '0'))
               AND u.status = 'ACTIVE' AND p.party_type = 'PERSON' LIMIT 1""", digits)
     if person is None and required:
         raise ApiError(404, "PASSENGER_NOT_FOUND", "no passenger account with this mobile")

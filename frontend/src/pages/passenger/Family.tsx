@@ -260,7 +260,7 @@ function MemberForm({ member, onClose, onSaved }: { member?: FamilyMember; onClo
   const edit = !!member;
   const [v, setV] = useState({
     relation: "SON", first_name: "", father_name: "", grandfather_name: "", last_name: "", nationality: "SY", birth_date: "",
-    gender: "", id_type: member?.id_type ?? "NATIONAL_ID", id_no: "", passport_expiry: member?.passport_expiry ?? "", mobile: member?.mobile ?? "",
+    gender: "", id_type: member?.id_type ?? "NATIONAL_ID", id_no: "", passport_expiry: member?.passport_expiry ?? "", mobile: "",
     funding: member?.funding ?? "HEAD_WALLET", per_trip_limit: member?.per_trip_limit ? String(member.per_trip_limit / 100) : "",
     daily_limit: member?.daily_limit ? String(member.daily_limit / 100) : "", monthly_limit: member?.monthly_limit ? String(member.monthly_limit / 100) : "",
   });
@@ -273,7 +273,7 @@ function MemberForm({ member, onClose, onSaved }: { member?: FamilyMember; onClo
     try {
       if (edit) {
         await api.patch(`/api/family/members/${member!.uid}`, { ...limits, per_trip_limit: limits.per_trip_limit ?? 0, daily_limit: limits.daily_limit ?? 0,
-          monthly_limit: limits.monthly_limit ?? 0, mobile: v.mobile.trim() || null, ...(v.id_no.trim() ? { id_type: v.id_type, id_no: v.id_no.trim() } : {}),
+          monthly_limit: limits.monthly_limit ?? 0, ...(v.mobile.trim() ? { mobile: v.mobile.trim() } : {}), ...(v.id_no.trim() ? { id_type: v.id_type, id_no: v.id_no.trim() } : {}),
           ...(v.passport_expiry ? { passport_expiry: v.passport_expiry } : {}) });
       } else {
         await api.post("/api/family/members", { ...limits, relation: v.relation, first_name: v.first_name.trim(), father_name: v.father_name.trim() || null,
@@ -320,7 +320,8 @@ function MemberForm({ member, onClose, onSaved }: { member?: FamilyMember; onClo
             </select>
           </Field>
           {text("id_no", edit && member!.id_last4 ? `${t("checkout.docNumber")} (•••• ${member!.id_last4})` : t("checkout.docNumber"), { className: "input ltr", maxLength: 24 })}
-          {text("mobile", `${t("family.mobile")} (${t("common.optional")})`, { className: "input ltr", inputMode: "tel" })}
+          {text("mobile", `${t("family.mobile")} (${t("common.optional")})`, { className: "input ltr", inputMode: "tel",
+            placeholder: member?.mobile ?? "" })}
         </div>
         <p className="small muted"><Icon name="lock" size={16} /> {t("family.docPrivacy")}</p>
         <div className="divider" />

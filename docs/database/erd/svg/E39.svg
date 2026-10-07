@@ -318,7 +318,7 @@
 <polygon fill="#f2f6fa" stroke="transparent" points="356.5,-693.5 356.5,-710.5 386.5,-710.5 386.5,-693.5 356.5,-693.5"/>
 <text text-anchor="start" x="359.5" y="-700.1" font-family="DejaVu Sans" font-size="8.00" fill="#7f7f7f">text</text>
 <polygon fill="#ffffff" stroke="transparent" points="233.5,-678.5 233.5,-693.5 386.5,-693.5 386.5,-678.5 233.5,-678.5"/>
-<text text-anchor="start" x="236.5" y="-685.1" font-family="DejaVu Sans" font-style="italic" font-size="8.00" fill="#7f7f7f">+ 24 more columns</text>
+<text text-anchor="start" x="236.5" y="-685.1" font-family="DejaVu Sans" font-style="italic" font-size="8.00" fill="#7f7f7f">+ 26 more columns</text>
 <path fill="none" stroke="#404040" d="M244,-677.5C244,-677.5 375,-677.5 375,-677.5 381,-677.5 387,-683.5 387,-689.5 387,-689.5 387,-851.5 387,-851.5 387,-857.5 381,-863.5 375,-863.5 375,-863.5 244,-863.5 244,-863.5 238,-863.5 232,-857.5 232,-851.5 232,-851.5 232,-689.5 232,-689.5 232,-683.5 238,-677.5 244,-677.5"/>
 </g>
 <!-- iam__family_member&#45;&gt;iam__family -->

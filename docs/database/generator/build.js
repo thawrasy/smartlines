@@ -11,7 +11,7 @@ const {
 const HERE = __dirname;
 const model = JSON.parse(fs.readFileSync(path.join(HERE, "..", "build", "model.json"), "utf8"));
 const PNG = path.join(HERE, "..", "erd", "png");
-const VERSION = "3.7";
+const VERSION = "3.8";
 const DATE = "7 October 2026";
 const FONT = "Arial";
 const C = { navy: "1F3A5F", blue: "2E74B5", blue2: "1F4D78", grid: "B7C3D0", alt: "F2F6FA", grey: "595959" };
@@ -107,22 +107,41 @@ front.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 16
 front.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 1200 },
   children: [run(`Complete relational model of the Analysis and Design Study v2.9: ${tableCount} tables, ${fkCount} relationships`, { color: "7F7F7F" })] }));
 front.push(table(["Item", "Details"], [
-  ["Version", `${VERSION} (route compliance, school transport and PostGIS after the regulators' review; replaces version 3.6)`],
+  ["Version", `${VERSION} (hardening after the third-party technical audit; route compliance, school transport and PostGIS; replaces version 3.7)`],
   ["Date", DATE],
   ["Basis", "Analysis and Design Study v2.9 (English), the Use Case and Data Flow Diagrams v1.0, the Database Architecture Review v1.0, the Strategic Database Review and its relationship audit register"],
   ["Scope", `${schemas.length} schemas, ${tableCount} tables, ${colCount} columns, ${fkCount} foreign keys; all phases 1 to 15`],
-  ["Engine", "PostgreSQL 16 with row-level security on every table; PostGIS 3 in schema gis; schema files db/schema/000 to 1045"],
-  ["Status", "Built and verified: fresh build and upgrade identical, 248 database checks and 175 API tests passing, every foreign key indexed or exempt by rule"],
+  ["Engine", "PostgreSQL 16 with row-level security on every table; PostGIS 3 in schema gis; schema files db/schema/000 to 1046"],
+  ["Status", "Built and verified: fresh build and upgrade identical, 264 database checks and 176 API tests passing, every foreign key indexed or exempt by rule"],
   ["Website", "masslak.com"],
 ], [2800, 6946]));
 
 const toc = [H(HeadingLevel.HEADING_1, "Contents", { pageBreak: true })];
-const tocLines = ["Changes in version 3.7", "Changes in version 3.6", "Changes in version 3.5", "Changes in version 3.4", "Changes in version 3.3", "Changes in version 3.2", "Changes in version 3.1", "Changes in version 3.0", "1. Introduction", "2. Database architecture", "3. Design rules", "4. Security model in the database",
+const tocLines = ["Changes in version 3.8", "Changes in version 3.7", "Changes in version 3.6", "Changes in version 3.5", "Changes in version 3.4", "Changes in version 3.3", "Changes in version 3.2", "Changes in version 3.1", "Changes in version 3.0", "1. Introduction", "2. Database architecture", "3. Design rules", "4. Security model in the database",
   "5. Data stores of the data flow diagrams", "6. Entity-relationship diagrams by module",
   ...model.groups.map((g, i) => `      6.${i + 1} ${g[0]} ${g[1]}`), `      6.${model.groups.length + 1} Focus diagrams: rules that span modules`,
   "7. Table definitions", "8. Traceability to the study", "9. Verification",
   "Appendix A: Feature flags", "Appendix B: Generalizations and naming decisions", "Appendix C: References without a foreign key"];
 for (const l of tocLines) toc.push(P(l, { after: 40, size: 20 }));
+
+// ------------------------------ changes in 3.8 ------------------------------
+const changes38 = [H(HeadingLevel.HEADING_1, "Changes in version 3.8", { pageBreak: true }),
+  P("A third-party technical audit reviewed version 3.6 and recommended hardening within the current design. Each finding was checked "
+    + "against the built database (docs/database/THIRD_PARTY_AUDIT.md); the owner approved the database fixes, carried by schema file "
+    + "1046_audit_hardening.sql (migration 1.28.0)."),
+  bullet("Passengers' and family members' phone numbers are encrypted; a person's contact lives only on their account; reporting and audit "
+    + "roles lose the contact columns and the change log masks them. This corrects the earlier statement that phone numbers were hashed.", "Contact data (R-04)"),
+  bullet("A company sits on a company or entity party; a person only for an individual owner-driver.", "Company party (R-06)"),
+  bullet("Every (type, id) reference is registered with its targets, owner and reason (sys.polymorphic_reference); a weekly sweep records "
+    + "references to missing rows and raises an alert through the outbox.", "Orphans (R-03)"),
+  bullet("Every table of a switched phase is closed in the database by a restrictive policy tied to its phase's switches, not only by the "
+    + "application. The gate exposed two phase-map corrections: tracking positions and alerts belong to release 1B, the PostGIS reference "
+    + "table to 1A.", "Phase gate (R-14)"),
+  bullet("School transport comes before the last phase; electronic reporting of violations waits for the government's e-government "
+    + "infrastructure and moves to Phase 5.", "Owner decisions"),
+  P("Schema-level two-way dependencies (21, frozen by test H-07) differ from phase-level dependencies, of which there are none backwards: "
+    + "the earlier wording is clarified accordingly. db/tools/audit_pack.sh builds the evidence pack for the second phase of the audit."),
+];
 
 // ------------------------------ changes in 3.7 ------------------------------
 const changes37 = [H(HeadingLevel.HEADING_1, "Changes in version 3.7", { pageBreak: true }),
@@ -368,8 +387,10 @@ const arch = [H(HeadingLevel.HEADING_1, "2. Database architecture", { pageBreak:
     [1100, 4846, 1100, 1300, 1400], { boldFirst: true }),
   gap(),
   H(HeadingLevel.HEADING_2, "2.2 Relationships between modules"),
-  P("Modules depend on the core and never the other way round: a later-phase module references parties, companies, stations, trips, vehicles "
-    + "and wallets, while no core table references a later-phase module. The table counts the foreign keys from each module to the others."),
+  P("By phase, data depends only backwards: a later-phase module references parties, companies, stations, trips, vehicles and wallets, while "
+    + "no table of an earlier phase requires a row of a later one (references forward are optional readiness columns, tested). By schema, "
+    + "21 pairs of schemas reference each other both ways (for example ops and sales, fin and ship); the set is frozen by test H-07 and any new "
+    + "pair fails the build. The table counts the foreign keys from each module to the others."),
 ];
 {
   const cross = {};
@@ -395,7 +416,7 @@ const rules = [H(HeadingLevel.HEADING_1, "3. Design rules", { pageBreak: true })
     ["Statuses", "text with a CHECK list; adding a status changes a constraint, not the table"],
     ["Extensible lists", "reference tables (ref.trip_type, ref.party_role_type, ref.vehicle_class, ref.station_subtype, ref.cargo_category) with foreign keys"],
     ["Flexible data", "jsonb only for snapshots, terms and configurable fields, never in place of columns"],
-    ["Personal data", "identity, document and visa numbers encrypted (bytea) with a blind index and the key reference; card and phone numbers hashed"],
+    ["Personal data", "identity, document and visa numbers encrypted (bytea) with a blind index and the key reference; passengers' and family members' phone numbers encrypted with the last four digits for display; a person's contact only on their account, hidden from reporting and audit roles and masked in the change log; card numbers never stored (last four digits only), NFC card identifiers hashed"],
   ], [2400, 7346], { boldFirst: true }),
   gap(),
   H(HeadingLevel.HEADING_2, "3.2 Relationship rules"),
@@ -638,7 +659,7 @@ const doc = new Document({
   numbering: { config: [{ reference: "bullets", levels: [{ level: 0, format: LevelFormat.BULLET, text: "•", alignment: AlignmentType.LEFT,
     style: { paragraph: { indent: { left: 540, hanging: 270 } } } }] }] },
   sections: [
-    section(PORTRAIT, [...front, ...toc, ...changes37, ...changes36, ...changes35, ...changes34, ...changes33, ...changes32, ...changes31, ...changes, ...intro, ...arch, ...rules, ...security, ...stores]),
+    section(PORTRAIT, [...front, ...toc, ...changes38, ...changes37, ...changes36, ...changes35, ...changes34, ...changes33, ...changes32, ...changes31, ...changes, ...intro, ...arch, ...rules, ...security, ...stores]),
     ...erdSections,
     section(PORTRAIT, [...defs, ...trace, ...verify, ...flags, ...gens, ...appC]),
   ],

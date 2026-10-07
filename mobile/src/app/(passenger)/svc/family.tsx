@@ -192,7 +192,7 @@ function MemberEditor({ member, onClose, run, busy }: { member?: Member; onClose
   const [v, setV] = useState({
     relation: "SON", first_name: "", father_name: "", grandfather_name: "", last_name: "", nationality: "SY", birth_date: "",
     gender: "" as "" | "M" | "F", id_type: member?.id_type ?? "NATIONAL_ID", id_no: "", passport_expiry: member?.passport_expiry ?? "",
-    mobile: member?.mobile ?? "", funding: (member?.funding ?? "HEAD_WALLET") as Funding,
+    mobile: "", funding: (member?.funding ?? "HEAD_WALLET") as Funding,
     per_trip_limit: fromMinor(member?.per_trip_limit), daily_limit: fromMinor(member?.daily_limit), monthly_limit: fromMinor(member?.monthly_limit),
   });
   const set = (patch: Partial<typeof v>) => setV((x) => ({ ...x, ...patch }));
@@ -207,7 +207,8 @@ function MemberEditor({ member, onClose, run, busy }: { member?: Member; onClose
     if (edit) {
       // 0 removes a limit
       await api.patch(`/api/family/members/${member!.uid}`, { ...limits, per_trip_limit: limits.per_trip_limit ?? 0, daily_limit: limits.daily_limit ?? 0,
-                                                             monthly_limit: limits.monthly_limit ?? 0, mobile: v.mobile.trim() || null, ...doc });
+                                                             monthly_limit: limits.monthly_limit ?? 0,
+                                                             ...(v.mobile.trim() ? { mobile: v.mobile.trim() } : {}), ...doc });
     } else {
       await api.post("/api/family/members", { ...limits, relation: v.relation, first_name: v.first_name.trim(), father_name: v.father_name.trim() || null,
         grandfather_name: v.grandfather_name.trim() || null, last_name: v.last_name.trim(), nationality: v.nationality, birth_date: v.birth_date,
@@ -240,7 +241,8 @@ function MemberEditor({ member, onClose, run, busy }: { member?: Member; onClose
                     options={[{ value: "M", label: t("family.male") }, { value: "F", label: t("family.female") }]} />
           </>
         ) : null}
-        <Field label={t("family.mobile")} value={v.mobile} keyboardType="phone-pad" onChangeText={(x) => set({ mobile: x.trim() })} />
+        <Field label={t("family.mobile")} value={v.mobile} keyboardType="phone-pad" placeholder={member?.mobile ?? undefined}
+               onChangeText={(x) => set({ mobile: x.trim() })} />
         <Choice label={t("family.docType")} value={v.id_type} onChange={(x) => set({ id_type: x })}
                 options={DOCS.map((d) => ({ value: d, label: t(`trip.docTypes.${d}`) }))} />
         <Field label={t("trip.docNumber")} value={v.id_no} autoCapitalize="characters" autoComplete="off"

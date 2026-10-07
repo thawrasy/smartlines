@@ -570,7 +570,7 @@
 <polygon fill="#ffffff" stroke="transparent" points="651.5,-453.5 651.5,-470.5 687.5,-470.5 687.5,-453.5 651.5,-453.5"/>
 <text text-anchor="start" x="654.5" y="-460.1" font-family="DejaVu Sans" font-size="8.00" fill="#7f7f7f">bigint</text>
 <polygon fill="#ffffff" stroke="transparent" points="470.5,-438.5 470.5,-453.5 687.5,-453.5 687.5,-438.5 470.5,-438.5"/>
-<text text-anchor="start" x="473.5" y="-445.1" font-family="DejaVu Sans" font-style="italic" font-size="8.00" fill="#7f7f7f">+ 20 more columns</text>
+<text text-anchor="start" x="473.5" y="-445.1" font-family="DejaVu Sans" font-style="italic" font-size="8.00" fill="#7f7f7f">+ 22 more columns</text>
 <path fill="none" stroke="#404040" d="M481,-438C481,-438 676,-438 676,-438 682,-438 688,-444 688,-450 688,-450 688,-629 688,-629 688,-635 682,-641 676,-641 676,-641 481,-641 481,-641 475,-641 469,-635 469,-629 469,-629 469,-450 469,-450 469,-444 475,-438 481,-438"/>
 </g>
 <!-- sales__passenger&#45;&gt;ref__country -->

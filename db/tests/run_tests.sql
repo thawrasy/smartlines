@@ -49,7 +49,9 @@ COMMIT;
 -- tables of a module whose switch is off). The shipped defaults are kept to check them below.
 SELECT value AS shipped_features FROM sys.setting WHERE key = 'features' \gset
 UPDATE sys.setting SET value = value || '{"cargo":true,"freight":true,"border_manifest":true,"carrier_billing":true,"service_partners":true,
-  "rail":true,"taxi":true,"car_rental":true,"contract_transport":true}'::jsonb WHERE key = 'features';
+  "rail":true,"taxi":true,"car_rental":true,"contract_transport":true,"transit_passengers":true,"tracking_stations":true,
+  "gov_integration":true,"shuttle_rides":true,"approved_lines":true,"route_compliance":true,"intermediary_platforms":true,
+  "loyalty_partners":true,"accounting_ops":true}'::jsonb WHERE key = 'features';
 
 -- Shorthand values
 SELECT id AS ca FROM iam.party WHERE legal_name='Al-Quds Transport' \gset
@@ -325,7 +327,8 @@ SELECT pg_temp.ok((SELECT row_hash IS NOT NULL FROM audit.activity_log LIMIT 1),
 SELECT pg_temp.ok((SELECT user_id = :ua AND new_values ? 'standing_capacity' AND ip = '10.0.0.5'
                    FROM audit.row_change WHERE table_name = 'vehicle' AND op = 'U' ORDER BY id DESC LIMIT 1),
                   'Audit: DB-level change capture records who changed what, from which IP');
-SELECT pg_temp.ok((SELECT new_values->>'password_hash' = '***' FROM audit.row_change WHERE table_name = 'app_user' AND new_values->>'email' = 'owner@quds.test'), 'Audit: password hash redacted in change log');
+SELECT pg_temp.ok((SELECT new_values->>'password_hash' = '***' AND new_values->>'email' = '***' FROM audit.row_change
+                    WHERE table_name = 'app_user' AND op = 'I' AND row_pk = :'ua'), 'Audit: password hash and contact fields redacted in change log');
 SELECT pg_temp.ok(NOT EXISTS (SELECT 1 FROM audit.row_change WHERE new_values::text LIKE '%Zq9-PW-MARKER-7731%'), 'Audit: no secret value anywhere in change log');
 SELECT pg_temp.ok(audit.seal('activity_log') IS NOT NULL, 'Audit: activity log block sealed with hash chain');
 SELECT pg_temp.ok((SELECT row_count FROM audit.log_seal WHERE log_name = 'activity_log' ORDER BY id DESC LIMIT 1) = 2, 'Audit: seal covers all eligible rows');
@@ -1125,6 +1128,78 @@ SELECT pg_temp.ok((SELECT data_class FROM sys.table_class WHERE table_name = 'sc
   AND (SELECT phase_code FROM sys.table_phase WHERE table_name = 'sch.student') = 'SCH'
   AND (SELECT phase_code FROM sys.table_phase WHERE table_name = 'ops.route_violation') = '2',
   'Phases: school transport is its own phase and its pupils'' data is classified personal; route compliance is in Phase 2');
+SET ROLE masslak_app;
+
+-- Third-party audit hardening (1046)
+RESET ROLE;
+BEGIN;
+INSERT INTO iam.party (party_type, legal_name) VALUES ('PERSON', 'Person As Carrier'), ('PERSON', 'Owner Driver');
+SELECT pg_temp.expect_error($$INSERT INTO iam.company (id, company_type) SELECT id, 'CARRIER' FROM iam.party WHERE legal_name = 'Person As Carrier'$$,
+  'COMPANY_PARTY_TYPE', 'Audit R-06: a carrier company cannot sit on a person''s record');
+INSERT INTO iam.company (id, company_type) SELECT id, 'INDIVIDUAL_OPERATOR' FROM iam.party WHERE legal_name = 'Owner Driver';
+SELECT pg_temp.ok(true, 'Audit R-06: an individual owner-driver''s company sits on their person record');
+SELECT pg_temp.expect_error(format($$UPDATE iam.party SET party_type = 'PERSON' WHERE id = %s$$, :ca),
+  'COMPANY_PARTY_TYPE', 'Audit R-06: a company''s party cannot be turned into a person');
+-- R-04: no clear contact data for persons, passengers or family members
+SELECT pg_temp.expect_error($$INSERT INTO iam.party (party_type, legal_name, mobile) VALUES ('PERSON', 'Clear Phone', '+963944000111')$$,
+  'party_person_contact_sealed', 'Audit R-04: a person''s phone is never stored in clear on the party');
+INSERT INTO iam.party (party_type, legal_name, email) VALUES ('COMPANY', 'Contact Company', 'desk@contact.test');
+SELECT pg_temp.ok(true, 'Audit R-04: a company keeps its business contact');
+SELECT pg_temp.expect_error(format($$UPDATE sales.passenger SET mobile = '+963944000111' WHERE id = (SELECT min(id) FROM sales.passenger)$$),
+  'passenger_mobile_sealed', 'Audit R-04: a passenger''s phone is only stored encrypted');
+SELECT pg_temp.ok(NOT has_column_privilege('masslak_readonly', 'iam.app_user', 'email', 'SELECT')
+  AND NOT has_column_privilege('masslak_auditor', 'iam.app_user', 'mobile', 'SELECT')
+  AND has_column_privilege('masslak_readonly', 'iam.app_user', 'status', 'SELECT')
+  AND NOT has_column_privilege('masslak_readonly', 'iam.party', 'mobile', 'SELECT'),
+  'Audit R-04: reporting and audit roles read accounts and parties without their contact fields');
+SELECT pg_temp.ok(audit.redact('{"mobile": "+963944000111", "email": "a@b.test", "status": "ACTIVE"}') =
+  '{"mobile": "***", "email": "***", "status": "ACTIVE"}'::jsonb, 'Audit R-04: the change log masks contact fields');
+-- R-03: every (type, id) reference is registered, and the sweep finds and reports orphans
+SELECT pg_temp.ok(NOT EXISTS (
+  SELECT 1 FROM information_schema.columns a JOIN information_schema.columns b
+    ON a.table_schema = b.table_schema AND a.table_name = b.table_name AND b.column_name = regexp_replace(a.column_name, '_id$', '_type')
+   WHERE a.column_name LIKE '%\_id' AND a.table_schema NOT IN ('pg_catalog','information_schema','gis')
+     AND to_regclass(a.table_schema || '.' || a.table_name) IN (SELECT c.oid FROM pg_class c WHERE c.relkind IN ('r','p') AND NOT c.relispartition)
+     AND NOT EXISTS (SELECT 1 FROM sys.polymorphic_reference r WHERE r.table_name = a.table_schema || '.' || a.table_name AND r.type_col = b.column_name)),
+  'Audit R-03: every polymorphic reference is registered with its targets, owner and reason');
+INSERT INTO gov.legal_hold (scope_type, scope_id, reason, case_ref, placed_by) VALUES ('TRIP', 987654321, 'Orphan probe', 'TEST-1', :uadmin);
+SELECT pg_temp.ok((SELECT orphans FROM sys.find_orphans() WHERE table_name = 'gov.legal_hold' AND type_value = 'TRIP') = 1,
+  'Audit R-03: the sweep finds a reference to a missing row');
+SELECT sys.run_orphan_check() AS swept \gset
+SELECT pg_temp.ok(:swept >= 1 AND EXISTS (SELECT 1 FROM sys.outbox_event WHERE event_type = 'integrity.orphans_found'),
+  'Audit R-03: orphans raise an alert through the outbox');
+-- R-14: a later phase is closed in the database while its switch is off
+SELECT pg_temp.ok(NOT EXISTS (SELECT 1 FROM sys.table_phase tp JOIN sys.project_phase pp ON pp.code = tp.phase_code
+                                WHERE pp.feature_keys <> '{}' AND split_part(tp.table_name, '.', 1) NOT IN (SELECT schema_name FROM sys.module_gate)
+                                  AND NOT EXISTS (SELECT 1 FROM pg_policies p WHERE p.schemaname || '.' || p.tablename = tp.table_name AND p.policyname = 'phase_gate')),
+  'Audit R-14: every table of a switched phase is closed in the database, not only by the application');
+INSERT INTO net.corridor (code, name, country_code, path, status)
+VALUES ('SY-JO-TEST', 'Test corridor', 'SY', '{"type":"LineString","coordinates":[[36.29,33.51],[36.10,32.62]]}', 'ACTIVE');
+SELECT id AS corridor FROM net.corridor WHERE code = 'SY-JO-TEST' \gset
+UPDATE sys.setting SET value = value || '{"transit_passengers": false}'::jsonb WHERE key = 'features';
+SET LOCAL ROLE masslak_app;
+SELECT sys.set_context(:ua, :ca, 'COMPANY');
+SELECT pg_temp.ok(NOT EXISTS (SELECT 1 FROM net.corridor), 'Audit R-14: a company sees nothing of a phase whose switch is off');
+RESET ROLE;
+UPDATE sys.setting SET value = value || '{"shuttle_rides": false, "approved_lines": false, "shuttle_subscriptions": false, "route_compliance": false}'::jsonb
+ WHERE key = 'features';
+SET LOCAL ROLE masslak_app;
+SELECT sys.set_context(:ua, :ca, 'COMPANY');
+SELECT pg_temp.expect_error(format($$INSERT INTO fleet.tracking_device (company_id, vehicle_id, provider, serial_no, installed) VALUES (%s, %s, 'Test GPS', 'SN-1', '[2026-10-01,)')$$, :ca, :va),
+  'phase_gate', 'Audit R-14: nor writes to a closed phase, even to its own rows');
+RESET ROLE;
+UPDATE sys.setting SET value = value || '{"shuttle_rides": true, "approved_lines": true, "route_compliance": true}'::jsonb WHERE key = 'features';
+RESET ROLE;
+UPDATE sys.setting SET value = value || '{"transit_passengers": true}'::jsonb WHERE key = 'features';
+SET LOCAL ROLE masslak_app;
+SELECT sys.set_context(:ua, :ca, 'COMPANY');
+SELECT pg_temp.ok(EXISTS (SELECT 1 FROM net.corridor WHERE code = 'SY-JO-TEST'), 'Audit R-14: once the switch is on, the phase opens');
+RESET ROLE;
+ROLLBACK;
+SELECT pg_temp.ok((SELECT ordinal FROM sys.project_phase WHERE code = 'SCH') > (SELECT ordinal FROM sys.project_phase WHERE code = '15')
+  AND (SELECT ordinal FROM sys.project_phase WHERE code = 'SCH') < (SELECT max(ordinal) FROM sys.project_phase)
+  AND (SELECT phase_code FROM sys.table_phase WHERE table_name = 'ops.violation_report') = '5',
+  'Phases: school transport comes before the last phase; reporting to authorities waits for government integration');
 SET ROLE masslak_app;
 
 \echo '=== ALL TESTS PASSED ==='

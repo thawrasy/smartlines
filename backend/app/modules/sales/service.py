@@ -138,7 +138,7 @@ async def travellers(conn: asyncpg.Connection, ctx: db.Context, body: BookingIn,
             t.nationality, t.first_name, t.father_name = m["nationality"], m["first_name"], m["father_name"] or p.father_name
             t.grandfather_name, t.last_name = m["grandfather_name"] or p.grandfather_name, m["last_name"]
             t.birth_date, t.gender = m["birth_date"], m["gender"] or p.gender
-            t.mobile = p.mobile or m["mobile"]
+            t.mobile = p.mobile or await fam.member_mobile(conn, m)
             if doc:
                 t.id_type, t.id_no, t.passport_expiry = m["id_type"], doc, m["passport_expiry"]
         out.append(t)
@@ -328,24 +328,28 @@ async def create_booking(conn: asyncpg.Connection, ctx: db.Context, buyer: Buyer
         fc = await crypto.cipher(conn)
         pids: dict[int, int] = {}
         for t in sorted(people, key=lambda x: x.seat_no is None):       # adults and seated travellers first, lap infants last
-            enc = bidx = key_id = None
+            enc = bidx = key_id = mobile_enc = mobile_last4 = None
             masked = t.id_last4
             if t.id_no:
                 sealed = fc.encrypt(t.id_no, "sales.passenger.id_no")
                 enc, key_id = sealed.ciphertext, sealed.key_id
                 bidx = fc.blind_index(t.id_no, f"{t.id_type}:{t.nationality}")
                 masked = crypto.last4(t.id_no)
+            if t.mobile:                                                 # phone numbers are stored encrypted only (audit R-04)
+                sealed = fc.encrypt(t.mobile, "sales.passenger.mobile")
+                mobile_enc, mobile_last4, key_id = sealed.ciphertext, crypto.last4(t.mobile), key_id or sealed.key_id
             pid = await conn.fetchval(
                 """INSERT INTO sales.passenger (booking_id, full_name, first_name, father_name, grandfather_name,
-                     last_name, nationality, id_type, id_no_last4, mobile, id_no_enc, id_no_bidx, enc_key_id,
+                     last_name, nationality, id_type, id_no_last4, mobile_enc, id_no_enc, id_no_bidx, enc_key_id,
                      passport_expiry, passport_country, passenger_category, birth_date, gender, party_id, family_member_id,
-                     accompanied_by_passenger_id)
-                   VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21) RETURNING id""",
+                     accompanied_by_passenger_id, mobile_last4)
+                   VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
+                   RETURNING id""",
                 booking_id, t.full_name, t.first_name, t.father_name, t.grandfather_name, t.last_name,
-                t.nationality, t.id_type, masked, t.mobile, enc, bidx, key_id,
+                t.nationality, t.id_type, masked, mobile_enc, enc, bidx, key_id,
                 t.passport_expiry if t.id_type == "PASSPORT" else None, t.nationality if t.id_type == "PASSPORT" else None,
                 t.category, t.birth_date, t.gender, t.member["party_id"] if t.member else None, t.member["id"] if t.member else None,
-                pids.get(t.with_adult) if t.seat_no is None else None)
+                pids.get(t.with_adult) if t.seat_no is None else None, mobile_last4)
             pids[t.index] = pid
             tid = await conn.fetchval(
                 """INSERT INTO sales.ticket (ticket_no, booking_id, passenger_id, trip_id, from_seq, to_seq, seat_no,

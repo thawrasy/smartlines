@@ -27,7 +27,7 @@ async def main(email: str, name: str, password: str):
                 print(f"{email} already exists")
                 return
             pid = await conn.fetchval(
-                "INSERT INTO iam.party (party_type, legal_name, email) VALUES ('PERSON', $1, $2) RETURNING id", name, email)
+                "INSERT INTO iam.party (party_type, legal_name) VALUES ('PERSON', $1) RETURNING id", name)
             uid = await conn.fetchval(
                 """INSERT INTO iam.app_user (party_id, account_kind, email, password_hash, password_changed_at, status, mfa_required)
                    VALUES ($1, 'PLATFORM', $2, $3, now(), 'ACTIVE', true) RETURNING id""", pid, email, hash_password(password))

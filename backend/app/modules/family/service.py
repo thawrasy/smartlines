@@ -191,6 +191,23 @@ async def seal_document(conn: asyncpg.Connection, id_type: Optional[str], id_no:
     return sealed.ciphertext, fc.blind_index(id_no, f"{id_type}:{nationality}"), crypto.last4(id_no), sealed.key_id
 
 
+async def seal_mobile(conn: asyncpg.Connection, mobile: Optional[str]):
+    """Encrypted phone number, its last four digits and the key (or nothing); phones are never stored in clear (audit R-04)."""
+    if not mobile:
+        return None, None, None
+    fc = await crypto.cipher(conn)
+    sealed = fc.encrypt(mobile, "iam.family_member.mobile")
+    return sealed.ciphertext, crypto.last4(mobile), sealed.key_id
+
+
+async def member_mobile(conn: asyncpg.Connection, m: asyncpg.Record) -> Optional[str]:
+    """The member's phone number in clear, to copy it onto a booking (read in the platform scope by the caller)."""
+    if not m["mobile_enc"]:
+        return None
+    fc = await crypto.cipher(conn)
+    return fc.decrypt(bytes(m["mobile_enc"]), m["enc_key_id"], "iam.family_member.mobile")
+
+
 async def member_document(conn: asyncpg.Connection, m: asyncpg.Record) -> Optional[str]:
     """The member's document number in clear, to copy it onto a booking (read in the platform scope by the caller)."""
     if not m["id_no_enc"]:
@@ -206,7 +223,8 @@ def member_view(m: asyncpg.Record, today: Optional[date] = None) -> dict:
             "grandfather_name": m["grandfather_name"], "last_name": m["last_name"], "full_name": full_name(m),
             "nationality": m["nationality"], "birth_date": m["birth_date"].isoformat(), "age": age_on(m["birth_date"], today),
             "gender": m["gender"], "id_type": m["id_type"], "id_last4": m["id_no_last4"],
-            "passport_expiry": m["passport_expiry"].isoformat() if m["passport_expiry"] else None, "mobile": m["mobile"],
+            "passport_expiry": m["passport_expiry"].isoformat() if m["passport_expiry"] else None,
+            "mobile": crypto.masked_mobile(m["mobile_last4"]),
             "account_status": m["account_status"], "funding": m["funding"], "per_trip_limit": m["per_trip_limit"],
             "daily_limit": m["daily_limit"], "monthly_limit": m["monthly_limit"]}
 

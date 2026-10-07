@@ -289,6 +289,10 @@ switched OFF, OPTIONAL or REQUIRED by configuration, so a new government rule ne
 bound to their approved line; deviations are detected by the tracking service from the driver's phone, confirmed with
 PostGIS (`ops.route_distance_m`) and reported to authorities only when required and only while the vehicle is in
 service. School transport is its own phase (schema `sch`), with hand-over and empty-bus rules held by the database.
+File 1046 answers the third-party technical audit (`docs/database/THIRD_PARTY_AUDIT.md`): phone numbers of passengers and
+family members are encrypted and a person's contact lives only on their account; every polymorphic reference is
+registered and swept weekly for orphans; and every table of a phase whose switch is off is closed in the database itself
+(`phase_gate`), not only by the application.
 
 Company isolation (study 16.26, file 1038): `backend/tests/test_isolation.py` signs in as every company under the
 application role and counts the rows of other companies in every table that has a company column. The only rows allowed

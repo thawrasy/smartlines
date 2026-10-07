@@ -157,6 +157,11 @@ def last4(value: str) -> str:
     return normalise_identifier(value)[-4:]
 
 
+def masked_mobile(last: str | None) -> str | None:
+    """How a stored phone number is shown back: only its last four digits."""
+    return f"*******{last}" if last else None
+
+
 _cipher: FieldCipher | None = None
 
 

@@ -43,8 +43,9 @@ DEPARTURES = {"DAM-ALP": ["07:30", "10:00", "15:00"], "ALP-DAM": ["08:00", "16:0
 
 
 async def user(conn, party_type, name, email, kind, locale="en"):
+    # a person's contact lives on their account only; a company keeps its business e-mail on its party
     pid = await conn.fetchval("INSERT INTO iam.party (party_type, legal_name, email) VALUES ($1, $2, $3) RETURNING id",
-                              party_type, name, email)
+                              party_type, name, None if party_type == "PERSON" else email)
     uid = await conn.fetchval(
         """INSERT INTO iam.app_user (party_id, account_kind, email, password_hash, password_changed_at, status, preferred_locale)
            VALUES ($1, $2, $3, $4, now(), 'ACTIVE', $5) RETURNING id""", pid, kind, email, hash_password(PASSWORD), locale)

@@ -211,7 +211,10 @@ def test_a_member_on_another_device_books_within_the_heads_rules(trip):
     assert [(x["rule_type"], x["from_city"], x["to_city"]) for x in seen] == [("ROUTE", "ALP", "LTK")]
     for x in head.get(f"/api/family/members/{me}/rules").json()["rules"]:
         head.delete(f"/api/family/rules/{x['uid']}")
-    # line rules: a trip that runs on no allowed line is refused, one generated from the allowed line passes (below)
+    # line rules: a trip that runs on no allowed line is refused, one generated from the allowed line passes (below).
+    # Approved lines belong to Phase 2, closed in the database while its switch is off, so the phase is opened here.
+    lines_were_on = owner_sql("SELECT coalesce((value ->> 'approved_lines')::boolean, false) FROM sys.setting WHERE key = 'features'")
+    owner_sql("""UPDATE sys.setting SET value = value || '{"approved_lines": true}'::jsonb WHERE key = 'features'""")
     code = "FAM-" + uuid.uuid4().hex[:6].upper()
     line = owner_sql("INSERT INTO net.line (code, name, kind, fare_regime, status) VALUES ($1, 'Family test line', 'INTERCITY', 'FREE', 'ACTIVE') RETURNING id", code)
     version = owner_sql("""INSERT INTO net.line_version (line_id, version, geometry, distance_km, typical_min, status)
@@ -234,6 +237,8 @@ def test_a_member_on_another_device_books_within_the_heads_rules(trip):
     finally:
         owner_sql("UPDATE ops.trip SET line_version_id = NULL WHERE uid = $1", uuid.UUID(trip["uid"]))
         owner_sql("UPDATE net.line SET status = 'RETIRED' WHERE id = $1", line)
+        owner_sql("UPDATE sys.setting SET value = jsonb_set(value, '{approved_lines}', to_jsonb($1::boolean)) WHERE key = 'features'",
+                  lines_were_on)
     assert r.status_code == 201, r.text
     total, ref = r.json()["total"], r.json()["booking_ref"]
     assert head.get("/api/wallet").json()["balance"] == head_before - total          # paid by the head, as approved
@@ -333,3 +338,24 @@ def test_head_manages_members_and_rules_from_the_phone():
         assert head.delete(f"/api/family/rules/{x['uid']}").status_code == 200
     assert head.delete(f"/api/family/members/{uid}").status_code == 200
     assert all(x["uid"] != uid for x in head.get("/api/family").json()["members"])
+
+
+def test_phone_numbers_are_stored_encrypted_and_shown_masked(trip):
+    """Third-party audit R-04: a member's and a passenger's phone never reach the database in clear; the app shows the last
+    four digits, and the number still travels onto the booking (decrypted in the service, sealed again on the passenger)."""
+    head = new_passenger()
+    assert head.post("/api/family", json={"name": "Phone privacy family"}).status_code == 201
+    mobile = "+963944" + str(uuid.uuid4().int)[:6]
+    r = head.post("/api/family/members", json={"relation": "DAUGHTER", "first_name": "Lina", "father_name": "Khaled",
+                                              "grandfather_name": "Omar", "last_name": "Haddad", "nationality": "SY",
+                                              "birth_date": years_ago(30), "mobile": mobile})
+    assert r.status_code == 201, r.text
+    member = r.json()
+    assert member["mobile"] == "*******" + mobile[-4:]
+    row = owner_sql("SELECT mobile, mobile_enc, mobile_last4 FROM iam.family_member WHERE uid = $1", uuid.UUID(member["uid"]), fetch=True)
+    assert row["mobile"] is None and row["mobile_enc"] and row["mobile_last4"] == mobile[-4:]
+    party = owner_sql("SELECT count(*) FROM iam.party p JOIN iam.family_member m ON m.party_id = p.id WHERE m.uid = $1 AND p.mobile IS NOT NULL",
+                      uuid.UUID(member["uid"]))
+    assert party == 0                                                  # the member's person record carries no contact
+    r = head.patch(f"/api/family/members/{member['uid']}", json={"id_type": "PASSPORT", "id_no": "N7654321"})
+    assert r.status_code == 200 and r.json()["mobile"] == "*******" + mobile[-4:] and r.json()["id_last4"] == "4321"

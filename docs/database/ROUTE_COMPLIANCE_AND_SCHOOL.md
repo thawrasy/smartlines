@@ -16,6 +16,8 @@ the regulators' review, with the owner's decisions on each open question.
 | Licences | The school transport licence number is required on every operator and contract now. Every other licence (company, vehicle, driver, attendant) is prepared and becomes mandatory by configuration when the government imposes it | `sch.operator.school_transport_license_no`, `sch.contract.school_transport_license_no`, `sys.compliance_requirement` |
 | Pupils | A pupil is defined by the guardian from the guardian's own account and stays linked while a minor; they may get an account of their own later | `sch.student.family_member_id`, `iam.is_minor`, setting `person.age_of_majority` (18) |
 | Hand-over age | 12: younger pupils leave a homeward bus only into the hands of an authorised receiver | setting `school.handover_age` |
+| Place of school transport | A later phase, before the last one | phase `SCH`, ordinal 15.5 (file 1046) |
+| Electronic reporting to authorities | Later: it needs the government's e-government infrastructure, expected beyond two years | `ops.violation_report` in Phase 5 (government integration); `route.report.authority` stays OFF (file 1046) |
 
 ## Requirements switched by configuration
 
@@ -54,8 +56,8 @@ Licence records now also cover any person (`PERSON`, such as school bus attendan
 
 ## School transport (phase SCH)
 
-School transport is its own phase (`SCH`), separate from contracted transport for universities and staff (phase 14). It
-is closed by the `school_transport` switch.
+School transport is its own phase (`SCH`, before the last phase), separate from contracted transport for universities and
+staff (phase 14). It is closed by the `school_transport` switch.
 
 | Table | Purpose |
 |---|---|

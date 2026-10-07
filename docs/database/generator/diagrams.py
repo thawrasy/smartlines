@@ -50,7 +50,7 @@ GROUPS = [
      ["ref.country", "ref.currency", "ref.exchange_rate", "ref.city", "ref.locale", "ref.translation", "ref.file_object",
       "ref.trip_type", "ref.vehicle_class", "ref.station_subtype", "ref.cargo_category", "sys.setting", "sys.company_setting", "sys.table_class", "sys.module_gate", "sys.project_phase", "sys.table_phase", "ref.seed_version",
       "sys.outbox_event", "sys.webhook_endpoint", "sys.webhook_delivery", "sys.schema_migration", "sys.schema_file",
-      "sys.compliance_requirement", "gis.spatial_ref_sys"]),
+      "sys.compliance_requirement", "gis.spatial_ref_sys", "sys.polymorphic_reference", "sys.orphan_check"]),
     ("E04", "Stations, routes, carrier codes and corridors", "4.4, 4.11, 4.16, D.1", "asset",
      "The station register with compliance profiles, gates and displays; carrier routes and their stops; carrier codes and "
      "service numbers; transit corridors, approved rest stops and geofences.",
