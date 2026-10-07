@@ -11,7 +11,7 @@ const {
 const HERE = __dirname;
 const model = JSON.parse(fs.readFileSync(path.join(HERE, "..", "build", "model.json"), "utf8"));
 const PNG = path.join(HERE, "..", "erd", "png");
-const VERSION = "3.9";
+const VERSION = "3.7";
 const DATE = "7 October 2026";
 const FONT = "Arial";
 const C = { navy: "1F3A5F", blue: "2E74B5", blue2: "1F4D78", grid: "B7C3D0", alt: "F2F6FA", grey: "595959" };
@@ -105,11 +105,11 @@ front.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 16
 front.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 160 },
   children: [new TextRun({ text: "Database Design and Entity-Relationship Diagrams", font: FONT, size: 30, bold: true, color: C.blue })] }));
 front.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 1200 },
-  children: [run(`Complete relational model of the Analysis and Design Study v2.9: ${tableCount} tables, ${fkCount} relationships`, { color: "7F7F7F" })] }));
+  children: [run(`Complete relational model of the Analysis and Design Study v3.0: ${tableCount} tables, ${fkCount} relationships`, { color: "7F7F7F" })] }));
 front.push(table(["Item", "Details"], [
-  ["Version", `${VERSION} (every item of the third-party technical audit addressed; route compliance, school transport and PostGIS; replaces version 3.8)`],
+  ["Version", `${VERSION} (regulated routes and route compliance, school transport, PostGIS, and every item of the third-party technical audit; replaces version 3.6)`],
   ["Date", DATE],
-  ["Basis", "Analysis and Design Study v2.9 (English), the Use Case and Data Flow Diagrams v1.0, the Database Architecture Review v1.0, the Strategic Database Review and its relationship audit register"],
+  ["Basis", "Analysis and Design Study v3.0 (English), the Use Case and Data Flow Diagrams v1.0, the Database Architecture Review v1.0, the Strategic Database Review and its relationship audit register, and the Third-Party Technical Audit"],
   ["Scope", `${schemas.length} schemas, ${tableCount} tables, ${colCount} columns, ${fkCount} foreign keys; all phases 1 to 15`],
   ["Engine", "PostgreSQL 16 with row-level security on every table; PostGIS 3 in schema gis; schema files db/schema/000 to 1047"],
   ["Status", "Built and verified: fresh build and upgrade identical, 278 database checks and 183 API tests passing, every foreign key indexed or exempt by rule"],
@@ -117,7 +117,7 @@ front.push(table(["Item", "Details"], [
 ], [2800, 6946]));
 
 const toc = [H(HeadingLevel.HEADING_1, "Contents", { pageBreak: true })];
-const tocLines = ["Changes in version 3.9", "Changes in version 3.8", "Changes in version 3.7", "Changes in version 3.6", "Changes in version 3.5", "Changes in version 3.4", "Changes in version 3.3", "Changes in version 3.2", "Changes in version 3.1", "Changes in version 3.0", "1. Introduction", "2. Database architecture", "3. Design rules", "4. Security model in the database",
+const tocLines = ["Changes in version 3.7", "Changes in version 3.6", "Changes in version 3.5", "Changes in version 3.4", "Changes in version 3.3", "Changes in version 3.2", "Changes in version 3.1", "Changes in version 3.0", "1. Introduction", "2. Database architecture", "3. Design rules", "4. Security model in the database",
   "5. Data stores of the data flow diagrams", "6. Entity-relationship diagrams by module",
   ...model.groups.map((g, i) => `      6.${i + 1} ${g[0]} ${g[1]}`), `      6.${model.groups.length + 1} Focus diagrams: rules that span modules`,
   "7. Table definitions", "8. Traceability to the study", "9. Verification",
@@ -125,7 +125,7 @@ const tocLines = ["Changes in version 3.9", "Changes in version 3.8", "Changes i
 for (const l of tocLines) toc.push(P(l, { after: 40, size: 20 }));
 
 // ------------------------------ changes in 3.9 ------------------------------
-const changes39 = [H(HeadingLevel.HEADING_1, "Changes in version 3.9", { pageBreak: true }),
+const changes39 = [H(HeadingLevel.HEADING_2, "c. The remaining items of the audit (file 1047)"),
   P("The remaining items of the third-party technical audit (schema file 1047_audit_operations.sql, migration 1.29.0; the application "
     + "tools and runbooks are listed in docs/database/THIRD_PARTY_AUDIT.md and docs/operations/RUNBOOKS.md)."),
   bullet("Every schema change is logged in audit.ddl_event (append-only); a grant, policy, function, trigger or row-level security change made "
@@ -143,7 +143,7 @@ const changes39 = [H(HeadingLevel.HEADING_1, "Changes in version 3.9", { pageBre
 ];
 
 // ------------------------------ changes in 3.8 ------------------------------
-const changes38 = [H(HeadingLevel.HEADING_1, "Changes in version 3.8", { pageBreak: true }),
+const changes38 = [H(HeadingLevel.HEADING_2, "b. Hardening after the third-party technical audit (file 1046)"),
   P("A third-party technical audit reviewed version 3.6 and recommended hardening within the current design. Each finding was checked "
     + "against the built database (docs/database/THIRD_PARTY_AUDIT.md); the owner approved the database fixes, carried by schema file "
     + "1046_audit_hardening.sql (migration 1.28.0)."),
@@ -163,6 +163,7 @@ const changes38 = [H(HeadingLevel.HEADING_1, "Changes in version 3.8", { pageBre
 
 // ------------------------------ changes in 3.7 ------------------------------
 const changes37 = [H(HeadingLevel.HEADING_1, "Changes in version 3.7", { pageBreak: true }),
+  H(HeadingLevel.HEADING_2, "a. Regulated routes, school transport and PostGIS (files 1043 to 1045)"),
   P("Two requests followed the regulators' review, with the owner's decisions on each open question (schema files "
     + "1043_route_compliance.sql, 1044_school_transport.sql and 1045_postgis.sql, migrations 1.25.0 to 1.27.0; details in "
     + "docs/database/ROUTE_COMPLIANCE_AND_SCHOOL.md)."),
@@ -182,7 +183,8 @@ const changes37 = [H(HeadingLevel.HEADING_1, "Changes in version 3.7", { pageBre
     + "the empty-bus check.", "School transport"),
   bullet("PostGIS (schema gis) adds generated geography columns with spatial indexes to lines, diversions, corridors, school routes and "
     + "stations; a route binds only with a valid line shape; ops.route_distance_m measures the distance from the binding route.", "PostGIS"),
-  P("Tracking positions, route adherence events and tracking alerts move to Phase 2, since the shuttle is monitored from its first stage. "
+  P("Route adherence events move to Phase 2 with the shuttle; tracking positions and alerts, which the driver app and the regulator dashboard "
+    + "use from the launch, belong to release 1B (part b). "
     + "The binding table lives in schema fleet so that no new two-way dependency between schemas appears (test H-07)."),
 ];
 
@@ -353,16 +355,16 @@ const changes = [H(HeadingLevel.HEADING_1, "Changes in version 3.0", { pageBreak
 const intro = [H(HeadingLevel.HEADING_1, "1. Introduction", { pageBreak: true }),
   H(HeadingLevel.HEADING_2, "1.1 Purpose"),
   P("This document is the database design of the Masslak platform. It redevelops the data model so that every entity and relationship "
-    + "of the Analysis and Design Study v2.9 has a table, keys and constraints in the database, and it draws the relationships of each module "
+    + "of the Analysis and Design Study v3.0 has a table, keys and constraints in the database, and it draws the relationships of each module "
     + "as an entity-relationship diagram in the colours of the study."),
   H(HeadingLevel.HEADING_2, "1.2 Sources and scope"),
-  bullet("the Analysis and Design Study v2.9 (English), including appendix D (additional phases 13 to 15), the travel document rules of 11.9.1, passenger categories and family accounts (4.19, 4.20), carrier-issued manifests (11.10) and data isolation (16.26);", "Study"),
+  bullet("the Analysis and Design Study v3.0 (English), including appendix D (additional phases 13 to 15), the travel document rules of 11.9.1, passenger categories and family accounts (4.19, 4.20), carrier-issued manifests (11.10) and data isolation (16.26);", "Study"),
   bullet("the Use Case and Data Flow Diagrams v1.0, whose data stores D1 to D17 are mapped to tables in chapter 5;", "Diagrams"),
   bullet("the PostgreSQL schema in db/schema, built and tested; every diagram and table definition here is generated from the built database, "
     + "so the document cannot drift from the schema.", "Database"),
   P("The model covers the core of Phase 1 and every later phase: shuttle and approved lines, shipping, international trips and the border manifest, "
     + "government integration, tracking and stations, trucks and transit, intermediary platforms, rail, taxi, car rental, and the additional phases "
-    + "13 to 15. Modules of later phases are built now and stay disabled behind feature flags until their phase starts (study v2.9, decision D-6)."),
+    + "13 to 15. Modules of later phases are built now and stay disabled behind feature flags until their phase starts (study v3.0, decision D-6)."),
   H(HeadingLevel.HEADING_2, "1.3 Notation"),
   P("Each diagram shows one module. A box is a table: the coloured band and header follow the module's colour family from the study's figure 4.1; "
     + "rows list the primary key (PK), the foreign keys (FK), unique keys (UQ) and the main attributes, with required columns in bold. The number "
@@ -677,7 +679,7 @@ const doc = new Document({
   numbering: { config: [{ reference: "bullets", levels: [{ level: 0, format: LevelFormat.BULLET, text: "•", alignment: AlignmentType.LEFT,
     style: { paragraph: { indent: { left: 540, hanging: 270 } } } }] }] },
   sections: [
-    section(PORTRAIT, [...front, ...toc, ...changes39, ...changes38, ...changes37, ...changes36, ...changes35, ...changes34, ...changes33, ...changes32, ...changes31, ...changes, ...intro, ...arch, ...rules, ...security, ...stores]),
+    section(PORTRAIT, [...front, ...toc, ...changes37, ...changes38, ...changes39, ...changes36, ...changes35, ...changes34, ...changes33, ...changes32, ...changes31, ...changes, ...intro, ...arch, ...rules, ...security, ...stores]),
     ...erdSections,
     section(PORTRAIT, [...defs, ...trace, ...verify, ...flags, ...gens, ...appC]),
   ],

@@ -16,6 +16,7 @@ MODEL = os.path.join(HERE, "..", "build", "model.json")
 # Study names that the database implements under another name, or as columns, or by a generalization the study adopts
 RENAMED = {
     "company_profile": (["iam.company"], "1:1 with the party; the tenant"),
+    "route": (["net.route"], ""), "route_stop": (["net.route_stop"], ""),     # school routes are named sch.route in 21.3
     "driver_profile": (["fleet.crew_profile", "fleet.license_record", "fleet.driving_hours_log"], "licences are locked licence records"),
     "host_profile": (["fleet.crew_profile"], "crew_type HOST or ASSISTANT"),
     "trip_segment": (["ops.trip_stop", "ops.trip_pair_fare"], "sellable sections are stop pairs"),
@@ -112,7 +113,9 @@ def main():
         found, notes = [], []
         for tok in tokens:
             name = tok.split(".")[-1]
-            if name in BY_SECTION:
+            if "." in tok and tok in tables:              # a schema-qualified name is exact
+                found.append(tok)
+            elif name in BY_SECTION:
                 found.append(BY_SECTION[name](sec))
             elif name in by_name and len(by_name[name]) == 1:
                 found.append(by_name[name][0])
