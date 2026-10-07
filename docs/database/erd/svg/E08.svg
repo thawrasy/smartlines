@@ -200,7 +200,7 @@
 <polygon fill="#f2f6fa" stroke="transparent" points="553,-524 553,-541 583,-541 583,-524 553,-524"/>
 <text text-anchor="start" x="556" y="-530.6" font-family="DejaVu Sans" font-size="8.00" fill="#7f7f7f">text</text>
 <polygon fill="#ffffff" stroke="transparent" points="431,-509 431,-524 583,-524 583,-509 431,-509"/>
-<text text-anchor="start" x="434" y="-515.6" font-family="DejaVu Sans" font-style="italic" font-size="8.00" fill="#7f7f7f">+ 35 more columns</text>
+<text text-anchor="start" x="434" y="-515.6" font-family="DejaVu Sans" font-style="italic" font-size="8.00" fill="#7f7f7f">+ 36 more columns</text>
 <path fill="none" stroke="#404040" d="M442,-508C442,-508 572,-508 572,-508 578,-508 584,-514 584,-520 584,-520 584,-750 584,-750 584,-756 578,-762 572,-762 572,-762 442,-762 442,-762 436,-762 430,-756 430,-750 430,-750 430,-520 430,-520 430,-514 436,-508 442,-508"/>
 </g>
 <!-- ops__trip&#45;&gt;ops__trip_template -->

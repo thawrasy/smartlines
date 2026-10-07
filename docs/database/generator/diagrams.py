@@ -23,7 +23,7 @@ FAMILY = {
 SCHEMA_FAMILY = {
     "iam": "core", "ref": "core", "sys": "core",
     "net": "asset", "fleet": "asset",
-    "ops": "trip", "ctr": "trip", "rail": "trip", "taxi": "trip", "rent": "trip",
+    "ops": "trip", "ctr": "trip", "sch": "trip", "gis": "core", "rail": "trip", "taxi": "trip", "rent": "trip",
     "pricing": "money", "fin": "money", "acct": "money", "bill": "money",
     "sales": "booking", "crm": "service", "ptn": "service",
     "ship": "asset", "frt": "trip",
@@ -49,7 +49,8 @@ GROUPS = [
      "the outbox and webhooks.",
      ["ref.country", "ref.currency", "ref.exchange_rate", "ref.city", "ref.locale", "ref.translation", "ref.file_object",
       "ref.trip_type", "ref.vehicle_class", "ref.station_subtype", "ref.cargo_category", "sys.setting", "sys.company_setting", "sys.table_class", "sys.module_gate", "sys.project_phase", "sys.table_phase", "ref.seed_version",
-      "sys.outbox_event", "sys.webhook_endpoint", "sys.webhook_delivery", "sys.schema_migration", "sys.schema_file"]),
+      "sys.outbox_event", "sys.webhook_endpoint", "sys.webhook_delivery", "sys.schema_migration", "sys.schema_file",
+      "sys.compliance_requirement", "gis.spatial_ref_sys"]),
     ("E04", "Stations, routes, carrier codes and corridors", "4.4, 4.11, 4.16, D.1", "asset",
      "The station register with compliance profiles, gates and displays; carrier routes and their stops; carrier codes and "
      "service numbers; transit corridors, approved rest stops and geofences.",
@@ -60,7 +61,7 @@ GROUPS = [
      "The regulator's line catalog: versions with their route and four-eyes approvals, ordered stops, carrier permits, "
      "versioned tariffs with fare rows, and timetables.",
      ["net.line", "net.line_version", "net.line_version_approval", "net.line_stop", "net.line_permit", "net.line_tariff",
-      "net.line_fare", "net.timetable_template"]),
+      "net.line_fare", "net.timetable_template", "fleet.line_permit_vehicle", "net.line_diversion"]),
     ("E06", "Vehicles, seats, leases and insurance", "4.3, 4.13, 4.14, 4.17, 7.10", "asset",
      "Vehicles with their seat layouts and seat prices, leases, QR tags, status history and service status, insurance policies "
      "and claims, boarding validators and fuel profiles.",
@@ -83,7 +84,8 @@ GROUPS = [
      "external links; the crossing plan, crossing events and the transit reconciliation.",
      ["ops.geo_event", "ops.tracking_state", "ops.tracking_alert", "ops.driver_notice", "ops.route_adherence_event",
       "ops.permission_event", "ops.incident", "ops.incident_evidence", "ops.incident_external_link", "ops.trip_disruption",
-      "ops.trip_crossing_plan", "ops.crossing_event", "ops.transit_reconciliation"]),
+      "ops.trip_crossing_plan", "ops.crossing_event", "ops.transit_reconciliation", "ops.route_violation",
+      "ops.violation_report", "fleet.tracking_device"]),
     ("E10", "Shuttle rides and subscriptions", "7.13, 4.10", "trip",
      "One open ride per user, charged stop by stop from proximity to the vehicle's presence beacon; subscription plans, "
      "subscriptions, passes, zones and NFC cards.",
@@ -251,6 +253,12 @@ GROUPS = [
      "append-only spending log.",
      ["pricing.passenger_age_band", "pricing.category_fare_rule", "pricing.family_offer", "iam.family", "iam.family_member",
       "iam.family_link_request", "iam.family_travel_rule", "iam.family_spend"]),
+    ("E40", "School transport", "Owner decision (1044), D.2", "trip",
+     "Schools and the operators that carry their pupils under a school transport licence; pupils linked to their guardians, "
+     "authorised receivers and custody restrictions; contracts, routes with bus, driver and attendant, enrolments, daily runs, "
+     "attendance and hand-over, and absence notices.",
+     ["sch.school", "sch.operator", "sch.student", "sch.student_guardian", "sch.contract", "sch.route", "sch.route_stop",
+      "sch.enrollment", "sch.run", "sch.attendance", "sch.absence_notice"]),
 ]
 
 # Focus diagrams: one business rule across modules; tables keep their own module colour (family None)
@@ -304,4 +312,5 @@ SCHEMA_TITLE = {
     "sales": "Bookings, tickets, channels", "pricing": "Fares, tax, loyalty", "fin": "Wallets, ledger",
     "acct": "Books, e-invoicing", "bill": "Carrier billing", "crm": "Cases, AI, calls", "ptn": "Fuel, rest stops",
     "sec": "Security hub", "brd": "Border manifest", "gov": "Data protection", "audit": "Audit logs", "rpt": "Reports",
+    "sch": "School transport", "gis": "PostGIS reference",
 }

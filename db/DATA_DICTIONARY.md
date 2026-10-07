@@ -2,7 +2,7 @@
 
 > Generated from the built database (`db/tools/gen_docs.py`); do not edit by hand.
 
-**448 tables, 4572 columns, in 24 schemas.**
+**466 tables, 4786 columns, in 26 schemas.**
 
 Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant isolation (RLS) · 🧩 partitioned monthly · 🔒 append-only / change-protected
 
@@ -10,11 +10,11 @@ Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant i
 
 - [`iam` — Identity, parties, users, permissions and API clients](#iam) (32 tables)
 - [`ref` — Reference data, locales and files](#ref) (13 tables)
-- [`sys` — Settings, outbox and webhooks](#sys) (12 tables)
-- [`net` — Network: stations, routes, lines, corridors and geofences](#net) (21 tables)
-- [`fleet` — Fleet: vehicles, trucks, trailers, seats, crew, licenses and insurance](#fleet) (20 tables)
+- [`sys` — Settings, outbox and webhooks](#sys) (13 tables)
+- [`net` — Network: stations, routes, lines, corridors and geofences](#net) (22 tables)
+- [`fleet` — Fleet: vehicles, trucks, trailers, seats, crew, licenses and insurance](#fleet) (22 tables)
 - [`pricing` — Pricing, taxes, commissions, campaigns and loyalty](#pricing) (35 tables)
-- [`ops` — Trips, inventory, operations, shuttle rides, tracking and incidents](#ops) (30 tables)
+- [`ops` — Trips, inventory, operations, shuttle rides, tracking and incidents](#ops) (32 tables)
 - [`sales` — Channels, bookings, passengers, tickets, subscriptions and travel documents](#sales) (27 tables)
 - [`fin` — Wallets, ledger, payments, allocation, settlement and float](#fin) (25 tables)
 - [`acct` — Simplified accounting, e-invoicing and tax profiles](#acct) (35 tables)
@@ -26,7 +26,9 @@ Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant i
 - [`ship` — Shipments and the integrated shipping network](#ship) (55 tables)
 - [`frt` — Trucking, heavy transport and transit freight](#frt) (14 tables)
 - [`brd` — Border manifest gateway](#brd) (10 tables)
-- [`ctr` — Contracted transport: schools, universities and employees](#ctr) (6 tables)
+- [`ctr` — Contracted transport: universities and employees](#ctr) (6 tables)
+- [`sch` — School transport: schools, operators, pupils and guardians, contracts, routes, runs and attendance](#sch) (11 tables)
+- [`gis` — PostGIS reference data](#gis) (1 tables)
 - [`rail` — Rail extension](#rail) (5 tables)
 - [`taxi` — Taxis](#taxi) (7 tables)
 - [`rent` — Car rental](#rent) (15 tables)
@@ -852,6 +854,25 @@ Per-carrier settings (post-departure sales policy, cutoffs, seat selection modes
 | `updated_at` | `timestamp with time zone` | ✱ | `now()` |
 | `updated_by` | `bigint` |  |  |
 
+### `sys.compliance_requirement` 🛡️
+
+Licences, tracking and reporting duties a regulator may impose, each switched OFF, OPTIONAL or REQUIRED by configuration
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `code` | `text` | 🔑 ✱ |  |
+| `domain` | `text` | ✱ |  |
+| `applies_to` | `text` | ✱ | `'ALL'::text` |
+| `subject_type` | `text` |  |  |
+| `license_type` | `text` |  |  |
+| `level` | `text` | ✱ | `'OPTIONAL'::text` |
+| `required_from` | `date` |  |  |
+| `authority` | `text` |  |  |
+| `legal_ref` | `text` |  |  |
+| `description` | `text` | ✱ |  |
+| `updated_at` | `timestamp with time zone` | ✱ | `now()` |
+| `updated_by` | `bigint` | 🔗 `iam.app_user`  |  |
+
 ### `sys.module_gate` 🛡️
 
 Which feature switch opens the tables of each phase schema (review 3.10)
@@ -1061,6 +1082,7 @@ Approved transit corridor: route and tolerance; leaving it raises a tracking ale
 | `buffer_m` | `integer` | ✱ | `500` |
 | `status` | `text` | ✱ | `'ACTIVE'::text` |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `path_geo` | `gis.geography` |  | `sys.geo_line(path)` |
 
 ### `net.geofence` 🛡️
 
@@ -1093,6 +1115,25 @@ The official line approved by the regulator (4.15); carriers operate it under a 
 | `city_id` | `bigint` | 🔗 `ref.city`  |  |
 | `status` | `text` | ✱ | `'DRAFT'::text` |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `net.line_diversion` 🛡️
+
+A temporary detour of an approved line; trips keeping to it raise no violation
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `line_id` | `bigint` | 🔗 `net.line` ✱ |  |
+| `active` | `tstzrange` | ✱ |  |
+| `geometry` | `jsonb` | ✱ |  |
+| `corridor_m` | `integer` | ✱ | `150` |
+| `reason` | `text` | ✱ |  |
+| `issued_by` | `text` | ✱ |  |
+| `reference_no` | `text` |  |  |
+| `approved_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `status` | `text` | ✱ | `'ACTIVE'::text` |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `path` | `gis.geography` |  | `sys.geo_line(geometry)` |
 
 ### `net.line_fare` 🛡️
 
@@ -1172,6 +1213,7 @@ A version of the line with its route; trips keep the version they were generated
 | `effective_from` | `date` |  |  |
 | `status` | `text` | ✱ | `'DRAFT'::text` |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `path` | `gis.geography` |  | `sys.geo_line(geometry)` |
 
 ### `net.line_version_approval` 🛡️
 
@@ -1202,6 +1244,7 @@ Carrier route template between two stations; its stops are copied to the trip wh
 | `std_duration_min` | `integer` |  |  |
 | `status` | `text` | ✱ | `'ACTIVE'::text` |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `line_id` | `bigint` | 🔗 `net.line`  |  |
 
 ### `net.route_stop` 🛡️
 
@@ -1270,6 +1313,9 @@ Register of stations and departure/arrival points (central, company point, exter
 | `verified_at` | `timestamp with time zone` |  |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 | `updated_at` | `timestamp with time zone` | ✱ | `now()` |
+| `geo` | `gis.geography` |  | `
+CASE
+    WHEN ((lat IS NOT NULL) AND...` |
 
 ### `net.station_contact` 🛡️
 
@@ -1484,6 +1530,22 @@ Every expiry date that governs operating eligibility (license, inspection, insur
 | `subject_station_id` | `bigint` | 🔗 `net.station`  |  |
 | `subject_trailer_id` | `bigint` | 🔗 `fleet.trailer`  |  |
 | `subject_vehicle_id` | `bigint` | 🔗 `fleet.vehicle`  |  |
+| `subject_person_id` | `bigint` | 🔗 `iam.party`  |  |
+
+### `fleet.line_permit_vehicle` 🛡️
+
+The vehicles a permit binds to its approved line; a vehicle serves one line at a time, and may still run scheduled trips
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `permit_id` | `bigint` | 🔗 `net.line_permit` ✱ |  |
+| `company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `vehicle_id` | `bigint` | 🔗 `fleet.vehicle` ✱ |  |
+| `valid` | `daterange` | ✱ |  |
+| `status` | `text` | ✱ | `'ACTIVE'::text` |
+| `approved_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
 ### `fleet.seat_layout` 🛡️
 
@@ -1530,6 +1592,23 @@ Premium or discounted seat prices set by the carrier (4.14 a)
 | `price_delta` | `bigint` | ✱ |  |
 | `label` | `text` | ✱ |  |
 | `active` | `boolean` | ✱ | `true` |
+
+### `fleet.tracking_device` 🛡️
+
+A contracted tracking device installed in a vehicle; one active device per vehicle at a time
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `vehicle_id` | `bigint` | 🔗 `fleet.vehicle` ✱ |  |
+| `provider` | `text` | ✱ |  |
+| `serial_no` | `text` | ✱ |  |
+| `protocol` | `text` | ✱ | `'API'::text` |
+| `certificate_no` | `text` |  |  |
+| `installed` | `daterange` | ✱ |  |
+| `status` | `text` | ✱ | `'ACTIVE'::text` |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
 ### `fleet.trailer` 🛡️
 
@@ -1618,6 +1697,7 @@ Vehicle: type, seated and standing capacity, ownership and owner, and the status
 | `block_reason` | `text` |  |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 | `updated_at` | `timestamp with time zone` | ✱ | `now()` |
+| `tracking_source` | `text` | ✱ | `'DRIVER_APP'::text` |
 
 ### `fleet.vehicle_fuel_profile` 🛡️
 
@@ -2491,6 +2571,39 @@ Deviations from the line version measured by tracking; append-only
 | `lng` | `numeric(9,6)` |  |  |
 | `detail` | `jsonb` | ✱ | `'{}'::jsonb` |
 
+### `ops.route_violation` 🛡️
+
+A deviation from the route the trip must keep to: warning, continuous alarm, correction, review and reporting
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `vehicle_id` | `bigint` | 🔗 `fleet.vehicle` ✱ |  |
+| `trip_id` | `bigint` | 🔗 `ops.trip`  |  |
+| `driver_party_id` | `bigint` | 🔗 `iam.party`  |  |
+| `compliance_source` | `text` | ✱ |  |
+| `line_version_id` | `bigint` | 🔗 `net.line_version`  |  |
+| `kind` | `text` | ✱ |  |
+| `tracking_source` | `text` | ✱ |  |
+| `started_at` | `timestamp with time zone` | ✱ |  |
+| `ended_at` | `timestamp with time zone` |  |  |
+| `max_distance_m` | `integer` |  |  |
+| `in_service` | `boolean` | ✱ |  |
+| `carrying_passengers` | `boolean` | ✱ | `false` |
+| `driver_warned_at` | `timestamp with time zone` |  |  |
+| `alarm_started_at` | `timestamp with time zone` |  |  |
+| `corrected_at` | `timestamp with time zone` |  |  |
+| `status` | `text` | ✱ | `'OPEN'::text` |
+| `justification` | `text` |  |  |
+| `diversion_id` | `bigint` | 🔗 `net.line_diversion`  |  |
+| `reviewed_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `evidence` | `jsonb` | ✱ | `'{}'::jsonb` |
+| `retain_until` | `date` | ✱ | `(CURRENT_DATE + 730)` |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `updated_at` | `timestamp with time zone` | ✱ | `now()` |
+
 ### `ops.seat_lock` 🛡️
 
 Audit trail of seat holds. Never read to decide availability: the hold itself is the LOCKED row of ops.seat_segment (study 16.28)
@@ -2662,6 +2775,7 @@ Actual trip (the pivotal entity) with its number, vehicle, capacity, snapshots a
 | `line_version_id` | `bigint` | 🔗 `net.line_version`  |  |
 | `timetable_slot` | `time without time zone` |  |  |
 | `fare_regime` | `text` |  |  |
+| `compliance_source` | `text` | ✱ | `'NONE'::text` |
 
 ### `ops.trip_change` 🛡️
 
@@ -2805,6 +2919,21 @@ Swapping the trip vehicle without changing the trip number (4.16 d)
 | `reason` | `text` | ✱ |  |
 | `seats_reassigned` | `boolean` | ✱ | `false` |
 | `approved_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `ops.violation_report` 🛡️
+
+A violation sent to an authority over the channel it imposed; delivered through the outbox
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `violation_id` | `bigint` | 🔗 `ops.route_violation` ✱ |  |
+| `authority` | `text` | ✱ |  |
+| `channel` | `text` | ✱ |  |
+| `status` | `text` | ✱ | `'PENDING'::text` |
+| `external_ref` | `text` |  |  |
+| `sent_at` | `timestamp with time zone` |  |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
 <a id="sales"></a>
@@ -7113,7 +7242,7 @@ Which authority receives which manifests and how; activated only by a second pla
 | `chassis_no` | `text` |  |  |
 
 <a id="ctr"></a>
-## `ctr` — Contracted transport: schools, universities and employees
+## `ctr` — Contracted transport: universities and employees
 
 ### `ctr.attendance_event` 🛡️
 
@@ -7207,6 +7336,227 @@ Contract between an institution or employer and a carrier (annex D.2.2)
 | `terms` | `jsonb` | ✱ | `'{}'::jsonb` |
 | `status` | `text` | ✱ | `'DRAFT'::text` |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+<a id="sch"></a>
+## `sch` — School transport: schools, operators, pupils and guardians, contracts, routes, runs and attendance
+
+### `sch.absence_notice` 🛡️
+
+The guardian tells the bus in advance that the pupil will not ride
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `enrollment_id` | `bigint` | 🔑 🔗 `sch.enrollment` ✱ |  |
+| `absent_on` | `date` | 🔑 ✱ |  |
+| `direction` | `text` | 🔑 ✱ |  |
+| `reported_by_party_id` | `bigint` | 🔗 `iam.party` ✱ |  |
+| `reported_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `sch.attendance` 🛡️ 🔒
+
+Boarding, leaving and hand-over of each pupil on a run; append-only, guardians are notified from it
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `run_id` | `bigint` | 🔗 `sch.run` ✱ |  |
+| `enrollment_id` | `bigint` | 🔗 `sch.enrollment` ✱ |  |
+| `event` | `text` | ✱ |  |
+| `received_by_party_id` | `bigint` | 🔗 `iam.party`  |  |
+| `occurred_at` | `timestamp with time zone` | ✱ | `now()` |
+| `lat` | `numeric(9,6)` |  |  |
+| `lng` | `numeric(9,6)` |  |  |
+| `source` | `text` | ✱ |  |
+| `recorded_by` | `bigint` | 🔗 `iam.app_user`  |  |
+
+### `sch.contract` 🛡️
+
+A school transport contract: the school assigning its own buses, a guardian with a company or an individual, or a government scheme; always under a school transport licence
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `operator_id` | `bigint` | 🔗 `sch.operator` ✱ |  |
+| `company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `contract_kind` | `text` | ✱ |  |
+| `school_id` | `bigint` | 🔗 `sch.school` ✱ |  |
+| `guardian_party_id` | `bigint` | 🔗 `iam.party`  |  |
+| `school_year` | `text` | ✱ |  |
+| `valid` | `daterange` | ✱ |  |
+| `pricing_mode` | `text` | ✱ |  |
+| `price` | `bigint` | ✱ | `0` |
+| `currency` | `character(3)` | 🔗 `ref.currency` ✱ | `'SYP'::bpchar` |
+| `school_transport_license_no` | `text` | ✱ |  |
+| `license_authority` | `text` | ✱ |  |
+| `terms` | `jsonb` | ✱ | `'{}'::jsonb` |
+| `status` | `text` | ✱ | `'DRAFT'::text` |
+| `signed_at` | `timestamp with time zone` |  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `sch.enrollment` 🛡️
+
+A pupil on a contract, with the morning and afternoon routes and stops, and the guardian's consent
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `contract_id` | `bigint` | 🔗 `sch.contract` ✱ |  |
+| `student_id` | `bigint` | 🔗 `sch.student` ✱ |  |
+| `to_route_id` | `bigint` | 🔗 `sch.route`  |  |
+| `to_stop_seq` | `smallint` |  |  |
+| `from_route_id` | `bigint` | 🔗 `sch.route`  |  |
+| `from_stop_seq` | `smallint` |  |  |
+| `guardian_consent` | `text` | ✱ | `'PENDING'::text` |
+| `consent_at` | `timestamp with time zone` |  |  |
+| `consent_by_party_id` | `bigint` | 🔗 `iam.party`  |  |
+| `status` | `text` | ✱ | `'PENDING'::text` |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `sch.operator` 🛡️
+
+Who carries pupils: the school's own buses, a company, an individual owner-driver, or a government or government-contracted carrier
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `operator_kind` | `text` | ✱ |  |
+| `school_id` | `bigint` | 🔗 `sch.school`  |  |
+| `government_contract_no` | `text` |  |  |
+| `supervising_authority` | `text` |  |  |
+| `school_transport_license_no` | `text` | ✱ |  |
+| `license_issuer` | `text` | ✱ |  |
+| `license_expiry` | `date` |  |  |
+| `license_record_id` | `bigint` | 🔗 `fleet.license_record`  |  |
+| `status` | `text` | ✱ | `'PENDING'::text` |
+| `approved_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `approved_at` | `timestamp with time zone` |  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `sch.route` 🛡️
+
+A school route with its bus, driver and attendant; activation checks the licences the configuration requires
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `operator_id` | `bigint` | 🔗 `sch.operator` ✱ |  |
+| `school_id` | `bigint` | 🔗 `sch.school` ✱ |  |
+| `code` | `text` | ✱ |  |
+| `direction` | `text` | ✱ |  |
+| `vehicle_id` | `bigint` | 🔗 `fleet.vehicle`  |  |
+| `driver_party_id` | `bigint` | 🔗 `fleet.crew_profile`  |  |
+| `attendant_party_id` | `bigint` | 🔗 `fleet.crew_profile`  |  |
+| `path` | `jsonb` |  |  |
+| `corridor_m` | `integer` | ✱ | `150` |
+| `max_ride_min` | `integer` |  |  |
+| `depart_time` | `time without time zone` | ✱ |  |
+| `operating_days` | `smallint[]` | ✱ | `'{1,2,3,4,7}'::smallint[]` |
+| `status` | `text` | ✱ | `'DRAFT'::text` |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `path_geo` | `gis.geography` |  | `sys.geo_line(path)` |
+
+### `sch.route_stop` 🛡️
+
+Pick-up and drop-off points of a school route, door to door or at gathering points
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `route_id` | `bigint` | 🔑 🔗 `sch.route` ✱ |  |
+| `seq` | `smallint` | 🔑 ✱ |  |
+| `label` | `text` | ✱ |  |
+| `station_id` | `bigint` | 🔗 `net.station`  |  |
+| `lat` | `numeric(9,6)` | ✱ |  |
+| `lng` | `numeric(9,6)` | ✱ |  |
+| `planned_offset_min` | `integer` | ✱ | `0` |
+
+### `sch.run` 🛡️
+
+One run of a school route on a day; it closes only after the check that no child is left on the bus
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `route_id` | `bigint` | 🔗 `sch.route` ✱ |  |
+| `run_date` | `date` | ✱ |  |
+| `trip_id` | `bigint` | 🔗 `ops.trip`  |  |
+| `status` | `text` | ✱ | `'PLANNED'::text` |
+| `started_at` | `timestamp with time zone` |  |  |
+| `completed_at` | `timestamp with time zone` |  |  |
+| `sweep_checked_at` | `timestamp with time zone` |  |  |
+| `sweep_checked_by` | `bigint` | 🔗 `iam.party`  |  |
+
+### `sch.school` 🛡️
+
+A school on the platform: guardians find it, its staff manage its pupils and, when it owns buses, its transport
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `ministry_code` | `text` |  |  |
+| `sector` | `text` | ✱ |  |
+| `education_license_no` | `text` |  |  |
+| `city_id` | `bigint` | 🔗 `ref.city` ✱ |  |
+| `station_id` | `bigint` | 🔗 `net.station`  |  |
+| `lat` | `numeric(9,6)` |  |  |
+| `lng` | `numeric(9,6)` |  |  |
+| `status` | `text` | ✱ | `'PENDING'::text` |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `sch.student` 🛡️
+
+A pupil of a school; a minor is linked to the guardian's account through the family member the guardian defined
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `school_id` | `bigint` | 🔗 `sch.school` ✱ |  |
+| `party_id` | `bigint` | 🔗 `iam.party` ✱ |  |
+| `family_member_id` | `bigint` | 🔗 `iam.family_member`  |  |
+| `student_no` | `text` |  |  |
+| `grade` | `text` |  |  |
+| `class_name` | `text` |  |  |
+| `medical_note_enc` | `bytea` |  |  |
+| `enc_key_id` | `integer` | 🔗 `sec.key_registry`  |  |
+| `photo_document_id` | `bigint` | 🔗 `iam.document`  |  |
+| `status` | `text` | ✱ | `'ACTIVE'::text` |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `sch.student_guardian` 🛡️
+
+Guardians and authorised receivers of a pupil, with custody restrictions
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `student_id` | `bigint` | 🔑 🔗 `sch.student` ✱ |  |
+| `party_id` | `bigint` | 🔑 🔗 `iam.party` ✱ |  |
+| `role` | `text` | ✱ |  |
+| `relation` | `text` | ✱ |  |
+| `is_primary` | `boolean` | ✱ | `false` |
+| `can_receive` | `boolean` | ✱ | `true` |
+| `receive_blocked` | `boolean` | ✱ | `false` |
+| `verified_at` | `timestamp with time zone` |  |  |
+| `verified_by` | `bigint` | 🔗 `iam.app_user`  |  |
+
+<a id="gis"></a>
+## `gis` — PostGIS reference data
+
+### `gis.spatial_ref_sys` 🛡️
+
+
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `srid` | `integer` | 🔑 ✱ |  |
+| `auth_name` | `character varying(256)` |  |  |
+| `auth_srid` | `integer` |  |  |
+| `srtext` | `character varying(2048)` |  |  |
+| `proj4text` | `character varying(2048)` |  |  |
 
 <a id="rail"></a>
 ## `rail` — Rail extension

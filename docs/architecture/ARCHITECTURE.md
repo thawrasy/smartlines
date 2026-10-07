@@ -283,6 +283,12 @@ releases 1A and 1B before launch, phases 2 to 14 after it). Data only depends ba
 and 1B (phase 8 also needs phase 3), so the order of the phases after launch is a business decision. File 1042 records
 the owner's decisions: the contact center and the AI assistant come in a later phase (support starts on cases from
 WhatsApp and email), and the shuttle is a phase of its own opened city by city (`sys.city_rollout`).
+Files 1043 to 1045 add route compliance and school transport (`docs/database/ROUTE_COMPLIANCE_AND_SCHOOL.md`). Every
+licence, tracking source and reporting duty a regulator may impose is registered in `sys.compliance_requirement` and
+switched OFF, OPTIONAL or REQUIRED by configuration, so a new government rule needs no release. Shuttle vehicles are
+bound to their approved line; deviations are detected by the tracking service from the driver's phone, confirmed with
+PostGIS (`ops.route_distance_m`) and reported to authorities only when required and only while the vehicle is in
+service. School transport is its own phase (schema `sch`), with hand-over and empty-bus rules held by the database.
 
 Company isolation (study 16.26, file 1038): `backend/tests/test_isolation.py` signs in as every company under the
 application role and counts the rows of other companies in every table that has a company column. The only rows allowed

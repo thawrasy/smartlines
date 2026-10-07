@@ -387,6 +387,10 @@ class Seeder:
             return f"SRID=4326;POINT({lng + rnd.uniform(-.02, .02):.5f} {lat + rnd.uniform(-.02, .02):.5f})"
         if t.endswith("[]"):
             return "{}"
+        if t in ("jsonb", "json") and n in ("geometry", "path"):   # route shapes are GeoJSON lines between two cities
+            _, lat, lng = CITIES[i % len(CITIES)]
+            _, lat2, lng2 = CITIES[(i + 1) % len(CITIES)]
+            return json.dumps({"type": "LineString", "coordinates": [[lng, lat], [lng2, lat2]]})
         if t in ("jsonb", "json"):
             return "{}"
         if t == "boolean":

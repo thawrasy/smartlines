@@ -322,6 +322,17 @@ COMMENT ON TABLE sch.route_stop IS 'Pick-up and drop-off points of a school rout
 SELECT sys.rls_parent('sch.route_stop', 'route_id', 'sch.route');
 SELECT sys.grant_rw(ARRAY['sch.route_stop']);
 
+CREATE OR REPLACE FUNCTION sch.is_guardian(p_student bigint) RETURNS boolean
+  LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
+  SELECT sys.ctx_party_id() IS NOT NULL AND (
+         EXISTS (SELECT 1 FROM sch.student_guardian g WHERE g.student_id = p_student AND g.role = 'GUARDIAN'
+                    AND g.party_id = sys.ctx_party_id())
+      OR EXISTS (SELECT 1 FROM sch.student s JOIN iam.family_member m ON m.id = s.family_member_id
+                   JOIN iam.family f ON f.id = m.family_id
+                  WHERE s.id = p_student AND f.head_party_id = sys.ctx_party_id()))
+$$;
+COMMENT ON FUNCTION sch.is_guardian IS 'The signed-in person is a guardian of the pupil, named on the pupil or as head of the pupil''s family';
+
 CREATE TABLE IF NOT EXISTS sch.enrollment (
   id                  bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   contract_id         bigint NOT NULL REFERENCES sch.contract (id),
@@ -346,7 +357,8 @@ CREATE INDEX IF NOT EXISTS enrollment_to_route_id_fkx ON sch.enrollment (to_rout
 CREATE INDEX IF NOT EXISTS enrollment_from_route_id_fkx ON sch.enrollment (from_route_id, from_stop_seq);
 CREATE INDEX IF NOT EXISTS enrollment_consent_by_party_id_fkx ON sch.enrollment (consent_by_party_id);
 COMMENT ON TABLE sch.enrollment IS 'A pupil on a contract, with the morning and afternoon routes and stops, and the guardian''s consent';
-SELECT sys.rls_parent('sch.enrollment', 'contract_id', 'sch.contract');
+SELECT sys.rls('sch.enrollment',
+  'EXISTS (SELECT 1 FROM sch.contract p WHERE p.id = enrollment.contract_id) OR sch.is_guardian(student_id)');
 SELECT sys.grant_rw(ARRAY['sch.enrollment']);
 DROP TRIGGER IF EXISTS zz_audit_capture ON sch.enrollment;
 CREATE TRIGGER zz_audit_capture AFTER INSERT OR UPDATE OR DELETE ON sch.enrollment FOR EACH ROW EXECUTE FUNCTION audit.tg_capture_change();
@@ -394,14 +406,9 @@ CREATE TRIGGER enrollment_rules BEFORE INSERT OR UPDATE ON sch.enrollment FOR EA
 -- the check runs as the owner)
 CREATE OR REPLACE FUNCTION sch.student_visible(p_student bigint) RETURNS boolean
   LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
-  SELECT sys.ctx_is_platform()
+  SELECT sys.ctx_is_platform() OR sch.is_guardian(p_student)
       OR EXISTS (SELECT 1 FROM sch.student s JOIN sch.school sc ON sc.id = s.school_id
                   WHERE s.id = p_student AND sys.tenant_visible(sc.company_id))
-      OR EXISTS (SELECT 1 FROM sch.student_guardian g WHERE g.student_id = p_student AND g.role = 'GUARDIAN'
-                    AND g.party_id = sys.ctx_party_id())
-      OR EXISTS (SELECT 1 FROM sch.student s JOIN iam.family_member m ON m.id = s.family_member_id
-                   JOIN iam.family f ON f.id = m.family_id
-                  WHERE s.id = p_student AND f.head_party_id = sys.ctx_party_id())
       OR EXISTS (SELECT 1 FROM sch.enrollment e JOIN sch.contract c ON c.id = e.contract_id
                   WHERE e.student_id = p_student AND sys.tenant_visible(c.company_id))
 $$;
@@ -439,7 +446,9 @@ CREATE TABLE IF NOT EXISTS sch.run (
 CREATE INDEX IF NOT EXISTS run_trip_id_fkx ON sch.run (trip_id);
 CREATE INDEX IF NOT EXISTS run_sweep_checked_by_fkx ON sch.run (sweep_checked_by);
 COMMENT ON TABLE sch.run IS 'One run of a school route on a day; it closes only after the check that no child is left on the bus';
-SELECT sys.rls_parent('sch.run', 'route_id', 'sch.route');
+SELECT sys.rls('sch.run',
+  'EXISTS (SELECT 1 FROM sch.route p WHERE p.id = run.route_id) OR EXISTS (SELECT 1 FROM sch.enrollment e WHERE run.route_id IN (e.to_route_id, e.from_route_id) AND sch.is_guardian(e.student_id))',
+  'EXISTS (SELECT 1 FROM sch.route p WHERE p.id = run.route_id AND sys.tenant_visible(p.company_id))');
 SELECT sys.grant_rw(ARRAY['sch.run']);
 
 CREATE TABLE IF NOT EXISTS sch.attendance (
@@ -460,7 +469,9 @@ CREATE INDEX IF NOT EXISTS attendance_enrollment_id_fkx ON sch.attendance (enrol
 CREATE INDEX IF NOT EXISTS attendance_received_by_party_id_fkx ON sch.attendance (received_by_party_id);
 CREATE INDEX IF NOT EXISTS attendance_recorded_by_fkx ON sch.attendance (recorded_by);
 COMMENT ON TABLE sch.attendance IS 'Boarding, leaving and hand-over of each pupil on a run; append-only, guardians are notified from it';
-SELECT sys.rls_parent('sch.attendance', 'run_id', 'sch.run');
+SELECT sys.rls('sch.attendance',
+  'EXISTS (SELECT 1 FROM sch.run p JOIN sch.route r ON r.id = p.route_id WHERE p.id = attendance.run_id AND (sys.tenant_visible(r.company_id) OR EXISTS (SELECT 1 FROM sch.school sc WHERE sc.id = r.school_id AND sys.tenant_visible(sc.company_id)))) OR EXISTS (SELECT 1 FROM sch.enrollment e WHERE e.id = attendance.enrollment_id AND sch.is_guardian(e.student_id))',
+  'EXISTS (SELECT 1 FROM sch.run p JOIN sch.route r ON r.id = p.route_id WHERE p.id = attendance.run_id AND sys.tenant_visible(r.company_id))');
 SELECT sys.grant_append(ARRAY['sch.attendance']);
 
 -- Hand-over: a pupil under the hand-over age leaves a homeward run only into the hands of an authorised receiver
@@ -557,9 +568,9 @@ UPDATE sys.project_phase SET name = 'Phase 14: contracted transport (universitie
  WHERE code = '14';
 
 INSERT INTO sys.table_phase (table_name, phase_code, module) VALUES
-  ('sch.school', 'SCH', 'E35'), ('sch.operator', 'SCH', 'E35'), ('sch.student', 'SCH', 'E35'), ('sch.student_guardian', 'SCH', 'E35'),
-  ('sch.contract', 'SCH', 'E35'), ('sch.route', 'SCH', 'E35'), ('sch.route_stop', 'SCH', 'E35'), ('sch.enrollment', 'SCH', 'E35'),
-  ('sch.run', 'SCH', 'E35'), ('sch.attendance', 'SCH', 'E35'), ('sch.absence_notice', 'SCH', 'E35')
+  ('sch.school', 'SCH', 'E40'), ('sch.operator', 'SCH', 'E40'), ('sch.student', 'SCH', 'E40'), ('sch.student_guardian', 'SCH', 'E40'),
+  ('sch.contract', 'SCH', 'E40'), ('sch.route', 'SCH', 'E40'), ('sch.route_stop', 'SCH', 'E40'), ('sch.enrollment', 'SCH', 'E40'),
+  ('sch.run', 'SCH', 'E40'), ('sch.attendance', 'SCH', 'E40'), ('sch.absence_notice', 'SCH', 'E40')
 ON CONFLICT (table_name) DO UPDATE SET phase_code = EXCLUDED.phase_code, module = EXCLUDED.module;
 
 -- Pupils' identities, guardians, attendance and absences are personal data of minors: classified user-private

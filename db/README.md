@@ -9,7 +9,7 @@ every table has a primary key, every reference is a foreign key (or documents wh
 
 | | |
 |---|---|
-| Engine | PostgreSQL 16 (extensions: pgcrypto, citext, btree_gist, pg_trgm) |
+| Engine | PostgreSQL 16 with PostGIS 3 (extensions: pgcrypto, citext, btree_gist, pg_trgm, postgis in schema `gis`; Docker and CI image `postgis/postgis:16-3.4`, Ubuntu package `postgresql-16-postgis-3`) |
 | Schemas | 23 separate schemas, each with its own privileges |
 | Tables | 445 tables, 4,557 columns, 1,304 foreign keys; row-level security and a data class on every table |
 | Tests | 188 automated checks passing against a real database, including the acceptance matrix of the architecture review |
@@ -85,6 +85,9 @@ is a new file. A database built before file tracking is treated as having every 
 | `1040_integrity_audit.sql` | Strategic review and relationship audit: composite keys for the sale chain (ticket, booking, passenger, seat, trip), guards for boarding scans, manifest persons, cargo legs, payment wallets and fare brands, 27 more tenant guards and 9 vehicle guards (ownership or lease), one company wallet per currency, jurisdiction tree, schema dependency and JSONB inventories (see `docs/database/INTEGRITY_AUDIT.md`) |
 | `1041_project_phases.sql` | Project phases: the study roadmap (releases 1A and 1B, phases 2 to 15) in `sys.project_phase`, the phase of every table in `sys.table_phase`, `sys.v_phase_summary` and `sys.v_phase_forward_reference`; the tests require a phase for every table and no required reference to a later phase |
 | `1042_rollout_decisions.sql` | Owner decisions: the contact center and the AI assistant in a later phase (CS), support on cases from WhatsApp and email until then; the shuttle as a phase of its own opened city by city (`sys.city_rollout`, a shuttle line or zone is activated only in an opened city) |
+| `1043_route_compliance.sql` | Route compliance: licences, tracking sources and reporting duties registered with a level switched by configuration (`sys.compliance_requirement`: OFF, OPTIONAL, REQUIRED); tracking from the driver's phone or a contracted device; vehicles bound to their approved line (`fleet.line_permit_vehicle`); the route obligation of every trip; regulator diversions; route violations with driver warning and continuous alarm, reported to the authorities only when required and only while the vehicle is in service (see `docs/database/ROUTE_COMPLIANCE_AND_SCHOOL.md`) |
+| `1044_school_transport.sql` | School transport as its own phase (SCH, schema `sch`): schools, operators of five kinds under a school transport licence, pupils linked to their guardians (minors by `person.age_of_majority`), contracts, routes with bus, driver and attendant, daily runs, hand-over to authorised receivers under the hand-over age (12), the empty-bus check, absence notices |
+| `1045_postgis.sql` | PostGIS in schema `gis`: generated geography for lines, diversions, corridors, school routes and stations with spatial indexes; valid shapes required before a route binds; `ops.route_distance_m` and `net.stations_near` |
 
 ## Design rules (study 29.1)
 

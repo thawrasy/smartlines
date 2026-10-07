@@ -27,7 +27,9 @@ flowchart LR
   ship["ship<br/>Shipments and the integrated shipping network"]
   frt["frt<br/>Trucking, heavy transport and transit freight"]
   brd["brd<br/>Border manifest gateway"]
-  ctr["ctr<br/>Contracted transport: schools, universities and employees"]
+  ctr["ctr<br/>Contracted transport: universities and employees"]
+  sch["sch<br/>School transport: schools, operators, pupils and guardians, contracts, routes, runs and attendance"]
+  gis["gis<br/>PostGIS reference data"]
   rail["rail<br/>Rail extension"]
   taxi["taxi<br/>Taxis"]
   rent["rent<br/>Car rental"]
@@ -65,8 +67,8 @@ flowchart LR
   fin -->|6| pricing
   fin -->|5| sales
   fin -->|2| ship
-  fleet -->|25| iam
-  fleet -->|1| net
+  fleet -->|28| iam
+  fleet -->|2| net
   fleet -->|4| ops
   fleet -->|1| ptn
   fleet -->|2| ref
@@ -88,9 +90,9 @@ flowchart LR
   net -->|7| iam
   net -->|3| ref
   ops -->|2| fin
-  ops -->|8| fleet
-  ops -->|14| iam
-  ops -->|15| net
+  ops -->|9| fleet
+  ops -->|16| iam
+  ops -->|17| net
   ops -->|1| ref
   ops -->|3| sales
   pricing -->|1| fin
@@ -125,6 +127,11 @@ flowchart LR
   sales -->|8| ops
   sales -->|5| pricing
   sales -->|2| ref
+  sch -->|4| fleet
+  sch -->|13| iam
+  sch -->|2| net
+  sch -->|1| ops
+  sch -->|1| ref
   sec -->|6| fin
   sec -->|5| fleet
   sec -->|1| gov
@@ -562,6 +569,10 @@ erDiagram
     bigint company_id PK
     text key PK
   }
+  sys_compliance_requirement {
+    text code PK
+    bigint updated_by FK
+  }
   sys_module_gate {
     text schema_name PK
   }
@@ -662,6 +673,12 @@ erDiagram
     bigint city_id FK
     text status
   }
+  net_line_diversion {
+    bigint id PK
+    bigint line_id FK
+    bigint approved_by FK
+    text status
+  }
   net_line_fare {
     bigint id PK
     bigint tariff_id FK
@@ -703,6 +720,7 @@ erDiagram
     bigint origin_station_id FK
     bigint dest_station_id FK
     text status
+    bigint line_id FK
   }
   net_route_stop {
     bigint route_id PK
@@ -774,6 +792,8 @@ erDiagram
   net_line_permit }o--|| net_line : "line_id"
   net_line_tariff }o--|| net_line : "line_id"
   net_timetable_template }o--|| net_line : "line_id"
+  net_line_diversion }o--|| net_line : "line_id"
+  net_route }o..o| net_line : "line_id"
   net_line_fare }o--|| net_line_tariff : "tariff_id"
   net_line_version_approval }o--|| net_line_version : "line_version_id"
   net_line_stop }o--|| net_line_version : "line_version_id"
@@ -860,6 +880,15 @@ erDiagram
     bigint subject_station_id FK
     bigint subject_trailer_id FK
     bigint subject_vehicle_id FK
+    bigint subject_person_id FK
+  }
+  fleet_line_permit_vehicle {
+    bigint id PK
+    bigint permit_id FK
+    bigint company_id FK
+    bigint vehicle_id FK
+    text status
+    bigint approved_by FK
   }
   fleet_seat_layout {
     bigint id PK
@@ -877,6 +906,12 @@ erDiagram
     bigint company_id FK
     bigint vehicle_id FK
     bigint seat_layout_id FK
+  }
+  fleet_tracking_device {
+    bigint id PK
+    bigint company_id FK
+    bigint vehicle_id FK
+    text status
   }
   fleet_trailer {
     bigint id PK
@@ -950,6 +985,9 @@ erDiagram
   iam_party {
     ref external
   }
+  net_line_permit {
+    ref external
+  }
   net_station {
     ref external
   }
@@ -986,7 +1024,9 @@ erDiagram
   fleet_field_check_log }o..o| fleet_vehicle : "vehicle_id"
   fleet_vehicle_service_status }o--|| fleet_vehicle : "vehicle_id"
   fleet_vehicle_fuel_profile }o..o| fleet_vehicle : "vehicle_id"
+  fleet_tracking_device }o--|| fleet_vehicle : "vehicle_id"
   fleet_boarding_validator }o..o| fleet_vehicle : "vehicle_id"
+  fleet_line_permit_vehicle }o--|| fleet_vehicle : "vehicle_id"
   fleet_license_record }o..o| fleet_vehicle : "subject_vehicle_id"
   fleet_seat_layout }o..o| iam_company : "company_id"
   fleet_seat_price_rule }o--|| iam_company : "company_id"
@@ -998,8 +1038,10 @@ erDiagram
   fleet_truck_combination }o--|| iam_company : "company_id"
   fleet_boarding_validator }o--|| iam_company : "company_id"
   fleet_vehicle_fuel_profile }o..o| iam_company : "company_id"
+  fleet_tracking_device }o--|| iam_company : "company_id"
   fleet_vehicle }o--|| iam_company : "company_id"
   fleet_trailer }o--|| iam_company : "company_id"
+  fleet_line_permit_vehicle }o--|| iam_company : "company_id"
   fleet_vehicle_lease }o--|| iam_company : "lessee_company_id"
   fleet_license_record }o..o| iam_company : "subject_company_id"
   fleet_license_change_request }o..o| iam_document : "document_id"
@@ -1013,6 +1055,8 @@ erDiagram
   fleet_trailer }o..o| iam_party : "owner_party_id"
   fleet_license_record }o..o| iam_party : "subject_driver_id"
   fleet_vehicle }o--|| iam_party : "owner_party_id"
+  fleet_license_record }o..o| iam_party : "subject_person_id"
+  fleet_line_permit_vehicle }o--|| net_line_permit : "permit_id"
   fleet_license_record }o..o| net_station : "subject_station_id"
   fleet_insurance_claim }o--|| ops_incident : "incident_id"
   fleet_vehicle_status_history }o..o| ops_incident : "incident_id"
@@ -1417,6 +1461,18 @@ erDiagram
     bigint id PK
     bigint trip_id FK
   }
+  ops_route_violation {
+    bigint id PK
+    uuid uid
+    bigint company_id FK
+    bigint vehicle_id FK
+    bigint trip_id FK
+    bigint driver_party_id FK
+    bigint line_version_id FK
+    text status
+    bigint diversion_id FK
+    bigint reviewed_by FK
+  }
   ops_seat_lock {
     bigint id PK
     bigint trip_id FK
@@ -1534,6 +1590,11 @@ erDiagram
     bigint to_vehicle_id FK
     bigint approved_by FK
   }
+  ops_violation_report {
+    bigint id PK
+    bigint violation_id FK
+    text status
+  }
   fin_ledger_txn {
     ref external
   }
@@ -1562,6 +1623,9 @@ erDiagram
     ref external
   }
   net_line {
+    ref external
+  }
+  net_line_diversion {
     ref external
   }
   net_line_tariff {
@@ -1598,6 +1662,7 @@ erDiagram
   ops_presence_beacon }o..o| fleet_vehicle : "vehicle_id"
   ops_vehicle_swap }o--|| fleet_vehicle : "to_vehicle_id"
   ops_incident }o..o| fleet_vehicle : "vehicle_id"
+  ops_route_violation }o--|| fleet_vehicle : "vehicle_id"
   ops_trip_template }o..o| fleet_vehicle : "default_vehicle_id"
   ops_trip_disruption }o..o| fleet_vehicle : "replacement_vehicle_id"
   ops_trip }o..o| fleet_vehicle : "vehicle_id"
@@ -1611,13 +1676,17 @@ erDiagram
   ops_crossing_event }o..o| iam_app_user : "recorded_by_user_id"
   ops_trip_template }o--|| iam_company : "company_id"
   ops_incident }o--|| iam_company : "company_id"
+  ops_route_violation }o--|| iam_company : "company_id"
   ops_trip }o--|| iam_company : "company_id"
   ops_trip_disruption }o..o| iam_company : "partner_company_id"
   ops_permission_event }o..o| iam_device : "device_id"
   ops_incident }o..o| iam_party : "driver_party_id"
+  ops_route_violation }o..o| iam_party : "driver_party_id"
   ops_trip }o..o| net_corridor : "corridor_id"
   ops_shuttle_ride }o--|| net_line : "line_id"
+  ops_route_violation }o..o| net_line_diversion : "diversion_id"
   ops_shuttle_ride }o..o| net_line_tariff : "tariff_id"
+  ops_route_violation }o..o| net_line_version : "line_version_id"
   ops_trip }o..o| net_line_version : "line_version_id"
   ops_trip_template }o--|| net_route : "route_id"
   ops_trip }o--|| net_route : "route_id"
@@ -1633,6 +1702,7 @@ erDiagram
   ops_incident_evidence }o--|| ops_incident : "incident_id"
   ops_incident_external_link }o--|| ops_incident : "incident_id"
   ops_trip_disruption }o..o| ops_incident : "incident_id"
+  ops_violation_report }o--|| ops_route_violation : "violation_id"
   ops_proximity_sample }o--|| ops_shuttle_ride : "ride_id"
   ops_ride_segment_charge }o--|| ops_shuttle_ride : "ride_id"
   ops_trip_stop }o--|| ops_trip : "trip_id"
@@ -1658,6 +1728,7 @@ erDiagram
   ops_permission_event }o..o| ops_trip : "trip_id"
   ops_incident }o..o| ops_trip : "trip_id"
   ops_shuttle_ride }o--|| ops_trip : "trip_id"
+  ops_route_violation }o..o| ops_trip : "trip_id"
   ops_trip_pair_fare }o--|| ops_trip_stop : "trip_id,from_seq"
   ops_trip_pair_fare }o--|| ops_trip_stop : "trip_id,to_seq"
   ops_trip_stop_event }o--|| ops_trip_stop : "trip_id,seq"
@@ -4492,7 +4563,7 @@ erDiagram
   brd_manifest_cargo }o..o| ship_shipment_leg : "leg_id"
 ```
 
-## `ctr` — Contracted transport: schools, universities and employees
+## `ctr` — Contracted transport: universities and employees
 
 ```mermaid
 erDiagram
@@ -4575,6 +4646,176 @@ erDiagram
   ctr_contract_rider }o..o| net_station : "pickup_station_id"
   ctr_contract_rider }o..o| net_station : "dropoff_station_id"
   ctr_attendance_event }o--|| ops_trip : "trip_id"
+```
+
+## `sch` — School transport: schools, operators, pupils and guardians, contracts, routes, runs and attendance
+
+```mermaid
+erDiagram
+  sch_absence_notice {
+    bigint enrollment_id PK
+    date absent_on PK
+    text direction PK
+    bigint reported_by_party_id FK
+  }
+  sch_attendance {
+    bigint id PK
+    bigint run_id FK
+    bigint enrollment_id FK
+    bigint received_by_party_id FK
+    bigint recorded_by FK
+  }
+  sch_contract {
+    bigint id PK
+    uuid uid
+    bigint operator_id FK
+    bigint company_id FK
+    bigint school_id FK
+    bigint guardian_party_id FK
+    character currency FK
+    text status
+  }
+  sch_enrollment {
+    bigint id PK
+    bigint contract_id FK
+    bigint student_id FK
+    bigint to_route_id FK
+    bigint from_route_id FK
+    bigint consent_by_party_id FK
+    text status
+  }
+  sch_operator {
+    bigint id PK
+    bigint company_id FK
+    bigint school_id FK
+    bigint license_record_id FK
+    text status
+    bigint approved_by FK
+  }
+  sch_route {
+    bigint id PK
+    bigint company_id FK
+    bigint operator_id FK
+    bigint school_id FK
+    text code
+    bigint vehicle_id FK
+    bigint driver_party_id FK
+    bigint attendant_party_id FK
+    text status
+  }
+  sch_route_stop {
+    bigint route_id PK
+    smallint seq PK
+    bigint station_id FK
+  }
+  sch_run {
+    bigint id PK
+    bigint route_id FK
+    bigint trip_id FK
+    text status
+    bigint sweep_checked_by FK
+  }
+  sch_school {
+    bigint id PK
+    uuid uid
+    bigint company_id FK
+    bigint city_id FK
+    bigint station_id FK
+    text status
+  }
+  sch_student {
+    bigint id PK
+    uuid uid
+    bigint school_id FK
+    bigint party_id FK
+    bigint family_member_id FK
+    integer enc_key_id FK
+    bigint photo_document_id FK
+    text status
+  }
+  sch_student_guardian {
+    bigint student_id PK
+    bigint party_id PK
+    bigint verified_by FK
+  }
+  fleet_crew_profile {
+    ref external
+  }
+  fleet_license_record {
+    ref external
+  }
+  fleet_vehicle {
+    ref external
+  }
+  iam_company {
+    ref external
+  }
+  iam_document {
+    ref external
+  }
+  iam_family_member {
+    ref external
+  }
+  iam_party {
+    ref external
+  }
+  net_station {
+    ref external
+  }
+  ops_trip {
+    ref external
+  }
+  ref_city {
+    ref external
+  }
+  sch_route }o..o| fleet_crew_profile : "driver_party_id"
+  sch_route }o..o| fleet_crew_profile : "attendant_party_id"
+  sch_operator }o..o| fleet_license_record : "license_record_id"
+  sch_route }o..o| fleet_vehicle : "vehicle_id"
+  sch_operator }o--|| iam_company : "company_id"
+  sch_route }o--|| iam_company : "company_id"
+  sch_school }o--|| iam_company : "company_id"
+  sch_contract }o--|| iam_company : "company_id"
+  sch_student }o..o| iam_document : "photo_document_id"
+  sch_student }o..o| iam_family_member : "family_member_id"
+  sch_student_guardian }o--|| iam_party : "party_id"
+  sch_student }o--|| iam_party : "party_id"
+  sch_absence_notice }o--|| iam_party : "reported_by_party_id"
+  sch_attendance }o..o| iam_party : "received_by_party_id"
+  sch_contract }o..o| iam_party : "guardian_party_id"
+  sch_run }o..o| iam_party : "sweep_checked_by"
+  sch_enrollment }o..o| iam_party : "consent_by_party_id"
+  sch_route_stop }o..o| net_station : "station_id"
+  sch_school }o..o| net_station : "station_id"
+  sch_run }o..o| ops_trip : "trip_id"
+  sch_school }o--|| ref_city : "city_id"
+  sch_enrollment }o--|| sch_contract : "contract_id"
+  sch_absence_notice }o--|| sch_enrollment : "enrollment_id"
+  sch_attendance }o--|| sch_enrollment : "enrollment_id"
+  sch_contract }o--|| sch_operator : "operator_id"
+  sch_route }o--|| sch_operator : "operator_id"
+  sch_route_stop }o--|| sch_route : "route_id"
+  sch_run }o--|| sch_route : "route_id"
+  sch_enrollment }o..o| sch_route : "to_route_id"
+  sch_enrollment }o..o| sch_route : "from_route_id"
+  sch_enrollment }o..o| sch_route_stop : "to_route_id,to_stop_seq"
+  sch_enrollment }o..o| sch_route_stop : "from_route_id,from_stop_seq"
+  sch_attendance }o--|| sch_run : "run_id"
+  sch_student }o--|| sch_school : "school_id"
+  sch_operator }o..o| sch_school : "school_id"
+  sch_route }o--|| sch_school : "school_id"
+  sch_contract }o--|| sch_school : "school_id"
+  sch_student_guardian }o--|| sch_student : "student_id"
+  sch_enrollment }o--|| sch_student : "student_id"
+```
+
+## `gis` — PostGIS reference data
+
+```mermaid
+erDiagram
+  gis_spatial_ref_sys {
+    integer srid PK
+  }
 ```
 
 ## `rail` — Rail extension

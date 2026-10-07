@@ -11,7 +11,7 @@ const {
 const HERE = __dirname;
 const model = JSON.parse(fs.readFileSync(path.join(HERE, "..", "build", "model.json"), "utf8"));
 const PNG = path.join(HERE, "..", "erd", "png");
-const VERSION = "3.6";
+const VERSION = "3.7";
 const DATE = "7 October 2026";
 const FONT = "Arial";
 const C = { navy: "1F3A5F", blue: "2E74B5", blue2: "1F4D78", grid: "B7C3D0", alt: "F2F6FA", grey: "595959" };
@@ -107,22 +107,47 @@ front.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 16
 front.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 1200 },
   children: [run(`Complete relational model of the Analysis and Design Study v2.9: ${tableCount} tables, ${fkCount} relationships`, { color: "7F7F7F" })] }));
 front.push(table(["Item", "Details"], [
-  ["Version", `${VERSION} (the model divided by project phase, with the owner's phase decisions; replaces version 3.5)`],
+  ["Version", `${VERSION} (route compliance, school transport and PostGIS after the regulators' review; replaces version 3.6)`],
   ["Date", DATE],
   ["Basis", "Analysis and Design Study v2.9 (English), the Use Case and Data Flow Diagrams v1.0, the Database Architecture Review v1.0, the Strategic Database Review and its relationship audit register"],
   ["Scope", `${schemas.length} schemas, ${tableCount} tables, ${colCount} columns, ${fkCount} foreign keys; all phases 1 to 15`],
-  ["Engine", "PostgreSQL 16 with row-level security on every table; schema files db/schema/000 to 1042"],
-  ["Status", "Built and verified: fresh build and upgrade identical, 215 database checks and 175 API tests passing, every foreign key indexed or exempt by rule"],
+  ["Engine", "PostgreSQL 16 with row-level security on every table; PostGIS 3 in schema gis; schema files db/schema/000 to 1045"],
+  ["Status", "Built and verified: fresh build and upgrade identical, 248 database checks and 175 API tests passing, every foreign key indexed or exempt by rule"],
   ["Website", "masslak.com"],
 ], [2800, 6946]));
 
 const toc = [H(HeadingLevel.HEADING_1, "Contents", { pageBreak: true })];
-const tocLines = ["Changes in version 3.6", "Changes in version 3.5", "Changes in version 3.4", "Changes in version 3.3", "Changes in version 3.2", "Changes in version 3.1", "Changes in version 3.0", "1. Introduction", "2. Database architecture", "3. Design rules", "4. Security model in the database",
+const tocLines = ["Changes in version 3.7", "Changes in version 3.6", "Changes in version 3.5", "Changes in version 3.4", "Changes in version 3.3", "Changes in version 3.2", "Changes in version 3.1", "Changes in version 3.0", "1. Introduction", "2. Database architecture", "3. Design rules", "4. Security model in the database",
   "5. Data stores of the data flow diagrams", "6. Entity-relationship diagrams by module",
   ...model.groups.map((g, i) => `      6.${i + 1} ${g[0]} ${g[1]}`), `      6.${model.groups.length + 1} Focus diagrams: rules that span modules`,
   "7. Table definitions", "8. Traceability to the study", "9. Verification",
   "Appendix A: Feature flags", "Appendix B: Generalizations and naming decisions", "Appendix C: References without a foreign key"];
 for (const l of tocLines) toc.push(P(l, { after: 40, size: 20 }));
+
+// ------------------------------ changes in 3.7 ------------------------------
+const changes37 = [H(HeadingLevel.HEADING_1, "Changes in version 3.7", { pageBreak: true }),
+  P("Two requests followed the regulators' review, with the owner's decisions on each open question (schema files "
+    + "1043_route_compliance.sql, 1044_school_transport.sql and 1045_postgis.sql, migrations 1.25.0 to 1.27.0; details in "
+    + "docs/database/ROUTE_COMPLIANCE_AND_SCHOOL.md)."),
+  bullet("Every licence, tracking source and reporting duty a regulator may impose is registered in sys.compliance_requirement with a level "
+    + "switched by configuration: OFF, OPTIONAL (collected, never blocking) or REQUIRED (enforced from a date). A new government rule needs "
+    + "no release. Licence records now cover any person (school bus attendants) and the school transport, route permit, criminal record, "
+    + "first aid and tracking device licences.", "Requirements"),
+  bullet("Trips are tracked from the driver's phone first; contracted tracking devices come later, chosen per vehicle (fleet.tracking_device). "
+    + "Shuttle vehicles are bound to the approved line of their permit (fleet.line_permit_vehicle), within its validity and vehicle limit; "
+    + "every trip carries its route obligation (approved line, transit corridor, private contract or none).", "Shuttle lines"),
+  bullet("A deviation warns the driver, then sounds a continuous alarm; the violation keeps its evidence (frozen once reviewed, kept 730 "
+    + "days). It is reported to the authorities only when a regulator requires it and only while the vehicle was in service (a running "
+    + "trip or passengers on board); the database refuses any other report. Regulator diversions count as part of the route.", "Violations"),
+  bullet("School transport is a phase of its own (SCH, schema sch, 11 tables): five kinds of operator under a school transport licence, pupils "
+    + "linked to their guardians while minors, four contract kinds, routes with bus, driver and attendant, daily runs and attendance. The "
+    + "database refuses to hand a pupil under 12 to anyone but an authorised receiver, and to close a run with a child on board or before "
+    + "the empty-bus check.", "School transport"),
+  bullet("PostGIS (schema gis) adds generated geography columns with spatial indexes to lines, diversions, corridors, school routes and "
+    + "stations; a route binds only with a valid line shape; ops.route_distance_m measures the distance from the binding route.", "PostGIS"),
+  P("Tracking positions, route adherence events and tracking alerts move to Phase 2, since the shuttle is monitored from its first stage. "
+    + "The binding table lives in schema fleet so that no new two-way dependency between schemas appears (test H-07)."),
+];
 
 // ------------------------------ changes in 3.6 ------------------------------
 const changes36 = [H(HeadingLevel.HEADING_1, "Changes in version 3.6", { pageBreak: true }),
@@ -613,7 +638,7 @@ const doc = new Document({
   numbering: { config: [{ reference: "bullets", levels: [{ level: 0, format: LevelFormat.BULLET, text: "•", alignment: AlignmentType.LEFT,
     style: { paragraph: { indent: { left: 540, hanging: 270 } } } }] }] },
   sections: [
-    section(PORTRAIT, [...front, ...toc, ...changes36, ...changes35, ...changes34, ...changes33, ...changes32, ...changes31, ...changes, ...intro, ...arch, ...rules, ...security, ...stores]),
+    section(PORTRAIT, [...front, ...toc, ...changes37, ...changes36, ...changes35, ...changes34, ...changes33, ...changes32, ...changes31, ...changes, ...intro, ...arch, ...rules, ...security, ...stores]),
     ...erdSections,
     section(PORTRAIT, [...defs, ...trace, ...verify, ...flags, ...gens, ...appC]),
   ],

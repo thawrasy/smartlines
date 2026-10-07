@@ -19,7 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgres:16
+        image: postgis/postgis:16-3.4
         env: { POSTGRES_PASSWORD: postgres }
         ports: ["5432:5432"]
         options: >-
@@ -41,7 +41,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgres:16
+        image: postgis/postgis:16-3.4
         env: { POSTGRES_PASSWORD: postgres, POSTGRES_DB: masslak }
         ports: ["5432:5432"]
         options: >-

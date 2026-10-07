@@ -215,7 +215,7 @@ def test_a_member_on_another_device_books_within_the_heads_rules(trip):
     code = "FAM-" + uuid.uuid4().hex[:6].upper()
     line = owner_sql("INSERT INTO net.line (code, name, kind, fare_regime, status) VALUES ($1, 'Family test line', 'INTERCITY', 'FREE', 'ACTIVE') RETURNING id", code)
     version = owner_sql("""INSERT INTO net.line_version (line_id, version, geometry, distance_km, typical_min, status)
-                           VALUES ($1, 1, '{"type": "LineString", "coordinates": []}', 10, 20, 'ACTIVE') RETURNING id""", line)
+                           VALUES ($1, 1, '{"type": "LineString", "coordinates": [[36.2765, 33.5138], [37.1343, 36.2021]]}', 10, 20, 'ACTIVE') RETURNING id""", line)
     assert code in [x["code"] for x in head.get("/api/family/lines").json()["lines"]]
     r = head.post(f"/api/family/members/{me}/rules", json={"rule_type": "LINE", "line_id": line})
     assert r.status_code == 201, r.text

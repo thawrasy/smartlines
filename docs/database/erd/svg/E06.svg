@@ -64,7 +64,7 @@
 <polygon fill="#f2f6fa" stroke="transparent" points="592.5,-441.5 592.5,-458.5 622.5,-458.5 622.5,-441.5 592.5,-441.5"/>
 <text text-anchor="start" x="595.5" y="-448.1" font-family="DejaVu Sans" font-size="8.00" fill="#7f7f7f">text</text>
 <polygon fill="#ffffff" stroke="transparent" points="475.5,-426.5 475.5,-441.5 622.5,-441.5 622.5,-426.5 475.5,-426.5"/>
-<text text-anchor="start" x="478.5" y="-433.1" font-family="DejaVu Sans" font-style="italic" font-size="8.00" fill="#7f7f7f">+ 18 more columns</text>
+<text text-anchor="start" x="478.5" y="-433.1" font-family="DejaVu Sans" font-style="italic" font-size="8.00" fill="#7f7f7f">+ 19 more columns</text>
 <path fill="none" stroke="#404040" d="M486,-425.5C486,-425.5 611,-425.5 611,-425.5 617,-425.5 623,-431.5 623,-437.5 623,-437.5 623,-599.5 623,-599.5 623,-605.5 617,-611.5 611,-611.5 611,-611.5 486,-611.5 486,-611.5 480,-611.5 474,-605.5 474,-599.5 474,-599.5 474,-437.5 474,-437.5 474,-431.5 480,-425.5 486,-425.5"/>
 </g>
 <!-- fleet__seat_layout -->

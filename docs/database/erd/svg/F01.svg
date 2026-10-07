@@ -243,7 +243,7 @@
 <polygon fill="#f2f6fa" stroke="transparent" points="1143,-42.5 1143,-59.5 1173,-59.5 1173,-42.5 1143,-42.5"/>
 <text text-anchor="start" x="1146" y="-49.1" font-family="DejaVu Sans" font-size="8.00" fill="#7f7f7f">text</text>
 <polygon fill="#ffffff" stroke="transparent" points="1021,-27.5 1021,-42.5 1173,-42.5 1173,-27.5 1021,-27.5"/>
-<text text-anchor="start" x="1024" y="-34.1" font-family="DejaVu Sans" font-style="italic" font-size="8.00" fill="#7f7f7f">+ 35 more columns</text>
+<text text-anchor="start" x="1024" y="-34.1" font-family="DejaVu Sans" font-style="italic" font-size="8.00" fill="#7f7f7f">+ 36 more columns</text>
 <path fill="none" stroke="#404040" d="M1032,-26.5C1032,-26.5 1162,-26.5 1162,-26.5 1168,-26.5 1174,-32.5 1174,-38.5 1174,-38.5 1174,-268.5 1174,-268.5 1174,-274.5 1168,-280.5 1162,-280.5 1162,-280.5 1032,-280.5 1032,-280.5 1026,-280.5 1020,-274.5 1020,-268.5 1020,-268.5 1020,-38.5 1020,-38.5 1020,-32.5 1026,-26.5 1032,-26.5"/>
 </g>
 <!-- ops__trip_stop -->
@@ -364,7 +364,7 @@
 <polygon fill="#f2f6fa" stroke="transparent" points="904,-403.5 904,-420.5 940,-420.5 940,-403.5 904,-403.5"/>
 <text text-anchor="start" x="907" y="-410.1" font-family="DejaVu Sans" font-size="8.00" fill="#7f7f7f">text</text>
 <polygon fill="#ffffff" stroke="transparent" points="768,-388.5 768,-403.5 940,-403.5 940,-388.5 768,-388.5"/>
-<text text-anchor="start" x="771" y="-395.1" font-family="DejaVu Sans" font-style="italic" font-size="8.00" fill="#7f7f7f">+ 19 more columns</text>
+<text text-anchor="start" x="771" y="-395.1" font-family="DejaVu Sans" font-style="italic" font-size="8.00" fill="#7f7f7f">+ 20 more columns</text>
 <path fill="none" stroke="#404040" d="M779,-387.5C779,-387.5 929,-387.5 929,-387.5 935,-387.5 941,-393.5 941,-399.5 941,-399.5 941,-595.5 941,-595.5 941,-601.5 935,-607.5 929,-607.5 929,-607.5 779,-607.5 779,-607.5 773,-607.5 767,-601.5 767,-595.5 767,-595.5 767,-399.5 767,-399.5 767,-393.5 773,-387.5 779,-387.5"/>
 </g>
 <!-- ops__trip_stop&#45;&gt;net__station -->

@@ -177,11 +177,13 @@ def overview_dot(model):
     for fam, label in clusters:
         members = sorted([s for s in by_schema if SCHEMA_FAMILY.get(s) == fam], key=lambda x: -by_schema[x])
         rows.append(f'<TR><TD COLSPAN="{cols}" ALIGN="LEFT" CELLPADDING="6"><FONT POINT-SIZE="13" COLOR="#333333"><B>{label}</B></FONT></TD></TR>')
-        cells = "".join(f'<TD BGCOLOR="{FAMILY[fam]["fill"]}" BORDER="1" COLOR="{INK}" STYLE="ROUNDED" WIDTH="190" HEIGHT="62">'
-                        f'<FONT POINT-SIZE="13"><B>{s}</B></FONT> <FONT POINT-SIZE="10">({by_schema[s]} tables)</FONT><BR/>'
-                        f'<FONT POINT-SIZE="10">{SCHEMA_TITLE.get(s, "")}</FONT></TD>' for s in members)
-        cells += "".join('<TD WIDTH="190"></TD>' for _ in range(cols - len(members)))
-        rows.append(f"<TR>{cells}</TR>")
+        for k in range(0, len(members), cols):          # a family with more schemas than columns wraps to a second row
+            chunk = members[k:k + cols]
+            cells = "".join(f'<TD BGCOLOR="{FAMILY[fam]["fill"]}" BORDER="1" COLOR="{INK}" STYLE="ROUNDED" WIDTH="190" HEIGHT="62">'
+                            f'<FONT POINT-SIZE="13"><B>{s}</B></FONT> <FONT POINT-SIZE="10">({by_schema[s]} tables)</FONT><BR/>'
+                            f'<FONT POINT-SIZE="10">{SCHEMA_TITLE.get(s, s)}</FONT></TD>' for s in chunk)
+            cells += "".join('<TD WIDTH="190"></TD>' for _ in range(cols - len(chunk)))
+            rows.append(f"<TR>{cells}</TR>")
     total = sum(by_schema.values())
     rows.append(f'<TR><TD COLSPAN="{cols}" ALIGN="RIGHT"><FONT POINT-SIZE="10" COLOR="#595959">{len(by_schema)} schemas, {total} tables</FONT></TD></TR>')
     label = '<<TABLE BORDER="0" CELLSPACING="10" CELLPADDING="4">' + "".join(rows) + "</TABLE>>"

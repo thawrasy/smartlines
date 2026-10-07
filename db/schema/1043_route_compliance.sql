@@ -417,8 +417,8 @@ UPDATE sys.setting SET value = value || '{"route_compliance": false}'::jsonb
 -- G  Phase map: route compliance belongs to the shuttle phase
 -- =====================================================================
 INSERT INTO sys.table_phase (table_name, phase_code, module) VALUES
-  ('sys.compliance_requirement', '1A', 'E04'), ('fleet.tracking_device', '2', 'E05'), ('fleet.line_permit_vehicle', '2', 'E05'),
-  ('net.line_diversion', '2', 'E05'), ('ops.route_violation', '2', 'E05'), ('ops.violation_report', '2', 'E05')
+  ('sys.compliance_requirement', '1A', 'E03'), ('fleet.tracking_device', '2', 'E09'), ('fleet.line_permit_vehicle', '2', 'E05'),
+  ('net.line_diversion', '2', 'E05'), ('ops.route_violation', '2', 'E09'), ('ops.violation_report', '2', 'E09')
 ON CONFLICT (table_name) DO UPDATE SET phase_code = EXCLUDED.phase_code, module = EXCLUDED.module;
 -- The shuttle is monitored from the driver's phone in its first phase, so positions, deviations and alerts come with it
 UPDATE sys.table_phase SET phase_code = '2'

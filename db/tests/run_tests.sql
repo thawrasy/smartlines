@@ -1018,6 +1018,18 @@ INSERT INTO ops.violation_report (violation_id, authority, channel) VALUES (:rv2
 SELECT pg_temp.ok(true, 'Compliance: a confirmed violation in service is reported once the regulator requires it');
 SELECT pg_temp.expect_error(format($$UPDATE ops.route_violation SET evidence = '{"edited": true}' WHERE id = %s$$, :rv2),
   'VIOLATION_EVIDENCE_FROZEN', 'Compliance: the evidence of a reviewed violation cannot change');
+-- PostGIS (1045): distance from the binding route, diversions, and valid shapes for binding routes
+SELECT pg_temp.ok((SELECT NOT off_route AND distance_m < 50 FROM ops.route_distance_m((SELECT id FROM ops.trip WHERE trip_no = 'T1-0001'), 33.515, 36.30))
+  AND (SELECT off_route AND distance_m > 1000 FROM ops.route_distance_m((SELECT id FROM ops.trip WHERE trip_no = 'T1-0001'), 33.60, 36.30)),
+  'PostGIS: a position on the approved line is inside its corridor, kilometres away is off route');
+INSERT INTO net.line_diversion (line_id, active, geometry, reason, issued_by)
+SELECT id, tstzrange(now() - interval '1 hour', now() + interval '1 day'), '{"type":"LineString","coordinates":[[36.30,33.515],[36.30,33.60]]}', 'ROAD_CLOSED', 'Damascus traffic police'
+  FROM net.line WHERE code = 'DAM-T1';
+SELECT pg_temp.ok((SELECT NOT off_route FROM ops.route_distance_m((SELECT id FROM ops.trip WHERE trip_no = 'T1-0001'), 33.60, 36.30)),
+  'PostGIS: a trip following the regulator''s active diversion is not off route');
+SELECT pg_temp.expect_error($$INSERT INTO net.line_version (line_id, version, geometry, distance_km, typical_min, status) SELECT id, 2, '{"type":"Point","coordinates":[36.29,33.51]}', 6.5, 25, 'APPROVED' FROM net.line WHERE code = 'DAM-T1'$$,
+  'ROUTE_SHAPE_INVALID', 'PostGIS: a line version is approved only with a valid route line');
+SELECT pg_temp.ok(EXISTS (SELECT 1 FROM net.stations_near(33.5138, 36.2765, 5000)), 'PostGIS: stations near a point are found by spatial index');
 ROLLBACK;
 
 -- School transport (1044): operators under licence, pupils and guardians, hand-over and the empty-bus check
