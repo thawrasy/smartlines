@@ -76,7 +76,7 @@
 <polygon fill="#f2f6fa" stroke="transparent" points="344.5,-882 344.5,-899 374.5,-899 374.5,-882 344.5,-882"/>
 <text text-anchor="start" x="347.5" y="-888.6" font-family="DejaVu Sans" font-size="8.00" fill="#7f7f7f">bigint</text>
 <polygon fill="#ffffff" stroke="transparent" points="274.5,-867 274.5,-882 374.5,-882 374.5,-867 274.5,-867"/>
-<text text-anchor="start" x="277.5" y="-873.6" font-family="DejaVu Sans" font-style="italic" font-size="8.00" fill="#7f7f7f">+ 8 more columns</text>
+<text text-anchor="start" x="277.5" y="-873.6" font-family="DejaVu Sans" font-style="italic" font-size="8.00" fill="#7f7f7f">+ 10 more columns</text>
 <path fill="none" stroke="#404040" d="M285.5,-866C285.5,-866 363.5,-866 363.5,-866 369.5,-866 375.5,-872 375.5,-878 375.5,-878 375.5,-938 375.5,-938 375.5,-944 369.5,-950 363.5,-950 363.5,-950 285.5,-950 285.5,-950 279.5,-950 273.5,-944 273.5,-938 273.5,-938 273.5,-878 273.5,-878 273.5,-872 279.5,-866 285.5,-866"/>
 </g>
 <!-- iam__user_session&#45;&gt;iam__device -->

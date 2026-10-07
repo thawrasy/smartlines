@@ -23,7 +23,7 @@
 <path fill="none" stroke="#404040" d="M222,-758.5C222,-758.5 388,-758.5 388,-758.5 394,-758.5 400,-764.5 400,-770.5 400,-770.5 400,-808.5 400,-808.5 400,-814.5 394,-820.5 388,-820.5 388,-820.5 222,-820.5 222,-820.5 216,-820.5 210,-814.5 210,-808.5 210,-808.5 210,-770.5 210,-770.5 210,-764.5 216,-758.5 222,-758.5"/>
 <text text-anchor="start" x="264" y="-791.3" font-family="DejaVu Sans" font-weight="bold" font-size="13.00">sys</text>
 <text text-anchor="start" x="288" y="-791.3" font-family="DejaVu Sans" font-size="14.00"> </text>
-<text text-anchor="start" x="293" y="-791.3" font-family="DejaVu Sans" font-size="10.00">(18 tables)</text>
+<text text-anchor="start" x="293" y="-791.3" font-family="DejaVu Sans" font-size="10.00">(20 tables)</text>
 <text text-anchor="start" x="265" y="-780.5" font-family="DejaVu Sans" font-size="10.00">Settings, outbox</text>
 <path fill="#dce6f2" stroke="transparent" d="M422,-758.5C422,-758.5 588,-758.5 588,-758.5 594,-758.5 600,-764.5 600,-770.5 600,-770.5 600,-808.5 600,-808.5 600,-814.5 594,-820.5 588,-820.5 588,-820.5 422,-820.5 422,-820.5 416,-820.5 410,-814.5 410,-808.5 410,-808.5 410,-770.5 410,-770.5 410,-764.5 416,-758.5 422,-758.5"/>
 <path fill="none" stroke="#404040" d="M422,-758.5C422,-758.5 588,-758.5 588,-758.5 594,-758.5 600,-764.5 600,-770.5 600,-770.5 600,-808.5 600,-808.5 600,-814.5 594,-820.5 588,-820.5 588,-820.5 422,-820.5 422,-820.5 416,-820.5 410,-814.5 410,-808.5 410,-808.5 410,-770.5 410,-770.5 410,-764.5 416,-758.5 422,-758.5"/>
@@ -35,7 +35,7 @@
 <path fill="none" stroke="#404040" d="M622,-758.5C622,-758.5 788,-758.5 788,-758.5 794,-758.5 800,-764.5 800,-770.5 800,-770.5 800,-808.5 800,-808.5 800,-814.5 794,-820.5 788,-820.5 788,-820.5 622,-820.5 622,-820.5 616,-820.5 610,-814.5 610,-808.5 610,-808.5 610,-770.5 610,-770.5 610,-764.5 616,-758.5 622,-758.5"/>
 <text text-anchor="start" x="668" y="-791.3" font-family="DejaVu Sans" font-weight="bold" font-size="13.00">rpt</text>
 <text text-anchor="start" x="690" y="-791.3" font-family="DejaVu Sans" font-size="14.00"> </text>
-<text text-anchor="start" x="695" y="-791.3" font-family="DejaVu Sans" font-size="10.00">(3 tables)</text>
+<text text-anchor="start" x="695" y="-791.3" font-family="DejaVu Sans" font-size="10.00">(4 tables)</text>
 <text text-anchor="start" x="686" y="-780.5" font-family="DejaVu Sans" font-size="10.00">Reports</text>
 <path fill="#dce6f2" stroke="transparent" d="M822,-758.5C822,-758.5 988,-758.5 988,-758.5 994,-758.5 1000,-764.5 1000,-770.5 1000,-770.5 1000,-808.5 1000,-808.5 1000,-814.5 994,-820.5 988,-820.5 988,-820.5 822,-820.5 822,-820.5 816,-820.5 810,-814.5 810,-808.5 810,-808.5 810,-770.5 810,-770.5 810,-764.5 816,-758.5 822,-758.5"/>
 <path fill="none" stroke="#404040" d="M822,-758.5C822,-758.5 988,-758.5 988,-758.5 994,-758.5 1000,-764.5 1000,-770.5 1000,-770.5 1000,-808.5 1000,-808.5 1000,-814.5 994,-820.5 988,-820.5 988,-820.5 822,-820.5 822,-820.5 816,-820.5 810,-814.5 810,-808.5 810,-808.5 810,-770.5 810,-770.5 810,-764.5 816,-758.5 822,-758.5"/>
@@ -175,7 +175,7 @@
 <text text-anchor="start" x="698" y="-71.3" font-family="DejaVu Sans" font-size="14.00"> </text>
 <text text-anchor="start" x="703" y="-71.3" font-family="DejaVu Sans" font-size="10.00">(6 tables)</text>
 <text text-anchor="start" x="680.5" y="-60.5" font-family="DejaVu Sans" font-size="10.00">Audit logs</text>
-<text text-anchor="start" x="1080" y="-16.5" font-family="DejaVu Sans" font-size="10.00" fill="#595959">26 schemas, 472 tables</text>
+<text text-anchor="start" x="1080" y="-16.5" font-family="DejaVu Sans" font-size="10.00" fill="#595959">26 schemas, 475 tables</text>
 </g>
 </g>
 </svg>
