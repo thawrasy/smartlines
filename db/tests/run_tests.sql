@@ -965,4 +965,154 @@ SELECT pg_temp.ok((SELECT count(*) FROM sys.table_phase WHERE phase_code = 'CS' 
   'Phases: support starts on cases (WhatsApp, email); the contact center and the AI assistant come in a later phase');
 SET ROLE masslak_app;
 
+-- Route compliance (1043): requirements switched by configuration, vehicles bound to their line, violations and reporting
+RESET ROLE;
+BEGIN;
+SELECT pg_temp.ok((SELECT level FROM sys.compliance_requirement WHERE code = 'route.vehicle_binding.shuttle') = 'REQUIRED'
+  AND (SELECT level FROM sys.compliance_requirement WHERE code = 'route.report.authority') = 'OFF'
+  AND (SELECT level FROM sys.compliance_requirement WHERE code = 'tracking.gps_device') = 'OFF'
+  AND NOT EXISTS (SELECT 1 FROM sys.compliance_requirement WHERE domain = 'LICENSE' AND level = 'REQUIRED'),
+  'Compliance: licences, tracking devices and reporting are prepared but not imposed; only shuttle vehicles are bound to their line');
+INSERT INTO sys.city_rollout (feature_key, city_id, stage, status) SELECT 'shuttle_rides', id, 1, 'OPEN' FROM ref.city WHERE code = 'DAM'
+  ON CONFLICT (feature_key, city_id) DO UPDATE SET status = 'OPEN';
+INSERT INTO net.line (code, name, kind, fare_regime, status, city_id) SELECT 'DAM-T1', 'Damascus test line', 'SHUTTLE', 'REGULATED', 'ACTIVE', id FROM ref.city WHERE code = 'DAM';
+INSERT INTO net.line_version (line_id, version, geometry, distance_km, typical_min, status)
+SELECT id, 1, '{"type":"LineString","coordinates":[[36.29,33.51],[36.31,33.52]]}', 6.5, 25, 'ACTIVE' FROM net.line WHERE code = 'DAM-T1';
+INSERT INTO net.line_permit (line_id, company_id, valid, max_vehicles, status)
+SELECT id, :ca, '[2026-01-01,2027-01-01)', 1, 'ACTIVE' FROM net.line WHERE code = 'DAM-T1';
+SELECT id AS lv1 FROM net.line_version WHERE line_id = (SELECT id FROM net.line WHERE code = 'DAM-T1') \gset
+SELECT id AS lp1 FROM net.line_permit WHERE line_id = (SELECT id FROM net.line WHERE code = 'DAM-T1') \gset
+SELECT pg_temp.expect_error(format($$INSERT INTO ops.trip (trip_no, company_id, route_id, vehicle_id, line_version_id, trip_type, departure_at, arrival_at, status, seats_total, segments_count, currency, base_price)
+  VALUES ('T1-0001', %s, %s, %s, %s, 'SHUTTLE', '2026-10-06 06:00+00', '2026-10-06 06:30+00', 'PUBLISHED', 48, 1, 'SYP', 50000)$$, :ca, :route, :va, :lv1),
+  'VEHICLE_NOT_BOUND_TO_LINE', 'Compliance: a shuttle trip on an approved line needs a vehicle bound to that line');
+INSERT INTO fleet.line_permit_vehicle (permit_id, company_id, vehicle_id, valid) VALUES (:lp1, :ca, :va, '[2026-10-01,2027-01-01)');
+INSERT INTO ops.trip (trip_no, company_id, route_id, vehicle_id, line_version_id, trip_type, departure_at, arrival_at, status, seats_total, segments_count, currency, base_price)
+VALUES ('T1-0001', :ca, :route, :va, :lv1, 'SHUTTLE', '2026-10-06 06:00+00', '2026-10-06 06:30+00', 'PUBLISHED', 48, 1, 'SYP', 50000);
+SELECT pg_temp.ok((SELECT compliance_source FROM ops.trip WHERE trip_no = 'T1-0001') = 'REGULATED_LINE',
+  'Compliance: once bound, the trip runs and carries the obligation to keep to the approved line');
+INSERT INTO fleet.vehicle (company_id, vehicle_type, plate_no, chassis_no, passenger_seats, owner_party_id, status)
+VALUES (:ca, 'MINIBUS', '777001', 'CHS-T1-2', 24, :ca, 'ACTIVE');
+SELECT pg_temp.expect_error(format($$INSERT INTO fleet.line_permit_vehicle (permit_id, company_id, vehicle_id, valid)
+  SELECT %s, %s, id, '[2026-10-01,2027-01-01)' FROM fleet.vehicle WHERE chassis_no = 'CHS-T1-2'$$, :lp1, :ca),
+  'PERMIT_VEHICLE_LIMIT', 'Compliance: the permit''s vehicle limit is enforced');
+SELECT pg_temp.expect_error(format($$INSERT INTO fleet.line_permit_vehicle (permit_id, company_id, vehicle_id, valid) VALUES (%s, %s, %s, '[2026-10-01,2027-01-01)')$$, :lp1, :ca, :vb),
+  'VEHICLE_NOT_OWNED_OR_LEASED', 'Compliance: a permit cannot bind another carrier''s vehicle');
+-- off duty: recorded, never reportable
+INSERT INTO ops.route_violation (company_id, vehicle_id, compliance_source, line_version_id, kind, tracking_source, started_at, in_service, driver_warned_at, alarm_started_at, status)
+VALUES (:ca, :va, 'REGULATED_LINE', :lv1, 'OFF_ROUTE', 'DRIVER_APP', '2026-10-06 05:00+00', false, '2026-10-06 05:00:30+00', '2026-10-06 05:02+00', 'CONFIRMED');
+SELECT id AS rv1 FROM ops.route_violation ORDER BY id DESC LIMIT 1 \gset
+SELECT pg_temp.expect_error(format($$INSERT INTO ops.violation_report (violation_id, authority, channel) VALUES (%s, 'TRAFFIC_POLICE', 'API')$$, :rv1),
+  'NOT_REPORTABLE', 'Compliance: nothing is reported to the authorities while reporting is not required');
+UPDATE sys.compliance_requirement SET level = 'REQUIRED' WHERE code = 'route.report.authority';
+SELECT pg_temp.expect_error(format($$INSERT INTO ops.violation_report (violation_id, authority, channel) VALUES (%s, 'TRAFFIC_POLICE', 'API')$$, :rv1),
+  'NOT_REPORTABLE', 'Compliance: a vehicle off duty (no running trip, no passengers) is not reported');
+SELECT pg_temp.expect_error(format($$UPDATE ops.route_violation SET status = 'REPORTED' WHERE id = %s$$, :rv1),
+  'NOT_REPORTABLE', 'Compliance: an off-duty violation cannot be marked reported');
+-- in service: the running trip makes it reportable once confirmed
+UPDATE ops.trip SET status = 'DEPARTED' WHERE trip_no = 'T1-0001';
+INSERT INTO ops.route_violation (company_id, vehicle_id, trip_id, compliance_source, line_version_id, kind, tracking_source, started_at, in_service, status)
+SELECT :ca, :va, id, 'REGULATED_LINE', :lv1, 'OFF_ROUTE', 'DRIVER_APP', '2026-10-06 06:10+00', false, 'CONFIRMED' FROM ops.trip WHERE trip_no = 'T1-0001';
+SELECT id AS rv2 FROM ops.route_violation ORDER BY id DESC LIMIT 1 \gset
+SELECT pg_temp.ok((SELECT in_service FROM ops.route_violation WHERE id = :rv2), 'Compliance: a violation during a running trip counts as in service');
+INSERT INTO ops.violation_report (violation_id, authority, channel) VALUES (:rv2, 'TRAFFIC_POLICE', 'API');
+SELECT pg_temp.ok(true, 'Compliance: a confirmed violation in service is reported once the regulator requires it');
+SELECT pg_temp.expect_error(format($$UPDATE ops.route_violation SET evidence = '{"edited": true}' WHERE id = %s$$, :rv2),
+  'VIOLATION_EVIDENCE_FROZEN', 'Compliance: the evidence of a reviewed violation cannot change');
+ROLLBACK;
+
+-- School transport (1044): operators under licence, pupils and guardians, hand-over and the empty-bus check
+BEGIN;
+UPDATE sys.setting SET value = value || '{"school_transport": true}'::jsonb WHERE key = 'features';
+INSERT INTO iam.party (party_type, legal_name, birth_date) VALUES ('ENTITY','Al-Amal School', NULL), ('COMPANY','Solo Driver', NULL),
+  ('PERSON','Pupil One', '2017-03-01'), ('PERSON','Pupil Father', '1985-05-05'), ('PERSON','Not A Receiver', '1990-01-01'),
+  ('PERSON','Blocked Relative', '1980-01-01');
+SELECT id AS school_party FROM iam.party WHERE legal_name = 'Al-Amal School' \gset
+SELECT id AS solo FROM iam.party WHERE legal_name = 'Solo Driver' \gset
+SELECT id AS pupil FROM iam.party WHERE legal_name = 'Pupil One' \gset
+SELECT id AS father FROM iam.party WHERE legal_name = 'Pupil Father' \gset
+SELECT id AS stranger2 FROM iam.party WHERE legal_name = 'Not A Receiver' \gset
+SELECT id AS blocked FROM iam.party WHERE legal_name = 'Blocked Relative' \gset
+INSERT INTO iam.company (id, company_type, approval_status) VALUES (:school_party, 'SCHOOL', 'APPROVED'), (:solo, 'CARRIER', 'APPROVED');
+INSERT INTO sch.school (company_id, sector, city_id, status) SELECT :school_party, 'PRIVATE', id, 'ACTIVE' FROM ref.city WHERE code = 'DAM';
+SELECT id AS school FROM sch.school WHERE company_id = :school_party \gset
+SELECT pg_temp.expect_error(format($$INSERT INTO sch.operator (company_id, operator_kind, school_transport_license_no, license_issuer) VALUES (%s, 'INDIVIDUAL', 'ST-1001', 'Transport authority')$$, :solo),
+  'OPERATOR_KIND_MISMATCH', 'School: an individual operator must be an individual owner-driver account');
+SELECT pg_temp.expect_error(format($$INSERT INTO sch.operator (company_id, operator_kind, school_transport_license_no, license_issuer) VALUES (%s, 'TRANSPORT_COMPANY', NULL, 'Transport authority')$$, :ca),
+  'school_transport_license_no', 'School: an operator cannot exist without its school transport licence number');
+INSERT INTO sch.operator (company_id, operator_kind, school_id, school_transport_license_no, license_issuer, status, approved_by)
+VALUES (:school_party, 'SCHOOL_OWNED', :school, 'ST-2001', 'Ministry of education', 'APPROVED', :uadmin);
+UPDATE sys.compliance_requirement SET level = 'REQUIRED' WHERE code = 'license.company.school_transport';
+SELECT pg_temp.expect_error(format($$INSERT INTO sch.operator (company_id, operator_kind, school_transport_license_no, license_issuer, status, approved_by) VALUES (%s, 'TRANSPORT_COMPANY', 'ST-3001', 'Transport authority', 'APPROVED', %s)$$, :ca, :uadmin),
+  'REQUIREMENT_UNMET', 'School: once the government imposes the company licence, approval needs a verified licence record');
+UPDATE sys.compliance_requirement SET level = 'OPTIONAL' WHERE code = 'license.company.school_transport';
+INSERT INTO sch.operator (company_id, operator_kind, school_transport_license_no, license_issuer, status, approved_by)
+VALUES (:ca, 'TRANSPORT_COMPANY', 'ST-3001', 'Transport authority', 'APPROVED', :uadmin);
+SELECT pg_temp.ok(true, 'School: while optional, the operator is approved on its licence number alone');
+SELECT id AS op_school FROM sch.operator WHERE company_id = :school_party \gset
+SELECT id AS op_co FROM sch.operator WHERE company_id = :ca \gset
+-- the guardian defines the pupil from their own account
+INSERT INTO iam.family (head_party_id, name) VALUES (:father, 'Pupil family');
+INSERT INTO iam.family_member (family_id, party_id, relation, first_name, last_name, birth_date)
+SELECT id, :pupil, 'SON', 'Pupil', 'One', '2017-03-01' FROM iam.family WHERE head_party_id = :father;
+INSERT INTO sch.student (school_id, party_id, family_member_id) SELECT :school, :pupil, id FROM iam.family_member WHERE party_id = :pupil;
+SELECT id AS stu FROM sch.student WHERE party_id = :pupil \gset
+INSERT INTO sch.student_guardian (student_id, party_id, role, relation, is_primary) VALUES (:stu, :father, 'GUARDIAN', 'FATHER', true);
+INSERT INTO sch.student_guardian (student_id, party_id, role, relation, can_receive, receive_blocked) VALUES (:stu, :blocked, 'RECEIVER', 'RELATIVE', false, true);
+SELECT pg_temp.ok(iam.is_minor('2017-03-01') AND NOT iam.is_minor('1985-05-05'), 'School: minors are told apart by the configured age of majority');
+SELECT pg_temp.expect_error(format($$INSERT INTO sch.contract (operator_id, company_id, contract_kind, school_id, guardian_party_id, school_year, valid, pricing_mode, school_transport_license_no, license_authority)
+  VALUES (%s, %s, 'GUARDIAN_COMPANY', %s, %s, '2026-2027', '[2026-09-01,2027-06-30)', 'MONTHLY', 'ST-2001', 'Ministry of education')$$, :op_school, :school_party, :school, :father),
+  'CONTRACT_KIND_MISMATCH', 'School: a guardian contracts with a company, not with a school''s own fleet');
+INSERT INTO sch.contract (operator_id, company_id, contract_kind, school_id, guardian_party_id, school_year, valid, pricing_mode, price, school_transport_license_no, license_authority, status, signed_at)
+VALUES (:op_co, :ca, 'GUARDIAN_COMPANY', :school, :father, '2026-2027', '[2026-09-01,2027-06-30)', 'MONTHLY', 2500000, 'ST-3001', 'Transport authority', 'ACTIVE', now());
+SELECT id AS con FROM sch.contract WHERE operator_id = :op_co \gset
+INSERT INTO sch.route (company_id, operator_id, school_id, code, direction, vehicle_id, driver_party_id, depart_time, status)
+VALUES (:ca, :op_co, :school, 'AMAL-PM-1', 'FROM_SCHOOL', :va, :driver, '13:30', 'ACTIVE');
+SELECT id AS sroute FROM sch.route WHERE code = 'AMAL-PM-1' \gset
+INSERT INTO sch.route_stop (route_id, seq, label, lat, lng) VALUES (:sroute, 1, 'Mezzeh gate', 33.50, 36.25);
+INSERT INTO sch.enrollment (contract_id, student_id, from_route_id, from_stop_seq, status) VALUES (:con, :stu, :sroute, 1, 'ACTIVE');
+SELECT pg_temp.ok((SELECT guardian_consent FROM sch.enrollment WHERE contract_id = :con) = 'GIVEN',
+  'School: the guardian who signed the contract has consented to the transport');
+INSERT INTO sch.run (route_id, run_date, status) VALUES (:sroute, '2026-10-12', 'IN_PROGRESS');
+SELECT id AS srun FROM sch.run WHERE route_id = :sroute \gset
+SELECT id AS enr FROM sch.enrollment WHERE contract_id = :con \gset
+INSERT INTO sch.attendance (run_id, enrollment_id, event, occurred_at, source) VALUES (:srun, :enr, 'BOARD', '2026-10-12 13:31+00', 'QR');
+SELECT pg_temp.expect_error(format($$INSERT INTO sch.attendance (run_id, enrollment_id, event, occurred_at, source) VALUES (%s, %s, 'ALIGHT', '2026-10-12 14:00+00', 'ATTENDANT')$$, :srun, :enr),
+  'RECEIVER_REQUIRED', 'School: a young pupil does not leave the homeward bus without a receiver');
+SELECT pg_temp.expect_error(format($$INSERT INTO sch.attendance (run_id, enrollment_id, event, received_by_party_id, occurred_at, source) VALUES (%s, %s, 'HANDED_OVER', %s, '2026-10-12 14:00+00', 'ATTENDANT')$$, :srun, :enr, :stranger2),
+  'RECEIVER_NOT_AUTHORIZED', 'School: the pupil is not handed to a stranger');
+SELECT pg_temp.expect_error(format($$INSERT INTO sch.attendance (run_id, enrollment_id, event, received_by_party_id, occurred_at, source) VALUES (%s, %s, 'HANDED_OVER', %s, '2026-10-12 14:00+00', 'ATTENDANT')$$, :srun, :enr, :blocked),
+  'RECEIVER_NOT_AUTHORIZED', 'School: the pupil is not handed to a person under a custody restriction');
+SELECT pg_temp.expect_error(format($$UPDATE sch.run SET status = 'COMPLETED' WHERE id = %s$$, :srun),
+  'CHILD_STILL_ON_BOARD', 'School: a run cannot close while a pupil is still on the bus');
+INSERT INTO sch.attendance (run_id, enrollment_id, event, received_by_party_id, occurred_at, source) VALUES (:srun, :enr, 'HANDED_OVER', :father, '2026-10-12 14:01+00', 'ATTENDANT');
+SELECT pg_temp.expect_error(format($$UPDATE sch.run SET status = 'COMPLETED' WHERE id = %s$$, :srun),
+  'SWEEP_CHECK_MISSING', 'School: a run closes only after the check that no child is left on the bus');
+UPDATE sch.run SET status = 'COMPLETED', sweep_checked_at = '2026-10-12 14:20+00', sweep_checked_by = :driver WHERE id = :srun;
+SELECT pg_temp.ok((SELECT completed_at IS NOT NULL FROM sch.run WHERE id = :srun), 'School: with everyone handed over and the bus checked, the run closes');
+-- the school's own fleet enrols its pupils; the guardian's approval in the app is switched on later
+INSERT INTO sch.contract (operator_id, company_id, contract_kind, school_id, school_year, valid, pricing_mode, school_transport_license_no, license_authority, status)
+VALUES (:op_school, :school_party, 'SCHOOL_ASSIGNED', :school, '2026-2027', '[2026-09-01,2027-06-30)', 'YEAR', 'ST-2001', 'Ministry of education', 'ACTIVE');
+SELECT id AS con2 FROM sch.contract WHERE operator_id = :op_school \gset
+INSERT INTO sch.enrollment (contract_id, student_id, status) VALUES (:con2, :stu, 'PENDING');
+UPDATE sys.compliance_requirement SET level = 'REQUIRED' WHERE code = 'school.guardian_consent';
+SELECT pg_temp.expect_error(format($$UPDATE sch.enrollment SET status = 'ACTIVE', to_route_id = NULL WHERE contract_id = %s$$, :con2),
+  'CONSENT_MISSING', 'School: once required, a school-assigned pupil rides only after the guardian approves in the app');
+-- isolation: another carrier sees nothing, the guardian sees their child
+SET ROLE masslak_app;
+SELECT sys.set_context(NULL, :cb, 'COMPANY');
+SELECT pg_temp.ok(NOT EXISTS (SELECT 1 FROM sch.student) AND NOT EXISTS (SELECT 1 FROM sch.contract),
+  'School: another carrier sees no pupil and no contract');
+SELECT sys.set_context(NULL, NULL, 'PASSENGER', NULL, NULL, NULL, NULL, :father);
+SELECT pg_temp.ok(EXISTS (SELECT 1 FROM sch.student WHERE id = :stu) AND EXISTS (SELECT 1 FROM sch.attendance),
+  'School: the guardian sees their child and the hand-over record');
+SELECT sys.set_context(NULL, NULL, 'PASSENGER', NULL, NULL, NULL, NULL, :stranger2);
+SELECT pg_temp.ok(NOT EXISTS (SELECT 1 FROM sch.student), 'School: another passenger sees no pupil');
+RESET ROLE;
+ROLLBACK;
+SELECT pg_temp.ok((SELECT data_class FROM sys.table_class WHERE table_name = 'sch.student') = 'USER_PRIVATE'
+  AND (SELECT phase_code FROM sys.table_phase WHERE table_name = 'sch.student') = 'SCH'
+  AND (SELECT phase_code FROM sys.table_phase WHERE table_name = 'ops.route_violation') = '2',
+  'Phases: school transport is its own phase and its pupils'' data is classified personal; route compliance is in Phase 2');
+SET ROLE masslak_app;
+
 \echo '=== ALL TESTS PASSED ==='
