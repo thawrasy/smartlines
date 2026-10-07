@@ -139,11 +139,15 @@ export function DriverTrip() {
     } catch (e) { setError(e); }
   };
 
+  const locationSeq = useRef(Date.now());
   const shareLocation = () => {
     navigator.geolocation?.getCurrentPosition(async (p) => {
       try {
+        // the device's own id, counter and time for the position, so a resend is recognised (audit T3-11)
+        locationSeq.current += 1;
         await api.post("/api/driver/location", { trip_uid: uid, lat: p.coords.latitude, lng: p.coords.longitude,
-          speed_kmh: p.coords.speed != null ? p.coords.speed * 3.6 : null, accuracy_m: p.coords.accuracy });
+          speed_kmh: p.coords.speed != null ? p.coords.speed * 3.6 : null, accuracy_m: p.coords.accuracy,
+          event_id: crypto.randomUUID(), seq: locationSeq.current, device_ts: new Date(p.timestamp).toISOString(), provider: "DEVICE" });
         toast(t("driver.locationSent"));
       } catch (e) { setError(e); }
     }, () => {}, { enableHighAccuracy: true, timeout: 10000 });

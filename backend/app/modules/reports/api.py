@@ -4,6 +4,7 @@ Platform staff need report.platform, company and agency staff report.company (ow
 Building custom reports needs report.custom and scheduling report.schedule. Every preview and export is written to
 rpt.report_run with its parameters, row count and the file's SHA-256.
 """
+import json
 import re
 import uuid
 from datetime import date, datetime, timedelta, timezone
@@ -309,6 +310,25 @@ def next_run(frequency: str, after: datetime) -> datetime:
     return nxt.astimezone(timezone.utc)
 
 
+async def recipients_not_allowed(conn, portal: str, company_id: Optional[int], emails: list[str]) -> list[str]:
+    """A scheduled report goes only to approved identities (audit T3-05): active members of the owner's company, or for
+    platform reports active platform accounts and the platform's own mail domains (setting reports.platform_recipient_domains)."""
+    emails = [e.lower() for e in emails]
+    if portal == "PLATFORM":
+        known = {r["email"] for r in await conn.fetch(
+            """SELECT lower(u.email) AS email FROM iam.app_user u WHERE u.status = 'ACTIVE' AND lower(u.email) = ANY($1::text[])
+                 AND EXISTS (SELECT 1 FROM iam.user_role ur WHERE ur.user_id = u.id AND (ur.valid_to IS NULL OR ur.valid_to > now()))""",
+            emails)}
+        domains = await conn.fetchval("SELECT value FROM sys.setting WHERE key = 'reports.platform_recipient_domains'")
+        domains = {d.lower() for d in (json.loads(domains) if isinstance(domains, str) else (domains or []))}
+        return [e for e in emails if e not in known and e.rsplit("@", 1)[-1] not in domains]
+    known = {r["email"] for r in await conn.fetch(
+        """SELECT lower(u.email) AS email FROM iam.app_user u JOIN iam.company_member m ON m.user_id = u.id
+            WHERE u.status = 'ACTIVE' AND m.company_id = $1 AND m.status = 'ACTIVE' AND lower(u.email) = ANY($2::text[])""",
+        company_id, emails)}
+    return [e for e in emails if e not in known]
+
+
 @router.get("/schedules")
 async def schedules(request: Request, pr: Principal = Depends(require_user)):
     viewer(pr)
@@ -337,6 +357,11 @@ async def create_schedule(body: ScheduleIn, request: Request, pr: Principal = De
                 raise not_found("report")
         else:
             raise ApiError(422, "REPORT_BAD_SPEC", "name a report or a saved definition")
+        async with db.system_scope(conn, context_for(request, pr)):
+            refused = await recipients_not_allowed(conn, pr.portal, pr.company_id, [str(e) for e in body.recipients])
+        if refused:
+            raise ApiError(422, "REPORT_RECIPIENT_NOT_ALLOWED",
+                           "reports go only to members of your company (or the platform's own addresses)", recipients=refused)
         n = await conn.fetchval("SELECT count(*) FROM rpt.report_schedule WHERE owner_user_id = $1 AND active", pr.user_id)
         if n >= 20:
             raise ApiError(409, "REPORT_SCHEDULE_LIMIT", "at most 20 active schedules")

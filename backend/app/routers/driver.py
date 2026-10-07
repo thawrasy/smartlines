@@ -1,6 +1,6 @@
 """Driver app: assigned trips, boarding scan, stop arrival/departure and location reports."""
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, Request
@@ -205,17 +205,32 @@ class LocationIn(BaseModel):
     lng: float = Field(ge=-180, le=180)
     speed_kmh: Optional[float] = Field(default=None, ge=0, le=300)
     accuracy_m: Optional[float] = Field(default=None, ge=0)
+    # evidence fields (audit T3-11): the device's own id and counter for the position, when it was taken, and how
+    event_id: Optional[uuid.UUID] = None
+    seq: Optional[int] = Field(default=None, ge=0)
+    device_ts: Optional[datetime] = None
+    provider: Optional[Literal["GPS", "NETWORK", "FUSED", "DEVICE"]] = None
+    is_mock: bool = False
 
 
 @router.post("/location")
 async def location(body: LocationIn, request: Request, pr: Principal = Depends(driver)):
+    now = datetime.now(timezone.utc)
+    taken = body.device_ts.astimezone(timezone.utc) if body.device_ts and body.device_ts.tzinfo else None
+    # the position is filed under the time the device took it, unless that time is implausible (the trust grade says so)
+    ts = taken if taken and now - timedelta(days=6) < taken <= now + timedelta(minutes=2) else now
     async with db.transaction(context_for(request, pr)) as conn:
         t = await _assigned_trip(conn, pr, body.trip_uid)
-        await conn.execute(
-            """INSERT INTO ops.geo_event (ts, trip_id, vehicle_id, driver_user_id, lat, lng, speed_kmh, accuracy_m)
-               VALUES (now(), $1, $2, $3, $4, $5, $6, $7)""",
-            t["id"], t["vehicle_id"], pr.user_id, body.lat, body.lng, body.speed_kmh, body.accuracy_m)
+        row = await conn.fetchrow(
+            """INSERT INTO ops.geo_event (ts, trip_id, vehicle_id, driver_user_id, lat, lng, speed_kmh, accuracy_m,
+                                          event_id, seq, device_ts, provider, is_mock)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+               ON CONFLICT (event_id, ts) DO NOTHING RETURNING trust, trust_flags""",
+            ts, t["id"], t["vehicle_id"], pr.user_id, body.lat, body.lng, body.speed_kmh, body.accuracy_m,
+            body.event_id, body.seq, taken, body.provider, body.is_mock)
+        if row is None:
+            return {"ok": True, "duplicate": True}
         await conn.execute(
             "UPDATE ops.tracking_alert SET status = 'RESOLVED', resolved_at = now() WHERE trip_id = $1 AND status = 'OPEN' "
             "AND kind IN ('SIGNAL_LOST','TRACKING_OFF')", t["id"])
-    return {"ok": True}
+    return {"ok": True, "trust": row["trust"], "flags": list(row["trust_flags"])}

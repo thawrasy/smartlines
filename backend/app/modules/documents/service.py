@@ -10,13 +10,13 @@ from ...deps import Principal
 from ...errors import ApiError, forbidden, not_found
 from ...util import rows
 from ..notify.outbox import emit
-from . import storage
+from . import scanner, storage
 
 DOC_TYPES = ("CR", "TAX_CERT", "TRANSPORT_LICENSE", "INSURANCE_POLICY", "VEHICLE_REG", "AGENCY_LICENSE", "OTHER")
 
 LIST_SQL = """
     SELECT d.uid, d.doc_type, d.owner_type, d.issuer, d.issue_date, d.expiry_date, d.review_note, d.created_at,
-           d.reviewed_at, f.file_name, f.mime_type, f.size_bytes, p.legal_name AS company_name, v.plate_no,
+           d.reviewed_at, f.file_name, f.mime_type, f.size_bytes, f.scan_status, p.legal_name AS company_name, v.plate_no,
            CASE WHEN d.status = 'APPROVED' AND d.expiry_date < current_date THEN 'EXPIRED' ELSE d.status END AS status,
            d.expiry_date - current_date AS days_left
       FROM iam.document d JOIN ref.file_object f ON f.id = d.file_id JOIN iam.party p ON p.id = d.company_id
@@ -61,6 +61,9 @@ async def upload(conn: asyncpg.Connection, ctx: db.Context, pr: Principal, doc_t
         """INSERT INTO ref.file_object (storage_key, file_name, mime_type, size_bytes, sha256, data_class, enc_key_id,
              uploaded_by, company_id) VALUES ($1, $2, $3, $4, $5, 'CONFIDENTIAL', $6, $7, $8) RETURNING id""",
         stored.storage_key, safe_name, stored.mime_type, stored.size, stored.sha256, stored.key_id, pr.user_id, company)
+    # quarantine: the file is scanned before anyone can download or approve it (audit T3-15)
+    if await scanner.scan_file(conn, ctx, file_id) in ("REJECTED", "QUARANTINED"):
+        raise ApiError(422, "FILE_REJECTED", "the file did not pass the security scan")
     row = await conn.fetchrow(
         """INSERT INTO iam.document (owner_type, owner_id, doc_type, issuer, issue_date, expiry_date, file_id, company_id, uploaded_by)
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, uid""",
@@ -79,10 +82,12 @@ async def review_queue(conn: asyncpg.Connection, status: Optional[str]) -> list[
 
 async def read_file(conn: asyncpg.Connection, ctx: db.Context, pr: Principal, doc_uid: uuid.UUID, purpose: str) -> tuple[bytes, str, str]:
     d = await conn.fetchrow(
-        """SELECT d.id, d.company_id, f.storage_key, f.enc_key_id, f.sha256, f.mime_type, f.file_name
+        """SELECT d.id, d.company_id, f.storage_key, f.enc_key_id, f.sha256, f.mime_type, f.file_name, f.scan_status
              FROM iam.document d JOIN ref.file_object f ON f.id = d.file_id WHERE d.uid = $1""", doc_uid)
     if d is None or (pr.portal != "PLATFORM" and d["company_id"] != pr.company_id):
         raise not_found("document")
+    if d["scan_status"] != "CLEAN":
+        raise ApiError(409, "FILE_NOT_CLEAN", "the file is not available until it passes the security scan", scan_status=d["scan_status"])
     async with db.system_scope(conn, ctx):
         fc = await crypto.cipher(conn)
         if pr.portal == "PLATFORM":

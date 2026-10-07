@@ -1,7 +1,8 @@
 # Operations runbooks
 
-These procedures cover the operational items of the third-party technical audit (R-09, R-10, R-11, R-12) and the
-operations gate of the architecture reports. Each one names the tool in the repository that carries it out.
+These procedures cover the operational items of the third-party technical audit (R-09, R-10, R-11, R-12), the technical
+audit of design 3.7 (T3-03, T3-08, T3-13, T3-14, T3-15; `docs/database/DESIGN_AUDIT_T3.md`) and the operations gate of the
+architecture reports. Each one names the tool in the repository that carries it out.
 
 **Assumed setup.** The commands assume a PostgreSQL 16 server with PostGIS 3, a primary and a streaming standby managed by
 Patroni, pgBackRest for backups, and object storage with object lock for archives. Replace the commands where the chosen
@@ -78,6 +79,13 @@ section.
 - **Never edit a schema file that has been applied.** `db/upgrade.sh` warns when one changed; add a new file instead.
 - **Run** `db/upgrade.sh <database>`. It sets `masslak.migrating=on`, so its schema changes are logged as migrations in
   `audit.ddl_event`. The same changes made by hand raise a `security.ddl_change` alert.
+- **Lock and time limits (T3-08):** `upgrade.sh` waits at most `MASSLAK_LOCK_TIMEOUT` (5 s) for a lock and stops a
+  statement after `MASSLAK_STATEMENT_TIMEOUT` (30 min).
+  - A file that hits either limit rolls back on its own. Bookings never queue behind it.
+  - Rerun it off-peak, or split it.
+  - Raise a limit only for a planned maintenance window: `MASSLAK_STATEMENT_TIMEOUT=2h db/upgrade.sh ...`.
+- **Rehearse** every migration first on a staging copy with production-size data, under synthetic traffic. Record its
+  duration, the locks it took and the WAL it wrote.
 - **Large tables:**
   - Create indexes concurrently in their own file.
   - Add foreign keys as `NOT VALID`, then `VALIDATE`.
@@ -126,7 +134,23 @@ section.
       --object-lock-configuration 'ObjectLockEnabled=Enabled,Rule={DefaultRetention={Mode=COMPLIANCE,Days=2555}}'
   aws s3 sync /var/lib/masslak/audit-archive s3://masslak-audit-archive/ --no-progress
   ```
-- **Verify** weekly, and after any restore: `python -m app.tools.audit_export verify <dir>`. It must report 0 problems.
+- **Sign (T3-13):** every manifest is signed with Ed25519.
+  - The security officer creates the key pair once: `python -m app.tools.audit_export keygen audit.key audit.pub`.
+  - The private key goes to the key service. The export job alone receives it, as `MASSLAK_AUDIT_SIGNING_KEY`.
+  - The public key goes to every verifier.
+- **Separate account:** the bucket lives in a cloud account separate from production, administered by other people. A
+  production administrator can neither delete the archive nor forge a signature.
+- **Record the tip:** after each export, `python -m app.tools.audit_export head <dir>` prints the sequence and hash of
+  the latest manifest. The evidence custodian records it outside the platform (for example, a signed weekly e-mail to
+  compliance).
+- **Verify** weekly, and after any restore:
+  `python -m app.tools.audit_export verify <dir> --public-key audit.pub --min-sequence <recorded sequence>`.
+  - It must report 0 problems.
+  - It finds edited, missing, unsigned or forged files and manifests, and a chain cut short.
+- **Tamper drill:** quarterly, on a copy of the archive:
+  1. Edit one batch, remove one, and rewrite one manifest.
+  2. Confirm verify reports all three.
+  3. Record the result. The automated version runs in CI (`test_audit_export.py`).
 - **Retention:** seven years, matching `audit.*` in the lifecycle matrix. Nobody can delete the objects before then,
   including the platform's administrators.
 
@@ -137,6 +161,11 @@ section.
 | `security.ddl_change` | A grant, policy, function, trigger or row-level security change made outside a migration | Confirm who made it (`audit.ddl_event`); revert unless it was an approved emergency change, then open an incident |
 | `integrity.orphans_found` | References to missing rows (`sys.orphan_check.findings`) | Find the writer (the owner column of `sys.polymorphic_reference`), repair the rows, and add a test |
 | Wallet mismatches in `sys.run_maintenance()` | Ledger and balances disagree | Severity 1: freeze payouts, reconcile (`fin.wallet_reconciliation`) |
+| `security.break_glass_opened` | Someone holds break-glass access now | The security officer confirms the incident and the approver (section 11) |
+| `security.break_glass_expired` | A break-glass access reached its expiry | Revoke any credential issued for it (Vault token, database role); the review is due |
+| `security.break_glass_unreviewed` | A break-glass access ended more than 24 hours ago without a review | The security officer and the data owner review it now |
+| `security.file_rejected` | An uploaded file failed the scan | Check the uploader's account and other recent uploads; the file stays in quarantine (section 12) |
+| `compliance.requirement_proposed`, `compliance.requirement_changed` | A regulatory requirement change is waiting, or was applied | A second administrator decides it; notify the carriers affected (section 13) |
 
 ## 9. Data lifecycle (R-11)
 
@@ -161,6 +190,45 @@ section.
   and p99 targets per step are set by the owner (performance gate). See `PERFORMANCE_BASELINE.md` for the first
   measurements and what they do not prove.
 
+## 11. Break-glass access (T3-03)
+
+- **When:** only during a declared incident, when the normal roles cannot fix it.
+- **Open:** insert into `sec.break_glass_log` with:
+  - the incident reference, the reason and the scope (`DB`, `PAYMENTS`, `ALL`);
+  - an approver other than yourself;
+  - an expiry at most `security.break_glass_max_minutes` (240) away.
+
+  When nobody can approve in time, set `emergency = true`; the review afterwards is then mandatory.
+- **Grant:** issue the elevated credential (Vault token, temporary database role) with the same expiry as the record.
+  Tools that need elevation check `sec.break_glass_active(<user>, <scope>)`; it turns false when the time is up, with no
+  job needed.
+- **Close:** set `ended_at` and `closed_reason = 'ENDED'` when done. The upkeep closes expired records as `EXPIRED`.
+- **Review:** within 24 hours of the end, someone other than the user records what was accessed and why. The record cannot
+  be widened, rewritten or deleted.
+- **Never:** application roles and workers hold no SUPERUSER or BYPASSRLS. The tests and `audit_pack.sh` check it.
+
+## 12. File scanning (T3-15)
+
+- **Production:** run ClamAV (`clamd`) next to the API. Set `MASSLAK_CLAMD=host:3310` (or the socket path), and keep the
+  signatures updated (`freshclam`).
+- **Without ClamAV:** files stay `PENDING` and nobody can download or approve them (fail closed). The sandbox may run
+  on the built-in checks alone.
+- **Retries:** the worker retries pending files every minute, five attempts at most.
+- **A file stuck in PENDING:** check clamd, then let the worker retry. Never mark a file CLEAN by hand: only the
+  platform's scanner sets a scan result, and a REJECTED or QUARANTINED verdict is final.
+- **Drill:** upload the EICAR test file in staging after each ClamAV upgrade. It must be rejected.
+
+## 13. Changing a regulatory requirement (T3-14)
+
+1. A platform administrator proposes the change, with the reason and the date from which it applies:
+   `POST /api/admin/compliance/requirements/{code}/changes`.
+   - The proposal records its impact: how many vehicles, drivers or companies would fall short on that date.
+   - Prefer a future date, so carriers have time to comply.
+2. A second administrator reads the impact and decides: `POST /api/admin/compliance/changes/{uid}/decision`.
+   - Approval applies the change; rejection keeps the requirement as it was.
+   - Nobody can approve their own proposal, and the database refuses a direct change.
+3. Notify the carriers affected before the date. Where possible, try the change first in staging, or in one city.
+
 ## Rehearsal schedule
 
 | Procedure | Before launch | After launch |
@@ -169,4 +237,7 @@ section.
 | Failover and failure tests | Once per failure mode | Quarterly |
 | Key rotation | Once in staging | Yearly, and after any suspected exposure |
 | Audit archive verify | Once | Weekly (automatic) |
+| Audit archive tamper drill | Once | Quarterly |
+| Break-glass open, expire and review | Once in staging | Yearly |
+| ClamAV with the EICAR file | Once | After each ClamAV upgrade |
 | Load test | At each release candidate | Before each peak season (Eid, summer) |

@@ -13,7 +13,7 @@ from ... import db
 from ...deps import PORTAL_SCOPE
 from ..notify import providers
 from . import engine, export
-from .api import as_dict, next_run
+from .api import as_dict, next_run, recipients_not_allowed
 
 log = logging.getLogger("masslak.reports")
 
@@ -73,6 +73,15 @@ async def run_one(schedule_id: int) -> bool:
             if definition is None or definition["status"] != "ACTIVE":
                 await conn.execute("UPDATE rpt.report_schedule SET active = false WHERE id = $1", s["id"])
                 return False
+        # recipients are checked again at every run: someone who left the company stops receiving the report
+        refused = set(await recipients_not_allowed(conn, s["portal"], s["company_id"], list(s["recipients"])))
+        recipients = [e for e in s["recipients"] if e.lower() not in refused]
+        if refused:
+            log.info("reports.recipients_dropped id=%s count=%s", s["id"], len(refused))
+        if not recipients:
+            await conn.execute("UPDATE rpt.report_schedule SET active = false WHERE id = $1", s["id"])
+            log.info("reports.schedule_stopped id=%s (no allowed recipient left)", s["id"])
+            return False
         await conn.execute("UPDATE rpt.report_schedule SET next_run_at = $2, last_run_at = now() WHERE id = $1",
                            s["id"], next_run(s["frequency"], datetime.now(timezone.utc)))
 
@@ -107,9 +116,9 @@ async def run_one(schedule_id: int) -> bool:
     body = (w.get("email_body", "{title}").replace("{title}", title).replace("{period}", period).replace("{rows}", str(len(res.rows)))
             .replace("{owner}", v.name).replace("{frequency}", w.get("frequency", {}).get(s["frequency"], s["frequency"])))
     name = f"masslak-{code}-{today:%Y%m%d}.{export.EXT[s['format']]}".replace("/", "-")
-    for to in s["recipients"]:
+    for to in recipients:
         await asyncio.to_thread(providers.send_email, to, subject, body, ((name, export.MIME[s["format"]], data),))
-    log.info("reports.schedule_sent id=%s rows=%s recipients=%s", s["id"], len(res.rows), len(s["recipients"]))
+    log.info("reports.schedule_sent id=%s rows=%s recipients=%s", s["id"], len(res.rows), len(recipients))
     return True
 
 

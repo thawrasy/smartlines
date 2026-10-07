@@ -146,7 +146,7 @@ flowchart LR
   ship -->|11| net
   ship -->|4| ops
   ship -->|2| ref
-  sys -->|2| iam
+  sys -->|3| iam
   sys -->|1| ref
   taxi -->|1| fin
   taxi -->|3| fleet
@@ -587,12 +587,24 @@ erDiagram
     bigint id PK
     text status
   }
+  sys_outbox_sequence {
+    text aggregate_type PK
+    bigint aggregate_id PK
+  }
   sys_polymorphic_reference {
     text table_name PK
     text type_col PK
   }
   sys_project_phase {
     text code PK
+  }
+  sys_requirement_change {
+    bigint id PK
+    uuid uid
+    text code FK
+    text status
+    bigint proposed_by FK
+    bigint decided_by FK
   }
   sys_schema_file {
     text file PK
@@ -627,6 +639,9 @@ erDiagram
   iam_api_client {
     ref external
   }
+  iam_app_user {
+    ref external
+  }
   iam_company {
     ref external
   }
@@ -634,8 +649,10 @@ erDiagram
     ref external
   }
   sys_webhook_endpoint }o..o| iam_api_client : "api_client_id"
+  sys_requirement_change }o--|| iam_app_user : "proposed_by"
   sys_company_setting }o--|| iam_company : "company_id"
   sys_city_rollout }o--|| ref_city : "city_id"
+  sys_requirement_change }o--|| sys_compliance_requirement : "code"
   sys_webhook_delivery }o--|| sys_outbox_event : "outbox_event_id"
   sys_table_phase }o--|| sys_project_phase : "phase_code"
   sys_webhook_delivery }o--|| sys_webhook_endpoint : "endpoint_id"
@@ -3255,6 +3272,7 @@ erDiagram
     bigint id PK
     bigint actor_id FK
     bigint approver_id FK
+    bigint reviewed_by FK
   }
   sec_document_signature {
     bigint id PK

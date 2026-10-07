@@ -599,7 +599,9 @@ async def webhook_deliveries(request: Request, status: Optional[Literal["PENDING
 async def webhook_retry(delivery_uid: uuid.UUID, request: Request, caller: Caller = Depends(api_caller)):
     caller.need("webhooks:manage")
     async with db.transaction(context(request, caller)) as conn:
-        return await service.redeliver(conn, caller.client_id, delivery_uid)
+        out = await service.redeliver(conn, caller.client_id, delivery_uid)
+    request.state.audit = {"action": "webhook.redeliver", "object_type": "webhook_delivery", "object_id": None}
+    return out
 
 
 @router.delete("/webhooks/{uid}")

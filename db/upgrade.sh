@@ -7,6 +7,10 @@
 set -euo pipefail
 # Idempotent files print NOTICEs ("already exists, skipping"); show warnings and errors only
 export PGOPTIONS="${PGOPTIONS:--c client_min_messages=warning} -c masslak.migrating=on"   # schema changes are logged as migrations (1047)
+# A live database: a migration waits at most MASSLAK_LOCK_TIMEOUT for a lock and gives up (bookings keep flowing) rather
+# than queueing every request behind it; a statement that runs past MASSLAK_STATEMENT_TIMEOUT is stopped (audit T3-08).
+# The failed file rolls back on its own; rerun it off-peak or split it (runbook section 4).
+PGOPTIONS="$PGOPTIONS -c lock_timeout=${MASSLAK_LOCK_TIMEOUT:-5s} -c statement_timeout=${MASSLAK_STATEMENT_TIMEOUT:-30min}"
 # psql substitutes :'variables' only in scripts, not in -c, so the statement goes through stdin
 record() { echo "INSERT INTO sys.schema_file (file, sha256) VALUES (:'file', :'sha') ON CONFLICT (file) DO NOTHING" |
            psql "${PSQL_ARGS[@]}" -d "$DB" -v ON_ERROR_STOP=1 -q -v file="$1" -v sha="$2" -f -; }

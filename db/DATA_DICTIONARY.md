@@ -2,7 +2,7 @@
 
 > Generated from the built database (`db/tools/gen_docs.py`); do not edit by hand.
 
-**470 tables, 4823 columns, in 26 schemas.**
+**472 tables, 4869 columns, in 26 schemas.**
 
 Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant isolation (RLS) · 🧩 partitioned monthly · 🔒 append-only / change-protected
 
@@ -10,7 +10,7 @@ Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant i
 
 - [`iam` — Identity, parties, users, permissions and API clients](#iam) (32 tables)
 - [`ref` — Reference data, locales and files](#ref) (13 tables)
-- [`sys` — Settings, outbox and webhooks](#sys) (16 tables)
+- [`sys` — Settings, outbox and webhooks](#sys) (18 tables)
 - [`net` — Network: stations, routes, lines, corridors and geofences](#net) (22 tables)
 - [`fleet` — Fleet: vehicles, trucks, trailers, seats, crew, licenses and insurance](#fleet) (22 tables)
 - [`pricing` — Pricing, taxes, commissions, campaigns and loyalty](#pricing) (35 tables)
@@ -668,7 +668,7 @@ Cities (domestic and international)
 | `name` | `text` | ✱ |  |
 | `lat` | `numeric(9,6)` |  |  |
 | `lng` | `numeric(9,6)` |  |  |
-| `timezone` | `text` | ✱ | `'Asia/Damascus'::text` |
+| `timezone` | `text` | ✱ |  |
 | `is_active` | `boolean` | ✱ | `true` |
 
 ### `ref.country` 🛡️
@@ -727,6 +727,11 @@ Metadata for every uploaded file (documents, images, signed PDFs); content is in
 | `retain_until` | `timestamp with time zone` |  |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 | `company_id` | `bigint` | 🔗 `iam.company`  |  |
+| `scan_status` | `text` | ✱ | `'PENDING'::text` |
+| `scanned_at` | `timestamp with time zone` |  |  |
+| `scan_engine` | `text` |  |  |
+| `scan_detail` | `text` |  |  |
+| `scan_attempts` | `integer` | ✱ | `0` |
 
 ### `ref.locale` 🛡️
 
@@ -928,6 +933,19 @@ Transactional outbox: written in the same transaction as the change, then publis
 | `last_error` | `text` |  |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 | `published_at` | `timestamp with time zone` |  |  |
+| `schema_version` | `smallint` | ✱ | `1` |
+| `correlation_id` | `uuid` |  | `sys.ctx_request_id()` |
+| `aggregate_seq` | `bigint` |  |  |
+
+### `sys.outbox_sequence` 🛡️
+
+Last event number per aggregate; survives the purge of delivered events so numbers never repeat
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `aggregate_type` | `text` | 🔑 ✱ |  |
+| `aggregate_id` | `bigint` | 🔑 ✱ |  |
+| `last_seq` | `bigint` | ✱ |  |
 
 ### `sys.polymorphic_reference` 🛡️
 
@@ -955,6 +973,27 @@ Project phases of the study roadmap (22); Phase 1 split into releases 1A and 1B 
 | `study_ref` | `text` | ✱ |  |
 | `scope` | `text` | ✱ |  |
 | `feature_keys` | `text[]` | ✱ | `'{}'::text[]` |
+
+### `sys.requirement_change` 🛡️
+
+Every change of a regulatory requirement: proposed with its measured impact, decided by a second person (audit T3-14)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `code` | `text` | 🔗 `sys.compliance_requirement` ✱ |  |
+| `from_level` | `text` | ✱ |  |
+| `to_level` | `text` | ✱ |  |
+| `required_from` | `date` |  |  |
+| `reason` | `text` | ✱ |  |
+| `impact` | `jsonb` | ✱ |  |
+| `status` | `text` | ✱ | `'PROPOSED'::text` |
+| `proposed_by` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `proposed_at` | `timestamp with time zone` | ✱ | `now()` |
+| `decided_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `decided_at` | `timestamp with time zone` |  |  |
+| `decision_note` | `text` |  |  |
 
 ### `sys.schema_file` 🛡️
 
@@ -2492,6 +2531,14 @@ Tracking positions; partitioned monthly, short retention (16.13: 7 days by defau
 | `speed_kmh` | `real` |  |  |
 | `heading` | `smallint` |  |  |
 | `source` | `text` | ✱ | `'DRIVER_APP'::text` |
+| `event_id` | `uuid` |  |  |
+| `seq` | `bigint` |  |  |
+| `device_ts` | `timestamp with time zone` |  |  |
+| `received_at` | `timestamp with time zone` | ✱ | `now()` |
+| `provider` | `text` |  |  |
+| `is_mock` | `boolean` | ✱ | `false` |
+| `trust` | `text` | ✱ | `'HIGH'::text` |
+| `trust_flags` | `text[]` | ✱ | `'{}'::text[]` |
 
 ### `ops.incident` 🛡️
 
@@ -2644,6 +2691,7 @@ A deviation from the route the trip must keep to: warning, continuous alarm, cor
 | `retain_until` | `date` | ✱ | `(CURRENT_DATE + 730)` |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 | `updated_at` | `timestamp with time zone` | ✱ | `now()` |
+| `evidence_trust` | `text` | ✱ | `'HIGH'::text` |
 
 ### `ops.seat_lock` 🛡️
 
@@ -5263,6 +5311,8 @@ How long each kind of record is kept and what happens after (review 3.15)
 | `reviewer_id` | `bigint` | 🔗 `iam.app_user` ✱ |  |
 | `decision` | `text` | ✱ |  |
 | `reviewed_on` | `date` | ✱ | `CURRENT_DATE` |
+| `due_on` | `date` |  |  |
+| `scope` | `text` |  |  |
 
 ### `sec.authority_alert` 🛡️
 
@@ -5399,6 +5449,15 @@ Break-glass access with elevated privileges: reason, approval and duration
 | `approver_id` | `bigint` | 🔗 `iam.app_user`  |  |
 | `started_at` | `timestamp with time zone` | ✱ | `now()` |
 | `ended_at` | `timestamp with time zone` |  |  |
+| `expires_at` | `timestamp with time zone` | ✱ |  |
+| `incident_ref` | `text` | ✱ |  |
+| `scope` | `text` | ✱ |  |
+| `emergency` | `boolean` | ✱ | `false` |
+| `closed_reason` | `text` |  |  |
+| `reviewed_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `reviewed_at` | `timestamp with time zone` |  |  |
+| `review_note` | `text` |  |  |
+| `review_alerted_at` | `timestamp with time zone` |  |  |
 
 ### `sec.document_signature` 🛡️
 
@@ -8167,6 +8226,7 @@ Every reveal of a sensitive field (passport, ID, IBAN) with its reason
 | `purpose` | `text` | ✱ |  |
 | `request_id` | `uuid` |  |  |
 | `row_hash` | `bytea` |  |  |
+| `service_name` | `text` |  |  |
 
 ### `audit.ddl_event` 🛡️ 🔒
 

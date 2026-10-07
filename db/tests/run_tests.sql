@@ -25,6 +25,20 @@ BEGIN
   IF p_cond THEN RAISE NOTICE 'PASS  %', p_name; ELSE RAISE EXCEPTION 'FAIL  %', p_name; END IF;
 END $$;
 
+-- A requirement changes only through an approved proposal (1048); tests use this to change one directly as owner
+CREATE OR REPLACE FUNCTION pg_temp.set_requirement(p_code text, p_level text) RETURNS void LANGUAGE plpgsql AS $$
+DECLARE cid bigint; a bigint; b bigint;
+BEGIN
+  SELECT min(id), max(id) INTO a, b FROM iam.app_user;
+  INSERT INTO sys.requirement_change (code, from_level, to_level, reason, impact, proposed_by)
+  SELECT code, level, p_level, 'Test change of a requirement', '{}', a FROM sys.compliance_requirement WHERE code = p_code
+  RETURNING id INTO cid;
+  PERFORM set_config('masslak.requirement_change', cid::text, true);
+  UPDATE sys.compliance_requirement SET level = p_level WHERE code = p_code;
+  PERFORM set_config('masslak.requirement_change', '', true);
+  UPDATE sys.requirement_change SET status = 'APPLIED', decided_by = b, decided_at = now() WHERE id = cid;
+END $$;
+
 -- ------------------------------ Setup (as owner) ----------------------
 BEGIN;
 INSERT INTO iam.party (party_type, legal_name) VALUES ('COMPANY','Al-Quds Transport'), ('COMPANY','Al-Sham Lines'), ('PERSON','Test Driver'), ('PERSON','Test Passenger');
@@ -1006,7 +1020,7 @@ VALUES (:ca, :va, 'REGULATED_LINE', :lv1, 'OFF_ROUTE', 'DRIVER_APP', '2026-10-06
 SELECT id AS rv1 FROM ops.route_violation ORDER BY id DESC LIMIT 1 \gset
 SELECT pg_temp.expect_error(format($$INSERT INTO ops.violation_report (violation_id, authority, channel) VALUES (%s, 'TRAFFIC_POLICE', 'API')$$, :rv1),
   'NOT_REPORTABLE', 'Compliance: nothing is reported to the authorities while reporting is not required');
-UPDATE sys.compliance_requirement SET level = 'REQUIRED' WHERE code = 'route.report.authority';
+SELECT pg_temp.set_requirement('route.report.authority', 'REQUIRED');
 SELECT pg_temp.expect_error(format($$INSERT INTO ops.violation_report (violation_id, authority, channel) VALUES (%s, 'TRAFFIC_POLICE', 'API')$$, :rv1),
   'NOT_REPORTABLE', 'Compliance: a vehicle off duty (no running trip, no passengers) is not reported');
 SELECT pg_temp.expect_error(format($$UPDATE ops.route_violation SET status = 'REPORTED' WHERE id = %s$$, :rv1),
@@ -1056,10 +1070,10 @@ SELECT pg_temp.expect_error(format($$INSERT INTO sch.operator (company_id, opera
   'school_transport_license_no', 'School: an operator cannot exist without its school transport licence number');
 INSERT INTO sch.operator (company_id, operator_kind, school_id, school_transport_license_no, license_issuer, status, approved_by)
 VALUES (:school_party, 'SCHOOL_OWNED', :school, 'ST-2001', 'Ministry of education', 'APPROVED', :uadmin);
-UPDATE sys.compliance_requirement SET level = 'REQUIRED' WHERE code = 'license.company.school_transport';
+SELECT pg_temp.set_requirement('license.company.school_transport', 'REQUIRED');
 SELECT pg_temp.expect_error(format($$INSERT INTO sch.operator (company_id, operator_kind, school_transport_license_no, license_issuer, status, approved_by) VALUES (%s, 'TRANSPORT_COMPANY', 'ST-3001', 'Transport authority', 'APPROVED', %s)$$, :ca, :uadmin),
   'REQUIREMENT_UNMET', 'School: once the government imposes the company licence, approval needs a verified licence record');
-UPDATE sys.compliance_requirement SET level = 'OPTIONAL' WHERE code = 'license.company.school_transport';
+SELECT pg_temp.set_requirement('license.company.school_transport', 'OPTIONAL');
 INSERT INTO sch.operator (company_id, operator_kind, school_transport_license_no, license_issuer, status, approved_by)
 VALUES (:ca, 'TRANSPORT_COMPANY', 'ST-3001', 'Transport authority', 'APPROVED', :uadmin);
 SELECT pg_temp.ok(true, 'School: while optional, the operator is approved on its licence number alone');
@@ -1109,7 +1123,7 @@ INSERT INTO sch.contract (operator_id, company_id, contract_kind, school_id, sch
 VALUES (:op_school, :school_party, 'SCHOOL_ASSIGNED', :school, '2026-2027', '[2026-09-01,2027-06-30)', 'YEAR', 'ST-2001', 'Ministry of education', 'ACTIVE');
 SELECT id AS con2 FROM sch.contract WHERE operator_id = :op_school \gset
 INSERT INTO sch.enrollment (contract_id, student_id, status) VALUES (:con2, :stu, 'PENDING');
-UPDATE sys.compliance_requirement SET level = 'REQUIRED' WHERE code = 'school.guardian_consent';
+SELECT pg_temp.set_requirement('school.guardian_consent', 'REQUIRED');
 SELECT pg_temp.expect_error(format($$UPDATE sch.enrollment SET status = 'ACTIVE', to_route_id = NULL WHERE contract_id = %s$$, :con2),
   'CONSENT_MISSING', 'School: once required, a school-assigned pupil rides only after the guardian approves in the app');
 -- isolation: another carrier sees nothing, the guardian sees their child
@@ -1157,12 +1171,16 @@ SELECT pg_temp.ok(audit.redact('{"mobile": "+963944000111", "email": "a@b.test",
 -- R-03: every (type, id) reference is registered, and the sweep finds and reports orphans
 SELECT pg_temp.ok(NOT EXISTS (
   SELECT 1 FROM information_schema.columns a JOIN information_schema.columns b
-    ON a.table_schema = b.table_schema AND a.table_name = b.table_name AND b.column_name = regexp_replace(a.column_name, '_id$', '_type')
-   WHERE a.column_name LIKE '%\_id' AND a.table_schema NOT IN ('pg_catalog','information_schema','gis')
+    ON a.table_schema = b.table_schema AND a.table_name = b.table_name AND b.column_name ~ '_type$'
+    AND a.column_name IN (regexp_replace(b.column_name, '_type$', '_id'), regexp_replace(b.column_name, '_type$', '_ref_id'))
+   WHERE a.data_type IN ('bigint','integer') AND a.table_schema NOT IN ('pg_catalog','information_schema','gis')
      AND to_regclass(a.table_schema || '.' || a.table_name) IN (SELECT c.oid FROM pg_class c WHERE c.relkind IN ('r','p') AND NOT c.relispartition)
      AND NOT EXISTS (SELECT 1 FROM sys.polymorphic_reference r WHERE r.table_name = a.table_schema || '.' || a.table_name AND r.type_col = b.column_name)),
   'Audit R-03: every polymorphic reference is registered with its targets, owner and reason');
+-- since 1048 a missing row is refused when written; the probe plays a row whose trip disappeared later
+ALTER TABLE gov.legal_hold DISABLE TRIGGER scope_type_checked;
 INSERT INTO gov.legal_hold (scope_type, scope_id, reason, case_ref, placed_by) VALUES ('TRIP', 987654321, 'Orphan probe', 'TEST-1', :uadmin);
+ALTER TABLE gov.legal_hold ENABLE TRIGGER scope_type_checked;
 SELECT pg_temp.ok((SELECT orphans FROM sys.find_orphans() WHERE table_name = 'gov.legal_hold' AND type_value = 'TRIP') = 1,
   'Audit R-03: the sweep finds a reference to a missing row');
 SELECT sys.run_orphan_check() AS swept \gset
@@ -1264,6 +1282,147 @@ SELECT pg_temp.ok(pg_get_triggerdef((SELECT oid FROM pg_trigger WHERE tgname = '
   'Audit R-01: typed reference columns are rebuilt on every update, so writing one directly is undone');
 SELECT pg_temp.ok((SELECT with_check FROM pg_policies WHERE schemaname = 'ref' AND tablename = 'file_object' AND policyname = 'file_object_isolation')
                   ~ 'company_id IS NULL', 'Audit R-01: an uploader cannot give a file to a company they do not act for');
+ROLLBACK;
+SET ROLE masslak_app;
+
+-- =====================================================================
+-- Design audit T3 (1048)
+-- =====================================================================
+RESET ROLE;
+BEGIN;
+-- T3-04: signatures and business references
+SELECT pg_temp.expect_error($$INSERT INTO sec.document_signature (doc_type, doc_ref_id, serial_no, sha256, signature, key_id)
+  VALUES ('TICKET', 987654321, 'SIG-T3-1', '\x00', '\x00', (SELECT min(id) FROM sec.key_registry))$$,
+  'REFERENCE_MISSING', 'Audit T3-04: a signature cannot name a ticket that does not exist');
+SELECT pg_temp.expect_error($$INSERT INTO fin.ledger_txn (txn_type, currency, ref_type, ref_id, idempotency_key) VALUES ('TOPUP', 'SYP', 'booking', 987654321, 't3-ref-1')$$,
+  'REFERENCE_MISSING', 'Audit T3-04: a ledger transaction cannot name a booking that does not exist');
+SELECT pg_temp.expect_error($$INSERT INTO fin.ledger_txn (txn_type, currency, ref_type, ref_id, idempotency_key) VALUES ('TOPUP', 'SYP', 'bogus', 1, 't3-ref-2')$$,
+  'REFERENCE_TYPE_UNKNOWN', 'Audit T3-04: a ledger transaction cannot name an unregistered kind of row');
+SELECT pg_temp.expect_error(format($$INSERT INTO gov.legal_hold (scope_type, scope_id, reason, case_ref, placed_by) VALUES ('TRIP', 987654321, 'Hold probe', 'T3-H', %s)$$, :uadmin),
+  'REFERENCE_MISSING', 'Audit T3-04: a legal hold cannot cover a trip that does not exist');
+
+-- T3-03: break-glass
+SELECT pg_temp.expect_error(format($$INSERT INTO sec.break_glass_log (actor_id, reason, incident_ref, scope, expires_at) VALUES (%s, 'Restore a corrupted booking row', 'INC-1', 'DB', now() + interval '1 hour')$$, :ufin),
+  'break_glass_approved', 'Audit T3-03: break-glass needs an approver unless declared an emergency');
+SELECT pg_temp.expect_error(format($$INSERT INTO sec.break_glass_log (actor_id, approver_id, reason, incident_ref, scope, expires_at) VALUES (%s, %s, 'Restore a corrupted booking row', 'INC-1', 'DB', now() + interval '9 hours')$$, :ufin, :uadmin),
+  'BREAK_GLASS_TOO_LONG', 'Audit T3-03: break-glass access cannot outlast its maximum');
+SELECT pg_temp.expect_error(format($$INSERT INTO sec.break_glass_log (actor_id, approver_id, reason, incident_ref, scope, expires_at) VALUES (%s, %s, 'Restore a corrupted booking row', 'INC-1', 'DB', now() + interval '1 hour')$$, :ufin, :ufin),
+  'break_glass_log_check', 'Audit T3-03: nobody approves their own break-glass access');
+INSERT INTO sec.break_glass_log (actor_id, approver_id, reason, incident_ref, scope, expires_at)
+VALUES (:ufin, :uadmin, 'Restore a corrupted booking row', 'INC-1', 'DB', now() + interval '1 hour');
+SELECT max(id) AS bg1 FROM sec.break_glass_log \gset
+SELECT pg_temp.ok(sec.break_glass_active(:ufin, 'DB') AND EXISTS (SELECT 1 FROM sys.outbox_event WHERE event_type = 'security.break_glass_opened' AND aggregate_id = :bg1),
+  'Audit T3-03: an approved break-glass access is active and raises an alert at once');
+SELECT pg_temp.expect_error(format($$UPDATE sec.break_glass_log SET expires_at = expires_at + interval '1 hour' WHERE id = %s$$, :bg1),
+  'BREAK_GLASS_SEALED', 'Audit T3-03: a break-glass grant cannot be extended');
+SELECT pg_temp.expect_error(format($$DELETE FROM sec.break_glass_log WHERE id = %s$$, :bg1),
+  'BREAK_GLASS_SEALED', 'Audit T3-03: a break-glass record cannot be deleted');
+INSERT INTO sec.break_glass_log (actor_id, reason, incident_ref, scope, emergency, started_at, expires_at)
+VALUES (:ua, 'Emergency: payments stuck at the gateway', 'INC-2', 'DB', true, now() - interval '30 hours', now() - interval '29 hours');
+SELECT max(id) AS bg2 FROM sec.break_glass_log \gset
+SELECT pg_temp.ok(NOT sec.break_glass_active(:ua), 'Audit T3-03: an expired access is inactive without any job running');
+SELECT sec.break_glass_upkeep() AS bgu \gset
+SELECT pg_temp.ok((SELECT closed_reason FROM sec.break_glass_log WHERE id = :bg2) = 'EXPIRED'
+  AND EXISTS (SELECT 1 FROM sys.outbox_event WHERE event_type = 'security.break_glass_unreviewed' AND aggregate_id = :bg2),
+  'Audit T3-03: the upkeep closes expired access and alerts on an emergency left unreviewed');
+SELECT pg_temp.expect_error(format($$UPDATE sec.break_glass_log SET reviewed_by = %s, review_note = 'Checked the statements run' WHERE id = %s$$, :ua, :bg2),
+  'break_glass_reviewer', 'Audit T3-03: nobody reviews their own break-glass access');
+UPDATE sec.break_glass_log SET reviewed_by = :uadmin, review_note = 'Checked the statements run against the incident' WHERE id = :bg2;
+SELECT pg_temp.ok((SELECT reviewed_at IS NOT NULL FROM sec.break_glass_log WHERE id = :bg2), 'Audit T3-03: an independent review is recorded');
+ROLLBACK;
+
+BEGIN;
+-- T3-10, T3-11: positions
+SELECT pg_temp.ok(EXISTS (SELECT 1 FROM pg_inherits i JOIN pg_class c ON c.oid = i.inhrelid
+                           WHERE i.inhparent = 'ops.geo_event'::regclass AND c.relname = 'geo_event_' || to_char(current_date, 'YYYYMMDD'))
+  AND NOT EXISTS (SELECT 1 FROM pg_inherits i JOIN pg_class c ON c.oid = i.inhrelid
+                   WHERE i.inhparent = 'ops.geo_event'::regclass AND c.relname ~ '^geo_event_[0-9]{6}$')
+  AND (SELECT retention_days FROM gov.data_inventory WHERE dataset = 'ops.geo_event') = 7
+  AND NOT EXISTS (SELECT 1 FROM sys.setting WHERE key = 'retention.geo_event_days'),
+  'Audit T3-10: positions sit in daily partitions, with one stated retention of 7 days');
+SELECT sys.ensure_daily_partitions('ops.geo_event', 0, 12);
+SELECT sys.drop_daily_partitions_older_than('ops.geo_event', 7) AS geo_dropped \gset
+SELECT pg_temp.ok(:geo_dropped >= 4
+  AND NOT EXISTS (SELECT 1 FROM pg_inherits i JOIN pg_class c ON c.oid = i.inhrelid
+                   WHERE i.inhparent = 'ops.geo_event'::regclass AND c.relname = 'geo_event_' || to_char(current_date - 9, 'YYYYMMDD')),
+  'Audit T3-10: whole days past the retention are dropped, to the day');
+INSERT INTO ops.geo_event (ts, vehicle_id, lat, lng, accuracy_m, provider, event_id, seq, device_ts)
+VALUES (now() - interval '2 minutes', :va, 33.5100, 36.2900, 8, 'GPS', '00000000-0000-4000-8000-000000000001', 10, now() - interval '2 minutes');
+SELECT pg_temp.ok((SELECT trust FROM ops.geo_event WHERE event_id = '00000000-0000-4000-8000-000000000001') = 'HIGH',
+  'Audit T3-11: an accurate, timely position is graded HIGH');
+INSERT INTO ops.geo_event (ts, vehicle_id, lat, lng, accuracy_m, provider, event_id, seq, device_ts)
+SELECT now(), vehicle_id, lat, lng, accuracy_m, provider, event_id, seq, device_ts FROM ops.geo_event WHERE event_id = '00000000-0000-4000-8000-000000000001';
+SELECT pg_temp.ok((SELECT count(*) FROM ops.geo_event WHERE event_id = '00000000-0000-4000-8000-000000000001') = 1,
+  'Audit T3-11: a resent position is dropped as a duplicate, even filed under another time');
+INSERT INTO ops.geo_event (ts, vehicle_id, lat, lng, accuracy_m, provider, event_id, seq, device_ts) VALUES
+  (now() - interval '1 minute', :va, 33.5110, 36.2910, 8, 'GPS', '00000000-0000-4000-8000-000000000002', 9, now() - interval '1 minute'),
+  (now() - interval '50 seconds', :va, 34.7300, 36.7100, 8, 'GPS', '00000000-0000-4000-8000-000000000003', 11, now() - interval '50 seconds'),
+  (now() - interval '40 seconds', :vb, 33.5100, 36.2900, 8, 'GPS', '00000000-0000-4000-8000-000000000004', 1, now() - interval '40 seconds');
+INSERT INTO ops.geo_event (ts, vehicle_id, lat, lng, accuracy_m, provider, event_id, is_mock, device_ts)
+VALUES (now(), :vb, 33.5100, 36.2900, 5, 'GPS', '00000000-0000-4000-8000-000000000005', true, now());
+SELECT pg_temp.ok((SELECT trust_flags @> '{OUT_OF_ORDER}' FROM ops.geo_event WHERE event_id = '00000000-0000-4000-8000-000000000002')
+  AND (SELECT trust = 'LOW' AND trust_flags @> '{IMPOSSIBLE_SPEED}' FROM ops.geo_event WHERE event_id = '00000000-0000-4000-8000-000000000003')
+  AND (SELECT trust FROM ops.geo_event WHERE event_id = '00000000-0000-4000-8000-000000000005') = 'REJECTED',
+  'Audit T3-11: out-of-order, implausible and mock positions are graded down or rejected');
+SELECT pg_temp.expect_error(format($$INSERT INTO ops.route_violation (company_id, vehicle_id, compliance_source, line_version_id, kind, tracking_source, started_at, in_service, status, evidence_trust)
+  VALUES (%s, %s, 'REGULATED_LINE', %s, 'OFF_ROUTE', 'DRIVER_APP', now(), true, 'CONFIRMED', 'LOW')$$, :ca, :va, :lv1),
+  'EVIDENCE_LOW_TRUST', 'Audit T3-11: a violation on low-trust positions is not confirmed without a person''s review');
+ROLLBACK;
+
+BEGIN;
+-- T3-14: requirement changes
+SELECT pg_temp.expect_error($$UPDATE sys.compliance_requirement SET level = 'REQUIRED' WHERE code = 'license.vehicle.insurance'$$,
+  'REQUIREMENT_CHANGE_NEEDS_APPROVAL', 'Audit T3-14: a requirement cannot be switched directly');
+SELECT pg_temp.expect_error($$SELECT sys.propose_requirement_change('license.vehicle.insurance', 'REQUIRED', NULL, 'Insurance becomes mandatory by decree')$$,
+  'REQUIREMENT_CHANGE_FORBIDDEN', 'Audit T3-14: only a platform user proposes a requirement change');
+SELECT set_config('app.scope', 'PLATFORM', true), set_config('app.user_id', :'uadmin', true);
+SELECT sys.propose_requirement_change('license.vehicle.insurance', 'REQUIRED', current_date + 30, 'Insurance becomes mandatory by decree') AS rc1 \gset
+SELECT pg_temp.ok((SELECT impact ? 'would_be_blocked' AND (impact ->> 'subjects')::int >= 1 FROM sys.requirement_change WHERE id = :rc1),
+  'Audit T3-14: a proposal measures how many would fall short');
+SELECT pg_temp.expect_error(format($$SELECT sys.decide_requirement_change(%s, true, 'ok')$$, :rc1),
+  'REQUIREMENT_SELF_APPROVAL', 'Audit T3-14: the proposer cannot approve their own change');
+SELECT set_config('app.user_id', :'ufin', true);
+SELECT sys.decide_requirement_change(:rc1, true, 'Decree checked') AS rc_done \gset
+SELECT pg_temp.ok(:'rc_done' = 'APPLIED'
+  AND (SELECT level = 'REQUIRED' AND required_from = current_date + 30 FROM sys.compliance_requirement WHERE code = 'license.vehicle.insurance'),
+  'Audit T3-14: a second person''s approval applies the change with its date');
+ROLLBACK;
+
+BEGIN;
+-- T3-15: file quarantine
+SET LOCAL app.scope = 'TENANT';
+INSERT INTO ref.file_object (storage_key, mime_type, size_bytes, sha256, company_id) VALUES ('t3/probe', 'application/pdf', 10, '\x01', :ca);
+SELECT max(id) AS f1 FROM ref.file_object \gset
+SELECT pg_temp.ok((SELECT scan_status FROM ref.file_object WHERE id = :f1) = 'PENDING', 'Audit T3-15: a new file waits in quarantine');
+SELECT pg_temp.expect_error(format($$UPDATE ref.file_object SET scan_status = 'CLEAN', scanned_at = now(), scan_engine = 'self' WHERE id = %s$$, :f1),
+  'FILE_SCAN_STATUS', 'Audit T3-15: an uploader cannot mark their own file clean');
+SET LOCAL app.scope = 'SYSTEM';
+UPDATE ref.file_object SET scan_status = 'REJECTED', scanned_at = now(), scan_engine = 'test', scan_detail = 'EICAR' WHERE id = :f1;
+SELECT pg_temp.expect_error(format($$UPDATE ref.file_object SET scan_status = 'CLEAN' WHERE id = %s$$, :f1),
+  'FILE_SCAN_FINAL', 'Audit T3-15: a rejected file stays rejected');
+SELECT pg_temp.expect_error(format($$INSERT INTO sec.document_signature (doc_type, doc_ref_id, serial_no, sha256, signature, key_id, file_id)
+  VALUES ('STATEMENT', (SELECT min(id) FROM fin.settlement_batch), 'SIG-T3-2', '\x00', '\x00', (SELECT min(id) FROM sec.key_registry), %s)$$, :f1),
+  'FILE_NOT_CLEAN', 'Audit T3-15: a file that is not clean cannot be signed');
+ROLLBACK;
+
+BEGIN;
+-- T3-19, T3-02, T3-18, T3-12
+SELECT pg_temp.expect_error(format($$INSERT INTO sec.access_review (user_id, reviewer_id, decision) VALUES (%s, %s, 'KEEP')$$, :ua, :ua),
+  'access_review_not_self', 'Audit T3-19: nobody reviews their own access');
+SELECT pg_temp.expect_error($$INSERT INTO audit.data_access_log (object_type, object_id, fields, purpose, request_id) VALUES ('document', 1, '{file}', 'probe', gen_random_uuid())$$,
+  'data_access_log_actor', 'Audit T3-19: a sensitive read names its actor');
+SELECT pg_temp.expect_error($$INSERT INTO audit.data_access_log (service_name, object_type, object_id, fields, purpose) VALUES ('scanner', 'document', 1, '{file}', 'probe')$$,
+  'data_access_log_actor', 'Audit T3-19: a sensitive read names its request');
+SELECT pg_temp.ok((SELECT count(*) FROM pg_constraint WHERE conname IN ('authority_profile_endpoint_encrypted', 'gov_adapter_config_endpoint_encrypted')
+                    AND pg_get_constraintdef(oid) ~ 'https\|sftp\|amqps') = 2
+  AND 'http://registry.example/api' !~ '^(https|sftp|amqps)://',
+  'Audit T3-02: government endpoints must use an encrypted transport');
+SELECT pg_temp.expect_error($$INSERT INTO ref.city (code, name, country_code) VALUES ('T3X', 'Probe', 'SY')$$,
+  'CITY_TIMEZONE', 'Audit T3-18: a new city must name its time zone');
+INSERT INTO sys.outbox_event (event_type, aggregate_type, aggregate_id, payload) VALUES ('probe.a', 'probe', 77, '{}'), ('probe.b', 'probe', 77, '{}');
+SELECT pg_temp.ok((SELECT array_agg(aggregate_seq ORDER BY id) FROM sys.outbox_event WHERE aggregate_type = 'probe' AND aggregate_id = 77) = '{1,2}'
+  AND (SELECT bool_and(schema_version = 1) FROM sys.outbox_event WHERE aggregate_type = 'probe'),
+  'Audit T3-12: events carry their schema version and their order within the aggregate');
 ROLLBACK;
 SET ROLE masslak_app;
 

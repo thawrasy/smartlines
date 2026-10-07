@@ -105,10 +105,15 @@ def receives(client, endpoint_events: list[str], event, payload: dict) -> bool:
     return cid is not None and (event["company_id"] == cid or payload.get("agency_id") == cid)
 
 
-def envelope(event_uid, event_type: str, created_at, payload: dict, include_pii: bool) -> dict:
+def envelope(event_uid, event_type: str, created_at, payload: dict, include_pii: bool, *, schema_version: int = 1,
+             correlation_id=None, aggregate: Optional[str] = None, sequence: Optional[int] = None) -> dict:
+    """The event contract (docs/integration/EVENTS.md): delivery is at least once, so a receiver keeps the ids it has
+    applied and ignores a repeat; sequence orders the events of one aggregate."""
     data = {k: v for k, v in payload.items() if (include_pii or k not in PERSONAL_FIELDS) and k not in ("api_client_id", "authority_id")}
     return {"id": str(event_uid), "type": event_type, "created_at": created_at.isoformat() if created_at else None,
-            "api_version": "v1", "data": data}
+            "api_version": "v1", "schema_version": schema_version,
+            "correlation_id": str(correlation_id) if correlation_id else None,
+            "aggregate": aggregate, "sequence": sequence, "data": data}
 
 
 async def fanout(conn: asyncpg.Connection, event, payload: dict) -> int:
@@ -184,10 +189,13 @@ async def deliver_due(limit: int = 20) -> int:
         jobs = []
         for d in rows:
             x = await conn.fetchrow(
-                """SELECT e.url, e.secret_enc, e.enc_key_id, e.include_pii, o.event_uid, o.event_type, o.payload, o.created_at
+                """SELECT e.url, e.secret_enc, e.enc_key_id, e.include_pii, o.event_uid, o.event_type, o.payload, o.created_at,
+                          o.schema_version, o.correlation_id, o.aggregate_type, o.aggregate_seq
                      FROM sys.webhook_endpoint e, sys.outbox_event o WHERE e.id = $1 AND o.id = $2""", d["endpoint_id"], d["outbox_event_id"])
             payload = json.loads(x["payload"]) if isinstance(x["payload"], str) else dict(x["payload"])
-            body = json.dumps(envelope(x["event_uid"], x["event_type"], x["created_at"], payload, x["include_pii"]),
+            body = json.dumps(envelope(x["event_uid"], x["event_type"], x["created_at"], payload, x["include_pii"],
+                                       schema_version=x["schema_version"], correlation_id=x["correlation_id"],
+                                       aggregate=x["aggregate_type"], sequence=x["aggregate_seq"]),
                               default=str, separators=(",", ":")).encode()
             jobs.append((d, x["url"], x["event_type"], body, await unseal(conn, x["secret_enc"], x["enc_key_id"])))
     for d, url, event_type, body, secret in jobs:

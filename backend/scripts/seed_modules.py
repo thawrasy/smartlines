@@ -437,6 +437,8 @@ class Seeder:
         # text-like
         if n.endswith("_hash") or n.endswith("_hmac"):
             return uuid.uuid4().hex + uuid.uuid4().hex
+        if n in ("endpoint", "url") or n.endswith("_url"):
+            return f"https://{table.split('.')[1].replace('_', '-')}.example/api/{i + 1}"
         if n == "email" or n.endswith("_email"):
             return f"demo{i + 1}@{table.split('.')[1].replace('_', '-')}.example"
         if "phone" in n or n.endswith("_msisdn"):

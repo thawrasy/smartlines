@@ -1,5 +1,6 @@
 """Platform administration: overview, carrier onboarding and approval, central stations."""
 import uuid
+from datetime import date
 from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, Request
@@ -254,3 +255,53 @@ async def agency_deposit(agency_uid: uuid.UUID, body: DepositIn, request: Reques
     request.state.audit = {"action": "agency.deposit", "object_type": "company", "object_id": aid,
                            "reason": body.bank_reference}
     return {"ok": True, "balance": balance}
+
+
+# ------------------------------------------------------------------ regulatory requirements (audit T3-14)
+class RequirementChangeIn(BaseModel):
+    level: Literal["OFF", "OPTIONAL", "REQUIRED"]
+    required_from: Optional[date] = None
+    reason: str = Field(min_length=10, max_length=500)
+
+
+class RequirementDecisionIn(BaseModel):
+    approve: bool
+    note: Optional[str] = Field(default=None, max_length=500)
+
+
+@router.get("/compliance/requirements")
+async def requirements(request: Request, pr: Principal = Depends(require_permission("modules.manage"))):
+    """Every configurable requirement with its level, and the changes proposed or decided for it."""
+    async with db.transaction(context_for(request, pr)) as conn:
+        reqs = await conn.fetch("""SELECT code, domain, applies_to, subject_type, license_type, level, required_from, authority, description
+                                     FROM sys.compliance_requirement ORDER BY code""")
+        changes = await conn.fetch(
+            """SELECT c.uid, c.code, c.from_level, c.to_level, c.required_from, c.reason, c.impact, c.status, c.proposed_at, c.decided_at,
+                      c.decision_note, pu.email AS proposed_by, du.email AS decided_by
+                 FROM sys.requirement_change c JOIN iam.app_user pu ON pu.id = c.proposed_by LEFT JOIN iam.app_user du ON du.id = c.decided_by
+                ORDER BY c.proposed_at DESC LIMIT 200""")
+    return {"requirements": rows(reqs), "changes": rows(changes)}
+
+
+@router.post("/compliance/requirements/{code}/changes", status_code=201)
+async def propose_requirement(code: str, body: RequirementChangeIn, request: Request,
+                              pr: Principal = Depends(require_permission("modules.manage"))):
+    """Proposes a change; it applies only when a second platform user approves it, with its impact measured now."""
+    async with db.transaction(context_for(request, pr)) as conn:
+        cid = await conn.fetchval("SELECT sys.propose_requirement_change($1, $2, $3, $4)", code, body.level, body.required_from,
+                                  body.reason.strip())
+        row = await conn.fetchrow("SELECT uid, impact FROM sys.requirement_change WHERE id = $1", cid)
+    request.state.audit = {"action": "compliance.requirement.propose", "object_type": "requirement_change", "object_id": cid}
+    return {"uid": str(row["uid"]), "impact": row_dict(row)["impact"]}
+
+
+@router.post("/compliance/changes/{uid}/decision")
+async def decide_requirement(uid: uuid.UUID, body: RequirementDecisionIn, request: Request,
+                             pr: Principal = Depends(require_permission("modules.manage"))):
+    async with db.transaction(context_for(request, pr)) as conn:
+        cid = await conn.fetchval("SELECT id FROM sys.requirement_change WHERE uid = $1", uid)
+        if cid is None:
+            raise not_found("requirement change")
+        status = await conn.fetchval("SELECT sys.decide_requirement_change($1, $2, $3)", cid, body.approve, body.note)
+    request.state.audit = {"action": "compliance.requirement.decide", "object_type": "requirement_change", "object_id": cid}
+    return {"status": status}

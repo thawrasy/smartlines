@@ -11,7 +11,10 @@ const {
 const HERE = __dirname;
 const model = JSON.parse(fs.readFileSync(path.join(HERE, "..", "build", "model.json"), "utf8"));
 const PNG = path.join(HERE, "..", "erd", "png");
-const VERSION = "3.7";
+// numbers of the verification run that built this document (verification.py), never typed by hand (audit T3-17)
+const V = JSON.parse(fs.readFileSync(path.join(HERE, "..", "build", "verification.json"), "utf8"));
+const lastFile = V.last_schema_file.split("_")[0];
+const VERSION = "3.8";
 const DATE = "7 October 2026";
 const FONT = "Arial";
 const C = { navy: "1F3A5F", blue: "2E74B5", blue2: "1F4D78", grid: "B7C3D0", alt: "F2F6FA", grey: "595959" };
@@ -107,17 +110,17 @@ front.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 16
 front.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 1200 },
   children: [run(`Complete relational model of the Analysis and Design Study v3.0: ${tableCount} tables, ${fkCount} relationships`, { color: "7F7F7F" })] }));
 front.push(table(["Item", "Details"], [
-  ["Version", `${VERSION} (regulated routes and route compliance, school transport, PostGIS, and every item of the third-party technical audit; replaces version 3.6)`],
+  ["Version", `${VERSION} (the technical audit of design document 3.7: checked references for signatures and money, break-glass expiry, daily position partitions and evidence, two-person requirement changes, file quarantine; replaces version 3.7)`],
   ["Date", DATE],
-  ["Basis", "Analysis and Design Study v3.0 (English), the Use Case and Data Flow Diagrams v1.0, the Database Architecture Review v1.0, the Strategic Database Review and its relationship audit register, and the Third-Party Technical Audit"],
+  ["Basis", "Analysis and Design Study v3.0 (English), the Use Case and Data Flow Diagrams v1.0, the Database Architecture Review v1.0, the Strategic Database Review and its relationship audit register, the Third-Party Technical Audit, and the Technical Audit of design document 3.7"],
   ["Scope", `${schemas.length} schemas, ${tableCount} tables, ${colCount} columns, ${fkCount} foreign keys; all phases 1 to 15`],
-  ["Engine", "PostgreSQL 16 with row-level security on every table; PostGIS 3 in schema gis; schema files db/schema/000 to 1047"],
-  ["Status", "Built and verified: fresh build and upgrade identical, 278 database checks and 183 API tests passing, every foreign key indexed or exempt by rule"],
+  ["Engine", `PostgreSQL ${V.postgres} with row-level security on every table; PostGIS ${V.postgis} in schema gis; ${V.schema_files} schema files, db/schema/000 to ${lastFile}`],
+  ["Status", `Built and verified at commit ${V.source_commit} (migration ${V.migration}, schema SHA-256 ${V.schema_sha256.slice(0, 16)}): fresh build and upgrade identical, ${V.db_checks} database checks and ${V.api_tests} API tests passing, every foreign key indexed or exempt by rule`],
   ["Website", "masslak.com"],
 ], [2800, 6946]));
 
 const toc = [H(HeadingLevel.HEADING_1, "Contents", { pageBreak: true })];
-const tocLines = ["Changes in version 3.7", "Changes in version 3.6", "Changes in version 3.5", "Changes in version 3.4", "Changes in version 3.3", "Changes in version 3.2", "Changes in version 3.1", "Changes in version 3.0", "1. Introduction", "2. Database architecture", "3. Design rules", "4. Security model in the database",
+const tocLines = ["Changes in version 3.8", "Changes in version 3.7", "Changes in version 3.6", "Changes in version 3.5", "Changes in version 3.4", "Changes in version 3.3", "Changes in version 3.2", "Changes in version 3.1", "Changes in version 3.0", "1. Introduction", "2. Database architecture", "3. Design rules", "4. Security model in the database",
   "5. Data stores of the data flow diagrams", "6. Entity-relationship diagrams by module",
   ...model.groups.map((g, i) => `      6.${i + 1} ${g[0]} ${g[1]}`), `      6.${model.groups.length + 1} Focus diagrams: rules that span modules`,
   "7. Table definitions", "8. Traceability to the study", "9. Verification",
@@ -159,6 +162,33 @@ const changes38 = [H(HeadingLevel.HEADING_2, "b. Hardening after the third-party
     + "infrastructure and moves to Phase 5.", "Owner decisions"),
   P("Schema-level two-way dependencies (21, frozen by test H-07) differ from phase-level dependencies, of which there are none backwards: "
     + "the earlier wording is clarified accordingly. db/tools/audit_pack.sh builds the evidence pack for the second phase of the audit."),
+];
+
+// ------------------------------ changes in 3.8 (technical audit of design 3.7) ------------------------------
+const changes3_8 = [H(HeadingLevel.HEADING_1, "Changes in version 3.8", { pageBreak: true }),
+  P("A technical audit reviewed design document 3.7 on paper (findings T3-01 to T3-20). Each finding was checked against the built "
+    + "database and the code (docs/database/DESIGN_AUDIT_T3.md). Schema file 1048_design_audit_t3.sql (migration 1.30.0) and the application "
+    + "changes close every finding the repository can close; the rest are operational conditions of the launch, listed in the response."),
+  bullet("An official signature, a ledger transaction, a family spend and a legal hold now name a real row of a registered kind the moment "
+    + "they are written (sys.tg_business_reference); the weekly sweep stays as a net. Signatures are written once and only revoked. The "
+    + "registry test now also finds pairs named like doc_type and doc_ref_id, which had escaped it.", "References with legal or financial weight (T3-04)"),
+  bullet("Break-glass access has a mandatory expiry (240 minutes at most), an approver other than its user or a declared emergency, an "
+    + "incident reference and scope; it alerts when opened, expires without any job (sec.break_glass_active), is closed and flagged for review "
+    + "by the upkeep, and cannot be widened, rewritten or deleted. Application roles still hold no superuser or BYPASSRLS.", "Break-glass (T3-03)"),
+  bullet("Positions sit in daily partitions dropped whole after the retention, which now has one source: 7 days in the lifecycle matrix (the "
+    + "separate setting is gone). Each position carries the device's event id and sequence, device and server times, provider and a mock flag; "
+    + "a resent position is dropped, and a trust grade (HIGH, LOW, REJECTED) flags late, out-of-order, inaccurate, network-only, impossible-speed "
+    + "and mock positions. A violation built on low-trust positions is confirmed or reported only after a person's review.", "Positions (T3-10, T3-11)"),
+  bullet("A regulatory requirement changes only through sys.requirement_change: proposed by a platform user with its measured impact (how "
+    + "many vehicles, drivers or companies would fall short), decided by a second one, and applied with its date. A direct change is refused.", "Requirement changes (T3-14)"),
+  bullet("Every uploaded file starts in quarantine (scan_status PENDING); the scanner (built-in checks plus ClamAV in production) sets CLEAN, "
+    + "REJECTED or QUARANTINED. Only a clean file is downloaded, signed or approved; a verdict is final.", "File quarantine (T3-15)"),
+  bullet("Nobody reviews their own access; every sensitive read names a user, an API client or a named service, and a request id.", "Access reviews (T3-19)"),
+  bullet("Government endpoints accept only encrypted transports; a city must name its IANA time zone (no Damascus default); every outbox "
+    + "event carries a schema version, a correlation id and its sequence within the aggregate (docs/integration/EVENTS.md).", "Endpoints, time zones, events (T3-02, T3-18, T3-12)"),
+  bullet("Scheduled reports go only to members of the owner's company (or platform accounts and the platform's own domains), checked again "
+    + "at every run; migrations run with lock and statement timeouts; the audit archive's manifests are signed (Ed25519) and verified "
+    + "against the tip the custodian records outside the platform; the numbers in this document come from the verification run (section 9).", "Application and operations (T3-05, T3-08, T3-13, T3-17)"),
 ];
 
 // ------------------------------ changes in 3.7 ------------------------------
@@ -617,14 +647,20 @@ const verify = [H(HeadingLevel.HEADING_1, "9. Verification", { pageBreak: true }
     ["Fresh build (db/build.sh)", `all schema files apply in order; ${tableCount} tables, ${fkCount} foreign keys`],
     ["Upgrade (db/upgrade.sh)", "a database of the previous release upgrades to a schema identical to a fresh build (pg_dump compared)"],
     ["Idempotence", "every new file runs twice without error"],
-    ["Automated tests (db/tests/run.sh)", "215 checks passing: isolation of shipments, bids, partners, manifests; exclusion and uniqueness rules; "
+    ["Automated tests (db/tests/run.sh)", `${V.db_checks} checks passing: isolation of shipments, bids, partners, manifests; exclusion and uniqueness rules; "
       + "append-only tables; four-eyes approvals; feature flags off; the relationship rules R1 to R3; and the acceptance matrix of the architecture review "
       + "(classification, isolation sweep, RLS bypass, typed references, tenant checks, ledger, seats, business rules, scopes, keys, erasure, tracking) "
-      + "and of the integrity audit (sale chain, manifests, cargo legs, wallets, leased vehicles, COPY, guard shape, schema dependencies, JSONB)"],
+      + "and of the integrity audit (sale chain, manifests, cargo legs, wallets, leased vehicles, COPY, guard shape, schema dependencies, JSONB), `
+      + "the third-party audit (orphans, contact data, phase gate, change log, JSON contracts, lifecycle, policy matrix) and the technical audit "
+      + "of design 3.7 (references, break-glass, positions, requirement changes, quarantine, access reviews, envelope)"],
     ["Relationship audit", `${fkCount} foreign keys: ${idxCount("indexed")} indexed, ${idxCount("lookup")} to lookup lists, ${idxCount("actor")} actor columns, ${idxCount("missing")} missing an index; ${noFk.length} documented references without a foreign key`],
-    ["Application", "175 API tests passing, among them 20 concurrent holds on one seat (one winner), 36 overlapping-segment requests, multi-seat "
+    ["Application", `${V.api_tests} API tests passing, among them 20 concurrent holds on one seat (one winner), 36 overlapping-segment requests, multi-seat `
       + "holds in opposite orders without deadlock, concurrent wallet bookings that reconcile, a pooled connection that carries no company "
-      + "into the next request, and sign-in in the AUTH scope"],
+      + "into the next request, sign-in in the AUTH scope, file quarantine, report recipients, position evidence and two-person "
+      + "requirement changes"],
+    ["Evidence of this build", `commit ${V.source_commit}; migration ${V.migration}; last schema file ${V.last_schema_file}; schema SHA-256 `
+      + `${V.schema_sha256}; PostgreSQL ${V.postgres}, PostGIS ${V.postgis}; collected ${V.generated_at} by generator/verification.py from the `
+      + "console output of the same run. A database check is one PASS line of db/tests/run_tests.sql; an API test is one pytest test"],
     ["Coverage", "every table has row-level security, a data class and an owner path (checked by the tests)"],
     ["Documents", "this document, db/DATA_DICTIONARY.md and db/ERD.md are generated from the built database"],
   ], [3200, 6546], { boldFirst: true }),
@@ -679,7 +715,7 @@ const doc = new Document({
   numbering: { config: [{ reference: "bullets", levels: [{ level: 0, format: LevelFormat.BULLET, text: "•", alignment: AlignmentType.LEFT,
     style: { paragraph: { indent: { left: 540, hanging: 270 } } } }] }] },
   sections: [
-    section(PORTRAIT, [...front, ...toc, ...changes37, ...changes38, ...changes39, ...changes36, ...changes35, ...changes34, ...changes33, ...changes32, ...changes31, ...changes, ...intro, ...arch, ...rules, ...security, ...stores]),
+    section(PORTRAIT, [...front, ...toc, ...changes3_8, ...changes37, ...changes38, ...changes39, ...changes36, ...changes35, ...changes34, ...changes33, ...changes32, ...changes31, ...changes, ...intro, ...arch, ...rules, ...security, ...stores]),
     ...erdSections,
     section(PORTRAIT, [...defs, ...trace, ...verify, ...flags, ...gens, ...appC]),
   ],
