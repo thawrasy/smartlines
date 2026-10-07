@@ -24,6 +24,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY backend/ ./
 COPY db/ /app/db/
 COPY deploy/migrate.sh /app/deploy/migrate.sh
+COPY deploy/egress/selftest.sh /app/deploy/egress/selftest.sh
 COPY --from=web /web/dist /app/static
 # The encrypted document store is a volume owned by the unprivileged app user
 RUN mkdir -p /data/files /data/messages && chown masslak /data/files /data/messages

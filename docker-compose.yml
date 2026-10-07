@@ -1,5 +1,7 @@
 # Masslak test/production stack: PostgreSQL, a one-shot migration, the API (which also serves the web
-# interface) and Caddy as the HTTPS front. Configure with deploy/.env (copy deploy/.env.example).
+# interface), the worker, the egress proxy and Caddy as the HTTPS front. Configure with deploy/.env (copy deploy/.env.example).
+# Only Caddy and the egress proxy have a route to the internet: the API and the worker reach the outside world through
+# the proxy alone (audit T3-02, deploy/egress).
 name: masslak
 
 services:
@@ -47,12 +49,15 @@ services:
       MASSLAK_PUBLIC_URL: https://${MASSLAK_DOMAIN:-localhost}
       # Uploaded documents, stored AES-256-GCM encrypted
       MASSLAK_FILES_DIR: /data/files
+      # every outbound call (payment providers, SMS, webhooks) goes through the egress proxy
+      MASSLAK_EGRESS_PROXY: http://egress:3128
     volumes:
       - files:/data/files
     depends_on:
       migrate: { condition: service_completed_successfully }
-    # front gives outbound access to the SMTP server and SMS gateway; no port is published
-    networks: [internal, front]
+      egress: { condition: service_started }
+    # front is reachable by Caddy only and has no route out; outbound traffic goes through egress
+    networks: [internal, front, egress_in]
 
   # Sends notifications from the transactional outbox (several replicas can run: events are claimed with SKIP LOCKED)
   worker:
@@ -64,14 +69,31 @@ services:
       MASSLAK_DATABASE_URL: postgresql://masslak_api:${MASSLAK_API_PASSWORD}@db:5432/${POSTGRES_DB:-masslak}
       MASSLAK_AUDIT_DATABASE_URL: postgresql://masslak_audit:${MASSLAK_AUDIT_PASSWORD}@db:5432/${POSTGRES_DB:-masslak}
       MASSLAK_FILES_DIR: /data/files
+      MASSLAK_EGRESS_PROXY: http://egress:3128
+      # the worker keeps the proxy's allowlist in step with the partner endpoints
+      MASSLAK_EGRESS_LISTS: /data/egress-lists
     volumes:
       - files:/data/files
       # With MASSLAK_NOTIFY_EMAIL/SMS=log, messages are written here instead of being sent
       - messages:/data/messages
+      - egress_lists:/data/egress-lists
     depends_on:
       migrate: { condition: service_completed_successfully }
-    # front gives outbound access to the SMTP server and SMS gateway; no port is published
-    networks: [internal, front]
+      egress: { condition: service_started }
+    # no route out of its own: SMTP, SMS and webhooks go through egress
+    networks: [internal, egress_in]
+
+  # The only way out for the API and the worker: HTTPS and mail submission to allowlisted names, never to private,
+  # loopback, link-local or metadata addresses (deploy/egress/squid.conf; probe with deploy/egress/selftest.sh)
+  egress:
+    build: deploy/egress
+    image: masslak-egress:latest
+    restart: unless-stopped
+    volumes:
+      - egress_lists:/etc/squid/lists
+    networks:
+      egress_in: { ipv4_address: 172.31.0.2 }
+      edge: {}
 
   caddy:
     image: caddy:2-alpine
@@ -85,15 +107,25 @@ services:
       - caddy_data:/data
       - caddy_config:/config
     depends_on: [app]
-    networks: [front]
+    networks: [front, edge]
 
 networks:
   internal:
     internal: true
+  # Caddy to the API; no route out
   front:
+    internal: true
     ipam:
       config:
         - subnet: 172.30.0.0/24
+  # the API and the worker to the egress proxy; no route out
+  egress_in:
+    internal: true
+    ipam:
+      config:
+        - subnet: 172.31.0.0/24
+  # the internet side of Caddy (published ports) and of the egress proxy
+  edge: {}
 
 volumes:
   pgdata:
@@ -101,3 +133,4 @@ volumes:
   messages:
   caddy_data:
   caddy_config:
+  egress_lists:

@@ -1,0 +1,62 @@
+{
+ "source_database": "masslak_v10",
+ "started_at": "2026-10-07T22:26:28+00:00",
+ "archive_timeout_s": 60,
+ "steps": {
+  "base_backup_s": 1.9
+ },
+ "database_size": "70 MB",
+ "point_in_time": {
+  "target_time": "2026-10-07 22:26:50.891995+00",
+  "restore_s": 1.2,
+  "counts_match_recovery_point": true,
+  "counts": {
+   "sales.booking": 34,
+   "sales.ticket": 43,
+   "fin.ledger_txn": 87,
+   "fin.ledger_entry": 183,
+   "audit.row_change": 1707,
+   "audit.activity_log": 1018,
+   "drill.marker": 47
+  },
+  "expected": {
+   "sales.booking": 34,
+   "sales.ticket": 43,
+   "fin.ledger_txn": 87,
+   "fin.ledger_entry": 183,
+   "audit.row_change": 1707,
+   "audit.activity_log": 1018,
+   "drill.marker": 47
+  },
+  "nothing_after_target": true,
+  "schema_matches_source": true,
+  "checks": {
+   "wallets_reconcile": true,
+   "no_orphans": true,
+   "audit_seals_recompute": true,
+   "audit_seals_checked": 4,
+   "ledger_balanced": true,
+   "not_in_recovery": true
+  }
+ },
+ "latest": {
+  "restore_s": 2.7,
+  "last_committed_marker": 109,
+  "last_recovered_marker": 94,
+  "markers_lost": 15,
+  "rpo_measured_s": 3.2,
+  "rto_measured_s": 4.9,
+  "schema_matches_source": true,
+  "checks": {
+   "wallets_reconcile": true,
+   "no_orphans": true,
+   "audit_seals_recompute": true,
+   "audit_seals_checked": 4,
+   "ledger_balanced": true,
+   "not_in_recovery": true
+  }
+ },
+ "result": "PASS",
+ "total_s": 42.5,
+ "finished_at": "2026-10-07T22:27:11+00:00"
+}

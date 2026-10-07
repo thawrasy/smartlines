@@ -32,7 +32,7 @@ from urllib.parse import urlparse
 
 import asyncpg
 
-from ... import db
+from ... import db, egress
 from ...config import get_settings
 from ...crypto import cipher
 from ...errors import ApiError
@@ -154,7 +154,10 @@ def post(url: str, body: bytes, headers: dict) -> int:
     if extra_ca and get_settings().sandbox:
         ctx.load_verify_locations(extra_ca)
     raw = None
-    for addr in dict.fromkeys(addrs):         # every checked address in DNS order, as a normal client would
+    if egress.proxy() is not None:
+        # production: through the egress proxy, which repeats the address check after its own lookup (T3-02)
+        raw = egress.tunnel(host, port, timeout=TIMEOUT)
+    for addr in ([] if raw is not None else dict.fromkeys(addrs)):   # every checked address in DNS order
         try:
             raw = socket.create_connection((addr, port), timeout=TIMEOUT)
             break

@@ -11,7 +11,9 @@ DB="${1:?database name}"; shift || true
 PSQL_ARGS=("$@")
 DIR="$(cd "$(dirname "$0")" && pwd)"
 # Schema files in numeric order of their prefix (000 ... 990, 1000 ...), so numbering can grow past three digits
-schema_files() { ls "$DIR"/schema/[0-9]*_*.sql | awk -F/ '{ n = $NF; sub(/_.*/, "", n); print n "\t" $0 }' | sort -n | cut -f2-; }
+# MASSLAK_BUILD_UNTIL=<prefix> stops after that file, to build an older release (migration rehearsals, db/tools)
+schema_files() { ls "$DIR"/schema/[0-9]*_*.sql | awk -F/ -v until="${MASSLAK_BUILD_UNTIL:-999999}" \
+                   '{ n = $NF; sub(/_.*/, "", n); if (n + 0 <= until + 0) print n "\t" $0 }' | sort -n | cut -f2-; }
 for f in $(schema_files); do
   echo ">> $(basename "$f")"
   psql "$@" -d "$DB" -v ON_ERROR_STOP=1 -q -f "$f"

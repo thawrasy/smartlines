@@ -1,0 +1,43 @@
+{
+ "base": "1047",
+ "scale": 200000,
+ "fill_s": {
+  "ops.geo_event": 1.2,
+  "sys.outbox_event": 1.3,
+  "ref.file_object": 1.8,
+  "audit.data_access_log": 1.1
+ },
+ "database_size": "239 MB",
+ "migration_s": 5.2,
+ "migration_ok": true,
+ "migration_output": ">> 1048_design_audit_t3.sql\n rls_catalog \n-------------\n \n(1 row)\n\n rls_catalog \n-------------\n \n(1 row)\n\n apply_json_contracts \n----------------------\n                   14\n(1 row)\n\n refresh_table_class \n---------------------\n                 473\n(1 row)\n\nOK: masslak_rehearsal_d90171 is up to date\n",
+ "wal_mb": 87.4,
+ "locks": {
+  "max_access_exclusive_held_s": 1.98,
+  "max_sessions_waiting": 8
+ },
+ "traffic_before": {
+  "n": 3292,
+  "p50_ms": 0.7,
+  "p99_ms": 3.7,
+  "max_ms": 34.2,
+  "errors": 0
+ },
+ "traffic_during": {
+  "n": 2330,
+  "p50_ms": 0.9,
+  "p99_ms": 3.2,
+  "max_ms": 1899.9,
+  "errors": 0
+ },
+ "traffic_after": {
+  "n": 1358,
+  "p50_ms": 0.7,
+  "p99_ms": 5.9,
+  "max_ms": 17.7,
+  "errors": 0
+ },
+ "traffic_error_kinds": [],
+ "applied": "1048_design_audit_t3.sql",
+ "within_criteria": true
+}

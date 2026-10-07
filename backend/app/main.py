@@ -34,6 +34,8 @@ from .routers import admin, auth, bookings, carrier, driver, public, regulator, 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     await db.open_pools()
+    from . import egress
+    egress.require_in_production()        # outbound traffic only through the egress proxy (T3-02)
     if not get_settings().sandbox:
         # fail at start, not at the first booking: production needs real keys from KMS or Vault (review 3.12)
         from . import crypto

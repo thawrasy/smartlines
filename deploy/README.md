@@ -6,12 +6,22 @@ One image contains the API (FastAPI), the built web interface and the database s
 |---|---|---|
 | `caddy` | HTTPS front, automatic certificates, HTTP/3 | the internet (ports 80, 443) |
 | `app` | API and web interface | Caddy only |
-| `worker` | sends e-mail and SMS from the notification outbox | nothing (outbound only) |
+| `worker` | sends e-mail, SMS and webhooks from the outbox, scans uploaded files, keeps the egress allowlist | nothing |
+| `egress` | Squid forward proxy: the only way out for `app` and `worker` (HTTPS and mail submission to allowlisted names, never to internal addresses) | `app` and `worker` only |
 | `migrate` | one-shot: builds or upgrades the schema, sets login roles, then exits | nothing |
 | `db` | PostgreSQL 16 | internal network only |
 
-CI starts this exact stack on every push and checks HTTPS, sign-in, search, that only Caddy is reachable, and a
-full backup and restore (`.github/workflows/ci.yml`, job `stack`).
+CI starts this exact stack on every push and checks HTTPS, sign-in, search, that only Caddy is reachable, that the API
+and the worker have no route out except the egress proxy, and a full backup and restore (`.github/workflows/ci.yml`,
+job `stack`).
+
+**Outbound traffic (audit T3-02).** `app` and `worker` sit on internal networks only. Every call to a payment provider, the
+SMS gateway, the SMTP relay or a partner webhook goes through `egress` (`MASSLAK_EGRESS_PROXY`), and the API refuses to start
+in production without it.
+- **Fixed providers:** add their domains to `deploy/egress/allowlist.txt`, then run
+  `docker compose exec egress squid -k reconfigure`.
+- **Partner webhooks:** the worker adds their domains by itself.
+- **Probe:** `docker compose exec worker bash /app/deploy/egress/selftest.sh egress:3128`.
 
 ## 1. Server and domain
 

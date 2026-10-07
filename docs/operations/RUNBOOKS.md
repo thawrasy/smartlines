@@ -33,9 +33,9 @@ section.
 
 ## 2. Backup and point-in-time restore (RPO and RTO)
 
-- **Targets to confirm with the owner:**
-  - RPO of 5 minutes: WAL archived continuously.
-  - RTO of 30 to 60 minutes.
+- **Targets:** see the proposed RPO and RTO below; they become binding once the owner approves them.
+- **Configuration:** `deploy/pitr/postgresql.pitr.conf` (WAL archiving every 60 s at most, streaming standby) and
+  `deploy/pitr/pgbackrest.conf` (encrypted repository in a separate account, schedule, restore command).
 - **Backups:**
   - pgBackRest full backup weekly, differential daily, WAL archived continuously to object storage.
   - Backups are encrypted (`repo1-cipher-type=aes-256-cbc`) with a key held in the key service.
@@ -49,8 +49,30 @@ section.
   2. Run `SELECT sys.run_maintenance()`.
   3. Run `python -m app.tools.keys check`, to prove the key service still opens every data key.
   4. Run the reconciliation checks from section 1.5.
-- **Restore drill:** monthly, timed, recorded in the operations log. The audit trail must survive it: compare the latest
-  `audit.ddl_event` and `audit.row_change` ids with the archive (section 7).
+- **Targets proposed for the owner's approval (T3-01):**
+  - **RPO:** 60 seconds when the server is lost. WAL is archived at least every `archive_timeout = 60` s; pgBackRest
+    archives asynchronously. With the streaming standby, a failover loses only what the standby had not received,
+    normally under a second.
+  - **RTO:** 30 minutes to a usable database on new hardware, 1 minute for a failover to the standby (section 3).
+- **Restore drill (T3-01):** `python3 db/tools/restore_drill.py --source <copy of production> --report <dir> -h ... -U ...`
+  rehearses the same mechanism as pgBackRest (base backup, archived WAL, recovery target) on a scratch cluster, in two
+  scenarios:
+  - **Point in time:** recovery to a chosen moment must contain every transaction up to it and none after.
+  - **Server lost:** the server stops with no warning; the drill measures the data lost (RPO) and the time back (RTO).
+
+  Each restored database must pass these checks:
+  - wallets reconcile with the ledger, and every ledger transaction balances;
+  - there are no references to missing rows;
+  - every audit seal recomputes and chains;
+  - the schema hash equals the source;
+  - row counts match the recovery point.
+
+  The first run is in `docs/operations/evidence/restore_drill_2026-10-07.json`: PASS on the 70 MB demo database. It
+  restored to a point in time in 1.2 s; with the server lost, 3.2 s of writes were lost (those after the last archived
+  segment) and the database was usable 4.9 s later.
+- **Production drill:** monthly, on a production-size copy restored from pgBackRest into an isolated server. Time it,
+  record it in `docs/operations/evidence/`, and compare the measured RPO and RTO with the approved targets. The audit
+  trail must survive it: compare the latest `audit.ddl_event` and `audit.row_change` ids with the archive (section 7).
 
 ## 3. Failover
 
@@ -229,6 +251,28 @@ section.
    - Nobody can approve their own proposal, and the database refuses a direct change.
 3. Notify the carriers affected before the date. Where possible, try the change first in staging, or in one city.
 
+## 14. Egress proxy (T3-02)
+
+- **Design:** the API and the worker have no route to the internet. Every outbound connection goes through the `egress`
+  container (Squid), which:
+  - tunnels only HTTPS and mail submission (ports 443, 465, 587);
+  - refuses private, loopback, link-local, metadata and reserved addresses after its own DNS lookup;
+  - allows only allowlisted names.
+
+  The application checks the URL and the resolved address first (two layers).
+- **A new payment provider, SMS gateway or SMTP relay:**
+  1. Add its domain to `deploy/egress/allowlist.txt`.
+  2. Run `docker compose exec egress squid -k reconfigure`.
+  3. Run the self-test.
+- **Partner webhooks:** the worker writes the domains of active endpoints into the shared list every minute, and Squid
+  rereads it every minute. A newly registered endpoint may miss its first attempt and receive it on the retry.
+- **Self-test** (after every change and in CI):
+  `docker compose exec worker bash /app/deploy/egress/selftest.sh egress:3128 <an allowlisted domain>`.
+  Metadata, private, loopback, a name resolving to loopback, IPv6 loopback, IPv4-mapped IPv6, an unlisted name and plain
+  HTTP must all answer 403.
+- **A delivery fails with `EGRESS_REFUSED`:** read the proxy log (`docker compose exec egress tail /var/log/squid/access.log`).
+  A partner endpoint that resolves to a private address stays refused: this is the intended protection.
+
 ## Rehearsal schedule
 
 | Procedure | Before launch | After launch |
@@ -240,4 +284,5 @@ section.
 | Audit archive tamper drill | Once | Quarterly |
 | Break-glass open, expire and review | Once in staging | Yearly |
 | ClamAV with the EICAR file | Once | After each ClamAV upgrade |
+| Egress self-test | Every deployment (CI) | After each allowlist change |
 | Load test | At each release candidate | Before each peak season (Eid, summer) |

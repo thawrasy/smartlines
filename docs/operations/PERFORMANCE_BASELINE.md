@@ -64,6 +64,33 @@ release it.
   This must be confirmed with `EXPLAIN (ANALYZE, BUFFERS)` on staging data. If it does not switch, the remedy is a
   `SECURITY DEFINER` visibility function on the trip, keyed by the trip id; the policy stays and only its plan changes.
 
+## End to end: booking, payment, refund, tracking and reports (T3-09)
+
+`python -m loadtest.run --levels 10,25,50 --seconds 20 --mix full --owner-dsn ...`:
+- **Passengers:** each one searches, opens the seat map, holds a seat, books and pays from the wallet, then cancels for a
+  refund.
+- **Drivers:** two drivers send a position every second.
+- **Carrier staff:** run the daily sales report every 2 seconds.
+
+The database counters come from `pg_stat_database` and `pg_stat_activity`, sampled every 0.5 s. The full output is in
+`evidence/load_test_full_mix_2026-10-07.json`.
+
+| Users | Book and pay p50 / p95 / p99 ms | Refund p95 ms | Search p95 ms | Position p95 ms | Report p95 ms | Errors | Deadlocks | Commits/s | WAL MB | Longest lock wait |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 10 | 82 / 120 / 147 | 95 | 30 | 65 | 94 | 0 | 0 | 1,376 | 28.5 | 0.04 s |
+| 25 | 204 / 475 / 660 | 434 | 60 | 121 | 211 | 0 | 0 | 1,338 | 26.8 | 0.74 s |
+| 50 | 329 / 560 / 723 | 551 | 194 | 329 | 372 | 0 | 0 | 1,488 | 29.0 | 0.58 s |
+
+**What this shows:**
+- No errors and no deadlocks at any level.
+- After 3,582 bookings and their refunds, wallet reconciliation found **zero** mismatches, and every ledger transaction
+  balances.
+- The cache hit ratio stayed at 100 %, and no temporary files were written.
+- The longest lock wait (0.74 s) is bookings queueing on the same trip's seats and the same wallets. That serialisation
+  is by design and is correct.
+- Throughput levels off at about 46 bookings per second plus their refunds. As in the first run, that is the limit of
+  one API process sharing four cores with the load generator and the database (host load 4.3 at 50 users).
+
 ## Next measurements (staging)
 
 1. Load staging with one year of projected data: trips, bookings, tickets, positions, ledger.

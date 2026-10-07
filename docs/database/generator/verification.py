@@ -54,8 +54,8 @@ def main():
         sys.exit("the API test log reports failures")
     dump = subprocess.run(["pg_dump", *rest, "--schema-only", "--no-owner", "--no-privileges", "-d", db],
                           check=True, capture_output=True, text=True).stdout
-    # the dump header names the tool version; the hash covers the schema only
-    schema = "\n".join(line for line in dump.splitlines() if not line.startswith("-- Dumped "))
+    # the dump header names the tool version and a random \restrict token; the hash covers the schema only
+    schema = "\n".join(line for line in dump.splitlines() if not line.startswith(("-- Dumped ", "\\restrict ", "\\unrestrict ")))
     files = sorted(os.listdir(os.path.join(ROOT, "db", "schema")), key=lambda f: int(f.split("_", 1)[0]))
     v = {
         "db_checks": count(opts["--db-log"], r"ALL TESTS PASSED \((\d+) checks\)", "database check"),

@@ -103,4 +103,6 @@ Every change is a new numbered file in `db/schema` (never an edit of a released 
 - [ ] Impact written in the pull request: relationships, row security, indexes, the queries that change, the rollback.
 - [ ] A test in `db/tests/run_tests.sql` for every new rule, and the API tests still passing.
 - [ ] The data dictionary, ERD and design document regenerated (`db/tools/gen_docs.py`, `docs/database/generator`).
-- [ ] Before production: a backup confirmed, and the file run on a copy of production with its duration measured.
+- [ ] Before production: a backup confirmed, and the file rehearsed under load (`db/tools/migration_rehearsal.py`). The
+      result and the plan, including the forward fix, go in `docs/database/MIGRATION_PLANS.md`. The stop criteria are
+      an exclusive lock of at most 2 s on a table the booking path writes, traffic p99 of at most 1 s, and no errors.

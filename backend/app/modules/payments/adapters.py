@@ -21,6 +21,7 @@ import urllib.request
 from dataclasses import dataclass, field
 from typing import Optional
 
+from ... import egress
 from ...config import get_settings
 from ...errors import ApiError
 
@@ -97,7 +98,7 @@ def _call(provider: dict, path: str, payload: dict) -> dict:
         "X-Masslak-Signature": sign(secret_for(provider), body)})
     try:
         # https is checked above, so file:// and custom schemes can never be opened
-        with urllib.request.urlopen(req, timeout=20) as r:  # nosec B310
+        with egress.urlopen(req, timeout=20) as r:  # nosec B310
             return json.loads(r.read() or b"{}")
     except Exception as exc:
         raise ApiError(502, "PAYMENT_PROVIDER_UNAVAILABLE", "the payment provider did not answer") from exc

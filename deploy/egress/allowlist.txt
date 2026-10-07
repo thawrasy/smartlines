@@ -1,0 +1,4 @@
+# Domains of the fixed providers the platform calls (one per line; a leading dot also allows sub-domains).
+# Payment providers, the SMS gateway and the SMTP relay of the deployment go here; partner webhook domains are
+# written by the worker into lists/generated.txt and need no entry. Reload: docker compose exec egress squid -k reconfigure
+allowlist.invalid

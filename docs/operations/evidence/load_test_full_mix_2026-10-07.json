@@ -1,0 +1,269 @@
+[
+ {
+  "users": 10,
+  "seconds": 20,
+  "mix": "full",
+  "steps": [
+   {
+    "step": "search",
+    "requests": 908,
+    "per_second": 43.2,
+    "p50_ms": 16.6,
+    "p95_ms": 30.0,
+    "p99_ms": 45.8,
+    "max_ms": 67.5,
+    "errors": 0
+   },
+   {
+    "step": "report",
+    "requests": 10,
+    "per_second": 0.5,
+    "p50_ms": 53.8,
+    "p95_ms": 94.4,
+    "p99_ms": 100.4,
+    "max_ms": 102.0,
+    "errors": 0
+   },
+   {
+    "step": "seat_map",
+    "requests": 908,
+    "per_second": 43.2,
+    "p50_ms": 22.5,
+    "p95_ms": 34.8,
+    "p99_ms": 68.2,
+    "max_ms": 93.8,
+    "errors": 0
+   },
+   {
+    "step": "position",
+    "requests": 40,
+    "per_second": 1.9,
+    "p50_ms": 44.3,
+    "p95_ms": 64.5,
+    "p99_ms": 82.6,
+    "max_ms": 85.9,
+    "errors": 0
+   },
+   {
+    "step": "hold",
+    "requests": 908,
+    "per_second": 43.2,
+    "p50_ms": 31.4,
+    "p95_ms": 47.9,
+    "p99_ms": 68.9,
+    "max_ms": 96.8,
+    "errors": 0
+   },
+   {
+    "step": "book_pay",
+    "requests": 908,
+    "per_second": 43.2,
+    "p50_ms": 82.2,
+    "p95_ms": 119.5,
+    "p99_ms": 147.2,
+    "max_ms": 214.5,
+    "errors": 0
+   },
+   {
+    "step": "cancel_refund",
+    "requests": 908,
+    "per_second": 43.2,
+    "p50_ms": 57.6,
+    "p95_ms": 94.8,
+    "p99_ms": 132.6,
+    "max_ms": 194.5,
+    "errors": 0
+   }
+  ],
+  "database": {
+   "commits_per_second": 1375.6,
+   "rollbacks": 0,
+   "deadlocks": 0,
+   "wal_mb": 28.53,
+   "temp_mb": 0.0,
+   "cache_hit_pct": 100.0,
+   "lock_waiters_max": 3,
+   "lock_wait_longest_s": 0.041,
+   "active_sessions_max": 11,
+   "host_load_1m": 2.42
+  }
+ },
+ {
+  "users": 25,
+  "seconds": 20,
+  "mix": "full",
+  "steps": [
+   {
+    "step": "search",
+    "requests": 882,
+    "per_second": 41.7,
+    "p50_ms": 31.0,
+    "p95_ms": 59.9,
+    "p99_ms": 203.1,
+    "max_ms": 309.0,
+    "errors": 0
+   },
+   {
+    "step": "seat_map",
+    "requests": 882,
+    "per_second": 41.7,
+    "p50_ms": 37.5,
+    "p95_ms": 66.9,
+    "p99_ms": 107.7,
+    "max_ms": 149.9,
+    "errors": 0
+   },
+   {
+    "step": "report",
+    "requests": 10,
+    "per_second": 0.5,
+    "p50_ms": 92.6,
+    "p95_ms": 211.0,
+    "p99_ms": 276.1,
+    "max_ms": 292.4,
+    "errors": 0
+   },
+   {
+    "step": "hold",
+    "requests": 882,
+    "per_second": 41.7,
+    "p50_ms": 58.5,
+    "p95_ms": 96.3,
+    "p99_ms": 129.0,
+    "max_ms": 226.6,
+    "errors": 0
+   },
+   {
+    "step": "position",
+    "requests": 38,
+    "per_second": 1.8,
+    "p50_ms": 68.7,
+    "p95_ms": 121.4,
+    "p99_ms": 161.6,
+    "max_ms": 164.7,
+    "errors": 0
+   },
+   {
+    "step": "book_pay",
+    "requests": 873,
+    "per_second": 41.3,
+    "p50_ms": 203.8,
+    "p95_ms": 474.9,
+    "p99_ms": 659.9,
+    "max_ms": 1071.3,
+    "errors": 0
+   },
+   {
+    "step": "cancel_refund",
+    "requests": 873,
+    "per_second": 41.3,
+    "p50_ms": 162.3,
+    "p95_ms": 433.7,
+    "p99_ms": 626.7,
+    "max_ms": 921.1,
+    "errors": 0
+   }
+  ],
+  "database": {
+   "commits_per_second": 1337.5,
+   "rollbacks": 9,
+   "deadlocks": 0,
+   "wal_mb": 26.79,
+   "temp_mb": 0.0,
+   "cache_hit_pct": 100.0,
+   "lock_waiters_max": 14,
+   "lock_wait_longest_s": 0.743,
+   "active_sessions_max": 19,
+   "host_load_1m": 3.33
+  }
+ },
+ {
+  "users": 50,
+  "seconds": 20,
+  "mix": "full",
+  "steps": [
+   {
+    "step": "search",
+    "requests": 961,
+    "per_second": 46.2,
+    "p50_ms": 98.3,
+    "p95_ms": 194.4,
+    "p99_ms": 258.2,
+    "max_ms": 425.6,
+    "errors": 0
+   },
+   {
+    "step": "seat_map",
+    "requests": 961,
+    "per_second": 46.2,
+    "p50_ms": 100.2,
+    "p95_ms": 189.3,
+    "p99_ms": 262.0,
+    "max_ms": 407.9,
+    "errors": 0
+   },
+   {
+    "step": "report",
+    "requests": 9,
+    "per_second": 0.4,
+    "p50_ms": 255.1,
+    "p95_ms": 371.9,
+    "p99_ms": 378.5,
+    "max_ms": 380.2,
+    "errors": 0
+   },
+   {
+    "step": "hold",
+    "requests": 961,
+    "per_second": 46.2,
+    "p50_ms": 176.6,
+    "p95_ms": 295.0,
+    "p99_ms": 353.2,
+    "max_ms": 404.3,
+    "errors": 0
+   },
+   {
+    "step": "position",
+    "requests": 34,
+    "per_second": 1.6,
+    "p50_ms": 180.7,
+    "p95_ms": 328.5,
+    "p99_ms": 423.0,
+    "max_ms": 450.1,
+    "errors": 0
+   },
+   {
+    "step": "book_pay",
+    "requests": 950,
+    "per_second": 45.7,
+    "p50_ms": 329.0,
+    "p95_ms": 559.7,
+    "p99_ms": 723.3,
+    "max_ms": 886.9,
+    "errors": 0
+   },
+   {
+    "step": "cancel_refund",
+    "requests": 950,
+    "per_second": 45.7,
+    "p50_ms": 294.8,
+    "p95_ms": 551.1,
+    "p99_ms": 692.3,
+    "max_ms": 1379.0,
+    "errors": 0
+   }
+  ],
+  "database": {
+   "commits_per_second": 1487.7,
+   "rollbacks": 11,
+   "deadlocks": 0,
+   "wal_mb": 29.01,
+   "temp_mb": 0.0,
+   "cache_hit_pct": 100.0,
+   "lock_waiters_max": 15,
+   "lock_wait_longest_s": 0.578,
+   "active_sessions_max": 19,
+   "host_load_1m": 4.3
+  }
+ }
+]

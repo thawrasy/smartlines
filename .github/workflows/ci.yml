@@ -152,6 +152,14 @@ jobs:
           for port in 5432 8000; do
             if timeout 3 bash -c "</dev/tcp/127.0.0.1/$port" 2>/dev/null; then echo "port $port is exposed"; exit 1; fi
           done
+      - name: Egress (T3-02) - the worker has no route out, the proxy refuses internal and unlisted targets
+        run: |
+          dc="docker compose --env-file deploy/.env"
+          if $dc exec -T worker python -c "import socket; socket.create_connection(('1.1.1.1', 443), 5)" 2>/dev/null; then
+            echo "the worker reached the internet without the proxy"; exit 1; fi
+          if $dc exec -T app python -c "import socket; socket.create_connection(('1.1.1.1', 443), 5)" 2>/dev/null; then
+            echo "the API reached the internet without the proxy"; exit 1; fi
+          $dc exec -T worker bash /app/deploy/egress/selftest.sh egress:3128
       - name: Backup, restore, and the site still works
         run: |
           ./deploy/backup.sh

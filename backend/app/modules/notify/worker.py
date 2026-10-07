@@ -10,6 +10,7 @@ exponential backoff; after MAX_ATTEMPTS it is marked FAILED for operators to ins
 import asyncio
 import json
 import logging
+import os
 import sys
 import uuid
 
@@ -99,6 +100,8 @@ async def maintenance() -> dict:
 
 async def main(once: bool) -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    from ... import egress
+    egress.require_in_production()
     await db.open_pools()
     last_reports = 0.0
     last_maintenance = None if not once else 0.0     # a long-running worker maintains at start, then daily
@@ -127,6 +130,9 @@ async def main(once: bool) -> None:
                     await scan_pending()
                     async with db.transaction(_ctx()) as conn:
                         await conn.execute("SELECT sec.break_glass_upkeep()")
+                        # the proxy's allowlist follows the partner endpoints and providers (T3-02)
+                        if os.environ.get("MASSLAK_EGRESS_LISTS"):
+                            await egress.write_allowlists(conn, os.environ["MASSLAK_EGRESS_LISTS"])
                     last_reports = asyncio.get_running_loop().time()
                 now = asyncio.get_running_loop().time()
                 if not once and (last_maintenance is None or now - last_maintenance > 24 * 3600):
