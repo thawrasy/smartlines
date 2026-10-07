@@ -647,10 +647,10 @@ const verify = [H(HeadingLevel.HEADING_1, "9. Verification", { pageBreak: true }
     ["Fresh build (db/build.sh)", `all schema files apply in order; ${tableCount} tables, ${fkCount} foreign keys`],
     ["Upgrade (db/upgrade.sh)", "a database of the previous release upgrades to a schema identical to a fresh build (pg_dump compared)"],
     ["Idempotence", "every new file runs twice without error"],
-    ["Automated tests (db/tests/run.sh)", `${V.db_checks} checks passing: isolation of shipments, bids, partners, manifests; exclusion and uniqueness rules; "
+    ["Automated tests (db/tests/run.sh)", `${V.db_checks} checks passing: isolation of shipments, bids, partners, manifests; exclusion and uniqueness rules; `
       + "append-only tables; four-eyes approvals; feature flags off; the relationship rules R1 to R3; and the acceptance matrix of the architecture review "
       + "(classification, isolation sweep, RLS bypass, typed references, tenant checks, ledger, seats, business rules, scopes, keys, erasure, tracking) "
-      + "and of the integrity audit (sale chain, manifests, cargo legs, wallets, leased vehicles, COPY, guard shape, schema dependencies, JSONB), `
+      + "and of the integrity audit (sale chain, manifests, cargo legs, wallets, leased vehicles, COPY, guard shape, schema dependencies, JSONB), "
       + "the third-party audit (orphans, contact data, phase gate, change log, JSON contracts, lifecycle, policy matrix) and the technical audit "
       + "of design 3.7 (references, break-glass, positions, requirement changes, quarantine, access reviews, envelope)"],
     ["Relationship audit", `${fkCount} foreign keys: ${idxCount("indexed")} indexed, ${idxCount("lookup")} to lookup lists, ${idxCount("actor")} actor columns, ${idxCount("missing")} missing an index; ${noFk.length} documented references without a foreign key`],

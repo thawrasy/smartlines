@@ -66,7 +66,7 @@ def main():
         "last_schema_file": files[-1],
         "schema_files": len(files),
         "schema_sha256": hashlib.sha256(schema.encode()).hexdigest(),
-        "postgres": psql(db, rest, "SHOW server_version"),
+        "postgres": psql(db, rest, "SHOW server_version").split()[0],
         "postgis": psql(db, rest, "SELECT extversion FROM pg_extension WHERE extname = 'postgis'") or None,
         "generated_at": dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
     }

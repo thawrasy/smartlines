@@ -29,7 +29,7 @@
 <polygon fill="#f2f6fa" stroke="transparent" points="79.5,-109 79.5,-126 137.5,-126 137.5,-109 79.5,-109"/>
 <text text-anchor="start" x="82.5" y="-115.6" font-family="DejaVu Sans" font-size="8.00" fill="#7f7f7f">timestamptz</text>
 <polygon fill="#ffffff" stroke="transparent" points="39.5,-94 39.5,-109 137.5,-109 137.5,-94 39.5,-94"/>
-<text text-anchor="start" x="42.5" y="-100.6" font-family="DejaVu Sans" font-style="italic" font-size="8.00" fill="#7f7f7f">+ 9 more columns</text>
+<text text-anchor="start" x="42.5" y="-100.6" font-family="DejaVu Sans" font-style="italic" font-size="8.00" fill="#7f7f7f">+ 17 more columns</text>
 <path fill="none" stroke="#404040" d="M50.5,-93C50.5,-93 126.5,-93 126.5,-93 132.5,-93 138.5,-99 138.5,-105 138.5,-105 138.5,-165 138.5,-165 138.5,-171 132.5,-177 126.5,-177 126.5,-177 50.5,-177 50.5,-177 44.5,-177 38.5,-171 38.5,-165 38.5,-165 38.5,-105 38.5,-105 38.5,-99 44.5,-93 50.5,-93"/>
 </g>
 <!-- ops__tracking_state -->
@@ -810,7 +810,7 @@
 <polygon fill="#f2f6fa" stroke="transparent" points="371,-166 371,-183 401,-183 401,-166 371,-166"/>
 <text text-anchor="start" x="374" y="-172.6" font-family="DejaVu Sans" font-size="8.00" fill="#7f7f7f">text</text>
 <polygon fill="#ffffff" stroke="transparent" points="268,-151 268,-166 401,-166 401,-151 268,-151"/>
-<text text-anchor="start" x="271" y="-157.6" font-family="DejaVu Sans" font-style="italic" font-size="8.00" fill="#7f7f7f">+ 16 more columns</text>
+<text text-anchor="start" x="271" y="-157.6" font-family="DejaVu Sans" font-style="italic" font-size="8.00" fill="#7f7f7f">+ 17 more columns</text>
 <path fill="none" stroke="#404040" d="M278.5,-150C278.5,-150 389.5,-150 389.5,-150 395.5,-150 401.5,-156 401.5,-162 401.5,-162 401.5,-358 401.5,-358 401.5,-364 395.5,-370 389.5,-370 389.5,-370 278.5,-370 278.5,-370 272.5,-370 266.5,-364 266.5,-358 266.5,-358 266.5,-162 266.5,-162 266.5,-156 272.5,-150 278.5,-150"/>
 </g>
 <!-- ops__route_violation&#45;&gt;fleet__vehicle -->

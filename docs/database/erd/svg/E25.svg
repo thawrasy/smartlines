@@ -473,7 +473,7 @@
 <polygon fill="#ffffff" stroke="transparent" points="320.5,-369.5 320.5,-386.5 350.5,-386.5 350.5,-369.5 320.5,-369.5"/>
 <text text-anchor="start" x="323.5" y="-376.1" font-family="DejaVu Sans" font-size="8.00" fill="#7f7f7f">bigint</text>
 <polygon fill="#ffffff" stroke="transparent" points="250.5,-354.5 250.5,-369.5 350.5,-369.5 350.5,-354.5 250.5,-354.5"/>
-<text text-anchor="start" x="253.5" y="-361.1" font-family="DejaVu Sans" font-style="italic" font-size="8.00" fill="#7f7f7f">+ 3 more columns</text>
+<text text-anchor="start" x="253.5" y="-361.1" font-family="DejaVu Sans" font-style="italic" font-size="8.00" fill="#7f7f7f">+ 5 more columns</text>
 <path fill="none" stroke="#404040" d="M261.5,-354C261.5,-354 339.5,-354 339.5,-354 345.5,-354 351.5,-360 351.5,-366 351.5,-366 351.5,-443 351.5,-443 351.5,-449 345.5,-455 339.5,-455 339.5,-455 261.5,-455 261.5,-455 255.5,-455 249.5,-449 249.5,-443 249.5,-443 249.5,-366 249.5,-366 249.5,-360 255.5,-354 261.5,-354"/>
 </g>
 <!-- sec__access_review&#45;&gt;iam__app_user -->
@@ -517,7 +517,7 @@
 <polygon fill="#ffffff" stroke="transparent" points="82.5,-1171.5 82.5,-1188.5 122.5,-1188.5 122.5,-1171.5 82.5,-1171.5"/>
 <text text-anchor="start" x="85.5" y="-1178.1" font-family="DejaVu Sans" font-size="8.00" fill="#7f7f7f">bigint</text>
 <polygon fill="#ffffff" stroke="transparent" points="15.5,-1156.5 15.5,-1171.5 122.5,-1171.5 122.5,-1156.5 15.5,-1156.5"/>
-<text text-anchor="start" x="18.5" y="-1163.1" font-family="DejaVu Sans" font-style="italic" font-size="8.00" fill="#7f7f7f">+ 5 more columns</text>
+<text text-anchor="start" x="18.5" y="-1163.1" font-family="DejaVu Sans" font-style="italic" font-size="8.00" fill="#7f7f7f">+ 14 more columns</text>
 <path fill="none" stroke="#404040" d="M26,-1156C26,-1156 111,-1156 111,-1156 117,-1156 123,-1162 123,-1168 123,-1168 123,-1211 123,-1211 123,-1217 117,-1223 111,-1223 111,-1223 26,-1223 26,-1223 20,-1223 14,-1217 14,-1211 14,-1211 14,-1168 14,-1168 14,-1162 20,-1156 26,-1156"/>
 </g>
 <!-- sec__policy_decision -->
@@ -714,7 +714,7 @@
 <polygon fill="#f2f6fa" stroke="transparent" points="62.5,-1602.5 62.5,-1619.5 123.5,-1619.5 123.5,-1602.5 62.5,-1602.5"/>
 <text text-anchor="start" x="65.5" y="-1609.1" font-family="DejaVu Sans" font-size="8.00" fill="#7f7f7f">timestamptz</text>
 <polygon fill="#ffffff" stroke="transparent" points="13.5,-1587.5 13.5,-1602.5 123.5,-1602.5 123.5,-1587.5 13.5,-1587.5"/>
-<text text-anchor="start" x="16.5" y="-1594.1" font-family="DejaVu Sans" font-style="italic" font-size="8.00" fill="#7f7f7f">+ 10 more columns</text>
+<text text-anchor="start" x="16.5" y="-1594.1" font-family="DejaVu Sans" font-style="italic" font-size="8.00" fill="#7f7f7f">+ 11 more columns</text>
 <path fill="none" stroke="#404040" d="M24.5,-1586.5C24.5,-1586.5 112.5,-1586.5 112.5,-1586.5 118.5,-1586.5 124.5,-1592.5 124.5,-1598.5 124.5,-1598.5 124.5,-1658.5 124.5,-1658.5 124.5,-1664.5 118.5,-1670.5 112.5,-1670.5 112.5,-1670.5 24.5,-1670.5 24.5,-1670.5 18.5,-1670.5 12.5,-1664.5 12.5,-1658.5 12.5,-1658.5 12.5,-1598.5 12.5,-1598.5 12.5,-1592.5 18.5,-1586.5 24.5,-1586.5"/>
 </g>
 <!-- audit__row_change -->
