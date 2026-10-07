@@ -293,6 +293,10 @@ File 1046 answers the third-party technical audit (`docs/database/THIRD_PARTY_AU
 family members are encrypted and a person's contact lives only on their account; every polymorphic reference is
 registered and swept weekly for orphans; and every table of a phase whose switch is off is closed in the database itself
 (`phase_gate`), not only by the application.
+File 1047 closes the remaining audit items: schema changes are logged and security-relevant ones made outside a migration
+raise an alert; every JSONB column has a registered contract or kind, and sold prices are frozen; the lifecycle matrix
+drives purging; and the permission matrix documents every policy. Operations procedures (restore, failover, migrations,
+key rotation, the audit archive with object lock, load testing) are in `docs/operations/RUNBOOKS.md`.
 
 Company isolation (study 16.26, file 1038): `backend/tests/test_isolation.py` signs in as every company under the
 application role and counts the rows of other companies in every table that has a company column. The only rows allowed

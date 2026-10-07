@@ -12,8 +12,9 @@ with a blind index (keyed HMAC-SHA256) in *_bidx columns for exact matching and 
   column fails to decrypt.
 * Rotation: a new key is registered as ACTIVE and the old one moved to DECRYPT_ONLY; rows keep their own key id
   and are re-encrypted by `python -m app.tools.rekey` (the database refuses new data under a non-active key).
-* Outside the sandbox the API refuses to start without MASSLAK_FIELD_KEYS and MASSLAK_BIDX_KEY: there is no fallback
-  to keys derived from another secret (review 3.12).
+* Outside the sandbox the API refuses to start without real keys: there is no fallback to keys derived from another
+  secret (review 3.12). Keys come either from MASSLAK_FIELD_KEYS and MASSLAK_BIDX_KEY, or, with envelope encryption
+  (third-party audit R-10), from sec.key_registry.wrapped_dek opened by the key service (app/kms.py).
 """
 from __future__ import annotations
 
@@ -30,6 +31,7 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.hashes import SHA256
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 
+from . import kms
 from .config import get_settings
 
 log = logging.getLogger("masslak.crypto")
@@ -95,20 +97,31 @@ class FieldCipher:
     @classmethod
     async def load(cls, conn: asyncpg.Connection) -> "FieldCipher":
         rows = await conn.fetch(
-            """SELECT id, key_ref, status FROM sec.key_registry
-                WHERE purpose IN ('FIELD_ENCRYPTION', 'WEBHOOK_SECRET') AND status IN ('ACTIVE', 'DECRYPT_ONLY')""")
+            """SELECT id, key_ref, purpose, status, wrapped_dek, kms_key_id FROM sec.key_registry
+                WHERE purpose IN ('FIELD_ENCRYPTION', 'WEBHOOK_SECRET', 'BLIND_INDEX') AND status IN ('ACTIVE', 'DECRYPT_ONLY')""")
         configured = _configured_field_keys()
-        if not configured and not get_settings().sandbox:
-            raise CryptoConfigError("MASSLAK_FIELD_KEYS must be set outside the sandbox (injected from KMS or Vault)")
-        keys, active = {}, {}
+        wrapper = kms.provider()
+        wrapped = [r for r in rows if r["wrapped_dek"] is not None]
+        if not configured and not (wrapper and wrapped) and not get_settings().sandbox:
+            raise CryptoConfigError("outside the sandbox the data keys come from MASSLAK_FIELD_KEYS or from wrapped keys opened "
+                                    "by the key service (MASSLAK_KMS_PROVIDER)")
+        keys, active, bidx = {}, {}, None
         for r in rows:
-            key = configured.get(r["key_ref"]) or (None if configured else _derive(r["key_ref"]))
+            key = configured.get(r["key_ref"])
+            if key is None and wrapper and r["wrapped_dek"] is not None:
+                key = wrapper.unwrap(bytes(r["wrapped_dek"]), r["key_ref"], r["kms_key_id"])   # envelope (R-10)
+            if key is None and not configured and not wrapped:
+                key = _derive(r["key_ref"])                                                     # sandbox only
             if key is None:
                 continue  # registered but not provided to this process: values under it cannot be read here
+            if r["purpose"] == "BLIND_INDEX":
+                if r["status"] == "ACTIVE" and r["wrapped_dek"] is not None:
+                    bidx = key
+                continue
             keys[r["id"]] = key
             if r["status"] == "ACTIVE":
                 active[r["key_ref"]] = r["id"]
-        return cls(keys, active, _bidx_key())
+        return cls(keys, active, bidx if bidx is not None and not os.environ.get("MASSLAK_BIDX_KEY") else _bidx_key())
 
     def encrypt(self, value: str, column: str, key_ref: str = RESTRICTED_REF) -> Sealed:
         key_id = self._active.get(key_ref)

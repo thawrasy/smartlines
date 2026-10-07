@@ -81,3 +81,48 @@ async def sweep() -> dict:
 def test_no_company_sees_another_companys_rows():
     leaks = asyncio.run(sweep())
     assert leaks == {}, f"rows of other companies visible: {leaks}"
+
+
+async def sweep_writes() -> list:
+    """Signed in as a company, try to hand one of its rows to another company: every write policy (WITH CHECK), tenant
+    guard or key must refuse it (third-party audit R-01 and R-05)."""
+    conn = await asyncpg.connect(OWNER_URL)
+    try:
+        cols = await conn.fetch(
+            """SELECT n.nspname || '.' || c.relname AS t, a.attname AS col FROM pg_attribute a JOIN pg_class c ON c.oid = a.attrelid
+                 JOIN pg_namespace n ON n.oid = c.relnamespace
+                WHERE c.relkind IN ('r','p') AND NOT c.relispartition AND a.attnum > 0 AND NOT a.attisdropped AND a.attgenerated = ''
+                  AND a.attname = ANY($1::text[]) AND n.nspname NOT IN ('audit','pg_catalog','information_schema')""", list(COLUMNS))
+        companies = await conn.fetch(
+            """SELECT DISTINCT ON (c.id) c.id, c.company_type, m.user_id FROM iam.company c JOIN iam.company_member m ON m.company_id = c.id
+                WHERE m.status = 'ACTIVE' AND c.company_type IN ('CARRIER','AGENCY') ORDER BY c.id, m.user_id LIMIT 3""")
+        accepted = []
+        for comp in companies:
+            other = next(c["id"] for c in companies if c["id"] != comp["id"])
+            scope = "AGENCY" if comp["company_type"] == "AGENCY" else "COMPANY"
+            for r in cols:
+                key = f"{r['t']}.{r['col']}"
+                if key in ALLOWED:
+                    continue
+                tr = conn.transaction()
+                await tr.start()
+                try:
+                    await conn.execute("SET LOCAL ROLE masslak_app")
+                    await conn.execute("SELECT sys.set_context($1, $2, $3)", comp["user_id"], comp["id"], scope)
+                    moved = await conn.fetchval(  # nosec B608
+                        f"""WITH one AS (SELECT ctid FROM {r['t']} WHERE {r['col']} = $1 LIMIT 1)
+                            UPDATE {r['t']} t SET {r['col']} = $2 FROM one WHERE t.ctid = one.ctid RETURNING t.{r['col']} = $2""", comp["id"], other)
+                    if moved:
+                        accepted.append((key, comp["id"]))
+                except asyncpg.PostgresError:
+                    pass                                    # refused: policy, guard, key, check or privilege
+                finally:
+                    await tr.rollback()
+        return accepted
+    finally:
+        await conn.close()
+
+
+def test_no_company_can_hand_its_rows_to_another_company():
+    accepted = asyncio.run(sweep_writes())
+    assert accepted == [], f"rows reassigned to another company: {accepted}"

@@ -573,6 +573,10 @@ erDiagram
     text code PK
     bigint updated_by FK
   }
+  sys_json_contract {
+    text table_name PK
+    text column_name PK
+  }
   sys_module_gate {
     text schema_name PK
   }
@@ -5208,6 +5212,9 @@ erDiagram
   audit_data_access_log {
     bigint id PK
     timestamp_with_time_zone ts PK
+  }
+  audit_ddl_event {
+    bigint id PK
   }
   audit_log_seal {
     bigint id PK

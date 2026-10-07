@@ -11,7 +11,7 @@ const {
 const HERE = __dirname;
 const model = JSON.parse(fs.readFileSync(path.join(HERE, "..", "build", "model.json"), "utf8"));
 const PNG = path.join(HERE, "..", "erd", "png");
-const VERSION = "3.8";
+const VERSION = "3.9";
 const DATE = "7 October 2026";
 const FONT = "Arial";
 const C = { navy: "1F3A5F", blue: "2E74B5", blue2: "1F4D78", grid: "B7C3D0", alt: "F2F6FA", grey: "595959" };
@@ -107,22 +107,40 @@ front.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 16
 front.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 1200 },
   children: [run(`Complete relational model of the Analysis and Design Study v2.9: ${tableCount} tables, ${fkCount} relationships`, { color: "7F7F7F" })] }));
 front.push(table(["Item", "Details"], [
-  ["Version", `${VERSION} (hardening after the third-party technical audit; route compliance, school transport and PostGIS; replaces version 3.7)`],
+  ["Version", `${VERSION} (every item of the third-party technical audit addressed; route compliance, school transport and PostGIS; replaces version 3.8)`],
   ["Date", DATE],
   ["Basis", "Analysis and Design Study v2.9 (English), the Use Case and Data Flow Diagrams v1.0, the Database Architecture Review v1.0, the Strategic Database Review and its relationship audit register"],
   ["Scope", `${schemas.length} schemas, ${tableCount} tables, ${colCount} columns, ${fkCount} foreign keys; all phases 1 to 15`],
-  ["Engine", "PostgreSQL 16 with row-level security on every table; PostGIS 3 in schema gis; schema files db/schema/000 to 1046"],
-  ["Status", "Built and verified: fresh build and upgrade identical, 264 database checks and 176 API tests passing, every foreign key indexed or exempt by rule"],
+  ["Engine", "PostgreSQL 16 with row-level security on every table; PostGIS 3 in schema gis; schema files db/schema/000 to 1047"],
+  ["Status", "Built and verified: fresh build and upgrade identical, 278 database checks and 183 API tests passing, every foreign key indexed or exempt by rule"],
   ["Website", "masslak.com"],
 ], [2800, 6946]));
 
 const toc = [H(HeadingLevel.HEADING_1, "Contents", { pageBreak: true })];
-const tocLines = ["Changes in version 3.8", "Changes in version 3.7", "Changes in version 3.6", "Changes in version 3.5", "Changes in version 3.4", "Changes in version 3.3", "Changes in version 3.2", "Changes in version 3.1", "Changes in version 3.0", "1. Introduction", "2. Database architecture", "3. Design rules", "4. Security model in the database",
+const tocLines = ["Changes in version 3.9", "Changes in version 3.8", "Changes in version 3.7", "Changes in version 3.6", "Changes in version 3.5", "Changes in version 3.4", "Changes in version 3.3", "Changes in version 3.2", "Changes in version 3.1", "Changes in version 3.0", "1. Introduction", "2. Database architecture", "3. Design rules", "4. Security model in the database",
   "5. Data stores of the data flow diagrams", "6. Entity-relationship diagrams by module",
   ...model.groups.map((g, i) => `      6.${i + 1} ${g[0]} ${g[1]}`), `      6.${model.groups.length + 1} Focus diagrams: rules that span modules`,
   "7. Table definitions", "8. Traceability to the study", "9. Verification",
   "Appendix A: Feature flags", "Appendix B: Generalizations and naming decisions", "Appendix C: References without a foreign key"];
 for (const l of tocLines) toc.push(P(l, { after: 40, size: 20 }));
+
+// ------------------------------ changes in 3.9 ------------------------------
+const changes39 = [H(HeadingLevel.HEADING_1, "Changes in version 3.9", { pageBreak: true }),
+  P("The remaining items of the third-party technical audit (schema file 1047_audit_operations.sql, migration 1.29.0; the application "
+    + "tools and runbooks are listed in docs/database/THIRD_PARTY_AUDIT.md and docs/operations/RUNBOOKS.md)."),
+  bullet("Every schema change is logged in audit.ddl_event (append-only); a grant, policy, function, trigger or row-level security change made "
+    + "outside a migration raises security.ddl_change through the outbox. The audit logs are exported as chained, checksummed batches for "
+    + "storage with object lock.", "Schema changes (R-09)"),
+  bullet("Every JSONB column is registered with its kind and version (sys.json_contract); rule and shape columns are checked on every write "
+    + "against their contract, and price and terms snapshots are frozen once written.", "JSONB (R-08)"),
+  bullet("gov.v_lifecycle_matrix gives every dataset its retention, erasure method, copies and backup expiry; delivered events, webhook "
+    + "deliveries and old notifications are purged when their retention ends, unless a legal hold stops it.", "Lifecycle (R-11)"),
+  bullet("sys.v_policy_matrix lists every policy by actor scope and command; no private table accepts writes unconditionally.", "Permissions (R-05)"),
+  bullet("A write sweep tried to hand a row of each company to another company in every table with a company column. It found three paths "
+    + "(file owner, typed document reference, session company), now closed: typed reference columns are rebuilt on every update, a file "
+    + "belongs to a company its writer acts for, and a session acts only for a company its user belongs to.", "Isolation (R-01)"),
+  bullet("Data keys can be stored wrapped and opened by a key service at start-up (envelope encryption).", "Keys (R-10)"),
+];
 
 // ------------------------------ changes in 3.8 ------------------------------
 const changes38 = [H(HeadingLevel.HEADING_1, "Changes in version 3.8", { pageBreak: true }),
@@ -659,7 +677,7 @@ const doc = new Document({
   numbering: { config: [{ reference: "bullets", levels: [{ level: 0, format: LevelFormat.BULLET, text: "•", alignment: AlignmentType.LEFT,
     style: { paragraph: { indent: { left: 540, hanging: 270 } } } }] }] },
   sections: [
-    section(PORTRAIT, [...front, ...toc, ...changes38, ...changes37, ...changes36, ...changes35, ...changes34, ...changes33, ...changes32, ...changes31, ...changes, ...intro, ...arch, ...rules, ...security, ...stores]),
+    section(PORTRAIT, [...front, ...toc, ...changes39, ...changes38, ...changes37, ...changes36, ...changes35, ...changes34, ...changes33, ...changes32, ...changes31, ...changes, ...intro, ...arch, ...rules, ...security, ...stores]),
     ...erdSections,
     section(PORTRAIT, [...defs, ...trace, ...verify, ...flags, ...gens, ...appC]),
   ],

@@ -50,7 +50,7 @@ GROUPS = [
      ["ref.country", "ref.currency", "ref.exchange_rate", "ref.city", "ref.locale", "ref.translation", "ref.file_object",
       "ref.trip_type", "ref.vehicle_class", "ref.station_subtype", "ref.cargo_category", "sys.setting", "sys.company_setting", "sys.table_class", "sys.module_gate", "sys.project_phase", "sys.table_phase", "ref.seed_version",
       "sys.outbox_event", "sys.webhook_endpoint", "sys.webhook_delivery", "sys.schema_migration", "sys.schema_file",
-      "sys.compliance_requirement", "gis.spatial_ref_sys", "sys.polymorphic_reference", "sys.orphan_check"]),
+      "sys.compliance_requirement", "gis.spatial_ref_sys", "sys.polymorphic_reference", "sys.orphan_check", "sys.json_contract"]),
     ("E04", "Stations, routes, carrier codes and corridors", "4.4, 4.11, 4.16, D.1", "asset",
      "The station register with compliance profiles, gates and displays; carrier routes and their stops; carrier codes and "
      "service numbers; transit corridors, approved rest stops and geofences.",
@@ -174,7 +174,7 @@ GROUPS = [
      "break-glass log, document signatures and tamper events; and the append-only audit logs with their seals.",
      ["sec.ip_rule", "sec.risk_assessment", "sec.fraud_case", "sec.blocklist_entry", "sec.security_event", "sec.key_registry",
       "sec.access_review", "sec.break_glass_log", "sec.policy_decision", "sec.document_signature", "sec.tamper_event", "audit.auth_event",
-      "audit.activity_log", "audit.data_access_log", "audit.row_change", "audit.log_seal"]),
+      "audit.activity_log", "audit.data_access_log", "audit.row_change", "audit.log_seal", "audit.ddl_event"]),
     ("E26", "Governance and data protection", "2.5, 16.13-16.15", "security",
      "The policy authority matrix with its changes, the obligation register, the data inventory, consents, subject requests, "
      "privacy incidents, partner data processing agreements and feature compliance reviews.",
@@ -300,7 +300,7 @@ DATA_STORES = [
     ("D13", "Partners and loyalty", ["E27", "E15"], []),
     ("D14", "Invoices and journal", ["E19", "E20", "E21"], []),
     ("D15", "Cases and notifications", ["E22", "E23"], []),
-    ("D16", "Audit logs", [], ["audit.auth_event", "audit.activity_log", "audit.data_access_log", "audit.row_change", "audit.log_seal"]),
+    ("D16", "Audit logs", [], ["audit.auth_event", "audit.activity_log", "audit.data_access_log", "audit.row_change", "audit.log_seal", "audit.ddl_event"]),
     ("D17", "Channels and agencies", ["E12"], []),
 ]
 

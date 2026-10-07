@@ -2,7 +2,7 @@
 
 > Generated from the built database (`db/tools/gen_docs.py`); do not edit by hand.
 
-**468 tables, 4802 columns, in 26 schemas.**
+**470 tables, 4823 columns, in 26 schemas.**
 
 Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant isolation (RLS) · 🧩 partitioned monthly · 🔒 append-only / change-protected
 
@@ -10,7 +10,7 @@ Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant i
 
 - [`iam` — Identity, parties, users, permissions and API clients](#iam) (32 tables)
 - [`ref` — Reference data, locales and files](#ref) (13 tables)
-- [`sys` — Settings, outbox and webhooks](#sys) (15 tables)
+- [`sys` — Settings, outbox and webhooks](#sys) (16 tables)
 - [`net` — Network: stations, routes, lines, corridors and geofences](#net) (22 tables)
 - [`fleet` — Fleet: vehicles, trucks, trailers, seats, crew, licenses and insurance](#fleet) (22 tables)
 - [`pricing` — Pricing, taxes, commissions, campaigns and loyalty](#pricing) (35 tables)
@@ -33,7 +33,7 @@ Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant i
 - [`taxi` — Taxis](#taxi) (7 tables)
 - [`rent` — Car rental](#rent) (15 tables)
 - [`rpt` — Report definitions, runs and schedules](#rpt) (3 tables)
-- [`audit` — Login and activity logs (append-only)](#audit) (5 tables)
+- [`audit` — Login and activity logs (append-only)](#audit) (6 tables)
 
 <a id="iam"></a>
 ## `iam` — Identity, parties, users, permissions and API clients
@@ -874,6 +874,19 @@ Licences, tracking and reporting duties a regulator may impose, each switched OF
 | `description` | `text` | ✱ |  |
 | `updated_at` | `timestamp with time zone` | ✱ | `now()` |
 | `updated_by` | `bigint` | 🔗 `iam.app_user`  |  |
+
+### `sys.json_contract` 🛡️
+
+Every JSONB column with its kind and contract version; RULES and SHAPE columns are validated on write, SNAPSHOT columns are frozen once written (third-party audit R-08)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `table_name` | `text` | 🔑 ✱ |  |
+| `column_name` | `text` | 🔑 ✱ |  |
+| `kind` | `text` | ✱ |  |
+| `version` | `integer` | ✱ | `1` |
+| `spec` | `jsonb` |  |  |
+| `note` | `text` |  |  |
 
 ### `sys.module_gate` 🛡️
 
@@ -5046,6 +5059,9 @@ Data inventory with classification, purpose and retention (drives automatic dele
 | `retention_days` | `integer` |  |  |
 | `location` | `text` | ✱ | `'PRIMARY_DC'::text` |
 | `processors` | `text[]` | ✱ | `'{}'::text[]` |
+| `erasure_method` | `text` |  |  |
+| `copies` | `text[]` | ✱ | `'{}'::text[]` |
+| `backup_retention_days` | `integer` |  |  |
 
 ### `gov.data_purpose` 🛡️
 
@@ -8151,6 +8167,25 @@ Every reveal of a sensitive field (passport, ID, IBAN) with its reason
 | `purpose` | `text` | ✱ |  |
 | `request_id` | `uuid` |  |  |
 | `row_hash` | `bytea` |  |  |
+
+### `audit.ddl_event` 🛡️ 🔒
+
+Every schema change (DDL, grants, policies); security-relevant changes outside a migration raise an alert (third-party audit R-09)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `occurred_at` | `timestamp with time zone` | ✱ | `now()` |
+| `command_tag` | `text` | ✱ |  |
+| `object_type` | `text` |  |  |
+| `object_identity` | `text` |  |  |
+| `in_migration` | `boolean` | ✱ |  |
+| `security_relevant` | `boolean` | ✱ |  |
+| `session_user_name` | `text` | ✱ |  |
+| `current_user_name` | `text` | ✱ |  |
+| `client_addr` | `inet` |  |  |
+| `application_name` | `text` |  |  |
+| `statement` | `text` |  |  |
 
 ### `audit.log_seal` 🛡️ 🔒
 

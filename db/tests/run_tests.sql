@@ -1030,7 +1030,7 @@ SELECT id, tstzrange(now() - interval '1 hour', now() + interval '1 day'), '{"ty
   FROM net.line WHERE code = 'DAM-T1';
 SELECT pg_temp.ok((SELECT NOT off_route FROM ops.route_distance_m((SELECT id FROM ops.trip WHERE trip_no = 'T1-0001'), 33.60, 36.30)),
   'PostGIS: a trip following the regulator''s active diversion is not off route');
-SELECT pg_temp.expect_error($$INSERT INTO net.line_version (line_id, version, geometry, distance_km, typical_min, status) SELECT id, 2, '{"type":"Point","coordinates":[36.29,33.51]}', 6.5, 25, 'APPROVED' FROM net.line WHERE code = 'DAM-T1'$$,
+SELECT pg_temp.expect_error($$INSERT INTO net.line_version (line_id, version, geometry, distance_km, typical_min, status) SELECT id, 2, '{"type":"LineString","coordinates":[[36.29,33.51]]}', 6.5, 25, 'APPROVED' FROM net.line WHERE code = 'DAM-T1'$$,
   'ROUTE_SHAPE_INVALID', 'PostGIS: a line version is approved only with a valid route line');
 SELECT pg_temp.ok(EXISTS (SELECT 1 FROM net.stations_near(33.5138, 36.2765, 5000)), 'PostGIS: stations near a point are found by spatial index');
 ROLLBACK;
@@ -1200,6 +1200,71 @@ SELECT pg_temp.ok((SELECT ordinal FROM sys.project_phase WHERE code = 'SCH') > (
   AND (SELECT ordinal FROM sys.project_phase WHERE code = 'SCH') < (SELECT max(ordinal) FROM sys.project_phase)
   AND (SELECT phase_code FROM sys.table_phase WHERE table_name = 'ops.violation_report') = '5',
   'Phases: school transport comes before the last phase; reporting to authorities waits for government integration');
+SET ROLE masslak_app;
+
+-- Audit operations (1047): schema change log, JSONB contracts, frozen snapshots, lifecycle and the permission matrix
+RESET ROLE;
+SELECT pg_temp.ok((SELECT count(*) FROM audit.ddl_event WHERE in_migration) > 0 AND (SELECT value FROM sys.setting WHERE key = 'security.ddl_audit') = 'true',
+  'Audit R-09: schema changes made by migrations are logged as such');
+BEGIN;
+CREATE POLICY probe_policy ON net.station FOR SELECT TO masslak_readonly USING (false);
+DROP POLICY probe_policy ON net.station;
+SELECT pg_temp.ok((SELECT count(*) FROM audit.ddl_event WHERE NOT in_migration AND security_relevant AND command_tag IN ('CREATE POLICY','DROP POLICY')) >= 2
+  AND EXISTS (SELECT 1 FROM sys.outbox_event WHERE event_type = 'security.ddl_change'),
+  'Audit R-09: a policy change outside a migration is logged and raises an alert');
+SELECT pg_temp.expect_error($$UPDATE audit.ddl_event SET command_tag = 'X'$$, 'IMMUTABLE_RECORD', 'Audit R-09: the schema change log cannot be edited');
+ROLLBACK;
+SELECT pg_temp.ok(NOT EXISTS (SELECT 1 FROM sys.v_jsonb_inventory i WHERE NOT EXISTS (
+                    SELECT 1 FROM sys.json_contract c WHERE c.table_name = i.table_name AND c.column_name = i.column_name))
+  AND NOT EXISTS (SELECT 1 FROM sys.json_contract_violations()),
+  'Audit R-08: every JSONB column has a registered kind and version, and stored values meet their contracts');
+BEGIN;
+SELECT pg_temp.expect_error($$UPDATE pricing.fare_brand SET rules = rules || '{"change_fee_pct": 150}' WHERE code = 'STANDARD'$$,
+  'JSON_CONTRACT_VIOLATION', 'Audit R-08: a fare rule outside its contract is refused');
+SELECT pg_temp.expect_error($$INSERT INTO net.line (code, name, kind, fare_regime) VALUES ('JSON-T1', 'Json test', 'INTERCITY', 'FREE');
+  INSERT INTO net.line_version (line_id, version, geometry, distance_km, typical_min) SELECT id, 1, '{"type":"Point","coordinates":[36.2,33.5]}', 1, 1 FROM net.line WHERE code = 'JSON-T1'$$,
+  'JSON_CONTRACT_VIOLATION', 'Audit R-08: a route shape that is not a line is refused even as a draft');
+INSERT INTO sales.booking (booking_ref, trip_id, company_id, booker_party_id, channel_id, currency, total_amount, price_breakdown, rules_version, idempotency_key, status)
+SELECT 'SNAP01', t.id, :ca, :pax, (SELECT id FROM sales.channel WHERE code='WEB'), 'SYP', 3500000, '{"total": 3500000}', 'r1', 'snap-1', 'PENDING_PAYMENT'
+  FROM ops.trip t WHERE trip_no = 'QDS214/03OCT26';
+SELECT pg_temp.expect_error($$UPDATE sales.booking SET price_breakdown = '{"total": 1}' WHERE booking_ref = 'SNAP01'$$,
+  'SNAPSHOT_FROZEN', 'Audit R-08: the price of a sold booking cannot change');
+ROLLBACK;
+BEGIN;
+INSERT INTO sys.outbox_event (event_type, aggregate_type, aggregate_id, payload, status, published_at)
+VALUES ('probe.old', 'probe', 1, '{}', 'PUBLISHED', now() - interval '400 days'), ('probe.new', 'probe', 2, '{}', 'PUBLISHED', now());
+SELECT sys.purge_expired() ->> 'outbox_events' AS purged \gset
+SELECT pg_temp.ok(:purged >= 1 AND NOT EXISTS (SELECT 1 FROM sys.outbox_event WHERE event_type = 'probe.old')
+  AND EXISTS (SELECT 1 FROM sys.outbox_event WHERE event_type = 'probe.new'),
+  'Audit R-11: delivered events are purged when their retention ends, recent ones stay');
+INSERT INTO gov.legal_hold (scope_type, dataset, reason, case_ref, placed_by) VALUES ('DATASET', 'sys.outbox_event', 'Hold probe', 'TEST-2', :uadmin);
+INSERT INTO sys.outbox_event (event_type, aggregate_type, aggregate_id, payload, status, published_at)
+VALUES ('probe.held', 'probe', 3, '{}', 'PUBLISHED', now() - interval '400 days');
+SELECT sys.purge_expired() ->> 'outbox_events' AS purged \gset
+SELECT pg_temp.ok(:purged = 0 AND EXISTS (SELECT 1 FROM sys.outbox_event WHERE event_type = 'probe.held'),
+  'Audit R-11: a legal hold on the dataset stops the purge');
+ROLLBACK;
+SELECT pg_temp.ok(NOT EXISTS (SELECT 1 FROM gov.v_lifecycle_matrix WHERE erasure_method IS NULL OR retention_days IS NULL)
+  AND (SELECT count(*) FROM gov.v_lifecycle_matrix) >= 17,
+  'Audit R-11: every inventoried dataset has a retention, an erasure method and its copies');
+SELECT pg_temp.ok((SELECT count(*) FROM sys.v_policy_matrix) = (SELECT count(*) FROM pg_policies)
+  AND NOT EXISTS (SELECT 1 FROM sys.v_policy_matrix WHERE data_class IN ('TENANT_PRIVATE','USER_PRIVATE') AND permissive = 'PERMISSIVE'
+                    AND command IN ('ALL','INSERT','UPDATE') AND coalesce(check_expr, '') ~ '^\s*true\s*$'
+                    -- by design: any transaction writes its own events to the outbox; reading them stays restricted
+                    AND (table_name, policyname) NOT IN (('sys.outbox_event', 'outbox_insert'))),
+  'Audit R-05: the permission matrix covers every policy, and no private table accepts writes unconditionally');
+SET ROLE masslak_app;
+
+-- Write sweep findings (1047): sessions, files and typed references
+RESET ROLE;
+BEGIN;
+SELECT pg_temp.expect_error(format($$INSERT INTO iam.user_session (user_id, company_id, portal, token_hash, ip, expires_at) VALUES (%s, %s, 'OPERATOR', '\x00', '127.0.0.1', now() + interval '1 hour')$$, :ua, :cb),
+  'SESSION_COMPANY_NOT_MEMBER', 'Audit R-01: a session cannot act for a company its user does not belong to');
+SELECT pg_temp.ok(pg_get_triggerdef((SELECT oid FROM pg_trigger WHERE tgname = 'owner_typed_ref' AND tgrelid = 'iam.document'::regclass)) !~ 'UPDATE OF',
+  'Audit R-01: typed reference columns are rebuilt on every update, so writing one directly is undone');
+SELECT pg_temp.ok((SELECT with_check FROM pg_policies WHERE schemaname = 'ref' AND tablename = 'file_object' AND policyname = 'file_object_isolation')
+                  ~ 'company_id IS NULL', 'Audit R-01: an uploader cannot give a file to a company they do not act for');
+ROLLBACK;
 SET ROLE masslak_app;
 
 \echo '=== ALL TESTS PASSED ==='

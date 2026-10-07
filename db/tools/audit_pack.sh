@@ -28,6 +28,11 @@ csv phase_map "SELECT tp.table_name, tp.phase_code, pp.feature_keys::text AS swi
 csv compliance_requirements "SELECT code, domain, applies_to, subject_type, license_type, level, required_from, authority FROM sys.compliance_requirement ORDER BY 1" "$@"
 csv jsonb_inventory "SELECT * FROM sys.v_jsonb_inventory ORDER BY 1, 2" "$@"
 csv tables_without_primary_key "SELECT n.nspname || '.' || c.relname AS table_name FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE c.relkind IN ('r','p') AND NOT c.relispartition AND n.nspname NOT IN ('pg_catalog','information_schema') AND NOT EXISTS (SELECT 1 FROM pg_index i WHERE i.indrelid = c.oid AND i.indisprimary)" "$@"
+csv policy_matrix "SELECT * FROM sys.v_policy_matrix ORDER BY 1, 5" "$@"
+csv json_contracts "SELECT table_name, column_name, kind, version, spec::text, note FROM sys.json_contract ORDER BY 1, 2" "$@"
+csv json_contract_violations "SELECT * FROM sys.json_contract_violations()" "$@"
+csv lifecycle_matrix "SELECT * FROM gov.v_lifecycle_matrix ORDER BY 1" "$@"
+csv ddl_changes_outside_migrations "SELECT occurred_at, command_tag, object_identity, session_user_name FROM audit.ddl_event WHERE NOT in_migration ORDER BY id" "$@"
 csv extensions "SELECT extname, extversion, n.nspname AS schema FROM pg_extension e JOIN pg_namespace n ON n.oid = e.extnamespace ORDER BY 1" "$@"
 q "$@" -c "SELECT version()" > "$OUT/server_version.txt"
 

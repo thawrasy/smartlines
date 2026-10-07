@@ -195,7 +195,7 @@
 <polygon fill="#ffffff" stroke="transparent" points="117,-624 117,-641 142,-641 142,-624 117,-624"/>
 <text text-anchor="start" x="120" y="-630.6" font-family="DejaVu Sans" font-size="8.00" fill="#7f7f7f">text</text>
 <polygon fill="#ffffff" stroke="transparent" points="39,-609 39,-624 142,-624 142,-609 39,-609"/>
-<text text-anchor="start" x="42" y="-615.6" font-family="DejaVu Sans" font-style="italic" font-size="8.00" fill="#7f7f7f">+ 7 more columns</text>
+<text text-anchor="start" x="42" y="-615.6" font-family="DejaVu Sans" font-style="italic" font-size="8.00" fill="#7f7f7f">+ 10 more columns</text>
 <path fill="none" stroke="#404040" d="M49.5,-608.5C49.5,-608.5 130.5,-608.5 130.5,-608.5 136.5,-608.5 142.5,-614.5 142.5,-620.5 142.5,-620.5 142.5,-663.5 142.5,-663.5 142.5,-669.5 136.5,-675.5 130.5,-675.5 130.5,-675.5 49.5,-675.5 49.5,-675.5 43.5,-675.5 37.5,-669.5 37.5,-663.5 37.5,-663.5 37.5,-620.5 37.5,-620.5 37.5,-614.5 43.5,-608.5 49.5,-608.5"/>
 </g>
 <!-- gov__consent -->
