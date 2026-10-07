@@ -1,0 +1,135 @@
+# Staging overlay (owner decision, 8 October 2026; docs/operations/STAGING.md). Run by the external firm that operates
+# staging, on production-like hardware, with production-size synthetic data (db/tools/generate_volume.py):
+#   docker compose -f docker-compose.yml -f deploy/staging/docker-compose.staging.yml --env-file deploy/.env up -d --build
+# On top of the production stack it adds what the launch gates are measured with:
+#   * the database with WAL archiving through pgBackRest (RPO 60 s) and a streaming standby;
+#   * ClamAV for the file scanner (fail-closed);
+#   * Prometheus with the alert rules, Alertmanager, and Grafana with the operations dashboard.
+# Paths are relative to the repository root (the directory of the first compose file).
+
+services:
+  db:
+    build: deploy/staging/db
+    image: masslak-staging-db:latest
+    command:
+      - postgres
+      - -c
+      - wal_level=replica
+      - -c
+      - archive_mode=on
+      - -c
+      - archive_command=pgbackrest --stanza=masslak archive-push %p
+      - -c
+      - archive_timeout=60
+      - -c
+      - max_wal_senders=10
+      - -c
+      - max_replication_slots=10
+      - -c
+      - wal_keep_size=1GB
+      - -c
+      - wal_compression=on
+      - -c
+      - shared_preload_libraries=pg_stat_statements
+      - -c
+      - track_io_timing=on
+      - -c
+      - log_lock_waits=on
+      - -c
+      - log_min_duration_statement=500ms
+    environment:
+      MASSLAK_REPLICATION_PASSWORD: ${MASSLAK_REPLICATION_PASSWORD:?set MASSLAK_REPLICATION_PASSWORD in deploy/.env}
+      PGBACKREST_REPO1_CIPHER_PASS: ${PGBACKREST_REPO1_CIPHER_PASS:?set PGBACKREST_REPO1_CIPHER_PASS in deploy/.env}
+    volumes:
+      - pgbackrest_repo:/var/lib/pgbackrest
+
+  # Hot standby streaming from db (replica lag is a monitored SLI; failover drill: RUNBOOKS section 2)
+  db-standby:
+    image: masslak-staging-db:latest
+    restart: unless-stopped
+    user: postgres
+    entrypoint: ["/usr/local/bin/masslak-standby"]
+    environment:
+      PGDATA: /var/lib/postgresql/data
+      MASSLAK_REPLICATION_PASSWORD: ${MASSLAK_REPLICATION_PASSWORD:?set MASSLAK_REPLICATION_PASSWORD in deploy/.env}
+    volumes:
+      - pgdata_standby:/var/lib/postgresql/data
+    depends_on:
+      db: { condition: service_healthy }
+    networks: [internal]
+
+  app:
+    environment:
+      MASSLAK_CLAMD: clamav:3310
+      MASSLAK_METRICS_TOKEN: ${MASSLAK_METRICS_TOKEN:?set MASSLAK_METRICS_TOKEN in deploy/.env}
+    depends_on:
+      clamav: { condition: service_healthy }
+
+  worker:
+    environment:
+      MASSLAK_CLAMD: clamav:3310
+
+  # Virus scanning for uploads (audit T3-15). It needs the internet only for signature updates (freshclam).
+  clamav:
+    image: clamav/clamav:1.4
+    restart: unless-stopped
+    volumes:
+      - clamav_db:/var/lib/clamav
+    healthcheck:
+      test: ["CMD", "clamdcheck.sh"]
+      interval: 30s
+      timeout: 10s
+      retries: 20
+      start_period: 300s
+    networks: [internal, edge]
+
+  prometheus:
+    image: prom/prometheus:v2.53.2
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=30d
+    volumes:
+      - ./deploy/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./deploy/monitoring/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - ./deploy/staging/secrets/metrics_token:/etc/prometheus/metrics_token:ro
+      - prometheus_data:/prometheus
+    networks: [internal, monitoring]
+
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    restart: unless-stopped
+    command: ["--config.file=/etc/alertmanager/alertmanager.yml", "--storage.path=/alertmanager"]
+    volumes:
+      - ./deploy/staging/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - ./deploy/staging/secrets:/etc/alertmanager/secrets:ro
+      - alertmanager_data:/alertmanager
+    networks: [monitoring]
+
+  grafana:
+    image: grafana/grafana:11.2.2
+    restart: unless-stopped
+    # reach it through an SSH tunnel; never published on a public address
+    ports: ["127.0.0.1:3000:3000"]
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD__FILE: /run/secrets/grafana_admin_password
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+    volumes:
+      - ./deploy/staging/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./deploy/monitoring/grafana-dashboard.json:/var/lib/grafana/dashboards/masslak.json:ro
+      - ./deploy/staging/secrets/grafana_admin_password:/run/secrets/grafana_admin_password:ro
+      - grafana_data:/var/lib/grafana
+    networks: [monitoring]
+
+networks:
+  # Prometheus, Alertmanager and Grafana; Alertmanager sends notifications from here
+  monitoring: {}
+
+volumes:
+  pgbackrest_repo:
+  pgdata_standby:
+  clamav_db:
+  prometheus_data:
+  alertmanager_data:
+  grafana_data:

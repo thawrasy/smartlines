@@ -225,6 +225,16 @@ def main():
               and latest["schema_matches_source"]
               and all(v for k, v in pitr["checks"].items() if k != "audit_seals_checked")
               and all(v for k, v in latest["checks"].items() if k != "audit_seals_checked"))
+        # compare with the approved targets (settings recovery.rpo_seconds and recovery.rto_minutes, file 1050)
+        targets = {}
+        for key in ("recovery.rpo_seconds", "recovery.rto_minutes"):
+            v = run(["psql", *conn, "-d", db, "-At", "-c", f"SELECT value FROM sys.setting WHERE key = '{key}'"]).strip()
+            targets[key] = float(v) if v else None
+        report["targets"] = targets
+        report["within_targets"] = {
+            "rpo": targets["recovery.rpo_seconds"] is None or latest["rpo_measured_s"] <= targets["recovery.rpo_seconds"],
+            "rto": targets["recovery.rto_minutes"] is None or latest["rto_measured_s"] <= targets["recovery.rto_minutes"] * 60}
+        ok = ok and all(report["within_targets"].values())
         report["result"] = "PASS" if ok else "FAIL"
     finally:
         for k in ("src", "pitr", "latest"):

@@ -49,9 +49,19 @@ We agree with the verdict.
 
 ## What only operations can close (launch gates)
 
+**Since this response (8 October 2026):**
+- **Owner decisions:**
+  - RPO 60 s, RTO 30 min and the SLOs are approved, and stored as settings (`1050_owner_decisions.sql`).
+  - Staging and the penetration test are run by external firms or independent testers.
+  - Reviewers get time-bound access through the permission matrix only (`sec.external_access_grant`).
+- **Go/no-go:** the nine gates of the auditors' follow-up report, section 6, are tracked in
+  `docs/operations/LAUNCH_GATES.md`, each with its measurement, evidence and approver.
+- **Staging kit:** `deploy/staging` and `docs/operations/STAGING.md`.
+- **Penetration test scope:** `docs/security/PENETRATION_TEST_SCOPE.md`.
+
 | Gate | What is ready in the repository | What remains |
 |---|---|---|
-| Recovery (T3-01) | Drill tool, WAL and pgBackRest configuration, proposed RPO and RTO | Owner approves RPO and RTO; timed drill from pgBackRest on production-size data |
+| Recovery (T3-01) | Drill tool, WAL and pgBackRest configuration, proposed RPO and RTO | Owner approved RPO and RTO (8 Oct 2026); timed drill from pgBackRest on production-size data |
 | Egress (T3-02) | Proxy, configuration, self-test, CI check | Run the stack's proxy in production with the providers' domains in the allowlist |
 | Capacity (T3-09) | Full-mix load test with database counters | Staging with production-size data, at 1x, 2x and 5x the peak |
 | Migrations (T3-08) | Rehearsal tool, criteria, plans | Rehearsal on a copy of production for each release |

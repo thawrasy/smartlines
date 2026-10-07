@@ -1,0 +1,23 @@
+{
+  "what": "Staging overlay (deploy/staging) brought up with Docker on the development host and checked; then removed",
+  "date": "2026-10-07",
+  "limits": [
+    "pgBackRest itself could not be installed in this sandbox (the Alpine package mirror is blocked); a stand-in that copies each WAL segment into the repository volume took its place. The real archive-push, backup and restore run on staging",
+    "The API was not part of this check (its image is built and tested in CI); the scrape target was therefore down and Prometheus reported it"
+  ],
+  "checks": {
+    "compose_config": "docker compose -f docker-compose.yml -f deploy/staging/docker-compose.staging.yml config: valid",
+    "primary_init_scripts": "replication role and pg_hba rule created; stanza-create ran",
+    "standby": "pg_basebackup with a replication slot; pg_stat_replication: walreceiver streaming async; a row written on the primary was read on the standby (pg_is_in_recovery = true)",
+    "wal_archiving": "pg_stat_archiver: 6 archived, 0 failed after pg_switch_wal",
+    "prometheus": "promtool check config: SUCCESS, 24 rules found; /api/v1/rules: 24 rules loaded; Alertmanager active at alertmanager:9093",
+    "alertmanager": "amtool check-config: SUCCESS (route, 1 inhibit rule, 2 receivers)",
+    "grafana": "datasource Prometheus provisioned; dashboard 'Masslak operations' (uid masslak-ops) provisioned",
+    "clamav": "clamav/clamav:1.4 healthy; backend scanner.clamav(): clean bytes -> no finding, EICAR -> Eicar-Test-Signature"
+  },
+  "volume_generator": {
+    "command": "db/tools/generate_volume.py <copy of the seeded database> --months 2 --bookings-per-day 500 --vehicles 30 --position-seconds 30",
+    "result": {"bookings": 30034, "tickets": 30043, "ledger_txns": 45949, "positions": 403204, "database": "232 MB",
+               "wallet_mismatches": 0, "unbalanced_txns": 0, "unpaid_bookings": 0, "orphans": 0, "seconds": 15}
+  }
+}

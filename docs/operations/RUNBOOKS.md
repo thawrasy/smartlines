@@ -33,7 +33,7 @@ section.
 
 ## 2. Backup and point-in-time restore (RPO and RTO)
 
-- **Targets:** see the proposed RPO and RTO below; they become binding once the owner approves them.
+- **Targets:** RPO 60 seconds and RTO 30 minutes, approved by the owner (below).
 - **Configuration:** `deploy/pitr/postgresql.pitr.conf` (WAL archiving every 60 s at most, streaming standby) and
   `deploy/pitr/pgbackrest.conf` (encrypted repository in a separate account, schedule, restore command).
 - **Backups:**
@@ -49,7 +49,7 @@ section.
   2. Run `SELECT sys.run_maintenance()`.
   3. Run `python -m app.tools.keys check`, to prove the key service still opens every data key.
   4. Run the reconciliation checks from section 1.5.
-- **Targets proposed for the owner's approval (T3-01):**
+- **Targets approved by the owner on 8 October 2026 (T3-01; settings `recovery.rpo_seconds` and `recovery.rto_minutes`):**
   - **RPO:** 60 seconds when the server is lost. WAL is archived at least every `archive_timeout = 60` s; pgBackRest
     archives asynchronously. With the streaming standby, a failover loses only what the standby had not received,
     normally under a second.

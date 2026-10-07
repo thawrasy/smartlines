@@ -119,3 +119,25 @@ def test_resending_a_cancellation_waits_for_a_platform_approval():
     r = admin.post(f"/api/admin/delivery-retries/{req['uid']}/decision", json={"approve": True, "note": "Partner lost the event"})
     assert r.status_code == 200 and r.json()["status"] == "APPROVED"
     assert owner_sql("SELECT status FROM sys.webhook_delivery WHERE delivery_uid = $1::uuid", duid) == "PENDING"
+
+
+# ------------------------------------------------------------------ owner decision: time-bound external reviewers
+@pytest.mark.skipif(not os.environ.get("MASSLAK_OWNER_URL"), reason="needs MASSLAK_OWNER_URL")
+def test_external_reviewer_access_is_granted_by_a_second_person_and_ends():
+    admin = login("admin@masslak.test", "PLATFORM")
+    body = {"email": "regulator@masslak.test", "organisation": "Independent test lab", "purpose": "Penetration test of the API and portals",
+            "engagement_ref": "PT-2026-01"}
+    r = admin.post("/api/admin/external-access", json={**body, "days": 45})
+    assert r.status_code == 409 and r.json()["error"]["code"] == "EXTERNAL_ACCESS_TOO_LONG"
+    r = admin.post("/api/admin/external-access", json={**body, "days": 14})
+    assert r.status_code == 201, r.text
+    uid = r.json()["uid"]
+    assert owner_sql("""SELECT ur.valid_to IS NOT NULL AND ur.valid_to < now() + interval '15 days' FROM iam.user_role ur
+                         JOIN iam.role r ON r.id = ur.role_id JOIN iam.app_user u ON u.id = ur.user_id
+                        WHERE r.code = 'EXTERNAL_AUDITOR' AND u.email = 'regulator@masslak.test'""")
+    listed = next(g for g in admin.get("/api/admin/external-access").json()["grants"] if g["uid"] == uid)
+    assert listed["active"] and listed["granted_by"] == "admin@masslak.test"
+    assert login("owner@carrier.test", "OPERATOR").get("/api/admin/external-access").status_code == 403
+    assert admin.post(f"/api/admin/external-access/{uid}/revoke").json()["revoked"] is True
+    assert owner_sql("""SELECT ur.valid_to <= now() FROM iam.user_role ur JOIN iam.role r ON r.id = ur.role_id
+                         JOIN iam.app_user u ON u.id = ur.user_id WHERE r.code = 'EXTERNAL_AUDITOR' AND u.email = 'regulator@masslak.test'""")

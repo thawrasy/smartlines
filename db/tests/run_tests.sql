@@ -1481,4 +1481,36 @@ SELECT pg_temp.ok(EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'sys.deli
 ROLLBACK;
 SET ROLE masslak_app;
 
+-- =====================================================================
+-- Owner decisions (1050)
+-- =====================================================================
+RESET ROLE;
+BEGIN;
+SELECT pg_temp.ok((SELECT value::int FROM sys.setting WHERE key = 'recovery.rpo_seconds') = 60
+  AND (SELECT value::int FROM sys.setting WHERE key = 'recovery.rto_minutes') = 30
+  AND (SELECT (value ->> 'booking_payment_availability')::numeric FROM sys.setting WHERE key = 'slo.objectives') = 0.999,
+  'Owner decision: the approved RPO, RTO and SLOs are settings the tools compare against');
+SELECT pg_temp.expect_error(format($$INSERT INTO iam.user_role (user_id, role_id, granted_by) SELECT %s, id, %s FROM iam.role WHERE code = 'EXTERNAL_AUDITOR'$$, :ufin, :uadmin),
+  'EXTERNAL_ACCESS_GRANT_REQUIRED', 'Owner decision: the external auditor role cannot be given outside a time-bound grant');
+SELECT pg_temp.expect_error(format($$INSERT INTO sec.external_access_grant (user_id, granted_by, organisation, purpose, engagement_ref, expires_at) VALUES (%s, %s, 'Lab', 'Penetration test of the API', 'PT-1', now() + interval '60 days')$$, :ufin, :uadmin),
+  'EXTERNAL_ACCESS_TOO_LONG', 'Owner decision: external access cannot outlast its maximum');
+SELECT pg_temp.expect_error(format($$INSERT INTO sec.external_access_grant (user_id, granted_by, organisation, purpose, engagement_ref, expires_at) VALUES (%s, %s, 'Lab', 'Penetration test of the API', 'PT-1', now() + interval '10 days')$$, :ufin, :ufin),
+  'external_access_grant_check', 'Owner decision: nobody grants external access to themselves');
+INSERT INTO sec.external_access_grant (user_id, granted_by, organisation, purpose, engagement_ref, expires_at)
+VALUES (:ufin, :uadmin, 'Lab', 'Penetration test of the API', 'PT-1', now() + interval '10 days');
+SELECT max(id) AS eg FROM sec.external_access_grant \gset
+SELECT pg_temp.ok(EXISTS (SELECT 1 FROM iam.user_role ur JOIN iam.role r ON r.id = ur.role_id WHERE ur.user_id = :ufin AND r.code = 'EXTERNAL_AUDITOR'
+                            AND ur.valid_to BETWEEN now() + interval '9 days' AND now() + interval '11 days')
+  AND EXISTS (SELECT 1 FROM sys.outbox_event WHERE event_type = 'security.external_access_granted' AND aggregate_id = :eg)
+  AND NOT EXISTS (SELECT 1 FROM iam.role_permission rp JOIN iam.role r ON r.id = rp.role_id WHERE r.code = 'EXTERNAL_AUDITOR'
+                    AND rp.permission_code NOT IN ('audit.view', 'policy.matrix')),
+  'Owner decision: a grant gives the read-only role until its end date and is announced');
+SELECT pg_temp.expect_error(format($$UPDATE sec.external_access_grant SET expires_at = expires_at + interval '1 day' WHERE id = %s$$, :eg),
+  'EXTERNAL_ACCESS_SEALED', 'Owner decision: a grant cannot be extended');
+UPDATE sec.external_access_grant SET revoked_at = now(), revoked_by = :uadmin WHERE id = :eg;
+SELECT pg_temp.ok((SELECT ur.valid_to <= now() FROM iam.user_role ur JOIN iam.role r ON r.id = ur.role_id WHERE ur.user_id = :ufin AND r.code = 'EXTERNAL_AUDITOR'),
+  'Owner decision: revoking a grant ends the role at once');
+ROLLBACK;
+SET ROLE masslak_app;
+
 \echo '=== ALL TESTS PASSED ==='

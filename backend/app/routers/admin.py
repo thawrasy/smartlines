@@ -377,3 +377,52 @@ async def review_violation(uid: uuid.UUID, body: ViolationReviewIn, request: Req
             raise ApiError(409, "VIOLATION_NOT_AWAITING_REVIEW", "only an open violation on low-trust evidence is reviewed here")
     request.state.audit = {"action": "violation.review", "object_type": "route_violation", "object_id": vid}
     return {"status": "CONFIRMED" if body.decision == "CONFIRM" else "CLOSED"}
+
+
+# ------------------------------------------------------------------ external reviewers (owner decision, 8 October 2026)
+class ExternalAccessIn(BaseModel):
+    email: str = Field(min_length=3, max_length=254)
+    organisation: str = Field(min_length=2, max_length=120)
+    purpose: str = Field(min_length=10, max_length=500)
+    engagement_ref: str = Field(min_length=3, max_length=80)
+    days: int = Field(ge=1, le=90)
+
+
+@router.get("/external-access")
+async def external_access(request: Request, pr: Principal = Depends(require_permission("external_access.grant"))):
+    async with db.transaction(context_for(request, pr)) as conn:
+        out = await conn.fetch(
+            """SELECT g.uid, u.email, g.organisation, g.purpose, g.engagement_ref, g.starts_at, g.expires_at, g.revoked_at,
+                      gb.email AS granted_by, (g.revoked_at IS NULL AND g.expires_at > now()) AS active
+                 FROM sec.external_access_grant g JOIN iam.app_user u ON u.id = g.user_id JOIN iam.app_user gb ON gb.id = g.granted_by
+                ORDER BY g.created_at DESC LIMIT 200""")
+    return {"grants": rows(out)}
+
+
+@router.post("/external-access", status_code=201)
+async def grant_external_access(body: ExternalAccessIn, request: Request,
+                                pr: Principal = Depends(require_permission("external_access.grant"))):
+    """Read-only access for an auditor or tester: their own platform account, a named engagement, a second person granting
+    it, and an end date (at most security.external_access_max_days). The role EXTERNAL_AUDITOR cannot be given otherwise."""
+    async with db.transaction(context_for(request, pr)) as conn:
+        user = await conn.fetchval("SELECT id FROM iam.app_user WHERE lower(email) = lower($1)", str(body.email).strip())
+        if user is None:
+            raise not_found("account")
+        uid = await conn.fetchval(
+            """INSERT INTO sec.external_access_grant (user_id, granted_by, organisation, purpose, engagement_ref, expires_at)
+               VALUES ($1, $2, $3, $4, $5, now() + make_interval(days => $6)) RETURNING uid""",
+            user, pr.user_id, body.organisation.strip(), body.purpose.strip(), body.engagement_ref.strip(), body.days)
+    request.state.audit = {"action": "external_access.grant", "object_type": "external_access_grant", "object_id": None}
+    return {"uid": str(uid)}
+
+
+@router.post("/external-access/{uid}/revoke")
+async def revoke_external_access(uid: uuid.UUID, request: Request, pr: Principal = Depends(require_permission("external_access.grant"))):
+    async with db.transaction(context_for(request, pr)) as conn:
+        gid = await conn.fetchval(
+            "UPDATE sec.external_access_grant SET revoked_at = now(), revoked_by = $2 WHERE uid = $1 AND revoked_at IS NULL RETURNING id",
+            uid, pr.user_id)
+        if gid is None:
+            raise ApiError(409, "INVALID_TRANSITION", "no active grant with that id")
+    request.state.audit = {"action": "external_access.revoke", "object_type": "external_access_grant", "object_id": gid}
+    return {"revoked": True}

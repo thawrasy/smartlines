@@ -1,7 +1,7 @@
 # Service levels and monitoring
 
-The service level objectives (SLOs) below are **proposed for the owner's approval** (audit T3-16). Until approved they
-drive the alerts as written. The numbers fit the first measurements (`PERFORMANCE_BASELINE.md`) and must be confirmed on
+The service level objectives (SLOs) below were **approved by the owner on 8 October 2026** (audit T3-16). They are stored
+in the setting `slo.objectives`, and the alerts follow them. The numbers fit the first measurements (`PERFORMANCE_BASELINE.md`) and must be confirmed on
 staging at the expected peak.
 
 **How it works:**
@@ -55,7 +55,8 @@ other than fixes stop until it recovers.
 
 ## Still to do before launch
 
-1. The owner approves or adjusts these objectives.
-2. Deploy Prometheus, Alertmanager and Grafana next to the stack, with the token in `metrics_token`.
+1. Done: the owner approved these objectives (8 October 2026).
+2. Deploy Prometheus, Alertmanager and Grafana next to the stack, with the token in `metrics_token`. The staging overlay
+   (`deploy/staging`, `STAGING.md`) does this and was checked on 7 October 2026; production uses the same files.
 3. Connect Alertmanager to the on-call phones.
-4. Run the first alert drill.
+4. Run the first alert drill (launch gate 5, `LAUNCH_GATES.md`).
