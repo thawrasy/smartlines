@@ -278,6 +278,10 @@ leg rides its carrier's trip; a payment draws only on the payer's own wallet; a 
 lessee. Concurrent transactions lock seats, then the booking, the payment and wallets in ascending id, so they queue
 instead of deadlocking (`docs/database/STANDARDS.md`).
 
+File 1041 divides the model by project phase: every table carries the phase that brings it into use (`sys.table_phase`,
+releases 1A and 1B before launch, phases 2 to 14 after it). Data only depends backwards: every later phase needs only 1A
+and 1B (phase 8 also needs phase 3), so the order of the phases after launch is a business decision.
+
 Company isolation (study 16.26, file 1038): `backend/tests/test_isolation.py` signs in as every company under the
 application role and counts the rows of other companies in every table that has a company column. The only rows allowed
 are listed in the test with the reason (public catalog data, or the two parties of one deal); a new table without a

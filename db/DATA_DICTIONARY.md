@@ -2,7 +2,7 @@
 
 > Generated from the built database (`db/tools/gen_docs.py`); do not edit by hand.
 
-**445 tables, 4557 columns, in 24 schemas.**
+**447 tables, 4565 columns, in 24 schemas.**
 
 Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant isolation (RLS) · 🧩 partitioned monthly · 🔒 append-only / change-protected
 
@@ -10,7 +10,7 @@ Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant i
 
 - [`iam` — Identity, parties, users, permissions and API clients](#iam) (32 tables)
 - [`ref` — Reference data, locales and files](#ref) (13 tables)
-- [`sys` — Settings, outbox and webhooks](#sys) (9 tables)
+- [`sys` — Settings, outbox and webhooks](#sys) (11 tables)
 - [`net` — Network: stations, routes, lines, corridors and geofences](#net) (21 tables)
 - [`fleet` — Fleet: vehicles, trucks, trailers, seats, crew, licenses and insurance](#fleet) (20 tables)
 - [`pricing` — Pricing, taxes, commissions, campaigns and loyalty](#pricing) (35 tables)
@@ -868,6 +868,18 @@ Transactional outbox: written in the same transaction as the change, then publis
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 | `published_at` | `timestamp with time zone` |  |  |
 
+### `sys.project_phase` 🛡️
+
+Project phases of the study roadmap (22); Phase 1 split into releases 1A and 1B (review decision 3)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `code` | `text` | 🔑 ✱ |  |
+| `ordinal` | `numeric(4,1)` | ✱ |  |
+| `name` | `text` | ✱ |  |
+| `study_ref` | `text` | ✱ |  |
+| `scope` | `text` | ✱ |  |
+
 ### `sys.schema_file` 🛡️
 
 Schema files applied to this database, with their SHA-256 at the time
@@ -912,6 +924,16 @@ Data class of every table (review 3.2). A test fails when a table has no class o
 | `data_class` | `text` | ✱ |  |
 | `tenant_path` | `text` |  |  |
 | `note` | `text` |  |  |
+
+### `sys.table_phase` 🛡️
+
+The phase that brings each table into use, and its module (ERD group of the design document)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `table_name` | `text` | 🔑 ✱ |  |
+| `phase_code` | `text` | 🔗 `sys.project_phase` ✱ |  |
+| `module` | `text` | ✱ |  |
 
 ### `sys.webhook_delivery` 🛡️
 

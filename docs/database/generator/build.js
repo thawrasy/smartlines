@@ -11,7 +11,7 @@ const {
 const HERE = __dirname;
 const model = JSON.parse(fs.readFileSync(path.join(HERE, "..", "build", "model.json"), "utf8"));
 const PNG = path.join(HERE, "..", "erd", "png");
-const VERSION = "3.4";
+const VERSION = "3.5";
 const DATE = "7 October 2026";
 const FONT = "Arial";
 const C = { navy: "1F3A5F", blue: "2E74B5", blue2: "1F4D78", grid: "B7C3D0", alt: "F2F6FA", grey: "595959" };
@@ -22,6 +22,11 @@ const tableCount = model.tables.length;
 const colCount = model.tables.reduce((n, t) => n + t.columns.length, 0);
 const fkCount = model.tables.reduce((n, t) => n + (t.fks || []).length, 0);
 const rlsCount = model.tables.filter((t) => t.rls).length;
+// project phase of each table (file 1041) and the phases a module spans, in roadmap order
+const PH = model.table_phase || {};
+const phaseOrder = (model.phases || []).map((p) => p.code);
+const spread = (tabs) => phaseOrder.map((c) => [c, tabs.filter((t) => PH[t] === c).length]).filter(([, n]) => n)
+  .map(([c, n]) => `${c}: ${n}`).join(", ");
 const schemas = [...new Set(model.tables.map((t) => t.schema))];
 const allFks = model.tables.flatMap((t) => (t.fks || []).map((f) => ({ ...f, table: `${t.schema}.${t.name}` })));
 const ACTOR = /(_by|_by_user_id)$|^(actor_id|reviewer_id|proposer_id|approver_id|second_approver|by_user_id|scorer_user_id)$/;
@@ -102,22 +107,34 @@ front.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 16
 front.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 1200 },
   children: [run(`Complete relational model of the Analysis and Design Study v2.9: ${tableCount} tables, ${fkCount} relationships`, { color: "7F7F7F" })] }));
 front.push(table(["Item", "Details"], [
-  ["Version", `${VERSION} (integrity audit of every relationship after the strategic database review; replaces version 3.3)`],
+  ["Version", `${VERSION} (the model divided by project phase; replaces version 3.4)`],
   ["Date", DATE],
   ["Basis", "Analysis and Design Study v2.9 (English), the Use Case and Data Flow Diagrams v1.0, the Database Architecture Review v1.0, the Strategic Database Review and its relationship audit register"],
   ["Scope", `${schemas.length} schemas, ${tableCount} tables, ${colCount} columns, ${fkCount} foreign keys; all phases 1 to 15`],
-  ["Engine", "PostgreSQL 16 with row-level security on every table; schema files db/schema/000 to 1040"],
-  ["Status", "Built and verified: fresh build and upgrade identical, 209 database checks and 175 API tests passing, every foreign key indexed or exempt by rule"],
+  ["Engine", "PostgreSQL 16 with row-level security on every table; schema files db/schema/000 to 1041"],
+  ["Status", "Built and verified: fresh build and upgrade identical, 212 database checks and 175 API tests passing, every foreign key indexed or exempt by rule"],
   ["Website", "masslak.com"],
 ], [2800, 6946]));
 
 const toc = [H(HeadingLevel.HEADING_1, "Contents", { pageBreak: true })];
-const tocLines = ["Changes in version 3.4", "Changes in version 3.3", "Changes in version 3.2", "Changes in version 3.1", "Changes in version 3.0", "1. Introduction", "2. Database architecture", "3. Design rules", "4. Security model in the database",
+const tocLines = ["Changes in version 3.5", "Changes in version 3.4", "Changes in version 3.3", "Changes in version 3.2", "Changes in version 3.1", "Changes in version 3.0", "1. Introduction", "2. Database architecture", "3. Design rules", "4. Security model in the database",
   "5. Data stores of the data flow diagrams", "6. Entity-relationship diagrams by module",
   ...model.groups.map((g, i) => `      6.${i + 1} ${g[0]} ${g[1]}`), `      6.${model.groups.length + 1} Focus diagrams: rules that span modules`,
   "7. Table definitions", "8. Traceability to the study", "9. Verification",
   "Appendix A: Feature flags", "Appendix B: Generalizations and naming decisions", "Appendix C: References without a foreign key"];
 for (const l of tocLines) toc.push(P(l, { after: 40, size: 20 }));
+
+// ------------------------------ changes in 3.5 ------------------------------
+const changes35 = [H(HeadingLevel.HEADING_1, "Changes in version 3.5", { pageBreak: true }),
+  P("The model is divided by the project phases of the study roadmap (22, appendix D), with Phase 1 split into releases 1A and 1B as "
+    + "the architecture review decided. Schema file 1041_project_phases.sql (migration 1.23.0) records the phase of every table in "
+    + "sys.table_phase; the database stays one database built from one chain of files. The tests check that every table has a phase and "
+    + "that no table of an earlier phase requires a row of a later one; references that point forward are optional readiness columns "
+    + "(study decision 88), listed by sys.v_phase_forward_reference. Each module heading in chapter 6 and each table in chapter 7 now "
+    + "names its phase."),
+  table(["Phase", "Scope", "Study", "Tables"], (model.phases || []).map((p) => [p.name, p.scope, p.study,
+    `${Object.values(PH).filter((c) => c === p.code).length}`]), [2300, 5046, 1300, 1100], { boldFirst: true, size: 16 }),
+];
 
 // ------------------------------ changes in 3.4 ------------------------------
 const changes34 = [H(HeadingLevel.HEADING_1, "Changes in version 3.4", { pageBreak: true }),
@@ -432,7 +449,7 @@ model.groups.forEach((g, i) => {
   const children = [];
   if (i === 0) children.push(H(HeadingLevel.HEADING_1, "6. Entity-relationship diagrams by module"));
   children.push(H(HeadingLevel.HEADING_2, `6.${i + 1} ${gid} ${title}`));
-  children.push(P([run(`Study: ${secs}  ·  Family: ${FAMILY_NAME[fam]}  ·  ${tabs.length} tables`, { size: 18, color: C.grey })], { after: 60 }));
+  children.push(P([run(`Study: ${secs}  ·  Family: ${FAMILY_NAME[fam]}  ·  ${tabs.length} tables  ·  Phases: ${spread(tabs)}`, { size: 18, color: C.grey })], { after: 60 }));
   children.push(P(desc, { after: 100 }));
   children.push(land ? image(file, 960, 520) : image(file, 640, 760));
   const rels = [];
@@ -493,6 +510,7 @@ model.groups.forEach((g) => {
     for (const f of t.fks || []) if (f.cols.length === 1) fkOf[f.cols[0]] = f.ref;
     const uq = new Set((t.unique || []).filter((u) => u.length === 1).map((u) => u[0]));
     defs.push(H(HeadingLevel.HEADING_3, full));
+    defs.push(P([run(`Phase ${PH[full] || "?"}`, { size: 18, color: C.grey })], { after: 40 }));
     if (t.comment) defs.push(P(t.comment, { size: 20, after: 80 }));
     defs.push(table(["Column", "Type", "Key", "Null", "Default"], t.columns.map((c) => [
       c.name, c.type.replace("timestamp with time zone", "timestamptz"),
@@ -524,7 +542,7 @@ const verify = [H(HeadingLevel.HEADING_1, "9. Verification", { pageBreak: true }
     ["Fresh build (db/build.sh)", `all schema files apply in order; ${tableCount} tables, ${fkCount} foreign keys`],
     ["Upgrade (db/upgrade.sh)", "a database of the previous release upgrades to a schema identical to a fresh build (pg_dump compared)"],
     ["Idempotence", "every new file runs twice without error"],
-    ["Automated tests (db/tests/run.sh)", "209 checks passing: isolation of shipments, bids, partners, manifests; exclusion and uniqueness rules; "
+    ["Automated tests (db/tests/run.sh)", "212 checks passing: isolation of shipments, bids, partners, manifests; exclusion and uniqueness rules; "
       + "append-only tables; four-eyes approvals; feature flags off; the relationship rules R1 to R3; and the acceptance matrix of the architecture review "
       + "(classification, isolation sweep, RLS bypass, typed references, tenant checks, ledger, seats, business rules, scopes, keys, erasure, tracking) "
       + "and of the integrity audit (sale chain, manifests, cargo legs, wallets, leased vehicles, COPY, guard shape, schema dependencies, JSONB)"],
@@ -586,7 +604,7 @@ const doc = new Document({
   numbering: { config: [{ reference: "bullets", levels: [{ level: 0, format: LevelFormat.BULLET, text: "•", alignment: AlignmentType.LEFT,
     style: { paragraph: { indent: { left: 540, hanging: 270 } } } }] }] },
   sections: [
-    section(PORTRAIT, [...front, ...toc, ...changes34, ...changes33, ...changes32, ...changes31, ...changes, ...intro, ...arch, ...rules, ...security, ...stores]),
+    section(PORTRAIT, [...front, ...toc, ...changes35, ...changes34, ...changes33, ...changes32, ...changes31, ...changes, ...intro, ...arch, ...rules, ...security, ...stores]),
     ...erdSections,
     section(PORTRAIT, [...defs, ...trace, ...verify, ...flags, ...gens, ...appC]),
   ],

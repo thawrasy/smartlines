@@ -69,6 +69,13 @@ reviewer of a pull request enforces the rest. They write down what the 445 exist
   of schemas that depend on each other fails the build until it is reviewed and added to the baseline in
   `db/tests/run_tests.sql` **(checked)**.
 
+## Phases
+
+- Every table belongs to one project phase (`sys.table_phase`, file 1041) **(checked)**. A table never requires a row of a
+  later phase **(checked)**: a reference that points forward is optional and stays empty until that phase starts
+  (`sys.v_phase_forward_reference`). Code of a phase does not read or write tables of a later phase.
+- Moving a table to another phase is a written decision recorded in a new schema file.
+
 ## Locks
 
 Concurrent transactions take row locks in one order, so they wait for each other instead of deadlocking:
@@ -91,7 +98,8 @@ Every change is a new numbered file in `db/schema` (never an edit of a released 
       remove the old one only in a later release. Never rename or drop in the release that changes the code.
 - [ ] Constraints on existing data are added `NOT VALID` and validated at the end of the file; a failure is reported.
 - [ ] Large indexes `CONCURRENTLY` (outside the transaction), backfills in batches outside peak hours.
-- [ ] New tables: primary key, row-level security, data class, owner path, foreign-key indexes, column comments.
+- [ ] New tables: primary key, row-level security, data class, owner path, foreign-key indexes, column comments, and a
+      row in `sys.table_phase` naming its project phase **(checked)**.
 - [ ] Impact written in the pull request: relationships, row security, indexes, the queries that change, the rollback.
 - [ ] A test in `db/tests/run_tests.sql` for every new rule, and the API tests still passing.
 - [ ] The data dictionary, ERD and design document regenerated (`db/tools/gen_docs.py`, `docs/database/generator`).

@@ -563,6 +563,9 @@ erDiagram
     bigint id PK
     text status
   }
+  sys_project_phase {
+    text code PK
+  }
   sys_schema_file {
     text file PK
   }
@@ -575,6 +578,10 @@ erDiagram
   }
   sys_table_class {
     text table_name PK
+  }
+  sys_table_phase {
+    text table_name PK
+    text phase_code FK
   }
   sys_webhook_delivery {
     bigint id PK
@@ -598,6 +605,7 @@ erDiagram
   sys_webhook_endpoint }o..o| iam_api_client : "api_client_id"
   sys_company_setting }o--|| iam_company : "company_id"
   sys_webhook_delivery }o--|| sys_outbox_event : "outbox_event_id"
+  sys_table_phase }o--|| sys_project_phase : "phase_code"
   sys_webhook_delivery }o--|| sys_webhook_endpoint : "endpoint_id"
 ```
 

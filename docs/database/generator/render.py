@@ -230,6 +230,12 @@ def render(name, dot):
     Image.open(png).convert("RGB").quantize(colors=64, method=Image.Quantize.MEDIANCUT).save(png, optimize=True)
 
 
+Q_PHASES = """SELECT json_build_object(
+  'phases', (SELECT json_agg(json_build_object('code', code, 'name', name, 'study', study_ref, 'scope', scope) ORDER BY ordinal)
+               FROM sys.project_phase),
+  'table_phase', (SELECT json_object_agg(table_name, phase_code) FROM sys.table_phase))"""
+
+
 def main():
     if len(sys.argv) < 2:
         sys.exit(__doc__)
@@ -250,8 +256,11 @@ def main():
         render(f"{g[0]}", group_dot(g, model))
     for g in FOCUS:
         render(f"{g[0]}", group_dot(g, model))
+    # the project phase of every table (sys.table_phase, file 1041)
+    phases = json.loads(subprocess.run(["psql", *args, "-d", db, "-At", "-c", Q_PHASES], check=True, capture_output=True, text=True).stdout)
     os.makedirs(BUILD, exist_ok=True)
-    json.dump({"tables": tables, "groups": GROUPS, "focus": FOCUS, "stores": DATA_STORES}, open(os.path.join(BUILD, "model.json"), "w"), indent=0)
+    json.dump({"tables": tables, "groups": GROUPS, "focus": FOCUS, "stores": DATA_STORES, **phases},
+              open(os.path.join(BUILD, "model.json"), "w"), indent=0)
     print(f"rendered {len(GROUPS) + len(FOCUS) + 2} diagrams for {len(tables)} tables")
 
 

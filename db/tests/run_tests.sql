@@ -938,4 +938,15 @@ SELECT pg_temp.ok(obj_description('ops.seat_lock'::regclass) LIKE 'Audit trail%'
   'Audit C-01: the seat hold has one record, the LOCKED seat segment');
 SET ROLE masslak_app;
 
+-- Project phases (1041): every table has a phase, and no table needs a row of a later phase
+SELECT pg_temp.ok(NOT EXISTS (SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+                               WHERE c.relkind IN ('r','p') AND NOT c.relispartition AND n.nspname NOT IN ('pg_catalog','information_schema')
+                                 AND NOT EXISTS (SELECT 1 FROM sys.table_phase t WHERE t.table_name = n.nspname || '.' || c.relname))
+  AND NOT EXISTS (SELECT 1 FROM sys.table_phase t WHERE to_regclass(t.table_name) IS NULL),
+  'Phases: every table belongs to exactly one project phase, and the map names no missing table');
+SELECT pg_temp.ok(NOT EXISTS (SELECT 1 FROM sys.v_phase_forward_reference WHERE required),
+  'Phases: no table of an earlier phase requires a row of a later phase (forward references are optional readiness columns)');
+SELECT pg_temp.ok((SELECT tables FROM sys.v_phase_summary WHERE code = '1A') > 0 AND (SELECT tables FROM sys.v_phase_summary WHERE code = '1B') > 0,
+  'Phases: Phase 1 is split into releases 1A and 1B');
+
 \echo '=== ALL TESTS PASSED ==='
