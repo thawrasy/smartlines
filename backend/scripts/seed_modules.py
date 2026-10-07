@@ -71,8 +71,11 @@ def ref_by(index):
 
 def derive(sql, dep):
     """Pick the column from the rows `sql` returns for the value already chosen for column `dep` of the same row,
-    e.g. a manifest lists a ticket of the manifest's own trip."""
+    e.g. a manifest lists a ticket of the manifest's own trip (dep None: the query takes no parameter)."""
     return ("!derive", sql, dep)
+
+
+DAMASCUS = derive("SELECT id FROM ref.city WHERE code = 'DAM'", None)
 
 
 def money(lo, hi, step=500):
@@ -99,7 +102,10 @@ PLAN = [
     ("sales.ticket", 12, {"ticket_no": lambda i: f"T-26-{8100 + i}", "from_seq": 1, "to_seq": 2,
                           "fare_amount": money(20000, 42000), "total_amount": money(20000, 45000), "rules_snapshot": {}}),
     # ---------------------------------------------------------------- approved lines
+    # the shuttle opens city by city (1042): Damascus is the pilot city
+    ("sys.city_rollout", 1, {"feature_key": "shuttle_rides", "city_id": DAMASCUS, "stage": 1, "status": "PILOT"}),
     ("net.line", 6, {"code": cycle("L-DAM-ALP", "L-DAM-LTK", "L-DAM-DRA", "L-ALP-LTK", "L-DAM-SHT", "L-HMS-TRT"),
+                     "kind": cycle("INTERCITY", "INTERCITY", "INTERCITY", "INTERCITY", "SHUTTLE", "INTERCITY"), "city_id": DAMASCUS,
                      "name": cycle("Damascus - Aleppo", "Damascus - Latakia", "Damascus - Daraa", "Aleppo - Latakia",
                                    "Damascus city shuttle", "Homs - Tartus"),
                      "status": weighted(("ACTIVE", 4), ("DRAFT", 1), ("SUSPENDED", 1)), "created_at": lambda i: ago(60, 20)}),
@@ -114,7 +120,7 @@ PLAN = [
     ("ops.route_adherence_event", 26, {"ts": lambda i: ago(30)}),
     # ---------------------------------------------------------------- shuttles
     ("sales.shuttle_zone", 4, {"code": cycle("Z-MAZZEH", "Z-MIDAN", "Z-BARZEH", "Z-JARAMANA"),
-                               "name": cycle("Mazzeh", "Midan", "Barzeh", "Jaramana")}),
+                               "name": cycle("Mazzeh", "Midan", "Barzeh", "Jaramana"), "city_id": DAMASCUS}),
     ("sales.subscription_plan", 5, {"code": cycle("MONTH-40", "MONTH-UNL", "WEEK-12", "STUDENT-M", "SENIOR-M"),
                                     "name": cycle("Monthly, 40 rides", "Monthly unlimited", "Weekly, 12 rides", "Student monthly",
                                                   "Senior monthly"),
@@ -465,7 +471,10 @@ class Seeder:
                 v = overrides[col]
                 v = v(i) if callable(v) and not isinstance(v, tuple) else v
                 if isinstance(v, tuple) and v[0] == "!derive":
-                    found = [r[0] for r in await self.conn.fetch(v[1], vals.get(v[2]))] if vals.get(v[2]) is not None else []
+                    if v[2] is None:        # no dependency: the query stands alone
+                        found = [r[0] for r in await self.conn.fetch(v[1])]
+                    else:
+                        found = [r[0] for r in await self.conn.fetch(v[1], vals.get(v[2]))] if vals.get(v[2]) is not None else []
                     v = found[i % len(found)] if found else None
                 elif isinstance(v, tuple) and v[0] == "!refi":
                     ids = await self.refs(c.ref)

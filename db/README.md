@@ -84,6 +84,7 @@ is a new file. A database built before file tracking is treated as having every 
 | `1039_review_hardening.sql` | Database architecture review: RLS and a data class on every table, AUTH scope, typed foreign keys behind polymorphic references, same-company checks, ledger reversals and reconciliation, seat rules, business rules, retention and erasure, scopes and decision log, key rules, module gates (see `docs/database/REVIEW_RESPONSE.md`) |
 | `1040_integrity_audit.sql` | Strategic review and relationship audit: composite keys for the sale chain (ticket, booking, passenger, seat, trip), guards for boarding scans, manifest persons, cargo legs, payment wallets and fare brands, 27 more tenant guards and 9 vehicle guards (ownership or lease), one company wallet per currency, jurisdiction tree, schema dependency and JSONB inventories (see `docs/database/INTEGRITY_AUDIT.md`) |
 | `1041_project_phases.sql` | Project phases: the study roadmap (releases 1A and 1B, phases 2 to 15) in `sys.project_phase`, the phase of every table in `sys.table_phase`, `sys.v_phase_summary` and `sys.v_phase_forward_reference`; the tests require a phase for every table and no required reference to a later phase |
+| `1042_rollout_decisions.sql` | Owner decisions: the contact center and the AI assistant in a later phase (CS), support on cases from WhatsApp and email until then; the shuttle as a phase of its own opened city by city (`sys.city_rollout`, a shuttle line or zone is activated only in an opened city) |
 
 ## Design rules (study 29.1)
 

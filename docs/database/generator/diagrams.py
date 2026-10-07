@@ -88,7 +88,7 @@ GROUPS = [
      "One open ride per user, charged stop by stop from proximity to the vehicle's presence beacon; subscription plans, "
      "subscriptions, passes, zones and NFC cards.",
      ["ops.shuttle_ride", "ops.ride_segment_charge", "ops.proximity_sample", "ops.presence_beacon", "sales.subscription_plan",
-      "sales.subscription", "sales.shuttle_pass", "sales.shuttle_zone", "sales.nfc_card"]),
+      "sales.subscription", "sales.shuttle_pass", "sales.shuttle_zone", "sales.nfc_card", "sys.city_rollout"]),
     ("E11", "Bookings, tickets and travel documents", "4.5, 7, 11.9", "booking",
      "A booking holds passengers and tickets; tickets are boarded, refunded or compensated. Waiting lists, inspections, entry "
      "rules and the travel documents of international tickets complete the cycle.",

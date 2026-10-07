@@ -6,7 +6,7 @@ import uuid
 
 import pytest
 
-from test_e2e import OWNER_URL, login
+from test_e2e import OWNER_URL, login, owner_sql
 
 pytestmark = pytest.mark.skipif(not OWNER_URL, reason="needs MASSLAK_OWNER_URL")
 
@@ -118,9 +118,16 @@ def test_read_only_portals_and_state_machine(admin, carrier, all_on):
     for name in ("kind", "fare_regime"):
         if form[name]["choices"]:
             body[name] = form[name]["choices"][0]
-    city = admin.get("/api/r/line/lookup/city_id").json()["options"]
-    if city:
-        body["city_id"] = city[0]["id"]
+    # the shuttle opens city by city (1042): a shuttle line is activated only in an opened city
+    opened = owner_sql("SELECT city_id FROM sys.city_rollout WHERE feature_key = 'shuttle_rides' AND status IN ('PILOT', 'OPEN') LIMIT 1")
+    closed = owner_sql("""SELECT id FROM ref.city WHERE id NOT IN (SELECT city_id FROM sys.city_rollout WHERE feature_key = 'shuttle_rides')
+                          ORDER BY id LIMIT 1""")
+    if body.get("kind") == "SHUTTLE":
+        r = admin.post("/api/r/line", json={**body, "code": code + "X", "city_id": closed})
+        assert r.status_code == 201, r.text
+        r = admin.post(f"/api/r/line/{r.json()['_key']}/do/activate")
+        assert r.status_code == 409 and "CITY_NOT_OPEN" in r.text, r.text
+    body["city_id"] = opened
     r = admin.post("/api/r/line", json=body)
     assert r.status_code == 201, r.text
     key = r.json()["_key"]

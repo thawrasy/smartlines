@@ -140,6 +140,7 @@ flowchart LR
   ship -->|4| ops
   ship -->|2| ref
   sys -->|2| iam
+  sys -->|1| ref
   taxi -->|1| fin
   taxi -->|3| fleet
   taxi -->|4| iam
@@ -552,6 +553,11 @@ erDiagram
 
 ```mermaid
 erDiagram
+  sys_city_rollout {
+    text feature_key PK
+    bigint city_id PK
+    text status
+  }
   sys_company_setting {
     bigint company_id PK
     text key PK
@@ -602,8 +608,12 @@ erDiagram
   iam_company {
     ref external
   }
+  ref_city {
+    ref external
+  }
   sys_webhook_endpoint }o..o| iam_api_client : "api_client_id"
   sys_company_setting }o--|| iam_company : "company_id"
+  sys_city_rollout }o--|| ref_city : "city_id"
   sys_webhook_delivery }o--|| sys_outbox_event : "outbox_event_id"
   sys_table_phase }o--|| sys_project_phase : "phase_code"
   sys_webhook_delivery }o--|| sys_webhook_endpoint : "endpoint_id"

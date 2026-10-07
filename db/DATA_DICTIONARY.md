@@ -2,7 +2,7 @@
 
 > Generated from the built database (`db/tools/gen_docs.py`); do not edit by hand.
 
-**447 tables, 4565 columns, in 24 schemas.**
+**448 tables, 4572 columns, in 24 schemas.**
 
 Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant isolation (RLS) · 🧩 partitioned monthly · 🔒 append-only / change-protected
 
@@ -10,7 +10,7 @@ Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant i
 
 - [`iam` — Identity, parties, users, permissions and API clients](#iam) (32 tables)
 - [`ref` — Reference data, locales and files](#ref) (13 tables)
-- [`sys` — Settings, outbox and webhooks](#sys) (11 tables)
+- [`sys` — Settings, outbox and webhooks](#sys) (12 tables)
 - [`net` — Network: stations, routes, lines, corridors and geofences](#net) (21 tables)
 - [`fleet` — Fleet: vehicles, trucks, trailers, seats, crew, licenses and insurance](#fleet) (20 tables)
 - [`pricing` — Pricing, taxes, commissions, campaigns and loyalty](#pricing) (35 tables)
@@ -825,6 +825,20 @@ Vehicle classes
 
 <a id="sys"></a>
 ## `sys` — Settings, outbox and webhooks
+
+### `sys.city_rollout` 🛡️
+
+Which city is opened for which service, and in which stage (shuttle city by city, owner decision 1042)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `feature_key` | `text` | 🔑 ✱ |  |
+| `city_id` | `bigint` | 🔑 🔗 `ref.city` ✱ |  |
+| `stage` | `smallint` | ✱ |  |
+| `status` | `text` | ✱ | `'PLANNED'::text` |
+| `opens_on` | `date` |  |  |
+| `note` | `text` |  |  |
+| `updated_at` | `timestamp with time zone` | ✱ | `now()` |
 
 ### `sys.company_setting` 🛡️
 

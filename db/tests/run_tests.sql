@@ -435,7 +435,8 @@ INSERT INTO fleet.trailer (company_id, plate_no, trailer_type, payload_kg) VALUE
 SELECT id AS trl FROM fleet.trailer WHERE plate_no = 'TR-1001' \gset
 INSERT INTO fin.wallet (owner_party_id, wallet_type, currency) VALUES (:pax, 'USER', 'SYP') ON CONFLICT DO NOTHING;
 SELECT id AS wpax FROM fin.wallet WHERE owner_party_id = :pax AND wallet_type = 'USER' AND currency = 'SYP' \gset
-INSERT INTO net.line (code, name, kind, fare_regime, status) VALUES ('DAM-L1', 'Damascus line 1', 'SHUTTLE', 'REGULATED', 'ACTIVE');
+INSERT INTO sys.city_rollout (feature_key, city_id, stage, status) SELECT 'shuttle_rides', id, 1, 'PILOT' FROM ref.city WHERE code = 'DAM';
+INSERT INTO net.line (code, name, kind, fare_regime, status, city_id) SELECT 'DAM-L1', 'Damascus line 1', 'SHUTTLE', 'REGULATED', 'ACTIVE', id FROM ref.city WHERE code = 'DAM';
 SELECT id AS ln FROM net.line WHERE code = 'DAM-L1' \gset
 
 SET ROLE masslak_app;
@@ -948,5 +949,20 @@ SELECT pg_temp.ok(NOT EXISTS (SELECT 1 FROM sys.v_phase_forward_reference WHERE 
   'Phases: no table of an earlier phase requires a row of a later phase (forward references are optional readiness columns)');
 SELECT pg_temp.ok((SELECT tables FROM sys.v_phase_summary WHERE code = '1A') > 0 AND (SELECT tables FROM sys.v_phase_summary WHERE code = '1B') > 0,
   'Phases: Phase 1 is split into releases 1A and 1B');
+
+-- Owner decisions (1042): the shuttle opens city by city; the contact center and the AI assistant come later
+RESET ROLE;
+BEGIN;
+SELECT pg_temp.expect_error($$INSERT INTO net.line (code, name, kind, fare_regime, status, city_id) SELECT 'ALP-L1', 'Aleppo line 1', 'SHUTTLE', 'REGULATED', 'ACTIVE', id FROM ref.city WHERE code = 'ALP'$$,
+  'CITY_NOT_OPEN', 'Phases: a shuttle line is not activated in a city the shuttle has not opened yet');
+INSERT INTO net.line (code, name, kind, fare_regime, status, city_id) SELECT 'ALP-L1', 'Aleppo line 1', 'SHUTTLE', 'REGULATED', 'DRAFT', id FROM ref.city WHERE code = 'ALP';
+INSERT INTO sys.city_rollout (feature_key, city_id, stage, status) SELECT 'shuttle_rides', id, 2, 'OPEN' FROM ref.city WHERE code = 'ALP';
+UPDATE net.line SET status = 'ACTIVE' WHERE code = 'ALP-L1';
+SELECT pg_temp.ok((SELECT status FROM net.line WHERE code = 'ALP-L1') = 'ACTIVE', 'Phases: once its city stage opens, the line is activated');
+ROLLBACK;
+SELECT pg_temp.ok((SELECT count(*) FROM sys.table_phase WHERE phase_code = 'CS' AND (table_name LIKE 'crm.call%' OR table_name LIKE 'crm.ai%')) = 14
+  AND (SELECT phase_code FROM sys.table_phase WHERE table_name = 'crm.case') = '1A',
+  'Phases: support starts on cases (WhatsApp, email); the contact center and the AI assistant come in a later phase');
+SET ROLE masslak_app;
 
 \echo '=== ALL TESTS PASSED ==='
