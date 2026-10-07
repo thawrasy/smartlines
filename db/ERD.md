@@ -135,7 +135,7 @@ flowchart LR
   sec -->|6| fin
   sec -->|5| fleet
   sec -->|1| gov
-  sec -->|27| iam
+  sec -->|28| iam
   sec -->|6| ops
   sec -->|5| sales
   ship -->|1| crm
@@ -3295,6 +3295,13 @@ erDiagram
     integer key_id FK
     bigint file_id FK
   }
+  sec_external_access_grant {
+    bigint id PK
+    uuid uid
+    bigint user_id FK
+    bigint granted_by FK
+    bigint revoked_by FK
+  }
   sec_fraud_case {
     bigint id PK
     text status
@@ -3466,6 +3473,7 @@ erDiagram
   sec_fraud_case }o..o| iam_api_client : "subject_api_client_id"
   sec_access_review }o--|| iam_app_user : "user_id"
   sec_sos_event }o..o| iam_app_user : "triggered_by"
+  sec_external_access_grant }o--|| iam_app_user : "user_id"
   sec_policy_decision }o..o| iam_app_user : "user_id"
   sec_risk_assessment }o..o| iam_app_user : "subject_user_id"
   sec_fraud_case }o..o| iam_app_user : "subject_user_id"

@@ -2,7 +2,7 @@
 
 > Generated from the built database (`db/tools/gen_docs.py`); do not edit by hand.
 
-**475 tables, 4908 columns, in 26 schemas.**
+**476 tables, 4920 columns, in 26 schemas.**
 
 Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant isolation (RLS) · 🧩 partitioned monthly · 🔒 append-only / change-protected
 
@@ -21,7 +21,7 @@ Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant i
 - [`bill` — Carrier subscriptions, metering and platform invoices](#bill) (7 tables)
 - [`crm` — Complaints, ratings, notifications, the AI assistant and the contact center](#crm) (19 tables)
 - [`gov` — Governance, obligations and data protection](#gov) (14 tables)
-- [`sec` — Security: IP rules, risk, signing, the security hub and government adapters](#sec) (24 tables)
+- [`sec` — Security: IP rules, risk, signing, the security hub and government adapters](#sec) (25 tables)
 - [`ptn` — Service partners: fuel stations, rest stops and maintenance](#ptn) (14 tables)
 - [`ship` — Shipments and the integrated shipping network](#ship) (55 tables)
 - [`frt` — Trucking, heavy transport and transit freight](#frt) (14 tables)
@@ -5510,6 +5510,25 @@ Every official document issued by the server is signed; the verification page co
 | `file_id` | `bigint` | 🔗 `ref.file_object`  |  |
 | `issued_at` | `timestamp with time zone` | ✱ | `now()` |
 | `revoked_at` | `timestamp with time zone` |  |  |
+
+### `sec.external_access_grant` 🛡️
+
+Every access given to an external auditor or tester: who, for which engagement, granted by whom, until when (owner decision, 8 October 2026)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `user_id` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `granted_by` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `organisation` | `text` | ✱ |  |
+| `purpose` | `text` | ✱ |  |
+| `engagement_ref` | `text` | ✱ |  |
+| `starts_at` | `timestamp with time zone` | ✱ | `now()` |
+| `expires_at` | `timestamp with time zone` | ✱ |  |
+| `revoked_at` | `timestamp with time zone` |  |  |
+| `revoked_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
 ### `sec.fraud_case` 🛡️
 
