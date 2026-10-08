@@ -1,5 +1,7 @@
 # Payment options (schema file 1056, migration 1.37.0)
 
+Design reference: Analysis and Design Study v3.3, section 6.9 (`docs/Masslak_Analysis_and_Design_EN_v3.3.docx`).
+
 Owner decision, October 2026: Syria has few licensed e-wallet and card providers today, so the pilot and release 1 must
 not depend on them. Travellers can pay in cash at the carrier, and platform administration decides which ways of paying
 are open. Each electronic option opens once a provider is contracted and set up, with no code change.
