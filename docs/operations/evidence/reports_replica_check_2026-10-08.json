@@ -1,0 +1,13 @@
+{
+  "what": "Read replica of docker-compose.yml (service db-replica) brought up with Docker and checked; then removed",
+  "date": "2026-10-08",
+  "checks": {
+    "compose_config": "docker-compose.yml alone and with deploy/staging/docker-compose.staging.yml: valid",
+    "primary": "postgis/postgis:16-3.4-alpine with hba_file=/etc/postgresql/pg_hba.conf (deploy/postgres/pg_hba.conf)",
+    "replication_role": "the replicator SQL of deploy/migrate.sh ran twice without error (create, then update the password)",
+    "replica_first_start": "pg_basebackup through slot replica1; healthcheck (pg_is_in_recovery = t) healthy after 6 s; pg_stat_replication: streaming; a row written on the primary was read on the replica",
+    "replica_rebuilt_from_empty_volume": "the inactive slot replica1 was dropped and recreated; streaming again; data present",
+    "startup_rule": "db.require_reports_replica() with sandbox off: replica accepted; primary refused ('points at a primary'); no address refused ('is required outside the sandbox')"
+  },
+  "not_covered_here": "The API and worker images were not built in this sandbox; the CI deployment-stack job checks the replica with the full stack"
+}

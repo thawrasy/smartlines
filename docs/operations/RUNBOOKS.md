@@ -83,6 +83,13 @@ section.
   - Transactions in flight are rolled back.
   - The API retries idempotent requests. Bookings and payments carry idempotency keys, so a retry never doubles them.
 - **Manual switchover** for maintenance: `patronictl switchover --leader <old> --candidate <new>`.
+- **Single-server stack (`docker-compose.yml`):**
+  - **The replica:** the `db-replica` service is a streaming hot standby. Reports and exports read it; the API and the
+    worker refuse to start in production without it.
+  - **To promote it:** `docker compose exec -u postgres db-replica pg_ctl promote`. Then point
+    `MASSLAK_DATABASE_URL` at `db-replica` and recreate a new replica from it.
+  - **If the replica falls behind:** reports show the moment their data reflects (`data_as_of`), and
+    `ReplicaLagging` alerts after 30 s.
 - **After failover:**
   - Check replica lag on the remaining standby.
   - Check that the outbox worker resumed (`SELECT count(*) FROM sys.outbox_event WHERE status = 'PENDING'`).
@@ -209,6 +216,14 @@ section.
   `python -m loadtest.run --base https://staging.masslak.com --levels 100,500,1000 --seconds 300 --json run.json`
 - **The one-seat race:** `python -m loadtest.run --base ... --same-seat 100`. Exactly one hold must be granted.
 - **Cost of row-level security on the hot queries:** `python -m loadtest.rls_benchmark --runs 100`.
+- **Cost of triggers:** with `track_functions = pl` (the staging overlay sets it), the load test reports milliseconds
+  per call for the ten costliest triggers (`trigger_ms_per_call` in its JSON). Prometheus raises
+  `TriggerCostOverBudget` above 1 ms per row (budget in `docs/database/STANDARDS.md`).
+- **Growth:**
+  - **Which tables:** `masslak_table_rows_estimate` and `masslak_table_bytes` cover the tables that grow with
+    traffic.
+  - **The outbox:** past `capacity.outbox_partition_rows`, partition it by day in the next release (alert
+    `OutboxPartitioningDue`, `docs/integration/EVENTS.md`).
 - **Targets:** run against staging with production-size data and hardware, at 1x, 2x and 5x the expected peak. The p95
   and p99 targets per step are set by the owner (performance gate). See `PERFORMANCE_BASELINE.md` for the first
   measurements and what they do not prove.

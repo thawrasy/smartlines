@@ -610,6 +610,60 @@
      "refId": "B"
     }
    ]
+  },
+  {
+   "type": "timeseries",
+   "title": "Growing tables (estimated rows)",
+   "gridPos": {
+    "x": 0,
+    "y": 52,
+    "w": 12,
+    "h": 8
+   },
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${datasource}"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short"
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "expr": "masslak_table_rows_estimate",
+     "legendFormat": "{{table}}",
+     "refId": "A"
+    }
+   ]
+  },
+  {
+   "type": "timeseries",
+   "title": "Trigger cost per row (ms, needs track_functions)",
+   "gridPos": {
+    "x": 12,
+    "y": 52,
+    "w": 12,
+    "h": 8
+   },
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${datasource}"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "ms"
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "expr": "1000 * rate(masslak_db_function_seconds_total{function=~\".*\\\\.tg_.*\"}[5m]) / clamp_min(rate(masslak_db_function_calls_total{function=~\".*\\\\.tg_.*\"}[5m]), 1e-9)",
+     "legendFormat": "{{function}}",
+     "refId": "A"
+    }
+   ]
   }
  ],
  "description": "SLOs and database health (audit T3-16); alert rules in deploy/monitoring/alerts.yml, SLOs in docs/operations/SLO.md"

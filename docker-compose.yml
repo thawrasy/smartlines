@@ -1,5 +1,5 @@
-# Masslak test/production stack: PostgreSQL, a one-shot migration, the API (which also serves the web
-# interface), the worker, the egress proxy and Caddy as the HTTPS front. Configure with deploy/.env (copy deploy/.env.example).
+# Masslak test/production stack: PostgreSQL with a streaming read replica, a one-shot migration, the API (which also
+# serves the web interface), the worker, the egress proxy and Caddy as the HTTPS front. Configure with deploy/.env (copy deploy/.env.example).
 # Only Caddy and the egress proxy have a route to the internet: the API and the worker reach the outside world through
 # the proxy alone (audit T3-02, deploy/egress).
 name: masslak
@@ -12,12 +12,37 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-masslak}
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in deploy/.env}
+    # client authentication from deploy/postgres (replication for the read replica)
+    command: ["postgres", "-c", "hba_file=/etc/postgresql/pg_hba.conf"]
     volumes:
       - pgdata:/var/lib/postgresql/data
+      - ./deploy/postgres/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
       retries: 20
+    networks: [internal]
+
+  # Streaming read replica: reports and exports run here (the API refuses to start in production without it), so heavy
+  # queries never slow bookings; also the failover candidate (docs/operations/RUNBOOKS.md, section 3)
+  db-replica:
+    image: postgis/postgis:16-3.4-alpine
+    restart: unless-stopped
+    user: postgres
+    entrypoint: ["/usr/local/bin/masslak-replica"]
+    environment:
+      PGDATA: /var/lib/postgresql/data
+      MASSLAK_REPLICATION_PASSWORD: ${MASSLAK_REPLICATION_PASSWORD:?set MASSLAK_REPLICATION_PASSWORD in deploy/.env}
+    volumes:
+      - pgdata_replica:/var/lib/postgresql/data
+      - ./deploy/postgres/replica.sh:/usr/local/bin/masslak-replica:ro
+      - ./deploy/postgres/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -q && psql -Atc 'SELECT pg_is_in_recovery()' | grep -q t"]
+      interval: 5s
+      retries: 60
+    depends_on:
+      migrate: { condition: service_completed_successfully }
     networks: [internal]
 
   migrate:
@@ -43,6 +68,8 @@ services:
     environment:
       MASSLAK_DATABASE_URL: postgresql://masslak_api:${MASSLAK_API_PASSWORD}@db:5432/${POSTGRES_DB:-masslak}
       MASSLAK_AUDIT_DATABASE_URL: postgresql://masslak_audit:${MASSLAK_AUDIT_PASSWORD}@db:5432/${POSTGRES_DB:-masslak}
+      # reports and exports read the replica (required in production)
+      MASSLAK_REPORTS_DATABASE_URL: postgresql://masslak_api:${MASSLAK_API_PASSWORD}@db-replica:5432/${POSTGRES_DB:-masslak}
       # Only the Caddy container on the front network may set X-Forwarded-For
       MASSLAK_TRUSTED_PROXIES: 172.30.0.0/24
       # canonical links, sitemap and share cards of the public pages
@@ -55,6 +82,7 @@ services:
       - files:/data/files
     depends_on:
       migrate: { condition: service_completed_successfully }
+      db-replica: { condition: service_healthy }
       egress: { condition: service_started }
     # front is reachable by Caddy only and has no route out; outbound traffic goes through egress
     networks: [internal, front, egress_in]
@@ -69,6 +97,7 @@ services:
       MASSLAK_DATABASE_URL: postgresql://masslak_api:${MASSLAK_API_PASSWORD}@db:5432/${POSTGRES_DB:-masslak}
       MASSLAK_AUDIT_DATABASE_URL: postgresql://masslak_audit:${MASSLAK_AUDIT_PASSWORD}@db:5432/${POSTGRES_DB:-masslak}
       MASSLAK_FILES_DIR: /data/files
+      MASSLAK_REPORTS_DATABASE_URL: postgresql://masslak_api:${MASSLAK_API_PASSWORD}@db-replica:5432/${POSTGRES_DB:-masslak}
       MASSLAK_EGRESS_PROXY: http://egress:3128
       # the worker keeps the proxy's allowlist in step with the partner endpoints
       MASSLAK_EGRESS_LISTS: /data/egress-lists
@@ -129,6 +158,7 @@ networks:
 
 volumes:
   pgdata:
+  pgdata_replica:
   files:
   messages:
   caddy_data:

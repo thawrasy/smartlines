@@ -1513,4 +1513,32 @@ SELECT pg_temp.ok((SELECT ur.valid_to <= now() FROM iam.user_role ur JOIN iam.ro
 ROLLBACK;
 SET ROLE masslak_app;
 
+-- =====================================================================
+-- Architecture review of design 3.9 (1051)
+-- =====================================================================
+RESET ROLE;
+SELECT pg_temp.ok(NOT EXISTS (
+  SELECT 1 FROM pg_class c WHERE c.relkind = 'p'
+     AND ((obj_description(c.oid) ILIKE '%monthly%' AND EXISTS (SELECT 1 FROM pg_inherits i JOIN pg_class p ON p.oid = i.inhrelid
+                                                                 WHERE i.inhparent = c.oid AND p.relname ~ '_[0-9]{8}$'))
+       OR (obj_description(c.oid) ILIKE '%daily%' AND NOT EXISTS (SELECT 1 FROM pg_inherits i JOIN pg_class p ON p.oid = i.inhrelid
+                                                                   WHERE i.inhparent = c.oid AND p.relname ~ '_[0-9]{8}$')))),
+  'Architecture review: the comment of a partitioned table matches its partitions (daily or monthly)');
+SELECT pg_temp.ok(obj_description('ops.geo_event'::regclass) LIKE '%daily partitions%',
+  'Architecture review: positions are described as daily partitions');
+SELECT pg_temp.ok((SELECT count(DISTINCT labels ->> 'table') FROM sys.capacity_metrics() WHERE metric = 'masslak_table_rows_estimate') = 11
+  AND (SELECT value FROM sys.capacity_metrics() WHERE metric = 'masslak_outbox_partitioning_due') = 0
+  AND EXISTS (SELECT 1 FROM sys.capacity_metrics() WHERE metric = 'masslak_table_bytes' AND labels ->> 'table' = 'ops.geo_event' AND value > 0),
+  'Architecture review: capacity metrics cover the growing tables, partitions included');
+BEGIN;
+UPDATE sys.setting SET value = '0' WHERE key = 'capacity.outbox_partition_rows';
+ANALYZE sys.outbox_event;
+SELECT pg_temp.ok((SELECT value FROM sys.capacity_metrics() WHERE metric = 'masslak_outbox_partitioning_due') =
+                  CASE WHEN (SELECT reltuples FROM pg_class WHERE oid = 'sys.outbox_event'::regclass) > 0 THEN 1 ELSE 0 END,
+  'Architecture review: the outbox partitioning point follows its setting');
+ROLLBACK;
+SET ROLE masslak_app;
+SELECT pg_temp.ok(EXISTS (SELECT 1 FROM sys.capacity_metrics() WHERE metric = 'masslak_db_track_functions'),
+  'Architecture review: the application role reads the capacity metrics');
+
 \echo '=== ALL TESTS PASSED ==='

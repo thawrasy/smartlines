@@ -76,7 +76,8 @@ for f in docs/database/DESIGN_AUDIT_T3.md docs/database/DESIGN_AUDIT_T3_RECHECK.
          docs/database/MIGRATION_PLANS.md docs/database/STANDARDS.md docs/operations/RUNBOOKS.md docs/operations/SLO.md \
          docs/operations/PERFORMANCE_BASELINE.md docs/operations/RELEASE_MAP.md docs/integration/EVENTS.md \
          docs/architecture/AI_ASSISTANT_THREAT_MODEL_DPIA.md docs/operations/LAUNCH_GATES.md docs/operations/STAGING.md \
-         docs/security/PENETRATION_TEST_SCOPE.md deploy/egress/squid.conf deploy/pitr/postgresql.pitr.conf deploy/pitr/pgbackrest.conf \
+         docs/security/PENETRATION_TEST_SCOPE.md docs/database/ARCHITECTURE_REVIEW_RESPONSE.md \
+         docs/database/SCHEMA_DEPENDENCIES.md db/schema_dependencies.json deploy/egress/squid.conf deploy/pitr/postgresql.pitr.conf deploy/pitr/pgbackrest.conf \
          deploy/staging/docker-compose.staging.yml deploy/staging/alertmanager.yml; do
   [ -f "$ROOT/$f" ] && cp "$ROOT/$f" "$OUT/docs/"
 done

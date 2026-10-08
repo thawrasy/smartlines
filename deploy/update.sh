@@ -17,6 +17,12 @@ if [ -d .git ]; then
 else
   echo "deploying the files in $(pwd) (release archive, no git checkout)"
 fi
+# secrets added by newer releases (existing values are never changed)
+if ! grep -q '^MASSLAK_REPLICATION_PASSWORD=.' deploy/.env; then
+  sed -i '/^MASSLAK_REPLICATION_PASSWORD=/d' deploy/.env
+  echo "MASSLAK_REPLICATION_PASSWORD=$(openssl rand -hex 24)" >> deploy/.env
+  echo "added MASSLAK_REPLICATION_PASSWORD (read replica) to deploy/.env"
+fi
 compose build
 compose up -d
 compose ps

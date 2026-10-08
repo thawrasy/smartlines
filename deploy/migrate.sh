@@ -20,6 +20,13 @@ fi
 psql -d "$DB" -v ON_ERROR_STOP=1 -q -v api_password="${MASSLAK_API_PASSWORD:?}" -v audit_password="${MASSLAK_AUDIT_PASSWORD:?}" \
      -f /app/db/create_login_roles.sql
 
+# replication role of the read replica (db-replica); created on existing servers too, password kept in step with deploy/.env
+psql -d "$DB" -v ON_ERROR_STOP=1 -q -v pw="${MASSLAK_REPLICATION_PASSWORD:?}" <<'SQL'
+SELECT format('CREATE ROLE replicator WITH REPLICATION LOGIN PASSWORD %L', :'pw')
+ WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'replicator') \gexec
+SELECT format('ALTER ROLE replicator WITH REPLICATION LOGIN PASSWORD %L', :'pw') \gexec
+SQL
+
 if [ "${MASSLAK_SEED_DEMO:-false}" = "true" ]; then
   MASSLAK_OWNER_URL="postgresql://$PGUSER:$PGPASSWORD@$PGHOST/$DB" python /app/backend/scripts/seed_demo.py
   MASSLAK_OWNER_URL="postgresql://$PGUSER:$PGPASSWORD@$PGHOST/$DB" python /app/backend/scripts/seed_modules.py

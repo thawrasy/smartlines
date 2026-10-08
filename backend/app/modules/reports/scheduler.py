@@ -126,7 +126,8 @@ async def run_one(schedule_id: int) -> bool:
     today = date.today()
     params = {"from": today - timedelta(days=PERIOD_DAYS[s["frequency"]]), "to": today - timedelta(days=1)}
     loc = s["locale"] if s["locale"] in ("ar", "en") else "ar"
-    async with db.transaction(ctx) as conn:
+    # the query reads the replica (production), like interactive reports; the run record is written on the primary
+    async with db.reports_transaction(ctx) as rconn:
         if definition:
             dataset, spec, code, title = definition["dataset"], as_dict(definition["spec"]), "custom." + definition["dataset"], definition["name"]
         else:
@@ -136,11 +137,13 @@ async def run_one(schedule_id: int) -> bool:
             if not r.period:
                 params = {"all_time": True}
         limit = engine.PDF_ROWS if s["format"] == "PDF" else engine.EXPORT_ROWS
-        res = await engine.run(conn, v, dataset=dataset, spec=spec, params=params, limit=limit)
-        period = export.words(loc).get("all_time", "") if params.get("all_time") else f"{params['from']} → {params['to']}"
-        meta = export.Meta(code, title, period, v.name, datetime.now(timezone.utc), loc)
-        data, digest = export.render(s["format"], res, meta)
-        import json
+        res = await engine.run(rconn, v, dataset=dataset, spec=spec, params=params, limit=limit)
+        res.data_as_of = await db.data_as_of(rconn)
+    period = export.words(loc).get("all_time", "") if params.get("all_time") else f"{params['from']} → {params['to']}"
+    meta = export.Meta(code, title, period, v.name, datetime.now(timezone.utc), loc)
+    data, digest = export.render(s["format"], res, meta)
+    import json
+    async with db.transaction(ctx) as conn:
         run_id = await conn.fetchval(
             """INSERT INTO rpt.report_run (report_code, definition_id, user_id, company_id, portal, params, format, row_count, sha256, duration_ms)
                VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, $8, $9, $10) RETURNING id""",

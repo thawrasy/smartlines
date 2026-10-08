@@ -13,8 +13,8 @@ developer machine or CI are smoke tests, not launch evidence.
 | Part | File | What it adds to the production stack |
 |---|---|---|
 | Compose overlay | `deploy/staging/docker-compose.staging.yml` | Everything below, on top of `docker-compose.yml` |
-| Database with pgBackRest | `deploy/staging/db/` | WAL archived through pgBackRest every 60 s at most (approved RPO 60 s), encrypted repository, `pg_stat_statements`, lock and slow-query logging |
-| Streaming standby | service `db-standby` | Hot standby from a replication slot; replica lag is monitored; failover drill (RUNBOOKS section 2) |
+| Database with pgBackRest | `deploy/staging/db/` | WAL archived through pgBackRest every 60 s at most (approved RPO 60 s), encrypted repository, `pg_stat_statements`, lock and slow-query logging, `track_functions = pl` (trigger cost) |
+| Read replica | service `db-replica` (production stack) | Streaming hot standby where reports and exports run; replica lag is monitored; failover drill (RUNBOOKS section 3) |
 | ClamAV | service `clamav` | The file scanner's engine (`MASSLAK_CLAMD=clamav:3310`); without it production files stay pending (fail-closed) |
 | Prometheus | service `prometheus` | Scrapes `/api/metrics` with the token, evaluates the 24 rules of `deploy/monitoring/alerts.yml` |
 | Alertmanager | `deploy/staging/alertmanager.yml` | Severity `page` to the on-call channel, `ticket` to the team queue |
@@ -63,9 +63,9 @@ python3 db/tools/generate_volume.py masslak --months 12 --bookings-per-day 3000 
 
 | Gate | Command | Pass criterion |
 |---|---|---|
-| Capacity at 1x, 2x, 5x | `python -m loadtest.run --base https://<staging> --levels 50,100,200 --mix full --owner-dsn ... --json load_<scale>.json` | The SLOs hold at 1x and 2x (booking p95 ≤ 0.8 s, p99 ≤ 1.5 s, 5xx < 0.1 %); 0 deadlocks; 0 wallet mismatches. At 5x, the limit and the first resource to saturate are recorded |
+| Capacity at 1x, 2x, 5x | `python -m loadtest.run --base https://<staging> --levels 50,100,200 --mix full --owner-dsn ... --json load_<scale>.json` | The SLOs hold at 1x and 2x (booking p95 ≤ 0.8 s, p99 ≤ 1.5 s, 5xx < 0.1 %); 0 deadlocks; 0 wallet mismatches; no trigger over 1 ms per row (`trigger_ms_per_call`). At 5x, the limit and the first resource to saturate are recorded |
 | Recovery | `pgbackrest restore` to a new host with `--type=time`, then the checks of `db/tools/restore_drill.py` | Data lost ≤ 60 s; usable in ≤ 30 min; wallets, ledger, orphans, audit seals and schema hash all pass |
-| Failover | Promote `db-standby` while the load test runs | The API recovers without manual data repair; time recorded |
+| Failover | Promote `db-replica` while the load test runs | The API recovers without manual data repair; time recorded |
 | Migrations | `db/tools/migration_rehearsal.py --base <previous release>` against the 1x copy | Within the stop criteria of `docs/database/MIGRATION_PLANS.md` |
 | Monitoring | Fire a test alert; stop the API; fill the outbox | Each page arrives on the on-call channel; time to acknowledge recorded |
 | File scanning | Upload a clean file and the EICAR test file | Clean file accepted; EICAR rejected; nothing stays pending over 15 min |
@@ -75,7 +75,9 @@ python3 db/tools/generate_volume.py masslak --months 12 --bookings-per-day 3000 
 The overlay was brought up and checked on the development host on 7 October 2026. Results are in
 `evidence/staging_kit_check_2026-10-07.json`:
 
-- **Database:** the standby streamed from the primary, and WAL segments were archived (6 archived, 0 failed).
+- **Database:** the standby streamed from the primary, and WAL segments were archived (6 archived, 0 failed). That
+  standby has since become the `db-replica` service of the production stack, and was checked again on 8 October
+  2026 (see `ARCHITECTURE_REVIEW_RESPONSE.md`).
 - **Monitoring:** Prometheus loaded the 24 rules and found Alertmanager. Alertmanager's configuration passed `amtool`.
   Grafana provisioned the data source and the dashboard.
 - **File scanning:** ClamAV detected the EICAR test file through the API's scanner.

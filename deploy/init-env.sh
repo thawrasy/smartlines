@@ -32,6 +32,7 @@ sed -e "s|^MASSLAK_DOMAIN=.*|MASSLAK_DOMAIN=$domain|" \
     -e "s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=$(pass)|" \
     -e "s|^MASSLAK_API_PASSWORD=.*|MASSLAK_API_PASSWORD=$(pass)|" \
     -e "s|^MASSLAK_AUDIT_PASSWORD=.*|MASSLAK_AUDIT_PASSWORD=$(pass)|" \
+    -e "s|^MASSLAK_REPLICATION_PASSWORD=.*|MASSLAK_REPLICATION_PASSWORD=$(pass)|" \
     -e "s|^MASSLAK_SIGNING_SECRET=.*|MASSLAK_SIGNING_SECRET=$(openssl rand -base64 48 | tr -d '\n')|" \
     -e "s|^MASSLAK_FIELD_KEYS=.*|MASSLAK_FIELD_KEYS=kms://masslak/field/restricted/v1=$(key),kms://masslak/field/confidential/v1=$(key)|" \
     -e "s|^MASSLAK_BIDX_KEY=.*|MASSLAK_BIDX_KEY=$(key)|" \

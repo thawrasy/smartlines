@@ -36,6 +36,7 @@ async def lifespan(_: FastAPI):
     await db.open_pools()
     from . import egress
     egress.require_in_production()        # outbound traffic only through the egress proxy (T3-02)
+    await db.require_reports_replica()    # reports read the replica, never the booking database (architecture review)
     if not get_settings().sandbox:
         # fail at start, not at the first booking: production needs real keys from KMS or Vault (review 3.12)
         from . import crypto

@@ -65,9 +65,28 @@ reviewer of a pull request enforces the rest. They write down what the 445 exist
 
 ## Dependencies between schemas
 
-- Later modules depend on the core, not the reverse. `sys.v_schema_dependency` lists the cross-schema edges; a new pair
-  of schemas that depend on each other fails the build until it is reviewed and added to the baseline in
-  `db/tests/run_tests.sql` **(checked)**.
+- Schemas are modules of one database. A foreign key between two of them keeps the reference true at every commit,
+  whichever way it points; integrity is never traded for decoupling inside the database.
+- Later modules depend on the core, not the reverse. A new reference points one way when the business allows it.
+- **New two-way pairs:** `sys.v_schema_dependency` lists the cross-schema edges. A new pair of schemas that depend on
+  each other fails the build until it is reviewed and added to the baseline in `db/tests/run_tests.sql` **(checked)**.
+- **New table cycles:** a new cycle of foreign keys between tables also fails CI (`db/tools/schema_dependencies.py`)
+  until it is added to `db/schema_dependencies.json` with its reason **(checked)**. A cycle needs at least one
+  nullable link. The baseline only shrinks otherwise.
+- **The map:** `docs/database/SCHEMA_DEPENDENCIES.md` is generated from the build and lists every cross-schema
+  reference with the reason for each two-way pair.
+
+## Triggers and policies: cost budget
+
+- **Hot tables:** seats, bookings, tickets, payments, wallets, ledger and positions. A trigger on one of them does
+  bounded work: indexed lookups on the row's own keys, no scans, no calls outside the database. Validation of a JSONB
+  contract happens once, on write.
+- **Budget:** a hot write path spends at most 1 ms of trigger time per row at the 1x staging volume, and policies add
+  at most 1 ms per query. Staging records both with `track_functions = pl` (`masslak_db_function_seconds_total`) and
+  the RLS benchmark. A change that breaks the budget is fixed in the same release (an index, a cheaper predicate, a
+  `SECURITY DEFINER` lookup keyed by id) before it is accepted.
+- **Where a rule lives:** a rule that must hold for every writer (API, worker, partner API, administration tools)
+  stays in the database. Only presentation and request-shape checks live only in the application.
 
 ## Phases
 

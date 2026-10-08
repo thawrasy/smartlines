@@ -14,7 +14,7 @@ const PNG = path.join(HERE, "..", "erd", "png");
 // numbers of the verification run that built this document (verification.py), never typed by hand (audit T3-17)
 const V = JSON.parse(fs.readFileSync(path.join(HERE, "..", "build", "verification.json"), "utf8"));
 const lastFile = V.last_schema_file.split("_")[0];
-const VERSION = "3.9";
+const VERSION = "3.10";
 const DATE = "7 October 2026";
 const FONT = "Arial";
 const C = { navy: "1F3A5F", blue: "2E74B5", blue2: "1F4D78", grid: "B7C3D0", alt: "F2F6FA", grey: "595959" };
@@ -110,9 +110,9 @@ front.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 16
 front.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 1200 },
   children: [run(`Complete relational model of the Analysis and Design Study v3.0: ${tableCount} tables, ${fkCount} relationships`, { color: "7F7F7F" })] }));
 front.push(table(["Item", "Details"], [
-  ["Version", `${VERSION} (the re-audit of design document 3.8: outbound connection controls, monitoring, sensitive report links, device-bound positions, approved resends and payment reconciliation, with measured recovery, migration and load evidence; replaces version 3.8)`],
+  ["Version", `${VERSION} (the owner's decisions on the review of 3.9 and the architecture review of 3.9: approved recovery and service targets, time-bound external reviewer access, reports on a read replica, module dependency and trigger cost controls, capacity metrics; replaces version 3.9)`],
   ["Date", DATE],
-  ["Basis", "Analysis and Design Study v3.0 (English), the Use Case and Data Flow Diagrams v1.0, the Database Architecture Review v1.0, the Strategic Database Review and its relationship audit register, the Third-Party Technical Audit, the Technical Audit of design document 3.7 and its re-audit of 3.8"],
+  ["Basis", "Analysis and Design Study v3.0 (English), the Use Case and Data Flow Diagrams v1.0, the Database Architecture Review v1.0, the Strategic Database Review and its relationship audit register, the Third-Party Technical Audit, the Technical Audit of design document 3.7, its re-audit of 3.8 and follow-up of 3.9, and the architecture review of 3.9"],
   ["Scope", `${schemas.length} schemas, ${tableCount} tables, ${colCount} columns, ${fkCount} foreign keys; all phases 1 to 15`],
   ["Engine", `PostgreSQL ${V.postgres} with row-level security on every table; PostGIS ${V.postgis} in schema gis; ${V.schema_files} schema files, db/schema/000 to ${lastFile}`],
   ["Status", `Built and verified at commit ${V.source_commit} (migration ${V.migration}, schema SHA-256 ${V.schema_sha256.slice(0, 16)}): fresh build and upgrade identical, ${V.db_checks} database checks and ${V.api_tests} API tests passing, every foreign key indexed or exempt by rule`],
@@ -120,7 +120,7 @@ front.push(table(["Item", "Details"], [
 ], [2800, 6946]));
 
 const toc = [H(HeadingLevel.HEADING_1, "Contents", { pageBreak: true })];
-const tocLines = ["Changes in version 3.9", "Changes in version 3.8", "Changes in version 3.7", "Changes in version 3.6", "Changes in version 3.5", "Changes in version 3.4", "Changes in version 3.3", "Changes in version 3.2", "Changes in version 3.1", "Changes in version 3.0", "1. Introduction", "2. Database architecture", "3. Design rules", "4. Security model in the database",
+const tocLines = ["Changes in version 3.10", "Changes in version 3.9", "Changes in version 3.8", "Changes in version 3.7", "Changes in version 3.6", "Changes in version 3.5", "Changes in version 3.4", "Changes in version 3.3", "Changes in version 3.2", "Changes in version 3.1", "Changes in version 3.0", "1. Introduction", "2. Database architecture", "3. Design rules", "4. Security model in the database",
   "5. Data stores of the data flow diagrams", "6. Entity-relationship diagrams by module",
   ...model.groups.map((g, i) => `      6.${i + 1} ${g[0]} ${g[1]}`), `      6.${model.groups.length + 1} Focus diagrams: rules that span modules`,
   "7. Table definitions", "8. Traceability to the study", "9. Verification",
@@ -162,6 +162,36 @@ const changes38 = [H(HeadingLevel.HEADING_2, "b. Hardening after the third-party
     + "infrastructure and moves to Phase 5.", "Owner decisions"),
   P("Schema-level two-way dependencies (21, frozen by test H-07) differ from phase-level dependencies, of which there are none backwards: "
     + "the earlier wording is clarified accordingly. db/tools/audit_pack.sh builds the evidence pack for the second phase of the audit."),
+];
+
+// ------------------------------ changes in 3.10 (owner decisions and architecture review of 3.9) ------------------------------
+const changes3_10 = [H(HeadingLevel.HEADING_1, "Changes in version 3.10", { pageBreak: true }),
+  P("Two reviews of version 3.9 led to this version. The auditors' follow-up kept general launch behind nine operational gates, "
+    + "and the owner decided the targets and who tests (schema file 1050_owner_decisions.sql, migration 1.32.0). A second firm's "
+    + "architecture review raised five risks. Each was checked against the built database; the response keeps what the measurements "
+    + "support and declines what would weaken integrity (schema file 1051_architecture_review.sql, migration 1.33.0; "
+    + "docs/database/ARCHITECTURE_REVIEW_RESPONSE.md)."),
+  H(HeadingLevel.HEADING_2, "a. Owner decisions (file 1050)"),
+  bullet("RPO 60 seconds, RTO 30 minutes and the service level objectives are approved and stored as settings (recovery.rpo_seconds, "
+    + "recovery.rto_minutes, slo.objectives); the restore drill and monitoring compare their measurements with them.", "Targets"),
+  bullet("External auditors and penetration testers get the read-only role EXTERNAL_AUDITOR only through sec.external_access_grant: "
+    + "granted by a second person for a named engagement, at most 30 days, never extended, revocable at once, announced through the "
+    + "outbox. A trigger on iam.user_role refuses the role without a live grant.", "Reviewer access"),
+  bullet("Staging and the penetration test are run by external firms. The staging kit (deploy/staging, docs/operations/STAGING.md), "
+    + "the launch gate register (docs/operations/LAUNCH_GATES.md) and the test scope (docs/security/PENETRATION_TEST_SCOPE.md) "
+    + "are what they receive.", "Operations"),
+  H(HeadingLevel.HEADING_2, "b. Architecture review (file 1051 and the stack)"),
+  bullet("The positions table described itself as partitioned monthly, and that comment reached the reviewers through this document. "
+    + "The table has used daily partitions, dropped whole after 7 days, since file 1048. The comment is corrected, and a check now "
+    + "keeps comments on partitioned tables in step with their partitions.", "Positions"),
+  bullet("Reports and scheduled exports read a streaming replica (service db-replica). In production the API and the worker refuse to "
+    + "start without one, or when the address given is a primary. Bookings and payments keep their single-transaction guarantee "
+    + "with the ledger.", "Reports"),
+  bullet("The 21 two-way schema pairs and 20 table cycles are listed with their reasons (db/schema_dependencies.json, "
+    + "docs/database/SCHEMA_DEPENDENCIES.md). CI fails on a new pair or a new cycle without a recorded reason.", "Module dependencies"),
+  bullet("sys.capacity_metrics() reports table growth, the outbox purge backlog and partitioning point "
+    + "(capacity.outbox_partition_rows), and the time spent in each trigger when track_functions is on. Staging turns it on, and "
+    + "the load test reports milliseconds per row for the costliest triggers, against a budget of 1 ms (STANDARDS.md).", "Capacity and cost"),
 ];
 
 // ------------------------------ changes in 3.9 (re-audit of design 3.8) ------------------------------
@@ -765,7 +795,7 @@ const doc = new Document({
   numbering: { config: [{ reference: "bullets", levels: [{ level: 0, format: LevelFormat.BULLET, text: "•", alignment: AlignmentType.LEFT,
     style: { paragraph: { indent: { left: 540, hanging: 270 } } } }] }] },
   sections: [
-    section(PORTRAIT, [...front, ...toc, ...changes3_9, ...changes3_8, ...changes37, ...changes38, ...changes39, ...changes36, ...changes35, ...changes34, ...changes33, ...changes32, ...changes31, ...changes, ...intro, ...arch, ...rules, ...security, ...stores]),
+    section(PORTRAIT, [...front, ...toc, ...changes3_10, ...changes3_9, ...changes3_8, ...changes37, ...changes38, ...changes39, ...changes36, ...changes35, ...changes34, ...changes33, ...changes32, ...changes31, ...changes, ...intro, ...arch, ...rules, ...security, ...stores]),
     ...erdSections,
     section(PORTRAIT, [...defs, ...trace, ...verify, ...flags, ...gens, ...appC]),
   ],

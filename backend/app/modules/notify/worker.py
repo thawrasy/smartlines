@@ -103,6 +103,7 @@ async def main(once: bool) -> None:
     from ... import egress
     egress.require_in_production()
     await db.open_pools()
+    await db.require_reports_replica()       # scheduled reports read the replica, never the booking database
     last_reports = 0.0
     last_maintenance = None if not once else 0.0     # a long-running worker maintains at start, then daily
     try:

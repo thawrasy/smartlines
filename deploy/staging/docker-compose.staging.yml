@@ -2,7 +2,8 @@
 # staging, on production-like hardware, with production-size synthetic data (db/tools/generate_volume.py):
 #   docker compose -f docker-compose.yml -f deploy/staging/docker-compose.staging.yml --env-file deploy/.env up -d --build
 # On top of the production stack it adds what the launch gates are measured with:
-#   * the database with WAL archiving through pgBackRest (RPO 60 s) and a streaming standby;
+#   * the database with WAL archiving through pgBackRest (RPO 60 s); the read replica (db-replica) comes from the
+#     production stack itself;
 #   * ClamAV for the file scanner (fail-closed);
 #   * Prometheus with the alert rules, Alertmanager, and Grafana with the operations dashboard.
 # Paths are relative to the repository root (the directory of the first compose file).
@@ -13,6 +14,8 @@ services:
     image: masslak-staging-db:latest
     command:
       - postgres
+      - -c
+      - hba_file=/etc/postgresql/pg_hba.conf
       - -c
       - wal_level=replica
       - -c
@@ -33,30 +36,17 @@ services:
       - shared_preload_libraries=pg_stat_statements
       - -c
       - track_io_timing=on
+      # time spent in each trigger and function (masslak_db_function_seconds_total, trigger cost budget)
+      - -c
+      - track_functions=pl
       - -c
       - log_lock_waits=on
       - -c
       - log_min_duration_statement=500ms
     environment:
-      MASSLAK_REPLICATION_PASSWORD: ${MASSLAK_REPLICATION_PASSWORD:?set MASSLAK_REPLICATION_PASSWORD in deploy/.env}
       PGBACKREST_REPO1_CIPHER_PASS: ${PGBACKREST_REPO1_CIPHER_PASS:?set PGBACKREST_REPO1_CIPHER_PASS in deploy/.env}
     volumes:
       - pgbackrest_repo:/var/lib/pgbackrest
-
-  # Hot standby streaming from db (replica lag is a monitored SLI; failover drill: RUNBOOKS section 2)
-  db-standby:
-    image: masslak-staging-db:latest
-    restart: unless-stopped
-    user: postgres
-    entrypoint: ["/usr/local/bin/masslak-standby"]
-    environment:
-      PGDATA: /var/lib/postgresql/data
-      MASSLAK_REPLICATION_PASSWORD: ${MASSLAK_REPLICATION_PASSWORD:?set MASSLAK_REPLICATION_PASSWORD in deploy/.env}
-    volumes:
-      - pgdata_standby:/var/lib/postgresql/data
-    depends_on:
-      db: { condition: service_healthy }
-    networks: [internal]
 
   app:
     environment:
@@ -128,7 +118,6 @@ networks:
 
 volumes:
   pgbackrest_repo:
-  pgdata_standby:
   clamav_db:
   prometheus_data:
   alertmanager_data:

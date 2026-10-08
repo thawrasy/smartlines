@@ -123,3 +123,23 @@ groups:
         expr: masslak_db_xid_age > 1.2e9
         labels: { severity: page }
         annotations: { summary: "Transaction id age approaching wraparound", runbook: "RUNBOOKS.md#1-incident-response" }
+  # Growth and cost (architecture review of design 3.9): act before a table or a trigger becomes the bottleneck
+  - name: masslak-capacity
+    rules:
+      - alert: OutboxPartitioningDue
+        expr: masslak_outbox_partitioning_due > 0
+        for: 1h
+        labels: { severity: ticket }
+        annotations: { summary: "The outbox passed capacity.outbox_partition_rows: partition it by day in the next release", runbook: "RUNBOOKS.md#10-load-and-capacity-r-12" }
+      - alert: OutboxPurgeBehind
+        expr: masslak_outbox_purge_backlog > 100000
+        for: 6h
+        labels: { severity: ticket }
+        annotations: { summary: "Published events past their retention are not being purged", runbook: "RUNBOOKS.md#9-data-lifecycle-r-11" }
+      - alert: TriggerCostOverBudget
+        expr: |
+          (rate(masslak_db_function_seconds_total{function=~".*\\.tg_.*"}[15m]) / clamp_min(rate(masslak_db_function_calls_total{function=~".*\\.tg_.*"}[15m]), 1e-9) > 0.001)
+          and rate(masslak_db_function_calls_total{function=~".*\\.tg_.*"}[15m]) > 1
+        for: 30m
+        labels: { severity: ticket }
+        annotations: { summary: "A trigger spends more than 1 ms per row (cost budget, STANDARDS.md)", runbook: "RUNBOOKS.md#10-load-and-capacity-r-12" }

@@ -35,6 +35,8 @@ jobs:
           db/build.sh upgrade_check -h localhost -U postgres > /dev/null
           db/upgrade.sh upgrade_check -h localhost -U postgres | tee upgrade.log
           ! grep -q '^>>' upgrade.log
+      - name: No new two-way module dependency or table cycle without a recorded reason
+        run: python3 db/tools/schema_dependencies.py upgrade_check -h localhost -U postgres
 
   api:
     name: API end-to-end tests
@@ -148,6 +150,12 @@ jobs:
           curl -fsSk -b jar -H 'X-Masslak-Client: web' https://localhost/api/auth/me | grep -q passenger@masslak.test
           curl -fsSk "https://localhost/api/trips/search?origin=DAM&destination=ALP&on=$(TZ=Asia/Damascus date -d tomorrow +%F)" | grep -q '"trips"'
           curl -fsSk https://localhost/api/public/keys/ticket | grep -q public_key
+      - name: Reports read the streaming replica (architecture review)
+        run: |
+          dc="docker compose --env-file deploy/.env"
+          test "$($dc exec -T db-replica psql -U postgres -Atc 'SELECT pg_is_in_recovery()')" = t
+          test "$($dc exec -T db psql -U postgres -Atc "SELECT count(*) FROM pg_stat_replication WHERE state = 'streaming'")" = 1
+          $dc exec -T app printenv MASSLAK_REPORTS_DATABASE_URL | grep -q '@db-replica:'
       - name: Only Caddy is reachable from outside
         run: |
           for port in 5432 8000; do

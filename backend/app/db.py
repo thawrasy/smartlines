@@ -84,6 +84,19 @@ async def system_scope(conn: asyncpg.Connection, ctx: Context) -> AsyncIterator[
     await apply_context(conn, ctx)
 
 
+async def require_reports_replica() -> None:
+    """Production reads reports from a streaming replica only (architecture review of design 3.9): heavy queries must
+    never slow bookings and payments. The sandbox may use the main pool."""
+    if get_settings().sandbox:
+        return
+    if _reports_pool is None:
+        raise RuntimeError("MASSLAK_REPORTS_DATABASE_URL is required outside the sandbox: reports read the replica, "
+                           "never the primary (docker-compose.yml, service db-replica)")
+    async with _reports_pool.acquire() as conn:
+        if not await conn.fetchval("SELECT pg_is_in_recovery()"):
+            raise RuntimeError("MASSLAK_REPORTS_DATABASE_URL points at a primary: it must be a read replica (hot standby)")
+
+
 @asynccontextmanager
 async def reports_transaction(ctx: Context) -> AsyncIterator[asyncpg.Connection]:
     """Reports run on the read replica when one is configured (same roles, same row-level security), otherwise on the

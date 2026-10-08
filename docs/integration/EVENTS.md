@@ -46,6 +46,28 @@ Personal fields are removed from `data` unless the endpoint was registered with 
 5. **Read `schema_version`.** A new version of an event type is announced in advance. Fields are only ever added within a
    version.
 
+## How events leave the database, and how that scales
+
+- **Written in the same transaction.** An event is written to `sys.outbox_event` in the transaction that changes the
+  record. A booking is therefore never confirmed without its event, and no event exists for a change that rolled
+  back. The only trigger on the table numbers events per record (`sys.outbox_sequence`). It locks that record's
+  counter row, never the table.
+- **Read by competing workers.** Workers claim batches with `FOR UPDATE SKIP LOCKED`, so they never wait for each
+  other. Published events are deleted after 30 days.
+- **Watched:**
+  - the age of the oldest pending event (alert `OutboxBacklog`);
+  - the purge backlog (`OutboxPurgeBehind`);
+  - the table size (`masslak_table_rows_estimate`).
+- **Partitioning point.** When the table passes `capacity.outbox_partition_rows` (20 million rows by default), the
+  alert `OutboxPartitioningDue` opens a ticket. The next release then partitions it by day, as positions already are,
+  and the purge becomes dropping a partition.
+- **Change data capture (CDC) later, same contract.** If partner traffic one day needs a broker, Debezium can read
+  this outbox from the write-ahead log, using its outbox event router, and publish it to Kafka. The outbox stays: CDC
+  reads it rather than replacing it. Envelope, `id`, `sequence` and `schema_version` stay as described here, so
+  receivers change nothing.
+- **Why there is no broker now:** at the expected volume (thousands of bookings a day), a broker adds two clusters to
+  run and secure, without removing a bottleneck that has been measured.
+
 ## Replays
 
 - **Who can retry:** the partner can retry a FAILED or DEAD delivery from the integration console, or through

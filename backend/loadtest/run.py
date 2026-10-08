@@ -171,7 +171,11 @@ class DbProbe:
             """SELECT sum(xact_commit) AS commits, sum(xact_rollback) AS rollbacks, sum(deadlocks) AS deadlocks,
                       sum(temp_bytes) AS temp_bytes, sum(blks_hit) AS hit, sum(blks_read) AS read,
                       pg_wal_lsn_diff(pg_current_wal_lsn(), '0/0') AS wal FROM pg_stat_database""")
-        return dict(r)
+        out = dict(r)
+        # time in triggers (architecture review: their cost is measured, not assumed); needs track_functions = pl
+        out["functions"] = {f"{f['schemaname']}.{f['funcname']}": (int(f["calls"]), float(f["total_time"]))
+                            for f in await self.conn.fetch("SELECT schemaname, funcname, calls, total_time FROM pg_stat_user_functions")}
+        return out
 
     async def sample(self, until: float):
         while time.perf_counter() < until:
@@ -192,7 +196,21 @@ class DbProbe:
                 "lock_waiters_max": max((s["waiting"] for s in samples), default=0),
                 "lock_wait_longest_s": round(max((float(s["longest"]) for s in samples), default=0.0), 3),
                 "active_sessions_max": max((s["active"] for s in samples), default=0),
-                "host_load_1m": round(__import__("os").getloadavg()[0], 2)}
+                "host_load_1m": round(__import__("os").getloadavg()[0], 2),
+                "trigger_ms_per_call": DbProbe.trigger_cost(a["functions"], b["functions"])}
+
+    @staticmethod
+    def trigger_cost(a: dict, b: dict) -> dict | str:
+        """The ten trigger functions with the most time during the level: milliseconds per call and calls."""
+        if not b:
+            return "track_functions is off: set it to pl on the database to measure trigger cost"
+        rows = []
+        for name, (calls, ms) in b.items():
+            c0, m0 = a.get(name, (0, 0.0))
+            if ".tg_" in name and calls > c0:
+                rows.append((ms - m0, name, calls - c0))
+        rows.sort(reverse=True)
+        return {name: {"ms_per_call": round(ms / calls, 4), "calls": calls} for ms, name, calls in rows[:10]}
 
 
 async def level(base: str, clients: list[httpx.AsyncClient], users: int, seconds: int, mix: str = "booking",

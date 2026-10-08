@@ -14,6 +14,5 @@ done
 chmod 0644 "$D"/metrics_token "$D"/grafana_admin_password "$D"/*_webhook_url
 echo "Add to deploy/.env (once):"
 echo "MASSLAK_METRICS_TOKEN=$(cat "$D/metrics_token")"
-grep -q '^MASSLAK_REPLICATION_PASSWORD=.' "$(dirname "$D")/../.env" 2>/dev/null || echo "MASSLAK_REPLICATION_PASSWORD=$(rand)"
 grep -q '^PGBACKREST_REPO1_CIPHER_PASS=.' "$(dirname "$D")/../.env" 2>/dev/null || echo "PGBACKREST_REPO1_CIPHER_PASS=$(rand)"
 echo "Then put the on-call and team-queue webhook URLs in $D/page_webhook_url and ticket_webhook_url."

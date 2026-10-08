@@ -18,7 +18,23 @@ tests:
         values: "0+100x70"
       - series: 'masslak_http_requests_total{group="booking",status="5xx",method="POST",route="/api/bookings"}'
         values: "0+10x70"
+      - series: masslak_outbox_partitioning_due
+        values: "0x10 1x80"
+      - series: 'masslak_db_function_calls_total{function="audit.tg_capture_change"}'
+        values: "0+600x60"
+      - series: 'masslak_db_function_seconds_total{function="audit.tg_capture_change"}'
+        values: "0+1.2x60"
+      - series: 'masslak_db_function_calls_total{function="sys.tg_set_updated_at"}'
+        values: "0+600x60"
+      - series: 'masslak_db_function_seconds_total{function="sys.tg_set_updated_at"}'
+        values: "0+0.01x60"
     alert_rule_test:
+      - eval_time: 75m
+        alertname: OutboxPartitioningDue
+        exp_alerts: [{ exp_labels: { severity: ticket }, exp_annotations: { summary: "The outbox passed capacity.outbox_partition_rows: partition it by day in the next release", runbook: "RUNBOOKS.md#10-load-and-capacity-r-12" } }]
+      - eval_time: 50m
+        alertname: TriggerCostOverBudget
+        exp_alerts: [{ exp_labels: { severity: ticket, function: audit.tg_capture_change }, exp_annotations: { summary: "A trigger spends more than 1 ms per row (cost budget, STANDARDS.md)", runbook: "RUNBOOKS.md#10-load-and-capacity-r-12" } }]
       - eval_time: 3m
         alertname: WalletMismatch
         exp_alerts: [{ exp_labels: { severity: page }, exp_annotations: { summary: "Wallet balances disagree with the ledger: freeze payouts", runbook: "RUNBOOKS.md#8-alerts-the-database-raises" } }]
