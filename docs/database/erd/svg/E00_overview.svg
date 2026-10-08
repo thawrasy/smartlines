@@ -155,7 +155,7 @@
 <path fill="none" stroke="#404040" d="M22,-38.5C22,-38.5 188,-38.5 188,-38.5 194,-38.5 200,-44.5 200,-50.5 200,-50.5 200,-88.5 200,-88.5 200,-94.5 194,-100.5 188,-100.5 188,-100.5 22,-100.5 22,-100.5 16,-100.5 10,-94.5 10,-88.5 10,-88.5 10,-50.5 10,-50.5 10,-44.5 16,-38.5 22,-38.5"/>
 <text text-anchor="start" x="63.5" y="-71.3" font-family="DejaVu Sans" font-weight="bold" font-size="13.00">sec</text>
 <text text-anchor="start" x="88.5" y="-71.3" font-family="DejaVu Sans" font-size="14.00"> </text>
-<text text-anchor="start" x="93.5" y="-71.3" font-family="DejaVu Sans" font-size="10.00">(24 tables)</text>
+<text text-anchor="start" x="93.5" y="-71.3" font-family="DejaVu Sans" font-size="10.00">(25 tables)</text>
 <text text-anchor="start" x="74.5" y="-60.5" font-family="DejaVu Sans" font-size="10.00">Security hub</text>
 <path fill="#f8cbad" stroke="transparent" d="M222,-38.5C222,-38.5 388,-38.5 388,-38.5 394,-38.5 400,-44.5 400,-50.5 400,-50.5 400,-88.5 400,-88.5 400,-94.5 394,-100.5 388,-100.5 388,-100.5 222,-100.5 222,-100.5 216,-100.5 210,-94.5 210,-88.5 210,-88.5 210,-50.5 210,-50.5 210,-44.5 216,-38.5 222,-38.5"/>
 <path fill="none" stroke="#404040" d="M222,-38.5C222,-38.5 388,-38.5 388,-38.5 394,-38.5 400,-44.5 400,-50.5 400,-50.5 400,-88.5 400,-88.5 400,-94.5 394,-100.5 388,-100.5 388,-100.5 222,-100.5 222,-100.5 216,-100.5 210,-94.5 210,-88.5 210,-88.5 210,-50.5 210,-50.5 210,-44.5 216,-38.5 222,-38.5"/>
@@ -175,7 +175,7 @@
 <text text-anchor="start" x="698" y="-71.3" font-family="DejaVu Sans" font-size="14.00"> </text>
 <text text-anchor="start" x="703" y="-71.3" font-family="DejaVu Sans" font-size="10.00">(6 tables)</text>
 <text text-anchor="start" x="680.5" y="-60.5" font-family="DejaVu Sans" font-size="10.00">Audit logs</text>
-<text text-anchor="start" x="1080" y="-16.5" font-family="DejaVu Sans" font-size="10.00" fill="#595959">26 schemas, 475 tables</text>
+<text text-anchor="start" x="1080" y="-16.5" font-family="DejaVu Sans" font-size="10.00" fill="#595959">26 schemas, 476 tables</text>
 </g>
 </g>
 </svg>

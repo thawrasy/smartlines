@@ -174,7 +174,7 @@ GROUPS = [
      "IP rules, risk assessments, fraud cases, blocklists, security events, encryption key registry, access reviews, "
      "break-glass log, document signatures and tamper events; and the append-only audit logs with their seals.",
      ["sec.ip_rule", "sec.risk_assessment", "sec.fraud_case", "sec.blocklist_entry", "sec.security_event", "sec.key_registry",
-      "sec.access_review", "sec.break_glass_log", "sec.policy_decision", "sec.document_signature", "sec.tamper_event", "audit.auth_event",
+      "sec.access_review", "sec.external_access_grant", "sec.break_glass_log", "sec.policy_decision", "sec.document_signature", "sec.tamper_event", "audit.auth_event",
       "audit.activity_log", "audit.data_access_log", "audit.row_change", "audit.log_seal", "audit.ddl_event"]),
     ("E26", "Governance and data protection", "2.5, 16.13-16.15", "security",
      "The policy authority matrix with its changes, the obligation register, the data inventory, consents, subject requests, "

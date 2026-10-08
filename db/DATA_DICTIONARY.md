@@ -2550,7 +2550,7 @@ Family zones on the trip (4.14 a)
 
 ### `ops.geo_event` 🛡️ 🧩
 
-Tracking positions; partitioned monthly, short retention (16.13: 7 days by default for individuals); no FKs for insert performance
+Tracking positions; daily partitions created ahead by sys.ensure_daily_partitions and dropped whole after the retention of the lifecycle matrix (7 days, T3-10); no foreign keys on the hot insert path
 
 | Column | Type | Constraints | Default |
 |---|---|---|---|
