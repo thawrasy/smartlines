@@ -59,7 +59,8 @@ export function useAuth() {
 // Where each portal lands after signing in
 export function homeFor(me: Me): string {
   switch (me.portal) {
-    case "OPERATOR": return "/carrier";
+    case "OPERATOR":   // counter staff (cash sales only) start at the counter
+      return me.permissions.includes("sale.cash") && !me.permissions.includes("trip.publish") ? "/carrier/counter" : "/carrier";
     case "DRIVER": return "/driver";
     case "AGENCY": return "/agency";
     case "PLATFORM":

@@ -1,16 +1,21 @@
-"""Passenger channel: seat holds, bookings paid from the wallet, tickets with rotating QR codes, and cancellation.
+"""Passenger channel: seat holds, bookings paid from the wallet or reserved and paid later, tickets with rotating QR
+codes, and cancellation.
 
-The use cases live in modules/sales/service.py and are shared with the agency channel.
+The use cases live in modules/sales/service.py and are shared with the agency and counter channels. Which ways of
+paying are offered is decided by platform administration (fin.payment_method, 1056).
 """
 import json
 import uuid
 
 from fastapi import APIRouter, Depends, Request
+from pydantic import BaseModel, Field
 
 from .. import db
 from ..config import get_settings
 from ..deps import Principal, context_for, require_portal
 from ..errors import ApiError, not_found
+from ..modules.payments import service as payments
+from ..modules.sales import options
 from ..modules.sales import repository as sales_repo
 from ..modules.sales import service as sales
 from ..modules.sales.models import BookingIn, HoldIn, QuoteIn
@@ -52,11 +57,37 @@ async def release_hold(hold_token: uuid.UUID, request: Request, pr: Principal = 
 async def create_booking(body: BookingIn, request: Request, pr: Principal = Depends(passenger)):
     ctx = context_for(request, pr)
     async with db.transaction(ctx) as conn:
-        out = await sales.create_booking(conn, ctx, _buyer(pr), body)
+        out = await sales.create_booking(conn, ctx, _buyer(pr), body, option=body.pay_with)
     if out.get("replayed"):
         return out
-    request.state.audit = {"action": "booking.create", "object_type": "booking", "object_id": out["booking_id"]}
-    return {"booking_ref": out["booking_ref"], "total": out["total"], "currency": out["currency"]}
+    request.state.audit = {"action": "booking.reserve" if out["status"] == "PENDING_PAYMENT" else "booking.create",
+                           "object_type": "booking", "object_id": out["booking_id"]}
+    return {k: out[k] for k in ("booking_ref", "total", "currency", "status", "pay_option")} | (
+        {"pay_by": out["pay_by"]} if out.get("pay_by") else {})
+
+
+@router.get("/payments/booking-options")
+async def booking_options(request: Request, pr: Principal = Depends(passenger)):
+    """The ways of paying a booking that platform administration has opened, with the providers behind them."""
+    async with db.transaction(context_for(request, pr)) as conn:
+        return {"options": await options.booking_options(conn, "WEB")}
+
+
+class BookingPaymentIn(BaseModel):
+    provider: str = Field(pattern=r"^[A-Z_]{3,20}$")
+    idempotency_key: str = Field(min_length=8, max_length=80)
+
+
+@router.post("/bookings/{ref}/payments", status_code=201)
+async def pay_booking(ref: str, body: BookingPaymentIn, request: Request, pr: Principal = Depends(passenger)):
+    """Pays a reservation through the provider of its option: the passenger is sent to the provider's page."""
+    ctx = context_for(request, pr)
+    base = str(request.base_url).rstrip("/")
+    async with db.transaction(ctx) as conn:
+        out = await payments.start_booking_payment(conn, ctx, pr.party_id, pr.user_id, ref, body.provider, body.idempotency_key,
+                                                   f"{base}/booking/{ref.upper()}?payment={{uid}}")
+    request.state.audit = {"action": "payment.start", "object_type": "payment", "object_id": None}
+    return out
 
 
 async def _booking_for(conn, pr: Principal, ref: str, family: bool = False):
@@ -135,7 +166,13 @@ async def cancel_booking(ref: str, request: Request, pr: Principal = Depends(pas
     ctx = context_for(request, pr)
     async with db.transaction(ctx) as conn:
         b = await _booking_for(conn, pr, ref)
-        out = await sales.cancel_booking(conn, ctx, b, _buyer(pr))
+        if b["status"] == "PENDING_PAYMENT":
+            out = await sales.cancel_reserved(conn, ctx, b, pr.user_id)
+        else:
+            if b["pay_method"] == "CASH" and not (await options.method(conn, "WALLET"))["enabled"]:
+                # cash goes back in cash: without the wallet there is nowhere online to return it to
+                raise ApiError(409, "CANCEL_AT_COUNTER", "cancel at the carrier's counter to get your cash back")
+            out = await sales.cancel_booking(conn, ctx, b, _buyer(pr))
     request.state.audit = {"action": "booking.cancel", "object_type": "booking", "object_id": b["id"]}
     out.pop("commission_kept", None)
     return out

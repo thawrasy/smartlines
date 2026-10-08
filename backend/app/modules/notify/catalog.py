@@ -43,9 +43,9 @@ async def default_locale(conn) -> str:
 
 async def deliveries(conn: asyncpg.Connection, event: asyncpg.Record, payload: dict) -> list[Delivery]:
     kind = event["event_type"]
-    if kind in ("booking.confirmed", "booking.cancelled"):
+    if kind in ("booking.confirmed", "booking.cancelled", "booking.reserved"):
         template = kind
-        if payload.get("agency_id"):
+        if payload.get("agency_id") or payload.get("counter"):      # the traveller has no account: a text, if a mobile was left
             if not payload.get("contact_mobile"):
                 return []
             return [Delivery(template, ["SMS"], await default_locale(conn), mobile=payload["contact_mobile"],

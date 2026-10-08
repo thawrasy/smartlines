@@ -92,7 +92,7 @@ function NewTrip({ onClose, onDone }: { onClose: () => void; onDone: () => void 
   const routes = useLoad(() => api.get<{ routes: Route[] }>("/api/carrier/routes"));
   const vehicles = useLoad(() => api.get<{ vehicles: Vehicle[] }>("/api/carrier/vehicles"));
   const crew = useLoad(() => api.get<{ crew: Crew[] }>("/api/carrier/crew"));
-  const [form, setForm] = useState({ route_uid: "", vehicle_uid: "", driver_uid: "", departure_local: "", publish: true });
+  const [form, setForm] = useState({ route_uid: "", vehicle_uid: "", driver_uid: "", departure_local: "", publish: true, trip_type: "SCHEDULED" });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const submit = async () => {
@@ -129,9 +129,16 @@ function NewTrip({ onClose, onDone }: { onClose: () => void; onDone: () => void 
             </select>
           </Field>
         </div>
-        <Field label={t("carrier.departureLocal")}>
-          <input className="input ltr" type="datetime-local" value={form.departure_local} onChange={(e) => setForm({ ...form, departure_local: e.target.value })} />
-        </Field>
+        <div className="grid cols-2">
+          <Field label={t("carrier.departureLocal")}>
+            <input className="input ltr" type="datetime-local" value={form.departure_local} onChange={(e) => setForm({ ...form, departure_local: e.target.value })} />
+          </Field>
+          <Field label={t("tripType.label")} hint={t("tripType.hint")}>
+            <select className="input" value={form.trip_type} onChange={(e) => setForm({ ...form, trip_type: e.target.value })}>
+              {["SCHEDULED", "INTERNATIONAL", "EXTRA", "PILGRIMAGE", "TOURISM"].map((k) => <option key={k} value={k}>{t(`tripType.${k}`)}</option>)}
+            </select>
+          </Field>
+        </div>
         <label className="check"><input type="checkbox" checked={form.publish} onChange={(e) => setForm({ ...form, publish: e.target.checked })} />{t("carrier.publishNow")}</label>
       </div>
     </Modal>

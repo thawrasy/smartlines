@@ -1762,4 +1762,98 @@ SELECT pg_temp.ok(sys.phase_on('CS'), 'AI phase: an approved review with its DPI
 ROLLBACK;
 SET ROLE masslak_app;
 
+-- =====================================================================
+-- Payment options switched by the platform (1056)
+-- =====================================================================
+RESET ROLE;
+SELECT pg_temp.ok((SELECT count(*) FROM fin.payment_method) = 7
+  AND (SELECT array_agg(code ORDER BY sort_order) FROM fin.payment_method WHERE enabled) = '{WALLET,AGENCY_BALANCE,CASH_COUNTER,PAY_LATER}',
+  'Payment options: a new install opens the wallet, agency balance, counter cash and pay later; cards, instalments and financing wait for a contract');
+SELECT pg_temp.expect_error($$UPDATE fin.payment_method SET enabled = true WHERE code = 'CARD'$$, 'NO_ACTIVE_PROVIDER',
+  'Payment options: card payment does not open without an active card provider for bookings');
+BEGIN;
+UPDATE fin.payment_method SET enabled = false WHERE code IN ('AGENCY_BALANCE', 'CASH_COUNTER', 'PAY_LATER');
+SELECT pg_temp.expect_error($$UPDATE fin.payment_method SET enabled = false WHERE code = 'WALLET'$$, 'LAST_PAYMENT_METHOD',
+  'Payment options: the last open way of paying cannot be closed');
+ROLLBACK;
+BEGIN;
+UPDATE fin.payment_provider SET status = 'ACTIVE' WHERE code = 'INSTALMENTS';
+UPDATE fin.payment_method SET enabled = true WHERE code = 'INSTALLMENT';
+SELECT pg_temp.expect_error($$UPDATE fin.payment_provider SET status = 'INACTIVE' WHERE code = 'INSTALMENTS'$$, 'PROVIDER_IN_USE',
+  'Payment options: the provider an open option relies on cannot be switched off');
+ROLLBACK;
+SELECT pg_temp.ok((SELECT 'BOOKING' = ANY (purposes) FROM fin.payment_provider WHERE code = 'CARD')
+  AND (SELECT config -> 'trip_types' FROM fin.payment_method WHERE code = 'FINANCING') = '["PILGRIMAGE", "TOURISM"]'
+  AND EXISTS (SELECT 1 FROM ref.trip_type WHERE code = 'PILGRIMAGE'),
+  'Payment options: the card gateway also takes checkout payments, and financing is meant for pilgrimages and tours');
+SELECT pg_temp.expect_error($$UPDATE fin.payment_method SET config = '{"hold_hours": 24, "surprise": 1}' WHERE code = 'PAY_LATER'$$,
+  'JSON_CONTRACT_VIOLATION', 'Payment options: an option''s settings are checked against their contract');
+BEGIN;
+SELECT sys.set_context(:uadmin, NULL, 'SYSTEM');
+UPDATE fin.payment_method SET enabled = false WHERE code = 'PAY_LATER';
+SELECT pg_temp.expect_error(format($$INSERT INTO sales.booking (booking_ref, trip_id, company_id, booker_party_id, channel_id, currency, total_amount,
+    price_breakdown, rules_version, idempotency_key, status, pay_option, hold_expires_at)
+  VALUES ('PO0001', %s, %s, %s, (SELECT id FROM sales.channel WHERE code = 'WEB'), 'SYP', 1000, '{}', 'r1', 'po-1', 'PENDING_PAYMENT', 'PAY_LATER',
+          now() + interval '1 hour')$$, :t214, :ca, :pax),
+  'PAYMENT_METHOD_DISABLED', 'Payment options: a booking cannot use a way of paying that is closed');
+ROLLBACK;
+BEGIN;
+SELECT sys.set_context(:uadmin, NULL, 'SYSTEM');
+SELECT pg_temp.expect_error(format($$INSERT INTO sales.booking (booking_ref, trip_id, company_id, booker_party_id, channel_id, currency, total_amount,
+    price_breakdown, rules_version, idempotency_key, status, pay_option)
+  VALUES ('PO0002', %s, %s, %s, (SELECT id FROM sales.channel WHERE code = 'WEB'), 'SYP', 1000, '{}', 'r1', 'po-2', 'PENDING_PAYMENT', 'PAY_LATER')$$,
+  :t214, :ca, :pax), 'PAY_BY_REQUIRED', 'Payment options: a reservation always has a time to be paid by');
+UPDATE fin.payment_method SET min_amount = 5000 WHERE code = 'PAY_LATER';
+SELECT pg_temp.expect_error(format($$INSERT INTO sales.booking (booking_ref, trip_id, company_id, booker_party_id, channel_id, currency, total_amount,
+    price_breakdown, rules_version, idempotency_key, status, pay_option, hold_expires_at)
+  VALUES ('PO0003', %s, %s, %s, (SELECT id FROM sales.channel WHERE code = 'WEB'), 'SYP', 1000, '{}', 'r1', 'po-3', 'PENDING_PAYMENT', 'PAY_LATER',
+          now() + interval '1 hour')$$, :t214, :ca, :pax),
+  'PAYMENT_AMOUNT_OUT_OF_RANGE', 'Payment options: an amount below the option''s minimum is refused');
+ROLLBACK;
+BEGIN;
+SELECT sys.set_context(:uadmin, NULL, 'SYSTEM');
+INSERT INTO sales.booking (booking_ref, trip_id, company_id, booker_party_id, channel_id, currency, total_amount, price_breakdown, rules_version,
+  idempotency_key, status, pay_option, pay_method, hold_expires_at)
+VALUES ('PO0004', :t214, :ca, :pax, (SELECT id FROM sales.channel WHERE code = 'WEB'), 'SYP', 1000, '{}', 'r1', 'po-4', 'PENDING_PAYMENT', 'PAY_LATER',
+        'CASH', now() - interval '1 minute') RETURNING id AS po_b \gset
+INSERT INTO sales.passenger (booking_id, full_name, first_name, last_name, nationality, passenger_category)
+VALUES (:po_b, 'Late Payer', 'Late', 'Payer', 'JO', 'ADULT') RETURNING id AS po_p \gset
+INSERT INTO sales.ticket (ticket_no, booking_id, passenger_id, trip_id, from_seq, to_seq, seat_no, fare_amount, total_amount, rules_snapshot, status)
+VALUES ('PO0004-1', :po_b, :po_p, :t214, 0, 1, 8, 1000, 1000, '{}', 'HOLD') RETURNING id AS po_k \gset
+INSERT INTO ops.seat_segment (trip_id, seat_no, seg, status, ticket_id) VALUES (:t214, 8, 0, 'SOLD', :po_k);
+SELECT sales.expire_reservations() AS po_freed \gset
+SELECT pg_temp.ok(:po_freed >= 1 AND (SELECT status FROM sales.booking WHERE id = :po_b) = 'EXPIRED'
+  AND (SELECT status FROM sales.ticket WHERE id = :po_k) = 'CANCELLED'
+  AND (SELECT status FROM ops.seat_segment WHERE trip_id = :t214 AND seat_no = 8 AND seg = 0) = 'AVAILABLE',
+  'Payment options: a reservation not paid in time expires and gives its seat back');
+ROLLBACK;
+BEGIN;
+SELECT sys.set_context(:uadmin, NULL, 'SYSTEM');
+INSERT INTO fin.wallet (owner_party_id, company_id, wallet_type, label, currency, allow_negative, balance_mode)
+VALUES (:ca, :ca, 'CASH_COLLECT', 'Counter cash', 'SYP', true, 'IMMEDIATE') RETURNING id AS po_cash \gset
+SELECT w.id AS po_escrow FROM fin.wallet w JOIN iam.party p ON p.id = w.owner_party_id
+ WHERE p.legal_name = 'Masslak Platform' AND w.wallet_type = 'ESCROW' AND w.currency = 'SYP' \gset
+INSERT INTO fin.ledger_txn (txn_type, currency, idempotency_key, memo) VALUES ('BOOKING_PAY', 'SYP', 'po-cash-1', 'counter sale') RETURNING id AS po_txn \gset
+INSERT INTO fin.ledger_entry (txn_id, wallet_id, direction, amount) VALUES (:po_txn, :po_cash, 'DR', 5000), (:po_txn, :po_escrow, 'CR', 5000);
+SELECT pg_temp.ok(fin.cash_owed(:ca) = 5000 AND fin.cash_limit(:ca) = 100000000,
+  'Payment options: cash sold at a counter is owed by the carrier, within the default cash limit');
+INSERT INTO fin.cash_credit_limit (company_id, limit_amount, reason, set_by) VALUES (:ca, 1000, 'probe limit', :uadmin);
+SELECT pg_temp.ok(fin.cash_limit(:ca) = 1000, 'Payment options: a carrier''s own cash limit replaces the default');
+SELECT pg_temp.expect_error(format($$INSERT INTO fin.cash_remittance (company_id, amount, method, recorded_by, status) VALUES (%s, 100, 'BANK_DEPOSIT', %s, 'CONFIRMED')$$,
+  :ca, :uadmin), 'REMITTANCE_STATUS', 'Payment options: a remittance is recorded as pending first');
+INSERT INTO fin.cash_remittance (company_id, amount, method, recorded_by) VALUES (:ca, 100, 'BANK_DEPOSIT', :uadmin) RETURNING id AS po_r \gset
+SELECT pg_temp.expect_error(format($$UPDATE fin.cash_remittance SET status = 'REJECTED', confirmed_by = %s WHERE id = %s$$, :uadmin, :po_r),
+  'FOUR_EYES', 'Payment options: whoever records a remittance does not confirm or reject it');
+SELECT pg_temp.expect_error(format($$UPDATE fin.cash_remittance SET status = 'CONFIRMED', confirmed_by = %s WHERE id = %s$$, :ufin, :po_r),
+  'cash_remittance_confirmed', 'Payment options: a confirmed remittance carries its ledger posting');
+UPDATE fin.cash_remittance SET status = 'REJECTED', confirmed_by = :ufin WHERE id = :po_r;
+SELECT pg_temp.expect_error(format($$UPDATE fin.cash_remittance SET status = 'PENDING' WHERE id = %s$$, :po_r),
+  'REMITTANCE_FINAL', 'Payment options: a decided remittance does not change');
+ROLLBACK;
+SELECT pg_temp.ok(has_function_privilege('masslak_app', 'sales.expire_reservations()', 'EXECUTE')
+  AND NOT has_function_privilege('public', 'sales.expire_reservations()', 'EXECUTE')
+  AND NOT has_function_privilege('public', 'fin.cash_owed(bigint, character)', 'EXECUTE'),
+  'Payment options: the expiry job and the cash figures run for the application only');
+SET ROLE masslak_app;
+
 \echo '=== ALL TESTS PASSED ==='

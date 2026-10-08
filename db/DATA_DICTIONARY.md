@@ -2,7 +2,7 @@
 
 > Generated from the built database (`db/tools/gen_docs.py`); do not edit by hand.
 
-**481 tables, 4954 columns, in 26 schemas.**
+**483 tables, 4975 columns, in 26 schemas.**
 
 Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant isolation (RLS) · 🧩 partitioned monthly · 🔒 append-only / change-protected
 
@@ -16,7 +16,7 @@ Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant i
 - [`pricing` — Pricing, taxes, commissions, campaigns and loyalty](#pricing) (35 tables)
 - [`ops` — Trips, inventory, operations, shuttle rides, tracking and incidents](#ops) (33 tables)
 - [`sales` — Channels, bookings, passengers, tickets, subscriptions and travel documents](#sales) (27 tables)
-- [`fin` — Wallets, ledger, payments, allocation, settlement and float](#fin) (27 tables)
+- [`fin` — Wallets, ledger, payments, allocation, settlement and float](#fin) (29 tables)
 - [`acct` — Simplified accounting, e-invoicing and tax profiles](#acct) (35 tables)
 - [`bill` — Carrier subscriptions, metering and platform invoices](#bill) (7 tables)
 - [`crm` — Complaints, ratings, notifications, the AI assistant and the contact center](#crm) (19 tables)
@@ -3169,6 +3169,7 @@ Booking: price snapshot, channel, allocation tree and idempotency key; statuses 
 | `family_id` | `bigint` | 🔗 `iam.family`  |  |
 | `funded_by_party_id` | `bigint` | 🔗 `iam.party`  |  |
 | `funding_source` | `text` |  |  |
+| `pay_option` | `text` | 🔗 `fin.payment_method`  |  |
 
 ### `sales.campaign_redemption` 🛡️
 
@@ -3701,9 +3702,21 @@ Wallet top-up by bank transfer with a unique reference and automatic matching
 | `matched_by` | `bigint` | 🔗 `iam.app_user`  |  |
 | `statement_line_id` | `bigint` | 🔗 `fin.bank_statement_line`  |  |
 
+### `fin.cash_credit_limit` 🛡️
+
+How much cash sold at a carrier's counter it may owe the platform before cash sales stop; default in CASH_COUNTER config (1056)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `company_id` | `bigint` | 🔑 🔗 `iam.company` ✱ |  |
+| `limit_amount` | `bigint` | ✱ |  |
+| `reason` | `text` | ✱ |  |
+| `set_by` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `set_at` | `timestamp with time zone` | ✱ | `now()` |
+
 ### `fin.cash_remittance` 🛡️
 
-Cash collected by a carrier from cash sales and remitted to the platform (6.5)
+Cash collected by a carrier from cash sales and remitted to the platform (6.5); four eyes since 1056
 
 | Column | Type | Constraints | Default |
 |---|---|---|---|
@@ -3717,6 +3730,10 @@ Cash collected by a carrier from cash sales and remitted to the platform (6.5)
 | `recorded_by` | `bigint` | 🔗 `iam.app_user` ✱ |  |
 | `reconciled_at` | `timestamp with time zone` |  |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `status` | `text` | ✱ | `'PENDING'::text` |
+| `confirmed_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `confirmed_at` | `timestamp with time zone` |  |  |
+| `note` | `text` |  |  |
 
 ### `fin.deposit_placement` 🛡️
 
@@ -3855,6 +3872,24 @@ Payment; becomes SUCCESS only with a signed gateway notification and a ledger en
 | `refunded_amount` | `bigint` | ✱ | `0` |
 | `agency_company_id` | `bigint` | 🔗 `iam.company`  |  |
 | `api_client_id` | `bigint` | 🔗 `iam.api_client`  |  |
+
+### `fin.payment_method` 🛡️
+
+Ways of paying a booking that platform administration opens or closes (1056)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `code` | `text` | 🔑 ✱ |  |
+| `enabled` | `boolean` | ✱ | `false` |
+| `channels` | `text[]` | ✱ |  |
+| `min_amount` | `bigint` | ✱ | `0` |
+| `max_amount` | `bigint` |  |  |
+| `provider_adapter` | `text` |  |  |
+| `config` | `jsonb` | ✱ | `'{}'::jsonb` |
+| `sort_order` | `smallint` | ✱ | `100` |
+| `reason` | `text` |  |  |
+| `updated_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `updated_at` | `timestamp with time zone` | ✱ | `now()` |
 
 ### `fin.payment_notification` 🛡️ 🔒
 

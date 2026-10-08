@@ -94,6 +94,20 @@ async def seed_finance(conn) -> bool:
     return True
 
 
+async def seed_counter(conn) -> bool:
+    """A counter clerk of the demo carrier, who sells tickets for cash and collects pay-later reservations (1056)."""
+    if await conn.fetchval("SELECT 1 FROM iam.app_user WHERE email = 'counter@carrier.test'"):
+        return False
+    company = await conn.fetchval(
+        "SELECT m.company_id FROM iam.company_member m JOIN iam.app_user u ON u.id = m.user_id WHERE u.email = 'owner@carrier.test'")
+    if company is None:
+        return False
+    _, uid = await user(conn, "PERSON", "Lina (counter)", "counter@carrier.test", "COMPANY")
+    await conn.execute("INSERT INTO iam.company_member (user_id, company_id, role_id) SELECT $1, $2, id FROM iam.role WHERE code = 'CARRIER_COUNTER' AND company_id IS NULL",
+                       uid, company)
+    return True
+
+
 async def seed_security(conn) -> bool:
     """A security officer, so travel-document exceptions drafted by the administrator are approved by someone else."""
     if await conn.fetchval("SELECT 1 FROM iam.app_user WHERE email = 'security@masslak.test'"):
@@ -178,6 +192,7 @@ async def main():
             added = [what for what, done in (("agency", await seed_agency(conn)), ("seat layouts", await seed_layouts(conn)),
                                                     ("finance user", await seed_finance(conn)),
                                                     ("security officer", await seed_security(conn)),
+                                                    ("counter clerk", await seed_counter(conn)),
                                                     ("family and manifest route", await seed_families(conn))) if done]
             print(f"demo {' and '.join(added)} added" if added else "demo data already present")
             return
@@ -299,10 +314,12 @@ async def main():
         await conn.execute("INSERT INTO fin.ledger_entry (txn_id, wallet_id, direction, amount) VALUES ($1, $2, 'DR', 50000000), ($1, $3, 'CR', 50000000)",
                            txn, clearing, wallet)
         await seed_families(conn)
+        await seed_counter(conn)
     await conn.close()
     print(f"demo data created: {n_trips} trips")
     print(f"accounts (password: {PASSWORD}):")
-    for e, p in (("passenger@masslak.test", "PASSENGER"), ("owner@carrier.test", "OPERATOR"), ("driver@carrier.test", "DRIVER"),
+    for e, p in (("passenger@masslak.test", "PASSENGER"), ("owner@carrier.test", "OPERATOR"), ("counter@carrier.test", "OPERATOR"),
+                 ("driver@carrier.test", "DRIVER"),
                  ("agency@agency.test", "AGENCY"), ("finance@masslak.test", "PLATFORM"), ("security@masslak.test", "PLATFORM"), ("admin@masslak.test", "PLATFORM"), ("regulator@masslak.test", "PLATFORM")):
         print(f"  {e:28s} portal {p}")
 

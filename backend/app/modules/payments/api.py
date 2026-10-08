@@ -126,7 +126,7 @@ async def notify(code: str, request: Request):
     ctx = _system(request)
     async with db.transaction(ctx) as conn:
         p = await service.provider(conn, code.upper())
-        if p["adapter"] not in ("HOSTED_CARD", "PARTNER_WALLET"):
+        if p["adapter"] not in adapters.NOTIFYING:
             raise not_found("provider")
         valid = adapters.verify(adapters.secret_for(p), raw, request.headers.get(adapters.SIGNATURE_HEADER))
         try:
@@ -150,9 +150,11 @@ async def _test_payment(conn, ctx, uid: uuid.UUID):
         raise not_found("payment")
     async with db.system_scope(conn, ctx):
         row = await conn.fetchrow(
-            """SELECT p.uid, p.amount, p.currency, p.status, p.stage, p.provider_ref, pv.code, pv.name, pv.adapter
-                 FROM fin.payment p JOIN fin.payment_provider pv ON pv.id = p.provider_id WHERE p.uid = $1""", uid)
-    if row is None or row["adapter"] != "HOSTED_CARD":
+            """SELECT p.uid, p.amount, p.currency, p.status, p.stage, p.provider_ref, p.purpose, pv.code, pv.name, pv.adapter,
+                      b.booking_ref
+                 FROM fin.payment p JOIN fin.payment_provider pv ON pv.id = p.provider_id
+                 LEFT JOIN sales.booking b ON b.id = p.booking_id WHERE p.uid = $1""", uid)
+    if row is None or row["adapter"] not in adapters.HOSTED:
         raise not_found("payment")
     return row
 
@@ -162,7 +164,8 @@ async def test_page(uid: uuid.UUID, request: Request):
     ctx = _system(request)
     async with db.transaction(ctx) as conn:
         row = await _test_payment(conn, ctx, uid)
-    return {"uid": str(row["uid"]), "amount": row["amount"], "currency": row["currency"], "status": row["status"], "provider": row["name"], "code": row["code"]}
+    return {"uid": str(row["uid"]), "amount": row["amount"], "currency": row["currency"], "status": row["status"], "provider": row["name"],
+            "code": row["code"], "kind": row["adapter"], "booking_ref": row["booking_ref"]}
 
 
 class TestDecision(BaseModel):
@@ -181,7 +184,8 @@ async def test_decide(uid: uuid.UUID, body: TestDecision, request: Request):
         raise ApiError(500, "SIMULATOR_SIGNATURE", "simulator could not sign")
     async with db.transaction(ctx) as conn:
         out = await service.apply_notice(conn, ctx, p, adapters.parse_notice(raw), json.loads(raw), True, request.state.client_ip)
-    return {**out, "return_to": f"/wallet?payment={uid}"}
+    back = f"/booking/{row['booking_ref']}?payment={uid}" if row["booking_ref"] else f"/wallet?payment={uid}"
+    return {**out, "return_to": back}
 
 
 # ------------------------------------------------------------------ finance
@@ -199,7 +203,8 @@ async def providers(request: Request, pr: Principal = Depends(platform)):
                     "fee_borne_by": p["fee_policy"].get("borne_by", "PLATFORM"),
                     "config": {k: v for k, v in p["config"].items() if not k.endswith("_env")},
                     "secret_configured": bool(secret_env and __import__("os").environ.get(secret_env)),
-                    "simulated": adapters.simulated(p) if p["adapter"] in ("HOSTED_CARD", "PARTNER_WALLET") else False})
+                    "purposes": list(p["purposes"]),
+                    "simulated": adapters.simulated(p) if p["adapter"] in adapters.NOTIFYING else False})
     return {"providers": out, "sandbox": get_settings().sandbox}
 
 
@@ -349,13 +354,14 @@ async def agency_topups(request: Request, pr: Principal = Depends(agency)):
 
 
 @router.get("/api/admin/payments/recent")
-async def recent(request: Request, method: Optional[str] = Query(default=None, pattern=r"^(CARD|E_WALLET|BANK|CASH)$"),
+async def recent(request: Request, method: Optional[str] = Query(default=None, pattern=r"^(CARD|E_WALLET|BANK|CASH|INSTALLMENT|FINANCING)$"),
                  pr: Principal = Depends(platform)):
     _need(pr, "ledger.reconcile", "compensation.pay")
     async with db.transaction(context_for(request, pr)) as conn:
         rows = await conn.fetch(
-            """SELECT p.uid, p.created_at, p.method, p.status, p.stage, p.amount, p.refunded_amount, p.fee, p.provider_ref, p.card_last4,
-                      p.payer_mobile_mask, p.failure_code, pv.code AS provider, pa.legal_name AS payer
+            """SELECT p.uid, p.created_at, p.method, p.purpose, p.status, p.stage, p.amount, p.refunded_amount, p.fee, p.provider_ref,
+                      p.card_last4, p.payer_mobile_mask, p.failure_code, pv.code AS provider, pa.legal_name AS payer, b.booking_ref
                  FROM fin.payment p JOIN fin.payment_provider pv ON pv.id = p.provider_id LEFT JOIN iam.party pa ON pa.id = p.payer_party_id
-                WHERE p.purpose = 'TOPUP' AND ($1::text IS NULL OR p.method = $1) ORDER BY p.id DESC LIMIT 100""", method)
+                 LEFT JOIN sales.booking b ON b.id = p.booking_id
+                WHERE p.purpose IN ('TOPUP','BOOKING') AND ($1::text IS NULL OR p.method = $1) ORDER BY p.id DESC LIMIT 100""", method)
     return {"payments": [{**dict(r), "uid": str(r["uid"]), "created_at": r["created_at"].isoformat()} for r in rows]}

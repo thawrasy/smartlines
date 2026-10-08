@@ -9,6 +9,11 @@
     "body": "تم إلغاء حجزك {booking_ref}. المبلغ المسترد: {refund_amount} ل.س.",
     "sms": "مسلك: أُلغي الحجز {booking_ref}. المسترد {refund_amount} ل.س."
   },
+  "booking.reserved": {
+    "subject": "تم حجز المقاعد {booking_ref}: ادفع قبل {pay_by_local}",
+    "body": "مقاعدك في الحجز {booking_ref} محجوزة: من {from_city} إلى {to_city}، الانطلاق {departs_local}، عدد الركاب {passengers}، المبلغ {total_amount} ل.س. ادفع قبل {pay_by_local} وإلا أُلغي الحجز وعادت المقاعد للبيع. تصدر تذاكرك فور الدفع.",
+    "sms": "مسلك: الحجز {booking_ref} محجوز. ادفع {total_amount} ل.س قبل {pay_by_local} وإلا يُلغى."
+  },
   "withdrawal.paid": {
     "subject": "تم صرف {amount} ل.س",
     "body": "حُوّل طلب السحب بقيمة {amount} ل.س إلى حسابك المصرفي المنتهي بـ {iban_last4}. مرجع الحوالة: {bank_ref}."

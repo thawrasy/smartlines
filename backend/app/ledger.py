@@ -59,6 +59,19 @@ async def company_wallet(conn: asyncpg.Connection, company_id: int, currency: st
     return await counted(conn, w)
 
 
+async def cash_wallet(conn: asyncpg.Connection, company_id: int, currency: str) -> dict:
+    """The carrier's cash wallet (study 6.5): debited by each cash sale at its counter, so a negative balance is cash it
+    holds for the platform; credited when its earnings are set off and when it remits. Exact balance (IMMEDIATE)."""
+    w = await conn.fetchrow(
+        "SELECT * FROM fin.wallet WHERE owner_party_id = $1 AND wallet_type = 'CASH_COLLECT' AND currency = $2",
+        company_id, currency)
+    if w is None:
+        w = await conn.fetchrow(
+            """INSERT INTO fin.wallet (owner_party_id, company_id, wallet_type, label, currency, allow_negative, balance_mode)
+               VALUES ($1, $1, 'CASH_COLLECT', 'Counter cash', $2, true, 'IMMEDIATE') RETURNING *""", company_id, currency)
+    return dict(w)
+
+
 async def post_txn(conn: asyncpg.Connection, txn_type: str, currency: str, idempotency_key: str,
                    entries: Iterable[tuple[int, str, int]], *, ref_type: Optional[str] = None,
                    ref_id: Optional[int] = None, user_id: Optional[int] = None, memo: Optional[str] = None) -> int:

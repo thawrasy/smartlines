@@ -72,8 +72,9 @@ async def withdrawals(request: Request, pr: Principal = Depends(owner)):
 
 @company.post("/withdrawals", status_code=201)
 async def request_withdrawal(body: WithdrawalIn, request: Request, pr: Principal = Depends(owner)):
-    async with db.transaction(context_for(request, pr)) as conn:
-        out = await service.request_withdrawal(conn, pr, body.bank_account_uid, body.amount, body.idempotency_key)
+    ctx = context_for(request, pr)
+    async with db.transaction(ctx) as conn:
+        out = await service.request_withdrawal(conn, pr, body.bank_account_uid, body.amount, body.idempotency_key, ctx)
     if "id" in out:
         request.state.audit = {"action": "withdrawal.request", "object_type": "withdrawal", "object_id": out.pop("id")}
     return out

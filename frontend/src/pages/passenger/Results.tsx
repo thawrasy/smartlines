@@ -5,20 +5,23 @@ import { localDate, minutesBetween } from "../../dates";
 import { Empty, ErrorBox, Icon, Spinner, useLoad } from "../../components/ui";
 import { SearchForm } from "./Home";
 import { useChannel } from "../../channel";
+import { useAuth } from "../../auth";
 
 export default function Results() {
   const { t, city, money, time, date, station, duration } = useI18n();
   const [params, setParams] = useSearchParams();
   const ch = useChannel();
+  const { me } = useAuth();
   const from = params.get("from") ?? "DAM", to = params.get("to") ?? "ALP";
   const on = params.get("on") ?? localDate(1), pax = Number(params.get("pax") ?? 1);
   const res = useLoad(() => api.get<{ trips: TripResult[] }>("/api/trips/search", { origin: from, destination: to, on, passengers: pax }), [from, to, on, pax]);
   const shift = (d: number) => { const p = new URLSearchParams(params); p.set("on", localDate(d, on)); setParams(p); };
-  const trips = res.data?.trips ?? [];
+  // a carrier's counter sells its own trips only (the server checks it again)
+  const trips = (res.data?.trips ?? []).filter((x) => !ch.counter || x.carrier_name === me?.company?.name);
 
   return (
     <>
-      {ch.agency ? (
+      {ch.staff ? (
         <div className="card"><SearchForm key={`${from}${to}${on}${pax}`} initial={{ from, to, on, pax }} /></div>
       ) : (
         <section className="hero-band">
@@ -27,7 +30,7 @@ export default function Results() {
           </div>
         </section>
       )}
-      <div className={ch.agency ? "stack" : "page stack"} style={ch.agency ? { marginTop: 16 } : undefined}>
+      <div className={ch.staff ? "stack" : "page stack"} style={ch.staff ? { marginTop: 16 } : undefined}>
         <div className="row between">
           <div>
             <h2>{t("results.title", { from: city(from), to: city(to) })}</h2>

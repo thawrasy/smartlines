@@ -69,7 +69,7 @@ export interface TripStop {
 
 export interface TripDetail {
   trip: { uid: string; trip_no: string; status: string; seats_total: number; currency: string; hold_min: number;
-          service_type: string; departure_at: string; arrival_at: string; carrier_name: string; carrier_code: string | null };
+          service_type: string; trip_type?: string; departure_at: string; arrival_at: string; carrier_name: string; carrier_code: string | null };
   stops: TripStop[]; price: number; from_seq: number; to_seq: number; seats: { seat_no: number; free: boolean }[];
   /** The vehicle's real layout, frozen when the trip was created (null for trips created before layouts existed). */
   seat_map: import("./components/SeatGrid").SeatMapData | null;
@@ -130,9 +130,19 @@ export interface Ticket {
 export interface BookingDetail {
   booking: { booking_ref: string; status: string; total_amount: number; currency: string; trip_no: string; carrier_name: string;
              created_at: string; verify_token: string; contact_mobile?: string; commission?: number | null;
+             // how it is paid (1056): a reserved booking waits for its money until pay_by; the counter view says what it may do
+             pay_option?: string | null; pay_by?: string | null; pay_method?: string; counter_sale?: boolean; collectable?: boolean;
+             refundable_here?: boolean;
              price_breakdown: { fare_per_passenger: number; passengers: number; fares_total: number; platform_fee: number; total: number; fare_brand: string;
                                 lines?: Quote["lines"]; family_offer?: Quote["family_offer"] } };
   tickets: Ticket[];
+}
+
+// A way of paying that platform administration has opened for this channel (1056)
+export type PayWith = "WALLET" | "PAY_LATER" | "CARD" | "INSTALLMENT" | "FINANCING";
+export interface BookingOption {
+  code: PayWith; min_amount: number; max_amount: number | null; hold_hours?: number; cutoff_minutes?: number;
+  providers?: { code: string; name: string; min_amount: number; max_amount: number }[]; trip_types?: string[];
 }
 
 export interface BookingRow {

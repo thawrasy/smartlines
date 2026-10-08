@@ -9,6 +9,11 @@
     "body": "Your booking {booking_ref} is cancelled. Refund: SYP {refund_amount}.",
     "sms": "Masslak: booking {booking_ref} cancelled. Refund SYP {refund_amount}."
   },
+  "booking.reserved": {
+    "subject": "Booking {booking_ref} reserved: pay by {pay_by_local}",
+    "body": "Your seats on booking {booking_ref} are reserved: {from_city} to {to_city}, departing {departs_local}, {passengers} passenger(s), SYP {total_amount}. Pay by {pay_by_local}, or the reservation lapses and the seats go back on sale. Your tickets are issued once paid.",
+    "sms": "Masslak: booking {booking_ref} reserved. Pay SYP {total_amount} by {pay_by_local} or it lapses."
+  },
   "withdrawal.paid": {
     "subject": "Payout of SYP {amount} sent",
     "body": "Your withdrawal of SYP {amount} was transferred to your bank account ending {iban_last4}. Bank reference: {bank_ref}."

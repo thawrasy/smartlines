@@ -117,14 +117,16 @@ def parse_notice(body: bytes) -> Notice:
 
 class HostedCard:
     """Card gateway with a hosted payment page: card numbers never touch the platform."""
+    prefix, product = "CRD", "CARD"
 
     def start(self, provider: dict, payment: dict, return_url: str) -> Action:
-        ref = "CRD" + secrets.token_hex(8).upper()
+        ref = self.prefix + secrets.token_hex(8).upper()
         if simulated(provider):
             return Action("REDIRECT", url=f"/pay/test/{payment['uid']}", provider_ref=ref)
         out = _call(provider, "/v1/checkout-sessions", {
             "merchant_id": provider["config"].get("merchant_id"), "reference": ref, "amount": payment["amount"],
-            "currency": payment["currency"], "return_url": return_url, "description": "Masslak wallet top-up"})
+            "currency": payment["currency"], "return_url": return_url, "product": self.product,
+            "description": payment.get("description", "Masslak wallet top-up")})
         url = out.get("checkout_url", "")
         if not url.startswith("https://"):
             raise ApiError(502, "PAYMENT_PROVIDER_UNAVAILABLE", "the provider returned no secure payment page")
@@ -140,6 +142,18 @@ class HostedCard:
         if str(out.get("status", "")).upper() not in ("SUCCESS", "ACCEPTED"):
             raise ApiError(502, "REFUND_REFUSED", "the provider refused the refund")
         return str(out.get("refund_id", ref))
+
+
+class Instalments(HostedCard):
+    """Buy now, pay later (Tabby, Tamara or a local equivalent): the payer is approved on the provider's page, the
+    provider pays the platform the whole amount and collects the instalments from the payer itself (1056)."""
+    prefix, product = "INS", "INSTALLMENT"
+
+
+class Financing(HostedCard):
+    """A financing company for high-value trips (Umrah, Hajj, tours): it approves the traveller on its own page, pays
+    the platform the whole amount and recovers it from the traveller under its own contract (1056)."""
+    prefix, product = "FIN", "FINANCING"
 
 
 class PartnerWallet:
@@ -187,7 +201,10 @@ class Sandbox:
         return "SBX-RFD-" + secrets.token_hex(6)
 
 
-ADAPTERS = {"HOSTED_CARD": HostedCard(), "PARTNER_WALLET": PartnerWallet(), "SANDBOX": Sandbox()}
+ADAPTERS = {"HOSTED_CARD": HostedCard(), "PARTNER_WALLET": PartnerWallet(), "SANDBOX": Sandbox(),
+            "INSTALLMENT": Instalments(), "FINANCING": Financing()}
+HOSTED = ("HOSTED_CARD", "INSTALLMENT", "FINANCING")         # adapters with a hosted page and signed notifications
+NOTIFYING = HOSTED + ("PARTNER_WALLET",)
 
 
 def simulator_notice(provider: dict, payment: dict, approve: bool) -> tuple[bytes, str]:

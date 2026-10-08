@@ -20,6 +20,7 @@ import Verify from "./pages/Verify";
 import Track from "./pages/Track";
 import { CarrierCrew, CarrierDashboard, CarrierRoutes, CarrierTrips, CarrierVehicles } from "./pages/carrier/Carrier";
 import { CarrierLayouts } from "./pages/carrier/Layouts";
+import { CounterDashboard, CounterReport, CounterSell } from "./pages/carrier/Counter";
 import { AdminFinance, CompanyFinance } from "./pages/finance/Finance";
 import { AdminDocuments, CompanyDocuments } from "./pages/documents/Documents";
 import { AccountPage, AdminPrivacy } from "./pages/account/Account";
@@ -84,7 +85,7 @@ function PlatformShell() {
       { to: "/admin/privacy", icon: "privacy_tip", label: t("account.privacyRequests"), show: can("privacy.manage") },
       { to: "/regulator", icon: "gavel", label: t("nav.regulator"), show: can("regulator.dashboard", "report.platform") },
       { to: "/admin/reports", icon: "summarize", label: t("rpt.nav"), show: can("report.platform") },
-      { to: "/admin/payments", icon: "account_balance", label: t("pay.nav"), show: can("ledger.reconcile", "payment.fee_policy", "compensation.pay") },
+      { to: "/admin/payments", icon: "account_balance", label: t("pay.nav"), show: can("ledger.reconcile", "payment.fee_policy", "compensation.pay", "payment.methods", "cash.remittance", "cash.credit_limit") },
       { to: "/admin/integrations", icon: "api", label: t("api.nav"), show: can("security.api_clients") },
       { to: "/admin/modules", icon: "apps", label: t("modules.title"), show: can("modules.manage") },
       ...mods,
@@ -99,6 +100,7 @@ function CarrierShell() {
   return (
     <PortalShell title={t("nav.carrier")} items={[
       { to: "/carrier", end: true, icon: "dashboard", label: t("carrier.dashboard") },
+      { to: "/carrier/counter", icon: "point_of_sale", label: t("counter.nav"), show: can("sale.cash") },
       { to: "/carrier/trips", icon: "directions_bus", label: t("carrier.trips") },
       { to: "/carrier/routes", icon: "route", label: t("carrier.routes") },
       { to: "/carrier/vehicles", icon: "directions_car", label: t("carrier.vehicles") },
@@ -181,6 +183,11 @@ export default function App() {
           <Route path="carrier/m/:module" element={<ModulePage />} />
           <Route path="carrier/reports" element={<ReportsPage />} />
           <Route path="carrier/integrations" element={<IntegrationsPage />} />
+          <Route path="carrier/counter" element={<CounterDashboard />} />
+          <Route path="carrier/counter/search" element={<CounterSell />} />
+          <Route path="carrier/counter/trip/:uid" element={<Book />} />
+          <Route path="carrier/counter/booking/:ref" element={<Booking />} />
+          <Route path="carrier/counter/report" element={<CounterReport />} />
         </Route>
         <Route element={<RequirePortal portal="AGENCY"><AgencyShell /></RequirePortal>}>
           <Route path="agency" element={<AgencyDashboard />} />

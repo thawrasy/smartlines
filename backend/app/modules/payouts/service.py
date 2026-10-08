@@ -17,6 +17,7 @@ from ...deps import Principal
 from ...errors import ApiError, forbidden, not_found
 from ...ledger import company_wallet, platform_wallet, post_txn
 from ...util import row_dict, rows
+from ..cash import service as cash
 from ..notify.outbox import emit
 from . import iban as IBAN
 from . import repository as repo
@@ -67,7 +68,8 @@ async def add_bank_account(conn, ctx: db.Context, pr: Principal, bank_name: str,
     return row["id"], str(row["uid"])
 
 
-async def request_withdrawal(conn, pr: Principal, account_uid: uuid.UUID, amount: int, key: str) -> dict:
+async def request_withdrawal(conn, pr: Principal, account_uid: uuid.UUID, amount: int, key: str,
+                             ctx: db.Context | None = None) -> dict:
     company = company_of(pr)
     need(pr, "company.payout_schedule")
     w = await company_wallet(conn, company, "SYP", label=_label(pr))
@@ -79,6 +81,11 @@ async def request_withdrawal(conn, pr: Principal, account_uid: uuid.UUID, amount
         raise not_found("bank account")
     if not acct["verified"]:
         raise ApiError(409, "BANK_ACCOUNT_NOT_VERIFIED", "platform finance has not verified this bank account yet")
+    if pr.portal == "OPERATOR" and ctx is not None:
+        # counter cash the carrier holds for the platform is set off first (6.5, 1056); the rest can be withdrawn
+        async with db.system_scope(conn, ctx):
+            if await cash.net_cash(conn, company, f"withdrawal:{w['id']}:{key}:cash-net", pr.user_id):
+                w = await company_wallet(conn, company, "SYP", label=_label(pr))
     if amount > w["balance"] - w["hold_balance"]:
         raise ApiError(402, "INSUFFICIENT_BALANCE", "the available balance is not enough",
                        available=w["balance"] - w["hold_balance"])

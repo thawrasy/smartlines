@@ -140,7 +140,7 @@ async def trip_detail(trip_uid: str, request: Request, from_seq: int = Query(...
     async with db.transaction(_ctx(request)) as conn:
         t = await conn.fetchrow(
             """SELECT t.id, t.company_id, t.route_id, t.uid, t.trip_no, t.status, t.seats_total, t.currency, t.seat_selection_mode, t.hold_min,
-                      t.service_type, t.segments_count, t.departure_at, t.arrival_at, t.baggage_policy,
+                      t.service_type, t.trip_type, t.segments_count, t.departure_at, t.arrival_at, t.baggage_policy,
                       t.seat_prices_snapshot, t.seat_map, cp.legal_name AS carrier_name, cc.code3 AS carrier_code
                  FROM ops.trip t JOIN iam.party cp ON cp.id = t.company_id
                  LEFT JOIN net.carrier_code cc ON cc.company_id = t.company_id AND cc.status = 'ACTIVE'

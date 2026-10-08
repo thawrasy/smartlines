@@ -13,6 +13,7 @@ from .config import get_settings
 from .errors import ApiError, api_error_handler, db_error_handler
 from .middleware import HeadAsGet, RequestContextMiddleware
 from .modules.agency import api as agency_api
+from .modules.cash import api as cash_api
 from .modules.fleet import api as fleet_api
 from .modules.payouts import api as payouts_api
 from .modules.documents import api as documents_api
@@ -87,7 +88,7 @@ for r in (metrics.router, auth.router, public.router, bookings.router, wallet.ro
           documents_api.company, documents_api.platform, notify_api.router,
           account_api.router, account_api.platform, modular_api.router, modular_workflows.router, reports_api.router, payments_api.router,
           integration_console.router, integration_v1.router, family_api.router, manifests_api.carrier, manifests_api.platform,
-          support_api.router, support_api.admin, seo_pages.router):
+          support_api.router, support_api.admin, cash_api.router, seo_pages.router):
     app.include_router(r)
 
 app.add_middleware(metrics.MetricsMiddleware)   # request counts and latency per route (T3-16)

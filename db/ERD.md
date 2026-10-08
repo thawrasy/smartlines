@@ -62,7 +62,7 @@ flowchart LR
   ctr -->|9| iam
   ctr -->|3| net
   ctr -->|1| ops
-  fin -->|18| iam
+  fin -->|21| iam
   fin -->|1| ops
   fin -->|6| pricing
   fin -->|5| sales
@@ -119,7 +119,7 @@ flowchart LR
   rpt -->|7| iam
   rpt -->|1| ref
   sales -->|2| acct
-  sales -->|5| fin
+  sales -->|6| fin
   sales -->|3| fleet
   sales -->|2| gov
   sales -->|27| iam
@@ -1840,6 +1840,7 @@ erDiagram
     bigint agency_id FK
     bigint family_id FK
     bigint funded_by_party_id FK
+    text pay_option FK
   }
   sales_campaign_redemption {
     bigint id PK
@@ -2030,6 +2031,9 @@ erDiagram
   fin_ledger_txn {
     ref external
   }
+  fin_payment_method {
+    ref external
+  }
   fin_price_allocation {
     ref external
   }
@@ -2112,6 +2116,7 @@ erDiagram
   sales_refund_request }o..o| acct_einvoice_document : "credit_note_id"
   sales_channel_statement }o..o| fin_ledger_txn : "ledger_txn_id"
   sales_subscription }o..o| fin_ledger_txn : "ledger_txn_id"
+  sales_booking }o..o| fin_payment_method : "pay_option"
   sales_booking }o..o| fin_price_allocation : "price_allocation_id"
   sales_nfc_card }o..o| fin_wallet : "wallet_id"
   sales_subscription }o..o| fin_wallet : "wallet_id"
@@ -2231,12 +2236,18 @@ erDiagram
     bigint matched_by FK
     bigint statement_line_id FK
   }
+  fin_cash_credit_limit {
+    bigint company_id PK
+    bigint set_by FK
+  }
   fin_cash_remittance {
     bigint id PK
     bigint company_id FK
     character currency FK
     bigint ledger_txn_id FK
     bigint recorded_by FK
+    text status
+    bigint confirmed_by FK
   }
   fin_deposit_placement {
     bigint id PK
@@ -2287,6 +2298,10 @@ erDiagram
     bigint ledger_txn_id FK
     bigint agency_company_id FK
     bigint api_client_id FK
+  }
+  fin_payment_method {
+    text code PK
+    bigint updated_by FK
   }
   fin_payment_notification {
     bigint id PK
@@ -2480,12 +2495,15 @@ erDiagram
   fin_payment }o..o| fin_wallet : "wallet_id"
   fin_price_allocation_line }o..o| fin_wallet : "wallet_id"
   fin_payment }o..o| iam_api_client : "api_client_id"
+  fin_cash_credit_limit }o--|| iam_app_user : "set_by"
   fin_bank_statement_import }o--|| iam_app_user : "imported_by"
+  fin_cash_remittance }o..o| iam_app_user : "confirmed_by"
   fin_bank_transfer_topup }o..o| iam_app_user : "matched_by"
   fin_withdrawal_request }o..o| iam_app_user : "paid_by"
   fin_withdrawal_request }o--|| iam_bank_account : "bank_account_id"
   fin_payout }o..o| iam_bank_account : "bank_account_id"
   fin_payout_schedule }o--|| iam_company : "company_id"
+  fin_cash_credit_limit }o--|| iam_company : "company_id"
   fin_cash_remittance }o--|| iam_company : "company_id"
   fin_settlement_batch }o--|| iam_company : "company_id"
   fin_payout }o--|| iam_company : "company_id"

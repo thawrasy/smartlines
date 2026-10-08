@@ -132,6 +132,8 @@ async def main(once: bool) -> None:
                     from ..payments.service import expire_stale
                     async with db.transaction(_ctx()) as conn:
                         await expire_stale(conn)
+                        # reservations not paid by their time give their seats back (1056)
+                        await conn.execute("SELECT sales.expire_reservations()")
                     # files still in quarantine get another scan; expired break-glass access is closed (audit T3)
                     from ..documents.scanner import scan_pending
                     await scan_pending()

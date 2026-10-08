@@ -1,5 +1,11 @@
 // Material Symbols (rounded, Apache-2.0), bundled at build time. Generated list: add a name here to use it.
 
+import i_undo from "@material-symbols/svg-400/rounded/undo.svg?raw";
+import i_timer_off from "@material-symbols/svg-400/rounded/timer_off.svg?raw";
+import i_lock_clock from "@material-symbols/svg-400/rounded/lock_clock.svg?raw";
+import i_point_of_sale from "@material-symbols/svg-400/rounded/point_of_sale.svg?raw";
+import i_hourglass_top from "@material-symbols/svg-400/rounded/hourglass_top.svg?raw";
+import i_price_check from "@material-symbols/svg-400/rounded/price_check.svg?raw";
 import i_notifications from "@material-symbols/svg-400/rounded/notifications.svg?raw";
 import i_devices from "@material-symbols/svg-400/rounded/devices.svg?raw";
 import i_privacy_tip from "@material-symbols/svg-400/rounded/privacy_tip.svg?raw";
@@ -245,6 +251,12 @@ export const ICONS = {
   verified_user: i_verified_user,
   star: i_star,
   forum: i_forum,
+  timer_off: i_timer_off,
+  lock_clock: i_lock_clock,
+  point_of_sale: i_point_of_sale,
+  hourglass_top: i_hourglass_top,
+  price_check: i_price_check,
+  undo: i_undo,
 } as const;
 
 export type IconName = keyof typeof ICONS;

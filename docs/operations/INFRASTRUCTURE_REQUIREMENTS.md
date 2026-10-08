@@ -171,7 +171,7 @@ alert. Each API instance needs about 300 to 500 MB, the worker about 300 MB, Cla
 - **Self-managed or managed:** self-managed (in the container or on a dedicated server) for the trial and pilot. The
   schema needs superuser for some statements (the DDL audit event triggers of file 1047) and pgBackRest needs the data
   directory. A managed service (Amazon RDS, Azure Database for PostgreSQL) is possible later after a full compatibility
-  run: load the schema, pass the 376 database checks, confirm the extensions, event triggers and SECURITY DEFINER roles.
+  run: load the schema, pass the 393 database checks, confirm the extensions, event triggers and SECURITY DEFINER roles.
 
 ## 8. Network, domain, certificates
 
@@ -190,7 +190,7 @@ alert. Each API instance needs about 300 to 500 MB, the worker about 300 MB, Cla
 
 | Service | Need | Options | By |
 |---|---|---|---|
-| Payment provider | wallet top-up, card and wallet payments | a PSP licensed under the Central Bank of Syria e-payment framework (August 2026); a bank working with Visa and Mastercard; local e-wallets | pilot |
+| Payment provider | wallet top-up, card, instalment and financing payments (cash at the counter and pay later need none; see PAYMENT_OPTIONS.md) | a PSP licensed under the Central Bank of Syria e-payment framework (August 2026); a bank working with Visa and Mastercard; local e-wallets; instalment and travel-financing companies where licensed | when the electronic options open |
 | SMS gateway | one-time codes, booking messages | local mobile operators or a licensed aggregator; sender name registration | pilot |
 | SMTP relay | tickets, receipts, support replies | a transactional mail provider (after confirming the account is accepted) or an own relay with SPF and DKIM | partner trial |
 | Object storage | backups, archive | the hosting provider's S3-compatible storage; separate account for the audit archive | trial |

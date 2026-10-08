@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { api, newKey, type FamilyView, type FareBrand, type Quote, type TripDetail } from "../../api";
+import { api, newKey, type BookingOption, type FamilyView, type FareBrand, type PayWith, type Quote, type TripDetail } from "../../api";
 import { useI18n } from "../../i18n";
 import { useAuth } from "../../auth";
 import { minutesBetween } from "../../dates";
@@ -10,8 +10,8 @@ import { SeatGrid } from "../../components/SeatGrid";
 import { PassengerFields, blankPassenger, categoryOf, documentFor, fromMember, namesFor, passengerValid, type PassengerDraft, type TravelDocs } from "./PassengerFields";
 
 interface Hold { hold_token: string; expires_at: string }
-// Passenger wallet, or the agency's dashboard figures that matter at checkout
-interface Funds { balance: number; remaining_today?: number; agreement?: { commission_bp: number } | null }
+// Passenger wallet, the agency's dashboard figures that matter at checkout, or the cash a counter may still take
+interface Funds { balance?: number; remaining_today?: number; agreement?: { commission_bp: number } | null; remaining?: number }
 
 const roundUnit = (minor: number) => Math.round(minor / 100) * 100;
 
@@ -91,13 +91,18 @@ export default function Book() {
 
   const detail = useLoad(() => api.get<TripDetail>(`/api/trips/${uid}`, { from_seq: fromSeq, to_seq: toSeq }), [uid, fromSeq, toSeq]);
   const ref = useLoad(() => api.get<{ fare_brands: FareBrand[]; platform_fee: number; countries: string[] }>("/api/ref"));
-  // Passengers pay from their wallet; an agency pays from its prepaid balance within its daily limit
+  // Passengers pay from their wallet; an agency pays from its prepaid balance within its daily limit; a counter takes
+  // cash within its carrier's cash limit
   const wallet = useLoad<Funds | null>(() => (me?.portal !== ch.portal ? Promise.resolve(null)
-    : api.get<Funds>(ch.agency ? "/api/agency/dashboard" : "/api/wallet")), [me, ch.portal]);
+    : api.get<Funds>(ch.counter ? "/api/carrier/counter/dashboard" : ch.agency ? "/api/agency/dashboard" : "/api/wallet")), [me, ch.portal, ch.counter]);
+  // The ways of paying platform administration has opened (1056): wallet, pay later at the counter, card, instalments, financing
+  const opts = useLoad<BookingOption[] | null>(() => (ch.staff || me?.portal !== "PASSENGER" ? Promise.resolve(null)
+    : api.get<{ options: BookingOption[] }>("/api/payments/booking-options").then((r) => r.options)), [me, ch.staff]);
+  const [payWith, setPayWith] = useState<PayWith | null>(null);
   const [contact, setContact] = useState("");
   // The passenger's family register (4.20): members can be picked as travellers; the head may pay from the family account
-  const family = useLoad<FamilyView | null>(() => (ch.agency || me?.portal !== "PASSENGER" ? Promise.resolve(null)
-    : api.get<FamilyView>("/api/family").catch(() => null)), [me, ch.agency]);
+  const family = useLoad<FamilyView | null>(() => (ch.staff || me?.portal !== "PASSENGER" ? Promise.resolve(null)
+    : api.get<FamilyView>("/api/family").catch(() => null)), [me, ch.staff]);
   const [payFrom, setPayFrom] = useState<"WALLET" | "FAMILY_ACCOUNT">("WALLET");
   const [quote, setQuote] = useState<Quote | null>(null);
   const [quoteError, setQuoteError] = useState<unknown>(null);
@@ -137,7 +142,7 @@ export default function Book() {
   // The server prices every traveller (adult, child, infant) and the family offer; the summary shows its answer
   const quoteKey = JSON.stringify([hold?.hold_token, brand, pax.map((p) => [p.lap, p.birth_date, p.family_member_uid, p.nationality])]);
   useEffect(() => {
-    if (!hold || ch.agency || pax.length === 0) { setQuote(null); return; }
+    if (!hold || ch.staff || pax.length === 0) { setQuote(null); return; }
     const id = setTimeout(() => {
       const body = { trip_uid: uid, from_seq: fromSeq, to_seq: toSeq, fare_brand: brand,
         passengers: pax.map((p, i) => ({ seat_no: p.lap ? null : selected[i] ?? null, nationality: p.nationality,
@@ -188,12 +193,21 @@ export default function Book() {
     if (!hold) return;
     setBusy(true); setError(null);
     try {
-      const r = await api.post<{ booking_ref: string }>(`${ch.api}/bookings`, {
+      const r = await api.post<{ booking_ref: string; status?: string }>(`${ch.api}/bookings`, {
         hold_token: hold.hold_token, trip_uid: uid, from_seq: fromSeq, to_seq: toSeq, fare_brand: brand, idempotency_key: idemKey,
-        ...(ch.agency ? { contact_mobile: contact.trim() } : { pay_from: payFrom }),
+        ...(ch.staff ? { contact_mobile: contact.trim() || undefined } : { pay_from: payFrom, pay_with: chosen?.code ?? "WALLET" }),
         passengers: travellers(),
       });
       holdRef.current = null;
+      // card, instalments and financing: the seats are reserved, and the passenger goes on to the provider's page
+      const provider = chosen?.providers?.[0];
+      if (provider && r.status === "PENDING_PAYMENT") {
+        try {
+          const p = await api.post<{ url: string | null }>(`/api/bookings/${r.booking_ref}/payments`, { provider: provider.code, idempotency_key: newKey() });
+          if (p.url?.startsWith("https://")) { window.location.assign(p.url); return; }
+          if (p.url) { nav(p.url); return; }
+        } catch { /* the booking page offers to pay again until the pay-by time */ }
+      }
       nav(ch.link(`/booking/${r.booking_ref}?new=1`));
     } catch (e) {
       setError(e);
@@ -201,7 +215,7 @@ export default function Book() {
     } finally { setBusy(false); }
   };
 
-  const contactValid = !ch.agency || /^\+?[0-9]{8,15}$/.test(contact.trim());
+  const contactValid = !ch.staff || (ch.counter && contact.trim() === "") || /^\+?[0-9]{8,15}$/.test(contact.trim());
   const seated = pax.filter((p) => !p.lap).length;
   const paxValid = seated === selected.length && pax.every((p) => passengerValid(p, docs[p.nationality])) && contactValid;
   const infantBand = d.categories?.find((c) => c.category === "INFANT");
@@ -215,9 +229,20 @@ export default function Book() {
   const commission = ch.agency && wallet.data?.agreement
     ? Math.floor(farePer * paxCount * wallet.data.agreement.commission_bp / 10000 / 100) * 100 : null;
   const mm = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}`;
+  // an option is offered when the amount is within its limits and, for financing, the trip is of a kind it covers
+  const usable = (o: BookingOption) => shownTotal >= o.min_amount && (o.max_amount == null || shownTotal <= o.max_amount)
+    && (!o.trip_types?.length || o.trip_types.includes(d.trip.trip_type ?? ""));
+  const options = opts.data ?? [];
+  const chosen = options.find((o) => o.code === payWith && usable(o)) ?? options.find(usable) ?? null;
+  const optionHint = (o: BookingOption) => !usable(o) ? (shownTotal < o.min_amount ? t("opt.from", { amount: money(o.min_amount) }) : "")
+    : t(`opt.hint.${o.code}`, { h: o.hold_hours ?? 24, m: o.cutoff_minutes ?? 120, provider: o.providers?.[0]?.name ?? "" });
+  const payLabel = ch.counter ? t("counter.take", { amount: money(shownTotal) })
+    : ch.agency || !chosen || chosen.code === "WALLET" ? t("checkout.pay", { amount: money(shownTotal) })
+    : chosen.code === "PAY_LATER" ? t("opt.reserve") : t("opt.continue", { amount: money(shownTotal) });
+  const showWallet = ch.agency || (!ch.staff && (chosen?.code ?? "WALLET") === "WALLET");
 
   return (
-    <div className={ch.agency ? "stack" : "page stack"}>
+    <div className={ch.staff ? "stack" : "page stack"}>
       {/* Journey header */}
       <div className="card row between">
         <div className="stack tight">
@@ -295,9 +320,10 @@ export default function Book() {
                 ))}
               </div>
             </div>
-            {ch.agency && (
+            {ch.staff && (
               <div className="card stack">
-                <div><h3>{t("agency.contact")}</h3><p className="small muted">{t("agency.contactHint")}</p></div>
+                <div><h3>{t(ch.counter ? "counter.contact" : "agency.contact")}</h3>
+                  <p className="small muted">{t(ch.counter ? "counter.contactHint" : "agency.contactHint")}</p></div>
                 <input className="input ltr" inputMode="tel" autoComplete="off" placeholder="+9639XXXXXXXX" value={contact}
                        onChange={(e) => setContact(e.target.value)} aria-invalid={contact !== "" && !contactValid} />
               </div>
@@ -326,7 +352,7 @@ export default function Book() {
                                  onChange={(v) => setPax((ps) => ps.map((x, j) => (j === i ? v : x)))} />
               </div>
             ))}
-            {canAddLap && !ch.agency && (
+            {canAddLap && !ch.staff && (
               <button className="btn outline" onClick={() => setPax((ps) => [...ps, blankPassenger(true)])}>
                 <Icon name="child_care" />{t("pax.addLapInfant")}
               </button>
@@ -364,19 +390,41 @@ export default function Book() {
             {commission !== null && (
               <div className="row between"><span className="muted">{t("agency.commissionEarned")}</span><span style={{ color: "var(--success)" }}>{money(commission)}</span></div>
             )}
-            {wallet.data && (
+            {!ch.staff && opts.data && (options.length === 0 ? (
+              <div className="alert error"><Icon name="block" /><span>{t("opt.noneOpen")}</span></div>
+            ) : options.length > 1 && (
+              <div className="stack tight" role="radiogroup" aria-label={t("opt.title")}>
+                <span className="small muted">{t("opt.title")}</span>
+                {options.map((o) => (
+                  <label key={o.code} className={`card flat check${chosen?.code === o.code ? " on" : ""}`}
+                         style={{ padding: 12, alignItems: "flex-start", opacity: usable(o) ? 1 : .55,
+                                  borderColor: chosen?.code === o.code ? "var(--primary)" : undefined }}>
+                    <input type="radio" name="pay_with" checked={chosen?.code === o.code} disabled={!usable(o)} onChange={() => setPayWith(o.code)} />
+                    <span className="stack tight"><strong>{t(`opt.name.${o.code}`)}</strong><span className="small muted">{optionHint(o)}</span></span>
+                  </label>
+                ))}
+              </div>
+            ))}
+            {wallet.data && showWallet && wallet.data.balance !== undefined && (
               <div className={`alert ${wallet.data.balance >= shownTotal || payFrom === "FAMILY_ACCOUNT" ? "info" : "error"}`}>
                 <Icon name="account_balance_wallet" />
                 <span className="grow">{t(ch.agency ? "agency.balance" : "checkout.walletBalance")}: <strong>{money(wallet.data.balance)}</strong></span>
                 {wallet.data.balance < shownTotal && payFrom === "WALLET" && !ch.agency && <Link to="/wallet">{t("checkout.topupFirst")}</Link>}
               </div>
             )}
+            {ch.counter && wallet.data?.remaining !== undefined && (
+              <div className={`alert ${wallet.data.remaining >= shownTotal ? "info" : "error"}`}>
+                <Icon name="payments" />
+                <span className="grow">{wallet.data.remaining >= shownTotal ? <>{t("counter.remaining")}: <strong>{money(wallet.data.remaining)}</strong></>
+                  : t("counter.limitReached")}</span>
+              </div>
+            )}
             {wallet.data?.remaining_today !== undefined && wallet.data.remaining_today < total && (
               <div className="alert error"><Icon name="warning" /><span>{t("errors.AGENCY_DAILY_LIMIT")}</span></div>
             )}
-            <label className="check small"><input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} />{t(ch.agency ? "agency.agree" : "checkout.agree")}</label>
-            <button className="btn large block" disabled={busy || !agree || !paxValid || left === 0 || quoteError != null} onClick={pay}>
-              <Icon name="lock" />{t("checkout.pay", { amount: money(shownTotal) })}
+            <label className="check small"><input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} />{t(ch.counter ? "counter.agree" : ch.agency ? "agency.agree" : "checkout.agree")}</label>
+            <button className="btn large block" disabled={busy || !agree || !paxValid || left === 0 || quoteError != null || (!ch.staff && !!opts.data && !chosen)} onClick={pay}>
+              <Icon name={ch.counter ? "payments" : "lock"} />{payLabel}
             </button>
             <button className="btn text" onClick={release}>{t("common.back")}</button>
           </div>

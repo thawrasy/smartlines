@@ -25,10 +25,12 @@ from ... import db
 from ...errors import ApiError, not_found
 from ...ledger import company_wallet, platform_wallet, post_txn, user_wallet
 from ..notify.outbox import emit
+from ..sales import options
+from ..sales import service as sales
 from . import adapters
 
 OTP_MAX_ATTEMPTS = 5
-PENDING_MINUTES = {"HOSTED_CARD": 30, "PARTNER_WALLET": 10}
+PENDING_MINUTES = {"HOSTED_CARD": 30, "PARTNER_WALLET": 10, "INSTALLMENT": 30, "FINANCING": 24 * 60}
 
 
 def _cfg(v) -> dict:
@@ -141,9 +143,61 @@ async def _succeed(conn, p: dict, pay, user_id: Optional[int], card_last4: Optio
     txn = await post_txn(conn, "TOPUP", row["currency"], f"payment:{row['id']}",
                          [(clearing["id"], "DR", row["amount"]), (row["wallet_id"], "CR", row["amount"])],
                          ref_type="payment", ref_id=row["id"], user_id=user_id, memo=row["provider_ref"])
-    return await conn.fetchrow(
+    done = await conn.fetchrow(
         """UPDATE fin.payment SET status = 'SUCCESS', stage = 'CONFIRMED', ledger_txn_id = $2, settled_at = now(),
                   card_last4 = coalesce($3, card_last4) WHERE id = $1 RETURNING *""", row["id"], txn, card_last4)
+    if done["purpose"] == "BOOKING" and done["booking_id"]:
+        # the money of a reserved booking (1056): it reached the payer's wallet above and pays the booking from there;
+        # if the reservation has lapsed meanwhile, it simply stays in the wallet (refundable to its source by finance)
+        w = await conn.fetchrow("SELECT * FROM fin.wallet WHERE id = $1", done["wallet_id"])
+        await sales.settle_reserved(conn, done["booking_id"], w, user_id)
+    return done
+
+
+# ------------------------------------------------------------------ paying a reserved booking (1056)
+async def start_booking_payment(conn, ctx: db.Context, party_id: int, user_id: int, ref: str, code: str, key: str,
+                                return_url: str) -> dict:
+    """Sends the passenger to the provider of the option their reservation was made with (card, instalments, financing)."""
+    async with db.system_scope(conn, ctx):
+        b = await conn.fetchrow("SELECT * FROM sales.booking WHERE booking_ref = $1 AND booker_party_id = $2 FOR UPDATE",
+                                ref.upper(), party_id)
+        if b is None:
+            raise not_found("booking")
+        existing = await conn.fetchrow("SELECT p.*, pv.code AS provider_code FROM fin.payment p JOIN fin.payment_provider pv ON pv.id = p.provider_id "
+                                       "WHERE p.idempotency_key = $1 AND p.payer_party_id = $2", key, party_id)
+        if existing:
+            return {**_payment_out(existing), "replayed": True}
+        if b["status"] != "PENDING_PAYMENT":
+            raise ApiError(409, "BOOKING_NOT_PENDING", "this booking is not waiting for payment", booking_status=b["status"])
+        if b["hold_expires_at"] is not None and b["hold_expires_at"] <= datetime.now(timezone.utc):
+            raise ApiError(409, "RESERVATION_EXPIRED", "the time to pay this reservation has passed")
+        adapter_name = options.PROVIDER_OPTIONS.get(b["pay_option"])
+        if adapter_name is None:
+            raise ApiError(409, "PAY_AT_COUNTER", "this reservation is paid in cash at the carrier's counter")
+        await options.require(conn, b["pay_option"], "WEB", b["total_amount"])
+        p = await provider(conn, code)
+        if p["status"] != "ACTIVE" or "BOOKING" not in p["purposes"] or p["adapter"] != adapter_name:
+            raise ApiError(409, "PAYMENT_METHOD_UNAVAILABLE", "this provider does not take this kind of payment")
+        if not p["min_amount"] <= b["total_amount"] <= p["max_amount"]:
+            raise ApiError(422, "PAYMENT_AMOUNT_OUT_OF_RANGE", "amount outside the provider's limits",
+                           min_amount=p["min_amount"], max_amount=p["max_amount"])
+        if await conn.fetchval("SELECT 1 FROM fin.payment WHERE booking_id = $1 AND purpose = 'BOOKING' AND status = 'PENDING' "
+                               "AND (expires_at IS NULL OR expires_at > now())", b["id"]):
+            raise ApiError(409, "PAYMENT_IN_PROGRESS", "a payment for this booking is already in progress")
+        w = await user_wallet(conn, party_id, b["currency"])
+        minutes = PENDING_MINUTES.get(p["adapter"], 30)
+        pay = await conn.fetchrow(
+            """INSERT INTO fin.payment (provider_id, purpose, booking_id, payer_party_id, wallet_id, method, currency, amount, fee,
+                                        idempotency_key, expires_at)
+               VALUES ($1, 'BOOKING', $2, $3, $4, $5, $6, $7, $8, $9, least(now() + make_interval(mins => $10), $11)) RETURNING *""",
+            p["id"], b["id"], party_id, w["id"], options.PAY_METHOD[b["pay_option"]], b["currency"], b["total_amount"],
+            fee_of(p, b["total_amount"]), key, minutes, b["hold_expires_at"])
+        payload = {"uid": str(pay["uid"]), "amount": pay["amount"], "currency": pay["currency"],
+                   "description": f"Masslak booking {b['booking_ref']}"}
+        action = adapters.ADAPTERS[p["adapter"]].start(p, payload, return_url.replace("{uid}", str(pay["uid"])))
+        pay = await conn.fetchrow("UPDATE fin.payment SET provider_ref = $2, checkout_url = $3, stage = 'REDIRECTED' WHERE id = $1 RETURNING *",
+                                  pay["id"], action.provider_ref, action.url)
+    return {**_payment_out(pay), "provider": p["code"], "action": action.kind, "url": action.url}
 
 
 async def _fail(conn, pay, code: str) -> asyncpg.Record:
@@ -527,12 +581,12 @@ async def refund(conn, ctx: db.Context, user_id: int, uid: uuid.UUID, amount: in
         pay = await conn.fetchrow("SELECT * FROM fin.payment WHERE uid = $1 FOR UPDATE", uid)
         if pay is None:
             raise not_found("payment")
-        if pay["status"] != "SUCCESS" or pay["method"] not in ("CARD", "E_WALLET"):
-            raise ApiError(409, "REFUND_NOT_ALLOWED", "only successful card and e-wallet payments go back to their source")
+        if pay["status"] != "SUCCESS" or pay["method"] not in ("CARD", "E_WALLET", "INSTALLMENT", "FINANCING"):
+            raise ApiError(409, "REFUND_NOT_ALLOWED", "only successful card, e-wallet, instalment and financing payments go back to their source")
         if amount > pay["amount"] - pay["refunded_amount"]:
             raise ApiError(422, "REFUND_TOO_LARGE", "more than what is left to refund", refundable=pay["amount"] - pay["refunded_amount"])
         p = provider_dict(await conn.fetchrow("SELECT * FROM fin.payment_provider WHERE id = $1", pay["provider_id"]))
-        if p["adapter"] not in ("HOSTED_CARD", "PARTNER_WALLET"):
+        if p["adapter"] not in adapters.NOTIFYING:
             raise ApiError(409, "REFUND_NOT_ALLOWED", "test payments have no source to refund to")
         w = await conn.fetchrow("SELECT * FROM fin.wallet WHERE id = $1 FOR UPDATE", pay["wallet_id"])
         if w["balance"] - w["hold_balance"] < amount:

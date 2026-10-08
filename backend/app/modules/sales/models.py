@@ -79,6 +79,9 @@ class BookingIn(BaseModel):
     idempotency_key: str = Field(min_length=8, max_length=80)
     # Family bookings (4.20): the head may pay from the family trips account; a member's own booking is paid as the head set
     pay_from: Literal["WALLET", "FAMILY_ACCOUNT"] = "WALLET"
+    # How the booking is paid (1056): at once from the wallet, or reserved and paid later in cash at the carrier's counter,
+    # by card, in instalments or through a financing company, as far as platform administration has opened these options
+    pay_with: Literal["WALLET", "PAY_LATER", "CARD", "INSTALLMENT", "FINANCING"] = "WALLET"
 
     @model_validator(mode="after")
     def _seats(self):

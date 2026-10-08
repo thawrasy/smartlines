@@ -12,6 +12,7 @@ from .. import db
 from ..deps import Principal, context_for, require_portal
 from ..errors import ApiError, forbidden, not_found
 from ..ledger import platform_wallet, post_txn
+from ..modules.cash import service as cash
 from ..modules.fleet import service as fleet
 from ..security import hash_password, password_problem
 from ..util import LOCAL_TZ, row_dict, rows
@@ -253,6 +254,8 @@ class TripIn(BaseModel):
     departure_local: datetime                 # local time in Asia/Damascus, e.g. 2026-10-10T07:30
     driver_uid: Optional[uuid.UUID] = None
     publish: bool = True
+    # pilgrimages (Umrah, Hajj) and tours can be paid through a financing company where one is contracted (1056)
+    trip_type: Literal["SCHEDULED", "INTERNATIONAL", "EXTRA", "PILGRIMAGE", "TOURISM"] = "SCHEDULED"
 
 
 @router.get("/trips")
@@ -273,7 +276,8 @@ async def trips(request: Request, pr: Principal = Depends(operator)):
 
 
 async def _insert_trip(conn, pr: Principal, route, vehicle, dep: datetime, publish: bool,
-                       driver_party: Optional[int] = None, template_id: Optional[int] = None) -> tuple[int, str]:
+                       driver_party: Optional[int] = None, template_id: Optional[int] = None,
+                       trip_type: str = "SCHEDULED") -> tuple[int, str]:
     """Writes one trip with its stops, seat segments and driver: the same trip whether made by hand or from a template."""
     stops = await conn.fetch("SELECT * FROM net.route_stop WHERE route_id = $1 ORDER BY seq", route["id"])
     code3 = await conn.fetchval("SELECT code3 FROM net.carrier_code WHERE company_id = $1 AND status = 'ACTIVE'",
@@ -287,13 +291,13 @@ async def _insert_trip(conn, pr: Principal, route, vehicle, dep: datetime, publi
     seat_map = await fleet.trip_seat_map(conn, vehicle["id"])
     trip_id = await conn.fetchval(
         """INSERT INTO ops.trip (trip_no, company_id, route_id, service_type, vehicle_id, departure_at, arrival_at,
-             status, seats_total, segments_count, currency, base_price, published_at, seat_map, template_id)
+             status, seats_total, segments_count, currency, base_price, published_at, seat_map, template_id, trip_type)
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'SYP', $11, CASE WHEN $8 = 'PUBLISHED' THEN now() END,
-                   $12::jsonb, $13)
+                   $12::jsonb, $13, $14)
            RETURNING id""",
         trip_no, pr.company_id, route["id"], "INDIRECT" if n > 2 else "DIRECT", vehicle["id"], dep, arrival, status,
         vehicle["passenger_seats"], n - 1, stops[-1]["fare_from_origin"], json.dumps(seat_map) if seat_map else None,
-        template_id)
+        template_id, trip_type)
     await conn.executemany(
         """INSERT INTO ops.trip_stop (trip_id, seq, station_id, kind, sched_arr, sched_dep, fare_from_origin, rest_min)
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)""",
@@ -330,7 +334,7 @@ async def create_trip(body: TripIn, request: Request, pr: Principal = Depends(op
                     WHERE p.uid = $1 AND cp.status = 'ACTIVE'""", body.driver_uid)
             if driver is None:
                 raise not_found("driver")
-        trip_id, trip_no = await _insert_trip(conn, pr, route, vehicle, dep, body.publish, driver)
+        trip_id, trip_no = await _insert_trip(conn, pr, route, vehicle, dep, body.publish, driver, trip_type=body.trip_type)
         uid = await conn.fetchval("SELECT uid FROM ops.trip WHERE id = $1", trip_id)
     request.state.audit = {"action": "trip.create", "object_type": "trip", "object_id": trip_id}
     return {"uid": str(uid), "trip_no": trip_no}
@@ -453,5 +457,10 @@ async def complete_trip(trip_uid: uuid.UUID, request: Request, pr: Principal = D
             await conn.execute("UPDATE sales.booking SET status = 'COMPLETED' WHERE trip_id = $1 AND status = 'CONFIRMED'",
                                t["id"])
             await conn.execute("UPDATE sales.ticket SET status = 'NO_SHOW' WHERE trip_id = $1 AND status = 'ISSUED'", t["id"])
+            # reservations never paid end with the trip (1056); nothing was taken for them
+            await conn.execute("UPDATE sales.ticket SET status = 'CANCELLED' WHERE trip_id = $1 AND status = 'HOLD'", t["id"])
+            await conn.execute("UPDATE sales.booking SET status = 'EXPIRED' WHERE trip_id = $1 AND status = 'PENDING_PAYMENT'", t["id"])
+            # what the carrier earned pays first for the counter cash it holds for the platform (6.5)
+            set_off = await cash.net_cash(conn, t["company_id"], f"trip:{t['id']}:cash-net", pr.user_id, t["currency"])
     request.state.audit = {"action": "trip.complete", "object_type": "trip", "object_id": t["id"]}
-    return {"ok": True, "released": released}
+    return {"ok": True, "released": released, "cash_set_off": set_off}

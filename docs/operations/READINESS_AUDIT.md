@@ -3,7 +3,8 @@
 Every launch phase of the Analysis and Design Study v3.2 (chapters 21 and 22) and the Database Design and ERD 3.11 was
 checked against the built system: each table of a phase was looked for in the API code, in the module screens, and in
 the database's own logic (triggers, functions, maintenance). This document records what was found, what schema files
-1054 and 1055 (migrations 1.36.0 and 1.36.1) added, and what still stands between the system and general launch.
+1054 and 1055 (migrations 1.36.0 and 1.36.1) added, the payment options of schema file 1056 (migration 1.37.0), and what
+still stands between the system and general launch.
 
 ## 1. Method
 
@@ -31,6 +32,14 @@ the database's own logic (triggers, functions, maintenance). This document recor
 | Row ownership | 1A | A partner company could edit another carrier's disruption; companies could change who bears a passenger's compensation | Disruptions are written only by the trip's carrier; compensation only by the platform (found by the isolation sweep once the tables had data). |
 | Contact centre and AI phase (CS) | CS | The 2.8 feature flags shipped `ai_assistant` on, which opened the whole phase on a fresh install, against launch gate 9 | Schema file 1055 switches both CS switches off unless an approved data protection review exists, and refuses to switch them on before one is recorded with its DPIA file and approver |
 
+## 2a. Payment options (schema file 1056)
+
+Owner decision, October 2026: release 1 must not depend on e-wallet or card providers, which are still scarce in Syria.
+Platform administration now opens and closes each way of paying a booking: the wallet, an agency's prepaid balance, cash
+at the carrier's counter, reserve online and pay cash at the counter, and (once a provider is contracted) card, instalment
+and financing payments. Counter cash is owed by the carrier within a credit limit, set off against its earnings and
+remitted under four eyes. Details in [PAYMENT_OPTIONS.md](PAYMENT_OPTIONS.md).
+
 ## 3. Coverage after 1054
 
 | Phase | Tables | Served by the API | Database-only | Left without a screen (reason) |
@@ -52,11 +61,12 @@ the database's own logic (triggers, functions, maintenance). This document recor
 
 ## 4. Tests
 
-- Database checks: 376 (schema file 1054 adds 22, 1055 adds 4).
-- API tests: 223 on a fresh database (`backend/tests/test_launch.py` adds 6), plus the module sweep that opens every screen
-  of every portal and the isolation sweeps over every company column.
+- Database checks: 393 (schema file 1054 adds 22, 1055 adds 4, 1056 adds 17).
+- API tests: 242 on a fresh database (`backend/tests/test_launch.py` adds 6, `test_payment_options.py` 14), plus the module
+  sweep that opens every screen of every portal and the isolation sweeps over every company column.
 - Mobile: typecheck and unit tests; web: typecheck and production build.
-- Upgrade: a populated 1.35.0 database upgrades to 1.36.0 with every wallet reconciled.
+- Upgrade: a populated 1.35.0 database upgrades to 1.36.0 with every wallet reconciled; a used 1.36.1 database upgrades to
+  1.37.0, applies nothing on a second run, and passes the booking, agency, payment, payout and payment-option tests.
 
 ## 5. What still stands between the system and general launch
 
@@ -64,8 +74,9 @@ The code of releases 1A and 1B is complete. General launch waits on the nine ope
 [LAUNCH_GATES.md](LAUNCH_GATES.md), all of which need people and environments outside the code: recovery drill on staging,
 the production egress allowlist, capacity at 1x, 2x and 5x on staging hardware, migration rehearsal on a production-size
 copy, monitoring with an on-call rota, the audit archive bucket with object lock, ClamAV in production, the external
-penetration test, and (for the AI phase only) the DPIA sign-off. Commercial and legal prerequisites (payment provider and
-bank agreements, SMS sender registration, carrier contracts, data-protection registration) are in
+penetration test, and (for the AI phase only) the DPIA sign-off. Commercial and legal prerequisites (bank agreements,
+SMS sender registration, carrier contracts, data-protection registration; a payment provider only for the electronic
+options, since cash at the counter needs none) are in
 [INFRASTRUCTURE_REQUIREMENTS.md](INFRASTRUCTURE_REQUIREMENTS.md) and [STAFFING.md](STAFFING.md).
 
 The currency was redenominated on 1 January 2026 (100 old pounds = 1 new pound, ISO code unchanged). Amounts in the
