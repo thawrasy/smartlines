@@ -64,8 +64,8 @@ The code of releases 1A and 1B is complete. General launch waits on the nine ope
 the production egress allowlist, capacity at 1x, 2x and 5x on staging hardware, migration rehearsal on a production-size
 copy, monitoring with an on-call rota, the audit archive bucket with object lock, ClamAV in production, the external
 penetration test, and (for the AI phase only) the DPIA sign-off. Commercial and legal prerequisites (payment provider and
-bank agreements, SMS sender registration, carrier contracts, data-protection registration) are in the infrastructure and
-staffing requirements.
+bank agreements, SMS sender registration, carrier contracts, data-protection registration) are in
+[INFRASTRUCTURE_REQUIREMENTS.md](INFRASTRUCTURE_REQUIREMENTS.md) and [STAFFING.md](STAFFING.md).
 
 The currency was redenominated on 1 January 2026 (100 old pounds = 1 new pound, ISO code unchanged). Amounts in the
 platform are stored in minor units of SYP; fares and demo data must be entered in new pounds before launch.
