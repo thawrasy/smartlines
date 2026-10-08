@@ -2,8 +2,10 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { api, ApiError, session, signIn as apiSignIn, signOut as apiSignOut } from "./api";
 import { getJSON, putJSON, wipe } from "./secure";
+import { useI18n, type Market } from "../i18n";
 
-export interface Me { uid: string; name: string; email: string | null; portal: string; mfa: { enrolled: boolean; required: boolean } }
+export interface Me { uid: string; name: string; email: string | null; portal: string; mfa: { enrolled: boolean; required: boolean };
+                     market?: Market }
 type Status = "loading" | "signedOut" | "mfa" | "signedIn";
 
 interface Auth {
@@ -27,20 +29,22 @@ const Ctx = createContext<Auth | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<Status>("loading");
   const [me, setMe] = useState<Me | null>(null);
+  const { setMarket } = useI18n();
 
   const refresh = useCallback(async () => {
     try {
       if (!(await session.accessToken())) { setStatus("signedOut"); setMe(null); return; }
       const fresh = await api.get<Me>("/api/auth/me");
       await putJSON("me", fresh);
+      if (fresh.market) setMarket(fresh.market);            // the user's market: its time zone and currency (1061)
       setMe(fresh); setStatus("signedIn");
     } catch (e) {
       if (e instanceof ApiError && e.code === "MFA_REQUIRED") { setStatus("mfa"); return; }
       const cached = e instanceof ApiError && e.status === 0 ? await getJSON<Me>("me") : null;
-      if (cached) { setMe(cached); setStatus("signedIn"); return; }   // offline: saved tickets still open
+      if (cached) { if (cached.market) setMarket(cached.market); setMe(cached); setStatus("signedIn"); return; }   // offline: saved tickets still open
       setStatus("signedOut"); setMe(null);
     }
-  }, []);
+  }, [setMarket]);
 
   useEffect(() => {
     void refresh();

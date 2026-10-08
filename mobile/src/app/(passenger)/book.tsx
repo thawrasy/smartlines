@@ -1,14 +1,14 @@
 import { useState } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import { router } from "expo-router";
-import { useI18n } from "../../i18n";
+import { useI18n, zone } from "../../i18n";
 import { api } from "../../platform/api";
 import { Button, Card, Loading, Screen, Title, s } from "../../ui/kit";
 import { color } from "../../ui/theme";
 import { useLoad } from "../../ui/useLoad";
 
 /** Calendar date in Damascus, n days from today, as YYYY-MM-DD. */
-const dayIso = (n: number) => new Date(Date.now() + n * 86400000).toLocaleDateString("en-CA", { timeZone: "Asia/Damascus" });
+const dayIso = (n: number) => new Date(Date.now() + n * 86400000).toLocaleDateString("en-CA", { timeZone: zone() });   // the market's day (1061)
 
 function Pills({ items, value, onChange }: { items: { key: string; label: string }[]; value: string; onChange: (k: string) => void }) {
   return (

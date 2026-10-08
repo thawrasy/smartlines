@@ -8,7 +8,7 @@ import { useChannel } from "../../channel";
 import { useAuth } from "../../auth";
 
 export default function Results() {
-  const { t, city, money, time, date, station, duration } = useI18n();
+  const { t, city, money, time, date, station, duration, currency } = useI18n();
   const [params, setParams] = useSearchParams();
   const ch = useChannel();
   const { me } = useAuth();
@@ -62,7 +62,7 @@ export default function Results() {
                 </div>
               </div>
               <div className="stack tight" style={{ alignItems: "flex-end", minWidth: 190 }}>
-                <div className="price">{money(trip.price, false)} <small>{t("common.currency")}</small></div>
+                <div className="price">{money(trip.price, false, trip.currency)} <small>{currency(trip.currency)}</small></div>
                 <span className="small muted">{t("results.perPassenger")}</span>
                 <span className={`small ${trip.seats_left < 6 ? "" : "muted"}`} style={trip.seats_left < 6 ? { color: "var(--error)" } : undefined}>
                   <Icon name="event_seat" size={16} /> {trip.bookable ? t("results.seatsLeft", { n: trip.seats_left }) : t("results.soldOut")}

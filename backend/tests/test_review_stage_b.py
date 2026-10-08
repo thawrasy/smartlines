@@ -105,4 +105,4 @@ def test_cash_owed_and_overdue_reach_monitoring():
     assert r.status_code == 200
     for name in ("masslak_cash_owed_minor", "masslak_cash_overdue_minor", "masslak_cash_overdue_carriers",
                  "masslak_cash_near_limit_carriers"):
-        assert f"\n{name} " in r.text, name
+        assert f'\n{name}{{currency="SYP"}} ' in r.text, name      # one series per open market currency (1061)

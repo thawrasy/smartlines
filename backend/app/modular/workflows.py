@@ -49,7 +49,7 @@ import asyncpg
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, Field
 
-from .. import db
+from .. import db, markets
 from ..deps import Principal, context_for, require_user
 from ..errors import ApiError, not_found
 from ..ledger import company_wallet, post_txn, user_wallet
@@ -224,7 +224,8 @@ async def _parcel_quote(conn: asyncpg.Connection, body: ParcelIn) -> dict:
     price = max(price, fit["min_charge"] or 0)
     company = table["company_id"] or await conn.fetchval(
         "SELECT id FROM iam.company WHERE company_type = 'CARRIER' AND approval_status = 'APPROVED' ORDER BY id LIMIT 1")
-    return {"price": int(price), "currency": table["currency"] or "SYP", "zone": zone, "service": service["name"],
+    return {"price": int(price), "currency": table["currency"] or (await markets.of_party(conn, company)).currency, "zone": zone,
+            "service": service["name"],
             "company_id": company, "rate_table_id": table["id"]}
 
 
@@ -346,7 +347,8 @@ async def _taxi_estimate(conn: asyncpg.Connection, body: TaxiTrip) -> dict:
     fare = tariff["flag_fall"] + round(tariff["per_km"] * km)
     fare = max(fare, tariff["min_fare"] or 0)
     fare = int(math.ceil(fare / 50000) * 50000)          # nearest 500 pounds up
-    return {"km": km, "minutes": max(5, round(km * 2.4)), "fare": fare, "currency": tariff["currency"] or "SYP"}
+    return {"km": km, "minutes": max(5, round(km * 2.4)), "fare": fare,
+            "currency": tariff["currency"] or (await markets.default(conn)).currency}
 
 
 @router.get("/api/w/taxi/cities")
@@ -464,7 +466,8 @@ async def rental_offers(request: Request, branch_id: Optional[int] = None, start
             for r in sorted(rows, key=lambda x: x["sort"] or 0):
                 offers.append({"rate_id": r["id"], "rental_class": r["rental_class"], "class_name": r["class_name"], "unit": r["unit"],
                                "price": r["price"], "total": _rate_total(r, days), "days": days, "deposit": r["deposit_amount"] or 0,
-                               "km_per_day": r["km_included_per_day"], "available": r["available"], "currency": r["currency"] or "SYP"})
+                               "km_per_day": r["km_included_per_day"], "available": r["available"],
+                               "currency": r["currency"] or (await markets.of_party(conn, branch["company_id"])).currency})
     return {"branches": [dict(b) for b in branches], "offers": offers}
 
 
@@ -493,7 +496,7 @@ async def book_rental(body: RentalBooking, request: Request, pr: Principal = Dep
                      return_branch_id, period, quoted_total, currency, status)
                    VALUES ($1, $2, $3, $4, $5, $6, tstzrange($7, $8), $9, $10, 'PENDING') RETURNING id, uid""",
                 rate["company_id"], pr.party_id, rate["rental_class"], rate["id"], body.pickup_branch_id, back,
-                body.starts_at, body.ends_at, total, rate["currency"] or "SYP")
+                body.starts_at, body.ends_at, total, rate["currency"] or (await markets.of_party(conn, rate["company_id"])).currency)
             await emit(conn, "rental.requested", "rental_booking", b["id"], {"class": rate["rental_class"], "total": total},
                        company_id=rate["company_id"])
     return {"uid": str(b["uid"]), "status": "PENDING", "quoted_total": total, "deposit": rate["deposit_amount"] or 0}
@@ -568,10 +571,11 @@ async def post_freight(body: FreightIn, request: Request, pr: Principal = Depend
                 """INSERT INTO frt.freight_request (shipper_party_id, shipper_company_id, origin_station_id, dest_station_id,
                      cargo_category, cargo_description, declared_weight_kg, packages, required_trailer_type, pickup_window,
                      mode, target_price, currency, status)
-                   VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, tstzrange($10, $11), 'BID', $12, 'SYP', 'OPEN') RETURNING id, uid""",
+                   VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, tstzrange($10, $11), 'BID', $12, $13, 'OPEN') RETURNING id, uid""",
                 pr.party_id, pr.company_id if pr.portal == "OPERATOR" else None, body.origin_station_id, body.dest_station_id,
                 body.cargo_category, body.cargo_description.strip(), body.declared_weight_kg, body.packages,
-                body.required_trailer_type, body.pickup_from, body.pickup_to, body.target_price)
+                body.required_trailer_type, body.pickup_from, body.pickup_to, body.target_price,
+                (await markets.of_party(conn, pr.company_id if pr.portal == "OPERATOR" else pr.party_id)).currency)
             await emit(conn, "freight.request_opened", "freight_request", r["id"], {"weight_kg": body.declared_weight_kg})
     return {"uid": str(r["uid"]), "status": "OPEN"}
 
@@ -667,7 +671,8 @@ async def place_bid(uid: uuid.UUID, body: BidIn, request: Request, pr: Principal
             b = await conn.fetchrow(
                 """INSERT INTO frt.freight_bid (request_id, carrier_company_id, truck_vehicle_id, price, currency, valid_until, status)
                    VALUES ($1, $2, $3, $4, $5, now() + make_interval(hours => $6), 'SUBMITTED') RETURNING id, valid_until""",
-                req["id"], pr.company_id, body.truck_vehicle_id, body.price, req["currency"] or "SYP", body.valid_hours)
+                req["id"], pr.company_id, body.truck_vehicle_id, body.price,
+                req["currency"] or (await markets.of_party(conn, pr.company_id)).currency, body.valid_hours)
         except asyncpg.UniqueViolationError:
             raise ApiError(409, "ALREADY_BID", "your company already bid on this load")
     return {"id": b["id"], "valid_until": b["valid_until"], "status": "SUBMITTED"}

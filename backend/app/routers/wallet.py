@@ -10,7 +10,7 @@ import uuid
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, Field
 
-from .. import db
+from .. import db, markets
 from ..config import get_settings
 from ..deps import Principal, context_for, require_portal
 from ..errors import ApiError
@@ -24,7 +24,7 @@ passenger = require_portal("PASSENGER")
 @router.get("")
 async def wallet(request: Request, pr: Principal = Depends(passenger)):
     async with db.transaction(context_for(request, pr)) as conn:
-        w = await user_wallet(conn, pr.party_id, "SYP")
+        w = await user_wallet(conn, pr.party_id, (await markets.of_party(conn, pr.party_id)).currency)   # the passenger's market (1061)
         entries = await conn.fetch(
             """SELECT e.direction, e.amount, e.balance_after, e.created_at, t.txn_type, t.memo
                  FROM fin.ledger_entry e JOIN fin.ledger_txn t ON t.id = e.txn_id
@@ -50,7 +50,8 @@ async def topup(body: TopupIn, request: Request, pr: Principal = Depends(passeng
                                    body.idempotency_key, pr.party_id)
         if done:
             return {"status": done, "replayed": True}
-        w = await user_wallet(conn, pr.party_id, "SYP")
+        currency = (await markets.of_party(conn, pr.party_id)).currency
+        w = await user_wallet(conn, pr.party_id, currency)
         async with db.system_scope(conn, ctx):
             provider = await conn.fetchrow("SELECT id FROM fin.payment_provider WHERE code = 'SANDBOX'")
             if provider is None:
@@ -59,16 +60,16 @@ async def topup(body: TopupIn, request: Request, pr: Principal = Depends(passeng
             pay_id = await conn.fetchval(
                 """INSERT INTO fin.payment (provider_id, purpose, payer_party_id, wallet_id, method, currency, amount,
                      provider_ref, idempotency_key)
-                   VALUES ($1, 'TOPUP', $2, $3, 'CARD', 'SYP', $4, $5, $6) RETURNING id""",
-                provider["id"], pr.party_id, w["id"], body.amount, provider_ref, body.idempotency_key)
+                   VALUES ($1, 'TOPUP', $2, $3, 'CARD', $7, $4, $5, $6) RETURNING id""",
+                provider["id"], pr.party_id, w["id"], body.amount, provider_ref, body.idempotency_key, currency)
             # Simulated signed notification from the gateway (source of truth for the payment status)
             await conn.execute(
                 """INSERT INTO fin.payment_notification (provider_id, event_id, payment_id, signature_valid, source_ip, payload, processed_at)
                    VALUES ($1, $2, $3, true, $4::inet, $5::jsonb, now())""",
                 provider["id"], f"evt-{provider_ref}", pay_id, request.state.client_ip,
                 json.dumps({"type": "payment.captured", "ref": provider_ref, "amount": body.amount, "sandbox": True}))
-            clearing = await platform_wallet(conn, "GATEWAY_CLEARING", "SYP")
-            txn = await post_txn(conn, "TOPUP", "SYP", f"payment:{pay_id}",
+            clearing = await platform_wallet(conn, "GATEWAY_CLEARING", currency)
+            txn = await post_txn(conn, "TOPUP", currency, f"payment:{pay_id}",
                                  [(clearing["id"], "DR", body.amount), (w["id"], "CR", body.amount)],
                                  ref_type="payment", ref_id=pay_id, user_id=pr.user_id, memo=provider_ref)
             await conn.execute("UPDATE fin.payment SET status = 'SUCCESS', ledger_txn_id = $2, settled_at = now() WHERE id = $1",

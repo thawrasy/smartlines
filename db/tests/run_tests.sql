@@ -1927,6 +1927,34 @@ SELECT pg_temp.ok(has_table_privilege('masslak_app', 'sys.schema_file', 'SELECT'
   AND NOT has_table_privilege('masslak_app', 'sys.schema_file', 'UPDATE')
   AND NOT has_table_privilege('masslak_app', 'sys.schema_file', 'DELETE'),
   'Readiness: the application reads which schema files are applied and cannot change the record');
+-- Review stage D (1061): markets with their time zone and currency
+SELECT pg_temp.ok((SELECT count(*) FROM ref.market WHERE is_default AND status = 'ACTIVE') = 1
+  AND (SELECT time_zone || ' ' || currency FROM ref.market WHERE is_default) = 'Asia/Damascus SYP',
+  'Markets: exactly one default market, open, in Damascus time and Syrian pounds');
+SELECT pg_temp.expect_error($$UPDATE ref.market SET time_zone = 'Mars/Olympus' WHERE country_code = 'JO'$$, 'MARKET_TIMEZONE',
+  'Markets: a market needs a real time zone');
+SELECT pg_temp.expect_error($$UPDATE ref.market SET currency = 'USD' WHERE country_code = 'SY'$$, 'MARKET_CURRENCY_FIXED',
+  'Markets: an open market keeps its currency');
+SELECT pg_temp.ok((SELECT timezone FROM ref.city WHERE code = 'BEY') = 'Asia/Beirut'
+  AND (SELECT timezone FROM ref.city WHERE code = 'AMM') = 'Asia/Amman',
+  'Markets: Beirut and Amman carry their own time zones, not Damascus''s');
+SELECT pg_temp.ok((SELECT bool_and(ref.company_currency(c.id) = 'SYP' AND ref.company_tz(c.id) = 'Asia/Damascus') FROM iam.company c)
+  AND (SELECT ref.station_tz(min(s.id)) FROM net.station s JOIN ref.city c ON c.id = s.city_id WHERE c.code = 'DAM') = 'Asia/Damascus'
+  AND (ref.market_of_country('FR')).country_code = 'SY',
+  'Markets: companies and stations take their market''s time zone and currency; a country with no market falls in the default one');
+BEGIN;
+UPDATE ref.market SET status = 'ACTIVE' WHERE country_code = 'JO';
+SELECT pg_temp.ok((SELECT count(*) FROM fin.wallet w JOIN iam.party p ON p.id = w.owner_party_id
+                    WHERE p.legal_name = 'Masslak Platform' AND w.currency = 'JOD') = 7
+  AND (SELECT count(*) FROM sys.finance_metrics() WHERE labels ->> 'currency' = 'JOD') = 4,
+  'Markets: opening a market creates the platform''s wallets in its currency and measures its counter cash apart');
+INSERT INTO iam.party (party_type, legal_name, country_code) VALUES ('COMPANY', 'Amman Test Lines', 'JO');
+SELECT pg_temp.ok(fin.cash_limit((SELECT id FROM iam.party WHERE legal_name = 'Amman Test Lines')) = 0
+  AND ref.company_tz((SELECT id FROM iam.party WHERE legal_name = 'Amman Test Lines')) = 'Asia/Amman',
+  'Markets: a carrier of another market keeps its time and has no cash limit until it is given one');
+ROLLBACK;
+SELECT pg_temp.expect_error(format($$UPDATE ops.trip SET currency = 'JOD' WHERE id = %s$$, (SELECT min(id) FROM ops.trip)),
+  'TRIP_CURRENCY_UNSUPPORTED', 'Markets: a trip cannot be priced in the currency of a market that is not open');
 -- Review stage C (1060): finer monitoring
 SELECT pg_temp.ok((SELECT count(DISTINCT labels->>'table') FROM sys.partition_metrics())
                     = (SELECT count(*) FROM pg_class WHERE relkind = 'p' AND NOT relispartition)

@@ -32,7 +32,7 @@ import asyncpg
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, Field, model_validator
 
-from ... import db
+from ... import db, markets
 from ...deps import Principal, context_for, require_portal
 from ...errors import ApiError, not_found
 from ...ledger import company_wallet, post_txn
@@ -126,7 +126,7 @@ class RuleIn(BaseModel):
 
 class Amount(BaseModel):
     amount: int = Field(gt=0, le=10_000_000_000)
-    currency: str = Field(default="SYP", pattern=r"^[A-Z]{3}$")
+    currency: Optional[str] = Field(default=None, pattern=r"^[A-Z]{3}$")      # default: the head's market currency (1061)
     idempotency_key: str = Field(min_length=8, max_length=80)
 
 
@@ -163,7 +163,8 @@ async def _summary(conn: asyncpg.Connection, ctx: db.Context, m: fam.Membership)
     async with db.system_scope(conn, ctx):
         acct = await conn.fetchrow("SELECT balance, currency FROM fin.wallet WHERE id = $1", f["trips_wallet_id"]) if f["trips_wallet_id"] else None
     return {"role": "HEAD", "family": {"uid": str(f["uid"]), "name": f["name"]},
-            "account": {"balance": acct["balance"] if acct else 0, "currency": acct["currency"] if acct else "SYP"},
+            "account": {"balance": acct["balance"] if acct else 0,
+                        "currency": acct["currency"] if acct else (await markets.of_party(conn, f["head_party_id"])).currency},
             "members": [fam.member_view(r) for r in members],
             "requests": [{"uid": str(r["uid"]), "status": r["status"], "device_label": r["device_label"],
                           "submitted_at": r["submitted_at"], "expires_at": r["expires_at"], "member_uid": str(r["member_uid"]),
@@ -471,7 +472,8 @@ async def topup(body: Amount, request: Request, pr: Principal = Depends(passenge
     ctx = context_for(request, pr)
     async with db.transaction(ctx) as conn:
         f = await fam.head_family(conn, pr.party_id)
-        return await fam.transfer(conn, ctx, f, body.amount, body.currency, True, f"family:{f['id']}:in:{body.idempotency_key}", pr.user_id)
+        currency = body.currency or (await markets.of_party(conn, pr.party_id)).currency
+        return await fam.transfer(conn, ctx, f, body.amount, currency, True, f"family:{f['id']}:in:{body.idempotency_key}", pr.user_id)
 
 
 @router.post("/account/withdraw")
@@ -480,7 +482,8 @@ async def withdraw(body: Amount, request: Request, pr: Principal = Depends(passe
     ctx = context_for(request, pr)
     async with db.transaction(ctx) as conn:
         f = await fam.head_family(conn, pr.party_id)
-        return await fam.transfer(conn, ctx, f, body.amount, body.currency, False, f"family:{f['id']}:out:{body.idempotency_key}", pr.user_id)
+        currency = body.currency or (await markets.of_party(conn, pr.party_id)).currency
+        return await fam.transfer(conn, ctx, f, body.amount, currency, False, f"family:{f['id']}:out:{body.idempotency_key}", pr.user_id)
 
 
 @router.get("/spend")

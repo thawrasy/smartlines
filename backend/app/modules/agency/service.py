@@ -5,15 +5,15 @@ carrier funds the agency's commission out of its fare. Selling and the daily lim
 so two clerks selling at the same moment cannot pass the limit together.
 """
 import json
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 
 import asyncpg
 
-from ... import db
+from ... import db, markets
 from ...deps import Principal
 from ...errors import ApiError, forbidden, not_found
 from ...ledger import company_wallet
-from ...util import LOCAL_TZ, row_dict, rows
+from ...util import row_dict, rows
 from ..sales import service as sales
 from ..sales.models import AgencyBookingIn
 from . import repository as repo
@@ -32,8 +32,9 @@ async def bookings(conn: asyncpg.Connection, pr: Principal, query: str | None) -
     return booking_rows(await repo.bookings(conn, require_agency(pr), query))
 
 
-def _today() -> date:
-    return datetime.now(LOCAL_TZ).date()
+async def _market(conn: asyncpg.Connection, agency_id: int) -> markets.Market:
+    """The agency's market (1061): its days, daily limit and prepaid balance are in its time zone and currency."""
+    return await markets.of_party(conn, agency_id)
 
 
 def require_agency(pr: Principal) -> int:
@@ -68,8 +69,9 @@ def buyer_for(pr: Principal, agreement: asyncpg.Record, contact_mobile: str | No
 async def dashboard(conn: asyncpg.Connection, pr: Principal) -> dict:
     agency_id = require_agency(pr)
     a = await repo.agreement(conn, agency_id)
-    wallet = await company_wallet(conn, agency_id, "SYP", label="Agency wallet")
-    sold = await repo.sold_on(conn, agency_id, _today())
+    m = await _market(conn, agency_id)
+    wallet = await company_wallet(conn, agency_id, m.currency, label="Agency wallet")
+    sold = await repo.sold_on(conn, agency_id, m.today(), m.time_zone)
     com = await repo.commission_totals(conn, agency_id)
     recent = await repo.bookings(conn, agency_id, None, limit=8)
     return {
@@ -88,8 +90,10 @@ async def sell(conn: asyncpg.Connection, ctx: db.Context, pr: Principal, body: A
     await repo.lock_agency_sales(conn, agency_id)
     agreement = await _active_agreement(conn, agency_id)
 
+    m = await _market(conn, agency_id)
+
     async def within_daily_limit(conn, total: int) -> None:
-        sold = await repo.sold_on(conn, agency_id, _today())
+        sold = await repo.sold_on(conn, agency_id, m.today(), m.time_zone)
         if sold + total > agreement["daily_limit"]:
             raise ApiError(409, "AGENCY_DAILY_LIMIT", "this sale would pass the agency's daily limit",
                            remaining=max(0, agreement["daily_limit"] - sold))
@@ -123,18 +127,19 @@ async def cancel(conn: asyncpg.Connection, ctx: db.Context, pr: Principal, ref: 
 async def statement(conn: asyncpg.Connection, pr: Principal, month: str | None) -> dict:
     agency_id = require_agency(pr)
     need(pr, "report.company", "company.billing", "booking.on_behalf")
+    m = await _market(conn, agency_id)
     try:
-        start = date.fromisoformat(f"{month}-01") if month else _today().replace(day=1)
+        start = date.fromisoformat(f"{month}-01") if month else m.today().replace(day=1)
     except ValueError:
         raise ApiError(422, "INVALID_MONTH", "month must look like 2026-10")
     end = (start.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1)
-    wallet = await company_wallet(conn, agency_id, "SYP", label="Agency wallet")
-    opening = await repo.balance_before(conn, wallet["id"], start)
+    wallet = await company_wallet(conn, agency_id, m.currency, label="Agency wallet")
+    opening = await repo.balance_before(conn, wallet["id"], start, m.time_zone)
     entries, running = [], opening
-    for e in await repo.statement(conn, wallet["id"], start, end):
+    for e in await repo.statement(conn, wallet["id"], start, end, m.time_zone):
         running += e["amount"] if e["direction"] == "CR" else -e["amount"]
         entries.append({**dict(e), "balance_after": running})
-    days = await repo.daily_sales(conn, agency_id, start, end)
+    days = await repo.daily_sales(conn, agency_id, start, end, m.time_zone)
     credit = sum(e["amount"] for e in entries if e["direction"] == "CR")
     debit = sum(e["amount"] for e in entries if e["direction"] == "DR")
     return {"month": start.isoformat()[:7], "from": start.isoformat(), "to": end.isoformat(),

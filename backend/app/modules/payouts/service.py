@@ -12,7 +12,7 @@ from datetime import date, timedelta
 
 import asyncpg
 
-from ... import crypto, db, policy
+from ... import crypto, db, markets, policy
 from ...deps import Principal
 from ...errors import ApiError, forbidden, not_found
 from ...ledger import company_wallet, platform_wallet, post_txn
@@ -41,8 +41,13 @@ def _label(pr: Principal) -> str:
 
 
 # ------------------------------------------------------------------ company side
+async def _currency(conn: asyncpg.Connection, company: int) -> str:
+    """A company is paid out in its market's currency (1061)."""
+    return (await markets.of_party(conn, company)).currency
+
+
 async def balance(conn: asyncpg.Connection, pr: Principal) -> dict:
-    w = await company_wallet(conn, company_of(pr), "SYP", label=_label(pr))
+    w = await company_wallet(conn, company_of(pr), await _currency(conn, company_of(pr)), label=_label(pr))
     return {"currency": w["currency"], "balance": w["balance"], "held": w["hold_balance"],
             "available": w["balance"] - w["hold_balance"]}
 
@@ -64,7 +69,7 @@ async def add_bank_account(conn, ctx: db.Context, pr: Principal, bank_name: str,
         fc = await crypto.cipher(conn)
     sealed = fc.encrypt(value, IBAN_COLUMN)
     row = await repo.insert_bank_account(conn, company, bank_name.strip(), holder.strip(), sealed.ciphertext,
-                                         fc.blind_index(value, "IBAN"), value[-4:], sealed.key_id, "SYP")
+                                         fc.blind_index(value, "IBAN"), value[-4:], sealed.key_id, await _currency(conn, company))
     return row["id"], str(row["uid"])
 
 
@@ -72,7 +77,8 @@ async def request_withdrawal(conn, pr: Principal, account_uid: uuid.UUID, amount
                              ctx: db.Context | None = None) -> dict:
     company = company_of(pr)
     need(pr, "company.payout_schedule")
-    w = await company_wallet(conn, company, "SYP", label=_label(pr))
+    currency = await _currency(conn, company)
+    w = await company_wallet(conn, company, currency, label=_label(pr))
     done = await conn.fetchval("SELECT uid FROM fin.withdrawal_request WHERE wallet_id = $1 AND idempotency_key = $2", w["id"], key)
     if done:
         return {"uid": str(done), "replayed": True}
@@ -85,12 +91,12 @@ async def request_withdrawal(conn, pr: Principal, account_uid: uuid.UUID, amount
         # counter cash the carrier holds for the platform is set off first (6.5, 1056); the rest can be withdrawn
         async with db.system_scope(conn, ctx):
             if await cash.net_cash(conn, company, f"withdrawal:{w['id']}:{key}:cash-net", pr.user_id):
-                w = await company_wallet(conn, company, "SYP", label=_label(pr))
+                w = await company_wallet(conn, company, currency, label=_label(pr))
     if amount > w["balance"] - w["hold_balance"]:
         raise ApiError(402, "INSUFFICIENT_BALANCE", "the available balance is not enough",
                        available=w["balance"] - w["hold_balance"])
     needs_second = amount > await repo.second_approval_above(conn)
-    row = await repo.insert_withdrawal(conn, w["id"], acct["id"], company, amount, "SYP", pr.user_id, needs_second, key)
+    row = await repo.insert_withdrawal(conn, w["id"], acct["id"], company, amount, currency, pr.user_id, needs_second, key)
     try:
         await repo.set_hold(conn, w["id"], amount)
     except asyncpg.CheckViolationError:
@@ -241,8 +247,8 @@ async def run_settlement(conn, pr: Principal, company_uid: uuid.UUID, start: dat
     tot = {k: sum(r[k] for r in lines) for k in ("gross", "commission", "refunds", "net")}
     batch = await conn.fetchrow(
         """INSERT INTO fin.settlement_batch (company_id, period, currency, gross, commission, tax, refunds, net, created_by)
-           VALUES ($1, daterange($2, $3, '[]'), 'SYP', $4, $5, 0, $6, $7, $8) RETURNING id, uid""",
-        company, start, end, tot["gross"], tot["commission"], tot["refunds"], tot["net"], pr.user_id)
+           VALUES ($1, daterange($2, $3, '[]'), $9, $4, $5, 0, $6, $7, $8) RETURNING id, uid""",
+        company, start, end, tot["gross"], tot["commission"], tot["refunds"], tot["net"], pr.user_id, await _currency(conn, company))
     await conn.executemany(
         """INSERT INTO fin.settlement_line (batch_id, trip_id, trip_no, gross, commission, tax, refunds, net)
            VALUES ($1, $2, $3, $4, $5, 0, $6, $7)""",

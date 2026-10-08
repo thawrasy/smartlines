@@ -144,8 +144,8 @@ async def route(lang: str, slug: str):
     desc = t["description"].format(**{"from": A, "to": B, "price_part": t["price_part"].format(price=price) if price else "",
                                       "duration_part": t["duration_part"].format(duration=dur) if r.minutes else ""}).strip()
     crumbs, crumbs_ld = breadcrumbs(lang, [(A, f"/{lang}/city/{data.SLUG[r.a]}"), (f"{A} – {B}", f"/{lang}/bus/{r.slug}")])
-    first = min((local(x.departs) for x in r.trips), default=None, key=lambda d: (d.hour, d.minute))
-    last = max((local(x.departs) for x in r.trips), default=None, key=lambda d: (d.hour, d.minute))
+    first = min((local(x.departs, x.zone) for x in r.trips), default=None, key=lambda d: (d.hour, d.minute))
+    last = max((local(x.departs, x.zone) for x in r.trips), default=None, key=lambda d: (d.hour, d.minute))
     facts = [(t["fact"]["distance"], dist), (t["fact"]["duration"], dur), (t["fact"]["trips"], str(len(r.trips))),
              (t["fact"]["price"], price or "—"), (t["fact"]["first"], first.strftime("%H:%M") if first else "—"),
              (t["fact"]["last"], last.strftime("%H:%M") if last else "—"), (t["fact"]["carriers"], str(r.carriers or "—"))]
@@ -164,15 +164,15 @@ async def route(lang: str, slug: str):
         c = t["col"]
         rows = []
         for x in r.trips[:15]:
-            d = local(x.departs)
-            rows.append(f"<tr><td>{escape(day_label(lang, x.departs))}</td><td>{d.strftime('%H:%M')}</td><td>{escape(x.carrier)}</td>"
+            d = local(x.departs, x.zone)
+            rows.append(f"<tr><td>{escape(day_label(lang, x.departs, x.zone))}</td><td>{d.strftime('%H:%M')}</td><td>{escape(x.carrier)}</td>"
                         f"<td>{escape(money(lang, x.price))}</td><td><a href=\"{escape(search_url(r.a, r.b, lang, d.date().isoformat()))}\">"
                         f"{escape(w['nav']['book'])}</a></td></tr>")
             trips_ld.append({"@type": "BusTrip", "name": f"{A} – {B}", "provider": {"@type": "Organization", "name": x.carrier},
                              "departureTime": x.departs.isoformat(), **({"arrivalTime": x.arrives.isoformat()} if x.arrives else {}),
                              "departureBusStop": {"@type": "BusStation", "name": station_name(lang, x.origin_code, x.origin_station)},
                              "arrivalBusStop": {"@type": "BusStation", "name": station_name(lang, x.dest_code, x.dest_station)},
-                             "offers": {"@type": "Offer", "price": round(x.price / 100), "priceCurrency": "SYP",
+                             "offers": {"@type": "Offer", "price": round(x.price / 100), "priceCurrency": x.currency,
                                         "url": f"{base()}{search_url(r.a, r.b, lang, d.date().isoformat())}",
                                         "availability": "https://schema.org/InStock"}})
         body.append(f"<table><thead><tr><th>{escape(c['date'])}</th><th>{escape(c['time'])}</th><th>{escape(c['carrier'])}</th>"
@@ -184,7 +184,7 @@ async def route(lang: str, slug: str):
     body.append(f"<h2>{escape(t['how_title'].format(**{'from': A, 'to': B}))}</h2><ol class='steps'>"
                 + "".join(f"<li>{escape(s)}</li>" for s in w["home"]["how"]) + "</ol>")
     body.append(f"<h2>{escape(t['needs_title'])}</h2><p>{escape(t['needs_international'] if intl else t['needs_domestic'])}</p>")
-    first_time = min((local(x.departs) for x in r.trips), default=None)
+    first_time = min((local(x.departs, x.zone) for x in r.trips), default=None)
     answers = {"from": A, "to": B, "duration": dur, "distance": dist,
                "price_answer": t["price_answer"].format(price=price) if price else t["price_unknown"],
                "today_answer": t["today_yes"].format(n=len(r.trips), time=first_time.strftime("%H:%M")) if first_time else t["today_no"]}

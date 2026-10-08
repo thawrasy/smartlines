@@ -5,7 +5,7 @@
             /api/admin/cash/...            what each carrier owes for cash, credit limits, remittances (four eyes)
 """
 import uuid
-from datetime import date, datetime
+from datetime import date
 from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, Query, Request
@@ -15,7 +15,6 @@ from ... import db
 from ...deps import Principal, context_for, require_portal
 from ...errors import forbidden
 from ...routers.bookings import qr_response
-from ...util import LOCAL_TZ
 from ..sales import options
 from ..sales import service as sales
 from ..sales.models import MOBILE, BookingIn, HoldIn
@@ -121,7 +120,7 @@ async def ticket_qr(ticket_uid: uuid.UUID, request: Request, pr: Principal = Dep
 async def day_report(request: Request, day: Optional[date] = None, pr: Principal = Depends(operator)):
     ctx = context_for(request, pr)
     async with db.transaction(ctx) as conn:
-        return await service.day_report(conn, ctx, pr, day or datetime.now(LOCAL_TZ).date())
+        return await service.day_report(conn, ctx, pr, day)
 
 
 # ------------------------------------------------------------------ finance: the switches

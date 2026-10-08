@@ -18,7 +18,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import json  # noqa: E402
 from app.modules.fleet import layout as seat_layout  # noqa: E402
 from app.security import hash_password  # noqa: E402
-from app.util import LOCAL_TZ  # noqa: E402
+from zoneinfo import ZoneInfo  # noqa: E402
+
+LOCAL_TZ = ZoneInfo("Asia/Damascus")   # the demo carriers are in the default market, Syria (1061)
 
 PASSWORD = os.environ.get("MASSLAK_DEMO_PASSWORD", "Masslak-Demo-2026")
 

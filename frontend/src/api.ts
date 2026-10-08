@@ -46,9 +46,13 @@ export function newKey() {
 // ---------- Response types ----------
 export type Portal = "PASSENGER" | "OPERATOR" | "DRIVER" | "AGENCY" | "PLATFORM";
 
+// The market a user sees times and money in (1061): the company's, or the person's; the default market for visitors
+export interface Market { country: string; time_zone: string; currency: string; locale: string; minor_unit: number }
+
 export interface Me {
   uid: string; name: string; email: string; portal: Portal; locale: string; is_owner: boolean;
   company: { name: string; uid: string; code: string | null } | null;
+  market?: Market;
   roles: string[]; permissions: string[];
   mfa?: { enrolled: boolean; required: boolean };
 }

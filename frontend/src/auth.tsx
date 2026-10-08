@@ -18,17 +18,19 @@ const Ctx = createContext<Auth | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [me, setMe] = useState<Me | null>(null);
   const [ready, setReady] = useState(false);
-  const { setLocale } = useI18n();
+  const { setLocale, setMarket } = useI18n();
 
   const refresh = useCallback(async () => {
     try {
-      setMe(await api.get<Me>("/api/auth/me"));
+      const m = await api.get<Me>("/api/auth/me");
+      if (m.market) setMarket(m.market);                     // times and money of the user's market (1061)
+      setMe(m);
     } catch {
       setMe(null);
     } finally {
       setReady(true);
     }
-  }, []);
+  }, [setMarket]);
 
   useEffect(() => { void refresh(); }, [refresh]);
 
@@ -36,10 +38,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const res = await api.post<{ mfa: MfaStep | null }>("/api/auth/login", { identifier, password, portal });
     if (res.mfa) return { mfaStep: res.mfa };
     const m = await api.get<Me>("/api/auth/me");
+    if (m.market) setMarket(m.market);
     setMe(m);
     if (m.locale in LOCALES) setLocale(m.locale as Locale);
     return m;
-  }, [setLocale]);
+  }, [setLocale, setMarket]);
 
   const logout = useCallback(async () => {
     try { await api.post("/api/auth/logout"); } finally { setMe(null); }

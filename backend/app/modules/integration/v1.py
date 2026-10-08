@@ -27,10 +27,9 @@ from fastapi import APIRouter, Depends, Query, Request
 from fastapi.openapi.utils import get_openapi
 from pydantic import BaseModel, Field
 
-from ... import db, policy
+from ... import db, markets, policy
 from ...crypto import cipher
 from ...errors import ApiError, not_found
-from ...util import LOCAL_TZ
 from ...routers import public
 from ..agency import service as agency
 from ..payments import service as payments
@@ -40,6 +39,12 @@ from ..sales.models import AgencyBookingIn, HoldIn
 from . import service
 from .auth import Caller, api_caller, context
 from .scopes import EVENTS, SCOPES
+
+async def _period(conn, party_id, date_from: date, date_to: date) -> tuple[datetime, datetime]:
+    """A period of whole days in the caller's market (1061): from midnight of the first day to midnight after the last."""
+    zone = (await markets.of_party(conn, party_id)).zone
+    return datetime.combine(date_from, time.min, zone), datetime.combine(date_to + timedelta(days=1), time.min, zone)
+
 
 router = APIRouter(prefix="/api/v1", tags=["integration v1"])
 MOBILE = r"^\+?[0-9]{8,15}$"
@@ -79,9 +84,8 @@ async def company_trips(request: Request, date_from: date = Query(..., alias="fr
     date_to = date_to or date_from
     if date_to < date_from or (date_to - date_from).days > 62:
         raise ApiError(422, "BAD_PERIOD", "give a period of at most 62 days")
-    start = datetime.combine(date_from, time.min, LOCAL_TZ)
-    end = datetime.combine(date_to + timedelta(days=1), time.min, LOCAL_TZ)
     async with db.transaction(context(request, caller)) as conn:
+        start, end = await _period(conn, pr.company_id, date_from, date_to)
         rows = await conn.fetch(
             """SELECT t.uid, t.trip_no, t.status, t.departure_at, t.arrival_at, t.seats_total, t.currency,
                       (SELECT count(*) FROM sales.ticket k WHERE k.trip_id = t.id AND k.status NOT IN ('CANCELLED')) AS tickets,
@@ -149,9 +153,8 @@ async def bookings(request: Request, date_from: date = Query(..., alias="from"),
     date_to = date_to or date_from
     if date_to < date_from or (date_to - date_from).days > 62:
         raise ApiError(422, "BAD_PERIOD", "give a period of at most 62 days")
-    start = datetime.combine(date_from, time.min, LOCAL_TZ)
-    end = datetime.combine(date_to + timedelta(days=1), time.min, LOCAL_TZ)
     async with db.transaction(context(request, caller)) as conn:
+        start, end = await _period(conn, pr.company_id, date_from, date_to)
         rows = await conn.fetch(_BOOKINGS + """ AND b.created_at >= $2 AND b.created_at < $3 AND ($4::text IS NULL OR b.status = $4)
                                                 AND ($5::bigint IS NULL OR b.id > $5) AND b.status <> 'HELD' ORDER BY b.id LIMIT 500""",
                                 pr.company_id, start, end, status, after)
@@ -253,7 +256,7 @@ class LookupIn(BaseModel):
 
 class CreditIn(BaseModel):
     mobile: str = Field(pattern=MOBILE)
-    amount: int = Field(gt=0, le=1_000_000_000, description="minor units (SYP x 100)")
+    amount: int = Field(gt=0, le=1_000_000_000, description="minor units of the currency (100 to the unit)")
     reference: str = Field(min_length=6, max_length=60, pattern=r"^[A-Za-z0-9_.:-]+$", description="your unique transaction id")
 
 
@@ -301,10 +304,11 @@ async def wallet_credits(request: Request, date_from: date = Query(..., alias="f
         raise ApiError(422, "BAD_PERIOD", "give a period of at most 62 days")
     ctx = context(request, caller)
     async with db.transaction(ctx) as conn:
+        start, end = await _period(conn, None, date_from, date_to)        # credits go to passengers of the default market
         async with db.system_scope(conn, ctx):
             rows = await conn.fetch(
                 """SELECT * FROM fin.payment WHERE api_client_id = $1 AND created_at >= $2 AND created_at < $3 ORDER BY id LIMIT 10000""",
-                caller.client_id, datetime.combine(date_from, time.min, LOCAL_TZ), datetime.combine(date_to + timedelta(days=1), time.min, LOCAL_TZ))
+                caller.client_id, start, end)
     return {"credits": [_credit(r) for r in rows], "total": sum(r["amount"] for r in rows if r["status"] == "SUCCESS")}
 
 

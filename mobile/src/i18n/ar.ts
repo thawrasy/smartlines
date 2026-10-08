@@ -11,6 +11,8 @@ const ar: Messages = {
   extra: { booked: "تم الحجز · {ref}", seatsChosen: "اخترت {n} من {max} مقاعد", stops: "{n} محطات", direct: "مباشر",
            ticketStatus: { ISSUED: "صالحة", BOARDED: "تم الصعود", CANCELLED: "ملغاة", REFUNDED: "مستردة", HOLD: "بانتظار الدفع", NO_SHOW: "لم يحضر" },
            noTickets: "لا رحلات اليوم.", trip: "الرحلة {no}", openTicket: "عرض التذكرة" },
+  // names of the currencies of the open markets (1061)
+  currencies: { SYP: "ل.س", LBP: "ل.ل", JOD: "د.أ", IQD: "د.ع", SAR: "ر.س", TRY: "ل.ت", USD: "دولار", EUR: "يورو" },
   txn: { SHIPMENT_PAY: "إرسال طرد", SUBSCRIPTION_PAY: "اشتراك نقل ترددي", BOOKING_PAY: "حجز رحلة", REFUND: "استرداد", TOPUP: "شحن المحفظة", RELEASE: "تسوية", PAYOUT: "صرف مصرفي" },
   common: {
     remove: "إزالة",

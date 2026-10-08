@@ -21,7 +21,7 @@ from typing import Optional
 
 import asyncpg
 
-from ... import db
+from ... import db, markets
 from ...errors import ApiError, not_found
 from ...ledger import company_wallet, counted, platform_wallet, post_txn, user_wallet
 from ..notify.outbox import emit
@@ -99,17 +99,18 @@ async def start_topup(conn, ctx: db.Context, party_id: int, user_id: int, code: 
                                    "WHERE p.idempotency_key = $1 AND p.payer_party_id = $2", key, party_id)
     if existing:
         return {**_payment_out(existing), "replayed": True}
-    w = await user_wallet(conn, party_id, "SYP")
+    currency = (await markets.of_party(conn, party_id)).currency          # the passenger's market (1061)
+    w = await user_wallet(conn, party_id, currency)
     method = {"HOSTED_CARD": "CARD", "PARTNER_WALLET": "E_WALLET"}.get(p["adapter"], "CARD")
     async with db.system_scope(conn, ctx):
         pay = await conn.fetchrow(
             """INSERT INTO fin.payment (provider_id, purpose, payer_party_id, wallet_id, method, currency, amount, fee, idempotency_key,
                                         payer_mobile_mask, expires_at)
-               VALUES ($1, 'TOPUP', $2, $3, $4, 'SYP', $5, $6, $7, $8, now() + make_interval(mins => $9)) RETURNING *""",
+               VALUES ($1, 'TOPUP', $2, $3, $4, $10, $5, $6, $7, $8, now() + make_interval(mins => $9)) RETURNING *""",
             p["id"], party_id, w["id"], method, amount, fee_of(p, amount), key, mask(mobile) if mobile else None,
-            PENDING_MINUTES.get(p["adapter"], 30))
+            PENDING_MINUTES.get(p["adapter"], 30), currency)
         adapter = adapters.ADAPTERS[p["adapter"]]
-        payload = {"uid": str(pay["uid"]), "amount": amount, "currency": "SYP"}
+        payload = {"uid": str(pay["uid"]), "amount": amount, "currency": currency}
         return_url = return_url.replace("{uid}", str(pay["uid"]))
         action = adapter.start(p, payload, return_url, mobile) if p["adapter"] == "PARTNER_WALLET" else adapter.start(p, payload, return_url)
         stage = {"REDIRECT": "REDIRECTED", "OTP": "OTP_SENT", "DONE": "CONFIRMED"}[action.kind]
@@ -231,7 +232,8 @@ async def apply_notice(conn, ctx: db.Context, p: dict, notice: adapters.Notice, 
             return {"ok": True, "replayed": True}
         if pay is None:
             raise not_found("payment")
-        if notice.amount != pay["amount"] or notice.currency != pay["currency"]:
+        # a notice without a currency is in the payment's own (1061)
+        if notice.amount != pay["amount"] or (notice.currency or pay["currency"]) != pay["currency"]:
             await _fail(conn, pay, "AMOUNT_MISMATCH")
             return {"ok": False, "error": "AMOUNT_MISMATCH"}
         if notice.status == "SUCCESS":
@@ -351,7 +353,8 @@ async def start_bank_transfer(conn, ctx: db.Context, party_id: int, amount: int,
                                              party_id)
             if open_count >= 3:
                 raise ApiError(409, "TOO_MANY_OPEN_TRANSFERS", "finish or cancel your open bank transfers first")
-            w = await user_wallet(conn, party_id, "SYP")
+            currency = (await markets.of_party(conn, party_id)).currency
+            w = await user_wallet(conn, party_id, currency)
             for _ in range(5):
                 ref = make_reference()
                 if not await conn.fetchval("SELECT 1 FROM fin.bank_transfer_topup WHERE virtual_ref = $1", ref):
@@ -359,8 +362,8 @@ async def start_bank_transfer(conn, ctx: db.Context, party_id: int, amount: int,
             pay_id = await conn.fetchval(
                 """INSERT INTO fin.payment (provider_id, purpose, payer_party_id, wallet_id, method, currency, amount, idempotency_key, provider_ref,
                                             stage, expires_at)
-                   VALUES ($1, 'TOPUP', $2, $3, 'BANK', 'SYP', $4, $5, $6, 'AWAITING_TRANSFER', now() + make_interval(days => $7)) RETURNING id""",
-                p["id"], party_id, w["id"], amount, key, ref, days)
+                   VALUES ($1, 'TOPUP', $2, $3, 'BANK', $8, $4, $5, $6, 'AWAITING_TRANSFER', now() + make_interval(days => $7)) RETURNING id""",
+                p["id"], party_id, w["id"], amount, key, ref, days, currency)
             await conn.execute(
                 """INSERT INTO fin.bank_transfer_topup (wallet_id, virtual_ref, amount, status, payment_id, expires_at)
                    VALUES ($1, $2, $3, 'AWAITING', $4, now() + make_interval(days => $5))""", w["id"], ref, amount, pay_id, days)
@@ -414,7 +417,7 @@ def parse_statement(data: bytes) -> list[dict]:
             d = date.fromisoformat(get("value_date")[:10])
         except ValueError as e:
             raise ApiError(422, "STATEMENT_BAD_DATE", f"bad date {get('value_date')!r}") from e
-        out.append({"value_date": d, "amount": amount, "currency": (get("currency") or "SYP").upper()[:3], "reference": get("reference")[:300],
+        out.append({"value_date": d, "amount": amount, "currency": (get("currency") or "").upper()[:3] or None, "reference": get("reference")[:300],
                     "payer": get("payer")[:120], "bank_ref": get("bank_ref")[:80]})
     if len(out) > 5000:
         raise ApiError(422, "STATEMENT_TOO_LARGE", "at most 5000 lines per file")
@@ -444,7 +447,11 @@ async def import_statement(conn, ctx: db.Context, user_id: int, account_label: s
             if await conn.fetchval("SELECT 1 FROM fin.bank_statement_line WHERE bank_ref = $1 AND status = 'MATCHED'", ln["bank_ref"]):
                 continue                                       # the same bank transaction in an overlapping statement
             ref = find_reference(ln["reference"])
-            topup = await conn.fetchrow("SELECT * FROM fin.bank_transfer_topup WHERE virtual_ref = $1 FOR UPDATE", ref) if ref else None
+            topup = await conn.fetchrow(
+                "SELECT t.*, w.currency FROM fin.bank_transfer_topup t JOIN fin.wallet w ON w.id = t.wallet_id "
+                "WHERE t.virtual_ref = $1 FOR UPDATE OF t", ref) if ref else None
+            if ln["currency"] is None:                     # a statement without a currency column is in the transfer's
+                ln["currency"] = topup["currency"] if topup else (await markets.default(conn)).currency
             note = None
             if ref is None:
                 note = "NO_REFERENCE"
@@ -452,7 +459,7 @@ async def import_statement(conn, ctx: db.Context, user_id: int, account_label: s
                 note = "UNKNOWN_REFERENCE"
             elif topup["status"] != "AWAITING":
                 note = "TOPUP_NOT_AWAITING"
-            elif topup["amount"] != ln["amount"] or ln["currency"] != "SYP":
+            elif topup["amount"] != ln["amount"] or ln["currency"] != topup["currency"]:
                 note = "AMOUNT_DIFFERS"
             line_id = await conn.fetchval(
                 """INSERT INTO fin.bank_statement_line (import_id, value_date, amount, currency, reference, payer, bank_ref, note)
@@ -527,15 +534,18 @@ async def agency_topup(conn, ctx: db.Context, agency_id: int, user_id: int, mobi
         if done:
             return {**_payment_out(done), "replayed": True}
         person = await passenger_by_mobile(conn, mobile)
-        aw = await company_wallet(conn, agency_id, "SYP", label="Agency wallet")
+        currency = (await markets.of_party(conn, agency_id)).currency
+        if (await markets.of_party(conn, person["id"])).currency != currency:
+            raise ApiError(409, "CURRENCY_MISMATCH", "the agency and the passenger are in markets of different currencies")
+        aw = await company_wallet(conn, agency_id, currency, label="Agency wallet")
         if aw["balance"] - aw["hold_balance"] < amount:
             raise ApiError(402, "INSUFFICIENT_BALANCE", "the agency balance is not enough")
-        w = await user_wallet(conn, person["id"], "SYP")
+        w = await user_wallet(conn, person["id"], currency)
         pay = await conn.fetchrow(
             """INSERT INTO fin.payment (provider_id, purpose, payer_party_id, wallet_id, method, currency, amount, idempotency_key, provider_ref,
                                         agency_company_id, payer_mobile_mask)
-               VALUES ($1, 'TOPUP', $2, $3, 'CASH', 'SYP', $4, $5, $6, $7, $8) RETURNING *""",
-            p["id"], person["id"], w["id"], amount, key, "AGT" + secrets.token_hex(6).upper(), agency_id, mask(mobile))
+               VALUES ($1, 'TOPUP', $2, $3, 'CASH', $9, $4, $5, $6, $7, $8) RETURNING *""",
+            p["id"], person["id"], w["id"], amount, key, "AGT" + secrets.token_hex(6).upper(), agency_id, mask(mobile), currency)
         pay = await _succeed(conn, p, pay, user_id, None)
     first = (person["legal_name"] or "").split(" ")[0]
     return {**_payment_out(pay), "provider": "AGENT", "receipt": pay["provider_ref"], "passenger": first}
@@ -559,16 +569,17 @@ async def partner_credit(conn, ctx: db.Context, client_id: int, provider_id: int
         if not p["min_amount"] <= amount <= p["max_amount"]:
             raise ApiError(422, "PAYMENT_AMOUNT_OUT_OF_RANGE", "amount outside the limits", min_amount=p["min_amount"], max_amount=p["max_amount"])
         person = await passenger_by_mobile(conn, mobile)
-        w = await user_wallet(conn, person["id"], "SYP")
+        currency = (await markets.of_party(conn, person["id"])).currency
+        w = await user_wallet(conn, person["id"], currency)
         pay = await conn.fetchrow(
             """INSERT INTO fin.payment (provider_id, purpose, payer_party_id, wallet_id, method, currency, amount, idempotency_key, provider_ref,
                                         api_client_id, payer_mobile_mask)
-               VALUES ($1, 'TOPUP', $2, $3, $4, 'SYP', $5, $6, $7, $8, $9) RETURNING *""",
+               VALUES ($1, 'TOPUP', $2, $3, $4, $10, $5, $6, $7, $8, $9) RETURNING *""",
             p["id"], person["id"], w["id"], "E_WALLET" if p["kind"] == "E_WALLET" else "BANK", amount, f"api:{client_id}:{reference}",
-            reference, client_id, mask(mobile))
+            reference, client_id, mask(mobile), currency)
         pay = await _succeed(conn, p, pay, None, None)
         await emit(conn, "wallet.credited", "payment", pay["id"], {"payment": str(pay["uid"]), "reference": reference, "amount": amount,
-                                                                   "currency": "SYP", "api_client_id": client_id})
+                                                                   "currency": currency, "api_client_id": client_id})
     first = (person["legal_name"] or "").split(" ")[0]
     return {**_payment_out(pay), "provider": p["code"], "reference": reference, "passenger": first}
 

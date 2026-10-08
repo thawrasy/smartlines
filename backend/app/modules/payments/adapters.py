@@ -45,7 +45,7 @@ class Notice:
     provider_ref: str
     status: str                       # SUCCESS or FAILED
     amount: int
-    currency: str
+    currency: Optional[str]           # None: the payment's own currency
     failure_code: Optional[str] = None
     card_last4: Optional[str] = None
 
@@ -108,7 +108,7 @@ def parse_notice(body: bytes) -> Notice:
     try:
         d = json.loads(body)
         return Notice(event_id=str(d["event_id"])[:80], provider_ref=str(d["reference"])[:80], status=str(d["status"]).upper(),
-                      amount=int(d["amount"]), currency=str(d.get("currency", "SYP"))[:3],
+                      amount=int(d["amount"]), currency=(str(d["currency"])[:3] if d.get("currency") else None),
                       failure_code=(str(d["failure_code"])[:40] if d.get("failure_code") else None),
                       card_last4=(str(d["card_last4"])[-4:] if d.get("card_last4") else None))
     except (ValueError, KeyError, TypeError) as exc:

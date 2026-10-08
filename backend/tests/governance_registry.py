@@ -106,6 +106,7 @@ BALANCE_READS = {
 WALLET_ROWS = {
     "app/ledger.py": (7, "the wallet helpers: shared wallets go through counted(); passenger and cash wallets are exact"),
     "app/modules/family/service.py": (3, "FAMILY wallets, IMMEDIATE"),
-    "app/modules/payments/service.py": (3, "clearing wallet (only its id is used), the payer's wallet of a paid reservation "
-                                           "(USER, exact) and the refund check (wrapped in counted())"),
+    "app/modules/payments/service.py": (4, "clearing wallet (only its id is used), the payer's wallet of a paid reservation "
+                                           "(USER, exact), the refund check (wrapped in counted()) and a bank transfer's wallet "
+                                           "(its currency only, 1061)"),
 }

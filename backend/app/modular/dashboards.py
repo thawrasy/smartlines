@@ -11,6 +11,7 @@ import asyncpg
 
 from . import engine
 from .specs import RESOURCES
+from .. import markets
 from ..deps import Principal
 from ..errors import ApiError
 
@@ -237,11 +238,12 @@ async def build(conn: asyncpg.Connection, module: str, pr: Principal) -> dict:
         col = dash.trend[1]
         meta = await engine.table_meta(conn, res.table)
         _ = meta.cols[col]
+        tz = (await markets.of_party(conn, pr.company_id)).time_zone          # days of the viewer's market (1061)
         rows = await conn.fetch(
             f"SELECT d::date AS day, (SELECT count(*) FROM {res.table} t "
-            f"  WHERE (t.{col} AT TIME ZONE 'Asia/Damascus')::date = d::date) AS n "
-            f"FROM generate_series((now() AT TIME ZONE 'Asia/Damascus')::date - ($1::int - 1), "
-            f"(now() AT TIME ZONE 'Asia/Damascus')::date, interval '1 day') d ORDER BY 1", TREND_DAYS) \
+            f"  WHERE (t.{col} AT TIME ZONE $2::text)::date = d::date) AS n "
+            f"FROM generate_series((now() AT TIME ZONE $2::text)::date - ($1::int - 1), "
+            f"(now() AT TIME ZONE $2::text)::date, interval '1 day') d ORDER BY 1", TREND_DAYS, tz) \
             if meta.cols[col].pg_type.startswith("timestamp") else await conn.fetch(
             f"SELECT d::date AS day, (SELECT count(*) FROM {res.table} t WHERE t.{col} = d::date) AS n "
             f"FROM generate_series(current_date - ($1::int - 1), current_date, interval '1 day') d ORDER BY 1", TREND_DAYS)

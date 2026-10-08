@@ -9,6 +9,7 @@ import csv
 import hashlib
 import io
 import json
+from contextvars import ContextVar
 from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal
@@ -20,7 +21,9 @@ from ..notify.render import messages
 from .datasets import BOOL, DATE, INT, MONEY, NUM, PCT, TIME
 from .engine import OutCol, Result
 
-TZ = ZoneInfo("Asia/Damascus")
+# The market of the report being rendered (1061): its time zone for times, and the minor units of its currency
+_ZONE: ContextVar[ZoneInfo] = ContextVar("report_zone", default=ZoneInfo("UTC"))
+_MINOR: ContextVar[int] = ContextVar("report_minor_unit", default=2)
 FONTS = Path(__file__).resolve().parents[2] / "assets" / "fonts"
 NAVY, BLUE, LIGHT_BLUE, GREEN, INK, ROW_ALT, GRID = "#0B1F3F", "#2F7BFF", "#7FB0FF", "#12A06A", "#0F1B2D", "#F3F6FA", "#D5DCE6"
 MIME = {"PDF": "application/pdf", "XLSX": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -61,7 +64,9 @@ def coded(col: OutCol, value, locale: str) -> str:
 
 
 def pounds(minor) -> Decimal:
-    return (Decimal(int(minor)) / 100).quantize(Decimal("1")) if int(minor) % 100 == 0 else Decimal(int(minor)) / 100
+    """Minor units in whole currency units (100 a pound, 1,000 a dinar), without trailing zeros for whole amounts."""
+    unit = 10 ** _MINOR.get()
+    return (Decimal(int(minor)) / unit).quantize(Decimal("1")) if int(minor) % unit == 0 else Decimal(int(minor)) / unit
 
 
 def human(col: OutCol, value, locale: str):
@@ -71,7 +76,7 @@ def human(col: OutCol, value, locale: str):
     if col.type == MONEY:
         return pounds(value)
     if col.type == TIME and isinstance(value, datetime):
-        return value.astimezone(TZ).replace(tzinfo=None)
+        return value.astimezone(_ZONE.get()).replace(tzinfo=None)
     if col.type == BOOL:
         return words(locale).get("yes" if value else "no", "yes" if value else "no")
     if isinstance(value, Decimal) and col.type in (NUM, PCT):
@@ -137,7 +142,8 @@ def provenance(res: Result) -> dict:
     fresh = getattr(res, "freshness", None) or {}
     return {"data_as_of": as_of.astimezone(ZoneInfo("UTC")).isoformat().replace("+00:00", "Z") if as_of else None,
             "replica_lag_seconds": fresh.get("lag_seconds"),
-            "source_version": getattr(res, "source_version", None) or SOURCE_VERSION, "timezone": "Asia/Damascus", "currency": "SYP"}
+            "source_version": getattr(res, "source_version", None) or SOURCE_VERSION,
+            "timezone": getattr(res, "time_zone", None) or "UTC", "currency": getattr(res, "currency", None) or None}
 
 
 def to_json(res: Result, meta: Meta) -> bytes:
@@ -176,7 +182,7 @@ def to_xlsx(res: Result, meta: Meta) -> bytes:
     ws.cell(1, 1, meta.title).font = Font(name=font, size=15, bold=True, color=NAVY[1:])
     w = words(meta.locale)
     ws.cell(2, 1, f"{w.get('period', 'Period')}: {meta.period}").font = Font(name=font, size=10, color="5B6B80")
-    ws.cell(3, 1, f"{w.get('generated', 'Generated')}: {meta.generated_at.astimezone(TZ):%Y-%m-%d %H:%M} · {meta.generated_by} · masslak.com"
+    ws.cell(3, 1, f"{w.get('generated', 'Generated')}: {meta.generated_at.astimezone(_ZONE.get()):%Y-%m-%d %H:%M} · {meta.generated_by} · masslak.com"
             ).font = Font(name=font, size=10, color="5B6B80")
     for r in (1, 2, 3):
         ws.merge_cells(start_row=r, start_column=1, end_row=r, end_column=n)
@@ -310,7 +316,7 @@ def to_pdf(res: Result, meta: Meta) -> bytes:
     if not res.rows:
         story.append(para(w.get("empty", "No data for this period."), st(10, regular, "#5B6B80")))
 
-    stamp = f"{meta.generated_at.astimezone(TZ):%Y-%m-%d %H:%M}"
+    stamp = f"{meta.generated_at.astimezone(_ZONE.get()):%Y-%m-%d %H:%M}"
 
     def frame(canvas, doc):
         canvas.saveState()
@@ -372,5 +378,10 @@ WRITERS = {"PDF": to_pdf, "XLSX": to_xlsx, "CSV": to_csv, "TXT": to_txt, "JSON":
 
 def render(fmt: str, res: Result, meta: Meta) -> tuple[bytes, str]:
     """The file and its SHA-256 (kept in the export log so a handed-out file can be checked later)."""
-    data = WRITERS[fmt](res, meta)
+    zone, minor = _ZONE.set(ZoneInfo(getattr(res, "time_zone", None) or "UTC")), _MINOR.set(getattr(res, "minor_unit", 2))
+    try:
+        data = WRITERS[fmt](res, meta)
+    finally:
+        _ZONE.reset(zone)
+        _MINOR.reset(minor)
     return data, hashlib.sha256(data).hexdigest()

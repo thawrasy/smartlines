@@ -12,7 +12,8 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Optional
 
-from ... import db
+from ... import db, markets
+from . import render
 
 # city code -> URL slug (English, stable: the same in both languages)
 SLUG = {
@@ -57,6 +58,8 @@ class Trip:
     origin_code: str
     dest_station: str
     dest_code: str
+    zone: str                         # the departure city's time zone (1061)
+    currency: str                     # the trip's currency
 
 
 @dataclass
@@ -107,6 +110,7 @@ async def catalog() -> Catalog:
         return _cache
     ctx = db.Context(request_id=uuid.uuid4(), ip="127.0.0.1", scope="SYSTEM")
     async with db.transaction(ctx) as conn:
+        render.set_default_zone((await markets.default(conn)).time_zone)     # search forms open on the default market's day
         rows = await conn.fetch("SELECT code, name, country_code, lat, lng FROM ref.city WHERE is_active AND code = ANY($1::text[])", list(SLUG))
         cities = {r["code"]: City(r["code"], r["name"], r["country_code"], float(r["lat"]) if r["lat"] is not None else None,
                                   float(r["lng"]) if r["lng"] is not None else None) for r in rows}
@@ -122,7 +126,8 @@ async def catalog() -> Catalog:
         trips = await conn.fetch(
             """SELECT ca.code AS a, cb.code AS b, sa.sched_dep AS departs, sb.sched_arr AS arrives,
                       sb.fare_from_origin - sa.fare_from_origin AS price, p.legal_name AS carrier,
-                      xa.name AS origin_station, xa.code AS origin_code, xb.name AS dest_station, xb.code AS dest_code
+                      xa.name AS origin_station, xa.code AS origin_code, xb.name AS dest_station, xb.code AS dest_code,
+                      ca.timezone AS zone, t.currency
                  FROM ops.trip t JOIN iam.party p ON p.id = t.company_id
                  JOIN ops.trip_stop sa ON sa.trip_id = t.id JOIN net.station xa ON xa.id = sa.station_id JOIN ref.city ca ON ca.id = xa.city_id
                  JOIN ops.trip_stop sb ON sb.trip_id = t.id AND sb.seq > sa.seq JOIN net.station xb ON xb.id = sb.station_id
@@ -135,7 +140,8 @@ async def catalog() -> Catalog:
     by_pair: dict[tuple, list[Trip]] = {}
     for t in trips:
         by_pair.setdefault((t["a"], t["b"]), []).append(Trip(t["departs"], t["arrives"], int(t["price"]), t["carrier"], t["origin_station"],
-                                                              t["origin_code"], t["dest_station"], t["dest_code"]))
+                                                              t["origin_code"], t["dest_station"], t["dest_code"], t["zone"],
+                                                              t["currency"]))
     routes = {}
     for a, b in sorted(pairs):
         if a not in cities or b not in cities:

@@ -39,13 +39,13 @@ export function ModuleDashboard({ module, onOpen }: { module: string; onOpen: (r
 }
 
 function TileCard({ tile, onOpen }: { tile: Tile; onOpen: (res: string) => void }) {
-  const { t, money, num } = useI18n();
+  const { t, money, num, currency } = useI18n();
   return (
     <button className={`stat dash-tile ${tile.tone}`} onClick={() => onOpen(tile.res)}>
       <span className="label">{t(`dash.${tile.id}`)}</span>
       <span className="value">
         {tile.money ? money(tile.value, false) : num(tile.value)}
-        {tile.money && <small className="unit">{t("common.currency")}</small>}
+        {tile.money && <small className="unit">{currency()}</small>}
       </span>
     </button>
   );

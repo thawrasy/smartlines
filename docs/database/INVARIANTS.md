@@ -6,8 +6,8 @@ Who keeps each business rule: the database, the application or both, the objects
 
 | Owner | Meaning | Rules |
 |---|---|---|
-| database | the database refuses a breach whatever the caller; the application may check earlier only to give a clearer message | 17 |
-| application | only the application can see the rule (it spans a request, a lock or a choice of code); the database supplies figures or records | 5 |
+| database | the database refuses a breach whatever the caller; the application may check earlier only to give a clearer message | 18 |
+| application | only the application can see the rule (it spans a request, a lock or a choice of code); the database supplies figures or records | 6 |
 | both | each side keeps its own part, and both parts are tested | 6 |
 
 ## Summary
@@ -42,6 +42,8 @@ Who keeps each business rule: the database, the application or both, the objects
 | [SYSTEM-SCOPE-REVIEWED](#system-scope-reviewed) | application | 0 | 2 |
 | [DELETE-ONLY-WHERE-GRANTED](#delete-only-where-granted) | both | 2 | 1 |
 | [RELEASE-MATCHES](#release-matches) | database | 2 | 0 |
+| [TRIP-CURRENCY](#trip-currency) | database | 1 | 1 |
+| [MARKET-TIME-AND-MONEY](#market-time-and-money) | application | 1 | 2 |
 
 ## LEDGER-BALANCED
 
@@ -406,3 +408,29 @@ An upgrade starts only when the record of applied schema files still matches the
 | Application | `app.release:current` |
 | Database tests (`db/tests/run_tests.sql`) | Release manifest: a file removed from the record by hand no longer matches the manifest (the upgrade refuses)<br>Release manifest: the application reads the release and cannot record one |
 | API tests (`backend/`) | - |
+
+## TRIP-CURRENCY
+
+A trip is priced in its company's market currency, or in another currency the platform holds escrow in.
+
+**Owner:** database. Bookings, escrow and the carrier's earnings all post in the trip's currency; the trigger refuses a currency with no platform wallets.
+
+| Kept by | Names |
+|---|---|
+| Database | `trigger ops.trip.trip_currency`<br>`function ref.company_currency` |
+| Application | - |
+| Database tests (`db/tests/run_tests.sql`) | Markets: a trip cannot be priced in the currency of a market that is not open |
+| API tests (`backend/`) | `tests/test_markets.py::test_a_carrier_of_a_second_market_works_in_its_currency_and_time` |
+
+## MARKET-TIME-AND-MONEY
+
+Days, dates and money are read in the market of the data: the company's, the person's, the boarding station's, or the default market.
+
+**Owner:** application. Which market applies depends on the screen and the caller; the code reads it from ref.market, and a CI rule forbids a fixed time zone or currency.
+
+| Kept by | Names |
+|---|---|
+| Database | `table ref.market`<br>`function ref.party_market`<br>`function ref.station_tz` |
+| Application | `app.markets:of_party`<br>`app.modules.reports.engine:locate` |
+| Database tests (`db/tests/run_tests.sql`) | Markets: companies and stations take their market's time zone and currency; a country with no market falls in the default one |
+| API tests (`backend/`) | `tests/test_code_rules.py::test_no_fixed_time_zone_or_currency`<br>`tests/test_markets.py::test_platform_reports_read_one_market_at_a_time` |

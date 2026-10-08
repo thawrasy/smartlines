@@ -86,7 +86,7 @@ async def settlement_trips(conn, company_id: int, start: date, end: date):
              JOIN sales.booking b ON b.trip_id = t.id
              JOIN fin.price_allocation_line l ON l.allocation_id = b.price_allocation_id
             WHERE t.company_id = $1 AND t.status = 'COMPLETED'
-              AND (t.departure_at AT TIME ZONE 'Asia/Damascus')::date BETWEEN $2 AND $3
+              AND (t.departure_at AT TIME ZONE ref.company_tz($1))::date BETWEEN $2 AND $3
             GROUP BY t.id, t.trip_no ORDER BY t.trip_no""", company_id, start, end)
 
 

@@ -35,6 +35,8 @@ const ar: Messages = {
     when: "الوقت", user: "المستخدم", result: "النتيجة", portal: "البوابة", type: "النوع", amount: "المبلغ", balance: "الرصيد",
     retry: "أعد المحاولة", saved: "تم الحفظ", done: "تم", demoAccounts: "حسابات تجريبية (بيئة الاختبار)",
   },
+  // names of the currencies of the open markets (1061)
+  currencies: { SYP: "ل.س", LBP: "ل.ل", JOD: "د.أ", IQD: "د.ع", SAR: "ر.س", TRY: "ل.ت", USD: "دولار", EUR: "يورو" },
   city: {
     ALP: "حلب", AMM: "عمّان", BEY: "بيروت", DAM: "دمشق", DRA: "درعا", DRZ: "دير الزور", HMA: "حماة",
     HMS: "حمص", HSK: "الحسكة", IDL: "إدلب", LTK: "اللاذقية", QNT: "القنيطرة", RDM: "ريف دمشق", RQA: "الرقة",

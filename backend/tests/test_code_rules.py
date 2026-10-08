@@ -135,3 +135,14 @@ def test_every_delete_in_the_code_has_its_grant():
         finally:
             await conn.close()
     assert sorted(wanted - asyncio.run(granted())) == []
+
+
+FIXED_MARKET = re.compile(r"Asia/Damascus|\bSYP\b")
+
+
+def test_no_fixed_time_zone_or_currency():
+    """Time zones and currencies come from the markets (1061, review stage D): the company's, the person's, the
+    station's or the default market's. A fixed Asia/Damascus or SYP in the code would put a second market's data in
+    Syria's day and money."""
+    found = [f"{rel}: {s[:60]!r}" for rel, tree in sources() for s in strings(tree) if FIXED_MARKET.search(s)]
+    assert found == []

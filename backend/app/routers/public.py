@@ -6,7 +6,7 @@ from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Query, Request
 
-from .. import db
+from .. import db, markets
 from ..config import get_settings
 from ..deps import base_context
 from ..errors import ApiError, not_found
@@ -57,10 +57,20 @@ async def reference(request: Request):
         countries = await conn.fetch("SELECT code FROM ref.country ORDER BY code")
         brands = await conn.fetch(
             "SELECT code, name, factor, rules FROM pricing.fare_brand WHERE active AND company_id IS NULL ORDER BY sort")
+        default_market = (await markets.default(conn)).public()       # visitors see the default market's time and money (1061)
+        open_markets = [m.public() for m in await markets.active(conn)]
     return {"cities": rows(cities), "locales": rows(locales), "platform_fee": get_settings().platform_fee,
+            "market": default_market, "markets": open_markets,
             "countries": [c["code"] for c in countries],
             "fare_brands": [{**row_dict(b), "factor": float(b["factor"]),
                              "rules": json.loads(b["rules"]) if isinstance(b["rules"], str) else b["rules"]} for b in brands]}
+
+
+@router.get("/markets")
+async def market_list(request: Request):
+    """The default market and every open one (1061): the screens show times and money in a market's time zone and currency."""
+    async with db.transaction(_ctx(request)) as conn:
+        return {"default": (await markets.default(conn)).public(), "markets": [m.public() for m in await markets.active(conn)]}
 
 
 @router.get("/stations")
@@ -99,7 +109,7 @@ async def search(request: Request, origin: str = Query(..., min_length=3, max_le
                  AND ca.code = $1 AND cb.code = $2
                  AND a.kind = 'STATION' AND b.kind = 'STATION' AND a.sellable AND a.sales_closed_at IS NULL
                  AND (t.service_type = 'INDIRECT' OR (a.seq = 0 AND b.seq = t.segments_count))
-                 AND (a.sched_dep AT TIME ZONE 'Asia/Damascus')::date = $3
+                 AND (a.sched_dep AT TIME ZONE ca.timezone)::date = $3          -- the day where the traveller boards (1061)
                  AND a.sched_dep > now() + make_interval(mins => t.sales_cutoff_min)
                ORDER BY t.id, a.seq, b.seq DESC
             )
@@ -134,7 +144,7 @@ async def trip_documents(trip_uid: str, request: Request, from_seq: int = Query(
         if t is None:
             raise not_found("trip")
         departs = await conn.fetchval(
-            "SELECT (sched_dep AT TIME ZONE 'Asia/Damascus')::date FROM ops.trip_stop WHERE trip_id = $1 AND seq = $2",
+            "SELECT (sched_dep AT TIME ZONE ref.station_tz(station_id))::date FROM ops.trip_stop WHERE trip_id = $1 AND seq = $2",
             t["id"], from_seq)
         if departs is None:
             raise ApiError(422, "INVALID_PAIR", "unknown stop")
@@ -160,7 +170,7 @@ async def trip_detail(trip_uid: str, request: Request, from_seq: int = Query(...
             raise ApiError(422, "INVALID_PAIR", "unknown stop")
         stops = await conn.fetch(
             """SELECT ts.seq, ts.kind, ts.sched_arr, ts.sched_dep, ts.fare_from_origin, ts.rest_min,
-                      s.name AS station_name, s.code AS station_code, c.code AS city_code, s.lat, s.lng
+                      s.name AS station_name, s.code AS station_code, c.code AS city_code, s.lat, s.lng, c.timezone AS zone
                  FROM ops.trip_stop ts JOIN net.station s ON s.id = ts.station_id JOIN ref.city c ON c.id = s.city_id
                 WHERE ts.trip_id = $1 ORDER BY ts.seq""", t["id"])
         seats = await conn.fetch(
@@ -173,7 +183,8 @@ async def trip_detail(trip_uid: str, request: Request, from_seq: int = Query(...
         ladder = {s["seq"]: s["fare_from_origin"] for s in stops}
         price = pf if pf is not None else ladder[to_seq] - ladder[from_seq]
         # Who counts as a child or an infant on this carrier, and what each pays on this segment (4.19)
-        travel = next(s["sched_dep"] for s in stops if s["seq"] == from_seq).astimezone(ZoneInfo("Asia/Damascus")).date()
+        board = next(s for s in stops if s["seq"] == from_seq)
+        travel = board["sched_dep"].astimezone(ZoneInfo(board["zone"])).date()     # the boarding day where they board (1061)
         b = await cat.bands(conn, t["company_id"])
         categories = []
         for c in ("ADULT", "CHILD", "INFANT"):

@@ -9,21 +9,25 @@ confirming. A credit limit per carrier stops cash sales when the debt would pass
 """
 import json
 import uuid
-from datetime import date, datetime
+from datetime import date
 from typing import Optional
 
 import asyncpg
 
-from ... import db
+from ... import db, markets
 from ...deps import Principal
 from ...errors import ApiError, forbidden, not_found
 from ...ledger import cash_wallet, company_wallet, platform_wallet, post_txn
-from ...util import LOCAL_TZ, row_dict
+from ...util import row_dict
 from ..sales import options
 from ..sales import repository as sales_repo
 from ..sales import service as sales
 
-CURRENCY = "SYP"
+
+
+async def currency_of(conn: asyncpg.Connection, company_id: int) -> str:
+    """Counter cash is in the carrier's market currency (1061)."""
+    return (await markets.of_party(conn, company_id)).currency
 
 
 def need(pr: Principal, *codes: str) -> None:
@@ -45,8 +49,9 @@ def buyer_for(pr: Principal, contact_mobile: Optional[str] = None) -> sales.Buye
 
 async def position(conn: asyncpg.Connection, company_id: int) -> dict:
     """What the carrier owes for cash sales, its limit and what is left before cash sales stop."""
-    r = await conn.fetchrow("SELECT fin.cash_owed($1, $2) AS owed, fin.cash_limit($1) AS lim", company_id, CURRENCY)
-    return {"owed": r["owed"], "limit": r["lim"], "remaining": max(0, r["lim"] - r["owed"]), "currency": CURRENCY}
+    currency = await currency_of(conn, company_id)
+    r = await conn.fetchrow("SELECT fin.cash_owed($1, $2) AS owed, fin.cash_limit($1) AS lim", company_id, currency)
+    return {"owed": r["owed"], "limit": r["lim"], "remaining": max(0, r["lim"] - r["owed"]), "currency": currency}
 
 
 async def _within_limit(conn: asyncpg.Connection, company_id: int, amount: int) -> None:
@@ -72,7 +77,7 @@ async def sell(conn: asyncpg.Connection, ctx: db.Context, pr: Principal, body) -
     company = counter_of(pr)
     await _lock(conn, company)
     async with db.system_scope(conn, ctx):
-        await cash_wallet(conn, company, CURRENCY)
+        await cash_wallet(conn, company, await currency_of(conn, company))
 
     async def within_limit(conn, total: int) -> None:
         await _within_limit(conn, company, total)
@@ -167,7 +172,7 @@ async def ticket_status(conn: asyncpg.Connection, ctx: db.Context, pr: Principal
 
 async def dashboard(conn: asyncpg.Connection, ctx: db.Context, pr: Principal) -> dict:
     company = counter_of(pr)
-    today = datetime.now(LOCAL_TZ).date()
+    today = (await markets.of_party(conn, company)).today()
     async with db.system_scope(conn, ctx):
         mine = await _day_lines(conn, company, today, pr.user_id)
         waiting = await conn.fetchval(
@@ -180,8 +185,9 @@ async def dashboard(conn: asyncpg.Connection, ctx: db.Context, pr: Principal) ->
 
 
 async def _day_lines(conn: asyncpg.Connection, company_id: int, day: date, user_id: Optional[int] = None) -> dict:
+    m = await markets.of_party(conn, company_id)
     w = await conn.fetchval("SELECT id FROM fin.wallet WHERE owner_party_id = $1 AND wallet_type = 'CASH_COLLECT' AND currency = $2",
-                            company_id, CURRENCY)
+                            company_id, m.currency)
     if w is None:
         return {"sales": 0, "cash_in": 0, "refunds": 0, "by_seller": []}
     rows = await conn.fetch(
@@ -192,18 +198,20 @@ async def _day_lines(conn: asyncpg.Connection, company_id: int, day: date, user_
              FROM fin.ledger_entry e JOIN fin.ledger_txn t ON t.id = e.txn_id
              LEFT JOIN iam.app_user su ON su.id = t.created_by LEFT JOIN iam.party sp ON sp.id = su.party_id
             WHERE e.wallet_id = $1 AND t.txn_type IN ('BOOKING_PAY','REFUND')
-              AND e.created_at >= ($2::date)::timestamp AT TIME ZONE 'Asia/Damascus'
-              AND e.created_at < ($2::date + 1)::timestamp AT TIME ZONE 'Asia/Damascus'
+              AND e.created_at >= ($2::date)::timestamp AT TIME ZONE $4::text
+              AND e.created_at < ($2::date + 1)::timestamp AT TIME ZONE $4::text
               AND ($3::bigint IS NULL OR t.created_by = $3)
-            GROUP BY t.created_by, sp.legal_name ORDER BY cash_in DESC""", w, day, user_id)
+            GROUP BY t.created_by, sp.legal_name ORDER BY cash_in DESC""", w, day, user_id, m.time_zone)
     by = [{**dict(r), "net": r["cash_in"] - r["refunds"]} for r in rows]
     return {"sales": sum(r["sales"] for r in by), "cash_in": sum(r["cash_in"] for r in by),
             "refunds": sum(r["refunds"] for r in by), "by_seller": by}
 
 
-async def day_report(conn: asyncpg.Connection, ctx: db.Context, pr: Principal, day: date) -> dict:
-    """Cash taken and given back at the counters of one local day, per seller: the drawer count of the evening."""
+async def day_report(conn: asyncpg.Connection, ctx: db.Context, pr: Principal, day: Optional[date]) -> dict:
+    """Cash taken and given back at the counters of one local day (today when none is given, in the carrier's market),
+    per seller: the drawer count of the evening."""
     company = counter_of(pr)
+    day = day or (await markets.of_party(conn, company)).today()
     everyone = bool(pr.permissions.intersection({"report.company", "company.billing"})) or pr.is_owner
     async with db.system_scope(conn, ctx):
         out = await _day_lines(conn, company, day, None if everyone else pr.user_id)
@@ -213,11 +221,12 @@ async def day_report(conn: asyncpg.Connection, ctx: db.Context, pr: Principal, d
 
 # ------------------------------------------------------------------ setting off and remitting
 async def net_cash(conn: asyncpg.Connection, company_id: int, key: str, user_id: Optional[int] = None,
-                   currency: str = CURRENCY) -> int:
+                   currency: Optional[str] = None) -> int:
     """Sets the carrier's spendable earnings off against the cash it owes; the caller holds the system scope.
 
     Money held for a pending withdrawal is left alone. Returns the amount set off (0 when nothing is owed or earned).
     """
+    currency = currency or await currency_of(conn, company_id)
     owed = await conn.fetchval("SELECT fin.cash_owed($1, $2)", company_id, currency)
     if not owed:
         return 0
@@ -232,8 +241,16 @@ async def net_cash(conn: asyncpg.Connection, company_id: int, key: str, user_id:
 
 
 async def positions(conn: asyncpg.Connection) -> list[dict]:
+    """Every carrier's cash position in its market's currency (1061)."""
+    out = []
+    for cur in sorted({m.currency for m in await markets.active(conn)}):
+        out += await _positions(conn, cur)
+    return out
+
+
+async def _positions(conn: asyncpg.Connection, currency: str) -> list[dict]:
     rows = await conn.fetch(
-        """SELECT c.id AS company_id, p.legal_name AS name, c.company_type, fin.cash_owed(c.id, $1) AS owed,
+        """SELECT c.id AS company_id, p.legal_name AS name, c.company_type, $1::char(3) AS currency, fin.cash_owed(c.id, $1) AS owed,
                   fin.cash_limit(c.id) AS limit_amount, l.reason AS limit_reason, l.set_at AS limit_set_at,
                   (SELECT max(r.confirmed_at) FROM fin.cash_remittance r WHERE r.company_id = c.id AND r.status = 'CONFIRMED') AS last_remitted_at,
                   (SELECT coalesce(sum(r.amount), 0) FROM fin.cash_remittance r WHERE r.company_id = c.id AND r.status = 'PENDING')::bigint AS pending,
@@ -243,7 +260,8 @@ async def positions(conn: asyncpg.Connection) -> list[dict]:
              FROM iam.company c JOIN iam.party p ON p.id = c.id LEFT JOIN fin.cash_credit_limit l ON l.company_id = c.id
              LEFT JOIN fin.cash_aging(now(), $1) a ON a.company_id = c.id
             WHERE c.company_type IN ('CARRIER','INDIVIDUAL_OPERATOR','FOREIGN_CARRIER') AND c.approval_status = 'APPROVED'
-            ORDER BY 4 DESC, p.legal_name""", CURRENCY)
+              AND ref.company_currency(c.id) = $1
+            ORDER BY 5 DESC, p.legal_name""", currency)
     return [{**row_dict(r), "own_limit": r["limit_reason"] is not None} for r in rows]
 
 
@@ -272,14 +290,15 @@ async def remittances(conn: asyncpg.Connection, status: Optional[str]) -> list[d
 
 async def record_remittance(conn: asyncpg.Connection, user_id: int, company_id: int, amount: int, method: str,
                             ref: Optional[str], note: Optional[str]) -> dict:
-    owed = await conn.fetchval("SELECT fin.cash_owed($1, $2)", company_id, CURRENCY)
+    currency = await currency_of(conn, company_id)
+    owed = await conn.fetchval("SELECT fin.cash_owed($1, $2)", company_id, currency)
     pending = await conn.fetchval("SELECT coalesce(sum(amount), 0)::bigint FROM fin.cash_remittance WHERE company_id = $1 AND status = 'PENDING'",
                                   company_id)
     if amount > owed - pending:
         raise ApiError(422, "REMITTANCE_TOO_LARGE", "more than the carrier owes", owed=owed, pending=pending)
     rid = await conn.fetchval(
         """INSERT INTO fin.cash_remittance (company_id, amount, currency, method, ref, recorded_by, note)
-           VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id""", company_id, amount, CURRENCY, method, ref, user_id, note)
+           VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id""", company_id, amount, currency, method, ref, user_id, note)
     return {"id": rid, "status": "PENDING"}
 
 

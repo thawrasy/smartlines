@@ -16,7 +16,13 @@ from zoneinfo import ZoneInfo
 from ...config import get_settings
 from ..notify.render import messages
 
-TZ = ZoneInfo("Asia/Damascus")
+# the default market's time zone (1061), set when the catalog is read; trips carry their own departure zone
+_DEFAULT_ZONE = ZoneInfo("UTC")
+
+
+def set_default_zone(tz: str) -> None:
+    global _DEFAULT_ZONE
+    _DEFAULT_ZONE = ZoneInfo(tz)
 LANGS = ("ar", "en")
 LOGO = ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="36" height="36" aria-hidden="true"><rect width="64" height="64" rx="16" '
         'fill="#0B1F3F"/><path d="M15.5 43.5 C20.5 32.5 24.5 22 32.5 22 C39.5 22 41.5 32.5 48.5 34.5" fill="none" stroke="#2F7BFF" '
@@ -109,19 +115,19 @@ def distance(lang: str, km: Optional[int]) -> str:
     return words(lang)["common"]["km"].format(km=km) if km else "—"
 
 
-def local(dt: datetime) -> datetime:
-    return dt.astimezone(TZ)
+def local(dt: datetime, zone: str) -> datetime:
+    return dt.astimezone(ZoneInfo(zone))
 
 
-def day_label(lang: str, dt: datetime) -> str:
-    d = local(dt)
+def day_label(lang: str, dt: datetime, zone: str) -> str:
+    d = local(dt, zone)
     if lang == "ar":
         return f"{d.day}/{d.month}/{d.year}"
     return d.strftime("%a %d %b %Y")
 
 
 def tomorrow() -> str:
-    return (datetime.now(TZ).date() + timedelta(days=1)).isoformat()
+    return (datetime.now(_DEFAULT_ZONE).date() + timedelta(days=1)).isoformat()
 
 
 def search_url(a: str, b: str, lang: str, on: Optional[str] = None) -> str:

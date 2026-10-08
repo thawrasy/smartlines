@@ -13,7 +13,7 @@ from typing import Literal, Optional
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, Field
 
-from ... import db
+from ... import db, markets
 from ...deps import Principal, context_for, require_permission, require_portal, sales_channel
 from ...errors import ApiError, not_found
 from ...ledger import company_wallet, platform_wallet, post_txn, user_wallet
@@ -207,7 +207,9 @@ async def pay_claim(case_uid: uuid.UUID, request: Request, pr: Principal = Depen
             "SELECT actor_id FROM crm.case_event WHERE case_id = $1 AND kind = 'DECISION' ORDER BY id DESC LIMIT 1", c["id"])
         if decider == pr.user_id:
             raise ApiError(409, "FOUR_EYES", "the claim is paid by someone other than the person who approved it")
-        currency = await conn.fetchval("SELECT currency FROM sales.booking WHERE id = $1", c["booking_id"]) or "SYP"
+        # the booking's currency, else the claimant's market (1061)
+        currency = (await conn.fetchval("SELECT currency FROM sales.booking WHERE id = $1", c["booking_id"])
+                    or (await markets.of_party(conn, c["party_id"])).currency)
         async with db.system_scope(conn, ctx):
             source = (await company_wallet(conn, c["company_id"], currency) if c["liable"] == "CARRIER"
                       else await platform_wallet(conn, "PLATFORM", currency))

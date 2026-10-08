@@ -7,9 +7,9 @@ permission or the account is no longer active, the schedule is switched off inst
 import asyncio
 import logging
 import uuid
-from datetime import date, datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone
 
-from ... import db, release
+from ... import db, markets, release
 from ...deps import PORTAL_SCOPE
 from ...errors import ApiError
 from ..notify import providers
@@ -119,16 +119,18 @@ async def run_one(schedule_id: int) -> bool:
             log.info("reports.schedule_stopped id=%s (no allowed recipient left)", s["id"])
             return False
         await conn.execute("UPDATE rpt.report_schedule SET next_run_at = $2, last_run_at = now() WHERE id = $1",
-                           s["id"], next_run(s["frequency"], datetime.now(timezone.utc)))
+                           s["id"], next_run(s["frequency"], datetime.now(timezone.utc),
+                                             (await markets.of_party(conn, s["company_id"])).time_zone))
 
     # the report itself runs with the owner's row-level security
     ctx = db.Context(request_id=uuid.uuid4(), ip="127.0.0.1", user_id=v.user_id, party_id=v.party_id, company_id=v.company_id,
                      scope=PORTAL_SCOPE.get(s["portal"], "PASSENGER"))
-    today = date.today()
-    params = {"from": today - timedelta(days=PERIOD_DAYS[s["frequency"]]), "to": today - timedelta(days=1)}
     loc = s["locale"] if s["locale"] in ("ar", "en") else "ar"
     # the query reads the replica (production), like interactive reports; the run record is written on the primary
     async with db.reports_transaction(ctx) as rconn:
+        await engine.locate(rconn, v)                  # the owner's market: its time zone cuts the days (1061)
+        today = v.today()
+        params = {"from": today - timedelta(days=PERIOD_DAYS[s["frequency"]]), "to": today - timedelta(days=1)}
         if definition:
             dataset, spec, code, title = definition["dataset"], as_dict(definition["spec"]), "custom." + definition["dataset"], definition["name"]
         else:

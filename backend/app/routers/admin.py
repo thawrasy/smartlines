@@ -6,7 +6,7 @@ from typing import Literal, Optional
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, EmailStr, Field
 
-from .. import db
+from .. import db, markets
 from ..deps import Principal, context_for, require_permission, require_portal
 from ..errors import ApiError, not_found
 from ..ledger import company_wallet, platform_wallet, post_txn
@@ -45,8 +45,17 @@ async def companies(request: Request, pr: Principal = Depends(platform)):
     return {"companies": rows(recs)}
 
 
+async def _open_market(conn, code: Optional[str]) -> markets.Market:
+    """The market a new company joins (1061): the one named, which must be open, or the default market."""
+    m = await (markets.of_country(conn, code) if code else markets.default(conn))
+    if code and (m.country != code or m.status != "ACTIVE"):
+        raise ApiError(409, "MARKET_NOT_OPEN", "the platform does not operate in this country yet")
+    return m
+
+
 class OnboardIn(BaseModel):
     legal_name: str = Field(min_length=3, max_length=160)
+    market: Optional[str] = Field(default=None, pattern=r"^[A-Z]{2}$")     # country of an open market; default market if none
     code3: str = Field(pattern=r"^[A-Z]{3}$")
     transport_license_no: Optional[str] = None
     owner_name: str = Field(min_length=3, max_length=120)
@@ -65,8 +74,10 @@ async def onboard_carrier(body: OnboardIn, request: Request, pr: Principal = Dep
         if await conn.fetchval("SELECT 1 FROM net.carrier_code WHERE code3 = $1 UNION SELECT 1 FROM net.code_reservation WHERE code = $1",
                                body.code3):
             raise ApiError(409, "CODE_TAKEN", "carrier code is taken or reserved")
+        m = await _open_market(conn, body.market)
         cid = await conn.fetchval(
-            "INSERT INTO iam.party (party_type, legal_name) VALUES ('COMPANY', $1) RETURNING id", body.legal_name.strip())
+            "INSERT INTO iam.party (party_type, legal_name, country_code) VALUES ('COMPANY', $1, $2) RETURNING id",
+            body.legal_name.strip(), m.country)
         await conn.execute("INSERT INTO iam.party_role (party_id, role_code) VALUES ($1, 'OPERATOR')", cid)
         await conn.execute(
             """INSERT INTO iam.company (id, transport_license_no, approval_status, approved_by, approved_at)
@@ -83,7 +94,7 @@ async def onboard_carrier(body: OnboardIn, request: Request, pr: Principal = Dep
             owner_party, body.owner_email, hash_password(body.owner_password))
         await conn.execute("INSERT INTO iam.company_member (user_id, company_id, is_owner) VALUES ($1, $2, true)",
                            owner_user, cid)
-        await company_wallet(conn, cid, "SYP")
+        await company_wallet(conn, cid, m.currency)
         uid = await conn.fetchval("SELECT uid FROM iam.party WHERE id = $1", cid)
     request.state.audit = {"action": "company.onboard", "object_type": "company", "object_id": cid}
     return {"uid": str(uid)}
@@ -153,6 +164,7 @@ class AgencyIn(BaseModel):
     owner_password: str
     commission_bp: int = Field(ge=0, le=2000)            # basis points of the fares, at most 20%
     daily_limit: int = Field(gt=0, le=100_000_000_000)   # minor units
+    market: Optional[str] = Field(default=None, pattern=r"^[A-Z]{2}$")     # country of an open market; default market if none
 
 
 @router.post("/agencies", status_code=201)
@@ -163,8 +175,10 @@ async def onboard_agency(body: AgencyIn, request: Request, pr: Principal = Depen
     if problem:
         raise ApiError(422, problem, "password does not meet the policy")
     async with db.transaction(context_for(request, pr)) as conn:
+        m = await _open_market(conn, body.market)
         aid = await conn.fetchval(
-            "INSERT INTO iam.party (party_type, legal_name) VALUES ('COMPANY', $1) RETURNING id", body.legal_name.strip())
+            "INSERT INTO iam.party (party_type, legal_name, country_code) VALUES ('COMPANY', $1, $2) RETURNING id",
+            body.legal_name.strip(), m.country)
         await conn.execute("INSERT INTO iam.party_role (party_id, role_code) VALUES ($1, 'AGENCY')", aid)
         await conn.execute(
             """INSERT INTO iam.company (id, company_type, transport_license_no, approval_status, approved_by, approved_at)
@@ -181,7 +195,7 @@ async def onboard_agency(body: AgencyIn, request: Request, pr: Principal = Depen
             owner_party, body.owner_email, hash_password(body.owner_password))
         await conn.execute("INSERT INTO iam.company_member (user_id, company_id, is_owner) VALUES ($1, $2, true)",
                            owner_user, aid)
-        await company_wallet(conn, aid, "SYP", label="Agency wallet")
+        await company_wallet(conn, aid, m.currency, label="Agency wallet")
         uid = await conn.fetchval("SELECT uid FROM iam.party WHERE id = $1", aid)
     request.state.audit = {"action": "agency.onboard", "object_type": "company", "object_id": aid}
     return {"uid": str(uid)}
@@ -205,7 +219,7 @@ async def agencies(request: Request, pr: Principal = Depends(require_permission(
                       (SELECT count(*) FROM sales.booking b WHERE b.agency_id = c.id AND b.status <> 'CANCELLED') AS bookings
                  FROM iam.company c JOIN iam.party p ON p.id = c.id
                  LEFT JOIN sales.agency_agreement a ON a.agency_id = c.id AND a.status <> 'ENDED'
-                 LEFT JOIN fin.wallet w ON w.owner_party_id = c.id AND w.wallet_type = 'COMPANY' AND w.currency = 'SYP'
+                 LEFT JOIN fin.wallet w ON w.owner_party_id = c.id AND w.wallet_type = 'COMPANY' AND w.currency = ref.company_currency(c.id)
                 WHERE c.company_type = 'AGENCY' ORDER BY p.legal_name""")
     return {"agencies": rows(recs)}
 
@@ -244,11 +258,12 @@ async def agency_deposit(agency_uid: uuid.UUID, body: DepositIn, request: Reques
     """Credits an agency's prepaid balance after finance has seen the bank transfer arrive."""
     async with db.transaction(context_for(request, pr)) as conn:
         aid = await _agency_id(conn, agency_uid)
-        wallet = await company_wallet(conn, aid, "SYP", label="Agency wallet")
-        clearing = await platform_wallet(conn, "BANK_CLEARING", "SYP")
+        currency = (await markets.of_party(conn, aid)).currency           # the agency's market (1061)
+        wallet = await company_wallet(conn, aid, currency, label="Agency wallet")
+        clearing = await platform_wallet(conn, "BANK_CLEARING", currency)
         if await conn.fetchval("SELECT 1 FROM fin.ledger_txn WHERE idempotency_key = $1", f"agency-deposit:{body.idempotency_key}"):
             return {"ok": True, "replayed": True}
-        await post_txn(conn, "TOPUP", "SYP", f"agency-deposit:{body.idempotency_key}",
+        await post_txn(conn, "TOPUP", currency, f"agency-deposit:{body.idempotency_key}",
                        [(clearing["id"], "DR", body.amount), (wallet["id"], "CR", body.amount)],
                        ref_type="company", ref_id=aid, user_id=pr.user_id, memo=f"Bank transfer {body.bank_reference}")
         balance = await conn.fetchval("SELECT fin.wallet_balance($1)", wallet["id"])

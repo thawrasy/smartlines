@@ -244,8 +244,10 @@ async def quote(conn: asyncpg.Connection, ctx: db.Context, body: BookingIn, buye
 
 
 async def _travel_date(conn: asyncpg.Connection, trip_id: int, seq: int) -> date:
+    """The day the traveller boards, where they board (the station's time zone, 1061)."""
     return await conn.fetchval(
-        "SELECT (sched_dep AT TIME ZONE 'Asia/Damascus')::date FROM ops.trip_stop WHERE trip_id = $1 AND seq = $2", trip_id, seq)
+        "SELECT (sched_dep AT TIME ZONE ref.station_tz(station_id))::date FROM ops.trip_stop WHERE trip_id = $1 AND seq = $2",
+        trip_id, seq)
 
 
 async def create_booking(conn: asyncpg.Connection, ctx: db.Context, buyer: Buyer, body: BookingIn,
@@ -412,7 +414,8 @@ async def create_booking(conn: asyncpg.Connection, ctx: db.Context, buyer: Buyer
             await emit(conn, "booking.reserved", "booking", booking_id, {
                 "booking_ref": ref, "trip_no": trip["trip_no"], **await _journey(conn, trip["id"], body.from_seq, body.to_seq),
                 "passengers": len(people), "total_amount": total, "pay_option": option,
-                "pay_by_local": await _local(conn, pay_by), "booker_user_id": buyer.user_id}, company_id=trip["company_id"])
+                "pay_by_local": await _local(conn, pay_by, trip["company_id"]), "booker_user_id": buyer.user_id},
+                company_id=trip["company_id"])
             return {"booking_id": booking_id, "booking_ref": ref, "total": total, "currency": trip["currency"],
                     "status": "PENDING_PAYMENT", "pay_option": option, "pay_by": pay_by.isoformat()}
         await _settle(conn, booking_id, wallet, buyer.user_id,
@@ -424,15 +427,16 @@ async def create_booking(conn: asyncpg.Connection, ctx: db.Context, buyer: Buyer
 async def _journey(conn: asyncpg.Connection, trip_id: int, from_seq: int, to_seq: int) -> dict:
     row = await conn.fetchrow(
         """SELECT ca.code AS from_city, cb.code AS to_city,
-                  to_char(a.sched_dep AT TIME ZONE 'Asia/Damascus', 'YYYY-MM-DD HH24:MI') AS departs_local
+                  to_char(a.sched_dep AT TIME ZONE ref.station_tz(a.station_id), 'YYYY-MM-DD HH24:MI') AS departs_local
              FROM ops.trip_stop a JOIN net.station sa ON sa.id = a.station_id JOIN ref.city ca ON ca.id = sa.city_id,
                   ops.trip_stop z JOIN net.station sb ON sb.id = z.station_id JOIN ref.city cb ON cb.id = sb.city_id
             WHERE a.trip_id = $1 AND a.seq = $2 AND z.trip_id = $1 AND z.seq = $3""", trip_id, from_seq, to_seq)
     return dict(row)
 
 
-async def _local(conn: asyncpg.Connection, at: datetime) -> str:
-    return await conn.fetchval("SELECT to_char($1::timestamptz AT TIME ZONE 'Asia/Damascus', 'YYYY-MM-DD HH24:MI')", at)
+async def _local(conn: asyncpg.Connection, at: datetime, company_id: int) -> str:
+    """A time as the carrier's counter reads it (its market's time zone, 1061)."""
+    return await conn.fetchval("SELECT to_char($1::timestamptz AT TIME ZONE ref.company_tz($2), 'YYYY-MM-DD HH24:MI')", at, company_id)
 
 
 async def _settle(conn: asyncpg.Connection, booking_id: int, wallet, user_id: int, spend: Optional[tuple] = None) -> int:

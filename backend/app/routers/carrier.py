@@ -1,21 +1,22 @@
 """Carrier (operator) portal: dashboard, fleet, crew, routes, trips, manifest and trip completion."""
 import json
 import uuid
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from typing import Literal, Optional
+from zoneinfo import ZoneInfo
 
 import asyncpg
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, EmailStr, Field
 
-from .. import db
+from .. import db, markets
 from ..deps import Principal, context_for, require_portal
 from ..errors import ApiError, forbidden, not_found
 from ..ledger import platform_wallet, post_txn
 from ..modules.cash import service as cash
 from ..modules.fleet import service as fleet
 from ..security import hash_password, password_problem
-from ..util import LOCAL_TZ, row_dict, rows
+from ..util import row_dict, rows
 
 router = APIRouter(prefix="/api/carrier", tags=["carrier"])
 operator = require_portal("OPERATOR")
@@ -29,19 +30,20 @@ def _need(pr: Principal, *codes: str) -> None:
 @router.get("/dashboard")
 async def dashboard(request: Request, pr: Principal = Depends(operator)):
     async with db.transaction(context_for(request, pr)) as conn:
-        today = datetime.now(LOCAL_TZ).date()
+        m = await markets.of_party(conn, pr.company_id)          # the carrier's day and currency (1061)
+        today = m.today()
         stats = await conn.fetchrow(
             """SELECT
-                 (SELECT count(*) FROM ops.trip WHERE company_id = $1 AND (departure_at AT TIME ZONE 'Asia/Damascus')::date = $2
+                 (SELECT count(*) FROM ops.trip WHERE company_id = $1 AND (departure_at AT TIME ZONE $3::text)::date = $2
                      AND status <> 'CANCELLED') AS trips_today,
                  (SELECT coalesce(sum(total_amount), 0) FROM sales.booking WHERE company_id = $1
-                     AND status IN ('CONFIRMED','COMPLETED') AND (created_at AT TIME ZONE 'Asia/Damascus')::date = $2) AS sales_today,
+                     AND status IN ('CONFIRMED','COMPLETED') AND (created_at AT TIME ZONE $3::text)::date = $2) AS sales_today,
                  (SELECT count(*) FROM sales.ticket k JOIN sales.booking b ON b.id = k.booking_id WHERE b.company_id = $1
-                     AND k.status <> 'CANCELLED' AND (b.created_at AT TIME ZONE 'Asia/Damascus')::date = $2) AS tickets_today,
+                     AND k.status <> 'CANCELLED' AND (b.created_at AT TIME ZONE $3::text)::date = $2) AS tickets_today,
                  (SELECT coalesce(fin.wallet_balance(id), 0) FROM fin.wallet WHERE owner_party_id = $1
-                     AND wallet_type = 'COMPANY' AND currency = 'SYP') AS released_balance,
+                     AND wallet_type = 'COMPANY' AND currency = $4) AS released_balance,
                  (SELECT count(*) FROM fleet.vehicle WHERE company_id = $1 AND status = 'ACTIVE') AS active_vehicles""",
-            pr.company_id, today)
+            pr.company_id, today, m.time_zone, m.currency)
         load = await conn.fetchrow(
             """SELECT coalesce(sum(sold), 0) AS sold, coalesce(sum(cap), 0) AS cap FROM (
                  SELECT t.seats_total * t.segments_count AS cap,
@@ -251,7 +253,7 @@ async def add_route(body: RouteIn, request: Request, pr: Principal = Depends(ope
 class TripIn(BaseModel):
     route_uid: uuid.UUID
     vehicle_uid: uuid.UUID
-    departure_local: datetime                 # local time in Asia/Damascus, e.g. 2026-10-10T07:30
+    departure_local: datetime                 # local time at the first stop (its city's time zone), e.g. 2026-10-10T07:30
     driver_uid: Optional[uuid.UUID] = None
     publish: bool = True
     # pilgrimages (Umrah, Hajj) and tours can be paid through a financing company where one is contracted (1056)
@@ -282,7 +284,7 @@ async def _insert_trip(conn, pr: Principal, route, vehicle, dep: datetime, publi
     stops = await conn.fetch("SELECT * FROM net.route_stop WHERE route_id = $1 ORDER BY seq", route["id"])
     code3 = await conn.fetchval("SELECT code3 FROM net.carrier_code WHERE company_id = $1 AND status = 'ACTIVE'",
                                 pr.company_id) or "XXX"
-    local = dep.astimezone(LOCAL_TZ)
+    local = dep.astimezone(ZoneInfo(await markets.station_zone(conn, stops[0]["station_id"])))
     trip_no = f"{code3}-{route['code']}-{local:%H%M}/{local:%d%b%y}".upper()
     n = len(stops)
     arrival = dep + timedelta(minutes=stops[-1]["arr_offset_min"])
@@ -292,7 +294,7 @@ async def _insert_trip(conn, pr: Principal, route, vehicle, dep: datetime, publi
     trip_id = await conn.fetchval(
         """INSERT INTO ops.trip (trip_no, company_id, route_id, service_type, vehicle_id, departure_at, arrival_at,
              status, seats_total, segments_count, currency, base_price, published_at, seat_map, template_id, trip_type)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'SYP', $11, CASE WHEN $8 = 'PUBLISHED' THEN now() END,
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NULL, $11, CASE WHEN $8 = 'PUBLISHED' THEN now() END,
                    $12::jsonb, $13, $14)
            RETURNING id""",
         trip_no, pr.company_id, route["id"], "INDIRECT" if n > 2 else "DIRECT", vehicle["id"], dep, arrival, status,
@@ -317,16 +319,18 @@ async def _insert_trip(conn, pr: Principal, route, vehicle, dep: datetime, publi
 @router.post("/trips", status_code=201)
 async def create_trip(body: TripIn, request: Request, pr: Principal = Depends(operator)):
     _need(pr, "trip.publish")
-    dep = body.departure_local.replace(tzinfo=LOCAL_TZ) if body.departure_local.tzinfo is None else body.departure_local
-    if dep < datetime.now(LOCAL_TZ) + timedelta(minutes=30):
-        raise ApiError(422, "DEPARTURE_TOO_SOON", "departure must be at least 30 minutes ahead")
     async with db.transaction(context_for(request, pr)) as conn:
-        route = await conn.fetchrow("SELECT id, code FROM net.route WHERE uid = $1 AND company_id = $2 AND status = 'ACTIVE'",
+        route = await conn.fetchrow("SELECT id, code, origin_station_id FROM net.route WHERE uid = $1 AND company_id = $2 AND status = 'ACTIVE'",
                                     body.route_uid, pr.company_id)
         vehicle = await conn.fetchrow("SELECT id, passenger_seats, plate_no FROM fleet.vehicle WHERE uid = $1",
                                       body.vehicle_uid)
         if route is None or vehicle is None:
             raise not_found("route or vehicle")
+        # the departure is local time where the trip starts (1061)
+        zone = ZoneInfo(await markets.station_zone(conn, route["origin_station_id"]))
+        dep = body.departure_local.replace(tzinfo=zone) if body.departure_local.tzinfo is None else body.departure_local
+        if dep < datetime.now(zone) + timedelta(minutes=30):
+            raise ApiError(422, "DEPARTURE_TOO_SOON", "departure must be at least 30 minutes ahead")
         driver = None
         if body.driver_uid:
             driver = await conn.fetchval(
@@ -361,19 +365,20 @@ async def generate_trips(template_id: int, body: GenerateIn, request: Request, p
             raise not_found("template")
         if tpl["status"] != "ACTIVE":
             raise ApiError(409, "TEMPLATE_NOT_ACTIVE", "only an active template generates trips")
-        route = await conn.fetchrow("SELECT id, code FROM net.route WHERE id = $1 AND status = 'ACTIVE'", tpl["route_id"])
+        route = await conn.fetchrow("SELECT id, code, origin_station_id FROM net.route WHERE id = $1 AND status = 'ACTIVE'", tpl["route_id"])
         if body.vehicle_uid:
             vehicle = await conn.fetchrow("SELECT id, passenger_seats FROM fleet.vehicle WHERE uid = $1", body.vehicle_uid)
         else:
             vehicle = await conn.fetchrow("SELECT id, passenger_seats FROM fleet.vehicle WHERE id = $1", tpl["default_vehicle_id"])
         if route is None or vehicle is None:
             raise ApiError(422, "TEMPLATE_INCOMPLETE", "the template needs an active route and a vehicle")
-        active, soonest = tpl["active"], datetime.now(LOCAL_TZ) + timedelta(minutes=30)
+        zone = ZoneInfo(await markets.station_zone(conn, route["origin_station_id"]))   # the template's times are local there
+        active, soonest = tpl["active"], datetime.now(zone) + timedelta(minutes=30)
         day = body.from_date
         while day <= body.to_date:
             in_period = (active.lower is None or day >= active.lower) and (active.upper is None or day < active.upper)
             if in_period and day.isoweekday() in tpl["days_of_week"]:
-                dep = datetime.combine(day, tpl["departure_time"], tzinfo=LOCAL_TZ)
+                dep = datetime.combine(day, tpl["departure_time"], tzinfo=zone)
                 if dep < soonest:
                     skipped.append({"date": day.isoformat(), "reason": "TOO_SOON"})
                 elif await conn.fetchval("SELECT 1 FROM ops.trip WHERE template_id = $1 AND departure_at = $2", tpl["id"], dep):
@@ -434,7 +439,7 @@ async def complete_trip(trip_uid: uuid.UUID, request: Request, pr: Principal = D
         t = await _own_trip(conn, pr, trip_uid)
         if t["status"] not in ("PUBLISHED", "BOARDING", "DEPARTED"):
             raise ApiError(409, "INVALID_TRANSITION", "trip cannot be completed from its current status")
-        if t["departure_at"] > datetime.now(LOCAL_TZ):
+        if t["departure_at"] > datetime.now(timezone.utc):
             raise ApiError(409, "TRIP_NOT_STARTED", "a trip can be completed only after departure")
         await conn.execute("UPDATE ops.trip SET status = 'COMPLETED' WHERE id = $1", t["id"])
         released = 0

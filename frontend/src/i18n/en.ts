@@ -33,6 +33,8 @@ const en = {
     when: "When", user: "User", result: "Result", portal: "Portal", type: "Type", amount: "Amount", balance: "Balance",
     retry: "Try again", saved: "Saved", done: "Done", demoAccounts: "Demo accounts (test environment)",
   },
+  // names of the currencies of the open markets (1061)
+  currencies: { SYP: "SYP", LBP: "LBP", JOD: "JOD", IQD: "IQD", SAR: "SAR", TRY: "TRY", USD: "USD", EUR: "EUR" },
   city: {
     ALP: "Aleppo", AMM: "Amman", BEY: "Beirut", DAM: "Damascus", DRA: "Daraa", DRZ: "Deir ez-Zor", HMA: "Hama",
     HMS: "Homs", HSK: "Al-Hasakah", IDL: "Idlib", LTK: "Latakia", QNT: "Quneitra", RDM: "Rif Dimashq", RQA: "Raqqa",

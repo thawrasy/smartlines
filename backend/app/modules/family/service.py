@@ -17,12 +17,11 @@ from zoneinfo import ZoneInfo
 
 import asyncpg
 
-from ... import crypto, db
+from ... import crypto, db, markets
 from ...config import get_settings
 from ...errors import ApiError, not_found
 from ...ledger import post_txn, user_wallet
 
-LOCAL = ZoneInfo("Asia/Damascus")
 CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"          # no 0/O or 1/I to misread
 INVITE_HOURS = 24
 FUNDING = ("OWN", "HEAD_WALLET", "FAMILY_ACCOUNT")
@@ -132,6 +131,12 @@ class Journey:
     line_id: Optional[int] = None
 
 
+async def _family_zone(conn: asyncpg.Connection, member: asyncpg.Record) -> str:
+    """The time zone of the family's market: the market of its head (1061)."""
+    head = await conn.fetchval("SELECT head_party_id FROM iam.family WHERE id = $1", member["family_id"])
+    return (await markets.of_party(conn, head)).time_zone
+
+
 async def check_rules(conn: asyncpg.Connection, member: asyncpg.Record, journey: Journey) -> None:
     """A member travelling on the family's money must match one rule of each type the head has set."""
     rules = await conn.fetch("SELECT * FROM iam.family_travel_rule WHERE member_id = $1 AND active", member["id"])
@@ -139,7 +144,9 @@ async def check_rules(conn: asyncpg.Connection, member: asyncpg.Record, journey:
     for r in rules:
         by_type.setdefault(r["rule_type"], []).append(r)
     if journey.departs and "TIME_WINDOW" in by_type:
-        local = journey.departs.astimezone(LOCAL)
+        # the time where the member boards: the departure city's time zone, else the family's market (1061)
+        tz = await conn.fetchval("SELECT timezone FROM ref.city WHERE id = $1", journey.from_city_id) if journey.from_city_id else None
+        local = journey.departs.astimezone(ZoneInfo(tz or await _family_zone(conn, member)))
         ok = any((not r["days"] or local.isoweekday() in r["days"]) and r["start_time"] <= local.time() <= r["end_time"]
                  for r in by_type["TIME_WINDOW"])
         if not ok:
@@ -158,7 +165,7 @@ async def check_rules(conn: asyncpg.Connection, member: asyncpg.Record, journey:
 async def check_limits(conn: asyncpg.Connection, member: asyncpg.Record, amount: int) -> None:
     if member["per_trip_limit"] and amount > member["per_trip_limit"]:
         raise ApiError(403, "FAMILY_LIMIT_PER_TRIP", "above the amount allowed per purchase", limit=member["per_trip_limit"])
-    now = datetime.now(LOCAL)
+    now = datetime.now(ZoneInfo(await _family_zone(conn, member)))      # the family's day and month (1061)
     day0 = now.replace(hour=0, minute=0, second=0, microsecond=0)
     month0 = day0.replace(day=1)
     spent = await conn.fetchrow(

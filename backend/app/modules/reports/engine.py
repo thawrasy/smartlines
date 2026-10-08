@@ -10,9 +10,11 @@ from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 from typing import Any, Optional
+from zoneinfo import ZoneInfo
 
 import asyncpg
 
+from ... import markets
 from ...errors import ApiError
 from .catalog import BY_CODE, CATEGORY_OF, Report
 from .datasets import BOOL, DATASETS, DATE, INT, MONEY, NUM, PCT, TIME, Col, Dataset
@@ -30,6 +32,16 @@ class Viewer:
     company_id: Optional[int]
     permissions: set
     roles: set
+    # the market the figures are read in (1061): a company's own; for the platform the one asked for, or the default.
+    # Dates are cut at midnight in its time zone and money is in its currency (locate() sets them before a run).
+    market: str = ""
+    time_zone: str = "UTC"
+    currency: str = ""
+    minor_unit: int = 2
+    market_filter: bool = False         # the platform reads one market's companies when more than one market is open
+
+    def today(self) -> date:
+        return datetime.now(ZoneInfo(self.time_zone)).date()
 
     @property
     def regulator_only(self) -> bool:
@@ -56,6 +68,9 @@ class Result:
     data_as_of: Optional[datetime] = None     # the moment the figures reflect (replica replay time or now)
     freshness: Optional[dict] = None          # replica lag, its limit and whether it was passed (freshness.py)
     source_version: Optional[str] = None      # the schema release the figures were computed against (release.py)
+    time_zone: str = "UTC"                    # the market's time zone and currency (1061), for exports
+    currency: str = ""
+    minor_unit: int = 2
 
 
 def can_read(ds: Dataset, v: Viewer) -> bool:
@@ -111,6 +126,19 @@ def _value(col: Col, raw: Any) -> Any:
         raise ApiError(422, "REPORT_BAD_FILTER", f"bad value for {col.key}") from e
 
 
+async def locate(conn: asyncpg.Connection, v: Viewer, market: Optional[str] = None) -> Viewer:
+    """Sets the viewer's market: a company portal reads in its company's market; the platform in the market it asks
+    for, or the default one. With more than one market open, platform figures cover one market's companies, so money
+    in different currencies is never added up."""
+    if v.portal == "PLATFORM":
+        m = await (markets.of_country(conn, market) if market else markets.default(conn))
+        v.market_filter = len(await markets.active(conn)) > 1
+    else:
+        m = await markets.of_party(conn, v.company_id)
+    v.market, v.time_zone, v.currency, v.minor_unit = m.country, m.time_zone, m.currency, m.minor_unit
+    return v
+
+
 def build(ds: Dataset, spec: dict, v: Viewer, params: dict, limit: int) -> tuple[str, list, list[OutCol]]:
     if not isinstance(spec, dict):
         raise ApiError(422, "REPORT_BAD_SPEC", "spec must be an object")
@@ -141,10 +169,14 @@ def build(ds: Dataset, spec: dict, v: Viewer, params: dict, limit: int) -> tuple
             raise ApiError(403, "REPORT_NOT_ALLOWED", "dataset not available to this portal")
         args.append(v.company_id)
         where.append(f"{ds.agency_sql} = ${len(args)}")
+    elif v.market_filter and ds.company_sql:
+        args.append(v.market)
+        where.append(f"{ds.company_sql} IN (SELECT p.id FROM iam.party p WHERE p.party_type = 'COMPANY' "
+                     f"AND (ref.market_of_country(p.country_code)).country_code = ${len(args)})")
 
     # the period on the dataset's date column (default: the last 30 days)
     dcol = ds.col(ds.date_col)
-    today = date.today()
+    today = v.today()
     d_from = _value(Col("from", "", DATE), params.get("from") or (today - timedelta(days=30)).isoformat())
     d_to = _value(Col("to", "", DATE), params.get("to") or today.isoformat())
     if d_to < d_from:
@@ -242,7 +274,8 @@ def build(ds: Dataset, spec: dict, v: Viewer, params: dict, limit: int) -> tuple
             order.append(f"{order_keys[s[0]]} {s[1].upper()} NULLS LAST")
     sql = (f"SELECT {', '.join(select)} FROM {ds.from_sql} WHERE {' AND '.join(where) or 'true'}{group_sql}"
            f"{' ORDER BY ' + ', '.join(order) if order else ''} LIMIT {int(limit) + 1}")
-    return sql, args, out
+    # calendar dates in the market's time zone (datasets write __TZ__ where the zone goes)
+    return sql.replace("__TZ__", markets.sql_zone(v.time_zone)), args, out
 
 
 async def run(conn: asyncpg.Connection, v: Viewer, *, dataset: str, spec: dict, params: dict, limit: int) -> Result:
@@ -262,7 +295,8 @@ async def run(conn: asyncpg.Connection, v: Viewer, *, dataset: str, spec: dict, 
     for c in cols:                                   # page totals for money and counts
         if c.type in (MONEY, INT, NUM) and (c.agg in ("count", "sum", "count_distinct") or (not c.agg and DATASETS[dataset].col(c.key).agg)):
             totals[c.key] = sum((r[c.key] or 0) for r in rows)
-    return Result(dataset, cols, rows, totals, truncated, int((time.monotonic() - t0) * 1000))
+    return Result(dataset, cols, rows, totals, truncated, int((time.monotonic() - t0) * 1000),
+                  time_zone=v.time_zone, currency=v.currency, minor_unit=v.minor_unit)
 
 
 def resolve(code: Optional[str], v: Viewer) -> Report:

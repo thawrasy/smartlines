@@ -9,6 +9,8 @@ const en = {
   extra: { booked: "Booked · {ref}", seatsChosen: "{n} of {max} seats chosen", stops: "{n} stops", direct: "Direct",
            ticketStatus: { ISSUED: "Valid", BOARDED: "Boarded", CANCELLED: "Cancelled", REFUNDED: "Refunded", HOLD: "Awaiting payment", NO_SHOW: "No show" },
            noTickets: "No trips today.", trip: "Trip {no}", openTicket: "Show ticket" },
+  // names of the currencies of the open markets (1061)
+  currencies: { SYP: "SYP", LBP: "LBP", JOD: "JOD", IQD: "IQD", SAR: "SAR", TRY: "TRY", USD: "USD", EUR: "EUR" },
   txn: { SHIPMENT_PAY: "Parcel", SUBSCRIPTION_PAY: "Shuttle pass", BOOKING_PAY: "Trip booking", REFUND: "Refund", TOPUP: "Wallet top-up", RELEASE: "Settlement", PAYOUT: "Bank payout" },
   common: {
     remove: "Remove",

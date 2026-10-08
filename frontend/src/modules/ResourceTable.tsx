@@ -131,7 +131,7 @@ function JsonInput({ value, onChange }: { value: unknown; onChange: (v: unknown)
 }
 
 export function RecordForm({ spec, initial, onSaved, onCancel, fixed }: { spec: ResSpec; initial?: Row; onSaved: (r: Row) => void; onCancel: () => void; fixed?: Record<string, string> }) {
-  const { t } = useI18n();
+  const { t, currency } = useI18n();
   const L = useLabels();
   const fields = spec.form.filter((c) => !fixed || !(c.name in fixed));
   const [values, setValues] = useState<Record<string, unknown>>(() => {
@@ -162,7 +162,7 @@ export function RecordForm({ spec, initial, onSaved, onCancel, fixed }: { spec: 
              <button className="btn" disabled={busy} onClick={save}>{t("common.save")}</button></>}>
       <div className="grid cols-2">
         {fields.map((c) => (
-          <Field key={c.name} label={`${L.field(c.name)}${c.required ? " *" : ""}`} hint={c.money ? t("common.currency") : undefined}>
+          <Field key={c.name} label={`${L.field(c.name)}${c.required ? " *" : ""}`} hint={c.money ? currency() : undefined}>
             <FieldInput res={spec.key} col={c} value={values[c.name]} label={initial ? String(initial[`${c.name}__label`] ?? "") : undefined}
                         onChange={(v) => setValues((s) => ({ ...s, [c.name]: v }))} />
           </Field>

@@ -14,7 +14,7 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import Response
 from pydantic import BaseModel, Field, field_validator
 
-from ... import db, release
+from ... import db, markets, release
 from ...deps import Principal, context_for, require_user
 from ...errors import ApiError, forbidden, not_found
 from . import engine, export, freshness
@@ -43,11 +43,13 @@ class Params(BaseModel):
     period_to: Optional[date] = Field(default=None, alias="to")
     all_time: bool = False
     filters: list = Field(default_factory=list, max_length=20)
+    market: Optional[str] = Field(default=None, pattern=r"^[A-Z]{2}$")   # platform reports: the market to read (1061)
 
     model_config = {"populate_by_name": True}
 
     def as_dict(self) -> dict:
-        return {"from": self.period_from, "to": self.period_to, "all_time": self.all_time, "filters": self.filters}
+        return {"from": self.period_from, "to": self.period_to, "all_time": self.all_time, "filters": self.filters,
+                "market": self.market}
 
 
 class Spec(BaseModel):
@@ -164,6 +166,7 @@ async def _execute(request: Request, pr: Principal, v: engine.Viewer, body: RunI
     source = await release.source_version()      # before the report's own connection is taken (cached for a minute)
     async with db.reports_transaction(context_for(request, pr)) as conn:
         dataset, spec, params, code, def_id = await _resolve(conn, v, pr, body)
+        await engine.locate(conn, v, params.get("market") if isinstance(params, dict) else None)
         name = await conn.fetchval("SELECT name FROM rpt.report_definition WHERE id = $1", def_id) if def_id else None
         if DATASETS.get(dataset) is None or DATASETS[dataset].reader == "app":
             fresh = await freshness.check(dataset, spec, conn)    # a financial report on a stale replica stops here
@@ -311,10 +314,10 @@ class ScheduleIn(BaseModel):
         return [e.strip().lower() for e in v]
 
 
-def next_run(frequency: str, after: datetime) -> datetime:
-    """06:00 Damascus time on the next day, Monday or first of the month."""
+def next_run(frequency: str, after: datetime, time_zone: str) -> datetime:
+    """06:00 in the owner's market (1061) on the next day, Monday or first of the month."""
     from zoneinfo import ZoneInfo
-    tz = ZoneInfo("Asia/Damascus")
+    tz = ZoneInfo(time_zone)
     local = after.astimezone(tz)
     base = local.replace(hour=6, minute=0, second=0, microsecond=0)
     if frequency == "DAILY":
@@ -397,7 +400,8 @@ async def create_schedule(body: ScheduleIn, request: Request, pr: Principal = De
                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, CASE WHEN $11 THEN $3::bigint END, CASE WHEN $11 THEN now() END)
                RETURNING uid""",
             body.code if not def_id else None, def_id, pr.user_id, pr.company_id, pr.portal, body.frequency, body.format, body.locale,
-            body.recipients, next_run(body.frequency, datetime.now(timezone.utc)), sensitive)
+            body.recipients, next_run(body.frequency, datetime.now(timezone.utc), (await markets.of_party(conn, pr.company_id)).time_zone),
+            sensitive)
     request.state.audit = {"action": "report.schedule.create", "object_type": "report_schedule", "object_id": None}
     return {"uid": str(uid), "sensitive": sensitive}
 

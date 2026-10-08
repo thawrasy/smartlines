@@ -18,12 +18,13 @@ async def agreement(conn: asyncpg.Connection, agency_id: int) -> Optional[asyncp
         "SELECT * FROM sales.agency_agreement WHERE agency_id = $1 AND status <> 'ENDED'", agency_id)
 
 
-async def sold_on(conn: asyncpg.Connection, agency_id: int, day: date) -> int:
-    """Sales of one local day that count against the daily limit (cancelled bookings no longer count)."""
+async def sold_on(conn: asyncpg.Connection, agency_id: int, day: date, tz: str) -> int:
+    """Sales of one local day (in the agency's market, 1061) that count against the daily limit (cancelled bookings no
+    longer count)."""
     return await conn.fetchval(
         """SELECT coalesce(sum(total_amount), 0)::bigint FROM sales.booking
             WHERE agency_id = $1 AND status IN ('CONFIRMED','COMPLETED')
-              AND (created_at AT TIME ZONE 'Asia/Damascus')::date = $2""", agency_id, day)
+              AND (created_at AT TIME ZONE $3::text)::date = $2""", agency_id, day, tz)
 
 
 async def commission_totals(conn: asyncpg.Connection, agency_id: int) -> asyncpg.Record:
@@ -63,29 +64,29 @@ async def ticket_status(conn: asyncpg.Connection, agency_id: int, ticket_uid) ->
             WHERE k.uid = $1 AND b.agency_id = $2""", ticket_uid, agency_id)
 
 
-async def balance_before(conn: asyncpg.Connection, wallet_id: int, start: date) -> int:
-    """The balance at the start of the day (Damascus time), from the closed-day totals and the entries after them."""
+async def balance_before(conn: asyncpg.Connection, wallet_id: int, start: date, tz: str) -> int:
+    """The balance at the start of the day (the market's time), from the closed-day totals and the entries after them."""
     return await conn.fetchval(
-        "SELECT coalesce(fin.wallet_balance_at($1, ($2::date)::timestamp AT TIME ZONE 'Asia/Damascus'), 0)", wallet_id, start)
+        "SELECT coalesce(fin.wallet_balance_at($1, ($2::date)::timestamp AT TIME ZONE $3::text), 0)", wallet_id, start, tz)
 
 
-async def statement(conn: asyncpg.Connection, wallet_id: int, start: date, end: date) -> list[asyncpg.Record]:
+async def statement(conn: asyncpg.Connection, wallet_id: int, start: date, end: date, tz: str) -> list[asyncpg.Record]:
     """Entries of the period, oldest first; the caller adds the running balance (a shared wallet stores none)."""
     return await conn.fetch(
         """SELECT e.direction, e.amount, e.created_at, t.txn_type, t.memo
              FROM fin.ledger_entry e JOIN fin.ledger_txn t ON t.id = e.txn_id
             WHERE e.wallet_id = $1
-              AND e.created_at >= ($2::date)::timestamp AT TIME ZONE 'Asia/Damascus'
-              AND e.created_at < ($3::date + 1)::timestamp AT TIME ZONE 'Asia/Damascus'
-            ORDER BY e.created_at, e.id""", wallet_id, start, end)
+              AND e.created_at >= ($2::date)::timestamp AT TIME ZONE $4::text
+              AND e.created_at < ($3::date + 1)::timestamp AT TIME ZONE $4::text
+            ORDER BY e.created_at, e.id""", wallet_id, start, end, tz)
 
 
-async def daily_sales(conn: asyncpg.Connection, agency_id: int, start: date, end: date) -> list[asyncpg.Record]:
+async def daily_sales(conn: asyncpg.Connection, agency_id: int, start: date, end: date, tz: str) -> list[asyncpg.Record]:
     return await conn.fetch(
-        """SELECT (b.created_at AT TIME ZONE 'Asia/Damascus')::date AS day,
+        """SELECT (b.created_at AT TIME ZONE $4::text)::date AS day,
                   count(*) FILTER (WHERE b.status <> 'CANCELLED') AS bookings,
                   coalesce(sum(b.total_amount) FILTER (WHERE b.status <> 'CANCELLED'), 0)::bigint AS sales,
                   count(*) FILTER (WHERE b.status = 'CANCELLED') AS cancelled
              FROM sales.booking b
-            WHERE b.agency_id = $1 AND (b.created_at AT TIME ZONE 'Asia/Damascus')::date BETWEEN $2 AND $3
-            GROUP BY 1 ORDER BY 1""", agency_id, start, end)
+            WHERE b.agency_id = $1 AND (b.created_at AT TIME ZONE $4::text)::date BETWEEN $2 AND $3
+            GROUP BY 1 ORDER BY 1""", agency_id, start, end, tz)

@@ -3,9 +3,7 @@ import secrets
 import string
 from datetime import date, datetime
 from typing import Any
-from zoneinfo import ZoneInfo
 
-LOCAL_TZ = ZoneInfo("Asia/Damascus")
 _REF_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"   # no 0/O/1/I to avoid misreading
 
 
@@ -16,9 +14,6 @@ def booking_ref() -> str:
 def ticket_no(booking_ref_: str, index: int) -> str:
     return f"{booking_ref_}-{index:02d}{secrets.choice(string.digits)}"
 
-
-def local_date(dt: datetime) -> date:
-    return dt.astimezone(LOCAL_TZ).date()
 
 
 def iso(v: Any) -> Any:

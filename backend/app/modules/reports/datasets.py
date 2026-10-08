@@ -77,12 +77,12 @@ _add(Dataset(
     (
         Col("booking_ref", "b.booking_ref", group=False),
         Col("created_at", "b.created_at", TIME, group=False),
-        Col("created_date", "(b.created_at AT TIME ZONE 'Asia/Damascus')::date", DATE),
-        Col("created_month", "to_char(b.created_at AT TIME ZONE 'Asia/Damascus', 'YYYY-MM')"),
+        Col("created_date", "(b.created_at AT TIME ZONE __TZ__)::date", DATE),
+        Col("created_month", "to_char(b.created_at AT TIME ZONE __TZ__, 'YYYY-MM')"),
         Col("status", "b.status", values="booking_status"),
         Col("carrier", PARTY_NAME.format("b.company_id")),
         Col("trip_no", "t.trip_no"),
-        Col("departure_date", "(t.departure_at AT TIME ZONE 'Asia/Damascus')::date", DATE),
+        Col("departure_date", "(t.departure_at AT TIME ZONE __TZ__)::date", DATE),
         Col("origin_city", "o.city", values="cities"),
         Col("dest_city", "d.city", values="cities"),
         Col("channel", "CASE WHEN b.agency_id IS NOT NULL THEN 'AGENCY' WHEN b.channel_id IS NOT NULL THEN 'CHANNEL' ELSE 'DIRECT' END",
@@ -110,11 +110,11 @@ _add(Dataset(
     (
         Col("ticket_no", "k.ticket_no", group=False),
         Col("booking_ref", "b.booking_ref", group=False),
-        Col("created_date", "(k.created_at AT TIME ZONE 'Asia/Damascus')::date", DATE),
+        Col("created_date", "(k.created_at AT TIME ZONE __TZ__)::date", DATE),
         Col("status", "k.status", values="ticket_status"),
         Col("carrier", PARTY_NAME.format("t.company_id")),
         Col("trip_no", "t.trip_no"),
-        Col("departure_date", "(t.departure_at AT TIME ZONE 'Asia/Damascus')::date", DATE),
+        Col("departure_date", "(t.departure_at AT TIME ZONE __TZ__)::date", DATE),
         Col("from_station", "fs.name"),
         Col("to_station", "tsx.name"),
         Col("fare_brand", "k.fare_brand_code"),
@@ -140,7 +140,7 @@ _add(Dataset(
                              FROM ops.trip_stop ts WHERE ts.trip_id = t.id ORDER BY ts.seq LIMIT 1) dl ON true""",
     (
         Col("trip_no", "t.trip_no", group=False),
-        Col("departure_date", "(t.departure_at AT TIME ZONE 'Asia/Damascus')::date", DATE),
+        Col("departure_date", "(t.departure_at AT TIME ZONE __TZ__)::date", DATE),
         Col("departure_at", "t.departure_at", TIME, group=False),
         Col("status", "t.status", values="trip_status"),
         Col("carrier", PARTY_NAME.format("t.company_id")),
@@ -163,7 +163,7 @@ _add(Dataset(
     "ops.incident i LEFT JOIN fleet.vehicle v ON v.id = i.vehicle_id LEFT JOIN ops.trip t ON t.id = i.trip_id",
     (
         Col("occurred_at", "i.occurred_at", TIME, group=False),
-        Col("occurred_date", "(i.occurred_at AT TIME ZONE 'Asia/Damascus')::date", DATE),
+        Col("occurred_date", "(i.occurred_at AT TIME ZONE __TZ__)::date", DATE),
         Col("type", "i.type", values="incident_type"),
         Col("severity", "i.severity", values="severity"),
         Col("injuries", "i.injuries", BOOL),
@@ -181,8 +181,8 @@ _add(Dataset(
     "fin.ledger_entry e JOIN fin.ledger_txn x ON x.id = e.txn_id JOIN fin.wallet w ON w.id = e.wallet_id",
     (
         Col("created_at", "e.created_at", TIME, group=False),
-        Col("created_date", "(e.created_at AT TIME ZONE 'Asia/Damascus')::date", DATE),
-        Col("created_month", "to_char(e.created_at AT TIME ZONE 'Asia/Damascus', 'YYYY-MM')"),
+        Col("created_date", "(e.created_at AT TIME ZONE __TZ__)::date", DATE),
+        Col("created_month", "to_char(e.created_at AT TIME ZONE __TZ__, 'YYYY-MM')"),
         Col("txn_type", "x.txn_type", values="txn_type"),
         Col("direction", "e.direction", values="direction"),
         Col("wallet_type", "w.wallet_type", values="wallet_type"),
@@ -200,7 +200,7 @@ _add(Dataset(
     "fin.payment y LEFT JOIN fin.payment_provider pv ON pv.id = y.provider_id",
     (
         Col("created_at", "y.created_at", TIME, group=False),
-        Col("created_date", "(y.created_at AT TIME ZONE 'Asia/Damascus')::date", DATE),
+        Col("created_date", "(y.created_at AT TIME ZONE __TZ__)::date", DATE),
         Col("purpose", "y.purpose", values="payment_purpose"),
         Col("provider", "pv.code"),
         Col("method", "y.method", values="pay_method"),
@@ -226,7 +226,7 @@ _add(Dataset(
         Col("tax", "sb.tax", MONEY, group=False, agg=True),
         Col("refunds", "sb.refunds", MONEY, group=False, agg=True),
         Col("net", "sb.net", MONEY, group=False, agg=True),
-        Col("created_date", "(sb.created_at AT TIME ZONE 'Asia/Damascus')::date", DATE),
+        Col("created_date", "(sb.created_at AT TIME ZONE __TZ__)::date", DATE),
         Col("approved_at", "sb.approved_at", TIME, group=False),
     ),
     STAFF, "created_date", company_sql="sb.company_id", default_sort=("created_date", "desc")))
@@ -236,7 +236,7 @@ _add(Dataset(
     "fin.withdrawal_request wr",
     (
         Col("created_at", "wr.created_at", TIME, group=False),
-        Col("created_date", "(wr.created_at AT TIME ZONE 'Asia/Damascus')::date", DATE),
+        Col("created_date", "(wr.created_at AT TIME ZONE __TZ__)::date", DATE),
         Col("company", PARTY_NAME.format("wr.company_id")),
         Col("status", "wr.status", values="withdrawal_status"),
         Col("amount", "wr.amount", MONEY, group=False, agg=True),
@@ -260,7 +260,7 @@ _add(Dataset(
         Col("days_61_90", "a.days_61_90", MONEY, group=False, agg=True),
         Col("days_over_90", "a.days_over_90", MONEY, group=False, agg=True),
         Col("overdue", "a.overdue", MONEY, group=False, agg=True),
-        Col("oldest_unpaid_date", "(a.oldest_unpaid_at AT TIME ZONE 'Asia/Damascus')::date", DATE),
+        Col("oldest_unpaid_date", "(a.oldest_unpaid_at AT TIME ZONE __TZ__)::date", DATE),
         Col("oldest_unpaid_days", "(now()::date - a.oldest_unpaid_at::date)", INT, group=False, agg=True),
     ),
     STAFF, "oldest_unpaid_date", company_sql="a.company_id", default_sort=("overdue", "desc")))
@@ -288,8 +288,8 @@ _add(Dataset(
     "ship.shipment sh LEFT JOIN ship.service_product sp ON sp.id = sh.service_id",
     (
         Col("tracking_no", "sh.tracking_no", group=False),
-        Col("created_date", "(sh.created_at AT TIME ZONE 'Asia/Damascus')::date", DATE),
-        Col("created_month", "to_char(sh.created_at AT TIME ZONE 'Asia/Damascus', 'YYYY-MM')"),
+        Col("created_date", "(sh.created_at AT TIME ZONE __TZ__)::date", DATE),
+        Col("created_month", "to_char(sh.created_at AT TIME ZONE __TZ__, 'YYYY-MM')"),
         Col("status", "sh.status", values="shipment_status"),
         Col("carrier", PARTY_NAME.format("sh.company_id")),
         Col("service", "sp.name"),
@@ -308,7 +308,7 @@ _add(Dataset(
     "subscriptions", "services",
     "sales.subscription su LEFT JOIN sales.subscription_plan pl ON pl.id = su.plan_id",
     (
-        Col("created_date", "(su.created_at AT TIME ZONE 'Asia/Damascus')::date", DATE),
+        Col("created_date", "(su.created_at AT TIME ZONE __TZ__)::date", DATE),
         Col("plan", "pl.name"),
         Col("operator", PARTY_NAME.format("su.company_id")),
         Col("status", "su.status", values="subscription_status"),
@@ -325,7 +325,7 @@ _add(Dataset(
     "taxi.ride_request tr LEFT JOIN ref.city c ON c.id = tr.city_id",
     (
         Col("created_at", "tr.created_at", TIME, group=False),
-        Col("created_date", "(tr.created_at AT TIME ZONE 'Asia/Damascus')::date", DATE),
+        Col("created_date", "(tr.created_at AT TIME ZONE __TZ__)::date", DATE),
         Col("city", "c.code", values="cities"),
         Col("kind", "tr.kind", values="taxi_kind"),
         Col("status", "tr.status", values="taxi_status"),
@@ -340,7 +340,7 @@ _add(Dataset(
     "rentals", "services",
     "rent.rental_booking rb",
     (
-        Col("created_date", "(rb.created_at AT TIME ZONE 'Asia/Damascus')::date", DATE),
+        Col("created_date", "(rb.created_at AT TIME ZONE __TZ__)::date", DATE),
         Col("company", PARTY_NAME.format("rb.company_id")),
         Col("rental_class", "rb.rental_class"),
         Col("status", "rb.status", values="rental_status"),
@@ -357,7 +357,7 @@ _add(Dataset(
     """frt.freight_request fr
        LEFT JOIN LATERAL (SELECT count(*) AS bids, min(price) AS best FROM frt.freight_bid fb WHERE fb.request_id = fr.id) bd ON true""",
     (
-        Col("created_date", "(fr.created_at AT TIME ZONE 'Asia/Damascus')::date", DATE),
+        Col("created_date", "(fr.created_at AT TIME ZONE __TZ__)::date", DATE),
         Col("shipper", f"coalesce({PARTY_NAME.format('fr.shipper_company_id')}, {PARTY_NAME.format('fr.shipper_party_id')})", personal=True),
         Col("origin_city", CITY_OF_STATION.format("fr.origin_station_id"), values="cities"),
         Col("dest_city", CITY_OF_STATION.format("fr.dest_station_id"), values="cities"),
@@ -384,7 +384,7 @@ _add(Dataset(
         Col("manufacture_year", "v.manufacture_year", INT),
         Col("passenger_seats", "v.passenger_seats", INT, group=False, agg=True),
         Col("status", "v.status", values="vehicle_status"),
-        Col("created_date", "(v.created_at AT TIME ZONE 'Asia/Damascus')::date", DATE),
+        Col("created_date", "(v.created_at AT TIME ZONE __TZ__)::date", DATE),
     ),
     STAFF, "created_date", company_sql="v.company_id", default_sort=("plate_no", "asc")))
 
@@ -400,7 +400,7 @@ _add(Dataset(
         Col("issue_date", "dc.issue_date", DATE),
         Col("expiry_date", "dc.expiry_date", DATE),
         Col("days_left", "dc.expiry_date - current_date", INT, group=False),
-        Col("created_date", "(dc.created_at AT TIME ZONE 'Asia/Damascus')::date", DATE),
+        Col("created_date", "(dc.created_at AT TIME ZONE __TZ__)::date", DATE),
     ),
     STAFF, "created_date", company_sql="dc.company_id", default_sort=("expiry_date", "asc")))
 
@@ -409,7 +409,7 @@ _add(Dataset(
     """sales.ticket_doc td JOIN sales.ticket k ON k.id = td.ticket_id JOIN ops.trip t ON t.id = k.trip_id
        JOIN sales.passenger p ON p.id = k.passenger_id""",
     (
-        Col("departure_date", "(t.departure_at AT TIME ZONE 'Asia/Damascus')::date", DATE),
+        Col("departure_date", "(t.departure_at AT TIME ZONE __TZ__)::date", DATE),
         Col("carrier", PARTY_NAME.format("t.company_id")),
         Col("trip_no", "t.trip_no"),
         Col("dest_country", "td.dest_country", values="countries"),
@@ -434,7 +434,7 @@ _add(Dataset(
         Col("cr_no", "co.cr_no", group=False),
         Col("cr_expiry", "co.cr_expiry", DATE),
         Col("settlement_cycle", "co.settlement_cycle"),
-        Col("created_date", "(co.created_at AT TIME ZONE 'Asia/Damascus')::date", DATE),
+        Col("created_date", "(co.created_at AT TIME ZONE __TZ__)::date", DATE),
         Col("approved_at", "co.approved_at", TIME, group=False),
     ),
     PLATFORM, "created_date", default_sort=("created_date", "desc")))
@@ -444,7 +444,7 @@ _add(Dataset(
     "audit.auth_event ae",
     (
         Col("ts", "ae.ts", TIME, group=False),
-        Col("date", "(ae.ts AT TIME ZONE 'Asia/Damascus')::date", DATE),
+        Col("date", "(ae.ts AT TIME ZONE __TZ__)::date", DATE),
         Col("event", "ae.event"),
         Col("portal", "ae.portal", values="portal"),
         Col("result", "ae.result"),

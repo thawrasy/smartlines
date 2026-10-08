@@ -7,7 +7,7 @@ from typing import Literal, Optional
 from fastapi import APIRouter, Depends, Request, Response
 from pydantic import BaseModel, EmailStr, Field
 
-from .. import crypto, db, mfa
+from .. import crypto, db, markets, mfa
 from ..config import get_settings
 from ..deps import SESSION_COOKIE, Principal, base_context, mfa_required_for, require_session, require_user
 from ..errors import ApiError
@@ -93,7 +93,8 @@ async def register(body: RegisterIn, request: Request):
                VALUES ($1, 'CUSTOMER', $2, $3, $4, now(), 'ACTIVE', $5) RETURNING id""",
             party_id, body.email, body.mobile, hash_password(body.password), locale)
         await conn.execute(
-            "INSERT INTO fin.wallet (owner_party_id, wallet_type, label, currency) VALUES ($1, 'USER', 'Passenger wallet', 'SYP')",
+            # the passenger's market currency (1061): the default market until a country is known
+            "INSERT INTO fin.wallet (owner_party_id, wallet_type, label, currency) VALUES ($1, 'USER', 'Passenger wallet', ref.company_currency($1))",
             party_id)
     request.state.audit = {"action": "auth.register", "object_type": "app_user", "object_id": user_id}
     return {"ok": True}
@@ -265,19 +266,21 @@ async def logout(request: Request, response: Response, principal: Principal = De
 @router.get("/me")
 async def me(request: Request, principal: Principal = Depends(require_user)):
     company = None
-    if principal.company_id:
-        ctx = base_context(request)
-        ctx.scope = "SYSTEM"
-        async with db.transaction(ctx) as conn:
+    ctx = base_context(request)
+    ctx.scope = "SYSTEM"
+    async with db.transaction(ctx) as conn:
+        if principal.company_id:
             row = await conn.fetchrow(
                 "SELECT p.legal_name, p.uid FROM iam.party p WHERE p.id = $1", principal.company_id)
             code = await conn.fetchval(
                 "SELECT code3 FROM net.carrier_code WHERE company_id = $1 AND status = 'ACTIVE' LIMIT 1",
                 principal.company_id)
             company = {"name": row["legal_name"], "uid": str(row["uid"]), "code": code}
+        # the market the screens show times and money in (1061): the company's, or the person's
+        market = (await markets.of_party(conn, principal.company_id or principal.party_id)).public()
     return {
         "uid": principal.user_uid, "name": principal.display_name, "email": principal.email,
-        "portal": principal.portal, "locale": principal.locale, "company": company,
+        "portal": principal.portal, "locale": principal.locale, "company": company, "market": market,
         "roles": sorted(principal.roles), "permissions": sorted(principal.permissions), "is_owner": principal.is_owner,
         "mfa": {"enrolled": principal.mfa_enrolled, "required": principal.mfa_required},
     }
