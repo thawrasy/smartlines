@@ -24,6 +24,9 @@ probe CONNECT 127.0.0.1:443 403            # loopback
 probe CONNECT localhost:443 403            # a name that resolves to loopback
 probe CONNECT "[::1]:443" 403              # IPv6 loopback
 probe CONNECT "[::ffff:127.0.0.1]:443" 403 # IPv4-mapped IPv6
+probe CONNECT 100.100.100.200:443 403      # shared address space 100.64.0.0/10 (a cloud metadata service lives here)
+probe CONNECT "[64:ff9b::a9fe:a9fe]:443" 403 # NAT64 form of 169.254.169.254
+probe CONNECT 2130706433:443 403           # 127.0.0.1 written as one number
 probe CONNECT not-allowlisted.example:443 403
 probe GET http://example.com/ 403          # plain HTTP
 [ -n "$ALLOWED" ] && probe CONNECT "$ALLOWED:22" 403   # an allowlisted name, wrong port

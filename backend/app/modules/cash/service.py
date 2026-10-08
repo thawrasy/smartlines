@@ -236,8 +236,12 @@ async def positions(conn: asyncpg.Connection) -> list[dict]:
         """SELECT c.id AS company_id, p.legal_name AS name, c.company_type, fin.cash_owed(c.id, $1) AS owed,
                   fin.cash_limit(c.id) AS limit_amount, l.reason AS limit_reason, l.set_at AS limit_set_at,
                   (SELECT max(r.confirmed_at) FROM fin.cash_remittance r WHERE r.company_id = c.id AND r.status = 'CONFIRMED') AS last_remitted_at,
-                  (SELECT coalesce(sum(r.amount), 0) FROM fin.cash_remittance r WHERE r.company_id = c.id AND r.status = 'PENDING')::bigint AS pending
+                  (SELECT coalesce(sum(r.amount), 0) FROM fin.cash_remittance r WHERE r.company_id = c.id AND r.status = 'PENDING')::bigint AS pending,
+                  coalesce(a.days_0_7, 0) AS days_0_7, coalesce(a.days_8_30, 0) AS days_8_30, coalesce(a.days_31_60, 0) AS days_31_60,
+                  coalesce(a.days_61_90, 0) AS days_61_90, coalesce(a.days_over_90, 0) AS days_over_90,
+                  coalesce(a.overdue, 0) AS overdue, a.oldest_unpaid_at
              FROM iam.company c JOIN iam.party p ON p.id = c.id LEFT JOIN fin.cash_credit_limit l ON l.company_id = c.id
+             LEFT JOIN fin.cash_aging(now(), $1) a ON a.company_id = c.id
             WHERE c.company_type IN ('CARRIER','INDIVIDUAL_OPERATOR','FOREIGN_CARRIER') AND c.approval_status = 'APPROVED'
             ORDER BY 4 DESC, p.legal_name""", CURRENCY)
     return [{**row_dict(r), "own_limit": r["limit_reason"] is not None} for r in rows]

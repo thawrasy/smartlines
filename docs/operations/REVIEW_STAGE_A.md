@@ -30,6 +30,8 @@ with real data. Stages B to D cover the launch gates, scale and growth (section 
 
 ## 3. What comes after stage A
 
+Stage B is done as far as code and tooling go; see [REVIEW_STAGE_B.md](REVIEW_STAGE_B.md).
+
 - **Stage B, before general launch:**
   - the nine launch gates of [LAUNCH_GATES.md](LAUNCH_GATES.md);
   - a booking burst test at 240 per second;

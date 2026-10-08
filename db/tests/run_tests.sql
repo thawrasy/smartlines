@@ -1854,6 +1854,41 @@ SELECT pg_temp.ok(has_function_privilege('masslak_app', 'sales.expire_reservatio
   AND NOT has_function_privilege('public', 'sales.expire_reservations()', 'EXECUTE')
   AND NOT has_function_privilege('public', 'fin.cash_owed(bigint, character)', 'EXECUTE'),
   'Payment options: the expiry job and the cash figures run for the application only');
+-- Review stage B (1057): ageing of the cash a carrier owes, oldest sales paid first. Closed ledger days refuse
+-- back-dated entries, so the sales are placed ahead of now and aged as of a later day (now + 100 days)
+BEGIN;
+SELECT sys.set_context(:uadmin, NULL, 'SYSTEM');
+INSERT INTO fin.wallet (owner_party_id, company_id, wallet_type, label, currency, allow_negative, balance_mode)
+VALUES (:ca, :ca, 'CASH_COLLECT', 'Counter cash', 'SYP', true, 'IMMEDIATE') RETURNING id AS ag_cash \gset
+SELECT w.id AS ag_escrow FROM fin.wallet w JOIN iam.party p ON p.id = w.owner_party_id
+ WHERE p.legal_name = 'Masslak Platform' AND w.wallet_type = 'ESCROW' AND w.currency = 'SYP' \gset
+INSERT INTO fin.ledger_txn (txn_type, currency, idempotency_key) VALUES ('BOOKING_PAY', 'SYP', 'ag-1') RETURNING id AS ag_t1 \gset
+INSERT INTO fin.ledger_entry (txn_id, wallet_id, direction, amount, created_at)
+VALUES (:ag_t1, :ag_cash, 'DR', 3000, now()), (:ag_t1, :ag_escrow, 'CR', 3000, now());
+INSERT INTO fin.ledger_txn (txn_type, currency, idempotency_key) VALUES ('BOOKING_PAY', 'SYP', 'ag-2') RETURNING id AS ag_t2 \gset
+INSERT INTO fin.ledger_entry (txn_id, wallet_id, direction, amount, created_at)
+VALUES (:ag_t2, :ag_cash, 'DR', 2000, now() + interval '60 days'), (:ag_t2, :ag_escrow, 'CR', 2000, now() + interval '60 days');
+INSERT INTO fin.ledger_txn (txn_type, currency, idempotency_key) VALUES ('BOOKING_PAY', 'SYP', 'ag-3') RETURNING id AS ag_t3 \gset
+INSERT INTO fin.ledger_entry (txn_id, wallet_id, direction, amount, created_at)
+VALUES (:ag_t3, :ag_cash, 'DR', 1000, now() + interval '98 days'), (:ag_t3, :ag_escrow, 'CR', 1000, now() + interval '98 days');
+INSERT INTO fin.ledger_txn (txn_type, currency, idempotency_key) VALUES ('CASH_NETTING', 'SYP', 'ag-4') RETURNING id AS ag_t4 \gset
+INSERT INTO fin.ledger_entry (txn_id, wallet_id, direction, amount, created_at)
+VALUES (:ag_t4, :ag_escrow, 'DR', 3500, now() + interval '99 days'), (:ag_t4, :ag_cash, 'CR', 3500, now() + interval '99 days');
+SELECT pg_temp.ok((SELECT row(owed, days_0_7, days_8_30, days_31_60, days_61_90, days_over_90, overdue)::text = '(2500,1000,0,1500,0,0,1500)'
+                          AND oldest_unpaid_at = now() + interval '60 days' FROM fin.cash_aging(now() + interval '100 days') WHERE company_id = :ca),
+  'Cash ageing: 6,000 sold and 3,500 set off leave 2,500 owed, made of the newest sales (1,000 of this week, 1,500 of a 40-day-old sale)');
+SELECT pg_temp.ok((SELECT row(owed, days_31_60, overdue)::text = '(3000,3000,3000)' FROM fin.cash_aging(now() + interval '50 days') WHERE company_id = :ca),
+  'Cash ageing: asked for an earlier day, only what was owed then counts, aged from that day');
+SELECT pg_temp.ok((SELECT count(*) FROM sys.finance_metrics()) = 4
+  AND (SELECT value FROM sys.finance_metrics() WHERE metric = 'masslak_cash_owed_minor') = (SELECT coalesce(sum(owed), 0) FROM fin.cash_aging()),
+  'Cash ageing: what is owed and overdue reaches monitoring');
+SELECT sys.set_context(NULL, :cb, 'COMPANY');
+SELECT pg_temp.ok(NOT EXISTS (SELECT 1 FROM fin.cash_aging(now() + interval '100 days') WHERE company_id = :ca),
+  'Cash ageing: another carrier does not see what this one owes');
+ROLLBACK;
+SELECT pg_temp.ok(NOT has_function_privilege('public', 'fin.cash_aging(timestamp with time zone, character)', 'EXECUTE')
+  AND has_function_privilege('masslak_app', 'sys.finance_metrics()', 'EXECUTE'),
+  'Cash ageing: the figures are for the application, not for everyone');
 SELECT pg_temp.ok(has_table_privilege('masslak_app', 'sys.schema_file', 'SELECT')
   AND NOT has_table_privilege('masslak_app', 'sys.schema_file', 'INSERT')
   AND NOT has_table_privilege('masslak_app', 'sys.schema_file', 'UPDATE')

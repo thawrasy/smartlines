@@ -8,8 +8,12 @@
       X-Masslak-Signature: t=<unix seconds>,v1=<hex HMAC-SHA256(secret, "<t>." + body)>
   Receivers check the signature and reject timestamps older than five minutes (replay).
 * Retries back off 1, 2, 4 ... 64 minutes; after eight failures the delivery is DEAD (kept for the console).
-* Only https URLs. The address is resolved once, checked against private, loopback and link-local ranges (SSRF),
-  and the connection goes to that checked address with the hostname kept for TLS verification.
+* Only https URLs on port 443 with a public name or address. The address is resolved once per attempt, checked against
+  every range that is not globally reachable (private, loopback, link-local, shared 100.64.0.0/10, documentation,
+  benchmarking, reserved; IPv4 inside IPv6 is checked as IPv4, NAT64 included), and the connection goes to that checked
+  address with the hostname kept for TLS verification (SSRF and DNS rebinding, review stage B).
+* A delivery has a total deadline (DEADLINE) on top of the per-read timeout, so an endpoint that answers one byte at a
+  time cannot hold a worker thread.
 * Endpoint secrets are encrypted at rest (AES-GCM, key kms://masslak/webhook/v1) and shown once when created.
 """
 from __future__ import annotations
@@ -22,9 +26,11 @@ import ipaddress
 import json
 import logging
 import os
+import re
 import secrets
 import socket
 import ssl
+import threading
 import time
 import uuid
 from typing import Optional
@@ -43,6 +49,11 @@ SECRET_COLUMN = "sys.webhook_endpoint.secret"
 KEY_REF = "kms://masslak/webhook/v1"
 MAX_ATTEMPTS = 8
 TIMEOUT = 10
+DEADLINE = 30                     # seconds for a whole delivery: connect, TLS, request and response
+# names that never belong to a partner on the public internet (RFC 6761, RFC 8375 and common internal suffixes)
+INTERNAL_SUFFIXES = (".localhost", ".local", ".internal", ".intranet", ".lan", ".home.arpa", ".corp", ".localdomain",
+                     ".private", ".test", ".invalid", ".example")
+NAT64 = (ipaddress.ip_network("64:ff9b::/96"), ipaddress.ip_network("64:ff9b:1::/48"))
 
 
 def new_secret() -> str:
@@ -69,20 +80,51 @@ def _allow_private() -> bool:
 
 
 def _public(addr: str) -> bool:
-    a = ipaddress.ip_address(addr)
-    return not (a.is_private or a.is_loopback or a.is_link_local or a.is_reserved or a.is_multicast or a.is_unspecified)
+    """Globally reachable only: is_global leaves out the shared range 100.64.0.0/10 that is_private keeps in (cloud
+    metadata services live there too), and an IPv4 address carried inside IPv6 is judged as that IPv4 address."""
+    a = ipaddress.ip_address(addr.split("%", 1)[0])
+    if isinstance(a, ipaddress.IPv6Address):
+        if a.ipv4_mapped is not None:
+            return _public(str(a.ipv4_mapped))
+        if any(a in n for n in NAT64):
+            return _public(str(ipaddress.IPv4Address(int(a) & 0xFFFFFFFF)))
+    return a.is_global and not (a.is_multicast or a.is_reserved or a.is_unspecified or a.is_loopback or a.is_link_local)
+
+
+def _literal(host: str):
+    """The address a host names by itself, in any spelling the resolver accepts (127.1, 2130706433, 0x7f.0.0.1)."""
+    try:
+        return ipaddress.ip_address(host.split("%", 1)[0])
+    except ValueError:
+        pass
+    if re.fullmatch(r"[0-9a-fA-FxX.]+", host) and not re.search(r"[g-wyzG-WYZ]", host):
+        try:
+            return ipaddress.IPv4Address(socket.inet_aton(host))
+        except OSError:
+            return None
+    return None
 
 
 def check_url(url: str) -> str:
     """Registration check; the delivery repeats the address check on every attempt (DNS can change)."""
     u = urlparse(url.strip())
-    if u.scheme != "https" or not u.hostname or u.username or u.password or len(url) > 500:
-        raise ApiError(422, "WEBHOOK_URL_INVALID", "the endpoint must be an https URL without credentials")
     try:
-        literal = ipaddress.ip_address(u.hostname)
+        port = u.port
     except ValueError:
-        literal = None
-    if literal is not None and not _public(str(literal)) and not _allow_private():
+        port = -1
+    if u.scheme != "https" or not u.hostname or u.username or u.password or len(url) > 500 or port == -1:
+        raise ApiError(422, "WEBHOOK_URL_INVALID", "the endpoint must be an https URL without credentials")
+    if _allow_private():
+        return url.strip()
+    host = u.hostname.rstrip(".").lower()
+    literal = _literal(host)
+    if literal is not None and not _public(str(literal)):
+        raise ApiError(422, "WEBHOOK_URL_NOT_PUBLIC", "the endpoint must be reachable on the public internet")
+    if get_settings().sandbox:
+        return url.strip()            # test servers register local receivers by name; delivery still checks the address
+    if port not in (None, 443):
+        raise ApiError(422, "WEBHOOK_URL_PORT", "the endpoint must use the standard HTTPS port (443)")
+    if literal is None and ("." not in host or host == "localhost" or host.endswith(INTERNAL_SUFFIXES)):
         raise ApiError(422, "WEBHOOK_URL_NOT_PUBLIC", "the endpoint must be reachable on the public internet")
     return url.strip()
 
@@ -137,8 +179,43 @@ class DeliveryError(Exception):
     pass
 
 
+class _Deadline:
+    """Shuts the delivery's socket down when the total deadline passes, which ends any read in progress."""
+
+    def __init__(self, seconds: float):
+        self.sock, self.fired = None, threading.Event()
+        self.timer = threading.Timer(seconds, self._fire)
+        self.timer.daemon = True
+
+    def _fire(self):
+        self.fired.set()
+        try:
+            if self.sock is not None:
+                self.sock.shutdown(socket.SHUT_RDWR)
+        except OSError:
+            pass
+
+    def __enter__(self):
+        self.timer.start()
+        return self
+
+    def __exit__(self, *exc):
+        self.timer.cancel()
+        return False
+
+
 def post(url: str, body: bytes, headers: dict) -> int:
     """POSTs to the checked address of the URL's host; returns the HTTP status."""
+    with _Deadline(DEADLINE) as deadline:
+        try:
+            return _post(url, body, headers, deadline)
+        except (OSError, http.client.HTTPException) as exc:
+            if deadline.fired.is_set():
+                raise DeliveryError(f"DEADLINE: no complete answer within {DEADLINE} s") from exc
+            raise
+
+
+def _post(url: str, body: bytes, headers: dict, deadline: _Deadline) -> int:
     u = urlparse(url)
     host, port = u.hostname or "", u.port or 443
     if u.scheme != "https":
@@ -166,9 +243,11 @@ def post(url: str, body: bytes, headers: dict) -> int:
             last = exc
     if raw is None:
         raise last
+    deadline.sock = raw
     conn = http.client.HTTPSConnection(host, port, timeout=TIMEOUT, context=ctx)
     try:
         conn.sock = ctx.wrap_socket(raw, server_hostname=host)
+        deadline.sock = conn.sock
         conn.request("POST", (u.path or "/") + (f"?{u.query}" if u.query else ""), body=body, headers=headers)
         r = conn.getresponse()
         r.read(4096)

@@ -15,7 +15,11 @@ interface Dataset { key: string; category: string; title: string; date_col: stri
 interface Saved { uid: string; name: string; description: string | null; dataset: string; spec: Spec; shared: boolean; mine: boolean }
 interface Catalog { reports: CatalogReport[]; datasets: Dataset[]; categories: Record<string, string>; saved: Saved[]; can_custom: boolean; can_schedule: boolean }
 interface OutCol { key: string; label: string; type: ColType; values: string; agg: string }
-interface RunResult { columns: OutCol[]; rows: Record<string, unknown>[]; labels: Record<string, Record<string, string>>; totals: Record<string, number>; truncated: boolean; period: string; duration_ms: number }
+interface Freshness { class: string; lag_seconds: number | null; limit_seconds: number; stale: boolean }
+interface RunResult {
+  columns: OutCol[]; rows: Record<string, unknown>[]; labels: Record<string, Record<string, string>>; totals: Record<string, number>;
+  truncated: boolean; period: string; duration_ms: number; freshness?: Freshness | null;
+}
 interface Schedule { uid: string; report_code: string | null; definition_name: string | null; frequency: string; format: string; recipients: string[]; next_run_at: string; last_run_at: string | null; active: boolean }
 
 /** What to run: a catalog report, a saved custom report, or an unsaved spec from the builder. */
@@ -292,6 +296,11 @@ function ResultTable({ res, title, chart }: { res: RunResult; title: string; cha
           <span>{t("rpt.period")}: {res.period}</span>
           <span>{t("rpt.rows", { n: res.rows.length })}{res.truncated ? ` · ${t("rpt.truncated")}` : ""} · {res.duration_ms} ms</span>
         </div>
+        {res.freshness?.stale && (
+          <div className="alert warn" role="status">
+            <Icon name="schedule" /><span>{t("rpt.stale", { s: Math.round(res.freshness.lag_seconds ?? 0) })}</span>
+          </div>
+        )}
         {res.rows.length === 0 ? <Empty icon="summarize" title={t("rpt.empty")} /> : (
           <div className="table-wrap"><table className="table report-table">
             <thead><tr>{res.columns.map((c) => <th key={c.key} className={numeric(c) ? "num" : ""}>{c.label}</th>)}</tr></thead>

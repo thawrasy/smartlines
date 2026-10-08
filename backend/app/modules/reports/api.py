@@ -17,7 +17,7 @@ from pydantic import BaseModel, Field, field_validator
 from ... import db
 from ...deps import Principal, context_for, require_user
 from ...errors import ApiError, forbidden, not_found
-from . import engine, export
+from . import engine, export, freshness
 from .datasets import DATASETS
 
 router = APIRouter(prefix="/api/reports", tags=["reports"])
@@ -165,8 +165,10 @@ async def _execute(request: Request, pr: Principal, v: engine.Viewer, body: RunI
         dataset, spec, params, code, def_id = await _resolve(conn, v, pr, body)
         name = await conn.fetchval("SELECT name FROM rpt.report_definition WHERE id = $1", def_id) if def_id else None
         if DATASETS.get(dataset) is None or DATASETS[dataset].reader == "app":
+            fresh = await freshness.check(dataset, spec, conn)    # a financial report on a stale replica stops here
             res = await engine.run(conn, v, dataset=dataset, spec=spec, params=params, limit=limit)
             res.data_as_of = await db.data_as_of(conn)
+            res.freshness = fresh
             return res, dataset, params, code, def_id, name
     async with db.audit_reader() as aconn:
         res = await engine.run(aconn, v, dataset=dataset, spec=spec, params=params, limit=limit)
@@ -188,6 +190,7 @@ async def run(body: RunIn, request: Request, pr: Principal = Depends(require_use
         "labels": {c.key: _value_labels(c.values, loc) for c in res.columns if c.values},
         "totals": {k: _plain(v) for k, v in res.totals.items()},
         "period": _period_text(params, loc),
+        "freshness": res.freshness,
         **export.provenance(res),
     }
 

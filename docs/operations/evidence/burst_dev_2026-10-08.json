@@ -1,0 +1,320 @@
+{
+ "what": "Booking burst test (review stage B, launch gate 3): development host, NOT capacity evidence",
+ "date": "2026-10-08",
+ "tool": "python -m loadtest.burst --base <api> --owner-dsn <owner> --rate R --seconds S --accounts N (backend/loadtest/burst.py)",
+ "host": "4 vCPU shared by PostgreSQL 16, the API (3 uvicorn workers), the notify worker and the load generator; demo data",
+ "scenario": "4 busy trips; each arrival: seat map, hold (another seat once if taken), book and pay from the wallet, cancel for a refund (cancel ratio 1.0 keeps seats available)",
+ "finding": {
+  "observed": "Under the burst every refund waited on one row: the platform escrow wallet. A debit of a shared (DEFERRED) wallet locks it until commit so that it stays covered (1052), and the refund was posted in the middle of the cancellation, so the lock was held through the allocation updates and the outbox event.",
+  "fix": "The refund is posted last in sales.cancel_booking, so the escrow wallet is held only from the posting to the commit.",
+  "evidence_before_after_30_per_second": {
+   "refund_in_the_middle": {
+    "target_per_second": 30.0,
+    "seconds": 30,
+    "verdict": "FAIL",
+    "bookings_per_second": 23.5,
+    "p95_ms": {
+     "seat_map": 1226.0,
+     "hold": 1841.1,
+     "book_pay": 3136.5,
+     "cancel_refund": 3195.7
+    },
+    "p99_ms": {
+     "hold": 2253.4,
+     "book_pay": 3920.4
+    },
+    "errors": 0,
+    "outcomes": {
+     "booked": 806,
+     "refunded": 806,
+     "seat_taken": 381,
+     "sold_out": 0,
+     "failed": 0,
+     "dropped": 0
+    },
+    "lock_waiters_max": 55,
+    "lock_wait_longest_s": 1.966,
+    "deadlocks": 0,
+    "wal_mb": 49.37,
+    "host_load_1m": 6.26,
+    "integrity": {
+     "double_sold_seats": 0,
+     "ledger_transactions": 1612,
+     "unbalanced_transactions": 0,
+     "wallets_reconciled": 2822,
+     "wallet_mismatches": 0
+    }
+   },
+   "refund_posted_last_probe": "PASS, hold p95 29.6 ms, book p95 82.4 ms (burst_probe2)",
+   "note": "30 a second is this host's knee: the fixed version passed once (probe run) and failed in a later run (burst_fixed_30 below) as the database grew; single runs this close to saturation are noisy. The fair comparison is the alternating runs at 25 a second: both versions pass, and posting the refund last lowers book p95 by 22 to 30 % and refund p95 by 23 to 33 %."
+  },
+  "alternating_runs_25_per_second": {
+   "ab_fixed_1": {
+    "target_per_second": 25.0,
+    "seconds": 20,
+    "verdict": "PASS",
+    "bookings_per_second": 24.9,
+    "p95_ms": {
+     "seat_map": 29.7,
+     "hold": 30.2,
+     "book_pay": 86.5,
+     "cancel_refund": 60.5
+    },
+    "p99_ms": {
+     "hold": 40.8,
+     "book_pay": 113.8
+    },
+    "errors": 0,
+    "outcomes": {
+     "booked": 500,
+     "refunded": 500,
+     "seat_taken": 0,
+     "sold_out": 0,
+     "failed": 0,
+     "dropped": 0
+    },
+    "lock_waiters_max": 0,
+    "lock_wait_longest_s": 0.0,
+    "deadlocks": 0,
+    "wal_mb": 18.5,
+    "host_load_1m": 4.04,
+    "integrity": {
+     "double_sold_seats": 0,
+     "ledger_transactions": 1000,
+     "unbalanced_transactions": 0,
+     "wallets_reconciled": 4322,
+     "wallet_mismatches": 0
+    }
+   },
+   "ab_orig_1": {
+    "target_per_second": 25.0,
+    "seconds": 20,
+    "verdict": "PASS",
+    "bookings_per_second": 24.9,
+    "p95_ms": {
+     "seat_map": 44.4,
+     "hold": 41.6,
+     "book_pay": 124.5,
+     "cancel_refund": 78.9
+    },
+    "p99_ms": {
+     "hold": 64.8,
+     "book_pay": 183.3
+    },
+    "errors": 0,
+    "outcomes": {
+     "booked": 500,
+     "refunded": 500,
+     "seat_taken": 0,
+     "sold_out": 0,
+     "failed": 0,
+     "dropped": 0
+    },
+    "lock_waiters_max": 1,
+    "lock_wait_longest_s": 0.007,
+    "deadlocks": 0,
+    "wal_mb": 18.04,
+    "host_load_1m": 3.03,
+    "integrity": {
+     "double_sold_seats": 0,
+     "ledger_transactions": 1000,
+     "unbalanced_transactions": 0,
+     "wallets_reconciled": 4622,
+     "wallet_mismatches": 0
+    }
+   },
+   "ab_fixed_2": {
+    "target_per_second": 25.0,
+    "seconds": 20,
+    "verdict": "PASS",
+    "bookings_per_second": 24.9,
+    "p95_ms": {
+     "seat_map": 55.4,
+     "hold": 54.1,
+     "book_pay": 144.7,
+     "cancel_refund": 103.5
+    },
+    "p99_ms": {
+     "hold": 71.7,
+     "book_pay": 192.8
+    },
+    "errors": 0,
+    "outcomes": {
+     "booked": 500,
+     "refunded": 500,
+     "seat_taken": 0,
+     "sold_out": 0,
+     "failed": 0,
+     "dropped": 0
+    },
+    "lock_waiters_max": 3,
+    "lock_wait_longest_s": 0.122,
+    "deadlocks": 0,
+    "wal_mb": 32.44,
+    "host_load_1m": 3.51,
+    "integrity": {
+     "double_sold_seats": 0,
+     "ledger_transactions": 1000,
+     "unbalanced_transactions": 0,
+     "wallets_reconciled": 4922,
+     "wallet_mismatches": 0
+    }
+   },
+   "ab_orig_2": {
+    "target_per_second": 25.0,
+    "seconds": 20,
+    "verdict": "PASS",
+    "bookings_per_second": 24.8,
+    "p95_ms": {
+     "seat_map": 54.7,
+     "hold": 53.5,
+     "book_pay": 186.3,
+     "cancel_refund": 154.7
+    },
+    "p99_ms": {
+     "hold": 86.4,
+     "book_pay": 264.7
+    },
+    "errors": 0,
+    "outcomes": {
+     "booked": 500,
+     "refunded": 500,
+     "seat_taken": 1,
+     "sold_out": 0,
+     "failed": 0,
+     "dropped": 0
+    },
+    "lock_waiters_max": 3,
+    "lock_wait_longest_s": 0.076,
+    "deadlocks": 0,
+    "wal_mb": 19.12,
+    "host_load_1m": 4.51,
+    "integrity": {
+     "double_sold_seats": 0,
+     "ledger_transactions": 1000,
+     "unbalanced_transactions": 0,
+     "wallets_reconciled": 5222,
+     "wallet_mismatches": 0
+    }
+   }
+  },
+  "remaining_limit": "Escrow debits (refunds, releases) still pass one at a time; their rate is bounded by the commit time of one transaction (about 1 ms on NVMe). The launch peak needs about 24 refunds a second (10 % of 240 bookings), far below. Watch masslak_db_lock_waiters during the staging burst; per-carrier escrow wallets are the next step if it shows (stage D)."
+ },
+ "dev_host_limit": {
+  "knee_bookings_per_second": "25 to 30 (about 100 to 120 API requests a second, CPU-bound: load average above 5 on 4 vCPU)",
+  "runs": {
+   "burst_fixed_30": {
+    "target_per_second": 30.0,
+    "seconds": 30,
+    "verdict": "FAIL",
+    "bookings_per_second": 27.9,
+    "p95_ms": {
+     "seat_map": 437.5,
+     "hold": 654.8,
+     "book_pay": 1514.3,
+     "cancel_refund": 1945.4
+    },
+    "p99_ms": {
+     "hold": 1032.3,
+     "book_pay": 2250.5
+    },
+    "errors": 0,
+    "outcomes": {
+     "booked": 897,
+     "refunded": 897,
+     "seat_taken": 18,
+     "sold_out": 0,
+     "failed": 0,
+     "dropped": 0
+    },
+    "lock_waiters_max": 47,
+    "lock_wait_longest_s": 2.069,
+    "deadlocks": 0,
+    "wal_mb": 33.14,
+    "host_load_1m": 5.3,
+    "integrity": {
+     "double_sold_seats": 0,
+     "ledger_transactions": 1794,
+     "unbalanced_transactions": 0,
+     "wallets_reconciled": 3622,
+     "wallet_mismatches": 0
+    }
+   },
+   "burst_fixed_35": {
+    "target_per_second": 35.0,
+    "seconds": 30,
+    "verdict": "FAIL",
+    "bookings_per_second": 30.5,
+    "p95_ms": {
+     "seat_map": 629.3,
+     "hold": 1102.6,
+     "book_pay": 2172.4,
+     "cancel_refund": 2182.2
+    },
+    "p99_ms": {
+     "hold": 1475.3,
+     "book_pay": 2758.2
+    },
+    "errors": 0,
+    "outcomes": {
+     "booked": 1037,
+     "refunded": 1037,
+     "seat_taken": 99,
+     "sold_out": 0,
+     "failed": 0,
+     "dropped": 0
+    },
+    "lock_waiters_max": 54,
+    "lock_wait_longest_s": 1.239,
+    "deadlocks": 0,
+    "wal_mb": 43.7,
+    "host_load_1m": 7.4,
+    "integrity": {
+     "double_sold_seats": 0,
+     "ledger_transactions": 2074,
+     "unbalanced_transactions": 0,
+     "wallets_reconciled": 4022,
+     "wallet_mismatches": 0
+    }
+   },
+   "burst_local_40d": {
+    "target_per_second": 40.0,
+    "seconds": 30,
+    "verdict": "FAIL",
+    "bookings_per_second": 23.7,
+    "p95_ms": {
+     "seat_map": 1631.6,
+     "hold": 2686.6,
+     "book_pay": 3655.0,
+     "cancel_refund": 3801.5
+    },
+    "p99_ms": {
+     "hold": 3217.1,
+     "book_pay": 4365.0
+    },
+    "errors": 5,
+    "outcomes": {
+     "booked": 835,
+     "refunded": 835,
+     "seat_taken": 1009,
+     "sold_out": 0,
+     "failed": 5,
+     "dropped": 0
+    },
+    "lock_waiters_max": 45,
+    "lock_wait_longest_s": 1.876,
+    "deadlocks": 0,
+    "wal_mb": 47.27,
+    "host_load_1m": 6.3,
+    "integrity": {
+     "double_sold_seats": 0,
+     "ledger_transactions": 1670,
+     "unbalanced_transactions": 0,
+     "wallets_reconciled": 2022,
+     "wallet_mismatches": 0
+    }
+   }
+  }
+ },
+ "gate_3": "Open. The burst must run on staging hardware with production-size data at 240 bookings a second (realistic cancel ratio, e.g. 0.1, with generate_volume.py inventory) and pass: SLO p95/p99, error budget, no double sale, ledger and wallets balanced, no deadlocks."
+}

@@ -228,6 +228,13 @@ async def update_provider(code: str, body: ProviderIn, request: Request, pr: Pri
         raise ApiError(422, "CONFIG_NOT_EDITABLE", "these settings cannot be changed here: " + ", ".join(sorted(bad)))
     if body.config.get("base_url") and not str(body.config["base_url"]).startswith("https://"):
         raise ApiError(422, "CONFIG_INSECURE_URL", "the provider address must use https")
+    if body.config.get("base_url"):
+        # the same public-address rules as partner webhooks (SSRF, review stage B); the egress proxy checks again
+        from ..integration.webhooks import check_url
+        try:
+            check_url(str(body.config["base_url"]))
+        except ApiError as exc:
+            raise ApiError(422, "CONFIG_URL_NOT_PUBLIC", "the provider address must be a public https address") from exc
     if body.max_amount < body.min_amount:
         raise ApiError(422, "PAYMENT_AMOUNT_OUT_OF_RANGE", "the maximum is below the minimum")
     async with db.transaction(context_for(request, pr)) as conn:

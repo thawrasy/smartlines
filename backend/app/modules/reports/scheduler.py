@@ -11,8 +11,9 @@ from datetime import date, datetime, timedelta, timezone
 
 from ... import db
 from ...deps import PORTAL_SCOPE
+from ...errors import ApiError
 from ..notify import providers
-from . import engine, export
+from . import engine, export, freshness
 from .api import as_dict, next_run, recipients_not_allowed
 
 log = logging.getLogger("masslak.reports")
@@ -137,8 +138,17 @@ async def run_one(schedule_id: int) -> bool:
             if not r.period:
                 params = {"all_time": True}
         limit = engine.PDF_ROWS if s["format"] == "PDF" else engine.EXPORT_ROWS
+        try:
+            fresh = await freshness.check(dataset, spec, rconn)
+        except ApiError:
+            # a financial report waits for the replica to catch up rather than going out with missing postings
+            async with db.transaction(sys_ctx) as conn:
+                await conn.execute("UPDATE rpt.report_schedule SET next_run_at = now() + interval '5 minutes' WHERE id = $1", s["id"])
+            log.warning("reports.schedule_deferred id=%s (replica behind)", s["id"])
+            return False
         res = await engine.run(rconn, v, dataset=dataset, spec=spec, params=params, limit=limit)
         res.data_as_of = await db.data_as_of(rconn)
+        res.freshness = fresh
     period = export.words(loc).get("all_time", "") if params.get("all_time") else f"{params['from']} → {params['to']}"
     meta = export.Meta(code, title, period, v.name, datetime.now(timezone.utc), loc)
     data, digest = export.render(s["format"], res, meta)

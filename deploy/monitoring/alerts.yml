@@ -70,6 +70,16 @@ groups:
         for: 48h
         labels: { severity: ticket }
         annotations: { summary: "Violations on low-trust evidence or resends of money events wait for a person for 2 days", runbook: "RUNBOOKS.md#15-position-evidence-and-violation-review-t3-11" }
+      - alert: CashOverdue
+        expr: masslak_cash_overdue_minor > 0
+        for: 1h
+        labels: { severity: ticket }
+        annotations: { summary: "Carriers owe counter cash sold more than 30 days ago: chase the remittance or lower their cash limit", runbook: "RUNBOOKS.md#18-counter-cash-and-report-freshness-review-stage-b" }
+      - alert: CashNearLimit
+        expr: masslak_cash_near_limit_carriers > 0
+        for: 30m
+        labels: { severity: ticket }
+        annotations: { summary: "A carrier owes 90 % of its cash limit: its counter sales stop at the limit", runbook: "RUNBOOKS.md#18-counter-cash-and-report-freshness-review-stage-b" }
       - alert: BreakGlassUnreviewed
         expr: masslak_break_glass_unreviewed > 0
         labels: { severity: ticket }

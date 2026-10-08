@@ -248,6 +248,24 @@ _add(Dataset(
     ALL, "created_date", company_sql="wr.company_id", agency_sql="wr.company_id", default_sort=("created_at", "desc")))
 
 _add(Dataset(
+    "cash_aging", "finance",
+    "fin.cash_aging() a",
+    (
+        Col("carrier", PARTY_NAME.format("a.company_id")),
+        Col("owed", "a.owed", MONEY, group=False, agg=True),
+        Col("credit_limit", "a.credit_limit", MONEY, group=False),
+        Col("days_0_7", "a.days_0_7", MONEY, group=False, agg=True),
+        Col("days_8_30", "a.days_8_30", MONEY, group=False, agg=True),
+        Col("days_31_60", "a.days_31_60", MONEY, group=False, agg=True),
+        Col("days_61_90", "a.days_61_90", MONEY, group=False, agg=True),
+        Col("days_over_90", "a.days_over_90", MONEY, group=False, agg=True),
+        Col("overdue", "a.overdue", MONEY, group=False, agg=True),
+        Col("oldest_unpaid_date", "(a.oldest_unpaid_at AT TIME ZONE 'Asia/Damascus')::date", DATE),
+        Col("oldest_unpaid_days", "(now()::date - a.oldest_unpaid_at::date)", INT, group=False, agg=True),
+    ),
+    STAFF, "oldest_unpaid_date", company_sql="a.company_id", default_sort=("overdue", "desc")))
+
+_add(Dataset(
     "invoices", "finance",
     "acct.sales_invoice si",
     (

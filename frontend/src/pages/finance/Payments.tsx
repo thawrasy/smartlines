@@ -379,7 +379,10 @@ function MethodModal({ m, tripTypes, onClose, onDone }: { m: Method; tripTypes: 
 }
 
 // ------------------------------------------------------------------ cash held by carriers, limits and remittances (6.5)
-interface Position { company_id: number; name: string; owed: number; limit_amount: number; own_limit: boolean; pending: number; last_remitted_at: string | null }
+interface Position {
+  company_id: number; name: string; owed: number; limit_amount: number; own_limit: boolean; pending: number; last_remitted_at: string | null;
+  days_0_7: number; days_8_30: number; days_31_60: number; days_61_90: number; days_over_90: number; overdue: number; oldest_unpaid_at: string | null;
+}
 interface Remittance {
   id: number; company_id: number; carrier: string; amount: number; method: string; ref: string | null; status: string; note: string | null;
   created_at: string; confirmed_at: string | null; recorded_by_name: string | null; confirmed_by_name: string | null; mine: boolean;
@@ -406,19 +409,26 @@ function CounterCash() {
         <h3>{t("cashdesk.positions")}</h3>
         <Loaded state={pos}>{({ positions }) => (
           <>
-            <div className="grid cols-3">
+            <div className="grid cols-4">
               <Stat icon="account_balance" label={t("cashdesk.owed")} value={money(positions.reduce((a, p) => a + p.owed, 0))} tone="wheat" />
+              <Stat icon="schedule" label={t("cashdesk.overdue")} value={money(positions.reduce((a, p) => a + p.overdue, 0))} tone="red" />
               <Stat icon="hourglass_top" label={t("cashdesk.pending")} value={money(positions.reduce((a, p) => a + p.pending, 0))} tone="blue" />
               <Stat icon="warning" label={t("cashdesk.atLimit")} value={positions.filter((p) => p.owed >= p.limit_amount && p.limit_amount > 0).length} tone="red" />
             </div>
             {positions.length === 0 ? <Empty icon="point_of_sale" title={t("common.noData")} /> : (
               <div className="table-wrap"><table className="table">
-                <thead><tr><th>{t("cashdesk.carrier")}</th><th className="num">{t("cashdesk.owed")}</th><th className="num">{t("cashdesk.limit")}</th>
+                <thead><tr><th>{t("cashdesk.carrier")}</th><th className="num">{t("cashdesk.owed")}</th>
+                  <th className="num">{t("cashdesk.overdue")}</th><th>{t("cashdesk.oldest")}</th><th className="num">{t("cashdesk.limit")}</th>
                   <th className="num">{t("cashdesk.pending")}</th><th>{t("cashdesk.lastRemitted")}</th><th /></tr></thead>
                 <tbody>{positions.map((p) => (
                   <tr key={p.company_id}>
                     <td>{p.name}</td>
                     <td className="num" style={{ color: p.limit_amount > 0 && p.owed >= p.limit_amount ? "var(--error)" : undefined }}>{money(p.owed)}</td>
+                    <td className="num" style={{ color: p.overdue > 0 ? "var(--error)" : undefined }}>
+                      {p.overdue ? money(p.overdue) : "—"}
+                      {p.days_over_90 > 0 && <div className="small muted">{t("cashdesk.over90")}: {money(p.days_over_90)}</div>}
+                    </td>
+                    <td className="small">{p.oldest_unpaid_at ? dateTime(p.oldest_unpaid_at) : "—"}</td>
                     <td className="num">{money(p.limit_amount)}<div className="small muted">{t(p.own_limit ? "cashdesk.ownLimit" : "cashdesk.defaultLimit")}</div></td>
                     <td className="num">{p.pending ? money(p.pending) : "—"}</td>
                     <td className="small">{p.last_remitted_at ? dateTime(p.last_remitted_at) : "—"}</td>

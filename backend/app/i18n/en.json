@@ -250,6 +250,10 @@
       "sec.failed_sign_ins": {
         "title": "Failed sign-ins",
         "description": "Failed and blocked sign-ins per day and portal"
+      },
+      "fin.cash_aging": {
+        "title": "Counter cash ageing",
+        "description": "Cash each carrier owes from counter sales, by how long it has been owed (oldest sales paid first)"
       }
     },
     "columns": {
@@ -392,7 +396,17 @@
       "result": "Result",
       "reason": "Reason",
       "ip": "IP address",
-      "country": "Country"
+      "country": "Country",
+      "owed": "Owed",
+      "credit_limit": "Cash limit",
+      "days_0_7": "0-7 days",
+      "days_8_30": "8-30 days",
+      "days_31_60": "31-60 days",
+      "days_61_90": "61-90 days",
+      "days_over_90": "Over 90 days",
+      "overdue": "Over 30 days",
+      "oldest_unpaid_date": "Oldest unpaid sale",
+      "oldest_unpaid_days": "Days since the oldest unpaid sale"
     },
     "aggregates": {
       "count": "{col}: count",

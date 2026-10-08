@@ -84,7 +84,11 @@ The negative balance of the cash wallet is the cash the carrier holds for the pl
   cash-paid booking online only while the wallet option is open (the refund then goes to the wallet); otherwise the
   answer is `CANCEL_AT_COUNTER`. Counters do not refund bookings paid online.
 
-**Payments > Counter cash** shows what each carrier owes, its limit and pending remittances.
+**Payments > Counter cash** shows what each carrier owes, its limit and pending remittances, and how long it has been
+owed: the part sold more than 30 days ago, the part over 90 days and the oldest unpaid sale (set-offs, remittances and
+cash refunds pay the oldest sales first). The report **Counter cash ageing** (`fin.cash_aging`, platform and each
+carrier for itself) splits the debt into 0-7, 8-30, 31-60, 61-90 and over 90 days; the alerts `CashOverdue` and
+`CashNearLimit` tell finance (RUNBOOKS.md, section 18).
 
 ## 4. Connecting a provider
 

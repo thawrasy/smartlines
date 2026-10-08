@@ -380,6 +380,27 @@ The capacity model and its stages are in `CAPACITY_MODEL.md`.
   - **When clients wait:** raise `DEFAULT_POOL_SIZE` if clients wait (`cl_waiting`) while the database still has CPU
     to spare.
 
+## 18. Counter cash and report freshness (review stage B)
+
+- **Cash ageing:** what each carrier owes from counter sales, split by age (0-7, 8-30, 31-60, 61-90, over 90 days),
+  is in **Payments > Counter cash** and the report **Counter cash ageing** (`fin.cash_aging`). Set-offs, remittances
+  and cash refunds pay the oldest sales first, so what is owed is always the newest sales.
+- **If `CashOverdue` fires** (cash sold more than 30 days ago is still owed):
+  1. Open **Counter cash** and sort by "Owed over 30 days".
+  2. Ask the carrier for the remittance. Record it, and have a second officer confirm it.
+  3. If the carrier does not pay, lower its cash limit (**Set limit**, with a reason). Its counter sales stop once
+     the debt reaches the limit.
+- **If `CashNearLimit` fires:** the carrier will soon be unable to sell for cash. Tell the carrier before its
+  counter staff are refused.
+- **Report freshness:**
+  - Reports read the replica.
+  - A financial report is refused with `REPORT_DATA_STALE` while the replica is more than 60 s behind. A scheduled
+    one is retried five minutes later.
+  - Other reports are served with a warning past 5 minutes (lists) or 1 hour (totals).
+  - The limits are in `sys.setting` `reports.replica_lag`.
+  - If staff report `REPORT_DATA_STALE`, follow `ReplicaLagging`: check `pg_stat_replication` on the primary, then
+    the replica's disk and replay.
+
 ## Rehearsal schedule
 
 | Procedure | Before launch | After launch |
@@ -393,3 +414,5 @@ The capacity model and its stages are in `CAPACITY_MODEL.md`.
 | ClamAV with the EICAR file | Once | After each ClamAV upgrade |
 | Egress self-test | Every deployment (CI) | After each allowlist change |
 | Load test | At each release candidate | Before each peak season (Eid, summer) |
+| Booking burst (`loadtest.burst`, 1x, 2x, 5x) | On staging, gate 3 | Before each peak season |
+| Soak (`loadtest.soak`, 8 to 24 h) | On staging, gate 3 | After a release that changes the booking or money path |

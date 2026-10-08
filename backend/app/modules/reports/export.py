@@ -134,7 +134,9 @@ SOURCE_VERSION = "masslak-db-1.21.0"      # schema release the figures were comp
 def provenance(res: Result) -> dict:
     """Where a figure comes from: the moment the data reflects, the schema release, the time zone and the currency."""
     as_of = getattr(res, "data_as_of", None)
+    fresh = getattr(res, "freshness", None) or {}
     return {"data_as_of": as_of.astimezone(ZoneInfo("UTC")).isoformat().replace("+00:00", "Z") if as_of else None,
+            "replica_lag_seconds": fresh.get("lag_seconds"),
             "source_version": SOURCE_VERSION, "timezone": "Asia/Damascus", "currency": "SYP"}
 
 

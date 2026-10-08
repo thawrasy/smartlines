@@ -111,6 +111,38 @@ async def reports_transaction(ctx: Context) -> AsyncIterator[asyncpg.Connection]
             yield conn
 
 
+_lag: Optional[tuple[float, Optional[float]]] = None
+
+
+async def replica_lag_seconds(replica: asyncpg.Connection) -> Optional[float]:
+    """How far the reports replica is behind the primary, in seconds; None without a replica (reports then read the
+    primary). Zero when the replica has replayed everything the primary had written when asked; otherwise the age of
+    the last transaction it replayed, an upper bound. Measured at most every 2 seconds (review stage B).
+
+    `replica` is the report's own connection: taking a second one from the small reports pool while holding the first
+    could leave concurrent reports waiting on each other."""
+    global _lag
+    import time
+    if _reports_pool is None or _pool is None:
+        return None
+    now = time.monotonic()
+    if _lag is not None and now - _lag[0] < 2:
+        return _lag[1]
+    async with _pool.acquire() as p:
+        written = await p.fetchval("SELECT pg_wal_lsn_diff(pg_current_wal_lsn(), '0/0')::numeric")
+    row = await replica.fetchrow("""SELECT pg_is_in_recovery() AS standby,
+                                           pg_wal_lsn_diff(pg_last_wal_replay_lsn(), '0/0')::numeric AS replayed,
+                                           extract(epoch FROM now() - pg_last_xact_replay_timestamp())::float8 AS age""")
+    if not row["standby"] or row["replayed"] is None:
+        lag = None                                     # not a standby: require_reports_replica refuses this at start
+    elif row["replayed"] >= written:
+        lag = 0.0
+    else:
+        lag = max(0.0, float(row["age"] or 0.0))
+    _lag = (now, lag)
+    return lag
+
+
 async def data_as_of(conn: asyncpg.Connection):
     """The moment the data reflects: the last replayed transaction on a replica, now on the primary."""
     return await conn.fetchval("SELECT coalesce(pg_last_xact_replay_timestamp(), now())")

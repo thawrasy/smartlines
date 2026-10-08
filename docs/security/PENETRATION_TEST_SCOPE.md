@@ -25,7 +25,7 @@ Staging is in sandbox mode, with synthetic data only.
 | Area | Targets | Focus |
 |---|---|---|
 | Web API | All routes under `/api` (OpenAPI from the staging build): auth, account, wallet, finance, carrier, agency, driver, family, reports, admin, regulator, security, documents, notifications | Authentication and session handling; authorisation between roles and between companies (IDOR); input validation; business-logic abuse (prices, seats, refunds, wallet, commissions); rate limits |
-| Partner API | `/api/v1` with client credentials; webhook subscriptions and deliveries | Key and signature handling; tenant isolation between partners; replay and idempotency; SSRF through webhook URLs (private, metadata, IPv6, IPv4-mapped, DNS rebinding, redirects) |
+| Partner API | `/api/v1` with client credentials; webhook subscriptions and deliveries | Key and signature handling; tenant isolation between partners; replay and idempotency; SSRF through webhook URLs (private, metadata, IPv6, IPv4-mapped, NAT64, shared 100.64.0.0/10, numeric spellings, DNS rebinding, redirects, slow answers) and through payment provider addresses; the automated cases are in `backend/tests/test_ssrf.py` and `deploy/egress/selftest.sh` |
 | Payment notices | `/api/payments/notify/{code}` | Signature forgery, replay, amount and currency tampering, order of notices |
 | Web application | The SPA served by the API | XSS, CSRF, clickjacking, security headers, content security policy, storage of tokens |
 | Mobile apps | Passenger, driver and operator apps (`mobile/`), Android and iOS builds for staging | Local storage, certificate handling, offline ticket credentials, device binding and attestation of positions, spoofed GPS and replay |

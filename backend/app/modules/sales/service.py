@@ -602,21 +602,6 @@ async def cancel_booking(conn: asyncpg.Connection, ctx: db.Context, b: asyncpg.R
             refund += t["total_amount"] * refund_pct(_json(t["rules_snapshot"]), hours) // 100
             fares += t["total_amount"]
         await repo.mark_cancelled(conn, b["id"], reason)
-        if refund > 0:
-            escrow = await platform_wallet(conn, "ESCROW", b["currency"])
-            family = None
-            if b.get("funding_source") in ("HEAD_WALLET", "FAMILY_ACCOUNT"):    # back to whoever paid (4.20)
-                family = await conn.fetchrow("SELECT * FROM iam.family WHERE id = $1", b["family_id"])
-                wallet = await fam.funding_wallet(conn, family, b["funding_source"], b["currency"])
-            else:
-                wallet = await buyer.wallet(conn, b["currency"])
-            txn = await post_txn(conn, "REFUND", b["currency"], f"booking:{b['id']}:refund",
-                                 [(escrow["id"], "DR", refund), (wallet["id"], "CR", refund)],
-                                 ref_type="booking", ref_id=b["id"], user_id=buyer.user_id, memo=b["booking_ref"])
-            spent = await conn.fetchrow("SELECT member_id FROM iam.family_spend WHERE ref_type = 'booking' AND ref_id = $1", b["id"])
-            if family and spent:
-                await fam.log_spend(conn, family["id"], spent["member_id"], b["funding_source"], refund, b["currency"], "refund",
-                                    b["id"], buyer.user_id, txn)
         commission = await conn.fetchval(
             "SELECT amount FROM fin.price_allocation_line WHERE allocation_id = $1 AND code = 'AGENCY_COMMISSION'",
             b["price_allocation_id"]) or 0
@@ -628,4 +613,21 @@ async def cancel_booking(conn: asyncpg.Connection, ctx: db.Context, b: asyncpg.R
         await emit(conn, "booking.cancelled", "booking", b["id"], {
             "booking_ref": b["booking_ref"], "refund_amount": refund, "booker_user_id": b["booker_user_id"],
             "agency_id": b["agency_id"], "contact_mobile": b["contact_mobile"]}, company_id=b["company_id"])
+        if refund > 0:
+            # The refund debits the shared escrow wallet, which locks it until commit so that it stays covered; it is
+            # posted last, so every other refund waits only for this commit (booking burst test, review stage B)
+            escrow = await platform_wallet(conn, "ESCROW", b["currency"])
+            family = None
+            if b.get("funding_source") in ("HEAD_WALLET", "FAMILY_ACCOUNT"):    # back to whoever paid (4.20)
+                family = await conn.fetchrow("SELECT * FROM iam.family WHERE id = $1", b["family_id"])
+                wallet = await fam.funding_wallet(conn, family, b["funding_source"], b["currency"])
+            else:
+                wallet = await buyer.wallet(conn, b["currency"])
+            spent = await conn.fetchrow("SELECT member_id FROM iam.family_spend WHERE ref_type = 'booking' AND ref_id = $1", b["id"])
+            txn = await post_txn(conn, "REFUND", b["currency"], f"booking:{b['id']}:refund",
+                                 [(escrow["id"], "DR", refund), (wallet["id"], "CR", refund)],
+                                 ref_type="booking", ref_id=b["id"], user_id=buyer.user_id, memo=b["booking_ref"])
+            if family and spent:
+                await fam.log_spend(conn, family["id"], spent["member_id"], b["funding_source"], refund, b["currency"], "refund",
+                                    b["id"], buyer.user_id, txn)
     return {"ok": True, "refund": refund, "currency": b["currency"], "commission_kept": kept if commission else None}

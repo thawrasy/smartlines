@@ -61,9 +61,9 @@ remitted under four eyes. Details in [PAYMENT_OPTIONS.md](PAYMENT_OPTIONS.md).
 
 ## 4. Tests
 
-- Database checks: 394 (schema file 1054 adds 22, 1055 adds 4, 1056 adds 17, review stage A adds 1).
-- API tests: 252 on a fresh database (`backend/tests/test_launch.py` adds 6, `test_payment_options.py` 14,
-  `test_review_stage_a.py` 10), plus the module
+- Database checks: 399 (schema file 1054 adds 22, 1055 adds 4, 1056 adds 17, review stage A adds 1, stage B 5).
+- API and unit tests: 317 on a fresh database (`backend/tests/test_launch.py` adds 6, `test_payment_options.py` 14,
+  `test_review_stage_a.py` 10, stage B `test_ssrf.py` 48, `test_review_stage_b.py` 8, `test_launch_gates_kit.py` 9), plus the module
   sweep that opens every screen of every portal and the isolation sweeps over every company column.
 - Mobile: typecheck and unit tests; web: typecheck and production build.
 - Upgrade: a populated 1.35.0 database upgrades to 1.36.0 with every wallet reconciled; a used 1.36.1 database upgrades to
@@ -74,7 +74,9 @@ remitted under four eyes. Details in [PAYMENT_OPTIONS.md](PAYMENT_OPTIONS.md).
 The code defects confirmed by the expert review of October 2026 are closed by stage A
 ([REVIEW_STAGE_A.md](REVIEW_STAGE_A.md)): signing keys checked at start, top-up replays scoped to the payer, an update
 script that stops on unsettled code, encrypted backups required in production, schema drift refused, a readiness
-endpoint, time limits on the database role, and generated README figures.
+endpoint, time limits on the database role, and generated README figures. Stage B
+([REVIEW_STAGE_B.md](REVIEW_STAGE_B.md)) adds the tools that run and judge the launch gates (booking burst, soak,
+`launch_gates.py`), report freshness limits, cash ageing and the SSRF tests, and fixes the two defects they found.
 
 The code of releases 1A and 1B is complete. General launch waits on the nine operational gates of
 [LAUNCH_GATES.md](LAUNCH_GATES.md), all of which need people and environments outside the code: recovery drill on staging,

@@ -54,6 +54,7 @@ class Result:
     truncated: bool = False
     duration_ms: int = 0
     data_as_of: Optional[datetime] = None     # the moment the figures reflect (replica replay time or now)
+    freshness: Optional[dict] = None          # replica lag, its limit and whether it was passed (freshness.py)
 
 
 def can_read(ds: Dataset, v: Viewer) -> bool:

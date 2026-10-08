@@ -104,7 +104,8 @@ async def render_database() -> list[str]:
     async with db.transaction(ctx) as conn:
         rows = await conn.fetch("SELECT metric, labels, value FROM sys.ops_metrics() "
                                 "UNION ALL SELECT metric, labels, value FROM sys.capacity_metrics() "
-                                "UNION ALL SELECT metric, labels, value FROM sys.scale_metrics()")
+                                "UNION ALL SELECT metric, labels, value FROM sys.scale_metrics() "
+                                "UNION ALL SELECT metric, labels, value FROM sys.finance_metrics()")
         pool = db.pool_stats()
     for r in rows:
         name = r["metric"]
