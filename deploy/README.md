@@ -113,6 +113,10 @@ with canonical links, Arabic and English alternates and structured data; `/sitem
    `MASSLAK_GOOGLE_SITE_VERIFICATION` and `MASSLAK_BING_SITE_VERIFICATION` in `deploy/.env`, and restart `app`.
 2. Submit `https://<domain>/sitemap.xml` in both consoles.
 3. Create a Google Business Profile for the company with the same name, address and phone as on the site.
+   The contact page shows the values of `MASSLAK_SUPPORT_EMAIL`, `MASSLAK_SUPPORT_PHONE`, `MASSLAK_SUPPORT_WHATSAPP`,
+   `MASSLAK_BUSINESS_EMAIL`, `MASSLAK_OFFICE_ADDRESS` and `MASSLAK_SUPPORT_HOURS`; set them before launch. The terms of
+   use (`/ar/terms`) and the privacy notice (`/ar/privacy`) are published as version 1.0 drafts and need the company's
+   legal review before general launch.
 
 Canonical addresses use `https://$MASSLAK_DOMAIN` (set in `docker-compose.yml`).
 

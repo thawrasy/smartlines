@@ -6,7 +6,7 @@
     /{lang}/city/{city}               routes from and to a city, its bus stations
     /{lang}/international             cross-border routes and travel documents
     /{lang}/services/{service}        parcels, taxi, car rental, shuttle passes, freight
-    /{lang}/faq  /{lang}/about
+    /{lang}/faq  /{lang}/about  /{lang}/contact  /{lang}/terms  /{lang}/privacy  /{lang}/business
 
 Pages are rendered on the server from the live catalog (data.py), so a crawler reads the full content without
 JavaScript; the booking itself happens in the web app (/search). Unknown addresses under /ar or /en answer 404.
@@ -19,6 +19,7 @@ from html import escape
 from fastapi import APIRouter
 from fastapi.responses import HTMLResponse, PlainTextResponse, Response
 
+from ...config import get_settings
 from . import data, images
 from .render import (base, breadcrumbs, city_name, day_label, distance, duration, faq, local, money, page, search_form,
                      search_url, station_name, words)
@@ -63,7 +64,7 @@ async def robots():
 
 async def _paths() -> list[str]:
     cat = await data.catalog()
-    paths = ["", "/international", "/faq", "/about"]
+    paths = ["", "/international", "/faq", "/about", "/contact", "/terms", "/privacy", "/business"]
     paths += [f"/services/{k}" for k in words("en")["services"]["items"]]
     paths += [f"/city/{c.slug}" for c in cat.cities.values()]
     paths += [f"/bus/{s}" for s in sorted(cat.routes)]
@@ -284,6 +285,70 @@ async def about(lang: str):
                       jsonld=[crumbs_ld, {"@type": "AboutPage", "name": t["h1"], "about": {"@id": f"{base()}/#organization"}}]))
 
 
+def _sections(sections: list) -> str:
+    """Numbered sections of a policy page: a heading and its paragraphs, or bullet points when an item is a list."""
+    out = []
+    for sec in sections:
+        out.append(f"<h2>{escape(sec['h'])}</h2>")
+        for p in sec["p"]:
+            if isinstance(p, list):
+                out.append("<ul>" + "".join(f"<li>{escape(x)}</li>" for x in p) + "</ul>")
+            else:
+                out.append(f"<p>{escape(p)}</p>")
+    return "".join(out)
+
+
+async def contact(lang: str):
+    w = words(lang)
+    t = w["contact"]
+    s = get_settings()
+    crumbs, crumbs_ld = breadcrumbs(lang, [(t["h1"], f"/{lang}/contact")])
+    lines = [(t["email"], s.support_email, f"mailto:{s.support_email}"), (t["phone"], s.support_phone, f"tel:{s.support_phone}"),
+             (t["whatsapp"], s.support_whatsapp, f"https://wa.me/{''.join(ch for ch in s.support_whatsapp if ch.isdigit())}"),
+             (t["business"], s.business_email, f"mailto:{s.business_email}"), (t["address"], s.office_address, ""),
+             (t["hours"], s.support_hours, "")]
+    rows = "".join(f"<li><b>{escape(k)}:</b> " + (f'<a href="{escape(href)}" dir="ltr">{escape(v)}</a>' if href else escape(v)) + "</li>"
+                   for k, v, href in lines if v)
+    body = (f"{crumbs}<h1>{escape(t['h1'])}</h1><p>{escape(t['intro'])}</p>"
+            f"<h2>{escape(t['passengers_h'])}</h2><p>{escape(t['passengers'])}</p>"
+            f"<p><a class='btn' href='/support?lang={lang}'>{escape(t['cta'])}</a></p>"
+            f"<h2>{escape(t['details_h'])}</h2>" + (f"<ul>{rows}</ul>" if rows else f"<p>{escape(t['soon'])}</p>") +
+            f"<h2>{escape(t['companies_h'])}</h2><p>{escape(t['companies'])}</p>"
+            f"<p><a href='/{lang}/business'>{escape(w['nav']['business'])}</a></p>")
+    org = {"@type": "Organization", "@id": f"{base()}/#organization", "name": w["brand"]}
+    if s.support_email or s.support_phone:
+        org["contactPoint"] = {"@type": "ContactPoint", "contactType": "customer support", "availableLanguage": ["ar", "en"],
+                               **({"email": s.support_email} if s.support_email else {}), **({"telephone": s.support_phone} if s.support_phone else {})}
+    return _html(page(lang=lang, path="/contact", title=t["title"], description=t["description"], body=body,
+                      jsonld=[crumbs_ld, {"@type": "ContactPage", "name": t["h1"]}, org]))
+
+
+async def policy(lang: str, key: str):
+    """Terms of use and the privacy notice: the published text, with its version date."""
+    w = words(lang)
+    t = w[key]
+    crumbs, crumbs_ld = breadcrumbs(lang, [(t["h1"], f"/{lang}/{key}")])
+    body = (f"{crumbs}<h1>{escape(t['h1'])}</h1><p class='muted'>{escape(t['updated'])}</p><p>{escape(t['intro'])}</p>"
+            + _sections(t["sections"]))
+    return _html(page(lang=lang, path=f"/{key}", title=t["title"], description=t["description"], body=body,
+                      jsonld=[crumbs_ld, {"@type": "WebPage", "name": t["h1"]}]))
+
+
+async def business(lang: str):
+    w = words(lang)
+    t = w["business"]
+    crumbs, crumbs_ld = breadcrumbs(lang, [(t["h1"], f"/{lang}/business")])
+    cards = "".join(f'<div class="card"><b>{escape(c["h"])}</b><p>{escape(c["p"])}</p></div>' for c in t["who"])
+    steps = "".join(f"<li>{escape(x)}</li>" for x in t["steps"])
+    body = (f"{crumbs}<h1>{escape(t['h1'])}</h1><p>{escape(t['intro'])}</p><div class='grid'>{cards}</div>"
+            f"<h2>{escape(t['steps_h'])}</h2><ol>{steps}</ol>"
+            f"<h2>{escape(t['docs_h'])}</h2><ul>" + "".join(f"<li>{escape(x)}</li>" for x in t["docs"]) + "</ul>"
+            f"<h2>{escape(t['why_h'])}</h2><ul>" + "".join(f"<li>{escape(x)}</li>" for x in t["why"]) + "</ul>"
+            f"<p><a class='btn' href='/{lang}/contact'>{escape(t['cta'])}</a></p>")
+    return _html(page(lang=lang, path="/business", title=t["title"], description=t["description"], body=body,
+                      jsonld=[crumbs_ld, {"@type": "WebPage", "name": t["h1"]}]))
+
+
 async def not_found(lang: str):
     cat = await data.catalog()
     w = words(lang)
@@ -316,6 +381,18 @@ def _register(lang: str) -> None:
     async def _about():
         return await about(lang)
 
+    async def _contact():
+        return await contact(lang)
+
+    async def _terms():
+        return await policy(lang, "terms")
+
+    async def _privacy():
+        return await policy(lang, "privacy")
+
+    async def _business():
+        return await business(lang)
+
     async def _missing(rest: str):
         return await not_found(lang)
 
@@ -326,6 +403,10 @@ def _register(lang: str) -> None:
     router.add_api_route(f"/{lang}/services/{{key}}", _service, methods=["GET"])
     router.add_api_route(f"/{lang}/faq", _faq, methods=["GET"])
     router.add_api_route(f"/{lang}/about", _about, methods=["GET"])
+    router.add_api_route(f"/{lang}/contact", _contact, methods=["GET"])
+    router.add_api_route(f"/{lang}/terms", _terms, methods=["GET"])
+    router.add_api_route(f"/{lang}/privacy", _privacy, methods=["GET"])
+    router.add_api_route(f"/{lang}/business", _business, methods=["GET"])
     router.add_api_route(f"/{lang}/{{rest:path}}", _missing, methods=["GET"])
 
 

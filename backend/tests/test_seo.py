@@ -26,7 +26,8 @@ def head_of(html: str) -> dict:
 
 
 @pytest.mark.parametrize("path", ["/ar", "/en", "/ar/bus/damascus-to-aleppo", "/en/bus/beirut-to-damascus", "/ar/city/damascus",
-                                  "/en/international", "/ar/services/shipping", "/en/services/car-rental", "/ar/faq", "/en/about"])
+                                  "/en/international", "/ar/services/shipping", "/en/services/car-rental", "/ar/faq", "/en/about",
+                                  "/ar/contact", "/en/terms", "/ar/privacy", "/en/business"])
 def test_landing_pages_are_complete(path):
     r = get(path)
     assert r.status_code == 200 and r.headers["content-type"].startswith("text/html")

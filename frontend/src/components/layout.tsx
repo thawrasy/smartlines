@@ -81,14 +81,18 @@ export function PublicLayout() {
       </header>
       <Outlet />
       <footer className="footer">
-        <div className="row between">
+        <div className="row between" style={{ flexWrap: "wrap", gap: 12 }}>
           <span>{t("app.footer")}</span>
-          <span className="row" style={{ gap: 16 }}>
+          <span className="row" style={{ gap: 16, flexWrap: "wrap" }}>
             <a href={`/${locale}#routes`}>{t("nav.routes")}</a>
             <a href={`/${locale}/international`}>{t("nav.international")}</a>
             <a href={`/${locale}/faq`}>{t("nav.faq")}</a>
             <Link to="/verify">{t("nav.verify")}</Link>
             {on("cargo") && <Link to="/track">{t("wf.track.title")}</Link>}
+            <a href={`/${locale}/business`}>{t("nav.business")}</a>
+            <a href={`/${locale}/contact`}>{t("nav.contact")}</a>
+            <a href={`/${locale}/terms`}>{t("nav.terms")}</a>
+            <a href={`/${locale}/privacy`}>{t("nav.privacy")}</a>
             <Link to="/login?portal=OPERATOR">{t("nav.portals")}</Link>
           </span>
         </div>

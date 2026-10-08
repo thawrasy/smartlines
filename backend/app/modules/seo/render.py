@@ -195,7 +195,9 @@ def footer(lang: str) -> str:
             f'<div><h3>{escape(w["footer"]["popular"])}</h3><ul>{"".join(popular)}</ul></div>'
             f'<div><h3>{escape(n["services"])}</h3><ul>{services}</ul></div>'
             f'<div><h3>{escape(w["footer"]["company"])}</h3><ul><li><a href="/{lang}/about">{escape(n["about"])}</a></li>'
-            f'<li><a href="/{lang}/faq">{escape(n["faq"])}</a></li><li><a href="/{lang}/international">{escape(n["international"])}</a></li></ul></div>'
+            f'<li><a href="/{lang}/faq">{escape(n["faq"])}</a></li><li><a href="/{lang}/international">{escape(n["international"])}</a></li>'
+            f'<li><a href="/{lang}/business">{escape(n["business"])}</a></li><li><a href="/{lang}/contact">{escape(n["contact"])}</a></li>'
+            f'<li><a href="/{lang}/terms">{escape(n["terms"])}</a></li><li><a href="/{lang}/privacy">{escape(n["privacy"])}</a></li></ul></div>'
             f'</div><div class="wrap"><p>{escape(w["footer"]["rights"].format(year=date.today().year))}</p></div></footer>')
 
 

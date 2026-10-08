@@ -10,6 +10,7 @@ const ar: Messages = {
   },
   lang: { ar: "العربية", en: "English", switchTo: "اللغة" },
   nav: {
+    business: "للناقلين والشركاء", contact: "اتصل بنا", terms: "شروط الاستخدام", privacy: "الخصوصية",
     support: "الدعم",
     family: "العائلة",
 

@@ -8,6 +8,7 @@ const en = {
   },
   lang: { ar: "Arabic", en: "English", switchTo: "Language" },
   nav: {
+    business: "For carriers and partners", contact: "Contact us", terms: "Terms of use", privacy: "Privacy",
     support: "Support",
     family: "Family",
 

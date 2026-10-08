@@ -60,9 +60,13 @@ export function SearchForm({ initial }: { initial?: { from: string; to: string; 
 export default function Home() {
   const { t } = useI18n();
   const features: [IconName, string, string][] = [["verified", "home.f1t", "home.f1d"], ["shield", "home.f2t", "home.f2d"], ["qr_code_2", "home.f3t", "home.f3d"]];
+  // a service shows as available once its module is switched on (sys.setting "features"); intercity travel always is
+  const on = useLoad(() => api.get<{ enabled: string[] }>("/api/features"));
+  const enabled = new Set(on.data?.enabled ?? []);
   const partners: [IconName, string, boolean][] = [
-    ["directions_bus", "home.p1", true], ["local_shipping", "home.p2", false], ["local_gas_station", "home.p3", false],
-    ["restaurant", "home.p4", false], ["loyalty", "home.p5", false], ["support_agent", "home.p6", false],
+    ["directions_bus", "home.p1", true], ["local_shipping", "home.p2", enabled.has("cargo")],
+    ["local_gas_station", "home.p3", enabled.has("service_partners")], ["restaurant", "home.p4", enabled.has("service_partners")],
+    ["loyalty", "home.p5", enabled.has("loyalty")], ["support_agent", "home.p6", enabled.has("support_cases")],
   ];
   return (
     <>

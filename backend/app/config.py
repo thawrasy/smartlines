@@ -27,6 +27,13 @@ class Settings(BaseSettings):
     # Search console ownership tokens (the content of the verification meta tag), optional
     google_site_verification: str = ""
     bing_site_verification: str = ""
+    # Public contact details shown on the contact page; a page line is left out while its value is empty
+    support_email: str = ""
+    support_phone: str = ""
+    support_whatsapp: str = ""
+    business_email: str = ""
+    office_address: str = ""
+    support_hours: str = ""
     # Sandbox mode enables the simulated payment gateway; never enable in production
     sandbox: bool = False
     # Encrypted file store for uploaded documents (a mounted volume; an object store adapter replaces it later)

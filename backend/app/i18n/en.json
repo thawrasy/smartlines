@@ -685,7 +685,11 @@
       "about": "About",
       "book": "Book a ticket",
       "signin": "Sign in",
-      "lang_name": "English"
+      "lang_name": "English",
+      "business": "For carriers and partners",
+      "contact": "Contact us",
+      "terms": "Terms of use",
+      "privacy": "Privacy notice"
     },
     "footer": {
       "text": "Masslak connects licensed bus companies, travel agencies and passengers across Syria and to neighbouring countries. All prices in Syrian pounds.",
@@ -965,6 +969,224 @@
       "from": "From",
       "to": "To",
       "on": "Travel date"
+    },
+    "contact": {
+      "title": "Contact Masslak – Passenger Support and Business Enquiries",
+      "description": "Reach Masslak support about a booking, a payment or your account, and contact our team about carrier, agency and partner partnerships.",
+      "h1": "Contact us",
+      "intro": "We answer every request within the service time shown in your request. Passengers get the fastest answer from the Support page, where the whole conversation is kept with the booking.",
+      "passengers_h": "Passengers",
+      "passengers": "Sign in and open Support to send a complaint, a question or a claim about a booking. You follow the replies there and receive them by e-mail.",
+      "cta": "Open Support",
+      "details_h": "Contact details",
+      "email": "E-mail",
+      "phone": "Phone",
+      "whatsapp": "WhatsApp",
+      "business": "Partnerships",
+      "address": "Office",
+      "hours": "Working hours",
+      "soon": "Our phone and office details are published here at launch. Until then, please write to us from the Support page.",
+      "companies_h": "Carriers, agencies and partners",
+      "companies": "Bus and shuttle companies, travel agencies, parcel networks, fuel stations and rest stops can join the platform. See how it works and what is needed."
+    },
+    "terms": {
+      "title": "Terms of Use – Masslak National Land Transport Platform",
+      "description": "The terms for booking, paying, cancelling and travelling with carriers through Masslak, and the rules for passengers, carriers and agencies.",
+      "h1": "Terms of use",
+      "updated": "Version 1.0, published for the pilot launch. Subject to final legal review.",
+      "intro": "These terms apply to everyone who uses the Masslak website and apps. By booking or registering you accept them. The carrier's own conditions of carriage apply to the journey itself.",
+      "sections": [
+        {
+          "h": "1. Who we are",
+          "p": [
+            "Masslak operates a digital platform that connects licensed land transport companies, travel agencies and passengers. The carrier, not Masslak, performs the transport and is responsible for the journey."
+          ]
+        },
+        {
+          "h": "2. Your account",
+          "p": [
+            "You give true details and keep your password and devices safe. Staff accounts of companies use two-factor sign-in. You may close your account at any time from Account; records the law requires us to keep are kept for the period it sets."
+          ]
+        },
+        {
+          "h": "3. Booking and tickets",
+          "p": [
+            "A booking is confirmed once it is paid. The ticket carries a signed QR code that the driver or station scans; it is personal to the traveller named on it, whose name must match the identity document shown at boarding.",
+            "Seats are held for a short time while you pay and released if payment does not complete."
+          ]
+        },
+        {
+          "h": "4. Prices and payment",
+          "p": [
+            "Prices are shown in Syrian pounds with taxes and fees included before you pay. Payment is taken from your Masslak wallet, a card, an e-wallet, a bank transfer or a cash agent, as offered. The money is held by the platform until the trip is completed and then settled to the carrier."
+          ]
+        },
+        {
+          "h": "5. Changes, cancellations and refunds",
+          "p": [
+            "You may cancel before departure; the refund follows the fare type's cancellation rules shown before you pay and is returned to the wallet or account that paid.",
+            "If the carrier cancels or substantially delays the trip, you are offered another trip or a refund under the carrier's policy and the platform's compensation rules. A claim for a loss is made from the Support page."
+          ]
+        },
+        {
+          "h": "6. Travel documents",
+          "p": [
+            "You are responsible for carrying a valid identity document and, for international trips, the passport, visa and other documents each border requires. The platform checks what it can before you book but cannot guarantee entry to another country."
+          ]
+        },
+        {
+          "h": "7. Conduct and safety",
+          "p": [
+            "Do not misuse the platform, resell tickets, use another person's ticket or interfere with its security. Accounts that commit fraud may be blocked. In an emergency during a trip use the alarm in the app; it alerts the carrier and the platform."
+          ]
+        },
+        {
+          "h": "8. Carriers and agencies",
+          "p": [
+            "Companies on the platform must hold the licences their activity requires, keep their vehicles, drivers and documents valid, honour published trips and prices, and follow the platform's settlement and data protection rules set out in their agreement."
+          ]
+        },
+        {
+          "h": "9. Liability",
+          "p": [
+            "Masslak is responsible for operating the platform with care. Liability for the journey rests with the carrier. Nothing in these terms limits rights the law gives passengers."
+          ]
+        },
+        {
+          "h": "10. Complaints and disputes",
+          "p": [
+            "Send complaints from the Support page; each one has a reference and a service time. Disputes that cannot be settled are governed by the laws of the Syrian Arab Republic and heard by its competent courts."
+          ]
+        },
+        {
+          "h": "11. Changes to these terms",
+          "p": [
+            "We publish any change here with a new version date before it applies. Bookings already made keep the terms in force when they were made."
+          ]
+        }
+      ]
+    },
+    "privacy": {
+      "title": "Privacy Notice – How Masslak Protects Your Personal Data",
+      "description": "What personal data Masslak collects, why, how it is protected and kept, who receives it, and how you can see, correct or delete it.",
+      "h1": "Privacy notice",
+      "updated": "Version 1.0, published for the pilot launch. Subject to final legal review.",
+      "intro": "Masslak collects only the personal data it needs to sell tickets, carry passengers safely and meet the law. This notice explains what we do with it.",
+      "sections": [
+        {
+          "h": "1. What we collect",
+          "p": [
+            [
+              "Account: name, e-mail, mobile number and language.",
+              "Travellers: the names as on the identity document, nationality, category (adult, child, infant) and, where a trip requires it, the document number, which is stored encrypted and shown only by its last four characters.",
+              "Bookings, payments, wallet movements and tickets.",
+              "Device and security data: sign-in history, the device used for the app and the network address, to protect accounts.",
+              "Location: only from drivers' phones during a shift, and only when tracking is switched on for the trip."
+            ]
+          ]
+        },
+        {
+          "h": "2. Why we use it",
+          "p": [
+            [
+              "To sell and issue tickets, check them at boarding and settle payments to carriers.",
+              "To produce the passenger lists the law requires, and to send them to the competent authorities when a trip requires it.",
+              "To support you, handle complaints and claims, and prevent fraud.",
+              "To meet accounting, tax and record-keeping duties."
+            ]
+          ]
+        },
+        {
+          "h": "3. Who receives it",
+          "p": [
+            "The carrier of your trip receives the passenger list for that trip only. Payment providers receive what a payment needs. Authorities receive data only on a legal basis, and every such request is approved by two people and recorded. We do not sell personal data."
+          ]
+        },
+        {
+          "h": "4. How it is protected",
+          "p": [
+            "Identity document numbers and other sensitive fields are encrypted. Every company sees only its own records, enforced by the database itself. Every access by staff is recorded in an audit log that cannot be altered, and emergency access needs a second approval and a review."
+          ]
+        },
+        {
+          "h": "5. How long it is kept",
+          "p": [
+            "Each kind of data has a retention period in our data inventory: for example, driver positions are kept 7 days, booking and payment records for the period accounting law requires. Data past its period is deleted or anonymised automatically, unless a legal hold applies."
+          ]
+        },
+        {
+          "h": "6. Your rights",
+          "p": [
+            "From Account you can download your data, correct your details and ask for your account and data to be deleted, except records the law requires us to keep. You can also ask us questions or object from the Support page."
+          ]
+        },
+        {
+          "h": "7. Children",
+          "p": [
+            "A child travels on a booking made by an adult. In school transport, a pupil is linked to the guardian, and only the guardian, the school and the transport operator see the pupil's data."
+          ]
+        },
+        {
+          "h": "8. Changes",
+          "p": [
+            "We publish changes to this notice here with a new version date."
+          ]
+        }
+      ]
+    },
+    "business": {
+      "title": "For Carriers, Agencies and Partners – Join Masslak",
+      "description": "Sell seats, run shuttle lines, carry parcels and settle payments on one national platform. How bus companies, agencies and partners join Masslak.",
+      "h1": "For carriers, agencies and partners",
+      "intro": "Masslak gives land transport companies a complete system to sell, operate and get paid, without building their own: trips and seat maps, sales on the web, apps and agencies, boarding with secure QR tickets, manifests, settlement and reports.",
+      "who": [
+        {
+          "h": "Bus and coach companies",
+          "p": "Publish trips and fares, sell every seat online and through agencies, board with QR, and receive settled payouts."
+        },
+        {
+          "h": "Shuttle and city lines",
+          "p": "Approved lines and tariffs, passes and automatic fare payment at boarding, opened city by city."
+        },
+        {
+          "h": "Travel agencies",
+          "p": "Sell on behalf of carriers within an agreed allotment and commission, with statements and a cash top-up service."
+        },
+        {
+          "h": "Parcels and freight",
+          "p": "Parcel networks, cargo capacity on trips, freight requests, bids and proof of delivery."
+        },
+        {
+          "h": "Fuel stations and rest stops",
+          "p": "Serve carriers' drivers and passengers through partner sales and loyalty."
+        },
+        {
+          "h": "Schools and operators",
+          "p": "School transport with licensed operators, guardians' consent and safe hand-over records."
+        }
+      ],
+      "steps_h": "How to join",
+      "steps": [
+        "Write to us from the contact page with your company's name, activity and city.",
+        "Create your company account and upload the documents listed below.",
+        "The platform checks the documents and approves the company; you receive your carrier code.",
+        "Add your vehicles, drivers and routes, publish your first trips, and start selling."
+      ],
+      "docs_h": "Documents usually needed",
+      "docs": [
+        "Commercial registration and the transport licence for your activity.",
+        "Vehicle registration, inspection and insurance for each vehicle.",
+        "Driving licences of your drivers.",
+        "The bank account for your payouts."
+      ],
+      "why_h": "Why Masslak",
+      "why": [
+        "No software to build or maintain: web portal, driver and operator apps included.",
+        "Payments held safely and settled on a schedule you choose, with every movement on a double-entry ledger.",
+        "Your data stays yours: no other company can see your trips, passengers or finances.",
+        "Built to carry ten million operations a day across the country."
+      ],
+      "cta": "Contact our partnerships team"
     }
   },
   "case.replied": {
