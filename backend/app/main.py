@@ -23,6 +23,7 @@ from .modules.payments import api as payments_api
 from .modules.integration import console as integration_console
 from .modules.integration import v1 as integration_v1
 from .modules.family import api as family_api
+from .modules.support import api as support_api
 from .modules.manifests import api as manifests_api
 from .modules.seo import pages as seo_pages
 from .modules.seo.app_shell import shell as app_shell
@@ -86,7 +87,7 @@ for r in (metrics.router, auth.router, public.router, bookings.router, wallet.ro
           documents_api.company, documents_api.platform, notify_api.router,
           account_api.router, account_api.platform, modular_api.router, modular_workflows.router, reports_api.router, payments_api.router,
           integration_console.router, integration_v1.router, family_api.router, manifests_api.carrier, manifests_api.platform,
-          seo_pages.router):
+          support_api.router, support_api.admin, seo_pages.router):
     app.include_router(r)
 
 app.add_middleware(metrics.MetricsMiddleware)   # request counts and latency per route (T3-16)

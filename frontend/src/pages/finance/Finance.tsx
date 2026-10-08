@@ -2,6 +2,7 @@ import { useState } from "react";
 import { api, newKey } from "../../api";
 import { useI18n } from "../../i18n";
 import { useAuth } from "../../auth";
+import { ClaimsToPay } from "../support/StaffDesk";
 import { PageHead } from "../../components/layout";
 import { Empty, ErrorBox, Field, Icon, Loaded, Modal, Stat, Status, useLoad, useToast } from "../../components/ui";
 
@@ -153,6 +154,7 @@ export function CompanyFinance() {
 // ------------------------------------------------------------------ platform finance desk
 export function AdminFinance() {
   const { t, money, dateTime, date } = useI18n();
+  const { can } = useAuth();
   const toast = useToast();
   const [status, setStatus] = useState("REQUESTED");
   const wds = useLoad(() => api.get<{ withdrawals: Withdrawal[] }>("/api/admin/finance/withdrawals", { status: status || undefined }), [status]);
@@ -288,6 +290,7 @@ export function AdminFinance() {
         </Modal>
       )}
       {view && <SettlementView uid={view} base="/api/admin/finance" onClose={() => setView(null)} />}
+      {can("compensation.pay") && <ClaimsToPay />}
     </div>
   );
 }

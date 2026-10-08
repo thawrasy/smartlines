@@ -59,6 +59,7 @@ export function PublicLayout() {
           {passenger && <NavLink to="/trips">{t("nav.myTrips")}</NavLink>}
           {passenger && <NavLink to="/wallet">{t("nav.wallet")}</NavLink>}
           {passenger && <NavLink to="/family">{t("nav.family")}</NavLink>}
+          {passenger && <NavLink to="/support">{t("nav.support")}</NavLink>}
           {mine.length > 0 && <ModulesMenu items={mine.map((m) => ({ to: `/m/${m.key}`, icon: m.icon as IconName, label: L.module(m.key) }))} />}
           {passenger && <NavLink to="/account">{t("nav.account")}</NavLink>}
           <NavLink to="/verify">{t("nav.verify")}</NavLink>
@@ -120,6 +121,7 @@ function MobileNav({ services }: { services?: string }) {
   const { t } = useI18n();
   const items: [string, IconName, string][] = [["/", "search", t("nav.search")], ["/trips", "confirmation_number", t("nav.myTrips")], ["/wallet", "account_balance_wallet", t("nav.wallet")], ["/family", "family_restroom", t("nav.family")]];
   if (services) items.push([services, "apps", t("modules.services")]);
+  else items.push(["/support", "support_agent", t("nav.support")]);    // with services, Support is reached from the account page
   return (
     <nav className="navbar mobile-only">
       {items.map(([to, icon, label]) => (

@@ -39,5 +39,15 @@ MODULES = (
     Module("passenger_categories", "core", "family_restroom", ("PLATFORM", "OPERATOR")),
     Module("family_accounts", "core", "diversity_3", ("PLATFORM",)),          # passengers use the Family page
     Module("trip_manifests", "core", "fact_check", ("PLATFORM", "OPERATOR")),
+    # launch completeness (1054): screens for the launch-phase tables that had none
+    Module("support_cases", "core", "support_agent", ("PLATFORM", "OPERATOR")),           # passengers use the Support page
+    Module("pricing_setup", "core", "sell", ("PLATFORM", "OPERATOR")),
+    Module("loyalty", "core", "loyalty", ("PLATFORM", "PASSENGER")),
+    Module("fleet_records", "core", "directions_car", ("PLATFORM", "OPERATOR")),
+    Module("security_console", "core", "verified_user", ("PLATFORM", "OPERATOR")),
+    Module("finance_controls", "core", "account_balance", ("PLATFORM", "OPERATOR", "AGENCY")),
+    Module("data_governance", "core", "privacy_tip", ("PLATFORM",)),
+    Module("reference_data", "core", "data_table", ("PLATFORM",)),
+    Module("school_transport", "SCH", "school", ("PLATFORM", "OPERATOR", "PASSENGER", "DRIVER")),
 )
 BY_KEY = {m.key: m for m in MODULES}

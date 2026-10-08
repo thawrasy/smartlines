@@ -2,6 +2,7 @@ import { useState } from "react";
 import { api } from "../../api";
 import { useI18n } from "../../i18n";
 import { useAuth } from "../../auth";
+import { BlocklistCard } from "../support/StaffDesk";
 import { PageHead } from "../../components/layout";
 import { Empty, ErrorBox, Field, Icon, Loaded, Modal, Stat, Status, useLoad, useToast } from "../../components/ui";
 
@@ -105,6 +106,7 @@ export function SecurityRules() {
           <div className="stack"><ErrorBox error={error} /><Field label={t("security.revokeReason")}><input className="input" value={reason} onChange={(e) => setReason(e.target.value)} /></Field></div>
         </Modal>
       )}
+      {can("security.console") && <BlocklistCard />}
     </div>
   );
 }

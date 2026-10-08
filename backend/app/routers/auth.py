@@ -58,6 +58,14 @@ async def _auth_event(conn, request: Request, event: str, result: str, *, user_i
     )
 
 
+async def _blocked(conn, *pairs) -> bool:
+    """Whether any (type, value) is on the active blocklist; values are compared as digests (sec.is_blocked, 1054)."""
+    for kind, value in pairs:
+        if value and await conn.fetchval("SELECT sec.is_blocked($1, $2)", kind, identifier_hash("".join(str(value).split()))):
+            return True
+    return False
+
+
 @router.post("/register", status_code=201)
 async def register(body: RegisterIn, request: Request):
     problem = password_problem(body.password)
@@ -66,6 +74,8 @@ async def register(body: RegisterIn, request: Request):
     ctx = base_context(request)
     ctx.scope = "SYSTEM"                   # creates the person, the account and the wallet in one step
     async with db.transaction(ctx) as conn:
+        if await _blocked(conn, ("EMAIL", body.email), ("PHONE", body.mobile)):
+            raise ApiError(403, "BLOCKED", "registration is not possible with these details; contact support")
         if await conn.fetchval("SELECT 1 FROM iam.app_user WHERE email = $1 OR ($2::text IS NOT NULL AND mobile = $2)",
                                body.email, body.mobile):
             raise ApiError(409, "ALREADY_REGISTERED", "an account already exists for this email or mobile")
@@ -101,7 +111,12 @@ async def login(body: LoginIn, request: Request, response: Response):
                       EXISTS (SELECT 1 FROM iam.mfa_factor f WHERE f.user_id = app_user.id AND f.factor_type = 'TOTP'
                                  AND f.verified_at IS NOT NULL AND f.disabled_at IS NULL) AS mfa_enrolled
                  FROM iam.app_user WHERE email = $1 OR mobile = $1""", ident)
-        if user is None:
+        blocked = await _blocked(conn, ("EMAIL" if "@" in ident else "PHONE", ident), ("DEVICE", body.device_id))
+        if blocked:             # recorded, then refused once the record is committed
+            await _auth_event(conn, request, "LOGIN_FAILED", "BLOCKED", user_id=user["id"] if user else None,
+                              portal=body.portal, identifier=ident, reason="blocklist")
+            raise_invalid = False
+        elif user is None:
             verify_password(None, body.password)
             await _auth_event(conn, request, "LOGIN_FAILED", "FAILURE", portal=body.portal, identifier=ident,
                               reason="unknown_identifier")
@@ -123,6 +138,8 @@ async def login(body: LoginIn, request: Request, response: Response):
                                   user_id=user["id"], portal=body.portal,
                                   reason="bad_password" if user["status"] == "ACTIVE" else "inactive")
                 raise_invalid = True
+    if blocked:
+        raise ApiError(403, "BLOCKED", "sign-in is not possible; contact support")
     if raise_invalid:
         raise ApiError(401, "INVALID_CREDENTIALS", "invalid login details")
 

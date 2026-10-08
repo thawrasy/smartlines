@@ -12,6 +12,7 @@ import Booking from "./pages/passenger/Booking";
 import MyTrips from "./pages/passenger/MyTrips";
 import Wallet from "./pages/passenger/Wallet";
 import Family from "./pages/passenger/Family";
+import Support from "./pages/passenger/Support";
 import Login from "./pages/auth/Login";
 import Register from "./pages/auth/Register";
 import Mfa from "./pages/auth/Mfa";
@@ -155,6 +156,7 @@ export default function App() {
           <Route path="trips" element={<RequirePortal portal="PASSENGER"><MyTrips /></RequirePortal>} />
           <Route path="wallet" element={<RequirePortal portal="PASSENGER"><Wallet /></RequirePortal>} />
           <Route path="family" element={<RequirePortal portal="PASSENGER"><Family /></RequirePortal>} />
+          <Route path="support" element={<RequirePortal portal="PASSENGER"><Support /></RequirePortal>} />
           <Route path="verify" element={<Verify />} />
           <Route path="track" element={<Track />} />
           <Route path="pay/test/:uid" element={<RequirePortal portal="PASSENGER"><TestGatewayRoute /></RequirePortal>} />

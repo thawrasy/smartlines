@@ -57,6 +57,9 @@ async def deliveries(conn: asyncpg.Connection, event: asyncpg.Record, payload: d
     if kind in ("document.approved", "document.rejected"):
         d = await _user(conn, payload["uploaded_by"], kind, ["IN_APP", "EMAIL"], payload)
         return [d] if d else []
+    if kind in ("case.replied", "claim.paid") and payload.get("user_id"):
+        d = await _user(conn, payload["user_id"], kind, ["IN_APP", "EMAIL"], payload)
+        return [d] if d else []
     if kind in ("family.link_requested", "family.link_approved") and payload.get("booker_user_id"):
         d = await _user(conn, payload["booker_user_id"], kind, ["IN_APP", "EMAIL"], payload)
         return [d] if d else []

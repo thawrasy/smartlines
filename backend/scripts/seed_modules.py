@@ -333,7 +333,13 @@ PLAN = [
 ]
 TABLE_ORDER = [t for t, _, _ in PLAN]
 # every other resource table gets a couple of rows so no screen is empty
-EXTRA = sorted({r.table for r in RESOURCES.values()} - set(TABLE_ORDER))
+# Records only the system writes (ledger day totals and closes, reconciliation runs, postings, payouts, tax and e-invoice
+# records, points history): invented rows would break the ledger's own checks, so the demo leaves them to the platform
+SYSTEM_WRITTEN = {"fin.ledger_close", "fin.ledger_day_total", "fin.wallet_reconciliation", "fin.posting_batch", "fin.tax_ledger",
+                  "fin.payout", "fin.payout_schedule", "fin.cash_remittance", "fin.float_report", "acct.journal_entry",
+                  "acct.journal_line", "acct.tax_payment", "acct.einvoice_document", "acct.einvoice_submission", "bill.billed_usage",
+                  "pricing.points_ledger", "sales.refund_request", "sales.passenger_compensation", "sec.document_signature"}
+EXTRA = sorted({r.table for r in RESOURCES.values()} - set(TABLE_ORDER) - SYSTEM_WRITTEN)
 
 
 class Seeder:

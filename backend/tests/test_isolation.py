@@ -39,6 +39,9 @@ ALLOWED = {
     "ship.capacity_booking.buyer_company_id": "buyer and seller of cargo capacity",
     "ctr.service_contract.carrier_company_id": "the client company sees its transport contract",
     "ptn.partner_sale.company_id": "the partner station sees the sales it made to a carrier's driver",
+    "pricing.cancellation_policy.company_id": "cancellation policies are published terms of sale",
+    "ops.trip_disruption.partner_company_id": "the carrier of a disrupted trip sees the partner it called in; the partner reads it only (1054)",
+    "sales.passenger_compensation.charged_to_company_id": "the parties of a booking see who bears its compensation; only the platform writes it (1054)",
 }
 
 

@@ -966,5 +966,13 @@
       "to": "To",
       "on": "Travel date"
     }
+  },
+  "case.replied": {
+    "subject": "Reply to your request {case_ref}",
+    "body": "Masslak support replied to your request {case_ref} ({subject}). Open Support in the app or on the website to read it."
+  },
+  "claim.paid": {
+    "subject": "Claim {case_ref} paid",
+    "body": "Your claim {case_ref} was approved and SYP {amount} was added to your wallet."
   }
 }

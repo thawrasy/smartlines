@@ -1680,4 +1680,64 @@ SELECT pg_temp.ok(to_regclass('sys.outbox_event_' || to_char(current_date - 35, 
 ROLLBACK;
 SET ROLE masslak_app;
 
+-- =====================================================================
+-- Launch completeness (1054)
+-- =====================================================================
+RESET ROLE;
+BEGIN;
+INSERT INTO crm."case" (kind, category, priority, channel, subject) VALUES ('COMPLAINT', 'SAFETY', 'CRITICAL', 'WEB', 'lc probe')
+RETURNING id AS lc_case, ref AS lc_ref \gset
+SELECT pg_temp.ok(:'lc_ref' ~ '^C[0-9A-F]{7}$'
+  AND (SELECT first_due_at - created_at = interval '1 hour' AND resolve_due_at - created_at = interval '8 hours' FROM crm."case" WHERE id = :lc_case),
+  'Launch: a new case gets a reference and its service-level dates from support.sla');
+INSERT INTO crm.case_event (case_id, actor_role, kind, visibility, body) VALUES (:lc_case, 'STAFF', 'REPLY', 'PUBLIC', 'answer');
+SELECT pg_temp.ok((SELECT first_response_at IS NOT NULL AND status = 'OPEN' FROM crm."case" WHERE id = :lc_case),
+  'Launch: the first public staff reply stamps the first response and opens the case');
+SELECT pg_temp.expect_error(format($q$INSERT INTO crm.case_event (case_id, actor_role, kind, visibility, body)
+                                     VALUES (%s, 'CUSTOMER', 'NOTE', 'INTERNAL', 'x')$q$, :lc_case), 'CUSTOMER_EVENT',
+  'Launch: a customer adds public replies only');
+UPDATE crm."case" SET status = 'RESOLVED' WHERE id = :lc_case;
+UPDATE crm."case" SET status = 'CLOSED' WHERE id = :lc_case;
+SELECT pg_temp.expect_error(format('UPDATE crm."case" SET status = %L WHERE id = %s', 'OPEN', :lc_case), 'CASE_FINAL',
+  'Launch: a closed case does not reopen');
+SELECT pg_temp.expect_error($q$INSERT INTO crm."case" (kind, category, channel, subject, claim_amount) VALUES ('INQUIRY', 'OTHER', 'WEB', 'x', 100)$q$,
+  'NOT_A_CLAIM', 'Launch: only a claim carries amounts');
+INSERT INTO crm."case" (kind, category, channel, subject, claim_amount) VALUES ('CLAIM', 'DELAY', 'WEB', 'lc claim', 1000)
+RETURNING id AS lc_claim \gset
+SELECT pg_temp.expect_error(format('UPDATE crm."case" SET approved_amount = 2000 WHERE id = %s', :lc_claim), 'APPROVED_OVER_CLAIM',
+  'Launch: the approved amount stays within the amount claimed');
+SELECT pg_temp.expect_error(format($q$UPDATE crm."case" SET approved_amount = 500, liable = 'NONE', payout_status = 'PENDING_FINANCE' WHERE id = %s$q$, :lc_claim),
+  'CLAIM_NOT_DECIDED', 'Launch: a claim goes to finance with the carrier or the platform liable');
+UPDATE crm."case" SET approved_amount = 500, liable = 'PLATFORM', payout_status = 'PENDING_FINANCE' WHERE id = :lc_claim;
+SELECT pg_temp.ok(EXISTS (SELECT 1 FROM crm.case_event WHERE case_id = :lc_claim AND kind = 'DECISION'),
+  'Launch: sending a claim to finance records the decision');
+SELECT pg_temp.expect_error(format($q$UPDATE crm."case" SET payout_status = 'PAID' WHERE id = %s$q$, :lc_claim), 'CLAIM_NOT_PAYABLE',
+  'Launch: a claim is paid only with its ledger transaction');
+ROLLBACK;
+SELECT pg_temp.ok((SELECT targets ? 'case' FROM sys.polymorphic_reference WHERE table_name = 'fin.ledger_txn' AND type_col = 'ref_type'),
+  'Launch: a paid claim''s ledger transaction may point at its case');
+SELECT pg_temp.ok(EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname = 'ops' AND indexname = 'trip_template_departure_uniq'),
+  'Launch: a template generates one trip per departure');
+BEGIN;
+INSERT INTO sec.blocklist_entry (entry_type, value_hash, reason) VALUES ('PHONE', '\xabcd', 'lc probe');
+SELECT pg_temp.ok(sec.is_blocked('PHONE', '\xabcd') AND NOT sec.is_blocked('EMAIL', '\xabcd') AND NOT sec.is_blocked('PHONE', '\xabce')
+  AND has_function_privilege('masslak_app', 'sec.is_blocked(text, bytea)', 'EXECUTE')
+  AND NOT has_function_privilege('public', 'sec.is_blocked(text, bytea)', 'EXECUTE'),
+  'Launch: registration and sign-in can ask the blocklist without reading it');
+UPDATE sec.blocklist_entry SET expires_at = now() - interval '1 minute' WHERE value_hash = '\xabcd';
+SELECT pg_temp.ok(NOT sec.is_blocked('PHONE', '\xabcd'), 'Launch: an expired blocklist entry no longer blocks');
+ROLLBACK;
+BEGIN;
+SELECT id AS lc_license FROM fleet.license_record ORDER BY id LIMIT 1 \gset
+SELECT id AS lc_u1 FROM iam.app_user ORDER BY id LIMIT 1 \gset
+SELECT pg_temp.ok((SELECT count(*) FROM pg_policy WHERE polrelid = 'sales.passenger_compensation'::regclass AND NOT polpermissive) = 3
+  AND (SELECT count(*) FROM pg_policy WHERE polrelid = 'ops.trip_disruption'::regclass AND polname = 'split_write'
+         AND pg_get_expr(polwithcheck, polrelid) NOT LIKE '%partner_company_id%') = 1,
+  'Launch: only the platform writes passenger compensation, and only the trip''s carrier writes its disruption');
+SELECT pg_temp.expect_error(format($q$INSERT INTO fleet.license_change_request (license_record_id, requested_by, new_values, reviewed_by, status)
+                                     VALUES (%s, %s, '{}', %s, 'REVIEWED')$q$, :lc_license, :lc_u1, :lc_u1), 'FOUR_EYES',
+  'Launch: the requester of a licence change does not review it');
+ROLLBACK;
+SET ROLE masslak_app;
+
 \echo '=== ALL TESTS PASSED ==='

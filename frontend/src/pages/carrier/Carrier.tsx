@@ -132,7 +132,7 @@ function NewTrip({ onClose, onDone }: { onClose: () => void; onDone: () => void 
         <Field label={t("carrier.departureLocal")}>
           <input className="input ltr" type="datetime-local" value={form.departure_local} onChange={(e) => setForm({ ...form, departure_local: e.target.value })} />
         </Field>
-        <label className="check"><input type="checkbox" checked={form.publish} onChange={(e) => setForm({ ...form, publish: e.target.checked })} />{t("carrier.publishNow")}</label>
+        <label className="check"><input type="checkbox" checked={form.publish} onChange={(e) => setForm({ ...form, publish: e.target.checked })} />{t("carrier.publishGenerated")}</label>
       </div>
     </Modal>
   );
@@ -231,11 +231,15 @@ export function CarrierTrips() {
   const state = useLoad(() => api.get<{ trips: CarrierTrip[] }>("/api/carrier/trips"));
   const [creating, setCreating] = useState(() => new URLSearchParams(location.search).has("new"));
   const [manifest, setManifest] = useState<string | null>(null);
+  const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const act = async (fn: () => Promise<void>) => { setError(null); try { await fn(); state.reload(); } catch (e) { setError(e); } };
   return (
     <div className="stack">
-      <PageHead title={t("carrier.trips")}><button className="btn" onClick={() => setCreating(true)}><Icon name="add" />{t("carrier.newTrip")}</button></PageHead>
+      <PageHead title={t("carrier.trips")}>
+        <button className="btn tonal" onClick={() => setGenerating(true)}><Icon name="event" />{t("carrier.fromTemplate")}</button>
+        <button className="btn" onClick={() => setCreating(true)}><Icon name="add" />{t("carrier.newTrip")}</button>
+      </PageHead>
       <ErrorBox error={error} />
       <Loaded state={state}>{({ trips }) => trips.length === 0 ? <div className="card"><Empty icon="directions_bus" title={t("common.noData")} /></div> : (
         <div className="table-wrap"><table className="table">
@@ -261,7 +265,59 @@ export function CarrierTrips() {
       )}</Loaded>
       {creating && <NewTrip onClose={() => setCreating(false)} onDone={() => { setCreating(false); toast(t("common.saved")); state.reload(); }} />}
       {manifest && <ManifestModal uid={manifest} onClose={() => setManifest(null)} />}
+      {generating && <GenerateTrips onClose={() => setGenerating(false)} onDone={() => { setGenerating(false); state.reload(); }} />}
     </div>
+  );
+}
+
+interface Template { _key: string; route_id__label?: string; departure_time: string; days_of_week: number[]; status: string }
+
+/** Trips of a recurring template for a date range; days the template already produced are skipped. */
+function GenerateTrips({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
+  const { t } = useI18n();
+  const toast = useToast();
+  const tpls = useLoad(() => api.get<{ rows: Template[] }>("/api/r/trip-template?f_status=ACTIVE&limit=100"));
+  const today = new Date().toISOString().slice(0, 10);
+  const [form, setForm] = useState({ template: "", from: today, to: today, publish: false });
+  const [result, setResult] = useState<{ created: { date: string; trip_no: string }[]; skipped: { date: string; reason: string }[] } | null>(null);
+  const [error, setError] = useState<unknown>(null);
+  const run = async () => {
+    setError(null);
+    try {
+      const r = await api.post<typeof result>(`/api/carrier/trip-templates/${form.template}/generate`,
+                                               { from_date: form.from, to_date: form.to, publish: form.publish });
+      setResult(r); toast(t("carrier.generated", { n: r!.created.length }));
+    } catch (e) { setError(e); }
+  };
+  return (
+    <Modal title={t("carrier.fromTemplate")} onClose={result ? onDone : onClose}
+           actions={result ? <button className="btn" onClick={onDone}>{t("common.done")}</button>
+                           : <><button className="btn text" onClick={onClose}>{t("common.cancel")}</button>
+                               <button className="btn" disabled={!form.template} onClick={run}>{t("carrier.generate")}</button></>}>
+      {result ? (
+        <div className="stack tight">
+          <div>{t("carrier.generated", { n: result.created.length })}</div>
+          {result.skipped.length > 0 && <div className="small muted">{t("carrier.skipped")}: {result.skipped.map((x) => `${x.date} (${t(`carrier.skip.${x.reason}`)})`).join(", ")}</div>}
+        </div>
+      ) : (
+        <Loaded state={tpls}>{({ rows: list }) => list.length === 0 ? <Empty icon="event" title={t("carrier.noTemplates")} hint={t("carrier.noTemplatesHint")} /> : (
+          <div className="stack">
+            <Field label={t("carrier.template")}>
+              <select className="input" value={form.template} onChange={(e) => setForm({ ...form, template: e.target.value })}>
+                <option value="" />
+                {list.map((x) => <option key={x._key} value={x._key}>{x.route_id__label} · {x.departure_time.slice(0, 5)}</option>)}
+              </select>
+            </Field>
+            <div className="grid cols-2">
+              <Field label={t("carrier.fromDate")}><input className="input" type="date" value={form.from} onChange={(e) => setForm({ ...form, from: e.target.value })} /></Field>
+              <Field label={t("carrier.toDate")}><input className="input" type="date" value={form.to} onChange={(e) => setForm({ ...form, to: e.target.value })} /></Field>
+            </div>
+            <label className="row" style={{ gap: 8 }}><input type="checkbox" checked={form.publish} onChange={(e) => setForm({ ...form, publish: e.target.checked })} />{t("carrier.publishGenerated")}</label>
+            <ErrorBox error={error} />
+          </div>
+        )}</Loaded>
+      )}
+    </Modal>
   );
 }
 

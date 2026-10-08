@@ -120,6 +120,8 @@ import i_fingerprint from "@material-symbols/svg-400/rounded/fingerprint.svg?raw
 import i_group_add from "@material-symbols/svg-400/rounded/group_add.svg?raw";
 import i_sell from "@material-symbols/svg-400/rounded/sell.svg?raw";
 import i_verified_user from "@material-symbols/svg-400/rounded/verified_user.svg?raw";
+import i_star from "@material-symbols/svg-400/rounded/star.svg?raw";
+import i_forum from "@material-symbols/svg-400/rounded/forum.svg?raw";
 
 export const ICONS = {
   search: i_search,
@@ -241,6 +243,8 @@ export const ICONS = {
   group_add: i_group_add,
   sell: i_sell,
   verified_user: i_verified_user,
+  star: i_star,
+  forum: i_forum,
 } as const;
 
 export type IconName = keyof typeof ICONS;
