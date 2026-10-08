@@ -35,6 +35,16 @@ jobs:
           db/build.sh upgrade_check -h localhost -U postgres > /dev/null
           db/upgrade.sh upgrade_check -h localhost -U postgres | tee upgrade.log
           ! grep -q '^>>' upgrade.log
+      - name: An applied schema file that changed stops the upgrade before anything is applied (review stage A5)
+        run: |
+          echo '-- edited after release' >> db/schema/1056_payment_options.sql
+          set +e; db/upgrade.sh upgrade_check -h localhost -U postgres 2> drift.log; rc=$?; set -e
+          cat drift.log
+          test "$rc" = 3 && grep -q '1056_payment_options.sql' drift.log
+          MASSLAK_SCHEMA_DRIFT=warn db/upgrade.sh upgrade_check -h localhost -U postgres
+          git checkout -- db/schema/1056_payment_options.sql
+      - name: Data dictionary, ERD and README figures match the built database (review stage A8)
+        run: python3 db/tools/gen_docs.py --check upgrade_check -h localhost -U postgres
       - name: No new two-way module dependency or table cycle without a recorded reason
         run: python3 db/tools/schema_dependencies.py upgrade_check -h localhost -U postgres
 
@@ -140,6 +150,7 @@ jobs:
         run: |
           for i in $(seq 60); do curl -fsSk https://localhost/api/health && break; sleep 3; done
           curl -fsSk https://localhost/api/health
+          curl -fsSk https://localhost/api/ready | grep -q '"ready":true'
           curl -fsSk https://localhost/ | grep -q '<div id="root">'
           test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost/)" = 308       # plain HTTP redirects
           curl -sSkI https://localhost/ | grep -qi '^strict-transport-security'

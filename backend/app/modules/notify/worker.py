@@ -101,7 +101,9 @@ async def maintenance() -> dict:
 async def main(once: bool) -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     from ... import egress
+    from ...security import require_keys_in_production
     egress.require_in_production()
+    require_keys_in_production()
     await db.open_pools()
     await db.require_reports_replica()       # scheduled reports read the replica, never the booking database
     last_reports = 0.0

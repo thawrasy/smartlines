@@ -123,11 +123,21 @@ Canonical addresses use `https://$MASSLAK_DOMAIN` (set in `docker-compose.yml`).
 ## 3. Updating
 
 ```sh
-cd /opt/masslak && sudo ./deploy/update.sh
+cd /opt/masslak && sudo ./deploy/update.sh --sha <commit id approved for release>
 ```
 
-The script backs up first, pulls the code, rebuilds and restarts. The `migrate` service applies new schema files
-(`db/upgrade.sh`, recorded in `sys.schema_file`) before the new API starts.
+The script settles the code first, then backs up, rebuilds and restarts. The `migrate` service applies new schema
+files (`db/upgrade.sh`, recorded in `sys.schema_file`) before the new API starts.
+
+- It stops, with the running version still serving, when the fetch or pull fails, when the branch has diverged from
+  `origin` or has local commits, when tracked files were edited on the server, or when the checked-out commit is not
+  the one given with `--sha` (at least 12 characters; `MASSLAK_EXPECTED_SHA` works too).
+- It stops when an applied schema file was changed (`db/upgrade.sh`, exit code 3): nothing is applied.
+- It ends only when `https://<domain>/api/ready` answers, and appends the deployed commit to `deploy/DEPLOYED`.
+
+`GET /api/health` says only that the process answers (the container health check and Caddy use it). `GET /api/ready`
+answers 200 when the database, the applied schema, the audit connection and the reports replica are all in order,
+and 503 otherwise; use it for deployment checks, monitoring and any load balancer in front of several API instances.
 
 ## 4. Backups
 
@@ -135,8 +145,12 @@ The script backs up first, pulls the code, rebuilds and restarts. The `migrate` 
 holds a `pg_dump` of the database and the document store, with SHA-256 checksums, kept for
 `MASSLAK_BACKUP_KEEP_DAYS` days in `MASSLAK_BACKUP_DIR`.
 
-- To encrypt backups, install `age`, create a key pair on another machine (`age-keygen -o masslak-backup.key`) and
-  put the public key in `MASSLAK_BACKUP_AGE_RECIPIENT`. Keep the private key off the server.
+- Backups are encrypted with `age` (installed by `server-setup.sh`). Create a key pair on another machine
+  (`age-keygen -o masslak-backup.key`) and put the public key (`age1...`) in `MASSLAK_BACKUP_AGE_RECIPIENT`, or pass
+  it to `install.sh --backup-recipient`. Keep the private key off the server; a restore needs it
+  (`MASSLAK_BACKUP_AGE_IDENTITY`).
+- A production server (`MASSLAK_SANDBOX=false`) refuses to write a backup without that key, and `update.sh`, which
+  backs up first, stops with it. Only a demo or sandbox server keeps plain backups.
 - Copy the backup directory to a second location (another site or an object store) every day.
 - Restore, which replaces all current data:
   `sudo ./deploy/restore.sh /var/backups/masslak/<timestamp> --yes`
@@ -166,7 +180,12 @@ MASSLAK_API_URL=https://masslak.com MASSLAK_API_PINS=<pin1>,<pin2> npx eas build
   address. The app takes that address from `X-Forwarded-For` only when the request comes from this subnet. It
   reads the header from the right, so a client cannot choose its own address.
 - `MASSLAK_SIGNING_SECRET` signs ticket QR codes and verification links, and `MASSLAK_TICKET_SIGNING_KEY` signs
-  offline ticket credentials. Changing either invalidates everything already issued.
+  offline ticket credentials. Changing either invalidates everything already issued. Outside the sandbox the API
+  and the worker refuse to start when the signing secret is missing, a placeholder, shorter than 32 bytes or not
+  random, or when the ticket key is missing or not 32 bytes of base64; `init-env.sh` generates both.
+- The API's database login has time limits (`db/create_login_roles.sql`): a statement stops after 30 s, a lock is
+  waited for at most 5 s, and a transaction idle for 2 minutes is ended. A request that hits one answers
+  `503 SERVICE_BUSY` with `Retry-After`.
 - `MASSLAK_FIELD_KEYS` and `MASSLAK_BIDX_KEY` encrypt identity numbers, MFA secrets and documents (AES-256-GCM)
   and build their blind indexes. To rotate a field key, register a new key reference in `sec.key_registry`, add
   it to `MASSLAK_FIELD_KEYS` and move the old reference to `DECRYPT_ONLY`; existing rows still decrypt with their

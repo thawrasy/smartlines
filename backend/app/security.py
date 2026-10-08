@@ -118,9 +118,61 @@ def _ticket_key():
     from cryptography.hazmat.primitives.hashes import SHA256
     from cryptography.hazmat.primitives.kdf.hkdf import HKDF
     raw = os.environ.get("MASSLAK_TICKET_SIGNING_KEY", "").strip()
+    if not raw and not get_settings().sandbox:
+        raise KeyConfigError("MASSLAK_TICKET_SIGNING_KEY must be set outside the sandbox")
     seed = base64.b64decode(raw) if raw else HKDF(algorithm=SHA256(), length=32, salt=b"masslak-dev-keys",
                                                    info=b"ticket-credential").derive(get_settings().signing_secret.encode())
     return Ed25519PrivateKey.from_private_bytes(seed)
+
+
+# ------------------------------------------------------------------ start-up check of the signing keys
+# The built-in default of MASSLAK_SIGNING_SECRET is public (it is in this repository), and a server installed by hand
+# could run with it, or with an empty value from a copied .env.example: every QR code, verification link and
+# derived token could then be forged. Outside the sandbox the API and the worker refuse to start instead
+# (review of October 2026, stage A1).
+
+DEFAULT_SIGNING_SECRET = "change-me-in-production-0123456789abcdef"
+MIN_SIGNING_SECRET = 32
+
+
+class KeyConfigError(RuntimeError):
+    pass
+
+
+def signing_key_problems(secret: str, ticket_key: str) -> list[str]:
+    """What is wrong with the signing keys for production use; empty when they are fit."""
+    problems = []
+    lowered = secret.lower()
+    if not secret.strip():
+        problems.append("MASSLAK_SIGNING_SECRET is not set")
+    elif secret == DEFAULT_SIGNING_SECRET or "change-me" in lowered or "not-for-production" in lowered:
+        problems.append("MASSLAK_SIGNING_SECRET is a placeholder value")
+    elif len(secret.encode()) < MIN_SIGNING_SECRET:
+        problems.append(f"MASSLAK_SIGNING_SECRET is shorter than {MIN_SIGNING_SECRET} bytes")
+    elif len(set(secret)) < 8:
+        problems.append("MASSLAK_SIGNING_SECRET is not random")
+    if not ticket_key.strip():
+        problems.append("MASSLAK_TICKET_SIGNING_KEY is not set")
+    else:
+        try:
+            seed = base64.b64decode(ticket_key.strip(), validate=True)
+        except ValueError:
+            seed = b""
+        if len(seed) != 32:
+            problems.append("MASSLAK_TICKET_SIGNING_KEY must be base64 of 32 bytes")
+        elif secret and seed == secret.encode()[:32]:
+            problems.append("MASSLAK_TICKET_SIGNING_KEY must not be the signing secret")
+    return problems
+
+
+def require_keys_in_production() -> None:
+    """Called at start by the API and the worker: outside the sandbox, weak or missing signing keys stop the process."""
+    if get_settings().sandbox:
+        return
+    problems = signing_key_problems(get_settings().signing_secret, os.environ.get("MASSLAK_TICKET_SIGNING_KEY", ""))
+    if problems:
+        raise KeyConfigError("refusing to start outside the sandbox: " + "; ".join(problems)
+                             + " (generate them with deploy/init-env.sh or from the secret store)")
 
 
 def ticket_public_key() -> str:

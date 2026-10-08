@@ -229,6 +229,7 @@ const en = {
     LAYOUT_DECKS: "A vehicle has one or two decks.",
     SELF_BLOCK: "This rule would block your own address.",
     SERVER_ERROR: "A server error occurred. The team has been notified.",
+    SERVICE_BUSY: "The service is busy. Try again in a moment.",
     TICKET_NOT_VALID: "This ticket is not valid for boarding.",
     TOO_MANY_HOLDS: "You have too many seats on hold.",
     TRIP_NOT_STARTED: "The trip has not finished yet.",

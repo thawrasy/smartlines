@@ -30,7 +30,9 @@ async def open_pools() -> None:
     _pool = await asyncpg.create_pool(s.database_url, min_size=1, max_size=20, command_timeout=30)
     _audit_pool = await asyncpg.create_pool(s.audit_database_url, min_size=1, max_size=4, command_timeout=30)
     if s.reports_database_url:
-        _reports_pool = await asyncpg.create_pool(s.reports_database_url, min_size=1, max_size=4, command_timeout=120)
+        # the role's own limit is 30 s (db/create_login_roles.sql); reports on the replica may run for two minutes
+        _reports_pool = await asyncpg.create_pool(s.reports_database_url, min_size=1, max_size=4, command_timeout=120,
+                                                  server_settings={"statement_timeout": "120s"})
 
 
 async def close_pools() -> None:

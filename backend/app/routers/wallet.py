@@ -44,7 +44,10 @@ async def topup(body: TopupIn, request: Request, pr: Principal = Depends(passeng
         raise ApiError(503, "PAYMENT_PROVIDER_UNAVAILABLE", "no live payment provider is configured")
     ctx = context_for(request, pr)
     async with db.transaction(ctx) as conn:
-        done = await conn.fetchval("SELECT status FROM fin.payment WHERE idempotency_key = $1", body.idempotency_key)
+        # a replay is the same payer's own request: another payer's key is never looked up (review stage A2) and,
+        # the key being unique, ends in ALREADY_EXISTS without saying anything about that payment
+        done = await conn.fetchval("SELECT status FROM fin.payment WHERE idempotency_key = $1 AND payer_party_id = $2",
+                                   body.idempotency_key, pr.party_id)
         if done:
             return {"status": done, "replayed": True}
         w = await user_wallet(conn, pr.party_id, "SYP")

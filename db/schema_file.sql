@@ -5,8 +5,9 @@ CREATE TABLE IF NOT EXISTS sys.schema_file (
   applied_at  timestamptz NOT NULL DEFAULT now()
 );
 COMMENT ON TABLE sys.schema_file IS 'Schema files applied to this database, with their SHA-256 at the time';
+-- The API reads it (never writes it) to tell whether the schema matches its code (GET /api/ready, review stage A6)
 REVOKE ALL ON sys.schema_file FROM masslak_app;
-GRANT SELECT ON sys.schema_file TO masslak_readonly;
+GRANT SELECT ON sys.schema_file TO masslak_app, masslak_readonly;
 -- Readable by everyone through row-level security, written only by the schema owner (review 3.2)
 ALTER TABLE sys.schema_file ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS catalog_read ON sys.schema_file;

@@ -43,6 +43,13 @@ async def db_error_handler(_: Request, exc: asyncpg.PostgresError) -> JSONRespon
         return JSONResponse({"error": {"code": "INVALID_VALUE", "message": exc.__class__.__name__}}, status_code=422)
     if isinstance(exc, asyncpg.InsufficientPrivilegeError):
         return JSONResponse({"error": {"code": "FORBIDDEN", "message": "not allowed"}}, status_code=403)
+    # the role's time limits (db/create_login_roles.sql, review stage A7): a statement that ran too long, a lock that
+    # was not free in time, or a transaction left idle; the request can be repeated, nothing of it was kept
+    if isinstance(exc, (asyncpg.QueryCanceledError, asyncpg.LockNotAvailableError,
+                        asyncpg.IdleInTransactionSessionTimeoutError)):
+        logging.getLogger("masslak.db").warning("database time limit reached %s: %s", exc.sqlstate, msg)
+        return JSONResponse({"error": {"code": "SERVICE_BUSY", "message": "the database did not answer in time"}},
+                            status_code=503, headers={"Retry-After": "2"})
     m = _DB_CODE.match(msg)
     if isinstance(exc, asyncpg.RaiseError) and m:
         return JSONResponse({"error": {"code": m.group(1), "message": msg}}, status_code=409)

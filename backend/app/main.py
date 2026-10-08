@@ -35,6 +35,8 @@ from .routers import admin, auth, bookings, carrier, driver, public, regulator, 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    from .security import require_keys_in_production
+    require_keys_in_production()          # no default or weak signing keys outside the sandbox (review stage A1)
     await db.open_pools()
     from . import egress
     egress.require_in_production()        # outbound traffic only through the egress proxy (T3-02)

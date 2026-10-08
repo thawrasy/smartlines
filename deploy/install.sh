@@ -5,6 +5,8 @@
 #   --demo                 test server: demo data, simulated payments, demo accounts (never on a server with real users)
 #   --admin-name "Name"    full name of the first administrator (default: Platform Administrator)
 #   --skip-server-setup    the server is already prepared (Docker, firewall); used by CI
+#   --backup-recipient K   age public key that encrypts the nightly backups (create the pair on another machine with
+#                          age-keygen); a production server writes no backup until it has one
 #
 # Steps: prepares the server (deploy/server-setup.sh), writes deploy/.env with fresh secrets (deploy/init-env.sh),
 # builds and starts the stack, waits until the site answers, creates the first platform administrator with a random
@@ -12,7 +14,7 @@
 # deploy/FIRST_LOGIN.txt (mode 600): move them to a password manager, then delete the file.
 set -euo pipefail
 cd "$(dirname "$0")/.."
-domain="" email="" admin_email="" admin_name="Platform Administrator" demo=false setup=true
+domain="" email="" admin_email="" admin_name="Platform Administrator" demo=false setup=true recipient=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --domain) domain="$2"; shift 2 ;;
@@ -21,6 +23,7 @@ while [ $# -gt 0 ]; do
     --admin-name) admin_name="$2"; shift 2 ;;
     --demo) demo=true; shift ;;
     --skip-server-setup) setup=false; shift ;;
+    --backup-recipient) recipient="$2"; shift 2 ;;
     *) echo "unknown option: $1" >&2; exit 2 ;;
   esac
 done
@@ -42,6 +45,7 @@ else
   args=(--domain "$domain")
   [ -n "$email" ] && args+=(--email "$email")
   [ "$demo" = true ] && args+=(--demo)
+  [ -n "$recipient" ] && args+=(--backup-recipient "$recipient")
   ./deploy/init-env.sh "${args[@]}"
 fi
 
@@ -94,4 +98,7 @@ Move these details to a password manager, then delete this file:  shred -u deplo
 EOF
 step "Done"
 cat deploy/FIRST_LOGIN.txt
+if ! grep -q '^MASSLAK_BACKUP_AGE_RECIPIENT=age1' deploy/.env && ! grep -q '^MASSLAK_SANDBOX=true' deploy/.env; then
+  echo "ACTION NEEDED: backups are refused until MASSLAK_BACKUP_AGE_RECIPIENT holds an age public key (deploy/README.md, section 4)." >&2
+fi
 [ "$demo" = true ] && echo "Demo accounts (password Masslak-Demo-2026) are listed in deploy/README.md."

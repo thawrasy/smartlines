@@ -105,7 +105,9 @@ section.
   3. Backfill in batches.
   4. Switch reads and writes.
   5. Remove the old structure in a later release (contract).
-- **Never edit a schema file that has been applied.** `db/upgrade.sh` warns when one changed; add a new file instead.
+- **Never edit a schema file that has been applied.** `db/upgrade.sh` refuses to run when one changed (exit code 3,
+  nothing applied) and names it; restore the file and add a new file instead. `MASSLAK_SCHEMA_DRIFT=warn` exists for
+  development databases only.
 - **Run** `db/upgrade.sh <database>`. It sets `masslak.migrating=on`, so its schema changes are logged as migrations in
   `audit.ddl_event`. The same changes made by hand raise a `security.ddl_change` alert.
 - **Lock and time limits (T3-08):** `upgrade.sh` waits at most `MASSLAK_LOCK_TIMEOUT` (5 s) for a lock and stops a

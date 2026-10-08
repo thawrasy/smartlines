@@ -3,12 +3,16 @@
 
 Usage:
     python3 db/tools/gen_docs.py <database> [psql connection args...]
+    python3 db/tools/gen_docs.py --check <database> [psql connection args...]   (CI: fails when a file is out of date)
 Output:
     db/DATA_DICTIONARY.md  — every table with its purpose, columns, types and constraints
     db/ERD.md              — a Mermaid diagram per module from the actual foreign keys
+    db/README.md           — the figures between the "stats" markers (schemas, tables, columns, keys, security,
+                             tests), so the README never states old numbers (review of October 2026, stage A8)
 """
 import json
 import os
+import re
 import subprocess
 import sys
 
@@ -79,6 +83,25 @@ SELECT coalesce(json_agg(x), '[]') FROM (
 """
 
 
+Q_STATS = r"""
+SELECT json_build_object(
+  'policies', (SELECT count(*) FROM pg_policies WHERE schemaname IN (%(s)s)),
+  'triggers', (SELECT count(*) FROM pg_trigger tg JOIN pg_class c ON c.oid = tg.tgrelid JOIN pg_namespace n ON n.oid = c.relnamespace
+                WHERE NOT tg.tgisinternal AND NOT c.relispartition AND n.nspname IN (%(s)s)),
+  'functions', (SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+                 WHERE n.nspname IN (%(s)s) AND n.nspname <> 'gis'))
+""" % {"s": SCHEMA_LIST}
+STATS_BEGIN, STATS_END = "<!-- stats:begin (db/tools/gen_docs.py) -->", "<!-- stats:end -->"
+
+
+def test_checks(root):
+    """Checks in db/tests/run_tests.sql: each pg_temp.ok / pg_temp.expect_error call, and each check that prints its own
+    PASS line; db/tests/run.sh prints the same number when the run passes."""
+    text = open(os.path.join(root, "tests", "run_tests.sql"), encoding="utf-8").read()
+    return (len(re.findall(r"^\s*SELECT pg_temp\.(?:ok|expect_error)\(", text, re.M))
+            + len(re.findall(r"RAISE NOTICE 'PASS  [^%]", text)))
+
+
 def q(db, args, sql):
     out = subprocess.run(["psql", *args, "-d", db, "-At", "-c", sql], check=True, capture_output=True, text=True).stdout
     return json.loads(out.strip())
@@ -102,12 +125,28 @@ def ent(schema, table):
 
 
 def main():
-    if len(sys.argv) < 2:
+    argv = sys.argv[1:]
+    check = bool(argv) and argv[0] == "--check"
+    if check:
+        argv = argv[1:]
+    if not argv:
         sys.exit(__doc__)
-    db, args = sys.argv[1], sys.argv[2:]
+    db, args = argv[0], argv[1:]
     tables = q(db, args, Q_TABLES)
     fks = q(db, args, Q_FKS)
+    stats = q(db, args, Q_STATS)
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    stale = []
+
+    def write(name, content):
+        path = os.path.join(root, name)
+        old = open(path, encoding="utf-8").read() if os.path.exists(path) else None
+        if old == content:
+            return
+        if check:
+            stale.append(name)
+        else:
+            open(path, "w", encoding="utf-8").write(content)
     by_schema = {}
     for t in tables:
         by_schema.setdefault(t["schema"], []).append(t)
@@ -145,7 +184,7 @@ def main():
                     default = default[:37] + "..."
                 lines.append(f"| `{c['name']}` | `{c['type']}` | {marks} | {('`' + default + '`') if default else ''} |")
             lines.append("")
-    open(os.path.join(root, "DATA_DICTIONARY.md"), "w", encoding="utf-8").write("\n".join(lines))
+    write("DATA_DICTIONARY.md", "\n".join(lines))
 
     # ---------------- ERD ----------------
     out = ["# Entity-Relationship Diagrams — Masslak Database (study v2.6)", "",
@@ -188,8 +227,35 @@ def main():
             card = "}o--||" if f["required"] else "}o..o|"
             out.append(f'  {child} {card} {parent} : "{f["cols"]}"')
         out += ["```", ""]
-    open(os.path.join(root, "ERD.md"), "w", encoding="utf-8").write("\n".join(out))
-    print(f"generated: {len(tables)} tables, {total_cols} columns, {len(fks)} foreign keys")
+    write("ERD.md", "\n".join(out))
+
+    # ---------------- README figures ----------------
+    readme = open(os.path.join(root, "README.md"), encoding="utf-8").read()
+    if STATS_BEGIN not in readme or STATS_END not in readme:
+        sys.exit(f"db/README.md has no {STATS_BEGIN} ... {STATS_END} block")
+    partitioned = sum(1 for t in tables if t["partitioned"])
+    rls = sum(1 for t in tables if t["rls"])
+    figures = {
+        "Schemas": f"{len(by_schema)} separate schemas, each with its own privileges",
+        "Tables": f"{len(tables):,} tables ({partitioned} partitioned), {total_cols:,} columns, {len(fks):,} foreign keys",
+        "Security": f"row-level security on {rls:,} of {len(tables):,} tables, {stats['policies']:,} policies; "
+                    f"{stats['triggers']:,} triggers, {stats['functions']:,} functions",
+        "Tests": f"{test_checks(root):,} automated checks against a freshly built database (`db/tests/run.sh`)"}
+    # the markers enclose the whole table (a comment line inside a table would end it); other rows stay as written
+    head, rest = readme.split(STATS_BEGIN, 1)
+    body, tail = rest.split(STATS_END, 1)
+    rows = body.strip("\n").split("\n")
+    for key, text in figures.items():
+        line = f"| {key} | {text} |"
+        at = next((i for i, r in enumerate(rows) if r.startswith(f"| {key} |")), None)
+        if at is None:
+            rows.insert(len(rows), line)
+        else:
+            rows[at] = line
+    write("README.md", head + STATS_BEGIN + "\n" + "\n".join(rows) + "\n" + STATS_END + tail)
+    if stale:
+        sys.exit("out of date (regenerate with python3 db/tools/gen_docs.py <database>): " + ", ".join(f"db/{n}" for n in stale))
+    print(f"{'checked' if check else 'generated'}: {len(tables)} tables, {total_cols} columns, {len(fks)} foreign keys")
 
 
 if __name__ == "__main__":

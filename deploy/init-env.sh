@@ -3,15 +3,17 @@
 #   ./deploy/init-env.sh --domain masslak.com --email ops@masslak.com            production
 #   ./deploy/init-env.sh --domain test.masslak.com --email ops@masslak.com --demo  test server with demo data
 #   ./deploy/init-env.sh --domain localhost --demo                                    local trial
+# Production also takes --backup-recipient <age public key> (deploy/backup.sh writes only encrypted backups there).
 set -euo pipefail
 cd "$(dirname "$0")"
-domain="" email="" demo=false locale=ar
+domain="" email="" demo=false locale=ar recipient=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --domain) domain="$2"; shift 2 ;;
     --email) email="$2"; shift 2 ;;
     --demo) demo=true; shift ;;
     --locale) locale="$2"; shift 2 ;;
+    --backup-recipient) recipient="$2"; shift 2 ;;
     *) echo "unknown option: $1" >&2; exit 2 ;;
   esac
 done
@@ -19,6 +21,7 @@ done
 [ "$domain" = localhost ] || [ -n "$email" ] || { echo "--email is required for a public domain (certificate notices)" >&2; exit 2; }
 [ -e .env ] && { echo "deploy/.env already exists; not overwritten" >&2; exit 1; }
 command -v openssl >/dev/null || { echo "openssl is required" >&2; exit 1; }
+case "$recipient" in ''|age1*) ;; *) echo "--backup-recipient must be an age public key (age1...)" >&2; exit 2 ;; esac
 
 key() { openssl rand -base64 32; }          # exactly 32 bytes, base64
 pass() { openssl rand -hex 24; }            # URL-safe: passwords go inside connection strings
@@ -37,6 +40,7 @@ sed -e "s|^MASSLAK_DOMAIN=.*|MASSLAK_DOMAIN=$domain|" \
     -e "s|^MASSLAK_FIELD_KEYS=.*|MASSLAK_FIELD_KEYS=kms://masslak/field/restricted/v1=$(key),kms://masslak/field/confidential/v1=$(key)|" \
     -e "s|^MASSLAK_BIDX_KEY=.*|MASSLAK_BIDX_KEY=$(key)|" \
     -e "s|^MASSLAK_TICKET_SIGNING_KEY=.*|MASSLAK_TICKET_SIGNING_KEY=$(key)|" \
+    -e "s|^MASSLAK_BACKUP_AGE_RECIPIENT=.*|MASSLAK_BACKUP_AGE_RECIPIENT=$recipient|" \
     .env.example > .env
 chmod 600 .env
 echo "created deploy/.env (mode 600) for $domain$([ "$demo" = true ] && echo ', demo mode')"

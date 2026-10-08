@@ -1854,6 +1854,11 @@ SELECT pg_temp.ok(has_function_privilege('masslak_app', 'sales.expire_reservatio
   AND NOT has_function_privilege('public', 'sales.expire_reservations()', 'EXECUTE')
   AND NOT has_function_privilege('public', 'fin.cash_owed(bigint, character)', 'EXECUTE'),
   'Payment options: the expiry job and the cash figures run for the application only');
+SELECT pg_temp.ok(has_table_privilege('masslak_app', 'sys.schema_file', 'SELECT')
+  AND NOT has_table_privilege('masslak_app', 'sys.schema_file', 'INSERT')
+  AND NOT has_table_privilege('masslak_app', 'sys.schema_file', 'UPDATE')
+  AND NOT has_table_privilege('masslak_app', 'sys.schema_file', 'DELETE'),
+  'Readiness: the application reads which schema files are applied and cannot change the record');
 SET ROLE masslak_app;
 
 \echo '=== ALL TESTS PASSED ==='

@@ -1,20 +1,23 @@
 # Masslak Database
 
-Built from the **Analysis and Design Study v2.7** (`docs/Masslak_Analysis_and_Design_EN_v2.7.docx`). Files 000 to 998
+Built from the **Analysis and Design Study**, first v2.7 and now v3.3 (`docs/Masslak_Analysis_and_Design_EN_v3.3.docx`). Files 000 to 998
 cover the Phase 1 scope of sections 21 and 22.2 and the fields the owner decided to build from Phase 1 onwards
 (Decision 88). Files 1003 and 1010 to 1032 complete the model against every entity the study defines, including the
 modules of later phases (sections 4.10, 9, 10, 11, 13, 14, 21 and appendix D). Those modules stay disabled behind
 feature flags until their phase starts (2.8, decision D-6). File 1033 applies the relationship rules of design v3.0:
 every table has a primary key, every reference is a foreign key (or documents why not), and every foreign key is indexed.
 
+<!-- stats:begin (db/tools/gen_docs.py) -->
 | | |
 |---|---|
 | Engine | PostgreSQL 16 with PostGIS 3 (extensions: pgcrypto, citext, btree_gist, pg_trgm, postgis in schema `gis`; Docker and CI image `postgis/postgis:16-3.4`, Ubuntu package `postgresql-16-postgis-3`) |
-| Schemas | 23 separate schemas, each with its own privileges |
-| Tables | 445 tables, 4,557 columns, 1,304 foreign keys; row-level security and a data class on every table |
-| Tests | 188 automated checks passing against a real database, including the acceptance matrix of the architecture review |
+| Schemas | 26 separate schemas, each with its own privileges |
+| Tables | 483 tables (7 partitioned), 4,975 columns, 1,408 foreign keys |
+| Security | row-level security on 483 of 483 tables, 902 policies; 412 triggers, 211 functions |
+| Tests | 394 automated checks against a freshly built database (`db/tests/run.sh`) |
 | Design | [Database design and ERD document](../docs/database/) with diagrams in the study's colors |
 | Docs | [Data dictionary](DATA_DICTIONARY.md) · [ERD diagrams](ERD.md) (both generated from the database) |
+<!-- stats:end -->
 
 ## Language and localization policy
 
@@ -32,7 +35,7 @@ createdb masslak
 ./db/build.sh masslak                 # builds the schema in order (000 -> 990) and records each file
 ./db/upgrade.sh masslak               # on an existing database: applies only the files it has not run yet
 ./db/tests/run.sh                     # builds a temporary database, runs the tests, then drops it
-python3 db/tools/gen_docs.py masslak  # regenerates the data dictionary and ERD
+python3 db/tools/gen_docs.py masslak  # regenerates the data dictionary, the ERD and the figures at the top of this file
 ```
 psql connection arguments can follow the database name, e.g. `./db/build.sh masslak -h host -U owner`.
 
@@ -40,6 +43,10 @@ psql connection arguments can follow the database name, e.g. `./db/build.sh mass
 in its own transaction and records it. Files from 980 on are upgrade files: they are written to be idempotent
 (`IF NOT EXISTS`, `ON CONFLICT DO NOTHING`, `DROP POLICY IF EXISTS`) and are never edited once released; a change
 is a new file. A database built before file tracking is treated as having every file up to 970.
+If an applied file no longer matches its recorded SHA-256, `upgrade.sh` stops with exit code 3 before applying
+anything and names the files: restore them from the release the database was built with and put the change in a new
+file. `MASSLAK_SCHEMA_DRIFT=warn` turns this into a warning, for development databases only. CI checks both, and
+checks with `gen_docs.py --check` that the generated documents and figures match a freshly built database.
 
 | File | Contents |
 |---|---|

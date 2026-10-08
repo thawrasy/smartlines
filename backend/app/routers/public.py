@@ -28,7 +28,16 @@ def _ctx(request: Request):
 
 @router.get("/health")
 async def health():
+    """Liveness only; readiness, with the database and the schema, is /api/ready (app/readiness.py)."""
     return {"ok": True}
+
+
+@router.get("/ready")
+async def ready():
+    from fastapi.responses import JSONResponse
+    from ..readiness import readiness
+    out = await readiness()
+    return JSONResponse(out, status_code=200 if out["ready"] else 503)
 
 
 @router.get("/public/keys/ticket")

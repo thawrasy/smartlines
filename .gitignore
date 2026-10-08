@@ -7,3 +7,5 @@ frontend/dist/
 data/
 docs/database/build/
 docs/database/erd/dot/
+deploy/FIRST_LOGIN.txt
+deploy/DEPLOYED
