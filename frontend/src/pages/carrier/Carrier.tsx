@@ -132,7 +132,7 @@ function NewTrip({ onClose, onDone }: { onClose: () => void; onDone: () => void 
         <Field label={t("carrier.departureLocal")}>
           <input className="input ltr" type="datetime-local" value={form.departure_local} onChange={(e) => setForm({ ...form, departure_local: e.target.value })} />
         </Field>
-        <label className="check"><input type="checkbox" checked={form.publish} onChange={(e) => setForm({ ...form, publish: e.target.checked })} />{t("carrier.publishGenerated")}</label>
+        <label className="check"><input type="checkbox" checked={form.publish} onChange={(e) => setForm({ ...form, publish: e.target.checked })} />{t("carrier.publishNow")}</label>
       </div>
     </Modal>
   );
