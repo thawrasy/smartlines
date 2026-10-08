@@ -51,7 +51,7 @@ the database's own logic (triggers, functions, maintenance). This document recor
 
 ## 4. Tests
 
-- Database checks: 371 (schema file 1054 adds 21).
+- Database checks: 372 (schema file 1054 adds 22).
 - API tests: 223 on a fresh database (`backend/tests/test_launch.py` adds 6), plus the module sweep that opens every screen
   of every portal and the isolation sweeps over every company column.
 - Mobile: typecheck and unit tests; web: typecheck and production build.
