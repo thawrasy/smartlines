@@ -2,8 +2,8 @@
 
 Every launch phase of the Analysis and Design Study v3.2 (chapters 21 and 22) and the Database Design and ERD 3.11 was
 checked against the built system: each table of a phase was looked for in the API code, in the module screens, and in
-the database's own logic (triggers, functions, maintenance). This document records what was found, what schema file
-1054 (migration 1.36.0) added, and what still stands between the system and general launch.
+the database's own logic (triggers, functions, maintenance). This document records what was found, what schema files
+1054 and 1055 (migrations 1.36.0 and 1.36.1) added, and what still stands between the system and general launch.
 
 ## 1. Method
 
@@ -29,6 +29,7 @@ the database's own logic (triggers, functions, maintenance). This document recor
 | Reference data | 1A | Currencies, rates and catalogues edited only by schema files | **Reference data** module. |
 | School transport (21.3) | SCH | Whole phase: database only | **School transport** module for the platform, operators and guardians: guardians give or refuse consent and report absences (and change nothing else, database-enforced); the operator records attendance and the empty-bus check. |
 | Row ownership | 1A | A partner company could edit another carrier's disruption; companies could change who bears a passenger's compensation | Disruptions are written only by the trip's carrier; compensation only by the platform (found by the isolation sweep once the tables had data). |
+| Contact centre and AI phase (CS) | CS | The 2.8 feature flags shipped `ai_assistant` on, which opened the whole phase on a fresh install, against launch gate 9 | Schema file 1055 switches both CS switches off unless an approved data protection review exists, and refuses to switch them on before one is recorded with its DPIA file and approver |
 
 ## 3. Coverage after 1054
 
@@ -51,7 +52,7 @@ the database's own logic (triggers, functions, maintenance). This document recor
 
 ## 4. Tests
 
-- Database checks: 372 (schema file 1054 adds 22).
+- Database checks: 376 (schema file 1054 adds 22, 1055 adds 4).
 - API tests: 223 on a fresh database (`backend/tests/test_launch.py` adds 6), plus the module sweep that opens every screen
   of every portal and the isolation sweeps over every company column.
 - Mobile: typecheck and unit tests; web: typecheck and production build.

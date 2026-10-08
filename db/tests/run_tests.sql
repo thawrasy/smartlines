@@ -1740,4 +1740,26 @@ SELECT pg_temp.expect_error(format($q$INSERT INTO fleet.license_change_request (
 ROLLBACK;
 SET ROLE masslak_app;
 
+-- =====================================================================
+-- Contact centre and AI phase gate (1055)
+-- =====================================================================
+RESET ROLE;
+SELECT pg_temp.ok((:'shipped_features'::jsonb ->> 'ai_assistant')::boolean IS NOT TRUE
+  AND (:'shipped_features'::jsonb ->> 'contact_center')::boolean IS NOT TRUE AND NOT sys.phase_on('CS'),
+  'AI phase: a new install ships the contact centre and AI phase closed');
+SELECT pg_temp.expect_error($q$UPDATE sys.setting SET value = value || '{"ai_assistant": true}'::jsonb WHERE key = 'features'$q$,
+  'DPIA_REQUIRED', 'AI phase: the AI switch does not open without an approved data protection review');
+BEGIN;
+INSERT INTO ref.file_object (storage_key, mime_type, size_bytes, sha256)
+VALUES ('dpia/ai-probe.pdf', 'application/pdf', 1, sha256('dpia'::bytea)) RETURNING id AS ai_file \gset
+SELECT id AS ai_user FROM iam.app_user ORDER BY id LIMIT 1 \gset
+INSERT INTO gov.feature_compliance_review (feature, decision, approved_by) VALUES ('contact_center', 'APPROVED', :ai_user);
+SELECT pg_temp.expect_error($q$UPDATE sys.setting SET value = value || '{"contact_center": true}'::jsonb WHERE key = 'features'$q$,
+  'DPIA_REQUIRED', 'AI phase: an approval without the DPIA file does not open the phase');
+INSERT INTO gov.feature_compliance_review (feature, dpia_file_id, decision, approved_by) VALUES ('contact_center', :ai_file, 'APPROVED', :ai_user);
+UPDATE sys.setting SET value = value || '{"contact_center": true}'::jsonb WHERE key = 'features';
+SELECT pg_temp.ok(sys.phase_on('CS'), 'AI phase: an approved review with its DPIA opens the phase');
+ROLLBACK;
+SET ROLE masslak_app;
+
 \echo '=== ALL TESTS PASSED ==='

@@ -11,6 +11,21 @@ from test_e2e import OWNER_URL, login, owner_sql
 pytestmark = pytest.mark.skipif(not OWNER_URL, reason="needs MASSLAK_OWNER_URL")
 
 CACHE_SECONDS = 6          # app.modular.features caches the switches for five seconds
+DPIA_GATED = ("contact_center", "ai_assistant")   # open only with an approved data protection review (1055)
+
+
+def _approve_dpia(key):
+    """Record what the data protection officer records before the phase opens: an approved review with its DPIA file.
+    The file is entered as the platform's scanner leaves it (scanned clean); key comes from DPIA_GATED only."""
+    owner_sql(f"""DO $$ DECLARE f bigint; BEGIN
+        PERFORM set_config('app.scope', 'SYSTEM', true);
+        INSERT INTO ref.file_object (storage_key, mime_type, size_bytes, sha256, scan_status, scanned_at, scan_engine)
+        VALUES ('dpia/{key}-test.pdf', 'application/pdf', 1, sha256(convert_to('{key}', 'UTF8')), 'CLEAN', now(), 'test')
+        RETURNING id INTO f;
+        INSERT INTO gov.feature_compliance_review (feature, dpia_file_id, decision, approved_by)
+        VALUES ('{key}', f, 'APPROVED', (SELECT id FROM iam.app_user ORDER BY id LIMIT 1));
+    END $$""")
+    return owner_sql("SELECT max(id) FROM gov.feature_compliance_review WHERE feature = $1", key)
 
 
 @pytest.fixture(scope="module")
@@ -41,6 +56,7 @@ def switch(admin, key, enabled):
 @pytest.fixture(scope="module")
 def all_on(admin):
     before = {m["key"]: m["enabled"] for m in admin.get("/api/admin/modules").json()["modules"]}
+    reviews = [_approve_dpia(key) for key in DPIA_GATED if key in before and not before[key]]
     for key, on in before.items():
         if not on:
             switch(admin, key, True)
@@ -49,6 +65,12 @@ def all_on(admin):
     for key, on in before.items():
         if not on:
             switch(admin, key, False)
+    for review in reviews:
+        owner_sql(f"""DO $$ DECLARE f bigint; BEGIN
+            PERFORM set_config('app.scope', 'SYSTEM', true);
+            DELETE FROM gov.feature_compliance_review WHERE id = {int(review)} RETURNING dpia_file_id INTO f;
+            DELETE FROM ref.file_object WHERE id = f;
+        END $$""")
 
 
 def test_switching_needs_a_reason_and_the_permission(admin, carrier):
@@ -57,6 +79,14 @@ def test_switching_needs_a_reason_and_the_permission(admin, carrier):
     assert admin.put("/api/admin/modules/no_such_module", json={"enabled": True, "reason": "test"}).status_code == 404
     assert carrier.put("/api/admin/modules/taxi", json={"enabled": True, "reason": "test"}).status_code == 403
     assert carrier.get("/api/admin/modules").status_code == 403
+
+
+def test_the_contact_centre_and_ai_phase_opens_only_after_an_approved_dpia(admin):
+    on = {m["key"]: m["enabled"] for m in admin.get("/api/admin/modules").json()["modules"]}
+    if on["contact_center"] or owner_sql("SELECT gov.feature_review_approved('contact_center')"):
+        pytest.skip("the contact centre is already approved on this database")
+    r = admin.put("/api/admin/modules/contact_center", json={"enabled": True, "reason": "automated test"})
+    assert r.status_code == 409 and r.json()["error"]["code"] == "DPIA_REQUIRED", r.text
 
 
 def test_a_switched_off_module_disappears(admin, carrier, all_on):

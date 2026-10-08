@@ -171,7 +171,7 @@ alert. Each API instance needs about 300 to 500 MB, the worker about 300 MB, Cla
 - **Self-managed or managed:** self-managed (in the container or on a dedicated server) for the trial and pilot. The
   schema needs superuser for some statements (the DDL audit event triggers of file 1047) and pgBackRest needs the data
   directory. A managed service (Amazon RDS, Azure Database for PostgreSQL) is possible later after a full compatibility
-  run: load the schema, pass the 372 database checks, confirm the extensions, event triggers and SECURITY DEFINER roles.
+  run: load the schema, pass the 376 database checks, confirm the extensions, event triggers and SECURITY DEFINER roles.
 
 ## 8. Network, domain, certificates
 

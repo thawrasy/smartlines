@@ -242,6 +242,7 @@ const en = {
     ERASURE_STAFF: "Staff accounts are closed by their company or the platform.",
     IBAN_INVALID: "The IBAN is not valid. Check it and try again.",
     BANK_ACCOUNT_NOT_VERIFIED: "Platform finance has not verified this bank account yet.",
+    DPIA_REQUIRED: "The contact centre and AI assistant open only after an approved data protection review (DPIA) is recorded in Data governance.",
     FOUR_EYES: "This needs a different person: you cannot approve or pay your own request twice.",
     NOT_APPROVED: "The withdrawal still needs its approvals.",
     SEAT_LAYOUT_REQUIRED: "Choose the vehicle's seat layout.",
