@@ -14,7 +14,7 @@ const PNG = path.join(HERE, "..", "erd", "png");
 // numbers of the verification run that built this document (verification.py), never typed by hand (audit T3-17)
 const V = JSON.parse(fs.readFileSync(path.join(HERE, "..", "build", "verification.json"), "utf8"));
 const lastFile = V.last_schema_file.split("_")[0];
-const VERSION = "3.10";
+const VERSION = "3.11";
 const DATE = "7 October 2026";
 const FONT = "Arial";
 const C = { navy: "1F3A5F", blue: "2E74B5", blue2: "1F4D78", grid: "B7C3D0", alt: "F2F6FA", grey: "595959" };
@@ -110,7 +110,7 @@ front.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 16
 front.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 1200 },
   children: [run(`Complete relational model of the Analysis and Design Study v3.0: ${tableCount} tables, ${fkCount} relationships`, { color: "7F7F7F" })] }));
 front.push(table(["Item", "Details"], [
-  ["Version", `${VERSION} (the owner's decisions on the review of 3.9 and the architecture review of 3.9: approved recovery and service targets, time-bound external reviewer access, reports on a read replica, module dependency and trigger cost controls, capacity metrics; replaces version 3.9)`],
+  ["Version", `${VERSION} (the database at ten million operations a day: shared wallets without row locks, monthly ledger partitions with closed-day totals and incremental reconciliation, daily outbox partitions, latest vehicle positions, the audit online window, connection pooling; replaces version 3.10)`],
   ["Date", DATE],
   ["Basis", "Analysis and Design Study v3.0 (English), the Use Case and Data Flow Diagrams v1.0, the Database Architecture Review v1.0, the Strategic Database Review and its relationship audit register, the Third-Party Technical Audit, the Technical Audit of design document 3.7, its re-audit of 3.8 and follow-up of 3.9, and the architecture review of 3.9"],
   ["Scope", `${schemas.length} schemas, ${tableCount} tables, ${colCount} columns, ${fkCount} foreign keys; all phases 1 to 15`],
@@ -120,7 +120,7 @@ front.push(table(["Item", "Details"], [
 ], [2800, 6946]));
 
 const toc = [H(HeadingLevel.HEADING_1, "Contents", { pageBreak: true })];
-const tocLines = ["Changes in version 3.10", "Changes in version 3.9", "Changes in version 3.8", "Changes in version 3.7", "Changes in version 3.6", "Changes in version 3.5", "Changes in version 3.4", "Changes in version 3.3", "Changes in version 3.2", "Changes in version 3.1", "Changes in version 3.0", "1. Introduction", "2. Database architecture", "3. Design rules", "4. Security model in the database",
+const tocLines = ["Changes in version 3.11", "Changes in version 3.10", "Changes in version 3.9", "Changes in version 3.8", "Changes in version 3.7", "Changes in version 3.6", "Changes in version 3.5", "Changes in version 3.4", "Changes in version 3.3", "Changes in version 3.2", "Changes in version 3.1", "Changes in version 3.0", "1. Introduction", "2. Database architecture", "3. Design rules", "4. Security model in the database",
   "5. Data stores of the data flow diagrams", "6. Entity-relationship diagrams by module",
   ...model.groups.map((g, i) => `      6.${i + 1} ${g[0]} ${g[1]}`), `      6.${model.groups.length + 1} Focus diagrams: rules that span modules`,
   "7. Table definitions", "8. Traceability to the study", "9. Verification",
@@ -162,6 +162,38 @@ const changes38 = [H(HeadingLevel.HEADING_2, "b. Hardening after the third-party
     + "infrastructure and moves to Phase 5.", "Owner decisions"),
   P("Schema-level two-way dependencies (21, frozen by test H-07) differ from phase-level dependencies, of which there are none backwards: "
     + "the earlier wording is clarified accordingly. db/tools/audit_pack.sh builds the evidence pack for the second phase of the audit."),
+];
+
+// ------------------------------ changes in 3.11 (ten million operations a day) ------------------------------
+const changes3_11 = [H(HeadingLevel.HEADING_1, "Changes in version 3.11", { pageBreak: true }),
+  P("The owner set the planning figure at ten million operations a day for the full platform. The load, the data volumes, "
+    + "the server sizes and the growth stages are recalculated in docs/operations/CAPACITY_MODEL.md. This version changes the "
+    + "database where that volume would otherwise meet a limit (schema files 1052_scale_ten_million.sql and 1053_outbox_partitions.sql, "
+    + "migrations 1.34.0 and 1.35.0). Each change was measured, and a populated database at 1.33.0 was upgraded in 5.6 seconds "
+    + "with every wallet reconciled before and after."),
+  H(HeadingLevel.HEADING_2, "a. Money: no shared hot row"),
+  bullet("A wallet that many transactions credit at once (carrier, agency, the platform's fee, tax, escrow and clearing wallets) "
+    + "has balance_mode DEFERRED: a posting appends its entry and touches no wallet row; fin.roll_up_balances folds finished "
+    + "entries into the stored balance every few seconds; the balance that counts is fin.wallet_balance(id). A debit that "
+    + "must stay covered queues only with the other debits of that wallet and checks that balance; holds use fin.adjust_hold. "
+    + "Passenger and family wallets stay IMMEDIATE.", "Shared wallets"),
+  bullet("Measured with db/tools/wallet_contention_bench.py on one carrier wallet and one clearing wallet: 865 postings a "
+    + "second at most before, falling to 688 at 32 clients; 2,654 after, steady at 32 clients, with clean reconciliation.", "Measured"),
+  bullet("fin.ledger_entry sits in monthly partitions. fin.close_ledger_days totals every wallet per finished UTC day "
+    + "(fin.ledger_day_total, with a running total); nothing is posted into a closed day (LEDGER_DAY_CLOSED); "
+    + "fin.reconcile_wallets reads the last running total plus the open days, and fin.verify_ledger_day re-reads a past day. "
+    + "fin.wallet_balance_at gives the balance at any moment for statements.", "Ledger"),
+  H(HeadingLevel.HEADING_2, "b. Events, positions, audit and connections"),
+  bullet("sys.outbox_event sits in daily partitions dropped whole after the retention (sys.drop_outbox_days); a delivery "
+    + "keeps the day of its event (outbox_created_at) with its reference; the duplicate pending-queue index is gone; the "
+    + "worker claims events in batches, each in its own savepoint.", "Outbox"),
+  bullet("ops.vehicle_position keeps the latest accepted position of each vehicle, written once per insert statement of "
+    + "positions; apps send positions in batches of up to 120.", "Positions"),
+  bullet("A wallet change made only by a posting is not copied to the change log (the entry is the record); updates now keep "
+    + "the row key in the log. Audit months older than audit.online_months (13) are dropped once audit.archive_checkpoint shows "
+    + "the signed archive covers them.", "Audit"),
+  bullet("sys.partition_option holds the storage settings applied to every new partition. PgBouncer in transaction mode "
+    + "stands between the API instances and the primary; the full API suite passes through it.", "Storage and pooling"),
 ];
 
 // ------------------------------ changes in 3.10 (owner decisions and architecture review of 3.9) ------------------------------
@@ -795,7 +827,7 @@ const doc = new Document({
   numbering: { config: [{ reference: "bullets", levels: [{ level: 0, format: LevelFormat.BULLET, text: "•", alignment: AlignmentType.LEFT,
     style: { paragraph: { indent: { left: 540, hanging: 270 } } } }] }] },
   sections: [
-    section(PORTRAIT, [...front, ...toc, ...changes3_10, ...changes3_9, ...changes3_8, ...changes37, ...changes38, ...changes39, ...changes36, ...changes35, ...changes34, ...changes33, ...changes32, ...changes31, ...changes, ...intro, ...arch, ...rules, ...security, ...stores]),
+    section(PORTRAIT, [...front, ...toc, ...changes3_11, ...changes3_10, ...changes3_9, ...changes3_8, ...changes37, ...changes38, ...changes39, ...changes36, ...changes35, ...changes34, ...changes33, ...changes32, ...changes31, ...changes, ...intro, ...arch, ...rules, ...security, ...stores]),
     ...erdSections,
     section(PORTRAIT, [...defs, ...trace, ...verify, ...flags, ...gens, ...appC]),
   ],

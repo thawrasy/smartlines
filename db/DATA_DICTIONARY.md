@@ -2,7 +2,7 @@
 
 > Generated from the built database (`db/tools/gen_docs.py`); do not edit by hand.
 
-**476 tables, 4920 columns, in 26 schemas.**
+**481 tables, 4954 columns, in 26 schemas.**
 
 Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant isolation (RLS) · 🧩 partitioned monthly · 🔒 append-only / change-protected
 
@@ -10,13 +10,13 @@ Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant i
 
 - [`iam` — Identity, parties, users, permissions and API clients](#iam) (32 tables)
 - [`ref` — Reference data, locales and files](#ref) (13 tables)
-- [`sys` — Settings, outbox and webhooks](#sys) (20 tables)
+- [`sys` — Settings, outbox and webhooks](#sys) (21 tables)
 - [`net` — Network: stations, routes, lines, corridors and geofences](#net) (22 tables)
 - [`fleet` — Fleet: vehicles, trucks, trailers, seats, crew, licenses and insurance](#fleet) (22 tables)
 - [`pricing` — Pricing, taxes, commissions, campaigns and loyalty](#pricing) (35 tables)
-- [`ops` — Trips, inventory, operations, shuttle rides, tracking and incidents](#ops) (32 tables)
+- [`ops` — Trips, inventory, operations, shuttle rides, tracking and incidents](#ops) (33 tables)
 - [`sales` — Channels, bookings, passengers, tickets, subscriptions and travel documents](#sales) (27 tables)
-- [`fin` — Wallets, ledger, payments, allocation, settlement and float](#fin) (25 tables)
+- [`fin` — Wallets, ledger, payments, allocation, settlement and float](#fin) (27 tables)
 - [`acct` — Simplified accounting, e-invoicing and tax profiles](#acct) (35 tables)
 - [`bill` — Carrier subscriptions, metering and platform invoices](#bill) (7 tables)
 - [`crm` — Complaints, ratings, notifications, the AI assistant and the contact center](#crm) (19 tables)
@@ -33,7 +33,7 @@ Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant i
 - [`taxi` — Taxis](#taxi) (7 tables)
 - [`rent` — Car rental](#rent) (15 tables)
 - [`rpt` — Report definitions, runs and schedules](#rpt) (4 tables)
-- [`audit` — Login and activity logs (append-only)](#audit) (6 tables)
+- [`audit` — Login and activity logs (append-only)](#audit) (7 tables)
 
 <a id="iam"></a>
 ## `iam` — Identity, parties, users, permissions and API clients
@@ -948,9 +948,9 @@ Result of each orphan sweep over the registered references; any orphan raises an
 | `orphans` | `bigint` | ✱ |  |
 | `findings` | `jsonb` | ✱ |  |
 
-### `sys.outbox_event` 🛡️
+### `sys.outbox_event` 🛡️ 🧩
 
-Transactional outbox: written in the same transaction as the change, then published to services and partners
+Transactional outbox: written in the same transaction as the change, then published to services and partners; daily partitions, a finished day dropped whole after the retention (1053)
 
 | Column | Type | Constraints | Default |
 |---|---|---|---|
@@ -965,7 +965,7 @@ Transactional outbox: written in the same transaction as the change, then publis
 | `attempts` | `integer` | ✱ | `0` |
 | `next_attempt_at` | `timestamp with time zone` | ✱ | `now()` |
 | `last_error` | `text` |  |  |
-| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `created_at` | `timestamp with time zone` | 🔑 ✱ | `now()` |
 | `published_at` | `timestamp with time zone` |  |  |
 | `schema_version` | `smallint` | ✱ | `1` |
 | `correlation_id` | `uuid` |  | `sys.ctx_request_id()` |
@@ -980,6 +980,16 @@ Last event number per aggregate; survives the purge of delivered events so numbe
 | `aggregate_type` | `text` | 🔑 ✱ |  |
 | `aggregate_id` | `bigint` | 🔑 ✱ |  |
 | `last_seq` | `bigint` | ✱ |  |
+
+### `sys.partition_option` 🛡️
+
+Storage settings (autovacuum, fillfactor) applied to every new partition of a partitioned table, since a partitioned parent cannot carry them (CAPACITY_MODEL.md)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `parent` | `text` | 🔑 ✱ |  |
+| `options` | `text[]` | ✱ |  |
+| `reason` | `text` | ✱ |  |
 
 ### `sys.polymorphic_reference` 🛡️
 
@@ -1092,7 +1102,7 @@ Delivery attempts, retries and dead letters (DEAD)
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `endpoint_id` | `bigint` | 🔗 `sys.webhook_endpoint` ✱ |  |
-| `outbox_event_id` | `bigint` | 🔗 `sys.outbox_event` ✱ |  |
+| `outbox_event_id` | `bigint` | ✱ |  |
 | `delivery_uid` | `uuid` | ✱ | `gen_random_uuid()` |
 | `status` | `text` | ✱ | `'PENDING'::text` |
 | `attempts` | `integer` | ✱ | `0` |
@@ -1103,6 +1113,7 @@ Delivery attempts, retries and dead letters (DEAD)
 | `delivered_at` | `timestamp with time zone` |  |  |
 | `response_ms` | `integer` |  |  |
 | `event_type` | `text` |  |  |
+| `outbox_created_at` | `timestamp with time zone` | ✱ |  |
 
 ### `sys.webhook_endpoint` 🛡️
 
@@ -3030,6 +3041,24 @@ Recurring trip pattern that generates the actual trips
 | `status` | `text` | ✱ | `'ACTIVE'::text` |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
+### `ops.vehicle_position` 🛡️
+
+The latest accepted position of every vehicle, one row each, kept by the insert of positions (live maps and dashboards read here, never the position history)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `vehicle_id` | `bigint` | 🔑 🔗 `fleet.vehicle` ✱ |  |
+| `trip_id` | `bigint` | 🔗 `ops.trip`  |  |
+| `driver_user_id` | `bigint` | 🔗 `iam.app_user`  |  |
+| `ts` | `timestamp with time zone` | ✱ |  |
+| `lat` | `numeric` | ✱ |  |
+| `lng` | `numeric` | ✱ |  |
+| `speed_kmh` | `real` |  |  |
+| `heading` | `smallint` |  |  |
+| `accuracy_m` | `real` |  |  |
+| `trust` | `text` | ✱ |  |
+| `updated_at` | `timestamp with time zone` | ✱ | `now()` |
+
 ### `ops.vehicle_swap` 🛡️
 
 Swapping the trip vehicle without changing the trip number (4.16 d)
@@ -3733,9 +3762,32 @@ Daily coverage of wallet liabilities by bank assets
 | `yield_accrued` | `bigint` | ✱ | `0` |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
-### `fin.ledger_entry` 🛡️ 🔒
+### `fin.ledger_close` 🛡️
 
-Ledger entry (debit/credit); append-only, updates the wallet balance atomically
+The last UTC day of the ledger that is closed: totalled per wallet, and no entry may be written into it
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `boolean` | 🔑 ✱ | `true` |
+| `closed_through` | `date` |  |  |
+| `closed_at` | `timestamp with time zone` |  |  |
+
+### `fin.ledger_day_total` 🛡️ 🔒
+
+Per wallet and closed UTC day: credits, debits and the running total of every entry up to the end of that day. Written once by fin.close_ledger_days, never changed
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `wallet_id` | `bigint` | 🔑 🔗 `fin.wallet` ✱ |  |
+| `day` | `date` | 🔑 ✱ |  |
+| `credit` | `bigint` | ✱ |  |
+| `debit` | `bigint` | ✱ |  |
+| `entries` | `integer` | ✱ |  |
+| `running_total` | `bigint` | ✱ |  |
+
+### `fin.ledger_entry` 🛡️ 🧩 🔒
+
+Ledger entry (debit/credit); append-only, in monthly partitions; an entry of an IMMEDIATE wallet updates its balance atomically, an entry of a DEFERRED wallet is folded in by the roll-up (1052)
 
 | Column | Type | Constraints | Default |
 |---|---|---|---|
@@ -3745,7 +3797,8 @@ Ledger entry (debit/credit); append-only, updates the wallet balance atomically
 | `direction` | `character(2)` | ✱ |  |
 | `amount` | `bigint` | ✱ |  |
 | `balance_after` | `bigint` |  |  |
-| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `created_at` | `timestamp with time zone` | 🔑 ✱ | `now()` |
+| `created_xid` | `xid8` |  |  |
 
 ### `fin.ledger_txn` 🛡️ 🔒
 
@@ -4036,6 +4089,9 @@ Wallet: user, company, platform, escrow, commission, tax, clearing; the balance 
 | `kyc_level` | `smallint` | ✱ | `0` |
 | `status` | `text` | ✱ | `'ACTIVE'::text` |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `balance_mode` | `text` | ✱ |  |
+| `rolled_xid` | `xid8` | ✱ | `'0'::xid8` |
+| `rolled_at` | `timestamp with time zone` |  |  |
 
 ### `fin.wallet_reconciliation` 🛡️
 
@@ -8259,6 +8315,19 @@ Every request or action on the platform or via API: who, when, from where, what,
 | `reason` | `text` |  |  |
 | `changes` | `jsonb` |  |  |
 | `row_hash` | `bytea` |  |  |
+
+### `audit.archive_checkpoint` 🛡️ 🔒
+
+Each export of the audit logs to the signed archive: up to which row of which log, and the manifest that proves it (app.tools.audit_export)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `table_name` | `text` | ✱ |  |
+| `through_id` | `bigint` | ✱ |  |
+| `manifest_sha256` | `text` | ✱ |  |
+| `recorded_by` | `text` | ✱ | `CURRENT_USER` |
+| `recorded_at` | `timestamp with time zone` | ✱ | `now()` |
 
 ### `audit.auth_event` 🛡️ 🧩 🔒
 

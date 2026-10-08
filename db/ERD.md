@@ -90,8 +90,8 @@ flowchart LR
   net -->|7| iam
   net -->|3| ref
   ops -->|2| fin
-  ops -->|9| fleet
-  ops -->|17| iam
+  ops -->|10| fleet
+  ops -->|18| iam
   ops -->|17| net
   ops -->|1| ref
   ops -->|3| sales
@@ -598,10 +598,14 @@ erDiagram
   sys_outbox_event {
     bigint id PK
     text status
+    timestamp_with_time_zone created_at PK
   }
   sys_outbox_sequence {
     text aggregate_type PK
     bigint aggregate_id PK
+  }
+  sys_partition_option {
+    text parent PK
   }
   sys_polymorphic_reference {
     text table_name PK
@@ -638,7 +642,6 @@ erDiagram
   sys_webhook_delivery {
     bigint id PK
     bigint endpoint_id FK
-    bigint outbox_event_id FK
     text status
   }
   sys_webhook_endpoint {
@@ -666,7 +669,17 @@ erDiagram
   sys_company_setting }o--|| iam_company : "company_id"
   sys_city_rollout }o--|| ref_city : "city_id"
   sys_requirement_change }o--|| sys_compliance_requirement : "code"
-  sys_webhook_delivery }o--|| sys_outbox_event : "outbox_event_id"
+  sys_webhook_delivery }o--|| sys_outbox_event : "outbox_event_id,outbox_created_at"
+  sys_webhook_delivery }o--|| sys_outbox_event_20261007 : "outbox_event_id,outbox_created_at"
+  sys_webhook_delivery }o--|| sys_outbox_event_20261008 : "outbox_event_id,outbox_created_at"
+  sys_webhook_delivery }o--|| sys_outbox_event_20261009 : "outbox_event_id,outbox_created_at"
+  sys_webhook_delivery }o--|| sys_outbox_event_20261010 : "outbox_event_id,outbox_created_at"
+  sys_webhook_delivery }o--|| sys_outbox_event_20261011 : "outbox_event_id,outbox_created_at"
+  sys_webhook_delivery }o--|| sys_outbox_event_20261012 : "outbox_event_id,outbox_created_at"
+  sys_webhook_delivery }o--|| sys_outbox_event_20261013 : "outbox_event_id,outbox_created_at"
+  sys_webhook_delivery }o--|| sys_outbox_event_20261014 : "outbox_event_id,outbox_created_at"
+  sys_webhook_delivery }o--|| sys_outbox_event_20261015 : "outbox_event_id,outbox_created_at"
+  sys_webhook_delivery }o--|| sys_outbox_event_default : "outbox_event_id,outbox_created_at"
   sys_table_phase }o--|| sys_project_phase : "phase_code"
   sys_delivery_retry_request }o--|| sys_webhook_delivery : "delivery_id"
   sys_webhook_delivery }o--|| sys_webhook_endpoint : "endpoint_id"
@@ -1626,6 +1639,11 @@ erDiagram
     character currency FK
     text status
   }
+  ops_vehicle_position {
+    bigint vehicle_id PK
+    bigint trip_id FK
+    bigint driver_user_id FK
+  }
   ops_vehicle_swap {
     bigint id PK
     bigint trip_id FK
@@ -1701,6 +1719,7 @@ erDiagram
   ops_ride_segment_charge }o..o| fin_ledger_txn : "ledger_txn_id"
   ops_shuttle_ride }o--|| fin_wallet : "wallet_id"
   ops_crew_assignment }o--|| fleet_crew_profile : "party_id"
+  ops_vehicle_position }o--|| fleet_vehicle : "vehicle_id"
   ops_vehicle_swap }o--|| fleet_vehicle : "from_vehicle_id"
   ops_presence_beacon }o..o| fleet_vehicle : "vehicle_id"
   ops_vehicle_swap }o--|| fleet_vehicle : "to_vehicle_id"
@@ -1713,6 +1732,7 @@ erDiagram
   ops_tracking_state }o..o| iam_app_user : "driver_user_id"
   ops_driver_notice }o--|| iam_app_user : "user_id"
   ops_shuttle_ride }o--|| iam_app_user : "user_id"
+  ops_vehicle_position }o..o| iam_app_user : "driver_user_id"
   ops_seat_segment }o..o| iam_app_user : "lock_user_id"
   ops_transit_reconciliation }o..o| iam_app_user : "resolved_by_user_id"
   ops_seat_lock }o..o| iam_app_user : "user_id"
@@ -1768,6 +1788,7 @@ erDiagram
   ops_presence_beacon }o--|| ops_trip : "trip_id"
   ops_seat_lock }o--|| ops_trip : "trip_id"
   ops_trip_delay }o--|| ops_trip : "trip_id"
+  ops_vehicle_position }o..o| ops_trip : "trip_id"
   ops_driver_notice }o..o| ops_trip : "trip_id"
   ops_permission_event }o..o| ops_trip : "trip_id"
   ops_incident }o..o| ops_trip : "trip_id"
@@ -2233,10 +2254,18 @@ erDiagram
     date report_date PK
     character currency PK
   }
+  fin_ledger_close {
+    boolean id PK
+  }
+  fin_ledger_day_total {
+    bigint wallet_id PK
+    date day PK
+  }
   fin_ledger_entry {
     bigint id PK
     bigint txn_id FK
     bigint wallet_id FK
+    timestamp_with_time_zone created_at PK
   }
   fin_ledger_txn {
     bigint id PK
@@ -2442,6 +2471,7 @@ erDiagram
   fin_tax_ledger }o..o| fin_price_allocation_line : "allocation_line_id"
   fin_settlement_line }o--|| fin_settlement_batch : "batch_id"
   fin_payout }o..o| fin_settlement_batch : "settlement_batch_id"
+  fin_ledger_day_total }o--|| fin_wallet : "wallet_id"
   fin_bank_transfer_topup }o--|| fin_wallet : "wallet_id"
   fin_withdrawal_request }o--|| fin_wallet : "wallet_id"
   fin_ledger_entry }o--|| fin_wallet : "wallet_id"
@@ -5259,6 +5289,9 @@ erDiagram
   audit_activity_log {
     bigint id PK
     timestamp_with_time_zone ts PK
+  }
+  audit_archive_checkpoint {
+    bigint id PK
   }
   audit_auth_event {
     bigint id PK

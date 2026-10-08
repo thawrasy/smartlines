@@ -48,7 +48,7 @@ GROUPS = [
      "Countries, currencies, cities, locales and translations, files, the extensible reference lists of appendix D, settings, "
      "the outbox and webhooks.",
      ["ref.country", "ref.currency", "ref.exchange_rate", "ref.city", "ref.locale", "ref.translation", "ref.file_object",
-      "ref.trip_type", "ref.vehicle_class", "ref.station_subtype", "ref.cargo_category", "sys.setting", "sys.company_setting", "sys.table_class", "sys.module_gate", "sys.project_phase", "sys.table_phase", "ref.seed_version",
+      "ref.trip_type", "ref.vehicle_class", "ref.station_subtype", "ref.cargo_category", "sys.setting", "sys.company_setting", "sys.partition_option", "sys.table_class", "sys.module_gate", "sys.project_phase", "sys.table_phase", "ref.seed_version",
       "sys.outbox_event", "sys.webhook_endpoint", "sys.webhook_delivery", "sys.schema_migration", "sys.schema_file",
       "sys.compliance_requirement", "gis.spatial_ref_sys", "sys.polymorphic_reference", "sys.orphan_check", "sys.json_contract",
       "sys.requirement_change", "sys.outbox_sequence", "sys.job_run", "sys.delivery_retry_request"]),
@@ -83,7 +83,7 @@ GROUPS = [
     ("E09", "Tracking, incidents and border crossings", "7.8, 7.10, 11.3, D.1", "trip",
      "Positions, tracking state and alerts, driver notices, route adherence and permission events; incidents with evidence and "
      "external links; the crossing plan, crossing events and the transit reconciliation.",
-     ["ops.geo_event", "ops.tracking_state", "ops.tracking_alert", "ops.driver_notice", "ops.route_adherence_event",
+     ["ops.geo_event", "ops.vehicle_position", "ops.tracking_state", "ops.tracking_alert", "ops.driver_notice", "ops.route_adherence_event",
       "ops.permission_event", "ops.incident", "ops.incident_evidence", "ops.incident_external_link", "ops.trip_disruption",
       "ops.trip_crossing_plan", "ops.crossing_event", "ops.transit_reconciliation", "ops.route_violation",
       "ops.violation_report", "fleet.tracking_device"]),
@@ -124,7 +124,7 @@ GROUPS = [
      "Wallets and the double-entry ledger, payment providers (card gateway, partner e-wallet, bank transfer, agency cash, partner API), "
      "payments and their signed notifications, refunds to the source, bank transfer references matched from imported bank statements, "
      "withdrawals and cash remittances.",
-     ["fin.wallet", "fin.ledger_txn", "fin.ledger_entry", "fin.posting_batch", "fin.wallet_reconciliation", "fin.payment_provider", "fin.payment", "fin.payment_notification",
+     ["fin.wallet", "fin.ledger_txn", "fin.ledger_entry", "fin.ledger_day_total", "fin.ledger_close", "fin.posting_batch", "fin.wallet_reconciliation", "fin.payment_provider", "fin.payment", "fin.payment_notification",
       "fin.payment_refund", "fin.bank_transfer_topup", "fin.bank_statement_import", "fin.bank_statement_line",
       "fin.withdrawal_request", "fin.cash_remittance"]),
     ("E17", "Price allocation, settlement, payouts and float", "5.7, 6.6-6.8", "money",
@@ -175,7 +175,7 @@ GROUPS = [
      "break-glass log, document signatures and tamper events; and the append-only audit logs with their seals.",
      ["sec.ip_rule", "sec.risk_assessment", "sec.fraud_case", "sec.blocklist_entry", "sec.security_event", "sec.key_registry",
       "sec.access_review", "sec.external_access_grant", "sec.break_glass_log", "sec.policy_decision", "sec.document_signature", "sec.tamper_event", "audit.auth_event",
-      "audit.activity_log", "audit.data_access_log", "audit.row_change", "audit.log_seal", "audit.ddl_event"]),
+      "audit.activity_log", "audit.data_access_log", "audit.row_change", "audit.log_seal", "audit.ddl_event", "audit.archive_checkpoint"]),
     ("E26", "Governance and data protection", "2.5, 16.13-16.15", "security",
      "The policy authority matrix with its changes, the obligation register, the data inventory, consents, subject requests, "
      "privacy incidents, partner data processing agreements and feature compliance reviews.",
