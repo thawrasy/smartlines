@@ -1,0 +1,44 @@
+# Telemetry database overlay (expert review of October 2026, stage D2; db/telemetry/schema.sql, RUNBOOKS.md section 22):
+#   docker compose -f docker-compose.yml -f deploy/telemetry/docker-compose.telemetry.yml --env-file deploy/.env up -d
+# Set MASSLAK_TELEMETRY_OWNER_PASSWORD and MASSLAK_TELEMETRY_PASSWORD in deploy/.env first (openssl rand -hex 24).
+# The history of vehicle positions moves to a PostgreSQL of its own (another server in production, capacity model
+# stage 2); the primary keeps grading positions, the latest position of each vehicle and the tracking alerts. The
+# migration creates the telemetry schema; the API appends positions; the worker keeps the daily partitions and the
+# primary's retention. Positions already on the primary stay there until their retention drops them.
+# Paths are relative to the repository root (the directory of the first compose file).
+
+services:
+  telemetry:
+    image: postgis/postgis:16-3.4-alpine@sha256:681931a625df344215e9b8998bf34daf146b6a395ceacee4439eb9c85869239f
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: masslak_tel
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${MASSLAK_TELEMETRY_OWNER_PASSWORD:?set MASSLAK_TELEMETRY_OWNER_PASSWORD in deploy/.env}
+    # append-heavy: commits need not wait for the disk (a crash loses at most the last ~0.6 s, which the driver apps
+    # send again), and WAL is kept small; the history is evidence, so it is archived like the primary in production
+    command: ["postgres", "-c", "synchronous_commit=off", "-c", "max_wal_size=4GB", "-c", "wal_compression=on"]
+    volumes:
+      - pgdata_telemetry:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d masslak_tel"]
+      interval: 5s
+      retries: 20
+    networks: [internal]
+
+  migrate:
+    environment:
+      MASSLAK_TELEMETRY_OWNER_URL: postgresql://postgres:${MASSLAK_TELEMETRY_OWNER_PASSWORD}@telemetry/masslak_tel
+    depends_on:
+      telemetry: { condition: service_healthy }
+
+  app:
+    environment:
+      MASSLAK_TELEMETRY_DATABASE_URL: postgresql://masslak_tel:${MASSLAK_TELEMETRY_PASSWORD:?set MASSLAK_TELEMETRY_PASSWORD in deploy/.env}@telemetry/masslak_tel
+
+  worker:
+    environment:
+      MASSLAK_TELEMETRY_DATABASE_URL: postgresql://masslak_tel:${MASSLAK_TELEMETRY_PASSWORD}@telemetry/masslak_tel
+
+volumes:
+  pgdata_telemetry:

@@ -1967,6 +1967,74 @@ SELECT pg_temp.ok(NOT EXISTS (SELECT 1 FROM sys.lock_metrics())
   AND has_function_privilege('masslak_app', 'sys.partition_metrics()', 'EXECUTE')
   AND NOT has_function_privilege('masslak_auditor', 'sys.lock_metrics()', 'EXECUTE'),
   'Finer monitoring: lock waits per table are reported to the application only, and none is reported when nothing waits');
+-- Review stage D (1062): change data capture to the data warehouse
+SELECT pg_temp.ok(
+  (SELECT count(*) FROM pg_publication_tables WHERE pubname = 'masslak_dw') = (SELECT count(*) FROM sys.dw_columns())
+  AND NOT EXISTS (SELECT 1 FROM sys.dw_columns() d
+                   WHERE (SELECT array_agg(c ORDER BY c) FROM unnest(d.columns) c)
+                     IS DISTINCT FROM (SELECT array_agg(c::text ORDER BY c) FROM pg_publication_tables pt, unnest(pt.attnames) c
+                                        WHERE pt.pubname = 'masslak_dw' AND format('%s.%s', pt.schemaname, pt.tablename) = d.table_name))
+  AND (SELECT pubviaroot FROM pg_publication WHERE pubname = 'masslak_dw'),
+  'Warehouse: the publication carries exactly the listed tables and columns, partitioned tables as one');
+SELECT pg_temp.ok(NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables pt LEFT JOIN sys.table_class tc ON tc.table_name = pt.schemaname || '.' || pt.tablename
+     WHERE pt.pubname = 'masslak_dw' AND coalesce(tc.data_class, 'unknown') NOT IN ('PUBLIC_CATALOG', 'TENANT_PRIVATE'))
+  AND NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables pt, unnest(pt.attnames) c
+     WHERE pt.pubname = 'masslak_dw'
+       AND (c ~ '(name|email|phone|mobile|birth|national|document|passport|address|contact|booker|payer|party|family|memo|note|card|iban|account_no|device|token|secret)'
+            OR c ~ '(^|_)(ip|lat|lon|lng|geom|position)(_|$)')
+       AND (pt.schemaname, pt.tablename, c) <> ('ref', 'city', 'name')),
+  'Warehouse: nothing personal is published: no person, security or audit table, no name, contact, identity, payer, booker, memo or card column (a city''s name aside)');
+SELECT pg_temp.ok(
+  (SELECT rolreplication AND rolbypassrls AND NOT rolsuper AND NOT rolcreaterole AND NOT rolcreatedb FROM pg_roles WHERE rolname = 'masslak_cdc')
+  AND NOT EXISTS (SELECT 1 FROM pg_auth_members WHERE member = 'masslak_cdc'::regrole)
+  AND NOT EXISTS (SELECT 1 FROM information_schema.table_privileges WHERE grantee = 'masslak_cdc')
+  AND (SELECT count(*) FROM information_schema.column_privileges WHERE grantee = 'masslak_cdc' AND privilege_type = 'SELECT')
+      = (SELECT sum(cardinality(columns)) FROM sys.dw_columns())
+  AND NOT EXISTS (SELECT 1 FROM information_schema.column_privileges WHERE grantee = 'masslak_cdc' AND privilege_type <> 'SELECT')
+  AND NOT has_function_privilege('masslak_app', 'sys.dw_publish()', 'EXECUTE')
+  AND has_function_privilege('masslak_app', 'sys.replication_metrics()', 'EXECUTE'),
+  'Warehouse: the replication role reads the published columns and nothing else, and belongs to no other role');
+-- Review stage D (1063): vehicle positions in a telemetry database
+SELECT pg_temp.expect_error($$SELECT * FROM ops.accept_positions((SELECT min(id) FROM ops.trip),
+                                     '[{"ts": "2026-10-08T10:00:00Z", "lat": 33.5, "lng": 36.3}]')$$,
+  'NOT_ASSIGNED', 'Telemetry: positions are graded only for the signed-in driver''s own trip');
+SELECT pg_temp.ok(
+  ops.position_trust(ops.position_flags(now(), now(), 33.5, 36.3, 5, 'GPS', true, NULL, 1, NULL, NULL, NULL, NULL, NULL)) = 'REJECTED'
+  AND ops.position_flags(now(), now(), 33.9, 36.3, 5, 'GPS', false, NULL, 4, NULL, now() - interval '1 minute', 33.5, 36.3, 5)
+      @> ARRAY['IMPOSSIBLE_SPEED', 'OUT_OF_ORDER']
+  AND ops.position_trust(ARRAY['LATE']) = 'LOW' AND ops.position_trust('{}') = 'HIGH'
+  AND has_function_privilege('masslak_app', 'ops.accept_positions(bigint, jsonb)', 'EXECUTE')
+  AND has_function_privilege('masslak_app', 'ops.position_retention()', 'EXECUTE')
+  AND NOT has_function_privilege('masslak_app', 'ops.position_flags(timestamptz, timestamptz, numeric, numeric, real, text, boolean, timestamptz, bigint, bigint, timestamptz, numeric, numeric, bigint)', 'EXECUTE')
+  AND (SELECT keep_days FROM ops.position_retention()) = (SELECT retention_days FROM gov.data_inventory WHERE dataset = 'ops.geo_event'),
+  'Telemetry: one set of trust rules grades positions in both stores, and the telemetry database keeps them as long as the primary says');
+-- Review stage D (1064): bookings partitioned by ranges of id
+SELECT pg_temp.ok(
+  (SELECT relkind FROM pg_class WHERE oid = 'sales.booking'::regclass) = 'p'
+  AND (SELECT pg_get_partkeydef('sales.booking'::regclass)) = 'RANGE (id)'
+  AND (SELECT value FROM sys.partition_metrics() WHERE metric = 'masslak_partition_ids_ahead' AND labels->>'table' = 'sales.booking') >= 2
+  AND NOT EXISTS (SELECT 1 FROM sales.booking b WHERE NOT EXISTS (SELECT 1 FROM sales.booking_key k WHERE k.booking_id = b.id
+                    AND k.booking_ref = b.booking_ref AND k.uid = b.uid))
+  AND (SELECT count(*) FROM pg_constraint WHERE confrelid = 'sales.booking'::regclass AND contype = 'f') >= 22
+  AND (SELECT relrowsecurity FROM pg_class WHERE oid = 'sales.booking'::regclass)
+  AND has_table_privilege('masslak_app', 'sales.booking', 'INSERT') AND NOT has_table_privilege('masslak_app', 'sales.booking_key', 'SELECT'),
+  'Partitioned bookings: by ranges of id, two ranges ahead, every booking''s keys registered, references, row security and grants kept');
+SELECT pg_temp.expect_error(format($$UPDATE sales.booking SET booking_ref = (SELECT booking_ref FROM sales.booking WHERE id <> %1$s LIMIT 1) WHERE id = %1$s$$,
+                                   (SELECT min(id) FROM sales.booking)),
+  'booking_key_booking_ref_key', 'Partitioned bookings: a booking reference stays unique across all partitions');
+SELECT pg_temp.ok(EXISTS (SELECT 1 FROM audit.row_change WHERE schema_name = 'sales' AND table_name = 'booking')
+  AND NOT EXISTS (SELECT 1 FROM audit.row_change WHERE schema_name = 'sales' AND table_name LIKE 'booking\_p%'),
+  'Partitioned bookings: the audit trail names the bookings table, not its partitions');
+-- Review stage D (1065): automatic failover
+SELECT pg_temp.ok(
+  (SELECT count(*) FROM sys.ha_metrics()) = 3
+  AND (SELECT value FROM sys.ha_metrics() WHERE metric = 'masslak_db_in_recovery') = 0
+  AND has_function_privilege('masslak_app', 'sys.ha_metrics()', 'EXECUTE')
+  AND NOT has_table_privilege('masslak_app', 'sys.failover_probe', 'INSERT')
+  AND (SELECT relrowsecurity FROM pg_class WHERE oid = 'sys.failover_probe'::regclass),
+  'Failover: the standbys able to take over are reported to the application, and the drill''s table is the platform''s');
 SET ROLE masslak_app;
 
 \echo '=== ALL TESTS PASSED ==='

@@ -3,9 +3,9 @@
 GET /api/health is liveness: the process answers, nothing else is checked. The container health check and the proxy
 use it, so a database restart never takes the web interface offline with it.
 
-GET /api/ready says whether this instance can serve bookings now: the database answers through the application pool,
-every schema file shipped with this code is applied (the migrate service has finished), the audit connection
-answers, and the reports replica answers and is in recovery when one is configured. It answers 200 when every check
+GET /api/ready says whether this instance can serve bookings now: the primary (not a standby) answers through the
+application pool, every schema file shipped with this code is applied (the migrate service has finished), the audit
+connection answers, and the reports replica answers and is in recovery when one is configured. It answers 200 when every check
 passes and 503 otherwise, naming only the checks, never an error text. deploy/update.sh waits for it after a
 deployment, and a load balancer with several API instances routes only to instances that are ready.
 
@@ -36,8 +36,9 @@ def shipped_schema_files(directory: Path | None = None) -> set[str]:
 
 
 async def _database() -> bool:
+    # the primary itself: during a failover the main connection may briefly reach a standby (review stage D6)
     async with db.raw_connection() as conn:
-        return await conn.fetchval("SELECT 1") == 1
+        return await conn.fetchval("SELECT NOT pg_is_in_recovery()") is True
 
 
 async def _schema() -> bool:

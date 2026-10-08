@@ -10,7 +10,7 @@ from fastapi.staticfiles import StaticFiles
 
 from . import db, metrics
 from .config import get_settings
-from .errors import ApiError, api_error_handler, db_error_handler
+from .errors import ApiError, api_error_handler, db_error_handler, unreachable_handler
 from .middleware import HeadAsGet, RequestContextMiddleware
 from .modules.agency import api as agency_api
 from .modules.cash import api as cash_api
@@ -55,6 +55,9 @@ app = FastAPI(title="Masslak API", version="0.1.0", lifespan=lifespan,
 app.add_middleware(RequestContextMiddleware)
 app.add_exception_handler(ApiError, api_error_handler)
 app.add_exception_handler(asyncpg.PostgresError, db_error_handler)
+# no server reachable, or none of the listed ones is the primary yet (failover, review stage D6)
+app.add_exception_handler(ConnectionError, unreachable_handler)
+app.add_exception_handler(asyncpg.exceptions.TargetServerAttributeNotMatched, unreachable_handler)
 
 
 @app.exception_handler(RequestValidationError)

@@ -91,6 +91,11 @@ async def maintenance() -> dict:
     reconciliation of every wallet balance with its ledger entries."""
     async with db.transaction(_ctx()) as conn:
         out = json.loads(await conn.fetchval("SELECT sys.run_maintenance()::text"))
+        keep = await conn.fetchrow("SELECT * FROM ops.position_retention()")
+    # positions in the telemetry database (review stage D2): partitions ahead, the primary's retention and legal holds
+    from ... import telemetry
+    if telemetry.enabled():
+        out["telemetry"] = await telemetry.upkeep(keep["keep_days"], keep["held"])
     if out.get("wallet_mismatches"):
         log.error("ledger reconciliation found %s wallet(s) out of balance", out["wallet_mismatches"])
     else:

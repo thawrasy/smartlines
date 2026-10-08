@@ -530,6 +530,12 @@ erDiagram
   ref_locale {
     text code PK
   }
+  ref_market {
+    character country_code PK
+    character currency FK
+    text locale FK
+    text status
+  }
   ref_party_role_type {
     text code PK
   }
@@ -553,6 +559,7 @@ erDiagram
     ref external
   }
   ref_file_object }o..o| iam_company : "company_id"
+  ref_market }o--|| ref_locale : "locale"
   ref_translation }o--|| ref_locale : "locale"
 ```
 
@@ -584,6 +591,9 @@ erDiagram
     bigint requested_by FK
     text status
     bigint decided_by FK
+  }
+  sys_failover_probe {
+    bigint id PK
   }
   sys_job_run {
     bigint id PK
@@ -676,16 +686,6 @@ erDiagram
   sys_city_rollout }o--|| ref_city : "city_id"
   sys_requirement_change }o--|| sys_compliance_requirement : "code"
   sys_webhook_delivery }o--|| sys_outbox_event : "outbox_event_id,outbox_created_at"
-  sys_webhook_delivery }o--|| sys_outbox_event_20261007 : "outbox_event_id,outbox_created_at"
-  sys_webhook_delivery }o--|| sys_outbox_event_20261008 : "outbox_event_id,outbox_created_at"
-  sys_webhook_delivery }o--|| sys_outbox_event_20261009 : "outbox_event_id,outbox_created_at"
-  sys_webhook_delivery }o--|| sys_outbox_event_20261010 : "outbox_event_id,outbox_created_at"
-  sys_webhook_delivery }o--|| sys_outbox_event_20261011 : "outbox_event_id,outbox_created_at"
-  sys_webhook_delivery }o--|| sys_outbox_event_20261012 : "outbox_event_id,outbox_created_at"
-  sys_webhook_delivery }o--|| sys_outbox_event_20261013 : "outbox_event_id,outbox_created_at"
-  sys_webhook_delivery }o--|| sys_outbox_event_20261014 : "outbox_event_id,outbox_created_at"
-  sys_webhook_delivery }o--|| sys_outbox_event_20261015 : "outbox_event_id,outbox_created_at"
-  sys_webhook_delivery }o--|| sys_outbox_event_default : "outbox_event_id,outbox_created_at"
   sys_table_phase }o--|| sys_project_phase : "phase_code"
   sys_delivery_retry_request }o--|| sys_webhook_delivery : "delivery_id"
   sys_webhook_delivery }o--|| sys_webhook_endpoint : "endpoint_id"
@@ -1848,6 +1848,11 @@ erDiagram
     bigint funded_by_party_id FK
     text pay_option FK
   }
+  sales_booking_key {
+    bigint booking_id PK
+    uuid uid
+    text booking_ref
+  }
   sales_campaign_redemption {
     bigint id PK
     bigint campaign_id FK
@@ -2177,6 +2182,7 @@ erDiagram
   sales_channel_inventory_rule }o..o| ref_trip_type : "trip_type"
   sales_inspection_check }o..o| sales_boarding_event : "boarding_event_id"
   sales_channel_booking_ref }o--|| sales_booking : "booking_id"
+  sales_booking_key }o--|| sales_booking : "booking_id"
   sales_passenger }o--|| sales_booking : "booking_id"
   sales_refund_request }o--|| sales_booking : "booking_id"
   sales_passenger_compensation }o--|| sales_booking : "booking_id"

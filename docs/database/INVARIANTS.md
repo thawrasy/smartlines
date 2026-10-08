@@ -6,7 +6,7 @@ Who keeps each business rule: the database, the application or both, the objects
 
 | Owner | Meaning | Rules |
 |---|---|---|
-| database | the database refuses a breach whatever the caller; the application may check earlier only to give a clearer message | 18 |
+| database | the database refuses a breach whatever the caller; the application may check earlier only to give a clearer message | 20 |
 | application | only the application can see the rule (it spans a request, a lock or a choice of code); the database supplies figures or records | 6 |
 | both | each side keeps its own part, and both parts are tested | 6 |
 
@@ -25,7 +25,7 @@ Who keeps each business rule: the database, the application or both, the objects
 | [SEAT-SOLD-ONCE](#seat-sold-once) | database | 4 | 2 |
 | [TRIP-CAPACITY](#trip-capacity) | database | 1 | 0 |
 | [STATE-TRANSITIONS](#state-transitions) | database | 1 | 0 |
-| [BOOKING-IDEMPOTENT](#booking-idempotent) | both | 0 | 1 |
+| [BOOKING-IDEMPOTENT](#booking-idempotent) | both | 1 | 1 |
 | [REFUND-WITHIN-PAYMENT](#refund-within-payment) | both | 0 | 1 |
 | [REFUND-BY-FARE](#refund-by-fare) | application | 0 | 2 |
 | [ESCROW-UNTIL-TRIP](#escrow-until-trip) | application | 0 | 1 |
@@ -44,6 +44,8 @@ Who keeps each business rule: the database, the application or both, the objects
 | [RELEASE-MATCHES](#release-matches) | database | 2 | 0 |
 | [TRIP-CURRENCY](#trip-currency) | database | 1 | 1 |
 | [MARKET-TIME-AND-MONEY](#market-time-and-money) | application | 1 | 2 |
+| [WAREHOUSE-NO-PERSONAL-DATA](#warehouse-no-personal-data) | database | 3 | 0 |
+| [POSITION-GRADED-ONCE](#position-graded-once) | database | 2 | 3 |
 
 ## LEDGER-BALANCED
 
@@ -192,13 +194,13 @@ Bookings, tickets, payments and withdrawals move only along their allowed state 
 
 One booking per buyer and idempotency key: a retried purchase returns the first booking and charges once.
 
-**Owner:** both. The database refuses the second booking; the application returns the first one to the retrying client.
+**Owner:** both. The database refuses the second booking (the key is kept unique over all booking partitions in sales.booking_key); the application returns the first one to the retrying client.
 
 | Kept by | Names |
 |---|---|
-| Database | `constraint sales.booking.booking_booker_party_id_idempotency_key_key` |
+| Database | `constraint sales.booking_key.booking_key_booker_party_id_idempotency_key_key`<br>`trigger sales.booking.booking_key` |
 | Application | `app.modules.sales.service:create_booking` |
-| Database tests (`db/tests/run_tests.sql`) | - |
+| Database tests (`db/tests/run_tests.sql`) | Partitioned bookings: a booking reference stays unique across all partitions |
 | API tests (`backend/`) | `tests/test_e2e.py::test_booking_paid_from_wallet_is_idempotent_and_balanced` |
 
 ## REFUND-WITHIN-PAYMENT
@@ -434,3 +436,29 @@ Days, dates and money are read in the market of the data: the company's, the per
 | Application | `app.markets:of_party`<br>`app.modules.reports.engine:locate` |
 | Database tests (`db/tests/run_tests.sql`) | Markets: companies and stations take their market's time zone and currency; a country with no market falls in the default one |
 | API tests (`backend/`) | `tests/test_code_rules.py::test_no_fixed_time_zone_or_currency`<br>`tests/test_markets.py::test_platform_reports_read_one_market_at_a_time` |
+
+## WAREHOUSE-NO-PERSONAL-DATA
+
+Only the listed columns of facts and dimensions leave the primary for the data warehouse: nothing that names, reaches or identifies a person.
+
+**Owner:** database. The publication's column lists and the replication role's column grants come from one vetted list (sys.dw_columns); the warehouse tool also refuses a column the primary does not publish.
+
+| Kept by | Names |
+|---|---|
+| Database | `function sys.dw_columns`<br>`function sys.dw_publish` |
+| Application | - |
+| Database tests (`db/tests/run_tests.sql`) | Warehouse: the publication carries exactly the listed tables and columns, partitioned tables as one<br>Warehouse: nothing personal is published: no person, security or audit table, no name, contact, identity, payer, booker, memo or card column (a city's name aside)<br>Warehouse: the replication role reads the published columns and nothing else, and belongs to no other role |
+| API tests (`backend/`) | - |
+
+## POSITION-GRADED-ONCE
+
+Every vehicle position is graded by the same trust rules, whichever database keeps its history, and only for the driver's own trip; a rejected position never becomes the vehicle's latest.
+
+**Owner:** database. The rules live in one function used by both stores (ops.position_flags); with a telemetry database the primary grades the batch and keeps the latest position before anything is appended there.
+
+| Kept by | Names |
+|---|---|
+| Database | `function ops.position_flags`<br>`function ops.accept_positions`<br>`trigger ops.geo_event.geo_event_trust` |
+| Application | `app.telemetry:accept`<br>`app.telemetry:store` |
+| Database tests (`db/tests/run_tests.sql`) | Telemetry: positions are graded only for the signed-in driver's own trip<br>Telemetry: one set of trust rules grades positions in both stores, and the telemetry database keeps them as long as the primary says |
+| API tests (`backend/`) | `tests/test_telemetry.py::test_the_trust_rules_are_the_same_as_on_the_primary`<br>`tests/test_telemetry.py::test_nothing_is_stored_for_a_trip_that_is_not_the_drivers`<br>`tests/test_design_audit_t3.py::test_positions_carry_evidence_and_duplicates_are_ignored` |

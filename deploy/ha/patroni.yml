@@ -1,0 +1,84 @@
+# Patroni for the two database servers of the main site (expert review of October 2026, stage D6;
+# docs/operations/HIGH_AVAILABILITY.md). One copy per server: set name and the addresses, keep the rest identical.
+# Secrets come from the environment (PATRONI_SUPERUSER_PASSWORD, PATRONI_REPLICATION_PASSWORD), never from this file.
+scope: masslak
+namespace: /masslak/
+name: db-a1                                   # db-a2 on the second server
+
+restapi:
+  listen: 0.0.0.0:8008
+  connect_address: db-a1.internal:8008        # HAProxy asks /primary and /replica here
+
+etcd3:
+  # three members: the two database servers' sites and a witness, so losing one never stops the vote
+  hosts: etcd-1.internal:2379,etcd-2.internal:2379,etcd-3.internal:2379
+
+bootstrap:
+  dcs:
+    # the primary must renew its leader key every 10 s; after 30 s without it a standby takes over
+    ttl: 30
+    loop_wait: 10
+    retry_timeout: 10
+    # a standby further behind than this is not promoted (with synchronous mode it never is)
+    maximum_lag_on_failover: 1048576
+    # one standby confirms every commit before the client is told: a failover loses no committed booking or payment.
+    # If the standby is gone, Patroni drops to asynchronous so bookings continue (alert NoFailoverCandidate).
+    synchronous_mode: true
+    synchronous_mode_strict: false
+    postgresql:
+      use_pg_rewind: true                     # the old primary rejoins as a standby without a full copy
+      use_slots: true
+      parameters:
+        wal_level: logical                    # the data warehouse subscribes (1062)
+        max_slot_wal_keep_size: 20GB
+        log_replication_commands: "on"
+        hot_standby: "on"
+        wal_log_hints: "on"                   # needed by pg_rewind
+        max_wal_senders: 10
+        max_replication_slots: 10
+        wal_keep_size: 2GB
+        archive_mode: "on"
+        archive_command: pgbackrest --stanza=masslak archive-push %p
+        archive_timeout: 60
+        wal_compression: "on"
+        shared_preload_libraries: pg_stat_statements
+        track_io_timing: "on"
+        track_functions: pl
+    # logical replication slots (the warehouse) survive a failover: Patroni keeps them on the standbys too
+    slots:
+      masslak_dw:
+        type: logical
+        database: masslak
+        plugin: pgoutput
+  initdb:
+    - encoding: UTF8
+    - data-checksums
+
+postgresql:
+  listen: 0.0.0.0:5432
+  connect_address: db-a1.internal:5432
+  data_dir: /var/lib/postgresql/16/main
+  bin_dir: /usr/lib/postgresql/16/bin
+  pgpass: /var/lib/postgresql/.pgpass_patroni
+  authentication:
+    superuser:
+      username: postgres
+    replication:
+      username: replicator
+  # a new standby is built from the backup repository (fast, no load on the primary), else streamed from the primary
+  create_replica_methods: [pgbackrest, basebackup]
+  pgbackrest:
+    command: pgbackrest --stanza=masslak --delta --type=standby restore
+    keep_data: true
+    no_params: true
+  recovery_conf:
+    restore_command: pgbackrest --stanza=masslak archive-get %f "%p"
+  pg_hba:
+    - local all all peer
+    - host replication replicator 10.0.0.0/8 scram-sha-256
+    - host all all 10.0.0.0/8 scram-sha-256
+
+tags:
+  nofailover: false
+  noloadbalance: false
+  clonefrom: true

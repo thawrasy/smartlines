@@ -56,7 +56,7 @@ SELECT coalesce(json_agg(t ORDER BY t.schema, t.name), '[]') FROM (
              'pk', EXISTS (SELECT 1 FROM pg_constraint k WHERE k.conrelid = c.oid AND k.contype = 'p' AND a.attnum = ANY (k.conkey)),
              'fk', (SELECT fn.nspname || '.' || fc.relname FROM pg_constraint f
                       JOIN pg_class fc ON fc.oid = f.confrelid JOIN pg_namespace fn ON fn.oid = fc.relnamespace
-                     WHERE f.conrelid = c.oid AND f.contype = 'f' AND f.conkey = ARRAY[a.attnum] LIMIT 1)
+                     WHERE f.conrelid = c.oid AND f.contype = 'f' AND f.conkey = ARRAY[a.attnum] AND f.conparentid = 0 LIMIT 1)
            ) ORDER BY a.attnum)
           FROM pg_attribute a LEFT JOIN pg_attrdef d ON d.adrelid = a.attrelid AND d.adnum = a.attnum
           WHERE a.attrelid = c.oid AND a.attnum > 0 AND NOT a.attisdropped) AS columns,
@@ -77,7 +77,7 @@ SELECT coalesce(json_agg(x), '[]') FROM (
   JOIN pg_class c ON c.oid = f.conrelid JOIN pg_namespace n ON n.oid = c.relnamespace
   JOIN pg_class fc ON fc.oid = f.confrelid JOIN pg_namespace fn ON fn.oid = fc.relnamespace
   JOIN pg_attribute a2 ON a2.attrelid = c.oid AND a2.attnum = ANY (f.conkey)
-  WHERE f.contype = 'f' AND NOT c.relispartition
+  WHERE f.contype = 'f' AND NOT c.relispartition AND f.conparentid = 0
   GROUP BY n.nspname, c.relname, fn.nspname, fc.relname, f.conkey, c.oid
 ) x
 """

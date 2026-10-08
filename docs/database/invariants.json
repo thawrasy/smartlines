@@ -224,15 +224,18 @@
       "id": "BOOKING-IDEMPOTENT",
       "rule": "One booking per buyer and idempotency key: a retried purchase returns the first booking and charges once.",
       "owner": "both",
-      "why": "The database refuses the second booking; the application returns the first one to the retrying client.",
+      "why": "The database refuses the second booking (the key is kept unique over all booking partitions in sales.booking_key); the application returns the first one to the retrying client.",
       "database": [
-        "constraint sales.booking.booking_booker_party_id_idempotency_key_key"
+        "constraint sales.booking_key.booking_key_booker_party_id_idempotency_key_key",
+        "trigger sales.booking.booking_key"
       ],
       "application": [
         "app.modules.sales.service:create_booking"
       ],
       "tests": {
-        "db": [],
+        "db": [
+          "Partitioned bookings: a booking reference stays unique across all partitions"
+        ],
         "api": [
           "tests/test_e2e.py::test_booking_paid_from_wallet_is_idempotent_and_balanced"
         ]
@@ -607,6 +610,51 @@
         "api": [
           "tests/test_code_rules.py::test_no_fixed_time_zone_or_currency",
           "tests/test_markets.py::test_platform_reports_read_one_market_at_a_time"
+        ]
+      }
+    },
+    {
+      "id": "WAREHOUSE-NO-PERSONAL-DATA",
+      "rule": "Only the listed columns of facts and dimensions leave the primary for the data warehouse: nothing that names, reaches or identifies a person.",
+      "owner": "database",
+      "why": "The publication's column lists and the replication role's column grants come from one vetted list (sys.dw_columns); the warehouse tool also refuses a column the primary does not publish.",
+      "database": [
+        "function sys.dw_columns",
+        "function sys.dw_publish"
+      ],
+      "application": [],
+      "tests": {
+        "db": [
+          "Warehouse: the publication carries exactly the listed tables and columns, partitioned tables as one",
+          "Warehouse: nothing personal is published: no person, security or audit table, no name, contact, identity, payer, booker, memo or card column (a city's name aside)",
+          "Warehouse: the replication role reads the published columns and nothing else, and belongs to no other role"
+        ],
+        "api": []
+      }
+    },
+    {
+      "id": "POSITION-GRADED-ONCE",
+      "rule": "Every vehicle position is graded by the same trust rules, whichever database keeps its history, and only for the driver's own trip; a rejected position never becomes the vehicle's latest.",
+      "owner": "database",
+      "why": "The rules live in one function used by both stores (ops.position_flags); with a telemetry database the primary grades the batch and keeps the latest position before anything is appended there.",
+      "database": [
+        "function ops.position_flags",
+        "function ops.accept_positions",
+        "trigger ops.geo_event.geo_event_trust"
+      ],
+      "application": [
+        "app.telemetry:accept",
+        "app.telemetry:store"
+      ],
+      "tests": {
+        "db": [
+          "Telemetry: positions are graded only for the signed-in driver's own trip",
+          "Telemetry: one set of trust rules grades positions in both stores, and the telemetry database keeps them as long as the primary says"
+        ],
+        "api": [
+          "tests/test_telemetry.py::test_the_trust_rules_are_the_same_as_on_the_primary",
+          "tests/test_telemetry.py::test_nothing_is_stored_for_a_trip_that_is_not_the_drivers",
+          "tests/test_design_audit_t3.py::test_positions_carry_evidence_and_duplicates_are_ignored"
         ]
       }
     }

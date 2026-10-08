@@ -36,7 +36,7 @@ SELECT json_agg(json_build_object('from', s.oid::regclass::text, 'to', t.oid::re
   FROM pg_constraint k
   JOIN pg_class s ON s.oid = k.conrelid JOIN pg_namespace sn ON sn.oid = s.relnamespace
   JOIN pg_class t ON t.oid = k.confrelid JOIN pg_namespace tn ON tn.oid = t.relnamespace
- WHERE k.contype = 'f' AND NOT s.relispartition AND sn.nspname NOT IN ('pg_catalog', 'information_schema')
+ WHERE k.contype = 'f' AND NOT s.relispartition AND k.conparentid = 0 AND sn.nspname NOT IN ('pg_catalog', 'information_schema')
 """
 
 

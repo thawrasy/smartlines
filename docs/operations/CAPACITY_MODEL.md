@@ -112,7 +112,7 @@ Row sizes include their indexes and are estimates.
 | **Seats of a sought-after trip** | Hundreds compete for 49 seats | Row locks per seat segment in one order (already); a virtual waiting room for opening days (study 17.3) | Existing |
 | **Audit log.** About 12 million rows a day | The largest data set; would hold years online | A wallet change made only by a posting is not copied (the entry is the record); the log keeps the row key on updates (a defect fixed); 13 months online, older months dropped only when the signed archive covers them (`audit_export record`) | 1052 |
 | **Connections.** 30 to 40 API instances at peak, each with a pool | Thousands of database sessions | PgBouncer in transaction mode in the stack; the full API suite passes through it (222 tests) using 20 server connections | Stack |
-| **Reports** | Heavy queries next to bookings | Read replica, required in production (1051); a data warehouse fed from the replica at stage 2 | Existing; stage 2 |
+| **Reports** | Heavy queries next to bookings | Read replica, required in production (1051); a data warehouse kept current by logical replication of facts and dimensions, without personal data (1062, `docs/database/WAREHOUSE.md`) | Existing; 1062 |
 | **Cost of database rules** (RLS, triggers) | CPU per write | Measured per trigger on staging (`track_functions`), 1 ms budget per row, alert `TriggerCostOverBudget` | 1051 |
 
 ## 6. Servers and growth stages
@@ -132,8 +132,8 @@ confirms this before stage 2 is relied on.
 | Stage | Volume | Database | Application | Other services |
 |---|---|---|---|---|
 | **1. Launch** | up to about 3 M operations a day | Primary 32 vCPU, 256 GB RAM, 4 TB NVMe; one streaming replica (reports, failover); PgBouncer | 4 to 12 API instances (2 vCPU), 2 workers | Redis (3 nodes), object storage, CDN |
-| **2. Growth** | 3 to 20 M a day | Primary 64 vCPU, 512 GB RAM, 16 TB NVMe; two replicas; **telemetry cluster** for positions (separate PostgreSQL, TimescaleDB optional) fed by an ingestion queue | 10 to 40 API instances, autoscaled; 4 to 8 workers | Search cluster (3 nodes), Redis cluster, data warehouse fed from a replica |
-| **3. National scale** | above 20 M a day | Distribute by carrier (Citus on PostgreSQL, distribution column `company_id`, which every tenant table already carries for row-level security), or move a whole domain that shares no money transaction with bookings (freight, school transport) to its own cluster. The ledger stays with the booking path | as needed | Closed fiscal years of the ledger and bookings moved to an archive database |
+| **2. Growth** | 3 to 20 M a day | Primary 64 vCPU, 512 GB RAM, 16 TB NVMe; two replicas under Patroni with a synchronous standby and a second site (`HIGH_AVAILABILITY.md`); **telemetry database** for the history of positions (1063, `MASSLAK_TELEMETRY_DATABASE_URL`) | 10 to 40 API instances, autoscaled; 4 to 8 workers | Search cluster (3 nodes), Redis cluster, data warehouse fed by change data capture (1062) |
+| **3. National scale** | above 20 M a day | Split by market first (markets share no transaction and no currency, 1061); then move whole domains that share no money with bookings (freight, school transport) to their own cluster. Distribution by carrier comes last and only after the platform's wallets are split per carrier: measured, 94 to 100 % of money transactions touch a platform wallet (`docs/database/SHARDING_STUDY.md`) | as needed | Closed fiscal years of the ledger and of bookings (partitioned by id, 1064) detached to an archive database |
 
 **What starts the next stage:**
 
@@ -195,3 +195,22 @@ The launch gate for capacity (`LAUNCH_GATES.md`, gate 3) measures the launch vol
   reconciled before and after, 30 days closed and verified.
 - **Tests:** 357 database checks pass. The full API suite (222 tests) passes three ways: directly, through
   PgBouncer, and on the upgraded database.
+
+## 9. Stage D of the expert review (8 October 2026)
+
+What stage D added to this model, each part tested (`docs/operations/REVIEW_STAGE_D.md`):
+
+- **Markets (1061):** each market keeps its own time zone, currency and platform wallets; no transaction mixes
+  currencies, which makes the market the first and cheapest way to split the platform.
+- **Telemetry database (1063):** with `MASSLAK_TELEMETRY_DATABASE_URL` set, the history of positions (about half the
+  primary's WAL at the target) goes to its own PostgreSQL; the primary keeps the grades, the latest position and the
+  alerts. Without it, nothing changes.
+- **Data warehouse (1062):** analysis runs on a database of its own, kept current within seconds by logical
+  replication, never on the primary or its replica.
+- **Sharding study:** a split by carrier would make almost every payment a two-node transaction; the stage 3 row
+  above now says what must change first.
+- **Bookings partitioned by id (1064):** ranges of 10 million ids (about a week at the design peak), created ahead by
+  the daily upkeep; vacuum, reindex and archiving work one partition at a time. Converting the 135,005 bookings of
+  the volume database took part of a 10-second upgrade.
+- **Automatic failover (1065, `deploy/ha`):** Patroni with a synchronous standby (no committed transaction lost) and a
+  second site; measured on a development pair: writing back 2.3 s after the promotion.

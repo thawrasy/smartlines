@@ -53,6 +53,16 @@ groups:
         for: 15m
         labels: { severity: page }
         annotations: { summary: "Today's or tomorrow's position partition is missing (daily upkeep not running)", runbook: "RUNBOOKS.md#9-data-lifecycle-r-11" }
+      - alert: TelemetryDown
+        expr: masslak_telemetry_up == 0
+        for: 5m
+        labels: { severity: page }
+        annotations: { summary: "The telemetry database does not answer: positions are refused (the apps keep and resend them) and their history waits", runbook: "RUNBOOKS.md#22-telemetry-database-review-stage-d" }
+      - alert: TelemetryPartitionMissing
+        expr: masslak_telemetry_partitions_missing > 0
+        for: 15m
+        labels: { severity: page }
+        annotations: { summary: "Today's or tomorrow's partition of the telemetry database is missing (worker upkeep not running)", runbook: "RUNBOOKS.md#22-telemetry-database-review-stage-d" }
       - alert: MaintenanceStale
         expr: masslak_job_last_success_age_seconds{job="maintenance"} > 26 * 3600
         labels: { severity: page }
@@ -110,6 +120,30 @@ groups:
         for: 5m
         labels: { severity: page }
         annotations: { summary: "The standby is more than 30 s behind: a failover would lose data", runbook: "RUNBOOKS.md#3-failover" }
+      - alert: NoFailoverCandidate
+        expr: max(masslak_db_in_recovery) == 0 and sum(masslak_db_standbys) < 1
+        for: 5m
+        labels: { severity: page }
+        annotations: { summary: "No standby streams from the primary: a failure now would stop bookings until a restore", runbook: "RUNBOOKS.md#23-automatic-failover-and-the-second-site-review-stage-d" }
+      - alert: NoSynchronousStandby
+        expr: max(masslak_db_in_recovery) == 0 and sum(masslak_db_standbys{sync="sync"}) < 1 and sum(masslak_db_standbys) >= 1
+        for: 15m
+        labels: { severity: ticket }
+        annotations: { summary: "No standby confirms commits synchronously: a failover now could lose the last transactions", runbook: "RUNBOOKS.md#23-automatic-failover-and-the-second-site-review-stage-d" }
+      - alert: ReplicationSlotRetainingWal
+        expr: max by (slot) (masslak_replication_slot_retained_bytes) > 5e9
+        for: 15m
+        labels: { severity: ticket }
+        annotations: { summary: "Replication slot {{ $labels.slot }} holds back more than 5 GB of WAL (its reader is behind or stopped); at max_slot_wal_keep_size the primary drops it", runbook: "RUNBOOKS.md#21-data-warehouse-review-stage-d" }
+      - alert: ReplicationSlotForeignPlugin
+        expr: max by (slot) (masslak_replication_slot_foreign_plugin) > 0
+        labels: { severity: page }
+        annotations: { summary: "Replication slot {{ $labels.slot }} decodes with a plugin other than pgoutput: it can read every table, personal data included", runbook: "RUNBOOKS.md#21-data-warehouse-review-stage-d" }
+      - alert: ReplicationSlotInactive
+        expr: max by (slot) (masslak_replication_slot_active) == 0
+        for: 30m
+        labels: { severity: ticket }
+        annotations: { summary: "Nothing has read replication slot {{ $labels.slot }} for 30 minutes (warehouse or standby down)", runbook: "RUNBOOKS.md#21-data-warehouse-review-stage-d" }
       - alert: ConnectionsNearLimit
         expr: sum(masslak_db_connections) / max(masslak_db_connections_max) > 0.8
         for: 5m

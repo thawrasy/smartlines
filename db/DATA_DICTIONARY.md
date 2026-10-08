@@ -2,20 +2,20 @@
 
 > Generated from the built database (`db/tools/gen_docs.py`); do not edit by hand.
 
-**485 tables, 4986 columns, in 26 schemas.**
+**488 tables, 5004 columns, in 26 schemas.**
 
 Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant isolation (RLS) · 🧩 partitioned monthly · 🔒 append-only / change-protected
 
 ## Index
 
 - [`iam` — Identity, parties, users, permissions and API clients](#iam) (32 tables)
-- [`ref` — Reference data, locales and files](#ref) (13 tables)
-- [`sys` — Settings, outbox and webhooks](#sys) (23 tables)
+- [`ref` — Reference data, locales and files](#ref) (14 tables)
+- [`sys` — Settings, outbox and webhooks](#sys) (24 tables)
 - [`net` — Network: stations, routes, lines, corridors and geofences](#net) (22 tables)
 - [`fleet` — Fleet: vehicles, trucks, trailers, seats, crew, licenses and insurance](#fleet) (22 tables)
 - [`pricing` — Pricing, taxes, commissions, campaigns and loyalty](#pricing) (35 tables)
 - [`ops` — Trips, inventory, operations, shuttle rides, tracking and incidents](#ops) (33 tables)
-- [`sales` — Channels, bookings, passengers, tickets, subscriptions and travel documents](#sales) (27 tables)
+- [`sales` — Channels, bookings, passengers, tickets, subscriptions and travel documents](#sales) (28 tables)
 - [`fin` — Wallets, ledger, payments, allocation, settlement and float](#fin) (29 tables)
 - [`acct` — Simplified accounting, e-invoicing and tax profiles](#acct) (35 tables)
 - [`bill` — Carrier subscriptions, metering and platform invoices](#bill) (7 tables)
@@ -748,6 +748,21 @@ Supported UI locales with text direction; English is the system default, other l
 | `is_enabled` | `boolean` | ✱ | `false` |
 | `is_default` | `boolean` | ✱ | `false` |
 
+### `ref.market` 🛡️
+
+Countries the platform operates in: time zone, currency and default language of each (1061)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `country_code` | `character(2)` | 🔑 🔗 `ref.country` ✱ |  |
+| `time_zone` | `text` | ✱ |  |
+| `currency` | `character(3)` | 🔗 `ref.currency` ✱ |  |
+| `locale` | `text` | 🔗 `ref.locale` ✱ | `'ar'::text` |
+| `status` | `text` | ✱ | `'PLANNED'::text` |
+| `is_default` | `boolean` | ✱ | `false` |
+| `opened_at` | `timestamp with time zone` |  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
 ### `ref.party_role_type` 🛡️
 
 Party roles (2.1); rows replace the former fixed list
@@ -910,6 +925,17 @@ A request to resend a money or authority event to a partner: applied only after 
 | `decided_at` | `timestamp with time zone` |  |  |
 | `decision_note` | `text` |  |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `sys.failover_probe` 🛡️
+
+Rows written by a failover drill, to count what the new primary kept (1065)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `drill` | `uuid` | ✱ |  |
+| `seq` | `integer` | ✱ |  |
+| `written_at` | `timestamp with time zone` | ✱ | `clock_timestamp()` |
 
 ### `sys.job_run` 🛡️
 
@@ -3083,6 +3109,7 @@ The latest accepted position of every vehicle, one row each, kept by the insert 
 | `accuracy_m` | `real` |  |  |
 | `trust` | `text` | ✱ |  |
 | `updated_at` | `timestamp with time zone` | ✱ | `now()` |
+| `seq` | `bigint` |  |  |
 
 ### `ops.vehicle_swap` 🛡️
 
@@ -3161,7 +3188,7 @@ Boarding and alighting scan events (basis for dispatch, settlement and the manif
 | `validator_id` | `bigint` | 🔗 `fleet.boarding_validator`  |  |
 | `nfc_card_id` | `bigint` | 🔗 `sales.nfc_card`  |  |
 
-### `sales.booking` 🛡️
+### `sales.booking` 🛡️ 🧩
 
 Booking: price snapshot, channel, allocation tree and idempotency key; statuses per section 28
 
@@ -3195,6 +3222,18 @@ Booking: price snapshot, channel, allocation tree and idempotency key; statuses 
 | `funded_by_party_id` | `bigint` | 🔗 `iam.party`  |  |
 | `funding_source` | `text` |  |  |
 | `pay_option` | `text` | 🔗 `fin.payment_method`  |  |
+
+### `sales.booking_key` 🛡️
+
+Keys of sales.booking that are unique over all its partitions (1064); written only by trigger sales.booking.booking_key
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `booking_id` | `bigint` | 🔑 🔗 `sales.booking` ✱ |  |
+| `uid` | `uuid` | ✱ |  |
+| `booking_ref` | `text` | ✱ |  |
+| `booker_party_id` | `bigint` |  |  |
+| `idempotency_key` | `text` |  |  |
 
 ### `sales.campaign_redemption` 🛡️
 

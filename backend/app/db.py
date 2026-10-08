@@ -19,6 +19,7 @@ from .config import get_settings
 _pool: Optional[asyncpg.Pool] = None
 _audit_pool: Optional[asyncpg.Pool] = None
 _reports_pool: Optional[asyncpg.Pool] = None
+_telemetry_pool: Optional[asyncpg.Pool] = None
 
 
 # How long requests wait for a connection of the main pool (review stage C7): upper bounds in seconds, then the count
@@ -43,7 +44,7 @@ def pool_stats() -> Optional[dict]:
 
 
 async def open_pools() -> None:
-    global _pool, _audit_pool, _reports_pool
+    global _pool, _audit_pool, _reports_pool, _telemetry_pool
     s = get_settings()
     _pool = await asyncpg.create_pool(s.database_url, min_size=1, max_size=20, command_timeout=30)
     _audit_pool = await asyncpg.create_pool(s.audit_database_url, min_size=1, max_size=4, command_timeout=30)
@@ -51,10 +52,15 @@ async def open_pools() -> None:
         # the role's own limit is 30 s (db/create_login_roles.sql); reports on the replica may run for two minutes
         _reports_pool = await asyncpg.create_pool(s.reports_database_url, min_size=1, max_size=4, command_timeout=120,
                                                   server_settings={"statement_timeout": "120s"})
+    if s.telemetry_database_url:
+        # positions are appended in batches; the pool waits at most 5 s so a stopped telemetry database answers 503
+        # quickly and the driver app keeps the positions to send again
+        _telemetry_pool = await asyncpg.create_pool(s.telemetry_database_url, min_size=1, max_size=10, command_timeout=10,
+                                                    timeout=5)
 
 
 async def close_pools() -> None:
-    for p in (_pool, _audit_pool, _reports_pool):
+    for p in (_pool, _audit_pool, _reports_pool, _telemetry_pool):
         if p is not None:
             await p.close()
 
@@ -185,6 +191,11 @@ async def replica_lag_seconds(replica: asyncpg.Connection) -> Optional[float]:
 async def data_as_of(conn: asyncpg.Connection):
     """The moment the data reflects: the last replayed transaction on a replica, now on the primary."""
     return await conn.fetchval("SELECT coalesce(pg_last_xact_replay_timestamp(), now())")
+
+
+def telemetry_pool() -> Optional[asyncpg.Pool]:
+    """The telemetry database's pool, when one is configured (review stage D2)."""
+    return _telemetry_pool
 
 
 @asynccontextmanager

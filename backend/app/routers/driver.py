@@ -6,7 +6,7 @@ from typing import Literal, Optional
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, Field
 
-from .. import db
+from .. import db, telemetry
 from ..deps import Principal, context_for, require_portal
 from ..errors import ApiError, not_found
 from ..security import ticket_public_key, verify_ticket_credential, verify_ticket_qr
@@ -220,10 +220,29 @@ def _filed_at(device_ts: Optional[datetime], now: datetime) -> tuple[datetime, O
     return (taken if taken and now - timedelta(days=6) < taken <= now + timedelta(minutes=2) else now), taken
 
 
+def _point(ts: datetime, taken: Optional[datetime], p) -> dict:
+    return {"ts": ts, "lat": p.lat, "lng": p.lng, "speed_kmh": p.speed_kmh, "accuracy_m": p.accuracy_m, "event_id": p.event_id,
+            "seq": p.seq, "device_ts": taken, "provider": p.provider, "is_mock": p.is_mock}
+
+
+async def _to_telemetry(request: Request, pr: Principal, trip_uid: uuid.UUID, points: list[dict]) -> tuple[list, list]:
+    """Positions with a telemetry database (review stage D2): graded on the primary for the driver's own trip, then
+    appended to the telemetry database. Returns the grades and the trust of each position stored (not duplicates)."""
+    async with db.transaction(context_for(request, pr)) as conn:
+        t = await _assigned_trip(conn, pr, trip_uid)
+        graded = await telemetry.accept(conn, t["id"], points)
+    return graded, await telemetry.store(t["id"], graded, points)
+
+
 @router.post("/location")
 async def location(body: LocationIn, request: Request, pr: Principal = Depends(driver)):
     now = datetime.now(timezone.utc)
     ts, taken = _filed_at(body.device_ts, now)
+    if telemetry.enabled():
+        graded, stored = await _to_telemetry(request, pr, body.trip_uid, [_point(ts, taken, body)])
+        if not stored:
+            return {"ok": True, "duplicate": True}
+        return {"ok": True, "trust": graded[0]["trust"], "flags": list(graded[0]["trust_flags"])}
     async with db.transaction(context_for(request, pr)) as conn:
         t = await _assigned_trip(conn, pr, body.trip_uid)
         # the installation the driver signed in from (mobile sessions are bound to a registered device) (T3-11)
@@ -267,6 +286,12 @@ async def locations(body: LocationsIn, request: Request, pr: Principal = Depends
     rules as /location: each position keeps its own id, counter, device time and trust grade."""
     now = datetime.now(timezone.utc)
     filed = [_filed_at(p.device_ts, now) for p in body.points]
+    if telemetry.enabled():
+        _, stored = await _to_telemetry(request, pr, body.trip_uid, [_point(f[0], f[1], p) for f, p in zip(filed, body.points)])
+        grades: dict[str, int] = {}
+        for g in stored:
+            grades[g] = grades.get(g, 0) + 1
+        return {"ok": True, "accepted": len(stored), "duplicates": len(body.points) - len(stored), "trust": grades}
     async with db.transaction(context_for(request, pr)) as conn:
         t = await _assigned_trip(conn, pr, body.trip_uid)
         device = await conn.fetchval("SELECT device_id FROM iam.user_session WHERE id = $1", pr.session_id)

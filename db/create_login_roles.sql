@@ -2,6 +2,7 @@
 --   psql -v api_password=... -v audit_password=... -f db/create_login_roles.sql
 -- masslak_api   : the API connection, member of masslak_app (subject to row-level security)
 -- masslak_audit : read-only connection for the security console, member of masslak_auditor
+-- masslak_cdc   : the data warehouse's subscription (1062); signs in only when -v cdc_password=... is given
 -- A deployment step: its grants are logged as a migration, not alerted as a manual change (audit.ddl_event, 1047)
 SET masslak.migrating = on;
 SELECT format('CREATE ROLE masslak_api LOGIN PASSWORD %L IN ROLE masslak_app', :'api_password')
@@ -10,6 +11,11 @@ SELECT format('ALTER ROLE masslak_api PASSWORD %L', :'api_password') \gexec
 SELECT format('CREATE ROLE masslak_audit LOGIN PASSWORD %L IN ROLE masslak_auditor', :'audit_password')
  WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'masslak_audit') \gexec
 SELECT format('ALTER ROLE masslak_audit PASSWORD %L', :'audit_password') \gexec
+-- The replication attribute is not inherited, so the warehouse signs in as masslak_cdc itself. pg_hba.conf lets it
+-- open logical (per-database) replication connections only, never a physical stream of the whole cluster.
+\if :{?cdc_password}
+SELECT format('ALTER ROLE masslak_cdc LOGIN PASSWORD %L', :'cdc_password') \gexec
+\endif
 -- Time limits of the running system's sessions (review of October 2026, stage A7). The application pool gives up on a
 -- statement after 30 s (backend/app/db.py); the server now stops it too, so abandoned work does not keep running. A
 -- request waits at most 5 s for a row or table lock (a migration waits the same at most, db/upgrade.sh), and a

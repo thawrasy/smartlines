@@ -1,0 +1,53 @@
+# Data warehouse overlay (expert review of October 2026, stage D3; docs/database/WAREHOUSE.md):
+#   docker compose -f docker-compose.yml -f deploy/warehouse/docker-compose.warehouse.yml --env-file deploy/.env up -d
+# Set MASSLAK_CDC_PASSWORD, MASSLAK_DW_PASSWORD and MASSLAK_DW_ANALYST_PASSWORD in deploy/.env first (openssl rand -hex 24)
+# and run the migration (it gives masslak_cdc its login). The warehouse is a database of its own, on another server in
+# production: the primary only streams the published changes, and analysts never query the primary or its replica.
+#   warehouse          PostgreSQL holding the replicated facts and dimensions (no personal data) and the dw views
+#   warehouse-setup    creates the tables, subscribes to publication masslak_dw, waits for the first copy
+#   warehouse-refresh  refreshes the dw views every 15 minutes (readers keep the previous figures meanwhile)
+# Paths are relative to the repository root (the directory of the first compose file).
+
+services:
+  warehouse:
+    image: postgis/postgis:16-3.4-alpine@sha256:681931a625df344215e9b8998bf34daf146b6a395ceacee4439eb9c85869239f
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: masslak_dw
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${MASSLAK_DW_PASSWORD:?set MASSLAK_DW_PASSWORD in deploy/.env}
+    # the apply workers that keep the tables current, and room for the first copy of several tables at once
+    command: ["postgres", "-c", "max_logical_replication_workers=8", "-c", "max_sync_workers_per_subscription=4"]
+    volumes:
+      - pgdata_warehouse:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d masslak_dw"]
+      interval: 5s
+      retries: 20
+    networks: [internal]
+
+  warehouse-setup:
+    image: masslak:latest
+    command: ["python", "/app/db/warehouse/build.py", "--wait"]
+    environment:
+      MASSLAK_DW_SOURCE: "host=db dbname=${POSTGRES_DB:-masslak} user=masslak_cdc password=${MASSLAK_CDC_PASSWORD:?set MASSLAK_CDC_PASSWORD in deploy/.env}"
+      MASSLAK_DW_URL: "postgresql://postgres:${MASSLAK_DW_PASSWORD}@warehouse/masslak_dw"
+      MASSLAK_DW_ANALYST_PASSWORD: ${MASSLAK_DW_ANALYST_PASSWORD:-}
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      warehouse: { condition: service_healthy }
+    restart: "no"
+    networks: [internal]
+
+  warehouse-refresh:
+    image: masslak:latest
+    command: ["python", "/app/db/warehouse/build.py", "--refresh-every", "900"]
+    environment:
+      MASSLAK_DW_URL: "postgresql://postgres:${MASSLAK_DW_PASSWORD}@warehouse/masslak_dw"
+    depends_on:
+      warehouse-setup: { condition: service_completed_successfully }
+    restart: unless-stopped
+    networks: [internal]
+
+volumes:
+  pgdata_warehouse:

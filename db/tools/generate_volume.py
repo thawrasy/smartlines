@@ -118,10 +118,16 @@ SELECT 'booking.confirmed', 'booking', b.id, jsonb_build_object('booking_ref', b
 
 FINISH = """
 SET session_replication_role = replica;
-UPDATE fin.wallet w SET balance = s.ledger
-  FROM (SELECT w2.id, coalesce(sum(CASE e.direction WHEN 'CR' THEN e.amount ELSE -e.amount END), 0) AS ledger
+-- bookings cloned with triggers off still register their keys (sales.booking_key, 1064)
+INSERT INTO sales.booking_key SELECT b.id, b.uid, b.booking_ref, b.booker_party_id, b.idempotency_key FROM sales.booking b
+ WHERE NOT EXISTS (SELECT 1 FROM sales.booking_key k WHERE k.booking_id = b.id);
+-- a shared (DEFERRED) wallet's balance column holds only what was rolled up; entries still waiting for the roll-up
+-- are added when the balance is read (fin.wallet_balance), so they stay out of the stored figure
+UPDATE fin.wallet w SET balance = s.ledger - s.waiting
+  FROM (SELECT w2.id, coalesce(sum(CASE e.direction WHEN 'CR' THEN e.amount ELSE -e.amount END), 0) AS ledger,
+               CASE WHEN w2.balance_mode = 'DEFERRED' THEN fin.wallet_balance(w2.id) - w2.balance ELSE 0 END AS waiting
           FROM fin.wallet w2 LEFT JOIN fin.ledger_entry e ON e.wallet_id = w2.id GROUP BY w2.id) s
- WHERE s.id = w.id AND w.balance <> s.ledger;
+ WHERE s.id = w.id AND w.balance <> s.ledger - s.waiting;
 SET session_replication_role = origin;
 ANALYZE;
 """

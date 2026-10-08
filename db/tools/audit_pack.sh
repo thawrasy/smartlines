@@ -20,7 +20,7 @@ csv policies "SELECT schemaname || '.' || tablename AS table_name, policyname, p
 csv security_inventory "SELECT * FROM sys.v_security_inventory ORDER BY 1" "$@"
 csv security_definer_functions "SELECT p.oid::regprocedure::text AS function, pg_get_userbyid(p.proowner) AS owner, array_to_string(p.proconfig, ';') AS settings, has_function_privilege('masslak_app', p.oid, 'EXECUTE') AS app_can_execute FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE p.prosecdef AND n.nspname NOT IN ('pg_catalog','information_schema','gis') ORDER BY 1" "$@"
 csv triggers "SELECT tgrelid::regclass::text AS table_name, tgname, tgfoid::regproc::text AS function, tgenabled, tgdeferrable FROM pg_trigger WHERE NOT tgisinternal ORDER BY 1, 2" "$@"
-csv foreign_keys "SELECT conrelid::regclass::text AS table_name, conname, pg_get_constraintdef(oid) AS definition, convalidated FROM pg_constraint WHERE contype = 'f' ORDER BY 1, 2" "$@"
+csv foreign_keys "SELECT conrelid::regclass::text AS table_name, conname, pg_get_constraintdef(oid) AS definition, convalidated FROM pg_constraint WHERE contype = 'f' AND conparentid = 0 ORDER BY 1, 2" "$@"
 csv polymorphic_references "SELECT * FROM sys.polymorphic_reference ORDER BY 1, 2" "$@"
 csv orphan_findings "SELECT * FROM sys.find_orphans()" "$@"
 csv schema_dependencies "SELECT * FROM sys.v_schema_dependency ORDER BY 1, 2" "$@"

@@ -13,6 +13,9 @@ class Settings(BaseSettings):
     audit_database_url: str = "postgresql://masslak_audit:masslak_audit@localhost:5432/masslak"
     # Optional read replica for reports, so heavy queries never load the booking database (empty: use the main pool)
     reports_database_url: str = ""
+    # Optional telemetry database for the history of vehicle positions (review stage D2, db/telemetry/schema.sql); empty:
+    # positions stay in ops.geo_event on the primary
+    telemetry_database_url: str = ""
 
     # Secret used to sign QR codes and verification tokens (32+ random bytes in production)
     signing_secret: str = "change-me-in-production-0123456789abcdef"

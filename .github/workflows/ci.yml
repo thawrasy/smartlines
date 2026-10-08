@@ -57,6 +57,61 @@ jobs:
       - name: No new two-way module dependency or table cycle without a recorded reason
         run: python3 db/tools/schema_dependencies.py upgrade_check -h localhost -U postgres
 
+  warehouse:
+    # Review stage D3: a primary with logical WAL streams facts and dimensions to a separate warehouse, without
+    # personal data. The warehouse shares the runner's network, so both sides reach the primary at localhost:5433.
+    name: Data warehouse (change data capture)
+    runs-on: ubuntu-latest
+    env:
+      PGPASSWORD: postgres
+      MASSLAK_OWNER_URL: postgresql://postgres:postgres@localhost:5433/masslak
+      MASSLAK_DW_SOURCE: host=localhost port=5433 dbname=masslak user=masslak_cdc password=ci-cdc-password
+      MASSLAK_DW_URL: postgresql://postgres:postgres@localhost:5434/masslak_dw
+      MASSLAK_DW_ANALYST_PASSWORD: ci-analyst-password
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with: { python-version: "3.11", cache: pip, cache-dependency-path: backend/requirements*.txt }
+      - run: pip install -r backend/requirements.txt
+      - name: A primary with logical WAL and a warehouse server
+        run: |
+          IMAGE=postgis/postgis:16-3.4@sha256:44126d872ac91993766c341e369c539e8196614321765d36a6f1bab0419a5fa5
+          docker run -d --name primary -p 5433:5432 -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=masslak "$IMAGE" \
+            -c wal_level=logical -c max_slot_wal_keep_size=1GB
+          docker run -d --name warehouse --network host -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=masslak_dw "$IMAGE" -c port=5434
+          for p in 5433 5434; do for i in $(seq 1 60); do pg_isready -q -h localhost -p $p -U postgres && break; sleep 1; done; done
+          sleep 3   # the image's first start restarts the server once after its init scripts
+          for p in 5433 5434; do for i in $(seq 1 60); do pg_isready -q -h localhost -p $p -U postgres && break; sleep 1; done; done
+      - name: Schema, login roles (with the warehouse login) and demo data on the primary
+        run: |
+          db/build.sh masslak -h localhost -p 5433 -U postgres > /dev/null
+          psql -h localhost -p 5433 -U postgres -d masslak -v ON_ERROR_STOP=1 -q -v api_password=ci-api-password \
+               -v audit_password=ci-audit-password -v cdc_password=ci-cdc-password -f db/create_login_roles.sql
+          python backend/scripts/seed_demo.py > /dev/null
+          python backend/scripts/seed_modules.py > /dev/null
+      - name: Subscribe and copy every published table
+        run: python3 db/warehouse/build.py --wait --timeout 300
+      - name: Changes stream within seconds, counts match, and the warehouse holds no unpublished column
+        run: |
+          psql -h localhost -p 5433 -U postgres -d masslak -qc "UPDATE ref.market SET locale = 'en' WHERE country_code = 'JO'"
+          for i in $(seq 1 30); do
+            [ "$(psql -h localhost -p 5434 -U postgres -d masslak_dw -Atc "SELECT locale FROM ref.market WHERE country_code = 'JO'")" = en ] && break
+            sleep 1
+          done
+          test "$(psql -h localhost -p 5434 -U postgres -d masslak_dw -Atc "SELECT locale FROM ref.market WHERE country_code = 'JO'")" = en
+          python3 db/warehouse/build.py --check
+      - name: Analysts read the dw views and cannot reach the primary's data
+        run: |
+          PGPASSWORD=ci-analyst-password psql -h localhost -p 5434 -U dw_analyst -d masslak_dw -v ON_ERROR_STOP=1 \
+            -c "SELECT sum(bookings) FROM dw.sales_daily" -c "SELECT count(*) FROM dw.trip_load" -c "SELECT count(*) FROM dw.ledger_daily"
+          ! PGPASSWORD=ci-cdc-password psql -h localhost -p 5433 -U masslak_cdc -d masslak -c "SELECT email FROM iam.app_user LIMIT 1"
+          ! PGPASSWORD=ci-cdc-password psql -h localhost -p 5433 -U masslak_cdc -d masslak -c "SELECT contact_mobile FROM sales.booking LIMIT 1"
+      - name: The warehouse copies everything again after the primary dropped its slot
+        run: python3 db/warehouse/build.py --resync --wait --timeout 300 && python3 db/warehouse/build.py --check
+      - name: Server logs on failure
+        if: failure()
+        run: docker logs primary 2>&1 | tail -80; docker logs warehouse 2>&1 | tail -80
+
   api:
     name: API end-to-end tests
     runs-on: ubuntu-latest
@@ -102,9 +157,20 @@ jobs:
       - name: Unit and end-to-end tests
         working-directory: backend
         run: python -m pytest tests -q
+      - name: Positions in a telemetry database (review stage D2), through a second API configured for it
+        working-directory: backend
+        env:
+          MASSLAK_TELEMETRY_TEST_URL: postgresql://masslak_tel:ci-tel-password@localhost:5432/masslak_tel
+        run: |
+          psql -h localhost -U postgres -d postgres -qc "CREATE DATABASE masslak_tel"
+          psql -h localhost -U postgres -d masslak_tel -v ON_ERROR_STOP=1 -q -v writer_password=ci-tel-password \
+               -f ../db/telemetry/schema.sql > /dev/null
+          MASSLAK_TELEMETRY_DATABASE_URL="$MASSLAK_TELEMETRY_TEST_URL" nohup python -m uvicorn app.main:app --port 8078 > ../api_tel.log 2>&1 &
+          for i in $(seq 1 30); do curl -sf localhost:8078/api/health > /dev/null && break; sleep 1; done
+          MASSLAK_TEST_URL=http://localhost:8078 python -m pytest tests/test_telemetry.py -q
       - name: API log on failure
         if: failure()
-        run: tail -200 api.log
+        run: tail -200 api.log; tail -100 api_tel.log 2>/dev/null || true
 
   web:
     name: Web build

@@ -82,6 +82,10 @@ Stage C ([REVIEW_STAGE_C.md](REVIEW_STAGE_C.md)) narrows the application's grant
 every direct balance read under review in CI, records a release manifest that upgrades check, gives every business
 rule an owner, pins and signs the supply chain, adds per-table lock and partition monitoring, and brings the payment
 options to the mobile app.
+Stage D ([REVIEW_STAGE_D.md](REVIEW_STAGE_D.md)) prepares growth beyond one market and one server: markets with
+their own time zone and currency, a telemetry database for positions, a data warehouse fed by change data capture
+without personal data, a measured study of splitting by company, bookings partitioned by id, and automatic failover
+with a second site. None of it is needed for the first launch; each part is switched on by configuration.
 
 The code of releases 1A and 1B is complete. General launch waits on the nine operational gates of
 [LAUNCH_GATES.md](LAUNCH_GATES.md), all of which need people and environments outside the code: recovery drill on staging,

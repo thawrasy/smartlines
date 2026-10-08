@@ -12,8 +12,12 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-masslak}
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in deploy/.env}
-    # client authentication from deploy/postgres (replication for the read replica)
-    command: ["postgres", "-c", "hba_file=/etc/postgresql/pg_hba.conf"]
+    # client authentication from deploy/postgres (replication for the read replica). Logical WAL lets the data
+    # warehouse subscribe (deploy/warehouse) without restarting the primary; a replication slot whose reader stopped
+    # may hold at most 20 GB of WAL before the primary drops it (the warehouse then copies again, RUNBOOKS.md section 21).
+    # Every replication command is logged: who created which slot with which plugin (docs/database/WAREHOUSE.md).
+    command: ["postgres", "-c", "hba_file=/etc/postgresql/pg_hba.conf", "-c", "wal_level=logical", "-c", "max_slot_wal_keep_size=20GB",
+              "-c", "log_replication_commands=on"]
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./deploy/postgres/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro

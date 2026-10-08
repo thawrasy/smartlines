@@ -17,7 +17,10 @@ else
   /app/db/upgrade.sh "$DB"
 fi
 
-psql -d "$DB" -v ON_ERROR_STOP=1 -q -v api_password="${MASSLAK_API_PASSWORD:?}" -v audit_password="${MASSLAK_AUDIT_PASSWORD:?}" \
+# the data warehouse's replication login (deploy/warehouse), only where one is configured
+set --
+if [ -n "${MASSLAK_CDC_PASSWORD:-}" ]; then set -- -v cdc_password="$MASSLAK_CDC_PASSWORD"; fi
+psql -d "$DB" -v ON_ERROR_STOP=1 -q -v api_password="${MASSLAK_API_PASSWORD:?}" -v audit_password="${MASSLAK_AUDIT_PASSWORD:?}" "$@" \
      -f /app/db/create_login_roles.sql
 
 # replication role of the read replica (db-replica); created on existing servers too, password kept in step with deploy/.env
@@ -26,6 +29,14 @@ SELECT format('CREATE ROLE replicator WITH REPLICATION LOGIN PASSWORD %L', :'pw'
  WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'replicator') \gexec
 SELECT format('ALTER ROLE replicator WITH REPLICATION LOGIN PASSWORD %L', :'pw') \gexec
 SQL
+
+# the telemetry database of vehicle positions (deploy/telemetry), only where one is configured
+if [ -n "${MASSLAK_TELEMETRY_OWNER_URL:-}" ]; then
+  until pg_isready -q -d "$MASSLAK_TELEMETRY_OWNER_URL"; do echo "waiting for the telemetry database"; sleep 2; done
+  psql "$MASSLAK_TELEMETRY_OWNER_URL" -v ON_ERROR_STOP=1 -q -v writer_password="${MASSLAK_TELEMETRY_PASSWORD:?}" \
+       -f /app/db/telemetry/schema.sql > /dev/null
+  echo "telemetry database ready"
+fi
 
 if [ "${MASSLAK_SEED_DEMO:-false}" = "true" ]; then
   MASSLAK_OWNER_URL="postgresql://$PGUSER:$PGPASSWORD@$PGHOST/$DB" python /app/backend/scripts/seed_demo.py

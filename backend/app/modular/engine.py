@@ -146,7 +146,8 @@ async def table_meta(conn: asyncpg.Connection, table: str) -> TableMeta:
                   (SELECT a.attname FROM pg_attribute a WHERE a.attrelid = k.confrelid AND a.attnum = k.confkey[1]) AS ref_col
              FROM pg_constraint k JOIN pg_class c ON c.oid = k.conrelid JOIN pg_namespace n ON n.oid = c.relnamespace
              LEFT JOIN pg_class fc ON fc.oid = k.confrelid LEFT JOIN pg_namespace fn ON fn.oid = fc.relnamespace
-            WHERE n.nspname = $1 AND c.relname = $2""", schema, name)
+            WHERE n.nspname = $1 AND c.relname = $2
+              AND k.conparentid = 0     -- a key to a partitioned table, not its copies to each partition""", schema, name)
     pk: list = []
     for k in cons:
         if k["contype"] == "p":

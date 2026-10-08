@@ -12,9 +12,9 @@ every table has a primary key, every reference is a foreign key (or documents wh
 |---|---|
 | Engine | PostgreSQL 16 with PostGIS 3 (extensions: pgcrypto, citext, btree_gist, pg_trgm, postgis in schema `gis`; Docker and CI image `postgis/postgis:16-3.4`, Ubuntu package `postgresql-16-postgis-3`) |
 | Schemas | 26 separate schemas, each with its own privileges |
-| Tables | 485 tables (7 partitioned), 4,986 columns, 1,408 foreign keys |
-| Security | row-level security on 485 of 485 tables, 906 policies; 412 triggers, 219 functions |
-| Tests | 408 automated checks against a freshly built database (`db/tests/run.sh`) |
+| Tables | 488 tables (8 partitioned), 5,004 columns, 1,402 foreign keys |
+| Security | row-level security on 488 of 488 tables, 910 policies; 416 triggers, 240 functions |
+| Tests | 425 automated checks against a freshly built database (`db/tests/run.sh`) |
 | Design | [Database design and ERD document](../docs/database/) with diagrams in the study's colors |
 | Docs | [Data dictionary](DATA_DICTIONARY.md) · [ERD diagrams](ERD.md) (both generated from the database) |
 <!-- stats:end -->
@@ -99,6 +99,22 @@ checks with `gen_docs.py --check` that the generated documents and figures match
 | `1047_audit_operations.sql` | Remaining audit items: schema change log `audit.ddl_event` with an alert for security-relevant changes outside migrations (build and upgrade set `masslak.migrating`) (R-09); every JSONB column registered, rule and shape contracts checked on write, price and terms snapshots frozen (R-08); lifecycle matrix and purge of delivered events, webhook deliveries and notifications (R-11); the permission matrix `sys.v_policy_matrix` (R-05); and three cross-company write paths found by the write sweep, closed (R-01) |
 | `1048_design_audit_t3.sql` | Technical audit of design 3.7 (T3): signatures, ledger, family spending and legal holds check the row they name when written (T3-04); break-glass with mandatory expiry, second-person approval or a reviewed emergency, alerts and a sealed record (T3-03); daily position partitions matching the 7-day retention, device evidence and trust grades, low-trust violations reviewed by a person (T3-10, T3-11); two-person requirement changes with measured impact (T3-14); file quarantine until scanned (T3-15); no self-review and an actor on every sensitive read (T3-19); encrypted government endpoints and mandatory city time zones (T3-02, T3-18); schema version, correlation and per-record sequence on outbox events (T3-12) |
 | `1049_recheck_operations.sql` | Re-audit of design 3.8: operational metrics `sys.ops_metrics()` and the job log `sys.job_run` for monitoring (T3-16); sensitive scheduled reports need consent and go by a per-recipient link, with every download logged (T3-05); positions record the session's registered device, a revoked or failed device rejects them, attestation switched by configuration (T3-11); resends of money and authority events need a second person's approval, and daily payment reconciliation (T3-12) |
+| `1050_owner_decisions.sql` | Owner decisions after the review of design 3.9: approved RPO, RTO and SLOs stored as settings, time-bound read-only access for external reviewers |
+| `1051_architecture_review.sql` | Architecture review actions: reports from the read replica, trigger and function cost measured, the outbox partitioning threshold, corrected table comments |
+| `1052_scale_ten_million.sql` | Ten million operations a day: shared wallets in DEFERRED mode with a roll-up, ledger entries partitioned by month, closed-day totals for incremental reconciliation, the latest position of each vehicle |
+| `1053_outbox_partitions.sql` | The outbox partitioned by day and purged by dropping days |
+| `1054_launch_completeness.sql` | Launch completeness: complaints and claims with service levels, trip ratings, pricing setup and the other launch tables given their endpoints |
+| `1055_ai_phase_gate.sql` | The contact centre and AI assistant phase stays closed until its threat model and DPIA are approved (launch gate 9) |
+| `1056_payment_options.sql` | Payment options switched by the platform: cash at the counter, pay later with a pay-by time, card, instalments and financing providers |
+| `1057_review_stage_b.sql` | Review stage B: ageing of the cash carriers owe, freshness limits of reports on the replica |
+| `1058_release_manifest.sql` | Review stage C: release manifest and schema hash; upgrades refuse a hand-changed record |
+| `1059_app_delete_grants.sql` | Review stage C: the application deletes only from the 36 tables listed with their reason |
+| `1060_monitoring_detail.sql` | Review stage C: lock waits per table, partitions ahead and default-partition rows per partitioned table |
+| `1061_markets.sql` | Review stage D: markets with their time zone, currency and language; platform wallets per currency; days and money read in the market of the data |
+| `1062_warehouse_publication.sql` | Review stage D: publication of facts and dimensions without personal data for the data warehouse, its replication role and slot metrics |
+| `1063_telemetry.sql` | Review stage D: one set of trust rules for positions, batch grading on the primary when the history lives in the telemetry database (`db/telemetry/`) |
+| `1064_partitioned_bookings.sql` | Review stage D: bookings partitioned by ranges of id, keys unique over all partitions in `sales.booking_key`, generic conversion `sys.partition_by_id` |
+| `1065_failover.sql` | Review stage D: standby figures for automatic failover and the table the failover drill writes to |
 
 ## Design rules (study 29.1)
 

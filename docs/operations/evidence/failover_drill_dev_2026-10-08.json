@@ -1,0 +1,79 @@
+{
+ "what": "Failover drill (expert review stage D6): writes at 50 a second through a two-host connection string with target_session_attrs=read-write, the primary stopped without warning (pg_ctl stop -m immediate), the standby promoted 2 s later (a stand-in for Patroni's detection, ttl 30 s in production), an API instance listing both servers watched through /api/ready.",
+ "where": "Development host, PostgreSQL 16, two clusters on one machine (ports 5436 and 5437), full Masslak schema; db/tools/failover_drill.py",
+ "date": "2026-10-08",
+ "targets": {
+  "rto_seconds": 60,
+  "rpo_seconds_async": 60,
+  "lost_with_synchronous_standby": 0
+ },
+ "asynchronous_standby": {
+  "drill": "3160951c-b158-4a5a-aaa6-a585019f5a20",
+  "kill_exit": 0,
+  "promote_exit": 0,
+  "acknowledged_before_kill": 387,
+  "acknowledged": 638,
+  "kept": 638,
+  "lost": 0,
+  "lost_seconds": 0.0,
+  "rto_seconds": 2.32,
+  "errors": {
+   "ConnectionRefusedError": 10
+  },
+  "servers_written": [
+   "127.0.0.1:5436",
+   "127.0.0.1:5437"
+  ],
+  "old_primary": {
+   "server": "127.0.0.1:5436",
+   "synchronous_standby_names": "",
+   "standbys": 1,
+   "sync_standbys": 0
+  },
+  "new_primary": "127.0.0.1:5437",
+  "new_primary_is_standby": false,
+  "api_not_ready_seconds": [
+   2.2
+  ],
+  "targets": {
+   "rto_seconds": 60.0,
+   "rpo_seconds": 60.0
+  },
+  "passed": true
+ },
+ "synchronous_standby": {
+  "drill": "9a1f5c0e-c2b4-4d36-9b8e-099823355d62",
+  "kill_exit": 0,
+  "promote_exit": 0,
+  "acknowledged_before_kill": 378,
+  "acknowledged": 625,
+  "kept": 625,
+  "lost": 0,
+  "lost_seconds": 0.0,
+  "rto_seconds": 2.36,
+  "errors": {
+   "ConnectionRefusedError": 10
+  },
+  "servers_written": [
+   "127.0.0.1:5436",
+   "127.0.0.1:5437"
+  ],
+  "old_primary": {
+   "server": "127.0.0.1:5437",
+   "synchronous_standby_names": "*",
+   "standbys": 1,
+   "sync_standbys": 1
+  },
+  "new_primary": "127.0.0.1:5436",
+  "new_primary_is_standby": false,
+  "api_not_ready_seconds": [
+   2.2
+  ],
+  "targets": {
+   "rto_seconds": 60.0,
+   "rpo_seconds": 0.0
+  },
+  "passed": true
+ },
+ "reading": "Both runs passed. Writing resumed 2.3 s after the first failed write, of which 2 s were the simulated detection; the API was not ready for 2.2 s and recovered on its own (its pool reconnected to the new primary). No acknowledged write was lost in either run; with a synchronous standby none can be. In production Patroni's detection adds up to about 30 s (ttl), which stays within the 60 s target; staging repeats the drill with Patroni and HAProxy (LAUNCH_GATES.md)."
+}

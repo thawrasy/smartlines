@@ -110,7 +110,9 @@ async def render_database() -> list[str]:
                                 "UNION ALL SELECT metric, labels, value FROM sys.scale_metrics() "
                                 "UNION ALL SELECT metric, labels, value FROM sys.finance_metrics() "
                                 "UNION ALL SELECT metric, labels, value FROM sys.lock_metrics() "
-                                "UNION ALL SELECT metric, labels, value FROM sys.partition_metrics()")
+                                "UNION ALL SELECT metric, labels, value FROM sys.partition_metrics() "
+                                "UNION ALL SELECT metric, labels, value FROM sys.replication_metrics() "
+                                "UNION ALL SELECT metric, labels, value FROM sys.ha_metrics()")
         pool = db.pool_stats()
     for r in rows:
         name = r["metric"]
@@ -136,6 +138,13 @@ async def render_database() -> list[str]:
         out += [f'masslak_db_pool_acquire_seconds_bucket{{le="{b}"}} {waits[i]}' for i, b in enumerate(db.ACQUIRE_BUCKETS)]
         out += [f'masslak_db_pool_acquire_seconds_bucket{{le="+Inf"}} {waits[-2]}',
                 f"masslak_db_pool_acquire_seconds_count {waits[-2]}", f"masslak_db_pool_acquire_seconds_sum {waits[-1]:.6f}"]
+    # the telemetry database, when positions are kept there (review stage D2)
+    from . import telemetry
+    for name, labels, value in await telemetry.metrics():
+        if name not in seen:
+            out.append(f"# TYPE {name} gauge")
+            seen.add(name)
+        out.append(f"{name}{_labels(labels)} {value}")
     return out
 
 

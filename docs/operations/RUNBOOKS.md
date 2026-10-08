@@ -83,6 +83,11 @@ section.
   - Transactions in flight are rolled back.
   - The API retries idempotent requests. Bookings and payments carry idempotency keys, so a retry never doubles them.
 - **Manual switchover** for maintenance: `patronictl switchover --leader <old> --candidate <new>`.
+- **The application side** (review stage D6): list every server with `target_session_attrs=read-write`, or go through
+  HAProxy port 5000. While no primary answers, the API returns 503 `SERVICE_BUSY` with `Retry-After`, and
+  `/api/ready` stays not ready until the pool reaches a primary. Measured on a development pair: writing back 2.3 s
+  after the promotion, nothing lost ([HIGH_AVAILABILITY.md](HIGH_AVAILABILITY.md)); the full procedure, the second
+  site included, is section 23.
 - **Single-server stack (`docker-compose.yml`):**
   - **The replica:** the `db-replica` service is a streaming hot standby. Reports and exports read it; the API and the
     worker refuse to start in production without it.
@@ -441,12 +446,99 @@ The capacity model and its stages are in `CAPACITY_MODEL.md`.
   connection of its API process. Before raising the pool or PgBouncer sizes, look for slow transactions
   (`LongTransaction`) and lock waits, which hold connections longer (section 10).
 
+## 20. Opening a market (review stage D)
+
+- **What a market is:** a country with its time zone, currency and language (`ref.market`). Companies and people
+  belong to the market of their country (`iam.party.country_code`); stations take the time zone of their city.
+  Syria is the default market; days, cash limits and reports read the market of the data, never a fixed zone.
+- **Opening one:** a reviewed migration (`UPDATE ref.market SET status = 'ACTIVE' WHERE country_code = '<XX>'`); the
+  owner approves it like any schema change. Opening creates the platform's wallets in the market's currency, and from
+  then on companies may be onboarded into it (`market` in the onboarding form). Then set the carriers' cash limit for
+  that currency (the default limit is in the default market's currency, so a new market's carriers sell for cash
+  only once given their own).
+- **Checks after opening:** `GET /api/markets` lists it; `SELECT * FROM sys.finance_metrics()` reports its cash apart
+  (`currency` label); a test carrier's dashboard shows its days in the market's time.
+- **Not yet:** prices in one currency bought from a wallet in another (no exchange); a market's own payment providers
+  are configured like any provider.
+
+## 21. Data warehouse (review stage D)
+
+Design: [WAREHOUSE.md](../database/WAREHOUSE.md). The warehouse subscribes to publication `masslak_dw` on the primary
+and holds no personal data.
+
+- **Setting it up:** set `MASSLAK_CDC_PASSWORD`, `MASSLAK_DW_PASSWORD` and `MASSLAK_DW_ANALYST_PASSWORD` in
+  `deploy/.env`, run the migration (it gives `masslak_cdc` its login), then
+  `docker compose -f docker-compose.yml -f deploy/warehouse/docker-compose.warehouse.yml --env-file deploy/.env up -d`.
+  `warehouse-setup` creates the tables, subscribes and waits for the first copy.
+- **Is it current?** `SELECT * FROM dw.freshness` on the warehouse; `python3 db/warehouse/build.py --check` compares
+  every table's rows with the primary (run it while writes are quiet) and fails on any column the primary does not
+  publish.
+- **A slot holding WAL (`ReplicationSlotRetainingWal`, `ReplicationSlotInactive`):** the warehouse is stopped or behind.
+  Start it (`docker compose ... up -d warehouse`) and watch `masslak_replication_slot_retained_bytes` fall. If it cannot
+  be started within hours, drop the slot on the primary (`SELECT pg_drop_replication_slot('masslak_dw')`) before the
+  disk fills, and copy again later. The primary drops it by itself at 20 GB (`max_slot_wal_keep_size`).
+- **Copying everything again** (after the primary dropped the slot, or after columns were added to the publication):
+  `docker compose ... run --rm warehouse-setup python /app/db/warehouse/build.py --resync --wait`.
+- **A slot with a foreign plugin (`ReplicationSlotForeignPlugin`, page):** a logical slot decoding with anything but
+  `pgoutput` can read every table, personal data included. Treat it as a security incident (section 1): note the slot
+  (`SELECT * FROM pg_replication_slots`), find who created it in the server log (`log_replication_commands`), drop it,
+  and rotate `MASSLAK_CDC_PASSWORD` and `MASSLAK_REPLICATION_PASSWORD`.
+- **Publishing a new column:** a new schema file changes `sys.dw_columns()` and calls `sys.dw_publish()`; the database
+  checks refuse anything personal. Then run `build.py` on the warehouse.
+
+## 22. Telemetry database (review stage D)
+
+The history of vehicle positions can live in a PostgreSQL of its own (`db/telemetry/schema.sql`); the primary keeps
+the grades, the latest position of each vehicle and the tracking alerts (schema file 1063).
+
+- **Turning it on:** set `MASSLAK_TELEMETRY_OWNER_PASSWORD` and `MASSLAK_TELEMETRY_PASSWORD` in `deploy/.env`, then
+  `docker compose -f docker-compose.yml -f deploy/telemetry/docker-compose.telemetry.yml --env-file deploy/.env up -d`.
+  The migration creates the telemetry schema; the API and the worker get `MASSLAK_TELEMETRY_DATABASE_URL`. Positions
+  already on the primary stay there until their retention drops them.
+- **Telemetry down (`TelemetryDown`, page):** the API refuses positions with 503 and the driver apps keep them and send
+  them again; the live map still moves (the latest position is written on the primary first). Restore the service;
+  nothing needs replaying. If it cannot come back within the apps' buffer (about a day), turn the telemetry database
+  off (remove `MASSLAK_TELEMETRY_DATABASE_URL`) so positions go to the primary again.
+- **Partitions (`TelemetryPartitionMissing`):** the worker's daily upkeep creates them 7 days ahead and drops days past
+  the retention the primary sets (`gov.data_inventory`, `ops.geo_event`), unless a legal hold stands. Run it by hand:
+  `python -m app.modules.notify.worker --maintenance`.
+- **Evidence:** positions are graded by the same rules in both stores (`ops.position_flags`). Violation reviews read
+  their evidence from the violation itself; exporting raw positions for an authority reads `tel.position` by trip.
+
+## 23. Automatic failover and the second site (review stage D)
+
+Design and measured times: [HIGH_AVAILABILITY.md](HIGH_AVAILABILITY.md). Configuration: `deploy/ha/`.
+
+- **A failover happened (Patroni promoted a standby):** nothing to do to keep bookings running. Then:
+  - `patronictl -c /etc/patroni/patroni.yml list`: one leader, the old primary rejoining as a replica (pg_rewind);
+  - `NoFailoverCandidate` or `NoSynchronousStandby` clear once it streams again; if the old server cannot rejoin,
+    build a new standby from the backup repository (`create_replica_methods: pgbackrest`);
+  - the checks of section 3 (lag, outbox, reconciliation), and the warehouse slot moved with the primary
+    (`SELECT * FROM pg_replication_slots` on the new primary).
+- **No standby (`NoFailoverCandidate`, page):** a failure now stops bookings until a restore. Bring the standby back or
+  build a new one the same day.
+- **Losing the main site (declared by the on-call lead):** a cut link and a lost site look alike from the second site,
+  so it never promotes itself.
+  1. Confirm the main site is down and will not come back within the RTO; tell the owner.
+  2. Fence it: stop the main site's applications and databases if they can be reached, or block them at the network.
+  3. Promote the second site: `patronictl -c /etc/patroni/patroni.yml edit-config --force --set standby_cluster=null`
+     on `db-b1`; check `SELECT pg_is_in_recovery()` is false.
+  4. Start the API, the worker and Caddy at the second site; move the DNS name to it.
+  5. Note the last WAL the second site replayed (`pg_last_wal_replay_lsn()` before promotion) and compare with
+     repo1 when the main site returns: transactions after it are the loss, reconciled by hand with the ledger tools.
+- **Drills:** `python3 db/tools/failover_drill.py --dsn "<every server, target_session_attrs=read-write>" --kill "<stop
+  the primary>" [--promote ...] --api https://<site>/api/ready --json evidence.json` on staging; it fails when writing
+  is not back within 60 s or an acknowledged write is lost with a synchronous standby.
+
 ## Rehearsal schedule
 
 | Procedure | Before launch | After launch |
 |---|---|---|
 | Restore to a point in time | Twice, timed | Monthly |
 | Failover and failure tests | Once per failure mode | Quarterly |
+| Failover drill (`failover_drill.py`) with Patroni and HAProxy | On staging, before the layout carries production traffic | Quarterly |
+| Promoting the second site | Once on staging | Yearly |
+| Warehouse copied again (`build.py --resync`) | Once on staging | After each publication change |
 | Key rotation | Once in staging | Yearly, and after any suspected exposure |
 | Audit archive verify | Once | Weekly (automatic) |
 | Audit archive tamper drill | Once | Quarterly |

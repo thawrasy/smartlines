@@ -122,6 +122,22 @@ reviewer of a pull request enforces the rest. They write down what the 445 exist
   the open days (`fin.reconcile_wallets`). A closed day takes no new rows.
 - **Pooled connections:** code runs behind PgBouncer in transaction mode. No session-level `SET`, `LISTEN`, advisory
   lock or temporary table outlives its transaction.
+- **Tables partitioned by id (review stage D5):** a table that many others refer to by its id (bookings) is partitioned
+  by ranges of id, so every foreign key to it keeps working. Its unique keys must contain id; any other key that must
+  be unique over all partitions lives in a registry table written by a trigger in the same statement
+  (`sales.booking_key`). Partitions are created ahead by the daily upkeep (`sys.ensure_id_partitions`), never by a
+  default partition. An existing table is converted only with `sys.partition_by_id`, which keeps every grant, policy,
+  trigger, comment and reference, and while the table is small or in a maintenance window.
+- **Catalogue readers and partitions:** a foreign key to a partitioned table also appears once per partition in
+  `pg_constraint`; code that reads keys keeps `conparentid = 0`. A row trigger on a partitioned table runs with the
+  partition as its table: a generic trigger that records or looks up its table resolves `pg_partition_root(TG_RELID)`.
+- **Markets (review stage D1):** no time zone or currency is written into the code; days and money are read in the
+  market of the data (`app.markets`, `ref.company_tz`, `ref.station_tz`). A CI rule refuses a fixed zone or currency.
+- **What leaves the primary (review stage D3):** only the columns listed in `sys.dw_columns()` are published to the
+  warehouse. A new column is added there, in a schema file, after checking it names, reaches or identifies no person.
+- **Positions (review stage D2):** the trust rules of a position live in `ops.position_flags` only; both stores call it.
+- **Failover (review stage D6):** connection strings list every server with `target_session_attrs=read-write` (or go
+  through HAProxy); code treats a lost connection as "try again" (503), never as a failed booking.
 
 ## Phases
 

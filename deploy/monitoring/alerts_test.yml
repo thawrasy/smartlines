@@ -38,6 +38,24 @@ tests:
         values: "0x5 1x60"
       - series: masslak_release_hash_matches
         values: "1x10 0x20"
+      - series: masslak_db_in_recovery
+        values: "0x40"
+      - series: 'masslak_db_standbys{sync="sync"}'
+        values: "1x5 0x35"
+      - series: 'masslak_db_standbys{sync="async"}'
+        values: "0x5 1x10 0x25"
+      - series: masslak_telemetry_up
+        values: "1x5 0x20"
+      - series: masslak_telemetry_partitions_missing
+        values: "0x5 1x30"
+      - series: 'masslak_replication_slot_retained_bytes{slot="masslak_dw",kind="logical"}'
+        values: "1e8x10 6e9x30"
+      - series: 'masslak_replication_slot_active{slot="masslak_dw",kind="logical"}'
+        values: "1x10 0x50"
+      - series: 'masslak_replication_slot_foreign_plugin{slot="masslak_dw",kind="logical"}'
+        values: "0x60"
+      - series: 'masslak_replication_slot_foreign_plugin{slot="peek",kind="logical"}'
+        values: "_x5 1x10"
       - series: 'masslak_lock_wait_seconds_max{table="ops.seat_segment"}'
         values: "1 4 4 4 4 4 1"
       - series: 'masslak_lock_wait_seconds_max{table="fin.wallet"}'
@@ -111,4 +129,34 @@ tests:
         exp_alerts: [{ exp_labels: { severity: page }, exp_annotations: { summary: "Bookings or payments are failing (2 % of the monthly error budget in one hour)", runbook: "RUNBOOKS.md#1-incident-response" } }]
       - eval_time: 1m
         alertname: WalletMismatch
+        exp_alerts: []
+      - eval_time: 30m
+        alertname: ReplicationSlotRetainingWal
+        exp_alerts: [{ exp_labels: { severity: ticket, slot: masslak_dw }, exp_annotations: { summary: "Replication slot masslak_dw holds back more than 5 GB of WAL (its reader is behind or stopped); at max_slot_wal_keep_size the primary drops it", runbook: "RUNBOOKS.md#21-data-warehouse-review-stage-d" } }]
+      - eval_time: 20m
+        alertname: ReplicationSlotInactive
+        exp_alerts: []
+      - eval_time: 45m
+        alertname: ReplicationSlotInactive
+        exp_alerts: [{ exp_labels: { severity: ticket, slot: masslak_dw }, exp_annotations: { summary: "Nothing has read replication slot masslak_dw for 30 minutes (warehouse or standby down)", runbook: "RUNBOOKS.md#21-data-warehouse-review-stage-d" } }]
+      - eval_time: 7m
+        alertname: ReplicationSlotForeignPlugin
+        exp_alerts: [{ exp_labels: { severity: page, slot: peek }, exp_annotations: { summary: "Replication slot peek decodes with a plugin other than pgoutput: it can read every table, personal data included", runbook: "RUNBOOKS.md#21-data-warehouse-review-stage-d" } }]
+      - eval_time: 8m
+        alertname: TelemetryDown
+        exp_alerts: []
+      - eval_time: 12m
+        alertname: TelemetryDown
+        exp_alerts: [{ exp_labels: { severity: page }, exp_annotations: { summary: "The telemetry database does not answer: positions are refused (the apps keep and resend them) and their history waits", runbook: "RUNBOOKS.md#22-telemetry-database-review-stage-d" } }]
+      - eval_time: 25m
+        alertname: TelemetryPartitionMissing
+        exp_alerts: [{ exp_labels: { severity: page }, exp_annotations: { summary: "Today's or tomorrow's partition of the telemetry database is missing (worker upkeep not running)", runbook: "RUNBOOKS.md#22-telemetry-database-review-stage-d" } }]
+      - eval_time: 14m
+        alertname: NoFailoverCandidate
+        exp_alerts: []
+      - eval_time: 24m
+        alertname: NoFailoverCandidate
+        exp_alerts: [{ exp_labels: { severity: page }, exp_annotations: { summary: "No standby streams from the primary: a failure now would stop bookings until a restore", runbook: "RUNBOOKS.md#23-automatic-failover-and-the-second-site-review-stage-d" } }]
+      - eval_time: 4m
+        alertname: NoSynchronousStandby
         exp_alerts: []

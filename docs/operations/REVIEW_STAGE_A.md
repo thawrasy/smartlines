@@ -30,8 +30,8 @@ with real data. Stages B to D cover the launch gates, scale and growth (section 
 
 ## 3. What comes after stage A
 
-Stage B is done as far as code and tooling go; see [REVIEW_STAGE_B.md](REVIEW_STAGE_B.md). Stage C is done as well;
-see [REVIEW_STAGE_C.md](REVIEW_STAGE_C.md).
+Stage B is done as far as code and tooling go; see [REVIEW_STAGE_B.md](REVIEW_STAGE_B.md). Stages C and D are done as
+well; see [REVIEW_STAGE_C.md](REVIEW_STAGE_C.md) and [REVIEW_STAGE_D.md](REVIEW_STAGE_D.md).
 
 - **Stage B, before general launch:**
   - the nine launch gates of [LAUNCH_GATES.md](LAUNCH_GATES.md);
