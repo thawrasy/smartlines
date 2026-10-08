@@ -201,7 +201,7 @@ async def agencies(request: Request, pr: Principal = Depends(require_permission(
     async with db.transaction(context_for(request, pr)) as conn:
         recs = await conn.fetch(
             """SELECT p.uid, p.legal_name, c.approval_status, a.commission_bp, a.daily_limit, a.status AS agreement_status,
-                      w.balance, w.currency,
+                      fin.wallet_balance(w.id) AS balance, w.currency,
                       (SELECT count(*) FROM sales.booking b WHERE b.agency_id = c.id AND b.status <> 'CANCELLED') AS bookings
                  FROM iam.company c JOIN iam.party p ON p.id = c.id
                  LEFT JOIN sales.agency_agreement a ON a.agency_id = c.id AND a.status <> 'ENDED'
@@ -251,7 +251,7 @@ async def agency_deposit(agency_uid: uuid.UUID, body: DepositIn, request: Reques
         await post_txn(conn, "TOPUP", "SYP", f"agency-deposit:{body.idempotency_key}",
                        [(clearing["id"], "DR", body.amount), (wallet["id"], "CR", body.amount)],
                        ref_type="company", ref_id=aid, user_id=pr.user_id, memo=f"Bank transfer {body.bank_reference}")
-        balance = await conn.fetchval("SELECT balance FROM fin.wallet WHERE id = $1", wallet["id"])
+        balance = await conn.fetchval("SELECT fin.wallet_balance($1)", wallet["id"])
     request.state.audit = {"action": "agency.deposit", "object_type": "company", "object_id": aid,
                            "reason": body.bank_reference}
     return {"ok": True, "balance": balance}

@@ -28,7 +28,7 @@ async def wallet(request: Request, pr: Principal = Depends(passenger)):
         entries = await conn.fetch(
             """SELECT e.direction, e.amount, e.balance_after, e.created_at, t.txn_type, t.memo
                  FROM fin.ledger_entry e JOIN fin.ledger_txn t ON t.id = e.txn_id
-                WHERE e.wallet_id = $1 ORDER BY e.id DESC LIMIT 50""", w["id"])
+                WHERE e.wallet_id = $1 ORDER BY e.created_at DESC, e.id DESC LIMIT 50""", w["id"])
     return {"currency": w["currency"], "balance": w["balance"], "entries": rows(entries),
             "sandbox": get_settings().sandbox}
 

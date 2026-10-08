@@ -28,7 +28,17 @@ tests:
         values: "0+600x60"
       - series: 'masslak_db_function_seconds_total{function="sys.tg_set_updated_at"}'
         values: "0+0.01x60"
+      - series: masslak_wallet_rollup_lag_seconds
+        values: "5x10 900x30"
+      - series: masslak_ledger_open_days
+        values: "1x10 3x400"
     alert_rule_test:
+      - eval_time: 25m
+        alertname: WalletRollupLagging
+        exp_alerts: [{ exp_labels: { severity: ticket }, exp_annotations: { summary: "Entries of shared wallets wait more than 5 minutes for the roll-up (worker down?); balances still count them, closing days waits", runbook: "RUNBOOKS.md#17-ten-million-operations-a-day" } }]
+      - eval_time: 380m
+        alertname: LedgerDaysNotClosing
+        exp_alerts: [{ exp_labels: { severity: ticket }, exp_annotations: { summary: "Ledger days are not being closed (daily upkeep, a long transaction, or the roll-up behind)", runbook: "RUNBOOKS.md#17-ten-million-operations-a-day" } }]
       - eval_time: 75m
         alertname: OutboxPartitioningDue
         exp_alerts: [{ exp_labels: { severity: ticket }, exp_annotations: { summary: "The outbox passed capacity.outbox_partition_rows: partition it by day in the next release", runbook: "RUNBOOKS.md#10-load-and-capacity-r-12" } }]

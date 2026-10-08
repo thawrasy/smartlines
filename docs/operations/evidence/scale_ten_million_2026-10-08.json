@@ -1,0 +1,77 @@
+{
+ "what": "Schema files 1052 and 1053 (ten million operations a day): measured on the development host (4 vCPU shared by the database, the load generator and nothing else)",
+ "date": "2026-10-08",
+ "wallet_contention": {
+  "tool": "db/tools/wallet_contention_bench.py <scratch copy> --clients 1,8,32 --seconds 15",
+  "workload": "half the postings credit ONE carrier wallet, half debit ONE gateway clearing wallet; 2,000 passenger wallets on the other side",
+  "before_immediate": [
+   {
+    "clients": 1,
+    "tps": 401.0,
+    "latency_ms": 2.49,
+    "failed": 0,
+    "deadlocks": 0
+   },
+   {
+    "clients": 8,
+    "tps": 865.0,
+    "latency_ms": 9.25,
+    "failed": 0,
+    "deadlocks": 0
+   },
+   {
+    "clients": 32,
+    "tps": 688.3,
+    "latency_ms": 46.49,
+    "failed": 0,
+    "deadlocks": 0
+   }
+  ],
+  "after_deferred": [
+   {
+    "clients": 1,
+    "tps": 419.9,
+    "latency_ms": 2.38,
+    "failed": 0,
+    "deadlocks": 0
+   },
+   {
+    "clients": 8,
+    "tps": 2653.7,
+    "latency_ms": 3.02,
+    "failed": 0,
+    "deadlocks": 0
+   },
+   {
+    "clients": 32,
+    "tps": 2625.3,
+    "latency_ms": 12.19,
+    "failed": 0,
+    "deadlocks": 0
+   }
+  ],
+  "reconcile_mismatches_after": 0,
+  "reading": "the shared wallet row capped postings at 865/s and throughput fell to 688/s at 32 clients (46 ms each); without the row lock postings reach 2,654/s and stay there at 32 clients (12 ms), limited by the 4 CPUs"
+ },
+ "upgrade_from_1051": {
+  "how": "a database built at 1051 with the previous release, filled by that release's full API suite (217 passed) and db/tools/generate_volume.py (15,034 bookings), then db/upgrade.sh",
+  "converted": {
+   "ledger_entries": 46049,
+   "outbox_events": 14547,
+   "webhook_deliveries": 22
+  },
+  "upgrade_seconds": 5.6,
+  "wallet_mismatches_before": 0,
+  "wallet_mismatches_after": 0,
+  "ledger_days_closed_after": 30,
+  "verify_closed_day_mismatches": 0,
+  "new_api_suite_on_upgraded_database": "222 passed"
+ },
+ "connection_pooling": {
+  "how": "PgBouncer 1.23.1 (edoburu/pgbouncer:v1.23.1-p3), transaction mode, max_prepared_statements 500, in front of a fresh build; the API's main pool through it",
+  "api_suite": "222 passed",
+  "server_connections_used": 20
+ },
+ "database_checks": 357,
+ "api_tests": 222
+}

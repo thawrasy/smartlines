@@ -64,8 +64,8 @@ async def insert_withdrawal(conn, wallet_id: int, account_id: int, company_id: i
 
 
 async def set_hold(conn, wallet_id: int, delta: int) -> None:
-    """Moves money in or out of the wallet's hold; the database refuses a hold above the balance."""
-    await conn.execute("UPDATE fin.wallet SET hold_balance = hold_balance + $2 WHERE id = $1", wallet_id, delta)
+    """Moves money in or out of the wallet's hold; the database refuses a hold above the balance that counts."""
+    await conn.execute("SELECT fin.adjust_hold($1, $2)", wallet_id, delta)
 
 
 async def second_approval_above(conn) -> int:

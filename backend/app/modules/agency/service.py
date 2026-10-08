@@ -129,14 +129,17 @@ async def statement(conn: asyncpg.Connection, pr: Principal, month: str | None) 
         raise ApiError(422, "INVALID_MONTH", "month must look like 2026-10")
     end = (start.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1)
     wallet = await company_wallet(conn, agency_id, "SYP", label="Agency wallet")
-    entries = await repo.statement(conn, wallet["id"], start, end)
+    opening = await repo.balance_before(conn, wallet["id"], start)
+    entries, running = [], opening
+    for e in await repo.statement(conn, wallet["id"], start, end):
+        running += e["amount"] if e["direction"] == "CR" else -e["amount"]
+        entries.append({**dict(e), "balance_after": running})
     days = await repo.daily_sales(conn, agency_id, start, end)
     credit = sum(e["amount"] for e in entries if e["direction"] == "CR")
     debit = sum(e["amount"] for e in entries if e["direction"] == "DR")
-    opening = await repo.balance_before(conn, wallet["id"], start)
     return {"month": start.isoformat()[:7], "from": start.isoformat(), "to": end.isoformat(),
             "currency": wallet["currency"], "opening_balance": opening,
-            "closing_balance": entries[-1]["balance_after"] if entries else opening,
+            "closing_balance": running,
             "total_credit": credit, "total_debit": debit,
             "entries": rows(entries), "days": [row_dict(d) for d in days]}
 

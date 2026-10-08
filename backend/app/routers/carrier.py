@@ -36,8 +36,8 @@ async def dashboard(request: Request, pr: Principal = Depends(operator)):
                      AND status IN ('CONFIRMED','COMPLETED') AND (created_at AT TIME ZONE 'Asia/Damascus')::date = $2) AS sales_today,
                  (SELECT count(*) FROM sales.ticket k JOIN sales.booking b ON b.id = k.booking_id WHERE b.company_id = $1
                      AND k.status <> 'CANCELLED' AND (b.created_at AT TIME ZONE 'Asia/Damascus')::date = $2) AS tickets_today,
-                 (SELECT coalesce(balance, 0) FROM fin.wallet WHERE owner_party_id = $1 AND wallet_type = 'COMPANY'
-                     AND currency = 'SYP') AS released_balance,
+                 (SELECT coalesce(fin.wallet_balance(id), 0) FROM fin.wallet WHERE owner_party_id = $1
+                     AND wallet_type = 'COMPANY' AND currency = 'SYP') AS released_balance,
                  (SELECT count(*) FROM fleet.vehicle WHERE company_id = $1 AND status = 'ACTIVE') AS active_vehicles""",
             pr.company_id, today)
         load = await conn.fetchrow(

@@ -103,7 +103,8 @@ async def render_database() -> list[str]:
     ctx = db.Context(request_id=uuid.uuid4(), ip="127.0.0.1", scope="SYSTEM")
     async with db.transaction(ctx) as conn:
         rows = await conn.fetch("SELECT metric, labels, value FROM sys.ops_metrics() "
-                                "UNION ALL SELECT metric, labels, value FROM sys.capacity_metrics()")
+                                "UNION ALL SELECT metric, labels, value FROM sys.capacity_metrics() "
+                                "UNION ALL SELECT metric, labels, value FROM sys.scale_metrics()")
         pool = db.pool_stats()
     for r in rows:
         name = r["metric"]

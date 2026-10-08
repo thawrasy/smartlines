@@ -3,9 +3,11 @@
 Also sends scheduled reports (app.modules.reports.scheduler) and expires unpaid payment requests once a minute when no
 event is waiting.
 
-Claims one pending event at a time (FOR UPDATE SKIP LOCKED, so several workers can run), records an in-app
-notification per recipient and sends email or SMS. A failure rolls the event back and retries it later with
-exponential backoff; after MAX_ATTEMPTS it is marked FAILED for operators to inspect.
+Claims up to MASSLAK_OUTBOX_BATCH pending events at a time (FOR UPDATE SKIP LOCKED, so several workers can run; the
+capacity model plans for about eight million events a day), records an in-app notification per recipient and sends
+email or SMS. Each event runs in its own savepoint: a failure rolls back that event only and retries it later with
+exponential backoff; after MAX_ATTEMPTS it is marked FAILED for operators to inspect. Events are addressed by their
+identity in the daily partitions, (id, created_at).
 """
 import asyncio
 import json
@@ -20,6 +22,7 @@ from .render import mask, render
 
 log = logging.getLogger("masslak.notify")
 MAX_ATTEMPTS = 8
+BATCH = int(os.environ.get("MASSLAK_OUTBOX_BATCH", "50"))
 
 
 def _ctx() -> db.Context:
@@ -53,37 +56,34 @@ async def _deliver(conn, event, payload) -> int:
     return sent
 
 
-async def run_once() -> bool:
-    """Processes one event. Returns False when nothing is waiting."""
-    event_id = None
-    try:
-        async with db.transaction(_ctx()) as conn:
-            event = await conn.fetchrow(
-                """SELECT * FROM sys.outbox_event WHERE status = 'PENDING' AND next_attempt_at <= now()
-                    ORDER BY id LIMIT 1 FOR UPDATE SKIP LOCKED""")
-            if event is None:
-                return False
-            event_id = event["id"]
+async def run_once(batch: int = BATCH) -> bool:
+    """Processes a batch of due events in one transaction. Returns False when nothing is waiting."""
+    from ..integration.webhooks import fanout
+    async with db.transaction(_ctx()) as conn:
+        events = await conn.fetch(
+            """SELECT * FROM sys.outbox_event WHERE status = 'PENDING' AND next_attempt_at <= now()
+                ORDER BY id LIMIT $1 FOR UPDATE SKIP LOCKED""", batch)
+        if not events:
+            return False
+        for event in events:
             payload = json.loads(event["payload"]) if isinstance(event["payload"], str) else event["payload"]
-            n = await _deliver(conn, event, payload)
-            from ..integration.webhooks import fanout
-            n += await fanout(conn, event, payload)
-            await conn.execute("UPDATE sys.outbox_event SET status = 'PUBLISHED', published_at = now(), attempts = attempts + 1 WHERE id = $1",
-                               event_id)
-            log.info("notify.published event=%s type=%s deliveries=%s", event["event_uid"], event["event_type"], n)
-            return True
-    except Exception as exc:
-        if event_id is None:
-            raise
-        # The event's transaction rolled back (including any in-app rows); record the failure and back off
-        log.warning("notify.failed event_id=%s: %s", event_id, exc)
-        async with db.transaction(_ctx()) as conn:
-            await conn.execute(
-                """UPDATE sys.outbox_event SET attempts = attempts + 1, last_error = left($2, 500),
-                     status = CASE WHEN attempts + 1 >= $3 THEN 'FAILED' ELSE 'PENDING' END,
-                     next_attempt_at = now() + make_interval(mins => power(2, least(attempts, 10))::int)
-                    WHERE id = $1""", event_id, str(exc), MAX_ATTEMPTS)
-        return True
+            try:
+                async with conn.transaction():          # a savepoint: one event's failure leaves the others
+                    n = await _deliver(conn, event, payload)
+                    n += await fanout(conn, event, payload)
+                    await conn.execute(
+                        "UPDATE sys.outbox_event SET status = 'PUBLISHED', published_at = now(), attempts = attempts + 1 "
+                        "WHERE id = $1 AND created_at = $2", event["id"], event["created_at"])
+                log.info("notify.published event=%s type=%s deliveries=%s", event["event_uid"], event["event_type"], n)
+            except Exception as exc:
+                # the event's work rolled back (including any in-app rows); record the failure and back off
+                log.warning("notify.failed event_id=%s: %s", event["id"], exc)
+                await conn.execute(
+                    """UPDATE sys.outbox_event SET attempts = attempts + 1, last_error = left($3, 500),
+                         status = CASE WHEN attempts + 1 >= $4 THEN 'FAILED' ELSE 'PENDING' END,
+                         next_attempt_at = now() + make_interval(mins => power(2, least(attempts, 10))::int)
+                        WHERE id = $1 AND created_at = $2""", event["id"], event["created_at"], str(exc), MAX_ATTEMPTS)
+    return True
 
 
 async def maintenance() -> dict:
@@ -105,10 +105,16 @@ async def main(once: bool) -> None:
     await db.open_pools()
     await db.require_reports_replica()       # scheduled reports read the replica, never the booking database
     last_reports = 0.0
+    last_rollup = 0.0
     last_maintenance = None if not once else 0.0     # a long-running worker maintains at start, then daily
     try:
         while True:
             busy = await run_once()
+            # entries of shared (DEFERRED) wallets are folded into their stored balances (CAPACITY_MODEL.md)
+            if once or asyncio.get_running_loop().time() - last_rollup > 5:
+                async with db.transaction(_ctx()) as conn:
+                    await conn.execute("SELECT fin.roll_up_balances()")
+                last_rollup = asyncio.get_running_loop().time()
             if not busy:
                 # manifests waiting for a push become webhook notices (outbox events), sent on the next pass
                 from ..manifests.service import push_due

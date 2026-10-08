@@ -18,14 +18,23 @@ async def platform_party_id(conn: asyncpg.Connection) -> int:
     return pid
 
 
-async def platform_wallet(conn: asyncpg.Connection, wallet_type: str, currency: str) -> asyncpg.Record:
+async def counted(conn: asyncpg.Connection, w: asyncpg.Record) -> dict:
+    """The wallet row with the balance that counts. A shared (DEFERRED) wallet's stored balance lags its newest entries
+    by a few seconds; fin.wallet_balance adds the entries the roll-up has not folded in yet (CAPACITY_MODEL.md)."""
+    out = dict(w)
+    if out.get("balance_mode") == "DEFERRED":
+        out["balance"] = await conn.fetchval("SELECT fin.wallet_balance($1)", out["id"])
+    return out
+
+
+async def platform_wallet(conn: asyncpg.Connection, wallet_type: str, currency: str) -> dict:
     w = await conn.fetchrow(
         """SELECT w.* FROM fin.wallet w JOIN iam.party p ON p.id = w.owner_party_id
             WHERE p.legal_name = 'Masslak Platform' AND p.party_type = 'COMPANY'
               AND w.wallet_type = $1 AND w.currency = $2""", wallet_type, currency)
     if w is None:
         raise ApiError(500, "WALLET_MISSING", f"platform {wallet_type} wallet missing for {currency}")
-    return w
+    return await counted(conn, w)
 
 
 async def user_wallet(conn: asyncpg.Connection, party_id: int, currency: str) -> asyncpg.Record:
@@ -39,7 +48,7 @@ async def user_wallet(conn: asyncpg.Connection, party_id: int, currency: str) ->
 
 
 async def company_wallet(conn: asyncpg.Connection, company_id: int, currency: str,
-                         label: str = "Carrier wallet") -> asyncpg.Record:
+                         label: str = "Carrier wallet") -> dict:
     w = await conn.fetchrow(
         "SELECT * FROM fin.wallet WHERE owner_party_id = $1 AND wallet_type = 'COMPANY' AND currency = $2",
         company_id, currency)
@@ -47,15 +56,16 @@ async def company_wallet(conn: asyncpg.Connection, company_id: int, currency: st
         w = await conn.fetchrow(
             """INSERT INTO fin.wallet (owner_party_id, company_id, wallet_type, label, currency)
                VALUES ($1, $1, 'COMPANY', $3, $2) RETURNING *""", company_id, currency, label)
-    return w
+    return await counted(conn, w)
 
 
 async def post_txn(conn: asyncpg.Connection, txn_type: str, currency: str, idempotency_key: str,
                    entries: Iterable[tuple[int, str, int]], *, ref_type: Optional[str] = None,
                    ref_id: Optional[int] = None, user_id: Optional[int] = None, memo: Optional[str] = None) -> int:
     """Writes one balanced transaction; entries are (wallet_id, 'DR'|'CR', amount)."""
-    # each entry updates its wallet's balance; touching wallets in ascending id keeps two transactions that move money
-    # between the same wallets in opposite directions from deadlocking (lock order: docs/database/STANDARDS.md)
+    # an entry of a passenger or family wallet updates its balance, and a debit of a shared wallet locks it; touching
+    # wallets in ascending id keeps two transactions that move money between the same wallets in opposite directions
+    # from deadlocking (lock order: docs/database/STANDARDS.md). Credits to shared wallets take no lock at all.
     entries = sorted((e for e in entries if e[2] > 0), key=lambda e: e[0])
     txn_id = await conn.fetchval(
         """INSERT INTO fin.ledger_txn (txn_type, currency, ref_type, ref_id, idempotency_key, memo, created_by)

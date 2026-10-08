@@ -64,18 +64,20 @@ async def ticket_status(conn: asyncpg.Connection, agency_id: int, ticket_uid) ->
 
 
 async def balance_before(conn: asyncpg.Connection, wallet_id: int, start: date) -> int:
+    """The balance at the start of the day (Damascus time), from the closed-day totals and the entries after them."""
     return await conn.fetchval(
-        """SELECT coalesce((SELECT e.balance_after FROM fin.ledger_entry e
-                             WHERE e.wallet_id = $1 AND (e.created_at AT TIME ZONE 'Asia/Damascus')::date < $2
-                             ORDER BY e.id DESC LIMIT 1), 0)""", wallet_id, start)
+        "SELECT coalesce(fin.wallet_balance_at($1, ($2::date)::timestamp AT TIME ZONE 'Asia/Damascus'), 0)", wallet_id, start)
 
 
 async def statement(conn: asyncpg.Connection, wallet_id: int, start: date, end: date) -> list[asyncpg.Record]:
+    """Entries of the period, oldest first; the caller adds the running balance (a shared wallet stores none)."""
     return await conn.fetch(
-        """SELECT e.direction, e.amount, e.balance_after, e.created_at, t.txn_type, t.memo
+        """SELECT e.direction, e.amount, e.created_at, t.txn_type, t.memo
              FROM fin.ledger_entry e JOIN fin.ledger_txn t ON t.id = e.txn_id
-            WHERE e.wallet_id = $1 AND (e.created_at AT TIME ZONE 'Asia/Damascus')::date BETWEEN $2 AND $3
-            ORDER BY e.id""", wallet_id, start, end)
+            WHERE e.wallet_id = $1
+              AND e.created_at >= ($2::date)::timestamp AT TIME ZONE 'Asia/Damascus'
+              AND e.created_at < ($3::date + 1)::timestamp AT TIME ZONE 'Asia/Damascus'
+            ORDER BY e.created_at, e.id""", wallet_id, start, end)
 
 
 async def daily_sales(conn: asyncpg.Connection, agency_id: int, start: date, end: date) -> list[asyncpg.Record]:

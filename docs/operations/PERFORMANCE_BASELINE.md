@@ -40,6 +40,23 @@ release it.
 - In staging the API runs several workers on separate hosts. The test must then be repeated at 1x, 2x and 5x the expected
   peak.
 
+## Shared wallets under contention (1052)
+
+`db/tools/wallet_contention_bench.py` posts real ledger transactions through the production triggers. Half of them
+credit one carrier wallet; the other half debit the gateway clearing wallet. Measured on the same 4-vCPU host
+(`evidence/scale_ten_million_2026-10-08.json`):
+
+| Clients | Before: shared row updated by every posting | After: DEFERRED (no row lock on credits) |
+|---|---|---|
+| 1 | 401 postings/s, 2.5 ms | 420 postings/s, 2.4 ms |
+| 8 | 865 postings/s, 9.3 ms | 2,654 postings/s, 3.0 ms |
+| 32 | 688 postings/s, 46.5 ms | 2,625 postings/s, 12.2 ms |
+
+**What this shows:**
+- **Before:** the shared row capped the whole platform's money postings, and more clients made it worse.
+- **After:** throughput rises with clients until the host's CPUs are the limit.
+- **Reconciliation:** clean after both runs.
+
 ## Cost of row-level security
 
 `python -m loadtest.rls_benchmark --runs 40` compares two paths on the hot queries:

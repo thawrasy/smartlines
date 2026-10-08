@@ -143,3 +143,13 @@ groups:
         for: 30m
         labels: { severity: ticket }
         annotations: { summary: "A trigger spends more than 1 ms per row (cost budget, STANDARDS.md)", runbook: "RUNBOOKS.md#10-load-and-capacity-r-12" }
+      - alert: WalletRollupLagging
+        expr: masslak_wallet_rollup_lag_seconds > 300
+        for: 10m
+        labels: { severity: ticket }
+        annotations: { summary: "Entries of shared wallets wait more than 5 minutes for the roll-up (worker down?); balances still count them, closing days waits", runbook: "RUNBOOKS.md#17-ten-million-operations-a-day" }
+      - alert: LedgerDaysNotClosing
+        expr: masslak_ledger_open_days > 2
+        for: 6h
+        labels: { severity: ticket }
+        annotations: { summary: "Ledger days are not being closed (daily upkeep, a long transaction, or the roll-up behind)", runbook: "RUNBOOKS.md#17-ten-million-operations-a-day" }

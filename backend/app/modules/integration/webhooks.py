@@ -126,8 +126,9 @@ async def fanout(conn: asyncpg.Connection, event, payload: dict) -> int:
     for r in rows:
         if receives(r, list(r["events"]), event, payload):
             n += await conn.fetchval(
-                """INSERT INTO sys.webhook_delivery (endpoint_id, outbox_event_id, event_type) VALUES ($1, $2, $3)
-                   ON CONFLICT DO NOTHING RETURNING 1""", r["id"], event["id"], event["event_type"]) or 0
+                """INSERT INTO sys.webhook_delivery (endpoint_id, outbox_event_id, outbox_created_at, event_type)
+                   VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING RETURNING 1""",
+                r["id"], event["id"], event["created_at"], event["event_type"]) or 0
     return n
 
 
@@ -188,13 +189,14 @@ async def deliver_due(limit: int = 20) -> int:
                 WHERE d.id IN (SELECT d2.id FROM sys.webhook_delivery d2 JOIN sys.webhook_endpoint e ON e.id = d2.endpoint_id
                                 WHERE d2.status = 'PENDING' AND d2.next_attempt_at <= now() AND e.status = 'ACTIVE'
                                 ORDER BY d2.id LIMIT $1 FOR UPDATE OF d2 SKIP LOCKED)
-            RETURNING d.id, d.delivery_uid, d.attempts, d.endpoint_id, d.outbox_event_id""", limit)
+            RETURNING d.id, d.delivery_uid, d.attempts, d.endpoint_id, d.outbox_event_id, d.outbox_created_at""", limit)
         jobs = []
         for d in rows:
             x = await conn.fetchrow(
                 """SELECT e.url, e.secret_enc, e.enc_key_id, e.include_pii, o.event_uid, o.event_type, o.payload, o.created_at,
                           o.schema_version, o.correlation_id, o.aggregate_type, o.aggregate_seq
-                     FROM sys.webhook_endpoint e, sys.outbox_event o WHERE e.id = $1 AND o.id = $2""", d["endpoint_id"], d["outbox_event_id"])
+                     FROM sys.webhook_endpoint e, sys.outbox_event o WHERE e.id = $1 AND o.id = $2 AND o.created_at = $3""",
+                d["endpoint_id"], d["outbox_event_id"], d["outbox_created_at"])
             payload = json.loads(x["payload"]) if isinstance(x["payload"], str) else dict(x["payload"])
             body = json.dumps(envelope(x["event_uid"], x["event_type"], x["created_at"], payload, x["include_pii"],
                                        schema_version=x["schema_version"], correlation_id=x["correlation_id"],

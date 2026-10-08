@@ -52,15 +52,17 @@ Personal fields are removed from `data` unless the endpoint was registered with 
   record. A booking is therefore never confirmed without its event, and no event exists for a change that rolled
   back. The only trigger on the table numbers events per record (`sys.outbox_sequence`). It locks that record's
   counter row, never the table.
-- **Read by competing workers.** Workers claim batches with `FOR UPDATE SKIP LOCKED`, so they never wait for each
-  other. Published events are deleted after 30 days.
+- **Read by competing workers.** Workers claim batches of 50 with `FOR UPDATE SKIP LOCKED`, so they never wait for
+  each other. Each event runs in its own savepoint, so one failure does not hold the others back.
+- **Kept by day.** The outbox is partitioned by day (1053). A finished day is dropped whole after 30 days, or after
+  its partner deliveries are purged (90 days) when it has some.
 - **Watched:**
   - the age of the oldest pending event (alert `OutboxBacklog`);
   - the purge backlog (`OutboxPurgeBehind`);
   - the table size (`masslak_table_rows_estimate`).
-- **Partitioning point.** When the table passes `capacity.outbox_partition_rows` (20 million rows by default), the
-  alert `OutboxPartitioningDue` opens a ticket. The next release then partitions it by day, as positions already are,
-  and the purge becomes dropping a partition.
+- **Partitioning.** At the full-platform volume (about 8 million events a day, `docs/operations/CAPACITY_MODEL.md`)
+  the table would pass the partitioning point of 1051 within three days. It was therefore partitioned in 1053, while
+  still small. The event's `id` and `event_uid` are unchanged for receivers.
 - **Change data capture (CDC) later, same contract.** If partner traffic one day needs a broker, Debezium can read
   this outbox from the write-ahead log, using its outbox event router, and publish it to Kafka. The outbox stays: CDC
   reads it rather than replacing it. Envelope, `id`, `sequence` and `schema_version` stay as described here, so

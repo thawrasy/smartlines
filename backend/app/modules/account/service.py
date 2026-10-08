@@ -135,7 +135,7 @@ async def export(conn, ctx: db.Context, pr: Principal) -> dict:
     wallet = await conn.fetch(
         """SELECT e.direction, e.amount, e.balance_after, e.created_at, t.txn_type, t.memo
              FROM fin.ledger_entry e JOIN fin.ledger_txn t ON t.id = e.txn_id JOIN fin.wallet w ON w.id = e.wallet_id
-            WHERE w.owner_party_id = $1 AND w.wallet_type = 'USER' ORDER BY e.id""", pr.party_id)
+            WHERE w.owner_party_id = $1 AND w.wallet_type = 'USER' ORDER BY e.created_at, e.id""", pr.party_id)
     notes = await conn.fetch(
         "SELECT template_code, channel, created_at FROM crm.notification WHERE user_id = $1 ORDER BY created_at", pr.user_id)
     async with db.audit_reader() as audit:

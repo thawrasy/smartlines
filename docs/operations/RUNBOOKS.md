@@ -182,6 +182,11 @@ section.
   3. Record the result. The automated version runs in CI (`test_audit_export.py`).
 - **Retention:** seven years, matching `audit.*` in the lifecycle matrix. Nobody can delete the objects before then,
   including the platform's administrators.
+- **Online window (1052):** the database keeps the last `audit.online_months` months (13) of the audit logs.
+  - **After each sync**, record how far the archive reaches: `python -m app.tools.audit_export record <dir>
+    --public-key audit.pub`. It verifies the chain first, then writes `audit.archive_checkpoint`.
+  - **The daily upkeep** drops an audit month older than the window only when every row of it is at or below the
+    recorded checkpoint, and no legal hold applies. An unrecorded archive keeps everything online.
 
 ## 8. Alerts the database raises
 
@@ -333,6 +338,45 @@ section.
 
   Any mismatch raises `integrity.payments_mismatch` and the `masslak_payment_mismatches` metric. **Severity 1:** freeze
   payouts, then reconcile the named payments one by one.
+
+## 17. Ten million operations a day
+
+The capacity model and its stages are in `CAPACITY_MODEL.md`.
+
+- **Shared wallets (DEFERRED):**
+  - **The balance that counts:** carrier, agency and platform wallets take credits without a row lock. The balance
+    that counts is `fin.wallet_balance(id)`, never the stored `balance` column.
+  - **The roll-up:** the worker runs `SELECT fin.roll_up_balances()` every 5 s.
+  - **If `WalletRollupLagging` fires:** check that the worker runs, and look for long transactions
+    (`pg_stat_activity`). Balances stay correct meanwhile, but closing days waits.
+  - **A wallet that must change mode:** `UPDATE fin.wallet SET balance_mode = ...`. Leaving DEFERRED is refused
+    until its entries are rolled up.
+- **Closed ledger days:**
+  - **What the daily upkeep does:** it runs `fin.close_ledger_days()`. It closes finished UTC days once no older
+    transaction is running and every entry of a shared wallet in them is rolled up. It also re-verifies the day closed
+    seven days earlier (`fin.verify_ledger_day`).
+  - **`LEDGER_DAY_CLOSED`:** a correction never goes into a closed day. Post a correcting transaction today, with its
+    reason.
+  - **If `LedgerDaysNotClosing` fires:** look for a transaction left open (`idle in transaction`), then for the
+    roll-up.
+  - **Balances at a moment:** `fin.wallet_balance_at(wallet, moment)`. It is what statements use.
+- **Outbox days (1053):**
+  - **Dropping a day:** a finished day of events is dropped whole after its retention
+    (`sys.drop_outbox_days()`, called by the purge), unless an event of it still waits or a delivery of it is still
+    kept.
+  - **The worker:** it claims `MASSLAK_OUTBOX_BATCH` events per transaction (50), each in its own savepoint. Add
+    worker replicas when `OutboxBacklog` fires at the peak.
+- **Positions:**
+  - **Batches:** apps send buffered positions to `POST /api/driver/locations` (up to 120 at once).
+  - **Live maps** read `ops.vehicle_position`.
+  - **Telemetry cluster:** when positions stay above 500 a second, or above 30 % of the primary's WAL, move them to
+    the telemetry cluster (stage 2).
+- **PgBouncer:**
+  - **The setup:** the API and the worker connect through `pgbouncer:6432` in transaction mode. The audit and report
+    connections stay direct.
+  - **Pools:** inspect them with `SHOW POOLS;` on the `pgbouncer` admin database.
+  - **When clients wait:** raise `DEFAULT_POOL_SIZE` if clients wait (`cl_waiting`) while the database still has CPU
+    to spare.
 
 ## Rehearsal schedule
 

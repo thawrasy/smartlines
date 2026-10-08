@@ -213,12 +213,17 @@ class LocationIn(BaseModel):
     is_mock: bool = False
 
 
+def _filed_at(device_ts: Optional[datetime], now: datetime) -> tuple[datetime, Optional[datetime]]:
+    """The time a position is filed under: when the device took it, unless that time is implausible (the trust grade
+    says so then), and the device time as given."""
+    taken = device_ts.astimezone(timezone.utc) if device_ts and device_ts.tzinfo else None
+    return (taken if taken and now - timedelta(days=6) < taken <= now + timedelta(minutes=2) else now), taken
+
+
 @router.post("/location")
 async def location(body: LocationIn, request: Request, pr: Principal = Depends(driver)):
     now = datetime.now(timezone.utc)
-    taken = body.device_ts.astimezone(timezone.utc) if body.device_ts and body.device_ts.tzinfo else None
-    # the position is filed under the time the device took it, unless that time is implausible (the trust grade says so)
-    ts = taken if taken and now - timedelta(days=6) < taken <= now + timedelta(minutes=2) else now
+    ts, taken = _filed_at(body.device_ts, now)
     async with db.transaction(context_for(request, pr)) as conn:
         t = await _assigned_trip(conn, pr, body.trip_uid)
         # the installation the driver signed in from (mobile sessions are bound to a registered device) (T3-11)
@@ -236,6 +241,56 @@ async def location(body: LocationIn, request: Request, pr: Principal = Depends(d
             "UPDATE ops.tracking_alert SET status = 'RESOLVED', resolved_at = now() WHERE trip_id = $1 AND status = 'OPEN' "
             "AND kind IN ('SIGNAL_LOST','TRACKING_OFF')", t["id"])
     return {"ok": True, "trust": row["trust"], "flags": list(row["trust_flags"])}
+
+
+class PositionIn(BaseModel):
+    lat: float = Field(ge=-90, le=90)
+    lng: float = Field(ge=-180, le=180)
+    speed_kmh: Optional[float] = Field(default=None, ge=0, le=300)
+    accuracy_m: Optional[float] = Field(default=None, ge=0)
+    event_id: Optional[uuid.UUID] = None
+    seq: Optional[int] = Field(default=None, ge=0)
+    device_ts: Optional[datetime] = None
+    provider: Optional[Literal["GPS", "NETWORK", "FUSED", "DEVICE"]] = None
+    is_mock: bool = False
+
+
+class LocationsIn(BaseModel):
+    trip_uid: uuid.UUID
+    points: list[PositionIn] = Field(min_length=1, max_length=120)
+
+
+@router.post("/locations")
+async def locations(body: LocationsIn, request: Request, pr: Principal = Depends(driver)):
+    """Several positions in one request and one transaction (capacity model: at 20,000 vehicles reporting every 10 s,
+    an app that sends its buffered positions every 30 s turns 2,000 requests a second into about 700). Same evidence
+    rules as /location: each position keeps its own id, counter, device time and trust grade."""
+    now = datetime.now(timezone.utc)
+    filed = [_filed_at(p.device_ts, now) for p in body.points]
+    async with db.transaction(context_for(request, pr)) as conn:
+        t = await _assigned_trip(conn, pr, body.trip_uid)
+        device = await conn.fetchval("SELECT device_id FROM iam.user_session WHERE id = $1", pr.session_id)
+        rows = await conn.fetch(
+            """INSERT INTO ops.geo_event (ts, trip_id, vehicle_id, driver_user_id, lat, lng, speed_kmh, accuracy_m,
+                                          event_id, seq, device_ts, provider, is_mock, device_id)
+               SELECT p.ts, $1, $2, $3, p.lat, p.lng, p.speed, p.accuracy, p.event_id, p.seq, p.device_ts, p.provider, p.is_mock, $4
+                 FROM unnest($5::timestamptz[], $6::numeric[], $7::numeric[], $8::real[], $9::real[], $10::uuid[], $11::bigint[],
+                             $12::timestamptz[], $13::text[], $14::boolean[])
+                      AS p(ts, lat, lng, speed, accuracy, event_id, seq, device_ts, provider, is_mock)
+               ON CONFLICT (event_id, ts) DO NOTHING RETURNING trust""",
+            t["id"], t["vehicle_id"], pr.user_id, device,
+            [f[0] for f in filed], [p.lat for p in body.points], [p.lng for p in body.points],
+            [p.speed_kmh for p in body.points], [p.accuracy_m for p in body.points], [p.event_id for p in body.points],
+            [p.seq for p in body.points], [f[1] for f in filed], [p.provider for p in body.points],
+            [p.is_mock for p in body.points])
+        if rows:
+            await conn.execute(
+                "UPDATE ops.tracking_alert SET status = 'RESOLVED', resolved_at = now() WHERE trip_id = $1 AND status = 'OPEN' "
+                "AND kind IN ('SIGNAL_LOST','TRACKING_OFF')", t["id"])
+    grades: dict[str, int] = {}
+    for r in rows:
+        grades[r["trust"]] = grades.get(r["trust"], 0) + 1
+    return {"ok": True, "accepted": len(rows), "duplicates": len(body.points) - len(rows), "trust": grades}
 
 
 

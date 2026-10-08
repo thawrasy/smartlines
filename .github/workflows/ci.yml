@@ -156,6 +156,12 @@ jobs:
           test "$($dc exec -T db-replica psql -U postgres -Atc 'SELECT pg_is_in_recovery()')" = t
           test "$($dc exec -T db psql -U postgres -Atc "SELECT count(*) FROM pg_stat_replication WHERE state = 'streaming'")" = 1
           $dc exec -T app printenv MASSLAK_REPORTS_DATABASE_URL | grep -q '@db-replica:'
+      - name: The API and the worker reach the database through PgBouncer in transaction mode (capacity model)
+        run: |
+          dc="docker compose --env-file deploy/.env"
+          $dc exec -T app printenv MASSLAK_DATABASE_URL | grep -q '@pgbouncer:6432/'
+          $dc exec -T worker printenv MASSLAK_DATABASE_URL | grep -q '@pgbouncer:6432/'
+          test "$($dc exec -T db psql -U postgres -Atc "SELECT count(*) FROM pg_stat_activity WHERE usename = 'masslak_api' AND client_addr IS NOT NULL")" -ge 1
       - name: Only Caddy is reachable from outside
         run: |
           for port in 5432 8000; do

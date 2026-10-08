@@ -21,6 +21,8 @@ developer machine or CI are smoke tests, not launch evidence.
 | Grafana | `deploy/staging/grafana/` | The operations dashboard, provisioned; bound to 127.0.0.1 (reach it through an SSH tunnel) |
 | Secrets | `deploy/staging/init-secrets.sh` | Metrics token, Grafana password, receiver URLs as files (never committed); prints the `.env` lines |
 | Volume generator | `db/tools/generate_volume.py` | Production-size history that passes the money and reference checks |
+| Connection pooling | service `pgbouncer` (production stack) | Transaction pooling between the API instances and the primary |
+| Shared-wallet benchmark | `db/tools/wallet_contention_bench.py` | Postings per second on one carrier wallet and one clearing wallet (run on a scratch copy) |
 
 ## Bring it up
 
@@ -69,6 +71,9 @@ python3 db/tools/generate_volume.py masslak --months 12 --bookings-per-day 3000 
 | Migrations | `db/tools/migration_rehearsal.py --base <previous release>` against the 1x copy | Within the stop criteria of `docs/database/MIGRATION_PLANS.md` |
 | Monitoring | Fire a test alert; stop the API; fill the outbox | Each page arrives on the on-call channel; time to acknowledge recorded |
 | File scanning | Upload a clean file and the EICAR test file | Clean file accepted; EICAR rejected; nothing stays pending over 15 min |
+
+**For the ten-million figure:** `CAPACITY_MODEL.md` section 7 lists the database-tier rates staging also runs
+(2,250 write transactions a second, 2,000 positions a second, 1,250 events a second).
 
 ## Checked before handover
 

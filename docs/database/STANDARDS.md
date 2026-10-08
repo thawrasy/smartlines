@@ -88,6 +88,27 @@ reviewer of a pull request enforces the rest. They write down what the 445 exist
 - **Where a rule lives:** a rule that must hold for every writer (API, worker, partner API, administration tools)
   stays in the database. Only presentation and request-shape checks live only in the application.
 
+## Volume (ten million operations a day)
+
+`docs/operations/CAPACITY_MODEL.md` sets the figures.
+
+- **No shared hot row:** no row is updated by many concurrent transactions.
+  - A counter or balance that many writers move is kept as appended rows, and folded in by a job. The DEFERRED
+    wallets and `fin.roll_up_balances` are the model.
+  - Readers use the function that adds what is not folded in yet (`fin.wallet_balance`).
+- **Partitioned growing tables:** a table that grows by millions of rows a day and is append-only is partitioned on
+  its time column.
+  - Days (`ensure_daily_partitions`) when its retention is in days; months otherwise.
+  - Its storage settings live in `sys.partition_option`, applied to every new partition.
+  - Old partitions are dropped, never deleted row by row.
+  - A partition referenced by a foreign key is detached before it is dropped.
+- **Identity of a partitioned row:** `(id, time column)`. Code that updates one row gives both, so that only one
+  partition is searched.
+- **No full-history scans:** daily jobs never read a whole history. Money is checked from the closed-day totals plus
+  the open days (`fin.reconcile_wallets`). A closed day takes no new rows.
+- **Pooled connections:** code runs behind PgBouncer in transaction mode. No session-level `SET`, `LISTEN`, advisory
+  lock or temporary table outlives its transaction.
+
 ## Phases
 
 - Every table belongs to one project phase (`sys.table_phase`, file 1041) **(checked)**. A table never requires a row of a
@@ -102,7 +123,9 @@ Concurrent transactions take row locks in one order, so they wait for each other
 1. seats (`ops.seat_segment`, by seat number, then segment: `lock_segments` selects them `ORDER BY seat_no, seg FOR UPDATE`),
 2. the booking and its tickets,
 3. the payment (`SELECT ... FOR UPDATE`),
-4. wallets, in ascending id when a transaction touches several,
+4. wallets, in ascending id when a transaction touches several. A passenger or family wallet (IMMEDIATE) is locked
+   by every posting; a shared wallet (DEFERRED: carriers, agencies, the platform's wallets) is locked only by a debit
+   that must stay covered, never by a credit,
 5. ledger entries (append only, no lock taken).
 
 A new code path that locks rows of two of these follows the same order. Queues use `FOR UPDATE SKIP LOCKED`.

@@ -16,6 +16,11 @@ outside the platform, and `verify --min-sequence N` then detects a chain cut sho
     python -m app.tools.audit_export export <dir>     # read as the audit role (MASSLAK_AUDIT_DATABASE_URL)
     python -m app.tools.audit_export verify <dir> [--public-key public.pem] [--min-sequence N]
     python -m app.tools.audit_export head <dir>       # the tip to record outside the platform
+    python -m app.tools.audit_export record <dir> [--public-key public.pem]   # after the sync to object storage
+
+`record` verifies the chain, then tells the database how far each log is archived (audit.archive_checkpoint). Only
+then may the daily upkeep drop audit partitions older than audit.online_months (capacity model: the audit logs are the
+largest data set at ten million operations a day, so the database keeps 13 months online and the archive keeps the rest).
 """
 from __future__ import annotations
 
@@ -128,6 +133,32 @@ def head(out: Path) -> dict:
             "signed": ms[-1].with_suffix(".sig").exists()}
 
 
+def archived_through(out: Path) -> dict:
+    """Per audit log, the last row id the archive's manifests cover."""
+    last: dict = {}
+    for m in _manifests(out):
+        for f in json.loads(m.read_text())["files"]:
+            last[f["table"]] = max(last.get(f["table"], 0), f["last_id"])
+    return last
+
+
+async def record(out: Path, public_key: Optional[Ed25519PublicKey] = None) -> dict:
+    """Records in the database how far the (verified) archive reaches, so archived partitions may later be dropped."""
+    problems = verify(out, public_key)
+    if problems:
+        raise SystemExit("the archive does not verify; nothing recorded:\n" + "\n".join(problems))
+    tip = head(out)
+    last = archived_through(out)
+    await db.open_pools()
+    try:
+        async with db.audit_writer() as conn:
+            for table, through in sorted(last.items()):
+                await conn.execute("SELECT audit.record_archive($1, $2, $3)", table, through, tip["manifest_sha256"])
+    finally:
+        await db.close_pools()
+    return last
+
+
 def verify(out: Path, public_key: Optional[Ed25519PublicKey] = None, min_sequence: int = 0) -> list[str]:
     problems, prev_sha, last = [], None, {}
     ms = _manifests(out)
@@ -161,7 +192,7 @@ def verify(out: Path, public_key: Optional[Ed25519PublicKey] = None, min_sequenc
 
 
 def main(argv: list[str]) -> int:
-    if len(argv) < 2 or argv[0] not in ("export", "verify", "head", "keygen"):
+    if len(argv) < 2 or argv[0] not in ("export", "verify", "head", "keygen", "record"):
         print(__doc__)
         return 2
     if argv[0] == "keygen":
@@ -180,6 +211,10 @@ def main(argv: list[str]) -> int:
         print(json.dumps(head(out)))
         return 0
     opts = dict(zip(argv[2::2], argv[3::2]))
+    if argv[0] == "record":
+        done = asyncio.run(record(out, _public_key(Path(opts["--public-key"]) if "--public-key" in opts else None)))
+        print(json.dumps({"archived_through": done}))
+        return 0
     problems = verify(out, _public_key(Path(opts["--public-key"]) if "--public-key" in opts else None),
                       int(opts.get("--min-sequence", 0)))
     for p in problems:

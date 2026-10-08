@@ -134,7 +134,7 @@ SELECT pg_temp.expect_error(format($$WITH t AS (INSERT INTO fin.ledger_txn (txn_
   'UNBALANCED_TXN', 'Ledger: unbalanced transaction rejected at commit');
 SELECT pg_temp.expect_error(format($$WITH t AS (INSERT INTO fin.ledger_txn (txn_type, currency, idempotency_key) VALUES ('OVER','SYP','t-3') RETURNING id)
   INSERT INTO fin.ledger_entry (txn_id, wallet_id, direction, amount) SELECT t.id, x.w, x.d, 900000 FROM t, (VALUES (%s,'DR'),(%s,'CR')) x(w,d)$$, :w_user, :w_gw),
-  'wallet_check', 'Ledger: user wallet cannot go negative');
+  'wallet_balance_not_negative', 'Ledger: user wallet cannot go negative');
 SELECT pg_temp.expect_error('UPDATE fin.ledger_entry SET amount = 1', 'permission denied', 'Ledger: app role cannot update entries');
 SELECT pg_temp.expect_error($$INSERT INTO fin.ledger_txn (txn_type, currency, idempotency_key) VALUES ('TOPUP','SYP','t-1')$$, 'duplicate key', 'Ledger: idempotency key prevents double posting');
 COMMIT;
@@ -1249,8 +1249,9 @@ SELECT pg_temp.expect_error($$UPDATE sales.booking SET price_breakdown = '{"tota
   'SNAPSHOT_FROZEN', 'Audit R-08: the price of a sold booking cannot change');
 ROLLBACK;
 BEGIN;
-INSERT INTO sys.outbox_event (event_type, aggregate_type, aggregate_id, payload, status, published_at)
-VALUES ('probe.old', 'probe', 1, '{}', 'PUBLISHED', now() - interval '400 days'), ('probe.new', 'probe', 2, '{}', 'PUBLISHED', now());
+INSERT INTO sys.outbox_event (event_type, aggregate_type, aggregate_id, payload, status, published_at, created_at)
+VALUES ('probe.old', 'probe', 1, '{}', 'PUBLISHED', now() - interval '400 days', now() - interval '400 days'),
+       ('probe.new', 'probe', 2, '{}', 'PUBLISHED', now(), now());
 SELECT sys.purge_expired() ->> 'outbox_events' AS purged \gset
 SELECT pg_temp.ok(:purged >= 1 AND NOT EXISTS (SELECT 1 FROM sys.outbox_event WHERE event_type = 'probe.old')
   AND EXISTS (SELECT 1 FROM sys.outbox_event WHERE event_type = 'probe.new'),
@@ -1540,5 +1541,143 @@ ROLLBACK;
 SET ROLE masslak_app;
 SELECT pg_temp.ok(EXISTS (SELECT 1 FROM sys.capacity_metrics() WHERE metric = 'masslak_db_track_functions'),
   'Architecture review: the application role reads the capacity metrics');
+
+-- =====================================================================
+-- Ten million operations a day (1052)
+-- =====================================================================
+RESET ROLE;
+SELECT id AS sc_company FROM fin.wallet WHERE wallet_type = 'COMPANY' AND currency = 'SYP' ORDER BY id LIMIT 1 \gset
+SELECT id AS sc_gw FROM fin.wallet WHERE wallet_type = 'GATEWAY_CLEARING' AND currency = 'SYP' ORDER BY id LIMIT 1 \gset
+SELECT pg_temp.ok(NOT EXISTS (SELECT 1 FROM fin.wallet WHERE wallet_type IN ('USER', 'FAMILY') AND balance_mode <> 'IMMEDIATE')
+  AND NOT EXISTS (SELECT 1 FROM fin.wallet WHERE wallet_type NOT IN ('USER', 'FAMILY') AND balance_mode <> 'DEFERRED'),
+  'Scale: passenger and family wallets update at once, shared wallets are DEFERRED');
+SELECT pg_temp.ok(NOT EXISTS (SELECT 1 FROM pg_trigger t JOIN pg_proc p ON p.oid = t.tgfoid
+                               WHERE t.tgrelid IN ('fin.ledger_entry'::regclass, 'fin.wallet'::regclass, 'ops.geo_event'::regclass)
+                                 AND NOT t.tgisinternal AND p.proname <> 'tg_forbid_mutation'
+                                 AND p.proname NOT IN ('tg_wallet_defaults', 'tg_wallet_opens_empty', 'tg_wallet_balance_guard')
+                                 AND NOT (p.prosecdef AND p.proconfig IS NOT NULL)),
+  'Scale: the money and position triggers read every row they need whoever posts (SECURITY DEFINER with a fixed search path)');
+SELECT pg_temp.ok((SELECT relkind FROM pg_class WHERE oid = 'fin.ledger_entry'::regclass) = 'p'
+  AND (SELECT count(*) FROM pg_inherits WHERE inhparent = 'fin.ledger_entry'::regclass) >= 4
+  AND EXISTS (SELECT 1 FROM pg_inherits i JOIN pg_class c ON c.oid = i.inhrelid WHERE i.inhparent = 'fin.ledger_entry'::regclass
+                AND array_to_string(c.reloptions, ',') LIKE '%autovacuum_vacuum_insert_scale_factor=0.05%'),
+  'Scale: ledger entries sit in monthly partitions that carry their storage settings');
+-- a credit to a shared wallet touches no wallet row and counts at once
+SELECT balance AS sc_stored, fin.wallet_balance(id) AS sc_counted FROM fin.wallet WHERE id = :sc_company \gset
+BEGIN;
+WITH t AS (INSERT INTO fin.ledger_txn (txn_type, currency, idempotency_key) VALUES ('BOOKING_PAY', 'SYP', 'scale-1') RETURNING id)
+INSERT INTO fin.ledger_entry (txn_id, wallet_id, direction, amount) SELECT t.id, x.w, x.d, x.a FROM t, (VALUES (:sc_gw, 'DR', 14000), (:sc_company, 'CR', 7000), (:w_user, 'CR', 7000)) x(w, d, a);
+SELECT pg_temp.ok((SELECT balance FROM fin.wallet WHERE id = :sc_company) = :sc_stored
+  AND fin.wallet_balance(:sc_company) = :sc_counted + 7000
+  AND (SELECT bool_and(balance_after IS NULL AND created_xid IS NOT NULL) FROM fin.ledger_entry e JOIN fin.ledger_txn t ON t.id = e.txn_id
+        WHERE t.idempotency_key = 'scale-1' AND e.wallet_id = :sc_company)
+  AND (SELECT balance_after IS NOT NULL FROM fin.ledger_entry e JOIN fin.ledger_txn t ON t.id = e.txn_id
+        WHERE t.idempotency_key = 'scale-1' AND e.wallet_id = :w_user),
+  'Scale: a credit to a shared wallet appends its entry without touching the wallet row, and counts at once');
+SELECT pg_temp.ok(NOT EXISTS (SELECT 1 FROM audit.row_change WHERE table_name = 'wallet' AND row_pk IN (:'sc_company', :'w_user') AND ts >= now()),
+  'Scale: a posting adds no wallet change to the audit log (the entry is the record)');
+COMMIT;
+BEGIN;
+UPDATE fin.wallet SET status = 'FROZEN' WHERE id = :w_user;
+SELECT pg_temp.ok(EXISTS (SELECT 1 FROM audit.row_change WHERE table_name = 'wallet' AND row_pk = :'w_user' AND ts >= now()),
+  'Scale: any other wallet change is still in the audit log');
+ROLLBACK;
+SELECT fin.roll_up_balances() AS sc_rolled \gset
+SELECT pg_temp.ok(:sc_rolled >= 1 AND (SELECT balance FROM fin.wallet WHERE id = :sc_company) = fin.wallet_balance(:sc_company)
+  AND fin.wallet_balance(:sc_company) = :sc_counted + 7000,
+  'Scale: the roll-up folds finished entries into the stored balance');
+-- a debit of a shared wallet that must stay covered checks the balance that counts
+SELECT pg_temp.expect_error(format($$WITH t AS (INSERT INTO fin.ledger_txn (txn_type, currency, idempotency_key) VALUES ('PAYOUT', 'SYP', 'scale-2') RETURNING id)
+  INSERT INTO fin.ledger_entry (txn_id, wallet_id, direction, amount) SELECT t.id, x.w, x.d, %s FROM t, (VALUES (%s, 'DR'), (%s, 'CR')) x(w, d)$$,
+  :sc_counted + 7001, :sc_company, :sc_gw), 'INSUFFICIENT_BALANCE', 'Scale: a shared wallet cannot pay out more than it holds');
+SELECT pg_temp.expect_error(format('SELECT fin.adjust_hold(%s, %s)', :sc_company, :sc_counted + 7001), 'INSUFFICIENT_BALANCE',
+  'Scale: a withdrawal hold cannot exceed the balance that counts');
+BEGIN;
+SELECT fin.adjust_hold(:sc_company, 5000);
+SELECT fin.adjust_hold(:sc_company, -5000);
+SELECT pg_temp.ok((SELECT hold_balance FROM fin.wallet WHERE id = :sc_company) = 0, 'Scale: a hold within the balance is placed and released');
+ROLLBACK;
+SELECT pg_temp.ok((fin.reconcile_wallets()).mismatches = 0, 'Scale: every wallet reconciles in both balance modes');
+-- closed days: totals with running balances, nothing posted into them afterwards, the balance at any moment
+BEGIN;
+WITH t AS (INSERT INTO fin.ledger_txn (txn_type, currency, idempotency_key, created_at) VALUES ('BOOKING_PAY', 'SYP', 'scale-old', now() - interval '3 days') RETURNING id)
+INSERT INTO fin.ledger_entry (txn_id, wallet_id, direction, amount, created_at)
+SELECT t.id, x.w, x.d, 400, now() - interval '3 days' FROM t, (VALUES (:sc_gw, 'DR'), (:sc_company, 'CR')) x(w, d);
+COMMIT;
+SELECT fin.roll_up_balances();
+SELECT fin.close_ledger_days() AS sc_days \gset
+SELECT closed_through AS sc_closed FROM fin.ledger_close WHERE id \gset
+SELECT pg_temp.ok(:sc_days >= 3 AND :'sc_closed'::date = (now() AT TIME ZONE 'UTC')::date - 1
+  AND EXISTS (SELECT 1 FROM fin.ledger_day_total WHERE wallet_id = :sc_company AND day = ((now() - interval '3 days') AT TIME ZONE 'UTC')::date AND credit >= 400),
+  'Scale: closing totals every wallet per finished day, up to yesterday');
+SELECT pg_temp.expect_error(format($$WITH t AS (INSERT INTO fin.ledger_txn (txn_type, currency, idempotency_key) VALUES ('BOOKING_PAY', 'SYP', 'scale-late') RETURNING id)
+  INSERT INTO fin.ledger_entry (txn_id, wallet_id, direction, amount, created_at) SELECT t.id, x.w, x.d, 1, now() - interval '2 days' FROM t, (VALUES (%s, 'DR'), (%s, 'CR')) x(w, d)$$,
+  :sc_gw, :sc_company), 'LEDGER_DAY_CLOSED', 'Scale: nothing is posted into a closed day');
+SELECT pg_temp.ok(fin.verify_ledger_day(((now() - interval '3 days') AT TIME ZONE 'UTC')::date) = 0
+  AND fin.wallet_balance_at(:sc_company, now()) = fin.wallet_balance(:sc_company)
+  AND fin.wallet_balance_at(:sc_company, now() - interval '3 days' + interval '1 second')
+      = (SELECT coalesce(sum(CASE direction WHEN 'CR' THEN amount ELSE -amount END), 0) FROM fin.ledger_entry
+          WHERE wallet_id = :sc_company AND created_at < now() - interval '3 days' + interval '1 second'),
+  'Scale: a closed day re-reads the same, and the balance at any moment matches the entries');
+SELECT pg_temp.ok((fin.reconcile_wallets()).mismatches = 0, 'Scale: reconciliation reads the last running total and the open days only');
+SELECT pg_temp.expect_error('UPDATE fin.ledger_day_total SET credit = credit + 1', 'IMMUTABLE_RECORD', 'Scale: closed-day totals never change');
+-- the latest position of a vehicle
+BEGIN;
+INSERT INTO ops.geo_event (ts, vehicle_id, lat, lng, accuracy_m, provider, event_id, seq, device_ts) VALUES
+  (now() - interval '20 seconds', :va, 33.5200, 36.3000, 6, 'GPS', '00000000-0000-4000-8000-0000000000a1', 501, now() - interval '20 seconds'),
+  (now() - interval '10 seconds', :va, 33.5210, 36.3010, 6, 'GPS', '00000000-0000-4000-8000-0000000000a2', 502, now() - interval '10 seconds');
+INSERT INTO ops.geo_event (ts, vehicle_id, lat, lng, accuracy_m, provider, event_id, seq, device_ts)
+VALUES (now() - interval '30 seconds', :va, 33.9, 36.9, 6, 'GPS', '00000000-0000-4000-8000-0000000000a3', 500, now() - interval '30 seconds');
+SELECT pg_temp.ok((SELECT lat FROM ops.vehicle_position WHERE vehicle_id = :va) = 33.5210,
+  'Scale: the latest position of a vehicle is kept in one row, and an older position never replaces it');
+ROLLBACK;
+-- the audit online window: a month is dropped only when the signed archive covers it
+BEGIN;
+UPDATE sys.setting SET value = '-1' WHERE key = 'audit.online_months';
+SELECT audit.drop_archived_partitions() AS sc_dropped_before \gset
+SELECT pg_temp.ok(to_regclass('audit.row_change_' || to_char(now(), 'YYYYMM')) IS NOT NULL,
+  'Scale: an audit month that is not archived stays in the database');
+SELECT audit.record_archive('audit.row_change', (SELECT max(id) FROM audit.row_change), repeat('a', 64));
+SELECT audit.drop_archived_partitions() AS sc_dropped \gset
+SELECT pg_temp.ok(to_regclass('audit.row_change_' || to_char(now(), 'YYYYMM')) IS NULL,
+  'Scale: an audit month older than the online window and covered by the archive is dropped');
+ROLLBACK;
+SET ROLE masslak_app;
+SELECT pg_temp.expect_error($$SELECT audit.record_archive('audit.row_change', 1, repeat('b', 64))$$, 'permission denied',
+  'Scale: only the audit role records archive checkpoints');
+RESET ROLE;
+SELECT pg_temp.ok(EXISTS (SELECT 1 FROM sys.scale_metrics() WHERE metric = 'masslak_wallet_rollup_lag_seconds')
+  AND (SELECT value FROM sys.scale_metrics() WHERE metric = 'masslak_ledger_open_days') <= 2,
+  'Scale: roll-up lag and open ledger days are measured');
+SET ROLE masslak_app;
+
+-- the outbox in daily partitions (1053)
+RESET ROLE;
+SELECT pg_temp.ok((SELECT relkind FROM pg_class WHERE oid = 'sys.outbox_event'::regclass) = 'p'
+  AND EXISTS (SELECT 1 FROM pg_inherits i JOIN pg_class c ON c.oid = i.inhrelid WHERE i.inhparent = 'sys.outbox_event'::regclass
+                AND c.relname = 'outbox_event_' || to_char(current_date, 'YYYYMMDD') AND array_to_string(c.reloptions, ',') LIKE '%fillfactor=80%')
+  AND (SELECT count(*) FROM pg_indexes WHERE schemaname = 'sys' AND tablename = 'outbox_event' AND indexdef LIKE '%WHERE (status = ''PENDING''%') = 1,
+  'Scale: the outbox sits in daily partitions with its storage settings and one pending-queue index');
+BEGIN;
+INSERT INTO sys.webhook_endpoint (owner_kind, url, events, secret_enc, enc_key_id)
+SELECT 'INTEGRATION', 'https://scale-test.example/hook', '{scale.delivered}', '\x00', (SELECT min(id) FROM sec.key_registry)
+RETURNING id AS sc_ep \gset
+SELECT sys.ensure_daily_partitions('sys.outbox_event', 0, 40);
+INSERT INTO sys.outbox_event (event_type, aggregate_type, aggregate_id, payload, status, published_at, created_at) VALUES
+  ('scale.old', 'booking', 1, '{}', 'PUBLISHED', now() - interval '35 days', now() - interval '35 days'),
+  ('scale.waiting', 'booking', 1, '{}', 'PENDING', NULL, now() - interval '34 days'),
+  ('scale.delivered', 'booking', 1, '{}', 'PUBLISHED', now() - interval '33 days', now() - interval '33 days');
+INSERT INTO sys.webhook_delivery (endpoint_id, outbox_event_id, event_type, status)
+SELECT :sc_ep, id, event_type, 'DELIVERED' FROM sys.outbox_event WHERE event_type = 'scale.delivered';
+SELECT pg_temp.ok((SELECT d.outbox_created_at = o.created_at FROM sys.webhook_delivery d JOIN sys.outbox_event o ON o.id = d.outbox_event_id
+                    WHERE o.event_type = 'scale.delivered'),
+  'Scale: a delivery keeps the day of its event, filled in when the writer does not give it');
+SELECT sys.drop_outbox_days() AS sc_out_days \gset
+SELECT pg_temp.ok(to_regclass('sys.outbox_event_' || to_char(current_date - 35, 'YYYYMMDD')) IS NULL
+  AND to_regclass('sys.outbox_event_' || to_char(current_date - 34, 'YYYYMMDD')) IS NOT NULL
+  AND to_regclass('sys.outbox_event_' || to_char(current_date - 33, 'YYYYMMDD')) IS NOT NULL,
+  'Scale: a finished day of events is dropped whole after the retention; a day with a waiting event or a kept delivery stays');
+ROLLBACK;
+SET ROLE masslak_app;
 
 \echo '=== ALL TESTS PASSED ==='

@@ -123,6 +123,15 @@ async def audit_reader() -> AsyncIterator[asyncpg.Connection]:
 
 
 @asynccontextmanager
+async def audit_writer() -> AsyncIterator[asyncpg.Connection]:
+    """The audit role in a writable transaction: only for audit.record_archive, which the role may execute."""
+    assert _audit_pool is not None, "audit pool not initialised"
+    async with _audit_pool.acquire() as conn:
+        async with conn.transaction():
+            yield conn
+
+
+@asynccontextmanager
 async def raw_connection() -> AsyncIterator[asyncpg.Connection]:
     assert _pool is not None
     async with _pool.acquire() as conn:
