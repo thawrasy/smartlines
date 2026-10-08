@@ -108,6 +108,12 @@ section.
 - **Never edit a schema file that has been applied.** `db/upgrade.sh` refuses to run when one changed (exit code 3,
   nothing applied) and names it; restore the file and add a new file instead. `MASSLAK_SCHEMA_DRIFT=warn` exists for
   development databases only.
+- **The record of applied files must match the last release manifest (1058).** Every build and upgrade writes
+  `sys.release_manifest`: the release version, the commit, how many schema files are applied and one hash over them.
+  `db/upgrade.sh` compares `sys.schema_file` with that hash before it applies anything. A row added or removed by hand
+  stops it with exit code 4 (nothing applied), and the alert `ReleaseRecordChanged` fires before that. Compare
+  `sys.schema_file` with the last manifest (`SELECT * FROM sys.current_release()`), find who changed the record and
+  why, and put it back; `MASSLAK_SCHEMA_DRIFT=warn` passes this check on development databases only.
 - **Run** `db/upgrade.sh <database>`. It sets `masslak.migrating=on`, so its schema changes are logged as migrations in
   `audit.ddl_event`. The same changes made by hand raise a `security.ddl_change` alert.
 - **Lock and time limits (T3-08):** `upgrade.sh` waits at most `MASSLAK_LOCK_TIMEOUT` (5 s) for a lock and stops a
@@ -400,6 +406,40 @@ The capacity model and its stages are in `CAPACITY_MODEL.md`.
   - The limits are in `sys.setting` `reports.replica_lag`.
   - If staff report `REPORT_DATA_STALE`, follow `ReplicaLagging`: check `pg_stat_replication` on the primary, then
     the replica's disk and replay.
+
+## 19. Release, supply chain and finer monitoring (review stage C)
+
+- **Which release a database is at:** `SELECT * FROM sys.current_release()` gives the version, the commit, the number of
+  applied files, their hash and whether the record still matches. Reports carry the same version as their
+  `source_version`, and the scrape exposes `masslak_release_info` and `masslak_release_hash_matches`.
+- **Installing from a release archive:** a tag `v*` publishes the archive, its bill of materials (SPDX), `SHA256SUMS`
+  and keyless Sigstore signatures (`.github/workflows/release.yml`). Download all of them into one directory and run
+  `deploy/verify-release.sh masslak-vX.Y.Z.tar.gz` (it needs `cosign`) before extracting. It refuses an archive not
+  signed by this repository's release workflow for a `v*` tag, or one that does not match the checksums, and prints the
+  commit recorded in `RELEASE`. `deploy/update.sh --sha <commit>` then checks that commit, and the release manifest
+  records it.
+- **Base images and CI actions are pinned:** every image is `name:tag@sha256:<digest>` and every action
+  `owner/repo@<commit> # vX.Y.Z`, checked on every push by `scripts/pin_images.py`. Move the pins once a month and
+  after a security advisory: `python3 scripts/pin_images.py --update`, review the diff (the tag each pin follows stays
+  in the line), let CI build and test it, then merge. Never take a pin from an unreviewed source.
+- **Lock waits on one table (`LockWaitsOnTable`):** `masslak_lock_waiting{table}` and `masslak_lock_wait_seconds_max{table}`
+  name the table. The API gives up a lock after 5 s (`LOCK_TIMEOUT`), so waits near 3 s mean contention, not a stuck
+  session.
+  - Find the holders: `SELECT pid, now() - xact_start, state, query FROM pg_stat_activity WHERE pid IN (SELECT unnest(pg_blocking_pids(pid)) FROM pg_stat_activity WHERE wait_event_type = 'Lock')`.
+  - A migration or a console session holding the lock: stop it (section 4).
+  - The escrow or a company wallet under a burst: see section 17 and stage B (refunds posted last).
+  - A seat map under a sale rush: expected for seconds; if it lasts, check the hold expiry job.
+- **Partitions running out (`PartitionsRunningOut`) or rows in a default partition (`RowsInDefaultPartition`):** the
+  daily upkeep (`sys.run_maintenance()`) creates daily partitions 7 days ahead and monthly ones 3 months ahead.
+  - Running out: check `masslak_job_last_success_age_seconds{job="maintenance"}` and run `SELECT sys.run_maintenance()`.
+  - Rows in a default partition block creating the partition for their range. Move them with one reviewed migration
+    file, rehearsed on staging first: detach the default partition, create the missing partition and a new empty
+    default, copy the rows of the detached table into the parent table (they land in the new partition), then drop
+    the detached table. The rows are copied, never edited, so append-only tables such as `fin.ledger_entry` keep their
+    guards.
+- **Waiting for a connection (`PoolWaits`):** `masslak_db_pool_acquire_seconds` is the time a request waited for a
+  connection of its API process. Before raising the pool or PgBouncer sizes, look for slow transactions
+  (`LongTransaction`) and lock waits, which hold connections longer (section 10).
 
 ## Rehearsal schedule
 

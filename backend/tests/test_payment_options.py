@@ -1,7 +1,9 @@
 """Payment options switched by the platform (1056): cash at the carrier's counter with a credit limit, reserve online
 and pay at the counter, card / instalment / financing payments through a provider, expiry of unpaid reservations,
 setting carrier earnings off against counter cash, and remittances confirmed by a second person."""
+import math
 import uuid
+from datetime import datetime, timezone
 
 import pytest
 
@@ -203,6 +205,35 @@ def test_pay_later_reserves_then_counter_collects(pax, counter, trip):
     pytest.later_ref = out["booking_ref"]
 
 
+def test_the_apps_book_on_their_own_channel(admin, pax, trip):
+    """The passenger apps (review stage C8) see and use the options open on the APP channel, and their bookings are
+    recorded on APP_ANDROID or APP_IOS; a switch closed for the apps leaves the website as it is."""
+    from test_mobile import bearer, mobile_login
+    r, _ = mobile_login("passenger@masslak.test")
+    app = bearer(r.json()["access_token"], "ios")
+    m = method(admin, "PAY_LATER")
+    assert switch(admin, "PAY_LATER", True, channels=["WEB"]).status_code == 200
+    try:
+        assert "PAY_LATER" not in [o["code"] for o in app.get("/api/payments/booking-options").json()["options"]]
+        assert "PAY_LATER" in [o["code"] for o in pax.get("/api/payments/booking-options").json()["options"]]
+        refused = book(app, trip, free_seats(app, trip, 1), pay_with="PAY_LATER")
+        assert refused.status_code == 409 and refused.json()["error"]["code"] == "PAYMENT_METHOD_DISABLED", refused.text
+    finally:
+        assert switch(admin, "PAY_LATER", True, channels=m["channels"]).status_code == 200
+    opts = {o["code"]: o for o in app.get("/api/payments/booking-options").json()["options"]}
+    assert opts["PAY_LATER"]["hold_hours"] and opts["PAY_LATER"]["cutoff_minutes"]
+    r = book(app, trip, free_seats(app, trip, 1), pay_with="PAY_LATER")
+    assert r.status_code == 201 and r.json()["status"] == "PENDING_PAYMENT" and r.json()["pay_by"], r.text
+    ref = r.json()["booking_ref"]
+    detail = app.get(f"/api/bookings/{ref}").json()["booking"]
+    assert detail["pay_option"] == "PAY_LATER" and detail["pay_by"]
+    if OWNER_URL:
+        assert owner_sql("SELECT c.code FROM sales.booking b JOIN sales.channel c ON c.id = b.channel_id WHERE b.booking_ref = $1", ref) == "APP_IOS"
+    # the reservation is cancelled from the app and the seat goes back on sale
+    out = app.post(f"/api/bookings/{ref}/cancel")
+    assert out.status_code == 200 and out.json()["status"] == "CANCELLED", out.text
+
+
 def test_cash_paid_booking_is_refunded_in_cash(admin, pax, counter):
     # without the wallet open, the passenger has nowhere online to receive cash back: the counter refunds it
     assert switch(admin, "WALLET", False).status_code == 200
@@ -301,9 +332,13 @@ def test_financing_has_a_minimum_and_a_kind_of_trip(admin, pax, trip):
         assert switch(admin, "FINANCING", True, min_amount=0).status_code == 200
         r = book(pax, trip, free_seats(pax, trip, 1), pay_with="FINANCING")
         assert r.status_code == 409 and r.json()["error"]["code"] == "PAYMENT_METHOD_DISABLED", r.text   # a scheduled trip, not a tour
-        assert switch(admin, "FINANCING", True, min_amount=0, config={"trip_types": ["SCHEDULED"]}).status_code == 200
+        # approval takes time: a cutoff longer than the time left before departure refuses the reservation (set from the
+        # trip itself, so the test holds at any hour of the day)
+        left = (datetime.fromisoformat(trip["departs_at"]) - datetime.now(timezone.utc)).total_seconds() / 3600
+        assert switch(admin, "FINANCING", True, min_amount=0,
+                      config={"trip_types": ["SCHEDULED"], "cutoff_hours": min(336, math.ceil(left) + 1)}).status_code == 200
         r = book(pax, trip, free_seats(pax, trip, 1), pay_with="FINANCING")
-        assert r.status_code == 409 and r.json()["error"]["code"] == "TOO_LATE_TO_RESERVE", r.text     # approval takes time
+        assert r.status_code == 409 and r.json()["error"]["code"] == "TOO_LATE_TO_RESERVE", r.text
         assert switch(admin, "FINANCING", True, min_amount=0, config={"cutoff_hours": 1}).status_code == 200
         r = book(pax, trip, free_seats(pax, trip, 1), pay_with="FINANCING")
         assert r.status_code == 201 and r.json()["status"] == "PENDING_PAYMENT", r.text

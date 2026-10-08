@@ -1,0 +1,49 @@
+# Release (expert review of October 2026, stage C6): a tag v* builds the server archive from the tagged commit, with
+# its software bill of materials, checksums and keyless Sigstore signatures, and publishes them as a GitHub release.
+# A server verifies an archive with deploy/verify-release.sh before extracting it (docs/operations/RUNBOOKS.md).
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    name: Signed release archive
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write      # creates the GitHub release
+      id-token: write      # the keyless signature names this workflow and tag (Sigstore)
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - name: Archive of the tagged commit, with the commit recorded inside (release manifest, 1058)
+        run: |
+          name="masslak-$GITHUB_REF_NAME"
+          mkdir dist
+          git archive --format=tar --prefix="$name/" -o "dist/$name.tar" "$GITHUB_SHA"
+          printf 'commit=%s\nversion=%s\n' "$GITHUB_SHA" "$GITHUB_REF_NAME" > "$RUNNER_TEMP/RELEASE"
+          tar --append -f "dist/$name.tar" -C "$RUNNER_TEMP" --transform "s#^#$name/#" RELEASE
+          gzip -n "dist/$name.tar"
+      - name: Software bill of materials of the source (SPDX)
+        uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
+        with:
+          path: .
+          format: spdx-json
+          output-file: dist/masslak-${{ github.ref_name }}.spdx.json
+          upload-artifact: false
+          upload-release-assets: false
+      - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+      - name: Checksums and keyless signatures
+        working-directory: dist
+        run: |
+          sha256sum ./*.tar.gz ./*.spdx.json | sed 's# \./# #' > SHA256SUMS
+          for f in ./*.tar.gz ./*.spdx.json SHA256SUMS; do cosign sign-blob --yes --bundle "$f.sigstore.json" "$f"; done
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/* --verify-tag --title "Masslak $GITHUB_REF_NAME" \
+            --notes "Verify before installing: deploy/verify-release.sh masslak-$GITHUB_REF_NAME.tar.gz (docs/operations/RUNBOOKS.md, section 4)."

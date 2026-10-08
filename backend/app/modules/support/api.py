@@ -14,7 +14,7 @@ from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, Field
 
 from ... import db
-from ...deps import Principal, context_for, require_permission, require_portal
+from ...deps import Principal, context_for, require_permission, require_portal, sales_channel
 from ...errors import ApiError, not_found
 from ...ledger import company_wallet, platform_wallet, post_txn, user_wallet
 from ...security import identifier_hash
@@ -58,7 +58,7 @@ class RatingIn(BaseModel):
 
 
 def _channel(request: Request) -> str:
-    return "APP" if request.headers.get("x-client") in ("android", "ios") else "WEB"
+    return "APP" if sales_channel(request).startswith("APP") else "WEB"
 
 
 async def _own_case(conn, pr: Principal, case_uid: uuid.UUID):

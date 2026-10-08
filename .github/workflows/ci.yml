@@ -19,14 +19,14 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgis/postgis:16-3.4
+        image: postgis/postgis:16-3.4@sha256:44126d872ac91993766c341e369c539e8196614321765d36a6f1bab0419a5fa5
         env: { POSTGRES_PASSWORD: postgres }
         ports: ["5432:5432"]
         options: >-
           --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
     env: { PGPASSWORD: postgres }
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       - name: Build a fresh database and run the checks
         run: db/tests/run.sh -h localhost -U postgres
       - name: Upgrading an existing database applies nothing twice
@@ -43,6 +43,15 @@ jobs:
           test "$rc" = 3 && grep -q '1056_payment_options.sql' drift.log
           MASSLAK_SCHEMA_DRIFT=warn db/upgrade.sh upgrade_check -h localhost -U postgres
           git checkout -- db/schema/1056_payment_options.sql
+      - name: A record of applied files changed by hand stops the upgrade (release manifest, review stage C3)
+        run: |
+          psql -h localhost -U postgres -d upgrade_check -qc "DELETE FROM sys.schema_file WHERE file = '1056_payment_options.sql'"
+          set +e; db/upgrade.sh upgrade_check -h localhost -U postgres 2> manifest.log; rc=$?; set -e
+          cat manifest.log
+          test "$rc" = 4 && grep -q 'release manifest' manifest.log
+          test "$(psql -h localhost -U postgres -d upgrade_check -Atc "SELECT count(*) FROM sys.schema_file WHERE file = '1056_payment_options.sql'")" = 0
+          psql -h localhost -U postgres -d upgrade_check -qc "INSERT INTO sys.schema_file (file, sha256) VALUES ('1056_payment_options.sql', '$(sha256sum db/schema/1056_payment_options.sql | cut -d' ' -f1)')"
+          db/upgrade.sh upgrade_check -h localhost -U postgres
       - name: Data dictionary, ERD and README figures match the built database (review stage A8)
         run: python3 db/tools/gen_docs.py --check upgrade_check -h localhost -U postgres
       - name: No new two-way module dependency or table cycle without a recorded reason
@@ -53,7 +62,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgis/postgis:16-3.4
+        image: postgis/postgis:16-3.4@sha256:44126d872ac91993766c341e369c539e8196614321765d36a6f1bab0419a5fa5
         env: { POSTGRES_PASSWORD: postgres, POSTGRES_DB: masslak }
         ports: ["5432:5432"]
         options: >-
@@ -73,8 +82,8 @@ jobs:
       MASSLAK_TEST_URL: http://localhost:8077
       MASSLAK_METRICS_TOKEN: ci-metrics-token
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with: { python-version: "3.11", cache: pip, cache-dependency-path: backend/requirements*.txt }
       - run: pip install -r backend/requirements-dev.txt
       - name: Schema, login roles and demo data
@@ -102,8 +111,8 @@ jobs:
     runs-on: ubuntu-latest
     defaults: { run: { working-directory: frontend } }
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with: { node-version: "22", cache: npm, cache-dependency-path: frontend/package-lock.json }
       - run: npm ci
       - run: npm run build
@@ -113,8 +122,8 @@ jobs:
     runs-on: ubuntu-latest
     defaults: { run: { working-directory: mobile } }
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with: { node-version: "22", cache: npm, cache-dependency-path: mobile/package-lock.json }
       - run: npm ci
       - name: Type check
@@ -134,7 +143,7 @@ jobs:
     name: Deployment stack (compose, HTTPS, backup and restore)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       - name: One-command installation (secrets, build, start, first administrator)
         run: |
           sudo ./deploy/install.sh --domain localhost --admin-email admin@install.test --demo --skip-server-setup
@@ -201,17 +210,21 @@ jobs:
     name: Security and policy checks
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with: { python-version: "3.11" }
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with: { node-version: "22" }
       - run: pip install bandit pip-audit ruff==0.15.20
       - name: Alert rules are valid and fire on their conditions (promtool, T3-16)
         run: |
-          curl -sSL https://github.com/prometheus/prometheus/releases/download/v2.53.2/prometheus-2.53.2.linux-amd64.tar.gz | tar xz
+          curl -sSLO https://github.com/prometheus/prometheus/releases/download/v2.53.2/prometheus-2.53.2.linux-amd64.tar.gz
+          echo "60c126740c9cf1206b1e72150dd17914f1c3309bb7dc78a31d4670197ed4fa69  prometheus-2.53.2.linux-amd64.tar.gz" | sha256sum -c -
+          tar xzf prometheus-2.53.2.linux-amd64.tar.gz
           prometheus-2.53.2.linux-amd64/promtool check rules deploy/monitoring/alerts.yml
           (cd deploy/monitoring && ../../prometheus-2.53.2.linux-amd64/promtool test rules alerts_test.yml)
+      - name: Every image is pinned by digest and every action by commit (review stage C6)
+        run: python scripts/pin_images.py
       - name: Language policy (English code, data and docs; Arabic only in locale files)
         run: python scripts/check_language.py
       - name: Lint the API and its tests (ruff)
@@ -228,5 +241,13 @@ jobs:
     name: Container image builds
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       - run: docker build -t masslak:ci .
+      # what the image contains, package by package, kept with the run (review stage C6); releases carry a signed one
+      - name: Software bill of materials of the image (SPDX)
+        uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
+        with:
+          image: masslak:ci
+          format: spdx-json
+          output-file: masslak-image.spdx.json
+          artifact-name: masslak-image.spdx.json

@@ -6,7 +6,7 @@ name: masslak
 
 services:
   db:
-    image: postgis/postgis:16-3.4-alpine
+    image: postgis/postgis:16-3.4-alpine@sha256:681931a625df344215e9b8998bf34daf146b6a395ceacee4439eb9c85869239f
     restart: unless-stopped
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-masslak}
@@ -26,7 +26,7 @@ services:
   # Streaming read replica: reports and exports run here (the API refuses to start in production without it), so heavy
   # queries never slow bookings; also the failover candidate (docs/operations/RUNBOOKS.md, section 3)
   db-replica:
-    image: postgis/postgis:16-3.4-alpine
+    image: postgis/postgis:16-3.4-alpine@sha256:681931a625df344215e9b8998bf34daf146b6a395ceacee4439eb9c85869239f
     restart: unless-stopped
     user: postgres
     entrypoint: ["/usr/local/bin/masslak-replica"]
@@ -51,6 +51,7 @@ services:
       args:
         VITE_SHOW_DEMO: ${MASSLAK_SEED_DEMO:-false}
         VITE_DEFAULT_LOCALE: ${MASSLAK_DEFAULT_LOCALE:-ar}
+        MASSLAK_RELEASE_COMMIT: ${MASSLAK_RELEASE_COMMIT:-unknown}     # recorded in the release manifest (1058)
     image: masslak:latest
     command: ["/app/deploy/migrate.sh"]
     env_file: deploy/.env
@@ -65,7 +66,7 @@ services:
   # connections). Requests set their context inside each transaction, so a pooled connection never carries a company
   # into the next request; protocol-level prepared statements are kept by PgBouncer (max_prepared_statements).
   pgbouncer:
-    image: edoburu/pgbouncer:v1.23.1-p3
+    image: edoburu/pgbouncer:v1.23.1-p3@sha256:377dec3c0e4a66a1077ec043e16a26ed5702a6d954011a7983a1457c2e070b1d
     restart: unless-stopped
     environment:
       DB_HOST: db
@@ -153,7 +154,7 @@ services:
       edge: {}
 
   caddy:
-    image: caddy:2-alpine
+    image: caddy:2-alpine@sha256:d8542f48d34a9cf4e4c11a478865229840e87e4c96ea3f439101f31a5d35f75f
     restart: unless-stopped
     ports: ["80:80", "443:443", "443:443/udp"]
     environment:

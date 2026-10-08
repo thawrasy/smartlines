@@ -560,6 +560,9 @@ erDiagram
 
 ```mermaid
 erDiagram
+  sys_app_delete_grant {
+    text table_name PK
+  }
   sys_city_rollout {
     text feature_key PK
     bigint city_id PK
@@ -613,6 +616,9 @@ erDiagram
   }
   sys_project_phase {
     text code PK
+  }
+  sys_release_manifest {
+    bigint id PK
   }
   sys_requirement_change {
     bigint id PK

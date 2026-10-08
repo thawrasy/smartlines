@@ -118,10 +118,24 @@ built-in simulator stands in for the provider.
 Events: `booking.reserved` (in-app and e-mail to the passenger, or a text to the traveller's mobile for counter sales)
 and `booking.confirmed` when a reservation is paid.
 
+**The passenger app (review stage C8).** The app offers the same choice as the website, under the switches of the
+`APP` channel:
+- The server knows an app request by its bearer token and client header, records the booking on `APP_ANDROID` or
+  `APP_IOS`, and checks the option against the `APP` channel. An option closed for the apps stays open on the
+  website, and the reverse.
+- At checkout the passenger picks the wallet, pay later at the counter, or an open provider option, each with the
+  same hint as the website. An option outside its amount limits or kinds of trip is shown but cannot be picked. The
+  family account always pays at once.
+- A reservation opens on the booking screen with its pay-by time. For pay later, the screen names the counter, the
+  amount and the reference. For a provider option, the provider's page opens in the browser; on return to the app
+  the booking is read again, and its tickets are saved for offline use once paid.
+- The passenger can cancel an unpaid reservation from the app. The trips list marks reservations awaiting payment,
+  and their tickets show "Awaiting payment" and do not open a boarding code.
+
 ## 6. Tests
 
 - Database: 17 checks in `db/tests/run_tests.sql` (switches, provider rules, booking rules, expiry, cash owed and
   limits, remittance four eyes, privileges).
-- API: `backend/tests/test_payment_options.py` (14 tests): switches and permissions, cash sale and credit limit, cash
+- API: `backend/tests/test_payment_options.py` (15 tests; the app channel was added in review stage C): switches and permissions, cash sale and credit limit, cash
   refund, pay later reserve and collect, open-reservation limit, expiry, instalments through the simulated provider,
   financing minimum and trip kinds, remittance four eyes, set-off on trip completion with a balanced ledger.

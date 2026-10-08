@@ -4,6 +4,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import { randomUUID } from "expo-crypto";
 import { useI18n } from "../../../i18n";
 import { api } from "../../../platform/api";
+import { bookingOptions, openPayment, usable as offered, type BookingOption, type PayWith } from "../../../platform/payments";
 import { saveBooking } from "../../../platform/tickets";
 import { Button, Card, Choice, ErrorText, Field, Loading, Notice, Screen, Title, s } from "../../../ui/kit";
 import { SeatMap, type SeatMapData } from "../../../ui/SeatMap";
@@ -12,7 +13,7 @@ import { useLoad } from "../../../ui/useLoad";
 
 interface Detail {
   seat_map: SeatMapData | null; price: number; from_seq: number; to_seq: number; seats: { seat_no: number; free: boolean }[];
-  trip: { trip_no: string; carrier_name: string; currency: string; hold_min: number; departs_at?: string };
+  trip: { trip_no: string; carrier_name: string; currency: string; hold_min: number; departs_at?: string; trip_type?: string };
   categories?: Band[]; family_offers?: { code: string; name: string; min_members: number; discount_type: string; discount_value: number }[];
   stops: { seq: number; station_name: string; sched_dep: string | null; sched_arr: string | null }[];
 }
@@ -60,6 +61,8 @@ export default function Trip() {
   const max = Number(p.passengers) || 1;
   const detail = useLoad(() => api.get<Detail>(`/api/trips/${p.uid}?from_seq=${p.from_seq}&to_seq=${p.to_seq}`), [p.uid, p.from_seq, p.to_seq]);
   const wallet = useLoad(() => api.get<{ balance: number }>("/api/wallet"));
+  const opts = useLoad(bookingOptions);
+  const [payWith, setPayWith] = useState<PayWith | null>(null);
   const ref = useLoad(() => api.get<{ countries: string[] }>("/api/ref"));
   const [selected, setSelected] = useState<number[]>([]);
   const [hold, setHold] = useState<{ hold_token: string; expires_at: string } | null>(null);
@@ -139,11 +142,18 @@ export default function Trip() {
     if (!hold) return;
     setBusy(true); setError(null);
     try {
-      const out = await api.post<{ booking_ref: string }>("/api/bookings", {
+      const out = await api.post<{ booking_ref: string; status: string }>("/api/bookings", {
         hold_token: hold.hold_token, trip_uid: p.uid, from_seq: Number(p.from_seq), to_seq: Number(p.to_seq), idempotency_key: idem.current,
-        passengers: travellers(), pay_from: payFrom,
+        passengers: travellers(), pay_from: payFrom, pay_with: payFrom === "FAMILY_ACCOUNT" ? "WALLET" : chosen?.code ?? "WALLET",
       });
-      await saveBooking(out.booking_ref).catch(() => {});
+      if (out.status === "PENDING_PAYMENT") {
+        // card, instalments and financing: the seats are reserved and the passenger goes on to the provider's page;
+        // pay later: the booking screen says where and until when to pay
+        const provider = chosen?.providers?.[0];
+        if (provider) await openPayment(out.booking_ref, provider.code, randomUUID()).catch(() => {});
+      } else {
+        await saveBooking(out.booking_ref).catch(() => {});
+      }
       router.replace({ pathname: "/booking/[ref]", params: { ref: out.booking_ref } });
     } catch (e) { setError(e); } finally { setBusy(false); }
   };
@@ -153,6 +163,15 @@ export default function Trip() {
   const d = detail.data;
   const from = d.stops.find((x) => x.seq === d.from_seq), to = d.stops.find((x) => x.seq === d.to_seq);
   const total = quote?.total ?? d.price * selected.length;
+  const usable = (o: BookingOption) => offered(o, total, d.trip.trip_type);
+  const options = opts.data ?? [];
+  const chosen = options.find((o) => o.code === payWith && usable(o)) ?? options.find(usable) ?? null;
+  // the family account pays at once, so only the wallet option goes with it
+  const familyPays = payFrom === "FAMILY_ACCOUNT";
+  const hint = (o: BookingOption) => !usable(o) ? (total < o.min_amount ? t("opt.from", { amount: money(o.min_amount) }) : "")
+    : t(`opt.hint.${o.code}`, { h: o.hold_hours ?? 24, m: o.cutoff_minutes ?? 120, provider: o.providers?.[0]?.name ?? "" });
+  const payLabel = !chosen || chosen.code === "WALLET" ? t("trip.pay", { amount: money(total) })
+    : chosen.code === "PAY_LATER" ? t("opt.reserve") : t("opt.continue", { amount: money(total) });
   const catLabel = (c: Category) => { const b = bands.find((x) => x.category === c);
     return b ? `${t(`pax.cat.${c}`)} · ${t("pax.ages", { from: b.min_age, to: b.max_age ?? "+" })} · ${money(b.fare)}` : t(`pax.cat.${c}`); };
   return (
@@ -250,9 +269,28 @@ export default function Trip() {
           {quote?.family_offer ? <Notice tone="green" text={`${quote.family_offer.name} −${money(quote.family_offer.discount)}`} /> : null}
           <ErrorText error={quoteError} />
           <View style={s.between}><Text style={s.h2}>{t("common.total")}</Text><Text style={s.h2}>{money(total)}</Text></View>
-          {wallet.data && payFrom === "WALLET" ? <Text style={s.small}>{t("trip.balance", { amount: money(wallet.data.balance) })}</Text> : null}
-          <Button label={t("trip.pay", { amount: money(total) })} busy={busy}
-                  disabled={left === 0 || !quote || !keys.every((k) => complete(names[k]))} onPress={pay} />
+          {opts.data && options.length === 0 ? <Notice tone="amber" text={t("opt.noneOpen")} /> : null}
+          {!familyPays && options.length > 1 ? (
+            <View style={{ gap: 8 }} accessibilityRole="radiogroup" accessibilityLabel={t("opt.title")}>
+              <Text style={s.h2}>{t("opt.title")}</Text>
+              {options.map((o) => {
+                const on = chosen?.code === o.code, ok = usable(o);
+                return (
+                  <Pressable key={o.code} disabled={!ok} onPress={() => setPayWith(o.code)} accessibilityRole="radio"
+                             accessibilityState={{ checked: on, disabled: !ok }}
+                             style={{ padding: 12, borderRadius: 12, borderWidth: 1, opacity: ok ? 1 : 0.55, gap: 4,
+                                      borderColor: on ? color.primary : color.outline, backgroundColor: on ? color.primarySoft : color.surface }}>
+                    <Text style={s.h2}>{t(`opt.name.${o.code}`)}</Text>
+                    {hint(o) ? <Text style={s.small}>{hint(o)}</Text> : null}
+                  </Pressable>
+                );
+              })}
+            </View>
+          ) : null}
+          {wallet.data && payFrom === "WALLET" && (familyPays || (chosen?.code ?? "WALLET") === "WALLET")
+            ? <Text style={s.small}>{t("trip.balance", { amount: money(wallet.data.balance) })}</Text> : null}
+          <Button label={familyPays ? t("trip.pay", { amount: money(total) }) : payLabel} busy={busy}
+                  disabled={left === 0 || !quote || !keys.every((k) => complete(names[k])) || (!!opts.data && !chosen)} onPress={pay} />
         </>
       )}
     </Screen>

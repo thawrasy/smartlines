@@ -55,6 +55,7 @@ class Result:
     duration_ms: int = 0
     data_as_of: Optional[datetime] = None     # the moment the figures reflect (replica replay time or now)
     freshness: Optional[dict] = None          # replica lag, its limit and whether it was passed (freshness.py)
+    source_version: Optional[str] = None      # the schema release the figures were computed against (release.py)
 
 
 def can_read(ds: Dataset, v: Viewer) -> bool:

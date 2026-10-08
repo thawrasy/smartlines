@@ -112,6 +112,16 @@ def _presented_token(request: Request) -> Optional[str]:
     return request.cookies.get(SESSION_COOKIE)
 
 
+def sales_channel(request: Request) -> str:
+    """The sales channel of a passenger request (sales.channel): the apps sign in with a bearer token and their client
+    header, as _presented_token reads it; anything else is the website. Which ways of paying are open is set per
+    channel (fin.payment_method.channels), so an app booking is checked against the app's switches."""
+    client = request.headers.get("x-masslak-client")
+    if client in ("android", "ios") and request.headers.get("authorization", "").lower().startswith("bearer "):
+        return "APP_ANDROID" if client == "android" else "APP_IOS"
+    return "WEB"
+
+
 async def optional_principal(request: Request) -> Optional[Principal]:
     token = _presented_token(request)
     if not token:

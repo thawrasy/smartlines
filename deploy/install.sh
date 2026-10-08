@@ -50,7 +50,10 @@ else
 fi
 
 step "Building and starting the stack (first build takes a few minutes)"
-docker compose --env-file deploy/.env up -d --build
+# the commit of this checkout, or the one a signed release archive records in RELEASE, goes into the release manifest (1058)
+commit="$(git rev-parse HEAD 2>/dev/null || sed -n 's/^commit=\([0-9a-f]\{40\}\)$/\1/p' RELEASE 2>/dev/null || true)"
+MASSLAK_RELEASE_COMMIT="${commit:-release-archive}" \
+  docker compose --env-file deploy/.env up -d --build
 
 step "Waiting for the application"
 for i in $(seq 1 90); do

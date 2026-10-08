@@ -1,7 +1,7 @@
 # Masslak: one image holding the API, the built web interface and the database scripts.
 
 # ---- web interface ----
-FROM node:22-alpine AS web
+FROM node:22-alpine@sha256:0a7108bf6c7bf5de370ffb1a3ed6be93d405b43ff159f681a8d18c0e2bc2e402 AS web
 WORKDIR /web
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci --no-audit --no-fund
@@ -12,9 +12,11 @@ ENV VITE_SHOW_DEMO=$VITE_SHOW_DEMO VITE_DEFAULT_LOCALE=$VITE_DEFAULT_LOCALE
 RUN npm run build
 
 # ---- API ----
-FROM python:3.12-slim
+FROM python:3.12-slim@sha256:05cda9777409a9c3ffddd94a4c476b79f0769a0b4857f0c7ed9226b6800b0d6f
+# the commit the image was built from, recorded by the migrate step in the release manifest (1058)
+ARG MASSLAK_RELEASE_COMMIT=unknown
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 \
-    MASSLAK_STATIC_DIR=/app/static
+    MASSLAK_STATIC_DIR=/app/static MASSLAK_RELEASE_COMMIT=${MASSLAK_RELEASE_COMMIT}
 RUN apt-get update && apt-get install -y --no-install-recommends postgresql-client \
     && rm -rf /var/lib/apt/lists/* \
     && useradd --system --uid 10001 --home /app masslak

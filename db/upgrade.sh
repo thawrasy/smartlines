@@ -30,6 +30,21 @@ BASELINE="970"
 tracked="$(psql "$@" -d "$DB" -Atqc "SELECT to_regclass('sys.schema_file') IS NOT NULL AND EXISTS (SELECT 1 FROM sys.schema_file)")"
 psql "$@" -d "$DB" -v ON_ERROR_STOP=1 -q -f "$DIR/schema_file.sql"
 
+# The record of applied files must still match the last release manifest (1058): a row added or removed by hand would
+# make this upgrade skip or repeat files
+if [ "$tracked" = "t" ] && [ "$(psql "$@" -d "$DB" -Atqc "SELECT to_regproc('sys.current_release') IS NOT NULL")" = "t" ]; then
+  matches="$(psql "$@" -d "$DB" -Atqc "SELECT hash_matches FROM sys.current_release()")"
+  if [ "$matches" = "f" ]; then
+    echo "the record of applied schema files (sys.schema_file) differs from the last release manifest of $DB" >&2
+    if [ "${MASSLAK_SCHEMA_DRIFT:-fail}" = warn ]; then
+      echo "warning: continuing because MASSLAK_SCHEMA_DRIFT=warn (development databases only)" >&2
+    else
+      echo "upgrade refused: compare sys.schema_file with sys.release_manifest before going on. Nothing was applied." >&2
+      exit 4
+    fi
+  fi
+fi
+
 # Drift check first, so a refused upgrade has changed nothing
 if [ "$tracked" = "t" ]; then
   drift=""
@@ -63,4 +78,6 @@ for f in $(schema_files); do
   psql "$@" -d "$DB" -v ON_ERROR_STOP=1 -q --single-transaction -f "$f"
   record "$name" "$sha"
 done
+commit="${MASSLAK_RELEASE_COMMIT:-$(git -C "$DIR" rev-parse HEAD 2>/dev/null || echo unknown)}"
+echo "SELECT 1 FROM sys.record_release('UPGRADE', :'commit')" | psql "$@" -d "$DB" -v ON_ERROR_STOP=1 -q -At -v commit="$commit" -f - >/dev/null
 echo "OK: $DB is up to date"

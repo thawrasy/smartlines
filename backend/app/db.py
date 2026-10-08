@@ -3,6 +3,10 @@
 Every request runs in one transaction on the masslak_app role. The transaction starts with
 sys.set_context() so that row-level security and the audit triggers know who is acting.
 """
+import os
+import sys
+import time
+from collections import Counter
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from typing import AsyncIterator, Optional
@@ -15,6 +19,20 @@ from .config import get_settings
 _pool: Optional[asyncpg.Pool] = None
 _audit_pool: Optional[asyncpg.Pool] = None
 _reports_pool: Optional[asyncpg.Pool] = None
+
+
+# How long requests wait for a connection of the main pool (review stage C7): upper bounds in seconds, then the count
+# per bound, the total count and the sum. A pool that is too small shows here before requests time out.
+ACQUIRE_BUCKETS = (0.001, 0.01, 0.05, 0.25, 1.0, 5.0)
+ACQUIRE_WAITS = [0] * len(ACQUIRE_BUCKETS) + [0, 0.0]
+
+
+def _acquired(seconds: float) -> None:
+    for i, bound in enumerate(ACQUIRE_BUCKETS):
+        if seconds <= bound:
+            ACQUIRE_WAITS[i] += 1
+    ACQUIRE_WAITS[-2] += 1
+    ACQUIRE_WAITS[-1] += seconds
 
 
 def pool_stats() -> Optional[dict]:
@@ -64,10 +82,29 @@ async def apply_context(conn: asyncpg.Connection, ctx: Context, scope: Optional[
 @asynccontextmanager
 async def transaction(ctx: Context) -> AsyncIterator[asyncpg.Connection]:
     assert _pool is not None, "database pool not initialised"
+    asked = time.monotonic()
     async with _pool.acquire() as conn:
+        _acquired(time.monotonic() - asked)
         async with conn.transaction():
             await apply_context(conn, ctx)
             yield conn
+
+
+# Uses of the system scope per calling function, scraped as masslak_system_scope_total (review stage C): every site is
+# listed with its reason in backend/tests/governance_registry.py, and this counter shows how often each one runs.
+SCOPE_USES: Counter = Counter()
+_APP_DIR = os.path.dirname(os.path.abspath(__file__))
+
+
+def _scope_site() -> str:
+    """'modules/sales/service.py:create_booking' for the function that entered the system scope."""
+    frame = sys._getframe(1)
+    while frame is not None and (frame.f_code.co_filename == __file__ or "contextlib" in frame.f_code.co_filename):
+        frame = frame.f_back
+    if frame is None:
+        return "unknown"
+    path = os.path.relpath(frame.f_code.co_filename, _APP_DIR)
+    return f"{path}:{getattr(frame.f_code, 'co_qualname', frame.f_code.co_name)}"
 
 
 @asynccontextmanager
@@ -75,8 +112,10 @@ async def system_scope(conn: asyncpg.Connection, ctx: Context) -> AsyncIterator[
     """Temporarily act as the platform inside the current transaction.
 
     Used for platform-side bookkeeping that the caller may not see directly (escrow and platform
-    wallets, inventory rows). The acting user stays recorded in the context and the audit logs.
+    wallets, inventory rows). The acting user stays recorded in the context and the audit logs. Every calling function
+    is reviewed with its reason (backend/tests/governance_registry.py) and counted (SCOPE_USES).
     """
+    SCOPE_USES[_scope_site()] += 1
     await apply_context(conn, ctx, scope="SYSTEM")
     try:
         yield conn

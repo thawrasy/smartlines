@@ -22,4 +22,9 @@ psql "$@" -d "$DB" -v ON_ERROR_STOP=1 -q -f "$DIR/schema_file.sql"
 for f in $(schema_files); do
   record "$(basename "$f")" "$(sha256sum "$f" | cut -d' ' -f1)"
 done
+# the release manifest (1058): version, commit and the hash of the applied files; older builds (MASSLAK_BUILD_UNTIL) skip it
+commit="${MASSLAK_RELEASE_COMMIT:-$(git -C "$DIR" rev-parse HEAD 2>/dev/null || echo unknown)}"
+if [ "$(psql "$@" -d "$DB" -Atqc "SELECT to_regproc('sys.record_release') IS NOT NULL")" = t ]; then
+  echo "SELECT 1 FROM sys.record_release('BUILD', :'commit')" | psql "$@" -d "$DB" -v ON_ERROR_STOP=1 -q -At -v commit="$commit" -f - >/dev/null
+fi
 echo "OK: schema built in $DB"

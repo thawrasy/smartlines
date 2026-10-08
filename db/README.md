@@ -12,9 +12,9 @@ every table has a primary key, every reference is a foreign key (or documents wh
 |---|---|
 | Engine | PostgreSQL 16 with PostGIS 3 (extensions: pgcrypto, citext, btree_gist, pg_trgm, postgis in schema `gis`; Docker and CI image `postgis/postgis:16-3.4`, Ubuntu package `postgresql-16-postgis-3`) |
 | Schemas | 26 separate schemas, each with its own privileges |
-| Tables | 483 tables (7 partitioned), 4,975 columns, 1,408 foreign keys |
-| Security | row-level security on 483 of 483 tables, 902 policies; 412 triggers, 213 functions |
-| Tests | 399 automated checks against a freshly built database (`db/tests/run.sh`) |
+| Tables | 485 tables (7 partitioned), 4,986 columns, 1,408 foreign keys |
+| Security | row-level security on 485 of 485 tables, 906 policies; 412 triggers, 219 functions |
+| Tests | 408 automated checks against a freshly built database (`db/tests/run.sh`) |
 | Design | [Database design and ERD document](../docs/database/) with diagrams in the study's colors |
 | Docs | [Data dictionary](DATA_DICTIONARY.md) · [ERD diagrams](ERD.md) (both generated from the database) |
 <!-- stats:end -->

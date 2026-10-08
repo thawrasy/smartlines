@@ -379,7 +379,7 @@ BEGIN;
 SELECT sys.set_context(:uadmin, NULL, 'PLATFORM');
 INSERT INTO ref.party_role_type (code, name, module) VALUES ('SCHOOL_BOARD', 'School board', 'contract_transport');
 SELECT pg_temp.ok(true, 'Reference: the platform adds a new role without a schema change');
-SELECT pg_temp.expect_error($$DELETE FROM ref.trip_type WHERE code = 'SCHEDULED'$$, 'SYSTEM_VALUE', 'Reference: system values cannot be deleted');
+SELECT pg_temp.expect_error($$DELETE FROM ref.trip_type WHERE code = 'SCHEDULED'$$, 'permission denied', 'Reference: the application deletes no reference values (system values are also guarded by a trigger)');
 COMMIT;
 BEGIN;
 SELECT sys.set_context(:ua, :ca, 'COMPANY');
@@ -1889,11 +1889,56 @@ ROLLBACK;
 SELECT pg_temp.ok(NOT has_function_privilege('public', 'fin.cash_aging(timestamp with time zone, character)', 'EXECUTE')
   AND has_function_privilege('masslak_app', 'sys.finance_metrics()', 'EXECUTE'),
   'Cash ageing: the figures are for the application, not for everyone');
+-- Review stage C (1059): the application deletes only where sys.app_delete_grant says
+SELECT pg_temp.ok(NOT EXISTS (
+    SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+     WHERE c.relkind IN ('r', 'p') AND NOT c.relispartition AND n.nspname NOT IN ('pg_catalog', 'information_schema', 'public', 'gis')
+       AND has_table_privilege('masslak_app', c.oid, 'DELETE') <> EXISTS (SELECT 1 FROM sys.app_delete_grant g
+                                                                           WHERE g.table_name = n.nspname || '.' || c.relname))
+  AND (SELECT count(*) FROM sys.app_delete_grant) = 36,
+  'Narrower grants: DELETE for the application on exactly the 36 listed tables');
+SET ROLE masslak_app;
+SELECT pg_temp.expect_error($$DELETE FROM sales.passenger WHERE id = -1$$, 'permission denied',
+  'Narrower grants: the application cannot delete a business record, even one row-level security would show it');
+RESET ROLE;
+-- Review stage C (1058): the release manifest
+SELECT pg_temp.ok((SELECT version = (SELECT version FROM sys.schema_migration ORDER BY string_to_array(version, '.')::int[] DESC LIMIT 1)
+                     FROM sys.current_release())
+  AND (SELECT files = (SELECT count(*) FROM sys.schema_file) AND hash_matches FROM sys.current_release()),
+  'Release manifest: the build recorded the release, every applied file and their hash');
+SELECT count(*) AS rm_rows FROM sys.release_manifest \gset
+SELECT pg_temp.ok((SELECT id FROM sys.record_release('UPGRADE', 'unknown')) IS NOT NULL
+  AND (SELECT count(*) FROM sys.release_manifest) <= :rm_rows + 1,
+  'Release manifest: a run that changes nothing adds no second row');
+SELECT count(*) AS rm_rows FROM sys.release_manifest \gset
+SELECT pg_temp.ok((SELECT id FROM sys.record_release('UPGRADE', 'unknown')) IS NOT NULL AND (SELECT count(*) FROM sys.release_manifest) = :rm_rows,
+  'Release manifest: recording the same release again changes nothing');
+BEGIN;
+DELETE FROM sys.schema_file WHERE file = (SELECT max(file) FROM sys.schema_file);
+SELECT pg_temp.ok(NOT (SELECT hash_matches FROM sys.current_release()),
+  'Release manifest: a file removed from the record by hand no longer matches the manifest (the upgrade refuses)');
+ROLLBACK;
+SELECT pg_temp.ok(has_function_privilege('masslak_app', 'sys.current_release()', 'EXECUTE')
+  AND NOT has_function_privilege('masslak_app', 'sys.record_release(text, text)', 'EXECUTE')
+  AND NOT has_table_privilege('masslak_app', 'sys.release_manifest', 'INSERT'),
+  'Release manifest: the application reads the release and cannot record one');
 SELECT pg_temp.ok(has_table_privilege('masslak_app', 'sys.schema_file', 'SELECT')
   AND NOT has_table_privilege('masslak_app', 'sys.schema_file', 'INSERT')
   AND NOT has_table_privilege('masslak_app', 'sys.schema_file', 'UPDATE')
   AND NOT has_table_privilege('masslak_app', 'sys.schema_file', 'DELETE'),
   'Readiness: the application reads which schema files are applied and cannot change the record');
+-- Review stage C (1060): finer monitoring
+SELECT pg_temp.ok((SELECT count(DISTINCT labels->>'table') FROM sys.partition_metrics())
+                    = (SELECT count(*) FROM pg_class WHERE relkind = 'p' AND NOT relispartition)
+  AND NOT EXISTS (SELECT 1 FROM sys.partition_metrics() WHERE metric = 'masslak_partition_ahead_seconds'
+                   AND value < CASE labels->>'period' WHEN 'day' THEN 6 * 86400 ELSE 85 * 86400 END)
+  AND NOT EXISTS (SELECT 1 FROM sys.partition_metrics() WHERE metric = 'masslak_partition_default_rows' AND value > 0),
+  'Finer monitoring: every partitioned table reports how far ahead its partitions go and its default partition is empty');
+SELECT pg_temp.ok(NOT EXISTS (SELECT 1 FROM sys.lock_metrics())
+  AND has_function_privilege('masslak_app', 'sys.lock_metrics()', 'EXECUTE')
+  AND has_function_privilege('masslak_app', 'sys.partition_metrics()', 'EXECUTE')
+  AND NOT has_function_privilege('masslak_auditor', 'sys.lock_metrics()', 'EXECUTE'),
+  'Finer monitoring: lock waits per table are reported to the application only, and none is reported when nothing waits');
 SET ROLE masslak_app;
 
 \echo '=== ALL TESTS PASSED ==='

@@ -36,6 +36,24 @@ tests:
         values: "0x10 150000x90"
       - series: masslak_cash_near_limit_carriers
         values: "0x5 1x60"
+      - series: masslak_release_hash_matches
+        values: "1x10 0x20"
+      - series: 'masslak_lock_wait_seconds_max{table="ops.seat_segment"}'
+        values: "1 4 4 4 4 4 1"
+      - series: 'masslak_lock_wait_seconds_max{table="fin.wallet"}'
+        values: "4 1 4 1 4 1 4"
+      - series: 'masslak_partition_ahead_seconds{table="sys.outbox_event",period="day"}'
+        values: "604800x10 172800x60"
+      - series: 'masslak_partition_ahead_seconds{table="fin.ledger_entry",period="month"}'
+        values: "9000000x100"
+      - series: 'masslak_partition_default_rows{table="fin.ledger_entry"}'
+        values: "0x5 12x30"
+      - series: 'masslak_db_pool_acquire_seconds_bucket{le="0.25"}'
+        values: "0+100x10 1000+10x30"
+      - series: 'masslak_db_pool_acquire_seconds_bucket{le="1"}'
+        values: "0+100x10 1000+100x30"
+      - series: 'masslak_db_pool_acquire_seconds_bucket{le="+Inf"}'
+        values: "0+100x10 1000+100x30"
     alert_rule_test:
       - eval_time: 30m
         alertname: CashOverdue
@@ -43,6 +61,24 @@ tests:
       - eval_time: 75m
         alertname: CashOverdue
         exp_alerts: [{ exp_labels: { severity: ticket }, exp_annotations: { summary: "Carriers owe counter cash sold more than 30 days ago: chase the remittance or lower their cash limit", runbook: "RUNBOOKS.md#18-counter-cash-and-report-freshness-review-stage-b" } }]
+      - eval_time: 4m
+        alertname: LockWaitsOnTable
+        exp_alerts: [{ exp_labels: { severity: ticket, table: ops.seat_segment }, exp_annotations: { summary: "Sessions keep waiting more than 3 s for locks on ops.seat_segment (the API gives up at 5 s)", runbook: "RUNBOOKS.md#19-release-supply-chain-and-finer-monitoring-review-stage-c" } }]
+      - eval_time: 45m
+        alertname: PartitionsRunningOut
+        exp_alerts: [{ exp_labels: { severity: ticket, table: sys.outbox_event, period: day }, exp_annotations: { summary: "Partitions of sys.outbox_event end soon: the daily upkeep has not created the next ones", runbook: "RUNBOOKS.md#19-release-supply-chain-and-finer-monitoring-review-stage-c" } }]
+      - eval_time: 25m
+        alertname: RowsInDefaultPartition
+        exp_alerts: [{ exp_labels: { severity: page, table: fin.ledger_entry }, exp_annotations: { summary: "Rows of fin.ledger_entry fell into its default partition: a partition is missing", runbook: "RUNBOOKS.md#19-release-supply-chain-and-finer-monitoring-review-stage-c" } }]
+      - eval_time: 30m
+        alertname: PoolWaits
+        exp_alerts: [{ exp_labels: { severity: ticket }, exp_annotations: { summary: "Requests wait more than 250 ms for a database connection (pool or PgBouncer too small, or slow transactions)", runbook: "RUNBOOKS.md#10-load-and-capacity-r-12" } }]
+      - eval_time: 8m
+        alertname: PoolWaits
+        exp_alerts: []
+      - eval_time: 18m
+        alertname: ReleaseRecordChanged
+        exp_alerts: [{ exp_labels: { severity: ticket }, exp_annotations: { summary: "The record of applied schema files no longer matches the release manifest: the next upgrade will refuse to run", runbook: "RUNBOOKS.md#4-migrations-on-a-live-database" } }]
       - eval_time: 40m
         alertname: CashNearLimit
         exp_alerts: [{ exp_labels: { severity: ticket }, exp_annotations: { summary: "A carrier owes 90 % of its cash limit: its counter sales stop at the limit", runbook: "RUNBOOKS.md#18-counter-cash-and-report-freshness-review-stage-b" } }]

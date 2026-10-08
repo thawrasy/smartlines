@@ -95,6 +95,9 @@ def render_requests() -> list[str]:
         out.append(f"masslak_http_request_duration_seconds_count{_labels(base)} {h[len(BUCKETS)]}")
         out.append(f"masslak_http_request_duration_seconds_sum{_labels(base)} {h[-1]:.6f}")
     out += ["# TYPE masslak_process_uptime_seconds gauge", f"masslak_process_uptime_seconds {time.time() - _started:.0f}"]
+    out += ["# HELP masslak_system_scope_total Uses of the system scope by calling function (reviewed in governance_registry.py)",
+            "# TYPE masslak_system_scope_total counter"]
+    out += [f"masslak_system_scope_total{_labels({'site': site})} {n}" for site, n in sorted(db.SCOPE_USES.items())]
     return out
 
 
@@ -105,7 +108,9 @@ async def render_database() -> list[str]:
         rows = await conn.fetch("SELECT metric, labels, value FROM sys.ops_metrics() "
                                 "UNION ALL SELECT metric, labels, value FROM sys.capacity_metrics() "
                                 "UNION ALL SELECT metric, labels, value FROM sys.scale_metrics() "
-                                "UNION ALL SELECT metric, labels, value FROM sys.finance_metrics()")
+                                "UNION ALL SELECT metric, labels, value FROM sys.finance_metrics() "
+                                "UNION ALL SELECT metric, labels, value FROM sys.lock_metrics() "
+                                "UNION ALL SELECT metric, labels, value FROM sys.partition_metrics()")
         pool = db.pool_stats()
     for r in rows:
         name = r["metric"]
@@ -115,9 +120,22 @@ async def render_database() -> list[str]:
             seen.add(name)
         labels = r["labels"] if isinstance(r["labels"], dict) else __import__("json").loads(r["labels"] or "{}")
         out.append(f"{name}{_labels(labels)} {r['value']}")
+    from . import release
+    rel = await release.current()
+    if rel:
+        out += ["# HELP masslak_release_info The release the database is at (release manifest, 1058)",
+                "# TYPE masslak_release_info gauge",
+                f"masslak_release_info{_labels({'version': rel['version'], 'commit': rel['commit_sha'][:12], 'schema_hash': rel['schema_hash'][:12]})} 1",
+                "# TYPE masslak_release_hash_matches gauge", f"masslak_release_hash_matches {int(bool(rel['hash_matches']))}"]
     if pool:
         out += ["# TYPE masslak_db_pool_size gauge", f"masslak_db_pool_size {pool['size']}",
                 "# TYPE masslak_db_pool_idle gauge", f"masslak_db_pool_idle {pool['idle']}"]
+        waits = db.ACQUIRE_WAITS
+        out += ["# HELP masslak_db_pool_acquire_seconds Time a request waited for a database connection of this process",
+                "# TYPE masslak_db_pool_acquire_seconds histogram"]
+        out += [f'masslak_db_pool_acquire_seconds_bucket{{le="{b}"}} {waits[i]}' for i, b in enumerate(db.ACQUIRE_BUCKETS)]
+        out += [f'masslak_db_pool_acquire_seconds_bucket{{le="+Inf"}} {waits[-2]}',
+                f"masslak_db_pool_acquire_seconds_count {waits[-2]}", f"masslak_db_pool_acquire_seconds_sum {waits[-1]:.6f}"]
     return out
 
 

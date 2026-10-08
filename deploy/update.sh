@@ -37,8 +37,13 @@ if [ -d .git ]; then
   fi
   echo "deploying $(git log -1 --format='%H %s')"
 else
-  sha="release-archive"
-  [ -z "$expected" ] || fail "--sha needs a git checkout; verify a release archive with its SHA256SUMS before extracting it"
+  # a signed release archive records its commit in RELEASE (deploy/verify-release.sh checks it before extraction)
+  sha="$(sed -n 's/^commit=\([0-9a-f]\{40\}\)$/\1/p' RELEASE 2>/dev/null || true)"
+  sha="${sha:-release-archive}"
+  if [ -n "$expected" ]; then
+    [ "${#expected}" -ge 12 ] || fail "--sha needs at least 12 characters of the commit id"
+    case "$sha" in "$expected"*) ;; *) fail "this release archive is of commit $sha, not the approved $expected" ;; esac
+  fi
   echo "deploying the files in $(pwd) (release archive, no git checkout)"
 fi
 ./deploy/backup.sh
@@ -48,7 +53,7 @@ if ! grep -q '^MASSLAK_REPLICATION_PASSWORD=.' deploy/.env; then
   echo "MASSLAK_REPLICATION_PASSWORD=$(openssl rand -hex 24)" >> deploy/.env
   echo "added MASSLAK_REPLICATION_PASSWORD (read replica) to deploy/.env"
 fi
-compose build
+MASSLAK_RELEASE_COMMIT="$sha" compose build        # the release manifest (1058) records the commit
 compose up -d
 compose ps
 docker image prune -f >/dev/null

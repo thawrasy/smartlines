@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 
 from .. import db
 from ..config import get_settings
-from ..deps import Principal, context_for, require_portal
+from ..deps import Principal, context_for, require_portal, sales_channel
 from ..errors import ApiError, not_found
 from ..modules.payments import service as payments
 from ..modules.sales import options
@@ -26,8 +26,8 @@ router = APIRouter(prefix="/api", tags=["bookings"])
 passenger = require_portal("PASSENGER")
 
 
-def _buyer(pr: Principal) -> sales.Buyer:
-    return sales.Buyer(party_id=pr.party_id, user_id=pr.user_id, channel="WEB")
+def _buyer(pr: Principal, request: Request) -> sales.Buyer:
+    return sales.Buyer(party_id=pr.party_id, user_id=pr.user_id, channel=sales_channel(request))
 
 
 @router.post("/bookings/quote")
@@ -35,7 +35,7 @@ async def quote(body: QuoteIn, request: Request, pr: Principal = Depends(passeng
     """The price of every traveller (adult, child, infant) and any family offer, before paying."""
     ctx = context_for(request, pr)
     async with db.transaction(ctx) as conn:
-        return await sales.quote(conn, ctx, body, _buyer(pr))
+        return await sales.quote(conn, ctx, body, _buyer(pr, request))
 
 
 @router.post("/holds", status_code=201)
@@ -57,7 +57,7 @@ async def release_hold(hold_token: uuid.UUID, request: Request, pr: Principal = 
 async def create_booking(body: BookingIn, request: Request, pr: Principal = Depends(passenger)):
     ctx = context_for(request, pr)
     async with db.transaction(ctx) as conn:
-        out = await sales.create_booking(conn, ctx, _buyer(pr), body, option=body.pay_with)
+        out = await sales.create_booking(conn, ctx, _buyer(pr, request), body, option=body.pay_with)
     if out.get("replayed"):
         return out
     request.state.audit = {"action": "booking.reserve" if out["status"] == "PENDING_PAYMENT" else "booking.create",
@@ -70,7 +70,7 @@ async def create_booking(body: BookingIn, request: Request, pr: Principal = Depe
 async def booking_options(request: Request, pr: Principal = Depends(passenger)):
     """The ways of paying a booking that platform administration has opened, with the providers behind them."""
     async with db.transaction(context_for(request, pr)) as conn:
-        return {"options": await options.booking_options(conn, "WEB")}
+        return {"options": await options.booking_options(conn, options.channel_of(sales_channel(request)))}
 
 
 class BookingPaymentIn(BaseModel):
@@ -85,7 +85,8 @@ async def pay_booking(ref: str, body: BookingPaymentIn, request: Request, pr: Pr
     base = str(request.base_url).rstrip("/")
     async with db.transaction(ctx) as conn:
         out = await payments.start_booking_payment(conn, ctx, pr.party_id, pr.user_id, ref, body.provider, body.idempotency_key,
-                                                   f"{base}/booking/{ref.upper()}?payment={{uid}}")
+                                                   f"{base}/booking/{ref.upper()}?payment={{uid}}",
+                                                   channel=options.channel_of(sales_channel(request)))
     request.state.audit = {"action": "payment.start", "object_type": "payment", "object_id": None}
     return out
 
@@ -172,7 +173,7 @@ async def cancel_booking(ref: str, request: Request, pr: Principal = Depends(pas
             if b["pay_method"] == "CASH" and not (await options.method(conn, "WALLET"))["enabled"]:
                 # cash goes back in cash: without the wallet there is nowhere online to return it to
                 raise ApiError(409, "CANCEL_AT_COUNTER", "cancel at the carrier's counter to get your cash back")
-            out = await sales.cancel_booking(conn, ctx, b, _buyer(pr))
+            out = await sales.cancel_booking(conn, ctx, b, _buyer(pr, request))
     request.state.audit = {"action": "booking.cancel", "object_type": "booking", "object_id": b["id"]}
     out.pop("commission_kept", None)
     return out

@@ -61,7 +61,7 @@ services:
 
   # Virus scanning for uploads (audit T3-15). It needs the internet only for signature updates (freshclam).
   clamav:
-    image: clamav/clamav:1.4
+    image: clamav/clamav:1.4@sha256:57deb108fc4c72778aa83eafbca7bb7153e28c3f57c005afd38d31f16da86f23
     restart: unless-stopped
     volumes:
       - clamav_db:/var/lib/clamav
@@ -74,7 +74,7 @@ services:
     networks: [internal, edge]
 
   prometheus:
-    image: prom/prometheus:v2.53.2
+    image: prom/prometheus:v2.53.2@sha256:cafe963e591c872d38f3ea41ff8eb22cee97917b7c97b5c0ccd43a419f11f613
     restart: unless-stopped
     command:
       - --config.file=/etc/prometheus/prometheus.yml
@@ -87,7 +87,7 @@ services:
     networks: [internal, monitoring]
 
   alertmanager:
-    image: prom/alertmanager:v0.27.0
+    image: prom/alertmanager:v0.27.0@sha256:e13b6ed5cb929eeaee733479dce55e10eb3bc2e9c4586c705a4e8da41e5eacf5
     restart: unless-stopped
     command: ["--config.file=/etc/alertmanager/alertmanager.yml", "--storage.path=/alertmanager"]
     volumes:
@@ -97,7 +97,7 @@ services:
     networks: [monitoring]
 
   grafana:
-    image: grafana/grafana:11.2.2
+    image: grafana/grafana:11.2.2@sha256:d5133220d770aba5cb655147b619fa8770b90f41d8489a821d33b1cd34d16f89
     restart: unless-stopped
     # reach it through an SSH tunnel; never published on a public address
     ports: ["127.0.0.1:3000:3000"]

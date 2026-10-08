@@ -70,6 +70,11 @@ groups:
         for: 48h
         labels: { severity: ticket }
         annotations: { summary: "Violations on low-trust evidence or resends of money events wait for a person for 2 days", runbook: "RUNBOOKS.md#15-position-evidence-and-violation-review-t3-11" }
+      - alert: ReleaseRecordChanged
+        expr: masslak_release_hash_matches == 0
+        for: 5m
+        labels: { severity: ticket }
+        annotations: { summary: "The record of applied schema files no longer matches the release manifest: the next upgrade will refuse to run", runbook: "RUNBOOKS.md#4-migrations-on-a-live-database" }
       - alert: CashOverdue
         expr: masslak_cash_overdue_minor > 0
         for: 1h
@@ -115,6 +120,26 @@ groups:
         for: 2m
         labels: { severity: page }
         annotations: { summary: "More than 10 sessions wait on locks", runbook: "../database/MIGRATION_PLANS.md#stop-criteria" }
+      - alert: LockWaitsOnTable
+        expr: max by (table) (masslak_lock_wait_seconds_max) > 3
+        for: 2m
+        labels: { severity: ticket }
+        annotations: { summary: "Sessions keep waiting more than 3 s for locks on {{ $labels.table }} (the API gives up at 5 s)", runbook: "RUNBOOKS.md#19-release-supply-chain-and-finer-monitoring-review-stage-c" }
+      - alert: PoolWaits
+        expr: histogram_quantile(0.99, sum by (le) (rate(masslak_db_pool_acquire_seconds_bucket[5m]))) > 0.25
+        for: 10m
+        labels: { severity: ticket }
+        annotations: { summary: "Requests wait more than 250 ms for a database connection (pool or PgBouncer too small, or slow transactions)", runbook: "RUNBOOKS.md#10-load-and-capacity-r-12" }
+      - alert: PartitionsRunningOut
+        expr: masslak_partition_ahead_seconds{period="day"} < 3 * 86400 or masslak_partition_ahead_seconds{period="month"} < 45 * 86400
+        for: 30m
+        labels: { severity: ticket }
+        annotations: { summary: "Partitions of {{ $labels.table }} end soon: the daily upkeep has not created the next ones", runbook: "RUNBOOKS.md#19-release-supply-chain-and-finer-monitoring-review-stage-c" }
+      - alert: RowsInDefaultPartition
+        expr: masslak_partition_default_rows > 0
+        for: 15m
+        labels: { severity: page }
+        annotations: { summary: "Rows of {{ $labels.table }} fell into its default partition: a partition is missing", runbook: "RUNBOOKS.md#19-release-supply-chain-and-finer-monitoring-review-stage-c" }
       - alert: LongTransaction
         expr: masslak_db_longest_transaction_seconds > 300 or masslak_db_idle_in_transaction > 5
         for: 5m

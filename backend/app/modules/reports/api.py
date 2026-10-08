@@ -14,7 +14,7 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import Response
 from pydantic import BaseModel, Field, field_validator
 
-from ... import db
+from ... import db, release
 from ...deps import Principal, context_for, require_user
 from ...errors import ApiError, forbidden, not_found
 from . import engine, export, freshness
@@ -161,6 +161,7 @@ async def catalog(request: Request, locale: Optional[str] = None, pr: Principal 
 
 async def _execute(request: Request, pr: Principal, v: engine.Viewer, body: RunIn, limit: int):
     """Resolves the report, runs it (audit datasets through the audit connection) and returns what the log needs."""
+    source = await release.source_version()      # before the report's own connection is taken (cached for a minute)
     async with db.reports_transaction(context_for(request, pr)) as conn:
         dataset, spec, params, code, def_id = await _resolve(conn, v, pr, body)
         name = await conn.fetchval("SELECT name FROM rpt.report_definition WHERE id = $1", def_id) if def_id else None
@@ -169,10 +170,12 @@ async def _execute(request: Request, pr: Principal, v: engine.Viewer, body: RunI
             res = await engine.run(conn, v, dataset=dataset, spec=spec, params=params, limit=limit)
             res.data_as_of = await db.data_as_of(conn)
             res.freshness = fresh
+            res.source_version = source
             return res, dataset, params, code, def_id, name
     async with db.audit_reader() as aconn:
         res = await engine.run(aconn, v, dataset=dataset, spec=spec, params=params, limit=limit)
         res.data_as_of = await db.data_as_of(aconn)
+    res.source_version = source
     return res, dataset, params, code, def_id, name
 
 

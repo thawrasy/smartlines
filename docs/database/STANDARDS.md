@@ -46,6 +46,10 @@ reviewer of a pull request enforces the rest. They write down what the 445 exist
   (`sys.tg_same_company`, `fleet.tg_vehicle_of_company`).
 - Decide carefully what `company_id` means on each table before guarding it: on a partner sale it is the carrier that
   pays, not the station that sells.
+- Every business rule has an owner (the database, the application or both), the objects and functions that keep it
+  and the tests that prove it, in `docs/database/invariants.json` (rendered as `INVARIANTS.md`). A new rule, or a
+  trigger, constraint, function or test renamed, updates the matrix; `backend/tests/test_invariants.py` fails on any
+  name that no longer exists **(checked)**.
 
 ## Security
 
@@ -56,6 +60,16 @@ reviewer of a pull request enforces the rest. They write down what the 445 exist
   a pooled connection never carries a company into the next request **(checked by an API test)**. Connection poolers
   run in transaction mode only.
 - Restricted reads go through `sec.authorize` with a purpose and a reason.
+- The application role reads, inserts and updates; it deletes only from the tables in `sys.app_delete_grant`, each
+  with its reason (1059). `sys.grant_rw` grants no DELETE, and a business record is cancelled, closed or archived,
+  never deleted. A new delete in the code, or a module list that allows deletes, needs its row in a new schema file
+  first **(checked: the database grants exactly the listed tables; `test_code_rules.py` finds every delete in the code)**.
+- `db.system_scope` (acting as the platform inside the caller's transaction) is used only where
+  `backend/tests/governance_registry.py` lists the function, how many times, and why **(checked)**. Each use is counted
+  at run time in `masslak_system_scope_total{site}`.
+- Shared (DEFERRED) wallets store a balance that lags their newest entries: the application reads
+  `fin.wallet_balance(id)` or `ledger.counted()`, and a direct read of `fin.wallet.balance` or of a raw wallet row is
+  listed in the same registry with the reason its balance is exact **(checked)**.
 
 ## JSONB
 
@@ -145,6 +159,8 @@ Every change is a new numbered file in `db/schema` (never an edit of a released 
 - [ ] Impact written in the pull request: relationships, row security, indexes, the queries that change, the rollback.
 - [ ] A test in `db/tests/run_tests.sql` for every new rule, and the API tests still passing.
 - [ ] The data dictionary, ERD and design document regenerated (`db/tools/gen_docs.py`, `docs/database/generator`).
+- [ ] The release manifest is written by `db/build.sh` and `db/upgrade.sh` (1058); never add or remove rows of
+      `sys.schema_file` by hand, or the next upgrade refuses to run (exit code 4).
 - [ ] Before production: a backup confirmed, and the file rehearsed under load (`db/tools/migration_rehearsal.py`). The
       result and the plan, including the forward fix, go in `docs/database/MIGRATION_PLANS.md`. The stop criteria are
       an exclusive lock of at most 2 s on a table the booking path writes, traffic p99 of at most 1 s, and no errors.

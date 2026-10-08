@@ -2,7 +2,7 @@
 
 > Generated from the built database (`db/tools/gen_docs.py`); do not edit by hand.
 
-**483 tables, 4975 columns, in 26 schemas.**
+**485 tables, 4986 columns, in 26 schemas.**
 
 Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant isolation (RLS) · 🧩 partitioned monthly · 🔒 append-only / change-protected
 
@@ -10,7 +10,7 @@ Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant i
 
 - [`iam` — Identity, parties, users, permissions and API clients](#iam) (32 tables)
 - [`ref` — Reference data, locales and files](#ref) (13 tables)
-- [`sys` — Settings, outbox and webhooks](#sys) (21 tables)
+- [`sys` — Settings, outbox and webhooks](#sys) (23 tables)
 - [`net` — Network: stations, routes, lines, corridors and geofences](#net) (22 tables)
 - [`fleet` — Fleet: vehicles, trucks, trailers, seats, crew, licenses and insurance](#fleet) (22 tables)
 - [`pricing` — Pricing, taxes, commissions, campaigns and loyalty](#pricing) (35 tables)
@@ -837,6 +837,16 @@ Vehicle classes
 <a id="sys"></a>
 ## `sys` — Settings, outbox and webhooks
 
+### `sys.app_delete_grant` 🛡️
+
+The tables the application may delete from, and why; DELETE is revoked from masslak_app everywhere else (1059)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `table_name` | `text` | 🔑 ✱ |  |
+| `reason` | `text` | ✱ |  |
+| `granted_at` | `timestamp with time zone` | ✱ | `now()` |
+
 ### `sys.city_rollout` 🛡️
 
 Which city is opened for which service, and in which stage (shuttle city by city, owner decision 1042)
@@ -1017,6 +1027,21 @@ Project phases of the study roadmap (22); Phase 1 split into releases 1A and 1B 
 | `study_ref` | `text` | ✱ |  |
 | `scope` | `text` | ✱ |  |
 | `feature_keys` | `text[]` | ✱ | `'{}'::text[]` |
+
+### `sys.release_manifest` 🛡️
+
+What each build or upgrade left the database as: release, commit, applied files and their hash (1058)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `version` | `text` | ✱ |  |
+| `commit_sha` | `text` | ✱ | `'unknown'::text` |
+| `schema_hash` | `text` | ✱ |  |
+| `files` | `integer` | ✱ |  |
+| `action` | `text` | ✱ |  |
+| `applied_by` | `text` | ✱ | `CURRENT_USER` |
+| `applied_at` | `timestamp with time zone` | ✱ | `now()` |
 
 ### `sys.requirement_change` 🛡️
 

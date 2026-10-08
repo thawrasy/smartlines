@@ -23,7 +23,7 @@ import asyncpg
 
 from ... import db
 from ...errors import ApiError, not_found
-from ...ledger import company_wallet, platform_wallet, post_txn, user_wallet
+from ...ledger import company_wallet, counted, platform_wallet, post_txn, user_wallet
 from ..notify.outbox import emit
 from ..sales import options
 from ..sales import service as sales
@@ -156,8 +156,9 @@ async def _succeed(conn, p: dict, pay, user_id: Optional[int], card_last4: Optio
 
 # ------------------------------------------------------------------ paying a reserved booking (1056)
 async def start_booking_payment(conn, ctx: db.Context, party_id: int, user_id: int, ref: str, code: str, key: str,
-                                return_url: str) -> dict:
-    """Sends the passenger to the provider of the option their reservation was made with (card, instalments, financing)."""
+                                return_url: str, channel: str = "WEB") -> dict:
+    """Sends the passenger to the provider of the option their reservation was made with (card, instalments, financing);
+    the option must still be open on the channel paying (WEB or APP)."""
     async with db.system_scope(conn, ctx):
         b = await conn.fetchrow("SELECT * FROM sales.booking WHERE booking_ref = $1 AND booker_party_id = $2 FOR UPDATE",
                                 ref.upper(), party_id)
@@ -174,7 +175,7 @@ async def start_booking_payment(conn, ctx: db.Context, party_id: int, user_id: i
         adapter_name = options.PROVIDER_OPTIONS.get(b["pay_option"])
         if adapter_name is None:
             raise ApiError(409, "PAY_AT_COUNTER", "this reservation is paid in cash at the carrier's counter")
-        await options.require(conn, b["pay_option"], "WEB", b["total_amount"])
+        await options.require(conn, b["pay_option"], channel, b["total_amount"])
         p = await provider(conn, code)
         if p["status"] != "ACTIVE" or "BOOKING" not in p["purposes"] or p["adapter"] != adapter_name:
             raise ApiError(409, "PAYMENT_METHOD_UNAVAILABLE", "this provider does not take this kind of payment")
@@ -588,7 +589,8 @@ async def refund(conn, ctx: db.Context, user_id: int, uid: uuid.UUID, amount: in
         p = provider_dict(await conn.fetchrow("SELECT * FROM fin.payment_provider WHERE id = $1", pay["provider_id"]))
         if p["adapter"] not in adapters.NOTIFYING:
             raise ApiError(409, "REFUND_NOT_ALLOWED", "test payments have no source to refund to")
-        w = await conn.fetchrow("SELECT * FROM fin.wallet WHERE id = $1 FOR UPDATE", pay["wallet_id"])
+        # the payer's wallet: a passenger's (exact) or an agency's (shared: the balance that counts includes new entries)
+        w = await counted(conn, await conn.fetchrow("SELECT * FROM fin.wallet WHERE id = $1 FOR UPDATE", pay["wallet_id"]))
         if w["balance"] - w["hold_balance"] < amount:
             raise ApiError(402, "INSUFFICIENT_BALANCE", "the wallet no longer holds this amount")
         rid = await conn.fetchval("INSERT INTO fin.payment_refund (payment_id, amount, reason, requested_by, idempotency_key) "

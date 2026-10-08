@@ -1,0 +1,381 @@
+{
+  "about": "Who keeps each business rule: the database, the application or both, the objects and functions that keep it, and the tests that prove it (expert review of October 2026, stage C5). backend/tests/test_invariants.py checks every name against the code, the tests and the built database; db/tools/gen_invariants.py renders INVARIANTS.md from this file.",
+  "owners": {
+    "database": "the database refuses a breach whatever the caller; the application may check earlier only to give a clearer message",
+    "application": "only the application can see the rule (it spans a request, a lock or a choice of code); the database supplies figures or records",
+    "both": "each side keeps its own part, and both parts are tested"
+  },
+  "rules": [
+    {
+      "id": "LEDGER-BALANCED",
+      "rule": "Every ledger transaction balances: its debits equal its credits, checked when the transaction commits.",
+      "owner": "database",
+      "why": "A posting is many rows written by many callers; only a deferred check at commit sees the whole transaction.",
+      "database": ["trigger fin.ledger_entry.ledger_txn_balanced"],
+      "application": ["app.ledger:post_txn"],
+      "tests": {
+        "db": ["Ledger: unbalanced transaction rejected at commit"],
+        "api": ["tests/test_e2e.py::test_booking_paid_from_wallet_is_idempotent_and_balanced"]
+      }
+    },
+    {
+      "id": "LEDGER-IMMUTABLE",
+      "rule": "Posted entries and transactions never change; a correction is a reversal that mirrors the original amounts and wallets.",
+      "owner": "database",
+      "why": "The ledger is the record of money; no code path, report job or console session may edit it.",
+      "database": ["trigger fin.ledger_entry.ledger_entry_immutable", "trigger fin.ledger_txn.ledger_txn_immutable",
+                   "trigger fin.ledger_txn.ledger_reversal_mirrors"],
+      "application": [],
+      "tests": {
+        "db": ["Ledger: app role cannot update entries", "Review 3.5: a reversal must mirror the original amounts and wallets"],
+        "api": []
+      }
+    },
+    {
+      "id": "LEDGER-IDEMPOTENT",
+      "rule": "One posting per idempotency key: a retried request cannot post the same money twice.",
+      "owner": "database",
+      "why": "Callers derive the key from the request, so a retry repeats it; the unique key refuses the second posting whoever retries.",
+      "database": ["constraint fin.ledger_txn.ledger_txn_idempotency_key_key"],
+      "application": ["app.ledger:post_txn"],
+      "tests": {
+        "db": ["Ledger: idempotency key prevents double posting"],
+        "api": ["tests/test_e2e.py::test_booking_paid_from_wallet_is_idempotent_and_balanced",
+                "tests/test_payments.py::test_refund_goes_back_to_the_card"]
+      }
+    },
+    {
+      "id": "LEDGER-REFERENCE",
+      "rule": "A ledger transaction names a row that exists, of a registered kind.",
+      "owner": "database",
+      "why": "The reference is polymorphic, so no foreign key can hold it; a trigger checks the kind and the row.",
+      "database": ["trigger fin.ledger_txn.ref_type_checked"],
+      "application": [],
+      "tests": {
+        "db": ["Audit T3-04: a ledger transaction cannot name a booking that does not exist",
+               "Audit T3-04: a ledger transaction cannot name an unregistered kind of row"],
+        "api": []
+      }
+    },
+    {
+      "id": "WALLET-NOT-NEGATIVE",
+      "rule": "A wallet with an exact balance (passenger, family, counter cash) never goes below zero, and its holds stay within its balance.",
+      "owner": "database",
+      "why": "Concurrent payments from one wallet meet at the wallet row; a check constraint refuses the one that would overdraw.",
+      "database": ["constraint fin.wallet.wallet_balance_not_negative", "constraint fin.wallet.wallet_hold_within_balance"],
+      "application": [],
+      "tests": {
+        "db": ["Ledger: user wallet cannot go negative", "Scale: a hold within the balance is placed and released"],
+        "api": []
+      }
+    },
+    {
+      "id": "SHARED-WALLET-NOT-OVERDRAWN",
+      "rule": "A shared wallet (escrow, company, platform) cannot pay out more than it holds, counting the entries not yet rolled into its stored balance.",
+      "owner": "database",
+      "why": "Shared wallets skip the row update on credits (DEFERRED); the entry trigger counts the full balance on every debit.",
+      "database": ["trigger fin.ledger_entry.ledger_entry_apply", "function fin.wallet_balance"],
+      "application": [],
+      "tests": {
+        "db": ["Scale: a shared wallet cannot pay out more than it holds",
+               "Scale: passenger and family wallets update at once, shared wallets are DEFERRED"],
+        "api": []
+      }
+    },
+    {
+      "id": "WALLET-FROM-ENTRIES",
+      "rule": "A wallet balance changes only through ledger entries and always equals the sum of its entries.",
+      "owner": "database",
+      "why": "The guard refuses a direct balance change; the daily job proves the sums and reports any difference.",
+      "database": ["trigger fin.wallet.wallet_balance_guard", "function fin.reconcile_wallets"],
+      "application": [],
+      "tests": {
+        "db": ["Review 3.5: a wallet balance never changes without a ledger entry",
+               "Review 3.5: every wallet balance equals the sum of its entries",
+               "Scale: every wallet reconciles in both balance modes"],
+        "api": ["tests/test_review_hardening.py::test_daily_maintenance_reconciles_the_ledger"]
+      }
+    },
+    {
+      "id": "COUNTED-BALANCE",
+      "rule": "The application reads the counted balance of a shared wallet (fin.wallet_balance or ledger.counted), never the stored one that lags.",
+      "owner": "application",
+      "why": "Which figure a query means is a choice in the code; a CI rule lists every direct read with its reason.",
+      "database": ["function fin.wallet_balance"],
+      "application": ["app.ledger:counted"],
+      "tests": {
+        "db": ["Scale: a credit to a shared wallet appends its entry without touching the wallet row, and counts at once"],
+        "api": ["tests/test_code_rules.py::test_stored_wallet_balances_are_read_only_where_exact"]
+      }
+    },
+    {
+      "id": "SEAT-SOLD-ONCE",
+      "rule": "A seat segment of a trip is held by one person and sold to one ticket of the same trip; only the sale marks it sold.",
+      "owner": "database",
+      "why": "Two buyers of the last seat meet at one row; the key and the guard decide, whatever the application checked before.",
+      "database": ["constraint ops.seat_segment.seat_segment_pkey", "trigger ops.seat_segment.seat_segment_guard"],
+      "application": ["app.modules.sales.service:create_booking"],
+      "tests": {
+        "db": ["Audit F-001: a seat is sold only to a ticket of its own trip (the 1039 seat guard)",
+               "Seat contention: only the sale, not the passenger, marks a seat sold",
+               "Seat contention: a passenger cannot free a sold seat",
+               "Audit C-01: the seat hold has one record, the LOCKED seat segment"],
+        "api": ["tests/test_review_hardening.py::test_seat_contention_one_seat_one_winner",
+                "tests/test_e2e.py::test_seat_map_and_hold_conflict"]
+      }
+    },
+    {
+      "id": "TRIP-CAPACITY",
+      "rule": "A trip never offers more seats or standing places than its vehicle has.",
+      "owner": "database",
+      "why": "Trips are edited from several screens and imports; the trip trigger compares with the vehicle on every change.",
+      "database": ["trigger ops.trip.trip_publish_rules"],
+      "application": [],
+      "tests": {
+        "db": ["Review 3.14: a trip never sells more seats than its vehicle has"],
+        "api": []
+      }
+    },
+    {
+      "id": "STATE-TRANSITIONS",
+      "rule": "Bookings, tickets, payments and withdrawals move only along their allowed state transitions.",
+      "owner": "database",
+      "why": "Every module and job changes these states; one trigger per table holds the single list of allowed moves.",
+      "database": ["trigger sales.booking.booking_transition", "trigger sales.ticket.ticket_transition",
+                   "trigger fin.payment.payment_transition", "trigger fin.withdrawal_request.withdrawal_transition"],
+      "application": [],
+      "tests": {
+        "db": ["Booking: invalid state transition rejected"],
+        "api": []
+      }
+    },
+    {
+      "id": "BOOKING-IDEMPOTENT",
+      "rule": "One booking per buyer and idempotency key: a retried purchase returns the first booking and charges once.",
+      "owner": "both",
+      "why": "The database refuses the second booking; the application returns the first one to the retrying client.",
+      "database": ["constraint sales.booking.booking_booker_party_id_idempotency_key_key"],
+      "application": ["app.modules.sales.service:create_booking"],
+      "tests": {
+        "db": [],
+        "api": ["tests/test_e2e.py::test_booking_paid_from_wallet_is_idempotent_and_balanced"]
+      }
+    },
+    {
+      "id": "REFUND-WITHIN-PAYMENT",
+      "rule": "The refunds of a payment never exceed the amount paid.",
+      "owner": "both",
+      "why": "The application checks first to answer clearly; the constraint refuses a concurrent second refund that passed the check.",
+      "database": ["constraint fin.payment.payment_refund_within_amount"],
+      "application": ["app.modules.payments.service:refund"],
+      "tests": {
+        "db": [],
+        "api": ["tests/test_payments.py::test_refund_goes_back_to_the_card"]
+      }
+    },
+    {
+      "id": "REFUND-BY-FARE",
+      "rule": "A cancellation refunds what the fare brand allows, from escrow, and the allocation lines follow.",
+      "owner": "application",
+      "why": "The amount depends on the brand, the time before departure and who sold the ticket, worked out in one request.",
+      "database": [],
+      "application": ["app.modules.sales.service:cancel_booking"],
+      "tests": {
+        "db": [],
+        "api": ["tests/test_e2e.py::test_cancel_refund_follows_brand",
+                "tests/test_agency.py::test_cancellation_refunds_the_agency_and_keeps_commission_in_proportion"]
+      }
+    },
+    {
+      "id": "ESCROW-UNTIL-TRIP",
+      "rule": "A passenger's money stays in escrow until the trip is completed, then goes to the allocation lines.",
+      "owner": "application",
+      "why": "Completion is a decision of the carrier's staff; the application posts the release in the same transaction.",
+      "database": [],
+      "application": ["app.routers.carrier:complete_trip"],
+      "tests": {
+        "db": [],
+        "api": ["tests/test_e2e.py::test_trip_completion_releases_escrow"]
+      }
+    },
+    {
+      "id": "OPEN-PAY-OPTION",
+      "rule": "A booking uses only a way of paying that is open; the last open way cannot be closed, nor the provider an open way relies on switched off.",
+      "owner": "database",
+      "why": "Options are switched by the platform while sales run; the triggers decide on the row being written.",
+      "database": ["trigger sales.booking.b_booking_pay_option", "trigger fin.payment_method.a_payment_method_rules"],
+      "application": [],
+      "tests": {
+        "db": ["Payment options: a booking cannot use a way of paying that is closed",
+               "Payment options: the last open way of paying cannot be closed",
+               "Payment options: the provider an open option relies on cannot be switched off"],
+        "api": ["tests/test_payment_options.py::test_closed_option_refuses_bookings"]
+      }
+    },
+    {
+      "id": "RESERVATION-PAY-BY",
+      "rule": "A reservation paid later always has a time to be paid by; when it passes unpaid the reservation expires and gives its seats back.",
+      "owner": "both",
+      "why": "The database refuses a reservation without a time and expires due ones; the application's worker runs the expiry every minute.",
+      "database": ["trigger sales.booking.b_booking_pay_option", "function sales.expire_reservations"],
+      "application": ["app.modules.notify.worker:main", "app.modules.sales.service:cancel_reserved"],
+      "tests": {
+        "db": ["Payment options: a reservation always has a time to be paid by",
+               "Payment options: a reservation not paid in time expires and gives its seat back"],
+        "api": ["tests/test_payment_options.py::test_unpaid_reservation_expires_and_frees_its_seats",
+                "tests/test_payment_options.py::test_open_reservations_are_limited_and_cancellable"]
+      }
+    },
+    {
+      "id": "CASH-LIMIT",
+      "rule": "A carrier's counter stops selling for cash once the carrier owes its cash limit.",
+      "owner": "application",
+      "why": "A sale writes a booking, tickets and postings; the application takes the carrier's lock and compares with fin.cash_limit before the first row.",
+      "database": ["function fin.cash_limit"],
+      "application": ["app.modules.cash.service:_within_limit", "app.modules.cash.service:_lock"],
+      "tests": {
+        "db": ["Payment options: cash sold at a counter is owed by the carrier, within the default cash limit"],
+        "api": ["tests/test_payment_options.py::test_credit_limit_stops_cash_sales"]
+      }
+    },
+    {
+      "id": "REMITTANCE-FOUR-EYES",
+      "rule": "A cash remittance is recorded as pending; whoever recorded it does not decide it; a confirmed one carries its ledger posting and a decided one does not change.",
+      "owner": "both",
+      "why": "The database holds the four-eyes rule and the posting link; the application posts the money when finance confirms.",
+      "database": ["trigger fin.cash_remittance.a_cash_remittance_rules", "constraint fin.cash_remittance.cash_remittance_confirmed"],
+      "application": ["app.modules.cash.service:decide_remittance"],
+      "tests": {
+        "db": ["Payment options: a remittance is recorded as pending first",
+               "Payment options: whoever records a remittance does not confirm or reject it",
+               "Payment options: a confirmed remittance carries its ledger posting",
+               "Payment options: a decided remittance does not change"],
+        "api": ["tests/test_payment_options.py::test_remittance_needs_a_second_person"]
+      }
+    },
+    {
+      "id": "WITHDRAWAL-FOUR-EYES",
+      "rule": "Nobody approves their own withdrawal; above the limit two people approve; a paid withdrawal carries its posting.",
+      "owner": "both",
+      "why": "The database refuses self-approval and a payment without its posting; the application counts approvers against the limit.",
+      "database": ["trigger fin.withdrawal_request.withdrawal_transition", "constraint fin.withdrawal_request.withdrawal_paid_ck",
+                   "constraint fin.withdrawal_request.withdrawal_payer_ck"],
+      "application": ["app.modules.payouts.service:approve", "app.modules.payouts.service:mark_paid"],
+      "tests": {
+        "db": ["Payouts: the requester cannot approve their own withdrawal"],
+        "api": ["tests/test_payouts.py::test_withdrawal_needs_two_approvers_above_the_limit_and_is_posted_when_paid"]
+      }
+    },
+    {
+      "id": "LICENCE-DUAL-CONTROL",
+      "rule": "A locked licence changes only through an approved change request, which its requester cannot approve.",
+      "owner": "database",
+      "why": "Licences decide whether a vehicle may run; the rule holds for screens, imports and console sessions alike.",
+      "database": ["trigger fleet.license_record.license_locked", "trigger fleet.license_change_request.license_change_four_eyes"],
+      "application": [],
+      "tests": {
+        "db": ["License: locked expiry cannot be edited directly",
+               "License: change applied only via approved dual-control request",
+               "License: requester cannot approve own change"],
+        "api": []
+      }
+    },
+    {
+      "id": "BREAK-GLASS",
+      "rule": "Break-glass access needs an approver unless declared an emergency, is time-bound, cannot be extended or deleted, and nobody approves or reviews their own.",
+      "owner": "database",
+      "why": "It is the path around the normal controls, so its rules cannot depend on the code that uses it.",
+      "database": ["trigger sec.break_glass_log.break_glass_rules", "constraint sec.break_glass_log.break_glass_approved",
+                   "constraint sec.break_glass_log.break_glass_window", "constraint sec.break_glass_log.break_glass_reviewer"],
+      "application": [],
+      "tests": {
+        "db": ["Audit T3-03: break-glass needs an approver unless declared an emergency",
+               "Audit T3-03: nobody approves their own break-glass access",
+               "Audit T3-03: a break-glass grant cannot be extended",
+               "Audit T3-03: a break-glass record cannot be deleted",
+               "Audit T3-03: nobody reviews their own break-glass access"],
+        "api": []
+      }
+    },
+    {
+      "id": "AUDIT-APPEND-ONLY",
+      "rule": "Audit records are appended only and chained by hash; nobody edits or deletes them.",
+      "owner": "database",
+      "why": "The audit trail must hold against the application itself; the triggers refuse changes and seal each record.",
+      "database": ["trigger audit.row_change.row_change_immutable", "trigger audit.row_change.row_change_hash",
+                   "trigger audit.activity_log.activity_immutable", "trigger audit.activity_log.activity_hash",
+                   "trigger audit.auth_event.auth_event_immutable"],
+      "application": [],
+      "tests": {
+        "db": ["Audit: app role cannot modify activity log", "Audit: activity log block sealed with hash chain",
+               "Audit R-09: the schema change log cannot be edited"],
+        "api": []
+      }
+    },
+    {
+      "id": "EINVOICE-GAPLESS",
+      "rule": "Finalising an e-invoice gives it the next number without a gap and chains its hash; a finalised invoice is not deleted.",
+      "owner": "database",
+      "why": "Gapless numbers need the number and the row in one locked step, which only the finalising function can take.",
+      "database": ["function acct.finalize_einvoice", "trigger acct.einvoice_document.einvoice_guard"],
+      "application": [],
+      "tests": {
+        "db": ["E-invoice: finalize assigns gapless number", "E-invoice: cannot be deleted"],
+        "api": []
+      }
+    },
+    {
+      "id": "TENANT-ISOLATION",
+      "rule": "A company never sees or writes another company's private rows, and a row never points at another company's row.",
+      "owner": "database",
+      "why": "Row-level security and the same-company guards apply to every query, including ones the application did not foresee.",
+      "database": ["trigger sales.booking.same_company_trip_id", "function sys.tg_same_company"],
+      "application": ["app.db:apply_context"],
+      "tests": {
+        "db": ["Tenant isolation sweep: carrier A sees no private row of carrier B in any table",
+               "Audit F-003: tenant guards are row-level, BEFORE INSERT OR UPDATE, enabled and not deferrable"],
+        "api": ["tests/test_isolation.py::test_no_company_sees_another_companys_rows",
+                "tests/test_isolation.py::test_no_company_can_hand_its_rows_to_another_company"]
+      }
+    },
+    {
+      "id": "SYSTEM-SCOPE-REVIEWED",
+      "rule": "The application steps outside the caller's row-level security only at reviewed places, each with its reason, and every entry is counted.",
+      "owner": "application",
+      "why": "The system scope is a choice in the code; CI compares every use with the registry and the metric shows each one live.",
+      "database": [],
+      "application": ["app.db:system_scope"],
+      "tests": {
+        "db": [],
+        "api": ["tests/test_code_rules.py::test_every_system_scope_use_is_reviewed",
+                "tests/test_code_rules.py::test_each_system_scope_use_is_counted_by_its_site"]
+      }
+    },
+    {
+      "id": "DELETE-ONLY-WHERE-GRANTED",
+      "rule": "The application deletes only from the tables listed with a reason; business records are cancelled, closed or archived, never deleted.",
+      "owner": "both",
+      "why": "The database grants DELETE on the listed tables only; CI checks that every delete in the code has its grant.",
+      "database": ["table sys.app_delete_grant", "function sys.enforce_app_delete_grants"],
+      "application": ["app.modular.engine:delete_row"],
+      "tests": {
+        "db": ["Narrower grants: DELETE for the application on exactly the 36 listed tables",
+               "Narrower grants: the application cannot delete a business record, even one row-level security would show it"],
+        "api": ["tests/test_code_rules.py::test_every_delete_in_the_code_has_its_grant"]
+      }
+    },
+    {
+      "id": "RELEASE-MATCHES",
+      "rule": "An upgrade starts only when the record of applied schema files still matches the last release manifest.",
+      "owner": "database",
+      "why": "The manifest and its hash live in the database being upgraded; db/upgrade.sh reads them before it applies anything.",
+      "database": ["table sys.release_manifest", "function sys.current_release", "function sys.record_release"],
+      "application": ["app.release:current"],
+      "tests": {
+        "db": ["Release manifest: a file removed from the record by hand no longer matches the manifest (the upgrade refuses)",
+               "Release manifest: the application reads the release and cannot record one"],
+        "api": []
+      }
+    }
+  ]
+}

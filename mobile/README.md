@@ -75,7 +75,9 @@ CI fails on any critical advisory.
 ## What each app does
 
 * **Passenger**: search and book trips, tickets that work offline, wallet with top-up by card (bank page), partner e-wallet
-  (one-time code), bank transfer (payment reference) or cash at an agency; services: shuttle passes (QR), parcels with
+  (one-time code), bank transfer (payment reference) or cash at an agency; at checkout, the ways of paying the platform
+  has opened for the apps: the wallet, pay later at the carrier's counter, or a card, instalment or financing provider
+  (a reservation shows its pay-by time and can be cancelled; docs/operations/PAYMENT_OPTIONS.md); services: shuttle passes (QR), parcels with
   tracking, taxi at the meter tariff, car rental. A service appears only when its module is switched on.
 * **Driver**: today's trips, offline boarding by ticket QR, sync.
 * **Operator**: the carrier's day (sales, load, alerts, next departures), trips with the passenger manifest, publish and

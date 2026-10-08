@@ -40,8 +40,9 @@ export default function Trips() {
       <Card>
         <View style={s.between}>
           <Text style={s.h2}>{b.journey ? `${t(`city.${b.journey.from_city}`)} → ${t(`city.${b.journey.to_city}`)}` : b.trip_no}</Text>
-          <Chip tone={b.status === "CONFIRMED" ? "green" : "neutral"} label={b.booking_ref} />
+          <Chip tone={b.status === "CONFIRMED" ? "green" : b.status === "PENDING_PAYMENT" ? "amber" : "neutral"} label={b.booking_ref} />
         </View>
+        {b.status !== "CONFIRMED" ? <Text style={s.small}>{t(`status.${b.status}`)}</Text> : null}
         {b.journey ? <Text style={s.muted}>{date(b.journey.departs_at)} · {time(b.journey.departs_at)} · {b.journey.from_station}</Text> : null}
         <Text style={s.small}>{b.carrier_name} · {money(b.total_amount)}</Text>
       </Card>

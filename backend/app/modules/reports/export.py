@@ -128,7 +128,7 @@ def to_txt(res: Result, meta: Meta) -> bytes:
     return ("\n".join(lines) + "\n").encode("utf-8")
 
 
-SOURCE_VERSION = "masslak-db-1.21.0"      # schema release the figures were computed against
+SOURCE_VERSION = "masslak-db-unknown"     # replaced per run by the release manifest (app/release.py, 1058)
 
 
 def provenance(res: Result) -> dict:
@@ -137,7 +137,7 @@ def provenance(res: Result) -> dict:
     fresh = getattr(res, "freshness", None) or {}
     return {"data_as_of": as_of.astimezone(ZoneInfo("UTC")).isoformat().replace("+00:00", "Z") if as_of else None,
             "replica_lag_seconds": fresh.get("lag_seconds"),
-            "source_version": SOURCE_VERSION, "timezone": "Asia/Damascus", "currency": "SYP"}
+            "source_version": getattr(res, "source_version", None) or SOURCE_VERSION, "timezone": "Asia/Damascus", "currency": "SYP"}
 
 
 def to_json(res: Result, meta: Meta) -> bytes:

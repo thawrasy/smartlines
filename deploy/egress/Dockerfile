@@ -1,5 +1,5 @@
 # Egress proxy (audit T3-02): Squid from Debian, with the configuration of this directory
-FROM debian:bookworm-slim
+FROM debian:bookworm-slim@sha256:7c7b2c966bc9ee8cedfeef67e0e279108992c77681fa595db4a9d65c06ccc587
 RUN apt-get update && apt-get install -y --no-install-recommends squid ca-certificates \
     && rm -rf /var/lib/apt/lists/* && mkdir -p /etc/squid/lists /var/run/squid /var/log/squid \
     && chown -R proxy:proxy /var/run/squid /var/log/squid

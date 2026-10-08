@@ -20,7 +20,8 @@ async def dashboard(request: Request, pr: Principal = Depends(can_view)):
                  (SELECT count(*) FROM ops.tracking_alert WHERE status = 'OPEN') AS open_alerts,
                  (SELECT count(*) FROM crm."case" WHERE status NOT IN ('RESOLVED','CLOSED','REJECTED')) AS open_cases,
                  (SELECT coalesce(sum(balance), 0) FROM fin.wallet WHERE wallet_type = 'USER') AS customer_funds,
-                 (SELECT coalesce(sum(balance), 0) FROM fin.wallet WHERE wallet_type = 'ESCROW') AS escrow_funds""")
+                 -- escrow is a shared (DEFERRED) wallet: its stored balance leaves out entries not yet rolled up
+                 (SELECT coalesce(sum(fin.wallet_balance(id)), 0) FROM fin.wallet WHERE wallet_type = 'ESCROW') AS escrow_funds""")
         otp = await conn.fetchrow(
             """SELECT count(*) FILTER (WHERE delay_min <= 10) AS on_time, count(*) AS total
                  FROM ops.trip_stop_event WHERE kind = 'DEPART' AND ts > now() - interval '30 days'""")
