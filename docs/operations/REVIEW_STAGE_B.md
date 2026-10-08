@@ -73,3 +73,8 @@ it was: after gates 1 to 8 pass with signed evidence.
 - API and unit tests: 317 pass and 5 are skipped (external proxy) on a fresh database. The new files are
   `test_ssrf.py` (48), `test_review_stage_b.py` (8) and `test_launch_gates_kit.py` (9).
 - Alert rules: promtool, with tests for `CashOverdue` and `CashNearLimit`.
+- Soak smoke run of 20 minutes on the development host (`evidence/soak_dev_2026-10-08.json`):
+  - About 24,000 requests with no error; book-and-pay p95 64 ms, hold p95 21 ms.
+  - API memory grew about 29 MB an hour after warm-up, under the 50 MB limit; the outbox stayed under 25 waiting
+    events.
+  - Verdict INCONCLUSIVE, as it must be for a run this short: the gate needs 8 to 24 hours on staging.

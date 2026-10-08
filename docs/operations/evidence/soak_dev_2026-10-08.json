@@ -1,0 +1,943 @@
+{
+ "what": "Soak test (review stage B, launch gate 3): 20-minute smoke run on the development host, NOT the 8 to 24 hour gate run",
+ "environment": "development",
+ "date": "2026-10-08",
+ "tool": "python -m loadtest.soak --base <api> --owner-dsn <owner> --minutes 20 --users 30 --sample 30 (backend/loadtest/soak.py)",
+ "host": "4 vCPU shared by PostgreSQL 16, the API (3 uvicorn workers), the notify worker and the load generator; the database tests ran on the same host during the last minutes",
+ "duration_s": 1201,
+ "users": 30,
+ "think_s": [
+  1.0,
+  3.0
+ ],
+ "steps": [
+  {
+   "step": "search",
+   "requests": 6464,
+   "per_second": 5.4,
+   "p50_ms": 7.4,
+   "p95_ms": 16.7,
+   "p99_ms": 25.9,
+   "max_ms": 278.3,
+   "errors": 0
+  },
+  {
+   "step": "position",
+   "requests": 478,
+   "per_second": 0.4,
+   "p50_ms": 18.8,
+   "p95_ms": 34.5,
+   "p99_ms": 45.4,
+   "max_ms": 386.3,
+   "errors": 0
+  },
+  {
+   "step": "report",
+   "requests": 20,
+   "per_second": 0.0,
+   "p50_ms": 29.9,
+   "p95_ms": 126.1,
+   "p99_ms": 258.4,
+   "max_ms": 291.4,
+   "errors": 0
+  },
+  {
+   "step": "seat_map",
+   "requests": 5631,
+   "per_second": 4.7,
+   "p50_ms": 11.0,
+   "p95_ms": 18.8,
+   "p99_ms": 27.8,
+   "max_ms": 549.4,
+   "errors": 0
+  },
+  {
+   "step": "hold",
+   "requests": 5631,
+   "per_second": 4.7,
+   "p50_ms": 12.0,
+   "p95_ms": 21.0,
+   "p99_ms": 30.6,
+   "max_ms": 357.8,
+   "errors": 0
+  },
+  {
+   "step": "book_pay",
+   "requests": 5630,
+   "per_second": 4.7,
+   "p50_ms": 41.5,
+   "p95_ms": 63.9,
+   "p99_ms": 93.2,
+   "max_ms": 932.5,
+   "errors": 0
+  },
+  {
+   "step": "cancel_refund",
+   "requests": 5630,
+   "per_second": 4.7,
+   "p50_ms": 27.4,
+   "p95_ms": 43.9,
+   "p99_ms": 76.5,
+   "max_ms": 730.8,
+   "errors": 0
+  }
+ ],
+ "first_sample": {
+  "t_s": 30,
+  "api_rss_mb": 311.1,
+  "db_mb": 291.7,
+  "outbox_pending": 16,
+  "dead_ratio_max": 0.113,
+  "lock_waiters": 0
+ },
+ "last_sample": {
+  "t_s": 1200,
+  "api_rss_mb": 327.4,
+  "db_mb": 364.1,
+  "outbox_pending": 7,
+  "dead_ratio_max": 0.118,
+  "lock_waiters": 0
+ },
+ "max": {
+  "outbox_oldest_s": 2.1,
+  "lock_waiters": 1,
+  "replica_lag_s": 0.0,
+  "errors_per_window": 0
+ },
+ "verdict": {
+  "status": "INCONCLUSIVE",
+  "reasons": [],
+  "notes": [
+   "a 0.3 h run: the gate needs 8 to 24 hours"
+  ],
+  "trends": {
+   "api_memory_mb_per_hour": 29.0,
+   "outbox_pending_per_hour": 22.9,
+   "db_mb_per_hour": 216.6,
+   "xid_age_per_hour": 310096,
+   "autovacuum_runs": 44
+  }
+ },
+ "samples": [
+  {
+   "t_s": 30,
+   "api_rss_mb": 311.1,
+   "db_mb": 291.7,
+   "outbox_pending": 16,
+   "outbox_oldest_s": 1.4,
+   "dead_ratio_max": 0.113,
+   "replica_lag_s": 0.0,
+   "lock_waiters": 0,
+   "requests": 749,
+   "errors": 0,
+   "p95_ms": {
+    "search": 241.3,
+    "position": 42.2,
+    "report": 291.4,
+    "seat_map": 23.7,
+    "hold": 26.3,
+    "book_pay": 80.2,
+    "cancel_refund": 45.6
+   }
+  },
+  {
+   "t_s": 60,
+   "api_rss_mb": 311.6,
+   "db_mb": 293.6,
+   "outbox_pending": 16,
+   "outbox_oldest_s": 1.2,
+   "dead_ratio_max": 0.14,
+   "replica_lag_s": 0.0,
+   "lock_waiters": 0,
+   "requests": 739,
+   "errors": 0,
+   "p95_ms": {
+    "hold": 16.9,
+    "seat_map": 14.1,
+    "search": 10.7,
+    "book_pay": 56.4,
+    "position": 30.4,
+    "cancel_refund": 34.3
+   }
+  },
+  {
+   "t_s": 90,
+   "api_rss_mb": 313.6,
+   "db_mb": 295.1,
+   "outbox_pending": 3,
+   "outbox_oldest_s": 0.3,
+   "dead_ratio_max": 0.163,
+   "replica_lag_s": 0.0,
+   "lock_waiters": 0,
+   "requests": 728,
+   "errors": 0,
+   "p95_ms": {
+    "seat_map": 15.7,
+    "hold": 18.5,
+    "cancel_refund": 39.3,
+    "search": 10.2,
+    "report": 117.4,
+    "position": 31.5,
+    "book_pay": 56.9
+   }
+  },
+  {
+   "t_s": 120,
+   "api_rss_mb": 314.5,
+   "db_mb": 296.5,
+   "outbox_pending": 0,
+   "outbox_oldest_s": 0.0,
+   "dead_ratio_max": 0.042,
+   "replica_lag_s": 0.0,
+   "lock_waiters": 0,
+   "requests": 729,
+   "errors": 0,
+   "p95_ms": {
+    "cancel_refund": 36.6,
+    "search": 14.8,
+    "book_pay": 57.1,
+    "seat_map": 17.8,
+    "hold": 17.5,
+    "position": 24.0
+   }
+  },
+  {
+   "t_s": 150,
+   "api_rss_mb": 316.7,
+   "db_mb": 298.0,
+   "outbox_pending": 11,
+   "outbox_oldest_s": 1.7,
+   "dead_ratio_max": 0.052,
+   "replica_lag_s": 0.0,
+   "lock_waiters": 0,
+   "requests": 745,
+   "errors": 0,
+   "p95_ms": {
+    "seat_map": 17.1,
+    "cancel_refund": 39.8,
+    "search": 18.8,
+    "hold": 18.1,
+    "book_pay": 56.8,
+    "report": 111.9,
+    "position": 25.3
+   }
+  },
+  {
+   "t_s": 180,
+   "api_rss_mb": 317.5,
+   "db_mb": 299.6,
+   "outbox_pending": 10,
+   "outbox_oldest_s": 1.2,
+   "dead_ratio_max": 0.068,
+   "replica_lag_s": 0.0,
+   "lock_waiters": 0,
+   "requests": 745,
+   "errors": 0,
+   "p95_ms": {
+    "hold": 18.2,
+    "cancel_refund": 39.0,
+    "search": 16.8,
+    "seat_map": 16.3,
+    "book_pay": 53.4,
+    "position": 22.2
+   }
+  },
+  {
+   "t_s": 210,
+   "api_rss_mb": 318.4,
+   "db_mb": 301.1,
+   "outbox_pending": 2,
+   "outbox_oldest_s": 0.3,
+   "dead_ratio_max": 0.095,
+   "replica_lag_s": 0.0,
+   "lock_waiters": 0,
+   "requests": 738,
+   "errors": 0,
+   "p95_ms": {
+    "book_pay": 73.3,
+    "seat_map": 23.1,
+    "hold": 27.3,
+    "report": 30.0,
+    "cancel_refund": 51.8,
+    "search": 15.6,
+    "position": 214.9
+   }
+  },
+  {
+   "t_s": 240,
+   "api_rss_mb": 319.0,
+   "db_mb": 303.0,
+   "outbox_pending": 0,
+   "outbox_oldest_s": 0.0,
+   "dead_ratio_max": 0.12,
+   "replica_lag_s": 0.0,
+   "lock_waiters": 0,
+   "requests": 737,
+   "errors": 0,
+   "p95_ms": {
+    "cancel_refund": 41.7,
+    "search": 16.5,
+    "seat_map": 16.7,
+    "hold": 19.3,
+    "book_pay": 60.1,
+    "position": 30.4
+   }
+  },
+  {
+   "t_s": 270,
+   "api_rss_mb": 320.1,
+   "db_mb": 304.8,
+   "outbox_pending": 19,
+   "outbox_oldest_s": 1.7,
+   "dead_ratio_max": 0.144,
+   "replica_lag_s": 0.0,
+   "lock_waiters": 0,
+   "requests": 744,
+   "errors": 0,
+   "p95_ms": {
+    "hold": 17.1,
+    "seat_map": 14.5,
+    "book_pay": 54.6,
+    "report": 28.9,
+    "cancel_refund": 40.7,
+    "search": 11.8,
+    "position": 28.1
+   }
+  },
+  {
+   "t_s": 300,
+   "api_rss_mb": 321.0,
+   "db_mb": 306.9,
+   "outbox_pending": 17,
+   "outbox_oldest_s": 1.4,
+   "dead_ratio_max": 0.166,
+   "replica_lag_s": 0.0,
+   "lock_waiters": 0,
+   "requests": 738,
+   "errors": 0,
+   "p95_ms": {
+    "hold": 18.5,
+    "cancel_refund": 40.0,
+    "search": 14.3,
+    "book_pay": 53.6,
+    "seat_map": 16.1,
+    "position": 22.9
+   }
+  },
+  {
+   "t_s": 330,
+   "api_rss_mb": 322.5,
+   "db_mb": 308.9,
+   "outbox_pending": 12,
+   "outbox_oldest_s": 1.0,
+   "dead_ratio_max": 0.186,
+   "replica_lag_s": 0.0,
+   "lock_waiters": 0,
+   "requests": 739,
+   "errors": 0,
+   "p95_ms": {
+    "cancel_refund": 40.8,
+    "search": 17.1,
+    "seat_map": 20.5,
+    "book_pay": 61.3,
+    "hold": 20.7,
+    "report": 34.7,
+    "position": 25.8
+   }
+  },
+  {
+   "t_s": 360,
+   "api_rss_mb": 323.0,
+   "db_mb": 310.7,
+   "outbox_pending": 6,
+   "outbox_oldest_s": 0.8,
+   "dead_ratio_max": 0.111,
+   "replica_lag_s": 0.0,
+   "lock_waiters": 0,
+   "requests": 736,
+   "errors": 0,
+   "p95_ms": {
+    "book_pay": 59.3,
+    "seat_map": 17.3,
+    "hold": 17.2,
+    "search": 15.4,
+    "cancel_refund": 36.2,
+    "position": 25.2
+   }
+  },
+  {
+   "t_s": 390,
+   "api_rss_mb": 323.0,
+   "db_mb": 312.4,
+   "outbox_pending": 3,
+   "outbox_oldest_s": 0.2,
+   "dead_ratio_max": 0.118,
+   "replica_lag_s": 0.0,
+   "lock_waiters": 0,
+   "requests": 732,
+   "errors": 0,
+   "p95_ms": {
+    "book_pay": 62.8,
+    "search": 11.5,
+    "seat_map": 15.0,
+    "hold": 16.1,
+    "report": 21.8,
+    "cancel_refund": 35.2,
+    "position": 22.5
+   }
+  },
+  {
+   "t_s": 420,
+   "api_rss_mb": 322.3,
+   "db_mb": 314.5,
+   "outbox_pending": 22,
+   "outbox_oldest_s": 1.9,
+   "dead_ratio_max": 0.126,
+   "replica_lag_s": 0.0,
+   "lock_waiters": 0,
+   "requests": 749,
+   "errors": 0,
+   "p95_ms": {
+    "seat_map": 18.4,
+    "hold": 20.8,
+    "cancel_refund": 39.9,
+    "search": 16.3,
+    "book_pay": 59.4,
+    "position": 24.4
+   }
+  },
+  {
+   "t_s": 450,
+   "api_rss_mb": 322.5,
+   "db_mb": 316.2,
+   "outbox_pending": 12,
+   "outbox_oldest_s": 1.4,
+   "dead_ratio_max": 0.132,
+   "replica_lag_s": 0.0,
+   "lock_waiters": 0,
+   "requests": 727,
+   "errors": 0,
+   "p95_ms": {
+    "seat_map": 14.4,
+    "hold": 19.7,
+    "book_pay": 51.8,
+    "cancel_refund": 38.2,
+    "search": 16.4,
+    "report": 23.5,
+    "position": 27.7
+   }
+  },
+  {
+   "t_s": 480,
+   "api_rss_mb": 322.5,
+   "db_mb": 318.2,
+   "outbox_pending": 6,
+   "outbox_oldest_s": 0.8,
+   "dead_ratio_max": 0.138,
+   "replica_lag_s": 0.0,
+   "lock_waiters": 0,
+   "requests": 725,
+   "errors": 0,
+   "p95_ms": {
+    "cancel_refund": 41.4,
+    "search": 17.9,
+    "book_pay": 55.3,
+    "seat_map": 17.2,
+    "hold": 20.0,
+    "position": 23.4
+   }
+  },
+  {
+   "t_s": 510,
+   "api_rss_mb": 322.5,
+   "db_mb": 320.0,
+   "outbox_pending": 3,
+   "outbox_oldest_s": 0.6,
+   "dead_ratio_max": 0.144,
+   "replica_lag_s": 0.0,
+   "lock_waiters": 0,
+   "requests": 728,
+   "errors": 0,
+   "p95_ms": {
+    "cancel_refund": 42.4,
+    "search": 13.2,
+    "book_pay": 60.0,
+    "seat_map": 18.9,
+    "hold": 18.0,
+    "report": 32.5,
+    "position": 26.8
+   }
+  },
+  {
+   "t_s": 540,
+   "api_rss_mb": 322.5,
+   "db_mb": 322.1,
+   "outbox_pending": 6,
+   "outbox_oldest_s": 0.3,
+   "dead_ratio_max": 0.154,
+   "replica_lag_s": 0.0,
+   "lock_waiters": 0,
+   "requests": 739,
+   "errors": 0,
+   "p95_ms": {
+    "book_pay": 53.0,
+    "cancel_refund": 38.8,
+    "search": 13.9,
+    "seat_map": 15.7,
+    "hold": 19.6,
+    "position": 20.2
+   }
+  },
+  {
+   "t_s": 570,
+   "api_rss_mb": 322.5,
+   "db_mb": 324.3,
+   "outbox_pending": 21,
+   "outbox_oldest_s": 2.1,
+   "dead_ratio_max": 0.174,
+   "replica_lag_s": 0.0,
+   "lock_waiters": 0,
+   "requests": 746,
+   "errors": 0,
+   "p95_ms": {
+    "cancel_refund": 37.5,
+    "search": 9.7,
+    "book_pay": 57.4,
+    "report": 25.6,
+    "seat_map": 14.9,
+    "hold": 16.7,
+    "position": 22.1
+   }
+  },
+  {
+   "t_s": 600,
+   "api_rss_mb": 322.6,
+   "db_mb": 326.4,
+   "outbox_pending": 20,
+   "outbox_oldest_s": 1.7,
+   "dead_ratio_max": 0.161,
+   "replica_lag_s": 0.0,
+   "lock_waiters": 0,
+   "requests": 724,
+   "errors": 0,
+   "p95_ms": {
+    "cancel_refund": 50.3,
+    "search": 18.1,
+    "book_pay": 67.7,
+    "seat_map": 18.5,
+    "hold": 21.2,
+    "position": 32.6
+   }
+  },
+  {
+   "t_s": 630,
+   "api_rss_mb": 322.9,
+   "db_mb": 328.5,
+   "outbox_pending": 11,
+   "outbox_oldest_s": 1.2,
+   "dead_ratio_max": 0.167,
+   "replica_lag_s": 0.0,
+   "lock_waiters": 0,
+   "requests": 724,
+   "errors": 0,
+   "p95_ms": {
+    "book_pay": 70.0,
+    "cancel_refund": 45.3,
+    "search": 12.9,
+    "report": 29.8,
+    "seat_map": 21.8,
+    "hold": 21.9,
+    "position": 29.0
+   }
+  },
+  {
+   "t_s": 660,
+   "api_rss_mb": 323.9,
+   "db_mb": 330.7,
+   "outbox_pending": 5,
+   "outbox_oldest_s": 0.7,
+   "dead_ratio_max": 0.172,
+   "replica_lag_s": 0.0,
+   "lock_waiters": 1,
+   "requests": 745,
+   "errors": 0,
+   "p95_ms": {
+    "hold": 31.0,
+    "cancel_refund": 73.7,
+    "search": 20.6,
+    "seat_map": 28.3,
+    "book_pay": 85.1,
+    "position": 59.1
+   }
+  },
+  {
+   "t_s": 690,
+   "api_rss_mb": 324.9,
+   "db_mb": 333.4,
+   "outbox_pending": 1,
+   "outbox_oldest_s": 0.2,
+   "dead_ratio_max": 0.177,
+   "replica_lag_s": 0.0,
+   "lock_waiters": 0,
+   "requests": 742,
+   "errors": 0,
+   "p95_ms": {
+    "book_pay": 96.0,
+    "cancel_refund": 74.0,
+    "hold": 29.2,
+    "search": 22.1,
+    "seat_map": 27.7,
+    "report": 28.5,
+    "position": 39.5
+   }
+  },
+  {
+   "t_s": 720,
+   "api_rss_mb": 323.7,
+   "db_mb": 335.3,
+   "outbox_pending": 20,
+   "outbox_oldest_s": 1.7,
+   "dead_ratio_max": 0.104,
+   "replica_lag_s": 0.0,
+   "lock_waiters": 0,
+   "requests": 749,
+   "errors": 0,
+   "p95_ms": {
+    "seat_map": 17.1,
+    "hold": 20.1,
+    "search": 20.7,
+    "book_pay": 66.0,
+    "cancel_refund": 48.6,
+    "position": 35.4
+   }
+  },
+  {
+   "t_s": 750,
+   "api_rss_mb": 323.8,
+   "db_mb": 337.0,
+   "outbox_pending": 9,
+   "outbox_oldest_s": 1.0,
+   "dead_ratio_max": 0.124,
+   "replica_lag_s": 0.0,
+   "lock_waiters": 0,
+   "requests": 748,
+   "errors": 0,
+   "p95_ms": {
+    "seat_map": 17.3,
+    "hold": 18.8,
+    "book_pay": 55.1,
+    "cancel_refund": 41.4,
+    "search": 16.4,
+    "report": 25.3,
+    "position": 38.4
+   }
+  },
+  {
+   "t_s": 780,
+   "api_rss_mb": 324.0,
+   "db_mb": 338.7,
+   "outbox_pending": 7,
+   "outbox_oldest_s": 0.7,
+   "dead_ratio_max": 0.144,
+   "replica_lag_s": 0.0,
+   "lock_waiters": 0,
+   "requests": 720,
+   "errors": 0,
+   "p95_ms": {
+    "seat_map": 16.9,
+    "hold": 20.6,
+    "cancel_refund": 36.3,
+    "search": 15.7,
+    "book_pay": 55.6,
+    "position": 21.3
+   }
+  },
+  {
+   "t_s": 811,
+   "api_rss_mb": 324.2,
+   "db_mb": 340.2,
+   "outbox_pending": 9,
+   "outbox_oldest_s": 1.5,
+   "dead_ratio_max": 0.162,
+   "replica_lag_s": 0.0,
+   "lock_waiters": 0,
+   "requests": 726,
+   "errors": 0,
+   "p95_ms": {
+    "hold": 18.0,
+    "book_pay": 59.8,
+    "cancel_refund": 37.1,
+    "search": 11.1,
+    "report": 30.8,
+    "seat_map": 18.2,
+    "position": 30.9
+   }
+  },
+  {
+   "t_s": 841,
+   "api_rss_mb": 324.8,
+   "db_mb": 341.7,
+   "outbox_pending": 18,
+   "outbox_oldest_s": 1.5,
+   "dead_ratio_max": 0.039,
+   "replica_lag_s": 0.0,
+   "lock_waiters": 0,
+   "requests": 737,
+   "errors": 0,
+   "p95_ms": {
+    "seat_map": 18.3,
+    "hold": 22.6,
+    "book_pay": 71.9,
+    "cancel_refund": 57.9,
+    "search": 19.7,
+    "position": 33.3
+   }
+  },
+  {
+   "t_s": 871,
+   "api_rss_mb": 325.0,
+   "db_mb": 343.5,
+   "outbox_pending": 8,
+   "outbox_oldest_s": 0.7,
+   "dead_ratio_max": 0.051,
+   "replica_lag_s": 0.0,
+   "lock_waiters": 0,
+   "requests": 735,
+   "errors": 0,
+   "p95_ms": {
+    "book_pay": 68.7,
+    "seat_map": 19.7,
+    "cancel_refund": 47.8,
+    "hold": 22.9,
+    "search": 13.3,
+    "report": 32.3,
+    "position": 29.7
+   }
+  },
+  {
+   "t_s": 901,
+   "api_rss_mb": 325.6,
+   "db_mb": 345.0,
+   "outbox_pending": 1,
+   "outbox_oldest_s": 0.1,
+   "dead_ratio_max": 0.062,
+   "replica_lag_s": 0.0,
+   "lock_waiters": 0,
+   "requests": 731,
+   "errors": 0,
+   "p95_ms": {
+    "cancel_refund": 43.1,
+    "search": 19.0,
+    "seat_map": 17.8,
+    "hold": 21.3,
+    "book_pay": 63.4,
+    "position": 40.0
+   }
+  },
+  {
+   "t_s": 931,
+   "api_rss_mb": 326.3,
+   "db_mb": 346.7,
+   "outbox_pending": 17,
+   "outbox_oldest_s": 1.4,
+   "dead_ratio_max": 0.084,
+   "replica_lag_s": 0.0,
+   "lock_waiters": 0,
+   "requests": 737,
+   "errors": 0,
+   "p95_ms": {
+    "seat_map": 18.8,
+    "hold": 17.6,
+    "cancel_refund": 43.7,
+    "search": 13.6,
+    "report": 33.3,
+    "book_pay": 67.2,
+    "position": 36.9
+   }
+  },
+  {
+   "t_s": 961,
+   "api_rss_mb": 326.8,
+   "db_mb": 348.5,
+   "outbox_pending": 11,
+   "outbox_oldest_s": 0.9,
+   "dead_ratio_max": 0.104,
+   "replica_lag_s": 0.0,
+   "lock_waiters": 0,
+   "requests": 722,
+   "errors": 0,
+   "p95_ms": {
+    "book_pay": 59.9,
+    "cancel_refund": 45.7,
+    "search": 17.2,
+    "seat_map": 20.6,
+    "hold": 22.4,
+    "position": 26.9
+   }
+  },
+  {
+   "t_s": 991,
+   "api_rss_mb": 326.9,
+   "db_mb": 350.5,
+   "outbox_pending": 3,
+   "outbox_oldest_s": 0.3,
+   "dead_ratio_max": 0.124,
+   "replica_lag_s": 0.0,
+   "lock_waiters": 0,
+   "requests": 736,
+   "errors": 0,
+   "p95_ms": {
+    "book_pay": 59.3,
+    "cancel_refund": 48.0,
+    "search": 16.1,
+    "seat_map": 21.3,
+    "hold": 22.5,
+    "report": 52.5,
+    "position": 85.9
+   }
+  },
+  {
+   "t_s": 1021,
+   "api_rss_mb": 327.1,
+   "db_mb": 352.4,
+   "outbox_pending": 17,
+   "outbox_oldest_s": 1.9,
+   "dead_ratio_max": 0.141,
+   "replica_lag_s": 0.0,
+   "lock_waiters": 0,
+   "requests": 708,
+   "errors": 0,
+   "p95_ms": {
+    "book_pay": 62.3,
+    "seat_map": 18.8,
+    "hold": 19.3,
+    "cancel_refund": 42.3,
+    "search": 17.1,
+    "position": 34.9
+   }
+  },
+  {
+   "t_s": 1051,
+   "api_rss_mb": 327.1,
+   "db_mb": 354.3,
+   "outbox_pending": 12,
+   "outbox_oldest_s": 1.5,
+   "dead_ratio_max": 0.159,
+   "replica_lag_s": 0.0,
+   "lock_waiters": 0,
+   "requests": 741,
+   "errors": 0,
+   "p95_ms": {
+    "search": 10.2,
+    "book_pay": 56.5,
+    "cancel_refund": 38.3,
+    "report": 24.7,
+    "seat_map": 16.4,
+    "hold": 21.6,
+    "position": 22.9
+   }
+  },
+  {
+   "t_s": 1081,
+   "api_rss_mb": 327.1,
+   "db_mb": 356.1,
+   "outbox_pending": 16,
+   "outbox_oldest_s": 1.1,
+   "dead_ratio_max": 0.094,
+   "replica_lag_s": 0.0,
+   "lock_waiters": 0,
+   "requests": 734,
+   "errors": 0,
+   "p95_ms": {
+    "book_pay": 56.7,
+    "cancel_refund": 37.9,
+    "search": 11.6,
+    "seat_map": 14.1,
+    "hold": 16.9,
+    "position": 25.8
+   }
+  },
+  {
+   "t_s": 1111,
+   "api_rss_mb": 327.1,
+   "db_mb": 358.2,
+   "outbox_pending": 4,
+   "outbox_oldest_s": 0.4,
+   "dead_ratio_max": 0.101,
+   "replica_lag_s": 0.0,
+   "lock_waiters": 0,
+   "requests": 743,
+   "errors": 0,
+   "p95_ms": {
+    "book_pay": 58.9,
+    "cancel_refund": 36.6,
+    "search": 12.3,
+    "report": 28.0,
+    "seat_map": 20.3,
+    "hold": 26.5,
+    "position": 22.0
+   }
+  },
+  {
+   "t_s": 1141,
+   "api_rss_mb": 327.2,
+   "db_mb": 360.1,
+   "outbox_pending": 17,
+   "outbox_oldest_s": 2.0,
+   "dead_ratio_max": 0.107,
+   "replica_lag_s": 0.0,
+   "lock_waiters": 0,
+   "requests": 747,
+   "errors": 0,
+   "p95_ms": {
+    "cancel_refund": 37.7,
+    "search": 13.7,
+    "seat_map": 15.1,
+    "hold": 17.8,
+    "book_pay": 56.8,
+    "position": 26.7
+   }
+  },
+  {
+   "t_s": 1171,
+   "api_rss_mb": 327.2,
+   "db_mb": 362.1,
+   "outbox_pending": 15,
+   "outbox_oldest_s": 1.7,
+   "dead_ratio_max": 0.112,
+   "replica_lag_s": 0.0,
+   "lock_waiters": 0,
+   "requests": 740,
+   "errors": 0,
+   "p95_ms": {
+    "search": 15.9,
+    "cancel_refund": 40.6,
+    "seat_map": 16.0,
+    "hold": 19.2,
+    "book_pay": 60.1,
+    "report": 20.4,
+    "position": 23.1
+   }
+  },
+  {
+   "t_s": 1200,
+   "api_rss_mb": 327.4,
+   "db_mb": 364.1,
+   "outbox_pending": 7,
+   "outbox_oldest_s": 0.6,
+   "dead_ratio_max": 0.118,
+   "replica_lag_s": 0.0,
+   "lock_waiters": 0,
+   "requests": 724,
+   "errors": 0,
+   "p95_ms": {
+    "book_pay": 70.3,
+    "seat_map": 17.8,
+    "position": 27.1,
+    "hold": 19.2,
+    "cancel_refund": 44.0,
+    "search": 17.7
+   }
+  }
+ ]
+}
