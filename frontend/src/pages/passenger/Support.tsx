@@ -189,7 +189,9 @@ export default function Support() {
             <tbody>
               {list.map((c) => (
                 <tr key={c.uid} className="clickable" onClick={() => setOpen(c.uid)}>
-                  <td className="mono ltr">{c.ref}</td>
+                  {/* a real button: the keyboard and screen readers open the case too (review of 1.47.0, R-38) */}
+                  <td className="mono ltr"><button type="button" className="link-btn" aria-label={t("support.openCase", { ref: c.ref })}
+                      onClick={(e) => { e.stopPropagation(); setOpen(c.uid); }}>{c.ref}</button></td>
                   <td>{c.subject}{(c.replies ?? 0) > 0 && <span className="badge" style={{ marginInlineStart: 8 }}><Icon name="forum" size={14} /> {c.replies}</span>}</td>
                   <td>{t(`support.kind.${c.kind}`)}</td>
                   <td><Status value={c.status} /></td>

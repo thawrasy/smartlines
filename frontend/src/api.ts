@@ -6,18 +6,37 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
+export interface RequestOptions {
+  /** Cancels the request, e.g. when the screen that asked for it closes (useLoad passes one). */
+  signal?: AbortSignal;
+  /** Milliseconds before an unanswered request fails with TIMEOUT: 30 s for reads, 60 s for changes by default. */
+  timeoutMs?: number;
+}
+
+// A request never waits without end (review of 1.47.0, R-35): past its deadline it fails with TIMEOUT, which the
+// screens show with a way to try again; a change is never sent again by itself.
+async function request<T>(method: string, path: string, body?: unknown, opts: RequestOptions = {}): Promise<T> {
   let res: Response;
   const form = body instanceof FormData;   // file uploads: the browser sets the multipart boundary itself
+  const deadline = new AbortController();
+  const timer = setTimeout(() => deadline.abort(), opts.timeoutMs ?? (method === "GET" ? 30_000 : 60_000));
+  const cancel = () => deadline.abort();
+  opts.signal?.addEventListener("abort", cancel);
   try {
     res = await fetch(path, {
       method,
       credentials: "same-origin",
       headers: { "X-Masslak-Client": "web", ...(body !== undefined && !form ? { "Content-Type": "application/json" } : {}) },
       body: body === undefined ? undefined : form ? body : JSON.stringify(body),
+      signal: deadline.signal,
     });
   } catch {
+    if (opts.signal?.aborted) throw new ApiError(0, "ABORTED", "request cancelled");
+    if (deadline.signal.aborted) throw new ApiError(0, "TIMEOUT", "the server did not answer in time");
     throw new ApiError(0, "NETWORK", "network error");
+  } finally {
+    clearTimeout(timer);
+    opts.signal?.removeEventListener("abort", cancel);
   }
   const data = res.status === 204 ? null : await res.json().catch(() => null);
   if (!res.ok) {
@@ -28,15 +47,15 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
 }
 
 export const api = {
-  get: <T>(path: string, params?: Record<string, string | number | undefined>) => {
+  get: <T>(path: string, params?: Record<string, string | number | undefined>, opts?: RequestOptions) => {
     const q = params ? new URLSearchParams(Object.entries(params).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])) : null;
-    return request<T>("GET", q && q.toString() ? `${path}?${q}` : path);
+    return request<T>("GET", q && q.toString() ? `${path}?${q}` : path, undefined, opts);
   },
-  post: <T>(path: string, body: unknown = {}) => request<T>("POST", path, body),
-  patch: <T>(path: string, body: unknown = {}) => request<T>("PATCH", path, body),
-  put: <T>(path: string, body: unknown = {}) => request<T>("PUT", path, body),
-  del: <T>(path: string) => request<T>("DELETE", path),
-  upload: <T>(path: string, form: FormData) => request<T>("POST", path, form),
+  post: <T>(path: string, body: unknown = {}, opts?: RequestOptions) => request<T>("POST", path, body, opts),
+  patch: <T>(path: string, body: unknown = {}, opts?: RequestOptions) => request<T>("PATCH", path, body, opts),
+  put: <T>(path: string, body: unknown = {}, opts?: RequestOptions) => request<T>("PUT", path, body, opts),
+  del: <T>(path: string, opts?: RequestOptions) => request<T>("DELETE", path, undefined, opts),
+  upload: <T>(path: string, form: FormData, opts?: RequestOptions) => request<T>("POST", path, form, { timeoutMs: 180_000, ...opts }),
 };
 
 export function newKey() {

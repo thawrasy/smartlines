@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { ICONS, type IconName } from "./icons";
 import { useI18n } from "../i18n";
 import { ApiError } from "../api";
@@ -64,6 +64,7 @@ export function useErrorText() {
     if (!error) return "";
     if (error instanceof ApiError) {
       if (error.code === "NETWORK") return t("errors.network");
+      if (error.code === "TIMEOUT") return t("errors.timeout");
       if (has(`errors.${error.code}`)) return t(`errors.${error.code}`);
     }
     return t("errors.generic");
@@ -80,20 +81,45 @@ export function Field({ label, hint, children }: { label: string; hint?: string;
   );
 }
 
+const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+/** A modal dialog (review of 1.47.0, R-37): focus moves into it on opening, Tab and Shift+Tab stay inside it, Escape
+ *  or the close button closes it, and focus returns to what opened it. */
 export function Modal({ title, onClose, children, actions, wide }: { title: string; onClose: () => void; children: ReactNode; actions?: ReactNode; wide?: boolean }) {
+  const { t } = useI18n();
+  const box = useRef<HTMLDivElement>(null);
+  const titleId = useId();
+  const close = useRef(onClose);
+  close.current = onClose;
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+    const opener = document.activeElement as HTMLElement | null;
+    const first = box.current?.querySelector<HTMLElement>(`.modal-body ${FOCUSABLE}`) ?? box.current;
+    first?.focus();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") { e.preventDefault(); close.current(); return; }
+      if (e.key !== "Tab" || !box.current) return;
+      const items = Array.from(box.current.querySelectorAll<HTMLElement>(FOCUSABLE)).filter((el) => el.offsetParent !== null);
+      if (items.length === 0) { e.preventDefault(); box.current.focus(); return; }
+      const [head, tail] = [items[0], items[items.length - 1]];
+      if (e.shiftKey && (document.activeElement === head || document.activeElement === box.current)) { e.preventDefault(); tail.focus(); }
+      else if (!e.shiftKey && document.activeElement === tail) { e.preventDefault(); head.focus(); }
+      else if (!box.current.contains(document.activeElement)) { e.preventDefault(); head.focus(); }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      if (opener && document.contains(opener)) opener.focus();
+    };
+  }, []);
   return (
     <div className="modal-scrim" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="modal" role="dialog" aria-modal="true" aria-label={title} style={wide ? { maxWidth: 860 } : undefined}>
+      <div className="modal" role="dialog" aria-modal="true" aria-labelledby={titleId} ref={box} tabIndex={-1}
+           style={wide ? { maxWidth: 860 } : undefined}>
         <div className="row between" style={{ marginBottom: 20 }}>
-          <h2 style={{ margin: 0 }}>{title}</h2>
-          <button className="icon-btn" onClick={onClose} aria-label="close"><Icon name="close" /></button>
+          <h2 id={titleId} style={{ margin: 0 }}>{title}</h2>
+          <button type="button" className="icon-btn" onClick={onClose} aria-label={t("common.close")}><Icon name="close" /></button>
         </div>
-        {children}
+        <div className="modal-body">{children}</div>
         {actions && <div className="modal-actions">{actions}</div>}
       </div>
     </div>
@@ -128,18 +154,21 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 export const useToast = () => useContext(ToastCtx);
 
 // ---------- Data loading ----------
-export function useLoad<T>(loader: () => Promise<T>, deps: unknown[] = []) {
+/** Loads data for a screen. The loader receives a signal that is aborted when the screen closes or reloads, so a
+ *  loader that passes it on (api.get(path, params, { signal })) stops its request instead of finishing it unseen. */
+export function useLoad<T>(loader: (signal: AbortSignal) => Promise<T>, deps: unknown[] = []) {
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState<unknown>(null);
   const [loading, setLoading] = useState(true);
   const [tick, setTick] = useState(0);
   useEffect(() => {
     let live = true;
+    const stop = new AbortController();
     setLoading(true);
-    loader().then((d) => { if (live) { setData(d); setError(null); } })
+    loader(stop.signal).then((d) => { if (live) { setData(d); setError(null); } })
       .catch((e) => { if (live) setError(e); })
       .finally(() => { if (live) setLoading(false); });
-    return () => { live = false; };
+    return () => { live = false; stop.abort(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [...deps, tick]);
   return { data, error, loading, reload: () => setTick((x) => x + 1), setData };

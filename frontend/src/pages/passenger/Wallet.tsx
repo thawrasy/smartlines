@@ -28,29 +28,50 @@ export default function Wallet() {
   const mine = useLoad(() => api.get<{ payments: Mine[] }>("/api/payments/mine"));
   const [open, setOpen] = useState(false);
 
-  // back from a payment page: follow the payment until the provider's answer arrives
+  // back from a payment page: follow the payment until the provider's answer arrives. A failed check or an answer
+  // still pending after about 30 s is shown as such, with a way to check again; the page never implies the payment
+  // was settled when it was not (review of 1.47.0, R-34)
   const returning = params.get("payment");
+  const [follow, setFollow] = useState<{ state: "checking" | "pending" | "error"; at?: Date; error?: unknown }>({ state: "checking" });
+  const [round, setRound] = useState(0);
   useEffect(() => {
     if (!returning) return;
     let tries = 0;
+    let live = true;
+    setFollow({ state: "checking" });
     const id = setInterval(async () => {
       tries += 1;
       try {
         const p = await api.get<{ status: string; failure_code: string | null }>(`/api/payments/${returning}`);
-        if (p.status !== "PENDING" || tries > 20) {
+        if (!live) return;
+        if (p.status !== "PENDING") {
           clearInterval(id);
-          if (p.status === "SUCCESS") toast(t("pay.credited"));
-          else if (p.status === "FAILED") toast(t("pay.failed"));
+          toast(t(p.status === "SUCCESS" ? "pay.credited" : "pay.failed"));
           setParams({}, { replace: true }); state.reload(); mine.reload();
+        } else if (tries >= 20) {
+          clearInterval(id);
+          setFollow({ state: "pending", at: new Date() });
+          mine.reload();
         }
-      } catch { clearInterval(id); }
+      } catch (e) {
+        if (!live) return;
+        clearInterval(id);
+        setFollow({ state: "error", at: new Date(), error: e });
+      }
     }, 1500);
-    return () => clearInterval(id);
+    return () => { live = false; clearInterval(id); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [returning]);
+  }, [returning, round]);
 
   const pending = (mine.data?.payments ?? []).filter((p) => p.status === "PENDING");
-  const cancel = async (p: Mine) => { await api.post(`/api/payments/${p.uid}/cancel`).catch(() => {}); mine.reload(); };
+  const [cancelling, setCancelling] = useState<string | null>(null);
+  const [cancelError, setCancelError] = useState<{ uid: string; error: unknown } | null>(null);
+  const cancel = async (p: Mine) => {
+    setCancelling(p.uid); setCancelError(null);
+    try { await api.post(`/api/payments/${p.uid}/cancel`); toast(t("pay.cancelled")); }
+    catch (e) { setCancelError({ uid: p.uid, error: e }); }
+    finally { setCancelling(null); mine.reload(); }
+  };
   return (
     <div className="page stack">
       <PageHead title={t("wallet.title")} sub={t("wallet.subtitle")} />
@@ -66,7 +87,17 @@ export default function Wallet() {
               <button className="btn large" onClick={() => setOpen(true)}><Icon name="add" />{t("wallet.topup")}</button>
             </div>
           </div>
-          {returning && <div className="alert info"><Spinner /> {t("pay.waiting")}</div>}
+          {returning && follow.state === "checking" && <div className="alert info" role="status"><Spinner /> {t("pay.waiting")}</div>}
+          {returning && follow.state !== "checking" && (
+            <div className="card stack" role="status">
+              {follow.state === "error" ? <ErrorBox error={follow.error} /> : <div className="alert info">{t("pay.stillPending")}</div>}
+              <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
+                <span className="small muted">{t("pay.lastChecked", { when: dateTime(follow.at!.toISOString()) })}</span>
+                <button type="button" className="btn outlined small" onClick={() => setRound((r) => r + 1)}><Icon name="refresh" />{t("pay.checkAgain")}</button>
+                <button type="button" className="btn text small" onClick={() => setParams({}, { replace: true })}>{t("common.close")}</button>
+              </div>
+            </div>
+          )}
           {pending.length > 0 && (
             <div className="card stack">
               <h3 style={{ margin: 0 }}>{t("pay.pending")}</h3>
@@ -77,7 +108,10 @@ export default function Wallet() {
                     {p.reference && <div className="small">{t("pay.reference")}: <span className="mono ltr">{p.reference}</span></div>}
                     {p.expires_at && <div className="small muted">{t("pay.until", { when: dateTime(p.expires_at) })}</div>}
                   </div>
-                  <button className="btn text small" onClick={() => cancel(p)}>{t("common.cancel")}</button>
+                  <div className="stack tight" style={{ alignItems: "flex-end" }}>
+                    <button className="btn text small" disabled={cancelling === p.uid} onClick={() => cancel(p)}>{t("common.cancel")}</button>
+                    {cancelError?.uid === p.uid && <ErrorBox error={cancelError.error} />}
+                  </div>
                 </div>
               ))}
             </div>

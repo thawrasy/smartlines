@@ -1,9 +1,9 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { Suspense, useEffect, useState, type ReactNode } from "react";
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useI18n, LOCALES, type Locale } from "../i18n";
 import { useAuth, homeFor } from "../auth";
 import { api } from "../api";
-import { Icon, Logo } from "./ui";
+import { Icon, Logo, Spinner } from "./ui";
 import wordmarkAr from "../assets/brand/masslak-wordmark-ar.svg";
 import wordmarkEn from "../assets/brand/masslak-wordmark-en.svg";
 import type { IconName } from "./icons";
@@ -79,7 +79,7 @@ export function PublicLayout() {
           )}
         </div>
       </header>
-      <Outlet />
+      <Suspense fallback={<Spinner />}><Outlet /></Suspense>
       <footer className="footer">
         <div className="row between" style={{ flexWrap: "wrap", gap: 12 }}>
           <span>{t("app.footer")}</span>
@@ -123,14 +123,31 @@ function ModulesMenu({ items }: { items: NavItem[] }) {
 
 function MobileNav({ services }: { services?: string }) {
   const { t } = useI18n();
-  const items: [string, IconName, string][] = [["/", "search", t("nav.search")], ["/trips", "confirmation_number", t("nav.myTrips")], ["/wallet", "account_balance_wallet", t("nav.wallet")], ["/family", "family_restroom", t("nav.family")]];
-  if (services) items.push([services, "apps", t("modules.services")]);
-  else items.push(["/support", "support_agent", t("nav.support")]);    // with services, Support is reached from the account page
+  const [more, setMore] = useState(false);
+  const loc = useLocation();
+  useEffect(() => setMore(false), [loc.pathname]);
+  // the account is always one tap away; family, support and the services sit under "More" (review of 1.47.0, R-32)
+  const items: [string, IconName, string][] = [["/", "search", t("nav.search")], ["/trips", "confirmation_number", t("nav.myTrips")],
+    ["/wallet", "account_balance_wallet", t("nav.wallet")], ["/account", "person", t("nav.account")]];
+  const extra: [string, IconName, string][] = [["/family", "family_restroom", t("nav.family")], ["/support", "support_agent", t("nav.support")]];
+  if (services) extra.push([services, "apps", t("modules.services")]);
+  const inExtra = extra.some(([to]) => loc.pathname.startsWith(to));
   return (
-    <nav className="navbar mobile-only">
+    <nav className="navbar mobile-only" aria-label={t("nav.menu")}>
       {items.map(([to, icon, label]) => (
         <NavLink key={to} to={to} end={to === "/"}><span className="pill"><Icon name={icon} /></span>{label}</NavLink>
       ))}
+      <div className="menu-anchor">
+        <button type="button" className={`navbar-more${inExtra ? " active" : ""}`} aria-expanded={more} aria-haspopup="menu"
+                onClick={() => setMore((o) => !o)}>
+          <span className="pill"><Icon name="more_vert" /></span>{t("nav.more")}
+        </button>
+        {more && (
+          <div className="menu-pop navbar-pop" role="menu">
+            {extra.map(([to, icon, label]) => <NavLink key={to} to={to} role="menuitem" className="nav-item"><Icon name={icon} />{label}</NavLink>)}
+          </div>
+        )}
+      </div>
     </nav>
   );
 }
@@ -173,7 +190,8 @@ export function PortalShell({ title, items, children }: { title: string; items: 
           <h3 className="grow">{current?.label ?? title}</h3>
           <NotificationBell />
         </div>
-        <div className="main-content"><Outlet /></div>
+        {/* a portal page loading its code keeps the shell and its menu in place (lazy pages, R-56) */}
+        <div className="main-content"><Suspense fallback={<Spinner />}><Outlet /></Suspense></div>
       </div>
     </div>
   );

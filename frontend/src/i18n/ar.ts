@@ -10,6 +10,7 @@ const ar: Messages = {
   },
   lang: { ar: "العربية", en: "English", switchTo: "اللغة" },
   nav: {
+    more: "المزيد",
     business: "للناقلين والشركاء", contact: "اتصل بنا", terms: "شروط الاستخدام", privacy: "الخصوصية",
     support: "الدعم",
     family: "العائلة",
@@ -67,6 +68,7 @@ const ar: Messages = {
   txn: { SHIPMENT_PAY: "إرسال طرد", SUBSCRIPTION_PAY: "اشتراك نقل ترددي", BOOKING_PAY: "حجز رحلة", REFUND: "استرداد", TOPUP: "شحن المحفظة", RELEASE: "تسوية", PAYOUT: "صرف مصرفي" },
   service: { DIRECT: "مباشرة", INDIRECT: "مع توقفات" },
   errors: {
+    timeout: "لم يُجب الخادم في الوقت المحدد. تحقق من اتصالك وحاول مجدداً.",
     CASH_LIMIT_REACHED: "بلغ النقد الحد المسموح: تتوقف المبيعات النقدية حتى يسدد الناقل للمنصة ما بحوزته.",
     PAYMENT_METHOD_DISABLED: "طريقة الدفع هذه غير متاحة حالياً.",
     TOO_LATE_TO_RESERVE: "موعد الرحلة قريب جداً للدفع لاحقاً. اختر الدفع الآن.",
@@ -338,6 +340,7 @@ const ar: Messages = {
     selected: "المقاعد المختارة", signInFirst: "سجّل الدخول للحجز",
   },
   checkout: {
+    docsUnavailable: "تعذّر تحميل قواعد وثائق السفر لهذه الرحلة، فلا يمكن التحقق من الحجز بعد. ما أدخلته محفوظ؛ حاول مجدداً.",
     title: "بيانات الركاب والدفع", fare: "الفئة السعرية", brandHint: "اختر الفئة التي تناسبك",
     refundable: "قابلة للاسترداد", nonRefundable: "غير قابلة للاسترداد", refundRule: "استرداد {pct}% حتى {h} ساعة قبل الانطلاق",
     bags: "{n} × حقيبة {kg} كغ", flexChange: "تعديل مجاني", idType: "نوع الوثيقة",
@@ -1678,6 +1681,7 @@ const ar: Messages = {
     to: "حتى"
   },
   pay: {
+    stillPending: "لم يُجب مزود الدفع بعد. يبقى الدفع معلقاً حتى يجيب، ولا يُخصم المبلغ مرتين.", lastChecked: "آخر تحقق {when}", checkAgain: "تحقق مجدداً", cancelled: "أُلغي الدفع",
     mainAccount: "الحساب الرئيسي",
     nav: "المدفوعات",
     agencyNav: "شحن محفظة",
@@ -2182,6 +2186,7 @@ const ar: Messages = {
     },
   },
   support: {
+    openCase: "افتح الطلب {ref}",
     title: "الدعم",
     subtitle: "الشكاوى والأسئلة والمطالبات، وتقييم رحلاتك",
     new: "طلب جديد",

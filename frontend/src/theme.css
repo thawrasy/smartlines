@@ -313,6 +313,13 @@ table.table { width: 100%; border-collapse: collapse; font-size: 14px; }
 .navbar a .pill { width: 64px; height: 32px; border-radius: 16px; display: flex; align-items: center; justify-content: center; }
 .navbar a.active .pill { background: var(--primary-container); color: var(--on-primary-container); }
 .navbar a.active { color: var(--on-surface); }
+.navbar-more { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; width: 96px; height: 100%;
+  background: none; border: 0; color: var(--on-surface-variant); font: inherit; font-size: 12px; font-weight: 500; cursor: pointer; }
+.navbar-more .pill { width: 64px; height: 32px; border-radius: 16px; display: flex; align-items: center; justify-content: center; }
+.navbar-more.active .pill, .navbar-more[aria-expanded="true"] .pill { background: var(--primary-container); color: var(--on-primary-container); }
+.navbar .menu-anchor { position: relative; display: flex; }
+.navbar-pop { top: auto; bottom: 84px; inset-inline-start: auto; inset-inline-end: 0; }
+@media (max-width: 420px) { .navbar a, .navbar-more { width: 72px; } .navbar { gap: 0; } }
 
 .stops { position: relative; }
 .stop { display: grid; grid-template-columns: 28px 1fr auto; gap: 12px; padding: 10px 0; align-items: center; }
@@ -511,3 +518,7 @@ tr.clickable:hover td { background: var(--surface-container-low, rgba(10, 91, 21
 .usage-bar span { display: block; width: 100%; min-height: 2px; border-radius: 3px 3px 0 0; background: var(--primary); opacity: .85; }
 .usage-bar i { position: absolute; bottom: 0; left: 0; right: 0; background: var(--error); border-radius: 3px 3px 0 0; }
 @media (max-width: 600px) { .hook-row { flex-direction: column; } }
+
+/* a button that reads as a link: opens a row's details from the keyboard (R-38) */
+.link-btn { background: none; border: 0; padding: 0; font: inherit; color: var(--primary); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+.link-btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; border-radius: 4px; }

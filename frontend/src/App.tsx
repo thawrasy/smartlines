@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { lazy, Suspense, type ComponentType, type ReactNode } from "react";
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useParams } from "react-router-dom";
 import type { Portal } from "./api";
 import { useAuth } from "./auth";
@@ -18,29 +18,58 @@ import Register from "./pages/auth/Register";
 import Mfa from "./pages/auth/Mfa";
 import Verify from "./pages/Verify";
 import Track from "./pages/Track";
-import { CarrierCrew, CarrierDashboard, CarrierRoutes, CarrierTrips, CarrierVehicles } from "./pages/carrier/Carrier";
-import { CarrierLayouts } from "./pages/carrier/Layouts";
-import { CounterDashboard, CounterReport, CounterSell } from "./pages/carrier/Counter";
-import { AdminFinance, CompanyFinance } from "./pages/finance/Finance";
-import { AdminDocuments, CompanyDocuments } from "./pages/documents/Documents";
 import { AccountPage, AdminPrivacy } from "./pages/account/Account";
-import { DriverLayout, DriverTrip, DriverTrips } from "./pages/driver/Driver";
-import { AdminAgencies, AdminCompanies, AdminOverview, AdminStations } from "./pages/admin/Admin";
-import { AgencyBookings, AgencyDashboard, AgencySell, AgencyStaff, AgencyStatement } from "./pages/agency/Agency";
-import { SecurityActivity, SecurityAuthLog, SecurityOverview, SecurityRules } from "./pages/security/Security";
-import MfaPolicy from "./pages/security/MfaPolicy";
-import Regulator from "./pages/regulator/Regulator";
 import { ModulePage } from "./modules/ModulePage";
 import { ServicesPage } from "./modules/ServicesPage";
-import { AdminModules } from "./modules/AdminModules";
 import { useModules } from "./modules/context";
 import { useLabels } from "./modules/labels";
 import type { NavItem } from "./components/layout";
-import { ReportsPage } from "./pages/reports/Reports";
-import { AgencyTopup, PaymentsDesk } from "./pages/finance/Payments";
-import { IntegrationsPage } from "./pages/integrations/Integrations";
 import { TestGateway } from "./pages/passenger/Wallet";
 import type { IconName } from "./components/icons";
+
+// The staff portals load when first opened, so a passenger's first visit downloads only the passenger screens
+// (review of 1.47.0, R-56). Each module file becomes one chunk.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function lazyNamed<M extends Record<string, unknown>>(load: () => Promise<M>, name: keyof M & string) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return lazy(() => load().then((m) => ({ default: m[name] as ComponentType<any> })));
+}
+const CarrierCrew = lazyNamed(() => import("./pages/carrier/Carrier"), "CarrierCrew");
+const CarrierDashboard = lazyNamed(() => import("./pages/carrier/Carrier"), "CarrierDashboard");
+const CarrierRoutes = lazyNamed(() => import("./pages/carrier/Carrier"), "CarrierRoutes");
+const CarrierTrips = lazyNamed(() => import("./pages/carrier/Carrier"), "CarrierTrips");
+const CarrierVehicles = lazyNamed(() => import("./pages/carrier/Carrier"), "CarrierVehicles");
+const CarrierLayouts = lazyNamed(() => import("./pages/carrier/Layouts"), "CarrierLayouts");
+const CounterDashboard = lazyNamed(() => import("./pages/carrier/Counter"), "CounterDashboard");
+const CounterReport = lazyNamed(() => import("./pages/carrier/Counter"), "CounterReport");
+const CounterSell = lazyNamed(() => import("./pages/carrier/Counter"), "CounterSell");
+const AdminFinance = lazyNamed(() => import("./pages/finance/Finance"), "AdminFinance");
+const CompanyFinance = lazyNamed(() => import("./pages/finance/Finance"), "CompanyFinance");
+const AdminDocuments = lazyNamed(() => import("./pages/documents/Documents"), "AdminDocuments");
+const CompanyDocuments = lazyNamed(() => import("./pages/documents/Documents"), "CompanyDocuments");
+const DriverLayout = lazyNamed(() => import("./pages/driver/Driver"), "DriverLayout");
+const DriverTrip = lazyNamed(() => import("./pages/driver/Driver"), "DriverTrip");
+const DriverTrips = lazyNamed(() => import("./pages/driver/Driver"), "DriverTrips");
+const AdminAgencies = lazyNamed(() => import("./pages/admin/Admin"), "AdminAgencies");
+const AdminCompanies = lazyNamed(() => import("./pages/admin/Admin"), "AdminCompanies");
+const AdminOverview = lazyNamed(() => import("./pages/admin/Admin"), "AdminOverview");
+const AdminStations = lazyNamed(() => import("./pages/admin/Admin"), "AdminStations");
+const AgencyBookings = lazyNamed(() => import("./pages/agency/Agency"), "AgencyBookings");
+const AgencyDashboard = lazyNamed(() => import("./pages/agency/Agency"), "AgencyDashboard");
+const AgencySell = lazyNamed(() => import("./pages/agency/Agency"), "AgencySell");
+const AgencyStaff = lazyNamed(() => import("./pages/agency/Agency"), "AgencyStaff");
+const AgencyStatement = lazyNamed(() => import("./pages/agency/Agency"), "AgencyStatement");
+const SecurityActivity = lazyNamed(() => import("./pages/security/Security"), "SecurityActivity");
+const SecurityAuthLog = lazyNamed(() => import("./pages/security/Security"), "SecurityAuthLog");
+const SecurityOverview = lazyNamed(() => import("./pages/security/Security"), "SecurityOverview");
+const SecurityRules = lazyNamed(() => import("./pages/security/Security"), "SecurityRules");
+const AdminModules = lazyNamed(() => import("./modules/AdminModules"), "AdminModules");
+const ReportsPage = lazyNamed(() => import("./pages/reports/Reports"), "ReportsPage");
+const AgencyTopup = lazyNamed(() => import("./pages/finance/Payments"), "AgencyTopup");
+const PaymentsDesk = lazyNamed(() => import("./pages/finance/Payments"), "PaymentsDesk");
+const IntegrationsPage = lazyNamed(() => import("./pages/integrations/Integrations"), "IntegrationsPage");
+const MfaPolicy = lazy(() => import("./pages/security/MfaPolicy"));
+const Regulator = lazy(() => import("./pages/regulator/Regulator"));
 
 /** Menu entries for the switched-on modules the signed-in user can open. */
 function useModuleNav(base: string): NavItem[] {
@@ -151,6 +180,7 @@ function NotFound() {
 export default function App() {
   return (
     <BrowserRouter>
+      <Suspense fallback={<Spinner />}>
       <Routes>
         <Route element={<PublicLayout />}>
           <Route index element={<Home />} />
@@ -231,6 +261,7 @@ export default function App() {
           <Route path="regulator" element={<Regulator />} />
         </Route>
       </Routes>
+      </Suspense>
     </BrowserRouter>
   );
 }

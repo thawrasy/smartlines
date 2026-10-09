@@ -8,6 +8,7 @@ const en = {
   },
   lang: { ar: "Arabic", en: "English", switchTo: "Language" },
   nav: {
+    more: "More",
     business: "For carriers and partners", contact: "Contact us", terms: "Terms of use", privacy: "Privacy",
     support: "Support",
     family: "Family",
@@ -65,6 +66,7 @@ const en = {
   txn: { SHIPMENT_PAY: "Parcel", SUBSCRIPTION_PAY: "Shuttle pass", BOOKING_PAY: "Trip booking", REFUND: "Refund", TOPUP: "Wallet top-up", RELEASE: "Settlement", PAYOUT: "Bank payout" },
   service: { DIRECT: "Direct", INDIRECT: "With stops" },
   errors: {
+    timeout: "The server did not answer in time. Check your connection and try again.",
     CASH_LIMIT_REACHED: "The cash limit is reached: cash sales stop until the carrier pays the platform what it holds.",
     PAYMENT_METHOD_DISABLED: "This way of paying is not available right now.",
     TOO_LATE_TO_RESERVE: "This trip leaves too soon to pay later. Choose to pay now.",
@@ -336,6 +338,7 @@ const en = {
     selected: "Selected seats", signInFirst: "Sign in to book",
   },
   checkout: {
+    docsUnavailable: "The travel document rules for this trip could not be loaded, so the booking cannot be checked yet. What you entered is kept; try again.",
     title: "Passenger details and payment", fare: "Fare", brandHint: "Choose the fare that suits you",
     refundable: "Refundable", nonRefundable: "Non-refundable", refundRule: "{pct}% refund up to {h} h before departure",
     bags: "{n} × {kg} kg bags", flexChange: "Free changes", idType: "ID type",
@@ -1241,6 +1244,7 @@ const en = {
     to: "Until"
   },
   pay: {
+    stillPending: "The payment provider has not answered yet. The payment stays pending until it does; nothing is taken twice.", lastChecked: "Last checked {when}", checkAgain: "Check again", cancelled: "Payment cancelled",
     mainAccount: "Main account",
     nav: "Payments",
     agencyNav: "Top up a wallet",
@@ -1745,6 +1749,7 @@ const en = {
     },
   },
   support: {
+    openCase: "Open case {ref}",
     title: "Support",
     subtitle: "Complaints, questions and claims, and ratings of your trips",
     new: "New request",

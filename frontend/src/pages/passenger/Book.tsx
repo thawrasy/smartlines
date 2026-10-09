@@ -113,14 +113,19 @@ export default function Book() {
   const [pax, setPax] = useState<PassengerDraft[]>([]);
   // Documents each nationality needs on this segment: a passport on international trips unless an exception applies
   const [docs, setDocs] = useState<Record<string, TravelDocs>>({});
+  // "the rules could not be loaded" is not "no rules": until they load, booking waits, with a retry (review of 1.47.0, R-33)
+  const [docsError, setDocsError] = useState<unknown>(null);
+  const [docsRound, setDocsRound] = useState(0);
   const nationalities = [...new Set(["SY", ...pax.map((p) => p.nationality)])];
   useEffect(() => {
     const missing = nationalities.filter((n) => !(n in docs));
     if (!uid || missing.length === 0) return;
+    setDocsError(null);
     Promise.all(missing.map((n) => api.get<TravelDocs>(`/api/trips/${uid}/documents`, { from_seq: fromSeq, to_seq: toSeq, nationality: n })
-      .then((r) => [n, r] as const))).then((rs) => setDocs((d) => ({ ...d, ...Object.fromEntries(rs) }))).catch(() => {});
+      .then((r) => [n, r] as const))).then((rs) => setDocs((d) => ({ ...d, ...Object.fromEntries(rs) }))).catch(setDocsError);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [uid, fromSeq, toSeq, nationalities.join(",")]);
+  }, [uid, fromSeq, toSeq, nationalities.join(","), docsRound]);
+  const docsKnown = nationalities.every((n) => n in docs);
   useEffect(() => {
     // keep each passenger on a document type the rules accept for their nationality
     setPax((ps) => ps.map((p) => {
@@ -217,7 +222,7 @@ export default function Book() {
 
   const contactValid = !ch.staff || (ch.counter && contact.trim() === "") || /^\+?[0-9]{8,15}$/.test(contact.trim());
   const seated = pax.filter((p) => !p.lap).length;
-  const paxValid = seated === selected.length && pax.every((p) => passengerValid(p, docs[p.nationality])) && contactValid;
+  const paxValid = seated === selected.length && docsKnown && pax.every((p) => passengerValid(p, docs[p.nationality])) && contactValid;
   const infantBand = d.categories?.find((c) => c.category === "INFANT");
   const laps = pax.filter((p) => p.lap).length;
   const canAddLap = !!infantBand && !infantBand.seat_required && laps < selected.length;
@@ -421,6 +426,12 @@ export default function Book() {
             )}
             {wallet.data?.remaining_today !== undefined && wallet.data.remaining_today < total && (
               <div className="alert error"><Icon name="warning" /><span>{t("errors.AGENCY_DAILY_LIMIT")}</span></div>
+            )}
+            {docsError != null && !docsKnown && (
+              <div className="stack tight" role="alert">
+                <div className="alert error"><Icon name="warning" /><span className="grow">{t("checkout.docsUnavailable")}</span></div>
+                <div><button type="button" className="btn outlined small" onClick={() => setDocsRound((r) => r + 1)}><Icon name="refresh" />{t("common.retry")}</button></div>
+              </div>
             )}
             <label className="check small"><input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} />{t(ch.counter ? "counter.agree" : ch.agency ? "agency.agree" : "checkout.agree")}</label>
             <button className="btn large block" disabled={busy || !agree || !paxValid || left === 0 || quoteError != null || (!ch.staff && !!opts.data && !chosen)} onClick={pay}>

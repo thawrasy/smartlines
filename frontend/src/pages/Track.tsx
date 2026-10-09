@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { api } from "../api";
+import { api, ApiError } from "../api";
 import { useI18n } from "../i18n";
 import { PageHead } from "../components/layout";
 import { Empty, ErrorBox, Icon, Status, useLoad } from "../components/ui";
@@ -25,7 +25,11 @@ export default function Track() {
         <input className="ltr mono" style={{ flex: 1, minWidth: 0 }} value={q} onChange={(e) => setQ(e.target.value)} placeholder="MS0000000000" aria-label={t("wf.track.number")} />
         <button className="btn"><Icon name="search" />{t("wf.track.go")}</button>
       </form>
-      {no && state.error ? <div className="card"><Empty icon="package_2" title={t("wf.track.notFound")} /></div> : <ErrorBox error={null} />}
+      {/* only "no such parcel" says so; a busy or unreachable service says that, with a retry (review of 1.47.0, R-36) */}
+      {no && state.error ? (state.error instanceof ApiError && state.error.status === 404
+        ? <div className="card"><Empty icon="package_2" title={t("wf.track.notFound")} /></div>
+        : <div className="card stack"><ErrorBox error={state.error} />
+            <div><button type="button" className="btn outlined" onClick={state.reload}><Icon name="refresh" />{t("common.retry")}</button></div></div>) : null}
       {d && (
         <div className="card stack">
           <div className="row between">

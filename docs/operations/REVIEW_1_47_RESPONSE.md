@@ -101,3 +101,16 @@ Upgrading to 1.48.0, package D:
 New alerts with their tests: BackupStale, BackupOffsiteStale, ZeroDataLossNotEnforced, CommitsWaitingForStandby,
 SiteBNotStreaming, MainSiteUnreachableFromSiteB, SiteBLagging, SiteBWatchdogStale (RUNBOOKS.md, sections 23 and 27).
 
+## 5. Package E: the web interface
+
+| Ref | Finding | What changed | Proof |
+|---|---|---|---|
+| R-32 | On a phone the account was unreachable and support could disappear | The phone bar shows the account always; family, support and the services sit under a named "More" menu | `frontend/e2e/ui-checks.mjs` (phone views, no serious finding); a browser check of the bar |
+| R-33 | A failed load of the travel document rules opened the booking as if there were none | "Not loaded" is kept apart from "no rules": booking waits, with a message and a retry, and what was entered is kept | `pages/passenger/Book.tsx` |
+| R-34 | Following a returning payment and cancelling a pending one hid their failures | A failed check or an answer still pending after about 30 s is shown, with the last check time and "Check again"; a cancel shows its error and keeps the payment visible | `pages/passenger/Wallet.tsx` |
+| R-35 | Requests had no deadline and were not cancelled when a screen closed | Every request has a deadline (30 s reads, 60 s changes, 3 min uploads) and fails with TIMEOUT, shown with a retry; screens pass a signal that cancels their request when they close; a change is never re-sent by itself | `api.ts`, `components/ui.tsx` (`useLoad`) |
+| R-36 | The tracking page said "not found" for any error | Only a 404 says so; a busy or unreachable service says that, with a retry | a browser check |
+| R-37 | Dialogs declared `aria-modal` without keeping focus | Focus moves into the dialog, Tab and Shift+Tab stay inside, Escape and the translated close button close it, focus returns to the opener; the title names the dialog | a browser check (30 Tab presses stay inside, focus returns to "New request") |
+| R-38 | Support cases opened by mouse only | Each case reference is a button | `pages/passenger/Support.tsx` |
+| R-56 | One large script for every visitor | The staff portals load when first opened (one chunk per portal module); the passenger screens stay in the first download | `npm run build`: the portals are separate chunks of 20 to 45 kB |
+
