@@ -53,6 +53,33 @@ the target of RUNBOOKS.md section 3.
   site is declared by a person, because a cut link looks the same as a lost site from the other side, and two
   primaries would split the money.
 
+## Ownership and fencing, on one page
+
+Code review of October 2026, 10: who may make a server the primary, and what stops the old one from taking writes.
+
+| Situation | Who promotes | What fences the old primary | What the applications do |
+|---|---|---|---|
+| The primary server or its PostgreSQL stops | Patroni, after the leader key expires (30 s) | It is down. When it comes back, Patroni finds another leader and rejoins it as a standby (`pg_rewind`) | 503 `SERVICE_BUSY` with `Retry-After`, then reconnect through HAProxy |
+| The primary loses etcd (network cut on its side) | Patroni on the standby side, which still has the vote | Patroni on the old primary cannot renew its key and demotes it to read-only within `retry_timeout` (10 s), before the key expires (30 s) | The same; HAProxy sees `/primary` answer 503 on the old server and cuts its sessions within 3 s |
+| Patroni hangs on the primary while PostgreSQL runs | Patroni on the standby, after 30 s | The watchdog (`deploy/ha/patroni.yml`, `mode: required`) restarts the server 5 s before the key expires, so two primaries never take writes at once | The same |
+| The whole main site is lost | The on-call lead, by RUNBOOKS.md section 23 | A person: stop the main site's HAProxy and applications, or cut its network, before promoting site B. A cut link looks like a lost site from the other side, so site B never promotes itself | Pointed at site B by DNS or the load balancer, after the promotion |
+| Data is damaged | The DBA, by RUNBOOKS.md section 2 | Not a failover: the damaged primary keeps serving or is stopped while a copy is restored to a point in time | Wait for the restored primary |
+
+Three rules hold in every row:
+
+1. **One writer.** Only the server that holds the leader key in etcd accepts writes. HAProxy sends writes only to the
+   server whose Patroni answers `/primary`, and the applications' two-host connection strings ask for
+   `target_session_attrs=read-write`, so a demoted server is never written to by mistake.
+2. **No acknowledged write is lost in an automatic failover.** `synchronous_mode` makes the standby confirm every
+   commit; the promoted standby is that one. When it is missing, Patroni drops to asynchronous so bookings continue,
+   and the alert `NoSynchronousStandby` tells the on-call engineer that the next failover could lose seconds.
+3. **People decide what machines cannot see.** A site is declared lost by the on-call lead, a restore by the DBA; the
+   runbooks name the checks to make first (is the main site really unreachable from outside, not only from site B?).
+
+The single-server installation (`docker-compose.yml`) has one database and a streaming replica for reports: there
+is no automatic failover; promoting the replica is a decision made by a person (RUNBOOKS.md section 3), after the
+primary is stopped.
+
 ## Measured
 
 `db/tools/failover_drill.py` writes numbered rows at a steady rate through a two-host connection string, stops the
@@ -76,6 +103,8 @@ production traffic, then quarterly, and promotes the second site once a year (RU
 - Three small hosts for etcd at the main site (one may be the witness on the application server), two database
   servers of equal size, and at the second site one database server and three etcd members (infrastructure
   requirements, `INFRASTRUCTURE_REQUIREMENTS.md`).
+- A hardware or kernel watchdog on each database server of the main site (`modprobe softdog` on a virtual machine,
+  `/dev/watchdog` owned by postgres): Patroni does not take the leadership without it (`mode: required`).
 - A link between the sites with enough bandwidth for the WAL (capacity model: about 50 to 100 GB a day at stage 2).
 - The single-server stack (`docker-compose.yml`) keeps its manual promotion of `db-replica` (RUNBOOKS.md section 3)
   until these servers exist.

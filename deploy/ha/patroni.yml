@@ -30,6 +30,7 @@ bootstrap:
       use_slots: true
       parameters:
         wal_level: logical                    # the data warehouse subscribes (1062)
+        max_connections: 200                  # CAPACITY_MODEL.md, section 10; equal on every member
         max_slot_wal_keep_size: 20GB
         log_replication_commands: "on"
         hot_standby: "on"
@@ -77,6 +78,15 @@ postgresql:
     - local all all peer
     - host replication replicator 10.0.0.0/8 scram-sha-256
     - host all all 10.0.0.0/8 scram-sha-256
+
+# Fencing: if Patroni itself hangs while PostgreSQL keeps running, the leader key expires and a standby is promoted,
+# but the old primary would still take writes from clients that have not reconnected. The watchdog restarts the
+# server before the key expires (code review of October 2026, 10; HIGH_AVAILABILITY.md, ownership and fencing).
+# The softdog kernel module is enough on a virtual machine: modprobe softdog, and owner postgres on /dev/watchdog.
+watchdog:
+  mode: required                              # no watchdog, no leadership: this server then stays a standby
+  device: /dev/watchdog
+  safety_margin: 5
 
 tags:
   nofailover: false

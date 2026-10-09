@@ -29,6 +29,7 @@ bootstrap:
       use_slots: true
       parameters:
         wal_level: logical
+        max_connections: 200                  # CAPACITY_MODEL.md, section 10; equal on every member
         max_slot_wal_keep_size: 20GB
         hot_standby: "on"
         wal_log_hints: "on"

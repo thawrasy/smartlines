@@ -16,8 +16,10 @@ services:
     # warehouse subscribe (deploy/warehouse) without restarting the primary; a replication slot whose reader stopped
     # may hold at most 20 GB of WAL before the primary drops it (the warehouse then copies again, RUNBOOKS.md section 21).
     # Every replication command is logged: who created which slot with which plugin (docs/database/WAREHOUSE.md).
+    # 200 connections: PgBouncer's 80 plus the direct audit, replication and maintenance ones of several API servers
+    # (docs/operations/CAPACITY_MODEL.md, section 10); the replica sets the same, as a hot standby must
     command: ["postgres", "-c", "hba_file=/etc/postgresql/pg_hba.conf", "-c", "wal_level=logical", "-c", "max_slot_wal_keep_size=20GB",
-              "-c", "log_replication_commands=on"]
+              "-c", "log_replication_commands=on", "-c", "max_connections=200"]
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./deploy/postgres/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro

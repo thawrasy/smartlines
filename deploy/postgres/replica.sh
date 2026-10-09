@@ -12,4 +12,4 @@ if [ ! -s "$PGDATA/PG_VERSION" ]; then
   pg_basebackup -h db -U replicator -D "$PGDATA" -X stream -R -C -S "$SLOT" --checkpoint=fast
   chmod 0700 "$PGDATA"
 fi
-exec postgres -c hba_file=/etc/postgresql/pg_hba.conf -c hot_standby=on -c max_standby_streaming_delay=30s
+exec postgres -c hba_file=/etc/postgresql/pg_hba.conf -c hot_standby=on -c max_standby_streaming_delay=30s -c max_connections=200

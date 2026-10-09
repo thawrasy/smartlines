@@ -214,3 +214,40 @@ What stage D added to this model, each part tested (`docs/operations/REVIEW_STAG
   the volume database took part of a 10-second upgrade.
 - **Automatic failover (1065, `deploy/ha`):** Patroni with a synchronous standby (no committed transaction lost) and a
   second site; measured on a development pair: writing back 2.3 s after the promotion.
+
+## 10. Database connections with N API servers (code review of October 2026, H-04)
+
+Each API server runs `WEB_CONCURRENCY` processes (2 in the image); each worker replica runs one. Every process opens
+its own pools (`backend/app/db.py`), and waits at most `MASSLAK_DB_ACQUIRE_TIMEOUT` (5 s) for one of its connections
+before it answers 503 with `Retry-After` (counted in `masslak_db_pool_timeouts_total`).
+
+| Pool, per process | At most | Goes to |
+|---|---|---|
+| main (every request) | 20 | PgBouncer, transaction mode |
+| audit (security console) | 4 (1 when idle) | the primary, directly |
+| reports | 4 (1 when idle) | the read replica, directly |
+| telemetry (optional) | 10 | the telemetry database |
+
+With **P = 2N + W** processes (N API servers, W worker replicas):
+
+| Where | Connections | Limit | Holds while |
+|---|---|---|---|
+| Clients of PgBouncer | 20 P | `MAX_CLIENT_CONN` 4,000 | P ≤ 200 |
+| PgBouncer to the primary | 80 at most (`DEFAULT_POOL_SIZE` 60 + `RESERVE_POOL_SIZE` 20), whatever N | | always |
+| The primary in all | 80 + 4 P (audit) + about 8 (replica, warehouse slot, backups, migration, superuser reserve) | `max_connections` 200 | P ≤ 28: for example 12 API servers and 4 workers |
+| The read replica | 4 P (reports) + a few | `max_connections` 200 | P ≤ 48 |
+
+`max_connections` was PostgreSQL's default of 100 until this review: three API servers and two workers could
+then reach 80 + 32 + 8 = 120 with the security console busy, and the direct connections would have been refused. It
+is now 200 on the primary, the replica and every Patroni member (a hot standby needs at least the primary's value).
+
+**What the count means for load.** The database never sees more than the 80 PgBouncer connections at work, however
+many API servers run: more servers add waiting clients, not database sessions. At the design rate of 4,500 write
+transactions a second (section 3) and about 5 ms a transaction, 23 connections are busy on average; 60 leave room for
+bursts and slow statements, and the reserve 20 open only when a client has waited 5 s
+(`reserve_pool_timeout`). When all 80 are busy, PgBouncer queues the clients. A request never waits without end: its statements stop at 30 s, and a process whose own pool is exhausted answers 503 within 5 s. A saturation that lasts shows as the alerts `PgBouncerClientsWaiting` (clients waiting for two minutes) and `PgBouncerSlowWait` (the longest wait above 1 s for two minutes).
+
+**When adding servers:** keep P within the table (beyond 28 processes, route the audit pool through PgBouncer as a
+second pool or raise `max_connections` with memory to match, about 10 MB a connection), and raise
+`DEFAULT_POOL_SIZE` only with measurements from staging (gate 3), since more concurrent transactions on the same
+rows add lock waits rather than throughput.
