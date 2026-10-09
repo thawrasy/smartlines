@@ -36,7 +36,7 @@ export function FreightMarket() {
       <div className="row between"><h3>{t("wf.market.title")}</h3><button className="icon-btn" onClick={() => state.reload()} title={t("common.refresh")}><Icon name="refresh" /></button></div>
       <ErrorBox error={!pick ? error : null} />
       <Loaded state={state}>{(d) => d.requests.length === 0 ? <Empty icon="local_shipping" title={t("wf.market.none")} /> : (
-        <div className="table-wrap"><table className="table">
+        <div className="table-wrap" tabIndex={0}><table className="table">
           <thead><tr><th>{t("wf.market.route")}</th><th>{t("wf.load.description")}</th><th>{t("wf.load.weight")}</th><th>{t("wf.load.pickupFrom")}</th>
             <th>{t("wf.load.target")}</th><th>{t("wf.market.bids")}</th><th /></tr></thead>
           <tbody>{d.requests.map((r) => (

@@ -15,7 +15,7 @@ export default function MyTrips() {
       ) : (
         <div className="grid cols-2">
           {bookings.map((b) => (
-            <Link key={b.booking_ref} to={`/booking/${b.booking_ref}`} className="card stack tight" style={{ color: "inherit", textDecoration: "none", opacity: b.status === "CANCELLED" ? .7 : 1 }}>
+            <Link key={b.booking_ref} to={`/booking/${b.booking_ref}`} className="card stack tight" style={{ color: "inherit", textDecoration: "none", borderStyle: b.status === "CANCELLED" ? "dashed" : undefined }}>
               <div className="row between">
                 <span className="mono muted">{b.booking_ref}</span>
                 <Status value={b.status} />

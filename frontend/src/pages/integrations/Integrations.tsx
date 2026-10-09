@@ -49,7 +49,7 @@ export function IntegrationsPage() {
         <Loaded state={list}>{(d) => d.clients.length === 0 ? (
           <Empty icon="api" title={t("api.none")} hint={t("api.noneHint")} />
         ) : (
-          <div className="table-wrap"><table className="table">
+          <div className="table-wrap" tabIndex={0}><table className="table">
             <thead><tr><th>{t("api.client")}</th><th>{t("api.kind")}</th><th>{t("api.scopesCol")}</th><th>{t("api.keysCol")}</th><th>{t("api.today")}</th><th>{t("common.status")}</th><th /></tr></thead>
             <tbody>{d.clients.map((c) => (
               <tr key={c.uid} className="clickable" onClick={() => setOpen(c.uid)}>
@@ -252,7 +252,7 @@ function ClientView({ uid, meta, onBack }: { uid: string; meta: Meta | null; onB
                 <button className="btn" disabled={c.status !== "ACTIVE"} onClick={issue}><Icon name="add" />{t("api.issueKey")}</button></div>
               <p className="small muted" style={{ margin: 0 }}>{t("api.keysHint")}</p>
               {d.keys.length === 0 ? <p className="small muted">{t("api.noKeys")}</p> : (
-                <div className="table-wrap"><table className="table">
+                <div className="table-wrap" tabIndex={0}><table className="table">
                   <thead><tr><th>{t("api.prefix")}</th><th>{t("common.status")}</th><th>{t("api.expires")}</th><th>{t("api.lastUsed")}</th><th /></tr></thead>
                   <tbody>{d.keys.map((k) => (
                     <tr key={k.id}>
@@ -295,7 +295,7 @@ function ClientView({ uid, meta, onBack }: { uid: string; meta: Meta | null; onB
               {d.deliveries.length > 0 && (
                 <>
                   <h4 style={{ margin: "8px 0 0" }}>{t("api.deliveries")}</h4>
-                  <div className="table-wrap"><table className="table">
+                  <div className="table-wrap" tabIndex={0}><table className="table">
                     <thead><tr><th>{t("common.when")}</th><th>{t("api.eventCol")}</th><th>{t("common.status")}</th><th>{t("api.attempts")}</th><th>{t("api.response")}</th><th /></tr></thead>
                     <tbody>{d.deliveries.map((x) => (
                       <tr key={x.delivery_uid}>

@@ -41,7 +41,7 @@ export default function Regulator() {
                       <span className="num small">{num(l.trips_7d)}</span>
                     </div>
                   ))}
-                  <div className="table-wrap" style={{ marginTop: 12 }}><table className="table">
+                  <div className="table-wrap" tabIndex={0} style={{ marginTop: 12 }}><table className="table">
                     <thead><tr><th>{t("regulator.line")}</th><th className="num">{t("regulator.carriersOnLine")}</th><th className="num">{t("regulator.trips7d")}</th><th className="num">{t("regulator.tickets")}</th></tr></thead>
                     <tbody>{d.lines.map((l) => (
                       <tr key={l.origin_city + l.dest_city}><td>{city(l.origin_city)} {arrow} {city(l.dest_city)}</td><td className="num">{l.carriers}</td><td className="num">{l.trips_7d}</td><td className="num">{l.tickets}</td></tr>

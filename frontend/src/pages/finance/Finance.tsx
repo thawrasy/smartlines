@@ -28,7 +28,7 @@ function SettlementView({ uid, base, onClose }: { uid: string; base: string; onC
       <Loaded state={state}>{(s) => (
         <div className="stack">
           <div className="row between"><span>{date(`${s.from}T12:00:00Z`)} – {date(`${s.to}T12:00:00Z`)}</span><Status value={s.status} /></div>
-          <div className="table-wrap"><table className="table">
+          <div className="table-wrap" tabIndex={0}><table className="table">
             <thead><tr><th>{t("finance.trip")}</th><th className="num">{t("finance.gross")}</th><th className="num">{t("finance.commission")}</th><th className="num">{t("finance.refunds")}</th><th className="num">{t("finance.net")}</th></tr></thead>
             <tbody>{s.lines.map((l) => (
               <tr key={l.trip_no}><td className="mono small">{l.trip_no}</td><td className="num">{money(l.gross)}</td><td className="num">{money(l.commission)}</td><td className="num">{money(l.refunds)}</td><td className="num">{money(l.net)}</td></tr>
@@ -81,7 +81,7 @@ export function CompanyFinance() {
         <div className="card">
           <div className="card-title"><h3>{t("finance.withdrawals")}</h3></div>
           <Loaded state={wds}>{({ withdrawals }) => withdrawals.length === 0 ? <Empty icon="payments" title={t("common.noData")} /> : (
-            <div className="table-wrap"><table className="table">
+            <div className="table-wrap" tabIndex={0}><table className="table">
               <thead><tr><th>{t("common.when")}</th><th className="num">{t("common.amount")}</th><th>{t("finance.account")}</th><th>{t("finance.bankRef")}</th><th>{t("common.status")}</th></tr></thead>
               <tbody>{withdrawals.map((w) => (
                 <tr key={w.uid}><td className="small">{dateTime(w.created_at)}</td><td className="num">{money(w.amount)}</td>
@@ -104,7 +104,7 @@ export function CompanyFinance() {
       <div className="card">
         <div className="card-title"><h3>{t("finance.statements")}</h3></div>
         <Loaded state={sts}>{({ settlements }) => settlements.length === 0 ? <Empty icon="receipt_long" title={t("common.noData")} /> : (
-          <div className="table-wrap"><table className="table">
+          <div className="table-wrap" tabIndex={0}><table className="table">
             <thead><tr><th>{t("finance.period")}</th><th className="num">{t("finance.trips")}</th><th className="num">{t("finance.gross")}</th><th className="num">{t("finance.net")}</th><th>{t("common.status")}</th><th /></tr></thead>
             <tbody>{settlements.map((s) => (
               <tr key={s.uid}><td>{date(`${s.period_from}T12:00:00Z`)} – {date(`${s.period_to}T12:00:00Z`)}</td><td className="num">{s.trips}</td>
@@ -186,12 +186,12 @@ export function AdminFinance() {
       <ErrorBox error={!reject && !pay && !runOpen ? error : null} />
       <div className="card">
         <div className="card-title"><h3>{t("finance.withdrawals")}</h3>
-          <select className="input" style={{ width: 200 }} value={status} onChange={(e) => setStatus(e.target.value)}>
+          <select className="input" style={{ width: 200 }} aria-label={t("common.status")} value={status} onChange={(e) => setStatus(e.target.value)}>
             {["REQUESTED", "APPROVED", "PAID", "REJECTED", ""].map((s) => <option key={s} value={s}>{s ? t(`status.${s}`) : t("common.all")}</option>)}
           </select>
         </div>
         <Loaded state={wds}>{({ withdrawals }) => withdrawals.length === 0 ? <Empty icon="payments" title={t("common.noData")} /> : (
-          <div className="table-wrap"><table className="table">
+          <div className="table-wrap" tabIndex={0}><table className="table">
             <thead><tr><th>{t("common.when")}</th><th>{t("finance.company")}</th><th className="num">{t("common.amount")}</th><th>{t("finance.account")}</th><th>{t("finance.approvals")}</th><th>{t("common.status")}</th><th>{t("common.actions")}</th></tr></thead>
             <tbody>{withdrawals.map((w) => {
               const waitingSecond = w.status === "APPROVED" && w.needs_second && !w.second_approver;
@@ -219,7 +219,7 @@ export function AdminFinance() {
         <div className="card">
           <div className="card-title"><h3>{t("finance.statements")}</h3><button className="btn tonal small" onClick={() => { setRunOpen(true); setError(null); }}><Icon name="add" />{t("finance.draft")}</button></div>
           <Loaded state={sts}>{({ settlements }) => settlements.length === 0 ? <Empty icon="receipt_long" title={t("common.noData")} /> : (
-            <div className="table-wrap"><table className="table">
+            <div className="table-wrap" tabIndex={0}><table className="table">
               <thead><tr><th>{t("finance.company")}</th><th>{t("finance.period")}</th><th className="num">{t("finance.net")}</th><th>{t("common.status")}</th><th /></tr></thead>
               <tbody>{settlements.map((s) => (
                 <tr key={s.uid}><td>{s.company_name}</td><td className="small">{date(`${s.period_from}T12:00:00Z`)} – {date(`${s.period_to}T12:00:00Z`)}</td>

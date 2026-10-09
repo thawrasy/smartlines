@@ -85,7 +85,7 @@ export function TravelRules() {
       <div className="card stack">
         <h3>{t("wf.travel.rules")}</h3>
         <Loaded state={state}>{(s) => s.rules.length === 0 ? <Empty icon="public" title={t("wf.travel.none")} /> : (
-          <div className="table-wrap"><table className="table">
+          <div className="table-wrap" tabIndex={0}><table className="table">
             <thead><tr><th>{t("wf.travel.country")}</th><th>{t("checkout.nationality")}</th><th>{t("wf.travel.docs")}</th><th>{t("wf.travel.period")}</th>
               <th>{t("wf.travel.basis")}</th><th>{t("common.status")}</th><th /></tr></thead>
             <tbody>{s.rules.map((r) => (

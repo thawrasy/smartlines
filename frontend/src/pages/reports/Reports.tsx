@@ -125,7 +125,7 @@ function SavedList({ cat, onOpen, onChanged }: { cat: Catalog; onOpen: (s: Saved
   return (
     <div className="card stack">
       <ErrorBox error={error} />
-      <div className="table-wrap"><table className="table">
+      <div className="table-wrap" tabIndex={0}><table className="table">
         <thead><tr><th>{t("rpt.name")}</th><th>{t("rpt.dataset")}</th><th>{t("rpt.sharing")}</th><th /></tr></thead>
         <tbody>{cat.saved.map((s) => (
           <tr key={s.uid}>
@@ -302,7 +302,7 @@ function ResultTable({ res, title, chart }: { res: RunResult; title: string; cha
           </div>
         )}
         {res.rows.length === 0 ? <Empty icon="summarize" title={t("rpt.empty")} /> : (
-          <div className="table-wrap"><table className="table report-table">
+          <div className="table-wrap" tabIndex={0}><table className="table report-table">
             <thead><tr>{res.columns.map((c) => <th key={c.key} className={numeric(c) ? "num" : ""}>{c.label}</th>)}</tr></thead>
             <tbody>{res.rows.map((r, i) => (
               <tr key={i}>{res.columns.map((c) => <td key={c.key} className={numeric(c) ? "num mono" : c.key.endsWith("_no") || c.key === "booking_ref" ? "mono" : ""}>{cell(c, r[c.key], res.labels)}</td>)}</tr>
@@ -545,7 +545,7 @@ function Schedules({ cat }: { cat: Catalog }) {
     <div className="card stack">
       <ErrorBox error={error} />
       <Loaded state={state}>{(d) => d.schedules.length === 0 ? <Empty icon="schedule_send" title={t("rpt.noSchedules")} hint={t("rpt.noSchedulesHint")} /> : (
-        <div className="table-wrap"><table className="table">
+        <div className="table-wrap" tabIndex={0}><table className="table">
           <thead><tr><th>{t("rpt.report")}</th><th>{t("rpt.frequency")}</th><th>{t("rpt.format")}</th><th>{t("rpt.recipients")}</th><th>{t("rpt.nextRun")}</th><th /></tr></thead>
           <tbody>{d.schedules.map((s) => (
             <tr key={s.uid}>

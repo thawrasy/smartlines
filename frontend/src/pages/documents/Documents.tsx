@@ -61,7 +61,7 @@ export function CompanyDocuments() {
         <button className="btn" onClick={() => { setOpen(true); setError(null); }}><Icon name="add" />{t("documents.upload")}</button>
       </PageHead>
       <Loaded state={state}>{({ documents }) => documents.length === 0 ? <div className="card"><Empty icon="fact_check" title={t("documents.none")} hint={t("documents.noneHint")} /></div> : (
-        <div className="table-wrap"><table className="table">
+        <div className="table-wrap" tabIndex={0}><table className="table">
           <thead><tr><th>{t("documents.type")}</th><th>{t("documents.subject")}</th><th>{t("documents.issuer")}</th><th>{t("documents.expiry")}</th><th>{t("documents.file")}</th><th>{t("common.status")}</th></tr></thead>
           <tbody>{documents.map((d) => (
             <tr key={d.uid}>
@@ -130,13 +130,13 @@ export function AdminDocuments() {
   return (
     <div className="stack">
       <PageHead title={t("documents.review")} sub={t("documents.reviewSub")}>
-        <select className="input" style={{ width: 200 }} value={status} onChange={(e) => setStatus(e.target.value)}>
+        <select className="input" style={{ width: 200 }} aria-label={t("common.status")} value={status} onChange={(e) => setStatus(e.target.value)}>
           {["PENDING", "APPROVED", "REJECTED"].map((s) => <option key={s} value={s}>{t(`status.${s}`)}</option>)}
         </select>
       </PageHead>
       <ErrorBox error={!reject ? error : null} />
       <Loaded state={state}>{({ documents }) => documents.length === 0 ? <div className="card"><Empty icon="fact_check" title={t("common.noData")} /></div> : (
-        <div className="table-wrap"><table className="table">
+        <div className="table-wrap" tabIndex={0}><table className="table">
           <thead><tr><th>{t("finance.company")}</th><th>{t("documents.type")}</th><th>{t("documents.subject")}</th><th>{t("documents.expiry")}</th><th>{t("documents.file")}</th><th>{t("common.status")}</th><th>{t("common.actions")}</th></tr></thead>
           <tbody>{documents.map((d) => (
             <tr key={d.uid}>

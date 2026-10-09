@@ -184,7 +184,7 @@ export default function Support() {
         <Empty icon="support_agent" title={t("support.none")} hint={t("support.noneHint")} />
       ) : (
         <div className="card" style={{ padding: 0 }}>
-          <table className="table">
+          <div className="table-wrap" tabIndex={0} style={{ border: "none" }}><table className="table">
             <thead><tr><th>{t("support.ref")}</th><th>{t("support.subject")}</th><th>{t("support.kindLabel")}</th><th>{t("support.status")}</th><th>{t("support.opened_on")}</th><th /></tr></thead>
             <tbody>
               {list.map((c) => (
@@ -198,7 +198,7 @@ export default function Support() {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         </div>
       )}</Loaded>
       {creating && <NewCase onClose={() => setCreating(false)} created={() => { setCreating(false); cases.reload(); }} />}

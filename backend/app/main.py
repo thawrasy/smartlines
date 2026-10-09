@@ -121,12 +121,12 @@ app.add_middleware(HeadAsGet)          # added last, so it wraps everything else
 # The built web interface (frontend/dist) is served by the same process; unknown paths fall back to
 # index.html so the client-side router can handle them.
 _static = Path(get_settings().static_dir).resolve()
+# top-level paths of the web app (frontend/src/App.tsx; tests/test_api_contract.py keeps the two in step); anything else
+# is a real 404 (no "soft 404" pages for search engines)
+APP_PATHS = {"", "account", "admin", "agency", "booking", "carrier", "driver", "family", "login", "m", "mfa", "pay", "register",
+             "regulator", "search", "security", "services", "support", "track", "trip", "trips", "verify", "wallet"}
 if (_static / "index.html").exists():
     app.mount("/assets", StaticFiles(directory=_static / "assets"), name="assets")
-
-    # top-level paths of the web app; anything else is a real 404 (no "soft 404" pages for search engines)
-    APP_PATHS = {"", "account", "admin", "agency", "booking", "carrier", "driver", "family", "login", "m", "mfa", "pay", "register",
-                 "regulator", "search", "security", "services", "track", "trip", "trips", "verify", "wallet"}
 
     @app.get("/{path:path}", include_in_schema=False)
     async def spa(path: str):

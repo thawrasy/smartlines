@@ -22,7 +22,7 @@ export default function Track() {
     <div className="page narrow stack">
       <PageHead title={t("wf.track.title")} sub={t("wf.track.sub")} />
       <form className="card row nowrap" onSubmit={(e) => { e.preventDefault(); if (q.trim()) nav(`/track/${q.trim().toUpperCase()}`); }}>
-        <input className="ltr mono" style={{ flex: 1 }} value={q} onChange={(e) => setQ(e.target.value)} placeholder="MS0000000000" aria-label={t("wf.track.number")} />
+        <input className="ltr mono" style={{ flex: 1, minWidth: 0 }} value={q} onChange={(e) => setQ(e.target.value)} placeholder="MS0000000000" aria-label={t("wf.track.number")} />
         <button className="btn"><Icon name="search" />{t("wf.track.go")}</button>
       </form>
       {no && state.error ? <div className="card"><Empty icon="package_2" title={t("wf.track.notFound")} /></div> : <ErrorBox error={null} />}

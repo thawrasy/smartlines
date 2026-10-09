@@ -67,7 +67,7 @@ export function AdminCompanies() {
       </PageHead>
       <ErrorBox error={!open && !statusFor ? error : null} />
       <Loaded state={state}>{({ companies }) => companies.length === 0 ? <div className="card"><Empty icon="apartment" title={t("common.noData")} /></div> : (
-        <div className="table-wrap"><table className="table">
+        <div className="table-wrap" tabIndex={0}><table className="table">
           <thead><tr><th>{t("admin.legalName")}</th><th>{t("common.code")}</th><th>{t("admin.vehiclesCount")}</th><th>{t("admin.tripsCount")}</th><th>{t("admin.created")}</th><th>{t("common.status")}</th><th>{t("common.actions")}</th></tr></thead>
           <tbody>{companies.map((c) => (
             <tr key={c.uid}>
@@ -136,7 +136,7 @@ export function AdminStations() {
         {can("station.approve") && <button className="btn" onClick={() => setOpen(true)}><Icon name="add" />{t("admin.newStation")}</button>}
       </PageHead>
       <Loaded state={state}>{({ stations }) => (
-        <div className="table-wrap"><table className="table">
+        <div className="table-wrap" tabIndex={0}><table className="table">
           <thead><tr><th>{t("common.code")}</th><th>{t("common.station")}</th><th>{t("common.city")}</th><th>{t("common.type")}</th><th>{t("admin.lat")}, {t("admin.lng")}</th><th>{t("common.status")}</th></tr></thead>
           <tbody>{stations.map((s) => (
             <tr key={s.uid}><td className="mono small">{s.code}</td><td>{station(s.code, s.name)}</td><td>{city(s.city_code)}</td><td>{s.station_class}</td>
@@ -220,7 +220,7 @@ export function AdminAgencies() {
       </PageHead>
       <ErrorBox error={!mode ? error : null} />
       <Loaded state={state}>{({ agencies }) => agencies.length === 0 ? <div className="card"><Empty icon="store" title={t("common.noData")} /></div> : (
-        <div className="table-wrap"><table className="table">
+        <div className="table-wrap" tabIndex={0}><table className="table">
           <thead><tr><th>{t("admin.legalName")}</th><th className="num">{t("agency.rate")}</th><th className="num">{t("admin.dailyLimit")}</th>
             <th className="num">{t("agency.balance")}</th><th className="num">{t("agency.bookings")}</th><th>{t("common.status")}</th><th>{t("common.actions")}</th></tr></thead>
           <tbody>{agencies.map((a) => (

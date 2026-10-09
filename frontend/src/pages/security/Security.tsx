@@ -69,7 +69,7 @@ export function SecurityRules() {
         {can("security.ip_rules") && <button className="btn" onClick={() => setOpen(true)}><Icon name="add" />{t("security.newRule")}</button>}
       </PageHead>
       <Loaded state={state}>{({ rules }) => rules.length === 0 ? <div className="card"><Empty icon="shield" title={t("common.noData")} /></div> : (
-        <div className="table-wrap"><table className="table">
+        <div className="table-wrap" tabIndex={0}><table className="table">
           <thead><tr><th>{t("security.target_")}</th><th>{t("security.action")}</th><th>{t("security.scope")}</th><th>{t("common.reason")}</th><th>{t("security.source")}</th><th>{t("security.hits")}</th><th>{t("security.expires")}</th><th>{t("common.status")}</th><th /></tr></thead>
           <tbody>{rules.map((r) => (
             <tr key={r.id} style={{ opacity: active(r) ? 1 : .55 }}>
@@ -118,7 +118,7 @@ export function SecurityAuthLog() {
     <div className="stack">
       <PageHead title={t("security.authEvents")}><button className="btn outlined" onClick={state.reload}><Icon name="refresh" />{t("common.refresh")}</button></PageHead>
       <Loaded state={state}>{({ events }) => (
-        <div className="table-wrap"><table className="table">
+        <div className="table-wrap" tabIndex={0}><table className="table">
           <thead><tr><th>{t("common.when")}</th><th>{t("security.event")}</th><th>{t("common.result")}</th><th>{t("common.user")}</th><th>{t("common.portal")}</th><th>{t("common.ip")}</th><th>{t("common.reason")}</th></tr></thead>
           <tbody>{events.map((e, i) => (
             <tr key={i}><td className="small">{dateTime(e.ts)}</td><td className="mono small">{e.event}</td><td><Status value={e.result} /></td>
@@ -139,7 +139,7 @@ export function SecurityActivity() {
       <PageHead title={t("security.activity")}><button className="btn outlined" onClick={state.reload}><Icon name="refresh" />{t("common.refresh")}</button></PageHead>
       <ErrorBox error={state.error} />
       <Loaded state={state}>{({ activity }) => (
-        <div className="table-wrap"><table className="table">
+        <div className="table-wrap" tabIndex={0}><table className="table">
           <thead><tr><th>{t("common.when")}</th><th>{t("common.actions")}</th><th>{t("security.endpoint")}</th><th>{t("common.result")}</th><th>{t("common.user")}</th><th>{t("common.ip")}</th><th className="num">{t("security.latency")}</th></tr></thead>
           <tbody>{activity.map((a, i) => (
             <tr key={i}><td className="small">{dateTime(a.ts)}</td><td className="mono small">{a.action}</td>

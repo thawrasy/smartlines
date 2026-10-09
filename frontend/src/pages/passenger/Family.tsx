@@ -175,7 +175,7 @@ function HeadView({ f, reload }: { f: FamilyView; reload: () => void }) {
       <div className="card stack">
         <div className="card-title"><h3>{t("family.members")}</h3>
           <button className="btn" onClick={() => setAdding(true)}><Icon name="group_add" />{t("family.addMember")}</button></div>
-        <div className="table-wrap">
+        <div className="table-wrap" tabIndex={0}>
           <table className="table">
             <thead><tr><th>{t("family.member")}</th><th>{t("family.relation")}</th><th>{t("family.age")}</th><th>{t("family.accountCol")}</th>
               <th>{t("family.fundingCol")}</th><th /></tr></thead>
@@ -212,7 +212,7 @@ function HeadView({ f, reload }: { f: FamilyView; reload: () => void }) {
       <div className="card stack">
         <h3>{t("family.spendTitle")}</h3>
         {(spend.data?.spend ?? []).length === 0 ? <p className="muted">{t("family.noSpend")}</p> : (
-          <div className="table-wrap"><table className="table">
+          <div className="table-wrap" tabIndex={0}><table className="table">
             <thead><tr><th>{t("common.date")}</th><th>{t("family.member")}</th><th>{t("family.paidFrom")}</th><th>{t("family.for")}</th><th>{t("common.amount")}</th></tr></thead>
             <tbody>{spend.data!.spend.map((s, i) => (
               <tr key={i}><td className="small">{dateTime(s.created_at)}</td><td>{s.first_name} {s.last_name}</td>

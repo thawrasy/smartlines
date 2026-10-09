@@ -258,7 +258,7 @@ export function ResourceTable({ res, fixed, title, sub, extra }: { res: string; 
       {rows.error ? <ErrorBox error={rows.error} /> : !rows.data ? <Spinner /> : rows.data.rows.length === 0 ? (
         <Empty icon="inventory_2" title={t("common.empty")} />
       ) : (
-        <div className="table-wrap">
+        <div className="table-wrap" tabIndex={0}>
           <table className="table">
             <thead><tr>{cols.map((c) => <th key={c.name}>{L.field(c.name)}</th>)}</tr></thead>
             <tbody>

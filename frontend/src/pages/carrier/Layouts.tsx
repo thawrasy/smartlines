@@ -165,7 +165,7 @@ export function CarrierLayouts() {
       </PageHead>
       <ErrorBox error={error} />
       <Loaded state={state}>{({ layouts }) => layouts.length === 0 ? <div className="card"><Empty icon="event_seat" title={t("layout.none")} hint={t("layout.noneHint")} /></div> : (
-        <div className="table-wrap"><table className="table">
+        <div className="table-wrap" tabIndex={0}><table className="table">
           <thead><tr><th>{t("layout.name")}</th><th className="num">{t("layout.seats")}</th><th>{t("layout.perRow")}</th><th className="num">{t("layout.vehicles")}</th><th>{t("common.actions")}</th></tr></thead>
           <tbody>{layouts.map((l) => (
             <tr key={l.uid}>

@@ -78,7 +78,7 @@ export function AccountPage() {
           <div className="card">
             <div className="card-title"><h3>{t("account.sessions")}</h3>
               {s.sessions.length > 1 && <button className="btn tonal small" disabled={busy} onClick={() => run(() => api.post("/api/account/sessions/revoke-others"), t("account.signedOut"))}>{t("account.signOutOthers")}</button>}</div>
-            <div className="table-wrap"><table className="table">
+            <div className="table-wrap" tabIndex={0}><table className="table">
               <thead><tr><th>{t("account.device")}</th><th>{t("common.portal")}</th><th>{t("common.ip")}</th><th>{t("account.lastSeen")}</th><th /></tr></thead>
               <tbody>{s.sessions.map((x) => (
                 <tr key={x.id}><td>{device(x.user_agent)}{x.current && <span className="chip green" style={{ marginInlineStart: 8 }}>{t("account.thisDevice")}</span>}</td>
@@ -89,7 +89,7 @@ export function AccountPage() {
           </div>
           <div className="card">
             <h3>{t("account.history")}</h3>
-            <div className="table-wrap"><table className="table">
+            <div className="table-wrap" tabIndex={0}><table className="table">
               <thead><tr><th>{t("common.when")}</th><th>{t("common.type")}</th><th>{t("common.ip")}</th><th>{t("common.result")}</th></tr></thead>
               <tbody>{s.events.map((e, i) => (
                 <tr key={i}><td className="small">{dateTime(e.ts)}</td><td>{t(`account.events.${e.event}`)}</td><td className="ltr mono small">{e.ip ?? "—"}</td><td><Status value={e.result} /></td></tr>
@@ -116,7 +116,7 @@ export function AccountPage() {
             <Icon name="delete" />{t(openErasure ? "account.erasurePending" : "account.erase")}</button>}
         </div>
         <Loaded state={reqs}>{({ requests }) => requests.length === 0 ? null : (
-          <div className="table-wrap"><table className="table">
+          <div className="table-wrap" tabIndex={0}><table className="table">
             <thead><tr><th>{t("common.type")}</th><th>{t("common.when")}</th><th>{t("account.due")}</th><th>{t("common.status")}</th></tr></thead>
             <tbody>{requests.map((r) => (
               <tr key={r.uid}><td>{t(`account.kinds.${r.kind}`)}</td><td className="small">{dateTime(r.created_at)}</td><td className="small">{dateTime(r.due_at)}</td><td><Status value={r.status} /></td></tr>
@@ -154,7 +154,7 @@ export function AdminPrivacy() {
       <PageHead title={t("account.privacyRequests")} sub={t("account.privacyRequestsSub")} />
       <ErrorBox error={error} />
       <Loaded state={state}>{({ requests }) => requests.length === 0 ? <div className="card"><Empty icon="privacy_tip" title={t("common.noData")} /></div> : (
-        <div className="table-wrap"><table className="table">
+        <div className="table-wrap" tabIndex={0}><table className="table">
           <thead><tr><th>{t("common.name")}</th><th>{t("common.type")}</th><th>{t("common.reason")}</th><th>{t("account.due")}</th><th>{t("common.status")}</th><th /></tr></thead>
           <tbody>{requests.map((r) => (
             <tr key={r.uid}><td>{r.legal_name}<div className="small muted ltr">{r.email}</div></td><td>{t(`account.kinds.${r.kind}`)}</td>

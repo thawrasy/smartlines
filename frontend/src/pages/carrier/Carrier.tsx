@@ -58,7 +58,7 @@ export function CarrierDashboard() {
             <div className="card">
               <div className="card-title"><h3>{t("carrier.upcoming")}</h3><Link to="/carrier/trips">{t("carrier.trips")}</Link></div>
               {d.trips.length === 0 ? <Empty title={t("common.noData")} /> : (
-                <div className="table-wrap"><table className="table">
+                <div className="table-wrap" tabIndex={0}><table className="table">
                   <thead><tr><th>{t("booking.tripNo")}</th><th>{t("booking.departs")}</th><th>{t("carrier.route")}</th><th>{t("carrier.sold")}</th><th>{t("common.status")}</th></tr></thead>
                   <tbody>{d.trips.map((x) => (
                     <tr key={x.uid}>
@@ -157,7 +157,7 @@ function ManifestModal({ uid, onClose }: { uid: string; onClose: () => void }) {
         <div className="stack">
           <div className="row between"><span className="chip outline mono">{m.trip_no}</span><span className="small muted">{t("carrier.exportHint")}</span></div>
           {m.passengers.length === 0 ? <Empty icon="group" title={t("common.noData")} /> : (
-            <div className="table-wrap"><table className="table">
+            <div className="table-wrap" tabIndex={0}><table className="table">
               <thead><tr><th>{t("common.seat")}</th><th>{t("common.passenger")}</th><th>{t("pax.category")}</th><th>{t("checkout.nationality")}</th><th>{t("carrier.idDoc")}</th><th>{t("common.from")}</th><th>{t("common.to")}</th><th>{t("booking.ref")}</th><th>{t("common.status")}</th></tr></thead>
               <tbody>{m.passengers.map((p) => (
                 <tr key={p.ticket_no}>
@@ -210,7 +210,7 @@ function IssuedManifests({ uid }: { uid: string }) {
       <p className="small muted">{t("manifest.hint")}</p>
       <ErrorBox error={error} />
       {!any ? <p className="muted">{t("manifest.none")}</p> : (
-        <div className="table-wrap"><table className="table">
+        <div className="table-wrap" tabIndex={0}><table className="table">
           <thead><tr><th>{t("manifest.version")}</th><th>{t("manifest.type")}</th><th>{t("manifest.persons")}</th><th>{t("manifest.issuedAt")}</th>
             <th>{t("common.status")}</th><th>{t("manifest.deliveries")}</th><th /></tr></thead>
           <tbody>{state.data.manifests.map((m) => (
@@ -249,7 +249,7 @@ export function CarrierTrips() {
       </PageHead>
       <ErrorBox error={error} />
       <Loaded state={state}>{({ trips }) => trips.length === 0 ? <div className="card"><Empty icon="directions_bus" title={t("common.noData")} /></div> : (
-        <div className="table-wrap"><table className="table">
+        <div className="table-wrap" tabIndex={0}><table className="table">
           <thead><tr><th>{t("booking.tripNo")}</th><th>{t("booking.departs")}</th><th>{t("carrier.route")}</th><th>{t("carrier.plate")}</th><th>{t("carrier.driver")}</th><th>{t("carrier.sold")}</th><th>{t("common.status")}</th><th>{t("common.actions")}</th></tr></thead>
           <tbody>{trips.map((x) => (
             <tr key={x.uid}>
@@ -363,7 +363,7 @@ export function CarrierVehicles() {
     <div className="stack">
       <PageHead title={t("carrier.vehicles")}><button className="btn" onClick={() => setOpen(true)}><Icon name="add" />{t("carrier.newVehicle")}</button></PageHead>
       <Loaded state={state}>{({ vehicles }) => vehicles.length === 0 ? <div className="card"><Empty icon="directions_car" title={t("common.noData")} /></div> : (
-        <div className="table-wrap"><table className="table">
+        <div className="table-wrap" tabIndex={0}><table className="table">
           <thead><tr><th>{t("carrier.plate")}</th><th>{t("carrier.vtype")}</th><th>{t("carrier.make")}</th><th>{t("carrier.year")}</th><th>{t("carrier.seatsCount")}</th><th>{t("layout.layout")}</th><th>{t("carrier.nextExpiry")}</th><th>{t("common.status")}</th><th>{t("common.actions")}</th></tr></thead>
           <tbody>{vehicles.map((v) => (
             <tr key={v.uid}>
@@ -518,7 +518,7 @@ export function CarrierCrew() {
     <div className="stack">
       <PageHead title={t("carrier.crew")}><button className="btn" onClick={() => setOpen(true)}><Icon name="person_add" />{t("carrier.newDriver")}</button></PageHead>
       <Loaded state={state}>{({ crew }) => crew.length === 0 ? <div className="card"><Empty icon="badge" title={t("common.noData")} /></div> : (
-        <div className="table-wrap"><table className="table">
+        <div className="table-wrap" tabIndex={0}><table className="table">
           <thead><tr><th>{t("common.name")}</th><th>{t("common.email")}</th><th>{t("carrier.licenseClass")}</th><th>{t("common.status")}</th></tr></thead>
           <tbody>{crew.map((c) => (
             <tr key={c.uid}><td>{c.full_name}</td><td className="ltr small">{c.email}</td><td>{c.license_class}</td><td><Status value={c.status} /></td></tr>

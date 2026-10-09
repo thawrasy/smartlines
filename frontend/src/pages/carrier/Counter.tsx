@@ -30,7 +30,7 @@ function CounterBookings({ rows }: { rows: CounterBooking[] }) {
   const { t, money, dateTime, city } = useI18n();
   if (rows.length === 0) return <Empty icon="confirmation_number" title={t("common.noData")} />;
   return (
-    <div className="table-wrap"><table className="table">
+    <div className="table-wrap" tabIndex={0}><table className="table">
       <thead><tr><th>{t("agency.ref")}</th><th>{t("agency.journey")}</th><th>{t("common.passengers")}</th><th>{t("counter.paidWith")}</th>
         <th>{t("agency.contact")}</th><th className="num">{t("common.total")}</th><th>{t("common.status")}</th></tr></thead>
       <tbody>{rows.map((b) => (
@@ -131,7 +131,7 @@ export function CounterReport() {
           </div>
           <div className="card">
             {r.by_seller.length === 0 ? <Empty icon="receipt_long" title={t("common.noData")} /> : (
-              <div className="table-wrap"><table className="table">
+              <div className="table-wrap" tabIndex={0}><table className="table">
                 <thead><tr><th>{t("counter.seller")}</th><th className="num">{t("counter.sales")}</th><th className="num">{t("counter.cashIn")}</th>
                   <th className="num">{t("counter.refunds")}</th><th className="num">{t("counter.net")}</th></tr></thead>
                 <tbody>{r.by_seller.map((s) => (

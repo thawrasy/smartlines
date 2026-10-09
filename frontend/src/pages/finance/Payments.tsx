@@ -45,7 +45,7 @@ function Providers() {
   return (
     <div className="card stack">
       <Loaded state={state}>{(d) => (
-        <div className="table-wrap"><table className="table">
+        <div className="table-wrap" tabIndex={0}><table className="table">
           <thead><tr><th>{t("pay.method")}</th><th>{t("pay.limitsCol")}</th><th>{t("pay.fee")}</th><th>{t("pay.connection")}</th><th>{t("common.status")}</th><th /></tr></thead>
           <tbody>{d.providers.map((p) => (
             <tr key={p.code}>
@@ -142,7 +142,7 @@ function BankStatements() {
           </div>
         </div>
         <Loaded state={state}>{(d) => d.lines.length === 0 ? <Empty icon="account_balance" title={t("pay.noLines")} /> : (
-          <div className="table-wrap"><table className="table">
+          <div className="table-wrap" tabIndex={0}><table className="table">
             <thead><tr><th>{t("pay.date")}</th><th className="num">{t("pay.amount")}</th><th>{t("pay.description")}</th><th>{t("pay.payer")}</th><th>{t("pay.bankRef")}</th><th>{t("pay.result")}</th><th /></tr></thead>
             <tbody>{d.lines.map((l) => (
               <tr key={l.id}>
@@ -165,7 +165,7 @@ function BankStatements() {
         <div className="card stack">
           <h3 style={{ margin: 0 }}>{t("pay.awaiting", { n: d.awaiting.length })}</h3>
           {d.awaiting.length === 0 ? <Empty icon="schedule" title={t("pay.noAwaiting")} /> : (
-            <div className="table-wrap"><table className="table">
+            <div className="table-wrap" tabIndex={0}><table className="table">
               <thead><tr><th>{t("pay.reference")}</th><th className="num">{t("pay.amount")}</th><th>{t("pay.payer")}</th><th>{t("pay.validUntil")}</th></tr></thead>
               <tbody>{d.awaiting.map((a) => <tr key={a.virtual_ref}><td className="mono ltr">{a.virtual_ref}</td><td className="num mono">{money(a.amount)}</td><td>{a.payer}</td><td className="small">{a.expires_at ? dateTime(a.expires_at) : ""}</td></tr>)}</tbody>
             </table></div>
@@ -203,7 +203,7 @@ function RecentPayments() {
   return (
     <div className="card stack">
       <Loaded state={state}>{(d) => d.payments.length === 0 ? <Empty icon="payments" title={t("common.noData")} /> : (
-        <div className="table-wrap"><table className="table">
+        <div className="table-wrap" tabIndex={0}><table className="table">
           <thead><tr><th>{t("common.when")}</th><th>{t("pay.payer")}</th><th>{t("pay.method")}</th><th className="num">{t("pay.amount")}</th><th>{t("common.status")}</th><th>{t("pay.providerRef")}</th><th /></tr></thead>
           <tbody>{d.payments.map((p) => (
             <tr key={p.uid}>
@@ -273,7 +273,7 @@ export function AgencyTopup() {
       <div className="card stack">
         <h3 style={{ margin: 0 }}>{t("pay.agencyRecent")}</h3>
         <Loaded state={list}>{(d) => d.topups.length === 0 ? <Empty icon="receipt_long" title={t("common.noData")} /> : (
-          <div className="table-wrap"><table className="table">
+          <div className="table-wrap" tabIndex={0}><table className="table">
             <thead><tr><th>{t("common.when")}</th><th>{t("pay.receipt")}</th><th>{t("pay.mobile")}</th><th className="num">{t("pay.amount")}</th></tr></thead>
             <tbody>{d.topups.map((x) => <tr key={x.uid}><td className="small">{dateTime(x.created_at)}</td><td className="mono">{x.receipt}</td><td className="ltr small">{x.mobile}</td><td className="num mono">{money(x.amount)}</td></tr>)}</tbody>
           </table></div>
@@ -300,7 +300,7 @@ function PaymentOptions() {
     <div className="card stack">
       <p className="small muted" style={{ margin: 0 }}><Icon name="shield" size={16} /> {t("cashdesk.methodsHint")}</p>
       <Loaded state={state}>{(d) => (
-        <div className="table-wrap"><table className="table">
+        <div className="table-wrap" tabIndex={0}><table className="table">
           <thead><tr><th>{t("cashdesk.methods")}</th><th>{t("cashdesk.channels")}</th><th>{t("pay.limitsCol")}</th><th>{t("cashdesk.providers")}</th>
             <th>{t("common.status")}</th><th /></tr></thead>
           <tbody>{d.methods.map((m) => (
@@ -416,7 +416,7 @@ function CounterCash() {
               <Stat icon="warning" label={t("cashdesk.atLimit")} value={positions.filter((p) => p.owed >= p.limit_amount && p.limit_amount > 0).length} tone="red" />
             </div>
             {positions.length === 0 ? <Empty icon="point_of_sale" title={t("common.noData")} /> : (
-              <div className="table-wrap"><table className="table">
+              <div className="table-wrap" tabIndex={0}><table className="table">
                 <thead><tr><th>{t("cashdesk.carrier")}</th><th className="num">{t("cashdesk.owed")}</th>
                   <th className="num">{t("cashdesk.overdue")}</th><th>{t("cashdesk.oldest")}</th><th className="num">{t("cashdesk.limit")}</th>
                   <th className="num">{t("cashdesk.pending")}</th><th>{t("cashdesk.lastRemitted")}</th><th /></tr></thead>
@@ -446,7 +446,7 @@ function CounterCash() {
       <div className="card stack">
         <h3>{t("cashdesk.remittances")}</h3>
         <Loaded state={rem}>{({ remittances }) => remittances.length === 0 ? <Empty icon="savings" title={t("common.noData")} /> : (
-          <div className="table-wrap"><table className="table">
+          <div className="table-wrap" tabIndex={0}><table className="table">
             <thead><tr><th>{t("common.date")}</th><th>{t("cashdesk.carrier")}</th><th className="num">{t("cashdesk.amount")}</th><th>{t("cashdesk.how")}</th>
               <th>{t("cashdesk.recordedBy")}</th><th>{t("common.status")}</th><th /></tr></thead>
             <tbody>{remittances.map((r) => (

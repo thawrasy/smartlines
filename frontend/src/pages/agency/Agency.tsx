@@ -26,7 +26,7 @@ function BookingsTable({ rows }: { rows: AgencyBooking[] }) {
   const { t, money, dateTime, city } = useI18n();
   if (rows.length === 0) return <Empty icon="confirmation_number" title={t("common.noData")} />;
   return (
-    <div className="table-wrap"><table className="table">
+    <div className="table-wrap" tabIndex={0}><table className="table">
       <thead><tr><th>{t("agency.ref")}</th><th>{t("agency.journey")}</th><th>{t("common.passengers")}</th><th>{t("agency.contact")}</th>
         <th>{t("agency.soldBy")}</th><th className="num">{t("common.total")}</th><th className="num">{t("agency.commission")}</th><th>{t("common.status")}</th></tr></thead>
       <tbody>{rows.map((b) => (
@@ -122,7 +122,7 @@ export function AgencyStatement() {
   return (
     <div className="stack">
       <PageHead title={t("agency.statement")}>
-        <input className="input ltr" type="month" value={month} onChange={(e) => e.target.value && setMonth(e.target.value)} style={{ width: 180 }} />
+        <input className="input ltr" type="month" aria-label={t("rpt.period")} value={month} onChange={(e) => e.target.value && setMonth(e.target.value)} style={{ width: 180 }} />
         <button className="btn outlined" onClick={() => print()}><Icon name="download" />{t("common.print")}</button>
       </PageHead>
       <Loaded state={state}>{(s) => (
@@ -136,7 +136,7 @@ export function AgencyStatement() {
             <div className="card">
               <div className="card-title"><h3>{t("agency.movements")}</h3><span className="muted">{t("agency.closing")}: <strong>{money(s.closing_balance)}</strong></span></div>
               {s.entries.length === 0 ? <Empty title={t("common.noData")} /> : (
-                <div className="table-wrap"><table className="table">
+                <div className="table-wrap" tabIndex={0}><table className="table">
                   <thead><tr><th>{t("common.when")}</th><th>{t("common.type")}</th><th>{t("agency.ref")}</th><th className="num">{t("common.amount")}</th><th className="num">{t("common.balance")}</th></tr></thead>
                   <tbody>{s.entries.map((e, i) => (
                     <tr key={i}>
@@ -191,7 +191,7 @@ export function AgencyStaff() {
         {can("company.staff") && <button className="btn" onClick={() => setOpen(true)}><Icon name="person_add" />{t("agency.addStaff")}</button>}
       </PageHead>
       <Loaded state={state}>{({ staff }) => (
-        <div className="table-wrap"><table className="table">
+        <div className="table-wrap" tabIndex={0}><table className="table">
           <thead><tr><th>{t("common.name")}</th><th>{t("common.email")}</th><th>{t("agency.role")}</th><th>{t("agency.twoStep")}</th><th>{t("agency.lastLogin")}</th><th>{t("common.status")}</th></tr></thead>
           <tbody>{staff.map((s) => (
             <tr key={s.uid}>

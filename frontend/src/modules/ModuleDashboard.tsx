@@ -125,7 +125,7 @@ function RecentCard({ data, onOpen }: { data: Recent; onOpen: (res: string) => v
         <button className="btn text small" onClick={() => onOpen(data.res)}>{t("dash.all", { n: data.total })}</button>
       </div>
       {data.rows.length === 0 ? <p className="muted small">{t("common.empty")}</p> : (
-        <div className="table-wrap">
+        <div className="table-wrap" tabIndex={0}>
           <table className="table">
             <thead><tr>{data.columns.map((c) => <th key={c.name}>{L.field(c.name)}</th>)}</tr></thead>
             <tbody>{data.rows.map((r, i) => <tr key={i}>{data.columns.map((c) => <td key={c.name}>{cell(c, r)}</td>)}</tr>)}</tbody>

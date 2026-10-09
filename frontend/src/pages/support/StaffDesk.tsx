@@ -24,7 +24,7 @@ export function ClaimsToPay() {
     <section className="card stack">
       <h3 style={{ margin: 0 }}><Icon name="support_agent" /> {t("support.claimsTitle")}</h3>
       <Loaded state={state}>{({ claims }) => claims.length === 0 ? <Empty icon="check_circle" title={t("support.noClaims")} /> : (
-        <div className="table-wrap"><table className="table">
+        <div className="table-wrap" tabIndex={0}><table className="table">
           <thead><tr><th>{t("support.ref")}</th><th>{t("support.subject")}</th><th>{t("support.customer")}</th><th>{t("support.liable")}</th><th className="num">{t("support.approved")}</th><th>{t("support.updated")}</th><th /></tr></thead>
           <tbody>{claims.map((c) => (
             <tr key={c.uid}>
