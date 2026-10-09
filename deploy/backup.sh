@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Nightly backup: database (pg_dump custom format) and the encrypted document store, with SHA-256 checksums.
+# Nightly backup: database (pg_dump custom format) and the encrypted document store when it is the volume
+# (MASSLAK_FILES_BACKEND=local; an object store keeps its own versions), with SHA-256 checksums.
 # Run from cron as root on the server, e.g.:  15 2 * * *  /opt/masslak/deploy/backup.sh >> /var/log/masslak-backup.log 2>&1
 #
 # Identity numbers, MFA secrets and documents are already encrypted with keys that are NOT in the backup. The rest
@@ -29,7 +30,13 @@ seal() {                                   # stdin -> file, encrypted with age w
 umask 077
 mkdir -p "$dir"
 compose exec -T db pg_dump -U "${POSTGRES_USER:-postgres}" -d "${POSTGRES_DB:-masslak}" -Fc | seal "$dir/database.dump"
-compose exec -T app tar -C /data -cz files | seal "$dir/files.tar.gz"
+if [ "${MASSLAK_FILES_BACKEND:-local}" = s3 ]; then
+  # files live in the object store: versioning and replication (or object lock) on the bucket keep them, not this
+  # backup (docs/operations/RUNBOOKS.md, section 24). The note says where they are, for whoever restores.
+  echo "files in s3: ${MASSLAK_FILES_S3_ENDPOINT:-} bucket ${MASSLAK_FILES_S3_BUCKET:-} prefix ${MASSLAK_FILES_S3_PREFIX:-}" > "$dir/FILES_IN_OBJECT_STORE"
+else
+  compose exec -T app tar -C /data -cz files | seal "$dir/files.tar.gz"
+fi
 (cd "$dir" && sha256sum ./* > SHA256SUMS)
 echo "$(date -u +%FT%TZ) backup written to $dir ($(du -sh "$dir" | cut -f1))"
 find "$(dirname "$dir")" -mindepth 1 -maxdepth 1 -type d -mtime +"$keep" -print -exec rm -rf {} +

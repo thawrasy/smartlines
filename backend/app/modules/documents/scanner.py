@@ -137,13 +137,13 @@ async def scan_file(conn: asyncpg.Connection, ctx: db.Context, file_id: int) -> 
             return f["scan_status"] if f else "PENDING"
         fc = await crypto.cipher(conn)
         try:
-            data = storage.get(fc, f["storage_key"], f["enc_key_id"], bytes(f["sha256"]))
+            data = await storage.get(fc, f["storage_key"], f["enc_key_id"], bytes(f["sha256"]))
             verdict = scan(data, f["mime_type"])
         except storage.FileRejected as exc:
             verdict = Verdict("QUARANTINED", "integrity", str(exc)[:200])
-        except Unavailable as exc:
-            # the engine is down, not the file at fault: no attempt is used up, so the file is scanned as soon as the
-            # engine is back, however long the outage (the FilesWaitingForScan alert watches the wait)
+        except (Unavailable, storage.StoreUnavailable) as exc:
+            # the engine or the file store is down, not the file at fault: no attempt is used up, so the file is scanned
+            # as soon as they are back, however long the outage (the FilesWaitingForScan alert watches the wait)
             log.warning("scanner.unavailable file=%s %s", file_id, exc)
             return "PENDING"
         except Exception:

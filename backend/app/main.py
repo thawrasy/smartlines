@@ -11,13 +11,15 @@ from fastapi.staticfiles import StaticFiles
 
 from . import db, logredact, metrics
 from .config import get_settings
-from .errors import ApiError, api_error_handler, db_error_handler, pool_busy_handler, unreachable_handler
+from .errors import (ApiError, api_error_handler, db_error_handler, pool_busy_handler, store_unavailable_handler,
+                     unreachable_handler)
 from .middleware import HeadAsGet, RequestContextMiddleware
 from .modules.agency import api as agency_api
 from .modules.cash import api as cash_api
 from .modules.fleet import api as fleet_api
 from .modules.payouts import api as payouts_api
 from .modules.documents import api as documents_api
+from .modules.documents import storage
 from .modules.notify import api as notify_api
 from .modules.account import api as account_api
 from .modules.reports import api as reports_api
@@ -44,6 +46,7 @@ async def lifespan(_: FastAPI):
     await db.open_pools()
     from . import egress
     egress.require_in_production()        # outbound traffic only through the egress proxy (T3-02)
+    storage.store()                       # a wrong file store setting stops the start, not the first upload
     await db.require_reports_replica()    # reports read the replica, never the booking database (architecture review)
     if not get_settings().sandbox:
         # fail at start, not at the first booking: production needs real keys from KMS or Vault (review 3.12)
@@ -69,6 +72,7 @@ app.add_middleware(RequestContextMiddleware)
 app.add_exception_handler(ApiError, api_error_handler)
 app.add_exception_handler(asyncpg.PostgresError, db_error_handler)
 app.add_exception_handler(db.PoolBusy, pool_busy_handler)      # pool exhausted for longer than db_acquire_timeout
+app.add_exception_handler(storage.StoreUnavailable, store_unavailable_handler)   # the object store for files is down
 # no server reachable, or none of the listed ones is the primary yet (failover, review stage D6)
 app.add_exception_handler(ConnectionError, unreachable_handler)
 app.add_exception_handler(asyncpg.exceptions.TargetServerAttributeNotMatched, unreachable_handler)

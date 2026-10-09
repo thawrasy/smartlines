@@ -105,7 +105,8 @@ services:
       MASSLAK_TRUSTED_PROXIES: 172.30.0.0/24
       # canonical links, sitemap and share cards of the public pages
       MASSLAK_PUBLIC_URL: https://${MASSLAK_DOMAIN:-localhost}
-      # Uploaded documents, stored AES-256-GCM encrypted
+      # Uploaded documents, stored AES-256-GCM encrypted: on this volume, or in an S3-compatible object store when
+      # deploy/.env sets MASSLAK_FILES_BACKEND=s3 (see deploy/.env.example)
       MASSLAK_FILES_DIR: /data/files
       # every outbound call (payment providers, SMS, webhooks) goes through the egress proxy
       MASSLAK_EGRESS_PROXY: http://egress:3128

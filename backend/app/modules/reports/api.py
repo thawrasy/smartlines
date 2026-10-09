@@ -451,7 +451,7 @@ async def download_delivery(token: str, request: Request, pr: Principal = Depend
                    VALUES ($1, $2, $3::inet, 'report_delivery', $4, ARRAY['report'], 'scheduled report download', $5)""",
                 pr.user_id, d["company_id"], ctx.ip, d["id"], ctx.request_id)
             fc = await crypto.cipher(conn)
-    data = storage.get(fc, d["storage_key"], d["enc_key_id"], bytes(d["sha256"]))
+    data = await storage.get(fc, d["storage_key"], d["enc_key_id"], bytes(d["sha256"]))
     request.state.audit = {"action": "report.delivery.download", "object_type": "report_delivery", "object_id": d["id"]}
     return Response(content=data, media_type=d["mime_type"],
                     headers={"Content-Disposition": f'attachment; filename="{d["file_name"]}"', "Cache-Control": "no-store",

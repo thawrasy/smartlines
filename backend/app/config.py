@@ -40,8 +40,23 @@ class Settings(BaseSettings):
     support_hours: str = ""
     # Sandbox mode enables the simulated payment gateway; never enable in production
     sandbox: bool = False
-    # Encrypted file store for uploaded documents (a mounted volume; an object store adapter replaces it later)
+    # Encrypted file store for uploaded documents and generated reports (app/modules/documents/storage.py): "local", a
+    # mounted volume (files_dir), or "s3", an S3-compatible object store with server-side encryption, shared by every
+    # API server (code review of October 2026). python -m app.tools.files_move copies a volume into the object store.
+    files_backend: str = "local"
     files_dir: str = "../data/files"
+    files_s3_endpoint: str = ""           # https://s3.eu-central-1.amazonaws.com, https://minio.internal:9000, ...
+    files_s3_bucket: str = ""
+    files_s3_region: str = "us-east-1"
+    files_s3_prefix: str = ""             # optional folder inside the bucket
+    files_s3_access_key: str = ""
+    files_s3_secret_key: str = ""
+    files_s3_secret_key_file: str = ""    # or the secret in a file (a Docker secret), never in the image
+    files_s3_sse: str = "AES256"          # server-side encryption asked for on every write: AES256 or aws:kms
+    files_s3_kms_key_id: str = ""         # with aws:kms, the key (empty: the bucket's default key)
+    files_s3_path_style: bool = True      # bucket in the path (MinIO, SeaweedFS, most stores); false: in the host name
+    files_s3_via_proxy: bool = False      # true for a cloud store: through the egress proxy, its domain allowlisted
+    files_s3_timeout: float = 15.0
     max_upload_bytes: int = 4 * 1024 * 1024
     platform_fee: int = 100000            # flat platform fee per booking, minor units (SYP 1,000.00)
     qr_window_seconds: int = 90

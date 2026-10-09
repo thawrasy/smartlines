@@ -53,7 +53,7 @@ async def upload(conn: asyncpg.Connection, ctx: db.Context, pr: Principal, doc_t
     async with db.system_scope(conn, ctx):
         fc = await crypto.cipher(conn)
     try:
-        stored = storage.put(fc, data)
+        stored = await storage.put(fc, data)
     except storage.FileRejected as e:
         raise _rejected(e)
     safe_name = "".join(ch for ch in file_name if ch.isalnum() or ch in "._- ")[:120] or "document"
@@ -96,7 +96,7 @@ async def read_file(conn: asyncpg.Connection, ctx: db.Context, pr: Principal, do
                    VALUES ($1, $2, $3::inet, 'document', $4, ARRAY['file'], $5, $6)""",
                 pr.user_id, d["company_id"], ctx.ip, d["id"], purpose, ctx.request_id)
     try:
-        return storage.get(fc, d["storage_key"], d["enc_key_id"], bytes(d["sha256"])), d["mime_type"], d["file_name"]
+        return await storage.get(fc, d["storage_key"], d["enc_key_id"], bytes(d["sha256"])), d["mime_type"], d["file_name"]
     except storage.FileRejected as e:
         raise ApiError(500, "FILE_TAMPERED", str(e))
 

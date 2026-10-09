@@ -567,6 +567,38 @@ Design and measured times: [HIGH_AVAILABILITY.md](HIGH_AVAILABILITY.md). Configu
   the primary>" [--promote ...] --api https://<site>/api/ready --json evidence.json` on staging; it fails when writing
   is not back within 60 s or an acknowledged write is lost with a synchronous standby.
 
+## 24. Files in an S3-compatible object store (code review of October 2026, 3.2)
+
+Documents and generated reports are encrypted by the platform (AES-256-GCM, the storage key as associated data) and
+written either to the `files` volume (`MASSLAK_FILES_BACKEND=local`) or to an S3-compatible object store
+(`MASSLAK_FILES_BACKEND=s3`). A volume belongs to one server: as soon as the API runs on two servers, files go to the
+object store. Every write asks the store for server-side encryption (`MASSLAK_FILES_S3_SSE`, `AES256` or `aws:kms`)
+and is removed and refused unless the store confirms it, so a bucket without encryption shows at the first upload.
+
+**The bucket.** A dedicated bucket with versioning on, replication to a second site (or object lock), no public
+access, and server-side encryption enabled. The credentials in `deploy/.env` belong to a user that may only read and
+write objects of that bucket. A store outside the private network is reached through the egress proxy
+(`MASSLAK_FILES_S3_VIA_PROXY=true`): the worker adds its domain to the proxy's allowlist. The nightly backup no longer
+copies the files once they are in the store (it writes `FILES_IN_OBJECT_STORE`, naming the bucket); the bucket's
+versions and replica are their backup.
+
+**Moving an installation from the volume to the store**, without stopping it:
+
+1. Fill in the `MASSLAK_FILES_S3_*` settings in `deploy/.env`, leaving `MASSLAK_FILES_BACKEND=local`.
+2. `docker compose run --rm --no-deps app python -m app.tools.files_move copy`: copies every file of the volume that
+   the store does not have yet (they stay encrypted as they are; the store encrypts them again on arrival).
+3. Set `MASSLAK_FILES_BACKEND=s3` and run `deploy/update.sh` (the API and the worker restart on the store).
+4. Run `copy` again: it copies only the files uploaded between steps 2 and 3.
+5. `docker compose run --rm --no-deps app python -m app.tools.files_move verify`: every file the database refers to
+   is in the store and, byte for byte, the one on the volume. Keep the volume until it reports nothing missing and
+   nothing different (exit code 0), then for one more backup cycle.
+
+**When the store is down**, uploads and downloads are answered 503 with `Retry-After` ("the file store did not answer
+in time") and the security scanner leaves files waiting without using up their attempts (alert FilesWaitingForScan);
+bookings, payments and boarding do not depend on it. **When verify reports a file missing**, look for it on the
+volume and in the bucket's earlier versions before anything else; a file that is in neither cannot be recovered, and
+its document is asked for again from the company.
+
 ## Rehearsal schedule
 
 | Procedure | Before launch | After launch |

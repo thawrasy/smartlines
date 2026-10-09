@@ -67,7 +67,7 @@ async def _deliveries(conn, ctx, s, run_id: int, recipients: list[str], name: st
     async with db.system_scope(conn, ctx):
         hours = int(await conn.fetchval("SELECT coalesce((SELECT value::int FROM sys.setting WHERE key = 'reports.link_hours'), 72)"))
         fc = await crypto.cipher(conn)
-        stored = storage.put(fc, data, generated_mime=export.MIME[s["format"]].split(";")[0])
+        stored = await storage.put(fc, data, generated_mime=export.MIME[s["format"]].split(";")[0])
         file_id = await conn.fetchval(
             """INSERT INTO ref.file_object (storage_key, file_name, mime_type, size_bytes, sha256, data_class, enc_key_id, company_id,
                                             scan_status, scanned_at, scan_engine, retain_until)

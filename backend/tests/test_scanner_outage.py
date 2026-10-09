@@ -17,14 +17,18 @@ pytestmark = pytest.mark.skipif(not (OWNER_URL and os.environ.get("MASSLAK_DATAB
                                 reason="needs MASSLAK_OWNER_URL and MASSLAK_DATABASE_URL")
 
 
-def scan_once(monkeypatch, file_id: int, failure: Exception) -> str:
+def scan_once(monkeypatch, file_id: int, failure: Exception, store_down: bool = False) -> str:
     from app import db
     from app.modules.documents import scanner, storage
 
     def failing_scan(data, mime):
         raise failure
 
-    monkeypatch.setattr(storage, "get", lambda *args, **kwargs: b"%PDF-1.4 outage test")
+    async def stored(*args, **kwargs):
+        if store_down:          # the object store for files cannot be reached (code review of October 2026, 3.2)
+            raise storage.StoreUnavailable("FILE_STORE_UNAVAILABLE: GET failed (ConnectionRefusedError)")
+        return b"%PDF-1.4 outage test"
+    monkeypatch.setattr(storage, "get", stored)
     monkeypatch.setattr(scanner, "scan", failing_scan)
 
     async def run() -> str:
@@ -46,6 +50,8 @@ def test_an_outage_uses_no_attempt_and_a_file_that_breaks_the_scan_does(monkeypa
     try:
         for _ in range(scanner.MAX_ATTEMPTS + 2):
             assert scan_once(monkeypatch, file_id, scanner.Unavailable("clamd: connection refused")) == "PENDING"
+        for _ in range(scanner.MAX_ATTEMPTS + 2):         # nor does the file store being down
+            assert scan_once(monkeypatch, file_id, RuntimeError("not reached"), store_down=True) == "PENDING"
         assert owner_sql("SELECT scan_attempts FROM ref.file_object WHERE id = $1", file_id) == 0
         assert owner_sql("SELECT scan_status FROM ref.file_object WHERE id = $1", file_id) == "PENDING"
         # still picked up by the worker once the engine is back

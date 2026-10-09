@@ -1,5 +1,6 @@
 """Documents end to end: type detection from content, size limit, encryption at rest, company isolation, logged
 staff access and platform review."""
+import os
 import uuid
 from datetime import date, timedelta
 from pathlib import Path
@@ -43,7 +44,13 @@ def test_file_is_encrypted_at_rest_and_named_safely(doc):
     row = owner_sql("""SELECT f.storage_key, f.file_name, f.mime_type FROM iam.document d JOIN ref.file_object f ON f.id = d.file_id
                         WHERE d.uid = $1""", uuid.UUID(doc), fetch=True)
     assert row["mime_type"] == "application/pdf" and "/" not in row["file_name"] and ".." not in row["storage_key"]
-    stored = (Path(__file__).resolve().parents[1] / "../data/files" / row["storage_key"]).read_bytes()
+    if os.environ.get("MASSLAK_FILES_BACKEND") == "s3":       # the API runs on the object store (CI, code review 3.2)
+        from app.modules.documents import storage
+        store = storage.s3_from_settings()
+        stored = store.read(row["storage_key"])
+        assert store._request("HEAD", row["storage_key"])[1]["x-amz-server-side-encryption"] == "AES256"
+    else:
+        stored = (Path(__file__).resolve().parents[1] / "../data/files" / row["storage_key"]).read_bytes()
     assert PDF not in stored and b"Masslak test document" not in stored and stored[:1] == b"\x01"
 
 

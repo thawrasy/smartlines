@@ -169,9 +169,54 @@ jobs:
           MASSLAK_TELEMETRY_DATABASE_URL="$MASSLAK_TELEMETRY_TEST_URL" nohup python -m uvicorn app.main:app --port 8078 --timeout-keep-alive 75 > ../api_tel.log 2>&1 &
           for i in $(seq 1 30); do curl -sf localhost:8078/api/health > /dev/null && break; sleep 1; done
           MASSLAK_TEST_URL=http://localhost:8078 python -m pytest tests/test_telemetry.py -q
+      - name: Files in an S3-compatible object store with server-side encryption (code review 3.2), through a third API
+        working-directory: backend
+        env:
+          MASSLAK_FILES_S3_ENDPOINT: http://127.0.0.1:8333
+          MASSLAK_FILES_S3_BUCKET: masslak-files
+          MASSLAK_FILES_S3_ACCESS_KEY: masslak-files
+          MASSLAK_FILES_S3_SECRET_KEY: ci-files-secret-not-for-production
+          MASSLAK_TEST_S3_ENDPOINT: http://127.0.0.1:8333
+          MASSLAK_TEST_S3_SECRET_KEY: ci-files-secret-not-for-production
+        run: |
+          # SeaweedFS stands for the object store: one identity, one bucket, SSE-S3 confirmed on every write
+          printf '%s' '{"identities":[{"name":"masslak","credentials":[{"accessKey":"masslak-files","secretKey":"ci-files-secret-not-for-production"}],"actions":["Read","Write","List","Tagging","Admin"]}]}' > /tmp/s3.json
+          docker run -d --name s3 -p 8333:8333 -v /tmp/s3.json:/etc/s3.json:ro \
+            chrislusf/seaweedfs:4.47@sha256:ce9e796f1fe6f06968f4c04bdaf8f678dad9c8acdfef3d244133d71bfa6bf882 \
+            mini -dir=/data -s3.config=/etc/s3.json -bucket=masslak-files
+          for i in $(seq 1 60); do curl -s -o /dev/null localhost:8333 && break; sleep 1; done
+          python -m app.tools.files_move copy          # the files the first API wrote on its volume
+          MASSLAK_FILES_BACKEND=s3 nohup python -m uvicorn app.main:app --port 8079 --timeout-keep-alive 75 > ../api_s3.log 2>&1 &
+          for i in $(seq 1 30); do curl -sf localhost:8079/api/health > /dev/null && break; sleep 1; done
+          MASSLAK_FILES_BACKEND=s3 MASSLAK_TEST_URL=http://localhost:8079 python -m pytest tests/test_documents.py tests/test_file_store.py -q
+          python -m app.tools.files_move verify        # every file the database refers to is in the store, unchanged
+          # the store down: the API answers busy and serves the file again once the store is back
+          docker stop s3
+          cd tests
+          MASSLAK_TEST_URL=http://localhost:8079 python - <<'EOF'
+          from test_e2e import login
+          c = login("owner@carrier.test", "OPERATOR")
+          doc = c.get("/api/company/documents").json()["documents"][0]["uid"]
+          r = c.get(f"/api/company/documents/{doc}/file")
+          assert r.status_code == 503 and r.headers["retry-after"] and "file store" in r.json()["error"]["message"], r.text
+          EOF
+          docker start s3
+          for i in $(seq 1 60); do curl -s -o /dev/null localhost:8333 && break; sleep 1; done
+          MASSLAK_TEST_URL=http://localhost:8079 python - <<'EOF'
+          import time
+          from test_e2e import login
+          c = login("owner@carrier.test", "OPERATOR")
+          doc = c.get("/api/company/documents").json()["documents"][0]["uid"]
+          for _ in range(30):
+              if c.get(f"/api/company/documents/{doc}/file").status_code == 200:
+                  break
+              time.sleep(1)
+          else:
+              raise SystemExit("the file did not come back with the store")
+          EOF
       - name: API log on failure
         if: failure()
-        run: tail -200 api.log; tail -100 api_tel.log 2>/dev/null || true
+        run: tail -200 api.log; tail -100 api_tel.log 2>/dev/null || true; tail -100 api_s3.log 2>/dev/null || true
 
   web:
     name: Web build

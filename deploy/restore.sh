@@ -19,6 +19,10 @@ compose exec -T db psql -U "$su" -d postgres -v ON_ERROR_STOP=1 -q \
   -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '$db' AND pid <> pg_backend_pid()" \
   -c "DROP DATABASE IF EXISTS \"$db\"" -c "CREATE DATABASE \"$db\""
 open database.dump | compose exec -T db pg_restore -U "$su" -d "$db" --no-owner --exit-on-error
-open files.tar.gz | compose run --rm -T --no-deps --entrypoint "" -u 0 app sh -c 'rm -rf /data/files/* && tar -C /data -xz && chown -R masslak /data/files'
+if [ -f "$src/FILES_IN_OBJECT_STORE" ]; then      # the files were in the object store, which keeps its own versions
+  echo "documents are not in this backup: $(cat "$src/FILES_IN_OBJECT_STORE")"
+else
+  open files.tar.gz | compose run --rm -T --no-deps --entrypoint "" -u 0 app sh -c 'rm -rf /data/files/* && tar -C /data -xz && chown -R masslak /data/files'
+fi
 compose up -d migrate app worker           # migrate re-applies login role passwords and any newer schema files
 echo "restored from $src"

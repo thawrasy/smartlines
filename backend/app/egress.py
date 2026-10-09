@@ -110,6 +110,10 @@ async def write_allowlists(conn, directory: str) -> int:
         domains.add(_domain(r["u"]))
     for env in ("MASSLAK_SMS_URL", "MASSLAK_SMTP_URL"):
         domains.add(_domain(os.environ.get(env)))
+    st = get_settings()
+    if st.files_backend == "s3" and st.files_s3_via_proxy:      # a cloud object store for files
+        host = _domain(st.files_s3_endpoint)
+        domains.add(f"{st.files_s3_bucket}.{host}" if host and not st.files_s3_path_style else host)
     domains.discard(None)
     path = Path(directory)
     path.mkdir(parents=True, exist_ok=True)

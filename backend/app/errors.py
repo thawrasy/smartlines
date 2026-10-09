@@ -41,8 +41,8 @@ _FAILOVER = (asyncpg.exceptions.PostgresConnectionError, asyncpg.exceptions.Oper
              asyncpg.exceptions.ReadOnlySQLTransactionError)
 
 
-def _busy() -> JSONResponse:
-    return JSONResponse({"error": {"code": "SERVICE_BUSY", "message": "the database did not answer in time"}},
+def _busy(what: str = "the database") -> JSONResponse:
+    return JSONResponse({"error": {"code": "SERVICE_BUSY", "message": f"{what} did not answer in time"}},
                         status_code=503, headers={"Retry-After": "2"})
 
 
@@ -50,6 +50,12 @@ async def unreachable_handler(_: Request, exc: Exception) -> JSONResponse:
     """No database server could be reached, or none of the listed ones is the primary (review stage D6)."""
     logging.getLogger("masslak.db").warning("database unreachable: %s", exc)
     return _busy()
+
+
+async def store_unavailable_handler(_: Request, exc: Exception) -> JSONResponse:
+    """The file store (a volume or an S3-compatible object store) could not be reached: busy, repeat the request."""
+    logging.getLogger("masslak.files").warning("file store unavailable: %s", exc)
+    return _busy("the file store")
 
 
 async def pool_busy_handler(_: Request, exc: Exception) -> JSONResponse:
