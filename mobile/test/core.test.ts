@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as ed from "@noble/ed25519";
 import { verifyCredential } from "../src/core/ticketCredential.ts";
-import { decide, reconcile, type OfflinePack, type LocalScan } from "../src/core/offlineBoarding.ts";
+import { clockIsOff, clockOffset, decide, reconcile, serverNow, type OfflinePack, type LocalScan } from "../src/core/offlineBoarding.ts";
 import { SessionManager, type Tokens } from "../src/core/session.ts";
 
 const b64url = (b: Uint8Array) => Buffer.from(b).toString("base64url");
@@ -82,4 +82,22 @@ test("a refused refresh signs the person out", async () => {
   const mgr = new SessionManager(store, async () => ({ status: 401 }));
   assert.equal(await mgr.accessToken(), null);
   assert.equal(store.peek(), null);
+});
+
+test("a phone whose clock is wrong judges credentials by the server's time", () => {
+  // The phone runs a day ahead: by its own clock the credential has expired, by the server's it is valid
+  const deviceNow = Date.now() + 24 * 3600 * 1000;
+  const offset = clockOffset(new Date().toISOString(), deviceNow);
+  assert.ok(Math.abs(offset + 24 * 3600 * 1000) < 2000);
+  const token = issue(secret, claims);
+  assert.deepEqual(verifyCredential(token, pub, deviceNow / 1000), { ok: false, reason: "EXPIRED" });
+  assert.equal(verifyCredential(token, pub, serverNow({ clock_offset_ms: offset }, deviceNow) / 1000).ok, true);
+  assert.equal(clockIsOff({ clock_offset_ms: offset }), true);
+});
+
+test("a small clock difference is tolerated and an unreadable server time is ignored", () => {
+  assert.equal(clockIsOff({ clock_offset_ms: 90 * 1000 }), false);
+  assert.equal(clockIsOff(null), false);
+  assert.equal(clockOffset("not a time", Date.now()), 0);
+  assert.equal(serverNow(null, 1000), 1000);
 });

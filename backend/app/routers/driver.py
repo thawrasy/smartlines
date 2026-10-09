@@ -14,6 +14,7 @@ from ..util import row_dict, ticket_name
 
 router = APIRouter(prefix="/api/driver", tags=["driver"])
 driver = require_portal("DRIVER")
+SCAN_LEAD_HOURS = 24      # an offline scan claimed earlier than this before departure is dated at its upload
 
 
 async def _assigned_trip(conn, pr: Principal, trip_uid: uuid.UUID):
@@ -55,11 +56,12 @@ class ScanIn(BaseModel):
     stop_seq: int = Field(default=0, ge=0)
 
 
-def _ticket_from_token(token: str, trip_uid: uuid.UUID) -> tuple[Optional[str], Optional[str]]:
-    """(ticket uid, early result). Accepts the rotating online code (T1) and the signed offline credential (T2)."""
+def _ticket_from_token(token: str, trip_uid: uuid.UUID, at: Optional[datetime] = None) -> tuple[Optional[str], Optional[str]]:
+    """(ticket uid, early result). Accepts the rotating online code (T1) and the signed offline credential (T2).
+    at: when the code was scanned, for a scan made offline and uploaded later; the credential must have been valid then."""
     token = token.strip()
     if token.startswith("T2."):
-        claims = verify_ticket_credential(token)
+        claims = verify_ticket_credential(token, at.timestamp() if at else None)
         if claims is None:
             return None, "INVALID_QR"
         if claims.get("t") != str(trip_uid):
@@ -162,7 +164,12 @@ async def scans_batch(body: BatchIn, request: Request, pr: Principal = Depends(d
         t = await _assigned_trip(conn, pr, body.trip_uid)
         for sc in sorted(body.scans, key=lambda x: x.scanned_at):
             when = min(sc.scanned_at if sc.scanned_at.tzinfo else sc.scanned_at.replace(tzinfo=timezone.utc), now)
-            ticket_uid, early = _ticket_from_token(sc.token, body.trip_uid)
+            # The credential is checked at the time of the scan, not of the upload: a driver who syncs the next day still
+            # boarded the passenger while the credential was valid. A time more than a day before departure cannot be a
+            # boarding of this trip (the app corrects its clock with the pack), so the upload time is used instead.
+            if when < t["departure_at"] - timedelta(hours=SCAN_LEAD_HOURS):
+                when = now
+            ticket_uid, early = _ticket_from_token(sc.token, body.trip_uid, when)
             out = await _board(conn, pr, t, ticket_uid, early, sc.stop_seq, "OFFLINE_SCAN", sc.scan_id, when)
             out.pop("ticket_id", None)
             results.append({"scan_id": sc.scan_id, **out})

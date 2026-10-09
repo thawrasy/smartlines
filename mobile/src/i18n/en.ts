@@ -45,6 +45,7 @@ const en = {
   driver: {
     today: "Your trips", board: "Boarding", download: "Download for offline", downloaded: "Ready offline · {n} tickets",
     scan: "Point the camera at the ticket code", pending: "{n} scans waiting to sync", synced: "All scans synced",
+    clockOff: "This phone's clock is off by more than 5 minutes. Scans use the server time, but set the clock to automatic.",
     boardedCount: "{n} of {total} boarded", camera: "Allow the camera to scan tickets", allow: "Allow camera",
     results: { OK: "Valid — board", DUPLICATE: "Already boarded", INVALID_QR: "Not a valid ticket",
                WRONG_TRIP: "Ticket for another trip", CANCELLED: "Ticket cancelled", NOT_IN_PACK: "Not in the offline list — check online" },

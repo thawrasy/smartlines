@@ -4,7 +4,7 @@ import { getRandomBytes } from "expo-crypto";
 import { api, ApiError } from "./api";
 import { cacheKey } from "./auth";
 import { getJSON, putJSON } from "./secure";
-import { decide, reconcile, type LocalScan, type OfflinePack, type ScanResult } from "../core/offlineBoarding";
+import { clockOffset, decide, reconcile, serverNow, type LocalScan, type OfflinePack, type ScanResult } from "../core/offlineBoarding";
 import { verifyCredential } from "../core/ticketCredential";
 
 export interface Outcome { result: ScanResult | string; seat?: string; name?: string; offline: boolean }
@@ -12,7 +12,8 @@ export interface Outcome { result: ScanResult | string; seat?: string; name?: st
 const scanId = () => Array.from(getRandomBytes(12), (b) => b.toString(16).padStart(2, "0")).join("");
 
 export async function downloadPack(tripUid: string): Promise<OfflinePack> {
-  const pack = await api.get<OfflinePack>(`/api/driver/trips/${tripUid}/offline`);
+  const fetched = await api.get<OfflinePack>(`/api/driver/trips/${tripUid}/offline`);
+  const pack = { ...fetched, clock_offset_ms: clockOffset(fetched.generated_at, Date.now()) };
   await putJSON(cacheKey.pack(tripUid), pack);
   return pack;
 }
@@ -35,12 +36,14 @@ export async function scan(tripUid: string, token: string): Promise<Outcome> {
   }
   const pack = await loadPack(tripUid);
   if (!pack) return { result: "NOT_IN_PACK", offline: true };
-  const verified = verifyCredential(token, pack.public_key);
+  // judged and dated by the server's time, so a wrong device clock neither refuses a valid ticket nor misdates the scan
+  const now = serverNow(pack);
+  const verified = verifyCredential(token, pack.public_key, now / 1000);
   const d = decide(pack, verified.ok ? { ok: true, claims: verified.claims } : { ok: false }, history);
   // A valid signature for a ticket sold after the pack was made: cannot decide offline.
   const result = verified.ok && !d.ticket && d.result === "INVALID_QR" ? "NOT_IN_PACK" : d.result;
   history.push({ scan_id: scanId(), token, ticket_uid: verified.ok ? verified.claims.k : null, result: d.result,
-                 scanned_at: new Date().toISOString(), synced: false });
+                 scanned_at: new Date(now).toISOString(), synced: false });
   await putJSON(cacheKey.scans(tripUid), history);
   return { result, seat: d.seat, name: d.name, offline: true };
 }

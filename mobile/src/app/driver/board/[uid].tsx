@@ -4,7 +4,8 @@ import { Text, View } from "react-native";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { useI18n } from "../../../i18n";
-import { loadScans, scan, sync, type Outcome } from "../../../platform/boarding";
+import { loadPack, loadScans, scan, sync, type Outcome } from "../../../platform/boarding";
+import { clockIsOff } from "../../../core/offlineBoarding";
 import { Button, ErrorText, Screen, Title, s } from "../../../ui/kit";
 import { color } from "../../../ui/theme";
 
@@ -18,11 +19,15 @@ export default function Board() {
   const [pending, setPending] = useState(0);
   const [error, setError] = useState<unknown>(null);
   const [syncing, setSyncing] = useState(false);
+  const [clockOff, setClockOff] = useState(false);
   const last = useRef<{ data: string; at: number } | null>(null);
   const working = useRef(false);
 
   const refreshPending = useCallback(async () => setPending((await loadScans(uid)).filter((x) => !x.synced).length), [uid]);
-  useFocusEffect(useCallback(() => { void refreshPending(); }, [refreshPending]));
+  useFocusEffect(useCallback(() => {
+    void refreshPending();
+    void loadPack(uid).then((p) => setClockOff(clockIsOff(p)));
+  }, [refreshPending, uid]));
 
   const onCode = async (data: string) => {
     const now = Date.now();
@@ -52,6 +57,7 @@ export default function Board() {
   return (
     <Screen scroll={false}>
       <Title sub={t("driver.scan")}>{t("driver.board")}</Title>
+      {clockOff ? <Text style={{ color: color.amber, fontWeight: "600" }}>{t("driver.clockOff")}</Text> : null}
       <View style={{ height: 320, borderRadius: 20, overflow: "hidden", backgroundColor: "#000" }}>
         <CameraView style={{ flex: 1 }} facing="back" barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
                     onBarcodeScanned={({ data }) => { void onCode(data); }} />
