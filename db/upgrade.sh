@@ -66,6 +66,8 @@ if [ "$tracked" = "t" ]; then
   fi
 fi
 
+# a PostGIS the database image preloaded into public is moved out of the way of 1045 (see the file); no-op once 1045 ran
+psql "$@" -d "$DB" -v ON_ERROR_STOP=1 -q -f "$DIR/postgis_prepare.sql"
 for f in $(schema_files); do
   name="$(basename "$f")"; sha="$(sha256sum "$f" | cut -d' ' -f1)"
   if [ "$tracked" = "f" ] && [ "$((10#${name%%_*}))" -le "$BASELINE" ]; then

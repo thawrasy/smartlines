@@ -14,6 +14,8 @@ DIR="$(cd "$(dirname "$0")" && pwd)"
 # MASSLAK_BUILD_UNTIL=<prefix> stops after that file, to build an older release (migration rehearsals, db/tools)
 schema_files() { ls "$DIR"/schema/[0-9]*_*.sql | awk -F/ -v until="${MASSLAK_BUILD_UNTIL:-999999}" \
                    '{ n = $NF; sub(/_.*/, "", n); if (n + 0 <= until + 0) print n "\t" $0 }' | sort -n | cut -f2-; }
+# a PostGIS the database image preloaded into public is moved out of the way of 1045 (see the file)
+psql "$@" -d "$DB" -v ON_ERROR_STOP=1 -q -f "$DIR/postgis_prepare.sql"
 for f in $(schema_files); do
   echo ">> $(basename "$f")"
   psql "$@" -d "$DB" -v ON_ERROR_STOP=1 -q -f "$f"

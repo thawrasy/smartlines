@@ -48,6 +48,11 @@ anything and names the files: restore them from the release the database was bui
 file. `MASSLAK_SCHEMA_DRIFT=warn` turns this into a warning, for development databases only. CI checks both, and
 checks with `gen_docs.py --check` that the generated documents and figures match a freshly built database.
 
+**PostGIS from the database image.** The `postgis/postgis` image loads PostGIS into the `public` schema of the
+database it creates, while `1045_postgis.sql` keeps it in `gis`. Before any file, `build.sh` and `upgrade.sh` run
+`postgis_prepare.sql`, which removes such a copy as long as 1045 has not run and nothing depends on it, so 1045 installs
+PostGIS in `gis`. Until 9 October 2026 a first start of the Docker stack stopped at 1045 for this reason.
+
 | File | Contents |
 |---|---|
 | `000_init.sql` | Extensions, schemas, roles, request context, helper functions |
