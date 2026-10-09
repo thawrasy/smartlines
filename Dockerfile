@@ -37,4 +37,7 @@ HEALTHCHECK --interval=30s --timeout=5s CMD python -c "import urllib.request; ur
 # Idle connections stay open 75 s, longer than Caddy keeps them (60 s, deploy/Caddyfile): the proxy always closes
 # first, so it never sends a request on a connection the API is closing (uvicorn's default of 5 s let a booking fail
 # with a reset now and then, found by the concurrency tests).
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2", "--no-proxy-headers", "--timeout-keep-alive", "75"]
+# Two worker processes, given as WEB_CONCURRENCY (uvicorn's default for --workers) so the application knows how many
+# processes share the instance's in-memory request limits and metrics (app/ratelimit.py, app/metrics.py).
+ENV WEB_CONCURRENCY=2
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--no-proxy-headers", "--timeout-keep-alive", "75"]

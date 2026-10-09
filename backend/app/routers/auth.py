@@ -7,7 +7,7 @@ from typing import Literal, Optional
 from fastapi import APIRouter, Depends, Request, Response
 from pydantic import BaseModel, EmailStr, Field
 
-from .. import crypto, db, markets, mfa
+from .. import crypto, db, markets, mfa, ratelimit
 from ..config import get_settings
 from ..deps import SESSION_COOKIE, Principal, base_context, mfa_required_for, require_session, require_user
 from ..errors import ApiError
@@ -73,6 +73,9 @@ async def register(body: RegisterIn, request: Request):
         raise ApiError(422, problem, "password does not meet the policy")
     ctx = base_context(request)
     ctx.scope = "SYSTEM"                   # creates the person, the account and the wallet in one step
+    async with db.transaction(ctx) as conn:    # its own transaction, so the token stays taken whatever follows
+        for ident in filter(None, (body.email, body.mobile)):
+            await ratelimit.check_identifier(conn, ident)
     async with db.transaction(ctx) as conn:
         if await _blocked(conn, ("EMAIL", body.email), ("PHONE", body.mobile)):
             raise ApiError(403, "BLOCKED", "registration is not possible with these details; contact support")
@@ -106,6 +109,8 @@ async def login(body: LoginIn, request: Request, response: Response):
     ident = body.identifier.strip()
     ctx = base_context(request)
     ctx.scope = "AUTH"                     # opens accounts, factors and sessions only, not the rest of the platform
+    async with db.transaction(ctx) as conn:    # its own transaction, so the token stays taken whatever follows
+        await ratelimit.check_identifier(conn, ident)
     async with db.transaction(ctx) as conn:
         user = await conn.fetchrow(
             """SELECT id, account_kind, password_hash, status, locked_until, failed_attempts, mfa_required,

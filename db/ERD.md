@@ -3406,6 +3406,10 @@ erDiagram
     bigint company_id FK
     text purpose_code FK
   }
+  sec_rate_bucket {
+    text bucket PK
+    text key PK
+  }
   sec_risk_assessment {
     bigint id PK
     bigint subject_user_id FK

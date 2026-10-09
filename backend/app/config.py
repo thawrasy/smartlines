@@ -44,8 +44,12 @@ class Settings(BaseSettings):
     max_upload_bytes: int = 4 * 1024 * 1024
     platform_fee: int = 100000            # flat platform fee per booking, minor units (SYP 1,000.00)
     qr_window_seconds: int = 90
-    # Requests per minute per client address (token buckets, see ratelimit.py)
-    rate_auth_per_minute: int = 20
+    # Requests per minute (token buckets, see ratelimit.py). Sign-in, registration and password requests share
+    # buckets in the database across every process: one per account identifier (strict) and one per client address
+    # (high, because mobile networks put many subscribers behind one address). The other two are per address and
+    # split evenly between the processes of an instance.
+    rate_auth_per_minute: int = 10
+    rate_auth_ip_per_minute: int = 300
     rate_public_per_minute: int = 240
     rate_api_per_minute: int = 1200
 

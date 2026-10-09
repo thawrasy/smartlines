@@ -131,6 +131,7 @@ jobs:
       MASSLAK_COOKIE_SECURE: "false"
       MASSLAK_SIGNING_SECRET: ci-signing-secret-not-for-production-use
       MASSLAK_RATE_AUTH_PER_MINUTE: "600"
+      MASSLAK_RATE_AUTH_IP_PER_MINUTE: "6000"
       # the whole suite runs from one address faster than any real client; production keeps the defaults (240 / 1200)
       MASSLAK_RATE_PUBLIC_PER_MINUTE: "20000"
       MASSLAK_RATE_API_PER_MINUTE: "20000"

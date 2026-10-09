@@ -2,7 +2,7 @@
 
 > Generated from the built database (`db/tools/gen_docs.py`); do not edit by hand.
 
-**488 tables, 5004 columns, in 26 schemas.**
+**489 tables, 5008 columns, in 26 schemas.**
 
 Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant isolation (RLS) · 🧩 partitioned monthly · 🔒 append-only / change-protected
 
@@ -21,7 +21,7 @@ Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant i
 - [`bill` — Carrier subscriptions, metering and platform invoices](#bill) (7 tables)
 - [`crm` — Complaints, ratings, notifications, the AI assistant and the contact center](#crm) (19 tables)
 - [`gov` — Governance, obligations and data protection](#gov) (14 tables)
-- [`sec` — Security: IP rules, risk, signing, the security hub and government adapters](#sec) (25 tables)
+- [`sec` — Security: IP rules, risk, signing, the security hub and government adapters](#sec) (26 tables)
 - [`ptn` — Service partners: fuel stations, rest stops and maintenance](#ptn) (14 tables)
 - [`ship` — Shipments and the integrated shipping network](#ship) (55 tables)
 - [`frt` — Trucking, heavy transport and transit freight](#frt) (14 tables)
@@ -5813,6 +5813,17 @@ Every decision to read restricted data, with its purpose, reason and policy vers
 | `decision` | `text` | ✱ |  |
 | `rule` | `text` | ✱ |  |
 | `policy_version` | `text` | ✱ |  |
+
+### `sec.rate_bucket` 🛡️
+
+Token buckets of the shared request limits (1068): an address, or a keyed hash of an account identifier, never the identifier itself
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `bucket` | `text` | 🔑 ✱ |  |
+| `key` | `text` | 🔑 ✱ |  |
+| `tokens` | `double precision` | ✱ |  |
+| `updated_at` | `timestamp with time zone` | ✱ | `clock_timestamp()` |
 
 ### `sec.risk_assessment` 🛡️
 

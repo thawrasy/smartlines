@@ -80,17 +80,21 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         scope = portal_scope_for_path(path)
+        bucket = ratelimit.bucket_for(path)
         ctx = db.Context(request_id=request.state.request_id, ip=request.state.client_ip, scope="SYSTEM")
         async with db.transaction(ctx) as conn:
             decision = await conn.fetchrow("SELECT action, rule_id FROM sec.ip_decision($1::inet, $2)",
                                            request.state.client_ip, scope)
+            # sign-in endpoints: the address's bucket is shared by every process (1068), in this same round trip
+            wait = await ratelimit.check_address(conn, request.state.client_ip) if bucket == "auth" else 0.0
         if decision and decision["action"] == "BLOCK":
             await self._log(request, scope, "request.blocked", "BLOCKED", 403, started,
                             reason=f"ip_rule {decision['rule_id']}")
             return JSONResponse({"error": {"code": "IP_BLOCKED", "message": "access from this address is blocked"}},
                                 status_code=403)
 
-        wait = ratelimit.limiter().check(request.state.client_ip, ratelimit.bucket_for(path))
+        if bucket != "auth":
+            wait = ratelimit.limiter().check(request.state.client_ip, bucket)
         if wait:
             await self._log(request, scope, "request.rate_limited", "BLOCKED", 429, started, reason="rate limit")
             return JSONResponse({"error": {"code": "RATE_LIMITED", "message": "too many requests, try again shortly"}},

@@ -14,8 +14,8 @@ supporting index, except references to lookup lists and to the staff member who 
 |---|---|
 | Engine | PostgreSQL 16 with PostGIS 3 (extensions: pgcrypto, citext, btree_gist, pg_trgm, postgis in schema `gis`; Docker and CI image `postgis/postgis:16-3.4`, Ubuntu package `postgresql-16-postgis-3`) |
 | Schemas | 26 separate schemas, each with its own privileges |
-| Tables | 488 tables (8 partitioned), 5,004 columns, 1,402 foreign keys |
-| Security | row-level security on 488 of 488 tables, 910 policies; 424 triggers, 253 functions |
+| Tables | 489 tables (8 partitioned), 5,008 columns, 1,402 foreign keys |
+| Security | row-level security on 489 of 489 tables, 911 policies; 424 triggers, 254 functions |
 | Tests | 439 automated checks against a freshly built database (`db/tests/run.sh`) |
 | Design | [Database design and ERD document](../docs/database/) with diagrams in the study's colors |
 | Docs | [Data dictionary](DATA_DICTIONARY.md) · [ERD diagrams](ERD.md) (both generated from the database) |
@@ -124,6 +124,7 @@ PostGIS in `gis`. Until 9 October 2026 a first start of the Docker stack stopped
 | `1065_failover.sql` | Review stage D: standby figures for automatic failover and the table the failover drill writes to |
 | `1066_position_without_vehicle.sql` | A position without a vehicle is graded again (regression of 1063, found by the launch gate 4 rehearsal) |
 | `1067_cargo_capacity.sql` | Cargo stays within the capacity of the vehicle that carries it: used weight counted from what is loaded, overloads refused (external technical report) |
+| `1068_shared_rate_limits.sql` | Request limits shared by every API process: sign-in buckets per address (sized for carrier-grade NAT) and per account identifier, kept in an unlogged table reached only through `sec.rate_take` (code review, October 2026) |
 
 ## Design rules (study 29.1)
 

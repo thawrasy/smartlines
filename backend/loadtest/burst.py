@@ -20,7 +20,7 @@ means the machine running this script, not the platform, was the limit (run seve
     python -m loadtest.burst --base http://localhost:8000 --owner-dsn postgresql://... --rate 240 --seconds 60 --json out.json
 
 Needs a sandbox build (accounts are funded by sandbox top-ups) with sign-in limits raised for the accounts it creates
-(MASSLAK_RATE_AUTH_PER_MINUTE, MASSLAK_RATE_API_PER_MINUTE). Numbers from a laptop or a CI runner are a smoke test; the
+(MASSLAK_RATE_AUTH_PER_MINUTE, MASSLAK_RATE_AUTH_IP_PER_MINUTE, MASSLAK_RATE_API_PER_MINUTE). Numbers from a laptop or a CI runner are a smoke test; the
 gate needs staging hardware with production-size data (LAUNCH_GATES.md, gate 3).
 """
 from __future__ import annotations

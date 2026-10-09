@@ -11,7 +11,7 @@ locks (sampled), temporary files and cache hit ratio, plus the host load.
     python -m loadtest.run --base http://localhost:8000 --same-seat 100
 
 Run it against staging with production-like hardware and data; numbers from a laptop or a CI runner are a smoke test,
-not capacity evidence. The API's sign-in rate limits must allow the accounts it creates (MASSLAK_RATE_AUTH_PER_MINUTE).
+not capacity evidence. The API's sign-in rate limits must allow the accounts it creates (MASSLAK_RATE_AUTH_PER_MINUTE per account, MASSLAK_RATE_AUTH_IP_PER_MINUTE per address).
 """
 from __future__ import annotations
 

@@ -26,7 +26,8 @@ def forbidden(message: str = "not allowed") -> ApiError:
 
 async def api_error_handler(_: Request, exc: ApiError) -> JSONResponse:
     body = {"error": {"code": exc.code, "message": exc.message, **exc.details}}
-    return JSONResponse(body, status_code=exc.status)
+    headers = {"Retry-After": str(exc.details["retry_after"])} if "retry_after" in exc.details else None
+    return JSONResponse(body, status_code=exc.status, headers=headers)
 
 
 # Database business errors are raised as "CODE: detail" (see db/schema); map them to 409/422
