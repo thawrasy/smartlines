@@ -12,4 +12,7 @@ if [ ! -s "$PGDATA/PG_VERSION" ]; then
   pg_basebackup -h db -U replicator -D "$PGDATA" -X stream -R -C -S "$SLOT" --checkpoint=fast
   chmod 0700 "$PGDATA"
 fi
-exec postgres -c hba_file=/etc/postgresql/pg_hba.conf -c hot_standby=on -c max_standby_streaming_delay=30s -c max_connections=200
+# cluster_name is the name the primary sees (application_name): the standby named by deploy/durability.sh when every
+# commit must wait for a copy (MASSLAK_ZERO_DATA_LOSS=on)
+exec postgres -c hba_file=/etc/postgresql/pg_hba.conf -c hot_standby=on -c max_standby_streaming_delay=30s -c max_connections=200 \
+     -c cluster_name=replica1

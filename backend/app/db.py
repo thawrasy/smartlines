@@ -71,11 +71,15 @@ def pool_stats() -> Optional[dict]:
 async def open_pools() -> None:
     global _pool, _audit_pool, _reports_pool, _telemetry_pool
     s = get_settings()
-    _pool = await asyncpg.create_pool(s.database_url, min_size=1, max_size=20, command_timeout=30)
-    _audit_pool = await asyncpg.create_pool(s.audit_database_url, min_size=1, max_size=4, command_timeout=30)
+    _pool = await asyncpg.create_pool(s.database_url, min_size=1, max_size=s.db_pool_max, command_timeout=30)
+    # the security console and the reports open connections only while in use (min_size 0, closed after a minute
+    # idle): the primary's count stays within its limit however many API servers run (CAPACITY_MODEL.md, section 10)
+    _audit_pool = await asyncpg.create_pool(s.audit_database_url, min_size=0, max_size=s.db_audit_pool_max, command_timeout=30,
+                                            max_inactive_connection_lifetime=60)
     if s.reports_database_url:
         # the role's own limit is 30 s (db/create_login_roles.sql); reports on the replica may run for two minutes
-        _reports_pool = await asyncpg.create_pool(s.reports_database_url, min_size=1, max_size=4, command_timeout=120,
+        _reports_pool = await asyncpg.create_pool(s.reports_database_url, min_size=0, max_size=s.db_reports_pool_max,
+                                                  command_timeout=120, max_inactive_connection_lifetime=60,
                                                   server_settings={"statement_timeout": "120s"})
     if s.telemetry_database_url:
         # positions are appended in batches; the pool waits at most 5 s so a stopped telemetry database answers 503

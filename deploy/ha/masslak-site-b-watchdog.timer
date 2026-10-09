@@ -1,0 +1,11 @@
+# Runs the second site's watchdog every minute: systemctl enable --now masslak-site-b-watchdog.timer
+[Unit]
+Description=Masslak second site watchdog, every minute
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=1min
+AccuracySec=5s
+
+[Install]
+WantedBy=timers.target

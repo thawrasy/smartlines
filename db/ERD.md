@@ -580,6 +580,9 @@ erDiagram
   sys_app_delete_grant {
     text table_name PK
   }
+  sys_backup_run {
+    bigint id PK
+  }
   sys_city_rollout {
     text feature_key PK
     bigint city_id PK

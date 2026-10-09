@@ -33,6 +33,7 @@ sed -e "s|^MASSLAK_DOMAIN=.*|MASSLAK_DOMAIN=$domain|" \
     -e "s|^MASSLAK_SANDBOX=.*|MASSLAK_SANDBOX=$demo|" \
     -e "s|^MASSLAK_SEED_DEMO=.*|MASSLAK_SEED_DEMO=$demo|" \
     -e "s|^MASSLAK_ENVIRONMENT=.*|MASSLAK_ENVIRONMENT=$([ "$demo" = true ] && echo development || echo production)|" \
+    -e "s|^MASSLAK_ZERO_DATA_LOSS=.*|MASSLAK_ZERO_DATA_LOSS=$([ "$demo" = true ] && echo off || echo on)|" \
     -e "s|^MASSLAK_NOTIFY_EMAIL=.*|MASSLAK_NOTIFY_EMAIL=$([ "$demo" = true ] && echo log || echo off)|" \
     -e "s|^MASSLAK_NOTIFY_SMS=.*|MASSLAK_NOTIFY_SMS=$([ "$demo" = true ] && echo log || echo off)|" \
     -e "s|^MASSLAK_NOTIFY_WHATSAPP=.*|MASSLAK_NOTIFY_WHATSAPP=$([ "$demo" = true ] && echo log || echo off)|" \

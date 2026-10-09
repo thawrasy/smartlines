@@ -22,7 +22,8 @@ bootstrap:
     # a standby further behind than this is not promoted (with synchronous mode it never is)
     maximum_lag_on_failover: 1048576
     # one standby confirms every commit before the client is told: a failover loses no committed booking or payment.
-    # If the standby is gone, Patroni drops to asynchronous so bookings continue (alert NoFailoverCandidate).
+    # If the standby is gone: strict (MASSLAK_ZERO_DATA_LOSS=on, owner's decision 1) waits for it; not strict drops to
+    # asynchronous so bookings continue. Set by deploy/ha/durability.sh from the setting, not by editing this file.
     synchronous_mode: true
     synchronous_mode_strict: false
     postgresql:

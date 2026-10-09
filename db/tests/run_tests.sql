@@ -2274,6 +2274,20 @@ SELECT pg_temp.ok((SELECT value FROM ops.position_backlog_metrics() WHERE metric
   AND (sys.purge_expired() ? 'position_backlog') AND has_function_privilege('masslak_app', 'ops.position_backlog_metrics()', 'EXECUTE'),
   'Positions (1075, R-03): the backlog and its age reach the monitoring, and the purge knows it');
 ROLLBACK;
+-- 1076: backups that leave the server, durability the owner chooses (package D)
+BEGIN;
+SELECT sys.record_backup('local', true, '/var/backups/masslak/zz', 1000);
+SELECT sys.record_backup('offsite', false, 'copy to offsite:masslak failed');
+SELECT pg_temp.ok((SELECT value FROM sys.durability_metrics() WHERE metric = 'masslak_backup_last_success_age_seconds' AND labels ->> 'copy' = 'local') < 60
+  AND (SELECT value FROM sys.durability_metrics() WHERE metric = 'masslak_backup_last_failed' AND labels ->> 'copy' = 'offsite') = 1
+  AND (SELECT value FROM sys.durability_metrics() WHERE metric = 'masslak_backup_last_failed' AND labels ->> 'copy' = 'local') = 0
+  AND NOT has_function_privilege('masslak_app', 'sys.record_backup(text, boolean, text, bigint)', 'EXECUTE')
+  AND has_function_privilege('masslak_app', 'sys.durability_metrics()', 'EXECUTE'),
+  'Backups (1076, R-41): each copy is recorded by the backup alone, and a failed off-site copy reaches the monitoring');
+SELECT pg_temp.ok((SELECT value FROM sys.durability_metrics() WHERE metric = 'masslak_db_commits_wait_for_standby') = 0
+  AND (SELECT coalesce(min(rolconnlimit), 20) FROM pg_roles WHERE rolname = 'masslak_audit') = 20,
+  'Durability (1076, decision 1): the database reports whether commits wait for a standby; the security console''s connections are capped');
+ROLLBACK;
 -- Review stage D (1064): bookings partitioned by ranges of id
 SELECT pg_temp.ok(
   (SELECT relkind FROM pg_class WHERE oid = 'sales.booking'::regclass) = 'p'

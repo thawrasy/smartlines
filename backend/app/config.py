@@ -17,6 +17,15 @@ class Settings(BaseSettings):
     # Optional telemetry database for the history of vehicle positions (review stage D2, db/telemetry/schema.sql); empty:
     # positions stay in ops.geo_event on the primary
     telemetry_database_url: str = ""
+    # Connections per process (docs/operations/CAPACITY_MODEL.md, section 10). The audit and report pools open
+    # connections only while used and close them after a minute idle, so idle API servers hold none; the audit role is
+    # also capped by the database (1076), whatever the number of servers.
+    db_pool_max: int = 20
+    db_audit_pool_max: int = 2
+    db_reports_pool_max: int = 4
+    # The owner's choice for durability (decision 1, deploy/durability.sh): on, every commit waits for a standby.
+    # Reported to the monitoring, which pages when it is on but commits do not wait (alert ZeroDataLossNotEnforced).
+    zero_data_loss: bool = False
 
     # Secret used to sign QR codes and verification tokens (32+ random bytes in production)
     signing_secret: str = "change-me-in-production-0123456789abcdef"

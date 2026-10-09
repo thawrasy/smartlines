@@ -5,6 +5,9 @@
 #   3. optionally loads demo data (test servers only)
 set -eu
 export PGHOST="${PGHOST:-db}" PGUSER="${POSTGRES_USER:-postgres}" PGPASSWORD="${POSTGRES_PASSWORD:?}"
+# the read replica starts after this step: schema changes never wait for it, even when every commit of the platform
+# must (MASSLAK_ZERO_DATA_LOSS=on, deploy/durability.sh)
+export PGOPTIONS="${PGOPTIONS:-} -c synchronous_commit=local"
 DB="${POSTGRES_DB:-masslak}"
 
 until pg_isready -q -d "$DB"; do echo "waiting for the database"; sleep 2; done

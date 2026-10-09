@@ -69,6 +69,9 @@ for i in $(seq 1 90); do
   sleep 4
 done
 
+step "Durability: zero data loss $(sed -n 's/^MASSLAK_ZERO_DATA_LOSS=//p' deploy/.env | tail -1)"
+./deploy/durability.sh
+
 step "Creating the first platform administrator"
 admin_password="$(openssl rand -base64 18 | tr -d '/+=' | cut -c1-20)"
 pg_password="$(grep '^POSTGRES_PASSWORD=' deploy/.env | cut -d= -f2-)"

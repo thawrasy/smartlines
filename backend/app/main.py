@@ -58,6 +58,8 @@ async def lifespan(_: FastAPI):
     from . import release
     rel = await release.current()
     app.version = rel["version"] if rel else "unknown"    # the release the database is at, not a number kept by hand
+    # the durability the owner chose (decision 1): compared by the monitoring with what the database does
+    metrics.gauge("masslak_zero_data_loss_configured", 1.0 if get_settings().zero_data_loss else 0.0)
     publishing = asyncio.create_task(metrics.publisher()) if metrics._processes() > 1 else None
     yield
     if publishing:

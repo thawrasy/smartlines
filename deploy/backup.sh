@@ -7,7 +7,15 @@
 # (names, bookings, ledger) is personal data, so each file is encrypted with age (MASSLAK_BACKUP_AGE_RECIPIENT, an age
 # public key whose private key is kept off the server) before it is written. A production server
 # (MASSLAK_SANDBOX=false) refuses to write a backup without it (review of October 2026, stage A4); only a sandbox
-# or demo server may keep plain backups. Copy the backup directory off the server (another site or bucket).
+# or demo server may keep plain backups.
+#
+# Each backup is then copied off the server (review of release 1.47.0, R-41): a server lost with its disks must not take
+# its backups with it. MASSLAK_BACKUP_OFFSITE names the destination for rclone: a configured remote and path such as
+# "offsite:masslak-backups" (S3, SFTP, another site's storage; rclone config on this server), or a mounted path. The
+# copy is checked file by file against the checksums. Both copies are recorded in the database (sys.backup_run) and
+# the monitoring alerts when either is older than a day (BackupStale, BackupOffsiteStale).
+# Exit status: 0 both copies written, 3 the local copy is written but the off-site copy is not (not configured on a
+# production server, or failed), anything else the backup failed.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 # deploy/.env is KEY=VALUE data, not shell code (values may hold <, spaces or $): export each line as is
@@ -39,4 +47,33 @@ else
 fi
 (cd "$dir" && sha256sum ./* > SHA256SUMS)
 echo "$(date -u +%FT%TZ) backup written to $dir ($(du -sh "$dir" | cut -f1))"
+record() {                                 # copy, ok, detail: kept in the database for the monitoring (1076)
+  compose exec -T db psql -U "${POSTGRES_USER:-postgres}" -d "${POSTGRES_DB:-masslak}" -qAt -v ON_ERROR_STOP=1 \
+    -v copy="$1" -v ok="$2" -v detail="$3" -v bytes="$(du -sb "$dir" | cut -f1)" \
+    -c "SELECT sys.record_backup(:'copy', :'ok'::boolean, :'detail', :'bytes'::bigint)" >/dev/null \
+    || echo "could not record the $1 backup in the database" >&2
+}
+record LOCAL true "$dir"
 find "$(dirname "$dir")" -mindepth 1 -maxdepth 1 -type d -mtime +"$keep" -print -exec rm -rf {} +
+
+offsite="${MASSLAK_BACKUP_OFFSITE:-}"
+if [ -z "$offsite" ]; then
+  if [ "${MASSLAK_SANDBOX:-false}" = true ]; then exit 0; fi
+  record OFFSITE false "MASSLAK_BACKUP_OFFSITE is not set"
+  echo "backup kept on this server only: set MASSLAK_BACKUP_OFFSITE in deploy/.env (deploy/README.md, section 4)" >&2
+  exit 3
+fi
+command -v rclone >/dev/null || { record OFFSITE false "rclone is not installed"; echo "rclone is not installed (apt-get install rclone)" >&2; exit 3; }
+target="${offsite%/}/$(basename "$dir")"
+if rclone copy "$dir" "$target" --immutable --retries 5 --low-level-retries 10 && rclone check "$dir" "$target" --one-way; then
+  record OFFSITE true "$target"
+  echo "$(date -u +%FT%TZ) copied off the server to $target"
+  # the off-site copies follow the same retention, unless the destination keeps them itself (object lock, versions)
+  if [ "${MASSLAK_BACKUP_OFFSITE_PRUNE:-true}" = true ]; then
+    rclone delete "${offsite%/}" --min-age "${keep}d" --rmdirs >/dev/null 2>&1 || true
+  fi
+else
+  record OFFSITE false "copy to $target failed"
+  echo "the off-site copy to $target failed; the local backup is in $dir" >&2
+  exit 3
+fi

@@ -77,3 +77,27 @@ Upgrading to 1.48.0, package C:
 
 New alerts with their tests: PositionBacklogGrowing, MfaCodesFailing (RUNBOOKS.md, section 26).
 
+## 4. Package D: durability, backups, capacity and the second site
+
+| Ref | Finding | What changed | Proof |
+|---|---|---|---|
+| R-39, decision 1 | "No data loss" depended on a synchronous standby that could silently stop being one | Zero data loss is a setting, `MASSLAK_ZERO_DATA_LOSS` (on in production): every commit waits for a standby, and with none commits wait instead of being confirmed without a copy; off lets the primary confirm alone. Applied by `deploy/durability.sh` (standard stack) or `deploy/ha/durability.sh` (Patroni strict mode) on install and update; the database reports whether commits wait, and alerts page when the setting is on but not in force, or when commits wait for a missing standby | CI job **Production installation**: the replica is synchronous, a commit with the standby stopped does not go through, and goes through once it is back; DB checks; promtool |
+| R-41 | Nightly backups stayed on the server they protect | Copied off the server with rclone, checked against the checksums, both copies recorded (1076); alerts BackupStale and BackupOffsiteStale | CI job **Deployment stack**: backup, off-site copy verified, both copies recorded, restore; promtool |
+| R-40 | The WAL archive alert fired after 5 + 5 minutes for a 60-second target, and the check after a restart was manual | The alert fires after 90 s + 1 minute; `deploy/pitr/check-archive.sh` switches WAL and waits for it to be archived, run by every update | promtool; `deploy/update.sh` |
+| R-46 | The direct audit connections grew with the number of API servers past the primary's limit | The audit and report pools open connections only while used and close them when idle; the audit role is capped at 20 in the database; pool sizes are settings | `CAPACITY_MODEL.md`, section 10; DB check |
+| R-43 | The second site had no watchdog | `deploy/ha/site-b-watchdog.sh` with a systemd timer: streaming, replay lag, the main site's reachability from there, as metrics and a message on change; never promotes; alerts SiteBNotStreaming, SiteBLagging, MainSiteUnreachableFromSiteB, SiteBWatchdogStale | promtool |
+| R-44 | A restore did not prove the files and the database belong to the same moment | `python -m app.tools.files_check` reads back every file the database refers to, decrypts it and compares size and hash; `restore.sh` runs it and fails on a missing or different file; the runbook restores the bucket to the database's time first | CI job **Deployment stack** (restore) |
+
+Upgrading to 1.48.0, package D:
+
+* Production servers get `MASSLAK_ZERO_DATA_LOSS=on` from the installer. An existing server without the line keeps
+  `off` until it is added; add it, then run `./deploy/durability.sh` (it restarts the read replica once so it takes its
+  name). With `on`, a stopped replica pauses commits: plan replica maintenance accordingly.
+* Set `MASSLAK_BACKUP_OFFSITE` and install rclone (`apt-get install rclone`, then `rclone config`); until then the
+  alert BackupOffsiteStale fires and `backup.sh` ends with status 3.
+* On the second site: install `deploy/ha/masslak-site-b-watchdog.service` and `.timer`, and let Prometheus scrape the
+  node exporter's textfile directory there.
+
+New alerts with their tests: BackupStale, BackupOffsiteStale, ZeroDataLossNotEnforced, CommitsWaitingForStandby,
+SiteBNotStreaming, MainSiteUnreachableFromSiteB, SiteBLagging, SiteBWatchdogStale (RUNBOOKS.md, sections 23 and 27).
+

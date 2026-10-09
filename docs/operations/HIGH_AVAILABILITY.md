@@ -33,9 +33,11 @@ the target of RUNBOOKS.md section 3.
 
 - **Patroni** (`deploy/ha/patroni.yml`) holds the leader key in etcd. When the primary stops renewing it (ttl 30 s),
   the standby that is synchronous and caught up is promoted. `synchronous_mode` makes one standby confirm every
-  commit, so the promoted server has every booking and payment the clients were told about. If the standby is
-  down, Patroni drops to asynchronous rather than stopping bookings; `NoSynchronousStandby` and
-  `NoFailoverCandidate` alert. `use_pg_rewind` lets the old primary rejoin as a standby without a full copy.
+  commit, so the promoted server has every booking and payment the clients were told about. What happens when the
+  standby is down is the owner's setting (decision 1, `MASSLAK_ZERO_DATA_LOSS`, applied by `deploy/ha/durability.sh`):
+  `on` sets `synchronous_mode_strict`, and commits wait rather than be confirmed without a copy
+  (`CommitsWaitingForStandby`); `off` lets Patroni drop to asynchronous so bookings continue (`NoSynchronousStandby`,
+  `NoFailoverCandidate`). `use_pg_rewind` lets the old primary rejoin as a standby without a full copy.
 - **Logical replication slots** (the warehouse, `masslak_dw`) are declared in Patroni's configuration, so they exist
   on the standby too and the warehouse keeps streaming after a failover.
 - **HAProxy** (`deploy/ha/haproxy.cfg`) asks each server's Patroni API whether it is the primary (`/primary`) or a
@@ -71,8 +73,12 @@ Three rules hold in every row:
    server whose Patroni answers `/primary`, and the applications' two-host connection strings ask for
    `target_session_attrs=read-write`, so a demoted server is never written to by mistake.
 2. **No acknowledged write is lost in an automatic failover.** `synchronous_mode` makes the standby confirm every
-   commit; the promoted standby is that one. When it is missing, Patroni drops to asynchronous so bookings continue,
-   and the alert `NoSynchronousStandby` tells the on-call engineer that the next failover could lose seconds.
+   commit; the promoted standby is that one. When it is missing: with zero data loss on (the production default,
+   owner's decision 1) commits wait for it; with it off Patroni drops to asynchronous so bookings continue, and the
+   alert `NoSynchronousStandby` tells the on-call engineer that the next failover could lose seconds.
+   The second site's watchdog (`deploy/ha/site-b-watchdog.sh`, a systemd timer) reports every minute whether it
+   streams from the main site, how far behind it is and whether the main site answers from there (alerts
+   `SiteBNotStreaming`, `SiteBLagging`, `MainSiteUnreachableFromSiteB`); it never promotes.
 3. **People decide what machines cannot see.** A site is declared lost by the on-call lead, a restore by the DBA; the
    runbooks name the checks to make first (is the main site really unreachable from outside, not only from site B?).
 

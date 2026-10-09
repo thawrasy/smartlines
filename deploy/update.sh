@@ -82,7 +82,8 @@ else
   fi
   echo "deploying the files in $(pwd) (release archive, no git checkout)"
 fi
-./deploy/backup.sh
+# a backup kept on this server only (exit 3: no off-site copy) does not stop the update; the alert BackupOffsiteStale does
+./deploy/backup.sh || { rc=$?; [ "$rc" = 3 ] || exit "$rc"; echo "warning: the backup before this update was not copied off the server" >&2; }
 # secrets added by newer releases (existing values are never changed)
 if ! grep -q '^MASSLAK_REPLICATION_PASSWORD=.' deploy/.env; then
   sed -i '/^MASSLAK_REPLICATION_PASSWORD=/d' deploy/.env
@@ -112,6 +113,9 @@ fi
 set_env MASSLAK_IMAGE_TAG "$tag"
 [ -z "$old_tag" ] || [ "$old_tag" = "$tag" ] || set_env MASSLAK_PREVIOUS_IMAGE_TAG "$old_tag"
 previous="$(env_value MASSLAK_PREVIOUS_IMAGE_TAG)"
+# the durability the owner chose (MASSLAK_ZERO_DATA_LOSS, decision 1), and WAL archiving proven after the restart (R-40)
+./deploy/durability.sh || echo "warning: the zero data loss setting could not be applied; run ./deploy/durability.sh" >&2
+./deploy/pitr/check-archive.sh || echo "warning: WAL archiving does not work after the update (RUNBOOKS.md, section 2)" >&2
 # keep the running and the previous images, drop older ones
 for name in masslak masslak-egress; do
   for t in $(docker image ls "$name" --format '{{.Tag}}'); do

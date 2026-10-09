@@ -45,7 +45,8 @@ section.
   pgbackrest --stanza=masslak --type=time --target="2027-03-29 10:15:00+03" --target-action=promote restore
   ```
 - **After any restart of the primary** (a crash, maintenance or a failover): run
-  `pgbackrest --stanza=masslak check`. It forces a WAL switch and proves archiving works. After a crash recovery
+  `pgbackrest --stanza=masslak check` (with pgBackRest) or `./deploy/pitr/check-archive.sh` (any layout; `update.sh`
+  runs it after every update). It forces a WAL switch and proves archiving works. After a crash recovery
   PostgreSQL applies `archive_timeout` only once its checkpointer first wakes, up to `checkpoint_timeout` (5 minutes)
   later, so without this step the window of unarchived WAL can grow past the 60 s RPO (found by the launch gate 1
   rehearsal, `GATE_CLOSURE_PLAN.md`).
@@ -54,6 +55,10 @@ section.
   2. Run `SELECT sys.run_maintenance()`.
   3. Run `python -m app.tools.keys check`, to prove the key service still opens every data key.
   4. Run the reconciliation checks from section 1.5.
+  5. Run `python -m app.tools.files_check` in the API container: every file the restored database refers to is read
+     back, decrypted and compared with its recorded size and hash (R-44). With the files in an object store, first
+     restore the bucket to the time the database was restored to (bucket versioning: the object versions current at
+     that time), then run the check; it must report nothing missing.
 - **Targets approved by the owner on 8 October 2026 (T3-01; settings `recovery.rpo_seconds` and `recovery.rto_minutes`):**
   - **RPO:** 60 seconds when the server is lost. WAL is archived at least every `archive_timeout = 60` s; pgBackRest
     archives asynchronously. With the streaming standby, a failover loses only what the standby had not received,
@@ -678,6 +683,34 @@ on the primary as usual and kept there (`ops.position_backlog`); the driver's ap
 to send them again. The worker delivers the backlog in order once a minute (duplicates are skipped there).
 **PositionBacklogGrowing** means positions have waited 15 minutes: see section 22 for the telemetry database. Delivered
 batches are purged after 7 days.
+
+## 27. Durability and backups off the server (1.48)
+
+**Zero data loss** (owner's decision 1) is the setting `MASSLAK_ZERO_DATA_LOSS` in `deploy/.env`: `on` (the production
+default) makes the standby confirm every commit before the client is told, so nothing the platform confirmed is lost
+with the primary; `off` lets the primary confirm alone, and a lost primary may take the last seconds with it.
+`deploy/durability.sh` applies it (install and every update run it; run it by hand after changing the setting). In the
+standard stack the standby is the read replica, `replica1`; with Patroni, `deploy/ha/durability.sh` sets
+`synchronous_mode_strict` from the same setting. The choice has a cost the owner accepted: with `on`, when no standby
+can confirm, commits wait and bookings pause rather than be confirmed without a copy.
+
+- **CommitsWaitingForStandby** (page): commits wait and no standby confirms. Bring the standby back
+  (`docker compose restart db-replica`, or the Patroni replica). Only if it cannot come back soon and the owner's
+  representative agrees, switch the setting to `off` and run `./deploy/durability.sh`; record the decision, and switch
+  it back once a standby streams again.
+- **ZeroDataLossNotEnforced** (page): the setting is `on` but commits do not wait (a restore, a configuration reset, a
+  new primary after a failover). Run `./deploy/durability.sh` (Patroni: `./deploy/ha/durability.sh`).
+
+**Backups off the server** (R-41): every nightly backup is copied to `MASSLAK_BACKUP_OFFSITE` with rclone, checked
+against its checksums, and both copies are recorded (`sys.backup_run`). **BackupStale** and **BackupOffsiteStale**
+fire when the last good copy is more than 26 hours old: read `/var/log/masslak-backup.log`, fix the cause, run
+`./deploy/backup.sh` by hand and see the alert clear at the next scrape. pgBackRest's second repository (`repo2`, the
+second site) is the off-site copy of the point-in-time backups in the high-availability layout.
+
+**Connections** (R-46): the security console's and the reports' pools open connections only while used and close them
+after a minute idle (`MASSLAK_DB_AUDIT_POOL_MAX`, `MASSLAK_DB_REPORTS_POOL_MAX`), and the database caps the security
+console's role at 20 connections, so adding API servers adds no idle connections to the primary
+(`CAPACITY_MODEL.md`, section 10).
 
 ## Rehearsal schedule
 

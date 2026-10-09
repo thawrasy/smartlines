@@ -213,7 +213,7 @@ tests:
         exp_alerts: [{ exp_labels: { severity: page }, exp_annotations: { summary: "Today's or tomorrow's position partition is missing (daily upkeep not running)", runbook: "RUNBOOKS.md#9-data-lifecycle-r-11" } }]
       - eval_time: 9m
         alertname: WalArchiveStale
-        exp_alerts: [{ exp_labels: { severity: page }, exp_annotations: { summary: "No WAL archived for 5 minutes: point-in-time recovery is at risk (RPO)", runbook: "RUNBOOKS.md#2-backup-and-point-in-time-restore-rpo-and-rto" } }]
+        exp_alerts: [{ exp_labels: { severity: page }, exp_annotations: { summary: "No WAL archived for 90 seconds: point-in-time recovery is at risk (RPO)", runbook: "RUNBOOKS.md#2-backup-and-point-in-time-restore-rpo-and-rto" } }]
       - eval_time: 65m
         alertname: BookingErrorBudgetFastBurn
         exp_alerts: [{ exp_labels: { severity: page }, exp_annotations: { summary: "Bookings or payments are failing (2 % of the monthly error budget in one hour)", runbook: "RUNBOOKS.md#1-incident-response" } }]
@@ -316,3 +316,65 @@ tests:
         exp_alerts:
           - exp_labels: { severity: ticket }
             exp_annotations: { summary: "Sign-in codes by text or WhatsApp message are failing to leave: staff may be unable to sign in", runbook: "RUNBOOKS.md#26-sign-in-boarding-and-positions-148" }
+  - interval: 1m
+    input_series:
+      - series: 'masslak_backup_last_success_age_seconds{copy="local"}'
+        values: "3600 3660 3720"
+      - series: 'masslak_backup_last_success_age_seconds{copy="offsite"}'
+        values: "93000 93700 93760"
+      - series: 'masslak_zero_data_loss_configured{instance="api-1"}'
+        values: "1x15"
+      - series: masslak_db_commits_wait_for_standby
+        values: "0x11 1x4"
+      - series: 'masslak_db_standbys{sync="sync"}'
+        values: "1x12 0x3"
+      - series: masslak_site_b_streaming
+        values: "1 0x8"
+      - series: masslak_site_b_in_recovery
+        values: "1x9"
+      - series: masslak_site_b_main_reachable
+        values: "1 1 0x6"
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: BackupStale
+        exp_alerts: []
+      - eval_time: 0m
+        alertname: BackupOffsiteStale
+        exp_alerts: []
+      - eval_time: 1m
+        alertname: BackupOffsiteStale
+        exp_alerts:
+          - exp_labels: { severity: page, copy: offsite }
+            exp_annotations: { summary: "No backup copied off the server for more than 26 hours: losing this server would lose its backups too", runbook: "RUNBOOKS.md#27-durability-and-backups-off-the-server-148" }
+      - eval_time: 9m
+        alertname: ZeroDataLossNotEnforced
+        exp_alerts: []
+      - eval_time: 10m
+        alertname: ZeroDataLossNotEnforced
+        exp_alerts:
+          - exp_labels: { severity: page }
+            exp_annotations: { summary: "Zero data loss is on, but commits do not wait for a standby: run deploy/durability.sh", runbook: "RUNBOOKS.md#27-durability-and-backups-off-the-server-148" }
+      - eval_time: 12m
+        alertname: CommitsWaitingForStandby
+        exp_alerts: []
+      - eval_time: 14m
+        alertname: CommitsWaitingForStandby
+        exp_alerts:
+          - exp_labels: { severity: page }
+            exp_annotations: { summary: "Every commit waits for a standby and none is confirming: bookings and payments are paused", runbook: "RUNBOOKS.md#27-durability-and-backups-off-the-server-148" }
+      - eval_time: 5m
+        alertname: SiteBNotStreaming
+        exp_alerts: []
+      - eval_time: 6m
+        alertname: SiteBNotStreaming
+        exp_alerts:
+          - exp_labels: { severity: page }
+            exp_annotations: { summary: "The second site receives no WAL from the main site", runbook: "RUNBOOKS.md#23-automatic-failover-and-the-second-site-review-stage-d" }
+      - eval_time: 4m
+        alertname: MainSiteUnreachableFromSiteB
+        exp_alerts: []
+      - eval_time: 5m
+        alertname: MainSiteUnreachableFromSiteB
+        exp_alerts:
+          - exp_labels: { severity: page }
+            exp_annotations: { summary: "The second site cannot reach the main site's primary: decide whether the main site is lost (never automatic)", runbook: "RUNBOOKS.md#23-automatic-failover-and-the-second-site-review-stage-d" }

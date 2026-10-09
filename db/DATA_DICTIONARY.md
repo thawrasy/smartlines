@@ -2,7 +2,7 @@
 
 > Generated from the built database (`db/tools/gen_docs.py`); do not edit by hand.
 
-**498 tables, 5103 columns, in 26 schemas.**
+**499 tables, 5109 columns, in 26 schemas.**
 
 Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant isolation (RLS) · 🧩 partitioned monthly · 🔒 append-only / change-protected
 
@@ -10,7 +10,7 @@ Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant i
 
 - [`iam` — Identity, parties, users, permissions and API clients](#iam) (33 tables)
 - [`ref` — Reference data, locales and files](#ref) (14 tables)
-- [`sys` — Settings, outbox and webhooks](#sys) (24 tables)
+- [`sys` — Settings, outbox and webhooks](#sys) (25 tables)
 - [`net` — Network: stations, routes, lines, corridors and geofences](#net) (22 tables)
 - [`fleet` — Fleet: vehicles, trucks, trailers, seats, crew, licenses and insurance](#fleet) (22 tables)
 - [`pricing` — Pricing, taxes, commissions, campaigns and loyalty](#pricing) (35 tables)
@@ -882,6 +882,19 @@ The tables the application may delete from, and why; DELETE is revoked from mass
 | `table_name` | `text` | 🔑 ✱ |  |
 | `reason` | `text` | ✱ |  |
 | `granted_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `sys.backup_run` 🛡️
+
+Each nightly backup's local and off-site copy, with its outcome (1076, R-41)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `copy` | `text` | ✱ |  |
+| `ok` | `boolean` | ✱ |  |
+| `detail` | `text` |  |  |
+| `bytes` | `bigint` |  |  |
+| `at` | `timestamp with time zone` | ✱ | `now()` |
 
 ### `sys.city_rollout` 🛡️
 

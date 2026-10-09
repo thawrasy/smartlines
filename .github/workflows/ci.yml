@@ -318,10 +318,18 @@ jobs:
           if $dc exec -T app python -c "import socket; socket.create_connection(('1.1.1.1', 443), 5)" 2>/dev/null; then
             echo "the API reached the internet without the proxy"; exit 1; fi
           $dc exec -T worker bash /app/deploy/egress/selftest.sh egress:3128
-      - name: Backup, restore, and the site still works
+      - name: Backup, copy off the server, restore, and the site still works
         run: |
+          # the off-site copy (review of 1.47.0, R-41): rclone to another place, checked, recorded in the database
+          sudo apt-get install -y -qq rclone > /dev/null
+          echo "MASSLAK_BACKUP_OFFSITE=$RUNNER_TEMP/offsite" >> deploy/.env
           ./deploy/backup.sh
-          ./deploy/restore.sh "$(ls -d $RUNNER_TEMP/backups/*/ | tail -1)" --yes
+          backup="$(ls -d $RUNNER_TEMP/backups/*/ | tail -1)"
+          (cd "$RUNNER_TEMP/offsite/$(basename "$backup")" && sha256sum -c --quiet SHA256SUMS)
+          docker compose --env-file deploy/.env exec -T db psql -U postgres -d masslak -Atc \
+            "SELECT string_agg(copy || ':' || ok, ' ' ORDER BY id) FROM sys.backup_run" | grep -q 'LOCAL:true OFFSITE:true'
+          # the restore ends by reading back every stored file the restored database refers to (R-44)
+          ./deploy/restore.sh "$backup" --yes
           for i in $(seq 60); do curl -fsSk https://localhost/api/health && break; sleep 3; done
           curl -fsSk -H 'X-Masslak-Client: web' -H 'Content-Type: application/json' \
                -d '{"identifier":"passenger@masslak.test","password":"Masslak-Demo-2026","portal":"PASSENGER"}' https://localhost/api/auth/login
@@ -358,6 +366,21 @@ jobs:
           sudo chown "$USER" deploy/.env deploy/FIRST_LOGIN.txt
           grep -q '^MASSLAK_SANDBOX=false$' deploy/.env && grep -q '^MASSLAK_ENVIRONMENT=production$' deploy/.env
           grep -q '^MASSLAK_FIELD_KEYS=kms://masslak/field/restricted/v1=.*=,kms://' deploy/.env    # base64 padding kept
+          curl -fsSk https://localhost/api/ready | grep -q '"ready":true'
+      - name: Zero data loss is on in production and every commit waits for the standby (owner's decision 1)
+        run: |
+          dc="docker compose --env-file deploy/.env"
+          grep -q '^MASSLAK_ZERO_DATA_LOSS=on$' deploy/.env
+          test "$($dc exec -T db psql -U postgres -Atc "SELECT sync_state FROM pg_stat_replication WHERE application_name = 'replica1'")" = sync
+          test "$($dc exec -T db psql -U postgres -d masslak -Atc "SELECT value FROM sys.durability_metrics() WHERE metric = 'masslak_db_commits_wait_for_standby'")" = 1
+          # a commit made while the standby is stopped waits for it, and goes through when it is back
+          $dc stop db-replica
+          if timeout 10 $dc exec -T db psql -U postgres -d masslak -qc "CREATE TABLE zz_durability_probe (x int)"; then
+            echo "a commit went through with no standby to confirm it"; exit 1; fi
+          $dc start db-replica
+          for i in $(seq 30); do
+            test "$($dc exec -T db psql -U postgres -Atc "SELECT count(*) FROM pg_stat_replication WHERE sync_state = 'sync'")" = 1 && break; sleep 2
+          done
           curl -fsSk https://localhost/api/ready | grep -q '"ready":true'
       - name: Two-factor enrolment encrypts the secret and the recovery codes, and signing in again decrypts them
         run: |

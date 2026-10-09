@@ -142,10 +142,48 @@ groups:
         labels: { severity: page }
         annotations: { summary: "The API cannot read the database, or the API is down", runbook: "RUNBOOKS.md#3-failover" }
       - alert: WalArchiveStale
-        expr: masslak_db_archive_mode_on == 1 and masslak_db_wal_archive_last_success_age_seconds > 300
+        # archive_timeout is 60 s, so a healthy server archives at least every minute (review of 1.47.0, R-40)
+        expr: masslak_db_archive_mode_on == 1 and masslak_db_wal_archive_last_success_age_seconds > 90
+        for: 1m
+        labels: { severity: page }
+        annotations: { summary: "No WAL archived for 90 seconds: point-in-time recovery is at risk (RPO)", runbook: "RUNBOOKS.md#2-backup-and-point-in-time-restore-rpo-and-rto" }
+      - alert: BackupStale
+        expr: masslak_backup_last_success_age_seconds{copy="local"} > 93600
+        labels: { severity: page }
+        annotations: { summary: "No nightly backup for more than 26 hours", runbook: "RUNBOOKS.md#27-durability-and-backups-off-the-server-148" }
+      - alert: BackupOffsiteStale
+        expr: masslak_backup_last_success_age_seconds{copy="offsite"} > 93600
+        labels: { severity: page }
+        annotations: { summary: "No backup copied off the server for more than 26 hours: losing this server would lose its backups too", runbook: "RUNBOOKS.md#27-durability-and-backups-off-the-server-148" }
+      - alert: ZeroDataLossNotEnforced
+        expr: max(masslak_zero_data_loss_configured) == 1 and max(masslak_db_commits_wait_for_standby) == 0
+        for: 10m
+        labels: { severity: page }
+        annotations: { summary: "Zero data loss is on, but commits do not wait for a standby: run deploy/durability.sh", runbook: "RUNBOOKS.md#27-durability-and-backups-off-the-server-148" }
+      - alert: CommitsWaitingForStandby
+        expr: max(masslak_db_commits_wait_for_standby) == 1 and sum(masslak_db_standbys{sync="sync"}) < 1
+        for: 1m
+        labels: { severity: page }
+        annotations: { summary: "Every commit waits for a standby and none is confirming: bookings and payments are paused", runbook: "RUNBOOKS.md#27-durability-and-backups-off-the-server-148" }
+      - alert: SiteBNotStreaming
+        expr: masslak_site_b_streaming == 0 and masslak_site_b_in_recovery == 1
         for: 5m
         labels: { severity: page }
-        annotations: { summary: "No WAL archived for 5 minutes: point-in-time recovery is at risk (RPO)", runbook: "RUNBOOKS.md#2-backup-and-point-in-time-restore-rpo-and-rto" }
+        annotations: { summary: "The second site receives no WAL from the main site", runbook: "RUNBOOKS.md#23-automatic-failover-and-the-second-site-review-stage-d" }
+      - alert: MainSiteUnreachableFromSiteB
+        expr: masslak_site_b_main_reachable == 0
+        for: 3m
+        labels: { severity: page }
+        annotations: { summary: "The second site cannot reach the main site's primary: decide whether the main site is lost (never automatic)", runbook: "RUNBOOKS.md#23-automatic-failover-and-the-second-site-review-stage-d" }
+      - alert: SiteBLagging
+        expr: masslak_site_b_replay_lag_seconds > 300
+        for: 10m
+        labels: { severity: ticket }
+        annotations: { summary: "The second site replays the main site's changes more than 5 minutes late", runbook: "RUNBOOKS.md#23-automatic-failover-and-the-second-site-review-stage-d" }
+      - alert: SiteBWatchdogStale
+        expr: time() - masslak_site_b_watchdog_last_run_timestamp_seconds > 300
+        labels: { severity: ticket }
+        annotations: { summary: "The second site's watchdog has not run for 5 minutes (masslak-site-b-watchdog.timer)", runbook: "RUNBOOKS.md#23-automatic-failover-and-the-second-site-review-stage-d" }
       - alert: WalArchiveFailing
         expr: increase(masslak_db_wal_archive_failed_total[15m]) > 0
         labels: { severity: page }

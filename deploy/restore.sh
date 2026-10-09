@@ -26,3 +26,15 @@ else
 fi
 compose up -d migrate app worker           # migrate re-applies login role passwords and any newer schema files
 echo "restored from $src"
+# the restored database and the stored files must belong to the same moment (review of release 1.47.0, R-44): every
+# file the database refers to is read back, decrypted and compared with its recorded size and hash. With the files in
+# an object store, restore the bucket to the database's time first (versioning; RUNBOOKS.md, section 2).
+for _ in $(seq 1 60); do
+  compose exec -T app python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/api/health').status == 200 else 1)" \
+    2>/dev/null && break
+  sleep 3
+done
+if ! compose exec -T app python -m app.tools.files_check ${MASSLAK_RESTORE_CHECK_SAMPLE:+--sample "$MASSLAK_RESTORE_CHECK_SAMPLE"}; then
+  echo "the restored database refers to files that are missing or differ: see the report above" >&2
+  exit 5
+fi

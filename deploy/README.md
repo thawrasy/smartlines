@@ -172,10 +172,17 @@ holds a `pg_dump` of the database and the document store, with SHA-256 checksums
   (`MASSLAK_BACKUP_AGE_IDENTITY`).
 - A production server (`MASSLAK_SANDBOX=false`) refuses to write a backup without that key, and `update.sh`, which
   backs up first, stops with it. Only a demo or sandbox server keeps plain backups.
-- Copy the backup directory to a second location (another site or an object store) every day.
+- Each backup is copied off the server at once (review of 1.47.0, R-41): set `MASSLAK_BACKUP_OFFSITE` to an rclone
+  destination (a remote configured with `rclone config`, such as `offsite:masslak-backups` on an object store in
+  another region or an SFTP server at another site, or a mounted path). The copy is checked against the checksums and
+  both copies are recorded in the database; the alerts `BackupStale` and `BackupOffsiteStale` fire when either is
+  older than a day. A production server without an off-site destination still writes the local backup but ends with
+  status 3 and the alert fires; `update.sh` carries on with a warning. Prefer a destination that keeps objects
+  unchanged for the retention period (object lock), so the server's own credentials cannot delete them.
 - Restore, which replaces all current data:
   `sudo ./deploy/restore.sh /var/backups/masslak/<timestamp> --yes`
-  It needs the same keys in `deploy/.env` as when the backup was taken.
+  It needs the same keys in `deploy/.env` as when the backup was taken. It ends by reading back every stored file the
+  restored database refers to (`python -m app.tools.files_check`) and fails if one is missing or differs.
 - Rehearse a restore on a test server at least once a quarter.
 
 ## 5. Mobile apps

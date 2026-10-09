@@ -1,0 +1,10 @@
+# Watchdog of the second site (deploy/ha/site-b-watchdog.sh): reports, never promotes.
+[Unit]
+Description=Masslak second site watchdog
+After=network-online.target patroni.service
+
+[Service]
+Type=oneshot
+User=postgres
+EnvironmentFile=-/etc/masslak/site-b-watchdog.env
+ExecStart=/opt/masslak/deploy/ha/site-b-watchdog.sh

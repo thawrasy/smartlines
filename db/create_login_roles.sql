@@ -25,6 +25,8 @@ ALTER ROLE masslak_api SET statement_timeout = '30s';
 ALTER ROLE masslak_api SET lock_timeout = '5s';
 ALTER ROLE masslak_api SET idle_in_transaction_session_timeout = '2min';
 ALTER ROLE masslak_audit SET statement_timeout = '30s';
+-- the security console's connections are capped here, whatever the number of API servers (CAPACITY_MODEL.md, section 10)
+ALTER ROLE masslak_audit CONNECTION LIMIT 20;
 ALTER ROLE masslak_audit SET lock_timeout = '5s';
 ALTER ROLE masslak_audit SET idle_in_transaction_session_timeout = '2min';
 -- The auditor reads user e-mails next to log rows

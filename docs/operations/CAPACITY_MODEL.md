@@ -224,8 +224,8 @@ before it answers 503 with `Retry-After` (counted in `masslak_db_pool_timeouts_t
 | Pool, per process | At most | Goes to |
 |---|---|---|
 | main (every request) | 20 | PgBouncer, transaction mode |
-| audit (security console) | 4 (1 when idle) | the primary, directly |
-| reports | 4 (1 when idle) | the read replica, directly |
+| audit (security console) | 2 (`MASSLAK_DB_AUDIT_POOL_MAX`), none when idle; the role is capped at 20 in all | the primary, directly |
+| reports | 4 (`MASSLAK_DB_REPORTS_POOL_MAX`), none when idle | the read replica, directly |
 | telemetry (optional) | 10 | the telemetry database |
 
 With **P = 2N + W** processes (N API servers, W worker replicas):
@@ -234,8 +234,8 @@ With **P = 2N + W** processes (N API servers, W worker replicas):
 |---|---|---|---|
 | Clients of PgBouncer | 20 P | `MAX_CLIENT_CONN` 4,000 | P ≤ 200 |
 | PgBouncer to the primary | 80 at most (`DEFAULT_POOL_SIZE` 60 + `RESERVE_POOL_SIZE` 20), whatever N | | always |
-| The primary in all | 80 + 4 P (audit) + about 8 (replica, warehouse slot, backups, migration, superuser reserve) | `max_connections` 200 | P ≤ 28: for example 12 API servers and 4 workers |
-| The read replica | 4 P (reports) + a few | `max_connections` 200 | P ≤ 48 |
+| The primary in all | 80 + at most 20 (audit, capped by its role, 1076) + about 8 (replica, warehouse slot, backups, migration, superuser reserve) | `max_connections` 200 | always: 108 at most, whatever N (review of 1.47.0, R-46) |
+| The read replica | the reports running at the moment (idle pools hold none), at most 4 P | `max_connections` 200 | in practice always; P ≤ 48 if every process ran four reports at once |
 
 `max_connections` was PostgreSQL's default of 100 until this review: three API servers and two workers could
 then reach 80 + 32 + 8 = 120 with the security console busy, and the direct connections would have been refused. It
@@ -247,7 +247,7 @@ transactions a second (section 3) and about 5 ms a transaction, 23 connections a
 bursts and slow statements, and the reserve 20 open only when a client has waited 5 s
 (`reserve_pool_timeout`). When all 80 are busy, PgBouncer queues the clients. A request never waits without end: its statements stop at 30 s, and a process whose own pool is exhausted answers 503 within 5 s. A saturation that lasts shows as the alerts `PgBouncerClientsWaiting` (clients waiting for two minutes) and `PgBouncerSlowWait` (the longest wait above 1 s for two minutes).
 
-**When adding servers:** keep P within the table (beyond 28 processes, route the audit pool through PgBouncer as a
-second pool or raise `max_connections` with memory to match, about 10 MB a connection), and raise
+**When adding servers:** the primary's count no longer grows with P (release 1.48.0: idle audit pools hold no
+connection and the audit role is capped at 20, so the 10 to 40 API servers of phase 2 fit); raise
 `DEFAULT_POOL_SIZE` only with measurements from staging (gate 3), since more concurrent transactions on the same
 rows add lock waits rather than throughput.

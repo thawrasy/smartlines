@@ -14,9 +14,9 @@ supporting index, except references to lookup lists and to the staff member who 
 |---|---|
 | Engine | PostgreSQL 16 with PostGIS 3 (extensions: pgcrypto, citext, btree_gist, pg_trgm, postgis in schema `gis`; Docker and CI image `postgis/postgis:16-3.4`, Ubuntu package `postgresql-16-postgis-3`) |
 | Schemas | 26 separate schemas, each with its own privileges |
-| Tables | 498 tables (8 partitioned), 5,103 columns, 1,427 foreign keys |
-| Security | row-level security on 498 of 498 tables, 920 policies; 430 triggers, 267 functions |
-| Tests | 474 automated checks against a freshly built database (`db/tests/run.sh`) |
+| Tables | 499 tables (8 partitioned), 5,109 columns, 1,427 foreign keys |
+| Security | row-level security on 499 of 499 tables, 921 policies; 430 triggers, 269 functions |
+| Tests | 476 automated checks against a freshly built database (`db/tests/run.sh`) |
 | Design | [Database design and ERD document](../docs/database/) with diagrams in the study's colors |
 | Docs | [Data dictionary](DATA_DICTIONARY.md) · [ERD diagrams](ERD.md) (both generated from the database) |
 <!-- stats:end -->
@@ -132,6 +132,7 @@ PostGIS in `gis`. Until 9 October 2026 a first start of the Docker stack stopped
 | `1073_signed_notice_dedup.sql` | A provider's event id is unique among signed notices only, so an unsigned copy posted first cannot make the real notice a replay; unsigned notices per provider counted for review (review of 1.47.0, R-18) |
 | `1074_money_boundaries.sql` | Money boundaries: payments recorded before the provider is called (stages CREATED and PROVIDER_UNKNOWN), refunds held and sent once under a fixed reference, payment fee rules per way of paying, currency, customer and period (`fin.fee_rule`, `fin.payment_fee`), the payer of a withdrawal is not its approver, and the approval matrix of money decisions (`fin.approval_policy`, levels, named members, requests and decisions checked in the database) (review of 1.47.0, package B; owner's decisions 4 and 5) |
 | `1075_sign_in_and_operations.sql` | Two-factor sign-in by several methods: the platform's policy (`sys.setting auth.mfa`: methods open among the authenticator app, text message and WhatsApp, the portals that must use one, drivers included), message codes kept only as keyed hashes for minutes with five tries (`iam.mfa_challenge`), one verified and one pending factor of each kind; a boarding names a stop its ticket covers (`sales.tg_boarding_stop`); offline pack downloads per driver bound the time of offline scans; the partition upkeep creates every late period (`sys.default_partition_oldest`); positions wait on the primary when the telemetry database does not answer (`ops.position_backlog`) (review of 1.47.0, package C; owner's decision 2) |
+| `1076_backups_and_durability.sql` | Backups that leave the server and durability the owner chooses: each nightly backup's local and off-site copy recorded (`sys.backup_run`, `sys.record_backup`); the age of both and whether commits wait for a standby for the monitoring (`sys.durability_metrics`, zero data loss as a setting, deploy/durability.sh); the security console's connections capped by their role (review of 1.47.0, package D; owner's decision 1) |
 
 ## Design rules (study 29.1)
 
