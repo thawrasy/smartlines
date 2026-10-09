@@ -156,15 +156,16 @@ jobs:
                -v audit_password=ci-audit-password -f db/create_login_roles.sql
           python backend/scripts/seed_demo.py
           python backend/scripts/seed_modules.py
-      - name: Start the API
+      - name: Start the API (under coverage, R-52)
         working-directory: backend
         run: |
-          nohup python -m uvicorn app.main:app --port 8077 --timeout-keep-alive 75 > ../api.log 2>&1 &
-          for i in $(seq 1 30); do curl -sf localhost:8077/api/health && exit 0; sleep 1; done
+          nohup python -m coverage run -m uvicorn app.main:app --port 8077 --timeout-keep-alive 75 > ../api.log 2>&1 &
+          echo $! > ../api.pid
+          for i in $(seq 1 60); do curl -sf localhost:8077/api/health && exit 0; sleep 1; done
           cat ../api.log; exit 1
       - name: Unit and end-to-end tests
         working-directory: backend
-        run: python -m pytest tests -q
+        run: python -m coverage run -m pytest tests -q
       - name: Accessibility and right-to-left layout of the web interface, English and Arabic, phone and desktop (code review 6.2)
         working-directory: frontend
         env: { MASSLAK_UI_BASE: "http://localhost:8077", CHROME: /usr/bin/google-chrome }
@@ -225,6 +226,18 @@ jobs:
           else:
               raise SystemExit("the file did not come back with the store")
           EOF
+      - name: Test coverage of the API and the tests, held to its minimums (R-52)
+        working-directory: backend
+        run: |
+          kill -TERM "$(cat ../api.pid)"
+          for i in $(seq 1 30); do kill -0 "$(cat ../api.pid)" 2>/dev/null || break; sleep 1; done
+          python -m coverage combine
+          python -m coverage report --sort=cover | tail -60
+          python -m coverage json -q -o coverage.json
+          python scripts/coverage_gate.py > gate.txt; rc=$?
+          cat gate.txt
+          { echo "### Test coverage (R-52)"; echo '```'; cat gate.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          exit $rc
       - name: API log on failure
         if: failure()
         run: tail -200 api.log; tail -100 api_tel.log 2>/dev/null || true; tail -100 api_s3.log 2>/dev/null || true

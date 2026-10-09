@@ -47,6 +47,11 @@ services:
       - log_lock_waits=on
       - -c
       - log_min_duration_statement=500ms
+      # slow statements are logged without their bind values; DDL text is not kept in the statement statistics
+      - -c
+      - log_parameter_max_length=0
+      - -c
+      - pg_stat_statements.track_utility=off
     environment:
       PGBACKREST_REPO1_CIPHER_PASS: ${PGBACKREST_REPO1_CIPHER_PASS:?set PGBACKREST_REPO1_CIPHER_PASS in deploy/.env}
     volumes:

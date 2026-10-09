@@ -19,6 +19,7 @@ from __future__ import annotations
 import os
 import smtplib
 import socket
+import time
 import urllib.request
 from pathlib import Path
 from typing import Optional
@@ -77,9 +78,16 @@ def tunnel(host: str, port: int, timeout: float = 15.0) -> socket.socket:
 
 def urlopen(req: urllib.request.Request, timeout: float):
     """urllib.request.urlopen through the proxy (HTTPS is tunnelled with CONNECT). Environment proxies are ignored."""
+    from . import logs
+    if not req.has_header("Traceparent") and logs.trace_id.get():
+        req.add_header("traceparent", logs.traceparent())     # the provider's logs can name the same trace
     p = proxy()
     handler = urllib.request.ProxyHandler({"https": f"http://{p[0]}:{p[1]}"} if p else {})
-    return urllib.request.build_opener(handler).open(req, timeout=timeout)
+    started = time.monotonic()
+    try:
+        return urllib.request.build_opener(handler).open(req, timeout=timeout)
+    finally:
+        logs.timed("egress", time.monotonic() - started)
 
 
 class SMTP(smtplib.SMTP):

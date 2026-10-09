@@ -16,7 +16,7 @@ import os
 import sys
 import uuid
 
-from ... import db
+from ... import db, logredact, logs
 from . import catalog, providers
 from .render import mask, render
 
@@ -67,6 +67,8 @@ async def run_once(batch: int = BATCH) -> bool:
             return False
         for event in events:
             payload = json.loads(event["payload"]) if isinstance(event["payload"], str) else event["payload"]
+            # the event's logs and deliveries carry the trace of the request that wrote it (app/logs.py)
+            logs.trace_id.set(event["correlation_id"].hex if event["correlation_id"] else None)
             try:
                 async with conn.transaction():          # a savepoint: one event's failure leaves the others
                     n = await _deliver(conn, event, payload)
@@ -104,7 +106,8 @@ async def maintenance() -> dict:
 
 
 async def main(once: bool) -> None:
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    logredact.install()                   # the worker's logs lose personal data and secrets too, like the API's
+    logs.configure("worker")
     from ... import egress
     from ...security import require_keys_in_production
     egress.require_in_production()
@@ -171,7 +174,8 @@ async def main(once: bool) -> None:
 
 
 async def maintenance_once() -> None:
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    logredact.install()
+    logs.configure("worker")
     await db.open_pools()
     try:
         await maintenance()

@@ -1,0 +1,38 @@
+{
+ "_note": "Minimum line coverage, checked by scripts/coverage_gate.py in CI (R-52). A ratchet: raise a minimum when coverage grows; lowering one needs an exception with an owner, a reason and an end date.",
+ "total": 84,
+ "files": {
+  "app/crypto.py": 87,
+  "app/db.py": 89,
+  "app/deps.py": 95,
+  "app/egress.py": 86,
+  "app/ledger.py": 80,
+  "app/logredact.py": 90,
+  "app/mfa_policy.py": 94,
+  "app/middleware.py": 89,
+  "app/policy.py": 85,
+  "app/ratelimit.py": 92,
+  "app/security.py": 91,
+  "app/routers/auth.py": 84,
+  "app/routers/bookings.py": 95,
+  "app/routers/driver.py": 78,
+  "app/routers/wallet.py": 92,
+  "app/modules/agency/service.py": 94,
+  "app/modules/cash/service.py": 88,
+  "app/modules/family/service.py": 93,
+  "app/modules/integration/auth.py": 88,
+  "app/modules/manifests/service.py": 74,
+  "app/modules/payments/adapters.py": 80,
+  "app/modules/payments/api.py": 84,
+  "app/modules/payments/approvals.py": 84,
+  "app/modules/payments/breaker.py": 93,
+  "app/modules/payments/fees.py": 89,
+  "app/modules/payments/service.py": 81,
+  "app/modules/payouts/service.py": 85,
+  "app/modules/sales/service.py": 90
+ },
+ "exceptions": [
+  {"file": "app/modules/payments/adapters.py", "minimum": 66, "owner": "Payments lead", "until": "2027-01-31",
+   "reason": "the provider adapters answer only a provider's test environment, which CI cannot reach before a contract is signed; they are tested against it at signature"}
+ ]
+}

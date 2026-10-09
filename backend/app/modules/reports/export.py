@@ -5,10 +5,12 @@ Damascus times and amounts in pounds. Integration formats (TXT, JSON) keep the s
 another system can read them without a dictionary. PDF and Excel follow the brand: navy heading band, the route
 line, IBM Plex Sans Arabic, and right-to-left layout in Arabic.
 """
+import asyncio
 import csv
 import hashlib
 import io
 import json
+import os
 from contextvars import ContextVar
 from dataclasses import dataclass
 from datetime import date, datetime
@@ -385,3 +387,27 @@ def render(fmt: str, res: Result, meta: Meta) -> tuple[bytes, str]:
         _ZONE.reset(zone)
         _MINOR.reset(minor)
     return data, hashlib.sha256(data).hexdigest()
+
+
+# Rendering a PDF or a workbook of thousands of rows takes CPU for seconds: it runs in a worker thread so the process
+# keeps answering other requests meanwhile, and at most RENDER_SLOTS files are built at once per process, so a burst of
+# exports cannot take all its memory (review of release 1.47.0, report 3). A request that cannot get a slot within
+# RENDER_WAIT seconds is answered 503 with Retry-After.
+RENDER_SLOTS = int(os.environ.get("MASSLAK_EXPORT_RENDER_SLOTS", "2"))
+RENDER_WAIT = 15
+_slots: "asyncio.Semaphore | None" = None
+
+
+async def render_async(fmt: str, res: Result, meta: Meta) -> tuple[bytes, str]:
+    global _slots
+    if _slots is None:
+        _slots = asyncio.Semaphore(RENDER_SLOTS)
+    try:
+        await asyncio.wait_for(_slots.acquire(), RENDER_WAIT)
+    except asyncio.TimeoutError:
+        from ...errors import ApiError
+        raise ApiError(503, "EXPORT_BUSY", "other files are being built; try again shortly", retry_after=10) from None
+    try:
+        return await asyncio.to_thread(render, fmt, res, meta)
+    finally:
+        _slots.release()

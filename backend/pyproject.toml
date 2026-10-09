@@ -16,3 +16,16 @@ line-length = 160
 [tool.ruff.lint]
 # pytest fixtures are imported from test_e2e and then named as test arguments, which pyflakes reads as a redefinition
 per-file-ignores = { "tests/*" = ["F811"] }
+
+[tool.coverage.run]
+# Measured in CI over the unit tests and the API server they call (review of release 1.47.0, R-52): the server runs
+# under coverage too, writes its share when stopped (sigterm), and the shares are combined. scripts/coverage_gate.py
+# then holds the total and the money, sign-in and isolation modules to their minimums (coverage-thresholds.json).
+source = ["app"]
+parallel = true
+sigterm = true
+omit = ["app/tools/*"]   # command-line tools: their tests run them as separate processes
+
+[tool.coverage.report]
+skip_empty = true
+precision = 1

@@ -44,6 +44,8 @@ bootstrap:
         archive_timeout: 60
         wal_compression: "on"
         shared_preload_libraries: pg_stat_statements
+        pg_stat_statements.track_utility: "off"
+        log_parameter_max_length: 0
         track_io_timing: "on"
         track_functions: pl
     # logical replication slots (the warehouse) survive a failover: Patroni keeps them on the standbys too

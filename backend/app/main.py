@@ -9,7 +9,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import db, logredact, metrics
+from . import db, logredact, logs, metrics
 from .config import get_settings
 from .errors import (ApiError, api_error_handler, db_error_handler, pool_busy_handler, store_unavailable_handler,
                      unreachable_handler)
@@ -37,6 +37,7 @@ from .routers import admin, auth, bookings, carrier, driver, public, regulator, 
 
 
 logredact.install()                       # personal data and secrets never reach the logs, whoever logs them
+logs.configure("api")                     # one JSON object per line outside the sandbox (app/logs.py)
 
 
 @asynccontextmanager
@@ -58,6 +59,7 @@ async def lifespan(_: FastAPI):
     from . import release
     rel = await release.current()
     app.version = rel["version"] if rel else "unknown"    # the release the database is at, not a number kept by hand
+    logs.set_version(app.version)
     # the durability the owner chose (decision 1): compared by the monitoring with what the database does
     metrics.gauge("masslak_zero_data_loss_configured", 1.0 if get_settings().zero_data_loss else 0.0)
     publishing = asyncio.create_task(metrics.publisher()) if metrics._processes() > 1 else None

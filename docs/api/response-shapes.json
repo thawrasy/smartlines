@@ -1,0 +1,327 @@
+{
+ "GET /api/auth/me": {
+  "company": "null",
+  "email": "string",
+  "is_owner": "boolean",
+  "locale": "string",
+  "market": {
+   "country": "string",
+   "currency": "string",
+   "locale": "string",
+   "minor_unit": "number",
+   "time_zone": "string"
+  },
+  "mfa": {
+   "enrolled": "boolean",
+   "required": "boolean"
+  },
+  "name": "string",
+  "permissions": [],
+  "portal": "string",
+  "roles": [],
+  "uid": "string"
+ },
+ "GET /api/bookings": {
+  "bookings": [
+   {
+    "booking_ref": "string",
+    "carrier_name": "string",
+    "created_at": "string",
+    "currency": "string",
+    "journey": {
+     "arrives_at": "string",
+     "departs_at": "string",
+     "from_city": "string",
+     "from_code": "string",
+     "from_station": "string",
+     "to_city": "string",
+     "to_code": "string",
+     "to_station": "string"
+    },
+    "status": "string",
+    "total_amount": "number",
+    "trip_no": "string",
+    "trip_uid": "string"
+   }
+  ]
+ },
+ "GET /api/bookings/{ref}": {
+  "booking": {
+   "booking_ref": "string",
+   "carrier_name": "string",
+   "created_at": "string",
+   "currency": "string",
+   "pay_by": "null",
+   "pay_option": "string",
+   "price_breakdown": {
+    "currency": "string",
+    "factor": "number",
+    "fare_brand": "string",
+    "fare_per_passenger": "number",
+    "fares_gross": "number",
+    "fares_total": "number",
+    "lines": [
+     {
+      "category": "string",
+      "fare": "number",
+      "list_fare": "number",
+      "passenger": "number",
+      "seat": "boolean"
+     }
+    ],
+    "pair_price": "number",
+    "passengers": "number",
+    "platform_fee": "number",
+    "total": "number"
+   },
+   "status": "string",
+   "total_amount": "number",
+   "trip_no": "string",
+   "verify_token": "string"
+  },
+  "tickets": [
+   {
+    "arrives_at": "string",
+    "departs_at": "string",
+    "fare_brand_code": "string",
+    "from_city": "string",
+    "from_code": "string",
+    "from_seq": "number",
+    "from_station": "string",
+    "full_name": "string",
+    "id_no_last4": "string",
+    "id_type": "string",
+    "nationality": "string",
+    "rules_snapshot": {
+     "bags_included": "number",
+     "brand": "string",
+     "category": "string",
+     "change_fee_pct": "number",
+     "changeable": "boolean",
+     "kg_per_piece": "number",
+     "refund": [
+      [
+       "number"
+      ]
+     ],
+     "refundable": "boolean"
+    },
+    "seat_label": "string",
+    "seat_no": "number",
+    "status": "string",
+    "ticket_name": "string",
+    "ticket_no": "string",
+    "to_city": "string",
+    "to_code": "string",
+    "to_seq": "number",
+    "to_station": "string",
+    "total_amount": "number",
+    "uid": "string"
+   }
+  ]
+ },
+ "GET /api/carrier/trips": {
+  "trips": [
+   {
+    "arrival_at": "string",
+    "departure_at": "string",
+    "dest_code": "string",
+    "destination": "string",
+    "driver_name": "string",
+    "origin": "string",
+    "origin_code": "string",
+    "plate_no": "string",
+    "route_code": "string",
+    "seats_total": "number",
+    "segments_count": "number",
+    "sold": "number",
+    "status": "string",
+    "trip_no": "string",
+    "uid": "string"
+   }
+  ]
+ },
+ "GET /api/carrier/trips/{uid}/manifest": {
+  "passengers": [
+   {
+    "boarded_at": "null",
+    "booking_ref": "string",
+    "from_code": "string",
+    "from_station": "string",
+    "full_name": "string",
+    "id_no_last4": "string",
+    "id_type": "string",
+    "nationality": "string",
+    "passenger_category": "string",
+    "seat_no": "number",
+    "status": "string",
+    "ticket_no": "string",
+    "to_code": "string",
+    "to_station": "string"
+   }
+  ],
+  "trip_no": "string"
+ },
+ "GET /api/health": {
+  "ok": "boolean"
+ },
+ "GET /api/notifications": {
+  "notifications": [
+   {
+    "created_at": "string",
+    "id": "number",
+    "payload": {
+     "booking_ref": "string",
+     "counter": "null",
+     "departs_local": "string",
+     "from_city": "string",
+     "passengers": "number",
+     "pay_option": "string",
+     "to_city": "string",
+     "total_amount": "number",
+     "trip_no": "string"
+    },
+    "read_at": "string",
+    "status": "string",
+    "template_code": "string"
+   }
+  ],
+  "unread": "number"
+ },
+ "GET /api/trips/search": {
+  "trips": [
+   {
+    "arrives_at": "string",
+    "bookable": "boolean",
+    "carrier_code": "null",
+    "carrier_name": "string",
+    "currency": "string",
+    "departs_at": "string",
+    "from_code": "string",
+    "from_seq": "number",
+    "from_station": "string",
+    "has_rest": "boolean",
+    "price": "number",
+    "seats_left": "number",
+    "seats_total": "number",
+    "service_type": "string",
+    "stops_between": "number",
+    "to_code": "string",
+    "to_seq": "number",
+    "to_station": "string",
+    "trip_no": "string",
+    "uid": "string"
+   }
+  ]
+ },
+ "GET /api/trips/{uid}": {
+  "categories": [
+   {
+    "category": "string",
+    "fare": "number",
+    "max_age": "number",
+    "max_per_adult": "number",
+    "min_age": "number",
+    "needs_adult": "boolean",
+    "seat_required": "boolean"
+   }
+  ],
+  "family_offers": [
+   {
+    "applies_to": "string",
+    "code": "string",
+    "discount_type": "string",
+    "discount_value": "number",
+    "max_discount": "number",
+    "min_adults": "number",
+    "min_members": "number",
+    "min_minors": "number",
+    "name": "string"
+   }
+  ],
+  "from_seq": "number",
+  "price": "number",
+  "seat_map": {
+   "decks": [
+    [
+     "string"
+    ]
+   ],
+   "layout": "string",
+   "name": "string",
+   "seats": [
+    {
+     "cabin": "string",
+     "col": "number",
+     "deck": "number",
+     "label": "string",
+     "n": "number",
+     "row": "number"
+    }
+   ]
+  },
+  "seats": [
+   {
+    "free": "boolean",
+    "seat_no": "number"
+   }
+  ],
+  "stops": [
+   {
+    "city_code": "string",
+    "fare_from_origin": "number",
+    "kind": "string",
+    "lat": "number",
+    "lng": "number",
+    "rest_min": "number",
+    "sched_arr": "string",
+    "sched_dep": "string",
+    "seq": "number",
+    "station_code": "string",
+    "station_name": "string",
+    "zone": "string"
+   }
+  ],
+  "to_seq": "number",
+  "trip": {
+   "arrival_at": "string",
+   "baggage_policy": "string",
+   "carrier_code": "null",
+   "carrier_name": "string",
+   "currency": "string",
+   "departure_at": "string",
+   "hold_min": "number",
+   "seat_prices_snapshot": "string",
+   "seat_selection_mode": "string",
+   "seats_total": "number",
+   "segments_count": "number",
+   "service_type": "string",
+   "status": "string",
+   "trip_no": "string",
+   "trip_type": "string",
+   "uid": "string"
+  }
+ },
+ "GET /api/wallet": {
+  "balance": "number",
+  "currency": "string",
+  "entries": [
+   {
+    "amount": "number",
+    "balance_after": "number",
+    "created_at": "string",
+    "direction": "string",
+    "memo": "string",
+    "txn_type": "string"
+   }
+  ],
+  "sandbox": "boolean"
+ },
+ "POST /api/bookings": {
+  "booking_ref": "string",
+  "currency": "string",
+  "pay_option": "string",
+  "status": "string",
+  "total": "number"
+ }
+}

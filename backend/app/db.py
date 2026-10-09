@@ -16,6 +16,7 @@ import asyncio
 
 import asyncpg
 
+from . import logs
 from .config import get_settings
 
 _pool: Optional[asyncpg.Pool] = None
@@ -119,10 +120,15 @@ async def transaction(ctx: Context) -> AsyncIterator[asyncpg.Connection]:
     assert _pool is not None, "database pool not initialised"
     asked = time.monotonic()
     async with acquire(_pool) as conn:
-        _acquired(time.monotonic() - asked)
-        async with conn.transaction():
-            await apply_context(conn, ctx)
-            yield conn
+        got = time.monotonic()
+        _acquired(got - asked)
+        logs.timed("pool_wait", got - asked)
+        try:
+            async with conn.transaction():
+                await apply_context(conn, ctx)
+                yield conn
+        finally:
+            logs.timed("db", time.monotonic() - got)
 
 
 # Uses of the system scope per calling function, scraped as masslak_system_scope_total (review stage C): every site is

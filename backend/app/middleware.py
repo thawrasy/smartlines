@@ -8,7 +8,7 @@ from fastapi import Request
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from . import db, ratelimit
+from . import db, logs, ratelimit
 from .config import get_settings
 from .errors import pool_busy_handler
 
@@ -69,9 +69,25 @@ def client_ip(request: Request) -> str:
     return hops[0] if hops else peer
 
 
+ACCESS = logging.getLogger("masslak.access")
+
+
+def _route(request: Request) -> str:
+    """The route template (/api/bookings/{ref}), never the raw path with its identifiers."""
+    route = request.scope.get("route")
+    return getattr(route, "path", None) or "unmatched"
+
+
 class RequestContextMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         request.state.request_id = uuid.uuid4()
+        # the trace this request belongs to (W3C traceparent), kept for its logs, outbox events and outbound calls
+        request.state.trace_id = logs.trace_from_header(request.headers.get("traceparent"))
+        logs.request_id.set(str(request.state.request_id))
+        logs.trace_id.set(request.state.trace_id)
+        request.state.phases = {}
+        logs.phases.set(request.state.phases)
+        request.state.error_code = None
         request.state.client_ip = client_ip(request)
         request.state.principal = None
         request.state.api_client_id = None  # set by the integration API key check
@@ -80,7 +96,20 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
         started = time.monotonic()
         if not path.startswith("/api/"):
             return await call_next(request)
+        try:
+            response = await self._api(request, call_next, path, started)
+        except Exception:
+            ACCESS.exception("request failed", extra={"method": request.method, "route": _route(request),
+                                                      "status": 500, "duration_ms": int((time.monotonic() - started) * 1000)})
+            raise
+        response.headers["traceparent"] = logs.traceparent(request.state.trace_id)
+        ACCESS.info("request", extra={"method": request.method, "route": _route(request), "status": response.status_code,
+                                      "duration_ms": int((time.monotonic() - started) * 1000),
+                                      **({"error_code": request.state.error_code} if request.state.error_code else {}),
+                                      **logs.phase_fields(request.state.phases)})
+        return response
 
+    async def _api(self, request: Request, call_next, path: str, started: float):
         scope = portal_scope_for_path(path)
         bucket = ratelimit.bucket_for(path)
         ctx = db.Context(request_id=request.state.request_id, ip=request.state.client_ip, scope="SYSTEM")
@@ -94,6 +123,7 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
             # raised outside the routes, so the application's exception handlers would not see it
             return await pool_busy_handler(request, db.PoolBusy())
         if decision and decision["action"] == "BLOCK":
+            request.state.error_code = "IP_BLOCKED"
             await self._log(request, scope, "request.blocked", "BLOCKED", 403, started,
                             reason=f"ip_rule {decision['rule_id']}")
             return JSONResponse({"error": {"code": "IP_BLOCKED", "message": "access from this address is blocked"}},
@@ -102,6 +132,7 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
         if bucket != "auth":
             wait = ratelimit.limiter().check(request.state.client_ip, bucket)
         if wait:
+            request.state.error_code = "RATE_LIMITED"
             await self._log(request, scope, "request.rate_limited", "BLOCKED", 429, started, reason="rate limit")
             return JSONResponse({"error": {"code": "RATE_LIMITED", "message": "too many requests, try again shortly"}},
                                 status_code=429, headers={"Retry-After": str(max(1, round(wait)))})
@@ -110,6 +141,7 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
         # (the integration API authenticates with keys in a header, never cookies, so it needs no such header)
         if request.method in MUTATING and not path.startswith(("/api/payments/notify", "/api/v1/")) \
                 and request.headers.get(CLIENT_HEADER) not in ("web", "android", "ios"):
+            request.state.error_code = "CLIENT_HEADER_REQUIRED"
             return JSONResponse({"error": {"code": "CLIENT_HEADER_REQUIRED", "message": "missing client header"}},
                                 status_code=400)
 

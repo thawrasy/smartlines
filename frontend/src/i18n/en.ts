@@ -591,6 +591,13 @@ const en = {
       codeMinutes: "Message code valid for (minutes)", resendSeconds: "Wait before resending (seconds)", sendsPerHour: "Codes per person per hour",
       oneMethod: "Keep at least one method open.", saved: "Policy saved",
     },
+    stmt: {
+      nav: "Slowest statements", title: "Database statements", sub: "What the database spends its time on, grouped by statement. Texts carry placeholders, never the values sent.",
+      order: "Order by", minCalls: "Run at least (times)", orders: { TOTAL: "Total time", MEAN: "Mean time", CALLS: "Calls", READS: "Blocks read from disk" },
+      calls: "Calls", total: "Total (ms)", mean: "Mean (ms)", max: "Longest (ms)", reads: "Disk reads", hit: "From memory", text: "Statement",
+      reset: "Start a new window", resetConfirm: "Clear the statistics to measure from now on (for example after adding an index)?", resetDone: "Statistics cleared",
+      off: "Statement statistics are off on this server", offHint: "The database must preload pg_stat_statements (see RUNBOOKS.md, section 28).",
+    },
   },
   regulator: {
     title: "Regulator dashboard", subtitle: "Aggregated indicators. No personal data. Every view is logged.",

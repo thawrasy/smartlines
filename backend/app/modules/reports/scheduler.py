@@ -154,7 +154,7 @@ async def run_one(schedule_id: int) -> bool:
     res.source_version = await release.source_version()
     period = export.words(loc).get("all_time", "") if params.get("all_time") else f"{params['from']} → {params['to']}"
     meta = export.Meta(code, title, period, v.name, datetime.now(timezone.utc), loc)
-    data, digest = export.render(s["format"], res, meta)
+    data, digest = await export.render_async(s["format"], res, meta)
     import json
     async with db.transaction(ctx) as conn:
         run_id = await conn.fetchval(

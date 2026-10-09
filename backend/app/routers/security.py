@@ -189,3 +189,28 @@ async def set_mfa_policy(body: MfaPolicyIn, request: Request, pr: Principal = De
     request.state.audit = {"action": "security.mfa_policy", "object_type": "setting", "object_id": None,
                            "reason": f"methods={','.join(value['methods'])} portals={','.join(value['required_portals'])}"}
     return out
+
+
+@router.get("/statements")
+async def top_statements(request: Request, order: Literal["TOTAL", "MEAN", "CALLS", "READS"] = "TOTAL",
+                         limit: int = Query(20, ge=1, le=100), min_calls: int = Query(1, ge=1),
+                         pr: Principal = Depends(can_policy)):
+    """The statements that cost the database most (pg_stat_statements, 1077): by total time, mean time, calls or
+    blocks read from disk. Texts carry placeholders, never values. Empty, with enabled false, where the server does not
+    preload the extension."""
+    async with db.transaction(context_for(request, pr)) as conn:
+        enabled = await conn.fetchval("SELECT sys.statement_stats_enabled()")
+        found = await conn.fetch("SELECT * FROM sys.top_statements($1, $2, $3)", order, limit, min_calls)
+    return {"enabled": enabled, "order": order,
+            "statements": [{**row_dict(r), "queryid": str(r["queryid"]), "wal_bytes": int(r["wal_bytes"] or 0)} for r in found]}
+
+
+@router.post("/statements/reset")
+async def reset_statements(request: Request, pr: Principal = Depends(can_policy)):
+    """Starts a new measurement window, to compare a statement before and after an index or a rewrite."""
+    async with db.transaction(context_for(request, pr)) as conn:
+        done = await conn.fetchval("SELECT sys.reset_statement_stats()")
+    if not done:
+        raise ApiError(409, "STATEMENT_STATS_OFF", "statement statistics are not collected on this server")
+    request.state.audit = {"action": "security.statements_reset", "object_type": "setting", "object_id": None}
+    return {"reset": True}

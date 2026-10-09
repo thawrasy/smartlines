@@ -69,6 +69,7 @@ const AgencyTopup = lazyNamed(() => import("./pages/finance/Payments"), "AgencyT
 const PaymentsDesk = lazyNamed(() => import("./pages/finance/Payments"), "PaymentsDesk");
 const IntegrationsPage = lazyNamed(() => import("./pages/integrations/Integrations"), "IntegrationsPage");
 const MfaPolicy = lazy(() => import("./pages/security/MfaPolicy"));
+const Statements = lazy(() => import("./pages/security/Statements"));
 const Regulator = lazy(() => import("./pages/regulator/Regulator"));
 
 /** Menu entries for the switched-on modules the signed-in user can open. */
@@ -113,6 +114,7 @@ function PlatformShell() {
       { to: "/security/auth", icon: "lock", label: t("security.authEvents"), show: can("audit.view", "security.ip_rules") },
       { to: "/security/activity", icon: "history", label: t("security.activity"), show: can("audit.view", "security.ip_rules") },
       { to: "/security/mfa", icon: "password", label: t("security.mfaNav"), show: can("security.console") },
+      { to: "/security/statements", icon: "monitoring", label: t("security.stmt.nav"), show: can("security.console") },
       { to: "/admin/privacy", icon: "privacy_tip", label: t("account.privacyRequests"), show: can("privacy.manage") },
       { to: "/regulator", icon: "gavel", label: t("nav.regulator"), show: can("regulator.dashboard", "report.platform") },
       { to: "/admin/reports", icon: "summarize", label: t("rpt.nav"), show: can("report.platform") },
@@ -258,6 +260,7 @@ export default function App() {
           <Route path="security/auth" element={<SecurityAuthLog />} />
           <Route path="security/activity" element={<SecurityActivity />} />
           <Route path="security/mfa" element={<MfaPolicy />} />
+          <Route path="security/statements" element={<Statements />} />
           <Route path="regulator" element={<Regulator />} />
         </Route>
       </Routes>

@@ -2288,6 +2288,17 @@ SELECT pg_temp.ok((SELECT value FROM sys.durability_metrics() WHERE metric = 'ma
   AND (SELECT coalesce(min(rolconnlimit), 20) FROM pg_roles WHERE rolname = 'masslak_audit') = 20,
   'Durability (1076, decision 1): the database reports whether commits wait for a standby; the security console''s connections are capped');
 ROLLBACK;
+-- 1077: statement statistics (package F); they work whether or not the server preloads pg_stat_statements
+SELECT pg_temp.ok((SELECT value FROM sys.statement_metrics() WHERE metric = 'masslak_db_statement_stats_enabled') = sys.statement_stats_enabled()::int
+  AND (sys.statement_stats_enabled() OR NOT EXISTS (SELECT 1 FROM sys.top_statements()))
+  AND (SELECT count(*) FROM sys.top_statements('CALLS', 3)) <= 3
+  AND has_function_privilege('masslak_app', 'sys.top_statements(text, integer, bigint)', 'EXECUTE')
+  AND NOT has_function_privilege('masslak_auditor', 'sys.top_statements(text, integer, bigint)', 'EXECUTE')
+  AND NOT has_function_privilege('masslak_readonly', 'sys.reset_statement_stats()', 'EXECUTE')
+  AND (to_regclass('public.pg_stat_statements') IS NULL OR NOT has_table_privilege('masslak_app', 'public.pg_stat_statements', 'SELECT')),
+  'Statements (1077): statistics reach the monitoring and the security console through functions only, never the raw view');
+SELECT pg_temp.expect_error($$SELECT * FROM sys.top_statements('SLOWEST')$$, 'STATEMENT_ORDER',
+  'Statements (1077): only the known orders are accepted (no text reaches the ORDER BY)');
 -- Review stage D (1064): bookings partitioned by ranges of id
 SELECT pg_temp.ok(
   (SELECT relkind FROM pg_class WHERE oid = 'sales.booking'::regclass) = 'p'

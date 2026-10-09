@@ -15,4 +15,5 @@ fi
 # cluster_name is the name the primary sees (application_name): the standby named by deploy/durability.sh when every
 # commit must wait for a copy (MASSLAK_ZERO_DATA_LOSS=on)
 exec postgres -c hba_file=/etc/postgresql/pg_hba.conf -c hot_standby=on -c max_standby_streaming_delay=30s -c max_connections=200 \
-     -c cluster_name=replica1
+     -c cluster_name=replica1 -c shared_preload_libraries=pg_stat_statements -c pg_stat_statements.track_utility=off \
+     -c track_io_timing=on -c log_min_duration_statement=1000 -c log_parameter_max_length=0

@@ -712,6 +712,44 @@ after a minute idle (`MASSLAK_DB_AUDIT_POOL_MAX`, `MASSLAK_DB_REPORTS_POOL_MAX`)
 console's role at 20 connections, so adding API servers adds no idle connections to the primary
 (`CAPACITY_MODEL.md`, section 10).
 
+## 28. Logs, traces and slow statements (1.48)
+
+**Logs** (report 3, 7.2): outside the sandbox the API and the worker write one JSON object per line on standard output
+(`MASSLAK_LOG_FORMAT=text` gives the classic lines back). Every line has `ts` (UTC), `severity`, `service`, `version`,
+`environment`, `logger` and `message`; inside a request or an outbox event also `request_id` and `trace_id`. Each API
+request writes one line from `masslak.access` with `method`, `route` (the route template, never the address with its
+identifiers), `status`, `duration_ms`, `error_code` when refused, and where the time went: `pool_wait_ms` (waiting for a
+database connection), `db_ms` with `db_transactions` (holding one) and `egress_ms` with `egress_calls` (calls to
+providers). Personal data and secrets are removed before a line is written (`app/logredact.py`).
+
+**Following one request**: the response header `traceparent` (W3C Trace Context) carries its trace; a client or a
+proxy that sends one keeps it. The same trace is on the outbox events the request wrote
+(`sys.outbox_event.correlation_id`), on the worker's lines for them and on every outbound call through the egress proxy.
+To follow a booking: take the trace from the response or from the request line, then
+`docker compose logs app worker | grep <trace>`, and `SELECT event_type, status, attempts FROM sys.outbox_event WHERE
+correlation_id = '<trace as a UUID>'`.
+
+**Slow statements** (report 3, 4.1): the database keeps statistics per statement (`pg_stat_statements`, preloaded by
+`docker-compose.yml`, the replica, staging and Patroni). The security console's *Slowest statements* page
+(`/security/statements`) and `SELECT * FROM sys.top_statements('MEAN', 20, 50)` (orders TOTAL, MEAN, CALLS, READS; at
+least 50 calls) list them with placeholders instead of values. Before adding an index:
+
+1. Pick the statement by total time (what the server spends most on) or by mean time among frequent ones.
+2. Run `EXPLAIN (ANALYZE, BUFFERS, SETTINGS)` with representative values on the staging copy (never `ANALYZE` a
+   statement that writes, on production), keep the plan in the change.
+3. Add the index `CONCURRENTLY` in a migration, then *Start a new window* on the page (or
+   `SELECT sys.reset_statement_stats()`) and compare the same statement after a day.
+
+`masslak_db_statement_stats_enabled` reads 0 where the server does not preload the extension (a managed server:
+add `pg_stat_statements` to its `shared_preload_libraries` and, if the owner role may not read other roles' statements,
+`GRANT pg_read_all_stats TO <owner role>`). A rising `masslak_db_statement_evictions_total` means
+`pg_stat_statements.max` (default 5000) is too small for the number of distinct statements. Statements slower than one
+second also reach the database log, without their bind values (`log_parameter_max_length=0`).
+
+**Reports built off the request loop** (R-46): an export is rendered in a worker thread, at most
+`MASSLAK_EXPORT_RENDER_SLOTS` (default 2) at a time per process; a burst waits up to 15 s and is then answered 503
+`EXPORT_BUSY` with `Retry-After`. Raise the slots only with CPU to spare: each slot can keep one core busy.
+
 ## Rehearsal schedule
 
 | Procedure | Before launch | After launch |

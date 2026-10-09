@@ -224,7 +224,7 @@ async def export_file(body: ExportIn, request: Request, pr: Principal = Depends(
     res, dataset, params, code, def_id, name = await _execute(request, pr, v, body, limit)
     meta = export.Meta(code if code != "custom" else f"custom.{dataset}", _title(code, name, loc), _period_text(params, loc),
                        pr.display_name, datetime.now(timezone.utc), loc)
-    data, digest = export.render(body.format, res, meta)
+    data, digest = await export.render_async(body.format, res, meta)
     async with db.transaction(context_for(request, pr)) as conn:
         await _log(conn, pr, code, def_id, params, body.format, len(res.rows), digest, res.duration_ms)
     request.state.audit = {"action": "report.export", "object_type": "report", "object_id": None}

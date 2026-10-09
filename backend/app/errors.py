@@ -24,7 +24,8 @@ def forbidden(message: str = "not allowed") -> ApiError:
     return ApiError(403, "FORBIDDEN", message)
 
 
-async def api_error_handler(_: Request, exc: ApiError) -> JSONResponse:
+async def api_error_handler(request: Request, exc: ApiError) -> JSONResponse:
+    request.state.error_code = exc.code                  # for the request's log line (app/logs.py)
     body = {"error": {"code": exc.code, "message": exc.message, **exc.details}}
     headers = {"Retry-After": str(exc.details["retry_after"])} if "retry_after" in exc.details else None
     return JSONResponse(body, status_code=exc.status, headers=headers)
