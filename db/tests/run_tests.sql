@@ -894,6 +894,9 @@ SELECT pg_temp.expect_error(format($$INSERT INTO brd.manifest_person (manifest_i
   'MANIFEST_TICKET_OTHER_TRIP', 'Audit C-03: a manifest lists only tickets of its own trip');
 SELECT pg_temp.expect_error(format($$INSERT INTO ship.shipment_leg (shipment_id, seq, mode, carrier_company_id, trip_id) VALUES (%s, 2, 'BUS_HOLD', %s, %s)$$, :shp, :cb, :t214),
   'LEG_TRIP_OTHER_CARRIER', 'Audit C-03: a cargo leg rides a trip of its own carrier');
+-- the trip offers hold capacity for parcels within what its vehicle is registered to carry (1067)
+UPDATE fleet.vehicle SET cargo_capacity_kg = 500 WHERE id = :va;
+INSERT INTO ship.trip_cargo_capacity (trip_id, max_weight_kg) VALUES (:t214, 300);
 INSERT INTO ship.shipment_leg (shipment_id, seq, mode, carrier_company_id, trip_id) VALUES (:shp, 2, 'BUS_HOLD', :ca, :t214);
 SELECT pg_temp.ok(true, 'Audit C-03: the trip operator carries the leg');
 SELECT pg_temp.expect_error(format($$INSERT INTO fin.payment (provider_id, purpose, booking_id, payer_party_id, wallet_id, method, currency, amount, idempotency_key)
@@ -2017,6 +2020,62 @@ INSERT INTO ops.geo_event (ts, vehicle_id, lat, lng, accuracy_m, provider)
 SELECT now(), min(id), 33.5, 36.3, 9, 'GPS' FROM fleet.vehicle;
 SELECT pg_temp.ok((SELECT count(*) FROM ops.geo_event WHERE ts > now() - interval '1 minute' AND trust IN ('HIGH', 'LOW')) >= 2,
   'Telemetry: a position without a vehicle is graded like any other');
+ROLLBACK;
+-- 1067: cargo stays within the capacity of the vehicle that carries it (external technical report of October 2026)
+--   trip QDS214: two segments (Damascus -> Homs -> Aleppo), vehicle registered for 500 kg, 300 kg of hold offered
+BEGIN;
+UPDATE fleet.vehicle SET cargo_capacity_kg = 500 WHERE id = :va;
+INSERT INTO ship.trip_cargo_capacity (trip_id, max_weight_kg) VALUES (:t214, 300);
+INSERT INTO ship.shipment (tracking_no, company_id, shipper_party_id, service_id, origin_station_id, dest_station_id)
+SELECT 'CG-' || n, :ca, :pax, (SELECT id FROM ship.service_product WHERE code = 'EXPRESS_1D'), :st_dam, :b_in FROM generate_series(1, 4) n;
+INSERT INTO ship.parcel (shipment_id, piece_no, label_no, weight_kg, content_desc)
+SELECT s.id, 1, 'CGL-' || s.tracking_no, v.w, 'capacity test' FROM ship.shipment s
+  JOIN (VALUES ('CG-1', 200), ('CG-2', 150), ('CG-3', 120), ('CG-4', 50)) v(t, w) ON v.t = s.tracking_no;
+SELECT id AS cg1 FROM ship.shipment WHERE tracking_no = 'CG-1' \gset
+SELECT id AS cg2 FROM ship.shipment WHERE tracking_no = 'CG-2' \gset
+SELECT id AS cg3 FROM ship.shipment WHERE tracking_no = 'CG-3' \gset
+SELECT id AS cg4 FROM ship.shipment WHERE tracking_no = 'CG-4' \gset
+SELECT pg_temp.expect_error(format('UPDATE ship.trip_cargo_capacity SET max_weight_kg = 600 WHERE trip_id = %s', :t214),
+  'CARGO_OVER_VEHICLE', 'Cargo: a trip offers no more hold than its vehicle is registered to carry');
+INSERT INTO ship.shipment_leg (shipment_id, seq, mode, carrier_company_id, trip_id, from_seq, to_seq) VALUES
+  (:cg1, 1, 'BUS_HOLD', :ca, :t214, 0, 1), (:cg2, 1, 'BUS_HOLD', :ca, :t214, 1, 2);
+SELECT pg_temp.ok((SELECT used_weight_kg FROM ship.trip_cargo_capacity WHERE trip_id = :t214) = 200,
+  'Cargo: a parcel unloaded at a stop frees the hold for the next segment (200 kg to Homs and 150 kg from Homs fit in 300 kg)');
+SELECT pg_temp.expect_error(format($$INSERT INTO ship.shipment_leg (shipment_id, seq, mode, carrier_company_id, trip_id, from_seq, to_seq)
+                                    VALUES (%s, 1, 'BUS_HOLD', %s, %s, 0, 2)$$, :cg3, :ca, :t214),
+  'CARGO_CAPACITY', 'Cargo: a shipment that would overload any segment of the trip is refused');
+UPDATE ship.parcel SET weight_kg = 290 WHERE shipment_id = :cg2;
+SELECT pg_temp.expect_error(format('UPDATE ship.parcel SET weight_kg = 310 WHERE shipment_id = %s', :cg2),
+  'CARGO_CAPACITY', 'Cargo: re-weighing a parcel counts on the trip it rides, and an overload is refused');
+SELECT pg_temp.expect_error(format('UPDATE ship.trip_cargo_capacity SET max_weight_kg = 250 WHERE trip_id = %s', :t214),
+  'CARGO_CAPACITY', 'Cargo: the hold offered cannot be lowered under what is already loaded');
+UPDATE ship.shipment_leg SET status = 'CANCELLED' WHERE shipment_id = :cg2;
+SELECT pg_temp.ok((SELECT used_weight_kg FROM ship.trip_cargo_capacity WHERE trip_id = :t214) = 200,
+  'Cargo: taking a shipment off always works and frees its weight');
+INSERT INTO ship.capacity_booking (trip_id, seller_company_id, buyer_company_id, reserved_weight_kg, rate, status)
+VALUES (:t214, :ca, :cc, 100, 1000, 'REQUESTED');
+SELECT pg_temp.expect_error(format($$UPDATE ship.capacity_booking SET status = 'CONFIRMED', reserved_weight_kg = 150
+                                     WHERE trip_id = %s AND buyer_company_id = %s$$, :t214, :cc),
+  'CARGO_CAPACITY', 'Cargo: capacity sold to a courier counts once confirmed, and cannot overbook the hold');
+UPDATE ship.capacity_booking SET status = 'CONFIRMED' WHERE trip_id = :t214 AND buyer_company_id = :cc;
+SELECT pg_temp.ok((SELECT used_weight_kg FROM ship.trip_cargo_capacity WHERE trip_id = :t214) = 300,
+  'Cargo: a confirmed capacity booking is counted in the hold');
+SELECT pg_temp.expect_error(format($$INSERT INTO ship.shipment_leg (shipment_id, seq, mode, carrier_company_id, trip_id)
+                                    SELECT %s, 1, 'BUS_HOLD', %s, min(id) FROM ops.trip WHERE company_id = %s AND id <> %s$$, :cg4, :ca, :ca, :t214),
+  'CARGO_NOT_OFFERED', 'Cargo: no parcel rides a trip that offers no hold capacity');
+SELECT pg_temp.expect_error(format('UPDATE fleet.vehicle SET cargo_capacity_kg = 200 WHERE id = %s', :va),
+  'CARGO_OVER_VEHICLE', 'Cargo: a vehicle''s registered capacity cannot drop under the hold offered on its coming trips');
+SELECT pg_temp.expect_error(format($$INSERT INTO ship.load (company_id, vehicle_id, load_type, max_weight_kg) VALUES (%s, %s, 'LTL', 600)$$, :ca, :va),
+  'CARGO_OVER_VEHICLE', 'Cargo: a load takes no more than its vehicle is registered to carry');
+INSERT INTO ship.load (company_id, vehicle_id, load_type, max_weight_kg) VALUES (:ca, :va, 'LTL', 250);
+SELECT id AS cgload FROM ship.load WHERE company_id = :ca ORDER BY id DESC LIMIT 1 \gset
+INSERT INTO ship.shipment_leg (shipment_id, seq, mode, carrier_company_id, load_id) VALUES (:cg3, 2, 'TRUCK_LTL', :ca, :cgload);
+SELECT pg_temp.expect_error(format($$INSERT INTO ship.shipment_leg (shipment_id, seq, mode, carrier_company_id, load_id) VALUES (%s, 2, 'TRUCK_LTL', %s, %s)$$, :cg2, :ca, :cgload),
+  'CARGO_CAPACITY', 'Cargo: a truck load refuses the shipment that would overload it');
+SELECT pg_temp.ok(NOT EXISTS (SELECT 1 FROM ship.cargo_overbooked())
+  AND (SELECT used_weight_kg FROM ship.load WHERE id = :cgload) = 120
+  AND NOT has_function_privilege('masslak_app', 'ship.trip_cargo_usage(bigint)', 'EXECUTE'),
+  'Cargo: no hold or load carries more than its maximum, and the figures are kept by the database alone');
 ROLLBACK;
 -- Review stage D (1064): bookings partitioned by ranges of id
 SELECT pg_temp.ok(

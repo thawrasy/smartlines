@@ -13,8 +13,8 @@ every table has a primary key, every reference is a foreign key (or documents wh
 | Engine | PostgreSQL 16 with PostGIS 3 (extensions: pgcrypto, citext, btree_gist, pg_trgm, postgis in schema `gis`; Docker and CI image `postgis/postgis:16-3.4`, Ubuntu package `postgresql-16-postgis-3`) |
 | Schemas | 26 separate schemas, each with its own privileges |
 | Tables | 488 tables (8 partitioned), 5,004 columns, 1,402 foreign keys |
-| Security | row-level security on 488 of 488 tables, 910 policies; 416 triggers, 240 functions |
-| Tests | 426 automated checks against a freshly built database (`db/tests/run.sh`) |
+| Security | row-level security on 488 of 488 tables, 910 policies; 424 triggers, 253 functions |
+| Tests | 439 automated checks against a freshly built database (`db/tests/run.sh`) |
 | Design | [Database design and ERD document](../docs/database/) with diagrams in the study's colors |
 | Docs | [Data dictionary](DATA_DICTIONARY.md) · [ERD diagrams](ERD.md) (both generated from the database) |
 <!-- stats:end -->
@@ -121,6 +121,7 @@ PostGIS in `gis`. Until 9 October 2026 a first start of the Docker stack stopped
 | `1064_partitioned_bookings.sql` | Review stage D: bookings partitioned by ranges of id, keys unique over all partitions in `sales.booking_key`, generic conversion `sys.partition_by_id` |
 | `1065_failover.sql` | Review stage D: standby figures for automatic failover and the table the failover drill writes to |
 | `1066_position_without_vehicle.sql` | A position without a vehicle is graded again (regression of 1063, found by the launch gate 4 rehearsal) |
+| `1067_cargo_capacity.sql` | Cargo stays within the capacity of the vehicle that carries it: used weight counted from what is loaded, overloads refused (external technical report) |
 
 ## Design rules (study 29.1)
 

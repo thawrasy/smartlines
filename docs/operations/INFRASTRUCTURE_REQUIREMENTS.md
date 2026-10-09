@@ -117,6 +117,15 @@ cluster. Thresholds: positions above 500 a second, primary CPU above 60 % at the
 | S3-compatible object storage | backups, WAL archive, second copy of documents | another site or account |
 | Bucket with object lock (WORM) | signed audit archive | separate account, compliance mode, 10-year retention |
 
+**Encryption at rest.** Every disk and volume holding the database, its WAL, the document store or backups is
+encrypted: the provider's encrypted volumes or encrypted disks (keys held by the provider's key service, or by us), or
+LUKS set up when the server is installed. PostgreSQL has no transparent data encryption of its own, so this is what
+protects a disk, a snapshot or a decommissioned drive that leaves the data centre. It adds to what the platform already
+encrypts: identity numbers, second-factor secrets and documents in the database (AES-256-GCM, keys in `deploy/.env`),
+backups (`age`) and every connection (TLS). It is chosen when the server is ordered and cannot be added to a disk later
+without moving the data, so it is part of the order for every stage (external technical report of October 2026,
+`docs/operations/EXTERNAL_REPORT_RESPONSE.md`). Object storage buckets use server-side encryption.
+
 Data volumes at 10 M operations a day are in [CAPACITY_MODEL.md](CAPACITY_MODEL.md) section 4 (steady size 7 to 8 TB in
 the database plus about 2 TB of growth a year, 175 to 350 GB of compressed WAL archive). The pilot is 30 to 50 times smaller.
 
@@ -251,10 +260,11 @@ test are in the feasibility study.
 
 ## 13. Checklist before uploading the system
 
-1. Server with Ubuntu 24.04 LTS and a static IP.
+1. Server with Ubuntu 24.04 LTS and a static IP, its disks and volumes encrypted at rest (section 5); a trial with
+   demo data only may skip this.
 2. Domain with A and AAAA records for `masslak.com` and `www`, propagated (the certificate is issued on first start).
 3. Administrator SSH key; password sign-in disabled.
-4. Object storage bucket for backups in another account or site.
+4. Object storage bucket for backups in another account or site, with server-side encryption.
 5. Password manager or secret store for the keys section of `deploy/.env`.
 6. ACME e-mail and first administrator e-mail.
 7. Trial: keep the simulated payment gateway. Production: payment provider, SMS gateway and SMTP relay details, their

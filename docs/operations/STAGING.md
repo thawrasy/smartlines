@@ -34,6 +34,9 @@ docker compose -f docker-compose.yml -f deploy/staging/docker-compose.staging.ym
 docker compose ... exec -u postgres db pgbackrest --stanza=masslak --type=full backup     # first full backup
 ```
 
+Order the staging servers with encrypted disks and volumes, as production will have them
+(`INFRASTRUCTURE_REQUIREMENTS.md` section 5): the recovery drill then restores onto encrypted storage too.
+
 `MASSLAK_ENVIRONMENT=staging` makes the migration record `deploy.environment = staging` in `sys.setting`: the gate
 runner files its evidence as staging only then, and the volume generator refuses to run on a database marked
 `production`. After every restart of the primary, run `pgbackrest --stanza=masslak check` (RUNBOOKS.md section 2).

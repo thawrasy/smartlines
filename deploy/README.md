@@ -27,6 +27,8 @@ in production without it.
 
 - A Linux server, Ubuntu 22.04 or 24.04. A test server needs 2 vCPU, 4 GB RAM and 40 GB disk; size production
   from load tests (start at 4 vCPU and 8 GB).
+- For production, disks and volumes encrypted at rest, chosen when the server is ordered (the provider's encrypted
+  volumes, or LUKS at installation); see `docs/operations/INFRASTRUCTURE_REQUIREMENTS.md` section 5.
 - A domain, with DNS `A` (and `AAAA` if the server has IPv6) records for `masslak.com` and
   `www.masslak.com` pointing at the server. Set them first: the certificate is issued on first start.
 

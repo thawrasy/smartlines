@@ -240,8 +240,10 @@ async def main():
         vehicles = []
         for plate, chassis, seats in (("123456", "CHS-DCA-0001", 44), ("654321", "CHS-DCA-0002", 44), ("223344", "CHS-DCA-0003", 32)):
             vid = await conn.fetchval(
+                # a coach's luggage hold, registered for 800 kg of cargo (parcels on its trips stay within it, 1067)
                 """INSERT INTO fleet.vehicle (company_id, vehicle_type, make, model, manufacture_year, plate_no, chassis_no, passenger_seats,
-                     owner_party_id, status) VALUES ($1, 'COACH', 'Demo', 'Coach', 2022, $2, $3, $4, $1, 'ACTIVE') RETURNING id""",
+                     owner_party_id, status, cargo_capacity_kg) VALUES ($1, 'COACH', 'Demo', 'Coach', 2022, $2, $3, $4, $1, 'ACTIVE', 800)
+                   RETURNING id""",
                 company, plate, chassis, seats)
             await conn.execute(
                 """INSERT INTO fleet.license_record (company_id, subject_type, subject_id, license_type, license_no, issuer, issue_date, expiry_date, status)

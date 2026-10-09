@@ -6,7 +6,7 @@ Who keeps each business rule: the database, the application or both, the objects
 
 | Owner | Meaning | Rules |
 |---|---|---|
-| database | the database refuses a breach whatever the caller; the application may check earlier only to give a clearer message | 20 |
+| database | the database refuses a breach whatever the caller; the application may check earlier only to give a clearer message | 21 |
 | application | only the application can see the rule (it spans a request, a lock or a choice of code); the database supplies figures or records | 6 |
 | both | each side keeps its own part, and both parts are tested | 6 |
 
@@ -46,6 +46,7 @@ Who keeps each business rule: the database, the application or both, the objects
 | [MARKET-TIME-AND-MONEY](#market-time-and-money) | application | 1 | 2 |
 | [WAREHOUSE-NO-PERSONAL-DATA](#warehouse-no-personal-data) | database | 3 | 0 |
 | [POSITION-GRADED-ONCE](#position-graded-once) | database | 2 | 3 |
+| [CARGO-WITHIN-CAPACITY](#cargo-within-capacity) | database | 5 | 1 |
 
 ## LEDGER-BALANCED
 
@@ -462,3 +463,16 @@ Every vehicle position is graded by the same trust rules, whichever database kee
 | Application | `app.telemetry:accept`<br>`app.telemetry:store` |
 | Database tests (`db/tests/run_tests.sql`) | Telemetry: positions are graded only for the signed-in driver's own trip<br>Telemetry: one set of trust rules grades positions in both stores, and the telemetry database keeps them as long as the primary says |
 | API tests (`backend/`) | `tests/test_telemetry.py::test_the_trust_rules_are_the_same_as_on_the_primary`<br>`tests/test_telemetry.py::test_nothing_is_stored_for_a_trip_that_is_not_the_drivers`<br>`tests/test_design_audit_t3.py::test_positions_carry_evidence_and_duplicates_are_ignored` |
+
+## CARGO-WITHIN-CAPACITY
+
+Cargo on a trip's hold or on a truck load never exceeds its maximum, counted segment by segment on a trip, and no maximum exceeds what the vehicle is registered to carry.
+
+**Owner:** database. Shipments, parcels and capacity bookings are placed from several screens and partner calls; the database counts what is loaded and locks the capacity row while a change is checked, so concurrent loaders cannot both fit into the last space.
+
+| Kept by | Names |
+|---|---|
+| Database | `function ship.trip_cargo_usage`<br>`function ship.load_usage`<br>`function ship.vehicle_payload`<br>`trigger ship.shipment_leg.leg_cargo_capacity`<br>`trigger ship.parcel.parcel_cargo_capacity`<br>`trigger ship.capacity_booking.capacity_booking_cargo`<br>`trigger ship.trip_cargo_capacity.trip_cargo_capacity_rules`<br>`trigger ship.load.load_capacity_rules`<br>`trigger ops.trip.trip_vehicle_cargo_limit`<br>`trigger fleet.vehicle.vehicle_cargo_limit` |
+| Application | - |
+| Database tests (`db/tests/run_tests.sql`) | Cargo: a trip offers no more hold than its vehicle is registered to carry<br>Cargo: a shipment that would overload any segment of the trip is refused<br>Cargo: re-weighing a parcel counts on the trip it rides, and an overload is refused<br>Cargo: capacity sold to a courier counts once confirmed, and cannot overbook the hold<br>Cargo: a truck load refuses the shipment that would overload it |
+| API tests (`backend/`) | `tests/test_cargo_capacity.py::test_two_clerks_cannot_both_fit_into_the_last_space` |

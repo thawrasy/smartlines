@@ -657,6 +657,37 @@
           "tests/test_design_audit_t3.py::test_positions_carry_evidence_and_duplicates_are_ignored"
         ]
       }
+    },
+    {
+      "id": "CARGO-WITHIN-CAPACITY",
+      "rule": "Cargo on a trip's hold or on a truck load never exceeds its maximum, counted segment by segment on a trip, and no maximum exceeds what the vehicle is registered to carry.",
+      "owner": "database",
+      "why": "Shipments, parcels and capacity bookings are placed from several screens and partner calls; the database counts what is loaded and locks the capacity row while a change is checked, so concurrent loaders cannot both fit into the last space.",
+      "database": [
+        "function ship.trip_cargo_usage",
+        "function ship.load_usage",
+        "function ship.vehicle_payload",
+        "trigger ship.shipment_leg.leg_cargo_capacity",
+        "trigger ship.parcel.parcel_cargo_capacity",
+        "trigger ship.capacity_booking.capacity_booking_cargo",
+        "trigger ship.trip_cargo_capacity.trip_cargo_capacity_rules",
+        "trigger ship.load.load_capacity_rules",
+        "trigger ops.trip.trip_vehicle_cargo_limit",
+        "trigger fleet.vehicle.vehicle_cargo_limit"
+      ],
+      "application": [],
+      "tests": {
+        "db": [
+          "Cargo: a trip offers no more hold than its vehicle is registered to carry",
+          "Cargo: a shipment that would overload any segment of the trip is refused",
+          "Cargo: re-weighing a parcel counts on the trip it rides, and an overload is refused",
+          "Cargo: capacity sold to a courier counts once confirmed, and cannot overbook the hold",
+          "Cargo: a truck load refuses the shipment that would overload it"
+        ],
+        "api": [
+          "tests/test_cargo_capacity.py::test_two_clerks_cannot_both_fit_into_the_last_space"
+        ]
+      }
     }
   ]
 }
