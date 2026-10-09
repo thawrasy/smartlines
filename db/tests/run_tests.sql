@@ -2134,6 +2134,27 @@ SELECT pg_temp.ok((SELECT value FROM fin.payment_metrics() WHERE metric = 'massl
 SELECT pg_temp.expect_error(format($$UPDATE fin.payment SET status = 'SUCCESS', ledger_txn_id = %s WHERE idempotency_key = 'zz-late-declined'$$, :late_txn),
   'INVALID_TRANSITION', 'Payments: one the provider declined never turns into a success');
 ROLLBACK;
+-- 1072: a rating is seen by its rater, the rated carrier and the platform, not by other companies
+BEGIN;
+SELECT sys.set_context(:uadmin, NULL, 'SYSTEM');
+SELECT t.id AS rt_ticket, t.trip_id AS rt_trip, tr.company_id AS rt_company, b.booker_party_id AS rt_party
+  FROM sales.ticket t JOIN ops.trip tr ON tr.id = t.trip_id JOIN sales.booking b ON b.id = t.booking_id
+ WHERE NOT EXISTS (SELECT 1 FROM crm.trip_rating r WHERE r.ticket_id = t.id) ORDER BY t.id LIMIT 1 \gset
+ALTER TABLE crm.trip_rating DISABLE TRIGGER a_trip_rating_rules;     -- the rules want a finished trip; not the point here
+INSERT INTO crm.trip_rating (ticket_id, trip_id, company_id, party_id, stars, comment)
+VALUES (:rt_ticket, :rt_trip, :rt_company, :rt_party, 2, 'late and cold') RETURNING id AS rt_id \gset
+ALTER TABLE crm.trip_rating ENABLE TRIGGER a_trip_rating_rules;
+SELECT id AS rt_other FROM iam.company WHERE company_type = 'CARRIER' AND id <> :rt_company ORDER BY id LIMIT 1 \gset
+SET LOCAL ROLE masslak_app;
+SELECT sys.set_context(NULL, :rt_other, 'COMPANY');
+SELECT pg_temp.ok(NOT EXISTS (SELECT 1 FROM crm.trip_rating WHERE id = :rt_id),
+  'Ratings: another carrier does not see a rating of this one, nor who wrote it');
+SELECT sys.set_context(NULL, :rt_company, 'COMPANY');
+SELECT pg_temp.ok(EXISTS (SELECT 1 FROM crm.trip_rating WHERE id = :rt_id), 'Ratings: the rated carrier reads its rating');
+SELECT sys.set_context(NULL, NULL, 'PASSENGER', p_party_id => :rt_party);
+SELECT pg_temp.ok(EXISTS (SELECT 1 FROM crm.trip_rating WHERE id = :rt_id), 'Ratings: the passenger reads the rating they wrote');
+RESET ROLE;
+ROLLBACK;
 -- Review stage D (1064): bookings partitioned by ranges of id
 SELECT pg_temp.ok(
   (SELECT relkind FROM pg_class WHERE oid = 'sales.booking'::regclass) = 'p'

@@ -16,7 +16,7 @@ supporting index, except references to lookup lists and to the staff member who 
 | Schemas | 26 separate schemas, each with its own privileges |
 | Tables | 489 tables (8 partitioned), 5,009 columns, 1,402 foreign keys |
 | Security | row-level security on 489 of 489 tables, 911 policies; 424 triggers, 257 functions |
-| Tests | 446 automated checks against a freshly built database (`db/tests/run.sh`) |
+| Tests | 449 automated checks against a freshly built database (`db/tests/run.sh`) |
 | Design | [Database design and ERD document](../docs/database/) with diagrams in the study's colors |
 | Docs | [Data dictionary](DATA_DICTIONARY.md) · [ERD diagrams](ERD.md) (both generated from the database) |
 <!-- stats:end -->
@@ -128,6 +128,7 @@ PostGIS in `gis`. Until 9 October 2026 a first start of the Docker stack stopped
 | `1069_audit_archive_lag.sql` | How far the signed audit archive lags: per audit log, the age of the oldest record no recorded archive covers, for the metrics endpoint and the alert AuditArchiveBehind (third-party follow-up, October 2026) |
 | `1070_partition_upkeep_late.sql` | Partition upkeep that survives running late: `sys.create_partition` moves the rows of a missing period out of the default partition (through a plain table, so no trigger fires twice) instead of aborting the whole upkeep (code review, October 2026) |
 | `1071_late_provider_payment.sql` | A provider's confirmation that arrives after the platform stopped waiting is credited to the payer's wallet instead of lost; flagged `captured_late`, counted for the alert PaymentCapturedLate (code review, October 2026) |
+| `1072_trip_rating_privacy.sql` | Trip ratings readable by the rater, the rated carrier and the platform only; the read policy had been open to every company and passenger (code review, October 2026) |
 
 ## Design rules (study 29.1)
 
