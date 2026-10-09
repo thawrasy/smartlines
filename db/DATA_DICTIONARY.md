@@ -2,7 +2,7 @@
 
 > Generated from the built database (`db/tools/gen_docs.py`); do not edit by hand.
 
-**489 tables, 5008 columns, in 26 schemas.**
+**489 tables, 5009 columns, in 26 schemas.**
 
 Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant isolation (RLS) · 🧩 partitioned monthly · 🔒 append-only / change-protected
 
@@ -3936,6 +3936,7 @@ Payment; becomes SUCCESS only with a signed gateway notification and a ledger en
 | `refunded_amount` | `bigint` | ✱ | `0` |
 | `agency_company_id` | `bigint` | 🔗 `iam.company`  |  |
 | `api_client_id` | `bigint` | 🔗 `iam.api_client`  |  |
+| `captured_late` | `boolean` | ✱ | `false` |
 
 ### `fin.payment_method` 🛡️
 

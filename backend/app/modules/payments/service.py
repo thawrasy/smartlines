@@ -135,10 +135,17 @@ async def clearing_wallet(conn, p: dict, pay) -> asyncpg.Record:
     return await platform_wallet(conn, "GATEWAY_CLEARING", pay["currency"])
 
 
+# Payments the platform stopped waiting for; the provider may still confirm that it took the money (1071)
+GAVE_UP = ("EXPIRED", "BOOKING_EXPIRED", "CANCELLED")
+
+
 async def _succeed(conn, p: dict, pay, user_id: Optional[int], card_last4: Optional[str]):
-    """Credits the wallet for a pending payment, once. The caller holds the system scope."""
+    """Credits the wallet for a pending payment, once. The caller holds the system scope. A payment the platform gave up
+    on (expired or cancelled on this side) is credited too when the provider confirms it took the money: the money
+    waits in the wallet, and finance is told, rather than being lost (code review of October 2026)."""
     row = await conn.fetchrow("SELECT * FROM fin.payment WHERE id = $1 FOR UPDATE", pay["id"])
-    if row["status"] != "PENDING":
+    late = row["status"] == "FAILED" and row["failure_code"] in GAVE_UP
+    if row["status"] != "PENDING" and not late:
         return row
     clearing = await clearing_wallet(conn, p, row)
     txn = await post_txn(conn, "TOPUP", row["currency"], f"payment:{row['id']}",
@@ -146,7 +153,12 @@ async def _succeed(conn, p: dict, pay, user_id: Optional[int], card_last4: Optio
                          ref_type="payment", ref_id=row["id"], user_id=user_id, memo=row["provider_ref"])
     done = await conn.fetchrow(
         """UPDATE fin.payment SET status = 'SUCCESS', stage = 'CONFIRMED', ledger_txn_id = $2, settled_at = now(),
-                  card_last4 = coalesce($3, card_last4) WHERE id = $1 RETURNING *""", row["id"], txn, card_last4)
+                  card_last4 = coalesce($3, card_last4), failure_code = NULL, captured_late = $4 WHERE id = $1 RETURNING *""",
+        row["id"], txn, card_last4, late)
+    if late:
+        await emit(conn, "payment.captured_late", "payment", done["id"], {
+            "payment": str(done["uid"]), "amount": done["amount"], "currency": done["currency"],
+            "gave_up_because": row["failure_code"], "booking_id": done["booking_id"]})
     if done["purpose"] == "BOOKING" and done["booking_id"]:
         # the money of a reserved booking (1056): it reached the payer's wallet above and pays the booking from there;
         # if the reservation has lapsed meanwhile, it simply stays in the wallet (refundable to its source by finance)

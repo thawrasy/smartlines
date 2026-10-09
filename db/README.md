@@ -14,9 +14,9 @@ supporting index, except references to lookup lists and to the staff member who 
 |---|---|
 | Engine | PostgreSQL 16 with PostGIS 3 (extensions: pgcrypto, citext, btree_gist, pg_trgm, postgis in schema `gis`; Docker and CI image `postgis/postgis:16-3.4`, Ubuntu package `postgresql-16-postgis-3`) |
 | Schemas | 26 separate schemas, each with its own privileges |
-| Tables | 489 tables (8 partitioned), 5,008 columns, 1,402 foreign keys |
-| Security | row-level security on 489 of 489 tables, 911 policies; 424 triggers, 255 functions |
-| Tests | 439 automated checks against a freshly built database (`db/tests/run.sh`) |
+| Tables | 489 tables (8 partitioned), 5,009 columns, 1,402 foreign keys |
+| Security | row-level security on 489 of 489 tables, 911 policies; 424 triggers, 257 functions |
+| Tests | 446 automated checks against a freshly built database (`db/tests/run.sh`) |
 | Design | [Database design and ERD document](../docs/database/) with diagrams in the study's colors |
 | Docs | [Data dictionary](DATA_DICTIONARY.md) · [ERD diagrams](ERD.md) (both generated from the database) |
 <!-- stats:end -->
@@ -126,6 +126,8 @@ PostGIS in `gis`. Until 9 October 2026 a first start of the Docker stack stopped
 | `1067_cargo_capacity.sql` | Cargo stays within the capacity of the vehicle that carries it: used weight counted from what is loaded, overloads refused (external technical report) |
 | `1068_shared_rate_limits.sql` | Request limits shared by every API process: sign-in buckets per address (sized for carrier-grade NAT) and per account identifier, kept in an unlogged table reached only through `sec.rate_take` (code review, October 2026) |
 | `1069_audit_archive_lag.sql` | How far the signed audit archive lags: per audit log, the age of the oldest record no recorded archive covers, for the metrics endpoint and the alert AuditArchiveBehind (third-party follow-up, October 2026) |
+| `1070_partition_upkeep_late.sql` | Partition upkeep that survives running late: `sys.create_partition` moves the rows of a missing period out of the default partition (through a plain table, so no trigger fires twice) instead of aborting the whole upkeep (code review, October 2026) |
+| `1071_late_provider_payment.sql` | A provider's confirmation that arrives after the platform stopped waiting is credited to the payer's wallet instead of lost; flagged `captured_late`, counted for the alert PaymentCapturedLate (code review, October 2026) |
 
 ## Design rules (study 29.1)
 

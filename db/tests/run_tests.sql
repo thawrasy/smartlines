@@ -2077,6 +2077,63 @@ SELECT pg_temp.ok(NOT EXISTS (SELECT 1 FROM ship.cargo_overbooked())
   AND NOT has_function_privilege('masslak_app', 'ship.trip_cargo_usage(bigint)', 'EXECUTE'),
   'Cargo: no hold or load carries more than its maximum, and the figures are kept by the database alone');
 ROLLBACK;
+-- 1070: partition upkeep that ran late (code review of October 2026, 7.3)
+BEGIN;
+-- a table partitioned by id with a trigger that counts inserts, standing for one whose triggers post or audit
+CREATE TABLE sys.zz_part_probe (id bigint NOT NULL, note text NOT NULL CHECK (note <> '')) PARTITION BY RANGE (id);
+CREATE TABLE sys.zz_part_probe_p0 PARTITION OF sys.zz_part_probe FOR VALUES FROM (0) TO (100);
+CREATE TABLE sys.zz_part_probe_default PARTITION OF sys.zz_part_probe DEFAULT;
+CREATE INDEX zz_part_probe_note_idx ON sys.zz_part_probe (note);
+CREATE TABLE sys.zz_part_probe_count (n int NOT NULL);
+INSERT INTO sys.zz_part_probe_count VALUES (0);
+CREATE FUNCTION sys.zz_part_probe_counted() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN UPDATE sys.zz_part_probe_count SET n = n + 1; RETURN NEW; END $$;
+CREATE TRIGGER counted AFTER INSERT ON sys.zz_part_probe FOR EACH ROW EXECUTE FUNCTION sys.zz_part_probe_counted();
+INSERT INTO sys.zz_part_probe SELECT g, 'late' FROM generate_series(150, 160) g;       -- no partition yet: default
+SELECT pg_temp.ok((SELECT count(*) FROM sys.zz_part_probe_default) = 11 AND (SELECT n FROM sys.zz_part_probe_count) = 11,
+  'Partitions: rows of a range without a partition land in the default partition');
+SELECT sys.create_partition('sys.zz_part_probe', 'sys.zz_part_probe_p1', '100', '200') AS moved \gset
+SELECT pg_temp.ok(:moved = 11
+  AND (SELECT count(*) FROM sys.zz_part_probe_default) = 0
+  AND (SELECT count(*) FROM ONLY sys.zz_part_probe_p1) = 11
+  AND (SELECT count(*) FROM sys.zz_part_probe) = 11
+  AND (SELECT n FROM sys.zz_part_probe_count) = 11,
+  'Partitions: a late upkeep moves the rows into the new partition, none lost and no trigger fired twice');
+INSERT INTO sys.zz_part_probe VALUES (170, 'after');
+SELECT pg_temp.ok((SELECT count(*) FROM ONLY sys.zz_part_probe_p1) = 12 AND (SELECT n FROM sys.zz_part_probe_count) = 12
+  AND EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname = 'sys' AND tablename = 'zz_part_probe_p1' AND indexdef LIKE '%(note)%')
+  AND sys.create_partition('sys.zz_part_probe', 'sys.zz_part_probe_p2', '200', '300') = 0,
+  'Partitions: the moved partition takes new rows, fires the table''s triggers and carries its indexes');
+-- the outbox, partitioned by day: events dated beyond the partitions the upkeep made, then the upkeep runs again
+INSERT INTO sys.outbox_event (event_type, aggregate_type, aggregate_id, payload, created_at)
+SELECT 'test.late_upkeep', 'test', g, '{}'::jsonb, current_date + 20 + make_interval(hours => g) FROM generate_series(1, 5) g;
+SELECT pg_temp.ok((SELECT count(*) FROM sys.outbox_event_default WHERE event_type = 'test.late_upkeep') = 5,
+  'Partitions: outbox events of a day without a partition wait in the default partition');
+SELECT sys.ensure_daily_partitions('sys.outbox_event', 21, 0);
+SELECT pg_temp.ok(to_regclass('sys.outbox_event_' || to_char(current_date + 20, 'YYYYMMDD')) IS NOT NULL
+  AND (SELECT count(*) FROM sys.outbox_event_default WHERE event_type = 'test.late_upkeep') = 0
+  AND (SELECT count(*) FROM sys.outbox_event WHERE event_type = 'test.late_upkeep') = 5,
+  'Partitions: the daily upkeep, run late, creates the missing days and empties the default partition');
+ROLLBACK;
+-- 1071: a provider's late confirmation is credited, not lost (code review of October 2026, scenario 5)
+BEGIN;
+SELECT sys.set_context(:uadmin, NULL, 'SYSTEM');
+SELECT id AS w_late FROM fin.wallet WHERE owner_party_id = :pax AND wallet_type = 'USER' AND currency = 'SYP' \gset
+INSERT INTO fin.payment (provider_id, purpose, payer_party_id, wallet_id, method, currency, amount, idempotency_key)
+SELECT p.id, 'TOPUP', :pax, :w_late, 'CARD', 'SYP', 5000, k
+  FROM fin.payment_provider p, (VALUES ('zz-late-expired'), ('zz-late-declined')) v(k) WHERE p.code = 'SANDBOX';
+UPDATE fin.payment SET status = 'FAILED', failure_code = CASE idempotency_key WHEN 'zz-late-expired' THEN 'EXPIRED' ELSE 'DECLINED' END
+ WHERE idempotency_key LIKE 'zz-late-%';
+INSERT INTO fin.ledger_txn (txn_type, currency, idempotency_key) VALUES ('TOPUP', 'SYP', 'zz-late') RETURNING id AS late_txn \gset
+SELECT (SELECT value FROM fin.payment_metrics() WHERE metric = 'masslak_payments_captured_late_total') AS late_before \gset
+UPDATE fin.payment SET status = 'SUCCESS', failure_code = NULL, captured_late = true, ledger_txn_id = :late_txn
+ WHERE idempotency_key = 'zz-late-expired';
+SELECT pg_temp.ok((SELECT value FROM fin.payment_metrics() WHERE metric = 'masslak_payments_captured_late_total') = :late_before + 1
+  AND has_function_privilege('masslak_app', 'fin.payment_metrics()', 'EXECUTE'),
+  'Payments: one the platform stopped waiting for may still succeed when the provider confirms, and is counted for finance');
+SELECT pg_temp.expect_error(format($$UPDATE fin.payment SET status = 'SUCCESS', ledger_txn_id = %s WHERE idempotency_key = 'zz-late-declined'$$, :late_txn),
+  'INVALID_TRANSITION', 'Payments: one the provider declined never turns into a success');
+ROLLBACK;
 -- Review stage D (1064): bookings partitioned by ranges of id
 SELECT pg_temp.ok(
   (SELECT relkind FROM pg_class WHERE oid = 'sales.booking'::regclass) = 'p'

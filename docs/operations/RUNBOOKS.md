@@ -364,6 +364,11 @@ section.
 
 ## 16. Resending money and authority events (T3-12)
 
+- **A provider confirmed after we stopped waiting (alert `PaymentCapturedLate`):** the payment had expired, its
+  reservation had expired, or the payer cancelled it, and the provider then reported that it took the money (1071).
+  The money is in the payer's wallet (`fin.payment.captured_late`, event `payment.captured_late`); the booking was
+  confirmed only if it still held its seats. Contact the payer: the money stays usable in the wallet, or finance
+  refunds it to its source (`POST /api/admin/payments/{uid}/refund`).
 - **Events the worker gave up on (alert `OutboxEventsFailed`):** after eight attempts an outbox event is `FAILED` and
   its notifications and partner deliveries wait. Read the cause in `sys.outbox_event.last_error`, fix it (provider
   down, wrong credentials, a template error), then queue the events again as the database owner:

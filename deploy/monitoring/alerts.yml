@@ -80,6 +80,10 @@ groups:
         expr: masslak_payment_mismatches > 0
         labels: { severity: page }
         annotations: { summary: "Payments, refunds, provider notices and the ledger disagree: freeze payouts", runbook: "RUNBOOKS.md#16-resending-money-and-authority-events-t3-12" }
+      - alert: PaymentCapturedLate
+        expr: increase(masslak_payments_captured_late_total[1h]) > 0
+        labels: { severity: ticket }
+        annotations: { summary: "A provider confirmed a payment after the platform stopped waiting: the money is in the payer's wallet", runbook: "RUNBOOKS.md#16-resending-money-and-authority-events-t3-12" }
       - alert: ReviewQueuesWaiting
         expr: masslak_violations_awaiting_review > 0 or masslak_delivery_retries_waiting > 0
         for: 48h

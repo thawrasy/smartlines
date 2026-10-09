@@ -129,3 +129,57 @@ async def sweep_writes() -> list:
 def test_no_company_can_hand_its_rows_to_another_company():
     accepted = asyncio.run(sweep_writes())
     assert accepted == [], f"rows reassigned to another company: {accepted}"
+
+
+# Rows naming another company that a company may still write, because they belong to it through their parent
+FOREIGN_WRITES = {
+    "ops.trip_disruption.partner_company_id": "the disrupted trip's carrier decides the disruption and names the partner "
+                                             "carrier that takes its passengers (written through the trip, split_write)",
+}
+
+
+async def sweep_foreign_writes() -> list:
+    """Signed in as a company, try to change and to delete rows that belong to another company, where it is named in
+    no other company column of the row (a party to a shared deal may write it): row-level security must leave nothing
+    to change (code review of October 2026, 4.2: reads alone were swept)."""
+    conn = await asyncpg.connect(OWNER_URL)
+    try:
+        cols = await conn.fetch(
+            """SELECT n.nspname || '.' || c.relname AS t, array_agg(a.attname::text ORDER BY a.attnum) AS cols
+                 FROM pg_attribute a JOIN pg_class c ON c.oid = a.attrelid JOIN pg_namespace n ON n.oid = c.relnamespace
+                WHERE c.relkind IN ('r','p') AND NOT c.relispartition AND a.attnum > 0 AND NOT a.attisdropped AND a.attgenerated = ''
+                  AND a.attname = ANY($1::text[]) AND n.nspname NOT IN ('audit','pg_catalog','information_schema')
+                GROUP BY 1""", list(COLUMNS))
+        companies = await conn.fetch(
+            """SELECT DISTINCT ON (c.id) c.id, c.company_type, m.user_id FROM iam.company c JOIN iam.company_member m ON m.company_id = c.id
+                WHERE m.status = 'ACTIVE' AND c.company_type IN ('CARRIER','AGENCY') ORDER BY c.id, m.user_id LIMIT 3""")
+        written = []
+        for comp in companies:
+            scope = "AGENCY" if comp["company_type"] == "AGENCY" else "COMPANY"
+            for r in cols:
+                for col in r["cols"]:
+                    if f"{r['t']}.{col}" in FOREIGN_WRITES:
+                        continue
+                    others = [c for c in r["cols"] if c != col]
+                    not_mine = "".join(f" AND {c} IS DISTINCT FROM $1" for c in others)
+                    for verb, sql in (("change", f"UPDATE {r['t']} SET {col} = {col} WHERE {col} IS NOT NULL AND {col} <> $1{not_mine} RETURNING 1"),
+                                      ("delete", f"DELETE FROM {r['t']} WHERE {col} IS NOT NULL AND {col} <> $1{not_mine} RETURNING 1")):
+                        tr = conn.transaction()
+                        await tr.start()
+                        try:
+                            await conn.execute("SET LOCAL ROLE masslak_app")
+                            await conn.execute("SELECT sys.set_context($1, $2, $3)", comp["user_id"], comp["id"], scope)
+                            if await conn.fetch(sql, comp["id"]):                                     # nosec B608
+                                written.append((f"{r['t']}.{col}", verb, comp["id"]))
+                        except asyncpg.PostgresError:
+                            pass                                    # refused: policy, privilege, guard or trigger
+                        finally:
+                            await tr.rollback()
+        return written
+    finally:
+        await conn.close()
+
+
+def test_no_company_can_change_or_delete_another_companys_rows():
+    written = asyncio.run(sweep_foreign_writes())
+    assert written == [], f"rows of other companies written: {written}"

@@ -322,6 +322,47 @@ def test_instalments_through_a_provider(admin, pax, trip):
         provider(admin, "INSTALMENTS", "INACTIVE")
 
 
+@pytest.mark.skipif(not OWNER_URL, reason="needs MASSLAK_OWNER_URL to move the pay-by time")
+def test_a_provider_payment_that_arrives_after_the_reservation_lapsed(admin, pax, trip):
+    """The provider's notice comes late (code review of October 2026, scenario 5). Before the expiry job the seats are
+    still held, so the booking is confirmed: the money was taken in time. After the job freed them, the money waits in
+    the passenger's wallet, the booking stays expired and the seat on sale, and a repeated notice changes nothing."""
+    assert provider(admin, "INSTALMENTS", "ACTIVE").status_code == 200
+    try:
+        assert switch(admin, "INSTALLMENT", True).status_code == 200
+
+        def reserve_and_start():
+            seats = free_seats(pax, trip, 1)
+            r = book(pax, trip, seats, pay_with="INSTALLMENT")
+            assert r.status_code == 201 and r.json()["status"] == "PENDING_PAYMENT", r.text
+            ref = r.json()["booking_ref"]
+            p = pax.post(f"/api/bookings/{ref}/payments", json={"provider": "INSTALMENTS", "idempotency_key": uuid.uuid4().hex})
+            assert p.status_code == 201, p.text
+            owner_sql("UPDATE sales.booking SET hold_expires_at = now() - interval '1 minute' WHERE booking_ref = $1", ref)
+            return seats[0], ref, p.json()["uid"]
+
+        _, ref, uid = reserve_and_start()          # paid after pay_by, before the expiry job: confirmed
+        assert client().post(f"/api/payments/test/{uid}", json={"approve": True}).json()["status"] == "SUCCESS"
+        assert pax.get(f"/api/bookings/{ref}").json()["booking"]["status"] == "CONFIRMED"
+
+        seat, ref, uid = reserve_and_start()       # paid after the expiry job freed the seat: the money waits in the wallet
+        amount = owner_sql("SELECT total_amount FROM sales.booking WHERE booking_ref = $1", ref)
+        assert owner_sql("SELECT sales.expire_reservations()") >= 1
+        wallet = pax.get("/api/wallet").json()["balance"]
+        assert client().post(f"/api/payments/test/{uid}", json={"approve": True}).json()["status"] == "SUCCESS"
+        assert pax.get(f"/api/bookings/{ref}").json()["booking"]["status"] == "EXPIRED"
+        assert pax.get("/api/wallet").json()["balance"] == wallet + amount
+        assert seat in _free(pax, trip)
+        assert owner_sql("SELECT captured_late FROM fin.payment WHERE uid = $1", uuid.UUID(uid)) is True   # finance sees it
+        assert owner_sql("""SELECT count(*) FROM sys.outbox_event WHERE event_type = 'payment.captured_late'
+                             AND payload->>'payment' = $1""", uid) == 1
+        client().post(f"/api/payments/test/{uid}", json={"approve": True})            # the provider repeats its notice
+        assert pax.get("/api/wallet").json()["balance"] == wallet + amount
+    finally:
+        switch(admin, "INSTALLMENT", False)
+        provider(admin, "INSTALMENTS", "INACTIVE")
+
+
 def test_financing_has_a_minimum_and_a_kind_of_trip(admin, pax, trip):
     assert provider(admin, "TRAVEL_FINANCE", "ACTIVE").status_code == 200
     m = method(admin, "FINANCING")
