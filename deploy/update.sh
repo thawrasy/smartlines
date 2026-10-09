@@ -53,6 +53,12 @@ if ! grep -q '^MASSLAK_REPLICATION_PASSWORD=.' deploy/.env; then
   echo "MASSLAK_REPLICATION_PASSWORD=$(openssl rand -hex 24)" >> deploy/.env
   echo "added MASSLAK_REPLICATION_PASSWORD (read replica) to deploy/.env"
 fi
+if ! grep -q '^MASSLAK_ENVIRONMENT=.' deploy/.env; then
+  sed -i '/^MASSLAK_ENVIRONMENT=/d' deploy/.env
+  env_name=$(grep -q '^MASSLAK_SEED_DEMO=true' deploy/.env && echo development || echo production)
+  echo "MASSLAK_ENVIRONMENT=$env_name" >> deploy/.env
+  echo "added MASSLAK_ENVIRONMENT=$env_name to deploy/.env (set it to staging on the staging servers)"
+fi
 MASSLAK_RELEASE_COMMIT="$sha" compose build        # the release manifest (1058) records the commit
 compose up -d
 compose ps

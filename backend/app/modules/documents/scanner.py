@@ -135,7 +135,6 @@ async def scan_file(conn: asyncpg.Connection, ctx: db.Context, file_id: int) -> 
                                     WHERE id = $1 FOR UPDATE SKIP LOCKED""", file_id)
         if f is None or f["scan_status"] not in ("PENDING", "SCANNING"):
             return f["scan_status"] if f else "PENDING"
-        await conn.execute("UPDATE ref.file_object SET scan_attempts = scan_attempts + 1 WHERE id = $1", file_id)
         fc = await crypto.cipher(conn)
         try:
             data = storage.get(fc, f["storage_key"], f["enc_key_id"], bytes(f["sha256"]))
@@ -143,7 +142,15 @@ async def scan_file(conn: asyncpg.Connection, ctx: db.Context, file_id: int) -> 
         except storage.FileRejected as exc:
             verdict = Verdict("QUARANTINED", "integrity", str(exc)[:200])
         except Unavailable as exc:
+            # the engine is down, not the file at fault: no attempt is used up, so the file is scanned as soon as the
+            # engine is back, however long the outage (the FilesWaitingForScan alert watches the wait)
             log.warning("scanner.unavailable file=%s %s", file_id, exc)
+            return "PENDING"
+        except Exception:
+            # the file made the scan itself fail: count the attempt, so a file that always fails stops being retried
+            # after MAX_ATTEMPTS and waits for an operator instead
+            log.exception("scanner.error file=%s", file_id)
+            await conn.execute("UPDATE ref.file_object SET scan_attempts = scan_attempts + 1 WHERE id = $1", file_id)
             return "PENDING"
         await conn.execute(
             """UPDATE ref.file_object SET scan_status = $2, scanned_at = now(), scan_engine = $3, scan_detail = nullif($4, '')

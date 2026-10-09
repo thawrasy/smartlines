@@ -14,7 +14,7 @@ every table has a primary key, every reference is a foreign key (or documents wh
 | Schemas | 26 separate schemas, each with its own privileges |
 | Tables | 488 tables (8 partitioned), 5,004 columns, 1,402 foreign keys |
 | Security | row-level security on 488 of 488 tables, 910 policies; 416 triggers, 240 functions |
-| Tests | 425 automated checks against a freshly built database (`db/tests/run.sh`) |
+| Tests | 426 automated checks against a freshly built database (`db/tests/run.sh`) |
 | Design | [Database design and ERD document](../docs/database/) with diagrams in the study's colors |
 | Docs | [Data dictionary](DATA_DICTIONARY.md) · [ERD diagrams](ERD.md) (both generated from the database) |
 <!-- stats:end -->
@@ -115,6 +115,7 @@ checks with `gen_docs.py --check` that the generated documents and figures match
 | `1063_telemetry.sql` | Review stage D: one set of trust rules for positions, batch grading on the primary when the history lives in the telemetry database (`db/telemetry/`) |
 | `1064_partitioned_bookings.sql` | Review stage D: bookings partitioned by ranges of id, keys unique over all partitions in `sales.booking_key`, generic conversion `sys.partition_by_id` |
 | `1065_failover.sql` | Review stage D: standby figures for automatic failover and the table the failover drill writes to |
+| `1066_position_without_vehicle.sql` | A position without a vehicle is graded again (regression of 1063, found by the launch gate 4 rehearsal) |
 
 ## Design rules (study 29.1)
 

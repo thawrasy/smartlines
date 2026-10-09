@@ -32,6 +32,7 @@ sed -e "s|^MASSLAK_DOMAIN=.*|MASSLAK_DOMAIN=$domain|" \
     -e "s|^MASSLAK_DEFAULT_LOCALE=.*|MASSLAK_DEFAULT_LOCALE=$locale|" \
     -e "s|^MASSLAK_SANDBOX=.*|MASSLAK_SANDBOX=$demo|" \
     -e "s|^MASSLAK_SEED_DEMO=.*|MASSLAK_SEED_DEMO=$demo|" \
+    -e "s|^MASSLAK_ENVIRONMENT=.*|MASSLAK_ENVIRONMENT=$([ "$demo" = true ] && echo development || echo production)|" \
     -e "s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=$(pass)|" \
     -e "s|^MASSLAK_API_PASSWORD=.*|MASSLAK_API_PASSWORD=$(pass)|" \
     -e "s|^MASSLAK_AUDIT_PASSWORD=.*|MASSLAK_AUDIT_PASSWORD=$(pass)|" \

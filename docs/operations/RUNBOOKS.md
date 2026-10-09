@@ -44,6 +44,11 @@ section.
   ```
   pgbackrest --stanza=masslak --type=time --target="2027-03-29 10:15:00+03" --target-action=promote restore
   ```
+- **After any restart of the primary** (a crash, maintenance or a failover): run
+  `pgbackrest --stanza=masslak check`. It forces a WAL switch and proves archiving works. After a crash recovery
+  PostgreSQL applies `archive_timeout` only once its checkpointer first wakes, up to `checkpoint_timeout` (5 minutes)
+  later, so without this step the window of unarchived WAL can grow past the 60 s RPO (found by the launch gate 1
+  rehearsal, `GATE_CLOSURE_PLAN.md`).
 - **After a restore:**
   1. Run `db/upgrade.sh` to confirm the schema version.
   2. Run `SELECT sys.run_maintenance()`.
@@ -269,7 +274,9 @@ section.
   signatures updated (`freshclam`).
 - **Without ClamAV:** files stay `PENDING` and nobody can download or approve them (fail closed). The sandbox may run
   on the built-in checks alone.
-- **Retries:** the worker retries pending files every minute, five attempts at most.
+- **Retries:** the worker retries pending files every minute. A ClamAV outage uses up no attempt, so files uploaded
+  during an outage are scanned as soon as clamd is back, however long it was down; only a file that makes the scan
+  itself fail uses one, and stops being retried after five (fixed after the launch gate 7 rehearsal).
 - **A file stuck in PENDING:** check clamd, then let the worker retry. Never mark a file CLEAN by hand: only the
   platform's scanner sets a scan result, and a REJECTED or QUARANTINED verdict is final.
 - **Drill:** upload the EICAR test file in staging after each ClamAV upgrade. It must be rejected.

@@ -111,6 +111,13 @@ async def rehearse(args, conn_args, db):
                            INSERT INTO iam.app_user (party_id, account_kind, email)
                            SELECT id, 'PLATFORM', 'rehearsal@masslak.invalid' FROM iam.party WHERE legal_name = 'Rehearsal Reader'""")
     await owner.execute("SET session_replication_role = replica")        # bulk volume without triggers
+    # one carrier with one vehicle, so positions carry a vehicle like the API's do: a trip that is neither draft nor
+    # cancelled always has one (check on ops.trip). Positions without a vehicle are covered by the database suite.
+    report["vehicle"] = await owner.fetchval(
+        """WITH p AS (INSERT INTO iam.party (party_type, legal_name) VALUES ('COMPANY', 'Rehearsal Carrier') RETURNING id),
+                c AS (INSERT INTO iam.company (id, company_type) SELECT id, 'CARRIER' FROM p RETURNING id)
+           INSERT INTO fleet.vehicle (company_id, owner_party_id, vehicle_type, plate_no, chassis_no, passenger_seats)
+           SELECT id, id, 'COACH', 'REHEARSAL-1', 'REHEARSAL-CHASSIS-1', 45 FROM c RETURNING id""")
     for table, sql in FILL.items():
         t0 = time.perf_counter()
         await owner.execute(sql.format(n=args.scale))

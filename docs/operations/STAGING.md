@@ -16,7 +16,7 @@ developer machine or CI are smoke tests, not launch evidence.
 | Database with pgBackRest | `deploy/staging/db/` | WAL archived through pgBackRest every 60 s at most (approved RPO 60 s), encrypted repository, `pg_stat_statements`, lock and slow-query logging, `track_functions = pl` (trigger cost) |
 | Read replica | service `db-replica` (production stack) | Streaming hot standby where reports and exports run; replica lag is monitored; failover drill (RUNBOOKS section 3) |
 | ClamAV | service `clamav` | The file scanner's engine (`MASSLAK_CLAMD=clamav:3310`); without it production files stay pending (fail-closed) |
-| Prometheus | service `prometheus` | Scrapes `/api/metrics` with the token, evaluates the 24 rules of `deploy/monitoring/alerts.yml` |
+| Prometheus | service `prometheus` | Scrapes `/api/metrics` with the token, evaluates the 43 rules of `deploy/monitoring/alerts.yml` |
 | Alertmanager | `deploy/staging/alertmanager.yml` | Severity `page` to the on-call channel, `ticket` to the team queue |
 | Grafana | `deploy/staging/grafana/` | The operations dashboard, provisioned; bound to 127.0.0.1 (reach it through an SSH tunnel) |
 | Secrets | `deploy/staging/init-secrets.sh` | Metrics token, Grafana password, receiver URLs as files (never committed); prints the `.env` lines |
@@ -27,14 +27,16 @@ developer machine or CI are smoke tests, not launch evidence.
 ## Bring it up
 
 ```sh
-./deploy/init-env.sh                         # deploy/.env with random secrets; set MASSLAK_SANDBOX=true, MASSLAK_SEED_DEMO=true
+./deploy/init-env.sh                         # deploy/.env with random secrets; set MASSLAK_SANDBOX=true, MASSLAK_SEED_DEMO=true,
+                                             # and MASSLAK_ENVIRONMENT=staging (the gate evidence is filed under it)
 ./deploy/staging/init-secrets.sh             # add the printed lines to deploy/.env; put the receiver URLs in deploy/staging/secrets
 docker compose -f docker-compose.yml -f deploy/staging/docker-compose.staging.yml --env-file deploy/.env up -d --build
 docker compose ... exec -u postgres db pgbackrest --stanza=masslak --type=full backup     # first full backup
 ```
 
-Set `deploy.environment` to `staging` in `sys.setting`: the volume generator refuses to run on a database marked
-`production`.
+`MASSLAK_ENVIRONMENT=staging` makes the migration record `deploy.environment = staging` in `sys.setting`: the gate
+runner files its evidence as staging only then, and the volume generator refuses to run on a database marked
+`production`. After every restart of the primary, run `pgbackrest --stanza=masslak check` (RUNBOOKS.md section 2).
 
 ## Production-size data
 
@@ -63,6 +65,9 @@ python3 db/tools/generate_volume.py masslak --months 12 --bookings-per-day 3000 
 
 ## What staging must produce (one JSON file each, into docs/operations/evidence)
 
+Each row is one command of `db/tools/gate_run.py`, which writes the file itself; the commands with their options
+are in [GATE_CLOSURE_PLAN.md](GATE_CLOSURE_PLAN.md), section 4.
+
 | Gate | Command | Pass criterion |
 |---|---|---|
 | Capacity at 1x, 2x, 5x | `python -m loadtest.run --base https://<staging> --levels 50,100,200 --mix full --owner-dsn ... --json load_<scale>.json` | The SLOs hold at 1x and 2x (booking p95 ≤ 0.8 s, p99 ≤ 1.5 s, 5xx < 0.1 %); 0 deadlocks; 0 wallet mismatches; no trigger over 1 ms per row (`trigger_ms_per_call`). At 5x, the limit and the first resource to saturate are recorded |
@@ -70,7 +75,7 @@ python3 db/tools/generate_volume.py masslak --months 12 --bookings-per-day 3000 
 | Failover | Promote `db-replica` while the load test runs | The API recovers without manual data repair; time recorded |
 | Migrations | `db/tools/migration_rehearsal.py --base <previous release>` against the 1x copy | Within the stop criteria of `docs/database/MIGRATION_PLANS.md` |
 | Monitoring | Fire a test alert; stop the API; fill the outbox | Each page arrives on the on-call channel; time to acknowledge recorded |
-| File scanning | Upload a clean file and the EICAR test file | Clean file accepted; EICAR rejected; nothing stays pending over 15 min |
+| File scanning | Upload a clean file and the EICAR test file; stream EICAR to clamd directly | Clean file accepted after a ClamAV scan; EICAR rejected, and named by ClamAV; nothing stays pending over 15 min |
 
 **For the ten-million figure:** `CAPACITY_MODEL.md` section 7 lists the database-tier rates staging also runs
 (2,250 write transactions a second, 2,000 positions a second, 1,250 events a second).
@@ -90,6 +95,8 @@ The overlay was brought up and checked on the development host on 7 October 2026
   transactions, unpaid bookings or orphans.
 
 **Limits of that check:**
-- pgBackRest itself could not be installed in the development sandbox, so a stand-in archived the WAL. The real
-  archive-push, backup and restore are part of the staging recovery gate.
-- The API was not part of the check.
+- pgBackRest itself could not be installed in the development sandbox then, so a stand-in archived the WAL. On
+  9 October 2026 the recovery gate was rehearsed with pgBackRest 2.50 itself (encrypted repository, restore onto a
+  second server), and file scanning with ClamAV and the API (`GATE_CLOSURE_PLAN.md`, section 2). The staging runs
+  remain the evidence.
+- The API was not part of the 7 October check.

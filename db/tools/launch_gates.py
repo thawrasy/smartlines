@@ -46,7 +46,7 @@ TEMPLATES = {
         "export_ok": False, "signature_verified": False, "chain_verified": False, "retrieved_past_export_verified": False,
         "chain_tip": "", "custodian_receipt": "", "notes": ""},
     7: {"gate": 7, "environment": "staging", "date": "YYYY-MM-DD", "commit": "", "clean_served": False, "eicar_refused": False,
-        "scanner_down_refused": False, "only_clean_served": False, "backlog_alert_seen": False, "notes": ""},
+        "clamav_detects_eicar": False, "scanner_down_refused": False, "only_clean_served": False, "backlog_alert_seen": False, "notes": ""},
     8: {"gate": 8, "environment": "production", "date": "YYYY-MM-DD", "firm": "", "report_ref": "", "retest_ref": "",
         "findings": [{"id": "F-01", "severity": "HIGH", "title": "", "status": "OPEN | FIXED_RETESTED | ACCEPTED",
                       "accepted_reason": "", "accepted_on": "", "accepted_by": ""}]},
@@ -124,7 +124,7 @@ def audit_archive(doc) -> list[str]:
 
 
 def file_scanning(doc) -> list[str]:
-    need = ("clean_served", "eicar_refused", "scanner_down_refused", "only_clean_served")
+    need = ("clean_served", "eicar_refused", "clamav_detects_eicar", "scanner_down_refused", "only_clean_served")
     return [f"{k} is not true" for k in need if doc.get(k) is not True]
 
 

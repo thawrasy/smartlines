@@ -2010,6 +2010,14 @@ SELECT pg_temp.ok(
   AND NOT has_function_privilege('masslak_app', 'ops.position_flags(timestamptz, timestamptz, numeric, numeric, real, text, boolean, timestamptz, bigint, bigint, timestamptz, numeric, numeric, bigint)', 'EXECUTE')
   AND (SELECT keep_days FROM ops.position_retention()) = (SELECT retention_days FROM gov.data_inventory WHERE dataset = 'ops.geo_event'),
   'Telemetry: one set of trust rules grades positions in both stores, and the telemetry database keeps them as long as the primary says');
+-- 1066: positions with and without a vehicle are both graded (regression of 1063 found by the gate 4 rehearsal)
+BEGIN;
+INSERT INTO ops.geo_event (ts, lat, lng, accuracy_m, provider) VALUES (now(), 33.5, 36.3, 9, 'GPS');
+INSERT INTO ops.geo_event (ts, vehicle_id, lat, lng, accuracy_m, provider)
+SELECT now(), min(id), 33.5, 36.3, 9, 'GPS' FROM fleet.vehicle;
+SELECT pg_temp.ok((SELECT count(*) FROM ops.geo_event WHERE ts > now() - interval '1 minute' AND trust IN ('HIGH', 'LOW')) >= 2,
+  'Telemetry: a position without a vehicle is graded like any other');
+ROLLBACK;
 -- Review stage D (1064): bookings partitioned by ranges of id
 SELECT pg_temp.ok(
   (SELECT relkind FROM pg_class WHERE oid = 'sales.booking'::regclass) = 'p'

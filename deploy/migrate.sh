@@ -17,6 +17,20 @@ else
   /app/db/upgrade.sh "$DB"
 fi
 
+# which environment this server is: launch gate evidence (db/tools/gate_run.py) is filed under it, and the volume
+# generator refuses to run on production
+case "${MASSLAK_ENVIRONMENT:-}" in
+  development|staging|production)
+    psql -d "$DB" -v ON_ERROR_STOP=1 -q -v env="$MASSLAK_ENVIRONMENT" <<'SQL'
+INSERT INTO sys.setting (key, value, description)
+VALUES ('deploy.environment', to_jsonb(:'env'::text), 'development, staging or production (MASSLAK_ENVIRONMENT in deploy/.env)')
+ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now();
+SQL
+    ;;
+  "") ;;
+  *) echo "MASSLAK_ENVIRONMENT must be development, staging or production" >&2; exit 1 ;;
+esac
+
 # the data warehouse's replication login (deploy/warehouse), only where one is configured
 set --
 if [ -n "${MASSLAK_CDC_PASSWORD:-}" ]; then set -- -v cdc_password="$MASSLAK_CDC_PASSWORD"; fi
