@@ -82,11 +82,14 @@ def test_document_access_needs_the_filing_or_review_permission():
 def test_a_confirmation_matches_only_in_the_payment_currency():
     from app.modules.payments.adapters import Notice
     from app.modules.payments.service import notice_matches
-    pay = {"amount": 500000, "currency": "SYP"}
+    pay = {"amount": 500000, "fee": 0, "currency": "SYP"}
     n = lambda amount, currency: Notice("e", "r", "SUCCESS", amount, currency)   # noqa: E731
     assert notice_matches(n(500000, "SYP"), pay) and notice_matches(n(500000, None), pay)
     assert not notice_matches(n(500000, "USD"), pay), "the same number in another currency is not the same payment"
     assert not notice_matches(n(499999, "SYP"), pay)
+    # the payer is charged the amount and the provider's fee together (1.48, owner's decision 4)
+    with_fee = {**pay, "fee": 7500}
+    assert notice_matches(n(507500, "SYP"), with_fee) and not notice_matches(n(500000, "SYP"), with_fee)
 
 
 def test_partner_wallet_confirmation_takes_what_the_provider_reports(monkeypatch):

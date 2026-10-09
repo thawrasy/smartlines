@@ -2,7 +2,7 @@
 
 > Generated from the built database (`db/tools/gen_docs.py`); do not edit by hand.
 
-**489 tables, 5009 columns, in 26 schemas.**
+**495 tables, 5075 columns, in 26 schemas.**
 
 Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant isolation (RLS) · 🧩 partitioned monthly · 🔒 append-only / change-protected
 
@@ -16,7 +16,7 @@ Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant i
 - [`pricing` — Pricing, taxes, commissions, campaigns and loyalty](#pricing) (35 tables)
 - [`ops` — Trips, inventory, operations, shuttle rides, tracking and incidents](#ops) (33 tables)
 - [`sales` — Channels, bookings, passengers, tickets, subscriptions and travel documents](#sales) (28 tables)
-- [`fin` — Wallets, ledger, payments, allocation, settlement and float](#fin) (29 tables)
+- [`fin` — Wallets, ledger, payments, allocation, settlement and float](#fin) (35 tables)
 - [`acct` — Simplified accounting, e-invoicing and tax profiles](#acct) (35 tables)
 - [`bill` — Carrier subscriptions, metering and platform invoices](#bill) (7 tables)
 - [`crm` — Complaints, ratings, notifications, the AI assistant and the contact center](#crm) (19 tables)
@@ -3692,6 +3692,74 @@ Travel documents of one international ticket; numbers are encrypted (11.9, D.1.4
 <a id="fin"></a>
 ## `fin` — Wallets, ledger, payments, allocation, settlement and float
 
+### `fin.approval_decision` 🛡️ 🔒
+
+One person's decision at one level of a request; one person decides one level at most, never their own request (1074)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `request_id` | `bigint` | 🔗 `fin.approval_request` ✱ |  |
+| `level_no` | `smallint` | ✱ |  |
+| `user_id` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `decision` | `text` | ✱ |  |
+| `note` | `text` |  |  |
+| `decided_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `fin.approval_level` 🛡️
+
+One level of an approval: who decides (holders of the permission, or the named members only) and from which amount it applies (1074)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `action` | `text` | 🔑 🔗 `fin.approval_policy` ✱ |  |
+| `level_no` | `smallint` | 🔑 ✱ |  |
+| `name` | `text` | ✱ |  |
+| `permission_code` | `text` | 🔗 `iam.permission` ✱ |  |
+| `min_amount` | `bigint` | ✱ | `0` |
+
+### `fin.approval_level_member` 🛡️
+
+The named people who decide at a level; a level without members is decided by any holder of its permission (1074)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `action` | `text` | 🔑 ✱ |  |
+| `level_no` | `smallint` | 🔑 ✱ |  |
+| `user_id` | `bigint` | 🔑 🔗 `iam.app_user` ✱ |  |
+
+### `fin.approval_policy` 🛡️
+
+How many approval levels a kind of money decision needs (0: none) (1074, decision 5)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `action` | `text` | 🔑 ✱ |  |
+| `levels` | `smallint` | ✱ |  |
+| `description` | `text` | ✱ |  |
+| `updated_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `updated_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `fin.approval_request` 🛡️
+
+A money decision waiting for its levels, frozen when asked: the levels its amount needs at that moment (1074)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `action` | `text` | 🔗 `fin.approval_policy` ✱ |  |
+| `object_type` | `text` | ✱ |  |
+| `object_id` | `bigint` | ✱ |  |
+| `amount` | `bigint` | ✱ |  |
+| `currency` | `character(3)` | 🔗 `ref.currency` ✱ |  |
+| `summary` | `text` | ✱ |  |
+| `required_levels` | `smallint[]` | ✱ |  |
+| `status` | `text` | ✱ | `'PENDING'::text` |
+| `requested_by` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `decided_at` | `timestamp with time zone` |  |  |
+
 ### `fin.bank_reconciliation` 🛡️
 
 Daily reconciliation: bank balance = total wallets + receivables
@@ -3744,6 +3812,8 @@ One credit line of an imported statement: matched to a top-up by reference and a
 | `note` | `text` |  |  |
 | `decided_by` | `bigint` | 🔗 `iam.app_user`  |  |
 | `decided_at` | `timestamp with time zone` |  |  |
+| `proposed_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `credit_received` | `boolean` | ✱ | `false` |
 
 ### `fin.bank_transfer_topup` 🛡️
 
@@ -3813,6 +3883,34 @@ Maturity ladder of placements; client funds stay withdrawable at any time
 | `starts_on` | `date` | ✱ |  |
 | `matures_on` | `date` | ✱ |  |
 | `status` | `text` | ✱ | `'ACTIVE'::text` |
+
+### `fin.fee_rule` 🛡️
+
+Payment fees set by the platform per way of paying, currency and customer, with a period; the most specific rule in force applies (1074, decision 4)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `label` | `text` | ✱ |  |
+| `provider_id` | `bigint` | 🔗 `fin.payment_provider`  |  |
+| `currency` | `character(3)` | 🔗 `ref.currency`  |  |
+| `party_id` | `bigint` | 🔗 `iam.party`  |  |
+| `kind` | `text` | ✱ |  |
+| `pct` | `numeric(6,3)` | ✱ | `0` |
+| `fixed_amount` | `bigint` | ✱ | `0` |
+| `min_fee` | `bigint` |  |  |
+| `max_fee` | `bigint` |  |  |
+| `round_to` | `bigint` | ✱ | `1` |
+| `rounding` | `text` | ✱ | `'HALF_UP'::text` |
+| `borne_by` | `text` | ✱ | `'PAYER'::text` |
+| `valid_from` | `timestamp with time zone` | ✱ | `now()` |
+| `valid_to` | `timestamp with time zone` |  |  |
+| `status` | `text` | ✱ | `'ACTIVE'::text` |
+| `created_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `updated_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `updated_at` | `timestamp with time zone` | ✱ | `now()` |
 
 ### `fin.float_account` 🛡️
 
@@ -3937,6 +4035,10 @@ Payment; becomes SUCCESS only with a signed gateway notification and a ledger en
 | `agency_company_id` | `bigint` | 🔗 `iam.company`  |  |
 | `api_client_id` | `bigint` | 🔗 `iam.api_client`  |  |
 | `captured_late` | `boolean` | ✱ | `false` |
+| `provider_attempts` | `smallint` | ✱ | `0` |
+| `provider_checked_at` | `timestamp with time zone` |  |  |
+| `fee_absorbed` | `bigint` | ✱ | `0` |
+| `fee_rule_id` | `bigint` | 🔗 `fin.fee_rule`  |  |
 
 ### `fin.payment_method` 🛡️
 
@@ -4012,6 +4114,12 @@ Money returned to the card or e-wallet it came from; the wallet is debited in th
 | `idempotency_key` | `text` | ✱ |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 | `completed_at` | `timestamp with time zone` |  |  |
+| `stage` | `text` | ✱ | `'REQUESTED'::text` |
+| `attempts` | `smallint` | ✱ | `0` |
+| `next_attempt_at` | `timestamp with time zone` |  |  |
+| `last_error` | `text` |  |  |
+| `provider_reference` | `text` |  |  |
+| `held` | `boolean` | ✱ | `false` |
 
 ### `fin.payout` 🛡️
 

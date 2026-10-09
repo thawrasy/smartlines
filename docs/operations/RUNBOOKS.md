@@ -599,6 +599,46 @@ bookings, payments and boarding do not depend on it. **When verify reports a fil
 volume and in the bucket's earlier versions before anything else; a file that is in neither cannot be recovered, and
 its document is asked for again from the company.
 
+## 25. Money boundaries, fees and approvals (1.48)
+
+**Provider calls.** A card, e-wallet, instalment or financing payment is written and committed before its provider is
+called; the call runs outside any transaction, in a thread, under a merchant reference fixed by the payment
+(`CRD…`, `EWL…`, `INS…`, `FIN…` followed by the payment's id). A provider that does not answer leaves the payment
+`PENDING` at stage `PROVIDER_UNKNOWN`: the payer sees "the provider did not answer" and repeating the same request asks
+again with the same reference; the provider's signed notice or the expiry settles it otherwise (a late notice is
+credited, alert PaymentCapturedLate). Five unanswered calls in a row to one provider open its circuit for 30 seconds
+(`MASSLAK_PSP_BREAKER_FAILURES`, `MASSLAK_PSP_BREAKER_OPEN_SECONDS`): calls are refused at once with 503 and
+`Retry-After`, then one call is tried. **PaymentProviderCircuitOpen** (page) means a provider has not answered for five
+minutes: check the provider's status page and the egress proxy's log (`docker compose logs egress`) before anything else.
+
+**Refunds.** A refund holds its amount in the payer's wallet when it is asked for and is posted only once the provider
+accepted it, under the reference `RFD…` fixed by the refund. When the provider's answer is lost the refund waits at
+stage `UNKNOWN` and the worker sends it again, same reference, after 1, 5, 15, 60 and then every 240 minutes; finance
+can send it at once (Payments and refunds, or `POST /api/admin/payments/refunds/{uid}/resend`). **RefundOutcomeUnknown**
+means a refund has waited an hour: ask the provider whether the reference was paid. Never refund the same payment
+by hand while a refund of it is `UNKNOWN`: if the provider did pay it, the next send records it.
+
+**Payment fees** (decision 4) are rules on the Payment fees tab: per way of paying, currency and, if wanted, one
+customer; a percentage, a fixed amount, both, or none (offers); with a period, a floor and a cap, and rounding to a
+step (in the currency's minor units) up, down or to the nearest. The most specific rule in force applies. By default
+the customer pays it, sees it before paying and the provider is asked for the amount plus the fee; the fee is posted
+to platform revenue (`PLATFORM` wallet). A rule paid by Masslak shows no fee to the customer and records the
+amount absorbed on the payment. The percentage and payer on a provider's screen are that provider's default rule.
+
+**The approval matrix** (decision 5) is on the Approvals tab. For a credit from a bank statement line and for a refund
+to the source: the number of levels (0 to 5), and for each level who decides (the holders of a permission, or only
+the people named) and from which amount it applies. The defaults: one finance review for statement credits, none
+for refunds. A request freezes the levels its amount needs when it is made; levels are decided in order; nobody
+decides their own request or two levels of one (the database refuses it). A rejection puts a statement line back
+among the lines to review and releases a held refund. Changing the matrix raises a security event
+(`approval.policy_changed`). A request whose level was removed by a later change cannot be decided: an administrator
+cancels it (Approvals, or `POST /api/admin/approvals/{uid}/cancel`) and finance proposes it again. **ApprovalsWaiting**
+means a decision has waited a day.
+
+**Unsigned notices.** Every notice a provider endpoint receives is kept; only a signed one counts and takes its event
+id (1073). **UnsignedNoticesBurst** (more than 20 in an hour for one provider) means someone is probing the endpoint
+or the provider's signing secret changed: compare `MASSLAK_PSP_<CODE>_SECRET` with the provider's console first.
+
 ## Rehearsal schedule
 
 | Procedure | Before launch | After launch |

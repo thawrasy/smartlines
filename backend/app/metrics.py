@@ -30,8 +30,20 @@ from . import db
 BUCKETS = (0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0)
 _count: dict[tuple, int] = defaultdict(int)
 _hist: dict[tuple, list] = {}
+_events: dict[tuple, int] = defaultdict(int)     # (metric, sorted label items) -> count, e.g. provider calls
+_gauges: dict[tuple, float] = {}                 # (metric, sorted label items) -> value of this process
 _started = time.time()
 PUBLISH_SECONDS = 5.0
+
+
+def event(metric: str, **labels) -> None:
+    """Counts one occurrence of a labelled event (a counter named *_total)."""
+    _events[(metric, tuple(sorted((k, str(v)) for k, v in labels.items())))] += 1
+
+
+def gauge(metric: str, value: float, **labels) -> None:
+    """Sets a labelled gauge of this process; the instance reports the highest value among its live processes."""
+    _gauges[(metric, tuple(sorted((k, str(v)) for k, v in labels.items())))] = value
 
 
 def _processes() -> int:
@@ -53,6 +65,8 @@ def snapshot() -> dict:
             "hist": [list(k) + [h] for k, h in _hist.items()],
             "scope": dict(db.SCOPE_USES), "acquire": list(db.ACQUIRE_WAITS),
             "pool_timeouts": db.POOL_TIMEOUTS[0], "audit_write_failures": db.AUDIT_WRITE_FAILURES[0],
+            "events": [[m, [list(x) for x in lb], n] for (m, lb), n in _events.items()],
+            "gauges": [[m, [list(x) for x in lb], v] for (m, lb), v in _gauges.items()],
             "pool": db.pool_stats()}
 
 
@@ -103,7 +117,8 @@ def gathered() -> dict:
         if not any(x.get("pid") == os.getpid() and x.get("started") == _started for x in snaps):
             snaps.append(snapshot())                    # the directory could not be written: this process alone
     out = {"count": defaultdict(int), "hist": {}, "scope": defaultdict(int), "acquire": [0] * len(db.ACQUIRE_WAITS),
-           "pool_timeouts": 0, "audit_write_failures": 0, "pool": None, "processes": 0, "uptime": None}
+           "pool_timeouts": 0, "audit_write_failures": 0, "pool": None, "processes": 0, "uptime": None,
+           "events": defaultdict(int), "gauges": {}}
     now = time.time()
     for x in snaps:
         for *k, n in x["count"]:
@@ -118,7 +133,13 @@ def gathered() -> dict:
             out["acquire"][i] += value
         out["pool_timeouts"] += x["pool_timeouts"]
         out["audit_write_failures"] += x.get("audit_write_failures", 0)
-        if x["pid"] == os.getpid() or (_alive(x["pid"]) and now - x["written"] < 60):
+        for m, lb, n in x.get("events", []):
+            out["events"][(m, tuple(tuple(i) for i in lb))] += n
+        live = x["pid"] == os.getpid() or (_alive(x["pid"]) and now - x["written"] < 60)
+        for m, lb, v in x.get("gauges", []) if live else []:
+            key = (m, tuple(tuple(i) for i in lb))
+            out["gauges"][key] = max(out["gauges"].get(key, v), v)
+        if live:
             out["processes"] += 1
             age = now - x["started"]
             out["uptime"] = age if out["uptime"] is None else min(out["uptime"], age)
@@ -209,6 +230,13 @@ def render_requests(g: dict | None = None) -> list[str]:
             "# TYPE masslak_db_pool_timeouts_total counter", f"masslak_db_pool_timeouts_total {g['pool_timeouts']}"]
     out += ["# HELP masslak_audit_write_failures_total Requests whose activity log record could not be written",
             "# TYPE masslak_audit_write_failures_total counter", f"masslak_audit_write_failures_total {g['audit_write_failures']}"]
+    seen: set[str] = set()
+    for kind, table in (("counter", g["events"]), ("gauge", g["gauges"])):
+        for (m, lb), v in sorted(table.items()):
+            if m not in seen:
+                out.append(f"# TYPE {m} {kind}")
+                seen.add(m)
+            out.append(f"{m}{_labels(dict(lb))} {v}")
     return out
 
 
@@ -226,7 +254,8 @@ async def render_database(g: dict | None = None) -> list[str]:
                                 "UNION ALL SELECT metric, labels, value FROM sys.replication_metrics() "
                                 "UNION ALL SELECT metric, labels, value FROM sys.ha_metrics() "
                                 "UNION ALL SELECT metric, labels, value FROM audit.archive_metrics() "
-                                "UNION ALL SELECT metric, labels, value FROM fin.payment_metrics()")
+                                "UNION ALL SELECT metric, labels, value FROM fin.payment_metrics() "
+                                "UNION ALL SELECT metric, labels, value FROM fin.money_boundary_metrics()")
     pool = g["pool"]
     for r in rows:
         name = r["metric"]

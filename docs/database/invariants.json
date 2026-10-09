@@ -250,7 +250,7 @@
         "constraint fin.payment.payment_refund_within_amount"
       ],
       "application": [
-        "app.modules.payments.service:refund"
+        "app.modules.payments.service:request_refund"
       ],
       "tests": {
         "db": [],
@@ -541,7 +541,7 @@
       ],
       "tests": {
         "db": [
-          "Narrower grants: DELETE for the application on exactly the 36 listed tables",
+          "Narrower grants: DELETE for the application on exactly the 38 listed tables (36 in 1059, the approval matrix's two in 1074)",
           "Narrower grants: the application cannot delete a business record, even one row-level security would show it"
         ],
         "api": [

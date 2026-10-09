@@ -315,6 +315,10 @@ async def decide_remittance(conn: asyncpg.Connection, user_id: int, rid: int, ap
         await conn.execute("UPDATE fin.cash_remittance SET status = 'REJECTED', confirmed_by = $2, note = coalesce($3, note) WHERE id = $1",
                            rid, user_id, note)
         return {"id": rid, "status": "REJECTED"}
+    # the carrier's cash wallet is locked before what it owes is read again: two remittances confirmed at the same time by
+    # two officers are checked one after the other, never both against the same debt (review of 1.47.0, R-21)
+    await conn.execute("SELECT id FROM fin.wallet WHERE owner_party_id = $1 AND wallet_type = 'CASH_COLLECT' AND currency = $2 FOR UPDATE",
+                       r["company_id"], r["currency"])
     owed = await conn.fetchval("SELECT fin.cash_owed($1, $2)", r["company_id"], r["currency"])
     if r["amount"] > owed:
         raise ApiError(422, "REMITTANCE_TOO_LARGE", "more than the carrier owes now (its earnings may have been set off)", owed=owed)

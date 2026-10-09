@@ -10,7 +10,8 @@ interface WalletData {
   currency: string; balance: number; sandbox: boolean;
   entries: { direction: "DR" | "CR"; amount: number; balance_after: number; created_at: string; txn_type: string; memo: string | null }[];
 }
-interface Method { code: string; name: string; kind: string; adapter: string; min_amount: number; max_amount: number; fee_pct: number; fee_borne_by: string }
+interface Method { code: string; name: string; kind: string; adapter: string; min_amount: number; max_amount: number; fee_pct: number; fee_fixed: number; fee_borne_by: string; fee_label: string | null }
+interface Quote { amount: number; fee: number; total: number; fee_label: string | null; fee_borne_by: string; fee_absorbed: number }
 interface Started {
   uid: string; status: string; stage: string; amount: number; action: "REDIRECT" | "OTP" | "TRANSFER" | "DONE"; url?: string | null;
   reference?: string; expires_at?: string | null; test_code?: string; bank?: { bank_name: string; account_name: string; iban: string };
@@ -122,6 +123,10 @@ function TopupModal({ onClose, onDone }: { onClose: () => void; onDone: () => vo
   const [key] = useState(newKey);
   const minor = amount * 100;
   const inRange = method ? minor >= method.min_amount && minor <= method.max_amount : false;
+  // what the payer will be asked for, the platform's fee included, before paying (owner's decision 4)
+  const priced = method && inRange && !["BANK_TRANSFER", "CASH_AGENT", "SANDBOX"].includes(method.adapter);
+  const quote = useLoad<Quote | null>(() => (priced ? api.get<Quote>("/api/payments/quote", { method: method.code, amount: minor }) : Promise.resolve(null)),
+    [method?.code, minor, priced]);
 
   const start = async () => {
     if (!method) return;
@@ -201,7 +206,9 @@ function TopupModal({ onClose, onDone }: { onClose: () => void; onDone: () => vo
             {method.adapter === "PARTNER_WALLET" && (
               <Field label={t("pay.mobile")} hint={t("pay.mobileHint")}><input className="input ltr" inputMode="tel" placeholder="+9639…" value={mobile} onChange={(e) => setMobile(e.target.value.trim())} /></Field>
             )}
-            {method.fee_pct > 0 && method.fee_borne_by === "PLATFORM" && <p className="small muted">{t("pay.noFee")}</p>}
+            {quote.data && (quote.data.fee > 0
+              ? <p className="small">{t("pay.feeLine", { fee: money(quote.data.fee), total: money(quote.data.total) })}{quote.data.fee_label ? ` · ${quote.data.fee_label}` : ""}</p>
+              : <p className="small muted">{quote.data.fee_absorbed > 0 ? t("pay.feeOnUs") : t("pay.noFee")}</p>)}
           </>
         )}
       </div>
@@ -212,7 +219,7 @@ function TopupModal({ onClose, onDone }: { onClose: () => void; onDone: () => vo
     : started?.action === "OTP"
       ? <button className="btn" disabled={busy || code.length < 4} onClick={confirm}>{busy ? <Spinner /> : <Icon name="check_circle" />}{t("pay.confirm")}</button>
       : <button className="btn" disabled={busy || !method || method.adapter === "CASH_AGENT" || !inRange || (method.adapter === "PARTNER_WALLET" && !/^\+?\d{8,15}$/.test(mobile))} onClick={start}>
-          {busy ? <Spinner /> : <Icon name="arrow_forward" />}{method?.adapter === "BANK_TRANSFER" ? t("pay.getReference") : t("pay.continue", { amount: money(minor) })}
+          {busy ? <Spinner /> : <Icon name="arrow_forward" />}{method?.adapter === "BANK_TRANSFER" ? t("pay.getReference") : t("pay.continue", { amount: money(quote.data?.total ?? minor) })}
         </button>;
   return (
     <Modal title={t("wallet.topupTitle")} onClose={onClose} wide actions={<><button className="btn text" onClick={onClose}>{t("common.close")}</button>{action}</>}>

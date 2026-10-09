@@ -88,12 +88,16 @@ async def seed_layouts(conn) -> bool:
 
 
 async def seed_finance(conn) -> bool:
-    """A second finance user, so payouts and statements can be approved by someone other than their author."""
-    if await conn.fetchval("SELECT 1 FROM iam.app_user WHERE email = 'finance@masslak.test'"):
-        return False
-    _, uid = await user(conn, "PERSON", "Finance Officer", "finance@masslak.test", "PLATFORM")
-    await conn.execute("INSERT INTO iam.user_role (user_id, role_id) SELECT $1, id FROM iam.role WHERE code = 'PLATFORM_FINANCE' AND company_id IS NULL", uid)
-    return True
+    """Finance users other than the administrator: an officer, so payouts and statements are approved by someone other
+    than their author, and a treasurer, who pays out what two others approved (the payer approves nothing, 1074)."""
+    added = False
+    for name, email in (("Finance Officer", "finance@masslak.test"), ("Treasurer", "treasury@masslak.test")):
+        if await conn.fetchval("SELECT 1 FROM iam.app_user WHERE email = $1", email):
+            continue
+        _, uid = await user(conn, "PERSON", name, email, "PLATFORM")
+        await conn.execute("INSERT INTO iam.user_role (user_id, role_id) SELECT $1, id FROM iam.role WHERE code = 'PLATFORM_FINANCE' AND company_id IS NULL", uid)
+        added = True
+    return added
 
 
 async def seed_counter(conn) -> bool:
@@ -328,7 +332,8 @@ async def main():
     print(f"accounts (password: {PASSWORD}):")
     for e, p in (("passenger@masslak.test", "PASSENGER"), ("owner@carrier.test", "OPERATOR"), ("counter@carrier.test", "OPERATOR"),
                  ("driver@carrier.test", "DRIVER"),
-                 ("agency@agency.test", "AGENCY"), ("finance@masslak.test", "PLATFORM"), ("security@masslak.test", "PLATFORM"), ("admin@masslak.test", "PLATFORM"), ("regulator@masslak.test", "PLATFORM")):
+                 ("agency@agency.test", "AGENCY"), ("finance@masslak.test", "PLATFORM"), ("treasury@masslak.test", "PLATFORM"),
+                 ("security@masslak.test", "PLATFORM"), ("admin@masslak.test", "PLATFORM"), ("regulator@masslak.test", "PLATFORM")):
         print(f"  {e:28s} portal {p}")
 
 

@@ -250,3 +250,46 @@ tests:
       - eval_time: 4m
         alertname: NoSynchronousStandby
         exp_alerts: []
+  - interval: 1m
+    input_series:
+      - series: masslak_refunds_waiting_provider
+        values: "1x45"
+      - series: 'masslak_payment_provider_circuit_open{provider="CARD",instance="api-1"}'
+        values: "0x3 1x10 0x5"
+      - series: masslak_approvals_oldest_pending_seconds
+        values: "86000 86300 86500"
+      - series: 'masslak_payment_unsigned_notices_last_hour{provider="CARD"}'
+        values: "3 25"
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: RefundOutcomeUnknown
+        exp_alerts: []
+      - eval_time: 40m
+        alertname: RefundOutcomeUnknown
+        exp_alerts:
+          - exp_labels: { severity: ticket }
+            exp_annotations: { summary: "Refunds have waited over an hour for their provider to say whether it paid them; the amounts stay held", runbook: "RUNBOOKS.md#25-money-boundaries-fees-and-approvals-148" }
+      - eval_time: 6m
+        alertname: PaymentProviderCircuitOpen
+        exp_alerts: []
+      - eval_time: 10m
+        alertname: PaymentProviderCircuitOpen
+        exp_alerts:
+          - exp_labels: { severity: page, provider: CARD }
+            exp_annotations: { summary: "A payment provider has not answered for five minutes: payments and refunds through it are refused", runbook: "RUNBOOKS.md#25-money-boundaries-fees-and-approvals-148" }
+      - eval_time: 1m
+        alertname: ApprovalsWaiting
+        exp_alerts: []
+      - eval_time: 2m
+        alertname: ApprovalsWaiting
+        exp_alerts:
+          - exp_labels: { severity: ticket }
+            exp_annotations: { summary: "A money decision has waited a day for its approval levels", runbook: "RUNBOOKS.md#25-money-boundaries-fees-and-approvals-148" }
+      - eval_time: 0m
+        alertname: UnsignedNoticesBurst
+        exp_alerts: []
+      - eval_time: 1m
+        alertname: UnsignedNoticesBurst
+        exp_alerts:
+          - exp_labels: { severity: ticket, provider: CARD }
+            exp_annotations: { summary: "Many provider notices with a bad signature in the last hour: someone may be probing the endpoint", runbook: "RUNBOOKS.md#25-money-boundaries-fees-and-approvals-148" }

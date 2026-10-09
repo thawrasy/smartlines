@@ -86,8 +86,13 @@ def test_withdrawal_needs_two_approvers_above_the_limit_and_is_posted_when_paid(
                            AND purpose LIKE '%' || $1 || '%'""", w)
     assert logged == 1
 
+    # whoever approved it does not pay it out (review of 1.47.0, R-22): a third finance person does
     ref = f"TRF-{secrets.token_hex(3)}"
-    assert finance.post(f"/api/admin/finance/withdrawals/{w}/paid", json={"bank_ref": ref}).status_code == 200
+    for approver in (admin, finance):
+        r = approver.post(f"/api/admin/finance/withdrawals/{w}/paid", json={"bank_ref": ref})
+        assert r.status_code == 403 and r.json()["error"]["code"] == "FOUR_EYES", r.text
+    treasury = login("treasury@masslak.test", "PLATFORM")
+    assert treasury.post(f"/api/admin/finance/withdrawals/{w}/paid", json={"bank_ref": ref}).status_code == 200
     after = carrier.get("/api/finance/balance").json()
     assert before["balance"] - after["balance"] == 10000 and after["held"] == before["held"]
     row = next(x for x in carrier.get("/api/finance/withdrawals").json()["withdrawals"] if x["uid"] == w)

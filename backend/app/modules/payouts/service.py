@@ -218,6 +218,9 @@ async def mark_paid(conn, ctx: db.Context, pr: Principal, withdrawal_uid: uuid.U
         raise ApiError(409, "NOT_APPROVED", "the withdrawal still needs its approvals")
     if pr.user_id == w["requested_by"]:
         raise ApiError(403, "FOUR_EYES", "you cannot pay your own request")
+    if pr.user_id in (w["approved_by"], w["second_approver"]):
+        # whoever approved a withdrawal does not also send the money (review of 1.47.0, R-22; constraint in 1074)
+        raise ApiError(403, "FOUR_EYES", "you approved this withdrawal; another finance officer pays it out")
     async with db.system_scope(conn, ctx):
         clearing = await platform_wallet(conn, "BANK_CLEARING", w["currency"])
         await repo.set_hold(conn, w["wallet_id"], -w["amount"])

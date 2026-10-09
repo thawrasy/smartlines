@@ -58,6 +58,20 @@ def pax():
     return new_passenger()
 
 
+def approve(importer, reference: str) -> None:
+    """The statement credit naming this transfer reference is approved at its level by another finance officer; the
+    importer may not decide it (four eyes, 1074)."""
+    pending = [a for a in importer.get("/api/admin/approvals").json()["requests"] if reference in a["summary"]]
+    assert len(pending) == 1 and pending[0]["action"] == "BANK_CREDIT" and pending[0]["can_decide"] is False, pending
+    r = importer.post(f"/api/admin/approvals/{pending[0]['uid']}/decision", json={"decision": "APPROVE"})
+    assert r.status_code in (403, 409, 422) and r.json()["error"]["code"] == "FOUR_EYES", r.text
+    finance = login("finance@masslak.test", "PLATFORM")
+    mine = next(a for a in finance.get("/api/admin/approvals").json()["requests"] if a["uid"] == pending[0]["uid"])
+    assert mine["can_decide"] is True and mine["next_level_name"] == "Finance review"
+    r = finance.post(f"/api/admin/approvals/{mine['uid']}/decision", json={"decision": "APPROVE"})
+    assert r.status_code == 200 and r.json()["status"] == "APPROVED", r.text
+
+
 def test_methods_and_provider_admin(admin, pax):
     codes = {m["code"] for m in pax.get("/api/payments/methods").json()["methods"]}
     assert {"CARD", "EWALLET", "BANK", "AGENT"} <= codes
@@ -189,7 +203,10 @@ def test_bank_transfer_matched_from_the_statement(admin, pax):
     files = {"file": ("statement.csv", csv.encode(), "text/csv")}
     r = admin.post("/api/admin/payments/statements", files=files, data={"account_label": "CBS main"})
     assert r.status_code == 201, r.text
-    assert r.json() == {**r.json(), "lines": 3, "matched": 1, "unmatched": 2}
+    assert r.json() == {**r.json(), "lines": 3, "matched": 0, "awaiting_approval": 1, "unmatched": 2}
+    # the match waits for the approval matrix (decision 5, R-23): nothing is credited by the importer alone
+    assert balance(pax) == before
+    approve(admin, t["reference"])
     assert balance(pax) == before + 3000000
     assert pax.get(f"/api/payments/{t['uid']}").json()["status"] == "SUCCESS"
     # the same file twice is refused
@@ -197,11 +214,13 @@ def test_bank_transfer_matched_from_the_statement(admin, pax):
     lines = admin.get("/api/admin/payments/statement-lines").json()["lines"]
     differs = next(x for x in lines if x["reference"] == u["reference"])
     assert differs["note"] == "AMOUNT_DIFFERS"
-    # by hand: refused while the amounts differ, accepted when finance credits what arrived
+    # by hand: refused while the amounts differ, proposed when finance credits what arrived, credited once approved
     r = admin.post(f"/api/admin/payments/statement-lines/{differs['id']}/match", json={"reference": u["reference"]})
     assert r.status_code == 409
     r = admin.post(f"/api/admin/payments/statement-lines/{differs['id']}/match", json={"reference": u["reference"], "credit_received": True})
-    assert r.status_code == 200, r.text
+    assert r.status_code == 200 and r.json()["status"] == "PROPOSED", r.text
+    assert balance(pax) == before + 3000000
+    approve(admin, u["reference"])
     assert balance(pax) == before + 3000000 + 2500000
     noref = next(x for x in lines if x["reference"] == "no reference here")
     assert admin.post(f"/api/admin/payments/statement-lines/{noref['id']}/ignore", json={"note": "Not a top-up"}).status_code == 200
@@ -219,7 +238,8 @@ def test_statement_with_decimal_commas(admin, pax):
     r = admin.post("/api/admin/payments/statements", files=files, data={"account_label": "EU style"})
     assert r.status_code == 422 and r.json()["error"]["code"] == "STATEMENT_BAD_AMOUNT", r.text
     r = admin.post("/api/admin/payments/statements", files=files, data={"account_label": "EU style", "decimal_mark": ","})
-    assert r.status_code == 201 and r.json()["matched"] == 1, r.text
+    assert r.status_code == 201 and r.json()["awaiting_approval"] == 1, r.text
+    approve(admin, t["reference"])
     assert balance(pax) == before + 12345050
 
 

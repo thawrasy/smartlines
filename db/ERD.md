@@ -62,7 +62,7 @@ flowchart LR
   ctr -->|9| iam
   ctr -->|3| net
   ctr -->|1| ops
-  fin -->|21| iam
+  fin -->|26| iam
   fin -->|1| ops
   fin -->|6| pricing
   fin -->|5| sales
@@ -2219,6 +2219,33 @@ erDiagram
 
 ```mermaid
 erDiagram
+  fin_approval_decision {
+    bigint id PK
+    bigint request_id FK
+    bigint user_id FK
+  }
+  fin_approval_level {
+    text action PK
+    smallint level_no PK
+    text permission_code FK
+  }
+  fin_approval_level_member {
+    text action PK
+    smallint level_no PK
+    bigint user_id PK
+  }
+  fin_approval_policy {
+    text action PK
+    bigint updated_by FK
+  }
+  fin_approval_request {
+    bigint id PK
+    uuid uid
+    text action FK
+    character currency FK
+    text status
+    bigint requested_by FK
+  }
   fin_bank_reconciliation {
     bigint id PK
     character currency FK
@@ -2237,6 +2264,7 @@ erDiagram
     text status
     bigint topup_id FK
     bigint decided_by FK
+    bigint proposed_by FK
   }
   fin_bank_transfer_topup {
     bigint id PK
@@ -2265,6 +2293,16 @@ erDiagram
     bigint id PK
     bigint account_id FK
     text status
+  }
+  fin_fee_rule {
+    bigint id PK
+    uuid uid
+    bigint provider_id FK
+    character currency FK
+    bigint party_id FK
+    text status
+    bigint created_by FK
+    bigint updated_by FK
   }
   fin_float_account {
     bigint id PK
@@ -2310,6 +2348,7 @@ erDiagram
     bigint ledger_txn_id FK
     bigint agency_company_id FK
     bigint api_client_id FK
+    bigint fee_rule_id FK
   }
   fin_payment_method {
     text code PK
@@ -2442,6 +2481,9 @@ erDiagram
   iam_party {
     ref external
   }
+  iam_permission {
+    ref external
+  }
   ops_trip {
     ref external
   }
@@ -2475,9 +2517,14 @@ erDiagram
   ship_shipment_leg {
     ref external
   }
+  fin_approval_level_member }o--|| fin_approval_level : "action,level_no"
+  fin_approval_level }o--|| fin_approval_policy : "action"
+  fin_approval_request }o--|| fin_approval_policy : "action"
+  fin_approval_decision }o--|| fin_approval_request : "request_id"
   fin_bank_statement_line }o--|| fin_bank_statement_import : "import_id"
   fin_bank_transfer_topup }o..o| fin_bank_statement_line : "statement_line_id"
   fin_bank_statement_line }o..o| fin_bank_transfer_topup : "topup_id"
+  fin_payment }o..o| fin_fee_rule : "fee_rule_id"
   fin_deposit_placement }o--|| fin_float_account : "account_id"
   fin_ledger_entry }o--|| fin_ledger_txn : "txn_id"
   fin_cash_remittance }o..o| fin_ledger_txn : "ledger_txn_id"
@@ -2492,6 +2539,7 @@ erDiagram
   fin_bank_transfer_topup }o..o| fin_payment : "payment_id"
   fin_payment_notification }o--|| fin_payment_provider : "provider_id"
   fin_payment }o--|| fin_payment_provider : "provider_id"
+  fin_fee_rule }o..o| fin_payment_provider : "provider_id"
   fin_ledger_txn }o..o| fin_posting_batch : "posting_batch_id"
   fin_price_allocation_line }o--|| fin_price_allocation : "allocation_id"
   fin_price_allocation_line }o..o| fin_price_allocation_line : "parent_line_id"
@@ -2507,10 +2555,13 @@ erDiagram
   fin_payment }o..o| fin_wallet : "wallet_id"
   fin_price_allocation_line }o..o| fin_wallet : "wallet_id"
   fin_payment }o..o| iam_api_client : "api_client_id"
+  fin_approval_level_member }o--|| iam_app_user : "user_id"
   fin_cash_credit_limit }o--|| iam_app_user : "set_by"
+  fin_approval_decision }o--|| iam_app_user : "user_id"
   fin_bank_statement_import }o--|| iam_app_user : "imported_by"
   fin_cash_remittance }o..o| iam_app_user : "confirmed_by"
   fin_bank_transfer_topup }o..o| iam_app_user : "matched_by"
+  fin_bank_statement_line }o..o| iam_app_user : "proposed_by"
   fin_withdrawal_request }o..o| iam_app_user : "paid_by"
   fin_withdrawal_request }o--|| iam_bank_account : "bank_account_id"
   fin_payout }o..o| iam_bank_account : "bank_account_id"
@@ -2526,7 +2577,9 @@ erDiagram
   fin_float_account }o--|| iam_party : "bank_party_id"
   fin_wallet }o..o| iam_party : "owner_party_id"
   fin_payment }o--|| iam_party : "payer_party_id"
+  fin_fee_rule }o..o| iam_party : "party_id"
   fin_price_allocation_line }o..o| iam_party : "beneficiary_party_id"
+  fin_approval_level }o--|| iam_permission : "permission_code"
   fin_settlement_line }o..o| ops_trip : "trip_id"
   fin_price_allocation }o..o| pricing_allocation_template : "template_id"
   fin_price_allocation_line }o..o| pricing_commission_scheme : "commission_scheme_id"

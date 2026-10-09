@@ -83,10 +83,9 @@ async def pay_booking(ref: str, body: BookingPaymentIn, request: Request, pr: Pr
     """Pays a reservation through the provider of its option: the passenger is sent to the provider's page."""
     ctx = context_for(request, pr)
     base = str(request.base_url).rstrip("/")
-    async with db.transaction(ctx) as conn:
-        out = await payments.start_booking_payment(conn, ctx, pr.party_id, pr.user_id, ref, body.provider, body.idempotency_key,
-                                                   f"{base}/booking/{ref.upper()}?payment={{uid}}",
-                                                   channel=options.channel_of(sales_channel(request)))
+    out = await payments.start_booking_payment(ctx, pr.party_id, pr.user_id, ref, body.provider, body.idempotency_key,
+                                               f"{base}/booking/{ref.upper()}?payment={{uid}}",
+                                               channel=options.channel_of(sales_channel(request)))
     request.state.audit = {"action": "payment.start", "object_type": "payment", "object_id": None}
     return out
 

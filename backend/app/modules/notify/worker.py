@@ -140,11 +140,13 @@ async def main(once: bool) -> None:
                 if once or asyncio.get_running_loop().time() - last_reports > 60:
                     from ..reports.scheduler import run_due
                     await run_due()
-                    from ..payments.service import expire_stale
+                    from ..payments.service import expire_stale, resend_refunds
                     async with db.transaction(_ctx()) as conn:
                         await expire_stale(conn)
                         # reservations not paid by their time give their seats back (1056)
                         await conn.execute("SELECT sales.expire_reservations()")
+                    # refunds whose provider outcome is unknown are asked again, with the same reference (R-17)
+                    await resend_refunds()
                     # files still in quarantine get another scan; expired break-glass access is closed (audit T3)
                     from ..documents.scanner import scan_pending
                     await scan_pending()

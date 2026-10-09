@@ -4,6 +4,7 @@ import { useI18n } from "../../i18n";
 import { useAuth } from "../../auth";
 import { PageHead } from "../../components/layout";
 import { Empty, ErrorBox, Field, Icon, Loaded, Modal, Stat, Status, useLoad, useToast } from "../../components/ui";
+import { Approvals, FeeRules } from "./Approvals";
 
 interface Provider {
   code: string; name: string; kind: string; adapter: string; status: string; min_amount: number; max_amount: number; fee_pct: number;
@@ -17,9 +18,9 @@ interface Pay { uid: string; created_at: string; method: string; status: string;
 export function PaymentsDesk() {
   const { t } = useI18n();
   const { can } = useAuth();
-  type Tab = "providers" | "bank" | "payments" | "options" | "cash";
+  type Tab = "providers" | "bank" | "payments" | "options" | "cash" | "approvals" | "fees";
   const [tab, setTab] = useState<Tab>(can("ledger.reconcile") ? "bank" : can("payment.methods") ? "options" : "providers");
-  const tabs: Tab[] = ["bank", "payments", "providers", "options", "cash"];
+  const tabs: Tab[] = ["bank", "approvals", "payments", "providers", "fees", "options", "cash"];
   return (
     <div className="stack">
       <PageHead title={t("pay.desk")} sub={t("pay.deskSub")} />
@@ -33,6 +34,8 @@ export function PaymentsDesk() {
       {tab === "payments" && <RecentPayments />}
       {tab === "options" && <PaymentOptions />}
       {tab === "cash" && <CounterCash />}
+      {tab === "approvals" && <Approvals />}
+      {tab === "fees" && <FeeRules />}
     </div>
   );
 }
@@ -114,8 +117,8 @@ function BankStatements() {
     setError(null);
     const form = new FormData(); form.append("file", file); form.append("account_label", label); form.append("decimal_mark", mark);
     try {
-      const r = await api.upload<{ lines: number; matched: number; unmatched: number }>("/api/admin/payments/statements", form);
-      toast(t("pay.imported", { lines: r.lines, matched: r.matched })); setFile(null); state.reload();
+      const r = await api.upload<{ lines: number; matched: number; awaiting_approval: number; unmatched: number }>("/api/admin/payments/statements", form);
+      toast(t("pay.importedApproval", { lines: r.lines, matched: r.matched, awaiting: r.awaiting_approval })); setFile(null); state.reload();
     } catch (e) { setError(e); }
   };
   const ignore = async (l: Line) => {
@@ -142,7 +145,7 @@ function BankStatements() {
         <div className="row between" style={{ flexWrap: "wrap", gap: 8 }}>
           <h3 style={{ margin: 0 }}>{t("pay.lines")}</h3>
           <div className="segmented" role="tablist">
-            {["UNMATCHED", "MATCHED", "IGNORED"].map((s) => <button key={s} role="tab" aria-selected={status === s} className={status === s ? "on" : ""} onClick={() => setStatus(s)}>{t(`pay.line.${s}`)}</button>)}
+            {["UNMATCHED", "PROPOSED", "MATCHED", "IGNORED"].map((s) => <button key={s} role="tab" aria-selected={status === s} className={status === s ? "on" : ""} onClick={() => setStatus(s)}>{t(`pay.line.${s}`)}</button>)}
           </div>
         </div>
         <Loaded state={state}>{(d) => d.lines.length === 0 ? <Empty icon="account_balance" title={t("pay.noLines")} /> : (
@@ -222,12 +225,12 @@ function RecentPayments() {
           ))}</tbody>
         </table></div>
       )}</Loaded>
-      {refunding && <RefundModal p={refunding} onClose={() => setRefunding(null)} onDone={() => { setRefunding(null); state.reload(); toast(t("pay.refunded")); }} />}
+      {refunding && <RefundModal p={refunding} onClose={() => setRefunding(null)} onDone={(stage) => { setRefunding(null); state.reload(); toast(t(`pay.refundStage.${stage}`)); }} />}
     </div>
   );
 }
 
-function RefundModal({ p, onClose, onDone }: { p: Pay; onClose: () => void; onDone: () => void }) {
+function RefundModal({ p, onClose, onDone }: { p: Pay; onClose: () => void; onDone: (stage: string) => void }) {
   const { t, money } = useI18n();
   const left = p.amount - p.refunded_amount;
   const [amount, setAmount] = useState(left / 100);
@@ -235,7 +238,10 @@ function RefundModal({ p, onClose, onDone }: { p: Pay; onClose: () => void; onDo
   const [key] = useState(newKey);
   const [error, setError] = useState<unknown>(null);
   const save = async () => {
-    try { await api.post(`/api/admin/payments/${p.uid}/refund`, { amount: Math.round(amount * 100), reason, idempotency_key: key }); onDone(); } catch (e) { setError(e); }
+    try {
+      const r = await api.post<{ status: string; stage: string }>(`/api/admin/payments/${p.uid}/refund`, { amount: Math.round(amount * 100), reason, idempotency_key: key });
+      onDone(r.stage);
+    } catch (e) { setError(e); }
   };
   return (
     <Modal title={t("pay.refundTitle")} onClose={onClose} actions={<><button className="btn text" onClick={onClose}>{t("common.cancel")}</button><button className="btn danger" disabled={reason.length < 5 || amount <= 0} onClick={save}>{t("pay.refund")}</button></>}>

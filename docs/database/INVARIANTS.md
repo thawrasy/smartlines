@@ -213,7 +213,7 @@ The refunds of a payment never exceed the amount paid.
 | Kept by | Names |
 |---|---|
 | Database | `constraint fin.payment.payment_refund_within_amount` |
-| Application | `app.modules.payments.service:refund` |
+| Application | `app.modules.payments.service:request_refund` |
 | Database tests (`db/tests/run_tests.sql`) | - |
 | API tests (`backend/`) | `tests/test_payments.py::test_refund_goes_back_to_the_card` |
 
@@ -396,7 +396,7 @@ The application deletes only from the tables listed with a reason; business reco
 |---|---|
 | Database | `table sys.app_delete_grant`<br>`function sys.enforce_app_delete_grants` |
 | Application | `app.modular.engine:delete_row` |
-| Database tests (`db/tests/run_tests.sql`) | Narrower grants: DELETE for the application on exactly the 36 listed tables<br>Narrower grants: the application cannot delete a business record, even one row-level security would show it |
+| Database tests (`db/tests/run_tests.sql`) | Narrower grants: DELETE for the application on exactly the 38 listed tables (36 in 1059, the approval matrix's two in 1074)<br>Narrower grants: the application cannot delete a business record, even one row-level security would show it |
 | API tests (`backend/`) | `tests/test_code_rules.py::test_every_delete_in_the_code_has_its_grant` |
 
 ## RELEASE-MATCHES

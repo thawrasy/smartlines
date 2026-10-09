@@ -1898,8 +1898,8 @@ SELECT pg_temp.ok(NOT EXISTS (
      WHERE c.relkind IN ('r', 'p') AND NOT c.relispartition AND n.nspname NOT IN ('pg_catalog', 'information_schema', 'public', 'gis')
        AND has_table_privilege('masslak_app', c.oid, 'DELETE') <> EXISTS (SELECT 1 FROM sys.app_delete_grant g
                                                                            WHERE g.table_name = n.nspname || '.' || c.relname))
-  AND (SELECT count(*) FROM sys.app_delete_grant) = 36,
-  'Narrower grants: DELETE for the application on exactly the 36 listed tables');
+  AND (SELECT count(*) FROM sys.app_delete_grant) = 38,
+  'Narrower grants: DELETE for the application on exactly the 38 listed tables (36 in 1059, the approval matrix''s two in 1074)');
 SET ROLE masslak_app;
 SELECT pg_temp.expect_error($$DELETE FROM sales.passenger WHERE id = -1$$, 'permission denied',
   'Narrower grants: the application cannot delete a business record, even one row-level security would show it');
@@ -2169,6 +2169,61 @@ SELECT pg_temp.ok((SELECT count(*) FROM fin.payment_notification WHERE event_id 
 SELECT pg_temp.expect_error(format($$INSERT INTO fin.payment_notification (provider_id, event_id, signature_valid, payload)
                                      VALUES (%s, 'zz-evt-guessed', true, '{}')$$, :n_prov),
   'payment_notification_event_uq', 'Provider notices: a signed event is recorded once');
+ROLLBACK;
+-- 1074: fees, refunds, withdrawals and the approval matrix (review of 1.47.0, package B; decisions 4 and 5)
+BEGIN;
+RESET ROLE;
+SELECT sys.set_context(:uadmin, NULL, 'SYSTEM');
+SELECT id AS fee_prov FROM fin.payment_provider WHERE code = 'SANDBOX' \gset
+INSERT INTO fin.fee_rule (label, provider_id, currency, kind, pct, fixed_amount, round_to, rounding)
+VALUES ('zz test fee', :fee_prov, 'SYP', 'PERCENT_PLUS_FIXED', 2.5, 10000, 100, 'UP');
+INSERT INTO fin.fee_rule (label, currency, party_id, kind) VALUES ('zz offer', 'SYP', :pax, 'NONE');
+INSERT INTO fin.fee_rule (label, provider_id, currency, party_id, kind, pct, borne_by)
+VALUES ('zz borne', :fee_prov, 'SYP', :pax, 'PERCENT', 3, 'PLATFORM');
+SELECT pg_temp.ok((SELECT fee FROM fin.payment_fee(:fee_prov, 'SYP', 1234567, NULL)) = 40900
+  AND (SELECT fee FROM fin.payment_fee(:fee_prov, 'SYP', 1234567, :ca)) = 40900
+  AND (SELECT fee || '/' || absorbed FROM fin.payment_fee(:fee_prov, 'SYP', 1000000, :pax)) = '0/30000'
+  AND (SELECT fee FROM fin.payment_fee(:fee_prov, 'USD', 1000000, NULL)) = 0,
+  'Fees: the most specific rule in force applies, rounded as it says; a rule the platform bears is not asked from the payer');
+SELECT pg_temp.expect_error($$INSERT INTO fin.fee_rule (label, kind, fixed_amount) VALUES ('zz no currency', 'FIXED', 500)$$,
+  'fee_rule_check', 'Fees: an amount without a currency is refused');
+-- the approval matrix: two levels, the second for a named person only, from an amount
+INSERT INTO iam.user_role (user_id, role_id) SELECT :uadmin, id FROM iam.role WHERE code = 'PLATFORM_FINANCE' AND company_id IS NULL ON CONFLICT DO NOTHING;
+INSERT INTO iam.user_role (user_id, role_id) SELECT :ufin, id FROM iam.role WHERE code = 'PLATFORM_FINANCE' AND company_id IS NULL ON CONFLICT DO NOTHING;
+UPDATE fin.approval_policy SET levels = 2 WHERE action = 'REFUND';
+INSERT INTO fin.approval_level (action, level_no, name, permission_code, min_amount) VALUES ('REFUND', 2, 'Large', 'payout.run', 1000000);
+INSERT INTO fin.approval_level_member (action, level_no, user_id) VALUES ('REFUND', 2, :ua);
+SELECT pg_temp.ok(fin.approval_levels('REFUND', 999999) = '{1}' AND fin.approval_levels('REFUND', 1000000) = '{1,2}'
+  AND fin.approval_levels('BANK_CREDIT', 1) = '{1}',
+  'Approvals: the levels a request needs follow its amount');
+INSERT INTO fin.approval_request (action, object_type, object_id, amount, currency, summary, required_levels, requested_by)
+VALUES ('REFUND', 'payment_refund', 987654, 1500000, 'SYP', 'zz test', '{1,2}', :uadmin) RETURNING id AS rq \gset
+SELECT pg_temp.expect_error(format($$INSERT INTO fin.approval_decision (request_id, level_no, user_id, decision) VALUES (%s, 1, %s, 'APPROVE')$$, :rq, :uadmin),
+  'FOUR_EYES', 'Approvals: the person who asked does not decide');
+SELECT pg_temp.expect_error(format($$INSERT INTO fin.approval_decision (request_id, level_no, user_id, decision) VALUES (%s, 2, %s, 'APPROVE')$$, :rq, :ufin),
+  'APPROVAL_LEVEL', 'Approvals: levels are decided in order');
+INSERT INTO fin.approval_decision (request_id, level_no, user_id, decision) VALUES (:rq, 1, :ufin, 'APPROVE');
+SELECT pg_temp.expect_error(format($$INSERT INTO fin.approval_decision (request_id, level_no, user_id, decision) VALUES (%s, 2, %s, 'APPROVE')$$, :rq, :uadmin),
+  'FOUR_EYES', 'Approvals: the requester decides no level, even one they are allowed at');
+SELECT pg_temp.expect_error(format($$INSERT INTO fin.approval_decision (request_id, level_no, user_id, decision) VALUES (%s, 2, %s, 'APPROVE')$$, :rq, :ufin),
+  'APPROVAL_NOT_ALLOWED', 'Approvals: a level with named people is decided by them only');
+INSERT INTO fin.approval_level_member (action, level_no, user_id) VALUES ('REFUND', 2, :ufin);
+SELECT pg_temp.expect_error(format($$INSERT INTO fin.approval_decision (request_id, level_no, user_id, decision) VALUES (%s, 2, %s, 'APPROVE')$$, :rq, :ufin),
+  'approval_decision_request_id_user_id_key', 'Approvals: one person decides one level at most, even when named for two');
+SELECT pg_temp.ok((SELECT status FROM fin.approval_request WHERE id = :rq) = 'PENDING',
+  'Approvals: a request stays pending until its last level');
+SELECT pg_temp.expect_error($$UPDATE fin.approval_decision SET decision = 'REJECT'$$, 'IMMUTABLE_RECORD', 'Approvals: a decision is never changed');
+-- refunds: a final refund does not change; withdrawals: whoever approved does not pay
+SELECT pg_temp.ok(EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'withdrawal_paid_by_not_approver')
+  AND EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'a_payment_refund_rules')
+  AND has_function_privilege('masslak_app', 'fin.money_boundary_metrics()', 'EXECUTE')
+  AND (SELECT count(*) FROM fin.money_boundary_metrics() WHERE metric = 'masslak_approvals_pending') = 2,
+  'Money boundaries: a withdrawal''s payer is not its approver, a final refund is fixed, and the waiting work is measured');
+INSERT INTO fin.bank_statement_import (account_label, file_sha256, line_count, imported_by)
+VALUES ('zz test', '\x00', 1, :uadmin) RETURNING id AS st_imp \gset
+SELECT pg_temp.expect_error(format($$INSERT INTO fin.bank_statement_line (import_id, value_date, amount, currency, bank_ref, status)
+                                     VALUES (%s, current_date, 100, 'SYP', 'zz-1', 'PROPOSED')$$, :st_imp),
+  'bank_statement_line_topup_matches', 'Statements: a proposed line names its transfer');
 ROLLBACK;
 -- Review stage D (1064): bookings partitioned by ranges of id
 SELECT pg_temp.ok(
