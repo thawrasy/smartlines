@@ -391,7 +391,7 @@ jobs:
             echo "the message log was accepted on a production server"; exit 1; fi
       - name: Logs on failure
         if: failure()
-        run: docker compose --env-file deploy/.env logs --tail 200
+        run: sudo docker compose --env-file deploy/.env logs --tail 200
 
   security:
     name: Security and policy checks

@@ -108,4 +108,5 @@ cat deploy/FIRST_LOGIN.txt
 if ! grep -q '^MASSLAK_BACKUP_AGE_RECIPIENT=age1' deploy/.env && ! grep -q '^MASSLAK_SANDBOX=true' deploy/.env; then
   echo "ACTION NEEDED: backups are refused until MASSLAK_BACKUP_AGE_RECIPIENT holds an age public key (deploy/README.md, section 4)." >&2
 fi
-[ "$demo" = true ] && echo "Demo accounts (password Masslak-Demo-2026) are listed in deploy/README.md."
+# an "if", not "[ ... ] &&": as the last command, a false test made every production installation exit with status 1
+if [ "$demo" = true ]; then echo "Demo accounts (password Masslak-Demo-2026) are listed in deploy/README.md."; fi
