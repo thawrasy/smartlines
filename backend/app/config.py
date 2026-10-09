@@ -52,6 +52,8 @@ class Settings(BaseSettings):
     rate_auth_ip_per_minute: int = 300
     rate_public_per_minute: int = 240
     rate_api_per_minute: int = 1200
+    # Seconds a request waits for a database connection of its process before it is answered 503 (busy, repeat it)
+    db_acquire_timeout: float = 5.0
 
 
 @lru_cache

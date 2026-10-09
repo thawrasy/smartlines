@@ -52,6 +52,12 @@ async def unreachable_handler(_: Request, exc: Exception) -> JSONResponse:
     return _busy()
 
 
+async def pool_busy_handler(_: Request, exc: Exception) -> JSONResponse:
+    """Every connection of the process was in use for longer than db_acquire_timeout (app/db.py, PoolBusy)."""
+    logging.getLogger("masslak.db").warning("no database connection became free in time; answered busy")
+    return _busy()
+
+
 async def db_error_handler(_: Request, exc: asyncpg.PostgresError) -> JSONResponse:
     msg = str(exc)
     if isinstance(exc, asyncpg.UniqueViolationError):

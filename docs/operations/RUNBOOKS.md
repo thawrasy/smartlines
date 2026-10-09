@@ -247,6 +247,16 @@ section.
     traffic.
   - **The outbox:** past `capacity.outbox_partition_rows`, partition it by day in the next release (alert
     `OutboxPartitioningDue`, `docs/integration/EVENTS.md`).
+- **Connections (code review of October 2026):** a request waits at most `MASSLAK_DB_ACQUIRE_TIMEOUT` (5 s) for a
+  connection of its process and is then answered 503 with `Retry-After`; each one counts in
+  `masslak_db_pool_timeouts_total` (alert `PoolTimeouts`). PgBouncer's own pools come from the staging exporter:
+  `PgBouncerClientsWaiting` (clients wait for a server connection for 2 minutes) and `PgBouncerSlowWait` (a wait over
+  1 s) mean `DEFAULT_POOL_SIZE` is too small for the load or transactions are too slow; `PgBouncerDown` means the API
+  cannot reach the database at all. Read `SHOW POOLS` on PgBouncer's console before raising the pool size, and check
+  that the database still has CPU and connections to spare (`DatabaseConnectionsHigh`).
+- **Several processes per instance:** the API runs `WEB_CONCURRENCY` processes (2 in the image). Each leaves its request
+  counters in a file every 5 seconds and a scrape sums them, so `masslak_http_requests_total` never goes back when a
+  scrape reaches the other process; `masslak_api_processes` shows how many are alive.
 - **Targets:** run against staging with production-size data and hardware, at 1x, 2x and 5x the expected peak. The p95
   and p99 targets per step are set by the owner (performance gate). See `PERFORMANCE_BASELINE.md` for the first
   measurements and what they do not prove.
@@ -344,6 +354,11 @@ section.
 
 ## 16. Resending money and authority events (T3-12)
 
+- **Events the worker gave up on (alert `OutboxEventsFailed`):** after eight attempts an outbox event is `FAILED` and
+  its notifications and partner deliveries wait. Read the cause in `sys.outbox_event.last_error`, fix it (provider
+  down, wrong credentials, a template error), then queue the events again as the database owner:
+  `UPDATE sys.outbox_event SET status = 'PENDING', attempts = 0, next_attempt_at = now() WHERE status = 'FAILED' AND id = ANY(...)`.
+  A notification already recorded for the event, user and channel is not sent again (`crm.notification`, unique per event).
 - **Request:** a partner's retry of a FAILED or DEAD delivery is applied at once for ordinary events. For a payment,
   refund, wallet, withdrawal, payout, settlement, manifest, authority or cancellation event, it becomes a request instead.
 - **Approval:** a person with `events.replay_approve` (platform administrator or finance), other than the requester,

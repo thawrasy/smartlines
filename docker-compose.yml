@@ -86,6 +86,7 @@ services:
       MAX_PREPARED_STATEMENTS: "500"
       SERVER_IDLE_TIMEOUT: "300"
       IGNORE_STARTUP_PARAMETERS: extra_float_digits
+      STATS_USERS: masslak_api            # SHOW POOLS for the staging exporter; the admin console gives no data access
     depends_on:
       migrate: { condition: service_completed_successfully }
     networks: [internal]

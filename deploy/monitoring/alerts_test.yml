@@ -72,7 +72,59 @@ tests:
         values: "0+100x10 1000+100x30"
       - series: 'masslak_db_pool_acquire_seconds_bucket{le="+Inf"}'
         values: "0+100x10 1000+100x30"
+      - series: masslak_outbox_dead
+        values: "0x10 2x20"
+      - series: masslak_db_pool_timeouts_total
+        values: "0x10 3x5 3x20"
+      - series: pgbouncer_up
+        values: "1x10 0x10"
+      - series: 'pgbouncer_pools_client_waiting_connections{database="masslak",user="masslak_api"}'
+        values: "0x10 4x10"
+      - series: 'pgbouncer_pools_client_waiting_connections{database="pgbouncer",user="pgbouncer"}'
+        values: "3x30"
+      - series: 'pgbouncer_pools_client_maxwait_seconds{database="masslak",user="masslak_api"}'
+        values: "0x10 2x10"
     alert_rule_test:
+      - eval_time: 8m
+        alertname: OutboxEventsFailed
+        exp_alerts: []
+      - eval_time: 18m
+        alertname: OutboxEventsFailed
+        exp_alerts:
+          - exp_labels: { severity: ticket }
+            exp_annotations: { summary: "Events gave up after eight attempts and wait for an operator (notifications not sent, partners not told)", runbook: "RUNBOOKS.md#16-resending-money-and-authority-events-t3-12" }
+      - eval_time: 9m
+        alertname: PoolTimeouts
+        exp_alerts: []
+      - eval_time: 12m
+        alertname: PoolTimeouts
+        exp_alerts:
+          - exp_labels: { severity: page }
+            exp_annotations: { summary: "Requests were answered busy: no database connection became free within 5 s", runbook: "RUNBOOKS.md#10-load-and-capacity-r-12" }
+      - eval_time: 25m
+        alertname: PoolTimeouts
+        exp_alerts: []
+      - eval_time: 9m
+        alertname: PgBouncerDown
+        exp_alerts: []
+      - eval_time: 13m
+        alertname: PgBouncerDown
+        exp_alerts:
+          - exp_labels: { severity: page }
+            exp_annotations: { summary: "PgBouncer does not answer its exporter: the API cannot reach the database", runbook: "RUNBOOKS.md#10-load-and-capacity-r-12" }
+      - eval_time: 9m
+        alertname: PgBouncerClientsWaiting
+        exp_alerts: []
+      - eval_time: 13m
+        alertname: PgBouncerClientsWaiting
+        exp_alerts:
+          - exp_labels: { severity: ticket }
+            exp_annotations: { summary: "Clients keep waiting for a PgBouncer server connection: DEFAULT_POOL_SIZE is too small or transactions too slow", runbook: "RUNBOOKS.md#10-load-and-capacity-r-12" }
+      - eval_time: 13m
+        alertname: PgBouncerSlowWait
+        exp_alerts:
+          - exp_labels: { severity: page }
+            exp_annotations: { summary: "A client has waited more than 1 s for a PgBouncer server connection", runbook: "RUNBOOKS.md#10-load-and-capacity-r-12" }
       - eval_time: 30m
         alertname: CashOverdue
         exp_alerts: []

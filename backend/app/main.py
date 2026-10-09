@@ -1,4 +1,5 @@
 """Masslak API application."""
+import asyncio
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -10,7 +11,7 @@ from fastapi.staticfiles import StaticFiles
 
 from . import db, metrics
 from .config import get_settings
-from .errors import ApiError, api_error_handler, db_error_handler, unreachable_handler
+from .errors import ApiError, api_error_handler, db_error_handler, pool_busy_handler, unreachable_handler
 from .middleware import HeadAsGet, RequestContextMiddleware
 from .modules.agency import api as agency_api
 from .modules.cash import api as cash_api
@@ -46,7 +47,11 @@ async def lifespan(_: FastAPI):
         from . import crypto
         async with db.raw_connection() as conn:
             await crypto.cipher(conn)
+    publishing = asyncio.create_task(metrics.publisher()) if metrics._processes() > 1 else None
     yield
+    if publishing:
+        publishing.cancel()
+        metrics.publish()                 # the last figures of this process stay in the instance's totals
     await db.close_pools()
 
 
@@ -55,6 +60,7 @@ app = FastAPI(title="Masslak API", version="0.1.0", lifespan=lifespan,
 app.add_middleware(RequestContextMiddleware)
 app.add_exception_handler(ApiError, api_error_handler)
 app.add_exception_handler(asyncpg.PostgresError, db_error_handler)
+app.add_exception_handler(db.PoolBusy, pool_busy_handler)      # pool exhausted for longer than db_acquire_timeout
 # no server reachable, or none of the listed ones is the primary yet (failover, review stage D6)
 app.add_exception_handler(ConnectionError, unreachable_handler)
 app.add_exception_handler(asyncpg.exceptions.TargetServerAttributeNotMatched, unreachable_handler)

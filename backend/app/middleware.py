@@ -9,6 +9,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 from . import db, ratelimit
 from .config import get_settings
+from .errors import pool_busy_handler
 
 MUTATING = {"POST", "PUT", "PATCH", "DELETE"}
 CLIENT_HEADER = "x-masslak-client"
@@ -82,11 +83,15 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
         scope = portal_scope_for_path(path)
         bucket = ratelimit.bucket_for(path)
         ctx = db.Context(request_id=request.state.request_id, ip=request.state.client_ip, scope="SYSTEM")
-        async with db.transaction(ctx) as conn:
-            decision = await conn.fetchrow("SELECT action, rule_id FROM sec.ip_decision($1::inet, $2)",
-                                           request.state.client_ip, scope)
-            # sign-in endpoints: the address's bucket is shared by every process (1068), in this same round trip
-            wait = await ratelimit.check_address(conn, request.state.client_ip) if bucket == "auth" else 0.0
+        try:
+            async with db.transaction(ctx) as conn:
+                decision = await conn.fetchrow("SELECT action, rule_id FROM sec.ip_decision($1::inet, $2)",
+                                               request.state.client_ip, scope)
+                # sign-in endpoints: the address's bucket is shared by every process (1068), in this same round trip
+                wait = await ratelimit.check_address(conn, request.state.client_ip) if bucket == "auth" else 0.0
+        except db.PoolBusy:
+            # raised outside the routes, so the application's exception handlers would not see it
+            return await pool_busy_handler(request, db.PoolBusy())
         if decision and decision["action"] == "BLOCK":
             await self._log(request, scope, "request.blocked", "BLOCKED", 403, started,
                             reason=f"ip_rule {decision['rule_id']}")

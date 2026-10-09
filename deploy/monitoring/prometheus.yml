@@ -17,3 +17,7 @@ scrape_configs:
       credentials_file: /etc/prometheus/metrics_token
     static_configs:
       - targets: ["app:8000"]
+  # PgBouncer's pools (staging overlay, service pgbouncer-exporter)
+  - job_name: pgbouncer
+    static_configs:
+      - targets: ["pgbouncer-exporter:9127"]

@@ -39,6 +39,11 @@ groups:
         for: 10m
         labels: { severity: page }
         annotations: { summary: "Events wait more than 5 minutes in the outbox (worker down or stuck)", runbook: "RUNBOOKS.md#3-failover" }
+      - alert: OutboxEventsFailed
+        expr: masslak_outbox_dead > 0
+        for: 5m
+        labels: { severity: ticket }
+        annotations: { summary: "Events gave up after eight attempts and wait for an operator (notifications not sent, partners not told)", runbook: "RUNBOOKS.md#16-resending-money-and-authority-events-t3-12" }
       - alert: WebhookDeliveriesDead
         expr: increase(masslak_webhook_deliveries{status="DEAD"}[1h]) > 0 or masslak_webhook_deliveries{status="DEAD"} > 20
         labels: { severity: ticket }
@@ -164,6 +169,25 @@ groups:
         for: 10m
         labels: { severity: ticket }
         annotations: { summary: "Requests wait more than 250 ms for a database connection (pool or PgBouncer too small, or slow transactions)", runbook: "RUNBOOKS.md#10-load-and-capacity-r-12" }
+      - alert: PoolTimeouts
+        expr: increase(masslak_db_pool_timeouts_total[5m]) > 0
+        labels: { severity: page }
+        annotations: { summary: "Requests were answered busy: no database connection became free within 5 s", runbook: "RUNBOOKS.md#10-load-and-capacity-r-12" }
+      - alert: PgBouncerDown
+        expr: pgbouncer_up == 0
+        for: 2m
+        labels: { severity: page }
+        annotations: { summary: "PgBouncer does not answer its exporter: the API cannot reach the database", runbook: "RUNBOOKS.md#10-load-and-capacity-r-12" }
+      - alert: PgBouncerClientsWaiting
+        expr: max(pgbouncer_pools_client_waiting_connections{database!="pgbouncer"}) > 0
+        for: 2m
+        labels: { severity: ticket }
+        annotations: { summary: "Clients keep waiting for a PgBouncer server connection: DEFAULT_POOL_SIZE is too small or transactions too slow", runbook: "RUNBOOKS.md#10-load-and-capacity-r-12" }
+      - alert: PgBouncerSlowWait
+        expr: max(pgbouncer_pools_client_maxwait_seconds{database!="pgbouncer"}) > 1
+        for: 2m
+        labels: { severity: page }
+        annotations: { summary: "A client has waited more than 1 s for a PgBouncer server connection", runbook: "RUNBOOKS.md#10-load-and-capacity-r-12" }
       - alert: PartitionsRunningOut
         expr: masslak_partition_ahead_seconds{period="day"} < 3 * 86400 or masslak_partition_ahead_seconds{period="month"} < 45 * 86400
         for: 30m

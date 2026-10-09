@@ -90,6 +90,17 @@ services:
       - prometheus_data:/prometheus
     networks: [internal, monitoring]
 
+  # PgBouncer's pools for Prometheus (code review of October 2026): clients waiting and their longest wait show a pool
+  # that is too small before requests time out (alerts PgBouncerClientsWaiting, PgBouncerSlowWait, PgBouncerDown).
+  # It reads PgBouncer's admin console as a stats user (STATS_USERS in docker-compose.yml), with no access to data.
+  pgbouncer-exporter:
+    image: prometheuscommunity/pgbouncer-exporter:v0.10.2@sha256:5d62f2dc3ed33d091fe8dcf170c8533618c4d00cab61b6a743e0425d57b28924
+    restart: unless-stopped
+    environment:
+      PGBOUNCER_EXPORTER_CONNECTION_STRING: postgres://masslak_api:${MASSLAK_API_PASSWORD}@pgbouncer:6432/pgbouncer?sslmode=disable
+    depends_on: [pgbouncer]
+    networks: [internal]
+
   alertmanager:
     image: prom/alertmanager:v0.27.0@sha256:e13b6ed5cb929eeaee733479dce55e10eb3bc2e9c4586c705a4e8da41e5eacf5
     restart: unless-stopped

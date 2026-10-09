@@ -58,7 +58,7 @@ async def _audit() -> bool:
 async def _replica() -> bool:
     if db._reports_pool is None:
         return True
-    async with db._reports_pool.acquire() as conn:
+    async with db.acquire(db._reports_pool) as conn:
         return bool(await conn.fetchval("SELECT pg_is_in_recovery()"))
 
 

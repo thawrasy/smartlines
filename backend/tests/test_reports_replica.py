@@ -17,23 +17,20 @@ class _Conn:
 
 
 class _Pool:
+    """The two calls of asyncpg's pool that db.acquire makes (it waits at most db_acquire_timeout)."""
     def __init__(self, in_recovery):
         self.conn = _Conn(in_recovery)
 
-    def acquire(self):
-        pool = self
+    async def acquire(self, timeout=None):
+        assert timeout
+        return self.conn
 
-        class _Ctx:
-            async def __aenter__(self):
-                return pool.conn
-
-            async def __aexit__(self, *exc):
-                return False
-        return _Ctx()
+    async def release(self, conn):
+        assert conn is self.conn
 
 
 def _settings(sandbox):
-    return lambda: type("S", (), {"sandbox": sandbox})()
+    return lambda: type("S", (), {"sandbox": sandbox, "db_acquire_timeout": 5.0})()
 
 
 def test_production_needs_a_reports_replica(monkeypatch):

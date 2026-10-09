@@ -12,6 +12,8 @@ from dataclasses import dataclass
 from typing import AsyncIterator, Optional
 import uuid
 
+import asyncio
+
 import asyncpg
 
 from .config import get_settings
@@ -34,6 +36,28 @@ def _acquired(seconds: float) -> None:
             ACQUIRE_WAITS[i] += 1
     ACQUIRE_WAITS[-2] += 1
     ACQUIRE_WAITS[-1] += seconds
+
+
+class PoolBusy(Exception):
+    """No connection of the pool became free within db_acquire_timeout: the request is answered 503 and can be
+    repeated, instead of queueing without end while the pool is exhausted (third-party follow-up, October 2026)."""
+
+
+POOL_TIMEOUTS = [0]       # requests answered busy because no connection became free in time (masslak_db_pool_timeouts_total)
+
+
+@asynccontextmanager
+async def acquire(pool: asyncpg.Pool) -> AsyncIterator[asyncpg.Connection]:
+    """A connection of the pool, waiting at most db_acquire_timeout seconds for one."""
+    try:
+        conn = await pool.acquire(timeout=get_settings().db_acquire_timeout)
+    except asyncio.TimeoutError:
+        POOL_TIMEOUTS[0] += 1
+        raise PoolBusy() from None
+    try:
+        yield conn
+    finally:
+        await pool.release(conn)
 
 
 def pool_stats() -> Optional[dict]:
@@ -89,7 +113,7 @@ async def apply_context(conn: asyncpg.Connection, ctx: Context, scope: Optional[
 async def transaction(ctx: Context) -> AsyncIterator[asyncpg.Connection]:
     assert _pool is not None, "database pool not initialised"
     asked = time.monotonic()
-    async with _pool.acquire() as conn:
+    async with acquire(_pool) as conn:
         _acquired(time.monotonic() - asked)
         async with conn.transaction():
             await apply_context(conn, ctx)
@@ -139,7 +163,7 @@ async def require_reports_replica() -> None:
     if _reports_pool is None:
         raise RuntimeError("MASSLAK_REPORTS_DATABASE_URL is required outside the sandbox: reports read the replica, "
                            "never the primary (docker-compose.yml, service db-replica)")
-    async with _reports_pool.acquire() as conn:
+    async with acquire(_reports_pool) as conn:
         if not await conn.fetchval("SELECT pg_is_in_recovery()"):
             raise RuntimeError("MASSLAK_REPORTS_DATABASE_URL points at a primary: it must be a read replica (hot standby)")
 
@@ -150,7 +174,7 @@ async def reports_transaction(ctx: Context) -> AsyncIterator[asyncpg.Connection]
     main pool. On a replica the transaction is read-only."""
     pool = _reports_pool or _pool
     assert pool is not None, "database pool not initialised"
-    async with pool.acquire() as conn:
+    async with acquire(pool) as conn:
         async with conn.transaction(readonly=_reports_pool is not None):
             await apply_context(conn, ctx)
             yield conn
@@ -173,7 +197,7 @@ async def replica_lag_seconds(replica: asyncpg.Connection) -> Optional[float]:
     now = time.monotonic()
     if _lag is not None and now - _lag[0] < 2:
         return _lag[1]
-    async with _pool.acquire() as p:
+    async with acquire(_pool) as p:
         written = await p.fetchval("SELECT pg_wal_lsn_diff(pg_current_wal_lsn(), '0/0')::numeric")
     row = await replica.fetchrow("""SELECT pg_is_in_recovery() AS standby,
                                            pg_wal_lsn_diff(pg_last_wal_replay_lsn(), '0/0')::numeric AS replayed,
@@ -201,7 +225,7 @@ def telemetry_pool() -> Optional[asyncpg.Pool]:
 @asynccontextmanager
 async def audit_reader() -> AsyncIterator[asyncpg.Connection]:
     assert _audit_pool is not None, "audit pool not initialised"
-    async with _audit_pool.acquire() as conn:
+    async with acquire(_audit_pool) as conn:
         async with conn.transaction(readonly=True):
             yield conn
 
@@ -210,7 +234,7 @@ async def audit_reader() -> AsyncIterator[asyncpg.Connection]:
 async def audit_writer() -> AsyncIterator[asyncpg.Connection]:
     """The audit role in a writable transaction: only for audit.record_archive, which the role may execute."""
     assert _audit_pool is not None, "audit pool not initialised"
-    async with _audit_pool.acquire() as conn:
+    async with acquire(_audit_pool) as conn:
         async with conn.transaction():
             yield conn
 
@@ -218,5 +242,5 @@ async def audit_writer() -> AsyncIterator[asyncpg.Connection]:
 @asynccontextmanager
 async def raw_connection() -> AsyncIterator[asyncpg.Connection]:
     assert _pool is not None
-    async with _pool.acquire() as conn:
+    async with acquire(_pool) as conn:
         yield conn

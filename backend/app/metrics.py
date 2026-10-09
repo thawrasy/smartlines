@@ -4,12 +4,20 @@ long transactions, deadlocks, vacuum). Alert rules and the dashboard are in depl
 in docs/operations/SLO.md.
 
 GET /api/metrics answers only with the bearer token MASSLAK_METRICS_TOKEN; without the setting the endpoint does not
-exist (404). Each API process keeps its own request counters; Prometheus scrapes every instance.
+exist (404). Prometheus scrapes every instance. An instance runs several processes (WEB_CONCURRENCY) and a scrape
+reaches one of them, so each process writes its counters to a file every few seconds and the one that answers sums
+them: counters of every process that ran in the instance (totals never go back when a worker is replaced), gauges of
+the live ones. Before, a scrape got one process's figures at random and the counters jumped between two series
+(code review of October 2026).
 """
 from __future__ import annotations
 
+import asyncio
+import glob
 import hmac
+import json
 import os
+import tempfile
 import time
 import uuid
 from collections import defaultdict
@@ -23,6 +31,99 @@ BUCKETS = (0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0)
 _count: dict[tuple, int] = defaultdict(int)
 _hist: dict[tuple, list] = {}
 _started = time.time()
+PUBLISH_SECONDS = 5.0
+
+
+def _processes() -> int:
+    from .ratelimit import processes
+    return processes()
+
+
+def _instance_dir() -> str:
+    """Where the processes of this instance leave their figures: one directory per uvicorn supervisor, so two API
+    instances on one machine (as in CI) never add up each other's counters."""
+    base = os.environ.get("MASSLAK_METRICS_DIR") or os.path.join(tempfile.gettempdir(), "masslak-metrics")
+    return os.path.join(base, str(os.getppid()))
+
+
+def snapshot() -> dict:
+    """This process's own figures."""
+    return {"pid": os.getpid(), "started": _started, "written": time.time(),
+            "count": [list(k) + [n] for k, n in _count.items()],
+            "hist": [list(k) + [h] for k, h in _hist.items()],
+            "scope": dict(db.SCOPE_USES), "acquire": list(db.ACQUIRE_WAITS),
+            "pool_timeouts": db.POOL_TIMEOUTS[0], "pool": db.pool_stats()}
+
+
+def publish() -> None:
+    """Writes this process's figures for the others to sum (atomically: a reader never sees half a file)."""
+    if _processes() < 2:
+        return
+    try:
+        d = _instance_dir()
+        os.makedirs(d, exist_ok=True)
+        path = os.path.join(d, f"{os.getpid()}-{int(_started * 1000)}.json")
+        with open(path + ".tmp", "w") as f:
+            json.dump(snapshot(), f)
+        os.replace(path + ".tmp", path)
+    except OSError:
+        pass
+
+
+async def publisher() -> None:
+    """Background task of each process (started in the application's lifespan when there are several processes)."""
+    while True:
+        publish()
+        await asyncio.sleep(PUBLISH_SECONDS)
+
+
+def _alive(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+        return True
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+
+
+def gathered() -> dict:
+    """The instance's process figures: summed counters of every process, gauges of the live ones."""
+    snaps = [snapshot()]
+    if _processes() > 1:
+        publish()
+        snaps = []
+        for path in glob.glob(os.path.join(_instance_dir(), "*.json")):
+            try:
+                with open(path) as f:
+                    snaps.append(json.load(f))
+            except (OSError, ValueError):
+                continue
+        if not any(x.get("pid") == os.getpid() and x.get("started") == _started for x in snaps):
+            snaps.append(snapshot())                    # the directory could not be written: this process alone
+    out = {"count": defaultdict(int), "hist": {}, "scope": defaultdict(int), "acquire": [0] * len(db.ACQUIRE_WAITS),
+           "pool_timeouts": 0, "pool": None, "processes": 0, "uptime": None}
+    now = time.time()
+    for x in snaps:
+        for *k, n in x["count"]:
+            out["count"][tuple(k)] += n
+        for *k, h in x["hist"]:
+            acc = out["hist"].setdefault(tuple(k), [0] * len(h))
+            for i, value in enumerate(h):
+                acc[i] += value
+        for site, n in x["scope"].items():
+            out["scope"][site] += n
+        for i, value in enumerate(x["acquire"][:len(out["acquire"])]):
+            out["acquire"][i] += value
+        out["pool_timeouts"] += x["pool_timeouts"]
+        if x["pid"] == os.getpid() or (_alive(x["pid"]) and now - x["written"] < 60):
+            out["processes"] += 1
+            age = now - x["started"]
+            out["uptime"] = age if out["uptime"] is None else min(out["uptime"], age)
+            if x["pool"]:
+                pool = out["pool"] or {"size": 0, "idle": 0}
+                out["pool"] = {"size": pool["size"] + x["pool"]["size"], "idle": pool["idle"] + x["pool"]["idle"]}
+    return out
 
 router = APIRouter()
 
@@ -80,28 +181,35 @@ def _labels(d: dict) -> str:
     return "{" + ",".join(f'{k}="{str(v).replace(chr(92), "").replace(chr(34), "")}"' for k, v in d.items()) + "}" if d else ""
 
 
-def render_requests() -> list[str]:
+def render_requests(g: dict | None = None) -> list[str]:
+    g = g or gathered()
     out = ["# HELP masslak_http_requests_total API requests by route and status class",
            "# TYPE masslak_http_requests_total counter"]
-    for (method, path, grp, cls), n in sorted(_count.items()):
+    for (method, path, grp, cls), n in sorted(g["count"].items()):
         out.append(f"masslak_http_requests_total{_labels({'method': method, 'route': path, 'group': grp, 'status': cls})} {n}")
     out += ["# HELP masslak_http_request_duration_seconds API latency by route",
             "# TYPE masslak_http_request_duration_seconds histogram"]
-    for (method, path, grp), h in sorted(_hist.items()):
+    for (method, path, grp), h in sorted(g["hist"].items()):
         base = {"method": method, "route": path, "group": grp}
         for i, b in enumerate(BUCKETS):
             out.append(f"masslak_http_request_duration_seconds_bucket{_labels({**base, 'le': b})} {h[i]}")
         out.append(f"masslak_http_request_duration_seconds_bucket{_labels({**base, 'le': '+Inf'})} {h[len(BUCKETS)]}")
         out.append(f"masslak_http_request_duration_seconds_count{_labels(base)} {h[len(BUCKETS)]}")
         out.append(f"masslak_http_request_duration_seconds_sum{_labels(base)} {h[-1]:.6f}")
-    out += ["# TYPE masslak_process_uptime_seconds gauge", f"masslak_process_uptime_seconds {time.time() - _started:.0f}"]
+    out += ["# HELP masslak_process_uptime_seconds Uptime of the youngest live process of the instance",
+            "# TYPE masslak_process_uptime_seconds gauge", f"masslak_process_uptime_seconds {g['uptime'] or 0:.0f}",
+            "# HELP masslak_api_processes Live API processes of the instance", "# TYPE masslak_api_processes gauge",
+            f"masslak_api_processes {g['processes']}"]
     out += ["# HELP masslak_system_scope_total Uses of the system scope by calling function (reviewed in governance_registry.py)",
             "# TYPE masslak_system_scope_total counter"]
-    out += [f"masslak_system_scope_total{_labels({'site': site})} {n}" for site, n in sorted(db.SCOPE_USES.items())]
+    out += [f"masslak_system_scope_total{_labels({'site': site})} {n}" for site, n in sorted(g["scope"].items())]
+    out += ["# HELP masslak_db_pool_timeouts_total Requests answered busy because no database connection became free in time",
+            "# TYPE masslak_db_pool_timeouts_total counter", f"masslak_db_pool_timeouts_total {g['pool_timeouts']}"]
     return out
 
 
-async def render_database() -> list[str]:
+async def render_database(g: dict | None = None) -> list[str]:
+    g = g or gathered()
     out, seen = [], set()
     ctx = db.Context(request_id=uuid.uuid4(), ip="127.0.0.1", scope="SYSTEM")
     async with db.transaction(ctx) as conn:
@@ -113,7 +221,7 @@ async def render_database() -> list[str]:
                                 "UNION ALL SELECT metric, labels, value FROM sys.partition_metrics() "
                                 "UNION ALL SELECT metric, labels, value FROM sys.replication_metrics() "
                                 "UNION ALL SELECT metric, labels, value FROM sys.ha_metrics()")
-        pool = db.pool_stats()
+    pool = g["pool"]
     for r in rows:
         name = r["metric"]
         if name not in seen:
@@ -132,8 +240,8 @@ async def render_database() -> list[str]:
     if pool:
         out += ["# TYPE masslak_db_pool_size gauge", f"masslak_db_pool_size {pool['size']}",
                 "# TYPE masslak_db_pool_idle gauge", f"masslak_db_pool_idle {pool['idle']}"]
-        waits = db.ACQUIRE_WAITS
-        out += ["# HELP masslak_db_pool_acquire_seconds Time a request waited for a database connection of this process",
+        waits = g["acquire"]
+        out += ["# HELP masslak_db_pool_acquire_seconds Time a request waited for a database connection (all processes of the instance)",
                 "# TYPE masslak_db_pool_acquire_seconds histogram"]
         out += [f'masslak_db_pool_acquire_seconds_bucket{{le="{b}"}} {waits[i]}' for i, b in enumerate(db.ACQUIRE_BUCKETS)]
         out += [f'masslak_db_pool_acquire_seconds_bucket{{le="+Inf"}} {waits[-2]}',
@@ -156,9 +264,10 @@ async def metrics(request: Request):
     given = request.headers.get("authorization", "").removeprefix("Bearer ").strip()
     if not hmac.compare_digest(given.encode(), token.encode()):
         return Response(status_code=401, headers={"WWW-Authenticate": "Bearer"})
-    lines = render_requests()
+    g = gathered()
+    lines = render_requests(g)
     try:
-        lines += await render_database()
+        lines += await render_database(g)
         lines += ["# TYPE masslak_db_up gauge", "masslak_db_up 1"]
     except Exception:                    # the scrape itself reports the database as down instead of failing
         lines += ["# TYPE masslak_db_up gauge", "masslak_db_up 0"]
