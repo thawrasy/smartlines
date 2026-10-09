@@ -50,6 +50,9 @@ async def lifespan(_: FastAPI):
         from . import crypto
         async with db.raw_connection() as conn:
             await crypto.cipher(conn)
+    from . import release
+    rel = await release.current()
+    app.version = rel["version"] if rel else "unknown"    # the release the database is at, not a number kept by hand
     publishing = asyncio.create_task(metrics.publisher()) if metrics._processes() > 1 else None
     yield
     if publishing:
@@ -58,8 +61,10 @@ async def lifespan(_: FastAPI):
     await db.close_pools()
 
 
-app = FastAPI(title="Masslak API", version="0.1.0", lifespan=lifespan,
-              docs_url="/api/docs", openapi_url="/api/openapi.json", redoc_url=None)
+# The internal API's document lists every route; production does not publish it (code review of October 2026, 3.1)
+_docs = get_settings().api_docs if get_settings().api_docs is not None else get_settings().sandbox
+app = FastAPI(title="Masslak API", version="unknown", lifespan=lifespan, redoc_url=None,
+              docs_url="/api/docs" if _docs else None, openapi_url="/api/openapi.json" if _docs else None)
 app.add_middleware(RequestContextMiddleware)
 app.add_exception_handler(ApiError, api_error_handler)
 app.add_exception_handler(asyncpg.PostgresError, db_error_handler)

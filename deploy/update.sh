@@ -9,18 +9,54 @@
 # branch that has diverged from the remote, local edits to tracked files, or a commit other than the one given with
 # --sha (or MASSLAK_EXPECTED_SHA) stops the update while the running version keeps serving. The deployed commit is
 # written to deploy/DEPLOYED, and the update ends only when /api/ready answers.
+#
+# Images are tagged with the commit they were built from, never only "latest" (code review of October 2026, H-07):
+# deploy/.env records MASSLAK_IMAGE_TAG (running) and MASSLAK_PREVIOUS_IMAGE_TAG (the one before), and both stay on the
+# server. An update that does not become ready goes back to the previous images by itself, and
+#   ./deploy/update.sh --rollback
+# restarts the API and the worker on the previous images at any time, without rebuilding. Schema files only move
+# forward and are written so the previous release still runs on them (expand, then contract: db/README.md), so a
+# rollback leaves the database as it is.
 set -euo pipefail
 cd "$(dirname "$0")/.."
-ref="" expected="${MASSLAK_EXPECTED_SHA:-}"
+ref="" expected="${MASSLAK_EXPECTED_SHA:-}" rollback=false
 while [ $# -gt 0 ]; do
   case "$1" in
     --sha) expected="${2:?--sha needs a commit id}"; shift 2 ;;
+    --rollback) rollback=true; shift ;;
     -*) echo "unknown option: $1" >&2; exit 2 ;;
     *) ref="$1"; shift ;;
   esac
 done
 compose() { docker compose --env-file deploy/.env "$@"; }
 fail() { echo "update stopped: $*" >&2; exit 1; }
+env_value() { { sed -n "s/^$1=//p" deploy/.env 2>/dev/null || true; } | tail -1; }
+set_env() { if grep -q "^$1=" deploy/.env; then sed -i "s|^$1=.*|$1=$2|" deploy/.env; else echo "$1=$2" >> deploy/.env; fi; }
+ready() {                                                    # /api/ready through Caddy, for up to $1 tries 3 s apart
+  domain="${MASSLAK_DOMAIN:-$(env_value MASSLAK_DOMAIN)}"
+  tls=(); [ "$domain" = localhost ] && tls=(-k)              # a local trial uses Caddy's own certificate authority
+  for i in $(seq 1 "$1"); do
+    curl -fsS "${tls[@]}" --resolve "$domain:443:127.0.0.1" "https://$domain/api/ready" >/dev/null 2>&1 && return 0
+    sleep 3
+  done
+  return 1
+}
+# the API and the worker on the images of a tag, without rebuilding and without the schema step
+run_tag() { MASSLAK_IMAGE_TAG="$1" compose up -d --no-build --no-deps app worker; }
+
+if [ "$rollback" = true ]; then
+  current="$(env_value MASSLAK_IMAGE_TAG)" previous="$(env_value MASSLAK_PREVIOUS_IMAGE_TAG)"
+  [ -n "$previous" ] || fail "no previous images recorded (MASSLAK_PREVIOUS_IMAGE_TAG in deploy/.env)"
+  docker image inspect "masslak:$previous" >/dev/null 2>&1 || fail "the previous image masslak:$previous is not on this server"
+  echo "rolling back the API and the worker from ${current:-?} to $previous"
+  run_tag "$previous"
+  ready 60 || { compose logs --tail 80 app; fail "the previous version is not ready either (https://$domain/api/ready)"; }
+  set_env MASSLAK_IMAGE_TAG "$previous"
+  [ -z "$current" ] || set_env MASSLAK_PREVIOUS_IMAGE_TAG "$current"      # a second --rollback goes forward again
+  printf '%s %s rollback\n' "$previous" "$(date -u +%FT%TZ)" >> deploy/DEPLOYED
+  echo "ready: images $previous (run ./deploy/update.sh --rollback again to return to ${current:-the newer images})"
+  exit 0
+fi
 if [ -d .git ]; then
   [ -z "$(git status --porcelain --untracked-files=no)" ] || fail "tracked files were edited on this server (git status)"
   git fetch --quiet --tags origin || fail "git fetch failed"
@@ -59,16 +95,29 @@ if ! grep -q '^MASSLAK_ENVIRONMENT=.' deploy/.env; then
   echo "MASSLAK_ENVIRONMENT=$env_name" >> deploy/.env
   echo "added MASSLAK_ENVIRONMENT=$env_name to deploy/.env (set it to staging on the staging servers)"
 fi
+old_tag="$(env_value MASSLAK_IMAGE_TAG)"
+case "$sha" in release-archive) tag="archive-$(date -u +%Y%m%d%H%M%S)" ;; *) tag="${sha:0:12}" ;; esac
+export MASSLAK_IMAGE_TAG="$tag"
 MASSLAK_RELEASE_COMMIT="$sha" compose build        # the release manifest (1058) records the commit
 compose up -d
 compose ps
-docker image prune -f >/dev/null
-domain="${MASSLAK_DOMAIN:-$(grep ^MASSLAK_DOMAIN= deploy/.env | cut -d= -f2)}"
-tls=(); [ "$domain" = localhost ] && tls=(-k)                # a local trial uses Caddy's own certificate authority
-for i in $(seq 1 60); do
-  curl -fsS "${tls[@]}" --resolve "$domain:443:127.0.0.1" "https://$domain/api/ready" >/dev/null 2>&1 && break
-  [ "$i" = 60 ] && { compose logs --tail 80 migrate app; fail "the new version is not ready (https://$domain/api/ready)"; }
-  sleep 3
+if ! ready 60; then
+  compose logs --tail 80 migrate app
+  if [ -n "$old_tag" ] && [ "$old_tag" != "$tag" ] && docker image inspect "masslak:$old_tag" >/dev/null 2>&1; then
+    echo "the new version is not ready: back to the images $old_tag" >&2
+    run_tag "$old_tag"
+  fi
+  fail "the new version is not ready (https://$domain/api/ready)"
+fi
+set_env MASSLAK_IMAGE_TAG "$tag"
+[ -z "$old_tag" ] || [ "$old_tag" = "$tag" ] || set_env MASSLAK_PREVIOUS_IMAGE_TAG "$old_tag"
+previous="$(env_value MASSLAK_PREVIOUS_IMAGE_TAG)"
+# keep the running and the previous images, drop older ones
+for name in masslak masslak-egress; do
+  for t in $(docker image ls "$name" --format '{{.Tag}}'); do
+    case "$t" in "$tag"|"$previous") ;; *) docker image rm "$name:$t" >/dev/null 2>&1 || true ;; esac
+  done
 done
-printf '%s %s\n' "$sha" "$(date -u +%FT%TZ)" >> deploy/DEPLOYED
-echo "ready: $sha"
+docker image prune -f >/dev/null
+printf '%s %s %s\n' "$sha" "$(date -u +%FT%TZ)" "$tag" >> deploy/DEPLOYED
+echo "ready: $sha (images $tag; previous ${previous:-none})"

@@ -148,6 +148,12 @@ files (`db/upgrade.sh`, recorded in `sys.schema_file`) before the new API starts
   `origin` or has local commits, when tracked files were edited on the server, or when the checked-out commit is not
   the one given with `--sha` (at least 12 characters; `MASSLAK_EXPECTED_SHA` works too).
 - It stops when an applied schema file was changed (`db/upgrade.sh`, exit code 3): nothing is applied.
+- Images are tagged with the commit they were built from (`masslak:<12 characters>`), recorded in `deploy/.env` as
+  `MASSLAK_IMAGE_TAG`; the images of the release before stay on the server as `MASSLAK_PREVIOUS_IMAGE_TAG`, older ones
+  are removed. If the new version does not become ready, the API and the worker go back to the previous images by
+  themselves. To go back at any time without rebuilding: `sudo ./deploy/update.sh --rollback` (run it again to return).
+  The database stays as it is: schema files only move forward and are written so the release before still runs on
+  them (expand, then contract: `db/README.md`).
 - It ends only when `https://<domain>/api/ready` answers, and appends the deployed commit to `deploy/DEPLOYED`.
 
 `GET /api/health` says only that the process answers (the container health check and Caddy use it). `GET /api/ready`

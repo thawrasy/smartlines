@@ -52,7 +52,11 @@ fi
 step "Building and starting the stack (first build takes a few minutes)"
 # the commit of this checkout, or the one a signed release archive records in RELEASE, goes into the release manifest (1058)
 commit="$(git rev-parse HEAD 2>/dev/null || sed -n 's/^commit=\([0-9a-f]\{40\}\)$/\1/p' RELEASE 2>/dev/null || true)"
-MASSLAK_RELEASE_COMMIT="${commit:-release-archive}" \
+# images are tagged with that commit (deploy/update.sh keeps the previous ones for a rollback)
+tag="$(printf '%s' "$commit" | cut -c1-12)"; [ -n "$tag" ] || tag="local-$(date -u +%Y%m%d%H%M%S)"
+if grep -q '^MASSLAK_IMAGE_TAG=' deploy/.env; then sed -i "s|^MASSLAK_IMAGE_TAG=.*|MASSLAK_IMAGE_TAG=$tag|" deploy/.env
+else echo "MASSLAK_IMAGE_TAG=$tag" >> deploy/.env; fi
+MASSLAK_RELEASE_COMMIT="${commit:-release-archive}" MASSLAK_IMAGE_TAG="$tag" \
   docker compose --env-file deploy/.env up -d --build
 
 step "Waiting for the application"

@@ -136,6 +136,12 @@ PostGIS in `gis`. Until 9 October 2026 a first start of the Docker stack stopped
 - **Flexibility:** purpose-specific `jsonb` fields (price and terms snapshots, compliance-profile fields, settings), never as a substitute for columns.
 - **Foreign keys:** declared explicitly on every relationship, except the high-volume tracking table, which skips them for insert performance.
 - **Configuration before code:** feature flags and policies live in `sys.setting` and `sys.company_setting` (principle 2.8).
+- **Expand, then contract:** a schema file never breaks the release before it, so `deploy/update.sh --rollback` can
+  restart the previous images on the new schema (code review of October 2026). A column or table is added (nullable,
+  or with a default) and filled in one release, used by the code in the same or the next one, and only dropped or made
+  `NOT NULL` in a later release, once no running code reads the old shape. A rename is an addition, a copy and a later
+  drop. On tables that grow with traffic, a new index is built `CONCURRENTLY` outside the transaction and a new check
+  is added `NOT VALID` and validated in a later step, so neither holds a long lock (`docs/database/MIGRATION_PLANS.md`).
 
 ## Core relationships
 

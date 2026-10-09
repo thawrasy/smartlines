@@ -269,6 +269,21 @@ jobs:
           for i in $(seq 60); do curl -fsSk https://localhost/api/health && break; sleep 3; done
           curl -fsSk -H 'X-Masslak-Client: web' -H 'Content-Type: application/json' \
                -d '{"identifier":"passenger@masslak.test","password":"Masslak-Demo-2026","portal":"PASSENGER"}' https://localhost/api/auth/login
+      - name: Images are tagged by commit and a rollback restarts the previous ones (code review H-07)
+        run: |
+          tag="$(sed -n 's/^MASSLAK_IMAGE_TAG=//p' deploy/.env)"
+          test "$tag" = "$(git rev-parse HEAD | cut -c1-12)"
+          test "$(docker inspect --format '{{.Config.Image}}' "$(docker compose --env-file deploy/.env ps -q app)")" = "masslak:$tag"
+          # stand-in for the release before this one: the same image under another tag
+          docker tag "masslak:$tag" masslak:ci-previous
+          echo "MASSLAK_PREVIOUS_IMAGE_TAG=ci-previous" | sudo tee -a deploy/.env >/dev/null
+          sudo ./deploy/update.sh --rollback
+          test "$(docker inspect --format '{{.Config.Image}}' "$(docker compose --env-file deploy/.env ps -q app)")" = masslak:ci-previous
+          test "$(sed -n 's/^MASSLAK_IMAGE_TAG=//p' deploy/.env)" = ci-previous
+          test "$(sed -n 's/^MASSLAK_PREVIOUS_IMAGE_TAG=//p' deploy/.env)" = "$tag"
+          curl -fsSk https://localhost/api/ready
+          # the partners' document stays published whatever the API docs setting
+          curl -fsSk https://localhost/api/v1/openapi.json >/dev/null
       - name: Logs on failure
         if: failure()
         run: docker compose --env-file deploy/.env logs --tail 200

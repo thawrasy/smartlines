@@ -1,5 +1,6 @@
 """Runtime configuration, read from environment variables (see deploy/.env.example)."""
 from functools import lru_cache
+from typing import Optional
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -52,6 +53,9 @@ class Settings(BaseSettings):
     rate_auth_ip_per_minute: int = 300
     rate_public_per_minute: int = 240
     rate_api_per_minute: int = 1200
+    # The API's own OpenAPI document and its page (/api/openapi.json, /api/docs): open in the sandbox, closed elsewhere
+    # unless set to true. The partners' document (/api/v1/openapi.json) is always published.
+    api_docs: Optional[bool] = None
     # Seconds a request waits for a database connection of its process before it is answered 503 (busy, repeat it)
     db_acquire_timeout: float = 5.0
 

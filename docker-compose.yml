@@ -56,7 +56,7 @@ services:
         VITE_SHOW_DEMO: ${MASSLAK_SEED_DEMO:-false}
         VITE_DEFAULT_LOCALE: ${MASSLAK_DEFAULT_LOCALE:-ar}
         MASSLAK_RELEASE_COMMIT: ${MASSLAK_RELEASE_COMMIT:-unknown}     # recorded in the release manifest (1058)
-    image: masslak:latest
+    image: masslak:${MASSLAK_IMAGE_TAG:-latest}
     command: ["/app/deploy/migrate.sh"]
     env_file: deploy/.env
     environment:
@@ -92,7 +92,7 @@ services:
     networks: [internal]
 
   app:
-    image: masslak:latest
+    image: masslak:${MASSLAK_IMAGE_TAG:-latest}
     restart: unless-stopped
     env_file: deploy/.env
     environment:
@@ -121,7 +121,7 @@ services:
 
   # Sends notifications from the transactional outbox (several replicas can run: events are claimed with SKIP LOCKED)
   worker:
-    image: masslak:latest
+    image: masslak:${MASSLAK_IMAGE_TAG:-latest}
     restart: unless-stopped
     env_file: deploy/.env
     command: ["python", "-m", "app.modules.notify.worker"]
@@ -150,7 +150,7 @@ services:
   # loopback, link-local or metadata addresses (deploy/egress/squid.conf; probe with deploy/egress/selftest.sh)
   egress:
     build: deploy/egress
-    image: masslak-egress:latest
+    image: masslak-egress:${MASSLAK_IMAGE_TAG:-latest}
     restart: unless-stopped
     volumes:
       - egress_lists:/etc/squid/lists
