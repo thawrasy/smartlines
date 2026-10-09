@@ -84,6 +84,19 @@ vehicles and drivers, four routes with a week of trips, and these accounts. They
 
 Never use `--demo` on a server with real users.
 
+### Trial without a domain
+
+On a fresh Ubuntu server reachable on ports 80 and 443, from the extracted release archive (or a checkout):
+
+```sh
+sudo ./deploy/trial.sh --email you@example.com
+```
+
+It finds the server's public IPv4 address and installs the demo build (`install.sh --demo`) as
+`https://<address with dashes>.sslip.io`, a public name that resolves to that address, so the certificate is issued
+as for any domain. `--domain <name>` uses a domain of your own instead. The e-mail address receives the certificate
+notices and is the first administrator's sign-in; the demo accounts above work as well.
+
 ### Local trial on your own computer
 
 ```sh
