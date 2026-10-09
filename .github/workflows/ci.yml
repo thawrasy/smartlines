@@ -151,7 +151,7 @@ jobs:
       - name: Start the API
         working-directory: backend
         run: |
-          nohup python -m uvicorn app.main:app --port 8077 > ../api.log 2>&1 &
+          nohup python -m uvicorn app.main:app --port 8077 --timeout-keep-alive 75 > ../api.log 2>&1 &
           for i in $(seq 1 30); do curl -sf localhost:8077/api/health && exit 0; sleep 1; done
           cat ../api.log; exit 1
       - name: Unit and end-to-end tests
@@ -165,7 +165,7 @@ jobs:
           psql -h localhost -U postgres -d postgres -qc "CREATE DATABASE masslak_tel"
           psql -h localhost -U postgres -d masslak_tel -v ON_ERROR_STOP=1 -q -v writer_password=ci-tel-password \
                -f ../db/telemetry/schema.sql > /dev/null
-          MASSLAK_TELEMETRY_DATABASE_URL="$MASSLAK_TELEMETRY_TEST_URL" nohup python -m uvicorn app.main:app --port 8078 > ../api_tel.log 2>&1 &
+          MASSLAK_TELEMETRY_DATABASE_URL="$MASSLAK_TELEMETRY_TEST_URL" nohup python -m uvicorn app.main:app --port 8078 --timeout-keep-alive 75 > ../api_tel.log 2>&1 &
           for i in $(seq 1 30); do curl -sf localhost:8078/api/health > /dev/null && break; sleep 1; done
           MASSLAK_TEST_URL=http://localhost:8078 python -m pytest tests/test_telemetry.py -q
       - name: API log on failure

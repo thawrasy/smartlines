@@ -33,5 +33,8 @@ RUN mkdir -p /data/files /data/messages && chown masslak /data/files /data/messa
 USER masslak
 EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health')"
-# Client addresses are resolved by the application from MASSLAK_TRUSTED_PROXIES, so uvicorn's own handling is off
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2", "--no-proxy-headers"]
+# Client addresses are resolved by the application from MASSLAK_TRUSTED_PROXIES, so uvicorn's own handling is off.
+# Idle connections stay open 75 s, longer than Caddy keeps them (60 s, deploy/Caddyfile): the proxy always closes
+# first, so it never sends a request on a connection the API is closing (uvicorn's default of 5 s let a booking fail
+# with a reset now and then, found by the concurrency tests).
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2", "--no-proxy-headers", "--timeout-keep-alive", "75"]
