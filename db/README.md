@@ -5,7 +5,9 @@ cover the Phase 1 scope of sections 21 and 22.2 and the fields the owner decided
 (Decision 88). Files 1003 and 1010 to 1032 complete the model against every entity the study defines, including the
 modules of later phases (sections 4.10, 9, 10, 11, 13, 14, 21 and appendix D). Those modules stay disabled behind
 feature flags until their phase starts (2.8, decision D-6). File 1033 applies the relationship rules of design v3.0:
-every table has a primary key, every reference is a foreign key (or documents why not), and every foreign key is indexed.
+every table has a primary key, every reference is a foreign key (or documents why not), and every foreign key has a
+supporting index, except references to lookup lists and to the staff member who recorded a row, which are never deleted
+(`docs/database/STANDARDS.md`).
 
 <!-- stats:begin (db/tools/gen_docs.py) -->
 | | |
