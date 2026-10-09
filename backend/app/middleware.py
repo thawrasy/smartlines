@@ -1,5 +1,6 @@
 """Request middleware: request id, client address, IP rules (sec.ip_rule) and the activity log."""
 import ipaddress
+import logging
 import time
 import uuid
 
@@ -141,8 +142,11 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
                     audit.get("object_id"), result, status, int((time.monotonic() - started) * 1000),
                     reason or audit.get("reason"), request.state.api_client_id,
                 )
-        except Exception:  # the activity log must never break the request itself
-            pass
+        except Exception as exc:  # the activity log must never break the request itself, but a gap must be seen
+            db.AUDIT_WRITE_FAILURES[0] += 1
+            logging.getLogger("masslak.audit").warning(
+                "activity log not written for %s %s (%s %s); data changes stay in audit.row_change",
+                request.method, request.url.path[:120], exc.__class__.__name__, getattr(exc, "sqlstate", ""))
 
 
 class HeadAsGet:

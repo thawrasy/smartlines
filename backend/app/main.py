@@ -9,7 +9,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import db, metrics
+from . import db, logredact, metrics
 from .config import get_settings
 from .errors import ApiError, api_error_handler, db_error_handler, pool_busy_handler, unreachable_handler
 from .middleware import HeadAsGet, RequestContextMiddleware
@@ -32,6 +32,9 @@ from .modules.seo.app_shell import shell as app_shell
 from .modular import api as modular_api
 from .modular import workflows as modular_workflows
 from .routers import admin, auth, bookings, carrier, driver, public, regulator, security, verify, wallet
+
+
+logredact.install()                       # personal data and secrets never reach the logs, whoever logs them
 
 
 @asynccontextmanager

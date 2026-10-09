@@ -172,8 +172,16 @@ section.
 
 ## 7. Audit archive with object lock (R-09)
 
-- **Export:** `python -m app.tools.audit_export export /var/lib/masslak/audit-archive` runs hourly as the audit role.
-  It writes gzip JSON lines and a manifest chained by SHA-256.
+- **Export:** `deploy/audit-archive.sh` runs hourly from cron (installed by `deploy/server-setup.sh`). It runs
+  `python -m app.tools.audit_export export` as the audit role into `MASSLAK_AUDIT_ARCHIVE_DIR`
+  (default `/var/lib/masslak/audit-archive`): gzip JSON lines and a manifest chained by SHA-256. Outside the sandbox it
+  refuses to run without `MASSLAK_AUDIT_SIGNING_KEY_FILE`. Then it runs `MASSLAK_AUDIT_SYNC_COMMAND` (below) and, only
+  when the copy succeeded, `record`; it ends by printing the chain's tip. Its log is `/var/log/masslak-audit-archive.log`.
+- **Lag:** `masslak_audit_unarchived_seconds` is, per audit log, the age of the oldest record no recorded archive covers
+  (1069). Above two hours the alert `AuditArchiveBehind` fires: the export, the copy or the record stopped, or archiving
+  was never set up on this server. `masslak_audit_write_failures_total` counts request records the activity log could
+  not take (alert `AuditWriteFailures`); the data changes themselves are in `audit.row_change`, written in the same
+  transaction.
 - **Sync** to a bucket with object lock in compliance mode:
   ```
   aws s3api create-bucket --bucket masslak-audit-archive --object-lock-enabled-for-bucket
@@ -181,6 +189,8 @@ section.
       --object-lock-configuration 'ObjectLockEnabled=Enabled,Rule={DefaultRetention={Mode=COMPLIANCE,Days=2555}}'
   aws s3 sync /var/lib/masslak/audit-archive s3://masslak-audit-archive/ --no-progress
   ```
+  In `deploy/.env`: `MASSLAK_AUDIT_SYNC_COMMAND=aws s3 sync {dir} s3://masslak-audit-archive/ --no-progress`
+  (`{dir}` stands for the archive directory) and `MASSLAK_AUDIT_VERIFY_KEY_FILE` for the check before recording.
 - **Sign (T3-13):** every manifest is signed with Ed25519.
   - The security officer creates the key pair once: `python -m app.tools.audit_export keygen audit.key audit.pub`.
   - The private key goes to the key service. The export job alone receives it, as `MASSLAK_AUDIT_SIGNING_KEY`.

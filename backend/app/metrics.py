@@ -52,7 +52,8 @@ def snapshot() -> dict:
             "count": [list(k) + [n] for k, n in _count.items()],
             "hist": [list(k) + [h] for k, h in _hist.items()],
             "scope": dict(db.SCOPE_USES), "acquire": list(db.ACQUIRE_WAITS),
-            "pool_timeouts": db.POOL_TIMEOUTS[0], "pool": db.pool_stats()}
+            "pool_timeouts": db.POOL_TIMEOUTS[0], "audit_write_failures": db.AUDIT_WRITE_FAILURES[0],
+            "pool": db.pool_stats()}
 
 
 def publish() -> None:
@@ -102,7 +103,7 @@ def gathered() -> dict:
         if not any(x.get("pid") == os.getpid() and x.get("started") == _started for x in snaps):
             snaps.append(snapshot())                    # the directory could not be written: this process alone
     out = {"count": defaultdict(int), "hist": {}, "scope": defaultdict(int), "acquire": [0] * len(db.ACQUIRE_WAITS),
-           "pool_timeouts": 0, "pool": None, "processes": 0, "uptime": None}
+           "pool_timeouts": 0, "audit_write_failures": 0, "pool": None, "processes": 0, "uptime": None}
     now = time.time()
     for x in snaps:
         for *k, n in x["count"]:
@@ -116,6 +117,7 @@ def gathered() -> dict:
         for i, value in enumerate(x["acquire"][:len(out["acquire"])]):
             out["acquire"][i] += value
         out["pool_timeouts"] += x["pool_timeouts"]
+        out["audit_write_failures"] += x.get("audit_write_failures", 0)
         if x["pid"] == os.getpid() or (_alive(x["pid"]) and now - x["written"] < 60):
             out["processes"] += 1
             age = now - x["started"]
@@ -205,6 +207,8 @@ def render_requests(g: dict | None = None) -> list[str]:
     out += [f"masslak_system_scope_total{_labels({'site': site})} {n}" for site, n in sorted(g["scope"].items())]
     out += ["# HELP masslak_db_pool_timeouts_total Requests answered busy because no database connection became free in time",
             "# TYPE masslak_db_pool_timeouts_total counter", f"masslak_db_pool_timeouts_total {g['pool_timeouts']}"]
+    out += ["# HELP masslak_audit_write_failures_total Requests whose activity log record could not be written",
+            "# TYPE masslak_audit_write_failures_total counter", f"masslak_audit_write_failures_total {g['audit_write_failures']}"]
     return out
 
 
@@ -220,7 +224,8 @@ async def render_database(g: dict | None = None) -> list[str]:
                                 "UNION ALL SELECT metric, labels, value FROM sys.lock_metrics() "
                                 "UNION ALL SELECT metric, labels, value FROM sys.partition_metrics() "
                                 "UNION ALL SELECT metric, labels, value FROM sys.replication_metrics() "
-                                "UNION ALL SELECT metric, labels, value FROM sys.ha_metrics()")
+                                "UNION ALL SELECT metric, labels, value FROM sys.ha_metrics() "
+                                "UNION ALL SELECT metric, labels, value FROM audit.archive_metrics()")
     pool = g["pool"]
     for r in rows:
         name = r["metric"]

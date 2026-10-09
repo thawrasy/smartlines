@@ -56,4 +56,10 @@ if [ -x "$app_dir/deploy/backup.sh" ]; then
   echo "15 2 * * * root $app_dir/deploy/backup.sh >> /var/log/masslak-backup.log 2>&1" > /etc/cron.d/masslak-backup
   echo "nightly backup scheduled for $app_dir"
 fi
+# Hourly signed export of the audit logs (deploy/audit-archive.sh; settings and the sync to storage with object lock in
+# deploy/.env, docs/operations/RUNBOOKS.md section 7)
+if [ -x "$app_dir/deploy/audit-archive.sh" ]; then
+  echo "5 * * * * root $app_dir/deploy/audit-archive.sh >> /var/log/masslak-audit-archive.log 2>&1" > /etc/cron.d/masslak-audit-archive
+  echo "hourly audit archive scheduled for $app_dir"
+fi
 echo "server ready: put the application in /opt/masslak and follow deploy/README.md"

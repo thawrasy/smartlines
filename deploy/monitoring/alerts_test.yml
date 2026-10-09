@@ -84,7 +84,32 @@ tests:
         values: "3x30"
       - series: 'pgbouncer_pools_client_maxwait_seconds{database="masslak",user="masslak_api"}'
         values: "0x10 2x10"
+      - series: masslak_audit_write_failures_total
+        values: "0x10 1x30"
+      - series: 'masslak_audit_unarchived_seconds{table="audit.activity_log"}'
+        values: "1800+60x120"
+      - series: 'masslak_audit_unarchived_seconds{table="audit.row_change"}'
+        values: "600x60"
     alert_rule_test:
+      - eval_time: 9m
+        alertname: AuditWriteFailures
+        exp_alerts: []
+      - eval_time: 14m
+        alertname: AuditWriteFailures
+        exp_alerts:
+          - exp_labels: { severity: ticket }
+            exp_annotations: { summary: "Request records could not be written to the activity log (data changes are still in audit.row_change)", runbook: "RUNBOOKS.md#7-audit-archive-with-object-lock-r-09" }
+      - eval_time: 30m
+        alertname: AuditWriteFailures
+        exp_alerts: []
+      - eval_time: 80m
+        alertname: AuditArchiveBehind
+        exp_alerts: []
+      - eval_time: 109m
+        alertname: AuditArchiveBehind
+        exp_alerts:
+          - exp_labels: { severity: ticket }
+            exp_annotations: { summary: "Audit records older than two hours are not in the signed archive (export, sync or record stopped, or never set up)", runbook: "RUNBOOKS.md#7-audit-archive-with-object-lock-r-09" }
       - eval_time: 8m
         alertname: OutboxEventsFailed
         exp_alerts: []

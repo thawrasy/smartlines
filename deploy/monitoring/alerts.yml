@@ -169,6 +169,15 @@ groups:
         for: 10m
         labels: { severity: ticket }
         annotations: { summary: "Requests wait more than 250 ms for a database connection (pool or PgBouncer too small, or slow transactions)", runbook: "RUNBOOKS.md#10-load-and-capacity-r-12" }
+      - alert: AuditWriteFailures
+        expr: increase(masslak_audit_write_failures_total[10m]) > 0
+        labels: { severity: ticket }
+        annotations: { summary: "Request records could not be written to the activity log (data changes are still in audit.row_change)", runbook: "RUNBOOKS.md#7-audit-archive-with-object-lock-r-09" }
+      - alert: AuditArchiveBehind
+        expr: max(masslak_audit_unarchived_seconds) > 7200
+        for: 15m
+        labels: { severity: ticket }
+        annotations: { summary: "Audit records older than two hours are not in the signed archive (export, sync or record stopped, or never set up)", runbook: "RUNBOOKS.md#7-audit-archive-with-object-lock-r-09" }
       - alert: PoolTimeouts
         expr: increase(masslak_db_pool_timeouts_total[5m]) > 0
         labels: { severity: page }

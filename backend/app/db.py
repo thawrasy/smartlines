@@ -44,6 +44,7 @@ class PoolBusy(Exception):
 
 
 POOL_TIMEOUTS = [0]       # requests answered busy because no connection became free in time (masslak_db_pool_timeouts_total)
+AUDIT_WRITE_FAILURES = [0]   # request records the activity log could not take (masslak_audit_write_failures_total)
 
 
 @asynccontextmanager
