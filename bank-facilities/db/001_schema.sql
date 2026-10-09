@@ -295,7 +295,8 @@ CREATE TABLE fac.Facility (
     FacilityId       INT IDENTITY(1,1) NOT NULL CONSTRAINT PK_Facility PRIMARY KEY,
     InternalNo       VARCHAR(30)   NOT NULL CONSTRAINT UQ_Facility_Internal UNIQUE,   -- رقمنا الداخلي
     BankReferenceNo  VARCHAR(60)   NULL,                                              -- رقم مرجع البنك
-    InstitutionId    INT           NOT NULL CONSTRAINT FK_Facility_Inst REFERENCES fin.Institution(InstitutionId),
+    InstitutionId    INT           NOT NULL CONSTRAINT FK_Facility_Inst REFERENCES fin.Institution(InstitutionId), -- الجهة المانحة، أو الوكيل/المرتب الرئيسي عند التمويل المشترك
+    IsSyndicated     BIT           NOT NULL CONSTRAINT DF_Facility_Synd DEFAULT 0,  -- 1 = تحالف تمويلي (تفاصيل المشاركين في FacilityLender)
     FacilityTypeId   INT           NOT NULL CONSTRAINT FK_Facility_Type REFERENCES cat.FacilityType(FacilityTypeId),
     BorrowerCompanyId INT          NOT NULL CONSTRAINT FK_Facility_Borrower REFERENCES org.Company(CompanyId), -- الشركة المتعاقدة (قابضة أو تابعة)
     CurrencyCode     CHAR(3)       NOT NULL CONSTRAINT FK_Facility_Cur REFERENCES ref.Currency(CurrencyCode),
@@ -321,6 +322,29 @@ CREATE TABLE fac.Facility (
 CREATE UNIQUE INDEX UX_Facility_BankRef ON fac.Facility(InstitutionId, BankReferenceNo) WHERE BankReferenceNo IS NOT NULL;
 CREATE INDEX IX_Facility_Borrower ON fac.Facility(BorrowerCompanyId, Status) INCLUDE (EndDate);
 CREATE INDEX IX_Facility_EndDate  ON fac.Facility(EndDate) WHERE Status = 'ACTIVE';
+
+-- المشاركون في التمويل المشترك (تحالف بنوك في عقد واحد).
+-- التسهيل الثنائي (IsSyndicated=0) لا يحتاج صفوفًا هنا: الجهة الوحيدة هي Facility.InstitutionId بنسبة 100%.
+-- عند IsSyndicated=1 يجب أن يكون مجموع النسب 100% ، ووجود الجهة الرئيسية Facility.InstitutionId ضمن المشاركين (يُفحص في العرض).
+CREATE TABLE fac.FacilityLender (
+    FacilityLenderId INT IDENTITY(1,1) NOT NULL CONSTRAINT PK_FacilityLender PRIMARY KEY,
+    FacilityId       INT           NOT NULL CONSTRAINT FK_FL_Fac REFERENCES fac.Facility(FacilityId),
+    InstitutionId    INT           NOT NULL CONSTRAINT FK_FL_Inst REFERENCES fin.Institution(InstitutionId),
+    LenderRole       VARCHAR(12)   NOT NULL
+        CONSTRAINT CK_FL_Role CHECK (LenderRole IN ('AGENT','ARRANGER','LEAD','PARTICIPANT')),
+    ParticipationPct DECIMAL(9,6)  NOT NULL,                 -- نسبة المشاركة: 25.000000 = 25%
+    ContactId        INT           NULL,                     -- جهة اتصال هذا المشارك في هذا التسهيل
+    Notes            NVARCHAR(500) NULL,
+    CreatedAt DATETIME2(0) NOT NULL CONSTRAINT DF_FacilityLender_CAt DEFAULT SYSUTCDATETIME(),
+    CreatedBy NVARCHAR(128) NOT NULL CONSTRAINT DF_FacilityLender_CBy DEFAULT SUSER_SNAME(),
+    UpdatedAt DATETIME2(0) NULL,
+    UpdatedBy NVARCHAR(128) NULL,
+    CONSTRAINT UQ_FL UNIQUE (FacilityId, InstitutionId),
+    CONSTRAINT CK_FL_Pct CHECK (ParticipationPct > 0 AND ParticipationPct <= 100),
+    CONSTRAINT FK_FL_Contact FOREIGN KEY (InstitutionId, ContactId) REFERENCES fin.Contact(InstitutionId, ContactId)
+);
+-- وكيل واحد فقط لكل تسهيل
+CREATE UNIQUE INDEX UX_FL_OneAgent ON fac.FacilityLender(FacilityId) WHERE LenderRole = 'AGENT';
 
 -- الحسابات المرتبطة بالتسهيل
 CREATE TABLE fac.FacilityAccount (

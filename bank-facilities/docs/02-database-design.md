@@ -2,7 +2,7 @@
 
 | البند | القيمة |
 |---|---|
-| الإصدار | 0.1 |
+| الإصدار | 0.2 (يعكس قرارات 2026-10-09: التمويل المشترك، إدخال يدوي، تعهدات بالنسب) |
 | المنصة | Microsoft SQL Server 2019/2022 على Windows |
 | اسم القاعدة / الترتيب | `BankFacilities` / `Arabic_100_CI_AS` |
 | السكربتات | `db/001_schema.sql` (الجداول) ← `db/002_views_functions.sql` (العروض والدوال) ← `db/003_seed_reference.sql` (بيانات أولية) |
@@ -52,6 +52,8 @@ erDiagram
   Institution ||--o{ BaseRate : "bank rate"
   BaseRate ||--o{ BaseRateValue : history
   Institution ||--o{ Facility : grants
+  Facility ||--o{ FacilityLender : "syndicate members"
+  Institution ||--o{ FacilityLender : participates
   Company ||--o{ Facility : borrows
   FacilityType ||--o{ Facility : ""
   Facility ||--o{ Facility : "renewal of"
@@ -115,12 +117,13 @@ erDiagram
 ### 3.4 `fac` — التسهيلات
 | الجدول | الوصف | قيود مهمة |
 |---|---|---|
-| `Facility` | رأس التسهيل (Temporal) | `InternalNo` فريد؛ `(InstitutionId, BankReferenceNo)` فريد مصفّى؛ `EndDate > StartDate`؛ الحالات: DRAFT، PENDING_APPROVAL، ACTIVE، SUSPENDED، EXPIRED، CANCELLED، RENEWED |
+| `Facility` | رأس التسهيل (Temporal). `InstitutionId` = الجهة المانحة أو الوكيل/الرئيسي إن كان `IsSyndicated=1` | `InternalNo` فريد؛ `(InstitutionId, BankReferenceNo)` فريد مصفّى؛ `EndDate > StartDate`؛ الحالات: DRAFT، PENDING_APPROVAL، ACTIVE، SUSPENDED، EXPIRED، CANCELLED، RENEWED |
+| `FacilityLender` | **المشاركون في التمويل المشترك**: `LenderRole` (AGENT/ARRANGER/LEAD/PARTICIPANT)، `ParticipationPct`، جهة اتصال المشارك | `(FacilityId, InstitutionId)` فريد؛ وكيل واحد فقط (فهرس فريد مصفّى)؛ النسبة (0,100]. التسهيل غير المشترك لا صفوف له: جهته الوحيدة `Facility.InstitutionId` بنسبة 100% |
 | `FacilityAccount` | الحسابات المرتبطة | `(FacilityId, AccountNo)` فريد |
 | `Limit` | حد رئيسي/جزئي (Temporal) | `ParentLimitId` + `FacilityId` → FK مركب لنفس التسهيل؛ `LimitNo` فريد داخل التسهيل؛ `PricingMode` INHERIT/OWN |
 | `LimitProduct` | المنتجات المسموحة بالحد وسقفها | `MaxAmount` اختياري |
 | `LimitCompanyAllocation` | توزيع الحد على الشركات | `AllocatedAmount NULL` = مشترك بلا سقف خاص؛ فترة سريان |
-| `Utilization` | قراءات المستخدم من الحد | `Source` MANUAL/IMPORT |
+| `Utilization` | قراءات المستخدم من الحد. **المرحلة 1: إدخال يدوي فقط** (`Source='MANUAL'`)؛ قيمة IMPORT محجوزة ولا تُستخدم | `UtilizedAmount ≥ 0` |
 | `Condition` | الشروط البنكية | `Nature` سابق/مستمر/لاحق |
 
 ### 3.5 `pr` — التسعير
@@ -142,7 +145,7 @@ erDiagram
 | الجدول | الوصف |
 |---|---|
 | `Covenant` | تعهد على تسهيل/حد؛ `(Operator, ThresholdValue)` إما معًا أو لا شيء (تعهد تقديم قوائم) |
-| `CovenantTest` | اختبار كل فترة: `PeriodEndDate`, `DueDate`, `ActualValue`, `Result` — فريد لكل (تعهد، فترة) |
+| `CovenantTest` | اختبار كل فترة: `PeriodEndDate`, `DueDate`, `ActualValue` (تُدخل يدويًا في المرحلة 1), `Result` — فريد لكل (تعهد، فترة). الالتزام الفعلي يحسبه العرض `cov.vw_CovenantStatus` من المشغّل والحد |
 
 ### 3.7 `col` — الضمانات
 | الجدول | الوصف |
@@ -168,6 +171,8 @@ erDiagram
 | الحد الجزئي ضمن نفس تسهيل الحد الأب | FK مركب | ✔ |
 | مجموع الحدود ≤ التسهيل، الجزئية ≤ الأب، التوزيعات ≤ الحد | `fac.vw_LimitIntegrityViolations` (تقرير/فحص قبل الاعتماد) | ✔ يمنع الاعتماد عند وجود مخالفة |
 | منتج الحد ضمن منتجات نوع الحد | العرض نفسه | ✔ |
+| التمويل المشترك: مجموع النسب = 100%، الجهة الرئيسية ضمن المشاركين، لا مشاركين لتسهيل غير مشترك | `fac.vw_SyndicationViolations` | ✔ يمنع الاعتماد |
+| وكيل واحد فقط في التسهيل المشترك | فهرس فريد مصفّى `UX_FL_OneAgent` | ✔ |
 | تسعير: مكوّن واحد (مصروف أو تمويل) وحقول الطريقة | `CHECK CK_PR_Component / CK_PR_Method` | ✔ |
 | سعر البنك يتطلب جهة | `CK_BaseRate_Owner` | ✔ |
 | ضمان له مالك | `CK_Coll_Owner` | ✔ |
@@ -208,6 +213,15 @@ SELECT * FROM fac.vw_LimitIntegrityViolations WHERE FacilityId = @id;
 -- التنبيهات خلال 90 يومًا
 SELECT * FROM fac.vw_ExpiryAlerts ORDER BY DueDate;
 
+-- حصص البنوك والتزام كل بنك (ثنائي ومشترك معًا)
+SELECT * FROM fac.vw_FacilityLenderShare WHERE FacilityId = @id;
+
+-- مخالفات التمويل المشترك
+SELECT * FROM fac.vw_SyndicationViolations;
+
+-- خروقات التعهدات (نسبة مخالفة أو تقديم متأخر)
+SELECT * FROM cov.vw_CovenantBreaches ORDER BY DueDate;
+
 -- سجل تعديلات تسعير (Temporal)
 SELECT * FROM pr.PricingRule FOR SYSTEM_TIME ALL WHERE PricingRuleId = @id ORDER BY SysStart;
 
@@ -244,12 +258,34 @@ sqlcmd -S .\SQLEXPRESS -E -f 65001 -i db\003_seed_reference.sql
 
 ---
 
-## 9. ما لم يُضمَّن عمدًا (مرحلة لاحقة)
+## 9. المرحلة 2 المحجوزة (تصميم أولي — غير منفَّذ في السكربتات)
 
-- `FacilityLender` للتمويل المشترك (انظر سؤال 1 في وثيقة التحليل).
+التصميم الحالي لا يمنع الإضافات التالية، وتُضاف كسكربت `004_phase2.sql` دون تعديل الجداول القائمة:
+
+**أ) العمولات والمصاريف المتقاضاة (إدخال يدوي + تقارير شهرية)** — قرار D2
+```
+fac.ChargeEntry( ChargeEntryId, FacilityId, LimitId NULL, InstitutionId,   -- البنك الذي تقاضى (يدعم التمويل المشترك)
+                 ProductId NULL, CompanyId NULL, FeeTypeId NULL, FinancingTypeId NULL,
+                 ChargeDate, PeriodMonth (DATE = أول الشهر), BaseAmount NULL, ChargeAmount, CurrencyCode,
+                 BankReferenceNo NULL, Notes, + أعمدة التدقيق )
+```
+تقرير: `SELECT InstitutionId, FeeTypeId, PeriodMonth, SUM(ChargeAmount) … GROUP BY …` لكل بنك وبند ومقارنته بالتسعير المعرَّف (`pr.fn_ResolvePricing`) لكشف الفروقات.
+
+**ب) القوائم المالية واحتساب النسب** — قرار D4
+```
+fs.FinancialStatement( StatementId, CompanyId, PeriodEndDate, PeriodType, IsAudited, IsConsolidated, CurrencyCode, ... )
+fs.StatementLine( StatementId, LineCode, Amount )          -- بنود: إجمالي الأصول المتداولة، الخصوم، حقوق الملكية، EBITDA ...
+cat.MetricFormula( MetricCode, Expression/تعريف المعامل بدلالة LineCode )
+```
+عندها تتغذى `CovenantTest.ActualValue` من الحساب بدل الإدخال اليدوي، ويبقى `cov.vw_CovenantBreaches` كما هو.
+
+**ج) سير اعتماد متعدد المستويات** (`ApprovalPolicy` بحدود مالية، `ApprovalStep`) إن طُلب.
+
+---
+
+## 10. ما لم يُضمَّن عمدًا
+
 - أسعار صرف وتحويل العملات داخل التسهيل.
-- جداول القوائم المالية وحساب النسب آليًا.
-- حركات الاستخدام التفصيلية (حاليًا قراءات `Utilization` فقط).
-- سير اعتماد متعدد المستويات (`ApprovalRequest/Step`).
+- حركات الاستخدام التفصيلية (حاليًا قراءات `Utilization` اليدوية فقط).
 - جدول إشعارات مُرسَلة (`Notification`) وقواعد التنبيه القابلة للضبط.
 - بيانات تجريبية (Demo Seed) للشركات والبنوك والتسهيلات.

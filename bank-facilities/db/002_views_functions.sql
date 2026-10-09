@@ -122,3 +122,59 @@ AS BEGIN
             FROM pr.PricingRule r WHERE r.PricingRuleId = @PricingRuleId);
 END;
 GO
+
+/* ---- (و) حصص المقرضين: يوحّد التسهيل الثنائي والمشترك في شكل واحد -------- */
+CREATE OR ALTER VIEW fac.vw_FacilityLenderShare AS
+SELECT f.FacilityId, f.InstitutionId, CAST('SOLE' AS VARCHAR(12)) AS LenderRole,
+       CAST(100 AS DECIMAL(9,6)) AS ParticipationPct, f.TotalAmount AS CommitmentAmount, f.CurrencyCode
+FROM fac.Facility f WHERE f.IsSyndicated = 0
+UNION ALL
+SELECT f.FacilityId, l.InstitutionId, l.LenderRole, l.ParticipationPct,
+       CAST(ROUND(f.TotalAmount * l.ParticipationPct / 100, 4) AS DECIMAL(19,4)), f.CurrencyCode
+FROM fac.Facility f JOIN fac.FacilityLender l ON l.FacilityId = f.FacilityId
+WHERE f.IsSyndicated = 1;
+GO
+
+/* ---- (ز) مخالفات التمويل المشترك: يجب أن يكون فارغًا قبل الاعتماد -------- */
+CREATE OR ALTER VIEW fac.vw_SyndicationViolations AS
+-- مجموع النسب لا يساوي 100%
+SELECT f.FacilityId, 'SHARES_NOT_100' AS Rule_, CAST(SUM(l.ParticipationPct) AS DECIMAL(19,6)) AS Actual
+FROM fac.Facility f LEFT JOIN fac.FacilityLender l ON l.FacilityId = f.FacilityId
+WHERE f.IsSyndicated = 1
+GROUP BY f.FacilityId HAVING ISNULL(SUM(l.ParticipationPct), 0) <> 100
+UNION ALL
+-- الجهة الرئيسية في التسهيل ليست ضمن المشاركين
+SELECT f.FacilityId, 'LEAD_NOT_A_LENDER', NULL
+FROM fac.Facility f
+WHERE f.IsSyndicated = 1
+  AND NOT EXISTS (SELECT 1 FROM fac.FacilityLender l WHERE l.FacilityId = f.FacilityId AND l.InstitutionId = f.InstitutionId)
+UNION ALL
+-- تسهيل غير مشترك لكن له صفوف مشاركين
+SELECT f.FacilityId, 'LENDERS_ON_NON_SYNDICATED', CAST(COUNT(*) AS DECIMAL(19,6))
+FROM fac.Facility f JOIN fac.FacilityLender l ON l.FacilityId = f.FacilityId
+WHERE f.IsSyndicated = 0 GROUP BY f.FacilityId;
+GO
+
+/* ---- (ح) حالة التعهدات المسجلة: مقارنة النسبة المدخلة بالحد المطلوب ------ */
+-- المرحلة 1: تُسجَّل النسب يدويًا ويُحسب الالتزام هنا. لاحقًا تُغذَّى النسب من القوائم المالية.
+CREATE OR ALTER VIEW cov.vw_CovenantStatus AS
+SELECT t.TestId, c.CovenantId, c.FacilityId, c.LimitId, c.TestedCompanyId, c.Title, c.MetricCode,
+       t.PeriodEndDate, t.DueDate, t.SubmittedDate, t.ActualValue, c.Operator, c.ThresholdValue, t.Result AS RecordedResult,
+       CASE WHEN t.ActualValue IS NULL OR c.Operator IS NULL THEN NULL
+            WHEN (c.Operator = '>=' AND t.ActualValue >= c.ThresholdValue)
+              OR (c.Operator = '<=' AND t.ActualValue <= c.ThresholdValue)
+              OR (c.Operator = '>'  AND t.ActualValue >  c.ThresholdValue)
+              OR (c.Operator = '<'  AND t.ActualValue <  c.ThresholdValue)
+              OR (c.Operator = '='  AND t.ActualValue =  c.ThresholdValue) THEN 1 ELSE 0 END AS IsCompliant,
+       CASE WHEN t.SubmittedDate IS NULL AND DATEADD(DAY, c.GracePeriodDays, t.DueDate) < CAST(SYSUTCDATETIME() AS DATE)
+            THEN 1 ELSE 0 END AS IsOverdue
+FROM cov.CovenantTest t JOIN cov.Covenant c ON c.CovenantId = t.CovenantId
+WHERE c.Status = 'ACTIVE';
+GO
+
+-- تقرير الخروقات: قيمة مخالفة لم يُتنازل عنها، أو تقديم متأخر
+CREATE OR ALTER VIEW cov.vw_CovenantBreaches AS
+SELECT s.*, CASE WHEN s.IsCompliant = 0 THEN 'RATIO_BREACH' ELSE 'SUBMISSION_OVERDUE' END AS BreachKind
+FROM cov.vw_CovenantStatus s
+WHERE s.RecordedResult <> 'WAIVED' AND (s.IsCompliant = 0 OR s.IsOverdue = 1);
+GO
