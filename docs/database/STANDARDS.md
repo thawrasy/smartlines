@@ -160,6 +160,18 @@ Concurrent transactions take row locks in one order, so they wait for each other
 
 A new code path that locks rows of two of these follows the same order. Queues use `FOR UPDATE SKIP LOCKED`.
 
+Transaction-level advisory locks come before any row lock, in this order (release 1.48.0):
+
+1. `booking-key` (the buyer and the booking's idempotency key): a second request with the same key waits for the
+   first and answers with its booking (R-08),
+2. `seat-holds` (the person): counting a person's held seats and locking new ones are one step (R-07),
+3. `agency-sales` and `cash-sales` (the agency or the carrier): a channel's daily limit,
+4. `mfa-send` (the person): the limits on sign-in codes sent by message.
+
+They are `pg_advisory_xact_lock(hashtext(<name>), hashtext(<key>))`, released at commit or rollback, so they are safe
+behind PgBouncer in transaction mode. An opened-on-first-use row (a wallet) is inserted with `ON CONFLICT DO NOTHING`
+and read again, never read-then-insert alone.
+
 ## Migrations
 
 Every change is a new numbered file in `db/schema` (never an edit of a released file) and comes with:

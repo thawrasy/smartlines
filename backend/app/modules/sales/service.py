@@ -78,6 +78,9 @@ async def create_hold(conn: asyncpg.Connection, user_id: int, body: HoldIn) -> d
     trip = await repo.trip_on_sale_from(conn, body.trip_uid, body.from_seq)
     if trip is None or body.to_seq > trip["segments_count"]:
         raise ApiError(409, "SALES_CLOSED", "the trip is not on sale for this stop")
+    # One hold of a person at a time: counting and locking are one step, so two holds sent together cannot both pass
+    # the count (review of release 1.47.0, R-07). A transaction-level advisory lock, released on commit or rollback.
+    await conn.execute("SELECT pg_advisory_xact_lock(hashtext('seat-holds'), hashtext($1::bigint::text))", user_id)
     if await repo.seats_held_by(conn, user_id) + len(body.seat_nos) > MAX_LOCKED_SEATS:
         raise ApiError(429, "TOO_MANY_HOLDS", "too many seats on hold")
     token = uuid.uuid4()
@@ -262,6 +265,10 @@ async def create_booking(conn: asyncpg.Connection, ctx: db.Context, buyer: Buyer
     tickets on HOLD until confirm_reserved() records the money, or it expires at pay_by and frees its seats.
     """
     option = option or buyer.default_option()
+    # The same key sent twice at once: the second waits for the first and answers with its booking instead of failing
+    # on the unique key (R-08). Taken before the channel's own locks (agency, counter), always in this order.
+    await conn.execute("SELECT pg_advisory_xact_lock(hashtext('booking-key'), hashtext($1::bigint::text || ':' || $2))",
+                       buyer.party_id, body.idempotency_key)
     existing = await conn.fetchval(
         "SELECT booking_ref FROM sales.booking WHERE booker_party_id = $1 AND idempotency_key = $2",
         buyer.party_id, body.idempotency_key)

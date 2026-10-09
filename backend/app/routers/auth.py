@@ -1,13 +1,15 @@
 """Registration, login (web cookie or mobile tokens), token refresh, logout and the current user."""
+import asyncio
 import hmac
 import json
+import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, Request, Response
 from pydantic import BaseModel, EmailStr, Field
 
-from .. import crypto, db, markets, mfa, ratelimit
+from .. import crypto, db, markets, metrics, mfa, mfa_policy, ratelimit
 from ..config import get_settings
 from ..deps import SESSION_COOKIE, Principal, base_context, mfa_required_for, require_session, require_user
 from ..errors import ApiError
@@ -114,9 +116,11 @@ async def login(body: LoginIn, request: Request, response: Response):
     async with db.transaction(ctx) as conn:
         user = await conn.fetchrow(
             """SELECT id, account_kind, password_hash, status, locked_until, failed_attempts, mfa_required,
-                      EXISTS (SELECT 1 FROM iam.mfa_factor f WHERE f.user_id = app_user.id AND f.factor_type = 'TOTP'
-                                 AND f.verified_at IS NOT NULL AND f.disabled_at IS NULL) AS mfa_enrolled
+                      ARRAY(SELECT f.factor_type FROM iam.mfa_factor f WHERE f.user_id = app_user.id
+                               AND f.factor_type IN ('TOTP','SMS','WHATSAPP')
+                               AND f.verified_at IS NOT NULL AND f.disabled_at IS NULL) AS mfa_factors
                  FROM iam.app_user WHERE email = $1 OR mobile = $1""", ident)
+        policy = await mfa_policy.current(conn)
         blocked = await _blocked(conn, ("EMAIL" if "@" in ident else "PHONE", ident), ("DEVICE", body.device_id))
         if blocked:             # recorded, then refused once the record is committed
             await _auth_event(conn, request, "LOGIN_FAILED", "BLOCKED", user_id=user["id"] if user else None,
@@ -202,8 +206,11 @@ async def login(body: LoginIn, request: Request, response: Response):
             "last_login_ip = $2::inet WHERE id = $1", user["id"], request.state.client_ip)
         await _auth_event(conn, request, "LOGIN_SUCCESS", "SUCCESS", user_id=user["id"], portal=body.portal,
                           company_id=company_id, session_id=session_id)
-    needs = mfa_required_for(body.portal, user["mfa_required"], user["mfa_enrolled"])
-    out = {"ok": True, "portal": body.portal, "mfa": ("VERIFY" if user["mfa_enrolled"] else "ENROLL") if needs else None}
+    factors = list(user["mfa_factors"])
+    needs = mfa_required_for(body.portal, user["mfa_required"], bool(factors), policy)
+    enrolled = mfa_policy.enrolled(factors, policy)
+    out = {"ok": True, "portal": body.portal, "mfa": ("VERIFY" if enrolled else "ENROLL") if needs else None,
+           "mfa_methods": [m for m in factors if m in policy.available()] if needs else []}
     if refresh:
         # Mobile apps keep both tokens in the Keychain or Android Keystore; nothing goes into a cookie
         return {**out, "access_token": token, "refresh_token": refresh, "access_expires_at": access_expires.isoformat(),
@@ -306,20 +313,41 @@ async def set_locale(body: LocaleIn, request: Request, principal: Principal = De
     return {"ok": True}
 
 
-# ---------------------------------------------------------------- two-factor sign-in (TOTP)
+# ---------------------------------------------------------------- two-factor sign-in (owner's decision 2)
+# The methods open on the platform (sys.setting auth.mfa, app.mfa_policy): an authenticator app (TOTP), a code by text
+# message or by WhatsApp. A person may hold several; the second step accepts any of them, or a recovery code.
 MFA_MAX_FAILURES = 5
+CODE_TRIES = 5                          # wrong entries of one message code before it is closed
 SECRET_COLUMN = "iam.mfa_factor.secret"
 RECOVERY_COLUMN = "iam.mfa_factor.recovery"
+PHONE_COLUMN = "iam.mfa_factor.phone"
+Method = Literal["TOTP", "SMS", "WHATSAPP"]
 
 
 class CodeIn(BaseModel):
     code: str = Field(min_length=6, max_length=20)
+    # which factor the code comes from; omitted: the authenticator app, or a recovery code
+    method: Optional[Method] = None
+
+
+class EnrollIn(BaseModel):
+    method: Method = "TOTP"
+    # where message codes go; the account's mobile number when omitted
+    mobile: Optional[str] = Field(default=None, pattern=r"^\+?[0-9]{8,15}$")
+
+
+class SendIn(BaseModel):
+    method: Literal["SMS", "WHATSAPP"]
 
 
 def _system(request: Request):
     ctx = base_context(request)
     ctx.scope = "SYSTEM"
     return ctx
+
+
+def _masked(mobile: Optional[str]) -> Optional[str]:
+    return ("•••" + mobile[-4:]) if mobile else None
 
 
 async def _issue_recovery_codes(conn, fc: crypto.FieldCipher, user_id: int) -> list[str]:
@@ -332,83 +360,244 @@ async def _issue_recovery_codes(conn, fc: crypto.FieldCipher, user_id: int) -> l
     return codes
 
 
-@router.post("/mfa/enroll")
-async def mfa_enroll(request: Request, pr: Principal = Depends(require_session)):
-    """Starts enrolment: returns a new secret and its otpauth URI for the authenticator app."""
-    if pr.mfa_enrolled and pr.mfa_pending:
-        raise ApiError(409, "MFA_VERIFY_FIRST", "confirm your current code before enrolling a new device")
-    secret = mfa.new_secret()
+async def _method_open(conn, method: str) -> mfa_policy.Policy:
+    policy = await mfa_policy.current(conn)
+    if method not in policy.available():
+        raise ApiError(409, "MFA_METHOD_OFF", "this way of receiving codes is not open on the platform", method=method)
+    return policy
+
+
+async def _new_challenge(conn, fc: crypto.FieldCipher, pr: Principal, factor_id: int, channel: str, purpose: str,
+                         policy: mfa_policy.Policy) -> tuple[str, uuid.UUID]:
+    """A new message code for the person, within the policy's limits; any code still open is closed by it."""
+    await conn.execute("SELECT pg_advisory_xact_lock(hashtext('mfa-send'), hashtext($1::bigint::text))", pr.user_id)
+    recent = await conn.fetchrow(
+        """SELECT max(created_at) AS last, count(*) AS n FROM iam.mfa_challenge
+            WHERE user_id = $1 AND created_at > now() - interval '1 hour' AND send_error IS NULL""", pr.user_id)
+    if recent["n"]:
+        wait = policy.resend_seconds - (datetime.now(timezone.utc) - recent["last"]).total_seconds()
+        if wait > 0:
+            raise ApiError(429, "MFA_RESEND_TOO_SOON", "wait before asking for another code", retry_in=int(wait) + 1)
+        if recent["n"] >= policy.sends_per_hour:
+            raise ApiError(429, "MFA_TOO_MANY_CODES", "too many codes asked for in the last hour; use another method or wait")
+    code, uid = mfa.new_message_code(), uuid.uuid4()
+    await conn.execute("UPDATE iam.mfa_challenge SET consumed_at = now() WHERE user_id = $1 AND consumed_at IS NULL",
+                       pr.user_id)
+    await conn.execute(
+        """INSERT INTO iam.mfa_challenge (uid, user_id, factor_id, session_id, channel, purpose, code_hash, expires_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, now() + make_interval(mins => $8))""",
+        uid, pr.user_id, factor_id, pr.session_id, channel, purpose, fc.blind_index(code, f"mfa:{uid}"), policy.code_minutes)
+    return code, uid
+
+
+async def _deliver_code(request: Request, uid: uuid.UUID, channel: str, to: str, code: str, locale: str, minutes: int) -> None:
+    """Sends the code outside any transaction, then records whether it left; a code that did not leave is closed."""
+    from ..modules.notify import providers
+    from ..modules.notify.render import render
+    _, text = render("auth.mfa_code", "SMS", locale, {"code": code, "minutes": minutes})
+    error = None
+    try:
+        if channel == "SMS":
+            await asyncio.to_thread(providers.send_sms, to, text)
+        else:
+            await asyncio.to_thread(providers.send_whatsapp_code, to, code, locale, text)
+    except Exception as exc:                                          # noqa: BLE001 - recorded, then answered as 503
+        error = str(exc)[:300] or exc.__class__.__name__
+    metrics.event("masslak_mfa_codes_total", channel=channel, outcome="failed" if error else "sent")
     async with db.transaction(_system(request)) as conn:
+        await conn.execute(
+            """UPDATE iam.mfa_challenge SET sent_at = CASE WHEN $2::text IS NULL THEN now() END, send_error = $2,
+                 consumed_at = CASE WHEN $2::text IS NULL THEN consumed_at ELSE now() END WHERE uid = $1""", uid, error)
+    if error:
+        raise ApiError(503, "MFA_SEND_FAILED", "the code could not be sent; try again or use another method", method=channel)
+
+
+async def _message_code_ok(conn, fc: crypto.FieldCipher, user_id: int, channel: str, purpose: str, code: str,
+                           factor_id: Optional[int] = None) -> bool:
+    """Checks the person's open message code; every entry counts, and a code is used once."""
+    ch = await conn.fetchrow(
+        """SELECT id, uid, attempts, expires_at, factor_id, code_hash FROM iam.mfa_challenge
+            WHERE user_id = $1 AND channel = $2 AND purpose = $3 AND consumed_at IS NULL AND sent_at IS NOT NULL
+            ORDER BY id DESC LIMIT 1 FOR UPDATE""", user_id, channel, purpose)
+    if ch is None or (factor_id is not None and ch["factor_id"] != factor_id):
+        return False
+    if ch["expires_at"] <= datetime.now(timezone.utc):
+        await conn.execute("UPDATE iam.mfa_challenge SET consumed_at = now() WHERE id = $1", ch["id"])
+        return False
+    ok = hmac.compare_digest(fc.blind_index(code, f"mfa:{ch['uid']}"), bytes(ch["code_hash"]))
+    await conn.execute(
+        """UPDATE iam.mfa_challenge SET attempts = attempts + 1,
+             consumed_at = CASE WHEN $2 OR attempts + 1 >= $3 THEN now() END WHERE id = $1""", ch["id"], ok, CODE_TRIES)
+    return ok
+
+
+async def _second_factor_ok(conn, fc: crypto.FieldCipher, user_id: int, method: Optional[str], code: str,
+                            recovery: bool) -> Optional[str]:
+    """The method that accepted the code ('totp', 'sms', 'whatsapp', 'recovery_code'), or None."""
+    if method in ("SMS", "WHATSAPP"):
+        f = await conn.fetchval("""SELECT id FROM iam.mfa_factor WHERE user_id = $1 AND factor_type = $2
+                                     AND verified_at IS NOT NULL AND disabled_at IS NULL""", user_id, method)
+        if f and await _message_code_ok(conn, fc, user_id, method, "VERIFY", code, f):
+            return method.lower()
+        return None
+    compact = code.strip().replace(" ", "")
+    if compact.isdigit():
+        f = await conn.fetchrow("""SELECT id, secret_enc, enc_key_id, last_used_step FROM iam.mfa_factor
+                                    WHERE user_id = $1 AND factor_type = 'TOTP' AND verified_at IS NOT NULL
+                                      AND disabled_at IS NULL FOR UPDATE""", user_id)
+        if f:
+            step = mfa.verify(fc.decrypt(f["secret_enc"], f["enc_key_id"], SECRET_COLUMN), compact, f["last_used_step"])
+            if step is not None:
+                await conn.execute("UPDATE iam.mfa_factor SET last_used_step = $2 WHERE id = $1", f["id"], step)
+                return "totp"
+        return None
+    if not recovery:
+        return None
+    r = await conn.fetchrow("""SELECT id, secret_enc, enc_key_id FROM iam.mfa_factor WHERE user_id = $1
+                                AND factor_type = 'RECOVERY_CODES' AND disabled_at IS NULL FOR UPDATE""", user_id)
+    if r:
+        hashes = json.loads(fc.decrypt(r["secret_enc"], r["enc_key_id"], RECOVERY_COLUMN))
+        h = mfa.hash_recovery_code(code)
+        if h in hashes:
+            hashes.remove(h)
+            sealed = fc.encrypt(json.dumps(hashes), RECOVERY_COLUMN)
+            await conn.execute("UPDATE iam.mfa_factor SET secret_enc = $2, enc_key_id = $3 WHERE id = $1",
+                               r["id"], sealed.ciphertext, sealed.key_id)
+            return "recovery_code"
+    return None
+
+
+@router.get("/mfa/methods")
+async def mfa_methods(request: Request, pr: Principal = Depends(require_session)):
+    """What the second step offers this person: the methods open on the platform, the ones they hold, where codes go."""
+    async with db.transaction(_system(request)) as conn:
+        policy = await mfa_policy.current(conn)
         fc = await crypto.cipher(conn)
-        sealed = fc.encrypt(secret, SECRET_COLUMN)
-        await conn.execute("DELETE FROM iam.mfa_factor WHERE user_id = $1 AND factor_type = 'TOTP' AND verified_at IS NULL",
-                           pr.user_id)
-        await conn.execute("""INSERT INTO iam.mfa_factor (user_id, factor_type, secret_enc, enc_key_id, label)
-                              VALUES ($1, 'TOTP', $2, $3, 'pending')""", pr.user_id, sealed.ciphertext, sealed.key_id)
-    return {"secret": secret, "uri": mfa.provisioning_uri(secret, pr.email or pr.user_uid),
-            "digits": mfa.DIGITS, "period": mfa.STEP_SECONDS}
+        held = await conn.fetch("""SELECT factor_type, secret_enc, enc_key_id, label, verified_at FROM iam.mfa_factor
+                                    WHERE user_id = $1 AND disabled_at IS NULL""", pr.user_id)
+        mobile = await conn.fetchval("SELECT mobile FROM iam.app_user WHERE id = $1", pr.user_id)
+    enrolled = [f["factor_type"] for f in held if f["verified_at"] and f["factor_type"] in mfa_policy.METHODS]
+    sent_to = {f["factor_type"]: _masked(fc.decrypt(f["secret_enc"], f["enc_key_id"], PHONE_COLUMN))
+               for f in held if f["verified_at"] and f["factor_type"] in mfa_policy.MESSAGE_METHODS}
+    return {"available": policy.available(), "enrolled": enrolled,
+            "usable": [m for m in enrolled if m in policy.available()], "sent_to": sent_to,
+            "account_mobile": _masked(mobile), "required": pr.mfa_required, "pending": pr.mfa_pending,
+            "recovery_codes": any(f["factor_type"] == "RECOVERY_CODES" for f in held),
+            "code_minutes": policy.code_minutes, "resend_seconds": policy.resend_seconds}
+
+
+@router.post("/mfa/enroll")
+async def mfa_enroll(request: Request, body: Optional[EnrollIn] = None, pr: Principal = Depends(require_session)):
+    """Starts enrolling a method: an authenticator app gets a new secret and its otpauth URI; a text or WhatsApp
+    number gets a code to prove it receives them."""
+    body = body or EnrollIn()
+    if pr.mfa_enrolled and pr.mfa_pending:
+        raise ApiError(409, "MFA_VERIFY_FIRST", "confirm your current code before enrolling another method")
+    if body.method == "TOTP":
+        secret = mfa.new_secret()
+        async with db.transaction(_system(request)) as conn:
+            await _method_open(conn, "TOTP")
+            fc = await crypto.cipher(conn)
+            sealed = fc.encrypt(secret, SECRET_COLUMN)
+            await conn.execute("DELETE FROM iam.mfa_factor WHERE user_id = $1 AND factor_type = 'TOTP' AND verified_at IS NULL",
+                               pr.user_id)
+            await conn.execute("""INSERT INTO iam.mfa_factor (user_id, factor_type, secret_enc, enc_key_id, label)
+                                  VALUES ($1, 'TOTP', $2, $3, 'pending')""", pr.user_id, sealed.ciphertext, sealed.key_id)
+        return {"method": "TOTP", "secret": secret, "uri": mfa.provisioning_uri(secret, pr.email or pr.user_uid),
+                "digits": mfa.DIGITS, "period": mfa.STEP_SECONDS}
+    async with db.transaction(_system(request)) as conn:
+        policy = await _method_open(conn, body.method)
+        mobile = body.mobile or await conn.fetchval("SELECT mobile FROM iam.app_user WHERE id = $1", pr.user_id)
+        if not mobile:
+            raise ApiError(422, "MFA_MOBILE_REQUIRED", "give the mobile number the codes should go to")
+        fc = await crypto.cipher(conn)
+        sealed = fc.encrypt(mobile, PHONE_COLUMN)
+        await conn.execute("""UPDATE iam.mfa_factor SET disabled_at = now() WHERE user_id = $1 AND factor_type = $2
+                                AND verified_at IS NULL AND disabled_at IS NULL""", pr.user_id, body.method)
+        factor_id = await conn.fetchval(
+            """INSERT INTO iam.mfa_factor (user_id, factor_type, secret_enc, enc_key_id, label)
+               VALUES ($1, $2, $3, $4, $5) RETURNING id""", pr.user_id, body.method, sealed.ciphertext, sealed.key_id, mobile[-4:])
+        code, uid = await _new_challenge(conn, fc, pr, factor_id, body.method, "ENROL", policy)
+    await _deliver_code(request, uid, body.method, mobile, code, pr.locale, policy.code_minutes)
+    return {"method": body.method, "sent_to": _masked(mobile), "expires_in": policy.code_minutes * 60,
+            "resend_in": policy.resend_seconds}
+
+
+@router.post("/mfa/send")
+async def mfa_send(body: SendIn, request: Request, pr: Principal = Depends(require_session)):
+    """Sends a code by text or WhatsApp message: for the second step of sign-in with a number already enrolled, or
+    again for a number being enrolled."""
+    async with db.transaction(_system(request)) as conn:
+        policy = await _method_open(conn, body.method)
+        f = await conn.fetchrow("""SELECT id, secret_enc, enc_key_id, verified_at FROM iam.mfa_factor
+                                    WHERE user_id = $1 AND factor_type = $2 AND disabled_at IS NULL
+                                    ORDER BY verified_at IS NULL, id DESC LIMIT 1""", pr.user_id, body.method)
+        if f is None:
+            raise ApiError(409, "MFA_METHOD_NOT_ENROLLED", "this method is not set up for your account", method=body.method)
+        fc = await crypto.cipher(conn)
+        mobile = fc.decrypt(f["secret_enc"], f["enc_key_id"], PHONE_COLUMN)
+        code, uid = await _new_challenge(conn, fc, pr, f["id"], body.method, "VERIFY" if f["verified_at"] else "ENROL", policy)
+    await _deliver_code(request, uid, body.method, mobile, code, pr.locale, policy.code_minutes)
+    return {"method": body.method, "sent_to": _masked(mobile), "expires_in": policy.code_minutes * 60,
+            "resend_in": policy.resend_seconds}
 
 
 @router.post("/mfa/confirm")
 async def mfa_confirm(body: CodeIn, request: Request, pr: Principal = Depends(require_session)):
-    """Finishes enrolment with the first code; returns ten single-use recovery codes, shown only once."""
+    """Finishes enrolling a method with its first code. The first method also gives ten single-use recovery codes,
+    shown only once; enrolling the authenticator app again replaces them."""
+    method = body.method or "TOTP"
+    ok, codes = False, None
     async with db.transaction(_system(request)) as conn:
+        await _method_open(conn, method)
         fc = await crypto.cipher(conn)
         f = await conn.fetchrow("""SELECT id, secret_enc, enc_key_id FROM iam.mfa_factor
-                                    WHERE user_id = $1 AND factor_type = 'TOTP' AND verified_at IS NULL
-                                    ORDER BY id DESC LIMIT 1""", pr.user_id)
+                                    WHERE user_id = $1 AND factor_type = $2 AND verified_at IS NULL AND disabled_at IS NULL
+                                    ORDER BY id DESC LIMIT 1""", pr.user_id, method)
         if f is None:
             raise ApiError(409, "MFA_NOT_STARTED", "start enrolment first")
-        step = mfa.verify(fc.decrypt(f["secret_enc"], f["enc_key_id"], SECRET_COLUMN), body.code, None)
-        if step is None:
-            await _auth_event(conn, request, "MFA_FAILED", "FAILURE", user_id=pr.user_id, portal=pr.portal,
-                              session_id=pr.session_id, reason="enrol_wrong_code")
-            raise ApiError(422, "MFA_CODE_INVALID", "the code does not match; check the time on your phone")
-        await conn.execute("UPDATE iam.mfa_factor SET disabled_at = now() WHERE user_id = $1 AND factor_type = 'TOTP' "
-                           "AND verified_at IS NOT NULL AND disabled_at IS NULL", pr.user_id)
-        await conn.execute("UPDATE iam.mfa_factor SET verified_at = now(), last_used_step = $2, label = 'authenticator' "
-                           "WHERE id = $1", f["id"], step)
-        codes = await _issue_recovery_codes(conn, fc, pr.user_id)
-        await conn.execute("UPDATE iam.user_session SET mfa_passed = true, mfa_failures = 0 WHERE id = $1", pr.session_id)
-        await _auth_event(conn, request, "MFA_SUCCESS", "SUCCESS", user_id=pr.user_id, portal=pr.portal,
-                          session_id=pr.session_id, reason="enrolled")
-    request.state.audit = {"action": "auth.mfa_enrol", "object_type": "app_user", "object_id": pr.user_id}
-    return {"ok": True, "recovery_codes": codes}
+        step = None
+        if method == "TOTP":
+            step = mfa.verify(fc.decrypt(f["secret_enc"], f["enc_key_id"], SECRET_COLUMN), body.code, None)
+            ok = step is not None
+        else:
+            ok = await _message_code_ok(conn, fc, pr.user_id, method, "ENROL", body.code, f["id"])
+        if ok:
+            await conn.execute("""UPDATE iam.mfa_factor SET disabled_at = now() WHERE user_id = $1 AND factor_type = $2
+                                    AND verified_at IS NOT NULL AND disabled_at IS NULL""", pr.user_id, method)
+            await conn.execute("UPDATE iam.mfa_factor SET verified_at = now(), last_used_step = $2, "
+                               "label = CASE WHEN factor_type = 'TOTP' THEN 'authenticator' ELSE label END WHERE id = $1",
+                               f["id"], step)
+            has_codes = await conn.fetchval("SELECT EXISTS (SELECT 1 FROM iam.mfa_factor WHERE user_id = $1 "
+                                            "AND factor_type = 'RECOVERY_CODES' AND disabled_at IS NULL)", pr.user_id)
+            if method == "TOTP" or not has_codes:
+                codes = await _issue_recovery_codes(conn, fc, pr.user_id)
+            await conn.execute("UPDATE iam.user_session SET mfa_passed = true, mfa_failures = 0 WHERE id = $1", pr.session_id)
+        await _auth_event(conn, request, "MFA_SUCCESS" if ok else "MFA_FAILED", "SUCCESS" if ok else "FAILURE",
+                          user_id=pr.user_id, portal=pr.portal, session_id=pr.session_id,
+                          reason=f"enrolled_{method.lower()}" if ok else "enrol_wrong_code")
+    if not ok:
+        raise ApiError(422, "MFA_CODE_INVALID", "the code does not match" + ("; check the time on your phone" if method == "TOTP" else ""))
+    request.state.audit = {"action": "auth.mfa_enrol", "object_type": "app_user", "object_id": pr.user_id, "reason": method}
+    return {"ok": True, "method": method, "recovery_codes": codes}
 
 
 @router.post("/mfa/verify")
 async def mfa_verify(body: CodeIn, request: Request, response: Response, pr: Principal = Depends(require_session)):
-    """Second step of sign-in: a code from the authenticator app, or one of the recovery codes."""
+    """Second step of sign-in: a code from the authenticator app, a code sent by text or WhatsApp message (method),
+    or one of the recovery codes."""
     if not pr.mfa_pending:
         return {"ok": True}
     async with db.transaction(_system(request)) as conn:
         fc = await crypto.cipher(conn)
-        ok, used_recovery = False, False
-        f = await conn.fetchrow("""SELECT id, secret_enc, enc_key_id, last_used_step FROM iam.mfa_factor
-                                    WHERE user_id = $1 AND factor_type = 'TOTP' AND verified_at IS NOT NULL
-                                      AND disabled_at IS NULL FOR UPDATE""", pr.user_id)
-        if f and body.code.strip().isdigit():
-            step = mfa.verify(fc.decrypt(f["secret_enc"], f["enc_key_id"], SECRET_COLUMN), body.code, f["last_used_step"])
-            if step is not None:
-                await conn.execute("UPDATE iam.mfa_factor SET last_used_step = $2 WHERE id = $1", f["id"], step)
-                ok = True
-        elif f:
-            r = await conn.fetchrow("""SELECT id, secret_enc, enc_key_id FROM iam.mfa_factor WHERE user_id = $1
-                                        AND factor_type = 'RECOVERY_CODES' AND disabled_at IS NULL FOR UPDATE""", pr.user_id)
-            if r:
-                hashes = json.loads(fc.decrypt(r["secret_enc"], r["enc_key_id"], RECOVERY_COLUMN))
-                h = mfa.hash_recovery_code(body.code)
-                if h in hashes:
-                    hashes.remove(h)
-                    sealed = fc.encrypt(json.dumps(hashes), RECOVERY_COLUMN)
-                    await conn.execute("UPDATE iam.mfa_factor SET secret_enc = $2, enc_key_id = $3 WHERE id = $1",
-                                       r["id"], sealed.ciphertext, sealed.key_id)
-                    ok = used_recovery = True
-        if ok:
+        how = None
+        if body.method is None or body.method in (await mfa_policy.current(conn)).available():
+            how = await _second_factor_ok(conn, fc, pr.user_id, body.method, body.code, recovery=True)
+        if how:
             await conn.execute("UPDATE iam.user_session SET mfa_passed = true, mfa_failures = 0 WHERE id = $1",
                                pr.session_id)
             await _auth_event(conn, request, "MFA_SUCCESS", "SUCCESS", user_id=pr.user_id, portal=pr.portal,
-                              session_id=pr.session_id, reason="recovery_code" if used_recovery else "totp")
+                              session_id=pr.session_id, reason=how)
         else:
             fails = await conn.fetchval("UPDATE iam.user_session SET mfa_failures = mfa_failures + 1 WHERE id = $1 "
                                         "RETURNING mfa_failures", pr.session_id)
@@ -419,45 +608,40 @@ async def mfa_verify(body: CodeIn, request: Request, response: Response, pr: Pri
                                    "WHERE id = $1", pr.session_id)
                 await _auth_event(conn, request, "SESSION_REVOKED", "BLOCKED", user_id=pr.user_id, portal=pr.portal,
                                   session_id=pr.session_id, reason="mfa_failures")
-    if not ok:
+    if not how:
         if fails >= MFA_MAX_FAILURES:
             response.delete_cookie(SESSION_COOKIE, path="/")
             raise ApiError(401, "MFA_TOO_MANY_ATTEMPTS", "too many wrong codes; sign in again")
         raise ApiError(422, "MFA_CODE_INVALID", "the code is not valid", attempts_left=MFA_MAX_FAILURES - fails)
-    return {"ok": True, "recovery_code_used": used_recovery}
+    return {"ok": True, "method": how, "recovery_code_used": how == "recovery_code"}
 
 
 @router.post("/mfa/recovery-codes")
 async def mfa_new_recovery_codes(body: CodeIn, request: Request, pr: Principal = Depends(require_user)):
-    """Replaces the recovery codes; needs a current authenticator code."""
+    """Replaces the recovery codes; needs a current code from one of the person's methods."""
     async with db.transaction(_system(request)) as conn:
         fc = await crypto.cipher(conn)
-        f = await conn.fetchrow("""SELECT id, secret_enc, enc_key_id, last_used_step FROM iam.mfa_factor
-                                    WHERE user_id = $1 AND factor_type = 'TOTP' AND verified_at IS NOT NULL
-                                      AND disabled_at IS NULL FOR UPDATE""", pr.user_id)
-        step = f and mfa.verify(fc.decrypt(f["secret_enc"], f["enc_key_id"], SECRET_COLUMN), body.code, f["last_used_step"])
-        if not step:
-            raise ApiError(422, "MFA_CODE_INVALID", "the code is not valid")
-        await conn.execute("UPDATE iam.mfa_factor SET last_used_step = $2 WHERE id = $1", f["id"], step)
-        codes = await _issue_recovery_codes(conn, fc, pr.user_id)
+        how = await _second_factor_ok(conn, fc, pr.user_id, body.method, body.code, recovery=False)
+        codes = await _issue_recovery_codes(conn, fc, pr.user_id) if how else None
+    if not how:
+        raise ApiError(422, "MFA_CODE_INVALID", "the code is not valid")
     request.state.audit = {"action": "auth.mfa_recovery_codes", "object_type": "app_user", "object_id": pr.user_id}
     return {"recovery_codes": codes}
 
 
 @router.post("/mfa/disable")
 async def mfa_disable(body: CodeIn, request: Request, pr: Principal = Depends(require_user)):
-    """Turns the second factor off, unless the account or portal requires it."""
+    """Turns two-factor sign-in off, unless the account or the platform's policy requires it for this portal."""
     async with db.transaction(_system(request)) as conn:
         account_requires = await conn.fetchval("SELECT mfa_required FROM iam.app_user WHERE id = $1", pr.user_id)
-        if mfa_required_for(pr.portal, account_requires, False):
+        if mfa_required_for(pr.portal, account_requires, False, await mfa_policy.current(conn)):
             raise ApiError(409, "MFA_REQUIRED_BY_POLICY", "two-factor sign-in is required for this account")
         fc = await crypto.cipher(conn)
-        f = await conn.fetchrow("""SELECT id, secret_enc, enc_key_id, last_used_step FROM iam.mfa_factor
-                                    WHERE user_id = $1 AND factor_type = 'TOTP' AND verified_at IS NOT NULL
-                                      AND disabled_at IS NULL FOR UPDATE""", pr.user_id)
-        if not f or not mfa.verify(fc.decrypt(f["secret_enc"], f["enc_key_id"], SECRET_COLUMN), body.code, f["last_used_step"]):
-            raise ApiError(422, "MFA_CODE_INVALID", "the code is not valid")
-        await conn.execute("UPDATE iam.mfa_factor SET disabled_at = now() WHERE user_id = $1 AND disabled_at IS NULL",
-                           pr.user_id)
+        how = await _second_factor_ok(conn, fc, pr.user_id, body.method, body.code, recovery=False)
+        if how:
+            await conn.execute("UPDATE iam.mfa_factor SET disabled_at = now() WHERE user_id = $1 AND disabled_at IS NULL",
+                               pr.user_id)
+    if not how:
+        raise ApiError(422, "MFA_CODE_INVALID", "the code is not valid")
     request.state.audit = {"action": "auth.mfa_disable", "object_type": "app_user", "object_id": pr.user_id}
     return {"ok": True}

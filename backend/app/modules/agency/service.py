@@ -153,7 +153,7 @@ async def staff(conn: asyncpg.Connection, pr: Principal) -> list[dict]:
     agency_id = require_agency(pr)
     recs = await conn.fetch(
         """SELECT p.uid, p.legal_name AS full_name, u.email, m.is_owner, m.status, r.code AS role, u.last_login_at,
-                  EXISTS (SELECT 1 FROM iam.mfa_factor f WHERE f.user_id = u.id AND f.factor_type = 'TOTP'
+                  EXISTS (SELECT 1 FROM iam.mfa_factor f WHERE f.user_id = u.id AND f.factor_type IN ('TOTP','SMS','WHATSAPP')
                              AND f.verified_at IS NOT NULL AND f.disabled_at IS NULL) AS mfa_enrolled
              FROM iam.company_member m JOIN iam.app_user u ON u.id = m.user_id JOIN iam.party p ON p.id = u.party_id
              LEFT JOIN iam.role r ON r.id = m.role_id

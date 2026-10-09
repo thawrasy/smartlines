@@ -2,6 +2,10 @@
 
     MASSLAK_NOTIFY_EMAIL = off | log | smtp   MASSLAK_SMTP_URL = smtp://user:password@host:587  (STARTTLS)
     MASSLAK_NOTIFY_SMS   = off | log | http   MASSLAK_SMS_URL = https://gateway/send, MASSLAK_SMS_TOKEN = <bearer>
+    MASSLAK_NOTIFY_WHATSAPP = off | log | cloud
+        MASSLAK_WHATSAPP_URL = https://graph.facebook.com/<version>/<phone number id>/messages
+        MASSLAK_WHATSAPP_TOKEN = <bearer>, MASSLAK_WHATSAPP_TEMPLATE = <approved authentication template>
+        (sign-in codes only: WhatsApp sends a code through a template the business account had approved)
 
 The log provider writes each message, address and text included, as one JSON line under data/messages/: for the
 sandbox only. Outside it the API and the worker refuse to start with it (review of 1.47.0, R-27), and a channel left
@@ -28,7 +32,7 @@ class ChannelOff(RuntimeError):
     """The channel has no delivery configured on this server."""
 
 
-_REAL = {"EMAIL": "smtp", "SMS": "http"}
+_REAL = {"EMAIL": "smtp", "SMS": "http", "WHATSAPP": "cloud"}
 
 
 def mode(channel: str) -> str:
@@ -104,3 +108,28 @@ def send_sms(to: str, body: str) -> None:
     with egress.urlopen(req, timeout=15) as r:  # nosec B310
         if r.status >= 300:
             raise RuntimeError(f"SMS gateway answered {r.status}")
+
+
+def send_whatsapp_code(to: str, code: str, locale: str, text: str) -> None:
+    """A one-time sign-in code by WhatsApp (owner's decision 2). The Cloud API sends it through an approved
+    authentication template whose body takes the code; text is what the log provider records in the sandbox."""
+    m = mode("WHATSAPP")
+    if m == "off":
+        raise ChannelOff("WhatsApp delivery is off on this server (MASSLAK_NOTIFY_WHATSAPP)")
+    if m == "log":
+        require_in_production()
+        return _log("WHATSAPP", to, "", text)
+    url = os.environ["MASSLAK_WHATSAPP_URL"]
+    if not url.startswith("https://"):
+        raise RuntimeError("the WhatsApp endpoint must use HTTPS")
+    template = {"name": os.environ.get("MASSLAK_WHATSAPP_TEMPLATE", "masslak_sign_in_code"), "language": {"code": locale},
+                "components": [{"type": "body", "parameters": [{"type": "text", "text": code}]},
+                               {"type": "button", "sub_type": "url", "index": "0",
+                                "parameters": [{"type": "text", "text": code}]}]}
+    payload = {"messaging_product": "whatsapp", "to": to.lstrip("+"), "type": "template", "template": template}
+    req = urllib.request.Request(url, data=json.dumps(payload).encode(),
+                                 headers={"Content-Type": "application/json",
+                                          "Authorization": f"Bearer {os.environ['MASSLAK_WHATSAPP_TOKEN']}"}, method="POST")
+    with egress.urlopen(req, timeout=15) as r:  # nosec B310 - https only, checked above
+        if r.status >= 300:
+            raise RuntimeError(f"WhatsApp answered {r.status}")

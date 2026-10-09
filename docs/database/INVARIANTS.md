@@ -8,7 +8,7 @@ Who keeps each business rule: the database, the application or both, the objects
 |---|---|---|
 | database | the database refuses a breach whatever the caller; the application may check earlier only to give a clearer message | 21 |
 | application | only the application can see the rule (it spans a request, a lock or a choice of code); the database supplies figures or records | 6 |
-| both | each side keeps its own part, and both parts are tested | 6 |
+| both | each side keeps its own part, and both parts are tested | 8 |
 
 ## Summary
 
@@ -47,6 +47,8 @@ Who keeps each business rule: the database, the application or both, the objects
 | [WAREHOUSE-NO-PERSONAL-DATA](#warehouse-no-personal-data) | database | 3 | 0 |
 | [POSITION-GRADED-ONCE](#position-graded-once) | database | 2 | 3 |
 | [CARGO-WITHIN-CAPACITY](#cargo-within-capacity) | database | 5 | 1 |
+| [BOARDING-AT-A-STOP-THE-TICKET-COVERS](#boarding-at-a-stop-the-ticket-covers) | both | 2 | 1 |
+| [MESSAGE-CODE-HASHED-SHORT-LIVED](#message-code-hashed-short-lived) | both | 2 | 2 |
 
 ## LEDGER-BALANCED
 
@@ -476,3 +478,29 @@ Cargo on a trip's hold or on a truck load never exceeds its maximum, counted seg
 | Application | - |
 | Database tests (`db/tests/run_tests.sql`) | Cargo: a trip offers no more hold than its vehicle is registered to carry<br>Cargo: a shipment that would overload any segment of the trip is refused<br>Cargo: re-weighing a parcel counts on the trip it rides, and an overload is refused<br>Cargo: capacity sold to a courier counts once confirmed, and cannot overbook the hold<br>Cargo: a truck load refuses the shipment that would overload it |
 | API tests (`backend/`) | `tests/test_cargo_capacity.py::test_two_clerks_cannot_both_fit_into_the_last_space` |
+
+## BOARDING-AT-A-STOP-THE-TICKET-COVERS
+
+A boarding names a stop of its trip, and a passenger boards only at a stop between the start of their ticket and its end.
+
+**Owner:** both. The application answers the driver with WRONG_STOP or UNKNOWN_STOP; the trigger refuses a boarding recorded elsewhere by any writer.
+
+| Kept by | Names |
+|---|---|
+| Database | `trigger sales.boarding_event.boarding_stop`<br>`function sales.tg_boarding_stop` |
+| Application | `app.routers.driver:_board` |
+| Database tests (`db/tests/run_tests.sql`) | Boarding (1075, R-10): a stop the trip does not have is refused<br>Boarding (1075, R-10): a passenger does not board at the stop where their ticket ends |
+| API tests (`backend/`) | `tests/test_sign_in_and_operations.py::test_a_boarding_names_a_stop_the_ticket_covers` |
+
+## MESSAGE-CODE-HASHED-SHORT-LIVED
+
+A sign-in code sent by text or WhatsApp message is kept only as a keyed hash, expires within minutes, allows five tries and works once.
+
+**Owner:** both. The application checks the code, counts every entry and closes it once used; the constraints bound the hash, the tries and the lifetime for any writer.
+
+| Kept by | Names |
+|---|---|
+| Database | `constraint iam.mfa_challenge.mfa_challenge_code_hash_check`<br>`constraint iam.mfa_challenge.mfa_challenge_attempts_check`<br>`constraint iam.mfa_challenge.mfa_challenge_check` |
+| Application | `app.routers.auth:_message_code_ok` |
+| Database tests (`db/tests/run_tests.sql`) | Sign-in (1075): a message code is kept only as its 32-byte keyed hash<br>Sign-in (1075): a message code expires within a quarter of an hour |
+| API tests (`backend/`) | `tests/test_sign_in_and_operations.py::test_a_message_code_allows_five_tries`<br>`tests/test_sign_in_and_operations.py::test_a_text_message_number_is_enrolled_and_signs_in` |

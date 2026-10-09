@@ -153,6 +153,9 @@ def test_offline_scan_uploaded_after_the_credential_expired(boarding):
     # The trip left ten hours ago and arrived seven hours ago: its credentials expired an hour ago (arrival + 6 h)
     owner_sql("""UPDATE ops.trip SET departure_at = now() - interval '10 hours', arrival_at = now() - interval '7 hours'
                   WHERE uid = $1""", uuid.UUID(trip))
+    # and the driver downloaded its pack before it left (an offline scan cannot be older than the download, R-09)
+    owner_sql("""UPDATE ops.offline_pack_download SET first_at = now() - interval '11 hours', last_at = now() - interval '11 hours'
+                  WHERE trip_id = (SELECT id FROM ops.trip WHERE uid = $1)""", uuid.UUID(trip))
     creds = [pax.get(f"/api/tickets/{k['uid']}/offline").json()["credential"] for k in tickets]
     on_board = (datetime.now(timezone.utc) - timedelta(hours=9)).isoformat()
     long_before = (datetime.now(timezone.utc) - timedelta(days=3)).isoformat()

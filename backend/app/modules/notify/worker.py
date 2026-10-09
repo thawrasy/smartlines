@@ -110,7 +110,7 @@ async def main(once: bool) -> None:
     egress.require_in_production()
     require_keys_in_production()
     providers.require_in_production()     # no personal data in plain message logs outside the sandbox (R-27)
-    for channel in ("EMAIL", "SMS"):
+    for channel in ("EMAIL", "SMS", "WHATSAPP"):
         if not providers.enabled(channel):
             log.warning("%s delivery is off on this server: only in-app notifications are kept", channel.lower())
     await db.open_pools()
@@ -147,6 +147,9 @@ async def main(once: bool) -> None:
                         await conn.execute("SELECT sales.expire_reservations()")
                     # refunds whose provider outcome is unknown are asked again, with the same reference (R-17)
                     await resend_refunds()
+                    # positions the telemetry database could not take when they arrived (R-03)
+                    from ... import telemetry
+                    await telemetry.drain_backlog()
                     # files still in quarantine get another scan; expired break-glass access is closed (audit T3)
                     from ..documents.scanner import scan_pending
                     await scan_pending()

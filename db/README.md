@@ -14,9 +14,9 @@ supporting index, except references to lookup lists and to the staff member who 
 |---|---|
 | Engine | PostgreSQL 16 with PostGIS 3 (extensions: pgcrypto, citext, btree_gist, pg_trgm, postgis in schema `gis`; Docker and CI image `postgis/postgis:16-3.4`, Ubuntu package `postgresql-16-postgis-3`) |
 | Schemas | 26 separate schemas, each with its own privileges |
-| Tables | 495 tables (8 partitioned), 5,075 columns, 1,419 foreign keys |
-| Security | row-level security on 495 of 495 tables, 917 policies; 429 triggers, 264 functions |
-| Tests | 463 automated checks against a freshly built database (`db/tests/run.sh`) |
+| Tables | 498 tables (8 partitioned), 5,103 columns, 1,427 foreign keys |
+| Security | row-level security on 498 of 498 tables, 920 policies; 430 triggers, 267 functions |
+| Tests | 474 automated checks against a freshly built database (`db/tests/run.sh`) |
 | Design | [Database design and ERD document](../docs/database/) with diagrams in the study's colors |
 | Docs | [Data dictionary](DATA_DICTIONARY.md) · [ERD diagrams](ERD.md) (both generated from the database) |
 <!-- stats:end -->
@@ -131,6 +131,7 @@ PostGIS in `gis`. Until 9 October 2026 a first start of the Docker stack stopped
 | `1072_trip_rating_privacy.sql` | Trip ratings readable by the rater, the rated carrier and the platform only; the read policy had been open to every company and passenger (code review, October 2026) |
 | `1073_signed_notice_dedup.sql` | A provider's event id is unique among signed notices only, so an unsigned copy posted first cannot make the real notice a replay; unsigned notices per provider counted for review (review of 1.47.0, R-18) |
 | `1074_money_boundaries.sql` | Money boundaries: payments recorded before the provider is called (stages CREATED and PROVIDER_UNKNOWN), refunds held and sent once under a fixed reference, payment fee rules per way of paying, currency, customer and period (`fin.fee_rule`, `fin.payment_fee`), the payer of a withdrawal is not its approver, and the approval matrix of money decisions (`fin.approval_policy`, levels, named members, requests and decisions checked in the database) (review of 1.47.0, package B; owner's decisions 4 and 5) |
+| `1075_sign_in_and_operations.sql` | Two-factor sign-in by several methods: the platform's policy (`sys.setting auth.mfa`: methods open among the authenticator app, text message and WhatsApp, the portals that must use one, drivers included), message codes kept only as keyed hashes for minutes with five tries (`iam.mfa_challenge`), one verified and one pending factor of each kind; a boarding names a stop its ticket covers (`sales.tg_boarding_stop`); offline pack downloads per driver bound the time of offline scans; the partition upkeep creates every late period (`sys.default_partition_oldest`); positions wait on the primary when the telemetry database does not answer (`ops.position_backlog`) (review of 1.47.0, package C; owner's decision 2) |
 
 ## Design rules (study 29.1)
 

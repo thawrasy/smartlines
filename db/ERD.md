@@ -91,7 +91,7 @@ flowchart LR
   net -->|3| ref
   ops -->|2| fin
   ops -->|10| fleet
-  ops -->|18| iam
+  ops -->|21| iam
   ops -->|17| net
   ops -->|1| ref
   ops -->|3| sales
@@ -304,6 +304,13 @@ erDiagram
     character country_code FK
     text status
   }
+  iam_mfa_challenge {
+    bigint id PK
+    uuid uid
+    bigint user_id FK
+    bigint factor_id FK
+    bigint session_id FK
+  }
   iam_mfa_factor {
     bigint id PK
     bigint user_id FK
@@ -441,6 +448,7 @@ erDiagram
   iam_user_session }o--|| iam_app_user : "user_id"
   iam_auth_token }o..o| iam_app_user : "user_id"
   iam_device_permission_state }o--|| iam_app_user : "user_id"
+  iam_mfa_challenge }o--|| iam_app_user : "user_id"
   iam_family_link_request }o..o| iam_app_user : "requester_user_id"
   iam_family_spend }o..o| iam_app_user : "initiated_by"
   iam_api_client }o..o| iam_app_user : "acting_user_id"
@@ -467,6 +475,7 @@ erDiagram
   iam_family_link_request }o--|| iam_family_member : "member_id"
   iam_gov_identity_link }o--|| iam_identity_provider : "provider_id"
   iam_verification }o..o| iam_identity_provider : "provider_id"
+  iam_mfa_challenge }o--|| iam_mfa_factor : "factor_id"
   iam_party_role }o--|| iam_party : "party_id"
   iam_company }o--|| iam_party : "id"
   iam_biometric_template }o--|| iam_party : "party_id"
@@ -485,6 +494,7 @@ erDiagram
   iam_user_role }o--|| iam_role : "role_id"
   iam_role_scope }o--|| iam_role : "role_id"
   iam_company_member }o..o| iam_role : "role_id"
+  iam_mfa_challenge }o..o| iam_user_session : "session_id"
   iam_family_travel_rule }o..o| net_line : "line_id"
   iam_user_station_scope }o--|| net_station : "station_id"
   iam_document }o..o| net_station : "owner_station_id"
@@ -1498,11 +1508,21 @@ erDiagram
     bigint incident_id FK
     text status
   }
+  ops_offline_pack_download {
+    bigint trip_id PK
+    bigint user_id PK
+    bigint company_id FK
+  }
   ops_permission_event {
     bigint id PK
     bigint user_id FK
     bigint device_id FK
     bigint trip_id FK
+  }
+  ops_position_backlog {
+    bigint id PK
+    bigint trip_id FK
+    bigint company_id FK
   }
   ops_presence_beacon {
     bigint id PK
@@ -1737,6 +1757,7 @@ erDiagram
   ops_permission_event }o--|| iam_app_user : "user_id"
   ops_tracking_state }o..o| iam_app_user : "driver_user_id"
   ops_driver_notice }o--|| iam_app_user : "user_id"
+  ops_offline_pack_download }o--|| iam_app_user : "user_id"
   ops_shuttle_ride }o--|| iam_app_user : "user_id"
   ops_vehicle_position }o..o| iam_app_user : "driver_user_id"
   ops_seat_segment }o..o| iam_app_user : "lock_user_id"
@@ -1746,6 +1767,8 @@ erDiagram
   ops_trip_template }o--|| iam_company : "company_id"
   ops_incident }o--|| iam_company : "company_id"
   ops_route_violation }o--|| iam_company : "company_id"
+  ops_offline_pack_download }o--|| iam_company : "company_id"
+  ops_position_backlog }o--|| iam_company : "company_id"
   ops_trip }o--|| iam_company : "company_id"
   ops_trip_disruption }o..o| iam_company : "partner_company_id"
   ops_permission_event }o..o| iam_device : "device_id"
@@ -1782,6 +1805,7 @@ erDiagram
   ops_family_zone }o--|| ops_trip : "trip_id"
   ops_transit_reconciliation }o--|| ops_trip : "trip_id"
   ops_tracking_state }o--|| ops_trip : "trip_id"
+  ops_offline_pack_download }o--|| ops_trip : "trip_id"
   ops_crew_assignment }o--|| ops_trip : "trip_id"
   ops_trip_stop_event }o--|| ops_trip : "trip_id"
   ops_trip_change }o--|| ops_trip : "trip_id"
@@ -1795,6 +1819,7 @@ erDiagram
   ops_seat_lock }o--|| ops_trip : "trip_id"
   ops_trip_delay }o--|| ops_trip : "trip_id"
   ops_vehicle_position }o..o| ops_trip : "trip_id"
+  ops_position_backlog }o--|| ops_trip : "trip_id"
   ops_driver_notice }o..o| ops_trip : "trip_id"
   ops_permission_event }o..o| ops_trip : "trip_id"
   ops_incident }o..o| ops_trip : "trip_id"

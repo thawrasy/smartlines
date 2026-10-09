@@ -53,7 +53,8 @@ async def my_trips(request: Request, pr: Principal = Depends(driver)):
 class ScanIn(BaseModel):
     trip_uid: uuid.UUID
     token: str = Field(min_length=10, max_length=600)
-    stop_seq: int = Field(default=0, ge=0)
+    # the stop of the trip where the passenger boards; omitted: the first stop of their ticket (R-10)
+    stop_seq: Optional[int] = Field(default=None, ge=0)
 
 
 def _ticket_from_token(token: str, trip_uid: uuid.UUID, at: Optional[datetime] = None) -> tuple[Optional[str], Optional[str]]:
@@ -71,9 +72,11 @@ def _ticket_from_token(token: str, trip_uid: uuid.UUID, at: Optional[datetime] =
     return uid, None if uid else "INVALID_QR"
 
 
-async def _board(conn, pr: Principal, t, ticket_uid: Optional[str], early: Optional[str], stop_seq: int,
+async def _board(conn, pr: Principal, t, ticket_uid: Optional[str], early: Optional[str], stop_seq: Optional[int],
                  method: str = "AGENT_SCAN", device_scan_id: Optional[str] = None, scanned_at=None) -> dict:
-    """Applies one boarding decision and records it. A repeated device scan id is answered from the first record."""
+    """Applies one boarding decision and records it. A repeated device scan id is answered from the first record.
+    The boarding names a stop of the trip, by default the first stop of the ticket; a passenger boards only at a stop
+    their ticket covers (WRONG_STOP otherwise), and a stop the trip does not have is not recorded (review R-10)."""
     if device_scan_id:
         prior = await conn.fetchrow(
             "SELECT result FROM sales.boarding_event WHERE scanned_by_user_id = $1 AND device_scan_id = $2",
@@ -83,12 +86,15 @@ async def _board(conn, pr: Principal, t, ticket_uid: Optional[str], early: Optio
     if ticket_uid is None:
         return {"result": early or "INVALID_QR"}
     k = await conn.fetchrow(
-        """SELECT k.id, k.trip_id, k.status, k.seat_no, p.full_name, p.first_name, p.last_name,
+        """SELECT k.id, k.trip_id, k.status, k.seat_no, k.from_seq, k.to_seq, p.full_name, p.first_name, p.last_name,
                   (SELECT s ->> 'label' FROM ops.trip t, jsonb_array_elements(t.seat_map -> 'seats') s
                     WHERE t.id = k.trip_id AND (s ->> 'n')::int = k.seat_no) AS seat_label
              FROM sales.ticket k JOIN sales.passenger p ON p.id = k.passenger_id WHERE k.uid = $1""", uuid.UUID(ticket_uid))
     if k is None:
         return {"result": "INVALID_QR"}
+    stop = stop_seq if stop_seq is not None else (k["from_seq"] if k["trip_id"] == t["id"] else 0)
+    if not await conn.fetchval("SELECT 1 FROM ops.trip_stop WHERE trip_id = $1 AND seq = $2", t["id"], stop):
+        return {"result": "UNKNOWN_STOP"}
     result = early or "OK"
     if result == "OK":
         if k["trip_id"] != t["id"]:
@@ -97,11 +103,13 @@ async def _board(conn, pr: Principal, t, ticket_uid: Optional[str], early: Optio
             result = "DUPLICATE"
         elif k["status"] != "ISSUED":
             result = "INVALID_QR"
+        elif not k["from_seq"] <= stop < k["to_seq"]:
+            result = "WRONG_STOP"
     await conn.execute(
         """INSERT INTO sales.boarding_event (ticket_id, trip_id, stop_seq, event_type, method, result, scanned_by_user_id,
              device_scan_id, scanned_at)
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)""",
-        k["id"], t["id"], stop_seq, "BOARD" if result == "OK" else "DENIED", method, result, pr.user_id,
+        k["id"], t["id"], stop, "BOARD" if result == "OK" else "DENIED", method, result, pr.user_id,
         device_scan_id, scanned_at)
     if result == "OK":
         await conn.execute("UPDATE sales.ticket SET status = 'BOARDED', boarded_at = coalesce($2, now()) WHERE id = $1",
@@ -130,6 +138,11 @@ async def offline_pack(trip_uid: uuid.UUID, request: Request, pr: Principal = De
     ticket names only; document numbers never leave the server."""
     async with db.transaction(context_for(request, pr)) as conn:
         t = await _assigned_trip(conn, pr, trip_uid)
+        # an offline scan of this trip by this driver cannot be older than their first download of the pack (R-09)
+        await conn.execute(
+            """INSERT INTO ops.offline_pack_download (trip_id, user_id, company_id) VALUES ($1, $2, $3)
+               ON CONFLICT (trip_id, user_id) DO UPDATE SET last_at = now(),
+                 downloads = ops.offline_pack_download.downloads + 1""", t["id"], pr.user_id, t["company_id"])
         async with db.system_scope(conn, context_for(request, pr)):
             tickets = await conn.fetch(
                 """SELECT k.uid, k.status, k.seat_no, k.from_seq, k.to_seq, p.first_name, p.last_name, p.full_name
@@ -146,7 +159,7 @@ class OfflineScan(BaseModel):
     scan_id: str = Field(min_length=8, max_length=64, pattern=r"^[A-Za-z0-9_-]+$")   # generated on the device
     token: str = Field(min_length=10, max_length=600)
     scanned_at: datetime
-    stop_seq: int = Field(default=0, ge=0)
+    stop_seq: Optional[int] = Field(default=None, ge=0)
 
 
 class BatchIn(BaseModel):
@@ -162,12 +175,15 @@ async def scans_batch(body: BatchIn, request: Request, pr: Principal = Depends(d
     results = []
     async with db.transaction(context_for(request, pr)) as conn:
         t = await _assigned_trip(conn, pr, body.trip_uid)
+        pack_at = await conn.fetchval("SELECT first_at FROM ops.offline_pack_download WHERE trip_id = $1 AND user_id = $2",
+                                      t["id"], pr.user_id)
         for sc in sorted(body.scans, key=lambda x: x.scanned_at):
             when = min(sc.scanned_at if sc.scanned_at.tzinfo else sc.scanned_at.replace(tzinfo=timezone.utc), now)
             # The credential is checked at the time of the scan, not of the upload: a driver who syncs the next day still
             # boarded the passenger while the credential was valid. A time more than a day before departure cannot be a
-            # boarding of this trip (the app corrects its clock with the pack), so the upload time is used instead.
-            if when < t["departure_at"] - timedelta(hours=SCAN_LEAD_HOURS):
+            # boarding of this trip (the app corrects its clock with the pack), nor can a time before this driver first
+            # downloaded the trip's pack (R-09): the upload time is used instead.
+            if when < t["departure_at"] - timedelta(hours=SCAN_LEAD_HOURS) or (pack_at and when < pack_at):
                 when = now
             ticket_uid, early = _ticket_from_token(sc.token, body.trip_uid, when)
             out = await _board(conn, pr, t, ticket_uid, early, sc.stop_seq, "OFFLINE_SCAN", sc.scan_id, when)
@@ -234,11 +250,19 @@ def _point(ts: datetime, taken: Optional[datetime], p) -> dict:
 
 async def _to_telemetry(request: Request, pr: Principal, trip_uid: uuid.UUID, points: list[dict]) -> tuple[list, list]:
     """Positions with a telemetry database (review stage D2): graded on the primary for the driver's own trip, then
-    appended to the telemetry database. Returns the grades and the trust of each position stored (not duplicates)."""
+    appended to the telemetry database. Returns the grades and the trust of each position stored (not duplicates).
+    When the telemetry database does not answer, the positions wait on the primary for the worker (R-03)."""
     async with db.transaction(context_for(request, pr)) as conn:
         t = await _assigned_trip(conn, pr, trip_uid)
         graded = await telemetry.accept(conn, t["id"], points)
-    return graded, await telemetry.store(t["id"], graded, points)
+    try:
+        return graded, await telemetry.store(t["id"], graded, points)
+    except ApiError as exc:
+        if exc.code != "TELEMETRY_UNAVAILABLE":
+            raise
+    async with db.transaction(context_for(request, pr)) as conn:
+        await telemetry.queue(conn, t["id"], t["company_id"], graded, points)
+    return graded, [g["trust"] for g in graded]
 
 
 @router.post("/location")

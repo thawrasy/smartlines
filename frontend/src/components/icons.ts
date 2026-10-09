@@ -126,6 +126,8 @@ import i_fingerprint from "@material-symbols/svg-400/rounded/fingerprint.svg?raw
 import i_group_add from "@material-symbols/svg-400/rounded/group_add.svg?raw";
 import i_sell from "@material-symbols/svg-400/rounded/sell.svg?raw";
 import i_verified_user from "@material-symbols/svg-400/rounded/verified_user.svg?raw";
+import i_sms from "@material-symbols/svg-400/rounded/sms.svg?raw";
+import i_chat from "@material-symbols/svg-400/rounded/chat.svg?raw";
 import i_star from "@material-symbols/svg-400/rounded/star.svg?raw";
 import i_forum from "@material-symbols/svg-400/rounded/forum.svg?raw";
 
@@ -249,6 +251,8 @@ export const ICONS = {
   group_add: i_group_add,
   sell: i_sell,
   verified_user: i_verified_user,
+  sms: i_sms,
+  chat: i_chat,
   star: i_star,
   forum: i_forum,
   timer_off: i_timer_off,

@@ -20,7 +20,7 @@ import asyncpg
 from ... import crypto, db, markets
 from ...config import get_settings
 from ...errors import ApiError, not_found
-from ...ledger import post_txn, user_wallet
+from ...ledger import owned_wallet, post_txn, user_wallet
 
 CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"          # no 0/O or 1/I to misread
 INVITE_HOURS = 24
@@ -87,12 +87,10 @@ async def family_wallet(conn: asyncpg.Connection, family: asyncpg.Record, curren
         w = await conn.fetchrow("SELECT * FROM fin.wallet WHERE id = $1", family["trips_wallet_id"])
         if w and w["currency"] == currency:
             return w
-    w = await conn.fetchrow(
-        "SELECT * FROM fin.wallet WHERE owner_party_id = $1 AND wallet_type = 'FAMILY' AND currency = $2", family["head_party_id"], currency)
-    if w is None:
-        w = await conn.fetchrow(
-            """INSERT INTO fin.wallet (owner_party_id, wallet_type, label, currency)
-               VALUES ($1, 'FAMILY', 'Family trips account', $2) RETURNING *""", family["head_party_id"], currency)
+    w = await owned_wallet(
+        conn, family["head_party_id"], "FAMILY", currency,
+        "INSERT INTO fin.wallet (owner_party_id, wallet_type, label, currency) VALUES ($1, 'FAMILY', 'Family trips account', $2)",
+        family["head_party_id"], currency)
     if family["trips_wallet_id"] is None:
         await conn.execute("UPDATE iam.family SET trips_wallet_id = $2 WHERE id = $1", family["id"], w["id"])
     return w

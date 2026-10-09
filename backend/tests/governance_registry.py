@@ -107,8 +107,8 @@ BALANCE_READS = {
     "app/routers/regulator.py": (1, "the sum of passenger wallets (USER, IMMEDIATE); escrow uses fin.wallet_balance"),
 }
 WALLET_ROWS = {
-    "app/ledger.py": (7, "the wallet helpers: shared wallets go through counted(); passenger and cash wallets are exact"),
-    "app/modules/family/service.py": (3, "FAMILY wallets, IMMEDIATE"),
+    "app/ledger.py": (2, "the wallet helpers: owned_wallet finds or opens a wallet (ON CONFLICT, then read again); shared wallets go through counted()"),
+    "app/modules/family/service.py": (1, "FAMILY wallets, IMMEDIATE"),
     "app/modules/payments/service.py": (4, "clearing wallet (only its id is used), the payer's wallet of a paid reservation "
                                            "(USER, exact), the refund check (wrapped in counted()) and a bank transfer's wallet "
                                            "(its currency only, 1061)"),

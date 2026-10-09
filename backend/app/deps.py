@@ -5,8 +5,7 @@ from typing import AsyncIterator, Optional
 import asyncpg
 from fastapi import Depends, Request
 
-from . import db
-from .config import get_settings
+from . import db, mfa_policy
 from .errors import ApiError, forbidden
 from .security import token_hash
 
@@ -38,8 +37,9 @@ class Principal:
     roles: set[str] = field(default_factory=set)
     is_owner: bool = False
     mfa_pending: bool = False       # staff session that still owes its second factor
-    mfa_enrolled: bool = False
+    mfa_enrolled: bool = False      # holds a second factor of a method open on this server
     mfa_required: bool = False
+    mfa_factors: list[str] = field(default_factory=list)
 
 
 def base_context(request: Request) -> db.Context:
@@ -50,9 +50,9 @@ async def load_principal(conn: asyncpg.Connection, token: str) -> Optional[Princ
     row = await conn.fetchrow(
         """
         SELECT s.id AS session_id, s.portal, s.company_id, u.id AS user_id, u.uid, u.party_id, u.email,
-               u.preferred_locale, p.legal_name, s.mfa_passed, u.mfa_required,
-               EXISTS (SELECT 1 FROM iam.mfa_factor f WHERE f.user_id = u.id AND f.factor_type = 'TOTP'
-                          AND f.verified_at IS NOT NULL AND f.disabled_at IS NULL) AS mfa_enrolled
+               u.preferred_locale, p.legal_name, s.mfa_passed, u.mfa_required, 
+               ARRAY(SELECT f.factor_type FROM iam.mfa_factor f WHERE f.user_id = u.id AND f.verified_at IS NOT NULL
+                        AND f.disabled_at IS NULL AND f.factor_type IN ('TOTP','SMS','WHATSAPP')) AS mfa_factors
           FROM iam.user_session s
           JOIN iam.app_user u ON u.id = s.user_id
           JOIN iam.party p ON p.id = u.party_id
@@ -68,8 +68,10 @@ async def load_principal(conn: asyncpg.Connection, token: str) -> Optional[Princ
         portal=row["portal"], company_id=row["company_id"], display_name=row["legal_name"], email=row["email"],
         locale=row["preferred_locale"],
     )
-    pr.mfa_enrolled = row["mfa_enrolled"]
-    pr.mfa_required = mfa_required_for(pr.portal, row["mfa_required"], pr.mfa_enrolled)
+    policy = await mfa_policy.current(conn)
+    pr.mfa_factors = list(row["mfa_factors"])
+    pr.mfa_enrolled = mfa_policy.enrolled(pr.mfa_factors, policy)
+    pr.mfa_required = mfa_required_for(pr.portal, row["mfa_required"], bool(pr.mfa_factors), policy)
     pr.mfa_pending = pr.mfa_required and not row["mfa_passed"]
     await load_permissions(conn, pr)
     return pr
@@ -136,17 +138,18 @@ async def optional_principal(request: Request) -> Optional[Principal]:
     return pr
 
 
-STAFF_PORTALS = {"OPERATOR", "AGENCY", "PLATFORM", "INSPECTOR"}
+STAFF_PORTALS = {"OPERATOR", "AGENCY", "PLATFORM", "INSPECTOR", "DRIVER"}
 
 
-def mfa_required_for(portal: str, account_requires: bool, enrolled: bool) -> bool:
-    """Anyone who enrolled a second factor always uses it (passengers may opt in). Staff portals also need one when
-    the account requires it, and platform staff always outside the sandbox."""
-    if enrolled:
+def mfa_required_for(portal: str, account_requires: bool, has_factor: bool, policy: mfa_policy.Policy) -> bool:
+    """Anyone who enrolled a second factor always uses it (passengers may opt in). Staff portals, drivers included,
+    also need one when the account requires it or when the platform's policy requires one for the portal
+    (sys.setting auth.mfa, owner's decision 2); platform staff always outside the sandbox."""
+    if has_factor:
         return True
     if portal not in STAFF_PORTALS:
-        return False
-    return account_requires or (portal == "PLATFORM" and not get_settings().sandbox)
+        return policy.requires(portal)
+    return account_requires or policy.requires(portal)
 
 
 async def require_session(principal: Optional[Principal] = Depends(optional_principal)) -> Principal:

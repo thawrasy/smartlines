@@ -293,3 +293,26 @@ tests:
         exp_alerts:
           - exp_labels: { severity: ticket, provider: CARD }
             exp_annotations: { summary: "Many provider notices with a bad signature in the last hour: someone may be probing the endpoint", runbook: "RUNBOOKS.md#25-money-boundaries-fees-and-approvals-148" }
+  - interval: 1m
+    input_series:
+      - series: masslak_position_backlog_oldest_seconds
+        values: "0 300 960"
+      - series: 'masslak_mfa_codes_total{channel="SMS",outcome="failed",instance="api-1"}'
+        values: "0 0 3 6 9 12"
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: PositionBacklogGrowing
+        exp_alerts: []
+      - eval_time: 2m
+        alertname: PositionBacklogGrowing
+        exp_alerts:
+          - exp_labels: { severity: ticket }
+            exp_annotations: { summary: "Vehicle positions have waited more than 15 minutes on the primary for the telemetry database", runbook: "RUNBOOKS.md#26-sign-in-boarding-and-positions-148" }
+      - eval_time: 2m
+        alertname: MfaCodesFailing
+        exp_alerts: []
+      - eval_time: 5m
+        alertname: MfaCodesFailing
+        exp_alerts:
+          - exp_labels: { severity: ticket }
+            exp_annotations: { summary: "Sign-in codes by text or WhatsApp message are failing to leave: staff may be unable to sign in", runbook: "RUNBOOKS.md#26-sign-in-boarding-and-positions-148" }

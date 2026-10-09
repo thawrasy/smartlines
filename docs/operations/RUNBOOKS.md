@@ -639,6 +639,46 @@ means a decision has waited a day.
 id (1073). **UnsignedNoticesBurst** (more than 20 in an hour for one provider) means someone is probing the endpoint
 or the provider's signing secret changed: compare `MASSLAK_PSP_<CODE>_SECRET` with the provider's console first.
 
+## 26. Sign-in, boarding and positions (1.48)
+
+**Two-factor sign-in policy** (owner's decision 2) is on Security, Two-step sign-in (`security.console`). It sets which
+methods are open (an authenticator app such as Google Authenticator, a code by text message, a code by WhatsApp; one
+or more), which portals must use one (platform staff, inspectors, carrier staff, drivers, agency staff, passengers),
+how long a message code lives (2 to 10 minutes), the wait before another can be sent and the codes per person per
+hour. Platform staff always use one outside the sandbox, whatever is chosen. A change reaches every API process
+within half a minute and raises a security event (`security.mfa_policy_changed`). A portal added to the list asks its
+people for a second factor at their next sign-in: those without one enrol first, on the website or in the app.
+
+**Message codes** leave only when the server has delivery for the channel: `MASSLAK_NOTIFY_SMS=http` with its gateway,
+`MASSLAK_NOTIFY_WHATSAPP=cloud` with the WhatsApp Business Cloud API endpoint, token and an approved authentication
+template (`MASSLAK_WHATSAPP_TEMPLATE`). A method open in the policy but not configured on the server is not offered
+(the policy page says so). Codes are kept only as keyed hashes, five wrong entries close a code, a code works once.
+**MfaCodesFailing** means codes are not leaving: check the gateway or WhatsApp account first; people can still use the
+authenticator app or a recovery code. When the platform closes a method, the people who had only that one enrol
+another at their next sign-in.
+
+**A person who lost every factor** (phone lost, no recovery code): security staff confirm the person's identity outside
+the platform, then disable the person's factors (`UPDATE iam.mfa_factor SET disabled_at = now() WHERE user_id = ...`
+by the owner role, recorded in the change log); the next sign-in enrols again. Never do it on a request received only
+by e-mail or message.
+
+**Boarding stops.** A scan names the stop where the passenger boards, by default the first stop of their ticket. A
+stop the trip does not have answers UNKNOWN_STOP and is not recorded; a stop the ticket does not cover answers
+WRONG_STOP and is recorded as a refusal. The database refuses both from any writer.
+
+**Offline scans** are dated at the scan, unless the time is more than a day before departure or earlier than the
+driver's first download of the trip's pack: then at the upload, and judged then (an expired credential is refused).
+
+**Late partitions.** The daily upkeep now creates every past day (month) that has rows waiting in a default partition,
+not only yesterday, so a long stop of the worker leaves nothing outside the retention. The metric of rows in default
+partitions (`masslak_partition_default_rows`) returns to zero after the next upkeep.
+
+**Positions waiting for the telemetry database.** When the telemetry database does not answer, positions are graded
+on the primary as usual and kept there (`ops.position_backlog`); the driver's app gets its answer and does not have
+to send them again. The worker delivers the backlog in order once a minute (duplicates are skipped there).
+**PositionBacklogGrowing** means positions have waited 15 minutes: see section 22 for the telemetry database. Delivered
+batches are purged after 7 days.
+
 ## Rehearsal schedule
 
 | Procedure | Before launch | After launch |

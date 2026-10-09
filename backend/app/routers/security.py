@@ -1,15 +1,16 @@
-"""Security console: IP and range rules, login events and the activity log.
+"""Security console: IP and range rules, login events, the activity log and the two-factor sign-in policy.
 
 IP rules are managed through the application role (platform scope). The logs are read through a
 separate connection on the masslak_auditor role, because the application role can only append to them.
 """
 import ipaddress
+import json
 from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel, Field
 
-from .. import db
+from .. import db, mfa_policy
 from ..deps import Principal, context_for, require_permission
 from ..errors import ApiError, not_found
 from ..util import row_dict, rows
@@ -17,6 +18,7 @@ from ..util import row_dict, rows
 router = APIRouter(prefix="/api/security", tags=["security"])
 can_rules = require_permission("security.ip_rules")
 can_audit = require_permission("audit.view", "security.ip_rules")
+can_policy = require_permission("security.console")
 
 
 @router.get("/summary")
@@ -124,3 +126,66 @@ async def activity(pr: Principal = Depends(can_audit), limit: int = Query(100, l
                  FROM audit.activity_log a LEFT JOIN iam.app_user u ON u.id = a.user_id
                 ORDER BY a.ts DESC LIMIT $1""", limit)
     return {"activity": rows(recs)}
+
+
+# ---------------------------------------------------------------- two-factor sign-in policy (owner's decision 2)
+class MfaPolicyIn(BaseModel):
+    methods: list[Literal["TOTP", "SMS", "WHATSAPP"]] = Field(min_length=1)
+    required_portals: list[Literal["PLATFORM", "INSPECTOR", "OPERATOR", "DRIVER", "AGENCY", "PASSENGER"]]
+    enforce_in_sandbox: bool = False
+    code_minutes: int = Field(default=5, ge=2, le=10)
+    resend_seconds: int = Field(default=60, ge=30, le=300)
+    sends_per_hour: int = Field(default=5, ge=3, le=20)
+
+
+async def _mfa_policy_view(conn) -> dict:
+    from ..config import get_settings
+    from ..modules.notify import providers
+    policy = await mfa_policy.current(conn)
+    counts = await conn.fetch(
+        """SELECT factor_type, count(DISTINCT user_id) AS people FROM iam.mfa_factor
+            WHERE verified_at IS NOT NULL AND disabled_at IS NULL AND factor_type IN ('TOTP','SMS','WHATSAPP')
+            GROUP BY factor_type""")
+    without = await conn.fetch(
+        """SELECT CASE u.account_kind WHEN 'PLATFORM' THEN 'PLATFORM' WHEN 'AGENCY' THEN 'AGENCY' ELSE
+                       CASE WHEN EXISTS (SELECT 1 FROM fleet.crew_profile cp WHERE cp.party_id = u.party_id AND cp.status = 'ACTIVE')
+                            THEN 'DRIVER' ELSE 'OPERATOR' END END AS portal, count(*) AS people
+             FROM iam.app_user u
+            WHERE u.status = 'ACTIVE' AND u.account_kind IN ('PLATFORM','COMPANY','AGENCY')
+              AND NOT EXISTS (SELECT 1 FROM iam.mfa_factor f WHERE f.user_id = u.id AND f.verified_at IS NOT NULL
+                                 AND f.disabled_at IS NULL AND f.factor_type IN ('TOTP','SMS','WHATSAPP'))
+            GROUP BY 1""")
+    return {"policy": policy.public(), "available": policy.available(),
+            "delivery": {"TOTP": True, "SMS": providers.enabled("SMS"), "WHATSAPP": providers.enabled("WHATSAPP")},
+            "always_required": list(mfa_policy.ALWAYS), "sandbox": get_settings().sandbox,
+            "enrolled": {r["factor_type"]: r["people"] for r in counts},
+            "staff_without_factor": {r["portal"]: r["people"] for r in without}}
+
+
+@router.get("/mfa-policy")
+async def get_mfa_policy(request: Request, pr: Principal = Depends(can_policy)):
+    async with db.transaction(context_for(request, pr)) as conn:
+        return await _mfa_policy_view(conn)
+
+
+@router.put("/mfa-policy")
+async def set_mfa_policy(body: MfaPolicyIn, request: Request, pr: Principal = Depends(can_policy)):
+    """Which methods are open and which portals must use one. A portal added here asks its staff for a second factor
+    at their next sign-in (enrolment first, for those without one); the other API processes follow within half a
+    minute. Platform staff keep theirs outside the sandbox whatever is chosen."""
+    value = mfa_policy.Policy.of(body.model_dump()).public()
+    async with db.transaction(context_for(request, pr)) as conn:
+        before = await conn.fetchval("SELECT value::text FROM sys.setting WHERE key = 'auth.mfa'")
+        await conn.execute(
+            """INSERT INTO sys.setting (key, value, description, updated_by) VALUES ('auth.mfa', $1::jsonb, 'Two-factor sign-in policy', $2)
+               ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now(), updated_by = EXCLUDED.updated_by""",
+            json.dumps(value), pr.user_id)
+        from ..modules.notify.outbox import emit
+        # a change of who must use a second factor is a security event (outbox, audit T3)
+        await emit(conn, "security.mfa_policy_changed", "setting", pr.user_id,
+                   {"before": json.loads(before) if before else None, "after": value, "changed_by": pr.user_id})
+        mfa_policy.forget()
+        out = await _mfa_policy_view(conn)
+    request.state.audit = {"action": "security.mfa_policy", "object_type": "setting", "object_id": None,
+                           "reason": f"methods={','.join(value['methods'])} portals={','.join(value['required_portals'])}"}
+    return out

@@ -2225,6 +2225,55 @@ SELECT pg_temp.expect_error(format($$INSERT INTO fin.bank_statement_line (import
                                      VALUES (%s, current_date, 100, 'SYP', 'zz-1', 'PROPOSED')$$, :st_imp),
   'bank_statement_line_topup_matches', 'Statements: a proposed line names its transfer');
 ROLLBACK;
+-- 1075: sign-in by several methods, boarding stops, offline packs, late partitions, positions waiting (package C)
+BEGIN;
+SELECT sys.set_context(:uadmin, NULL, 'SYSTEM');
+SELECT pg_temp.ok((SELECT value -> 'methods' FROM sys.setting WHERE key = 'auth.mfa') = '["TOTP", "SMS", "WHATSAPP"]'::jsonb
+  AND (SELECT value -> 'required_portals' FROM sys.setting WHERE key = 'auth.mfa') ? 'DRIVER'
+  AND (SELECT bool_and(rls) AND count(*) = 3 FROM sys.v_security_inventory WHERE table_name IN ('iam.mfa_challenge','ops.offline_pack_download','ops.position_backlog'))
+  AND (SELECT rls_forced AND NOT reporting_select FROM sys.v_security_inventory WHERE table_name = 'iam.mfa_challenge'),
+  'Sign-in (1075): the policy opens the app, text and WhatsApp methods and requires drivers too; codes, packs and waiting positions are row-secured');
+INSERT INTO iam.mfa_factor (user_id, factor_type, label, verified_at) VALUES (:uadmin, 'WHATSAPP', '0111', now()) RETURNING id AS f_wa \gset
+SELECT pg_temp.expect_error(format($$INSERT INTO iam.mfa_factor (user_id, factor_type, label, verified_at) VALUES (%s, 'WHATSAPP', '0222', now())$$, :uadmin),
+  'mfa_factor_one_verified', 'Sign-in (1075): one verified factor of each kind per person');
+INSERT INTO iam.mfa_factor (user_id, factor_type, label) VALUES (:uadmin, 'WHATSAPP', '0333');
+SELECT pg_temp.ok(true, 'Sign-in (1075): a new number is enrolled while the verified one still works');
+SELECT pg_temp.expect_error(format($$INSERT INTO iam.mfa_challenge (uid, user_id, factor_id, channel, purpose, code_hash, expires_at)
+    VALUES (gen_random_uuid(), %s, %s, 'WHATSAPP', 'VERIFY', '\x00'::bytea, now() + interval '5 minutes')$$, :uadmin, :f_wa),
+  'mfa_challenge_code_hash_check', 'Sign-in (1075): a message code is kept only as its 32-byte keyed hash');
+SELECT pg_temp.expect_error(format($$INSERT INTO iam.mfa_challenge (uid, user_id, factor_id, channel, purpose, code_hash, expires_at)
+    VALUES (gen_random_uuid(), %s, %s, 'WHATSAPP', 'VERIFY', decode(repeat('ab', 32), 'hex'), now() + interval '1 hour')$$, :uadmin, :f_wa),
+  'mfa_challenge_check', 'Sign-in (1075): a message code expires within a quarter of an hour');
+-- a boarding names a stop of its trip, and a passenger boards only where their ticket covers
+SELECT k.id AS b_ticket, k.trip_id AS b_trip, k.to_seq AS b_to FROM sales.ticket k
+ WHERE k.status = 'ISSUED' AND EXISTS (SELECT 1 FROM ops.trip_stop s WHERE s.trip_id = k.trip_id AND s.seq = k.to_seq) LIMIT 1 \gset
+SELECT pg_temp.expect_error(format($$INSERT INTO sales.boarding_event (ticket_id, trip_id, stop_seq, event_type, method, result)
+    VALUES (%s, %s, 99, 'BOARD', 'AGENT_SCAN', 'OK')$$, :b_ticket, :b_trip), 'UNKNOWN_STOP', 'Boarding (1075, R-10): a stop the trip does not have is refused');
+SELECT pg_temp.expect_error(format($$INSERT INTO sales.boarding_event (ticket_id, trip_id, stop_seq, event_type, method, result)
+    VALUES (%s, %s, %s, 'BOARD', 'AGENT_SCAN', 'OK')$$, :b_ticket, :b_trip, :b_to), 'STOP_OUTSIDE_TICKET',
+  'Boarding (1075, R-10): a passenger does not board at the stop where their ticket ends');
+INSERT INTO sales.boarding_event (ticket_id, trip_id, stop_seq, event_type, method, result)
+VALUES (:b_ticket, :b_trip, :b_to, 'DENIED', 'AGENT_SCAN', 'WRONG_STOP');
+SELECT pg_temp.ok(true, 'Boarding (1075, R-10): a refused boarding at the wrong stop is recorded as WRONG_STOP');
+-- the upkeep, stopped for ten days, creates every day that has rows waiting in the default partition (R-02)
+INSERT INTO sys.outbox_event (event_type, aggregate_type, aggregate_id, payload, created_at)
+SELECT 'test.long_stop', 'test', g, '{}'::jsonb, current_date - 10 + make_interval(days => g % 3) FROM generate_series(0, 5) g;
+SELECT pg_temp.ok((SELECT count(*) FROM sys.outbox_event_default WHERE event_type = 'test.long_stop') = 6
+  AND sys.default_partition_oldest('sys.outbox_event')::date = current_date - 10,
+  'Partitions (1075, R-02): rows of a long stop wait in the default partition, the oldest known');
+SELECT sys.ensure_daily_partitions('sys.outbox_event', 7, 1);
+SELECT pg_temp.ok(to_regclass('sys.outbox_event_' || to_char(current_date - 10, 'YYYYMMDD')) IS NOT NULL
+  AND to_regclass('sys.outbox_event_' || to_char(current_date - 8, 'YYYYMMDD')) IS NOT NULL
+  AND (SELECT count(*) FROM sys.outbox_event_default WHERE event_type = 'test.long_stop') = 0
+  AND (SELECT count(*) FROM sys.outbox_event WHERE event_type = 'test.long_stop') = 6,
+  'Partitions (1075, R-02): the upkeep creates every late day, not only the last one, and empties the default partition');
+-- positions waiting for the telemetry database, as the monitoring sees them
+INSERT INTO ops.position_backlog (trip_id, company_id, positions, created_at)
+SELECT id, company_id, '[{"lat": 33.5}]'::jsonb, now() - interval '20 minutes' FROM ops.trip ORDER BY id LIMIT 1;
+SELECT pg_temp.ok((SELECT value FROM ops.position_backlog_metrics() WHERE metric = 'masslak_position_backlog_oldest_seconds') >= 1200
+  AND (sys.purge_expired() ? 'position_backlog') AND has_function_privilege('masslak_app', 'ops.position_backlog_metrics()', 'EXECUTE'),
+  'Positions (1075, R-03): the backlog and its age reach the monitoring, and the purge knows it');
+ROLLBACK;
 -- Review stage D (1064): bookings partitioned by ranges of id
 SELECT pg_temp.ok(
   (SELECT relkind FROM pg_class WHERE oid = 'sales.booking'::regclass) = 'p'

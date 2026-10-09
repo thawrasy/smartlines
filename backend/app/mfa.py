@@ -1,4 +1,5 @@
-"""Time-based one-time passwords (RFC 6238, the format used by authenticator apps) and recovery codes."""
+"""Time-based one-time passwords (RFC 6238, the format used by authenticator apps), codes sent by message and
+recovery codes."""
 from __future__ import annotations
 
 import base64
@@ -63,3 +64,8 @@ def new_recovery_codes(count: int = 10) -> list[str]:
 
 def hash_recovery_code(code: str) -> str:
     return hashlib.sha256(code.replace("-", "").upper().encode()).hexdigest()
+
+
+def new_message_code() -> str:
+    """Six random digits for a code sent by text or WhatsApp message (owner's decision 2)."""
+    return f"{secrets.randbelow(10 ** DIGITS):0{DIGITS}d}"

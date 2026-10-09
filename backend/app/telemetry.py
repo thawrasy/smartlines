@@ -3,12 +3,18 @@
 With MASSLAK_TELEMETRY_DATABASE_URL set, a driver's positions are graded on the primary (ops.accept_positions, which
 also keeps the vehicle's latest position and closes the trip's signal alerts) and their history is appended here.
 Without it, positions go to ops.geo_event on the primary as before. The primary is written first: it checks that the
-trip is the driver's, so nothing reaches the telemetry database for someone else's trip. If the append fails, the
-request fails with 503 and the app sends the positions again; the latest position is not moved back, and the copies
-already stored are skipped as duplicates (same event id and time).
+trip is the driver's, so nothing reaches the telemetry database for someone else's trip.
+
+If the append fails, the graded positions are kept on the primary (ops.position_backlog) and the request succeeds:
+the driver's history no longer depends on the app sending them again (review of release 1.47.0, R-03). The worker
+delivers the backlog in order once the telemetry database answers; copies already stored are skipped as duplicates
+(same event id and time). Only when the primary cannot keep them either does the request fail with 503.
 """
 import json
 import logging
+import time
+import uuid
+from datetime import datetime
 from typing import Optional
 
 from . import db
@@ -40,11 +46,19 @@ async def accept(conn, trip_id: int, points: list[dict]) -> list[dict]:
     return [dict(r) for r in rows]
 
 
+def rows_of(trip_id: int, graded: list[dict], points: list[dict]) -> list[dict]:
+    """The rows the telemetry database stores: each position as sent, with its grade from the primary."""
+    return [{**p, **g, "trip_id": trip_id} for g, p in zip(graded, points)]
+
+
 async def store(trip_id: int, graded: list[dict], points: list[dict]) -> list[str]:
     """Appends graded positions; returns the trust grade of each one stored (duplicates are skipped)."""
+    return await store_rows(rows_of(trip_id, graded, points))
+
+
+async def store_rows(full: list[dict]) -> list[str]:
     pool = db.telemetry_pool()
     assert pool is not None
-    full = [{**p, **g, "trip_id": trip_id} for g, p in zip(graded, points)]
     cols = {c: [r.get(c) for r in full] for c in _COLUMNS}
     cols["trust_flags"] = ["{" + ",".join(r["trust_flags"]) + "}" for r in full]
     try:
@@ -59,6 +73,56 @@ async def store(trip_id: int, graded: list[dict], points: list[dict]) -> list[st
             raise ApiError(503, "TELEMETRY_UNAVAILABLE", "positions were not stored; send them again") from exc
         raise
     return [r["trust"] for r in rows]
+
+
+_TIMES = ("ts", "received_at", "device_ts")
+
+
+async def queue(conn, trip_id: int, company_id: int, graded: list[dict], points: list[dict]) -> None:
+    """Keeps positions the telemetry database could not take, on the primary, for the worker to deliver (R-03)."""
+    await conn.execute("INSERT INTO ops.position_backlog (trip_id, company_id, positions) VALUES ($1, $2, $3::jsonb)",
+                       trip_id, company_id, json.dumps(rows_of(trip_id, graded, points), default=str))
+
+
+def _revive(row: dict) -> dict:
+    out = dict(row)
+    for k in _TIMES:
+        if out.get(k):
+            out[k] = datetime.fromisoformat(out[k])
+    if out.get("event_id"):
+        out["event_id"] = uuid.UUID(out["event_id"])
+    return out
+
+
+async def drain_backlog(batch: int = 100, budget_seconds: float = 20.0) -> int:
+    """Worker: delivers waiting positions in the order they arrived, many batches per insert, for up to budget_seconds
+    a pass; stops at the first failure and tries again on its next pass. Returns the batches delivered."""
+    if db.telemetry_pool() is None:
+        return 0
+    from .errors import ApiError
+    done, started = 0, time.monotonic()
+    ctx = db.Context(request_id=uuid.uuid4(), ip="127.0.0.1", scope="SYSTEM")
+    while time.monotonic() - started < budget_seconds:
+        async with db.transaction(ctx) as conn:
+            waiting = await conn.fetch("""SELECT id, positions::text AS positions FROM ops.position_backlog
+                                           WHERE delivered_at IS NULL ORDER BY id LIMIT $1 FOR UPDATE SKIP LOCKED""", batch)
+            if not waiting:
+                break
+            ids = [w["id"] for w in waiting]
+            try:
+                await store_rows([_revive(r) for w in waiting for r in json.loads(w["positions"])])
+            except ApiError as exc:
+                await conn.execute("UPDATE ops.position_backlog SET attempts = attempts + 1, last_error = $2 WHERE id = ANY($1)",
+                                   ids, exc.message[:300])
+                break
+            await conn.execute("UPDATE ops.position_backlog SET delivered_at = now(), attempts = attempts + 1 WHERE id = ANY($1)",
+                               ids)
+            done += len(ids)
+        if len(waiting) < batch:
+            break
+    if done:
+        log.info("telemetry backlog: %s batch(es) delivered", done)
+    return done
 
 
 async def upkeep(keep_days: int, held: bool) -> Optional[dict]:

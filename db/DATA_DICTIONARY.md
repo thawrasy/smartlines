@@ -2,19 +2,19 @@
 
 > Generated from the built database (`db/tools/gen_docs.py`); do not edit by hand.
 
-**495 tables, 5075 columns, in 26 schemas.**
+**498 tables, 5103 columns, in 26 schemas.**
 
 Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant isolation (RLS) · 🧩 partitioned monthly · 🔒 append-only / change-protected
 
 ## Index
 
-- [`iam` — Identity, parties, users, permissions and API clients](#iam) (32 tables)
+- [`iam` — Identity, parties, users, permissions and API clients](#iam) (33 tables)
 - [`ref` — Reference data, locales and files](#ref) (14 tables)
 - [`sys` — Settings, outbox and webhooks](#sys) (24 tables)
 - [`net` — Network: stations, routes, lines, corridors and geofences](#net) (22 tables)
 - [`fleet` — Fleet: vehicles, trucks, trailers, seats, crew, licenses and insurance](#fleet) (22 tables)
 - [`pricing` — Pricing, taxes, commissions, campaigns and loyalty](#pricing) (35 tables)
-- [`ops` — Trips, inventory, operations, shuttle rides, tracking and incidents](#ops) (33 tables)
+- [`ops` — Trips, inventory, operations, shuttle rides, tracking and incidents](#ops) (35 tables)
 - [`sales` — Channels, bookings, passengers, tickets, subscriptions and travel documents](#sales) (28 tables)
 - [`fin` — Wallets, ledger, payments, allocation, settlement and float](#fin) (35 tables)
 - [`acct` — Simplified accounting, e-invoicing and tax profiles](#acct) (35 tables)
@@ -436,9 +436,30 @@ Verification adapters: KYC vendor, national registry, telecom, digital identity 
 | `config` | `jsonb` | ✱ | `'{}'::jsonb` |
 | `status` | `text` | ✱ | `'INACTIVE'::text` |
 
+### `iam.mfa_challenge` 🛡️
+
+A one-time code sent by text or WhatsApp message: only its keyed hash is kept, it expires within minutes and allows five tries (1075, decision 2)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ |  |
+| `user_id` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `factor_id` | `bigint` | 🔗 `iam.mfa_factor` ✱ |  |
+| `session_id` | `bigint` | 🔗 `iam.user_session`  |  |
+| `channel` | `text` | ✱ |  |
+| `purpose` | `text` | ✱ |  |
+| `code_hash` | `bytea` | ✱ |  |
+| `attempts` | `smallint` | ✱ | `0` |
+| `expires_at` | `timestamp with time zone` | ✱ |  |
+| `consumed_at` | `timestamp with time zone` |  |  |
+| `sent_at` | `timestamp with time zone` |  |  |
+| `send_error` | `text` |  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
 ### `iam.mfa_factor` 🛡️
 
-MFA factors (TOTP with encrypted secret, passkeys, recovery codes)
+Second factors: TOTP (encrypted secret), SMS and WHATSAPP (the encrypted phone number the codes go to, its last four digits in label), passkeys, recovery codes (1075)
 
 | Column | Type | Constraints | Default |
 |---|---|---|---|
@@ -2687,6 +2708,19 @@ Integration with traffic police, police and insurers (activated after government
 | `status` | `text` | ✱ | `'PENDING'::text` |
 | `last_sync_at` | `timestamp with time zone` |  |  |
 
+### `ops.offline_pack_download` 🛡️
+
+When a driver first and last downloaded a trip's offline boarding pack; a scan made offline cannot be older than the first download (1075, R-09)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `trip_id` | `bigint` | 🔑 🔗 `ops.trip` ✱ |  |
+| `user_id` | `bigint` | 🔑 🔗 `iam.app_user` ✱ |  |
+| `company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `first_at` | `timestamp with time zone` | ✱ | `now()` |
+| `last_at` | `timestamp with time zone` | ✱ | `now()` |
+| `downloads` | `integer` | ✱ | `1` |
+
 ### `ops.permission_event` 🛡️ 🔒
 
 Lock and restore log of app permissions; feeds ops.tracking_alert for drivers; append-only
@@ -2699,6 +2733,21 @@ Lock and restore log of app permissions; feeds ops.tracking_alert for drivers; a
 | `trip_id` | `bigint` | 🔗 `ops.trip`  |  |
 | `kind` | `text` | ✱ |  |
 | `ts` | `timestamp with time zone` | ✱ | `now()` |
+
+### `ops.position_backlog` 🛡️
+
+Graded positions the telemetry database could not take when they arrived; the worker delivers them in order (duplicates skipped there) (1075, R-03)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `trip_id` | `bigint` | 🔗 `ops.trip` ✱ |  |
+| `company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `positions` | `jsonb` | ✱ |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `attempts` | `integer` | ✱ | `0` |
+| `last_error` | `text` |  |  |
+| `delivered_at` | `timestamp with time zone` |  |  |
 
 ### `ops.presence_beacon` 🛡️
 

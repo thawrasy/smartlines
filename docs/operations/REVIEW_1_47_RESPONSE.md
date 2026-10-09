@@ -53,3 +53,27 @@ with the test that proves each change. The owner's decisions on the five open qu
 New alerts with their tests: RefundOutcomeUnknown, PaymentProviderCircuitOpen, ApprovalsWaiting, UnsignedNoticesBurst
 (RUNBOOKS.md, section 25).
 
+## 3. Package C: sign-in, bookings and operations
+
+| Ref | Finding | What changed | Proof |
+|---|---|---|---|
+| R-31, decision 2 | A new driver signed in without a second factor; the authenticator app was the only method | The platform's policy chooses the methods open (authenticator app, text message, WhatsApp; one or more) and the portals that must use one, drivers included, with limits on message codes; the security console edits it. Message codes are kept only as keyed hashes, expire within minutes, allow five tries and work once; numbers are kept encrypted. Enrolment and the second step work on the website and in the apps | `test_sign_in_and_operations.py` (three tests), DB checks |
+| R-07 | Two holds sent together could both pass the per-person seat limit | Counting and locking are one step under a per-person advisory lock | `::test_holds_sent_together_cannot_pass_the_limit` |
+| R-08 | The same booking key sent twice at once answered the second with an error | The second request waits for the first and answers with its booking | `::test_the_same_booking_key_sent_together_answers_with_one_booking` |
+| R-10 | The boarding stop was stored as sent | It names a stop of the trip, by default the ticket's first; a stop the ticket does not cover is WRONG_STOP; the database refuses both | `::test_a_boarding_names_a_stop_the_ticket_covers`, DB checks, invariant BOARDING-AT-A-STOP-THE-TICKET-COVERS |
+| R-09 | An offline scan time came from the device | Besides the day-before-departure bound, it cannot be earlier than the driver's first download of the trip's pack | `::test_an_offline_scan_is_not_older_than_the_pack` |
+| R-02 | A long stop of the upkeep left rows of older periods in the default partition | The upkeep starts from the oldest period waiting there | DB check (ten-day stop) |
+| R-03 | Positions the telemetry database refused relied on the app sending them again | They wait on the primary and the worker delivers them; alert PositionBacklogGrowing | `::test_positions_wait_on_the_primary_while_the_telemetry_database_is_down`, promtool |
+| Report 3 | A wallet opened by two first operations at once failed one of them | Opened with `ON CONFLICT DO NOTHING` and read again | `::test_a_wallet_opened_twice_at_once_is_one_wallet` |
+
+Upgrading to 1.48.0, package C:
+
+* Drivers, carrier and agency staff and inspectors must use a second factor outside the sandbox by default (the
+  policy's required portals). They enrol at their next sign-in. To phase it in, remove portals from the policy first
+  and add them back once staff have enrolled.
+* Text and WhatsApp codes need their gateways (`MASSLAK_NOTIFY_SMS=http`, `MASSLAK_NOTIFY_WHATSAPP=cloud`); until then
+  only the authenticator app is offered. The WhatsApp endpoint is added to the egress allowlist from its URL.
+* Driver apps that do not send a boarding stop keep working: the ticket's first stop is used.
+
+New alerts with their tests: PositionBacklogGrowing, MfaCodesFailing (RUNBOOKS.md, section 26).
+

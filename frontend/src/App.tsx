@@ -28,6 +28,7 @@ import { DriverLayout, DriverTrip, DriverTrips } from "./pages/driver/Driver";
 import { AdminAgencies, AdminCompanies, AdminOverview, AdminStations } from "./pages/admin/Admin";
 import { AgencyBookings, AgencyDashboard, AgencySell, AgencyStaff, AgencyStatement } from "./pages/agency/Agency";
 import { SecurityActivity, SecurityAuthLog, SecurityOverview, SecurityRules } from "./pages/security/Security";
+import MfaPolicy from "./pages/security/MfaPolicy";
 import Regulator from "./pages/regulator/Regulator";
 import { ModulePage } from "./modules/ModulePage";
 import { ServicesPage } from "./modules/ServicesPage";
@@ -82,6 +83,7 @@ function PlatformShell() {
       { to: "/security/rules", icon: "block", label: t("security.rules"), show: can("security.ip_rules") },
       { to: "/security/auth", icon: "lock", label: t("security.authEvents"), show: can("audit.view", "security.ip_rules") },
       { to: "/security/activity", icon: "history", label: t("security.activity"), show: can("audit.view", "security.ip_rules") },
+      { to: "/security/mfa", icon: "password", label: t("security.mfaNav"), show: can("security.console") },
       { to: "/admin/privacy", icon: "privacy_tip", label: t("account.privacyRequests"), show: can("privacy.manage") },
       { to: "/regulator", icon: "gavel", label: t("nav.regulator"), show: can("regulator.dashboard", "report.platform") },
       { to: "/admin/reports", icon: "summarize", label: t("rpt.nav"), show: can("report.platform") },
@@ -225,6 +227,7 @@ export default function App() {
           <Route path="security/rules" element={<SecurityRules />} />
           <Route path="security/auth" element={<SecurityAuthLog />} />
           <Route path="security/activity" element={<SecurityActivity />} />
+          <Route path="security/mfa" element={<MfaPolicy />} />
           <Route path="regulator" element={<Regulator />} />
         </Route>
       </Routes>

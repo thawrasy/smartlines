@@ -37,38 +37,44 @@ async def platform_wallet(conn: asyncpg.Connection, wallet_type: str, currency: 
     return await counted(conn, w)
 
 
-async def user_wallet(conn: asyncpg.Connection, party_id: int, currency: str) -> asyncpg.Record:
-    w = await conn.fetchrow(
-        "SELECT * FROM fin.wallet WHERE owner_party_id = $1 AND wallet_type = 'USER' AND currency = $2", party_id, currency)
+async def owned_wallet(conn: asyncpg.Connection, owner_party_id: int, wallet_type: str, currency: str,
+                        insert_sql: str, *args) -> asyncpg.Record:
+    """Finds the owner's wallet of this type and currency, opening it on first use. Two first uses at the same moment
+    both reach the insert: the second waits for the first, does nothing (wallet_owner_uq), and reads the first one's
+    wallet, so neither request fails (review of release 1.47.0, report 3)."""
+    find = "SELECT * FROM fin.wallet WHERE owner_party_id = $1 AND wallet_type = $2 AND currency = $3"
+    w = await conn.fetchrow(find, owner_party_id, wallet_type, currency)
     if w is None:
-        w = await conn.fetchrow(
-            """INSERT INTO fin.wallet (owner_party_id, wallet_type, label, currency)
-               VALUES ($1, 'USER', 'Passenger wallet', $2) RETURNING *""", party_id, currency)
+        w = await conn.fetchrow(insert_sql + " ON CONFLICT (owner_party_id, wallet_type, currency) "
+                                "WHERE owner_party_id IS NOT NULL DO NOTHING RETURNING *", *args)
+        if w is None:
+            w = await conn.fetchrow(find, owner_party_id, wallet_type, currency)
     return w
+
+
+async def user_wallet(conn: asyncpg.Connection, party_id: int, currency: str) -> asyncpg.Record:
+    return await owned_wallet(
+        conn, party_id, "USER", currency,
+        "INSERT INTO fin.wallet (owner_party_id, wallet_type, label, currency) VALUES ($1, 'USER', 'Passenger wallet', $2)",
+        party_id, currency)
 
 
 async def company_wallet(conn: asyncpg.Connection, company_id: int, currency: str,
                          label: str = "Carrier wallet") -> dict:
-    w = await conn.fetchrow(
-        "SELECT * FROM fin.wallet WHERE owner_party_id = $1 AND wallet_type = 'COMPANY' AND currency = $2",
-        company_id, currency)
-    if w is None:
-        w = await conn.fetchrow(
-            """INSERT INTO fin.wallet (owner_party_id, company_id, wallet_type, label, currency)
-               VALUES ($1, $1, 'COMPANY', $3, $2) RETURNING *""", company_id, currency, label)
+    w = await owned_wallet(
+        conn, company_id, "COMPANY", currency,
+        "INSERT INTO fin.wallet (owner_party_id, company_id, wallet_type, label, currency) VALUES ($1, $1, 'COMPANY', $3, $2)",
+        company_id, currency, label)
     return await counted(conn, w)
 
 
 async def cash_wallet(conn: asyncpg.Connection, company_id: int, currency: str) -> dict:
     """The carrier's cash wallet (study 6.5): debited by each cash sale at its counter, so a negative balance is cash it
     holds for the platform; credited when its earnings are set off and when it remits. Exact balance (IMMEDIATE)."""
-    w = await conn.fetchrow(
-        "SELECT * FROM fin.wallet WHERE owner_party_id = $1 AND wallet_type = 'CASH_COLLECT' AND currency = $2",
-        company_id, currency)
-    if w is None:
-        w = await conn.fetchrow(
-            """INSERT INTO fin.wallet (owner_party_id, company_id, wallet_type, label, currency, allow_negative, balance_mode)
-               VALUES ($1, $1, 'CASH_COLLECT', 'Counter cash', $2, true, 'IMMEDIATE') RETURNING *""", company_id, currency)
+    w = await owned_wallet(
+        conn, company_id, "CASH_COLLECT", currency,
+        """INSERT INTO fin.wallet (owner_party_id, company_id, wallet_type, label, currency, allow_negative, balance_mode)
+           VALUES ($1, $1, 'CASH_COLLECT', 'Counter cash', $2, true, 'IMMEDIATE')""", company_id, currency)
     return dict(w)
 
 

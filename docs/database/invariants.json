@@ -688,6 +688,52 @@
           "tests/test_cargo_capacity.py::test_two_clerks_cannot_both_fit_into_the_last_space"
         ]
       }
+    },
+    {
+      "id": "BOARDING-AT-A-STOP-THE-TICKET-COVERS",
+      "rule": "A boarding names a stop of its trip, and a passenger boards only at a stop between the start of their ticket and its end.",
+      "owner": "both",
+      "why": "The application answers the driver with WRONG_STOP or UNKNOWN_STOP; the trigger refuses a boarding recorded elsewhere by any writer.",
+      "database": [
+        "trigger sales.boarding_event.boarding_stop",
+        "function sales.tg_boarding_stop"
+      ],
+      "application": [
+        "app.routers.driver:_board"
+      ],
+      "tests": {
+        "db": [
+          "Boarding (1075, R-10): a stop the trip does not have is refused",
+          "Boarding (1075, R-10): a passenger does not board at the stop where their ticket ends"
+        ],
+        "api": [
+          "tests/test_sign_in_and_operations.py::test_a_boarding_names_a_stop_the_ticket_covers"
+        ]
+      }
+    },
+    {
+      "id": "MESSAGE-CODE-HASHED-SHORT-LIVED",
+      "rule": "A sign-in code sent by text or WhatsApp message is kept only as a keyed hash, expires within minutes, allows five tries and works once.",
+      "owner": "both",
+      "why": "The application checks the code, counts every entry and closes it once used; the constraints bound the hash, the tries and the lifetime for any writer.",
+      "database": [
+        "constraint iam.mfa_challenge.mfa_challenge_code_hash_check",
+        "constraint iam.mfa_challenge.mfa_challenge_attempts_check",
+        "constraint iam.mfa_challenge.mfa_challenge_check"
+      ],
+      "application": [
+        "app.routers.auth:_message_code_ok"
+      ],
+      "tests": {
+        "db": [
+          "Sign-in (1075): a message code is kept only as its 32-byte keyed hash",
+          "Sign-in (1075): a message code expires within a quarter of an hour"
+        ],
+        "api": [
+          "tests/test_sign_in_and_operations.py::test_a_message_code_allows_five_tries",
+          "tests/test_sign_in_and_operations.py::test_a_text_message_number_is_enrolled_and_signs_in"
+        ]
+      }
     }
   ]
 }

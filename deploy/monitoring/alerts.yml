@@ -102,6 +102,14 @@ groups:
         expr: max by (provider) (masslak_payment_unsigned_notices_last_hour) > 20
         labels: { severity: ticket }
         annotations: { summary: "Many provider notices with a bad signature in the last hour: someone may be probing the endpoint", runbook: "RUNBOOKS.md#25-money-boundaries-fees-and-approvals-148" }
+      - alert: PositionBacklogGrowing
+        expr: masslak_position_backlog_oldest_seconds > 900
+        labels: { severity: ticket }
+        annotations: { summary: "Vehicle positions have waited more than 15 minutes on the primary for the telemetry database", runbook: "RUNBOOKS.md#26-sign-in-boarding-and-positions-148" }
+      - alert: MfaCodesFailing
+        expr: sum(increase(masslak_mfa_codes_total{outcome="failed"}[15m])) > 5
+        labels: { severity: ticket }
+        annotations: { summary: "Sign-in codes by text or WhatsApp message are failing to leave: staff may be unable to sign in", runbook: "RUNBOOKS.md#26-sign-in-boarding-and-positions-148" }
       - alert: ReviewQueuesWaiting
         expr: masslak_violations_awaiting_review > 0 or masslak_delivery_retries_waiting > 0
         for: 48h
