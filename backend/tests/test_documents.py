@@ -82,3 +82,14 @@ def test_platform_review_is_logged_and_final(carrier, doc):
     listed = next(d for d in carrier.get("/api/company/documents").json()["documents"] if d["uid"] == doc)
     assert listed["status"] == "APPROVED"
     assert carrier.post(f"/api/admin/documents/{doc}/decision", json={"decision": "APPROVE"}).status_code == 403
+
+
+def test_reading_documents_takes_the_permission_that_files_them(doc):
+    """R-25: a counter clerk of the same company, and a platform account that does not review companies, read nothing."""
+    clerk = login("counter@carrier.test", "OPERATOR")
+    for path in ("/api/company/documents", f"/api/company/documents/{doc}/file"):
+        r = clerk.get(path)
+        assert r.status_code == 403 and r.json()["error"]["code"] == "FORBIDDEN", (path, r.text)
+    finance = login("finance@masslak.test", "PLATFORM")
+    for path in ("/api/admin/documents", f"/api/admin/documents/{doc}/file"):
+        assert finance.get(path).status_code == 403, path

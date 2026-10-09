@@ -53,6 +53,12 @@ if [ -n "${MASSLAK_TELEMETRY_OWNER_URL:-}" ]; then
 fi
 
 if [ "${MASSLAK_SEED_DEMO:-false}" = "true" ]; then
+  # demo data brings accounts with a shared, published password: never on a server that is not a sandbox (R-26)
+  if [ "${MASSLAK_SANDBOX:-false}" != "true" ] || [ "${MASSLAK_ENVIRONMENT:-}" = "production" ]; then
+    echo "MASSLAK_SEED_DEMO=true is refused: demo data loads only with MASSLAK_SANDBOX=true on a development or staging" \
+         "server (here MASSLAK_SANDBOX=${MASSLAK_SANDBOX:-false}, MASSLAK_ENVIRONMENT=${MASSLAK_ENVIRONMENT:-unset})" >&2
+    exit 1
+  fi
   MASSLAK_OWNER_URL="postgresql://$PGUSER:$PGPASSWORD@$PGHOST/$DB" python /app/backend/scripts/seed_demo.py
   MASSLAK_OWNER_URL="postgresql://$PGUSER:$PGPASSWORD@$PGHOST/$DB" python /app/backend/scripts/seed_modules.py
 fi

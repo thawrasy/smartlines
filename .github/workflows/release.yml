@@ -1,6 +1,7 @@
 # Release (expert review of October 2026, stage C6): a tag v* builds the server archive from the tagged commit, with
 # its software bill of materials, checksums and keyless Sigstore signatures, and publishes them as a GitHub release.
 # A server verifies an archive with deploy/verify-release.sh before extracting it (docs/operations/RUNBOOKS.md).
+# Nothing is published unless every CI job passes on the tagged commit first (review of 1.47.0, R-49).
 name: Release
 
 on:
@@ -11,8 +12,13 @@ permissions:
   contents: read
 
 jobs:
+  ci:
+    name: CI on the tagged commit
+    uses: ./.github/workflows/ci.yml
+
   release:
     name: Signed release archive
+    needs: ci
     runs-on: ubuntu-latest
     permissions:
       contents: write      # creates the GitHub release

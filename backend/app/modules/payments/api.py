@@ -255,14 +255,15 @@ async def update_provider(code: str, body: ProviderIn, request: Request, pr: Pri
 
 @router.post("/api/admin/payments/statements", status_code=201)
 async def import_statement(request: Request, pr: Principal = Depends(platform), file: UploadFile = File(...),
-                           account_label: str = Form(default="Main account", min_length=2, max_length=80)):
+                           account_label: str = Form(default="Main account", min_length=2, max_length=80),
+                           decimal_mark: Literal[".", ","] = Form(default=".")):
     _need(pr, "ledger.reconcile")
     data = await file.read(2_000_001)
     if len(data) > 2_000_000:
         raise ApiError(413, "FILE_TOO_LARGE", "statement files are limited to 2 MB")
     ctx = context_for(request, pr)
     async with db.transaction(ctx) as conn:
-        out = await service.import_statement(conn, ctx, pr.user_id, account_label, data)
+        out = await service.import_statement(conn, ctx, pr.user_id, account_label, data, decimal_mark)
     request.state.audit = {"action": "payment.statement.import", "object_type": "bank_statement_import", "object_id": None}
     return out
 

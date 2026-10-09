@@ -63,3 +63,23 @@ def test_files_are_bound_to_their_storage_key():
     assert data not in s.ciphertext and fc.decrypt_bytes(s.ciphertext, 7, "file:ab/cd") == data
     with pytest.raises(Exception):
         fc.decrypt_bytes(s.ciphertext, 7, "file:ab/ce")      # a file moved to another key fails to decrypt
+
+
+def test_keys_as_the_installer_writes_them(monkeypatch):
+    """R-48: deploy/init-env.sh writes `openssl rand -base64 32`, which always ends in '='."""
+    import base64
+    import subprocess
+
+    from app.crypto import CryptoConfigError, _configured_field_keys
+    made = [subprocess.run(["openssl", "rand", "-base64", "32"], capture_output=True, text=True, check=True).stdout.strip()
+            for _ in range(2)]
+    assert all(k.endswith("=") for k in made)
+    monkeypatch.setenv("MASSLAK_FIELD_KEYS", f"kms://masslak/field/restricted/v1={made[0]},"
+                                             f"kms://masslak/field/confidential/v1={made[1]}")
+    keys = _configured_field_keys()
+    assert keys == {"kms://masslak/field/restricted/v1": base64.b64decode(made[0]),
+                    "kms://masslak/field/confidential/v1": base64.b64decode(made[1])}
+    for bad in ("no-key-here", "=" + made[0], "kms://masslak/field/restricted/v1="):
+        monkeypatch.setenv("MASSLAK_FIELD_KEYS", bad)
+        with pytest.raises(CryptoConfigError):
+            _configured_field_keys()

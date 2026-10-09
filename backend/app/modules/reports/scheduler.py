@@ -186,6 +186,8 @@ async def run_one(schedule_id: int) -> bool:
 
 
 async def run_due(limit: int = 10) -> int:
+    if not providers.enabled("EMAIL"):
+        return 0          # schedules wait, due, until e-mail delivery is configured (R-27); none is skipped
     async with db.transaction(db.Context(request_id=uuid.uuid4(), ip="127.0.0.1", scope="SYSTEM")) as conn:
         ids = [r["id"] for r in await conn.fetch(
             "SELECT id FROM rpt.report_schedule WHERE active AND next_run_at <= now() ORDER BY next_run_at LIMIT $1", limit)]

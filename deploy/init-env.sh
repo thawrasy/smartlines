@@ -33,6 +33,8 @@ sed -e "s|^MASSLAK_DOMAIN=.*|MASSLAK_DOMAIN=$domain|" \
     -e "s|^MASSLAK_SANDBOX=.*|MASSLAK_SANDBOX=$demo|" \
     -e "s|^MASSLAK_SEED_DEMO=.*|MASSLAK_SEED_DEMO=$demo|" \
     -e "s|^MASSLAK_ENVIRONMENT=.*|MASSLAK_ENVIRONMENT=$([ "$demo" = true ] && echo development || echo production)|" \
+    -e "s|^MASSLAK_NOTIFY_EMAIL=.*|MASSLAK_NOTIFY_EMAIL=$([ "$demo" = true ] && echo log || echo off)|" \
+    -e "s|^MASSLAK_NOTIFY_SMS=.*|MASSLAK_NOTIFY_SMS=$([ "$demo" = true ] && echo log || echo off)|" \
     -e "s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=$(pass)|" \
     -e "s|^MASSLAK_API_PASSWORD=.*|MASSLAK_API_PASSWORD=$(pass)|" \
     -e "s|^MASSLAK_AUDIT_PASSWORD=.*|MASSLAK_AUDIT_PASSWORD=$(pass)|" \
@@ -46,3 +48,4 @@ sed -e "s|^MASSLAK_DOMAIN=.*|MASSLAK_DOMAIN=$domain|" \
 chmod 600 .env
 echo "created deploy/.env (mode 600) for $domain$([ "$demo" = true ] && echo ', demo mode')"
 echo "Copy the keys section to your password manager or secret store now: without it, encrypted data cannot be read."
+[ "$demo" = true ] || echo "E-mail and SMS are off until you set MASSLAK_NOTIFY_EMAIL=smtp and MASSLAK_NOTIFY_SMS=http with their gateways."

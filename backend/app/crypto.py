@@ -63,8 +63,9 @@ def _configured_field_keys() -> dict[str, bytes]:
     raw = os.environ.get("MASSLAK_FIELD_KEYS", "").strip()
     keys: dict[str, bytes] = {}
     for item in filter(None, (p.strip() for p in raw.split(","))):
-        ref, _, value = item.rpartition("=")
-        if not ref:
+        # split at the first "=": a key reference has none, a base64 key usually ends with one (R-48)
+        ref, _, value = item.partition("=")
+        if not ref or not value:
             raise CryptoConfigError("MASSLAK_FIELD_KEYS entries must look like <key_ref>=<base64 key>")
         keys[ref] = _decode_key(value, ref)
     return keys

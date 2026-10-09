@@ -224,19 +224,26 @@ async def record_rejected(conn, ctx: db.Context, p: dict, raw: bytes, ip: str) -
     async with db.system_scope(conn, ctx):
         await conn.execute(
             """INSERT INTO fin.payment_notification (provider_id, event_id, signature_valid, source_ip, payload)
-               VALUES ($1, $2, false, $3::inet, $4::jsonb) ON CONFLICT (provider_id, event_id) DO NOTHING""",
+               VALUES ($1, $2, false, $3::inet, $4::jsonb)""",
             p["id"], "unreadable-" + hashlib.sha256(raw).hexdigest()[:32], ip, json.dumps({"raw": raw[:2000].decode("utf-8", "replace")}))
+
+
+def notice_matches(notice: adapters.Notice, pay) -> bool:
+    """What the provider says it took is what the payment asked: the amount and the currency. A notice or confirmation
+    without a currency is in the payment's own (1061). Used for signed notices and for wallet codes alike (R-19)."""
+    return notice.amount == pay["amount"] and (notice.currency or pay["currency"]) == pay["currency"]
 
 
 async def apply_notice(conn, ctx: db.Context, p: dict, notice: adapters.Notice, raw: dict, signature_valid: bool, ip: str) -> dict:
     """Records a provider notification and, when it is valid and new, settles the payment it names."""
     async with db.system_scope(conn, ctx):
         pay = await conn.fetchrow("SELECT * FROM fin.payment WHERE provider_id = $1 AND provider_ref = $2", p["id"], notice.provider_ref)
-        # notifications are append-only: a valid one is processed in this same transaction, so it is stamped on insert
+        # notifications are append-only: a valid one is processed in this same transaction, so it is stamped on insert.
+        # Only a signed notice takes its event id (1073): an unsigned copy posted first cannot make the real one a replay.
         nid = await conn.fetchval(
             """INSERT INTO fin.payment_notification (provider_id, event_id, payment_id, signature_valid, source_ip, payload, processed_at)
                VALUES ($1, $2, $3, $4, $5::inet, $6::jsonb, CASE WHEN $4 AND $3::bigint IS NOT NULL THEN now() END)
-               ON CONFLICT (provider_id, event_id) DO NOTHING RETURNING id""",
+               ON CONFLICT (provider_id, event_id) WHERE signature_valid DO NOTHING RETURNING id""",
             p["id"], notice.event_id, pay["id"] if pay else None, signature_valid, ip, json.dumps(raw))
         if not signature_valid:
             return {"ok": False, "error": "BAD_SIGNATURE"}          # recorded; the caller refuses after the commit
@@ -244,8 +251,7 @@ async def apply_notice(conn, ctx: db.Context, p: dict, notice: adapters.Notice, 
             return {"ok": True, "replayed": True}
         if pay is None:
             raise not_found("payment")
-        # a notice without a currency is in the payment's own (1061)
-        if notice.amount != pay["amount"] or (notice.currency or pay["currency"]) != pay["currency"]:
+        if not notice_matches(notice, pay):
             await _fail(conn, pay, "AMOUNT_MISMATCH")
             return {"ok": False, "error": "AMOUNT_MISMATCH"}
         if notice.status == "SUCCESS":
@@ -281,9 +287,9 @@ async def confirm_code(conn, ctx: db.Context, party_id: int, user_id: int, uid: 
             return {"error": "OTP_INVALID", "attempts_left": max(0, left)}    # the counter is kept: raised after the commit
         await conn.execute(
             """INSERT INTO fin.payment_notification (provider_id, event_id, payment_id, signature_valid, source_ip, payload, processed_at)
-               VALUES ($1, $2, $3, true, $4::inet, $5::jsonb, now()) ON CONFLICT (provider_id, event_id) DO NOTHING""",
+               VALUES ($1, $2, $3, true, $4::inet, $5::jsonb, now()) ON CONFLICT (provider_id, event_id) WHERE signature_valid DO NOTHING""",
             p["id"], notice.event_id, pay["id"], ctx.ip, json.dumps({"confirm": notice.status, "reference": notice.provider_ref}))
-        if notice.amount != pay["amount"]:
+        if not notice_matches(notice, pay):          # the same check as a signed notice, currency included (R-19)
             await _fail(conn, pay, "AMOUNT_MISMATCH")
             return {"error": "AMOUNT_MISMATCH"}
         pay = await (_succeed(conn, p, pay, user_id, None) if notice.status == "SUCCESS" else _fail(conn, pay, notice.failure_code or "DECLINED"))
@@ -387,13 +393,33 @@ async def start_bank_transfer(conn, ctx: db.Context, party_id: int, amount: int,
             "bank": {"bank_name": cfg.get("bank_name", ""), "account_name": cfg.get("account_name", ""), "iban": cfg.get("iban", "")}}
 
 
-def _minor(text: str) -> int:
-    s = (text or "").replace(",", "").replace(" ", "").strip()
+def parse_amount(text: str, decimal_mark: str = ".") -> Decimal:
+    """An amount as a bank writes it, read with the file's decimal mark: "1,234.50" with ".", "1.234,50" with ",".
+    The other mark may only group thousands; anything else is refused rather than read as another number (R-24)."""
+    raw = (text or "").strip().replace("\u066b", decimal_mark).replace("\u066c", "," if decimal_mark == "." else ".")
+    bad = ApiError(422, "STATEMENT_BAD_AMOUNT", f"cannot read the amount {text!r} with the decimal mark {decimal_mark!r}")
+    negative = raw.startswith("-") or raw.endswith("-") or (raw.startswith("(") and raw.endswith(")"))
+    body = "".join(ch for ch in raw if ch.isdigit() or ch in ".,")
+    group = "," if decimal_mark == "." else "."
+    if not body or body.count(decimal_mark) > 1:
+        raise bad
+    whole, _, frac = body.partition(decimal_mark)
+    parts = whole.split(group)
+    if group in frac or (len(parts) > 1 and (not 1 <= len(parts[0]) <= 3 or any(len(x) != 3 for x in parts[1:]))):
+        raise bad
     try:
-        v = Decimal(s)
+        value = Decimal("".join(parts) or "0") + (Decimal("0." + frac) if frac else 0)
     except InvalidOperation as e:
-        raise ApiError(422, "STATEMENT_BAD_AMOUNT", f"bad amount {text!r}") from e
-    return int((v * 100).quantize(Decimal("1")))
+        raise bad from e
+    return -value if negative else value
+
+
+def to_minor(value: Decimal, minor_unit: int) -> int:
+    """In the currency's minor unit; more decimals than the currency has is an error, never rounded away (R-24)."""
+    scaled = value.scaleb(minor_unit)
+    if scaled != scaled.to_integral_value():
+        raise ApiError(422, "STATEMENT_BAD_AMOUNT", f"{value} has more decimals than its currency ({minor_unit})")
+    return int(scaled)
 
 
 FIELDS = {"value_date": ("value_date", "date", "booking_date"), "amount": ("amount", "credit"),
@@ -401,8 +427,9 @@ FIELDS = {"value_date": ("value_date", "date", "booking_date"), "amount": ("amou
           "payer": ("payer", "name", "sender", "remitter"), "bank_ref": ("bank_ref", "transaction_id", "transaction", "ref", "id")}
 
 
-def parse_statement(data: bytes) -> list[dict]:
-    """A CSV export of the bank account: one header row, then one line per transaction; debits are skipped."""
+def parse_statement(data: bytes, decimal_mark: str = ".") -> list[dict]:
+    """A CSV export of the bank account: one header row, then one line per transaction; debits are skipped. Amounts
+    stay decimal here: they are put in minor units with the currency of each line (import_statement)."""
     text = data.decode("utf-8-sig", errors="replace")
     rows = list(csv.reader(io.StringIO(text)))
     if len(rows) < 2:
@@ -422,7 +449,7 @@ def parse_statement(data: bytes) -> list[dict]:
         if not any(x.strip() for x in r):
             continue
         get = lambda f: r[col[f]].strip() if f in col and col[f] < len(r) else ""   # noqa: E731
-        amount = _minor(get("amount"))
+        amount = parse_amount(get("amount"), decimal_mark)
         if amount <= 0:
             continue
         try:
@@ -446,8 +473,8 @@ async def _credit_transfer(conn, line_id: int, topup, user_id: int) -> None:
                        line_id, topup["id"], user_id)
 
 
-async def import_statement(conn, ctx: db.Context, user_id: int, account_label: str, data: bytes) -> dict:
-    lines = parse_statement(data)
+async def import_statement(conn, ctx: db.Context, user_id: int, account_label: str, data: bytes, decimal_mark: str = ".") -> dict:
+    lines = parse_statement(data, decimal_mark)
     digest = hashlib.sha256(data).digest()
     async with db.system_scope(conn, ctx):
         if await conn.fetchval("SELECT 1 FROM fin.bank_statement_import WHERE account_label = $1 AND file_sha256 = $2", account_label, digest):
@@ -464,6 +491,10 @@ async def import_statement(conn, ctx: db.Context, user_id: int, account_label: s
                 "WHERE t.virtual_ref = $1 FOR UPDATE OF t", ref) if ref else None
             if ln["currency"] is None:                     # a statement without a currency column is in the transfer's
                 ln["currency"] = topup["currency"] if topup else (await markets.default(conn)).currency
+            minor_unit = await conn.fetchval("SELECT minor_unit FROM ref.currency WHERE code = $1", ln["currency"])
+            if minor_unit is None:
+                raise ApiError(422, "STATEMENT_BAD_CURRENCY", f"unknown currency {ln['currency']!r} on line {ln['bank_ref']}")
+            ln["amount"] = to_minor(ln["amount"], minor_unit)  # the currency's own decimals, not always two (R-24)
             note = None
             if ref is None:
                 note = "NO_REFERENCE"

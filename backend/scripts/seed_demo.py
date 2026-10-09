@@ -188,6 +188,10 @@ async def seed_families(conn) -> bool:
 async def main():
     url = os.environ.get("MASSLAK_OWNER_URL", "postgresql://postgres@localhost:5432/masslak")
     conn = await asyncpg.connect(url)
+    # demo accounts share a published password: never on a production database (review of 1.47.0, R-26)
+    env = await conn.fetchval("SELECT value #>> '{}' FROM sys.setting WHERE key = 'deploy.environment'")
+    if "production" in (env, os.environ.get("MASSLAK_ENVIRONMENT")):
+        sys.exit("refusing to load demo data: this database belongs to a production server")
     async with conn.transaction():
         await conn.execute("SELECT sys.set_context(NULL, NULL, 'SYSTEM')")
         if await conn.fetchval("SELECT 1 FROM iam.app_user WHERE email = 'admin@masslak.test'"):

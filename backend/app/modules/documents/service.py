@@ -34,12 +34,25 @@ def _rejected(e: storage.FileRejected) -> ApiError:
     return ApiError(422, code, msg)
 
 
+# Licences, insurance and identity papers: reading them takes the same permission as filing them, on either side.
+# A counter clerk or a driver of the company sees none, and on the platform only reviewers (company.approve) do
+# (review of 1.47.0, R-25).
+COMPANY_DOCUMENT_PERMISSIONS = {"company.staff", "vehicle.manage", "company.billing"}
+
+
+def _require_document_access(pr: Principal) -> None:
+    if pr.portal == "PLATFORM":
+        if "company.approve" not in pr.permissions:
+            raise forbidden("missing permission: company.approve")
+    elif not pr.permissions.intersection(COMPANY_DOCUMENT_PERMISSIONS):
+        raise forbidden("missing permission to manage documents")
+
+
 async def upload(conn: asyncpg.Connection, ctx: db.Context, pr: Principal, doc_type: str, data: bytes, file_name: str,
                  issuer: Optional[str], issue_date: Optional[date], expiry_date: Optional[date],
                  vehicle_uid: Optional[uuid.UUID]) -> tuple[int, str]:
     company = company_of(pr)
-    if not pr.permissions.intersection({"company.staff", "vehicle.manage", "company.billing"}):
-        raise forbidden("missing permission to manage documents")
+    _require_document_access(pr)
     if doc_type not in DOC_TYPES:
         raise ApiError(422, "DOC_TYPE", "unknown document type")
     if expiry_date and expiry_date <= date.today():
@@ -72,15 +85,18 @@ async def upload(conn: asyncpg.Connection, ctx: db.Context, pr: Principal, doc_t
 
 
 async def company_documents(conn: asyncpg.Connection, pr: Principal) -> list[dict]:
+    _require_document_access(pr)
     return rows(await conn.fetch(LIST_SQL + " WHERE d.company_id = $1 ORDER BY d.created_at DESC", company_of(pr)))
 
 
-async def review_queue(conn: asyncpg.Connection, status: Optional[str]) -> list[dict]:
+async def review_queue(conn: asyncpg.Connection, pr: Principal, status: Optional[str]) -> list[dict]:
+    _require_document_access(pr)
     return rows(await conn.fetch(LIST_SQL + """ WHERE ($1::text IS NULL OR d.status = $1)
                                                ORDER BY d.created_at LIMIT 200""", status))
 
 
 async def read_file(conn: asyncpg.Connection, ctx: db.Context, pr: Principal, doc_uid: uuid.UUID, purpose: str) -> tuple[bytes, str, str]:
+    _require_document_access(pr)
     d = await conn.fetchrow(
         """SELECT d.id, d.company_id, f.storage_key, f.enc_key_id, f.sha256, f.mime_type, f.file_name, f.scan_status
              FROM iam.document d JOIN ref.file_object f ON f.id = d.file_id WHERE d.uid = $1""", doc_uid)

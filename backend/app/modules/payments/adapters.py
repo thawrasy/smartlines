@@ -176,11 +176,12 @@ class PartnerWallet:
                           failure_code=None if ok else "OTP_INVALID")
         out = _call(provider, f"/v1/payment-requests/{payment['provider_ref']}/confirm", {"otp": code})
         status = str(out.get("status", "")).upper()
-        if status == "PENDING":
-            return None                           # the provider will send a notification
+        if status == "PENDING" or (status == "SUCCESS" and out.get("amount") is None):
+            return None                           # the provider will send a (signed) notification
+        # what the provider says it took, never what was asked: the service compares both with the payment (R-19)
         return Notice(event_id=str(out.get("event_id") or f"confirm-{payment['provider_ref']}"), provider_ref=payment["provider_ref"],
-                      status="SUCCESS" if status == "SUCCESS" else "FAILED", amount=int(out.get("amount", payment["amount"])),
-                      currency=str(out.get("currency", payment["currency"])), failure_code=out.get("failure_code"))
+                      status="SUCCESS" if status == "SUCCESS" else "FAILED", amount=int(out.get("amount") or 0),
+                      currency=str(out["currency"]) if out.get("currency") else None, failure_code=out.get("failure_code"))
 
     def refund(self, provider: dict, payment: dict, amount: int, ref: str) -> str:
         return HostedCard().refund(provider, payment, amount, ref)

@@ -145,6 +145,9 @@ async def api_caller(request: Request) -> Caller:
             raise _deny(request, 403, "API_CLIENT_INACTIVE", "this API client is not active", client_status=row["status"])
         if row["environment"] == "SANDBOX" and not get_settings().sandbox:
             raise _deny(request, 403, "API_KEY_SANDBOX_ONLY", "test keys work only in the test environment")
+        if row["environment"] == "PRODUCTION" and get_settings().sandbox:
+            # a live key never drives simulated payments or demo data (review of 1.47.0, R-30)
+            raise _deny(request, 403, "API_KEY_LIVE_ONLY", "live keys work only on the production platform")
         if row["company_id"] and row["company_status"] != "APPROVED":
             raise _deny(request, 403, "COMPANY_NOT_APPROVED", "the client's company is not approved")
         if row["ip_allowlist"]:

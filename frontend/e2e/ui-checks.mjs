@@ -2,7 +2,8 @@
 //
 // Opens the main pages of every portal in English and Arabic, on a phone and a desktop screen, against a running API
 // that serves the built interface with demo data, and checks on each:
-//   * accessibility with axe-core (WCAG 2.1 A and AA rules): a critical finding fails the run, serious ones are listed;
+//   * accessibility with axe-core (WCAG 2.1 A and AA rules): a critical or serious finding fails the run (review of
+//     1.47.0, R-53), moderate and minor ones are listed;
 //   * the page direction and language follow the locale (dir="rtl" lang="ar" in Arabic);
 //   * nothing makes the page scroll sideways (a common right-to-left fault), with the elements that stick out.
 //
@@ -65,7 +66,7 @@ const OVERFLOW = () => {
 };
 
 const failures = [];
-const serious = new Map();
+const minor = new Map();
 let checked = 0;
 
 const browser = await chromium.launch({ executablePath: executable() });
@@ -103,10 +104,11 @@ try {
             runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"] }, resultTypes: ["violations"],
           })).violations.map((v) => ({ id: v.id, impact: v.impact, help: v.help, nodes: v.nodes.slice(0, 3).map((n) => n.target.join(" ") + (n.any?.[0]?.message ? ` (${n.any[0].message.split(". ")[0]})` : "")) })));
           for (const v of found) {
-            if (v.impact === "critical") failures.push(`${where}: ${v.id} (${v.help}) at ${v.nodes.join(" | ")}`);
-            else if (v.impact === "serious") {
-              const k = `${v.id}: ${v.help}`;
-              serious.set(k, [...(serious.get(k) ?? []), `${where} ${v.nodes[0] ?? ""}`]);
+            if (v.impact === "critical" || v.impact === "serious") {
+              failures.push(`${where}: ${v.impact} ${v.id} (${v.help}) at ${v.nodes.join(" | ")}`);
+            } else {
+              const k = `${v.impact} ${v.id}: ${v.help}`;
+              minor.set(k, [...(minor.get(k) ?? []), `${where} ${v.nodes[0] ?? ""}`]);
             }
           }
         }
@@ -119,9 +121,9 @@ try {
 }
 
 console.log(`checked ${checked} page views (${LOCALES.length} languages, ${Object.keys(SCREENS).length} screen sizes)`);
-for (const [k, where] of serious) console.log(`serious: ${k} (${where.length} views, e.g. ${where[0]})`);
+for (const [k, where] of minor) console.log(`${k} (${where.length} views, e.g. ${where[0]})`);
 if (failures.length) {
   console.error(`\n${failures.length} failure(s):\n` + failures.join("\n"));
   process.exit(1);
 }
-console.log("no critical accessibility finding, direction and language follow the locale, no page scrolls sideways");
+console.log("no critical or serious accessibility finding, direction and language follow the locale, no page scrolls sideways");

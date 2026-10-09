@@ -2,8 +2,11 @@
 October 2026, 6.1). Read from the sources, so a route renamed or removed on one side fails here, before a user meets a
 404 in a screen nobody opened in testing. Addresses built at run time from variables are matched segment by segment;
 an address only known up to a slash must be the beginning of some route."""
+import os
 import re
 from pathlib import Path
+
+import pytest
 
 from app.main import APP_PATHS, app
 
@@ -83,6 +86,18 @@ def calls() -> list[tuple[str, str, str | None, bool]]:
         path = re.sub(r"[?#].*$", "", address)
         out.append((where, path, method, path.endswith("/")))
     return out
+
+
+def test_both_clients_are_checked():
+    """A copy without one of the client sources (a server-only package) must say so: the check is not passed by
+    reading nothing (review of 1.47.0, R-50). MASSLAK_CONTRACT_WITHOUT=mobile names a source left out on purpose."""
+    absent = {s.parent.name for s in SOURCES if not s.is_dir()}
+    allowed = set(filter(None, os.environ.get("MASSLAK_CONTRACT_WITHOUT", "").split(",")))
+    assert absent <= allowed, f"client sources missing from this copy: {sorted(absent - allowed)}"
+    if absent:
+        pytest.skip(f"not checked in this copy: {', '.join(sorted(absent))} (MASSLAK_CONTRACT_WITHOUT)")
+    per_source = {s.parent.name: sum(1 for c in calls() if c[0].startswith(s.parent.name + "/")) for s in SOURCES}
+    assert all(n >= 20 for n in per_source.values()), per_source
 
 
 def test_every_address_the_clients_call_exists_with_its_method():

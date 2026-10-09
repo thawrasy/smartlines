@@ -1,0 +1,33 @@
+# Response to the reviews of release 1.47.0 (release 1.48.0)
+
+Three reviews of release 1.47.0 (commit 2cb00a3) were assessed against the code: an engineering review with 56 risk
+cards (R-01 to R-56), technical guidance on performance and a plan for performance and reliability. Every card was
+checked in the code; none was contradicted. This page records what changed in release 1.48.0, package by package,
+with the test that proves each change. The owner's decisions on the five open questions are in section 9.
+
+## 1. Package A: what had to be fixed at once
+
+| Ref | Finding | What changed | Proof |
+|---|---|---|---|
+| R-48 | The field key parser split each entry at its last `=`, and every base64 key the installer writes ends with one: a production server could not start, a test server failed at its first encryption | Entries are split at the first `=` (a key reference has none) | `test_crypto.py::test_keys_as_the_installer_writes_them` (failed before the fix); CI job **Production installation**: installs without `--demo`, enrols two-factor sign-in (encrypts), restarts the API and signs in again (decrypts) |
+| R-26 | Demo data, with its shared published password, loaded whenever `MASSLAK_SEED_DEMO=true` | `deploy/migrate.sh` refuses it unless `MASSLAK_SANDBOX=true` on a development or staging server; `seed_demo.py` refuses a database marked production | CI job **Production installation** runs the migration with `MASSLAK_SEED_DEMO=true` and expects a refusal and no demo account |
+| R-27 | The message log (`log`), with addresses and texts in plain files, was the default and allowed in production | New mode `off` (nothing sent, in-app only); unset means `off` outside the sandbox; the API and the worker refuse to start with `log` outside it; the installer writes `off` for production | `test_review_1_47.py::test_message_log_is_refused_outside_the_sandbox`; the production CI job |
+| R-29 | `MASSLAK_KMS_PROVIDER=local` keeps the key encryption key in the environment, and was accepted in production | Refused unless the server is a sandbox, development or staging (`MASSLAK_ENVIRONMENT`) | `test_review_1_47.py::test_local_key_wrapper_is_for_test_servers_only` |
+| R-30 | A live API key worked on a sandbox server | Refused there (`API_KEY_LIVE_ONLY`), as test keys are refused in production | `app/modules/integration/auth.py` |
+| R-25 | Every staff member of a company, and every platform account, could read the company's licences and insurance papers | Listing and reading take the permission that files them (`company.staff`, `vehicle.manage` or `company.billing`); on the platform, the reviewers' `company.approve`; the menu follows | `test_documents.py::test_reading_documents_takes_the_permission_that_files_them`, `test_review_1_47.py::test_document_access_needs_the_filing_or_review_permission` |
+| R-18 | A notice with a bad signature took the provider's event id, so the real notice that followed was taken for a replay | 1073: the event id is unique among signed notices only; unsigned notices are kept and counted per provider | `test_payments.py::test_an_unsigned_copy_cannot_take_the_event_id_first`; DB checks |
+| R-19 | A wallet code confirmation compared the amount, not the currency | One check, `notice_matches`, for signed notices and codes alike; a provider answer without an amount waits for the signed notice | `test_review_1_47.py` (two tests) |
+| R-24 | Statement amounts were multiplied by 100 and their commas dropped: `1.234,50` was read wrong, three-decimal currencies too | Read with the decimal mark finance chooses for the file; the other mark may only group thousands; minor units from the currency; more decimals than the currency has is refused, never rounded | `test_review_1_47.py` (20 cases), `test_payments.py::test_statement_with_decimal_commas` |
+| R-49 | The release workflow published on a tag whether or not CI passed | The release workflow runs the whole CI on the tagged commit first and publishes only after it | `.github/workflows/release.yml` |
+| R-53 | Serious accessibility findings did not fail the check | Critical and serious findings both fail it | `frontend/e2e/ui-checks.mjs` |
+| R-50 | The client contract test passed silently on a copy without the mobile sources | A missing client source fails the test unless named in `MASSLAK_CONTRACT_WITHOUT` (then it is reported as skipped) | `test_api_contract.py::test_both_clients_are_checked` |
+
+### Upgrading a server to 1.48.0
+
+* A test server that ran with `MASSLAK_FIELD_KEYS` emptied as a work-around keeps it empty: what it encrypted
+  meanwhile is sealed under keys derived from its signing secret, which real keys under the same references would not
+  open. A production server starts with the keys its installation generated.
+* A server outside the sandbox with `MASSLAK_NOTIFY_EMAIL=log` or `MASSLAK_NOTIFY_SMS=log` no longer starts: set
+  `smtp` / `http` with their gateways, or `off`.
+* A server outside the sandbox with `MASSLAK_KMS_PROVIDER=local` no longer starts unless `MASSLAK_ENVIRONMENT` is
+  `development` or `staging`.

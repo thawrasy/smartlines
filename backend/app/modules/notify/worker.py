@@ -34,7 +34,7 @@ async def _deliver(conn, event, payload) -> int:
     for d in await catalog.deliveries(conn, event, payload):
         for channel in d.channels:
             address = d.email if channel == "EMAIL" else d.mobile if channel == "SMS" else None
-            if channel != "IN_APP" and not address:
+            if channel != "IN_APP" and (not address or not providers.enabled(channel)):
                 continue
             row = await conn.fetchval(
                 """INSERT INTO crm.notification (user_id, party_id, template_code, channel, to_address, payload, booking_id,
@@ -109,6 +109,10 @@ async def main(once: bool) -> None:
     from ...security import require_keys_in_production
     egress.require_in_production()
     require_keys_in_production()
+    providers.require_in_production()     # no personal data in plain message logs outside the sandbox (R-27)
+    for channel in ("EMAIL", "SMS"):
+        if not providers.enabled(channel):
+            log.warning("%s delivery is off on this server: only in-app notifications are kept", channel.lower())
     await db.open_pools()
     await db.require_reports_replica()       # scheduled reports read the replica, never the booking database
     last_reports = 0.0

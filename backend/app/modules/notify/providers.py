@@ -1,9 +1,11 @@
 """Delivery channels. Each provider sends one message and raises on failure; the worker retries.
 
-    MASSLAK_NOTIFY_EMAIL = log | smtp       MASSLAK_SMTP_URL = smtp://user:password@host:587  (STARTTLS)
-    MASSLAK_NOTIFY_SMS   = log | http       MASSLAK_SMS_URL = https://gateway/send, MASSLAK_SMS_TOKEN = <bearer>
+    MASSLAK_NOTIFY_EMAIL = off | log | smtp   MASSLAK_SMTP_URL = smtp://user:password@host:587  (STARTTLS)
+    MASSLAK_NOTIFY_SMS   = off | log | http   MASSLAK_SMS_URL = https://gateway/send, MASSLAK_SMS_TOKEN = <bearer>
 
-The log provider writes each message as one JSON line under data/messages/, for development and tests.
+The log provider writes each message, address and text included, as one JSON line under data/messages/: for the
+sandbox only. Outside it the API and the worker refuse to start with it (review of 1.47.0, R-27), and a channel left
+unset is off: nothing is sent or kept on it until real delivery is configured.
 """
 import json
 import os
@@ -16,6 +18,37 @@ from urllib.parse import urlparse
 
 from ... import egress
 from ...config import get_settings
+
+
+class NotifyConfigError(RuntimeError):
+    pass
+
+
+class ChannelOff(RuntimeError):
+    """The channel has no delivery configured on this server."""
+
+
+_REAL = {"EMAIL": "smtp", "SMS": "http"}
+
+
+def mode(channel: str) -> str:
+    value = os.environ.get(f"MASSLAK_NOTIFY_{channel}", "").strip().lower()
+    return value or ("log" if get_settings().sandbox else "off")
+
+
+def enabled(channel: str) -> bool:
+    return mode(channel) != "off"
+
+
+def require_in_production() -> None:
+    """Outside the sandbox: no channel writes personal data to plain files, and every value is one we know."""
+    for channel, real in _REAL.items():
+        m = mode(channel)
+        if m not in ("off", "log", real):
+            raise NotifyConfigError(f"MASSLAK_NOTIFY_{channel}={m} is not one of off, log, {real}")
+        if m == "log" and not get_settings().sandbox:
+            raise NotifyConfigError(f"MASSLAK_NOTIFY_{channel}=log keeps addresses and message texts in plain files and "
+                                    f"is for the sandbox only; set {real} (real delivery) or off")
 
 
 def _log(channel: str, to: str, subject: str, body: str, attachments: tuple = ()) -> None:
@@ -33,7 +66,11 @@ def _log(channel: str, to: str, subject: str, body: str, attachments: tuple = ()
 
 def send_email(to: str, subject: str, body: str, attachments: tuple = ()) -> None:
     """attachments: (filename, mime type, bytes) tuples, e.g. a scheduled report."""
-    if os.environ.get("MASSLAK_NOTIFY_EMAIL", "log") != "smtp":
+    m = mode("EMAIL")
+    if m == "off":
+        raise ChannelOff("e-mail delivery is off on this server (MASSLAK_NOTIFY_EMAIL)")
+    if m == "log":
+        require_in_production()
         return _log("EMAIL", to, subject, body, attachments)
     url = urlparse(os.environ["MASSLAK_SMTP_URL"])
     msg = EmailMessage()
@@ -51,7 +88,11 @@ def send_email(to: str, subject: str, body: str, attachments: tuple = ()) -> Non
 
 
 def send_sms(to: str, body: str) -> None:
-    if os.environ.get("MASSLAK_NOTIFY_SMS", "log") != "http":
+    m = mode("SMS")
+    if m == "off":
+        raise ChannelOff("SMS delivery is off on this server (MASSLAK_NOTIFY_SMS)")
+    if m == "log":
+        require_in_production()
         return _log("SMS", to, "", body)
     url = os.environ["MASSLAK_SMS_URL"]
     if not url.startswith("https://"):

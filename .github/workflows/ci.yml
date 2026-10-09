@@ -4,13 +4,15 @@ name: CI
 
 on:
   push:
+    branches: ["**"]     # a tag runs these same jobs through the release workflow, before anything is published
   pull_request:
+  workflow_call:         # .github/workflows/release.yml (review of 1.47.0, R-49)
 
 permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -338,6 +340,55 @@ jobs:
           curl -fsSk https://localhost/api/ready
           # the partners' document stays published whatever the API docs setting
           curl -fsSk https://localhost/api/v1/openapi.json >/dev/null
+      - name: Logs on failure
+        if: failure()
+        run: docker compose --env-file deploy/.env logs --tail 200
+
+  production:
+    # Review of 1.47.0, R-48: every earlier check ran in the sandbox, where data keys are derived and the key parser
+    # never reads a real key, so a production server could not start and nobody saw it. This one installs as a
+    # production server would be, with the keys the installer generates, and encrypts and decrypts for real.
+    name: Production installation (installer keys, real encryption)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - name: Installation without --demo (production mode, keys from deploy/init-env.sh)
+        run: |
+          sudo ./deploy/install.sh --domain localhost --admin-email admin@install.test --skip-server-setup
+          sudo chown "$USER" deploy/.env deploy/FIRST_LOGIN.txt
+          grep -q '^MASSLAK_SANDBOX=false$' deploy/.env && grep -q '^MASSLAK_ENVIRONMENT=production$' deploy/.env
+          grep -q '^MASSLAK_FIELD_KEYS=kms://masslak/field/restricted/v1=.*=,kms://' deploy/.env    # base64 padding kept
+          curl -fsSk https://localhost/api/ready | grep -q '"ready":true'
+      - name: Two-factor enrolment encrypts the secret and the recovery codes, and signing in again decrypts them
+        run: |
+          pw="$(sed -n 's/^Password: *//p' deploy/FIRST_LOGIN.txt)"
+          h=(-H 'X-Masslak-Client: web' -H 'Content-Type: application/json')
+          totp() { python3 -c 'import base64,hmac,struct,sys,time
+          k = base64.b32decode(sys.argv[1] + "=" * (-len(sys.argv[1]) % 8)); c = int(time.time()) // 30
+          d = hmac.new(k, struct.pack(">Q", c), "sha1").digest(); o = d[-1] & 15
+          print("%06d" % ((struct.unpack(">I", d[o:o + 4])[0] & 0x7fffffff) % 1000000))' "$1"; }
+          curl -fsSk -c jar "${h[@]}" -d "{\"identifier\":\"admin@install.test\",\"password\":\"$pw\",\"portal\":\"PLATFORM\"}" \
+               https://localhost/api/auth/login | grep -q '"mfa":"ENROLL"'
+          secret="$(curl -fsSk -b jar -c jar "${h[@]}" -X POST https://localhost/api/auth/mfa/enroll | python3 -c 'import json,sys; print(json.load(sys.stdin)["secret"])')"
+          curl -fsSk -b jar -c jar "${h[@]}" -d "{\"code\":\"$(totp "$secret")\"}" https://localhost/api/auth/mfa/confirm | grep -q recovery_codes
+          dc="docker compose --env-file deploy/.env"
+          test "$($dc exec -T db psql -U postgres -d masslak -Atc "SELECT count(*) FROM iam.mfa_factor WHERE secret_enc IS NOT NULL AND verified_at IS NOT NULL")" = 2
+          # a new process opens the same keys: restart the API, sign in, and the stored secret checks the next code
+          $dc restart app
+          for i in $(seq 60); do curl -fsSk https://localhost/api/ready >/dev/null && break; sleep 2; done
+          sleep 31                                    # the next 30-second step: a code is accepted once
+          curl -fsSk -c jar2 "${h[@]}" -d "{\"identifier\":\"admin@install.test\",\"password\":\"$pw\",\"portal\":\"PLATFORM\"}" \
+               https://localhost/api/auth/login | grep -q '"mfa":"VERIFY"'
+          curl -fsSk -b jar2 -c jar2 "${h[@]}" -d "{\"code\":\"$(totp "$secret")\"}" https://localhost/api/auth/mfa/verify | grep -q '"ok":true'
+          curl -fsSk -b jar2 "${h[@]}" https://localhost/api/auth/me | grep -q admin@install.test
+      - name: A production server refuses demo data and plain message logs (R-26, R-27)
+        run: |
+          dc="docker compose --env-file deploy/.env"
+          if $dc run --rm -T -e MASSLAK_SEED_DEMO=true migrate; then echo "demo data loaded on a production server"; exit 1; fi
+          test "$($dc exec -T db psql -U postgres -d masslak -Atc "SELECT count(*) FROM iam.app_user WHERE email LIKE '%@masslak.test'")" = 0
+          if $dc run --rm -T --no-deps -e MASSLAK_NOTIFY_SMS=log app python -c \
+               "from app.modules.notify import providers; providers.require_in_production()"; then
+            echo "the message log was accepted on a production server"; exit 1; fi
       - name: Logs on failure
         if: failure()
         run: docker compose --env-file deploy/.env logs --tail 200

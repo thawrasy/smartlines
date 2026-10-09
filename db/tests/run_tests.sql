@@ -2155,6 +2155,21 @@ SELECT sys.set_context(NULL, NULL, 'PASSENGER', p_party_id => :rt_party);
 SELECT pg_temp.ok(EXISTS (SELECT 1 FROM crm.trip_rating WHERE id = :rt_id), 'Ratings: the passenger reads the rating they wrote');
 RESET ROLE;
 ROLLBACK;
+-- 1073: only a signed notice takes its event id (review of 1.47.0, R-18)
+BEGIN;
+SELECT sys.set_context(:uadmin, NULL, 'SYSTEM');
+SELECT id AS n_prov FROM fin.payment_provider WHERE code = 'SANDBOX' \gset
+INSERT INTO fin.payment_notification (provider_id, event_id, signature_valid, payload)
+SELECT :n_prov, 'zz-evt-guessed', false, '{}'::jsonb FROM generate_series(1, 2);
+INSERT INTO fin.payment_notification (provider_id, event_id, signature_valid, payload) VALUES (:n_prov, 'zz-evt-guessed', true, '{}');
+SELECT pg_temp.ok((SELECT count(*) FROM fin.payment_notification WHERE event_id = 'zz-evt-guessed') = 3
+  AND (SELECT notices FROM fin.unsigned_notices() WHERE provider_code = 'SANDBOX') >= 2
+  AND has_function_privilege('masslak_app', 'fin.unsigned_notices(interval)', 'EXECUTE'),
+  'Provider notices: unsigned copies posted first are kept and counted, and the signed notice with that id is still recorded');
+SELECT pg_temp.expect_error(format($$INSERT INTO fin.payment_notification (provider_id, event_id, signature_valid, payload)
+                                     VALUES (%s, 'zz-evt-guessed', true, '{}')$$, :n_prov),
+  'payment_notification_event_uq', 'Provider notices: a signed event is recorded once');
+ROLLBACK;
 -- Review stage D (1064): bookings partitioned by ranges of id
 SELECT pg_temp.ok(
   (SELECT relkind FROM pg_class WHERE oid = 'sales.booking'::regclass) = 'p'

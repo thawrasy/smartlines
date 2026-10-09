@@ -6,7 +6,8 @@ key service to unwrap each DEK and keeps the clear DEK in memory only.
 
     MASSLAK_KMS_PROVIDER = vault | local      (unset: no envelope; keys come from MASSLAK_FIELD_KEYS as before)
     vault: MASSLAK_VAULT_ADDR, MASSLAK_VAULT_TOKEN; the KEK is the Vault Transit key named in kms_key_id
-    local: MASSLAK_KEK = <base64 32 bytes>    (staging and tests only: the KEK sits in the environment)
+    local: MASSLAK_KEK = <base64 32 bytes>    (sandbox, development and staging only: the KEK sits in the
+                                               environment; refused on a production server, R-29)
 
 Wrapped layout of the local provider: version byte 0x01 | 12-byte nonce | AES-256-GCM ciphertext and tag, with the
 key reference as associated data, so a wrapped key copied onto another registry row does not open.
@@ -88,6 +89,10 @@ def provider() -> Optional[KeyWrapper]:
     if not name:
         return None
     if name == "local":
+        from .config import is_test_server
+        if not is_test_server():
+            # the KEK would sit in the same environment as the data it protects (review of 1.47.0, R-29)
+            raise KmsError("MASSLAK_KMS_PROVIDER=local is for test servers only; production uses a key service (vault)")
         raw = os.environ.get("MASSLAK_KEK", "").strip()
         if not raw:
             raise KmsError("MASSLAK_KEK is required for the local provider")

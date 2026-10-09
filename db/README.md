@@ -15,8 +15,8 @@ supporting index, except references to lookup lists and to the staff member who 
 | Engine | PostgreSQL 16 with PostGIS 3 (extensions: pgcrypto, citext, btree_gist, pg_trgm, postgis in schema `gis`; Docker and CI image `postgis/postgis:16-3.4`, Ubuntu package `postgresql-16-postgis-3`) |
 | Schemas | 26 separate schemas, each with its own privileges |
 | Tables | 489 tables (8 partitioned), 5,009 columns, 1,402 foreign keys |
-| Security | row-level security on 489 of 489 tables, 911 policies; 424 triggers, 257 functions |
-| Tests | 449 automated checks against a freshly built database (`db/tests/run.sh`) |
+| Security | row-level security on 489 of 489 tables, 911 policies; 424 triggers, 258 functions |
+| Tests | 451 automated checks against a freshly built database (`db/tests/run.sh`) |
 | Design | [Database design and ERD document](../docs/database/) with diagrams in the study's colors |
 | Docs | [Data dictionary](DATA_DICTIONARY.md) · [ERD diagrams](ERD.md) (both generated from the database) |
 <!-- stats:end -->
@@ -129,6 +129,7 @@ PostGIS in `gis`. Until 9 October 2026 a first start of the Docker stack stopped
 | `1070_partition_upkeep_late.sql` | Partition upkeep that survives running late: `sys.create_partition` moves the rows of a missing period out of the default partition (through a plain table, so no trigger fires twice) instead of aborting the whole upkeep (code review, October 2026) |
 | `1071_late_provider_payment.sql` | A provider's confirmation that arrives after the platform stopped waiting is credited to the payer's wallet instead of lost; flagged `captured_late`, counted for the alert PaymentCapturedLate (code review, October 2026) |
 | `1072_trip_rating_privacy.sql` | Trip ratings readable by the rater, the rated carrier and the platform only; the read policy had been open to every company and passenger (code review, October 2026) |
+| `1073_signed_notice_dedup.sql` | A provider's event id is unique among signed notices only, so an unsigned copy posted first cannot make the real notice a replay; unsigned notices per provider counted for review (review of 1.47.0, R-18) |
 
 ## Design rules (study 29.1)
 

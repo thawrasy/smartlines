@@ -106,12 +106,13 @@ function BankStatements() {
   const state = useLoad(() => api.get<{ lines: Line[]; awaiting: Awaiting[] }>("/api/admin/payments/statement-lines", { status }), [status]);
   const [file, setFile] = useState<File | null>(null);
   const [label, setLabel] = useState(t("pay.mainAccount"));
+  const [mark, setMark] = useState(".");
   const [error, setError] = useState<unknown>(null);
   const [matching, setMatching] = useState<Line | null>(null);
   const upload = async () => {
     if (!file) return;
     setError(null);
-    const form = new FormData(); form.append("file", file); form.append("account_label", label);
+    const form = new FormData(); form.append("file", file); form.append("account_label", label); form.append("decimal_mark", mark);
     try {
       const r = await api.upload<{ lines: number; matched: number; unmatched: number }>("/api/admin/payments/statements", form);
       toast(t("pay.imported", { lines: r.lines, matched: r.matched })); setFile(null); state.reload();
@@ -129,6 +130,9 @@ function BankStatements() {
         <p className="small muted" style={{ margin: 0 }}>{t("pay.importHint")}</p>
         <div className="row" style={{ gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
           <Field label={t("pay.account")}><input className="input" value={label} onChange={(e) => setLabel(e.target.value)} /></Field>
+          <Field label={t("pay.decimalMark")}><select className="input" value={mark} onChange={(e) => setMark(e.target.value)}>
+            <option value=".">{t("pay.decimalDot")}</option><option value=",">{t("pay.decimalComma")}</option>
+          </select></Field>
           <Field label={t("pay.file")}><input type="file" accept=".csv,text/csv" onChange={(e) => setFile(e.target.files?.[0] ?? null)} /></Field>
           <button className="btn" disabled={!file} onClick={upload}><Icon name="download" />{t("pay.import")}</button>
         </div>

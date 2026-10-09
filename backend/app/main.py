@@ -46,6 +46,8 @@ async def lifespan(_: FastAPI):
     await db.open_pools()
     from . import egress
     egress.require_in_production()        # outbound traffic only through the egress proxy (T3-02)
+    from .modules.notify import providers
+    providers.require_in_production()     # no personal data in plain message logs outside the sandbox (R-27)
     storage.store()                       # a wrong file store setting stops the start, not the first upload
     await db.require_reports_replica()    # reports read the replica, never the booking database (architecture review)
     if not get_settings().sandbox:

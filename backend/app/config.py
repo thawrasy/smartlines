@@ -40,6 +40,9 @@ class Settings(BaseSettings):
     support_hours: str = ""
     # Sandbox mode enables the simulated payment gateway; never enable in production
     sandbox: bool = False
+    # Which server this is: development, staging or production (deploy/.env). Unset outside the sandbox counts as
+    # production for the checks that allow a shortcut on test servers only.
+    environment: str = ""
     # Encrypted file store for uploaded documents and generated reports (app/modules/documents/storage.py): "local", a
     # mounted volume (files_dir), or "s3", an S3-compatible object store with server-side encryption, shared by every
     # API server (code review of October 2026). python -m app.tools.files_move copies a volume into the object store.
@@ -73,6 +76,12 @@ class Settings(BaseSettings):
     api_docs: Optional[bool] = None
     # Seconds a request waits for a database connection of its process before it is answered 503 (busy, repeat it)
     db_acquire_timeout: float = 5.0
+
+
+def is_test_server() -> bool:
+    """A sandbox, or a server declared development or staging; anything else is treated as production."""
+    st = get_settings()
+    return st.sandbox or st.environment.strip().lower() in ("development", "staging")
 
 
 @lru_cache

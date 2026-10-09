@@ -128,6 +128,28 @@ def test_forged_and_tampered_notifications_are_refused(pax):
     assert pax.post("/api/payments/notify/CARD", content=b"not json", headers={"Content-Type": "application/json"}).status_code in (400, 401)
 
 
+def test_an_unsigned_copy_cannot_take_the_event_id_first(pax):
+    """R-18: someone who guesses the provider's next event id posts it first with a bad signature; the provider's real
+    notice with that id still settles the payment, and both are kept for the security review."""
+    before = balance(pax)
+    p = pax.post("/api/payments/topups", json={"method": "CARD", "amount": 1200000, "idempotency_key": key()}).json()
+    ref = owner_sql("SELECT provider_ref FROM fin.payment WHERE uid = $1::uuid", p["uid"])
+    event = {"event_id": f"evt-{ref}", "reference": ref, "status": "SUCCESS", "amount": 1200000, "currency": "SYP"}
+    for _ in range(2):                                 # repeated forgeries are kept too
+        raw, headers = signed("CARD", event, secret=b"guessed")
+        assert pax.post("/api/payments/notify/CARD", content=raw, headers=headers).status_code == 401
+    raw, headers = signed("CARD", event)
+    r = pax.post("/api/payments/notify/CARD", content=raw, headers=headers)
+    assert r.status_code == 200 and r.json().get("status") == "SUCCESS", r.text
+    assert balance(pax) == before + 1200000
+    kept = owner_sql("SELECT array_agg(signature_valid ORDER BY id) FROM fin.payment_notification WHERE event_id = $1",
+                     f"evt-{ref}")
+    assert kept == [False, False, True]
+    raw, headers = signed("CARD", event)               # the real one again is a replay
+    assert pax.post("/api/payments/notify/CARD", content=raw, headers=headers).json().get("replayed")
+    assert balance(pax) == before + 1200000
+
+
 def test_ewallet_code_attempts_are_limited_and_kept(pax):
     before = balance(pax)
     assert pax.post("/api/payments/topups", json={"method": "EWALLET", "amount": 500000, "idempotency_key": key()}).status_code == 422
@@ -184,6 +206,21 @@ def test_bank_transfer_matched_from_the_statement(admin, pax):
     noref = next(x for x in lines if x["reference"] == "no reference here")
     assert admin.post(f"/api/admin/payments/statement-lines/{noref['id']}/ignore", json={"note": "Not a top-up"}).status_code == 200
     assert pax.get("/api/payments/methods").status_code == 200
+
+
+def test_statement_with_decimal_commas(admin, pax):
+    """R-24: a bank that writes 1.234,50 is read with the decimal mark finance chooses; read with the wrong one, the
+    file is refused rather than credited with another amount."""
+    before = balance(pax)
+    t = pax.post("/api/payments/bank-transfers", json={"amount": 12345050, "idempotency_key": key()}).json()
+    text = ('"date","amount","currency","description","transaction_id"\n'
+            f'"2026-10-06","123.450,50","SYP","{t["reference"]}","TRX{secrets.token_hex(5)}"\n')
+    files = {"file": ("statement-eu.csv", text.encode(), "text/csv")}
+    r = admin.post("/api/admin/payments/statements", files=files, data={"account_label": "EU style"})
+    assert r.status_code == 422 and r.json()["error"]["code"] == "STATEMENT_BAD_AMOUNT", r.text
+    r = admin.post("/api/admin/payments/statements", files=files, data={"account_label": "EU style", "decimal_mark": ","})
+    assert r.status_code == 201 and r.json()["matched"] == 1, r.text
+    assert balance(pax) == before + 12345050
 
 
 def test_agency_counter_topup(pax):

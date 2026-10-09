@@ -61,7 +61,7 @@ async def own_file(doc_uid: uuid.UUID, request: Request, pr: Principal = Depends
 async def queue(request: Request, pr: Principal = Depends(reviewer),
                 status: Optional[Literal["PENDING", "APPROVED", "REJECTED"]] = Query(default="PENDING")):
     async with db.transaction(context_for(request, pr)) as conn:
-        return {"documents": await service.review_queue(conn, status)}
+        return {"documents": await service.review_queue(conn, pr, status)}
 
 
 @platform.get("/{doc_uid}/file")
