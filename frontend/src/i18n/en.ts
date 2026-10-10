@@ -270,6 +270,7 @@ const en = {
     NOT_FOUND: "Not found.",
     PASSWORD_TOO_SHORT: "The password must be at least 12 characters.",
     PASSWORD_TOO_COMMON: "This password is too common. Choose another one.",
+    PASSWORD_TOO_PERSONAL: "This password contains your name, e-mail or phone number. Choose another one.",
     PAYMENT_PROVIDER_UNAVAILABLE: "Online payment is not available yet.",
     PORTAL_NOT_ALLOWED: "This account cannot sign in to this portal.",
     SALES_CLOSED: "Sales are closed for this trip.",

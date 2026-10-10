@@ -1,8 +1,9 @@
-"""Request limits shared by every API process (1068, code review of October 2026, H-01).
+"""Request limits shared by every API process (1068, code review of October 2026, H-01; reviews of October 2026, M-03).
 
-The sign-in buckets live in the database, so two processes (two connections here) draw from the same bucket; a
-per-address bucket sized for carrier-grade NAT lets many users sign in from one address, while the per-account
-bucket stops guessing one account. The in-memory buckets of the other endpoints are split between the processes.
+The sign-in, public search and partner API buckets live in the database, so two processes (two connections here)
+draw from the same bucket; a per-address bucket sized for carrier-grade NAT lets many users sign in from one address,
+while the per-account bucket stops guessing one account. The in-memory buckets of the signed-in API are split
+between the processes.
 """
 import asyncio
 import os
@@ -23,16 +24,17 @@ def _key() -> str:
 
 
 @needs_db
-def test_two_processes_share_one_bucket():
+@pytest.mark.parametrize("bucket", ["auth_ip", "public_ip", "api_client"])
+def test_two_processes_share_one_bucket(bucket):
     async def run():
         first, second = await asyncpg.connect(APP_URL), await asyncpg.connect(APP_URL)    # as the application role
         try:
             key = _key()
-            waits = [await (first if i % 2 else second).fetchval("SELECT sec.rate_take('auth_ip', $1, 4)", key) for i in range(5)]
+            waits = [await (first if i % 2 else second).fetchval("SELECT sec.rate_take($1, $2, 4)", bucket, key) for i in range(5)]
             assert waits[:4] == [0, 0, 0, 0]
             assert 14 < waits[4] <= 15                    # one token every 15 s at 4 a minute
             # a refused request costs nothing: the next one waits no longer than the last
-            assert await first.fetchval("SELECT sec.rate_take('auth_ip', $1, 4)", key) <= waits[4]
+            assert await first.fetchval("SELECT sec.rate_take($1, $2, 4)", bucket, key) <= waits[4]
         finally:
             await first.close()
             await second.close()
@@ -80,6 +82,19 @@ def test_each_process_enforces_its_share(monkeypatch):
     try:
         rl = ratelimit.limiter()
         s = ratelimit.get_settings()
-        assert rl.per_minute == {"public": s.rate_public_per_minute // 2, "api": s.rate_api_per_minute // 2}
+        # public search and the partner API are shared in the database (M-03); only the signed-in API is per process
+        assert rl.per_minute == {"api": s.rate_api_per_minute // 2}
     finally:
         monkeypatch.setattr(ratelimit, "_limiter", None)
+
+
+def test_public_and_partner_requests_draw_from_the_shared_buckets():
+    """The middleware takes public search from the database bucket; the partner API takes the client's own."""
+    import inspect
+
+    from app import middleware
+    from app.modules.integration import auth
+    assert ratelimit.bucket_for("/api/trips/search") == "public" and ratelimit.bucket_for("/api/public/stations") == "public"
+    assert "check_public" in inspect.getsource(middleware.RequestContextMiddleware._api)
+    assert "check_api_client" in inspect.getsource(auth.api_caller)
+    assert not hasattr(auth, "_buckets")                 # no bucket left in process memory for partner clients

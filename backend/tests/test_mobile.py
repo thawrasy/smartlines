@@ -93,7 +93,7 @@ def test_two_refreshes_racing_with_one_token_rotate_it_once():
 
 
 def test_signing_out_a_lost_device():
-    email, pw = f"m{uuid.uuid4().hex[:8]}@example.com", "mobile-long-password"
+    email, pw = f"m{uuid.uuid4().hex[:8]}@example.com", "lost-phone-long-passphrase"
     assert e2e.client().post("/api/auth/register", json={"full_name": "Mobile User", "email": email, "password": pw}).status_code == 201
     r, device = mobile_login(email, password=pw)
     tokens = r.json()

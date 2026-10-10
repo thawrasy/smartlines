@@ -168,11 +168,11 @@ def test_statement_lists_the_sales(agency):
 def test_new_agency_staff_must_use_a_second_factor(agency):
     email = f"seller{uuid.uuid4().hex[:8]}@example.com"
     r = agency.post("/api/agency/staff", json={"full_name": "Sami Seller", "email": email,
-                                                "password": "a-long-seller-password", "role": "SELLER"})
+                                                "password": "counter-desk-long-passphrase", "role": "SELLER"})
     assert r.status_code == 201, r.text
     assert any(s["email"] == email and s["role"] == "AGENCY_SELLER" for s in agency.get("/api/agency/staff").json()["staff"])
     c = client()
-    r = c.post("/api/auth/login", json={"identifier": email, "password": "a-long-seller-password", "portal": "AGENCY"})
+    r = c.post("/api/auth/login", json={"identifier": email, "password": "counter-desk-long-passphrase", "portal": "AGENCY"})
     assert r.status_code == 200 and r.json()["mfa"] == "ENROLL"
     assert c.get("/api/agency/dashboard").json()["error"]["code"] == "MFA_REQUIRED"
 

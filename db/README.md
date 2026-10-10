@@ -15,8 +15,8 @@ supporting index, except references to lookup lists and to the staff member who 
 | Engine | PostgreSQL 16 with PostGIS 3 (extensions: pgcrypto, citext, btree_gist, pg_trgm, postgis in schema `gis`; Docker and CI image `postgis/postgis:16-3.4`, Ubuntu package `postgresql-16-postgis-3`) |
 | Schemas | 26 separate schemas, each with its own privileges |
 | Tables | 504 tables (8 partitioned), 5,166 columns, 1,440 foreign keys |
-| Security | row-level security on 504 of 504 tables, 927 policies; 435 triggers, 286 functions |
-| Tests | 509 automated checks against a freshly built database (`db/tests/run.sh`) |
+| Security | row-level security on 504 of 504 tables, 927 policies; 435 triggers, 290 functions |
+| Tests | 512 automated checks against a freshly built database (`db/tests/run.sh`) |
 | Design | [Database design and ERD document](../docs/database/) with diagrams in the study's colors |
 | Docs | [Data dictionary](DATA_DICTIONARY.md) · [ERD diagrams](ERD.md) (both generated from the database) |
 <!-- stats:end -->
@@ -139,6 +139,7 @@ PostGIS in `gis`. Until 9 October 2026 a first start of the Docker stack stopped
 | `1080_verified_context.sql` | The request context row-level security trusts is set only with the API's ticket: `sys.set_context` checks an HMAC of the context and its time under a key the application's roles cannot read (`sys.context_key`); `set_config` and temporary objects are withdrawn from PUBLIC; `sys.context_status` for readiness; a superuser-only window of at most a day for a rollback to an older release (`sys.context_unsigned_window`) (reviews of October 2026, C-01) |
 | `1081_definer_search_path.sql` | Every SECURITY DEFINER function ends its `search_path` with `pg_temp`; creating objects in `public` is withdrawn; `sys.definer_path_gaps()` lists any new function that does not (checked in CI) (reviews of October 2026, addition 1 and M-09) |
 | `1082_validate_constraints.sql` | Constraints added NOT VALID are validated after the files: `db/build.sh` and `db/upgrade.sh` end with `CALL sys.validate_constraints()`, each in its own transaction; one that old rows break stays NOT VALID, is named, and `sys.unvalidated_constraints()` keeps `/api/ready` not ready until it is fixed (reviews of October 2026, H-09) |
+| `1083_default_partition_batches.sql` | A late upkeep moves a large period out of a default partition one period per transaction: the daily upkeep moves a period itself only up to `partitions.inline_move_rows` (50,000 rows), and the worker moves larger ones with `sys.move_default_period()`, each with its own lock and timeout (reviews of October 2026, M-08) |
 
 ## Design rules (study 29.1)
 

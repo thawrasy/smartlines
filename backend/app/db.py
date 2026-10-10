@@ -3,11 +3,13 @@
 Every request runs in one transaction on the masslak_app role. The transaction starts with
 sys.set_context() so that row-level security and the audit triggers know who is acting.
 """
+import logging
 import os
 import sys
 import time
 from collections import Counter
 from contextlib import asynccontextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass
 from typing import AsyncIterator, Optional
 import uuid
@@ -129,6 +131,29 @@ async def apply_context(conn: asyncpg.Connection, ctx: Context, scope: Optional[
     )
 
 
+# Work done outside the database for the current transaction, undone when the transaction does not commit: a file
+# written to the store before its row (reviews of October 2026, M-04). Each transaction() has its own list.
+_ROLLBACK: ContextVar[Optional[list]] = ContextVar("masslak_rollback", default=None)
+
+
+def on_rollback(undo) -> bool:
+    """Runs `undo` (an async callable) if the current transaction rolls back or fails to commit. Returns False
+    outside a transaction, where nothing can roll back."""
+    hooks = _ROLLBACK.get()
+    if hooks is None:
+        return False
+    hooks.append(undo)
+    return True
+
+
+async def _undo(hooks: list) -> None:
+    for undo in reversed(hooks):
+        try:
+            await undo()
+        except Exception:                      # noqa: BLE001 - an undo never hides the error that caused it
+            logging.getLogger("masslak.db").exception("could not undo work of a rolled-back transaction")
+
+
 @asynccontextmanager
 async def transaction(ctx: Context) -> AsyncIterator[asyncpg.Connection]:
     assert _pool is not None, "database pool not initialised"
@@ -137,11 +162,17 @@ async def transaction(ctx: Context) -> AsyncIterator[asyncpg.Connection]:
         got = time.monotonic()
         _acquired(got - asked)
         logs.timed("pool_wait", got - asked)
+        hooks: list = []
+        token = _ROLLBACK.set(hooks)
         try:
             async with conn.transaction():
                 await apply_context(conn, ctx)
                 yield conn
+        except BaseException:
+            await _undo(hooks)                 # the transaction rolled back, or its commit failed
+            raise
         finally:
+            _ROLLBACK.reset(token)
             logs.timed("db", time.monotonic() - got)
 
 

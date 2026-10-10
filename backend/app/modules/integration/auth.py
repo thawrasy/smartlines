@@ -9,7 +9,8 @@
   acting staff account, whose current permissions cap them: removing that person's rights also cuts the API.
 * Checked on every call: key and client status, expiry, the sandbox flag, the client's IP allowlist, the client
   certificate fingerprint when mTLS is required (forwarded by the TLS-terminating proxy), and the client's own
-  rate limit, on top of the per-address limit of the middleware.
+  rate limit, on top of the per-address limit of the middleware. The client's bucket is in the database, shared by
+  every process and server (1068).
 """
 from __future__ import annotations
 
@@ -17,7 +18,6 @@ import hashlib
 import ipaddress
 import re
 import secrets
-import time
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -25,7 +25,7 @@ from typing import Optional
 
 from fastapi import Request
 
-from ... import db
+from ... import db, ratelimit
 from ...config import get_settings
 from ...deps import PORTAL_SCOPE, Principal, base_context, load_permissions
 from ...errors import ApiError
@@ -91,21 +91,6 @@ def context(request: Request, caller: Caller) -> db.Context:
     else:
         ctx.scope = "API"
     return ctx
-
-
-# ------------------------------------------------------------------ per-client rate limit (token bucket)
-_buckets: dict[int, tuple[float, float]] = {}
-
-
-def _take(client_id: int, per_minute: int) -> float:
-    now = time.monotonic()
-    tokens, updated = _buckets.get(client_id, (float(per_minute), now))
-    tokens = min(per_minute, tokens + (now - updated) * per_minute / 60.0)
-    if tokens >= 1:
-        _buckets[client_id] = (tokens - 1, now)
-        return 0.0
-    _buckets[client_id] = (tokens, now)
-    return (1 - tokens) * 60.0 / per_minute
 
 
 def _presented(request: Request) -> Optional[str]:
@@ -175,7 +160,8 @@ async def api_caller(request: Request) -> Caller:
         if row["last_used_at"] is None or (datetime.now(timezone.utc) - row["last_used_at"]).total_seconds() > 60:
             await conn.execute("UPDATE iam.api_key SET last_used_at = now(), last_used_ip = $2::inet WHERE id = $1",
                                row["key_id"], request.state.client_ip)
-    wait = _take(row["id"], row["rate_limit_per_min"])
+        # the client's bucket is shared by every process and server (1068; reviews of October 2026, M-03)
+        wait = await ratelimit.check_api_client(conn, row["id"], row["rate_limit_per_min"])
     if wait:
         raise ApiError(429, "RATE_LIMITED", "this client is over its rate limit", retry_after=max(1, round(wait)))
     request.state.api_client_id = row["id"]

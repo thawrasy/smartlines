@@ -164,6 +164,20 @@ def test_files_round_trip_through_the_object_store_encrypted_twice(monkeypatch):
 
 
 @needs_s3
+def test_the_object_store_lists_and_deletes_for_the_sweep():
+    """The daily sweep (M-04) lists the store a thousand objects at a time and deletes what no row points to."""
+    s3 = real_store(prefix=f"sweep-{uuid.uuid4().hex[:8]}")
+    keys = sorted(f"{uuid.uuid4().hex[:4]}/{uuid.uuid4().hex}" for _ in range(3))
+    for k in keys:
+        s3.write(k, b"sealed bytes")
+    listed = dict(s3.listing())
+    assert sorted(listed) == keys and all(when.tzinfo is not None for when in listed.values())
+    s3.delete(keys[0])
+    s3.delete(keys[0])                                    # deleting twice is not an error
+    assert sorted(dict(s3.listing())) == keys[1:] and not s3.exists(keys[0])
+
+
+@needs_s3
 def test_the_move_tool_copies_a_volume_once_and_finds_differences(tmp_path):
     vol = storage.LocalStore(str(tmp_path))
     keys = [f"{uuid.uuid4().hex[:4]}/{uuid.uuid4().hex}" for _ in range(5)]

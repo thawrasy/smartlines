@@ -98,11 +98,38 @@ async def maintenance() -> dict:
     from ... import telemetry
     if telemetry.enabled():
         out["telemetry"] = await telemetry.upkeep(keep["keep_days"], keep["held"])
+    # stored files no row points to (a process that died between writing a file and its row; M-04)
+    from ...tools import files_sweep
+    try:
+        out["files_sweep"] = {k: v for k, v in (await files_sweep.sweep(delete=True)).items() if k != "sample"}
+        if "refused" in out["files_sweep"]:
+            log.error("file sweep refused: %s", out["files_sweep"]["refused"])
+    except Exception:                                   # noqa: BLE001 - the store being down never stops the upkeep
+        log.exception("file sweep failed; the next daily upkeep tries again")
     if out.get("wallet_mismatches"):
         log.error("ledger reconciliation found %s wallet(s) out of balance", out["wallet_mismatches"])
     else:
         log.info("maintenance done: %s", out)
     return out
+
+
+async def move_default_backlog(limit: int = 200) -> list[dict]:
+    """Late periods out of the default partitions, one period per transaction (1083, reviews of October 2026, M-08):
+    the daily upkeep leaves a large one where it is, still readable, and the table waits for one period at a time.
+    A period that cannot get its table's lock within 10 s is tried again on the next round."""
+    moved: list[dict] = []
+    async with db.transaction(_ctx()) as conn:
+        if not await conn.fetchval("SELECT sys.default_partition_backlog()"):
+            return moved
+    for _ in range(limit):
+        async with db.transaction(_ctx()) as conn:
+            await conn.execute("SET LOCAL statement_timeout = '15min'")     # one period, however large
+            out = await conn.fetchval("SELECT sys.move_default_period()::text")
+        if out is None:
+            break
+        moved.append(json.loads(out))
+        log.warning("late partition upkeep: moved %s", moved[-1])
+    return moved
 
 
 async def main(once: bool) -> None:
@@ -123,6 +150,7 @@ async def main(once: bool) -> None:
     last_reports = 0.0
     last_rollup = 0.0
     last_maintenance = None if not once else 0.0     # a long-running worker maintains at start, then daily
+    last_backlog = 0.0
     try:
         while True:
             busy = await run_once()
@@ -170,6 +198,13 @@ async def main(once: bool) -> None:
                 if not once and (last_maintenance is None or now - last_maintenance > 24 * 3600):
                     await maintenance()
                     last_maintenance = now
+                # large late periods leave the default partitions between passes, one per transaction (M-08)
+                if once or now - last_backlog > 600:
+                    try:
+                        await move_default_backlog()
+                    except Exception:                         # noqa: BLE001 - a busy table is tried on the next round
+                        log.exception("moving a late period out of a default partition failed; trying again later")
+                    last_backlog = now
                 if once:
                     return
                 await asyncio.sleep(2)
@@ -183,6 +218,7 @@ async def maintenance_once() -> None:
     await db.open_pools()
     try:
         await maintenance()
+        await move_default_backlog()
     finally:
         await db.close_pools()
 

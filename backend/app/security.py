@@ -31,13 +31,62 @@ def verify_password(stored: str | None, password: str) -> bool:
         return False
 
 
-def password_problem(password: str) -> str | None:
-    """Minimum policy (NIST 800-63B): length and a short deny list, no composition rules."""
+# rows of the keyboard and runs of letters and digits: a password that is one slice of these is guessed first
+_RUNS = ("1234567890", "abcdefghijklmnopqrstuvwxyz", "qwertyuiop", "asdfghjkl", "zxcvbnm", "1qaz2wsx3edc4rfv5tgb")
+
+
+@lru_cache(maxsize=1)
+def _common() -> frozenset[str]:
+    """73,000 passwords of 12 characters or more from public leak lists (assets/passwords/README.md)."""
+    import gzip
+    from pathlib import Path
+    path = Path(__file__).parent / "assets" / "passwords" / "common.txt.gz"
+    with gzip.open(path, "rt", encoding="ascii") as f:
+        return frozenset(line.rstrip("\n") for line in f if line.strip())
+
+
+def _is_run(text: str) -> bool:
+    """A slice of one run, forwards or backwards, repeated or not (abcdefghijkl, 0987654321, 123412341234)."""
+    for run in _RUNS:
+        for seq in (run * 3, run[::-1] * 3):
+            if text in seq:
+                return True
+    return False
+
+
+def password_problem(password: str, *personal: str | None) -> str | None:
+    """Policy of NIST SP 800-63B, without composition rules: at least 12 characters; not a password common in leaks
+    (reviews of October 2026, M-13), a repeated pattern, a keyboard or alphabet run, or the platform's name; and not
+    built on the person's own e-mail, name or mobile number (`personal`)."""
     if len(password) < 12:
         return "PASSWORD_TOO_SHORT"
-    if password.lower() in {"123456789012", "password1234", "qwertyuiopas", "masslak12345"}:
+    low = password.lower()
+    folded = "".join(ch for ch in low if ch.isalnum())
+    if low in _common() or folded in _common():
         return "PASSWORD_TOO_COMMON"
+    if len(set(low)) <= 3 or _is_run(folded) or "masslak" in folded or any(
+            folded == folded[:n] * (len(folded) // n) + folded[:len(folded) % n] for n in range(1, 5)):
+        return "PASSWORD_TOO_COMMON"
+    for value in personal:
+        for part in _personal_parts(value):
+            if part in folded:
+                return "PASSWORD_TOO_PERSONAL"
     return None
+
+
+def _personal_parts(value: str | None) -> list[str]:
+    """The pieces of an e-mail, a name or a mobile number someone could guess: an e-mail's local part and each of
+    its words of four letters or more, each name word of four letters or more, a mobile number's last seven digits."""
+    if not value:
+        return []
+    value = value.strip().lower()
+    digits = "".join(ch for ch in value if ch.isdigit())
+    if len(digits) >= 7 and len(digits) >= len(value.replace("+", "").replace(" ", "")) - 1:
+        return [digits[-7:]]
+    local = value.split("@", 1)[0]
+    words = [w for w in "".join(ch if ch.isalnum() else " " for ch in local).split() if len(w) >= 4]
+    whole = "".join(ch for ch in local if ch.isalnum())
+    return ([whole] if len(whole) >= 4 else []) + words
 
 
 def new_token() -> tuple[str, bytes]:

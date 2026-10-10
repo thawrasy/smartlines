@@ -227,6 +227,7 @@ const ar: Messages = {
     NOT_FOUND: "غير موجود.",
     PASSWORD_TOO_SHORT: "يجب ألا تقل كلمة المرور عن 12 حرفاً.",
     PASSWORD_TOO_COMMON: "كلمة المرور شائعة جداً. اختر كلمة أخرى.",
+    PASSWORD_TOO_PERSONAL: "كلمة المرور تحتوي اسمك أو بريدك أو رقم هاتفك. اختر كلمة أخرى.",
     PAYMENT_PROVIDER_UNAVAILABLE: "الدفع الإلكتروني غير متاح بعد.",
     PORTAL_NOT_ALLOWED: "لا يمكن لهذا الحساب الدخول إلى هذه البوابة.",
     SALES_CLOSED: "البيع مغلق لهذه الرحلة.",

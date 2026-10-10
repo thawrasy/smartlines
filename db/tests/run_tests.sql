@@ -2466,6 +2466,35 @@ SELECT pg_temp.ok(NOT EXISTS (SELECT 1 FROM sys.unvalidated_constraints())
   AND has_function_privilege('masslak_app', 'sys.unvalidated_constraints()', 'EXECUTE')
   AND NOT has_function_privilege('masslak_app', 'sys.validate_constraints()', 'EXECUTE'),
   'Constraints (1082, H-09): the build validated every constraint added NOT VALID; the application reads the list and cannot run the validation');
+-- Reviews of October 2026, M-08 (1083): a large late period leaves the default partition one per transaction
+BEGIN;
+UPDATE sys.setting SET value = '3'::jsonb WHERE key = 'partitions.inline_move_rows';
+INSERT INTO sys.outbox_event (event_type, aggregate_type, aggregate_id, payload, created_at)
+SELECT 'test.large_backlog', 'test', g, '{}'::jsonb, current_date + 25 + make_interval(mins => g) FROM generate_series(1, 6) g;
+INSERT INTO sys.outbox_event (event_type, aggregate_type, aggregate_id, payload, created_at)
+SELECT 'test.small_backlog', 'test', g, '{}'::jsonb, current_date + 26 + make_interval(mins => g) FROM generate_series(1, 2) g;
+SELECT sys.ensure_daily_partitions('sys.outbox_event', 27, 0);
+SELECT pg_temp.ok(to_regclass('sys.outbox_event_' || to_char(current_date + 25, 'YYYYMMDD')) IS NULL
+  AND (SELECT count(*) FROM sys.outbox_event_default WHERE event_type = 'test.large_backlog') = 6
+  AND (SELECT count(*) FROM sys.outbox_event WHERE event_type = 'test.large_backlog') = 6
+  AND to_regclass('sys.outbox_event_' || to_char(current_date + 26, 'YYYYMMDD')) IS NOT NULL
+  AND (SELECT count(*) FROM sys.outbox_event_default WHERE event_type = 'test.small_backlog') = 0
+  AND to_regclass('sys.outbox_event_' || to_char(current_date + 27, 'YYYYMMDD')) IS NOT NULL
+  AND sys.default_partition_backlog() >= 1,
+  'Partitions (1083, M-08): the daily upkeep moves a small late day itself and leaves a large one waiting, still readable');
+SET ROLE masslak_app;
+SELECT sys.move_default_period() AS moved_period \gset
+RESET ROLE;
+SELECT pg_temp.ok((:'moved_period'::jsonb ->> 'rows')::int = 6
+  AND :'moved_period'::jsonb ->> 'partition' = 'sys.outbox_event_' || to_char(current_date + 25, 'YYYYMMDD')
+  AND (SELECT count(*) FROM sys.outbox_event_default WHERE event_type = 'test.large_backlog') = 0
+  AND (SELECT count(*) FROM sys.outbox_event WHERE event_type = 'test.large_backlog') = 6
+  AND NOT has_function_privilege('masslak_app', 'sys.create_partition(text, text, text, text, bigint)', 'EXECUTE'),
+  'Partitions (1083, M-08): the worker moves the large day in a transaction of its own, every row kept');
+SELECT pg_temp.ok(sys.create_partition('sys.outbox_event', 'sys.outbox_event_' || to_char(current_date + 40, 'YYYYMMDD'),
+                                       (current_date + 40)::text, (current_date + 41)::text, 3) = 0,
+  'Partitions (1083): a period with nothing waiting is created as before');
+ROLLBACK;
 SET ROLE masslak_app;
 
 \echo '=== ALL TESTS PASSED ==='

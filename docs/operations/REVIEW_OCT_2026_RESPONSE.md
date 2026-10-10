@@ -123,7 +123,7 @@ PRODUCTION_PROFILE.md, section 4. In short:
 
 | Ref | Finding | Verdict |
 |---|---|---|
-| M-10 | The architecture document gave 432 tables and 24 schemas | Fixed in 1.48.0. It now gives 26 schemas and 504 tables (files 000 to 1082), as the generated `db/README.md` does |
+| M-10 | The architecture document gave 432 tables and 24 schemas | Fixed in 1.48.0. It now gives 26 schemas and 504 tables (files 000 to 1083), as the generated `db/README.md` does |
 | M-09 (first half) | SECURITY DEFINER functions use `pg_catalog, public` | Partly accurate: `public` holds only PostGIS and nothing the application can create. The real gap was `pg_temp` (addition 1), fixed in 1081 |
 | Report 2: context leaking between requests on reused connections | Not present: the context is local to its transaction, which is right with PgBouncer in transaction mode (`test_integrity_audit.py::test_a_pooled_connection_never_carries_a_company_into_the_next_request`). The real risk in this area was forging the context (C-01), fixed |
 | Report 2: the client header is not CSRF protection on its own | Partly accurate: it is not alone. The session cookie is `SameSite=Strict` and `HttpOnly`, and no CORS policy allows other origins. The two exempt paths are authenticated: payment notices by HMAC with a timestamp and replay check, `/api/v1/` by API keys |

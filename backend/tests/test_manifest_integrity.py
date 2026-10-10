@@ -62,7 +62,7 @@ def international_trip(owner) -> dict:
     assert r.status_code == 201, r.text
     vehicle = r.json()["uid"]
     email = f"driver{uuid.uuid4().hex[:8]}@example.com"
-    r = owner.post("/api/carrier/crew", json={"full_name": "Border Driver", "email": email, "password": "fresh-driver-password"})
+    r = owner.post("/api/carrier/crew", json={"full_name": "Border Driver", "email": email, "password": "night-crossing-passphrase"})
     assert r.status_code == 201, r.text
     FRESH_DRIVERS.append(email)
     driver = r.json()["uid"]

@@ -71,7 +71,7 @@ async def _blocked(conn, *pairs) -> bool:
 
 @router.post("/register", status_code=201)
 async def register(body: RegisterIn, request: Request):
-    problem = password_problem(body.password)
+    problem = password_problem(body.password, body.email, body.full_name, body.mobile)
     if problem:
         raise ApiError(422, problem, "password does not meet the policy")
     ctx = base_context(request)

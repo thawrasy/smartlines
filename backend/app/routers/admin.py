@@ -67,7 +67,7 @@ class OnboardIn(BaseModel):
 async def onboard_carrier(body: OnboardIn, request: Request, pr: Principal = Depends(require_permission("company.approve"))):
     if pr.portal != "PLATFORM":
         raise ApiError(403, "FORBIDDEN", "platform portal only")
-    problem = password_problem(body.owner_password)
+    problem = password_problem(body.owner_password, body.owner_email, body.owner_name)
     if problem:
         raise ApiError(422, problem, "password does not meet the policy")
     async with db.transaction(context_for(request, pr)) as conn:
@@ -171,7 +171,7 @@ class AgencyIn(BaseModel):
 async def onboard_agency(body: AgencyIn, request: Request, pr: Principal = Depends(require_permission("company.approve"))):
     if pr.portal != "PLATFORM":
         raise ApiError(403, "FORBIDDEN", "platform portal only")
-    problem = password_problem(body.owner_password)
+    problem = password_problem(body.owner_password, body.owner_email, body.owner_name)
     if problem:
         raise ApiError(422, problem, "password does not meet the policy")
     async with db.transaction(context_for(request, pr)) as conn:

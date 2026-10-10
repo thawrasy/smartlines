@@ -43,7 +43,7 @@ def test_a_carrier_of_a_second_market_works_in_its_currency_and_time(admin, jord
     code = "J" + "".join(secrets.choice("ABCDEFGHJKLMNPQRSTUVWXYZ") for _ in range(2))
     r = admin.post("/api/admin/companies", json={
         "legal_name": f"Amman Lines {code}", "code3": code, "owner_name": "Amman Owner", "market": "JO",
-        "owner_email": f"{code.lower()}{secrets.token_hex(2)}@example.com", "owner_password": "Amman-Lines-2026!x"})
+        "owner_email": f"{code.lower()}{secrets.token_hex(2)}@example.com", "owner_password": "Jordan-Valley-2026!x"})
     assert r.status_code == 201, r.text
     cid = owner_sql("SELECT id FROM iam.party WHERE uid = $1::uuid", r.json()["uid"])
     assert owner_sql("SELECT country_code FROM iam.party WHERE id = $1", cid) == "JO"
@@ -54,7 +54,7 @@ def test_a_carrier_of_a_second_market_works_in_its_currency_and_time(admin, jord
     # a market that is not open takes no company
     r = admin.post("/api/admin/companies", json={
         "legal_name": "Beirut Lines", "code3": "BXQ", "owner_name": "Beirut Owner", "market": "LB",
-        "owner_email": f"bxq{secrets.token_hex(2)}@example.com", "owner_password": "Beirut-Lines-2026!x"})
+        "owner_email": f"bxq{secrets.token_hex(2)}@example.com", "owner_password": "Cedar-Coast-2026!x"})
     assert r.status_code == 409 and r.json()["error"]["code"] == "MARKET_NOT_OPEN", r.text
 
 

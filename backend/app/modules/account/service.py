@@ -60,7 +60,7 @@ async def change_password(conn, ctx: db.Context, pr: Principal, current: str, ne
     stored = await conn.fetchval("SELECT password_hash FROM iam.app_user WHERE id = $1", pr.user_id)
     if not verify_password(stored, current):
         raise ApiError(422, "PASSWORD_WRONG", "the current password is not correct")
-    problem = password_problem(new)
+    problem = password_problem(new, pr.email, pr.display_name)
     if problem:
         raise ApiError(422, problem, "password does not meet the policy")
     if verify_password(stored, new):

@@ -81,7 +81,7 @@ def bookable_trip(pax):
     return None
 
 
-FRESH_DRIVER_PASSWORD = "fresh-driver-password"
+FRESH_DRIVER_PASSWORD = "fresh-crew-long-passphrase"
 FRESH_DRIVERS: list[str] = []          # drivers created by publish_fresh_trip, tried by the boarding test
 
 
@@ -344,7 +344,7 @@ def test_admin_onboarding_ip_rules_and_audit():
     code = "".join(chr(65 + (uuid.uuid4().int >> i) % 26) for i in (0, 8, 16))
     r = a.post("/api/admin/companies", json={"legal_name": f"Test Carrier {code}", "code3": code, "owner_name": "Owner",
                                              "owner_email": f"{code.lower()}{uuid.uuid4().hex[:4]}@example.com",
-                                             "owner_password": "test-owner-password"})
+                                             "owner_password": "test-carrier-passphrase"})
     assert r.status_code in (201, 409), r.text
     # Block a range, then a request "from" that range (via the trusted proxy header) is refused at the edge of the API
     rule = a.post("/api/security/ip-rules", json={"target": "203.0.113.0/24", "action": "BLOCK", "reason": "test block",

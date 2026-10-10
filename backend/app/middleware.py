@@ -117,8 +117,12 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
             async with db.transaction(ctx) as conn:
                 decision = await conn.fetchrow("SELECT action, rule_id FROM sec.ip_decision($1::inet, $2)",
                                                request.state.client_ip, scope)
-                # sign-in endpoints: the address's bucket is shared by every process (1068), in this same round trip
-                wait = await ratelimit.check_address(conn, request.state.client_ip) if bucket == "auth" else 0.0
+                # sign-in and public endpoints: the address's bucket is shared by every process (1068), in this round trip
+                wait = 0.0
+                if bucket == "auth":
+                    wait = await ratelimit.check_address(conn, request.state.client_ip)
+                elif bucket == "public":
+                    wait = await ratelimit.check_public(conn, request.state.client_ip)
         except db.PoolBusy:
             # raised outside the routes, so the application's exception handlers would not see it
             return await pool_busy_handler(request, db.PoolBusy())
@@ -129,7 +133,7 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
             return JSONResponse({"error": {"code": "IP_BLOCKED", "message": "access from this address is blocked"}},
                                 status_code=403)
 
-        if bucket != "auth":
+        if bucket == "api":
             wait = ratelimit.limiter().check(request.state.client_ip, bucket)
         if wait:
             request.state.error_code = "RATE_LIMITED"

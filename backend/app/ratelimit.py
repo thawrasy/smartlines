@@ -1,11 +1,15 @@
 """Per-client request rate limiting (study 16.10: brute force and scraping defence).
 
-Sign-in, registration, password and MFA endpoints draw from token buckets in the database (sec.rate_take, 1068),
-shared by every process and instance: one per client address, sized for mobile networks where many subscribers share
-one public address, and a strict one per account identifier, taken where the handler reads the identifier. Public
-search and the rest of the API use buckets in process memory, per client address; each process enforces its share of
-the limit (the instance's processes come from uvicorn's WEB_CONCURRENCY), so an instance as a whole keeps to it.
-Several instances behind the proxy each allow the full limit; the proxy or a WAF caps the total if that matters.
+Buckets in the database (sec.rate_take, 1068) are shared by every process and instance, so adding servers never
+raises a limit (reviews of October 2026, M-03):
+  * sign-in, registration, password and MFA endpoints: one bucket per client address, sized for mobile networks where
+    many subscribers share one public address, and a strict one per account identifier, taken where the handler
+    reads the identifier;
+  * public search and verification: one bucket per client address, taken in the round trip that already reads the
+    address rules, so it adds no connection;
+  * the partner API: one bucket per API client, at the client's own limit.
+The rest of the API (signed-in accounts, each request tied to a session) uses buckets in process memory, per client
+address; each process enforces its share (the instance's processes come from uvicorn's WEB_CONCURRENCY).
 """
 from __future__ import annotations
 
@@ -83,7 +87,7 @@ def limiter() -> RateLimiter:
     global _limiter
     if _limiter is None:
         s, n = get_settings(), processes()
-        _limiter = RateLimiter({"public": max(1, s.rate_public_per_minute // n), "api": max(1, s.rate_api_per_minute // n)})
+        _limiter = RateLimiter({"api": max(1, s.rate_api_per_minute // n)})
     return _limiter
 
 
@@ -95,6 +99,16 @@ async def take_shared(conn: asyncpg.Connection, bucket: str, key: str, per_minut
 async def check_address(conn: asyncpg.Connection, client: str) -> float:
     """The shared per-address bucket of the sign-in endpoints."""
     return await take_shared(conn, "auth_ip", client, get_settings().rate_auth_ip_per_minute)
+
+
+async def check_public(conn: asyncpg.Connection, client: str) -> float:
+    """The shared per-address bucket of public search and verification."""
+    return await take_shared(conn, "public_ip", client, get_settings().rate_public_per_minute)
+
+
+async def check_api_client(conn: asyncpg.Connection, client_id: int, per_minute: int) -> float:
+    """The shared bucket of one partner API client, at its own limit (iam.api_client.rate_limit_per_min)."""
+    return await take_shared(conn, "api_client", str(client_id), per_minute)
 
 
 async def check_identifier(conn: asyncpg.Connection, identifier: str) -> None:

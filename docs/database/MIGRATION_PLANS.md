@@ -91,7 +91,7 @@ rewrite (`ADD COLUMN ... NULL` or a constant default), triggers and functions; 1
 split it into its own file if it exceeds the criteria); 1079 reads the catalog and writes about 500 small rows. This is a
 development rehearsal: the launch gate (`LAUNCH_GATES.md`, gate 4) still needs the same run on a production-size copy.
 
-## Release 1.49.0 (1080 to 1082)
+## Release 1.49.0 (1080 to 1083)
 
 No file changes a business table's rows or structure:
 
@@ -102,8 +102,11 @@ No file changes a business table's rows or structure:
   transaction (`CALL sys.validate_constraints()`). VALIDATE takes a SHARE UPDATE EXCLUSIVE lock, so reads and writes
   go on, but it scans the table. On a fresh database this is instant. On a server whose old rows break one, the
   constraint stays NOT VALID and is named, and `/api/ready` reports `"constraints": false` (RUNBOOKS.md, section 31).
+* **1083** adds a setting and four functions, and replaces the three partition upkeep functions. It moves no row
+  itself: a default partition that holds a large late period on the day of the upgrade is emptied afterwards by the
+  worker, one period per transaction.
 
-Both take catalog locks for milliseconds, so they were not rehearsed with the tool.
+They take catalog locks for milliseconds, so they were not rehearsed with the tool.
 
 One point needs care. From 1080 on, the database refuses a context without the API's ticket. A 1.48.0 API process
 still serving between the migration and its own restart has its requests refused: the gap lasts as long as the

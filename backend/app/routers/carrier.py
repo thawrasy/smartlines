@@ -160,7 +160,7 @@ async def crew(request: Request, pr: Principal = Depends(operator)):
 @router.post("/crew", status_code=201)
 async def add_driver(body: DriverIn, request: Request, pr: Principal = Depends(operator)):
     _need(pr, "company.staff", "trip.assign_crew")
-    problem = password_problem(body.password)
+    problem = password_problem(body.password, body.email, body.full_name, body.mobile)
     if problem:
         raise ApiError(422, problem, "password does not meet the policy")
     async with db.transaction(context_for(request, pr)) as conn:
