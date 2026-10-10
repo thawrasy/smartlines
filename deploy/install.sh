@@ -58,8 +58,8 @@ if [ "$production" = true ]; then
   ./deploy/production/init.sh
   ./deploy/env-split.sh                   # each container receives only its part of deploy/.env (H-06)
   if grep -q '^MASSLAK_DB_LAYOUT=ha$' deploy/.env; then
-    # two database hosts (H-01): the third etcd member runs here first, so the first database host installed has a
-    # majority at once and becomes the primary; the second then copies it and becomes its synchronous standby
+    # two database hosts (H-01): the third etcd member runs here; a new cluster starts once it and the two database
+    # hosts' members have all run once (deploy/production/ha/install-db-host.sh on each host)
     step "The third etcd member on this server (deploy/production/ha)"
     docker compose --env-file deploy/.env up -d --no-deps etcd
   fi

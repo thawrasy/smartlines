@@ -7,6 +7,7 @@ Nothing runs half set up.
 
 | Finding | What the profile requires | Checked by |
 |---|---|---|
+| H-01 | The database on two hosts with automatic failover (Patroni, etcd, HAProxy; a synchronous standby confirms every commit), or on one host the owner accepted in writing (`MASSLAK_SINGLE_HOST_ACCEPTED`) | host preflight (one primary, a synchronous standby, over TLS); migration preflight; CI failover drill |
 | H-02 | WAL archived by pgBackRest to a repository off this host, proven before every migration | migration preflight; update; alert `WalArchiveStale` |
 | H-03 | Every backup copied off the server before an update | update (refuses), alert `BackupOffsiteStale` |
 | H-04 | Documents in an object store: a bucket with versioning and Object Lock, every file's version recorded with each backup and put back by a restore | migration preflight; backup (fails without the record); restore |
@@ -45,6 +46,10 @@ Nothing runs half set up.
   every file, and a restore puts those versions back, so files and database return to the same moment (H-04).
 * **The alert receivers.** Three webhook addresses: the on-call channel (page), the team queue (ticket), and a dead
   man's switch that pages when the minute heartbeat stops (deadman).
+* **Two database hosts** of equal size on a private network with this server (H-01), with Docker and cosign
+  installed: `MASSLAK_DB_LAYOUT=ha`, `MASSLAK_DB_HOSTS` (their private IPv4 addresses) and `MASSLAK_DB_WITNESS` (this
+  server's), [HIGH_AVAILABILITY.md](HIGH_AVAILABILITY.md). A pilot on one host instead records the owner's acceptance
+  in `MASSLAK_SINGLE_HOST_ACCEPTED` (who and when): losing that host means a restore, about 30 minutes.
 
 ## 2. Installing
 
@@ -66,24 +71,33 @@ exists. It creates:
 * the database's certificate, for the names `db`, `db-replica`, `pgbouncer` and any in `MASSLAK_DB_TLS_NAMES`;
 * the warehouse login's client certificate;
 * the monitoring secrets;
+* with two database hosts: the cluster's certificate (both hosts, this server and the names `db` and `db-replica`),
+  the password of Patroni's REST API, etcd's token, and one bundle per host in `deploy/production/ha/bundles/` for
+  `deploy/production/ha/install-db-host.sh` on that host (it holds the cluster's key and the database passwords:
+  copy it over SSH and delete it there once installed);
 * `COMPOSE_FILE` in `deploy/.env`, so every `docker compose --env-file deploy/.env ...` on the server uses the
-  profile.
+  profile (with two database hosts, `deploy/production/ha/docker-compose.ha.yml` too: `db` and `db-replica` become
+  HAProxy in front of the hosts, and the third etcd member runs here).
 
 **Move `deploy/production/tls/ca.key` to offline storage** once the certificates exist. It is needed again only to
 renew them.
 
 `install.sh` then works in this order:
 
-1. The host preflight (`deploy/production/preflight.sh`) checks `deploy/.env` and `deploy/production`.
-2. `deploy/env-split.sh` writes one environment file per container.
-3. The images are built and the stack starts. The migration first runs the database preflight
+1. `deploy/env-split.sh` writes one environment file per container; with two database hosts the third etcd member
+   starts here.
+2. The host preflight (`deploy/production/preflight.sh`) checks `deploy/.env` and `deploy/production`, and with two
+   database hosts that one is the primary and the other its synchronous standby (until both are installed with
+   their bundles it stops here; run `install.sh` again afterwards).
+3. The signed images are pulled and the stack starts. The migration first runs the database preflight
    (`python -m app.tools.preflight`) on the database itself:
    * TLS is on and is the only way in;
    * `pg_hba.conf` asks for scram and, for the warehouse, a certificate;
    * WAL archiving works now (pgBackRest's own check, against the repository);
    * the repository is off this host;
    * no decoding plugin but pgoutput is installed;
-   * with documents in an object store, the bucket keeps every version and locks them long enough.
+   * with documents in an object store, the bucket keeps every version and locks them long enough;
+   * two database hosts with a synchronous standby streaming now, or one host the owner accepted.
 4. The migration then wraps every data key with the key service (`python -m app.tools.keys bootstrap`). The API and
    the worker never hold a clear key in their environment.
 
@@ -99,7 +113,7 @@ first migration and only their wrapped form is stored (`sec.key_registry`).
 |---|---|---|
 | app, worker | Settings, the signing keys, the key service's address and token | The owner's password; replication, warehouse and telemetry-owner passwords; backup and pgBackRest settings; on a production server, any data key |
 | migrate | Everything but backup and pgBackRest settings | — |
-| db | The owner's login, pgBackRest's repository, the warehouse's address | — |
+| db | The owner's login, pgBackRest's repository, the warehouse's address; with two database hosts (the proxies) the owner's login only, the rest going to the hosts in their bundles | — |
 
 The API and the worker check this themselves at start (`app/profile.py`). They also refuse to start:
 
@@ -120,6 +134,9 @@ The API and the worker check this themselves at start (`app/profile.py`). They a
 5. The database preflight.
 6. The update itself.
 7. The WAL archive check, which must pass.
+
+With two database hosts, the hosts are updated after the application host: `install-db-host.sh` with the new
+release's bundle on the standby's host, then on the primary's, which hands the role to the standby before it restarts.
 
 `MASSLAK_SCHEMA_DRIFT=warn` is refused on a production server, whether the environment or the database declares it
 production.
@@ -177,10 +194,9 @@ monthly. The person on call confirms receipt; the drill is recorded as launch ga
 
 ## 7. What the profile does not do yet
 
-These are in package 3:
-
-* hosts of their own for the database and its standby (H-01);
 * TLS to the telemetry database (overlay `deploy/telemetry`).
+* The second site: its design and watchdog are in `deploy/ha`, and the installer does not set it up
+  ([HIGH_AVAILABILITY.md](HIGH_AVAILABILITY.md)).
 
-The profile runs on one host. On that host, TLS and the address rules protect against a container or a password
-leaking, not against a lost host. That is what the second site and package 3 cover.
+A production server accepted on one host is protected by TLS and the address rules against a container or a
+password leaking, not against a lost host: that is what the layout with two database hosts covers.

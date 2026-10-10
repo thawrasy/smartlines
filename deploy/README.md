@@ -63,8 +63,11 @@ sudo docker compose --env-file deploy/.env logs -f migrate app
 ```
 
 A production server (`MASSLAK_ENVIRONMENT=production`, the default without `--demo`) installs only in the production
-profile: TLS to the database, WAL archived off the server, the key service, monitoring. It needs the settings of
-docs/operations/PRODUCTION_PROFILE.md first; `deploy/install.sh` checks them and refuses an incomplete setup.
+profile: TLS to the database, WAL archived off the server, the key service, monitoring, and the database on two
+hosts with automatic failover (or one host the owner accepted in writing). It needs the settings of
+docs/operations/PRODUCTION_PROFILE.md first; `deploy/install.sh` checks them and refuses an incomplete setup. The
+database hosts are installed from the bundles it writes, with `deploy/production/ha/install-db-host.sh`
+(docs/operations/HIGH_AVAILABILITY.md).
 
 `init-env.sh` writes `deploy/.env` (mode 600) with random passwords and keys. **Copy its keys section to a
 password manager or secret store right away.** Without those keys, the encrypted identity numbers, MFA secrets

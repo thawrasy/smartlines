@@ -1,0 +1,50 @@
+# Builds of the mobile apps on EAS, started by hand (reviews of October 2026, M-14): the preview builds for the device
+# matrix (docs/operations/MOBILE_DEVICE_MATRIX.md) and the store builds. Needs the repository secret EXPO_TOKEN (an
+# Expo robot token); the certificate pins come from the EAS environment of the profile, never from this repository.
+name: Mobile builds
+
+on:
+  workflow_dispatch:
+    inputs:
+      variant:
+        description: Which app
+        type: choice
+        options: [passenger, driver, operator]
+      profile:
+        description: preview (internal, staging API) or production (stores)
+        type: choice
+        options: [preview, production]
+      platform:
+        description: Platform
+        type: choice
+        options: [android, ios, all]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: EAS build
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: mobile } }
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with: { node-version: "22", cache: npm, cache-dependency-path: mobile/package-lock.json }
+      - name: The Expo token is set
+        run: |
+          test -n "$EXPO_TOKEN" || { echo "::error::set the repository secret EXPO_TOKEN (an Expo robot token) to build on EAS"; exit 1; }
+      - run: npm ci
+      - name: The same checks as CI first
+        run: |
+          npm run typecheck
+          npm test
+          npm audit --json > audit.json || true
+          python3 ../scripts/mobile_advisories.py audit.json
+      - name: Build on EAS
+        env:
+          PROFILE: ${{ inputs.profile }}-${{ inputs.variant }}
+          PLATFORM: ${{ inputs.platform }}
+        run: npx --yes eas-cli@24.8.0 build --profile "$PROFILE" --platform "$PLATFORM" --non-interactive --no-wait

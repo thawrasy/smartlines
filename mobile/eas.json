@@ -1,0 +1,35 @@
+{
+  "cli": {
+    "version": ">= 24.8.0",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "base": {
+      "node": "22.20.0",
+      "env": { "MASSLAK_API_URL": "https://masslak.com" }
+    },
+    "preview": {
+      "extends": "base",
+      "distribution": "internal",
+      "environment": "preview",
+      "env": { "MASSLAK_API_URL": "https://staging.masslak.com" },
+      "android": { "buildType": "apk" }
+    },
+    "production": {
+      "extends": "base",
+      "distribution": "store",
+      "environment": "production",
+      "autoIncrement": true,
+      "android": { "buildType": "app-bundle" }
+    },
+    "preview-passenger": { "extends": "preview", "env": { "APP_VARIANT": "passenger", "MASSLAK_API_URL": "https://staging.masslak.com" } },
+    "preview-driver": { "extends": "preview", "env": { "APP_VARIANT": "driver", "MASSLAK_API_URL": "https://staging.masslak.com" } },
+    "preview-operator": { "extends": "preview", "env": { "APP_VARIANT": "operator", "MASSLAK_API_URL": "https://staging.masslak.com" } },
+    "production-passenger": { "extends": "production", "env": { "APP_VARIANT": "passenger", "MASSLAK_API_URL": "https://masslak.com" } },
+    "production-driver": { "extends": "production", "env": { "APP_VARIANT": "driver", "MASSLAK_API_URL": "https://masslak.com" } },
+    "production-operator": { "extends": "production", "env": { "APP_VARIANT": "operator", "MASSLAK_API_URL": "https://masslak.com" } }
+  },
+  "submit": {
+    "production": {}
+  }
+}

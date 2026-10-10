@@ -77,8 +77,9 @@ minutes.
 3. On each database host, from the same signed release archive, with Docker and cosign installed:
    `sudo ./deploy/production/ha/install-db-host.sh /root/db1.tar.gz` (then `db2.tar.gz` on the other). It checks and
    pulls the signed database image, starts etcd and Patroni, loads the kernel watchdog (`softdog`) and schedules the
-   backups. The first host becomes the primary; the second copies it and becomes its synchronous standby. Delete the
-   bundle afterwards (it holds the cluster's key and the database passwords).
+   backups. A new cluster starts once etcd has run on all three machines (etcd settles the cluster's version only
+   then): the first Patroni to find it ready becomes the primary, the other copies it and becomes its synchronous
+   standby. Delete the bundle afterwards (it holds the cluster's key and the database passwords).
 4. `sudo ./deploy/install.sh ...` again: the preflight finds one primary and a synchronous standby, and the stack
    starts against them.
 

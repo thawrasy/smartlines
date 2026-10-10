@@ -283,14 +283,18 @@ jobs:
         run: npm run typecheck
       - name: Core unit tests (session, ticket credentials, offline boarding)
         run: npm test
-      - name: Bundle both variants (Metro resolves every import)
+      - name: Bundle the three variants (Metro resolves every import), with their source maps
         env: { CI: "1", EXPO_OFFLINE: "1" }
         run: |
-          npx expo export --platform android --output-dir /tmp/passenger
-          APP_VARIANT=driver npx expo export --clear --platform ios --output-dir /tmp/driver
-          APP_VARIANT=operator npx expo export --clear --platform android --output-dir /tmp/operator
+          npx expo export --platform android --source-maps --output-dir /tmp/passenger
+          APP_VARIANT=driver npx expo export --clear --platform ios --source-maps --output-dir /tmp/driver
+          APP_VARIANT=operator npx expo export --clear --platform android --source-maps --output-dir /tmp/operator
       - name: Known vulnerabilities in app dependencies
         run: npm audit --omit=dev --audit-level=critical
+      - name: Every advisory classed build or runtime; none classed build ships in a bundle (M-11)
+        run: |
+          npm audit --json > audit.json || true
+          python3 ../scripts/mobile_advisories.py audit.json /tmp/passenger /tmp/driver /tmp/operator
 
   stack:
     name: Deployment stack (compose, HTTPS, backup and restore)
@@ -602,12 +606,12 @@ jobs:
             test "${PIPESTATUS[0]}" = 0
             grep -q 'verified masslak-db' "db$i.log"
           done
-          code() { curl -s -o /dev/null -w '%{http_code}' --cacert deploy/production/tls/ca.crt "https://$1:8008$2"; }
-          for i in $(seq 60); do test "$(code 10.77.0.12 /sync)" = 200 && break; sleep 2; done
-          test "$(code 10.77.0.11 /primary)" = 200 && test "$(code 10.77.0.12 /sync)" = 200
+          # the first Patroni to find etcd ready becomes the primary, the other its synchronous standby
+          roles="$(./deploy/production/ci/roles.sh 180)"; eval "$roles"
+          echo "primary $PRIMARY ($PRIMARY_ADDR), synchronous standby $STANDBY ($STANDBY_ADDR)"
           # nothing answers without TLS, and etcd refuses a client without the cluster's certificate
-          if curl -s --max-time 5 http://10.77.0.11:8008/health; then exit 1; fi
-          if curl -s --max-time 5 --cacert deploy/production/tls/ca.crt https://10.77.0.11:2379/health; then exit 1; fi
+          if curl -s --max-time 5 "http://$PRIMARY_ADDR:8008/health"; then exit 1; fi
+          if curl -s --max-time 5 --cacert deploy/production/tls/ca.crt "https://$PRIMARY_ADDR:2379/health"; then exit 1; fi
           sudo docker exec masslak-db1-etcd-1 etcdctl --endpoints=https://10.77.0.11:2379 --cacert /tls/ca.crt \
             --cert /tls/cluster.crt --key /tls/cluster.key endpoint health --cluster
       - name: Installation against the two hosts; the stack reaches the primary through HAProxy, TLS checked end to end
@@ -616,12 +620,13 @@ jobs:
           test "${PIPESTATUS[0]}" = 0
           sudo chown "$USER" deploy/.env deploy/FIRST_LOGIN.txt IMAGES
           curl -fsSk https://localhost/api/ready | grep -q '"ready":true'
+          roles="$(./deploy/production/ci/roles.sh 30)"; eval "$roles"
           dc="sudo docker compose --env-file deploy/.env"
           $dc logs migrate | grep -q 'the database layout is two hosts with a synchronous standby'
           $dc exec -T db masslak-patroni cluster
           q() { $dc exec -T "${2:-db}" psql -d masslak -Atc "$1"; }
-          test "$(q "SELECT host(inet_server_addr()) || ' ' || pg_is_in_recovery()")" = "10.77.0.11 false"
-          test "$(q "SELECT host(inet_server_addr()) || ' ' || pg_is_in_recovery()" db-replica)" = "10.77.0.12 true"
+          test "$(q "SELECT host(inet_server_addr()) || ' ' || pg_is_in_recovery()")" = "$PRIMARY_ADDR false"
+          test "$(q "SELECT host(inet_server_addr()) || ' ' || pg_is_in_recovery()" db-replica)" = "$STANDBY_ADDR true"
           # the standby streams over TLS and confirms every commit; no network connection is unencrypted
           test "$(q "SELECT count(*) FROM pg_stat_replication r JOIN pg_stat_ssl s USING (pid) WHERE s.ssl AND r.sync_state = 'sync'")" = 1
           test "$(q "SELECT count(*) FROM pg_stat_ssl s JOIN pg_stat_activity a USING (pid) WHERE a.client_addr IS NOT NULL AND NOT s.ssl")" = 0
@@ -631,23 +636,27 @@ jobs:
           $dc exec -T db masslak-patroni durability on | grep -q 'synchronous_mode_strict=True'
       - name: WAL archived from the primary host; the backup taken by whichever host is the primary
         run: |
+          roles="$(./deploy/production/ci/roles.sh 30)"; eval "$roles"
           sudo ./deploy/pitr/check-archive.sh
           for i in 1 2; do sudo docker exec -u postgres "masslak-db$i-patroni-1" masslak-backup-if-primary full | tee -a backup.log; done
           grep -q 'this host is a standby now' backup.log
-          sudo docker exec -u postgres masslak-db1-patroni-1 pgbackrest --stanza=masslak info | tee pgbackrest.info
+          sudo docker exec -u postgres "masslak-$PRIMARY-patroni-1" pgbackrest --stanza=masslak info | tee pgbackrest.info
           grep -q 'full backup' pgbackrest.info && grep -q 'cipher: aes-256-cbc' pgbackrest.info
       - name: With zero data loss on, a commit made while the standby host is down waits for it
         run: |
+          roles="$(./deploy/production/ci/roles.sh 30)"; eval "$roles"
           dc="sudo docker compose --env-file deploy/.env"
-          sudo docker stop masslak-db2-patroni-1
+          sudo docker stop "masslak-$STANDBY-patroni-1"
           if timeout 10 $dc exec -T db psql -d masslak -qc "CREATE TABLE zz_ha_probe (x int)"; then
             echo "a commit went through with no standby to confirm it"; exit 1; fi
-          sudo docker start masslak-db2-patroni-1
-          for i in $(seq 60); do test "$(curl -s -o /dev/null -w '%{http_code}' --cacert deploy/production/tls/ca.crt https://10.77.0.12:8008/sync)" = 200 && break; sleep 2; done
+          sudo docker start "masslak-$STANDBY-patroni-1"
+          roles="$(./deploy/production/ci/roles.sh 120)"; eval "$roles"
           test "$($dc exec -T db psql -d masslak -Atc "SELECT count(*) FROM pg_class WHERE relname = 'zz_ha_probe'")" = 1
           curl -fsSk https://localhost/api/ready | grep -q '"ready":true'
       - name: Failover drill under load - the primary host fails, the standby takes over, no acknowledged write is lost
         run: |
+          roles="$(./deploy/production/ci/roles.sh 60)"; eval "$roles"
+          echo "PRIMARY_BEFORE=$PRIMARY" >> "$GITHUB_ENV"
           dc="sudo docker compose --env-file deploy/.env"
           # with two hosts and zero data loss on, writes wait for a lost host to return (the step before); the drill
           # measures the failover itself with the setting off, and the next step turns it on again
@@ -659,30 +668,34 @@ jobs:
           /tmp/drill/bin/python db/tools/failover_drill.py --kill ./deploy/production/ci/kill-primary.sh \
             --dsn "postgresql://postgres:$pw@10.77.0.11:5432,10.77.0.12:5432/masslak?target_session_attrs=read-write&sslmode=verify-full&sslrootcert=deploy/production/tls/ca.crt" \
             --api https://localhost/api/ready --api-ca caddy-root.crt --rate 20 --warmup 15 --settle 10 --json failover.json || true
-          python3 -c 'import json; d = json.load(open("failover.json")); print(json.dumps(d, indent=1)); assert d["passed"] and d["lost"] == 0 and d["acknowledged"] > 300 and d["new_primary"].startswith("10.77.0.12"), d'
+          STANDBY_ADDR="$STANDBY_ADDR" python3 -c 'import json, os; d = json.load(open("failover.json")); print(json.dumps(d, indent=1)); assert d["passed"] and d["lost"] == 0 and d["acknowledged"] > 300 and d["new_primary"].startswith(os.environ["STANDBY_ADDR"]), d'
       - name: The old primary rejoins as the synchronous standby, and zero data loss is on again
         run: |
           dc="sudo docker compose --env-file deploy/.env"
-          test "$(cat /tmp/masslak-killed)" = db1
-          sudo docker start masslak-db1-patroni-1
-          for i in $(seq 90); do test "$(curl -s -o /dev/null -w '%{http_code}' --cacert deploy/production/tls/ca.crt https://10.77.0.11:8008/sync)" = 200 && break; sleep 2; done
+          test "$(cat /tmp/masslak-killed)" = "$PRIMARY_BEFORE"
+          sudo docker start "masslak-$PRIMARY_BEFORE-patroni-1"
+          roles="$(./deploy/production/ci/roles.sh 180)"; eval "$roles"
+          test "$STANDBY" = "$PRIMARY_BEFORE"
           $dc exec -T db masslak-patroni cluster
           $dc exec -T db masslak-patroni durability on | grep -q 'synchronous_mode_strict=True'
-          test "$($dc exec -T db-replica psql -d masslak -Atc "SELECT host(inet_server_addr()) || ' ' || pg_is_in_recovery()")" = "10.77.0.11 true"
+          test "$($dc exec -T db-replica psql -d masslak -Atc "SELECT host(inet_server_addr()) || ' ' || pg_is_in_recovery()")" = "$STANDBY_ADDR true"
           curl -fsSk https://localhost/api/ready | grep -q '"ready":true'
       - name: An update of the primary host hands the role to the standby first
         run: |
+          roles="$(./deploy/production/ci/roles.sh 60)"; eval "$roles"
           dc="sudo docker compose --env-file deploy/.env"
-          # a changed setting in the bundles (the warehouse's address), installed on db2, the primary since the drill
+          # a changed setting in the bundles (the warehouse's address), installed on the primary's host
           sed -i 's|^MASSLAK_WAREHOUSE_ADDRESS=.*|MASSLAK_WAREHOUSE_ADDRESS=192.0.2.11/32|' deploy/.env
           sudo ./deploy/production/init.sh
-          sudo MASSLAK_DB_WATCHDOG=off ./deploy/production/ha/install-db-host.sh deploy/production/ha/bundles/db2.tar.gz /etc/masslak/db2 | tee update.log
+          sudo MASSLAK_DB_WATCHDOG=off ./deploy/production/ha/install-db-host.sh "deploy/production/ha/bundles/$PRIMARY.tar.gz" "/etc/masslak/$PRIMARY" | tee update.log
           test "${PIPESTATUS[0]}" = 0
-          grep -q 'handing the role to db1' update.log
-          for i in $(seq 90); do test "$(curl -s -o /dev/null -w '%{http_code}' --cacert deploy/production/tls/ca.crt https://10.77.0.12:8008/sync)" = 200 && break; sleep 2; done
+          grep -q "handing the role to $STANDBY" update.log
+          old_primary="$PRIMARY" new_primary="$STANDBY" new_primary_addr="$STANDBY_ADDR"
+          roles="$(./deploy/production/ci/roles.sh 180)"; eval "$roles"
+          test "$PRIMARY" = "$new_primary" && test "$STANDBY" = "$old_primary"
           $dc exec -T db masslak-patroni cluster
-          test "$($dc exec -T db psql -d masslak -Atc "SELECT host(inet_server_addr())")" = 10.77.0.11
-          sudo docker exec masslak-db2-patroni-1 grep -q '192.0.2.11/32' /var/lib/postgresql/pg_hba.conf
+          test "$($dc exec -T db psql -d masslak -Atc "SELECT host(inet_server_addr())")" = "$new_primary_addr"
+          sudo docker exec "masslak-$old_primary-patroni-1" grep -q '192.0.2.11/32' /var/lib/postgresql/pg_hba.conf
           curl -fsSk https://localhost/api/ready | grep -q '"ready":true'
       - name: Logs on failure
         if: failure()

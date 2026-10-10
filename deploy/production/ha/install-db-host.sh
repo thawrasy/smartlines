@@ -7,8 +7,10 @@
 #   sudo ./deploy/production/ha/install-db-host.sh /root/db1.tar.gz [/etc/masslak/db-host]
 #
 # It unpacks the bundle into the host's directory (root only), checks and pulls the signed database image the release
-# names (deploy/images.sh: cosign, by digest, never built here), starts etcd and Patroni (db-host.yml), waits until
-# the member runs, and schedules pgBackRest's backups (only the host that is the primary at the time takes them).
+# names (deploy/images.sh: cosign, by digest, never built here), starts etcd and Patroni (db-host.yml), and schedules
+# pgBackRest's backups (only the host that is the primary at the time takes them). A new cluster starts once etcd runs
+# on both database hosts and on the application host; the first Patroni to find it ready becomes the primary, the
+# other copies it and becomes its synchronous standby.
 # Updating the host that is the primary first hands the role to the synchronous standby (a switchover: no committed
 # write lost, a few seconds of reconnecting), so the update restarts a standby, never the primary.
 #   MASSLAK_DB_WATCHDOG=off   no watchdog device (the default loads softdog and passes /dev/watchdog to Patroni)
@@ -65,14 +67,18 @@ if [ "$(status /primary)" = 200 ] && [ -n "$installed" ] && [ "$installed" != "$
 fi
 
 compose up -d
-for i in $(seq 1 90); do                   # Patroni answers on its REST API
+# Patroni answers on its REST API once etcd answers it. A new cluster's etcd settles its version only when all three
+# members have run once, so the first database host installed waits for the second (and for the application host's
+# member, which deploy/install.sh starts): that wait is expected, a container that stopped is not.
+for i in $(seq 1 60); do
   [ "$(status /liveness)" != 000 ] && break
-  [ "$i" = 90 ] && { compose logs --tail 60; fail "$name does not answer on https://$address:8008"; }
+  if [ "$(docker inspect -f '{{.State.Running}}' "$project-patroni-1" 2>/dev/null)" != true ] \
+     || [ "$(docker inspect -f '{{.State.Running}}' "$project-etcd-1" 2>/dev/null)" != true ]; then
+    compose logs --tail 60; fail "$name stopped: see its logs above"
+  fi
   sleep 2
 done
-# its PostgreSQL runs once etcd has a majority: with the application host's member up (deploy/install.sh starts it),
-# at once on the first host; then as the copy of the primary on the second
-for _ in $(seq 1 90); do rest /health >/dev/null 2>&1 && break; sleep 2; done
+for _ in $(seq 1 60); do rest /health >/dev/null 2>&1 && break; [ "$(status /liveness)" = 000 ] && break; sleep 2; done
 echo "$wanted" > "$dir/installed"
 
 # pgBackRest's backups from whichever host is the primary (masslak-backup-if-primary), like deploy/pitr on one host
@@ -85,6 +91,7 @@ chmod 0644 /etc/cron.d/masslak-pgbackrest-"$name"
 if rest /health >/dev/null 2>&1; then
   rest /patroni | python3 -c 'import json,sys; p=json.load(sys.stdin); print("%s: %s, %s, timeline %s" % (sys.argv[1], p.get("role"), p.get("state"), p.get("timeline")))' "$name"
 else
-  echo "$name runs and waits for etcd's majority: start the application host's member (deploy/install.sh) or the other database host"
+  echo "$name runs and waits for the cluster: install the other database host (and run deploy/install.sh on the" \
+       "application host, whose etcd member is the third); the first Patroni to find etcd ready becomes the primary"
 fi
 echo "delete the bundle now that it is installed: shred -u $bundle"

@@ -445,3 +445,76 @@ def test_the_database_hosts_and_the_application_host_run_the_same_pinned_parts()
     assert app["services"]["db"]["volumes"] == ["./deploy/production/tls/ca.crt:/tls-src/ca.crt:ro"]   # no data, no key
     durability = (REPO / "deploy" / "durability.sh").read_text()
     assert "exec -T db masslak-patroni durability" in durability
+
+
+# ------------------------------------------------------------------ M-11 mobile advisories, M-14 builds and devices
+def _advisories():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("mobile_advisories", REPO / "scripts" / "mobile_advisories.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _audit(*advisories):
+    """npm audit --json in miniature: each advisory a leaf of the tree, as npm prints it."""
+    vulns = {}
+    for ident, package, severity in advisories:
+        vulns.setdefault(package, {"via": []})["via"].append(
+            {"name": package, "severity": severity, "title": f"{package} issue", "url": f"https://github.com/advisories/{ident}"})
+    return {"vulnerabilities": vulns}
+
+
+def test_every_mobile_advisory_is_classed_and_build_ones_do_not_ship(tmp_path):
+    import datetime as dt
+    import json as js
+    m = _advisories()
+    register = js.loads((REPO / "mobile" / "advisories.json").read_text())
+    today = dt.date(2026, 10, 10)
+    known = _audit(*((e["id"], e["package"], e["severity"]) for e in register["advisories"]))
+    assert m.check(known, register, {"react", "query-string", "decode-uri-component"}, today) == ([], [])
+    # a new high advisory nobody classed stops CI; a new moderate one is a note
+    problems, notes = m.check(_audit(("GHSA-new1", "left-pad", "high"), ("GHSA-new2", "tiny", "moderate")), register, None, today)
+    assert any("GHSA-new1 (left-pad, high) is not classed" in p for p in problems)
+    assert any("GHSA-new2" in n for n in notes) and not any("GHSA-new2" in p for p in problems)
+    # a high advisory classed runtime needs a dated acceptance
+    runtime = {"advisories": [{"id": "GHSA-rt", "package": "rt", "severity": "high", "class": "runtime", "review_by": "2027-01-01"}]}
+    problems, _ = m.check(_audit(("GHSA-rt", "rt", "high")), runtime, None, today)
+    assert any("ships in the app and nobody accepted it" in p for p in problems)
+    # a package classed build that the bundle carries is refused, and so is an entry past its review date
+    problems, _ = m.check(known, register, {"node-forge"}, today)
+    assert any("node-forge is classed build but the app bundle carries it" in p for p in problems)
+    problems, _ = m.check(known, register, None, dt.date(2027, 6, 1))
+    assert any("was due for review" in p for p in problems)
+    # the bundle's packages come from its source maps
+    maps = tmp_path / "_expo" / "static" / "js" / "android"
+    maps.mkdir(parents=True)
+    (maps / "entry.hbc.map").write_text(js.dumps({"sources": [
+        "/app/node_modules/query-string/index.js", "/app/node_modules/@noble/hashes/sha2.js", "/app/src/app/index.tsx"]}))
+    assert m.bundled_packages([tmp_path]) == {"query-string", "@noble/hashes"}
+    for e in register["advisories"]:
+        assert e["class"] in ("build", "runtime") and e.get("where") and e.get("fix")
+        assert e["class"] == "build" or e.get("accepted_by"), e["id"]
+
+
+def test_the_mobile_apps_build_on_eas_as_modules_and_ci_checks_their_advisories():
+    import json as js
+    import yaml
+    assert js.loads((REPO / "mobile" / "package.json").read_text())["type"] == "module"
+    builds = js.loads((REPO / "mobile" / "eas.json").read_text())["build"]
+    for variant in ("passenger", "driver", "operator"):
+        for profile in ("preview", "production"):
+            p = builds[f"{profile}-{variant}"]
+            assert p["extends"] == profile and p["env"]["APP_VARIANT"] == variant
+            assert p["env"]["MASSLAK_API_URL"].startswith("https://")
+    assert builds["production"]["distribution"] == "store" and builds["preview"]["distribution"] == "internal"
+    assert "MASSLAK_API_PINS" not in (REPO / "mobile" / "eas.json").read_text()      # pins live in the EAS environment
+    workflow = yaml.safe_load((REPO / ".github" / "workflows" / "mobile-builds.yml").read_text())
+    steps = " ".join(str(s.get("run", "")) for s in workflow["jobs"]["build"]["steps"])
+    assert "EXPO_TOKEN" in steps and "eas-cli@24.8.0 build" in steps and "mobile_advisories.py" in steps
+    ci = (REPO / ".github" / "workflows" / "ci.yml").read_text()
+    assert "python3 ../scripts/mobile_advisories.py audit.json /tmp/passenger /tmp/driver /tmp/operator" in ci
+    assert ci.count("--source-maps --output-dir") == 3
+    matrix = (REPO / "docs" / "operations" / "MOBILE_DEVICE_MATRIX.md").read_text()
+    for case in ("Biometric lock", "Offline boarding", "Certificate pinning", "Install the preview build"):
+        assert case in matrix

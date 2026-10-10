@@ -62,15 +62,25 @@ npm run typecheck   # TypeScript, strict
 npm test            # core unit tests; set MASSLAK_TEST_URL to also verify a server-signed credential
 ```
 
-CI also bundles the app with Metro (`expo export`) to catch missing modules.
+CI also bundles the three apps with Metro (`expo export`) to catch missing modules.
 
 ### Dependency audit
 
-`npm audit --omit=dev` reports advisories in Expo SDK 57's tool chain (Metro, the Expo CLI's `node-forge`,
-`braces`, `micromatch`): they run on the build machine and are not in the app bundle. The one on a runtime path
-is `decode-uri-component` under `expo-router`'s `query-string@7` (denial of service with a crafted deep link). The
-patched releases are ESM-only and break `expo-router`'s `require` call, so it is tracked for the next SDK upgrade.
-CI fails on any critical advisory.
+`mobile/advisories.json` classes every advisory `npm audit` reports (reviews of October 2026, M-11): **build** for
+tooling on the build machine (Metro's file watcher with `braces`, the Expo CLI's `node-forge`, the config plugins'
+`uuid`), **runtime** for code the app carries (`decode-uri-component` under `expo-router`'s `query-string@7`: a crafted
+deep link can stall the app on the device that opens it; the patched release is an ES module that `query-string@7`
+cannot `require`, so it comes with expo-router 58). CI exports the three apps with source maps and runs
+`scripts/mobile_advisories.py`: it fails on a high or critical advisory missing from the register, on a runtime one
+at high or above without a dated acceptance, on an entry past its review date, and on a package classed build that a
+bundle carries. It also keeps `npm audit --audit-level=critical`. The upgrade that clears the register is Expo SDK 58,
+once it is the stable SDK.
+
+## Builds and devices
+
+`eas.json` has a preview (internal, staging API) and a production (stores) profile for each variant, such as
+`preview-driver`. The workflow "Mobile builds" runs them on EAS by hand; the pins come from the EAS environment. The
+apps are tried on real devices with docs/operations/MOBILE_DEVICE_MATRIX.md before a build reaches the stores.
 
 ## What each app does
 
