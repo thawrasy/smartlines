@@ -1,0 +1,15 @@
+digraph G {
+  graph [fontname="DejaVu Sans", fontsize=18, label=<<B>عزل المشتركين: مثال بمشترك A ومشترك B</B><BR/><FONT POINT-SIZE="11">المفتاح المركّب (TenantId, …) يمنع أي سهم بين المشتركين، والجداول العامة مشتركة للقراءة فقط</FONT>>, labelloc=t, rankdir=LR, nodesep=0.5, ranksep=1.0, pad=0.3, bgcolor="white"];
+  node [shape=box, style="rounded,filled", fontname="DejaVu Sans", fontsize=11, fillcolor="#DCEBFA", color="#5B7DA8"];
+  edge [fontname="DejaVu Sans", fontsize=10, color="#5B6B7A"];
+  subgraph cluster_A { label="المشترك A (TenantId = 1)"; style="rounded,filled"; fillcolor="#F4F8FD"; color="#2B5C8A"; fontname="DejaVu Sans";
+    A_user [label="sec.AppUser\nTenantId=1"]; A_co [label="org.Company\nTenantId=1"]; A_fac [label="fac.Facility\nTenantId=1"]; }
+  subgraph cluster_B { label="المشترك B (TenantId = 2)"; style="rounded,filled"; fillcolor="#FDF6F4"; color="#A0522D"; fontname="DejaVu Sans";
+    B_user [label="sec.AppUser\nTenantId=2"]; B_co [label="org.Company\nTenantId=2"]; B_fac [label="fac.Facility\nTenantId=2"]; }
+  G_cur [label="ref.Currency\n(عام، للقراءة فقط)", shape=box, style="rounded,filled", fillcolor="#FDE9D9", color="#B8860B"];
+  A_fac -> A_co [label="(TenantId, CompanyId)"]; A_co -> A_user [label="(TenantId, CreatedBy)"];
+  B_fac -> B_co [label="(TenantId, CompanyId)"]; B_co -> B_user [label="(TenantId, CreatedBy)"];
+  A_fac -> G_cur [style=dashed, label="FK عام"]; B_fac -> G_cur [style=dashed];
+  A_fac -> B_co [label="مرفوض: لا يصحّ المفتاح المركّب", color="#C0392B", fontcolor="#C0392B", style=dashed, constraint=false];
+  A_user -> B_user [label="مرفوض", color="#C0392B", fontcolor="#C0392B", style=dashed, constraint=false];
+}

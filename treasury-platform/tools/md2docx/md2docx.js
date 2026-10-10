@@ -6,6 +6,7 @@
    block quotes, fenced code blocks, horizontal rules (dropped), links (rendered as plain text). */
 'use strict';
 const fs = require('fs');
+const path = require('path');
 const { execFileSync } = require('child_process');
 const D = require('docx');
 const {
@@ -15,6 +16,7 @@ const {
 } = D;
 
 const [,, inFile, outFile, ...rest] = process.argv;
+const BASE_DIR = path.dirname(path.resolve(inFile || '.'));
 if (!inFile || !outFile) { console.error('usage: md2docx.js in.md out.docx [--header text]'); process.exit(2); }
 const hi = rest.indexOf('--header');
 const HEADER_TEXT = hi >= 0 ? rest[hi + 1] : '';
@@ -126,6 +128,26 @@ function listBlock(block, level, ordRef, out) {
 }
 
 // weight = longest unbreakable token (so code identifiers never split) blended with total text length
+// PNG: الأبعاد من ترويسة IHDR (بايت 16..23)
+function pngSize(buf) { return { w: buf.readUInt32BE(16), h: buf.readUInt32BE(20) }; }
+function imageBlock(img) {
+  const [, altInlines, [src]] = img.c;
+  const file = path.resolve(BASE_DIR, src);
+  const data = fs.readFileSync(file);
+  const { w, h } = pngSize(data);
+  const MAX_W = 640, MAX_H = 860;                       // بكسل بـ96 dpi: عرض الصفحة وارتفاعها المتاحان تقريبًا
+  let width = MAX_W, height = Math.round(h * MAX_W / w);
+  if (height > MAX_H) { height = MAX_H; width = Math.round(w * MAX_H / h); }
+  const out = [new Paragraph({
+    alignment: AlignmentType.CENTER, keepNext: true, bidirectional: true, spacing: { before: 160, after: 60 },
+    children: [new D.ImageRun({ type: 'png', data, transformation: { width, height }, altText: { name: src, description: plain(altInlines), title: plain(altInlines) } })],
+  })];
+  const cap = plain(altInlines);
+  if (cap) out.push(new Paragraph({ alignment: AlignmentType.CENTER, bidirectional: true, spacing: { before: 0, after: 220 },
+    children: runsFrom(altInlines, { size: SZ.small, color: C.gray, st: { i: true } }) }));
+  return out;
+}
+
 function colWeights(rows, ncols) {
   const longest = new Array(ncols).fill(0), total = new Array(ncols).fill(0);
   for (const r of rows) r.forEach((cell, i) => {
@@ -210,7 +232,12 @@ function blockToDocx(b, out) {
       }
       break;
     }
-    case 'Para': case 'Plain': out.push(bodyPara(b.c)); break;
+    case 'Para': case 'Plain': {
+      // صورة منفردة في فقرة: ![تعليق](مسار.png) → صورة بعرض الصفحة وتعليق تحتها
+      const only = b.c.filter(x => !(x.t === 'Space' || x.t === 'SoftBreak'));
+      if (only.length === 1 && only[0].t === 'Image') { out.push(...imageBlock(only[0])); break; }
+      out.push(bodyPara(b.c)); break;
+    }
     case 'BulletList': case 'OrderedList': listBlock(b, 0, null, out); out.push(new Paragraph({ children: [], spacing: { before: 0, after: 60 }, bidirectional: true })); break;
     case 'BlockQuote': {
       const line = { style: BorderStyle.SINGLE, size: 6, color: C.quoteLine, space: 6 };

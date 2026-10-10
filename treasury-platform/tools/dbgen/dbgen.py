@@ -582,7 +582,7 @@ def emit_erd(tables):
                 else: cross.append((t.name, c.name, c.fk))
         out += [f'## مخطط `{sch}` ({len(ts)} جدولًا)', '']
         if len(ts) <= 45:
-            out += ['```mermaid', 'erDiagram'] + sorted(set(rels)) + [f'  {t.name} {{ int _ }}' for t in ts if not any(t.name in r for r in rels)] + ['```', '']
+            out += ['```mermaid', 'erDiagram'] + sorted(set(rels)) + ['```', '']   # الجداول بلا علاقات داخل المخطط تُذكر في الجدول أدناه (لا كيانات وهمية)
         else:
             out += [f'(المخطط كبير؛ العلاقات الداخلية: {len(set(rels))})', '']
         if cross:

@@ -1,0 +1,27 @@
+digraph G {
+  graph [fontname="DejaVu Sans", fontsize=18, label=<<B>صلاحيات الأدوار على الجداول</B><BR/><FONT POINT-SIZE="11">المنح صريحة لكل جدول ومولَّدة (007)؛ لا منح على مستوى المخطط</FONT>>, labelloc=t, rankdir=LR, nodesep=0.4, ranksep=1.6, pad=0.3, bgcolor="white"];
+  node [fontname="DejaVu Sans", fontsize=11];
+  edge [fontname="DejaVu Sans", fontsize=9, color="#5B6B7A"];
+  subgraph cluster_roles { label="الأدوار"; style=rounded; color="#999999"; fontname="DejaVu Sans";
+    app [shape=box, style="rounded,filled", fillcolor="#DCEBFA", label="tp_app\nتطبيق المشترك"];
+    plat [shape=box, style="rounded,filled", fillcolor="#FDE9D9", label="tp_platform\nمشغّلو المنصة"];
+    auth [shape=box, style="rounded,filled", fillcolor="#EADCF8", label="tp_auth\nداخلي (إجراء الجلسة فقط)"];
+    ro [shape=box, style="rounded,filled", fillcolor="#E8F5E9", label="tp_readonly\nتقارير"];
+    mig [shape=box, style="rounded,filled", fillcolor="#EEEEEE", label="tp_migrator\nالنشر"]; }
+  subgraph cluster_res { label="أنواع الجداول"; style=rounded; color="#999999"; fontname="DejaVu Sans";
+    tenant [shape=box, style=filled, fillcolor="#DCEBFA", label="جداول المشترك\n(TenantId + RLS)"];
+    glob [shape=box, style=filled, fillcolor="#FDE9D9", label="جداول عامة\n(ref · sec.Permission · cfg)"];
+    mixed [shape=box, style=filled, fillcolor="#EADCF8", label="جداول مختلطة\n(cat.LookupItem · aud.AuditLog)"];
+    noapp [shape=box, style=filled, fillcolor="#F8D7DA", label="plat.Tenant\nplat.PlatformOperator\n(noapp)"]; }
+  app -> tenant [label="SELECT, INSERT, UPDATE"];
+  app -> glob [label="SELECT فقط"];
+  app -> mixed [label="SELECT, INSERT, UPDATE\n(RLS يقصر الكتابة)"];
+  app -> noapp [label="لا منح", style=dashed, color="#C0392B", fontcolor="#C0392B"];
+  plat -> tenant [label="لا وصول مباشر", style=dashed, color="#C0392B", fontcolor="#C0392B"];
+  plat -> glob [label="SELECT, INSERT, UPDATE"];
+  plat -> mixed [label="SELECT, INSERT, UPDATE"];
+  plat -> noapp [label="SELECT, INSERT, UPDATE"];
+  auth -> noapp [label="sec.AppUser و plat.Tenant\nفحص الجلسة فقط", style=dotted];
+  ro -> tenant [label="SELECT (دون الأعمدة الحساسة)"];
+  ro -> glob [label="SELECT"];
+}

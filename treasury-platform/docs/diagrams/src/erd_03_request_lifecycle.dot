@@ -1,0 +1,18 @@
+digraph G {
+  graph [fontname="DejaVu Sans", fontsize=18, label=<<B>دورة حياة الطلب: إقفال دورة العمل بيد إدارة الخزينة</B><BR/><FONT POINT-SIZE="11">الإكمال لا يحدث إلا بعد الإقفال (BR-WFL-027)</FONT>>, labelloc=t, rankdir=LR, nodesep=0.5, ranksep=0.9, pad=0.3, bgcolor="white"];
+  node [shape=box, style="rounded,filled", fontname="DejaVu Sans", fontsize=11, fillcolor="#FFFFFF", color="#5B6B7A"];
+  edge [fontname="DejaVu Sans", fontsize=9, color="#5B6B7A"];
+  DRAFT [label="DRAFT\nمسودة"];
+  ACTIVE [label="ACTIVE\nقيد المعالجة"];
+  AWAITING [label="AWAITING_CLOSE\nانتهت المراحل بنجاح\nتنتظر إقفال الخزينة", fillcolor="#FFF3B0", color="#B8860B", penwidth=2];
+  COMPLETED [label="COMPLETED\nمكتمل (بعد الإقفال)", fillcolor="#E8F5E9", color="#2E7D32", penwidth=2];
+  REJECTED [label="REJECTED\nمرفوض", fillcolor="#F8D7DA", color="#C0392B"];
+  CANCELLED [label="CANCELLED\nملغى", fillcolor="#EEEEEE"];
+  DRAFT -> ACTIVE [label="تقديم"];
+  DRAFT -> CANCELLED [label="إلغاء المسودة"];
+  ACTIVE -> ACTIVE [label="موافقة · إرجاع · إعادة تقديم"];
+  ACTIVE -> AWAITING [label="انتهاء المرحلة الأخيرة بنجاح\n(ReadyToCloseAt)"];
+  AWAITING -> COMPLETED [label="إقفال من مدير الخزينة\n(req.treasury.close · ClosedByUserId · ClosedAt)", penwidth=2];
+  ACTIVE -> REJECTED [label="رفض"];
+  ACTIVE -> CANCELLED [label="إلغاء"];
+}

@@ -10,7 +10,6 @@ erDiagram
   Plan ||--o{ Tenant : "PlanId"
   PlatformOperator ||--o{ SupportAccessGrant : "OperatorId"
   PlatformOperator ||--o{ TenantModule : "EnabledBy"
-  ReservedSubdomain { int _ }
 ```
 
 | الجدول | العمود | يشير إلى |
@@ -51,8 +50,6 @@ erDiagram
 
 ```mermaid
 erDiagram
-  AuditLog { int _ }
-  SensitiveAccessLog { int _ }
 ```
 
 | الجدول | العمود | يشير إلى |
@@ -84,13 +81,6 @@ erDiagram
   ExpiryAlertRule ||--o{ ExpiryAlertLog : "ExpiryAlertRuleId"
   NumberSequence ||--o{ NumberIssue : "SequenceId"
   NumberSequenceDefinition ||--o{ NumberSequence : "DefinitionId"
-  SettingDefinition { int _ }
-  TenantSetting { int _ }
-  DataExportJob { int _ }
-  NonWorkingDay { int _ }
-  OutboxEvent { int _ }
-  JobRun { int _ }
-  SeedRun { int _ }
 ```
 
 | الجدول | العمود | يشير إلى |
@@ -166,8 +156,6 @@ erDiagram
   Party ||--o{ PartyCompliance : "PartyId"
   Party ||--o{ PartyCustomField : "PartyId"
   Party ||--o{ TaxIdentity : "PartyId"
-  Address { int _ }
-  ContactMethod { int _ }
 ```
 
 | الجدول | العمود | يشير إلى |
@@ -198,10 +186,6 @@ erDiagram
 
 ```mermaid
 erDiagram
-  Country { int _ }
-  Currency { int _ }
-  Incoterm { int _ }
-  UcpArticle { int _ }
 ```
 
 | الجدول | العمود | يشير إلى |
@@ -225,14 +209,6 @@ erDiagram
   Product ||--o{ ProductFeeType : "ProductId"
   Product ||--o{ ProductFinancingType : "ProductId"
   ProductCategory ||--o{ Product : "ProductCategoryId"
-  TenantCurrency { int _ }
-  InstitutionType { int _ }
-  AccountType { int _ }
-  LegalEntityType { int _ }
-  DocumentType { int _ }
-  Position { int _ }
-  FacilityType { int _ }
-  ObligationType { int _ }
 ```
 
 | الجدول | العمود | يشير إلى |
@@ -517,9 +493,6 @@ erDiagram
   FinancialStatement ||--o{ StatementLine : "StatementId"
   LineCatalogItem ||--o{ LineCatalogItemAlias : "LineCatalogItemId"
   LineCatalogItem ||--o{ StatementLine : "LineCatalogItemId"
-  AccountMonthlyStat { int _ }
-  BankFlowEntry { int _ }
-  MeasureFormula { int _ }
 ```
 
 | الجدول | العمود | يشير إلى |
@@ -637,7 +610,6 @@ erDiagram
   NotificationEventType ||--o{ Notification : "EventTypeId"
   NotificationEventType ||--o{ NotificationRule : "EventTypeId"
   NotificationEventType ||--o{ NotificationTemplate : "EventTypeId"
-  NotificationPreference { int _ }
 ```
 
 | الجدول | العمود | يشير إلى |
