@@ -726,6 +726,10 @@ jobs:
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       - run: docker build -t masslak:ci .
+      - name: The production database image (PostGIS, pgBackRest, Patroni from its hashed lock, HAProxy)
+        run: |
+          docker build --progress=plain -t masslak-db:ci deploy/production/db
+          docker run --rm --entrypoint sh masslak-db:ci -c 'patroni --version && patronictl version && haproxy -v | head -1 && pgbackrest version'
       # what the image contains, package by package, kept with the run (review stage C6); releases carry a signed one.
       # Not attached to a release: CI may only read, and on a tag the release workflow publishes its own signed files.
       - name: Software bill of materials of the image (SPDX)

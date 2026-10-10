@@ -87,27 +87,43 @@ section.
 
 ## 3. Failover
 
-- **Who decides:** Patroni promotes the standby when the primary fails its health checks, for about 30 seconds of
-  detection. The application connects through the Patroni-aware endpoint (HAProxy or PgBouncer in front), so it reaches
-  the new primary on reconnect.
+- **The production layout** (reviews of October 2026, H-01; [HIGH_AVAILABILITY.md](HIGH_AVAILABILITY.md)): two
+  database hosts under Patroni with a synchronous standby, etcd on both and on the application host, HAProxy on the
+  application host under the names `db` and `db-replica`. `deploy/install.sh` requires it (`MASSLAK_DB_LAYOUT=ha`), or
+  the owner's written acceptance of one host (`MASSLAK_SINGLE_HOST_ACCEPTED`).
+- **Who decides:** Patroni promotes the synchronous standby when the primary stops renewing its leader key (30 s).
+  HAProxy marks the old primary down within 3 s of Patroni's answer changing and cuts its sessions; clients
+  reconnect to the new primary through the same names.
 - **During failover:**
   - Transactions in flight are rolled back.
-  - The API retries idempotent requests. Bookings and payments carry idempotency keys, so a retry never doubles them.
-- **Manual switchover** for maintenance: `patronictl switchover --leader <old> --candidate <new>`.
-- **The application side** (review stage D6): list every server with `target_session_attrs=read-write`, or go through
-  HAProxy port 5000. While no primary answers, the API returns 503 `SERVICE_BUSY` with `Retry-After`, and
-  `/api/ready` stays not ready until the pool reaches a primary. Measured on a development pair: writing back 2.3 s
-  after the promotion, nothing lost ([HIGH_AVAILABILITY.md](HIGH_AVAILABILITY.md)); the full procedure, the second
-  site included, is section 23.
-- **Single-server stack (`docker-compose.yml`):**
+  - The API answers 503 `SERVICE_BUSY` with `Retry-After`, and `/api/ready` stays not ready until the pool reaches a
+    primary. Bookings and payments carry idempotency keys, so a retry never doubles them.
+- **What to look at:** `docker compose --env-file deploy/.env exec -T db masslak-patroni cluster` (members, roles,
+  lag; exit 0 with one primary and a synchronous standby streaming).
+- **Bring the failed host back:** fix the cause and start its Patroni (`docker start masslak-dbN-patroni-1` on that
+  host, or reboot it): Patroni rewinds it (`pg_rewind`) and it rejoins as the synchronous standby. A host whose disk is
+  lost is reinstalled from its bundle (`install-db-host.sh`); it copies the primary.
+- **Zero data loss with two hosts:** while one host is down, `MASSLAK_ZERO_DATA_LOSS=on` (owner's decision 1) makes
+  every commit wait for it, and the platform stops taking bookings (`CommitsWaitingForStandby`). If the host cannot
+  come back within minutes, the on-call lead decides whether to switch it off for the duration:
+  `MASSLAK_ZERO_DATA_LOSS=off` in `deploy/.env`, then `./deploy/durability.sh` (commits waiting go through); switch it
+  on again once the standby streams. The decision and its times go in the incident record.
+- **Manual switchover** for maintenance:
+  `docker exec masslak-dbN-patroni-1 patronictl -c /etc/patroni/patroni.yml switchover --leader dbN --candidate dbM
+  --force` on the primary's host; `install-db-host.sh` does it on its own before it restarts the primary.
+- **The application side** (review stage D6): list every host with `target_session_attrs=read-write`, or go through
+  HAProxy (`db`). Measured: back to writing 25.4 s after the primary was killed, nothing lost; CI repeats the drill on
+  every push (HIGH_AVAILABILITY.md, Measured). The second site is section 23.
+- **One database host (`MASSLAK_DB_LAYOUT=single`, accepted by the owner):**
   - **The replica:** the `db-replica` service is a streaming hot standby. Reports and exports read it; the API and the
     worker refuse to start in production without it.
   - **To promote it:** `docker compose exec -u postgres db-replica pg_ctl promote`. Then point
-    `MASSLAK_DATABASE_URL` at `db-replica` and recreate a new replica from it.
+    `MASSLAK_DATABASE_URL` at `db-replica` and recreate a new replica from it. Losing the host itself means a restore
+    (section 2), about 30 minutes.
   - **If the replica falls behind:** reports show the moment their data reflects (`data_as_of`), and
     `ReplicaLagging` alerts after 30 s.
 - **After failover:**
-  - Check replica lag on the remaining standby.
+  - Check the standby's lag (`masslak-patroni cluster`).
   - Check that the outbox worker resumed (`SELECT count(*) FROM sys.outbox_event WHERE status = 'PENDING'`).
   - Run the reconciliation checks from section 1.5.
 - **Failure tests** before launch: kill the primary, kill an API instance, kill the worker, block the payment provider,

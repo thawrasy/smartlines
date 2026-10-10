@@ -66,9 +66,14 @@ verify() {
 case "${1:-}" in
   build)
     prefix="${2:?prefix}" version="${3:?version}" commit="${4:?commit}" out="${5:?IMAGES file}"
-    docker build -q --build-arg MASSLAK_RELEASE_COMMIT="$commit" -t "$prefix/masslak:$version" . >/dev/null
-    docker build -q -t "$prefix/masslak-egress:$version" deploy/egress >/dev/null
-    docker build -q -t "$prefix/masslak-db:$version" deploy/production/db >/dev/null
+    build() {                              # quiet when it works, the end of the build's log when it does not
+      local log; log="$(mktemp)"
+      if ! docker build --progress=plain "$@" > "$log" 2>&1; then tail -n 80 "$log" >&2; rm -f "$log"; fail "could not build ${*: -1}"; fi
+      rm -f "$log"
+    }
+    build --build-arg MASSLAK_RELEASE_COMMIT="$commit" -t "$prefix/masslak:$version" .
+    build -t "$prefix/masslak-egress:$version" deploy/egress
+    build -t "$prefix/masslak-db:$version" deploy/production/db
     printf 'commit=%s\nversion=%s\n' "$commit" "$version" > "$out"
     for name in $ALL; do
       docker push -q "$prefix/$name:$version" >/dev/null
