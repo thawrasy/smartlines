@@ -270,7 +270,7 @@ const en = {
     SEAT_TAKEN: "A seat was just taken. Choose again.", HOLD_EXPIRED: "The hold expired. Choose your seats again.",
     INSUFFICIENT_BALANCE: "Your wallet balance is not enough.", NAME_PARTS_REQUIRED: "Syrian citizens need all four names.",
     DEVICE_REVOKED: "This device was signed out from your account.", SESSION_EXPIRED: "Please sign in again.",
-    RATE_LIMITED: "Too many attempts. Wait a moment.", generic: "Something went wrong. Try again.",
+    RATE_LIMITED: "Too many attempts. Wait a moment.", TICKET_NOT_YET: "The ticket opens three hours before departure.", CONNECTION_REQUIRED: "Connect to the internet to show this ticket.", generic: "Something went wrong. Try again.",
   },
   // generated from the website's locale files (scratch generator; keep in step with frontend/src/i18n)
   // ways of paying a booking (1056) in the passenger app (review stage C8); the same texts as the website

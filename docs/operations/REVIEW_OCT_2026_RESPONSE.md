@@ -321,3 +321,13 @@ access policy by country (not started).
 
 **Currency, proposal:** the platform keeps one mid rate per pair (`ref.exchange_rate`, as now). Buy and sell margins are settings per currency, applied at the quote, and the rate applied is fixed on the transaction (section 12). No migration is needed for the margins.
 
+### Third round of answers (10 October 2026) and what was built
+
+| Question | Answer | Built |
+|---|---|---|
+| Boarding photo: retention, who uploads for children and family members, when it is taken | Taken when the profile is created. Family photos are uploaded by the head of the family or by the account's creator. A person already linked to a family account cannot open a new account | Not built: the photo, its storage and its check wait for the retention period, which is still open |
+| Passenger app connection | Approved as proposed | Ticket credential issued only from three hours before departure until one hour after arrival (was six hours after arrival); saved tickets shown offline for 72 hours after their last check; "connect to show" otherwise. The driver's trip pack and the read-only wallet are not built yet |
+| Access by country | Top-up of the wallet from abroad allowed at launch; the app is visible abroad; bookings from abroad come in a later stage | Not built: the booking block needs the IP-to-country source (contract) |
+| Mobile ticket | Bound to the passenger's account, not to a device. The tickets appear when the account is opened; requested at each boarding of a scheduled trip and shown at each security check | Account binding is the existing design (the credential is per ticket, the app shows the account's tickets) |
+| Currency at launch | The Syrian pound only, under Syrian regulation. Foreign currencies later, when the state or regulation allows | Not built: pricing stays in the pound |
+

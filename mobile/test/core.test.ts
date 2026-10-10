@@ -5,6 +5,7 @@ import * as ed from "@noble/ed25519";
 import { verifyCredential } from "../src/core/ticketCredential.ts";
 import { clockIsOff, clockOffset, decide, reconcile, serverNow, type OfflinePack, type LocalScan } from "../src/core/offlineBoarding.ts";
 import { SessionManager, type Tokens } from "../src/core/session.ts";
+import { OFFLINE_SHOW_SECONDS, isFresh } from "../src/core/credentialFreshness.ts";
 
 const b64url = (b: Uint8Array) => Buffer.from(b).toString("base64url");
 
@@ -100,4 +101,16 @@ test("a small clock difference is tolerated and an unreadable server time is ign
   assert.equal(clockIsOff(null), false);
   assert.equal(clockOffset("not a time", Date.now()), 0);
   assert.equal(serverNow(null, 1000), 1000);
+});
+
+// A saved ticket is shown offline only within 72 hours of the last check with the server (proposal of 10 October 2026)
+test("a saved ticket is fresh for 72 hours after its last check, and not after", () => {
+  const checked = 1_800_000_000;
+  assert.equal(OFFLINE_SHOW_SECONDS, 72 * 3600);
+  assert.equal(isFresh(checked, checked), true);
+  assert.equal(isFresh(checked, checked + OFFLINE_SHOW_SECONDS - 1), true);
+  assert.equal(isFresh(checked, checked + OFFLINE_SHOW_SECONDS), false);
+  assert.equal(isFresh(undefined, checked), false);             // saved before this rule: must check again
+  assert.equal(isFresh(checked, checked - 60), true);           // a little clock skew is allowed
+  assert.equal(isFresh(checked, checked - 3600), false);         // a clock set back an hour is not
 });

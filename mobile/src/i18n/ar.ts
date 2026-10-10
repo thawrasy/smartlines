@@ -272,7 +272,7 @@ const ar: Messages = {
     SEAT_TAKEN: "حُجز أحد المقاعد للتو، اختر من جديد.", HOLD_EXPIRED: "انتهت مدة الحجز المؤقت، اختر مقاعدك من جديد.",
     INSUFFICIENT_BALANCE: "رصيد المحفظة غير كافٍ.", NAME_PARTS_REQUIRED: "يحتاج المواطن السوري إلى الأسماء الأربعة.",
     DEVICE_REVOKED: "سُجّل خروج هذا الجهاز من حسابك.", SESSION_EXPIRED: "سجّل الدخول من جديد.",
-    RATE_LIMITED: "محاولات كثيرة، انتظر قليلاً.", generic: "حدث خطأ، أعد المحاولة.",
+    RATE_LIMITED: "محاولات كثيرة، انتظر قليلاً.", TICKET_NOT_YET: "تُفتح التذكرة قبل المغادرة بثلاث ساعات.", CONNECTION_REQUIRED: "اتصل بالإنترنت لعرض هذه التذكرة.", generic: "حدث خطأ، أعد المحاولة.",
   },
   // generated from the website's locale files (scratch generator; keep in step with frontend/src/i18n)
   // ways of paying a booking (1056) in the passenger app (review stage C8); the same texts as the website

@@ -304,3 +304,18 @@ def test_a_blocked_value_is_refused_whatever_key_stored_it(monkeypatch):
     assert asyncio.run(s.identifier_blocked(Conn({legacy}), "EMAIL", " Ali@Example.com "))   # blocked before the change
     assert not asyncio.run(s.identifier_blocked(Conn(set()), "EMAIL", "ali@example.com"))
     s.token_keys.cache_clear()
+
+
+# ------------------------------------------------------------------ the offline ticket opens three hours before departure
+def test_a_credential_opens_three_hours_before_departure_and_closes_an_hour_after_arrival():
+    import pytest
+    from datetime import datetime, timedelta, timezone
+    from app.errors import ApiError
+    from app.modules.sales.service import credential_window
+    departure = datetime(2026, 10, 11, 6, 0, tzinfo=timezone.utc)
+    arrival = departure + timedelta(hours=2)
+    with pytest.raises(ApiError) as refused:
+        credential_window(departure, arrival, departure - timedelta(hours=3, seconds=1), 3)
+    assert refused.value.code == "TICKET_NOT_YET" and refused.value.status == 409
+    assert credential_window(departure, arrival, departure - timedelta(hours=3), 3) == int(arrival.timestamp()) + 3600
+    assert credential_window(departure, arrival, arrival, 3) == int(arrival.timestamp()) + 3600   # boarding mid-route

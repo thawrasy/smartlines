@@ -78,6 +78,9 @@ class Settings(BaseSettings):
     max_upload_bytes: int = 4 * 1024 * 1024
     platform_fee: int = 100000            # flat platform fee per booking, minor units (SYP 1,000.00)
     qr_window_seconds: int = 90
+    # When the offline ticket credential opens, in hours before departure (the proposal of 10 October 2026: three). Test
+    # servers open it far ahead (MASSLAK_TICKET_OPENS_HOURS) so that tests of boarding need no clock changes.
+    ticket_opens_hours: int = 3
     # Requests per minute (token buckets, see ratelimit.py). Sign-in, registration and password requests share
     # buckets in the database across every process: one per account identifier (strict) and one per client address
     # (high, because mobile networks put many subscribers behind one address). The other two are per address and

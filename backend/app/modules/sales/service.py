@@ -570,13 +570,27 @@ async def booking_view(conn: asyncpg.Connection, ctx: db.Context, b: asyncpg.Rec
     return {"booking": booking, "tickets": out}
 
 
+CREDENTIAL_CLOSES_AFTER_ARRIVAL = 3600      # seconds: a ticket's credential stays valid for an hour after its arrival
+
+
+def credential_window(departure: datetime, arrival: datetime, now: datetime, opens_hours: int) -> int:
+    """The end (epoch seconds) of a ticket's offline credential. It is issued only from opens_hours before departure
+    (reviews of release 1.49.0 and the proposal of 10 October 2026): a copy made earlier does not exist, and a copy made
+    later is refused at boarding once the window closes, a copy in the window needs the passenger's photo as well."""
+    opens = departure.timestamp() - opens_hours * 3600
+    if now.timestamp() < opens:
+        raise ApiError(409, "TICKET_NOT_YET", "the ticket opens three hours before departure",
+                       opens_at=datetime.fromtimestamp(opens, timezone.utc).isoformat())
+    return int(arrival.timestamp()) + CREDENTIAL_CLOSES_AFTER_ARRIVAL
+
+
 async def offline_credential(conn: asyncpg.Connection, ctx: db.Context, ticket_uid: uuid.UUID) -> dict:
     """Signed credential for showing a ticket with no connection; the caller has already checked ownership."""
     from ...security import ticket_credential
     async with db.system_scope(conn, ctx):
         k = await conn.fetchrow(
             """SELECT k.uid, k.status, k.seat_no, k.from_seq, k.to_seq, t.uid AS trip_uid, t.arrival_at, t.trip_no,
-                      p.first_name, p.last_name, p.full_name,
+                      t.departure_at, p.first_name, p.last_name, p.full_name,
                       (SELECT s ->> 'label' FROM jsonb_array_elements(t.seat_map -> 'seats') s
                         WHERE (s ->> 'n')::int = k.seat_no) AS seat_label
                  FROM sales.ticket k JOIN ops.trip t ON t.id = k.trip_id JOIN sales.passenger p ON p.id = k.passenger_id
@@ -585,7 +599,7 @@ async def offline_credential(conn: asyncpg.Connection, ctx: db.Context, ticket_u
         raise not_found("ticket")
     if k["status"] not in ("ISSUED", "BOARDED"):
         raise ApiError(409, "TICKET_NOT_VALID", "ticket is not valid for boarding")
-    expires = int(k["arrival_at"].timestamp()) + 6 * 3600
+    expires = credential_window(k["departure_at"], k["arrival_at"], datetime.now(timezone.utc), get_settings().ticket_opens_hours)
     token = ticket_credential({"k": str(k["uid"]), "t": str(k["trip_uid"]), "s": k["seat_label"] or str(k["seat_no"]),
                                "n": ticket_name(k["first_name"], k["last_name"], k["full_name"]),
                                "a": k["from_seq"], "b": k["to_seq"], "x": expires})

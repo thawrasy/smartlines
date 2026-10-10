@@ -52,6 +52,8 @@ Each case on each row, with the build's version and the result recorded in the t
 | 10 | Rooted or jailbroken device | the passenger app warns; the driver app refuses to board |
 | 11 | Sign out | every cached ticket, pack and pending scan is gone from the keystore |
 | 12 | Update from the previous build | the session and the offline tickets survive the update |
+| 13 | A ticket before its window: booked for a trip more than three hours away | the ticket shows no code and says it opens three hours before departure |
+| 14 | Offline for more than 72 hours after the last check | the ticket asks for a connection before it shows; the wallet stays read-only |
 
 ## Limits of the root check
 
