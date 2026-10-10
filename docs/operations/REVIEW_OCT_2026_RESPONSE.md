@@ -51,8 +51,10 @@ Checking the ticket adds about 55 µs to each transaction, measured on the devel
 
 * `deploy/migrate.sh` writes the context key on every start, deriving it from `MASSLAK_SIGNING_SECRET` with
   `python -m app.tools.context_key`. The migration and the API must use the same `deploy/.env`.
-* The withdrawal of `set_config` and temporary objects needs a superuser. The migration runs as one. A database
-  restored with `pg_dump` into a new cluster needs the last block of 1080 applied again (RUNBOOKS.md, section 30).
+* The withdrawal of `set_config` and temporary objects needs a superuser. The migration runs as one, and says it
+  again on every start (`db/create_login_roles.sql`), because a database that `deploy/restore.sh` creates anew has
+  PostgreSQL's defaults back. The warehouse login keeps `set_config`, which logical replication calls when it
+  connects (RUNBOOKS.md, section 30).
 * A server with the telemetry database must set `MASSLAK_TELEMETRY_UPKEEP_PASSWORD` in `deploy/.env` (the overlay
   refuses to start without it).
 * Requests that a 1.48.0 process serves between the migration and its restart are refused. A server that must not

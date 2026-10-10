@@ -27,6 +27,15 @@ DELETE FROM sys.context_key
  WHERE fingerprint <> left(encode(public.digest(decode(:'context_key', 'hex'), 'sha256'), 'hex'), 16)
    AND created_at < now() - interval '1 day';
 \endif
+-- 1080 withdrew set_config and temporary objects from every role; this is said again on every start, because a
+-- database that deploy/restore.sh created anew, or one restored into another cluster, has PostgreSQL's defaults back
+-- (readiness then reports "context": false).
+REVOKE EXECUTE ON FUNCTION pg_catalog.set_config(text, text, boolean) FROM PUBLIC;
+SELECT format('REVOKE TEMPORARY ON DATABASE %I FROM PUBLIC', current_database()) \gexec
+-- A logical replication connection clears its search_path with set_config before it streams. The warehouse login
+-- bypasses row security and may read only the published columns, so setting its own session's settings gives it
+-- nothing more.
+GRANT EXECUTE ON FUNCTION pg_catalog.set_config(text, text, boolean) TO masslak_cdc;
 -- Time limits of the running system's sessions (review of October 2026, stage A7). The application pool gives up on a
 -- statement after 30 s (backend/app/db.py); the server now stops it too, so abandoned work does not keep running. A
 -- request waits at most 5 s for a row or table lock (a migration waits the same at most, db/upgrade.sh), and a

@@ -805,9 +805,12 @@ roles, so no statement it runs can rewrite the context or the transaction flags 
   signing secret brings its key; the key it replaces stays a day for API processes still running with it.
 - **`/api/ready` says `"context": false`.** `SELECT sys.context_status('<fingerprint>')` (as the owner) tells which part:
   `key` false means the database does not hold the API's key: run the migration again (`docker compose ... up migrate`)
-  with the API's `deploy/.env`. `set_config_withdrawn` or `temporary_withdrawn` false means a restore through pg_dump
-  into a new database lost the withdrawal: apply schema file 1080's last block again as a superuser.
+  with the API's `deploy/.env`. `set_config_withdrawn` or `temporary_withdrawn` false means the database was created
+  anew (a restore) and has PostgreSQL's defaults back: the migration withdraws both again on every start, so run it
+  (`deploy/restore.sh` does).
   `no_unsigned_window` false means a rollback window is open (below).
+- **The warehouse login keeps `set_config`.** A logical replication connection clears its search path with it before
+  streaming. `masslak_cdc` bypasses row security and reads only the published columns, so it gains nothing from it.
 - **Every request fails with `CONTEXT_TICKET_*` in the database log.** `STALE`: the API's clock and the database's
   differ by more than five minutes; fix the time service (NTP) on both. `UNKNOWN`/`INVALID`: the API and the database
   hold different keys (see above).
