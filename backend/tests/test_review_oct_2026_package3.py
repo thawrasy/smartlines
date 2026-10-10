@@ -4,12 +4,17 @@ M-04  a file written before its row goes again when the row's transaction does n
       the files no row points to, and refuses when that many look like the wrong database
 M-08  a large late period leaves the default partition in a transaction of its own, moved by the worker
 M-13  a password common in leaks, a pattern, or one built on the person's own details is refused
+H-08  every Python package pinned with its hashes; a production server runs only signed images, by digest, never its own
+      build (the signatures themselves are checked in CI's production job)
 (M-03 is in test_shared_limits.py; the object store's listing and deletion in test_file_store.py.)
 """
 import asyncio
 import os
+import re
+import subprocess
 import time
 import uuid
+from pathlib import Path
 
 import pytest
 
@@ -170,3 +175,60 @@ def test_registration_refuses_a_password_made_of_the_email():
     r = client().post("/api/auth/register", json={"full_name": "Rania Test", "email": email,
                                                   "password": email.split("@")[0] + "-2026"})
     assert r.status_code == 422 and r.json()["error"]["code"] == "PASSWORD_TOO_PERSONAL"
+
+
+# ------------------------------------------------------------------ H-08 signed images, hashed packages
+REPO = Path(__file__).resolve().parents[2]
+
+
+def test_every_package_of_the_image_is_pinned_with_its_hashes():
+    pinned: dict[str, str] = {}
+    hashes: dict[str, int] = {}
+    current = None
+    for line in (REPO / "backend" / "requirements.lock").read_text().splitlines():
+        if m := re.match(r"([A-Za-z0-9._-]+)==([^\s;\\]+)", line):
+            current = m.group(1).lower()
+            pinned[current], hashes[current] = m.group(2), 0
+        elif current and re.match(r"\s+--hash=sha256:[0-9a-f]{64}", line):
+            hashes[current] += 1
+    assert len(pinned) >= 30 and all(n > 0 for n in hashes.values()), hashes     # each one with its hashes
+    for line in (REPO / "backend" / "requirements.txt").read_text().splitlines():
+        if line.strip() and not line.startswith("#"):
+            name, version = re.match(r"([A-Za-z0-9._-]+)(?:\[[^\]]+\])?==(\S+)", line).groups()
+            assert pinned.get(name.lower()) == version, name                              # the lock follows the pins
+    assert "pip install --no-cache-dir --require-hashes -r requirements.lock" in (REPO / "Dockerfile").read_text()
+
+
+def _images(tmp_path, **refs):
+    path = tmp_path / "IMAGES"
+    path.write_text("commit=abc\nversion=v1\n" + "".join(f"{k}={v}\n" for k, v in refs.items()))
+    return path
+
+
+@pytest.mark.parametrize("refs, expected", [
+    ({"masslak": "ghcr.io/o/masslak@sha256:" + "a" * 64, "masslak-egress": "ghcr.io/o/masslak-egress@sha256:" + "b" * 64},
+     "names no masslak-db image"),
+    ({"masslak": "ghcr.io/o/masslak:v1", "masslak-egress": "ghcr.io/o/masslak-egress@sha256:" + "b" * 64,
+      "masslak-db": "ghcr.io/o/masslak-db@sha256:" + "c" * 64}, "names no masslak image by its digest"),
+    ({"masslak": "ghcr.io/o/other@sha256:" + "a" * 64, "masslak-egress": "ghcr.io/o/masslak-egress@sha256:" + "b" * 64,
+      "masslak-db": "ghcr.io/o/masslak-db@sha256:" + "c" * 64}, "names no masslak image by its digest"),
+])
+def test_a_release_must_name_each_image_by_its_digest(tmp_path, refs, expected):
+    r = subprocess.run(["bash", str(REPO / "deploy" / "images.sh"), "verify", str(_images(tmp_path, **refs))],
+                       capture_output=True, text=True)
+    assert r.returncode == 1 and expected in r.stderr, r.stderr
+    missing = subprocess.run(["bash", str(REPO / "deploy" / "images.sh"), "pull", str(tmp_path / "none"), "t"],
+                             capture_output=True, text=True)
+    assert missing.returncode == 1 and "is missing" in missing.stderr
+
+
+def test_a_production_server_pulls_signed_images_and_never_builds():
+    install = (REPO / "deploy" / "install.sh").read_text()
+    update = (REPO / "deploy" / "update.sh").read_text()
+    prod_install = install.split('if [ "$production" = true ]; then\n  # a production server runs the images', 1)[1].split("\nelse", 1)[0]
+    assert "./deploy/images.sh pull IMAGES" in prod_install and "up -d --no-build" in prod_install and "--build" not in prod_install.replace("--no-build", "")
+    prod_update = update.split('if [ "$production" = true ]; then\n  # the images built and signed once', 1)[1].split("\nelse", 1)[0]
+    assert './deploy/images.sh pull "$images"' in prod_update and "compose build" not in prod_update
+    assert 'if [ "$production" = true ]; then compose up -d --no-build;' in update
+    preflight = (REPO / "deploy" / "production" / "preflight.sh").read_text()
+    assert "command -v cosign" in preflight and "IMAGES is missing" in preflight

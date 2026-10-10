@@ -13,6 +13,7 @@ Nothing runs half set up.
 | H-05 | TLS to the database, the read replica and PgBouncer; every client checks the certificate (`verify-full`) | `pg_hba.conf` accepts nothing else; migration preflight; API start |
 | H-06 | Data keys opened by the key service (Vault); each container receives only its part of `deploy/.env` | host preflight; API and worker start |
 | H-07 | Prometheus, Alertmanager, node_exporter, the PgBouncer exporter, Grafana and ClamAV run on the server; alerts reach the receivers | host preflight (receivers); `alert-drill.sh`; alerts `MetricsMissing`, `ScrapeTargetDown` |
+| H-08 | The API, egress proxy and database images built once by the release workflow, signed, and pulled by digest; never built on the server | host preflight (cosign, IMAGES); install and update (`deploy/images.sh`) |
 | H-09 | No constraint left NOT VALID | `/api/ready` |
 | H-10 | Warehouse login only from its address, over TLS with a client certificate; no decoding plugin but pgoutput | `pg_hba.conf`; migration preflight |
 | M-07 | No drift override (`MASSLAK_SCHEMA_DRIFT=warn`) | `db/upgrade.sh` |
@@ -46,6 +47,9 @@ Nothing runs half set up.
   man's switch that pages when the minute heartbeat stops (deadman).
 
 ## 2. Installing
+
+A production server installs from a release archive checked with `deploy/verify-release.sh` (RUNBOOKS.md, section 19),
+never from a git checkout: the archive's `IMAGES` names the signed images it runs. Install `cosign` first.
 
 ```
 sudo ./deploy/init-env.sh --domain masslak.com --email ops@masslak.com
@@ -108,10 +112,12 @@ The API and the worker check this themselves at start (`app/profile.py`). They a
 `deploy/update.sh` on a production server runs these steps in order:
 
 1. The host preflight.
-2. The build.
-3. A restart of the database, its replica and PgBouncer, only if their image or settings changed.
-4. The database preflight.
-5. The backup. It must be copied off the server, or the update stops: nothing has been changed at that point.
+2. The backup. It must be copied off the server, or the update stops: nothing has been changed at that point.
+3. The images of the release: each signature and bill of materials checked, then pulled by digest (`deploy/images.sh`;
+   `MASSLAK_IMAGES` names the release's `IMAGES` file when it is not in the current directory). An image the release
+   did not sign stops the update; the running version keeps serving.
+4. A restart of the database, its replica and PgBouncer, only if their image or settings changed.
+5. The database preflight.
 6. The update itself.
 7. The WAL archive check, which must pass.
 
@@ -174,7 +180,6 @@ monthly. The person on call confirms receipt; the drill is recorded as launch ga
 These are in package 3:
 
 * hosts of their own for the database and its standby (H-01);
-* images built once in CI and signed (H-08);
 * TLS to the telemetry database (overlay `deploy/telemetry`).
 
 The profile runs on one host. On that host, TLS and the address rules protect against a container or a password

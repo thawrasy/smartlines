@@ -114,7 +114,17 @@ fi
 old_tag="$(env_value MASSLAK_IMAGE_TAG)"
 case "$sha" in release-archive) tag="archive-$(date -u +%Y%m%d%H%M%S)" ;; *) tag="${sha:0:12}" ;; esac
 export MASSLAK_IMAGE_TAG="$tag"
-MASSLAK_RELEASE_COMMIT="$sha" compose build        # the release manifest (1058) records the commit
+if [ "$production" = true ]; then
+  # the images built and signed once by the release workflow, named by digest in IMAGES (H-08): checked, pulled and
+  # tagged; a production server never builds its own. An IMAGES of another commit than these files is refused.
+  images="${MASSLAK_IMAGES:-IMAGES}"
+  images_commit="$(sed -n 's/^commit=//p' "$images" 2>/dev/null || true)"
+  [ "$sha" = release-archive ] || [ -z "$images_commit" ] || [ "$images_commit" = "$sha" ] \
+    || fail "$images names the images of commit $images_commit, not of these files ($sha); nothing was changed"
+  ./deploy/images.sh pull "$images" "$tag" || fail "the release's images could not be verified (see above); nothing was changed"
+else
+  MASSLAK_RELEASE_COMMIT="$sha" compose build        # the release manifest (1058) records the commit
+fi
 if [ "$production" = true ]; then
   # the database side of the profile, on the database itself (TLS only, archiving proven to the off-host repository,
   # pgoutput only), before the new version starts: a refused update leaves the schema and the running version as they
@@ -126,7 +136,7 @@ if [ "$production" = true ]; then
       'export PGUSER="${POSTGRES_USER:-postgres}" PGPASSWORD="$POSTGRES_PASSWORD"; cd /app/backend && python -m app.tools.preflight' \
     || fail "the production preflight refused the database (see above); the schema and the running version are unchanged"
 fi
-compose up -d
+if [ "$production" = true ]; then compose up -d --no-build; else compose up -d; fi
 compose ps
 if ! ready 60; then
   compose logs --tail 80 migrate app

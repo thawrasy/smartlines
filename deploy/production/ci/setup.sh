@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # Prepares a production installation against the stand-ins of stand-ins.yml (CI and rehearsals only): fills deploy/.env
 # with the key service, pgBackRest's repository, off-site backups and the alert receivers, issues the object store's
-# certificate from the internal authority, starts the stand-ins, and creates the transit key in Vault. Then
-# deploy/install.sh installs as on a real production server. Run as root from the repository, after deploy/init-env.sh.
+# certificate from the internal authority, starts the stand-ins, and creates the transit key in Vault. It stands for the
+# release workflow too: a local registry, the three images built once, pushed and signed with a key made here, and the
+# IMAGES file naming them (H-08). Then deploy/install.sh installs as on a real production server, checking those
+# signatures. Run as root from the repository, after deploy/init-env.sh; needs cosign and syft.
 set -euo pipefail
 cd "$(dirname "$0")/../../.."
 env=deploy/.env
@@ -56,4 +58,16 @@ v() { $dc exec -T -e VAULT_ADDR=https://127.0.0.1:8200 -e VAULT_CACERT=/vault/tl
 for _ in $(seq 1 60); do v status >/dev/null 2>&1 && break; sleep 1; done
 v secrets enable transit >/dev/null
 v write -f transit/keys/masslak-field >/dev/null
-echo "stand-ins ready: Vault (transit key masslak-field), object storage, alert sink"
+
+# the release workflow's part (H-08): images built once, pushed to a registry and signed; the server verifies them
+docker rm -f masslak-ci-registry >/dev/null 2>&1 || true
+docker run -d --name masslak-ci-registry -p 127.0.0.1:5000:5000 \
+  registry:3.0.0@sha256:6c5666b861f3505b116bb9aa9b25175e71210414bd010d92035ff64018f9457e >/dev/null
+for _ in $(seq 1 30); do curl -sf http://127.0.0.1:5000/v2/ >/dev/null && break; sleep 1; done
+keys=/etc/masslak/ci-release; mkdir -p "$keys"; chmod 0700 "$keys"
+[ -s "$keys/ci-release.key" ] || (cd "$keys" && COSIGN_PASSWORD="" cosign generate-key-pair --output-key-prefix ci-release >/dev/null 2>&1)
+put MASSLAK_IMAGE_KEY "$keys/ci-release.pub"
+put MASSLAK_IMAGE_REGISTRY_HTTP true
+./deploy/images.sh build 127.0.0.1:5000 ci "$(git rev-parse HEAD)" IMAGES
+COSIGN_KEY="$keys/ci-release.key" COSIGN_PASSWORD="" ./deploy/images.sh sign IMAGES
+echo "stand-ins ready: Vault (transit key masslak-field), object storage, alert sink, signed images in a registry"

@@ -216,7 +216,7 @@ def test_each_container_receives_only_its_part_of_the_environment(tmp_path):
              "MASSLAK_API_PASSWORD=api", "MASSLAK_REPLICATION_PASSWORD=repl", "MASSLAK_SIGNING_SECRET=sign",
              "MASSLAK_FIELD_KEYS=kms://x=AAAA", "MASSLAK_BIDX_KEY=BBBB", "MASSLAK_KMS_PROVIDER=vault",
              "MASSLAK_VAULT_TOKEN=tok", "PGBACKREST_REPO1_TYPE=s3", "PGBACKREST_REPO1_CIPHER_PASS=cipher",
-             "MASSLAK_BACKUP_AGE_IDENTITY=/root/key", "MASSLAK_BACKUP_KEEP_DAYS=30", "MASSLAK_SMS_URL=", "# a comment",
+             "MASSLAK_BACKUP_AGE_IDENTITY=/root/key", "MASSLAK_BACKUP_KEEP_DAYS=30", "MASSLAK_IMAGE_KEY=/etc/masslak/release.pub", "MASSLAK_SMS_URL=", "# a comment",
              "COMPOSE_FILE=a:b"]
     (tmp_path / ".env").write_text("\n".join(lines) + "\n")
     subprocess.run(["bash", str(tmp_path / "env-split.sh")], check=True, capture_output=True)
@@ -226,7 +226,7 @@ def test_each_container_receives_only_its_part_of_the_environment(tmp_path):
     assert set(app) == {"MASSLAK_ENVIRONMENT", "POSTGRES_USER", "MASSLAK_SIGNING_SECRET", "MASSLAK_KMS_PROVIDER",
                         "MASSLAK_VAULT_TOKEN"}, app
     assert {"POSTGRES_PASSWORD", "MASSLAK_FIELD_KEYS", "MASSLAK_REPLICATION_PASSWORD"} <= set(migrate)
-    assert not {"PGBACKREST_REPO1_CIPHER_PASS", "MASSLAK_BACKUP_AGE_IDENTITY", "COMPOSE_FILE"} & set(migrate)
+    assert not {"PGBACKREST_REPO1_CIPHER_PASS", "MASSLAK_BACKUP_AGE_IDENTITY", "COMPOSE_FILE", "MASSLAK_IMAGE_KEY"} & set(migrate)
     assert migrate["MASSLAK_BACKUP_KEEP_DAYS"] == "30"     # its preflight compares the file bucket's lock with it (H-04)
     assert set(db) == {"POSTGRES_USER", "POSTGRES_PASSWORD", "PGBACKREST_REPO1_TYPE", "PGBACKREST_REPO1_CIPHER_PASS"}
     assert oct((tmp_path / "env" / "app.env").stat().st_mode & 0o777) == "0o600"

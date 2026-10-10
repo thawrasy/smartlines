@@ -87,8 +87,8 @@ jobs:
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
-        with: { python-version: "3.11", cache: pip, cache-dependency-path: backend/requirements*.txt }
-      - run: pip install -r backend/requirements.txt
+        with: { python-version: "3.11", cache: pip, cache-dependency-path: "backend/requirements*" }
+      - run: pip install --require-hashes -r backend/requirements.lock
       - name: A primary with logical WAL and a warehouse server
         run: |
           IMAGE=postgis/postgis:16-3.4@sha256:44126d872ac91993766c341e369c539e8196614321765d36a6f1bab0419a5fa5
@@ -156,8 +156,8 @@ jobs:
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
-        with: { python-version: "3.11", cache: pip, cache-dependency-path: backend/requirements*.txt }
-      - run: pip install -r backend/requirements-dev.txt
+        with: { python-version: "3.11", cache: pip, cache-dependency-path: "backend/requirements*" }
+      - run: pip install --require-hashes -r backend/requirements.lock && pip install -r backend/requirements-dev.txt
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with: { node-version: "22", cache: npm, cache-dependency-path: frontend/package-lock.json }
       - name: Build the web interface the API serves (checked in the browser below)
@@ -392,8 +392,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
-      - name: Tools a production server has (age, rclone)
-        run: sudo apt-get install -y -qq age rclone > /dev/null
+      - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+      - uses: anchore/sbom-action/download-syft@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
+        id: syft
+      - name: Tools a production server has (age, rclone, cosign; syft stands for the release workflow's)
+        run: |
+          sudo apt-get install -y -qq age rclone > /dev/null
+          sudo install "$(command -v cosign)" /usr/local/bin/cosign
+          sudo install "${{ steps.syft.outputs.cmd }}" /usr/local/bin/syft
       - name: An incomplete production setup is refused before anything is built
         run: |
           sudo ./deploy/init-env.sh --domain localhost --email ops@install.test
@@ -402,12 +408,14 @@ jobs:
           cat refused.log
           test "$rc" != 0 && grep -q 'MASSLAK_KMS_PROVIDER=vault is required' refused.log && grep -q 'PGBACKREST_REPO1_TYPE' refused.log
           test -z "$(sudo docker ps -q)"
-      - name: Stand-ins for the key service, object storage and the alert receivers (CI only)
+      - name: Stand-ins for the key service, object storage, the alert receivers and the release workflow (CI only)
         run: sudo ./deploy/production/ci/setup.sh
-      - name: Installation in the production profile
+      - name: Installation in the production profile, from the signed images (H-08)
         run: |
-          sudo ./deploy/install.sh --domain localhost --admin-email admin@install.test --skip-server-setup
-          sudo chown "$USER" deploy/.env deploy/FIRST_LOGIN.txt
+          set -o pipefail
+          sudo ./deploy/install.sh --domain localhost --admin-email admin@install.test --skip-server-setup | tee install.log
+          grep -q 'verified masslak-db' install.log && ! grep -q 'Building and starting' install.log    # pulled, never built
+          sudo chown "$USER" deploy/.env deploy/FIRST_LOGIN.txt IMAGES
           grep -q '^MASSLAK_SANDBOX=false$' deploy/.env && grep -q '^MASSLAK_ENVIRONMENT=production$' deploy/.env
           curl -fsSk https://localhost/api/ready | tee ready.json | grep -q '"ready":true'
           sudo docker compose --env-file deploy/.env logs migrate | grep -q 'production preflight passed'
@@ -516,6 +524,20 @@ jobs:
           sudo cp env.saved deploy/.env
           sudo ./deploy/update.sh
           curl -fsSk https://localhost/api/ready | grep -q '"ready":true'
+      - name: An image the release did not sign is refused, and the running version keeps serving (H-08)
+        run: |
+          # the API's image changed after the release (one label added) and pushed under the same name, unsigned
+          printf 'FROM %s\nLABEL tampered=true\n' "$(sed -n 's/^masslak=//p' IMAGES)" | sudo docker build -q -t 127.0.0.1:5000/masslak:tampered - > /dev/null
+          sudo docker push -q 127.0.0.1:5000/masslak:tampered > /dev/null
+          bad="$(sudo docker inspect --format '{{range .RepoDigests}}{{println .}}{{end}}' 127.0.0.1:5000/masslak:tampered | grep -m1 '^127.0.0.1:5000/masslak@')"
+          sed "s|^masslak=.*|masslak=$bad|" IMAGES > IMAGES.tampered
+          set +e; sudo MASSLAK_IMAGES="$PWD/IMAGES.tampered" ./deploy/update.sh 2> refused.log; rc=$?; set -e
+          cat refused.log
+          test "$rc" != 0 && grep -q 'masslak .* is not signed by the key' refused.log
+          curl -fsSk https://localhost/api/ready | grep -q '"ready":true'
+          # the API still runs the signed image
+          running="$(sudo docker image inspect -f '{{.Id}}' "masslak:$(sed -n 's/^MASSLAK_IMAGE_TAG=//p' deploy/.env)")"
+          test "$running" = "$(sudo docker image inspect -f '{{.Id}}' "$(sed -n 's/^masslak=//p' IMAGES)")"
       - name: Alerts reach the receivers and every metric the alerts rest on is collected (H-07, addition 2)
         run: |
           dc="sudo docker compose --env-file deploy/.env"
@@ -559,7 +581,7 @@ jobs:
       - name: Static analysis of the API (bandit)
         run: bandit -q -c backend/pyproject.toml -r backend/app -ll
       - name: Known vulnerabilities in Python dependencies
-        run: pip-audit -r backend/requirements.txt
+        run: pip-audit --require-hashes -r backend/requirements.lock   # every package of the image, transitive ones too
       - name: Known vulnerabilities in web dependencies
         working-directory: frontend
         run: npm audit --omit=dev --audit-level=high

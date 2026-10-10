@@ -34,6 +34,13 @@ esac
 [ -n "$(value MASSLAK_BACKUP_OFFSITE)" ] || gap "MASSLAK_BACKUP_OFFSITE is missing: every backup is copied off this server before an update"
 case "$(value MASSLAK_BACKUP_AGE_RECIPIENT)" in age1*) ;; *) gap "MASSLAK_BACKUP_AGE_RECIPIENT is missing: backups are written encrypted" ;; esac
 
+# the release's signed images (H-08): IMAGES names them by digest, cosign checks their signatures before they run
+command -v cosign >/dev/null || gap "cosign is not installed: a production server checks the signature of every image it runs (https://docs.sigstore.dev/cosign/system_config/installation/)"
+images="${MASSLAK_IMAGES:-IMAGES}"; case "$images" in /*) ;; *) images="../../$images" ;; esac
+[ -s "$images" ] || gap "IMAGES is missing: a production server installs and updates from a signed release archive, whose IMAGES names the signed images (RUNBOOKS.md, section 19)"
+key="$(value MASSLAK_IMAGE_KEY)"
+[ -z "$key" ] || [ -s "$key" ] || gap "MASSLAK_IMAGE_KEY names $key, which does not exist"
+
 # TLS to the database (H-05)
 for f in ca.crt server.crt server.key masslak_cdc.crt masslak_cdc.key; do
   [ -s "tls/$f" ] || gap "deploy/production/tls/$f is missing: run deploy/production/init.sh"

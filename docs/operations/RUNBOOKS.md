@@ -466,6 +466,19 @@ The capacity model and its stages are in `CAPACITY_MODEL.md`.
   signed by this repository's release workflow for a `v*` tag, or one that does not match the checksums, and prints the
   commit recorded in `RELEASE`. `deploy/update.sh --sha <commit>` then checks that commit, and the release manifest
   records it.
+- **The images of a release (H-08):** the release workflow builds the API, egress proxy and production database images
+  once, pushes them to `ghcr.io/<owner>/masslak`, `masslak-egress` and `masslak-db`, and signs each digest keylessly,
+  with its bill of materials (an SPDX attestation) and its build provenance. `IMAGES`, inside the signed archive (and
+  published next to it as `masslak-vX.Y.Z.IMAGES`), names them by digest. A production server never builds its own:
+  `deploy/install.sh` and `deploy/update.sh` run `deploy/images.sh pull IMAGES <tag>`, which checks every signature and
+  bill of materials with cosign (signed by this repository's release workflow for a `v*` tag) before pulling the images
+  by digest, and refuses an image that is not. The server needs `cosign`, HTTPS to the Sigstore services
+  (`tuf-repo-cdn.sigstore.dev`, `rekor.sigstore.dev`) and to `ghcr.io`; while the packages are private, sign in once
+  with a token that may only read them (`docker login ghcr.io`). The provenance can be checked by hand:
+  `gh attestation verify oci://ghcr.io/<owner>/masslak@sha256:<digest> --owner <owner>`. A server that keeps its
+  images in a private registry signs them with a key and sets `MASSLAK_IMAGE_KEY` (the public key file) in
+  `deploy/.env`. The API's Python packages are installed from `backend/requirements.lock`, every one pinned with its
+  hashes (`pip --require-hashes`).
 - **Publishing a release:** push the tag with git (`git tag -a vX.Y.Z <commit> -m "Masslak vX.Y.Z"`, then
   `git push origin vX.Y.Z`), or publish a release from the repository's Releases page with a new tag `vX.Y.Z` on the
   branch or commit to release. Either way the workflow runs CI on the tagged commit, then creates the release or adds
@@ -487,11 +500,11 @@ The capacity model and its stages are in `CAPACITY_MODEL.md`.
 - **Partitions running out (`PartitionsRunningOut`) or rows in a default partition (`RowsInDefaultPartition`):** the
   daily upkeep (`sys.run_maintenance()`) creates daily partitions 7 days ahead and monthly ones 3 months ahead.
   - Running out: check `masslak_job_last_success_age_seconds{task="maintenance"}` and run `SELECT sys.run_maintenance()`.
-  - Rows in a default partition block creating the partition for their range. Move them with one reviewed migration
-    file, rehearsed on staging first: detach the default partition, create the missing partition and a new empty
-    default, copy the rows of the detached table into the parent table (they land in the new partition), then drop
-    the detached table. The rows are copied, never edited, so append-only tables such as `fin.ledger_entry` keep their
-    guards.
+  - Rows in a default partition wait for their period's partition, readable through their table. The daily upkeep
+    moves a period of up to `partitions.inline_move_rows` rows (50,000) itself (1070); the worker moves larger ones
+    within ten minutes, one period per transaction (`sys.move_default_period()`, 1083, M-08), and logs each move
+    ("late partition upkeep: moved ..."). A period whose table stays busy is tried again on the next round. To move
+    one at once: `SET statement_timeout = '15min'; SELECT sys.move_default_period();` as the application role.
 - **Waiting for a connection (`PoolWaits`):** `masslak_db_pool_acquire_seconds` is the time a request waited for a
   connection of its API process. Before raising the pool or PgBouncer sizes, look for slow transactions
   (`LongTransaction`) and lock waits, which hold connections longer (section 10).

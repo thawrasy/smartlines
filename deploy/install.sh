@@ -9,8 +9,9 @@
 #                          age-keygen); a production server writes no backup until it has one
 #
 # Steps: prepares the server (deploy/server-setup.sh), writes deploy/.env with fresh secrets (deploy/init-env.sh),
-# builds and starts the stack, waits until the site answers, creates the first platform administrator with a random
-# password generated on this server, and prints the sign-in details. The same details are saved in
+# builds and starts the stack (a production server pulls the signed images of its release instead, deploy/images.sh),
+# waits until the site answers, creates the first platform administrator with a random password generated on this
+# server, and prints the sign-in details. The same details are saved in
 # deploy/FIRST_LOGIN.txt (mode 600): move them to a password manager, then delete the file.
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -63,15 +64,27 @@ if [ "$production" = true ]; then
 fi
 ./deploy/env-split.sh                     # each container receives only its part of deploy/.env (H-06)
 
-step "Building and starting the stack (first build takes a few minutes)"
 # the commit of this checkout, or the one a signed release archive records in RELEASE, goes into the release manifest (1058)
 commit="$(git rev-parse HEAD 2>/dev/null || sed -n 's/^commit=\([0-9a-f]\{40\}\)$/\1/p' RELEASE 2>/dev/null || true)"
 # images are tagged with that commit (deploy/update.sh keeps the previous ones for a rollback)
 tag="$(printf '%s' "$commit" | cut -c1-12)"; [ -n "$tag" ] || tag="local-$(date -u +%Y%m%d%H%M%S)"
 if grep -q '^MASSLAK_IMAGE_TAG=' deploy/.env; then sed -i "s|^MASSLAK_IMAGE_TAG=.*|MASSLAK_IMAGE_TAG=$tag|" deploy/.env
 else echo "MASSLAK_IMAGE_TAG=$tag" >> deploy/.env; fi
-MASSLAK_RELEASE_COMMIT="${commit:-release-archive}" MASSLAK_IMAGE_TAG="$tag" \
-  docker compose --env-file deploy/.env up -d --build
+if [ "$production" = true ]; then
+  # a production server runs the images built and signed once by the release workflow, never its own (H-08): IMAGES
+  # (inside the signed release archive) names them by digest, and each signature and bill of materials is checked
+  step "Pulling the signed images this release names (deploy/images.sh)"
+  images_commit="$(sed -n 's/^commit=//p' IMAGES 2>/dev/null || true)"
+  [ -z "$commit" ] || [ -z "$images_commit" ] || [ "$images_commit" = "$commit" ] \
+    || { echo "IMAGES names the images of commit $images_commit, not of these files ($commit)" >&2; exit 1; }
+  ./deploy/images.sh pull IMAGES "$tag"
+  step "Starting the stack"
+  MASSLAK_IMAGE_TAG="$tag" docker compose --env-file deploy/.env up -d --no-build
+else
+  step "Building and starting the stack (first build takes a few minutes)"
+  MASSLAK_RELEASE_COMMIT="${commit:-release-archive}" MASSLAK_IMAGE_TAG="$tag" \
+    docker compose --env-file deploy/.env up -d --build
+fi
 
 step "Waiting for the application"
 for i in $(seq 1 90); do
