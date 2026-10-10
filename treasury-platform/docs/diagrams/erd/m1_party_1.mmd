@@ -1,0 +1,78 @@
+%% م1 · الأشخاص والهوية والاكتمال (1/2) — Parties, identity documents & KYC
+erDiagram
+  pty_Address["pty.Address"] {
+    bigint AddressId PK
+    int CountryId FK
+    varchar OwnerType
+    bigint OwnerId
+    varchar AddressType
+    smallint IsPrimary
+  }
+  pty_ContactMethod["pty.ContactMethod"] {
+    bigint ContactMethodId PK
+    varchar OwnerType
+    bigint OwnerId
+    varchar Kind
+    varchar Value
+    varchar NormalizedValue
+  }
+  pty_CustomFieldDefinition["pty.CustomFieldDefinition"] {
+    bigint CustomFieldDefinitionId PK
+    bigint InstitutionId FK
+    varchar FieldKey
+    varchar LabelAr
+    varchar LabelEn
+    varchar DataType
+  }
+  pty_IdentityDocument["pty.IdentityDocument"] {
+    bigint IdentityDocumentId PK
+    bigint PartyId FK
+    int IssuingCountryId FK
+    bigint EncKeyId FK
+    bigint HashKeyId FK
+    bigint SupersededById FK
+  }
+  pty_KycProfile["pty.KycProfile"] {
+    bigint KycProfileId PK
+    bigint InstitutionId FK
+    varchar NameAr
+    varchar NameEn
+    varchar AppliesToRole
+    integer Version
+  }
+  pty_KycProfileItem["pty.KycProfileItem"] {
+    bigint KycProfileItemId PK
+    bigint ProfileId FK
+    varchar ItemKind
+    varchar RefCode
+    smallint IsMandatory
+    smallint RequiresImage
+  }
+  pty_KycProfileItemLegalForm["pty.KycProfileItemLegalForm"] {
+    bigint KycProfileItemId PK
+    int LegalEntityTypeId PK
+  }
+  cat_LegalEntityType["cat.LegalEntityType"] {
+    int LegalEntityTypeId PK
+  }
+  ins_Institution["ins.Institution"] {
+    bigint InstitutionId PK
+  }
+  pty_Party["pty.Party"] {
+    bigint PartyId PK
+  }
+  ref_Country["ref.Country"] {
+    int CountryId PK
+  }
+  sec_TenantKey["sec.TenantKey"] {
+    bigint TenantKeyId PK
+  }
+  cat_LegalEntityType ||--o{ pty_KycProfileItemLegalForm : "LegalEntityTypeId"
+  ins_Institution |o--o{ pty_CustomFieldDefinition : "InstitutionId"
+  ins_Institution |o--o{ pty_KycProfile : "InstitutionId"
+  pty_KycProfile ||--o{ pty_KycProfileItem : "ProfileId"
+  pty_KycProfileItem ||--o{ pty_KycProfileItemLegalForm : "KycProfileItemId"
+  pty_Party ||--o{ pty_IdentityDocument : "PartyId"
+  ref_Country ||--o{ pty_Address : "CountryId"
+  ref_Country ||--o{ pty_IdentityDocument : "IssuingCountryId"
+  sec_TenantKey ||--o{ pty_IdentityDocument : "EncKeyId, HashKeyId"

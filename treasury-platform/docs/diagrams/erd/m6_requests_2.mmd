@@ -1,0 +1,34 @@
+%% م6 · الطلبات وإجراءاتها (2/2) — Requests, approvals & actions
+erDiagram
+  wfl_HookExecution["wfl.HookExecution"] {
+    bigint HookExecutionId PK
+    bigint RequestId FK
+    bigint StageInstanceId FK
+    varchar HookKey
+    varchar TriggerKind
+    varchar ExecMode
+  }
+  wfl_UserDelegation["wfl.UserDelegation"] {
+    bigint UserDelegationId PK
+    bigint FromUserId FK
+    bigint ToUserId FK
+    int RequestTypeId FK
+    date StartsOn
+    date EndsOn
+  }
+  sec_AppUser["sec.AppUser"] {
+    bigint AppUserId PK
+  }
+  wfl_Request["wfl.Request"] {
+    bigint RequestId PK
+  }
+  wfl_RequestStageInstance["wfl.RequestStageInstance"] {
+    bigint RequestStageInstanceId PK
+  }
+  wfl_RequestType["wfl.RequestType"] {
+    int RequestTypeId PK
+  }
+  sec_AppUser ||--o{ wfl_UserDelegation : "FromUserId, ToUserId"
+  wfl_Request ||--o{ wfl_HookExecution : "RequestId"
+  wfl_RequestStageInstance ||--o{ wfl_HookExecution : "StageInstanceId"
+  wfl_RequestType |o--o{ wfl_UserDelegation : "RequestTypeId"

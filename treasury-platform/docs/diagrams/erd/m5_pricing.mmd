@@ -1,0 +1,120 @@
+%% م5 · التسعير وشروط المقارنة — Pricing, tariffs & comparable terms
+erDiagram
+  prc_PricingRule["prc.PricingRule"] {
+    bigint PricingRuleId PK
+    bigint FacilityId FK
+    bigint ScopeLimitId FK
+    bigint ScopeLimitProductLineId FK
+    int ScopeProductId FK
+    bigint ScopeCompanyId FK
+    int FeeTypeId FK
+    int FinancingTypeId FK
+    bigint TariffItemId FK
+    int BaseRateId FK
+    int CurrencyId FK
+  }
+  prc_PricingTier["prc.PricingTier"] {
+    bigint PricingTierId PK
+    bigint FacilityId FK
+    bigint PricingRuleId FK
+    integer SortOrder
+  }
+  prc_TariffItem["prc.TariffItem"] {
+    bigint TariffItemId PK
+    bigint ScheduleId FK
+    int FeeTypeId FK
+    int ProductId FK
+    int CurrencyId FK
+    varchar ItemCode
+  }
+  prc_TariffSchedule["prc.TariffSchedule"] {
+    bigint TariffScheduleId PK
+    bigint InstitutionId FK
+    bigint FacilityId FK
+    bigint ApprovedBy FK
+    varchar NameAr
+    integer VersionNo
+  }
+  prc_TariffTier["prc.TariffTier"] {
+    bigint TariffTierId PK
+    bigint TariffItemId FK
+    integer SortOrder
+  }
+  cmp_TermType["cmp.TermType"] {
+    int TermTypeId PK
+    varchar Category
+    varchar ValueKind
+    varchar Unit
+    varchar DefaultBound
+    varchar Direction
+  }
+  cmp_TermValue["cmp.TermValue"] {
+    bigint TermValueId PK
+    bigint FacilityId FK
+    int TermTypeId FK
+    bigint LimitId FK
+    bigint LimitProductLineId FK
+    int ProductId FK
+    bigint CompanyId FK
+    int CurrencyId FK
+  }
+  cat_BaseRate["cat.BaseRate"] {
+    int BaseRateId PK
+  }
+  cat_FeeType["cat.FeeType"] {
+    int FeeTypeId PK
+  }
+  cat_FinancingType["cat.FinancingType"] {
+    int FinancingTypeId PK
+  }
+  cat_Product["cat.Product"] {
+    int ProductId PK
+  }
+  fac_Facility["fac.Facility"] {
+    bigint FacilityId PK
+  }
+  fac_Limit["fac.Limit"] {
+    bigint LimitId PK
+  }
+  fac_LimitProductLine["fac.LimitProductLine"] {
+    bigint LimitProductLineId PK
+  }
+  ins_Institution["ins.Institution"] {
+    bigint InstitutionId PK
+  }
+  org_Company["org.Company"] {
+    bigint CompanyId PK
+  }
+  ref_Currency["ref.Currency"] {
+    int CurrencyId PK
+  }
+  sec_AppUser["sec.AppUser"] {
+    bigint AppUserId PK
+  }
+  cat_BaseRate |o--o{ prc_PricingRule : "BaseRateId"
+  cat_FeeType |o--o{ prc_PricingRule : "FeeTypeId"
+  cat_FeeType ||--o{ prc_TariffItem : "FeeTypeId"
+  cat_FinancingType |o--o{ prc_PricingRule : "FinancingTypeId"
+  cat_Product |o--o{ cmp_TermValue : "ProductId"
+  cat_Product |o--o{ prc_PricingRule : "ScopeProductId"
+  cat_Product |o--o{ prc_TariffItem : "ProductId"
+  cmp_TermType ||--o{ cmp_TermValue : "TermTypeId"
+  fac_Facility ||--o{ cmp_TermValue : "FacilityId"
+  fac_Facility ||--o{ prc_PricingRule : "FacilityId"
+  fac_Facility ||--o{ prc_PricingTier : "FacilityId"
+  fac_Facility |o--o{ prc_TariffSchedule : "FacilityId"
+  fac_Limit |o--o{ cmp_TermValue : "LimitId"
+  fac_Limit |o--o{ prc_PricingRule : "ScopeLimitId"
+  fac_LimitProductLine |o--o{ cmp_TermValue : "LimitProductLineId"
+  fac_LimitProductLine |o--o{ prc_PricingRule : "ScopeLimitProductLineId"
+  ins_Institution ||--o{ prc_TariffSchedule : "InstitutionId"
+  org_Company |o--o{ cmp_TermValue : "CompanyId"
+  org_Company |o--o{ prc_PricingRule : "ScopeCompanyId"
+  prc_PricingRule ||--o{ prc_PricingTier : "PricingRuleId"
+  prc_TariffItem |o--o{ prc_PricingRule : "TariffItemId"
+  prc_TariffItem ||--o{ prc_TariffTier : "TariffItemId"
+  prc_TariffSchedule ||--o{ prc_TariffItem : "ScheduleId"
+  ref_Currency |o--o{ cmp_TermValue : "CurrencyId"
+  ref_Currency |o--o{ prc_PricingRule : "CurrencyId"
+  ref_Currency |o--o{ prc_TariffItem : "CurrencyId"
+  sec_AppUser |o--o{ prc_TariffSchedule : "ApprovedBy"

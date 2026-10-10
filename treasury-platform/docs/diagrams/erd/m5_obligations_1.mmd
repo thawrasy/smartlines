@@ -1,0 +1,114 @@
+%% م5 · الالتزامات والتعهدات (1/2) — Obligations, covenants & reporting
+erDiagram
+  obl_Covenant["obl.Covenant"] {
+    bigint CovenantId PK
+    bigint ObligationId FK
+    bigint FormulaId FK
+    int CurrencyId FK
+    bigint TestedCompanyId FK
+    varchar MeasureKind
+  }
+  obl_CovenantAccount["obl.CovenantAccount"] {
+    bigint CovenantId PK
+    bigint BankAccountId PK
+  }
+  obl_CovenantTest["obl.CovenantTest"] {
+    bigint CovenantTestId PK
+    bigint CovenantId FK
+    bigint EvaluatedBy FK
+    bigint EvidenceDocumentId FK
+    bigint ReviewedBy FK
+    date PeriodStart
+  }
+  obl_Obligation["obl.Obligation"] {
+    bigint ObligationId PK
+    bigint FacilityId FK
+    int ObligationTypeId FK
+    bigint ScopeLimitId FK
+    bigint ScopeProductLineId FK
+    int ParamCurrencyId FK
+  }
+  obl_ObligationBreach["obl.ObligationBreach"] {
+    bigint ObligationBreachId PK
+    bigint ObligationId FK
+    bigint CovenantTestId FK
+    bigint ReportingInstanceId FK
+    bigint WaiverBankContactId FK
+    bigint WaiverDocumentId FK
+  }
+  obl_ObligationCompany["obl.ObligationCompany"] {
+    bigint ObligationId PK
+    bigint CompanyId PK
+  }
+  obl_ReportingInstance["obl.ReportingInstance"] {
+    bigint ReportingInstanceId PK
+    bigint ReportingObligationId FK
+    int SubmissionChannelUsedId FK
+    bigint EvidenceDocumentId FK
+    int CurrencyId FK
+    date DueDate
+  }
+  acc_BankAccount["acc.BankAccount"] {
+    bigint BankAccountId PK
+  }
+  cat_LookupItem["cat.LookupItem"] {
+    int LookupItemId PK
+  }
+  cat_ObligationType["cat.ObligationType"] {
+    int ObligationTypeId PK
+  }
+  doc_Document["doc.Document"] {
+    bigint DocumentId PK
+  }
+  fac_Facility["fac.Facility"] {
+    bigint FacilityId PK
+  }
+  fac_Limit["fac.Limit"] {
+    bigint LimitId PK
+  }
+  fac_LimitProductLine["fac.LimitProductLine"] {
+    bigint LimitProductLineId PK
+  }
+  fin_MeasureFormula["fin.MeasureFormula"] {
+    bigint MeasureFormulaId PK
+  }
+  ins_Contact["ins.Contact"] {
+    bigint ContactId PK
+  }
+  obl_ReportingObligation["obl.ReportingObligation"] {
+    bigint ReportingObligationId PK
+  }
+  org_Company["org.Company"] {
+    bigint CompanyId PK
+  }
+  ref_Currency["ref.Currency"] {
+    int CurrencyId PK
+  }
+  sec_AppUser["sec.AppUser"] {
+    bigint AppUserId PK
+  }
+  acc_BankAccount ||--o{ obl_CovenantAccount : "BankAccountId"
+  cat_LookupItem |o--o{ obl_ReportingInstance : "SubmissionChannelUsedId"
+  cat_ObligationType ||--o{ obl_Obligation : "ObligationTypeId"
+  doc_Document |o--o{ obl_CovenantTest : "EvidenceDocumentId"
+  doc_Document |o--o{ obl_ObligationBreach : "WaiverDocumentId"
+  doc_Document |o--o{ obl_ReportingInstance : "EvidenceDocumentId"
+  fac_Facility ||--o{ obl_Obligation : "FacilityId"
+  fac_Limit |o--o{ obl_Obligation : "ScopeLimitId"
+  fac_LimitProductLine |o--o{ obl_Obligation : "ScopeProductLineId"
+  fin_MeasureFormula |o--o{ obl_Covenant : "FormulaId"
+  ins_Contact |o--o{ obl_ObligationBreach : "WaiverBankContactId"
+  obl_Covenant ||--o{ obl_CovenantAccount : "CovenantId"
+  obl_Covenant ||--o{ obl_CovenantTest : "CovenantId"
+  obl_CovenantTest |o--o{ obl_ObligationBreach : "CovenantTestId"
+  obl_Obligation ||--o{ obl_Covenant : "ObligationId"
+  obl_Obligation ||--o{ obl_ObligationBreach : "ObligationId"
+  obl_Obligation ||--o{ obl_ObligationCompany : "ObligationId"
+  obl_ReportingInstance |o--o{ obl_ObligationBreach : "ReportingInstanceId"
+  obl_ReportingObligation ||--o{ obl_ReportingInstance : "ReportingObligationId"
+  org_Company ||--o{ obl_Covenant : "TestedCompanyId"
+  org_Company ||--o{ obl_ObligationCompany : "CompanyId"
+  ref_Currency |o--o{ obl_Covenant : "CurrencyId"
+  ref_Currency |o--o{ obl_Obligation : "ParamCurrencyId"
+  ref_Currency |o--o{ obl_ReportingInstance : "CurrencyId"
+  sec_AppUser |o--o{ obl_CovenantTest : "EvaluatedBy, ReviewedBy"

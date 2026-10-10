@@ -1,0 +1,67 @@
+%% م0 · الهوية والصلاحيات — Identity & authorisation
+erDiagram
+  sec_AppUser["sec.AppUser"] {
+    bigint AppUserId PK
+    bigint DepartmentId FK
+    bigint LineManagerUserId FK
+    bigint MfaKeyId FK
+    varchar Email
+    varchar CompanyScopeMode
+  }
+  sec_Role["sec.Role"] {
+    bigint RoleId PK
+    varchar Code
+    varchar NameAr
+    varchar NameEn
+    smallint IsSystem
+    smallint IsActive
+  }
+  sec_Permission["sec.Permission"] {
+    int PermissionId PK
+    varchar Code
+    varchar ModuleCode
+    varchar NameAr
+    varchar NameEn
+    smallint IsSensitive
+  }
+  sec_RolePermission["sec.RolePermission"] {
+    bigint RoleId PK
+    int PermissionId PK
+    timestamp AssignedAt
+  }
+  sec_UserRole["sec.UserRole"] {
+    bigint UserId PK
+    bigint RoleId PK
+    timestamp AssignedAt
+  }
+  sec_UserCompanyScope["sec.UserCompanyScope"] {
+    bigint UserId PK
+    bigint CompanyId PK
+    smallint IncludeDescendants
+  }
+  sec_ExternalIdentity["sec.ExternalIdentity"] {
+    bigint ExternalIdentityId PK
+    bigint UserId FK
+    varchar Provider
+    varchar Issuer
+    varchar Subject
+    smallint IsActive
+  }
+  org_Company["org.Company"] {
+    bigint CompanyId PK
+  }
+  org_Department["org.Department"] {
+    bigint DepartmentId PK
+  }
+  sec_TenantKey["sec.TenantKey"] {
+    bigint TenantKeyId PK
+  }
+  org_Company ||--o{ sec_UserCompanyScope : "CompanyId"
+  org_Department |o--o{ sec_AppUser : "DepartmentId"
+  sec_AppUser ||--o{ sec_ExternalIdentity : "UserId"
+  sec_AppUser ||--o{ sec_UserCompanyScope : "UserId"
+  sec_AppUser ||--o{ sec_UserRole : "UserId"
+  sec_Permission ||--o{ sec_RolePermission : "PermissionId"
+  sec_Role ||--o{ sec_RolePermission : "RoleId"
+  sec_Role ||--o{ sec_UserRole : "RoleId"
+  sec_TenantKey |o--o{ sec_AppUser : "MfaKeyId"

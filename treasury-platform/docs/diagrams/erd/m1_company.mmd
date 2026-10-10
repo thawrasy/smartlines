@@ -1,0 +1,111 @@
+%% م1 · الشركات والحوكمة — Company structure & governance
+erDiagram
+  org_Company["org.Company"] {
+    bigint CompanyId PK
+    bigint PartyId FK
+    int LegalEntityTypeId FK
+    bigint ParentCompanyId FK
+    int CountryId FK
+    int BaseCurrencyId FK
+  }
+  org_CompanyTaxRate["org.CompanyTaxRate"] {
+    bigint CompanyTaxRateId PK
+    bigint CompanyId FK
+    varchar TaxCode
+    numeric RatePercent
+    date EffectiveFrom
+  }
+  org_Department["org.Department"] {
+    bigint DepartmentId PK
+    bigint CompanyId FK
+    bigint ParentDepartmentId FK
+    bigint HeadUserId FK
+    varchar Code
+    varchar NameAr
+  }
+  org_Shareholding["org.Shareholding"] {
+    bigint ShareholdingId PK
+    bigint CompanyId FK
+    bigint HolderPartyId FK
+    int CurrencyId FK
+    numeric SharePercent
+    smallint Layer
+  }
+  org_GoverningBody["org.GoverningBody"] {
+    bigint GoverningBodyId PK
+    bigint CompanyId FK
+    varchar BodyType
+    varchar Status
+  }
+  org_BodyMember["org.BodyMember"] {
+    bigint BodyMemberId PK
+    bigint CompanyId FK
+    bigint BodyId FK
+    bigint PartyId FK
+    int PositionId FK
+    bigint RepresentedPartyId FK
+    bigint AppointmentDocumentId FK
+  }
+  org_AuthorityGrant["org.AuthorityGrant"] {
+    bigint AuthorityGrantId PK
+    bigint CompanyId FK
+    bigint BodyId FK
+    bigint BodyMemberId FK
+    bigint PartyId FK
+    int PowerTypeId FK
+    bigint InstitutionId FK
+    int CeilingCurrencyId FK
+    bigint ApprovedBy FK
+    bigint SupersedesGrantId FK
+  }
+  cat_LegalEntityType["cat.LegalEntityType"] {
+    int LegalEntityTypeId PK
+  }
+  cat_Position["cat.Position"] {
+    int PositionId PK
+  }
+  cat_PowerType["cat.PowerType"] {
+    int PowerTypeId PK
+  }
+  doc_Document["doc.Document"] {
+    bigint DocumentId PK
+  }
+  ins_Institution["ins.Institution"] {
+    bigint InstitutionId PK
+  }
+  pty_Party["pty.Party"] {
+    bigint PartyId PK
+  }
+  ref_Country["ref.Country"] {
+    int CountryId PK
+  }
+  ref_Currency["ref.Currency"] {
+    int CurrencyId PK
+  }
+  sec_AppUser["sec.AppUser"] {
+    bigint AppUserId PK
+  }
+  cat_LegalEntityType ||--o{ org_Company : "LegalEntityTypeId"
+  cat_Position ||--o{ org_BodyMember : "PositionId"
+  cat_PowerType ||--o{ org_AuthorityGrant : "PowerTypeId"
+  doc_Document |o--o{ org_BodyMember : "AppointmentDocumentId"
+  ins_Institution |o--o{ org_AuthorityGrant : "InstitutionId"
+  org_BodyMember |o--o{ org_AuthorityGrant : "BodyMemberId"
+  org_Company ||--o{ org_AuthorityGrant : "CompanyId"
+  org_Company ||--o{ org_BodyMember : "CompanyId"
+  org_Company |o--o{ org_CompanyTaxRate : "CompanyId"
+  org_Company |o--o{ org_Department : "CompanyId"
+  org_Company ||--o{ org_GoverningBody : "CompanyId"
+  org_Company ||--o{ org_Shareholding : "CompanyId"
+  org_GoverningBody |o--o{ org_AuthorityGrant : "BodyId"
+  org_GoverningBody ||--o{ org_BodyMember : "BodyId"
+  pty_Party |o--o{ org_AuthorityGrant : "PartyId"
+  pty_Party ||--o{ org_BodyMember : "PartyId, RepresentedPartyId"
+  pty_Party ||--o{ org_Company : "PartyId"
+  pty_Party ||--o{ org_Shareholding : "HolderPartyId"
+  ref_Country ||--o{ org_Company : "CountryId"
+  ref_Currency |o--o{ org_AuthorityGrant : "CeilingCurrencyId"
+  ref_Currency |o--o{ org_Company : "BaseCurrencyId"
+  ref_Currency |o--o{ org_Shareholding : "CurrencyId"
+  sec_AppUser |o--o{ org_AuthorityGrant : "ApprovedBy"
+  sec_AppUser |o--o{ org_Department : "HeadUserId"

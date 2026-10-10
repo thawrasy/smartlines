@@ -1,0 +1,103 @@
+%% م5 · الضمانات — Collateral & guarantees
+erDiagram
+  col_Collateral["col.Collateral"] {
+    bigint CollateralId PK
+    int CollateralTypeId FK
+    bigint OwnerPartyId FK
+    bigint ApprovedBy FK
+    bigint ReleaseDocumentId FK
+    varchar TitleAr
+  }
+  col_CollateralLink["col.CollateralLink"] {
+    bigint CollateralLinkId PK
+    bigint CollateralId FK
+    bigint FacilityId FK
+    bigint LimitId FK
+    date LinkedOn
+  }
+  col_Guarantee["col.Guarantee"] {
+    bigint GuaranteeId PK
+    bigint CollateralId FK
+    bigint GuarantorPartyId FK
+    bigint GuarantorIdentityDocumentId FK
+    int CurrencyId FK
+    bigint DeedDocumentId FK
+  }
+  col_InsurancePolicyAssignment["col.InsurancePolicyAssignment"] {
+    bigint InsurancePolicyAssignmentId PK
+    bigint CollateralId FK
+    bigint AssignedToInstitutionId FK
+    int CurrencyId FK
+    bigint PolicyDocumentId FK
+    varchar PolicyNo
+  }
+  col_PromissoryNote["col.PromissoryNote"] {
+    bigint PromissoryNoteId PK
+    bigint CollateralId FK
+    int CurrencyId FK
+    bigint NoteDocumentId FK
+    numeric NoteAmount
+    date IssuedOn
+  }
+  col_PromissoryNoteSigner["col.PromissoryNoteSigner"] {
+    bigint PromissoryNoteId PK
+    bigint PartyId PK
+  }
+  col_ValuationSchedule["col.ValuationSchedule"] {
+    bigint ValuationScheduleId PK
+    bigint CollateralId FK
+    int CurrencyId FK
+    integer PhaseNo
+    integer FromYear
+    integer RequiredValuerCount
+  }
+  cat_CollateralType["cat.CollateralType"] {
+    int CollateralTypeId PK
+  }
+  doc_Document["doc.Document"] {
+    bigint DocumentId PK
+  }
+  fac_Facility["fac.Facility"] {
+    bigint FacilityId PK
+  }
+  fac_Limit["fac.Limit"] {
+    bigint LimitId PK
+  }
+  ins_Institution["ins.Institution"] {
+    bigint InstitutionId PK
+  }
+  pty_IdentityDocument["pty.IdentityDocument"] {
+    bigint IdentityDocumentId PK
+  }
+  pty_Party["pty.Party"] {
+    bigint PartyId PK
+  }
+  ref_Currency["ref.Currency"] {
+    int CurrencyId PK
+  }
+  sec_AppUser["sec.AppUser"] {
+    bigint AppUserId PK
+  }
+  cat_CollateralType ||--o{ col_Collateral : "CollateralTypeId"
+  col_Collateral ||--o{ col_CollateralLink : "CollateralId"
+  col_Collateral ||--o{ col_Guarantee : "CollateralId"
+  col_Collateral ||--o{ col_InsurancePolicyAssignment : "CollateralId"
+  col_Collateral ||--o{ col_PromissoryNote : "CollateralId"
+  col_Collateral ||--o{ col_ValuationSchedule : "CollateralId"
+  col_PromissoryNote ||--o{ col_PromissoryNoteSigner : "PromissoryNoteId"
+  doc_Document |o--o{ col_Collateral : "ReleaseDocumentId"
+  doc_Document |o--o{ col_Guarantee : "DeedDocumentId"
+  doc_Document |o--o{ col_InsurancePolicyAssignment : "PolicyDocumentId"
+  doc_Document |o--o{ col_PromissoryNote : "NoteDocumentId"
+  fac_Facility ||--o{ col_CollateralLink : "FacilityId"
+  fac_Limit |o--o{ col_CollateralLink : "LimitId"
+  ins_Institution ||--o{ col_InsurancePolicyAssignment : "AssignedToInstitutionId"
+  pty_IdentityDocument |o--o{ col_Guarantee : "GuarantorIdentityDocumentId"
+  pty_Party |o--o{ col_Collateral : "OwnerPartyId"
+  pty_Party ||--o{ col_Guarantee : "GuarantorPartyId"
+  pty_Party ||--o{ col_PromissoryNoteSigner : "PartyId"
+  ref_Currency |o--o{ col_Guarantee : "CurrencyId"
+  ref_Currency ||--o{ col_InsurancePolicyAssignment : "CurrencyId"
+  ref_Currency ||--o{ col_PromissoryNote : "CurrencyId"
+  ref_Currency |o--o{ col_ValuationSchedule : "CurrencyId"
+  sec_AppUser |o--o{ col_Collateral : "ApprovedBy"

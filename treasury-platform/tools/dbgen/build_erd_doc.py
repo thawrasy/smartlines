@@ -69,10 +69,10 @@ def generated_section(plan, tables):
     out = ['## 10. ERD والمواصفات التفصيلية حسب الوحدة', '',
            'كل مخطط في هذا القسم **مُولَّد من النموذج نفسه** (`db/model`)، فلا ينحرف عن قاعدة البيانات. الترتيب: أولًا خريطة المخططات، ثم مخطط كل مجموعة، ثم جدول مواصفات الجداول، ثم جدول علاقات كل مفتاح أجنبي.', '',
            '### 10.1 خريطة المخططات (Schema Map)', '',
-           '![خريطة المخططات: كل مخطط وعدد جداوله وعدد المفاتيح الأجنبية بينها](diagrams/pro/schema_map.png)', '',
+           '![خريطة المخططات: المخططات والعلاقات بينها (خمسة مفاتيح أجنبية فأكثر)](diagrams/erd/schema_map.png)', '',
            '### 10.2 قراءة المخططات', '',
-           '![مفتاح الرسم: PK و FK و UQ، وتدوين الطرفين في العلاقة](diagrams/pro/legend.png)', '',
-           'الإحاطة: كل جدول مملوك للمشترك يحمل `TenantId` ويشير إلى `plat.Tenant`، ولم يُرسم هذا الربط في كل مخطط. العلاقات المرسومة **مفاتيح أجنبية فعلية**، وكل علاقة مكتوبة في جدول العلاقات بإلزامها ونطاقها وسلوك حذفها. الصناديق المتقطعة جداول تقع خارج المجموعة.', '']
+           '**مفتاح الرسم (معيار Crow\'s Foot):** `PK` المفتاح الأساسي · `FK` مفتاح أجنبي · `UK` فريد. طرف الأب `||` = واحد إلزامي، وطرف الابن `}o` = صفر أو أكثر؛ الاختياري `|o` = واحد أو لا شيء. اسم العلاقة = أعمدة الربط.', '',
+           'الإحاطة: كل جدول مملوك للمشترك يحمل `TenantId` ويشير إلى `plat.Tenant`، ولم يُرسم هذا الربط في كل مخطط. العلاقات المرسومة **مفاتيح أجنبية فعلية**، وكل علاقة مكتوبة في جدول العلاقات بإلزامها ونطاقها وسلوك حذفها. أعمدة الإثبات والتدقيق (`SourceDocumentId` و`VerifiedBy` و`ConflictId` و`SupersedesId` و`CreatedBy` و`UpdatedBy`…) لا تُرسم في المخطط لتقليل الازدحام، وترد كاملة في جداول العلاقات. الجداول خارج المجموعة تظهر بمفتاحها فقط.', '']
     n = 3
     for prefix, title in MODULE_ORDER:
         groups = [g for g in plan if g[0].startswith(prefix + '_') or g[0] == prefix or (prefix == 'm0' and g[0].startswith('m0_'))]
@@ -88,7 +88,7 @@ def generated_section(plan, tables):
         n += 1
         for key, gtitle, gsub, members in groups:
             out += [f'#### {gtitle}', '', f'*{gsub}* — {len(members)} جدولًا', '',
-                    f'![{gtitle}](diagrams/pro/{key}.png)', '',
+                    f'![{gtitle}](diagrams/erd/{key}.png)', '',
                     '**مواصفات الجداول**', ''] + table_rows(members, tables) + ['',
                     '**العلاقات (المفاتيح الأجنبية)**', ''] + relation_rows(members, tables) + ['']
     # الجداول المرجعية الخارجية (ref) ضمن m4 ومجموعة المراجع العامة
@@ -134,7 +134,8 @@ def main():
         if ln.startswith('| C-10 |'):
             lines.insert(i + 1, changelog_row); break
     body = '\n'.join(lines)
-    body = body.replace('(diagrams/erd_00_core_tenancy.png)', '(diagrams/pro/core_tenancy.png)')
+    body = body.replace('![العلاقات الأساسية: المشترك والمستخدمون والأدوار والصلاحيات والمفاتيح](diagrams/pro/core_tenancy.png)',
+                        '![المشترك والهوية: الجداول المملوكة للمشترك وكيف ترتبط بالمستخدمين والشركات](diagrams/erd/m0_identity.png)\n\n![المشترك والاشتراكات: الخطة والوحدات والمشغّلون ودعم الوصول](diagrams/erd/m0_tenancy.png)')
     gen = generated_section(plan, tables)
     marker = '\n## 11. '
     assert body.count(marker) == 1, body.count(marker)

@@ -1,0 +1,144 @@
+%% م7/م8 · الاعتمادات والبروفورما (1/2) — Letters of credit & proforma
+erDiagram
+  lc_LetterOfCredit["lc.LetterOfCredit"] {
+    bigint LetterOfCreditId PK
+    bigint CompanyId FK
+    bigint CounterpartyId FK
+    bigint InstitutionId FK
+    bigint RelationshipId FK
+    int ProductId FK
+    bigint FacilityId FK
+    bigint LimitId FK
+    bigint LimitProductLineId FK
+    bigint UtilizationId FK
+    bigint RequestId FK
+    bigint ProformaId FK
+    bigint CurrentTermsId FK
+    int CurrencyId FK
+  }
+  lc_LcExternalRef["lc.LcExternalRef"] {
+    bigint LcExternalRefId PK
+    bigint LcId FK
+    bigint SupersededById FK
+    varchar SystemCode
+    varchar RefType
+    varchar RefValue
+  }
+  lc_LcAmendment["lc.LcAmendment"] {
+    bigint LcAmendmentId PK
+    bigint LcId FK
+    bigint RequestId FK
+    bigint TermsId FK
+    int CurrencyId FK
+    bigint AppliedBy FK
+  }
+  lc_LcDrawing["lc.LcDrawing"] {
+    bigint LcDrawingId PK
+    bigint LcId FK
+    int CurrencyId FK
+    bigint SettlementAccountId FK
+    bigint RequestId FK
+    integer DrawingNo
+  }
+  lc_LcSalesOrder["lc.LcSalesOrder"] {
+    bigint LcSalesOrderId PK
+    bigint LcId FK
+    bigint RequestId FK
+    int CurrencyId FK
+    varchar OrderRef
+    date OrderDate
+  }
+  lc_LcDrawingAllocation["lc.LcDrawingAllocation"] {
+    bigint LcDrawingAllocationId PK
+    bigint LcId FK
+    bigint DrawingId FK
+    bigint SalesOrderId FK
+    int CurrencyId FK
+    numeric Amount
+  }
+  lc_LcDiscrepancy["lc.LcDiscrepancy"] {
+    bigint LcDiscrepancyId PK
+    bigint LcId FK
+    bigint DrawingId FK
+    bigint DecidedBy FK
+    varchar Source
+    text Description
+  }
+  acc_BankAccount["acc.BankAccount"] {
+    bigint BankAccountId PK
+  }
+  cat_Product["cat.Product"] {
+    int ProductId PK
+  }
+  fac_Facility["fac.Facility"] {
+    bigint FacilityId PK
+  }
+  fac_Limit["fac.Limit"] {
+    bigint LimitId PK
+  }
+  fac_LimitProductLine["fac.LimitProductLine"] {
+    bigint LimitProductLineId PK
+  }
+  fac_Utilization["fac.Utilization"] {
+    bigint UtilizationId PK
+  }
+  ins_Institution["ins.Institution"] {
+    bigint InstitutionId PK
+  }
+  ins_Relationship["ins.Relationship"] {
+    bigint RelationshipId PK
+  }
+  lc_Counterparty["lc.Counterparty"] {
+    bigint CounterpartyId PK
+  }
+  lc_LcTerms["lc.LcTerms"] {
+    bigint LcTermsId PK
+  }
+  lc_ProformaInvoice["lc.ProformaInvoice"] {
+    bigint ProformaInvoiceId PK
+  }
+  org_Company["org.Company"] {
+    bigint CompanyId PK
+  }
+  ref_Currency["ref.Currency"] {
+    int CurrencyId PK
+  }
+  sec_AppUser["sec.AppUser"] {
+    bigint AppUserId PK
+  }
+  wfl_Request["wfl.Request"] {
+    bigint RequestId PK
+  }
+  acc_BankAccount |o--o{ lc_LcDrawing : "SettlementAccountId"
+  cat_Product |o--o{ lc_LetterOfCredit : "ProductId"
+  fac_Facility |o--o{ lc_LetterOfCredit : "FacilityId"
+  fac_Limit |o--o{ lc_LetterOfCredit : "LimitId"
+  fac_LimitProductLine |o--o{ lc_LetterOfCredit : "LimitProductLineId"
+  fac_Utilization |o--o{ lc_LetterOfCredit : "UtilizationId"
+  ins_Institution |o--o{ lc_LetterOfCredit : "InstitutionId"
+  ins_Relationship |o--o{ lc_LetterOfCredit : "RelationshipId"
+  lc_Counterparty ||--o{ lc_LetterOfCredit : "CounterpartyId"
+  lc_LcDrawing |o--o{ lc_LcDiscrepancy : "DrawingId"
+  lc_LcDrawing ||--o{ lc_LcDrawingAllocation : "DrawingId"
+  lc_LcSalesOrder ||--o{ lc_LcDrawingAllocation : "SalesOrderId"
+  lc_LcTerms ||--o{ lc_LcAmendment : "TermsId"
+  lc_LcTerms ||--o{ lc_LetterOfCredit : "CurrentTermsId"
+  lc_LetterOfCredit ||--o{ lc_LcAmendment : "LcId"
+  lc_LetterOfCredit ||--o{ lc_LcDiscrepancy : "LcId"
+  lc_LetterOfCredit ||--o{ lc_LcDrawing : "LcId"
+  lc_LetterOfCredit ||--o{ lc_LcDrawingAllocation : "LcId"
+  lc_LetterOfCredit ||--o{ lc_LcExternalRef : "LcId"
+  lc_LetterOfCredit ||--o{ lc_LcSalesOrder : "LcId"
+  lc_ProformaInvoice |o--o{ lc_LetterOfCredit : "ProformaId"
+  org_Company ||--o{ lc_LetterOfCredit : "CompanyId"
+  ref_Currency ||--o{ lc_LcAmendment : "CurrencyId"
+  ref_Currency ||--o{ lc_LcDrawing : "CurrencyId"
+  ref_Currency ||--o{ lc_LcDrawingAllocation : "CurrencyId"
+  ref_Currency ||--o{ lc_LcSalesOrder : "CurrencyId"
+  ref_Currency ||--o{ lc_LetterOfCredit : "CurrencyId"
+  sec_AppUser |o--o{ lc_LcAmendment : "AppliedBy"
+  sec_AppUser |o--o{ lc_LcDiscrepancy : "DecidedBy"
+  wfl_Request |o--o{ lc_LcAmendment : "RequestId"
+  wfl_Request |o--o{ lc_LcDrawing : "RequestId"
+  wfl_Request ||--o{ lc_LcSalesOrder : "RequestId"
+  wfl_Request |o--o{ lc_LetterOfCredit : "RequestId"

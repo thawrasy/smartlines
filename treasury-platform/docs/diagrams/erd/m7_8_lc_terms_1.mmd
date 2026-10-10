@@ -1,0 +1,108 @@
+%% م7/م8 · شروط الاعتماد والنماذج (1/2) — LC terms, fields & form maps
+erDiagram
+  lc_LcFieldDefinition["lc.LcFieldDefinition"] {
+    bigint LcFieldDefinitionId PK
+    varchar FieldKey
+    varchar SectionKey
+    varchar LabelAr
+    varchar LabelEn
+    varchar DataType
+  }
+  lc_LcFieldUcpRef["lc.LcFieldUcpRef"] {
+    bigint LcFieldUcpRefId PK
+    bigint LcFieldDefinitionId FK
+    int UcpArticleId FK
+  }
+  lc_Counterparty["lc.Counterparty"] {
+    bigint CounterpartyId PK
+    int CountryId FK
+    bigint PartyId FK
+    bigint MergedIntoId FK
+    varchar Code
+    varchar Kind
+  }
+  lc_LcDocumentClause["lc.LcDocumentClause"] {
+    bigint LcDocumentClauseId PK
+    bigint InstitutionId FK
+    varchar Code
+    integer VersionNo
+    varchar NameAr
+    varchar NameEn
+  }
+  lc_LcDocumentClauseUcpRef["lc.LcDocumentClauseUcpRef"] {
+    bigint LcDocumentClauseUcpRefId PK
+    bigint LcDocumentClauseId FK
+    int UcpArticleId FK
+  }
+  lc_LcTerms["lc.LcTerms"] {
+    bigint LcTermsId PK
+    bigint ApplicantCompanyId FK
+    bigint ApplicantCounterpartyId FK
+    bigint BeneficiaryCompanyId FK
+    bigint BeneficiaryCounterpartyId FK
+    bigint EncKeyId FK
+    bigint HashKeyId FK
+    int CurrencyId FK
+    int IncotermId FK
+    bigint FacilityAccountId FK
+    bigint MarginSettlementAccountId FK
+    bigint ChargesAccountId FK
+    int PrevLcCurrencyId FK
+    bigint LockedBy FK
+    bigint SupersedesTermsId FK
+    bigint CopiedFromTermsId FK
+  }
+  lc_LcTermsDocument["lc.LcTermsDocument"] {
+    bigint LcTermsDocumentId PK
+    bigint LcTermsId FK
+    bigint ClauseId FK
+    integer SeqNo
+    integer ClauseVersion
+    smallint IsFreeText
+  }
+  acc_BankAccount["acc.BankAccount"] {
+    bigint BankAccountId PK
+  }
+  ins_Institution["ins.Institution"] {
+    bigint InstitutionId PK
+  }
+  org_Company["org.Company"] {
+    bigint CompanyId PK
+  }
+  pty_Party["pty.Party"] {
+    bigint PartyId PK
+  }
+  ref_Country["ref.Country"] {
+    int CountryId PK
+  }
+  ref_Currency["ref.Currency"] {
+    int CurrencyId PK
+  }
+  ref_Incoterm["ref.Incoterm"] {
+    int IncotermId PK
+  }
+  ref_UcpArticle["ref.UcpArticle"] {
+    int UcpArticleId PK
+  }
+  sec_AppUser["sec.AppUser"] {
+    bigint AppUserId PK
+  }
+  sec_TenantKey["sec.TenantKey"] {
+    bigint TenantKeyId PK
+  }
+  acc_BankAccount |o--o{ lc_LcTerms : "ChargesAccountId, FacilityAccountId, MarginSettlementAccountId"
+  ins_Institution |o--o{ lc_LcDocumentClause : "InstitutionId"
+  lc_Counterparty |o--o{ lc_LcTerms : "ApplicantCounterpartyId, BeneficiaryCounterpartyId"
+  lc_LcDocumentClause ||--o{ lc_LcDocumentClauseUcpRef : "LcDocumentClauseId"
+  lc_LcDocumentClause ||--o{ lc_LcTermsDocument : "ClauseId"
+  lc_LcFieldDefinition ||--o{ lc_LcFieldUcpRef : "LcFieldDefinitionId"
+  lc_LcTerms ||--o{ lc_LcTermsDocument : "LcTermsId"
+  org_Company |o--o{ lc_LcTerms : "ApplicantCompanyId, BeneficiaryCompanyId"
+  pty_Party |o--o{ lc_Counterparty : "PartyId"
+  ref_Country ||--o{ lc_Counterparty : "CountryId"
+  ref_Currency |o--o{ lc_LcTerms : "CurrencyId, PrevLcCurrencyId"
+  ref_Incoterm |o--o{ lc_LcTerms : "IncotermId"
+  ref_UcpArticle ||--o{ lc_LcDocumentClauseUcpRef : "UcpArticleId"
+  ref_UcpArticle ||--o{ lc_LcFieldUcpRef : "UcpArticleId"
+  sec_AppUser |o--o{ lc_LcTerms : "LockedBy"
+  sec_TenantKey |o--o{ lc_LcTerms : "EncKeyId, HashKeyId"

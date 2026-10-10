@@ -1,0 +1,87 @@
+%% م6 · قوالب دورات العمل (1/2) — Workflow templates
+erDiagram
+  wfl_RequestType["wfl.RequestType"] {
+    int RequestTypeId PK
+    varchar Code
+    varchar NameAr
+    varchar NameEn
+    varchar Category
+    varchar DefaultTemplateKey
+  }
+  wfl_RequestTypeAudience["wfl.RequestTypeAudience"] {
+    int RequestTypeAudienceId PK
+    int RequestTypeId FK
+    bigint RoleId FK
+    bigint DepartmentId FK
+    bigint UserId FK
+    varchar SubjectKind
+  }
+  wfl_ExternalPhase["wfl.ExternalPhase"] {
+    int ExternalPhaseId PK
+    smallint RequiresRequesterAction
+    smallint IsFinal
+  }
+  wfl_WorkflowTemplate["wfl.WorkflowTemplate"] {
+    int WorkflowTemplateId PK
+    int RequestTypeId FK
+    bigint PublishedBy FK
+    varchar TemplateKey
+    integer VersionNo
+    varchar Status
+  }
+  wfl_WorkflowStage["wfl.WorkflowStage"] {
+    int WorkflowStageId PK
+    int TemplateId FK
+    int ExternalPhaseId FK
+    bigint AssigneeRoleId FK
+    int PoolPermissionId FK
+    bigint AssigneeUserId FK
+    bigint AssigneeDepartmentId FK
+    bigint FallbackRoleId FK
+  }
+  wfl_StageApprover["wfl.StageApprover"] {
+    int StageApproverId PK
+    int StageId FK
+    bigint RoleId FK
+    bigint UserId FK
+    bigint DepartmentId FK
+    bigint FallbackRoleId FK
+  }
+  wfl_WorkflowTransition["wfl.WorkflowTransition"] {
+    int WorkflowTransitionId PK
+    int TemplateId FK
+    int FromStageId FK
+    int ToStageId FK
+    int ResumeStageId FK
+    varchar Action
+  }
+  org_Department["org.Department"] {
+    bigint DepartmentId PK
+  }
+  sec_AppUser["sec.AppUser"] {
+    bigint AppUserId PK
+  }
+  sec_Permission["sec.Permission"] {
+    int PermissionId PK
+  }
+  sec_Role["sec.Role"] {
+    bigint RoleId PK
+  }
+  org_Department |o--o{ wfl_RequestTypeAudience : "DepartmentId"
+  org_Department |o--o{ wfl_StageApprover : "DepartmentId"
+  org_Department |o--o{ wfl_WorkflowStage : "AssigneeDepartmentId"
+  sec_AppUser |o--o{ wfl_RequestTypeAudience : "UserId"
+  sec_AppUser |o--o{ wfl_StageApprover : "UserId"
+  sec_AppUser |o--o{ wfl_WorkflowStage : "AssigneeUserId"
+  sec_AppUser |o--o{ wfl_WorkflowTemplate : "PublishedBy"
+  sec_Permission |o--o{ wfl_WorkflowStage : "PoolPermissionId"
+  sec_Role |o--o{ wfl_RequestTypeAudience : "RoleId"
+  sec_Role |o--o{ wfl_StageApprover : "FallbackRoleId, RoleId"
+  sec_Role |o--o{ wfl_WorkflowStage : "AssigneeRoleId, FallbackRoleId"
+  wfl_ExternalPhase ||--o{ wfl_WorkflowStage : "ExternalPhaseId"
+  wfl_RequestType ||--o{ wfl_RequestTypeAudience : "RequestTypeId"
+  wfl_RequestType ||--o{ wfl_WorkflowTemplate : "RequestTypeId"
+  wfl_WorkflowStage ||--o{ wfl_StageApprover : "StageId"
+  wfl_WorkflowStage ||--o{ wfl_WorkflowTransition : "FromStageId, ResumeStageId, ToStageId"
+  wfl_WorkflowTemplate ||--o{ wfl_WorkflowStage : "TemplateId"
+  wfl_WorkflowTemplate ||--o{ wfl_WorkflowTransition : "TemplateId"

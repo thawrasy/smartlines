@@ -123,7 +123,7 @@
 
 يوضح المخطط كيف يرتبط المشترك (`plat.Tenant`، المركز المميَّز بالأصفر) بالمستخدمين والأدوار والصلاحيات ومفتاح تشفيره وشركاته. الأسهم المتصلة **مفاتيح أجنبية فعلية** مع اسم العمود عليها. الجداول المملوكة للمشترك مجمّعة في عنقود أزرق، وكلها تحمل `TenantId` يشير إلى `plat.Tenant` بسهم واحد ذهبي؛ وبذلك لا تتقاطع الأسهم المتكررة فوق بعضها.
 
-![العلاقات الأساسية: المشترك والمستخدمون والأدوار والصلاحيات والمفاتيح](diagrams/pro/core_tenancy.png)
+![العلاقات الأساسية: المشترك والمستخدمون والأدوار والصلاحيات والمفاتيح](diagrams/erd_00_core_tenancy.png)
 
 ## 4. الاتفاقيات (Conventions)
 
@@ -301,13 +301,13 @@
 
 ### 10.1 خريطة المخططات (Schema Map)
 
-![خريطة المخططات: كل مخطط وعدد جداوله وعدد المفاتيح الأجنبية بينها](diagrams/pro/schema_map.png)
+![خريطة المخططات: المخططات والعلاقات بينها (خمسة مفاتيح أجنبية فأكثر)](diagrams/erd/schema_map.png)
 
 ### 10.2 قراءة المخططات
 
-![مفتاح الرسم: PK و FK و UQ، وتدوين الطرفين في العلاقة](diagrams/pro/legend.png)
+**مفتاح الرسم (معيار Crow's Foot):** `PK` المفتاح الأساسي · `FK` مفتاح أجنبي · `UK` فريد. طرف الأب `||` = واحد إلزامي، وطرف الابن `}o` = صفر أو أكثر؛ الاختياري `|o` = واحد أو لا شيء. اسم العلاقة = أعمدة الربط.
 
-الإحاطة: كل جدول مملوك للمشترك يحمل `TenantId` ويشير إلى `plat.Tenant`، ولم يُرسم هذا الربط في كل مخطط. العلاقات المرسومة **مفاتيح أجنبية فعلية**، وكل علاقة مكتوبة في جدول العلاقات بإلزامها ونطاقها وسلوك حذفها. الصناديق المتقطعة جداول تقع خارج المجموعة.
+الإحاطة: كل جدول مملوك للمشترك يحمل `TenantId` ويشير إلى `plat.Tenant`، ولم يُرسم هذا الربط في كل مخطط. العلاقات المرسومة **مفاتيح أجنبية فعلية**، وكل علاقة مكتوبة في جدول العلاقات بإلزامها ونطاقها وسلوك حذفها. أعمدة الإثبات والتدقيق (`SourceDocumentId` و`VerifiedBy` و`ConflictId` و`SupersedesId` و`CreatedBy` و`UpdatedBy`…) لا تُرسم في المخطط لتقليل الازدحام، وترد كاملة في جداول العلاقات. الجداول خارج المجموعة تظهر بمفتاحها فقط.
 
 ### 10.3 م0 · المنصة والهوية والتدقيق
 
@@ -315,7 +315,7 @@
 
 *Tenancy & platform operators* — 7 جدولًا
 
-![م0 · المشترك والاشتراكات والمشغّلون](diagrams/pro/m0_tenancy.png)
+![م0 · المشترك والاشتراكات والمشغّلون](diagrams/erd/m0_tenancy.png)
 
 **مواصفات الجداول**
 
@@ -345,7 +345,7 @@
 
 *Identity & authorisation* — 7 جدولًا
 
-![م0 · الهوية والصلاحيات](diagrams/pro/m0_identity.png)
+![م0 · الهوية والصلاحيات](diagrams/erd/m0_identity.png)
 
 **مواصفات الجداول**
 
@@ -380,7 +380,7 @@
 
 *Sessions, keys & attempts* — 7 جدولًا
 
-![م0 · الجلسات والمفاتيح والمحاولات](diagrams/pro/m0_sessions.png)
+![م0 · الجلسات والمفاتيح والمحاولات](diagrams/erd/m0_sessions.png)
 
 **مواصفات الجداول**
 
@@ -411,7 +411,7 @@
 
 *Audit & documents* — 5 جدولًا
 
-![م0 · التدقيق والمستندات](diagrams/pro/m0_audit_docs.png)
+![م0 · التدقيق والمستندات](diagrams/erd/m0_audit_docs.png)
 
 **مواصفات الجداول**
 
@@ -443,7 +443,7 @@
 
 *Configuration & background jobs* — 7 جدولًا
 
-![م0 · الإعدادات والمهام الخلفية (1/2)](diagrams/pro/m0_config_1.png)
+![م0 · الإعدادات والمهام الخلفية (1/2)](diagrams/erd/m0_config_1.png)
 
 **مواصفات الجداول**
 
@@ -475,7 +475,7 @@
 
 *Configuration & background jobs* — 5 جدولًا
 
-![م0 · الإعدادات والمهام الخلفية (2/2)](diagrams/pro/m0_config_2.png)
+![م0 · الإعدادات والمهام الخلفية (2/2)](diagrams/erd/m0_config_2.png)
 
 **مواصفات الجداول**
 
@@ -499,7 +499,7 @@
 
 *Company structure & governance* — 7 جدولًا
 
-![م1 · الشركات والحوكمة](diagrams/pro/m1_company.png)
+![م1 · الشركات والحوكمة](diagrams/erd/m1_company.png)
 
 **مواصفات الجداول**
 
@@ -553,7 +553,7 @@
 
 *Company profile & KYC* — 7 جدولًا
 
-![م1 · ملف الشركة والاكتمال](diagrams/pro/m1_company_kyc.png)
+![م1 · ملف الشركة والاكتمال](diagrams/erd/m1_company_kyc.png)
 
 **مواصفات الجداول**
 
@@ -592,7 +592,7 @@
 
 *Parties, identity documents & KYC* — 7 جدولًا
 
-![م1 · الأشخاص والهوية والاكتمال (1/2)](diagrams/pro/m1_party_1.png)
+![م1 · الأشخاص والهوية والاكتمال (1/2)](diagrams/erd/m1_party_1.png)
 
 **مواصفات الجداول**
 
@@ -628,7 +628,7 @@
 
 *Parties, identity documents & KYC* — 4 جدولًا
 
-![م1 · الأشخاص والهوية والاكتمال (2/2)](diagrams/pro/m1_party_2.png)
+![م1 · الأشخاص والهوية والاكتمال (2/2)](diagrams/erd/m1_party_2.png)
 
 **مواصفات الجداول**
 
@@ -667,7 +667,7 @@
 
 *Institutions, bank accounts & signatories* — 7 جدولًا
 
-![م2–م3 · الجهات المالية والحسابات والمفوّضون (1/2)](diagrams/pro/m2_3_institutions_1.png)
+![م2–م3 · الجهات المالية والحسابات والمفوّضون (1/2)](diagrams/erd/m2_3_institutions_1.png)
 
 **مواصفات الجداول**
 
@@ -712,7 +712,7 @@
 
 *Institutions, bank accounts & signatories* — 5 جدولًا
 
-![م2–م3 · الجهات المالية والحسابات والمفوّضون (2/2)](diagrams/pro/m2_3_institutions_2.png)
+![م2–م3 · الجهات المالية والحسابات والمفوّضون (2/2)](diagrams/erd/m2_3_institutions_2.png)
 
 **مواصفات الجداول**
 
@@ -765,7 +765,7 @@
 
 *Products, fees, financing & collateral types* — 7 جدولًا
 
-![م4 · المنتجات والرسوم والتمويل والضمانات (1/2)](diagrams/pro/m4_products_1.png)
+![م4 · المنتجات والرسوم والتمويل والضمانات (1/2)](diagrams/erd/m4_products_1.png)
 
 **مواصفات الجداول**
 
@@ -793,7 +793,7 @@
 
 *Products, fees, financing & collateral types* — 5 جدولًا
 
-![م4 · المنتجات والرسوم والتمويل والضمانات (2/2)](diagrams/pro/m4_products_2.png)
+![م4 · المنتجات والرسوم والتمويل والضمانات (2/2)](diagrams/erd/m4_products_2.png)
 
 **مواصفات الجداول**
 
@@ -818,7 +818,7 @@
 
 *Reference catalogues* — 7 جدولًا
 
-![م4 · الكتالوجات المرجعية](diagrams/pro/m4_reference.png)
+![م4 · الكتالوجات المرجعية](diagrams/erd/m4_reference.png)
 
 **مواصفات الجداول**
 
@@ -843,7 +843,7 @@
 
 *Base rates & lookup lists* — 7 جدولًا
 
-![م4 · الأسعار المرجعية والقوائم](diagrams/pro/m4_rates_lookups.png)
+![م4 · الأسعار المرجعية والقوائم](diagrams/erd/m4_rates_lookups.png)
 
 **مواصفات الجداول**
 
@@ -876,7 +876,7 @@
 
 *Global references (shared, read-only)* — 4 جدولًا
 
-![المراجع العامة (ref)](diagrams/pro/m4_global_ref.png)
+![المراجع العامة (ref)](diagrams/erd/m4_global_ref.png)
 
 **مواصفات الجداول**
 
@@ -899,7 +899,7 @@
 
 *Facilities & revisions* — 6 جدولًا
 
-![م5 · التسهيلات والمراجعات](diagrams/pro/m5_facility_core.png)
+![م5 · التسهيلات والمراجعات](diagrams/erd/m5_facility_core.png)
 
 **مواصفات الجداول**
 
@@ -947,7 +947,7 @@
 
 *Limits, utilisation & reservations* — 7 جدولًا
 
-![م5 · الحدود والاستخدام والحجوزات](diagrams/pro/m5_limits.png)
+![م5 · الحدود والاستخدام والحجوزات](diagrams/erd/m5_limits.png)
 
 **مواصفات الجداول**
 
@@ -1014,7 +1014,7 @@
 
 *Pricing, tariffs & comparable terms* — 7 جدولًا
 
-![م5 · التسعير وشروط المقارنة](diagrams/pro/m5_pricing.png)
+![م5 · التسعير وشروط المقارنة](diagrams/erd/m5_pricing.png)
 
 **مواصفات الجداول**
 
@@ -1077,7 +1077,7 @@
 
 *Collateral & guarantees* — 7 جدولًا
 
-![م5 · الضمانات](diagrams/pro/m5_collateral.png)
+![م5 · الضمانات](diagrams/erd/m5_collateral.png)
 
 **مواصفات الجداول**
 
@@ -1128,7 +1128,7 @@
 
 *Obligations, covenants & reporting* — 7 جدولًا
 
-![م5 · الالتزامات والتعهدات (1/2)](diagrams/pro/m5_obligations_1.png)
+![م5 · الالتزامات والتعهدات (1/2)](diagrams/erd/m5_obligations_1.png)
 
 **مواصفات الجداول**
 
@@ -1182,7 +1182,7 @@
 
 *Obligations, covenants & reporting* — 1 جدولًا
 
-![م5 · الالتزامات والتعهدات (2/2)](diagrams/pro/m5_obligations_2.png)
+![م5 · الالتزامات والتعهدات (2/2)](diagrams/erd/m5_obligations_2.png)
 
 **مواصفات الجداول**
 
@@ -1202,7 +1202,7 @@
 
 *Financial statements & balances* — 7 جدولًا
 
-![م5 · البيانات المالية والأرصدة](diagrams/pro/m5_financials.png)
+![م5 · البيانات المالية والأرصدة](diagrams/erd/m5_financials.png)
 
 **مواصفات الجداول**
 
@@ -1250,7 +1250,7 @@
 
 *Workflow templates* — 7 جدولًا
 
-![م6 · قوالب دورات العمل (1/2)](diagrams/pro/m6_wf_templates_1.png)
+![م6 · قوالب دورات العمل (1/2)](diagrams/erd/m6_wf_templates_1.png)
 
 **مواصفات الجداول**
 
@@ -1295,7 +1295,7 @@
 
 *Workflow templates* — 3 جدولًا
 
-![م6 · قوالب دورات العمل (2/2)](diagrams/pro/m6_wf_templates_2.png)
+![م6 · قوالب دورات العمل (2/2)](diagrams/erd/m6_wf_templates_2.png)
 
 **مواصفات الجداول**
 
@@ -1318,7 +1318,7 @@
 
 *Requests, approvals & actions* — 7 جدولًا
 
-![م6 · الطلبات وإجراءاتها (1/2)](diagrams/pro/m6_requests_1.png)
+![م6 · الطلبات وإجراءاتها (1/2)](diagrams/erd/m6_requests_1.png)
 
 **مواصفات الجداول**
 
@@ -1389,7 +1389,7 @@
 
 *Requests, approvals & actions* — 2 جدولًا
 
-![م6 · الطلبات وإجراءاتها (2/2)](diagrams/pro/m6_requests_2.png)
+![م6 · الطلبات وإجراءاتها (2/2)](diagrams/erd/m6_requests_2.png)
 
 **مواصفات الجداول**
 
@@ -1413,7 +1413,7 @@
 
 *Notifications* — 7 جدولًا
 
-![م6 · الإشعارات](diagrams/pro/m6_notifications.png)
+![م6 · الإشعارات](diagrams/erd/m6_notifications.png)
 
 **مواصفات الجداول**
 
@@ -1450,7 +1450,7 @@
 
 *LC terms, fields & form maps* — 7 جدولًا
 
-![م7/م8 · شروط الاعتماد والنماذج (1/2)](diagrams/pro/m7_8_lc_terms_1.png)
+![م7/م8 · شروط الاعتماد والنماذج (1/2)](diagrams/erd/m7_8_lc_terms_1.png)
 
 **مواصفات الجداول**
 
@@ -1498,7 +1498,7 @@
 
 *LC terms, fields & form maps* — 3 جدولًا
 
-![م7/م8 · شروط الاعتماد والنماذج (2/2)](diagrams/pro/m7_8_lc_terms_2.png)
+![م7/م8 · شروط الاعتماد والنماذج (2/2)](diagrams/erd/m7_8_lc_terms_2.png)
 
 **مواصفات الجداول**
 
@@ -1525,7 +1525,7 @@
 
 *Letters of credit & proforma* — 7 جدولًا
 
-![م7/م8 · الاعتمادات والبروفورما (1/2)](diagrams/pro/m7_8_lc_ops_1.png)
+![م7/م8 · الاعتمادات والبروفورما (1/2)](diagrams/erd/m7_8_lc_ops_1.png)
 
 **مواصفات الجداول**
 
@@ -1582,7 +1582,7 @@
 
 *Letters of credit & proforma* — 4 جدولًا
 
-![م7/م8 · الاعتمادات والبروفورما (2/2)](diagrams/pro/m7_8_lc_ops_2.png)
+![م7/م8 · الاعتمادات والبروفورما (2/2)](diagrams/erd/m7_8_lc_ops_2.png)
 
 **مواصفات الجداول**
 

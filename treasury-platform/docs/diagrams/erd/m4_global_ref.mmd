@@ -1,0 +1,34 @@
+%% المراجع العامة (ref) — Global references (shared, read-only)
+erDiagram
+  ref_Country["ref.Country"] {
+    int CountryId PK
+    char Iso2
+    char Iso3
+    varchar NameAr
+    varchar NameEn
+    smallint IsGcc
+  }
+  ref_Currency["ref.Currency"] {
+    int CurrencyId PK
+    char Code
+    char NumericCode
+    varchar NameAr
+    varchar NameEn
+    smallint Decimals
+  }
+  ref_Incoterm["ref.Incoterm"] {
+    int IncotermId PK
+    char Code
+    varchar NameEn
+    varchar RulesVersion
+    varchar Status
+    smallint IsSeaOnly
+  }
+  ref_UcpArticle["ref.UcpArticle"] {
+    int UcpArticleId PK
+    varchar Version
+    varchar ArticleNo
+    varchar TitleAr
+    varchar TitleEn
+    varchar VerificationStatus
+  }

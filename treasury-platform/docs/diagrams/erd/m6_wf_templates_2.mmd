@@ -1,0 +1,39 @@
+%% م6 · قوالب دورات العمل (2/2) — Workflow templates
+erDiagram
+  wfl_WorkflowStageHook["wfl.WorkflowStageHook"] {
+    int WorkflowStageHookId PK
+    int StageId FK
+    varchar TriggerKind
+    varchar HookKey
+    varchar ExecMode
+    varchar OnFailure
+  }
+  wfl_TemplateField["wfl.TemplateField"] {
+    int TemplateFieldId PK
+    int TemplateId FK
+    varchar FieldKey
+    varchar LabelAr
+    varchar LabelEn
+    integer SeqNo
+  }
+  wfl_TemplateAttachmentRule["wfl.TemplateAttachmentRule"] {
+    int TemplateAttachmentRuleId PK
+    int TemplateId FK
+    int DocumentTypeId FK
+    varchar SlotKey
+    integer MinCount
+    smallint VisibleToRequester
+  }
+  cat_DocumentType["cat.DocumentType"] {
+    int DocumentTypeId PK
+  }
+  wfl_WorkflowStage["wfl.WorkflowStage"] {
+    int WorkflowStageId PK
+  }
+  wfl_WorkflowTemplate["wfl.WorkflowTemplate"] {
+    int WorkflowTemplateId PK
+  }
+  cat_DocumentType ||--o{ wfl_TemplateAttachmentRule : "DocumentTypeId"
+  wfl_WorkflowStage ||--o{ wfl_WorkflowStageHook : "StageId"
+  wfl_WorkflowTemplate ||--o{ wfl_TemplateAttachmentRule : "TemplateId"
+  wfl_WorkflowTemplate ||--o{ wfl_TemplateField : "TemplateId"

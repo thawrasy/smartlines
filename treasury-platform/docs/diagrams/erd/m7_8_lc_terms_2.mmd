@@ -1,0 +1,45 @@
+%% م7/م8 · شروط الاعتماد والنماذج (2/2) — LC terms, fields & form maps
+erDiagram
+  lc_LcChargesMatrix["lc.LcChargesMatrix"] {
+    bigint LcChargesMatrixId PK
+    bigint LcTermsId FK
+    varchar ChargeCategory
+    varchar Payer
+  }
+  lc_LcFormTemplate["lc.LcFormTemplate"] {
+    bigint LcFormTemplateId PK
+    bigint InstitutionId FK
+    int ProductId FK
+    bigint CompanyId FK
+    bigint AnnexDocumentId FK
+    bigint LetterheadDocumentId FK
+  }
+  lc_LcFormFieldMap["lc.LcFormFieldMap"] {
+    bigint LcFormFieldMapId PK
+    bigint TemplateId FK
+    varchar TargetName
+    varchar SourceExpr
+    varchar Transform
+    smallint IsRequired
+  }
+  cat_Product["cat.Product"] {
+    int ProductId PK
+  }
+  doc_Document["doc.Document"] {
+    bigint DocumentId PK
+  }
+  ins_Institution["ins.Institution"] {
+    bigint InstitutionId PK
+  }
+  lc_LcTerms["lc.LcTerms"] {
+    bigint LcTermsId PK
+  }
+  org_Company["org.Company"] {
+    bigint CompanyId PK
+  }
+  cat_Product |o--o{ lc_LcFormTemplate : "ProductId"
+  doc_Document |o--o{ lc_LcFormTemplate : "AnnexDocumentId, LetterheadDocumentId"
+  ins_Institution |o--o{ lc_LcFormTemplate : "InstitutionId"
+  lc_LcFormTemplate ||--o{ lc_LcFormFieldMap : "TemplateId"
+  lc_LcTerms ||--o{ lc_LcChargesMatrix : "LcTermsId"
+  org_Company |o--o{ lc_LcFormTemplate : "CompanyId"

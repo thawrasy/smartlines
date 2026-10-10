@@ -1,0 +1,79 @@
+%% خريطة المخططات: العلاقات بين المخططات التي فيها خمسة مفاتيح أجنبية أو أكثر (التفصيل في جداول العلاقات)
+erDiagram
+  acc {
+    int tables_6 PK
+  }
+  aud {
+    int tables_2 PK
+  }
+  cat {
+    int tables_26 PK
+  }
+  cfg {
+    int tables_12 PK
+  }
+  cmp {
+    int tables_2 PK
+  }
+  col {
+    int tables_7 PK
+  }
+  doc {
+    int tables_3 PK
+  }
+  fac {
+    int tables_13 PK
+  }
+  fin {
+    int tables_7 PK
+  }
+  ins {
+    int tables_6 PK
+  }
+  lc {
+    int tables_21 PK
+  }
+  ntf {
+    int tables_7 PK
+  }
+  obl {
+    int tables_8 PK
+  }
+  org {
+    int tables_14 PK
+  }
+  plat {
+    int tables_7 PK
+  }
+  prc {
+    int tables_5 PK
+  }
+  pty {
+    int tables_11 PK
+  }
+  ref {
+    int tables_4 PK
+  }
+  sec {
+    int tables_14 PK
+  }
+  wfl {
+    int tables_19 PK
+  }
+  acc ||--o{ lc : "5 FK"
+  cat ||--o{ acc : "7 FK"
+  cat ||--o{ org : "7 FK"
+  cat ||--o{ prc : "6 FK"
+  fac ||--o{ prc : "5 FK"
+  ins ||--o{ acc : "5 FK"
+  org ||--o{ lc : "5 FK"
+  org ||--o{ wfl : "5 FK"
+  pty ||--o{ org : "5 FK"
+  ref ||--o{ fac : "5 FK"
+  ref ||--o{ lc : "13 FK"
+  ref ||--o{ org : "8 FK"
+  ref ||--o{ pty : "6 FK"
+  sec ||--o{ lc : "6 FK"
+  sec ||--o{ ntf : "6 FK"
+  sec ||--o{ wfl : "24 FK"
+  wfl ||--o{ lc : "5 FK"

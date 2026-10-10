@@ -1,0 +1,34 @@
+%% م4 · المنتجات والرسوم والتمويل والضمانات (2/2) — Products, fees, financing & collateral types
+erDiagram
+  cat_LimitType["cat.LimitType"] {
+    int LimitTypeId PK
+    int ParentLimitTypeId FK
+    varchar Kind
+  }
+  cat_LimitTypeProduct["cat.LimitTypeProduct"] {
+    int LimitTypeId PK
+    int ProductId PK
+  }
+  cat_CollateralType["cat.CollateralType"] {
+    int CollateralTypeId PK
+    varchar StructureKind
+  }
+  cat_CollateralTypeAttribute["cat.CollateralTypeAttribute"] {
+    int CollateralTypeAttributeId PK
+    int CollateralTypeId FK
+    varchar AttrKey
+    varchar LabelAr
+    varchar LabelEn
+    varchar DataType
+  }
+  cat_ObligationType["cat.ObligationType"] {
+    int ObligationTypeId PK
+    varchar Family
+    smallint IsQualitative
+  }
+  cat_Product["cat.Product"] {
+    int ProductId PK
+  }
+  cat_CollateralType ||--o{ cat_CollateralTypeAttribute : "CollateralTypeId"
+  cat_LimitType ||--o{ cat_LimitTypeProduct : "LimitTypeId"
+  cat_Product ||--o{ cat_LimitTypeProduct : "ProductId"

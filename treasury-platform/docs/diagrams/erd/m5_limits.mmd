@@ -1,0 +1,103 @@
+%% م5 · الحدود والاستخدام والحجوزات — Limits, utilisation & reservations
+erDiagram
+  fac_Limit["fac.Limit"] {
+    bigint LimitId PK
+    bigint FacilityId FK
+    bigint ParentLimitId FK
+    int LimitTypeId FK
+    varchar Code
+    varchar NameAr
+  }
+  fac_LimitProductLine["fac.LimitProductLine"] {
+    bigint LimitProductLineId PK
+    bigint FacilityId FK
+    bigint LimitId FK
+    int ProductId FK
+    smallint IsActive
+  }
+  fac_LimitCompanyRule["fac.LimitCompanyRule"] {
+    bigint LimitCompanyRuleId PK
+    bigint FacilityId FK
+    bigint LimitId FK
+    bigint CompanyId FK
+    varchar RuleKind
+    date ValidFrom
+  }
+  fac_ProductLineTerm["fac.ProductLineTerm"] {
+    bigint ProductLineTermId PK
+    bigint FacilityId FK
+    bigint LimitProductLineId FK
+    varchar AdvanceNoticeUnit
+    varchar CheckMode
+    date EffectiveFrom
+  }
+  fac_Utilization["fac.Utilization"] {
+    bigint UtilizationId PK
+    bigint FacilityId FK
+    bigint LimitId FK
+    bigint LimitProductLineId FK
+    bigint CompanyId FK
+    int CurrencyId FK
+  }
+  fac_LimitReservation["fac.LimitReservation"] {
+    bigint LimitReservationId PK
+    bigint FacilityId FK
+    bigint LimitId FK
+    bigint LimitProductLineId FK
+    bigint CompanyId FK
+    bigint RequestId FK
+    int CurrencyId FK
+    bigint ConvertedUtilizationId FK
+  }
+  fac_LimitMovement["fac.LimitMovement"] {
+    bigint LimitMovementId PK
+    bigint FacilityId FK
+    bigint LimitReservationId FK
+    bigint UtilizationId FK
+    int CurrencyId FK
+    varchar TargetKind
+  }
+  cat_LimitType["cat.LimitType"] {
+    int LimitTypeId PK
+  }
+  cat_Product["cat.Product"] {
+    int ProductId PK
+  }
+  fac_Facility["fac.Facility"] {
+    bigint FacilityId PK
+  }
+  org_Company["org.Company"] {
+    bigint CompanyId PK
+  }
+  ref_Currency["ref.Currency"] {
+    int CurrencyId PK
+  }
+  wfl_Request["wfl.Request"] {
+    bigint RequestId PK
+  }
+  cat_LimitType ||--o{ fac_Limit : "LimitTypeId"
+  cat_Product ||--o{ fac_LimitProductLine : "ProductId"
+  fac_Facility ||--o{ fac_Limit : "FacilityId"
+  fac_Facility ||--o{ fac_LimitCompanyRule : "FacilityId"
+  fac_Facility ||--o{ fac_LimitMovement : "FacilityId"
+  fac_Facility ||--o{ fac_LimitProductLine : "FacilityId"
+  fac_Facility ||--o{ fac_LimitReservation : "FacilityId"
+  fac_Facility ||--o{ fac_ProductLineTerm : "FacilityId"
+  fac_Facility ||--o{ fac_Utilization : "FacilityId"
+  fac_Limit ||--o{ fac_LimitCompanyRule : "LimitId"
+  fac_Limit ||--o{ fac_LimitProductLine : "LimitId"
+  fac_Limit ||--o{ fac_LimitReservation : "LimitId"
+  fac_Limit ||--o{ fac_Utilization : "LimitId"
+  fac_LimitProductLine |o--o{ fac_LimitReservation : "LimitProductLineId"
+  fac_LimitProductLine ||--o{ fac_ProductLineTerm : "LimitProductLineId"
+  fac_LimitProductLine |o--o{ fac_Utilization : "LimitProductLineId"
+  fac_LimitReservation |o--o{ fac_LimitMovement : "LimitReservationId"
+  fac_Utilization |o--o{ fac_LimitMovement : "UtilizationId"
+  fac_Utilization |o--o{ fac_LimitReservation : "ConvertedUtilizationId"
+  org_Company ||--o{ fac_LimitCompanyRule : "CompanyId"
+  org_Company ||--o{ fac_LimitReservation : "CompanyId"
+  org_Company ||--o{ fac_Utilization : "CompanyId"
+  ref_Currency ||--o{ fac_LimitMovement : "CurrencyId"
+  ref_Currency ||--o{ fac_LimitReservation : "CurrencyId"
+  ref_Currency ||--o{ fac_Utilization : "CurrencyId"
+  wfl_Request ||--o{ fac_LimitReservation : "RequestId"

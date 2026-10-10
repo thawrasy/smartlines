@@ -1,0 +1,100 @@
+%% م2–م3 · الجهات المالية والحسابات والمفوّضون (1/2) — Institutions, bank accounts & signatories
+erDiagram
+  ins_Contact["ins.Contact"] {
+    bigint ContactId PK
+    bigint InstitutionId FK
+    bigint UnitId FK
+    bigint ReportsToContactId FK
+    bigint PartyId FK
+    varchar FullNameAr
+  }
+  ins_Institution["ins.Institution"] {
+    bigint InstitutionId PK
+    int InstitutionTypeId FK
+    int CountryId FK
+    bigint PartyId FK
+    varchar Code
+    varchar NameAr
+  }
+  ins_InstitutionUnit["ins.InstitutionUnit"] {
+    bigint InstitutionUnitId PK
+    bigint InstitutionId FK
+    bigint ParentUnitId FK
+    int UnitTypeId FK
+    varchar NameAr
+    smallint IsActive
+  }
+  ins_Relationship["ins.Relationship"] {
+    bigint RelationshipId PK
+    bigint CompanyId FK
+    bigint InstitutionId FK
+    varchar Status
+  }
+  ins_RelationshipContact["ins.RelationshipContact"] {
+    bigint RelationshipContactId PK
+    bigint InstitutionId FK
+    bigint RelationshipId FK
+    bigint ContactId FK
+    int RoleId FK
+    integer Rank
+  }
+  ins_RelationshipProduct["ins.RelationshipProduct"] {
+    bigint RelationshipProductId PK
+    bigint InstitutionId FK
+    bigint RelationshipId FK
+    int ProductId FK
+    bigint DefaultContactId FK
+    varchar PreferredChannel
+  }
+  acc_AuthorityConflict["acc.AuthorityConflict"] {
+    bigint AuthorityConflictId PK
+    bigint SignatoryAuthorityId FK
+    bigint ReviewedBy FK
+    varchar ConflictCode
+    varchar Fingerprint
+    varchar Status
+  }
+  acc_SignatoryAuthority["acc.SignatoryAuthority"] {
+    bigint SignatoryAuthorityId PK
+  }
+  cat_InstitutionType["cat.InstitutionType"] {
+    int InstitutionTypeId PK
+  }
+  cat_LookupItem["cat.LookupItem"] {
+    int LookupItemId PK
+  }
+  cat_Product["cat.Product"] {
+    int ProductId PK
+  }
+  org_Company["org.Company"] {
+    bigint CompanyId PK
+  }
+  pty_Party["pty.Party"] {
+    bigint PartyId PK
+  }
+  ref_Country["ref.Country"] {
+    int CountryId PK
+  }
+  sec_AppUser["sec.AppUser"] {
+    bigint AppUserId PK
+  }
+  acc_SignatoryAuthority ||--o{ acc_AuthorityConflict : "SignatoryAuthorityId"
+  cat_InstitutionType ||--o{ ins_Institution : "InstitutionTypeId"
+  cat_LookupItem ||--o{ ins_InstitutionUnit : "UnitTypeId"
+  cat_LookupItem ||--o{ ins_RelationshipContact : "RoleId"
+  cat_Product ||--o{ ins_RelationshipProduct : "ProductId"
+  ins_Contact ||--o{ ins_RelationshipContact : "ContactId"
+  ins_Contact |o--o{ ins_RelationshipProduct : "DefaultContactId"
+  ins_Institution ||--o{ ins_Contact : "InstitutionId"
+  ins_Institution ||--o{ ins_InstitutionUnit : "InstitutionId"
+  ins_Institution ||--o{ ins_Relationship : "InstitutionId"
+  ins_Institution ||--o{ ins_RelationshipContact : "InstitutionId"
+  ins_Institution ||--o{ ins_RelationshipProduct : "InstitutionId"
+  ins_InstitutionUnit |o--o{ ins_Contact : "UnitId"
+  ins_Relationship ||--o{ ins_RelationshipContact : "RelationshipId"
+  ins_Relationship ||--o{ ins_RelationshipProduct : "RelationshipId"
+  org_Company ||--o{ ins_Relationship : "CompanyId"
+  pty_Party |o--o{ ins_Contact : "PartyId"
+  pty_Party |o--o{ ins_Institution : "PartyId"
+  ref_Country ||--o{ ins_Institution : "CountryId"
+  sec_AppUser |o--o{ acc_AuthorityConflict : "ReviewedBy"

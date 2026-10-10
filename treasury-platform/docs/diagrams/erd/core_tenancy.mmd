@@ -1,0 +1,153 @@
+%% العلاقات الأساسية: المشترك والمستخدمون والصلاحيات
+erDiagram
+  plat_Tenant["plat.Tenant"] {
+    int TenantId PK
+    int PlanId FK
+    int HomeCountryId FK
+    varchar Code
+    varchar NameAr
+    varchar NameEn
+  }
+  plat_Plan["plat.Plan"] {
+    int PlanId PK
+    varchar Code
+    varchar NameAr
+    varchar NameEn
+    smallint IsActive
+  }
+  plat_TenantModule["plat.TenantModule"] {
+    bigint TenantModuleId PK
+    int EnabledBy FK
+    varchar ModuleCode
+    smallint IsEnabled
+  }
+  plat_SupportAccessGrant["plat.SupportAccessGrant"] {
+    bigint SupportAccessGrantId PK
+    int OperatorId FK
+    timestamp StartsAt
+    timestamp EndsAt
+    varchar Reason
+  }
+  plat_PlatformOperator["plat.PlatformOperator"] {
+    int PlatformOperatorId PK
+    varchar Email
+    varchar Role
+    varchar Status
+    smallint MfaEnabled
+    integer FailedAttempts
+  }
+  sec_TenantKey["sec.TenantKey"] {
+    bigint TenantKeyId PK
+    varchar Purpose
+    integer KeyVersion
+    varchar Status
+    varchar Algorithm
+    bytea WrappedKey
+  }
+  sec_AppUser["sec.AppUser"] {
+    bigint AppUserId PK
+    bigint DepartmentId FK
+    bigint LineManagerUserId FK
+    bigint MfaKeyId FK
+    varchar Email
+    varchar CompanyScopeMode
+  }
+  sec_Role["sec.Role"] {
+    bigint RoleId PK
+    varchar Code
+    varchar NameAr
+    varchar NameEn
+    smallint IsSystem
+    smallint IsActive
+  }
+  sec_Permission["sec.Permission"] {
+    int PermissionId PK
+    varchar Code
+    varchar ModuleCode
+    varchar NameAr
+    varchar NameEn
+    smallint IsSensitive
+  }
+  sec_RolePermission["sec.RolePermission"] {
+    bigint RoleId PK
+    int PermissionId PK
+    timestamp AssignedAt
+  }
+  sec_UserRole["sec.UserRole"] {
+    bigint UserId PK
+    bigint RoleId PK
+    timestamp AssignedAt
+  }
+  sec_UserCompanyScope["sec.UserCompanyScope"] {
+    bigint UserId PK
+    bigint CompanyId PK
+    smallint IncludeDescendants
+  }
+  sec_UserSession["sec.UserSession"] {
+    bigint UserSessionId PK
+    bigint UserId FK
+    bytea TokenHash
+    timestamp LastSeenAt
+    timestamp IdleExpiresAt
+    timestamp AbsoluteExpiresAt
+  }
+  org_Company["org.Company"] {
+    bigint CompanyId PK
+    bigint PartyId FK
+    int LegalEntityTypeId FK
+    bigint ParentCompanyId FK
+    int CountryId FK
+    int BaseCurrencyId FK
+  }
+  org_Department["org.Department"] {
+    bigint DepartmentId PK
+    bigint CompanyId FK
+    bigint ParentDepartmentId FK
+    bigint HeadUserId FK
+    varchar Code
+    varchar NameAr
+  }
+  aud_AuditLog["aud.AuditLog"] {
+    bigint AuditLogId PK
+    timestamp OccurredAt
+    varchar ActorType
+    varchar Action
+    varchar Category
+    varchar Severity
+  }
+  ref_Country["ref.Country"] {
+    int CountryId PK
+    char Iso2
+    char Iso3
+    varchar NameAr
+    varchar NameEn
+    smallint IsGcc
+  }
+  cat_LegalEntityType["cat.LegalEntityType"] {
+    int LegalEntityTypeId PK
+  }
+  pty_Party["pty.Party"] {
+    bigint PartyId PK
+  }
+  ref_Currency["ref.Currency"] {
+    int CurrencyId PK
+  }
+  cat_LegalEntityType ||--o{ org_Company : "LegalEntityTypeId"
+  org_Company |o--o{ org_Department : "CompanyId"
+  org_Company ||--o{ sec_UserCompanyScope : "CompanyId"
+  org_Department |o--o{ sec_AppUser : "DepartmentId"
+  plat_Plan ||--o{ plat_Tenant : "PlanId"
+  plat_PlatformOperator ||--o{ plat_SupportAccessGrant : "OperatorId"
+  plat_PlatformOperator |o--o{ plat_TenantModule : "EnabledBy"
+  pty_Party ||--o{ org_Company : "PartyId"
+  ref_Country ||--o{ org_Company : "CountryId"
+  ref_Country ||--o{ plat_Tenant : "HomeCountryId"
+  ref_Currency |o--o{ org_Company : "BaseCurrencyId"
+  sec_AppUser |o--o{ org_Department : "HeadUserId"
+  sec_AppUser ||--o{ sec_UserCompanyScope : "UserId"
+  sec_AppUser ||--o{ sec_UserRole : "UserId"
+  sec_AppUser ||--o{ sec_UserSession : "UserId"
+  sec_Permission ||--o{ sec_RolePermission : "PermissionId"
+  sec_Role ||--o{ sec_RolePermission : "RoleId"
+  sec_Role ||--o{ sec_UserRole : "RoleId"
+  sec_TenantKey |o--o{ sec_AppUser : "MfaKeyId"

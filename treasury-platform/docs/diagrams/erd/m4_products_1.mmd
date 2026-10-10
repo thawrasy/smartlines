@@ -1,0 +1,42 @@
+%% م4 · المنتجات والرسوم والتمويل والضمانات (1/2) — Products, fees, financing & collateral types
+erDiagram
+  cat_ProductCategory["cat.ProductCategory"] {
+    int ProductCategoryId PK
+  }
+  cat_Product["cat.Product"] {
+    int ProductId PK
+    int ProductCategoryId FK
+    varchar ProductFamily
+    smallint ConsumesCreditLimit
+    smallint IsTradeFinance
+    varchar Compliance
+  }
+  cat_FeeType["cat.FeeType"] {
+    int FeeTypeId PK
+    varchar Nature
+  }
+  cat_FinancingType["cat.FinancingType"] {
+    int FinancingTypeId PK
+    smallint IsIslamic
+  }
+  cat_ProductFeeType["cat.ProductFeeType"] {
+    int ProductFeeTypeId PK
+    int ProductId FK
+    int FeeTypeId FK
+    smallint IsExpected
+  }
+  cat_ProductFinancingType["cat.ProductFinancingType"] {
+    int ProductFinancingTypeId PK
+    int ProductId FK
+    int FinancingTypeId FK
+    smallint IsDefault
+  }
+  cat_FacilityType["cat.FacilityType"] {
+    int FacilityTypeId PK
+    varchar Compliance
+  }
+  cat_FeeType ||--o{ cat_ProductFeeType : "FeeTypeId"
+  cat_FinancingType ||--o{ cat_ProductFinancingType : "FinancingTypeId"
+  cat_Product ||--o{ cat_ProductFeeType : "ProductId"
+  cat_Product ||--o{ cat_ProductFinancingType : "ProductId"
+  cat_ProductCategory ||--o{ cat_Product : "ProductCategoryId"

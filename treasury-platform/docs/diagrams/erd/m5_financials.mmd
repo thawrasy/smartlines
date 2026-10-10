@@ -1,0 +1,91 @@
+%% م5 · البيانات المالية والأرصدة — Financial statements & balances
+erDiagram
+  fin_AccountMonthlyStat["fin.AccountMonthlyStat"] {
+    bigint AccountMonthlyStatId PK
+    bigint BankAccountId FK
+    bigint DocumentId FK
+    date MonthEnd
+    numeric AvgDailyBalance
+    varchar SourceKind
+  }
+  fin_BankFlowEntry["fin.BankFlowEntry"] {
+    bigint BankFlowEntryId PK
+    bigint CompanyId FK
+    bigint InstitutionId FK
+    bigint FacilityId FK
+    int FlowKindId FK
+    int CurrencyId FK
+    bigint DocumentId FK
+  }
+  fin_FinancialStatement["fin.FinancialStatement"] {
+    bigint FinancialStatementId PK
+    bigint CompanyId FK
+    int CurrencyId FK
+    bigint PreparedBy FK
+    bigint ApprovedBy FK
+    varchar PeriodType
+  }
+  fin_LineCatalogItem["fin.LineCatalogItem"] {
+    int LineCatalogItemId PK
+    varchar Section
+    smallint IsTotal
+    smallint IsRequired
+  }
+  fin_LineCatalogItemAlias["fin.LineCatalogItemAlias"] {
+    int LineCatalogItemAliasId PK
+    int LineCatalogItemId FK
+    varchar Alias
+  }
+  fin_MeasureFormula["fin.MeasureFormula"] {
+    bigint MeasureFormulaId PK
+    bigint FacilityId FK
+    bigint BaseTemplateId FK
+    bigint ApprovedBy FK
+    varchar Code
+    varchar NameAr
+  }
+  fin_StatementLine["fin.StatementLine"] {
+    bigint StatementLineId PK
+    bigint StatementId FK
+    int LineCatalogItemId FK
+  }
+  acc_BankAccount["acc.BankAccount"] {
+    bigint BankAccountId PK
+  }
+  cat_LookupItem["cat.LookupItem"] {
+    int LookupItemId PK
+  }
+  doc_Document["doc.Document"] {
+    bigint DocumentId PK
+  }
+  fac_Facility["fac.Facility"] {
+    bigint FacilityId PK
+  }
+  ins_Institution["ins.Institution"] {
+    bigint InstitutionId PK
+  }
+  org_Company["org.Company"] {
+    bigint CompanyId PK
+  }
+  ref_Currency["ref.Currency"] {
+    int CurrencyId PK
+  }
+  sec_AppUser["sec.AppUser"] {
+    bigint AppUserId PK
+  }
+  acc_BankAccount ||--o{ fin_AccountMonthlyStat : "BankAccountId"
+  cat_LookupItem ||--o{ fin_BankFlowEntry : "FlowKindId"
+  doc_Document |o--o{ fin_AccountMonthlyStat : "DocumentId"
+  doc_Document |o--o{ fin_BankFlowEntry : "DocumentId"
+  fac_Facility |o--o{ fin_BankFlowEntry : "FacilityId"
+  fac_Facility |o--o{ fin_MeasureFormula : "FacilityId"
+  fin_FinancialStatement ||--o{ fin_StatementLine : "StatementId"
+  fin_LineCatalogItem ||--o{ fin_LineCatalogItemAlias : "LineCatalogItemId"
+  fin_LineCatalogItem ||--o{ fin_StatementLine : "LineCatalogItemId"
+  ins_Institution ||--o{ fin_BankFlowEntry : "InstitutionId"
+  org_Company ||--o{ fin_BankFlowEntry : "CompanyId"
+  org_Company ||--o{ fin_FinancialStatement : "CompanyId"
+  ref_Currency ||--o{ fin_BankFlowEntry : "CurrencyId"
+  ref_Currency ||--o{ fin_FinancialStatement : "CurrencyId"
+  sec_AppUser |o--o{ fin_FinancialStatement : "ApprovedBy, PreparedBy"
+  sec_AppUser |o--o{ fin_MeasureFormula : "ApprovedBy"
