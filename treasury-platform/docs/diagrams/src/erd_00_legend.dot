@@ -1,0 +1,4 @@
+digraph G { graph [fontname="DejaVu Sans", fontsize=12, label=<<B>مفتاح الألوان</B>>, labelloc=t, pad=0.2];
+  node [shape=plaintext, fontname="DejaVu Sans", fontsize=10];
+  L [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="4"><TR><TD BGCOLOR="#DCEBFA" WIDTH="26"> </TD><TD ALIGN="LEFT">مملوك للمشترك (TenantId + مفتاح مركّب)</TD></TR><TR><TD BGCOLOR="#FDE9D9" WIDTH="26"> </TD><TD ALIGN="LEFT">عالمي (بلا TenantId، للقراءة فقط لتطبيق المشترك)</TD></TR><TR><TD BGCOLOR="#EADCF8" WIDTH="26"> </TD><TD ALIGN="LEFT">مختلط (صفوف المنصة TenantId=NULL + صفوف المشترك)</TD></TR><TR><TD BGCOLOR="#F8D7DA" WIDTH="26"> </TD><TD ALIGN="LEFT">محجوب عن تطبيق المشترك (noapp)</TD></TR><TR><TD BGCOLOR="#EEEEEE" WIDTH="26"> </TD><TD ALIGN="LEFT">جدول خارج هذه الصورة (مرجع)</TD></TR></TABLE>>];
+}
