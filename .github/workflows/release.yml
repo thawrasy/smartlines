@@ -75,8 +75,10 @@ jobs:
             body="$(gh release view "$tag" --json body --jq .body)"
             case "$body" in
               *verify-release.sh*) ;;
+              "") gh release edit "$tag" --notes "$notes" ;;
               *) gh release edit "$tag" --notes "$(printf '%s\n\n%s' "$body" "$notes")" ;;
             esac
+            [ -n "$(gh release view "$tag" --json name --jq .name)" ] || gh release edit "$tag" --title "Masslak $tag"
           else
             gh release create "$tag" dist/* --verify-tag --title "Masslak $tag" --notes "$notes"
           fi
