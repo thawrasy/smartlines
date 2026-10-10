@@ -65,7 +65,8 @@ chmod 0644 "$ci/s3.json"
 mkdir -p "$ci/vault-tls"; rm -f "$ci"/vault-tls/*; chmod 0777 "$ci/vault-tls"
 
 ./deploy/env-split.sh
-dc="docker compose --env-file $env"
+# the stand-ins start before deploy/install.sh writes the release's tag; compose still reads every service's image
+dc="env MASSLAK_IMAGE_TAG=ci docker compose --env-file $env"
 $dc up -d vault s3 sink
 for _ in $(seq 1 60); do [ -s "$ci/vault-tls/vault-ca.pem" ] && break; sleep 1; done
 cp "$ci/vault-tls/vault-ca.pem" deploy/production/trust/vault-ca.crt; chmod 0644 deploy/production/trust/vault-ca.crt

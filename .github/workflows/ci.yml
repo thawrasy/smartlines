@@ -805,8 +805,8 @@ jobs:
       - name: The production database image (PostGIS, pgBackRest, Patroni from its hashed lock, HAProxy, the settings guard)
         run: |
           docker build --progress=plain --build-context guard-src=db/guard -t masslak-db:ci deploy/production/db
-          docker run --rm --entrypoint sh masslak-db:ci -c 'patroni --version && patronictl version && haproxy -v | head -1 && pgbackrest version
-                                                        && test -f "$(pg_config --pkglibdir)/masslak_guard.so"'
+          docker run --rm --entrypoint sh masslak-db:ci -c 'patroni --version && patronictl version && haproxy -v | head -1 && pgbackrest version &&
+                                                        test -f "$(pg_config --pkglibdir)/masslak_guard.so"'
       - name: The database image of docker-compose.yml and the CI jobs, and the staging one, with the settings guard
         run: |
           docker build --progress=plain -t masslak-postgres:ci db/guard
