@@ -149,11 +149,12 @@ jobs:
       - name: Build the web interface the API serves (checked in the browser below)
         working-directory: frontend
         run: npm ci && npm run build
-      - name: Schema, login roles and demo data
+      - name: Schema, login roles (with the key that signs request contexts, 1080) and demo data
         run: |
           db/build.sh masslak -h localhost -U postgres > /dev/null
           psql -h localhost -U postgres -d masslak -v ON_ERROR_STOP=1 -q -v api_password=ci-api-password \
-               -v audit_password=ci-audit-password -f db/create_login_roles.sql
+               -v audit_password=ci-audit-password -v context_key="$(cd backend && python -m app.tools.context_key)" \
+               -f db/create_login_roles.sql
           python backend/scripts/seed_demo.py
           python backend/scripts/seed_modules.py
       - name: Start the API (under coverage, R-52)
@@ -174,10 +175,12 @@ jobs:
         working-directory: backend
         env:
           MASSLAK_TELEMETRY_TEST_URL: postgresql://masslak_tel:ci-tel-password@localhost:5432/masslak_tel
+          MASSLAK_TELEMETRY_UPKEEP_TEST_URL: postgresql://masslak_tel_upkeep:ci-tel-upkeep-password@localhost:5432/masslak_tel
+          MASSLAK_TELEMETRY_OWNER_TEST_URL: postgresql://postgres:postgres@localhost:5432/masslak_tel
         run: |
           psql -h localhost -U postgres -d postgres -qc "CREATE DATABASE masslak_tel"
           psql -h localhost -U postgres -d masslak_tel -v ON_ERROR_STOP=1 -q -v writer_password=ci-tel-password \
-               -f ../db/telemetry/schema.sql > /dev/null
+               -v upkeep_password=ci-tel-upkeep-password -f ../db/telemetry/schema.sql > /dev/null
           MASSLAK_TELEMETRY_DATABASE_URL="$MASSLAK_TELEMETRY_TEST_URL" nohup python -m uvicorn app.main:app --port 8078 --timeout-keep-alive 75 > ../api_tel.log 2>&1 &
           for i in $(seq 1 30); do curl -sf localhost:8078/api/health > /dev/null && break; sleep 1; done
           MASSLAK_TEST_URL=http://localhost:8078 python -m pytest tests/test_telemetry.py -q

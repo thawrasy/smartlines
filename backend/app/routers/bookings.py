@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 
 from .. import db
 from ..config import get_settings
-from ..deps import Principal, context_for, require_portal, sales_channel
+from ..deps import Principal, context_for, public_base, require_portal, sales_channel
 from ..errors import ApiError, not_found
 from ..modules.payments import service as payments
 from ..modules.sales import options
@@ -82,7 +82,7 @@ class BookingPaymentIn(BaseModel):
 async def pay_booking(ref: str, body: BookingPaymentIn, request: Request, pr: Principal = Depends(passenger)):
     """Pays a reservation through the provider of its option: the passenger is sent to the provider's page."""
     ctx = context_for(request, pr)
-    base = str(request.base_url).rstrip("/")
+    base = public_base(request)
     out = await payments.start_booking_payment(ctx, pr.party_id, pr.user_id, ref, body.provider, body.idempotency_key,
                                                f"{base}/booking/{ref.upper()}?payment={{uid}}",
                                                channel=options.channel_of(sales_channel(request)))

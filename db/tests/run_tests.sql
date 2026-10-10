@@ -2391,6 +2391,76 @@ SELECT pg_temp.ok(
   AND NOT has_table_privilege('masslak_app', 'sys.failover_probe', 'INSERT')
   AND (SELECT relrowsecurity FROM pg_class WHERE oid = 'sys.failover_probe'::regclass),
   'Failover: the standbys able to take over are reported to the application, and the drill''s table is the platform''s');
+-- Reviews of October 2026, C-01 (1080): a request context the application's login cannot forge
+BEGIN;
+INSERT INTO sys.context_key (fingerprint, secret)
+VALUES (left(encode(public.digest(decode(repeat('ab', 32), 'hex'), 'sha256'), 'hex'), 16), decode(repeat('ab', 32), 'hex'));
+CREATE OR REPLACE FUNCTION pg_temp.ctx_ticket(p_user bigint, p_company bigint, p_scope text, p_issued bigint) RETURNS text
+LANGUAGE sql AS $$
+  SELECT left(encode(public.digest(decode(repeat('ab', 32), 'hex'), 'sha256'), 'hex'), 16) || '.' ||
+         encode(public.hmac(convert_to(concat('masslak-context-v1|', p_user, '|', p_company, '|', p_scope, '|||||', p_issued), 'UTF8'),
+                            decode(repeat('ab', 32), 'hex'), 'sha256'), 'hex')
+$$;
+CREATE TABLE public.context_probe (company_id bigint, secret text);
+ALTER TABLE public.context_probe ENABLE ROW LEVEL SECURITY;
+CREATE POLICY context_probe_tenant ON public.context_probe USING (sys.tenant_visible(company_id));
+INSERT INTO public.context_probe VALUES (1, 'first company'), (2, 'second company');
+GRANT SELECT ON public.context_probe TO masslak_app;
+SELECT pg_temp.ok(NOT has_function_privilege('masslak_app', 'pg_catalog.set_config(text,text,boolean)', 'EXECUTE')
+  AND NOT has_database_privilege('masslak_app', current_database(), 'TEMPORARY')
+  AND NOT has_table_privilege('masslak_app', 'sys.context_key', 'SELECT')
+  AND (SELECT bool_and(v::boolean) FROM jsonb_each_text(sys.context_status(left(encode(public.digest(decode(repeat('ab', 32), 'hex'), 'sha256'), 'hex'), 16))) e(k, v)),
+  'Context (1080, C-01): set_config, temporary objects and the key are out of the application''s reach, and readiness sees it');
+-- from here the session's own login is the application's role, as the API's is (not a superuser)
+SET SESSION AUTHORIZATION masslak_app;
+SELECT pg_temp.expect_error($$SELECT set_config('app.scope', 'PLATFORM', true)$$, 'permission denied for function set_config',
+  'Context (1080, C-01): the application''s login cannot rewrite the context with set_config');
+SELECT pg_temp.expect_error($$SELECT sys.set_context(10, 1, 'PLATFORM')$$, 'CONTEXT_TICKET_REQUIRED',
+  'Context (1080, C-01): a context without the API''s ticket is refused');
+SELECT pg_temp.expect_error(format($$SELECT sys.set_context(10, 1, 'PLATFORM', NULL, NULL, NULL, NULL, NULL, %s, %L)$$,
+                                   extract(epoch FROM now())::bigint, pg_temp.ctx_ticket(10, 1, 'COMPANY', extract(epoch FROM now())::bigint)),
+  'CONTEXT_TICKET_INVALID', 'Context (1080, C-01): a ticket made for one context does not set another (scope raised to the platform)');
+SELECT pg_temp.expect_error(format($$SELECT sys.set_context(10, 2, 'COMPANY', NULL, NULL, NULL, NULL, NULL, %s, %L)$$,
+                                   extract(epoch FROM now())::bigint, pg_temp.ctx_ticket(10, 1, 'COMPANY', extract(epoch FROM now())::bigint)),
+  'CONTEXT_TICKET_INVALID', 'Context (1080, C-01): a ticket made for one company does not open another');
+SELECT pg_temp.expect_error(format($$SELECT sys.set_context(10, 1, 'COMPANY', NULL, NULL, NULL, NULL, NULL, %s, %L)$$,
+                                   extract(epoch FROM now())::bigint - 900, pg_temp.ctx_ticket(10, 1, 'COMPANY', extract(epoch FROM now())::bigint - 900)),
+  'CONTEXT_TICKET_STALE', 'Context (1080, C-01): a ticket older than five minutes is refused');
+SELECT pg_temp.expect_error(format($$SELECT sys.set_context(10, 1, 'COMPANY', NULL, NULL, NULL, NULL, NULL, %s, %L)$$,
+                                   extract(epoch FROM now())::bigint, '0000000000000000.' || repeat('0', 64)),
+  'CONTEXT_KEY_UNKNOWN', 'Context (1080, C-01): a ticket made with a key the database does not hold is refused');
+SELECT sys.set_context(10, 1, 'COMPANY', NULL, NULL, NULL, NULL, NULL, extract(epoch FROM now())::bigint,
+                       pg_temp.ctx_ticket(10, 1, 'COMPANY', extract(epoch FROM now())::bigint));
+SELECT pg_temp.ok((SELECT string_agg(secret, ',') FROM public.context_probe) = 'first company' AND sys.ctx_company_id() = 1,
+  'Context (1080, C-01): with the API''s ticket the context is set, and the company sees its own rows only');
+SELECT pg_temp.expect_error($$SELECT count(*) FROM public.context_probe WHERE set_config('app.scope', 'PLATFORM', true) IS NOT NULL$$,
+  'permission denied for function set_config', 'Context (1080, C-01): SQL slipped into a statement cannot raise the scope (the reproduction of the review)');
+SELECT pg_temp.expect_error($$SELECT count(*) FROM public.context_probe WHERE sys.set_context(10, 2, 'PLATFORM') IS NULL$$,
+  'CONTEXT_TICKET_REQUIRED', 'Context (1080, C-01): nor set a context of its own through sys.set_context');
+SELECT pg_temp.expect_error($$CREATE TEMP TABLE context_shadow (id int)$$, 'permission denied',
+  'Context (1080, C-01): the application cannot create temporary objects that could shadow the platform''s tables');
+SELECT pg_temp.expect_error($$SELECT secret FROM sys.context_key$$, 'permission denied for table context_key',
+  'Context (1080, C-01): the application cannot read the key');
+SELECT pg_temp.expect_error($$INSERT INTO sys.context_unsigned_window (allowed_until, reason) VALUES (now() + interval '1 hour', 'opened by the application')$$,
+  'permission denied for table context_unsigned_window', 'Context (1080): the application cannot open a window for contexts without a ticket');
+RESET SESSION AUTHORIZATION;
+SELECT pg_temp.expect_error($$INSERT INTO sys.context_unsigned_window (allowed_until, reason) VALUES (now() + interval '3 days', 'rollback to 1.48.0 for a week')$$,
+  'context_unsigned_window_check', 'Context (1080): a rollback window lasts a day at most');
+INSERT INTO sys.context_unsigned_window (allowed_until, reason) VALUES (now() + interval '1 hour', 'rollback to release 1.48.0 (test)');
+SET SESSION AUTHORIZATION masslak_app;
+SELECT sys.set_context(10, 2, 'COMPANY');
+SELECT pg_temp.ok(sys.ctx_company_id() = 2
+  AND NOT (sys.context_status(left(encode(public.digest(decode(repeat('ab', 32), 'hex'), 'sha256'), 'hex'), 16)) ->> 'no_unsigned_window')::boolean,
+  'Context (1080): during a rollback window a superuser opened, a release without tickets works, and readiness reports the open window');
+SELECT pg_temp.expect_error($$SELECT set_config('app.scope', 'PLATFORM', true)$$, 'permission denied for function set_config',
+  'Context (1080): set_config stays withdrawn during a rollback window');
+RESET SESSION AUTHORIZATION;
+ROLLBACK;
+-- Reviews of October 2026, the assessment's addition 1 (1081): functions running as their owner search temporary objects last
+SELECT pg_temp.ok(NOT EXISTS (SELECT 1 FROM sys.definer_path_gaps())
+  AND (SELECT array_to_string(proconfig, ',') FROM pg_proc WHERE oid = 'audit.tg_capture_change'::regproc) LIKE '%pg_temp'
+  AND NOT has_schema_privilege('masslak_app', 'public', 'CREATE'),
+  'Search path (1081): every SECURITY DEFINER function ends its search_path with pg_temp, and nobody creates objects in public');
 SET ROLE masslak_app;
 
 \echo '=== ALL TESTS PASSED ==='

@@ -1,6 +1,7 @@
 # Telemetry database overlay (expert review of October 2026, stage D2; db/telemetry/schema.sql, RUNBOOKS.md section 22):
 #   docker compose -f docker-compose.yml -f deploy/telemetry/docker-compose.telemetry.yml --env-file deploy/.env up -d
-# Set MASSLAK_TELEMETRY_OWNER_PASSWORD and MASSLAK_TELEMETRY_PASSWORD in deploy/.env first (openssl rand -hex 24).
+# Set MASSLAK_TELEMETRY_OWNER_PASSWORD, MASSLAK_TELEMETRY_PASSWORD and MASSLAK_TELEMETRY_UPKEEP_PASSWORD in deploy/.env
+# first (openssl rand -hex 24). The API holds the append-only login; only the worker holds the upkeep login (C-02).
 # The history of vehicle positions moves to a PostgreSQL of its own (another server in production, capacity model
 # stage 2); the primary keeps grading positions, the latest position of each vehicle and the tracking alerts. The
 # migration creates the telemetry schema; the API appends positions; the worker keeps the daily partitions and the
@@ -39,6 +40,7 @@ services:
   worker:
     environment:
       MASSLAK_TELEMETRY_DATABASE_URL: postgresql://masslak_tel:${MASSLAK_TELEMETRY_PASSWORD}@telemetry/masslak_tel
+      MASSLAK_TELEMETRY_UPKEEP_URL: postgresql://masslak_tel_upkeep:${MASSLAK_TELEMETRY_UPKEEP_PASSWORD:?set MASSLAK_TELEMETRY_UPKEEP_PASSWORD in deploy/.env}@telemetry/masslak_tel
 
 volumes:
   pgdata_telemetry:

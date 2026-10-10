@@ -17,7 +17,10 @@ import uuid
 from datetime import datetime
 from typing import Optional
 
+import asyncpg
+
 from . import db
+from .config import get_settings
 from .errors import ApiError
 
 log = logging.getLogger("masslak.telemetry")
@@ -126,12 +129,22 @@ async def drain_backlog(batch: int = 100, budget_seconds: float = 20.0) -> int:
 
 
 async def upkeep(keep_days: int, held: bool) -> Optional[dict]:
-    """Daily: partitions ahead, and positions older than the retention dropped unless a legal hold stands."""
+    """Daily: partitions ahead, and positions older than the retention dropped unless a legal hold stands. The drop runs
+    through the worker's own login (MASSLAK_TELEMETRY_UPKEEP_URL); the API's login only creates the days ahead (C-02)."""
     pool = db.telemetry_pool()
     if pool is None:
         return None
-    async with pool.acquire() as conn:
+    url = get_settings().telemetry_upkeep_url
+    if not url:
+        async with pool.acquire() as conn:
+            created = await conn.fetchval("SELECT tel.ensure_ahead()")
+        log.error("telemetry retention not applied: MASSLAK_TELEMETRY_UPKEEP_URL is not set (RUNBOOKS.md, section 22)")
+        return {"partitions_created": created, "partitions_dropped": 0, "retention": "not applied"}
+    conn = await asyncpg.connect(url, timeout=10)
+    try:
         return json.loads(await conn.fetchval("SELECT tel.upkeep($1, $2)::text", keep_days, held))
+    finally:
+        await conn.close()
 
 
 async def metrics() -> list[tuple[str, dict, float]]:

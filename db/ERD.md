@@ -596,6 +596,12 @@ erDiagram
     text code PK
     bigint updated_by FK
   }
+  sys_context_key {
+    text fingerprint PK
+  }
+  sys_context_unsigned_window {
+    bigint id PK
+  }
   sys_delivery_retry_request {
     bigint id PK
     uuid uid

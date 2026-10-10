@@ -175,6 +175,32 @@ def require_keys_in_production() -> None:
                              + " (generate them with deploy/init-env.sh or from the secret store)")
 
 
+# ------------------------------------------------------------------ the request context ticket (reviews of October 2026, C-01)
+# Row-level security trusts the context the API sets at the start of each transaction (sys.set_context). The API's
+# login must not be able to set any other: the database accepts a context from it only with a ticket, an HMAC of the
+# context under a key the login can never read (sys.context_key, written by the deployment from this same derivation).
+# The key is derived from the signing secret for this purpose alone (HKDF), so knowing it says nothing about the secret.
+CONTEXT_TICKET_VERSION = "masslak-context-v1"
+
+
+@lru_cache(maxsize=1)
+def context_key() -> bytes:
+    from cryptography.hazmat.primitives.hashes import SHA256
+    from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+    return HKDF(algorithm=SHA256(), length=32, salt=b"masslak-keys", info=b"db-context-ticket").derive(
+        get_settings().signing_secret.encode())
+
+
+def context_key_fingerprint(key: bytes | None = None) -> str:
+    return hashlib.sha256(key or context_key()).hexdigest()[:16]
+
+
+def context_ticket(fields: tuple, issued_at: int) -> str:
+    """fields: user, company, scope, API client, request id, session, party, in this order (sys.set_context)."""
+    message = "|".join([CONTEXT_TICKET_VERSION, *("" if f is None else str(f) for f in fields), str(issued_at)])
+    return context_key_fingerprint() + "." + hmac.new(context_key(), message.encode(), hashlib.sha256).hexdigest()
+
+
 def ticket_public_key() -> str:
     from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
     return _b64(_ticket_key().public_key().public_bytes(Encoding.Raw, PublicFormat.Raw))

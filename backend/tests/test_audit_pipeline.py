@@ -2,8 +2,10 @@
 and logged instead of vanishing, the signed archive's lag is measured per log, and personal data and secrets are
 redacted from every log line whoever writes it."""
 import asyncio
+import json
 import logging
 import os
+import sys
 import time
 from contextlib import asynccontextmanager
 
@@ -31,6 +33,21 @@ def test_log_lines_carry_no_personal_data_or_secrets():
     assert access.getMessage() == '10.1.2.3:5000 - "GET /api/x?token=[redacted]&phone=[number] HTTP/1.1" 200'
     line = logredact.redact("ticket 550e8400-e29b-41d4-a716-446655440000 for 01234567890 on 2026-10-09, Bearer abc.def.ghi1")
     assert line == "ticket 550e8400-e29b-41d4-a716-446655440000 for [number] on 2026-10-09, Bearer [redacted]"
+
+
+def test_an_exception_in_a_log_line_is_redacted_too():
+    """M-06: the traceback a log line carries quotes what failed (a database error names the value); it is redacted
+    like the message, in the JSON lines and in the sandbox's text lines."""
+    from app import logs
+    try:
+        raise ValueError('Key (email)=(rami@example.com) already exists; retry with token=s3cret-value phone 0944123456')
+    except ValueError:
+        record = logging.LogRecord("masslak.db", logging.ERROR, __file__, 1, "insert failed", None, sys.exc_info())
+    record.route = "/api/x?token=abc123secret"
+    for text in (logs.JsonFormatter("api").format(record), logs.RedactingFormatter("%(message)s").format(record)):
+        assert "rami@example.com" not in text and "s3cret-value" not in text and "0944123456" not in text, text
+        assert "[email]" in text and "ValueError" in text
+    assert json.loads(logs.JsonFormatter("api").format(record))["route"] == "/api/x?token=[redacted]"
 
 
 def test_a_lost_activity_record_is_counted_and_logged(monkeypatch, caplog):

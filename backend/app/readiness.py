@@ -15,11 +15,12 @@ the database.
 from __future__ import annotations
 
 import asyncio
+import json
 import time
 from pathlib import Path
 from typing import Awaitable, Callable
 
-from . import db
+from . import db, security
 
 SCHEMA_DIR = Path(__file__).resolve().parents[2] / "db" / "schema"
 CHECK_SECONDS = 2.0
@@ -62,8 +63,16 @@ async def _replica() -> bool:
         return bool(await conn.fetchval("SELECT pg_is_in_recovery()"))
 
 
+async def _context() -> bool:
+    """The database holds the key this API signs request contexts with, and set_config and temporary objects are still
+    withdrawn from the application (1080): otherwise every request would fail, or the context could be rewritten."""
+    async with db.raw_connection() as conn:
+        status = await conn.fetchval("SELECT sys.context_status($1)::text", security.context_key_fingerprint())
+    return all(json.loads(status).values())
+
+
 CHECKS: dict[str, Callable[[], Awaitable[bool]]] = {
-    "database": _database, "schema": _schema, "audit_database": _audit, "reports_replica": _replica}
+    "database": _database, "schema": _schema, "audit_database": _audit, "reports_replica": _replica, "context": _context}
 
 
 async def _run(check: Callable[[], Awaitable[bool]]) -> bool:

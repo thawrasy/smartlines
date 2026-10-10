@@ -37,6 +37,9 @@ esac
 # the data warehouse's replication login (deploy/warehouse), only where one is configured
 set --
 if [ -n "${MASSLAK_CDC_PASSWORD:-}" ]; then set -- -v cdc_password="$MASSLAK_CDC_PASSWORD"; fi
+# the key that signs request contexts (1080), derived from MASSLAK_SIGNING_SECRET exactly as the API derives it
+context_key="$(cd /app/backend && python -m app.tools.context_key)"
+set -- "$@" -v context_key="$context_key"
 psql -d "$DB" -v ON_ERROR_STOP=1 -q -v api_password="${MASSLAK_API_PASSWORD:?}" -v audit_password="${MASSLAK_AUDIT_PASSWORD:?}" "$@" \
      -f /app/db/create_login_roles.sql
 
@@ -51,6 +54,7 @@ SQL
 if [ -n "${MASSLAK_TELEMETRY_OWNER_URL:-}" ]; then
   until pg_isready -q -d "$MASSLAK_TELEMETRY_OWNER_URL"; do echo "waiting for the telemetry database"; sleep 2; done
   psql "$MASSLAK_TELEMETRY_OWNER_URL" -v ON_ERROR_STOP=1 -q -v writer_password="${MASSLAK_TELEMETRY_PASSWORD:?}" \
+       -v upkeep_password="${MASSLAK_TELEMETRY_UPKEEP_PASSWORD:?set MASSLAK_TELEMETRY_UPKEEP_PASSWORD in deploy/.env (C-02)}" \
        -f /app/db/telemetry/schema.sql > /dev/null
   echo "telemetry database ready"
 fi

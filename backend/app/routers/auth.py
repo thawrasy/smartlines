@@ -46,6 +46,7 @@ class LoginIn(BaseModel):
 
 MOBILE_CLIENTS = {"android": "ANDROID", "ios": "IOS"}
 ACCESS_MINUTES, MOBILE_SESSION_DAYS = 15, 30
+REFRESH_RACE_SECONDS = 20     # a second request with the token its own rotation replaced, this soon, is a race, not a copy
 
 
 async def _auth_event(conn, request: Request, event: str, result: str, *, user_id=None, portal=None,
@@ -228,10 +229,19 @@ class RefreshIn(BaseModel):
 @router.post("/refresh")
 async def refresh(body: RefreshIn, request: Request):
     """Rotates a mobile session's tokens. A refresh token works once: presenting a rotated one again means it was
-    copied, so the whole session is revoked and the person must sign in again."""
+    copied, so the whole session is revoked and the person must sign in again. The check and the rotation are one
+    transaction holding the session's row, and the rotation only replaces the token it checked (reviews of October 2026,
+    M-02): of two requests racing with the same token one wins; the other, seconds later from the same installation,
+    is told to use the winner's tokens instead of being taken for a copy."""
     ctx = base_context(request)
     ctx.scope = "AUTH"
     presented = token_hash(body.refresh_token)
+    device_hash = token_hash(body.device_id)
+    token, thash = new_token()
+    refresh_token, rhash = new_token()
+    now = datetime.now(timezone.utc)
+    access_expires = now + timedelta(minutes=ACCESS_MINUTES)
+    outcome = "expired"
     async with db.transaction(ctx) as conn:
         sess = await conn.fetchrow(
             """SELECT s.id, s.user_id, s.portal, s.company_id, d.fingerprint_hash FROM iam.user_session s
@@ -240,25 +250,34 @@ async def refresh(body: RefreshIn, request: Request):
                 FOR UPDATE OF s""", presented)
         if sess is None:
             reused = await conn.fetchrow(
-                "SELECT id, user_id, portal FROM iam.user_session WHERE prev_refresh_hash = $1 AND revoked_at IS NULL", presented)
+                """SELECT s.id, s.user_id, s.portal, s.access_expires_at, d.fingerprint_hash FROM iam.user_session s
+                     JOIN iam.device d ON d.id = s.device_id
+                    WHERE s.prev_refresh_hash = $1 AND s.revoked_at IS NULL FOR UPDATE OF s""", presented)
             if reused:
-                await conn.execute("UPDATE iam.user_session SET revoked_at = now(), revoke_reason = 'REFRESH_REUSE' WHERE id = $1",
-                                   reused["id"])
-                await _auth_event(conn, request, "SESSION_REVOKED", "BLOCKED", user_id=reused["user_id"],
-                                  portal=reused["portal"], session_id=reused["id"], reason="refresh_token_reuse")
-        elif not hmac.compare_digest(bytes(sess["fingerprint_hash"]), token_hash(body.device_id)):
-            sess = None                                   # a token moved to another installation is refused
-    if sess is None:
+                rotated_at = reused["access_expires_at"] - timedelta(minutes=ACCESS_MINUTES)
+                if (now - rotated_at).total_seconds() <= REFRESH_RACE_SECONDS and \
+                        hmac.compare_digest(bytes(reused["fingerprint_hash"]), device_hash):
+                    outcome = "race"                      # the same installation, a moment after its own rotation
+                else:
+                    await conn.execute("UPDATE iam.user_session SET revoked_at = now(), revoke_reason = 'REFRESH_REUSE' WHERE id = $1",
+                                       reused["id"])
+                    await _auth_event(conn, request, "SESSION_REVOKED", "BLOCKED", user_id=reused["user_id"],
+                                      portal=reused["portal"], session_id=reused["id"], reason="refresh_token_reuse")
+        elif not hmac.compare_digest(bytes(sess["fingerprint_hash"]), device_hash):
+            pass                                          # a token moved to another installation is refused
+        else:
+            done = await conn.execute(
+                """UPDATE iam.user_session SET token_hash = $2, prev_refresh_hash = refresh_hash, refresh_hash = $3,
+                     access_expires_at = $4, last_seen_at = now() WHERE id = $1 AND refresh_hash = $5""",
+                sess["id"], thash, rhash, access_expires, presented)
+            if done == "UPDATE 1":
+                outcome = "rotated"
+                await _auth_event(conn, request, "TOKEN_REFRESH", "SUCCESS", user_id=sess["user_id"], portal=sess["portal"],
+                                  company_id=sess["company_id"], session_id=sess["id"])
+    if outcome == "race":
+        raise ApiError(409, "REFRESH_RACE", "this token was just rotated by another request; use the tokens it returned")
+    if outcome != "rotated":
         raise ApiError(401, "SESSION_EXPIRED", "sign in again")
-    token, thash = new_token()
-    refresh_token, rhash = new_token()
-    access_expires = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_MINUTES)
-    async with db.transaction(ctx) as conn:
-        await conn.execute(
-            """UPDATE iam.user_session SET token_hash = $2, prev_refresh_hash = refresh_hash, refresh_hash = $3,
-                 access_expires_at = $4, last_seen_at = now() WHERE id = $1""", sess["id"], thash, rhash, access_expires)
-        await _auth_event(conn, request, "TOKEN_REFRESH", "SUCCESS", user_id=sess["user_id"], portal=sess["portal"],
-                          company_id=sess["company_id"], session_id=sess["id"])
     return {"access_token": token, "refresh_token": refresh_token, "access_expires_at": access_expires.isoformat()}
 
 

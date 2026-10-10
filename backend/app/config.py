@@ -17,6 +17,9 @@ class Settings(BaseSettings):
     # Optional telemetry database for the history of vehicle positions (review stage D2, db/telemetry/schema.sql); empty:
     # positions stay in ops.geo_event on the primary
     telemetry_database_url: str = ""
+    # The worker's own login to the telemetry database for the daily upkeep (masslak_tel_upkeep, C-02): the API's login
+    # appends only and can never drop a day of positions. Empty: days ahead are created, the retention is not applied.
+    telemetry_upkeep_url: str = ""
     # Connections per process (docs/operations/CAPACITY_MODEL.md, section 10). The audit and report pools open
     # connections only while used and close them after a minute idle, so idle API servers hold none; the audit role is
     # also capped by the database (1076), whatever the number of servers.

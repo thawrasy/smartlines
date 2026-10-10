@@ -2,7 +2,7 @@
 
 > Generated from the built database (`db/tools/gen_docs.py`); do not edit by hand.
 
-**502 tables, 5158 columns, in 26 schemas.**
+**504 tables, 5166 columns, in 26 schemas.**
 
 Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant isolation (RLS) · 🧩 partitioned monthly · 🔒 append-only / change-protected
 
@@ -10,7 +10,7 @@ Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant i
 
 - [`iam` — Identity, parties, users, permissions and API clients](#iam) (33 tables)
 - [`ref` — Reference data, locales and files](#ref) (14 tables)
-- [`sys` — Settings, outbox and webhooks](#sys) (25 tables)
+- [`sys` — Settings, outbox and webhooks](#sys) (27 tables)
 - [`net` — Network: stations, routes, lines, corridors and geofences](#net) (22 tables)
 - [`fleet` — Fleet: vehicles, trucks, trailers, seats, crew, licenses and insurance](#fleet) (22 tables)
 - [`pricing` — Pricing, taxes, commissions, campaigns and loyalty](#pricing) (35 tables)
@@ -940,6 +940,28 @@ Licences, tracking and reporting duties a regulator may impose, each switched OF
 | `description` | `text` | ✱ |  |
 | `updated_at` | `timestamp with time zone` | ✱ | `now()` |
 | `updated_by` | `bigint` | 🔗 `iam.app_user`  |  |
+
+### `sys.context_key` 🛡️
+
+Keys that sign request contexts (1080): written by the deployment, read only by sys.set_context
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `fingerprint` | `text` | 🔑 ✱ |  |
+| `secret` | `bytea` | ✱ |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `sys.context_unsigned_window` 🛡️
+
+Rollback windows in which a context without a ticket is accepted (1080); written by a superuser only
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `allowed_until` | `timestamp with time zone` | ✱ |  |
+| `reason` | `text` | ✱ |  |
+| `opened_by` | `text` | ✱ | `SESSION_USER` |
+| `opened_at` | `timestamp with time zone` | ✱ | `now()` |
 
 ### `sys.delivery_retry_request` 🛡️
 

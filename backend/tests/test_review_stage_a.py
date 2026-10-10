@@ -80,7 +80,7 @@ def test_readiness_checks_the_database_and_the_schema():
     r = c.get("/api/ready")
     assert r.status_code == 200, r.text
     assert r.json() == {"ready": True, "checks": {"database": True, "schema": True, "audit_database": True,
-                                                    "reports_replica": True}}
+                                                    "reports_replica": True, "context": True}}
     from app.readiness import shipped_schema_files
     shipped = shipped_schema_files()
     assert len(shipped) > 60 and shipped <= set(owner_sql("SELECT array_agg(file) FROM sys.schema_file"))

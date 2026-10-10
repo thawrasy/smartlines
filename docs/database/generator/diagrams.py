@@ -268,10 +268,12 @@ GROUPS = [
      "their levels and named members, the requests that wait on them and each level's decision (1056, 1074).",
      ["fin.payment_method", "fin.cash_credit_limit", "fin.fee_rule", "fin.approval_policy", "fin.approval_level",
       "fin.approval_level_member", "fin.approval_request", "fin.approval_decision"]),
-    ("E42", "Release, backups and failover records", "D.4, launch gates 1 and 4", "core",
+    ("E42", "Release, backups, failover and context keys", "D.4, launch gates 1 and 4, 16.41", "core",
      "The release each database is at (version, commit and hash of the applied files), every backup and its off-site copy, "
-     "the failover probes of the second site, and the tables the application role may delete from.",
-     ["sys.release_manifest", "sys.backup_run", "sys.failover_probe", "sys.app_delete_grant"]),
+     "the failover probes of the second site, the tables the application role may delete from, and the keys that sign "
+     "request contexts with the rollback windows that accepted contexts without a ticket (1080).",
+     ["sys.release_manifest", "sys.backup_run", "sys.failover_probe", "sys.app_delete_grant", "sys.context_key",
+      "sys.context_unsigned_window"]),
 ]
 
 # Focus diagrams: one business rule across modules; tables keep their own module colour (family None)

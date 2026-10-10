@@ -91,6 +91,29 @@ rewrite (`ADD COLUMN ... NULL` or a constant default), triggers and functions; 1
 split it into its own file if it exceeds the criteria); 1079 reads the catalog and writes about 500 small rows. This is a
 development rehearsal: the launch gate (`LAUNCH_GATES.md`, gate 4) still needs the same run on a production-size copy.
 
+## Release 1.49.0 (1080 to 1081)
+
+Neither file touches a business table:
+
+* **1080** adds two small tables (`sys.context_key`, `sys.context_unsigned_window`), replaces `sys.set_context`, and
+  withdraws `set_config` and temporary objects from PUBLIC. The withdrawal needs a superuser, which the migration is.
+* **1081** changes only the settings of the SECURITY DEFINER functions (`ALTER FUNCTION ... SET search_path`).
+
+Both take catalog locks for milliseconds, so they were not rehearsed with the tool.
+
+One point needs care. From 1080 on, the database refuses a context without the API's ticket. A 1.48.0 API process
+still serving between the migration and its own restart has its requests refused: the gap lasts as long as the
+migration, a few seconds.
+
+A server that must not refuse those requests:
+
+1. As a superuser, opens a window of a few minutes before `deploy/update.sh`:
+   `INSERT INTO sys.context_unsigned_window (allowed_until, reason) VALUES (now() + interval '15 minutes', 'upgrade to 1.49.0')`.
+2. Closes it when `/api/ready` of the new release answers:
+   `UPDATE sys.context_unsigned_window SET allowed_until = now() WHERE allowed_until > now()`.
+
+While the window is open, readiness reports not ready (RUNBOOKS.md, section 30).
+
 ## 1064_partitioned_bookings.sql on a live database (R-06)
 
 1064 turns `sales.booking` into a table partitioned by ranges of id **in place, under an ACCESS EXCLUSIVE lock**: it

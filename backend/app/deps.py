@@ -6,6 +6,7 @@ import asyncpg
 from fastapi import Depends, Request
 
 from . import db, mfa_policy
+from .config import get_settings
 from .errors import ApiError, forbidden
 from .security import token_hash
 
@@ -181,6 +182,14 @@ def require_permission(*codes: str):
             raise forbidden("missing permission: " + " | ".join(codes))
         return principal
     return dep
+
+
+def public_base(request: Request) -> str:
+    """The address a payer is sent back to after a provider's page: the platform's own (MASSLAK_PUBLIC_URL), never the
+    Host header a client sent (reviews of October 2026, M-01). The sandbox, often reached as localhost, keeps the
+    address it was called on."""
+    s = get_settings()
+    return (str(request.base_url) if s.sandbox else s.public_url).rstrip("/")
 
 
 def context_for(request: Request, principal: Optional[Principal]) -> db.Context:

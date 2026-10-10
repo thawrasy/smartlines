@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field
 
 from ... import db
 from ...config import get_settings
-from ...deps import Principal, context_for, require_portal
+from ...deps import Principal, context_for, public_base, require_portal, require_user
 from ...errors import ApiError, forbidden, not_found
 from . import adapters, approvals, fees, service
 
@@ -64,7 +64,7 @@ class TopupIn(BaseModel):
 @router.post("/api/payments/topups", status_code=201)
 async def topup(body: TopupIn, request: Request, pr: Principal = Depends(passenger)):
     ctx = context_for(request, pr)
-    base = str(request.base_url).rstrip("/")
+    base = public_base(request)
     # no transaction here: the service records the payment, calls the provider with none open, then records its answer
     out = await service.start_topup(ctx, pr.party_id, pr.user_id, body.method, body.amount, body.idempotency_key, body.mobile,
                                     f"{base}/wallet?payment={{uid}}")
@@ -157,25 +157,31 @@ async def notify(code: str, request: Request):
 
 
 # ------------------------------------------------------------------ test gateway (sandbox only)
-async def _test_payment(conn, ctx, uid: uuid.UUID):
+# The simulator stands for a provider's hosted page. Only the payer opens it, signed in (reviews of October 2026, M-12):
+# a sandbox server holding real data cannot have a stranger who learns a payment's id confirm it.
+async def _test_payment(conn, ctx, uid: uuid.UUID, pr: Principal):
     if not get_settings().sandbox:
         raise not_found("payment")
     async with db.system_scope(conn, ctx):
         row = await conn.fetchrow(
             """SELECT p.uid, p.amount, p.fee, p.currency, p.status, p.stage, p.provider_ref, p.purpose, pv.code, pv.name, pv.adapter,
-                      b.booking_ref
+                      b.booking_ref, p.payer_party_id, p.agency_company_id
                  FROM fin.payment p JOIN fin.payment_provider pv ON pv.id = p.provider_id
                  LEFT JOIN sales.booking b ON b.id = p.booking_id WHERE p.uid = $1""", uid)
     if row is None or row["adapter"] not in adapters.HOSTED:
+        raise not_found("payment")
+    payer = row["payer_party_id"] is not None and row["payer_party_id"] == pr.party_id
+    agency = row["agency_company_id"] is not None and row["agency_company_id"] == pr.company_id
+    if not (payer or agency):
         raise not_found("payment")
     return row
 
 
 @router.get("/api/payments/test/{uid}")
-async def test_page(uid: uuid.UUID, request: Request):
+async def test_page(uid: uuid.UUID, request: Request, pr: Principal = Depends(require_user)):
     ctx = _system(request)
     async with db.transaction(ctx) as conn:
-        row = await _test_payment(conn, ctx, uid)
+        row = await _test_payment(conn, ctx, uid, pr)
     return {"uid": str(row["uid"]), "amount": row["amount"], "fee": row["fee"], "total": row["amount"] + row["fee"],
             "currency": row["currency"], "status": row["status"], "provider": row["name"],
             "code": row["code"], "kind": row["adapter"], "booking_ref": row["booking_ref"]}
@@ -186,11 +192,11 @@ class TestDecision(BaseModel):
 
 
 @router.post("/api/payments/test/{uid}")
-async def test_decide(uid: uuid.UUID, body: TestDecision, request: Request):
+async def test_decide(uid: uuid.UUID, body: TestDecision, request: Request, pr: Principal = Depends(require_user)):
     """The simulator behaves like a real gateway: it signs a notification and delivers it to the notification endpoint."""
     ctx = _system(request)
     async with db.transaction(ctx) as conn:
-        row = await _test_payment(conn, ctx, uid)
+        row = await _test_payment(conn, ctx, uid, pr)
         p = await service.provider(conn, row["code"])
     raw, sig = adapters.simulator_notice(p, dict(row), body.approve)
     if not adapters.verify(adapters.secret_for(p), raw, sig):

@@ -307,9 +307,9 @@ def test_instalments_through_a_provider(admin, pax, trip):
         uid = p.json()["uid"]
         again = pax.post(f"/api/bookings/{ref}/payments", json={"provider": "INSTALMENTS", "idempotency_key": uuid.uuid4().hex})
         assert again.json()["error"]["code"] == "PAYMENT_IN_PROGRESS"
-        page = client().get(f"/api/payments/test/{uid}").json()
+        page = pax.get(f"/api/payments/test/{uid}").json()
         assert page["kind"] == "INSTALLMENT" and page["booking_ref"] == ref
-        done = client().post(f"/api/payments/test/{uid}", json={"approve": True})
+        done = pax.post(f"/api/payments/test/{uid}", json={"approve": True})
         assert done.status_code == 200 and done.json()["status"] == "SUCCESS", done.text
         assert done.json()["return_to"].startswith(f"/booking/{ref}")
         detail = pax.get(f"/api/bookings/{ref}").json()
@@ -342,21 +342,21 @@ def test_a_provider_payment_that_arrives_after_the_reservation_lapsed(admin, pax
             return seats[0], ref, p.json()["uid"]
 
         _, ref, uid = reserve_and_start()          # paid after pay_by, before the expiry job: confirmed
-        assert client().post(f"/api/payments/test/{uid}", json={"approve": True}).json()["status"] == "SUCCESS"
+        assert pax.post(f"/api/payments/test/{uid}", json={"approve": True}).json()["status"] == "SUCCESS"
         assert pax.get(f"/api/bookings/{ref}").json()["booking"]["status"] == "CONFIRMED"
 
         seat, ref, uid = reserve_and_start()       # paid after the expiry job freed the seat: the money waits in the wallet
         amount = owner_sql("SELECT total_amount FROM sales.booking WHERE booking_ref = $1", ref)
         assert owner_sql("SELECT sales.expire_reservations()") >= 1
         wallet = pax.get("/api/wallet").json()["balance"]
-        assert client().post(f"/api/payments/test/{uid}", json={"approve": True}).json()["status"] == "SUCCESS"
+        assert pax.post(f"/api/payments/test/{uid}", json={"approve": True}).json()["status"] == "SUCCESS"
         assert pax.get(f"/api/bookings/{ref}").json()["booking"]["status"] == "EXPIRED"
         assert pax.get("/api/wallet").json()["balance"] == wallet + amount
         assert seat in _free(pax, trip)
         assert owner_sql("SELECT captured_late FROM fin.payment WHERE uid = $1", uuid.UUID(uid)) is True   # finance sees it
         assert owner_sql("""SELECT count(*) FROM sys.outbox_event WHERE event_type = 'payment.captured_late'
                              AND payload->>'payment' = $1""", uid) == 1
-        client().post(f"/api/payments/test/{uid}", json={"approve": True})            # the provider repeats its notice
+        pax.post(f"/api/payments/test/{uid}", json={"approve": True})            # the provider repeats its notice
         assert pax.get("/api/wallet").json()["balance"] == wallet + amount
     finally:
         switch(admin, "INSTALLMENT", False)

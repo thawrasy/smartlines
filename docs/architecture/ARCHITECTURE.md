@@ -63,7 +63,7 @@ flowchart TB
 | Domain services (`app/ledger.py`, `app/crypto.py`, `app/mfa.py`, `app/security.py`, `app/util.py`) | Rules shared across routers: double-entry posting, encryption, OTP, signed tokens, ticket names | Know about HTTP |
 | Database | The final word on isolation (RLS), integrity (constraints, exclusion constraints), and audit (triggers) | Depend on the application to enforce tenant isolation |
 
-The rule that makes the layers hold: every query runs inside `db.transaction(context)`, which connects as the low-privilege role `masslak_app` and first calls `sys.set_context()`. If an application bug forgets a `WHERE company_id = ...`, RLS still returns only the caller's rows.
+The rule that makes the layers hold: every query runs inside `db.transaction(context)`, which connects as the low-privilege role `masslak_app` and first calls `sys.set_context()`. If an application bug forgets a `WHERE company_id = ...`, RLS still returns only the caller's rows. The database accepts that context only with the API's ticket, an HMAC of the context under a key the application's roles cannot read, and the roles cannot call `set_config` or create temporary objects, so no statement the API runs can widen its own context (schema file 1080; RUNBOOKS.md, section 30).
 
 ### Target code structure for new modules
 
@@ -148,7 +148,7 @@ flowchart LR
 
 ## 3. Database integration map
 
-The schema has 26 schemas and 502 tables in the files `db/schema/000` to `1079` (release 1.48.0; later-phase modules are disabled behind feature flags and phase gates). The full design, with an ERD per module in the study's colours, is `docs/database/Masslak_Database_Design_and_ERD_v3.12.docx`; file 1033 enforces its relationship rules (primary keys, declared and indexed foreign keys), checked by db/tests. The diagram shows the relationships that the Phase 1 flows use.
+The schema has 26 schemas and 504 tables in the files `db/schema/000` to `1081` (release 1.49.0; later-phase modules are disabled behind feature flags and phase gates). The full design, with an ERD per module in the study's colours, is `docs/database/Masslak_Database_Design_and_ERD_v3.12.docx`; file 1033 enforces its relationship rules (primary keys, declared and indexed foreign keys), checked by db/tests. The diagram shows the relationships that the Phase 1 flows use.
 
 ```mermaid
 erDiagram

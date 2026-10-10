@@ -12,6 +12,7 @@ import asyncpg
 import pytest
 
 from app import ratelimit
+from context import SET_CONTEXT, context_args
 
 APP_URL = os.environ.get("MASSLAK_DATABASE_URL")
 needs_db = pytest.mark.skipif(not APP_URL, reason="needs MASSLAK_DATABASE_URL")
@@ -65,7 +66,7 @@ def test_the_application_cannot_read_the_buckets():
                 await conn.fetchval("SELECT sec.rate_take('auth_ip', 'x', 0)")
             # sign-in calls it from the AUTH scope; the function's platform scope does not leak into the caller's transaction
             async with conn.transaction():
-                await conn.execute("SELECT set_config('app.scope', 'AUTH', true)")
+                await conn.execute(SET_CONTEXT, *context_args(None, None, "AUTH"))
                 assert await conn.fetchval("SELECT sec.rate_take('auth_id', $1, 10)", _key()) == 0
                 assert await conn.fetchval("SELECT current_setting('app.scope')") == "AUTH"
         finally:

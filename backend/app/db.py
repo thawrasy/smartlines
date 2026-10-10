@@ -16,7 +16,7 @@ import asyncio
 
 import asyncpg
 
-from . import logs
+from . import logs, security
 from .config import get_settings
 
 _pool: Optional[asyncpg.Pool] = None
@@ -69,19 +69,27 @@ def pool_stats() -> Optional[dict]:
     return {"size": _pool.get_size(), "idle": _pool.get_idle_size()}
 
 
+async def prepare_connection(conn: asyncpg.Connection) -> None:
+    """Every new connection of the platform's logins. asyncpg turns JIT off around its type introspection with
+    set_config, which these logins may no longer call (1080): their JIT is off already (db/create_login_roles.sql), so
+    asyncpg is told the server has none and skips the call. Checked by the end-to-end tests (citext, enums, arrays)."""
+    conn._server_caps = conn._server_caps._replace(jit=False)
+
+
 async def open_pools() -> None:
     global _pool, _audit_pool, _reports_pool, _telemetry_pool
     s = get_settings()
-    _pool = await asyncpg.create_pool(s.database_url, min_size=1, max_size=s.db_pool_max, command_timeout=30)
+    _pool = await asyncpg.create_pool(s.database_url, min_size=1, max_size=s.db_pool_max, command_timeout=30,
+                                      init=prepare_connection)
     # the security console and the reports open connections only while in use (min_size 0, closed after a minute
     # idle): the primary's count stays within its limit however many API servers run (CAPACITY_MODEL.md, section 10)
     _audit_pool = await asyncpg.create_pool(s.audit_database_url, min_size=0, max_size=s.db_audit_pool_max, command_timeout=30,
-                                            max_inactive_connection_lifetime=60)
+                                            max_inactive_connection_lifetime=60, init=prepare_connection)
     if s.reports_database_url:
         # the role's own limit is 30 s (db/create_login_roles.sql); reports on the replica may run for two minutes
         _reports_pool = await asyncpg.create_pool(s.reports_database_url, min_size=0, max_size=s.db_reports_pool_max,
                                                   command_timeout=120, max_inactive_connection_lifetime=60,
-                                                  server_settings={"statement_timeout": "120s"})
+                                                  server_settings={"statement_timeout": "120s"}, init=prepare_connection)
     if s.telemetry_database_url:
         # positions are appended in batches; the pool waits at most 5 s so a stopped telemetry database answers 503
         # quickly and the driver app keeps the positions to send again
@@ -109,9 +117,15 @@ class Context:
 
 
 async def apply_context(conn: asyncpg.Connection, ctx: Context, scope: Optional[str] = None) -> None:
+    # the database accepts the context only with its ticket (1080): SQL run through this login cannot set another
+    scope = scope or ctx.scope
+    issued = int(time.time())
+    ticket = security.context_ticket((ctx.user_id, ctx.company_id, scope, ctx.api_client_id, ctx.request_id, ctx.session_id,
+                                      ctx.party_id), issued)
     await conn.execute(
-        "SELECT sys.set_context($1, $2, $3, $8, $4, $5::inet, $6, $7)",
-        ctx.user_id, ctx.company_id, scope or ctx.scope, ctx.request_id, ctx.ip, ctx.session_id, ctx.party_id, ctx.api_client_id,
+        "SELECT sys.set_context($1, $2, $3, $8, $4, $5::inet, $6, $7, $9, $10)",
+        ctx.user_id, ctx.company_id, scope, ctx.request_id, ctx.ip, ctx.session_id, ctx.party_id, ctx.api_client_id,
+        issued, ticket,
     )
 
 

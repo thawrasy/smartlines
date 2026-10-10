@@ -540,7 +540,8 @@ and holds no personal data.
 The history of vehicle positions can live in a PostgreSQL of its own (`db/telemetry/schema.sql`); the primary keeps
 the grades, the latest position of each vehicle and the tracking alerts (schema file 1063).
 
-- **Turning it on:** set `MASSLAK_TELEMETRY_OWNER_PASSWORD` and `MASSLAK_TELEMETRY_PASSWORD` in `deploy/.env`, then
+- **Turning it on:** set `MASSLAK_TELEMETRY_OWNER_PASSWORD`, `MASSLAK_TELEMETRY_PASSWORD` and
+  `MASSLAK_TELEMETRY_UPKEEP_PASSWORD` in `deploy/.env`, then
   `docker compose -f docker-compose.yml -f deploy/telemetry/docker-compose.telemetry.yml --env-file deploy/.env up -d`.
   The migration creates the telemetry schema; the API and the worker get `MASSLAK_TELEMETRY_DATABASE_URL`. Positions
   already on the primary stay there until their retention drops them.
@@ -549,8 +550,12 @@ the grades, the latest position of each vehicle and the tracking alerts (schema 
   nothing needs replaying. If it cannot come back within the apps' buffer (about a day), turn the telemetry database
   off (remove `MASSLAK_TELEMETRY_DATABASE_URL`) so positions go to the primary again.
 - **Partitions (`TelemetryPartitionMissing`):** the worker's daily upkeep creates them 7 days ahead and drops days past
-  the retention the primary sets (`gov.data_inventory`, `ops.geo_event`), unless a legal hold stands. Run it by hand:
-  `python -m app.modules.notify.worker --maintenance`.
+  the retention the primary sets (`gov.data_inventory`, `ops.geo_event`). Two logins (reviews of October 2026, C-02):
+  the API's (`masslak_tel`) only appends positions and creates days ahead; the worker's (`masslak_tel_upkeep`,
+  `MASSLAK_TELEMETRY_UPKEEP_URL`) drops. A legal hold the primary reports is recorded in `tel.policy` and stops every
+  drop until released, and nothing younger than `tel.policy.min_keep_days` (7 by default; `-v min_keep_days=` when
+  the schema is applied) is ever dropped. Without the upkeep login the worker logs that the retention is not applied.
+  Run it by hand: `python -m app.modules.notify.worker --maintenance`.
 - **Evidence:** positions are graded by the same rules in both stores (`ops.position_flags`). Violation reviews read
   their evidence from the violation itself; exporting raw positions for an authority reads `tel.position` by trip.
 
@@ -787,6 +792,36 @@ launch requirement; rehearse it on a copy before the first real run.
    removed: closed days keep their totals (`fin.ledger_day_total`), which the reconciliation reads.
 6. **Prove it.** `fin.reconcile_wallets()` with zero mismatches, support can open an archived booking by reference from
    the archive, and a restore of the archive database from its own backup gives the same counts and hashes.
+
+## 30. The request context and its ticket (reviews of October 2026, C-01 and C-02)
+
+Row-level security trusts the context the API sets at the start of each transaction. Since schema file 1080 the
+database accepts a context from the API's login only with a ticket: an HMAC of the context and its time, under a key
+the login cannot read (`sys.context_key`). `set_config` and temporary objects are withdrawn from the application's
+roles, so no statement it runs can rewrite the context or the transaction flags the ledger and wallet guards read.
+
+- **The key.** Derived from `MASSLAK_SIGNING_SECRET` (`python -m app.tools.context_key` prints it in hex);
+  `deploy/migrate.sh` writes it on every start through `db/create_login_roles.sql -v context_key=...`. A changed
+  signing secret brings its key; the key it replaces stays a day for API processes still running with it.
+- **`/api/ready` says `"context": false`.** `SELECT sys.context_status('<fingerprint>')` (as the owner) tells which part:
+  `key` false means the database does not hold the API's key: run the migration again (`docker compose ... up migrate`)
+  with the API's `deploy/.env`. `set_config_withdrawn` or `temporary_withdrawn` false means a restore through pg_dump
+  into a new database lost the withdrawal: apply schema file 1080's last block again as a superuser.
+  `no_unsigned_window` false means a rollback window is open (below).
+- **Every request fails with `CONTEXT_TICKET_*` in the database log.** `STALE`: the API's clock and the database's
+  differ by more than five minutes; fix the time service (NTP) on both. `UNKNOWN`/`INVALID`: the API and the database
+  hold different keys (see above).
+- **Rolling back to a release before 1.49.0.** Those releases set the context without a ticket. After
+  `deploy/update.sh --rollback`, a superuser opens a window of at most a day, with a reason:
+  `INSERT INTO sys.context_unsigned_window (allowed_until, reason) VALUES (now() + interval '4 hours', 'rollback to 1.48.0: <ticket>')`.
+  While it is open `/api/ready` of a 1.49.0 server reports not ready and `set_config` stays withdrawn. Close it when
+  the platform is back on 1.49.0 or later: `UPDATE sys.context_unsigned_window SET allowed_until = now() WHERE allowed_until > now()`.
+- **What remains.** A person holding the API login's password and a connection to the database could still type
+  `SET app.scope = ...` as a statement of their own (PostgreSQL lets any login set custom settings, and only a server
+  extension can forbid it). The database therefore accepts the API's login from the application's network only, over
+  TLS, in the production profile (review package 2); keep that password in the secret store, never in a shared file.
+- **Telemetry (C-02).** The API's login to the telemetry database appends positions and nothing else; the worker's
+  upkeep login drops days, never younger than `tel.policy.min_keep_days` and never while a hold stands (section 22).
 
 ## Rehearsal schedule
 

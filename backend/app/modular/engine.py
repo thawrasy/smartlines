@@ -96,6 +96,7 @@ class Resource:
     readonly_portals: tuple = ()             # portals that may only read
     defaults: dict = field(default_factory=dict)
     group: str = ""                          # menu group inside the module
+    detail: tuple = ()                       # columns a record shows; empty: every column but secrets (SECRET_COLUMN)
 
     def perm_for(self, portal: str) -> Any:
         if portal not in self.portals:
@@ -333,10 +334,22 @@ async def _label_pairs(conn: asyncpg.Connection, meta: TableMeta, refs: dict) ->
     return pairs
 
 
+# Columns no record view returns, whatever the table: credentials and what is derived from them (reviews of October 2026,
+# M-05). Row security decides which rows a caller sees; this keeps a secret column added to a table later out of the
+# record views of everyone who may see its rows. A resource may also name the only columns it shows (Resource.detail).
+SECRET_COLUMN = re.compile(r"(_enc$|_bidx$|secret|password|passwd|(^|_)token$|(^|_)otp($|_)|totp|recovery|api_key|"
+                           r"private_key|wrapped_dek|nonce|(^|_)pin$)")
+
+
+def detail_columns(meta: "TableMeta", res: Resource) -> list:
+    cols = [c for c in meta.cols if meta.cols[c].pg_type not in HIDDEN_TYPES and not SECRET_COLUMN.search(c)]
+    return [c for c in cols if c in res.detail] if res.detail else cols
+
+
 async def get_row(conn: asyncpg.Connection, res: Resource, key: str) -> dict:
     meta = await table_meta(conn, res.table)
     cond, params = _key_where(meta, key, 1)
-    cols = [c for c in meta.cols if meta.cols[c].pg_type not in HIDDEN_TYPES]
+    cols = detail_columns(meta, res)
     obj = ", ".join(f"'{c}', {_read_expr(meta.cols[c], 'x')}" for c in cols)
     labels = await _label_pairs(conn, meta, {c: meta.cols[c].ref for c in cols if meta.cols[c].ref})
     raw = await conn.fetchval(

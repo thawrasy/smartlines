@@ -10,6 +10,8 @@ from concurrent.futures import ThreadPoolExecutor
 import asyncpg
 import pytest
 
+from context import SET_CONTEXT, context_args
+
 from test_e2e import free_seats, hold, login, new_passenger, owner_sql, pax, trip  # noqa: F401, F811  (pax and trip are fixtures)
 
 BACKEND = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -34,7 +36,7 @@ def api_role_counts(scope: str, *tables: str) -> list[int]:
         conn = await asyncpg.connect(os.environ["MASSLAK_DATABASE_URL"])
         try:
             async with conn.transaction():
-                await conn.execute("SELECT sys.set_context(NULL, NULL, $1)", scope)
+                await conn.execute(SET_CONTEXT, *context_args(None, None, scope))
                 return [await conn.fetchval(f"SELECT count(*) FROM {t}") for t in tables]
         finally:
             await conn.close()

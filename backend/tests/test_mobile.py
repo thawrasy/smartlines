@@ -4,6 +4,7 @@ import base64
 import json
 import secrets
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 
 import httpx
@@ -60,11 +61,35 @@ def test_refresh_rotates_and_detects_a_stolen_refresh_token():
     assert r.status_code == 200, r.text
     second = r.json()
     assert bearer(second["access_token"]).get("/api/auth/me").status_code == 200
-    # The first refresh token is used again (as a thief holding a copy would): the session ends for everyone
+    # The first refresh token again, a moment later from the same installation: a race with its own rotation (M-02),
+    # answered 409 with no tokens and no harm to the session
+    race = app_client().post("/api/auth/refresh", json={"refresh_token": first["refresh_token"], "device_id": device})
+    assert race.status_code == 409 and race.json()["error"]["code"] == "REFRESH_RACE", race.text
+    assert bearer(second["access_token"]).get("/api/auth/me").status_code == 200
+    # The first refresh token used again later (as a thief holding a copy would): the session ends for everyone
+    owner_sql("UPDATE iam.user_session SET access_expires_at = access_expires_at - interval '1 minute' WHERE token_hash = digest($1, 'sha256')",
+              second["access_token"])
     stolen = app_client().post("/api/auth/refresh", json={"refresh_token": first["refresh_token"], "device_id": device})
     assert stolen.status_code == 401
     assert bearer(second["access_token"]).get("/api/auth/me").status_code == 401
     assert app_client().post("/api/auth/refresh", json={"refresh_token": second["refresh_token"], "device_id": device}).status_code == 401
+
+
+def test_two_refreshes_racing_with_one_token_rotate_it_once():
+    """M-02: the check and the rotation hold the session's row; of two requests with the same refresh token one gets the
+    new tokens and the other a 409, and the session stays valid with the winner's tokens."""
+    r, device = mobile_login("passenger@masslak.test")
+    first = r.json()
+
+    def refresh(_):
+        return app_client().post("/api/auth/refresh", json={"refresh_token": first["refresh_token"], "device_id": device})
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        answers = list(pool.map(refresh, range(2)))
+    assert sorted(a.status_code for a in answers) == [200, 409], [a.text for a in answers]
+    winner = next(a.json() for a in answers if a.status_code == 200)
+    assert bearer(winner["access_token"]).get("/api/auth/me").status_code == 200
+    again = app_client().post("/api/auth/refresh", json={"refresh_token": winner["refresh_token"], "device_id": device})
+    assert again.status_code == 200, again.text
 
 
 def test_signing_out_a_lost_device():

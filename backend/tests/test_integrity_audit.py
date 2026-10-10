@@ -8,6 +8,8 @@ from concurrent.futures import ThreadPoolExecutor
 
 import asyncpg
 
+from context import SET_CONTEXT, context_args
+
 from test_e2e import book, free_seats, hold, new_passenger, owner_sql, pax, trip  # noqa: F401, F811  (pax and trip are fixtures)
 
 
@@ -27,7 +29,7 @@ def test_a_pooled_connection_never_carries_a_company_into_the_next_request():
                     try:
                         async with conn.transaction():
                             if company is not None:
-                                await conn.execute("SELECT sys.set_context(NULL, $1, 'COMPANY')", company)
+                                await conn.execute(SET_CONTEXT, *context_args(None, company, "COMPANY"))
                             seen = {r[0] for r in await conn.fetch("SELECT DISTINCT company_id FROM fleet.vehicle")}
                             ctx = await conn.fetchval("SELECT current_setting('app.company_id', true)")
                             if fail:
@@ -53,7 +55,7 @@ def test_a_pooled_connection_never_carries_a_company_into_the_next_request():
                 async def one(company):
                     async with pool2.acquire() as conn:
                         async with conn.transaction():
-                            await conn.execute("SELECT sys.set_context(NULL, $1, 'COMPANY')", company)
+                            await conn.execute(SET_CONTEXT, *context_args(None, company, "COMPANY"))
                             await asyncio.sleep(random.random() / 100)
                             return company, {r[0] for r in await conn.fetch("SELECT DISTINCT company_id FROM fleet.vehicle")}
                 results = await asyncio.gather(*(one(random.choice((a, b))) for _ in range(200)))

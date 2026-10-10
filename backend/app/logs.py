@@ -23,6 +23,8 @@ import uuid
 from datetime import datetime, timezone
 from typing import Optional
 
+from .logredact import redact
+
 request_id: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar("request_id", default=None)
 trace_id: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar("trace_id", default=None)
 # where a request's time went, in seconds: waiting for a database connection, holding one (statements and the code
@@ -76,7 +78,18 @@ def correlation() -> Optional[uuid.UUID]:
     return uuid.UUID(trace) if trace else None
 
 
-class JsonFormatter(logging.Formatter):
+class RedactingFormatter(logging.Formatter):
+    """The text format (sandbox): the traceback of an exception is redacted like the message (reviews of October 2026,
+    M-06); a database error quoted in it would otherwise carry the value that failed, an e-mail or a phone number."""
+
+    def formatException(self, ei) -> str:
+        return redact(super().formatException(ei))
+
+    def formatStack(self, stack_info: str) -> str:
+        return redact(super().formatStack(stack_info))
+
+
+class JsonFormatter(RedactingFormatter):
     def __init__(self, service: str):
         super().__init__()
         from .config import get_settings
@@ -94,9 +107,12 @@ class JsonFormatter(logging.Formatter):
             out["trace_id"] = tid
         for key in _FIELDS:
             if hasattr(record, key):
-                out[key] = getattr(record, key)
+                value = getattr(record, key)
+                out[key] = redact(value) if isinstance(value, str) else value
         if record.exc_info:
-            out["error"] = self.formatException(record.exc_info)
+            out["error"] = self.formatException(record.exc_info)          # redacted (RedactingFormatter)
+        if record.stack_info:
+            out["stack"] = self.formatStack(record.stack_info)
         return json.dumps(out, ensure_ascii=False, default=str)
 
 
@@ -114,6 +130,8 @@ def configure(service: str, level: int = logging.INFO) -> None:
     """JSON lines on standard output for the API, the worker and the tools; the classic text format otherwise."""
     if not json_logs():
         logging.basicConfig(level=level, format="%(asctime)s %(levelname)s %(message)s")
+        for handler in logging.getLogger().handlers:
+            handler.setFormatter(RedactingFormatter("%(asctime)s %(levelname)s %(message)s"))
         logging.getLogger("masslak.access").setLevel(logging.WARNING)   # uvicorn prints its own access lines here
         return
     handler = logging.StreamHandler(sys.stdout)
