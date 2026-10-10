@@ -37,22 +37,28 @@ seal() {                                   # stdin -> file, encrypted with age w
 }
 umask 077
 mkdir -p "$dir"
-compose exec -T db pg_dump -U "${POSTGRES_USER:-postgres}" -d "${POSTGRES_DB:-masslak}" -Fc | seal "$dir/database.dump"
-if [ "${MASSLAK_FILES_BACKEND:-local}" = s3 ]; then
-  # files live in the object store: versioning and replication (or object lock) on the bucket keep them, not this
-  # backup (docs/operations/RUNBOOKS.md, section 24). The note says where they are, for whoever restores.
-  echo "files in s3: ${MASSLAK_FILES_S3_ENDPOINT:-} bucket ${MASSLAK_FILES_S3_BUCKET:-} prefix ${MASSLAK_FILES_S3_PREFIX:-}" > "$dir/FILES_IN_OBJECT_STORE"
-else
-  compose exec -T app tar -C /data -cz files | seal "$dir/files.tar.gz"
-fi
-(cd "$dir" && sha256sum ./* > SHA256SUMS)
-echo "$(date -u +%FT%TZ) backup written to $dir ($(du -sh "$dir" | cut -f1))"
 record() {                                 # copy, ok, detail: kept in the database for the monitoring (1076)
   compose exec -T db psql -U "${POSTGRES_USER:-postgres}" -d "${POSTGRES_DB:-masslak}" -qAt -v ON_ERROR_STOP=1 \
     -v copy="$1" -v ok="$2" -v detail="$3" -v bytes="$(du -sb "$dir" | cut -f1)" \
     <<< "SELECT sys.record_backup(:'copy', :'ok'::boolean, :'detail', :'bytes'::bigint)" >/dev/null \
     || echo "could not record the $1 backup in the database" >&2
 }
+compose exec -T db pg_dump -U "${POSTGRES_USER:-postgres}" -d "${POSTGRES_DB:-masslak}" -Fc | seal "$dir/database.dump"
+if [ "${MASSLAK_FILES_BACKEND:-local}" = s3 ]; then
+  # files live in the object store, which keeps every version under Object Lock (reviews of October 2026, H-04): the
+  # backup records the version each file has now, and deploy/restore.sh puts those versions back with the database
+  # (python -m app.tools.files_versions). The note says where they are, for whoever restores.
+  echo "files in s3: ${MASSLAK_FILES_S3_ENDPOINT:-} bucket ${MASSLAK_FILES_S3_BUCKET:-} prefix ${MASSLAK_FILES_S3_PREFIX:-}" > "$dir/FILES_IN_OBJECT_STORE"
+  if ! compose exec -T app python -m app.tools.files_versions manifest | seal "$dir/files_versions.jsonl"; then
+    echo "backup failed: the versions of the files in the object store could not be recorded" >&2
+    record LOCAL false "the versions of the files in the object store were not recorded"
+    exit 1
+  fi
+else
+  compose exec -T app tar -C /data -cz files | seal "$dir/files.tar.gz"
+fi
+(cd "$dir" && sha256sum ./* > SHA256SUMS)
+echo "$(date -u +%FT%TZ) backup written to $dir ($(du -sh "$dir" | cut -f1))"
 record LOCAL true "$dir"
 find "$(dirname "$dir")" -mindepth 1 -maxdepth 1 -type d -mtime +"$keep" -print -exec rm -rf {} +
 

@@ -9,6 +9,7 @@ Nothing runs half set up.
 |---|---|---|
 | H-02 | WAL archived by pgBackRest to a repository off this host, proven before every migration | migration preflight; update; alert `WalArchiveStale` |
 | H-03 | Every backup copied off the server before an update | update (refuses), alert `BackupOffsiteStale` |
+| H-04 | Documents in an object store: a bucket with versioning and Object Lock, every file's version recorded with each backup and put back by a restore | migration preflight; backup (fails without the record); restore |
 | H-05 | TLS to the database, the read replica and PgBouncer; every client checks the certificate (`verify-full`) | `pg_hba.conf` accepts nothing else; migration preflight; API start |
 | H-06 | Data keys opened by the key service (Vault); each container receives only its part of `deploy/.env` | host preflight; API and worker start |
 | H-07 | Prometheus, Alertmanager, node_exporter, the PgBouncer exporter, Grafana and ClamAV run on the server; alerts reach the receivers | host preflight (receivers); `alert-drill.sh`; alerts `MetricsMissing`, `ScrapeTargetDown` |
@@ -38,6 +39,9 @@ Nothing runs half set up.
   cipher pass. The repository is encrypted.
 * **The off-site copy of the nightly backups.** An rclone destination in `MASSLAK_BACKUP_OFFSITE`, and an age public
   key in `MASSLAK_BACKUP_AGE_RECIPIENT`, whose private key is kept off the server.
+* **With documents in an object store** (`MASSLAK_FILES_BACKEND=s3`), a bucket created with Object Lock and a default
+  retention of at least `MASSLAK_BACKUP_KEEP_DAYS` days (RUNBOOKS.md, section 24). Each backup records the version of
+  every file, and a restore puts those versions back, so files and database return to the same moment (H-04).
 * **The alert receivers.** Three webhook addresses: the on-call channel (page), the team queue (ticket), and a dead
   man's switch that pages when the minute heartbeat stops (deadman).
 
@@ -74,7 +78,8 @@ renew them.
    * `pg_hba.conf` asks for scram and, for the warehouse, a certificate;
    * WAL archiving works now (pgBackRest's own check, against the repository);
    * the repository is off this host;
-   * no decoding plugin but pgoutput is installed.
+   * no decoding plugin but pgoutput is installed;
+   * with documents in an object store, the bucket keeps every version and locks them long enough.
 4. The migration then wraps every data key with the key service (`python -m app.tools.keys bootstrap`). The API and
    the worker never hold a clear key in their environment.
 
@@ -169,7 +174,6 @@ monthly. The person on call confirms receipt; the drill is recorded as launch ga
 These are in package 3:
 
 * hosts of their own for the database and its standby (H-01);
-* object versions recorded with backups when files are in object storage (H-04);
 * images built once in CI and signed (H-08);
 * TLS to the telemetry database (overlay `deploy/telemetry`).
 

@@ -73,6 +73,27 @@ def test_each_gap_is_named(change, expected):
     assert any(expected in p for p in problems), problems
 
 
+LOCKED = {"versioning": "Enabled", "object_lock": True, "retention_mode": "GOVERNANCE", "retention_days": 30}
+
+
+@pytest.mark.parametrize("protection, error, expected", [
+    ({**LOCKED, "versioning": "Suspended"}, "", "does not keep old versions"),
+    ({**LOCKED, "object_lock": False, "retention_days": 0}, "", "no Object Lock"),
+    ({**LOCKED, "retention_days": 7}, "", "default retention is 7 days"),
+    (None, "FILE_STORE_UNAVAILABLE: GET failed (URLError)", "cannot be read (FILE_STORE_UNAVAILABLE"),
+])
+def test_files_in_object_storage_must_be_versioned_and_locked(protection, error, expected):
+    """H-04: a restore can bring the files back to a backup's moment only from a bucket that kept and locked them."""
+    f = good()
+    f.files_backend, f.files_protection, f.files_error, f.backup_keep_days = "s3", protection, error, 14
+    problems = preflight.evaluate(f)
+    assert len(problems) == 1 and expected in problems[0], problems
+    f.files_protection = LOCKED
+    assert preflight.evaluate(f) == []
+    f.files_backend, f.files_protection = "local", None          # files on the volume travel in the backup itself
+    assert preflight.evaluate(f) == []
+
+
 def test_a_repository_host_is_off_this_host():
     f = good()
     f.archive_check.update(repo_type="posix", repo_host="backup.internal")
@@ -195,7 +216,8 @@ def test_each_container_receives_only_its_part_of_the_environment(tmp_path):
              "MASSLAK_API_PASSWORD=api", "MASSLAK_REPLICATION_PASSWORD=repl", "MASSLAK_SIGNING_SECRET=sign",
              "MASSLAK_FIELD_KEYS=kms://x=AAAA", "MASSLAK_BIDX_KEY=BBBB", "MASSLAK_KMS_PROVIDER=vault",
              "MASSLAK_VAULT_TOKEN=tok", "PGBACKREST_REPO1_TYPE=s3", "PGBACKREST_REPO1_CIPHER_PASS=cipher",
-             "MASSLAK_BACKUP_AGE_IDENTITY=/root/key", "MASSLAK_SMS_URL=", "# a comment", "COMPOSE_FILE=a:b"]
+             "MASSLAK_BACKUP_AGE_IDENTITY=/root/key", "MASSLAK_BACKUP_KEEP_DAYS=30", "MASSLAK_SMS_URL=", "# a comment",
+             "COMPOSE_FILE=a:b"]
     (tmp_path / ".env").write_text("\n".join(lines) + "\n")
     subprocess.run(["bash", str(tmp_path / "env-split.sh")], check=True, capture_output=True)
     read = lambda name: dict(l.split("=", 1) for l in (tmp_path / "env" / f"{name}.env").read_text().splitlines())   # noqa: E731,E741
@@ -205,6 +227,7 @@ def test_each_container_receives_only_its_part_of_the_environment(tmp_path):
                         "MASSLAK_VAULT_TOKEN"}, app
     assert {"POSTGRES_PASSWORD", "MASSLAK_FIELD_KEYS", "MASSLAK_REPLICATION_PASSWORD"} <= set(migrate)
     assert not {"PGBACKREST_REPO1_CIPHER_PASS", "MASSLAK_BACKUP_AGE_IDENTITY", "COMPOSE_FILE"} & set(migrate)
+    assert migrate["MASSLAK_BACKUP_KEEP_DAYS"] == "30"     # its preflight compares the file bucket's lock with it (H-04)
     assert set(db) == {"POSTGRES_USER", "POSTGRES_PASSWORD", "PGBACKREST_REPO1_TYPE", "PGBACKREST_REPO1_CIPHER_PASS"}
     assert oct((tmp_path / "env" / "app.env").stat().st_mode & 0o777) == "0o600"
     # a test server's API keeps its data keys (there is no key service there)

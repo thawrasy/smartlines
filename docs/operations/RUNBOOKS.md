@@ -56,9 +56,10 @@ section.
   3. Run `python -m app.tools.keys check`, to prove the key service still opens every data key.
   4. Run the reconciliation checks from section 1.5.
   5. Run `python -m app.tools.files_check` in the API container: every file the restored database refers to is read
-     back, decrypted and compared with its recorded size and hash (R-44). With the files in an object store, first
-     restore the bucket to the time the database was restored to (bucket versioning: the object versions current at
-     that time), then run the check; it must report nothing missing.
+     back, decrypted and compared with its recorded size and hash (R-44); it must report nothing missing. With the
+     files in an object store, `deploy/restore.sh` first puts back the version each file had when the backup was taken
+     (`files_versions.jsonl` in the backup; `python -m app.tools.files_versions restore`, H-04). A backup made before
+     release 1.49.0 has no such record: restore the bucket to the database's time by hand first.
 - **Targets approved by the owner on 8 October 2026 (T3-01; settings `recovery.rpo_seconds` and `recovery.rto_minutes`):**
   - **RPO:** 60 seconds when the server is lost. WAL is archived at least every `archive_timeout = 60` s; pgBackRest
     archives asynchronously. With the streaming standby, a failover loses only what the standby had not received,
@@ -592,12 +593,25 @@ written either to the `files` volume (`MASSLAK_FILES_BACKEND=local`) or to an S3
 object store. Every write asks the store for server-side encryption (`MASSLAK_FILES_S3_SSE`, `AES256` or `aws:kms`)
 and is removed and refused unless the store confirms it, so a bucket without encryption shows at the first upload.
 
-**The bucket.** A dedicated bucket with versioning on, replication to a second site (or object lock), no public
-access, and server-side encryption enabled. The credentials in `deploy/.env` belong to a user that may only read and
-write objects of that bucket. A store outside the private network is reached through the egress proxy
-(`MASSLAK_FILES_S3_VIA_PROXY=true`): the worker adds its domain to the proxy's allowlist. The nightly backup no longer
-copies the files once they are in the store (it writes `FILES_IN_OBJECT_STORE`, naming the bucket); the bucket's
-versions and replica are their backup.
+**The bucket.** A dedicated bucket created with Object Lock (which turns versioning on, and cannot be added later),
+a default retention of at least `MASSLAK_BACKUP_KEEP_DAYS` days in GOVERNANCE or COMPLIANCE mode, replication to a
+second site, no public access, and server-side encryption enabled. On a production server the migration's preflight
+refuses a bucket without versioning, without Object Lock or with a shorter retention (H-04). The credentials in
+`deploy/.env` belong to a user that may only read and write objects of that bucket. A store outside the private network
+is reached through the egress proxy (`MASSLAK_FILES_S3_VIA_PROXY=true`): the worker adds its domain to the proxy's
+allowlist. The nightly backup does not copy the files once they are in the store. It records the version each file
+has (`files_versions.jsonl`, encrypted like the rest of the backup), so a restore brings every file back to that
+moment:
+
+```
+docker compose --env-file deploy/.env run --rm --no-deps app python -m app.tools.files_versions check
+aws s3api create-bucket --bucket masslak-files --object-lock-enabled-for-bucket
+aws s3api put-object-lock-configuration --bucket masslak-files \
+  --object-lock-configuration '{"ObjectLockEnabled":"Enabled","Rule":{"DefaultRetention":{"Mode":"GOVERNANCE","Days":30}}}'
+```
+
+Deleting a file (the daily sweep of unreferenced files, M-04) only adds a delete marker: the locked versions stay until
+their retention ends, and a lifecycle rule removes noncurrent versions after that.
 
 **Moving an installation from the volume to the store**, without stopping it:
 

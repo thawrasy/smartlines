@@ -11,6 +11,8 @@ checks on the database itself, not on what a configuration file says:
              repository; and the repository is off this host (object storage, or a repository host)
   decoding   no logical decoding plugin but pgoutput is installed: a replication login could otherwise decode every
              table (H-10)
+  files      with the files in an object store, its bucket keeps every version and locks them at least as long as
+             backups are kept, so a restore can bring the files back to the backup's moment (H-04; files_versions)
 
 The archiving and decoding facts come from /usr/local/bin/masslak-archive-check, which only the production database
 image has (deploy/production/db); the owner runs it through COPY ... FROM PROGRAM, so it reports from inside the
@@ -31,6 +33,9 @@ from dataclasses import dataclass, field
 
 import asyncpg
 
+from ..modules.documents import storage
+from . import files_versions
+
 ARCHIVE_CHECK = "/usr/local/bin/masslak-archive-check"
 # repository types pgBackRest keeps away from the database host; posix and cifs are paths on a host, which is off-site
 # only when that host is another machine, so they pass only with a repository host (repo1-host)
@@ -46,6 +51,10 @@ class Facts:
     archive_command: str = ""
     archive_check: dict | None = None                       # what masslak-archive-check printed; None: not available
     archive_check_error: str = ""
+    files_backend: str = "local"
+    files_protection: dict | None = None                    # the bucket's versioning and Object Lock (S3 only)
+    files_error: str = ""
+    backup_keep_days: int = 14
 
 
 def evaluate(f: Facts) -> list[str]:
@@ -89,7 +98,23 @@ def evaluate(f: Facts) -> list[str]:
         if c.get("plugins"):
             problems.append(f"logical decoding plugins other than pgoutput are installed ({c['plugins']}): a replication "
                             "login could decode every table")
+    if f.files_backend == "s3":
+        if f.files_protection is None:
+            problems.append(f"the file bucket's versioning and Object Lock cannot be read ({f.files_error or 'no answer'})")
+        else:
+            problems += files_versions.problems(f.files_protection, f.backup_keep_days)
     return problems
+
+
+def gather_files(f: Facts) -> None:
+    """The object store's protection, when the files are there (H-04)."""
+    f.files_backend = os.environ.get("MASSLAK_FILES_BACKEND", "local")
+    f.backup_keep_days = files_versions.keep_days()
+    if f.files_backend == "s3":
+        try:
+            f.files_protection = storage.s3_from_settings().protection()
+        except Exception as exc:                        # noqa: BLE001 - named in the refusal
+            f.files_error = str(exc).splitlines()[0][:200] if str(exc) else type(exc).__name__
 
 
 def _catch_all(rule: dict) -> bool:
@@ -152,9 +177,11 @@ LOCAL_COMMIT = {"synchronous_commit": "local"}
 async def run(url: str | None) -> list[str]:
     conn = await (asyncpg.connect(url, server_settings=LOCAL_COMMIT) if url else asyncpg.connect(server_settings=LOCAL_COMMIT))
     try:
-        return evaluate(await gather(conn))
+        facts = await gather(conn)
     finally:
         await conn.close()
+    await asyncio.to_thread(gather_files, facts)
+    return evaluate(facts)
 
 
 def main() -> None:
@@ -167,7 +194,8 @@ def main() -> None:
         for p in problems:
             print(f"  - {p}", file=sys.stderr)
         sys.exit(1)
-    print("production preflight passed: TLS only, archiving proven to an off-host repository, pgoutput only")
+    print("production preflight passed: TLS only, archiving proven to an off-host repository, pgoutput only; "
+          "files in object storage are versioned and locked")
 
 
 if __name__ == "__main__":

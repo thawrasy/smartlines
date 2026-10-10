@@ -12,7 +12,7 @@ import pytest
 
 from app.crypto import RESTRICTED_REF, FieldCipher
 from app.modules.documents import storage
-from app.tools import files_move
+from app.tools import files_move, files_versions
 
 S3_URL = os.environ.get("MASSLAK_TEST_S3_ENDPOINT", "")
 S3_BUCKET = os.environ.get("MASSLAK_TEST_S3_BUCKET", "masslak-files")
@@ -214,3 +214,60 @@ def test_a_cloud_store_is_added_to_the_egress_allowlist(monkeypatch, tmp_path):
     finally:
         monkeypatch.undo()
         get_settings.cache_clear()
+
+
+def locked_bucket(retention_days: int = 1) -> storage.S3Store:
+    """A new bucket made with Object Lock and a default retention, as the production profile requires (H-04)."""
+    s3 = real_store(prefix="drill")
+    s3.bucket = f"masslak-locked-{uuid.uuid4().hex[:8]}"
+    status, _, body = s3._request("PUT", None, b"", {"x-amz-bucket-object-lock-enabled": "true"})
+    assert status == 200, body
+    rule = (b'<ObjectLockConfiguration xmlns="http://s3.amazonaws.com/doc/2006-03-01/"><ObjectLockEnabled>Enabled'
+            b'</ObjectLockEnabled><Rule><DefaultRetention><Mode>GOVERNANCE</Mode><Days>%d</Days></DefaultRetention>'
+            b'</Rule></ObjectLockConfiguration>' % retention_days)
+    import base64
+    import hashlib
+    md5 = base64.b64encode(hashlib.md5(rule, usedforsecurity=False).digest()).decode()
+    status, _, body = s3._request("PUT", None, rule, {"content-md5": md5}, query={"object-lock": ""})
+    assert status == 200, body
+    return s3
+
+
+@needs_s3
+def test_the_preflight_tells_a_locked_bucket_from_a_plain_one():
+    plain = real_store()
+    assert files_versions.problems(plain.protection(), 14)                       # made without Object Lock
+    locked = locked_bucket(retention_days=30)
+    assert locked.protection() == {"versioning": "Enabled", "object_lock": True, "retention_mode": "GOVERNANCE",
+                                   "retention_days": 30}
+    assert files_versions.problems(locked.protection(), 14) == []
+    assert "default retention is 30 days" in files_versions.problems(locked.protection(), 60)[0]
+
+
+@needs_s3
+def test_joint_restore_drill_brings_every_file_back_to_the_backups_moment(monkeypatch):
+    """The backup records each file's version; after it, files are changed, deleted and added; the restore puts the
+    recorded versions back, and every file the backup knew decrypts to its recorded hash again (H-04)."""
+    import io
+    s3 = locked_bucket()
+    monkeypatch.setattr(storage, "store", lambda: s3)
+    fc = cipher()
+    kept = [asyncio.run(storage.put(fc, b"%PDF-1.4\n" + uuid.uuid4().hex.encode())) for _ in range(3)]
+    taken = io.StringIO()
+    assert files_versions.manifest(s3, taken) == 3                               # the backup's record
+    header, entries = files_versions.read_manifest(iter(taken.getvalue().splitlines()))
+    assert header["bucket"] == s3.bucket and {e["key"] for e in entries} == {k.storage_key for k in kept}
+    # after the backup: one file changed, one deleted, one added
+    s3.write(kept[0].storage_key, b"changed after the backup")
+    s3.delete(kept[1].storage_key)
+    later = asyncio.run(storage.put(fc, b"%PDF-1.4\nwritten after the backup"))
+    with pytest.raises(Exception):
+        asyncio.run(storage.get(fc, kept[0].storage_key, kept[0].key_id, kept[0].sha256))
+    assert files_versions.restore(s3, entries, dry_run=True)["restored"] == 2   # a dry run changes nothing
+    assert not s3.exists(kept[1].storage_key)
+    out = files_versions.restore(s3, entries)
+    assert (out["restored"], out["unchanged"], out["newer_files_left"]) == (2, 1, 1)
+    for k in kept:
+        asyncio.run(storage.get(fc, k.storage_key, k.key_id, k.sha256))          # whole and unchanged again
+    assert s3.exists(later.storage_key)          # no row of the restored database points to it: the sweep removes it
+    assert files_versions.restore(s3, entries)["restored"] == 0                  # running it again changes nothing

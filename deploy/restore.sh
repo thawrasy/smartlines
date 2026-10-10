@@ -13,23 +13,30 @@ open() {                                   # backup file -> stdout, decrypting w
   else cat "$src/$1"; fi
 }
 (cd "$src" && sha256sum -c --quiet SHA256SUMS) || { echo "checksum mismatch: backup is damaged" >&2; exit 1; }
+./deploy/env-split.sh                      # each container receives only its part of deploy/.env (H-06)
 db="${POSTGRES_DB:-masslak}" su="${POSTGRES_USER:-postgres}"
 compose stop app worker
 compose exec -T db psql -U "$su" -d postgres -v ON_ERROR_STOP=1 -q \
   -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '$db' AND pid <> pg_backend_pid()" \
   -c "DROP DATABASE IF EXISTS \"$db\"" -c "CREATE DATABASE \"$db\""
 open database.dump | compose exec -T db pg_restore -U "$su" -d "$db" --no-owner --exit-on-error
-if [ -f "$src/FILES_IN_OBJECT_STORE" ]; then      # the files were in the object store, which keeps its own versions
-  echo "documents are not in this backup: $(cat "$src/FILES_IN_OBJECT_STORE")"
+if [ -f "$src/FILES_IN_OBJECT_STORE" ]; then      # the files are in the object store, which keeps every version (H-04)
+  echo "documents are in the object store: $(cat "$src/FILES_IN_OBJECT_STORE")"
+  if [ -f "$src/files_versions.jsonl" ] || [ -f "$src/files_versions.jsonl.age" ]; then
+    # each file back to the version it had when the backup was taken: changed and deleted files come back
+    open files_versions.jsonl | compose run --rm -T --no-deps app python -m app.tools.files_versions restore -
+  else
+    echo "this backup records no file versions (made before release 1.49.0): restore the bucket to the backup's time" \
+         "by hand (RUNBOOKS.md, section 2); the file check below names what differs" >&2
+  fi
 else
   open files.tar.gz | compose run --rm -T --no-deps --entrypoint "" -u 0 app sh -c 'rm -rf /data/files/* && tar -C /data -xz && chown -R masslak /data/files'
 fi
-./deploy/env-split.sh                      # each container receives only its part of deploy/.env (H-06)
 compose up -d migrate app worker           # migrate re-applies login role passwords and any newer schema files
 echo "restored from $src"
 # the restored database and the stored files must belong to the same moment (review of release 1.47.0, R-44): every
-# file the database refers to is read back, decrypted and compared with its recorded size and hash. With the files in
-# an object store, restore the bucket to the database's time first (versioning; RUNBOOKS.md, section 2).
+# file the database refers to is read back, decrypted and compared with its recorded size and hash, whether it came
+# from the backup's archive or back to its recorded version in the object store.
 for _ in $(seq 1 60); do
   compose exec -T app python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/api/health').status == 200 else 1)" \
     2>/dev/null && break

@@ -15,6 +15,7 @@ not commit (a refusal, a failed scan, an error, a lost commit), the file is dele
 whose process died in between is found by python -m app.tools.files_sweep, which the worker runs daily.
 """
 import asyncio
+import base64
 import hashlib
 import hmac
 import html
@@ -184,7 +185,9 @@ class S3Store:
             raise StoreUnavailable(f"FILE_STORE_UNAVAILABLE: {method} failed ({type(e).__name__})") from None
 
     def write(self, key: str, data: bytes) -> None:
-        headers = {"content-type": "application/octet-stream", "x-amz-server-side-encryption": self.sse}
+        # Content-MD5: a bucket under Object Lock refuses a write without it (H-04), and the store checks the bytes
+        headers = {"content-type": "application/octet-stream", "x-amz-server-side-encryption": self.sse,
+                   "content-md5": base64.b64encode(hashlib.md5(data, usedforsecurity=False).digest()).decode()}
         if self.sse == "aws:kms" and self.kms_key_id:
             headers["x-amz-server-side-encryption-aws-kms-key-id"] = self.kms_key_id
         status, h, body = self._request("PUT", key, data, headers)
@@ -215,6 +218,60 @@ class S3Store:
         status, _, body = self._request("DELETE", key)
         if status not in (200, 204, 404):
             raise RuntimeError(f"FILE_STORE_REFUSED: DELETE answered {status}: {body[:200].decode(errors='replace')}")
+
+    # ------------------------------------------------------------------ versions (reviews of October 2026, H-04)
+    def protection(self) -> dict:
+        """The bucket's versioning and Object Lock: whether old versions are kept, and for how long they cannot be
+        removed (the default retention, in days)."""
+        status, _, body = self._request("GET", None, query={"versioning": ""})
+        if status != 200:
+            raise RuntimeError(f"FILE_STORE_REFUSED: GET versioning answered {status}")
+        m = re.search(r"<Status>(.*?)</Status>", body.decode())
+        out = {"versioning": m.group(1) if m else "", "object_lock": False, "retention_mode": "", "retention_days": 0}
+        status, _, body = self._request("GET", None, query={"object-lock": ""})
+        if status == 200:
+            text = body.decode()
+            out["object_lock"] = "<ObjectLockEnabled>Enabled</ObjectLockEnabled>" in text
+            mode, days, years = (re.search(rf"<{t}>(.*?)</{t}>", text) for t in ("Mode", "Days", "Years"))
+            out["retention_mode"] = mode.group(1) if mode else ""
+            out["retention_days"] = int(days.group(1)) if days else int(years.group(1)) * 365 if years else 0
+        elif status not in (400, 404):         # 404: the bucket was made without Object Lock
+            raise RuntimeError(f"FILE_STORE_REFUSED: GET object-lock answered {status}")
+        return out
+
+    def versions(self) -> Iterator[dict]:
+        """Every version and delete marker under the prefix, newest first for each key (ListObjectVersions)."""
+        markers: dict = {}
+        while True:
+            query = {"versions": "", "max-keys": "1000", "prefix": self.prefix, **markers}
+            status, _, body = self._request("GET", None, query=query)
+            if status != 200:
+                raise RuntimeError(f"FILE_STORE_REFUSED: LIST versions answered {status}: {body[:200].decode(errors='replace')}")
+            text = body.decode()
+            for kind, item in re.findall(r"<(Version|DeleteMarker)>(.*?)</\1>", text, re.S):
+                field = {t: html.unescape(m.group(1)) for t in ("Key", "VersionId", "IsLatest", "LastModified", "ETag")
+                         if (m := re.search(rf"<{t}>(.*?)</{t}>", item, re.S))}
+                if field.get("Key", "").startswith(self.prefix):
+                    yield {"key": field["Key"][len(self.prefix):], "version_id": field.get("VersionId", "null"),
+                           "latest": field.get("IsLatest") == "true", "deleted": kind == "DeleteMarker",
+                           "modified": field.get("LastModified", ""), "etag": field.get("ETag", "").strip('"')}
+            if "<IsTruncated>true</IsTruncated>" not in text:
+                return
+            nk, nv = (re.search(rf"<{t}>(.*?)</{t}>", text, re.S) for t in ("NextKeyMarker", "NextVersionIdMarker"))
+            markers = {"key-marker": html.unescape(nk.group(1))}
+            if nv:
+                markers["version-id-marker"] = html.unescape(nv.group(1))
+
+    def restore_version(self, key: str, version_id: str) -> None:
+        """Makes a kept version the current one again: the store copies it onto its own key (no bytes travel)."""
+        source = quote(f"/{self.bucket}/{self.prefix}{key}", safe="/-_.~") + "?versionId=" + quote(version_id, safe="")
+        headers = {"x-amz-copy-source": source, "x-amz-server-side-encryption": self.sse}
+        if self.sse == "aws:kms" and self.kms_key_id:
+            headers["x-amz-server-side-encryption-aws-kms-key-id"] = self.kms_key_id
+        status, _, body = self._request("PUT", key, b"", headers)
+        if status != 200 or b"<Error>" in body:
+            raise RuntimeError(f"FILE_STORE_REFUSED: restoring {key} to version {version_id} answered {status}: "
+                               f"{body[:200].decode(errors='replace')}")
 
     def listing(self) -> Iterator[tuple[str, datetime]]:
         """Every object under the prefix with its last modification time (ListObjectsV2, a thousand at a time). The

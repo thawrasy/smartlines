@@ -9,7 +9,8 @@
 #                URLs compose writes already hold them), the backup and pgBackRest settings. On a production server
 #                also no data key: the API and the worker open wrapped keys with the key service (MASSLAK_KMS_PROVIDER)
 #   migrate      everything but the backup and pgBackRest settings (it builds the schema as the owner and wraps the data
-#                keys with the key service the first time)
+#                keys with the key service the first time); of the backup settings only how long backups are kept, which
+#                its preflight compares with the file bucket's lock (H-04)
 #   db           the owner's login and pgBackRest's repository (production profile)
 # Empty values are left out, so a setting someone blanked is unset rather than empty.
 set -euo pipefail
@@ -38,6 +39,6 @@ runtime() {
 }
 write app runtime
 write worker runtime
-write migrate sh -c "grep -E '^[A-Z][A-Z0-9_]*=.' .env | grep -Ev '$infra' || true"
+write migrate sh -c "grep -E '^[A-Z][A-Z0-9_]*=.' .env | grep -Ev '$infra'; grep -E '^MASSLAK_BACKUP_KEEP_DAYS=.' .env; true"
 write db sh -c "grep -E '^(POSTGRES_DB|POSTGRES_USER|POSTGRES_PASSWORD|PGBACKREST_[A-Z0-9_]*|MASSLAK_WAREHOUSE_ADDRESS)=.' .env || true"
 echo "wrote deploy/env/{app,worker,migrate,db}.env from deploy/.env$([ "$production" = true ] && echo ' (production: no data keys for the API and the worker)')"
