@@ -277,7 +277,7 @@ def validate_semantics(tables):
                 if cc not in names: errs.append(f'{where}: column {cc} not in {t.fq}')
         for expr, where in t.checks:
             for ident in re.findall(r'\b[A-Za-z_]\w*\b', re.sub(r"'[^']*'", '', expr)):
-                if ident.upper() in ('AND','OR','NOT','IS','NULL','IN','LIKE','BETWEEN','CASE','WHEN','THEN','ELSE','END','LEN','ABS','LOWER','UPPER','LTRIM','RTRIM','DATEADD','DAY','MONTH','YEAR'): continue
+                if ident.upper() in ('AND','OR','NOT','IS','NULL','IN','LIKE','BETWEEN','CASE','WHEN','THEN','ELSE','END','LEN','DATALENGTH','ABS','LOWER','UPPER','LTRIM','RTRIM','DATEADD','DAY','MONTH','YEAR'): continue
                 if ident not in names: errs.append(f'{where}: check refers to unknown identifier {ident} in {t.fq}')
         if t.has_surrogate and not t.tenant_scoped and t.is_mixed: errs.append(f'{t.fq}: mixed tables are tenant-scoped')
     return errs
@@ -518,7 +518,7 @@ class Emitter:
 
 def pg_expr(e):
     """quote bare identifiers (PascalCase column names) for PostgreSQL"""
-    funcs = {'LEN': 'length', 'ABS': 'abs', 'LOWER': 'lower', 'UPPER': 'upper', 'LTRIM': 'ltrim', 'RTRIM': 'rtrim'}
+    funcs = {'LEN': 'length', 'DATALENGTH': 'octet_length', 'ABS': 'abs', 'LOWER': 'lower', 'UPPER': 'upper', 'LTRIM': 'ltrim', 'RTRIM': 'rtrim'}
     kw = {'AND','OR','NOT','IS','NULL','IN','LIKE','BETWEEN','CASE','WHEN','THEN','ELSE','END','TRUE','FALSE'}
     def sub(m):
         w = m.group(0)
@@ -650,6 +650,26 @@ def main():
     w('tsql/004_rls_tables.sql', hdr + "/* قائمة الجداول الخاضعة لعزل الصفوف (يولّدها النموذج)؛ يستهلكها 004_rls.sql */\nIF OBJECT_ID(N'tempdb..#rls_tables') IS NOT NULL DROP TABLE #rls_tables;\nCREATE TABLE #rls_tables (SchemaName sysname NOT NULL, TableName sysname NOT NULL, IsMixed bit NOT NULL);\n" + ''.join(f"INSERT #rls_tables VALUES (N'{a_}', N'{b_}', {c_});\n" for a_, b_, c_ in rls_rows) + 'GO\n')
     append_only = [(t.schema, t.name) for t in tables.values() if 'append' in t.flags and t.schema != 'aud']   # aud.* يكفيه منح SELECT, INSERT على المخطط
     w('tsql/005_delete_grants.sql', hdr + "/* (1) الجداول المسموح للتطبيق بالحذف الفعلي منها (علامة deletable في النموذج)؛ بقية الجداول بلا صلاحية حذف أصلًا.\n   (2) جداول الإضافة فقط (append) خارج aud: DENY UPDATE على التطبيق والمنصة فيصير «للإضافة فقط» مفروضًا بالصلاحيات لا بالعُرف. */\n" + ''.join(f"GRANT DELETE ON [{a_}].[{b_}] TO [tp_app];\n" for a_, b_ in deletable) + ''.join(f"DENY UPDATE ON [{a_}].[{b_}] TO [tp_app], [tp_platform];\n" for a_, b_ in append_only) + 'GO\n')
+    # صلاحيات الجداول (007): منح صريح لكل جدول، لا منح على مستوى المخطط. القواعد:
+    #  - مملوك للمشترك: tp_app = SELECT, INSERT, UPDATE؛ tp_platform بلا وصول مباشر (عمليات المنصة عبر إجراءات مُراجَعة)
+    #  - مختلط: tp_app = SELECT, INSERT, UPDATE (RLS يقصر الكتابة على صفوف المشترك)؛ tp_platform = SELECT, INSERT, UPDATE
+    #  - عالمي: tp_app = SELECT فقط؛ tp_platform = SELECT, INSERT, UPDATE (إدارة الكتالوجات العالمية)
+    #  - للإضافة فقط (append): بلا UPDATE لأي دور (وتُفرض أيضًا بـ DENY في 005)
+    #  - noapp: بلا منح لتطبيق المشترك أبدًا (يُقرأ عبر عرض مُحدَّد إن لزم)
+    grant_lines = []
+    for t in tables.values():
+        obj = f'[{t.schema}].[{t.name}]'
+        if 'noapp' in t.flags: app = None
+        elif t.is_global and not t.is_mixed: app = 'SELECT'
+        elif 'append' in t.flags: app = 'SELECT, INSERT'
+        else: app = 'SELECT, INSERT, UPDATE'
+        plat = None
+        if t.is_global or t.is_mixed:
+            plat = 'SELECT, INSERT' if 'append' in t.flags else 'SELECT, INSERT, UPDATE'
+        grant_lines.append(f'-- {t.fq}' + ('  (noapp: بلا منح لتطبيق المشترك)' if app is None else ''))
+        if app: grant_lines.append(f'GRANT {app} ON {obj} TO [tp_app];')
+        if plat: grant_lines.append(f'GRANT {plat} ON {obj} TO [tp_platform];')
+    w('tsql/007_table_grants.sql', hdr + "/* صلاحيات الجداول الصريحة (يولّدها النموذج). القواعد في tools/dbgen/dbgen.py عند الحلقة grant_lines. */\n" + '\n'.join(grant_lines) + '\nGO\n')
     sens_rows = [(t.schema, t.name, c.name, c.sens) for t in tables.values() for c in t.cols if c.sens == 'restricted']
     w('tsql/006_sensitive_columns.sql', hdr + "/* حجب الأعمدة الحساسة (sens في النموذج) عن دور القراءة/التقارير tp_readonly؛ تقرؤها طبقة التطبيق عبر tp_app فقط */\n" + ''.join(f"DENY SELECT ON [{a_}].[{b_}]([{c_}]) TO [tp_readonly]; -- {d_}\n" for a_, b_, c_, d_ in sens_rows) + 'GO\n')
     if a.docs:

@@ -254,7 +254,7 @@ table wfl.Request public  # الطلب: أكثر الجداول ازدحامًا
   CreatedByUserId          ->sec.AppUser noidx req   # المنشئ قد يختلف عن الطالب (BR-REQ-002)
   SubmittedByUserId        ->sec.AppUser noidx  # مقدِّم الطلب: يحدد اكتمال خانة ORIGINATOR (BR-WFL-004، Q-WFL-03)
   Title                    str(200)
-  Status                   enum{DRAFT,ACTIVE,COMPLETED,REJECTED,CANCELLED} req =DRAFT   # §8
+  Status                   enum{DRAFT,ACTIVE,AWAITING_CLOSE,COMPLETED,REJECTED,CANCELLED} req =DRAFT   # §8؛ AWAITING_CLOSE: انتهت المراحل بنجاح وتنتظر إقفال إدارة الخزينة؛ COMPLETED لا يُبلَغ إلا بإقفالها (BR-WFL-027)
   CurrentStageId           ->wfl.WorkflowStage via=TemplateId noidx   # إضافة: المرحلة الحالية مخبأة للفهارس ولوحات الطابور؛ تتبع القالب الملتقَط نفسه
   CurrentStageInstanceId   ->wfl.RequestStageInstance noidx   # مثيل المرحلة الحالي؛ يتبع الطلب نفسه (يتحقق منه التطبيق)
   ExternalPhaseId          ->wfl.ExternalPhase noidx req   # المرحلة الظاهرة للطالب (BR-WFL-011)
@@ -270,6 +270,9 @@ table wfl.Request public  # الطلب: أكثر الجداول ازدحامًا
   CycleNo                  int        req =1   # يزيد عند إعادة التقديم بعد إرجاع للطالب (FR-WFL-011)
   SubmittedAt              ts
   CompletedAt              ts               # وقت الانتهاء لأي نتيجة نهائية: إكمال أو رفض أو إلغاء
+  ReadyToCloseAt           ts               # وقت انتهاء المرحلة الأخيرة الناجحة (دخول AWAITING_CLOSE؛ BR-WFL-027)
+  ClosedByUserId           ->sec.AppUser noidx   # مدير الخزينة الذي أقفل الدورة؛ إلزامي عند COMPLETED (BR-WFL-027، صلاحية req.treasury.close)
+  ClosedAt                 ts               # وقت الإقفال؛ يساوي CompletedAt عند COMPLETED
   OutcomeReason            str(500)         # سبب الرفض/الإلغاء الظاهر عند الانتهاء؛ الأصل في RequestAction (FR-WFL-012)
   Amount                   money            # الأنواع التعديلية: فرق Delta موقَّع قد يكون سالبًا (BR-REQ-008)
   CurrencyId               ->ref.Currency noidx   # عملة المبلغ (مواصفة: CurrencyCode)؛ هي عملة الحجز أيضًا (Q-REQ-06)
@@ -311,12 +314,16 @@ table wfl.Request public  # الطلب: أكثر الجداول ازدحامًا
   index SubmittedAt include RequestTypeId,CompletedAt where SubmittedAt IS NOT NULL   # أزمنة الدورة R-WFL-03
   check (RequestNo IS NULL AND NumberYear IS NULL AND NumberSeq IS NULL) OR (RequestNo IS NOT NULL AND NumberYear IS NOT NULL AND NumberSeq IS NOT NULL)
   check DraftRef LIKE 'D-%'
-  check Status NOT IN ('ACTIVE','COMPLETED','REJECTED') OR SubmittedAt IS NOT NULL   # المسودة المُلغاة قد لا تُقدَّم
-  check (Status IN ('DRAFT','ACTIVE') AND CompletedAt IS NULL) OR (Status IN ('COMPLETED','REJECTED','CANCELLED') AND CompletedAt IS NOT NULL)
+  check Status NOT IN ('ACTIVE','AWAITING_CLOSE','COMPLETED','REJECTED') OR SubmittedAt IS NOT NULL   # المسودة المُلغاة قد لا تُقدَّم
+  check (Status IN ('DRAFT','ACTIVE','AWAITING_CLOSE') AND CompletedAt IS NULL) OR (Status IN ('COMPLETED','REJECTED','CANCELLED') AND CompletedAt IS NOT NULL)
   check CompletedAt IS NULL OR SubmittedAt IS NULL OR CompletedAt >= SubmittedAt
   check Status <> 'ACTIVE' OR (CurrentStageInstanceId IS NOT NULL AND CurrentStageId IS NOT NULL)
   check Status <> 'COMPLETED' OR RequestNo IS NOT NULL   # الإكمال بعد مرحلة الترقيم؛ المرفوض قبلها لا يستهلك رقمًا
   check ArchivedAt IS NULL OR Status = 'DRAFT'
+  check Status <> 'AWAITING_CLOSE' OR (ReadyToCloseAt IS NOT NULL AND CurrentStageInstanceId IS NOT NULL)   # BR-WFL-027
+  check ReadyToCloseAt IS NULL OR Status IN ('AWAITING_CLOSE','COMPLETED')
+  check Status <> 'COMPLETED' OR (ClosedByUserId IS NOT NULL AND ClosedAt IS NOT NULL AND ClosedAt = CompletedAt)   # لا إكمال بلا إقفال من الخزينة
+  check ClosedByUserId IS NULL OR Status = 'COMPLETED'
   check Priority <> 'URGENT' OR UrgentReason IS NOT NULL   # العاجل يتطلب سببًا (BR-REQ-011، V-REQ-06)
   check CycleNo >= 1
   check Amount IS NULL OR CurrencyId IS NOT NULL   # AMOUNT بلا عملة مرفوض (V-REQ-02)
@@ -448,7 +455,7 @@ table wfl.RequestAction append  # سجل إجراءات للإضافة فقط ي
   RequestId         ->wfl.Request req
   StageInstanceId   ->wfl.RequestStageInstance via=RequestId
   CycleNo           int
-  ActionType        enum{CREATED,SUBMITTED,RESUBMITTED,NUMBER_ASSIGNED,FIELD_EDITED,APPROVED,RETURNED,REJECTED,CANCELLED,STAGE_CHANGED,SUBSTATUS_CHANGED,CLAIMED,RELEASED,REASSIGNED,COMMENT_ADDED,ATTACHMENT_ADDED,ATTACHMENT_REMOVED,EXTREF_ADDED,EXTREF_CHANGED,HOOK_EXECUTED,HOOK_FAILED,SLA_AT_RISK,SLA_BREACHED,ESCALATED,DELEGATED_ACTION,CHILD_CREATED,PRIORITY_CHANGED,TEMPLATE_MIGRATED,RESERVATION_LOST,DRAFT_ARCHIVED,DRAFT_RESTORED,CHANNEL_CHANGED,SOD_EXCEPTION_USED,DELEGATION_CREATED,DELEGATION_REVOKED} req
+  ActionType        enum{CREATED,SUBMITTED,RESUBMITTED,NUMBER_ASSIGNED,FIELD_EDITED,APPROVED,RETURNED,REJECTED,CANCELLED,STAGE_CHANGED,SUBSTATUS_CHANGED,CLAIMED,RELEASED,REASSIGNED,COMMENT_ADDED,ATTACHMENT_ADDED,ATTACHMENT_REMOVED,EXTREF_ADDED,EXTREF_CHANGED,HOOK_EXECUTED,HOOK_FAILED,SLA_AT_RISK,SLA_BREACHED,ESCALATED,DELEGATED_ACTION,CHILD_CREATED,PRIORITY_CHANGED,TEMPLATE_MIGRATED,RESERVATION_LOST,DRAFT_ARCHIVED,DRAFT_RESTORED,CHANNEL_CHANGED,SOD_EXCEPTION_USED,DELEGATION_CREATED,DELEGATION_REVOKED,READY_TO_CLOSE,CLOSED} req
   FromStageKey      ascii(40)
   ToStageKey        ascii(40)
   ActorType         enum{USER,SYSTEM,SERVICE} req =USER   # SYSTEM للمهام (JOB-WFL-ASSIGN) وSERVICE لمحوّلات الربط (§11)

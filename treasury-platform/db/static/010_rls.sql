@@ -2,12 +2,15 @@
    BankFas - 010: عزل الصفوف بين المشتركين (Row-Level Security)
    يُنفَّذ بعد 000..005 المولَّدة، وفي الجلسة نفسها التي أنشأت #rls_tables (انظر deploy.sql).
    المبدأ: كل جدول مملوك للمشترك يُرشَّح بـ TenantId = SESSION_CONTEXT('TenantId').
-           أعضاء دور tp_platform (المشغّل) يتجاوزون العزل لأعمال المنصة فقط.
+           أعضاء دور tp_platform (المشغّل) يتجاوزون العزل لأعمال المنصة فقط، والدور tp_auth يتجاوزه
+           داخل sec.usp_SetSessionContext فقط لفحص عضوية المستخدم قبل ضبط السياق (030).
    ============================================================================ */
 SET NOCOUNT ON;
 SET ANSI_NULLS ON; SET QUOTED_IDENTIFIER ON; SET ANSI_PADDING ON; SET ANSI_WARNINGS ON; SET ARITHABORT ON; SET CONCAT_NULL_YIELDS_NULL ON; SET NUMERIC_ROUNDABORT OFF;  -- سياسات RLS والإجراءات تحفظ هذه الخيارات عند الإنشاء
 GO
 IF SCHEMA_ID(N'rls') IS NULL EXEC(N'CREATE SCHEMA [rls] AUTHORIZATION dbo;');
+GO
+GRANT SELECT ON SCHEMA::[rls] TO [tp_app];   -- دوال السياسات: يحتاجها محرك الاستعلام في سياق المستخدم (بعد إنشاء المخطط)
 GO
 -- جداول المشترك العادية: لا ترى إلا صفوف مشتركها
 CREATE OR ALTER FUNCTION rls.fn_TenantAccess (@TenantId INT)
@@ -15,7 +18,7 @@ RETURNS TABLE WITH SCHEMABINDING
 AS RETURN
     SELECT 1 AS AccessOk
     WHERE @TenantId = CAST(SESSION_CONTEXT(N'TenantId') AS INT)
-       OR IS_MEMBER(N'tp_platform') = 1;
+       OR IS_MEMBER(N'tp_platform') = 1 OR IS_MEMBER(N'tp_auth') = 1;
 GO
 -- الجداول المختلطة النطاق: القراءة لصفوف المنصة (TenantId NULL) وصفوف المشترك
 CREATE OR ALTER FUNCTION rls.fn_MixedRead (@TenantId INT)
@@ -24,7 +27,7 @@ AS RETURN
     SELECT 1 AS AccessOk
     WHERE @TenantId IS NULL
        OR @TenantId = CAST(SESSION_CONTEXT(N'TenantId') AS INT)
-       OR IS_MEMBER(N'tp_platform') = 1;
+       OR IS_MEMBER(N'tp_platform') = 1 OR IS_MEMBER(N'tp_auth') = 1;
 GO
 -- ... أما الكتابة فلصفوف المشترك نفسه فقط؛ صفوف المنصة لأعضاء tp_platform
 CREATE OR ALTER FUNCTION rls.fn_MixedWrite (@TenantId INT)
@@ -32,7 +35,7 @@ RETURNS TABLE WITH SCHEMABINDING
 AS RETURN
     SELECT 1 AS AccessOk
     WHERE (@TenantId IS NOT NULL AND @TenantId = CAST(SESSION_CONTEXT(N'TenantId') AS INT))
-       OR IS_MEMBER(N'tp_platform') = 1;
+       OR IS_MEMBER(N'tp_platform') = 1 OR IS_MEMBER(N'tp_auth') = 1;
 GO
 -- سجل التدقيق aud.AuditLog: سياسة خاصة (BR-PLT-001/009)
 --   القراءة: المشترك يرى صفوفه فقط؛ صفوف TenantId = NULL (أحداث المنصة) لأعضاء tp_platform فقط.
@@ -42,7 +45,7 @@ RETURNS TABLE WITH SCHEMABINDING
 AS RETURN
     SELECT 1 AS AccessOk
     WHERE (@TenantId IS NOT NULL AND @TenantId = CAST(SESSION_CONTEXT(N'TenantId') AS INT))
-       OR IS_MEMBER(N'tp_platform') = 1;
+       OR IS_MEMBER(N'tp_platform') = 1 OR IS_MEMBER(N'tp_auth') = 1;
 GO
 CREATE OR ALTER FUNCTION rls.fn_AuditWrite (@TenantId INT)
 RETURNS TABLE WITH SCHEMABINDING
@@ -50,7 +53,7 @@ AS RETURN
     SELECT 1 AS AccessOk
     WHERE @TenantId IS NULL
        OR @TenantId = CAST(SESSION_CONTEXT(N'TenantId') AS INT)
-       OR IS_MEMBER(N'tp_platform') = 1;
+       OR IS_MEMBER(N'tp_platform') = 1 OR IS_MEMBER(N'tp_auth') = 1;
 GO
 IF EXISTS (SELECT 1 FROM sys.security_policies sp WHERE sp.name = N'TP_aud_AuditLog' AND sp.schema_id = SCHEMA_ID(N'rls'))
     DROP SECURITY POLICY rls.[TP_aud_AuditLog];

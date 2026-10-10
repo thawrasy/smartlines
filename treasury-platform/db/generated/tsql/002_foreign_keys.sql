@@ -15,6 +15,7 @@ ALTER TABLE [plat].[SupportAccessGrant] ADD CONSTRAINT [FK_SupportAccessGrant_Re
 ALTER TABLE [sec].[AppUser] ADD CONSTRAINT [FK_AppUser_Tenant] FOREIGN KEY ([TenantId]) REFERENCES [plat].[Tenant] ([TenantId]);
 ALTER TABLE [sec].[AppUser] ADD CONSTRAINT [FK_AppUser_DepartmentId] FOREIGN KEY ([TenantId], [DepartmentId]) REFERENCES [org].[Department] ([TenantId], [DepartmentId]);
 ALTER TABLE [sec].[AppUser] ADD CONSTRAINT [FK_AppUser_LineManagerUserId] FOREIGN KEY ([TenantId], [LineManagerUserId]) REFERENCES [sec].[AppUser] ([TenantId], [AppUserId]);
+ALTER TABLE [sec].[AppUser] ADD CONSTRAINT [FK_AppUser_MfaKeyId] FOREIGN KEY ([TenantId], [MfaKeyId]) REFERENCES [sec].[TenantKey] ([TenantId], [TenantKeyId]);
 ALTER TABLE [sec].[Role] ADD CONSTRAINT [FK_Role_Tenant] FOREIGN KEY ([TenantId]) REFERENCES [plat].[Tenant] ([TenantId]);
 ALTER TABLE [sec].[RolePermission] ADD CONSTRAINT [FK_RolePermission_Tenant] FOREIGN KEY ([TenantId]) REFERENCES [plat].[Tenant] ([TenantId]);
 ALTER TABLE [sec].[RolePermission] ADD CONSTRAINT [FK_RolePermission_RoleId] FOREIGN KEY ([TenantId], [RoleId]) REFERENCES [sec].[Role] ([TenantId], [RoleId]);
@@ -150,6 +151,8 @@ ALTER TABLE [pty].[Party] ADD CONSTRAINT [FK_Party_MergedIntoPartyId] FOREIGN KE
 ALTER TABLE [pty].[IdentityDocument] ADD CONSTRAINT [FK_IdentityDocument_Tenant] FOREIGN KEY ([TenantId]) REFERENCES [plat].[Tenant] ([TenantId]);
 ALTER TABLE [pty].[IdentityDocument] ADD CONSTRAINT [FK_IdentityDocument_PartyId] FOREIGN KEY ([TenantId], [PartyId]) REFERENCES [pty].[Party] ([TenantId], [PartyId]);
 ALTER TABLE [pty].[IdentityDocument] ADD CONSTRAINT [FK_IdentityDocument_IssuingCountryId] FOREIGN KEY ([IssuingCountryId]) REFERENCES [ref].[Country] ([CountryId]);
+ALTER TABLE [pty].[IdentityDocument] ADD CONSTRAINT [FK_IdentityDocument_EncKeyId] FOREIGN KEY ([TenantId], [EncKeyId]) REFERENCES [sec].[TenantKey] ([TenantId], [TenantKeyId]);
+ALTER TABLE [pty].[IdentityDocument] ADD CONSTRAINT [FK_IdentityDocument_HashKeyId] FOREIGN KEY ([TenantId], [HashKeyId]) REFERENCES [sec].[TenantKey] ([TenantId], [TenantKeyId]);
 ALTER TABLE [pty].[IdentityDocument] ADD CONSTRAINT [FK_IdentityDocument_SupersededById] FOREIGN KEY ([TenantId], [SupersededById]) REFERENCES [pty].[IdentityDocument] ([TenantId], [IdentityDocumentId]);
 ALTER TABLE [pty].[IdentityDocument] ADD CONSTRAINT [FK_IdentityDocument_VerifiedBy] FOREIGN KEY ([TenantId], [VerifiedBy]) REFERENCES [sec].[AppUser] ([TenantId], [AppUserId]);
 ALTER TABLE [pty].[Address] ADD CONSTRAINT [FK_Address_Tenant] FOREIGN KEY ([TenantId]) REFERENCES [plat].[Tenant] ([TenantId]);
@@ -160,6 +163,7 @@ ALTER TABLE [pty].[CustomFieldDefinition] ADD CONSTRAINT [FK_CustomFieldDefiniti
 ALTER TABLE [pty].[PartyCustomField] ADD CONSTRAINT [FK_PartyCustomField_Tenant] FOREIGN KEY ([TenantId]) REFERENCES [plat].[Tenant] ([TenantId]);
 ALTER TABLE [pty].[PartyCustomField] ADD CONSTRAINT [FK_PartyCustomField_PartyId] FOREIGN KEY ([TenantId], [PartyId]) REFERENCES [pty].[Party] ([TenantId], [PartyId]);
 ALTER TABLE [pty].[PartyCustomField] ADD CONSTRAINT [FK_PartyCustomField_DefinitionId] FOREIGN KEY ([TenantId], [DefinitionId]) REFERENCES [pty].[CustomFieldDefinition] ([TenantId], [CustomFieldDefinitionId]);
+ALTER TABLE [pty].[PartyCustomField] ADD CONSTRAINT [FK_PartyCustomField_EncKeyId] FOREIGN KEY ([TenantId], [EncKeyId]) REFERENCES [sec].[TenantKey] ([TenantId], [TenantKeyId]);
 ALTER TABLE [pty].[PartyCustomField] ADD CONSTRAINT [FK_PartyCustomField_CurrencyId] FOREIGN KEY ([CurrencyId]) REFERENCES [ref].[Currency] ([CurrencyId]);
 ALTER TABLE [pty].[KycProfile] ADD CONSTRAINT [FK_KycProfile_Tenant] FOREIGN KEY ([TenantId]) REFERENCES [plat].[Tenant] ([TenantId]);
 ALTER TABLE [pty].[KycProfile] ADD CONSTRAINT [FK_KycProfile_InstitutionId] FOREIGN KEY ([TenantId], [InstitutionId]) REFERENCES [ins].[Institution] ([TenantId], [InstitutionId]);
@@ -259,6 +263,8 @@ ALTER TABLE [acc].[BankAccount] ADD CONSTRAINT [FK_BankAccount_RelationshipId] F
 ALTER TABLE [acc].[BankAccount] ADD CONSTRAINT [FK_BankAccount_AccountTypeId] FOREIGN KEY ([TenantId], [AccountTypeId]) REFERENCES [cat].[AccountType] ([TenantId], [AccountTypeId]);
 ALTER TABLE [acc].[BankAccount] ADD CONSTRAINT [FK_BankAccount_MasterAccountId] FOREIGN KEY ([TenantId], [CompanyId], [InstitutionId], [CurrencyId], [MasterAccountId]) REFERENCES [acc].[BankAccount] ([TenantId], [CompanyId], [InstitutionId], [CurrencyId], [BankAccountId]);
 ALTER TABLE [acc].[BankAccount] ADD CONSTRAINT [FK_BankAccount_CurrencyId] FOREIGN KEY ([CurrencyId]) REFERENCES [ref].[Currency] ([CurrencyId]);
+ALTER TABLE [acc].[BankAccount] ADD CONSTRAINT [FK_BankAccount_EncKeyId] FOREIGN KEY ([TenantId], [EncKeyId]) REFERENCES [sec].[TenantKey] ([TenantId], [TenantKeyId]);
+ALTER TABLE [acc].[BankAccount] ADD CONSTRAINT [FK_BankAccount_HashKeyId] FOREIGN KEY ([TenantId], [HashKeyId]) REFERENCES [sec].[TenantKey] ([TenantId], [TenantKeyId]);
 ALTER TABLE [acc].[BankAccount] ADD CONSTRAINT [FK_BankAccount_BranchUnitId] FOREIGN KEY ([TenantId], [InstitutionId], [BranchUnitId]) REFERENCES [ins].[InstitutionUnit] ([TenantId], [InstitutionId], [InstitutionUnitId]);
 ALTER TABLE [acc].[FacilityAccount] ADD CONSTRAINT [FK_FacilityAccount_Tenant] FOREIGN KEY ([TenantId]) REFERENCES [plat].[Tenant] ([TenantId]);
 ALTER TABLE [acc].[FacilityAccount] ADD CONSTRAINT [FK_FacilityAccount_FacilityId] FOREIGN KEY ([TenantId], [FacilityId]) REFERENCES [fac].[Facility] ([TenantId], [FacilityId]);
@@ -573,6 +579,7 @@ ALTER TABLE [wfl].[Request] ADD CONSTRAINT [FK_Request_CurrentStageId] FOREIGN K
 ALTER TABLE [wfl].[Request] ADD CONSTRAINT [FK_Request_CurrentStageInstanceId] FOREIGN KEY ([TenantId], [CurrentStageInstanceId]) REFERENCES [wfl].[RequestStageInstance] ([TenantId], [RequestStageInstanceId]);
 ALTER TABLE [wfl].[Request] ADD CONSTRAINT [FK_Request_ExternalPhaseId] FOREIGN KEY ([TenantId], [ExternalPhaseId]) REFERENCES [wfl].[ExternalPhase] ([TenantId], [ExternalPhaseId]);
 ALTER TABLE [wfl].[Request] ADD CONSTRAINT [FK_Request_AssigneeUserId] FOREIGN KEY ([TenantId], [AssigneeUserId]) REFERENCES [sec].[AppUser] ([TenantId], [AppUserId]);
+ALTER TABLE [wfl].[Request] ADD CONSTRAINT [FK_Request_ClosedByUserId] FOREIGN KEY ([TenantId], [ClosedByUserId]) REFERENCES [sec].[AppUser] ([TenantId], [AppUserId]);
 ALTER TABLE [wfl].[Request] ADD CONSTRAINT [FK_Request_CurrencyId] FOREIGN KEY ([CurrencyId]) REFERENCES [ref].[Currency] ([CurrencyId]);
 ALTER TABLE [wfl].[Request] ADD CONSTRAINT [FK_Request_ProductId] FOREIGN KEY ([TenantId], [ProductId]) REFERENCES [cat].[Product] ([TenantId], [ProductId]);
 ALTER TABLE [wfl].[Request] ADD CONSTRAINT [FK_Request_ParentRequestId] FOREIGN KEY ([TenantId], [ParentRequestId]) REFERENCES [wfl].[Request] ([TenantId], [RequestId]);
@@ -662,6 +669,8 @@ ALTER TABLE [lc].[LcTerms] ADD CONSTRAINT [FK_LcTerms_ApplicantCompanyId] FOREIG
 ALTER TABLE [lc].[LcTerms] ADD CONSTRAINT [FK_LcTerms_ApplicantCounterpartyId] FOREIGN KEY ([TenantId], [ApplicantCounterpartyId]) REFERENCES [lc].[Counterparty] ([TenantId], [CounterpartyId]);
 ALTER TABLE [lc].[LcTerms] ADD CONSTRAINT [FK_LcTerms_BeneficiaryCompanyId] FOREIGN KEY ([TenantId], [BeneficiaryCompanyId]) REFERENCES [org].[Company] ([TenantId], [CompanyId]);
 ALTER TABLE [lc].[LcTerms] ADD CONSTRAINT [FK_LcTerms_BeneficiaryCounterpartyId] FOREIGN KEY ([TenantId], [BeneficiaryCounterpartyId]) REFERENCES [lc].[Counterparty] ([TenantId], [CounterpartyId]);
+ALTER TABLE [lc].[LcTerms] ADD CONSTRAINT [FK_LcTerms_EncKeyId] FOREIGN KEY ([TenantId], [EncKeyId]) REFERENCES [sec].[TenantKey] ([TenantId], [TenantKeyId]);
+ALTER TABLE [lc].[LcTerms] ADD CONSTRAINT [FK_LcTerms_HashKeyId] FOREIGN KEY ([TenantId], [HashKeyId]) REFERENCES [sec].[TenantKey] ([TenantId], [TenantKeyId]);
 ALTER TABLE [lc].[LcTerms] ADD CONSTRAINT [FK_LcTerms_CurrencyId] FOREIGN KEY ([CurrencyId]) REFERENCES [ref].[Currency] ([CurrencyId]);
 ALTER TABLE [lc].[LcTerms] ADD CONSTRAINT [FK_LcTerms_IncotermId] FOREIGN KEY ([IncotermId]) REFERENCES [ref].[Incoterm] ([IncotermId]);
 ALTER TABLE [lc].[LcTerms] ADD CONSTRAINT [FK_LcTerms_FacilityAccountId] FOREIGN KEY ([TenantId], [FacilityAccountId]) REFERENCES [acc].[BankAccount] ([TenantId], [BankAccountId]);

@@ -186,6 +186,8 @@ table lc.LcTerms public  # إصدار شروط اعتماد: صف لكل نسخ�
   BeneficiaryAccountIbanEnc    bin(512)   sens=restricted   # B3: IBAN المستفيد مشفّر (FR-REQ-024؛ 02 B9 🔴)
   BeneficiaryAccountIbanMask   str(40)    sens=restricted
   BeneficiaryAccountIbanHash   bin(32)    sens=restricted
+  EncKeyId                     ->sec.TenantKey noidx   # مفتاح DATA لـIBAN المستفيد (إصدار صريح)
+  HashKeyId                    ->sec.TenantKey noidx   # مفتاح BLIND_INDEX لبصمة IBAN المستفيد
   AdvisingBankName             str(200)         # B4 (د عدا PF)
   AdvisingBankAddress          str(300)
   AdvisingBankBic              ascii(11)
@@ -281,6 +283,7 @@ table lc.LcTerms public  # إصدار شروط اعتماد: صف لكل نسخ�
   check  Status = 'DRAFT' OR ConfirmingBankBic IS NULL OR ((ConfirmingBankBic LIKE '________' OR ConfirmingBankBic LIKE '___________') AND ConfirmingBankBic NOT LIKE '%[^A-Z0-9]%')   # V-LCT-20
   check  Status = 'DRAFT' OR AdvisingBankBic IS NULL OR ((AdvisingBankBic LIKE '________' OR AdvisingBankBic LIKE '___________') AND AdvisingBankBic NOT LIKE '%[^A-Z0-9]%')   # V-LCT-20
   check  (BeneficiaryAccountIbanEnc IS NULL AND BeneficiaryAccountIbanMask IS NULL AND BeneficiaryAccountIbanHash IS NULL) OR (BeneficiaryAccountIbanEnc IS NOT NULL AND BeneficiaryAccountIbanMask IS NOT NULL AND BeneficiaryAccountIbanHash IS NOT NULL)   # IBAN مشفّر بالكامل أو غائب
+  check  BeneficiaryAccountIbanEnc IS NULL OR (EncKeyId IS NOT NULL AND HashKeyId IS NOT NULL AND DATALENGTH(BeneficiaryAccountIbanEnc) >= 29)   # الغلاف والمفاتيح (06 §6)
   check  LcClass = 'SALES' OR (ApplicantCounterpartyId IS NULL AND BeneficiaryCompanyId IS NULL)   # المشتريات: الطالب شركة والمستفيد طرف مقابل (B1/B2)
   check  LcClass = 'PURCHASE' OR (ApplicantCompanyId IS NULL AND BeneficiaryCounterpartyId IS NULL)   # المبيعات: الطالب عميل والمستفيد شركة
   check  Status = 'DRAFT' OR (LcClass = 'PURCHASE' AND ApplicantCompanyId IS NOT NULL AND BeneficiaryCounterpartyId IS NOT NULL) OR (LcClass = 'SALES' AND ApplicantCounterpartyId IS NOT NULL AND BeneficiaryCompanyId IS NOT NULL)   # B1/B2 م

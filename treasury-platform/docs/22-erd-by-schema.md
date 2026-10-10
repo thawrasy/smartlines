@@ -38,6 +38,7 @@ erDiagram
   Permission ||--o{ RolePermission : "PermissionId"
   Role ||--o{ RolePermission : "RoleId"
   Role ||--o{ UserRole : "RoleId"
+  TenantKey ||--o{ AppUser : "MfaKeyId"
   TenantKey ||--o{ KeyEvent : "TenantKeyId"
 ```
 
@@ -173,6 +174,8 @@ erDiagram
 |---|---|---|
 | Address | CountryId | ref.Country |
 | CustomFieldDefinition | InstitutionId | ins.Institution |
+| IdentityDocument | EncKeyId | sec.TenantKey |
+| IdentityDocument | HashKeyId | sec.TenantKey |
 | IdentityDocument | IssuingCountryId | ref.Country |
 | IdentityDocument | VerifiedBy | sec.AppUser |
 | KycProfile | InstitutionId | ins.Institution |
@@ -185,6 +188,7 @@ erDiagram
 | PartyCompliance | CompanyId | org.Company |
 | PartyCompliance | SourceDocumentId | doc.Document |
 | PartyCustomField | CurrencyId | ref.Currency |
+| PartyCustomField | EncKeyId | sec.TenantKey |
 | TaxIdentity | CountryId | ref.Country |
 | TaxIdentity | CrsClassificationId | cat.LookupItem |
 | TaxIdentity | FatcaClassificationId | cat.LookupItem |
@@ -285,6 +289,8 @@ erDiagram
 | BankAccount | BranchUnitId | ins.InstitutionUnit |
 | BankAccount | CompanyId | org.Company |
 | BankAccount | CurrencyId | ref.Currency |
+| BankAccount | EncKeyId | sec.TenantKey |
+| BankAccount | HashKeyId | sec.TenantKey |
 | BankAccount | InstitutionId | ins.Institution |
 | BankAccount | RelationshipId | ins.Relationship |
 | FacilityAccount | CurrencyId | ref.Currency |
@@ -579,6 +585,7 @@ erDiagram
 | الجدول | العمود | يشير إلى |
 |---|---|---|
 | Request | AssigneeUserId | sec.AppUser |
+| Request | ClosedByUserId | sec.AppUser |
 | Request | CompanyId | org.Company |
 | Request | CreatedByUserId | sec.AppUser |
 | Request | CurrencyId | ref.Currency |
@@ -703,7 +710,9 @@ erDiagram
 | LcTerms | BeneficiaryCompanyId | org.Company |
 | LcTerms | ChargesAccountId | acc.BankAccount |
 | LcTerms | CurrencyId | ref.Currency |
+| LcTerms | EncKeyId | sec.TenantKey |
 | LcTerms | FacilityAccountId | acc.BankAccount |
+| LcTerms | HashKeyId | sec.TenantKey |
 | LcTerms | IncotermId | ref.Incoterm |
 | LcTerms | LockedBy | sec.AppUser |
 | LcTerms | MarginSettlementAccountId | acc.BankAccount |

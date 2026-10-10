@@ -294,6 +294,8 @@ table pty.IdentityDocument  # وثيقة هوية؛ الرقم مشفّر وال
   NumberEnc          bin(512)   req sens=restricted   # الرقم مشفَّر بمفتاح المشترك (FR-PTY-006)
   NumberMask         str(32)    req sens=restricted   # قناع العرض يُحسب عند الكتابة؛ آخر 4 خانات (BR-PTY-008)
   NumberHash         bin(32)    req sens=restricted   # HMAC فهرس أعمى: النوع+الدولة+الرقم المطبَّع (BR-PTY-002)
+  EncKeyId           ->sec.TenantKey req noidx   # مفتاح DATA لهذا الصف (إصدار صريح؛ 06 §6)
+  HashKeyId          ->sec.TenantKey req noidx   # مفتاح BLIND_INDEX لبصمة NumberHash
   IssueDate          date
   IssueDateHijriText str(20)          # G-11
   ExpiryDate         date
@@ -310,6 +312,7 @@ table pty.IdentityDocument  # وثيقة هوية؛ الرقم مشفّر وال
   index  PartyId,DocKind,IsSuperseded
   check  ExpiryDate IS NULL OR IssueDate IS NULL OR ExpiryDate > IssueDate   # 9.1
   check  SupersededById IS NULL OR (SupersededById <> IdentityDocumentId AND IsSuperseded = 1)
+  check  DATALENGTH(NumberEnc) >= 29   # الغلاف: إصدار + nonce + وسم على الأقل
   check  IsSuperseded = 0 OR IsPrimary = 0
   check  VerifiedBy IS NULL OR VerifiedAt IS NOT NULL
 
@@ -369,11 +372,13 @@ table pty.PartyCustomField  # قيمة حقل مخصص لشخص (FR-PTY-013، FR
   DefinitionId       ->pty.CustomFieldDefinition req
   ValueText          str(1000)
   ValueEnc           bin(512) sens=restricted   # للحقل المقيَّد بدل ValueText
+  EncKeyId           ->sec.TenantKey noidx   # مفتاح DATA لقيمة الحقل المقيَّد
   ValueMask          str(32)                    # قناع يُحسب عند الكتابة (BR-PTY-008)
   CurrencyId         ->ref.Currency             # لنوع AMOUNT
   unique PartyId,DefinitionId
   check  ValueText IS NULL OR ValueEnc IS NULL
   check  ValueEnc IS NULL OR ValueMask IS NOT NULL
+  check  ValueEnc IS NULL OR (EncKeyId IS NOT NULL AND DATALENGTH(ValueEnc) >= 29)
 
 table pty.KycProfile public  # قائمة اكتمال KYC لكل بنك ودور (FR-PTY-023، BR-PTY-012..013، G-8، G-14)
   InstitutionId      ->ins.Institution   # فارغ فقط لملف الأساس IsBaseline (FR-PTY-023): المواصفة تجعله إلزاميًا

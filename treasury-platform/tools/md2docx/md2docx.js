@@ -236,7 +236,7 @@ const tocTitleIdx = body.findIndex(p => p && p.options && p.options.style === 'T
 toc.push(new Paragraph({ children: [new TextRun({ text: 'المحتويات', font: FONT, size: SZ.h1, bold: true, color: C.navy, rightToLeft: true })],
   bidirectional: true, spacing: { before: 280, after: 100 }, border: { bottom: { style: BorderStyle.SINGLE, size: 8, color: C.navy, space: 4 } } }));
 for (const h of headings) {
-  if (h.lvl > 3) continue;
+  if (h.lvl > 2) continue;   // المحتويات: الأقسام الرئيسية فقط لتبقى في صفحة واحدة
   const sub = h.lvl === 3;
   toc.push(new Paragraph({
     bidirectional: true, spacing: { before: 0, after: sub ? 30 : 50 }, indent: { left: sub ? 560 : 0 },

@@ -390,6 +390,8 @@ table acc.BankAccount public  # حساب شركة لدى منشأة (FR-ACC-001.
   IbanEnc           bin(512)   sens=restricted   # اختياري؛ الطول وmod 97 في التطبيق (BR-ACC-002)
   IbanMask          str(32)    sens=restricted   # مثل SA•• •••• •••• •••• •••• 7519
   IbanHash          bin(32)    sens=restricted   # فرادة IBAN لكل مشترك
+  EncKeyId          ->sec.TenantKey req noidx   # مفتاح DATA للرقم والآيبان في هذا الصف (إصدار صريح؛ 06 §6)
+  HashKeyId         ->sec.TenantKey req noidx   # مفتاح BLIND_INDEX لبصمتي AccountNoHash وIbanHash
   BranchUnitId      ->ins.InstitutionUnit via=InstitutionId   # فرع من المنشأة نفسها
   SigningRuleText   str(500)   # نص حر «أ مع ب» دون محرك آلي (FR-ACC-007)
   MinSignatures     int        req =1   # >= 1؛ تحذير إن زاد على المفوّضين المؤهلين (BR-ACC-005)
@@ -404,6 +406,8 @@ table acc.BankAccount public  # حساب شركة لدى منشأة (FR-ACC-001.
   index  AccountNoLast4   # بحث بآخر 4 خانات
   index  CompanyId,CurrencyId,AccountTypeId include InstitutionId where Status = 'ACTIVE'   # SVC-06 FindAccounts وFR-ACC-011 (حساب تحصيل اعتمادات)
   check  MinSignatures >= 1   # V-ACC-03
+  check  DATALENGTH(AccountNoEnc) >= 29
+  check  IbanEnc IS NULL OR DATALENGTH(IbanEnc) >= 29
   check  MasterAccountId IS NULL OR MasterAccountId <> BankAccountId
   check  (IbanEnc IS NULL AND IbanMask IS NULL AND IbanHash IS NULL) OR (IbanEnc IS NOT NULL AND IbanMask IS NOT NULL AND IbanHash IS NOT NULL)   # IBAN مشفّر بالكامل أو غائب
   check  ClosedOn IS NULL OR OpenedOn IS NULL OR ClosedOn >= OpenedOn   # BR-ACC-006

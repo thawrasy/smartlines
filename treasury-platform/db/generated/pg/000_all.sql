@@ -107,6 +107,7 @@ CREATE TABLE "plat"."PlatformOperator" (
   "MfaEnabled" smallint NOT NULL DEFAULT 0,
   CHECK ("MfaEnabled" IS NULL OR "MfaEnabled" IN (0,1)),
   "MfaSecretEnc" bytea NULL,
+  "MfaKeyRef" varchar(200) NULL,
   "MfaEnrolledAt" timestamp(3) NULL,
   "MfaLastUsedStep" bigint NULL,
   "FailedAttempts" integer NOT NULL DEFAULT 0,
@@ -123,7 +124,9 @@ CREATE TABLE "plat"."PlatformOperator" (
   CONSTRAINT "CK_PlatformOperator_1" CHECK ("Status" NOT IN ('ACTIVE','LOCKED') OR "PasswordHash" IS NOT NULL),
   CONSTRAINT "CK_PlatformOperator_2" CHECK ("Status" <> 'ACTIVE' OR "MfaEnabled" = 1),
   CONSTRAINT "CK_PlatformOperator_3" CHECK ("MfaEnabled" = 0 OR "MfaSecretEnc" IS NOT NULL),
-  CONSTRAINT "CK_PlatformOperator_4" CHECK ("FailedAttempts" >= 0),
+  CONSTRAINT "CK_PlatformOperator_4" CHECK ("MfaSecretEnc" IS NULL OR "MfaKeyRef" IS NOT NULL),
+  CONSTRAINT "CK_PlatformOperator_5" CHECK ("MfaSecretEnc" IS NULL OR octet_length("MfaSecretEnc") >= 29),
+  CONSTRAINT "CK_PlatformOperator_6" CHECK ("FailedAttempts" >= 0),
   CONSTRAINT "CK_PlatformOperator_Role" CHECK ("Role" IS NULL OR "Role" IN ('OPERATOR_ADMIN', 'OPERATOR_SUPPORT')),
   CONSTRAINT "CK_PlatformOperator_Status" CHECK ("Status" IS NULL OR "Status" IN ('INVITED', 'ACTIVE', 'LOCKED', 'DISABLED', 'ARCHIVED'))
 );
@@ -175,11 +178,14 @@ CREATE TABLE "sec"."AppUser" (
   "PreferredLanguage" varchar(10) NULL,
   "DigitsPreference" varchar(12) NULL,
   "Status" varchar(10) NOT NULL DEFAULT 'INVITED',
+  "IsSystemUser" smallint NOT NULL DEFAULT 0,
+  CHECK ("IsSystemUser" IS NULL OR "IsSystemUser" IN (0,1)),
   "PasswordHash" varchar(255) NULL,
   "PasswordChangedAt" timestamp(3) NULL,
   "MfaEnabled" smallint NOT NULL DEFAULT 0,
   CHECK ("MfaEnabled" IS NULL OR "MfaEnabled" IN (0,1)),
   "MfaSecretEnc" bytea NULL,
+  "MfaKeyId" bigint NULL,
   "MfaEnrolledAt" timestamp(3) NULL,
   "MfaLastUsedStep" bigint NULL,
   "FailedAttempts" integer NOT NULL DEFAULT 0,
@@ -202,11 +208,14 @@ CREATE TABLE "sec"."AppUser" (
   CONSTRAINT "UQ_AppUser_Email" UNIQUE ("TenantId", "Email"),
   CONSTRAINT "CK_AppUser_1" CHECK ("LineManagerUserId" IS NULL OR "LineManagerUserId" <> "AppUserId"),
   CONSTRAINT "CK_AppUser_2" CHECK ("DisplayNameAr" IS NOT NULL OR "DisplayNameEn" IS NOT NULL),
-  CONSTRAINT "CK_AppUser_3" CHECK ("Status" NOT IN ('ACTIVE','LOCKED') OR "PasswordHash" IS NOT NULL),
+  CONSTRAINT "CK_AppUser_3" CHECK ("IsSystemUser" = 1 OR "Status" NOT IN ('ACTIVE','LOCKED') OR "PasswordHash" IS NOT NULL),
   CONSTRAINT "CK_AppUser_4" CHECK ("MfaEnabled" = 0 OR "MfaSecretEnc" IS NOT NULL),
-  CONSTRAINT "CK_AppUser_5" CHECK ("Status" <> 'ARCHIVED' OR "ArchivedAt" IS NOT NULL),
-  CONSTRAINT "CK_AppUser_6" CHECK ("Status" <> 'LOCKED' OR "LockedUntil" IS NOT NULL OR "RequiresAdminUnlock" = 1),
-  CONSTRAINT "CK_AppUser_7" CHECK ("FailedAttempts" >= 0 AND "LockoutCount" >= 0),
+  CONSTRAINT "CK_AppUser_5" CHECK ("MfaSecretEnc" IS NULL OR "MfaKeyId" IS NOT NULL),
+  CONSTRAINT "CK_AppUser_6" CHECK ("MfaSecretEnc" IS NULL OR octet_length("MfaSecretEnc") >= 29),
+  CONSTRAINT "CK_AppUser_7" CHECK ("IsSystemUser" = 0 OR ("PasswordHash" IS NULL AND "MfaEnabled" = 0)),
+  CONSTRAINT "CK_AppUser_8" CHECK ("Status" <> 'ARCHIVED' OR "ArchivedAt" IS NOT NULL),
+  CONSTRAINT "CK_AppUser_9" CHECK ("Status" <> 'LOCKED' OR "LockedUntil" IS NOT NULL OR "RequiresAdminUnlock" = 1),
+  CONSTRAINT "CK_AppUser_10" CHECK ("FailedAttempts" >= 0 AND "LockoutCount" >= 0),
   CONSTRAINT "CK_AppUser_CompanyScopeMode" CHECK ("CompanyScopeMode" IS NULL OR "CompanyScopeMode" IN ('ALL', 'SELECTED')),
   CONSTRAINT "CK_AppUser_PreferredLanguage" CHECK ("PreferredLanguage" IS NULL OR "PreferredLanguage" IN ('ar', 'en')),
   CONSTRAINT "CK_AppUser_DigitsPreference" CHECK ("DigitsPreference" IS NULL OR "DigitsPreference" IN ('WESTERN', 'ARABIC_INDIC')),
@@ -1253,6 +1262,8 @@ CREATE TABLE "pty"."IdentityDocument" (
   "NumberEnc" bytea NOT NULL,
   "NumberMask" varchar(32) NOT NULL,
   "NumberHash" bytea NOT NULL,
+  "EncKeyId" bigint NOT NULL,
+  "HashKeyId" bigint NOT NULL,
   "IssueDate" date NULL,
   "IssueDateHijriText" varchar(20) NULL,
   "ExpiryDate" date NULL,
@@ -1272,8 +1283,9 @@ CREATE TABLE "pty"."IdentityDocument" (
   CONSTRAINT "UQ_IdentityDocument_Tenant" UNIQUE ("TenantId", "IdentityDocumentId"),
   CONSTRAINT "CK_IdentityDocument_1" CHECK ("ExpiryDate" IS NULL OR "IssueDate" IS NULL OR "ExpiryDate" > "IssueDate"),
   CONSTRAINT "CK_IdentityDocument_2" CHECK ("SupersededById" IS NULL OR ("SupersededById" <> "IdentityDocumentId" AND "IsSuperseded" = 1)),
-  CONSTRAINT "CK_IdentityDocument_3" CHECK ("IsSuperseded" = 0 OR "IsPrimary" = 0),
-  CONSTRAINT "CK_IdentityDocument_4" CHECK ("VerifiedBy" IS NULL OR "VerifiedAt" IS NOT NULL),
+  CONSTRAINT "CK_IdentityDocument_3" CHECK (octet_length("NumberEnc") >= 29),
+  CONSTRAINT "CK_IdentityDocument_4" CHECK ("IsSuperseded" = 0 OR "IsPrimary" = 0),
+  CONSTRAINT "CK_IdentityDocument_5" CHECK ("VerifiedBy" IS NULL OR "VerifiedAt" IS NOT NULL),
   CONSTRAINT "CK_IdentityDocument_DocKind" CHECK ("DocKind" IS NULL OR "DocKind" IN ('NATIONAL_ID', 'RESIDENCE', 'PASSPORT', 'GCC_ID', 'COMMERCIAL_REG', 'OTHER_ORG'))
 );
 CREATE TABLE "pty"."Address" (
@@ -1363,6 +1375,7 @@ CREATE TABLE "pty"."PartyCustomField" (
   "DefinitionId" bigint NOT NULL,
   "ValueText" varchar(1000) NULL,
   "ValueEnc" bytea NULL,
+  "EncKeyId" bigint NULL,
   "ValueMask" varchar(32) NULL,
   "CurrencyId" integer NULL,
   "CreatedAt" timestamp(3) NOT NULL DEFAULT (now() at time zone 'utc'),
@@ -1373,7 +1386,8 @@ CREATE TABLE "pty"."PartyCustomField" (
   CONSTRAINT "UQ_PartyCustomField_Tenant" UNIQUE ("TenantId", "PartyCustomFieldId"),
   CONSTRAINT "UQ_PartyCustomField_PartyId_DefinitionId" UNIQUE ("TenantId", "PartyId", "DefinitionId"),
   CONSTRAINT "CK_PartyCustomField_1" CHECK ("ValueText" IS NULL OR "ValueEnc" IS NULL),
-  CONSTRAINT "CK_PartyCustomField_2" CHECK ("ValueEnc" IS NULL OR "ValueMask" IS NOT NULL)
+  CONSTRAINT "CK_PartyCustomField_2" CHECK ("ValueEnc" IS NULL OR "ValueMask" IS NOT NULL),
+  CONSTRAINT "CK_PartyCustomField_3" CHECK ("ValueEnc" IS NULL OR ("EncKeyId" IS NOT NULL AND octet_length("ValueEnc") >= 29))
 );
 CREATE TABLE "pty"."KycProfile" (
   "TenantId" integer NOT NULL,
@@ -2391,6 +2405,8 @@ CREATE TABLE "acc"."BankAccount" (
   "IbanEnc" bytea NULL,
   "IbanMask" varchar(32) NULL,
   "IbanHash" bytea NULL,
+  "EncKeyId" bigint NOT NULL,
+  "HashKeyId" bigint NOT NULL,
   "BranchUnitId" bigint NULL,
   "SigningRuleText" varchar(500) NULL,
   "MinSignatures" integer NOT NULL DEFAULT 1,
@@ -2412,11 +2428,13 @@ CREATE TABLE "acc"."BankAccount" (
   CONSTRAINT "UQ_BankAccount_PublicId" UNIQUE ("PublicId"),
   CONSTRAINT "UQ_BankAccount_InstitutionId_AccountNoHash" UNIQUE ("TenantId", "InstitutionId", "AccountNoHash"),
   CONSTRAINT "CK_BankAccount_1" CHECK ("MinSignatures" >= 1),
-  CONSTRAINT "CK_BankAccount_2" CHECK ("MasterAccountId" IS NULL OR "MasterAccountId" <> "BankAccountId"),
-  CONSTRAINT "CK_BankAccount_3" CHECK (("IbanEnc" IS NULL AND "IbanMask" IS NULL AND "IbanHash" IS NULL) OR ("IbanEnc" IS NOT NULL AND "IbanMask" IS NOT NULL AND "IbanHash" IS NOT NULL)),
-  CONSTRAINT "CK_BankAccount_4" CHECK ("ClosedOn" IS NULL OR "OpenedOn" IS NULL OR "ClosedOn" >= "OpenedOn"),
-  CONSTRAINT "CK_BankAccount_5" CHECK ("Status" <> 'CLOSED' OR ("ClosedOn" IS NOT NULL AND "ClosureReason" IS NOT NULL)),
-  CONSTRAINT "CK_BankAccount_6" CHECK (("ClosedOn" IS NULL AND "ClosureReason" IS NULL) OR "Status" = 'CLOSED'),
+  CONSTRAINT "CK_BankAccount_2" CHECK (octet_length("AccountNoEnc") >= 29),
+  CONSTRAINT "CK_BankAccount_3" CHECK ("IbanEnc" IS NULL OR octet_length("IbanEnc") >= 29),
+  CONSTRAINT "CK_BankAccount_4" CHECK ("MasterAccountId" IS NULL OR "MasterAccountId" <> "BankAccountId"),
+  CONSTRAINT "CK_BankAccount_5" CHECK (("IbanEnc" IS NULL AND "IbanMask" IS NULL AND "IbanHash" IS NULL) OR ("IbanEnc" IS NOT NULL AND "IbanMask" IS NOT NULL AND "IbanHash" IS NOT NULL)),
+  CONSTRAINT "CK_BankAccount_6" CHECK ("ClosedOn" IS NULL OR "OpenedOn" IS NULL OR "ClosedOn" >= "OpenedOn"),
+  CONSTRAINT "CK_BankAccount_7" CHECK ("Status" <> 'CLOSED' OR ("ClosedOn" IS NOT NULL AND "ClosureReason" IS NOT NULL)),
+  CONSTRAINT "CK_BankAccount_8" CHECK (("ClosedOn" IS NULL AND "ClosureReason" IS NULL) OR "Status" = 'CLOSED'),
   CONSTRAINT "CK_BankAccount_Status" CHECK ("Status" IS NULL OR "Status" IN ('ACTIVE', 'DORMANT', 'FROZEN', 'CLOSED'))
 );
 CREATE TABLE "acc"."FacilityAccount" (
@@ -4509,7 +4527,7 @@ CREATE TABLE "wfl"."Request" (
   "CreatedByUserId" bigint NOT NULL,
   "SubmittedByUserId" bigint NULL,
   "Title" varchar(200) NULL,
-  "Status" varchar(10) NOT NULL DEFAULT 'DRAFT',
+  "Status" varchar(14) NOT NULL DEFAULT 'DRAFT',
   "CurrentStageId" integer NULL,
   "CurrentStageInstanceId" bigint NULL,
   "ExternalPhaseId" integer NOT NULL,
@@ -4525,6 +4543,9 @@ CREATE TABLE "wfl"."Request" (
   "CycleNo" integer NOT NULL DEFAULT 1,
   "SubmittedAt" timestamp(3) NULL,
   "CompletedAt" timestamp(3) NULL,
+  "ReadyToCloseAt" timestamp(3) NULL,
+  "ClosedByUserId" bigint NULL,
+  "ClosedAt" timestamp(3) NULL,
   "OutcomeReason" varchar(500) NULL,
   "Amount" numeric(19,4) NULL,
   "CurrencyId" integer NULL,
@@ -4561,24 +4582,28 @@ CREATE TABLE "wfl"."Request" (
   CONSTRAINT "UQ_Request_DraftRef" UNIQUE ("TenantId", "DraftRef"),
   CONSTRAINT "CK_Request_1" CHECK (("RequestNo" IS NULL AND "NumberYear" IS NULL AND "NumberSeq" IS NULL) OR ("RequestNo" IS NOT NULL AND "NumberYear" IS NOT NULL AND "NumberSeq" IS NOT NULL)),
   CONSTRAINT "CK_Request_2" CHECK ("DraftRef" LIKE 'D-%'),
-  CONSTRAINT "CK_Request_3" CHECK ("Status" NOT IN ('ACTIVE','COMPLETED','REJECTED') OR "SubmittedAt" IS NOT NULL),
-  CONSTRAINT "CK_Request_4" CHECK (("Status" IN ('DRAFT','ACTIVE') AND "CompletedAt" IS NULL) OR ("Status" IN ('COMPLETED','REJECTED','CANCELLED') AND "CompletedAt" IS NOT NULL)),
+  CONSTRAINT "CK_Request_3" CHECK ("Status" NOT IN ('ACTIVE','AWAITING_CLOSE','COMPLETED','REJECTED') OR "SubmittedAt" IS NOT NULL),
+  CONSTRAINT "CK_Request_4" CHECK (("Status" IN ('DRAFT','ACTIVE','AWAITING_CLOSE') AND "CompletedAt" IS NULL) OR ("Status" IN ('COMPLETED','REJECTED','CANCELLED') AND "CompletedAt" IS NOT NULL)),
   CONSTRAINT "CK_Request_5" CHECK ("CompletedAt" IS NULL OR "SubmittedAt" IS NULL OR "CompletedAt" >= "SubmittedAt"),
   CONSTRAINT "CK_Request_6" CHECK ("Status" <> 'ACTIVE' OR ("CurrentStageInstanceId" IS NOT NULL AND "CurrentStageId" IS NOT NULL)),
   CONSTRAINT "CK_Request_7" CHECK ("Status" <> 'COMPLETED' OR "RequestNo" IS NOT NULL),
   CONSTRAINT "CK_Request_8" CHECK ("ArchivedAt" IS NULL OR "Status" = 'DRAFT'),
-  CONSTRAINT "CK_Request_9" CHECK ("Priority" <> 'URGENT' OR "UrgentReason" IS NOT NULL),
-  CONSTRAINT "CK_Request_10" CHECK ("CycleNo" >= 1),
-  CONSTRAINT "CK_Request_11" CHECK ("Amount" IS NULL OR "CurrencyId" IS NOT NULL),
-  CONSTRAINT "CK_Request_12" CHECK ("SlaState" NOT IN ('ON_TRACK','AT_RISK','OVERDUE') OR "DueAt" IS NOT NULL),
-  CONSTRAINT "CK_Request_13" CHECK (("ReservationState" = 'NONE' AND "ReservationId" IS NULL AND "ReservedAmount" IS NULL) OR ("ReservationState" <> 'NONE' AND "ReservationId" IS NOT NULL AND "ReservedAmount" IS NOT NULL)),
-  CONSTRAINT "CK_Request_14" CHECK ("ReservedAmount" IS NULL OR ("ReservedAmount" > 0 AND "CurrencyId" IS NOT NULL)),
-  CONSTRAINT "CK_Request_15" CHECK ("LimitId" IS NULL OR "FacilityId" IS NOT NULL),
-  CONSTRAINT "CK_Request_16" CHECK ("LimitProductLineId" IS NULL OR "LimitId" IS NOT NULL),
-  CONSTRAINT "CK_Request_17" CHECK (("ParentEntityType" IS NULL AND "ParentEntityId" IS NULL) OR ("ParentEntityType" IS NOT NULL AND "ParentEntityId" IS NOT NULL)),
-  CONSTRAINT "CK_Request_18" CHECK ("ParentRequestId" IS NULL OR "ParentRequestId" <> "RequestId"),
-  CONSTRAINT "CK_Request_19" CHECK ("CopiedFromRequestId" IS NULL OR "CopiedFromRequestId" <> "RequestId"),
-  CONSTRAINT "CK_Request_Status" CHECK ("Status" IS NULL OR "Status" IN ('DRAFT', 'ACTIVE', 'COMPLETED', 'REJECTED', 'CANCELLED')),
+  CONSTRAINT "CK_Request_9" CHECK ("Status" <> 'AWAITING_CLOSE' OR ("ReadyToCloseAt" IS NOT NULL AND "CurrentStageInstanceId" IS NOT NULL)),
+  CONSTRAINT "CK_Request_10" CHECK ("ReadyToCloseAt" IS NULL OR "Status" IN ('AWAITING_CLOSE','COMPLETED')),
+  CONSTRAINT "CK_Request_11" CHECK ("Status" <> 'COMPLETED' OR ("ClosedByUserId" IS NOT NULL AND "ClosedAt" IS NOT NULL AND "ClosedAt" = "CompletedAt")),
+  CONSTRAINT "CK_Request_12" CHECK ("ClosedByUserId" IS NULL OR "Status" = 'COMPLETED'),
+  CONSTRAINT "CK_Request_13" CHECK ("Priority" <> 'URGENT' OR "UrgentReason" IS NOT NULL),
+  CONSTRAINT "CK_Request_14" CHECK ("CycleNo" >= 1),
+  CONSTRAINT "CK_Request_15" CHECK ("Amount" IS NULL OR "CurrencyId" IS NOT NULL),
+  CONSTRAINT "CK_Request_16" CHECK ("SlaState" NOT IN ('ON_TRACK','AT_RISK','OVERDUE') OR "DueAt" IS NOT NULL),
+  CONSTRAINT "CK_Request_17" CHECK (("ReservationState" = 'NONE' AND "ReservationId" IS NULL AND "ReservedAmount" IS NULL) OR ("ReservationState" <> 'NONE' AND "ReservationId" IS NOT NULL AND "ReservedAmount" IS NOT NULL)),
+  CONSTRAINT "CK_Request_18" CHECK ("ReservedAmount" IS NULL OR ("ReservedAmount" > 0 AND "CurrencyId" IS NOT NULL)),
+  CONSTRAINT "CK_Request_19" CHECK ("LimitId" IS NULL OR "FacilityId" IS NOT NULL),
+  CONSTRAINT "CK_Request_20" CHECK ("LimitProductLineId" IS NULL OR "LimitId" IS NOT NULL),
+  CONSTRAINT "CK_Request_21" CHECK (("ParentEntityType" IS NULL AND "ParentEntityId" IS NULL) OR ("ParentEntityType" IS NOT NULL AND "ParentEntityId" IS NOT NULL)),
+  CONSTRAINT "CK_Request_22" CHECK ("ParentRequestId" IS NULL OR "ParentRequestId" <> "RequestId"),
+  CONSTRAINT "CK_Request_23" CHECK ("CopiedFromRequestId" IS NULL OR "CopiedFromRequestId" <> "RequestId"),
+  CONSTRAINT "CK_Request_Status" CHECK ("Status" IS NULL OR "Status" IN ('DRAFT', 'ACTIVE', 'AWAITING_CLOSE', 'COMPLETED', 'REJECTED', 'CANCELLED')),
   CONSTRAINT "CK_Request_SlaState" CHECK ("SlaState" IS NULL OR "SlaState" IN ('ON_TRACK', 'AT_RISK', 'OVERDUE', 'PAUSED', 'NONE')),
   CONSTRAINT "CK_Request_Priority" CHECK ("Priority" IS NULL OR "Priority" IN ('NORMAL', 'URGENT')),
   CONSTRAINT "CK_Request_ExecutionChannel" CHECK ("ExecutionChannel" IS NULL OR "ExecutionChannel" IN ('BANK_PORTAL', 'MANUAL_FORM', 'DIRECT_INTEGRATION')),
@@ -4763,7 +4788,7 @@ CREATE TABLE "wfl"."RequestAction" (
   CONSTRAINT "UQ_RequestAction_Tenant" UNIQUE ("TenantId", "RequestActionId"),
   CONSTRAINT "CK_RequestAction_1" CHECK ("ActorType" <> 'USER' OR "ActorUserId" IS NOT NULL),
   CONSTRAINT "CK_RequestAction_2" CHECK ("ActionType" NOT IN ('RETURNED','REJECTED') OR "Comment" IS NOT NULL),
-  CONSTRAINT "CK_RequestAction_ActionType" CHECK ("ActionType" IS NULL OR "ActionType" IN ('CREATED', 'SUBMITTED', 'RESUBMITTED', 'NUMBER_ASSIGNED', 'FIELD_EDITED', 'APPROVED', 'RETURNED', 'REJECTED', 'CANCELLED', 'STAGE_CHANGED', 'SUBSTATUS_CHANGED', 'CLAIMED', 'RELEASED', 'REASSIGNED', 'COMMENT_ADDED', 'ATTACHMENT_ADDED', 'ATTACHMENT_REMOVED', 'EXTREF_ADDED', 'EXTREF_CHANGED', 'HOOK_EXECUTED', 'HOOK_FAILED', 'SLA_AT_RISK', 'SLA_BREACHED', 'ESCALATED', 'DELEGATED_ACTION', 'CHILD_CREATED', 'PRIORITY_CHANGED', 'TEMPLATE_MIGRATED', 'RESERVATION_LOST', 'DRAFT_ARCHIVED', 'DRAFT_RESTORED', 'CHANNEL_CHANGED', 'SOD_EXCEPTION_USED', 'DELEGATION_CREATED', 'DELEGATION_REVOKED')),
+  CONSTRAINT "CK_RequestAction_ActionType" CHECK ("ActionType" IS NULL OR "ActionType" IN ('CREATED', 'SUBMITTED', 'RESUBMITTED', 'NUMBER_ASSIGNED', 'FIELD_EDITED', 'APPROVED', 'RETURNED', 'REJECTED', 'CANCELLED', 'STAGE_CHANGED', 'SUBSTATUS_CHANGED', 'CLAIMED', 'RELEASED', 'REASSIGNED', 'COMMENT_ADDED', 'ATTACHMENT_ADDED', 'ATTACHMENT_REMOVED', 'EXTREF_ADDED', 'EXTREF_CHANGED', 'HOOK_EXECUTED', 'HOOK_FAILED', 'SLA_AT_RISK', 'SLA_BREACHED', 'ESCALATED', 'DELEGATED_ACTION', 'CHILD_CREATED', 'PRIORITY_CHANGED', 'TEMPLATE_MIGRATED', 'RESERVATION_LOST', 'DRAFT_ARCHIVED', 'DRAFT_RESTORED', 'CHANNEL_CHANGED', 'SOD_EXCEPTION_USED', 'DELEGATION_CREATED', 'DELEGATION_REVOKED', 'READY_TO_CLOSE', 'CLOSED')),
   CONSTRAINT "CK_RequestAction_ActorType" CHECK ("ActorType" IS NULL OR "ActorType" IN ('USER', 'SYSTEM', 'SERVICE')),
   CONSTRAINT "CK_RequestAction_Visibility" CHECK ("Visibility" IS NULL OR "Visibility" IN ('INTERNAL', 'REQUESTER_VISIBLE'))
 );
@@ -5237,6 +5262,8 @@ CREATE TABLE "lc"."LcTerms" (
   "BeneficiaryAccountIbanEnc" bytea NULL,
   "BeneficiaryAccountIbanMask" varchar(40) NULL,
   "BeneficiaryAccountIbanHash" bytea NULL,
+  "EncKeyId" bigint NULL,
+  "HashKeyId" bigint NULL,
   "AdvisingBankName" varchar(200) NULL,
   "AdvisingBankAddress" varchar(300) NULL,
   "AdvisingBankBic" varchar(11) NULL,
@@ -5339,26 +5366,27 @@ CREATE TABLE "lc"."LcTerms" (
   CONSTRAINT "CK_LcTerms_21" CHECK ("Status" = 'DRAFT' OR "ConfirmingBankBic" IS NULL OR (("ConfirmingBankBic" LIKE '________' OR "ConfirmingBankBic" LIKE '___________') AND "ConfirmingBankBic" NOT LIKE '%[^A-Z0-9]%')),
   CONSTRAINT "CK_LcTerms_22" CHECK ("Status" = 'DRAFT' OR "AdvisingBankBic" IS NULL OR (("AdvisingBankBic" LIKE '________' OR "AdvisingBankBic" LIKE '___________') AND "AdvisingBankBic" NOT LIKE '%[^A-Z0-9]%')),
   CONSTRAINT "CK_LcTerms_23" CHECK (("BeneficiaryAccountIbanEnc" IS NULL AND "BeneficiaryAccountIbanMask" IS NULL AND "BeneficiaryAccountIbanHash" IS NULL) OR ("BeneficiaryAccountIbanEnc" IS NOT NULL AND "BeneficiaryAccountIbanMask" IS NOT NULL AND "BeneficiaryAccountIbanHash" IS NOT NULL)),
-  CONSTRAINT "CK_LcTerms_24" CHECK ("LcClass" = 'SALES' OR ("ApplicantCounterpartyId" IS NULL AND "BeneficiaryCompanyId" IS NULL)),
-  CONSTRAINT "CK_LcTerms_25" CHECK ("LcClass" = 'PURCHASE' OR ("ApplicantCompanyId" IS NULL AND "BeneficiaryCounterpartyId" IS NULL)),
-  CONSTRAINT "CK_LcTerms_26" CHECK ("Status" = 'DRAFT' OR ("LcClass" = 'PURCHASE' AND "ApplicantCompanyId" IS NOT NULL AND "BeneficiaryCounterpartyId" IS NOT NULL) OR ("LcClass" = 'SALES' AND "ApplicantCounterpartyId" IS NOT NULL AND "BeneficiaryCompanyId" IS NOT NULL)),
-  CONSTRAINT "CK_LcTerms_27" CHECK ("ExpiryDaysAfterIssue" IS NULL OR "ExpiryDaysAfterIssue" > 0),
-  CONSTRAINT "CK_LcTerms_28" CHECK ("LatestShipmentDaysAfterIssue" IS NULL OR "LatestShipmentDaysAfterIssue" > 0),
-  CONSTRAINT "CK_LcTerms_29" CHECK ("Status" = 'DRAFT' OR "ExpiryRule" IS NULL OR ("ExpiryRule" = 'ABSOLUTE' AND "ExpiryDate" IS NOT NULL AND "ExpiryDaysAfterIssue" IS NULL) OR ("ExpiryRule" = 'DAYS_AFTER_ISSUE' AND "ExpiryDaysAfterIssue" IS NOT NULL)),
-  CONSTRAINT "CK_LcTerms_30" CHECK ("Status" = 'DRAFT' OR ("LatestShipmentRule" IS NULL AND "LatestShipmentDate" IS NULL AND "LatestShipmentDaysAfterIssue" IS NULL) OR ("LatestShipmentRule" = 'ABSOLUTE' AND "LatestShipmentDate" IS NOT NULL AND "LatestShipmentDaysAfterIssue" IS NULL) OR ("LatestShipmentRule" = 'DAYS_AFTER_ISSUE' AND "LatestShipmentDaysAfterIssue" IS NOT NULL)),
-  CONSTRAINT "CK_LcTerms_31" CHECK ("Status" = 'DRAFT' OR "Purpose" IN ('ISSUED','RECEIVED') OR "EarliestShipmentDate" IS NULL OR "LatestShipmentDate" IS NULL OR "EarliestShipmentDate" <= "LatestShipmentDate"),
-  CONSTRAINT "CK_LcTerms_32" CHECK ("Status" = 'DRAFT' OR "Purpose" IN ('ISSUED','RECEIVED') OR "ExpiryDate" IS NULL OR "LatestShipmentDate" IS NULL OR "ExpiryDate" >= "LatestShipmentDate"),
-  CONSTRAINT "CK_LcTerms_33" CHECK ("PresentationDays" IS NULL OR "PresentationDays" BETWEEN 1 AND 90),
-  CONSTRAINT "CK_LcTerms_34" CHECK ("Status" = 'DRAFT' OR "Purpose" IN ('ISSUED','RECEIVED') OR "IncotermId" IS NULL OR "IncotermPlace" IS NOT NULL),
-  CONSTRAINT "CK_LcTerms_35" CHECK ("InsurancePctStated" = 0 OR "InsuranceMinPct" IS NOT NULL),
-  CONSTRAINT "CK_LcTerms_36" CHECK ("InsuranceMinPct" IS NULL OR "InsuranceMinPct" > 0),
-  CONSTRAINT "CK_LcTerms_37" CHECK ("MarginPct" IS NULL OR "MarginPct" BETWEEN 0 AND 100),
-  CONSTRAINT "CK_LcTerms_38" CHECK ("Status" = 'DRAFT' OR "DebitAuthorization" IS NULL OR "DebitAuthorization" <> 'FULL_LC_VALUE' OR ("MarginPct" IS NOT NULL AND "MarginPct" = 100)),
-  CONSTRAINT "CK_LcTerms_39" CHECK ("PostDeferralFinancingDays" IS NULL OR "PostDeferralFinancingDays" >= 0),
-  CONSTRAINT "CK_LcTerms_40" CHECK ("PrevLcAmount" IS NULL OR "PrevLcAmount" >= 0),
-  CONSTRAINT "CK_LcTerms_41" CHECK ("PrevLcUtilizedAmount" IS NULL OR "PrevLcUtilizedAmount" >= 0),
-  CONSTRAINT "CK_LcTerms_42" CHECK ("PrevLcAmount" IS NULL OR "PrevLcUtilizedAmount" IS NULL OR "PrevLcUtilizedAmount" <= "PrevLcAmount"),
-  CONSTRAINT "CK_LcTerms_43" CHECK (("PrevLcAmount" IS NULL AND "PrevLcUtilizedAmount" IS NULL) OR "PrevLcCurrencyId" IS NOT NULL),
+  CONSTRAINT "CK_LcTerms_24" CHECK ("BeneficiaryAccountIbanEnc" IS NULL OR ("EncKeyId" IS NOT NULL AND "HashKeyId" IS NOT NULL AND octet_length("BeneficiaryAccountIbanEnc") >= 29)),
+  CONSTRAINT "CK_LcTerms_25" CHECK ("LcClass" = 'SALES' OR ("ApplicantCounterpartyId" IS NULL AND "BeneficiaryCompanyId" IS NULL)),
+  CONSTRAINT "CK_LcTerms_26" CHECK ("LcClass" = 'PURCHASE' OR ("ApplicantCompanyId" IS NULL AND "BeneficiaryCounterpartyId" IS NULL)),
+  CONSTRAINT "CK_LcTerms_27" CHECK ("Status" = 'DRAFT' OR ("LcClass" = 'PURCHASE' AND "ApplicantCompanyId" IS NOT NULL AND "BeneficiaryCounterpartyId" IS NOT NULL) OR ("LcClass" = 'SALES' AND "ApplicantCounterpartyId" IS NOT NULL AND "BeneficiaryCompanyId" IS NOT NULL)),
+  CONSTRAINT "CK_LcTerms_28" CHECK ("ExpiryDaysAfterIssue" IS NULL OR "ExpiryDaysAfterIssue" > 0),
+  CONSTRAINT "CK_LcTerms_29" CHECK ("LatestShipmentDaysAfterIssue" IS NULL OR "LatestShipmentDaysAfterIssue" > 0),
+  CONSTRAINT "CK_LcTerms_30" CHECK ("Status" = 'DRAFT' OR "ExpiryRule" IS NULL OR ("ExpiryRule" = 'ABSOLUTE' AND "ExpiryDate" IS NOT NULL AND "ExpiryDaysAfterIssue" IS NULL) OR ("ExpiryRule" = 'DAYS_AFTER_ISSUE' AND "ExpiryDaysAfterIssue" IS NOT NULL)),
+  CONSTRAINT "CK_LcTerms_31" CHECK ("Status" = 'DRAFT' OR ("LatestShipmentRule" IS NULL AND "LatestShipmentDate" IS NULL AND "LatestShipmentDaysAfterIssue" IS NULL) OR ("LatestShipmentRule" = 'ABSOLUTE' AND "LatestShipmentDate" IS NOT NULL AND "LatestShipmentDaysAfterIssue" IS NULL) OR ("LatestShipmentRule" = 'DAYS_AFTER_ISSUE' AND "LatestShipmentDaysAfterIssue" IS NOT NULL)),
+  CONSTRAINT "CK_LcTerms_32" CHECK ("Status" = 'DRAFT' OR "Purpose" IN ('ISSUED','RECEIVED') OR "EarliestShipmentDate" IS NULL OR "LatestShipmentDate" IS NULL OR "EarliestShipmentDate" <= "LatestShipmentDate"),
+  CONSTRAINT "CK_LcTerms_33" CHECK ("Status" = 'DRAFT' OR "Purpose" IN ('ISSUED','RECEIVED') OR "ExpiryDate" IS NULL OR "LatestShipmentDate" IS NULL OR "ExpiryDate" >= "LatestShipmentDate"),
+  CONSTRAINT "CK_LcTerms_34" CHECK ("PresentationDays" IS NULL OR "PresentationDays" BETWEEN 1 AND 90),
+  CONSTRAINT "CK_LcTerms_35" CHECK ("Status" = 'DRAFT' OR "Purpose" IN ('ISSUED','RECEIVED') OR "IncotermId" IS NULL OR "IncotermPlace" IS NOT NULL),
+  CONSTRAINT "CK_LcTerms_36" CHECK ("InsurancePctStated" = 0 OR "InsuranceMinPct" IS NOT NULL),
+  CONSTRAINT "CK_LcTerms_37" CHECK ("InsuranceMinPct" IS NULL OR "InsuranceMinPct" > 0),
+  CONSTRAINT "CK_LcTerms_38" CHECK ("MarginPct" IS NULL OR "MarginPct" BETWEEN 0 AND 100),
+  CONSTRAINT "CK_LcTerms_39" CHECK ("Status" = 'DRAFT' OR "DebitAuthorization" IS NULL OR "DebitAuthorization" <> 'FULL_LC_VALUE' OR ("MarginPct" IS NOT NULL AND "MarginPct" = 100)),
+  CONSTRAINT "CK_LcTerms_40" CHECK ("PostDeferralFinancingDays" IS NULL OR "PostDeferralFinancingDays" >= 0),
+  CONSTRAINT "CK_LcTerms_41" CHECK ("PrevLcAmount" IS NULL OR "PrevLcAmount" >= 0),
+  CONSTRAINT "CK_LcTerms_42" CHECK ("PrevLcUtilizedAmount" IS NULL OR "PrevLcUtilizedAmount" >= 0),
+  CONSTRAINT "CK_LcTerms_43" CHECK ("PrevLcAmount" IS NULL OR "PrevLcUtilizedAmount" IS NULL OR "PrevLcUtilizedAmount" <= "PrevLcAmount"),
+  CONSTRAINT "CK_LcTerms_44" CHECK (("PrevLcAmount" IS NULL AND "PrevLcUtilizedAmount" IS NULL) OR "PrevLcCurrencyId" IS NOT NULL),
   CONSTRAINT "CK_LcTerms_OwnerType" CHECK ("OwnerType" IS NULL OR "OwnerType" IN ('REQUEST', 'PROFORMA', 'LETTER_OF_CREDIT', 'AMENDMENT')),
   CONSTRAINT "CK_LcTerms_Purpose" CHECK ("Purpose" IS NULL OR "Purpose" IN ('PROFORMA', 'APPLICATION', 'ISSUED', 'RECEIVED', 'AMENDMENT')),
   CONSTRAINT "CK_LcTerms_Status" CHECK ("Status" IS NULL OR "Status" IN ('DRAFT', 'LOCKED', 'SUPERSEDED')),
@@ -5896,6 +5924,7 @@ ALTER TABLE "plat"."SupportAccessGrant" ADD CONSTRAINT "FK_SupportAccessGrant_Re
 ALTER TABLE "sec"."AppUser" ADD CONSTRAINT "FK_AppUser_Tenant" FOREIGN KEY ("TenantId") REFERENCES "plat"."Tenant" ("TenantId");
 ALTER TABLE "sec"."AppUser" ADD CONSTRAINT "FK_AppUser_DepartmentId" FOREIGN KEY ("TenantId", "DepartmentId") REFERENCES "org"."Department" ("TenantId", "DepartmentId");
 ALTER TABLE "sec"."AppUser" ADD CONSTRAINT "FK_AppUser_LineManagerUserId" FOREIGN KEY ("TenantId", "LineManagerUserId") REFERENCES "sec"."AppUser" ("TenantId", "AppUserId");
+ALTER TABLE "sec"."AppUser" ADD CONSTRAINT "FK_AppUser_MfaKeyId" FOREIGN KEY ("TenantId", "MfaKeyId") REFERENCES "sec"."TenantKey" ("TenantId", "TenantKeyId");
 ALTER TABLE "sec"."Role" ADD CONSTRAINT "FK_Role_Tenant" FOREIGN KEY ("TenantId") REFERENCES "plat"."Tenant" ("TenantId");
 ALTER TABLE "sec"."RolePermission" ADD CONSTRAINT "FK_RolePermission_Tenant" FOREIGN KEY ("TenantId") REFERENCES "plat"."Tenant" ("TenantId");
 ALTER TABLE "sec"."RolePermission" ADD CONSTRAINT "FK_RolePermission_RoleId" FOREIGN KEY ("TenantId", "RoleId") REFERENCES "sec"."Role" ("TenantId", "RoleId");
@@ -6031,6 +6060,8 @@ ALTER TABLE "pty"."Party" ADD CONSTRAINT "FK_Party_MergedIntoPartyId" FOREIGN KE
 ALTER TABLE "pty"."IdentityDocument" ADD CONSTRAINT "FK_IdentityDocument_Tenant" FOREIGN KEY ("TenantId") REFERENCES "plat"."Tenant" ("TenantId");
 ALTER TABLE "pty"."IdentityDocument" ADD CONSTRAINT "FK_IdentityDocument_PartyId" FOREIGN KEY ("TenantId", "PartyId") REFERENCES "pty"."Party" ("TenantId", "PartyId");
 ALTER TABLE "pty"."IdentityDocument" ADD CONSTRAINT "FK_IdentityDocument_IssuingCountryId" FOREIGN KEY ("IssuingCountryId") REFERENCES "ref"."Country" ("CountryId");
+ALTER TABLE "pty"."IdentityDocument" ADD CONSTRAINT "FK_IdentityDocument_EncKeyId" FOREIGN KEY ("TenantId", "EncKeyId") REFERENCES "sec"."TenantKey" ("TenantId", "TenantKeyId");
+ALTER TABLE "pty"."IdentityDocument" ADD CONSTRAINT "FK_IdentityDocument_HashKeyId" FOREIGN KEY ("TenantId", "HashKeyId") REFERENCES "sec"."TenantKey" ("TenantId", "TenantKeyId");
 ALTER TABLE "pty"."IdentityDocument" ADD CONSTRAINT "FK_IdentityDocument_SupersededById" FOREIGN KEY ("TenantId", "SupersededById") REFERENCES "pty"."IdentityDocument" ("TenantId", "IdentityDocumentId");
 ALTER TABLE "pty"."IdentityDocument" ADD CONSTRAINT "FK_IdentityDocument_VerifiedBy" FOREIGN KEY ("TenantId", "VerifiedBy") REFERENCES "sec"."AppUser" ("TenantId", "AppUserId");
 ALTER TABLE "pty"."Address" ADD CONSTRAINT "FK_Address_Tenant" FOREIGN KEY ("TenantId") REFERENCES "plat"."Tenant" ("TenantId");
@@ -6041,6 +6072,7 @@ ALTER TABLE "pty"."CustomFieldDefinition" ADD CONSTRAINT "FK_CustomFieldDefiniti
 ALTER TABLE "pty"."PartyCustomField" ADD CONSTRAINT "FK_PartyCustomField_Tenant" FOREIGN KEY ("TenantId") REFERENCES "plat"."Tenant" ("TenantId");
 ALTER TABLE "pty"."PartyCustomField" ADD CONSTRAINT "FK_PartyCustomField_PartyId" FOREIGN KEY ("TenantId", "PartyId") REFERENCES "pty"."Party" ("TenantId", "PartyId");
 ALTER TABLE "pty"."PartyCustomField" ADD CONSTRAINT "FK_PartyCustomField_DefinitionId" FOREIGN KEY ("TenantId", "DefinitionId") REFERENCES "pty"."CustomFieldDefinition" ("TenantId", "CustomFieldDefinitionId");
+ALTER TABLE "pty"."PartyCustomField" ADD CONSTRAINT "FK_PartyCustomField_EncKeyId" FOREIGN KEY ("TenantId", "EncKeyId") REFERENCES "sec"."TenantKey" ("TenantId", "TenantKeyId");
 ALTER TABLE "pty"."PartyCustomField" ADD CONSTRAINT "FK_PartyCustomField_CurrencyId" FOREIGN KEY ("CurrencyId") REFERENCES "ref"."Currency" ("CurrencyId");
 ALTER TABLE "pty"."KycProfile" ADD CONSTRAINT "FK_KycProfile_Tenant" FOREIGN KEY ("TenantId") REFERENCES "plat"."Tenant" ("TenantId");
 ALTER TABLE "pty"."KycProfile" ADD CONSTRAINT "FK_KycProfile_InstitutionId" FOREIGN KEY ("TenantId", "InstitutionId") REFERENCES "ins"."Institution" ("TenantId", "InstitutionId");
@@ -6140,6 +6172,8 @@ ALTER TABLE "acc"."BankAccount" ADD CONSTRAINT "FK_BankAccount_RelationshipId" F
 ALTER TABLE "acc"."BankAccount" ADD CONSTRAINT "FK_BankAccount_AccountTypeId" FOREIGN KEY ("TenantId", "AccountTypeId") REFERENCES "cat"."AccountType" ("TenantId", "AccountTypeId");
 ALTER TABLE "acc"."BankAccount" ADD CONSTRAINT "FK_BankAccount_MasterAccountId" FOREIGN KEY ("TenantId", "CompanyId", "InstitutionId", "CurrencyId", "MasterAccountId") REFERENCES "acc"."BankAccount" ("TenantId", "CompanyId", "InstitutionId", "CurrencyId", "BankAccountId");
 ALTER TABLE "acc"."BankAccount" ADD CONSTRAINT "FK_BankAccount_CurrencyId" FOREIGN KEY ("CurrencyId") REFERENCES "ref"."Currency" ("CurrencyId");
+ALTER TABLE "acc"."BankAccount" ADD CONSTRAINT "FK_BankAccount_EncKeyId" FOREIGN KEY ("TenantId", "EncKeyId") REFERENCES "sec"."TenantKey" ("TenantId", "TenantKeyId");
+ALTER TABLE "acc"."BankAccount" ADD CONSTRAINT "FK_BankAccount_HashKeyId" FOREIGN KEY ("TenantId", "HashKeyId") REFERENCES "sec"."TenantKey" ("TenantId", "TenantKeyId");
 ALTER TABLE "acc"."BankAccount" ADD CONSTRAINT "FK_BankAccount_BranchUnitId" FOREIGN KEY ("TenantId", "InstitutionId", "BranchUnitId") REFERENCES "ins"."InstitutionUnit" ("TenantId", "InstitutionId", "InstitutionUnitId");
 ALTER TABLE "acc"."FacilityAccount" ADD CONSTRAINT "FK_FacilityAccount_Tenant" FOREIGN KEY ("TenantId") REFERENCES "plat"."Tenant" ("TenantId");
 ALTER TABLE "acc"."FacilityAccount" ADD CONSTRAINT "FK_FacilityAccount_FacilityId" FOREIGN KEY ("TenantId", "FacilityId") REFERENCES "fac"."Facility" ("TenantId", "FacilityId");
@@ -6454,6 +6488,7 @@ ALTER TABLE "wfl"."Request" ADD CONSTRAINT "FK_Request_CurrentStageId" FOREIGN K
 ALTER TABLE "wfl"."Request" ADD CONSTRAINT "FK_Request_CurrentStageInstanceId" FOREIGN KEY ("TenantId", "CurrentStageInstanceId") REFERENCES "wfl"."RequestStageInstance" ("TenantId", "RequestStageInstanceId");
 ALTER TABLE "wfl"."Request" ADD CONSTRAINT "FK_Request_ExternalPhaseId" FOREIGN KEY ("TenantId", "ExternalPhaseId") REFERENCES "wfl"."ExternalPhase" ("TenantId", "ExternalPhaseId");
 ALTER TABLE "wfl"."Request" ADD CONSTRAINT "FK_Request_AssigneeUserId" FOREIGN KEY ("TenantId", "AssigneeUserId") REFERENCES "sec"."AppUser" ("TenantId", "AppUserId");
+ALTER TABLE "wfl"."Request" ADD CONSTRAINT "FK_Request_ClosedByUserId" FOREIGN KEY ("TenantId", "ClosedByUserId") REFERENCES "sec"."AppUser" ("TenantId", "AppUserId");
 ALTER TABLE "wfl"."Request" ADD CONSTRAINT "FK_Request_CurrencyId" FOREIGN KEY ("CurrencyId") REFERENCES "ref"."Currency" ("CurrencyId");
 ALTER TABLE "wfl"."Request" ADD CONSTRAINT "FK_Request_ProductId" FOREIGN KEY ("TenantId", "ProductId") REFERENCES "cat"."Product" ("TenantId", "ProductId");
 ALTER TABLE "wfl"."Request" ADD CONSTRAINT "FK_Request_ParentRequestId" FOREIGN KEY ("TenantId", "ParentRequestId") REFERENCES "wfl"."Request" ("TenantId", "RequestId");
@@ -6543,6 +6578,8 @@ ALTER TABLE "lc"."LcTerms" ADD CONSTRAINT "FK_LcTerms_ApplicantCompanyId" FOREIG
 ALTER TABLE "lc"."LcTerms" ADD CONSTRAINT "FK_LcTerms_ApplicantCounterpartyId" FOREIGN KEY ("TenantId", "ApplicantCounterpartyId") REFERENCES "lc"."Counterparty" ("TenantId", "CounterpartyId");
 ALTER TABLE "lc"."LcTerms" ADD CONSTRAINT "FK_LcTerms_BeneficiaryCompanyId" FOREIGN KEY ("TenantId", "BeneficiaryCompanyId") REFERENCES "org"."Company" ("TenantId", "CompanyId");
 ALTER TABLE "lc"."LcTerms" ADD CONSTRAINT "FK_LcTerms_BeneficiaryCounterpartyId" FOREIGN KEY ("TenantId", "BeneficiaryCounterpartyId") REFERENCES "lc"."Counterparty" ("TenantId", "CounterpartyId");
+ALTER TABLE "lc"."LcTerms" ADD CONSTRAINT "FK_LcTerms_EncKeyId" FOREIGN KEY ("TenantId", "EncKeyId") REFERENCES "sec"."TenantKey" ("TenantId", "TenantKeyId");
+ALTER TABLE "lc"."LcTerms" ADD CONSTRAINT "FK_LcTerms_HashKeyId" FOREIGN KEY ("TenantId", "HashKeyId") REFERENCES "sec"."TenantKey" ("TenantId", "TenantKeyId");
 ALTER TABLE "lc"."LcTerms" ADD CONSTRAINT "FK_LcTerms_CurrencyId" FOREIGN KEY ("CurrencyId") REFERENCES "ref"."Currency" ("CurrencyId");
 ALTER TABLE "lc"."LcTerms" ADD CONSTRAINT "FK_LcTerms_IncotermId" FOREIGN KEY ("IncotermId") REFERENCES "ref"."Incoterm" ("IncotermId");
 ALTER TABLE "lc"."LcTerms" ADD CONSTRAINT "FK_LcTerms_FacilityAccountId" FOREIGN KEY ("TenantId", "FacilityAccountId") REFERENCES "acc"."BankAccount" ("TenantId", "BankAccountId");
