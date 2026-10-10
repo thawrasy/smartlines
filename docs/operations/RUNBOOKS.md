@@ -490,8 +490,12 @@ The capacity model and its stages are in `CAPACITY_MODEL.md`.
   `deploy/install.sh` and `deploy/update.sh` run `deploy/images.sh pull IMAGES <tag>`, which checks every signature and
   bill of materials with cosign (signed by this repository's release workflow for a `v*` tag) before pulling the images
   by digest, and refuses an image that is not. The server needs `cosign`, HTTPS to the Sigstore services
-  (`tuf-repo-cdn.sigstore.dev`, `rekor.sigstore.dev`) and to `ghcr.io`; while the packages are private, sign in once
-  with a token that may only read them (`docker login ghcr.io`). The provenance can be checked by hand:
+  (`tuf-repo-cdn.sigstore.dev`, `rekor.sigstore.dev`), to `ghcr.io` and to `pkg-containers.githubusercontent.com`,
+  where ghcr.io serves every blob, the signatures and bills of materials included: a firewall that lets through
+  `ghcr.io` alone makes cosign report "no signatures found" for a signed image, and one that stops
+  `tuf-repo-cdn.sigstore.dev` makes it report that a trusted root is required. The packages of this repository are
+  public (pulled without signing in, release 1.49.0); a fork whose packages are private signs in once with a token
+  that may only read them (`docker login ghcr.io`). The provenance can be checked by hand:
   `gh attestation verify oci://ghcr.io/<owner>/masslak@sha256:<digest> --owner <owner>`. A server that keeps its
   images in a private registry signs them with a key and sets `MASSLAK_IMAGE_KEY` (the public key file) in
   `deploy/.env`. The API's Python packages are installed from `backend/requirements.lock`, every one pinned with its
