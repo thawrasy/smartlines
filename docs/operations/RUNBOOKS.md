@@ -958,7 +958,7 @@ A constraint is still NOT VALID because rows that existed before it break it.
 |---|---|---|
 | Restore to a point in time | Twice, timed | Monthly |
 | Failover and failure tests | Once per failure mode | Quarterly |
-| Failover drill (`failover_drill.py`) with Patroni and HAProxy | On staging, before the layout carries production traffic | Quarterly |
+| Failover drill (`failover_drill.py`) with Patroni and HAProxy | CI on every push (the installed layout on one runner); on staging, before the layout carries production traffic | Quarterly on staging |
 | Promoting the second site | Once on staging | Yearly |
 | Warehouse copied again (`build.py --resync`) | Once on staging | After each publication change |
 | Key rotation | Once in staging | Yearly, and after any suspected exposure |

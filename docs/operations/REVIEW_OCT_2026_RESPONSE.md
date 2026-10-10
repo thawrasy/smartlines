@@ -11,8 +11,8 @@ Two reviews of release 1.48.0 were assessed against the code. The first is a tec
 The work is in three packages. This page records each finding, what changed, the test that proves the change, and
 what remains open.
 
-Status values: **fixed** (in this release, with its test; packages 1 and 2), **package 3** (availability, supply
-chain, improvements), **outside code** (needs staging or a third party; these are the open launch gates).
+Status values: **fixed** (in this release, with its test; packages 1, 2 and 3), **outside code** (needs staging or a
+third party; these are the open launch gates).
 
 ## 1. Package 1: what was fixed
 
@@ -107,17 +107,40 @@ PRODUCTION_PROFILE.md, section 4. In short:
 
 ## 3. Package 3: availability, supply chain and improvements
 
-| Ref | Finding | Verdict | Plan |
+The production database now runs on two hosts with automatic failover, and the installer requires it or the owner's
+written acceptance of one host. A production server runs only images the release workflow built and signed. Files in
+an object store come back to a backup's moment with the database. The CI job **Production with two database hosts**
+installs the layout from the bundles on three addresses of one runner and kills the primary under load.
+
+| Ref | Finding | What changed | Proof |
 |---|---|---|---|
-| H-01 | The standard deployment puts the primary and the replica on one host; the Patroni files are not wired into the installer | Confirmed (the recovery time is 30 minutes, not 60 seconds; one minute is the Patroni failover only) | A production layout the installer requires: two synchronous hosts, etcd, HAProxy, second site; a failover drill under load on staging |
-| H-04 | With S3 storage the backup does not record object versions | Partly accurate (the joint restore drill exists for local storage) | A bucket version marker in the backup record, Versioning and Object Lock required, a joint restore drill |
-| H-08 | The signature covers the source archive; the image is built locally and its digest is not signed | Confirmed | One image built in CI, pushed to a registry, its digest signed (cosign) with SBOM and provenance; the installer refuses an unsigned image; pip hashes |
-| M-03 | Rate limits for public search and partner keys are per process | Confirmed | Shared limits in the database or a distributed firewall, tested with several servers |
-| M-04 | The encrypted file is written before its row and not removed on refusal or rollback | Confirmed | Compensating delete, and a sweep for objects no row points to |
-| M-08 | Rows leave the default partition in one transaction | Partly accurate (only after a backlog) | Batches above a threshold, measured on a production-sized copy |
-| M-11 | 29 advisories in the mobile app's dependencies | Confirmed | An Expo-compatible upgrade plan, each advisory classed as build or runtime, a CI rule that refuses unclassed high ones |
-| M-13 | The password deny list is short | Confirmed | A larger list of common passwords, or a k-anonymity check where the law allows it |
-| M-14 | The mobile package has no `type: module`; not tested on real devices | Confirmed | EAS builds and a device matrix (install, offline, biometric lock) |
+| H-01 | The standard deployment puts the primary and the replica on one host; the Patroni files were not wired into the installer | `MASSLAK_DB_LAYOUT=ha`: two database hosts under Patroni with a synchronous standby, etcd on both and on the application host, HAProxy on the application host under the names `db` and `db-replica`, so the stack and the operator's scripts are unchanged. `deploy/production/init.sh` issues the cluster's certificate and one bundle per host; `deploy/production/ha/install-db-host.sh` installs a host from its bundle with the signed database image (now carrying Patroni from a hashed lock and HAProxy), schedules the backups on whichever host is the primary, and hands the role over before it restarts a primary. Everything between the members is TLS with the internal authority: replication and rewind (`verify-full`), Patroni's REST API, etcd with client certificates. Zero data loss is applied to the cluster through Patroni's REST API. Both preflights refuse a production server whose database is neither on two hosts with a synchronous standby streaming nor on one host the owner accepted (`MASSLAK_SINGLE_HOST_ACCEPTED`). The second site stays a design with its watchdog, now pointed at the main site's hosts | CI job **Production with two database hosts**: the install refused until both hosts run; TLS everywhere and the synchronous standby checked; a commit waits while the standby is down with zero data loss on; the failover drill (`failover_drill.py`, 20 writes a second, the primary's container killed) asserts no acknowledged write lost and writing back within 60 s; the old primary rejoins by `pg_rewind`; an update of the primary hands the role over first. Locally with the same configuration (native processes): back to writing 25.4 s after the kill, 0 of 298 lost (`evidence/failover_drill_ha_2026-10-10.json`). `test_review_oct_2026_package3.py` (certificate and bundles, refusals, proxies, Patroni settings), `test_production_profile.py` (layout in the preflight) |
+| H-04 | With S3 storage the backup did not record object versions | The bucket must keep every version (versioning) and lock them (Object Lock, default retention at least `MASSLAK_BACKUP_KEEP_DAYS`): the migration's preflight refuses otherwise. Each backup records the version and content tag of every file (`python -m app.tools.files_versions manifest`, encrypted with the backup) and fails without it; `deploy/restore.sh` puts those versions back before the file check. Files written after the backup are left to the daily sweep | `test_file_store.py::test_joint_restore_drill_brings_every_file_back_to_the_backups_moment` against SeaweedFS (one file changed, one deleted, one added after the backup; every file of the backup decrypts to its recorded hash), `::test_the_preflight_tells_a_locked_bucket_from_a_plain_one`; `test_production_profile.py` (each gap named) |
+| H-08 | The signature covered the source archive; the image was built on the server and its digest was not signed | The release workflow builds the API, egress proxy and database images once, pushes them to the registry, and signs each digest keylessly with its bill of materials (SPDX) and build provenance. `IMAGES`, inside the signed release archive, names them by digest. A production install or update verifies each signature and bill of materials (`deploy/images.sh`, cosign), pulls by digest and never builds; an unsigned or changed image stops it before anything changes. Every Python package of the API image, transitive ones included, is pinned with its hashes (`backend/requirements.lock`, `pip --require-hashes`), as is Patroni's (`patroni.lock`); pip-audit audits both | CI job **Production installation**: the images built, pushed and signed with a key in a local registry, the install verifies and pulls them (`verified masslak-db`, nothing built), and an update naming a changed, unsigned API image is refused while the signed one keeps serving; `test_review_oct_2026_package3.py` (hashes, digests required, never built) |
+| M-03 | Rate limits for public search and partner keys were per process | Public search draws from the shared buckets in PostgreSQL per client address, in the round trip that already reads the address rules; each partner key from its own bucket at its own limit (`sec.rate_take`, 1068). Adding servers never raises a limit | `test_shared_limits.py::test_public_and_partner_requests_draw_from_the_shared_buckets`, `::test_two_processes_share_one_bucket` |
+| M-04 | The encrypted file was written before its row and not removed on refusal or rollback | A file written before its row is deleted again when the row's transaction does not commit (`db.on_rollback`). `app.tools.files_sweep` deletes files no row points to after 24 hours; the worker runs it daily; it refuses to delete more than 5 % of the files (at least 100), which would mean the store and the database do not belong together | `test_review_oct_2026_package3.py::test_a_file_whose_transaction_rolls_back_is_deleted_again`, `::test_the_sweep_deletes_only_old_files_no_row_points_to`, `::test_the_sweep_refuses_when_most_files_look_unreferenced`; `test_file_store.py::test_the_object_store_lists_and_deletes_for_the_sweep` |
+| M-08 | Rows left the default partition in one transaction | Schema 1083: the daily upkeep moves a late period itself only up to 50,000 rows; a larger one stays readable where it is and the worker moves it with `sys.move_default_period()`, one period per transaction, with a short lock wait. Measured: 200,000 rows in 1.8 s, 1,000,000 in 5.9 s per period | `test_review_oct_2026_package3.py::test_the_worker_moves_a_large_late_period_on_its_own`; `db/tests` section 1083 |
+| M-11 | 29 advisories in the mobile app's dependencies | They come from four advisories, each classed in `mobile/advisories.json`: braces, node-forge and uuid in build tooling (Metro, the Expo CLI, config plugins), decode-uri-component at runtime under expo-router's query-string 7 (moderate, device-local, accepted until Expo SDK 58 is the stable SDK; the patched release breaks query-string 7). `scripts/mobile_advisories.py` fails CI on an unclassed high or critical advisory, on a runtime one at high or above without a dated acceptance, on an entry past its review date, and on a build-classed package that a bundle carries, read from the source maps of the three apps' exports | CI job **Mobile apps**; `test_review_oct_2026_package3.py::test_every_mobile_advisory_is_classed_and_build_ones_do_not_ship` |
+| M-13 | The password deny list was short | 72,957 passwords of 12 characters or more from public leak lists (SecLists, MIT; source in `backend/app/assets/passwords/README.md`), repeated patterns, keyboard and alphabet runs, the platform's name, and the person's own e-mail, name or mobile number (`PASSWORD_TOO_PERSONAL`, translated on the web and in the app), on all six paths that set a password | `test_review_oct_2026_package3.py` (common and patterned passwords, the list's size, personal details, registration) |
+| M-14 | The mobile package had no `type: module`; the apps were not tested on real devices | `"type": "module"` (type check, tests and the three exports pass). `mobile/eas.json` has preview and production profiles for each app; the workflow **Mobile builds** runs them on EAS by hand. `MOBILE_DEVICE_MATRIX.md` names the device rows and twelve cases (install, offline ticket, offline boarding, biometric lock, pinning, sign-out wipe ...) and the launch gates require one passing run per row before the stores | `test_review_oct_2026_package3.py::test_the_mobile_apps_build_on_eas_as_modules_and_ci_checks_their_advisories`; the device runs themselves are outside the code (section 5) |
+
+Also found and fixed while testing:
+
+* Patroni's `/replica?lag=30s` check of the earlier HAProxy design read the lag in bytes, so it never excluded a
+  lagging standby; the proxy asks `/replica?lag=16MB`.
+* A new etcd cluster settles its version only once all three members have run, and until then Patroni falls back to
+  an API etcd 3.5 no longer serves: the first database host waits for the second, which the installer now expects.
+* The pinned PostGIS image carries an older libexpat than Alpine's current Python is built against; the database
+  image upgrades it, and CI builds that image on its own with its full log.
+
+### Upgrading a production server to package 3
+
+1. Choose the layout. Two database hosts: set `MASSLAK_DB_LAYOUT=ha`, `MASSLAK_DB_HOSTS` and `MASSLAK_DB_WITNESS`, run
+   `./deploy/install.sh` (it writes the bundles and stops at the preflight), install each host with its bundle, and
+   run it again (HIGH_AVAILABILITY.md, Installing it). One host for now: record the owner's acceptance in
+   `MASSLAK_SINGLE_HOST_ACCEPTED`; until either is set, the update is refused.
+2. Install cosign and update from the signed release archive, whose `IMAGES` names the images (RUNBOOKS.md, section 19).
+3. With documents in an object store: a bucket with versioning and Object Lock (RUNBOOKS.md, section 24).
 
 ## 4. Already fixed, or not a defect
 
@@ -142,17 +165,18 @@ The other topics of report 2 were confirmed and fall under the items above:
 | Input validation | Ownership proven in the penetration test, gate 8 |
 | SYSTEM scope | Governed by the registry |
 | BOLA/IDOR | Isolation tests now; penetration test, gate 8 |
-| Modules writing other modules' tables | Ownership documented; no automatic check yet, package 3 |
+| Modules writing other modules' tables | Ownership documented; no automatic check yet |
 | Performance, launch gates, scores | Accurate |
 
 ## 5. Outside the code
 
 These need staging or a third party. They are the launch gates that are already open:
 
-* failover and restore drills on staging;
+* failover and restore drills on staging's own hosts (CI runs the failover drill on the installed layout; staging
+  repeats it on real machines and a real network);
 * the independent penetration test;
 * the capacity test;
-* device tests;
+* the device matrix on real phones (`MOBILE_DEVICE_MATRIX.md`, which needs the Expo account's token and the devices);
 * a live payment provider.
 
 ## 6. Test results
