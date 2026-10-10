@@ -27,6 +27,10 @@ def is_owned(t):
     return not t.is_global and not t.is_mixed and 'noapp' not in t.flags
 
 
+def pk_of(t):
+    return list(t.pk_cols) if t.pk_cols else [f'{t.name}Id']
+
+
 def key_info(t):
     pk = list(t.pk_cols) if t.pk_cols else [f'{t.name}Id']
     fk = {c.name for c in t.cols if c.fk}
@@ -38,12 +42,21 @@ def key_info(t):
 
 
 def col_type(c, tables):
+    if isinstance(c, _SurrogateCol): return c.sqltype
     if c.fk:
         return dbgen.pk_sqltype(tables[c.fk])[0] if c.fk in tables else ''
     try:
         return dbgen.coltype_sql(c, 'tsql') or ''
     except Exception:
         return c.sqltype or ''
+
+
+class _SurrogateCol:
+    """المفتاح الاصطناعي <Table>Id لا يُخزَّن في t.cols، فيُعرض بنوعه الفعلي."""
+    def __init__(self, name, sqltype):
+        self.name = name; self.fk = None; self.req = True; self.auto = True; self.sqltype = sqltype
+    def __getattr__(self, k):
+        return None
 
 
 def table_label(t, tables):
@@ -53,6 +66,7 @@ def table_label(t, tables):
     shown = []
     for n in pk:
         if n in cols: shown.append(('PK', cols[n]))
+        else: shown.append(('PK', _SurrogateCol(n, dbgen.pk_sqltype(t)[0])))
     for c in t.cols:
         if c.fk and c.name not in pk: shown.append(('FK', c))
     for c in t.cols:
@@ -66,7 +80,8 @@ def table_label(t, tables):
         tag = {'PK': '<FONT COLOR="#1D4E89"><B>PK</B></FONT>', 'FK': '<FONT COLOR="#B45309"><B>FK</B></FONT>',
                'UQ': '<FONT COLOR="#0F766E"><B>UQ</B></FONT>', '': ''}[kind]
         bold = '<B>%s</B>' % escape(c.name) if kind in ('PK', 'FK', 'UQ') else escape(c.name)
-        rows.append(f'<TR><TD ALIGN="LEFT">{tag}</TD><TD ALIGN="LEFT">{bold}</TD><TD ALIGN="RIGHT"><FONT COLOR="#6B7280" POINT-SIZE="8">{escape(col_type(c, tables))}</FONT></TD></TR>')
+        port = f' PORT="{escape(c.name)}"' if kind in ('PK', 'FK', 'UQ') else ''
+        rows.append(f'<TR><TD ALIGN="LEFT"{port}>{tag}</TD><TD ALIGN="LEFT"{port}>{bold}</TD><TD ALIGN="RIGHT"{port}><FONT COLOR="#6B7280" POINT-SIZE="8">{escape(col_type(c, tables))}</FONT></TD></TR>')
     more = len(t.cols) - len(shown)
     if more > 0:
         rows.append(f'<TR><TD COLSPAN="3" ALIGN="LEFT"><FONT POINT-SIZE="8" COLOR="#6B7280"><I>+ {more} more columns</I></FONT></TD></TR>')
@@ -91,35 +106,63 @@ def edges_for(members, tables):
     return out, stubs
 
 
-def dot_document(title, subtitle, nodes, edge_lines):
+def dot_document(title, subtitle, nodes, edge_lines, ortho=False):
     head = ['digraph G {',
-            f'  graph [fontname="{FONT}", label=<<B><FONT POINT-SIZE="16">{escape(title)}</FONT></B><BR/><FONT POINT-SIZE="10" COLOR="#4B5563">{escape(subtitle)}</FONT>>, labelloc=t, rankdir=LR, splines=true, nodesep=0.35, ranksep=1.25, pad=0.35, bgcolor="white", dpi=110];',
+            f'  graph [fontname="{FONT}", label=<<B><FONT POINT-SIZE="16">{escape(title)}</FONT></B><BR/><FONT POINT-SIZE="10" COLOR="#4B5563">{escape(subtitle)}</FONT>>, labelloc=t, rankdir=LR, splines={"ortho" if ortho else "spline"}, nodesep=0.45, ranksep=1.7, pad=0.35, bgcolor="white", dpi=110];',
             f'  node [fontname="{FONT}", fontsize=10];',
             f'  edge [fontname="{FONT}", fontsize=8, color="#374151", arrowsize=0.75];']
     return '\n'.join(head + nodes + edge_lines + ['}']) + '\n'
 
 
+def layer_of(members, tables):
+    """طبقات منظّمة: الجدول الأب في عمود يسار ابنه. الطبقة = أطول سلسلة مفاتيح داخل المجموعة."""
+    internal = set(members)
+    depth = {fq: 0 for fq in members}
+    for _ in range(len(members)):            # تكرار كافٍ لانتشار الأطوال في أي مخطط غير دوري
+        changed = False
+        for fq in members:
+            for c in tables[fq].cols:
+                if c.fk in internal and c.fk != fq and depth[c.fk] + 1 > depth[fq]:
+                    depth[fq] = depth[c.fk] + 1; changed = True
+        if not changed: break
+    return depth
+
+
 def render_group(name, title, subtitle, members, tables):
-    edges, stubs = edges_for(members, tables)
+    """تخطيط منظّم: الأعمدة = طبقات الاعتماد (الأب يسارًا)، الأسهم متعامدة تربط صفّ المفتاح بصفّ المفتاح، بلا تسميات متزاحمة."""
+    internal = set(members)
+    depth = layer_of(members, tables)
     nodes = []
+    stub_list = sorted({c.fk for fq in members for c in tables[fq].cols if c.fk and c.fk not in internal})
     for fq in members:
         nodes.append(f'  {q(fq)} [shape=plain, label={table_label(tables[fq], tables)}];')
-    for fq in sorted(stubs):
-        nodes.append(f'  {q(fq)} [shape=box, style="rounded,dashed", color="#6B7280", fontcolor="#374151", margin="0.12,0.05", label={q(external_label(fq))}];')
-    # علاقة واحدة لكل زوج (أب، ابن) مهما تعددت أعمدة الربط بينهما
-    agg = {}
-    for parent, child, col, req in edges:
-        cols, allreq = agg.get((parent, child), ([], True))
-        cols.append(col); agg[(parent, child)] = (cols, allreq and req)
+    for fq in stub_list:
+        nodes.append(f'  {q(fq)} [shape=box, style="rounded,dashed", color="#6B7280", fontcolor="#374151", margin="0.12,0.05", label={q(fq)}];')
+    # الأعمدة: المراجع الخارجية أقصى اليسار، ثم الطبقات الداخلية بالترتيب
+    levels = {}
+    for fq in members: levels.setdefault(depth[fq], []).append(fq)
+    rank_lines = []
     lines = []
-    for (parent, child), (cols, allreq) in sorted(agg.items()):
-        external = parent in stubs or child in stubs
-        arrow = 'crow' if allreq else 'crowodot'
-        style = 'dashed' if external else 'solid'
-        color = '#9CA3AF' if external else '#374151'
-        label = '\\n'.join(sorted(set(cols))) if len(set(cols)) <= 3 else f'{len(set(cols))} أعمدة ربط'
-        lines.append(f'  {q(parent)} -> {q(child)} [dir=both, arrowtail=tee, arrowhead={arrow}, style={style}, color="{color}", fontcolor="{color}", label={q(label)}];')
-    return dot_document(title, subtitle, nodes, lines)
+    for fq in members:
+        t = tables[fq]
+        for c in t.cols:
+            if not c.fk: continue
+            parent = c.fk
+            if parent == fq:          # مرجع ذاتي: يظهر في صفّ الجدول (FK → نفسه)، ولا يُرسم حلقة متعامدة
+                continue
+            if parent in internal:
+                ppk = pk_of(tables[parent])[0]
+                tail = f'{q(parent)}:{q(ppk)}:e'
+                external = False
+            else:
+                tail = q(parent)
+                external = True
+            arrow = 'crow' if c.req else 'crowodot'
+            style = 'dashed' if external else 'solid'
+            color = '#9CA3AF' if external else '#374151'
+            lines.append(f'  {tail} -> {q(fq)}:{q(c.name)}:w [dir=both, arrowtail=tee, arrowhead={arrow}, style={style}, color="{color}", arrowsize=0.7];')
+    # الصفوف المتعامدة تحتاج منافذ فعلية في الصفوف المرئية فقط؛ المفاتيح الأجنبية الظاهرة تُدرج في الجدول
+    return dot_document(title, subtitle, nodes + rank_lines, lines, ortho=True)
 
 
 CORE_TENANCY = ['plat.Tenant', 'plat.Plan', 'plat.TenantModule', 'plat.SupportAccessGrant', 'plat.PlatformOperator',
@@ -227,11 +270,19 @@ def main():
         raise SystemExit(f'plan error: missing={sorted(missing)[:5]} duplicated={sorted(dup)[:5]}')
     os.makedirs(SRC, exist_ok=True)
     made = []
+    fallbacks = []
     def write_and_render(name, text):
         src = os.path.join(SRC, name + '.dot')
-        open(src, 'w', encoding='utf-8').write(text)
         png = os.path.join(OUT, name + '.png')
-        subprocess.run(['dot', '-Tpng', src, '-o', png], check=True)
+        open(src, 'w', encoding='utf-8').write(text)
+        try:
+            subprocess.run(['dot', '-Tpng', src, '-o', png], check=True, stderr=subprocess.DEVNULL)
+        except subprocess.CalledProcessError:
+            # التوجيه المتعامد يتعثر أحيانًا مع منافذ الجداول: نعيد الرسم بتوجيه منحنٍ مع الإبقاء على المنافذ
+            fallbacks.append(name)
+            text2 = text.replace('splines=ortho', 'splines=spline')
+            open(src, 'w', encoding='utf-8').write(text2)
+            subprocess.run(['dot', '-Tpng', src, '-o', png], check=True, stderr=subprocess.DEVNULL)
         from PIL import Image
         im = Image.open(png).convert('RGB').quantize(colors=256, method=Image.Quantize.MEDIANCUT)
         im.save(png, optimize=True)
@@ -243,7 +294,7 @@ def main():
     write_and_render('legend', render_legend())
     for key, title, sub, members in plan:
         write_and_render(key, render_group(key, title, sub, members, tables))
-    print(f'rendered {len(made)} diagrams -> {OUT} ; tables covered={len(assigned)}')
+    print(f'rendered {len(made)} diagrams -> {OUT} ; tables covered={len(assigned)} ; spline fallback={fallbacks}')
     return plan, tables
 
 

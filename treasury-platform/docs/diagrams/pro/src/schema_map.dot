@@ -1,5 +1,5 @@
 digraph G {
-  graph [fontname="DejaVu Sans", label=<<B><FONT POINT-SIZE="16">خريطة المخططات (Schema Map)</FONT></B><BR/><FONT POINT-SIZE="10" COLOR="#4B5563">كل مخطط كصندوق · الأسهم = مفاتيح أجنبية بين المخططات مع عددها</FONT>>, labelloc=t, rankdir=LR, splines=true, nodesep=0.35, ranksep=1.25, pad=0.35, bgcolor="white", dpi=110];
+  graph [fontname="DejaVu Sans", label=<<B><FONT POINT-SIZE="16">خريطة المخططات (Schema Map)</FONT></B><BR/><FONT POINT-SIZE="10" COLOR="#4B5563">كل مخطط كصندوق · الأسهم = مفاتيح أجنبية بين المخططات مع عددها</FONT>>, labelloc=t, rankdir=LR, splines=spline, nodesep=0.45, ranksep=1.7, pad=0.35, bgcolor="white", dpi=110];
   node [fontname="DejaVu Sans", fontsize=10];
   edge [fontname="DejaVu Sans", fontsize=8, color="#374151", arrowsize=0.75];
   "acc" [shape=box, style="rounded,filled", fillcolor="#FFF4C7", color="#8A7A3A", label="acc\n6 جدولًا"];
