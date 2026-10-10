@@ -466,7 +466,8 @@ jobs:
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       - run: docker build -t masslak:ci .
-      # what the image contains, package by package, kept with the run (review stage C6); releases carry a signed one
+      # what the image contains, package by package, kept with the run (review stage C6); releases carry a signed one.
+      # Not attached to a release: CI may only read, and on a tag the release workflow publishes its own signed files.
       - name: Software bill of materials of the image (SPDX)
         uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
         with:
@@ -474,3 +475,4 @@ jobs:
           format: spdx-json
           output-file: masslak-image.spdx.json
           artifact-name: masslak-image.spdx.json
+          upload-release-assets: false
