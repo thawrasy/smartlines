@@ -6,7 +6,7 @@ SQL="$(readlink -f "$1")"
 PGBIN=$(ls -d /usr/lib/postgresql/*/bin | tail -1)
 D=$(mktemp -d /tmp/pgval.XXXXXX); chown postgres "$D"; chmod 755 "$D"
 cp "$SQL" "$D/model.sql"; chmod 644 "$D/model.sql"
-PORT=54329
+PORT=$((20000 + RANDOM % 20000))
 su postgres -c "$PGBIN/initdb -D $D/data -A trust >/dev/null"
 su postgres -c "$PGBIN/pg_ctl -D $D/data -o '-p $PORT -k $D' -l $D/log -w start >/dev/null"
 trap 'su postgres -c "$PGBIN/pg_ctl -D $D/data -m immediate stop >/dev/null" || true; rm -rf "$D"' EXIT

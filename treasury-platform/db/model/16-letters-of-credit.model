@@ -1,0 +1,689 @@
+# =============================================================================
+# 16-letters-of-credit.model -- A7: الاعتمادات المستندية (lc) + المرجع العالمي (ref.Incoterm, ref.UcpArticle)
+# المصدر: docs/10-detailed-analysis/14-m7-m8-letters-of-credit.md  §6.2 قاموس حقول LcTerms · §6.3 LCT · §6.4 LCI/LCE · §6.6 (جديد)
+#         + FR-LCT/LCI/LCE · BR-LCT-001..022 · BR-LCI-001..019 · BR-LCE-001..018 · V-LCT/LCI/LCE · §8 الحالات · §5.5 قوالب الرسوم
+# قرارات ملزمة: SQL Server 2025 · قاعدة واحدة بعزل صفوف (TenantId تلقائي، مفاتيح مركّبة) · BIGINT IDENTITY (INT للكتالوج)
+#   جذور API بـ public · لا temporal: التاريخ = إصدارات/صفوف بحالات + aud.AuditLog · لا حذف فعلي لبيانات ائتمانية
+#   مبلغ = money (+ عملة) · نسبة = rate بنقاط مئوية · تاريخ ميلادي (+ نص هجري str(20) حيث تنص المواصفة: FR-LCT-032) · ts = UTC
+#   الواجهة إنجليزية أولًا والأسماء ثنائية (NameAr/NameEn) · مفتاح "guid" في 10 و13 مستبدل بـ BIGINT + PublicId
+# شروط الاعتماد LcTerms: صف لكل إصدار (VersionNo) وأعمدة مطبوعة لكل حقل في قاموس §6.2؛ يُستعمل في الطلب والبروفورما والاعتماد الصادر/المستلَم
+#   والتعديل. المالك متعدد الأشكال (OwnerType + OwnerId) كما في المواصفة بلا FK؛ والمالكون الثلاثة (LetterOfCredit.CurrentTermsId ·
+#   ProformaInvoice.TermsId · LcAmendment.TermsId) يشيرون إلى الشروط بمفتاح أجنبي إلزامي؛ لذا OwnerId إلزامي لمالك REQUEST (الطلب سابق للشروط)
+#   ويُعبَّأ لغيره في المعاملة نفسها بعد إنشاء المالك (تُدرج الشروط أولًا ثم المالك ثم يُحدَّث OwnerId) بسبب IDENTITY.
+# سياسة القيود على LcTerms: DRAFT متساهلة (مجالات القيم والموجب والنطاقات فقط) لأن المسودة تُحفظ تدريجيًا؛ LOCKED/SUPERSEDED تعكس قواعد E
+#   التي لا تتوقف على إعداد المشترك ولا على جدول آخر (V-LCT-01/03/06/09/12/14/15/20). الإلزام المضبوط بالبيانات (LcFieldDefinition.ApplicabilityJson،
+#   BR-LCT-002) يبقى في التطبيق إلا الحقول المقفلة: النوع والعملة والمبلغ وقاعدة الانتهاء (والمستندات والرسوم صفوف ابنة). الأغراض المسجَّلة
+#   (ISSUED/RECEIVED) تعكس وثيقة الغير فلا تُمنع بترتيب تواريخ معيب.
+# عملة الاعتماد وحدها لكل أبنائه: LcId ... via=CurrencyId يجعل عملة السحب والتعديل وأمر البيع والتوزيع تساوي عملة الاعتماد (BR-LCI-013، V-LCE-06).
+# نفس الاعتماد: التوزيع يحمل LcId ويربط السحب وأمر البيع بـ via=LcId فيستحيل توزيع سحب اعتماد على أمر بيع اعتماد آخر.
+# أرقام الحسابات/IBAN لا تُخزَّن صريحة: Enc + Mask + Hash (FR-REQ-024، FR-PLT-037).
+# مشتقات لا تُخزَّن (README): Scope المحلي/الدولي يُخزَّن لأنه مُدخَل قابل للتجاوز؛ المخبأ فقط: ExposureAmount · DrawnAmount · SettledAmount ·
+#   EarmarkedRemaining (مخزَّنة ومطابَقة ليلًا BR-LCE-009/FR-LCE-025) و AmountInWordsAr/En (تُجمَّد عند القفل BR-LCT-003).
+#   غير مخزَّن: Outstanding · Undrawn · Unsettled · Available · MaxAmount/MinAmount · UtilizationPct · ValidUntil · EffectiveWindowEnd.
+# فرادة مع أعمدة قابلة للـ NULL: SQL Server يعدّ NULL مساويًا لـ NULL في الفهرس الفريد؛ PostgreSQL للتحقق البنيوي فقط.
+# مراجع خارجية (يعرّفها غيري): org.Company · pty.Party · ins.Institution · ins.Relationship · acc.BankAccount · cat.Product · fac.Facility
+#   fac.Limit · fac.LimitProductLine · fac.Utilization · wfl.Request · doc.Document · sec.AppUser · plat.PlatformOperator · ref.Currency · ref.Country
+# =============================================================================
+
+module LC
+
+# ============================== المخطط ref: مراجع عالمية للاعتمادات ==============================
+
+table ref.Incoterm global int  # مصطلح تسليم Incoterms: مرجع عالمي للقراءة فقط يديره المشغّل؛ القديم LEGACY للعرض لا للاختيار (FR-LCT-013، FR-CAT-021، BR-CAT-015)
+  Code               char(3)    req   # EXW FCA CPT CIP DAP DPU DDP FAS FOB CFR CIF (2020) + القديمة DAT DAF DES DEQ DDU
+  NameEn             str(100)   req
+  NameAr             str(100)
+  RulesVersion       ascii(10)  req ='2020'   # إصدار قواعد ICC: 2020 للنشطة وأقدم للقديمة
+  Status             enum{ACTIVE,LEGACY} req =ACTIVE   # LEGACY لا يُختار في جديد ويُعرض في القديم
+  IsSeaOnly          bool       req =0   # بحري/نهري فقط FAS FOB CFR CIF: مع وسيلة غير SEA تحذير V-LCT-08 (BR-LCT-010)
+  RequiresInsurance  bool       req =0   # CIF/CIP: يُقترح BENEFICIARY وتلزم وثيقة تأمين (BR-LCT-010)
+  SortOrder          int        req =0
+  unique Code
+  index  Status,SortOrder   # قائمة الاختيار
+  check  Code NOT LIKE '%[^A-Z]%'
+
+table ref.UcpArticle int mixed  # مادة UCP 600 مرجعية: TenantId الفارغ = صف عام للقراءة فقط ينشره المشغّل وحده (FR-LCT-006، BR-LCT-018، BR-PLT-001)
+  Version             ascii(10)  req =UCP600   # إصدار القواعد
+  ArticleNo           ascii(10)  req   # رقم المادة (1..39)؛ الفقرة (أ/ب/ج) تُحفظ في وسيط المرجع لا هنا
+  TitleAr             str(300)   req
+  TitleEn             str(300)   req
+  TopicAr             str(200)
+  VerificationStatus  enum{UNVERIFIED,VERIFIED} req =UNVERIFIED   # UNVERIFIED تُظهر الشارة والحاشية ولا تُطفأ ما دامت مادة مستخدمة غير مُتحقَّق (BR-LCT-018)
+  VerifiedBy          ->plat.PlatformOperator noidx   # مشغّل المنصة وحده يملك lc.ucp.verify
+  VerifiedOn          ts
+  VerifierNote        text
+  SeedKey             ascii(80)
+  unique Version,ArticleNo
+  unique SeedKey where SeedKey IS NOT NULL
+  index  VerificationStatus   # R-LCT-01
+  check  VerificationStatus <> 'VERIFIED' OR (VerifiedBy IS NOT NULL AND VerifiedOn IS NOT NULL)   # التحقق: من ومتى (FR-LCT-006)
+  check  VerificationStatus = 'VERIFIED' OR (VerifiedBy IS NULL AND VerifiedOn IS NULL)
+
+# ============================== المخطط lc: تعريفات الحقول والبنود والطرف المقابل ==============================
+
+table lc.LcFieldDefinition  # تعريف حقل في شروط الاعتماد: بيانات تُبذر لكل مشترك (FR-LCT-004، BR-LCT-002)؛ مراجع UCP في lc.LcFieldUcpRef
+  FieldKey            ascii(60)  req   # مفتاح الحقل كما في قاموس §6.2 (lcType, expiryRule, ...)
+  SectionKey          ascii(40)  req   # قسم المحرر (PAYMENT, PARTIES, AMOUNT, DATES, SHIPPING, GOODS, DOCUMENTS, CHARGES, TREASURY, PREVIOUS_LC)
+  LabelAr             str(200)   req
+  LabelEn             str(200)   req
+  HelpAr              str(500)
+  HelpEn              str(500)
+  DataType            enum{STRING,TEXT,INT,DECIMAL,DATE,BOOL,ENUM,LIST,REF,COMPUTED} req   # قيم مشتقة من نوع القاموس: المواصفة لا تعدّدها
+  ListCode            ascii(80)        # رمز قائمة القيم cat.LookupList.Code للنوع LIST/ENUM
+  ApplicabilityJson   json       req   # {LcClass:{Scope:{Purpose: REQUIRED|OPTIONAL|HIDDEN}}} (BR-LCT-002)
+  VisibleToRequester  bool       req =1   # حقل الخزينة = 0: لا يراه الطالب (FR-LCT-021، BR-LCI-014)
+  IsLocked            bool       req =0   # المقفل لا يقبل HIDDEN ولا يعدّله المشترك (FR-LCT-004)
+  SwiftTagHint        ascii(10)        # إرشادي لربط MT700/707 لاحقًا (FR-LCT-035)
+  ValidationJson      json
+  DefaultValue        str(500)
+  SortOrder           int        req =0
+  IsActive            bool       req =1
+  SeedKey             ascii(80)
+  unique FieldKey
+  unique SeedKey where SeedKey IS NOT NULL
+  index  SectionKey,SortOrder   # ترتيب المحرر
+  check  FieldKey NOT LIKE '% %'
+  check  IsLocked = 0 OR IsActive = 1   # المقفل لا يُعطَّل (BR-LCT-002)
+  check  ListCode IS NULL OR DataType IN ('LIST','ENUM')
+
+table lc.LcFieldUcpRef deletable  # مرجع UCP لحقل: مادة + فقرة (UcpRefs في المواصفة)؛ يغذّي الشارة وR-LCT-01 وBR-LCT-018 -- وسيط جديد
+  LcFieldDefinitionId  ->lc.LcFieldDefinition req
+  UcpArticleId         ->ref.UcpArticle req
+  Paragraph            str(20)   # الفقرة مثل «ب» أو «أ-3» (6-ب، 7-أ-3)؛ الفارغ = المادة كلها
+  unique LcFieldDefinitionId,UcpArticleId,Paragraph
+
+table lc.Counterparty public  # الطرف المقابل: مورّد/عميل خفيف بلا هوية؛ يُرقّى إلى Party عند الحاجة (FR-LCT-036/037، BR-LCT-022، Q-PTY-03)
+  Code               ascii(20)  req   # يُولَّد تلقائيًا (BR-LCT-022)
+  Kind               enum{SUPPLIER,CUSTOMER,BOTH} req
+  NameEn             str(300)   req
+  NameAr             str(300)
+  NameNormalized     str(300)   req   # اسم مطبَّع بتطبيع عربي (BR-PTY-004) لبحث الاسم وتحذير تكرار الاسم + البلد (BR-LCT-022)
+  CountryId          ->ref.Country req noidx
+  City               str(100)
+  AddressLine        str(300)
+  PoBox              str(30)
+  PostalCode         str(20)
+  Phone              str(40)    sens=confidential   # وسائل الاتصال: سرّية تجارية
+  Fax                str(40)    sens=confidential
+  Email              str(254)   sens=confidential
+  ErpCode            str(40)          # رمز ERP (حساب الذمم/المورّد) نصي يدوي قابل للبحث
+  ErpCodeNormalized  str(40)          # مطبَّع: أرقام عربية-هندية → لاتينية + حروف كبيرة + بلا فراغات (BR-REQ-006)
+  TaxNumber          str(50)
+  PartyId            ->pty.Party      # فارغ ما لم يُرقَّ؛ عند التعبئة يصير مزوّد استخدام Party (FR-LCT-037، BR-PTY-001)
+  MergedIntoId       ->lc.Counterparty noidx   # الدمج: الباقي بعد إعادة توجيه الاعتمادات والبروفورمات (BR-LCT-022)
+  IsActive           bool       req =1   # التعطيل لا الحذف عند وجود مراجع
+  Notes              str(1000)
+  unique Code
+  unique PublicId
+  index  ErpCodeNormalized,Kind where ErpCodeNormalized IS NOT NULL   # تحذير تكرار (النوع، الرمز) لا منع (BR-LCT-022) وبحث الرمز
+  index  NameNormalized,CountryId   # بحث الاسم وتحذير الاسم المطبَّع + البلد
+  check  ErpCode IS NULL OR ErpCodeNormalized IS NOT NULL   # المطبَّع يُحسب عند كل كتابة
+  check  MergedIntoId IS NULL OR (MergedIntoId <> CounterpartyId AND IsActive = 0)   # المدموج يُعطَّل (BR-LCT-022)
+
+table lc.LcDocumentClause public  # مكتبة بنود المستندات بإصدارات: نص قالب بمعاملات (FR-LCT-017..019، BR-LCT-012)؛ مراجع UCP في lc.LcDocumentClauseUcpRef
+  Code                ascii(40)  req   # COMMERCIAL_INVOICE DELIVERY_NOTE BL_SEA AWB_AIR ROAD_CONSIGNMENT MULTIMODAL_TD INSURANCE_POLICY CERT_ORIGIN PACKING_LIST WEIGHT_CERT BENEFICIARY_CERT_CONTAINER_LABEL FCR OTHER_FREE_TEXT
+  VersionNo           int        req =1
+  NameAr              str(200)   req
+  NameEn              str(200)   req
+  Category            enum{COMMERCIAL_INVOICE,DELIVERY_NOTE,TRANSPORT_SEA,TRANSPORT_AIR,TRANSPORT_ROAD,TRANSPORT_MULTIMODAL,INSURANCE,ORIGIN,PACKING,WEIGHT,BENEFICIARY_CERT,FCR,OTHER} req
+  Scope               enum{ANY,DOMESTIC,INTERNATIONAL} req =ANY
+  ApplicableModes     json             # أكواد TRANSPORT_MODE التي يُقترح لها البند (BR-LCT-013)
+  TemplateTextEn      text       req   # نص القالب بعناصر نائبة {param} (BR-LCT-012)
+  TemplateTextAr      text       req
+  ParamSchemaJson     json       req   # مخطط المعاملات: النوع والإلزام والقيم المسموحة
+  DefaultOriginals    int
+  DefaultCopies       int
+  InstitutionId       ->ins.Institution noidx   # تخصيص لبنك (Q-LCT-09)؛ فارغ = عام للمشترك
+  LegalReviewStatus   enum{UNREVIEWED,REVIEWED} req =UNREVIEWED   # UNREVIEWED تطبع لافتة «لم تُراجَع قانونيًا» (FR-LCT-019)
+  ReviewedByText      str(200)
+  ReviewedOn          date
+  Status              enum{ACTIVE,RETIRED} req =ACTIVE
+  SeedKey             ascii(80)        # المبذور 13 بندًا (11 من 02 B29..B39 + DELIVERY_NOTE + MULTIMODAL_TD)
+  unique Code,VersionNo
+  unique SeedKey,VersionNo where SeedKey IS NOT NULL
+  unique PublicId
+  index  Category,Status   # مكتبة مبوّبة
+  index  Status,LegalReviewStatus   # R-LCT-02: UNREVIEWED المستخدمة
+  check  Code NOT LIKE '%[^A-Z0-9_]%'
+  check  VersionNo >= 1
+  check  DefaultOriginals IS NULL OR DefaultOriginals >= 0
+  check  DefaultCopies IS NULL OR DefaultCopies >= 0
+  check  LegalReviewStatus <> 'REVIEWED' OR (ReviewedByText IS NOT NULL AND ReviewedOn IS NOT NULL)   # بيان المراجع وتاريخه (FR-LCT-019)
+
+table lc.LcDocumentClauseUcpRef deletable  # مرجع UCP لبند مستند: مادة + فقرة (UcpRefs في المواصفة) -- وسيط جديد
+  LcDocumentClauseId  ->lc.LcDocumentClause req
+  UcpArticleId        ->ref.UcpArticle req
+  Paragraph           str(20)   # الفقرة؛ الفارغ = المادة كلها
+  unique LcDocumentClauseId,UcpArticleId,Paragraph
+
+# ============================== المخطط lc: شروط الاعتماد وتوابعها ==============================
+
+table lc.LcTerms public  # إصدار شروط اعتماد: صف لكل نسخة بأعمدة قاموس §6.2؛ مشترك بين البروفورما والطلب والاعتماد والتعديل (FR-LCT-001..035)
+  OwnerType                    enum{REQUEST,PROFORMA,LETTER_OF_CREDIT,AMENDMENT} req
+  OwnerId                      bigint            # معرّف المالك متعدد الأشكال بلا FK؛ إلزامي لـ REQUEST ويُعبَّأ لغيره بعد إنشاء المالك في المعاملة نفسها
+  Purpose                      enum{PROFORMA,APPLICATION,ISSUED,RECEIVED,AMENDMENT} req   # ما نطلبه من العميل / من البنك / الصادر / المستلَم / لقطة التعديل
+  VersionNo                    int        req =1
+  Status                       enum{DRAFT,LOCKED,SUPERSEDED} req =DRAFT   # DRAFT → LOCKED → SUPERSEDED؛ لا رجوع من LOCKED (§8)
+  FieldSetVersion              int        req =1   # رقم إصدار تعريفات الحقول وقت الحفظ ليبقى العرض ممكنًا (§6.1)
+  LcClass                      enum{PURCHASE,SALES} req   # A1: من نوع المالك
+  Scope                        enum{DOMESTIC,INTERNATIONAL} req   # A2: يُشتق من البلدين ويجوز تجاوزه بسبب (BR-LCT-001)
+  ScopeOverrideReason          str(500)
+  UcpVersion                   enum{UCP600} req =UCP600   # A3: ثابت لا يُحرَّر
+  LcType                       enum{SIGHT,DEFERRED_PAYMENT,ACCEPTANCE,NEGOTIATION,MIXED}   # A4 (LC_TYPE)
+  DeferralDays                 int              # A5: 1..720؛ فارغ لـ SIGHT (BR-LCT-009)
+  MaturityBasis                enum{SHIPMENT_DATE,DELIVERY_NOTE_DATE,INVOICE_DATE,DOCUMENTS_RECEIPT_DATE,ACCEPTANCE_DATE}   # A6: الخمسة (BR-LCT-008)
+  MixedPaymentText             str(500)         # A7: وصف التقسيم لـ MIXED
+  AvailableWith                enum{ISSUING_BANK,ADVISING_BANK,NOMINATED_BANK,ANY_BANK} =ADVISING_BANK   # A8
+  DraftRequired                bool             # A9: SIGHT قد لا تتطلب كمبيالة؛ القبول والتداول يتطلبانها (BR-LCT-011)
+  DraftDrawee                  enum{ISSUING_BANK,ADVISING_BANK,CONFIRMING_BANK}   # المسحوب عليه لا يكون الطالب أبدًا (6-ج، V-LCT-03) فالقائمة تستبعده
+  Confirmation                 enum{CONFIRMED,MAY_ADD,WITHOUT}   # A10 (LC_CONFIRMATION)؛ المحلي WITHOUT افتراضيًا (V-LCT-17 تحذير)
+  ConfirmingBankName           str(200)         # A11
+  ConfirmingBankBic            ascii(11)
+  ApplicantCompanyId           ->org.Company noidx     # B1: الطالب شركتنا في المشتريات
+  ApplicantCounterpartyId      ->lc.Counterparty # B1: الطالب عميلنا في المبيعات
+  BeneficiaryCompanyId         ->org.Company noidx     # B2: المستفيد شركتنا في المبيعات
+  BeneficiaryCounterpartyId    ->lc.Counterparty # B2: المستفيد المورّد في المشتريات
+  BeneficiaryAccountIbanEnc    bin(512)   sens=restricted   # B3: IBAN المستفيد مشفّر (FR-REQ-024؛ 02 B9 🔴)
+  BeneficiaryAccountIbanMask   str(40)    sens=restricted
+  BeneficiaryAccountIbanHash   bin(32)    sens=restricted
+  AdvisingBankName             str(200)         # B4 (د عدا PF)
+  AdvisingBankAddress          str(300)
+  AdvisingBankBic              ascii(11)
+  CurrencyId                   ->ref.Currency noidx    # C1
+  Amount                       money            # C2: > 0 بخانات العملة
+  AmountInWordsAr              str(1000)        # C3: مولَّد لا يُحرَّر ويُجمَّد عند القفل (BR-LCT-003)
+  AmountInWordsEn              str(1000)
+  ToleranceMode                enum{NONE,ABOUT,PLUS_MINUS} req =NONE   # C4: ABOUT = ±10 ثابتة (مادة 30)
+  TolerancePlusPct             rate       req =0
+  ToleranceMinusPct            rate       req =0
+  ExpiryRule                   enum{ABSOLUTE,DAYS_AFTER_ISSUE}   # D1 (BR-LCT-005)
+  ExpiryDate                   date             # المطلق؛ ويُحسب للنسبي حين يُعرف تاريخ الإصدار
+  ExpiryDateHijri              str(20)          # النص الهجري المُدخل كما هو (FR-LCT-032)
+  ExpiryDaysAfterIssue         int
+  ExpiryPlace                  str(200)         # D2
+  EarliestShipmentDate         date             # D3
+  LatestShipmentRule           enum{ABSOLUTE,DAYS_AFTER_ISSUE}   # D4 (BR-LCT-006)
+  LatestShipmentDate           date
+  LatestShipmentDateHijri      str(20)          # FR-LCT-032
+  LatestShipmentDaysAfterIssue int
+  PresentationDays             int =21          # D5: 1..90؛ فوق 21 تحذير V-LCT-16 (lc.presentation.default_days)
+  PresentationBasis            enum{SHIPMENT_DATE,DELIVERY_NOTE_DATE,INVOICE_DATE}   # D6 (BR-LCT-008)
+  ExpectedIssueDate            date             # D7: لحساب النسبي والإخطار قبل الإصدار
+  PartialShipments             enum{ALLOWED,NOT_ALLOWED} =ALLOWED   # E1
+  InstallmentShipments         str(300)         # E2
+  Transhipment                 enum{ALLOWED,NOT_ALLOWED,NOT_APPLICABLE}   # E3: المحلي NOT_APPLICABLE
+  TransportMode                enum{SEA,AIR,ROAD,RAIL,COURIER,MULTIMODAL,DOMESTIC_DELIVERY}   # E4 (TRANSPORT_MODE)
+  PlaceOfDispatch              str(150)         # E5: مكان الاستلام (02 A12)
+  PlaceOfFinalDestination      str(150)         # E5: مكان التسليم
+  PortOfLoading                str(150)         # E6 (SEA دولي)
+  PortOfDischarge              str(150)
+  AirportOfDeparture           str(150)         # E7 (AIR)
+  AirportOfDestination         str(150)
+  IncotermId                   ->ref.Incoterm noidx    # E8: النشط فقط في الجديد (V-LCT-09)
+  IncotermPlace                str(150)         # نقطة التسمية (BR-LCT-010)
+  GoodsCategory                ascii(80)        # F1: رمز بند من GOODS_CATEGORY (قائمة قابلة للتعديل)
+  GoodsDescription             str(2000)        # F2: يطابق وصف الفاتورة
+  SupplierProformaNo           str(60)          # F3
+  SupplierProformaDate         date
+  InsuranceResponsibility      enum{BENEFICIARY,APPLICANT,NOT_REQUIRED_BY_TERMS}   # F4: يُقترح من Incoterm (BR-LCT-010)
+  InsuranceMinPct              rate             # F5: الافتراضي 110 حين InsurancePctStated=0؛ المنصوص عليه يحلّ محله
+  InsurancePctStated           bool       req =0   # 1 = النسبة منصوص عليها في الاعتماد نفسه (V-LCT-04: تحذير بدل خطأ)
+  InsuranceClauses             str(300)         # F6
+  BankMayArrangeInsurance      bool             # تفويض البنك بترتيب بوليصة (02 B28)
+  AdditionalConditions         str(2000)        # G2: تحذير لشرط بلا مستند (V-LCT-18)
+  IsTransferable               bool             # H1 (Could)
+  AssignmentOfProceedsText     str(500)
+  LcTextLanguage               enum{EN,AR,BOTH} req =EN   # H2: لغة تصيير البنود والطباعة (FR-LCT-033)
+  MarginPct                    rate             # I1 خزينة: 0..100؛ الافتراضي من CashCoverPct (BR-LCT-015)
+  DebitAuthorization           enum{CHARGES_AND_MARGIN,FULL_LC_VALUE}   # I2 خزينة (AP)
+  MarginHeldCurrency           enum{LOCAL,FOREIGN}   # I2
+  FacilityAccountId            ->acc.BankAccount noidx   # I3 خزينة: من حسابات التسهيل (FR-ACC-010)
+  MarginSettlementAccountId    ->acc.BankAccount noidx
+  ChargesAccountId             ->acc.BankAccount noidx
+  PostDeferralFinancingDays    int              # I4 خزينة: يُمرَّر لفحص TENOR (BR-FAC-016، Q-LCT-11)
+  BankSpecificClauses          text             # بنود خاصة بالبنك: حقل خزينة لا يراه الطالب (FR-LCI-007) -- إضافة
+  PrevLcNumber                 str(60)          # J1: الاعتماد السابق يدوي بلا ربط بالسجلات (FR-LCT-022)
+  PrevLcAmount                 money
+  PrevLcCurrencyId             ->ref.Currency noidx
+  PrevLcUtilizedAmount         money
+  PrevLcOpenedBy               str(200)
+  SnapshotHash                 bin(32)          # SHA-256 لحقول الطالب + البنود + الرسوم عند القفل (BR-LCT-019)
+  TreasuryHash                 bin(32)          # يُقفل بها حقل الخزينة بعد موافقة TM
+  LockedAt                     ts
+  LockedBy                     ->sec.AppUser noidx
+  SupersedesTermsId            ->lc.LcTerms noidx     # النسخة السابقة التي حلّت هذه محلها
+  CopiedFromTermsId            ->lc.LcTerms noidx     # نسخة عند الانتقال طلب ← اعتماد/بروفورما (BR-LCT-019)
+  ChangeReason                 text
+  unique PublicId
+  unique OwnerType,OwnerId,Purpose,VersionNo where OwnerId IS NOT NULL   # فريد (OwnerType, OwnerId, Purpose, VersionNo)
+  unique OwnerType,OwnerId,Purpose where OwnerId IS NOT NULL AND Status <> 'SUPERSEDED'   # إصدار واحد جارٍ لكل (مالك، غرض)
+  index  OwnerType,OwnerId,Status   # شاشة الإصدارات والفروق
+  check  VersionNo >= 1
+  check  VersionNo = 1 OR SupersedesTermsId IS NOT NULL   # كل نسخة لاحقة تحلّ محل سابقة (FR-LCT-002)
+  check  SupersedesTermsId IS NULL OR SupersedesTermsId <> LcTermsId
+  check  CopiedFromTermsId IS NULL OR CopiedFromTermsId <> LcTermsId
+  check  (Purpose = 'PROFORMA' AND OwnerType IN ('REQUEST','PROFORMA')) OR (Purpose = 'APPLICATION' AND OwnerType = 'REQUEST') OR (Purpose IN ('ISSUED','RECEIVED') AND OwnerType = 'LETTER_OF_CREDIT') OR (Purpose = 'AMENDMENT' AND OwnerType IN ('REQUEST','AMENDMENT'))   # §7.2 دورة حياة الشروط، BR-LCT-019
+  check  (Purpose NOT IN ('APPLICATION','ISSUED') OR LcClass = 'PURCHASE') AND (Purpose NOT IN ('PROFORMA','RECEIVED') OR LcClass = 'SALES')   # الغرض يطابق الجانب
+  check  OwnerType <> 'REQUEST' OR OwnerId IS NOT NULL
+  check  Status = 'DRAFT' OR (SnapshotHash IS NOT NULL AND LockedAt IS NOT NULL)   # القفل بتجزئة وزمن (FR-LCT-002)
+  check  TreasuryHash IS NULL OR SnapshotHash IS NOT NULL
+  check  Status = 'DRAFT' OR (LcType IS NOT NULL AND CurrencyId IS NOT NULL AND Amount IS NOT NULL AND ExpiryRule IS NOT NULL AND AmountInWordsAr IS NOT NULL AND AmountInWordsEn IS NOT NULL)   # الحقول المقفلة (BR-LCT-002، V-LCT-15)
+  check  Amount IS NULL OR Amount > 0   # C2
+  check  TolerancePlusPct BETWEEN 0 AND 100 AND ToleranceMinusPct BETWEEN 0 AND 100   # V-LCT-07
+  check  Status = 'DRAFT' OR ToleranceMode <> 'NONE' OR (TolerancePlusPct = 0 AND ToleranceMinusPct = 0)   # BR-LCT-004
+  check  Status = 'DRAFT' OR ToleranceMode <> 'ABOUT' OR (TolerancePlusPct = 10 AND ToleranceMinusPct = 10)   # «حول» ±10% ثابتة (FR-LCT-008)
+  check  DeferralDays IS NULL OR DeferralDays BETWEEN 1 AND 720   # A5
+  check  Status = 'DRAFT' OR LcType <> 'SIGHT' OR (DeferralDays IS NULL AND MaturityBasis IS NULL)   # V-LCT-06: اطلاع بلا تأجيل
+  check  Status = 'DRAFT' OR LcType NOT IN ('DEFERRED_PAYMENT','ACCEPTANCE') OR (DeferralDays IS NOT NULL AND MaturityBasis IS NOT NULL)   # V-LCT-06، BR-LCT-009
+  check  Status = 'DRAFT' OR LcType <> 'MIXED' OR MixedPaymentText IS NOT NULL   # V-LCT-06
+  check  Status = 'DRAFT' OR DraftDrawee IS NULL OR (DraftRequired IS NOT NULL AND DraftRequired = 1)   # BR-LCT-011
+  check  Status = 'DRAFT' OR LcType NOT IN ('ACCEPTANCE','NEGOTIATION') OR (DraftRequired IS NOT NULL AND DraftRequired = 1)   # القبول والتداول يتطلبان كمبيالة
+  check  Status = 'DRAFT' OR ConfirmingBankBic IS NULL OR ((ConfirmingBankBic LIKE '________' OR ConfirmingBankBic LIKE '___________') AND ConfirmingBankBic NOT LIKE '%[^A-Z0-9]%')   # V-LCT-20
+  check  Status = 'DRAFT' OR AdvisingBankBic IS NULL OR ((AdvisingBankBic LIKE '________' OR AdvisingBankBic LIKE '___________') AND AdvisingBankBic NOT LIKE '%[^A-Z0-9]%')   # V-LCT-20
+  check  (BeneficiaryAccountIbanEnc IS NULL AND BeneficiaryAccountIbanMask IS NULL AND BeneficiaryAccountIbanHash IS NULL) OR (BeneficiaryAccountIbanEnc IS NOT NULL AND BeneficiaryAccountIbanMask IS NOT NULL AND BeneficiaryAccountIbanHash IS NOT NULL)   # IBAN مشفّر بالكامل أو غائب
+  check  LcClass = 'SALES' OR (ApplicantCounterpartyId IS NULL AND BeneficiaryCompanyId IS NULL)   # المشتريات: الطالب شركة والمستفيد طرف مقابل (B1/B2)
+  check  LcClass = 'PURCHASE' OR (ApplicantCompanyId IS NULL AND BeneficiaryCounterpartyId IS NULL)   # المبيعات: الطالب عميل والمستفيد شركة
+  check  Status = 'DRAFT' OR (LcClass = 'PURCHASE' AND ApplicantCompanyId IS NOT NULL AND BeneficiaryCounterpartyId IS NOT NULL) OR (LcClass = 'SALES' AND ApplicantCounterpartyId IS NOT NULL AND BeneficiaryCompanyId IS NOT NULL)   # B1/B2 م
+  check  ExpiryDaysAfterIssue IS NULL OR ExpiryDaysAfterIssue > 0
+  check  LatestShipmentDaysAfterIssue IS NULL OR LatestShipmentDaysAfterIssue > 0
+  check  Status = 'DRAFT' OR ExpiryRule IS NULL OR (ExpiryRule = 'ABSOLUTE' AND ExpiryDate IS NOT NULL AND ExpiryDaysAfterIssue IS NULL) OR (ExpiryRule = 'DAYS_AFTER_ISSUE' AND ExpiryDaysAfterIssue IS NOT NULL)   # FR-LCT-009، BR-LCT-005
+  check  Status = 'DRAFT' OR (LatestShipmentRule IS NULL AND LatestShipmentDate IS NULL AND LatestShipmentDaysAfterIssue IS NULL) OR (LatestShipmentRule = 'ABSOLUTE' AND LatestShipmentDate IS NOT NULL AND LatestShipmentDaysAfterIssue IS NULL) OR (LatestShipmentRule = 'DAYS_AFTER_ISSUE' AND LatestShipmentDaysAfterIssue IS NOT NULL)   # BR-LCT-006
+  check  Status = 'DRAFT' OR Purpose IN ('ISSUED','RECEIVED') OR EarliestShipmentDate IS NULL OR LatestShipmentDate IS NULL OR EarliestShipmentDate <= LatestShipmentDate   # V-LCT-01 (أول الشحن بعد آخره)
+  check  Status = 'DRAFT' OR Purpose IN ('ISSUED','RECEIVED') OR ExpiryDate IS NULL OR LatestShipmentDate IS NULL OR ExpiryDate >= LatestShipmentDate   # V-LCT-01 / BR-LCT-007 (الانتهاء قبل آخر الشحن خطأ)
+  check  PresentationDays IS NULL OR PresentationDays BETWEEN 1 AND 90   # D5
+  check  Status = 'DRAFT' OR Purpose IN ('ISSUED','RECEIVED') OR IncotermId IS NULL OR IncotermPlace IS NOT NULL   # V-LCT-09 / BR-LCT-010: نقطة التسمية إلزامية
+  check  InsurancePctStated = 0 OR InsuranceMinPct IS NOT NULL   # F5
+  check  InsuranceMinPct IS NULL OR InsuranceMinPct > 0
+  check  MarginPct IS NULL OR MarginPct BETWEEN 0 AND 100   # I1
+  check  Status = 'DRAFT' OR DebitAuthorization IS NULL OR DebitAuthorization <> 'FULL_LC_VALUE' OR (MarginPct IS NOT NULL AND MarginPct = 100)   # FULL ⇒ هامش 100 (BR-LCT-015، FR-LCT-021)
+  check  PostDeferralFinancingDays IS NULL OR PostDeferralFinancingDays >= 0
+  check  PrevLcAmount IS NULL OR PrevLcAmount >= 0
+  check  PrevLcUtilizedAmount IS NULL OR PrevLcUtilizedAmount >= 0
+  check  PrevLcAmount IS NULL OR PrevLcUtilizedAmount IS NULL OR PrevLcUtilizedAmount <= PrevLcAmount   # BR-LCT-016 / V-LCT-14: المستغَل ≤ المبلغ
+  check  (PrevLcAmount IS NULL AND PrevLcUtilizedAmount IS NULL) OR PrevLcCurrencyId IS NOT NULL   # مبلغ الاعتماد السابق بعملة واحدة
+
+table lc.LcTermsDocument deletable  # بند مستند مختار في الشروط ومعاملاته؛ النص المصيَّر يُجمَّد عند القفل (FR-LCT-018، BR-LCT-012) -- جديد
+  LcTermsId        ->lc.LcTerms req
+  SeqNo            int        req
+  ClauseId         ->lc.LcDocumentClause req   # إصدار البند المستخدم (يُحصى في R-LCT-02)
+  ClauseVersion    int        req   # نسخة من LcDocumentClause.VersionNo لثبات العرض
+  Originals        int
+  Copies           int
+  ParamsJson       json             # قيم المعاملات: أصول، نسخ، جهة تصديق، أجرة، إخطار، نسبة تأمين...
+  RenderedTextEn   text             # يُجمَّد عند القفل
+  RenderedTextAr   text
+  IsFreeText       bool       req =0   # بند حر (OTHER_FREE_TEXT)
+  FreeText         text
+  unique LcTermsId,SeqNo
+  check  SeqNo >= 1
+  check  ClauseVersion >= 1
+  check  Originals IS NULL OR Originals >= 0
+  check  Copies IS NULL OR Copies >= 0
+  check  (IsFreeText = 1 AND FreeText IS NOT NULL) OR (IsFreeText = 0 AND FreeText IS NULL)   # البند الحر ينص عليه
+
+table lc.LcChargesMatrix  # رسوم الشروط: صف لكل فئة (6 صفوف كاملة يتحقق منها التطبيق V-LCT-12) (FR-LCT-020، BR-LCT-014)
+  LcTermsId           ->lc.LcTerms req
+  ChargeCategory      enum{ISSUING_BANK_LOCAL,ADVISING,CONFIRMATION,NEGOTIATION_SETTLEMENT,AMENDMENT,OTHER_OUTSIDE_ISSUING} req   # CHARGE_CATEGORY
+  Payer               enum{APPLICANT,BENEFICIARY,SHARED} req   # CHARGE_PAYER
+  ApplicantSharePct   rate             # ★ مع SHARED: ∈ (0,100) والافتراضي 50
+  PresetCode          ascii(30)        # OWN_BANK ALL_APPLICANT ALL_BENEFICIARY SPLIT_50 CUSTOM (§5.5)
+  Note                str(500)
+  unique LcTermsId,ChargeCategory
+  check  Payer <> 'SHARED' OR (ApplicantSharePct IS NOT NULL AND ApplicantSharePct > 0 AND ApplicantSharePct < 100)   # V-LCT-12
+  check  Payer = 'SHARED' OR ApplicantSharePct IS NULL
+
+# ============================== المخطط lc: قوالب النماذج ==============================
+
+table lc.LcFormTemplate public  # قالب نموذج بنك/منتج/نوع نموذج بإصدار وفترة نفاذ وملحق عقدي (FR-LCT-026، BR-LCT-017، 02 F-14)
+  Code                  ascii(40)  req
+  VersionNo             int        req =1
+  FormKind              enum{LC_APPLICATION,LC_AMENDMENT,PROFORMA,COLLECTION_COVER} req
+  InstitutionId         ->ins.Institution noidx   # فارغ = قالب موحّد احتياطي للمشترك
+  ProductId             ->cat.Product noidx
+  CompanyId             ->org.Company noidx       # ترويسة البروفورما لشركة بعينها (Q-LCE-07)
+  Scope                 enum{ANY,DOMESTIC,INTERNATIONAL} req =ANY
+  Channel               enum{ANY,MANUAL_FORM,BANK_PORTAL} req =ANY
+  LayoutKind            enum{SYSTEM_PRINT,PDF_ACROFORM_FILL} req   # PDF_ACROFORM_FILL Could (FR-LCT-030)
+  Language              enum{ar,en,both}
+  EffectiveFrom         date       req
+  EffectiveTo           date
+  SourceDocumentId      ->doc.Document noidx      # نموذج البنك الفارغ
+  AnnexDocumentId       ->doc.Document noidx      # الصفحة العقدية الثابتة
+  AnnexVersion          str(20)             # إصدار الملحق يُسجَّل في المطبوع (02 F-14)
+  LetterheadDocumentId  ->doc.Document noidx
+  FooterTextAr          str(500)
+  FooterTextEn          str(500)
+  LegalReviewStatus     enum{UNREVIEWED,REVIEWED} req =UNREVIEWED   # لافتة طباعة حتى التعليم (Q-LCT-12)
+  Status                enum{DRAFT,ACTIVE,RETIRED} req =DRAFT
+  unique Code,VersionNo
+  unique PublicId
+  unique InstitutionId,ProductId,CompanyId,FormKind,Scope,Channel,EffectiveFrom where Status = 'ACTIVE'   # لا قالبان فعّالان بالمفتاح نفسه وبداية النفاذ نفسها؛ التداخل الزمني يفحصه التطبيق (BR-LCT-017)
+  index  FormKind,InstitutionId,ProductId,CompanyId,Status include EffectiveFrom,EffectiveTo   # حل القالب الأكثر تخصيصًا (BR-LCT-017) وترويسة البروفورما بالشركة
+  index  Status,EffectiveTo   # R-LCT-04 تغطية القوالب وانتهاؤها
+  check  VersionNo >= 1
+  check  EffectiveTo IS NULL OR EffectiveTo >= EffectiveFrom
+  check  LayoutKind <> 'PDF_ACROFORM_FILL' OR SourceDocumentId IS NOT NULL   # التعبئة تحتاج نموذج البنك الفارغ
+  check  AnnexDocumentId IS NULL OR AnnexVersion IS NOT NULL   # الملحق بإصداره (02 F-14)
+
+table lc.LcFormFieldMap deletable  # تعيين حقل نظام إلى حقل PDF أو بند في ورقة البوابة (FR-LCT-027، BR-LCT-020) -- جديد
+  TemplateId     ->lc.LcFormTemplate req
+  TargetName     str(120)   req   # اسم حقل PDF أو بند ورقة البوابة
+  SourceExpr     str(200)   req   # مسار من جذور مسموحة فقط؛ لا تنفيذ شيفرة (BR-LCT-020)
+  Transform      enum{NONE,UPPER,DATE_DMY,DATE_HIJRI,AMOUNT_WORDS_AR,AMOUNT_WORDS_EN,CHECKBOX_EQ,CONCAT_DOCS,CHARGES_SUMMARY} req =NONE
+  TransformArg   str(100)
+  IsRequired     bool       req =0   # هدف إلزامي بلا مصدر يمنع الطباعة الرسمية (BR-LCT-020)
+  SeqNo          int              # ترتيب ورقة البوابة
+  unique TemplateId,TargetName
+  index  TemplateId,SeqNo   # ترتيب ورقة البوابة (FR-LCT-025)
+  check  SourceExpr LIKE 'terms.%' OR SourceExpr LIKE 'company.%' OR SourceExpr LIKE 'counterparty.%' OR SourceExpr LIKE 'facility.%' OR SourceExpr LIKE 'relationship.%' OR SourceExpr LIKE 'request.%' OR SourceExpr LIKE 'lc.%'   # جذور مسموحة (BR-LCT-020)
+  check  SourceExpr NOT LIKE '%[^A-Za-z0-9._]%'   # مسار فقط: لا أقواس ولا عمليات
+  check  Transform <> 'CHECKBOX_EQ' OR TransformArg IS NOT NULL   # قيمة المقارنة
+  check  SeqNo IS NULL OR SeqNo >= 1
+
+# ============================== المخطط lc: الاعتماد وتوابعه ==============================
+
+table lc.LetterOfCredit public  # سجل الاعتماد للجانبين: مشتريات (نحن الطالب) ومبيعات (نحن المستفيد) (FR-LCI-011..016، FR-LCE-009، BR-LCI-004/008/016، BR-LCE-007/009)
+  LcClass              enum{PURCHASE,SALES} req   # مشتريات/مبيعات
+  Scope                enum{DOMESTIC,INTERNATIONAL} req   # محلي/دولي (BR-LCT-001)
+  CompanyId            ->org.Company req   # الطالب في المشتريات والمستفيد في المبيعات
+  LcNumber             str(60)    req
+  LcNumberNormalized   str(60)    req   # تقليم + حروف لاتينية كبيرة + حذف الفراغات؛ الشرطات تُحفظ (BR-LCI-016)
+  InternalRef          str(40)          # مرجع داخلي: رقم الطلب LCP-YY-NNNN للمشتريات ورقم تسلسلي للمسجَّل مباشرة -- إضافة
+  Status               enum{ACTIVE,EXPIRED,CLOSED,CANCELLED} req =ACTIVE   # §8؛ CLOSED/CANCELLED نهائيتان
+  CounterpartyId       ->lc.Counterparty req   # المورّد (مشتريات) أو العميل (مبيعات)
+  InstitutionId        ->ins.Institution   # مشتريات: بنك الإصدار؛ مبيعات: بنكنا المبلّغ/المحصّل
+  RelationshipId       ->ins.Relationship via=CompanyId,InstitutionId noidx   # علاقة الشركة بالمنشأة نفسها (يطابقها الربط المركّب)
+  OtherBankText        str(200)         # مبيعات: بنك العميل نص + BIC (Q-LCE-08)
+  OtherBankBic         ascii(11)
+  IssuingBranch        str(150)         # فرع الإصدار من نموذج lc.issuance (FR-LCI-011) -- إضافة
+  BankReference        str(60)
+  Channel              enum{BANK_PORTAL,MANUAL_FORM,DIRECT_INTEGRATION}   # DIRECT_INTEGRATION محجوزة غير مفعّلة (FR-LCT-025)
+  ProductId            ->cat.Product    # LC_PURCHASE_CONV / LC_PURCHASE_MURABAHA / LC_SALES_RECEIVED
+  FacilityId           ->fac.Facility
+  LimitId              ->fac.Limit via=FacilityId noidx   # يعاد ربطه بصف الحد الجديد عند اعتماد مراجعة التسهيل مع Utilization (12)
+  LimitProductLineId   ->fac.LimitProductLine via=FacilityId,LimitId noidx
+  UtilizationId        ->fac.Utilization via=FacilityId   # ناتج fac.convert_reservation؛ تعبّئ lc.record_issuance Utilization.SourceRefId = LcId (FR-LCI-012)
+  RequestId            ->wfl.Request via=CompanyId   # طلب الإصدار (مشتريات)؛ فارغ للمسجَّل مباشرة والقائم السابق
+  ProformaId           ->lc.ProformaInvoice via=CompanyId   # بروفورما مبيعات واحدة قد تُربط باعتمادات عدة (BR-LCE-018)
+  CurrentTermsId       ->lc.LcTerms req   # الشروط الحالية: ISSUED/RECEIVED أو لقطة آخر تعديل مطبَّق
+  CurrencyId           ->ref.Currency req noidx
+  Amount               money      req   # الحالي بعد التعديلات المطبَّقة
+  OriginalAmount       money      req
+  TolerancePlusPct     rate       req =0   # نسخة من الشروط الحالية لحساب ExposureAmount
+  ToleranceMinusPct    rate       req =0
+  ExposureAmount       money            # مخبأ: ⌈Amount × (1 + Plus/100)⌉ إن lc.reserve.include_tolerance وإلا Amount؛ المبلغ الوحيد الممرَّر لـ 12 (BR-LCI-004/019)
+  MarginPct            rate
+  MarginAmount         money
+  DrawnAmount          money      req =0   # مخبأ مطابَق: Σ السحوب غير REFUSED/CANCELLED (BR-LCI-008، BR-LCE-009)
+  SettledAmount        money      req =0   # مخبأ مطابَق: Σ SettledAmount للسحوب
+  EarmarkedRemaining   money      req =0   # مبيعات فقط: Σ(Amount − Converted − Released) للأوامر الفعالة (BR-LCE-009)
+  IssueDate            date             # مشتريات
+  ReceivedDate         date             # مبيعات
+  ExpiryDate           date       req
+  LatestShipmentDate   date
+  AmendmentNo          int        req =0   # رقم آخر تعديل مطبَّق
+  UndrawnReleasedOn    date             # فك غير المسحوب عند الانتهاء أو الإغلاق (BR-LCI-009)
+  ClosedOn             date
+  ClosedReason         str(500)
+  LegacyEntry          bool       req =0   # اعتماد قائم سابق مسجَّل بلا طلب (FR-LCI-029، BR-LCI-017)
+  AnnexVersion         str(20)          # إصدار الملحق العقدي المطبوع (للمرابحة)
+  unique PublicId
+  unique InstitutionId,LcNumberNormalized where LcClass = 'PURCHASE' AND InstitutionId IS NOT NULL   # BR-LCI-016/V-LCI-01: فريد لمنشأة الإصدار (المبيعات تحذير فقط V-LCE-12)
+  unique InternalRef where InternalRef IS NOT NULL
+  unique UtilizationId where UtilizationId IS NOT NULL   # اعتماد واحد لكل استخدام
+  unique RequestId where RequestId IS NOT NULL   # إعادة التنفيذ لا تنشئ اعتمادًا ثانيًا (FR-LCI-012)
+  unique CurrentTermsId   # شروط واحدة لاعتماد واحد
+  index  LcNumberNormalized   # البحث الموحّد برقم الاعتماد (FR-LCI-013)
+  index  CounterpartyId,Status   # مورّد/عميل؛ تحذير الرقم المكرر لعميل (V-LCE-12) وبحث المبيعات (BR-LCE-008)
+  index  CounterpartyId,LcNumberNormalized
+  index  Status,ExpiryDate   # JOB-LC-EXPIRY وR-LCI-04 وR-LCE-05
+  index  LatestShipmentDate where Status = 'ACTIVE' AND LatestShipmentDate IS NOT NULL   # تنبيه آخر الشحن (IExpiryProvider، LC.EXPIRY_DUE)
+  index  CompanyId,LcClass,Status   # R-LCI-01 وR-LCE-01 والتصفية بالشركة
+  index  InstitutionId,Status   # تصفية بنك الإصدار
+  index  ProductId,Status
+  check  Amount > 0 AND OriginalAmount > 0
+  check  TolerancePlusPct BETWEEN 0 AND 100 AND ToleranceMinusPct BETWEEN 0 AND 100
+  check  DrawnAmount >= 0 AND SettledAmount >= 0 AND SettledAmount <= DrawnAmount   # التسديد ≤ المقدَّم (BR-LCI-008)
+  check  EarmarkedRemaining >= 0
+  check  ExposureAmount IS NULL OR ExposureAmount >= Amount   # التعرّض لا يقل عن المبلغ (BR-LCI-004)
+  check  (LcClass = 'PURCHASE' AND IssueDate IS NOT NULL AND ReceivedDate IS NULL) OR (LcClass = 'SALES' AND ReceivedDate IS NOT NULL AND IssueDate IS NULL)   # IssueDate للمشتريات أو ReceivedDate للمبيعات
+  check  IssueDate IS NULL OR ExpiryDate >= IssueDate
+  check  LimitId IS NULL OR FacilityId IS NOT NULL   # يضمن فاعلية الربط المركّب
+  check  LimitProductLineId IS NULL OR LimitId IS NOT NULL
+  check  UtilizationId IS NULL OR FacilityId IS NOT NULL
+  check  RelationshipId IS NULL OR InstitutionId IS NOT NULL
+  check  LcClass = 'PURCHASE' OR (FacilityId IS NULL AND UtilizationId IS NULL AND ExposureAmount IS NULL AND MarginPct IS NULL AND MarginAmount IS NULL)   # اعتماد المبيعات لا يستهلك حدًّا ولا يحجز (FR-LCE-027)
+  check  LcClass = 'SALES' OR ExposureAmount IS NOT NULL   # مبلغ التعرّض للمشتريات
+  check  LcClass = 'SALES' OR (ProformaId IS NULL AND OtherBankText IS NULL AND OtherBankBic IS NULL AND EarmarkedRemaining = 0)   # حقول المبيعات
+  check  MarginPct IS NULL OR MarginPct BETWEEN 0 AND 100
+  check  MarginAmount IS NULL OR MarginAmount >= 0
+  check  Status NOT IN ('CLOSED','CANCELLED') OR (ClosedOn IS NOT NULL AND ClosedReason IS NOT NULL)   # الإغلاق/الإلغاء بتاريخ وسبب (FR-LCI-015، §8)
+  check  Status IN ('CLOSED','CANCELLED') OR (ClosedOn IS NULL AND ClosedReason IS NULL)
+  check  UndrawnReleasedOn IS NULL OR Status IN ('EXPIRED','CLOSED','CANCELLED')   # الفك عند الانتهاء/الإغلاق/الإلغاء (BR-LCI-009)
+  check  LegacyEntry = 0 OR RequestId IS NULL   # الترحيل الأولي بلا طلب (BR-LCI-017)
+  check  OtherBankBic IS NULL OR ((OtherBankBic LIKE '________' OR OtherBankBic LIKE '___________') AND OtherBankBic NOT LIKE '%[^A-Z0-9]%')   # V-LCT-20
+  check  AmendmentNo >= 0
+  check  LcNumberNormalized NOT LIKE '% %'   # المطبَّع بلا فراغات (BR-LCI-016)
+
+table lc.LcExternalRef  # مرجع خارجي للاعتماد (ERP...)؛ بلا تفرّد؛ البحث بالمطبَّع (FR-LCI-013، BR-REQ-006) -- جديد
+  LcId             ->lc.LetterOfCredit req
+  SystemCode       str(40)    req   # نص حر مثل ERP
+  RefType          str(60)    req   # نص حر مثل PURCHASE_ORDER
+  RefValue         str(100)   req
+  NormalizedValue  str(100)   req   # أرقام عربية-هندية → لاتينية + تقليم + حروف كبيرة (BR-REQ-006)
+  IsActive         bool       req =1
+  SupersededById   ->lc.LcExternalRef via=LcId noidx   # المرجع الذي حلّ محله على الاعتماد نفسه
+  index  NormalizedValue include LcId   # البحث الموحّد
+  index  LcId,IsActive
+  check  SupersededById IS NULL OR (IsActive = 0 AND SupersededById <> LcExternalRefId)
+
+table lc.LcAmendment  # تعديل اعتماد صادر أو مستلَم (FR-LCI-018/019، FR-LCE-020، BR-LCI-011/012، BR-LCE-014)؛ الحالات §8
+  LcId                    ->lc.LetterOfCredit via=CurrencyId req noidx   # عملة التعديل = عملة الاعتماد
+  AmendmentNo             int              # رقم البنك أو تسلسل المنصة؛ يُسجَّل عند BANK_ISSUED
+  Origin                  enum{OUR_REQUEST,RECEIVED_FROM_CUSTOMER} req
+  ChangeKinds             set{INCREASE_AMOUNT,DECREASE_AMOUNT,EXTEND_EXPIRY,CHANGE_SHIPMENT_DATE,CHANGE_TERMS,CANCEL} req   # قائمة قيم ثابتة (المواصفة json)
+  RequestId               ->wfl.Request    # الطلب الفرعي LC_AMENDMENT
+  TermsId                 ->lc.LcTerms req   # شروط غرض AMENDMENT (لقطة ما بعد التعديل)
+  ChangedFieldsJson       json             # الفروق بمفاتيح الحقول مقارنةً بالحالي
+  CurrencyId              ->ref.Currency req noidx
+  AmountDelta             money      req   # موقَّع: فرق ExposureAmount (BR-LCI-011)
+  NewAmount               money
+  NewExpiryDate           date
+  Status                  enum{DRAFT,REQUESTED,BANK_ISSUED,APPLIED,REJECTED,WITHDRAWN} req =DRAFT   # §8: في التصدير REQUESTED = طلبنا من العميل وBANK_ISSUED = إشعار مستلَم
+  BankAmendmentRef        str(60)
+  BankIssuedOn            date
+  BeneficiaryResponse     enum{PENDING,ACCEPTED,REJECTED} =PENDING
+  RespondedOn             date
+  AppliedOn               ts
+  AppliedBy               ->sec.AppUser noidx
+  ReservationDeltaApplied money            # فرق الحجز/الاستغلال المطبَّق فعلًا على 12
+  Reason                  str(1000)
+  unique LcId,AmendmentNo where AmendmentNo IS NOT NULL   # فريد (LcId, AmendmentNo) حين يوجد الرقم
+  unique RequestId where RequestId IS NOT NULL
+  unique TermsId
+  index  LcId,Status   # تعديل مفتوح واحد لكل اعتماد (lc.amendment.max_open إعداد فيفحصه التطبيق، V-LCI-07)
+  index  Status,BankIssuedOn   # R-LCI-07 وR-LCE-07
+  check  AmendmentNo IS NULL OR AmendmentNo >= 1
+  check  ChangeKinds <> ''
+  check  ChangeKinds NOT LIKE '%INCREASE_AMOUNT%' OR ChangeKinds NOT LIKE '%DECREASE_AMOUNT%'   # زيادة وتخفيض معًا ممنوع
+  check  Status = 'DRAFT' OR ChangeKinds NOT LIKE '%INCREASE_AMOUNT%' OR AmountDelta > 0   # الإشارة تطابق النوع
+  check  Status = 'DRAFT' OR ChangeKinds NOT LIKE '%DECREASE_AMOUNT%' OR AmountDelta < 0
+  check  Status = 'DRAFT' OR (ChangeKinds NOT LIKE '%INCREASE_AMOUNT%' AND ChangeKinds NOT LIKE '%DECREASE_AMOUNT%') OR NewAmount IS NOT NULL
+  check  Status = 'DRAFT' OR ChangeKinds NOT LIKE '%EXTEND_EXPIRY%' OR NewExpiryDate IS NOT NULL
+  check  NewAmount IS NULL OR NewAmount > 0
+  check  Status NOT IN ('BANK_ISSUED','APPLIED') OR (AmendmentNo IS NOT NULL AND BankIssuedOn IS NOT NULL)   # التسجيل عند صدور البنك
+  check  Status <> 'APPLIED' OR (BeneficiaryResponse = 'ACCEPTED' AND AppliedOn IS NOT NULL AND AppliedBy IS NOT NULL)   # التطبيق عند القبول فقط (BR-LCI-012)
+  check  BeneficiaryResponse IS NULL OR BeneficiaryResponse = 'PENDING' OR RespondedOn IS NOT NULL
+
+table lc.LcDrawing  # سحب/تقديم مستندات تحت اعتماد؛ في التصدير يشمل تحويل التخصيص (FR-LCI-023، BR-LCI-013، BR-LCE-011)؛ الحالات §8
+  LcId                 ->lc.LetterOfCredit via=CurrencyId req noidx   # عملة السحب = عملة الاعتماد (BR-LCI-013)
+  DrawingNo            int        req
+  Amount               money      req   # Drawn + Amount ≤ ExposureAmount يتحقق منه التطبيق (V-LCI-05)
+  CurrencyId           ->ref.Currency req noidx
+  PresentationDate     date       req
+  BankAdviceRef        str(60)          # مرجع إشعار البنك
+  InvoiceRefsText      str(1000)        # مراجع الفواتير/سندات التسليم نصًا (FR-LCE-016)
+  Status               enum{PRESENTED,DISCREPANT,ACCEPTED,SETTLED,REFUSED,CANCELLED} req =PRESENTED   # REFUSED وCANCELLED لا تُحتسبان في المسحوب
+  MaturityBasisDate    date             # تاريخ أساس الاستحقاق للآجل (BR-LCT-009)
+  MaturityDate         date             # MaturityBasisDate + deferralDays
+  ExaminationDeadline  date             # PresentationDate + lc.drawing.exam_banking_days (BR-LCI-013)
+  SettledAmount        money      req =0   # التسديد الجزئي يزيده
+  LastSettledOn        date
+  SettlementAccountId  ->acc.BankAccount noidx
+  RequestId            ->wfl.Request    # طلب مستندات التحصيل في التصدير (lc.convert_earmark)
+  OverrideReason       str(500)         # تجاوز TM لتقديم بعد الانتهاء (V-LCI-06)
+  Notes                str(1000)
+  unique LcId,DrawingNo
+  unique RequestId where RequestId IS NOT NULL   # خطاف التحويل متكرر الأمان: سحب واحد لكل طلب
+  index  MaturityDate include Status where MaturityDate IS NOT NULL AND Status IN ('PRESENTED','DISCREPANT','ACCEPTED')   # JOB-LC-MATURITY وR-LCI-03 وLC.DRAWING_DUE
+  index  ExaminationDeadline include Status where ExaminationDeadline IS NOT NULL AND Status IN ('PRESENTED','DISCREPANT')   # مهل فحص المستندات
+  index  Status,PresentationDate   # R-LCE-06
+  check  Amount > 0
+  check  SettledAmount >= 0 AND SettledAmount <= Amount
+  check  Status <> 'SETTLED' OR SettledAmount = Amount   # SETTLED = تسديد كامل
+  check  Status NOT IN ('REFUSED','CANCELLED') OR SettledAmount = 0
+  check  SettledAmount = 0 OR LastSettledOn IS NOT NULL
+  check  MaturityDate IS NULL OR MaturityBasisDate IS NULL OR MaturityDate >= MaturityBasisDate
+  check  ExaminationDeadline IS NULL OR ExaminationDeadline >= PresentationDate
+
+table lc.LcSalesOrder  # تخصيص أمر بيع على اعتماد مستلَم؛ لا يقابله حد ائتماني (FR-LCE-013..015، BR-LCE-009..013)؛ الحالات §8
+  LcId             ->lc.LetterOfCredit via=CurrencyId req noidx   # عملة الأمر = عملة الاعتماد (V-LCE-06)
+  RequestId        ->wfl.Request req   # طلب SALES_ORDER_APPROVAL؛ خطاف lc.earmark_sales_order متكرر الأمان
+  OrderRef         str(60)    req   # مرجع أمر البيع نصًا؛ تكراره على الاعتماد تحذير V-LCE-08
+  OrderDate        date       req
+  Amount           money      req   # Amount ≤ Available تحت قفل صف الاعتماد (BR-LCE-010)
+  CurrencyId       ->ref.Currency req noidx
+  ConvertedAmount  money      req =0
+  ReleasedAmount   money      req =0
+  Status           enum{EARMARKED,PARTIALLY_CONVERTED,CONVERTED,RELEASED,CANCELLED} req =EARMARKED
+  DeliveryDate     date             # بعد آخر شحن تحذير V-LCE-08
+  ClosedOn         date
+  ClosedReason     str(500)
+  unique RequestId
+  index  LcId,Status   # الأوامر الفعالة لحساب EarmarkedRemaining
+  index  LcId,OrderRef   # تحذير تكرار (LcId, OrderRef)
+  index  Status,OrderDate where Status IN ('EARMARKED','PARTIALLY_CONVERTED')   # R-LCE-02 تخصيصات لم تتحول
+  check  Amount > 0
+  check  ConvertedAmount >= 0 AND ReleasedAmount >= 0 AND Amount >= ConvertedAmount + ReleasedAmount   # Amount ≥ Converted + Released
+  check  Status <> 'EARMARKED' OR (ConvertedAmount = 0 AND ReleasedAmount = 0)
+  check  Status <> 'PARTIALLY_CONVERTED' OR (ConvertedAmount > 0 AND ConvertedAmount < Amount)
+  check  Status <> 'CONVERTED' OR ConvertedAmount = Amount
+  check  Status <> 'RELEASED' OR ReleasedAmount > 0   # الإغلاق يفك Amount − Converted − Released (BR-LCE-012)
+  check  Status <> 'CANCELLED' OR (ConvertedAmount = 0 AND ReleasedAmount = 0)   # الإلغاء حين Converted = 0
+  check  Status NOT IN ('RELEASED','CANCELLED') OR (ClosedOn IS NOT NULL AND ClosedReason IS NOT NULL)
+
+table lc.LcDrawingAllocation  # توزيع سحب تصدير على أوامر بيع (FR-LCE-016/017، BR-LCE-011/013) -- جديد؛ Σ التوزيع ≤ مبلغ السحب وكل جزء ≤ متبقي أمره يتحقق منهما التطبيق
+  LcId          ->lc.LetterOfCredit via=CurrencyId req noidx
+  DrawingId     ->lc.LcDrawing via=LcId,CurrencyId req noidx   # السحب من الاعتماد نفسه وبعملته
+  SalesOrderId  ->lc.LcSalesOrder via=LcId,CurrencyId req noidx   # الأمر من الاعتماد نفسه وبعملته
+  Amount        money      req
+  CurrencyId    ->ref.Currency req noidx
+  unique DrawingId,SalesOrderId
+  index  SalesOrderId   # ما حُوِّل من أمر (BR-LCE-009)
+  check  Amount > 0
+
+table lc.LcDiscrepancy  # مخالفة على مستندات سحب أو اعتماد؛ القرار يتطلب lc.discrepancy.decide (FR-LCI-024، FR-LCE-021، §8) -- جديد
+  LcId          ->lc.LetterOfCredit req
+  DrawingId     ->lc.LcDrawing via=LcId   # السحب من الاعتماد نفسه
+  Source        enum{BANK_NOTICE,INTERNAL} req
+  Description   text       req
+  Status        enum{OPEN,WAIVED,CORRECTED,REFUSED} req =OPEN
+  DecidedBy     ->sec.AppUser noidx
+  DecidedOn     ts
+  DecisionNote  str(1000)
+  index  LcId,Status
+  index  Status,CreatedAt where Status = 'OPEN'   # تذكير يومي LC.DISCREPANCY_OPEN وR-LCI-08
+  check  Status = 'OPEN' OR (DecidedBy IS NOT NULL AND DecidedOn IS NOT NULL AND DecisionNote IS NOT NULL)   # قرار بتاريخ وسبب (FR-LCI-024)
+  check  Status <> 'OPEN' OR (DecidedBy IS NULL AND DecidedOn IS NULL)
+
+# ============================== المخطط lc: البروفورما ==============================
+
+table lc.ProformaInvoice public  # البروفورما الصادرة: لا تعديل بعد الإصدار؛ الرقم {seq:000}-{erp}-{yy} (FR-LCE-005..008، BR-LCE-001..006)
+  CompanyId                ->org.Company req
+  ProformaNo               str(30)    req   # يُمنح عند الإصدار فقط؛ يحمل رمز ERP فيتفرد بين الشركات (BR-LCE-002)
+  NumberYear               smallint   req   # سنة الإصدار كاملة بتوقيت المشترك؛ yy آخر خانتين منها جزء من الرقم -- إضافة
+  NumberSeq                int        req   # seq لكل (مشترك، شركة، سنة) بلا فجوات؛ النسخة من cfg.NumberIssue (FR-PLT-026) -- إضافة
+  RequestId                ->wfl.Request via=CompanyId req   # طلب PROFORMA_REQUEST (لشركة الطلب نفسها)
+  ErpCompanyCodeSnapshot   str(20)    req   # لقطة Company.ErpCodeNormalized يوم الإصدار (BR-LCE-005)
+  BranchCode               str(40)          # الفرع نص بلا كيان مرجعي (FR-LCE-001)
+  BranchName               str(200)
+  ProjectCode              str(40)          # المشروع نص بلا كيان مرجعي
+  ProjectName              str(200)
+  ProjectSite              str(200)
+  CustomerId               ->lc.Counterparty req
+  CustomerSnapshotJson     json       req sens=confidential   # لقطة الاسم والعنوان والاتصال عند الإصدار (BR-LCE-005)
+  IssueDate                date       req
+  OfferValidityDays        int              # ValidUntil = IssueDate + OfferValidityDays مشتق (BR-LCE-018)
+  CurrencyId               ->ref.Currency req noidx
+  Subtotal                 money      req
+  VatRatePct               rate       req   # من CompanyTaxRate الساري يوم الإصدار؛ الصفر قيمة صريحة (BR-LCE-001)
+  VatAmount                money      req
+  Total                    money      req
+  LcPaymentPct             rate       req =100   # نسبة الدفع بالاعتماد (BR-LCE-006)
+  PlacesJson               json             # مكانا الاستلام والتسليم
+  TermsId                  ->lc.LcTerms req   # شروط غرض PROFORMA مقفلة (نسخة عند الإصدار، BR-LCT-019)
+  ProceedsAccountId        ->acc.BankAccount via=CompanyId req noidx   # حساب LC_COLLECTION للشركة نفسها (BR-LCE-004)
+  PrintLanguage            enum{ar,en,both} req =both
+  DocumentId               ->doc.Document req   # PDF بنوع PROFORMA_ISSUED (FR-LCE-005)
+  Status                   enum{ISSUED,VOID,SUPERSEDED} req =ISSUED   # §8
+  VoidReason               str(500)
+  SupersededById           ->lc.ProformaInvoice via=CompanyId noidx   # الإصدار البديل لشركة الطلب نفسها (BR-LCE-003)
+  unique ProformaNo   # BR-LCE-002: الرقم يشمل رمز ERP فيمنع تكرار الرقم لعميل بين شركتين؛ يحمي أيضًا من رمز شركة مؤرشفة سبق استعماله
+  unique CompanyId,NumberYear,NumberSeq   # تسلسل واحد لكل (مشترك، شركة، سنة) (FR-LCE-006)
+  unique RequestId   # تكرار الإصدار بالمفتاح نفسه يعيد البروفورما ذاتها (FR-LCE-005)
+  unique TermsId
+  unique DocumentId
+  unique PublicId
+  index  CompanyId,ProformaNo   # فهرس (TenantId, CompanyId, ProformaNo)
+  index  CustomerId,IssueDate   # بحث العميل (FR-LCE-008)
+  index  Status,IssueDate   # R-LCE-04 أعمار بلا اعتماد وR-LCE-03
+  index  ProjectCode where ProjectCode IS NOT NULL
+  check  ProformaNo LIKE '[0-9][0-9][0-9]%-%-[0-9][0-9]'   # صيغة {seq:000}-{erp}-{yy}؛ تجاوز 999 يوسّع العرض (BR-LCE-002)
+  check  NumberSeq >= 1 AND NumberYear BETWEEN 2000 AND 2999
+  check  Subtotal >= 0 AND VatAmount >= 0
+  check  Total = Subtotal + VatAmount   # BR-LCE-001
+  check  VatRatePct BETWEEN 0 AND 100
+  check  LcPaymentPct > 0 AND LcPaymentPct <= 100
+  check  OfferValidityDays IS NULL OR OfferValidityDays > 0
+  check  Status <> 'VOID' OR VoidReason IS NOT NULL   # الإبطال بسبب ويبقى الرقم (BR-LCE-003)
+  check  VoidReason IS NULL OR Status = 'VOID'
+  check  (Status = 'SUPERSEDED' AND SupersededById IS NOT NULL) OR (Status <> 'SUPERSEDED' AND SupersededById IS NULL)
+  check  SupersededById IS NULL OR SupersededById <> ProformaInvoiceId
+
+table lc.ProformaLine  # بند في البروفورما (FR-LCE-003، BR-LCE-001)؛ يُثبَّت بعد الإصدار
+  ProformaId   ->lc.ProformaInvoice via=CurrencyId req noidx   # عملة البند = عملة البروفورما
+  LineNo       int        req
+  Description  text       req
+  Qty          dec(19,4)  req   # > 0
+  UnitCode     ascii(80)  req   # رمز بند من UNIT_OF_MEASURE (LOT PCS M M2 KG TON LITRE SET)
+  UnitPrice    money      req   # ≥ 0
+  LineTotal    money      req   # round(Qty × UnitPrice, d) بالتقريب لأبعد (BR-LCE-001) يحسبه التطبيق
+  CurrencyId   ->ref.Currency req noidx
+  Notes        str(500)
+  unique ProformaId,LineNo
+  check  LineNo >= 1
+  check  Qty > 0
+  check  UnitPrice >= 0 AND LineTotal >= 0   # V-LCE-03
+
+# ============================== المخطط lc: مقارنة المستلَم بالبروفورما (Could) ==============================
+
+table lc.LcTermsComparison  # نتيجة مقارنة شروط الاعتماد المستلَم بالبروفورما (FR-LCT-031، FR-LCE-023، BR-LCT-021) -- جديد (Could)
+  BaselineTermsId  ->lc.LcTerms req   # شروط البروفورما (غرض PROFORMA)
+  ReceivedTermsId  ->lc.LcTerms req   # شروط الاعتماد المستلَم (غرض RECEIVED)
+  RunAt            ts         req
+  RunBy            ->sec.AppUser noidx
+  SummaryJson      json
+  Status           enum{OPEN,REVIEWED} req =OPEN
+  unique BaselineTermsId,ReceivedTermsId,RunAt
+  check  BaselineTermsId <> ReceivedTermsId
+
+table lc.LcTermsComparisonLine  # فرق حقل واحد وحكمه وقرار الخزينة (FR-LCT-031، BR-LCT-021) -- جديد (Could)
+  ComparisonId   ->lc.LcTermsComparison req
+  FieldKey       ascii(60)  req
+  BaselineValue  text
+  ReceivedValue  text
+  Verdict        enum{MATCH,MORE_FAVOURABLE,LESS_FAVOURABLE,ADDED,MISSING,REVIEW} req
+  Decision       enum{ACCEPT,REQUEST_AMENDMENT,IGNORE}
+  DecisionNote   str(1000)
+  unique ComparisonId,FieldKey
+  check  Decision IS NULL OR Verdict <> 'MATCH'   # القرار للفروق فقط

@@ -3,6 +3,7 @@
    read_only = 1: لا يستطيع أي استعلام لاحق تغيير المشترك أثناء الجلسة؛ يُعاد الضبط مع إعادة تدوير الاتصال.
    ============================================================================ */
 SET NOCOUNT ON;
+SET ANSI_NULLS ON; SET QUOTED_IDENTIFIER ON; SET ANSI_PADDING ON; SET ANSI_WARNINGS ON; SET ARITHABORT ON; SET CONCAT_NULL_YIELDS_NULL ON; SET NUMERIC_ROUNDABORT OFF;  -- سياسات RLS والإجراءات تحفظ هذه الخيارات عند الإنشاء
 GO
 CREATE OR ALTER PROCEDURE sec.usp_SetSessionContext
     @TenantId INT,

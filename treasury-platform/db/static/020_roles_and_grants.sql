@@ -7,6 +7,7 @@
    لا DENY على الحذف على مستوى المخطط (فهو يُبطل GRANT الجداول)؛ الافتراضي «لا صلاحية حذف».
    ============================================================================ */
 SET NOCOUNT ON;
+SET ANSI_NULLS ON; SET QUOTED_IDENTIFIER ON; SET ANSI_PADDING ON; SET ANSI_WARNINGS ON; SET ARITHABORT ON; SET CONCAT_NULL_YIELDS_NULL ON; SET NUMERIC_ROUNDABORT OFF;  -- سياسات RLS والإجراءات تحفظ هذه الخيارات عند الإنشاء
 GO
 DECLARE @r TABLE (n sysname);
 INSERT @r VALUES (N'tp_app'), (N'tp_platform'), (N'tp_readonly'), (N'tp_migrator');

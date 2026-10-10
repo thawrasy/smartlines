@@ -1,0 +1,588 @@
+# =============================================================================
+# 13-facilities-pricing-terms.model -- A4: التسهيلات والحدود (fac) + التعرفة والتسعير (prc) + مكتبة الشروط (cmp)
+# المصدر: docs/10-detailed-analysis/12-m5-facilities-pricing-collateral-obligations.md  §6.1 FAC · §6.2 PRC · §6.6 CMP
+#         + FR-FAC/PRC/CMP · BR-FAC-001..020 · BR-PRC-001..012 · BR-CMP-001..006 · V-FAC/V-PRC/V-CMP · §8 الحالات
+# قرارات ملزمة: SQL Server 2025 · قاعدة واحدة بعزل صفوف (TenantId تلقائي، مفاتيح مركّبة) · BIGINT IDENTITY (INT للكتالوج)
+#   جذور API بـ public · لا temporal: التاريخ = صفوف مراجَعة (rev) ومختومة المصدر (src) + aud.AuditLog · لا حذف فعلي
+#   مبلغ = money (+ عملة) · نسبة = rate بنقاط مئوية · تاريخ ميلادي + نص هجري str(20) حيث تنص المواصفة
+# عقد المراجعات (rev): القراءة المعتمدة FromRevision <= Facility.ApprovedRevisionNo < ToRevision (BR-FAC-003).
+#   إنشاء مسودة بديلة لصف جارٍ يضبط ToRevision للصف السابق = رقم المراجعة الجديدة ويبقى مقروءًا حتى الاعتماد؛
+#   المسودة المهملة تُعطَّل بـ ToRevision = FromRevision (فاصل فارغ). لذا "الجاري" = ToRevision IS NULL وعليه تقوم الفرادة المصفّاة.
+#   هوية العقدة المنطقية للحد = (FacilityId, Code)؛ عند اعتماد صف جديد تُنقل أبناؤه المنمّطة (نسخ) وتُربط التشغيلية (Utilization, LimitReservation) بالصف الجديد في معاملة الاعتماد.
+# سلامة النطاق: كل ابن لتسهيل يحمل FacilityId وروابطه المركّبة بـ via=FacilityId (أو FacilityId,LimitId) فيستحيل الربط عبر تسهيلين.
+# العملة: عملة التسهيل وحدها لكل حدوده وخطوطه (BR-FAC-002) فلا CurrencyId على Limit/LimitProductLine/LimitCompanyRule/ProductLineTerm.
+# مشتقات لا تُخزَّن (حسب README): AmountInFacilityCcy · CommitmentAmount · PctOfLimit · مؤشر السريان (BR-FAC-005) ؛ المخبأ الوحيد: Limit.EffectiveAmount.
+# الفصل بين المُعِدّ والمعتمِد يضبطه إعداد wf.sod.allow_same_person (Q-FAC-08) فلا يُفرض بقيد قاعدة.
+# مراجع خارجية (يعرّفها غيري): org.Company · cat.FacilityType · cat.LimitType · cat.Product · cat.FeeType · cat.FinancingType
+#   cat.BaseRate · ins.Institution · ins.Contact · doc.Document · sec.AppUser · ref.Currency · wfl.Request
+# =============================================================================
+
+# ============================== المخطط fac: التسهيلات والحدود ==============================
+module FAC
+
+table fac.Facility public  # حزمة الاتفاقية الائتمانية: جذر التجميعة (FR-FAC-001..008، BR-FAC-001/005/006)
+  FacilityNo               ascii(40)  req   # FAC-YY-NNN من NumberSequence (BR-FAC-001)
+  BankReferenceNo          str(80)          # مرجع البنك: نص حر بلا صيغة (Q-FAC-01)
+  BankStructureNo          str(80)          # رقم هيكل البنك: نص حر (Q-FAC-01)
+  BorrowerCompanyId        ->org.Company req
+  FacilityTypeId           ->cat.FacilityType req
+  CurrencyId               ->ref.Currency req   # عملة واحدة لكل التسهيل (BR-FAC-002)
+  TotalAmount              money      req   # Cap(Facility) (BR-FAC-009)
+  IsSyndicated             bool       req =0   # تمويل مشترك: مقرضان فأكثر (BR-FAC-007)
+  PrecedenceLanguage       enum{AR,EN,EQUAL} req   # لغة الأسبقية (FR-FAC-002)
+  PrecedenceClauseRef      str(100)         # مرجع بند الأسبقية
+  AgreementDate            date
+  AgreementDateHijri       str(20)          # النص الهجري كما في الوثيقة (X-DAT-2)
+  EffectiveFrom            date       req
+  EffectiveFromHijri       str(20)
+  ExpiryDate               date       req   # التنبيهات على الميلادي المخزَّن (BR-FAC-001، Q-FAC-10)
+  ExpiryDateHijri          str(20)
+  OperativeCalendar        enum{GREGORIAN,HIJRI} req =GREGORIAN   # التقويم المعتمد في الاتفاقية (FR-FAC-002)
+  HijriAdjusted            bool       req =0   # إضافة: علم «معدَّل» للمقابل الميلادي (FR-FAC-002)
+  HijriAdjustReason        str(300)         # إضافة: سبب التعديل اليدوي (FR-FAC-002)
+  PreviousFacilityId       ->fac.Facility   # سلسلة التجديد الخطية (BR-FAC-006)
+  LifecycleStatus          enum{DRAFT,ACTIVE,SUSPENDED,EXPIRED,TERMINATED,SUPERSEDED} req =DRAFT   # §8؛ مؤشر السريان مشتق لا يُخزَّن
+  LifecycleReason          str(500)         # إضافة: سبب التعليق/الانتهاء/الإنهاء (§8، FR-FAC-008)
+  BankUnilateralRights     set{EXTEND,CHANGE_PRICING,CANCEL,REDUCE_LIMITS}   # حقوق البنك المنفردة (FR-FAC-023)
+  NoticeDays               int              # مهلة الإخطار؛ 0 = «بلا» (FR-FAC-023)
+  UsageBlockOnBreach       bool       req =0   # إيقاف الاستخدام عند خرق (FR-FAC-029)
+  UsageBlockOnUnconfirmed  bool       req =0   # منع الحجز عند NOT_CONFIRMED (Q-FAC-03، BR-FAC-015)
+  AlertLeadDays            set{90,60,30,15,7,0}   # أيام ما قبل الانتهاء مفصولة بفواصل؛ الفارغ = افتراضي ExpiryAlertRule (FR-FAC-008)
+  ApprovedRevisionNo       int        req =0   # آخر مراجعة معتمدة؛ 0 = لا مراجعة معتمدة بعد (BR-FAC-003)
+  unique FacilityNo
+  unique PublicId
+  unique PreviousFacilityId where PreviousFacilityId IS NOT NULL   # لاحق واحد لكل تسهيل (BR-FAC-006)
+  index  BorrowerCompanyId,LifecycleStatus include ExpiryDate,FacilityTypeId   # قائمة التسهيلات بالشركة والحالة (FR-FAC-028)
+  index  LifecycleStatus,ExpiryDate        # ينتهي خلال N + JOB-FAC-VALIDITY (R-FAC-01)
+  index  BankReferenceNo where BankReferenceNo IS NOT NULL   # تنبيه تكرار مرجع البنك (BR-FAC-001)
+  check  ExpiryDate >= EffectiveFrom       # BR-FAC-001
+  check  AgreementDate IS NULL OR AgreementDate <= EffectiveFrom   # BR-FAC-001
+  check  TotalAmount > 0
+  check  PreviousFacilityId IS NULL OR PreviousFacilityId <> FacilityId
+  check  NoticeDays IS NULL OR NoticeDays >= 0
+  check  BankUnilateralRights IS NULL OR BankUnilateralRights NOT LIKE '%CHANGE_PRICING%' OR NoticeDays IS NOT NULL   # FR-FAC-023: المهلة أو «بلا»
+  check  HijriAdjusted = 0 OR HijriAdjustReason IS NOT NULL   # FR-FAC-002
+  check  LifecycleStatus NOT IN ('SUSPENDED','EXPIRED','TERMINATED') OR LifecycleReason IS NOT NULL   # §8
+  check  ApprovedRevisionNo >= 0
+  check  LifecycleStatus = 'DRAFT' OR ApprovedRevisionNo >= 1   # DRAFT→ACTIVE باعتماد أول مراجعة (§8)
+  check  AlertLeadDays IS NULL OR AlertLeadDays NOT LIKE '%[^0-9,]%'
+
+table fac.FacilityRevision  # مراجعة معدّ/معتمِد لشروط التسهيل (FR-FAC-024، BR-FAC-003/004، §8)
+  FacilityId       ->fac.Facility req
+  RevisionNo       int        req   # يبدأ من 1
+  ReasonKind       enum{INITIAL,AMENDMENT,EXTENSION,CORRECTION,RENEWAL_COPY} req
+  Status           enum{DRAFT,SUBMITTED,APPROVED,REJECTED,DISCARDED} req =DRAFT
+  EffectiveOn      date       req   # المراجعة تحكم متى تُلزِم والسريان بالتاريخ يحكم من أي يوم (BR-FAC-003)
+  ChangeSummary    str(1000)
+  HeaderChanges    json             # إضافة: تغييرات رأس التسهيل المقترحة تُطبَّق على Facility عند الاعتماد (الرأس غير [R])
+  SubmittedBy      ->sec.AppUser
+  SubmittedOn      ts
+  ApprovedBy       ->sec.AppUser
+  ApprovedOn       ts
+  RejectionReason  str(1000)
+  IntegrityResult  json             # نتيجة فحوص السلامة V-FAC-* عند التقديم (BR-FAC-004)
+  unique FacilityId,RevisionNo
+  unique FacilityId where Status IN ('DRAFT','SUBMITTED','REJECTED')   # مراجعة مفتوحة واحدة لكل تسهيل (BR-FAC-003)
+  index  Status,SubmittedOn                # قائمة بانتظار الاعتماد (NTF-FAC-03)
+  check  RevisionNo >= 1
+  check  ReasonKind <> 'INITIAL' OR RevisionNo = 1
+  check  Status NOT IN ('SUBMITTED','APPROVED') OR (SubmittedBy IS NOT NULL AND SubmittedOn IS NOT NULL)
+  check  Status <> 'APPROVED' OR (ApprovedBy IS NOT NULL AND ApprovedOn IS NOT NULL)
+  check  Status <> 'REJECTED' OR RejectionReason IS NOT NULL   # الرفض بسبب (FR-FAC-024)
+
+table fac.FacilityDocument rev  # وثيقة ضمن الحزمة بأسبقية (FR-FAC-004، BR-FAC-008، V-FAC-03)؛ نوعها من doc.Document.DocumentTypeId
+  FacilityId                ->fac.Facility req
+  DocumentId                ->doc.Document req
+  DocumentDate              date
+  DocumentDateHijri         str(20)
+  Language                  enum{AR,EN,BILINGUAL} req
+  PrecedenceRank            int        req   # الأصغر يغلب (BR-FAC-008)
+  AmendsFacilityDocumentId  ->fac.FacilityDocument via=FacilityId   # «تعدّل وثيقة» داخل الحزمة نفسها
+  PageCount                 int
+  IsSignedCopy              bool       req =0
+  IsScanned                 bool       req =0
+  unique FacilityId,DocumentId where ToRevision IS NULL            # فريد بين الجاري
+  unique FacilityId,PrecedenceRank where ToRevision IS NULL        # أسبقيات فريدة (V-FAC-03)
+  check  PrecedenceRank >= 1
+  check  PageCount IS NULL OR PageCount > 0
+  check  AmendsFacilityDocumentId IS NULL OR AmendsFacilityDocumentId <> FacilityDocumentId
+  check  ToRevision IS NULL OR ToRevision >= FromRevision
+
+table fac.FacilityLender rev  # مقرض وحصته (FR-FAC-003، BR-FAC-007، V-FAC-02)؛ مجموع الحصص 100 ووكيل واحد يتحقق منهما التطبيق
+  FacilityId     ->fac.Facility req
+  InstitutionId  ->ins.Institution req
+  Roles          set{SOLE,LEAD,AGENT,ARRANGER,PARTICIPANT} req
+  SharePct       rate       req   # 0 < x <= 100؛ CommitmentAmount = TotalAmount x SharePct / 100 مشتق لا يُخزَّن
+  ContactId      ->ins.Contact via=InstitutionId   # جهة اتصال المشارك من المنشأة نفسها
+  unique FacilityId,InstitutionId where ToRevision IS NULL
+  check  SharePct > 0 AND SharePct <= 100
+  check  Roles <> ''
+  check  Roles NOT LIKE '%SOLE%' OR SharePct = 100   # SOLE ⇒ 100% (BR-FAC-007)
+  check  ToRevision IS NULL OR ToRevision >= FromRevision
+
+table fac.OutstandingSnapshot src  # لقطة الرصيد المعترف به (FR-FAC-009، BR-FAC-017)؛ PctOfLimit مشتق لا يُخزَّن
+  FacilityId          ->fac.Facility req
+  LimitId             ->fac.Limit via=FacilityId
+  ProductId           ->cat.Product
+  AsOfDate            date       req
+  AcknowledgedAmount  money      req
+  CurrencyId          ->ref.Currency req
+  SourceKind          enum{RENEWAL_ACKNOWLEDGEMENT,BANK_STATEMENT,INTERNAL} req
+  StatedPct           rate             # النسبة المنصوص عليها في المصدر؛ فرق >= 0.005 عن المحسوبة يُعلَّم (BR-FAC-017)
+  unique FacilityId,LimitId,ProductId,AsOfDate,SourceKind
+  index  FacilityId,AsOfDate               # مطابقة اللقطات مع المحسوب (R-FAC-04)
+  check  AcknowledgedAmount >= 0
+  check  StatedPct IS NULL OR StatedPct >= 0
+  check  SourceDocumentId IS NOT NULL AND SourcePage IS NOT NULL OR (SourceDocumentId IS NULL AND Confidence = 'ENTERED_NO_DOCUMENT')   # ختم المصدر (BR-FAC-018)
+  check  Confidence <> 'CONFIRMED_AGAINST_ORIGINAL' OR (VerifiedBy IS NOT NULL AND VerifiedOn IS NOT NULL)
+
+table fac.Limit rev src  # عقدة شجرة الحدود (FR-FAC-010/011، BR-FAC-009/010، V-FAC-04..07)
+  FacilityId             ->fac.Facility req
+  ParentLimitId          ->fac.Limit via=FacilityId   # فارغ = جذر (أبوه التسهيل)؛ عمق <= 6 وبلا حلقات في التطبيق
+  LimitTypeId            ->cat.LimitType req
+  Code                   ascii(40)  req
+  NameAr                 str(200)   req
+  NameEn                 str(200)
+  BankStructureNo        str(80)          # نص حر اختياري على الحد (Q-FAC-01)
+  AmountBasis            enum{ABSOLUTE,PCT_OF_PARENT} req =ABSOLUTE
+  Amount                 money            # بعملة التسهيل؛ إلزامي مع ABSOLUTE
+  PctOfParent            rate             # (0,100] مع PCT_OF_PARENT؛ الأب = التسهيل للجذور (BR-FAC-009)
+  EffectiveAmount        money            # مخبأ: السقف الفعلي Cap(n) يُحسب عند الكتابة ويُعاد عند تغيّر الأب (BR-FAC-009)
+  DistributionMode       enum{SHARED_CAP,PARTITION,OUTSIDE_TOTAL} req =SHARED_CAP   # الافتراضي من LimitType (FR-FAC-011)
+  IsRevolving            bool       req
+  IsCommitted            bool
+  StartDate              date
+  EndDate                date
+  DueDate                date
+  PricingMode            enum{INHERIT,OWN} req =INHERIT   # OWN يقطع الصعود إلى الأب (BR-PRC-010)
+  CompanyAllocationMode  enum{NONE,PARTITION,SHARED_CAP} req =NONE   # تخصيص الشركات (BR-FAC-012)
+  unique FacilityId,Code where ToRevision IS NULL     # فريد بين الجاري
+  index  FacilityId,DistributionMode include ParentLimitId,EffectiveAmount   # شجرة الحدود والمتاح (R-FAC-02)
+  index  EndDate where EndDate IS NOT NULL AND ToRevision IS NULL    # تنبيهات انتهاء الحد (NTF-FAC-01)
+  index  DueDate where DueDate IS NOT NULL AND ToRevision IS NULL
+  check  (AmountBasis = 'ABSOLUTE' AND Amount IS NOT NULL AND PctOfParent IS NULL) OR (AmountBasis = 'PCT_OF_PARENT' AND PctOfParent IS NOT NULL AND Amount IS NULL)   # حصرية المبلغ/النسبة (FR-FAC-010)
+  check  Amount IS NULL OR Amount >= 0
+  check  PctOfParent IS NULL OR (PctOfParent > 0 AND PctOfParent <= 100)   # V-FAC-07
+  check  EffectiveAmount IS NULL OR EffectiveAmount >= 0
+  check  ParentLimitId IS NULL OR ParentLimitId <> LimitId
+  check  StartDate IS NULL OR EndDate IS NULL OR EndDate >= StartDate
+  check  ToRevision IS NULL OR ToRevision >= FromRevision
+  check  SourceDocumentId IS NOT NULL AND SourcePage IS NOT NULL OR (SourceDocumentId IS NULL AND Confidence = 'ENTERED_NO_DOCUMENT')   # ختم المصدر (BR-FAC-018)
+  check  Confidence <> 'CONFIRMED_AGAINST_ORIGINAL' OR (VerifiedBy IS NOT NULL AND VerifiedOn IS NOT NULL)
+
+table fac.LimitProductLine rev src  # خط منتج داخل حد: سقف اختياري SHARED_CAP دائمًا (FR-FAC-012، V-FAC-08)
+  FacilityId      ->fac.Facility req
+  LimitId         ->fac.Limit via=FacilityId req
+  ProductId       ->cat.Product req   # من المنتجات المسموحة للحد؛ فارغة = أي منتج بتحذير (SVC-08)
+  BankProductCode str(60)           # رمز منتج البنك
+  AmountBasis     enum{ABSOLUTE,PCT_OF_PARENT}   # سقف الخط؛ فارغ = بلا سقف خاص
+  Amount          money
+  PctOfParent     rate
+  IsRevolving     bool                # فارغ = يرث من الحد
+  DueDate         date                # الاستحقاق <= نهاية الحد (V-FAC-08)
+  IsActive        bool       req =1
+  unique LimitId,ProductId,BankProductCode where ToRevision IS NULL
+  index  DueDate where DueDate IS NOT NULL AND ToRevision IS NULL   # تنبيهات انتهاء الخط (NTF-FAC-01)
+  index  ProductId,IsActive                # محدد الخطوط المؤهلة (SVC-FAC-01)
+  check  (AmountBasis IS NULL AND Amount IS NULL AND PctOfParent IS NULL) OR (AmountBasis IS NOT NULL AND ((AmountBasis = 'ABSOLUTE' AND Amount IS NOT NULL AND PctOfParent IS NULL) OR (AmountBasis = 'PCT_OF_PARENT' AND PctOfParent IS NOT NULL AND Amount IS NULL)))   # سقف الخط: لا سقف أو مطلق أو نسبة
+  check  Amount IS NULL OR Amount >= 0
+  check  PctOfParent IS NULL OR (PctOfParent > 0 AND PctOfParent <= 100)
+  check  ToRevision IS NULL OR ToRevision >= FromRevision
+  check  SourceDocumentId IS NOT NULL AND SourcePage IS NOT NULL OR (SourceDocumentId IS NULL AND Confidence = 'ENTERED_NO_DOCUMENT')
+  check  Confidence <> 'CONFIRMED_AGAINST_ORIGINAL' OR (VerifiedBy IS NOT NULL AND VerifiedOn IS NOT NULL)
+
+table fac.LimitCompanyRule rev src  # قيد شركة على حد: مسموح/مستثنى/تخصيص (FR-FAC-013، BR-FAC-012، V-FAC-09)
+  FacilityId        ->fac.Facility req
+  LimitId           ->fac.Limit via=FacilityId req
+  CompanyId         ->org.Company req
+  RuleKind          enum{ALLOWED,EXCLUDED,ALLOCATION} req
+  AllocationAmount  money            # بعملة التسهيل؛ إلزامي للتخصيص (مبلغ أو نسبة)
+  AllocationPct     rate
+  Reason            str(500)
+  ValidFrom         date       req
+  ValidTo           date
+  unique LimitId,CompanyId,RuleKind,ValidFrom where ToRevision IS NULL   # تعارض ALLOWED/EXCLUDED لنفس الشركة (مع التواريخ) يتحقق منه التطبيق (V-FAC-09)
+  index  CompanyId,RuleKind                # أهلية الشركة (BR-FAC-012)
+  check  RuleKind <> 'ALLOCATION' OR (AllocationAmount IS NOT NULL AND AllocationPct IS NULL) OR (AllocationAmount IS NULL AND AllocationPct IS NOT NULL)
+  check  RuleKind = 'ALLOCATION' OR (AllocationAmount IS NULL AND AllocationPct IS NULL)
+  check  AllocationAmount IS NULL OR AllocationAmount > 0
+  check  AllocationPct IS NULL OR (AllocationPct > 0 AND AllocationPct <= 100)
+  check  ValidTo IS NULL OR ValidTo >= ValidFrom
+  check  ToRevision IS NULL OR ToRevision >= FromRevision
+  check  SourceDocumentId IS NOT NULL AND SourcePage IS NOT NULL OR (SourceDocumentId IS NULL AND Confidence = 'ENTERED_NO_DOCUMENT')
+  check  Confidence <> 'CONFIRMED_AGAINST_ORIGINAL' OR (VerifiedBy IS NOT NULL AND VerifiedOn IS NOT NULL)
+
+table fac.ProductLineTerm rev src  # شروط العملية لخط المنتج بتواريخ سريان؛ الفارغ = «غير محدد» لا صفر (FR-FAC-014، BR-FAC-016)
+  FacilityId                    ->fac.Facility req
+  LimitProductLineId            ->fac.LimitProductLine via=FacilityId req
+  MaxTotalTenorDays             int            # أقصى مدة شاملة التأجيل (TENOR)
+  MaxDeferralDays               int            # أقصى تأجيل (DEFERRAL)
+  MaxPostDeferralFinancingDays  int            # أقصى تمويل بعد التأجيل (POST_DEFERRAL)
+  LcValidityDays                int            # صلاحية الاعتماد المستندي (LC_VALIDITY)
+  CashCoverPct                  rate           # الغطاء النقدي الأدنى % (CASH_COVER)
+  FinancingRatioPct             rate           # نسبة التمويل الأقصى % (FINANCING_RATIO)
+  AdvanceNoticeDays             int            # مهلة الإخطار (NOTICE)
+  AdvanceNoticeUnit             enum{BUSINESS,CALENDAR} req =BUSINESS   # يوم عمل افتراضيًا حسب BR-FAC-016
+  CheckMode                     enum{OFF,WARN,BLOCK} req =WARN   # الآلية الوحيدة لشدة الفحص (FR-FAC-015، Q-FAC-02)
+  EffectiveFrom                 date       req
+  EffectiveTo                   date
+  unique LimitProductLineId,EffectiveFrom where ToRevision IS NULL
+  check  EffectiveTo IS NULL OR EffectiveTo >= EffectiveFrom
+  check  MaxTotalTenorDays IS NULL OR MaxTotalTenorDays >= 0   # V-FAC-10: أيام >= 0
+  check  MaxDeferralDays IS NULL OR MaxDeferralDays >= 0
+  check  MaxPostDeferralFinancingDays IS NULL OR MaxPostDeferralFinancingDays >= 0
+  check  LcValidityDays IS NULL OR LcValidityDays >= 0
+  check  AdvanceNoticeDays IS NULL OR AdvanceNoticeDays >= 0
+  check  CashCoverPct IS NULL OR (CashCoverPct >= 0 AND CashCoverPct <= 100)   # V-FAC-10: نسب 0..100
+  check  FinancingRatioPct IS NULL OR (FinancingRatioPct >= 0 AND FinancingRatioPct <= 100)
+  check  ToRevision IS NULL OR ToRevision >= FromRevision
+  check  SourceDocumentId IS NOT NULL AND SourcePage IS NOT NULL OR (SourceDocumentId IS NULL AND Confidence = 'ENTERED_NO_DOCUMENT')
+  check  Confidence <> 'CONFIRMED_AGAINST_ORIGINAL' OR (VerifiedBy IS NOT NULL AND VerifiedOn IS NOT NULL)
+
+table fac.Utilization public  # بند استخدام فعّال: يدوي أو مرتبط باعتماد مستندي؛ لا حذف (FR-FAC-016/030، BR-FAC-013/020)
+  FacilityId          ->fac.Facility req
+  LimitId             ->fac.Limit via=FacilityId req
+  LimitProductLineId  ->fac.LimitProductLine via=FacilityId,LimitId   # الخط من الحد نفسه
+  CompanyId           ->org.Company req
+  Reference           str(100)   req   # = LcNumberText لبند LC المحوَّل
+  Description         str(300)
+  Amount              money      req   # بعملة Currency؛ المبلغ بعملة التسهيل مشتق (BR-FAC-002) ولا يُخزَّن
+  CurrencyId          ->ref.Currency req
+  RateToFacilityCcy   dec(19,8)        # سعر تحويل يدوي مثبَّت؛ إلزامي إن اختلفت العملة (يتحقق التطبيق، BR-FAC-002)
+  StartDate           date       req
+  MaturityDate        date
+  SourceType          enum{MANUAL,LC,OTHER_REQUEST} req =MANUAL
+  SourceRefId         bigint           # LcId أو RequestId؛ فارغ ابتداءً لبند LC ويُعبَّأ مرة واحدة من فارغ إلى قيمة (IMMUTABLE_SOURCE يفرضه التطبيق)
+  Status              enum{ACTIVE,RELEASED} req =ACTIVE   # RELEASED نهائية (§8)
+  ReleasedOn          date
+  ReleaseReason       str(500)
+  unique PublicId
+  unique SourceType,SourceRefId where SourceRefId IS NOT NULL    # DUPLICATE_SOURCE (BR-FAC-020)
+  index  FacilityId,LimitId,Status include Amount,CurrencyId,RateToFacilityCcy,CompanyId,LimitProductLineId   # حساب Used(n) (BR-FAC-013)
+  index  Reference                         # بحث برقم الاعتماد
+  index  MaturityDate where Status = 'ACTIVE' AND MaturityDate IS NOT NULL
+  index  CreatedAt where SourceType = 'LC' AND SourceRefId IS NULL   # بنود LC بلا SourceRefId (V-FAC-11، R-FAC-03)
+  check  Amount >= 0
+  check  Status = 'RELEASED' OR Amount > 0   # V-FAC-11: المبلغ > 0 للفعّال
+  check  RateToFacilityCcy IS NULL OR RateToFacilityCcy > 0
+  check  MaturityDate IS NULL OR MaturityDate >= StartDate
+  check  Status <> 'RELEASED' OR (ReleasedOn IS NOT NULL AND ReleaseReason IS NOT NULL)
+  check  Status = 'RELEASED' OR (ReleasedOn IS NULL AND ReleaseReason IS NULL)
+
+table fac.LimitReservation  # حجز مبلغ لطلب = ExposureAmount (FR-FAC-017/018/020، BR-FAC-015)
+  FacilityId              ->fac.Facility req
+  LimitId                 ->fac.Limit via=FacilityId req
+  LimitProductLineId      ->fac.LimitProductLine via=FacilityId,LimitId   # الخط من الحد نفسه
+  CompanyId               ->org.Company req
+  RequestId               ->wfl.Request req
+  Amount                  money      req   # = ExposureAmount الوحيد الممرَّر (BR-FAC-015)
+  CurrencyId              ->ref.Currency req
+  RateToFacilityCcy       dec(19,8)
+  Status                  enum{ACTIVE,CONVERTED,RELEASED} req =ACTIVE   # CONVERTED وRELEASED نهائيتان (§8)
+  ExpiresOn               date
+  ConvertedUtilizationId  ->fac.Utilization via=FacilityId   # يعبَّأ عند التحويل (fac.convert_reservation)
+  ReleasedOn              date
+  ReleaseReason           enum{REJECTED,CANCELLED,EXPIRED,SUPERSEDED,MANUAL}
+  OverLimit               bool       req =0   # حجز فوق المتاح بتجاوز مدوَّن (FR-FAC-020)
+  OverrideReason          str(500)
+  AcknowledgedWarnings    json
+  IdempotencyKey          ascii(100) req   # = RequestId لأمر الحجز؛ إعادة الحجز بعد الفك تشتق مفتاحًا جديدًا في التطبيق
+  unique IdempotencyKey
+  unique RequestId where Status = 'ACTIVE'                       # حجز فعّال واحد لكل طلب (upsert)
+  unique ConvertedUtilizationId where ConvertedUtilizationId IS NOT NULL
+  index  FacilityId,LimitId,Status include Amount,CurrencyId,RateToFacilityCcy,CompanyId,LimitProductLineId   # حساب Reserved(n) (BR-FAC-013)
+  index  ExpiresOn where Status = 'ACTIVE' AND ExpiresOn IS NOT NULL   # JOB-FAC-RESERVATION وNTF-FAC-04
+  check  Amount > 0
+  check  RateToFacilityCcy IS NULL OR RateToFacilityCcy > 0
+  check  Status <> 'CONVERTED' OR ConvertedUtilizationId IS NOT NULL
+  check  Status = 'CONVERTED' OR ConvertedUtilizationId IS NULL
+  check  Status <> 'RELEASED' OR (ReleasedOn IS NOT NULL AND ReleaseReason IS NOT NULL)
+  check  Status = 'RELEASED' OR (ReleasedOn IS NULL AND ReleaseReason IS NULL)
+  check  OverLimit = 0 OR OverrideReason IS NOT NULL   # OVERRIDE_REASON_REQUIRED (BR-FAC-015)
+
+table fac.LimitMovement append  # سجل حركة على حجز أو استخدام؛ لا تعديل ولا حذف؛ مفتاح عدم التكرار (BR-FAC-015/020)
+  FacilityId          ->fac.Facility req   # إضافة: مفتاح النطاق
+  TargetKind          enum{RESERVATION,UTILIZATION} req
+  LimitReservationId  ->fac.LimitReservation via=FacilityId   # بدل TargetId متعدد الأشكال لضمان السلامة المرجعية
+  UtilizationId       ->fac.Utilization via=FacilityId
+  calc TargetId bigint =CASE WHEN LimitReservationId IS NOT NULL THEN LimitReservationId ELSE UtilizationId END   # مشتق: مطابق لـ TargetId في المواصفة
+  OpKind              enum{CREATE,ADJUST,CONVERT,RELEASE} req
+  CurrencyId          ->ref.Currency req   # إضافة: عملة المبالغ أدناه (عملة الهدف)
+  RequestedDelta      money
+  AppliedDelta        money
+  AmountBefore        money
+  AmountAfter         money
+  Reason              str(500)
+  IdempotencyKey      ascii(100) req
+  ActorUserId         ->sec.AppUser req
+  At                  ts         req =SYSUTCDATETIME()
+  unique IdempotencyKey
+  index  FacilityId,At                     # سجل الحركات (R-FAC-04)
+  check  (TargetKind = 'RESERVATION' AND LimitReservationId IS NOT NULL AND UtilizationId IS NULL) OR (TargetKind = 'UTILIZATION' AND UtilizationId IS NOT NULL AND LimitReservationId IS NULL)
+  check  AmountAfter IS NULL OR AmountAfter >= 0   # لا يهبط الرصيد تحت الصفر (BR-FAC-020)
+  check  AppliedDelta IS NULL OR RequestedDelta IS NULL OR ABS(AppliedDelta) <= ABS(RequestedDelta)   # المطبَّق لا يتجاوز المطلوب
+  check  OpKind <> 'ADJUST' OR AmountBefore IS NULL OR AmountAfter IS NULL OR AppliedDelta IS NULL OR AmountAfter = AmountBefore + AppliedDelta
+
+table fac.ValueConflict  # تعارض قيمتين لحقل واحد وحسمه (FR-FAC-026، BR-FAC-019، BR-FAC-008)
+  FacilityId                  ->fac.Facility req   # إضافة: مفتاح النطاق
+  TargetEntity                ascii(60)  req   # الكيان المستهدف مثل fac.Limit أو prc.PricingRule (رابط متعدد الأشكال)
+  TargetId                    bigint     req
+  FieldName                   ascii(80)  req
+  CandidateAValue             str(1000)  req   # القيمة + ختم المصدر (A)
+  CandidateASourceDocumentId  ->doc.Document
+  CandidateASourcePage        ascii(40)
+  CandidateAReadFromScan      bool       req =0
+  CandidateAOriginalText      str(2000)
+  CandidateAConfidence        enum{CONFIRMED_AGAINST_ORIGINAL,READ_FROM_SCAN_UNVERIFIED,ENTERED_NO_DOCUMENT} req =ENTERED_NO_DOCUMENT
+  CandidateBValue             str(1000)  req   # القيمة + ختم المصدر (B)
+  CandidateBSourceDocumentId  ->doc.Document
+  CandidateBSourcePage        ascii(40)
+  CandidateBReadFromScan      bool       req =0
+  CandidateBOriginalText      str(2000)
+  CandidateBConfidence        enum{CONFIRMED_AGAINST_ORIGINAL,READ_FROM_SCAN_UNVERIFIED,ENTERED_NO_DOCUMENT} req =ENTERED_NO_DOCUMENT
+  Status                      enum{OPEN,RESOLVED} req =OPEN
+  ChosenSide                  enum{A,B,OTHER}
+  ResolvedValue               str(1000)
+  ResolutionReason            str(1000)
+  ResolvedBy                  ->sec.AppUser
+  ResolvedOn                  ts
+  unique TargetEntity,TargetId,FieldName where Status = 'OPEN'     # تعارض مفتوح واحد لكل (هدف، حقل)
+  index  FacilityId,Status                 # التعارضات المفتوحة تمنع الاعتماد (FR-FAC-026، V-FAC-12)
+  check  Status <> 'RESOLVED' OR (ChosenSide IS NOT NULL AND ResolutionReason IS NOT NULL AND ResolvedBy IS NOT NULL AND ResolvedOn IS NOT NULL)   # القرار بسبب مدوَّن (BR-FAC-008)
+  check  Status = 'RESOLVED' OR (ChosenSide IS NULL AND ResolvedBy IS NULL AND ResolvedOn IS NULL)
+  check  ChosenSide IS NULL OR ChosenSide <> 'OTHER' OR ResolvedValue IS NOT NULL
+  check  CandidateASourceDocumentId IS NOT NULL AND CandidateASourcePage IS NOT NULL OR (CandidateASourceDocumentId IS NULL AND CandidateAConfidence = 'ENTERED_NO_DOCUMENT')   # ختم المصدر (X-DAT-4)
+  check  CandidateBSourceDocumentId IS NOT NULL AND CandidateBSourcePage IS NOT NULL OR (CandidateBSourceDocumentId IS NULL AND CandidateBConfidence = 'ENTERED_NO_DOCUMENT')
+
+# ============================== المخطط prc: التعرفة والتسعير ==============================
+module PRC
+
+table prc.TariffSchedule public  # إصدار جدول رسوم لبنك؛ بخاص بتسهيل اختياريًا (FR-PRC-001، BR-PRC-001، V-PRC-01)
+  InstitutionId     ->ins.Institution req
+  FacilityId        ->fac.Facility   # فارغ = جدول عام للبنك؛ الخاص بالتسهيل يغلب (BR-PRC-001)
+  NameAr            str(200)   req
+  NameEn            str(200)         # إضافة: ثنائية الاسم
+  VersionNo         int        req
+  EffectiveFrom     date       req
+  EffectiveTo       date
+  Status            enum{DRAFT,APPROVED,SUPERSEDED} req =DRAFT   # اعتماد TM؛ المعتمد ثابت (FR-PRC-001)
+  SourceDocumentId  ->doc.Document   # ملحق التعرفة
+  ApprovedBy        ->sec.AppUser
+  ApprovedOn        ts
+  unique InstitutionId,FacilityId,VersionNo
+  unique PublicId
+  unique InstitutionId,FacilityId where Status = 'APPROVED' AND EffectiveTo IS NULL   # معتمد مفتوح واحد لكل (بنك، تسهيل)؛ تداخل المدد المغلقة في التطبيق (V-PRC-01)
+  index  InstitutionId,FacilityId,Status include EffectiveFrom,EffectiveTo   # حل الجدول السارِي (BR-PRC-001)
+  check  VersionNo >= 1
+  check  EffectiveTo IS NULL OR EffectiveTo >= EffectiveFrom
+  check  Status <> 'APPROVED' OR (ApprovedBy IS NOT NULL AND ApprovedOn IS NOT NULL)
+
+table prc.TariffItem src  # بند رسم في جدول التعرفة (FR-PRC-002، BR-PRC-002..005)
+  ScheduleId        ->prc.TariffSchedule req
+  FeeTypeId         ->cat.FeeType req
+  ItemCode          ascii(40)  req
+  NameAr            str(200)   req
+  NameEn            str(200)
+  ProductId         ->cat.Product
+  ChargeKind        enum{PERCENT,FIXED,PER_MILLION,TIERED} req
+  Rate              rate             # PERCENT (نقاط مئوية)
+  FixedAmount       money            # FIXED
+  PerMillionAmount  money            # PER_MILLION
+  PeriodBasis       enum{FLAT,PER_ANNUM,PER_PERIOD_OR_PART} req =FLAT
+  PeriodDays        int              # طول الفترة؛ إلزامي لـ PER_PERIOD_OR_PART (FR-PRC-002)
+  MinAmount         money
+  MaxAmount         money
+  Locality          enum{ANY,INSIDE_BANK,OUTSIDE_BANK} req =ANY
+  TierCalcMode      enum{BAND,WHOLE} =BAND   # Q-PRC-02
+  PerMillionMode    enum{PRORATA,STARTED_MILLION} =PRORATA   # Q-PRC-03
+  VatTreatment      enum{EXCLUSIVE,INCLUSIVE,EXEMPT} req =EXCLUSIVE
+  CurrencyId        ->ref.Currency   # فارغ = عملة التسهيل عند الحل
+  unique ScheduleId,ItemCode
+  index  ScheduleId,FeeTypeId include ProductId,Locality   # البحث بنوع الرسم والمنتج
+  check  ChargeKind <> 'PERCENT' OR (Rate IS NOT NULL AND FixedAmount IS NULL AND PerMillionAmount IS NULL)
+  check  ChargeKind <> 'FIXED' OR (FixedAmount IS NOT NULL AND Rate IS NULL AND PerMillionAmount IS NULL)
+  check  ChargeKind <> 'PER_MILLION' OR (PerMillionAmount IS NOT NULL AND Rate IS NULL AND FixedAmount IS NULL)
+  check  ChargeKind <> 'TIERED' OR (Rate IS NULL AND FixedAmount IS NULL AND PerMillionAmount IS NULL)   # المعدلات في TariffTier
+  check  Rate IS NULL OR (Rate >= 0 AND Rate <= 100)
+  check  PeriodBasis <> 'PER_PERIOD_OR_PART' OR PeriodDays IS NOT NULL   # FR-PRC-002
+  check  PeriodDays IS NULL OR PeriodDays > 0
+  check  MinAmount IS NULL OR MinAmount >= 0
+  check  MinAmount IS NULL OR MaxAmount IS NULL OR MinAmount <= MaxAmount   # أدنى <= أعلى (FR-PRC-002، V-PRC-01)
+  check  SourceDocumentId IS NOT NULL AND SourcePage IS NOT NULL OR (SourceDocumentId IS NULL AND Confidence = 'ENTERED_NO_DOCUMENT')   # ختم المصدر (BR-FAC-018)
+  check  Confidence <> 'CONFIRMED_AGAINST_ORIGINAL' OR (VerifiedBy IS NOT NULL AND VerifiedOn IS NOT NULL)
+
+table prc.TariffTier  # شريحة بند تعرفة بالمبلغ و/أو المدة (FR-PRC-003، BR-PRC-002)
+  TariffItemId    ->prc.TariffItem req
+  AmountFrom      money
+  AmountTo        money
+  PeriodFromDays  int
+  PeriodToDays    int
+  Rate            rate
+  FixedAmount     money
+  MinAmount       money
+  SortOrder       int        req
+  unique TariffItemId,SortOrder
+  unique TariffItemId,AmountFrom,PeriodFromDays    # منع تكرار بداية الشريحة؛ عدم التداخل الكامل يتحقق منه التطبيق (V-PRC-01)
+  check  AmountFrom IS NULL OR AmountFrom >= 0
+  check  AmountTo IS NULL OR AmountFrom IS NULL OR AmountTo > AmountFrom
+  check  PeriodFromDays IS NULL OR PeriodFromDays >= 0
+  check  PeriodToDays IS NULL OR PeriodFromDays IS NULL OR PeriodToDays >= PeriodFromDays
+  check  Rate IS NOT NULL OR FixedAmount IS NOT NULL
+  check  Rate IS NULL OR FixedAmount IS NULL
+  check  Rate IS NULL OR (Rate >= 0 AND Rate <= 100)
+  check  MinAmount IS NULL OR MinAmount >= 0
+
+table prc.PricingRule rev src  # قاعدة تسعير بنطاق ووراثة وطرق (FR-PRC-006..017، BR-PRC-006..012، V-PRC-02)
+  FacilityId               ->fac.Facility req
+  ScopeLimitId             ->fac.Limit via=FacilityId   # بلا نطاق = مستوى التسهيل
+  ScopeLimitProductLineId  ->fac.LimitProductLine via=FacilityId
+  ScopeProductId           ->cat.Product
+  ScopeCompanyId           ->org.Company
+  ComponentKind            enum{FEE,FINANCING_RETURN,PENALTY_NON_INCOME} req
+  RateState                enum{SET,NOT_SPECIFIED_IN_AGREEMENT} req =SET   # غير محدد ⇒ حقول المعدل فارغة وتُستبعد من ResolvePricing (BR-PRC-012)
+  FeeTypeId                ->cat.FeeType   # لـ FEE وPENALTY_NON_INCOME
+  FinancingTypeId          ->cat.FinancingType   # لـ FINANCING_RETURN (FR-PRC-013)
+  Method                   enum{TARIFF_AS_IS,TARIFF_PLUS_ADDON,BASE_PLUS_MARGIN,PERCENT_OF_AMOUNT,FIXED_AMOUNT,PER_MILLION,TIERED} req
+  TariffItemId             ->prc.TariffItem   # لـ TARIFF_AS_IS وTARIFF_PLUS_ADDON
+  AddOnPct                 rate             # نقاط مئوية على معدل البند (BR-PRC-004)
+  BaseRateId               ->cat.BaseRate   # لـ BASE_PLUS_MARGIN
+  MarginPct                rate             # الهامش السالب تحذير (V-PRC-02) فلا قيد نطاق
+  BaseFloorPct             rate             # أرضية سعر الأساس؛ 0 = أرضية صفرية والفارغ بلا أرضية (FR-PRC-009)
+  RatePct                  rate             # لـ PERCENT_OF_AMOUNT (ثابت للتسهيل: Q-PRC-05)
+  RateRangeLowPct          rate             # مدى بدل نقطة (BR-PRC-007)
+  RateRangeHighPct         rate
+  FixedAmount              money            # لـ FIXED_AMOUNT (بعملة CurrencyId)
+  PerMillionAmount         money            # لـ PER_MILLION
+  CurrencyId               ->ref.Currency   # إضافة: عملة المبالغ الثابتة والحدود؛ فارغ = عملة التسهيل
+  PeriodBasis              enum{FLAT,PER_ANNUM,PER_PERIOD_OR_PART}
+  PeriodDays               int              # إضافة: طول الفترة لـ PER_PERIOD_OR_PART على مستوى القاعدة (BR-PRC-002)
+  MinFeeAmount             money
+  MaxFeeAmount             money
+  RateFixing               enum{FIXED_FOR_CONTRACT,FLOATING}   # لأساس+هامش (FR-PRC-008)
+  RepricingMonths          int              # دورية إعادة التسعير للمتغيّر
+  DayCount                 enum{ACT_360,ACT_365}   # إلزامي للزمني بلا افتراض صامت (BR-PRC-009)
+  VatExclusive             bool       req =1   # الضريبة سطر مستقل (BR-PRC-009)
+  BenchmarkReplacement     enum{NONE,BANK_DETERMINES,NAMED_FALLBACK} req =NONE   # شرط استبدال المؤشر (FR-PRC-009)
+  ReplacementText          str(1000)
+  BankMayChange            enum{NO,WITH_NOTICE_OBJECTION,UNILATERAL} req =NO   # حق البنك في التغيير (FR-PRC-010)
+  ObjectionDays            int
+  ObjectionDaysKind        enum{CALENDAR,BUSINESS}
+  TriggerEvent             enum{LATE_PAYMENT,LATE_GUARANTEE_PAYMENT_AFTER_DEMAND,OTHER}   # حدث إطلاق العقوبة (FR-PRC-012)
+  EffectiveFrom            date       req
+  EffectiveTo              date             # النسخة الجديدة بـ F تغلق السابقة عند F-1 (BR-PRC-011)
+  Retroactive              bool       req =0   # أثر رجعي بسبب (FR-PRC-014)
+  RetroactiveReason        str(500)         # إضافة: سبب الإدخال بأثر رجعي (BR-PRC-011)
+  unique FacilityId,FeeTypeId,ScopeLimitId,ScopeLimitProductLineId,ScopeProductId,ScopeCompanyId,EffectiveFrom where ToRevision IS NULL AND FeeTypeId IS NOT NULL   # النوع FeeType يحدد FEE/PENALTY (BR-PRC-008)
+  unique FacilityId,FinancingTypeId,ScopeLimitId,ScopeLimitProductLineId,ScopeProductId,ScopeCompanyId,EffectiveFrom where ToRevision IS NULL AND FeeTypeId IS NULL   # قواعد عائد التمويل
+  index  FacilityId,ComponentKind,EffectiveFrom include EffectiveTo,RateState,Method   # محلّل التسعير وعقوبات التأخر (SVC-FAC-05، R-PRC-02)
+  index  TariffItemId,Method               # بند التعرفة المستعمل (V-PRC-02 تحذير غير معتمد)
+  check  EffectiveTo IS NULL OR EffectiveTo >= EffectiveFrom
+  check  ComponentKind <> 'FINANCING_RETURN' OR FeeTypeId IS NULL   # FEE/PENALTY ⇒ نوع رسم؛ عائد التمويل ⇒ نوع تمويل
+  check  ComponentKind = 'FINANCING_RETURN' OR (FeeTypeId IS NOT NULL AND FinancingTypeId IS NULL)
+  check  ComponentKind <> 'PENALTY_NON_INCOME' OR TriggerEvent IS NOT NULL   # FR-PRC-012
+  check  ComponentKind = 'PENALTY_NON_INCOME' OR TriggerEvent IS NULL
+  check  RateState <> 'NOT_SPECIFIED_IN_AGREEMENT' OR (AddOnPct IS NULL AND MarginPct IS NULL AND RatePct IS NULL AND RateRangeLowPct IS NULL AND RateRangeHighPct IS NULL AND FixedAmount IS NULL AND PerMillionAmount IS NULL)   # BR-PRC-012: لا صفر ولا قيمة
+  check  RateState <> 'SET' OR Method <> 'TARIFF_AS_IS' OR TariffItemId IS NOT NULL   # V-PRC-02: إلزامي حسب الطريقة
+  check  RateState <> 'SET' OR Method <> 'TARIFF_PLUS_ADDON' OR (TariffItemId IS NOT NULL AND AddOnPct IS NOT NULL)
+  check  RateState <> 'SET' OR Method <> 'BASE_PLUS_MARGIN' OR (BaseRateId IS NOT NULL AND MarginPct IS NOT NULL AND RateFixing IS NOT NULL AND DayCount IS NOT NULL)
+  check  RateState <> 'SET' OR Method <> 'PERCENT_OF_AMOUNT' OR RatePct IS NOT NULL OR (RateRangeLowPct IS NOT NULL AND RateRangeHighPct IS NOT NULL)
+  check  RateState <> 'SET' OR Method <> 'FIXED_AMOUNT' OR FixedAmount IS NOT NULL
+  check  RateState <> 'SET' OR Method <> 'PER_MILLION' OR PerMillionAmount IS NOT NULL
+  check  Method IN ('TARIFF_AS_IS','TARIFF_PLUS_ADDON') OR TariffItemId IS NULL   # حقول الطريقة الأخرى ممنوعة
+  check  Method = 'TARIFF_PLUS_ADDON' OR AddOnPct IS NULL
+  check  Method = 'BASE_PLUS_MARGIN' OR (BaseRateId IS NULL AND MarginPct IS NULL AND BaseFloorPct IS NULL AND RateFixing IS NULL AND RepricingMonths IS NULL)
+  check  Method = 'PERCENT_OF_AMOUNT' OR (RatePct IS NULL AND RateRangeLowPct IS NULL AND RateRangeHighPct IS NULL)
+  check  Method = 'FIXED_AMOUNT' OR FixedAmount IS NULL
+  check  Method = 'PER_MILLION' OR PerMillionAmount IS NULL
+  check  RatePct IS NULL OR (RateRangeLowPct IS NULL AND RateRangeHighPct IS NULL)   # نقطة أو مدى لا الاثنان (BR-PRC-007)
+  check  (RateRangeLowPct IS NULL AND RateRangeHighPct IS NULL) OR (RateRangeLowPct IS NOT NULL AND RateRangeHighPct IS NOT NULL AND RateRangeLowPct <= RateRangeHighPct)
+  check  RatePct IS NULL OR (RatePct >= 0 AND RatePct <= 100)
+  check  FixedAmount IS NULL OR FixedAmount >= 0
+  check  PerMillionAmount IS NULL OR PerMillionAmount >= 0
+  check  MinFeeAmount IS NULL OR MinFeeAmount >= 0
+  check  MinFeeAmount IS NULL OR MaxFeeAmount IS NULL OR MinFeeAmount <= MaxFeeAmount   # BR-PRC-003
+  check  PeriodDays IS NULL OR PeriodDays > 0
+  check  PeriodBasis IS NULL OR PeriodBasis <> 'PER_PERIOD_OR_PART' OR PeriodDays IS NOT NULL OR Method IN ('TARIFF_AS_IS','TARIFF_PLUS_ADDON','TIERED')
+  check  PeriodBasis IS NULL OR PeriodBasis <> 'PER_ANNUM' OR DayCount IS NOT NULL   # BR-PRC-009
+  check  RepricingMonths IS NULL OR RepricingMonths > 0
+  check  RateFixing IS NULL OR RateFixing <> 'FLOATING' OR RateState <> 'SET' OR RepricingMonths IS NOT NULL   # FR-PRC-008: المتغيّر يستلزم دورية
+  check  BenchmarkReplacement <> 'NAMED_FALLBACK' OR ReplacementText IS NOT NULL
+  check  BankMayChange <> 'WITH_NOTICE_OBJECTION' OR (ObjectionDays IS NOT NULL AND ObjectionDaysKind IS NOT NULL)
+  check  ObjectionDays IS NULL OR ObjectionDays >= 0
+  check  Retroactive = 0 OR RetroactiveReason IS NOT NULL   # BR-PRC-011
+  check  ToRevision IS NULL OR ToRevision >= FromRevision
+  check  SourceDocumentId IS NOT NULL AND SourcePage IS NOT NULL OR (SourceDocumentId IS NULL AND Confidence = 'ENTERED_NO_DOCUMENT')
+  check  Confidence <> 'CONFIRMED_AGAINST_ORIGINAL' OR (VerifiedBy IS NOT NULL AND VerifiedOn IS NOT NULL)
+
+table prc.PricingTier rev  # شريحة قاعدة TIERED بالمبلغ و/أو المدة (FR-PRC-003، BR-PRC-002)
+  FacilityId       ->fac.Facility req   # إضافة: مفتاح النطاق
+  PricingRuleId    ->prc.PricingRule via=FacilityId req
+  AmountFrom       money
+  AmountTo         money
+  PeriodFromDays   int
+  PeriodToDays     int
+  RatePct          rate
+  MarginPct        rate
+  FixedAmount      money
+  SortOrder        int        req
+  unique PricingRuleId,SortOrder where ToRevision IS NULL
+  check  AmountFrom IS NULL OR AmountFrom >= 0
+  check  AmountTo IS NULL OR AmountFrom IS NULL OR AmountTo > AmountFrom   # V-PRC-01
+  check  PeriodFromDays IS NULL OR PeriodFromDays >= 0
+  check  PeriodToDays IS NULL OR PeriodFromDays IS NULL OR PeriodToDays >= PeriodFromDays
+  check  (CASE WHEN RatePct IS NULL THEN 0 ELSE 1 END + CASE WHEN MarginPct IS NULL THEN 0 ELSE 1 END + CASE WHEN FixedAmount IS NULL THEN 0 ELSE 1 END) = 1   # قيمة واحدة للشريحة
+  check  RatePct IS NULL OR (RatePct >= 0 AND RatePct <= 100)
+  check  FixedAmount IS NULL OR FixedAmount >= 0
+  check  ToRevision IS NULL OR ToRevision >= FromRevision
+
+# ============================== المخطط cmp: مكتبة الشروط القابلة للمقارنة ==============================
+module CMP
+
+table cmp.TermType int catalog  # مفتاح شرط قابل للمقارنة (FR-CMP-001)؛ الرمز بنمط PRC.MARGIN_PCT؛ النظامي لا يُحذف ولا تتغير وحدته (IsSystem)
+  Category       enum{PRICING,DURATION,COLLATERAL,COVENANT,OTHER} req   # الترتيب 1,2,3,4,9 (تسعير ← مدد ← ضمانات ← تعهدات ← أخرى)
+  ValueKind      enum{PERCENT,AMOUNT,DAYS,MONTHS,COUNT,BOOLEAN,ENUM,TEXT} req
+  Unit           ascii(20)  req   # الرمز والوحدة ثابتان (BR-CMP-001)
+  DefaultBound   enum{EXACT,MAX,MIN} req =EXACT
+  Direction      enum{LOWER_BETTER,HIGHER_BETTER,NEUTRAL} req =NEUTRAL   # اتجاه التفضيل (BR-CMP-003)
+  ScopeKinds     set{FACILITY,LIMIT,PRODUCT_LINE,PRODUCT,COMPANY} req   # مجال النطاق المسموح
+  SourceBinding  str(200)         # مسار الحقل المنمّط المُسقَط منه مثل prc.PricingRule.MarginPct (BR-CMP-004)
+  EnumOptions    json             # خيارات ValueKind=ENUM
+  IsComparable   bool       req =1
+  index  Category,SortOrder
+  check  ScopeKinds <> ''
+  check  ValueKind <> 'ENUM' OR EnumOptions IS NOT NULL
+  check  ValueKind = 'ENUM' OR EnumOptions IS NULL
+
+table cmp.TermValue rev src  # قيمة شرط في تسهيل بنطاقها ومصدرها (FR-CMP-002..006، BR-CMP-001..006، V-CMP-01)
+  FacilityId          ->fac.Facility req
+  TermTypeId          ->cmp.TermType req   # مفتاح OTHER + OtherLabel لشرط خارج الكتالوج (FR-CMP-004)
+  OtherLabel          str(200)
+  LimitId             ->fac.Limit via=FacilityId
+  LimitProductLineId  ->fac.LimitProductLine via=FacilityId
+  ProductId           ->cat.Product
+  CompanyId           ->org.Company
+  ValueState          enum{SPECIFIED,NOT_SPECIFIED_IN_AGREEMENT,NOT_APPLICABLE,UNKNOWN} req =SPECIFIED   # غير المحددة لا تُعامل صفرًا (BR-CMP-002)
+  ValueNumber         dec(19,6)        # حسب ValueKind: نسبة/مبلغ/أيام/أشهر/عدد
+  ValueText           str(1000)
+  ValueBool           bool
+  ValueEnum           str(100)
+  Unit                ascii(20)  req   # وحدة النوع (V-CMP-01)
+  CurrencyId          ->ref.Currency   # إضافة: للقيم المالية فقط (ValueKind=AMOUNT)
+  Bound               enum{EXACT,MAX,MIN} req =EXACT   # لا مقارنة بحدّ مختلف (BR-CMP-005)
+  NormalizedValue     dec(19,6)        # أيام للمدد (الشهر = 30 تقريبي) ونقاط مئوية للنسب (BR-CMP-001)
+  Origin              enum{ENTERED,PROJECTED} req =ENTERED   # PROJECTED للقراءة فقط (BR-CMP-004)
+  ProjectedFrom       ascii(120)       # مسار الصف/الحقل المصدر للإسقاط
+  EffectiveFrom       date       req
+  EffectiveTo         date
+  unique FacilityId,TermTypeId,OtherLabel,LimitId,LimitProductLineId,ProductId,CompanyId,Bound,EffectiveFrom where ToRevision IS NULL   # فريد بين الجاري؛ OtherLabel يميّز شروط OTHER
+  index  TermTypeId,Bound include FacilityId,ValueState,NormalizedValue,EffectiveFrom,EffectiveTo   # استعلام المقارنة (FR-CMP-008، BR-CMP-005)
+  index  Origin,ProjectedFrom where Origin = 'PROJECTED'    # مطابقة JOB-CMP-SYNC
+  check  EffectiveTo IS NULL OR EffectiveTo >= EffectiveFrom
+  check  ValueState = 'SPECIFIED' OR (ValueNumber IS NULL AND ValueText IS NULL AND ValueBool IS NULL AND ValueEnum IS NULL AND NormalizedValue IS NULL)   # غير المحددة بلا قيمة (FR-CMP-005)
+  check  ValueState <> 'SPECIFIED' OR (CASE WHEN ValueNumber IS NULL THEN 0 ELSE 1 END + CASE WHEN ValueText IS NULL THEN 0 ELSE 1 END + CASE WHEN ValueBool IS NULL THEN 0 ELSE 1 END + CASE WHEN ValueEnum IS NULL THEN 0 ELSE 1 END) = 1   # عمود قيمة واحد للمحددة
+  check  NormalizedValue IS NULL OR ValueNumber IS NOT NULL
+  check  Origin <> 'PROJECTED' OR ProjectedFrom IS NOT NULL
+  check  Origin = 'PROJECTED' OR ProjectedFrom IS NULL
+  check  ToRevision IS NULL OR ToRevision >= FromRevision
+  check  SourceDocumentId IS NOT NULL AND SourcePage IS NOT NULL OR (SourceDocumentId IS NULL AND Confidence = 'ENTERED_NO_DOCUMENT')   # قيمة من وثيقة بلا صفحة تُرفض (FR-CMP-005)
+  check  Confidence <> 'CONFIRMED_AGAINST_ORIGINAL' OR (VerifiedBy IS NOT NULL AND VerifiedOn IS NOT NULL)

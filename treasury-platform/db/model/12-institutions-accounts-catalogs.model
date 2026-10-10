@@ -1,0 +1,500 @@
+# =============================================================================
+# 12-institutions-accounts-catalogs.model  --  A3: المنشآت والعلاقات (ins) + الحسابات والمفوّضون (acc) + الكتالوجات (cat) + المرجع العالمي (ref.Country, ref.Currency)
+# المصدر: docs/10-detailed-analysis/11-m2-m4-institutions-accounts-catalogs.md (القسم 6 + BR-INS/BR-ACC/BR-CAT + FR) + docs/05-kyc-forms-analysis.md (G-10: أساس التفويض ونوع التوقيع وحد السحب النقدي للمفوّض)
+#   + سمات Position/PowerType/LegalEntityType من 10 §6.2 (الجدول يُعرَّف هنا والسمات يعرّفها 10) + سمات DocumentType من 10 (FR-PLT-028) و05 (G-2: MaxAgeDays)
+# قرارات: SQL Server 2025 · قاعدة واحدة بعزل صفوف (TenantId تلقائي، مفاتيح مركّبة بين جداول المشترك) · كتالوجات بمفتاح INT وعلم catalog · قوائم القيم مختلطة النطاق (mixed)
+#   أرقام الحسابات وIBAN لا تُخزَّن صريحة: Enc (مشفّر بمفتاح المشترك) + Mask (قناع يُحسب عند الكتابة) + Hash (HMAC فهرس أعمى) · لا حذف فعلي لبيانات الائتمان (حالات/فترات) إلا للجداول deletable
+#   ربط via=: الابن يبقى داخل التجميعة نفسها (المنشأة / العلاقة / الشركة+المنشأة+العملة) فيستحيل ربط جهة اتصال أو حساب من منشأة أو علاقة أخرى (BR-INS-004/005/008، BR-ACC-004/010)
+# مراجع خارجية (يعرّفها غيري): org.Company · pty.Party · doc.Document · sec.AppUser · fac.Facility
+# مبادئ: الحالات المشتقة (Institution.Locality، حالة SignatoryAuthority) لا تُخزَّن · القيود المعقدة العابرة للجداول (IBAN mod 97، العمق، الحلقات، تداخل الفترات، الصلاحية الفعلية، كفاية التوقيعات) في التطبيق
+# =============================================================================
+
+module REF
+
+table ref.Country global int  # الدولة: مرجع عالمي للقراءة فقط يديره مشغّل المنصة (FR-CAT-026، BR-CAT-018، BR-CAT-015)
+  Iso2         char(2)    req   # ISO 3166-1 alpha-2
+  Iso3         char(3)    req   # ISO 3166-1 alpha-3
+  NameAr       str(100)   req
+  NameEn       str(100)   req
+  IsGcc        bool       req =0   # عضو مجلس التعاون: الدول الست فقط في البذرة (قيمة مقترحة تُراجَع)
+  WeekendDays  ascii(20)         # رموز أيام العطلة الأسبوعية MON..SUN مفصولة بفاصلة (مثل FRI,SAT)؛ فارغ = غير محدد
+  DialCode     ascii(8)          # رمز الاتصال الدولي مثل +966
+  IsActive     bool       req =1
+  unique Iso2
+  unique Iso3
+  check  Iso2 NOT LIKE '%[^A-Z]%' AND Iso3 NOT LIKE '%[^A-Z]%'   # BR-CAT-018: حرفان وثلاثة أحرف لاتينية كبيرة
+  check  DialCode IS NULL OR (DialCode LIKE '+[0-9]%' AND DialCode NOT LIKE '+%[^0-9]%' AND DialCode NOT LIKE '+_____%')   # BR-CAT-018: ^\+[0-9]{1,4}$ (+ ثم 1..4 أرقام)
+  check  WeekendDays IS NULL OR WeekendDays NOT LIKE '%[^A-Z,]%'   # BR-CAT-018: رموز أيام مفصولة بفاصلة
+
+table ref.Currency global int  # العملة: مرجع عالمي ISO 4217 للقراءة فقط (FR-CAT-021، Q-CAT-08)
+  Code         char(3)    req   # ISO alpha-3
+  NumericCode  char(3)    req   # ISO numeric
+  NameAr       str(100)   req
+  NameEn       str(100)   req
+  Decimals     tinyint    req   # عدد الخانات العشرية 0..3
+  Symbol       str(10)
+  IsActive     bool       req =1
+  unique Code
+  unique NumericCode
+  check  Decimals BETWEEN 0 AND 3
+  check  Code NOT LIKE '%[^A-Z]%'   # CHAR(3): الفراغ الزائد يُرفض
+  check  NumericCode NOT LIKE '%[^0-9]%'
+
+# =============================================================================
+module CAT
+
+table cat.TenantCurrency pk=CurrencyId norv  # العملات المفعّلة للمشترك: تفعيل مجموعة جزئية من المرجع العالمي (FR-CAT-023، Q-CAT-08) -- جدول بنيوي جديد
+  CurrencyId   ->ref.Currency req
+  IsEnabled    bool       req =1   # غير المفعّلة لا تظهر في الاختيار وتبقى ظاهرة في السجلات
+  SortOrder    int        req =0
+
+table cat.InstitutionType catalog int  # نوع المنشأة المالية: بنك، شركة تمويل، استثمارية، مالية، فرد (FR-INS-001)
+  RequiresParty  bool     req =0   # نوع «فرد» يشترط Party (BR-INS-003)
+  check  Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'   # BR-CAT-001: أحرف كبيرة وأرقام وشرطة سفلية وأول حرف أبجدي (الطول 2..40 يتركه التطبيق، انظر التقرير)
+  check  (IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)   # BR-CAT-003: المقفل نظامي وفعّال؛ BR-CAT-001: NameEn لصفوف النظام
+
+table cat.AccountType catalog int  # نوع الحساب (FR-ACC-001)
+  IsVirtual      bool     req =0   # علم الحساب الافتراضي: على VIRTUAL وحده (BR-ACC-004)
+  check  Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'   # BR-CAT-001
+  check  (IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)   # BR-CAT-003: المقفل نظامي وفعّال؛ BR-CAT-001: NameEn لصفوف النظام
+
+table cat.LegalEntityType int  # الشكل القانوني: الكيان وسماته يعرّفها 10 (FR-ORG-002، BR-CAT-017) وتبذره هذه الوحدة؛ أعمدة الكتالوج مكتوبة يدويًا لأن فرادة الرمز بالدولة (10 §6.2) لا فرادته وحده
+  Code             ascii(80)  req
+  NameAr           str(200)   req
+  NameEn           str(200)
+  Description      str(500)
+  AbbreviationAr   str(30)
+  AbbreviationEn   str(30)
+  CountryId        ->ref.Country   # فارغ = شكل عام لكل الدول
+  DefaultBodyTypes json            # هيئات الحوكمة الافتراضية للشكل (قيم GoverningBody.BodyType)
+  IsActive         bool       req =1
+  IsSystem         bool       req =0
+  IsLocked         bool       req =0
+  SortOrder        int        req =0
+  SeedKey          ascii(80)
+  ExternalCode     ascii(80)
+  unique Code,CountryId   # 10 §6.2: (TenantId, Code, CountryId)؛ NULL يُعامَل قيمة واحدة في SQL Server
+  unique SeedKey,CountryId where SeedKey IS NOT NULL   # BR-CAT-002 (SeedKey مع الدولة لأن الرمز نفسه يتكرر بين الدول)
+  check  Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'   # BR-CAT-001
+  check  (IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)   # BR-CAT-003: المقفل نظامي وفعّال؛ BR-CAT-001: NameEn لصفوف النظام
+
+table cat.DocumentType catalog int  # نوع الوثيقة؛ يطبّق 10 أعلامه عند الرفع (FR-CAT-018، BR-CAT-016، FR-PLT-028)
+  AppliesTo       set{COMPANY,PARTY,INSTITUTION,FACILITY,ACCOUNT,SIGNATORY,REQUEST,LC,GENERAL} req   # الكيانات المسموح بربط النوع بها
+  RequiresExpiry  bool     req =0   # وثيقة بلا تاريخ انتهاء تُرفض (تطبّقه 10)
+  IsSensitive     bool     req =0   # قيد TM/FO للعرض والتنزيل (صور الهوية، نموذج التوقيع، KYC)
+  AllowedMime     json              # مصفوفة أنواع MIME المسموحة؛ فارغ = الافتراضي في BR-PLT-011
+  MaxSizeMb       int               # فارغ = الافتراضي (25)
+  RetentionYears  int               # مدد الاحتفاظ فارغة حتى يقرّرها مختص (Q-CAT-06)
+  MaxAgeDays      int               # أقصى عمر للمستند منذ إصداره: مستخرج <= 30 يومًا، شهادة <= 365 (05 G-2)
+  check  Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'   # BR-CAT-001
+  check  (IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)   # BR-CAT-003: المقفل نظامي وفعّال؛ BR-CAT-001: NameEn لصفوف النظام
+  check  MaxSizeMb IS NULL OR MaxSizeMb > 0
+  check  RetentionYears IS NULL OR RetentionYears > 0
+  check  MaxAgeDays IS NULL OR MaxAgeDays > 0
+
+table cat.Position catalog int  # المنصب: السمات يعرّفها 10 §6.2 وحده وتبذر هذه الوحدة صفوفه (FR-CAT-019، BR-CAT-017)؛ SortOrder من أساس الكتالوج
+  ApplicableBodyTypes  json            # قيم GoverningBody.BodyType التي يصح فيها المنصب
+  IsSingleHolder       bool    req =0  # منصب أحادي الشاغل (CHAIRMAN) -- BR-ORG-010
+  check  Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'   # BR-CAT-001
+  check  (IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)   # BR-CAT-003: المقفل نظامي وفعّال؛ BR-CAT-001: NameEn لصفوف النظام
+
+table cat.PowerType catalog int  # نوع الصلاحية: السمات يعرّفها 10 §6.2 وحده وتبذر هذه الوحدة صفوفه (FR-CAT-019، FR-ORG-024)
+  Category      enum{CONTRACTS,ACCOUNTS,BORROWING,GUARANTEES,TRADE,REPRESENTATION,ASSETS,OTHER}
+  AllowsCeiling bool    req =0   # يسمح بسقف مبلغ في AuthorityGrant
+  check  Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'   # BR-CAT-001
+  check  (IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)   # BR-CAT-003: المقفل نظامي وفعّال؛ BR-CAT-001: NameEn لصفوف النظام
+
+table cat.OperationType catalog int  # نوع العملية البنكية المفوَّض بها (FR-ACC-013، BR-CAT-014)
+  SupportsCeiling  bool   req =0   # يحدّد ظهور السقوف في SignatoryAuthority
+  OperationGroup   enum{MONEY,CREDIT,REPRESENTATION,CHANNEL} req
+  check  Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'   # BR-CAT-001
+  check  (IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)   # BR-CAT-003: المقفل نظامي وفعّال؛ BR-CAT-001: NameEn لصفوف النظام
+
+table cat.OperationTypePowerType pk=OperationTypeId,PowerTypeId norv deletable  # ربط عملية بنوع/أنواع صلاحية حوكمة؛ «أي واحد يكفي» (BR-CAT-014، FR-CAT-019، Q-ACC-05) -- جدول وسيط جديد
+  OperationTypeId  ->cat.OperationType req
+  PowerTypeId      ->cat.PowerType req
+  index  PowerTypeId
+
+table cat.ProductCategory catalog int  # تصنيف المنتجات: مسطّح (FR-CAT-007)
+  check  Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'   # BR-CAT-001
+  check  (IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)   # BR-CAT-003: المقفل نظامي وفعّال؛ BR-CAT-001: NameEn لصفوف النظام
+
+table cat.Product catalog int  # المنتج البنكي بأعلامه (FR-CAT-007، BR-CAT-004)
+  ProductCategoryId    ->cat.ProductCategory req
+  ProductFamily        enum{LC,GUARANTEE,FINANCING,COLLECTION,FX,PAYMENT,CARD,ACCOUNT_SERVICE,OTHER} req
+  ConsumesCreditLimit  bool    req   # يدخل فحص التسهيلات؛ تغييره بعد الاستخدام يتطلب تأكيد TM (BR-CAT-004، FR-CAT-022)
+  IsTradeFinance       bool    req =0
+  Compliance           enum{CONVENTIONAL,ISLAMIC,NEUTRAL} req
+  VariantGroupCode     ascii(40)   # يزاوج النسختين التقليدية والإسلامية (منتج واحد لكل امتثال)
+  unique VariantGroupCode,Compliance where VariantGroupCode IS NOT NULL   # BR-CAT-004
+  index  ProductFamily,ConsumesCreditLimit   # SVC-08 وفحص الحدود
+  check  Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'   # BR-CAT-001
+  check  (IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)   # BR-CAT-003: المقفل نظامي وفعّال؛ BR-CAT-001: NameEn لصفوف النظام
+
+table cat.FeeType catalog int  # نوع المصروف: فئة عريضة لا بند تعرفة (FR-CAT-008، BR-CAT-005، Q-CAT-10)
+  Nature    enum{FEE,PENALTY_NON_INCOME} req =FEE   # العقوبة غير إيرادية في التقارير؛ تغييرها بعد الاستخدام بتأكيد TM
+  CalcHint  enum{PERCENT,FIXED,PER_MILLION,TIERED}
+  check  Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'   # BR-CAT-001
+  check  (IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)   # BR-CAT-003: المقفل نظامي وفعّال؛ BR-CAT-001: NameEn لصفوف النظام
+
+table cat.FinancingType catalog int  # نوع التمويل (FR-CAT-009، BR-CAT-006)
+  IsIslamic    bool    req =0
+  ReturnLabel  enum{PROFIT,INTEREST}   # تسمية العائد في الواجهة فقط (ربح/فائدة)؛ لا تغيّر الحساب
+  check  Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'   # BR-CAT-001
+  check  (IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)   # BR-CAT-003: المقفل نظامي وفعّال؛ BR-CAT-001: NameEn لصفوف النظام
+
+table cat.ProductFeeType int deletable  # المصاريف المسموحة للمنتج؛ تعطيل الربط = حذفه ولا يمس قواعد تسعير قائمة (FR-CAT-010، BR-CAT-007) -- يبقى بمفتاح بديل لأنه يحمل سمة
+  ProductId    ->cat.Product req
+  FeeTypeId    ->cat.FeeType req
+  IsExpected   bool    req =0   # تقرير نقص تسعير لا منع (FR-PRC-016)
+  unique ProductId,FeeTypeId   # BR-CAT-007
+  index  FeeTypeId,IsExpected
+
+table cat.ProductFinancingType int deletable  # أنواع التمويل المسموحة للمنتج (FR-CAT-010، BR-CAT-007)
+  ProductId        ->cat.Product req
+  FinancingTypeId  ->cat.FinancingType req
+  IsDefault        bool    req =0
+  unique ProductId,FinancingTypeId   # BR-CAT-007
+  unique ProductId where IsDefault = 1   # نوع تمويل افتراضي واحد للمنتج
+  index  FinancingTypeId
+
+table cat.FacilityType catalog int  # نوع التسهيل (FR-CAT-011)
+  Compliance  enum{CONVENTIONAL,ISLAMIC,NEUTRAL} req   # قيم الامتثال كما في Product (المواصفة لا تعددها)
+  check  Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'   # BR-CAT-001
+  check  (IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)   # BR-CAT-003: المقفل نظامي وفعّال؛ BR-CAT-001: NameEn لصفوف النظام
+
+table cat.LimitType catalog int  # نوع الحد: رئيسي/جزئي (FR-CAT-012، BR-CAT-008)
+  Kind                    enum{MAIN,SUB} req
+  ParentLimitTypeId       ->cat.LimitType   # إلزامي للجزئي وممنوع للرئيسي؛ أن يكون الأب رئيسيًا في التطبيق
+  DefaultDistributionMode enum{SHARED_CAP,PARTITION,OUTSIDE_TOTAL}
+  DefaultIsRevolving      bool
+  check  (Kind = 'MAIN' AND ParentLimitTypeId IS NULL) OR (Kind = 'SUB' AND ParentLimitTypeId IS NOT NULL)   # FR-CAT-012: الجزئي بلا أب مرفوض والرئيسي بأب مرفوض
+  check  ParentLimitTypeId IS NULL OR ParentLimitTypeId <> LimitTypeId
+  check  Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'   # BR-CAT-001
+  check  (IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)   # BR-CAT-003: المقفل نظامي وفعّال؛ BR-CAT-001: NameEn لصفوف النظام
+
+table cat.LimitTypeProduct pk=LimitTypeId,ProductId norv deletable  # المنتجات المسموحة لنوع الحد؛ غياب الصفوف = أي منتج بعلامة ظاهرة (BR-CAT-008) -- جدول وسيط جديد
+  LimitTypeId  ->cat.LimitType req
+  ProductId    ->cat.Product req
+  index  ProductId
+
+table cat.CollateralType catalog int  # نوع الضمان بنوع بنية وقالب سمات (FR-CAT-013)
+  StructureKind  enum{GUARANTEE,PROMISSORY_NOTE,INSURANCE_ASSIGNMENT,CASH_MARGIN,REAL_ESTATE,SET_OFF,NEGATIVE_PLEDGE,GENERIC} req
+  check  Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'   # BR-CAT-001
+  check  (IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)   # BR-CAT-003: المقفل نظامي وفعّال؛ BR-CAT-001: NameEn لصفوف النظام
+
+table cat.CollateralTypeAttribute int  # سمة في قالب نوع الضمان؛ لا تُحذف بل تُرمَّز Retired (BR-CAT-009) -- جدول جديد
+  CollateralTypeId  ->cat.CollateralType req
+  AttrKey      ascii(60)  req
+  LabelAr      str(200)   req
+  LabelEn      str(200)   req
+  DataType     enum{TEXT,NUMBER,DATE,AMOUNT,BOOLEAN,LIST,REFERENCE} req
+  IsRequired   bool       req =0
+  ListOptions  json              # خيارات النوع LIST
+  SortOrder    int        req =0
+  IsRetired    bool       req =0   # تغيير القالب لا يمس القيم المخزَّنة؛ السمة المرمّزة تبقى مقروءة
+  unique CollateralTypeId,AttrKey   # BR-CAT-009
+  check  DataType <> 'LIST' OR ListOptions IS NOT NULL   # نوع LIST يتطلب خياراته
+
+table cat.ObligationType catalog int  # نوع الالتزام بأربع عائلات (FR-CAT-014، BR-CAT-010)
+  Family               enum{REPORTING,COVENANT,TRANSACTION_RESTRICTION,STATIC_CLAUSE} req
+  MeasureKind          enum{RATIO,AMOUNT,PERCENT_OF_REVENUE,AVERAGE_BALANCE,FLOW_VOLUME,NONE}   # NONE = تعهد وصفي
+  IsQualitative        bool    req =0
+  DefaultDeadlineBasis enum{AFTER_PERIOD_END,AFTER_FISCAL_YEAR_END,BEFORE_EVENT,AFTER_EVENT,ON_DEMAND_REQUEST,FIXED_DATE}   # مطابقة لـ AnchorKind في 12 وتحملها التقارير
+  DefaultUnit          str(30)
+  check  Family <> 'COVENANT' OR MeasureKind IS NOT NULL   # التعهد يحدد نوع مقياسه (NONE للوصفي) -- BR-CAT-010
+  check  MeasureKind IS NULL OR MeasureKind <> 'NONE' OR IsQualitative = 1   # MeasureKind=NONE يعني تعهدًا وصفيًا (BR-CAT-010، FR-CAT-014)
+  check  Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'   # BR-CAT-001
+  check  (IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)   # BR-CAT-003: المقفل نظامي وفعّال؛ BR-CAT-001: NameEn لصفوف النظام
+
+table cat.BaseRate catalog int  # سعر الأساس: سوق (InstitutionId فارغ) أو داخلي لبنك (FR-CAT-015، BR-CAT-011)؛ الأسماء البديلة في BaseRateAlias
+  Kind            enum{MARKET,BANK_INTERNAL} req
+  InstitutionId   ->ins.Institution   # فارغ للسوق وإلزامي للداخلي
+  FamilyCode      ascii(40)  req   # رمز العائلة مثل SAIBOR
+  Tenor           enum{ON,1M,3M,6M,12M} req
+  CurrencyId      ->ref.Currency
+  StaleAfterDays  int               # تنبيه التقادم NTF-CAT-01 (الافتراضي 35 مقترح)
+  unique FamilyCode,Tenor,InstitutionId   # BR-CAT-011: NULL = قيمة واحدة في SQL Server فيتفرّد السوق بين (FamilyCode,Tenor) ويتفرّد الداخلي لكل بنك
+  index  Kind,FamilyCode,Tenor   # البحث بالسعر والفترة (SVC-05)
+  check  (Kind = 'MARKET' AND InstitutionId IS NULL) OR (Kind = 'BANK_INTERNAL' AND InstitutionId IS NOT NULL)   # BR-CAT-011/V-CAT-03
+  check  StaleAfterDays IS NULL OR StaleAfterDays > 0
+  check  Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'   # BR-CAT-001
+  check  (IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)   # BR-CAT-003: المقفل نظامي وفعّال؛ BR-CAT-001: NameEn لصفوف النظام
+
+table cat.BaseRateAlias int deletable  # اسم بديل لسعر أساس (SIBOR ≡ SAIBOR) بحث بلا حساسية حالة وفريد ضمن النطاق (BR-CAT-011، FR-CAT-015) -- جدول وسيط جديد يحل «Aliases set»
+  BaseRateId     ->cat.BaseRate req via=Tenor   # الربط المركّب يضمن أن الفترة المنسوخة تطابق الأب
+  Tenor          enum{ON,1M,3M,6M,12M} req      # نسخة من BaseRate.Tenor: حل الاسم يكون بـ (اسم بديل + فترة) في SVC-05
+  InstitutionId  ->ins.Institution              # نسخة من BaseRate.InstitutionId (فارغ = سوق) تحفظها الخدمة؛ نطاق الفرادة
+  Alias          str(60)    req
+  calc AliasKey  str(60) =UPPER(Alias)          # مفتاح البحث والفرادة بلا حساسية حالة
+  unique InstitutionId,Tenor,AliasKey   # الفرادة ضمن النطاق: المشترك للسوق (NULL قيمة واحدة) والمنشأة للداخلي
+  index  AliasKey,Tenor   # SVC-05: حل الاسم البديل
+
+table cat.BaseRateValue  # قيمة سعر الأساس بتاريخ سريان؛ لا حذف: التصحيح صف جديد والقديم SUPERSEDED (FR-CAT-016، BR-CAT-012/013)
+  BaseRateId    ->cat.BaseRate req
+  EffectiveDate date       req
+  ValuePct      rate       req sens=confidential   # نقاط مئوية؛ تُقبل الصفرية والسالبة (أرضية الصفر في التسعير 12)؛ الداخلية معلومة تجارية
+  Source        enum{MANUAL,FEED} req =MANUAL   # FEED محجوز لمحوّل لاحق
+  SourceNote    str(300)
+  Status        enum{VALID,SUPERSEDED} req =VALID
+  SupersedesId  ->cat.BaseRateValue via=BaseRateId   # القيمة المصحَّحة من السعر نفسه
+  EnteredBy     ->sec.AppUser req
+  EnteredOn     ts         req
+  unique BaseRateId,EffectiveDate where Status = 'VALID'   # BR-CAT-012: قيمة VALID واحدة لكل تاريخ سريان
+  index  BaseRateId,EffectiveDate include ValuePct,Status   # «القيمة في تاريخ asOf» = أكبر EffectiveDate <= asOf بين VALID (BR-CAT-013)
+  check  SupersedesId IS NULL OR SupersedesId <> BaseRateValueId
+
+table cat.LookupList catalog int mixed  # قائمة قيم؛ TenantId فارغ = قائمة عالمية يملكها المشغّل للقراءة (FR-CAT-020، BR-CAT-015)
+  Scope            enum{GLOBAL,TENANT} req
+  AllowTenantItems bool    req =0   # هل يضيف المشترك بنودًا لقائمة عالمية؟
+  AttributeSchema  json              # مخطط سمات البنود (JSON Schema مبسّط)
+  check  (Scope = 'GLOBAL' AND TenantId IS NULL) OR (Scope = 'TENANT' AND TenantId IS NOT NULL)   # العالمية بلا مشترك والمشترك بمشتركه
+  check  Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'   # BR-CAT-001
+  check  (IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)   # BR-CAT-003: المقفل نظامي وفعّال؛ BR-CAT-001: NameEn لصفوف النظام
+
+table cat.LookupItem int mixed  # بند في قائمة قيم؛ TenantId فارغ = بند عالمي للقراءة فقط؛ أعمدة الكتالوج يدوية لأن فرادة الرمز داخل القائمة لا المشترك (FR-CAT-020)
+  LookupListId  ->cat.LookupList req
+  Code          ascii(80)  req
+  NameAr        str(200)   req
+  NameEn        str(200)
+  Description   str(500)
+  Status        enum{ACTIVE,LEGACY} req =ACTIVE   # LEGACY يضعه مشغّل المنصة فقط ولا يُختار في جديد
+  IsActive      bool       req =1
+  IsSystem      bool       req =0
+  IsLocked      bool       req =0
+  SortOrder     int        req =0
+  SeedKey       ascii(80)
+  ExternalCode  ascii(80)
+  Attributes    json              # قيم السمات مطابقة لمخطط القائمة
+  unique LookupListId,Code   # فريد (LookupList, Code)
+  unique LookupListId,SeedKey where SeedKey IS NOT NULL   # BR-CAT-002
+  index  LookupListId,IsActive,SortOrder   # SVC-07 GetCatalog
+  check  Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'   # BR-CAT-001
+  check  (IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)   # BR-CAT-003: المقفل نظامي وفعّال؛ BR-CAT-001: NameEn لصفوف النظام
+
+# =============================================================================
+module INS
+
+table ins.Institution public  # المنشأة المالية (FR-INS-001..004، BR-INS-001..003، BR-INS-012)؛ Locality محلي/أجنبي مشتقة (BR-INS-002) فلا تُخزَّن
+  Code               ascii(40)  req   # رمز مطبَّع أحرف كبيرة بلا مسافات فريد في المشترك (BR-INS-001)
+  NameAr             str(200)   req
+  NameEn             str(200)
+  InstitutionTypeId  ->cat.InstitutionType req
+  CountryId          ->ref.Country req   # دولة المنشأة؛ المحلي/الأجنبي يُشتق بمقارنتها بدولة المشترك (FR-INS-003)
+  SwiftBic           ascii(11)         # 8 أو 11 خانة (BR-INS-001)
+  Website            str(300)
+  PartyId            ->pty.Party       # للفرد الممول فقط؛ مزوّد استخدام Party (FR-INS-004، FR-INS-021، BR-INS-003)
+  Status             enum{DRAFT,ACTIVE,INACTIVE} req   # DRAFT من المعالج؛ INACTIVE يتطلب إغلاق كل العلاقات (BR-INS-012)
+  DirectoryRef       ascii(80)         # محجوز لدليل منشآت مشترك لاحقًا (FR-INS-020)
+  Notes              str(2000)
+  unique Code   # BR-INS-001
+  unique PartyId where PartyId IS NOT NULL   # BR-INS-003: Party واحد لمنشأة واحدة
+  index  SwiftBic where SwiftBic IS NOT NULL   # تنبيه BIC المكرر V-INS-02 وبحث FR-INS-019
+  index  InstitutionTypeId,Status   # تصفية SCR-INS-01
+  index  CountryId,Status
+  index  NameAr   # بحث الاسم وتنبيه التشابه
+  check  Code NOT LIKE '% %'   # BR-INS-001: بلا مسافات
+  check  SwiftBic IS NULL OR SwiftBic LIKE '[A-Z][A-Z][A-Z][A-Z][A-Z][A-Z][A-Z0-9][A-Z0-9]' OR SwiftBic LIKE '[A-Z][A-Z][A-Z][A-Z][A-Z][A-Z][A-Z0-9][A-Z0-9][A-Z0-9][A-Z0-9][A-Z0-9]'   # BR-INS-001: ^[A-Z]{4}[A-Z]{2}[A-Z0-9]{2}([A-Z0-9]{3})?$ (8 أو 11 خانة)
+
+table ins.InstitutionUnit  # وحدة في هيكل المنشأة: إدارة/قسم/فرع، شجرة ذاتية حتى 4 مستويات (FR-INS-005/006، BR-INS-004)
+  InstitutionId  ->ins.Institution req
+  ParentUnitId   ->ins.InstitutionUnit via=InstitutionId   # الأب من المنشأة نفسها (BR-INS-004)؛ العمق والحلقات وتسلسل الأنواع في التطبيق
+  UnitTypeId     ->cat.LookupItem req   # قائمة UNIT_TYPE (DEPARTMENT/SECTION/BRANCH)
+  NameAr         str(200)   req
+  NameEn         str(200)
+  IsActive       bool       req =1   # الهاتف والبريد والموقع والعنوان عبر pty.ContactMethod/Address (OwnerType=UNIT)
+  unique InstitutionId,ParentUnitId,NameAr   # فريد (Institution,Parent,NameAr)؛ الجذر NULL قيمة واحدة
+  index  InstitutionId,IsActive
+  check  ParentUnitId IS NULL OR ParentUnitId <> InstitutionUnitId
+
+table ins.Contact public  # جهة اتصال لدى البنك: سجل خفيف بلا هوية، PartyId اختياري للترقية (FR-INS-007/008، BR-INS-005/006/014)
+  InstitutionId        ->ins.Institution req
+  UnitId               ->ins.InstitutionUnit via=InstitutionId   # وحدة من المنشأة نفسها
+  FullNameAr           str(200)   req
+  FullNameEn           str(200)
+  JobTitleAr           str(200)
+  JobTitleEn           str(200)
+  ReportsToContactId   ->ins.Contact via=InstitutionId   # «يتبع لـ» من المنشأة نفسها؛ منع الذات والحلقة (BR-INS-005)
+  PartyId              ->pty.Party   # فارغ افتراضيًا؛ عند الربط الهوية عبر Party ولا تُنسخ إلى Contact (BR-INS-014)
+  Status               enum{ACTIVE,INACTIVE} req =ACTIVE
+  InactiveReason       enum{LEFT_BANK,TRANSFERRED,OTHER}
+  Notes                str(1000)
+  unique InstitutionId,PartyId where PartyId IS NOT NULL   # BR-INS-014/V-INS-07
+  index  InstitutionId,Status
+  index  FullNameAr   # بحث موحّد FR-INS-019 وتنبيه تشابه الاسم
+  check  ReportsToContactId IS NULL OR ReportsToContactId <> ContactId
+  check  Status <> 'INACTIVE' OR InactiveReason IS NOT NULL   # الانتقال إلى INACTIVE بسبب (القسم 8)
+
+table ins.Relationship public  # علاقة شركة–منشأة (D-4)؛ فريدة مهما كانت حالتها (FR-INS-009، BR-INS-007/011)
+  CompanyId         ->org.Company req
+  InstitutionId     ->ins.Institution req
+  CustomerNoAtBank  ascii(40)   # رقم العميل لدى البنك؛ تكراره داخل المنشأة تنبيه لا منع (BR-INS-007)
+  Status            enum{PROSPECT,ACTIVE,SUSPENDED,CLOSED} req
+  StartedOn         date
+  ClosedOn          date
+  ClosureReason     str(300)
+  Notes             str(2000)
+  unique CompanyId,InstitutionId   # BR-INS-007: إعادة الفتح من CLOSED تحفظ التاريخ
+  index  InstitutionId,CustomerNoAtBank where CustomerNoAtBank IS NOT NULL   # تنبيه التكرار V-INS-05 وبحث FR-INS-019
+  index  InstitutionId,Status   # شرط تعطيل المنشأة (BR-INS-012)
+  index  CompanyId,Status   # مصفوفة التغطية SCR-INS-05
+  check  Status <> 'CLOSED' OR (ClosedOn IS NOT NULL AND ClosureReason IS NOT NULL)   # أي حالة→CLOSED بسبب (القسم 8، BR-INS-011)
+  check  ClosedOn IS NULL OR StartedOn IS NULL OR ClosedOn >= StartedOn
+
+table ins.RelationshipContact  # تغطية العلاقة (الطبقة الأولى): جهة اتصال بدور ورتبة وفترة (FR-INS-010، BR-INS-008/009)
+  InstitutionId   ->ins.Institution req noidx   # مكرَّر من العلاقة لضمان أن الجهة من منشأة العلاقة نفسها (via)
+  RelationshipId  ->ins.Relationship req via=InstitutionId
+  ContactId       ->ins.Contact req via=InstitutionId   # جهة من منشأة أخرى مرفوضة (BR-INS-008)
+  RoleId          ->cat.LookupItem req   # قائمة CONTACT_ROLE (RM/TEAM_LEAD/REGIONAL_MGR/DEPT_HEAD...)
+  Rank            int        req   # أولوية؛ الافتراضي من الدور 1..4 (BR-INS-008)
+  IsPrimary       bool       req =0
+  ValidFrom       date       req
+  ValidTo         date             # الاستبدال يغلق الصف بيوم قبل السريان الجديد (F-INS-2)
+  Notes           str(500)
+  unique RelationshipId,ContactId,RoleId,ValidFrom
+  unique RelationshipId,Rank where ValidTo IS NULL   # BR-INS-008: Rank فريد بين الصفوف النشطة
+  unique RelationshipId,ContactId,RoleId where ValidTo IS NULL   # لا صفان نشطان لنفس (علاقة، جهة، دور)
+  unique RelationshipId,RoleId where IsPrimary = 1 AND ValidTo IS NULL   # أساسي واحد لكل (علاقة، دور)
+  index  RelationshipId,Rank   # SVC-01 ResolveContact وورقة التصعيد
+  check  ValidTo IS NULL OR ValidTo >= ValidFrom
+  check  Rank >= 1
+
+table ins.RelationshipProduct  # منتج يُتعامل به ضمن علاقة مع جهة افتراضية وقناة (FR-INS-011..013، BR-INS-010)
+  InstitutionId     ->ins.Institution req noidx   # مكرَّر من العلاقة لضمان أن الجهة الافتراضية من منشأة العلاقة (via)
+  RelationshipId    ->ins.Relationship req via=InstitutionId
+  ProductId         ->cat.Product req   # المنتج نشط (التطبيق)
+  DefaultContactId  ->ins.Contact via=InstitutionId   # جهة من منشأة العلاقة (FR-INS-012)؛ الحل الفعلي BR-INS-009
+  PreferredChannel  enum{BANK_PORTAL,MANUAL_FORM,DIRECT_INTEGRATION} req =MANUAL_FORM   # DIRECT_INTEGRATION محجوز ويُرفض في التطبيق ما لم يُفعَّل محوّل (BR-INS-010)
+  ChannelNotes      str(500)
+  IsActive          bool       req =1
+  SinceDate         date
+  unique RelationshipId,ProductId   # BR-INS-010
+  index  ProductId,IsActive
+  index  DefaultContactId,RelationshipId   # تعطيل جهة افتراضية يطلب بديلًا (FR-INS-016، AC-INS-2)
+
+# =============================================================================
+module ACC
+
+table acc.BankAccount public  # حساب شركة لدى منشأة (FR-ACC-001..009، BR-ACC-001..006، BR-ACC-016)؛ الرقم وIBAN مشفّران بفهرس أعمى للفرادة
+  CompanyId         ->org.Company req
+  InstitutionId     ->ins.Institution req
+  RelationshipId    ->ins.Relationship req via=CompanyId,InstitutionId   # مشتقة من (CompanyId,InstitutionId) وتُخزَّن مفتاحًا؛ الربط المركّب يضمن تطابقها (BR-ACC-003)
+  AccountTypeId     ->cat.AccountType req
+  MasterAccountId   ->acc.BankAccount via=CompanyId,InstitutionId,CurrencyId   # الافتراضي تحت رئيسي من الشركة والمنشأة والعملة نفسها (FR-ACC-006، BR-ACC-004)
+  CurrencyId        ->ref.Currency req
+  Nickname          str(100)
+  AccountNoEnc      bin(512)   req sens=restricted   # الرقم مشفّر بمفتاح المشترك (BR-ACC-001، 12)
+  AccountNoMask     str(32)    req sens=restricted   # قناع العرض يُحسب عند الكتابة (BR-ACC-016)
+  AccountNoHash     bin(32)    req sens=restricted   # HMAC على الرقم المطبَّع (إزالة المسافات والشرطات + أحرف كبيرة)
+  AccountNoLast4    ascii(4)   req sens=confidential   # آخر 4 خانات للبحث
+  IbanEnc           bin(512)   sens=restricted   # اختياري؛ الطول وmod 97 في التطبيق (BR-ACC-002)
+  IbanMask          str(32)    sens=restricted   # مثل SA•• •••• •••• •••• •••• 7519
+  IbanHash          bin(32)    sens=restricted   # فرادة IBAN لكل مشترك
+  BranchUnitId      ->ins.InstitutionUnit via=InstitutionId   # فرع من المنشأة نفسها
+  SigningRuleText   str(500)   # نص حر «أ مع ب» دون محرك آلي (FR-ACC-007)
+  MinSignatures     int        req =1   # >= 1؛ تحذير إن زاد على المفوّضين المؤهلين (BR-ACC-005)
+  Status            enum{ACTIVE,DORMANT,FROZEN,CLOSED} req =ACTIVE   # CLOSED نهائي والحساب المغلق يحجز رقمه (BR-ACC-001/006)
+  OpenedOn          date
+  ClosedOn          date
+  ClosureReason     str(300)
+  unique InstitutionId,AccountNoHash   # BR-ACC-001: فريد لكل (مشترك، منشأة) بما فيه المغلق
+  unique IbanHash where IbanHash IS NOT NULL   # BR-ACC-001: IBAN فريد لكل مشترك
+  index  CompanyId,Status   # SCR-ACC-01 وتصفية الشركة
+  index  InstitutionId,Status
+  index  AccountNoLast4   # بحث بآخر 4 خانات
+  index  CompanyId,CurrencyId,AccountTypeId include InstitutionId where Status = 'ACTIVE'   # SVC-06 FindAccounts وFR-ACC-011 (حساب تحصيل اعتمادات)
+  check  MinSignatures >= 1   # V-ACC-03
+  check  MasterAccountId IS NULL OR MasterAccountId <> BankAccountId
+  check  (IbanEnc IS NULL AND IbanMask IS NULL AND IbanHash IS NULL) OR (IbanEnc IS NOT NULL AND IbanMask IS NOT NULL AND IbanHash IS NOT NULL)   # IBAN مشفّر بالكامل أو غائب
+  check  ClosedOn IS NULL OR OpenedOn IS NULL OR ClosedOn >= OpenedOn   # BR-ACC-006
+  check  Status <> 'CLOSED' OR (ClosedOn IS NOT NULL AND ClosureReason IS NOT NULL)   # FR-ACC-008: الإغلاق بتاريخ وسبب
+  check  (ClosedOn IS NULL AND ClosureReason IS NULL) OR Status = 'CLOSED'   # CLOSED نهائي
+
+table acc.FacilityAccount  # ربط حساب بتسهيل بغرض (S2) (FR-ACC-010، BR-ACC-007)؛ يُملأ من شاشة التسهيل
+  FacilityId       ->fac.Facility req
+  BankAccountId    ->acc.BankAccount req via=CurrencyId   # الربط المركّب يضمن تطابق عملة الحساب مع CurrencyId
+  CurrencyId       ->ref.Currency req noidx   # نسخة من عملة الحساب لإنفاذ «افتراضي واحد لكل (تسهيل، غرض، عملة)» (BR-ACC-007)
+  PurposeId        ->cat.LookupItem req   # قائمة ACCOUNT_PURPOSE (FACILITY/MARGIN_SETTLEMENT/BANK_CHARGES/REPAYMENT/LC_PROCEEDS_COLLECTION)
+  IsDefault        bool       req =0
+  ValidFrom        date
+  ValidTo          date
+  Notes            str(500)
+  unique FacilityId,BankAccountId,PurposeId   # فريد (Facility,BankAccount,Purpose)
+  unique FacilityId,PurposeId,CurrencyId where IsDefault = 1 AND ValidTo IS NULL   # BR-ACC-007: افتراضي واحد لكل (تسهيل، غرض، عملة)
+  index  FacilityId,PurposeId   # SVC-FAC-07
+  index  BankAccountId,FacilityId   # NTF-ACC-03: حساب مرتبط بتسهيل يتجمد أو يُغلق
+  check  ValidTo IS NULL OR ValidFrom IS NULL OR ValidTo >= ValidFrom
+
+table acc.Signatory public  # تفويض شخص لدى علاقة (S1-ب) (FR-ACC-012، FR-ACC-023، BR-ACC-008/009) + إضافات docs/05 G-10
+  RelationshipId           ->ins.Relationship req
+  PartyId                  ->pty.Party req   # شخص طبيعي (التطبيق)؛ مزوّد استخدام Party يعاد توجيهه عند الدمج (FR-ACC-023)
+  SignatureClassId         ->cat.LookupItem req   # قائمة SIGNATURE_CLASS (A/B/C قابلة للتوسعة)
+  PositionId               ->cat.Position
+  JobTitle                 str(200)   # المسمى الوظيفي لدى المنشأة كما في نماذج KYC (05 §1.2)
+  AuthorisationBasisId     ->cat.LookupItem   # أساس التفويض (05 G-10): قائمة AUTHORISATION_BASIS (وكالة، قرار مجلس، قرار شركاء، نظام أساسي، عقد تأسيس، تفويض معدّ داخل البنك)؛ الوثيقة وتاريخاها في AuthorizationDocumentId
+  SignatureType            enum{INDIVIDUAL,WITH_PRIMARY_SIGNATORY}   # نوع التوقيع (05 G-10): فردي أو مع المفوّض الأساسي
+  CashWithdrawalMode       enum{LIMITED,UNLIMITED,UNSPECIFIED} req =UNSPECIFIED   # حد السحب النقدي في نموذج KYC (05 G-10): بلا حد أو حد أقصى
+  CashWithdrawalLimit      money      sens=confidential   # مع LIMITED فقط؛ تفصيل العمليات في SignatoryAuthority
+  CashWithdrawalCurrencyId ->ref.Currency
+  AuthorizationDocumentId  ->doc.Document   # وثيقة التفويض؛ تفعيل بلا وثيقة مرفوض (BR-ACC-009)
+  SpecimenDocumentId       ->doc.Document   # صورة نموذج التوقيع حساسة بقيد صور الهوية (FR-ACC-022)
+  ValidFrom                date       req
+  ValidTo                  date
+  Status                   enum{PENDING,ACTIVE,SUSPENDED,EXPIRED,REVOKED} req =PENDING   # EXPIRED آليًا بعد ValidTo؛ REVOKED نهائي؛ التجديد صف جديد
+  Notes                    str(1000)
+  unique RelationshipId,PartyId,SignatureClassId,ValidFrom
+  unique RelationshipId,PartyId,SignatureClassId where ValidTo IS NULL AND Status <> 'REVOKED'   # BR-ACC-008: صف مفتوح واحد؛ عدم التداخل التام في التطبيق
+  index  PartyId,Status   # بطاقة Party: شارة «مفوَّض بنكي» (FR-ACC-023)
+  index  Status,ValidTo   # JOB-ACC-EXPIRY وR-ACC-06 (BR-ACC-017)
+  index  RelationshipId,Status
+  check  ValidTo IS NULL OR ValidTo >= ValidFrom
+  check  Status NOT IN ('ACTIVE','SUSPENDED','EXPIRED') OR AuthorizationDocumentId IS NOT NULL   # BR-ACC-009: PENDING حتى إرفاق وثيقة التفويض
+  check  (CashWithdrawalMode = 'LIMITED' AND CashWithdrawalLimit IS NOT NULL AND CashWithdrawalLimit > 0 AND CashWithdrawalCurrencyId IS NOT NULL) OR (CashWithdrawalMode <> 'LIMITED' AND CashWithdrawalLimit IS NULL)   # مثل BR-ACC-011
+
+table acc.SignatoryAuthority  # صلاحية المفوّض لعملية على حساب أو على البنك (S1-ب) (FR-ACC-013/014/017، BR-ACC-010/011)؛ لا تعديل في مكانه: الإغلاق والفتح؛ حالتها مشتقة فلا تُخزَّن
+  RelationshipId      ->ins.Relationship req noidx   # مكرَّر من المفوّض لضمان أن الحساب من العلاقة نفسها (FR-ACC-013)
+  SignatoryId         ->acc.Signatory req via=RelationshipId
+  BankAccountId       ->acc.BankAccount via=RelationshipId   # فارغ = على كل حسابات العلاقة (البنك) (BR-ACC-010)
+  OperationTypeId     ->cat.OperationType req
+  CeilingMode         enum{LIMITED,UNLIMITED,UNSPECIFIED} req   # LIMITED يتطلب مبلغًا وعملة (BR-ACC-011)
+  MaxPerTransaction   money      sens=confidential   # سقف العملية الواحدة
+  DailyLimit          money      sens=confidential   # السقف اليومي؛ يُسجَّل ولا يُتتبَّع استخدامه (Q-ACC-08)
+  CurrencyId          ->ref.Currency   # إلزامي مع LIMITED
+  IsJoint             bool       req =0   # توقيع مشترك (BR-ACC-013)
+  JointMinCosigners   int              # أدنى عدد للمشاركين الآخرين
+  ValidFrom           date       req
+  ValidTo             date
+  SourceDocumentId    ->doc.Document
+  SupersededById      ->acc.SignatoryAuthority via=SignatoryId   # الصف الذي حلّ محله (FR-ACC-017)
+  unique SignatoryId,OperationTypeId,BankAccountId,ValidFrom   # لا صفان بالبداية نفسها (ترتيب الأعمدة يميّز الاسم عن الفريد المصفّى ضمن حد 63 حرفًا في PostgreSQL)
+  unique SignatoryId,BankAccountId,OperationTypeId where ValidTo IS NULL AND SupersededById IS NULL   # BR-ACC-010: صف مفتوح واحد لكل (مفوّض، حساب أو البنك، عملية)؛ عدم التداخل التام في التطبيق
+  index  SignatoryId,OperationTypeId,BankAccountId include ValidFrom,ValidTo,CeilingMode   # SVC-03 GetEffectiveAuthority
+  index  BankAccountId,OperationTypeId   # مصفوفة الصلاحيات SCR-ACC-05 وSVC-04
+  index  ValidTo where ValidTo IS NOT NULL   # تنبيهات الانتهاء (BR-ACC-017)
+  check  ValidTo IS NULL OR ValidTo >= ValidFrom
+  check  CeilingMode <> 'LIMITED' OR (CurrencyId IS NOT NULL AND ((MaxPerTransaction IS NOT NULL AND MaxPerTransaction > 0) OR (DailyLimit IS NOT NULL AND DailyLimit > 0)))   # BR-ACC-011
+  check  CeilingMode = 'LIMITED' OR (MaxPerTransaction IS NULL AND DailyLimit IS NULL)   # UNLIMITED/UNSPECIFIED بلا مبالغ
+  check  MaxPerTransaction IS NULL OR MaxPerTransaction > 0
+  check  DailyLimit IS NULL OR DailyLimit > 0
+  check  MaxPerTransaction IS NULL OR DailyLimit IS NULL OR DailyLimit >= MaxPerTransaction   # FR-ACC-014: اليومي لا يقل عن سقف العملية
+  check  (IsJoint = 1 AND (JointMinCosigners IS NULL OR JointMinCosigners >= 1)) OR (IsJoint = 0 AND JointMinCosigners IS NULL)   # BR-ACC-013
+  check  SupersededById IS NULL OR SupersededById <> SignatoryAuthorityId
+
+table acc.SignatoryAuthorityJointClass pk=SignatoryAuthorityId,SignatureClassId norv  # فئات التوقيع المطلوبة للتوقيع المشترك (JointClassIds) (BR-ACC-013) -- جدول وسيط جديد؛ لا حذف: التعديل بصف صلاحية جديد
+  SignatoryAuthorityId  ->acc.SignatoryAuthority req
+  SignatureClassId      ->cat.LookupItem req   # قائمة SIGNATURE_CLASS
+  index  SignatureClassId
+
+table acc.AuthorityConflict  # نتيجة مقارنة صلاحية المفوّض بالحوكمة وقرار المراجع (S1-ب) (FR-ACC-018، BR-ACC-015)
+  SignatoryAuthorityId  ->acc.SignatoryAuthority req
+  ConflictCode  enum{NO_GRANT,CEILING_EXCEEDS,JOINT_MISMATCH,GRANT_EXPIRED,GRANT_CEILING_UNSPECIFIED,NOT_COMPARABLE_CURRENCY,NOT_MAPPED} req
+  Fingerprint   ascii(64)  req   # بصمة نسخة الصلاحية + نسخة المنحة؛ بصمة جديدة تفتح مثيلًا جديدًا (القسم 8)
+  Status        enum{OPEN,ACKNOWLEDGED,RESOLVED} req =OPEN   # RESOLVED آليًا عند زوال السبب
+  Reason        str(500)    # سبب إقرار المراجع (تحذير بإقرار مسجَّل، Q-ACC-06)
+  ReviewedBy    ->sec.AppUser   # TM/FO
+  ReviewedOn    ts
+  DetectedOn    ts         req
+  unique SignatoryAuthorityId,ConflictCode,Fingerprint
+  index  Status,DetectedOn   # SCR-ACC-06 وR-ACC-04
+  check  Status <> 'ACKNOWLEDGED' OR (ReviewedBy IS NOT NULL AND ReviewedOn IS NOT NULL AND Reason IS NOT NULL)   # OPEN→ACKNOWLEDGED بسبب مدوَّن (القسم 8)
+  check  ReviewedBy IS NULL OR ReviewedOn IS NOT NULL

@@ -1,0 +1,650 @@
+# =============================================================================
+# 15-workflow-notifications.model -- A6: الطلبات ودورات العمل (wfl) + الإشعارات (ntf)
+# المصدر: docs/10-detailed-analysis/13-m6-workflow-engine-notifications.md  §6.1 · §6.2 · §6.3 · §6.4
+#         + FR-WFL/REQ/NTF · BR-WFL-001..026 · BR-REQ-001..016 · BR-NTF-001..014 · V-WFL/V-REQ/V-NTF · §8 الحالات · §9.2 الأحداث
+# قرارات ملزمة: SQL Server 2025 · قاعدة واحدة بعزل صفوف (TenantId تلقائي، مفاتيح مركّبة) · BIGINT IDENTITY (INT لجداول التهيئة الصغيرة)
+#   جذور API بـ public (RequestType · WorkflowTemplate · Request · UserDelegation · Notification) · لا temporal ولا حذف فعلي لسجلات الطلبات
+#   مبلغ = money (+ CurrencyId) · تاريخ ميلادي · ts = UTC
+# قرارات 2026-10-10: wf.sod.allow_same_person لكل قالب (SodAllowSamePerson، وتجاوز اختياري على المرحلة) والأدوار منشئ/مدقق/معتمِد
+#   WorkflowRole على خانة الموافقة؛ وسم «استثناء فصل المهام» على الموافقة والإجراء والطلب (FR-WFL-041، BR-WFL-026).
+# اصطلاح المنتقل: الإشارة إلى مفتاح قالب أو مرحلة أو حقل بالنص (TemplateKey · StageKey · FieldKey · SlotKey) نص ثابت عبر النسخ كما في المواصفة؛
+#   أما الإشارة إلى صف فمفتاح أجنبي. النسخة المنشورة ثابتة (BR-WFL-019): لا UPDATE عليها يفرضه التطبيق، والجداول الفرعية للقالب
+#   مسموح فيها الحذف الفعلي لمسودة النسخة فقط (deletable) ويمنع التطبيق حذف ما تحت نسخة PUBLISHED/RETIRED.
+# مراجع خارجية (يعرّفها غيري): org.Company · org.Department · sec.AppUser · sec.Role · sec.Permission · ref.Currency · cat.Product
+#   cat.DocumentType · ins.Institution · fac.Facility · fac.Limit · fac.LimitProductLine · fac.LimitReservation · lc.LetterOfCredit · doc.Document
+# =============================================================================
+
+# ============================== أنواع الطلبات وجمهورها (REQ) ==============================
+module REQ
+
+table wfl.RequestType int public  # تعريف نوع الطلب (FR-REQ-001، BR-REQ-001، V-REQ-01)؛ الأنواع الجديدة بلا كود (FR-REQ-021)
+  Code                    ascii(40)  req   # رمز النوع: LC_AMENDMENT · PURCHASE_LC · …؛ فريد بالمشترك
+  NameAr                  str(200)   req
+  NameEn                  str(200)   req
+  Description             str(500)
+  Category                enum{PURCHASE,SALES,TREASURY,GENERAL,CHILD} req   # تصنيف مشتريات/مبيعات الموحّد (لا استيراد/تصدير)
+  ParentEntityType        ascii(40)        # نوع الكائن الأب للأنواع الفرعية (اعتماد صادر مثلًا) (FR-REQ-012، BR-REQ-008)
+  DefaultTemplateKey      ascii(60)  req   # مفتاح القالب الافتراضي؛ النسخة المعتمدة هي IsCurrent (BR-WFL-019)
+  NumberSequenceKey       ascii(50)  req   # = req:<Code> يقابل cfg.NumberSequenceDefinition.SequenceKey (BR-WFL-013، X-DAT-8)
+  AmountFieldKey          ascii(60)        # مفاتيح حقول الفهرسة في النموذج (FR-REQ-009)
+  CurrencyFieldKey        ascii(60)
+  ProductFieldKey         ascii(60)
+  ConsumesCreditLimit     bool       req =0   # تقابل Product.ConsumesCreditLimit؛ يفعّل خطاف الحجز ولوحة التوفر (BR-REQ-009)
+  LimitCheckMode          enum{NONE,ADVISORY,REQUIRED_SELECTION} req =NONE   # وضع لوحة التوفر للنوع؛ غير CheckMode لخط المنتج في 12
+  RequiresSignedOriginal  bool       req =0   # الأصل الموقّع إلزامي (FR-WFL-025)
+  IsActive                bool       req =0   # التفعيل يلزمه قالب منشور وجمهور ومفتاح ترقيم (BR-REQ-001) يتحقق منه التطبيق
+  SortOrder               int        req =0
+  SeedKey                 ascii(80)        # للأنواع المبذورة؛ إعادة البذر لا تكرر (FR-WFL-002)
+  unique Code
+  unique PublicId
+  unique SeedKey where SeedKey IS NOT NULL
+  index Category,IsActive
+  check Category <> 'CHILD' OR ParentEntityType IS NOT NULL   # النوع الفرعي يُنشأ تحت كائن أب (FR-REQ-012)
+  check ConsumesCreditLimit = 1 OR LimitCheckMode = 'NONE'   # لوحة التوفر لا تُعرض إلا لنوع يستهلك حدًّا (BR-REQ-009)
+
+table wfl.RequestTypeAudience int deletable  # جمهور النوع: من يحق له الطلب؛ غياب الصفوف = لا أحد (فشل مغلق) (FR-REQ-007)
+  RequestTypeId  ->wfl.RequestType req
+  SubjectKind    enum{ROLE,DEPARTMENT,USER} req
+  RoleId         ->sec.Role               # SubjectKind=ROLE (بدل SubjectId متعدد الأشكال لضمان السلامة المرجعية)
+  DepartmentId   ->org.Department          # SubjectKind=DEPARTMENT
+  UserId         ->sec.AppUser             # SubjectKind=USER
+  calc SubjectId bigint =CASE WHEN RoleId IS NOT NULL THEN RoleId WHEN DepartmentId IS NOT NULL THEN DepartmentId ELSE UserId END   # مشتق: مطابق لـ SubjectId في المواصفة
+  unique RequestTypeId,RoleId where RoleId IS NOT NULL
+  unique RequestTypeId,DepartmentId where DepartmentId IS NOT NULL
+  unique RequestTypeId,UserId where UserId IS NOT NULL
+  check (SubjectKind = 'ROLE' AND RoleId IS NOT NULL AND DepartmentId IS NULL AND UserId IS NULL) OR (SubjectKind = 'DEPARTMENT' AND DepartmentId IS NOT NULL AND RoleId IS NULL AND UserId IS NULL) OR (SubjectKind = 'USER' AND UserId IS NOT NULL AND RoleId IS NULL AND DepartmentId IS NULL)   # حصرية المرجع بحسب النوع
+
+# ============================== قوالب دورات العمل (WFL) ==============================
+module WFL
+
+table wfl.ExternalPhase int catalog  # المرحلة الظاهرة للطالب: DRAFT · IN_APPROVAL · RETURNED · AWAITING_REQUESTER · IN_PROGRESS · COMPLETED · REJECTED · CANCELLED (BR-WFL-011، D-6)
+  ColorKey                 ascii(30)        # مفتاح لون العرض
+  RequiresRequesterAction  bool  req =0     # تتطلب إجراءً من الطالب (بانتظار إجراء منك / معاد للتعديل)
+  IsFinal                  bool  req =0     # نهائية: مكتمل · مرفوض · ملغى
+  check RequiresRequesterAction = 0 OR IsFinal = 0   # المرحلة النهائية لا تنتظر إجراء الطالب
+
+table wfl.WorkflowTemplate int public  # نسخة قالب دورة عمل؛ المنشورة ثابتة (FR-WFL-001/028، BR-WFL-019، AC-WFL-6)
+  RequestTypeId             ->wfl.RequestType req   # قالب لكل نوع؛ CHILD_STANDARD المشترك يُبذر نسخة لكل نوع (انظر تقرير الكاتب)
+  TemplateKey               ascii(60)  req
+  VersionNo                 int        req   # تصاعدي لكل TemplateKey بلا فجوات
+  Status                    enum{DRAFT,PUBLISHED,RETIRED} req =DRAFT   # §8
+  IsCurrent                 bool       req =0   # واحدة لكل مفتاح؛ تعيينها عند النشر والسابقة تصير RETIRED
+  NameAr                    str(200)
+  NameEn                    str(200)
+  NumberOnStageKey          ascii(40)        # StageKey الذي يُخصَّص عند دخوله رقم الطلب (BR-WFL-013، Q-WFL-02)
+  ResetApprovalsOnResubmit  bool       req =1   # الموافقات تبدأ من جديد بعد الإرجاع (BR-WFL-008)
+  AutoReassignOnOverdue     bool       req =0   # إعادة الإسناد التلقائي عند التأخر معطّلة (BR-WFL-022)
+  SodAllowSamePerson        bool       req =0   # wf.sod.allow_same_person: يتيح لشخص واحد أكثر من دور ويوسم استثناء (FR-WFL-041، BR-WFL-026)
+  ChangeNote                text
+  PublishedAt               ts
+  PublishedBy               ->sec.AppUser    # الناشر غير المحرِّر ما لم يُفعَّل الاستثناء (Q-WFL-14) يتحقق منه التطبيق
+  RetiredAt                 ts
+  IsTenantModified          bool       req =0   # تعديل المشترك لقالب مبذور ينشئ نسخة مملوكة له (FR-WFL-030)
+  SourceSeedVersion         int              # نسخة البذرة المشتقة منها
+  SeedKey                   ascii(80)        # PURCHASE_LC · CHILD_STANDARD · …؛ على الصف المبذور الأصلي فقط (FR-WFL-002)
+  unique TemplateKey,VersionNo
+  unique PublicId
+  unique TemplateKey where IsCurrent = 1   # نسخة حالية واحدة لكل مفتاح (BR-WFL-019)
+  unique RequestTypeId,SeedKey,SourceSeedVersion where SeedKey IS NOT NULL   # إعادة البذر لا تكرر (FR-WFL-002)
+  index RequestTypeId,Status
+  check VersionNo >= 1
+  check IsCurrent = 0 OR Status = 'PUBLISHED'
+  check Status <> 'PUBLISHED' OR PublishedAt IS NOT NULL   # النشر يختم وقته (BR-WFL-019)؛ المسودة المتروكة قد تُسحب RETIRED بلا نشر (§8)
+  check Status <> 'DRAFT' OR PublishedAt IS NULL
+  check (Status = 'RETIRED' AND RetiredAt IS NOT NULL) OR (Status <> 'RETIRED' AND RetiredAt IS NULL)
+  check IsTenantModified = 0 OR SeedKey IS NULL   # الصف المعدَّل لا يحمل مفتاح البذرة (FR-WFL-030)
+  check SeedKey IS NULL OR SourceSeedVersion IS NOT NULL
+  check NameAr IS NOT NULL OR NameEn IS NOT NULL
+
+table wfl.WorkflowStage int deletable  # مرحلة في نسخة قالب (FR-WFL-003/004/005، BR-WFL-002/010/012)؛ حذف فعلي لمسودة النسخة فقط
+  TemplateId             ->wfl.WorkflowTemplate req
+  StageKey               ascii(40)  req   # ثابت عبر النسخ
+  NameAr                 str(200)   req   # الاسم الداخلي (لا يراه الطالب، BR-WFL-024)
+  NameEn                 str(200)   req
+  Kind                   enum{DRAFT,TASK,APPROVAL,TREASURY_QUEUE,TERMINAL} req
+  SeqNo                  int        req =0
+  ExternalPhaseId        ->wfl.ExternalPhase req   # النشر بلا مرحلة ظاهرة مرفوض (FR-WFL-003)
+  AssigneeRule           enum{ROLE,USER,DEPARTMENT,REQUESTER,REQUESTER_MANAGER,CLAIMER}   # فارغ لمرحلة APPROVAL (الخانات تحدد) وللنهائية
+  AssigneeRoleId         ->sec.Role             # AssigneeRef للقاعدة ROLE: دور
+  PoolPermissionId       ->sec.Permission       # أو صلاحية تحدد المجموعة المؤهلة (req.claim · req.facility.select) (FR-WFL-041، §5.5)
+  AssigneeUserId         ->sec.AppUser          # AssigneeRef للقاعدة USER
+  AssigneeDepartmentId   ->org.Department       # AssigneeRef للقاعدة DEPARTMENT
+  FallbackRoleId         ->sec.Role             # FallbackRule: الدور البديل ثم TM (FR-WFL-005، BR-WFL-005)
+  ApprovalMode           enum{NONE,ANY,ALL} req =NONE
+  SlaHours               dec(7,2)         # ساعات عمل (BR-WFL-012)
+  ClaimSlaHours          dec(7,2)         # مهلة السحب من الطابور
+  SlaMode                enum{BUSINESS,CALENDAR} req =BUSINESS
+  IsTerminal             bool       req =0
+  TerminalOutcome        enum{COMPLETED,REJECTED,CANCELLED}
+  AllowRequesterCancel   bool       req =0
+  AllowReturn            bool       req =0
+  RequiresComment        bool       req =0
+  IsReservationPoint     bool       req =0   # نقطة الحجز: موافقة TM تستدعي fac.reserve_limit (FR-WFL-022)
+  SodAllowSamePerson     bool                # تجاوز اختياري لإعداد القالب؛ الفارغ = يرث القالب (BR-WFL-026)
+  SubStatusSetJson       json             # الحالات الفرعية: مفتاح · اسم Ar/En · PausesSla (BR-WFL-010)
+  EditableFieldKeysJson  json
+  unique TemplateId,StageKey
+  unique TemplateId where Kind = 'DRAFT'   # بداية واحدة (V-WFL-01)
+  index ExternalPhaseId
+  check (Kind = 'TERMINAL' AND IsTerminal = 1) OR (Kind <> 'TERMINAL' AND IsTerminal = 0)
+  check (IsTerminal = 1 AND TerminalOutcome IS NOT NULL) OR (IsTerminal = 0 AND TerminalOutcome IS NULL)
+  check (Kind = 'APPROVAL' AND ApprovalMode <> 'NONE') OR (Kind <> 'APPROVAL' AND ApprovalMode = 'NONE')   # FR-WFL-007/008
+  check SlaHours IS NULL OR SlaHours > 0
+  check ClaimSlaHours IS NULL OR (ClaimSlaHours > 0 AND Kind = 'TREASURY_QUEUE')   # مهلة السحب لمراحل الطابور (BR-WFL-012)
+  check IsReservationPoint = 0 OR Kind = 'APPROVAL'   # الحجز عند موافقة TM (BR-WFL-016)
+  check Kind <> 'TREASURY_QUEUE' OR (AssigneeRule IS NOT NULL AND AssigneeRule = 'ROLE' AND (AssigneeRoleId IS NOT NULL OR PoolPermissionId IS NOT NULL))   # الطابور بلا مُسنَد يبدأ لمجموعة مؤهلة (FR-WFL-004)
+  check (AssigneeRoleId IS NULL AND PoolPermissionId IS NULL) OR AssigneeRule = 'ROLE'
+  check AssigneeRoleId IS NULL OR PoolPermissionId IS NULL   # مجموعة بدور أو بصلاحية لا بهما
+  check AssigneeUserId IS NULL OR AssigneeRule = 'USER'
+  check AssigneeDepartmentId IS NULL OR AssigneeRule = 'DEPARTMENT'
+  check AssigneeRule <> 'USER' OR AssigneeUserId IS NOT NULL
+  check AssigneeRule <> 'DEPARTMENT' OR AssigneeDepartmentId IS NOT NULL
+  check AssigneeRule <> 'ROLE' OR AssigneeRoleId IS NOT NULL OR PoolPermissionId IS NOT NULL
+
+table wfl.StageApprover int deletable  # خانة موافقة في مرحلة APPROVAL؛ ALL = كل الخانات، ودور بشخصين يلزمان معًا = خانتان (FR-WFL-007/041، BR-WFL-003/004)
+  StageId                  ->wfl.WorkflowStage req
+  SlotKey                  ascii(30)  req   # مثل ORIGINATOR · MANAGER · TM
+  LabelAr                  str(200)
+  LabelEn                  str(200)
+  WorkflowRole             enum{CREATOR,AUDITOR,APPROVER,OTHER} req =APPROVER   # دور سير العمل: منشئ · مدقّق · معتمِد (FR-WFL-041)
+  SubjectRule              enum{REQUESTER,REQUESTER_MANAGER,ROLE,USER,DEPARTMENT_HEAD} req
+  RoleId                   ->sec.Role             # SubjectRef للقاعدة ROLE
+  UserId                   ->sec.AppUser          # SubjectRef للقاعدة USER
+  DepartmentId             ->org.Department       # SubjectRef لرئيس إدارة محددة (الفارغ = إدارة الطالب)
+  FallbackRoleId           ->sec.Role             # FallbackRule (BR-WFL-005)
+  AutoCompleteBySubmitter  bool       req =0   # خانة ORIGINATOR تكتمل بالتقديم إن قدّمه الطالب نفسه (BR-WFL-004)
+  AllowDelegation          bool       req =1   # صلاحيات الكشف الحساسة لا تُفوَّض (BR-WFL-021)
+  unique StageId,SlotKey
+  check SubjectRule <> 'ROLE' OR RoleId IS NOT NULL
+  check SubjectRule <> 'USER' OR UserId IS NOT NULL
+  check RoleId IS NULL OR SubjectRule = 'ROLE'
+  check UserId IS NULL OR SubjectRule = 'USER'
+  check DepartmentId IS NULL OR SubjectRule = 'DEPARTMENT_HEAD'
+  check AutoCompleteBySubmitter = 0 OR SubjectRule = 'REQUESTER'   # BR-WFL-004
+  check LabelAr IS NOT NULL OR LabelEn IS NOT NULL
+
+table wfl.WorkflowTransition int deletable  # انتقال بين مرحلتين بشرط وأولوية؛ دورة خطية بتفرع شرطي بسيط (FR-WFL-006، BR-WFL-001، D-8)
+  TemplateId       ->wfl.WorkflowTemplate req
+  FromStageId      ->wfl.WorkflowStage via=TemplateId req   # الرسم كله داخل القالب نفسه
+  Action           enum{SUBMIT,APPROVE,COMPLETE,RETURN,REJECT,CANCEL,RESUBMIT} req
+  ToStageId        ->wfl.WorkflowStage via=TemplateId req   # RESUBMIT يعيد إلى ResumeStage المحفوظة في مثيل المرحلة (BR-WFL-008)
+  Priority         int        req =1   # تصاعدي: يُنفَّذ أول شرط محقق (BR-WFL-001)
+  ConditionJson    json             # تعبير مقيَّد بلا شيفرة؛ الفارغ = دائمًا (FR-REQ-004)
+  ResumeStageId    ->wfl.WorkflowStage via=TemplateId   # مرحلة الاستئناف عند RETURN (FR-WFL-010)
+  LabelAr          str(200)
+  LabelEn          str(200)
+  RequiresComment  bool       req =0
+  unique FromStageId,Action,Priority
+  check Priority >= 1
+  check FromStageId <> ToStageId   # لا دورات إلا عبر RETURN/RESUBMIT بمراحل مختلفة (V-WFL-01)
+  check ResumeStageId IS NULL OR Action IN ('RETURN','RESUBMIT')
+  check Action NOT IN ('RETURN','REJECT') OR RequiresComment = 1   # السبب إلزامي (FR-WFL-010/012، BR-WFL-008)
+
+table wfl.WorkflowStageHook int deletable  # خطاف مسجَّل بالكود على مرحلة: مفتاح ومعاملات لا شيفرة (FR-WFL-021، BR-WFL-015، §5.4)
+  StageId       ->wfl.WorkflowStage req
+  TriggerKind   enum{ON_ENTER,ON_EXIT,ON_ACTION} req   # Trigger في المواصفة؛ الاسم محجوز في T-SQL
+  ActionFilter  enum{SUBMIT,APPROVE,COMPLETE,RETURN,REJECT,CANCEL,RESUBMIT}   # للمشغّل ON_ACTION فقط؛ REJECT وCANCEL صفّان
+  HookKey       ascii(60)  req   # مثل fac.reserve_limit · lc.validate_terms · ntf.emit
+  ParamsJson    json
+  ExecMode      enum{SYNC_TX,AFTER_COMMIT} req =SYNC_TX
+  OnFailure     enum{BLOCK,WARN} req =BLOCK
+  SeqNo         int        req =1
+  unique StageId,TriggerKind,ActionFilter,HookKey
+  index HookKey   # مسح استعمال الخطاف وفحص التسجيل عند النشر (V-WFL-02)
+  check (TriggerKind = 'ON_ACTION' AND ActionFilter IS NOT NULL) OR (TriggerKind <> 'ON_ACTION' AND ActionFilter IS NULL)
+  check HookKey LIKE '%.%'   # مجال.اسم؛ المجالات الجديدة (erp.* · bank.*) بلا تغيير مخطط (§11)
+
+# ============================== نموذج الطلب ومرفقاته (REQ) ==============================
+module REQ
+
+table wfl.TemplateField int deletable  # حقل في نسخة قالب يولّد النموذج بلا كود واجهة (FR-REQ-002..005، BR-REQ-003/004)
+  TemplateId         ->wfl.WorkflowTemplate req
+  FieldKey           ascii(60)  req
+  LabelAr            str(200)   req
+  LabelEn            str(200)   req
+  HelpAr             str(500)
+  HelpEn             str(500)
+  SectionKey         ascii(40)
+  SeqNo              int        req =0
+  DataType           enum{TEXT,LONGTEXT,INTEGER,DECIMAL,AMOUNT,PERCENT,DATE,BOOLEAN,LIST,MULTILIST,CATALOG_REF,USER_REF,EXTERNAL_REF,FILE_SLOT,TABLE,MODULE_FORM,LIMIT_SELECTION} req
+  ConfigJson         json             # قوائم · نطاق · كتالوج · ComponentKey (MODULE_FORM يحفظ معرّف الكيان لا نسخة)
+  IsRequired         bool       req =0
+  RequiredWhenJson   json             # eq · ne · in · gt · gte · lt · lte · empty + all/any/not (FR-REQ-004)
+  VisibleWhenJson    json
+  VisibleStagesJson  json             # StageKey المرئية فيها
+  EditableStagesJson json
+  Sensitivity        enum{NORMAL,CONFIDENTIAL,RESTRICTED} req =NORMAL   # المقيّد مشفّر ولا يدخل SearchText ولا الشروط (FR-REQ-024، V-WFL-03)
+  IndexRole          enum{NONE,TITLE,AMOUNT,CURRENCY,COUNTERPARTY_NAME,COUNTERPARTY_CODE,PRODUCT,REQUIRED_BY_DATE} req =NONE   # ينسخ إلى أعمدة الطلب (FR-REQ-009)
+  KeepWhenHidden     bool       req =0   # الحقل المخفي شرطيًا لا يُحفظ ما لم يُعلَّم (BR-REQ-004)
+  ValidationJson     json             # طول · نطاق · نمط آمن · مقارنة حقلين (FR-REQ-005)
+  unique TemplateId,FieldKey
+  unique TemplateId,IndexRole where IndexRole <> 'NONE'   # حقل واحد لكل دور فهرسة
+  check IndexRole <> 'AMOUNT' OR DataType = 'AMOUNT'   # AMOUNT قيمة+عملة (V-REQ-02)
+  check IndexRole <> 'TITLE' OR DataType = 'TEXT'
+  check IndexRole <> 'REQUIRED_BY_DATE' OR DataType = 'DATE'
+  check Sensitivity <> 'RESTRICTED' OR IndexRole = 'NONE'   # لا فهرسة لحقل مقيّد (BR-REQ-003)
+
+table wfl.TemplateAttachmentRule int deletable  # قاعدة مرفق على نسخة قالب (FR-REQ-006، BR-REQ-005، FR-WFL-024/025)
+  TemplateId              ->wfl.WorkflowTemplate req
+  SlotKey                 ascii(40)  req
+  LabelAr                 str(200)
+  LabelEn                 str(200)
+  DocumentTypeId          ->cat.DocumentType req   # مثل SIGNED_REQUEST_ORIGINAL
+  MinCount                int        req =0
+  MaxCount                int
+  RequiredBeforeStageKey  ascii(40)        # يلزم قبل مغادرة هذه المرحلة (BR-WFL-014)
+  RequiredWhenJson        json
+  VisibleToRequester      bool       req =0   # الافتراضي داخلي ما لم تُعلَّم (BR-REQ-005)
+  unique TemplateId,SlotKey
+  check MinCount >= 0
+  check MaxCount IS NULL OR (MaxCount >= 1 AND MaxCount >= MinCount)
+  check MinCount = 0 OR RequiredBeforeStageKey IS NOT NULL   # الحد الأدنى يلزمه موضع تحقق
+  check LabelAr IS NOT NULL OR LabelEn IS NOT NULL
+
+table wfl.Request public  # الطلب: أكثر الجداول ازدحامًا؛ الحالة الداخلية منفصلة عن المرحلة الظاهرة (FR-WFL-001، FR-REQ-009، D-6، BR-REQ-002/003)
+  DraftRef                 ascii(20)  req   # رقم مسودة D-xxxxxx خارج التسلسل (BR-WFL-013)
+  RequestNo                str(40)          # بعد الترقيم عند NumberOnStageKey؛ الملغى بعد الترقيم يبقى رقمه (BR-WFL-013)
+  NumberYear               smallint         # سنة التسلسل المخصَّص (نسخة من cfg.NumberIssue)
+  NumberSeq                int              # قيمة التسلسل لكل نوع وسنة بلا فجوات (GAP_FREE، Q-PLT-08)
+  RequestTypeId            ->wfl.RequestType req
+  TemplateId               ->wfl.WorkflowTemplate via=RequestTypeId noidx req   # للمسودة: الحالية، ويُثبَّت عند أول تقديم (BR-WFL-019)
+  CompanyId                ->org.Company req   # من نطاق المنشئ والطالب معًا (BR-REQ-002، V-REQ-02)
+  DepartmentId             ->org.Department     # من الطالب
+  RequesterUserId          ->sec.AppUser req    # صاحب الحاجة
+  CreatedByUserId          ->sec.AppUser noidx req   # المنشئ قد يختلف عن الطالب (BR-REQ-002)
+  SubmittedByUserId        ->sec.AppUser noidx  # مقدِّم الطلب: يحدد اكتمال خانة ORIGINATOR (BR-WFL-004، Q-WFL-03)
+  Title                    str(200)
+  Status                   enum{DRAFT,ACTIVE,COMPLETED,REJECTED,CANCELLED} req =DRAFT   # §8
+  CurrentStageId           ->wfl.WorkflowStage via=TemplateId noidx   # إضافة: المرحلة الحالية مخبأة للفهارس ولوحات الطابور؛ تتبع القالب الملتقَط نفسه
+  CurrentStageInstanceId   ->wfl.RequestStageInstance noidx   # مثيل المرحلة الحالي؛ يتبع الطلب نفسه (يتحقق منه التطبيق)
+  ExternalPhaseId          ->wfl.ExternalPhase noidx req   # المرحلة الظاهرة للطالب (BR-WFL-011)
+  SubStatusKey             ascii(40)        # الحالة الفرعية الداخلية؛ لا يراها الطالب (FR-WFL-015)
+  AssigneeUserId           ->sec.AppUser    # المُسنَد؛ فارغ في الطابور (BR-WFL-005/007)
+  QueueEnteredAt           ts               # قِدَم الطابور تراكمي لا يُصفَّر بالتحرير (BR-WFL-007)
+  ClaimedAt                ts
+  DueAt                    ts               # استحقاق المرحلة الحالية بساعات العمل (BR-WFL-012)
+  SlaState                 enum{ON_TRACK,AT_RISK,OVERDUE,PAUSED,NONE} req =NONE
+  Priority                 enum{NORMAL,URGENT} req =NORMAL   # BR-REQ-011
+  UrgentReason             str(500)
+  RequiredByDate           date
+  CycleNo                  int        req =1   # يزيد عند إعادة التقديم بعد إرجاع للطالب (FR-WFL-011)
+  SubmittedAt              ts
+  CompletedAt              ts               # وقت الانتهاء لأي نتيجة نهائية: إكمال أو رفض أو إلغاء
+  OutcomeReason            str(500)         # سبب الرفض/الإلغاء الظاهر عند الانتهاء؛ الأصل في RequestAction (FR-WFL-012)
+  Amount                   money            # الأنواع التعديلية: فرق Delta موقَّع قد يكون سالبًا (BR-REQ-008)
+  CurrencyId               ->ref.Currency noidx   # عملة المبلغ (مواصفة: CurrencyCode)؛ هي عملة الحجز أيضًا (Q-REQ-06)
+  ProductId                ->cat.Product noidx   # إضافة: دور الفهرسة PRODUCT يُنسخ إلى عمود الطلب (FR-REQ-009)
+  CounterpartyName         str(200)
+  CounterpartyCode         str(60)
+  SearchText               text             # نص مطبَّع (BR-PTY-004)؛ فهرس نصي كامل يُنشأ عند النشر؛ لا مقيَّد (BR-REQ-003)
+  FormDataJson             json sens=confidential   # النموذج بمفاتيح الحقول؛ الحقول المقيَّدة مشفّرة (BR-REQ-003، FR-REQ-024)
+  ParentEntityType         ascii(40)        # كائن أب من وحدة أخرى؛ يطابق RequestType.ParentEntityType (BR-REQ-008)
+  ParentEntityId           bigint
+  ParentRequestId          ->wfl.Request    # أو طلب أب (طلب فرعي)
+  CopiedFromRequestId      ->wfl.Request noidx   # إضافة: الطلب المنسوخ منه (FR-REQ-025)
+  LcId                     ->lc.LetterOfCredit   # الاعتماد المرتبط: الأب للطلب الفرعي أو الصادر عن الطلب بعد ISSUANCE (BR-WFL-018)
+  FacilityId               ->fac.Facility   # التخصيص (AllocFacilityId في المواصفة): اختيار الخزينة في FACILITY_SELECTION
+  LimitId                  ->fac.Limit via=FacilityId noidx   # AllocLimitId؛ الحد من التسهيل نفسه
+  LimitProductLineId       ->fac.LimitProductLine via=FacilityId,LimitId noidx   # AllocProductLineId (LineId في fac.reserve_limit)
+  InstitutionId            ->ins.Institution noidx   # AllocInstitutionId
+  ExecutionChannel         enum{BANK_PORTAL,MANUAL_FORM,DIRECT_INTEGRATION}   # تقترحه 11 SVC-02 ويعدّله المنفّذ (FR-WFL-027)
+  ReservationId            ->fac.LimitReservation noidx   # آخر حجز؛ بلا via لأن إعادة الاختيار تسبق إعادة الحجز (BR-WFL-017)
+  ReservedAmount           money            # ما أعادته fac.reserve_limit = ExposureAmount المحجوز بعملة الطلب
+  ReservationState         enum{NONE,RESERVED,CONVERTED,RELEASED,LOST} req =NONE   # §8؛ LOST عند إفراج م5 خارجيًا (BR-WFL-017)
+  HasSodException          bool       req =0   # استخدام استثناء فصل المهام: إنذار للمدير عند أول مرة (BR-WFL-026)
+  ArchivedAt               ts               # أرشفة المسودة الخاملة 90 يومًا؛ تُسترجع (BR-REQ-012، FR-WFL-040)
+  unique PublicId
+  unique DraftRef
+  unique RequestNo where RequestNo IS NOT NULL   # مطابقة تامة بلا لبس (BR-REQ-007)
+  unique RequestTypeId,NumberYear,NumberSeq where NumberSeq IS NOT NULL   # تسلسل لكل مشترك ونوع وسنة (BR-WFL-013)
+  index Status,CurrentStageId,AssigneeUserId   # الحالة · المرحلة · المُسنَد (§6.2)
+  index CompanyId,Status include RequestTypeId,ExternalPhaseId   # طلبات الشركة ضمن النطاق (BR-REQ-013)
+  index RequesterUserId,Status include ExternalPhaseId   # لوحة «طلباتي» (FR-REQ-018)
+  index Amount where Amount IS NOT NULL   # بحث بالمبلغ (FR-REQ-011)
+  index CounterpartyCode where CounterpartyCode IS NOT NULL   # بحث بالعميل/المورّد
+  index CounterpartyName where CounterpartyName IS NOT NULL
+  index CompanyId,Priority,RequiredByDate,QueueEnteredAt where Status = 'ACTIVE' AND AssigneeUserId IS NULL AND QueueEnteredAt IS NOT NULL   # الطابور غير المُسنَد (BR-REQ-011، BR-REQ-016)
+  index DueAt include SlaState,AssigneeUserId where Status = 'ACTIVE' AND DueAt IS NOT NULL   # JOB-WFL-SLA ولوحة المدير (FR-WFL-018)
+  index ParentEntityType,ParentEntityId where ParentEntityType IS NOT NULL   # تبويب الطلبات الفرعية (FR-REQ-012)
+  index CreatedAt,UpdatedAt where Status = 'DRAFT' AND ArchivedAt IS NULL   # JOB-WFL-STALE: خمول 30/90 يومًا (BR-REQ-012)
+  index ReservationState where ReservationState IN ('RESERVED','LOST')   # حجوزات قديمة وR-WFL-07
+  index SubmittedAt include RequestTypeId,CompletedAt where SubmittedAt IS NOT NULL   # أزمنة الدورة R-WFL-03
+  check (RequestNo IS NULL AND NumberYear IS NULL AND NumberSeq IS NULL) OR (RequestNo IS NOT NULL AND NumberYear IS NOT NULL AND NumberSeq IS NOT NULL)
+  check DraftRef LIKE 'D-%'
+  check Status NOT IN ('ACTIVE','COMPLETED','REJECTED') OR SubmittedAt IS NOT NULL   # المسودة المُلغاة قد لا تُقدَّم
+  check (Status IN ('DRAFT','ACTIVE') AND CompletedAt IS NULL) OR (Status IN ('COMPLETED','REJECTED','CANCELLED') AND CompletedAt IS NOT NULL)
+  check CompletedAt IS NULL OR SubmittedAt IS NULL OR CompletedAt >= SubmittedAt
+  check Status <> 'ACTIVE' OR (CurrentStageInstanceId IS NOT NULL AND CurrentStageId IS NOT NULL)
+  check Status <> 'COMPLETED' OR RequestNo IS NOT NULL   # الإكمال بعد مرحلة الترقيم؛ المرفوض قبلها لا يستهلك رقمًا
+  check ArchivedAt IS NULL OR Status = 'DRAFT'
+  check Priority <> 'URGENT' OR UrgentReason IS NOT NULL   # العاجل يتطلب سببًا (BR-REQ-011، V-REQ-06)
+  check CycleNo >= 1
+  check Amount IS NULL OR CurrencyId IS NOT NULL   # AMOUNT بلا عملة مرفوض (V-REQ-02)
+  check SlaState NOT IN ('ON_TRACK','AT_RISK','OVERDUE') OR DueAt IS NOT NULL
+  check (ReservationState = 'NONE' AND ReservationId IS NULL AND ReservedAmount IS NULL) OR (ReservationState <> 'NONE' AND ReservationId IS NOT NULL AND ReservedAmount IS NOT NULL)
+  check ReservedAmount IS NULL OR (ReservedAmount > 0 AND CurrencyId IS NOT NULL)
+  check LimitId IS NULL OR FacilityId IS NOT NULL   # via لا يفحص حين يكون الجزء فارغًا
+  check LimitProductLineId IS NULL OR LimitId IS NOT NULL
+  check (ParentEntityType IS NULL AND ParentEntityId IS NULL) OR (ParentEntityType IS NOT NULL AND ParentEntityId IS NOT NULL)
+  check ParentRequestId IS NULL OR ParentRequestId <> RequestId
+  check CopiedFromRequestId IS NULL OR CopiedFromRequestId <> RequestId
+
+table wfl.RequestComment  # تعليق ظاهر للطالب أو داخلي؛ غير قابل للتعديل (سحب مع بقاء الأصل) (FR-REQ-017، BR-REQ-014)
+  RequestId        ->wfl.Request req
+  StageInstanceId  ->wfl.RequestStageInstance via=RequestId
+  Visibility       enum{INTERNAL,REQUESTER_VISIBLE} req =INTERNAL   # الداخلي لا يدخل RequesterView أبدًا (BR-WFL-024)
+  Body             str(4000)  req   # نص صِرف بلا HTML حتى 4000 حرف
+  AuthorUserId     ->sec.AppUser req
+  ParentCommentId  ->wfl.RequestComment via=RequestId   # رد بمستوى واحد (يتحقق منه التطبيق)
+  RetractedAt      ts
+  RetractedBy      ->sec.AppUser
+  index RequestId,Visibility,CreatedAt   # تبويب التعليقات حسب الظهور
+  check ParentCommentId IS NULL OR ParentCommentId <> RequestCommentId
+  check (RetractedAt IS NULL AND RetractedBy IS NULL) OR (RetractedAt IS NOT NULL AND RetractedBy IS NOT NULL)
+
+table wfl.RequestAttachment  # ربط مستند بطلب ينشئ DocumentLink (EntityType=Request) (FR-REQ-006، BR-REQ-005)
+  RequestId        ->wfl.Request req
+  DocumentId       ->doc.Document req
+  SlotKey          ascii(40)        # فتحة قاعدة المرفق؛ الإصدار الجديد يحل محل الفعّال ويبقى السابق
+  StageInstanceId  ->wfl.RequestStageInstance via=RequestId   # المرحلة التي أُرفق فيها
+  Visibility       enum{INTERNAL,REQUESTER_VISIBLE} req =INTERNAL   # مرفقات الخزينة داخلية ما لم تُعلَّم (BR-REQ-005)
+  IsActive         bool       req =1   # إزالة منطقية؛ حذف الأصل الموقّع بعد اجتياز مرحلته مرفوض (FR-WFL-025)
+  unique RequestId,DocumentId
+  index RequestId,SlotKey where IsActive = 1   # عدّ المرفقات الفعّالة لفتحة (BR-WFL-014)
+
+table wfl.RequestExternalRef  # مرجع خارجي بنص حر؛ تعديل بالإحلال ويبقى التاريخ؛ بلا تحقق خارجي (FR-REQ-010، X-DAT-7، BR-REQ-006)
+  RequestId          ->wfl.Request req
+  SystemCode         str(40)    req   # نص حر مثل ERP
+  RefType            str(60)    req   # نص حر مثل PURCHASE_REQUEST
+  RefValue           str(100)   req   # القيمة كما أُدخلت للعرض
+  NormalizedValue    str(100)   req   # تقليم · أرقام 0-9 · لاتينية كبيرة · بلا فراغات وشرطات (BR-REQ-006)
+  EnteredAtStageKey  ascii(40)
+  IsActive           bool       req =1
+  SupersededById     ->wfl.RequestExternalRef via=RequestId   # الصف الذي أحلّ محله
+  EnteredBy          ->sec.AppUser
+  EnteredAt          ts         req =SYSUTCDATETIME()
+  index NormalizedValue include RequestId,SystemCode,RefType,IsActive   # البحث بالمرجع المطبَّع (FR-REQ-011، BR-REQ-007)
+  index RefValue include RequestId   # بحث بالقيمة كما أُدخلت
+  index SystemCode,RefType,NormalizedValue where IsActive = 1   # تحذير التكرار على طلب نشط آخر (V-REQ-04، R-REQ-02)
+  check IsActive = 0 OR SupersededById IS NULL
+  check SupersededById IS NULL OR SupersededById <> RequestExternalRefId
+
+# ============================== تنفيذ الطلب: المراحل والموافقات والسجل (WFL) ==============================
+module WFL
+
+table wfl.RequestStageInstance  # دخول طلب إلى مرحلة؛ مصدر مقاييس الأزمنة والسحب والـ SLA (BR-WFL-002/007/012، §8)
+  RequestId         ->wfl.Request req
+  StageId           ->wfl.WorkflowStage req
+  CycleNo           int        req =1
+  Status            enum{QUEUED,CLAIMED,AWAITING_APPROVAL,DONE,RETURNED,REJECTED,CANCELLED} req   # §8: مثيل المرحلة (المهمة المسندة مباشرة تُعدّ CLAIMED)
+  EnteredAt         ts         req
+  QueuedAt          ts
+  ClaimedAt         ts
+  ExitedAt          ts
+  ExitAction        enum{SUBMIT,APPROVE,COMPLETE,RETURN,REJECT,CANCEL,RESUBMIT}   # الإجراء الذي أنهى المرحلة
+  AssigneeUserId    ->sec.AppUser
+  DueAt             ts
+  ClaimDueAt        ts               # مهلة السحب (ClaimSlaHours) من QueuedAt (BR-WFL-012)
+  SlaPausedSeconds  int        req =0   # مجموع الإيقاف في حالات PausesSla (BR-WFL-010)
+  SlaState          enum{ON_TRACK,AT_RISK,OVERDUE,PAUSED,NONE} req =NONE
+  SlaMet            bool             # نتيجة SLA عند الخروج: 1 قبل DueAt · 0 بعده · فارغ بلا SLA (§8، R-WFL-01)
+  ReleaseCount      int        req =0   # التحرير لا يصفّر قِدَم الطابور (BR-WFL-007)
+  ReassignCount     int        req =0
+  ResumeStageId     ->wfl.WorkflowStage noidx   # مرحلة الاستئناف عند الإرجاع (FR-WFL-010)
+  unique RequestId where ExitedAt IS NULL   # مثيل مفتوح واحد لكل طلب (دورة خطية، D-8)
+  index RequestId,EnteredAt
+  index StageId,EnteredAt   # أزمنة الدورة لكل مرحلة (R-WFL-03)
+  index AssigneeUserId,Status where ExitedAt IS NULL   # حمل الموظفين ومهامي (R-WFL-05، BR-REQ-016)
+  index DueAt where ExitedAt IS NULL AND DueAt IS NOT NULL   # JOB-WFL-SLA
+  index ClaimDueAt where ExitedAt IS NULL AND ClaimDueAt IS NOT NULL
+  check (ExitedAt IS NULL AND ExitAction IS NULL AND Status IN ('QUEUED','CLAIMED','AWAITING_APPROVAL')) OR (ExitedAt IS NOT NULL AND ExitAction IS NOT NULL AND Status IN ('DONE','RETURNED','REJECTED','CANCELLED'))
+  check Status <> 'RETURNED' OR ExitAction = 'RETURN'
+  check Status <> 'REJECTED' OR ExitAction = 'REJECT'
+  check Status <> 'CANCELLED' OR ExitAction = 'CANCEL'
+  check Status <> 'QUEUED' OR AssigneeUserId IS NULL   # الطابور بلا مُسنَد (BR-WFL-007)
+  check Status <> 'CLAIMED' OR AssigneeUserId IS NOT NULL
+  check ClaimedAt IS NULL OR QueuedAt IS NOT NULL
+  check ExitedAt IS NULL OR ExitedAt >= EnteredAt
+  check QueuedAt IS NULL OR QueuedAt >= EnteredAt
+  check ClaimedAt IS NULL OR QueuedAt IS NULL OR ClaimedAt >= QueuedAt
+  check SlaPausedSeconds >= 0 AND ReleaseCount >= 0 AND ReassignCount >= 0
+  check CycleNo >= 1
+
+table wfl.RequestApproval  # خانة موافقة تُنشأ لكل دخول ودورة؛ الدورة الجديدة بخانات جديدة (BR-WFL-003، FR-WFL-007/008/011)
+  RequestId              ->wfl.Request req
+  StageInstanceId        ->wfl.RequestStageInstance via=RequestId req
+  CycleNo                int        req =1
+  SlotKey                ascii(30)  req   # StageApprover.SlotKey وقت الإنشاء
+  AssignedUserId         ->sec.AppUser    # مُسنَد مجمَّد (مدير الطالب · الطالب · مستخدم محدد) (BR-WFL-005)
+  AssignedRoleId         ->sec.Role       # أو مجموعة بدور
+  Decision               enum{PENDING,APPROVED,RETURNED,REJECTED,VOIDED,SUPERSEDED} req =PENDING   # §8
+  Source                 enum{USER,SUBMISSION,DELEGATE,SYSTEM}   # SUBMISSION لـ ORIGINATOR (BR-WFL-004)
+  ActedByUserId          ->sec.AppUser
+  OnBehalfOfUserId       ->sec.AppUser noidx   # المفوِّض عند التنفيذ نيابةً (FR-WFL-020، BR-WFL-021)
+  DelegationId           ->wfl.UserDelegation noidx   # التفويض الذي استُند إليه
+  ActedAt                ts
+  Comment                str(2000)
+  SnapshotHash           bin(32)          # بصمة ما رآه الموافق (BR-WFL-003)
+  ClientIp               ascii(45)        # عنوان الشبكة لعدم الإنكار (§12)
+  AckWarningsJson        json sens=confidential   # إقرار تحذيرات شروط العملية عند WARN (FR-REQ-014، BR-REQ-010)
+  AvailabilitySnapshotJson json sens=confidential   # ما أرجعته 12 للوحة التوفر لحظة الموافقة (FR-REQ-013)
+  OverrideRequested      bool       req =0   # طلب تجاوز الحد المُمرَّر إلى fac.reserve_limit (BR-WFL-016)
+  OverrideReason         str(500)
+  IsSodException         bool       req =0   # وسم استثناء فصل المهام (FR-WFL-041، BR-WFL-026)
+  unique StageInstanceId,SlotKey
+  index AssignedUserId,Decision where Decision = 'PENDING'   # «تنتظرني» (BR-REQ-016، FR-WFL-036)
+  index AssignedRoleId,Decision where Decision = 'PENDING'   # مجموعات الأدوار
+  index RequestId,CycleNo
+  index ActedAt where IsSodException = 1   # التقرير الخاص باستثناء فصل المهام (FR-WFL-041)
+  check (Decision = 'PENDING' AND ActedAt IS NULL) OR (Decision <> 'PENDING' AND ActedAt IS NOT NULL)
+  check AssignedUserId IS NOT NULL OR AssignedRoleId IS NOT NULL
+  check Decision NOT IN ('APPROVED','RETURNED','REJECTED') OR ActedByUserId IS NOT NULL
+  check Decision <> 'APPROVED' OR SnapshotHash IS NOT NULL   # BR-WFL-003
+  check Source <> 'DELEGATE' OR (DelegationId IS NOT NULL AND OnBehalfOfUserId IS NOT NULL)
+  check OverrideRequested = 0 OR OverrideReason IS NOT NULL   # السبب إلزامي (Q-WFL-07)
+  check CycleNo >= 1
+
+table wfl.RequestAction append  # سجل إجراءات للإضافة فقط يغطي كل حدث؛ غير AuditLog الأمني (FR-WFL-033/034، §6.2)
+  RequestId         ->wfl.Request req
+  StageInstanceId   ->wfl.RequestStageInstance via=RequestId
+  CycleNo           int
+  ActionType        enum{CREATED,SUBMITTED,RESUBMITTED,NUMBER_ASSIGNED,FIELD_EDITED,APPROVED,RETURNED,REJECTED,CANCELLED,STAGE_CHANGED,SUBSTATUS_CHANGED,CLAIMED,RELEASED,REASSIGNED,COMMENT_ADDED,ATTACHMENT_ADDED,ATTACHMENT_REMOVED,EXTREF_ADDED,EXTREF_CHANGED,HOOK_EXECUTED,HOOK_FAILED,SLA_AT_RISK,SLA_BREACHED,ESCALATED,DELEGATED_ACTION,CHILD_CREATED,PRIORITY_CHANGED,TEMPLATE_MIGRATED,RESERVATION_LOST,DRAFT_ARCHIVED,DRAFT_RESTORED,CHANNEL_CHANGED,SOD_EXCEPTION_USED,DELEGATION_CREATED,DELEGATION_REVOKED} req
+  FromStageKey      ascii(40)
+  ToStageKey        ascii(40)
+  ActorType         enum{USER,SYSTEM,SERVICE} req =USER   # SYSTEM للمهام (JOB-WFL-ASSIGN) وSERVICE لمحوّلات الربط (§11)
+  ActorUserId       ->sec.AppUser    # ActorId في المواصفة
+  OnBehalfOfUserId  ->sec.AppUser noidx
+  OccurredAt        ts         req =SYSUTCDATETIME()
+  Visibility        enum{INTERNAL,REQUESTER_VISIBLE} req =INTERNAL   # الخط الزمني للطالب يعرض الظاهر فقط (BR-WFL-024)
+  Comment           str(4000)        # سبب الإرجاع/الرفض/الإلغاء أو ملاحظة
+  MetaJson          json             # مصدر حل المُسنَد · مدة الحالة السابقة · نتيجة الخطاف (BR-WFL-005/010)
+  SnapshotJson      json sens=confidential   # لقطة النموذج عند التقديم وإعادته (FR-WFL-011)
+  CorrelationId     guid
+  IdempotencyKey    ascii(100)       # Idempotency-Key للإجراء: التكرار لا ينتج أثرًا ثانيًا (FR-WFL-035، BR-WFL-023)
+  IsSodException    bool       req =0   # وسم استثناء فصل المهام في سجل الطلب (FR-WFL-041)
+  unique RequestId,IdempotencyKey where IdempotencyKey IS NOT NULL
+  index RequestId,OccurredAt   # الخط الزمني للطلب (R-WFL-08)
+  index ActionType,OccurredAt   # عدّ الأحداث مقابل AuditLog (FR-WFL-034)
+  index CorrelationId where CorrelationId IS NOT NULL
+  check ActorType <> 'USER' OR ActorUserId IS NOT NULL
+  check ActionType NOT IN ('RETURNED','REJECTED') OR Comment IS NOT NULL   # السبب إلزامي (FR-WFL-010/012)
+
+table wfl.HookExecution  # تنفيذ خطاف بمفتاح عدم تكرار يعيد النتيجة المخزَّنة (FR-WFL-021، BR-WFL-015) -- جدول جديد
+  RequestId        ->wfl.Request req
+  StageInstanceId  ->wfl.RequestStageInstance via=RequestId req
+  HookKey          ascii(60)  req
+  TriggerKind      enum{ON_ENTER,ON_EXIT,ON_ACTION} req
+  ActionFilter     enum{SUBMIT,APPROVE,COMPLETE,RETURN,REJECT,CANCEL,RESUBMIT}
+  ExecMode         enum{SYNC_TX,AFTER_COMMIT} req
+  OnFailure        enum{BLOCK,WARN} req
+  Status           enum{PENDING,SUCCEEDED,FAILED,GAVE_UP} req =PENDING   # GAVE_UP بعد 5 محاولات AFTER_COMMIT ثم ينبَّه TM
+  AttemptCount     int        req =0
+  IdempotencyKey   ascii(100)       # المفتاح المُمرَّر إلى fac.* وlc.* (§5.4)
+  ResultJson       json             # النتيجة المخزَّنة: ReservationId · UtilizationId · LcId …
+  ErrorCode        ascii(60)        # INSUFFICIENT_AVAILABLE · LIMIT_NOT_ACTIVE · …
+  LastError        str(1000)
+  ExecutedAt       ts
+  NextAttemptAt    ts
+  TmNotifiedAt     ts
+  unique RequestId,StageInstanceId,HookKey,TriggerKind   # المفتاح (RequestId, HookKey, StageInstanceId, Trigger)
+  index Status,NextAttemptAt where Status = 'FAILED' AND ExecMode = 'AFTER_COMMIT'   # إعادة المحاولة
+  index HookKey,ExecutedAt
+  check AttemptCount >= 0
+  check Status <> 'SUCCEEDED' OR ExecutedAt IS NOT NULL
+  check Status <> 'GAVE_UP' OR (ExecMode = 'AFTER_COMMIT' AND AttemptCount >= 5)
+
+table wfl.UserDelegation public  # تفويض مهام بفترة ونطاق؛ لا تفويض متسلسل (FR-WFL-020، BR-WFL-021، V-WFL-06)
+  FromUserId      ->sec.AppUser req   # المفوِّض
+  ToUserId        ->sec.AppUser req   # المفوَّض
+  StartsOn        date       req
+  EndsOn          date       req   # أقصى مدة 90 يومًا قابلة للضبط (BR-WFL-021، BR-WFL-025) يتحقق منها التطبيق
+  Scope           enum{ALL,APPROVALS_ONLY,REQUEST_TYPE} req =ALL
+  RequestTypeId   ->wfl.RequestType noidx
+  Reason          str(500)
+  Status          enum{SCHEDULED,ACTIVE,ENDED,REVOKED} req =SCHEDULED   # §8، JOB-WFL-DELEGATION
+  RevokedAt       ts               # الإلغاء فوري (BR-WFL-021)
+  RevokedBy       ->sec.AppUser
+  unique PublicId
+  index FromUserId,Status
+  index ToUserId,StartsOn,EndsOn where Status = 'ACTIVE'   # مهام المفوِّض للمفوَّض في فترة التفويض فقط (FR-WFL-036)
+  index Status,StartsOn,EndsOn where Status IN ('SCHEDULED','ACTIVE')   # JOB-WFL-DELEGATION
+  check FromUserId <> ToUserId   # لا تفويض لنفسه
+  check EndsOn >= StartsOn
+  check (Scope = 'REQUEST_TYPE' AND RequestTypeId IS NOT NULL) OR (Scope <> 'REQUEST_TYPE' AND RequestTypeId IS NULL)
+  check (Status = 'REVOKED' AND RevokedAt IS NOT NULL) OR (Status <> 'REVOKED' AND RevokedAt IS NULL)
+
+# ============================== الإشعارات (NTF): الكتالوج والقواعد والقوالب والتفضيلات ==============================
+module NTF
+
+table ntf.NotificationEventType int  # كتالوج الأحداث؛ تملكه 13 لكل الوحدات وتبذر فيه الوحدات أحداثها (FR-NTF-001، §9.2، §9.2-ب)
+  Code                     ascii(60)  req   # مثل REQ.APPROVAL_NEEDED · LC.ISSUED · FAC.EXPIRY_DUE
+  OwnerModule              ascii(20)  req   # WFL · REQ · LCI · LCE · FAC · OBL · COL · CMP · FIN · ORG · PTY · ACC · INS · CAT · PLT · NTF (قد يتعدد في §9.2)
+  GroupKey                 ascii(30)  req   # مجموعة التفضيلات والملخصات (FR-NTF-010)
+  NameAr                   str(200)
+  NameEn                   str(200)
+  DefaultSeverity          enum{INFO,WARNING,HIGH} req =INFO
+  IsMandatory              bool       req =0   # «إ»: لا إيقاف في التطبيق؛ المصدر الوحيد للعلم (BR-NTF-003)
+  IsActionRequired         bool       req =0   # «ط»: ينشئ إشعار «يلزم إجراء» (BR-NTF-007)
+  DefaultChannels          json             # مثل ["IN_APP","EMAIL"] (BR-NTF-014)
+  AllowedPlaceholdersJson  json             # القائمة البيضاء للعناصر النائبة (BR-NTF-008، V-NTF-01)
+  DedupWindowMinutes       int
+  CoalesceWindowMinutes    int              # دمج الأحداث المتقاربة (BR-NTF-005)
+  SeedKey                  ascii(80)
+  unique Code
+  unique SeedKey where SeedKey IS NOT NULL
+  index GroupKey
+  index OwnerModule
+  check Code LIKE '%.%'
+  check NameAr IS NOT NULL OR NameEn IS NOT NULL
+  check DedupWindowMinutes IS NULL OR DedupWindowMinutes >= 0
+  check CoalesceWindowMinutes IS NULL OR CoalesceWindowMinutes = 0 OR (IsMandatory = 0 AND DefaultSeverity <> 'HIGH')   # الإلزامي وعالي الشدة لا يُجمَّع (BR-NTF-005)
+
+table ntf.NotificationRule int  # قاعدة مستلمين لحدث؛ التعديل يسري على الأحداث التالية فقط (FR-NTF-003، BR-NTF-001، V-NTF-02)
+  EventTypeId           ->ntf.NotificationEventType req
+  RecipientKind         enum{ROLE,PERMISSION,USER,REQUESTER,REQUESTER_MANAGER,ASSIGNEE,STAGE_APPROVERS,DEPARTMENT_HEAD} req
+  RoleId                ->sec.Role         # RecipientRef للنوع ROLE
+  PermissionId          ->sec.Permission   # RecipientRef للنوع PERMISSION (مثل req.claim)
+  UserId                ->sec.AppUser      # RecipientRef للنوع USER
+  ConditionJson         json
+  RequireCompanyScope   bool       req =1   # الحدث بلا شركة يتجاوز الخطوة (BR-NTF-001)
+  ChannelsOverride      json
+  IsMandatory           bool       req =0   # لا يزيله TA (V-NTF-02)
+  IsActive              bool       req =1
+  SeedKey               ascii(80)
+  unique SeedKey where SeedKey IS NOT NULL
+  index EventTypeId,IsActive
+  check (RecipientKind = 'ROLE' AND RoleId IS NOT NULL AND PermissionId IS NULL AND UserId IS NULL) OR (RecipientKind = 'PERMISSION' AND PermissionId IS NOT NULL AND RoleId IS NULL AND UserId IS NULL) OR (RecipientKind = 'USER' AND UserId IS NOT NULL AND RoleId IS NULL AND PermissionId IS NULL) OR (RecipientKind NOT IN ('ROLE','PERMISSION','USER') AND RoleId IS NULL AND PermissionId IS NULL AND UserId IS NULL)
+  check IsMandatory = 0 OR IsActive = 1   # المستلم الإلزامي لا يُعطَّل (V-NTF-02)
+
+table ntf.NotificationTemplate int deletable  # قالب رسالة لكل (حدث، قناة، لغة)؛ الحذف = العودة إلى قالب البذرة (FR-NTF-012، FR-NTF-025)
+  EventTypeId       ->ntf.NotificationEventType req
+  Channel           enum{IN_APP,EMAIL} req
+  Lang              enum{ar,en} req
+  SubjectTemplate   str(300)   req   # عنوان الإشعار؛ عناصر نائبة من القائمة البيضاء فقط
+  BodyTemplate      text       req
+  IsTenantOverride  bool       req =0   # 0 = بذرة المنصة · 1 = تجاوز المشترك
+  unique EventTypeId,Channel,Lang,IsTenantOverride
+
+table ntf.NotificationPreference  # تفضيل المستخدم لكل مجموعة أحداث وقناة (FR-NTF-010، BR-NTF-003/014)؛ الإلزامي لا يُوقَف في التطبيق
+  UserId    ->sec.AppUser req
+  GroupKey  ascii(30)  req   # = NotificationEventType.GroupKey
+  Channel   enum{IN_APP,EMAIL} req
+  Mode      enum{IMMEDIATE,DIGEST_DAILY,DIGEST_WEEKLY,OFF} req =IMMEDIATE
+  unique UserId,GroupKey,Channel
+
+# ============================== الإشعارات (NTF): الإصدار والتسليم والملخصات ==============================
+
+table ntf.DigestBatch  # دفعة ملخص لمستخدم وقناة وفترة؛ لا يُرسل فارغًا (FR-NTF-014، BR-NTF-004، JOB-NTF-DIGEST) -- جدول جديد يحل DigestBatchId
+  UserId            ->sec.AppUser req
+  Channel           enum{IN_APP,EMAIL} req =EMAIL
+  Kind              enum{DAILY,WEEKLY} req   # يوميًا 07:30 وأسبوعيًا الأحد 07:30 بتوقيت المشترك (Q-NTF-02)
+  PeriodStart       ts         req
+  PeriodEnd         ts         req
+  Status            enum{PENDING,SENT,SKIPPED_EMPTY,FAILED} req =PENDING
+  ItemCount         int        req =0
+  GroupSummaryJson  json             # لكل مجموعة: عدّاد وأعلى 5 عناصر ورابط (BR-NTF-004)
+  ScheduledFor      ts
+  SentAt            ts
+  unique UserId,Channel,Kind,PeriodEnd   # مفتاح عدم تكرار المهمة (§9.3)
+  index Status,ScheduledFor where Status = 'PENDING'
+  check PeriodEnd > PeriodStart
+  check ItemCount >= 0
+  check Status <> 'SENT' OR (SentAt IS NOT NULL AND ItemCount > 0)   # لا ملخص فارغ مُرسَل
+  check Status <> 'SKIPPED_EMPTY' OR ItemCount = 0
+
+table ntf.Notification public  # إشعار لمستخدم؛ المحتوى بلا قيم مقيّدة (FR-NTF-005/006/007/021، BR-NTF-001/002/007/008/011)
+  UserId            ->sec.AppUser req
+  EventTypeId       ->ntf.NotificationEventType req
+  CompanyId         ->org.Company noidx   # فارغ للحدث بلا شركة
+  Severity          enum{INFO,WARNING,HIGH} req
+  Title             str(300)   req   # بلغة المستلم من القالب (FR-NTF-024)
+  Body              str(2000)  req
+  TargetEntityType  ascii(60)  req   # هدف الرابط العميق؛ يتحقق من الصلاحية عند الفتح (FR-NTF-005)
+  TargetEntityId    bigint     req
+  DeepLink          str(300)
+  ActionRequired    bool       req =0
+  ActionState       enum{NONE,OPEN,RESOLVED} req =NONE   # §8؛ RESOLVED لا يُحتسب في «يلزم إجراء» (BR-NTF-007)
+  ResolvedAt        ts
+  ReadAt            ts               # القراءة: UNREAD → READ → ARCHIVED (§8)
+  ArchivedAt        ts               # الإلزامي غير المقروء لا يُؤرشف آليًا (BR-NTF-011)
+  DedupKey          ascii(200)       # {EventCode}:{TargetType}:{TargetId}:{Threshold|Cycle}:{ItemVersion} (BR-NTF-002)
+  CoalescedCount    int        req =1   # دمج 15 دقيقة (BR-NTF-005)
+  ReminderCount     int        req =0   # تذكير 24/48/72 ساعة عمل بحد 3 (BR-NTF-006)
+  NextReminderAt    ts               # يحسبها AddBusinessHours؛ المهمة تعتمد حدثًا مخزَّنًا (BR-NTF-010)
+  PayloadJson       json             # معرّفات فقط (FR-NTF-002/021)
+  SourceEventId     guid             # = cfg.OutboxEvent.MessageId؛ بلا FK لأن الصندوق قابل للحذف
+  unique PublicId
+  unique UserId,DedupKey where DedupKey IS NOT NULL   # لا تكرار لمستلم (BR-NTF-002، AC-WFL-8)
+  index UserId,ReadAt,CreatedAt   # الجرس وعدّاد غير المقروء (§6.3)
+  index UserId,TargetEntityType,TargetEntityId where ReadAt IS NULL   # فتح الهدف يقرأ إشعاراته (FR-NTF-006)
+  index UserId,ActionState,CreatedAt where ActionState = 'OPEN'   # عدّاد «يلزم إجراء» (FR-NTF-006)
+  index TargetEntityType,TargetEntityId where ActionState = 'OPEN'   # حل الإشعارات عند إنجاز المهمة من أي مؤهل (FR-NTF-007)
+  index NextReminderAt where ActionState = 'OPEN' AND NextReminderAt IS NOT NULL   # JOB-NTF-REMIND
+  index ReadAt where ReadAt IS NOT NULL AND ArchivedAt IS NULL   # JOB-NTF-RETENTION: أرشفة بعد 180 يومًا (FR-NTF-020)
+  index UserId,EventTypeId,CreatedAt   # دمج الأحداث المتقاربة (BR-NTF-005)
+  check (ActionRequired = 0 AND ActionState = 'NONE') OR (ActionRequired = 1 AND ActionState IN ('OPEN','RESOLVED'))
+  check (ActionState = 'RESOLVED' AND ResolvedAt IS NOT NULL) OR (ActionState <> 'RESOLVED' AND ResolvedAt IS NULL)
+  check CoalescedCount >= 1
+  check ReminderCount >= 0 AND ReminderCount <= 3
+  check NextReminderAt IS NULL OR ActionState = 'OPEN'
+
+table ntf.NotificationDelivery  # تسليم الإشعار لكل قناة بحالاته وإعادة المحاولة (FR-NTF-019، BR-NTF-009، §8)
+  NotificationId     ->ntf.Notification req
+  Channel            enum{IN_APP,EMAIL} req
+  Status             enum{PENDING,SENT,FAILED,DEAD,SUPPRESSED,DIGESTED} req =PENDING
+  Attempts           int        req =0   # التراجع: 1د · 5د · 30د · 2س · 12س ثم DEAD (BR-NTF-009)
+  NextAttemptAt      ts
+  SentAt             ts
+  DigestBatchId      ->ntf.DigestBatch
+  ProviderMessageId  ascii(200)
+  LastError          str(500)         # بلا بيانات شخصية
+  unique NotificationId,Channel   # تسليم واحد لكل قناة
+  index Status,NextAttemptAt where Status IN ('PENDING','FAILED')   # JOB-NTF-DISPATCH
+  index Channel,Status,CreatedAt   # سجل الإشعارات والتسليم (R-NTF-01)
+  index CreatedAt where Status = 'DEAD'   # شاشة الإخفاقات (R-NTF-02، NTF.DELIVERY_DEAD)
+  check Attempts >= 0
+  check Status = 'SENT' OR SentAt IS NULL
+  check Status <> 'SENT' OR SentAt IS NOT NULL
+  check Status <> 'FAILED' OR NextAttemptAt IS NOT NULL
+  check Status <> 'DIGESTED' OR DigestBatchId IS NOT NULL
+  check DigestBatchId IS NULL OR Status IN ('DIGESTED','SENT')

@@ -203,7 +203,7 @@ def expand(tables):
             extra += [mkcol('FromRevision','int',w,True,'1'), mkcol('ToRevision','int',w), mkcol('SupersedesId',None,w,fk=t.fq)]
         if 'src' in f:
             extra += [mkcol('SourceDocumentId',None,w,fk='doc.Document'), mkcol('SourcePage','ascii(40)',w), mkcol('ReadFromScan','bool',w,True,'0'),
-                      mkcol('OriginalText','str(2000)',w), mkcol('Confidence','enum{CONFIRMED_AGAINST_ORIGINAL,READ_FROM_SCAN_UNVERIFIED,ENTERED_NO_DOCUMENT}',w,True,'ENTERED_NO_DOCUMENT'),
+                      mkcol('OriginalText','str(2000)',w), mkcol('NoSourceReason','str(300)',w), mkcol('Confidence','enum{CONFIRMED_AGAINST_ORIGINAL,READ_FROM_SCAN_UNVERIFIED,ENTERED_NO_DOCUMENT}',w,True,'ENTERED_NO_DOCUMENT'),
                       mkcol('VerifiedBy',None,w,fk='sec.AppUser'), mkcol('VerifiedOn','ts',w), mkcol('ConflictId',None,w,fk='fac.ValueConflict')]
         for c in extra:
             if c.name not in t.colmap: t.cols.append(c); t.colmap[c.name] = c
@@ -293,7 +293,10 @@ def check_names(tables):
 
 # ----------------------------------------------------------------------------- emitters
 def q_ms(n): return f'[{n}]'
-def q_pg(n): return f'"{n}"'
+import hashlib
+def q_pg(n):
+    if len(n) > 60: n = n[:50] + '_' + hashlib.md5(n.encode()).hexdigest()[:8]
+    return f'"{n}"'
 
 def coltype_sql(c, dialect):
     return c.sqltype if dialect == 'ms' else c.pgtype
@@ -347,7 +350,10 @@ class Emitter:
                 nm = self.reg(t.schema, self.scope_uq_name(t, via), t.fq)
                 cols = (['TenantId'] if tenant else []) + list(via) + [idc]
                 p['uqs'].append((nm, cols, None))
+            if 'public' in t.flags:
+                p['uqs'].append((self.reg(t.schema, f'UQ_{t.name}_PublicId', t.fq), ['PublicId'], None))
             for cols, inc, wh, where in t.uniques:
+                if cols == ['PublicId'] and 'public' in t.flags: continue
                 full = (['TenantId'] if tenant else []) + cols
                 nm = self.reg(t.schema, f'UQ_{t.name}_' + '_'.join(cols), where)
                 p['uqs'].append((nm, full, wh))
@@ -356,6 +362,9 @@ class Emitter:
                 nm = self.reg(t.schema, f'IX_{t.name}_' + '_'.join(cols), where)
                 p['idx'].append((nm, full, inc, wh))
             # FKs
+            if tenant and 'plat.Tenant' in self.tables:
+                tt = self.tables['plat.Tenant']
+                p['fks'].append((self.reg(t.schema, f'FK_{t.name}_Tenant', t.fq), ['TenantId'], tt, ['TenantId'], Col('TenantId')))
             for c in t.cols:
                 if not c.fk: continue
                 tgt = self.tables.get(c.fk)
@@ -509,15 +518,15 @@ class Emitter:
 
 def pg_expr(e):
     """quote bare identifiers (PascalCase column names) for PostgreSQL"""
-    kw = {'AND','OR','NOT','IS','NULL','IN','LIKE','BETWEEN','CASE','WHEN','THEN','ELSE','END','TRUE','FALSE','LEN','ABS','LOWER','UPPER'}
+    funcs = {'LEN': 'length', 'ABS': 'abs', 'LOWER': 'lower', 'UPPER': 'upper', 'LTRIM': 'ltrim', 'RTRIM': 'rtrim'}
+    kw = {'AND','OR','NOT','IS','NULL','IN','LIKE','BETWEEN','CASE','WHEN','THEN','ELSE','END','TRUE','FALSE'}
     def sub(m):
         w = m.group(0)
-        if w.upper() in kw: return w.lower() if w.upper() in ('LEN',) else w
+        if w.upper() in funcs and re.match(r'\s*\(', e[m.end():m.end()+3]): return funcs[w.upper()]
+        if w.upper() in kw: return w
         if re.match(r'^\d', w): return w
         return f'"{w}"'
-    s = re.sub(r"('[^']*')|\b[A-Za-z_]\w*\b", lambda m: m.group(1) if m.group(1) else sub(m), e)
-    s = s.replace('LEN(', 'length(')
-    return s
+    return re.sub(r"('[^']*')|\b[A-Za-z_]\w*\b", lambda m: m.group(1) if m.group(1) else sub(m), e)
 
 # ----------------------------------------------------------------------------- ordering & docs
 def order_tables(tables):
@@ -627,7 +636,7 @@ def main():
     pg_t, pg_fk, pg_idx = em2.emit_pg(P, order)
     out = a.out; os.makedirs(os.path.join(out, 'tsql'), exist_ok=True); os.makedirs(os.path.join(out, 'pg'), exist_ok=True)
     schemas = sorted({t.schema for t in tables.values()})
-    hdr = '/* مُولَّد آليًا من نموذج البيانات (tools/dbgen) — لا يُعدَّل يدويًا؛ عدِّل النموذج وأعد التوليد. */\nSET NOCOUNT ON;\nSET XACT_ABORT ON;\nGO\n'
+    hdr = '/* مُولَّد آليًا من نموذج البيانات (tools/dbgen) — لا يُعدَّل يدويًا؛ عدِّل النموذج وأعد التوليد. */\nSET NOCOUNT ON;\nSET XACT_ABORT ON;\nSET ANSI_NULLS ON; SET QUOTED_IDENTIFIER ON; SET ANSI_PADDING ON; SET ANSI_WARNINGS ON; SET ARITHABORT ON; SET CONCAT_NULL_YIELDS_NULL ON; SET NUMERIC_ROUNDABORT OFF;  -- مطلوبة للفهارس المصفّاة والأعمدة المحسوبة المخزَّنة (sqlcmd يفترض QUOTED_IDENTIFIER OFF)\nGO\n'
     w = lambda p, s: open(os.path.join(out, p), 'w', encoding='utf-8').write(s)
     w('tsql/000_schemas.sql', hdr + 'GO\n'.join(f"IF SCHEMA_ID(N'{s}') IS NULL EXEC(N'CREATE SCHEMA [{s}] AUTHORIZATION dbo;');\n" for s in schemas) + 'GO\n')
     by_schema = collections.OrderedDict()
@@ -639,8 +648,9 @@ def main():
     rls_rows = [(t.schema, t.name, 1 if t.is_mixed else 0) for t in tables.values() if t.tenant_scoped]
     deletable = [(t.schema, t.name) for t in tables.values() if 'deletable' in t.flags]
     w('tsql/004_rls_tables.sql', hdr + "/* قائمة الجداول الخاضعة لعزل الصفوف (يولّدها النموذج)؛ يستهلكها 004_rls.sql */\nIF OBJECT_ID(N'tempdb..#rls_tables') IS NOT NULL DROP TABLE #rls_tables;\nCREATE TABLE #rls_tables (SchemaName sysname NOT NULL, TableName sysname NOT NULL, IsMixed bit NOT NULL);\n" + ''.join(f"INSERT #rls_tables VALUES (N'{a_}', N'{b_}', {c_});\n" for a_, b_, c_ in rls_rows) + 'GO\n')
-    w('tsql/005_delete_grants.sql', hdr + "/* الجداول المسموح للتطبيق بالحذف الفعلي منها (علامة deletable في النموذج)؛ بقية الجداول DENY DELETE */\n" + ''.join(f"GRANT DELETE ON [{a_}].[{b_}] TO [tp_app];\n" for a_, b_ in deletable) + 'GO\n')
-    sens_rows = [(t.schema, t.name, c.name, c.sens) for t in tables.values() for c in t.cols if c.sens]
+    append_only = [(t.schema, t.name) for t in tables.values() if 'append' in t.flags and t.schema != 'aud']   # aud.* يكفيه منح SELECT, INSERT على المخطط
+    w('tsql/005_delete_grants.sql', hdr + "/* (1) الجداول المسموح للتطبيق بالحذف الفعلي منها (علامة deletable في النموذج)؛ بقية الجداول بلا صلاحية حذف أصلًا.\n   (2) جداول الإضافة فقط (append) خارج aud: DENY UPDATE على التطبيق والمنصة فيصير «للإضافة فقط» مفروضًا بالصلاحيات لا بالعُرف. */\n" + ''.join(f"GRANT DELETE ON [{a_}].[{b_}] TO [tp_app];\n" for a_, b_ in deletable) + ''.join(f"DENY UPDATE ON [{a_}].[{b_}] TO [tp_app], [tp_platform];\n" for a_, b_ in append_only) + 'GO\n')
+    sens_rows = [(t.schema, t.name, c.name, c.sens) for t in tables.values() for c in t.cols if c.sens == 'restricted']
     w('tsql/006_sensitive_columns.sql', hdr + "/* حجب الأعمدة الحساسة (sens في النموذج) عن دور القراءة/التقارير tp_readonly؛ تقرؤها طبقة التطبيق عبر tp_app فقط */\n" + ''.join(f"DENY SELECT ON [{a_}].[{b_}]([{c_}]) TO [tp_readonly]; -- {d_}\n" for a_, b_, c_, d_ in sens_rows) + 'GO\n')
     if a.docs:
         os.makedirs(a.docs, exist_ok=True)

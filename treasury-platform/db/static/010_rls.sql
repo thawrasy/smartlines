@@ -5,6 +5,7 @@
            أعضاء دور tp_platform (المشغّل) يتجاوزون العزل لأعمال المنصة فقط.
    ============================================================================ */
 SET NOCOUNT ON;
+SET ANSI_NULLS ON; SET QUOTED_IDENTIFIER ON; SET ANSI_PADDING ON; SET ANSI_WARNINGS ON; SET ARITHABORT ON; SET CONCAT_NULL_YIELDS_NULL ON; SET NUMERIC_ROUNDABORT OFF;  -- سياسات RLS والإجراءات تحفظ هذه الخيارات عند الإنشاء
 GO
 IF SCHEMA_ID(N'rls') IS NULL EXEC(N'CREATE SCHEMA [rls] AUTHORIZATION dbo;');
 GO
@@ -33,8 +34,35 @@ AS RETURN
     WHERE (@TenantId IS NOT NULL AND @TenantId = CAST(SESSION_CONTEXT(N'TenantId') AS INT))
        OR IS_MEMBER(N'tp_platform') = 1;
 GO
+-- سجل التدقيق aud.AuditLog: سياسة خاصة (BR-PLT-001/009)
+--   القراءة: المشترك يرى صفوفه فقط؛ صفوف TenantId = NULL (أحداث المنصة) لأعضاء tp_platform فقط.
+--   الكتابة (إدراج فقط): TenantId الخاص بالمشترك أو NULL لحدث منصة؛ لا تعديل ولا حذف (DENY في 005/020).
+CREATE OR ALTER FUNCTION rls.fn_AuditRead (@TenantId INT)
+RETURNS TABLE WITH SCHEMABINDING
+AS RETURN
+    SELECT 1 AS AccessOk
+    WHERE (@TenantId IS NOT NULL AND @TenantId = CAST(SESSION_CONTEXT(N'TenantId') AS INT))
+       OR IS_MEMBER(N'tp_platform') = 1;
+GO
+CREATE OR ALTER FUNCTION rls.fn_AuditWrite (@TenantId INT)
+RETURNS TABLE WITH SCHEMABINDING
+AS RETURN
+    SELECT 1 AS AccessOk
+    WHERE @TenantId IS NULL
+       OR @TenantId = CAST(SESSION_CONTEXT(N'TenantId') AS INT)
+       OR IS_MEMBER(N'tp_platform') = 1;
+GO
+IF EXISTS (SELECT 1 FROM sys.security_policies sp WHERE sp.name = N'TP_aud_AuditLog' AND sp.schema_id = SCHEMA_ID(N'rls'))
+    DROP SECURITY POLICY rls.[TP_aud_AuditLog];
+GO
+CREATE SECURITY POLICY rls.[TP_aud_AuditLog]
+    ADD FILTER PREDICATE rls.fn_AuditRead(TenantId) ON [aud].[AuditLog],
+    ADD BLOCK  PREDICATE rls.fn_AuditWrite(TenantId) ON [aud].[AuditLog] AFTER INSERT
+    WITH (STATE = ON);
+GO
 DECLARE @s sysname, @t sysname, @m bit, @pol sysname, @obj nvarchar(300), @sql nvarchar(max);
-DECLARE c CURSOR LOCAL FAST_FORWARD FOR SELECT SchemaName, TableName, IsMixed FROM #rls_tables;
+DECLARE c CURSOR LOCAL FAST_FORWARD FOR SELECT SchemaName, TableName, IsMixed FROM #rls_tables
+    WHERE NOT (SchemaName = N'aud' AND TableName = N'AuditLog');   -- له سياسة خاصة أعلاه
 OPEN c; FETCH NEXT FROM c INTO @s, @t, @m;
 WHILE @@FETCH_STATUS = 0
 BEGIN

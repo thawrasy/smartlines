@@ -1,0 +1,451 @@
+# =============================================================================
+# 11-organization-party.model  --  A2: الهيكل المؤسسي (org) + الأشخاص والجهات (pty)
+# المصدر: docs/10-detailed-analysis/10-m0-m1-platform-organization.md (6.2 و6.3) + docs/05-kyc-forms-analysis.md (G-1..G-9, G-11..G-15)
+# قرارات: SQL Server 2025 · قاعدة واحدة بعزل صفوف (TenantId تلقائي، مفاتيح مركّبة) · أرقام الهوية مشفّرة (NumberEnc/NumberMask/NumberHash)
+# الصور والمستندات = صفوف doc.Document (DocumentLink) · التواريخ ميلادي + نص هجري حيث تنص المواصفة · لا حذف فعلي إلا للجداول deletable
+# مراجع خارجية (يعرّفها غيري): sec.AppUser · doc.Document · ref.Country · ref.Currency · cat.LegalEntityType · cat.Position
+#   cat.PowerType · cat.LookupItem · ins.Institution
+# =============================================================================
+
+module ORG
+
+table org.Company public  # الشركة: جذر الهيكل المؤسسي (FR-ORG-001..010، BR-ORG-001..004)
+  CompanyCode        ascii(20)  req   # رمز داخلي فريد في المشترك (BR-ORG-001)
+  NameAr             str(200)   req
+  NameEn             str(200)   req
+  PartyId            ->pty.Party req  # Party المرآة تُنشأ آليًا وتبقى للقراءة (FR-PTY-003، BR-PTY-018)
+  LegalEntityTypeId  ->cat.LegalEntityType req  # الشكل القانوني؛ توافق دولته مع CountryId في التطبيق (BR-ORG-016)
+  IsHolding          bool       req =0   # قابضة: علم مستقل عن الشكل القانوني (FR-ORG-003، BR-ORG-003)
+  ParentCompanyId    ->org.Company       # الأم؛ منع الحلقات والعمق الأقصى 10 في التطبيق (FR-ORG-004، BR-ORG-002)
+  CountryId          ->ref.Country req   # بلد التأسيس
+  Status             enum{ACTIVE,DORMANT,LIQUIDATED,ARCHIVED} req =ACTIVE  # الأرشفة ممنوعة مع استخدام نشط (FR-ORG-010)
+  EstablishedOn      date               # تاريخ التأسيس
+  CrNumber           ascii(30)          # رقم السجل التجاري (FR-ORG-005)
+  CrDate             date
+  CrDateHijriText    str(20)            # التاريخ الهجري كما في الوثيقة (X-DAT-2)
+  TaxNumber          ascii(30)          # الرقم الضريبي؛ التفصيل الضريبي (FATCA/CRS) في pty.TaxIdentity
+  ErpCompanyCode     str(20)            # رمز ERP يدوي بعد التقليم؛ يحمله رقم البروفورما {seq}-{erp}-{yy} (BR-ORG-001)
+  ErpCodeNormalized  str(20)            # مشتق مخزَّن: تقليم + حروف كبيرة + حذف الفراغات (=صيغة BR-LCE-002)
+  FiscalYearEndMonth tinyint    req     # 1..12 (FR-ORG-006، BR-ORG-004)
+  FiscalYearEndDay   tinyint            # فارغ = آخر الشهر
+  BaseCurrencyId     ->ref.Currency     # العملة الأساسية (FR-ORG-008)؛ المواصفة تسميه BaseCurrencyCode
+  OwnershipStatus    enum{COMPLETE,UNDOCUMENTED} req =UNDOCUMENTED  # اكتمال توثيق الملكية (FR-ORG-016)
+  unique CompanyCode                      # BR-ORG-001
+  unique PartyId                          # مرآة واحدة لكل شركة
+  unique CountryId,CrNumber where CrNumber IS NOT NULL AND Status <> 'ARCHIVED'   # السجل التجاري فريد ضمن الدولة لغير المؤرشفة
+  unique ErpCodeNormalized where ErpCodeNormalized IS NOT NULL AND Status <> 'ARCHIVED'  # BR-ORG-001: قاعدة PROFORMA؛ التحذير حين لا يُفعَّل التسلسل في التطبيق
+  index  Status,CountryId
+  index  ParentCompanyId
+  index  LegalEntityTypeId
+  check  FiscalYearEndMonth BETWEEN 1 AND 12
+  check  FiscalYearEndDay IS NULL OR FiscalYearEndDay BETWEEN 1 AND 31
+  check  ParentCompanyId IS NULL OR ParentCompanyId <> CompanyId   # لا أم ذاتية (الحلقات غير المباشرة في التطبيق)
+  check  ErpCompanyCode IS NULL OR ErpCodeNormalized IS NOT NULL   # المطبَّع يُحسب عند كل كتابة
+
+table org.CompanyTaxRate  # نسبة ضريبة بتاريخ سريان؛ CompanyId فارغ = افتراضي المشترك (FR-ORG-007، BR-ORG-005)
+  CompanyId      ->org.Company
+  TaxCode        ascii(20)  req   # مثل VAT
+  RatePercent    rate       req   # نقاط مئوية
+  EffectiveFrom  date       req
+  EffectiveTo    date             # صف جديد يغلق السابق بيوم قبل بدايته
+  unique CompanyId,TaxCode,EffectiveFrom
+  unique CompanyId,TaxCode where EffectiveTo IS NULL   # صف مفتوح واحد لكل (شركة، رمز ضريبة)؛ عدم التداخل في التطبيق
+  check  RatePercent >= 0 AND RatePercent <= 100
+  check  EffectiveTo IS NULL OR EffectiveTo >= EffectiveFrom
+
+table org.Department  # الإدارة (FR-ORG-014، BR-ORG-016، Q-ORG-09: على مستوى المشترك وشركة اختيارية)
+  Code               ascii(20)  req
+  NameAr             str(200)   req
+  NameEn             str(200)   req
+  Function           enum{PROCUREMENT,SALES,TREASURY,FINANCE,OTHER} req
+  IsTreasury         bool       req =0   # يُنصح بإدارة واحدة على الأقل (تحذير في التطبيق)
+  CompanyId          ->org.Company
+  ParentDepartmentId ->org.Department
+  HeadUserId         ->sec.AppUser
+  IsActive           bool       req =1   # تعطيل إدارة فيها مستخدمون يُرفض في التطبيق
+  SeedKey            ascii(80)
+  unique Code
+  unique SeedKey where SeedKey IS NOT NULL
+  check  ParentDepartmentId IS NULL OR ParentDepartmentId <> DepartmentId
+
+table org.Shareholding  # حصة ملكية بتاريخ سريان؛ المالك Party فرد أو جهة (FR-ORG-015..018، BR-ORG-006..008، G-7)
+  CompanyId          ->org.Company req
+  HolderPartyId      ->pty.Party req
+  SharePercent       rate       req   # (0,100]؛ مجموع الحصص السارية بمستوى Layer=1 = 100 تتحقق منه المعاملة (BR-ORG-006)
+  SharesCount        dec(19,4)
+  NominalValue       money            # القيمة الاسمية للسهم
+  CurrencyId         ->ref.Currency   # عملة القيمة الاسمية (إلزامية عند وجودها)
+  Layer              tinyint    req =1  # 1 = مالك مباشر؛ 2.. = غير مباشر عبر كيانات وسيطة (G-7)
+  IsBeneficialOwner  bool       req =0  # مستفيد حقيقي >= 25% أو تحكم (G-7)
+  EffectiveFrom      date       req
+  EffectiveTo        date             # القديم يُغلق بيوم قبل السريان الجديد (BR-ORG-007)
+  SourceDocumentId   ->doc.Document
+  unique CompanyId,HolderPartyId,Layer,EffectiveFrom
+  unique CompanyId,HolderPartyId,Layer where EffectiveTo IS NULL   # صف مفتوح واحد لكل مالك/طبقة؛ عدم التداخل التام في التطبيق
+  index  CompanyId,EffectiveTo include HolderPartyId,SharePercent,Layer   # عرض الملكية بتاريخ وفحص الـ100%
+  index  HolderPartyId,EffectiveTo   # ملكيات الشخص (دور مالك، FR-PTY-017)
+  check  SharePercent > 0 AND SharePercent <= 100
+  check  EffectiveTo IS NULL OR EffectiveTo >= EffectiveFrom
+  check  Layer >= 1
+  check  SharesCount IS NULL OR SharesCount > 0
+  check  NominalValue IS NULL OR (NominalValue >= 0 AND CurrencyId IS NOT NULL)
+
+table org.GoverningBody public  # هيئة حوكمة (FR-ORG-019، BR-ORG-009)
+  CompanyId          ->org.Company req
+  BodyType           enum{BOARD_OF_DIRECTORS,BOARD_OF_MANAGERS,MANAGEMENT,GENERAL_ASSEMBLY} req
+  NameAr             str(200)
+  NameEn             str(200)
+  TermStart          date
+  TermEnd            date
+  QuorumRuleText     text             # نص حر (لا تنفيذ آلي)
+  DecisionRuleText   text
+  Status             enum{ACTIVE,CLOSED} req =ACTIVE   # استبدال هيئة بمدة جديدة يغلق السابقة
+  SourceDocumentId   ->doc.Document
+  unique CompanyId,BodyType where Status = 'ACTIVE'   # هيئة فعّالة واحدة لكل (شركة، نوع)
+  index  Status,TermEnd   # تنبيهات انتهاء المدة (FR-ORG-022)
+  check  TermEnd IS NULL OR TermStart IS NULL OR TermEnd >= TermStart
+
+table org.BodyMember  # عضوية في هيئة (FR-ORG-020، FR-ORG-021، BR-ORG-010)
+  CompanyId              ->org.Company req   # مكرَّر من الهيئة لضمان سلامة الربط بالمنح (via)؛ يطابق CompanyId للهيئة بقيد مركّب
+  BodyId                 ->org.GoverningBody req via=CompanyId
+  PartyId                ->pty.Party req
+  PositionId             ->cat.Position req
+  TermStart              date       req
+  TermEnd                date             # الافتراضي = نهاية مدة الهيئة (BR-ORG-010)
+  RepresentedPartyId     ->pty.Party      # ممثل عن عضو اعتباري
+  ResignedOn             date
+  AppointmentDocumentId  ->doc.Document
+  unique BodyId,PartyId,PositionId,TermStart
+  unique BodyId,PartyId,PositionId where TermEnd IS NULL AND ResignedOn IS NULL   # لا مدّتان مفتوحتان لنفس المنصب؛ المنصب أحادي الشاغل في التطبيق (IsSingleHolder)
+  index  BodyId,TermEnd   # تنبيهات انتهاء المدة وشغور المنصب (FR-ORG-022)
+  index  PartyId,TermEnd   # دور عضو هيئة (FR-PTY-017)
+  check  TermEnd IS NULL OR TermEnd >= TermStart
+  check  ResignedOn IS NULL OR ResignedOn >= TermStart
+  check  RepresentedPartyId IS NULL OR RepresentedPartyId <> PartyId
+
+table org.AuthorityGrant public  # تفويض/منحة صلاحية لشركة (FR-ORG-023..028، BR-ORG-011..014)
+  CompanyId          ->org.Company req
+  GranteeKind        enum{BODY,BODY_MEMBER,PARTY} req
+  BodyId             ->org.GoverningBody via=CompanyId        # واحد فقط بحسب GranteeKind
+  BodyMemberId       ->org.BodyMember via=CompanyId
+  PartyId            ->pty.Party
+  PowerTypeId        ->cat.PowerType req
+  InstitutionId      ->ins.Institution   # تقييد ببنك؛ الفارغ = عام (FR-ORG-025، BR-ACC-015)
+  CeilingAmount      money              # فارغ = غير محدد؛ الصفر مرفوض (BR-ORG-011)
+  CeilingCurrencyId  ->ref.Currency     # عملة السقف؛ المواصفة تسميه CeilingCurrency
+  RequiresJoint      bool       req =0   # توقيع مشترك (BR-ORG-012)
+  JointMinSignatories int               # >= 2 حين RequiresJoint (الافتراضي 2 من التطبيق)
+  JointNote          text               # نص شرط التوقيع المشترك («مع رئيس المجلس»)
+  ValidFrom          date       req
+  ValidFromHijriText str(20)
+  ValidTo            date               # فارغ = مفتوحة؛ الحالات المنتهية/تنتهي قريبًا مشتقة ولا تُخزَّن
+  Status             enum{DRAFT,PENDING_APPROVAL,ACTIVE,SUPERSEDED,REVOKED} req =DRAFT
+  ApprovedBy         ->sec.AppUser      # الموافِق غير المنشئ عند تفعيل فصل المهام (BR-ORG-014)
+  ApprovedAt         ts
+  RevokedAt          ts
+  RevokedReason      text
+  SourceDocumentId   ->doc.Document     # وكالة/قرار مجلس (BR-ORG-013)
+  SourcePage         ascii(40)
+  ExceptionReason    str(500)           # استثناء موثَّق بدل مستند المصدر يوافق عليه مدير الخزينة
+  SupersedesGrantId  ->org.AuthorityGrant   # المنحة الجديدة تحل محل القديمة (BR-ORG-014)
+  check  (GranteeKind = 'BODY' AND BodyId IS NOT NULL AND BodyMemberId IS NULL AND PartyId IS NULL) OR (GranteeKind = 'BODY_MEMBER' AND BodyId IS NULL AND BodyMemberId IS NOT NULL AND PartyId IS NULL) OR (GranteeKind = 'PARTY' AND BodyId IS NULL AND BodyMemberId IS NULL AND PartyId IS NOT NULL)   # XOR المانَح (FR-ORG-023)
+  check  CeilingAmount IS NULL OR CeilingAmount > 0
+  check  (CeilingAmount IS NULL AND CeilingCurrencyId IS NULL) OR (CeilingAmount IS NOT NULL AND CeilingCurrencyId IS NOT NULL)
+  check  (RequiresJoint = 1 AND JointMinSignatories IS NOT NULL AND JointMinSignatories >= 2) OR (RequiresJoint = 0 AND JointMinSignatories IS NULL)
+  check  ValidTo IS NULL OR ValidTo >= ValidFrom
+  check  Status IN ('DRAFT','PENDING_APPROVAL') OR SourceDocumentId IS NOT NULL OR ExceptionReason IS NOT NULL   # التفعيل يتطلب مستند مصدر أو استثناء
+  check  Status <> 'REVOKED' OR (RevokedAt IS NOT NULL AND RevokedReason IS NOT NULL)   # السحب بسبب وتاريخ (FR-ORG-028)
+  check  SupersedesGrantId IS NULL OR SupersedesGrantId <> AuthorityGrantId
+  index  CompanyId,PowerTypeId,Status include ValidFrom,ValidTo,CeilingAmount   # استعلام الصلاحية (FR-ORG-025) ومصفوفتها (FR-ORG-027)
+  index  Status,ValidTo   # تنبيهات انتهاء المنح (FR-ORG-028)
+
+# --------------------------- إضافات KYC للشركة (docs/05 G-1..G-6) ---------------------------
+
+table org.CompanyProfile  # ملف تعريف الشركة 1:1 (G-1)
+  CompanyId                          ->org.Company req
+  UnifiedNationalNo                  ascii(20)   # الرقم الوطني الموحد
+  ForeignInvestmentLicenseNo         ascii(40)   # رخصة الاستثمار الأجنبي
+  ForeignInvestmentLicenseIssuedOn   date
+  ForeignInvestmentLicenseExpiresOn  date
+  GovernmentEntityId                 ascii(40)   # رقم تعريف الجهات الحكومية
+  Lei                                ascii(20)   # معرّف الكيانات القانونية (20 خانة)
+  HeadquartersCountryId              ->ref.Country   # بلد المقر الرئيسي
+  EntityKind                         enum{COMPANY,SOLE_PROPRIETORSHIP,GOVERNMENT,OTHER}   # نوع المنشأة
+  NationalityClass                   enum{DOMESTIC,GCC,OTHER}   # جنسية المنشأة (محلية/خليجية/أخرى) نسبةً لدولة المشترك
+  SectorId                           ->cat.LookupItem   # القطاع (قائمة BUSINESS_SECTOR)
+  PrimaryActivityText                str(300)    # النشاط الأساسي حسب السجل
+  ActivityNature                     str(300)    # طبيعة النشاط
+  ActivityDescription                text        # نبذة عن النشاط
+  EmployeeBandId                     ->cat.LookupItem   # شريحة الموظفين (قائمة EMPLOYEE_BAND)
+  DeclaredBranchCount                int         # عدد الفروع والمستودعات المعلن؛ التفصيل في CompanyBranch
+  unique CompanyId
+  index  UnifiedNationalNo
+  index  Lei
+  check  Lei IS NULL OR Lei LIKE '____________________'   # 20 خانة بالضبط
+  check  ForeignInvestmentLicenseExpiresOn IS NULL OR ForeignInvestmentLicenseIssuedOn IS NULL OR ForeignInvestmentLicenseExpiresOn > ForeignInvestmentLicenseIssuedOn
+  check  DeclaredBranchCount IS NULL OR DeclaredBranchCount >= 0
+
+table org.CompanyBranch  # فرع/مستودع/تابعة خارج الحساب كنص (G-3)
+  CompanyId           ->org.Company req
+  BranchKind          enum{BRANCH,WAREHOUSE,EXTERNAL_SUBSIDIARY} req =BRANCH   # التابعة داخل الحساب = Company بأم، لا صف هنا
+  NameAr              str(200)
+  NameEn              str(200)
+  CountryId           ->ref.Country
+  LocationText        str(300)
+  CrNumber            ascii(30)       # سجل الفرع التجاري
+  UnifiedNationalNo   ascii(20)
+  ActivityText        str(300)
+  OwnershipPercent    rate            # للتابعة الخارجية فقط
+  Status              enum{ACTIVE,CLOSED} req =ACTIVE
+  ClosedOn            date
+  unique CompanyId,CrNumber where CrNumber IS NOT NULL
+  index  CompanyId,BranchKind
+  check  NameAr IS NOT NULL OR NameEn IS NOT NULL
+  check  OwnershipPercent IS NULL OR (BranchKind = 'EXTERNAL_SUBSIDIARY' AND OwnershipPercent > 0 AND OwnershipPercent <= 100)
+  check  ClosedOn IS NULL OR Status = 'CLOSED'
+
+table org.CompanyKycFinancialProfile  # الملف المالي KYC بتاريخ سريان: شريحة الإيرادات والغرض (G-4)
+  CompanyId             ->org.Company req
+  EffectiveFrom         date       req
+  EffectiveTo           date
+  RevenueBandId         ->cat.LookupItem   # شريحة الإيرادات السنوية (قائمة REVENUE_BAND)
+  AccountPurposeText    str(500)           # الغرض من الحساب/المنتج
+  AccountCurrencyId     ->ref.Currency     # عملة الحساب الأساسية
+  PreferredLanguage     enum{ar,en}
+  FundsTransferSource   str(300)           # مصدر الأموال المحوَّلة للحساب
+  RequestedServices     str(300)           # الخدمات المطلوبة (نص حر)
+  unique CompanyId,EffectiveFrom
+  unique CompanyId where EffectiveTo IS NULL   # ملف مفتوح واحد
+  check  EffectiveTo IS NULL OR EffectiveTo >= EffectiveFrom
+
+table org.CompanyExpectedFlow  # مصفوفة الحركة المتوقعة الشهرية CTP: اتجاه × 5 بنود (G-4)
+  FinancialProfileId  ->org.CompanyKycFinancialProfile req
+  Direction           enum{DEPOSIT,WITHDRAWAL} req
+  FlowKind            enum{CASH,OTHER,LOCAL_TRANSFER,INTERNATIONAL_TRANSFER,CHEQUE} req
+  MonthlyAmount       money      req
+  CurrencyId          ->ref.Currency req
+  unique FinancialProfileId,Direction,FlowKind
+  check  MonthlyAmount >= 0
+
+table org.CompanyWealthSource pk=FinancialProfileId,WealthSourceId norv deletable  # مصادر الأموال والثروة: قائمة متعددة (G-4)
+  FinancialProfileId  ->org.CompanyKycFinancialProfile req cascade
+  WealthSourceId      ->cat.LookupItem req   # قائمة WEALTH_SOURCE (تمويل داخلي، إيرادات تجارية، تسهيلات، بيع أصول...)
+  OtherText           str(200)               # وصف عند «أخرى»
+
+table org.CompanyDisclosure  # إفصاحات الشركة (G-5)
+  CompanyId           ->org.Company req
+  DisclosureKind      enum{REGULATORY_DISCIPLINARY,TAX_ISSUE,LITIGATION,FACILITY_RESCHEDULING,CONVICTION,OTHER} req
+  Description         text       req
+  EventDate           date
+  Status              enum{OPEN,RESOLVED} req =OPEN
+  ResolvedOn          date
+  SourceDocumentId    ->doc.Document
+  index  CompanyId,DisclosureKind,Status
+  check  ResolvedOn IS NULL OR Status = 'RESOLVED'
+
+table org.CompanyKeyRelation  # أصحاب العلاقة: مدققون، مستشار قانوني، جهات تنظيمية، أبرز العملاء/الموردين (G-6)
+  CompanyId       ->org.Company req
+  RelationKind    enum{AUDITOR,ACCOUNTANT,LEGAL_ADVISOR,REGULATOR,MAJOR_CUSTOMER,MAJOR_SUPPLIER,OTHER} req
+  NameAr          str(200)
+  NameEn          str(200)
+  Note            str(500)
+  IsActive        bool       req =1
+  SortOrder       int        req =0
+  index  CompanyId,RelationKind
+  check  NameAr IS NOT NULL OR NameEn IS NOT NULL
+
+module PTY
+
+table pty.Party public  # شخص أو جهة؛ لا دور مخزَّن (FR-PTY-001..003، BR-PTY-001..004، BR-PTY-016..018)
+  PartyCode          ascii(20)  req   # مُولَّد من NumberSequence
+  Kind               enum{INDIVIDUAL,ORGANIZATION} req
+  NameAr             str(200)
+  NameEn             str(200)
+  NameNormalized     str(400)         # الاسم العربي/الإنجليزي المطبَّع للبحث وفحص التشابه؛ يحسبه التطبيق عند الكتابة (FR-PTY-002، BR-PTY-004)
+  CountryId          ->ref.Country    # جنسية (فرد) أو دولة تأسيس (جهة)
+  ResidencyStatus    enum{CITIZEN,RESIDENT,NON_RESIDENT,UNKNOWN}   # للأفراد
+  BirthDate          date       sens=confidential
+  BirthDateHijriText str(20)    sens=confidential   # G-11
+  BirthPlace         str(100)   sens=confidential
+  BirthCountryId     ->ref.Country   # بلد الميلاد (05 قسم 1.2)
+  MaritalStatus      enum{SINGLE,MARRIED,DIVORCED,WIDOWED} sens=confidential   # قيم مقترحة؛ المواصفة لا تعددها
+  Gender             enum{MALE,FEMALE} sens=confidential   # اختياري يطلبه نموذج بنك (G-12، BR-PTY-019)
+  EducationLevelId   ->cat.LookupItem sens=confidential   # اختياري (G-12، س-14)؛ قائمة EDUCATION_LEVEL
+  LinkedCompanyId    ->org.Company   # الشركة التي هذه مرآتها (FR-PTY-003)
+  IsActive           bool       req =1
+  MergedIntoPartyId  ->pty.Party   # Merged لا تعود (BR-PTY-016)
+  unique PartyCode
+  unique LinkedCompanyId where LinkedCompanyId IS NOT NULL   # مرآة واحدة لكل شركة
+  index  NameNormalized   # بحث بالاسم المطبَّع (FR-PTY-002)
+  index  Kind,IsActive
+  index  MergedIntoPartyId
+  index  BirthDate,NameNormalized   # تحذير «محتمل تكرار»: تطابق الميلاد مع تشابه الاسم (BR-PTY-004)
+  check  NameAr IS NOT NULL OR NameEn IS NOT NULL   # اسم واحد على الأقل (FR-PTY-001)
+  check  Kind = 'INDIVIDUAL' OR (ResidencyStatus IS NULL AND BirthDate IS NULL AND MaritalStatus IS NULL AND Gender IS NULL AND EducationLevelId IS NULL)   # حقول الفرد للأفراد فقط
+  check  LinkedCompanyId IS NULL OR Kind = 'ORGANIZATION'
+  check  MergedIntoPartyId IS NULL OR (IsActive = 0 AND MergedIntoPartyId <> PartyId)
+
+table pty.IdentityDocument  # وثيقة هوية؛ الرقم مشفّر والصور مستندات مقيَّدة (FR-PTY-004..009، FR-PTY-020..022، BR-PTY-002..008)
+  PartyId            ->pty.Party req
+  DocKind            enum{NATIONAL_ID,RESIDENCE,PASSPORT,GCC_ID,COMMERCIAL_REG,OTHER_ORG} req
+  IssuingCountryId   ->ref.Country req
+  IssuingAuthority   str(200)
+  IssuePlace         str(100)         # مكان الإصدار (05 قسم 1.2)
+  NumberEnc          bin(512)   req sens=restricted   # الرقم مشفَّر بمفتاح المشترك (FR-PTY-006)
+  NumberMask         str(32)    req sens=restricted   # قناع العرض يُحسب عند الكتابة؛ آخر 4 خانات (BR-PTY-008)
+  NumberHash         bin(32)    req sens=restricted   # HMAC فهرس أعمى: النوع+الدولة+الرقم المطبَّع (BR-PTY-002)
+  IssueDate          date
+  IssueDateHijriText str(20)          # G-11
+  ExpiryDate         date
+  ExpiryDateHijriText str(20)         # G-11
+  IsPrimary          bool       req =0   # أساسية واحدة بين غير المستبدلة (BR-PTY-005)
+  IsSuperseded       bool       req =0   # «مستبدلة» مخزَّنة عند التجديد (القسم 8)؛ تُعلَّم أولًا ثم يُنشأ البديل ثم يُربط SupersededById ضمن معاملة التجديد (الرقم نفسه يتكرر في تجديد الهوية)
+  SupersededById     ->pty.IdentityDocument   # التجديد ينشئ وثيقة جديدة تستبدل القديمة (FR-PTY-022، BR-PTY-006)
+  VerifiedAt         ts                 # «تم التحقق من الأصل» (FR-PTY-020)
+  VerifiedBy         ->sec.AppUser
+  unique DocKind,IssuingCountryId,NumberHash where IsSuperseded = 0   # BR-PTY-003: فرادة الرقم المطبَّع بين غير المستبدلة
+  unique PartyId where IsPrimary = 1   # وثيقة أساسية واحدة (المستبدلة لا تكون أساسية، انظر القيد)
+  index  NumberHash include PartyId,DocKind   # بحث بتطابق تام دون فك تشفير (FR-PTY-002)
+  index  ExpiryDate include PartyId,DocKind where IsSuperseded = 0   # تنبيهات الانتهاء (FR-PTY-021)
+  index  PartyId,DocKind,IsSuperseded
+  check  ExpiryDate IS NULL OR IssueDate IS NULL OR ExpiryDate > IssueDate   # 9.1
+  check  SupersededById IS NULL OR (SupersededById <> IdentityDocumentId AND IsSuperseded = 1)
+  check  IsSuperseded = 0 OR IsPrimary = 0
+  check  VerifiedBy IS NULL OR VerifiedAt IS NOT NULL
+
+table pty.Address  # عنوان متعدد الملكية: OwnerType+OwnerId بلا FK (مزوّد المالك يتحقق منه التطبيق) (FR-PTY-011، BR-PTY-015)
+  OwnerType          enum{PARTY,INSTITUTION,UNIT,CONTACT} req   # قابل للتوسعة بمزوّد مالك
+  OwnerId            bigint     req
+  AddressType        enum{NATIONAL,RESIDENTIAL,WORK,PO_BOX,REGISTERED,OTHER} req
+  IsPrimary          bool       req =0
+  IsCurrent          bool       req =1
+  CountryId          ->ref.Country req
+  Region             str(100)
+  City               str(100)
+  District           str(100)
+  Street             str(150)
+  BuildingNumber     str(20)
+  UnitNumber         str(20)
+  PostalCode         str(20)
+  AdditionalNumber   str(20)
+  ShortCode          str(20)
+  PoBoxNumber        str(30)
+  FreeText           str(500)
+  unique OwnerType,OwnerId where IsPrimary = 1 AND IsCurrent = 1   # عنوان أساسي فعّال واحد لكل مالك
+  index  OwnerType,OwnerId,AddressType
+  check  IsPrimary = 0 OR IsCurrent = 1
+  check  AddressType <> 'PO_BOX' OR PoBoxNumber IS NOT NULL
+
+table pty.ContactMethod deletable  # وسيلة اتصال متعددة الملكية (FR-PTY-012، BR-PTY-015)
+  OwnerType          enum{PARTY,INSTITUTION,UNIT,CONTACT} req
+  OwnerId            bigint     req
+  Kind               enum{MOBILE,PHONE,EMAIL,FAX,WEBSITE,OTHER} req
+  Value              str(200)   req
+  NormalizedValue    str(200)   req   # هاتف E.164 / بريد صغير الأحرف؛ مطلوب لتنفيذ الفرادة
+  Label              str(100)
+  IsPrimary          bool       req =0
+  unique OwnerType,OwnerId,Kind,NormalizedValue
+  unique OwnerType,OwnerId,Kind where IsPrimary = 1   # أساسية واحدة لكل نوع
+  index  NormalizedValue
+  index  OwnerType,OwnerId
+
+table pty.CustomFieldDefinition  # تعريف حقل مخصص (FR-PTY-013، BR-PTY-014)
+  FieldKey           ascii(60)  req
+  LabelAr            str(200)   req
+  LabelEn            str(200)   req
+  DataType           enum{TEXT,NUMBER,DATE,LIST,BOOLEAN,AMOUNT} req
+  ListValues         json
+  Sensitivity        enum{CONFIDENTIAL,RESTRICTED} req =CONFIDENTIAL   # المقيَّد يُشفَّر ويُقنَّع (FR-PTY-014)
+  InstitutionId      ->ins.Institution   # نطاق بنك اختياري
+  AppliesToKind      enum{INDIVIDUAL,ORGANIZATION}   # فارغ = الاثنان
+  IsActive           bool       req =1   # تعريف له قيم يُعطَّل ولا يُحذف
+  SeedKey            ascii(80)
+  unique FieldKey
+  unique SeedKey where SeedKey IS NOT NULL
+  check  (DataType = 'LIST' AND ListValues IS NOT NULL) OR (DataType <> 'LIST' AND ListValues IS NULL)
+
+table pty.PartyCustomField  # قيمة حقل مخصص لشخص (FR-PTY-013، FR-PTY-014)
+  PartyId            ->pty.Party req
+  DefinitionId       ->pty.CustomFieldDefinition req
+  ValueText          str(1000)
+  ValueEnc           bin(512) sens=restricted   # للحقل المقيَّد بدل ValueText
+  ValueMask          str(32)                    # قناع يُحسب عند الكتابة (BR-PTY-008)
+  CurrencyId         ->ref.Currency             # لنوع AMOUNT
+  unique PartyId,DefinitionId
+  check  ValueText IS NULL OR ValueEnc IS NULL
+  check  ValueEnc IS NULL OR ValueMask IS NOT NULL
+
+table pty.KycProfile public  # قائمة اكتمال KYC لكل بنك ودور (FR-PTY-023، BR-PTY-012..013، G-8، G-14)
+  InstitutionId      ->ins.Institution   # فارغ فقط لملف الأساس IsBaseline (FR-PTY-023): المواصفة تجعله إلزاميًا
+  NameAr             str(200)   req
+  NameEn             str(200)   req
+  AppliesToRole      enum{GUARANTOR,SHAREHOLDER,SIGNATORY,ANY} req
+  AppliesToKind      enum{INDIVIDUAL,ORGANIZATION}   # فارغ = الاثنان
+  Version            int        req =1
+  Status             enum{DRAFT,ACTIVE,RETIRED} req =DRAFT   # تفعيل نسخة يسحب السابقة؛ الحسابات التاريخية تحتفظ بإصدارها
+  IsBaseline         bool       req =0
+  OwnerThresholdPct  rate       # عتبة الملكية التي يُطلب عندها KYC للمالك: 25 أو 5 (G-8)
+  SourceDocumentId   ->doc.Document   # نموذج KYC الممسوح
+  SeedKey            ascii(80)  # KYC-CORP-BASE / EXIM / SAB / RIYAD / PERSON-SIGNATORY / PERSON-OWNER / GUARANTOR (05 قسم 3)
+  unique InstitutionId,AppliesToRole,AppliesToKind,Version   # المواصفة (InstitutionId, AppliesToRole, Version) مع AppliesToKind لتمييز الفرد من الجهة
+  unique InstitutionId,AppliesToRole,AppliesToKind where Status = 'ACTIVE'   # نسخة فعّالة واحدة
+  unique SeedKey where SeedKey IS NOT NULL
+  index  Status,IsBaseline
+  check  InstitutionId IS NOT NULL OR IsBaseline = 1
+  check  Version >= 1
+  check  OwnerThresholdPct IS NULL OR (OwnerThresholdPct > 0 AND OwnerThresholdPct <= 100)
+
+table pty.KycProfileItem deletable  # بند اكتمال (FR-PTY-023، FR-PTY-024، G-14)
+  ProfileId          ->pty.KycProfile req
+  ItemKind           enum{PARTY_FIELD,IDENTITY_DOC,DOCUMENT_TYPE,ADDRESS_TYPE,CONTACT_KIND,CUSTOM_FIELD,COMPANY_FIELD,RELATED_PARTY_SET} req   # آخر قيمتين إضافة لنماذج الشركات (05 G-14): حقل شركة/ملف مالي/إفصاح، ومجموعة أطراف (ملاك/مجلس/مفوّضون/مستفيدون)
+  RefCode            ascii(60)  req   # رمز الحقل أو نوع الوثيقة أو نوع العنوان...
+  ConditionJson      json
+  IsMandatory        bool       req =1
+  MinValidityDays    int               # أدنى مدة صلاحية متبقية (BR-PTY-012)
+  MaxAgeDays         int               # أقصى عمر للمستند منذ إصداره (مستخرج <= 30 يومًا، شهادة <= 365) (05 G-2، G-14)
+  RequiresImage      bool       req =0
+  SortOrder          int        req =0
+  HelpTextAr         str(500)
+  HelpTextEn         str(500)
+  SeedKey            ascii(80)
+  unique ProfileId,ItemKind,RefCode
+  unique SeedKey where SeedKey IS NOT NULL
+  check  MinValidityDays IS NULL OR MinValidityDays >= 0
+  check  MaxAgeDays IS NULL OR MaxAgeDays > 0
+
+table pty.KycProfileItemLegalForm pk=KycProfileItemId,LegalEntityTypeId norv deletable  # شروط ظهور البند بحسب الشكل القانوني؛ غياب الصفوف = ينطبق على الكل (G-15)
+  KycProfileItemId   ->pty.KycProfileItem req cascade
+  LegalEntityTypeId  ->cat.LegalEntityType req
+
+table pty.PartyCompliance  # إقرارات امتثال بتاريخ لكل شخص بصفته: PEP، عقوبات، تحقيقات، حصانة (G-9)
+  PartyId                ->pty.Party req
+  Capacity               enum{OWNER,BENEFICIAL_OWNER,BOARD_MEMBER,EXECUTIVE,SIGNATORY,OTHER} req
+  CompanyId              ->org.Company   # الشركة التي صدر الإقرار في سياق ملفها
+  DeclaredOn             date       req
+  IsCurrent              bool       req =1   # آخر إقرار لكل (شخص، صفة، شركة)
+  IsPep                  bool       req =0   # شخصية سياسية
+  IsRelatedToPep         bool       req =0   # علاقة بشخصية سياسية
+  IsSanctioned           bool       req =0
+  IsUnderInvestigation   bool       req =0
+  HasImmunity            bool       req =0
+  Details                text
+  SourceDocumentId       ->doc.Document   # نموذج الإقرار الممسوح
+  unique PartyId,Capacity,CompanyId,DeclaredOn
+  unique PartyId,Capacity,CompanyId where IsCurrent = 1
+  index  CompanyId,IsCurrent
+  sens   IsPep,IsRelatedToPep,IsSanctioned,IsUnderInvestigation,HasImmunity,Details
+
+table pty.TaxIdentity  # الهوية الضريبية والإقرار الضريبي FATCA/CRS (G-13)
+  PartyId                  ->pty.Party req
+  CountryId                ->ref.Country req   # بلد الإقامة الضريبية
+  TaxNumber                ascii(40)  sens=confidential   # الرقم الضريبي (Company.TaxNumber للمرآة يُزامَن منه)
+  VatNumber                ascii(40)  sens=confidential   # رقم ضريبة القيمة المضافة
+  FatcaClassificationId    ->cat.LookupItem   # قائمة FATCA_CLASSIFICATION
+  CrsClassificationId      ->cat.LookupItem   # قائمة CRS_CLASSIFICATION
+  DeclarationDate          date       req
+  IsCurrent                bool       req =1
+  SourceDocumentId         ->doc.Document
+  unique PartyId,CountryId,DeclarationDate
+  unique PartyId,CountryId where IsCurrent = 1
+  index  TaxNumber
+  check  TaxNumber IS NOT NULL OR VatNumber IS NOT NULL OR FatcaClassificationId IS NOT NULL OR CrsClassificationId IS NOT NULL

@@ -1,6 +1,6 @@
 :setvar DbName BankFas
 /* ============================================================================
-   BankFas - نشر قاعدة البيانات (وضع SQLCMD):  sqlcmd -S <server> -E -f 65001 -i db\deploy.sql -v DbName=BankFas
+   BankFas - نشر قاعدة البيانات (وضع SQLCMD):  sqlcmd -S <server> -E -I -f 65001 -i db\deploy.sql -v DbName=BankFas   (الخيار -I = QUOTED_IDENTIFIER ON؛ مطلوب للفهارس المصفّاة)
    الترتيب ثابت؛ كله في جلسة واحدة (الجدول المؤقت #rls_tables يُستهلك في 010).
    الملفات في generated\tsql مولَّدة من النموذج: لا تُعدَّل يدويًا.
    ============================================================================ */
