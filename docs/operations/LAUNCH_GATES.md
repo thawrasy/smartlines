@@ -47,7 +47,7 @@ their environment (R-55). Each is attached to a gate above; none can be closed w
 | R-45 (alerts reach someone) | 5 | `WalArchiveStale` and an availability alert reach the on-call engineer in at most 15 minutes and are acknowledged with the runbook; with the receivers removed, the dead man's switch (alert `Watchdog`, receiver `deadman`) pages through its own channel | `alert_drill_staging_<date>.json`, on-call rota |
 | R-47 (rollback after a migration) | 4 | A deliberately failing migration rolled back by itself; the previous application release run against the expanded schema; a point-in-time restore to before the migration within the RTO, wallets, ledger and audit intact | `migration_rehearsal_staging_<release>_<date>.json`, restore timing |
 | R-06 (heavy migrations) | 4 | 1064 and 1070 at 1x, 2x and 5x volume per `docs/database/MIGRATION_PLANS.md` | `migration_rehearsal_staging_1064_<scale>_<date>.json` |
-| R-54 (verifiable release) | before install | `deploy/verify-release.sh` exits 0 on the archive, with the SBOM and Sigstore bundles of the release workflow | the GitHub release of the tag and the verification output |
+| R-54 (verifiable release) | before install | `deploy/verify-release.sh` exits 0 on the archive, with the SBOM and Sigstore bundles of the release workflow | the GitHub release of the tag and the verification output on the server. Release v1.48.0 passes the same checks in development (`release_verification_v1.48.0_2026-10-10.json`) |
 | R-55 (independent proof) | 1 to 8 | Each gate passed with dated, signed evidence; the external penetration test and its retest | the files named in the register |
 
 ## Running the gates (review stage B)

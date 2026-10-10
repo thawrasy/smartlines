@@ -1,0 +1,170 @@
+{
+ "what": "Independent verification of the signed release v1.48.0 (review of 1.47.0, R-54)",
+ "date": "2026-10-10",
+ "environment": "development",
+ "release": {
+  "url": "https://github.com/thawrasy/smartlines/releases/tag/v1.48.0",
+  "tag": "v1.48.0",
+  "commit": "05cc3ee1702c7353bf8db014e442273281a33a07",
+  "published_utc": "2026-10-10T07:47:42Z",
+  "published_from": "the repository's Releases page, with a new tag on branch claude/land-shipping-development-dz68oz"
+ },
+ "workflow_runs": [
+  {
+   "run": "https://github.com/thawrasy/smartlines/actions/runs/38035647487",
+   "event": "release",
+   "result": "success",
+   "note": "every CI job passed on the tagged commit, then the release job signed the files and attached them to the release"
+  },
+  {
+   "run": "https://github.com/thawrasy/smartlines/actions/runs/38035647497",
+   "event": "push",
+   "result": "cancelled",
+   "note": "the tag push of the same release; runs for one tag replace each other"
+  },
+  {
+   "run": "https://github.com/thawrasy/smartlines/actions/runs/38034954628",
+   "event": "push",
+   "commit": "dbeb3cc0616be1e88d46df28725ebaef488f4b40",
+   "result": "failure",
+   "note": "first attempt: one CI job failed (the image bill of materials tried to attach itself to the release with a read-only token), so the release job did not run and nothing was signed or attached (R-49). Fixed in 05cc3ee; the release and tag were deleted and published again on 05cc3ee"
+  }
+ ],
+ "assets": [
+  {
+   "name": "SHA256SUMS",
+   "bytes": 181,
+   "sha256": "72c1e9c9ead1dfefeeffc7418e7b88180c5ef2c547eb196fd4aed43ca0a1710b"
+  },
+  {
+   "name": "SHA256SUMS.sigstore.json",
+   "bytes": 10251,
+   "sha256": "93451a15373206566a235c55cd03bdf9c9a5f790e5e08acc0d6ea401e2deb974"
+  },
+  {
+   "name": "masslak-v1.48.0.spdx.json",
+   "bytes": 1575162,
+   "sha256": "f53606a3e50eeabb7933751fc5f8f0ab6677b24619c444d5982f79a78072ca18"
+  },
+  {
+   "name": "masslak-v1.48.0.spdx.json.sigstore.json",
+   "bytes": 10139,
+   "sha256": "29568b4e0e41bdcddc9ecd4daaa294b1b923a90511e4ecf4e6aee49e957643c2"
+  },
+  {
+   "name": "masslak-v1.48.0.tar.gz",
+   "bytes": 48439325,
+   "sha256": "95f9318025eb3ed06ab5630331919f3a5b5d42168a5293af6fc8495c184237f1"
+  },
+  {
+   "name": "masslak-v1.48.0.tar.gz.sigstore.json",
+   "bytes": 10195,
+   "sha256": "f5e85655f5a147f8ee87ffa93f05993a84ef1f9a3a5ae75dee43c3cc5c4f72bf"
+  }
+ ],
+ "verification": {
+  "tool": "sigstore-python 4.5.0, `python -m sigstore verify identity --offline` with its built-in production trust root",
+  "certificate_identity": "https://github.com/thawrasy/smartlines/.github/workflows/release.yml@refs/tags/v1.48.0",
+  "certificate_oidc_issuer": "https://token.actions.githubusercontent.com",
+  "signatures": {
+   "SHA256SUMS": "OK",
+   "masslak-v1.48.0.tar.gz": "OK",
+   "masslak-v1.48.0.spdx.json": "OK"
+  },
+  "checksums": {
+   "masslak-v1.48.0.tar.gz": "OK",
+   "masslak-v1.48.0.spdx.json": "OK"
+  },
+  "release_record_in_archive": {
+   "commit": "05cc3ee1702c7353bf8db014e442273281a33a07",
+   "version": "v1.48.0"
+  },
+  "negative_checks": {
+   "archive with one byte appended": "refused",
+   "identity of another tag (release.yml@refs/tags/v9.9.9)": "refused"
+  },
+  "same_checks_as": "deploy/verify-release.sh (identity of this repository's release workflow for a v* tag, issuer, SHA256SUMS, RELEASE record)"
+ },
+ "bundles": {
+  "SHA256SUMS.sigstore.json": {
+   "media_type": "application/vnd.dev.sigstore.bundle.v0.3+json",
+   "certificate_identity": "https://github.com/thawrasy/smartlines/.github/workflows/release.yml@refs/tags/v1.48.0",
+   "certificate_valid_utc": [
+    "2026-10-10T07:55:33+00:00",
+    "2026-10-10T08:05:33+00:00"
+   ],
+   "claims": {
+    "issuer": "https://token.actions.githubusercontent.com",
+    "runner_environment": "github-hosted",
+    "source_repository_uri": "https://github.com/thawrasy/smartlines",
+    "source_repository_digest": "05cc3ee1702c7353bf8db014e442273281a33a07",
+    "source_repository_ref": "refs/tags/v1.48.0",
+    "build_config_uri": "https://github.com/thawrasy/smartlines/.github/workflows/release.yml@refs/tags/v1.48.0",
+    "build_trigger": "release",
+    "run_invocation_uri": "https://github.com/thawrasy/smartlines/actions/runs/38035647487/attempts/1"
+   },
+   "transparency_log": {
+    "log_index": 3181688371,
+    "integrated_time_utc": "2026-10-10T07:55:33+00:00",
+    "kind": "hashedrekord 0.0.1",
+    "inclusion_proof": true
+   },
+   "bundle_sha256": "93451a15373206566a235c55cd03bdf9c9a5f790e5e08acc0d6ea401e2deb974"
+  },
+  "masslak-v1.48.0.spdx.json.sigstore.json": {
+   "media_type": "application/vnd.dev.sigstore.bundle.v0.3+json",
+   "certificate_identity": "https://github.com/thawrasy/smartlines/.github/workflows/release.yml@refs/tags/v1.48.0",
+   "certificate_valid_utc": [
+    "2026-10-10T07:55:29+00:00",
+    "2026-10-10T08:05:29+00:00"
+   ],
+   "claims": {
+    "issuer": "https://token.actions.githubusercontent.com",
+    "runner_environment": "github-hosted",
+    "source_repository_uri": "https://github.com/thawrasy/smartlines",
+    "source_repository_digest": "05cc3ee1702c7353bf8db014e442273281a33a07",
+    "source_repository_ref": "refs/tags/v1.48.0",
+    "build_config_uri": "https://github.com/thawrasy/smartlines/.github/workflows/release.yml@refs/tags/v1.48.0",
+    "build_trigger": "release",
+    "run_invocation_uri": "https://github.com/thawrasy/smartlines/actions/runs/38035647487/attempts/1"
+   },
+   "transparency_log": {
+    "log_index": 3181687460,
+    "integrated_time_utc": "2026-10-10T07:55:30+00:00",
+    "kind": "hashedrekord 0.0.1",
+    "inclusion_proof": true
+   },
+   "bundle_sha256": "29568b4e0e41bdcddc9ecd4daaa294b1b923a90511e4ecf4e6aee49e957643c2"
+  },
+  "masslak-v1.48.0.tar.gz.sigstore.json": {
+   "media_type": "application/vnd.dev.sigstore.bundle.v0.3+json",
+   "certificate_identity": "https://github.com/thawrasy/smartlines/.github/workflows/release.yml@refs/tags/v1.48.0",
+   "certificate_valid_utc": [
+    "2026-10-10T07:55:25+00:00",
+    "2026-10-10T08:05:25+00:00"
+   ],
+   "claims": {
+    "issuer": "https://token.actions.githubusercontent.com",
+    "runner_environment": "github-hosted",
+    "source_repository_uri": "https://github.com/thawrasy/smartlines",
+    "source_repository_digest": "05cc3ee1702c7353bf8db014e442273281a33a07",
+    "source_repository_ref": "refs/tags/v1.48.0",
+    "build_config_uri": "https://github.com/thawrasy/smartlines/.github/workflows/release.yml@refs/tags/v1.48.0",
+    "build_trigger": "release",
+    "run_invocation_uri": "https://github.com/thawrasy/smartlines/actions/runs/38035647487/attempts/1"
+   },
+   "transparency_log": {
+    "log_index": 3181686403,
+    "integrated_time_utc": "2026-10-10T07:55:26+00:00",
+    "kind": "hashedrekord 0.0.1",
+    "inclusion_proof": true
+   },
+   "bundle_sha256": "f5e85655f5a147f8ee87ffa93f05993a84ef1f9a3a5ae75dee43c3cc5c4f72bf"
+  }
+ },
+ "limits": [
+  "Run in the development environment, where cosign and the Sigstore servers (TUF, Rekor, Fulcio) are not reachable: the signatures and the transparency log inclusion proofs inside the bundles were checked offline against the trust root shipped with sigstore-python, without refreshing it.",
+  "deploy/verify-release.sh itself (cosign) is still run on each server before the archive is extracted (LAUNCH_GATES.md, R-54)."
+ ],
+ "superseded": "The archive, SHA256SUMS and SPDX file built locally at bd5196d before the tag are replaced by the files of this release."
+}
