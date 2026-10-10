@@ -255,4 +255,13 @@ Four reports on release 1.49.0 were assessed against the code:
 
 ### Test results (release 1.50.0)
 
-Filled in by the full runs before the release is tagged.
+| Suite | Result |
+|---|---|
+| Database checks (`db/tests/run_tests.sql`) on a server that loads the guard | 541 passed |
+| API tests on a new database, with `MASSLAK_GUARD_REQUIRED=1` | 582 passed, 10 skipped (the telemetry tests, which CI runs against their own database), 1 failed: the readiness test did not list the new `settings_guard` check. Fixed; its file and four others run again: 98 passed |
+| Content-Security-Policy in a browser | 75 page views, no violation (locally and in CI) |
+| Burst test, locally | PASS at 6 a second with a warm-up; the second run reused the 30 saved accounts |
+| Alert rules (promtool) | 73 rules valid, tests pass |
+| ruff, bandit (CI configuration), language policy | Clean |
+| Generated documents, schema dependencies | Up to date |
+| CI on c54224a (run 145) | Every job green: schema, API with the browser checks, deployment, both production installations (one host; two database hosts with the failover drill), images, warehouse, mobile, security |
