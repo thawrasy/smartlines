@@ -1,0 +1,4 @@
+# Patroni and its dependencies for the production database image (reviews of October 2026, H-01); patroni.lock pins
+# them with hashes. Regenerate with:
+#   uv pip compile patroni.in --universal --python-version 3.12 --generate-hashes --no-header -o patroni.lock
+patroni[etcd3,psycopg2-binary]==4.0.6

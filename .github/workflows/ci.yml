@@ -412,8 +412,8 @@ jobs:
         run: sudo ./deploy/production/ci/setup.sh
       - name: Installation in the production profile, from the signed images (H-08)
         run: |
-          set -o pipefail
           sudo ./deploy/install.sh --domain localhost --admin-email admin@install.test --skip-server-setup | tee install.log
+          test "${PIPESTATUS[0]}" = 0
           grep -q 'verified masslak-db' install.log && ! grep -q 'Building and starting' install.log    # pulled, never built
           sudo chown "$USER" deploy/.env deploy/FIRST_LOGIN.txt IMAGES
           grep -q '^MASSLAK_SANDBOX=false$' deploy/.env && grep -q '^MASSLAK_ENVIRONMENT=production$' deploy/.env
