@@ -1,0 +1,44 @@
+{
+ "base": "1073",
+ "scale": 200000,
+ "fill_s": {
+  "ops.geo_event": 1.6,
+  "sys.outbox_event": 1.5,
+  "ref.file_object": 2.7,
+  "audit.data_access_log": 1.5
+ },
+ "vehicle": 1,
+ "database_size": "279 MB",
+ "migration_s": 7.1,
+ "migration_ok": true,
+ "migration_output": ">> 1074_money_boundaries.sql\n rls_platform \n--------------\n \n(1 row)\n\n rls_platform \n--------------\n \n(1 row)\n\n rls_platform \n--------------\n \n(1 row)\n\n rls_platform \n--------------\n \n(1 row)\n\n rls_platform \n--------------\n \n(1 row)\n\n rls_platform \n--------------\n \n(1 row)\n\n enforce_app_delete_grants \n---------------------------\n                         0\n(1 row)\n\n refresh_table_class \n---------------------\n                 495\n(1 row)\n\n>> 1075_sign_in_and_operations.sql\n rls \n-----\n \n(1 row)\n\n rls_tenant \n------------\n \n(1 row)\n\n rls_tenant \n------------\n \n(1 row)\n\n refresh_table_class \n---------------------\n                 498\n(1 row)\n\n>> 1076_backups_and_durability.sql\n refresh_table_class \n---------------------\n                 499\n(1 row)\n\n>> 1077_statement_statistics.sql\n>> 1078_manifests_and_parcels.sql\n rls_split \n-----------\n \n(1 row)\n\n rls \n-----\n \n(1 row)\n\n refresh_table_class \n---------------------\n                 501\n(1 row)\n\n>> 1079_lifecycle_coverage.sql\n rls_platform \n--------------\n \n(1 row)\n\n refresh_table_class \n---------------------\n                 502\n(1 row)\n\nOK: masslak_rehearsal_89aa04 is up to date\n",
+ "wal_mb": 3.7,
+ "locks": {
+  "max_access_exclusive_held_s": 0.51,
+  "max_sessions_waiting": 0
+ },
+ "traffic_before": {
+  "n": 3244,
+  "p50_ms": 1.0,
+  "p99_ms": 4.9,
+  "max_ms": 60.0,
+  "errors": 0
+ },
+ "traffic_during": {
+  "n": 4700,
+  "p50_ms": 1.3,
+  "p99_ms": 4.9,
+  "max_ms": 86.1,
+  "errors": 0
+ },
+ "traffic_after": {
+  "n": 1336,
+  "p50_ms": 1.3,
+  "p99_ms": 4.3,
+  "max_ms": 6.9,
+  "errors": 0
+ },
+ "traffic_error_kinds": [],
+ "applied": "1079_lifecycle_coverage.sql",
+ "within_criteria": true
+}

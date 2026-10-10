@@ -149,3 +149,24 @@ Upgrading to 1.48.0, package G:
 * Carriers set the hold each trip offers (`PUT /api/carrier/trips/{uid}/hold`, never over the vehicle's registered
   cargo capacity) and publish their tariffs before customers can book parcels on their trips. The older station-to-station
   parcel request (`/api/w/parcels`) stays for shipments without a trip; it is not guaranteed and says so.
+
+## 8. Package H: data lifecycle, evidence and the release
+
+| Ref | Finding | What changed | Proof |
+|---|---|---|---|
+| R-04 | 33 datasets had a lifecycle; most of the ~500 tables were in none | Every table is a dataset or a member of one (1079): the uncovered tables are grouped by schema and sensitivity (a table with names, contacts, dates of birth or documents counts as personal) with a retention, an erasure method and its copies. `gov.lifecycle_gaps()` must be empty: a new table without a dataset, or a personal table placed in a public dataset, fails the database checks in CI. `gov.v_table_lifecycle` shows each table's rules | DB checks (coverage, a probe table reported, a personal table refused in a catalog) |
+| R-06 | No production plan for the heavy conversions 1064 and 1070 | `MIGRATION_PLANS.md`: 1064 is measured on a copy and then applied in a sized maintenance window with counts and reconciliation before and after; 1070's move from the default partition is batched above 200,000 rows; both are listed under launch gate 4 at 1x, 2x and 5x volume. The files of this release were rehearsed under load: 7.1 s, longest exclusive lock 0.51 s, no traffic error | `evidence/migration_rehearsal_1.48.0_dev_2026-10-10.json` |
+| R-05 | Archiving a closed year was described, not defined | RUNBOOKS.md section 29: scope from the closed ledger, the dependency map from the foreign keys, copy with per-table counts and hashes to an archive database read through its own read-only role, removal only after a signed comparison, ledger totals kept, proof by reconciliation and a restore of the archive | runbook (to rehearse on a copy before the first year is archived) |
+| R-45 | Nothing pages when the alerting itself fails | Alert `Watchdog` always fires and goes every minute to a dead man's switch that pages through its own channel when it stops (`deploy/staging/alertmanager.yml`, receiver `deadman`) | promtool test |
+| R-42, R-47, R-55 | The production layout, rollback after a migration and the independent proofs are not shown by the repository | Listed with their evidence under the launch gates (`LAUNCH_GATES.md`, "What the reviews of release 1.47.0 add to the gates"); they stay open until run on staging and by the external firm. No development measurement is offered in their place | `LAUNCH_GATES.md` |
+| R-54 | The delivered archive could not be verified independently | The release workflow already signs the archive, its SPDX bill of materials and the checksums with Sigstore for a `v*` tag. Release 1.48.0 is delivered with the archive, `SHA256SUMS` and the SPDX file; the Sigstore bundles come from the workflow when the `v1.48.0` tag is pushed, and `deploy/verify-release.sh` then exits 0 on them | release package; the tag's GitHub release |
+
+## 9. The owner's decisions (October 2026)
+
+| Question | Decision | Where it is built |
+|---|---|---|
+| 1. Data loss when the primary fails | None may be lost; a setting turns zero data loss on or off rather than fixing it in code | `MASSLAK_ZERO_DATA_LOSS` (on in production), `deploy/durability.sh`, alerts `ZeroDataLossNotEnforced` and `CommitsWaitingForStandby` (package D, section 4) |
+| 2. Second factor for drivers, carrier and agency staff | Required, by several methods of which one or more can be turned on: text message, authenticator app, WhatsApp | `sys.setting auth.mfa` from the security console's *Two-step sign-in* page: methods open and portals that must use one (package C, section 3) |
+| 3. Parcels: guaranteed space or best effort | Parcels are booked with capacity; prices by weight, by volume or both, shown to the customer; letters at a fixed price or a price agreed between carrier and customer | Parcel tariffs and offers, hold capacity taken before payment (package G, section 7) |
+| 4. Who pays the payment provider's fee, and how it is rounded | Set by the platform for each customer; by default the customer pays it and sees it before paying; per currency as a percentage, a fixed amount or zero (marketing and offers) | `fin.fee_rule` per way of paying, currency, customer and period, rounded per rule to a step and direction set in that currency (package B, section 2) |
+| 5. A second approval before a bank statement amount is credited | An approval matrix with as many levels as the settings say, each naming its approvers | `fin.approval_policy` with levels and named members, checked in the database (package B, section 2) |

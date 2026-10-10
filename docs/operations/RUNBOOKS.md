@@ -746,9 +746,40 @@ add `pg_stat_statements` to its `shared_preload_libraries` and, if the owner rol
 `pg_stat_statements.max` (default 5000) is too small for the number of distinct statements. Statements slower than one
 second also reach the database log, without their bind values (`log_parameter_max_length=0`).
 
+**Watchdog** (R-45): this alert always fires. Alertmanager sends it every minute to the dead man's switch
+(`deploy/staging/secrets/deadman_webhook_url`: a heartbeat service with its own paging), which pages the on-call engineer
+when the heartbeats stop: Prometheus, Alertmanager or the network to the receivers is down. Never silence it; if the
+switch pages, check those three before anything else.
+
 **Reports built off the request loop** (R-46): an export is rendered in a worker thread, at most
 `MASSLAK_EXPORT_RENDER_SLOTS` (default 2) at a time per process; a burst waits up to 15 s and is then answered 503
 `EXPORT_BUSY` with `Retry-After`. Raise the slots only with CPU to spare: each slot can keep one core busy.
+
+## 29. Archiving a closed financial year (R-05)
+
+Bookings are partitioned by ranges of id (1064), not by year, and about 22 tables refer to `sales.booking`. A closed
+year is therefore archived by **copying it out and keeping it readable**, never by detaching a partition the foreign
+keys still point into. This is a planned task for the third phase of the capacity model (`CAPACITY_MODEL.md`), not a
+launch requirement; rehearse it on a copy before the first real run.
+
+1. **Scope.** The year must be closed in the ledger (`fin.ledger_close.closed_through` past its last day) and on no legal
+   hold (`gov.v_table_lifecycle.on_legal_hold`). The ids to archive are the bookings created in that year:
+   `SELECT min(id), max(id), count(*) FROM sales.booking WHERE created_at >= '<year>-01-01' AND created_at < '<year+1>-01-01'`.
+2. **Dependency map.** List what refers to those bookings (tickets, payments, refunds, allocations, ledger references,
+   manifests, notifications):
+   `SELECT conrelid::regclass, conname FROM pg_constraint WHERE confrelid = 'sales.booking'::regclass AND contype = 'f'`.
+   Each referring table is archived for the same ids, so the archive is complete on its own.
+3. **Copy.** Into an archive database (same schema version), table by table in id batches of 10,000:
+   `COPY (SELECT * FROM <table> WHERE booking_id BETWEEN ...) TO STDOUT` piped into `COPY ... FROM STDIN` on the archive.
+   Record per table the row count and `md5(string_agg(t::text, '' ORDER BY id))` on both sides; they must match.
+4. **Read path.** Support and audit read the archive through a read-only role on the archive database
+   (`masslak_readonly` there); the platform's reports name the archive for periods before the cut. The primary keeps
+   the bookings until step 5 is signed.
+5. **Remove from the primary** only after the owner signs the comparison of step 3, in the reverse order of the
+   dependency map, in batches, with `masslak.purging=on` so the audit trail records it as a purge. The ledger is never
+   removed: closed days keep their totals (`fin.ledger_day_total`), which the reconciliation reads.
+6. **Prove it.** `fin.reconcile_wallets()` with zero mismatches, support can open an archived booking by reference from
+   the archive, and a restore of the archive database from its own backup gives the same counts and hashes.
 
 ## Rehearsal schedule
 

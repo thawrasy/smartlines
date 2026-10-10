@@ -7,6 +7,12 @@ route:
   group_interval: 5m
   repeat_interval: 4h
   routes:
+    # the heartbeat goes to the dead man's switch every minute and nowhere else (R-45)
+    - matchers: ['severity="heartbeat"']
+      receiver: deadman
+      group_wait: 0s
+      group_interval: 1m
+      repeat_interval: 1m
     - matchers: ['severity="page"']
       receiver: page
       repeat_interval: 1h
@@ -19,6 +25,10 @@ receivers:
     webhook_configs:
       - url_file: /etc/alertmanager/secrets/ticket_webhook_url
         send_resolved: true
+  - name: deadman
+    webhook_configs:
+      - url_file: /etc/alertmanager/secrets/deadman_webhook_url
+        send_resolved: false
 inhibit_rules:
   # a database that is down explains every other database alert
   - source_matchers: ['alertname="DatabaseDown"']

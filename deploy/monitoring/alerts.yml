@@ -3,6 +3,12 @@
 groups:
   - name: masslak-slo
     rules:
+      # Always firing (review of 1.47.0, R-45): Alertmanager sends it every minute to an external dead man's switch, which
+      # pages through its own channel when it stops arriving: Prometheus, Alertmanager or the receivers are then down
+      - alert: Watchdog
+        expr: vector(1)
+        labels: { severity: heartbeat }
+        annotations: { summary: "Alerting works end to end (dead man's switch)", runbook: "RUNBOOKS.md#28-logs-traces-and-slow-statements-148" }
       # Booking, payment and search availability: fast and slow burn of the 99.9 % error budget (multi-window)
       - alert: BookingErrorBudgetFastBurn
         expr: |

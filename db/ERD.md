@@ -3280,6 +3280,10 @@ erDiagram
   gov_data_purpose {
     text code PK
   }
+  gov_dataset_member {
+    text table_name PK
+    text dataset FK
+  }
   gov_erasure_log {
     bigint id PK
     bigint party_id FK
@@ -3352,6 +3356,7 @@ erDiagram
   sec_security_event {
     ref external
   }
+  gov_dataset_member }o--|| gov_data_inventory : "dataset"
   gov_policy_authority }o--|| gov_policy_domain : "domain_code"
   gov_policy_change }o--|| gov_policy_domain : "domain_code"
   gov_erasure_log }o..o| gov_subject_request : "request_id"

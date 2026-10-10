@@ -7,7 +7,7 @@ mkdir -p "$D"; umask 077
 rand() { head -c 32 /dev/urandom | base64 | tr -d '/+=\n' | cut -c1-40; }
 [ -s "$D/metrics_token" ] || rand > "$D/metrics_token"
 [ -s "$D/grafana_admin_password" ] || rand > "$D/grafana_admin_password"
-for r in page ticket; do
+for r in page ticket deadman; do
   [ -s "$D/${r}_webhook_url" ] || echo "http://127.0.0.1:9/replace-with-the-${r}-receiver" > "$D/${r}_webhook_url"
 done
 # Prometheus and Grafana read these as their own users
@@ -15,4 +15,4 @@ chmod 0644 "$D"/metrics_token "$D"/grafana_admin_password "$D"/*_webhook_url
 echo "Add to deploy/.env (once):"
 echo "MASSLAK_METRICS_TOKEN=$(cat "$D/metrics_token")"
 grep -q '^PGBACKREST_REPO1_CIPHER_PASS=.' "$(dirname "$D")/../.env" 2>/dev/null || echo "PGBACKREST_REPO1_CIPHER_PASS=$(rand)"
-echo "Then put the on-call and team-queue webhook URLs in $D/page_webhook_url and ticket_webhook_url."
+echo "Then put the on-call and team-queue webhook URLs in $D/page_webhook_url and ticket_webhook_url, and the dead man's switch (a heartbeat service that pages when the Watchdog alert stops arriving) in deadman_webhook_url."

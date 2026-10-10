@@ -2,7 +2,7 @@
 
 > Generated from the built database (`db/tools/gen_docs.py`); do not edit by hand.
 
-**501 tables, 5154 columns, in 26 schemas.**
+**502 tables, 5158 columns, in 26 schemas.**
 
 Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant isolation (RLS) · 🧩 partitioned monthly · 🔒 append-only / change-protected
 
@@ -20,7 +20,7 @@ Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant i
 - [`acct` — Simplified accounting, e-invoicing and tax profiles](#acct) (35 tables)
 - [`bill` — Carrier subscriptions, metering and platform invoices](#bill) (7 tables)
 - [`crm` — Complaints, ratings, notifications, the AI assistant and the contact center](#crm) (19 tables)
-- [`gov` — Governance, obligations and data protection](#gov) (14 tables)
+- [`gov` — Governance, obligations and data protection](#gov) (15 tables)
 - [`sec` — Security: IP rules, risk, signing, the security hub and government adapters](#sec) (26 tables)
 - [`ptn` — Service partners: fuel stations, rest stops and maintenance](#ptn) (14 tables)
 - [`ship` — Shipments and the integrated shipping network](#ship) (57 tables)
@@ -5482,6 +5482,17 @@ Why restricted data is read; some purposes need a written reason or a second off
 | `description` | `text` | ✱ |  |
 | `requires_reason` | `boolean` | ✱ | `true` |
 | `requires_second_approval` | `boolean` | ✱ | `false` |
+
+### `gov.dataset_member` 🛡️
+
+Which dataset (and so which retention, erasure and copies) a table belongs to (1079, R-04)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `table_name` | `text` | 🔑 ✱ |  |
+| `dataset` | `text` | 🔗 `gov.data_inventory` ✱ |  |
+| `note` | `text` |  |  |
+| `assigned_at` | `timestamp with time zone` | ✱ | `now()` |
 
 ### `gov.erasure_log` 🛡️
 

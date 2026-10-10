@@ -2352,6 +2352,20 @@ SELECT pg_temp.ok(has_function_privilege('masslak_app', 'ship.trip_hold(bigint)'
   AND EXISTS (SELECT 1 FROM pg_policy WHERE polrelid = 'ship.parcel_offer'::regclass AND polname = 'module_gate'),
   'Parcels (1078): offers are private to the customer and the carrier, and open with the shipping module');
 ROLLBACK;
+-- 1079: every table has a lifecycle (R-04)
+SELECT pg_temp.ok(NOT EXISTS (SELECT 1 FROM gov.lifecycle_gaps())
+  AND (SELECT count(*) FROM gov.v_table_lifecycle WHERE dataset IS NULL) = 0
+  AND NOT EXISTS (SELECT 1 FROM gov.v_table_lifecycle WHERE sensitivity = 'RESTRICTED' AND (retention_days IS NULL OR erasure_method IS NULL)),
+  'Lifecycle (1079, R-04): every table belongs to a dataset, and every table naming people has a retention and an erasure method');
+BEGIN;
+CREATE TABLE sales.zz_lifecycle_probe (id int PRIMARY KEY, full_name text, company_id bigint);
+SELECT sys.refresh_table_class();
+SELECT pg_temp.ok(EXISTS (SELECT 1 FROM gov.lifecycle_gaps() WHERE table_name = 'sales.zz_lifecycle_probe'),
+  'Lifecycle (1079, R-04): a new table without a dataset is reported (and fails these checks)');
+INSERT INTO gov.dataset_member (table_name, dataset) VALUES ('sales.zz_lifecycle_probe', 'sales catalog');
+SELECT pg_temp.ok(EXISTS (SELECT 1 FROM gov.lifecycle_gaps() WHERE table_name = 'sales.zz_lifecycle_probe' AND problem LIKE 'holds RESTRICTED%'),
+  'Lifecycle (1079, R-04): a table naming people cannot hide in a public catalog dataset');
+ROLLBACK;
 -- Review stage D (1064): bookings partitioned by ranges of id
 SELECT pg_temp.ok(
   (SELECT relkind FROM pg_class WHERE oid = 'sales.booking'::regclass) = 'p'

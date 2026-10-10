@@ -3,6 +3,13 @@ rule_files: [alerts.yml]
 evaluation_interval: 1m
 tests:
   - interval: 1m
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: Watchdog
+        exp_alerts:
+          - exp_labels: { severity: heartbeat }
+            exp_annotations: { summary: "Alerting works end to end (dead man's switch)", runbook: "RUNBOOKS.md#28-logs-traces-and-slow-statements-148" }
+  - interval: 1m
     input_series:
       - series: masslak_wallet_mismatches
         values: "0 0 2 2"

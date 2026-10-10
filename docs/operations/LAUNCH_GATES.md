@@ -36,6 +36,20 @@ While its switch stays closed, the AI/CS phase does not hold back the core launc
 | 8 | **Security testing** | Independent external penetration test (`docs/security/PENETRATION_TEST_SCOPE.md`) and remediation | Every critical or high finding fixed and retested, or formally accepted by the owner with a dated reason | The firm's report and retest report | Firm's signed report and retest letter, remediation register | External firm / owner | Open |
 | 9 | **AI and contact centre** (R-20, T3-20) | Threat model, DPIA and acceptance criteria approved before the phase switch opens | The phase switch cannot open without the approvals and tests | `docs/architecture/AI_ASSISTANT_THREAT_MODEL_DPIA.md` sign-off; phase-gate test | Signed DPIA, test log | Data protection officer / owner | Not applicable yet (phase closed). Enforced by the database since 1055: `contact_center` and `ai_assistant` switch on only after an approved `gov.feature_compliance_review` with the DPIA file and approver |
 
+## What the reviews of release 1.47.0 add to the gates
+
+The review found that the repository cannot itself prove the production layout, so these remain open until run in
+their environment (R-55). Each is attached to a gate above; none can be closed with a development measurement.
+
+| Review card | Gate | What must be shown | Evidence |
+|---|---|---|---|
+| R-42 (high availability as built) | 1, and the failover drill | A clean staging built from one release artefact with Patroni, etcd, HAProxy, PgBouncer, the site-B watchdog and pgBackRest (`deploy/ha`); the primary killed under load; one leader, RPO and RTO within the approved targets, the old primary back as a standby | `failover_staging_<date>.json` from `db/tools/failover_drill.py`, signed run log |
+| R-45 (alerts reach someone) | 5 | `WalArchiveStale` and an availability alert reach the on-call engineer in at most 15 minutes and are acknowledged with the runbook; with the receivers removed, the dead man's switch (alert `Watchdog`, receiver `deadman`) pages through its own channel | `alert_drill_staging_<date>.json`, on-call rota |
+| R-47 (rollback after a migration) | 4 | A deliberately failing migration rolled back by itself; the previous application release run against the expanded schema; a point-in-time restore to before the migration within the RTO, wallets, ledger and audit intact | `migration_rehearsal_staging_<release>_<date>.json`, restore timing |
+| R-06 (heavy migrations) | 4 | 1064 and 1070 at 1x, 2x and 5x volume per `docs/database/MIGRATION_PLANS.md` | `migration_rehearsal_staging_1064_<scale>_<date>.json` |
+| R-54 (verifiable release) | before install | `deploy/verify-release.sh` exits 0 on the archive, with the SBOM and Sigstore bundles of the release workflow | the GitHub release of the tag and the verification output |
+| R-55 (independent proof) | 1 to 8 | Each gate passed with dated, signed evidence; the external penetration test and its retest | the files named in the register |
+
 ## Running the gates (review stage B)
 
 `python3 db/tools/launch_gates.py check` reads `evidence/` and shows each gate against its success criterion. Only

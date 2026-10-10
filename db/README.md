@@ -14,9 +14,9 @@ supporting index, except references to lookup lists and to the staff member who 
 |---|---|
 | Engine | PostgreSQL 16 with PostGIS 3 (extensions: pgcrypto, citext, btree_gist, pg_trgm, postgis in schema `gis`; Docker and CI image `postgis/postgis:16-3.4`, Ubuntu package `postgresql-16-postgis-3`) |
 | Schemas | 26 separate schemas, each with its own privileges |
-| Tables | 501 tables (8 partitioned), 5,154 columns, 1,439 foreign keys |
-| Security | row-level security on 501 of 501 tables, 926 policies; 435 triggers, 279 functions |
-| Tests | 488 automated checks against a freshly built database (`db/tests/run.sh`) |
+| Tables | 502 tables (8 partitioned), 5,158 columns, 1,440 foreign keys |
+| Security | row-level security on 502 of 502 tables, 927 policies; 435 triggers, 281 functions |
+| Tests | 491 automated checks against a freshly built database (`db/tests/run.sh`) |
 | Design | [Database design and ERD document](../docs/database/) with diagrams in the study's colors |
 | Docs | [Data dictionary](DATA_DICTIONARY.md) · [ERD diagrams](ERD.md) (both generated from the database) |
 <!-- stats:end -->
@@ -135,6 +135,7 @@ PostGIS in `gis`. Until 9 October 2026 a first start of the Docker stack stopped
 | `1076_backups_and_durability.sql` | Backups that leave the server and durability the owner chooses: each nightly backup's local and off-site copy recorded (`sys.backup_run`, `sys.record_backup`); the age of both and whether commits wait for a standby for the monitoring (`sys.durability_metrics`, zero data loss as a setting, deploy/durability.sh); the security console's connections capped by their role (review of 1.47.0, package D; owner's decision 1) |
 | `1077_statement_statistics.sql` | Statement statistics: `pg_stat_statements` where the server offers it, read only through functions that mask literals and never carry bind values (`sys.top_statements` by total or mean time, calls or disk reads; `sys.statement_metrics` for the monitoring; `sys.reset_statement_stats` to start a measurement window); everything answers empty where the server does not preload it (review of 1.47.0, package F) |
 | `1078_manifests_and_parcels.sql` | Manifests sealed once issued: their people, vehicle and cargo rows and their header content cannot change (`brd.tg_manifest_sealed`, `brd.tg_manifest_content_sealed`; key rotation may still re-encrypt document numbers), signed hashes of a canonical form (`payload_signature`, `signing_kid`, `canonical_version`); parcels booked on a trip's hold: carrier tariffs by weight, volume, the dearer of both, fixed or agreed (`ship.parcel_tariff`, `ship.parcel_price`), prices agreed per parcel (`ship.parcel_offer`), free hold for customers (`ship.trip_hold`), a guaranteed shipment committed only with a leg holding capacity (review of 1.47.0, package G; owner's decision 3) |
+| `1079_lifecycle_coverage.sql` | Every table has a lifecycle: a dataset of its own in `gov.data_inventory` or membership of one (`gov.dataset_member`), the tables not yet covered grouped by schema and sensitivity (personal records, records, configuration, catalog) with retention, erasure method and copies; `gov.lifecycle_gaps()` lists any table without one or more sensitive than its dataset (checked in CI); `gov.v_table_lifecycle` per table (review of 1.47.0, package H, R-04) |
 
 ## Design rules (study 29.1)
 
