@@ -280,3 +280,16 @@ was 30 seconds where the code uses 90). Three of its items were started:
 Found while checking: the country and ASN rules of the security console are stored and listed, but the middleware calls
 `sec.ip_decision` with the address and the scope only, so they never match. The fix belongs with the decision on the
 access policy by country (not started).
+
+### Decisions recorded (10 October 2026)
+
+| Decision | Status |
+|---|---|
+| Web ticket code: window stays 90 seconds; boarding also checks a photo of each passenger | Decided; the photo capture, its storage and its check are not built yet |
+| Photo: who checks it (driver, boarding staff or carrier office), when it is taken, how long it is kept, notice and consent, whether children and family members are included | Open; needs a privacy review first |
+| Mobile ticket credential (valid until six hours after arrival): bound to the device, or checked against the photo at boarding | Open |
+| Second signal for root detection (Google Play Integrity, Apple App Attest) | Open: sends device data to the vendor |
+| Access by country and network provider: the security console's country and provider rules are stored but never match (`sec.ip_decision` gets no country or provider); the fix waits for the data source | Open: choice of geographic data source and licence |
+| Access policy for launch (Syria only): exemptions, use of the phone's location, store listing | Open (seven questions in the scenario file) |
+| Currency: pricing inside the platform, rates stored with their effective date (`ref.exchange_rate`), later a source for foreign cards, withdrawals in the currencies the settings enable | Direction agreed; launch currencies and the rate source are open |
+
