@@ -144,9 +144,10 @@ def test_the_burst_records_the_build(tmp_path, monkeypatch):
 
 
 # ------------------------------------------------------------------ token keys, one per purpose, named in each token
-def _keys(monkeypatch, qr: str = "", document: str = "", legacy: str = ""):
+def _keys(monkeypatch, qr: str = "", document: str = "", legacy: str = "", lookup: str = ""):
     from app import security
-    for name, value in (("MASSLAK_QR_KEYS", qr), ("MASSLAK_DOCUMENT_KEYS", document), ("MASSLAK_LEGACY_DOCUMENT_TOKENS", legacy)):
+    for name, value in (("MASSLAK_QR_KEYS", qr), ("MASSLAK_DOCUMENT_KEYS", document), ("MASSLAK_LEGACY_DOCUMENT_TOKENS", legacy),
+                        ("MASSLAK_LOOKUP_KEYS", lookup)):
         if value:
             monkeypatch.setenv(name, value)
         else:
@@ -247,3 +248,59 @@ def test_no_overlay_runs_an_image_of_unknown_version():
                     assert ":${MASSLAK_IMAGE_TAG:?" in image, f"{f}: {image} must refuse to start without the release's tag"
             else:
                 assert "@sha256:" in image, f"{f}: {image} is not pinned by digest"
+
+
+# ------------------------------------------------------------------ lookup digests: blocklist and invite codes not keyed by the secret
+def test_a_lookup_digest_without_keys_is_the_digest_stored_before_1_50(monkeypatch):
+    import hashlib
+    import hmac
+    from app.config import get_settings
+    s = _keys(monkeypatch)
+    legacy = hmac.new(get_settings().signing_secret.encode(), b"ali@example.com", hashlib.sha256).digest()
+    assert s.identifier_hash("Ali@Example.com") == legacy           # blocks and failure counts of earlier releases still match
+    s.token_keys.cache_clear()
+
+
+def test_a_key_change_stores_new_digests_and_still_matches_the_old_ones(monkeypatch):
+    import hashlib
+    import hmac
+    from app.config import get_settings
+    old_secret = get_settings().signing_secret.encode()
+    legacy = hmac.new(old_secret, b"ali@example.com", hashlib.sha256).digest()
+    s = _keys(monkeypatch, lookup="l2:" + _key("cd") + ",s1")
+    hashes = s.identifier_hashes("ali@example.com")
+    assert hashes[0] != legacy and hashes[1] == legacy              # new records under the first key, the old ones still found
+    assert s.identifier_hash("ali@example.com") == hashes[0]
+    s = _keys(monkeypatch, lookup="l2:" + _key("cd"))              # once "s1" is removed, the old digests no longer match
+    assert legacy not in s.identifier_hashes("ali@example.com")
+    s.token_keys.cache_clear()
+
+
+def test_an_invite_code_matches_under_any_listed_key(monkeypatch):
+    import hashlib
+    import hmac
+    from app.config import get_settings
+    from app.modules.family import service as fam
+    legacy = hmac.new(get_settings().signing_secret.encode(), b"family-invite:ABC23456", hashlib.sha256).digest()
+    s = _keys(monkeypatch, lookup="l2:" + _key("cd") + ",s1")
+    assert fam.code_hash("abc23456") != legacy and fam.code_hashes("abc23456")[1] == legacy
+    s.token_keys.cache_clear()
+
+
+def test_a_blocked_value_is_refused_whatever_key_stored_it(monkeypatch):
+    import asyncio
+    import hashlib
+    import hmac
+    from app.config import get_settings
+    legacy = hmac.new(get_settings().signing_secret.encode(), b"ali@example.com", hashlib.sha256).digest()
+
+    class Conn:
+        def __init__(self, blocked):
+            self.blocked = blocked
+        async def fetchval(self, sql, kind, digest):
+            return digest in self.blocked
+
+    s = _keys(monkeypatch, lookup="l2:" + _key("cd") + ",s1")
+    assert asyncio.run(s.identifier_blocked(Conn({legacy}), "EMAIL", " Ali@Example.com "))   # blocked before the change
+    assert not asyncio.run(s.identifier_blocked(Conn(set()), "EMAIL", "ali@example.com"))
+    s.token_keys.cache_clear()

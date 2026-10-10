@@ -57,8 +57,8 @@ def problems(environ: Mapping[str, str] | None = None) -> list[str]:
     if held:
         found.append(f"data keys sit in this process's environment ({', '.join(held)}): on a production server they are "
                      "wrapped by the key service and only the migration may read them, once, to wrap them")
-    # QR codes and document tokens signed with keys of their own, not with keys derived from the signing secret
-    derived = [name for name in ("MASSLAK_QR_KEYS", "MASSLAK_DOCUMENT_KEYS")
+    # QR codes, document tokens and lookup digests (blocklist, invite codes) keyed with keys of their own
+    derived = [name for name in ("MASSLAK_QR_KEYS", "MASSLAK_DOCUMENT_KEYS", "MASSLAK_LOOKUP_KEYS")
                if not env.get(name, "").strip() or env.get(name, "").split(",")[0].strip() == "s1"]
     if derived:
         found.append(f"{', '.join(derived)} must name a key of its own first (kid:base64 of 32 bytes; deploy/init-env.sh "

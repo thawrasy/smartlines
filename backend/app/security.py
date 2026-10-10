@@ -112,8 +112,29 @@ def token_hash(token: str) -> bytes:
     return hashlib.sha256(token.encode()).digest()
 
 
+def lookup_digests(message: bytes) -> list[bytes]:
+    """The digests of a value that is only ever looked up (a login identifier, a family invite code): one per key of
+    MASSLAK_LOOKUP_KEYS, the first key's digest first. New records are stored with the first; a lookup matches any
+    (reviews of release 1.49.0: the key of these digests is no longer the signing secret, so a leaked secret does not
+    give the blocklist or the invite codes)."""
+    return [hmac.new(key, message, hashlib.sha256).digest() for _, key in token_keys("lookup")]
+
+
+def identifier_hashes(identifier: str) -> list[bytes]:
+    return lookup_digests(identifier.lower().encode())
+
+
 def identifier_hash(identifier: str) -> bytes:
-    return hmac.new(get_settings().signing_secret.encode(), identifier.lower().encode(), hashlib.sha256).digest()
+    """The digest a new record is stored under."""
+    return identifier_hashes(identifier)[0]
+
+
+async def identifier_blocked(conn, kind: str, value: str) -> bool:
+    """Whether a value is on the active blocklist under any key, so a block stored before a key change still applies."""
+    for digest in identifier_hashes("".join(str(value).split())):           # spaces inside a number or address do not count
+        if await conn.fetchval("SELECT sec.is_blocked($1, $2)", kind, digest):
+            return True
+    return False
 
 
 def _b64(data: bytes) -> str:
@@ -130,12 +151,14 @@ def _b64(data: bytes) -> str:
 # own (app.profile). The tokens before release 1.50.0 (T1, D1) were signed with the signing secret itself: rotating
 # codes live for two windows, so T1 is refused; D1 stays valid on printed documents until
 # MASSLAK_LEGACY_DOCUMENT_TOKENS=refuse.
-TOKEN_KEY_ENV = {"qr": "MASSLAK_QR_KEYS", "document": "MASSLAK_DOCUMENT_KEYS"}
+TOKEN_KEY_ENV = {"qr": "MASSLAK_QR_KEYS", "document": "MASSLAK_DOCUMENT_KEYS", "lookup": "MASSLAK_LOOKUP_KEYS"}
 DERIVED_KID = "s1"
 _KID = re.compile(r"^[a-z0-9]{1,12}$")
 
 
 def _derived_token_key(purpose: str) -> bytes:
+    if purpose == "lookup":           # digests stored before release 1.50.0 are keyed with the signing secret itself
+        return get_settings().signing_secret.encode()
     from cryptography.hazmat.primitives.hashes import SHA256
     from cryptography.hazmat.primitives.kdf.hkdf import HKDF
     return HKDF(algorithm=SHA256(), length=32, salt=b"masslak-keys", info=f"token/{purpose}".encode()).derive(

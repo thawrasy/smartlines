@@ -435,7 +435,7 @@ flowchart TB
 | Network interception | TLS 1.3 with public-key pinning of the API certificate (with a backup pin) |
 | Tampered or repackaged app | Play Integrity and App Attest checks on sign-in and payment; server refuses unattested clients for money operations |
 | Rooted or jailbroken device | Warning for passengers; the driver app refuses to run boarding |
-| Offline ticket forgery | Tickets stored encrypted; the QR still carries the server HMAC so a copied screenshot expires within 30 seconds once online verification is used, and the driver app checks signatures offline with a public verification key |
+| Copied or forged tickets | The web shows a rotating code: the server signs it for each 90-second window and accepts the current and the previous window, so a copied code works for about three minutes. The mobile ticket shows a signed credential for its trip, valid until six hours after arrival: a screenshot of it works until the first boarding, and a second scan is refused as a duplicate. The driver app checks the signature offline with a public key it holds, never a private one. Whether boarding also checks the passenger's identity (a photo taken at boarding) is an open decision (REVIEW_OCT_2026_RESPONSE.md, section 7) |
 | Replay of payments | Idempotency key per payment, generated on the device and stored until confirmed |
 | Data left behind | Cache cleared on sign-out; screenshots blocked on the wallet and recovery code screens |
 | Location misuse | Location requested with the explanation from the study; used only for shuttle fare and driver tracking; never sold or shared outside the legal basis |

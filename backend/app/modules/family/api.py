@@ -325,7 +325,7 @@ async def join(body: Join, request: Request, pr: Principal = Depends(passenger))
         async with db.system_scope(conn, ctx):
             req = await conn.fetchrow(
                 """SELECT r.*, f.head_party_id, f.name AS family_name FROM iam.family_link_request r JOIN iam.family f ON f.id = r.family_id
-                    WHERE r.invite_code_hash = $1 AND r.status = 'INVITED' AND r.expires_at > now()""", fam.code_hash(body.code))
+                    WHERE r.invite_code_hash = ANY($1::bytea[]) AND r.status = 'INVITED' AND r.expires_at > now()""", fam.code_hashes(body.code))
             if req is None:
                 raise ApiError(404, "INVITE_INVALID", "the code is wrong or has expired")
             if req["head_party_id"] == pr.party_id:

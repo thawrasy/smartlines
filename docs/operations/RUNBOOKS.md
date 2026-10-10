@@ -964,6 +964,22 @@ that signed them. The first key of `MASSLAK_QR_KEYS` and of `MASSLAK_DOCUMENT_KE
    printed documents (`D1`) are accepted until `MASSLAK_LEGACY_DOCUMENT_TOKENS=refuse`, which a server sets once those
    documents no longer need checking, and at once if `MASSLAK_SIGNING_SECRET` was exposed.
 
+### Rotating the lookup key (blocklist identifiers and family invite codes)
+
+`MASSLAK_LOOKUP_KEYS` keys the digests of login identifiers (the blocklist, the sign-in and sign-up limits, the audit
+column of failed sign-ins) and of family invite codes. Digests stored before release 1.50.0 are keyed with the signing
+secret, which the list names as `s1`. The first key stores new digests; every key listed matches a lookup.
+
+1. Put a new key first and keep `s1` after it: `MASSLAK_LOOKUP_KEYS=l<yyyymm>:<openssl rand -base64 32>,s1`.
+2. Run `./deploy/env-split.sh` and restart the app and the worker.
+3. Re-enter every active blocklist entry, through the security console, so each is stored under the new key. An entry
+   that is only matched through `s1` still blocks, but it stays keyed with the old secret.
+4. Remove `s1` only after step 3 and after the invitations made before the change have expired (a week). Removing it
+   earlier unblocks the entries not re-entered and makes the pending invite codes invalid.
+
+Blocked values are stored only as digests, so the platform cannot re-key them itself: each active entry is entered
+again in step 3.
+
 ### Rotating the warehouse login's password (yearly, and after any suspected exposure)
 
 1. Write a new `MASSLAK_CDC_PASSWORD` in `deploy/.env`.

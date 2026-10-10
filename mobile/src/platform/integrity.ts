@@ -20,6 +20,9 @@ export async function secureTransport(): Promise<{ pinned: boolean; problem: str
   return { pinned: true, problem: null };
 }
 
+/**
+ * Advisory only: the root check is an experimental Expo call that a determined user can defeat (docs/operations/MOBILE_DEVICE_MATRIX.md, limits). The driver app refuses to board on it; the passenger app warns.
+ */
 export async function checkIntegrity(): Promise<Integrity> {
   const rooted = await Device.isRootedExperimentalAsync().catch(() => false);
   const transport = await secureTransport();

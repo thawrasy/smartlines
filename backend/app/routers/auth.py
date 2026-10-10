@@ -13,7 +13,7 @@ from .. import crypto, db, markets, metrics, mfa, mfa_policy, ratelimit
 from ..config import get_settings
 from ..deps import SESSION_COOKIE, Principal, base_context, mfa_required_for, require_session, require_user
 from ..errors import ApiError
-from ..security import (hash_password, identifier_hash, new_token, password_needs_rehash, password_problem, token_hash,
+from ..security import (hash_password, identifier_blocked, identifier_hash, new_token, password_needs_rehash, password_problem, token_hash,
                         verify_password)
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
@@ -65,7 +65,7 @@ async def _auth_event(conn, request: Request, event: str, result: str, *, user_i
 async def _blocked(conn, *pairs) -> bool:
     """Whether any (type, value) is on the active blocklist; values are compared as digests (sec.is_blocked, 1054)."""
     for kind, value in pairs:
-        if value and await conn.fetchval("SELECT sec.is_blocked($1, $2)", kind, identifier_hash("".join(str(value).split()))):
+        if value and await identifier_blocked(conn, kind, value):
             return True
     return False
 

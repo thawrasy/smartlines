@@ -265,3 +265,18 @@ Four reports on release 1.49.0 were assessed against the code:
 | ruff, bandit (CI configuration), language policy | Clean |
 | Generated documents, schema dependencies | Up to date |
 | CI on c54224a (run 145) | Every job green: schema, API with the browser checks, deployment, both production installations (one host; two database hosts with the failover drill), images, warehouse, mobile, security |
+
+### Started after the third report on release 1.49.0
+
+The third report's claims were checked against the code (its figures and its snippets are paraphrases; its QR window
+was 30 seconds where the code uses 90). Three of its items were started:
+
+| Item | What changed | Proof |
+|---|---|---|
+| Blocklist and invite codes keyed with the signing secret | Login identifiers (blocklist, sign-in limits, failed-sign-in audit) and family invite codes are keyed with `MASSLAK_LOOKUP_KEYS`. New records use the first key; a lookup matches every listed key, so records stored before (keyed with `s1`, the secret) still match. Production requires a key of its own first. The rotation is in RUNBOOKS.md, section 31 | `test_review_v149.py` (lookup digests, rotation, invite codes, blocked values under any key); `test_production_profile.py` |
+| Root detection overstated | Documented as a warning, not proof: the Expo call is experimental; the vendor services that would give a second signal, and their privacy cost, are a decision for the owner | MOBILE_DEVICE_MATRIX.md, limits; integrity.ts comment |
+| Ticket threat row said 30 seconds | The row now states the behaviour of the code: a web code is valid about three minutes; a mobile credential is valid until six hours after arrival and works from a screenshot until the first boarding. The window and the identity check at boarding are decisions for the owner | ARCHITECTURE.md, the copied-tickets row |
+
+Found while checking: the country and ASN rules of the security console are stored and listed, but the middleware calls
+`sec.ip_decision` with the address and the scope only, so they never match. The fix belongs with the decision on the
+access policy by country (not started).

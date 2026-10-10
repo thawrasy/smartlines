@@ -19,6 +19,7 @@ import asyncpg
 
 from ... import crypto, db, markets
 from ...config import get_settings
+from ...security import lookup_digests
 from ...errors import ApiError, not_found
 from ...ledger import owned_wallet, post_txn, user_wallet
 
@@ -67,8 +68,14 @@ def full_name(m) -> str:
     return " ".join(p for p in (m["first_name"], m["father_name"], m["grandfather_name"], m["last_name"]) if p)
 
 
+def code_hashes(code: str) -> list[bytes]:
+    """The digests an invite code matches under (any key of MASSLAK_LOOKUP_KEYS, reviews of release 1.49.0)."""
+    return lookup_digests(b"family-invite:" + code.upper().encode())
+
+
 def code_hash(code: str) -> bytes:
-    return hmac.new(get_settings().signing_secret.encode(), b"family-invite:" + code.upper().encode(), hashlib.sha256).digest()
+    """The digest a new invitation is stored under."""
+    return code_hashes(code)[0]
 
 
 def new_code() -> str:

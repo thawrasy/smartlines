@@ -47,6 +47,7 @@ sed -e "s|^MASSLAK_DOMAIN=.*|MASSLAK_DOMAIN=$domain|" \
     -e "s|^MASSLAK_TICKET_SIGNING_KEY=.*|MASSLAK_TICKET_SIGNING_KEY=$(key)|" \
     -e "s|^MASSLAK_QR_KEYS=.*|MASSLAK_QR_KEYS=q$(date -u +%Y%m):$(key)|" \
     -e "s|^MASSLAK_DOCUMENT_KEYS=.*|MASSLAK_DOCUMENT_KEYS=d$(date -u +%Y%m):$(key)|" \
+    -e "s|^MASSLAK_LOOKUP_KEYS=.*|MASSLAK_LOOKUP_KEYS=l$(date -u +%Y%m):$(key)|" \
     -e "s|^MASSLAK_BACKUP_AGE_RECIPIENT=.*|MASSLAK_BACKUP_AGE_RECIPIENT=$recipient|" \
     .env.example > .env
 chmod 600 .env

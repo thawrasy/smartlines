@@ -53,6 +53,16 @@ Each case on each row, with the build's version and the result recorded in the t
 | 11 | Sign out | every cached ticket, pack and pending scan is gone from the keystore |
 | 12 | Update from the previous build | the session and the offline tickets survive the update |
 
+## Limits of the root check
+
+`checkIntegrity` (mobile/src/platform/integrity.ts) asks Expo whether the device is rooted or jailbroken. Expo marks that
+call experimental: it finds common root tools and known signs of a jailbreak, and a determined user can hide both. The
+result is therefore a warning, not proof. The passenger app warns; the driver app refuses to board on a rooted phone,
+because a rooted phone could forge boarding records offline. A stronger second signal needs a service of the platform:
+Google Play Integrity on Android (a verdict checked by the server, needs a Google Cloud project) and Apple App Attest on
+iOS (needs an Apple developer key). Both send device data to the vendor, so the choice is a decision for the owner
+(legal review of the privacy notice first). Until it is made, this matrix records the warning as its limit.
+
 ## Results
 
 | Date | Build | Device row | Device | Cases passed | Failures and their tickets | Tester |
