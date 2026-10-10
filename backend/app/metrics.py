@@ -200,6 +200,9 @@ class MetricsMiddleware:
             h[-1] += took                 # sum
 
 
+RESERVED = {"job": "task", "instance": "source"}     # labels Prometheus sets on every scraped series
+
+
 def _labels(d: dict) -> str:
     return "{" + ",".join(f'{k}="{str(v).replace(chr(92), "").replace(chr(34), "")}"' for k, v in d.items()) + "}" if d else ""
 
@@ -267,6 +270,9 @@ async def render_database(g: dict | None = None) -> list[str]:
             out.append(f"# TYPE {name} {kind}")
             seen.add(name)
         labels = r["labels"] if isinstance(r["labels"], dict) else __import__("json").loads(r["labels"] or "{}")
+        # a scrape sets job and instance itself and renames a label of the same name (exported_job), so no rule would
+        # find it: the database's job label is published as task (masslak_job_last_success_age_seconds{task=...})
+        labels = {RESERVED.get(k, k): v for k, v in labels.items() if v is not None}
         out.append(f"{name}{_labels(labels)} {r['value']}")
     from . import release
     rel = await release.current()

@@ -208,7 +208,7 @@
    },
    "targets": [
     {
-     "expr": "masslak_job_last_success_age_seconds{job=\"maintenance\"} / 3600",
+     "expr": "masslak_job_last_success_age_seconds{task=\"maintenance\"} / 3600",
      "refId": "A"
     }
    ]

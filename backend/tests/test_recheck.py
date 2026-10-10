@@ -28,6 +28,8 @@ def test_metrics_need_the_token_and_expose_slis_and_database_health():
     import re
     assert not re.search(r"[\w.+-]+@[\w-]+\.[\w.]+", body)
     assert not re.search(r'route="[^"]*([0-9a-f]{8}-[0-9a-f]{4}|/\d+(/|"))', body)
+    # job and instance are the scrape's own labels: a series carrying them is renamed (exported_job) and no rule finds it
+    assert not re.search(r'[{,](job|instance)="', body)
 
 
 # ------------------------------------------------------------------ T3-05 sensitive reports by link

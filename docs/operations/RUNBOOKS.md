@@ -485,7 +485,7 @@ The capacity model and its stages are in `CAPACITY_MODEL.md`.
   - A seat map under a sale rush: expected for seconds; if it lasts, check the hold expiry job.
 - **Partitions running out (`PartitionsRunningOut`) or rows in a default partition (`RowsInDefaultPartition`):** the
   daily upkeep (`sys.run_maintenance()`) creates daily partitions 7 days ahead and monthly ones 3 months ahead.
-  - Running out: check `masslak_job_last_success_age_seconds{job="maintenance"}` and run `SELECT sys.run_maintenance()`.
+  - Running out: check `masslak_job_last_success_age_seconds{task="maintenance"}` and run `SELECT sys.run_maintenance()`.
   - Rows in a default partition block creating the partition for their range. Move them with one reviewed migration
     file, rehearsed on staging first: detach the default partition, create the missing partition and a new empty
     default, copy the rows of the detached table into the parent table (they land in the new partition), then drop

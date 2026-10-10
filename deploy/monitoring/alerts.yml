@@ -75,7 +75,7 @@ groups:
         labels: { severity: page }
         annotations: { summary: "Today's or tomorrow's partition of the telemetry database is missing (worker upkeep not running)", runbook: "RUNBOOKS.md#22-telemetry-database-review-stage-d" }
       - alert: MaintenanceStale
-        expr: masslak_job_last_success_age_seconds{job="maintenance"} > 26 * 3600
+        expr: masslak_job_last_success_age_seconds{task="maintenance"} > 26 * 3600
         labels: { severity: page }
         annotations: { summary: "The daily upkeep has not succeeded for more than 26 hours", runbook: "RUNBOOKS.md#9-data-lifecycle-r-11" }
       - alert: WalletMismatch
@@ -371,7 +371,7 @@ groups:
           or label_replace(absent(masslak_geo_partitions_missing), "metric", "masslak_geo_partitions_missing", "", "")
           or label_replace(absent(masslak_partition_ahead_seconds), "metric", "masslak_partition_ahead_seconds", "", "")
           or label_replace(absent(masslak_partition_default_rows), "metric", "masslak_partition_default_rows", "", "")
-          or label_replace(absent(masslak_job_last_success_age_seconds{job="maintenance"}), "metric", "masslak_job_last_success_age_seconds{job=maintenance}", "", "")
+          or label_replace(absent(masslak_job_last_success_age_seconds{task="maintenance"}), "metric", "masslak_job_last_success_age_seconds{task=maintenance}", "", "")
           or label_replace(absent(masslak_wallet_mismatches), "metric", "masslak_wallet_mismatches", "", "")
           or label_replace(absent(masslak_payment_mismatches), "metric", "masslak_payment_mismatches", "", "")
           or label_replace(absent(masslak_refunds_waiting_provider), "metric", "masslak_refunds_waiting_provider", "", "")

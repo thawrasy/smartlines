@@ -454,7 +454,7 @@ tests:
         values: "1x30"
       - series: 'masslak_partition_default_rows'
         values: "1x30"
-      - series: 'masslak_job_last_success_age_seconds{job="maintenance"}'
+      - series: 'masslak_job_last_success_age_seconds{task="maintenance"}'
         values: "1x30"
       - series: 'masslak_wallet_mismatches'
         values: "1x30"
@@ -521,3 +521,17 @@ tests:
         exp_alerts:
           - exp_labels: { severity: ticket, job: node, instance: "node-exporter:9100" }
             exp_annotations: { summary: "Prometheus cannot read node (node-exporter:9100)", runbook: "RUNBOOKS.md#31-the-production-profile-reviews-of-october-2026-package-2" }
+  # the upkeep's age as Prometheus stores it after a scrape: job and instance are the target's, the job's name is task
+  - interval: 1m
+    input_series:
+      - series: 'masslak_job_last_success_age_seconds{job="masslak-api",instance="app:8000",task="maintenance"}'
+        values: "3600 100000x5"
+    alert_rule_test:
+      - eval_time: 0m
+        alertname: MaintenanceStale
+        exp_alerts: []
+      - eval_time: 3m
+        alertname: MaintenanceStale
+        exp_alerts:
+          - exp_labels: { severity: page, job: masslak-api, instance: "app:8000", task: maintenance }
+            exp_annotations: { summary: "The daily upkeep has not succeeded for more than 26 hours", runbook: "RUNBOOKS.md#9-data-lifecycle-r-11" }
