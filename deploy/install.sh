@@ -49,6 +49,20 @@ else
   ./deploy/init-env.sh "${args[@]}"
 fi
 
+production=false
+grep -q '^MASSLAK_ENVIRONMENT=production$' deploy/.env && production=true
+if [ "$production" = true ]; then
+  # reviews of October 2026, package 2: TLS to the database, WAL archived off this host, the key service, monitoring
+  step "Production profile: internal certificate authority, monitoring secrets, COMPOSE_FILE (deploy/production)"
+  ./deploy/production/init.sh
+  if ! ./deploy/production/preflight.sh; then
+    echo "Fill in deploy/.env (key service, pgBackRest repository, off-site backups) and the alert receivers in" \
+         "deploy/production/secrets, then run this installer again: docs/operations/PRODUCTION_PROFILE.md" >&2
+    exit 1
+  fi
+fi
+./deploy/env-split.sh                     # each container receives only its part of deploy/.env (H-06)
+
 step "Building and starting the stack (first build takes a few minutes)"
 # the commit of this checkout, or the one a signed release archive records in RELEASE, goes into the release manifest (1058)
 commit="$(git rev-parse HEAD 2>/dev/null || sed -n 's/^commit=\([0-9a-f]\{40\}\)$/\1/p' RELEASE 2>/dev/null || true)"

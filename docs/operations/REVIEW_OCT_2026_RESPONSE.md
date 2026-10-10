@@ -11,9 +11,8 @@ Two reviews of release 1.48.0 were assessed against the code. The first is a tec
 The work is in three packages. This page records each finding, what changed, the test that proves the change, and
 what remains open.
 
-Status values: **fixed** (in this release, with its test), **package 2** (a production profile that refuses an
-incomplete setup), **package 3** (availability, supply chain, improvements), **outside code** (needs staging or a
-third party; these are the open launch gates).
+Status values: **fixed** (in this release, with its test; packages 1 and 2), **package 3** (availability, supply
+chain, improvements), **outside code** (needs staging or a third party; these are the open launch gates).
 
 ## 1. Package 1: what was fixed
 
@@ -36,12 +35,14 @@ person who holds the API login's password, and can reach the database, could typ
 statement of their own. PostgreSQL lets every login set custom settings, and only a server extension can forbid
 that.
 
-Package 2 closes this path from the network side:
+Package 2 narrows this path from the network side:
 
-* the database accepts the API's login from the application network only, over TLS (`hostssl`);
-* the password lives in the secret store, not in a shared file (H-05, H-06).
+* in the production profile the database accepts the API's login only over TLS, with scram, from the container
+  network it is attached to;
+* the password reaches only the containers that use it, never the whole `deploy/.env` (H-05, H-06).
 
-RUNBOOKS.md, section 30, describes this limit.
+What still remains is a person who holds the password and runs code inside that network. Hosts of their own for the
+database (H-01, package 3) narrow it further. RUNBOOKS.md, section 30, describes this limit.
 
 ### Cost
 
@@ -66,17 +67,43 @@ Checking the ticket adds about 55 µs to each transaction, measured on the devel
 
 ## 2. Package 2: a production profile that refuses an incomplete setup
 
-| Ref | Finding | Verdict | Plan |
+A production server now installs and updates only in the production profile (`deploy/production`,
+docs/operations/PRODUCTION_PROFILE.md). Each part is checked before the server changes anything:
+
+* the host preflight checks what `deploy/.env` declares;
+* the migration's preflight checks the database itself, before any schema change;
+* the API and the worker check their own environment and connections when they start.
+
+The CI job **Production installation** first shows an incomplete setup refused. It then installs the profile against
+stand-ins for the key service, object storage and the alert receivers (`deploy/production/ci`), and checks each item
+on the running stack.
+
+| Ref | Finding | What changed | Proof |
 |---|---|---|---|
-| H-02 | WAL archiving off in the standard command; the check passes when it is off; the update only warns | Confirmed | A production server refuses to migrate or update unless archiving is on, the last WAL is recent and the pgBackRest repository is off the host |
-| H-03 | The update accepts a local backup only when the off-site copy is missing | Confirmed | A missing off-site copy blocks the upgrade in production, and stays a warning on trial and staging |
-| H-05 | PostgreSQL connections are not required to use TLS | Confirmed | Internal CA, `hostssl` only, `sslmode=verify-full` for the API, PgBouncer and replicas; a test that a plain connection is refused. Also closes the remaining path of C-01 |
-| H-06 | `deploy/.env` holds every secret and is passed whole to migrate, app and worker; the key service is optional | Confirmed | A key service is required in production; one environment file per service with only what it needs |
-| H-07 | Monitoring, alerting and virus scanning are in the staging overlay only; the second site is not scraped | Confirmed | Monitoring in the production profile, node_exporter, a scrape target for site B, an alert drill that reaches the person on call |
-| Addition 2 | The alert rules have no `absent()`: a vital metric that stops being collected silences its alert | Confirmed | An `absent()` rule for every metric an alert rests on, with H-07 |
-| H-09 | 1046 adds the contact constraints NOT VALID and treats a failed validation as a warning | Confirmed | `/api/ready` and the launch gates fail while any of the three constraints is unvalidated; `seal_contacts` before launch |
-| H-10 | The CDC login has REPLICATION and BYPASSRLS | Confirmed | `hostssl` from the warehouse's address only, with a client certificate; password rotation; only the `pgoutput` plugin |
-| M-07 | `MASSLAK_SCHEMA_DRIFT=warn` skips the drift check with no production guard | Confirmed | Refused on a production server |
+| H-02 | WAL archiving off in the standard command; the check passed when it was off; the update only warned | The production database image archives every WAL segment with pgBackRest, every minute at least. Before any migration, the preflight runs pgBackRest's own check from inside the database container (through `COPY ... FROM PROGRAM`), which archives a segment now. It refuses a repository on this host (it must be object storage, sftp or a repository host), archiving off, or another archive command. After an update, an archive that does not work fails the update | `test_production_profile.py` (each gap named); CI: installation (`production preflight passed`), `check-archive.sh`, a full pgBackRest backup into the repository, encrypted |
+| H-03 | The update accepted a backup kept on the server only | On a production server the update stops, before anything changes, when the backup was not copied off the server. Elsewhere it stays a warning | CI: an update with an unreachable off-site destination is refused and the running version keeps serving; a complete update then goes through |
+| H-05 | PostgreSQL connections were not required to use TLS | An internal certificate authority (`deploy/production/init.sh`) issues the certificates. The database, its replica and PgBouncer serve TLS 1.3 only. `pg_hba.conf` is written at each start and accepts nothing on the network but `hostssl` with scram, from the container network. Every client checks the certificate (`sslmode=verify-full`): the API, PgBouncer, the replica's stream, the migration and the exporter. The API and the worker refuse to start with a connection that does not | CI: no unencrypted network connection, the replica streams over TLS, a plain connection is refused, a client that does not check the name is refused by its own check; `test_production_profile.py` |
+| H-06 | `deploy/.env`, with every secret, went whole to migrate, app and worker; the key service was optional | `deploy/env-split.sh` writes one environment file per container: the API and the worker never receive the owner's, replication, warehouse, backup or pgBackRest secrets, nor, in production, any data key. The key service is required in production: the first migration wraps every data key with Vault (`python -m app.tools.keys bootstrap`), adopting keys `deploy/.env` still gives, and the API opens them at start. Vault is reached through the egress proxy, which lets through exactly its host and port. The API and the worker refuse to start with an owner secret, a raw key or no key service in their environment | `test_production_profile.py` (env split, adoption against the database, a sealed key never replaced, start refused); CI: keys wrapped (`kms_key_id`), the API's environment clean, start refused three ways, the proxy allows Vault's port only, two-factor enrolment encrypted and read again by a new process |
+| H-07 | Monitoring, alerting and virus scanning ran on staging only; the second site was not scraped | The profile runs Prometheus with the alert rules, Alertmanager, node_exporter, the PgBouncer exporter, Grafana (local address only) and ClamAV. The second site's node_exporter is scraped when declared (`MASSLAK_SITE_B_METRICS`). The install refuses placeholder alert receivers. `deploy/monitoring/alert-drill.sh` sends a synthetic page and checks Alertmanager delivered it without failure. New alerts: `ScrapeTargetDown`, `SiteBWatchdogMissing`, `DiskSpaceLow`, `MemoryLow`; staging gets node_exporter too | CI: the drill reaches the receiver (`/page`), every target is up; promtool tests |
+| Addition 2 | No `absent()` rule: a vital metric that stopped arriving silenced its alert | `MetricsMissing` watches 48 metrics the alerts rest on and names the one missing; Alertmanager holds it back while `DatabaseDown` explains it | promtool test (one metric missing names it); CI: no metric missing on the installed stack |
+| H-09 | 1046 added the contact constraints NOT VALID and treated a failed validation as a warning | Schema 1082: `db/build.sh` and `db/upgrade.sh` end by validating every NOT VALID constraint, each in its own transaction; one that old rows break stays NOT VALID, is named, and `/api/ready` reports `"constraints": false` until the rows are fixed | `test_review_oct_2026.py::test_a_constraint_left_not_valid_is_validated_or_keeps_the_server_not_ready`; `db/tests` section 1082; CI schema job (the next upgrade validates one) |
+| H-10 | The CDC login has REPLICATION and BYPASSRLS | It signs in only from `MASSLAK_WAREHOUSE_ADDRESS`, over TLS, with a client certificate issued to `masslak_cdc`, and is refused anywhere else. The production database image has no decoding plugin but pgoutput (`test_decoding` removed). Password rotation is a runbook step (RUNBOOKS.md, section 31) | CI: the warehouse login refused from the container network, a slot with `test_decoding` refused; `test_production_profile.py` (first matching line followed) |
+| M-07 | `MASSLAK_SCHEMA_DRIFT=warn` skipped the drift check with no production guard | `db/upgrade.sh` refuses it (exit 5) when the environment or the database itself declares the server production | CI schema job and production job |
+
+Also found and fixed while testing:
+
+* The database preflight reads `pg_hba.conf` as PostgreSQL does, first matching line first. A generic line placed
+  before the warehouse's own lines would let the warehouse in without its certificate, and is named.
+* A replica copied before TLS was turned on now streams over TLS from its next start: the connection to the primary
+  is given at every start, with the password in a file only postgres reads.
+
+### Upgrading a production server to the profile
+
+PRODUCTION_PROFILE.md, section 4. In short:
+
+1. Prepare the key service, the repository, the off-site copy and the receivers.
+2. Run `./deploy/update.sh`. The first run restarts the database with TLS and archiving, then wraps the data keys.
+3. Once the API is ready, remove `MASSLAK_FIELD_KEYS` and `MASSLAK_BIDX_KEY` from `deploy/.env`.
 
 ## 3. Package 3: availability, supply chain and improvements
 
@@ -96,7 +123,7 @@ Checking the ticket adds about 55 µs to each transaction, measured on the devel
 
 | Ref | Finding | Verdict |
 |---|---|---|
-| M-10 | The architecture document gave 432 tables and 24 schemas | Fixed in 1.48.0. It now gives 26 schemas and 504 tables (files 000 to 1081), as the generated `db/README.md` does |
+| M-10 | The architecture document gave 432 tables and 24 schemas | Fixed in 1.48.0. It now gives 26 schemas and 504 tables (files 000 to 1082), as the generated `db/README.md` does |
 | M-09 (first half) | SECURITY DEFINER functions use `pg_catalog, public` | Partly accurate: `public` holds only PostGIS and nothing the application can create. The real gap was `pg_temp` (addition 1), fixed in 1081 |
 | Report 2: context leaking between requests on reused connections | Not present: the context is local to its transaction, which is right with PgBouncer in transaction mode (`test_integrity_audit.py::test_a_pooled_connection_never_carries_a_company_into_the_next_request`). The real risk in this area was forging the context (C-01), fixed |
 | Report 2: the client header is not CSRF protection on its own | Partly accurate: it is not alone. The session cookie is `SameSite=Strict` and `HttpOnly`, and no CORS policy allows other origins. The two exempt paths are authenticated: payment notices by HMAC with a timestamp and replay check, `/api/v1/` by API keys |
@@ -128,13 +155,19 @@ These need staging or a third party. They are the launch gates that are already 
 * device tests;
 * a live payment provider.
 
-## 6. Test results for package 1
+## 6. Test results
 
-| Suite | Result |
-|---|---|
-| Database checks (`db/tests/run_tests.sql`) | 508 passed |
-| API tests on a new database | 461 passed, 7 skipped |
-| Telemetry tests | 7 passed |
-| ruff, bandit | Clean |
-| OpenAPI baseline | No breaking change |
-| Generated documents, schema dependencies | Up to date |
+| Suite | Package 1 | Package 2 |
+|---|---|---|
+| Database checks (`db/tests/run_tests.sql`) | 508 passed | 509 passed |
+| API tests on a new database | 461 passed, 7 skipped | 490 passed, 14 skipped (7 of them the telemetry tests, which CI runs against their own database) |
+| Telemetry tests | 7 passed | (CI) |
+| Alert rules (promtool) | Valid, tests pass | 71 rules valid, tests pass |
+| ruff, bandit | Clean | Clean |
+| OpenAPI baseline | No breaking change | No breaking change |
+| Generated documents, schema dependencies | Up to date | Up to date |
+
+Package 2 was also exercised locally on the database containers: TLS only, the replica streaming over TLS, PgBouncer
+checking certificates both ways, the warehouse login refused, archiving to object storage over TLS, Vault through a
+proxy with its own authority, and the alert drill reaching a receiver. The images themselves are built and run end to
+end in the CI job **Production installation**.

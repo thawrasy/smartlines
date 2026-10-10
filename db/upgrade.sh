@@ -26,6 +26,16 @@ DIR="$(cd "$(dirname "$0")" && pwd)"
 schema_files() { ls "$DIR"/schema/[0-9]*_*.sql | awk -F/ '{ n = $NF; sub(/_.*/, "", n); print n "\t" $0 }' | sort -n | cut -f2-; }
 BASELINE="970"
 
+# The drift override is for development databases (review of October 2026, M-07): a server declared production, in its
+# environment or in the database itself (deploy.environment, written by deploy/migrate.sh), refuses it
+if [ "${MASSLAK_SCHEMA_DRIFT:-fail}" = warn ]; then
+  declared="$(psql "$@" -d "$DB" -Atqc "SELECT CASE WHEN to_regclass('sys.setting') IS NULL THEN '' ELSE coalesce((SELECT value #>> '{}' FROM sys.setting WHERE key = 'deploy.environment'), '') END" 2>/dev/null || true)"
+  if [ "${MASSLAK_ENVIRONMENT:-}" = production ] || [ "$declared" = production ]; then
+    echo "upgrade refused: MASSLAK_SCHEMA_DRIFT=warn is not allowed on a production server. Nothing was applied." >&2
+    exit 5
+  fi
+fi
+
 # "tracked" only once at least one file is recorded, so an interrupted first run is safe to repeat
 tracked="$(psql "$@" -d "$DB" -Atqc "SELECT to_regclass('sys.schema_file') IS NOT NULL AND EXISTS (SELECT 1 FROM sys.schema_file)")"
 psql "$@" -d "$DB" -v ON_ERROR_STOP=1 -q -f "$DIR/schema_file.sql"
@@ -80,6 +90,11 @@ for f in $(schema_files); do
   psql "$@" -d "$DB" -v ON_ERROR_STOP=1 -q --single-transaction -f "$f"
   record "$name" "$sha"
 done
+# constraints added NOT VALID are validated now, each in its own transaction (1082, H-09); one that old rows break stays
+# NOT VALID, is named here, and /api/ready reports "constraints": false until the rows are fixed
+psql "$@" -d "$DB" -v ON_ERROR_STOP=1 -q -c "CALL sys.validate_constraints()"
+left="$(psql "$@" -d "$DB" -Atq -c "SELECT string_agg(table_name || '.' || constraint_name, ', ') FROM sys.unvalidated_constraints()")"
+[ -z "$left" ] || echo "warning: constraints not validated (existing rows break them): $left" >&2
 commit="${MASSLAK_RELEASE_COMMIT:-$(git -C "$DIR" rev-parse HEAD 2>/dev/null || echo unknown)}"
 echo "SELECT 1 FROM sys.record_release('UPGRADE', :'commit')" | psql "$@" -d "$DB" -v ON_ERROR_STOP=1 -q -At -v commit="$commit" -f - >/dev/null
 echo "OK: $DB is up to date"

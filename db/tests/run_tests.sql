@@ -2461,6 +2461,11 @@ SELECT pg_temp.ok(NOT EXISTS (SELECT 1 FROM sys.definer_path_gaps())
   AND (SELECT array_to_string(proconfig, ',') FROM pg_proc WHERE oid = 'audit.tg_capture_change'::regproc) LIKE '%pg_temp'
   AND NOT has_schema_privilege('masslak_app', 'public', 'CREATE'),
   'Search path (1081): every SECURITY DEFINER function ends its search_path with pg_temp, and nobody creates objects in public');
+-- Reviews of October 2026, H-09 (1082): constraints added NOT VALID are validated after the files, and readiness names any left
+SELECT pg_temp.ok(NOT EXISTS (SELECT 1 FROM sys.unvalidated_constraints())
+  AND has_function_privilege('masslak_app', 'sys.unvalidated_constraints()', 'EXECUTE')
+  AND NOT has_function_privilege('masslak_app', 'sys.validate_constraints()', 'EXECUTE'),
+  'Constraints (1082, H-09): the build validated every constraint added NOT VALID; the application reads the list and cannot run the validation');
 SET ROLE masslak_app;
 
 \echo '=== ALL TESTS PASSED ==='

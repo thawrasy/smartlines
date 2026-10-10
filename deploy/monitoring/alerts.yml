@@ -329,3 +329,85 @@ groups:
         for: 6h
         labels: { severity: ticket }
         annotations: { summary: "Ledger days are not being closed (daily upkeep, a long transaction, or the roll-up behind)", runbook: "RUNBOOKS.md#17-ten-million-operations-a-day" }
+  - name: masslak-observability
+    rules:
+      # A metric an alert rests on that stops arriving silences that alert instead of firing it (reviews of October
+      # 2026, the assessment's addition 2): each metric below is always exported while its source works, and its
+      # absence is an alert of its own, naming the metric. A database that is down explains every database metric
+      # (Alertmanager inhibits this alert while DatabaseDown fires). Keep the list in step with alerts_test.yml.
+      - alert: MetricsMissing
+        expr: |
+          label_replace(absent(up{job="masslak-api"}), "metric", "up{job=masslak-api}", "", "")
+          or label_replace(absent(up{job="pgbouncer"}), "metric", "up{job=pgbouncer}", "", "")
+          or label_replace(absent(up{job="node"}), "metric", "up{job=node}", "", "")
+          or label_replace(absent(masslak_db_up), "metric", "masslak_db_up", "", "")
+          or label_replace(absent(masslak_db_connections), "metric", "masslak_db_connections", "", "")
+          or label_replace(absent(masslak_db_connections_max), "metric", "masslak_db_connections_max", "", "")
+          or label_replace(absent(masslak_db_lock_waiters), "metric", "masslak_db_lock_waiters", "", "")
+          or label_replace(absent(masslak_db_longest_transaction_seconds), "metric", "masslak_db_longest_transaction_seconds", "", "")
+          or label_replace(absent(masslak_db_idle_in_transaction), "metric", "masslak_db_idle_in_transaction", "", "")
+          or label_replace(absent(masslak_db_deadlocks_total), "metric", "masslak_db_deadlocks_total", "", "")
+          or label_replace(absent(masslak_db_dead_tuples), "metric", "masslak_db_dead_tuples", "", "")
+          or label_replace(absent(masslak_db_vacuum_age_seconds), "metric", "masslak_db_vacuum_age_seconds", "", "")
+          or label_replace(absent(masslak_db_xid_age), "metric", "masslak_db_xid_age", "", "")
+          or label_replace(absent(masslak_db_in_recovery), "metric", "masslak_db_in_recovery", "", "")
+          or label_replace(absent(masslak_db_standbys), "metric", "masslak_db_standbys", "", "")
+          or label_replace(absent(masslak_db_commits_wait_for_standby), "metric", "masslak_db_commits_wait_for_standby", "", "")
+          or label_replace(absent(masslak_zero_data_loss_configured), "metric", "masslak_zero_data_loss_configured", "", "")
+          or label_replace(absent(masslak_db_archive_mode_on), "metric", "masslak_db_archive_mode_on", "", "")
+          or label_replace(absent(masslak_db_wal_archive_last_success_age_seconds), "metric", "masslak_db_wal_archive_last_success_age_seconds", "", "")
+          or label_replace(absent(masslak_db_wal_archive_failed_total), "metric", "masslak_db_wal_archive_failed_total", "", "")
+          or label_replace(absent(masslak_backup_last_success_age_seconds{copy="local"}), "metric", "masslak_backup_last_success_age_seconds{copy=local}", "", "")
+          or label_replace(absent(masslak_backup_last_success_age_seconds{copy="offsite"}), "metric", "masslak_backup_last_success_age_seconds{copy=offsite}", "", "")
+          or label_replace(absent(masslak_db_pool_acquire_seconds_bucket), "metric", "masslak_db_pool_acquire_seconds_bucket", "", "")
+          or label_replace(absent(masslak_db_pool_timeouts_total), "metric", "masslak_db_pool_timeouts_total", "", "")
+          or label_replace(absent(masslak_audit_write_failures_total), "metric", "masslak_audit_write_failures_total", "", "")
+          or label_replace(absent(masslak_audit_unarchived_seconds), "metric", "masslak_audit_unarchived_seconds", "", "")
+          or label_replace(absent(masslak_outbox_oldest_pending_seconds), "metric", "masslak_outbox_oldest_pending_seconds", "", "")
+          or label_replace(absent(masslak_outbox_dead), "metric", "masslak_outbox_dead", "", "")
+          or label_replace(absent(masslak_outbox_partitioning_due), "metric", "masslak_outbox_partitioning_due", "", "")
+          or label_replace(absent(masslak_outbox_purge_backlog), "metric", "masslak_outbox_purge_backlog", "", "")
+          or label_replace(absent(masslak_files_oldest_pending_scan_seconds), "metric", "masslak_files_oldest_pending_scan_seconds", "", "")
+          or label_replace(absent(masslak_geo_partitions_missing), "metric", "masslak_geo_partitions_missing", "", "")
+          or label_replace(absent(masslak_partition_ahead_seconds), "metric", "masslak_partition_ahead_seconds", "", "")
+          or label_replace(absent(masslak_partition_default_rows), "metric", "masslak_partition_default_rows", "", "")
+          or label_replace(absent(masslak_job_last_success_age_seconds{job="maintenance"}), "metric", "masslak_job_last_success_age_seconds{job=maintenance}", "", "")
+          or label_replace(absent(masslak_wallet_mismatches), "metric", "masslak_wallet_mismatches", "", "")
+          or label_replace(absent(masslak_payment_mismatches), "metric", "masslak_payment_mismatches", "", "")
+          or label_replace(absent(masslak_refunds_waiting_provider), "metric", "masslak_refunds_waiting_provider", "", "")
+          or label_replace(absent(masslak_approvals_oldest_pending_seconds), "metric", "masslak_approvals_oldest_pending_seconds", "", "")
+          or label_replace(absent(masslak_position_backlog_oldest_seconds), "metric", "masslak_position_backlog_oldest_seconds", "", "")
+          or label_replace(absent(masslak_violations_awaiting_review), "metric", "masslak_violations_awaiting_review", "", "")
+          or label_replace(absent(masslak_delivery_retries_waiting), "metric", "masslak_delivery_retries_waiting", "", "")
+          or label_replace(absent(masslak_release_hash_matches), "metric", "masslak_release_hash_matches", "", "")
+          or label_replace(absent(masslak_cash_overdue_minor), "metric", "masslak_cash_overdue_minor", "", "")
+          or label_replace(absent(masslak_cash_near_limit_carriers), "metric", "masslak_cash_near_limit_carriers", "", "")
+          or label_replace(absent(masslak_break_glass_unreviewed), "metric", "masslak_break_glass_unreviewed", "", "")
+          or label_replace(absent(masslak_wallet_rollup_lag_seconds), "metric", "masslak_wallet_rollup_lag_seconds", "", "")
+          or label_replace(absent(masslak_ledger_open_days), "metric", "masslak_ledger_open_days", "", "")
+        for: 10m
+        labels: { severity: page }
+        annotations: { summary: "A metric the alerts rest on is no longer collected ({{ $labels.metric }}): its alerts cannot fire", runbook: "RUNBOOKS.md#31-the-production-profile-reviews-of-october-2026-package-2" }
+      - alert: ScrapeTargetDown
+        expr: up{job!="masslak-api"} == 0
+        for: 5m
+        labels: { severity: ticket }
+        annotations: { summary: "Prometheus cannot read {{ $labels.job }} ({{ $labels.instance }})", runbook: "RUNBOOKS.md#31-the-production-profile-reviews-of-october-2026-package-2" }
+      # the second site, when one is declared (MASSLAK_SITE_B_METRICS): its node_exporter answers but carries no
+      # figures from the watchdog (the watchdog timer stopped, or its textfile directory is not collected)
+      - alert: SiteBWatchdogMissing
+        expr: absent(masslak_site_b_watchdog_last_run_timestamp_seconds) and on() count(up{job="site-b"} == 1) > 0
+        for: 10m
+        labels: { severity: page }
+        annotations: { summary: "The second site is scraped but its watchdog's figures are missing", runbook: "RUNBOOKS.md#23-automatic-failover-and-the-second-site-review-stage-d" }
+      # the host itself (node_exporter, production profile and staging)
+      - alert: DiskSpaceLow
+        expr: node_filesystem_avail_bytes{fstype!~"tmpfs|overlay|squashfs|nsfs"} / node_filesystem_size_bytes{fstype!~"tmpfs|overlay|squashfs|nsfs"} < 0.10
+        for: 10m
+        labels: { severity: page }
+        annotations: { summary: "Less than 10 % free on {{ $labels.mountpoint }}: the database stops writing when its disk is full", runbook: "RUNBOOKS.md#31-the-production-profile-reviews-of-october-2026-package-2" }
+      - alert: MemoryLow
+        expr: node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes < 0.05
+        for: 10m
+        labels: { severity: ticket }
+        annotations: { summary: "Less than 5 % of the host's memory is available", runbook: "RUNBOOKS.md#31-the-production-profile-reviews-of-october-2026-package-2" }

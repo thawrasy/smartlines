@@ -821,10 +821,89 @@ roles, so no statement it runs can rewrite the context or the transaction flags 
   the platform is back on 1.49.0 or later: `UPDATE sys.context_unsigned_window SET allowed_until = now() WHERE allowed_until > now()`.
 - **What remains.** A person holding the API login's password and a connection to the database could still type
   `SET app.scope = ...` as a statement of their own (PostgreSQL lets any login set custom settings, and only a server
-  extension can forbid it). The database therefore accepts the API's login from the application's network only, over
-  TLS, in the production profile (review package 2); keep that password in the secret store, never in a shared file.
+  extension can forbid it). In the production profile (section 31) the database accepts the API's login only over TLS,
+  with scram, from the container network it is attached to; the password reaches only the containers that use it
+  (deploy/env-split.sh), never the whole deploy/.env. Keep it in the secret store, never in a shared file.
 - **Telemetry (C-02).** The API's login to the telemetry database appends positions and nothing else; the worker's
   upkeep login drops days, never younger than `tel.policy.min_keep_days` and never while a hold stands (section 22).
+
+## 31. The production profile (reviews of October 2026, package 2)
+
+A production server runs `deploy/production/docker-compose.production.yml` (docs/operations/PRODUCTION_PROFILE.md).
+Each part is checked before the server changes anything.
+
+### The install or the update stops at the preflight
+
+The message names each gap. Fixes:
+
+| Message | Fix |
+|---|---|
+| `MASSLAK_KMS_PROVIDER=vault is required` / `MASSLAK_VAULT_*` | Fill in the key service in `deploy/.env` (PRODUCTION_PROFILE.md, section 1) |
+| `PGBACKREST_REPO1_TYPE ... keeps WAL on this host` | Point pgBackRest at object storage, sftp or a repository host |
+| `... is a placeholder: put the page receiver's address there` | Write the receiver's address in `deploy/production/secrets/page_webhook_url` (and `ticket_`, `deadman_`) |
+| `TLS is off on the database` | The database does not run the production image: `COMPOSE_FILE` in `deploy/.env` must name the profile (`deploy/production/init.sh` writes it), then `./deploy/update.sh` |
+| `pgBackRest could not archive a WAL segment to its repository just now` | The repository refused or was unreachable; the message carries pgBackRest's last lines. Check the bucket and its credentials, then `docker compose --env-file deploy/.env exec -u postgres db pgbackrest --stanza=masslak check` |
+| `logical decoding plugins other than pgoutput are installed` | The database image is not `deploy/production/db`: rebuild it |
+| `the backup before this update was not copied off the server` | Fix `MASSLAK_BACKUP_OFFSITE` (rclone configuration, reachability) and update again; nothing was changed |
+| `the database's certificate expires within 30 days` | Renew it (below) |
+
+### The API or the worker refuses to start: "the production profile is incomplete"
+
+* "does not run the production profile" or "does not check the database's certificate": the container was started
+  without the overlay. Use `docker compose --env-file deploy/.env ...`, which reads `COMPOSE_FILE`.
+* "data keys sit in this process's environment" or "secrets this process must not hold": it was started with the
+  whole `deploy/.env`. Run `./deploy/env-split.sh` and start it again.
+* "the data keys must come from the key service": set `MASSLAK_KMS_PROVIDER=vault` (section 1 of the profile document).
+
+### The key service
+
+* **Unreachable at start.** The API and the worker unwrap the data keys when they start: a process cannot start while
+  Vault is unreachable, and running processes keep working with the keys they hold.
+  1. Check `docker compose --env-file deploy/.env logs egress` for the key service line.
+  2. Check that `MASSLAK_VAULT_ADDR` is the host and port the proxy lets through.
+* **Token.** Renew or replace `MASSLAK_VAULT_TOKEN` before it expires, run `./deploy/env-split.sh`, and restart the
+  app and the worker.
+* **Transit key.** Rotate it with `vault write -f transit/keys/masslak-field/rotate`. Wrapped keys made under the older
+  version still open. `docker compose --env-file deploy/.env exec app python -m app.tools.keys check` reports any that
+  does not.
+
+### Renewing the database's certificates (every 825 days; the preflight warns 30 days ahead)
+
+1. Bring `ca.key` back from offline storage into `deploy/production/tls/`.
+2. Delete `server.crt` and `server.key` (and `masslak_cdc.*` for the warehouse's).
+3. Run `sudo ./deploy/production/init.sh`.
+4. Restart: `docker compose --env-file deploy/.env up -d --force-recreate db db-replica pgbouncer`.
+5. Copy the new client certificate to the warehouse server.
+6. Move `ca.key` back offline.
+
+### Rotating the warehouse login's password (yearly, and after any suspected exposure)
+
+1. Write a new `MASSLAK_CDC_PASSWORD` in `deploy/.env`.
+2. Run `./deploy/update.sh`; the migration sets the new password.
+3. On the warehouse server, update the subscription:
+   `ALTER SUBSCRIPTION masslak_dw CONNECTION '<the connection string with the new password>'`.
+4. Check the alerts `ReplicationSlotInactive` and `ReplicationSlotRetainingWal`.
+
+### `/api/ready` reports `"constraints": false`
+
+A constraint is still NOT VALID because rows that existed before it break it.
+
+1. `SELECT * FROM sys.unvalidated_constraints()` names it, and the last migration's log gives the error.
+2. Fix the rows. For the contact constraints of 1046, run
+   `docker compose --env-file deploy/.env exec app python -m app.tools.seal_contacts`.
+3. Run the migration again (`./deploy/update.sh`, or `docker compose --env-file deploy/.env up migrate`). It validates
+   the constraint.
+
+### Monitoring
+
+* **`MetricsMissing`.** A metric an alert rests on is no longer collected; its label names it. Find its source:
+  * the API's `/api/metrics`, while the database answers (Alertmanager inhibits this alert while `DatabaseDown` fires);
+  * the PgBouncer exporter;
+  * node_exporter.
+* **`ScrapeTargetDown`.** Check the target with `docker compose --env-file deploy/.env ps`, then its logs.
+* **Alert drill.** Run `./deploy/monitoring/alert-drill.sh` after installing, after changing a receiver, and monthly.
+  The person on call confirms receipt of the drill's identifier. Record the date, the identifier and who confirmed it
+  as launch gate evidence.
 
 ## Rehearsal schedule
 
@@ -837,6 +916,9 @@ roles, so no statement it runs can rewrite the context or the transaction flags 
 | Warehouse copied again (`build.py --resync`) | Once on staging | After each publication change |
 | Key rotation | Once in staging | Yearly, and after any suspected exposure |
 | Audit archive verify | Once | Weekly (automatic) |
+| Alert drill (`deploy/monitoring/alert-drill.sh`) | After installing and after each receiver change | Monthly |
+| Warehouse login password | Once on staging | Yearly |
+| Database certificates (section 31) | Once on staging | Every 825 days (the preflight warns 30 days ahead) |
 | Audit archive tamper drill | Once | Quarterly |
 | Break-glass open, expire and review | Once in staging | Yearly |
 | ClamAV with the EICAR file | Once | After each ClamAV upgrade |

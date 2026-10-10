@@ -106,6 +106,16 @@ services:
     depends_on: [pgbouncer]
     networks: [internal]
 
+  # the host's disks, memory and load (alerts DiskSpaceLow, MemoryLow), as in the production profile
+  node-exporter:
+    image: prom/node-exporter:v1.8.2@sha256:4032c6d5bfd752342c3e631c2f1de93ba6b86c41db6b167b9a35372c139e7706
+    restart: unless-stopped
+    command: ["--path.rootfs=/host", "--collector.textfile.directory=/host/var/lib/node_exporter/textfile"]
+    pid: host
+    volumes:
+      - /:/host:ro
+    networks: [monitoring]
+
   alertmanager:
     image: prom/alertmanager:v0.27.0@sha256:e13b6ed5cb929eeaee733479dce55e10eb3bc2e9c4586c705a4e8da41e5eacf5
     restart: unless-stopped

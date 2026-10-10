@@ -6,6 +6,10 @@
 #   warehouse          PostgreSQL holding the replicated facts and dimensions (no personal data) and the dw views
 #   warehouse-setup    creates the tables, subscribes to publication masslak_dw, waits for the first copy
 #   warehouse-refresh  refreshes the dw views every 15 minutes (readers keep the previous figures meanwhile)
+# This overlay puts the warehouse on the same server, for test servers. In the production profile the database accepts
+# the warehouse login only from MASSLAK_WAREHOUSE_ADDRESS, over TLS with the client certificate of
+# deploy/production/tls/masslak_cdc.crt (reviews of October 2026, H-10): the warehouse runs on its own server and
+# subscribes with sslmode=verify-full and that certificate (docs/operations/PRODUCTION_PROFILE.md, section 5).
 # Paths are relative to the repository root (the directory of the first compose file).
 
 services:

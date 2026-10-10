@@ -57,9 +57,14 @@ sudo apt-get update && sudo apt-get install -y git
 sudo git clone <repository URL> /opt/masslak && cd /opt/masslak
 sudo ./deploy/server-setup.sh                 # Docker, firewall (22/80/443), fail2ban, security updates, nightly backup
 sudo ./deploy/init-env.sh --domain masslak.com --email ops@masslak.com
+sudo ./deploy/env-split.sh                    # one environment file per container (after every edit of deploy/.env)
 sudo docker compose --env-file deploy/.env up -d --build
 sudo docker compose --env-file deploy/.env logs -f migrate app
 ```
+
+A production server (`MASSLAK_ENVIRONMENT=production`, the default without `--demo`) installs only in the production
+profile: TLS to the database, WAL archived off the server, the key service, monitoring. It needs the settings of
+docs/operations/PRODUCTION_PROFILE.md first; `deploy/install.sh` checks them and refuses an incomplete setup.
 
 `init-env.sh` writes `deploy/.env` (mode 600) with random passwords and keys. **Copy its keys section to a
 password manager or secret store right away.** Without those keys, the encrypted identity numbers, MFA secrets
@@ -103,6 +108,7 @@ notices and is the first administrator's sign-in; the demo accounts above work a
 
 ```sh
 ./deploy/init-env.sh --domain localhost --demo
+./deploy/env-split.sh
 docker compose --env-file deploy/.env up -d --build
 ```
 

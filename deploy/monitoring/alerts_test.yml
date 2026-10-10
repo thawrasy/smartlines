@@ -385,3 +385,139 @@ tests:
         exp_alerts:
           - exp_labels: { severity: page }
             exp_annotations: { summary: "The second site cannot reach the main site's primary: decide whether the main site is lost (never automatic)", runbook: "RUNBOOKS.md#23-automatic-failover-and-the-second-site-review-stage-d" }
+  # the assessment's addition 2: a vital metric that stops arriving raises MetricsMissing, naming it
+  - interval: 1m
+    input_series:
+      - series: 'up{job="masslak-api"}'
+        values: "1x30"
+      - series: 'up{job="pgbouncer"}'
+        values: "1x30"
+      - series: 'up{job="node"}'
+        values: "1x30"
+      - series: 'masslak_db_up'
+        values: "1x30"
+      - series: 'masslak_db_connections'
+        values: "1x30"
+      - series: 'masslak_db_connections_max'
+        values: "1x30"
+      - series: 'masslak_db_lock_waiters'
+        values: "1x30"
+      - series: 'masslak_db_longest_transaction_seconds'
+        values: "1x30"
+      - series: 'masslak_db_idle_in_transaction'
+        values: "1x30"
+      - series: 'masslak_db_deadlocks_total'
+        values: "1x30"
+      - series: 'masslak_db_dead_tuples'
+        values: "1x30"
+      - series: 'masslak_db_vacuum_age_seconds'
+        values: "1x30"
+      - series: 'masslak_db_xid_age'
+        values: "1x30"
+      - series: 'masslak_db_in_recovery'
+        values: "1x30"
+      - series: 'masslak_db_standbys'
+        values: "1x30"
+      - series: 'masslak_db_commits_wait_for_standby'
+        values: "1x30"
+      - series: 'masslak_zero_data_loss_configured'
+        values: "1x30"
+      - series: 'masslak_db_archive_mode_on'
+        values: "1x30"
+      - series: 'masslak_db_wal_archive_last_success_age_seconds'
+        values: "1x30"
+      - series: 'masslak_db_wal_archive_failed_total'
+        values: "1x30"
+      - series: 'masslak_backup_last_success_age_seconds{copy="local"}'
+        values: "1x30"
+      - series: 'masslak_backup_last_success_age_seconds{copy="offsite"}'
+        values: "1x30"
+      - series: 'masslak_db_pool_acquire_seconds_bucket'
+        values: "1x30"
+      - series: 'masslak_db_pool_timeouts_total'
+        values: "1x30"
+      - series: 'masslak_audit_write_failures_total'
+        values: "1x30"
+      - series: 'masslak_audit_unarchived_seconds'
+        values: "1x30"
+      - series: 'masslak_outbox_oldest_pending_seconds'
+        values: "1x30"
+      - series: 'masslak_outbox_partitioning_due'
+        values: "1x30"
+      - series: 'masslak_outbox_purge_backlog'
+        values: "1x30"
+      - series: 'masslak_files_oldest_pending_scan_seconds'
+        values: "1x30"
+      - series: 'masslak_geo_partitions_missing'
+        values: "1x30"
+      - series: 'masslak_partition_ahead_seconds'
+        values: "1x30"
+      - series: 'masslak_partition_default_rows'
+        values: "1x30"
+      - series: 'masslak_job_last_success_age_seconds{job="maintenance"}'
+        values: "1x30"
+      - series: 'masslak_wallet_mismatches'
+        values: "1x30"
+      - series: 'masslak_payment_mismatches'
+        values: "1x30"
+      - series: 'masslak_refunds_waiting_provider'
+        values: "1x30"
+      - series: 'masslak_approvals_oldest_pending_seconds'
+        values: "1x30"
+      - series: 'masslak_position_backlog_oldest_seconds'
+        values: "1x30"
+      - series: 'masslak_violations_awaiting_review'
+        values: "1x30"
+      - series: 'masslak_delivery_retries_waiting'
+        values: "1x30"
+      - series: 'masslak_release_hash_matches'
+        values: "1x30"
+      - series: 'masslak_cash_overdue_minor'
+        values: "1x30"
+      - series: 'masslak_cash_near_limit_carriers'
+        values: "1x30"
+      - series: 'masslak_break_glass_unreviewed'
+        values: "1x30"
+      - series: 'masslak_wallet_rollup_lag_seconds'
+        values: "1x30"
+      - series: 'masslak_ledger_open_days'
+        values: "1x30"
+      - series: 'node_filesystem_avail_bytes{mountpoint="/",fstype="ext4"}'
+        values: "50x5 5x20"
+      - series: 'node_filesystem_size_bytes{mountpoint="/",fstype="ext4"}'
+        values: "100x25"
+      - series: 'up{job="site-b",instance="site-b:9100"}'
+        values: "1x30"
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: MetricsMissing
+        exp_alerts: []
+      - eval_time: 12m
+        alertname: MetricsMissing
+        exp_alerts:
+          - exp_labels: { severity: page, metric: masslak_outbox_dead }
+            exp_annotations: { summary: "A metric the alerts rest on is no longer collected (masslak_outbox_dead): its alerts cannot fire", runbook: "RUNBOOKS.md#31-the-production-profile-reviews-of-october-2026-package-2" }
+      - eval_time: 20m
+        alertname: DiskSpaceLow
+        exp_alerts:
+          - exp_labels: { severity: page, mountpoint: "/", fstype: ext4 }
+            exp_annotations: { summary: "Less than 10 % free on /: the database stops writing when its disk is full", runbook: "RUNBOOKS.md#31-the-production-profile-reviews-of-october-2026-package-2" }
+      - eval_time: 20m
+        alertname: SiteBWatchdogMissing
+        exp_alerts:
+          - exp_labels: { severity: page }
+            exp_annotations: { summary: "The second site is scraped but its watchdog's figures are missing", runbook: "RUNBOOKS.md#23-automatic-failover-and-the-second-site-review-stage-d" }
+      - eval_time: 20m
+        alertname: ScrapeTargetDown
+        exp_alerts: []
+  # a declared target that stops answering
+  - interval: 1m
+    input_series:
+      - series: 'up{job="node",instance="node-exporter:9100"}'
+        values: "1 1 0x10"
+    alert_rule_test:
+      - eval_time: 9m
+        alertname: ScrapeTargetDown
+        exp_alerts:
+          - exp_labels: { severity: ticket, job: node, instance: "node-exporter:9100" }
+            exp_annotations: { summary: "Prometheus cannot read node (node-exporter:9100)", runbook: "RUNBOOKS.md#31-the-production-profile-reviews-of-october-2026-package-2" }

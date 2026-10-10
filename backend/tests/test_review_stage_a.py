@@ -80,7 +80,8 @@ def test_readiness_checks_the_database_and_the_schema():
     r = c.get("/api/ready")
     assert r.status_code == 200, r.text
     assert r.json() == {"ready": True, "checks": {"database": True, "schema": True, "audit_database": True,
-                                                    "reports_replica": True, "context": True}}
+                                                    "reports_replica": True, "context": True,
+                                                    "constraints": True}}
     from app.readiness import shipped_schema_files
     shipped = shipped_schema_files()
     assert len(shipped) > 60 and shipped <= set(owner_sql("SELECT array_agg(file) FROM sys.schema_file"))
@@ -178,6 +179,9 @@ def test_update_stops_on_an_unapproved_or_unsettled_checkout(tmp_path):
     shutil.copy(os.path.join(ROOT, "deploy", "update.sh"), work / "deploy" / "update.sh")
     (work / "deploy" / "backup.sh").write_text('#!/bin/sh\ntouch "$(dirname "$0")/../BACKUP_RAN"\nexit 1\n')
     os.chmod(work / "deploy" / "backup.sh", 0o755)
+    (work / "deploy" / "env-split.sh").write_text("#!/bin/sh\nexit 0\n")      # writes deploy/env/*.env on a server
+    os.chmod(work / "deploy" / "env-split.sh", 0o755)
+    (work / "deploy" / ".env").write_text("MASSLAK_ENVIRONMENT=development\nMASSLAK_REPLICATION_PASSWORD=x\n")  # untracked
     git("add", "-A")
     git("commit", "-qm", "release")
     git("push", "-q", "-u", "origin", "main")

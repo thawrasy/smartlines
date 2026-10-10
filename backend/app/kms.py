@@ -5,7 +5,10 @@ encryption key (KEK) that never enters the database or the application's configu
 key service to unwrap each DEK and keeps the clear DEK in memory only.
 
     MASSLAK_KMS_PROVIDER = vault | local      (unset: no envelope; keys come from MASSLAK_FIELD_KEYS as before)
-    vault: MASSLAK_VAULT_ADDR, MASSLAK_VAULT_TOKEN; the KEK is the Vault Transit key named in kms_key_id
+    vault: MASSLAK_VAULT_ADDR, MASSLAK_VAULT_TOKEN; the KEK is the Vault Transit key named in kms_key_id.
+           MASSLAK_VAULT_CA_FILE names the authority that signed Vault's certificate when it is not a public one. With
+           MASSLAK_EGRESS_PROXY set, Vault is reached through the egress proxy, which lets through exactly Vault's
+           host and port (deploy/egress, package 2 of the reviews of October 2026, H-06)
     local: MASSLAK_KEK = <base64 32 bytes>    (sandbox, development and staging only: the KEK sits in the
                                                environment; refused on a production server, R-29)
 
@@ -17,8 +20,10 @@ from __future__ import annotations
 import base64
 import json
 import os
+import ssl
 import urllib.request
 from typing import Optional, Protocol
+from urllib.parse import urlparse
 
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
@@ -60,10 +65,16 @@ class VaultTransit:
     """HashiCorp Vault Transit: the KEK never leaves Vault; the API holds only a token allowed to encrypt and decrypt."""
     name = "vault"
 
-    def __init__(self, addr: str, token: str, timeout: float = 5.0):
+    def __init__(self, addr: str, token: str, timeout: float = 5.0, ca_file: Optional[str] = None,
+                 proxy: Optional[str] = None):
         if not addr.startswith("https://") and not addr.startswith("http://127.0.0.1") and not addr.startswith("http://localhost"):
             raise KmsError("MASSLAK_VAULT_ADDR must use https outside the local machine")
         self._addr, self._token, self._timeout = addr.rstrip("/"), token, timeout
+        handlers: list = [urllib.request.HTTPSHandler(context=ssl.create_default_context(cafile=ca_file or None))]
+        local = urlparse(addr).hostname in ("127.0.0.1", "localhost")
+        # through the egress proxy when there is one (CONNECT: the TLS session is end to end, the proxy sees no key)
+        handlers.append(urllib.request.ProxyHandler({"https": proxy} if proxy and not local else {}))
+        self._opener = urllib.request.build_opener(*handlers)
 
     def _call(self, op: str, key: Optional[str], body: dict) -> dict:
         if not key:
@@ -71,7 +82,7 @@ class VaultTransit:
         req = urllib.request.Request(f"{self._addr}/v1/transit/{op}/{key}", data=json.dumps(body).encode(), method="POST",
                                      headers={"X-Vault-Token": self._token, "Content-Type": "application/json"})
         try:   # the address was checked for https (or the local machine) in __init__
-            with urllib.request.urlopen(req, timeout=self._timeout) as resp:  # nosec B310
+            with self._opener.open(req, timeout=self._timeout) as resp:  # nosec B310
                 return json.loads(resp.read())["data"]
         except Exception as exc:                                               # the message never carries key material
             raise KmsError(f"vault transit {op} failed for {key}: {type(exc).__name__}") from None
@@ -101,5 +112,6 @@ def provider() -> Optional[KeyWrapper]:
         addr, token = os.environ.get("MASSLAK_VAULT_ADDR", ""), os.environ.get("MASSLAK_VAULT_TOKEN", "")
         if not addr or not token:
             raise KmsError("MASSLAK_VAULT_ADDR and MASSLAK_VAULT_TOKEN are required for the vault provider")
-        return VaultTransit(addr, token)
+        return VaultTransit(addr, token, ca_file=os.environ.get("MASSLAK_VAULT_CA_FILE") or None,
+                            proxy=os.environ.get("MASSLAK_EGRESS_PROXY") or None)
     raise KmsError(f"unknown MASSLAK_KMS_PROVIDER {name!r} (vault or local)")

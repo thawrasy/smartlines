@@ -12,6 +12,13 @@ DB="${POSTGRES_DB:-masslak}"
 
 until pg_isready -q -d "$DB"; do echo "waiting for the database"; sleep 2; done
 
+# A production server changes nothing until the database is set up as the production profile requires: TLS only, WAL
+# archived to a repository off this host (proven now), the warehouse login by certificate, pgoutput only (reviews of
+# October 2026, package 2; backend/app/tools/preflight.py)
+if [ "${MASSLAK_ENVIRONMENT:-}" = production ]; then
+  (cd /app/backend && python -m app.tools.preflight) || { echo "migration refused: the production preflight failed" >&2; exit 1; }
+fi
+
 if [ "$(psql -d "$DB" -Atc "SELECT to_regclass('sys.schema_migration') IS NOT NULL")" = "f" ]; then
   echo "building the schema"
   /app/db/build.sh "$DB"
@@ -49,6 +56,12 @@ SELECT format('CREATE ROLE replicator WITH REPLICATION LOGIN PASSWORD %L', :'pw'
  WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'replicator') \gexec
 SELECT format('ALTER ROLE replicator WITH REPLICATION LOGIN PASSWORD %L', :'pw') \gexec
 SQL
+
+# On a production server the API and the worker open the data keys with the key service only: every key not wrapped
+# yet is wrapped now, adopting a key deploy/.env still gives, so what it sealed stays readable (H-06)
+if [ "${MASSLAK_ENVIRONMENT:-}" = production ]; then
+  (cd /app/backend && python -m app.tools.keys bootstrap) || { echo "migration stopped: the data keys could not be wrapped" >&2; exit 1; }
+fi
 
 # the telemetry database of vehicle positions (deploy/telemetry), only where one is configured
 if [ -n "${MASSLAK_TELEMETRY_OWNER_URL:-}" ]; then

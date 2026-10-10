@@ -45,6 +45,20 @@ jobs:
           test "$rc" = 3 && grep -q '1056_payment_options.sql' drift.log
           MASSLAK_SCHEMA_DRIFT=warn db/upgrade.sh upgrade_check -h localhost -U postgres
           git checkout -- db/schema/1056_payment_options.sql
+      - name: The drift override is refused on a production database (reviews of October 2026, M-07)
+        run: |
+          psql -h localhost -U postgres -d upgrade_check -qc "INSERT INTO sys.setting (key, value, description) VALUES ('deploy.environment', to_jsonb('production'::text), 'CI') ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value"
+          set +e; MASSLAK_SCHEMA_DRIFT=warn db/upgrade.sh upgrade_check -h localhost -U postgres 2> m07.log; rc=$?; set -e
+          cat m07.log
+          test "$rc" = 5 && grep -q 'not allowed on a production server' m07.log
+          psql -h localhost -U postgres -d upgrade_check -qc "DELETE FROM sys.setting WHERE key = 'deploy.environment'"
+      - name: A constraint left NOT VALID is validated by the next upgrade (reviews of October 2026, H-09)
+        run: |
+          psql -h localhost -U postgres -d upgrade_check -qc "ALTER TABLE ref.market ADD CONSTRAINT zz_ci_probe CHECK (true) NOT VALID"
+          test "$(psql -h localhost -U postgres -d upgrade_check -Atc "SELECT count(*) FROM sys.unvalidated_constraints()")" = 1
+          db/upgrade.sh upgrade_check -h localhost -U postgres
+          test "$(psql -h localhost -U postgres -d upgrade_check -Atc "SELECT count(*) FROM sys.unvalidated_constraints()")" = 0
+          psql -h localhost -U postgres -d upgrade_check -qc "ALTER TABLE ref.market DROP CONSTRAINT zz_ci_probe"
       - name: A record of applied files changed by hand stops the upgrade (release manifest, review stage C3)
         run: |
           psql -h localhost -U postgres -d upgrade_check -qc "DELETE FROM sys.schema_file WHERE file = '1056_payment_options.sql'"
@@ -369,23 +383,82 @@ jobs:
         run: docker compose --env-file deploy/.env logs --tail 200
 
   production:
-    # Review of 1.47.0, R-48: every earlier check ran in the sandbox, where data keys are derived and the key parser
-    # never reads a real key, so a production server could not start and nobody saw it. This one installs as a
-    # production server would be, with the keys the installer generates, and encrypts and decrypts for real.
-    name: Production installation (installer keys, real encryption)
+    # Review of 1.47.0, R-48, and the reviews of October 2026, package 2: a production server installs only in the
+    # production profile (deploy/production). This job refuses an incomplete setup, then installs as a production
+    # server would, against stand-ins for what lies outside the server (the key service, object storage for WAL, the
+    # alert receivers: deploy/production/ci/stand-ins.yml), and checks the profile on the running stack.
+    name: Production installation (production profile, key service, TLS, archiving)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
-      - name: Installation without --demo (production mode, keys from deploy/init-env.sh)
+      - name: Tools a production server has (age, rclone)
+        run: sudo apt-get install -y -qq age rclone > /dev/null
+      - name: An incomplete production setup is refused before anything is built
+        run: |
+          sudo ./deploy/init-env.sh --domain localhost --email ops@install.test
+          ! sudo grep -Eq '^MASSLAK_(FIELD_KEYS|BIDX_KEY)=.' deploy/.env      # made and kept wrapped by the key service
+          set +e; sudo ./deploy/install.sh --domain localhost --admin-email admin@install.test --skip-server-setup 2> refused.log; rc=$?; set -e
+          cat refused.log
+          test "$rc" != 0 && grep -q 'MASSLAK_KMS_PROVIDER=vault is required' refused.log && grep -q 'PGBACKREST_REPO1_TYPE' refused.log
+          test -z "$(sudo docker ps -q)"
+      - name: Stand-ins for the key service, object storage and the alert receivers (CI only)
+        run: sudo ./deploy/production/ci/setup.sh
+      - name: Installation in the production profile
         run: |
           sudo ./deploy/install.sh --domain localhost --admin-email admin@install.test --skip-server-setup
           sudo chown "$USER" deploy/.env deploy/FIRST_LOGIN.txt
           grep -q '^MASSLAK_SANDBOX=false$' deploy/.env && grep -q '^MASSLAK_ENVIRONMENT=production$' deploy/.env
-          grep -q '^MASSLAK_FIELD_KEYS=kms://masslak/field/restricted/v1=.*=,kms://' deploy/.env    # base64 padding kept
-          curl -fsSk https://localhost/api/ready | grep -q '"ready":true'
+          curl -fsSk https://localhost/api/ready | tee ready.json | grep -q '"ready":true'
+          sudo docker compose --env-file deploy/.env logs migrate | grep -q 'production preflight passed'
+      - name: TLS only, certificates checked, the warehouse login by certificate from its address (H-05, H-10)
+        run: |
+          dc="sudo docker compose --env-file deploy/.env"
+          q() { $dc exec -T db psql -U postgres -d masslak -Atc "$1"; }
+          # every network connection to the database is encrypted, the API's through PgBouncer and directly
+          test "$(q "SELECT count(*) FROM pg_stat_ssl s JOIN pg_stat_activity a USING (pid) WHERE a.client_addr IS NOT NULL AND NOT s.ssl")" = 0
+          test "$(q "SELECT count(*) FROM pg_stat_ssl s JOIN pg_stat_activity a USING (pid) WHERE a.usename = 'masslak_api' AND s.ssl")" -ge 1
+          test "$(q "SELECT count(*) FROM pg_stat_replication r JOIN pg_stat_ssl s USING (pid) WHERE s.ssl AND r.application_name = 'replica1'")" = 1
+          # without TLS, or as the warehouse from anywhere but its address, the database refuses before any password
+          psql_in() { $dc run --rm --no-deps -T -e PGPASSWORD=x --entrypoint psql migrate "$@" -c "SELECT 1"; }
+          if psql_in "host=db dbname=masslak user=postgres sslmode=disable" 2> plain.log; then exit 1; fi
+          grep -q 'no encryption' plain.log
+          if psql_in "host=db dbname=masslak user=masslak_cdc sslmode=verify-full sslrootcert=/etc/masslak/trust/ca.crt" 2> cdc.log; then exit 1; fi
+          grep -q 'pg_hba.conf rejects connection' cdc.log
+          # a client that does not check the certificate's name is refused by its own check
+          db_ip="$($dc run --rm --no-deps -T --entrypoint getent migrate hosts db | awk '{print $1; exit}')"
+          if psql_in "host=$db_ip dbname=masslak user=postgres sslmode=verify-full sslrootcert=/etc/masslak/trust/ca.crt" 2> name.log; then exit 1; fi
+          grep -q 'does not match host name' name.log
+          # no decoding plugin but pgoutput (H-10)
+          if q "SELECT pg_create_logical_replication_slot('zz_probe', 'test_decoding')" 2> plugin.log; then exit 1; fi
+          grep -q 'test_decoding' plugin.log
+      - name: WAL archived off the host, proven before the migration; a full backup into the repository (H-02)
+        run: |
+          dc="sudo docker compose --env-file deploy/.env"
+          ./deploy/pitr/check-archive.sh
+          $dc exec -T -u postgres db pgbackrest --stanza=masslak --type=full backup
+          $dc exec -T -u postgres db pgbackrest --stanza=masslak info | tee pgbackrest.info
+          grep -q 'full backup' pgbackrest.info && grep -q 'cipher: aes-256-cbc' pgbackrest.info
+      - name: Data keys wrapped by the key service; the API holds no key and no owner secret (H-06)
+        run: |
+          dc="sudo docker compose --env-file deploy/.env"
+          test "$($dc exec -T db psql -U postgres -d masslak -Atc "SELECT count(*) FROM sec.key_registry WHERE purpose IN ('FIELD_ENCRYPTION', 'WEBHOOK_SECRET', 'BLIND_INDEX') AND status = 'ACTIVE' AND (wrapped_dek IS NULL OR kms_key_id <> 'masslak-field')")" = 0
+          if $dc exec -T app env | grep -E '^(POSTGRES_PASSWORD|MASSLAK_FIELD_KEYS|MASSLAK_BIDX_KEY|MASSLAK_REPLICATION_PASSWORD|PGBACKREST_[A-Z_]*)='; then exit 1; fi
+          # an API started with an owner secret, a raw key, or a connection that does not check certificates refuses to start
+          for e in POSTGRES_PASSWORD=x MASSLAK_FIELD_KEYS=kms://x=AAAA "MASSLAK_DATABASE_URL=postgresql://masslak_api:x@pgbouncer:6432/masslak"; do
+            if $dc run --rm --no-deps -T -e "$e" app python -c "from app import profile; profile.require_in_production()"; then
+              echo "started with $e"; exit 1; fi
+          done
+          # the proxy lets through the key service at exactly its address and port, and still nothing else internal
+          $dc exec -T egress cat /etc/squid/keyservice.conf | grep -q 'dstdomain vault'
+          probe() { $dc exec -T worker python3 -c 'import socket, sys
+          s = socket.create_connection(("egress", 3128), timeout=15)
+          s.sendall(("CONNECT %s HTTP/1.1\r\nHost: %s\r\n\r\n" % (sys.argv[1], sys.argv[1])).encode())
+          print(s.recv(200).split()[1].decode())' "$1"; }
+          test "$(probe vault:8200)" = 200 && test "$(probe vault:8201)" = 403
+          $dc exec -T worker bash /app/deploy/egress/selftest.sh egress:3128
       - name: Zero data loss is on in production and every commit waits for the standby (owner's decision 1)
         run: |
-          dc="docker compose --env-file deploy/.env"
+          dc="sudo docker compose --env-file deploy/.env"
           grep -q '^MASSLAK_ZERO_DATA_LOSS=on$' deploy/.env
           test "$($dc exec -T db psql -U postgres -Atc "SELECT sync_state FROM pg_stat_replication WHERE application_name = 'replica1'")" = sync
           test "$($dc exec -T db psql -U postgres -d masslak -Atc "SELECT value FROM sys.durability_metrics() WHERE metric = 'masslak_db_commits_wait_for_standby'")" = 1
@@ -398,7 +471,7 @@ jobs:
             test "$($dc exec -T db psql -U postgres -Atc "SELECT count(*) FROM pg_stat_replication WHERE sync_state = 'sync'")" = 1 && break; sleep 2
           done
           curl -fsSk https://localhost/api/ready | grep -q '"ready":true'
-      - name: Two-factor enrolment encrypts the secret and the recovery codes, and signing in again decrypts them
+      - name: Two-factor enrolment encrypts with keys the key service opens, and a new process opens them again
         run: |
           pw="$(sed -n 's/^Password: *//p' deploy/FIRST_LOGIN.txt)"
           h=(-H 'X-Masslak-Client: web' -H 'Content-Type: application/json')
@@ -410,9 +483,9 @@ jobs:
                https://localhost/api/auth/login | grep -q '"mfa":"ENROLL"'
           secret="$(curl -fsSk -b jar -c jar "${h[@]}" -X POST https://localhost/api/auth/mfa/enroll | python3 -c 'import json,sys; print(json.load(sys.stdin)["secret"])')"
           curl -fsSk -b jar -c jar "${h[@]}" -d "{\"code\":\"$(totp "$secret")\"}" https://localhost/api/auth/mfa/confirm | grep -q recovery_codes
-          dc="docker compose --env-file deploy/.env"
+          dc="sudo docker compose --env-file deploy/.env"
           test "$($dc exec -T db psql -U postgres -d masslak -Atc "SELECT count(*) FROM iam.mfa_factor WHERE secret_enc IS NOT NULL AND verified_at IS NOT NULL")" = 2
-          # a new process opens the same keys: restart the API, sign in, and the stored secret checks the next code
+          # a new process opens the same keys through the key service: restart the API, sign in, and the stored secret checks the next code
           $dc restart app
           for i in $(seq 60); do curl -fsSk https://localhost/api/ready >/dev/null && break; sleep 2; done
           sleep 31                                    # the next 30-second step: a code is accepted once
@@ -420,14 +493,40 @@ jobs:
                https://localhost/api/auth/login | grep -q '"mfa":"VERIFY"'
           curl -fsSk -b jar2 -c jar2 "${h[@]}" -d "{\"code\":\"$(totp "$secret")\"}" https://localhost/api/auth/mfa/verify | grep -q '"ok":true'
           curl -fsSk -b jar2 "${h[@]}" https://localhost/api/auth/me | grep -q admin@install.test
-      - name: A production server refuses demo data and plain message logs (R-26, R-27)
+      - name: A production server refuses demo data, plain message logs and the drift override (R-26, R-27, M-07)
         run: |
-          dc="docker compose --env-file deploy/.env"
+          dc="sudo docker compose --env-file deploy/.env"
           if $dc run --rm -T -e MASSLAK_SEED_DEMO=true migrate; then echo "demo data loaded on a production server"; exit 1; fi
           test "$($dc exec -T db psql -U postgres -d masslak -Atc "SELECT count(*) FROM iam.app_user WHERE email LIKE '%@masslak.test'")" = 0
-          if $dc run --rm -T --no-deps -e MASSLAK_NOTIFY_SMS=log app python -c \
+          if $dc run --rm --no-deps -T -e MASSLAK_NOTIFY_SMS=log app python -c \
                "from app.modules.notify import providers; providers.require_in_production()"; then
             echo "the message log was accepted on a production server"; exit 1; fi
+          set +e; $dc run --rm --no-deps -T -e MASSLAK_SCHEMA_DRIFT=warn migrate sh -c \
+            'export PGUSER="$POSTGRES_USER" PGPASSWORD="$POSTGRES_PASSWORD"; /app/db/upgrade.sh "$POSTGRES_DB"'; rc=$?; set -e
+          test "$rc" = 5
+      - name: An update without an off-site copy of its backup is refused; a complete one goes through (H-03)
+        run: |
+          sudo cp deploy/.env env.saved
+          sudo sed -i 's|^MASSLAK_BACKUP_OFFSITE=.*|MASSLAK_BACKUP_OFFSITE=nowhere:masslak|' deploy/.env
+          set +e; sudo ./deploy/update.sh 2> update.log; rc=$?; set -e
+          cat update.log
+          test "$rc" != 0 && grep -q 'not copied off the server' update.log
+          curl -fsSk https://localhost/api/ready | grep -q '"ready":true'          # the running version kept serving
+          sudo cp env.saved deploy/.env
+          sudo ./deploy/update.sh
+          curl -fsSk https://localhost/api/ready | grep -q '"ready":true'
+      - name: Alerts reach the receivers and every metric the alerts rest on is collected (H-07, addition 2)
+        run: |
+          dc="sudo docker compose --env-file deploy/.env"
+          sudo ./deploy/monitoring/alert-drill.sh 120
+          $dc logs sink | grep -q '"uri":"/page"'
+          prom() { $dc exec -T prometheus wget -qO- "http://localhost:9090/api/v1/query?query=$1"; }
+          for i in $(seq 40); do
+            prom 'count(up==1)' | grep -q '"value":\[[0-9.]*,"5"\]' && break; sleep 5
+          done
+          prom 'up' | python3 -c 'import json,sys; r=json.load(sys.stdin)["data"]["result"]; up={x["metric"]["job"]: x["value"][1] for x in r}; print(up); assert all(v == "1" for v in up.values()) and {"masslak-api","pgbouncer","node","alertmanager","prometheus"} <= set(up), up'
+          sleep 45                                    # the rules are evaluated every 30 s
+          prom 'ALERTS%7Balertname%3D%22MetricsMissing%22%7D' | python3 -c 'import json,sys; r=json.load(sys.stdin)["data"]["result"]; print([x["metric"].get("metric") for x in r]); assert r == [], r'
       - name: Logs on failure
         if: failure()
         run: sudo docker compose --env-file deploy/.env logs --tail 200

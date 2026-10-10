@@ -1,0 +1,190 @@
+# Production profile (reviews of October 2026, package 2; docs/operations/PRODUCTION_PROFILE.md). A production server
+# runs docker-compose.yml with this overlay: deploy/production/init.sh writes COMPOSE_FILE into deploy/.env, so every
+# "docker compose --env-file deploy/.env ..." on the server uses both. Before any schema change, the migration's
+# preflight (backend/app/tools/preflight.py) checks the result on the database itself and refuses an incomplete setup.
+#
+# On top of the standard stack it brings:
+#   * TLS to the database, the read replica and PgBouncer, with certificates of an internal authority, checked by
+#     every client (sslmode=verify-full); pg_hba.conf accepts nothing else on the network (H-05);
+#   * WAL archiving by pgBackRest to a repository off this host, proven before every migration (H-02);
+#   * the warehouse login only from its address with a client certificate, and no decoding plugin but pgoutput (H-10);
+#   * the key service: the API and the worker open the data keys with Vault, reached through the egress proxy, which
+#     lets through exactly the key service's address (H-06);
+#   * Prometheus with the alert rules, Alertmanager, node_exporter, the PgBouncer exporter, Grafana, and ClamAV for the
+#     file scanner (H-07).
+# Paths are relative to the repository root (the directory of the first compose file).
+
+# public certificates only: the internal authority's (ca.crt) and, when Vault's certificate is not from a public
+# authority, Vault's (MASSLAK_VAULT_CA_FILE=/etc/masslak/trust/vault-ca.crt); deploy/production/init.sh fills it
+x-trust: &trust ./deploy/production/trust:/etc/masslak/trust:ro
+
+services:
+  db:
+    build: deploy/production/db
+    image: masslak-db:${MASSLAK_IMAGE_TAG:-latest}
+    env_file: deploy/env/db.env                # the owner's login and pgBackRest's repository (deploy/env-split.sh)
+    command: ["postgres",
+              "-c", "hba_file=/var/lib/postgresql/pg_hba.conf",
+              "-c", "ssl=on", "-c", "ssl_min_protocol_version=TLSv1.3",
+              "-c", "ssl_cert_file=/var/lib/postgresql/tls/server.crt", "-c", "ssl_key_file=/var/lib/postgresql/tls/server.key",
+              "-c", "ssl_ca_file=/var/lib/postgresql/tls/ca.crt", "-c", "password_encryption=scram-sha-256",
+              "-c", "wal_level=logical", "-c", "archive_mode=on", "-c", "archive_timeout=60",
+              "-c", "archive_command=pgbackrest --stanza=masslak archive-push %p",
+              "-c", "max_slot_wal_keep_size=20GB", "-c", "log_replication_commands=on", "-c", "max_connections=200",
+              "-c", "shared_preload_libraries=pg_stat_statements", "-c", "pg_stat_statements.track_utility=off",
+              "-c", "track_io_timing=on", "-c", "track_functions=pl", "-c", "log_min_duration_statement=1000",
+              "-c", "log_parameter_max_length=0", "-c", "log_lock_waits=on"]
+    volumes:
+      # the authority's key never enters a container: only the files each one needs are mounted
+      - ./deploy/production/tls/ca.crt:/tls-src/ca.crt:ro
+      - ./deploy/production/tls/server.crt:/tls-src/server.crt:ro
+      - ./deploy/production/tls/server.key:/tls-src/server.key:ro
+
+  db-replica:
+    image: masslak-db:${MASSLAK_IMAGE_TAG:-latest}
+    user: root                                  # masslak-db-entry installs the TLS files, then runs replica.sh as postgres
+    entrypoint: ["/usr/local/bin/masslak-db-entry", "/usr/local/bin/masslak-replica"]
+    environment:
+      MASSLAK_DB_TLS: /var/lib/postgresql/tls
+    volumes:
+      - ./deploy/production/tls/ca.crt:/tls-src/ca.crt:ro
+      - ./deploy/production/tls/server.crt:/tls-src/server.crt:ro
+      - ./deploy/production/tls/server.key:/tls-src/server.key:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -q -U postgres && psql -U postgres -Atc 'SELECT pg_is_in_recovery()' | grep -q t"]
+      interval: 5s
+      retries: 60
+
+  pgbouncer:
+    environment:
+      CLIENT_TLS_SSLMODE: require             # clients must use TLS; they check PgBouncer's certificate (verify-full)
+      CLIENT_TLS_KEY_FILE: /tls/server.key
+      CLIENT_TLS_CERT_FILE: /tls/server.crt
+      CLIENT_TLS_CA_FILE: /tls/ca.crt
+      CLIENT_TLS_PROTOCOLS: tlsv1.3
+      SERVER_TLS_SSLMODE: verify-full         # and PgBouncer checks the database's
+      SERVER_TLS_CA_FILE: /tls/ca.crt
+      SERVER_TLS_PROTOCOLS: tlsv1.3
+    volumes:
+      - ./deploy/production/tls/ca.crt:/tls/ca.crt:ro
+      - ./deploy/production/tls/server.crt:/tls/server.crt:ro
+      - ./deploy/production/tls/server.key:/tls/server.key:ro
+
+  migrate:
+    environment:
+      PGSSLMODE: verify-full
+      PGSSLROOTCERT: /etc/masslak/trust/ca.crt
+      MASSLAK_PROFILE: production
+      # the first start wraps the data keys with the key service, through the proxy like every outbound call
+      MASSLAK_EGRESS_PROXY: http://egress:3128
+    volumes: [*trust]
+    depends_on:
+      egress: { condition: service_started }
+    networks: [internal, egress_in]
+
+  app:
+    environment:
+      MASSLAK_DATABASE_URL: postgresql://masslak_api:${MASSLAK_API_PASSWORD}@pgbouncer:6432/${POSTGRES_DB:-masslak}?sslmode=verify-full&sslrootcert=/etc/masslak/trust/ca.crt
+      MASSLAK_AUDIT_DATABASE_URL: postgresql://masslak_audit:${MASSLAK_AUDIT_PASSWORD}@db:5432/${POSTGRES_DB:-masslak}?sslmode=verify-full&sslrootcert=/etc/masslak/trust/ca.crt
+      MASSLAK_REPORTS_DATABASE_URL: postgresql://masslak_api:${MASSLAK_API_PASSWORD}@db-replica:5432/${POSTGRES_DB:-masslak}?sslmode=verify-full&sslrootcert=/etc/masslak/trust/ca.crt
+      MASSLAK_PROFILE: production
+      MASSLAK_CLAMD: clamav:3310
+    volumes: [*trust]
+    depends_on:
+      clamav: { condition: service_healthy }
+
+  worker:
+    environment:
+      MASSLAK_DATABASE_URL: postgresql://masslak_api:${MASSLAK_API_PASSWORD}@pgbouncer:6432/${POSTGRES_DB:-masslak}?sslmode=verify-full&sslrootcert=/etc/masslak/trust/ca.crt
+      MASSLAK_AUDIT_DATABASE_URL: postgresql://masslak_audit:${MASSLAK_AUDIT_PASSWORD}@db:5432/${POSTGRES_DB:-masslak}?sslmode=verify-full&sslrootcert=/etc/masslak/trust/ca.crt
+      MASSLAK_REPORTS_DATABASE_URL: postgresql://masslak_api:${MASSLAK_API_PASSWORD}@db-replica:5432/${POSTGRES_DB:-masslak}?sslmode=verify-full&sslrootcert=/etc/masslak/trust/ca.crt
+      MASSLAK_PROFILE: production
+      MASSLAK_CLAMD: clamav:3310
+    volumes: [*trust]
+
+  egress:
+    environment:
+      # the one internal destination the proxy lets through: the key service, at exactly this host and port
+      MASSLAK_VAULT_ADDR: ${MASSLAK_VAULT_ADDR:-}
+
+  # Virus scanning for uploads (audit T3-15). It needs the internet only for signature updates (freshclam).
+  clamav:
+    image: clamav/clamav:1.4@sha256:57deb108fc4c72778aa83eafbca7bb7153e28c3f57c005afd38d31f16da86f23
+    restart: unless-stopped
+    volumes:
+      - clamav_db:/var/lib/clamav
+    healthcheck:
+      test: ["CMD", "clamdcheck.sh"]
+      interval: 30s
+      timeout: 10s
+      retries: 20
+      start_period: 300s
+    networks: [internal, edge]
+
+  prometheus:
+    image: prom/prometheus:v2.53.2@sha256:cafe963e591c872d38f3ea41ff8eb22cee97917b7c97b5c0ccd43a419f11f613
+    restart: unless-stopped
+    command: ["--config.file=/etc/prometheus/prometheus.yml", "--storage.tsdb.retention.time=30d"]
+    volumes:
+      - ./deploy/production/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./deploy/monitoring/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - ./deploy/production/targets:/etc/prometheus/targets:ro
+      - ./deploy/production/secrets/metrics_token:/etc/prometheus/metrics_token:ro
+      - prometheus_data:/prometheus
+    networks: [internal, monitoring]
+
+  # The host's disks, memory and load (alerts DiskSpaceLow, MemoryLow), and the textfile directory where host jobs
+  # write their figures (the second site's watchdog writes there on site B)
+  node-exporter:
+    image: prom/node-exporter:v1.8.2@sha256:4032c6d5bfd752342c3e631c2f1de93ba6b86c41db6b167b9a35372c139e7706
+    restart: unless-stopped
+    command: ["--path.rootfs=/host", "--collector.textfile.directory=/host/var/lib/node_exporter/textfile"]
+    pid: host
+    volumes:
+      - /:/host:ro
+    networks: [monitoring]
+
+  pgbouncer-exporter:
+    image: prometheuscommunity/pgbouncer-exporter:v0.10.2@sha256:5d62f2dc3ed33d091fe8dcf170c8533618c4d00cab61b6a743e0425d57b28924
+    restart: unless-stopped
+    environment:
+      PGBOUNCER_EXPORTER_CONNECTION_STRING: postgres://masslak_api:${MASSLAK_API_PASSWORD}@pgbouncer:6432/pgbouncer?sslmode=verify-full&sslrootcert=/etc/masslak/trust/ca.crt
+    volumes: [*trust]
+    depends_on: [pgbouncer]
+    networks: [internal]
+
+  alertmanager:
+    image: prom/alertmanager:v0.27.0@sha256:e13b6ed5cb929eeaee733479dce55e10eb3bc2e9c4586c705a4e8da41e5eacf5
+    restart: unless-stopped
+    command: ["--config.file=/etc/alertmanager/alertmanager.yml", "--storage.path=/alertmanager"]
+    volumes:
+      - ./deploy/production/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - ./deploy/production/secrets:/etc/alertmanager/secrets:ro
+      - alertmanager_data:/alertmanager
+    networks: [monitoring]
+
+  grafana:
+    image: grafana/grafana:11.2.2@sha256:d5133220d770aba5cb655147b619fa8770b90f41d8489a821d33b1cd34d16f89
+    restart: unless-stopped
+    # reach it through an SSH tunnel; never published on a public address
+    ports: ["127.0.0.1:3000:3000"]
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD__FILE: /run/secrets/grafana_admin_password
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+    volumes:
+      - ./deploy/staging/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./deploy/monitoring/grafana-dashboard.json:/var/lib/grafana/dashboards/masslak.json:ro
+      - ./deploy/production/secrets/grafana_admin_password:/run/secrets/grafana_admin_password:ro
+      - grafana_data:/var/lib/grafana
+    networks: [monitoring]
+
+networks:
+  # Prometheus, Alertmanager, node_exporter and Grafana; Alertmanager sends its notifications from here
+  monitoring: {}
+
+volumes:
+  clamav_db:
+  prometheus_data:
+  alertmanager_data:
+  grafana_data:

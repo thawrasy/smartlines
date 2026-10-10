@@ -1,0 +1,31 @@
+# Stand-ins for what a production server reaches outside its own stack: CI and rehearsals only, never a real server.
+# Added through MASSLAK_COMPOSE_EXTRA=deploy/production/ci/stand-ins.yml (deploy/production/init.sh puts it in
+# COMPOSE_FILE); .github/workflows/ci.yml, job "Production installation", shows the whole sequence.
+#   vault  the key service: Vault in development mode with its own TLS authority (copied to deploy/production/trust),
+#          on the internet side of the egress proxy, as a key service on another machine would be
+#   s3     object storage for pgBackRest's repository, over TLS with a certificate of the internal authority
+#   sink   the alert receivers: answers every webhook with 200, so Alertmanager's delivery counters prove the path
+services:
+  vault:
+    image: hashicorp/vault:1.17.6@sha256:74a4ab138ab5d64725e89cd9a9c73f7040c7fe49e98b71697b275ca9a69919df
+    command: ["server", "-dev", "-dev-tls", "-dev-tls-san=vault", "-dev-tls-cert-dir=/vault/tls",
+              "-dev-listen-address=0.0.0.0:8200", "-dev-root-token-id=${MASSLAK_VAULT_TOKEN}"]
+    cap_add: [IPC_LOCK]
+    volumes:
+      - ./deploy/production/ci/vault-tls:/vault/tls
+    networks: [edge]
+
+  s3:
+    image: chrislusf/seaweedfs:4.47@sha256:ce9e796f1fe6f06968f4c04bdaf8f678dad9c8acdfef3d244133d71bfa6bf882
+    command: ["mini", "-dir=/data", "-s3.config=/etc/s3.json", "-bucket=${PGBACKREST_REPO1_S3_BUCKET}",
+              "-s3.port.https=8443", "-s3.cert.file=/certs/s3.crt", "-s3.key.file=/certs/s3.key"]
+    volumes:
+      - ./deploy/production/ci/s3.json:/etc/s3.json:ro
+      - ./deploy/production/ci/s3.crt:/certs/s3.crt:ro
+      - ./deploy/production/ci/s3.key:/certs/s3.key:ro
+    networks: [internal]
+
+  sink:
+    image: caddy:2-alpine@sha256:d8542f48d34a9cf4e4c11a478865229840e87e4c96ea3f439101f31a5d35f75f
+    command: ["caddy", "respond", "--listen", ":8080", "--access-log", "received"]
+    networks: [monitoring]

@@ -24,6 +24,10 @@ psql "$@" -d "$DB" -v ON_ERROR_STOP=1 -q -f "$DIR/schema_file.sql"
 for f in $(schema_files); do
   record "$(basename "$f")" "$(sha256sum "$f" | cut -d' ' -f1)"
 done
+# constraints the files added NOT VALID are validated now (1082); older builds (MASSLAK_BUILD_UNTIL) skip it
+if [ "$(psql "$@" -d "$DB" -Atqc "SELECT to_regprocedure('sys.validate_constraints()') IS NOT NULL")" = t ]; then
+  psql "$@" -d "$DB" -v ON_ERROR_STOP=1 -q -c "CALL sys.validate_constraints()"
+fi
 # the release manifest (1058): version, commit and the hash of the applied files; older builds (MASSLAK_BUILD_UNTIL) skip it
 commit="${MASSLAK_RELEASE_COMMIT:-$(git -C "$DIR" rev-parse HEAD 2>/dev/null || echo unknown)}"
 if [ "$(psql "$@" -d "$DB" -Atqc "SELECT to_regproc('sys.record_release') IS NOT NULL")" = t ]; then

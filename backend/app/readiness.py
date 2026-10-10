@@ -5,7 +5,8 @@ use it, so a database restart never takes the web interface offline with it.
 
 GET /api/ready says whether this instance can serve bookings now: the primary (not a standby) answers through the
 application pool, every schema file shipped with this code is applied (the migrate service has finished), the audit
-connection answers, and the reports replica answers and is in recovery when one is configured. It answers 200 when every check
+connection answers, the reports replica answers and is in recovery when one is configured, the request context can be
+signed and not rewritten (1080), and no constraint is left NOT VALID (1082). It answers 200 when every check
 passes and 503 otherwise, naming only the checks, never an error text. deploy/update.sh waits for it after a
 deployment, and a load balancer with several API instances routes only to instances that are ready.
 
@@ -71,8 +72,17 @@ async def _context() -> bool:
     return all(json.loads(status).values())
 
 
+async def _constraints() -> bool:
+    """No constraint is left NOT VALID (1082, H-09): the rows that were there before it was added are checked too. The
+    migration validates each one; a constraint that old rows break stays NOT VALID until they are fixed (for 1046's
+    contact constraints: python -m app.tools.seal_contacts), and this instance is not ready meanwhile."""
+    async with db.raw_connection() as conn:
+        return await conn.fetchval("SELECT NOT EXISTS (SELECT 1 FROM sys.unvalidated_constraints())") is True
+
+
 CHECKS: dict[str, Callable[[], Awaitable[bool]]] = {
-    "database": _database, "schema": _schema, "audit_database": _audit, "reports_replica": _replica, "context": _context}
+    "database": _database, "schema": _schema, "audit_database": _audit, "reports_replica": _replica, "context": _context,
+    "constraints": _constraints}
 
 
 async def _run(check: Callable[[], Awaitable[bool]]) -> bool:

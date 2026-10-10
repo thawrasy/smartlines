@@ -7,6 +7,13 @@
         Then re-encrypt the rows under the old key: python -m app.tools.rekey --apply
     python -m app.tools.keys check
         opens every wrapped key in sec.key_registry with the key service and reports the ones it cannot open.
+    python -m app.tools.keys bootstrap [--kms-key-id masslak-field]
+        as the database owner (MASSLAK_OWNER_URL, or the PG* environment): every data key the API opens (field
+        encryption, webhook secrets, blind index) that is not wrapped yet is wrapped by the key service and stored
+        wrapped. A key given in MASSLAK_FIELD_KEYS or MASSLAK_BIDX_KEY is adopted as it is, so what it sealed stays
+        readable; a key nothing was sealed under is new. A key that sealed rows but is given nowhere stops it. Run by
+        deploy/migrate.sh on a production server, where the API and the worker then hold no clear key in their
+        environment (reviews of October 2026, package 2, H-06); once it has run, remove the raw keys from deploy/.env.
 """
 from __future__ import annotations
 
@@ -16,7 +23,9 @@ import os
 import sys
 import uuid
 
-from .. import db, kms
+import asyncpg
+
+from .. import crypto, db, kms
 
 ALGORITHMS = {"FIELD_ENCRYPTION": "AES-256-GCM", "WEBHOOK_SECRET": "AES-256-GCM", "BLIND_INDEX": "HMAC-SHA256"}
 
@@ -80,6 +89,83 @@ async def check() -> int:
     return 1 if bad else 0
 
 
+DATA_KEY_PURPOSES = ("FIELD_ENCRYPTION", "WEBHOOK_SECRET", "BLIND_INDEX")
+
+
+async def _sealed_under(conn: asyncpg.Connection, key_id: int) -> bool:
+    """Whether any row refers to this registry key: every column that seals or signs under a key has a foreign key to
+    sec.key_registry, so the catalog lists them all."""
+    refs = await conn.fetch("""
+        SELECT c.conrelid::regclass::text AS tbl, a.attname AS col, r.attname AS target
+          FROM pg_constraint c
+          JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = c.conkey[1]
+          JOIN pg_attribute r ON r.attrelid = c.confrelid AND r.attnum = c.confkey[1]
+         WHERE c.contype = 'f' AND c.confrelid = 'sec.key_registry'::regclass AND c.conparentid = 0""")
+    ref = await conn.fetchval("SELECT key_ref FROM sec.key_registry WHERE id = $1", key_id)
+    for r in refs:
+        value = key_id if r["target"] == "id" else ref
+        if await conn.fetchval(f'SELECT EXISTS (SELECT 1 FROM {r["tbl"]} WHERE "{r["col"]}" = $1)', value):
+            return True
+    return False
+
+
+async def bootstrap(conn: asyncpg.Connection, wrapper: kms.KeyWrapper, kms_key_id: str) -> list[str]:
+    """Wraps every data key the API opens that is not wrapped yet; returns one line per key."""
+    rows = await conn.fetch("""SELECT id, key_ref, purpose FROM sec.key_registry
+                                WHERE purpose = ANY($1::text[]) AND status IN ('ACTIVE', 'DECRYPT_ONLY')
+                                  AND company_id IS NULL AND wrapped_dek IS NULL ORDER BY id""", list(DATA_KEY_PURPOSES))
+    configured = crypto._configured_field_keys()
+    raw_bidx = os.environ.get("MASSLAK_BIDX_KEY", "").strip()
+    bidx = crypto._decode_key(raw_bidx, "MASSLAK_BIDX_KEY") if raw_bidx else None
+    sealed_any = None
+    done = []
+    for r in rows:
+        key = bidx if r["purpose"] == "BLIND_INDEX" else configured.get(r["key_ref"])
+        how = "adopted from the environment"
+        if key is None:
+            if r["purpose"] == "BLIND_INDEX":
+                # blind indexes sit next to sealed values: any sealed row means indexes were made under a key
+                if sealed_any is None:
+                    sealed_any = any([await _sealed_under(conn, x["id"]) for x in rows if x["purpose"] != "BLIND_INDEX"])
+                in_use = sealed_any
+            else:
+                in_use = await _sealed_under(conn, r["id"])
+            if in_use:
+                raise kms.KmsError(f"rows are sealed under {r['key_ref']} but its key is not given "
+                                   f"({'MASSLAK_BIDX_KEY' if r['purpose'] == 'BLIND_INDEX' else 'MASSLAK_FIELD_KEYS'}): "
+                                   "give it once so it can be wrapped")
+            key, how = os.urandom(32), "new"
+        wrapped = wrapper.wrap(key, r["key_ref"], kms_key_id)
+        if wrapper.unwrap(wrapped, r["key_ref"], kms_key_id) != key:      # prove the service opens what it wrapped
+            raise kms.KmsError(f"the key service did not return the same key for {r['key_ref']}")
+        await conn.execute("UPDATE sec.key_registry SET wrapped_dek = $2, kms_key_id = $3 WHERE id = $1 AND wrapped_dek IS NULL",
+                           r["id"], wrapped, kms_key_id)
+        done.append(f"{r['key_ref']}: wrapped by {wrapper.name} ({how})")
+    return done
+
+
+async def bootstrap_main(kms_key_id: str) -> int:
+    wrapper = kms.provider()
+    if wrapper is None:
+        print("the key service is required: set MASSLAK_KMS_PROVIDER=vault, MASSLAK_VAULT_ADDR and MASSLAK_VAULT_TOKEN",
+              file=sys.stderr)
+        return 2
+    url = os.environ.get("MASSLAK_OWNER_URL")
+    conn = await (asyncpg.connect(url) if url else asyncpg.connect(database=os.environ.get("POSTGRES_DB", "masslak")))
+    try:
+        async with conn.transaction():
+            lines = await bootstrap(conn, wrapper, kms_key_id)
+    except kms.KmsError as exc:
+        print(f"keys bootstrap stopped: {exc}", file=sys.stderr)
+        return 1
+    finally:
+        await conn.close()
+    for line in lines:
+        print(line)
+    print(f"{len(lines)} data key(s) wrapped" if lines else "every data key is already wrapped by the key service")
+    return 0
+
+
 def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser(prog="python -m app.tools.keys")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -89,8 +175,12 @@ def main(argv: list[str]) -> int:
     n.add_argument("--class", dest="data_class", default="RESTRICTED", choices=["RESTRICTED", "CONFIDENTIAL", "INTERNAL"])
     n.add_argument("--kms-key-id", default=None)
     sub.add_parser("check")
+    b = sub.add_parser("bootstrap")
+    b.add_argument("--kms-key-id", default=os.environ.get("MASSLAK_VAULT_TRANSIT_KEY", "masslak-field"))
     args = ap.parse_args(argv)
-    return new_key(args) if args.cmd == "new" else asyncio.run(check())
+    if args.cmd == "new":
+        return new_key(args)
+    return asyncio.run(bootstrap_main(args.kms_key_id) if args.cmd == "bootstrap" else check())
 
 
 if __name__ == "__main__":

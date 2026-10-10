@@ -21,3 +21,7 @@ scrape_configs:
   - job_name: pgbouncer
     static_configs:
       - targets: ["pgbouncer-exporter:9127"]
+  # the host (staging overlay, service node-exporter); the production profile has its own file, deploy/production/prometheus.yml
+  - job_name: node
+    static_configs:
+      - targets: ["node-exporter:9100"]

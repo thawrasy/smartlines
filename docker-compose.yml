@@ -1,5 +1,8 @@
 # Masslak test/production stack: PostgreSQL with a streaming read replica, PgBouncer in front of it, a one-shot migration,
-# the API (which also serves the web interface), the worker, the egress proxy and Caddy as the HTTPS front. Configure with deploy/.env (copy deploy/.env.example).
+# the API (which also serves the web interface), the worker, the egress proxy and Caddy as the HTTPS front. Configure with deploy/.env (copy deploy/.env.example);
+# each container receives only its part of it, deploy/env/<service>.env, written by deploy/env-split.sh.
+# A production server adds deploy/production/docker-compose.production.yml (COMPOSE_FILE in deploy/.env): TLS to the
+# database, WAL archiving off the host, the key service, monitoring and virus scanning.
 # Only Caddy and the egress proxy have a route to the internet: the API and the worker reach the outside world through
 # the proxy alone (audit T3-02, deploy/egress).
 name: masslak
@@ -66,7 +69,7 @@ services:
         MASSLAK_RELEASE_COMMIT: ${MASSLAK_RELEASE_COMMIT:-unknown}     # recorded in the release manifest (1058)
     image: masslak:${MASSLAK_IMAGE_TAG:-latest}
     command: ["/app/deploy/migrate.sh"]
-    env_file: deploy/.env
+    env_file: deploy/env/migrate.env      # written from deploy/.env by deploy/env-split.sh (H-06)
     environment:
       PGHOST: db
     depends_on:
@@ -102,7 +105,7 @@ services:
   app:
     image: masslak:${MASSLAK_IMAGE_TAG:-latest}
     restart: unless-stopped
-    env_file: deploy/.env
+    env_file: deploy/env/app.env          # no owner, replication or backup secret (deploy/env-split.sh, H-06)
     environment:
       # through PgBouncer; the audit and report connections stay direct (few, long, read-only)
       MASSLAK_DATABASE_URL: postgresql://masslak_api:${MASSLAK_API_PASSWORD}@pgbouncer:6432/${POSTGRES_DB:-masslak}
@@ -132,7 +135,7 @@ services:
   worker:
     image: masslak:${MASSLAK_IMAGE_TAG:-latest}
     restart: unless-stopped
-    env_file: deploy/.env
+    env_file: deploy/env/worker.env
     command: ["python", "-m", "app.modules.notify.worker"]
     environment:
       # through PgBouncer; the audit and report connections stay direct (few, long, read-only)

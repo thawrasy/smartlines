@@ -15,3 +15,10 @@ deploy/DEPLOYED
 .coverage.*
 coverage.xml
 coverage.json
+deploy/env/
+deploy/production/tls/
+deploy/production/secrets/
+deploy/production/targets/
+deploy/production/trust/
+deploy/production/ci/vault-tls/
+deploy/production/ci/s3.*

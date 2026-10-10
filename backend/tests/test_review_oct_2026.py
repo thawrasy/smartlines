@@ -4,6 +4,9 @@ test_verified_context.py and test_telemetry.py).
 M-01  a payer comes back to the platform's own address, never to the Host header a client sent
 M-05  generic record views never return a credential, whatever columns a table gains later
 M-12  the sandbox's payment simulator is opened by the payer only
+
+Package 2 (a production profile that refuses an incomplete setup):
+H-09  no constraint stays NOT VALID unnoticed: the migration validates them, readiness names one that old rows break
 """
 import asyncio
 import os
@@ -72,3 +75,45 @@ def test_only_the_payer_opens_the_sandbox_simulator():
     assert other.post(f"/api/payments/test/{uid}", json={"approve": True}).status_code == 404
     assert payer.get(f"/api/payments/test/{uid}").json()["amount"] == 150000
     assert payer.post(f"/api/payments/test/{uid}", json={"approve": True}).json()["status"] == "SUCCESS"
+
+
+@pytest.mark.skipif(not OWNER_URL, reason="needs MASSLAK_OWNER_URL")
+def test_a_constraint_left_not_valid_is_validated_or_keeps_the_server_not_ready():
+    from app import db, readiness
+
+    async def ready() -> dict:
+        await db.open_pools()
+        try:
+            readiness._cache = None
+            return (await readiness.readiness())["checks"]
+        finally:
+            readiness._cache = None
+            await db.close_pools()
+
+    async def owner(*statements):
+        conn = await asyncpg.connect(OWNER_URL)
+        warnings = []
+        conn.add_log_listener(lambda _c, msg: warnings.append(msg.message))
+        try:
+            for sql in statements:
+                await conn.execute(sql)
+            return warnings, await conn.fetch("SELECT * FROM sys.unvalidated_constraints()")
+        finally:
+            await conn.close()
+
+    try:
+        # one the existing rows satisfy: the migration's CALL validates it
+        _, left = asyncio.run(owner("ALTER TABLE ref.market ADD CONSTRAINT zz_probe_ok CHECK (true) NOT VALID"))
+        assert [tuple(r) for r in left] == [("ref.market", "zz_probe_ok")]
+        assert asyncio.run(ready())["constraints"] is False
+        _, left = asyncio.run(owner("CALL sys.validate_constraints()"))
+        assert left == [] and asyncio.run(ready())["constraints"] is True
+        # one the existing rows break: it stays NOT VALID, is named in a warning, and the server is not ready
+        warnings, left = asyncio.run(owner("ALTER TABLE ref.market ADD CONSTRAINT zz_probe_bad CHECK (false) NOT VALID",
+                                           "CALL sys.validate_constraints()"))
+        assert [tuple(r) for r in left] == [("ref.market", "zz_probe_bad")]
+        assert any("zz_probe_bad" in w and "stays NOT VALID" in w for w in warnings), warnings
+        assert asyncio.run(ready())["constraints"] is False
+    finally:
+        asyncio.run(owner("ALTER TABLE ref.market DROP CONSTRAINT IF EXISTS zz_probe_ok",
+                          "ALTER TABLE ref.market DROP CONSTRAINT IF EXISTS zz_probe_bad"))

@@ -82,8 +82,6 @@ else
   fi
   echo "deploying the files in $(pwd) (release archive, no git checkout)"
 fi
-# a backup kept on this server only (exit 3: no off-site copy) does not stop the update; the alert BackupOffsiteStale does
-./deploy/backup.sh || { rc=$?; [ "$rc" = 3 ] || exit "$rc"; echo "warning: the backup before this update was not copied off the server" >&2; }
 # secrets added by newer releases (existing values are never changed)
 if ! grep -q '^MASSLAK_REPLICATION_PASSWORD=.' deploy/.env; then
   sed -i '/^MASSLAK_REPLICATION_PASSWORD=/d' deploy/.env
@@ -96,10 +94,38 @@ if ! grep -q '^MASSLAK_ENVIRONMENT=.' deploy/.env; then
   echo "MASSLAK_ENVIRONMENT=$env_name" >> deploy/.env
   echo "added MASSLAK_ENVIRONMENT=$env_name to deploy/.env (set it to staging on the staging servers)"
 fi
+production=false
+grep -q '^MASSLAK_ENVIRONMENT=production$' deploy/.env && production=true
+if [ "$production" = true ]; then
+  # the production profile (reviews of October 2026, package 2): checked before anything is built or changed
+  ./deploy/production/init.sh
+  ./deploy/production/preflight.sh || fail "the production profile is incomplete (deploy/production/preflight.sh)"
+fi
+./deploy/env-split.sh                     # each container receives only its part of deploy/.env (H-06)
+# The backup before the update. A copy kept on this server only (exit 3: no off-site copy) stops a production update
+# (H-03): a server lost during the update would take its only backup with it. Elsewhere it is a warning, and the alert
+# BackupOffsiteStale follows it.
+rc=0; ./deploy/backup.sh || rc=$?
+if [ "$rc" != 0 ]; then
+  [ "$rc" = 3 ] || exit "$rc"
+  [ "$production" = true ] && fail "the backup before this update was not copied off the server (MASSLAK_BACKUP_OFFSITE); nothing was changed"
+  echo "warning: the backup before this update was not copied off the server" >&2
+fi
 old_tag="$(env_value MASSLAK_IMAGE_TAG)"
 case "$sha" in release-archive) tag="archive-$(date -u +%Y%m%d%H%M%S)" ;; *) tag="${sha:0:12}" ;; esac
 export MASSLAK_IMAGE_TAG="$tag"
 MASSLAK_RELEASE_COMMIT="$sha" compose build        # the release manifest (1058) records the commit
+if [ "$production" = true ]; then
+  # the database side of the profile, on the database itself (TLS only, archiving proven to the off-host repository,
+  # pgoutput only), before the new version starts: a refused update leaves the schema and the running version as they
+  # were. The database, its replica and PgBouncer restart first only when their image or settings changed (the first
+  # switch to the production profile).
+  compose up -d --no-deps db db-replica pgbouncer
+  for _ in $(seq 1 60); do compose exec -T db pg_isready -q 2>/dev/null && break; sleep 2; done
+  compose run --rm --no-deps -T migrate sh -c \
+      'export PGUSER="${POSTGRES_USER:-postgres}" PGPASSWORD="$POSTGRES_PASSWORD"; cd /app/backend && python -m app.tools.preflight' \
+    || fail "the production preflight refused the database (see above); the schema and the running version are unchanged"
+fi
 compose up -d
 compose ps
 if ! ready 60; then
@@ -115,7 +141,12 @@ set_env MASSLAK_IMAGE_TAG "$tag"
 previous="$(env_value MASSLAK_PREVIOUS_IMAGE_TAG)"
 # the durability the owner chose (MASSLAK_ZERO_DATA_LOSS, decision 1), and WAL archiving proven after the restart (R-40)
 ./deploy/durability.sh || echo "warning: the zero data loss setting could not be applied; run ./deploy/durability.sh" >&2
-./deploy/pitr/check-archive.sh || echo "warning: WAL archiving does not work after the update (RUNBOOKS.md, section 2)" >&2
+if ! ./deploy/pitr/check-archive.sh; then
+  # on a production server a broken archive is a failed update, not a warning (H-02): the new version runs, but every
+  # minute without archiving widens what a point-in-time restore would lose
+  [ "$production" = true ] && fail "WAL archiving does not work after the update (RUNBOOKS.md, section 2)"
+  echo "warning: WAL archiving does not work after the update (RUNBOOKS.md, section 2)" >&2
+fi
 # keep the running and the previous images, drop older ones
 for name in masslak masslak-egress; do
   for t in $(docker image ls "$name" --format '{{.Tag}}'); do

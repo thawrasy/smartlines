@@ -91,13 +91,17 @@ rewrite (`ADD COLUMN ... NULL` or a constant default), triggers and functions; 1
 split it into its own file if it exceeds the criteria); 1079 reads the catalog and writes about 500 small rows. This is a
 development rehearsal: the launch gate (`LAUNCH_GATES.md`, gate 4) still needs the same run on a production-size copy.
 
-## Release 1.49.0 (1080 to 1081)
+## Release 1.49.0 (1080 to 1082)
 
-Neither file touches a business table:
+No file changes a business table's rows or structure:
 
 * **1080** adds two small tables (`sys.context_key`, `sys.context_unsigned_window`), replaces `sys.set_context`, and
   withdraws `set_config` and temporary objects from PUBLIC. The withdrawal needs a superuser, which the migration is.
 * **1081** changes only the settings of the SECURITY DEFINER functions (`ALTER FUNCTION ... SET search_path`).
+* **1082** adds two functions. The upgrade then validates every constraint still NOT VALID, each in its own
+  transaction (`CALL sys.validate_constraints()`). VALIDATE takes a SHARE UPDATE EXCLUSIVE lock, so reads and writes
+  go on, but it scans the table. On a fresh database this is instant. On a server whose old rows break one, the
+  constraint stays NOT VALID and is named, and `/api/ready` reports `"constraints": false` (RUNBOOKS.md, section 31).
 
 Both take catalog locks for milliseconds, so they were not rehearsed with the tool.
 

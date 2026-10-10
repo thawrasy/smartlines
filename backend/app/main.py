@@ -45,6 +45,8 @@ logs.configure("api")                     # one JSON object per line outside the
 async def lifespan(_: FastAPI):
     from .security import require_keys_in_production
     require_keys_in_production()          # no default or weak signing keys outside the sandbox (review stage A1)
+    from . import profile
+    profile.require_in_production()       # TLS to the database, the key service, no owner secret (package 2, H-05, H-06)
     await db.open_pools()
     from . import egress
     egress.require_in_production()        # outbound traffic only through the egress proxy (T3-02)

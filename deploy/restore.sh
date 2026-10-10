@@ -24,6 +24,7 @@ if [ -f "$src/FILES_IN_OBJECT_STORE" ]; then      # the files were in the object
 else
   open files.tar.gz | compose run --rm -T --no-deps --entrypoint "" -u 0 app sh -c 'rm -rf /data/files/* && tar -C /data -xz && chown -R masslak /data/files'
 fi
+./deploy/env-split.sh                      # each container receives only its part of deploy/.env (H-06)
 compose up -d migrate app worker           # migrate re-applies login role passwords and any newer schema files
 echo "restored from $src"
 # the restored database and the stored files must belong to the same moment (review of release 1.47.0, R-44): every

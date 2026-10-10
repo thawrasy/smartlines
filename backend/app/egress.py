@@ -10,7 +10,8 @@ and worker containers have no route to the internet of their own. The proxy:
   partner webhook endpoints, written by the worker every minute (write_allowlists).
 
 The application keeps its own checks in front of the proxy (webhooks.check_url and webhooks.post): two layers.
-The key service (Vault) is an internal service and is reached directly.
+The key service (Vault) is an internal service: it is reached through the proxy too, which lets through exactly its
+host and port (MASSLAK_VAULT_ADDR, deploy/egress/entrypoint.sh; reviews of October 2026, H-06).
 
 The sandbox may run without a proxy; production refuses to start without one (require_in_production).
 """

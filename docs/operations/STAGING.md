@@ -30,6 +30,7 @@ developer machine or CI are smoke tests, not launch evidence.
 ./deploy/init-env.sh                         # deploy/.env with random secrets; set MASSLAK_SANDBOX=true, MASSLAK_SEED_DEMO=true,
                                              # and MASSLAK_ENVIRONMENT=staging (the gate evidence is filed under it)
 ./deploy/staging/init-secrets.sh             # add the printed lines to deploy/.env; put the receiver URLs in deploy/staging/secrets
+./deploy/env-split.sh                        # one environment file per container (again after each edit of deploy/.env)
 docker compose -f docker-compose.yml -f deploy/staging/docker-compose.staging.yml --env-file deploy/.env up -d --build
 docker compose ... exec -u postgres db pgbackrest --stanza=masslak --type=full backup     # first full backup
 ```

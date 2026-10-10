@@ -1,5 +1,8 @@
-# Alertmanager on staging (audit T3-16, docs/operations/SLO.md): severity "page" goes to the on-call channel at any hour,
-# "ticket" to the team queue. The receiver URLs are files in deploy/staging/secrets (not committed).
+# Alertmanager of the production profile (reviews of October 2026, H-07; docs/operations/SLO.md): severity "page" goes
+# to the on-call channel at any hour, "ticket" to the team queue, the heartbeat to the dead man's switch. The receiver
+# URLs are files in deploy/production/secrets (not committed); deploy/production/init.sh writes placeholders and the
+# preflight of deploy/install.sh and deploy/update.sh refuses to go on until they are replaced. Prove the path to the
+# person on call with deploy/monitoring/alert-drill.sh.
 route:
   receiver: ticket
   group_by: [alertname]

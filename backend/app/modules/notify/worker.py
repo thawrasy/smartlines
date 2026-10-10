@@ -109,9 +109,11 @@ async def main(once: bool) -> None:
     logredact.install()                   # the worker's logs lose personal data and secrets too, like the API's
     logs.configure("worker")
     from ... import egress
+    from ... import profile
     from ...security import require_keys_in_production
     egress.require_in_production()
     require_keys_in_production()
+    profile.require_in_production()       # the production profile, as for the API (package 2, H-05, H-06)
     providers.require_in_production()     # no personal data in plain message logs outside the sandbox (R-27)
     for channel in ("EMAIL", "SMS", "WHATSAPP"):
         if not providers.enabled(channel):
