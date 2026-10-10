@@ -465,6 +465,13 @@ The capacity model and its stages are in `CAPACITY_MODEL.md`.
   signed by this repository's release workflow for a `v*` tag, or one that does not match the checksums, and prints the
   commit recorded in `RELEASE`. `deploy/update.sh --sha <commit>` then checks that commit, and the release manifest
   records it.
+- **Publishing a release:** push the tag with git (`git tag -a vX.Y.Z <commit> -m "Masslak vX.Y.Z"`, then
+  `git push origin vX.Y.Z`), or publish a release from the repository's Releases page with a new tag `vX.Y.Z` on the
+  branch or commit to release. Either way the workflow runs CI on the tagged commit, then creates the release or adds
+  the signed files to the one published from the page. If no run starts, open Actions → Release → Run workflow and
+  choose the tag as the ref. GitHub runs the workflow file of the tagged commit, so tag a commit that has the current
+  `release.yml`. With immutable releases switched on in the repository settings a published release takes no more
+  files: push the tag with git instead.
 - **Base images and CI actions are pinned:** every image is `name:tag@sha256:<digest>` and every action
   `owner/repo@<commit> # vX.Y.Z`, checked on every push by `scripts/pin_images.py`. Move the pins once a month and
   after a security advisory: `python3 scripts/pin_images.py --update`, review the diff (the tag each pin follows stays

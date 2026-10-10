@@ -2,18 +2,34 @@
 # its software bill of materials, checksums and keyless Sigstore signatures, and publishes them as a GitHub release.
 # A server verifies an archive with deploy/verify-release.sh before extracting it (docs/operations/RUNBOOKS.md).
 # Nothing is published unless every CI job passes on the tagged commit first (review of 1.47.0, R-49).
+#
+# Three ways start it, all on a v* tag, so the signatures name release.yml@refs/tags/v... either way:
+# - the tag pushed with git: the workflow creates the release;
+# - a release published from the GitHub page with a new tag: the workflow adds the signed files to that release;
+# - "Run workflow" in the Actions tab with the tag chosen as the ref, if neither of the above started it.
+# GitHub runs the workflow file of the tagged commit, so the tag must point at a commit that carries this version.
 name: Release
 
 on:
   push:
     tags: ["v*"]
+  release:
+    types: [published]
+  workflow_dispatch:
 
 permissions:
   contents: read
 
+# A release published from the page can start both a tag push and a release run; the later one replaces the earlier,
+# and the publishing step below gives the same result whichever finishes.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   ci:
     name: CI on the tagged commit
+    if: startsWith(github.ref, 'refs/tags/v')
     uses: ./.github/workflows/ci.yml
 
   release:
@@ -47,9 +63,20 @@ jobs:
         run: |
           sha256sum ./*.tar.gz ./*.spdx.json | sed 's# \./# #' > SHA256SUMS
           for f in ./*.tar.gz ./*.spdx.json SHA256SUMS; do cosign sign-blob --yes --bundle "$f.sigstore.json" "$f"; done
-      - name: Publish the release
+      - name: Publish the release, or add the signed files to the one published from the GitHub page
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
-          gh release create "$GITHUB_REF_NAME" dist/* --verify-tag --title "Masslak $GITHUB_REF_NAME" \
-            --notes "Verify before installing: deploy/verify-release.sh masslak-$GITHUB_REF_NAME.tar.gz (docs/operations/RUNBOOKS.md, section 4)."
+          tag="$GITHUB_REF_NAME"
+          notes="Verify before installing: deploy/verify-release.sh masslak-$tag.tar.gz (docs/operations/RUNBOOKS.md, section 19)."
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" dist/* --clobber
+            body="$(gh release view "$tag" --json body --jq .body)"
+            case "$body" in
+              *verify-release.sh*) ;;
+              *) gh release edit "$tag" --notes "$(printf '%s\n\n%s' "$body" "$notes")" ;;
+            esac
+          else
+            gh release create "$tag" dist/* --verify-tag --title "Masslak $tag" --notes "$notes"
+          fi
