@@ -40,18 +40,19 @@ GROUPS = [
       "iam.permission", "iam.user_role", "iam.role_scope", "iam.user_station_scope", "iam.beneficial_owner", "iam.bank_account", "iam.document", "iam.verification",
       "ref.party_role_type"]),
     ("E02", "Sessions, devices and API access", "16.8, 16.9, 14.2", "core",
-     "Sign-in sessions and tokens, second factors, bound devices with their permission state, push tokens, integration API clients "
+     "Sign-in sessions and tokens, second factors and the one-time codes sent by text message or WhatsApp, bound devices with their permission state, push tokens, integration API clients "
      "with their keys and daily usage, identity providers and government identity links.",
      ["iam.user_session", "iam.auth_token", "iam.mfa_factor", "iam.device", "iam.device_permission_state", "iam.push_token",
-      "iam.api_client", "iam.api_key", "iam.api_usage_daily", "iam.identity_provider", "iam.gov_identity_link", "iam.biometric_template"]),
+      "iam.api_client", "iam.api_key", "iam.api_usage_daily", "iam.identity_provider", "iam.gov_identity_link", "iam.biometric_template",
+      "iam.mfa_challenge"]),
     ("E03", "Reference data and system", "2.8, 4.10, D.4", "core",
      "Countries, currencies, cities, locales and translations, files, the extensible reference lists of appendix D, settings, "
-     "the outbox and webhooks.",
+     "the outbox and webhooks. Markets with their time zone and currency.",
      ["ref.country", "ref.currency", "ref.exchange_rate", "ref.city", "ref.locale", "ref.translation", "ref.file_object",
       "ref.trip_type", "ref.vehicle_class", "ref.station_subtype", "ref.cargo_category", "sys.setting", "sys.company_setting", "sys.partition_option", "sys.table_class", "sys.module_gate", "sys.project_phase", "sys.table_phase", "ref.seed_version",
       "sys.outbox_event", "sys.webhook_endpoint", "sys.webhook_delivery", "sys.schema_migration", "sys.schema_file",
       "sys.compliance_requirement", "gis.spatial_ref_sys", "sys.polymorphic_reference", "sys.orphan_check", "sys.json_contract",
-      "sys.requirement_change", "sys.outbox_sequence", "sys.job_run", "sys.delivery_retry_request"]),
+      "sys.requirement_change", "sys.outbox_sequence", "sys.job_run", "sys.delivery_retry_request", "ref.market"]),
     ("E04", "Stations, routes, carrier codes and corridors", "4.4, 4.11, 4.16, D.1", "asset",
      "The station register with compliance profiles, gates and displays; carrier routes and their stops; carrier codes and "
      "service numbers; transit corridors, approved rest stops and geofences.",
@@ -76,17 +77,17 @@ GROUPS = [
       "fleet.field_check_log", "fleet.truck_unit", "fleet.trailer", "fleet.truck_combination"]),
     ("E08", "Trips and seat inventory", "4.5, 4.12, 7.9", "trip",
      "A trip is generated from a template on a route; its stops define segments, and each seat is sold per segment. Seat locks, "
-     "crew, changes, vehicle swaps, family zones, stop events and delays belong to the trip.",
+     "crew, changes, vehicle swaps, family zones, stop events and delays belong to the trip. Each driver's download of a trip's offline boarding pack, which bounds offline scan times (1075).",
      ["ops.trip_template", "ops.trip", "ops.trip_stop", "ops.trip_pair_fare", "ops.seat_segment", "ops.standing_segment",
       "ops.seat_lock", "ops.crew_assignment", "ops.trip_change", "ops.vehicle_swap", "ops.family_zone", "ops.trip_stop_event",
-      "ops.trip_delay"]),
+      "ops.trip_delay", "ops.offline_pack_download"]),
     ("E09", "Tracking, incidents and border crossings", "7.8, 7.10, 11.3, D.1", "trip",
      "Positions, tracking state and alerts, driver notices, route adherence and permission events; incidents with evidence and "
-     "external links; the crossing plan, crossing events and the transit reconciliation.",
+     "external links; the crossing plan, crossing events and the transit reconciliation. Positions waiting on the primary while the telemetry database is down (1075).",
      ["ops.geo_event", "ops.vehicle_position", "ops.tracking_state", "ops.tracking_alert", "ops.driver_notice", "ops.route_adherence_event",
       "ops.permission_event", "ops.incident", "ops.incident_evidence", "ops.incident_external_link", "ops.trip_disruption",
       "ops.trip_crossing_plan", "ops.crossing_event", "ops.transit_reconciliation", "ops.route_violation",
-      "ops.violation_report", "fleet.tracking_device"]),
+      "ops.violation_report", "fleet.tracking_device", "ops.position_backlog"]),
     ("E10", "Shuttle rides and subscriptions", "7.13, 4.10", "trip",
      "One open ride per user, charged stop by stop from proximity to the vehicle's presence beacon; subscription plans, "
      "subscriptions, passes, zones and NFC cards.",
@@ -94,10 +95,10 @@ GROUPS = [
       "sales.subscription", "sales.shuttle_pass", "sales.shuttle_zone", "sales.nfc_card", "sys.city_rollout"]),
     ("E11", "Bookings, tickets and travel documents", "4.5, 7, 11.9", "booking",
      "A booking holds passengers and tickets; tickets are boarded, refunded or compensated. Waiting lists, inspections, entry "
-     "rules and the travel documents of international tickets complete the cycle.",
+     "rules and the travel documents of international tickets complete the cycle. Booking keys, so the same booking sent twice gives one booking (1075).",
      ["sales.booking", "sales.passenger", "sales.ticket", "sales.boarding_event", "sales.refund_request",
       "sales.passenger_compensation", "sales.waitlist_entry", "sales.campaign_redemption", "sales.inspection_check",
-      "sales.ticket_doc", "sales.entry_rule"]),
+      "sales.ticket_doc", "sales.entry_rule", "sales.booking_key"]),
     ("E12", "Channels, agencies and content sources", "14.7, 14.8, 14.9", "booking",
      "Sales channels with agency and channel agreements, allotments, API profiles, the channel's booking reference, statements "
      "and memos, and inbound content sources with their mappings.",
@@ -172,15 +173,16 @@ GROUPS = [
       "sec.gov_adapter_config", "sec.verification_job"]),
     ("E25", "Platform protection and audit logs", "16", "security",
      "IP rules, risk assessments, fraud cases, blocklists, security events, encryption key registry, access reviews, "
-     "break-glass log, document signatures and tamper events; and the append-only audit logs with their seals.",
+     "break-glass log, document signatures and tamper events; and the append-only audit logs with their seals. Rate limit buckets shared by every API process.",
      ["sec.ip_rule", "sec.risk_assessment", "sec.fraud_case", "sec.blocklist_entry", "sec.security_event", "sec.key_registry",
       "sec.access_review", "sec.external_access_grant", "sec.break_glass_log", "sec.policy_decision", "sec.document_signature", "sec.tamper_event", "audit.auth_event",
-      "audit.activity_log", "audit.data_access_log", "audit.row_change", "audit.log_seal", "audit.ddl_event", "audit.archive_checkpoint"]),
+      "audit.activity_log", "audit.data_access_log", "audit.row_change", "audit.log_seal", "audit.ddl_event", "audit.archive_checkpoint", "sec.rate_bucket"]),
     ("E26", "Governance and data protection", "2.5, 16.13-16.15", "security",
      "The policy authority matrix with its changes, the obligation register, the data inventory, consents, subject requests, "
-     "privacy incidents, partner data processing agreements and feature compliance reviews.",
+     "privacy incidents, partner data processing agreements, feature compliance reviews, and the dataset every table belongs to "
+     "with its retention and erasure (1079).",
      ["gov.policy_domain", "gov.policy_authority", "gov.policy_change", "gov.obligation_register", "gov.data_inventory",
-      "gov.consent", "gov.subject_request", "gov.retention_policy", "gov.legal_hold", "gov.erasure_log", "gov.data_purpose", "gov.privacy_incident", "gov.partner_dpa", "gov.feature_compliance_review"]),
+      "gov.consent", "gov.subject_request", "gov.retention_policy", "gov.legal_hold", "gov.erasure_log", "gov.data_purpose", "gov.privacy_incident", "gov.partner_dpa", "gov.feature_compliance_review", "gov.dataset_member"]),
     ("E27", "Service partners: fuel and rest stops", "14.11", "service",
      "Partners on the station pattern with versioned contracts and attendants; fuel prices, fuel cards and sessions with odometer "
      "readings and anomalies; menus and pre-orders; the shared sale, settlement and ratings.",
@@ -195,10 +197,10 @@ GROUPS = [
       "ship.cargo_rate_card", "ship.prohibited_item", "ship.routing_rule"]),
     ("E29", "Shipments, legs and tracking", "9.4, 9.9", "asset",
      "A shipment with its parties, options and parcels, accepted on a shipper account; it travels on legs across modes, is "
-     "tracked by events and handed over in a chain of custody; capacity is bought on trips and loads.",
+     "tracked by events and handed over in a chain of custody; capacity is bought on trips and loads. Carrier parcel tariffs by weight, volume, both, fixed price or agreement, and the agreed-price offers (1078).",
      ["ship.shipment", "ship.shipment_party", "ship.shipment_option", "ship.parcel", "ship.address", "ship.shipper_account",
       "ship.pricing_agreement", "ship.shipment_leg", "ship.tracking_event", "ship.custody_transfer", "ship.capacity_booking",
-      "ship.trip_cargo_capacity"]),
+      "ship.trip_cargo_capacity", "ship.parcel_tariff", "ship.parcel_offer"]),
     ("E30", "Shipping network operations", "9.9, 9.21", "asset",
      "Hubs with sort windows and linehaul schedules, loads with stops and loading plans, nested handling units, courier routes "
      "with pickups and assignments, access points and lockers.",
@@ -260,6 +262,16 @@ GROUPS = [
      "attendance and hand-over, and absence notices.",
      ["sch.school", "sch.operator", "sch.student", "sch.student_guardian", "sch.contract", "sch.route", "sch.route_stop",
       "sch.enrollment", "sch.run", "sch.attendance", "sch.absence_notice"]),
+    ("E41", "Ways of paying, fees and approvals", "6.6 (since v3.3), owner decisions 4 and 5", "money",
+     "The ways of paying a company or the platform offers, with cash credit limits for counter sales; fee rules per way of "
+     "paying, currency, customer and period, shown before paying; and the approval matrix: policies per kind of decision with "
+     "their levels and named members, the requests that wait on them and each level's decision (1056, 1074).",
+     ["fin.payment_method", "fin.cash_credit_limit", "fin.fee_rule", "fin.approval_policy", "fin.approval_level",
+      "fin.approval_level_member", "fin.approval_request", "fin.approval_decision"]),
+    ("E42", "Release, backups and failover records", "D.4, launch gates 1 and 4", "core",
+     "The release each database is at (version, commit and hash of the applied files), every backup and its off-site copy, "
+     "the failover probes of the second site, and the tables the application role may delete from.",
+     ["sys.release_manifest", "sys.backup_run", "sys.failover_probe", "sys.app_delete_grant"]),
 ]
 
 # Focus diagrams: one business rule across modules; tables keep their own module colour (family None)
@@ -293,7 +305,7 @@ DATA_STORES = [
     ("D5", "Trips and inventory", ["E08"], []),
     ("D6", "Bookings and tickets", ["E11", "E39"], []),
     ("D7", "Pricing and allocation", ["E13", "E14"], ["fin.price_allocation", "fin.price_allocation_line"]),
-    ("D8", "Wallets and ledger", ["E16"], ["fin.payout", "fin.payout_schedule"]),
+    ("D8", "Wallets and ledger", ["E16", "E41"], ["fin.payout", "fin.payout_schedule"]),
     ("D9", "Tracking and operations", ["E09"], ["ops.trip_stop_event"]),
     ("D10", "Shuttle rides", ["E10"], []),
     ("D11", "Shipments", ["E28", "E29", "E30", "E31", "E32"], []),

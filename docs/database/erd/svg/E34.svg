@@ -215,7 +215,7 @@
 <polygon fill="#f2f6fa" stroke="transparent" points="587.5,-281 587.5,-298 617.5,-298 617.5,-281 587.5,-281"/>
 <text text-anchor="start" x="590.5" y="-287.6" font-family="DejaVu Sans" font-size="8.00" fill="#7f7f7f">text</text>
 <polygon fill="#ffffff" stroke="transparent" points="476.5,-266 476.5,-281 617.5,-281 617.5,-266 476.5,-266"/>
-<text text-anchor="start" x="479.5" y="-272.6" font-family="DejaVu Sans" font-style="italic" font-size="8.00" fill="#7f7f7f">+ 9 more columns</text>
+<text text-anchor="start" x="479.5" y="-272.6" font-family="DejaVu Sans" font-style="italic" font-size="8.00" fill="#7f7f7f">+ 12 more columns</text>
 <path fill="none" stroke="#404040" d="M487,-265C487,-265 606,-265 606,-265 612,-265 618,-271 618,-277 618,-277 618,-473 618,-473 618,-479 612,-485 606,-485 606,-485 487,-485 487,-485 481,-485 475,-479 475,-473 475,-473 475,-277 475,-277 475,-271 481,-265 487,-265"/>
 </g>
 <!-- brd__manifest&#45;&gt;brd__border_point -->
