@@ -1,0 +1,12 @@
+digraph G {
+  graph [fontname="DejaVu Sans", label=<<B><FONT POINT-SIZE="16">مفتاح الرسم</FONT></B><BR/><FONT POINT-SIZE="10" COLOR="#4B5563">PK مفتاح أساسي · FK مفتاح أجنبي · UQ فريد · الشرطة = طرف الواحد · قدم الغراب = طرف الكثير · الدائرة = اختياري</FONT>>, labelloc=t, rankdir=LR, splines=true, nodesep=0.35, ranksep=1.25, pad=0.35, bgcolor="white", dpi=110];
+  node [fontname="DejaVu Sans", fontsize=10];
+  edge [fontname="DejaVu Sans", fontsize=8, color="#374151", arrowsize=0.75];
+  parent [shape=plain, label=<<TABLE BORDER="1" COLOR="#8A7A3A" CELLBORDER="0" CELLSPACING="0" CELLPADDING="3" BGCOLOR="white"><TR><TD COLSPAN="3" BGCOLOR="#FFF4C7" ALIGN="LEFT"><FONT POINT-SIZE="7" COLOR="#7A6A2E">schema</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="11"><B>parent_table</B></FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT COLOR="#1D4E89"><B>PK</B></FONT></TD><TD ALIGN="LEFT"><B>ParentId</B></TD><TD ALIGN="RIGHT"><FONT COLOR="#6B7280" POINT-SIZE="8">bigint</FONT></TD></TR></TABLE>>];
+  child [shape=plain, label=<<TABLE BORDER="1" COLOR="#8A7A3A" CELLBORDER="0" CELLSPACING="0" CELLPADDING="3" BGCOLOR="white"><TR><TD COLSPAN="3" BGCOLOR="#FFF4C7" ALIGN="LEFT"><FONT POINT-SIZE="7" COLOR="#7A6A2E">schema</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="11"><B>child_table</B></FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT COLOR="#1D4E89"><B>PK</B></FONT></TD><TD ALIGN="LEFT"><B>ChildId</B></TD><TD ALIGN="RIGHT"><FONT COLOR="#6B7280" POINT-SIZE="8">bigint</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT COLOR="#B45309"><B>FK</B></FONT></TD><TD ALIGN="LEFT"><B>ParentId</B></TD><TD ALIGN="RIGHT"><FONT COLOR="#6B7280" POINT-SIZE="8">bigint</FONT></TD></TR></TABLE>>];
+  opt [shape=plain, label=<<TABLE BORDER="1" COLOR="#8A7A3A" CELLBORDER="0" CELLSPACING="0" CELLPADDING="3" BGCOLOR="white"><TR><TD BGCOLOR="#FFF4C7" ALIGN="LEFT"><FONT POINT-SIZE="11"><B>mandatory vs optional</B></FONT></TD></TR></TABLE>>];
+  stub [shape=box, style="rounded,dashed", color="#6B7280", fontcolor="#374151", label="ref.Country (خارج الصورة)"];
+  parent -> child [dir=both, arrowtail=tee, arrowhead=crow, label="إلزامي: 1 ← N"];
+  parent -> opt [dir=both, arrowtail=tee, arrowhead=crowodot, label="اختياري: 1 ← 0..N"];
+  parent -> stub [dir=both, arrowtail=tee, arrowhead=crow, style=dashed, color="#9CA3AF", label="مرجع خارجي"];
+}
