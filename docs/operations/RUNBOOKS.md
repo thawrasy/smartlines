@@ -591,12 +591,14 @@ the grades, the latest position of each vehicle and the tracking alerts (schema 
 
 ## 23. Automatic failover and the second site (review stage D)
 
-Design and measured times: [HIGH_AVAILABILITY.md](HIGH_AVAILABILITY.md). Configuration: `deploy/ha/`.
+Design and measured times: [HIGH_AVAILABILITY.md](HIGH_AVAILABILITY.md). Configuration: the main site in
+`deploy/production/ha/` and the production database image, the second site in `deploy/ha/`.
 
-- **A failover happened (Patroni promoted a standby):** nothing to do to keep bookings running. Then:
-  - `patronictl -c /etc/patroni/patroni.yml list`: one leader, the old primary rejoining as a replica (pg_rewind);
-  - `NoFailoverCandidate` or `NoSynchronousStandby` clear once it streams again; if the old server cannot rejoin,
-    build a new standby from the backup repository (`create_replica_methods: pgbackrest`);
+- **A failover happened (Patroni promoted the standby):** nothing to do to keep bookings running. Then:
+  - `docker compose --env-file deploy/.env exec -T db masslak-patroni cluster` on the application host: one
+    primary, the old one rejoining as the synchronous standby (pg_rewind) once its host runs again;
+  - `NoFailoverCandidate` or `NoSynchronousStandby` clear once it streams again; if the old host cannot rejoin,
+    reinstall it from its bundle (`deploy/production/ha/install-db-host.sh`), which copies the primary;
   - the checks of section 3 (lag, outbox, reconciliation), and the warehouse slot moved with the primary
     (`SELECT * FROM pg_replication_slots` on the new primary).
 - **No standby (`NoFailoverCandidate`, page):** a failure now stops bookings until a restore. Bring the standby back or
@@ -610,9 +612,10 @@ Design and measured times: [HIGH_AVAILABILITY.md](HIGH_AVAILABILITY.md). Configu
   4. Start the API, the worker and Caddy at the second site; move the DNS name to it.
   5. Note the last WAL the second site replayed (`pg_last_wal_replay_lsn()` before promotion) and compare with
      repo1 when the main site returns: transactions after it are the loss, reconciled by hand with the ledger tools.
-- **Drills:** `python3 db/tools/failover_drill.py --dsn "<every server, target_session_attrs=read-write>" --kill "<stop
-  the primary>" [--promote ...] --api https://<site>/api/ready --json evidence.json` on staging; it fails when writing
-  is not back within 60 s or an acknowledged write is lost with a synchronous standby.
+- **Drills:** `python3 db/tools/failover_drill.py --dsn "<both hosts, target_session_attrs=read-write>" --kill "<stop
+  the primary>" --api https://<site>/api/ready [--api-ca <authority>] --json evidence.json` on staging; it fails when
+  writing is not back within 60 s or an acknowledged write is lost with a synchronous standby. CI runs it on every push
+  against the installed layout (job "Production with two database hosts", `deploy/production/ci/kill-primary.sh`).
 
 ## 24. Files in an S3-compatible object store (code review of October 2026, 3.2)
 
@@ -744,17 +747,17 @@ batches are purged after 7 days.
 **Zero data loss** (owner's decision 1) is the setting `MASSLAK_ZERO_DATA_LOSS` in `deploy/.env`: `on` (the production
 default) makes the standby confirm every commit before the client is told, so nothing the platform confirmed is lost
 with the primary; `off` lets the primary confirm alone, and a lost primary may take the last seconds with it.
-`deploy/durability.sh` applies it (install and every update run it; run it by hand after changing the setting). In the
-standard stack the standby is the read replica, `replica1`; with Patroni, `deploy/ha/durability.sh` sets
-`synchronous_mode_strict` from the same setting. The choice has a cost the owner accepted: with `on`, when no standby
+`deploy/durability.sh` applies it (install and every update run it; run it by hand after changing the setting). On one
+host the standby is the read replica, `replica1`; with two database hosts it sets Patroni's `synchronous_mode_strict`
+through the REST API (`masslak-patroni durability`). The choice has a cost the owner accepted: with `on`, when no standby
 can confirm, commits wait and bookings pause rather than be confirmed without a copy.
 
 - **CommitsWaitingForStandby** (page): commits wait and no standby confirms. Bring the standby back
-  (`docker compose restart db-replica`, or the Patroni replica). Only if it cannot come back soon and the owner's
+  (`docker compose restart db-replica` on one host; the standby's host and its Patroni with two, section 3). Only if it cannot come back soon and the owner's
   representative agrees, switch the setting to `off` and run `./deploy/durability.sh`; record the decision, and switch
   it back once a standby streams again.
 - **ZeroDataLossNotEnforced** (page): the setting is `on` but commits do not wait (a restore, a configuration reset, a
-  new primary after a failover). Run `./deploy/durability.sh` (Patroni: `./deploy/ha/durability.sh`).
+  new primary after a failover). Run `./deploy/durability.sh`.
 
 **Backups off the server** (R-41): every nightly backup is copied to `MASSLAK_BACKUP_OFFSITE` with rclone, checked
 against its checksums, and both copies are recorded (`sys.backup_run`). **BackupStale** and **BackupOffsiteStale**

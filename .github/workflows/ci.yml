@@ -583,7 +583,10 @@ jobs:
       - name: Settings for two database hosts; stand-ins for the key service, object storage, alerts and the release
         run: |
           sudo ./deploy/init-env.sh --domain localhost --email ops@install.test
-          printf '%s\n' MASSLAK_DB_LAYOUT=ha MASSLAK_DB_HOSTS=10.77.0.11,10.77.0.12 MASSLAK_DB_WITNESS=10.77.0.10 | sudo tee -a deploy/.env > /dev/null
+          for kv in MASSLAK_DB_LAYOUT=ha MASSLAK_DB_HOSTS=10.77.0.11,10.77.0.12 MASSLAK_DB_WITNESS=10.77.0.10; do
+            sudo sed -i "s|^${kv%%=*}=.*|$kv|" deploy/.env
+            sudo grep -q "^$kv$" deploy/.env || echo "$kv" | sudo tee -a deploy/.env > /dev/null
+          done
           sudo ./deploy/production/ci/setup.sh
       - name: The installation is refused until both database hosts run
         run: |

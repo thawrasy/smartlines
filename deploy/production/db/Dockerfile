@@ -11,8 +11,9 @@
 FROM postgis/postgis:16-3.4-alpine@sha256:681931a625df344215e9b8998bf34daf146b6a395ceacee4439eb9c85869239f
 COPY patroni.lock /tmp/patroni.lock
 # Every package of patroni.lock is checked against its hashes; all are wheels but python-etcd and ydiff, which exist
-# only as source and are pure Python (built with Alpine's setuptools, no compiler).
-RUN apk add --no-cache pgbackrest python3 py3-pip py3-setuptools py3-wheel haproxy \
+# only as source and are pure Python (built with Alpine's setuptools, no compiler). --upgrade brings the libraries the
+# pinned base image already has (libexpat) to the versions Alpine's current Python is built against.
+RUN apk add --no-cache --upgrade libexpat pgbackrest python3 py3-pip py3-setuptools py3-wheel haproxy \
  && rm -f "$(pg_config --pkglibdir)/test_decoding.so" \
  && pip install --no-cache-dir --break-system-packages --ignore-installed --no-deps --no-build-isolation \
         --only-binary :all: --no-binary python-etcd,ydiff --require-hashes -r /tmp/patroni.lock \

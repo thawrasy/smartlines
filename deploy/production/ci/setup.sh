@@ -40,7 +40,7 @@ put MASSLAK_BACKUP_AGE_RECIPIENT "$(age-keygen -y "$age_key")"
 put MASSLAK_WAREHOUSE_ADDRESS 192.0.2.10/32
 put MASSLAK_COMPOSE_EXTRA deploy/production/ci/stand-ins.yml
 if grep -q '^MASSLAK_DB_LAYOUT=ha$' "$env"; then
-  witness="$(sed -n 's/^MASSLAK_DB_WITNESS=//p' "$env")"
+  witness="$(sed -n 's/^MASSLAK_DB_WITNESS=//p' "$env" | tail -1)"
   put MASSLAK_CI_S3_PUBLISH "$witness:8443"
   grep -q ' s3$' /etc/hosts || echo "$witness s3" >> /etc/hosts
 else
