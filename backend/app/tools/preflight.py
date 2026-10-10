@@ -143,8 +143,14 @@ async def gather(conn: asyncpg.Connection) -> Facts:
     return f
 
 
+# Like every step of the migration (deploy/migrate.sh), the preflight never waits for the standby: with zero data loss
+# on and the standby stopped, the commit of its temporary table would otherwise wait for it, and the standby itself
+# starts only after the migration (asyncpg does not read PGOPTIONS, so it is set here).
+LOCAL_COMMIT = {"synchronous_commit": "local"}
+
+
 async def run(url: str | None) -> list[str]:
-    conn = await (asyncpg.connect(url) if url else asyncpg.connect())
+    conn = await (asyncpg.connect(url, server_settings=LOCAL_COMMIT) if url else asyncpg.connect(server_settings=LOCAL_COMMIT))
     try:
         return evaluate(await gather(conn))
     finally:

@@ -151,7 +151,11 @@ async def bootstrap_main(kms_key_id: str) -> int:
               file=sys.stderr)
         return 2
     url = os.environ.get("MASSLAK_OWNER_URL")
-    conn = await (asyncpg.connect(url) if url else asyncpg.connect(database=os.environ.get("POSTGRES_DB", "masslak")))
+    # run by the migration, which never waits for the standby (deploy/migrate.sh): the next commit the standby confirms
+    # carries these rows with it, since WAL reaches it in order
+    local = {"synchronous_commit": "local"}
+    conn = await (asyncpg.connect(url, server_settings=local) if url
+                  else asyncpg.connect(database=os.environ.get("POSTGRES_DB", "masslak"), server_settings=local))
     try:
         async with conn.transaction():
             lines = await bootstrap(conn, wrapper, kms_key_id)
