@@ -1,6 +1,6 @@
 # Masslak Database
 
-Built from the **Analysis and Design Study**, first v2.7 and now v3.3 (`docs/Masslak_Analysis_and_Design_EN_v3.3.docx`). Files 000 to 998
+Built from the **Analysis and Design Study**, first v2.7 and now v3.4 (`docs/Masslak_Analysis_and_Design_EN_v3.4.docx`). Files 000 to 998
 cover the Phase 1 scope of sections 21 and 22.2 and the fields the owner decided to build from Phase 1 onwards
 (Decision 88). Files 1003 and 1010 to 1032 complete the model against every entity the study defines, including the
 modules of later phases (sections 4.10, 9, 10, 11, 13, 14, 21 and appendix D). Those modules stay disabled behind
