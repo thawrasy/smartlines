@@ -211,6 +211,13 @@ async def system_scope(conn: asyncpg.Connection, ctx: Context) -> AsyncIterator[
     await apply_context(conn, ctx)
 
 
+def reports_may_reach_the_primary() -> bool:
+    """With two database hosts (H-01) the reports connection goes through HAProxy's db-replica, which sends it to the
+    primary while no standby is up (a failover, a host being replaced): reports slow the primary for that time rather
+    than stop, and the alerts NoSynchronousStandby and NoFailoverCandidate page about the missing standby."""
+    return get_settings().db_layout.strip() == "ha"
+
+
 async def require_reports_replica() -> None:
     """Production reads reports from a streaming replica only (architecture review of design 3.9): heavy queries must
     never slow bookings and payments. The sandbox may use the main pool."""
@@ -220,7 +227,7 @@ async def require_reports_replica() -> None:
         raise RuntimeError("MASSLAK_REPORTS_DATABASE_URL is required outside the sandbox: reports read the replica, "
                            "never the primary (docker-compose.yml, service db-replica)")
     async with acquire(_reports_pool) as conn:
-        if not await conn.fetchval("SELECT pg_is_in_recovery()"):
+        if not await conn.fetchval("SELECT pg_is_in_recovery()") and not reports_may_reach_the_primary():
             raise RuntimeError("MASSLAK_REPORTS_DATABASE_URL points at a primary: it must be a read replica (hot standby)")
 
 

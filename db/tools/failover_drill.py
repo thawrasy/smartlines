@@ -13,7 +13,8 @@ Afterwards it reads the probe rows back from the new primary and reports:
   * RTO: from the first failed write to the first write the new primary acknowledged (target: 60 s, RUNBOOKS.md 3);
   * RPO: acknowledged rows the new primary does not have, and the time they span (target: none lost with a
     synchronous standby, otherwise within 60 s);
-  * the API's readiness (/api/ready) during the drill, when --api is given: how long it was not ready.
+  * the API's readiness (/api/ready) during the drill, when --api is given: how long it was not ready, and whether it
+    was ready again when the drill ended (a last period still open at the end is counted up to then).
 Exit status 0 when both targets are met. Run it on staging, never on production: it stops a database server.
 """
 import argparse
@@ -81,6 +82,7 @@ async def readiness(url: str, ca: str | None, state: dict) -> None:
         await asyncio.sleep(0.5)
     if down_since is not None:
         state["api_down"].append(round(time.time() - down_since, 1))
+    state["api_ready_at_end"] = down_since is None
 
 
 def run(cmd: str) -> int:
@@ -135,6 +137,7 @@ async def drill(a) -> dict:
         "lost": len(lost), "lost_seconds": rpo_seconds, "rto_seconds": rto, "errors": state["errors"],
         "servers_written": sorted(state["servers"]), "old_primary": old, "new_primary": primary,
         "new_primary_is_standby": standby, "api_not_ready_seconds": state["api_down"],
+        "api_ready_at_end": state.get("api_ready_at_end"),
         "targets": {"rto_seconds": a.rto, "rpo_seconds": a.rpo},
     }
     result["passed"] = (rto is not None and rto <= a.rto and not standby

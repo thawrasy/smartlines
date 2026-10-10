@@ -5,7 +5,8 @@ use it, so a database restart never takes the web interface offline with it.
 
 GET /api/ready says whether this instance can serve bookings now: the primary (not a standby) answers through the
 application pool, every schema file shipped with this code is applied (the migrate service has finished), the audit
-connection answers, the reports replica answers and is in recovery when one is configured, the request context can be
+connection answers, the reports replica answers and is in recovery when one is configured (with two database hosts it
+may be the primary while no standby is up), the request context can be
 signed and not rewritten (1080), and no constraint is left NOT VALID (1082). It answers 200 when every check
 passes and 503 otherwise, naming only the checks, never an error text. deploy/update.sh waits for it after a
 deployment, and a load balancer with several API instances routes only to instances that are ready.
@@ -61,7 +62,9 @@ async def _replica() -> bool:
     if db._reports_pool is None:
         return True
     async with db.acquire(db._reports_pool) as conn:
-        return bool(await conn.fetchval("SELECT pg_is_in_recovery()"))
+        in_recovery = bool(await conn.fetchval("SELECT pg_is_in_recovery()"))
+    # with two database hosts, db-replica sends reports to the primary while no standby is up (db.reports_may_reach_the_primary)
+    return in_recovery or db.reports_may_reach_the_primary()
 
 
 async def _context() -> bool:

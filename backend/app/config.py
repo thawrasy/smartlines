@@ -14,6 +14,9 @@ class Settings(BaseSettings):
     audit_database_url: str = "postgresql://masslak_audit:masslak_audit@localhost:5432/masslak"
     # Optional read replica for reports, so heavy queries never load the booking database (empty: use the main pool)
     reports_database_url: str = ""
+    # where the database runs (H-01): "ha" on two hosts behind HAProxy, whose db-replica sends reports to the primary
+    # while no standby is up; "single" otherwise
+    db_layout: str = "single"
     # Optional telemetry database for the history of vehicle positions (review stage D2, db/telemetry/schema.sql); empty:
     # positions stay in ops.geo_event on the primary
     telemetry_database_url: str = ""

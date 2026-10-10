@@ -29,8 +29,8 @@ class _Pool:
         assert conn is self.conn
 
 
-def _settings(sandbox):
-    return lambda: type("S", (), {"sandbox": sandbox, "db_acquire_timeout": 5.0})()
+def _settings(sandbox, layout="single"):
+    return lambda: type("S", (), {"sandbox": sandbox, "db_acquire_timeout": 5.0, "db_layout": layout})()
 
 
 def test_production_needs_a_reports_replica(monkeypatch):
@@ -47,6 +47,17 @@ def test_a_primary_is_not_accepted_as_the_reports_replica(monkeypatch):
         asyncio.run(db.require_reports_replica())
     monkeypatch.setattr(db, "_reports_pool", _Pool(True))
     asyncio.run(db.require_reports_replica())
+
+
+def test_with_two_database_hosts_reports_may_reach_the_primary_while_no_standby_is_up(monkeypatch):
+    """H-01: db-replica (HAProxy) sends reports to the primary during a failover; the API keeps starting and stays ready."""
+    from app import readiness
+    monkeypatch.setattr(db, "get_settings", _settings(False, "ha"))
+    monkeypatch.setattr(db, "_reports_pool", _Pool(False))
+    asyncio.run(db.require_reports_replica())
+    assert asyncio.run(readiness._replica()) is True
+    monkeypatch.setattr(db, "get_settings", _settings(False))
+    assert asyncio.run(readiness._replica()) is False
 
 
 def test_the_sandbox_may_report_from_the_main_pool(monkeypatch):

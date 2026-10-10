@@ -668,7 +668,7 @@ jobs:
           /tmp/drill/bin/python db/tools/failover_drill.py --kill ./deploy/production/ci/kill-primary.sh \
             --dsn "postgresql://postgres:$pw@10.77.0.11:5432,10.77.0.12:5432/masslak?target_session_attrs=read-write&sslmode=verify-full&sslrootcert=deploy/production/tls/ca.crt" \
             --api https://localhost/api/ready --api-ca caddy-root.crt --rate 20 --warmup 15 --settle 10 --json failover.json || true
-          STANDBY_ADDR="$STANDBY_ADDR" python3 -c 'import json, os; d = json.load(open("failover.json")); print(json.dumps(d, indent=1)); assert d["passed"] and d["lost"] == 0 and d["acknowledged"] > 300 and d["new_primary"].startswith(os.environ["STANDBY_ADDR"]), d'
+          STANDBY_ADDR="$STANDBY_ADDR" python3 -c 'import json, os; d = json.load(open("failover.json")); print(json.dumps(d, indent=1)); assert d["passed"] and d["lost"] == 0 and d["acknowledged"] > 300 and d["new_primary"].startswith(os.environ["STANDBY_ADDR"]) and d["api_ready_at_end"], d'
       - name: The old primary rejoins as the synchronous standby, and zero data loss is on again
         run: |
           dc="sudo docker compose --env-file deploy/.env"
@@ -679,6 +679,7 @@ jobs:
           $dc exec -T db masslak-patroni cluster
           $dc exec -T db masslak-patroni durability on | grep -q 'synchronous_mode_strict=True'
           test "$($dc exec -T db-replica psql -d masslak -Atc "SELECT host(inet_server_addr()) || ' ' || pg_is_in_recovery()")" = "$STANDBY_ADDR true"
+          for i in $(seq 15); do curl -fsSk https://localhost/api/ready | grep -q '"ready":true' && break; sleep 2; done
           curl -fsSk https://localhost/api/ready | grep -q '"ready":true'
       - name: An update of the primary host hands the role to the standby first
         run: |
@@ -696,6 +697,7 @@ jobs:
           $dc exec -T db masslak-patroni cluster
           test "$($dc exec -T db psql -d masslak -Atc "SELECT host(inet_server_addr())")" = "$new_primary_addr"
           sudo docker exec "masslak-$old_primary-patroni-1" grep -q '192.0.2.11/32' /var/lib/postgresql/pg_hba.conf
+          for i in $(seq 15); do curl -fsSk https://localhost/api/ready | grep -q '"ready":true' && break; sleep 2; done
           curl -fsSk https://localhost/api/ready | grep -q '"ready":true'
       - name: Logs on failure
         if: failure()

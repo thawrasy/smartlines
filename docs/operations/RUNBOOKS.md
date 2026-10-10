@@ -112,8 +112,9 @@ section.
   `docker exec masslak-dbN-patroni-1 patronictl -c /etc/patroni/patroni.yml switchover --leader dbN --candidate dbM
   --force` on the primary's host; `install-db-host.sh` does it on its own before it restarts the primary.
 - **The application side** (review stage D6): list every host with `target_session_attrs=read-write`, or go through
-  HAProxy (`db`). Measured: back to writing 25.4 s after the primary was killed, nothing lost; CI repeats the drill on
-  every push (HIGH_AVAILABILITY.md, Measured). The second site is section 23.
+  HAProxy (`db`). Measured: back to writing 23.3 s after the primary's container was killed in CI (25.4 s locally),
+  nothing lost; CI repeats the drill on every push (HIGH_AVAILABILITY.md, Measured). While no standby is up, reports
+  run on the primary (`db-replica` falls back to it) and the API stays ready. The second site is section 23.
 - **One database host (`MASSLAK_DB_LAYOUT=single`, accepted by the owner):**
   - **The replica:** the `db-replica` service is a streaming hot standby. Reports and exports read it; the API and the
     worker refuse to start in production without it.

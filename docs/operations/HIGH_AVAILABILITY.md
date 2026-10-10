@@ -131,9 +131,13 @@ warning, and counts the acknowledged rows the new primary has, while watching th
 |---|---|---|---|---|---|
 | Development host, 8 October 2026 | stand-in for Patroni's detection (2 s) | 625 | 0 | 2.4 s | `evidence/failover_drill_dev_2026-10-08.json` |
 | Development host, 10 October 2026 | this configuration (Patroni 4.0.6, etcd 3.5 with client certificates, HAProxy 2.8, TLS everywhere), native processes, writes through HAProxy, primary killed (`kill -9` of Patroni and PostgreSQL) | 298 | 0 | 25.4 s | `evidence/failover_drill_ha_2026-10-10.json` |
-| CI, every push (job "Production with two database hosts") | the installed layout: three machines on one runner, each database host installed from its bundle with the signed image, the primary's container killed | see the job's log | 0 (asserted) | ≤ 60 s (asserted) | the job's log |
+| CI, 10 October 2026 (job "Production with two database hosts", run of `fc7d926`) | the installed layout: three machines on one runner, each database host installed from its bundle with the signed image, the primary's container killed (`docker kill`) | 500 | 0 | 23.3 s | the job's log; every push repeats it with the same assertions (none lost, back within 60 s, the API ready again) |
 
-After each drill the old primary is started again and rejoins as the synchronous standby (`pg_rewind`). The CI job
+That first CI run also showed the API staying not ready after the failover, though bookings were back: readiness
+required the reports connection to reach a standby, and with none up `db-replica` sends reports to the primary. With
+two database hosts that is now accepted, at start and in `/api/ready` (`db.reports_may_reach_the_primary`), and the drill
+records whether the API was ready again when it ended. After each drill the old primary is started again and rejoins
+as the synchronous standby (`pg_rewind`). The CI job
 also checks that a commit waits while the standby is down with zero data loss on, and that an update of the
 primary's host hands the role over first. Staging repeats the drill on its own hosts before the layout carries
 production traffic, then quarterly, and promotes the second site once a year (RUNBOOKS.md, rehearsal schedule).
