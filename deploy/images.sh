@@ -16,10 +16,12 @@
 # (Sigstore, recorded in its transparency log), and so must its bill of materials. MASSLAK_IMAGE_KEY names a cosign
 # public key instead, for images signed with a key (a private registry; CI); MASSLAK_IMAGE_REGISTRY_HTTP=true allows a
 # registry without TLS (CI only). Both may be set in deploy/.env. Signing uses the key file COSIGN_KEY when set, else the
-# keyless identity of the workflow that runs it. The bill of materials comes from syft.
+# keyless identity of the workflow that runs it. The bill of materials comes from syft. MASSLAK_IMAGE_NAMES limits
+# verify and pull to some of the images: a database host of the layout with two (H-01) runs masslak-db only.
 set -euo pipefail
 cd "$(dirname "$0")/.."
-NAMES="masslak masslak-egress masslak-db"
+ALL="masslak masslak-egress masslak-db"
+NAMES="${MASSLAK_IMAGE_NAMES:-$ALL}"
 fail() { echo "images: $*" >&2; exit 1; }
 env_value() { [ -f deploy/.env ] && sed -n "s/^$1=//p" deploy/.env | tail -1 || true; }
 key="${MASSLAK_IMAGE_KEY:-$(env_value MASSLAK_IMAGE_KEY)}"
@@ -68,13 +70,14 @@ case "${1:-}" in
     docker build -q -t "$prefix/masslak-egress:$version" deploy/egress >/dev/null
     docker build -q -t "$prefix/masslak-db:$version" deploy/production/db >/dev/null
     printf 'commit=%s\nversion=%s\n' "$commit" "$version" > "$out"
-    for name in $NAMES; do
+    for name in $ALL; do
       docker push -q "$prefix/$name:$version" >/dev/null
       digest="$(docker inspect --format '{{range .RepoDigests}}{{println .}}{{end}}' "$prefix/$name:$version" | grep -m1 "^$prefix/$name@")"
       echo "$name=$digest" >> "$out"
     done
     cat "$out" ;;
   sign)
+    NAMES="$ALL"
     check_file "${2:?IMAGES file}"
     need cosign "https://docs.sigstore.dev/cosign/system_config/installation/"
     need syft "https://github.com/anchore/syft"

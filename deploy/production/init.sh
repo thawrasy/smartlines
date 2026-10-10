@@ -8,6 +8,10 @@
 #     deploy/production/tls/ca.key to offline storage once the certificates are made, and bring it back to renew them;
 #   * the monitoring's secrets as files (H-07): the token Prometheus scrapes the API with and Grafana's administrator
 #     password;
+#   * with two database hosts (MASSLAK_DB_LAYOUT=ha, H-01): the cluster's certificate, which both database hosts and
+#     the third etcd member on this server present to each other and to the application, the REST API's password
+#     and etcd's cluster token, and one bundle per database host (deploy/production/ha/bundles/db1.tar.gz, db2.tar.gz)
+#     for deploy/production/ha/install-db-host.sh on that host;
 #   * COMPOSE_FILE in deploy/.env, so every docker compose command on this server uses the production profile.
 #
 # The receivers of alerts (deploy/production/secrets/*_webhook_url) are the operator's to write; the preflight of
@@ -57,9 +61,72 @@ mkdir -p trust
 cp "$tls/ca.crt" trust/ca.crt
 chmod 0755 trust; chmod 0644 trust/*.crt
 
+# ---- two database hosts (H-01): the cluster's certificate, etcd, and each host's bundle ---------------------------
+rand() { head -c 32 /dev/urandom | base64 | tr -d '/+=\n' | cut -c1-40; }
+put() { if grep -q "^$1=" "$env_file"; then sed -i "s|^$1=.*|$1=$2|" "$env_file"; else echo "$1=$2" >> "$env_file"; fi; }
+layout="$(value MASSLAK_DB_LAYOUT)"
+if [ "$layout" = ha ]; then
+  ipv4='^([0-9]{1,3}\.){3}[0-9]{1,3}$'
+  IFS=, read -r -a hosts <<< "$(value MASSLAK_DB_HOSTS)"
+  witness="$(value MASSLAK_DB_WITNESS)"
+  [ "${#hosts[@]}" = 2 ] && [[ "${hosts[0]}" =~ $ipv4 ]] && [[ "${hosts[1]}" =~ $ipv4 ]] && [ "${hosts[0]}" != "${hosts[1]}" ] \
+    || { echo "MASSLAK_DB_HOSTS must hold the two database hosts' private IPv4 addresses, comma-separated" >&2; exit 1; }
+  [[ "$witness" =~ $ipv4 ]] \
+    || { echo "MASSLAK_DB_WITNESS must hold this server's private IPv4 address (the third etcd member)" >&2; exit 1; }
+  names="DNS:db,DNS:db-replica,DNS:localhost,IP:127.0.0.1,IP:${hosts[0]},IP:${hosts[1]},IP:$witness"
+  printf 'basicConstraints=CA:FALSE\nkeyUsage=digitalSignature\nextendedKeyUsage=serverAuth,clientAuth\nsubjectAltName=%s\n' "$names" > "$tls/cluster.ext"
+  issue cluster masslak-cluster "$tls/cluster.ext"
+  rm -f "$tls/cluster.ext"
+  for a in "${hosts[@]}" "$witness"; do      # the hosts changed since it was issued: it must be issued again
+    openssl x509 -noout -ext subjectAltName -in "$tls/cluster.crt" | grep -q "IP Address:$a\(,\|$\)" \
+      || { echo "deploy/production/tls/cluster.crt does not name $a: move it and cluster.key away and run again" >&2; exit 1; }
+  done
+  chown 70:70 "$tls/cluster.key"; chmod 0600 "$tls/cluster.key"; chmod 0644 "$tls/cluster.crt"
+  [ -n "$(value MASSLAK_PATRONI_REST_PASSWORD)" ] || { put MASSLAK_PATRONI_REST_PASSWORD "$(rand)"; echo "added MASSLAK_PATRONI_REST_PASSWORD to deploy/.env"; }
+  [ -n "$(value MASSLAK_ETCD_TOKEN)" ] || put MASSLAK_ETCD_TOKEN "masslak-$(rand | cut -c1-16)"
+  members="db1=https://${hosts[0]}:2380,db2=https://${hosts[1]}:2380,witness=https://$witness:2380"
+  etcd_env() {                             # member name, address: etcd over TLS, a client certificate required
+    printf '%s\n' "ETCD_NAME=$1" "ETCD_DATA_DIR=/var/lib/etcd" \
+      "ETCD_LISTEN_PEER_URLS=https://$2:2380" "ETCD_INITIAL_ADVERTISE_PEER_URLS=https://$2:2380" \
+      "ETCD_LISTEN_CLIENT_URLS=https://$2:2379" "ETCD_ADVERTISE_CLIENT_URLS=https://$2:2379" \
+      "ETCD_INITIAL_CLUSTER=$members" "ETCD_INITIAL_CLUSTER_TOKEN=$(value MASSLAK_ETCD_TOKEN)" "ETCD_INITIAL_CLUSTER_STATE=new" \
+      "ETCD_CERT_FILE=/tls/cluster.crt" "ETCD_KEY_FILE=/tls/cluster.key" "ETCD_TRUSTED_CA_FILE=/tls/ca.crt" \
+      "ETCD_CLIENT_CERT_AUTH=true" "ETCD_PEER_CERT_FILE=/tls/cluster.crt" "ETCD_PEER_KEY_FILE=/tls/cluster.key" \
+      "ETCD_PEER_TRUSTED_CA_FILE=/tls/ca.crt" "ETCD_PEER_CLIENT_CERT_AUTH=true"
+  }
+  mkdir -p ../env; chmod 0700 ../env
+  etcd_env witness "$witness" > ../env/etcd.env; chmod 0600 ../env/etcd.env
+  bundles=ha/bundles; mkdir -p "$bundles"; chmod 0700 "$bundles"
+  for i in 1 2; do
+    a="${hosts[$((i - 1))]}" work="$(mktemp -d)"
+    mkdir "$work/tls"; cp "$tls/ca.crt" "$tls/cluster.crt" "$tls/cluster.key" "$work/tls/"
+    etcd_env "db$i" "$a" > "$work/etcd.env"
+    {
+      printf '%s\n' "PATRONI_NAME=db$i" "PATRONI_RESTAPI_LISTEN=$a:8008" "PATRONI_RESTAPI_CONNECT_ADDRESS=$a:8008" \
+        "PATRONI_POSTGRESQL_LISTEN=$a:5432" "PATRONI_POSTGRESQL_CONNECT_ADDRESS=$a:5432" \
+        "PATRONI_ETCD3_HOSTS=${hosts[0]}:2379,${hosts[1]}:2379,$witness:2379" \
+        "PATRONI_SUPERUSER_USERNAME=$(value POSTGRES_USER | grep . || echo postgres)" \
+        "PATRONI_SUPERUSER_PASSWORD=$(value POSTGRES_PASSWORD)" "PATRONI_REPLICATION_PASSWORD=$(value MASSLAK_REPLICATION_PASSWORD)" \
+        "PATRONI_RESTAPI_USERNAME=masslak" "PATRONI_RESTAPI_PASSWORD=$(value MASSLAK_PATRONI_REST_PASSWORD)" \
+        "POSTGRES_DB=$(value POSTGRES_DB | grep . || echo masslak)"
+      grep -E '^(PGBACKREST_[A-Z0-9_]*|MASSLAK_WAREHOUSE_ADDRESS|MASSLAK_DB_NETWORK)=.' "$env_file" || true
+    } > "$work/db-host.env"
+    # the signed image this release names, and how to check it (deploy/images.sh)
+    [ ! -s ../../IMAGES ] || cp ../../IMAGES "$work/IMAGES"
+    : > "$work/images.env"
+    key="$(value MASSLAK_IMAGE_KEY)"
+    if [ -n "$key" ] && [ -s "$key" ]; then cp "$key" "$work/image-key.pub"; echo "MASSLAK_IMAGE_KEY=image-key.pub" >> "$work/images.env"; fi
+    for k in MASSLAK_IMAGE_REGISTRY_HTTP MASSLAK_RELEASE_REPO; do
+      [ -z "$(value "$k")" ] || echo "$k=$(value "$k")" >> "$work/images.env"
+    done
+    tar -czf "$bundles/db$i.tar.gz.tmp" -C "$work" . && mv "$bundles/db$i.tar.gz.tmp" "$bundles/db$i.tar.gz"
+    rm -rf "$work"
+  done
+  echo "two database hosts: bundles written to deploy/production/ha/bundles (db1 for ${hosts[0]}, db2 for ${hosts[1]})"
+fi
+
 # ---- monitoring secrets -------------------------------------------------------------------------------------------
 sec=secrets; mkdir -p "$sec"
-rand() { head -c 32 /dev/urandom | base64 | tr -d '/+=\n' | cut -c1-40; }
 token="$(value MASSLAK_METRICS_TOKEN)"
 if [ -z "$token" ]; then
   token="$(rand)"; echo "MASSLAK_METRICS_TOKEN=$token" >> "$env_file"; echo "added MASSLAK_METRICS_TOKEN to deploy/.env"
@@ -82,6 +149,7 @@ chmod 0755 targets; chmod 0644 targets/site-b.yml
 
 # ---- every compose command on this server uses the production profile -------------------------------------------
 files="docker-compose.yml:deploy/production/docker-compose.production.yml"
+[ "$layout" != ha ] || files="$files:deploy/production/ha/docker-compose.ha.yml"
 extra="$(value MASSLAK_COMPOSE_EXTRA)"                 # further overlays (telemetry, warehouse), colon-separated
 [ -z "$extra" ] || files="$files:$extra"
 if grep -q '^COMPOSE_FILE=' "$env_file"; then sed -i "s|^COMPOSE_FILE=.*|COMPOSE_FILE=$files|" "$env_file"

@@ -13,6 +13,9 @@ checks on the database itself, not on what a configuration file says:
              table (H-10)
   files      with the files in an object store, its bucket keeps every version and locks them at least as long as
              backups are kept, so a restore can bring the files back to the backup's moment (H-04; files_versions)
+  layout     the database runs on two hosts with automatic failover (MASSLAK_DB_LAYOUT=ha) and a synchronous standby
+             streams from the primary now; or on one host, which the owner accepted in writing
+             (MASSLAK_SINGLE_HOST_ACCEPTED): losing it then means a restore, not a failover (H-01)
 
 The archiving and decoding facts come from /usr/local/bin/masslak-archive-check, which only the production database
 image has (deploy/production/db); the owner runs it through COPY ... FROM PROGRAM, so it reports from inside the
@@ -55,6 +58,9 @@ class Facts:
     files_protection: dict | None = None                    # the bucket's versioning and Object Lock (S3 only)
     files_error: str = ""
     backup_keep_days: int = 14
+    db_layout: str = "single"                               # MASSLAK_DB_LAYOUT
+    single_host_accepted: str = ""                          # MASSLAK_SINGLE_HOST_ACCEPTED: who accepted one host, and when
+    sync_standbys: int = 0                                  # standbys streaming that confirm every commit
 
 
 def evaluate(f: Facts) -> list[str]:
@@ -98,12 +104,30 @@ def evaluate(f: Facts) -> list[str]:
         if c.get("plugins"):
             problems.append(f"logical decoding plugins other than pgoutput are installed ({c['plugins']}): a replication "
                             "login could decode every table")
+    if f.db_layout == "ha":
+        if f.sync_standbys < 1:
+            problems.append("no synchronous standby streams from the primary: with two database hosts the other host "
+                            "confirms every commit, so a failover loses none (deploy/production/ha/install-db-host.sh)")
+    elif f.db_layout == "single":
+        if not f.single_host_accepted.strip():
+            problems.append("the database runs on one host (MASSLAK_DB_LAYOUT is not ha): put it on two hosts with "
+                            "automatic failover (HIGH_AVAILABILITY.md), or record the owner's acceptance of one host, who "
+                            "and when, in MASSLAK_SINGLE_HOST_ACCEPTED: losing the host then means a restore of about "
+                            "30 minutes, not a failover of under a minute")
+    else:
+        problems.append(f"MASSLAK_DB_LAYOUT is {f.db_layout!r}: ha (two database hosts) or single")
     if f.files_backend == "s3":
         if f.files_protection is None:
             problems.append(f"the file bucket's versioning and Object Lock cannot be read ({f.files_error or 'no answer'})")
         else:
             problems += files_versions.problems(f.files_protection, f.backup_keep_days)
     return problems
+
+
+def gather_layout(f: Facts) -> None:
+    """Where the database runs, as this server declares it (H-01)."""
+    f.db_layout = os.environ.get("MASSLAK_DB_LAYOUT", "").strip() or "single"
+    f.single_host_accepted = os.environ.get("MASSLAK_SINGLE_HOST_ACCEPTED", "")
 
 
 def gather_files(f: Facts) -> None:
@@ -155,6 +179,8 @@ async def gather(conn: asyncpg.Connection) -> Facts:
     f.connection_encrypted = bool(await conn.fetchval("SELECT ssl FROM pg_stat_ssl WHERE pid = pg_backend_pid()"))
     f.hba = [dict(r) for r in await conn.fetch(
         "SELECT line_number, type, database, user_name, address, auth_method, options, error FROM pg_hba_file_rules")]
+    f.sync_standbys = await conn.fetchval(
+        "SELECT count(*) FROM pg_stat_replication WHERE state = 'streaming' AND sync_state IN ('sync', 'quorum')")
     f.archive_mode = await conn.fetchval("SHOW archive_mode")
     f.archive_command = await conn.fetchval("SHOW archive_command")
     try:
@@ -180,6 +206,7 @@ async def run(url: str | None) -> list[str]:
         facts = await gather(conn)
     finally:
         await conn.close()
+    gather_layout(facts)
     await asyncio.to_thread(gather_files, facts)
     return evaluate(facts)
 
@@ -195,7 +222,8 @@ def main() -> None:
             print(f"  - {p}", file=sys.stderr)
         sys.exit(1)
     print("production preflight passed: TLS only, archiving proven to an off-host repository, pgoutput only; "
-          "files in object storage are versioned and locked")
+          "files in object storage are versioned and locked; the database layout is "
+          + ("two hosts with a synchronous standby" if os.environ.get("MASSLAK_DB_LAYOUT") == "ha" else "one host, accepted"))
 
 
 if __name__ == "__main__":

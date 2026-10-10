@@ -1,0 +1,41 @@
+# A database host of the production layout with two (reviews of October 2026, H-01; HIGH_AVAILABILITY.md). Started
+# by deploy/production/ha/install-db-host.sh from the host's bundle, never by hand; the same file on both hosts.
+#   etcd     one of the three members that elect the primary (the third runs on the application host)
+#   patroni  PostgreSQL under Patroni, from the release's signed database image: the primary on one host, the
+#            synchronous standby on the other; Patroni promotes the standby when the primary is lost and turns the old
+#            primary into the new standby when it is back (pg_rewind)
+# Both use the host's network and listen only on its private address (the bundle's addresses), so nothing answers on
+# a public interface. Everything between the hosts is TLS with the cluster's certificate (deploy/production/init.sh).
+name: masslak-db
+
+services:
+  etcd:
+    image: gcr.io/etcd-development/etcd:v3.5.21@sha256:fd158fbe55240e252947bbd2e8dddc217997ff43978071fac2bd202b6ad15c03
+    restart: unless-stopped
+    network_mode: host
+    env_file: ${MASSLAK_DB_HOST_DIR}/etcd.env
+    volumes:
+      - etcd_data:/var/lib/etcd
+      - ${MASSLAK_DB_HOST_DIR}/tls/ca.crt:/tls/ca.crt:ro
+      - ${MASSLAK_DB_HOST_DIR}/tls/cluster.crt:/tls/cluster.crt:ro
+      - ${MASSLAK_DB_HOST_DIR}/tls/cluster.key:/tls/cluster.key:ro
+
+  patroni:
+    image: masslak-db:${MASSLAK_IMAGE_TAG:?}
+    restart: unless-stopped
+    network_mode: host
+    user: root                               # masslak-db-entry installs the TLS files, then runs Patroni as postgres
+    command: ["patroni", "/etc/patroni/patroni.yml"]
+    env_file: ${MASSLAK_DB_HOST_DIR}/db-host.env
+    shm_size: 1g
+    stop_grace_period: 2m                    # a clean shutdown hands the leader key over instead of waiting 30 s for it to expire
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ${MASSLAK_DB_HOST_DIR}/tls/ca.crt:/tls-src/ca.crt:ro
+      - ${MASSLAK_DB_HOST_DIR}/tls/cluster.crt:/tls-src/server.crt:ro
+      - ${MASSLAK_DB_HOST_DIR}/tls/cluster.key:/tls-src/server.key:ro
+    depends_on: [etcd]
+
+volumes:
+  etcd_data:
+  pgdata:

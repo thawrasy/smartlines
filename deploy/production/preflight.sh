@@ -57,6 +57,29 @@ for r in page ticket deadman; do
 done
 [ -s secrets/metrics_token ] || gap "deploy/production/secrets/metrics_token is missing: run deploy/production/init.sh"
 
+# where the database runs (H-01): on two hosts with automatic failover, or on this one host as the owner accepted
+case "$(value MASSLAK_DB_LAYOUT)" in
+  ha)
+    IFS=, read -r -a dbh <<< "$(value MASSLAK_DB_HOSTS)"
+    [ "${#dbh[@]}" = 2 ] || gap "MASSLAK_DB_HOSTS must hold the two database hosts' private IPv4 addresses (MASSLAK_DB_LAYOUT=ha)"
+    [ -n "$(value MASSLAK_DB_WITNESS)" ] || gap "MASSLAK_DB_WITNESS is missing: this server's private address, where the third etcd member listens"
+    { [ -s tls/cluster.crt ] && [ -s tls/cluster.key ]; } || gap "deploy/production/tls/cluster.crt is missing: run deploy/production/init.sh"
+    if [ "${#dbh[@]}" = 2 ] && [ -s tls/ca.crt ]; then
+      # both hosts answer over TLS: one is the primary, the other its synchronous standby
+      code() { curl -s --noproxy '*' -o /dev/null -w '%{http_code}' --max-time 5 --cacert tls/ca.crt "https://$1:8008$2" || true; }
+      primaries=0 syncs=0
+      for h in "${dbh[@]}"; do
+        [ "$(code "$h" /primary)" = 200 ] && primaries=$((primaries + 1))
+        [ "$(code "$h" /sync)" = 200 ] && syncs=$((syncs + 1))
+      done
+      [ "$primaries" = 1 ] || gap "the database hosts show $primaries primaries, not one: install each with its bundle (deploy/production/ha/bundles/db1.tar.gz for ${dbh[0]}, db2.tar.gz for ${dbh[1]}): deploy/production/ha/install-db-host.sh, HIGH_AVAILABILITY.md"
+      [ "$primaries" != 1 ] || [ "$syncs" -ge 1 ] || gap "no database host is a synchronous standby: a failover now could lose committed writes"
+    fi ;;
+  ""|single)
+    [ -n "$(value MASSLAK_SINGLE_HOST_ACCEPTED)" ] || gap "the database runs on this one host (MASSLAK_DB_LAYOUT is not ha): put it on two hosts with automatic failover (MASSLAK_DB_LAYOUT=ha, HIGH_AVAILABILITY.md), or record the owner's acceptance of one host, who and when, in MASSLAK_SINGLE_HOST_ACCEPTED: losing this host then means a restore of about 30 minutes, not a failover of under a minute" ;;
+  *) gap "MASSLAK_DB_LAYOUT must be ha (two database hosts) or single" ;;
+esac
+
 # every compose command uses the production profile
 case "$(value COMPOSE_FILE)" in *deploy/production/docker-compose.production.yml*) ;;
   *) gap "COMPOSE_FILE in deploy/.env does not name the production profile: run deploy/production/init.sh" ;; esac
@@ -66,4 +89,4 @@ if [ "${#gaps[@]}" -gt 0 ]; then
   printf '  - %s\n' "${gaps[@]}" >&2
   exit 1
 fi
-echo "production preflight (host): key service, off-host archiving and backups, TLS files, alert receivers in place"
+echo "production preflight (host): key service, off-host archiving and backups, TLS files, alert receivers, database layout ($(value MASSLAK_DB_LAYOUT | grep . || echo single)) in place"

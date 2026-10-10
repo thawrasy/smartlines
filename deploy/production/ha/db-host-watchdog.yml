@@ -1,0 +1,7 @@
+# Added by install-db-host.sh when the host has a watchdog device (softdog on a virtual machine): Patroni feeds it while
+# it holds the leader key, so a primary whose Patroni hangs is restarted before a standby takes over, and two primaries
+# never take writes at once (patroni.yml, watchdog). MASSLAK_DB_WATCHDOG=off leaves it out (CI, where one machine
+# plays both hosts and the drill kills a primary on purpose).
+services:
+  patroni:
+    devices: ["/dev/watchdog:/dev/watchdog"]

@@ -1,0 +1,108 @@
+# Patroni on each database host of the production layout with two database hosts (reviews of October 2026, H-01;
+# docs/operations/HIGH_AVAILABILITY.md). Part of the production database image (/etc/patroni/patroni.yml); what
+# differs between the hosts comes from the environment, which deploy/production/init.sh writes into each host's bundle
+# (db-host.env) and deploy/production/ha/install-db-host.sh hands to the container:
+#   PATRONI_NAME                         the member's name (db1, db2)
+#   PATRONI_RESTAPI_LISTEN, PATRONI_RESTAPI_CONNECT_ADDRESS             address:8008 on the private network
+#   PATRONI_POSTGRESQL_LISTEN, PATRONI_POSTGRESQL_CONNECT_ADDRESS       address:5432 on the private network
+#   PATRONI_ETCD3_HOSTS                  the three etcd members: one on each database host, the third on the application host
+#   PATRONI_SUPERUSER_PASSWORD           the owner's password (POSTGRES_PASSWORD)
+#   PATRONI_REPLICATION_PASSWORD         the replication login's (MASSLAK_REPLICATION_PASSWORD)
+#   PATRONI_RESTAPI_USERNAME/_PASSWORD   for changes through the REST API (the durability setting, a switchover)
+# Everything between the members is TLS with certificates of the internal authority: PostgreSQL (verify-full for the
+# replication and rewind logins), the REST API, and etcd, which also requires a client certificate. One certificate,
+# the cluster's (deploy/production/tls/cluster.crt), names both hosts, the application host and the names db and
+# db-replica the application connects to through HAProxy; masslak-db-entry installs it as server.crt.
+# pg_hba.conf (hostssl only, scram) and pgBackRest (every WAL segment off the hosts) are those of the single host.
+scope: masslak
+namespace: /masslak/
+
+restapi:
+  listen: 0.0.0.0:8008
+  certfile: /var/lib/postgresql/tls/server.crt
+  keyfile: /var/lib/postgresql/tls/server.key
+  cafile: /var/lib/postgresql/tls/ca.crt
+
+# the members call each other's REST API during a failover, checking its certificate
+ctl:
+  cacert: /var/lib/postgresql/tls/ca.crt
+  certfile: /var/lib/postgresql/tls/server.crt
+  keyfile: /var/lib/postgresql/tls/server.key
+
+etcd3:
+  protocol: https
+  cacert: /var/lib/postgresql/tls/ca.crt
+  cert: /var/lib/postgresql/tls/server.crt
+  key: /var/lib/postgresql/tls/server.key
+
+bootstrap:
+  dcs:
+    # the primary renews its leader key every 10 s; 30 s without it and the synchronous standby takes over
+    ttl: 30
+    loop_wait: 10
+    retry_timeout: 10
+    maximum_lag_on_failover: 1048576
+    # one standby confirms every commit before the client is told, so a failover loses no booking or payment.
+    # synchronous_mode_strict follows MASSLAK_ZERO_DATA_LOSS (owner's decision 1): deploy/durability.sh sets it
+    synchronous_mode: true
+    synchronous_mode_strict: false
+    postgresql:
+      use_pg_rewind: true                 # the old primary rejoins as a standby without a full copy
+      use_slots: true
+      parameters:
+        ssl: "on"
+        ssl_min_protocol_version: TLSv1.3
+        ssl_cert_file: /var/lib/postgresql/tls/server.crt
+        ssl_key_file: /var/lib/postgresql/tls/server.key
+        ssl_ca_file: /var/lib/postgresql/tls/ca.crt
+        password_encryption: scram-sha-256
+        wal_level: logical                # the data warehouse subscribes (1062)
+        hot_standby: "on"
+        wal_log_hints: "on"               # needed by pg_rewind
+        archive_mode: "on"
+        archive_timeout: 60
+        archive_command: pgbackrest --stanza=masslak archive-push %p
+        max_connections: 200
+        max_wal_senders: 10
+        max_replication_slots: 10
+        max_slot_wal_keep_size: 20GB
+        log_replication_commands: "on"
+        shared_preload_libraries: pg_stat_statements
+        pg_stat_statements.track_utility: "off"
+        track_io_timing: "on"
+        track_functions: pl
+        log_min_duration_statement: 1000
+        log_parameter_max_length: 0
+        log_lock_waits: "on"
+  initdb:
+    - encoding: UTF8
+    - data-checksums
+  # the application's database, made once by the first primary (the PostGIS image's own entrypoint does not run here)
+  post_bootstrap: /usr/local/bin/masslak-patroni-bootstrap
+
+postgresql:
+  listen: 0.0.0.0:5432
+  data_dir: /var/lib/postgresql/data
+  pgpass: /tmp/pgpass
+  use_unix_socket: true
+  authentication:
+    superuser:
+      username: postgres
+      sslmode: verify-full
+      sslrootcert: /var/lib/postgresql/tls/ca.crt
+    replication:
+      username: replicator
+      sslmode: verify-full
+      sslrootcert: /var/lib/postgresql/tls/ca.crt
+  parameters:
+    unix_socket_directories: /var/run/postgresql
+    hba_file: /var/lib/postgresql/pg_hba.conf   # written by masslak-db-entry at each start; Patroni leaves it alone
+  basebackup:
+    - checkpoint: fast
+
+# a member whose Patroni hangs is restarted before its leader key expires, so two primaries never take writes; with
+# /dev/watchdog passed to the container Patroni uses it, otherwise it runs without (deploy/production/ha/db-host.yml)
+watchdog:
+  mode: automatic
+  device: /dev/watchdog
+  safety_margin: 5

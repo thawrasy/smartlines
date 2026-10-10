@@ -232,3 +232,216 @@ def test_a_production_server_pulls_signed_images_and_never_builds():
     assert 'if [ "$production" = true ]; then compose up -d --no-build;' in update
     preflight = (REPO / "deploy" / "production" / "preflight.sh").read_text()
     assert "command -v cosign" in preflight and "IMAGES is missing" in preflight
+
+
+# ------------------------------------------------------------------ H-01 two database hosts
+HA = REPO / "deploy" / "production" / "ha"
+DBIMAGE = REPO / "deploy" / "production" / "db"
+HA_ENV = ["MASSLAK_ENVIRONMENT=production", "POSTGRES_PASSWORD=owner-pw", "MASSLAK_REPLICATION_PASSWORD=repl-pw",
+          "MASSLAK_DB_LAYOUT=ha", "MASSLAK_DB_HOSTS=10.0.0.11,10.0.0.12", "MASSLAK_DB_WITNESS=10.0.0.10",
+          "PGBACKREST_REPO1_TYPE=s3", "PGBACKREST_REPO1_CIPHER_PASS=cipher", "MASSLAK_WAREHOUSE_ADDRESS=192.0.2.10/32",
+          "MASSLAK_SIGNING_SECRET=not-for-the-database-hosts"]
+
+
+def _init(tmp_path, env_lines):
+    """deploy/production/init.sh on a copy of deploy/, as root would run it (chown is a no-op for a test user)."""
+    import shutil
+    deploy = tmp_path / "deploy"
+    if not deploy.exists():
+        shutil.copytree(REPO / "deploy", deploy, ignore=shutil.ignore_patterns(
+            "tls", "bundles", "env", "secrets", "trust", "targets", ".env", "node_modules"))
+    (deploy / ".env").write_text("\n".join(env_lines) + "\n")
+    shim = tmp_path / "bin"
+    shim.mkdir(exist_ok=True)
+    (shim / "chown").write_text("#!/bin/sh\nexit 0\n")
+    (shim / "chown").chmod(0o755)
+    env = {**os.environ, "PATH": f"{shim}:{os.environ['PATH']}"}
+    r = subprocess.run(["bash", str(deploy / "production" / "init.sh")], capture_output=True, text=True, env=env)
+    return deploy, r
+
+
+def _env_file(text: str) -> dict:
+    return dict(line.split("=", 1) for line in text.splitlines() if "=" in line)
+
+
+def test_the_installer_issues_the_cluster_certificate_and_a_bundle_per_database_host(tmp_path):
+    import tarfile
+    deploy, r = _init(tmp_path, HA_ENV)
+    assert r.returncode == 0, r.stderr
+    tls, env = deploy / "production" / "tls", _env_file((deploy / ".env").read_text())
+    assert "deploy/production/ha/docker-compose.ha.yml" in env["COMPOSE_FILE"]
+    rest_password, token = env["MASSLAK_PATRONI_REST_PASSWORD"], env["MASSLAK_ETCD_TOKEN"]
+    assert len(rest_password) >= 32 and token.startswith("masslak-")
+    cert = subprocess.run(["openssl", "x509", "-noout", "-ext", "subjectAltName,extendedKeyUsage", "-in", str(tls / "cluster.crt")],
+                          capture_output=True, text=True, check=True).stdout
+    for name in ("DNS:db,", "DNS:db-replica", "IP Address:10.0.0.11", "IP Address:10.0.0.12", "IP Address:10.0.0.10",
+                 "TLS Web Server Authentication", "TLS Web Client Authentication"):
+        assert name in cert, (name, cert)
+    subprocess.run(["openssl", "verify", "-CAfile", str(tls / "ca.crt"), str(tls / "cluster.crt")], check=True, capture_output=True)
+    witness = _env_file((deploy / "env" / "etcd.env").read_text())
+    for i, address in ((1, "10.0.0.11"), (2, "10.0.0.12")):
+        bundle = deploy / "production" / "ha" / "bundles" / f"db{i}.tar.gz"
+        assert oct(bundle.stat().st_mode & 0o777) == "0o600"
+        with tarfile.open(bundle) as t:
+            names = {m.name.lstrip("./") for m in t.getmembers() if m.isfile()}
+            # the cluster's certificate and key, the authority's certificate; never the authority's key or the others
+            assert names == {"tls/ca.crt", "tls/cluster.crt", "tls/cluster.key", "db-host.env", "etcd.env", "images.env"}, names
+            host = _env_file(t.extractfile("./db-host.env").read().decode())
+            etcd = _env_file(t.extractfile("./etcd.env").read().decode())
+        assert host["PATRONI_NAME"] == f"db{i}" and host["PATRONI_POSTGRESQL_LISTEN"] == f"{address}:5432"
+        assert host["PATRONI_RESTAPI_CONNECT_ADDRESS"] == f"{address}:8008"
+        assert host["PATRONI_ETCD3_HOSTS"] == "10.0.0.11:2379,10.0.0.12:2379,10.0.0.10:2379"
+        assert (host["PATRONI_SUPERUSER_PASSWORD"], host["PATRONI_REPLICATION_PASSWORD"]) == ("owner-pw", "repl-pw")
+        assert host["PATRONI_RESTAPI_PASSWORD"] == rest_password and host["PGBACKREST_REPO1_CIPHER_PASS"] == "cipher"
+        assert host["MASSLAK_WAREHOUSE_ADDRESS"] == "192.0.2.10/32" and "MASSLAK_SIGNING_SECRET" not in host
+        # etcd only over TLS, a client certificate required from members and clients alike
+        assert etcd["ETCD_LISTEN_CLIENT_URLS"] == f"https://{address}:2379" and etcd["ETCD_NAME"] == f"db{i}"
+        assert etcd["ETCD_CLIENT_CERT_AUTH"] == etcd["ETCD_PEER_CLIENT_CERT_AUTH"] == "true"
+        assert etcd["ETCD_INITIAL_CLUSTER"] == witness["ETCD_INITIAL_CLUSTER"] == (
+            "db1=https://10.0.0.11:2380,db2=https://10.0.0.12:2380,witness=https://10.0.0.10:2380")
+        assert etcd["ETCD_INITIAL_CLUSTER_TOKEN"] == witness["ETCD_INITIAL_CLUSTER_TOKEN"] == token
+    # run again: nothing is issued twice, the passwords stay
+    _, again = _init(tmp_path, (deploy / ".env").read_text().splitlines())
+    assert again.returncode == 0 and "issued" not in again.stdout
+    assert _env_file((deploy / ".env").read_text())["MASSLAK_PATRONI_REST_PASSWORD"] == rest_password
+    # the hosts changed after the certificate was issued: it must be issued again, not used for other addresses
+    moved = [line.replace("10.0.0.12", "10.0.0.13") for line in (deploy / ".env").read_text().splitlines()]
+    _, refused = _init(tmp_path, moved)
+    assert refused.returncode == 1 and "does not name 10.0.0.13" in refused.stderr
+
+
+@pytest.mark.parametrize("hosts, witness, expected", [
+    ("10.0.0.11", "10.0.0.10", "MASSLAK_DB_HOSTS must hold"),
+    ("db-a1.internal,db-a2.internal", "10.0.0.10", "MASSLAK_DB_HOSTS must hold"),        # etcd binds addresses only
+    ("10.0.0.11,10.0.0.11", "10.0.0.10", "MASSLAK_DB_HOSTS must hold"),
+    ("10.0.0.11,10.0.0.12", "", "MASSLAK_DB_WITNESS must hold"),
+])
+def test_the_installer_refuses_an_incomplete_layout(tmp_path, hosts, witness, expected):
+    lines = [line for line in HA_ENV if not line.startswith(("MASSLAK_DB_HOSTS=", "MASSLAK_DB_WITNESS="))]
+    _, r = _init(tmp_path, lines + [f"MASSLAK_DB_HOSTS={hosts}", f"MASSLAK_DB_WITNESS={witness}"])
+    assert r.returncode == 1 and expected in r.stderr, r.stderr
+
+
+def _preflight(tmp_path, env_lines):
+    deploy = tmp_path / "deploy"
+    (deploy / "production").mkdir(parents=True, exist_ok=True)
+    (deploy / "production" / "preflight.sh").write_bytes((REPO / "deploy" / "production" / "preflight.sh").read_bytes())
+    (deploy / ".env").write_text("\n".join(["MASSLAK_ENVIRONMENT=production"] + env_lines) + "\n")
+    return subprocess.run(["bash", str(deploy / "production" / "preflight.sh")], capture_output=True, text=True)
+
+
+def test_the_host_preflight_requires_two_database_hosts_or_the_owners_acceptance(tmp_path):
+    single = _preflight(tmp_path, [])
+    assert single.returncode == 1 and "the database runs on this one host" in single.stderr
+    accepted = _preflight(tmp_path, ["MASSLAK_SINGLE_HOST_ACCEPTED=owner, 2026-10-10: pilot"])
+    assert "the database runs on this one host" not in accepted.stderr
+    one = _preflight(tmp_path, ["MASSLAK_DB_LAYOUT=ha", "MASSLAK_DB_HOSTS=10.0.0.11"])
+    assert "MASSLAK_DB_HOSTS must hold the two" in one.stderr and "MASSLAK_DB_WITNESS is missing" in one.stderr
+    assert "cluster.crt is missing" in one.stderr
+    other = _preflight(tmp_path, ["MASSLAK_DB_LAYOUT=three"])
+    assert "MASSLAK_DB_LAYOUT must be ha" in other.stderr
+
+
+def test_the_proxies_route_to_the_primary_and_to_a_standby_with_tls_checked(tmp_path):
+    shim = tmp_path / "bin"
+    shim.mkdir()
+    (shim / "su-exec").write_text('#!/bin/sh\n[ "$1" = haproxy ] && [ "$2" = haproxy ] && cat "$6"\n')   # print the configuration
+    (shim / "su-exec").chmod(0o755)
+    ca = tmp_path / "ca.crt"
+    ca.write_text("x")
+    env = {**os.environ, "PATH": f"{shim}:{os.environ['PATH']}", "MASSLAK_DB_HOSTS": "10.0.0.11,10.0.0.12", "MASSLAK_DB_CA": str(ca)}
+    render = lambda mode: subprocess.run(["sh", str(DBIMAGE / "proxy.sh"), mode], capture_output=True, text=True, env=env)   # noqa: E731
+    primary, replica = render("primary").stdout, render("replica").stdout
+    check = f"check port 8008 check-ssl verify required ca-file {ca}"
+    for cfg in (primary, replica):
+        assert f"server db1 10.0.0.11:5432 {check}" in cfg and f"server db2 10.0.0.12:5432 {check}" in cfg
+        assert "on-marked-down shutdown-sessions" in cfg and "option httpchk GET /primary" in cfg
+    assert "default_backend primary" in primary and "standbys" not in primary
+    # reports go to a standby at most 16 MB behind (Patroni reads lag in bytes), or to the primary while none is up
+    assert "option httpchk GET /replica?lag=16MB" in replica
+    assert "use_backend standbys if { nbsrv(standbys) gt 0 }" in replica and "default_backend primary" in replica
+    assert render("other").returncode == 2
+    no_hosts = subprocess.run(["sh", str(DBIMAGE / "proxy.sh"), "primary"], capture_output=True, text=True,
+                              env={k: v for k, v in env.items() if k != "MASSLAK_DB_HOSTS"})
+    assert no_hosts.returncode != 0 and "MASSLAK_DB_HOSTS" in no_hosts.stderr
+
+
+def _masslak_patroni():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("masslak_patroni", DBIMAGE / "patroni-config.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+@pytest.mark.parametrize("members, rc", [
+    ([{"name": "db1", "role": "leader", "state": "running"}, {"name": "db2", "role": "sync_standby", "state": "streaming"}], 0),
+    ([{"name": "db1", "role": "leader", "state": "running"}, {"name": "db2", "role": "replica", "state": "streaming"}], 1),
+    ([{"name": "db1", "role": "leader", "state": "running"}], 1),
+    ([{"name": "db1", "role": "replica", "state": "streaming"}, {"name": "db2", "role": "sync_standby", "state": "streaming"}], 1),
+])
+def test_the_cluster_is_healthy_with_one_primary_and_a_synchronous_standby(monkeypatch, members, rc):
+    m = _masslak_patroni()
+    monkeypatch.setattr(m, "call", lambda method, path, body=None: {"members": members})
+    assert m.cluster() == rc
+
+
+def test_zero_data_loss_is_set_on_the_cluster_through_its_rest_api(monkeypatch):
+    m = _masslak_patroni()
+    sent, config = [], {}
+
+    def call(method, path, body=None):
+        sent.append((method, path, body))
+        if method == "PATCH":
+            config.update(synchronous_mode=body["synchronous_mode"], synchronous_mode_strict=body["synchronous_mode_strict"])
+        return dict(config)
+    monkeypatch.setattr(m, "call", call)
+    assert m.durability("on") == 0 and config["synchronous_mode_strict"] is True
+    assert sent[0] == ("PATCH", "/config", {"synchronous_mode": True, "synchronous_mode_strict": True,
+                                            "postgresql": {"parameters": {"synchronous_commit": "on"}}})
+    assert m.durability("off") == 0 and config["synchronous_mode_strict"] is False
+    with pytest.raises(SystemExit):
+        m.durability("maybe")
+
+
+def test_patroni_runs_with_tls_everywhere_synchronous_standby_and_rewind():
+    import yaml
+    cfg = yaml.safe_load((DBIMAGE / "patroni.yml").read_text())
+    tls = "/var/lib/postgresql/tls/"
+    assert cfg["restapi"]["certfile"] == tls + "server.crt" and cfg["restapi"]["cafile"] == tls + "ca.crt"
+    assert cfg["etcd3"]["protocol"] == "https" and cfg["etcd3"]["cert"] == tls + "server.crt"
+    assert cfg["ctl"]["cacert"] == tls + "ca.crt"
+    dcs = cfg["bootstrap"]["dcs"]
+    assert dcs["synchronous_mode"] is True and dcs["ttl"] == 30 and dcs["postgresql"]["use_pg_rewind"] is True
+    params = dcs["postgresql"]["parameters"]
+    assert params["ssl"] == "on" and params["ssl_min_protocol_version"] == "TLSv1.3"
+    assert params["archive_command"].startswith("pgbackrest") and params["wal_level"] == "logical"
+    for login in ("superuser", "replication"):
+        assert cfg["postgresql"]["authentication"][login]["sslmode"] == "verify-full"
+    # pg_hba.conf stays the one masslak-db-entry writes (hostssl only), not Patroni's
+    assert cfg["postgresql"]["parameters"]["hba_file"] == "/var/lib/postgresql/pg_hba.conf" and "pg_hba" not in cfg["postgresql"]
+    assert cfg["bootstrap"]["post_bootstrap"] == "/usr/local/bin/masslak-patroni-bootstrap"
+    dockerfile = (DBIMAGE / "Dockerfile").read_text()
+    assert "--require-hashes -r /tmp/patroni.lock" in dockerfile and "COPY patroni.yml /etc/patroni/patroni.yml" in dockerfile
+    lock = (DBIMAGE / "patroni.lock").read_text()
+    pins = re.findall(r"^([a-z0-9._-]+)==", lock, re.M)
+    assert "patroni" in pins and all(re.search(rf"^{p}==\S+ \\\n\s+--hash=sha256:", lock, re.M) for p in pins), pins
+
+
+def test_the_database_hosts_and_the_application_host_run_the_same_pinned_parts():
+    import yaml
+    host = yaml.safe_load((HA / "db-host.yml").read_text())
+    app = yaml.safe_load((HA / "docker-compose.ha.yml").read_text().replace("!reset ", "").replace("!override", ""))
+    assert host["services"]["etcd"]["image"] == app["services"]["etcd"]["image"]
+    assert re.search(r"@sha256:[0-9a-f]{64}$", host["services"]["etcd"]["image"])
+    for svc in host["services"].values():
+        assert svc["network_mode"] == "host" and "ports" not in svc        # each listens on the private address alone
+    patroni = host["services"]["patroni"]
+    assert patroni["image"].startswith("masslak-db:") and patroni["command"] == ["patroni", "/etc/patroni/patroni.yml"]
+    assert "${MASSLAK_DB_HOST_DIR}/tls/cluster.key:/tls-src/server.key:ro" in patroni["volumes"]
+    assert app["services"]["db"]["entrypoint"] == ["/usr/local/bin/masslak-db-proxy", "primary"]
+    assert app["services"]["db-replica"]["entrypoint"] == ["/usr/local/bin/masslak-db-proxy", "replica"]
+    assert app["services"]["db"]["environment"]["PGSSLMODE"] == "verify-full"
+    assert app["services"]["db"]["volumes"] == ["./deploy/production/tls/ca.crt:/tls-src/ca.crt:ro"]   # no data, no key
+    durability = (REPO / "deploy" / "durability.sh").read_text()
+    assert "exec -T db masslak-patroni durability" in durability

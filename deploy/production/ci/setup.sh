@@ -5,6 +5,9 @@
 # release workflow too: a local registry, the three images built once, pushed and signed with a key made here, and the
 # IMAGES file naming them (H-08). Then deploy/install.sh installs as on a real production server, checking those
 # signatures. Run as root from the repository, after deploy/init-env.sh; needs cosign and syft.
+# With MASSLAK_DB_LAYOUT=ha already in deploy/.env (job "Production with two database hosts"), the object store for WAL
+# is also published on the witness address, where the database hosts reach it under its name (s3 in /etc/hosts);
+# otherwise the job's single host is recorded as accepted (MASSLAK_SINGLE_HOST_ACCEPTED, H-01).
 set -euo pipefail
 cd "$(dirname "$0")/../../.."
 env=deploy/.env
@@ -36,6 +39,13 @@ put MASSLAK_BACKUP_OFFSITE "$offsite"
 put MASSLAK_BACKUP_AGE_RECIPIENT "$(age-keygen -y "$age_key")"
 put MASSLAK_WAREHOUSE_ADDRESS 192.0.2.10/32
 put MASSLAK_COMPOSE_EXTRA deploy/production/ci/stand-ins.yml
+if grep -q '^MASSLAK_DB_LAYOUT=ha$' "$env"; then
+  witness="$(sed -n 's/^MASSLAK_DB_WITNESS=//p' "$env")"
+  put MASSLAK_CI_S3_PUBLISH "$witness:8443"
+  grep -q ' s3$' /etc/hosts || echo "$witness s3" >> /etc/hosts
+else
+  put MASSLAK_SINGLE_HOST_ACCEPTED "CI job Production installation: one host by design, $(date -u +%F)"
+fi
 ./deploy/production/init.sh
 for r in page ticket deadman; do echo "http://sink:8080/$r" > "deploy/production/secrets/${r}_webhook_url"; done
 

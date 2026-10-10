@@ -1,6 +1,6 @@
 # Patroni at the second site (expert review of October 2026, stage D6; docs/operations/HIGH_AVAILABILITY.md).
-# A standby cluster: its leader streams from the main site's primary (through HAProxy) and falls back to the WAL in
-# the second site's backup repository (repo2) when the link is down. It never promotes itself: losing the main site
+# A standby cluster: its leader streams from the main site's database hosts (deploy/production/ha) and falls back to
+# the WAL in the second site's backup repository (repo2) when the link is down. It never promotes itself: losing the main site
 # is declared by a person (RUNBOOKS.md, section 23), who then removes standby_cluster from the dynamic configuration:
 #   patronictl -c /etc/patroni/patroni.yml edit-config --force --set standby_cluster=null
 scope: masslak-site-b
@@ -20,8 +20,8 @@ bootstrap:
     loop_wait: 10
     retry_timeout: 10
     standby_cluster:
-      host: db-primary.main-site.internal     # HAProxy at the main site, port 5000: always the primary
-      port: 5000
+      host: 10.0.0.11,10.0.0.12               # the main site's two database hosts (MASSLAK_DB_HOSTS): the first that
+      port: 5432                              # answers feeds it, the primary or its standby (cascading replication)
       create_replica_methods: [pgbackrest, basebackup]
       restore_command: pgbackrest --stanza=masslak --repo=2 archive-get %f "%p"
     postgresql:

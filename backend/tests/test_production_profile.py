@@ -43,7 +43,8 @@ PROFILE_HBA = [
 def good() -> preflight.Facts:
     return preflight.Facts(ssl="on", connection_encrypted=True, hba=[dict(r) for r in PROFILE_HBA], archive_mode="on",
                            archive_command="pgbackrest --stanza=masslak archive-push %p",
-                           archive_check={"repo_type": "s3", "repo_host": "", "check_ok": "1", "plugins": ""})
+                           archive_check={"repo_type": "s3", "repo_host": "", "check_ok": "1", "plugins": ""},
+                           db_layout="ha", sync_standbys=1)
 
 
 def test_the_profile_as_written_passes():
@@ -94,6 +95,32 @@ def test_files_in_object_storage_must_be_versioned_and_locked(protection, error,
     assert preflight.evaluate(f) == []
 
 
+@pytest.mark.parametrize("layout, accepted, standbys, expected", [
+    ("ha", "", 0, "no synchronous standby streams"),
+    ("single", "", 1, "the database runs on one host"),
+    ("single", "   ", 1, "the database runs on one host"),
+    ("two", "", 1, "MASSLAK_DB_LAYOUT is 'two'"),
+])
+def test_the_database_runs_on_two_hosts_or_one_the_owner_accepted(layout, accepted, standbys, expected):
+    """H-01: two database hosts with a synchronous standby, or the owner's written acceptance of one host."""
+    f = good()
+    f.db_layout, f.single_host_accepted, f.sync_standbys = layout, accepted, standbys
+    problems = preflight.evaluate(f)
+    assert len(problems) == 1 and expected in problems[0], problems
+    f.db_layout, f.single_host_accepted = "single", "owner, 2026-10-10: pilot on one host"
+    assert preflight.evaluate(f) == []
+
+
+def test_the_layout_comes_from_the_environment(monkeypatch):
+    f = preflight.Facts()
+    monkeypatch.delenv("MASSLAK_DB_LAYOUT", raising=False)
+    preflight.gather_layout(f)
+    assert f.db_layout == "single"                              # unset: one host, which then needs the acceptance
+    monkeypatch.setenv("MASSLAK_DB_LAYOUT", "ha")
+    preflight.gather_layout(f)
+    assert f.db_layout == "ha"
+
+
 def test_a_repository_host_is_off_this_host():
     f = good()
     f.archive_check.update(repo_type="posix", repo_host="backup.internal")
@@ -131,6 +158,7 @@ def test_a_complete_profile_starts(production_urls):
     ({**ENV, "MASSLAK_BIDX_KEY": "AAAA"}, "data keys sit in this process"),
     ({**ENV, "POSTGRES_PASSWORD": "owner"}, "must not hold"),
     ({**ENV, "PGBACKREST_REPO1_CIPHER_PASS": "x"}, "must not hold"),
+    ({**ENV, "MASSLAK_PATRONI_REST_PASSWORD": "x"}, "must not hold"),
 ])
 def test_each_gap_stops_the_start(production_urls, env, expected):
     assert any(expected in p for p in profile.problems(env)), profile.problems(env)
@@ -230,6 +258,14 @@ def test_each_container_receives_only_its_part_of_the_environment(tmp_path):
     assert migrate["MASSLAK_BACKUP_KEEP_DAYS"] == "30"     # its preflight compares the file bucket's lock with it (H-04)
     assert set(db) == {"POSTGRES_USER", "POSTGRES_PASSWORD", "PGBACKREST_REPO1_TYPE", "PGBACKREST_REPO1_CIPHER_PASS"}
     assert oct((tmp_path / "env" / "app.env").stat().st_mode & 0o777) == "0o600"
+    # two database hosts (H-01): the proxies get the owner's login only, pgBackRest's settings go to the hosts' bundles;
+    # the cluster's REST password and etcd token reach no container through these files
+    (tmp_path / ".env").write_text("\n".join(lines + ["MASSLAK_DB_LAYOUT=ha", "MASSLAK_PATRONI_REST_PASSWORD=rest",
+                                                      "MASSLAK_ETCD_TOKEN=tok"]) + "\n")
+    subprocess.run(["bash", str(tmp_path / "env-split.sh")], check=True, capture_output=True)
+    assert set(read("db")) == {"POSTGRES_USER", "POSTGRES_PASSWORD"}
+    assert not {"MASSLAK_PATRONI_REST_PASSWORD", "MASSLAK_ETCD_TOKEN"} & (set(read("app")) | set(read("migrate")))
+    assert read("migrate")["MASSLAK_DB_LAYOUT"] == "ha"           # its preflight checks the layout (H-01)
     # a test server's API keeps its data keys (there is no key service there)
     (tmp_path / ".env").write_text("\n".join(line.replace("production", "development") for line in lines) + "\n")
     subprocess.run(["bash", str(tmp_path / "env-split.sh")], check=True, capture_output=True)

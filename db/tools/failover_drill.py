@@ -3,7 +3,7 @@
 
     python3 db/tools/failover_drill.py --dsn "postgresql://<owner>@hostA:5432,hostB:5432/masslak?target_session_attrs=read-write" \\
         --kill "<command that stops the primary>" [--promote "<command that promotes the standby>"] \\
-        [--api https://<site>/api/ready] [--rate 20] [--warmup 10] [--settle 15] [--json evidence.json]
+        [--api https://<site>/api/ready [--api-ca ca.crt]] [--rate 20] [--warmup 10] [--settle 15] [--json evidence.json]
 
 Writes numbered rows to sys.failover_probe (schema file 1065) at a steady rate through the same kind of connection
 string the API uses (every server listed, the primary chosen by target_session_attrs), records each commit the
@@ -20,6 +20,7 @@ import argparse
 import asyncio
 import json
 import shlex
+import ssl
 import subprocess
 import sys
 import time
@@ -63,11 +64,12 @@ async def writer(a, drill: uuid.UUID, state: dict) -> None:
         await conn.close()
 
 
-async def readiness(url: str, state: dict) -> None:
+async def readiness(url: str, ca: str | None, state: dict) -> None:
     down_since = None
+    ctx = ssl.create_default_context(cafile=ca) if ca else None
     while not state["done"]:
         try:
-            ok = await asyncio.to_thread(lambda: urllib.request.urlopen(url, timeout=2).status == 200)  # nosec B310 - operator's own URL
+            ok = await asyncio.to_thread(lambda: urllib.request.urlopen(url, timeout=2, context=ctx).status == 200)  # nosec B310 - operator's own URL
         except Exception:                                                                              # noqa: BLE001 - any failure is "not ready"
             ok = False
         now = time.time()
@@ -91,7 +93,7 @@ async def drill(a) -> dict:
              "killed_at": None, "api_down": []}
     tasks = [asyncio.create_task(writer(a, drill_id, state))]
     if a.api:
-        tasks.append(asyncio.create_task(readiness(a.api, state)))
+        tasks.append(asyncio.create_task(readiness(a.api, a.api_ca, state)))
     await asyncio.sleep(a.warmup)
     before = len(state["acked"])
     # the primary as it was: which server, and whether a standby confirmed every commit (no loss expected then)
@@ -147,6 +149,7 @@ def main() -> int:
     ap.add_argument("--promote", help="command that promotes the standby (not needed with Patroni)")
     ap.add_argument("--promote-after", type=float, default=0.0, help="seconds between the kill and --promote")
     ap.add_argument("--api", help="the API's /api/ready address, watched during the drill")
+    ap.add_argument("--api-ca", help="the authority the API's certificate is checked against (default: the system's)")
     ap.add_argument("--rate", type=float, default=20.0, help="writes a second (default 20)")
     ap.add_argument("--warmup", type=float, default=10.0, help="seconds of writes before the kill (default 10)")
     ap.add_argument("--settle", type=float, default=5.0, help="seconds of writes after recovery (default 5)")

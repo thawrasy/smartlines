@@ -56,9 +56,16 @@ if [ "$production" = true ]; then
   # reviews of October 2026, package 2: TLS to the database, WAL archived off this host, the key service, monitoring
   step "Production profile: internal certificate authority, monitoring secrets, COMPOSE_FILE (deploy/production)"
   ./deploy/production/init.sh
+  ./deploy/env-split.sh                   # each container receives only its part of deploy/.env (H-06)
+  if grep -q '^MASSLAK_DB_LAYOUT=ha$' deploy/.env; then
+    # two database hosts (H-01): the third etcd member runs here first, so the first database host installed has a
+    # majority at once and becomes the primary; the second then copies it and becomes its synchronous standby
+    step "The third etcd member on this server (deploy/production/ha)"
+    docker compose --env-file deploy/.env up -d --no-deps etcd
+  fi
   if ! ./deploy/production/preflight.sh; then
-    echo "Fill in deploy/.env (key service, pgBackRest repository, off-site backups) and the alert receivers in" \
-         "deploy/production/secrets, then run this installer again: docs/operations/PRODUCTION_PROFILE.md" >&2
+    echo "Fill in deploy/.env (key service, pgBackRest repository, off-site backups, database layout) and the alert" \
+         "receivers in deploy/production/secrets, then run this installer again: docs/operations/PRODUCTION_PROFILE.md" >&2
     exit 1
   fi
 fi

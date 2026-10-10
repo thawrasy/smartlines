@@ -1,0 +1,60 @@
+# The application host of the production layout with two database hosts (reviews of October 2026, H-01;
+# docs/operations/HIGH_AVAILABILITY.md). deploy/production/init.sh adds this file to COMPOSE_FILE when deploy/.env says
+# MASSLAK_DB_LAYOUT=ha. The database itself runs on the two hosts (deploy/production/ha/db-host.yml); here:
+#   db          HAProxy to whichever host is the primary now, under the name the stack already uses: PgBouncer, the
+#               API's audit connection, the migration and the operator's scripts (backup.sh, restore.sh,
+#               check-archive.sh) reach the primary through it, whichever host holds the role
+#   db-replica  HAProxy to the synchronous standby, for reports, or to the primary while no standby is up
+#   etcd        the third etcd member, so the vote that elects the primary survives the loss of either database host
+# Both proxies run the release's signed database image (it holds HAProxy and the PostgreSQL client tools). Connections
+# keep TLS end to end: clients check the cluster's certificate under the names db and db-replica (verify-full).
+services:
+  db:
+    user: root                              # masslak-db-proxy writes its configuration, then runs HAProxy as haproxy
+    entrypoint: ["/usr/local/bin/masslak-db-proxy", "primary"]
+    command: !reset null
+    environment: &proxy
+      MASSLAK_DB_HOSTS: ${MASSLAK_DB_HOSTS:?set MASSLAK_DB_HOSTS in deploy/.env}
+      # the client tools in this container reach the primary through the proxy itself, with TLS checked
+      PGHOST: db
+      PGSSLMODE: verify-full
+      PGSSLROOTCERT: /tls-src/ca.crt
+      PGUSER: ${POSTGRES_USER:-postgres}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      # deploy/durability.sh sets zero data loss through Patroni's REST API (masslak-patroni durability)
+      MASSLAK_PATRONI_REST_PASSWORD: ${MASSLAK_PATRONI_REST_PASSWORD:-}
+    volumes: !override
+      - ./deploy/production/tls/ca.crt:/tls-src/ca.crt:ro
+    networks: [internal, dbhosts]
+
+  db-replica:
+    user: root
+    entrypoint: ["/usr/local/bin/masslak-db-proxy", "replica"]
+    command: !reset null
+    environment:
+      <<: *proxy
+      PGHOST: db-replica
+      MASSLAK_REPLICATION_PASSWORD: ""      # the standby's own login lives on the database hosts now
+    volumes: !override
+      - ./deploy/production/tls/ca.crt:/tls-src/ca.crt:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -q -d postgres"]
+    networks: [internal, dbhosts]
+
+  etcd:
+    image: gcr.io/etcd-development/etcd:v3.5.21@sha256:fd158fbe55240e252947bbd2e8dddc217997ff43978071fac2bd202b6ad15c03
+    restart: unless-stopped
+    network_mode: host                      # it listens on this server's private address only (MASSLAK_DB_WITNESS)
+    env_file: deploy/env/etcd.env           # written by deploy/production/init.sh
+    volumes:
+      - etcd_data:/var/lib/etcd
+      - ./deploy/production/tls/ca.crt:/tls/ca.crt:ro
+      - ./deploy/production/tls/cluster.crt:/tls/cluster.crt:ro
+      - ./deploy/production/tls/cluster.key:/tls/cluster.key:ro
+
+networks:
+  # a bridge with a route out, to the database hosts on the private network (internal has none)
+  dbhosts: {}
+
+volumes:
+  etcd_data:

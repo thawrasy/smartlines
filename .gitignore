@@ -22,6 +22,7 @@ deploy/production/targets/
 deploy/production/trust/
 deploy/production/ci/vault-tls/
 deploy/production/ci/s3.*
+deploy/production/ha/bundles/
 # the signed images a release names (deploy/images.sh): written by the release workflow and by CI, never committed
 /IMAGES
 /IMAGES.*

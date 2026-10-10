@@ -555,6 +555,138 @@ jobs:
         if: failure()
         run: sudo docker compose --env-file deploy/.env logs --tail 200
 
+  production-ha:
+    # Reviews of October 2026, H-01: a production database runs on two hosts with automatic failover (Patroni, etcd,
+    # HAProxy), and the installer requires it, or the owner's written acceptance of one host. This job plays the three
+    # machines on one runner, each on its own private address (a dummy interface): the application host 10.77.0.10 and
+    # the database hosts 10.77.0.11 and 10.77.0.12, each installed from its bundle with the signed database image. It
+    # then kills the primary under load and measures how long writes stop and whether any acknowledged write is lost.
+    name: Production with two database hosts (Patroni, etcd, HAProxy, failover drill)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+      - uses: anchore/sbom-action/download-syft@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
+        id: syft
+      - name: Tools a production server has (age, rclone, cosign), and the drill's database client
+        run: |
+          sudo apt-get install -y -qq age rclone > /dev/null
+          sudo install "$(command -v cosign)" /usr/local/bin/cosign
+          sudo install "${{ steps.syft.outputs.cmd }}" /usr/local/bin/syft
+          python3 -m venv /tmp/drill
+          /tmp/drill/bin/pip install -q "asyncpg==$(sed -n 's/^asyncpg==\([0-9.]*\).*/\1/p' backend/requirements.lock)"
+      - name: Three machines on one runner, a private address each
+        run: |
+          sudo ip link add masslak0 type dummy
+          sudo ip link set masslak0 up
+          for a in 10 11 12; do sudo ip addr add "10.77.0.$a/24" dev masslak0; done
+      - name: Settings for two database hosts; stand-ins for the key service, object storage, alerts and the release
+        run: |
+          sudo ./deploy/init-env.sh --domain localhost --email ops@install.test
+          printf '%s\n' MASSLAK_DB_LAYOUT=ha MASSLAK_DB_HOSTS=10.77.0.11,10.77.0.12 MASSLAK_DB_WITNESS=10.77.0.10 | sudo tee -a deploy/.env > /dev/null
+          sudo ./deploy/production/ci/setup.sh
+      - name: The installation is refused until both database hosts run
+        run: |
+          set +e; sudo ./deploy/install.sh --domain localhost --admin-email admin@install.test --skip-server-setup 2> refused.log; rc=$?; set -e
+          cat refused.log
+          test "$rc" != 0 && grep -q 'show 0 primaries, not one' refused.log
+          test -z "$(sudo docker ps -q --filter name=masslak-app)"
+      - name: Each database host from its bundle (signed image checked; etcd and Patroni over TLS)
+        run: |
+          sudo ./deploy/production/init.sh                # the bundles now carry IMAGES and the key that checks it
+          for i in 1 2; do
+            sudo MASSLAK_DB_WATCHDOG=off ./deploy/production/ha/install-db-host.sh "deploy/production/ha/bundles/db$i.tar.gz" "/etc/masslak/db$i" | tee "db$i.log"
+            test "${PIPESTATUS[0]}" = 0
+            grep -q 'verified masslak-db' "db$i.log"
+          done
+          code() { curl -s -o /dev/null -w '%{http_code}' --cacert deploy/production/tls/ca.crt "https://$1:8008$2"; }
+          for i in $(seq 60); do test "$(code 10.77.0.12 /sync)" = 200 && break; sleep 2; done
+          test "$(code 10.77.0.11 /primary)" = 200 && test "$(code 10.77.0.12 /sync)" = 200
+          # nothing answers without TLS, and etcd refuses a client without the cluster's certificate
+          if curl -s --max-time 5 http://10.77.0.11:8008/health; then exit 1; fi
+          if curl -s --max-time 5 --cacert deploy/production/tls/ca.crt https://10.77.0.11:2379/health; then exit 1; fi
+          sudo docker exec masslak-db1-etcd-1 etcdctl --endpoints=https://10.77.0.11:2379 --cacert /tls/ca.crt \
+            --cert /tls/cluster.crt --key /tls/cluster.key endpoint health --cluster
+      - name: Installation against the two hosts; the stack reaches the primary through HAProxy, TLS checked end to end
+        run: |
+          sudo ./deploy/install.sh --domain localhost --admin-email admin@install.test --skip-server-setup | tee install.log
+          test "${PIPESTATUS[0]}" = 0
+          sudo chown "$USER" deploy/.env deploy/FIRST_LOGIN.txt IMAGES
+          curl -fsSk https://localhost/api/ready | grep -q '"ready":true'
+          dc="sudo docker compose --env-file deploy/.env"
+          $dc logs migrate | grep -q 'the database layout is two hosts with a synchronous standby'
+          $dc exec -T db masslak-patroni cluster
+          q() { $dc exec -T "${2:-db}" psql -d masslak -Atc "$1"; }
+          test "$(q "SELECT host(inet_server_addr()) || ' ' || pg_is_in_recovery()")" = "10.77.0.11 false"
+          test "$(q "SELECT host(inet_server_addr()) || ' ' || pg_is_in_recovery()" db-replica)" = "10.77.0.12 true"
+          # the standby streams over TLS and confirms every commit; no network connection is unencrypted
+          test "$(q "SELECT count(*) FROM pg_stat_replication r JOIN pg_stat_ssl s USING (pid) WHERE s.ssl AND r.sync_state = 'sync'")" = 1
+          test "$(q "SELECT count(*) FROM pg_stat_ssl s JOIN pg_stat_activity a USING (pid) WHERE a.client_addr IS NOT NULL AND NOT s.ssl")" = 0
+          test "$(q "SELECT count(*) FROM pg_stat_ssl s JOIN pg_stat_activity a USING (pid) WHERE a.usename = 'masslak_api' AND s.ssl")" -ge 1
+          # zero data loss is on (owner's decision 1): Patroni's strict synchronous mode
+          grep -q '^MASSLAK_ZERO_DATA_LOSS=on$' deploy/.env
+          $dc exec -T db masslak-patroni durability on | grep -q 'synchronous_mode_strict=True'
+      - name: WAL archived from the primary host; the backup taken by whichever host is the primary
+        run: |
+          sudo ./deploy/pitr/check-archive.sh
+          for i in 1 2; do sudo docker exec -u postgres "masslak-db$i-patroni-1" masslak-backup-if-primary full | tee -a backup.log; done
+          grep -q 'this host is a standby now' backup.log
+          sudo docker exec -u postgres masslak-db1-patroni-1 pgbackrest --stanza=masslak info | tee pgbackrest.info
+          grep -q 'full backup' pgbackrest.info && grep -q 'cipher: aes-256-cbc' pgbackrest.info
+      - name: With zero data loss on, a commit made while the standby host is down waits for it
+        run: |
+          dc="sudo docker compose --env-file deploy/.env"
+          sudo docker stop masslak-db2-patroni-1
+          if timeout 10 $dc exec -T db psql -d masslak -qc "CREATE TABLE zz_ha_probe (x int)"; then
+            echo "a commit went through with no standby to confirm it"; exit 1; fi
+          sudo docker start masslak-db2-patroni-1
+          for i in $(seq 60); do test "$(curl -s -o /dev/null -w '%{http_code}' --cacert deploy/production/tls/ca.crt https://10.77.0.12:8008/sync)" = 200 && break; sleep 2; done
+          test "$($dc exec -T db psql -d masslak -Atc "SELECT count(*) FROM pg_class WHERE relname = 'zz_ha_probe'")" = 1
+          curl -fsSk https://localhost/api/ready | grep -q '"ready":true'
+      - name: Failover drill under load - the primary host fails, the standby takes over, no acknowledged write is lost
+        run: |
+          dc="sudo docker compose --env-file deploy/.env"
+          # with two hosts and zero data loss on, writes wait for a lost host to return (the step before); the drill
+          # measures the failover itself with the setting off, and the next step turns it on again
+          $dc exec -T db masslak-patroni durability off
+          sleep 12                                      # Patroni applies a configuration change within its 10 s loop
+          sudo docker compose --env-file deploy/.env cp caddy:/data/caddy/pki/authorities/local/root.crt caddy-root.crt
+          sudo chown "$USER" caddy-root.crt
+          pw="$(sed -n 's/^POSTGRES_PASSWORD=//p' deploy/.env)"
+          /tmp/drill/bin/python db/tools/failover_drill.py --kill ./deploy/production/ci/kill-primary.sh \
+            --dsn "postgresql://postgres:$pw@10.77.0.11:5432,10.77.0.12:5432/masslak?target_session_attrs=read-write&sslmode=verify-full&sslrootcert=deploy/production/tls/ca.crt" \
+            --api https://localhost/api/ready --api-ca caddy-root.crt --rate 20 --warmup 15 --settle 10 --json failover.json || true
+          python3 -c 'import json; d = json.load(open("failover.json")); print(json.dumps(d, indent=1)); assert d["passed"] and d["lost"] == 0 and d["acknowledged"] > 300 and d["new_primary"].startswith("10.77.0.12"), d'
+      - name: The old primary rejoins as the synchronous standby, and zero data loss is on again
+        run: |
+          dc="sudo docker compose --env-file deploy/.env"
+          test "$(cat /tmp/masslak-killed)" = db1
+          sudo docker start masslak-db1-patroni-1
+          for i in $(seq 90); do test "$(curl -s -o /dev/null -w '%{http_code}' --cacert deploy/production/tls/ca.crt https://10.77.0.11:8008/sync)" = 200 && break; sleep 2; done
+          $dc exec -T db masslak-patroni cluster
+          $dc exec -T db masslak-patroni durability on | grep -q 'synchronous_mode_strict=True'
+          test "$($dc exec -T db-replica psql -d masslak -Atc "SELECT host(inet_server_addr()) || ' ' || pg_is_in_recovery()")" = "10.77.0.11 true"
+          curl -fsSk https://localhost/api/ready | grep -q '"ready":true'
+      - name: An update of the primary host hands the role to the standby first
+        run: |
+          dc="sudo docker compose --env-file deploy/.env"
+          # a changed setting in the bundles (the warehouse's address), installed on db2, the primary since the drill
+          sed -i 's|^MASSLAK_WAREHOUSE_ADDRESS=.*|MASSLAK_WAREHOUSE_ADDRESS=192.0.2.11/32|' deploy/.env
+          sudo ./deploy/production/init.sh
+          sudo MASSLAK_DB_WATCHDOG=off ./deploy/production/ha/install-db-host.sh deploy/production/ha/bundles/db2.tar.gz /etc/masslak/db2 | tee update.log
+          test "${PIPESTATUS[0]}" = 0
+          grep -q 'handing the role to db1' update.log
+          for i in $(seq 90); do test "$(curl -s -o /dev/null -w '%{http_code}' --cacert deploy/production/tls/ca.crt https://10.77.0.12:8008/sync)" = 200 && break; sleep 2; done
+          $dc exec -T db masslak-patroni cluster
+          test "$($dc exec -T db psql -d masslak -Atc "SELECT host(inet_server_addr())")" = 10.77.0.11
+          sudo docker exec masslak-db2-patroni-1 grep -q '192.0.2.11/32' /var/lib/postgresql/pg_hba.conf
+          curl -fsSk https://localhost/api/ready | grep -q '"ready":true'
+      - name: Logs on failure
+        if: failure()
+        run: |
+          sudo docker compose --env-file deploy/.env logs --tail 150
+          for i in 1 2; do sudo docker logs --tail 150 "masslak-db$i-patroni-1"; sudo docker logs --tail 40 "masslak-db$i-etcd-1"; done
+
   security:
     name: Security and policy checks
     runs-on: ubuntu-latest
@@ -581,7 +713,9 @@ jobs:
       - name: Static analysis of the API (bandit)
         run: bandit -q -c backend/pyproject.toml -r backend/app -ll
       - name: Known vulnerabilities in Python dependencies
-        run: pip-audit --require-hashes -r backend/requirements.lock   # every package of the image, transitive ones too
+        run: |
+          pip-audit --require-hashes -r backend/requirements.lock   # every package of the image, transitive ones too
+          pip-audit --require-hashes -r deploy/production/db/patroni.lock   # and of Patroni in the database image (H-01)
       - name: Known vulnerabilities in web dependencies
         working-directory: frontend
         run: npm audit --omit=dev --audit-level=high
