@@ -300,7 +300,8 @@ jobs:
       - name: One-command installation (secrets, build, start, first administrator)
         run: |
           sudo ./deploy/install.sh --domain localhost --admin-email admin@install.test --demo --skip-server-setup
-          sudo chown "$USER" deploy/.env deploy/FIRST_LOGIN.txt
+          # the steps below run docker compose as the runner, which reads the per-container files (deploy/env-split.sh)
+          sudo chown -R "$USER" deploy/.env deploy/FIRST_LOGIN.txt deploy/env
           sed -i "s|^MASSLAK_BACKUP_DIR=.*|MASSLAK_BACKUP_DIR=$RUNNER_TEMP/backups|" deploy/.env
       - name: The first administrator signs in with the generated password
         run: |
@@ -434,7 +435,7 @@ jobs:
       - name: WAL archived off the host, proven before the migration; a full backup into the repository (H-02)
         run: |
           dc="sudo docker compose --env-file deploy/.env"
-          ./deploy/pitr/check-archive.sh
+          sudo ./deploy/pitr/check-archive.sh
           $dc exec -T -u postgres db pgbackrest --stanza=masslak --type=full backup
           $dc exec -T -u postgres db pgbackrest --stanza=masslak info | tee pgbackrest.info
           grep -q 'full backup' pgbackrest.info && grep -q 'cipher: aes-256-cbc' pgbackrest.info
