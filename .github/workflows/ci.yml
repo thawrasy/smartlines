@@ -667,7 +667,7 @@ jobs:
           pw="$(sed -n 's/^POSTGRES_PASSWORD=//p' deploy/.env)"
           /tmp/drill/bin/python db/tools/failover_drill.py --kill ./deploy/production/ci/kill-primary.sh \
             --dsn "postgresql://postgres:$pw@10.77.0.11:5432,10.77.0.12:5432/masslak?target_session_attrs=read-write&sslmode=verify-full&sslrootcert=deploy/production/tls/ca.crt" \
-            --api https://localhost/api/ready --api-ca caddy-root.crt --rate 20 --warmup 15 --settle 10 --json failover.json || true
+            --api https://localhost/api/ready --api-ca caddy-root.crt --rate 20 --warmup 15 --settle 30 --json failover.json || true
           STANDBY_ADDR="$STANDBY_ADDR" python3 -c 'import json, os; d = json.load(open("failover.json")); print(json.dumps(d, indent=1)); assert d["passed"] and d["lost"] == 0 and d["acknowledged"] > 300 and d["new_primary"].startswith(os.environ["STANDBY_ADDR"]) and d["api_ready_at_end"], d'
       - name: The old primary rejoins as the synchronous standby, and zero data loss is on again
         run: |

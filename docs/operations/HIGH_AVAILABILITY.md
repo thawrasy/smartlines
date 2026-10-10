@@ -135,8 +135,9 @@ warning, and counts the acknowledged rows the new primary has, while watching th
 
 That first CI run also showed the API staying not ready after the failover, though bookings were back: readiness
 required the reports connection to reach a standby, and with none up `db-replica` sends reports to the primary. With
-two database hosts that is now accepted, at start and in `/api/ready` (`db.reports_may_reach_the_primary`), and the drill
-records whether the API was ready again when it ended. After each drill the old primary is started again and rejoins
+two database hosts that is now accepted, at start and in `/api/ready` (`db.reports_may_reach_the_primary`), PgBouncer
+tries the new primary every 2 s instead of 15 (`SERVER_LOGIN_RETRY`), and the drill records whether the API was ready
+again when it ended. After each drill the old primary is started again and rejoins
 as the synchronous standby (`pg_rewind`). The CI job
 also checks that a commit waits while the standby is down with zero data loss on, and that an update of the
 primary's host hands the role over first. Staging repeats the drill on its own hosts before the layout carries

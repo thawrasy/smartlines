@@ -41,6 +41,13 @@ services:
       test: ["CMD-SHELL", "pg_isready -q -d postgres"]
     networks: [internal, dbhosts]
 
+  # after a failover PgBouncer reaches the new primary through db within seconds: by default it waits 15 s before trying
+  # again a server it could not log in to, which kept the API not ready well after bookings were back (CI drill)
+  pgbouncer:
+    environment:
+      SERVER_LOGIN_RETRY: "2"
+      SERVER_CONNECT_TIMEOUT: "3"
+
   etcd:
     image: gcr.io/etcd-development/etcd:v3.5.21@sha256:fd158fbe55240e252947bbd2e8dddc217997ff43978071fac2bd202b6ad15c03
     restart: unless-stopped
