@@ -50,7 +50,7 @@ echo "$(date -u +%FT%TZ) backup written to $dir ($(du -sh "$dir" | cut -f1))"
 record() {                                 # copy, ok, detail: kept in the database for the monitoring (1076)
   compose exec -T db psql -U "${POSTGRES_USER:-postgres}" -d "${POSTGRES_DB:-masslak}" -qAt -v ON_ERROR_STOP=1 \
     -v copy="$1" -v ok="$2" -v detail="$3" -v bytes="$(du -sb "$dir" | cut -f1)" \
-    -c "SELECT sys.record_backup(:'copy', :'ok'::boolean, :'detail', :'bytes'::bigint)" >/dev/null \
+    <<< "SELECT sys.record_backup(:'copy', :'ok'::boolean, :'detail', :'bytes'::bigint)" >/dev/null \
     || echo "could not record the $1 backup in the database" >&2
 }
 record LOCAL true "$dir"
