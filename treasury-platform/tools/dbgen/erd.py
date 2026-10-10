@@ -97,24 +97,32 @@ def build_module(title, note, tables, members):
 
 
 def build_core(tables, members):
+    """الجداول المملوكة للمشترك في عنقود واحد يشير بسهم واحد إلى plat.Tenant، بدل سهم متقطع لكل جدول."""
     lines = header('العلاقات الأساسية: المشترك والمستخدمون والصلاحيات والمفاتيح',
-                   'كل جدول مملوك للمشترك يحمل TenantId ويشير إلى plat.Tenant (السهم المتقطع) · الأسهم المتصلة = مفاتيح أجنبية فعلية')
+                   'الأسهم المتصلة = مفاتيح أجنبية فعلية · العنقود الأزرق = الجداول المملوكة للمشترك، كلها تحمل TenantId وتشير إلى plat.Tenant')
+    lines[0] = 'digraph G {\n  compound=true;'
+    owned = [fq for fq in members if fq != 'plat.Tenant' and kind_of(tables[fq]) in ('tenant', 'mixed')]
+    others = [fq for fq in members if fq not in owned]
     stubs, edges = set(), []
     for fq in members:
         for c in tables[fq].cols:
             if c.fk:
                 if c.fk not in members: stubs.add(c.fk)
                 edges.append((fq, c.fk, c.name))
-    for fq in members:
+    lines.append('  subgraph cluster_owned {')
+    lines.append('    label=<<B>الجداول المملوكة للمشترك</B><BR/><FONT POINT-SIZE="10">كل جدول فيها: TenantId → plat.Tenant</FONT>>; style="rounded,filled"; fillcolor="#F4F8FD"; color="#2B5C8A"; fontname="%s";' % FONT)
+    for fq in owned:
+        lines.append(f'    {q(fq)} [label={node_html(tables[fq], kind_of(tables[fq]))}];')
+    lines.append('  }')
+    for fq in others:
         lines.append(f'  {q(fq)} [label={node_html(tables[fq], "hub" if fq == "plat.Tenant" else kind_of(tables[fq]))}];')
     for s_ in sorted(stubs):
         lines.append(f'  {q(s_)} [label={stub_html(s_)}];')
     for src, tgt, col in sorted(set(edges)):
         style = 'dashed' if tgt in stubs and kind_of(tables[tgt]) in ('global', 'noapp') else 'solid'
         lines.append(f'  {q(src)} -> {q(tgt)} [label={q(col)}, style={style}];')
-    for fq in members:
-        if fq != 'plat.Tenant' and kind_of(tables[fq]) in ('tenant', 'mixed'):
-            lines.append(f'  {q(fq)} -> {q("plat.Tenant")} [label="TenantId", style=dotted, color="#B8860B", fontcolor="#8A6D00", constraint=false];')
+    if 'plat.Tenant' in members and owned:
+        lines.append(f'  {q(owned[0])} -> {q("plat.Tenant")} [ltail=cluster_owned, label="TenantId\\n(كل جدول في العنقود)", style=bold, color="#B8860B", fontcolor="#8A6D00", penwidth=2];')
     return '\n'.join(lines + ['}']) + '\n'
 
 
