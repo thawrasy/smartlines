@@ -293,3 +293,31 @@ access policy by country (not started).
 | Access policy for launch (Syria only): exemptions, use of the phone's location, store listing | Open (seven questions in the scenario file) |
 | Currency: pricing inside the platform, rates stored with their effective date (`ref.exchange_rate`), later a source for foreign cards, withdrawals in the currencies the settings enable | Direction agreed; launch currencies and the rate source are open |
 
+### Answers of 10 October 2026 (second round)
+
+| Question | Answer | Consequence |
+|---|---|---|
+| Who checks the boarding photo | The driver, the station officer or the carrier's office | The photo is shown in the driver app and in the carrier's boarding view |
+| When it is taken and where it is kept | Taken by the passenger in the passenger app and stored in the profile; compared at boarding with the physical identity document or passport | Stored encrypted with the files key, as company documents are (`crypto.encrypt_bytes`). Comparison is by a person; automatic face matching is not part of this decision and would need its own decision (biometric data) |
+| Mobile ticket | Requested from the passenger at each boarding of a scheduled trip and shown at each security check | The ticket is presented live at each boarding, with the photo |
+| Second root signal | Approved | Needs a Google Cloud project linked to the Play Console and an Apple developer team with App Attest; the server verifies the attestation. Not built yet |
+| Connection needed in the passenger app | Proposal: see below, for approval | Not built yet |
+| Access by country | Bookings from outside Syria come in a later stage; payment through a wallet top-up or through the payment gateways linked to the platform | At launch the booking and payment actions need a Syrian location; the rule for a top-up from abroad is to be confirmed |
+| Geographic data | Coordinates from the mobile app now; storage and a map or IP provider later, after agreements | See the proposal below |
+| Currency | The platform sets the price at first; later a common price source plus a fixed percentage, set on the platform, for buying and selling foreign currency | `ref.exchange_rate` holds one mid rate per pair with its source and date; no buy or sell margin exists yet, and no pricing reads the table today |
+
+**Proposal for the connection of the passenger app (for approval)**
+- Needs a connection at the moment: search, booking, seat hold, payment, wallet top-up, cancellation and refund, changes to the profile or the photo, and sign-in.
+- Works without a connection: viewing a ticket already bought, with its photo, kept encrypted on the phone; the wallet shows its last balance as read-only.
+- Limit without a connection: after 72 hours offline the app asks for a connection before it shows a ticket, because a cancellation or a change may have happened. Each ticket shows the time of its last check.
+- Ticket credential: valid from three hours before departure until one hour after arrival (today: six hours after arrival). A screenshot taken earlier does not work, and the boarding photo is the check that stops a copy.
+- Driver app: downloads the trip before departure (tickets, photos, manifest and clock offset), boards without a connection, uploads the scans when online; the trip pack expires at the end of the trip plus six hours.
+
+**Proposal for access by country (for approval)**
+- At launch: booking, seat hold, payment and top-up need a Syrian location; viewing an existing ticket is allowed from anywhere (so a traveller abroad can still show it at the border).
+- The location check uses the Syria boundary bundled in the mobile app, which needs no contract and no provider; the server's IP check needs a source for IP-to-country data, which the provider contract will give. Until that source exists, the server records the country and does not block.
+- Exempt from the rule: the payment gateways' callbacks and the partner API (scopes `PAYMENT_WEBHOOK` and `API`). Staff accounts follow the same rule with a named exception list.
+- Android location from a mock provider is refused; the check runs at each sign-in and at each sensitive action.
+
+**Currency, proposal:** the platform keeps one mid rate per pair (`ref.exchange_rate`, as now). Buy and sell margins are settings per currency, applied at the quote, and the rate applied is fixed on the transaction (section 12). No migration is needed for the margins.
+
