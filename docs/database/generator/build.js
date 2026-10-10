@@ -14,8 +14,8 @@ const PNG = path.join(HERE, "..", "erd", "png");
 // numbers of the verification run that built this document (verification.py), never typed by hand (audit T3-17)
 const V = JSON.parse(fs.readFileSync(path.join(HERE, "..", "build", "verification.json"), "utf8"));
 const lastFile = V.last_schema_file.split("_")[0];
-const VERSION = "3.11";
-const DATE = "7 October 2026";
+const VERSION = "3.12";
+const DATE = "10 October 2026";
 const FONT = "Arial";
 const C = { navy: "1F3A5F", blue: "2E74B5", blue2: "1F4D78", grid: "B7C3D0", alt: "F2F6FA", grey: "595959" };
 
@@ -110,9 +110,9 @@ front.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 16
 front.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 1200 },
   children: [run(`Complete relational model of the Analysis and Design Study v3.0: ${tableCount} tables, ${fkCount} relationships`, { color: "7F7F7F" })] }));
 front.push(table(["Item", "Details"], [
-  ["Version", `${VERSION} (the database at ten million operations a day: shared wallets without row locks, monthly ledger partitions with closed-day totals and incremental reconciliation, daily outbox partitions, latest vehicle positions, the audit online window, connection pooling; replaces version 3.10)`],
+  ["Version", `${VERSION} (the database of release 1.48.0: payment options, fee rules and the approval matrix, two-step sign-in by several methods, recorded off-site backups and zero data loss as a setting, markets, partitioned bookings, sealed and signed manifests, parcels booked on a trip's hold, and a lifecycle for every table; replaces version 3.11)`],
   ["Date", DATE],
-  ["Basis", "Analysis and Design Study v3.0 (English), the Use Case and Data Flow Diagrams v1.0, the Database Architecture Review v1.0, the Strategic Database Review and its relationship audit register, the Third-Party Technical Audit, the Technical Audit of design document 3.7, its re-audit of 3.8 and follow-up of 3.9, and the architecture review of 3.9"],
+  ["Basis", "Analysis and Design Study v3.0 (English), the Use Case and Data Flow Diagrams v1.0, the Database Architecture Review v1.0, the Strategic Database Review and its relationship audit register, the Third-Party Technical Audit, the Technical Audit of design document 3.7, its re-audit of 3.8 and follow-up of 3.9, the architecture review of 3.9, the expert review and code review of October 2026, and the three reviews of release 1.47.0 with the owner's five decisions"],
   ["Scope", `${schemas.length} schemas, ${tableCount} tables, ${colCount} columns, ${fkCount} foreign keys; all phases 1 to 15`],
   ["Engine", `PostgreSQL ${V.postgres} with row-level security on every table; PostGIS ${V.postgis} in schema gis; ${V.schema_files} schema files, db/schema/000 to ${lastFile}`],
   ["Status", `Built and verified at commit ${V.source_commit} (migration ${V.migration}, schema SHA-256 ${V.schema_sha256.slice(0, 16)}): fresh build and upgrade identical, ${V.db_checks} database checks and ${V.api_tests} API tests passing, every foreign key indexed or exempt by rule`],
@@ -120,7 +120,7 @@ front.push(table(["Item", "Details"], [
 ], [2800, 6946]));
 
 const toc = [H(HeadingLevel.HEADING_1, "Contents", { pageBreak: true })];
-const tocLines = ["Changes in version 3.11", "Changes in version 3.10", "Changes in version 3.9", "Changes in version 3.8", "Changes in version 3.7", "Changes in version 3.6", "Changes in version 3.5", "Changes in version 3.4", "Changes in version 3.3", "Changes in version 3.2", "Changes in version 3.1", "Changes in version 3.0", "1. Introduction", "2. Database architecture", "3. Design rules", "4. Security model in the database",
+const tocLines = ["Changes in version 3.12", "Changes in version 3.11", "Changes in version 3.10", "Changes in version 3.9", "Changes in version 3.8", "Changes in version 3.7", "Changes in version 3.6", "Changes in version 3.5", "Changes in version 3.4", "Changes in version 3.3", "Changes in version 3.2", "Changes in version 3.1", "Changes in version 3.0", "1. Introduction", "2. Database architecture", "3. Design rules", "4. Security model in the database",
   "5. Data stores of the data flow diagrams", "6. Entity-relationship diagrams by module",
   ...model.groups.map((g, i) => `      6.${i + 1} ${g[0]} ${g[1]}`), `      6.${model.groups.length + 1} Focus diagrams: rules that span modules`,
   "7. Table definitions", "8. Traceability to the study", "9. Verification",
@@ -162,6 +162,89 @@ const changes38 = [H(HeadingLevel.HEADING_2, "b. Hardening after the third-party
     + "infrastructure and moves to Phase 5.", "Owner decisions"),
   P("Schema-level two-way dependencies (21, frozen by test H-07) differ from phase-level dependencies, of which there are none backwards: "
     + "the earlier wording is clarified accordingly. db/tools/audit_pack.sh builds the evidence pack for the second phase of the audit."),
+];
+
+// ------------------------------ changes in 3.12 (release 1.48.0) ------------------------------
+const changes3_12 = [H(HeadingLevel.HEADING_1, "Changes in version 3.12", { pageBreak: true }),
+  P("Version 3.12 describes the database of release 1.48.0. Since version 3.11 (schema file 1053, migration 1.35.0), 26 schema "
+    + "files were added, 1054 to 1079 (migrations 1.36.0 to 1.48.0): launch completeness, the payment options the platform switches, "
+    + "the expert review of October 2026 (stages B to D), the code review and external reports of October 2026, and the three reviews "
+    + "of release 1.47.0 with the owner's five decisions (docs/operations/REVIEW_1_47_RESPONSE.md). The four relationship rules of "
+    + "chapter 3.2 hold for every new table and column; every new table has row-level security, a project phase and a lifecycle."),
+  H(HeadingLevel.HEADING_2, "a. Schema files 1054 to 1079"),
+  table(["Schema file", "Migration", "What it adds"], [
+    ["1054_launch_completeness.sql", "1.36.0", "Complaints and claims with service levels and four-eyes approval, trip rating rules, guardians' answers, "
+      + "trips generated from templates, and the remaining launch tables given their endpoints."],
+    ["1055_ai_phase_gate.sql", "1.36.1", "The contact centre and AI assistant phase stays closed in the database until its threat model and data "
+      + "protection impact assessment are approved (launch gate 9)."],
+    ["1056_payment_options.sql", "1.37.0", "Ways of paying switched by the platform (fin.payment_method): cash at the counter within a credit limit "
+      + "per company (fin.cash_credit_limit), pay later with a pay-by time, cards, instalments and financing providers. Diagram E41."],
+    ["1057_review_stage_b.sql", "1.38.0", "Ageing of the cash carriers owe, finance metrics, and freshness limits for reports read from the replica."],
+    ["1058_release_manifest.sql", "1.39.0", "The release each database is at: version, commit and hash of the applied schema files (sys.release_manifest); "
+      + "an upgrade refuses a record changed by hand. Diagram E42."],
+    ["1059_app_delete_grants.sql", "1.39.1", "The application role deletes only from the tables listed with their reason (sys.app_delete_grant). Diagram E42."],
+    ["1060_monitoring_detail.sql", "1.39.2", "Lock waits per table, partitions created ahead and rows left in default partitions, for the monitoring."],
+    ["1061_markets.sql", "1.40.0", "Markets with their time zone, currency and language (ref.market); platform wallets per currency; days and money "
+      + "read in the market of the data. Diagram E03."],
+    ["1062_warehouse_publication.sql", "1.41.0", "A publication of facts and dimensions without personal data for the data warehouse, with its "
+      + "replication role and slot metrics."],
+    ["1063_telemetry.sql", "1.42.0", "One set of trust rules for vehicle positions, graded in batches on the primary when the history lives in the "
+      + "separate telemetry database."],
+    ["1064_partitioned_bookings.sql", "1.43.0", "Bookings partitioned by ranges of id, their keys unique over all partitions (sales.booking_key); the "
+      + "generic conversion sys.partition_by_id. Diagram E11."],
+    ["1065_failover.sql", "1.44.0", "Standby figures for automatic failover and the table the failover drill writes to (sys.failover_probe). Diagram E42."],
+    ["1066_position_without_vehicle.sql", "1.45.0", "A position without a vehicle is graded again (a regression of 1063 found by the launch gate 4 rehearsal)."],
+    ["1067_cargo_capacity.sql", "1.46.0", "Cargo stays within the capacity of the vehicle that carries it: used weight counted from what is loaded, "
+      + "overloads refused."],
+    ["1068_shared_rate_limits.sql", "1.47.0", "Request limits shared by every API process: sign-in buckets per address and per account identifier, in an "
+      + "unlogged table reached only through sec.rate_take (sec.rate_bucket). Diagram E25."],
+    ["1069_audit_archive_lag.sql", "1.47.0", "How far the signed audit archive lags behind each audit log, for the metrics and the alert AuditArchiveBehind."],
+    ["1070_partition_upkeep_late.sql", "1.47.0", "Partition upkeep that survives running late: the rows of a missing period move out of the default "
+      + "partition instead of aborting the upkeep."],
+    ["1071_late_provider_payment.sql", "1.47.0", "A provider's confirmation that arrives after the platform stopped waiting is credited to the payer's "
+      + "wallet, flagged captured_late."],
+    ["1072_trip_rating_privacy.sql", "1.47.0", "Trip ratings readable only by the rater, the rated carrier and the platform."],
+    ["1073_signed_notice_dedup.sql", "1.48.0", "A provider's event id is unique among signed notices only; unsigned notices are kept and counted per provider."],
+    ["1074_money_boundaries.sql", "1.48.0", "Payments recorded before the provider is called (stages CREATED and PROVIDER_UNKNOWN); refunds held and sent "
+      + "once under a fixed reference; fee rules per way of paying, currency, customer and period (fin.fee_rule); the payer of a withdrawal is "
+      + "not its approver; the approval matrix of money decisions (fin.approval_policy, approval_level, approval_level_member, approval_request, "
+      + "approval_decision). Diagram E41."],
+    ["1075_sign_in_and_operations.sql", "1.48.0", "Two-step sign-in by several methods under the platform's policy (sys.setting auth.mfa); message codes "
+      + "kept only as keyed hashes for minutes with five tries (iam.mfa_challenge); a boarding names a stop its ticket covers; offline scans "
+      + "bounded by the driver's pack download (ops.offline_pack_download); every late partition period created; positions waiting on the "
+      + "primary for the telemetry database (ops.position_backlog). Diagrams E02, E08, E09."],
+    ["1076_backups_and_durability.sql", "1.48.0", "Each nightly backup's local and off-site copy recorded (sys.backup_run); the age of both and whether "
+      + "commits wait for a standby, for the monitoring (zero data loss as a setting); the security console's connections capped. Diagram E42."],
+    ["1077_statement_statistics.sql", "1.48.0", "Statement statistics read only through functions that mask literals and never carry bind values."],
+    ["1078_manifests_and_parcels.sql", "1.48.0", "Manifests sealed once issued, with signed hashes of a canonical form; parcels booked on a trip's hold with "
+      + "carrier tariffs (ship.parcel_tariff) and agreed-price offers (ship.parcel_offer); a guaranteed shipment needs a leg holding capacity. "
+      + "Diagram E29."],
+    ["1079_lifecycle_coverage.sql", "1.48.0", "Every table has a lifecycle: a dataset of its own or membership of one (gov.dataset_member); "
+      + "gov.lifecycle_gaps() must be empty. Diagram E26."],
+  ], [2300, 1100, 6346], { boldFirst: true }),
+  H(HeadingLevel.HEADING_2, "b. The owner's decisions in the database"),
+  bullet("A setting turns zero data loss on or off; when on, every commit waits for a standby, and the database reports whether it does "
+    + "for the alerts (file 1076; deploy/durability.sh).", "1. Data loss"),
+  bullet("The policy in sys.setting auth.mfa chooses the methods open (authenticator app, text message, WhatsApp; one or more) and the "
+    + "portals that must use one, drivers included; codes sent by message live in iam.mfa_challenge as keyed hashes (file 1075).", "2. Second factor"),
+  bullet("Parcels are booked on a trip's hold under its lock before the wallet is charged; carriers publish tariffs by weight, volume, "
+    + "both, a fixed price or agreement; one database function makes every price (file 1078).", "3. Parcels"),
+  bullet("fin.fee_rule sets the provider's fee per way of paying, currency, customer and period, as a percentage, a fixed amount or none; "
+    + "the customer pays it by default and sees it before paying (file 1074).", "4. Payment fees"),
+  bullet("The approval matrix gives each kind of money decision 0 to 5 levels decided by the holders of a permission or by named people; "
+    + "the database refuses a requester deciding, one person deciding two levels, or levels out of order (file 1074).", "5. Approvals"),
+  H(HeadingLevel.HEADING_2, "c. Diagrams"),
+  P("Every table is in exactly one module diagram, which the generator checks. The 21 tables added since version 3.11 are placed in "
+    + "E02 (message codes), E03 (markets), E08 (offline pack downloads), E09 (positions waiting for the telemetry database), E11 "
+    + "(booking keys), E25 (shared rate limits), E26 (dataset members) and E29 (parcel tariffs and offers), and in two new diagrams: "
+    + "E41 ways of paying, fees and approvals (data store D8) and E42 release, backups and failover records."),
+  table(["Measure", "Version 3.11", "Version 3.12"], [
+    ["Schema files", "66 (000 to 1053)", `${V.schema_files} (000 to ${lastFile})`],
+    ["Tables", "481", `${tableCount}`],
+    ["Columns", "4,954", `${colCount.toLocaleString("en-US")}`],
+    ["Foreign keys", "1,403", `${fkCount.toLocaleString("en-US")}`],
+    ["Module diagrams", "40", `${model.groups.length} (new: E41 and E42)`],
+  ], [2700, 2400, 4646], { boldFirst: true }),
 ];
 
 // ------------------------------ changes in 3.11 (ten million operations a day) ------------------------------
@@ -827,7 +910,7 @@ const doc = new Document({
   numbering: { config: [{ reference: "bullets", levels: [{ level: 0, format: LevelFormat.BULLET, text: "•", alignment: AlignmentType.LEFT,
     style: { paragraph: { indent: { left: 540, hanging: 270 } } } }] }] },
   sections: [
-    section(PORTRAIT, [...front, ...toc, ...changes3_11, ...changes3_10, ...changes3_9, ...changes3_8, ...changes37, ...changes38, ...changes39, ...changes36, ...changes35, ...changes34, ...changes33, ...changes32, ...changes31, ...changes, ...intro, ...arch, ...rules, ...security, ...stores]),
+    section(PORTRAIT, [...front, ...toc, ...changes3_12, ...changes3_11, ...changes3_10, ...changes3_9, ...changes3_8, ...changes37, ...changes38, ...changes39, ...changes36, ...changes35, ...changes34, ...changes33, ...changes32, ...changes31, ...changes, ...intro, ...arch, ...rules, ...security, ...stores]),
     ...erdSections,
     section(PORTRAIT, [...defs, ...trace, ...verify, ...flags, ...gens, ...appC]),
   ],
