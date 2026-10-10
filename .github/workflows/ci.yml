@@ -520,7 +520,8 @@ jobs:
         run: |
           dc="sudo docker compose --env-file deploy/.env"
           sudo ./deploy/monitoring/alert-drill.sh 120
-          $dc logs sink | grep -q '"uri":"/page"'
+          for i in $(seq 10); do $dc logs sink | grep -q '"uri":"/page"' && break; sleep 1; done
+          $dc logs sink | grep -q '"uri":"/page"'                                   # the receiver itself got the page
           prom() { $dc exec -T prometheus wget -qO- "http://localhost:9090/api/v1/query?query=$1"; }
           for i in $(seq 40); do
             prom 'count(up==1)' | grep -q '"value":\[[0-9.]*,"5"\]' && break; sleep 5

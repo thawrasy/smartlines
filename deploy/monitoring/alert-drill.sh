@@ -2,20 +2,27 @@
 # Alert drill (reviews of October 2026, H-07): proves that an alert travels from Alertmanager to the people on call.
 #   ./deploy/monitoring/alert-drill.sh [seconds to wait, default 120]
 # It posts a synthetic alert (MasslakAlertDrill, severity page) to Alertmanager, checks that Alertmanager routes it to
-# the page receiver, that its webhook deliveries rise and none fails meanwhile, then resolves it. The person on call
+# the page receiver and that a webhook request to that receiver succeeded, then resolves it. The person on call
 # confirms the message arrived, with the drill's identifier; record the drill (date, identifier, who confirmed) as
-# launch gate evidence (docs/operations/LAUNCH_GATES.md). Exit 0 when Alertmanager delivered without a failure.
+# launch gate evidence (docs/operations/LAUNCH_GATES.md). Exit 0 when the page receiver accepted the drill.
+# It reads Alertmanager's request counters per receiver (--enable-feature=receiver-name-in-metrics, set in the
+# production and staging overlays): the heartbeat to the dead man's switch every minute never counts as the page.
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 wait_s="${1:-120}"
+receiver=page
 dc() { docker compose --env-file deploy/.env "$@"; }
 am() { dc exec -T alertmanager wget -qO- "$@"; }
-counter() {                              # sum of an Alertmanager counter for the webhook integration
-  am http://localhost:9093/metrics | awk -v m="$1" '$1 ~ "^"m"\\{" && $1 ~ /integration="webhook"/ { s += $2 } END { printf "%d", s }'
+counter() {                              # webhook requests to the page receiver: all of them, or the failed ones
+  am http://localhost:9093/metrics | awk -v m="$1" -v r="receiver_name=\"$receiver\"" \
+    '$1 ~ "^"m"\\{" && index($1, "integration=\"webhook\"") && index($1, r) { s += $2; n++ } END { if (n) printf "%d", s; else print "none" }'
 }
+sent_before="$(counter alertmanager_notification_requests_total)"
+failed_before="$(counter alertmanager_notification_requests_failed_total)"
+if [ "$sent_before" = none ]; then
+  echo "Alertmanager does not count requests per receiver: start it with --enable-feature=receiver-name-in-metrics" >&2; exit 1
+fi
 id="drill-$(date -u +%Y%m%dT%H%M%SZ)"
-sent_before="$(counter alertmanager_notifications_total)"
-failed_before="$(counter alertmanager_notifications_failed_total)"
 alert() {                                # starts (no end) or resolves (end = now) the drill alert
   local ends=""; [ -n "${1:-}" ] && ends=",\"endsAt\":\"$1\""
   am --header 'Content-Type: application/json' --post-data \
@@ -24,19 +31,21 @@ alert() {                                # starts (no end) or resolves (end = no
 }
 alert
 echo "drill alert $id posted"
-routed=false
+routed=false delivered=0 failed=0
 for _ in $(seq 1 "$wait_s"); do
-  if am "http://localhost:9093/api/v2/alerts?filter=drill%3D%22$id%22" | grep -q '"name":"page"'; then routed=true; fi
-  sent="$(counter alertmanager_notifications_total)"
-  if [ "$routed" = true ] && [ "$sent" -gt "$sent_before" ]; then break; fi
+  if am "http://localhost:9093/api/v2/alerts?filter=drill%3D%22$id%22" | grep -q "\"name\":\"$receiver\""; then routed=true; fi
+  sent="$(counter alertmanager_notification_requests_total)"
+  failed=$(( $(counter alertmanager_notification_requests_failed_total) - failed_before ))
+  delivered=$(( sent - sent_before - failed ))   # requests the receiver answered with success
+  if [ "$routed" = true ] && [ "$delivered" -gt 0 ]; then break; fi
   sleep 1
 done
-failed="$(counter alertmanager_notifications_failed_total)"
 alert "$(date -u +%Y-%m-%dT%H:%M:%SZ)"            # resolved: the receivers get the all-clear
-if [ "$routed" != true ]; then echo "the drill alert was not routed to the page receiver (deploy/production/alertmanager.yml)" >&2; exit 1; fi
-if [ "$failed" -gt "$failed_before" ]; then
-  echo "Alertmanager failed to deliver $((failed - failed_before)) notification(s): check the receivers in deploy/production/secrets" >&2; exit 1
+if [ "$routed" != true ]; then echo "the drill alert was not routed to the $receiver receiver (alertmanager.yml)" >&2; exit 1; fi
+if [ "$delivered" -le 0 ]; then
+  echo "the $receiver receiver did not accept the drill within ${wait_s}s ($failed failed request(s)): check its URL in the secrets directory" >&2
+  exit 1
 fi
-if [ "$sent" -le "$sent_before" ]; then echo "no notification left Alertmanager within ${wait_s}s" >&2; exit 1; fi
-echo "Alertmanager delivered the drill alert $id to the page receiver ($((sent - sent_before)) webhook notification(s), no failure)."
+[ "$failed" -gt 0 ] && echo "warning: $failed request(s) to the $receiver receiver failed before one succeeded" >&2
+echo "The $receiver receiver accepted the drill alert $id ($delivered webhook request(s))."
 echo "Ask the person on call to confirm they received '$id', and record it as launch gate evidence."

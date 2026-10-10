@@ -903,7 +903,8 @@ A constraint is still NOT VALID because rows that existed before it break it.
 * **`ScrapeTargetDown`.** Check the target with `docker compose --env-file deploy/.env ps`, then its logs.
 * **Alert drill.** Run `./deploy/monitoring/alert-drill.sh` after installing, after changing a receiver, and monthly.
   The person on call confirms receipt of the drill's identifier. Record the date, the identifier and who confirmed it
-  as launch gate evidence.
+  as launch gate evidence. Leave five minutes between two drills: Alertmanager sends a second drill in the same group only at the
+  group's next interval (`group_interval`), after the drill has stopped waiting.
 
 ## Rehearsal schedule
 

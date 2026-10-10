@@ -160,7 +160,8 @@ Two rules guard the monitoring itself:
 * `ScrapeTargetDown` fires when a target stops answering.
 
 `./deploy/monitoring/alert-drill.sh` proves the path to the people on call. It sends a synthetic page, checks that
-Alertmanager delivered it without a failure, and resolves it. Run it after installing, after changing a receiver, and
+the page receiver accepted it, and resolves it. Alertmanager counts its requests per receiver
+(`--enable-feature=receiver-name-in-metrics`), so the heartbeat to the dead man's switch never passes for the page. Run it after installing, after changing a receiver, and
 monthly. The person on call confirms receipt; the drill is recorded as launch gate evidence.
 
 ## 7. What the profile does not do yet
