@@ -47,6 +47,14 @@ async def ticket_key():
     return {"alg": "Ed25519", "kid": "ticket-credential/v1", "public_key": ticket_public_key()}
 
 
+@router.get("/public/keys/manifest")
+async def manifest_key():
+    """Public key for verifying issued manifests (Ed25519 over the SHA-256 of the canonical manifest, 1078)."""
+    from ..security import MANIFEST_KID, manifest_public_key
+    return {"alg": "Ed25519", "kid": MANIFEST_KID, "public_key": manifest_public_key(),
+            "canonical": "JSON of the manifest with sorted keys, no spaces and non-ASCII characters escaped; version 1"}
+
+
 @router.get("/ref")
 async def reference(request: Request):
     async with db.transaction(_ctx(request)) as conn:

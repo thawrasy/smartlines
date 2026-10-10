@@ -70,6 +70,8 @@ const PaymentsDesk = lazyNamed(() => import("./pages/finance/Payments"), "Paymen
 const IntegrationsPage = lazyNamed(() => import("./pages/integrations/Integrations"), "IntegrationsPage");
 const MfaPolicy = lazy(() => import("./pages/security/MfaPolicy"));
 const Statements = lazy(() => import("./pages/security/Statements"));
+const Parcels = lazy(() => import("./pages/passenger/Parcels"));
+const CarrierParcels = lazy(() => import("./pages/carrier/Parcels"));
 const Regulator = lazy(() => import("./pages/regulator/Regulator"));
 
 /** Menu entries for the switched-on modules the signed-in user can open. */
@@ -139,6 +141,7 @@ function CarrierShell() {
       { to: "/carrier/vehicles", icon: "directions_car", label: t("carrier.vehicles") },
       { to: "/carrier/layouts", icon: "event_seat", label: t("layout.title") },
       { to: "/carrier/crew", icon: "badge", label: t("carrier.crew") },
+      { to: "/carrier/parcels", icon: "local_shipping", label: t("parcel.carrierNav"), show: can("parcels.tariffs", "shipping.operate") },
       { to: "/carrier/documents", icon: "fact_check", label: t("documents.title"), show: can("company.staff", "vehicle.manage", "company.billing") },
       { to: "/carrier/finance", icon: "payments", label: t("finance.title") },
       { to: "/carrier/reports", icon: "summarize", label: t("rpt.nav"), show: can("report.company") },
@@ -193,6 +196,7 @@ export default function App() {
           <Route path="wallet" element={<RequirePortal portal="PASSENGER"><Wallet /></RequirePortal>} />
           <Route path="family" element={<RequirePortal portal="PASSENGER"><Family /></RequirePortal>} />
           <Route path="support" element={<RequirePortal portal="PASSENGER"><Support /></RequirePortal>} />
+          <Route path="parcels" element={<RequirePortal portal="PASSENGER"><Parcels /></RequirePortal>} />
           <Route path="verify" element={<Verify />} />
           <Route path="track" element={<Track />} />
           <Route path="pay/test/:uid" element={<RequirePortal portal="PASSENGER"><TestGatewayRoute /></RequirePortal>} />
@@ -214,6 +218,7 @@ export default function App() {
           <Route path="carrier/finance" element={<CompanyFinance />} />
           <Route path="carrier/documents" element={<CompanyDocuments />} />
           <Route path="carrier/crew" element={<CarrierCrew />} />
+          <Route path="carrier/parcels" element={<CarrierParcels />} />
           <Route path="carrier/m/:module" element={<ModulePage />} />
           <Route path="carrier/reports" element={<ReportsPage />} />
           <Route path="carrier/integrations" element={<IntegrationsPage />} />

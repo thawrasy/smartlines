@@ -207,9 +207,12 @@ def breaking(old: dict, new: dict) -> list[str]:
 SHAPES = ROOT / "docs" / "api" / "response-shapes.json"
 
 
+OPAQUE = {"payload"}            # free-form by design (a notification's payload depends on its event): an object, unchecked inside
+
+
 def shape(value: Any) -> Any:
     if isinstance(value, dict):
-        return {k: shape(v) for k, v in sorted(value.items())}
+        return {k: ("object" if k in OPAQUE and isinstance(v, dict) else shape(v)) for k, v in sorted(value.items())}
     if isinstance(value, list):
         items = [shape(v) for v in value]
         if not items:

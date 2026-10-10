@@ -55,6 +55,8 @@ SYSTEM_SCOPE = {
     ("app/modules/integration/v1.py", "wallet_credits"): (1, "a partner lists its own credits to passengers"),
     ("app/modules/integration/v1.py", "wallet_lookup"): (1, "a partner checks that a mobile number has a passenger wallet"),
     ("app/modules/manifests/service.py", "issue"): (1, "a manifest built from crew, vehicle and passengers of the trip, sealed"),
+    ("app/modules/manifests/service.py", "verify"): (1, "the hash is recomputed from the sealed rows as at issue, cargo included"),
+    ("app/modules/parcels/service.py", "book"): (1, "a booked parcel's shipment, parcel and leg on the carrier's trip, before the charge"),
     ("app/modules/payments/api.py", "_test_payment"): (1, "sandbox payment page reads the payment it completes"),
     ("app/modules/payments/api.py", "agency_topups"): (1, "an agency lists the top-ups it took in cash for passengers"),
     ("app/modules/payments/api.py", "mine"): (1, "the passenger's own payments with their provider and transfer details"),

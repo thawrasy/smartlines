@@ -148,6 +148,8 @@ async def main(once: bool) -> None:
                         await expire_stale(conn)
                         # reservations not paid by their time give their seats back (1056)
                         await conn.execute("SELECT sales.expire_reservations()")
+                        # parcel prices offered and not taken in time lapse (1078)
+                        await conn.execute("SELECT ship.expire_parcel_offers()")
                     # refunds whose provider outcome is unknown are asked again, with the same reference (R-17)
                     await resend_refunds()
                     # positions the telemetry database could not take when they arrived (R-03)

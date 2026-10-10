@@ -769,6 +769,43 @@
     "200": {}
    }
   },
+  "GET /api/carrier/manifests/{uid}/verify": {
+   "body": null,
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/carrier/parcels/offers": {
+   "body": null,
+   "parameters": {
+    "query:status": {
+     "required": false,
+     "schema": {
+      "nullable": true,
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/carrier/parcels/tariffs": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
   "GET /api/carrier/routes": {
    "body": null,
    "parameters": {},
@@ -808,6 +845,21 @@
   "GET /api/carrier/trips": {
    "body": null,
    "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/carrier/trips/{trip_uid}/hold": {
+   "body": null,
+   "parameters": {
+    "path:trip_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
    "responses": {
     "200": {}
    }
@@ -1065,6 +1117,51 @@
     "200": {}
    }
   },
+  "GET /api/parcels/mine": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/parcels/offers": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/parcels/trips": {
+   "body": null,
+   "parameters": {
+    "query:destination": {
+     "required": true,
+     "schema": {
+      "maxLength": 3,
+      "minLength": 3,
+      "type": "string"
+     }
+    },
+    "query:on": {
+     "required": true,
+     "schema": {
+      "format": "date",
+      "type": "string"
+     }
+    },
+    "query:origin": {
+     "required": true,
+     "schema": {
+      "maxLength": 3,
+      "minLength": 3,
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
   "GET /api/payments/booking-options": {
    "body": null,
    "parameters": {},
@@ -1135,6 +1232,13 @@
      }
     }
    },
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/public/keys/manifest": {
+   "body": null,
+   "parameters": {},
    "responses": {
     "200": {}
    }
@@ -5258,6 +5362,161 @@
     "201": {}
    }
   },
+  "POST /api/carrier/parcels/offers/{uid}/decline": {
+   "body": null,
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/carrier/parcels/offers/{uid}/price": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "note": {
+        "maxLength": 300,
+        "nullable": true,
+        "type": "string"
+       },
+       "price": {
+        "exclusiveMinimum": 0.0,
+        "type": "integer"
+       },
+       "valid_hours": {
+        "default": 24,
+        "maximum": 168.0,
+        "minimum": 1.0,
+        "type": "integer"
+       }
+      },
+      "required": [
+       "price"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/carrier/parcels/tariffs": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "base_price": {
+        "default": 0,
+        "minimum": 0.0,
+        "type": "integer"
+       },
+       "code": {
+        "pattern": "^[A-Z][A-Z0-9_]{1,29}$",
+        "type": "string"
+       },
+       "currency": {
+        "maxLength": 3,
+        "minLength": 3,
+        "type": "string"
+       },
+       "fixed_price": {
+        "minimum": 0.0,
+        "nullable": true,
+        "type": "integer"
+       },
+       "max_volume_m3": {
+        "exclusiveMinimum": 0.0,
+        "maximum": 100.0,
+        "nullable": true,
+        "type": "number"
+       },
+       "max_weight_kg": {
+        "exclusiveMinimum": 0.0,
+        "maximum": 10000.0,
+        "nullable": true,
+        "type": "number"
+       },
+       "min_charge": {
+        "default": 0,
+        "minimum": 0.0,
+        "type": "integer"
+       },
+       "name": {
+        "maxLength": 80,
+        "minLength": 2,
+        "type": "string"
+       },
+       "per_kg": {
+        "minimum": 0.0,
+        "nullable": true,
+        "type": "integer"
+       },
+       "per_m3": {
+        "minimum": 0.0,
+        "nullable": true,
+        "type": "integer"
+       },
+       "pricing_mode": {
+        "enum": [
+         "WEIGHT",
+         "VOLUME",
+         "WEIGHT_AND_VOLUME",
+         "FIXED",
+         "NEGOTIATED"
+        ],
+        "type": "string"
+       }
+      },
+      "required": [
+       "code",
+       "name",
+       "pricing_mode",
+       "currency"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "201": {}
+   }
+  },
+  "POST /api/carrier/parcels/tariffs/{uid}/retire": {
+   "body": null,
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
   "POST /api/carrier/routes": {
    "body": {
     "content": {
@@ -5572,6 +5831,7 @@
         "default": "PRE_DEPARTURE",
         "enum": [
          "PRE_DEPARTURE",
+         "PRE_ARRIVAL",
          "FINAL",
          "AMENDMENT",
          "CANCELLATION"
@@ -6972,6 +7232,287 @@
         "type": "array"
        }
       },
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/parcels": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "declared_value": {
+        "default": 0,
+        "maximum": 10000000000.0,
+        "minimum": 0.0,
+        "type": "integer"
+       },
+       "from_seq": {
+        "maximum": 60.0,
+        "minimum": 0.0,
+        "type": "integer"
+       },
+       "height_cm": {
+        "exclusiveMinimum": 0.0,
+        "maximum": 300.0,
+        "type": "number"
+       },
+       "idempotency_key": {
+        "maxLength": 80,
+        "minLength": 8,
+        "type": "string"
+       },
+       "length_cm": {
+        "exclusiveMinimum": 0.0,
+        "maximum": 400.0,
+        "type": "number"
+       },
+       "recipient_mobile": {
+        "pattern": "^\\+?[0-9]{8,15}$",
+        "type": "string"
+       },
+       "recipient_name": {
+        "maxLength": 120,
+        "minLength": 3,
+        "type": "string"
+       },
+       "tariff_uid": {
+        "format": "uuid",
+        "type": "string"
+       },
+       "to_seq": {
+        "maximum": 60.0,
+        "minimum": 1.0,
+        "type": "integer"
+       },
+       "trip_uid": {
+        "format": "uuid",
+        "type": "string"
+       },
+       "weight_kg": {
+        "exclusiveMinimum": 0.0,
+        "maximum": 1000.0,
+        "type": "number"
+       },
+       "width_cm": {
+        "exclusiveMinimum": 0.0,
+        "maximum": 300.0,
+        "type": "number"
+       }
+      },
+      "required": [
+       "weight_kg",
+       "length_cm",
+       "width_cm",
+       "height_cm",
+       "trip_uid",
+       "from_seq",
+       "to_seq",
+       "tariff_uid",
+       "description",
+       "recipient_name",
+       "recipient_mobile",
+       "idempotency_key"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "201": {}
+   }
+  },
+  "POST /api/parcels/offers": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "from_seq": {
+        "maximum": 60.0,
+        "minimum": 0.0,
+        "type": "integer"
+       },
+       "height_cm": {
+        "exclusiveMinimum": 0.0,
+        "maximum": 300.0,
+        "type": "number"
+       },
+       "length_cm": {
+        "exclusiveMinimum": 0.0,
+        "maximum": 400.0,
+        "type": "number"
+       },
+       "tariff_uid": {
+        "format": "uuid",
+        "type": "string"
+       },
+       "to_seq": {
+        "maximum": 60.0,
+        "minimum": 1.0,
+        "type": "integer"
+       },
+       "trip_uid": {
+        "format": "uuid",
+        "type": "string"
+       },
+       "weight_kg": {
+        "exclusiveMinimum": 0.0,
+        "maximum": 1000.0,
+        "type": "number"
+       },
+       "width_cm": {
+        "exclusiveMinimum": 0.0,
+        "maximum": 300.0,
+        "type": "number"
+       }
+      },
+      "required": [
+       "weight_kg",
+       "length_cm",
+       "width_cm",
+       "height_cm",
+       "trip_uid",
+       "from_seq",
+       "to_seq",
+       "tariff_uid",
+       "description"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "201": {}
+   }
+  },
+  "POST /api/parcels/offers/{uid}/accept": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "declared_value": {
+        "default": 0,
+        "maximum": 10000000000.0,
+        "minimum": 0.0,
+        "type": "integer"
+       },
+       "idempotency_key": {
+        "maxLength": 80,
+        "minLength": 8,
+        "type": "string"
+       },
+       "recipient_mobile": {
+        "pattern": "^\\+?[0-9]{8,15}$",
+        "type": "string"
+       },
+       "recipient_name": {
+        "maxLength": 120,
+        "minLength": 3,
+        "type": "string"
+       }
+      },
+      "required": [
+       "recipient_name",
+       "recipient_mobile",
+       "idempotency_key"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "201": {}
+   }
+  },
+  "POST /api/parcels/offers/{uid}/withdraw": {
+   "body": null,
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/parcels/quote": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "from_seq": {
+        "maximum": 60.0,
+        "minimum": 0.0,
+        "type": "integer"
+       },
+       "height_cm": {
+        "exclusiveMinimum": 0.0,
+        "maximum": 300.0,
+        "type": "number"
+       },
+       "length_cm": {
+        "exclusiveMinimum": 0.0,
+        "maximum": 400.0,
+        "type": "number"
+       },
+       "tariff_uid": {
+        "format": "uuid",
+        "type": "string"
+       },
+       "to_seq": {
+        "maximum": 60.0,
+        "minimum": 1.0,
+        "type": "integer"
+       },
+       "trip_uid": {
+        "format": "uuid",
+        "type": "string"
+       },
+       "weight_kg": {
+        "exclusiveMinimum": 0.0,
+        "maximum": 1000.0,
+        "type": "number"
+       },
+       "width_cm": {
+        "exclusiveMinimum": 0.0,
+        "maximum": 300.0,
+        "type": "number"
+       }
+      },
+      "required": [
+       "weight_kg",
+       "length_cm",
+       "width_cm",
+       "height_cm",
+       "trip_uid",
+       "from_seq",
+       "to_seq",
+       "tariff_uid"
+      ],
       "type": "object"
      }
     },
@@ -9340,6 +9881,50 @@
     "path:code": {
      "required": true,
      "schema": {
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "PUT /api/carrier/trips/{trip_uid}/hold": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "max_items": {
+        "exclusiveMinimum": 0.0,
+        "maximum": 10000.0,
+        "nullable": true,
+        "type": "integer"
+       },
+       "max_volume_m3": {
+        "exclusiveMinimum": 0.0,
+        "maximum": 200.0,
+        "nullable": true,
+        "type": "number"
+       },
+       "max_weight_kg": {
+        "maximum": 60000.0,
+        "minimum": 0.0,
+        "type": "number"
+       }
+      },
+      "required": [
+       "max_weight_kg"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:trip_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
       "type": "string"
      }
     }

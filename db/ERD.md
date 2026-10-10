@@ -142,9 +142,9 @@ flowchart LR
   ship -->|4| fin
   ship -->|3| fleet
   ship -->|1| frt
-  ship -->|33| iam
+  ship -->|38| iam
   ship -->|11| net
-  ship -->|4| ops
+  ship -->|5| ops
   ship -->|2| ref
   sys -->|4| iam
   sys -->|1| ref
@@ -4021,6 +4021,28 @@ erDiagram
     bigint id PK
     bigint shipment_id FK
   }
+  ship_parcel_offer {
+    bigint id PK
+    uuid uid
+    bigint tariff_id FK
+    bigint company_id FK
+    bigint requester_party_id FK
+    bigint requester_user_id FK
+    bigint trip_id FK
+    text status
+    character currency FK
+    bigint offered_by FK
+    bigint shipment_id FK
+  }
+  ship_parcel_tariff {
+    bigint id PK
+    uuid uid
+    bigint company_id FK
+    text code
+    character currency FK
+    text status
+    bigint created_by FK
+  }
   ship_partner_command {
     bigint id PK
     bigint partner_id FK
@@ -4133,6 +4155,7 @@ erDiagram
     character currency FK
     text cargo_category FK
     text status
+    bigint tariff_id FK
   }
   ship_shipment_leg {
     bigint id PK
@@ -4266,6 +4289,8 @@ erDiagram
   ship_courier_route }o--|| iam_app_user : "courier_user_id"
   ship_delivery_attempt }o..o| iam_app_user : "courier_user_id"
   ship_cod_collection }o..o| iam_app_user : "collected_by"
+  ship_parcel_offer }o..o| iam_app_user : "requester_user_id"
+  ship_parcel_offer }o..o| iam_app_user : "offered_by"
   ship_rate_table }o..o| iam_company : "company_id"
   ship_cargo_rate_card }o--|| iam_company : "company_id"
   ship_pricing_agreement }o..o| iam_company : "company_id"
@@ -4276,7 +4301,9 @@ erDiagram
   ship_carrier_scorecard }o..o| iam_company : "carrier_company_id"
   ship_hub }o..o| iam_company : "company_id"
   ship_load }o--|| iam_company : "company_id"
+  ship_parcel_tariff }o--|| iam_company : "company_id"
   ship_shipper_account }o..o| iam_company : "company_id"
+  ship_parcel_offer }o--|| iam_company : "company_id"
   ship_shipment }o--|| iam_company : "company_id"
   ship_shipment_leg }o--|| iam_company : "carrier_company_id"
   ship_capacity_booking }o--|| iam_company : "seller_company_id"
@@ -4294,6 +4321,7 @@ erDiagram
   ship_custody_transfer }o--|| iam_party : "from_party_id"
   ship_custody_transfer }o--|| iam_party : "to_party_id"
   ship_shipment_reference }o--|| iam_party : "issuer_party_id"
+  ship_parcel_offer }o--|| iam_party : "requester_party_id"
   ship_shipment }o--|| iam_party : "shipper_party_id"
   ship_cargo_rate_card }o..o| net_route : "route_id"
   ship_capacity_booking }o..o| net_route : "route_id"
@@ -4310,6 +4338,7 @@ erDiagram
   ship_capacity_booking }o..o| ops_trip : "trip_id"
   ship_load }o..o| ops_trip : "trip_id"
   ship_shipment_leg }o..o| ops_trip : "trip_id"
+  ship_parcel_offer }o--|| ops_trip : "trip_id"
   ship_shipment }o..o| ref_cargo_category : "cargo_category"
   ship_geo_zone }o..o| ref_city : "city_id"
   ship_locker_compartment }o--|| ship_access_point : "access_point_id"
@@ -4356,6 +4385,8 @@ erDiagram
   ship_weight_audit }o--|| ship_parcel : "parcel_id"
   ship_shipment_reference }o..o| ship_parcel : "parcel_id"
   ship_handling_unit_item }o..o| ship_parcel : "parcel_id"
+  ship_parcel_offer }o--|| ship_parcel_tariff : "tariff_id"
+  ship_shipment }o..o| ship_parcel_tariff : "tariff_id"
   ship_courier_assignment }o..o| ship_pickup_request : "pickup_request_id"
   ship_shipper_account }o..o| ship_pricing_agreement : "pricing_agreement_id"
   ship_rate_table_entry }o--|| ship_rate_table : "rate_table_id"
@@ -4385,6 +4416,7 @@ erDiagram
   ship_locker_compartment }o..o| ship_shipment : "shipment_id"
   ship_return_authorization }o..o| ship_shipment : "return_shipment_id"
   ship_integration_message }o..o| ship_shipment : "shipment_id"
+  ship_parcel_offer }o..o| ship_shipment : "shipment_id"
   ship_tracking_event }o..o| ship_shipment_leg : "leg_id"
   ship_cargo_claim }o..o| ship_shipment_leg : "liable_leg_id"
   ship_guarantee_claim }o..o| ship_shipment_leg : "chargeback_leg_id"

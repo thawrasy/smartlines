@@ -29,6 +29,7 @@ from .modules.integration import v1 as integration_v1
 from .modules.family import api as family_api
 from .modules.support import api as support_api
 from .modules.manifests import api as manifests_api
+from .modules.parcels import api as parcels_api
 from .modules.seo import pages as seo_pages
 from .modules.seo.app_shell import shell as app_shell
 from .modular import api as modular_api
@@ -117,7 +118,7 @@ for r in (metrics.router, auth.router, public.router, bookings.router, wallet.ro
           documents_api.company, documents_api.platform, notify_api.router,
           account_api.router, account_api.platform, modular_api.router, modular_workflows.router, reports_api.router, payments_api.router,
           integration_console.router, integration_v1.router, family_api.router, manifests_api.carrier, manifests_api.platform,
-          support_api.router, support_api.admin, cash_api.router, seo_pages.router):
+          support_api.router, support_api.admin, cash_api.router, seo_pages.router, parcels_api.customer, parcels_api.carrier):
     app.include_router(r)
 
 app.add_middleware(metrics.MetricsMiddleware)   # request counts and latency per route (T3-16)
@@ -129,7 +130,7 @@ app.add_middleware(HeadAsGet)          # added last, so it wraps everything else
 _static = Path(get_settings().static_dir).resolve()
 # top-level paths of the web app (frontend/src/App.tsx; tests/test_api_contract.py keeps the two in step); anything else
 # is a real 404 (no "soft 404" pages for search engines)
-APP_PATHS = {"", "account", "admin", "agency", "booking", "carrier", "driver", "family", "login", "m", "mfa", "pay", "register",
+APP_PATHS = {"", "account", "admin", "agency", "booking", "carrier", "driver", "family", "login", "m", "mfa", "parcels", "pay", "register",
              "regulator", "search", "security", "services", "support", "track", "trip", "trips", "verify", "wallet"}
 if (_static / "index.html").exists():
     app.mount("/assets", StaticFiles(directory=_static / "assets"), name="assets")

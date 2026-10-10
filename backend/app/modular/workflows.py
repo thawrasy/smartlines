@@ -264,7 +264,9 @@ async def send_parcel(body: SendParcel, request: Request, pr: Principal = Depend
                 "INSERT INTO ship.tracking_event (shipment_id, milestone, station_id, actor_user_id) VALUES ($1, 'CREATED', $2, $3)",
                 sid, body.origin_station_id, pr.user_id)
             await emit(conn, "shipment.created", "shipment", sid, {"tracking_no": tracking, "price": q["price"]}, company_id=q["company_id"])
-    return {"tracking_no": tracking, "price": q["price"], "currency": q["currency"]}
+    # station to station, without a trip: carried as space allows (not guaranteed); a parcel booked on a trip's hold is
+    # guaranteed (POST /api/parcels, 1078)
+    return {"tracking_no": tracking, "price": q["price"], "currency": q["currency"], "guaranteed": False}
 
 
 @router.get("/api/w/parcels/mine")

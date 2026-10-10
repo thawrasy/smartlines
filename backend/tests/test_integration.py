@@ -244,50 +244,7 @@ def test_channel_sells_through_the_api(agency, admin, trip):
     assert c.post(f"/api/v1/bookings/{ref}/cancel").status_code == 200
 
 
-def test_border_authority_reads_and_decides(admin, security):
-    authority = owner_sql("SELECT bp.authority_id FROM brd.border_point bp WHERE bp.authority_id IS NOT NULL ORDER BY bp.station_id LIMIT 1")
-    code = owner_sql("SELECT code FROM sec.authority_profile WHERE id = $1", authority)
-    src = owner_sql("""SELECT m.trip_id, m.border_point_id, last.id AS prev_id, last.version AS v
-                         FROM brd.manifest m JOIN brd.border_point bp ON bp.station_id = m.border_point_id
-                         CROSS JOIN LATERAL (SELECT x.id, x.version FROM brd.manifest x WHERE x.trip_id = m.trip_id
-                                              AND x.border_point_id = m.border_point_id ORDER BY x.version DESC LIMIT 1) last
-                        WHERE bp.authority_id = $1 LIMIT 1""", authority, fetch=True)
-    # a new version supersedes the last one of the same trip and crossing (the database enforces the chain)
-    mid = owner_sql("""INSERT INTO brd.manifest (trip_id, border_point_id, version, manifest_type, status, supersedes_id)
-                       VALUES ($1, $2, $3, 'PRE_DEPARTURE', 'SUBMITTED', $4) RETURNING id""",
-                    src["trip_id"], src["border_point_id"], src["v"] + 1, src["prev_id"])
-    sys.path.insert(0, BACKEND)
-    from app.crypto import RESTRICTED_REF, FieldCipher, _derive
-    sealed = FieldCipher({1: _derive(RESTRICTED_REF)}, {RESTRICTED_REF: 1}, b"x" * 32).encrypt("N7654321", "brd.manifest_person.doc_no")
-    # a manifest lists tickets of its own trip only (1040); a passenger without a platform ticket has none
-    ticket = owner_sql("SELECT id FROM sales.ticket WHERE trip_id = $1 ORDER BY id DESC LIMIT 1", src["trip_id"])
-    pid = owner_sql("""INSERT INTO brd.manifest_person (manifest_id, person_role, ticket_id, doc_type, doc_no_enc, doc_no_bidx, enc_key_id,
-                         issuing_country, nationality, birth_date) VALUES ($1, 'PASSENGER', $2, 'PASSPORT', $3, $4, 1, 'SY', 'SY', '1990-01-01') RETURNING id""",
-                    mid, ticket, sealed.ciphertext, secrets.token_bytes(32))
-    muid = str(owner_sql("SELECT uid FROM brd.manifest WHERE id = $1", mid))
-    r = admin.post("/api/integrations/clients", json={"name": "Border authority", "kind": "AUTHORITY", "authority_code": code,
-                                                      "scopes": ["border:read", "border:respond"]})
-    assert r.status_code == 201, r.text
-    security.post(f"/api/integrations/clients/{r.json()['uid']}/approve", json={})
-    c = api(admin.post(f"/api/integrations/clients/{r.json()['uid']}/keys").json()["key"])
-    listed = c.get("/api/v1/border/manifests", params={"status": "SUBMITTED"}).json()["manifests"]
-    assert muid in [m["uid"] for m in listed]
-    others = owner_sql("""SELECT count(*) FROM brd.manifest m JOIN brd.border_point bp ON bp.station_id = m.border_point_id
-                           LEFT JOIN brd.crossing_profile cp ON cp.id = m.profile_id
-                           WHERE m.uid = ANY($1::uuid[]) AND bp.authority_id IS DISTINCT FROM $2 AND cp.authority_id IS DISTINCT FROM $2""",
-                       [uuid.UUID(m["uid"]) for m in listed], authority)
-    assert others == 0
-    detail = c.get(f"/api/v1/border/manifests/{muid}").json()
-    assert detail["people"][0]["doc_no"] == "N7654321"
-    stranger = owner_sql("SELECT id FROM brd.manifest_person WHERE manifest_id <> $1 LIMIT 1", mid)
-    assert c.post(f"/api/v1/border/manifests/{muid}/decisions", json={"decisions": [{"subject": "PERSON", "subject_id": stranger, "decision": "HOLD"}]}
-                  ).json()["error"]["code"] == "SUBJECT_NOT_IN_MANIFEST"
-    d = c.post(f"/api/v1/border/manifests/{muid}/decisions", json={"decisions": [
-        {"subject": "PERSON", "subject_id": pid, "decision": "OK"}, {"subject": "MANIFEST", "decision": "OK"}]})
-    assert d.json()["status"] == "ACKNOWLEDGED", d.text
-    assert c.post(f"/api/v1/border/manifests/{muid}/decisions", json={"decisions": [{"subject": "MANIFEST", "decision": "DENY"}]}
-                  ).json()["error"]["code"] == "MANIFEST_NOT_OPEN"
-    assert owner_sql("SELECT count(*) FROM brd.manifest_response WHERE manifest_id = $1", mid) == 2
+# the border contract on a live manifest, issued through the carrier API: test_manifest_integrity.py (1.48.0, R-12)
 
 
 # ------------------------------------------------------------------ webhooks

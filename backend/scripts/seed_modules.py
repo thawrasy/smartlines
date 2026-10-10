@@ -188,8 +188,8 @@ PLAN = [
     ("brd.border_point", 2, {"station_id": BORDER, "code": cycle("JDY", "NSB", "BAH", "KSB"), "name": cycle("Jdeidet Yabous", "Nasib", "Bab al-Hawa", "Kasab"),
                              "status": weighted(("ACTIVE", 3), ("RESTRICTED", 1))}),
     ("brd.crossing_profile", 3, {"status": "ACTIVE"}),
-    ("brd.manifest", 22, {"created_at": lambda i: ago(30),
-                          "status": weighted(("ACKNOWLEDGED", 6), ("SUBMITTED", 3), ("DRAFT", 2), ("REJECTED", 1), ("CLOSED", 1))}),
+    # written as drafts: an issued manifest's people and cargo cannot change (1078), so the statuses come after them (main)
+    ("brd.manifest", 22, {"created_at": lambda i: ago(30), "status": "DRAFT"}),
     ("brd.manifest_person", 80, {"person_role": "PASSENGER", "crew_party_id": None,
                                   "ticket_id": derive("SELECT k.id FROM sales.ticket k JOIN brd.manifest m ON m.trip_id = k.trip_id"
                                                       " WHERE m.id = $1 ORDER BY k.id", "manifest_id")}),
@@ -631,6 +631,22 @@ async def main():
                 progress = True
         if not progress:
             break
+    # the manifests now hold their people and cargo: give them the statuses of a working demo (most answered, some open)
+    await conn.execute(
+        """UPDATE brd.manifest m SET status = (ARRAY['ACKNOWLEDGED','ACKNOWLEDGED','SUBMITTED','ACKNOWLEDGED','DRAFT','REJECTED',
+                                                    'ACKNOWLEDGED','SUBMITTED','CLOSED','ACKNOWLEDGED','DRAFT'])[1 + (m.id % 11)]
+            WHERE m.status = 'DRAFT' AND m.issued_at IS NULL""")
+    # parcel tariffs of the demo carrier, one of each way of pricing (owner's decision 3); amounts in piastres
+    await conn.executemany(
+        """INSERT INTO ship.parcel_tariff (company_id, code, name, pricing_mode, currency, base_price, per_kg, per_m3, fixed_price,
+             min_charge, max_weight_kg, max_volume_m3)
+           SELECT $1, $2, $3, $4, 'SYP', $5, $6, $7, $8, $9, $10, $11
+            WHERE NOT EXISTS (SELECT 1 FROM ship.parcel_tariff WHERE company_id = $1 AND code = $2 AND status = 'ACTIVE')""",
+        [(s.company, "LETTER", "Letter or document envelope", "FIXED", 0, None, None, 1500000, 0, 0.5, 0.002),
+         (s.company, "SMALL", "Small parcel by weight", "WEIGHT", 500000, 150000, None, None, 1000000, 20, 0.1),
+         (s.company, "PARCEL", "Parcel by weight or size", "WEIGHT_AND_VOLUME", 500000, 120000, 25000000, None, 1500000, 50, 0.5),
+         (s.company, "BULKY", "Bulky item by size", "VOLUME", 1000000, None, 20000000, None, 3000000, 150, 2.0),
+         (s.company, "VALUABLE", "Valuables and urgent papers, price agreed", "NEGOTIATED", 0, None, None, None, 0, 10, 0.05)])
     print(f"seeded {sum(v for v in done.values() if v > 0)} rows in {sum(1 for v in done.values() if v > 0)} tables")
     for table, err in sorted(s.failures.items()):
         if not done.get(table):

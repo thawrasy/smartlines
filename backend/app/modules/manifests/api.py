@@ -2,8 +2,9 @@
 
     Carrier
     GET  /api/carrier/trips/{trip_uid}/manifests     versions of the trip's manifests with their deliveries
-    POST /api/carrier/trips/{trip_uid}/manifests     issue: PRE_DEPARTURE, FINAL, AMENDMENT or CANCELLATION
-    GET  /api/carrier/manifests/{uid}                one version: people (documents masked), crew, vehicle, deliveries
+    POST /api/carrier/trips/{trip_uid}/manifests     issue: PRE_DEPARTURE, PRE_ARRIVAL (international), FINAL, AMENDMENT or CANCELLATION
+    GET  /api/carrier/manifests/{uid}                one version: people (documents masked), crew, vehicle, cargo, deliveries
+    GET  /api/carrier/manifests/{uid}/verify         the hash recomputed from the sealed rows and the platform's signature checked
     GET  /api/carrier/manifests/{uid}/export         the signed snapshot as CSV, to print or hand over when offline
 
     Platform (routing rules themselves are records of the trip_manifests module, approved by a second officer)
@@ -44,7 +45,7 @@ def _need(pr: Principal, *codes: str) -> None:
 
 
 class IssueIn(BaseModel):
-    type: Literal["PRE_DEPARTURE", "FINAL", "AMENDMENT", "CANCELLATION"] = "PRE_DEPARTURE"
+    type: Literal["PRE_DEPARTURE", "PRE_ARRIVAL", "FINAL", "AMENDMENT", "CANCELLATION"] = "PRE_DEPARTURE"
 
 
 async def _trip(conn, pr: Principal, uid: uuid.UUID):
@@ -68,7 +69,8 @@ async def _deliveries(conn, manifest_ids: list[int]) -> dict[int, list[dict]]:
 
 
 _LIST = """SELECT m.id, m.uid, m.scope, m.manifest_type, m.version, m.status, m.persons_count, m.issued_at, m.payload_sha256,
-                  s.code AS border_point FROM brd.manifest m LEFT JOIN net.station s ON s.id = m.border_point_id"""
+                  m.content_type, m.payload_signature, s.code AS border_point
+             FROM brd.manifest m LEFT JOIN net.station s ON s.id = m.border_point_id"""
 
 
 @carrier.get("/trips/{trip_uid}/manifests")
@@ -101,7 +103,7 @@ async def issue(trip_uid: uuid.UUID, body: IssueIn, request: Request, pr: Princi
 async def _manifest(conn, pr: Principal, uid: uuid.UUID):
     m = await conn.fetchrow(
         """SELECT m.id, m.uid, m.trip_id, m.scope, m.manifest_type, m.version, m.status, m.persons_count, m.issued_at, m.payload_sha256,
-                  s.code AS border_point, t.trip_no
+                  m.content_type, m.payload_signature, m.signing_kid, m.canonical_version, s.code AS border_point, t.trip_no
              FROM brd.manifest m JOIN ops.trip t ON t.id = m.trip_id LEFT JOIN net.station s ON s.id = m.border_point_id
             WHERE m.uid = $1 AND t.company_id = $2""", uid, pr.company_id)
     if m is None:
@@ -122,10 +124,26 @@ async def manifest_detail(uid: uuid.UUID, request: Request, pr: Principal = Depe
                  LEFT JOIN net.station sd ON sd.id = mp.disembark_station_id WHERE mp.manifest_id = $1 ORDER BY mp.person_role DESC, mp.id""",
             m["id"])
         vehicle = await conn.fetchrow("SELECT plate_no, plate_country, chassis_no FROM brd.manifest_vehicle WHERE manifest_id = $1", m["id"])
+        cargo = await conn.fetch(
+            """SELECT s.tracking_no, c.cargo_category, c.cargo_description, c.hs_code, c.declared_weight_kg, c.packages
+                 FROM brd.manifest_cargo c LEFT JOIN ship.shipment s ON s.id = c.shipment_id WHERE c.manifest_id = $1 ORDER BY c.id""",
+            m["id"])
         dl = await _deliveries(conn, [m["id"]])
     request.state.audit = {"action": "manifest.view", "object_type": "brd.manifest", "object_id": m["id"]}
     return service.view(m) | {"trip_no": m["trip_no"], "people": [dict(p) for p in people], "vehicle": dict(vehicle) if vehicle else None,
+                              "cargo": [{**dict(c), "declared_weight_kg": float(c["declared_weight_kg"])} for c in cargo],
                               "deliveries": dl.get(m["id"], [])}
+
+
+@carrier.get("/manifests/{uid}/verify")
+async def manifest_verify(uid: uuid.UUID, request: Request, pr: Principal = Depends(operator)):
+    """Whether the manifest still is what was issued: its hash recomputed from the sealed rows, and the signature."""
+    await _on()
+    _need(pr, "manifest.issue", "manifest.view", "trip.publish")
+    ctx = context_for(request, pr)
+    async with db.transaction(ctx) as conn:
+        m = await _manifest(conn, pr, uid)
+        return await service.verify(conn, ctx, m)
 
 
 @carrier.get("/manifests/{uid}/export")

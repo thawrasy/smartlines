@@ -133,3 +133,19 @@ Upgrading to 1.48.0, package F:
   `shared_preload_libraries`, restart, and (if the owner role may not read other roles' statements)
   `GRANT pg_read_all_stats` to it. Until then the page says statistics are off; nothing else changes.
 * Log collectors that parsed the old text lines must read JSON now (`MASSLAK_LOG_FORMAT=text` keeps the old format).
+
+## 7. Package G: manifests and parcels
+
+| Ref | Finding | What changed | Proof |
+|---|---|---|---|
+| R-11 | The carrier could not issue a pre-arrival manifest | `PRE_ARRIVAL` is accepted for international trips; on a domestic trip it is refused with `MANIFEST_TYPE_SCOPE` | `test_manifest_integrity.py` (both cases) |
+| R-12 | The border contract (`/api/v1/border/*`) saw only manifests written by hand, never the carrier's live ones | An international manifest whose crossing has an authority is `SUBMITTED` to it at issue. The authority lists, reads (with cargo and the canonical form) and decides it through `/api/v1/border/*`; the decision answers its routed delivery too, and an acknowledgement through `/api/v1/manifests/deliveries` answers the manifest, so the carrier sees one result whichever contract is used | `test_manifest_integrity.py`: trip, passenger with a passport and a parcel all through the APIs, then list, read, verify, acknowledge, and the carrier sees ACKNOWLEDGED (no SQL on the manifest) |
+| R-13 | Cargo was never put on a manifest, and cargo rows could be changed after the hash | The issue builds the cargo from every shipment leg on the trip's hold or on a load it pulls; refuses a shipment without a weight (`MANIFEST_CARGO_WEIGHT`); marks the manifest PASSENGER, CARGO or MIXED and routes it by content. The hash covers a canonical form rebuilt from the manifest's own rows (people, vehicle, cargo) and is signed with Ed25519 (key at `/api/public/keys/manifest`, `/verify` for the carrier). Once issued the database refuses any change to the rows and to the header's content (1078); a change is an amendment. The data-management screen shows manifest cargo read-only | DB checks (four refusals, status still moves); `test_manifest_integrity.py` (hash recomputed by the authority from the JSON, signature checked, three refused changes) |
+| R-14, decision 3 | A paid parcel had no place on any vehicle | Parcels are booked on a trip's hold: the shipment, its parcel and its leg are written, the hold is checked under its lock (1067), and only then the wallet is charged; a shipment marked guaranteed cannot be committed without a leg holding capacity. Carriers publish tariffs by weight, by volume, by the dearer of the two (both charges shown to the customer), at a fixed price (letters) or by agreement (the customer asks, the carrier offers a price valid for some hours, the customer accepts and pays it); one database function makes every price. Customers see the free hold of each trip. Carrier page *Parcels*, passenger page *Send a parcel* | `test_parcels.py` (quotes for each mode, booking and replay charged once, a full hold refuses before payment, two customers for the last space get one booking, the agreed-price flow); DB checks |
+
+Upgrading to 1.48.0, package G:
+
+* Manifests issued before 1.48.0 keep their status and are not verifiable (`canonical_version` empty); new versions are.
+* Carriers set the hold each trip offers (`PUT /api/carrier/trips/{uid}/hold`, never over the vehicle's registered
+  cargo capacity) and publish their tariffs before customers can book parcels on their trips. The older station-to-station
+  parcel request (`/api/w/parcels`) stays for shipments without a trip; it is not guaranteed and says so.

@@ -19,6 +19,7 @@ Errors use the platform's format: {"error": {"code", "message", ...}} with stabl
 """
 from __future__ import annotations
 
+import base64
 import uuid
 from datetime import date, datetime, time, timedelta
 from typing import Literal, Optional
@@ -32,6 +33,7 @@ from ...crypto import cipher
 from ...errors import ApiError, not_found
 from ...routers import public
 from ..agency import service as agency
+from ..manifests import service as manifests
 from ..payments import service as payments
 from ..reports import api as reports
 from ..sales import service as sales
@@ -333,11 +335,22 @@ def _authority(caller: Caller, scope: str) -> int:
 
 
 _MANIFESTS = """SELECT m.id, m.uid, m.version, m.manifest_type, m.content_type, m.status, m.closed_at, m.created_at, t.trip_no, t.departure_at,
+                       m.payload_sha256, m.payload_signature, m.signing_kid, m.canonical_version,
                        s.code AS border_point, s.name AS border_point_name,
                        (SELECT count(*) FROM brd.manifest_person mp WHERE mp.manifest_id = m.id) AS persons
                   FROM brd.manifest m JOIN ops.trip t ON t.id = m.trip_id JOIN brd.border_point bp ON bp.station_id = m.border_point_id
                   JOIN net.station s ON s.id = bp.station_id LEFT JOIN brd.crossing_profile cp ON cp.id = m.profile_id
                  WHERE (bp.authority_id = $1 OR cp.authority_id = $1) AND m.status IN ('SUBMITTED', 'ACKNOWLEDGED', 'REJECTED')"""
+
+
+async def _integrity(conn, r) -> dict:
+    """What the authority needs to prove the manifest is the one issued: the canonical form rebuilt from the sealed rows,
+    its SHA-256 and the platform's Ed25519 signature of it (key at /api/public/keys/manifest, 1078)."""
+    if r["canonical_version"] is None:
+        return {"integrity": None}
+    return {"integrity": {"canonical_version": r["canonical_version"], "sha256": bytes(r["payload_sha256"]).hex(),
+                          "signature": base64.b64encode(bytes(r["payload_signature"])).decode(), "kid": r["signing_kid"],
+                          "public_key": "/api/public/keys/manifest", "canonical": await manifests.canonical(conn, r["id"])}}
 
 
 def _manifest_row(r) -> dict:
@@ -385,6 +398,7 @@ async def border_manifest(uid: uuid.UUID, request: Request, caller: Caller = Dep
             cargo = await conn.fetch(
                 """SELECT id, cargo_category, cargo_description, hs_code, declared_weight_kg, packages, container_no, seal_no, un_number, adr_class
                      FROM brd.manifest_cargo WHERE manifest_id = $1 ORDER BY id""", m["id"])
+            integrity = await _integrity(conn, m)
             c = await cipher(conn)
     # the decision to show document numbers is recorded with its purpose (review 3.11)
     await policy.authorize(ctx, "brd.manifest_person.doc_no", "READ", "AUTHORITY_MANIFEST", f"border manifest {uid} for its authority")
@@ -400,7 +414,7 @@ async def border_manifest(uid: uuid.UUID, request: Request, caller: Caller = Dep
                            "embark": p["embark"], "disembark": p["disembark"]})
     request.state.audit = {"action": "border.manifest_read", "object_type": "brd.manifest", "object_id": m["id"]}
     return {**_manifest_row(m), "people": out_people, "vehicles": [dict(v) for v in vehicles],
-            "cargo": [{**dict(x), "declared_weight_kg": float(x["declared_weight_kg"])} for x in cargo]}
+            "cargo": [{**dict(x), "declared_weight_kg": float(x["declared_weight_kg"])} for x in cargo], **integrity}
 
 
 class Decision(BaseModel):
@@ -417,7 +431,8 @@ class DecisionsIn(BaseModel):
 
 @router.post("/border/manifests/{uid}/decisions")
 async def border_decide(uid: uuid.UUID, body: DecisionsIn, request: Request, caller: Caller = Depends(api_caller)):
-    """Decisions on the manifest or on single people, vehicles or cargo. A manifest-level OK acknowledges it, DENY rejects it.
+    """Decisions on the manifest or on single people, vehicles or cargo. A manifest-level OK acknowledges it, DENY rejects it,
+    and answers this authority's delivery of it too, so the carrier sees one result whichever contract the authority uses.
     Silent decisions are seen by the platform only, never by the carrier."""
     authority = _authority(caller, "border:respond")
     ctx = context(request, caller)
@@ -444,9 +459,12 @@ async def border_decide(uid: uuid.UUID, body: DecisionsIn, request: Request, cal
                    VALUES ($1, $2, $3, $4, $5, $6)""",
                 [(m["id"], d.subject, d.subject_id, d.decision, d.reason_code, d.silent) for d in body.decisions])
             final = next((d.decision for d in body.decisions if d.subject == "MANIFEST" and d.decision != "HOLD"), None)
-            status = {"OK": "ACKNOWLEDGED", "DENY": "REJECTED"}.get(final or "", m["status"])
-            if status != m["status"]:
-                await conn.execute("UPDATE brd.manifest SET status = $2 WHERE id = $1", m["id"], status)
+            status = m["status"]
+            if final:
+                status = {"OK": "ACKNOWLEDGED", "DENY": "REJECTED"}[final]
+                if await manifests.answer(conn, m["id"], authority, status) == "SUBMITTED":
+                    # an authority of the crossing profile rather than of the border point itself
+                    await conn.execute("UPDATE brd.manifest SET status = $2 WHERE id = $1", m["id"], status)
     request.state.audit = {"action": "border.manifest_decision", "object_type": "brd.manifest", "object_id": m["id"],
                            "reason": f"{len(body.decisions)} decisions"}
     return {"manifest": str(uid), "status": status, "recorded": len(body.decisions)}
@@ -456,6 +474,7 @@ async def border_decide(uid: uuid.UUID, body: DecisionsIn, request: Request, cal
 _DELIVERIES = """SELECT d.id, d.uid, d.status, d.channel, d.created_at, d.acknowledged_at, d.ack_ref, r.include_documents,
                         m.id AS manifest_id, m.uid AS manifest_uid, m.scope, m.manifest_type, m.version, m.status AS manifest_status,
                         m.issued_at, m.persons_count, encode(m.payload_sha256, 'hex') AS sha256, t.trip_no, t.departure_at,
+                        m.content_type, m.payload_sha256, m.payload_signature, m.signing_kid, m.canonical_version,
                         cp.legal_name AS carrier, s.code AS border_point
                    FROM brd.manifest_delivery d JOIN brd.manifest_route r ON r.id = d.route_id JOIN brd.manifest m ON m.id = d.manifest_id
                    JOIN ops.trip t ON t.id = m.trip_id JOIN iam.party cp ON cp.id = t.company_id
@@ -465,6 +484,7 @@ _DELIVERIES = """SELECT d.id, d.uid, d.status, d.channel, d.created_at, d.acknow
 
 def _delivery_row(r) -> dict:
     return {"uid": str(r["uid"]), "status": r["status"], "manifest_uid": str(r["manifest_uid"]), "scope": r["scope"],
+            "content": r["content_type"],
             "type": r["manifest_type"], "version": r["version"], "manifest_status": r["manifest_status"], "trip_no": r["trip_no"],
             "departure_at": _iso(r["departure_at"]), "carrier": r["carrier"], "border_point": r["border_point"],
             "persons": r["persons_count"], "sha256": r["sha256"], "issued_at": _iso(r["issued_at"]), "ack_ref": r["ack_ref"]}
@@ -507,6 +527,10 @@ async def manifest_delivery(uid: uuid.UUID, request: Request, caller: Caller = D
                 d["manifest_id"])
             vehicles = await conn.fetch("SELECT plate_no, plate_country, chassis_no FROM brd.manifest_vehicle WHERE manifest_id = $1",
                                         d["manifest_id"])
+            cargo = await conn.fetch(
+                """SELECT id, cargo_category, cargo_description, hs_code, declared_weight_kg, packages, container_no, seal_no, un_number, adr_class
+                     FROM brd.manifest_cargo WHERE manifest_id = $1 ORDER BY id""", d["manifest_id"])
+            integrity = await _integrity(conn, {**dict(d), "id": d["manifest_id"]})
             c = await cipher(conn)
     if d["include_documents"]:
         await policy.authorize(ctx, "brd.manifest_person.doc_no", "READ", "AUTHORITY_MANIFEST", f"manifest delivery {uid} on an approved route")
@@ -523,7 +547,8 @@ async def manifest_delivery(uid: uuid.UUID, request: Request, caller: Caller = D
                     "doc_expiry": _iso(p["doc_expiry"]), "nationality": p["nationality"], "birth_date": _iso(p["birth_date"]), "sex": p["sex"],
                     "seat": p["seat_label"], "embark": p["embark"], "disembark": p["disembark"]})
     request.state.audit = {"action": "manifest.delivery_read", "object_type": "brd.manifest_delivery", "object_id": d["id"]}
-    return {**_delivery_row(d), "people": out, "vehicles": [dict(v) for v in vehicles]}
+    return {**_delivery_row(d), "people": out, "vehicles": [dict(v) for v in vehicles],
+            "cargo": [{**dict(x), "declared_weight_kg": float(x["declared_weight_kg"])} for x in cargo], **integrity}
 
 
 class DeliveryAck(BaseModel):
@@ -551,9 +576,8 @@ async def manifest_ack(uid: uuid.UUID, body: DeliveryAck, request: Request, call
                 """INSERT INTO brd.manifest_response (manifest_id, subject_type, subject_id, decision, reason_code, silent_flag)
                    VALUES ($1, $2, $3, $4, $5, $6)""",
                 [(d["manifest_id"], x.subject, x.subject_id, x.decision, x.reason_code, x.silent) for x in body.decisions])
-            await conn.execute(
-                """UPDATE brd.manifest_delivery SET status = $2, ack_ref = $3, reject_reason = $4, acknowledged_at = now() WHERE id = $1""",
-                d["id"], body.status, body.ack_ref, body.reason)
+            # the same answer as a border decision: the delivery, and the manifest when this authority holds its crossing
+            await manifests.answer(conn, d["manifest_id"], authority, body.status, body.ack_ref, body.reason)
     request.state.audit = {"action": "manifest.delivery_ack", "object_type": "brd.manifest_delivery", "object_id": d["id"],
                            "reason": body.status}
     return {"delivery": str(uid), "status": body.status, "decisions": len(body.decisions)}

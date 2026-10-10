@@ -170,17 +170,7 @@
    {
     "created_at": "string",
     "id": "number",
-    "payload": {
-     "booking_ref": "string",
-     "counter": "null",
-     "departs_local": "string",
-     "from_city": "string",
-     "passengers": "number",
-     "pay_option": "string",
-     "to_city": "string",
-     "total_amount": "number",
-     "trip_no": "string"
-    },
+    "payload": "object",
     "read_at": "string",
     "status": "string",
     "template_code": "string"

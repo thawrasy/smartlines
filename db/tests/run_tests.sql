@@ -1610,7 +1610,8 @@ COMMIT;
 SELECT fin.roll_up_balances();
 SELECT fin.close_ledger_days() AS sc_days \gset
 SELECT closed_through AS sc_closed FROM fin.ledger_close WHERE id \gset
-SELECT pg_temp.ok(:sc_days >= 3 AND :'sc_closed'::date = (now() AT TIME ZONE 'UTC')::date - 1
+-- days close an hour after midnight (late commits land first), so in the first hour of a day "yesterday" is still open
+SELECT pg_temp.ok(:sc_days >= 2 AND :'sc_closed'::date = ((now() - interval '1 hour') AT TIME ZONE 'UTC')::date - 1
   AND EXISTS (SELECT 1 FROM fin.ledger_day_total WHERE wallet_id = :sc_company AND day = ((now() - interval '3 days') AT TIME ZONE 'UTC')::date AND credit >= 400),
   'Scale: closing totals every wallet per finished day, up to yesterday');
 SELECT pg_temp.expect_error(format($$WITH t AS (INSERT INTO fin.ledger_txn (txn_type, currency, idempotency_key) VALUES ('BOOKING_PAY', 'SYP', 'scale-late') RETURNING id)
@@ -2299,6 +2300,58 @@ SELECT pg_temp.ok((SELECT value FROM sys.statement_metrics() WHERE metric = 'mas
   'Statements (1077): statistics reach the monitoring and the security console through functions only, never the raw view');
 SELECT pg_temp.expect_error($$SELECT * FROM sys.top_statements('SLOWEST')$$, 'STATEMENT_ORDER',
   'Statements (1077): only the known orders are accepted (no text reaches the ORDER BY)');
+-- 1078: manifests sealed once issued; parcels priced by tariff and booked only with hold capacity (package G, decision 3)
+BEGIN;
+INSERT INTO brd.manifest (trip_id, border_point_id, version, manifest_type, status)
+SELECT t.id, (SELECT min(station_id) FROM brd.border_point), 1, 'PRE_ARRIVAL', 'DRAFT' FROM ops.trip t
+ WHERE NOT EXISTS (SELECT 1 FROM brd.manifest m WHERE m.trip_id = t.id) ORDER BY t.id LIMIT 1
+RETURNING id AS seal_m \gset
+INSERT INTO brd.manifest_person (manifest_id, person_role, crew_party_id, nationality)
+SELECT :seal_m, 'CREW', (SELECT min(id) FROM iam.party WHERE party_type = 'PERSON'), 'SY';
+UPDATE brd.manifest SET status = 'SUBMITTED' WHERE id = :seal_m;
+SELECT pg_temp.expect_error(format($$INSERT INTO brd.manifest_person (manifest_id, person_role, crew_party_id, nationality)
+  SELECT %s, 'CREW', (SELECT max(id) FROM iam.party WHERE party_type = 'PERSON'), 'SY'$$, :seal_m), 'MANIFEST_SEALED',
+  'Manifests (1078, R-13): nobody is added to an issued manifest');
+SELECT pg_temp.expect_error(format($$UPDATE brd.manifest_person SET full_name = 'Someone else' WHERE manifest_id = %s$$, :seal_m),
+  'MANIFEST_SEALED', 'Manifests (1078, R-13): the people of an issued manifest do not change');
+SELECT pg_temp.expect_error(format($$UPDATE brd.manifest SET manifest_type = 'FINAL' WHERE id = %s$$, :seal_m), 'MANIFEST_SEALED',
+  'Manifests (1078, R-13): an issued manifest keeps its content; a change is an amendment');
+SELECT pg_temp.expect_error(format($$DELETE FROM brd.manifest WHERE id = %s$$, :seal_m), 'MANIFEST_SEALED',
+  'Manifests (1078): an issued manifest is kept as a record');
+UPDATE brd.manifest SET status = 'ACKNOWLEDGED' WHERE id = :seal_m;
+SELECT pg_temp.ok((SELECT status FROM brd.manifest WHERE id = :seal_m) = 'ACKNOWLEDGED',
+  'Manifests (1078, R-12): the status of an issued manifest still moves on (an authority''s answer)');
+ROLLBACK;
+BEGIN;
+INSERT INTO ship.parcel_tariff (company_id, code, name, pricing_mode, currency, base_price, per_kg, per_m3, min_charge)
+SELECT min(id), 'TST_WV', 'Test both', 'WEIGHT_AND_VOLUME', 'SYP', 1000, 500, 100000, 3000 FROM iam.company;
+INSERT INTO ship.parcel_tariff (company_id, code, name, pricing_mode, currency, fixed_price, max_weight_kg)
+SELECT min(id), 'TST_LT', 'Test letter', 'FIXED', 'SYP', 2500, 0.5 FROM iam.company;
+INSERT INTO ship.parcel_tariff (company_id, code, name, pricing_mode, currency)
+SELECT min(id), 'TST_AG', 'Test agreed', 'NEGOTIATED', 'SYP' FROM iam.company;
+SELECT pg_temp.ok(
+  (ship.parcel_price((SELECT id FROM ship.parcel_tariff WHERE code = 'TST_WV'), 10, 0.01) ->> 'total')::bigint = 1000 + 5000
+  AND ship.parcel_price((SELECT id FROM ship.parcel_tariff WHERE code = 'TST_WV'), 10, 0.01) ->> 'basis' = 'WEIGHT'
+  AND (ship.parcel_price((SELECT id FROM ship.parcel_tariff WHERE code = 'TST_WV'), 1, 0.2) ->> 'total')::bigint = 1000 + 20000
+  AND ship.parcel_price((SELECT id FROM ship.parcel_tariff WHERE code = 'TST_WV'), 1, 0.2) ->> 'basis' = 'VOLUME'
+  AND (ship.parcel_price((SELECT id FROM ship.parcel_tariff WHERE code = 'TST_WV'), 0.1, 0.0001) ->> 'total')::bigint = 3000
+  AND (ship.parcel_price((SELECT id FROM ship.parcel_tariff WHERE code = 'TST_LT'), 0.2, 0.001) ->> 'total')::bigint = 2500
+  AND ship.parcel_price((SELECT id FROM ship.parcel_tariff WHERE code = 'TST_AG'), 1, 0.01) ->> 'total' IS NULL,
+  'Parcels (1078, decision 3): by weight or volume, whichever costs more, the minimum, a fixed price, or agreed (no price)');
+SELECT pg_temp.expect_error($$SELECT ship.parcel_price((SELECT id FROM ship.parcel_tariff WHERE code = 'TST_LT'), 2, 0.001)$$,
+  'PARCEL_TOO_HEAVY', 'Parcels (1078): a tariff''s limits are enforced where the price is made');
+SELECT pg_temp.expect_error($$INSERT INTO ship.parcel_tariff (company_id, code, name, pricing_mode, currency)
+  SELECT min(id), 'TST_BAD', 'No rate', 'WEIGHT', 'SYP' FROM iam.company$$, 'parcel_tariff_check',
+  'Parcels (1078): a weight tariff needs its rate per kilogram');
+SELECT pg_temp.expect_error($$INSERT INTO ship.shipment (tracking_no, company_id, shipper_party_id, service_id, origin_station_id,
+  dest_station_id, guaranteed) SELECT 'GTEST000001', (SELECT min(id) FROM iam.company), (SELECT min(id) FROM iam.party),
+  (SELECT min(id) FROM ship.service_product), (SELECT min(id) FROM net.station), (SELECT max(id) FROM net.station), true$$,
+  'CAPACITY_REQUIRED', 'Parcels (1078, R-14): a guaranteed shipment is never committed without a leg holding capacity');
+SELECT pg_temp.ok(has_function_privilege('masslak_app', 'ship.trip_hold(bigint)', 'EXECUTE')
+  AND (SELECT relrowsecurity FROM pg_class WHERE oid = 'ship.parcel_offer'::regclass)
+  AND EXISTS (SELECT 1 FROM pg_policy WHERE polrelid = 'ship.parcel_offer'::regclass AND polname = 'module_gate'),
+  'Parcels (1078): offers are private to the customer and the carrier, and open with the shipping module');
+ROLLBACK;
 -- Review stage D (1064): bookings partitioned by ranges of id
 SELECT pg_temp.ok(
   (SELECT relkind FROM pg_class WHERE oid = 'sales.booking'::regclass) = 'p'

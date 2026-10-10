@@ -47,9 +47,8 @@ RESOURCES = [
              {P: "border.manage", O: "border.operate"}, create=False, update=False, order="manifest_id DESC", group="manifests"),
     Resource("manifest-cargo", M_BRD, "brd.manifest_cargo",
              c("manifest_id shipment_id leg_id cargo_category cargo_description hs_code declared_weight_kg packages container_no seal_no un_number adr_class"),
-             c("manifest_id shipment_id leg_id cargo_category cargo_description hs_code declared_weight_kg packages container_no "
-               "seal_no un_number adr_class temp_min_c temp_max_c"), {P: "border.manage", O: "border.operate"}, delete=True,
-             group="manifests"),
+             (), {P: "border.manage", O: "border.operate"}, create=False, update=False, order="manifest_id DESC, id",
+             group="manifests"),                       # built by the manifest's issue and sealed with it (1078)
     Resource("manifest-response", M_BRD, "brd.manifest_response",
              c("manifest_id subject_type subject_id decision reason_code silent_flag received_at"),
              c("manifest_id subject_type subject_id decision reason_code silent_flag"), {P: "border.manage", O: "border.operate"},

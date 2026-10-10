@@ -180,6 +180,45 @@ def ticket_public_key() -> str:
     return _b64(_ticket_key().public_key().public_bytes(Encoding.Raw, PublicFormat.Raw))
 
 
+# ------------------------------------------------------------------ issued manifests (Ed25519, 1078)
+# The hash of every issued manifest is signed so an authority can prove the manifest it received is the one the
+# carrier issued. The key is derived from the ticket signing seed for its own purpose (HKDF, so knowing one key says
+# nothing about the other), unless MASSLAK_MANIFEST_SIGNING_KEY gives one of its own (base64 of 32 bytes).
+MANIFEST_KID = "manifest-signature/v1"
+
+
+@lru_cache(maxsize=1)
+def _manifest_key():
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+    from cryptography.hazmat.primitives.hashes import SHA256
+    from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+    from cryptography.hazmat.primitives.serialization import Encoding, NoEncryption, PrivateFormat
+    raw = os.environ.get("MASSLAK_MANIFEST_SIGNING_KEY", "").strip()
+    if raw:
+        return Ed25519PrivateKey.from_private_bytes(base64.b64decode(raw))
+    ticket_seed = _ticket_key().private_bytes(Encoding.Raw, PrivateFormat.Raw, NoEncryption())
+    return Ed25519PrivateKey.from_private_bytes(
+        HKDF(algorithm=SHA256(), length=32, salt=b"masslak-manifest", info=MANIFEST_KID.encode()).derive(ticket_seed))
+
+
+def manifest_sign(digest: bytes) -> bytes:
+    return _manifest_key().sign(digest)
+
+
+def manifest_public_key() -> str:
+    from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
+    return _b64(_manifest_key().public_key().public_bytes(Encoding.Raw, PublicFormat.Raw))
+
+
+def manifest_signature_valid(digest: bytes, signature: bytes) -> bool:
+    from cryptography.exceptions import InvalidSignature
+    try:
+        _manifest_key().public_key().verify(signature, digest)
+        return True
+    except InvalidSignature:
+        return False
+
+
 def ticket_credential(claims: dict) -> str:
     """T2.<payload>.<signature>, both base64url; claims: k ticket, t trip, s seat, n name, a/b stops, x expiry."""
     payload = _b64(json.dumps({"v": 2, **claims}, separators=(",", ":"), ensure_ascii=False).encode())

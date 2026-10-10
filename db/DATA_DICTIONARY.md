@@ -2,7 +2,7 @@
 
 > Generated from the built database (`db/tools/gen_docs.py`); do not edit by hand.
 
-**499 tables, 5109 columns, in 26 schemas.**
+**501 tables, 5154 columns, in 26 schemas.**
 
 Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant isolation (RLS) · 🧩 partitioned monthly · 🔒 append-only / change-protected
 
@@ -23,7 +23,7 @@ Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant i
 - [`gov` — Governance, obligations and data protection](#gov) (14 tables)
 - [`sec` — Security: IP rules, risk, signing, the security hub and government adapters](#sec) (26 tables)
 - [`ptn` — Service partners: fuel stations, rest stops and maintenance](#ptn) (14 tables)
-- [`ship` — Shipments and the integrated shipping network](#ship) (55 tables)
+- [`ship` — Shipments and the integrated shipping network](#ship) (57 tables)
 - [`frt` — Trucking, heavy transport and transit freight](#frt) (14 tables)
 - [`brd` — Border manifest gateway](#brd) (10 tables)
 - [`ctr` — Contracted transport: universities and employees](#ctr) (6 tables)
@@ -6833,6 +6833,59 @@ Truck or hold load with capacity by weight, volume and pallet positions; no book
 | `content_desc` | `text` | ✱ |  |
 | `hs_code` | `text` |  |  |
 | `fragile` | `boolean` | ✱ | `false` |
+| `volume_m3` | `numeric(8,4)` |  | `(((length_cm * width_cm) * height_cm)...` |
+
+### `ship.parcel_offer` 🛡️
+
+A price agreed between a carrier and a customer for one parcel on one trip (letters and the like): asked, offered, accepted and paid (owner's decision 3, 1078)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `tariff_id` | `bigint` | 🔗 `ship.parcel_tariff` ✱ |  |
+| `company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `requester_party_id` | `bigint` | 🔗 `iam.party` ✱ |  |
+| `requester_user_id` | `bigint` | 🔗 `iam.app_user`  |  |
+| `trip_id` | `bigint` | 🔗 `ops.trip` ✱ |  |
+| `from_seq` | `smallint` | ✱ |  |
+| `to_seq` | `smallint` | ✱ |  |
+| `weight_kg` | `numeric(8,2)` | ✱ |  |
+| `volume_m3` | `numeric(8,4)` | ✱ | `0` |
+| `description` | `text` | ✱ |  |
+| `status` | `text` | ✱ | `'REQUESTED'::text` |
+| `price` | `bigint` |  |  |
+| `currency` | `character(3)` | 🔗 `ref.currency`  |  |
+| `note` | `text` |  |  |
+| `offered_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `offered_at` | `timestamp with time zone` |  |  |
+| `valid_until` | `timestamp with time zone` |  |  |
+| `shipment_id` | `bigint` | 🔗 `ship.shipment`  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `ship.parcel_tariff` 🛡️
+
+A carrier's parcel prices: by weight, by volume, by the dearer of the two, fixed per item, or agreed with the customer (owner's decision 3, 1078)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `code` | `text` | ✱ |  |
+| `name` | `text` | ✱ |  |
+| `pricing_mode` | `text` | ✱ |  |
+| `currency` | `character(3)` | 🔗 `ref.currency` ✱ |  |
+| `base_price` | `bigint` | ✱ | `0` |
+| `per_kg` | `bigint` |  |  |
+| `per_m3` | `bigint` |  |  |
+| `fixed_price` | `bigint` |  |  |
+| `min_charge` | `bigint` | ✱ | `0` |
+| `max_weight_kg` | `numeric(8,2)` |  |  |
+| `max_volume_m3` | `numeric(8,4)` |  |  |
+| `status` | `text` | ✱ | `'ACTIVE'::text` |
+| `created_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
 ### `ship.partner_command` 🛡️
 
@@ -7108,6 +7161,9 @@ A consignment from sender to receiver, independent of the vehicles that carry it
 | `recipient_name` | `text` |  |  |
 | `recipient_mobile` | `text` |  |  |
 | `contents` | `text` |  |  |
+| `guaranteed` | `boolean` | ✱ | `false` |
+| `tariff_id` | `bigint` | 🔗 `ship.parcel_tariff`  |  |
+| `idempotency_key` | `text` |  |  |
 
 ### `ship.shipment_leg` 🛡️
 
@@ -7585,6 +7641,9 @@ Manifest header: a versioned snapshot per trip and border point (11.6)
 | `payload_sha256` | `bytea` |  |  |
 | `persons_count` | `integer` |  |  |
 | `supersedes_id` | `bigint` | 🔗 `brd.manifest`  |  |
+| `payload_signature` | `bytea` |  |  |
+| `signing_kid` | `text` |  |  |
+| `canonical_version` | `smallint` |  |  |
 
 ### `brd.manifest_cargo` 🛡️
 

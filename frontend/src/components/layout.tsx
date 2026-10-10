@@ -60,6 +60,7 @@ export function PublicLayout() {
           {passenger && <NavLink to="/wallet">{t("nav.wallet")}</NavLink>}
           {passenger && <NavLink to="/family">{t("nav.family")}</NavLink>}
           {passenger && <NavLink to="/support">{t("nav.support")}</NavLink>}
+          {passenger && mine.some((m) => m.key === "cargo") && <NavLink to="/parcels">{t("nav.parcels")}</NavLink>}
           {mine.length > 0 && <ModulesMenu items={mine.map((m) => ({ to: `/m/${m.key}`, icon: m.icon as IconName, label: L.module(m.key) }))} />}
           {passenger && <NavLink to="/account">{t("nav.account")}</NavLink>}
           <NavLink to="/verify">{t("nav.verify")}</NavLink>
@@ -97,7 +98,7 @@ export function PublicLayout() {
           </span>
         </div>
       </footer>
-      {passenger && <MobileNav services={mine.length ? "/services" : undefined} />}
+      {passenger && <MobileNav services={mine.length ? "/services" : undefined} parcels={mine.some((m) => m.key === "cargo")} />}
     </>
   );
 }
@@ -121,7 +122,7 @@ function ModulesMenu({ items }: { items: NavItem[] }) {
   );
 }
 
-function MobileNav({ services }: { services?: string }) {
+function MobileNav({ services, parcels }: { services?: string; parcels?: boolean }) {
   const { t } = useI18n();
   const [more, setMore] = useState(false);
   const loc = useLocation();
@@ -131,6 +132,7 @@ function MobileNav({ services }: { services?: string }) {
     ["/wallet", "account_balance_wallet", t("nav.wallet")], ["/account", "person", t("nav.account")]];
   const extra: [string, IconName, string][] = [["/family", "family_restroom", t("nav.family")], ["/support", "support_agent", t("nav.support")]];
   if (services) extra.push([services, "apps", t("modules.services")]);
+  if (parcels) extra.push(["/parcels", "local_shipping", t("nav.parcels")]);
   const inExtra = extra.some(([to]) => loc.pathname.startsWith(to));
   return (
     <nav className="navbar mobile-only" aria-label={t("nav.menu")}>
