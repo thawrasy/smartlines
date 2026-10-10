@@ -1,6 +1,7 @@
 """Request middleware: request id, client address, IP rules (sec.ip_rule) and the activity log."""
 import ipaddress
 import logging
+import re
 import time
 import uuid
 
@@ -78,6 +79,19 @@ def _route(request: Request) -> str:
     return getattr(route, "path", None) or "unmatched"
 
 
+_WORD = re.compile(r"^[a-z][a-z0-9_-]{0,31}$")
+
+
+def _endpoint(request: Request) -> str:
+    """What the activity log records as the endpoint (reviews of release 1.49.0, F-02): the route template, or, for a
+    request refused before routing (a blocked address, a rate limit), the path with every segment that is not a plain
+    word replaced by *. A token in a path (a report delivery's) or an identifier never reaches the log."""
+    route = getattr(request.scope.get("route"), "path", None)
+    if route:
+        return route
+    return "/".join(seg if not seg or _WORD.match(seg) else "*" for seg in request.url.path.split("/"))
+
+
 class RequestContextMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         request.state.request_id = uuid.uuid4()
@@ -120,9 +134,9 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
                 # sign-in and public endpoints: the address's bucket is shared by every process (1068), in this round trip
                 wait = 0.0
                 if bucket == "auth":
-                    wait = await ratelimit.check_address(conn, request.state.client_ip)
+                    wait = await ratelimit.check_address(conn, ratelimit.client_key(request.state.client_ip))
                 elif bucket == "public":
-                    wait = await ratelimit.check_public(conn, request.state.client_ip)
+                    wait = await ratelimit.check_public(conn, ratelimit.client_key(request.state.client_ip))
         except db.PoolBusy:
             # raised outside the routes, so the application's exception handlers would not see it
             return await pool_busy_handler(request, db.PoolBusy())
@@ -163,7 +177,7 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
         pr = request.state.principal
         audit = request.state.audit or {}
         route = request.scope.get("route")
-        action = action or audit.get("action") or (getattr(route, "name", None) or request.url.path)
+        action = action or audit.get("action") or (getattr(route, "name", None) or _endpoint(request))
         try:
             async with db.raw_connection() as conn:
                 await conn.execute(
@@ -174,7 +188,7 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
                     request.state.request_id, "API_CLIENT" if request.state.api_client_id else "USER" if pr else "SYSTEM",
                     pr.user_id if pr else None, pr.company_id if pr else None, pr.session_id if pr else None,
                     pr.portal if pr else scope, request.state.client_ip, request.headers.get("user-agent", "")[:300],
-                    request.method, request.url.path[:300], str(action)[:120], audit.get("object_type"),
+                    request.method, _endpoint(request)[:300], str(action)[:120], audit.get("object_type"),
                     audit.get("object_id"), result, status, int((time.monotonic() - started) * 1000),
                     reason or audit.get("reason"), request.state.api_client_id,
                 )
@@ -182,7 +196,7 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
             db.AUDIT_WRITE_FAILURES[0] += 1
             logging.getLogger("masslak.audit").warning(
                 "activity log not written for %s %s (%s %s); data changes stay in audit.row_change",
-                request.method, request.url.path[:120], exc.__class__.__name__, getattr(exc, "sqlstate", ""))
+                request.method, _endpoint(request)[:120], exc.__class__.__name__, getattr(exc, "sqlstate", ""))
 
 
 class HeadAsGet:

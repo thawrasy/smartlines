@@ -121,6 +121,21 @@ A server that must not refuse those requests:
 
 While the window is open, readiness reports not ready (RUNBOOKS.md, section 30).
 
+## Release 1.50.0 (1084)
+
+**1084** adds four functions and replaces two (`sys.tg_remember_new_row`, `sys.created_here`). It changes no table and
+moves no row, so it takes catalog locks for milliseconds and was not rehearsed with the tool. The list of rows a
+transaction created moves from one setting per table to the one setting `app.new_rows`; the two functions are replaced
+in the same transaction, so a transaction that started before the swap finds its rows the old way until it ends.
+
+What needs care is the database server, not the file: the settings guard is a server module (`db/guard`), loaded when
+the server starts. `deploy/update.sh` runs the release's database image, which recreates the database container: the
+server restarts once, for the seconds it takes to start (with two database hosts, `install-db-host.sh` with the new
+bundle on the standby's host first, then on the primary's, which hands the role over before it restarts:
+HIGH_AVAILABILITY.md). Until it has restarted, `sys.guard_status()` is false and `/api/ready` of
+a production server reports `"settings_guard": false`; the preflight of the next update refuses a server where it stays
+false (RUNBOOKS.md, section 30).
+
 ## 1064_partitioned_bookings.sql on a live database (R-06)
 
 1064 turns `sales.booking` into a table partitioned by ranges of id **in place, under an ACCESS EXCLUSIVE lock**: it

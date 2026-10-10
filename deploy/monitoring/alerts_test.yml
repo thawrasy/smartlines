@@ -482,6 +482,10 @@ tests:
         values: "1x30"
       - series: 'masslak_ledger_open_days'
         values: "1x30"
+      - series: 'masslak_context_unsigned_window_open'
+        values: "0x30"
+      - series: 'masslak_settings_guard_loaded'
+        values: "1x30"
       - series: 'node_filesystem_avail_bytes{mountpoint="/",fstype="ext4"}'
         values: "50x5 5x20"
       - series: 'node_filesystem_size_bytes{mountpoint="/",fstype="ext4"}'
@@ -535,3 +539,27 @@ tests:
         exp_alerts:
           - exp_labels: { severity: page, job: masslak-api, instance: "app:8000", task: maintenance }
             exp_annotations: { summary: "The daily upkeep has not succeeded for more than 26 hours", runbook: "RUNBOOKS.md#9-data-lifecycle-r-11" }
+  # reviews of release 1.49.0: an unsigned-context window pages at once; a server without the guard after 5 minutes
+  - interval: 1m
+    input_series:
+      - series: 'masslak_context_unsigned_window_open'
+        values: "0 0 1 1 1 0"
+      - series: 'masslak_settings_guard_loaded'
+        values: "1 1 0 0 0 0 0 0 0 0"
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: ContextUnsignedWindowOpen
+        exp_alerts: []
+      - eval_time: 3m
+        alertname: ContextUnsignedWindowOpen
+        exp_alerts:
+          - exp_labels: { severity: page }
+            exp_annotations: { summary: "A window for request contexts without a ticket is open: row security takes unsigned contexts until it closes", runbook: "RUNBOOKS.md#30-the-request-context-and-its-ticket-reviews-of-october-2026-c-01-and-c-02" }
+      - eval_time: 5m
+        alertname: SettingsGuardMissing
+        exp_alerts: []
+      - eval_time: 8m
+        alertname: SettingsGuardMissing
+        exp_alerts:
+          - exp_labels: { severity: page }
+            exp_annotations: { summary: "The database server does not load the settings guard: a login could set the request context the row rules trust", runbook: "RUNBOOKS.md#30-the-request-context-and-its-ticket-reviews-of-october-2026-c-01-and-c-02" }

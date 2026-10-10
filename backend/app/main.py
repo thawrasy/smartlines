@@ -104,10 +104,12 @@ async def security_headers(request: Request, call_next):
     response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
     response.headers.setdefault("X-Frame-Options", "DENY")
     response.headers.setdefault("Permissions-Policy", "camera=(self), geolocation=(self), microphone=()")
+    # no inline style or script anywhere (reviews of release 1.49.0); the landing pages set their own, which names their
+    # stylesheet by its hash (modules/seo/render.py), and frontend/e2e/csp-check.mjs fails on any violation in a browser
     response.headers.setdefault(
         "Content-Security-Policy",
-        "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
-        "font-src 'self' https://fonts.gstatic.com; script-src 'self'; connect-src 'self'; frame-ancestors 'none'")
+        "default-src 'self'; img-src 'self' data:; style-src 'self'; font-src 'self'; script-src 'self'; "
+        "connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'")
     if request.url.path.startswith("/api/"):
         response.headers.setdefault("Cache-Control", "no-store")
         response.headers.setdefault("X-Robots-Tag", "noindex, nofollow")

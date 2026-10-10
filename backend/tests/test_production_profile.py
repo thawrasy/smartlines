@@ -16,6 +16,7 @@ import asyncpg
 import pytest
 
 from app import config, kms, profile
+from app.guard import GUARDED_SETTINGS
 from app.tools import keys, preflight
 
 OWNER_URL = os.environ.get("MASSLAK_OWNER_URL")
@@ -44,7 +45,7 @@ def good() -> preflight.Facts:
     return preflight.Facts(ssl="on", connection_encrypted=True, hba=[dict(r) for r in PROFILE_HBA], archive_mode="on",
                            archive_command="pgbackrest --stanza=masslak archive-push %p",
                            archive_check={"repo_type": "s3", "repo_host": "", "check_ok": "1", "plugins": ""},
-                           db_layout="ha", sync_standbys=1)
+                           db_layout="ha", sync_standbys=1, guarded_enforced=len(GUARDED_SETTINGS))
 
 
 def test_the_profile_as_written_passes():
@@ -136,7 +137,8 @@ def test_the_archive_check_lines_are_read_as_written():
 
 # ------------------------------------------------------------------ the API and the worker at start-up
 URL = "postgresql://masslak_api:x@pgbouncer:6432/masslak?sslmode=verify-full&sslrootcert=/etc/masslak/trust/ca.crt"
-ENV = {"MASSLAK_PROFILE": "production", "MASSLAK_KMS_PROVIDER": "vault"}
+ENV = {"MASSLAK_PROFILE": "production", "MASSLAK_KMS_PROVIDER": "vault",
+       "MASSLAK_QR_KEYS": "q202610:" + "A" * 43 + "=", "MASSLAK_DOCUMENT_KEYS": "d202610:" + "B" * 43 + "="}
 
 
 @pytest.fixture
@@ -144,6 +146,9 @@ def production_urls(monkeypatch):
     s = config.get_settings()
     for name in ("database_url", "audit_database_url", "reports_database_url"):
         monkeypatch.setattr(s, name, URL)
+    monkeypatch.setattr(s, "cookie_secure", True)          # the CI job runs the API over plain HTTP (false there)
+    for name in ("telemetry_database_url", "telemetry_upkeep_url"):    # a CI step may point at its telemetry database
+        monkeypatch.setattr(s, name, "")
     return s
 
 
@@ -159,9 +164,41 @@ def test_a_complete_profile_starts(production_urls):
     ({**ENV, "POSTGRES_PASSWORD": "owner"}, "must not hold"),
     ({**ENV, "PGBACKREST_REPO1_CIPHER_PASS": "x"}, "must not hold"),
     ({**ENV, "MASSLAK_PATRONI_REST_PASSWORD": "x"}, "must not hold"),
+    ({k: v for k, v in ENV.items() if k != "MASSLAK_QR_KEYS"}, "MASSLAK_QR_KEYS must name a key of its own"),
+    ({**ENV, "MASSLAK_DOCUMENT_KEYS": "s1,d1:" + "B" * 43 + "="}, "MASSLAK_DOCUMENT_KEYS must name a key of its own"),
 ])
 def test_each_gap_stops_the_start(production_urls, env, expected):
     assert any(expected in p for p in profile.problems(env)), profile.problems(env)
+
+
+def test_a_session_cookie_sent_over_plain_http_stops_the_start(production_urls, monkeypatch):
+    # reviews of release 1.49.0: the default is right, a wrong environment value used to pass unnoticed
+    monkeypatch.setattr(production_urls, "cookie_secure", False)
+    assert any("MASSLAK_COOKIE_SECURE=false" in p for p in profile.problems(ENV))
+
+
+def test_the_telemetry_database_must_be_reached_over_checked_tls(production_urls, monkeypatch):
+    # reviews of release 1.49.0: the one connection the profile did not check
+    monkeypatch.setattr(production_urls, "telemetry_database_url", "")
+    monkeypatch.setattr(production_urls, "telemetry_upkeep_url", "")
+    assert profile.problems(ENV) == []                       # no telemetry database: nothing to check
+    monkeypatch.setattr(production_urls, "telemetry_database_url", "postgresql://masslak_tel:x@telemetry/masslak_tel")
+    assert any("MASSLAK_TELEMETRY_DATABASE_URL" in p for p in profile.problems(ENV))
+    monkeypatch.setattr(production_urls, "telemetry_database_url", URL.replace("pgbouncer:6432/masslak", "telemetry/masslak_tel"))
+    monkeypatch.setattr(production_urls, "telemetry_upkeep_url", "postgresql://masslak_tel_upkeep:x@telemetry/masslak_tel?sslmode=require")
+    found = profile.problems(ENV)
+    assert not any("MASSLAK_TELEMETRY_DATABASE_URL" in p for p in found)
+    assert any("MASSLAK_TELEMETRY_UPKEEP_URL" in p for p in found)
+
+
+def test_the_production_telemetry_overlay_runs_tls_and_checks_it():
+    root = Path(__file__).resolve().parents[2]
+    overlay = (root / "deploy/production/docker-compose.telemetry.yml").read_text(encoding="utf-8")
+    assert "image: masslak-db:" in overlay and '"-c", "ssl=on"' in overlay and "ssl_min_protocol_version=TLSv1.3" in overlay
+    assert overlay.count("sslmode=verify-full&sslrootcert=/etc/masslak/trust/ca.crt") == 4    # migrate, app, worker (two)
+    assert "./deploy/production/tls/telemetry.crt:/tls-src/server.crt:ro" in overlay
+    init = (root / "deploy/production/init.sh").read_text(encoding="utf-8")
+    assert "issue telemetry telemetry" in init and "deploy/production/docker-compose.telemetry.yml" in init
 
 
 def test_a_connection_that_does_not_check_the_certificate_stops_the_start(production_urls, monkeypatch):

@@ -7,14 +7,25 @@
 #     table into plain text (H-10);
 #   * for the layout with two database hosts (H-01, deploy/production/ha): Patroni, from patroni.lock with the hashes
 #     of every file; HAProxy, which the application host runs from this same image in front of the two hosts; and the
-#     scripts both use.
+#     scripts both use;
+#   * the settings guard (db/guard, reviews of release 1.49.0): only the platform's own functions set the request
+#     context and the guard flags the row rules and the ledger trust. Built from the build context guard-src
+#     (docker build --build-context guard-src=db/guard, deploy/images.sh), loaded with every server this image starts.
+FROM postgis/postgis:16-3.4-alpine@sha256:681931a625df344215e9b8998bf34daf146b6a395ceacee4439eb9c85869239f AS guard
+RUN apk add --no-cache gcc make musl-dev
+COPY --from=guard-src masslak_guard.c Makefile /src/
+RUN make -C /src with_llvm=no
+
 FROM postgis/postgis:16-3.4-alpine@sha256:681931a625df344215e9b8998bf34daf146b6a395ceacee4439eb9c85869239f
+COPY --from=guard /src/masslak_guard.so /tmp/masslak_guard.so
+COPY --from=guard-src entry.sh /usr/local/bin/masslak-guard-entry
 COPY patroni.lock /tmp/patroni.lock
 # Every package of patroni.lock is checked against its hashes; all are wheels but python-etcd and ydiff, which exist
 # only as source and are pure Python (built with Alpine's setuptools, no compiler). --upgrade brings the libraries the
 # pinned base image already has (libexpat) to the versions Alpine's current Python is built against.
 RUN apk add --no-cache --upgrade libexpat pgbackrest python3 py3-pip py3-setuptools py3-wheel haproxy \
  && rm -f "$(pg_config --pkglibdir)/test_decoding.so" \
+ && install -m 0755 /tmp/masslak_guard.so "$(pg_config --pkglibdir)/masslak_guard.so" && rm /tmp/masslak_guard.so \
  && pip install --no-cache-dir --break-system-packages --ignore-installed --no-deps --no-build-isolation \
         --only-binary :all: --no-binary python-etcd,ydiff --require-hashes -r /tmp/patroni.lock \
  && patroni --version \
@@ -31,6 +42,6 @@ COPY patroni-config.py /usr/local/bin/masslak-patroni
 COPY backup-if-primary.sh /usr/local/bin/masslak-backup-if-primary
 RUN chmod 0644 /etc/pgbackrest/pgbackrest.conf /etc/patroni/patroni.yml \
  && cd /usr/local/bin && chmod 0755 masslak-db-entry masslak-archive-check masslak-patroni-bootstrap masslak-db-proxy \
-                                    masslak-patroni masslak-backup-if-primary
+                                    masslak-patroni masslak-backup-if-primary masslak-guard-entry
 ENTRYPOINT ["/usr/local/bin/masslak-db-entry"]
 CMD ["docker-entrypoint.sh", "postgres"]

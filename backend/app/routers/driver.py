@@ -58,7 +58,7 @@ class ScanIn(BaseModel):
 
 
 def _ticket_from_token(token: str, trip_uid: uuid.UUID, at: Optional[datetime] = None) -> tuple[Optional[str], Optional[str]]:
-    """(ticket uid, early result). Accepts the rotating online code (T1) and the signed offline credential (T2).
+    """(ticket uid, early result). Accepts the rotating online code (Q1; T1 before release 1.50.0) and the signed offline credential (T2).
     at: when the code was scanned, for a scan made offline and uploaded later; the credential must have been valid then."""
     token = token.strip()
     if token.startswith("T2."):

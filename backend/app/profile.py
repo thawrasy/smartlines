@@ -7,6 +7,7 @@ On a production server (anything config.is_test_server() does not call a test se
     certificate as sslrootcert);
   * the data keys come from the key service (MASSLAK_KMS_PROVIDER=vault) and none sits in their own environment
     (MASSLAK_FIELD_KEYS, MASSLAK_BIDX_KEY or MASSLAK_KEK there would put the keys next to the data they protect);
+  * ticket codes and document tokens are signed with keys of their own (MASSLAK_QR_KEYS, MASSLAK_DOCUMENT_KEYS);
   * their environment holds no secret of the database owner, of replication, of the warehouse, of the backups or of
     pgBackRest (deploy/env-split.sh leaves them out; this catches a container started with the whole deploy/.env).
 The migration checks the database side of the profile itself (app.tools.preflight).
@@ -41,15 +42,28 @@ def problems(environ: Mapping[str, str] | None = None) -> list[str]:
         found.append("this server is declared production but does not run the production profile "
                      "(deploy/production/docker-compose.production.yml, COMPOSE_FILE in deploy/.env)")
     for name, url in (("MASSLAK_DATABASE_URL", s.database_url), ("MASSLAK_AUDIT_DATABASE_URL", s.audit_database_url),
-                      ("MASSLAK_REPORTS_DATABASE_URL", s.reports_database_url)):
+                      ("MASSLAK_REPORTS_DATABASE_URL", s.reports_database_url),
+                      # the telemetry database too, when positions are kept there (reviews of release 1.49.0)
+                      ("MASSLAK_TELEMETRY_DATABASE_URL", s.telemetry_database_url),
+                      ("MASSLAK_TELEMETRY_UPKEEP_URL", s.telemetry_upkeep_url)):
         if url and not verified_tls(url):
             found.append(f"{name} does not check the database's certificate (sslmode=verify-full and sslrootcert)")
+    if not s.cookie_secure:
+        found.append("the session cookie would also travel over plain HTTP (MASSLAK_COOKIE_SECURE=false): a production "
+                     "server sends it over HTTPS only (reviews of release 1.49.0)")
     if env.get("MASSLAK_KMS_PROVIDER", "").strip().lower() != "vault":
         found.append("the data keys must come from the key service on a production server (MASSLAK_KMS_PROVIDER=vault)")
     held = [k for k in RAW_KEYS if env.get(k, "").strip()]
     if held:
         found.append(f"data keys sit in this process's environment ({', '.join(held)}): on a production server they are "
                      "wrapped by the key service and only the migration may read them, once, to wrap them")
+    # QR codes and document tokens signed with keys of their own, not with keys derived from the signing secret
+    derived = [name for name in ("MASSLAK_QR_KEYS", "MASSLAK_DOCUMENT_KEYS")
+               if not env.get(name, "").strip() or env.get(name, "").split(",")[0].strip() == "s1"]
+    if derived:
+        found.append(f"{', '.join(derived)} must name a key of its own first (kid:base64 of 32 bytes; deploy/init-env.sh "
+                     "makes them): tokens would otherwise be signed with a key derived from MASSLAK_SIGNING_SECRET "
+                     "(reviews of release 1.49.0)")
     leaked = [k for k in OWNER_SECRETS if env.get(k, "").strip()]
     if leaked:
         found.append(f"secrets this process must not hold are in its environment ({', '.join(leaked)}): start it with "

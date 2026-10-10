@@ -10,8 +10,11 @@
 
 services:
   db:
-    build: deploy/staging/db
-    image: masslak-staging-db:latest
+    build:
+      context: deploy/staging/db
+      additional_contexts:
+        guard-src: db/guard                   # the settings guard, as in the production image (db/guard)
+    image: masslak-staging-db:${MASSLAK_IMAGE_TAG:-local}
     command:
       - postgres
       - -c

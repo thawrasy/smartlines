@@ -41,17 +41,25 @@ SQL
   *) echo "MASSLAK_ENVIRONMENT must be development, staging or production" >&2; exit 1 ;;
 esac
 
-# the data warehouse's replication login (deploy/warehouse), only where one is configured
-set --
-if [ -n "${MASSLAK_CDC_PASSWORD:-}" ]; then set -- -v cdc_password="$MASSLAK_CDC_PASSWORD"; fi
+# Passwords and keys reach psql through its environment (\getenv), never its command line, which every process on the
+# host can read (reviews of release 1.49.0).
+: "${MASSLAK_API_PASSWORD:?}" "${MASSLAK_AUDIT_PASSWORD:?}" "${MASSLAK_REPLICATION_PASSWORD:?}"
 # the key that signs request contexts (1080), derived from MASSLAK_SIGNING_SECRET exactly as the API derives it
-context_key="$(cd /app/backend && python -m app.tools.context_key)"
-set -- "$@" -v context_key="$context_key"
-psql -d "$DB" -v ON_ERROR_STOP=1 -q -v api_password="${MASSLAK_API_PASSWORD:?}" -v audit_password="${MASSLAK_AUDIT_PASSWORD:?}" "$@" \
-     -f /app/db/create_login_roles.sql
+MASSLAK_CONTEXT_KEY_HEX="$(cd /app/backend && python -m app.tools.context_key)"
+export MASSLAK_CONTEXT_KEY_HEX
+{
+  echo '\getenv api_password MASSLAK_API_PASSWORD'
+  echo '\getenv audit_password MASSLAK_AUDIT_PASSWORD'
+  echo '\getenv context_key MASSLAK_CONTEXT_KEY_HEX'
+  # the data warehouse's replication login (deploy/warehouse), only where one is configured
+  if [ -n "${MASSLAK_CDC_PASSWORD:-}" ]; then echo '\getenv cdc_password MASSLAK_CDC_PASSWORD'; fi
+  echo '\i /app/db/create_login_roles.sql'
+} | psql -d "$DB" -v ON_ERROR_STOP=1 -q
+unset MASSLAK_CONTEXT_KEY_HEX
 
 # replication role of the read replica (db-replica); created on existing servers too, password kept in step with deploy/.env
-psql -d "$DB" -v ON_ERROR_STOP=1 -q -v pw="${MASSLAK_REPLICATION_PASSWORD:?}" <<'SQL'
+psql -d "$DB" -v ON_ERROR_STOP=1 -q <<'SQL'
+\getenv pw MASSLAK_REPLICATION_PASSWORD
 SELECT format('CREATE ROLE replicator WITH REPLICATION LOGIN PASSWORD %L', :'pw')
  WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'replicator') \gexec
 SELECT format('ALTER ROLE replicator WITH REPLICATION LOGIN PASSWORD %L', :'pw') \gexec
@@ -66,9 +74,9 @@ fi
 # the telemetry database of vehicle positions (deploy/telemetry), only where one is configured
 if [ -n "${MASSLAK_TELEMETRY_OWNER_URL:-}" ]; then
   until pg_isready -q -d "$MASSLAK_TELEMETRY_OWNER_URL"; do echo "waiting for the telemetry database"; sleep 2; done
-  psql "$MASSLAK_TELEMETRY_OWNER_URL" -v ON_ERROR_STOP=1 -q -v writer_password="${MASSLAK_TELEMETRY_PASSWORD:?}" \
-       -v upkeep_password="${MASSLAK_TELEMETRY_UPKEEP_PASSWORD:?set MASSLAK_TELEMETRY_UPKEEP_PASSWORD in deploy/.env (C-02)}" \
-       -f /app/db/telemetry/schema.sql > /dev/null
+  : "${MASSLAK_TELEMETRY_PASSWORD:?}" "${MASSLAK_TELEMETRY_UPKEEP_PASSWORD:?set MASSLAK_TELEMETRY_UPKEEP_PASSWORD in deploy/.env (C-02)}"
+  printf '%s\n' '\getenv writer_password MASSLAK_TELEMETRY_PASSWORD' '\getenv upkeep_password MASSLAK_TELEMETRY_UPKEEP_PASSWORD' \
+                 '\i /app/db/telemetry/schema.sql' | psql "$MASSLAK_TELEMETRY_OWNER_URL" -v ON_ERROR_STOP=1 -q > /dev/null
   echo "telemetry database ready"
 fi
 

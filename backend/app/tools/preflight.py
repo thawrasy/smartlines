@@ -16,6 +16,8 @@ checks on the database itself, not on what a configuration file says:
   layout     the database runs on two hosts with automatic failover (MASSLAK_DB_LAYOUT=ha) and a synchronous standby
              streams from the primary now; or on one host, which the owner accepted in writing
              (MASSLAK_SINGLE_HOST_ACCEPTED): losing it then means a restore, not a failover (H-01)
+  guard      the server loads the settings guard (db/guard): only the platform's own functions can set the request
+             context and the guard flags the row rules and the ledger trust (reviews of release 1.49.0, 1084)
 
 The archiving and decoding facts come from /usr/local/bin/masslak-archive-check, which only the production database
 image has (deploy/production/db); the owner runs it through COPY ... FROM PROGRAM, so it reports from inside the
@@ -36,6 +38,7 @@ from dataclasses import dataclass, field
 
 import asyncpg
 
+from ..guard import ENFORCED_SQL, GUARDED_SETTINGS
 from ..modules.documents import storage
 from . import files_versions
 
@@ -61,6 +64,7 @@ class Facts:
     db_layout: str = "single"                               # MASSLAK_DB_LAYOUT
     single_host_accepted: str = ""                          # MASSLAK_SINGLE_HOST_ACCEPTED: who accepted one host, and when
     sync_standbys: int = 0                                  # standbys streaming that confirm every commit
+    guarded_enforced: int = 0                               # guarded settings the server lets a superuser alone set
 
 
 def evaluate(f: Facts) -> list[str]:
@@ -116,6 +120,10 @@ def evaluate(f: Facts) -> list[str]:
                             "30 minutes, not a failover of under a minute")
     else:
         problems.append(f"MASSLAK_DB_LAYOUT is {f.db_layout!r}: ha (two database hosts) or single")
+    if f.guarded_enforced < len(GUARDED_SETTINGS):
+        problems.append("the database server does not load the settings guard (masslak_guard): a login could set the "
+                        "request context the row rules trust with SET app.scope; run the production database image "
+                        "(deploy/production/db), which loads it")
     if f.files_backend == "s3":
         if f.files_protection is None:
             problems.append(f"the file bucket's versioning and Object Lock cannot be read ({f.files_error or 'no answer'})")
@@ -181,6 +189,7 @@ async def gather(conn: asyncpg.Connection) -> Facts:
         "SELECT line_number, type, database, user_name, address, auth_method, options, error FROM pg_hba_file_rules")]
     f.sync_standbys = await conn.fetchval(
         "SELECT count(*) FROM pg_stat_replication WHERE state = 'streaming' AND sync_state IN ('sync', 'quorum')")
+    f.guarded_enforced = await conn.fetchval(ENFORCED_SQL, list(GUARDED_SETTINGS))
     f.archive_mode = await conn.fetchval("SHOW archive_mode")
     f.archive_command = await conn.fetchval("SHOW archive_command")
     try:

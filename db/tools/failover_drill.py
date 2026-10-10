@@ -132,7 +132,10 @@ async def drill(a) -> dict:
     rto = round(state["recovered"] - state["first_failure"], 2) if state["recovered"] and state["first_failure"] else None
     rpo_seconds = round(state["acked"][lost[-1]] - state["acked"][lost[0]], 2) if lost else 0.0
     result = {
-        "drill": str(drill_id), "kill_exit": kill_rc, "promote_exit": promote_rc,
+        "drill": str(drill_id), "kill_exit": kill_rc,
+        # who promoted the standby: this drill's --promote command (its exit status), or the cluster manager on its own
+        # (Patroni), when there is no command to report on (reviews of release 1.49.0: a bare null was unexplained)
+        "promotion": "command" if a.promote else "automatic (cluster manager)", "promote_exit": promote_rc,
         "acknowledged_before_kill": before, "acknowledged": len(state["acked"]), "kept": len(kept & set(state["acked"])),
         "lost": len(lost), "lost_seconds": rpo_seconds, "rto_seconds": rto, "errors": state["errors"],
         "servers_written": sorted(state["servers"]), "old_primary": old, "new_primary": primary,

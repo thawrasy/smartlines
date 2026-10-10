@@ -4,6 +4,7 @@ import hashlib
 import hmac
 import json
 import os
+import re
 import secrets
 import time
 from functools import lru_cache
@@ -19,6 +20,18 @@ _hasher = PasswordHasher(time_cost=3, memory_cost=65536, parallelism=1)
 
 def hash_password(password: str) -> str:
     return _hasher.hash(password)
+
+
+def password_needs_rehash(stored: str | None) -> bool:
+    """True when a stored hash was made with other Argon2 parameters than _hasher's (reviews of release 1.49.0): the
+    next successful sign-in stores a new hash of the same password, so raising the parameters reaches every account
+    that signs in, with no reset."""
+    if not stored:
+        return False
+    try:
+        return _hasher.check_needs_rehash(stored)
+    except InvalidHashError:
+        return False
 
 
 def verify_password(stored: str | None, password: str) -> bool:
@@ -107,30 +120,89 @@ def _b64(data: bytes) -> str:
     return base64.urlsafe_b64encode(data).decode().rstrip("=")
 
 
-def _sign(payload: str) -> str:
-    key = get_settings().signing_secret.encode()
+# ------------------------------------------------------------------ token keys, one per purpose (reviews of release 1.49.0)
+# The rotating ticket codes (Q1) and the verification tokens printed on documents (D2) are signed with keys of their
+# own, and every token names its key (a key id), so a key can be replaced while the tokens it signed still verify:
+#   MASSLAK_QR_KEYS, MASSLAK_DOCUMENT_KEYS   kid:base64-of-32-bytes[,kid:base64...]
+# The first key signs; every key listed verifies (the overlap of a rotation). A bare "s1" in the list is the key derived
+# from the signing secret for that purpose alone (HKDF), which is what an unset variable means, so a server can move
+# from the derived key to keys of its own without refusing the tokens already issued. Production requires keys of their
+# own (app.profile). The tokens before release 1.50.0 (T1, D1) were signed with the signing secret itself: rotating
+# codes live for two windows, so T1 is refused; D1 stays valid on printed documents until
+# MASSLAK_LEGACY_DOCUMENT_TOKENS=refuse.
+TOKEN_KEY_ENV = {"qr": "MASSLAK_QR_KEYS", "document": "MASSLAK_DOCUMENT_KEYS"}
+DERIVED_KID = "s1"
+_KID = re.compile(r"^[a-z0-9]{1,12}$")
+
+
+def _derived_token_key(purpose: str) -> bytes:
+    from cryptography.hazmat.primitives.hashes import SHA256
+    from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+    return HKDF(algorithm=SHA256(), length=32, salt=b"masslak-keys", info=f"token/{purpose}".encode()).derive(
+        get_settings().signing_secret.encode())
+
+
+def parse_token_keys(purpose: str, raw: str) -> list[tuple[str, bytes]]:
+    """The keys of one purpose, the signing key first; raises KeyConfigError on a malformed list."""
+    name = TOKEN_KEY_ENV[purpose]
+    if not raw.strip():
+        return [(DERIVED_KID, _derived_token_key(purpose))]
+    keys: list[tuple[str, bytes]] = []
+    for item in raw.split(","):
+        kid, _, b64 = item.strip().partition(":")
+        if not _KID.match(kid):
+            raise KeyConfigError(f"{name}: a key id is 1 to 12 lowercase letters or digits")
+        if kid == DERIVED_KID and not b64:
+            keys.append((kid, _derived_token_key(purpose)))
+            continue
+        try:
+            key = base64.b64decode(b64, validate=True)
+        except ValueError:
+            key = b""
+        if len(key) != 32:
+            raise KeyConfigError(f"{name}: key {kid} must be base64 of 32 bytes")
+        if any(k == kid for k, _ in keys):
+            raise KeyConfigError(f"{name}: key id {kid} is listed twice")
+        keys.append((kid, key))
+    return keys
+
+
+@lru_cache(maxsize=None)
+def token_keys(purpose: str) -> tuple[tuple[str, bytes], ...]:
+    return tuple(parse_token_keys(purpose, os.environ.get(TOKEN_KEY_ENV[purpose], "")))
+
+
+def _mac(key: bytes, payload: str) -> str:
     return _b64(hmac.new(key, payload.encode(), hashlib.sha256).digest()[:16])
 
 
+def _verify_mac(purpose: str, kid: str, payload: str, sig: str) -> bool:
+    key = dict(token_keys(purpose)).get(kid)
+    return key is not None and hmac.compare_digest(sig, _mac(key, payload))
+
+
+def _legacy_sign(payload: str) -> str:
+    """Tokens issued before release 1.50.0: signed with the signing secret itself."""
+    return _mac(get_settings().signing_secret.encode(), payload)
+
+
 def ticket_qr_token(ticket_uid: str, now: float | None = None) -> tuple[str, int]:
-    """Rotating ticket code: changes every qr_window_seconds, verifiable offline with the key."""
+    """Rotating ticket code: changes every qr_window_seconds; Q1.<key id>.<ticket>.<window>.<signature>."""
     window = get_settings().qr_window_seconds
     t = int((now or time.time()) // window)
-    payload = f"T1.{ticket_uid}.{t}"
-    return f"{payload}.{_sign(payload)}", (t + 1) * window
+    kid, key = token_keys("qr")[0]
+    payload = f"Q1.{kid}.{ticket_uid}.{t}"
+    return f"{payload}.{_mac(key, payload)}", (t + 1) * window
 
 
 def verify_ticket_qr(token: str, now: float | None = None) -> str | None:
     """Returns the ticket uid when the token is authentic and inside the current or previous window."""
     try:
-        version, uid, t_str, sig = token.split(".")
+        version, kid, uid, t_str, sig = token.split(".")
         t = int(t_str)
     except ValueError:
         return None
-    if version != "T1":
-        return None
-    payload = f"{version}.{uid}.{t}"
-    if not hmac.compare_digest(sig, _sign(payload)):
+    if version != "Q1" or not _verify_mac("qr", kid, f"{version}.{kid}.{uid}.{t}", sig):
         return None
     current = int((now or time.time()) // get_settings().qr_window_seconds)
     if t not in (current, current - 1):
@@ -140,19 +212,24 @@ def verify_ticket_qr(token: str, now: float | None = None) -> str | None:
 
 def document_token(kind: str, uid: str) -> str:
     """Static signed token printed on official documents for public verification (16.25)."""
-    payload = f"D1.{kind}.{uid}"
-    return f"{payload}.{_sign(payload)}"
+    kid, key = token_keys("document")[0]
+    payload = f"D2.{kid}.{kind}.{uid}"
+    return f"{payload}.{_mac(key, payload)}"
+
+
+def legacy_document_tokens_accepted() -> bool:
+    return os.environ.get("MASSLAK_LEGACY_DOCUMENT_TOKENS", "accept").strip().lower() != "refuse"
 
 
 def verify_document_token(token: str) -> tuple[str, str] | None:
-    try:
-        version, kind, uid, sig = token.split(".")
-    except ValueError:
-        return None
-    payload = f"{version}.{kind}.{uid}"
-    if version != "D1" or not hmac.compare_digest(sig, _sign(payload)):
-        return None
-    return kind, uid
+    parts = token.split(".")
+    if len(parts) == 5 and parts[0] == "D2":
+        version, kid, kind, uid, sig = parts
+        return (kind, uid) if _verify_mac("document", kid, f"{version}.{kid}.{kind}.{uid}", sig) else None
+    if len(parts) == 4 and parts[0] == "D1" and legacy_document_tokens_accepted():
+        version, kind, uid, sig = parts
+        return (kind, uid) if hmac.compare_digest(sig, _legacy_sign(f"{version}.{kind}.{uid}")) else None
+    return None
 
 
 # ------------------------------------------------------------------ offline ticket credentials (Ed25519)
@@ -215,7 +292,10 @@ def signing_key_problems(secret: str, ticket_key: str) -> list[str]:
 
 
 def require_keys_in_production() -> None:
-    """Called at start by the API and the worker: outside the sandbox, weak or missing signing keys stop the process."""
+    """Called at start by the API and the worker: a malformed token key list stops the process anywhere; outside the
+    sandbox, weak or missing signing keys too."""
+    for purpose in TOKEN_KEY_ENV:
+        token_keys(purpose)
     if get_settings().sandbox:
         return
     problems = signing_key_problems(get_settings().signing_secret, os.environ.get("MASSLAK_TICKET_SIGNING_KEY", ""))

@@ -2495,6 +2495,49 @@ SELECT pg_temp.ok(sys.create_partition('sys.outbox_event', 'sys.outbox_event_' |
                                        (current_date + 40)::text, (current_date + 41)::text, 3) = 0,
   'Partitions (1083): a period with nothing waiting is created as before');
 ROLLBACK;
+-- Reviews of release 1.49.0 (1084): the rows a transaction created are one protected list of schema.table:id entries
+BEGIN;
+SELECT set_config('app.new_rows', ',iam.party:5,iam.app_user:7', true);
+SELECT pg_temp.ok(sys.created_here('iam.party', 5) AND sys.created_here('iam.app_user', 7)
+  AND NOT sys.created_here('iam.party', 7) AND NOT sys.created_here('iam.app_user', 5) AND NOT sys.created_here('iam.party', 55),
+  'Guard (1084): a row created by the transaction is recognised by its table and id, and no other');
+ROLLBACK;
+-- Reviews of release 1.49.0 (1084): with the settings guard loaded (db/guard), no statement of the application's login
+-- sets a setting the row rules or the guards trust; a server without it (a developer's own PostgreSQL) skips this part,
+-- and CI checks that its database loads the guard
+SELECT sys.guard_status() AS guard_loaded \gset
+\if :guard_loaded
+BEGIN;
+INSERT INTO sys.context_key (fingerprint, secret)
+VALUES (left(encode(public.digest(decode(repeat('cd', 32), 'hex'), 'sha256'), 'hex'), 16), decode(repeat('cd', 32), 'hex'));
+CREATE OR REPLACE FUNCTION pg_temp.guard_ticket(p_company bigint, p_issued bigint) RETURNS text
+LANGUAGE sql AS $$
+  SELECT left(encode(public.digest(decode(repeat('cd', 32), 'hex'), 'sha256'), 'hex'), 16) || '.' ||
+         encode(public.hmac(convert_to(concat('masslak-context-v1|10|', p_company, '|COMPANY|||||', p_issued), 'UTF8'),
+                            decode(repeat('cd', 32), 'hex'), 'sha256'), 'hex')
+$$;
+SET SESSION AUTHORIZATION masslak_app;
+DO $guard$
+DECLARE n text;
+BEGIN
+  FOREACH n IN ARRAY sys.guarded_settings() LOOP
+    PERFORM pg_temp.expect_error(format('SET LOCAL %s = %L', n, 'PLATFORM'), 'permission denied to set parameter',
+                                 'Guard (1084): the application''s login cannot SET LOCAL ' || n);
+    PERFORM pg_temp.expect_error(format('RESET %s', n), 'permission denied to set parameter',
+                                 'Guard (1084): nor RESET ' || n);
+  END LOOP;
+END $guard$;
+SELECT pg_temp.expect_error($$ALTER ROLE CURRENT_USER SET app.scope = 'PLATFORM'$$, 'permission denied to set parameter',
+  'Guard (1084): nor give its role a default context (ALTER ROLE ... SET)');
+SELECT sys.set_context(10, 1, 'COMPANY', NULL, NULL, NULL, NULL, NULL, extract(epoch FROM now())::bigint,
+                       pg_temp.guard_ticket(1, extract(epoch FROM now())::bigint));
+SELECT pg_temp.ok(sys.ctx_scope() = 'COMPANY' AND sys.ctx_company_id() = 1 AND NOT sys.ctx_is_platform(),
+  'Guard (1084): the platform''s own function still sets the context, with the API''s ticket');
+RESET SESSION AUTHORIZATION;
+ROLLBACK;
+\else
+\echo 'SKIP  Guard (1084): this server does not load masslak_guard (db/guard); CI runs these checks with it'
+\endif
 SET ROLE masslak_app;
 
 \echo '=== ALL TESTS PASSED ==='

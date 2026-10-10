@@ -205,3 +205,54 @@ Package 3's layout with two database hosts was exercised locally with native pro
 (etcd with client certificates, Patroni's REST API over HTTPS, HAProxy as `proxy.sh` writes it): the failover drill,
 the rejoin by `pg_rewind`, a commit waiting with zero data loss on, and a switchover with `patronictl`. The installed
 layout itself, from the signed images and the bundles, runs in the CI job **Production with two database hosts**.
+
+## 7. Reviews of release 1.49.0 (release 1.50.0)
+
+Four reports on release 1.49.0 were assessed against the code:
+
+* **Report A**, an engineering review with twelve findings (F-01 to F-12). All twelve are accurate.
+* **Report B**, a generic assessment template. It names no file, line or behaviour of this platform, so there was
+  nothing to check or act on.
+* **Report C**, a plan to close `SET app.*` and to prove 240 bookings a second. Its diagnosis of the path that remained
+  of C-01 is right. Its fix, a context table written by every transaction, was not taken, for three reasons:
+  * it adds a row write, and its WAL, to every request;
+  * it cannot work on a read-only standby, which serves the reports;
+  * the settings guard below closes the same path at its source, at no cost per request.
+  Its load-test plan was taken.
+* **Report D**, a security and architecture review. Its top item (P0) is the same `SET app.scope` path. It adds key
+  management, secrets on command lines, the rollback window, evidence and unpinned images.
+
+| Ref | Finding | What changed | Proof |
+|---|---|---|---|
+| C-01, the rest (C, D) | A person holding the API login's password could type `SET app.scope = 'PLATFORM'`: PostgreSQL lets any login set a custom setting nobody defined | **The settings guard.** A server module, `db/guard/masslak_guard.c`, is loaded by every database image of the repository (development, production, staging, the hosts with Patroni). It defines the thirteen settings the database trusts with the superuser context: the request context (`app.*`) and the flags of the ledger, requirement, cargo and migration guards. SET, SET LOCAL, RESET, a value in the connection options and `ALTER ROLE ... SET` are then refused to every login but a superuser. The platform's functions that set them are SECURITY DEFINER, owned by the superuser, so they keep working. Reading costs nothing more, and the guard works on a standby and through PgBouncer. Schema 1084 names the list (`sys.guarded_settings()`), reports whether the server enforces it (`sys.guard_status()`), and moves the rows a transaction created to one guarded setting (`app.new_rows`). The production preflight refuses a server without the guard, `/api/ready` reports `settings_guard`, and the alert `SettingsGuardMissing` pages | `test_settings_guard.py`: the three lists are equal, every custom setting the schema reads is on them, and, as the API's own login, each kind of SET is refused while the platform's functions still set them. `db/tests`: the guard section. CI builds the images and checks the settings' context in the schema, API, production, HA and image jobs; the production job also tries the SET through the driver |
+| D | The rollback window for unsigned contexts only made the API "not ready" | The alert `ContextUnsignedWindowOpen` pages at once (`sys.security_metrics()`) | `alerts_test.yml` (promtool) |
+| F-01 | The in-memory rate limiter could grow past `max_keys` | The cap is hard: idle buckets go first, then the least recently used. An IPv6 client is counted by its /64, everywhere | `test_ratelimit.py` |
+| F-02 | The activity log kept the request path, report delivery tokens included | The log keeps the route template. Before routing (a refusal), identifiers and tokens become `*` | `test_review_v149.py::test_the_activity_log_records_the_route_not_the_path` |
+| F-03 | Tokens in URLs reach the edge logs | Caddy hides delivery tokens and `token=` values in its access log and in its own log, where errors carry the URI. The verification link stays a GET, because a phone's camera opens it. Its answer shows no name or contact, only what an inspector compares with the printout | `test_review_v149.py::test_caddy_hides_tokens_in_both_of_its_logs`; the CI deployment job reads Caddy's logs after a request with a token |
+| F-04, D | No TLS to the telemetry database | Production runs it with the production database image: TLS 1.3, a certificate for `telemetry`, `hostssl` only. The migration, API and worker check it, and the API refuses a telemetry address that does not | `test_production_profile.py` (telemetry tests); the CI production job's TLS step |
+| F-05 | The limiter of signed-in requests is per process | Kept, and documented in `ratelimit.py`. Sign-in, public search, verification and partner limits are shared by every process (M-03); the rest is each process's share of the instance's limit | — |
+| F-06 | `style-src 'unsafe-inline'` | Removed from every page. The landing pages allow their one stylesheet by its hash, and their two style attributes became classes | `test_review_v149.py::test_no_page_policy_allows_inline_code`. The CI step `csp-check` opens 75 page views of every portal, in both languages, plus the landing pages, with the policy in force, and fails on any violation the browser reports |
+| F-07, F-08, F-10, F-12 | Launch gates open; second site not installed; capacity unproven; audit archive | Outside the code: the launch gates (section 5). For F-12, failed audit writes already page (`AuditWriteFailures`) | `LAUNCH_GATES.md` |
+| F-09 | The architecture document still said "Not built" for built modules | The status register was checked against the code and corrected, with the modules it lacked | `ARCHITECTURE.md`, section 2 |
+| F-10, C | The burst test could not separate what it measured | It now separates: a warm-up whose requests are not counted; the rate arrivals started against the rate bookings completed; the drain after the schedule; the most arrivals in progress. Arrivals spread over `--trips` trips, the busiest tenth taking 70 %. Accounts are made before the burst and can be reused (`--save-accounts`, `--accounts-file`). The default cancellation share is 1.0 in development and 0.1 elsewhere. The report records the build (commit and images), the database's release and whether its schema matches, the host and the dataset. Gate 3 counts only a burst of ten minutes or more after a warm-up, with build and release recorded. The gate runner defaults to a 300 s warm-up and a 900 s window over 128 trips | `test_review_v149.py` (burst tests); `test_launch_gates_kit.py::test_capacity_needs_1x_and_2x_passing_a_5x_run_and_an_8_hour_soak`. A local run: 30 arrivals at 6 a second, 30 booked, drain 0 s; a second run reused the 30 accounts |
+| F-11 | Several API hosts need shared file storage | No change. The installer runs one application host, whose processes share the documents volume. A second application host needs the object store (`MASSLAK_FILES_BACKEND=s3`, `.env.example`) | — |
+| A | A wrong `MASSLAK_COOKIE_SECURE` passed unnoticed | A production server refuses to start with it false | `test_production_profile.py::test_a_session_cookie_sent_over_plain_http_stops_the_start` |
+| D | One signing secret signed QR codes and document tokens directly | Each has keys of its own, and each token names its key: `Q1.<key id>...` and `D2.<key id>...`. The first key listed signs; every key listed verifies, so a rotation overlaps. Production requires keys of their own (`MASSLAK_QR_KEYS`, `MASSLAK_DOCUMENT_KEYS`, made by `deploy/init-env.sh`). Older tokens: rotating codes signed with the secret are refused; printed documents verify until `MASSLAK_LEGACY_DOCUMENT_TOKENS=refuse` (RUNBOOKS.md, section 31). Identifier hashes and family codes stay under the signing secret, because stored hashes would need recomputing; moving them, and the keys into the key service, is the next step | `test_review_v149.py` (token key tests); `test_production_profile.py` |
+| D | `deploy/migrate.sh` passed passwords and the context key as psql arguments, visible in the process list | psql reads them from the environment (`\getenv`) | `test_review_v149.py::test_the_migration_passes_no_secret_on_a_command_line`; every CI job that installs |
+| D | No test that old Argon2 parameters are upgraded | A sign-in replaces a hash made with other parameters | `test_review_v149.py` (unit and live) |
+| D | The failover evidence showed `promote_exit: null` | The evidence names how the standby was promoted (`promotion`: by the cluster manager or by a command) | `HIGH_AVAILABILITY.md`, Measured |
+| D | No evidence for release 1.49.0 itself | `evidence/release_verification_v1.49.0_2026-10-10.json`: the workflow runs, the assets and their checksums, the Sigstore identity, the image digests, and the refusal of a tampered archive | the file |
+| D | The warehouse and staging images had no fixed tag | The warehouse's jobs run the release's API image (`MASSLAK_IMAGE_TAG`) and refuse to start without it. Staging builds its database image from the repository, the guard included, tagged with the release when given; every image from outside is pinned by digest | `test_review_v149.py::test_no_overlay_runs_an_image_of_unknown_version` |
+| — | The load test's accounts were refused since M-13: their password contained the account's name | A password the policy accepts | the local run above |
+
+### Upgrading a server to 1.50.0
+
+1. Production: add `MASSLAK_QR_KEYS` and `MASSLAK_DOCUMENT_KEYS` to `deploy/.env`, each ending with `,s1`, so the codes
+   already issued still verify (RUNBOOKS.md, section 31).
+2. Run `./deploy/update.sh`. The database restarts once with the release's image, which loads the guard
+   (MIGRATION_PLANS.md, release 1.50.0).
+3. `/api/ready` shows `"settings_guard": true`.
+
+### Test results (release 1.50.0)
+
+Filled in by the full runs before the release is tagged.

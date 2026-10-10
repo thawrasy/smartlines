@@ -9,12 +9,19 @@ raises a limit (reviews of October 2026, M-03):
     address rules, so it adds no connection;
   * the partner API: one bucket per API client, at the client's own limit.
 The rest of the API (signed-in accounts, each request tied to a session) uses buckets in process memory, per client
-address; each process enforces its share (the instance's processes come from uvicorn's WEB_CONCURRENCY).
+address; each process enforces its share (the instance's processes come from uvicorn's WEB_CONCURRENCY). Their number
+never exceeds max_keys: idle buckets go first, and with every bucket in use the least recently used one goes, so a flood
+of new addresses cannot grow the process's memory (reviews of release 1.49.0, F-01).
+
+An IPv6 client is counted by its /64 network, everywhere: one subscriber is usually given a whole /64 and could
+otherwise draw a fresh bucket for every request.
 """
 from __future__ import annotations
 
+import ipaddress
 import os
 import time
+from collections import OrderedDict
 from dataclasses import dataclass, field
 
 import asyncpg
@@ -34,22 +41,37 @@ class Bucket:
     updated: float = field(default_factory=time.monotonic)
 
 
+def client_key(address: str) -> str:
+    """The key a client's buckets are counted under: its IPv4 address, or the /64 network of its IPv6 address."""
+    try:
+        ip = ipaddress.ip_address(address)
+    except ValueError:
+        return address
+    if ip.version == 4:
+        return str(ip)
+    if ip.ipv4_mapped is not None:                  # ::ffff:192.0.2.7 is the IPv4 client 192.0.2.7
+        return str(ip.ipv4_mapped)
+    return str(ipaddress.IPv6Network((int(ip) >> 64 << 64, 64)))
+
+
 class RateLimiter:
     def __init__(self, per_minute: dict[str, int], max_keys: int = 50_000):
         self.per_minute = per_minute
         self.max_keys = max_keys
-        self._buckets: dict[tuple[str, str], Bucket] = {}
+        self._buckets: OrderedDict[tuple[str, str], Bucket] = OrderedDict()   # least recently used first
 
     def check(self, client: str, bucket: str, now: float | None = None) -> float:
         """Takes one token. Returns 0 when allowed, else the seconds until the next token."""
         rate = self.per_minute[bucket]
         now = time.monotonic() if now is None else now
-        key = (client, bucket)
+        key = (client_key(client), bucket)
         b = self._buckets.get(key)
         if b is None:
             if len(self._buckets) >= self.max_keys:
                 self._evict(now)
             b = self._buckets[key] = Bucket(tokens=rate, updated=now)
+        else:
+            self._buckets.move_to_end(key)
         b.tokens = min(rate, b.tokens + (now - b.updated) * rate / 60.0)
         b.updated = now
         if b.tokens >= 1:
@@ -58,9 +80,13 @@ class RateLimiter:
         return (1 - b.tokens) * 60.0 / rate
 
     def _evict(self, now: float) -> None:
-        """Drops buckets idle for more than two minutes; they would be full again anyway."""
-        for k in [k for k, b in self._buckets.items() if now - b.updated > 120]:
-            del self._buckets[k]
+        """Makes room for one bucket: drops the buckets idle for more than two minutes (they would be full again anyway),
+        which are the first in the order of use, and while none is idle the least recently used one."""
+        while self._buckets:
+            oldest = next(iter(self._buckets.values()))
+            if now - oldest.updated <= 120 and len(self._buckets) < self.max_keys:
+                break
+            self._buckets.popitem(last=False)
 
 
 def bucket_for(path: str) -> str:

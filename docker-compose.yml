@@ -9,7 +9,10 @@ name: masslak
 
 services:
   db:
-    image: postgis/postgis:16-3.4-alpine@sha256:681931a625df344215e9b8998bf34daf146b6a395ceacee4439eb9c85869239f
+    # PostGIS with the settings guard (db/guard): only the platform's own functions set the request context and the
+    # guard flags the row rules and the ledger trust; the image adds the module to shared_preload_libraries
+    build: db/guard
+    image: masslak-postgres:${MASSLAK_IMAGE_TAG:-latest}
     restart: unless-stopped
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-masslak}
@@ -41,7 +44,8 @@ services:
   # Streaming read replica: reports and exports run here (the API refuses to start in production without it), so heavy
   # queries never slow bookings; also the failover candidate (docs/operations/RUNBOOKS.md, section 3)
   db-replica:
-    image: postgis/postgis:16-3.4-alpine@sha256:681931a625df344215e9b8998bf34daf146b6a395ceacee4439eb9c85869239f
+    build: db/guard
+    image: masslak-postgres:${MASSLAK_IMAGE_TAG:-latest}
     restart: unless-stopped
     user: postgres
     entrypoint: ["/usr/local/bin/masslak-replica"]

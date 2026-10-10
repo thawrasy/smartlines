@@ -19,6 +19,8 @@ Nothing runs half set up.
 | H-10 | Warehouse login only from its address, over TLS with a client certificate; no decoding plugin but pgoutput | `pg_hba.conf`; migration preflight |
 | M-07 | No drift override (`MASSLAK_SCHEMA_DRIFT=warn`) | `db/upgrade.sh` |
 | Addition 2 | Every metric an alert rests on is watched for absence | alert `MetricsMissing` |
+| C-01 (residual, reviews of release 1.49.0) | The database server loads the settings guard (`db/guard`): only the platform's own functions can set the request context and the flags the row rules and the ledger trust, never a statement a login types | migration preflight; `/api/ready` (`settings_guard`); alert `SettingsGuardMissing` |
+| Reviews of release 1.49.0 | TLS to the telemetry database too; QR codes and document tokens signed with keys of their own (`MASSLAK_QR_KEYS`, `MASSLAK_DOCUMENT_KEYS`); the session cookie over HTTPS only | API and worker start |
 
 ## 1. What to prepare before installing
 
@@ -118,8 +120,10 @@ first migration and only their wrapped form is stored (`sec.key_registry`).
 The API and the worker check this themselves at start (`app/profile.py`). They also refuse to start:
 
 * outside the production profile;
-* with a database connection that does not check the certificate;
-* without the key service.
+* with a database connection that does not check the certificate, the telemetry database's included;
+* without the key service;
+* without keys of their own for QR codes and document tokens (RUNBOOKS.md, section 31);
+* with `MASSLAK_COOKIE_SECURE=false`.
 
 ## 4. Updating
 
@@ -194,9 +198,14 @@ monthly. The person on call confirms receipt; the drill is recorded as launch ga
 
 ## 7. What the profile does not do yet
 
-* TLS to the telemetry database (overlay `deploy/telemetry`).
 * The second site: its design and watchdog are in `deploy/ha`, and the installer does not set it up
   ([HIGH_AVAILABILITY.md](HIGH_AVAILABILITY.md)).
 
 A production server accepted on one host is protected by TLS and the address rules against a container or a
 password leaking, not against a lost host: that is what the layout with two database hosts covers.
+
+Done in release 1.50.0: the telemetry database (overlay `deploy/telemetry`) runs the production database image with
+TLS 1.3 only, a certificate `deploy/production/init.sh` issues for the name `telemetry`, and `hostssl` lines only; the
+migration, the API and the worker check it (`sslmode=verify-full`), through `deploy/production/docker-compose.telemetry.yml`,
+which `init.sh` adds whenever `MASSLAK_COMPOSE_EXTRA` names the telemetry overlay. A telemetry database on a server of
+its own takes the same settings there: its certificate names its host (`MASSLAK_TELEMETRY_TLS_NAMES`).

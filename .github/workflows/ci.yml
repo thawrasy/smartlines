@@ -19,16 +19,18 @@ jobs:
   database:
     name: Schema tests
     runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgis/postgis:16-3.4@sha256:44126d872ac91993766c341e369c539e8196614321765d36a6f1bab0419a5fa5
-        env: { POSTGRES_PASSWORD: postgres }
-        ports: ["5432:5432"]
-        options: >-
-          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
     env: { PGPASSWORD: postgres }
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      # the database every image of the repository runs: PostGIS with the settings guard (db/guard, 1084), so the
+      # checks below include the ones that need it; a database without it fails here rather than skipping them
+      - name: PostgreSQL with PostGIS and the settings guard
+        run: |
+          docker build -q -t masslak-postgres:ci db/guard
+          docker run -d --name postgres -e POSTGRES_PASSWORD=postgres -p 5432:5432 masslak-postgres:ci \
+            postgres -c shared_preload_libraries=pg_stat_statements
+          for i in $(seq 1 60); do pg_isready -q -h localhost && break; sleep 1; done
+          test "$(psql -h localhost -U postgres -Atc "SELECT count(*) FROM pg_settings WHERE name LIKE 'app.%' AND context = 'superuser'")" = 9
       - name: Build a fresh database and run the checks
         run: db/tests/run.sh -h localhost -U postgres
       - name: Upgrading an existing database applies nothing twice
@@ -131,15 +133,10 @@ jobs:
   api:
     name: API end-to-end tests
     runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgis/postgis:16-3.4@sha256:44126d872ac91993766c341e369c539e8196614321765d36a6f1bab0419a5fa5
-        env: { POSTGRES_PASSWORD: postgres, POSTGRES_DB: masslak }
-        ports: ["5432:5432"]
-        options: >-
-          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
     env:
       PGPASSWORD: postgres
+      # the settings guard's tests act as the API's login; on this database they must run, not skip (db/guard, 1084)
+      MASSLAK_GUARD_REQUIRED: "1"
       MASSLAK_DATABASE_URL: postgresql://masslak_api:ci-api-password@localhost:5432/masslak
       MASSLAK_AUDIT_DATABASE_URL: postgresql://masslak_audit:ci-audit-password@localhost:5432/masslak
       MASSLAK_OWNER_URL: postgresql://postgres:postgres@localhost:5432/masslak
@@ -163,6 +160,12 @@ jobs:
       - name: Build the web interface the API serves (checked in the browser below)
         working-directory: frontend
         run: npm ci && npm run build
+      - name: PostgreSQL with PostGIS and the settings guard (db/guard, 1084)
+        run: |
+          docker build -q -t masslak-postgres:ci db/guard
+          docker run -d --name postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=masslak -p 5432:5432 masslak-postgres:ci \
+            postgres -c shared_preload_libraries=pg_stat_statements
+          for i in $(seq 1 60); do pg_isready -q -h localhost -d masslak && break; sleep 1; done
       - name: Schema, login roles (with the key that signs request contexts, 1080) and demo data
         run: |
           db/build.sh masslak -h localhost -U postgres > /dev/null
@@ -185,6 +188,10 @@ jobs:
         working-directory: frontend
         env: { MASSLAK_UI_BASE: "http://localhost:8077", CHROME: /usr/bin/google-chrome }
         run: npm run ui-checks
+      - name: Content-Security-Policy in a browser, no inline code allowed and no violation (reviews of release 1.49.0)
+        working-directory: frontend
+        env: { MASSLAK_UI_BASE: "http://localhost:8077", CHROME: /usr/bin/google-chrome }
+        run: npm run csp-check
       - name: Positions in a telemetry database (review stage D2), through a second API configured for it
         working-directory: backend
         env:
@@ -321,6 +328,13 @@ jobs:
           curl -fsSk https://localhost/ | grep -q '<div id="root">'
           test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost/)" = 308       # plain HTTP redirects
           curl -sSkI https://localhost/ | grep -qi '^strict-transport-security'
+          # no token from a URL reaches Caddy's logs (reviews of release 1.49.0, F-03)
+          curl -sk -o /dev/null "https://localhost/api/verify?token=ci-token-must-not-be-logged-1"
+          curl -sk -o /dev/null "https://localhost/api/reports/deliveries/ci-token-must-not-be-logged-2"
+          sleep 1
+          logs="$(docker compose --env-file deploy/.env logs caddy)"
+          echo "$logs" | grep -q 'token=REDACTED' && echo "$logs" | grep -q 'deliveries/REDACTED'
+          ! echo "$logs" | grep -q 'ci-token-must-not-be-logged'
       - name: Sign in and search (demo data)
         run: |
           curl -fsSk -c jar -H 'X-Masslak-Client: web' -H 'Content-Type: application/json' \
@@ -334,6 +348,12 @@ jobs:
           test "$($dc exec -T db-replica psql -U postgres -Atc 'SELECT pg_is_in_recovery()')" = t
           test "$($dc exec -T db psql -U postgres -Atc "SELECT count(*) FROM pg_stat_replication WHERE state = 'streaming'")" = 1
           $dc exec -T app printenv MASSLAK_REPORTS_DATABASE_URL | grep -q '@db-replica:'
+      - name: The primary and the replica load the settings guard (reviews of release 1.49.0, db/guard)
+        run: |
+          dc="docker compose --env-file deploy/.env"
+          for svc in db db-replica; do
+            test "$($dc exec -T $svc psql -U postgres -d masslak -Atc "SELECT sys.guard_status()")" = t
+          done
       - name: The API and the worker reach the database through PgBouncer in transaction mode (capacity model)
         run: |
           dc="docker compose --env-file deploy/.env"
@@ -444,6 +464,42 @@ jobs:
           # no decoding plugin but pgoutput (H-10)
           if q "SELECT pg_create_logical_replication_slot('zz_probe', 'test_decoding')" 2> plugin.log; then exit 1; fi
           grep -q 'test_decoding' plugin.log
+          # the telemetry database too (reviews of release 1.49.0): the API's own login reaches it over TLS with the
+          # certificate checked, and a connection without TLS is refused before any password
+          $dc exec -T app python -c "import asyncio, os, asyncpg
+          async def main():
+              c = await asyncpg.connect(os.environ['MASSLAK_TELEMETRY_DATABASE_URL'])
+              assert await c.fetchval('SELECT ssl FROM pg_stat_ssl WHERE pid = pg_backend_pid()') is True
+              await c.close()
+          asyncio.run(main())"
+          if psql_in "host=telemetry dbname=masslak_tel user=postgres sslmode=disable" 2> tel_plain.log; then exit 1; fi
+          grep -q 'no encryption' tel_plain.log
+      - name: The settings guard - the API's login cannot set the context the row rules trust (reviews of release 1.49.0)
+        run: |
+          dc="sudo docker compose --env-file deploy/.env"
+          # loaded on the primary and on the replica, and the readiness check requires it on a production server
+          for svc in db db-replica; do
+            test "$($dc exec -T $svc psql -U postgres -d masslak -Atc "SELECT sys.guard_status()")" = t
+          done
+          $dc exec -T app python -c "import json, urllib.request; c = json.load(urllib.request.urlopen('http://localhost:8000/api/ready'))['checks']; assert c['settings_guard'], c"
+          # the reviewers' reproduction, as the API's own login through PgBouncer over TLS: refused now
+          $dc exec -T app python - <<'PY'
+          import asyncio, os, asyncpg
+          async def main():
+              conn = await asyncpg.connect(os.environ["MASSLAK_DATABASE_URL"])
+              try:
+                  for statement in ("SET LOCAL app.scope = 'PLATFORM'", "SET LOCAL fin.posting_entry = '1'"):
+                      try:
+                          async with conn.transaction():
+                              await conn.execute(statement)
+                      except asyncpg.InsufficientPrivilegeError as exc:
+                          print("refused:", statement, "-", exc)
+                      else:
+                          raise SystemExit(f"accepted: {statement}")
+              finally:
+                  await conn.close()
+          asyncio.run(main())
+          PY
       - name: WAL archived off the host, proven before the migration; a full backup into the repository (H-02)
         run: |
           dc="sudo docker compose --env-file deploy/.env"
@@ -634,6 +690,8 @@ jobs:
           # zero data loss is on (owner's decision 1): Patroni's strict synchronous mode
           grep -q '^MASSLAK_ZERO_DATA_LOSS=on$' deploy/.env
           $dc exec -T db masslak-patroni durability on | grep -q 'synchronous_mode_strict=True'
+          # both hosts load the settings guard under Patroni (reviews of release 1.49.0, db/guard)
+          test "$(q "SELECT sys.guard_status()")" = t && test "$(q "SELECT sys.guard_status()" db-replica)" = t
       - name: WAL archived from the primary host; the backup taken by whichever host is the primary
         run: |
           roles="$(./deploy/production/ci/roles.sh 30)"; eval "$roles"
@@ -744,10 +802,15 @@ jobs:
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       - run: docker build -t masslak:ci .
-      - name: The production database image (PostGIS, pgBackRest, Patroni from its hashed lock, HAProxy)
+      - name: The production database image (PostGIS, pgBackRest, Patroni from its hashed lock, HAProxy, the settings guard)
         run: |
-          docker build --progress=plain -t masslak-db:ci deploy/production/db
-          docker run --rm --entrypoint sh masslak-db:ci -c 'patroni --version && patronictl version && haproxy -v | head -1 && pgbackrest version'
+          docker build --progress=plain --build-context guard-src=db/guard -t masslak-db:ci deploy/production/db
+          docker run --rm --entrypoint sh masslak-db:ci -c 'patroni --version && patronictl version && haproxy -v | head -1 && pgbackrest version
+                                                        && test -f "$(pg_config --pkglibdir)/masslak_guard.so"'
+      - name: The database image of docker-compose.yml and the CI jobs, and the staging one, with the settings guard
+        run: |
+          docker build --progress=plain -t masslak-postgres:ci db/guard
+          docker build --progress=plain --build-context guard-src=db/guard -t masslak-staging-db:ci deploy/staging/db
       # what the image contains, package by package, kept with the run (review stage C6); releases carry a signed one.
       # Not attached to a release: CI may only read, and on a tag the release workflow publishes its own signed files.
       - name: Software bill of materials of the image (SPDX)

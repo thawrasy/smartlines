@@ -73,7 +73,7 @@ case "${1:-}" in
     }
     build --build-arg MASSLAK_RELEASE_COMMIT="$commit" -t "$prefix/masslak:$version" .
     build -t "$prefix/masslak-egress:$version" deploy/egress
-    build -t "$prefix/masslak-db:$version" deploy/production/db
+    build --build-context guard-src=db/guard -t "$prefix/masslak-db:$version" deploy/production/db   # with the settings guard (db/guard)
     printf 'commit=%s\nversion=%s\n' "$commit" "$version" > "$out"
     for name in $ALL; do
       docker push -q "$prefix/$name:$version" >/dev/null

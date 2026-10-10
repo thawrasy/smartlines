@@ -241,7 +241,10 @@ async def capacity(a) -> int:
     for level in [x.strip() for x in a.levels.split(",") if x.strip()]:
         out = os.path.join(a.evidence, f"burst_{env}_{level}_{today}.json")
         cmd = [sys.executable, "-m", "loadtest.burst", "--base", a.base, "--rate", str(RATES[level]), "--seconds", str(a.seconds),
-               "--cancel-ratio", str(a.cancel_ratio), "--owner-dsn", a.owner_dsn, "--environment", env, "--json", out]
+               "--warmup-seconds", str(a.warmup_seconds), "--trips", str(a.trips), "--cancel-ratio", str(a.cancel_ratio),
+               "--owner-dsn", a.owner_dsn, "--environment", env, "--json", out]
+        if a.accounts_file:                        # one set of travellers for every level (signed up once, sessions reused)
+            cmd += ["--accounts-file", a.accounts_file, "--save-accounts", a.accounts_file]
         print("running", level, flush=True)
         rc |= subprocess.run(cmd, cwd=BACKEND).returncode                                             # nosec B603 - fixed arguments
     if a.soak_hours > 0:
@@ -481,7 +484,10 @@ def main() -> int:
     p.add_argument("--owner-dsn", required=True)
     p.add_argument("--base", required=True)
     p.add_argument("--levels", default="1x,2x,5x")
-    p.add_argument("--seconds", type=int, default=300)
+    p.add_argument("--seconds", type=int, default=900, help="measured window of each level (gate 3 counts 600 or more)")
+    p.add_argument("--warmup-seconds", type=int, default=300, help="warm-up of each level, not counted (gate 3: 60 or more)")
+    p.add_argument("--trips", type=int, default=128, help="trips booked, the busiest tenth taking 70 %% of the arrivals")
+    p.add_argument("--accounts-file", help="travellers' sessions kept between the levels (mode 0600)")
     p.add_argument("--cancel-ratio", type=float, default=0.1)
     p.add_argument("--soak-hours", type=float, default=8.0)
 

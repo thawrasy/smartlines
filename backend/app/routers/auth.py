@@ -13,7 +13,8 @@ from .. import crypto, db, markets, metrics, mfa, mfa_policy, ratelimit
 from ..config import get_settings
 from ..deps import SESSION_COOKIE, Principal, base_context, mfa_required_for, require_session, require_user
 from ..errors import ApiError
-from ..security import hash_password, identifier_hash, new_token, password_problem, token_hash, verify_password
+from ..security import (hash_password, identifier_hash, new_token, password_needs_rehash, password_problem, token_hash,
+                        verify_password)
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -158,6 +159,8 @@ async def login(body: LoginIn, request: Request, response: Response):
         raise ApiError(403, "PORTAL_NOT_ALLOWED", "this account cannot open the requested portal")
 
     ctx.user_id = user["id"]
+    # a hash made with weaker Argon2 parameters is replaced now that the password is known to be right
+    rehashed = hash_password(body.password) if password_needs_rehash(user["password_hash"]) else None
     async with db.transaction(ctx) as conn:
         company_id = None
         if body.portal in ("OPERATOR", "DRIVER", "AGENCY"):
@@ -204,7 +207,8 @@ async def login(body: LoginIn, request: Request, response: Response):
             request.headers.get("user-agent", "")[:300], expires, client, device, refresh_hash, access_expires)
         await conn.execute(
             "UPDATE iam.app_user SET failed_attempts = 0, locked_until = NULL, last_login_at = now(), "
-            "last_login_ip = $2::inet WHERE id = $1", user["id"], request.state.client_ip)
+            "last_login_ip = $2::inet, password_hash = coalesce($3, password_hash) WHERE id = $1",
+            user["id"], request.state.client_ip, rehashed)
         await _auth_event(conn, request, "LOGIN_SUCCESS", "SUCCESS", user_id=user["id"], portal=body.portal,
                           company_id=company_id, session_id=session_id)
     factors = list(user["mfa_factors"])

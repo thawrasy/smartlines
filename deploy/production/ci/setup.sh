@@ -45,6 +45,11 @@ if grep -q '^MASSLAK_DB_LAYOUT=ha$' "$env"; then
   grep -q ' s3$' /etc/hosts || echo "$witness s3" >> /etc/hosts
 else
   put MASSLAK_SINGLE_HOST_ACCEPTED "CI job Production installation: one host by design, $(date -u +%F)"
+  # the telemetry database too, over TLS like the primary (reviews of release 1.49.0)
+  put MASSLAK_TELEMETRY_OWNER_PASSWORD "$(rand)"
+  put MASSLAK_TELEMETRY_PASSWORD "$(rand)"
+  put MASSLAK_TELEMETRY_UPKEEP_PASSWORD "$(rand)"
+  put MASSLAK_COMPOSE_EXTRA deploy/production/ci/stand-ins.yml:deploy/telemetry/docker-compose.telemetry.yml
 fi
 ./deploy/production/init.sh
 for r in page ticket deadman; do echo "http://sink:8080/$r" > "deploy/production/secrets/${r}_webhook_url"; done

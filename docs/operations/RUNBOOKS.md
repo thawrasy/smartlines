@@ -852,8 +852,10 @@ the login cannot read (`sys.context_key`). `set_config` and temporary objects ar
 roles, so no statement it runs can rewrite the context or the transaction flags the ledger and wallet guards read.
 
 - **The key.** Derived from `MASSLAK_SIGNING_SECRET` (`python -m app.tools.context_key` prints it in hex);
-  `deploy/migrate.sh` writes it on every start through `db/create_login_roles.sql -v context_key=...`. A changed
-  signing secret brings its key; the key it replaces stays a day for API processes still running with it.
+  `deploy/migrate.sh` writes it on every start through `db/create_login_roles.sql`, which reads it and the logins'
+  passwords from the environment (`\getenv`), so no secret appears on a command line or in the process list (reviews
+  of release 1.49.0). A changed signing secret brings its key; the key it replaces stays a day for API processes still
+  running with it.
 - **`/api/ready` says `"context": false`.** `SELECT sys.context_status('<fingerprint>')` (as the owner) tells which part:
   `key` false means the database does not hold the API's key: run the migration again (`docker compose ... up migrate`)
   with the API's `deploy/.env`. `set_config_withdrawn` or `temporary_withdrawn` false means the database was created
@@ -868,13 +870,27 @@ roles, so no statement it runs can rewrite the context or the transaction flags 
 - **Rolling back to a release before 1.49.0.** Those releases set the context without a ticket. After
   `deploy/update.sh --rollback`, a superuser opens a window of at most a day, with a reason:
   `INSERT INTO sys.context_unsigned_window (allowed_until, reason) VALUES (now() + interval '4 hours', 'rollback to 1.48.0: <ticket>')`.
-  While it is open `/api/ready` of a 1.49.0 server reports not ready and `set_config` stays withdrawn. Close it when
+  While it is open `/api/ready` of a 1.49.0 server reports not ready, `set_config` stays withdrawn and, since release
+  1.50.0, the alert `ContextUnsignedWindowOpen` pages at once (`masslak_context_unsigned_window_open`). Close it when
   the platform is back on 1.49.0 or later: `UPDATE sys.context_unsigned_window SET allowed_until = now() WHERE allowed_until > now()`.
-- **What remains.** A person holding the API login's password and a connection to the database could still type
-  `SET app.scope = ...` as a statement of their own (PostgreSQL lets any login set custom settings, and only a server
-  extension can forbid it). In the production profile (section 31) the database accepts the API's login only over TLS,
-  with scram, from the container network it is attached to; the password reaches only the containers that use it
-  (deploy/env-split.sh), never the whole deploy/.env. Keep it in the secret store, never in a shared file.
+- **The settings guard (release 1.50.0).** PostgreSQL lets any login set a custom setting nobody defined, so a person
+  holding the API login's password could type `SET app.scope = ...` as a statement of its own. The database images
+  (`db/guard`, built into `docker-compose.yml`'s database, `deploy/production/db` and `deploy/staging/db`) load the
+  server module `masslak_guard`, which defines the thirteen settings the database trusts (`SELECT sys.guarded_settings()`)
+  so that only a superuser may set them: the platform's own functions, which are SECURITY DEFINER and owned by the
+  superuser that applies the schema. SET, SET LOCAL, RESET, a value in the connection options and `ALTER ROLE ... SET`
+  are refused to every other login (`permission denied to set parameter`). Reading them is not restricted.
+  - Check: `SELECT sys.guard_status()` is true; `SHOW shared_preload_libraries` names `masslak_guard`.
+  - **`/api/ready` says `"settings_guard": false`**, or the alert `SettingsGuardMissing` pages: the database server does
+    not load the module. Either it runs an image older than release 1.50.0 (a database image rolled back on its own:
+    the image's start script adds the module only when the image carries it, so an old image still starts), or a
+    `shared_preload_libraries` given by hand replaced the image's (with two database hosts, `postgresql.parameters`
+    in `deploy/production/db/patroni.yml` names it). Run the release's image, or put `masslak_guard` back in the
+    list, and restart the database server; the readiness check and the alert clear by themselves.
+  - The production preflight refuses to install or update on a server without it; a test server works without it.
+  - In the production profile (section 31) the database also accepts the API's login only over TLS, with scram, from
+    the container network it is attached to, and the password reaches only the containers that use it
+    (deploy/env-split.sh). Keep it in the secret store, never in a shared file.
 - **Telemetry (C-02).** The API's login to the telemetry database appends positions and nothing else; the worker's
   upkeep login drops days, never younger than `tel.policy.min_keep_days` and never while a hold stands (section 22).
 
@@ -897,6 +913,7 @@ The message names each gap. Fixes:
 | `logical decoding plugins other than pgoutput are installed` | The database image is not `deploy/production/db`: rebuild it |
 | `the backup before this update was not copied off the server` | Fix `MASSLAK_BACKUP_OFFSITE` (rclone configuration, reachability) and update again; nothing was changed |
 | `the database's certificate expires within 30 days` | Renew it (below) |
+| `the database server does not load the settings guard` | The database does not run the release's image, or `shared_preload_libraries` was replaced by hand (section 30) |
 
 ### The API or the worker refuses to start: "the production profile is incomplete"
 
@@ -905,6 +922,11 @@ The message names each gap. Fixes:
 * "data keys sit in this process's environment" or "secrets this process must not hold": it was started with the
   whole `deploy/.env`. Run `./deploy/env-split.sh` and start it again.
 * "the data keys must come from the key service": set `MASSLAK_KMS_PROVIDER=vault` (section 1 of the profile document).
+* "MASSLAK_QR_KEYS ... must name a key of its own first" (release 1.50.0): QR codes and document tokens are signed
+  with keys of their own. A server installed before 1.50.0 adds them once, keeping the key derived from the signing
+  secret after its own so the tokens it signed still verify:
+  `MASSLAK_QR_KEYS=q<yyyymm>:<openssl rand -base64 32>,s1` and the same for `MASSLAK_DOCUMENT_KEYS` with `d<yyyymm>`,
+  then `./deploy/env-split.sh` and a restart of the app and the worker. `s1` can leave `MASSLAK_QR_KEYS` a day later.
 
 ### The key service
 
@@ -926,6 +948,21 @@ The message names each gap. Fixes:
 4. Restart: `docker compose --env-file deploy/.env up -d --force-recreate db db-replica pgbouncer`.
 5. Copy the new client certificate to the warehouse server.
 6. Move `ca.key` back offline.
+
+### Rotating the QR and document token keys (yearly, and after any suspected exposure)
+
+Ticket QR codes (`Q1.<key id>....`) and the verification tokens printed on documents (`D2.<key id>....`) name the key
+that signed them. The first key of `MASSLAK_QR_KEYS` and of `MASSLAK_DOCUMENT_KEYS` signs; every key listed verifies.
+
+1. Put a new key first: `MASSLAK_QR_KEYS=q202710:<openssl rand -base64 32>,q202610:<the old key>`, the same for
+   documents.
+2. Run `./deploy/env-split.sh` and restart the app and the worker (`docker compose --env-file deploy/.env up -d app worker`).
+3. QR codes rotate every window, so the old QR key can go after a day. Keep an old document key as long as documents it
+   signed are checked (tickets of past trips: the retention of bookings), unless it was exposed: then remove it at
+   once, and the documents it signed answer `SIGNATURE_INVALID` until printed again.
+4. Tokens issued before release 1.50.0 were signed with the signing secret itself: rotating codes (`T1`) are refused;
+   printed documents (`D1`) are accepted until `MASSLAK_LEGACY_DOCUMENT_TOKENS=refuse`, which a server sets once those
+   documents no longer need checking, and at once if `MASSLAK_SIGNING_SECRET` was exposed.
 
 ### Rotating the warehouse login's password (yearly, and after any suspected exposure)
 

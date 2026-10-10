@@ -31,7 +31,7 @@ services:
     networks: [internal]
 
   warehouse-setup:
-    image: masslak:latest
+    image: masslak:${MASSLAK_IMAGE_TAG:?the image of this release, written to deploy/.env by deploy/install.sh}
     command: ["python", "/app/db/warehouse/build.py", "--wait"]
     environment:
       MASSLAK_DW_SOURCE: "host=db dbname=${POSTGRES_DB:-masslak} user=masslak_cdc password=${MASSLAK_CDC_PASSWORD:?set MASSLAK_CDC_PASSWORD in deploy/.env}"
@@ -44,7 +44,7 @@ services:
     networks: [internal]
 
   warehouse-refresh:
-    image: masslak:latest
+    image: masslak:${MASSLAK_IMAGE_TAG:?the image of this release, written to deploy/.env by deploy/install.sh}
     command: ["python", "/app/db/warehouse/build.py", "--refresh-every", "900"]
     environment:
       MASSLAK_DW_URL: "postgresql://postgres:${MASSLAK_DW_PASSWORD}@warehouse/masslak_dw"

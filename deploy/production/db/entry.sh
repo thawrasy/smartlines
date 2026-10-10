@@ -48,8 +48,9 @@ if [ "${1:-}" = patroni ]; then
 fi
 
 case "${1:-}" in
-  # the image's own entrypoint initialises an empty data directory, then runs the server as postgres
-  docker-entrypoint.sh) exec "$@" ;;
-  postgres) exec docker-entrypoint.sh "$@" ;;
+  # the image's own entrypoint initialises an empty data directory, then runs the server as postgres, with the
+  # settings guard added to its shared_preload_libraries (db/guard/entry.sh)
+  docker-entrypoint.sh) exec masslak-guard-entry "$@" ;;
+  postgres) exec masslak-guard-entry docker-entrypoint.sh "$@" ;;
   *) exec su-exec postgres "$@" ;;
 esac

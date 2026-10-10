@@ -133,6 +133,10 @@ warning, and counts the acknowledged rows the new primary has, while watching th
 | Development host, 10 October 2026 | this configuration (Patroni 4.0.6, etcd 3.5 with client certificates, HAProxy 2.8, TLS everywhere), native processes, writes through HAProxy, primary killed (`kill -9` of Patroni and PostgreSQL) | 298 | 0 | 25.4 s | `evidence/failover_drill_ha_2026-10-10.json` |
 | CI, 10 October 2026 (job "Production with two database hosts", run of `385d7b4`, every step green) | the installed layout: three machines on one runner, each database host installed from its bundle with the signed image, the primary's container killed (`docker kill`) | 895 | 0 | 23.3 s; the API ready again 31 s after the kill | the job's log; every push repeats it with the same assertions (none lost, back within 60 s, the API ready again) |
 
+Each drill's evidence names how the standby became primary (`promotion`): `automatic (cluster manager)` when Patroni
+promoted it, `command` when the drill promoted it itself (`--promote`, the stand-in of the first row), so a stand-in
+run cannot be read as a measure of automatic failover (reviews of release 1.49.0).
+
 That first CI run also showed the API staying not ready after the failover, though bookings were back: readiness
 required the reports connection to reach a standby, and with none up `db-replica` sends reports to the primary. With
 two database hosts that is now accepted, at start and in `/api/ready` (`db.reports_may_reach_the_primary`), PgBouncer

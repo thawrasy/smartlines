@@ -50,6 +50,14 @@ else
   ./deploy/init-env.sh "${args[@]}"
 fi
 
+# the commit of this checkout, or the one a signed release archive records in RELEASE, goes into the release manifest (1058)
+commit="$(git rev-parse HEAD 2>/dev/null || sed -n 's/^commit=\([0-9a-f]\{40\}\)$/\1/p' RELEASE 2>/dev/null || true)"
+# images are tagged with that commit (deploy/update.sh keeps the previous ones for a rollback); written before any
+# compose command, since the production overlay names its images by this tag and stops without it
+tag="$(printf '%s' "$commit" | cut -c1-12)"; [ -n "$tag" ] || tag="local-$(date -u +%Y%m%d%H%M%S)"
+if grep -q '^MASSLAK_IMAGE_TAG=' deploy/.env; then sed -i "s|^MASSLAK_IMAGE_TAG=.*|MASSLAK_IMAGE_TAG=$tag|" deploy/.env
+else echo "MASSLAK_IMAGE_TAG=$tag" >> deploy/.env; fi
+
 production=false
 grep -q '^MASSLAK_ENVIRONMENT=production$' deploy/.env && production=true
 if [ "$production" = true ]; then
@@ -71,12 +79,6 @@ if [ "$production" = true ]; then
 fi
 ./deploy/env-split.sh                     # each container receives only its part of deploy/.env (H-06)
 
-# the commit of this checkout, or the one a signed release archive records in RELEASE, goes into the release manifest (1058)
-commit="$(git rev-parse HEAD 2>/dev/null || sed -n 's/^commit=\([0-9a-f]\{40\}\)$/\1/p' RELEASE 2>/dev/null || true)"
-# images are tagged with that commit (deploy/update.sh keeps the previous ones for a rollback)
-tag="$(printf '%s' "$commit" | cut -c1-12)"; [ -n "$tag" ] || tag="local-$(date -u +%Y%m%d%H%M%S)"
-if grep -q '^MASSLAK_IMAGE_TAG=' deploy/.env; then sed -i "s|^MASSLAK_IMAGE_TAG=.*|MASSLAK_IMAGE_TAG=$tag|" deploy/.env
-else echo "MASSLAK_IMAGE_TAG=$tag" >> deploy/.env; fi
 if [ "$production" = true ]; then
   # a production server runs the images built and signed once by the release workflow, never its own (H-08): IMAGES
   # (inside the signed release archive) names them by digest, and each signature and bill of materials is checked

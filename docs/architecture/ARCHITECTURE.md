@@ -122,33 +122,40 @@ flowchart LR
     REF -.-> IAM & NET & PRICING & FIN
 ```
 
+State as of release 1.50.0, checked against the code (reviews of release 1.49.0 found rows that still said "Not built").
+
 | Module | Schema | API prefix | Portal(s) | State |
 | --- | --- | --- | --- | --- |
 | Identity and access | `iam` | `/api/auth` | all | Built: register, login, sessions, lockout, TOTP MFA, recovery codes |
 | Reference data | `ref`, `sys` | `/api/ref`, `/api/admin/stations` | public, admin | Built |
-| Carrier onboarding | `iam.company`, `iam.document` | `/api/admin/companies` | admin | Partly built: create and approve; document review missing |
+| Carrier onboarding | `iam.company`, `iam.document` | `/api/admin/companies`, `/api/company/documents`, `/api/admin/documents` | carrier, admin | Built: create and approve; documents uploaded by the carrier, scanned for malware and reviewed by the platform |
 | Network | `net` | `/api/carrier/routes`, `/stations` | carrier | Built: routes with fare ladders |
 | Fleet and crew | `fleet` | `/api/carrier/vehicles`, `/crew` | carrier | Built: vehicles with insurance checks, drivers |
 | Scheduling | `ops` | `/api/carrier/trips`, `/api/driver/*` | carrier, driver | Built: create, publish, manifest, stop events, location, complete |
 | Search | `ops` (read) | `/api/trips/search` | public | Built: segment search with pair fares |
 | Booking and tickets | `sales` | `/api/holds`, `/api/bookings`, `/api/tickets` | passenger | Built: holds, booking, cancel and refund by brand, rotating QR |
 | Wallet and ledger | `fin` | `/api/wallet` | passenger, carrier | Built: wallet, double-entry ledger, escrow release on completion |
-| Settlements and payouts | `fin.settlement_*`, `fin.payout*` | — | carrier, finance | Not built |
-| Payments (gateways) | `fin.payment*` | `/api/payments/*` | passenger | Not built (sandbox top-up only) |
-| Agency sales | `iam.company` (AGENCY), `pricing.commission_*` | `/api/agency/*` | agency | Not built |
-| Notifications | `crm.notification*`, `sys.outbox_event` | — | all | Not built |
-| Support cases | `crm.case*` | — | passenger, admin | Not built |
-| Privacy | `gov.consent`, `gov.subject_request` | — | passenger, admin | Not built |
+| Settlements and payouts | `fin.settlement_*`, `fin.payout*` | `/api/finance`, `/api/admin/finance` | carrier, platform finance | Built: balances, settlement batches, bank accounts verified by the platform, withdrawals approved by a second person |
+| Payments (gateways) | `fin.payment*` | `/api/payments/*`, `/api/carrier/counter/*` | passenger, carrier counter | Built: payment methods with switches, hosted card, instalments, financing and partner wallet adapters with signed notifications (a simulator in the sandbox), bank transfers, counter cash sales, pay-later. Live providers need their contracts and keys |
+| Agency sales | `iam.company` (AGENCY), `pricing.commission_*` | `/api/agency/*` | agency | Built: sales on behalf of passengers within a quota, commission, statements, agency staff |
+| Notifications | `crm.notification*`, `sys.outbox_event` | `/api/notifications` | all | Built: outbox worker, in-app list, e-mail (SMTP), SMS (HTTP gateway), WhatsApp (Cloud API) and push, each off until configured |
+| Support cases | `crm.case*` | `/api/support`, `/api/admin/support` | passenger, admin | Built: cases with messages, satisfaction, trip ratings, claims paid from the platform, contact block list |
+| Privacy | `gov.consent`, `gov.subject_request` | `/api/account`, `/api/admin/privacy` | passenger, admin | Built: consents, data export, subject requests handled by the platform, sessions and devices |
 | Security hub | `sec`, `audit` | `/api/security/*` | platform security | Built: summary, IP rules, auth events, activity |
 | Regulator | views over `ops`, `sales`, `fin` | `/api/regulator/*` | regulator | Built: read-only dashboard |
 | Verification | signed tokens | `/api/verify` | public | Built: ticket and document authenticity |
-| Accounting and e-invoice | `acct` | — | finance | Schema only (Phase 1 sprint c to e) |
+| Family accounts | `iam.family*` | `/api/family` | passenger | Built: family groups, invitations by code, bookings for members, minors linked to guardians |
+| Manifests | `brd.manifest*` | `/api/carrier/trips/{trip}/manifests`, `/api/admin/manifests` | carrier, admin | Built: passenger and cargo manifests issued as signed versions (Ed25519), routed to authorities |
+| Parcels and cargo | `ship.parcel*`, cargo capacity of `fleet` and `ops` | `/api/parcels`, `/api/carrier/parcels` | passenger, carrier | Built: parcel booking priced by weight and size within the vehicle's cargo capacity |
+| Reports | `rpt.report_*` | `/api/reports` | all staff portals | Built: catalogue, custom reports, PDF, Excel, CSV, text and JSON exports, scheduled deliveries |
+| Partner API | `iam.api_client`, `sys.webhook_*` | `/api/v1`, `/api/integrations` | partners, authorities, banks | Built: keys per client with their own rate limits, signed webhooks |
+| Accounting and e-invoice | `acct` | `/api/r/{resource}` (module `accounting_ops`) | finance | Partly built: tax codes, cost centres, cash boxes and invoice records through the module framework; invoices are not yet generated from sales and nothing is sent to a tax authority |
 
 ---
 
 ## 3. Database integration map
 
-The schema has 26 schemas and 504 tables in the files `db/schema/000` to `1083` (release 1.49.0; later-phase modules are disabled behind feature flags and phase gates). The full design, with an ERD per module in the study's colours, is `docs/database/Masslak_Database_Design_and_ERD_v3.12.docx`; file 1033 enforces its relationship rules (primary keys, declared and indexed foreign keys), checked by db/tests. The diagram shows the relationships that the Phase 1 flows use.
+The schema has 26 schemas and 504 tables in the files `db/schema/000` to `1084` (release 1.50.0; later-phase modules are disabled behind feature flags and phase gates). The full design, with an ERD per module in the study's colours, is `docs/database/Masslak_Database_Design_and_ERD_v3.12.docx`; file 1033 enforces its relationship rules (primary keys, declared and indexed foreign keys), checked by db/tests. The diagram shows the relationships that the Phase 1 flows use.
 
 ```mermaid
 erDiagram

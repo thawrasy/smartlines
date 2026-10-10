@@ -97,6 +97,9 @@ postgresql:
   parameters:
     unix_socket_directories: /var/run/postgresql
     hba_file: /var/lib/postgresql/pg_hba.conf   # written by masslak-db-entry at each start; Patroni leaves it alone
+    # the settings guard of this image (db/guard), here rather than under bootstrap so a cluster created by an earlier
+    # release loads it too: the local value wins over the cluster-wide one
+    shared_preload_libraries: pg_stat_statements,masslak_guard
   basebackup:
     - checkpoint: fast
 

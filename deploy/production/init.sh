@@ -48,11 +48,17 @@ printf 'basicConstraints=CA:FALSE\nkeyUsage=digitalSignature\nextendedKeyUsage=s
 printf 'basicConstraints=CA:FALSE\nkeyUsage=digitalSignature\nextendedKeyUsage=clientAuth\n' > "$tls/client.ext"
 issue server db "$tls/server.ext"
 issue masslak_cdc masslak_cdc "$tls/client.ext"
-rm -f "$tls/server.ext" "$tls/client.ext"
+# the telemetry database (deploy/production/docker-compose.telemetry.yml): its own certificate, for the name telemetry
+# and any name of a server of its own (MASSLAK_TELEMETRY_TLS_NAMES)
+tel_names="DNS:telemetry,DNS:localhost"
+for n in $(value MASSLAK_TELEMETRY_TLS_NAMES | tr ',' ' '); do tel_names="$tel_names,DNS:$n"; done
+printf 'basicConstraints=CA:FALSE\nkeyUsage=digitalSignature\nextendedKeyUsage=serverAuth\nsubjectAltName=%s\n' "$tel_names" > "$tls/telemetry.ext"
+issue telemetry telemetry "$tls/telemetry.ext"
+rm -f "$tls/server.ext" "$tls/client.ext" "$tls/telemetry.ext"
 # The database images run as postgres (uid 70): they read their keys as that user. The authority's certificate is public.
-chown 70:70 "$tls/server.key" "$tls/masslak_cdc.key"
-chmod 0600 "$tls/server.key" "$tls/masslak_cdc.key"
-chmod 0644 "$tls/ca.crt" "$tls/server.crt" "$tls/masslak_cdc.crt"
+chown 70:70 "$tls/server.key" "$tls/masslak_cdc.key" "$tls/telemetry.key"
+chmod 0600 "$tls/server.key" "$tls/masslak_cdc.key" "$tls/telemetry.key"
+chmod 0644 "$tls/ca.crt" "$tls/server.crt" "$tls/masslak_cdc.crt" "$tls/telemetry.crt"
 [ ! -e "$tls/ca.key" ] || chmod 0600 "$tls/ca.key"
 chmod 0755 "$tls"
 # what the API, the worker and the migration trust: the internal authority, and Vault's own authority when its
@@ -152,6 +158,8 @@ files="docker-compose.yml:deploy/production/docker-compose.production.yml"
 [ "$layout" != ha ] || files="$files:deploy/production/ha/docker-compose.ha.yml"
 extra="$(value MASSLAK_COMPOSE_EXTRA)"                 # further overlays (telemetry, warehouse), colon-separated
 [ -z "$extra" ] || files="$files:$extra"
+# the telemetry database runs with TLS in production (reviews of release 1.49.0)
+case ":$extra:" in *:deploy/telemetry/docker-compose.telemetry.yml:*) files="$files:deploy/production/docker-compose.telemetry.yml" ;; esac
 if grep -q '^COMPOSE_FILE=' "$env_file"; then sed -i "s|^COMPOSE_FILE=.*|COMPOSE_FILE=$files|" "$env_file"
 else echo "COMPOSE_FILE=$files" >> "$env_file"; fi
 echo "production profile ready (COMPOSE_FILE=$files)"
