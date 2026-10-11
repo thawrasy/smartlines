@@ -29,6 +29,7 @@ DENY SELECT ON [acc].[BankAccount]([AccountNoHash]) TO [tp_readonly]; -- restric
 DENY SELECT ON [acc].[BankAccount]([IbanEnc]) TO [tp_readonly]; -- restricted
 DENY SELECT ON [acc].[BankAccount]([IbanMask]) TO [tp_readonly]; -- restricted
 DENY SELECT ON [acc].[BankAccount]([IbanHash]) TO [tp_readonly]; -- restricted
+DENY SELECT ON [col].[Collateral]([Attributes]) TO [tp_readonly]; -- restricted
 DENY SELECT ON [lc].[LcTerms]([BeneficiaryAccountIbanEnc]) TO [tp_readonly]; -- restricted
 DENY SELECT ON [lc].[LcTerms]([BeneficiaryAccountIbanMask]) TO [tp_readonly]; -- restricted
 DENY SELECT ON [lc].[LcTerms]([BeneficiaryAccountIbanHash]) TO [tp_readonly]; -- restricted

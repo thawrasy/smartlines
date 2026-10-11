@@ -1,79 +1,84 @@
-%% خريطة المخططات: العلاقات بين المخططات التي فيها خمسة مفاتيح أجنبية أو أكثر (التفصيل في جداول العلاقات)
+%% خريطة المخططات: العلاقة = عدد المفاتيح الأجنبية بين المخططين (≥ 5)
 erDiagram
   acc {
-    int tables_6 PK
+    int tables "6"
   }
   aud {
-    int tables_2 PK
+    int tables "2"
   }
   cat {
-    int tables_26 PK
+    int tables "26"
   }
   cfg {
-    int tables_12 PK
+    int tables "12"
   }
   cmp {
-    int tables_2 PK
+    int tables "2"
   }
   col {
-    int tables_7 PK
+    int tables "7"
   }
   doc {
-    int tables_3 PK
+    int tables "3"
   }
   fac {
-    int tables_13 PK
+    int tables "13"
   }
   fin {
-    int tables_7 PK
+    int tables "7"
   }
   ins {
-    int tables_6 PK
+    int tables "6"
   }
   lc {
-    int tables_21 PK
+    int tables "21"
   }
   ntf {
-    int tables_7 PK
+    int tables "7"
   }
   obl {
-    int tables_8 PK
+    int tables "8"
   }
   org {
-    int tables_14 PK
+    int tables "14"
   }
   plat {
-    int tables_7 PK
+    int tables "7"
   }
   prc {
-    int tables_5 PK
+    int tables "5"
   }
   pty {
-    int tables_11 PK
+    int tables "11"
   }
   ref {
-    int tables_4 PK
+    int tables "4"
   }
   sec {
-    int tables_14 PK
+    int tables "14"
   }
   wfl {
-    int tables_19 PK
+    int tables "19"
   }
   acc ||--o{ lc : "5 FK"
   cat ||--o{ acc : "7 FK"
   cat ||--o{ org : "7 FK"
   cat ||--o{ prc : "6 FK"
-  fac ||--o{ prc : "5 FK"
+  doc ||--o{ col : "5 FK"
+  doc ||--o{ fac : "8 FK"
+  doc ||--o{ org : "5 FK"
+  fac ||--o{ prc : "7 FK"
   ins ||--o{ acc : "5 FK"
-  org ||--o{ lc : "5 FK"
+  ins ||--o{ pty : "8 FK"
+  org ||--o{ lc : "8 FK"
   org ||--o{ wfl : "5 FK"
   pty ||--o{ org : "5 FK"
   ref ||--o{ fac : "5 FK"
   ref ||--o{ lc : "13 FK"
   ref ||--o{ org : "8 FK"
   ref ||--o{ pty : "6 FK"
+  sec ||--o{ fac : "9 FK"
   sec ||--o{ lc : "6 FK"
   sec ||--o{ ntf : "6 FK"
-  sec ||--o{ wfl : "24 FK"
+  sec ||--o{ wfl : "28 FK"
   wfl ||--o{ lc : "5 FK"

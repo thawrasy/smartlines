@@ -149,14 +149,14 @@
 
 **قيود:** `Status NOT IN ('ACTIVE','LOCKED') OR PasswordHash IS NOT NULL` · `Status <> 'ACTIVE' OR MfaEnabled = 1` · `MfaEnabled = 0 OR MfaSecretEnc IS NOT NULL` · `MfaSecretEnc IS NULL OR MfaKeyRef IS NOT NULL` · `MfaSecretEnc IS NULL OR DATALENGTH(MfaSecretEnc) >= 29` · `FailedAttempts >= 0`
 
-### `plat.TenantModule` — الوحدات المفعّلة للمشترك (FR-PLT-003، BR-PLT-003)
+### `plat.TenantModule` — الوحدات المفعّلة لكل مشترك؛ ملكية المنصة فقط: لا يكتبها تطبيق المشترك ويقرؤها عبر عرض مُحدَّد (DR-01)
 
-*مملوك للمشترك*
+*عالمي*
 
 | العمود | النوع | NULL | الافتراضي | المرجع | ملاحظة |
 |---|---|---|---|---|---|
-| TenantId | INT | لا | | plat.Tenant | عزل المشترك |
 | **TenantModuleId** | BIGINT IDENTITY | لا | | | مفتاح أساسي |
+| TenantId | INT | لا |  | plat.Tenant | المشترك المالك (صريح لأن الجدول عالمي) |
 | ModuleCode | VARCHAR(12) | لا |  |  | enum: CORE, INSTITUTIONS, FACILITIES, COVENANTS, WORKFLOW, LC_PURCHASE, LC_SALES, REQUESTS, REPORTS |
 | IsEnabled | BIT | لا | 1 |  | التعطيل يخفي الوحدة دون حذف بياناتها؛ الاعتماديات (00 §9-ب) في التطبيق |
 | EnabledAt | DATETIME2(3) | نعم |  |  |  |
@@ -218,7 +218,8 @@
 | PasswordChangedAt | DATETIME2(3) | نعم |  |  |  |
 | MfaEnabled | BIT | لا | 0 |  | إعادة تعيين MFA تصفّره وتجبر على إعادة التسجيل (BR-PLT-006) |
 | MfaSecretEnc | VARBINARY(256) | نعم |  |  | سر TOTP مشفَّر بمفتاح المشترك 🔒 restricted |
-| MfaKeyId | BIGINT | نعم |  | sec.TenantKey | مفتاح DATA الذي شُفِّر به سر MFA (إصدار صريح لإعادة التشفير) |
+| MfaKeyPurpose | VARCHAR(10) | لا | DATA |  | غرض المفتاح الذي شُفِّر به السر (ثابت؛ يُطابَق بالمفتاح المركّب) enum: DATA |
+| MfaKeyId | BIGINT | نعم |  | sec.TenantKey (via MfaKeyPurpose) | مفتاح DATA الذي شُفِّر به سر MFA (DR-02) |
 | MfaEnrolledAt | DATETIME2(3) | نعم |  |  |  |
 | MfaLastUsedStep | BIGINT | نعم |  |  | آخر خطوة TOTP مقبولة (منع إعادة الاستعمال) |
 | FailedAttempts | INT | لا | 0 |  | 5 خلال 15 دقيقة تقفل (BR-PLT-005) |
@@ -493,7 +494,7 @@
 
 **المفاتيح:** PK(TenantKeyId) · UQ(TenantId, Purpose, KeyVersion) · UQ(TenantId, Purpose) WHERE Status = 'ACTIVE'
 
-**قيود:** `KeyVersion >= 1`
+**قيود:** `KeyVersion >= 1` · `Status NOT IN ('ACTIVE','RETIRING','RETIRED') OR ActivatedAt IS NOT NULL` · `Status <> 'RETIRED' OR RetiredAt IS NOT NULL`
 
 ### `sec.KeyEvent` — سجل أحداث المفاتيح: إنشاء وتدوير وإبطال (FR-PLT-037؛ شدة عالية BR-PLT-009)
 
@@ -630,7 +631,8 @@
 | ContentType | VARCHAR(150) | نعم |  |  | يُفحص بالمحتوى لا بالامتداد (FR-PLT-029) |
 | SizeBytes | BIGINT | لا |  |  |  |
 | Sha256 | VARBINARY(32) | لا |  |  | يحسبها الخادم من البايتات المستلمة |
-| KeyId | BIGINT | نعم |  | sec.TenantKey | مفتاح تشفير الملف |
+| KeyPurpose | VARCHAR(10) | لا | FILE |  | enum: FILE |
+| KeyId | BIGINT | لا |  | sec.TenantKey (via KeyPurpose) | مفتاح FILE لتشفير الملف (6.4، DR-02) |
 | ScanStatus | VARCHAR(11) | لا | PENDING |  | لا يُنزَّل إلا CLEAN enum: PENDING, CLEAN, QUARANTINED |
 | ScannedAt | DATETIME2(3) | نعم |  |  |  |
 | ScanDetail | NVARCHAR(300) | نعم |  |  |  |
@@ -1403,8 +1405,10 @@
 | NumberEnc | VARBINARY(512) | لا |  |  | الرقم مشفَّر بمفتاح المشترك (FR-PTY-006) 🔒 restricted |
 | NumberMask | NVARCHAR(32) | لا |  |  | قناع العرض يُحسب عند الكتابة؛ آخر 4 خانات (BR-PTY-008) 🔒 restricted |
 | NumberHash | VARBINARY(32) | لا |  |  | HMAC فهرس أعمى: النوع+الدولة+الرقم المطبَّع (BR-PTY-002) 🔒 restricted |
-| EncKeyId | BIGINT | لا |  | sec.TenantKey | مفتاح DATA لهذا الصف (إصدار صريح؛ 06 §6) |
-| HashKeyId | BIGINT | لا |  | sec.TenantKey | مفتاح BLIND_INDEX لبصمة NumberHash |
+| EncKeyPurpose | VARCHAR(10) | لا | DATA |  | enum: DATA |
+| EncKeyId | BIGINT | لا |  | sec.TenantKey (via EncKeyPurpose) | مفتاح DATA لهذا الصف (إصدار صريح؛ 06 §6، DR-02) |
+| HashKeyPurpose | VARCHAR(11) | لا | BLIND_INDEX |  | enum: BLIND_INDEX |
+| HashKeyId | BIGINT | لا |  | sec.TenantKey (via HashKeyPurpose) | مفتاح BLIND_INDEX لبصمة NumberHash (DR-02) |
 | IssueDate | DATE | نعم |  |  |  |
 | IssueDateHijriText | NVARCHAR(20) | نعم |  |  | G-11 |
 | ExpiryDate | DATE | نعم |  |  |  |
@@ -1431,8 +1435,10 @@
 |---|---|---|---|---|---|
 | TenantId | INT | لا | | plat.Tenant | عزل المشترك |
 | **AddressId** | BIGINT IDENTITY | لا | | | مفتاح أساسي |
-| OwnerType | VARCHAR(11) | لا |  |  | قابل للتوسعة بمزوّد مالك enum: PARTY, INSTITUTION, UNIT, CONTACT |
-| OwnerId | BIGINT | لا |  |  |  |
+| PartyId | BIGINT | نعم |  | pty.Party | قوس المالك: شخص (واحد من أربعة فقط؛ DR-04) |
+| InstitutionId | BIGINT | نعم |  | ins.Institution | قوس المالك: منشأة |
+| UnitId | BIGINT | نعم |  | ins.InstitutionUnit | قوس المالك: فرع/وحدة |
+| ContactId | BIGINT | نعم |  | ins.Contact | قوس المالك: جهة اتصال |
 | AddressType | VARCHAR(11) | لا |  |  | enum: NATIONAL, RESIDENTIAL, WORK, PO_BOX, REGISTERED, OTHER |
 | IsPrimary | BIT | لا | 0 |  |  |
 | IsCurrent | BIT | لا | 1 |  |  |
@@ -1453,9 +1459,9 @@
 | UpdatedAt | DATETIME2(3) | نعم |  |  |  |
 | UpdatedBy | BIGINT | نعم |  |  |  |
 
-**المفاتيح:** PK(AddressId) · UQ(TenantId, OwnerType, OwnerId) WHERE IsPrimary = 1 AND IsCurrent = 1
+**المفاتيح:** PK(AddressId) · UQ(TenantId, PartyId) WHERE IsPrimary = 1 AND IsCurrent = 1 AND PartyId IS NOT NULL · UQ(TenantId, InstitutionId) WHERE IsPrimary = 1 AND IsCurrent = 1 AND InstitutionId IS NOT NULL · UQ(TenantId, UnitId) WHERE IsPrimary = 1 AND IsCurrent = 1 AND UnitId IS NOT NULL · UQ(TenantId, ContactId) WHERE IsPrimary = 1 AND IsCurrent = 1 AND ContactId IS NOT NULL
 
-**قيود:** `IsPrimary = 0 OR IsCurrent = 1` · `AddressType <> 'PO_BOX' OR PoBoxNumber IS NOT NULL`
+**قيود:** `(PartyId IS NOT NULL AND InstitutionId IS NULL AND UnitId IS NULL AND ContactId IS NULL) OR (PartyId IS NULL AND InstitutionId IS NOT NULL AND UnitId IS NULL AND ContactId IS NULL) OR (PartyId IS NULL AND InstitutionId IS NULL AND UnitId IS NOT NULL AND ContactId IS NULL) OR (PartyId IS NULL AND InstitutionId IS NULL AND UnitId IS NULL AND ContactId IS NOT NULL)` · `IsPrimary = 0 OR IsCurrent = 1` · `AddressType <> 'PO_BOX' OR PoBoxNumber IS NOT NULL`
 
 ### `pty.ContactMethod` — وسيلة اتصال متعددة الملكية (FR-PTY-012، BR-PTY-015)
 
@@ -1465,8 +1471,10 @@
 |---|---|---|---|---|---|
 | TenantId | INT | لا | | plat.Tenant | عزل المشترك |
 | **ContactMethodId** | BIGINT IDENTITY | لا | | | مفتاح أساسي |
-| OwnerType | VARCHAR(11) | لا |  |  | enum: PARTY, INSTITUTION, UNIT, CONTACT |
-| OwnerId | BIGINT | لا |  |  |  |
+| PartyId | BIGINT | نعم |  | pty.Party | قوس المالك (واحد من أربعة؛ DR-04) |
+| InstitutionId | BIGINT | نعم |  | ins.Institution |  |
+| UnitId | BIGINT | نعم |  | ins.InstitutionUnit |  |
+| ContactId | BIGINT | نعم |  | ins.Contact |  |
 | Kind | VARCHAR(10) | لا |  |  | enum: MOBILE, PHONE, EMAIL, FAX, WEBSITE, OTHER |
 | Value | NVARCHAR(200) | لا |  |  |  |
 | NormalizedValue | NVARCHAR(200) | لا |  |  | هاتف E.164 / بريد صغير الأحرف؛ مطلوب لتنفيذ الفرادة |
@@ -1477,7 +1485,9 @@
 | UpdatedAt | DATETIME2(3) | نعم |  |  |  |
 | UpdatedBy | BIGINT | نعم |  |  |  |
 
-**المفاتيح:** PK(ContactMethodId) · UQ(TenantId, OwnerType, OwnerId, Kind, NormalizedValue) · UQ(TenantId, OwnerType, OwnerId, Kind) WHERE IsPrimary = 1
+**المفاتيح:** PK(ContactMethodId) · UQ(TenantId, PartyId, Kind, NormalizedValue) WHERE PartyId IS NOT NULL · UQ(TenantId, InstitutionId, Kind, NormalizedValue) WHERE InstitutionId IS NOT NULL · UQ(TenantId, UnitId, Kind, NormalizedValue) WHERE UnitId IS NOT NULL · UQ(TenantId, ContactId, Kind, NormalizedValue) WHERE ContactId IS NOT NULL · UQ(TenantId, PartyId, Kind) WHERE IsPrimary = 1 AND PartyId IS NOT NULL · UQ(TenantId, InstitutionId, Kind) WHERE IsPrimary = 1 AND InstitutionId IS NOT NULL · UQ(TenantId, UnitId, Kind) WHERE IsPrimary = 1 AND UnitId IS NOT NULL · UQ(TenantId, ContactId, Kind) WHERE IsPrimary = 1 AND ContactId IS NOT NULL
+
+**قيود:** `(PartyId IS NOT NULL AND InstitutionId IS NULL AND UnitId IS NULL AND ContactId IS NULL) OR (PartyId IS NULL AND InstitutionId IS NOT NULL AND UnitId IS NULL AND ContactId IS NULL) OR (PartyId IS NULL AND InstitutionId IS NULL AND UnitId IS NOT NULL AND ContactId IS NULL) OR (PartyId IS NULL AND InstitutionId IS NULL AND UnitId IS NULL AND ContactId IS NOT NULL)`
 
 ### `pty.CustomFieldDefinition` — تعريف حقل مخصص (FR-PTY-013، BR-PTY-014)
 
@@ -1518,7 +1528,8 @@
 | DefinitionId | BIGINT | لا |  | pty.CustomFieldDefinition |  |
 | ValueText | NVARCHAR(1000) | نعم |  |  |  |
 | ValueEnc | VARBINARY(512) | نعم |  |  | للحقل المقيَّد بدل ValueText 🔒 restricted |
-| EncKeyId | BIGINT | نعم |  | sec.TenantKey | مفتاح DATA لقيمة الحقل المقيَّد |
+| EncKeyPurpose | VARCHAR(10) | لا | DATA |  | enum: DATA |
+| EncKeyId | BIGINT | نعم |  | sec.TenantKey (via EncKeyPurpose) | مفتاح DATA لقيمة الحقل المقيَّد (DR-02) |
 | ValueMask | NVARCHAR(32) | نعم |  |  | قناع يُحسب عند الكتابة (BR-PTY-008) |
 | CurrencyId | INT | نعم |  | ref.Currency | لنوع AMOUNT |
 | CreatedAt | DATETIME2(3) | لا | SYSUTCDATETIME() |  |  |
@@ -2343,13 +2354,13 @@
 
 **قيود:** `SupersedesId IS NULL OR SupersedesId <> BaseRateValueId`
 
-### `cat.LookupList` — قائمة قيم؛ TenantId فارغ = قائمة عالمية يملكها المشغّل للقراءة (FR-CAT-020، BR-CAT-015)
+### `cat.LookupList` — DR-03: مملوك للمشترك؛ نسخة النظام تُهيَّأ لكل مشترك من قالب المنصة  # قائمة قيم؛ TenantId فارغ = قائمة عالمية يملكها المشغّل للقراءة (FR-CAT-020، BR-CAT-015)
 
-*مختلط النطاق · كتالوج*
+*مملوك للمشترك · كتالوج*
 
 | العمود | النوع | NULL | الافتراضي | المرجع | ملاحظة |
 |---|---|---|---|---|---|
-| TenantId | INT | نعم | | plat.Tenant | عزل المشترك |
+| TenantId | INT | لا | | plat.Tenant | عزل المشترك |
 | **LookupListId** | INT IDENTITY | لا | | | مفتاح أساسي |
 | Code | VARCHAR(80) | لا |  |  | رمز الكتالوج |
 | NameAr | NVARCHAR(200) | لا |  |  |  |
@@ -2361,7 +2372,7 @@
 | SortOrder | INT | لا | 0 |  |  |
 | SeedKey | VARCHAR(80) | نعم |  |  |  |
 | ExternalCode | VARCHAR(80) | نعم |  |  |  |
-| Scope | VARCHAR(10) | لا |  |  | enum: GLOBAL, TENANT |
+| Scope | VARCHAR(10) | لا |  |  | SYSTEM = نسخة من قالب المنصة لكل مشترك (IsSystem=1)؛ TENANT = قائمة يعرّفها المشترك enum: SYSTEM, TENANT |
 | AllowTenantItems | BIT | لا | 0 |  | هل يضيف المشترك بنودًا لقائمة عالمية؟ |
 | AttributeSchema | NVARCHAR(MAX) | نعم |  |  | مخطط سمات البنود (JSON Schema مبسّط) |
 | CreatedAt | DATETIME2(3) | لا | SYSUTCDATETIME() |  |  |
@@ -2371,15 +2382,15 @@
 
 **المفاتيح:** PK(LookupListId) · UQ(TenantId, Code) · UQ(TenantId, SeedKey) WHERE SeedKey IS NOT NULL
 
-**قيود:** `(Scope = 'GLOBAL' AND TenantId IS NULL) OR (Scope = 'TENANT' AND TenantId IS NOT NULL)` · `Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'` · `(IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)`
+**قيود:** `(Scope = 'SYSTEM' AND IsSystem = 1) OR (Scope = 'TENANT' AND IsSystem = 0)` · `Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'` · `(IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)`
 
-### `cat.LookupItem` — بند في قائمة قيم؛ TenantId فارغ = بند عالمي للقراءة فقط؛ أعمدة الكتالوج يدوية لأن فرادة الرمز داخل القائمة لا المشترك (FR-CAT-020)
+### `cat.LookupItem` — DR-03/05/07: مملوك للمشترك (نسخ النظام لكل مشترك)  # بند في قائمة قيم؛ TenantId فارغ = بند عالمي للقراءة فقط؛ أعمدة الكتالوج يدوية لأن فرادة الرمز داخل القائمة لا المشترك (FR-CAT-020)
 
-*مختلط النطاق*
+*مملوك للمشترك*
 
 | العمود | النوع | NULL | الافتراضي | المرجع | ملاحظة |
 |---|---|---|---|---|---|
-| TenantId | INT | نعم | | plat.Tenant | عزل المشترك |
+| TenantId | INT | لا | | plat.Tenant | عزل المشترك |
 | **LookupItemId** | INT IDENTITY | لا | | | مفتاح أساسي |
 | LookupListId | INT | لا |  | cat.LookupList |  |
 | Code | VARCHAR(80) | لا |  |  |  |
@@ -2585,8 +2596,10 @@
 | IbanEnc | VARBINARY(512) | نعم |  |  | اختياري؛ الطول وmod 97 في التطبيق (BR-ACC-002) 🔒 restricted |
 | IbanMask | NVARCHAR(32) | نعم |  |  | مثل SA•• •••• •••• •••• •••• 7519 🔒 restricted |
 | IbanHash | VARBINARY(32) | نعم |  |  | فرادة IBAN لكل مشترك 🔒 restricted |
-| EncKeyId | BIGINT | لا |  | sec.TenantKey | مفتاح DATA للرقم والآيبان في هذا الصف (إصدار صريح؛ 06 §6) |
-| HashKeyId | BIGINT | لا |  | sec.TenantKey | مفتاح BLIND_INDEX لبصمتي AccountNoHash وIbanHash |
+| EncKeyPurpose | VARCHAR(10) | لا | DATA |  | enum: DATA |
+| EncKeyId | BIGINT | لا |  | sec.TenantKey (via EncKeyPurpose) | مفتاح DATA للرقم والآيبان في هذا الصف (DR-02) |
+| HashKeyPurpose | VARCHAR(11) | لا | BLIND_INDEX |  | enum: BLIND_INDEX |
+| HashKeyId | BIGINT | لا |  | sec.TenantKey (via HashKeyPurpose) | مفتاح BLIND_INDEX لبصمتي AccountNoHash وIbanHash (DR-02) |
 | BranchUnitId | BIGINT | نعم |  | ins.InstitutionUnit (via InstitutionId) | فرع من المنشأة نفسها |
 | SigningRuleText | NVARCHAR(500) | نعم |  |  | نص حر «أ مع ب» دون محرك آلي (FR-ACC-007) |
 | MinSignatures | INT | لا | 1 |  | >= 1؛ تحذير إن زاد على المفوّضين المؤهلين (BR-ACC-005) |
@@ -3318,7 +3331,7 @@
 | **PricingRuleId** | BIGINT IDENTITY | لا | | | مفتاح أساسي |
 | FacilityId | BIGINT | لا |  | fac.Facility |  |
 | ScopeLimitId | BIGINT | نعم |  | fac.Limit (via FacilityId) | بلا نطاق = مستوى التسهيل |
-| ScopeLimitProductLineId | BIGINT | نعم |  | fac.LimitProductLine (via FacilityId) |  |
+| ScopeLimitProductLineId | BIGINT | نعم |  | fac.LimitProductLine (via FacilityId,ScopeLimitId) | DR-06: الخط من الحد نفسه |
 | ScopeProductId | INT | نعم |  | cat.Product |  |
 | ScopeCompanyId | BIGINT | نعم |  | org.Company |  |
 | ComponentKind | VARCHAR(18) | لا |  |  | enum: FEE, FINANCING_RETURN, PENALTY_NON_INCOME |
@@ -3374,7 +3387,7 @@
 
 **المفاتيح:** PK(PricingRuleId) · UQ(TenantId, FacilityId, FeeTypeId, ScopeLimitId, ScopeLimitProductLineId, ScopeProductId, ScopeCompanyId, EffectiveFrom) WHERE ToRevision IS NULL AND FeeTypeId IS NOT NULL · UQ(TenantId, FacilityId, FinancingTypeId, ScopeLimitId, ScopeLimitProductLineId, ScopeProductId, ScopeCompanyId, EffectiveFrom) WHERE ToRevision IS NULL AND FeeTypeId IS NULL
 
-**قيود:** `EffectiveTo IS NULL OR EffectiveTo >= EffectiveFrom` · `ComponentKind <> 'FINANCING_RETURN' OR FeeTypeId IS NULL` · `ComponentKind = 'FINANCING_RETURN' OR (FeeTypeId IS NOT NULL AND FinancingTypeId IS NULL)` · `ComponentKind <> 'PENALTY_NON_INCOME' OR TriggerEvent IS NOT NULL` · `ComponentKind = 'PENALTY_NON_INCOME' OR TriggerEvent IS NULL` · `RateState <> 'NOT_SPECIFIED_IN_AGREEMENT' OR (AddOnPct IS NULL AND MarginPct IS NULL AND RatePct IS NULL AND RateRangeLowPct IS NULL AND RateRangeHighPct IS NULL AND FixedAmount IS NULL AND PerMillionAmount IS NULL)` · `RateState <> 'SET' OR Method <> 'TARIFF_AS_IS' OR TariffItemId IS NOT NULL` · `RateState <> 'SET' OR Method <> 'TARIFF_PLUS_ADDON' OR (TariffItemId IS NOT NULL AND AddOnPct IS NOT NULL)` · `RateState <> 'SET' OR Method <> 'BASE_PLUS_MARGIN' OR (BaseRateId IS NOT NULL AND MarginPct IS NOT NULL AND RateFixing IS NOT NULL AND DayCount IS NOT NULL)` · `RateState <> 'SET' OR Method <> 'PERCENT_OF_AMOUNT' OR RatePct IS NOT NULL OR (RateRangeLowPct IS NOT NULL AND RateRangeHighPct IS NOT NULL)` · `RateState <> 'SET' OR Method <> 'FIXED_AMOUNT' OR FixedAmount IS NOT NULL` · `RateState <> 'SET' OR Method <> 'PER_MILLION' OR PerMillionAmount IS NOT NULL` · `Method IN ('TARIFF_AS_IS','TARIFF_PLUS_ADDON') OR TariffItemId IS NULL` · `Method = 'TARIFF_PLUS_ADDON' OR AddOnPct IS NULL` · `Method = 'BASE_PLUS_MARGIN' OR (BaseRateId IS NULL AND MarginPct IS NULL AND BaseFloorPct IS NULL AND RateFixing IS NULL AND RepricingMonths IS NULL)` · `Method = 'PERCENT_OF_AMOUNT' OR (RatePct IS NULL AND RateRangeLowPct IS NULL AND RateRangeHighPct IS NULL)` · `Method = 'FIXED_AMOUNT' OR FixedAmount IS NULL` · `Method = 'PER_MILLION' OR PerMillionAmount IS NULL` · `RatePct IS NULL OR (RateRangeLowPct IS NULL AND RateRangeHighPct IS NULL)` · `(RateRangeLowPct IS NULL AND RateRangeHighPct IS NULL) OR (RateRangeLowPct IS NOT NULL AND RateRangeHighPct IS NOT NULL AND RateRangeLowPct <= RateRangeHighPct)` · `RatePct IS NULL OR (RatePct >= 0 AND RatePct <= 100)` · `FixedAmount IS NULL OR FixedAmount >= 0` · `PerMillionAmount IS NULL OR PerMillionAmount >= 0` · `MinFeeAmount IS NULL OR MinFeeAmount >= 0` · `MinFeeAmount IS NULL OR MaxFeeAmount IS NULL OR MinFeeAmount <= MaxFeeAmount` · `PeriodDays IS NULL OR PeriodDays > 0` · `PeriodBasis IS NULL OR PeriodBasis <> 'PER_PERIOD_OR_PART' OR PeriodDays IS NOT NULL OR Method IN ('TARIFF_AS_IS','TARIFF_PLUS_ADDON','TIERED')` · `PeriodBasis IS NULL OR PeriodBasis <> 'PER_ANNUM' OR DayCount IS NOT NULL` · `RepricingMonths IS NULL OR RepricingMonths > 0` · `RateFixing IS NULL OR RateFixing <> 'FLOATING' OR RateState <> 'SET' OR RepricingMonths IS NOT NULL` · `BenchmarkReplacement <> 'NAMED_FALLBACK' OR ReplacementText IS NOT NULL` · `BankMayChange <> 'WITH_NOTICE_OBJECTION' OR (ObjectionDays IS NOT NULL AND ObjectionDaysKind IS NOT NULL)` · `ObjectionDays IS NULL OR ObjectionDays >= 0` · `Retroactive = 0 OR RetroactiveReason IS NOT NULL` · `ToRevision IS NULL OR ToRevision >= FromRevision` · `SourceDocumentId IS NOT NULL AND SourcePage IS NOT NULL OR (SourceDocumentId IS NULL AND Confidence = 'ENTERED_NO_DOCUMENT')` · `Confidence <> 'CONFIRMED_AGAINST_ORIGINAL' OR (VerifiedBy IS NOT NULL AND VerifiedOn IS NOT NULL)`
+**قيود:** `ScopeLimitProductLineId IS NULL OR ScopeLimitId IS NOT NULL` · `EffectiveTo IS NULL OR EffectiveTo >= EffectiveFrom` · `ComponentKind <> 'FINANCING_RETURN' OR FeeTypeId IS NULL` · `ComponentKind = 'FINANCING_RETURN' OR (FeeTypeId IS NOT NULL AND FinancingTypeId IS NULL)` · `ComponentKind <> 'PENALTY_NON_INCOME' OR TriggerEvent IS NOT NULL` · `ComponentKind = 'PENALTY_NON_INCOME' OR TriggerEvent IS NULL` · `RateState <> 'NOT_SPECIFIED_IN_AGREEMENT' OR (AddOnPct IS NULL AND MarginPct IS NULL AND RatePct IS NULL AND RateRangeLowPct IS NULL AND RateRangeHighPct IS NULL AND FixedAmount IS NULL AND PerMillionAmount IS NULL)` · `RateState <> 'SET' OR Method <> 'TARIFF_AS_IS' OR TariffItemId IS NOT NULL` · `RateState <> 'SET' OR Method <> 'TARIFF_PLUS_ADDON' OR (TariffItemId IS NOT NULL AND AddOnPct IS NOT NULL)` · `RateState <> 'SET' OR Method <> 'BASE_PLUS_MARGIN' OR (BaseRateId IS NOT NULL AND MarginPct IS NOT NULL AND RateFixing IS NOT NULL AND DayCount IS NOT NULL)` · `RateState <> 'SET' OR Method <> 'PERCENT_OF_AMOUNT' OR RatePct IS NOT NULL OR (RateRangeLowPct IS NOT NULL AND RateRangeHighPct IS NOT NULL)` · `RateState <> 'SET' OR Method <> 'FIXED_AMOUNT' OR FixedAmount IS NOT NULL` · `RateState <> 'SET' OR Method <> 'PER_MILLION' OR PerMillionAmount IS NOT NULL` · `Method IN ('TARIFF_AS_IS','TARIFF_PLUS_ADDON') OR TariffItemId IS NULL` · `Method = 'TARIFF_PLUS_ADDON' OR AddOnPct IS NULL` · `Method = 'BASE_PLUS_MARGIN' OR (BaseRateId IS NULL AND MarginPct IS NULL AND BaseFloorPct IS NULL AND RateFixing IS NULL AND RepricingMonths IS NULL)` · `Method = 'PERCENT_OF_AMOUNT' OR (RatePct IS NULL AND RateRangeLowPct IS NULL AND RateRangeHighPct IS NULL)` · `Method = 'FIXED_AMOUNT' OR FixedAmount IS NULL` · `Method = 'PER_MILLION' OR PerMillionAmount IS NULL` · `RatePct IS NULL OR (RateRangeLowPct IS NULL AND RateRangeHighPct IS NULL)` · `(RateRangeLowPct IS NULL AND RateRangeHighPct IS NULL) OR (RateRangeLowPct IS NOT NULL AND RateRangeHighPct IS NOT NULL AND RateRangeLowPct <= RateRangeHighPct)` · `RatePct IS NULL OR (RatePct >= 0 AND RatePct <= 100)` · `FixedAmount IS NULL OR FixedAmount >= 0` · `PerMillionAmount IS NULL OR PerMillionAmount >= 0` · `MinFeeAmount IS NULL OR MinFeeAmount >= 0` · `MinFeeAmount IS NULL OR MaxFeeAmount IS NULL OR MinFeeAmount <= MaxFeeAmount` · `PeriodDays IS NULL OR PeriodDays > 0` · `PeriodBasis IS NULL OR PeriodBasis <> 'PER_PERIOD_OR_PART' OR PeriodDays IS NOT NULL OR Method IN ('TARIFF_AS_IS','TARIFF_PLUS_ADDON','TIERED')` · `PeriodBasis IS NULL OR PeriodBasis <> 'PER_ANNUM' OR DayCount IS NOT NULL` · `RepricingMonths IS NULL OR RepricingMonths > 0` · `RateFixing IS NULL OR RateFixing <> 'FLOATING' OR RateState <> 'SET' OR RepricingMonths IS NOT NULL` · `BenchmarkReplacement <> 'NAMED_FALLBACK' OR ReplacementText IS NOT NULL` · `BankMayChange <> 'WITH_NOTICE_OBJECTION' OR (ObjectionDays IS NOT NULL AND ObjectionDaysKind IS NOT NULL)` · `ObjectionDays IS NULL OR ObjectionDays >= 0` · `Retroactive = 0 OR RetroactiveReason IS NOT NULL` · `ToRevision IS NULL OR ToRevision >= FromRevision` · `SourceDocumentId IS NOT NULL AND SourcePage IS NOT NULL OR (SourceDocumentId IS NULL AND Confidence = 'ENTERED_NO_DOCUMENT')` · `Confidence <> 'CONFIRMED_AGAINST_ORIGINAL' OR (VerifiedBy IS NOT NULL AND VerifiedOn IS NOT NULL)`
 
 ### `prc.PricingTier` — شريحة قاعدة TIERED بالمبلغ و/أو المدة (FR-PRC-003، BR-PRC-002)
 
@@ -3456,7 +3469,7 @@
 | TermTypeId | INT | لا |  | cmp.TermType | مفتاح OTHER + OtherLabel لشرط خارج الكتالوج (FR-CMP-004) |
 | OtherLabel | NVARCHAR(200) | نعم |  |  |  |
 | LimitId | BIGINT | نعم |  | fac.Limit (via FacilityId) |  |
-| LimitProductLineId | BIGINT | نعم |  | fac.LimitProductLine (via FacilityId) |  |
+| LimitProductLineId | BIGINT | نعم |  | fac.LimitProductLine (via FacilityId,LimitId) | DR-06: الخط من الحد نفسه |
 | ProductId | INT | نعم |  | cat.Product |  |
 | CompanyId | BIGINT | نعم |  | org.Company |  |
 | ValueState | VARCHAR(26) | لا | SPECIFIED |  | غير المحددة لا تُعامل صفرًا (BR-CMP-002) enum: SPECIFIED, NOT_SPECIFIED_IN_AGREEMENT, NOT_APPLICABLE, UNKNOWN |
@@ -3491,7 +3504,7 @@
 
 **المفاتيح:** PK(TermValueId) · UQ(TenantId, FacilityId, TermTypeId, OtherLabel, LimitId, LimitProductLineId, ProductId, CompanyId, Bound, EffectiveFrom) WHERE ToRevision IS NULL
 
-**قيود:** `EffectiveTo IS NULL OR EffectiveTo >= EffectiveFrom` · `ValueState = 'SPECIFIED' OR (ValueNumber IS NULL AND ValueText IS NULL AND ValueBool IS NULL AND ValueEnum IS NULL AND NormalizedValue IS NULL)` · `ValueState <> 'SPECIFIED' OR (CASE WHEN ValueNumber IS NULL THEN 0 ELSE 1 END + CASE WHEN ValueText IS NULL THEN 0 ELSE 1 END + CASE WHEN ValueBool IS NULL THEN 0 ELSE 1 END + CASE WHEN ValueEnum IS NULL THEN 0 ELSE 1 END) = 1` · `NormalizedValue IS NULL OR ValueNumber IS NOT NULL` · `Origin <> 'PROJECTED' OR ProjectedFrom IS NOT NULL` · `Origin = 'PROJECTED' OR ProjectedFrom IS NULL` · `ToRevision IS NULL OR ToRevision >= FromRevision` · `SourceDocumentId IS NOT NULL AND SourcePage IS NOT NULL OR (SourceDocumentId IS NULL AND Confidence = 'ENTERED_NO_DOCUMENT')` · `Confidence <> 'CONFIRMED_AGAINST_ORIGINAL' OR (VerifiedBy IS NOT NULL AND VerifiedOn IS NOT NULL)`
+**قيود:** `LimitProductLineId IS NULL OR LimitId IS NOT NULL` · `EffectiveTo IS NULL OR EffectiveTo >= EffectiveFrom` · `ValueState = 'SPECIFIED' OR (ValueNumber IS NULL AND ValueText IS NULL AND ValueBool IS NULL AND ValueEnum IS NULL AND NormalizedValue IS NULL)` · `ValueState <> 'SPECIFIED' OR (CASE WHEN ValueNumber IS NULL THEN 0 ELSE 1 END + CASE WHEN ValueText IS NULL THEN 0 ELSE 1 END + CASE WHEN ValueBool IS NULL THEN 0 ELSE 1 END + CASE WHEN ValueEnum IS NULL THEN 0 ELSE 1 END) = 1` · `NormalizedValue IS NULL OR ValueNumber IS NOT NULL` · `Origin <> 'PROJECTED' OR ProjectedFrom IS NOT NULL` · `Origin = 'PROJECTED' OR ProjectedFrom IS NULL` · `ToRevision IS NULL OR ToRevision >= FromRevision` · `SourceDocumentId IS NOT NULL AND SourcePage IS NOT NULL OR (SourceDocumentId IS NULL AND Confidence = 'ENTERED_NO_DOCUMENT')` · `Confidence <> 'CONFIRMED_AGAINST_ORIGINAL' OR (VerifiedBy IS NOT NULL AND VerifiedOn IS NOT NULL)`
 
 ## COL
 
@@ -3507,7 +3520,8 @@
 | TitleAr | NVARCHAR(300) | لا |  |  |  |
 | Description | NVARCHAR(2000) | نعم |  |  |  |
 | OwnerPartyId | BIGINT | نعم |  | pty.Party | مزوّد استخدام Collateral owner؛ شركة المجموعة بـ Party المرآة (FR-COL-015) |
-| Attributes | NVARCHAR(MAX) | نعم |  |  | سمات القالب؛ منها الهامش النقدي وحسابه وسمات العقار السبع (FR-COL-007/008) |
+| Attributes | NVARCHAR(MAX) | نعم |  |  | DR-08: سمات القالب (قد تحمل معرّفات) محجوبة عن التقارير؛ الحساب النقدي يُربط بالنوع أدناه 🔒 restricted |
+| CashMarginAccountId | BIGINT | نعم |  | acc.BankAccount | الحساب النقدي للهامش: مرجع مُعرَّف لا سمة حرّة (DR-08) |
 | Status | VARCHAR(10) | لا | DRAFT |  | enum: DRAFT, ACTIVE, RELEASED, EXPIRED |
 | ApprovalState | VARCHAR(10) | لا | DRAFT |  | enum: DRAFT, APPROVED |
 | ApprovedBy | BIGINT | نعم |  | sec.AppUser | إضافة: لازم لعقد المُعِدّ/المعتمِد (FR-COL-014، §12) |
@@ -4338,7 +4352,7 @@
 | ParentEntityId | BIGINT | نعم |  |  |  |
 | ParentRequestId | BIGINT | نعم |  | wfl.Request | أو طلب أب (طلب فرعي) |
 | CopiedFromRequestId | BIGINT | نعم |  | wfl.Request | إضافة: الطلب المنسوخ منه (FR-REQ-025) |
-| LcId | BIGINT | نعم |  | lc.LetterOfCredit | الاعتماد المرتبط: الأب للطلب الفرعي أو الصادر عن الطلب بعد ISSUANCE (BR-WFL-018) |
+| LcId | BIGINT | نعم |  | lc.LetterOfCredit (via CompanyId) | DR-10: الاعتماد من شركة الطلب نفسها |
 | FacilityId | BIGINT | نعم |  | fac.Facility | التخصيص (AllocFacilityId في المواصفة): اختيار الخزينة في FACILITY_SELECTION |
 | LimitId | BIGINT | نعم |  | fac.Limit (via FacilityId) | AllocLimitId؛ الحد من التسهيل نفسه |
 | LimitProductLineId | BIGINT | نعم |  | fac.LimitProductLine (via FacilityId,LimitId) | AllocProductLineId (LineId في fac.reserve_limit) |
@@ -4633,7 +4647,8 @@
 | TenantId | INT | لا | | plat.Tenant | عزل المشترك |
 | **RequestStageInstanceId** | BIGINT IDENTITY | لا | | | مفتاح أساسي |
 | RequestId | BIGINT | لا |  | wfl.Request |  |
-| StageId | INT | لا |  | wfl.WorkflowStage |  |
+| TemplateId | INT | لا |  | wfl.WorkflowTemplate | قالب الطلب المُثبَّت عند الدخول (DR-09) |
+| StageId | INT | لا |  | wfl.WorkflowStage (via TemplateId) | مرحلة من القالب نفسه (DR-09) |
 | CycleNo | INT | لا | 1 |  |  |
 | Status | VARCHAR(17) | لا |  |  | §8: مثيل المرحلة (المهمة المسندة مباشرة تُعدّ CLAIMED) enum: QUEUED, CLAIMED, AWAITING_APPROVAL, DONE, RETURNED, REJECTED, CANCELLED |
 | EnteredAt | DATETIME2(3) | لا |  |  |  |
@@ -4649,7 +4664,7 @@
 | SlaMet | BIT | نعم |  |  | نتيجة SLA عند الخروج: 1 قبل DueAt · 0 بعده · فارغ بلا SLA (§8، R-WFL-01) |
 | ReleaseCount | INT | لا | 0 |  | التحرير لا يصفّر قِدَم الطابور (BR-WFL-007) |
 | ReassignCount | INT | لا | 0 |  |  |
-| ResumeStageId | INT | نعم |  | wfl.WorkflowStage | مرحلة الاستئناف عند الإرجاع (FR-WFL-010) |
+| ResumeStageId | INT | نعم |  | wfl.WorkflowStage (via TemplateId) |  |
 | CreatedAt | DATETIME2(3) | لا | SYSUTCDATETIME() |  |  |
 | CreatedBy | BIGINT | نعم |  |  |  |
 | UpdatedAt | DATETIME2(3) | نعم |  |  |  |
@@ -5212,8 +5227,10 @@
 | BeneficiaryAccountIbanEnc | VARBINARY(512) | نعم |  |  | B3: IBAN المستفيد مشفّر (FR-REQ-024؛ 02 B9 🔴) 🔒 restricted |
 | BeneficiaryAccountIbanMask | NVARCHAR(40) | نعم |  |  | 🔒 restricted |
 | BeneficiaryAccountIbanHash | VARBINARY(32) | نعم |  |  | 🔒 restricted |
-| EncKeyId | BIGINT | نعم |  | sec.TenantKey | مفتاح DATA لـIBAN المستفيد (إصدار صريح) |
-| HashKeyId | BIGINT | نعم |  | sec.TenantKey | مفتاح BLIND_INDEX لبصمة IBAN المستفيد |
+| EncKeyPurpose | VARCHAR(10) | لا | DATA |  | enum: DATA |
+| EncKeyId | BIGINT | نعم |  | sec.TenantKey (via EncKeyPurpose) | مفتاح DATA لـIBAN المستفيد (إصدار صريح؛ DR-02) |
+| HashKeyPurpose | VARCHAR(11) | لا | BLIND_INDEX |  | enum: BLIND_INDEX |
+| HashKeyId | BIGINT | نعم |  | sec.TenantKey (via HashKeyPurpose) | مفتاح BLIND_INDEX لبصمة IBAN المستفيد (DR-02) |
 | AdvisingBankName | NVARCHAR(200) | نعم |  |  | B4 (د عدا PF) |
 | AdvisingBankAddress | NVARCHAR(300) | نعم |  |  |  |
 | AdvisingBankBic | VARCHAR(11) | نعم |  |  |  |
@@ -5499,11 +5516,12 @@
 |---|---|---|---|---|---|
 | TenantId | INT | لا | | plat.Tenant | عزل المشترك |
 | **LcAmendmentId** | BIGINT IDENTITY | لا | | | مفتاح أساسي |
+| CompanyId | BIGINT | لا |  | org.Company | شركة الطلب الفرعي: تُقيَّد بها الصلة بالطلب (DR-10) |
 | LcId | BIGINT | لا |  | lc.LetterOfCredit (via CurrencyId) | عملة التعديل = عملة الاعتماد |
 | AmendmentNo | INT | نعم |  |  | رقم البنك أو تسلسل المنصة؛ يُسجَّل عند BANK_ISSUED |
 | Origin | VARCHAR(22) | لا |  |  | enum: OUR_REQUEST, RECEIVED_FROM_CUSTOMER |
 | ChangeKinds | VARCHAR(87) | لا |  |  | قائمة قيم ثابتة (المواصفة json) |
-| RequestId | BIGINT | نعم |  | wfl.Request | الطلب الفرعي LC_AMENDMENT |
+| RequestId | BIGINT | نعم |  | wfl.Request (via CompanyId) | الطلب الفرعي LC_AMENDMENT |
 | TermsId | BIGINT | لا |  | lc.LcTerms | شروط غرض AMENDMENT (لقطة ما بعد التعديل) |
 | ChangedFieldsJson | NVARCHAR(MAX) | نعم |  |  | الفروق بمفاتيح الحقول مقارنةً بالحالي |
 | CurrencyId | INT | لا |  | ref.Currency |  |
@@ -5536,6 +5554,7 @@
 |---|---|---|---|---|---|
 | TenantId | INT | لا | | plat.Tenant | عزل المشترك |
 | **LcDrawingId** | BIGINT IDENTITY | لا | | | مفتاح أساسي |
+| CompanyId | BIGINT | لا |  | org.Company | شركة الطلب الفرعي: تُقيَّد بها الصلة بالطلب (DR-10) |
 | LcId | BIGINT | لا |  | lc.LetterOfCredit (via CurrencyId) | عملة السحب = عملة الاعتماد (BR-LCI-013) |
 | DrawingNo | INT | لا |  |  |  |
 | Amount | DECIMAL(19,4) | لا |  |  | Drawn + Amount ≤ ExposureAmount يتحقق منه التطبيق (V-LCI-05) |
@@ -5550,7 +5569,7 @@
 | SettledAmount | DECIMAL(19,4) | لا | 0 |  | التسديد الجزئي يزيده |
 | LastSettledOn | DATE | نعم |  |  |  |
 | SettlementAccountId | BIGINT | نعم |  | acc.BankAccount |  |
-| RequestId | BIGINT | نعم |  | wfl.Request | طلب مستندات التحصيل في التصدير (lc.convert_earmark) |
+| RequestId | BIGINT | نعم |  | wfl.Request (via CompanyId) | طلب مستندات التحصيل في التصدير (lc.convert_earmark) |
 | OverrideReason | NVARCHAR(500) | نعم |  |  | تجاوز TM لتقديم بعد الانتهاء (V-LCI-06) |
 | Notes | NVARCHAR(1000) | نعم |  |  |  |
 | CreatedAt | DATETIME2(3) | لا | SYSUTCDATETIME() |  |  |
@@ -5570,8 +5589,9 @@
 |---|---|---|---|---|---|
 | TenantId | INT | لا | | plat.Tenant | عزل المشترك |
 | **LcSalesOrderId** | BIGINT IDENTITY | لا | | | مفتاح أساسي |
+| CompanyId | BIGINT | لا |  | org.Company | شركة الطلب الفرعي: تُقيَّد بها الصلة بالطلب (DR-10) |
 | LcId | BIGINT | لا |  | lc.LetterOfCredit (via CurrencyId) | عملة الأمر = عملة الاعتماد (V-LCE-06) |
-| RequestId | BIGINT | لا |  | wfl.Request | طلب SALES_ORDER_APPROVAL؛ خطاف lc.earmark_sales_order متكرر الأمان |
+| RequestId | BIGINT | لا |  | wfl.Request (via CompanyId) | طلب SALES_ORDER_APPROVAL؛ خطاف lc.earmark_sales_order متكرر الأمان |
 | OrderRef | NVARCHAR(60) | لا |  |  | مرجع أمر البيع نصًا؛ تكراره على الاعتماد تحذير V-LCE-08 |
 | OrderDate | DATE | لا |  |  |  |
 | Amount | DECIMAL(19,4) | لا |  |  | Amount ≤ Available تحت قفل صف الاعتماد (BR-LCE-010) |

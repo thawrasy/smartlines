@@ -4,9 +4,9 @@ erDiagram
     bigint CollateralId PK
     int CollateralTypeId FK
     bigint OwnerPartyId FK
+    bigint CashMarginAccountId FK
     bigint ApprovedBy FK
     bigint ReleaseDocumentId FK
-    varchar TitleAr
   }
   col_CollateralLink["col.CollateralLink"] {
     bigint CollateralLinkId PK
@@ -51,6 +51,9 @@ erDiagram
     integer FromYear
     integer RequiredValuerCount
   }
+  acc_BankAccount["acc.BankAccount"] {
+    bigint BankAccountId PK
+  }
   cat_CollateralType["cat.CollateralType"] {
     int CollateralTypeId PK
   }
@@ -78,6 +81,7 @@ erDiagram
   sec_AppUser["sec.AppUser"] {
     bigint AppUserId PK
   }
+  acc_BankAccount |o--o{ col_Collateral : "CashMarginAccountId"
   cat_CollateralType ||--o{ col_Collateral : "CollateralTypeId"
   col_Collateral ||--o{ col_CollateralLink : "CollateralId"
   col_Collateral ||--o{ col_Guarantee : "CollateralId"

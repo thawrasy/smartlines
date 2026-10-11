@@ -123,10 +123,10 @@ CREATE TABLE [plat].[PlatformOperator] (
     CONSTRAINT [CK_PlatformOperator_Status] CHECK ([Status] IS NULL OR [Status] IN ('INVITED', 'ACTIVE', 'LOCKED', 'DISABLED', 'ARCHIVED'))
 );
 GO
--- الوحدات المفعّلة للمشترك (FR-PLT-003، BR-PLT-003)
+-- الوحدات المفعّلة لكل مشترك؛ ملكية المنصة فقط: لا يكتبها تطبيق المشترك ويقرؤها عبر عرض مُحدَّد (DR-01)
 CREATE TABLE [plat].[TenantModule] (
-    [TenantId] INT NOT NULL,
     [TenantModuleId] BIGINT IDENTITY(1,1) NOT NULL,
+    [TenantId] INT NOT NULL,
     [ModuleCode] VARCHAR(12) NOT NULL,
     [IsEnabled] BIT NOT NULL CONSTRAINT [DF_TenantModule_IsEnabled] DEFAULT 1,
     [EnabledAt] DATETIME2(3) NULL,
@@ -135,10 +135,8 @@ CREATE TABLE [plat].[TenantModule] (
     [CreatedBy] BIGINT NULL,
     [UpdatedAt] DATETIME2(3) NULL,
     [UpdatedBy] BIGINT NULL,
-    [RowVersion] ROWVERSION NOT NULL,
     CONSTRAINT [PK_TenantModule] PRIMARY KEY CLUSTERED ([TenantModuleId]),
-    CONSTRAINT [UQ_TenantModule_Tenant] UNIQUE ([TenantId], [TenantModuleId]),
-    CONSTRAINT [UQ_TenantModule_ModuleCode] UNIQUE ([TenantId], [ModuleCode]),
+    CONSTRAINT [UQ_TenantModule_TenantId_ModuleCode] UNIQUE ([TenantId], [ModuleCode]),
     CONSTRAINT [CK_TenantModule_1] CHECK (ModuleCode <> 'CORE' OR IsEnabled = 1),
     CONSTRAINT [CK_TenantModule_ModuleCode] CHECK ([ModuleCode] IS NULL OR [ModuleCode] IN ('CORE', 'INSTITUTIONS', 'FACILITIES', 'COVENANTS', 'WORKFLOW', 'LC_PURCHASE', 'LC_SALES', 'REQUESTS', 'REPORTS'))
 );
@@ -184,6 +182,7 @@ CREATE TABLE [sec].[AppUser] (
     [PasswordChangedAt] DATETIME2(3) NULL,
     [MfaEnabled] BIT NOT NULL CONSTRAINT [DF_AppUser_MfaEnabled] DEFAULT 0,
     [MfaSecretEnc] VARBINARY(256) NULL,
+    [MfaKeyPurpose] VARCHAR(10) NOT NULL CONSTRAINT [DF_AppUser_MfaKeyPurpose] DEFAULT 'DATA',
     [MfaKeyId] BIGINT NULL,
     [MfaEnrolledAt] DATETIME2(3) NULL,
     [MfaLastUsedStep] BIGINT NULL,
@@ -218,7 +217,8 @@ CREATE TABLE [sec].[AppUser] (
     CONSTRAINT [CK_AppUser_CompanyScopeMode] CHECK ([CompanyScopeMode] IS NULL OR [CompanyScopeMode] IN ('ALL', 'SELECTED')),
     CONSTRAINT [CK_AppUser_PreferredLanguage] CHECK ([PreferredLanguage] IS NULL OR [PreferredLanguage] IN ('ar', 'en')),
     CONSTRAINT [CK_AppUser_DigitsPreference] CHECK ([DigitsPreference] IS NULL OR [DigitsPreference] IN ('WESTERN', 'ARABIC_INDIC')),
-    CONSTRAINT [CK_AppUser_Status] CHECK ([Status] IS NULL OR [Status] IN ('INVITED', 'ACTIVE', 'LOCKED', 'DISABLED', 'ARCHIVED'))
+    CONSTRAINT [CK_AppUser_Status] CHECK ([Status] IS NULL OR [Status] IN ('INVITED', 'ACTIVE', 'LOCKED', 'DISABLED', 'ARCHIVED')),
+    CONSTRAINT [CK_AppUser_MfaKeyPurpose] CHECK ([MfaKeyPurpose] IS NULL OR [MfaKeyPurpose] IN ('DATA'))
 );
 GO
 -- دور يخصصه المشترك أو مبذور (FR-PLT-018)
@@ -448,8 +448,11 @@ CREATE TABLE [sec].[TenantKey] (
     [RowVersion] ROWVERSION NOT NULL,
     CONSTRAINT [PK_TenantKey] PRIMARY KEY CLUSTERED ([TenantKeyId]),
     CONSTRAINT [UQ_TenantKey_Tenant] UNIQUE ([TenantId], [TenantKeyId]),
+    CONSTRAINT [UQ_TenantKey_Scope_Purpose] UNIQUE ([TenantId], [Purpose], [TenantKeyId]),
     CONSTRAINT [UQ_TenantKey_Purpose_KeyVersion] UNIQUE ([TenantId], [Purpose], [KeyVersion]),
     CONSTRAINT [CK_TenantKey_1] CHECK (KeyVersion >= 1),
+    CONSTRAINT [CK_TenantKey_2] CHECK (Status NOT IN ('ACTIVE','RETIRING','RETIRED') OR ActivatedAt IS NOT NULL),
+    CONSTRAINT [CK_TenantKey_3] CHECK (Status <> 'RETIRED' OR RetiredAt IS NOT NULL),
     CONSTRAINT [CK_TenantKey_Purpose] CHECK ([Purpose] IS NULL OR [Purpose] IN ('DATA', 'BLIND_INDEX', 'FILE')),
     CONSTRAINT [CK_TenantKey_Status] CHECK ([Status] IS NULL OR [Status] IN ('PENDING', 'ACTIVE', 'RETIRING', 'RETIRED', 'REVOKED'))
 );
@@ -592,7 +595,8 @@ CREATE TABLE [doc].[DocumentVersion] (
     [ContentType] VARCHAR(150) NULL,
     [SizeBytes] BIGINT NOT NULL,
     [Sha256] VARBINARY(32) NOT NULL,
-    [KeyId] BIGINT NULL,
+    [KeyPurpose] VARCHAR(10) NOT NULL CONSTRAINT [DF_DocumentVersion_KeyPurpose] DEFAULT 'FILE',
+    [KeyId] BIGINT NOT NULL,
     [ScanStatus] VARCHAR(11) NOT NULL CONSTRAINT [DF_DocumentVersion_ScanStatus] DEFAULT 'PENDING',
     [ScannedAt] DATETIME2(3) NULL,
     [ScanDetail] NVARCHAR(300) NULL,
@@ -610,6 +614,7 @@ CREATE TABLE [doc].[DocumentVersion] (
     CONSTRAINT [CK_DocumentVersion_1] CHECK (VersionNo >= 1),
     CONSTRAINT [CK_DocumentVersion_2] CHECK (SizeBytes > 0),
     CONSTRAINT [CK_DocumentVersion_3] CHECK (ScanStatus = 'PENDING' OR ScannedAt IS NOT NULL),
+    CONSTRAINT [CK_DocumentVersion_KeyPurpose] CHECK ([KeyPurpose] IS NULL OR [KeyPurpose] IN ('FILE')),
     CONSTRAINT [CK_DocumentVersion_ScanStatus] CHECK ([ScanStatus] IS NULL OR [ScanStatus] IN ('PENDING', 'CLEAN', 'QUARANTINED')),
     CONSTRAINT [CK_DocumentVersion_IntegrityStatus] CHECK ([IntegrityStatus] IS NULL OR [IntegrityStatus] IN ('UNVERIFIED', 'OK', 'MISMATCH', 'MISSING'))
 );
@@ -1387,7 +1392,9 @@ CREATE TABLE [pty].[IdentityDocument] (
     [NumberEnc] VARBINARY(512) NOT NULL,
     [NumberMask] NVARCHAR(32) NOT NULL,
     [NumberHash] VARBINARY(32) NOT NULL,
+    [EncKeyPurpose] VARCHAR(10) NOT NULL CONSTRAINT [DF_IdentityDocument_EncKeyPurpose] DEFAULT 'DATA',
     [EncKeyId] BIGINT NOT NULL,
+    [HashKeyPurpose] VARCHAR(11) NOT NULL CONSTRAINT [DF_IdentityDocument_HashKeyPurpose] DEFAULT 'BLIND_INDEX',
     [HashKeyId] BIGINT NOT NULL,
     [IssueDate] DATE NULL,
     [IssueDateHijriText] NVARCHAR(20) NULL,
@@ -1410,15 +1417,19 @@ CREATE TABLE [pty].[IdentityDocument] (
     CONSTRAINT [CK_IdentityDocument_3] CHECK (DATALENGTH(NumberEnc) >= 29),
     CONSTRAINT [CK_IdentityDocument_4] CHECK (IsSuperseded = 0 OR IsPrimary = 0),
     CONSTRAINT [CK_IdentityDocument_5] CHECK (VerifiedBy IS NULL OR VerifiedAt IS NOT NULL),
-    CONSTRAINT [CK_IdentityDocument_DocKind] CHECK ([DocKind] IS NULL OR [DocKind] IN ('NATIONAL_ID', 'RESIDENCE', 'PASSPORT', 'GCC_ID', 'COMMERCIAL_REG', 'OTHER_ORG'))
+    CONSTRAINT [CK_IdentityDocument_DocKind] CHECK ([DocKind] IS NULL OR [DocKind] IN ('NATIONAL_ID', 'RESIDENCE', 'PASSPORT', 'GCC_ID', 'COMMERCIAL_REG', 'OTHER_ORG')),
+    CONSTRAINT [CK_IdentityDocument_EncKeyPurpose] CHECK ([EncKeyPurpose] IS NULL OR [EncKeyPurpose] IN ('DATA')),
+    CONSTRAINT [CK_IdentityDocument_HashKeyPurpose] CHECK ([HashKeyPurpose] IS NULL OR [HashKeyPurpose] IN ('BLIND_INDEX'))
 );
 GO
 -- عنوان متعدد الملكية: OwnerType+OwnerId بلا FK (مزوّد المالك يتحقق منه التطبيق) (FR-PTY-011، BR-PTY-015)
 CREATE TABLE [pty].[Address] (
     [TenantId] INT NOT NULL,
     [AddressId] BIGINT IDENTITY(1,1) NOT NULL,
-    [OwnerType] VARCHAR(11) NOT NULL,
-    [OwnerId] BIGINT NOT NULL,
+    [PartyId] BIGINT NULL,
+    [InstitutionId] BIGINT NULL,
+    [UnitId] BIGINT NULL,
+    [ContactId] BIGINT NULL,
     [AddressType] VARCHAR(11) NOT NULL,
     [IsPrimary] BIT NOT NULL CONSTRAINT [DF_Address_IsPrimary] DEFAULT 0,
     [IsCurrent] BIT NOT NULL CONSTRAINT [DF_Address_IsCurrent] DEFAULT 1,
@@ -1441,9 +1452,9 @@ CREATE TABLE [pty].[Address] (
     [RowVersion] ROWVERSION NOT NULL,
     CONSTRAINT [PK_Address] PRIMARY KEY CLUSTERED ([AddressId]),
     CONSTRAINT [UQ_Address_Tenant] UNIQUE ([TenantId], [AddressId]),
-    CONSTRAINT [CK_Address_1] CHECK (IsPrimary = 0 OR IsCurrent = 1),
-    CONSTRAINT [CK_Address_2] CHECK (AddressType <> 'PO_BOX' OR PoBoxNumber IS NOT NULL),
-    CONSTRAINT [CK_Address_OwnerType] CHECK ([OwnerType] IS NULL OR [OwnerType] IN ('PARTY', 'INSTITUTION', 'UNIT', 'CONTACT')),
+    CONSTRAINT [CK_Address_1] CHECK ((PartyId IS NOT NULL AND InstitutionId IS NULL AND UnitId IS NULL AND ContactId IS NULL) OR (PartyId IS NULL AND InstitutionId IS NOT NULL AND UnitId IS NULL AND ContactId IS NULL) OR (PartyId IS NULL AND InstitutionId IS NULL AND UnitId IS NOT NULL AND ContactId IS NULL) OR (PartyId IS NULL AND InstitutionId IS NULL AND UnitId IS NULL AND ContactId IS NOT NULL)),
+    CONSTRAINT [CK_Address_2] CHECK (IsPrimary = 0 OR IsCurrent = 1),
+    CONSTRAINT [CK_Address_3] CHECK (AddressType <> 'PO_BOX' OR PoBoxNumber IS NOT NULL),
     CONSTRAINT [CK_Address_AddressType] CHECK ([AddressType] IS NULL OR [AddressType] IN ('NATIONAL', 'RESIDENTIAL', 'WORK', 'PO_BOX', 'REGISTERED', 'OTHER'))
 );
 GO
@@ -1451,8 +1462,10 @@ GO
 CREATE TABLE [pty].[ContactMethod] (
     [TenantId] INT NOT NULL,
     [ContactMethodId] BIGINT IDENTITY(1,1) NOT NULL,
-    [OwnerType] VARCHAR(11) NOT NULL,
-    [OwnerId] BIGINT NOT NULL,
+    [PartyId] BIGINT NULL,
+    [InstitutionId] BIGINT NULL,
+    [UnitId] BIGINT NULL,
+    [ContactId] BIGINT NULL,
     [Kind] VARCHAR(10) NOT NULL,
     [Value] NVARCHAR(200) NOT NULL,
     [NormalizedValue] NVARCHAR(200) NOT NULL,
@@ -1465,8 +1478,7 @@ CREATE TABLE [pty].[ContactMethod] (
     [RowVersion] ROWVERSION NOT NULL,
     CONSTRAINT [PK_ContactMethod] PRIMARY KEY CLUSTERED ([ContactMethodId]),
     CONSTRAINT [UQ_ContactMethod_Tenant] UNIQUE ([TenantId], [ContactMethodId]),
-    CONSTRAINT [UQ_ContactMethod_OwnerType_OwnerId_Kind_NormalizedValue] UNIQUE ([TenantId], [OwnerType], [OwnerId], [Kind], [NormalizedValue]),
-    CONSTRAINT [CK_ContactMethod_OwnerType] CHECK ([OwnerType] IS NULL OR [OwnerType] IN ('PARTY', 'INSTITUTION', 'UNIT', 'CONTACT')),
+    CONSTRAINT [CK_ContactMethod_1] CHECK ((PartyId IS NOT NULL AND InstitutionId IS NULL AND UnitId IS NULL AND ContactId IS NULL) OR (PartyId IS NULL AND InstitutionId IS NOT NULL AND UnitId IS NULL AND ContactId IS NULL) OR (PartyId IS NULL AND InstitutionId IS NULL AND UnitId IS NOT NULL AND ContactId IS NULL) OR (PartyId IS NULL AND InstitutionId IS NULL AND UnitId IS NULL AND ContactId IS NOT NULL)),
     CONSTRAINT [CK_ContactMethod_Kind] CHECK ([Kind] IS NULL OR [Kind] IN ('MOBILE', 'PHONE', 'EMAIL', 'FAX', 'WEBSITE', 'OTHER'))
 );
 GO
@@ -1507,6 +1519,7 @@ CREATE TABLE [pty].[PartyCustomField] (
     [DefinitionId] BIGINT NOT NULL,
     [ValueText] NVARCHAR(1000) NULL,
     [ValueEnc] VARBINARY(512) NULL,
+    [EncKeyPurpose] VARCHAR(10) NOT NULL CONSTRAINT [DF_PartyCustomField_EncKeyPurpose] DEFAULT 'DATA',
     [EncKeyId] BIGINT NULL,
     [ValueMask] NVARCHAR(32) NULL,
     [CurrencyId] INT NULL,
@@ -1520,7 +1533,8 @@ CREATE TABLE [pty].[PartyCustomField] (
     CONSTRAINT [UQ_PartyCustomField_PartyId_DefinitionId] UNIQUE ([TenantId], [PartyId], [DefinitionId]),
     CONSTRAINT [CK_PartyCustomField_1] CHECK (ValueText IS NULL OR ValueEnc IS NULL),
     CONSTRAINT [CK_PartyCustomField_2] CHECK (ValueEnc IS NULL OR ValueMask IS NOT NULL),
-    CONSTRAINT [CK_PartyCustomField_3] CHECK (ValueEnc IS NULL OR (EncKeyId IS NOT NULL AND DATALENGTH(ValueEnc) >= 29))
+    CONSTRAINT [CK_PartyCustomField_3] CHECK (ValueEnc IS NULL OR (EncKeyId IS NOT NULL AND DATALENGTH(ValueEnc) >= 29)),
+    CONSTRAINT [CK_PartyCustomField_EncKeyPurpose] CHECK ([EncKeyPurpose] IS NULL OR [EncKeyPurpose] IN ('DATA'))
 );
 GO
 -- قائمة اكتمال KYC لكل بنك ودور (FR-PTY-023، BR-PTY-012..013، G-8، G-14)
@@ -2381,9 +2395,9 @@ CREATE TABLE [cat].[BaseRateValue] (
     CONSTRAINT [CK_BaseRateValue_Status] CHECK ([Status] IS NULL OR [Status] IN ('VALID', 'SUPERSEDED'))
 );
 GO
--- قائمة قيم؛ TenantId فارغ = قائمة عالمية يملكها المشغّل للقراءة (FR-CAT-020، BR-CAT-015)
+-- DR-03: مملوك للمشترك؛ نسخة النظام تُهيَّأ لكل مشترك من قالب المنصة  # قائمة قيم؛ TenantId فارغ = قائمة عالمية يملكها المشغّل للقراءة (FR-CAT-020، BR-CAT-015)
 CREATE TABLE [cat].[LookupList] (
-    [TenantId] INT NULL,
+    [TenantId] INT NOT NULL,
     [LookupListId] INT IDENTITY(1,1) NOT NULL,
     [Code] VARCHAR(80) NOT NULL,
     [NameAr] NVARCHAR(200) NOT NULL,
@@ -2406,16 +2420,16 @@ CREATE TABLE [cat].[LookupList] (
     CONSTRAINT [PK_LookupList] PRIMARY KEY CLUSTERED ([LookupListId]),
     CONSTRAINT [UQ_LookupList_Tenant] UNIQUE ([TenantId], [LookupListId]),
     CONSTRAINT [UQ_LookupList_Code] UNIQUE ([TenantId], [Code]),
-    CONSTRAINT [CK_LookupList_1] CHECK ((Scope = 'GLOBAL' AND TenantId IS NULL) OR (Scope = 'TENANT' AND TenantId IS NOT NULL)),
+    CONSTRAINT [CK_LookupList_1] CHECK ((Scope = 'SYSTEM' AND IsSystem = 1) OR (Scope = 'TENANT' AND IsSystem = 0)),
     CONSTRAINT [CK_LookupList_2] CHECK (Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'),
     CONSTRAINT [CK_LookupList_3] CHECK ((IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)),
-    CONSTRAINT [CK_LookupList_Scope] CHECK ([Scope] IS NULL OR [Scope] IN ('GLOBAL', 'TENANT')),
+    CONSTRAINT [CK_LookupList_Scope] CHECK ([Scope] IS NULL OR [Scope] IN ('SYSTEM', 'TENANT')),
     CONSTRAINT [CK_LookupList_AttributeSchema_json] CHECK ([AttributeSchema] IS NULL OR ISJSON([AttributeSchema]) = 1)
 );
 GO
--- بند في قائمة قيم؛ TenantId فارغ = بند عالمي للقراءة فقط؛ أعمدة الكتالوج يدوية لأن فرادة الرمز داخل القائمة لا المشترك (FR-CAT-020)
+-- DR-03/05/07: مملوك للمشترك (نسخ النظام لكل مشترك)  # بند في قائمة قيم؛ TenantId فارغ = بند عالمي للقراءة فقط؛ أعمدة الكتالوج يدوية لأن فرادة الرمز داخل القائمة لا المشترك (FR-CAT-020)
 CREATE TABLE [cat].[LookupItem] (
-    [TenantId] INT NULL,
+    [TenantId] INT NOT NULL,
     [LookupItemId] INT IDENTITY(1,1) NOT NULL,
     [LookupListId] INT NOT NULL,
     [Code] VARCHAR(80) NOT NULL,
@@ -2626,7 +2640,9 @@ CREATE TABLE [acc].[BankAccount] (
     [IbanEnc] VARBINARY(512) NULL,
     [IbanMask] NVARCHAR(32) NULL,
     [IbanHash] VARBINARY(32) NULL,
+    [EncKeyPurpose] VARCHAR(10) NOT NULL CONSTRAINT [DF_BankAccount_EncKeyPurpose] DEFAULT 'DATA',
     [EncKeyId] BIGINT NOT NULL,
+    [HashKeyPurpose] VARCHAR(11) NOT NULL CONSTRAINT [DF_BankAccount_HashKeyPurpose] DEFAULT 'BLIND_INDEX',
     [HashKeyId] BIGINT NOT NULL,
     [BranchUnitId] BIGINT NULL,
     [SigningRuleText] NVARCHAR(500) NULL,
@@ -2657,6 +2673,8 @@ CREATE TABLE [acc].[BankAccount] (
     CONSTRAINT [CK_BankAccount_6] CHECK (ClosedOn IS NULL OR OpenedOn IS NULL OR ClosedOn >= OpenedOn),
     CONSTRAINT [CK_BankAccount_7] CHECK (Status <> 'CLOSED' OR (ClosedOn IS NOT NULL AND ClosureReason IS NOT NULL)),
     CONSTRAINT [CK_BankAccount_8] CHECK ((ClosedOn IS NULL AND ClosureReason IS NULL) OR Status = 'CLOSED'),
+    CONSTRAINT [CK_BankAccount_EncKeyPurpose] CHECK ([EncKeyPurpose] IS NULL OR [EncKeyPurpose] IN ('DATA')),
+    CONSTRAINT [CK_BankAccount_HashKeyPurpose] CHECK ([HashKeyPurpose] IS NULL OR [HashKeyPurpose] IN ('BLIND_INDEX')),
     CONSTRAINT [CK_BankAccount_Status] CHECK ([Status] IS NULL OR [Status] IN ('ACTIVE', 'DORMANT', 'FROZEN', 'CLOSED'))
 );
 GO
@@ -3534,43 +3552,44 @@ CREATE TABLE [prc].[PricingRule] (
     CONSTRAINT [PK_PricingRule] PRIMARY KEY CLUSTERED ([PricingRuleId]),
     CONSTRAINT [UQ_PricingRule_Tenant] UNIQUE ([TenantId], [PricingRuleId]),
     CONSTRAINT [UQ_PricingRule_Scope_FacilityId] UNIQUE ([TenantId], [FacilityId], [PricingRuleId]),
-    CONSTRAINT [CK_PricingRule_1] CHECK (EffectiveTo IS NULL OR EffectiveTo >= EffectiveFrom),
-    CONSTRAINT [CK_PricingRule_2] CHECK (ComponentKind <> 'FINANCING_RETURN' OR FeeTypeId IS NULL),
-    CONSTRAINT [CK_PricingRule_3] CHECK (ComponentKind = 'FINANCING_RETURN' OR (FeeTypeId IS NOT NULL AND FinancingTypeId IS NULL)),
-    CONSTRAINT [CK_PricingRule_4] CHECK (ComponentKind <> 'PENALTY_NON_INCOME' OR TriggerEvent IS NOT NULL),
-    CONSTRAINT [CK_PricingRule_5] CHECK (ComponentKind = 'PENALTY_NON_INCOME' OR TriggerEvent IS NULL),
-    CONSTRAINT [CK_PricingRule_6] CHECK (RateState <> 'NOT_SPECIFIED_IN_AGREEMENT' OR (AddOnPct IS NULL AND MarginPct IS NULL AND RatePct IS NULL AND RateRangeLowPct IS NULL AND RateRangeHighPct IS NULL AND FixedAmount IS NULL AND PerMillionAmount IS NULL)),
-    CONSTRAINT [CK_PricingRule_7] CHECK (RateState <> 'SET' OR Method <> 'TARIFF_AS_IS' OR TariffItemId IS NOT NULL),
-    CONSTRAINT [CK_PricingRule_8] CHECK (RateState <> 'SET' OR Method <> 'TARIFF_PLUS_ADDON' OR (TariffItemId IS NOT NULL AND AddOnPct IS NOT NULL)),
-    CONSTRAINT [CK_PricingRule_9] CHECK (RateState <> 'SET' OR Method <> 'BASE_PLUS_MARGIN' OR (BaseRateId IS NOT NULL AND MarginPct IS NOT NULL AND RateFixing IS NOT NULL AND DayCount IS NOT NULL)),
-    CONSTRAINT [CK_PricingRule_10] CHECK (RateState <> 'SET' OR Method <> 'PERCENT_OF_AMOUNT' OR RatePct IS NOT NULL OR (RateRangeLowPct IS NOT NULL AND RateRangeHighPct IS NOT NULL)),
-    CONSTRAINT [CK_PricingRule_11] CHECK (RateState <> 'SET' OR Method <> 'FIXED_AMOUNT' OR FixedAmount IS NOT NULL),
-    CONSTRAINT [CK_PricingRule_12] CHECK (RateState <> 'SET' OR Method <> 'PER_MILLION' OR PerMillionAmount IS NOT NULL),
-    CONSTRAINT [CK_PricingRule_13] CHECK (Method IN ('TARIFF_AS_IS','TARIFF_PLUS_ADDON') OR TariffItemId IS NULL),
-    CONSTRAINT [CK_PricingRule_14] CHECK (Method = 'TARIFF_PLUS_ADDON' OR AddOnPct IS NULL),
-    CONSTRAINT [CK_PricingRule_15] CHECK (Method = 'BASE_PLUS_MARGIN' OR (BaseRateId IS NULL AND MarginPct IS NULL AND BaseFloorPct IS NULL AND RateFixing IS NULL AND RepricingMonths IS NULL)),
-    CONSTRAINT [CK_PricingRule_16] CHECK (Method = 'PERCENT_OF_AMOUNT' OR (RatePct IS NULL AND RateRangeLowPct IS NULL AND RateRangeHighPct IS NULL)),
-    CONSTRAINT [CK_PricingRule_17] CHECK (Method = 'FIXED_AMOUNT' OR FixedAmount IS NULL),
-    CONSTRAINT [CK_PricingRule_18] CHECK (Method = 'PER_MILLION' OR PerMillionAmount IS NULL),
-    CONSTRAINT [CK_PricingRule_19] CHECK (RatePct IS NULL OR (RateRangeLowPct IS NULL AND RateRangeHighPct IS NULL)),
-    CONSTRAINT [CK_PricingRule_20] CHECK ((RateRangeLowPct IS NULL AND RateRangeHighPct IS NULL) OR (RateRangeLowPct IS NOT NULL AND RateRangeHighPct IS NOT NULL AND RateRangeLowPct <= RateRangeHighPct)),
-    CONSTRAINT [CK_PricingRule_21] CHECK (RatePct IS NULL OR (RatePct >= 0 AND RatePct <= 100)),
-    CONSTRAINT [CK_PricingRule_22] CHECK (FixedAmount IS NULL OR FixedAmount >= 0),
-    CONSTRAINT [CK_PricingRule_23] CHECK (PerMillionAmount IS NULL OR PerMillionAmount >= 0),
-    CONSTRAINT [CK_PricingRule_24] CHECK (MinFeeAmount IS NULL OR MinFeeAmount >= 0),
-    CONSTRAINT [CK_PricingRule_25] CHECK (MinFeeAmount IS NULL OR MaxFeeAmount IS NULL OR MinFeeAmount <= MaxFeeAmount),
-    CONSTRAINT [CK_PricingRule_26] CHECK (PeriodDays IS NULL OR PeriodDays > 0),
-    CONSTRAINT [CK_PricingRule_27] CHECK (PeriodBasis IS NULL OR PeriodBasis <> 'PER_PERIOD_OR_PART' OR PeriodDays IS NOT NULL OR Method IN ('TARIFF_AS_IS','TARIFF_PLUS_ADDON','TIERED')),
-    CONSTRAINT [CK_PricingRule_28] CHECK (PeriodBasis IS NULL OR PeriodBasis <> 'PER_ANNUM' OR DayCount IS NOT NULL),
-    CONSTRAINT [CK_PricingRule_29] CHECK (RepricingMonths IS NULL OR RepricingMonths > 0),
-    CONSTRAINT [CK_PricingRule_30] CHECK (RateFixing IS NULL OR RateFixing <> 'FLOATING' OR RateState <> 'SET' OR RepricingMonths IS NOT NULL),
-    CONSTRAINT [CK_PricingRule_31] CHECK (BenchmarkReplacement <> 'NAMED_FALLBACK' OR ReplacementText IS NOT NULL),
-    CONSTRAINT [CK_PricingRule_32] CHECK (BankMayChange <> 'WITH_NOTICE_OBJECTION' OR (ObjectionDays IS NOT NULL AND ObjectionDaysKind IS NOT NULL)),
-    CONSTRAINT [CK_PricingRule_33] CHECK (ObjectionDays IS NULL OR ObjectionDays >= 0),
-    CONSTRAINT [CK_PricingRule_34] CHECK (Retroactive = 0 OR RetroactiveReason IS NOT NULL),
-    CONSTRAINT [CK_PricingRule_35] CHECK (ToRevision IS NULL OR ToRevision >= FromRevision),
-    CONSTRAINT [CK_PricingRule_36] CHECK (SourceDocumentId IS NOT NULL AND SourcePage IS NOT NULL OR (SourceDocumentId IS NULL AND Confidence = 'ENTERED_NO_DOCUMENT')),
-    CONSTRAINT [CK_PricingRule_37] CHECK (Confidence <> 'CONFIRMED_AGAINST_ORIGINAL' OR (VerifiedBy IS NOT NULL AND VerifiedOn IS NOT NULL)),
+    CONSTRAINT [CK_PricingRule_1] CHECK (ScopeLimitProductLineId IS NULL OR ScopeLimitId IS NOT NULL),
+    CONSTRAINT [CK_PricingRule_2] CHECK (EffectiveTo IS NULL OR EffectiveTo >= EffectiveFrom),
+    CONSTRAINT [CK_PricingRule_3] CHECK (ComponentKind <> 'FINANCING_RETURN' OR FeeTypeId IS NULL),
+    CONSTRAINT [CK_PricingRule_4] CHECK (ComponentKind = 'FINANCING_RETURN' OR (FeeTypeId IS NOT NULL AND FinancingTypeId IS NULL)),
+    CONSTRAINT [CK_PricingRule_5] CHECK (ComponentKind <> 'PENALTY_NON_INCOME' OR TriggerEvent IS NOT NULL),
+    CONSTRAINT [CK_PricingRule_6] CHECK (ComponentKind = 'PENALTY_NON_INCOME' OR TriggerEvent IS NULL),
+    CONSTRAINT [CK_PricingRule_7] CHECK (RateState <> 'NOT_SPECIFIED_IN_AGREEMENT' OR (AddOnPct IS NULL AND MarginPct IS NULL AND RatePct IS NULL AND RateRangeLowPct IS NULL AND RateRangeHighPct IS NULL AND FixedAmount IS NULL AND PerMillionAmount IS NULL)),
+    CONSTRAINT [CK_PricingRule_8] CHECK (RateState <> 'SET' OR Method <> 'TARIFF_AS_IS' OR TariffItemId IS NOT NULL),
+    CONSTRAINT [CK_PricingRule_9] CHECK (RateState <> 'SET' OR Method <> 'TARIFF_PLUS_ADDON' OR (TariffItemId IS NOT NULL AND AddOnPct IS NOT NULL)),
+    CONSTRAINT [CK_PricingRule_10] CHECK (RateState <> 'SET' OR Method <> 'BASE_PLUS_MARGIN' OR (BaseRateId IS NOT NULL AND MarginPct IS NOT NULL AND RateFixing IS NOT NULL AND DayCount IS NOT NULL)),
+    CONSTRAINT [CK_PricingRule_11] CHECK (RateState <> 'SET' OR Method <> 'PERCENT_OF_AMOUNT' OR RatePct IS NOT NULL OR (RateRangeLowPct IS NOT NULL AND RateRangeHighPct IS NOT NULL)),
+    CONSTRAINT [CK_PricingRule_12] CHECK (RateState <> 'SET' OR Method <> 'FIXED_AMOUNT' OR FixedAmount IS NOT NULL),
+    CONSTRAINT [CK_PricingRule_13] CHECK (RateState <> 'SET' OR Method <> 'PER_MILLION' OR PerMillionAmount IS NOT NULL),
+    CONSTRAINT [CK_PricingRule_14] CHECK (Method IN ('TARIFF_AS_IS','TARIFF_PLUS_ADDON') OR TariffItemId IS NULL),
+    CONSTRAINT [CK_PricingRule_15] CHECK (Method = 'TARIFF_PLUS_ADDON' OR AddOnPct IS NULL),
+    CONSTRAINT [CK_PricingRule_16] CHECK (Method = 'BASE_PLUS_MARGIN' OR (BaseRateId IS NULL AND MarginPct IS NULL AND BaseFloorPct IS NULL AND RateFixing IS NULL AND RepricingMonths IS NULL)),
+    CONSTRAINT [CK_PricingRule_17] CHECK (Method = 'PERCENT_OF_AMOUNT' OR (RatePct IS NULL AND RateRangeLowPct IS NULL AND RateRangeHighPct IS NULL)),
+    CONSTRAINT [CK_PricingRule_18] CHECK (Method = 'FIXED_AMOUNT' OR FixedAmount IS NULL),
+    CONSTRAINT [CK_PricingRule_19] CHECK (Method = 'PER_MILLION' OR PerMillionAmount IS NULL),
+    CONSTRAINT [CK_PricingRule_20] CHECK (RatePct IS NULL OR (RateRangeLowPct IS NULL AND RateRangeHighPct IS NULL)),
+    CONSTRAINT [CK_PricingRule_21] CHECK ((RateRangeLowPct IS NULL AND RateRangeHighPct IS NULL) OR (RateRangeLowPct IS NOT NULL AND RateRangeHighPct IS NOT NULL AND RateRangeLowPct <= RateRangeHighPct)),
+    CONSTRAINT [CK_PricingRule_22] CHECK (RatePct IS NULL OR (RatePct >= 0 AND RatePct <= 100)),
+    CONSTRAINT [CK_PricingRule_23] CHECK (FixedAmount IS NULL OR FixedAmount >= 0),
+    CONSTRAINT [CK_PricingRule_24] CHECK (PerMillionAmount IS NULL OR PerMillionAmount >= 0),
+    CONSTRAINT [CK_PricingRule_25] CHECK (MinFeeAmount IS NULL OR MinFeeAmount >= 0),
+    CONSTRAINT [CK_PricingRule_26] CHECK (MinFeeAmount IS NULL OR MaxFeeAmount IS NULL OR MinFeeAmount <= MaxFeeAmount),
+    CONSTRAINT [CK_PricingRule_27] CHECK (PeriodDays IS NULL OR PeriodDays > 0),
+    CONSTRAINT [CK_PricingRule_28] CHECK (PeriodBasis IS NULL OR PeriodBasis <> 'PER_PERIOD_OR_PART' OR PeriodDays IS NOT NULL OR Method IN ('TARIFF_AS_IS','TARIFF_PLUS_ADDON','TIERED')),
+    CONSTRAINT [CK_PricingRule_29] CHECK (PeriodBasis IS NULL OR PeriodBasis <> 'PER_ANNUM' OR DayCount IS NOT NULL),
+    CONSTRAINT [CK_PricingRule_30] CHECK (RepricingMonths IS NULL OR RepricingMonths > 0),
+    CONSTRAINT [CK_PricingRule_31] CHECK (RateFixing IS NULL OR RateFixing <> 'FLOATING' OR RateState <> 'SET' OR RepricingMonths IS NOT NULL),
+    CONSTRAINT [CK_PricingRule_32] CHECK (BenchmarkReplacement <> 'NAMED_FALLBACK' OR ReplacementText IS NOT NULL),
+    CONSTRAINT [CK_PricingRule_33] CHECK (BankMayChange <> 'WITH_NOTICE_OBJECTION' OR (ObjectionDays IS NOT NULL AND ObjectionDaysKind IS NOT NULL)),
+    CONSTRAINT [CK_PricingRule_34] CHECK (ObjectionDays IS NULL OR ObjectionDays >= 0),
+    CONSTRAINT [CK_PricingRule_35] CHECK (Retroactive = 0 OR RetroactiveReason IS NOT NULL),
+    CONSTRAINT [CK_PricingRule_36] CHECK (ToRevision IS NULL OR ToRevision >= FromRevision),
+    CONSTRAINT [CK_PricingRule_37] CHECK (SourceDocumentId IS NOT NULL AND SourcePage IS NOT NULL OR (SourceDocumentId IS NULL AND Confidence = 'ENTERED_NO_DOCUMENT')),
+    CONSTRAINT [CK_PricingRule_38] CHECK (Confidence <> 'CONFIRMED_AGAINST_ORIGINAL' OR (VerifiedBy IS NOT NULL AND VerifiedOn IS NOT NULL)),
     CONSTRAINT [CK_PricingRule_ComponentKind] CHECK ([ComponentKind] IS NULL OR [ComponentKind] IN ('FEE', 'FINANCING_RETURN', 'PENALTY_NON_INCOME')),
     CONSTRAINT [CK_PricingRule_RateState] CHECK ([RateState] IS NULL OR [RateState] IN ('SET', 'NOT_SPECIFIED_IN_AGREEMENT')),
     CONSTRAINT [CK_PricingRule_Method] CHECK ([Method] IS NULL OR [Method] IN ('TARIFF_AS_IS', 'TARIFF_PLUS_ADDON', 'BASE_PLUS_MARGIN', 'PERCENT_OF_AMOUNT', 'FIXED_AMOUNT', 'PER_MILLION', 'TIERED')),
@@ -3704,15 +3723,16 @@ CREATE TABLE [cmp].[TermValue] (
     [RowVersion] ROWVERSION NOT NULL,
     CONSTRAINT [PK_TermValue] PRIMARY KEY CLUSTERED ([TermValueId]),
     CONSTRAINT [UQ_TermValue_Tenant] UNIQUE ([TenantId], [TermValueId]),
-    CONSTRAINT [CK_TermValue_1] CHECK (EffectiveTo IS NULL OR EffectiveTo >= EffectiveFrom),
-    CONSTRAINT [CK_TermValue_2] CHECK (ValueState = 'SPECIFIED' OR (ValueNumber IS NULL AND ValueText IS NULL AND ValueBool IS NULL AND ValueEnum IS NULL AND NormalizedValue IS NULL)),
-    CONSTRAINT [CK_TermValue_3] CHECK (ValueState <> 'SPECIFIED' OR (CASE WHEN ValueNumber IS NULL THEN 0 ELSE 1 END + CASE WHEN ValueText IS NULL THEN 0 ELSE 1 END + CASE WHEN ValueBool IS NULL THEN 0 ELSE 1 END + CASE WHEN ValueEnum IS NULL THEN 0 ELSE 1 END) = 1),
-    CONSTRAINT [CK_TermValue_4] CHECK (NormalizedValue IS NULL OR ValueNumber IS NOT NULL),
-    CONSTRAINT [CK_TermValue_5] CHECK (Origin <> 'PROJECTED' OR ProjectedFrom IS NOT NULL),
-    CONSTRAINT [CK_TermValue_6] CHECK (Origin = 'PROJECTED' OR ProjectedFrom IS NULL),
-    CONSTRAINT [CK_TermValue_7] CHECK (ToRevision IS NULL OR ToRevision >= FromRevision),
-    CONSTRAINT [CK_TermValue_8] CHECK (SourceDocumentId IS NOT NULL AND SourcePage IS NOT NULL OR (SourceDocumentId IS NULL AND Confidence = 'ENTERED_NO_DOCUMENT')),
-    CONSTRAINT [CK_TermValue_9] CHECK (Confidence <> 'CONFIRMED_AGAINST_ORIGINAL' OR (VerifiedBy IS NOT NULL AND VerifiedOn IS NOT NULL)),
+    CONSTRAINT [CK_TermValue_1] CHECK (LimitProductLineId IS NULL OR LimitId IS NOT NULL),
+    CONSTRAINT [CK_TermValue_2] CHECK (EffectiveTo IS NULL OR EffectiveTo >= EffectiveFrom),
+    CONSTRAINT [CK_TermValue_3] CHECK (ValueState = 'SPECIFIED' OR (ValueNumber IS NULL AND ValueText IS NULL AND ValueBool IS NULL AND ValueEnum IS NULL AND NormalizedValue IS NULL)),
+    CONSTRAINT [CK_TermValue_4] CHECK (ValueState <> 'SPECIFIED' OR (CASE WHEN ValueNumber IS NULL THEN 0 ELSE 1 END + CASE WHEN ValueText IS NULL THEN 0 ELSE 1 END + CASE WHEN ValueBool IS NULL THEN 0 ELSE 1 END + CASE WHEN ValueEnum IS NULL THEN 0 ELSE 1 END) = 1),
+    CONSTRAINT [CK_TermValue_5] CHECK (NormalizedValue IS NULL OR ValueNumber IS NOT NULL),
+    CONSTRAINT [CK_TermValue_6] CHECK (Origin <> 'PROJECTED' OR ProjectedFrom IS NOT NULL),
+    CONSTRAINT [CK_TermValue_7] CHECK (Origin = 'PROJECTED' OR ProjectedFrom IS NULL),
+    CONSTRAINT [CK_TermValue_8] CHECK (ToRevision IS NULL OR ToRevision >= FromRevision),
+    CONSTRAINT [CK_TermValue_9] CHECK (SourceDocumentId IS NOT NULL AND SourcePage IS NOT NULL OR (SourceDocumentId IS NULL AND Confidence = 'ENTERED_NO_DOCUMENT')),
+    CONSTRAINT [CK_TermValue_10] CHECK (Confidence <> 'CONFIRMED_AGAINST_ORIGINAL' OR (VerifiedBy IS NOT NULL AND VerifiedOn IS NOT NULL)),
     CONSTRAINT [CK_TermValue_ValueState] CHECK ([ValueState] IS NULL OR [ValueState] IN ('SPECIFIED', 'NOT_SPECIFIED_IN_AGREEMENT', 'NOT_APPLICABLE', 'UNKNOWN')),
     CONSTRAINT [CK_TermValue_Bound] CHECK ([Bound] IS NULL OR [Bound] IN ('EXACT', 'MAX', 'MIN')),
     CONSTRAINT [CK_TermValue_Origin] CHECK ([Origin] IS NULL OR [Origin] IN ('ENTERED', 'PROJECTED')),
@@ -3730,6 +3750,7 @@ CREATE TABLE [col].[Collateral] (
     [Description] NVARCHAR(2000) NULL,
     [OwnerPartyId] BIGINT NULL,
     [Attributes] NVARCHAR(MAX) NULL,
+    [CashMarginAccountId] BIGINT NULL,
     [Status] VARCHAR(10) NOT NULL CONSTRAINT [DF_Collateral_Status] DEFAULT 'DRAFT',
     [ApprovalState] VARCHAR(10) NOT NULL CONSTRAINT [DF_Collateral_ApprovalState] DEFAULT 'DRAFT',
     [ApprovedBy] BIGINT NULL,
@@ -5044,6 +5065,7 @@ CREATE TABLE [wfl].[RequestStageInstance] (
     [TenantId] INT NOT NULL,
     [RequestStageInstanceId] BIGINT IDENTITY(1,1) NOT NULL,
     [RequestId] BIGINT NOT NULL,
+    [TemplateId] INT NOT NULL,
     [StageId] INT NOT NULL,
     [CycleNo] INT NOT NULL CONSTRAINT [DF_RequestStageInstance_CycleNo] DEFAULT 1,
     [Status] VARCHAR(17) NOT NULL,
@@ -5636,7 +5658,9 @@ CREATE TABLE [lc].[LcTerms] (
     [BeneficiaryAccountIbanEnc] VARBINARY(512) NULL,
     [BeneficiaryAccountIbanMask] NVARCHAR(40) NULL,
     [BeneficiaryAccountIbanHash] VARBINARY(32) NULL,
+    [EncKeyPurpose] VARCHAR(10) NOT NULL CONSTRAINT [DF_LcTerms_EncKeyPurpose] DEFAULT 'DATA',
     [EncKeyId] BIGINT NULL,
+    [HashKeyPurpose] VARCHAR(11) NOT NULL CONSTRAINT [DF_LcTerms_HashKeyPurpose] DEFAULT 'BLIND_INDEX',
     [HashKeyId] BIGINT NULL,
     [AdvisingBankName] NVARCHAR(200) NULL,
     [AdvisingBankAddress] NVARCHAR(300) NULL,
@@ -5770,6 +5794,8 @@ CREATE TABLE [lc].[LcTerms] (
     CONSTRAINT [CK_LcTerms_AvailableWith] CHECK ([AvailableWith] IS NULL OR [AvailableWith] IN ('ISSUING_BANK', 'ADVISING_BANK', 'NOMINATED_BANK', 'ANY_BANK')),
     CONSTRAINT [CK_LcTerms_DraftDrawee] CHECK ([DraftDrawee] IS NULL OR [DraftDrawee] IN ('ISSUING_BANK', 'ADVISING_BANK', 'CONFIRMING_BANK')),
     CONSTRAINT [CK_LcTerms_Confirmation] CHECK ([Confirmation] IS NULL OR [Confirmation] IN ('CONFIRMED', 'MAY_ADD', 'WITHOUT')),
+    CONSTRAINT [CK_LcTerms_EncKeyPurpose] CHECK ([EncKeyPurpose] IS NULL OR [EncKeyPurpose] IN ('DATA')),
+    CONSTRAINT [CK_LcTerms_HashKeyPurpose] CHECK ([HashKeyPurpose] IS NULL OR [HashKeyPurpose] IN ('BLIND_INDEX')),
     CONSTRAINT [CK_LcTerms_ToleranceMode] CHECK ([ToleranceMode] IS NULL OR [ToleranceMode] IN ('NONE', 'ABOUT', 'PLUS_MINUS')),
     CONSTRAINT [CK_LcTerms_ExpiryRule] CHECK ([ExpiryRule] IS NULL OR [ExpiryRule] IN ('ABSOLUTE', 'DAYS_AFTER_ISSUE')),
     CONSTRAINT [CK_LcTerms_LatestShipmentRule] CHECK ([LatestShipmentRule] IS NULL OR [LatestShipmentRule] IN ('ABSOLUTE', 'DAYS_AFTER_ISSUE')),
@@ -5967,6 +5993,7 @@ CREATE TABLE [lc].[LetterOfCredit] (
     [RowVersion] ROWVERSION NOT NULL,
     CONSTRAINT [PK_LetterOfCredit] PRIMARY KEY CLUSTERED ([LetterOfCreditId]),
     CONSTRAINT [UQ_LetterOfCredit_Tenant] UNIQUE ([TenantId], [LetterOfCreditId]),
+    CONSTRAINT [UQ_LetterOfCredit_Scope_CompanyId] UNIQUE ([TenantId], [CompanyId], [LetterOfCreditId]),
     CONSTRAINT [UQ_LetterOfCredit_Scope_CurrencyId] UNIQUE ([TenantId], [CurrencyId], [LetterOfCreditId]),
     CONSTRAINT [UQ_LetterOfCredit_PublicId] UNIQUE ([PublicId]),
     CONSTRAINT [UQ_LetterOfCredit_CurrentTermsId] UNIQUE ([TenantId], [CurrentTermsId]),
@@ -6025,6 +6052,7 @@ GO
 CREATE TABLE [lc].[LcAmendment] (
     [TenantId] INT NOT NULL,
     [LcAmendmentId] BIGINT IDENTITY(1,1) NOT NULL,
+    [CompanyId] BIGINT NOT NULL,
     [LcId] BIGINT NOT NULL,
     [AmendmentNo] INT NULL,
     [Origin] VARCHAR(22) NOT NULL,
@@ -6074,6 +6102,7 @@ GO
 CREATE TABLE [lc].[LcDrawing] (
     [TenantId] INT NOT NULL,
     [LcDrawingId] BIGINT IDENTITY(1,1) NOT NULL,
+    [CompanyId] BIGINT NOT NULL,
     [LcId] BIGINT NOT NULL,
     [DrawingNo] INT NOT NULL,
     [Amount] DECIMAL(19,4) NOT NULL,
@@ -6115,6 +6144,7 @@ GO
 CREATE TABLE [lc].[LcSalesOrder] (
     [TenantId] INT NOT NULL,
     [LcSalesOrderId] BIGINT IDENTITY(1,1) NOT NULL,
+    [CompanyId] BIGINT NOT NULL,
     [LcId] BIGINT NOT NULL,
     [RequestId] BIGINT NOT NULL,
     [OrderRef] NVARCHAR(60) NOT NULL,

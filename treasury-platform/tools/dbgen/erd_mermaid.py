@@ -86,6 +86,23 @@ def render(name, text):
     return png
 
 
+def schema_source(tables, min_fk=5):
+    # خريطة المخططات: كل مخطط كيان بعدد جداوله، والعلاقة = عدد المفاتيح الأجنبية بين المخططين (≥ min_fk)
+    sizes, cnt = {}, {}
+    for t in tables.values():
+        sizes[t.schema] = sizes.get(t.schema, 0) + 1
+        for c in t.cols:
+            if c.fk:
+                p = c.fk.split('.')[0]
+                if p != t.schema: cnt[(p, t.schema)] = cnt.get((p, t.schema), 0) + 1
+    head = [f'%% خريطة المخططات: العلاقة = عدد المفاتيح الأجنبية بين المخططين (≥ {min_fk})', 'erDiagram']
+    ents = []
+    for s in sorted(sizes):
+        ents += [f'  {s} {{', f'    int tables "{sizes[s]}"', '  }']
+    rels = [f'  {p} ||--o{{ {c} : "{n} FK"' for (p, c), n in sorted(cnt.items()) if n >= min_fk]
+    return '\n'.join(head + ents + rels) + '\n'
+
+
 def main():
     tables, errs, _ = dbgen.load(sorted(glob.glob(os.path.join(ROOT, 'db', 'model', '*.model'))), False)
     if errs: raise SystemExit('model errors')
@@ -93,6 +110,9 @@ def main():
     made = []
     for key, title, sub, members in plan:
         made.append(render(key, group_source(f'{title} — {sub}', members, tables)))
+    core = [t for t in erd_pro.CORE_TENANCY if t in tables]
+    made.append(render('core_tenancy', group_source('العلاقات الأساسية: المشترك والمستخدمون والصلاحيات', core, tables)))
+    made.append(render('schema_map', schema_source(tables)))
     print('rendered', len(made), 'ERD diagrams ->', OUT)
 
 

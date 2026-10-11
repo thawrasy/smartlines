@@ -85,12 +85,13 @@ table plat.PlatformOperator int global public noapp   # لا يقرؤه تطبي
   check MfaSecretEnc IS NULL OR DATALENGTH(MfaSecretEnc) >= 29   # الغلاف: إصدار(1) + nonce(12) + وسم(16) على الأقل (06 §6)
   check FailedAttempts >= 0
 
-table plat.TenantModule   # الوحدات المفعّلة للمشترك (FR-PLT-003، BR-PLT-003)
+table plat.TenantModule global noapp   # الوحدات المفعّلة لكل مشترك؛ ملكية المنصة فقط: لا يكتبها تطبيق المشترك ويقرؤها عبر عرض مُحدَّد (DR-01)
+  TenantId    ->plat.Tenant req   # المشترك المالك (صريح لأن الجدول عالمي)
   ModuleCode  enum{CORE,INSTITUTIONS,FACILITIES,COVENANTS,WORKFLOW,LC_PURCHASE,LC_SALES,REQUESTS,REPORTS} req
   IsEnabled   bool    req =1       # التعطيل يخفي الوحدة دون حذف بياناتها؛ الاعتماديات (00 §9-ب) في التطبيق
   EnabledAt   ts
   EnabledBy   ->plat.PlatformOperator   # فارغ = تفعيل آلي من الباقة
-  unique ModuleCode
+  unique TenantId,ModuleCode
   check ModuleCode <> 'CORE' OR IsEnabled = 1
 
 table plat.SupportAccessGrant   # وصول الدعم المؤقت يفعّله مدير حساب المشترك (FR-PLT-007، BR-PLT-017)
@@ -123,7 +124,8 @@ table sec.AppUser public   # مستخدم بوابة المشترك (FR-PLT-010.
   PasswordChangedAt    ts
   MfaEnabled           bool      req =0   # إعادة تعيين MFA تصفّره وتجبر على إعادة التسجيل (BR-PLT-006)
   MfaSecretEnc         bin(256)  sens=restricted   # سر TOTP مشفَّر بمفتاح المشترك
-  MfaKeyId             ->sec.TenantKey noidx   # مفتاح DATA الذي شُفِّر به سر MFA (إصدار صريح لإعادة التشفير)
+  MfaKeyPurpose        enum{DATA} req =DATA   # غرض المفتاح الذي شُفِّر به السر (ثابت؛ يُطابَق بالمفتاح المركّب)
+  MfaKeyId             ->sec.TenantKey via=MfaKeyPurpose>Purpose noidx   # مفتاح DATA الذي شُفِّر به سر MFA (DR-02)
   MfaEnrolledAt        ts
   MfaLastUsedStep      bigint            # آخر خطوة TOTP مقبولة (منع إعادة الاستعمال)
   FailedAttempts       int       req =0   # 5 خلال 15 دقيقة تقفل (BR-PLT-005)
@@ -271,6 +273,8 @@ table sec.TenantKey   # سجل مفاتيح المشترك؛ المفتاح مل
   unique Purpose,KeyVersion
   unique Purpose where Status = 'ACTIVE'
   check KeyVersion >= 1
+  check Status NOT IN ('ACTIVE','RETIRING','RETIRED') OR ActivatedAt IS NOT NULL   # DR-02: دورة الحياة لها تواريخ
+  check Status <> 'RETIRED' OR RetiredAt IS NOT NULL
 
 table sec.KeyEvent append   # سجل أحداث المفاتيح: إنشاء وتدوير وإبطال (FR-PLT-037؛ شدة عالية BR-PLT-009)
   TenantKeyId  ->sec.TenantKey
@@ -375,7 +379,8 @@ table doc.DocumentVersion   # إصدار ثابت من الملف؛ لا يُس�
   ContentType        ascii(150)       # يُفحص بالمحتوى لا بالامتداد (FR-PLT-029)
   SizeBytes          bigint    req
   Sha256             bin(32)   req   # يحسبها الخادم من البايتات المستلمة
-  KeyId              ->sec.TenantKey   # مفتاح تشفير الملف
+  KeyPurpose         enum{FILE} req =FILE
+  KeyId              ->sec.TenantKey req via=KeyPurpose>Purpose   # مفتاح FILE لتشفير الملف (6.4، DR-02)
   ScanStatus         enum{PENDING,CLEAN,QUARANTINED} req =PENDING   # لا يُنزَّل إلا CLEAN
   ScannedAt          ts
   ScanDetail         str(300)

@@ -29,7 +29,8 @@ table col.Collateral public src  # سجل ضمان؛ اعتماد مستقل ع�
   TitleAr            str(300)   req
   Description        str(2000)
   OwnerPartyId       ->pty.Party          # مزوّد استخدام Collateral owner؛ شركة المجموعة بـ Party المرآة (FR-COL-015)
-  Attributes         json                 # سمات القالب؛ منها الهامش النقدي وحسابه وسمات العقار السبع (FR-COL-007/008)
+  Attributes         json sens=restricted   # DR-08: سمات القالب (قد تحمل معرّفات) محجوبة عن التقارير؛ الحساب النقدي يُربط بالنوع أدناه
+  CashMarginAccountId ->acc.BankAccount     # الحساب النقدي للهامش: مرجع مُعرَّف لا سمة حرّة (DR-08)
   Status             enum{DRAFT,ACTIVE,RELEASED,EXPIRED} req =DRAFT
   ApprovalState      enum{DRAFT,APPROVED} req =DRAFT
   ApprovedBy         ->sec.AppUser        # إضافة: لازم لعقد المُعِدّ/المعتمِد (FR-COL-014، §12)

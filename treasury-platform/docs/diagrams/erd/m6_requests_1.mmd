@@ -52,10 +52,10 @@ erDiagram
   wfl_RequestStageInstance["wfl.RequestStageInstance"] {
     bigint RequestStageInstanceId PK
     bigint RequestId FK
+    int TemplateId FK
     int StageId FK
     bigint AssigneeUserId FK
     int ResumeStageId FK
-    integer CycleNo
   }
   wfl_RequestApproval["wfl.RequestApproval"] {
     bigint RequestApprovalId PK
@@ -162,3 +162,4 @@ erDiagram
   wfl_WorkflowStage |o--o{ wfl_Request : "CurrentStageId"
   wfl_WorkflowStage ||--o{ wfl_RequestStageInstance : "ResumeStageId, StageId"
   wfl_WorkflowTemplate ||--o{ wfl_Request : "TemplateId"
+  wfl_WorkflowTemplate ||--o{ wfl_RequestStageInstance : "TemplateId"

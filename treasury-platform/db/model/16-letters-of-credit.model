@@ -186,8 +186,10 @@ table lc.LcTerms public  # إصدار شروط اعتماد: صف لكل نسخ�
   BeneficiaryAccountIbanEnc    bin(512)   sens=restricted   # B3: IBAN المستفيد مشفّر (FR-REQ-024؛ 02 B9 🔴)
   BeneficiaryAccountIbanMask   str(40)    sens=restricted
   BeneficiaryAccountIbanHash   bin(32)    sens=restricted
-  EncKeyId                     ->sec.TenantKey noidx   # مفتاح DATA لـIBAN المستفيد (إصدار صريح)
-  HashKeyId                    ->sec.TenantKey noidx   # مفتاح BLIND_INDEX لبصمة IBAN المستفيد
+  EncKeyPurpose               enum{DATA} req =DATA
+  EncKeyId                     ->sec.TenantKey via=EncKeyPurpose>Purpose noidx   # مفتاح DATA لـIBAN المستفيد (إصدار صريح؛ DR-02)
+  HashKeyPurpose              enum{BLIND_INDEX} req =BLIND_INDEX
+  HashKeyId                    ->sec.TenantKey via=HashKeyPurpose>Purpose noidx   # مفتاح BLIND_INDEX لبصمة IBAN المستفيد (DR-02)
   AdvisingBankName             str(200)         # B4 (د عدا PF)
   AdvisingBankAddress          str(300)
   AdvisingBankBic              ascii(11)
@@ -481,11 +483,12 @@ table lc.LcExternalRef  # مرجع خارجي للاعتماد (ERP...)؛ بلا
   check  SupersededById IS NULL OR (IsActive = 0 AND SupersededById <> LcExternalRefId)
 
 table lc.LcAmendment  # تعديل اعتماد صادر أو مستلَم (FR-LCI-018/019، FR-LCE-020، BR-LCI-011/012، BR-LCE-014)؛ الحالات §8
+  CompanyId          ->org.Company req   # شركة الطلب الفرعي: تُقيَّد بها الصلة بالطلب (DR-10)
   LcId                    ->lc.LetterOfCredit via=CurrencyId req noidx   # عملة التعديل = عملة الاعتماد
   AmendmentNo             int              # رقم البنك أو تسلسل المنصة؛ يُسجَّل عند BANK_ISSUED
   Origin                  enum{OUR_REQUEST,RECEIVED_FROM_CUSTOMER} req
   ChangeKinds             set{INCREASE_AMOUNT,DECREASE_AMOUNT,EXTEND_EXPIRY,CHANGE_SHIPMENT_DATE,CHANGE_TERMS,CANCEL} req   # قائمة قيم ثابتة (المواصفة json)
-  RequestId               ->wfl.Request    # الطلب الفرعي LC_AMENDMENT
+  RequestId               ->wfl.Request via=CompanyId    # الطلب الفرعي LC_AMENDMENT
   TermsId                 ->lc.LcTerms req   # شروط غرض AMENDMENT (لقطة ما بعد التعديل)
   ChangedFieldsJson       json             # الفروق بمفاتيح الحقول مقارنةً بالحالي
   CurrencyId              ->ref.Currency req noidx
@@ -519,6 +522,7 @@ table lc.LcAmendment  # تعديل اعتماد صادر أو مستلَم (FR-L
   check  BeneficiaryResponse IS NULL OR BeneficiaryResponse = 'PENDING' OR RespondedOn IS NOT NULL
 
 table lc.LcDrawing  # سحب/تقديم مستندات تحت اعتماد؛ في التصدير يشمل تحويل التخصيص (FR-LCI-023، BR-LCI-013، BR-LCE-011)؛ الحالات §8
+  CompanyId          ->org.Company req   # شركة الطلب الفرعي: تُقيَّد بها الصلة بالطلب (DR-10)
   LcId                 ->lc.LetterOfCredit via=CurrencyId req noidx   # عملة السحب = عملة الاعتماد (BR-LCI-013)
   DrawingNo            int        req
   Amount               money      req   # Drawn + Amount ≤ ExposureAmount يتحقق منه التطبيق (V-LCI-05)
@@ -533,7 +537,7 @@ table lc.LcDrawing  # سحب/تقديم مستندات تحت اعتماد؛ ف�
   SettledAmount        money      req =0   # التسديد الجزئي يزيده
   LastSettledOn        date
   SettlementAccountId  ->acc.BankAccount noidx
-  RequestId            ->wfl.Request    # طلب مستندات التحصيل في التصدير (lc.convert_earmark)
+  RequestId            ->wfl.Request via=CompanyId    # طلب مستندات التحصيل في التصدير (lc.convert_earmark)
   OverrideReason       str(500)         # تجاوز TM لتقديم بعد الانتهاء (V-LCI-06)
   Notes                str(1000)
   unique LcId,DrawingNo
@@ -550,8 +554,9 @@ table lc.LcDrawing  # سحب/تقديم مستندات تحت اعتماد؛ ف�
   check  ExaminationDeadline IS NULL OR ExaminationDeadline >= PresentationDate
 
 table lc.LcSalesOrder  # تخصيص أمر بيع على اعتماد مستلَم؛ لا يقابله حد ائتماني (FR-LCE-013..015، BR-LCE-009..013)؛ الحالات §8
+  CompanyId          ->org.Company req   # شركة الطلب الفرعي: تُقيَّد بها الصلة بالطلب (DR-10)
   LcId             ->lc.LetterOfCredit via=CurrencyId req noidx   # عملة الأمر = عملة الاعتماد (V-LCE-06)
-  RequestId        ->wfl.Request req   # طلب SALES_ORDER_APPROVAL؛ خطاف lc.earmark_sales_order متكرر الأمان
+  RequestId        ->wfl.Request via=CompanyId req   # طلب SALES_ORDER_APPROVAL؛ خطاف lc.earmark_sales_order متكرر الأمان
   OrderRef         str(60)    req   # مرجع أمر البيع نصًا؛ تكراره على الاعتماد تحذير V-LCE-08
   OrderDate        date       req
   Amount           money      req   # Amount ≤ Available تحت قفل صف الاعتماد (BR-LCE-010)

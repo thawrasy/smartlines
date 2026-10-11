@@ -16,8 +16,8 @@ GRANT SELECT, INSERT, UPDATE ON [plat].[Tenant] TO [tp_platform];
 GRANT SELECT, INSERT, UPDATE ON [plat].[ReservedSubdomain] TO [tp_platform];
 -- plat.PlatformOperator  (noapp: بلا منح لتطبيق المشترك)
 GRANT SELECT, INSERT, UPDATE ON [plat].[PlatformOperator] TO [tp_platform];
--- plat.TenantModule
-GRANT SELECT, INSERT, UPDATE ON [plat].[TenantModule] TO [tp_app];
+-- plat.TenantModule  (noapp: بلا منح لتطبيق المشترك)
+GRANT SELECT, INSERT, UPDATE ON [plat].[TenantModule] TO [tp_platform];
 -- plat.SupportAccessGrant
 GRANT SELECT, INSERT, UPDATE ON [plat].[SupportAccessGrant] TO [tp_app];
 -- sec.AppUser
@@ -192,10 +192,8 @@ GRANT SELECT, INSERT, UPDATE ON [cat].[BaseRateAlias] TO [tp_app];
 GRANT SELECT, INSERT, UPDATE ON [cat].[BaseRateValue] TO [tp_app];
 -- cat.LookupList
 GRANT SELECT, INSERT, UPDATE ON [cat].[LookupList] TO [tp_app];
-GRANT SELECT, INSERT, UPDATE ON [cat].[LookupList] TO [tp_platform];
 -- cat.LookupItem
 GRANT SELECT, INSERT, UPDATE ON [cat].[LookupItem] TO [tp_app];
-GRANT SELECT, INSERT, UPDATE ON [cat].[LookupItem] TO [tp_platform];
 -- ins.Institution
 GRANT SELECT, INSERT, UPDATE ON [ins].[Institution] TO [tp_app];
 -- ins.InstitutionUnit

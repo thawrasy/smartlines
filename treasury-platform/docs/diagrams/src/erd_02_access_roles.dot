@@ -10,9 +10,9 @@ digraph G {
     mig [shape=box, style="rounded,filled", fillcolor="#EEEEEE", label="tp_migrator\nالنشر"]; }
   subgraph cluster_res { label="أنواع الجداول"; style=rounded; color="#999999"; fontname="DejaVu Sans";
     tenant [shape=box, style=filled, fillcolor="#DCEBFA", label="جداول المشترك\n(TenantId + RLS)"];
-    glob [shape=box, style=filled, fillcolor="#FDE9D9", label="جداول عامة\n(ref · sec.Permission · cfg)"];
-    mixed [shape=box, style=filled, fillcolor="#EADCF8", label="جداول مختلطة\n(cat.LookupItem · aud.AuditLog)"];
-    noapp [shape=box, style=filled, fillcolor="#F8D7DA", label="plat.Tenant\nplat.PlatformOperator\n(noapp)"]; }
+    glob [shape=box, style=filled, fillcolor="#FDE9D9", label="جداول عامة\n(ref · sec.Permission · cfg.SettingDefinition)"];
+    mixed [shape=box, style=filled, fillcolor="#EADCF8", label="جداول مختلطة\n(aud.AuditLog · cfg.NonWorkingDay · ref.UcpArticle)"];
+    noapp [shape=box, style=filled, fillcolor="#F8D7DA", label="plat.Tenant · PlatformOperator\nReservedSubdomain · TenantModule\n(noapp)"]; }
   app -> tenant [label="SELECT, INSERT, UPDATE"];
   app -> glob [label="SELECT فقط"];
   app -> mixed [label="SELECT, INSERT, UPDATE\n(RLS يقصر الكتابة)"];

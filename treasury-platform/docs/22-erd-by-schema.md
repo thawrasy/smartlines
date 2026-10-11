@@ -10,6 +10,7 @@ erDiagram
   Plan ||--o{ Tenant : "PlanId"
   PlatformOperator ||--o{ SupportAccessGrant : "OperatorId"
   PlatformOperator ||--o{ TenantModule : "EnabledBy"
+  Tenant ||--o{ TenantModule : "TenantId"
 ```
 
 | الجدول | العمود | يشير إلى |
@@ -152,6 +153,8 @@ erDiagram
   CustomFieldDefinition ||--o{ PartyCustomField : "DefinitionId"
   KycProfile ||--o{ KycProfileItem : "ProfileId"
   KycProfileItem ||--o{ KycProfileItemLegalForm : "KycProfileItemId"
+  Party ||--o{ Address : "PartyId"
+  Party ||--o{ ContactMethod : "PartyId"
   Party ||--o{ IdentityDocument : "PartyId"
   Party ||--o{ PartyCompliance : "PartyId"
   Party ||--o{ PartyCustomField : "PartyId"
@@ -160,7 +163,13 @@ erDiagram
 
 | الجدول | العمود | يشير إلى |
 |---|---|---|
+| Address | ContactId | ins.Contact |
 | Address | CountryId | ref.Country |
+| Address | InstitutionId | ins.Institution |
+| Address | UnitId | ins.InstitutionUnit |
+| ContactMethod | ContactId | ins.Contact |
+| ContactMethod | InstitutionId | ins.Institution |
+| ContactMethod | UnitId | ins.InstitutionUnit |
 | CustomFieldDefinition | InstitutionId | ins.Institution |
 | IdentityDocument | EncKeyId | sec.TenantKey |
 | IdentityDocument | HashKeyId | sec.TenantKey |
@@ -426,6 +435,7 @@ erDiagram
 | الجدول | العمود | يشير إلى |
 |---|---|---|
 | Collateral | ApprovedBy | sec.AppUser |
+| Collateral | CashMarginAccountId | acc.BankAccount |
 | Collateral | CollateralTypeId | cat.CollateralType |
 | Collateral | ConflictId | fac.ValueConflict |
 | Collateral | OwnerPartyId | pty.Party |
@@ -549,6 +559,7 @@ erDiagram
   WorkflowStage ||--o{ WorkflowTransition : "ResumeStageId"
   WorkflowStage ||--o{ WorkflowTransition : "ToStageId"
   WorkflowTemplate ||--o{ Request : "TemplateId"
+  WorkflowTemplate ||--o{ RequestStageInstance : "TemplateId"
   WorkflowTemplate ||--o{ TemplateAttachmentRule : "TemplateId"
   WorkflowTemplate ||--o{ TemplateField : "TemplateId"
   WorkflowTemplate ||--o{ WorkflowStage : "TemplateId"
@@ -660,11 +671,13 @@ erDiagram
 | Counterparty | CountryId | ref.Country |
 | Counterparty | PartyId | pty.Party |
 | LcAmendment | AppliedBy | sec.AppUser |
+| LcAmendment | CompanyId | org.Company |
 | LcAmendment | CurrencyId | ref.Currency |
 | LcAmendment | RequestId | wfl.Request |
 | LcDiscrepancy | DecidedBy | sec.AppUser |
 | LcDocumentClause | InstitutionId | ins.Institution |
 | LcDocumentClauseUcpRef | UcpArticleId | ref.UcpArticle |
+| LcDrawing | CompanyId | org.Company |
 | LcDrawing | CurrencyId | ref.Currency |
 | LcDrawing | RequestId | wfl.Request |
 | LcDrawing | SettlementAccountId | acc.BankAccount |
@@ -676,6 +689,7 @@ erDiagram
 | LcFormTemplate | LetterheadDocumentId | doc.Document |
 | LcFormTemplate | ProductId | cat.Product |
 | LcFormTemplate | SourceDocumentId | doc.Document |
+| LcSalesOrder | CompanyId | org.Company |
 | LcSalesOrder | CurrencyId | ref.Currency |
 | LcSalesOrder | RequestId | wfl.Request |
 | LcTerms | ApplicantCompanyId | org.Company |

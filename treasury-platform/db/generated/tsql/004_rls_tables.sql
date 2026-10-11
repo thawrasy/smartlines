@@ -6,7 +6,6 @@ GO
 /* قائمة الجداول الخاضعة لعزل الصفوف (يولّدها النموذج)؛ يستهلكها 004_rls.sql */
 IF OBJECT_ID(N'tempdb..#rls_tables') IS NOT NULL DROP TABLE #rls_tables;
 CREATE TABLE #rls_tables (SchemaName sysname NOT NULL, TableName sysname NOT NULL, IsMixed bit NOT NULL);
-INSERT #rls_tables VALUES (N'plat', N'TenantModule', 0);
 INSERT #rls_tables VALUES (N'plat', N'SupportAccessGrant', 0);
 INSERT #rls_tables VALUES (N'sec', N'AppUser', 0);
 INSERT #rls_tables VALUES (N'sec', N'Role', 0);
@@ -86,8 +85,8 @@ INSERT #rls_tables VALUES (N'cat', N'ObligationType', 0);
 INSERT #rls_tables VALUES (N'cat', N'BaseRate', 0);
 INSERT #rls_tables VALUES (N'cat', N'BaseRateAlias', 0);
 INSERT #rls_tables VALUES (N'cat', N'BaseRateValue', 0);
-INSERT #rls_tables VALUES (N'cat', N'LookupList', 1);
-INSERT #rls_tables VALUES (N'cat', N'LookupItem', 1);
+INSERT #rls_tables VALUES (N'cat', N'LookupList', 0);
+INSERT #rls_tables VALUES (N'cat', N'LookupItem', 0);
 INSERT #rls_tables VALUES (N'ins', N'Institution', 0);
 INSERT #rls_tables VALUES (N'ins', N'InstitutionUnit', 0);
 INSERT #rls_tables VALUES (N'ins', N'Contact', 0);

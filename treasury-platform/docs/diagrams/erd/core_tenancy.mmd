@@ -17,6 +17,7 @@ erDiagram
   }
   plat_TenantModule["plat.TenantModule"] {
     bigint TenantModuleId PK
+    int TenantId FK
     int EnabledBy FK
     varchar ModuleCode
     smallint IsEnabled
@@ -139,6 +140,7 @@ erDiagram
   plat_Plan ||--o{ plat_Tenant : "PlanId"
   plat_PlatformOperator ||--o{ plat_SupportAccessGrant : "OperatorId"
   plat_PlatformOperator |o--o{ plat_TenantModule : "EnabledBy"
+  plat_Tenant ||--o{ plat_TenantModule : "TenantId"
   pty_Party ||--o{ org_Company : "PartyId"
   ref_Country ||--o{ org_Company : "CountryId"
   ref_Country ||--o{ plat_Tenant : "HomeCountryId"

@@ -294,8 +294,10 @@ table pty.IdentityDocument  # وثيقة هوية؛ الرقم مشفّر وال
   NumberEnc          bin(512)   req sens=restricted   # الرقم مشفَّر بمفتاح المشترك (FR-PTY-006)
   NumberMask         str(32)    req sens=restricted   # قناع العرض يُحسب عند الكتابة؛ آخر 4 خانات (BR-PTY-008)
   NumberHash         bin(32)    req sens=restricted   # HMAC فهرس أعمى: النوع+الدولة+الرقم المطبَّع (BR-PTY-002)
-  EncKeyId           ->sec.TenantKey req noidx   # مفتاح DATA لهذا الصف (إصدار صريح؛ 06 §6)
-  HashKeyId          ->sec.TenantKey req noidx   # مفتاح BLIND_INDEX لبصمة NumberHash
+  EncKeyPurpose      enum{DATA} req =DATA
+  EncKeyId           ->sec.TenantKey req via=EncKeyPurpose>Purpose noidx   # مفتاح DATA لهذا الصف (إصدار صريح؛ 06 §6، DR-02)
+  HashKeyPurpose     enum{BLIND_INDEX} req =BLIND_INDEX
+  HashKeyId          ->sec.TenantKey req via=HashKeyPurpose>Purpose noidx   # مفتاح BLIND_INDEX لبصمة NumberHash (DR-02)
   IssueDate          date
   IssueDateHijriText str(20)          # G-11
   ExpiryDate         date
@@ -317,8 +319,11 @@ table pty.IdentityDocument  # وثيقة هوية؛ الرقم مشفّر وال
   check  VerifiedBy IS NULL OR VerifiedAt IS NOT NULL
 
 table pty.Address  # عنوان متعدد الملكية: OwnerType+OwnerId بلا FK (مزوّد المالك يتحقق منه التطبيق) (FR-PTY-011، BR-PTY-015)
-  OwnerType          enum{PARTY,INSTITUTION,UNIT,CONTACT} req   # قابل للتوسعة بمزوّد مالك
-  OwnerId            bigint     req
+  PartyId            ->pty.Party                # قوس المالك: شخص (واحد من أربعة فقط؛ DR-04)
+  InstitutionId      ->ins.Institution          # قوس المالك: منشأة
+  UnitId             ->ins.InstitutionUnit      # قوس المالك: فرع/وحدة
+  ContactId          ->ins.Contact              # قوس المالك: جهة اتصال
+  check (PartyId IS NOT NULL AND InstitutionId IS NULL AND UnitId IS NULL AND ContactId IS NULL) OR (PartyId IS NULL AND InstitutionId IS NOT NULL AND UnitId IS NULL AND ContactId IS NULL) OR (PartyId IS NULL AND InstitutionId IS NULL AND UnitId IS NOT NULL AND ContactId IS NULL) OR (PartyId IS NULL AND InstitutionId IS NULL AND UnitId IS NULL AND ContactId IS NOT NULL)
   AddressType        enum{NATIONAL,RESIDENTIAL,WORK,PO_BOX,REGISTERED,OTHER} req
   IsPrimary          bool       req =0
   IsCurrent          bool       req =1
@@ -334,23 +339,41 @@ table pty.Address  # عنوان متعدد الملكية: OwnerType+OwnerId ب�
   ShortCode          str(20)
   PoBoxNumber        str(30)
   FreeText           str(500)
-  unique OwnerType,OwnerId where IsPrimary = 1 AND IsCurrent = 1   # عنوان أساسي فعّال واحد لكل مالك
-  index  OwnerType,OwnerId,AddressType
+  unique PartyId where IsPrimary = 1 AND IsCurrent = 1 AND PartyId IS NOT NULL   # عنوان أساسي فعّال واحد لكل قوس مالك
+  unique InstitutionId where IsPrimary = 1 AND IsCurrent = 1 AND InstitutionId IS NOT NULL
+  unique UnitId where IsPrimary = 1 AND IsCurrent = 1 AND UnitId IS NOT NULL
+  unique ContactId where IsPrimary = 1 AND IsCurrent = 1 AND ContactId IS NOT NULL
+  index  PartyId,AddressType
+  index  InstitutionId,AddressType
+  index  UnitId,AddressType
+  index  ContactId,AddressType
   check  IsPrimary = 0 OR IsCurrent = 1
   check  AddressType <> 'PO_BOX' OR PoBoxNumber IS NOT NULL
 
 table pty.ContactMethod deletable  # وسيلة اتصال متعددة الملكية (FR-PTY-012، BR-PTY-015)
-  OwnerType          enum{PARTY,INSTITUTION,UNIT,CONTACT} req
-  OwnerId            bigint     req
+  PartyId            ->pty.Party                # قوس المالك (واحد من أربعة؛ DR-04)
+  InstitutionId      ->ins.Institution
+  UnitId             ->ins.InstitutionUnit
+  ContactId          ->ins.Contact
+  check (PartyId IS NOT NULL AND InstitutionId IS NULL AND UnitId IS NULL AND ContactId IS NULL) OR (PartyId IS NULL AND InstitutionId IS NOT NULL AND UnitId IS NULL AND ContactId IS NULL) OR (PartyId IS NULL AND InstitutionId IS NULL AND UnitId IS NOT NULL AND ContactId IS NULL) OR (PartyId IS NULL AND InstitutionId IS NULL AND UnitId IS NULL AND ContactId IS NOT NULL)
   Kind               enum{MOBILE,PHONE,EMAIL,FAX,WEBSITE,OTHER} req
   Value              str(200)   req
   NormalizedValue    str(200)   req   # هاتف E.164 / بريد صغير الأحرف؛ مطلوب لتنفيذ الفرادة
   Label              str(100)
   IsPrimary          bool       req =0
-  unique OwnerType,OwnerId,Kind,NormalizedValue
-  unique OwnerType,OwnerId,Kind where IsPrimary = 1   # أساسية واحدة لكل نوع
+  unique PartyId,Kind,NormalizedValue where PartyId IS NOT NULL
+  unique InstitutionId,Kind,NormalizedValue where InstitutionId IS NOT NULL
+  unique UnitId,Kind,NormalizedValue where UnitId IS NOT NULL
+  unique ContactId,Kind,NormalizedValue where ContactId IS NOT NULL
+  unique PartyId,Kind where IsPrimary = 1 AND PartyId IS NOT NULL
+  unique InstitutionId,Kind where IsPrimary = 1 AND InstitutionId IS NOT NULL
+  unique UnitId,Kind where IsPrimary = 1 AND UnitId IS NOT NULL
+  unique ContactId,Kind where IsPrimary = 1 AND ContactId IS NOT NULL
   index  NormalizedValue
-  index  OwnerType,OwnerId
+  index  PartyId
+  index  InstitutionId
+  index  UnitId
+  index  ContactId
 
 table pty.CustomFieldDefinition  # تعريف حقل مخصص (FR-PTY-013، BR-PTY-014)
   FieldKey           ascii(60)  req
@@ -372,7 +395,8 @@ table pty.PartyCustomField  # قيمة حقل مخصص لشخص (FR-PTY-013، FR
   DefinitionId       ->pty.CustomFieldDefinition req
   ValueText          str(1000)
   ValueEnc           bin(512) sens=restricted   # للحقل المقيَّد بدل ValueText
-  EncKeyId           ->sec.TenantKey noidx   # مفتاح DATA لقيمة الحقل المقيَّد
+  EncKeyPurpose      enum{DATA} req =DATA
+  EncKeyId           ->sec.TenantKey via=EncKeyPurpose>Purpose noidx   # مفتاح DATA لقيمة الحقل المقيَّد (DR-02)
   ValueMask          str(32)                    # قناع يُحسب عند الكتابة (BR-PTY-008)
   CurrencyId         ->ref.Currency             # لنوع AMOUNT
   unique PartyId,DefinitionId

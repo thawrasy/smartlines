@@ -63,4 +63,4 @@ erDiagram
   plat_PlatformOperator |o--o{ aud_SensitiveAccessLog : "OperatorId"
   sec_AppUser |o--o{ doc_Document : "DeletedBy"
   sec_AppUser |o--o{ doc_DocumentLink : "UnlinkedBy"
-  sec_TenantKey |o--o{ doc_DocumentVersion : "KeyId"
+  sec_TenantKey ||--o{ doc_DocumentVersion : "KeyId"

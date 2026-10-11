@@ -285,7 +285,7 @@ table wfl.Request public  # الطلب: أكثر الجداول ازدحامًا
   ParentEntityId           bigint
   ParentRequestId          ->wfl.Request    # أو طلب أب (طلب فرعي)
   CopiedFromRequestId      ->wfl.Request noidx   # إضافة: الطلب المنسوخ منه (FR-REQ-025)
-  LcId                     ->lc.LetterOfCredit   # الاعتماد المرتبط: الأب للطلب الفرعي أو الصادر عن الطلب بعد ISSUANCE (BR-WFL-018)
+  LcId                     ->lc.LetterOfCredit via=CompanyId   # DR-10: الاعتماد من شركة الطلب نفسها
   FacilityId               ->fac.Facility   # التخصيص (AllocFacilityId في المواصفة): اختيار الخزينة في FACILITY_SELECTION
   LimitId                  ->fac.Limit via=FacilityId noidx   # AllocLimitId؛ الحد من التسهيل نفسه
   LimitProductLineId       ->fac.LimitProductLine via=FacilityId,LimitId noidx   # AllocProductLineId (LineId في fac.reserve_limit)
@@ -381,7 +381,8 @@ module WFL
 
 table wfl.RequestStageInstance  # دخول طلب إلى مرحلة؛ مصدر مقاييس الأزمنة والسحب والـ SLA (BR-WFL-002/007/012، §8)
   RequestId         ->wfl.Request req
-  StageId           ->wfl.WorkflowStage req
+  TemplateId        ->wfl.WorkflowTemplate req   # قالب الطلب المُثبَّت عند الدخول (DR-09)
+  StageId           ->wfl.WorkflowStage via=TemplateId req   # مرحلة من القالب نفسه (DR-09)
   CycleNo           int        req =1
   Status            enum{QUEUED,CLAIMED,AWAITING_APPROVAL,DONE,RETURNED,REJECTED,CANCELLED} req   # §8: مثيل المرحلة (المهمة المسندة مباشرة تُعدّ CLAIMED)
   EnteredAt         ts         req
@@ -397,7 +398,7 @@ table wfl.RequestStageInstance  # دخول طلب إلى مرحلة؛ مصدر �
   SlaMet            bool             # نتيجة SLA عند الخروج: 1 قبل DueAt · 0 بعده · فارغ بلا SLA (§8، R-WFL-01)
   ReleaseCount      int        req =0   # التحرير لا يصفّر قِدَم الطابور (BR-WFL-007)
   ReassignCount     int        req =0
-  ResumeStageId     ->wfl.WorkflowStage noidx   # مرحلة الاستئناف عند الإرجاع (FR-WFL-010)
+  ResumeStageId     ->wfl.WorkflowStage via=TemplateId noidx
   unique RequestId where ExitedAt IS NULL   # مثيل مفتوح واحد لكل طلب (دورة خطية، D-8)
   index RequestId,EnteredAt
   index StageId,EnteredAt   # أزمنة الدورة لكل مرحلة (R-WFL-03)

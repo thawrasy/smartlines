@@ -96,6 +96,7 @@ def generated_section(plan, tables):
 
 
 REVIEW = os.path.join(DOCS, 'review', 'design-review-2026-10-11.json')
+STATUS = {'applied': 'مُطبَّق (C-12)', 'open': 'مفتوح'}
 
 
 def first_sentence(text, limit=230):
@@ -110,24 +111,23 @@ def review_section():
     c = d['counts']
     out = ['## 18. مراجعة التصميم (Design review)', '',
            f'أجرى فريق من خمسة مهندسي قواعد بيانات مراجعة مستقلة لكل مجموعة وحدات، فحصت كل جدول وكل علاقة مفتاح أجنبي على أسس النمذجة العلائقية: التطبيع، والمفاتيح، والإلزام والعدد، وسلامة المرجع، والعزل بين المشتركين، والتكرار، والفهرسة، والحساسية، ودلالات دورة العمل. النتائج مسجَّلة بمعرّفاتها في `docs/review/design-review-2026-10-11.json`، وتحمل كل نتيجة مرجع السطر في النموذج أو في DDL.', '',
-           f'**الإجمالي: {len(d["findings"])} نتيجة — حرجة {c["critical"]} · رئيسية {c["major"]} · طفيفة {c["minor"]}.** لم يُعدَّل النموذج بعد؛ القرار المطلوب في §18.3.', '',
+           f'**الإجمالي: {len(d["findings"])} نتيجة — حرجة {c["critical"]} · رئيسية {c["major"]} · طفيفة {c["minor"]}.** الحرجة مُطبَّقة في النموذج والـDDL (C-12) ويتحقق منها آليًا، والرئيسية والطفيفة مفتوحة (§18.3).', '',
            '### 18.1 النتائج الحرجة', '',
-           '| المعرّف | الكيان | الدلالة | المشكلة (ملخص) | الإصلاح المقترح (ملخص) |', '|---|---|---|---|---|']
+           '| المعرّف | الكيان | الدلالة | المشكلة (ملخص) | الإصلاح المقترح (ملخص) | الحالة |', '|---|---|---|---|---|---|']
     crit = [f for f in d['findings'] if f['severity'] == 'critical']
     for f in crit:
         obj = f['table'] + ('.' + f['column'] if f.get('column') else '')
-        out.append(f'| {f["id"]} | `{esc_cell(obj)}` | {f["category"]} | {esc_cell(first_sentence(f["issue"]))} | {esc_cell(first_sentence(f["recommendation"]))} |')
+        out.append(f'| {f["id"]} | `{esc_cell(obj)}` | {f["category"]} | {esc_cell(first_sentence(f["issue"]))} | {esc_cell(first_sentence(f["recommendation"]))} | {STATUS[f.get("status", "open")]} |')
     out += ['', '### 18.2 النتائج الرئيسية والطفيفة', '',
-            '| المعرّف | الكيان | الدرجة | الدلالة | المشكلة (ملخص) | الإصلاح المقترح (ملخص) |', '|---|---|---|---|---|---|']
+            '| المعرّف | الكيان | الدرجة | الدلالة | المشكلة (ملخص) | الإصلاح المقترح (ملخص) | الحالة |', '|---|---|---|---|---|---|---|']
     for f in d['findings']:
         if f['severity'] == 'critical': continue
         obj = f['table'] + ('.' + f['column'] if f.get('column') else '')
-        out.append(f'| {f["id"]} | `{esc_cell(obj)}` | {f["severity"]} | {f["category"]} | {esc_cell(first_sentence(f["issue"]))} | {esc_cell(first_sentence(f["recommendation"]))} |')
-    out += ['', '### 18.3 القرار المطلوب', '',
-            'المطلوب قبل أي تنفيذ على SQL Server:', '',
-            '1. **اعتماد الإصلاحات الحرجة العشر** أو تعديلها، لأن كل منها يغيّر مفتاحًا أجنبيًا أو ملكية جدول. أكثرها أثرًا: تحويل كتالوج القيم المختلط (`cat.LookupItem`) إلى نسخ لكل مشترك وربط المراجع مركّبًا (DR-03 و DR-05 و DR-07)، وتحويل عنوان المالك المتعدد `pty.Address` إلى أقواس خارجية متعددة الأعمدة (DR-04)، ومراجعة ملكية `plat.TenantModule` (DR-01).',
-            '2. **تحديد مفتاح الغرض في مفاتيح التشفير** (DR-02): إضافة `KeyPurpose` وقيد مركّب، أو الإبقاء على الحالي مع فحص آلي.',
-            '3. **إعادة توليد النموذج** بعد الموافقة، ثم تشغيل `check_grants.py` والتحقق البنيوي والتحقق من المخططات، ثم تحديث الـ ERD وفق النتائج.', '']
+        out.append(f'| {f["id"]} | `{esc_cell(obj)}` | {f["severity"]} | {f["category"]} | {esc_cell(first_sentence(f["issue"]))} | {esc_cell(first_sentence(f["recommendation"]))} | {STATUS[f.get("status", "open")]} |')
+    out += ['', '### 18.3 القرار', '',
+            '1. **الحرجة (10): مُعتمدة ومُطبَّقة** في النموذج والـDDL بالتغيير C-12، ويتحقق منها `tools/dbgen/check_review_fixes.py` آليًا على DDL المولَّد.',
+            '2. **الرئيسية (36) والطفيفة (4): مفتوحة.** المطلوب قرار لكل نتيجة: تُطبَّق قبل S0، أو تُؤجَّل بسبب مكتوب (O-15). ما يُطبَّق منها يغيّر النموذج، فيُعاد التوليد والتحقق.',
+            '3. **بعد أي تغيير** في النموذج: `dbgen check` و`dbgen build` و`pg_validate.sh` و`check_grants.py` و`check_review_fixes.py`، ثم `erd_mermaid.py` لتحديث المخططات، ثم إعادة بناء هذه الوثيقة.', '']
     return out
 
 
@@ -160,18 +160,16 @@ def main():
     front = ['# DATABASE DESIGN AND ERD — BankFas', '',
              '| البند | القيمة |', '|---|---|',
              '| الحالة | **مسودة للتقييم (الإصدار 0.3)** — تصميم قاعدة البيانات مع مخططات ERD مهنية (تدوين Crow\'s Foot) ومواصفات الجداول والعلاقات، مُولَّدة من النموذج |',
-             '| التاريخ | 2026-10-10 |',
+             '| التاريخ | 2026-10-11 |',
              '| المحرك المعتمد | **SQL Server 2025** |',
              '| المرجع | `db/model/*.model` (194 جدولًا في 20 مخططًا) — الملفات المولَّدة لا تُعدَّل يدويًا |',
-             '| الدعم | `tools/dbgen/erd_pro.py` · `tools/dbgen/build_erd_doc.py` · `tools/dbgen/check_grants.py` |', '']
+             '| الدعم | `tools/dbgen/erd_mermaid.py` (المخططات) · `tools/dbgen/build_erd_doc.py` · `tools/dbgen/check_grants.py` · `tools/dbgen/check_review_fixes.py` |', '']
     changelog_row = '| C-11 | إعادة بناء الوثيقة كـ **DATABASE DESIGN AND ERD**: مخططات Crow\'s Foot مهنية، ومواصفة لكل جدول ولكل علاقة، مُولَّدة من النموذج بدل الصور البسيطة السابقة | طُلب ERD بمستوى مهني ومواصفات كاملة لكل جدول ومودول وعلاقة |'
     lines = body.split('\n')
     for i, ln in enumerate(lines):
         if ln.startswith('| C-10 |'):
             lines.insert(i + 1, changelog_row); break
     body = '\n'.join(lines)
-    body = body.replace('![العلاقات الأساسية: المشترك والمستخدمون والأدوار والصلاحيات والمفاتيح](diagrams/pro/core_tenancy.png)',
-                        '![المشترك والهوية: الجداول المملوكة للمشترك وكيف ترتبط بالمستخدمين والشركات](diagrams/erd/m0_identity.png)\n\n![المشترك والاشتراكات: الخطة والوحدات والمشغّلون ودعم الوصول](diagrams/erd/m0_tenancy.png)')
     gen = generated_section(plan, tables)
     marker = '\n## 11. '
     assert body.count(marker) == 1, body.count(marker)

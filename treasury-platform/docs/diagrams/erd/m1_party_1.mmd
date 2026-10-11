@@ -2,19 +2,19 @@
 erDiagram
   pty_Address["pty.Address"] {
     bigint AddressId PK
+    bigint PartyId FK
+    bigint InstitutionId FK
+    bigint UnitId FK
+    bigint ContactId FK
     int CountryId FK
-    varchar OwnerType
-    bigint OwnerId
-    varchar AddressType
-    smallint IsPrimary
   }
   pty_ContactMethod["pty.ContactMethod"] {
     bigint ContactMethodId PK
-    varchar OwnerType
-    bigint OwnerId
+    bigint PartyId FK
+    bigint InstitutionId FK
+    bigint UnitId FK
+    bigint ContactId FK
     varchar Kind
-    varchar Value
-    varchar NormalizedValue
   }
   pty_CustomFieldDefinition["pty.CustomFieldDefinition"] {
     bigint CustomFieldDefinitionId PK
@@ -55,8 +55,14 @@ erDiagram
   cat_LegalEntityType["cat.LegalEntityType"] {
     int LegalEntityTypeId PK
   }
+  ins_Contact["ins.Contact"] {
+    bigint ContactId PK
+  }
   ins_Institution["ins.Institution"] {
     bigint InstitutionId PK
+  }
+  ins_InstitutionUnit["ins.InstitutionUnit"] {
+    bigint InstitutionUnitId PK
   }
   pty_Party["pty.Party"] {
     bigint PartyId PK
@@ -68,10 +74,18 @@ erDiagram
     bigint TenantKeyId PK
   }
   cat_LegalEntityType ||--o{ pty_KycProfileItemLegalForm : "LegalEntityTypeId"
+  ins_Contact |o--o{ pty_Address : "ContactId"
+  ins_Contact |o--o{ pty_ContactMethod : "ContactId"
+  ins_Institution |o--o{ pty_Address : "InstitutionId"
+  ins_Institution |o--o{ pty_ContactMethod : "InstitutionId"
   ins_Institution |o--o{ pty_CustomFieldDefinition : "InstitutionId"
   ins_Institution |o--o{ pty_KycProfile : "InstitutionId"
+  ins_InstitutionUnit |o--o{ pty_Address : "UnitId"
+  ins_InstitutionUnit |o--o{ pty_ContactMethod : "UnitId"
   pty_KycProfile ||--o{ pty_KycProfileItem : "ProfileId"
   pty_KycProfileItem ||--o{ pty_KycProfileItemLegalForm : "KycProfileItemId"
+  pty_Party |o--o{ pty_Address : "PartyId"
+  pty_Party |o--o{ pty_ContactMethod : "PartyId"
   pty_Party ||--o{ pty_IdentityDocument : "PartyId"
   ref_Country ||--o{ pty_Address : "CountryId"
   ref_Country ||--o{ pty_IdentityDocument : "IssuingCountryId"

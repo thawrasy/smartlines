@@ -435,7 +435,8 @@ table prc.TariffTier  # شريحة بند تعرفة بالمبلغ و/أو ال
 table prc.PricingRule rev src  # قاعدة تسعير بنطاق ووراثة وطرق (FR-PRC-006..017، BR-PRC-006..012، V-PRC-02)
   FacilityId               ->fac.Facility req
   ScopeLimitId             ->fac.Limit via=FacilityId   # بلا نطاق = مستوى التسهيل
-  ScopeLimitProductLineId  ->fac.LimitProductLine via=FacilityId
+  ScopeLimitProductLineId  ->fac.LimitProductLine via=FacilityId,ScopeLimitId>LimitId   # DR-06: الخط من الحد نفسه
+  check ScopeLimitProductLineId IS NULL OR ScopeLimitId IS NOT NULL
   ScopeProductId           ->cat.Product
   ScopeCompanyId           ->org.Company
   ComponentKind            enum{FEE,FINANCING_RETURN,PENALTY_NON_INCOME} req
@@ -558,7 +559,8 @@ table cmp.TermValue rev src  # قيمة شرط في تسهيل بنطاقها و
   TermTypeId          ->cmp.TermType req   # مفتاح OTHER + OtherLabel لشرط خارج الكتالوج (FR-CMP-004)
   OtherLabel          str(200)
   LimitId             ->fac.Limit via=FacilityId
-  LimitProductLineId  ->fac.LimitProductLine via=FacilityId
+  LimitProductLineId  ->fac.LimitProductLine via=FacilityId,LimitId   # DR-06: الخط من الحد نفسه
+  check LimitProductLineId IS NULL OR LimitId IS NOT NULL
   ProductId           ->cat.Product
   CompanyId           ->org.Company
   ValueState          enum{SPECIFIED,NOT_SPECIFIED_IN_AGREEMENT,NOT_APPLICABLE,UNKNOWN} req =SPECIFIED   # غير المحددة لا تُعامل صفرًا (BR-CMP-002)

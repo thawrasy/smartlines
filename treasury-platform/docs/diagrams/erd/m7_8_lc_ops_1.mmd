@@ -26,6 +26,7 @@ erDiagram
   }
   lc_LcAmendment["lc.LcAmendment"] {
     bigint LcAmendmentId PK
+    bigint CompanyId FK
     bigint LcId FK
     bigint RequestId FK
     bigint TermsId FK
@@ -34,19 +35,19 @@ erDiagram
   }
   lc_LcDrawing["lc.LcDrawing"] {
     bigint LcDrawingId PK
+    bigint CompanyId FK
     bigint LcId FK
     int CurrencyId FK
     bigint SettlementAccountId FK
     bigint RequestId FK
-    integer DrawingNo
   }
   lc_LcSalesOrder["lc.LcSalesOrder"] {
     bigint LcSalesOrderId PK
+    bigint CompanyId FK
     bigint LcId FK
     bigint RequestId FK
     int CurrencyId FK
     varchar OrderRef
-    date OrderDate
   }
   lc_LcDrawingAllocation["lc.LcDrawingAllocation"] {
     bigint LcDrawingAllocationId PK
@@ -130,6 +131,9 @@ erDiagram
   lc_LetterOfCredit ||--o{ lc_LcExternalRef : "LcId"
   lc_LetterOfCredit ||--o{ lc_LcSalesOrder : "LcId"
   lc_ProformaInvoice |o--o{ lc_LetterOfCredit : "ProformaId"
+  org_Company ||--o{ lc_LcAmendment : "CompanyId"
+  org_Company ||--o{ lc_LcDrawing : "CompanyId"
+  org_Company ||--o{ lc_LcSalesOrder : "CompanyId"
   org_Company ||--o{ lc_LetterOfCredit : "CompanyId"
   ref_Currency ||--o{ lc_LcAmendment : "CurrencyId"
   ref_Currency ||--o{ lc_LcDrawing : "CurrencyId"

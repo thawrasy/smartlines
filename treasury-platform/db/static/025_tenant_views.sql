@@ -15,3 +15,14 @@ AS
 GO
 GRANT SELECT ON plat.v_CurrentTenant TO [tp_app];
 GO
+
+/* DR-01: الوحدات المفعّلة للمشترك ملكية المنصة (عالمي، بلا منح للتطبيق على الجدول)؛
+   يقرأ تطبيق المشترك صفوفه عبر هذا العرض فقط، ولا يكتبها إلا مشغّل المنصة (007). */
+CREATE OR ALTER VIEW plat.v_TenantModule
+AS
+    SELECT m.TenantId, m.ModuleCode, m.IsEnabled, m.EnabledAt
+    FROM plat.TenantModule AS m
+    WHERE m.TenantId = CAST(SESSION_CONTEXT(N'TenantId') AS INT);
+GO
+GRANT SELECT ON plat.v_TenantModule TO [tp_app];
+GO

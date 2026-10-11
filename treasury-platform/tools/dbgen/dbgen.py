@@ -18,7 +18,7 @@ class ModelError(Exception): pass
 class Col:
     def __init__(self, name):
         self.name = name; self.type = None; self.sqltype = None; self.pgtype = None
-        self.req = False; self.default = None; self.fk = None; self.via = []
+        self.req = False; self.default = None; self.fk = None; self.via = []; self.via_t = []
         self.cascade = False; self.noidx = False; self.enum = None; self.sens = None
         self.comment = ''; self.calc = None; self.auto = False; self.is_json = False
         self.src_line = None; self.isset = False; self.is_bool = False; self.baretype = None
@@ -165,7 +165,10 @@ def parse_files(paths):
                 elif tk == 'opt': col.req = False
                 elif tk == 'cascade': col.cascade = True
                 elif tk == 'noidx': col.noidx = True
-                elif tk.startswith('via='): col.via = [v for v in tk[4:].split(',') if v]
+                elif tk.startswith('via='):
+                    # via=A,B : العمود نفسه في الطرفين · via=A>B : عمود A في الابن يقابل B في الأب (مثال: ثابت الغرض)
+                    pairs = [v.split('>', 1) if '>' in v else [v, v] for v in tk[4:].split(',') if v]
+                    col.via = [a for a, _ in pairs]; col.via_t = [b for _, b in pairs]
                 elif tk.startswith('sens='): col.sens = tk[5:]
                 elif tk.startswith('='):
                     col.default = tk[1:]
@@ -251,8 +254,9 @@ def resolve(tables, allow_missing=False):
             if c.via:
                 for v in c.via:
                     if v not in t.colmap: errs.append(f'{c.src_line}: via column {v} missing on {t.fq}')
+                for v in c.via_t:
                     if v not in tgt.colmap: errs.append(f'{c.src_line}: via column {v} missing on target {tgt.fq}')
-                tgt.required_scopes.add(tuple(c.via))
+                tgt.required_scopes.add(tuple(c.via_t))
     if missing and not allow_missing:
         for k, v in missing.items(): errs.append(f'unresolved FK target {k} referenced by {", ".join(v[:6])}{" ..." if len(v)>6 else ""}')
     return errs, missing
@@ -375,7 +379,7 @@ class Emitter:
                     cols, rcols = [c.name], [tpk]
                 else:
                     cols = ['TenantId'] + c.via + [c.name]
-                    rcols = ['TenantId'] + c.via + [tpk]
+                    rcols = ['TenantId'] + c.via_t + [tpk]
                 nm = self.reg(t.schema, f'FK_{t.name}_{c.name}', c.src_line or t.fq)
                 p['fks'].append((nm, cols, tgt, rcols, c))
                 if not c.noidx:

@@ -3,10 +3,10 @@
 | البند | القيمة |
 |---|---|
 | الحالة | **مسودة للتقييم (الإصدار 0.3)** — تصميم قاعدة البيانات مع مخططات ERD مهنية (تدوين Crow's Foot) ومواصفات الجداول والعلاقات، مُولَّدة من النموذج |
-| التاريخ | 2026-10-10 |
+| التاريخ | 2026-10-11 |
 | المحرك المعتمد | **SQL Server 2025** |
 | المرجع | `db/model/*.model` (194 جدولًا في 20 مخططًا) — الملفات المولَّدة لا تُعدَّل يدويًا |
-| الدعم | `tools/dbgen/erd_pro.py` · `tools/dbgen/build_erd_doc.py` · `tools/dbgen/check_grants.py` |
+| الدعم | `tools/dbgen/erd_mermaid.py` (المخططات) · `tools/dbgen/build_erd_doc.py` · `tools/dbgen/check_grants.py` · `tools/dbgen/check_review_fixes.py` |
 
 ## 0. سجل التعديلات (الإصدار 0.2)
 
@@ -25,6 +25,7 @@
 | C-9 | إضافة `tools/dbgen/check_grants.py`: تحقق ثابت من قواعد الصلاحيات والتشفير (§14) | لا يُعتمد على المراجعة اليدوية وحدها |
 | C-10 | إضافة مخططات العلاقات والعزل والأدوار ودورة الطلب (صور تُولَّد من النموذج بـ`tools/dbgen/erd.py`)، ومنها مخطط العلاقات الأساسية في §3.7 ومخططات الوحدات في §10.2 | طُلب توضيح العلاقات بين الجداول وعزل المشتركين بمخطط لا بنص وحده |
 | C-11 | إعادة بناء الوثيقة كـ **DATABASE DESIGN AND ERD**: مخططات Crow's Foot مهنية، ومواصفة لكل جدول ولكل علاقة، مُولَّدة من النموذج بدل الصور البسيطة السابقة | طُلب ERD بمستوى مهني ومواصفات كاملة لكل جدول ومودول وعلاقة |
+| C-12 | تطبيق الإصلاحات الحرجة العشرة من مراجعة التصميم (DR-01 إلى DR-10) على النموذج والـDDL: كتالوجات القيم مملوكة للمشترك بنسخ لكل مشترك (DR-03/05/07)، ومفتاح الغرض في مفاتيح التشفير (DR-02)، والمالك المتعدد بأقواس خارجية (DR-04)، وربط المراجع بالتسهيل والشركة والقالب (DR-06/09/10)، وتصنيف `Collateral.Attributes` (DR-08)، و`plat.TenantModule` مملوك للمنصة (DR-01) | المراجع في الجداول المختلطة وبعض المفاتيح الأجنبية لا تُقيَّد بالنطاق (المشترك أو الغرض أو التسهيل أو الشركة)، فيقبل قيد المفتاح قيمة من خارج النطاق (§18) |
 
 **مرفوض:** اقتراح تقرير Technical Evaluation بـ.NET 9، لأن قرار المشروع `.NET 10 LTS` (`01` §13) ويبقى كما هو. **مؤجَّل:** أدوات الترحيل (O-2)، ومرساة سلسلة التدقيق (O-13)، وRPO/RTO (O-14)، ومكدّس الواجهات (خارج نطاق وثيقة القاعدة). **لم يُعتمد** الادعاء بأن القيود وحدها تضمن سلامة الحجز؛ الحجز يبقى ذريًا بالقفل في طبقة التطبيق (§7.1).
 
@@ -39,14 +40,14 @@
 | المؤشر | القيمة |
 |---|---|
 | جداول | **194** في 20 مخططًا |
-| أعمدة | 3,261 مُعرَّفة في النماذج + الأعمدة الآلية = **3,787** في DDL |
-| مفاتيح أجنبية | **750** = 184 لملكية المشترك (`TenantId → plat.Tenant`) + **485 مركّبة** `(TenantId, …)` بين جداول المشترك + 81 بسيطة نحو جداول عالمية/مختلطة |
-| فهارس | 675 غير مجمّع (196 مصفّاة · 47 بأعمدة `INCLUDE`) |
-| قيود | 1,145 `CHECK` (قوائم قيم وتناسق حقول وتواريخ وأطوال الأغلفة المشفّرة) · 387 قيد `UNIQUE` + فهارس فريدة مصفّاة |
+| أعمدة | 3,280 مُعرَّفة في النماذج + الأعمدة الآلية = **3,804** في DDL |
+| مفاتيح أجنبية | **763** = 184 لملكية المشترك (`TenantId → plat.Tenant`) + **515 مركّبة** `(TenantId, …)` بين جداول المشترك + 64 بسيطة نحو جداول عالمية/مختلطة |
+| فهارس | 700 غير مجمّع (206 مصفّاة · 47 بأعمدة `INCLUDE`) |
+| قيود | 1,158 `CHECK` (قوائم قيم وتناسق حقول وتواريخ وأطوال الأغلفة المشفّرة) · 387 قيد `UNIQUE` + 128 فهرسًا فريدًا |
 | جداول بمعرّف عام `PublicId` | 38 (جذور التجميعات المعرَّضة عبر API) |
-| جداول خاضعة لعزل الصفوف RLS | 184 (183 بسياسة عامة + `aud.AuditLog` بسياسة خاصة؛ الـ10 العالمية خارجها) |
-| أعمدة محجوبة عن دور التقارير | 28 |
-| جداول محجوبة كليًا عن تطبيق المشترك (`noapp`) | 3 (`plat.Tenant` و`plat.PlatformOperator` و`plat.ReservedSubdomain`) |
+| جداول خاضعة لعزل الصفوف RLS | 183 (180 مملوكة للمشترك + 3 مختلطة، منها `aud.AuditLog` بسياسة خاصة؛ الـ11 العالمية خارجها) |
+| أعمدة محجوبة عن دور التقارير | 29 |
+| جداول محجوبة كليًا عن تطبيق المشترك (`noapp`) | 4 (`plat.Tenant` و`plat.PlatformOperator` و`plat.ReservedSubdomain` و`plat.TenantModule`؛ يقرأ التطبيق وحدات مشتركه عبر `plat.v_TenantModule`) |
 
 ---
 
@@ -74,7 +75,7 @@
 
 ### 3.1 الطبقات الأربع
 1. **بنية:** كل جدول مملوك للمشترك فيه `TenantId INT NOT NULL` مع `FK` إلى `plat.Tenant`.
-2. **مفاتيح مركّبة:** كل جدول يملك `UNIQUE (TenantId, <Id>)` هدفًا، وكل مرجع بين جدولين للمشترك **مركّب** `(TenantId, [أعمدة النطاق…], Col) → (TenantId, [أعمدة النطاق…], Id)`. يستحيل ربط سجل بسجل مشترك آخر **حتى لو أخطأ التطبيق**. و**أعمدة النطاق `via=`** تمنع الربط عبر تجميعتين داخل المشترك نفسه: حد أب من تسهيل آخر، حجز على خط منتج من حد آخر، مرحلة من قالب آخر… (73 مفتاحًا من الـ485 المركّبة تحمل أعمدة نطاق).
+2. **مفاتيح مركّبة:** كل جدول يملك `UNIQUE (TenantId, <Id>)` هدفًا، وكل مرجع بين جدولين للمشترك **مركّب** `(TenantId, [أعمدة النطاق…], Col) → (TenantId, [أعمدة النطاق…], Id)`. يستحيل ربط سجل بسجل مشترك آخر **حتى لو أخطأ التطبيق**. و**أعمدة النطاق `via=`** تمنع الربط عبر تجميعتين داخل المشترك نفسه: حد أب من تسهيل آخر، حجز على خط منتج من حد آخر، مرحلة من قالب آخر… (88 مفتاحًا من الـ515 المركّبة تحمل أعمدة نطاق).
 3. **عزل الصفوف RLS** (`db/static/010_rls.sql`): سياسة أمنية لكل جدول؛ ترشيح وحجب إدراج/تعديل بالمعيار `TenantId = SESSION_CONTEXT('TenantId')`.
 4. **ربط الهوية بالمشترك** داخل `sec.usp_SetSessionContext` (§3.2): لا يكفي أن يكون المشترك موجودًا؛ يجب أن يكون المستخدم نشطًا وينتمي إليه.
 
@@ -96,34 +97,34 @@
 ### 3.3 أنواع النطاق
 | النوع | علامة النموذج | الجداول | القراءة (tp_app) | الكتابة (tp_app) | الكتابة (tp_platform) |
 |---|---|---|---|---|---|
-| مملوك للمشترك | (افتراضي) | 179 | صفوف مشتركه | صفوف مشتركه | **لا وصول مباشر** |
-| عالمي | `global` | 10 | الكل (ما عدا `noapp`) | **لا** | نعم |
-| عالمي محجوب | `global noapp` | 3 (`plat.Tenant`، `plat.PlatformOperator`، `plat.ReservedSubdomain`) | **لا وصول** (يُقرأ صف المشترك عبر §3.6) | لا | نعم |
-| مختلط | `mixed` | 5 | صفوف المنصة (`TenantId IS NULL`) + صفوف مشتركه | صفوف مشتركه فقط | صفوف المنصة وغيرها |
+| مملوك للمشترك | (افتراضي) | 180 | صفوف مشتركه | صفوف مشتركه | **لا وصول مباشر** |
+| عالمي | `global` | 7 | الكل (ما عدا `noapp`) | **لا** | نعم |
+| عالمي محجوب | `global noapp` | 4 (`plat.Tenant`، `plat.PlatformOperator`، `plat.ReservedSubdomain`، `plat.TenantModule`) | **لا وصول** (يُقرأ صف المشترك عبر §3.6، ووحدات الاشتراك عبر `plat.v_TenantModule`) | لا | نعم |
+| مختلط | `mixed` | 3 (`aud.AuditLog`، `cfg.NonWorkingDay`، `ref.UcpArticle`) | صفوف المنصة (`TenantId IS NULL`) + صفوف مشتركه | صفوف مشتركه فقط | صفوف المنصة وغيرها |
 
 قيدان بنيويان يفرضهما المولّد: لا جدول عالمي أو مختلط يشير إلى جدول مملوك (يُرفض عند التوليد)، والمراجع نحو العالمي/المختلط مفاتيح بسيطة.
 
 ### 3.4 سياسة خاصة لـ `aud.AuditLog`
-جدول مختلط ودلالته مختلفة عن الكتالوجات (BR-PLT-001/009):
+`aud.AuditLog` جدول مختلط بسياسة خاصة (BR-PLT-001/009):
 - **القراءة:** المشترك يرى صفوفه فقط. صفوف `TenantId IS NULL` (أحداث المنصة) **لأعضاء `tp_platform` فقط**.
 - **الكتابة (إدراج فقط):** `TenantId` الخاص بالمشترك أو `NULL` لحدث منصة؛ لا تعديل ولا حذف (`UPDATE` ممنوع لكل الأدوار بالمنح والـ`DENY`).
 - الدوال: `rls.fn_AuditRead` و`rls.fn_AuditWrite`، والسياسة `rls.TP_aud_AuditLog`.
 
 ### 3.5 مشغّلو المنصة والدعم
-- **`tp_platform` لا يملك وصولًا مباشرًا لجداول المشتركين** (C-4). يكتب على الكتالوجات العالمية والمختلطة وجداول `plat`، ويقرأ/يكتب سجلات المنصة في `aud`. هذا يعني أن التعديل على بيانات مشترك لا يُمكن إلا عبر **إجراءات مُراجَعة** للمنصة (تُحدَّد في S0 — O-12).
+- **`tp_platform` لا يملك وصولًا مباشرًا لجداول المشتركين** (C-4). يكتب على الجداول العالمية (بما فيها `plat` المحجوبة) وعلى صفوف المنصة في الجداول المختلطة الثلاثة (§3.3)، ويقرأ/يكتب سجلات المنصة في `aud`. هذا يعني أن التعديل على بيانات مشترك لا يُمكن إلا عبر **إجراءات مُراجَعة** للمنصة (تُحدَّد في S0 — O-12).
 - **وصول الدعم** إلى بيانات مشترك يمر عبر `plat.SupportAccessGrant`: يفعّله مستخدم من المشترك لمشغّل محدد، بنافذة زمنية (ساعة إلى 72 ساعة، الافتراضي 4) وسبب إلزامي، ويُلغى بـ`RevokedAt/By`، ويُسجَّل في `aud.AuditLog` بشدة عالية (BR-PLT-009). **تفعيل الإجراء الذي يتحقق من المنحة قبل أي وصول هو شرط S0**، لأن القاعدة وحدها لا تفرضه قبل إنشاء تلك الإجراءات.
 - دور `tp_platform` **يتجاوز RLS** لكنه لا يملك جداول مشتركين يتجاوزها؛ التجاوز يبقى في دوال السياسات للكتالوجات المختلطة وسجل التدقيق.
 
 ### 3.6 قراءة صف المشترك للتطبيق
-`plat.Tenant` محجوب عن `tp_app` (`noapp`). يقرأ التطبيق صف مشتركه من العرض `plat.v_CurrentTenant` الذي يرشّح بـ`SESSION_CONTEXT('TenantId')`، فلا يرى أي مشترك آخر ولا قائمة المشتركين. العرض يملكه نفس مالك الجدول الأساسي، فتعمل سلسلة الملكية دون منح للجدول.
+`plat.Tenant` محجوب عن `tp_app` (`noapp`). يقرأ التطبيق صف مشتركه من العرض `plat.v_CurrentTenant` الذي يرشّح بـ`SESSION_CONTEXT('TenantId')`، فلا يرى أي مشترك آخر ولا قائمة المشتركين. العرض يملكه نفس مالك الجدول الأساسي، فتعمل سلسلة الملكية دون منح للجدول. وكذلك وحدات الاشتراك `plat.TenantModule` (مملوكة للمنصة ويكتبها مشغّلوها فقط، DR-01) تُقرأ عبر العرض المماثل `plat.v_TenantModule` بالترشيح نفسه.
 
 ---
 
 ### 3.7 العلاقات الأساسية: المشترك والمستخدمون والصلاحيات
 
-يوضح المخطط كيف يرتبط المشترك (`plat.Tenant`، المركز المميَّز بالأصفر) بالمستخدمين والأدوار والصلاحيات ومفتاح تشفيره وشركاته. الأسهم المتصلة **مفاتيح أجنبية فعلية** مع اسم العمود عليها. الجداول المملوكة للمشترك مجمّعة في عنقود أزرق، وكلها تحمل `TenantId` يشير إلى `plat.Tenant` بسهم واحد ذهبي؛ وبذلك لا تتقاطع الأسهم المتكررة فوق بعضها.
+يوضح المخطط كيف يرتبط `plat.Tenant` بالمستخدمين والأدوار والصلاحيات ومفتاح تشفيره وشركاته ووحداته. كل خط **مفتاح أجنبي فعلي** ويحمل اسم عمود الربط، والجداول مرسومة بمفاتيحها (`PK` و`FK` و`UK`) فقط. عمود `TenantId` الذي تحمله جداول المشترك كلها وإشارته إلى `plat.Tenant` **لم يُرسم في كل جدول** لتفادي الازدحام، وترد كاملة في جداول المواصفات (§10). الجداول خارج المجموعة تظهر بمفتاحها فقط.
 
-![العلاقات الأساسية: المشترك والمستخدمون والأدوار والصلاحيات والمفاتيح](diagrams/erd_00_core_tenancy.png)
+![العلاقات الأساسية: المشترك والمستخدمون والأدوار والصلاحيات والمفاتيح](diagrams/erd/core_tenancy.png)
 
 ## 4. الاتفاقيات (Conventions)
 
@@ -168,13 +169,14 @@
 ## 6. حماية البيانات الحساسة
 
 ### 6.1 ما يُخزَّن
-| الجدول | العمود المشفّر | مفتاح البيانات | مفتاح الفهرسة (HMAC) |
+| الجدول | العمود المشفّر | مفتاح البيانات (المرجع + الغرض) | مفتاح الفهرسة HMAC (المرجع + الغرض) |
 |---|---|---|---|
-| `pty.IdentityDocument` | `NumberEnc` | `EncKeyId` | `HashKeyId` ← `NumberHash` |
-| `pty.PartyCustomField` | `ValueEnc` (للحقل المقيَّد) | `EncKeyId` | — |
-| `acc.BankAccount` | `AccountNoEnc`، `IbanEnc` | `EncKeyId` | `HashKeyId` ← `AccountNoHash`، `IbanHash` |
-| `lc.LcTerms` | `BeneficiaryAccountIbanEnc` | `EncKeyId` | `HashKeyId` ← `BeneficiaryAccountIbanHash` |
-| `sec.AppUser` | `MfaSecretEnc` | `MfaKeyId` | — |
+| `pty.IdentityDocument` | `NumberEnc` | `EncKeyPurpose` = `DATA` → `EncKeyId` | `HashKeyPurpose` = `BLIND_INDEX` → `HashKeyId` ← `NumberHash` |
+| `pty.PartyCustomField` | `ValueEnc` (للحقل المقيَّد) | `EncKeyPurpose` = `DATA` → `EncKeyId` | — |
+| `acc.BankAccount` | `AccountNoEnc`، `IbanEnc` | `EncKeyPurpose` = `DATA` → `EncKeyId` | `HashKeyPurpose` = `BLIND_INDEX` → `HashKeyId` ← `AccountNoHash`، `IbanHash` |
+| `lc.LcTerms` | `BeneficiaryAccountIbanEnc` | `EncKeyPurpose` = `DATA` → `EncKeyId` | `HashKeyPurpose` = `BLIND_INDEX` → `HashKeyId` ← `BeneficiaryAccountIbanHash` |
+| `sec.AppUser` | `MfaSecretEnc` | `MfaKeyPurpose` = `DATA` → `MfaKeyId` | — |
+| `doc.DocumentVersion` | ملف الهوية في مخزن خارجي (`StorageKey`، `Sha256`) | `KeyPurpose` = `FILE` → `KeyId` | — |
 | `plat.PlatformOperator` | `MfaSecretEnc` | `MfaKeyRef` (مفتاح المنصة في KMS وإصداره) | — |
 | `sec.TenantKey` | `WrappedKey` | مغلَّف بمفتاح رئيسي خارج القاعدة (`MasterKeyRef`) | — |
 
@@ -193,6 +195,7 @@
 - **أدنى طول للغلاف = 29 بايت**، ويفرضه `CHECK DATALENGTH(...) >= 29` على كل عمود مشفّر.
 - **AAD** (البيانات المصادَقة غير المشفّرة): `TenantId` (4 بايت، big-endian) ‖ اسم الجدول ‖ اسم العمود ‖ **المعرّف الثابت للصف**. هذا يمنع نقل نص مشفّر من مشترك إلى آخر أو من عمود إلى آخر. المعرّف الثابت يُحدَّد لكل جدول في S0 (إن لم يكن للجدول `PublicId` يُستعمل المفتاح الأساسي بعد الإدراج، فتُكتب القيمة المشفّرة في المعاملة نفسها).
 - **إصدار المفتاح:** عمود المفتاح في الصف (`EncKeyId`/`MfaKeyId`/`MfaKeyRef`) يحدد نسخة المفتاح التي شُفِّر بها الصف. القيد `CHECK` يفرض وجود عمود المفتاح عند وجود القيمة المشفّرة.
+- **غرض المفتاح:** بجانب كل مفتاح عمود ثابت للغرض (`EncKeyPurpose = DATA`، `HashKeyPurpose = BLIND_INDEX`، `MfaKeyPurpose = DATA`، `KeyPurpose = FILE`)، والمفتاح الأجنبي إليه **مركّب** `(TenantId، الغرض، معرّف المفتاح)` إلى `sec.TenantKey(TenantId, Purpose, TenantKeyId)`. لا يمكن بذلك ربط مفتاح فهرسة بعمود تشفير، ولا مفتاح مشترك آخر (DR-02).
 - **الطول والصيغة يتحقق منهما التطبيق**؛ القاعدة تفرض الحد الأدنى فقط.
 
 ### 6.3 التدوير وإعادة التشفير
@@ -207,7 +210,7 @@
 |---|---|
 | **المفاتيح** | `sec.TenantKey`: لكل مشترك مفاتيح بأغراض `DATA` / `BLIND_INDEX` / `FILE` وإصدارات؛ `WrappedKey` **ملفوف بمفتاح رئيسي خارج القاعدة**؛ مفتاح `ACTIVE` واحد لكل غرض؛ التدوير بحالة `RETIRING` |
 | **كلمات المرور والرموز** | تُخزَّن **بصمات** فقط (`PasswordHash`, `TokenHash`, `CodeHash`) وأسرار MFA مشفّرة؛ `sec.UserPasswordHistory` لمنع إعادة الاستخدام |
-| **حجب عن التقارير** | `DENY SELECT` على 28 عمودًا موسومة `sens=restricted` للدور `tp_readonly` (`006`) |
+| **حجب عن التقارير** | `DENY SELECT` على 29 عمودًا موسومة `sens=restricted` للدور `tp_readonly` (`006`) |
 | **صور الهوية** | ملفات في مخزن خارج القاعدة: `doc.DocumentVersion` بـ`StorageKey` معزول لكل مشترك، و`Sha256` يحسبه الخادم، و`KeyId → sec.TenantKey` بمفتاح `FILE`، وفحص `ScanStatus` — لا يُنزَّل إلا `CLEAN`. عرضها بصلاحية `party.identity.image.view` وسبب |
 | **من يرى الأرقام كاملة** | مدير الخزينة وموظف التسهيلات فقط (`04` §9.4)؛ غيرهما يرى `NumberMask`. يُطبَّق بالصلاحيات في طبقة التطبيق، والقاعدة تضمن أن لا شيء يُقرأ نصًّا صريحًا |
 
@@ -219,7 +222,7 @@
 
 | المستوى | ما يضمنه | أين |
 |---|---|---|
-| **مرجعي** | كل مرجع مفتاح أجنبي (750)، والمركّب يمنع العبور بين المشتركين والتجميعات | `002_foreign_keys.sql` |
+| **مرجعي** | كل مرجع مفتاح أجنبي (763)، والمركّب يمنع العبور بين المشتركين والتجميعات | `002_foreign_keys.sql` |
 | **حالة** | قيم الحالات والأنواع `CHECK IN` | `001_tables.sql` |
 | **تناسق الحقول** | مبلغ مطلق أو نسبة من الأب (حسب `AmountBasis`)، ترتيب التواريخ، `ExposureAmount >= Amount`، `LcClass` يقيّد الحقول، **لا إكمال طلب بلا إقفال من الخزينة** (§11)، وأطوال الأغلفة المشفّرة | `CHECK` على الجداول |
 | **فرادة** | رموز الكتالوج، الرقم الداخلي، **فريد بين الجاري فقط** (`WHERE ToRevision IS NULL`)، **حجز فعّال واحد لكل طلب**، **تحويل حجز واحد لكل استخدام**، وإعادة إرسال أمر الحجز لا تكرّره (`IdempotencyKey` فريد)، و**دورة عمل واحدة مفتوحة** بالفهرس المصفّى | `UNIQUE` وفهارس فريدة مصفّاة |
@@ -258,7 +261,7 @@
 ### 9.1 الأدوار
 | الدور | الغرض | الصلاحيات (ملخص؛ التفصيل الجدولي في 007) |
 |---|---|---|
-| `tp_app` | حساب تشغيل تطبيق المشترك | **المشترك والمختلط:** `SELECT, INSERT, UPDATE` (RLS يقصر الصفوف على المشترك) · **العالمي:** `SELECT` فقط · **للإضافة فقط:** `SELECT, INSERT` · **`noapp`:** لا شيء · **`plat.v_CurrentTenant`:** `SELECT` · الحذف الفعلي على `deletable` فقط · `EXECUTE` على `sec.usp_SetSessionContext` فقط · لا `REFERENCES` · لا منح على مستوى المخطط |
+| `tp_app` | حساب تشغيل تطبيق المشترك | **المشترك والمختلط:** `SELECT, INSERT, UPDATE` (RLS يقصر الصفوف على المشترك) · **العالمي:** `SELECT` فقط · **للإضافة فقط:** `SELECT, INSERT` · **`noapp`:** لا شيء · **`plat.v_CurrentTenant` و`plat.v_TenantModule`:** `SELECT` · الحذف الفعلي على `deletable` فقط · `EXECUTE` على `sec.usp_SetSessionContext` فقط · لا `REFERENCES` · لا منح على مستوى المخطط |
 | `tp_platform` | مشغّلو المنصة | **العالمي والمختلط:** `SELECT, INSERT, UPDATE` (للإضافة فقط: `SELECT, INSERT`) · **جداول المشتركين: لا شيء** · لا حذف · `DENY UPDATE` على جداول الإضافة فقط |
 | `tp_auth` | داخلي بلا تسجيل دخول | `SELECT` على `sec.AppUser` و`plat.Tenant` فقط؛ يُنفَّذ به `usp_SetSessionContext` فقط (`EXECUTE AS`) |
 | `tp_readonly` | تقارير/تحليل | `SELECT` على كل المخططات دون الأعمدة الحساسة (`006`)؛ `DENY SELECT` على `plat.PlatformOperator` كليًا |
@@ -327,7 +330,7 @@
 | `plat.ReservedSubdomain` | عناوين فرعية محجوزة للنظام: www · admin · api · app… (FR-PLT-046) | ReservedSubdomainId | 0 | 0 | 1 | 5 |
 | `plat.SupportAccessGrant` | وصول الدعم المؤقت يفعّله مدير حساب المشترك (FR-PLT-007، BR-PLT-017) | SupportAccessGrantId | 3 | 0 | 1 | 7 |
 | `plat.Tenant` | لا وصول مباشر لتطبيق المشترك (يقرأ صفّه عبر plat.v_CurrentTenant) · جذر العزل: المشترك (FR-PLT-001/002/046، BR-PLT-001/002) | TenantId | 2 | 0 | 6 | 17 |
-| `plat.TenantModule` | الوحدات المفعّلة للمشترك (FR-PLT-003، BR-PLT-003) | TenantModuleId | 1 | 0 | 1 | 6 |
+| `plat.TenantModule` | الوحدات المفعّلة لكل مشترك؛ ملكية المنصة فقط: لا يكتبها تطبيق المشترك ويقرؤها عبر عرض مُحدَّد (DR-01) | TenantModuleId | 2 | 0 | 1 | 6 |
 
 **العلاقات (المفاتيح الأجنبية)**
 
@@ -339,7 +342,8 @@
 | `plat.SupportAccessGrant.RevokedBy` | `sec.AppUser` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `plat.Tenant.PlanId` | `plat.Plan` | 1 : N | إلزامي | عام | قيد | — |
 | `plat.Tenant.HomeCountryId` | `ref.Country` | 1 : N | إلزامي | عام | قيد | — |
-| `plat.TenantModule.EnabledBy` | `plat.PlatformOperator` | 1 : N | اختياري | مرجع عام | قيد | — |
+| `plat.TenantModule.TenantId` | `plat.Tenant` | 1 : N | إلزامي | عام | قيد | — |
+| `plat.TenantModule.EnabledBy` | `plat.PlatformOperator` | 1 : N | اختياري | عام | قيد | — |
 
 #### م0 · الهوية والصلاحيات
 
@@ -351,7 +355,7 @@
 
 | الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
 |---|---|---|---|---|---|---|
-| `sec.AppUser` | مستخدم بوابة المشترك (FR-PLT-010..016، BR-PLT-004..006) | AppUserId | 3 | 0 | 10 | 26 |
+| `sec.AppUser` | مستخدم بوابة المشترك (FR-PLT-010..016، BR-PLT-004..006) | AppUserId | 3 | 0 | 10 | 27 |
 | `sec.Role` | دور يخصصه المشترك أو مبذور (FR-PLT-018) | RoleId | 0 | 0 | 1 | 11 |
 | `sec.Permission` | كتالوج الصلاحيات تملكه المنصة؛ لا يضيف المشترك صلاحية (FR-PLT-017) | PermissionId | 0 | 0 | 1 | 11 |
 | `sec.RolePermission` | ربط دور-صلاحية؛ PERMISSION_LOCKED يُفرض في الخدمة (BR-PLT-019) | RoleId, PermissionId | 3 | 0 | 0 | 5 |
@@ -365,7 +369,7 @@
 |---|---|---|---|---|---|---|
 | `sec.AppUser.DepartmentId` | `org.Department` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `sec.AppUser.LineManagerUserId` | `sec.AppUser` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
-| `sec.AppUser.MfaKeyId` | `sec.TenantKey` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
+| `sec.AppUser.MfaKeyId` | `sec.TenantKey` | 1 : N | اختياري | مشترك · مركّب | قيد | MfaKeyPurpose |
 | `sec.RolePermission.RoleId` | `sec.Role` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `sec.RolePermission.PermissionId` | `sec.Permission` | 1 : N | إلزامي | مرجع عام | قيد | — |
 | `sec.RolePermission.AssignedBy` | `sec.AppUser` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
@@ -391,7 +395,7 @@
 | `sec.MfaRecoveryCode` | 10 رموز استرداد لمرة واحدة مُجزَّأة (FR-PLT-011، BR-PLT-006؛ بديل AppUser.RecoveryCodesHash json) | MfaRecoveryCodeId | 1 | 0 | 0 | 6 |
 | `sec.UserToken` | رابط دعوة (48 ساعة) أو إعادة تعيين كلمة المرور (30 دقيقة) لمرة واحدة (FR-PLT-013) | UserTokenId | 2 | 0 | 0 | 12 |
 | `sec.UserPasswordHistory` | آخر 5 كلمات مرور لمنع إعادة استعمالها (BR-PLT-004) | UserPasswordHistoryId | 1 | 0 | 0 | 2 |
-| `sec.TenantKey` | سجل مفاتيح المشترك؛ المفتاح ملفوف بمفتاح رئيسي خارج القاعدة (FR-PLT-037، BR-PLT-015) | TenantKeyId | 0 | 0 | 1 | 11 |
+| `sec.TenantKey` | سجل مفاتيح المشترك؛ المفتاح ملفوف بمفتاح رئيسي خارج القاعدة (FR-PLT-037، BR-PLT-015) | TenantKeyId | 0 | 0 | 3 | 11 |
 | `sec.KeyEvent` | سجل أحداث المفاتيح: إنشاء وتدوير وإبطال (FR-PLT-037؛ شدة عالية BR-PLT-009) | KeyEventId | 1 | 0 | 0 | 7 |
 
 **العلاقات (المفاتيح الأجنبية)**
@@ -421,7 +425,7 @@
 | `aud.SensitiveAccessLog` | كشف الهويات والصور والتصدير والتنزيل المقيّد؛ لكشف الشذوذ >20/ساعة وR-PLT-3 (BR-PTY-009) | SensitiveAccessLogId | 2 | 0 | 3 | 15 |
 | `doc.Document` | المستند المنطقي: بيانات المستند وحالته؛ الملف في doc.DocumentVersion (FR-PLT-027/028، BR-PLT-011) | DocumentId | 5 | 0 | 4 | 15 |
 | `doc.DocumentLink` | ربط مستند بأي كيان بدور وصفحة مرجعية؛ إلغاء الربط منطقي (FR-PLT-028) | DocumentLinkId | 2 | 0 | 1 | 9 |
-| `doc.DocumentVersion` | إصدار ثابت من الملف؛ لا يُستبدل بل يُنشأ إصدار جديد (FR-PLT-027، BR-PLT-011) | DocumentVersionId | 2 | 0 | 3 | 14 |
+| `doc.DocumentVersion` | إصدار ثابت من الملف؛ لا يُستبدل بل يُنشأ إصدار جديد (FR-PLT-027، BR-PLT-011) | DocumentVersionId | 2 | 0 | 3 | 15 |
 
 **العلاقات (المفاتيح الأجنبية)**
 
@@ -437,7 +441,7 @@
 | `doc.DocumentLink.DocumentId` | `doc.Document` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `doc.DocumentLink.UnlinkedBy` | `sec.AppUser` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `doc.DocumentVersion.DocumentId` | `doc.Document` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
-| `doc.DocumentVersion.KeyId` | `sec.TenantKey` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
+| `doc.DocumentVersion.KeyId` | `sec.TenantKey` | 1 : N | إلزامي | مشترك · مركّب | قيد | KeyPurpose |
 
 #### م0 · الإعدادات والمهام الخلفية (1/2)
 
@@ -573,17 +577,17 @@
 |---|---|---|---|---|---|---|
 | `org.CompanyProfile.CompanyId` | `org.Company` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `org.CompanyProfile.HeadquartersCountryId` | `ref.Country` | 1 : N | اختياري | مرجع عام | قيد | — |
-| `org.CompanyProfile.SectorId` | `cat.LookupItem` | 1 : N | اختياري | مرجع عام | قيد | — |
-| `org.CompanyProfile.EmployeeBandId` | `cat.LookupItem` | 1 : N | اختياري | مرجع عام | قيد | — |
+| `org.CompanyProfile.SectorId` | `cat.LookupItem` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
+| `org.CompanyProfile.EmployeeBandId` | `cat.LookupItem` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `org.CompanyBranch.CompanyId` | `org.Company` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `org.CompanyBranch.CountryId` | `ref.Country` | 1 : N | اختياري | مرجع عام | قيد | — |
 | `org.CompanyKycFinancialProfile.CompanyId` | `org.Company` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
-| `org.CompanyKycFinancialProfile.RevenueBandId` | `cat.LookupItem` | 1 : N | اختياري | مرجع عام | قيد | — |
+| `org.CompanyKycFinancialProfile.RevenueBandId` | `cat.LookupItem` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `org.CompanyKycFinancialProfile.AccountCurrencyId` | `ref.Currency` | 1 : N | اختياري | مرجع عام | قيد | — |
 | `org.CompanyExpectedFlow.FinancialProfileId` | `org.CompanyKycFinancialProfile` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `org.CompanyExpectedFlow.CurrencyId` | `ref.Currency` | 1 : N | إلزامي | مرجع عام | قيد | — |
 | `org.CompanyWealthSource.FinancialProfileId` | `org.CompanyKycFinancialProfile` | 1 : N | إلزامي | مشترك · مركّب | CASCADE | — |
-| `org.CompanyWealthSource.WealthSourceId` | `cat.LookupItem` | 1 : N | إلزامي | مرجع عام | قيد | — |
+| `org.CompanyWealthSource.WealthSourceId` | `cat.LookupItem` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `org.CompanyDisclosure.CompanyId` | `org.Company` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `org.CompanyDisclosure.SourceDocumentId` | `doc.Document` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `org.CompanyKeyRelation.CompanyId` | `org.Company` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
@@ -598,10 +602,10 @@
 
 | الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
 |---|---|---|---|---|---|---|
-| `pty.Address` | عنوان متعدد الملكية: OwnerType+OwnerId بلا FK (مزوّد المالك يتحقق منه التطبيق) (FR-PTY-011، BR-PTY-015) | AddressId | 1 | 0 | 2 | 19 |
-| `pty.ContactMethod` | وسيلة اتصال متعددة الملكية (FR-PTY-012، BR-PTY-015) | ContactMethodId | 0 | 0 | 0 | 10 |
+| `pty.Address` | عنوان متعدد الملكية: OwnerType+OwnerId بلا FK (مزوّد المالك يتحقق منه التطبيق) (FR-PTY-011، BR-PTY-015) | AddressId | 5 | 0 | 3 | 17 |
+| `pty.ContactMethod` | وسيلة اتصال متعددة الملكية (FR-PTY-012، BR-PTY-015) | ContactMethodId | 4 | 0 | 1 | 8 |
 | `pty.CustomFieldDefinition` | تعريف حقل مخصص (FR-PTY-013، BR-PTY-014) | CustomFieldDefinitionId | 1 | 0 | 1 | 12 |
-| `pty.IdentityDocument` | وثيقة هوية؛ الرقم مشفّر والصور مستندات مقيَّدة (FR-PTY-004..009، FR-PTY-020..022، BR-PTY-002..008) | IdentityDocumentId | 6 | 0 | 5 | 16 |
+| `pty.IdentityDocument` | وثيقة هوية؛ الرقم مشفّر والصور مستندات مقيَّدة (FR-PTY-004..009، FR-PTY-020..022، BR-PTY-002..008) | IdentityDocumentId | 6 | 0 | 5 | 18 |
 | `pty.KycProfile` | قائمة اكتمال KYC لكل بنك ودور (FR-PTY-023، BR-PTY-012..013، G-8، G-14) | KycProfileId | 2 | 0 | 3 | 13 |
 | `pty.KycProfileItem` | بند اكتمال (FR-PTY-023، FR-PTY-024، G-14) | KycProfileItemId | 1 | 0 | 2 | 14 |
 | `pty.KycProfileItemLegalForm` | شروط ظهور البند بحسب الشكل القانوني؛ غياب الصفوف = ينطبق على الكل (G-15) | KycProfileItemId, LegalEntityTypeId | 2 | 0 | 0 | 4 |
@@ -610,12 +614,20 @@
 
 | الطفل (الجدول.العمود) | الأب | العلاقة | الإلزام | النطاق | الحذف | أعمدة النطاق |
 |---|---|---|---|---|---|---|
+| `pty.Address.PartyId` | `pty.Party` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
+| `pty.Address.InstitutionId` | `ins.Institution` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
+| `pty.Address.UnitId` | `ins.InstitutionUnit` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
+| `pty.Address.ContactId` | `ins.Contact` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `pty.Address.CountryId` | `ref.Country` | 1 : N | إلزامي | مرجع عام | قيد | — |
+| `pty.ContactMethod.PartyId` | `pty.Party` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
+| `pty.ContactMethod.InstitutionId` | `ins.Institution` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
+| `pty.ContactMethod.UnitId` | `ins.InstitutionUnit` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
+| `pty.ContactMethod.ContactId` | `ins.Contact` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `pty.CustomFieldDefinition.InstitutionId` | `ins.Institution` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `pty.IdentityDocument.PartyId` | `pty.Party` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `pty.IdentityDocument.IssuingCountryId` | `ref.Country` | 1 : N | إلزامي | مرجع عام | قيد | — |
-| `pty.IdentityDocument.EncKeyId` | `sec.TenantKey` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
-| `pty.IdentityDocument.HashKeyId` | `sec.TenantKey` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
+| `pty.IdentityDocument.EncKeyId` | `sec.TenantKey` | 1 : N | إلزامي | مشترك · مركّب | قيد | EncKeyPurpose |
+| `pty.IdentityDocument.HashKeyId` | `sec.TenantKey` | 1 : N | إلزامي | مشترك · مركّب | قيد | HashKeyPurpose |
 | `pty.IdentityDocument.SupersededById` | `pty.IdentityDocument` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `pty.IdentityDocument.VerifiedBy` | `sec.AppUser` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `pty.KycProfile.InstitutionId` | `ins.Institution` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
@@ -636,7 +648,7 @@
 |---|---|---|---|---|---|---|
 | `pty.Party` | شخص أو جهة؛ لا دور مخزَّن (FR-PTY-001..003، BR-PTY-001..004، BR-PTY-016..018) | PartyId | 5 | 0 | 4 | 16 |
 | `pty.PartyCompliance` | إقرارات امتثال بتاريخ لكل شخص بصفته: PEP، عقوبات، تحقيقات، حصانة (G-9) | PartyComplianceId | 3 | 0 | 0 | 12 |
-| `pty.PartyCustomField` | قيمة حقل مخصص لشخص (FR-PTY-013، FR-PTY-014) | PartyCustomFieldId | 4 | 0 | 3 | 6 |
+| `pty.PartyCustomField` | قيمة حقل مخصص لشخص (FR-PTY-013، FR-PTY-014) | PartyCustomFieldId | 4 | 0 | 3 | 7 |
 | `pty.TaxIdentity` | الهوية الضريبية والإقرار الضريبي FATCA/CRS (G-13) | TaxIdentityId | 5 | 0 | 1 | 7 |
 
 **العلاقات (المفاتيح الأجنبية)**
@@ -645,7 +657,7 @@
 |---|---|---|---|---|---|---|
 | `pty.Party.CountryId` | `ref.Country` | 1 : N | اختياري | مرجع عام | قيد | — |
 | `pty.Party.BirthCountryId` | `ref.Country` | 1 : N | اختياري | مرجع عام | قيد | — |
-| `pty.Party.EducationLevelId` | `cat.LookupItem` | 1 : N | اختياري | مرجع عام | قيد | — |
+| `pty.Party.EducationLevelId` | `cat.LookupItem` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `pty.Party.LinkedCompanyId` | `org.Company` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `pty.Party.MergedIntoPartyId` | `pty.Party` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `pty.PartyCompliance.PartyId` | `pty.Party` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
@@ -653,12 +665,12 @@
 | `pty.PartyCompliance.SourceDocumentId` | `doc.Document` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `pty.PartyCustomField.PartyId` | `pty.Party` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `pty.PartyCustomField.DefinitionId` | `pty.CustomFieldDefinition` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
-| `pty.PartyCustomField.EncKeyId` | `sec.TenantKey` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
+| `pty.PartyCustomField.EncKeyId` | `sec.TenantKey` | 1 : N | اختياري | مشترك · مركّب | قيد | EncKeyPurpose |
 | `pty.PartyCustomField.CurrencyId` | `ref.Currency` | 1 : N | اختياري | مرجع عام | قيد | — |
 | `pty.TaxIdentity.PartyId` | `pty.Party` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `pty.TaxIdentity.CountryId` | `ref.Country` | 1 : N | إلزامي | مرجع عام | قيد | — |
-| `pty.TaxIdentity.FatcaClassificationId` | `cat.LookupItem` | 1 : N | اختياري | مرجع عام | قيد | — |
-| `pty.TaxIdentity.CrsClassificationId` | `cat.LookupItem` | 1 : N | اختياري | مرجع عام | قيد | — |
+| `pty.TaxIdentity.FatcaClassificationId` | `cat.LookupItem` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
+| `pty.TaxIdentity.CrsClassificationId` | `cat.LookupItem` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `pty.TaxIdentity.SourceDocumentId` | `doc.Document` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 
 ### 10.5 م2–م3 · الجهات المالية والحسابات
@@ -694,13 +706,13 @@
 | `ins.Institution.PartyId` | `pty.Party` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `ins.InstitutionUnit.InstitutionId` | `ins.Institution` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `ins.InstitutionUnit.ParentUnitId` | `ins.InstitutionUnit` | 1 : N | اختياري | مشترك · مركّب | قيد | InstitutionId |
-| `ins.InstitutionUnit.UnitTypeId` | `cat.LookupItem` | 1 : N | إلزامي | مرجع عام | قيد | — |
+| `ins.InstitutionUnit.UnitTypeId` | `cat.LookupItem` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `ins.Relationship.CompanyId` | `org.Company` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `ins.Relationship.InstitutionId` | `ins.Institution` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `ins.RelationshipContact.InstitutionId` | `ins.Institution` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `ins.RelationshipContact.RelationshipId` | `ins.Relationship` | 1 : N | إلزامي | مشترك · مركّب | قيد | InstitutionId |
 | `ins.RelationshipContact.ContactId` | `ins.Contact` | 1 : N | إلزامي | مشترك · مركّب | قيد | InstitutionId |
-| `ins.RelationshipContact.RoleId` | `cat.LookupItem` | 1 : N | إلزامي | مرجع عام | قيد | — |
+| `ins.RelationshipContact.RoleId` | `cat.LookupItem` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `ins.RelationshipProduct.InstitutionId` | `ins.Institution` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `ins.RelationshipProduct.RelationshipId` | `ins.Relationship` | 1 : N | إلزامي | مشترك · مركّب | قيد | InstitutionId |
 | `ins.RelationshipProduct.ProductId` | `cat.Product` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
@@ -718,7 +730,7 @@
 
 | الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
 |---|---|---|---|---|---|---|
-| `acc.BankAccount` | حساب شركة لدى منشأة (FR-ACC-001..009، BR-ACC-001..006، BR-ACC-016)؛ الرقم وIBAN مشفّران بفهرس أعمى للفرادة | BankAccountId | 9 | 0 | 8 | 18 |
+| `acc.BankAccount` | حساب شركة لدى منشأة (FR-ACC-001..009، BR-ACC-001..006، BR-ACC-016)؛ الرقم وIBAN مشفّران بفهرس أعمى للفرادة | BankAccountId | 9 | 0 | 8 | 20 |
 | `acc.FacilityAccount` | ربط حساب بتسهيل بغرض (S2) (FR-ACC-010، BR-ACC-007)؛ يُملأ من شاشة التسهيل | FacilityAccountId | 4 | 0 | 1 | 7 |
 | `acc.Signatory` | تفويض شخص لدى علاقة (S1-ب) (FR-ACC-012، FR-ACC-023، BR-ACC-008/009) + إضافات docs/05 G-10 | SignatoryId | 8 | 0 | 3 | 12 |
 | `acc.SignatoryAuthority` | صلاحية المفوّض لعملية على حساب أو على البنك (S1-ب) (FR-ACC-013/014/017، BR-ACC-010/011)؛ لا تعديل في مكانه: الإغلاق والفتح؛ حالتها مشتقة فلا تُخزَّن | SignatoryAuthorityId | 7 | 0 | 8 | 10 |
@@ -734,18 +746,18 @@
 | `acc.BankAccount.AccountTypeId` | `cat.AccountType` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `acc.BankAccount.MasterAccountId` | `acc.BankAccount` | 1 : N | اختياري | مشترك · مركّب | قيد | CompanyId, InstitutionId, CurrencyId |
 | `acc.BankAccount.CurrencyId` | `ref.Currency` | 1 : N | إلزامي | مرجع عام | قيد | — |
-| `acc.BankAccount.EncKeyId` | `sec.TenantKey` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
-| `acc.BankAccount.HashKeyId` | `sec.TenantKey` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
+| `acc.BankAccount.EncKeyId` | `sec.TenantKey` | 1 : N | إلزامي | مشترك · مركّب | قيد | EncKeyPurpose |
+| `acc.BankAccount.HashKeyId` | `sec.TenantKey` | 1 : N | إلزامي | مشترك · مركّب | قيد | HashKeyPurpose |
 | `acc.BankAccount.BranchUnitId` | `ins.InstitutionUnit` | 1 : N | اختياري | مشترك · مركّب | قيد | InstitutionId |
 | `acc.FacilityAccount.FacilityId` | `fac.Facility` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `acc.FacilityAccount.BankAccountId` | `acc.BankAccount` | 1 : N | إلزامي | مشترك · مركّب | قيد | CurrencyId |
 | `acc.FacilityAccount.CurrencyId` | `ref.Currency` | 1 : N | إلزامي | مرجع عام | قيد | — |
-| `acc.FacilityAccount.PurposeId` | `cat.LookupItem` | 1 : N | إلزامي | مرجع عام | قيد | — |
+| `acc.FacilityAccount.PurposeId` | `cat.LookupItem` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `acc.Signatory.RelationshipId` | `ins.Relationship` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `acc.Signatory.PartyId` | `pty.Party` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
-| `acc.Signatory.SignatureClassId` | `cat.LookupItem` | 1 : N | إلزامي | مرجع عام | قيد | — |
+| `acc.Signatory.SignatureClassId` | `cat.LookupItem` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `acc.Signatory.PositionId` | `cat.Position` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
-| `acc.Signatory.AuthorisationBasisId` | `cat.LookupItem` | 1 : N | اختياري | مرجع عام | قيد | — |
+| `acc.Signatory.AuthorisationBasisId` | `cat.LookupItem` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `acc.Signatory.CashWithdrawalCurrencyId` | `ref.Currency` | 1 : N | اختياري | مرجع عام | قيد | — |
 | `acc.Signatory.AuthorizationDocumentId` | `doc.Document` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `acc.Signatory.SpecimenDocumentId` | `doc.Document` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
@@ -757,7 +769,7 @@
 | `acc.SignatoryAuthority.SourceDocumentId` | `doc.Document` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `acc.SignatoryAuthority.SupersededById` | `acc.SignatoryAuthority` | 1 : N | اختياري | مشترك · مركّب | قيد | SignatoryId |
 | `acc.SignatoryAuthorityJointClass.SignatoryAuthorityId` | `acc.SignatoryAuthority` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
-| `acc.SignatoryAuthorityJointClass.SignatureClassId` | `cat.LookupItem` | 1 : N | إلزامي | مرجع عام | قيد | — |
+| `acc.SignatoryAuthorityJointClass.SignatureClassId` | `cat.LookupItem` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 
 ### 10.6 م4 · الكتالوجات والمراجع
 
@@ -854,8 +866,8 @@
 | `cat.BaseRate` | سعر الأساس: سوق (InstitutionId فارغ) أو داخلي لبنك (FR-CAT-015، BR-CAT-011)؛ الأسماء البديلة في BaseRateAlias | BaseRateId | 2 | 0 | 4 | 17 |
 | `cat.BaseRateAlias` | اسم بديل لسعر أساس (SIBOR ≡ SAIBOR) بحث بلا حساسية حالة وفريد ضمن النطاق (BR-CAT-011، FR-CAT-015) -- جدول وسيط جديد يحل «Aliases set» | BaseRateAliasId | 2 | 0 | 0 | 6 |
 | `cat.BaseRateValue` | قيمة سعر الأساس بتاريخ سريان؛ لا حذف: التصحيح صف جديد والقديم SUPERSEDED (FR-CAT-016، BR-CAT-012/013) | BaseRateValueId | 3 | 0 | 1 | 9 |
-| `cat.LookupList` | قائمة قيم؛ TenantId فارغ = قائمة عالمية يملكها المشغّل للقراءة (FR-CAT-020، BR-CAT-015) | LookupListId | 0 | 0 | 3 | 16 |
-| `cat.LookupItem` | بند في قائمة قيم؛ TenantId فارغ = بند عالمي للقراءة فقط؛ أعمدة الكتالوج يدوية لأن فرادة الرمز داخل القائمة لا المشترك (FR-CAT-020) | LookupItemId | 1 | 0 | 2 | 15 |
+| `cat.LookupList` | DR-03: مملوك للمشترك؛ نسخة النظام تُهيَّأ لكل مشترك من قالب المنصة  # قائمة قيم؛ TenantId فارغ = قائمة عالمية يملكها المشغّل للقراءة (FR-CAT-020، BR-… | LookupListId | 0 | 0 | 3 | 16 |
+| `cat.LookupItem` | DR-03/05/07: مملوك للمشترك (نسخ النظام لكل مشترك)  # بند في قائمة قيم؛ TenantId فارغ = بند عالمي للقراءة فقط؛ أعمدة الكتالوج يدوية لأن فرادة الرمز دا… | LookupItemId | 1 | 0 | 2 | 15 |
 
 **العلاقات (المفاتيح الأجنبية)**
 
@@ -870,7 +882,7 @@
 | `cat.BaseRateValue.BaseRateId` | `cat.BaseRate` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `cat.BaseRateValue.SupersedesId` | `cat.BaseRateValue` | 1 : N | اختياري | مشترك · مركّب | قيد | BaseRateId |
 | `cat.BaseRateValue.EnteredBy` | `sec.AppUser` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
-| `cat.LookupItem.LookupListId` | `cat.LookupList` | 1 : N | إلزامي | عام | قيد | — |
+| `cat.LookupItem.LookupListId` | `cat.LookupList` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 
 #### المراجع العامة (ref)
 
@@ -1020,13 +1032,13 @@
 
 | الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
 |---|---|---|---|---|---|---|
-| `prc.PricingRule` | قاعدة تسعير بنطاق ووراثة وطرق (FR-PRC-006..017، BR-PRC-006..012، V-PRC-02) | PricingRuleId | 14 | 0 | 37 | 40 |
+| `prc.PricingRule` | قاعدة تسعير بنطاق ووراثة وطرق (FR-PRC-006..017، BR-PRC-006..012، V-PRC-02) | PricingRuleId | 14 | 0 | 38 | 40 |
 | `prc.PricingTier` | شريحة قاعدة TIERED بالمبلغ و/أو المدة (FR-PRC-003، BR-PRC-002) | PricingTierId | 3 | 0 | 8 | 13 |
 | `prc.TariffItem` | بند رسم في جدول التعرفة (FR-PRC-002، BR-PRC-002..005) | TariffItemId | 7 | 0 | 11 | 24 |
 | `prc.TariffSchedule` | إصدار جدول رسوم لبنك؛ بخاص بتسهيل اختياريًا (FR-PRC-001، BR-PRC-001، V-PRC-01) | TariffScheduleId | 4 | 0 | 3 | 11 |
 | `prc.TariffTier` | شريحة بند تعرفة بالمبلغ و/أو المدة (FR-PRC-003، BR-PRC-002) | TariffTierId | 1 | 0 | 8 | 11 |
 | `cmp.TermType` | مفتاح شرط قابل للمقارنة (FR-CMP-001)؛ الرمز بنمط PRC.MARGIN_PCT؛ النظامي لا يُحذف ولا تتغير وحدته (IsSystem) | TermTypeId | 0 | 0 | 3 | 22 |
-| `cmp.TermValue` | قيمة شرط في تسهيل بنطاقها ومصدرها (FR-CMP-002..006، BR-CMP-001..006، V-CMP-01) | TermValueId | 11 | 0 | 9 | 24 |
+| `cmp.TermValue` | قيمة شرط في تسهيل بنطاقها ومصدرها (FR-CMP-002..006، BR-CMP-001..006، V-CMP-01) | TermValueId | 11 | 0 | 10 | 24 |
 
 **العلاقات (المفاتيح الأجنبية)**
 
@@ -1034,7 +1046,7 @@
 |---|---|---|---|---|---|---|
 | `prc.PricingRule.FacilityId` | `fac.Facility` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `prc.PricingRule.ScopeLimitId` | `fac.Limit` | 1 : N | اختياري | مشترك · مركّب | قيد | FacilityId |
-| `prc.PricingRule.ScopeLimitProductLineId` | `fac.LimitProductLine` | 1 : N | اختياري | مشترك · مركّب | قيد | FacilityId |
+| `prc.PricingRule.ScopeLimitProductLineId` | `fac.LimitProductLine` | 1 : N | اختياري | مشترك · مركّب | قيد | FacilityId, ScopeLimitId |
 | `prc.PricingRule.ScopeProductId` | `cat.Product` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `prc.PricingRule.ScopeCompanyId` | `org.Company` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `prc.PricingRule.FeeTypeId` | `cat.FeeType` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
@@ -1064,7 +1076,7 @@
 | `cmp.TermValue.FacilityId` | `fac.Facility` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `cmp.TermValue.TermTypeId` | `cmp.TermType` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `cmp.TermValue.LimitId` | `fac.Limit` | 1 : N | اختياري | مشترك · مركّب | قيد | FacilityId |
-| `cmp.TermValue.LimitProductLineId` | `fac.LimitProductLine` | 1 : N | اختياري | مشترك · مركّب | قيد | FacilityId |
+| `cmp.TermValue.LimitProductLineId` | `fac.LimitProductLine` | 1 : N | اختياري | مشترك · مركّب | قيد | FacilityId, LimitId |
 | `cmp.TermValue.ProductId` | `cat.Product` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `cmp.TermValue.CompanyId` | `org.Company` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `cmp.TermValue.CurrencyId` | `ref.Currency` | 1 : N | اختياري | مرجع عام | قيد | — |
@@ -1083,7 +1095,7 @@
 
 | الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
 |---|---|---|---|---|---|---|
-| `col.Collateral` | سجل ضمان؛ اعتماد مستقل عن مراجعة التسهيل والتعديل نسخة جديدة (FR-COL-001/014، V-COL-01، §8) | CollateralId | 8 | 0 | 9 | 19 |
+| `col.Collateral` | سجل ضمان؛ اعتماد مستقل عن مراجعة التسهيل والتعديل نسخة جديدة (FR-COL-001/014، V-COL-01، §8) | CollateralId | 9 | 0 | 9 | 19 |
 | `col.CollateralLink` | ربط ضمان بتسهيل أو حد؛ ضمان واحد لعدة تسهيلات (FR-COL-002، BR-COL-005) | CollateralLinkId | 4 | 0 | 4 | 9 |
 | `col.Guarantee` | كفالة 1:1 مع Collateral؛ الكفيل Party دائمًا ولا أرقام هوية هنا (FR-COL-003/004، BR-COL-001) | GuaranteeId | 5 | 0 | 5 | 9 |
 | `col.InsurancePolicyAssignment` | تجيير وثيقة تأمين؛ مفتاح الفرادة (CollateralId,PolicyNo) يسمح بتجديد الوثيقة (FR-COL-006، BR-COL-003) | InsurancePolicyAssignmentId | 4 | 0 | 5 | 12 |
@@ -1097,6 +1109,7 @@
 |---|---|---|---|---|---|---|
 | `col.Collateral.CollateralTypeId` | `cat.CollateralType` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `col.Collateral.OwnerPartyId` | `pty.Party` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
+| `col.Collateral.CashMarginAccountId` | `acc.BankAccount` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `col.Collateral.ApprovedBy` | `sec.AppUser` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `col.Collateral.SupersedesId` | `col.Collateral` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `col.Collateral.ReleaseDocumentId` | `doc.Document` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
@@ -1174,7 +1187,7 @@
 | `obl.ObligationCompany.ObligationId` | `obl.Obligation` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `obl.ObligationCompany.CompanyId` | `org.Company` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `obl.ReportingInstance.ReportingObligationId` | `obl.ReportingObligation` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
-| `obl.ReportingInstance.SubmissionChannelUsedId` | `cat.LookupItem` | 1 : N | اختياري | مرجع عام | قيد | — |
+| `obl.ReportingInstance.SubmissionChannelUsedId` | `cat.LookupItem` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `obl.ReportingInstance.EvidenceDocumentId` | `doc.Document` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `obl.ReportingInstance.CurrencyId` | `ref.Currency` | 1 : N | اختياري | مرجع عام | قيد | — |
 
@@ -1195,7 +1208,7 @@
 | الطفل (الجدول.العمود) | الأب | العلاقة | الإلزام | النطاق | الحذف | أعمدة النطاق |
 |---|---|---|---|---|---|---|
 | `obl.ReportingObligation.ObligationId` | `obl.Obligation` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
-| `obl.ReportingObligation.SubmissionChannelId` | `cat.LookupItem` | 1 : N | اختياري | مرجع عام | قيد | — |
+| `obl.ReportingObligation.SubmissionChannelId` | `cat.LookupItem` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `obl.ReportingObligation.SupersedesId` | `obl.ReportingObligation` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 
 #### م5 · البيانات المالية والأرصدة
@@ -1225,7 +1238,7 @@
 | `fin.BankFlowEntry.CompanyId` | `org.Company` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `fin.BankFlowEntry.InstitutionId` | `ins.Institution` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `fin.BankFlowEntry.FacilityId` | `fac.Facility` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
-| `fin.BankFlowEntry.FlowKindId` | `cat.LookupItem` | 1 : N | إلزامي | مرجع عام | قيد | — |
+| `fin.BankFlowEntry.FlowKindId` | `cat.LookupItem` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `fin.BankFlowEntry.CurrencyId` | `ref.Currency` | 1 : N | إلزامي | مرجع عام | قيد | — |
 | `fin.BankFlowEntry.DocumentId` | `doc.Document` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `fin.FinancialStatement.CompanyId` | `org.Company` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
@@ -1328,7 +1341,7 @@
 | `wfl.RequestComment` | تعليق ظاهر للطالب أو داخلي؛ غير قابل للتعديل (سحب مع بقاء الأصل) (FR-REQ-017، BR-REQ-014) | RequestCommentId | 5 | 0 | 2 | 6 |
 | `wfl.RequestAttachment` | ربط مستند بطلب ينشئ DocumentLink (EntityType=Request) (FR-REQ-006، BR-REQ-005) | RequestAttachmentId | 3 | 0 | 0 | 6 |
 | `wfl.RequestExternalRef` | مرجع خارجي بنص حر؛ تعديل بالإحلال ويبقى التاريخ؛ بلا تحقق خارجي (FR-REQ-010، X-DAT-7، BR-REQ-006) | RequestExternalRefId | 3 | 0 | 2 | 10 |
-| `wfl.RequestStageInstance` | دخول طلب إلى مرحلة؛ مصدر مقاييس الأزمنة والسحب والـ SLA (BR-WFL-002/007/012، §8) | RequestStageInstanceId | 4 | 0 | 12 | 17 |
+| `wfl.RequestStageInstance` | دخول طلب إلى مرحلة؛ مصدر مقاييس الأزمنة والسحب والـ SLA (BR-WFL-002/007/012، §8) | RequestStageInstanceId | 5 | 0 | 12 | 17 |
 | `wfl.RequestApproval` | خانة موافقة تُنشأ لكل دخول ودورة؛ الدورة الجديدة بخانات جديدة (BR-WFL-003، FR-WFL-007/008/011) | RequestApprovalId | 7 | 0 | 7 | 16 |
 | `wfl.RequestAction` | سجل إجراءات للإضافة فقط يغطي كل حدث؛ غير AuditLog الأمني (FR-WFL-033/034، §6.2) | RequestActionId | 4 | 0 | 2 | 14 |
 
@@ -1352,7 +1365,7 @@
 | `wfl.Request.ProductId` | `cat.Product` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `wfl.Request.ParentRequestId` | `wfl.Request` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `wfl.Request.CopiedFromRequestId` | `wfl.Request` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
-| `wfl.Request.LcId` | `lc.LetterOfCredit` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
+| `wfl.Request.LcId` | `lc.LetterOfCredit` | 1 : N | اختياري | مشترك · مركّب | قيد | CompanyId |
 | `wfl.Request.FacilityId` | `fac.Facility` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `wfl.Request.LimitId` | `fac.Limit` | 1 : N | اختياري | مشترك · مركّب | قيد | FacilityId |
 | `wfl.Request.LimitProductLineId` | `fac.LimitProductLine` | 1 : N | اختياري | مشترك · مركّب | قيد | FacilityId, LimitId |
@@ -1370,9 +1383,10 @@
 | `wfl.RequestExternalRef.SupersededById` | `wfl.RequestExternalRef` | 1 : N | اختياري | مشترك · مركّب | قيد | RequestId |
 | `wfl.RequestExternalRef.EnteredBy` | `sec.AppUser` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `wfl.RequestStageInstance.RequestId` | `wfl.Request` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
-| `wfl.RequestStageInstance.StageId` | `wfl.WorkflowStage` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
+| `wfl.RequestStageInstance.TemplateId` | `wfl.WorkflowTemplate` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
+| `wfl.RequestStageInstance.StageId` | `wfl.WorkflowStage` | 1 : N | إلزامي | مشترك · مركّب | قيد | TemplateId |
 | `wfl.RequestStageInstance.AssigneeUserId` | `sec.AppUser` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
-| `wfl.RequestStageInstance.ResumeStageId` | `wfl.WorkflowStage` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
+| `wfl.RequestStageInstance.ResumeStageId` | `wfl.WorkflowStage` | 1 : N | اختياري | مشترك · مركّب | قيد | TemplateId |
 | `wfl.RequestApproval.RequestId` | `wfl.Request` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `wfl.RequestApproval.StageInstanceId` | `wfl.RequestStageInstance` | 1 : N | إلزامي | مشترك · مركّب | قيد | RequestId |
 | `wfl.RequestApproval.AssignedUserId` | `sec.AppUser` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
@@ -1461,7 +1475,7 @@
 | `lc.Counterparty` | الطرف المقابل: مورّد/عميل خفيف بلا هوية؛ يُرقّى إلى Party عند الحاجة (FR-LCT-036/037، BR-LCT-022، Q-PTY-03) | CounterpartyId | 3 | 0 | 2 | 21 |
 | `lc.LcDocumentClause` | مكتبة بنود المستندات بإصدارات: نص قالب بمعاملات (FR-LCT-017..019، BR-LCT-012)؛ مراجع UCP في lc.LcDocumentClauseUcpRef | LcDocumentClauseId | 1 | 0 | 5 | 21 |
 | `lc.LcDocumentClauseUcpRef` | مرجع UCP لبند مستند: مادة + فقرة (UcpRefs في المواصفة) -- وسيط جديد | LcDocumentClauseUcpRefId | 2 | 0 | 0 | 4 |
-| `lc.LcTerms` | إصدار شروط اعتماد: صف لكل نسخة بأعمدة قاموس §6.2؛ مشترك بين البروفورما والطلب والاعتماد والتعديل (FR-LCT-001..035) | LcTermsId | 15 | 0 | 44 | 86 |
+| `lc.LcTerms` | إصدار شروط اعتماد: صف لكل نسخة بأعمدة قاموس §6.2؛ مشترك بين البروفورما والطلب والاعتماد والتعديل (FR-LCT-001..035) | LcTermsId | 15 | 0 | 44 | 88 |
 | `lc.LcTermsDocument` | بند مستند مختار في الشروط ومعاملاته؛ النص المصيَّر يُجمَّد عند القفل (FR-LCT-018، BR-LCT-012) -- جديد | LcTermsDocumentId | 2 | 0 | 5 | 12 |
 
 **العلاقات (المفاتيح الأجنبية)**
@@ -1480,8 +1494,8 @@
 | `lc.LcTerms.ApplicantCounterpartyId` | `lc.Counterparty` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `lc.LcTerms.BeneficiaryCompanyId` | `org.Company` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `lc.LcTerms.BeneficiaryCounterpartyId` | `lc.Counterparty` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
-| `lc.LcTerms.EncKeyId` | `sec.TenantKey` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
-| `lc.LcTerms.HashKeyId` | `sec.TenantKey` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
+| `lc.LcTerms.EncKeyId` | `sec.TenantKey` | 1 : N | اختياري | مشترك · مركّب | قيد | EncKeyPurpose |
+| `lc.LcTerms.HashKeyId` | `sec.TenantKey` | 1 : N | اختياري | مشترك · مركّب | قيد | HashKeyPurpose |
 | `lc.LcTerms.CurrencyId` | `ref.Currency` | 1 : N | اختياري | مرجع عام | قيد | — |
 | `lc.LcTerms.IncotermId` | `ref.Incoterm` | 1 : N | اختياري | مرجع عام | قيد | — |
 | `lc.LcTerms.FacilityAccountId` | `acc.BankAccount` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
@@ -1533,9 +1547,9 @@
 |---|---|---|---|---|---|---|
 | `lc.LetterOfCredit` | سجل الاعتماد للجانبين: مشتريات (نحن الطالب) ومبيعات (نحن المستفيد) (FR-LCI-011..016، FR-LCE-009، BR-LCI-004/008/016، BR-LCE-007/009) | LetterOfCreditId | 13 | 0 | 23 | 35 |
 | `lc.LcExternalRef` | مرجع خارجي للاعتماد (ERP...)؛ بلا تفرّد؛ البحث بالمطبَّع (FR-LCI-013، BR-REQ-006) -- جديد | LcExternalRefId | 2 | 0 | 1 | 8 |
-| `lc.LcAmendment` | تعديل اعتماد صادر أو مستلَم (FR-LCI-018/019، FR-LCE-020، BR-LCI-011/012، BR-LCE-014)؛ الحالات §8 | LcAmendmentId | 5 | 0 | 11 | 18 |
-| `lc.LcDrawing` | سحب/تقديم مستندات تحت اعتماد؛ في التصدير يشمل تحويل التخصيص (FR-LCI-023، BR-LCI-013، BR-LCE-011)؛ الحالات §8 | LcDrawingId | 4 | 0 | 7 | 16 |
-| `lc.LcSalesOrder` | تخصيص أمر بيع على اعتماد مستلَم؛ لا يقابله حد ائتماني (FR-LCE-013..015، BR-LCE-009..013)؛ الحالات §8 | LcSalesOrderId | 3 | 0 | 8 | 12 |
+| `lc.LcAmendment` | تعديل اعتماد صادر أو مستلَم (FR-LCI-018/019، FR-LCE-020، BR-LCI-011/012، BR-LCE-014)؛ الحالات §8 | LcAmendmentId | 6 | 0 | 11 | 18 |
+| `lc.LcDrawing` | سحب/تقديم مستندات تحت اعتماد؛ في التصدير يشمل تحويل التخصيص (FR-LCI-023، BR-LCI-013، BR-LCE-011)؛ الحالات §8 | LcDrawingId | 5 | 0 | 7 | 16 |
+| `lc.LcSalesOrder` | تخصيص أمر بيع على اعتماد مستلَم؛ لا يقابله حد ائتماني (FR-LCE-013..015، BR-LCE-009..013)؛ الحالات §8 | LcSalesOrderId | 4 | 0 | 8 | 12 |
 | `lc.LcDrawingAllocation` | توزيع سحب تصدير على أوامر بيع (FR-LCE-016/017، BR-LCE-011/013) -- جديد؛ Σ التوزيع ≤ مبلغ السحب وكل جزء ≤ متبقي أمره يتحقق منهما التطبيق | LcDrawingAllocationId | 4 | 0 | 1 | 4 |
 | `lc.LcDiscrepancy` | مخالفة على مستندات سحب أو اعتماد؛ القرار يتطلب lc.discrepancy.decide (FR-LCI-024، FR-LCE-021، §8) -- جديد | LcDiscrepancyId | 3 | 0 | 2 | 8 |
 
@@ -1558,17 +1572,20 @@
 | `lc.LetterOfCredit.CurrencyId` | `ref.Currency` | 1 : N | إلزامي | مرجع عام | قيد | — |
 | `lc.LcExternalRef.LcId` | `lc.LetterOfCredit` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `lc.LcExternalRef.SupersededById` | `lc.LcExternalRef` | 1 : N | اختياري | مشترك · مركّب | قيد | LcId |
+| `lc.LcAmendment.CompanyId` | `org.Company` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `lc.LcAmendment.LcId` | `lc.LetterOfCredit` | 1 : N | إلزامي | مشترك · مركّب | قيد | CurrencyId |
-| `lc.LcAmendment.RequestId` | `wfl.Request` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
+| `lc.LcAmendment.RequestId` | `wfl.Request` | 1 : N | اختياري | مشترك · مركّب | قيد | CompanyId |
 | `lc.LcAmendment.TermsId` | `lc.LcTerms` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `lc.LcAmendment.CurrencyId` | `ref.Currency` | 1 : N | إلزامي | مرجع عام | قيد | — |
 | `lc.LcAmendment.AppliedBy` | `sec.AppUser` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
+| `lc.LcDrawing.CompanyId` | `org.Company` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `lc.LcDrawing.LcId` | `lc.LetterOfCredit` | 1 : N | إلزامي | مشترك · مركّب | قيد | CurrencyId |
 | `lc.LcDrawing.CurrencyId` | `ref.Currency` | 1 : N | إلزامي | مرجع عام | قيد | — |
 | `lc.LcDrawing.SettlementAccountId` | `acc.BankAccount` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
-| `lc.LcDrawing.RequestId` | `wfl.Request` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
+| `lc.LcDrawing.RequestId` | `wfl.Request` | 1 : N | اختياري | مشترك · مركّب | قيد | CompanyId |
+| `lc.LcSalesOrder.CompanyId` | `org.Company` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `lc.LcSalesOrder.LcId` | `lc.LetterOfCredit` | 1 : N | إلزامي | مشترك · مركّب | قيد | CurrencyId |
-| `lc.LcSalesOrder.RequestId` | `wfl.Request` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
+| `lc.LcSalesOrder.RequestId` | `wfl.Request` | 1 : N | إلزامي | مشترك · مركّب | قيد | CompanyId |
 | `lc.LcSalesOrder.CurrencyId` | `ref.Currency` | 1 : N | إلزامي | مرجع عام | قيد | — |
 | `lc.LcDrawingAllocation.LcId` | `lc.LetterOfCredit` | 1 : N | إلزامي | مشترك · مركّب | قيد | CurrencyId |
 | `lc.LcDrawingAllocation.DrawingId` | `lc.LcDrawing` | 1 : N | إلزامي | مشترك · مركّب | قيد | LcId, CurrencyId |
@@ -1649,6 +1666,24 @@
 
 ![دورة حياة الطلب: الإكمال يتطلب إقفال إدارة الخزينة](diagrams/erd_03_request_lifecycle.png)
 
+### 11.2 الملكية المتعددة والمراجع المركّبة (DR-04 · DR-06 · DR-09 · DR-10)
+
+| المشكلة (قبل الإصلاح) | النمط المعتمد |
+|---|---|
+| عنوان أو جهة اتصال مالكها متعدد الأشكال (`OwnerType` + `OwnerId`) لا يحميه مفتاح أجنبي (DR-04) | أقواس خارجية: `PartyId` و`InstitutionId` و`UnitId` و`ContactId` مفاتيح أجنبية فعلية اختيارية، و`CHECK` يفرض **عمودًا واحدًا فقط** غير فارغ، وفرادة مصفّاة لكل قوس |
+| `PricingRule.ScopeLimitProductLineId` و`TermValue.LimitProductLineId` تُربط بخط المنتج وحده، فيجوز أن يخص خط منتج حدًا آخر (DR-06) | مركّبة بالتسهيل والحد: `via=FacilityId,ScopeLimitId>LimitId` و`via=FacilityId,LimitId` |
+| `wfl.RequestStageInstance.StageId` لا يربط المرحلة بقالب الطلب الذي تنتمي إليه (DR-09) | `TemplateId` إلزامي، و`StageId` و`ResumeStageId` مركّبان به: لا تُنفَّذ مرحلة من قالب آخر |
+| `wfl.Request.LcId` و`RequestId` في `lc.LcSalesOrder` و`LcDrawing` و`LcAmendment` لا تربط الطلب بخطاب الاعتماد أو بالطلب الآخر في الشركة نفسها (DR-10) | مركّبة بـ`CompanyId`، فلا يُربط طلب شركة بخطاب اعتماد أو بتعديل لشركة أخرى |
+
+### 11.3 الكتالوجات المملوكة للمشترك (DR-03 · DR-05 · DR-07)
+
+كان `cat.LookupList` و`cat.LookupItem` جدولين مختلطين، تشير إليهما 13 عمودًا من جداول المشترك، وتشترك فيهما قيم المنصة بين المشتركين بلا نسخة يملكها كل مشترك. بعد الإصلاح:
+
+- الجدولان **مملوكان للمشترك** (`TenantId` إلزامي) ولا صفوف مختلطة في الكتالوجات.
+- `Scope = SYSTEM` قائمة من قالب المنصة تُنسخ لكل مشترك عند التهيئة (`IsSystem = 1`)، و`Scope = TENANT` قائمة يعرّفها المشترك (`IsSystem = 0`)، وقيد `CHECK` يفرض ذلك.
+- كل مرجع إلى بند قائمة مركّب `(TenantId, LookupItemId)`، فلا يشير مشترك إلى بند يخص مشتركًا آخر.
+- ثمن ذلك نسخ متعددة لقيم النظام بعدد المشتركين. تحديث القالب لاحقًا يُطبَّق على النسخ بمطابقة `SeedKey`، ولا يكتب فوق تعديلات المشترك (§13).
+
 ---
 
 ## 12. النشر وإدارة التغيير
@@ -1689,8 +1724,8 @@ sqlcmd -S <server> -E -I -f 65001 -i db\deploy.sql -v DbName=BankFas
 
 | المرحلة | المحتوى | الآلية |
 |---|---|---|
-| **عالمي** | `ref.Country/Currency/Incoterm/UcpArticle`، `plat.Plan/PlanModule`، `sec.Permission` (بما فيها `req.treasury.close`)، `cfg.SettingDefinition`، أنواع الأحداث `ntf.NotificationEventType`، تعريفات حقول الاعتماد | سكربت بذور عالمي عند النشر بمفتاح `SeedKey`؛ `cfg.SeedRun` يسجل التنفيذ. هذه الجداول **يكتبها `tp_platform` فقط** |
-| **إجراء تهيئة المشترك** (إجراء منصة واحد) | ينشئ داخل معاملة واحدة: صف المشترك، **حساب الخدمة `IsSystemUser`**، **مستخدم المدير الأول**، والكتالوجات الافتراضية، والأدوار القياسية وربطها بالصلاحيات، وقوالب دورات العمل، وملفات KYC المسبقة، وقواعد الإشعارات | إجراء في `plat` ينفّذه `tp_platform` بموافقة مشغّل؛ لأن المشترك لم يُنشأ بعد لا يمكن تعيين سياقه بالطريقة المعتادة (O-12) |
+| **عالمي** | `ref.Country/Currency/Incoterm` وصفوف المنصة في `ref.UcpArticle`، `plat.Plan/PlanModule`، `sec.Permission` (بما فيها `req.treasury.close`)، `cfg.SettingDefinition`، أنواع الأحداث `ntf.NotificationEventType`، تعريفات حقول الاعتماد | سكربت بذور عالمي عند النشر بمفتاح `SeedKey`؛ `cfg.SeedRun` يسجل التنفيذ. هذه الجداول **يكتبها `tp_platform` فقط** |
+| **إجراء تهيئة المشترك** (إجراء منصة واحد) | ينشئ داخل معاملة واحدة: صف المشترك، **حساب الخدمة `IsSystemUser`**، **مستخدم المدير الأول**، ونسخ كتالوجات النظام لهذا المشترك (§11.3)، والأدوار القياسية وربطها بالصلاحيات، وقوالب دورات العمل، وملفات KYC المسبقة، وقواعد الإشعارات، ووحدات الاشتراك في `plat.TenantModule` | إجراء في `plat` ينفّذه `tp_platform` بموافقة مشغّل؛ لأن المشترك لم يُنشأ بعد لا يمكن تعيين سياقه بالطريقة المعتادة (O-12) |
 | **مفتاح مفقود** | قائمة `AUTHORISATION_BASIS` في `cat.LookupList` لأسس التفويض (طلبها مؤلفو النماذج) | تُضاف لبذور المشترك |
 
 ⚠ UCP: أرقام المواد في `lc.LcFieldUcpRef` **مراجع هندسية غير موثَّقة قانونيًا** إلى أن يتحقق منها مختص (عمود `VerifiedBy/On` في `ref.UcpArticle`).
@@ -1701,9 +1736,10 @@ sqlcmd -S <server> -E -I -f 65001 -i db\deploy.sql -v DbName=BankFas
 
 | الفحص | النتيجة | ملاحظة |
 |---|---|---|
-| فحص النموذج (`dbgen check`) | **OK** — 194 جدولًا / 3,261 عمودًا؛ لا مراجع معلّقة؛ لا مخالفة لقواعد النطاق | التسمية والمراجع والمفاتيح المركّبة والأعمدة المطلوبة |
-| تنفيذ PostgreSQL 16 | **OK** — 194 جدولًا / 750 مفتاحًا أجنبيًا / 691 قيد فريد أو أساسي | يثبت **البنية المنطقية** فقط. **لا** يثبت صحة T-SQL |
-| التحقق الثابت من الصلاحيات (`check_grants.py`) | **OK** — 194 جدولًا، 206 منحة في `007`، و36 منحة حذف و7 `DENY` في `005`، 28 عمودًا مقيّدًا، القواعد R1–R10 | حُقنت ثلاث مخالفات متعمدة فاكتُشفت كلها (§9.3). **لا يثبت** أن المحرك ينفّذ المنح كما هي |
+| فحص النموذج (`dbgen check`) | **OK** — 194 جدولًا / 3,280 عمودًا؛ لا مراجع معلّقة؛ لا مخالفة لقواعد النطاق | التسمية والمراجع والمفاتيح المركّبة والأعمدة المطلوبة |
+| تنفيذ PostgreSQL 16 | **OK** — 194 جدولًا / 763 مفتاحًا أجنبيًا / 691 قيد فريد أو أساسي | يثبت **البنية المنطقية** فقط. **لا** يثبت صحة T-SQL |
+| التحقق الثابت من الصلاحيات (`check_grants.py`) | **OK** — 194 جدولًا، 247 منحة مولّدة، 7 منح ثابتة، 29 عمودًا مقيّدًا، القواعد R1–R10 | حُقنت ثلاث مخالفات متعمدة فاكتُشفت كلها (§9.3). **لا يثبت** أن المحرك ينفّذ المنح كما هي |
+| التحقق من الإصلاحات الحرجة (`check_review_fixes.py`) | **OK** — 24 من 24 | يفحص أن كل إصلاح من DR-01 إلى DR-10 موجود في DDL المولَّد، لا في الوثيقة وحدها |
 | تحليل T-SQL بـ `sqlglot` | الملفات `000–004`، `007`، `010`، `025`، `030`، `040`: **بلا أخطاء**؛ `005` و`006` و`020`: خطأ واحد لكل ملف عند عبارة `DENY` | المحلّل لا يدعم عبارة `DENY` بصيغتها الكاملة؛ الصيغة صحيحة في T-SQL. التحليل نحوي جزئي |
 | فحوص آلية لمحاذير SQL Server | لا `OR` في الفهارس المصفّاة · مفاتيح الفهارس ≤ 1,700 بايت و≤ 16 عمودًا · لا مسارات `CASCADE` متعددة · خيارات `SET` ضُمّنت | فحوص نصّية على المخرجات |
 | **التنفيذ على SQL Server 2025** | **لم يحدث** | لا يتوفر المحرك في بيئة العمل. **أول خطوة قبل أي اعتماد.** متوقع: أخطاء صيغة في `CREATE SECURITY POLICY` و`EXECUTE AS` وترتيب النشر |
@@ -1735,6 +1771,7 @@ sqlcmd -S <server> -E -I -f 65001 -i db\deploy.sql -v DbName=BankFas
 | DB-18 | **حساب الخدمة** (C-8) | `sec.AppUser.IsSystemUser` لكل مشترك للمهام، بلا كلمة مرور ولا MFA |
 | DB-19 | **مفاتيح الصفوف المشفّرة** (C-5) | `EncKeyId` / `HashKeyId` / `MfaKeyId` / `MfaKeyRef` في كل جدول فيه غلاف؛ `CHECK` لطول الغلاف |
 | DB-20 | **إقفال دورة العمل** (C-7) | `AWAITING_CLOSE` ثم `COMPLETED` بإقفال الخزينة؛ الحقول `ReadyToCloseAt` و`ClosedByUserId` و`ClosedAt` |
+| DB-21 | **الإصلاحات الحرجة العشرة** (DR-01 إلى DR-10، C-12) | مُعتمدة ومُطبَّقة: كتالوجات مملوكة للمشترك بنسخ لكل مشترك (§11.3)، ومفتاح الغرض في مفاتيح التشفير، وأقواس المالك الخارجية والمراجع المركّبة (§11.2)، و`plat.TenantModule` مملوك للمنصة |
 
 ---
 
@@ -1756,12 +1793,13 @@ sqlcmd -S <server> -E -I -f 65001 -i db\deploy.sql -v DbName=BankFas
 | **O-12** | **إجراءات المنصة على بيانات المشترك** | بلا وصول مباشر لـ`tp_platform`، يلزم إجراء مُراجَع لكل عملية منصة (تهيئة، دعم، إصلاح) | تُكتب في S0 وتتحقق من `SupportAccessGrant` أو من تهيئة المشترك |
 | **O-13** | **موقع مرساة سلسلة التدقيق** (§5.3) | بلا مرساة خارجية، السلسلة لا تكشف العبث | تخزين غير قابل للتعديل أو تجزئة منشورة دوريًا؛ قرار تشغيلي |
 | **O-14** | أرقام RPO/RTO | لا خطة استعادة مُقاسة بعد | تُحدَّد مع الاعتماد التشغيلي (§12.3) |
+| **O-15** | **36 نتيجة رئيسية و4 طفيفة** من المراجعة (§18.2) لم تُعتمد بعد | بعضها يغيّر أعمدة أو قيودًا، فيتغير الـDDL قبل S0 | قرار لكل نتيجة: تُطبَّق قبل S0، أو تُؤجَّل بسبب مكتوب |
 
 ---
 
 ## 17. الخطوة التالية
 
-1. **تقييمك** لهذا الإصدار، خاصة القرارات DB-14 إلى DB-20 والنقاط O-9 إلى O-13، والأسئلة التي تحتاج قرارك: **هل تعتمد تعديل المواصفة 13 (O-10)؟**
+1. **تقييمك** لهذا الإصدار، خاصة القرارات DB-14 إلى DB-21 والنقاط O-9 إلى O-13 و O-15، والأسئلة التي تحتاج قرارك: **هل تعتمد تعديل المواصفة 13 (O-10)؟ وأيّ من النتائج الرئيسية الـ36 والطفيفة الـ4 تُطبَّق قبل S0 (O-15)؟**
 2. نشر على **SQL Server 2025** فعلي وتصحيح ما يظهر (O-1)، مع اختبارات السلوك المذكورة في §14.
 3. ثم الواجهات والشريحة الرأسية S0، بعد حسم O-9 و O-11 و O-12.
 
@@ -1769,73 +1807,71 @@ sqlcmd -S <server> -E -I -f 65001 -i db\deploy.sql -v DbName=BankFas
 
 أجرى فريق من خمسة مهندسي قواعد بيانات مراجعة مستقلة لكل مجموعة وحدات، فحصت كل جدول وكل علاقة مفتاح أجنبي على أسس النمذجة العلائقية: التطبيع، والمفاتيح، والإلزام والعدد، وسلامة المرجع، والعزل بين المشتركين، والتكرار، والفهرسة، والحساسية، ودلالات دورة العمل. النتائج مسجَّلة بمعرّفاتها في `docs/review/design-review-2026-10-11.json`، وتحمل كل نتيجة مرجع السطر في النموذج أو في DDL.
 
-**الإجمالي: 50 نتيجة — حرجة 10 · رئيسية 36 · طفيفة 4.** لم يُعدَّل النموذج بعد؛ القرار المطلوب في §18.3.
+**الإجمالي: 50 نتيجة — حرجة 10 · رئيسية 36 · طفيفة 4.** الحرجة مُطبَّقة في النموذج والـDDL (C-12) ويتحقق منها آليًا، والرئيسية والطفيفة مفتوحة (§18.3).
 
 ### 18.1 النتائج الحرجة
 
-| المعرّف | الكيان | الدلالة | المشكلة (ملخص) | الإصلاح المقترح (ملخص) |
-|---|---|---|---|---|
-| DR-01 | `plat.TenantModule.IsEnabled` | tenancy | Entitlement rows are tenant-owned (no global flag; | Make TenantModule platform-owned: declare it global with an explicit TenantId FK to plat.Tenant (global noapp is a legal target), expose it to tp_app only through a view filtered on SESSION_CONTEXT('TenantId') with SELECT only, a… |
-| DR-02 | `sec.AppUser.MfaKeyId` | referential | MfaKeyId (model line 126, comment 'DATA key that encrypted the MFA secret') and doc.DocumentVersion.KeyId (line 378, 'file encryption key') reference sec.TenantKey through a composite FK on (TenantId, TenantKeyId) only (db/genera… | Add UNIQUE (TenantId, TenantKeyId, Purpose) on sec.TenantKey. |
-| DR-03 | `cat.LookupItem.LookupItemId (targeted by 13 in-scope FKs)` | tenancy | cat.LookupItem is 'mixed' (12-institutions-accounts-catalogs.model:255; | Make referenced items tenant-owned: materialise the seeded global items per tenant so every LookupItem row has TenantId NOT NULL, and emit composite FKs (TenantId, X) -> (TenantId, LookupItemId). |
-| DR-04 | `pty.Address.OwnerType, OwnerId` | tenancy | OwnerType+OwnerId is a polymorphic owner (PARTY/INSTITUTION/UNIT/CONTACT; | Replace the OwnerType/OwnerId pair with exclusive-arc columns (PartyId, InstitutionId, UnitId, ContactId), each a composite FK (TenantId, X) -> (TenantId, X), with a CHECK that exactly one is non-null; |
-| DR-05 | `cat.LookupItem (mixed) and cat.LookupList (mixed); 13 tenant tables reference LookupItem.LookupListId / *ItemId referencing columns` | tenancy | cat.LookupItem and cat.LookupList are mixed (model 12:247-256), so their references are simple FKs with no TenantId (DDL 002:232 FK_LookupItem_LookupListId; | Keep cat.LookupItem tenant-owned. |
-| DR-06 | `prc.PricingRule (ScopeLimitProductLineId); cmp.TermValue (LimitProductLineId).ScopeLimitProductLineId, LimitProductLineId` | referential | Both are declared via=FacilityId only (model 13:438 and 13:561; | Change both to via=FacilityId,LimitId so the composite key is (TenantId, FacilityId, LimitId, LimitProductLineId). |
-| DR-07 | `fin.BankFlowEntry.FlowKindId` | tenancy | cat.LookupItem is declared mixed (db/model/12 line 255: TenantId NULL = global, otherwise tenant-owned), but the generator emits FKs into it as simple keys on LookupItemId alone: db/generated/tsql/002_foreign_keys.sql:524 (fin.Ba… | Give each tenant its own copies of the global lookup items it uses (section 13 tenant initialisation already creates per-tenant catalogs), then make the references composite (TenantId, LookupItemId) to cat.LookupItem(TenantId, Lo… |
-| DR-08 | `col.Collateral.Attributes` | sensitivity | Attributes is an unclassified json column (db/model/14 line 32). | Model the cash-margin account as a typed FK to acc.BankAccount using the via pattern of acc.BankAccount.RelationshipId. |
-| DR-09 | `wfl.RequestStageInstance.StageId` | referential | The stage reference is bound to the tenant only. | Add TemplateId (req, copied from the request at entry) to wfl.RequestStageInstance and declare StageId and ResumeStageId as ->wfl.WorkflowStage via=TemplateId (the WorkflowStage scope unique already exists, DDL 001_tables.sql:467… |
-| DR-10 | `wfl.Request.LcId` | tenancy | LcId -> lc.LetterOfCredit is generated as (TenantId, LcId) only (DDL 002_foreign_keys.sql:587), so a request of company A can be linked to a letter of credit of company B inside the same tenant. | Declare Request.LcId ->lc.LetterOfCredit via=CompanyId. |
+| المعرّف | الكيان | الدلالة | المشكلة (ملخص) | الإصلاح المقترح (ملخص) | الحالة |
+|---|---|---|---|---|---|
+| DR-01 | `plat.TenantModule.IsEnabled` | tenancy | Entitlement rows are tenant-owned (no global flag; | Make TenantModule platform-owned: declare it global with an explicit TenantId FK to plat.Tenant (global noapp is a legal target), expose it to tp_app only through a view filtered on SESSION_CONTEXT('TenantId') with SELECT only, a… | مُطبَّق (C-12) |
+| DR-02 | `sec.AppUser.MfaKeyId` | referential | MfaKeyId (model line 126, comment 'DATA key that encrypted the MFA secret') and doc.DocumentVersion.KeyId (line 378, 'file encryption key') reference sec.TenantKey through a composite FK on (TenantId, TenantKeyId) only (db/genera… | Add UNIQUE (TenantId, TenantKeyId, Purpose) on sec.TenantKey. | مُطبَّق (C-12) |
+| DR-03 | `cat.LookupItem.LookupItemId (targeted by 13 in-scope FKs)` | tenancy | cat.LookupItem is 'mixed' (12-institutions-accounts-catalogs.model:255; | Make referenced items tenant-owned: materialise the seeded global items per tenant so every LookupItem row has TenantId NOT NULL, and emit composite FKs (TenantId, X) -> (TenantId, LookupItemId). | مُطبَّق (C-12) |
+| DR-04 | `pty.Address.OwnerType, OwnerId` | tenancy | OwnerType+OwnerId is a polymorphic owner (PARTY/INSTITUTION/UNIT/CONTACT; | Replace the OwnerType/OwnerId pair with exclusive-arc columns (PartyId, InstitutionId, UnitId, ContactId), each a composite FK (TenantId, X) -> (TenantId, X), with a CHECK that exactly one is non-null; | مُطبَّق (C-12) |
+| DR-05 | `cat.LookupItem (mixed) and cat.LookupList (mixed); 13 tenant tables reference LookupItem.LookupListId / *ItemId referencing columns` | tenancy | cat.LookupItem and cat.LookupList are mixed (model 12:247-256), so their references are simple FKs with no TenantId (DDL 002:232 FK_LookupItem_LookupListId; | Keep cat.LookupItem tenant-owned. | مُطبَّق (C-12) |
+| DR-06 | `prc.PricingRule (ScopeLimitProductLineId); cmp.TermValue (LimitProductLineId).ScopeLimitProductLineId, LimitProductLineId` | referential | Both are declared via=FacilityId only (model 13:438 and 13:561; | Change both to via=FacilityId,LimitId so the composite key is (TenantId, FacilityId, LimitId, LimitProductLineId). | مُطبَّق (C-12) |
+| DR-07 | `fin.BankFlowEntry.FlowKindId` | tenancy | cat.LookupItem is declared mixed (db/model/12 line 255: TenantId NULL = global, otherwise tenant-owned), but the generator emits FKs into it as simple keys on LookupItemId alone: db/generated/tsql/002_foreign_keys.sql:524 (fin.Ba… | Give each tenant its own copies of the global lookup items it uses (section 13 tenant initialisation already creates per-tenant catalogs), then make the references composite (TenantId, LookupItemId) to cat.LookupItem(TenantId, Lo… | مُطبَّق (C-12) |
+| DR-08 | `col.Collateral.Attributes` | sensitivity | Attributes is an unclassified json column (db/model/14 line 32). | Model the cash-margin account as a typed FK to acc.BankAccount using the via pattern of acc.BankAccount.RelationshipId. | مُطبَّق (C-12) |
+| DR-09 | `wfl.RequestStageInstance.StageId` | referential | The stage reference is bound to the tenant only. | Add TemplateId (req, copied from the request at entry) to wfl.RequestStageInstance and declare StageId and ResumeStageId as ->wfl.WorkflowStage via=TemplateId (the WorkflowStage scope unique already exists, DDL 001_tables.sql:467… | مُطبَّق (C-12) |
+| DR-10 | `wfl.Request.LcId` | tenancy | LcId -> lc.LetterOfCredit is generated as (TenantId, LcId) only (DDL 002_foreign_keys.sql:587), so a request of company A can be linked to a letter of credit of company B inside the same tenant. | Declare Request.LcId ->lc.LetterOfCredit via=CompanyId. | مُطبَّق (C-12) |
 
 ### 18.2 النتائج الرئيسية والطفيفة
 
-| المعرّف | الكيان | الدرجة | الدلالة | المشكلة (ملخص) | الإصلاح المقترح (ملخص) |
-|---|---|---|---|---|---|
-| DR-11 | `doc.DocumentVersion.StorageKey` | major | tenancy | The storage path is unique only per tenant (UQ_DocumentVersion_StorageKey = UNIQUE (TenantId, StorageKey), db/generated/tsql/001_tables.sql:609), yet the design (6.4) describes one shared file store. | Make StorageKey globally unique and add CHECK (StorageKey LIKE CAST(TenantId AS varchar(10)) + '/%'). |
-| DR-12 | `aud.SensitiveAccessLog.AuditLogId` | major | referential | AuditLogId is a bare bigint commented 'the corresponding event in AuditLog' (model line 332) with no reference. | Add composite FK (TenantId, AuditLogId) -> aud.AuditLog (TenantId, AuditLogId); |
-| DR-13 | `cfg.DataExportJob.ApprovedBy` | major | workflow_semantics | A restricted export (IncludesRestricted = 1: identity numbers and images) can be approved by its own requester. | Add CHECK (ApprovedBy IS NULL OR ApprovedBy <> RequestedBy), a pairing CHECK between ApprovedBy and ApprovedAt, and CHECK (Status <> 'READY' OR ExpiresAt IS NOT NULL). |
-| DR-14 | `cfg.OutboxEvent.Status` | major | workflow_semantics | Status has five values, but no CHECK ties the lease and completion fields to them; | Add CHECK (Status <> 'PROCESSING' OR (LockedBy IS NOT NULL AND LockedUntil IS NOT NULL)), CHECK (Status <> 'DELIVERED' OR DeliveredAt IS NOT NULL) and CHECK (Status <> 'DEAD' OR LastError IS NOT NULL). |
-| DR-15 | `plat.SupportAccessGrant.EndsAt` | major | workflow_semantics | The 1 to 72 hour window (BR-PLT-017) is enforced only in the application; | Add CHECK (DATEDIFF(MINUTE, StartsAt, EndsAt) BETWEEN 60 AND 4320). |
-| DR-16 | `sec.Permission.LockedToRoleCodes` | major | normalization | LockedToRoleCodes (json, e.g. | Replace the lock with a junction table keyed on a stable role identity (SeedKey or a global role catalog) and enforce it with a trigger on sec.RolePermission. |
-| DR-17 | `cfg.TenantSetting.Key` | major | referential | TenantSetting.Key (ascii(100), unique per tenant) has no foreign key to cfg.SettingDefinition.Key. | Add a simple FK (Key) -> cfg.SettingDefinition (Key). |
-| DR-18 | `doc.Document.Sensitivity` | major | sensitivity | Sensitivity is a stored copy of a rule the database never evaluates: the model comment says RESTRICTED if the type is IsSensitive (line 354), but the only CHECK is enum membership (CK_Document_Sensitivity), and the default is CON… | Enforce a sensitivity floor with a trigger on doc.Document, and on cat.DocumentType updates, that raises Sensitivity to RESTRICTED when IsSensitive is set. |
-| DR-19 | `acc.Signatory.Status` | major | workflow_semantics | Status (12-institutions-accounts-catalogs.model:447) includes SUSPENDED, EXPIRED and REVOKED, but the table has no timestamp, actor or reason for any transition. | Add SuspendedAt, RevokedAt, RevokedBy and RevocationReason. |
-| DR-20 | `acc.BankAccount.EncKeyId, HashKeyId` | major | sensitivity | EncKeyId and HashKeyId reference sec.TenantKey by key id only (generated as (TenantId, EncKeyId) -> (TenantId, TenantKeyId)). | Store the purpose on the row as a constant column (e.g. |
-| DR-21 | `org.AuthorityGrant.ApprovedBy, ApprovedAt, SupersedesGrantId` | major | workflow_semantics | ApprovedBy and ApprovedAt (11-organization-party.model:143-144) are nullable, and the status CHECK (line 156) requires only a source document or an exception reason for ACTIVE/SUPERSEDED/REVOKED. | Add CHECK (Status IN ('DRAFT','PENDING_APPROVAL') OR (ApprovedBy IS NOT NULL AND ApprovedAt IS NOT NULL)) and CHECK (ApprovedBy IS NULL OR ApprovedAt IS NOT NULL). |
-| DR-22 | `org.Shareholding.Layer, HolderPartyId, CompanyId` | major | cardinality | Layer >= 2 means 'indirect, through intermediate entities' (11-organization-party.model:78), but no column identifies the intermediate holder or the parent holding. | Add a self-referencing ViaShareholdingId (or IntermediatePartyId) with via=CompanyId pointing to the intermediate's layer-1 row, and key the uniqueness and the open-row filter on (CompanyId, HolderPartyId, ViaShareholdingId, Effe… |
-| DR-23 | `pty.IdentityDocument.SupersededById, IsSuperseded` | major | referential | SupersededById (11-organization-party.model:305) is generated as (TenantId, SupersededById) only (002_foreign_keys.sql:156), so a document can be superseded by a document belonging to a different party. | Add via=PartyId to SupersededById so the successor must belong to the same party. |
-| DR-24 | `org.Company.PartyId` | major | redundancy | The company-party mirror is stored twice: org.Company.PartyId (11-organization-party.model:16, unique line 34) and pty.Party.LinkedCompanyId (line 274, unique line 278). | Keep one pointer and derive the other, or enforce equality declaratively: add a unique key (TenantId, CompanyId, PartyId) on org.Company and make pty.Party's link a composite FK (TenantId, LinkedCompanyId, PartyId) -> org.Company… |
-| DR-25 | `org.Company.TaxNumber` | major | sensitivity | org.Company.TaxNumber (11-organization-party.model:26) is a plain ascii(30) column with no sens tag, on a 'public' aggregate root (line 12) whose PublicId is exposed through the API (docs/20 sections 1 and 4). | Drop org.Company.TaxNumber and read the current TaxIdentity row (CountryId = the company's CountryId, IsCurrent = 1) through a view. |
-| DR-26 | `fac.Utilization (and lc.LetterOfCredit link, file 16).SourceType, SourceRefId` | major | referential | SourceRefId is a bigint that holds an LcId or a RequestId depending on SourceType (13:254-255). | Replace SourceRefId with typed nullable FKs (for example a request FK to wfl.Request, and the LC link kept on one side only). |
-| DR-27 | `fac.ValueConflict.TargetEntity, TargetId, FacilityId` | major | referential | The conflict targets an entity through free text TargetEntity ascii(60) (13:328) and bigint TargetId (13:329), with no FK and no domain CHECK (DDL 001 has only the NOT NULL). | Use typed nullable target FKs with (TenantId, FacilityId, ...) composite keys and an exactly-one CHECK, as LimitMovement does. |
-| DR-28 | `fac.Facility (header); fac.Limit, fac.LimitProductLine, fac.LimitCompanyRule, prc.PricingRule, cmp.TermValue (rev children).ApprovedRevisionNo, ParentLimitId, LimitId, ToRevision` | major | workflow_semantics | Revision integrity is left to the application. | Separate stable identity from versions. |
-| DR-29 | `cat.BaseRate (with cat.BaseRateValue and cat.BaseRateAlias).InstitutionId (MARKET rows), CurrencyId, Code, BaseRateAlias.InstitutionId` | major | tenancy | BaseRate is tenant-owned (no global/mixed flag, model 12:210; | Make MARKET base rates and their values global or mixed (TenantId NULL, platform-written, tenant read-only) and keep BANK_INTERNAL tenant-owned, with a justification line per table. |
-| DR-30 | `cat.FinancingType; cat.ProductFinancingType (with cat.Product and cat.FacilityType).IsIslamic, Compliance` | major | workflow_semantics | Shariah classification is modelled three ways. | Replace IsIslamic with the same Compliance enum. |
-| DR-31 | `fac.Limit, fac.LimitProductLine, fac.LimitCompanyRule, fac.ProductLineTerm, fac.OutstandingSnapshot, fac.ValueConflict, prc.PricingRule, cmp.TermValue (src tables).OriginalText (and CandidateAOriginalText, Reason, Notes, ChangeSummary)` | major | sensitivity | The src flag adds OriginalText NVARCHAR(2000) to each sourced row (DDL 001:2969, 3020, 3070, 3114 and others) and ValueConflict.CandidateA/BOriginalText (13:335, 13:341). | Flag OriginalText and the free-text columns in src and rev tables as sens=confidential, and add DENY SELECT for tp_readonly on them. |
-| DR-32 | `cat.DocumentType; fac.FacilityLender; fac.Facility; ref.Country; cat.LegalEntityType; cat.Position.AppliesTo, Roles, AlertLeadDays, BankUnilateralRights, WeekendDays, DefaultBodyTypes, ApplicableBodyTypes` | major | normalization | Multi-valued columns are not domain-checked. | Have dbgen emit a membership CHECK for every set{} column (wrap the value in commas and reject any token outside the list, plus duplicates). |
-| DR-33 | `col.Guarantee.GuarantorIdentityDocumentId` | major | referential | The generated FK is (TenantId, GuarantorIdentityDocumentId) to pty.IdentityDocument only (002_foreign_keys.sql:444). | Declare GuarantorIdentityDocumentId ->pty.IdentityDocument via=GuarantorPartyId, with a unique (TenantId, PartyId, IdentityDocumentId) on pty.IdentityDocument. |
-| DR-34 | `fin.FinancialStatement.SupersedesId` | major | referential | The version-chain FK is (TenantId, SupersedesId) to fin.FinancialStatement only (002_foreign_keys.sql:510) with no via= on CompanyId or on the period key. | Declare SupersedesId ->fin.FinancialStatement via=CompanyId,Basis,Assurance,PeriodType,PeriodEnd (the columns of the approved-uniqueness key), with a unique on the target (TenantId, those columns, FinancialStatementId). |
-| DR-35 | `prc.PricingRule.ScopeLimitProductLineId` | major | referential | ScopeLimitProductLineId (db/model/13 line 438), cmp.TermValue.LimitProductLineId (line 561) and obl.Obligation.ScopeProductLineId (db/model/14 line 167) use via=FacilityId only. | Use via=FacilityId,ScopeLimitId for PricingRule and Obligation, and via=FacilityId,LimitId for TermValue. |
-| DR-36 | `col.Collateral.Status` | major | workflow_semantics | Status is {DRAFT, ACTIVE, RELEASED, EXPIRED} (db/model/14 line 33), and it has no value for a replaced version. | Add SUPERSEDED to Status and set it in the approval transaction. |
-| DR-37 | `fin.AccountMonthlyStat.MonthEnd` | major | key | Both fin.AccountMonthlyStat and fin.BankFlowEntry key on MonthEnd (db/model/14 line 456 unique BankAccountId,MonthEnd; | Add CHECK (MonthEnd = EOMONTH(MonthEnd)) to both tables, and apply the same rule to any other MonthEnd used as a key. |
-| DR-38 | `obl.Covenant.ThresholdUnit` | major | workflow_semantics | CK_Covenant_3 (001_tables.sql:4144) requires Operator and ThresholdValue when ThresholdState = 'SET', but not ThresholdUnit (model lines 286-288). | Add CHECK (ThresholdState <> 'SET' OR ThresholdUnit IS NOT NULL) and CHECK (MeasureKind NOT IN ('RATIO','AMOUNT','PERCENT_OF_REVENUE') OR StatementBasis IS NOT NULL), and review RequiredAssurance the same way. |
-| DR-39 | `obl.CovenantTest.CovenantId` | major | workflow_semantics | (a) The model says stored results are not edited (المخزَّن لا يُعدَّل, db/model/14 line 300) and InputsSnapshot is fixed after saving (line 314, BR-FIN-010). | Keep a GoverningCovenantId (and GoverningReportingObligationId on ReportingInstance) that is never re-pointed, and resolve the current revision through the logical chain. |
-| DR-40 | `col.Guarantee.CollateralId` | major | referential | Subtype rows (Guarantee, PromissoryNote, InsurancePolicyAssignment, ValuationSchedule; | Use the typed-FK pattern. |
-| DR-41 | `lc.LcTerms.Status` | major | workflow_semantics | Locked legal content is mutable at the database level. | Separate mutable draft from issued content: keep LcTerms mutable only while DRAFT and insert a new immutable row on lock, with DENY UPDATE/DELETE to tp_app and tp_platform on the locked table (the append mechanism already used in… |
-| DR-42 | `lc.LetterOfCredit.CurrentTermsId` | major | referential | LcTerms.OwnerType/OwnerId is polymorphic with no FK (16:162-163), and the generated FK for CurrentTermsId is (TenantId, CurrentTermsId) only (DDL 002_foreign_keys.sql:709). | Replace OwnerType/OwnerId with typed nullable owner keys (RequestId, ProformaInvoiceId, LetterOfCreditId, LcAmendmentId) and a check that exactly one applies for the Purpose, so each terms row has a real FK. |
-| DR-43 | `wfl.HookExecution.ActionFilter` | major | key | The idempotency key omits ActionFilter. | Include ActionFilter in the unique key (SQL Server treats NULLs as equal in unique constraints, so ON_ENTER and ON_EXIT rows stay unique). |
-| DR-44 | `wfl.Request.DueAt` | major | redundancy | Request duplicates the open stage instance. | Make RequestStageInstance the single source of stage, assignee and SLA state, and build the queue and SLA indexes on it (it already indexes DueAt where ExitedAt IS NULL, 15:405). |
-| DR-45 | `lc.LetterOfCredit.InstitutionId` | major | key | InstitutionId is optional (16:397; | Add CHECK (LcClass = 'SALES' OR InstitutionId IS NOT NULL). |
-| DR-46 | `lc.LcTermsComparisonLine.BaselineValue` | major | sensitivity | The restricted IBAN is encrypted in one column, but comparison and diff storage writes field values in plaintext with no sensitivity tag. | Exclude sens=restricted FieldKeys from comparison and diff at write time, storing only the mask and an HMAC for changed restricted fields, or encrypt those values with the §6.2 envelope. |
-| DR-47 | `org.Company.ErpCodeNormalized` | minor | normalization | ErpCodeNormalized (11-organization-party.model:28) is a stored derivation of ErpCompanyCode (the comment says it implements the BR-LCE-002 formula). | Declare ErpCodeNormalized as a calc column with a persisted expression, e.g. |
-| DR-48 | `ref.Country, ref.Currency, and every cat.* table with a Code check (for example cat.BaseRate, cat.LookupItem).Iso2, Iso3, Code` | minor | key | The database collation is Arabic_100_CI_AS_SC (db/deploy.sql:9). | Add COLLATE Latin1_General_100_BIN2 inside each Code CHECK, for example Iso2 COLLATE Latin1_General_100_BIN2 NOT LIKE '%[^A-Z]%'. |
-| DR-49 | `wfl.RequestType.AmountFieldKey` | minor | redundancy | RequestType repeats facts that other tables already own. | Derive field keys from TemplateField.IndexRole of the current template, derive the default template from WorkflowTemplate.IsCurrent, and make NumberSequenceKey a computed column or a check equal to 'req:' + Code. |
-| DR-50 | `wfl.Request.OutcomeReason` | minor | workflow_semantics | Several state columns lack the evidence that their state implies. | Add CHECKs: Status IN ('REJECTED','CANCELLED') implies OutcomeReason IS NOT NULL; |
+| المعرّف | الكيان | الدرجة | الدلالة | المشكلة (ملخص) | الإصلاح المقترح (ملخص) | الحالة |
+|---|---|---|---|---|---|---|
+| DR-11 | `doc.DocumentVersion.StorageKey` | major | tenancy | The storage path is unique only per tenant (UQ_DocumentVersion_StorageKey = UNIQUE (TenantId, StorageKey), db/generated/tsql/001_tables.sql:609), yet the design (6.4) describes one shared file store. | Make StorageKey globally unique and add CHECK (StorageKey LIKE CAST(TenantId AS varchar(10)) + '/%'). | مفتوح |
+| DR-12 | `aud.SensitiveAccessLog.AuditLogId` | major | referential | AuditLogId is a bare bigint commented 'the corresponding event in AuditLog' (model line 332) with no reference. | Add composite FK (TenantId, AuditLogId) -> aud.AuditLog (TenantId, AuditLogId); | مفتوح |
+| DR-13 | `cfg.DataExportJob.ApprovedBy` | major | workflow_semantics | A restricted export (IncludesRestricted = 1: identity numbers and images) can be approved by its own requester. | Add CHECK (ApprovedBy IS NULL OR ApprovedBy <> RequestedBy), a pairing CHECK between ApprovedBy and ApprovedAt, and CHECK (Status <> 'READY' OR ExpiresAt IS NOT NULL). | مفتوح |
+| DR-14 | `cfg.OutboxEvent.Status` | major | workflow_semantics | Status has five values, but no CHECK ties the lease and completion fields to them; | Add CHECK (Status <> 'PROCESSING' OR (LockedBy IS NOT NULL AND LockedUntil IS NOT NULL)), CHECK (Status <> 'DELIVERED' OR DeliveredAt IS NOT NULL) and CHECK (Status <> 'DEAD' OR LastError IS NOT NULL). | مفتوح |
+| DR-15 | `plat.SupportAccessGrant.EndsAt` | major | workflow_semantics | The 1 to 72 hour window (BR-PLT-017) is enforced only in the application; | Add CHECK (DATEDIFF(MINUTE, StartsAt, EndsAt) BETWEEN 60 AND 4320). | مفتوح |
+| DR-16 | `sec.Permission.LockedToRoleCodes` | major | normalization | LockedToRoleCodes (json, e.g. | Replace the lock with a junction table keyed on a stable role identity (SeedKey or a global role catalog) and enforce it with a trigger on sec.RolePermission. | مفتوح |
+| DR-17 | `cfg.TenantSetting.Key` | major | referential | TenantSetting.Key (ascii(100), unique per tenant) has no foreign key to cfg.SettingDefinition.Key. | Add a simple FK (Key) -> cfg.SettingDefinition (Key). | مفتوح |
+| DR-18 | `doc.Document.Sensitivity` | major | sensitivity | Sensitivity is a stored copy of a rule the database never evaluates: the model comment says RESTRICTED if the type is IsSensitive (line 354), but the only CHECK is enum membership (CK_Document_Sensitivity), and the default is CON… | Enforce a sensitivity floor with a trigger on doc.Document, and on cat.DocumentType updates, that raises Sensitivity to RESTRICTED when IsSensitive is set. | مفتوح |
+| DR-19 | `acc.Signatory.Status` | major | workflow_semantics | Status (12-institutions-accounts-catalogs.model:447) includes SUSPENDED, EXPIRED and REVOKED, but the table has no timestamp, actor or reason for any transition. | Add SuspendedAt, RevokedAt, RevokedBy and RevocationReason. | مفتوح |
+| DR-20 | `acc.BankAccount.EncKeyId, HashKeyId` | major | sensitivity | EncKeyId and HashKeyId reference sec.TenantKey by key id only (generated as (TenantId, EncKeyId) -> (TenantId, TenantKeyId)). | Store the purpose on the row as a constant column (e.g. | مفتوح |
+| DR-21 | `org.AuthorityGrant.ApprovedBy, ApprovedAt, SupersedesGrantId` | major | workflow_semantics | ApprovedBy and ApprovedAt (11-organization-party.model:143-144) are nullable, and the status CHECK (line 156) requires only a source document or an exception reason for ACTIVE/SUPERSEDED/REVOKED. | Add CHECK (Status IN ('DRAFT','PENDING_APPROVAL') OR (ApprovedBy IS NOT NULL AND ApprovedAt IS NOT NULL)) and CHECK (ApprovedBy IS NULL OR ApprovedAt IS NOT NULL). | مفتوح |
+| DR-22 | `org.Shareholding.Layer, HolderPartyId, CompanyId` | major | cardinality | Layer >= 2 means 'indirect, through intermediate entities' (11-organization-party.model:78), but no column identifies the intermediate holder or the parent holding. | Add a self-referencing ViaShareholdingId (or IntermediatePartyId) with via=CompanyId pointing to the intermediate's layer-1 row, and key the uniqueness and the open-row filter on (CompanyId, HolderPartyId, ViaShareholdingId, Effe… | مفتوح |
+| DR-23 | `pty.IdentityDocument.SupersededById, IsSuperseded` | major | referential | SupersededById (11-organization-party.model:305) is generated as (TenantId, SupersededById) only (002_foreign_keys.sql:156), so a document can be superseded by a document belonging to a different party. | Add via=PartyId to SupersededById so the successor must belong to the same party. | مفتوح |
+| DR-24 | `org.Company.PartyId` | major | redundancy | The company-party mirror is stored twice: org.Company.PartyId (11-organization-party.model:16, unique line 34) and pty.Party.LinkedCompanyId (line 274, unique line 278). | Keep one pointer and derive the other, or enforce equality declaratively: add a unique key (TenantId, CompanyId, PartyId) on org.Company and make pty.Party's link a composite FK (TenantId, LinkedCompanyId, PartyId) -> org.Company… | مفتوح |
+| DR-25 | `org.Company.TaxNumber` | major | sensitivity | org.Company.TaxNumber (11-organization-party.model:26) is a plain ascii(30) column with no sens tag, on a 'public' aggregate root (line 12) whose PublicId is exposed through the API (docs/20 sections 1 and 4). | Drop org.Company.TaxNumber and read the current TaxIdentity row (CountryId = the company's CountryId, IsCurrent = 1) through a view. | مفتوح |
+| DR-26 | `fac.Utilization (and lc.LetterOfCredit link, file 16).SourceType, SourceRefId` | major | referential | SourceRefId is a bigint that holds an LcId or a RequestId depending on SourceType (13:254-255). | Replace SourceRefId with typed nullable FKs (for example a request FK to wfl.Request, and the LC link kept on one side only). | مفتوح |
+| DR-27 | `fac.ValueConflict.TargetEntity, TargetId, FacilityId` | major | referential | The conflict targets an entity through free text TargetEntity ascii(60) (13:328) and bigint TargetId (13:329), with no FK and no domain CHECK (DDL 001 has only the NOT NULL). | Use typed nullable target FKs with (TenantId, FacilityId, ...) composite keys and an exactly-one CHECK, as LimitMovement does. | مفتوح |
+| DR-28 | `fac.Facility (header); fac.Limit, fac.LimitProductLine, fac.LimitCompanyRule, prc.PricingRule, cmp.TermValue (rev children).ApprovedRevisionNo, ParentLimitId, LimitId, ToRevision` | major | workflow_semantics | Revision integrity is left to the application. | Separate stable identity from versions. | مفتوح |
+| DR-29 | `cat.BaseRate (with cat.BaseRateValue and cat.BaseRateAlias).InstitutionId (MARKET rows), CurrencyId, Code, BaseRateAlias.InstitutionId` | major | tenancy | BaseRate is tenant-owned (no global/mixed flag, model 12:210; | Make MARKET base rates and their values global or mixed (TenantId NULL, platform-written, tenant read-only) and keep BANK_INTERNAL tenant-owned, with a justification line per table. | مفتوح |
+| DR-30 | `cat.FinancingType; cat.ProductFinancingType (with cat.Product and cat.FacilityType).IsIslamic, Compliance` | major | workflow_semantics | Shariah classification is modelled three ways. | Replace IsIslamic with the same Compliance enum. | مفتوح |
+| DR-31 | `fac.Limit, fac.LimitProductLine, fac.LimitCompanyRule, fac.ProductLineTerm, fac.OutstandingSnapshot, fac.ValueConflict, prc.PricingRule, cmp.TermValue (src tables).OriginalText (and CandidateAOriginalText, Reason, Notes, ChangeSummary)` | major | sensitivity | The src flag adds OriginalText NVARCHAR(2000) to each sourced row (DDL 001:2969, 3020, 3070, 3114 and others) and ValueConflict.CandidateA/BOriginalText (13:335, 13:341). | Flag OriginalText and the free-text columns in src and rev tables as sens=confidential, and add DENY SELECT for tp_readonly on them. | مفتوح |
+| DR-32 | `cat.DocumentType; fac.FacilityLender; fac.Facility; ref.Country; cat.LegalEntityType; cat.Position.AppliesTo, Roles, AlertLeadDays, BankUnilateralRights, WeekendDays, DefaultBodyTypes, ApplicableBodyTypes` | major | normalization | Multi-valued columns are not domain-checked. | Have dbgen emit a membership CHECK for every set{} column (wrap the value in commas and reject any token outside the list, plus duplicates). | مفتوح |
+| DR-33 | `col.Guarantee.GuarantorIdentityDocumentId` | major | referential | The generated FK is (TenantId, GuarantorIdentityDocumentId) to pty.IdentityDocument only (002_foreign_keys.sql:444). | Declare GuarantorIdentityDocumentId ->pty.IdentityDocument via=GuarantorPartyId, with a unique (TenantId, PartyId, IdentityDocumentId) on pty.IdentityDocument. | مفتوح |
+| DR-34 | `fin.FinancialStatement.SupersedesId` | major | referential | The version-chain FK is (TenantId, SupersedesId) to fin.FinancialStatement only (002_foreign_keys.sql:510) with no via= on CompanyId or on the period key. | Declare SupersedesId ->fin.FinancialStatement via=CompanyId,Basis,Assurance,PeriodType,PeriodEnd (the columns of the approved-uniqueness key), with a unique on the target (TenantId, those columns, FinancialStatementId). | مفتوح |
+| DR-35 | `prc.PricingRule.ScopeLimitProductLineId` | major | referential | ScopeLimitProductLineId (db/model/13 line 438), cmp.TermValue.LimitProductLineId (line 561) and obl.Obligation.ScopeProductLineId (db/model/14 line 167) use via=FacilityId only. | Use via=FacilityId,ScopeLimitId for PricingRule and Obligation, and via=FacilityId,LimitId for TermValue. | مفتوح |
+| DR-36 | `col.Collateral.Status` | major | workflow_semantics | Status is {DRAFT, ACTIVE, RELEASED, EXPIRED} (db/model/14 line 33), and it has no value for a replaced version. | Add SUPERSEDED to Status and set it in the approval transaction. | مفتوح |
+| DR-37 | `fin.AccountMonthlyStat.MonthEnd` | major | key | Both fin.AccountMonthlyStat and fin.BankFlowEntry key on MonthEnd (db/model/14 line 456 unique BankAccountId,MonthEnd; | Add CHECK (MonthEnd = EOMONTH(MonthEnd)) to both tables, and apply the same rule to any other MonthEnd used as a key. | مفتوح |
+| DR-38 | `obl.Covenant.ThresholdUnit` | major | workflow_semantics | CK_Covenant_3 (001_tables.sql:4144) requires Operator and ThresholdValue when ThresholdState = 'SET', but not ThresholdUnit (model lines 286-288). | Add CHECK (ThresholdState <> 'SET' OR ThresholdUnit IS NOT NULL) and CHECK (MeasureKind NOT IN ('RATIO','AMOUNT','PERCENT_OF_REVENUE') OR StatementBasis IS NOT NULL), and review RequiredAssurance the same way. | مفتوح |
+| DR-39 | `obl.CovenantTest.CovenantId` | major | workflow_semantics | (a) The model says stored results are not edited (المخزَّن لا يُعدَّل, db/model/14 line 300) and InputsSnapshot is fixed after saving (line 314, BR-FIN-010). | Keep a GoverningCovenantId (and GoverningReportingObligationId on ReportingInstance) that is never re-pointed, and resolve the current revision through the logical chain. | مفتوح |
+| DR-40 | `col.Guarantee.CollateralId` | major | referential | Subtype rows (Guarantee, PromissoryNote, InsurancePolicyAssignment, ValuationSchedule; | Use the typed-FK pattern. | مفتوح |
+| DR-41 | `lc.LcTerms.Status` | major | workflow_semantics | Locked legal content is mutable at the database level. | Separate mutable draft from issued content: keep LcTerms mutable only while DRAFT and insert a new immutable row on lock, with DENY UPDATE/DELETE to tp_app and tp_platform on the locked table (the append mechanism already used in… | مفتوح |
+| DR-42 | `lc.LetterOfCredit.CurrentTermsId` | major | referential | LcTerms.OwnerType/OwnerId is polymorphic with no FK (16:162-163), and the generated FK for CurrentTermsId is (TenantId, CurrentTermsId) only (DDL 002_foreign_keys.sql:709). | Replace OwnerType/OwnerId with typed nullable owner keys (RequestId, ProformaInvoiceId, LetterOfCreditId, LcAmendmentId) and a check that exactly one applies for the Purpose, so each terms row has a real FK. | مفتوح |
+| DR-43 | `wfl.HookExecution.ActionFilter` | major | key | The idempotency key omits ActionFilter. | Include ActionFilter in the unique key (SQL Server treats NULLs as equal in unique constraints, so ON_ENTER and ON_EXIT rows stay unique). | مفتوح |
+| DR-44 | `wfl.Request.DueAt` | major | redundancy | Request duplicates the open stage instance. | Make RequestStageInstance the single source of stage, assignee and SLA state, and build the queue and SLA indexes on it (it already indexes DueAt where ExitedAt IS NULL, 15:405). | مفتوح |
+| DR-45 | `lc.LetterOfCredit.InstitutionId` | major | key | InstitutionId is optional (16:397; | Add CHECK (LcClass = 'SALES' OR InstitutionId IS NOT NULL). | مفتوح |
+| DR-46 | `lc.LcTermsComparisonLine.BaselineValue` | major | sensitivity | The restricted IBAN is encrypted in one column, but comparison and diff storage writes field values in plaintext with no sensitivity tag. | Exclude sens=restricted FieldKeys from comparison and diff at write time, storing only the mask and an HMAC for changed restricted fields, or encrypt those values with the §6.2 envelope. | مفتوح |
+| DR-47 | `org.Company.ErpCodeNormalized` | minor | normalization | ErpCodeNormalized (11-organization-party.model:28) is a stored derivation of ErpCompanyCode (the comment says it implements the BR-LCE-002 formula). | Declare ErpCodeNormalized as a calc column with a persisted expression, e.g. | مفتوح |
+| DR-48 | `ref.Country, ref.Currency, and every cat.* table with a Code check (for example cat.BaseRate, cat.LookupItem).Iso2, Iso3, Code` | minor | key | The database collation is Arabic_100_CI_AS_SC (db/deploy.sql:9). | Add COLLATE Latin1_General_100_BIN2 inside each Code CHECK, for example Iso2 COLLATE Latin1_General_100_BIN2 NOT LIKE '%[^A-Z]%'. | مفتوح |
+| DR-49 | `wfl.RequestType.AmountFieldKey` | minor | redundancy | RequestType repeats facts that other tables already own. | Derive field keys from TemplateField.IndexRole of the current template, derive the default template from WorkflowTemplate.IsCurrent, and make NumberSequenceKey a computed column or a check equal to 'req:' + Code. | مفتوح |
+| DR-50 | `wfl.Request.OutcomeReason` | minor | workflow_semantics | Several state columns lack the evidence that their state implies. | Add CHECKs: Status IN ('REJECTED','CANCELLED') implies OutcomeReason IS NOT NULL; | مفتوح |
 
-### 18.3 القرار المطلوب
+### 18.3 القرار
 
-المطلوب قبل أي تنفيذ على SQL Server:
-
-1. **اعتماد الإصلاحات الحرجة العشر** أو تعديلها، لأن كل منها يغيّر مفتاحًا أجنبيًا أو ملكية جدول. أكثرها أثرًا: تحويل كتالوج القيم المختلط (`cat.LookupItem`) إلى نسخ لكل مشترك وربط المراجع مركّبًا (DR-03 و DR-05 و DR-07)، وتحويل عنوان المالك المتعدد `pty.Address` إلى أقواس خارجية متعددة الأعمدة (DR-04)، ومراجعة ملكية `plat.TenantModule` (DR-01).
-2. **تحديد مفتاح الغرض في مفاتيح التشفير** (DR-02): إضافة `KeyPurpose` وقيد مركّب، أو الإبقاء على الحالي مع فحص آلي.
-3. **إعادة توليد النموذج** بعد الموافقة، ثم تشغيل `check_grants.py` والتحقق البنيوي والتحقق من المخططات، ثم تحديث الـ ERD وفق النتائج.
+1. **الحرجة (10): مُعتمدة ومُطبَّقة** في النموذج والـDDL بالتغيير C-12، ويتحقق منها `tools/dbgen/check_review_fixes.py` آليًا على DDL المولَّد.
+2. **الرئيسية (36) والطفيفة (4): مفتوحة.** المطلوب قرار لكل نتيجة: تُطبَّق قبل S0، أو تُؤجَّل بسبب مكتوب (O-15). ما يُطبَّق منها يغيّر النموذج، فيُعاد التوليد والتحقق.
+3. **بعد أي تغيير** في النموذج: `dbgen check` و`dbgen build` و`pg_validate.sh` و`check_grants.py` و`check_review_fixes.py`، ثم `erd_mermaid.py` لتحديث المخططات، ثم إعادة بناء هذه الوثيقة.
 
