@@ -45,7 +45,8 @@ GAP_X = 100.0                       # distance between two columns (rank gap)
 GAP_Y = 24.0                        # vertical distance between two tables in a column
 MARGIN_GAP = 18.0                   # connector bends stay this far from the table edges
 LANE_SP = 8.0
-EXIT_SP = 3.4                     # spacing of connectors that leave the same parent key row
+EXIT_SP = 4.2                     # spacing of connectors that leave the same parent key row
+SHARED_MH, SHARED_CR = 1.6, 1.6   # bar half-height and circle radius when several relations leave one key row
 HOP = 2.6                          # radius of the bump where a connector crosses another one
 CHART_MARGIN = 14.0
 LINE_PT = 1.0
@@ -119,7 +120,8 @@ def build_chart(key, members, allowed=None):
             if c in fk_cols and own: k.append('FK')
             if c in ref_cols and c not in pk: k.append('UQ')
             rows.append({'name': c, 'type': types.get(c, ''), 'not_null': col_info[fq].get(c, False),
-                         'key': ' '.join(k)})
+                         'key': ' '.join(k),
+                         'exits': sum(1 for e in edges if e['parent'] == fq and e['pcol'] == c)})
         hidden = sum(1 for c in names if c != TENANT and c not in shown)
         nodes.append({'fq': fq, 'own': own, 'rows': rows, 'hidden': hidden})
     return {'key': key, 'nodes': nodes, 'edges': edges}
@@ -132,6 +134,21 @@ def col_h(node):
     return COL_H if node['own'] else 0.0
 
 
+def row_h(r):
+    """A key row is ROW_H high; a key that several relations leave is taller, so each connector has its own band."""
+    k = r.get('exits', 0)
+    return ROW_H if k <= 1 else max(ROW_H, (k - 1) * EXIT_SP + 2 * SHARED_MH + 4)
+
+
+def row_top(node, i):
+    """Offset of the top of key row i, measured from the top of its table."""
+    return HEAD_H + col_h(node) + sum(row_h(r) for r in node['rows'][:i])
+
+
+def body_h(node):
+    return sum(row_h(r) for r in node['rows'])
+
+
 def table_geom(node):
     rows = node['rows']
     key_w = max([text_w(r['key'], 'bold', KEY_PT) for r in rows if r['key']] + [text_w('KEY', 'reg', HEAD_PT)]) + 2 * PAD
@@ -142,7 +159,7 @@ def table_geom(node):
     body_w = key_w + name_w + type_w + null_w
     w = max(head_w, body_w)
     name_w += w - body_w
-    h = HEAD_H + col_h(node) + len(rows) * ROW_H + (MORE_H if node['hidden'] else 0) + 2
+    h = HEAD_H + col_h(node) + body_h(node) + (MORE_H if node['hidden'] else 0) + 2
     return {'w': w, 'h': h, 'key_w': key_w, 'name_w': name_w, 'type_w': type_w, 'null_w': null_w}
 
 
@@ -155,7 +172,8 @@ def row_index(node, col):
 
 def row_off(node, col):
     """Vertical offset of the centre of a key row, measured from the top of its table."""
-    return HEAD_H + col_h(node) + row_index(node, col) * ROW_H + ROW_H / 2
+    i = row_index(node, col)
+    return row_top(node, i) + row_h(node['rows'][i]) / 2
 
 
 def ranks(nodes, edges):
@@ -252,7 +270,7 @@ def route(chart, rk, geo, col_x, col_w, top):
     def clear(pts, skip=()):
         for a, b in zip(pts, pts[1:]):
             for fq, r in rects:
-                if fq not in skip and _hits(a, b, r):
+                if fq not in skip and _hits(a, b, (r[0] - 3, r[1] - 3, r[2] + 3, r[3] + 3)):
                     return False
         return True
 
@@ -265,7 +283,7 @@ def route(chart, rk, geo, col_x, col_w, top):
         exit_k[key] = k + 1
         n = exit_n[key]
         exit_offset[i] = (k - (n - 1) / 2) * EXIT_SP
-        exit_marks[i] = (4.5, 3.1) if n == 1 else (2.2, 2.3)      # half-height of the bar, radius of the circle
+        exit_marks[i] = (4.5, 3.1) if n == 1 else (SHARED_MH, SHARED_CR)
     plans = []
     for i, e in enumerate(chart['edges']):
         p, c = e['parent'], e['child']
@@ -399,7 +417,7 @@ def render(chart, out_png):
             if a[1] == b[1] and a[0] != b[0]:
                 x0, x1 = sorted((a[0], b[0]))
                 crossings = sorted(x for j, x, y1, y2 in verticals
-                                   if j != idx and x0 + HOP + 3 < x < x1 - HOP - 3 and y1 < a[1] < y2)
+                                   if j != idx and x0 + HOP + 1.5 < x < x1 - HOP - 1.5 and y1 < a[1] < y2)
                 hop_line(d, T, x0, x1, a[1], crossings, lw)
             elif a[0] == b[0] and a[1] != b[1]:
                 d.line([T(*a), T(*b)], fill=EDGE, width=lw)
@@ -425,7 +443,7 @@ def render(chart, out_png):
             for label, lx in (('KEY', kx), ('COLUMN', nx + PAD), ('TYPE', tx + PAD), ('NULL', ux + PAD)):
                 d.text(T(lx, ly), label, font=_font('reg', HEAD_PT * PX), fill=MUTED, anchor='ls')
         for i, r in enumerate(n['rows']):
-            cy = y + HEAD_H + col_h(n) + i * ROW_H + ROW_H / 2
+            cy = y + row_top(n, i) + row_h(r) / 2
             base = cy + 0.36 * CELL_PT
             if r['key']:
                 d.text(T(x + PAD, base), r['key'], font=_font('bold', KEY_PT * PX), fill=NAVY, anchor='ls')
@@ -437,10 +455,11 @@ def render(chart, out_png):
             d.text(T(ux + PAD, base), 'not null' if r['not_null'] else 'null', font=_font('reg', TYPE_PT * PX),
                    fill=MUTED, anchor='ls')
             if i < len(n['rows']) - 1:
-                a, b = T(x + 0.5, y + HEAD_H + col_h(n) + (i + 1) * ROW_H), T(x + g['w'] - 0.5, y + HEAD_H + col_h(n) + (i + 1) * ROW_H)
+                sy = y + row_top(n, i + 1)
+                a, b = T(x + 0.5, sy), T(x + g['w'] - 0.5, sy)
                 d.line([a, b], fill=RULE, width=max(1, round(0.5 * PX)))
         if n['hidden']:
-            my = y + HEAD_H + col_h(n) + len(n['rows']) * ROW_H + MORE_H / 2 + 0.36 * MORE_PT
+            my = y + HEAD_H + col_h(n) + body_h(n) + MORE_H / 2 + 0.36 * MORE_PT
             label = f'+ {n["hidden"]} more column' + ('s' if n['hidden'] != 1 else '')
             d.text(T(x + PAD, my), label, font=_font('ital', MORE_PT * PX), fill=MUTED, anchor='ls')
 
