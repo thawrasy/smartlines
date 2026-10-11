@@ -409,3 +409,14 @@ The owner's decisions on the boarding photo, ticket binding, boarding points, tr
   identity card covers the national and the temporary identity documents. New work item S8: the know-your-customer model and
   the re-registration of each client against the civil registry.
 
+### Ninth round: approval stages, the age default, and required data (migration 1091)
+
+- The stages of approval are the platform setting `photo.approval_stages` (default: a checker, then a final approval; at
+  least two). Each change snapshots them when it is asked. Built for the change of a photo on file, the accepted documents,
+  the age rule and the required data items. The one who asks never approves; no person approves twice.
+- The age below which a national identity card is not accepted defaults to 18 and changes through the stages.
+- Four data items are required or optional by setting (`iam.data_requirement`), all optional by default; a photo change is
+  refused when a required item is missing. Registration, booking and the profile are not yet wired to the setting.
+- Open: the stages for the boarding photo rules (WP1), the customer-side intake, the know-your-customer model (S8), the
+  registry check (S9), and the device image cache check (S5).
+

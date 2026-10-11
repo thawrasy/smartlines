@@ -89,10 +89,10 @@ class AgeChangeIn(BaseModel):
 
 
 @platform.get("/evidence-kinds")
-async def evidence_settings(request: Request, pr: Principal = Depends(require_portal("PLATFORM"))):
+async def settings(request: Request, pr: Principal = Depends(require_portal("PLATFORM"))):
     privacy_staff(pr)
     async with db.transaction(context_for(request, pr)) as conn:
-        return await photo.evidence_settings(conn)
+        return await photo.settings_view(conn)
 
 
 @platform.post("/evidence-kinds/{code}/changes", status_code=201)
@@ -103,7 +103,7 @@ async def request_evidence_change(code: str, body: EvidenceChangeIn, request: Re
     async with db.transaction(context_for(request, pr)) as conn:
         uid, change_id = await photo.request_evidence_change(conn, pr, code, body.active, body.reason)
     request.state.audit = {"action": "photo.policy_request", "object_type": "photo_policy_change", "object_id": change_id}
-    return {"uid": uid, "status": "PENDING", "approvals": 1}
+    return {"uid": uid, "status": "PENDING", "approvals": 0}
 
 
 @platform.post("/identity-age/changes", status_code=201)
@@ -113,7 +113,23 @@ async def request_identity_age(body: AgeChangeIn, request: Request, pr: Principa
     async with db.transaction(context_for(request, pr)) as conn:
         uid, change_id = await photo.request_identity_age(conn, pr, body.min_age, body.reason)
     request.state.audit = {"action": "photo.policy_request", "object_type": "photo_policy_change", "object_id": change_id}
-    return {"uid": uid, "status": "PENDING", "approvals": 1}
+    return {"uid": uid, "status": "PENDING", "approvals": 0}
+
+
+class RequirementIn(BaseModel):
+    requirement: Literal["REQUIRED", "OPTIONAL"]
+    reason: str = Field(min_length=10, max_length=500)
+
+
+@platform.post("/data-requirements/{field}/changes", status_code=201)
+async def request_data_requirement(field: str, body: RequirementIn, request: Request,
+                                   pr: Principal = Depends(require_portal("PLATFORM"))):
+    """Asks to set a data item as required or optional for a photo change; the approval stages decide (1091)."""
+    privacy_staff(pr)
+    async with db.transaction(context_for(request, pr)) as conn:
+        uid, change_id = await photo.request_data_requirement(conn, pr, field, body.requirement, body.reason)
+    request.state.audit = {"action": "photo.policy_request", "object_type": "photo_policy_change", "object_id": change_id}
+    return {"uid": uid, "status": "PENDING", "approvals": 0}
 
 
 @platform.get("/policy-changes")
@@ -129,7 +145,7 @@ async def approve_policy_change(uid: uuid.UUID, request: Request, pr: Principal 
     async with db.transaction(context_for(request, pr)) as conn:
         out = await photo.approve_policy_change(conn, pr, uid)
     request.state.audit = {"action": "photo.policy_approve", "object_type": "photo_policy_change", "object_id": out["change_id"]}
-    return {"status": out["status"], "approvals": out["approvals"], "required": out["required"]}
+    return {"status": out["status"], "approvals": out["approvals"], "stages": out["stages"]}
 
 
 @platform.post("/policy-changes/{uid}/reject")
@@ -167,12 +183,14 @@ async def request_change(request: Request, party_uid: uuid.UUID = Form(...),
 
 
 @platform.post("/changes/{uid}/approve")
-async def apply_change(uid: uuid.UUID, request: Request, pr: Principal = Depends(require_portal("PLATFORM"))):
+async def approve_change(uid: uuid.UUID, request: Request, pr: Principal = Depends(require_portal("PLATFORM"))):
+    """Records this person's stage of the change; the photo is replaced at the last stage (1091)."""
     privacy_staff(pr)
     async with db.transaction(context_for(request, pr)) as conn:
-        party_id = await photo.approve_change(conn, pr, uid)
-    request.state.audit = {"action": "photo.change_apply", "object_type": "party", "object_id": party_id}
-    return {"status": "APPLIED"}
+        out = await photo.approve_change(conn, pr, uid)
+    action = "photo.change_apply" if out["status"] == "APPLIED" else "photo.change_stage"
+    request.state.audit = {"action": action, "object_type": "party", "object_id": out["party_id"]}
+    return {"status": out["status"], "approvals": out["approvals"], "stages": out["stages"]}
 
 
 @platform.post("/changes/{uid}/reject")

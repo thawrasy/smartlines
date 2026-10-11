@@ -221,6 +221,10 @@ erDiagram
     bigint role_id FK
     text status
   }
+  iam_data_requirement {
+    text field_code PK
+    bigint changed_by_user_id FK
+  }
   iam_device {
     bigint id PK
     bigint user_id FK
@@ -342,6 +346,12 @@ erDiagram
   iam_permission {
     text code PK
   }
+  iam_photo_approval {
+    text subject_type PK
+    bigint subject_id PK
+    integer step PK
+    bigint approver_user_id FK
+  }
   iam_photo_change_request {
     bigint id PK
     uuid uid
@@ -358,10 +368,6 @@ erDiagram
     text code
     bigint changed_by_user_id FK
   }
-  iam_photo_policy_approval {
-    bigint change_id PK
-    bigint approver_user_id PK
-  }
   iam_photo_policy_change {
     bigint id PK
     uuid uid
@@ -369,6 +375,7 @@ erDiagram
     bigint requested_by_user_id FK
     text status
     bigint decided_by_user_id FK
+    text field_code FK
   }
   iam_photo_rule {
     bigint id PK
@@ -495,10 +502,11 @@ erDiagram
   iam_user_session }o--|| iam_app_user : "user_id"
   iam_auth_token }o..o| iam_app_user : "user_id"
   iam_device_permission_state }o--|| iam_app_user : "user_id"
-  iam_photo_policy_approval }o--|| iam_app_user : "approver_user_id"
   iam_mfa_challenge }o--|| iam_app_user : "user_id"
   iam_photo_change_request }o--|| iam_app_user : "requested_by_user_id"
+  iam_data_requirement }o..o| iam_app_user : "changed_by_user_id"
   iam_photo_evidence_kind }o..o| iam_app_user : "changed_by_user_id"
+  iam_photo_approval }o--|| iam_app_user : "approver_user_id"
   iam_family_link_request }o..o| iam_app_user : "requester_user_id"
   iam_party_photo }o--|| iam_app_user : "taken_by_user_id"
   iam_photo_policy_change }o--|| iam_app_user : "requested_by_user_id"
@@ -520,6 +528,7 @@ erDiagram
   iam_document }o..o| iam_company : "company_id"
   iam_verification }o..o| iam_company : "subject_company_id"
   iam_document }o..o| iam_company : "owner_company_id"
+  iam_photo_policy_change }o..o| iam_data_requirement : "field_code"
   iam_push_token }o--|| iam_device : "device_id"
   iam_device_permission_state }o--|| iam_device : "device_id"
   iam_user_session }o..o| iam_device : "device_id"
@@ -551,7 +560,6 @@ erDiagram
   iam_role_permission }o--|| iam_permission : "permission_code"
   iam_photo_policy_change }o..o| iam_photo_evidence_kind : "evidence_code"
   iam_photo_change_request }o--|| iam_photo_evidence_kind : "evidence_kind"
-  iam_photo_policy_approval }o--|| iam_photo_policy_change : "change_id"
   iam_role_permission }o--|| iam_role : "role_id"
   iam_user_role }o--|| iam_role : "role_id"
   iam_role_scope }o--|| iam_role : "role_id"

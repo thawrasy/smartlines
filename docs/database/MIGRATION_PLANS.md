@@ -175,6 +175,14 @@ a flag to mark the kinds under the age rule of the identity card (the national i
 document), and redefines `iam.evidence_accepted` to apply the nationality condition. It changes no existing request, and no
 table is added.
 
+**1091** makes the approval stages a platform setting and snapshots them with each change. A change to the photo on file,
+to the accepted documents, to the age rule, or to a required data item passes the stages: one person per stage, never the
+one who asked, and never the same person twice. It replaces the two-person approvals of 1089 with one table
+(`iam.photo_approval`) and drops the 1089 table, which had not been released. It sets the age default to 18, adds the table
+of required data items (`iam.data_requirement`) with four seeded items, all optional, and redefines the request and the
+approval functions to use them. It replaces the photo change's single approver of 1087 with the staged approval. The
+stages are not a fixed number of people: the platform sets them, and the function never accepts fewer than two.
+
 ## 1064_partitioned_bookings.sql on a live database (R-06)
 
 1064 turns `sales.booking` into a table partitioned by ranges of id **in place, under an ACCESS EXCLUSIVE lock**: it

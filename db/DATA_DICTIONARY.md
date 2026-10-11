@@ -2,13 +2,13 @@
 
 > Generated from the built database (`db/tools/gen_docs.py`); do not edit by hand.
 
-**510 tables, 5225 columns, in 26 schemas.**
+**511 tables, 5237 columns, in 26 schemas.**
 
 Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant isolation (RLS) · 🧩 partitioned monthly · 🔒 append-only / change-protected
 
 ## Index
 
-- [`iam` — Identity, parties, users, permissions and API clients](#iam) (39 tables)
+- [`iam` — Identity, parties, users, permissions and API clients](#iam) (40 tables)
 - [`ref` — Reference data, locales and files](#ref) (14 tables)
 - [`sys` — Settings, outbox and webhooks](#sys) (27 tables)
 - [`net` — Network: stations, routes, lines, corridors and geofences](#net) (22 tables)
@@ -217,6 +217,18 @@ Company users (seats) and their role; one owner per company, not editable from i
 | `is_owner` | `boolean` | ✱ | `false` |
 | `status` | `text` | ✱ | `'ACTIVE'::text` |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `iam.data_requirement` 🛡️
+
+Which data items a photo change needs: REQUIRED or OPTIONAL, set by the platform until the law says (1091)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `field_code` | `text` | 🔑 ✱ |  |
+| `label` | `text` | ✱ |  |
+| `requirement` | `text` | ✱ | `'OPTIONAL'::text` |
+| `changed_by_user_id` | `bigint` | 🔗 `iam.app_user`  |  |
+| `changed_at` | `timestamp with time zone` | ✱ | `now()` |
 
 ### `iam.device` 🛡️
 
@@ -552,6 +564,19 @@ Permission catalog (section 33)
 | `description` | `text` | ✱ |  |
 | `is_sensitive` | `boolean` | ✱ | `false` |
 
+### `iam.photo_approval` 🛡️
+
+The approvals of a change of a photo on file or of the photo policy, one row per stage (1091)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `subject_type` | `text` | 🔑 ✱ |  |
+| `subject_id` | `bigint` | 🔑 ✱ |  |
+| `step` | `integer` | 🔑 ✱ |  |
+| `stage_kind` | `text` | ✱ |  |
+| `approver_user_id` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `approved_at` | `timestamp with time zone` | ✱ | `now()` |
+
 ### `iam.photo_change_request` 🛡️
 
 A platform request to change a boarding photo on file, with its evidence; applied by a second person (1087)
@@ -570,6 +595,7 @@ A platform request to change a boarding photo on file, with its evidence; applie
 | `decided_by_user_id` | `bigint` | 🔗 `iam.app_user`  |  |
 | `decided_at` | `timestamp with time zone` |  |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `approval_stages` | `jsonb` | ✱ | `'["CHECK", "APPROVE"]'::jsonb` |
 
 ### `iam.photo_evidence_kind` 🛡️
 
@@ -584,16 +610,6 @@ The documents accepted as evidence for a change of the boarding photo; a platfor
 | `changed_by_user_id` | `bigint` | 🔗 `iam.app_user`  |  |
 | `changed_at` | `timestamp with time zone` | ✱ | `now()` |
 | `age_rule` | `boolean` | ✱ | `false` |
-
-### `iam.photo_policy_approval` 🛡️
-
-Who approved a change of the photo policy; the one who asks is the first (1089)
-
-| Column | Type | Constraints | Default |
-|---|---|---|---|
-| `change_id` | `bigint` | 🔑 🔗 `iam.photo_policy_change` ✱ |  |
-| `approver_user_id` | `bigint` | 🔑 🔗 `iam.app_user` ✱ |  |
-| `approved_at` | `timestamp with time zone` | ✱ | `now()` |
 
 ### `iam.photo_policy_change` 🛡️
 
@@ -613,6 +629,9 @@ A change to the accepted evidence or the identity age rule of a photo change; tw
 | `status` | `text` | ✱ | `'PENDING'::text` |
 | `decided_by_user_id` | `bigint` | 🔗 `iam.app_user`  |  |
 | `decided_at` | `timestamp with time zone` |  |  |
+| `approval_stages` | `jsonb` | ✱ | `'["CHECK", "APPROVE"]'::jsonb` |
+| `field_code` | `text` | 🔗 `iam.data_requirement`  |  |
+| `new_requirement` | `text` |  |  |
 
 ### `iam.photo_rule` 🛡️
 

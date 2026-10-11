@@ -8,6 +8,7 @@ request carries the new photo and the evidence, and a second platform person app
 Whether a photo is required is decided by the rules of iam.photo_rule (WP1), read at booking and at boarding. A rule
 that requires it turns a traveller away when no photo is on file; with no rule in force the photo is optional.
 """
+import json
 import uuid
 
 from ... import crypto, db
@@ -168,6 +169,11 @@ async def request_change(conn, ctx: db.Context, pr: Principal, party_uid: uuid.U
     if not await conn.fetchval("SELECT iam.evidence_accepted($1, $2)", party_id, evidence_kind):
         raise ApiError(422, "EVIDENCE_KIND_NOT_ACCEPTED", "this document is not accepted as evidence for this person now",
                        evidence_kind=evidence_kind)
+    missing = await conn.fetchval(
+        "SELECT field_code FROM iam.data_requirement WHERE requirement = 'REQUIRED' AND NOT iam.data_requirement_met($1, field_code) "
+        "ORDER BY field_code LIMIT 1", party_id)
+    if missing:
+        raise ApiError(422, "DATA_REQUIRED", "an item the platform requires is missing from the person's record", field=missing)
     photo_file = await store(conn, ctx, pr, photo, photo_name, PHOTO_TYPES, "PHOTO_TYPE")
     evidence_file = await store(conn, ctx, pr, evidence, evidence_name, EVIDENCE_TYPES, "EVIDENCE_TYPE")
     uid = await conn.fetchval("SELECT iam.request_photo_change($1, $2, $3, $4, $5)",
@@ -177,20 +183,24 @@ async def request_change(conn, ctx: db.Context, pr: Principal, party_uid: uuid.U
 
 async def change_row(conn, uid: uuid.UUID):
     row = await conn.fetchrow(
-        """SELECT r.id, r.status, r.requested_by_user_id, p.id AS party_id
+        """SELECT r.id, r.status, r.requested_by_user_id, r.approval_stages, p.id AS party_id
              FROM iam.photo_change_request r JOIN iam.party p ON p.id = r.party_id WHERE r.uid = $1""", uid)
     if row is None:
         raise not_found("photo change request")
     return row
 
 
-async def approve_change(conn, pr: Principal, uid: uuid.UUID) -> int:
+async def approve_change(conn, pr: Principal, uid: uuid.UUID) -> dict:
+    """Records this person's stage of the change; the photo is replaced at the last stage (1091)."""
     r = await change_row(conn, uid)
     if r["status"] != "PENDING":
         raise ApiError(409, "NOT_PENDING", "the request is not waiting for a decision")
     if r["requested_by_user_id"] == pr.user_id:
-        raise ApiError(409, "FOUR_EYES", "a second platform person applies the change")
-    return await conn.fetchval("SELECT iam.apply_photo_change($1)", uid)
+        raise ApiError(409, "FOUR_EYES", "the one who asks for the change does not approve it")
+    if await _already(conn, "CHANGE_REQUEST", r["id"], pr.user_id):
+        raise ApiError(409, "ALREADY_APPROVED", "this person has already approved the change")
+    status = await conn.fetchval("SELECT iam.approve_photo_change($1)", uid)
+    return {"status": status, "party_id": r["party_id"], **(await _approvals(conn, "CHANGE_REQUEST", r["id"], r["approval_stages"]))}
 
 
 async def reject_change(conn, pr: Principal, uid: uuid.UUID) -> int:
@@ -226,37 +236,60 @@ async def read_evidence(conn, ctx: db.Context, uid: uuid.UUID) -> tuple[bytes, s
     return data, row["mime_type"], row["party_id"]
 
 
-# ---- 1088-1089: the documents accepted for a photo change, and the identity age rule, are settings changed by two people
+# ---- 1088-1091: the documents accepted, the age rule and the required data are settings; a change to them, and a change
+#      of a photo on file, pass through the approval stages set in the platform's settings (the one who asks is not one)
 
-async def evidence_settings(conn) -> dict:
-    """The accepted documents, the age below which a national identity card is not accepted (None: no rule), and the
-    number of people who approve a change to them (never fewer than two)."""
-    kinds = [dict(r) for r in await conn.fetch("SELECT code, label, active FROM iam.photo_evidence_kind ORDER BY id")]
+def _jsonb(value):
+    return json.loads(value) if isinstance(value, str) else value
+
+
+async def _already(conn, subject_type: str, subject_id: int, person: int) -> bool:
+    return bool(await conn.fetchval(
+        "SELECT 1 FROM iam.photo_approval WHERE subject_type = $1 AND subject_id = $2 AND approver_user_id = $3",
+        subject_type, subject_id, person))
+
+
+async def _approvals(conn, subject_type: str, subject_id: int, stages) -> dict:
+    """How many stages have been recorded, and the stages the change passes (in order, the last is the final approval)."""
+    done = await conn.fetchval("SELECT count(*) FROM iam.photo_approval WHERE subject_type = $1 AND subject_id = $2",
+                               subject_type, subject_id)
+    return {"approvals": done, "stages": _jsonb(stages)}
+
+
+async def settings_view(conn) -> dict:
+    """What the platform sets: the accepted documents, the age rule of the identity card (None: no rule), the approval
+    stages in force for a new change, and the data items that are required or optional."""
+    kinds = [dict(r) for r in await conn.fetch("SELECT code, label, active, age_rule FROM iam.photo_evidence_kind ORDER BY id")]
     min_age = await conn.fetchval("SELECT (value #>> '{}')::integer FROM sys.setting WHERE key = 'photo.identity_card_min_age'")
-    return {"kinds": kinds, "identity_card_min_age": min_age, "required_approvals": await conn.fetchval("SELECT iam.photo_policy_min_approvals()")}
+    items = [dict(r) for r in await conn.fetch("SELECT field_code, label, requirement FROM iam.data_requirement ORDER BY field_code")]
+    return {"kinds": kinds, "identity_card_min_age": min_age,
+            "approval_stages": _jsonb(await conn.fetchval("SELECT iam.photo_approval_stages()")), "data_requirements": items}
 
 
 async def policy_change_row(conn, uid: uuid.UUID):
-    row = await conn.fetchrow("SELECT id, status, requested_by_user_id FROM iam.photo_policy_change WHERE uid = $1", uid)
+    row = await conn.fetchrow("SELECT id, status, requested_by_user_id, approval_stages FROM iam.photo_policy_change WHERE uid = $1", uid)
     if row is None:
         raise not_found("photo policy change")
     return row
 
 
-async def _approvals(conn, change_id: int) -> dict:
-    return {"approvals": await conn.fetchval("SELECT count(*) FROM iam.photo_policy_approval WHERE change_id = $1", change_id),
-            "required": await conn.fetchval("SELECT iam.photo_policy_min_approvals()")}
-
-
 async def request_evidence_change(conn, pr: Principal, code: str, active: bool, reason: str) -> tuple[str, int]:
     if not await conn.fetchval("SELECT 1 FROM iam.photo_evidence_kind WHERE code = $1", code):
         raise not_found("evidence kind")
-    uid = await conn.fetchval("SELECT iam.request_photo_policy_change('EVIDENCE_KIND', $1, $2, NULL, $3)", code, active, reason)
+    uid = await conn.fetchval("SELECT iam.request_photo_policy_change('EVIDENCE_KIND', $1, $2, NULL, NULL, NULL, $3)", code, active, reason)
     return str(uid), (await policy_change_row(conn, uid))["id"]
 
 
 async def request_identity_age(conn, pr: Principal, min_age: int | None, reason: str) -> tuple[str, int]:
-    uid = await conn.fetchval("SELECT iam.request_photo_policy_change('IDENTITY_MIN_AGE', NULL, NULL, $1, $2)", min_age, reason)
+    uid = await conn.fetchval("SELECT iam.request_photo_policy_change('IDENTITY_MIN_AGE', NULL, NULL, $1, NULL, NULL, $2)", min_age, reason)
+    return str(uid), (await policy_change_row(conn, uid))["id"]
+
+
+async def request_data_requirement(conn, pr: Principal, field: str, requirement: str, reason: str) -> tuple[str, int]:
+    if not await conn.fetchval("SELECT 1 FROM iam.data_requirement WHERE field_code = $1", field):
+        raise not_found("data item")
+    uid = await conn.fetchval("SELECT iam.request_photo_policy_change('FIELD_REQUIREMENT', NULL, NULL, NULL, $1, $2, $3)",
+                              field, requirement, reason)
     return str(uid), (await policy_change_row(conn, uid))["id"]
 
 
@@ -265,11 +298,11 @@ async def approve_policy_change(conn, pr: Principal, uid: uuid.UUID) -> dict:
     if row["status"] != "PENDING":
         raise ApiError(409, "NOT_PENDING", "the change is not waiting for approval")
     if row["requested_by_user_id"] == pr.user_id:
-        raise ApiError(409, "FOUR_EYES", "the person who asked for the change is already counted; a second person approves it")
-    if await conn.fetchval("SELECT 1 FROM iam.photo_policy_approval WHERE change_id = $1 AND approver_user_id = $2", row["id"], pr.user_id):
+        raise ApiError(409, "FOUR_EYES", "the one who asks for the change does not approve it")
+    if await _already(conn, "POLICY_CHANGE", row["id"], pr.user_id):
         raise ApiError(409, "ALREADY_APPROVED", "this person has already approved the change")
     status = await conn.fetchval("SELECT iam.approve_photo_policy_change($1)", uid)
-    return {"status": status, "change_id": row["id"], **(await _approvals(conn, row["id"]))}
+    return {"status": status, "change_id": row["id"], **(await _approvals(conn, "POLICY_CHANGE", row["id"], row["approval_stages"]))}
 
 
 async def reject_policy_change(conn, pr: Principal, uid: uuid.UUID) -> int:
@@ -281,11 +314,14 @@ async def reject_policy_change(conn, pr: Principal, uid: uuid.UUID) -> int:
 
 
 async def list_policy_changes(conn) -> list[dict]:
-    required = await conn.fetchval("SELECT iam.photo_policy_min_approvals()")
     rows = await conn.fetch(
-        """SELECT c.uid, c.change_type, c.evidence_code, c.new_active, c.new_min_age, c.reason, c.status, c.requested_at,
-                  c.decided_at, u.uid AS requested_by,
-                  (SELECT count(*) FROM iam.photo_policy_approval a WHERE a.change_id = c.id) AS approvals
+        """SELECT c.id, c.uid, c.change_type, c.evidence_code, c.new_active, c.new_min_age, c.field_code, c.new_requirement,
+                  c.reason, c.status, c.requested_at, c.decided_at, c.approval_stages, u.uid AS requested_by,
+                  (SELECT count(*) FROM iam.photo_approval a WHERE a.subject_type = 'POLICY_CHANGE' AND a.subject_id = c.id) AS approvals
              FROM iam.photo_policy_change c JOIN iam.app_user u ON u.id = c.requested_by_user_id
             ORDER BY c.requested_at DESC LIMIT 200""")
-    return [dict(r) | {"uid": str(r["uid"]), "requested_by": str(r["requested_by"]), "required": required} for r in rows]
+    out = []
+    for r in rows:
+        item = {k: v for k, v in dict(r).items() if k not in ("id", "uid", "requested_by", "approval_stages")}
+        out.append(item | {"uid": str(r["uid"]), "requested_by": str(r["requested_by"]), "stages": _jsonb(r["approval_stages"])})
+    return out

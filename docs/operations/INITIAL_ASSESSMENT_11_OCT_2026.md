@@ -168,3 +168,35 @@ All five are settings (`iam.photo_evidence_kind`), switched on or off by two peo
 New work item **S8**: a know-your-customer (KYC) model, and the re-registration of each client registered on the platform
 against the civil registry. The temporary identity document is switched off once that is done, by the two-person change.
 
+### Ninth round: approval stages, the age default, and required data
+
+The owner's answers (ninth round):
+
+- **Approval stages are a platform setting.** A change is asked for by one person and goes to the platform. The number of
+  stages and their order are set in the platform's settings, to be set later; the owner's example is a checker, a second
+  checker, a third-party checker, and a final approval by another person. Default: two stages, the checker and then the
+  final approval by a second person. **Built (1091):** `photo.approval_stages`, default `["CHECK","APPROVE"]`; each change
+  snapshots the stages when it is asked; each stage is one different platform person, never the one who asked; the last stage
+  applies the change. The stage kinds `CHECK`, `THIRD_PARTY_CHECK` and `APPROVE` are recorded. The third party's own account is
+  not built, and nor is the change of the stages themselves through an approval (the setting is changed in the platform's
+  settings until the settings screen is built).
+- **The age below which a national identity card is not accepted: 18 by default,** set by the law when the law is known, and
+  changed through the platform's setting. **Built (1091):** `photo.identity_card_min_age` is 18, and a change to it passes the
+  same stages.
+- **Verification against the national information centre or the civil registry through an API, later.** It will be switched on
+  by the platform, and the manual steps stopped then. Not built: a later stage kind, to be designed with the registry's
+  interface (new item S9).
+- **Every item of data can be required or optional by setting**, until the laws say which items are compulsory. **Built
+  (1091):** `iam.data_requirement`, with four items (date of birth, nationality, the national number on the record, and the
+  national number on the evidence, which the approver checks), all optional by default. A photo change is refused when an
+  item the platform requires is missing from the record. Registration, booking and the profile do not yet read the setting; each
+  flow is to be wired (part of S8).
+
+Open after this round:
+
+- The reading of "two people" is settled by the owner's answer (two stages after the one who asks). Rules for boarding photos
+  (WP1) still use their earlier pair, propose and approve; the owner should say whether they take the stages too.
+- A customer-side request (through the app or an agent) is not built: requests are entered by platform staff.
+- The know-your-customer model and the re-registration of each client against the civil registry (S8) are not built.
+- The device check of the image cache (S5) and the security-gate lookup (S4) are not built.
+

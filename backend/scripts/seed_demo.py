@@ -120,6 +120,8 @@ async def seed_security(conn) -> bool:
         return False
     _, uid = await user(conn, "PERSON", "Security Officer", "security@masslak.test", "PLATFORM")
     await conn.execute("INSERT INTO iam.user_role (user_id, role_id) SELECT $1, id FROM iam.role WHERE code = 'PLATFORM_SECURITY' AND company_id IS NULL", uid)
+    _, uid_privacy = await user(conn, "PERSON", "Privacy Officer", "privacy@masslak.test", "PLATFORM")
+    await conn.execute("INSERT INTO iam.user_role (user_id, role_id) SELECT $1, id FROM iam.role WHERE code = 'PLATFORM_SECURITY' AND company_id IS NULL", uid_privacy)
     return True
 
 
@@ -333,7 +335,7 @@ async def main():
     for e, p in (("passenger@masslak.test", "PASSENGER"), ("owner@carrier.test", "OPERATOR"), ("counter@carrier.test", "OPERATOR"),
                  ("driver@carrier.test", "DRIVER"),
                  ("agency@agency.test", "AGENCY"), ("finance@masslak.test", "PLATFORM"), ("treasury@masslak.test", "PLATFORM"),
-                 ("security@masslak.test", "PLATFORM"), ("admin@masslak.test", "PLATFORM"), ("regulator@masslak.test", "PLATFORM")):
+                 ("security@masslak.test", "PLATFORM"), ("privacy@masslak.test", "PLATFORM"), ("admin@masslak.test", "PLATFORM"), ("regulator@masslak.test", "PLATFORM")):
         print(f"  {e:28s} portal {p}")
 
 

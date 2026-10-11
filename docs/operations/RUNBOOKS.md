@@ -287,21 +287,28 @@ section.
   and applies (`/approve`) or rejects (`/reject`) it; the requester cannot apply. An applied change replaces the photo and
   deletes the earlier file; a rejected one deletes the candidate photo. The evidence stays with the request until the
   person is erased.
-- **Accepted evidence and the age rule (1088, 1089).** `GET /api/admin/photos/evidence-kinds` lists the kinds, whether
-  each is on, the age below which a national identity card is not accepted (`identity_card_min_age`, null: no rule) and
-  the number of approvals required (`required_approvals`, never below 2). A change is asked for by one platform person
-  with a reason: `POST .../evidence-kinds/{code}/changes` (body `active`) or `POST .../identity-age/changes` (body
-  `min_age`). The one who asks counts as the first approval; each further approval is a different platform person
-  (`POST .../policy-changes/{uid}/approve`); the change applies when the approvals reach `required_approvals`. A rejection
-  is `POST .../policy-changes/{uid}/reject`. The kinds (1090): the national identity card (`IDENTITY_DOCUMENT`), the civil registry extract that shows the
-  national number (`CIVIL_REGISTRY_EXTRACT`; the second approver checks the number against the person's record), the passport
-  (`PASSPORT`), the travel document issued by a Syrian mission abroad (`TRAVEL_DOCUMENT`, for Syrian citizens only), and the
-  temporary identity document of the first phase (`TEMPORARY_ID`, to be switched off later after the know-your-customer
-  process). A request with a kind that is off, a travel document for a person who is not a Syrian citizen, or a national or
-  temporary identity document for a person below the age or without a birth date on file while the rule is set, is refused
-  with `EVIDENCE_KIND_NOT_ACCEPTED`
-  below the age or without a birth date on file while the rule is set, is refused with `EVIDENCE_KIND_NOT_ACCEPTED`
-  (422). Requests already made keep their evidence.
+- **Accepted evidence, the age rule and the required data (1088-1091).** `GET /api/admin/photos/evidence-kinds` returns the
+  kinds (each on or off, and whether the age rule applies to it), the age below which a national identity card is not
+  accepted (`identity_card_min_age`, default 18; null: no rule), the approval stages in force (`approval_stages`, default
+  `["CHECK","APPROVE"]`), and the data items with their requirement (`data_requirements`). A change to any of them is asked
+  for by one platform person with a reason, and goes through the stages:
+  - `POST .../evidence-kinds/{code}/changes` (body `active`), `POST .../identity-age/changes` (body `min_age`), and
+    `POST .../data-requirements/{field}/changes` (body `requirement`: `REQUIRED` or `OPTIONAL`).
+  - Each stage is one platform person, who is not the one who asked and has not approved this change before:
+    `POST .../policy-changes/{uid}/approve`. The stages are read when the change is asked, so a later change of the
+    setting does not alter it. The last stage applies the change; `POST .../policy-changes/{uid}/reject` ends it.
+  - The stages are `photo.approval_stages` in the platform settings, at least two, the last one `APPROVE`. The
+    `THIRD_PARTY_CHECK` stage is recorded, but a third party's own account is not built.
+  - A photo change request (`POST /api/admin/photos/changes`) is refused with `EVIDENCE_KIND_NOT_ACCEPTED` (422) when its
+    kind is off, a travel document is for a person who is not a Syrian citizen, or a national or temporary identity document
+    is for a person below the age or without a birth date while the rule is set; and with `DATA_REQUIRED` (422) when an item
+    the platform requires is missing from the person's record. Requests already made keep their evidence.
+  - Each photo change passes the same stages (`POST /api/admin/photos/changes/{uid}/approve`); the photo is replaced at the
+    last stage. The one who asks does not approve it.
+  - The kinds: the national identity card (`IDENTITY_DOCUMENT`), the civil registry extract that shows the national number
+    (`CIVIL_REGISTRY_EXTRACT`; the approver checks the number against the person's record), the passport (`PASSPORT`), the
+    travel document of a Syrian mission abroad (`TRAVEL_DOCUMENT`, Syrian citizens only), and the temporary identity document
+    of the first phase (`TEMPORARY_ID`, to be switched off later after the know-your-customer process).
 - **Erasure and closing are different.** Closing keeps the data; erasure is the person's written request for
   pseudonymisation, which cannot be undone. A closed account that asks for erasure is erased as any other.
 
