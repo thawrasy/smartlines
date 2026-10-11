@@ -45,6 +45,8 @@ GAP_X = 100.0                       # distance between two columns (rank gap)
 GAP_Y = 24.0                        # vertical distance between two tables in a column
 MARGIN_GAP = 18.0                   # connector bends stay this far from the table edges
 LANE_SP = 8.0
+EXIT_SP = 3.4                     # spacing of connectors that leave the same parent key row
+HOP = 2.6                          # radius of the bump where a connector crosses another one
 CHART_MARGIN = 14.0
 LINE_PT = 1.0
 BOX_PT = 0.9
@@ -254,16 +256,27 @@ def route(chart, rk, geo, col_x, col_w, top):
                     return False
         return True
 
+    exit_n, exit_k, exit_offset, exit_marks = {}, {}, {}, {}
+    for e in chart['edges']:
+        exit_n[(e['parent'], e['pcol'])] = exit_n.get((e['parent'], e['pcol']), 0) + 1
+    for i, e in enumerate(chart['edges']):
+        key = (e['parent'], e['pcol'])
+        k = exit_k.get(key, 0)
+        exit_k[key] = k + 1
+        n = exit_n[key]
+        exit_offset[i] = (k - (n - 1) / 2) * EXIT_SP
+        exit_marks[i] = (4.5, 3.1) if n == 1 else (2.2, 2.3)      # half-height of the bar, radius of the circle
     plans = []
     for i, e in enumerate(chart['edges']):
         p, c = e['parent'], e['child']
         pn, cn = nodes[p], nodes[c]
-        ya = top[p] + row_off(pn, e['pcol'])
+        ya = top[p] + row_off(pn, e['pcol']) + exit_offset[i]
         yb = top[c] + row_off(cn, e['ccol'])
         if p == c:
             right = col_x[rk[p]] + geo[p]['w']
             plans.append({'i': i, 'kind': 'self', 'A': (right, ya), 'B': (right, yb), 'pd': 1, 'cd': 1,
-                          'vx': right + 24, 'ya': ya, 'yb': yb})
+                          'vx': right + 24, 'ya': ya, 'yb': yb, 'mandatory': e['mandatory'],
+                          'mh': exit_marks[i][0], 'cr': exit_marks[i][1]})
             continue
         fwd = rk[c] > rk[p]
         A = (col_x[rk[p]] + geo[p]['w'], ya) if fwd else (col_x[rk[p]], ya)
@@ -271,7 +284,8 @@ def route(chart, rk, geo, col_x, col_w, top):
         pd, cd = (1, -1) if fwd else (-1, 1)
         ge = rk[p] if fwd else rk[p] - 1          # gap next to the parent
         gn = rk[c] - 1 if fwd else rk[c]          # gap next to the child
-        pl = {'i': i, 'A': A, 'B': B, 'pd': pd, 'cd': cd, 'ya': ya, 'yb': yb, 'mandatory': e['mandatory']}
+        pl = {'i': i, 'A': A, 'B': B, 'pd': pd, 'cd': cd, 'ya': ya, 'yb': yb, 'mandatory': e['mandatory'],
+              'mh': exit_marks[i][0], 'cr': exit_marks[i][1]}
         if ge == gn:
             pl.update(kind='direct', gap=ge)
         elif clear([A, (_gap_x(gn, col_x, col_w), ya), (_gap_x(gn, col_x, col_w), yb), B], skip=(p, c)):
@@ -339,6 +353,17 @@ def check(plans, rects):
 
 # ---------------------------------------------------------------- drawing
 
+def hop_line(d, T, x0, x1, y, crossings, lw):
+    """Horizontal connector from x0 to x1 at height y, with a small bump over each crossing vertical."""
+    cur = x0
+    for xc in crossings:
+        d.line([T(cur, y), T(xc - HOP, y)], fill=EDGE, width=lw)
+        p0, p1 = T(xc - HOP, y - HOP), T(xc + HOP, y + HOP)
+        d.arc([p0[0], p0[1], p1[0], p1[1]], 180, 360, fill=EDGE, width=lw)
+        cur = xc + HOP
+    d.line([T(cur, y), T(x1, y)], fill=EDGE, width=lw)
+
+
 def render(chart, out_png):
     nodes = {n['fq']: n for n in chart['nodes']}
     geo = {fq: table_geom(n) for fq, n in nodes.items()}
@@ -364,9 +389,20 @@ def render(chart, out_png):
     T = lambda x, y: ((x - minx) * PX, (y - miny) * PX)
     lw = max(1, round(LINE_PT * PX))
 
-    for pl in plans:                                   # connectors first, under the tables
-        pts = [T(*p) for p in pl['pts']]
-        d.line(pts, fill=EDGE, width=lw, joint='curve')
+    verticals = []
+    for idx, pl in enumerate(plans):
+        for a, b in zip(pl['pts'], pl['pts'][1:]):
+            if a[0] == b[0] and a[1] != b[1]:
+                verticals.append((idx, a[0], min(a[1], b[1]), max(a[1], b[1])))
+    for idx, pl in enumerate(plans):                   # connectors first, under the tables
+        for a, b in zip(pl['pts'], pl['pts'][1:]):
+            if a[1] == b[1] and a[0] != b[0]:
+                x0, x1 = sorted((a[0], b[0]))
+                crossings = sorted(x for j, x, y1, y2 in verticals
+                                   if j != idx and x0 + HOP + 3 < x < x1 - HOP - 3 and y1 < a[1] < y2)
+                hop_line(d, T, x0, x1, a[1], crossings, lw)
+            elif a[0] == b[0] and a[1] != b[1]:
+                d.line([T(*a), T(*b)], fill=EDGE, width=lw)
 
     for fq, n in nodes.items():                        # tables
         x, y = col_x[rk[fq]], top[fq]
@@ -408,28 +444,25 @@ def render(chart, out_png):
             label = f'+ {n["hidden"]} more column' + ('s' if n['hidden'] != 1 else '')
             d.text(T(x + PAD, my), label, font=_font('ital', MORE_PT * PX), fill=MUTED, anchor='ls')
 
-    for pl in plans:                                   # crow's feet, bars and circles on top of the tables
-        for pt_, dirn, mand, is_parent in ((pl['A'], pl['pd'], pl.get('mandatory', False), True),
-                                           (pl['B'], pl['cd'], None, False)):
-            x, y = pt_
-            if is_parent:
-                if mand:
-                    for off in (5.0, 8.0):
-                        a, b = T(x + dirn * off, y - 4.5), T(x + dirn * off, y + 4.5)
-                        d.line([a, b], fill=EDGE, width=lw)
-                else:
-                    a, b = T(x + dirn * 5.0, y - 4.5), T(x + dirn * 5.0, y + 4.5)
-                    d.line([a, b], fill=EDGE, width=lw)
-                    cx, cy = T(x + dirn * 11.0, y)
-                    r = 3.1 * PX
-                    d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=WHITE, outline=EDGE, width=lw)
-            else:
-                apex = (x + dirn * 9.0, y)
-                for toe in ((x, y - 4.5), (x, y), (x, y + 4.5)):
-                    d.line([T(*toe), T(*apex)], fill=EDGE, width=lw)
-                cx, cy = T(x + dirn * 13.5, y)
-                r = 3.1 * PX
-                d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=WHITE, outline=EDGE, width=lw)
+    for pl in plans:                                   # bars, circles and crow's feet, on top of the tables
+        ax, ay = pl['A']
+        mh, cr, pd = pl['mh'], pl['cr'], pl['pd']
+        if pl['mandatory']:
+            for off in (5.0, 8.0):
+                d.line([T(ax + pd * off, ay - mh), T(ax + pd * off, ay + mh)], fill=EDGE, width=lw)
+        else:
+            d.line([T(ax + pd * 5.0, ay - mh), T(ax + pd * 5.0, ay + mh)], fill=EDGE, width=lw)
+            cx, cy = T(ax + pd * 11.0, ay)
+            r = cr * PX
+            d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=WHITE, outline=EDGE, width=lw)
+        bx, by = pl['B']
+        cd = pl['cd']
+        apex = (bx + cd * 9.0, by)
+        for toe in ((bx, by - 4.5), (bx, by), (bx, by + 4.5)):
+            d.line([T(*toe), T(*apex)], fill=EDGE, width=lw)
+        cx, cy = T(bx + cd * 13.5, by)
+        r = 3.1 * PX
+        d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=WHITE, outline=EDGE, width=lw)
     img = img.convert('P', palette=Image.Palette.ADAPTIVE, colors=128)   # print-quality text, small file
     img.save(out_png, dpi=(DPI, DPI), optimize=True)
     return {'w_pt': round(maxx - minx, 1), 'h_pt': round(maxy - miny, 1), 'tables': len(nodes),
