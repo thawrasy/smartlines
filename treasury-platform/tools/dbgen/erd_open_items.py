@@ -1,0 +1,97 @@
+#!/usr/bin/env python3
+"""erd_open_items.py — open items and decisions for the database design, taken from the two specialist reviews.
+
+Each item says what the review found, where the model stands today, and what is still needed. "Status" is
+checked against the repository when this file is changed: a status that claims a control must name the file
+that implements it. The Word document renders these rows in section 4.
+"""
+
+REVIEW_A = 'Review A (analysis review, 12 Oct 2026)'
+REVIEW_B = 'Review B (technical analysis, 12 Oct 2026)'
+
+ITEMS = [
+    {
+        'id': 'O-01', 'sources': f'{REVIEW_A}; {REVIEW_B}',
+        'finding': 'The password hashing algorithm is not documented. Review B recommends Argon2id with 64 MB memory, 3 iterations and 4 lanes.',
+        'status': 'Open decision. The analysis document does not name the algorithm.',
+        'next': 'Record the algorithm and parameters in the security section of the analysis document.',
+    },
+    {
+        'id': 'O-02', 'sources': f'{REVIEW_A}; {REVIEW_B}',
+        'finding': 'The schema has never run on SQL Server 2025.',
+        'status': 'The DDL is generated from the model and checked by count against it. The structure was checked on PostgreSQL only. db/deploy.sql has not been executed on SQL Server.',
+        'next': 'Run db/deploy.sql on a SQL Server 2025 instance and make it a CI gate.',
+    },
+    {
+        'id': 'O-03', 'sources': f'{REVIEW_A}; {REVIEW_B}',
+        'finding': 'Lender shares must total 100 per facility and at most one lender may hold the AGENT role. The model says the application checks both.',
+        'status': 'Drafted as a trigger for approved revisions: db/static/050_fac_share_rule.sql, deployed by db/deploy.sql. Not executed and not tested.',
+        'next': 'Test insert, update, delete and approval cases on SQL Server 2025 before release.',
+    },
+    {
+        'id': 'O-04', 'sources': REVIEW_B,
+        'finding': 'A SHARED payer in the LC charge matrix needs a valid share.',
+        'status': 'Enforced in the model: check Payer <> SHARED OR share in (0,100) on lc.LcChargesMatrix (V-LCT-12).',
+        'next': 'None.',
+    },
+    {
+        'id': 'O-05', 'sources': REVIEW_B,
+        'finding': 'An LC terms record needs six complete charge rows, one per category. The model checks this in the application only.',
+        'status': 'Open. The state in which completeness must hold is not defined, so no database rule is written yet.',
+        'next': 'Business decision: at which status (draft, submitted, approved) the six rows must be complete.',
+    },
+    {
+        'id': 'O-06', 'sources': f'{REVIEW_A}; {REVIEW_B}',
+        'finding': 'UCP 600 article numbers are not verified against the official ICC text.',
+        'status': 'Open. The analysis document marks them UNVERIFIED.',
+        'next': 'Check each article number against the official text and record the result.',
+    },
+    {
+        'id': 'O-07', 'sources': f'{REVIEW_A}; {REVIEW_B}',
+        'finding': '155 open questions are answered with default values.',
+        'status': 'Listed in docs/10-detailed-analysis/90-consolidated-open-questions.md. Defaults are in use.',
+        'next': 'Assign an owner and a review date to each question; resolve the critical ones before slices S0 to S2.',
+    },
+    {
+        'id': 'O-08', 'sources': f'{REVIEW_A}; {REVIEW_B}',
+        'finding': 'TLS version, cipher suites and HSTS are not specified.',
+        'status': 'Open. Not documented in the analysis or the model.',
+        'next': 'Write a TLS policy: TLS 1.2 minimum, TLS 1.3 preferred, HSTS, and no SSLv3, TLS 1.0 or 1.1.',
+    },
+    {
+        'id': 'O-09', 'sources': REVIEW_A,
+        'finding': 'Tenant isolation is designed (TenantId, row-level security, composite keys) but not tested across endpoints.',
+        'status': 'Row-level security filters rows by SESSION_CONTEXT(TenantId) (db/static/010_rls.sql). For tenant-owned tables a missing context compares as NULL and returns no rows. Endpoint tests do not exist yet.',
+        'next': 'Add cross-tenant (IDOR) and no-context tests to CI for every endpoint.',
+    },
+    {
+        'id': 'O-10', 'sources': REVIEW_B,
+        'finding': 'wfl.Request has 22 foreign keys besides the tenant key, which can slow writes on the busiest table.',
+        'status': 'Verified: every foreign key is indexed (509) or flagged noidx on purpose (70), with no gaps. On wfl.Request, 8 are indexed and 14 are noidx. Guard: tools/dbgen/check_fk_indexes.py.',
+        'next': 'Keep the noidx choices; review them with Query Store once the schema runs on SQL Server.',
+    },
+    {
+        'id': 'O-11', 'sources': f'{REVIEW_A}; {REVIEW_B}',
+        'finding': 'Derived values (for example PctOfLimit) are computed on each read.',
+        'status': 'Documented as derived in the model; not stored.',
+        'next': 'Decide between persisted computed columns and a summary table after slice S3.',
+    },
+    {
+        'id': 'O-12', 'sources': REVIEW_B,
+        'finding': 'Numbering is required to be gap-free, which conflicts with rollbacks and concurrent writers.',
+        'status': 'Open. Range allocation is proposed; no decision recorded.',
+        'next': 'Legal and operational decision on whether gaps are acceptable, then a numbering design.',
+    },
+    {
+        'id': 'O-13', 'sources': REVIEW_A,
+        'finding': 'Two cascade deletes exist in the organisation module. Credit and audit data must not be deleted by cascade.',
+        'status': 'Open. The two cascade rules are in db/model/11-organization-party.model and have not been reviewed against this rule.',
+        'next': 'Review the two rules; replace cascade with archive or close where the data is credit or audit data.',
+    },
+    {
+        'id': 'O-14', 'sources': f'{REVIEW_A}; {REVIEW_B}',
+        'finding': 'The vertical-slice plan (S0 to S5) gates the rest of the build.',
+        'status': 'Planned in the analysis document; not started.',
+        'next': 'Start S0 once O-01, O-02 and O-07 are decided.',
+    },
+]

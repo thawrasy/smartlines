@@ -170,7 +170,7 @@ def build(manifest, out_path):
     front = doc.sections[0]
     set_orientation(front, landscape=False)
     hdr = front.header.paragraphs[0]
-    hdr.text = 'BankFas · Database relationship diagrams · v0.4 draft · English'
+    hdr.text = 'BankFas · Database relationship diagrams · v0.5 draft · English'
     hdr.runs[0].font.size = Pt(8)
     hdr.runs[0].font.color.rgb = MUTED
     ftr = front.footer.paragraphs[0]
@@ -187,7 +187,7 @@ def build(manifest, out_path):
     heading(doc, 'Document control', 2)
     table(doc, ['Item', 'Value'], [
         ['Document', 'Database relationship diagrams (ERD), English edition'],
-        ['Version and status', 'v0.4 · draft for architecture review'],
+        ['Version and status', 'v0.5 · draft for specialist review'],
         ['Date', meta['date']],
         ['Product', 'BankFas multi-tenant treasury platform'],
         ['Database platform', 'Microsoft SQL Server 2025 (T-SQL DDL generated from the model)'],
@@ -200,6 +200,8 @@ def build(manifest, out_path):
     heading(doc, 'Revision history', 2)
     table(doc, ['Version', 'Date', 'Change'], [
         ['v0.3', meta['date'], 'Arabic edition with Mermaid and Graphviz diagrams. Superseded by v0.4.'],
+        ['v0.5', meta['date'], 'Open items and decisions added from two specialist reviews (section 4). Lender-share rule drafted as a trigger '
+                               '(db/static/050). Foreign-key index guard added. Diagrams unchanged in content.'],
         ['v0.4', meta['date'], 'English re-issue. Diagrams redrawn to SQL Server database-diagram conventions: '
                                'table boxes with KEY, COLUMN, TYPE and NULL columns; orthogonal connectors anchored on '
                                'the exact key row; crow\'s-foot notation; grey boxes for tables outside the chart.'],
@@ -209,6 +211,7 @@ def build(manifest, out_path):
     for line in ['1  Conventions and legend',
                  '2  Schema overview',
                  '3  Diagrams by module (M0 to M8)',
+                 '4  Open items and decisions',
                  'Appendix A  Table index',
                  'Appendix B  Reconciliation with the DDL']:
         para(doc, line, size=10, after=2)
@@ -292,6 +295,15 @@ def build(manifest, out_path):
                     'yes' if r['required'] else 'no', 'delete' if r['cascade'] else '',
                     r['kind'], 'yes' if r['drawn'] else 'no'] for r in ch['relations']],
                   widths_mm=[48, 52, 48, 52, 18, 18, 22, 14], size=7.8, zebra=True)
+
+    heading(doc, '4  Open items and decisions', 1)
+    para(doc, 'Items raised by the two specialist reviews of 12 October 2026, with the state of the model and the next step. '
+              'A status marked "drafted" or "verified" names the file that implements or checks it. Nothing in this section '
+              'has been executed on SQL Server 2025 yet.', after=6)
+    from erd_open_items import ITEMS
+    table(doc, ['ID', 'Source', 'Finding', 'Status in the model', 'Next step'],
+          [[i['id'], i['sources'], i['finding'], i['status'], i['next']] for i in ITEMS],
+          widths_mm=[14, 40, 75, 85, 48], size=7.6, zebra=True)
 
     heading(doc, 'Appendix A  Table index', 1)
     para(doc, f'All {meta["tables"]} tables in alphabetical order, with the diagram in which each table is a member.', after=6)

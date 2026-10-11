@@ -2856,7 +2856,7 @@
 
 **قيود:** `PrecedenceRank >= 1` · `PageCount IS NULL OR PageCount > 0` · `AmendsFacilityDocumentId IS NULL OR AmendsFacilityDocumentId <> FacilityDocumentId` · `ToRevision IS NULL OR ToRevision >= FromRevision`
 
-### `fac.FacilityLender` — Lender and its share (FR-FAC-003, BR-FAC-007, V-FAC-02); shares total 100 and a single agent, both checked by the application
+### `fac.FacilityLender` — Lender and its share (FR-FAC-003, BR-FAC-007, V-FAC-02); shares total 100 and a single agent: checked by the application for every revision, and by trigger fac.TR_FacilityLender_ApprovedShares (db/static/050) for approved revisions
 
 *مملوك للمشترك · مراجَع*
 

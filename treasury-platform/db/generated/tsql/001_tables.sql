@@ -2944,7 +2944,7 @@ CREATE TABLE [fac].[FacilityDocument] (
     CONSTRAINT [CK_FacilityDocument_Language] CHECK ([Language] IS NULL OR [Language] IN ('AR', 'EN', 'BILINGUAL'))
 );
 GO
--- Lender and its share (FR-FAC-003, BR-FAC-007, V-FAC-02); shares total 100 and a single agent, both checked by the application
+-- Lender and its share (FR-FAC-003, BR-FAC-007, V-FAC-02); shares total 100 and a single agent: checked by the application for every revision, and by trigger fac.TR_FacilityLender_ApprovedShares (db/static/050) for approved revisions
 CREATE TABLE [fac].[FacilityLender] (
     [TenantId] INT NOT NULL,
     [FacilityLenderId] BIGINT IDENTITY(1,1) NOT NULL,

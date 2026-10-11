@@ -108,7 +108,7 @@ table fac.FacilityDocument rev  # Document within the package, with precedence (
   check  AmendsFacilityDocumentId IS NULL OR AmendsFacilityDocumentId <> FacilityDocumentId
   check  ToRevision IS NULL OR ToRevision >= FromRevision
 
-table fac.FacilityLender rev  # Lender and its share (FR-FAC-003, BR-FAC-007, V-FAC-02); shares total 100 and a single agent, both checked by the application
+table fac.FacilityLender rev  # Lender and its share (FR-FAC-003, BR-FAC-007, V-FAC-02); shares total 100 and a single agent: checked by the application for every revision, and by trigger fac.TR_FacilityLender_ApprovedShares (db/static/050) for approved revisions
   FacilityId     ->fac.Facility req
   InstitutionId  ->ins.Institution req
   Roles          set{SOLE,LEAD,AGENT,ARRANGER,PARTICIPANT} req
