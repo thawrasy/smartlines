@@ -18,7 +18,7 @@ import os
 from typing import Mapping
 from urllib.parse import parse_qs, urlparse
 
-from .config import get_settings, is_test_server
+from .config import declaration_conflicts, get_settings, is_test_server
 
 # secrets only the owner's tools and the infrastructure hold
 OWNER_SECRETS = ("POSTGRES_PASSWORD", "MASSLAK_REPLICATION_PASSWORD", "MASSLAK_CDC_PASSWORD", "MASSLAK_DW_PASSWORD",
@@ -72,6 +72,10 @@ def problems(environ: Mapping[str, str] | None = None) -> list[str]:
 
 
 def require_in_production() -> None:
+    conflicts = declaration_conflicts()           # checked before the test-server exemption: a declaration is never lowered
+    if conflicts:
+        raise RuntimeError("the server's declarations contradict each other (reviews of the 1.50.0 release):\n  - "
+                           + "\n  - ".join(conflicts))
     if is_test_server():
         return
     found = problems()

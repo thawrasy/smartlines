@@ -12,7 +12,7 @@ from functools import lru_cache
 from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHashError, VerificationError, VerifyMismatchError
 
-from .config import get_settings
+from .config import get_settings, is_test_server
 
 # Argon2id parameters from study 16.18: 64 MiB memory, 3 iterations, parallelism 1
 _hasher = PasswordHasher(time_cost=3, memory_cost=65536, parallelism=1)
@@ -319,7 +319,7 @@ def require_keys_in_production() -> None:
     sandbox, weak or missing signing keys too."""
     for purpose in TOKEN_KEY_ENV:
         token_keys(purpose)
-    if get_settings().sandbox:
+    if is_test_server():
         return
     problems = signing_key_problems(get_settings().signing_secret, os.environ.get("MASSLAK_TICKET_SIGNING_KEY", ""))
     if problems:
