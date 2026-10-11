@@ -35,7 +35,7 @@ Three stages, shown on a 100-unit fare (examples from the brief):
 3. **Taxes:** 100 = carrier 95 + tax 3 + platform 2. If the platform remits the tax to the state, it deducts the tax and its commission, and transfers 95 to the carrier's wallet. Remittances to the state and to carriers run on a regular schedule (weekly or monthly). If the carrier remits the tax itself, the tax is recorded as the carrier's liability.
 
 Further rules:
-- Cash collected by a carrier produces a commission receivable from that carrier, which is offset ("المقاصة") through the platform.
+- Cash collected by a carrier produces a commission receivable from that carrier, which is offset (netting, "al-muqassa") through the platform.
 - Every movement is a balanced double entry in the platform's books and in each carrier's books, and wallet movements between holders are posted explicitly.
 - Wallet money is held in bank accounts, one virtual account per holder if the bank supports it. The platform records ledger claims against those accounts. No licence is assumed before the pilot; the licence follows the pilot.
 - Every rule is configuration; a law may impose one.
@@ -86,7 +86,7 @@ WP4, WP9 (design and tests) and WP1 can start now. WP3 must wait for the decisio
 
 ## 5. Questions for the owner
 
-1. "المنافست" in the brief: is it "المنافذ" (border crossings), for the transit data? (Assumed: border crossings.)
+1. The word in the brief that reads "almunafst" (for the transit passengers' data): is it "border crossings" (almanafidh)? (Assumed: border crossings.)
 2. Tax at launch: the platform remits the tax (stage 3, first form), or the carrier remits it itself (second form)? Under which agreement with the Ministry of Finance?
 3. Commission at launch: the current flat fee per booking, or a percentage per carrier (for example 2%)?
 4. The legal text that makes the photo mandatory, the date, and the authority that supplies the data (National Information Centre or another).
