@@ -212,12 +212,11 @@ The owner asked for the stages to apply to the photo rules as well. **Built (109
   who gave the rule its final approval.
 - A retirement that is turned down leaves the rule in force.
 
-Open for the owner's decision: the earlier design said a rule is retired by a third person (not the proposer, not the
-approver). The built rule is narrower in one way and wider in another. The proposer may approve a retirement, which the earlier
-design excluded; and the retirement needs only that the requester and the final approver of the rule are not among its
-approvers. If the owner wants the proposer excluded too, the test environment needs one more platform officer for a full cycle.
+Decided by the owner: the person who proposed a rule does not approve its retirement (migration 1093). They may still
+ask for it. The asker, the proposer and the person who gave the final approval are all excluded from approving
+the retirement; the checker and the second final approver approve it.
 
-Test environment: a full cycle of a rule needs four platform people with the privacy permission: the requester, the checker,
-the final approver and a second final approver for the retirement. The demo seed now has four (admin, security, and two
+Test environment: a full cycle of a rule needs four platform people with the privacy permission: the proposer (who asks for
+the retirement), the checker, the final approver and a second final approver for the retirement. The demo seed now has four (admin, security, and two
 privacy officers).
 

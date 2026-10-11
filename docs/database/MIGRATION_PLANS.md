@@ -191,6 +191,10 @@ status set gains `RETIRING`; the approval table takes the subjects `RULE` and `R
 contracts know them. `iam.photo_requirement` counts a rule being retired as in force. The one-person functions of 1087 for
 approving, retiring and withdrawing a rule are replaced; the rule table had no release. No row is changed.
 
+**1093** applies the owner's decision on retirements: the person who proposed a photo rule does not approve its retirement.
+It redefines `iam.approve_photo_rule_retirement` with that check; the proposer may still ask for the retirement. No row is
+changed, and no table is added.
+
 ## 1064_partitioned_bookings.sql on a live database (R-06)
 
 1064 turns `sales.booking` into a table partitioned by ranges of id **in place, under an ACCESS EXCLUSIVE lock**: it

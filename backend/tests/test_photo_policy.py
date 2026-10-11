@@ -87,16 +87,16 @@ def test_a_rule_passes_its_stages_and_its_retirement_passes_the_same_stages():
         assert last.status_code == 200 and last.json()["status"] == "APPROVED" and last.json()["approvals"] == 2, last.text
         assert privacy.post(f"/api/admin/photos/rules/{uid}/approve").json()["error"]["code"] == "NOT_PROPOSED"
 
-        # the retirement of a rule in force: it stays in force until the last stage; the one who asks does not approve it,
-        # and neither does the final approver of the rule
-        r = sec.post(f"/api/admin/photos/rules/{uid}/retirement", json={"reason": "test: the rule is no longer needed"})
+        # the retirement of a rule in force: the one who proposed it asks; it stays in force until the last stage; the asker,
+        # the proposer and the final approver do not approve it; the checker and the second final approver do
+        r = admin.post(f"/api/admin/photos/rules/{uid}/retirement", json={"reason": "test: the rule is no longer needed"})
         assert r.status_code == 201 and r.json()["status"] == "RETIRING", r.text
-        assert sec.post(f"/api/admin/photos/rules/{uid}/retirement/approve").json()["error"]["code"] == "FOUR_EYES"
+        assert admin.post(f"/api/admin/photos/rules/{uid}/retirement/approve").json()["error"]["code"] == "FOUR_EYES"
         assert privacy.post(f"/api/admin/photos/rules/{uid}/retirement/approve").json()["error"]["code"] == "FOUR_EYES"
-        assert admin.post(f"/api/admin/photos/rules/{uid}/retirement/approve").json()["status"] == "PENDING"
-        assert admin.post(f"/api/admin/photos/rules/{uid}/retirement/approve").json()["error"]["code"] == "ALREADY_APPROVED"
+        assert sec.post(f"/api/admin/photos/rules/{uid}/retirement/approve").json()["status"] == "PENDING"
+        assert sec.post(f"/api/admin/photos/rules/{uid}/retirement/approve").json()["error"]["code"] == "ALREADY_APPROVED"
         assert privacy2.post(f"/api/admin/photos/rules/{uid}/retirement/approve").json()["status"] == "RETIRED"
-        assert admin.post(f"/api/admin/photos/rules/{uid}/retirement/approve").json()["error"]["code"] == "NOT_PENDING"
+        assert sec.post(f"/api/admin/photos/rules/{uid}/retirement/approve").json()["error"]["code"] == "NOT_PENDING"
         listed = next(x for x in admin.get("/api/admin/photos/rules").json()["rules"] if x["uid"] == uid)
         assert listed["status"] == "RETIRED" and listed["requirement"] == "REQUIRED"
         assert listed["stages"] == ["CHECK", "APPROVE"] and listed["retirement_stages"] == ["CHECK", "APPROVE"]
@@ -115,9 +115,11 @@ def test_a_proposal_can_be_withdrawn_and_a_turned_down_retirement_keeps_the_rule
 
     uid = active_child_rule(admin, sec, privacy)
     try:
-        assert admin.post(f"/api/admin/photos/rules/{uid}/retirement", json={"reason": "test: asked and then turned down"}).status_code == 201
+        # the checker asks; the proposer does not approve it; it is turned down, and the rule is still in force
+        assert sec.post(f"/api/admin/photos/rules/{uid}/retirement", json={"reason": "test: asked and then turned down"}).status_code == 201
+        assert admin.post(f"/api/admin/photos/rules/{uid}/retirement/approve").json()["error"]["code"] == "FOUR_EYES"
         assert sec.post(f"/api/admin/photos/rules/{uid}/retirement/reject").json()["status"] == "APPROVED"
-        assert rule_status(admin, uid) == "APPROVED"                  # the rule is still in force
+        assert rule_status(admin, uid) == "APPROVED"
         assert admin.post(f"/api/admin/photos/rules/{uid}/retirement/approve").json()["error"]["code"] == "NOT_PENDING"
     finally:
         if rule_status(admin, uid) == "APPROVED":

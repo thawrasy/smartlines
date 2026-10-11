@@ -426,5 +426,5 @@ The owner's decisions on the boarding photo, ticket binding, boarding points, tr
   retired through its own stages and stays in force until they are passed. A retirement that is turned down leaves the rule
   in force. The one who asks does not approve, and the person who gave the rule its final approval does not approve its
   retirement.
-- Open for the owner: whether the proposer may approve a retirement (the earlier design excluded them).
+- Decided by the owner: the person who proposed a rule does not approve its retirement (migration 1093); they may ask for it.
 

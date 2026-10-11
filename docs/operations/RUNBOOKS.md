@@ -282,8 +282,8 @@ section.
   - A proposal not yet in force is withdrawn with `POST .../rules/{uid}/withdraw`; this relaxes nothing.
   - A rule in force is retired through the stages: `POST .../rules/{uid}/retirement` (body `reason`), then
     `POST .../rules/{uid}/retirement/approve`; `POST .../rules/{uid}/retirement/reject` ends it and the rule stays in force.
-    The rule stays in force until the last stage. The one who asks for a retirement does not approve it, and neither does
-    the person who gave the rule its final approval.
+    The rule stays in force until the last stage. The one who asks for a retirement does not approve it, and neither does the person who proposed the rule or the
+    person who gave it its final approval (owner's decision, 1093).
   - With no rule in force the photo is optional. A `REQUIRED` rule refuses a booking for a traveller with no photo on file
     (`PHOTO_REQUIRED`, 422), and the gate records `PHOTO_REQUIRED` for a passenger without one. A traveller without a linked
     profile has no photo on file, so a required photo blocks their booking until the profile is linked (WP3).

@@ -172,6 +172,8 @@ async def approve_retirement(conn, pr: Principal, uid: uuid.UUID) -> dict:
         raise ApiError(409, "FOUR_EYES", "the one who asks for the retirement does not approve it")
     if r["approved_by_user_id"] == pr.user_id:
         raise ApiError(409, "FOUR_EYES", "the person who gave the final approval of the rule does not retire it")
+    if r["proposed_by_user_id"] == pr.user_id:
+        raise ApiError(409, "FOUR_EYES", "the one who proposed the rule does not approve its retirement")
     if await _already(conn, "RULE_RETIREMENT", r["retirement_request_id"], pr.user_id):
         raise ApiError(409, "ALREADY_APPROVED", "this person has already approved the retirement")
     status = await conn.fetchval("SELECT iam.approve_photo_rule_retirement($1)", uid)
