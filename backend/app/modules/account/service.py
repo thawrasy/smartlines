@@ -71,6 +71,25 @@ async def change_password(conn, ctx: db.Context, pr: Principal, current: str, ne
     await auth_event(conn, ctx, pr, "PASSWORD_CHANGED")
 
 
+async def deactivate(conn, ctx: db.Context, pr: Principal, password: str) -> None:
+    """Closes the owner's own passenger account. Nothing is deleted: the data stays, every session ends, and signing in
+    again with the same details reactivates it (1085, the owner's rule of 10 October 2026). Erasure is a different
+    request (request_erasure)."""
+    if pr.portal != "PASSENGER":
+        raise ApiError(409, "DEACTIVATE_STAFF", "staff accounts are closed by their company or the platform")
+    stored = await conn.fetchval("SELECT password_hash FROM iam.app_user WHERE id = $1", pr.user_id)
+    if not verify_password(stored, password):
+        raise ApiError(422, "PASSWORD_WRONG", "the password is not correct")
+    if await conn.fetchval(
+            """SELECT 1 FROM sales.booking b JOIN ops.trip t ON t.id = b.trip_id
+                WHERE b.booker_party_id = $1 AND b.status = 'CONFIRMED' AND t.departure_at > now()""", pr.party_id):
+        raise ApiError(409, "UPCOMING_TRIPS", "the person has upcoming trips; close the account after they travel or cancel")
+    await conn.execute("UPDATE iam.app_user SET status = 'DEACTIVATED' WHERE id = $1", pr.user_id)
+    await conn.execute("UPDATE iam.user_session SET revoked_at = now(), revoke_reason = 'DEACTIVATED' "
+                       "WHERE user_id = $1 AND revoked_at IS NULL", pr.user_id)
+    await auth_event(conn, ctx, pr, "ACCOUNT_DEACTIVATED")
+
+
 # ------------------------------------------------------------------ mobile devices
 async def devices(conn, pr: Principal) -> list[dict]:
     return rows(await conn.fetch(

@@ -140,6 +140,8 @@ PostGIS in `gis`. Until 9 October 2026 a first start of the Docker stack stopped
 | `1081_definer_search_path.sql` | Every SECURITY DEFINER function ends its `search_path` with `pg_temp`; creating objects in `public` is withdrawn; `sys.definer_path_gaps()` lists any new function that does not (checked in CI) (reviews of October 2026, addition 1 and M-09) |
 | `1082_validate_constraints.sql` | Constraints added NOT VALID are validated after the files: `db/build.sh` and `db/upgrade.sh` end with `CALL sys.validate_constraints()`, each in its own transaction; one that old rows break stays NOT VALID, is named, and `sys.unvalidated_constraints()` keeps `/api/ready` not ready until it is fixed (reviews of October 2026, H-09) |
 | `1083_default_partition_batches.sql` | A late upkeep moves a large period out of a default partition one period per transaction: the daily upkeep moves a period itself only up to `partitions.inline_move_rows` (50,000 rows), and the worker moves larger ones with `sys.move_default_period()`, each with its own lock and timeout (reviews of October 2026, M-08) |
+| `1084_settings_guard.sql` | The settings the database trusts are listed (`sys.guarded_settings`) and reported as enforced by the server (`sys.guard_status`): the server module `db/guard` defines them, so only the platform's own functions set them (reviews of release 1.49.0, C-01) |
+| `1085_account_deactivation.sql` | A closed account keeps its data: the status `DEACTIVATED` and the sign-in audit events `ACCOUNT_DEACTIVATED` and `ACCOUNT_REACTIVATED`; nothing is deleted, and the same details reactivate it through `POST /api/auth/reactivate` (the owner's rule of 10 October 2026) |
 
 ## Design rules (study 29.1)
 

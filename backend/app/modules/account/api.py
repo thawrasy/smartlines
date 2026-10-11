@@ -40,6 +40,20 @@ class PasswordIn(BaseModel):
     new_password: str = Field(min_length=1, max_length=200)
 
 
+class DeactivateIn(BaseModel):
+    password: str = Field(min_length=1, max_length=200)
+
+
+@router.post("/deactivate")
+async def deactivate(body: DeactivateIn, request: Request, pr: Principal = Depends(require_user)):
+    """Closes the account, keeping its data (1085): reactivated by signing in again with the same details."""
+    ctx = context_for(request, pr)
+    async with db.transaction(ctx) as conn:
+        await service.deactivate(conn, ctx, pr, body.password)
+    request.state.audit = {"action": "account.deactivate", "object_type": "party", "object_id": pr.party_id}
+    return {"ok": True}
+
+
 @router.post("/password")
 async def change_password(body: PasswordIn, request: Request, pr: Principal = Depends(require_user)):
     ctx = context_for(request, pr)

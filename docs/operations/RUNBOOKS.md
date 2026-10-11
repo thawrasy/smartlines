@@ -265,6 +265,13 @@ section.
 - **Legal holds:** a legal hold on a dataset (`gov.legal_hold` with scope `DATASET`) stops its purge.
 - **Erasure:** an erasure request pseudonymises the person in the database. Copies in backups expire with the backup
   retention. Archives keep only masked contact fields, because the change log masks them.
+- **Closing an account (1085):** the owner closes a passenger account with `POST /api/account/deactivate`, giving the
+  password. Nothing is deleted: the status becomes `DEACTIVATED`, every session ends, and the data (bookings, wallet,
+  family links, the boarding photo when it exists) stays. Signing in with the right password says the account is closed;
+  `POST /api/auth/reactivate` with the same details brings it back. Closing refuses while the person has confirmed trips
+  that have not left yet (`UPCOMING_TRIPS`). Staff accounts are closed by their company or the platform.
+- **Erasure and closing are different.** Closing keeps the data; erasure is the person's written request for
+  pseudonymisation, which cannot be undone. A closed account that asks for erasure is erased as any other.
 
 ## 10. Load and capacity (R-12)
 

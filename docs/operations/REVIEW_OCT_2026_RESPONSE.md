@@ -331,3 +331,12 @@ access policy by country (not started).
 | Mobile ticket | Bound to the passenger's account, not to a device. The tickets appear when the account is opened; requested at each boarding of a scheduled trip and shown at each security check | Account binding is the existing design (the credential is per ticket, the app shows the account's tickets) |
 | Currency at launch | The Syrian pound only, under Syrian regulation. Foreign currencies later, when the state or regulation allows | Not built: pricing stays in the pound |
 
+### Fourth round of answers (11 October 2026) and what was built
+
+| Question | Answer | Built |
+|---|---|---|
+| Closing an account | Keep the data. Closing only deactivates the account; it is reactivated when the customer registers again with the same details | Built (1085). `POST /api/account/deactivate` with the password; refused while the person has confirmed trips that have not left (`UPCOMING_TRIPS`). Status `DEACTIVATED`, every session ends, nothing is deleted. Signing in says the account is closed; `POST /api/auth/reactivate` with the same details restores it. Tests: `test_review_v149.py::test_a_closed_account_keeps_its_data_and_comes_back_with_the_same_details`. The passenger app's screens for closing and reactivation are not built yet |
+| Booking from abroad | Not before there is a site and a contract with payment gateways linked to Syrian bank accounts inside Syria | Not built, by decision. The IP-to-country source is still needed for the block (section 7, third round) |
+| Top-up from abroad | Allowed. Withdrawal is in Syrian pounds, so the card is charged the same amount in pounds; the exchange rate is set by the card-issuing bank | Not built: the top-up flow follows the payment gateway contract |
+
+Still open: whether erasure requests stay beside closing. Closing keeps the data; erasure is the person's written request for an irreversible pseudonymisation (1039, `gov.erase_party`). The owner has not decided this yet.

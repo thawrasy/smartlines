@@ -140,7 +140,7 @@ State as of release 1.50.0, checked against the code (reviews of release 1.49.0 
 | Agency sales | `iam.company` (AGENCY), `pricing.commission_*` | `/api/agency/*` | agency | Built: sales on behalf of passengers within a quota, commission, statements, agency staff |
 | Notifications | `crm.notification*`, `sys.outbox_event` | `/api/notifications` | all | Built: outbox worker, in-app list, e-mail (SMTP), SMS (HTTP gateway), WhatsApp (Cloud API) and push, each off until configured |
 | Support cases | `crm.case*` | `/api/support`, `/api/admin/support` | passenger, admin | Built: cases with messages, satisfaction, trip ratings, claims paid from the platform, contact block list |
-| Privacy | `gov.consent`, `gov.subject_request` | `/api/account`, `/api/admin/privacy` | passenger, admin | Built: consents, data export, subject requests handled by the platform, sessions and devices |
+| Privacy | `gov.consent`, `gov.subject_request`, `iam.app_user` (status `DEACTIVATED`) | `/api/account`, `/api/account/deactivate`, `/api/auth/reactivate`, `/api/admin/privacy` | passenger, admin | Built: consents, data export, subject requests handled by the platform, sessions and devices. Closing an account keeps its data and reactivates it with the same details (1085); the app's screens for it are not built yet |
 | Security hub | `sec`, `audit` | `/api/security/*` | platform security | Built: summary, IP rules, auth events, activity |
 | Regulator | views over `ops`, `sales`, `fin` | `/api/regulator/*` | regulator | Built: read-only dashboard |
 | Verification | signed tokens | `/api/verify` | public | Built: ticket and document authenticity |

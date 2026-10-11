@@ -319,3 +319,34 @@ def test_a_credential_opens_three_hours_before_departure_and_closes_an_hour_afte
     assert refused.value.code == "TICKET_NOT_YET" and refused.value.status == 409
     assert credential_window(departure, arrival, departure - timedelta(hours=3), 3) == int(arrival.timestamp()) + 3600
     assert credential_window(departure, arrival, arrival, 3) == int(arrival.timestamp()) + 3600   # boarding mid-route
+
+
+# ------------------------------------------------------------------ closing an account keeps its data (1085)
+def test_a_closed_account_keeps_its_data_and_comes_back_with_the_same_details():
+    import os
+    import uuid
+    import pytest
+    if not os.environ.get("MASSLAK_TEST_URL"):
+        pytest.skip("needs the running API (MASSLAK_TEST_URL)")
+    from test_e2e import client, login, owner_sql
+    email = f"close{uuid.uuid4().hex[:8]}@example.com"
+    password = "closing-test-password-2026"
+    assert client().post("/api/auth/register", json={"full_name": "Ahmad Sample", "email": email,
+                                                     "password": password}).status_code == 201
+    signed_in = login(email, "PASSENGER", password)
+    assert signed_in.post("/api/account/deactivate", json={"password": "not-the-password-x"}).status_code == 422
+    assert signed_in.post("/api/account/deactivate", json={"password": password}).status_code == 200
+    # the sessions ended with the closing, and the right details are told that the account is closed
+    assert signed_in.get("/api/auth/me").status_code == 401
+    # the account row is kept, only its status changes: closing deletes nothing
+    assert owner_sql("SELECT status FROM iam.app_user WHERE email = $1", email) == "DEACTIVATED"
+    closed = client().post("/api/auth/login", json={"identifier": email, "password": password, "portal": "PASSENGER"})
+    assert closed.status_code == 403 and closed.json()["error"]["code"] == "ACCOUNT_DEACTIVATED"
+    # a wrong password is refused as before, and reactivation needs the same details
+    assert client().post("/api/auth/login", json={"identifier": email, "password": "not-the-password-x",
+                                                  "portal": "PASSENGER"}).status_code == 401
+    assert client().post("/api/auth/reactivate", json={"identifier": email, "password": "not-the-password-x"}).status_code == 401
+    assert client().post("/api/auth/reactivate", json={"identifier": email, "password": password}).status_code == 200
+    assert login(email, "PASSENGER", password).get("/api/auth/me").status_code == 200
+    stored = owner_sql("SELECT status FROM iam.app_user WHERE email = $1", email)
+    assert stored == "ACTIVE"

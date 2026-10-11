@@ -70,6 +70,32 @@ async def _blocked(conn, *pairs) -> bool:
     return False
 
 
+class ReactivateIn(BaseModel):
+    identifier: str = Field(min_length=3, max_length=200)
+    password: str = Field(min_length=1, max_length=200)
+
+
+@router.post("/reactivate")
+async def reactivate(body: ReactivateIn, request: Request):
+    """A closed account (1085) comes back with all its data when its owner signs in again with the same details. The
+    answer for a wrong password is the answer for an unknown identifier, so the endpoint does not reveal accounts."""
+    ctx = base_context(request)
+    ctx.scope = "AUTH"
+    ident = body.identifier.strip()
+    async with db.transaction(ctx) as conn:
+        await ratelimit.check_identifier(conn, ident)
+    async with db.transaction(ctx) as conn:
+        user = await conn.fetchrow("SELECT id, password_hash, status FROM iam.app_user WHERE email = $1 OR mobile = $1", ident)
+        if user is None:
+            verify_password(None, body.password)
+        if user is None or user["status"] != "DEACTIVATED" or not verify_password(user["password_hash"], body.password):
+            raise ApiError(401, "INVALID_CREDENTIALS", "invalid login details")
+        await conn.execute("UPDATE iam.app_user SET status = 'ACTIVE', failed_attempts = 0, locked_until = NULL WHERE id = $1",
+                           user["id"])
+        await _auth_event(conn, request, "ACCOUNT_REACTIVATED", "SUCCESS", user_id=user["id"], identifier=ident)
+    return {"ok": True}
+
+
 @router.post("/register", status_code=201)
 async def register(body: RegisterIn, request: Request):
     problem = password_problem(body.password, body.email, body.full_name, body.mobile)
@@ -123,6 +149,7 @@ async def login(body: LoginIn, request: Request, response: Response):
                                AND f.verified_at IS NOT NULL AND f.disabled_at IS NULL) AS mfa_factors
                  FROM iam.app_user WHERE email = $1 OR mobile = $1""", ident)
         policy = await mfa_policy.current(conn)
+        deactivated = False
         blocked = await _blocked(conn, ("EMAIL" if "@" in ident else "PHONE", ident), ("DEVICE", body.device_id))
         if blocked:             # recorded, then refused once the record is committed
             await _auth_event(conn, request, "LOGIN_FAILED", "BLOCKED", user_id=user["id"] if user else None,
@@ -139,7 +166,14 @@ async def login(body: LoginIn, request: Request, response: Response):
                 await _auth_event(conn, request, "LOGIN_FAILED", "BLOCKED", user_id=user["id"], portal=body.portal,
                                   reason="account_locked")
                 raise ApiError(423, "ACCOUNT_LOCKED", "account temporarily locked after failed attempts")
-            if not verify_password(user["password_hash"], body.password) or user["status"] != "ACTIVE":
+            password_ok = verify_password(user["password_hash"], body.password)
+            if password_ok and user["status"] == "DEACTIVATED":
+                # closed by its owner (1085): the right password is told so, and nothing is counted against the account
+                deactivated = True
+                raise_invalid = True
+                await _auth_event(conn, request, "LOGIN_FAILED", "BLOCKED", user_id=user["id"], portal=body.portal,
+                                  reason="deactivated")
+            elif not password_ok or user["status"] != "ACTIVE":
                 fails = user["failed_attempts"] + 1
                 locked = fails >= MAX_FAILS
                 await conn.execute(
@@ -152,6 +186,8 @@ async def login(body: LoginIn, request: Request, response: Response):
                 raise_invalid = True
     if blocked:
         raise ApiError(403, "BLOCKED", "sign-in is not possible; contact support")
+    if deactivated:
+        raise ApiError(403, "ACCOUNT_DEACTIVATED", "this account is closed; reactivate it with the same details")
     if raise_invalid:
         raise ApiError(401, "INVALID_CREDENTIALS", "invalid login details")
 

@@ -121,7 +121,7 @@ A server that must not refuse those requests:
 
 While the window is open, readiness reports not ready (RUNBOOKS.md, section 30).
 
-## Release 1.50.0 (1084)
+## Release 1.50.0 (1084, 1085)
 
 **1084** adds four functions and replaces two (`sys.tg_remember_new_row`, `sys.created_here`). It changes no table and
 moves no row, so it takes catalog locks for milliseconds and was not rehearsed with the tool. The list of rows a
@@ -135,6 +135,11 @@ bundle on the standby's host first, then on the primary's, which hands the role 
 HIGH_AVAILABILITY.md). Until it has restarted, `sys.guard_status()` is false and `/api/ready` of
 a production server reports `"settings_guard": false`; the preflight of the next update refuses a server where it stays
 false (RUNBOOKS.md, section 30).
+
+**1085** changes two check constraints and no row: the status `DEACTIVATED` of `iam.app_user` and two sign-in audit events
+(`ACCOUNT_DEACTIVATED`, `ACCOUNT_REACTIVATED`). Each `ALTER` takes an access-exclusive lock on its table while it
+replaces the check constraint, for a moment. It was not rehearsed with the tool, for the same reason as 1084. Existing
+accounts keep their status; no row is rewritten.
 
 ## 1064_partitioned_bookings.sql on a live database (R-06)
 
