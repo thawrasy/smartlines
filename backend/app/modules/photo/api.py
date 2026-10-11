@@ -23,6 +23,10 @@ from . import service as photo
 platform = APIRouter(prefix="/api/admin/photos", tags=["photos"])
 
 
+class EvidenceKindIn(BaseModel):
+    active: bool
+
+
 class RuleIn(BaseModel):
     market: Optional[str] = Field(default=None, pattern=r"^[A-Z]{2}$")       # the country the trip departs from
     trip_scope: Optional[Literal["DOMESTIC", "INTERNATIONAL"]] = None
@@ -78,6 +82,24 @@ async def retire_rule(uid: uuid.UUID, request: Request, pr: Principal = Depends(
     return {"status": "RETIRED"}
 
 
+@platform.get("/evidence-kinds")
+async def list_evidence_kinds(request: Request, pr: Principal = Depends(require_portal("PLATFORM"))):
+    privacy_staff(pr)
+    async with db.transaction(context_for(request, pr)) as conn:
+        return {"kinds": await photo.evidence_kinds(conn)}
+
+
+@platform.post("/evidence-kinds/{code}/active")
+async def set_evidence_kind(code: str, body: EvidenceKindIn, request: Request,
+                            pr: Principal = Depends(require_portal("PLATFORM"))):
+    """Switches a kind of evidence on or off for new change requests (the documents accepted are a setting, 1088)."""
+    privacy_staff(pr)
+    async with db.transaction(context_for(request, pr)) as conn:
+        kind_id = await photo.set_evidence_kind(conn, code, body.active)
+    request.state.audit = {"action": "photo.evidence_kind_set", "object_type": "photo_evidence_kind", "object_id": kind_id}
+    return {"code": code, "active": body.active}
+
+
 @platform.get("/changes")
 async def list_changes(request: Request, pr: Principal = Depends(require_portal("PLATFORM"))):
     privacy_staff(pr)
@@ -88,7 +110,7 @@ async def list_changes(request: Request, pr: Principal = Depends(require_portal(
 @platform.post("/changes", status_code=201)
 async def request_change(request: Request, party_uid: uuid.UUID = Form(...),
                          reason: str = Form(..., min_length=10, max_length=500),
-                         evidence_kind: Literal["CIVIL_REGISTRY_EXTRACT", "IDENTITY_DOCUMENT"] = Form(...),
+                         evidence_kind: str = Form(..., min_length=3, max_length=40),
                          evidence: UploadFile = File(...), new_photo: UploadFile = File(...),
                          pr: Principal = Depends(require_portal("PLATFORM"))):
     """Asks for the photo on file to be replaced: the evidence (an extract that carries the photo, or an identity

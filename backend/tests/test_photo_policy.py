@@ -130,7 +130,7 @@ def test_a_photo_on_file_changes_only_through_a_second_platform_person_with_evid
     assert upload(c, JPEG).status_code == 201
     before = photo_of_email(email)["photo_file_id"]
     party = owner_sql("SELECT p.uid FROM iam.party p JOIN iam.app_user u ON u.party_id = p.id WHERE u.email = $1", email)
-    form = {"party_uid": str(party), "reason": "the photo on file is not the holder", "evidence_kind": "IDENTITY_DOCUMENT"}
+    form = {"party_uid": str(party), "reason": "the photo on file is not the holder", "evidence_kind": "PASSPORT"}
     files = {"evidence": ("id.jpg", JPEG, "image/jpeg"), "new_photo": ("new.png", PNG, "image/png")}
     # the person cannot ask for a change; the platform asks, with the evidence and the new photo
     assert c.post("/api/admin/photos/changes", data=form, files=files).status_code == 403
@@ -158,3 +158,31 @@ def test_a_photo_on_file_changes_only_through_a_second_platform_person_with_evid
 
 def party_id_of(email):
     return owner_sql("SELECT party_id FROM iam.app_user WHERE email = $1", email)
+
+
+def test_an_evidence_kind_is_accepted_only_while_it_is_switched_on():
+    admin = staff(ADMIN)
+    email, c = register()
+    assert upload(c, JPEG).status_code == 201
+    party = owner_sql("SELECT p.uid FROM iam.party p JOIN iam.app_user u ON u.party_id = p.id WHERE u.email = $1", email)
+    kinds = {k["code"]: k for k in admin.get("/api/admin/photos/evidence-kinds").json()["kinds"]}
+    assert {"CIVIL_REGISTRY_EXTRACT", "IDENTITY_DOCUMENT", "PASSPORT"} <= set(kinds)
+    assert all(k["active"] for k in kinds.values())
+    # the person cannot change the setting; the platform switches a kind off, and a request with it is refused
+    assert c.post("/api/admin/photos/evidence-kinds/PASSPORT/active", json={"active": False}).status_code == 403
+    assert admin.post("/api/admin/photos/evidence-kinds/NO_SUCH_KIND/active", json={"active": False}).status_code == 404
+    files = {"evidence": ("passport.jpg", JPEG, "image/jpeg"), "new_photo": ("new.png", PNG, "image/png")}
+    form = {"party_uid": str(party), "reason": "the photo on file is not the holder", "evidence_kind": "PASSPORT"}
+    try:
+        r = admin.post("/api/admin/photos/evidence-kinds/PASSPORT/active", json={"active": False})
+        assert r.status_code == 200 and r.json() == {"code": "PASSPORT", "active": False}, r.text
+        r = admin.post("/api/admin/photos/changes", data=form, files=files)
+        assert r.status_code == 422 and r.json()["error"]["code"] == "EVIDENCE_KIND_NOT_ACCEPTED", r.text
+        r = admin.post("/api/admin/photos/changes", data={**form, "evidence_kind": "BIRTH_CERTIFICATE"}, files=files)
+        assert r.status_code == 422 and r.json()["error"]["code"] == "EVIDENCE_KIND_NOT_ACCEPTED", r.text
+    finally:
+        assert admin.post("/api/admin/photos/evidence-kinds/PASSPORT/active", json={"active": True}).status_code == 200
+    r = admin.post("/api/admin/photos/changes", data=form, files=files)
+    assert r.status_code == 201 and r.json()["status"] == "PENDING", r.text
+    assert owner_sql("SELECT evidence_kind FROM iam.photo_change_request WHERE uid = $1", uuid.UUID(r.json()["uid"])) == "PASSPORT"
+

@@ -157,6 +157,11 @@ is redefined to remove the evidence and candidate photos of the person's request
 schema dependency check stays at its baseline. Applied on a fresh database; a live database applies it in a maintenance window
 because the two constraint changes validate the existing rows.
 
+**1088** makes the documents accepted for a change of the boarding photo a platform setting. It adds `iam.photo_evidence_kind`
+(three kinds seeded: civil registry extract, national identity card, passport; each on or off), replaces the fixed check on
+the request's evidence kind by a reference to it, and redefines `iam.request_photo_change` to refuse a kind that is off. It
+changes no existing row. The constraint change validates the existing requests, which all carry one of the three kinds.
+
 ## 1064_partitioned_bookings.sql on a live database (R-06)
 
 1064 turns `sales.booking` into a table partitioned by ranges of id **in place, under an ACCESS EXCLUSIVE lock**: it

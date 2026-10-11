@@ -161,6 +161,9 @@ async def list_rules(conn) -> list[dict]:
 
 async def request_change(conn, ctx: db.Context, pr: Principal, party_uid: uuid.UUID, reason: str, evidence_kind: str,
                          evidence: bytes, evidence_name: str, photo: bytes, photo_name: str) -> tuple[str, int]:
+    accepted = await conn.fetchval("SELECT active FROM iam.photo_evidence_kind WHERE code = $1", evidence_kind)
+    if not accepted:
+        raise ApiError(422, "EVIDENCE_KIND_NOT_ACCEPTED", "this document is not accepted as evidence now", evidence_kind=evidence_kind)
     async with db.system_scope(conn, ctx):
         party_id = await conn.fetchval("SELECT id FROM iam.party WHERE uid = $1", party_uid)
     if party_id is None:
@@ -221,3 +224,19 @@ async def read_evidence(conn, ctx: db.Context, uid: uuid.UUID) -> tuple[bytes, s
         fc = await crypto.cipher(conn)
         data = await storage.get(fc, row["storage_key"], row["enc_key_id"], bytes(row["sha256"]))
     return data, row["mime_type"], row["party_id"]
+
+
+# ---- 1088: the documents accepted as evidence are a platform setting -----------------------------------------
+
+async def evidence_kinds(conn) -> list[dict]:
+    rows = await conn.fetch("SELECT code, label, active FROM iam.photo_evidence_kind ORDER BY id")
+    return [dict(r) for r in rows]
+
+
+async def set_evidence_kind(conn, code: str, active: bool) -> int:
+    """Switches a kind of evidence on or off for new requests; the request is refused while it is off."""
+    kind_id = await conn.fetchval("SELECT id FROM iam.photo_evidence_kind WHERE code = $1", code)
+    if kind_id is None:
+        raise not_found("evidence kind")
+    return await conn.fetchval("SELECT iam.set_photo_evidence_kind($1, $2)", code, active)
+

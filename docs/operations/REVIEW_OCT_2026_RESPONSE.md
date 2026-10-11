@@ -379,3 +379,17 @@ The owner's decisions on the boarding photo, ticket binding, boarding points, tr
   rejection and audit. Run on a fresh seeded database with the 1086 tests.
 - **Known limits.** A booking for a traveller with no linked profile is refused under a `REQUIRED` rule until WP3 links
   self-bookings; this is intended, and it is listed in the risks of the assessment.
+
+### Seventh round: the owner's answers and the evidence kinds (migration 1088)
+
+- The owner answered the eight questions and one further question (wallet management); the decisions and their status in
+  the code are in section 7 of `INITIAL_ASSESSMENT_11_OCT_2026.md`. Nothing that depends on an agreement with a ministry,
+  a border authority or a bank is switched on by default.
+- **Built: accepted evidence as a setting (1088).** The national identity card, the civil registry extract that carries the
+  photo, and the passport are the accepted kinds. Each can be switched on or off by the platform
+  (`POST /api/admin/photos/evidence-kinds/{code}/active`, audited); a request with a kind that is off is refused with
+  `EVIDENCE_KIND_NOT_ACCEPTED`. Tests in `backend/tests/test_photo_policy.py` cover the switch, the refusal and the passport.
+- **Open, with items S1 to S7 in the assessment:** border flows, tax activation by segment, commission per agreement, the
+  security-gate lookup, the device image cache check, remittance schedules, and the rules for ride-hailing drivers and
+  children's identity.
+

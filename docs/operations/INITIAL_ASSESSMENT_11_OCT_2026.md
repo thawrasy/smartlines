@@ -101,3 +101,37 @@ WP4, WP9 (design and tests) and WP1 can start now. WP3 must wait for the decisio
   refuses it and the API answers 409 PHOTO_EXISTS. The test for a second photo now expects the refusal. The platform
   replacement (WP4) and the photo rules (WP1) are built in 1087; see the response record.
 - The response record gains a sixth-round section, and its fifth-round replacement row is corrected.
+- Seventh round (section 7): the owner's answers are recorded. Migration 1088 makes the documents accepted for a photo
+  change a platform setting (passport added), and a request with a switched-off kind is refused.
+
+## 7. Seventh round: the owner's answers (11 October 2026)
+
+The owner answered the eight questions of section 5 and added one (wallet management). The decisions are the owner's. The
+status column states what the code does today; nothing below is switched on by default unless the status says so.
+
+| # | Topic | Decision | Status in code and next step |
+|---|---|---|---|
+| 1 | Meaning of "the competitor" in the transit scenario | Border crossings. Confirmed | Recorded. The border manifest module (1019) uses the same terms |
+| 2 | Border flows | (a) A trip into Syria from abroad is sent to the border crossings system, naming the crossing point where it arrives, so the authority can see it, with a passenger group identifier and the arriving passengers. (b) A trip out of Syria is sent to the border crossings platform, after the company is linked with it, naming the crossing point where the trip leaves Syria. (c) A transit trip names its entry crossing point and its exit crossing point, and is sent as a transit trip with both; the route (line) is defined too and sent if the authority asks for it | The manifest categories DEPARTING, ARRIVING, TRANSIT and DOMESTIC exist, and a transit manifest needs both points (CHECK in 1019). The end-to-end link to the authority's systems is not built: WP7 |
+| 3 | Tax at launch | Not charged at launch. When it is enacted, it is switched on by a platform setting or by a carrier-gateway setting, for all carriers or for a segment: by revenue above or below a threshold, by carrier type, for individuals, or any other segment. The carrier type is known in advance. Later, by agreement with the Ministry of Finance (approvals and legislation), the tax may be withheld from the carrier and remitted by the platform. Until then the switch decides | `pricing.tax_scheme` exists with status PENDING, so nothing is applied until it is activated; its scope field can hold a segment. The carrier-gateway switch and the withholding are not built: WP9 |
+| 4 | Commission at launch | A fixed amount per booking, or a percentage per carrier. Both are configurable, by platform setting, per carrier type or segment, or not charged. The amount may be a percentage of the fare or a flat sum regardless of the fare, and is set per carrier by agreement | `pricing.commission_scheme` and `pricing.commission_rule` (rate or amount, minimum, maximum, cap period) and `fin.fee_rule` (percent, fixed, or both; borne by payer, platform or carrier) exist, and are PENDING or INACTIVE by default. The current flat 1,000 SYP per booking is data to be set per carrier agreement. No default changed |
+| 5 | Legal text for the photo | None is needed at launch. The photo is optional by default; the platform may make it required by setting; a government system may later impose it or permit it. The rules stay flexible | Built (1087). The rule's legal basis accepts the platform's own decision reference (3 to 500 characters) until a legal text exists |
+| 6 | Remittance frequency | Set per carrier agreement: daily, weekly or monthly. A daily schedule may carry a charge because of its cost. The routine release from the reserved cash account to the customer's wallet is electronic. From the wallet the carrier may transfer to its bank account, pay a partner (a station, a rest stop), or use the funds in any other way the platform allows | Not built in this round. `fin.cash_remittance` exists. The per-carrier schedule and the routine release are configuration for WP5 and WP9 |
+| 7 | Document for a photo replacement | The national identity card is the main document. Until every citizen holds one, and while children receive none before a certain age, a civil registry extract that carries the photo, or a passport, is accepted. The list is a platform setting, not code | Built (1088). `iam.photo_evidence_kind` holds the three kinds, each on or off; a request with a kind that is off is refused with `EVIDENCE_KIND_NOT_ACCEPTED`. A second platform person applies the change (WP4, as built) |
+| 8 | Photos on the driver's phone when offline | No photo is kept on the driver's phone, in any case. Identity checks at the security gates use a security portal, reached once the route and the vehicle number are known, to find the person they need. This also relieves the driver app and the driver portal | The offline pack carries no photos (design). A photo is fetched online for each scan. Open: the app's image component may keep a device cache; this must be verified on a device and removed if it exists. The security-gate lookup is not built: item S4 |
+| 9 | Bank partner for virtual accounts | Not at launch. Bank links for independent e-wallets are still being developed in Syria. The platform will contract banks; funds are held in separate bank accounts under each bank's own compliance; the platform's wallet is ready to be linked with a bank | WP10 moves to after the bank contracts. `fin.float_account` and `fin.deposit_placement` exist; there is no bank adapter |
+| 10 | Wallet management | Built later, with the owner's guidance; or bought ready from a vendor that already runs one and adapted to the company's visual identity | Open. Planning with the owner; not built |
+
+New work items from this round:
+
+- **S1** Border flows: map each trip type to its crossing points and link the manifests to the authority (extends WP7).
+- **S2** Tax activation by segment, with the carrier-gateway switch and, later, withholding (WP9).
+- **S3** Commission per carrier agreement: configuration screens and the fixed-or-percentage choice (WP9).
+- **S4** Security-gate lookup: route and vehicle first, then the person; no photo on a driver's device (new WP12).
+- **S5** On a device, verify that the photo view writes nothing to the image cache; if it does, change the view (mobile).
+- **S6** Remittance schedules per carrier and the routine release from the reserved cash account (WP5, WP9).
+- **S7** Ride-hailing driver and children's identity rules, kept configurable (WP8).
+
+Legal and operating review is still needed before go-live for items 2, 3 and 9, because they depend on agreements with the
+authorities and banks named above.
+

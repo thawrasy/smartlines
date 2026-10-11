@@ -282,11 +282,14 @@ section.
   without a linked profile has no photo on file, so a required photo blocks their booking until the profile is linked (WP3).
   The rule values, and the legal text they cite, are the owner's decision.
 - **Replacing a photo on file (1087, WP4).** The person and the family head cannot. A platform person requests it with
-  `POST /api/admin/photos/changes`: the party, a reason, the evidence kind (`CIVIL_REGISTRY_EXTRACT` or `IDENTITY_DOCUMENT`),
+  `POST /api/admin/photos/changes`: the party, a reason, the evidence kind (`CIVIL_REGISTRY_EXTRACT`, `IDENTITY_DOCUMENT` or `PASSPORT`),
   the evidence file and the new photo. A second platform person reads the evidence (`GET .../changes/{uid}/evidence`, audited)
   and applies (`/approve`) or rejects (`/reject`) it; the requester cannot apply. An applied change replaces the photo and
   deletes the earlier file; a rejected one deletes the candidate photo. The evidence stays with the request until the
   person is erased.
+- **Accepted evidence is a setting (1088).** `GET /api/admin/photos/evidence-kinds` lists the kinds and whether each is on.
+  `POST /api/admin/photos/evidence-kinds/{code}/active` switches one on or off (audited). A request with a kind that is off
+  is refused with `EVIDENCE_KIND_NOT_ACCEPTED` (422). Requests already made keep their evidence.
 - **Erasure and closing are different.** Closing keeps the data; erasure is the person's written request for
   pseudonymisation, which cannot be undone. A closed account that asks for erasure is erased as any other.
 

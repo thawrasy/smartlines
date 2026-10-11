@@ -2,13 +2,13 @@
 
 > Generated from the built database (`db/tools/gen_docs.py`); do not edit by hand.
 
-**507 tables, 5203 columns, in 26 schemas.**
+**508 tables, 5209 columns, in 26 schemas.**
 
 Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant isolation (RLS) · 🧩 partitioned monthly · 🔒 append-only / change-protected
 
 ## Index
 
-- [`iam` — Identity, parties, users, permissions and API clients](#iam) (36 tables)
+- [`iam` — Identity, parties, users, permissions and API clients](#iam) (37 tables)
 - [`ref` — Reference data, locales and files](#ref) (14 tables)
 - [`sys` — Settings, outbox and webhooks](#sys) (27 tables)
 - [`net` — Network: stations, routes, lines, corridors and geofences](#net) (22 tables)
@@ -563,13 +563,26 @@ A platform request to change a boarding photo on file, with its evidence; applie
 | `party_id` | `bigint` | 🔗 `iam.party` ✱ |  |
 | `requested_by_user_id` | `bigint` | 🔗 `iam.app_user` ✱ |  |
 | `reason` | `text` | ✱ |  |
-| `evidence_kind` | `text` | ✱ |  |
+| `evidence_kind` | `text` | 🔗 `iam.photo_evidence_kind` ✱ |  |
 | `evidence_file_id` | `bigint` | 🔗 `ref.file_object`  |  |
 | `photo_file_id` | `bigint` | 🔗 `ref.file_object`  |  |
 | `status` | `text` | ✱ | `'PENDING'::text` |
 | `decided_by_user_id` | `bigint` | 🔗 `iam.app_user`  |  |
 | `decided_at` | `timestamp with time zone` |  |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `iam.photo_evidence_kind` 🛡️
+
+The documents accepted as evidence for a change of the boarding photo; a platform setting (1088)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `code` | `text` | ✱ |  |
+| `label` | `text` | ✱ |  |
+| `active` | `boolean` | ✱ | `true` |
+| `changed_by_user_id` | `bigint` | 🔗 `iam.app_user`  |  |
+| `changed_at` | `timestamp with time zone` | ✱ | `now()` |
 
 ### `iam.photo_rule` 🛡️
 
