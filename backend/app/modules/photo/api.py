@@ -23,10 +23,6 @@ from . import service as photo
 platform = APIRouter(prefix="/api/admin/photos", tags=["photos"])
 
 
-class EvidenceKindIn(BaseModel):
-    active: bool
-
-
 class RuleIn(BaseModel):
     market: Optional[str] = Field(default=None, pattern=r"^[A-Z]{2}$")       # the country the trip departs from
     trip_scope: Optional[Literal["DOMESTIC", "INTERNATIONAL"]] = None
@@ -82,22 +78,67 @@ async def retire_rule(uid: uuid.UUID, request: Request, pr: Principal = Depends(
     return {"status": "RETIRED"}
 
 
+class EvidenceChangeIn(BaseModel):
+    active: bool
+    reason: str = Field(min_length=10, max_length=500)
+
+
+class AgeChangeIn(BaseModel):
+    min_age: Optional[int] = Field(default=None, ge=0, le=120)     # null: no age rule
+    reason: str = Field(min_length=10, max_length=500)
+
+
 @platform.get("/evidence-kinds")
-async def list_evidence_kinds(request: Request, pr: Principal = Depends(require_portal("PLATFORM"))):
+async def evidence_settings(request: Request, pr: Principal = Depends(require_portal("PLATFORM"))):
     privacy_staff(pr)
     async with db.transaction(context_for(request, pr)) as conn:
-        return {"kinds": await photo.evidence_kinds(conn)}
+        return await photo.evidence_settings(conn)
 
 
-@platform.post("/evidence-kinds/{code}/active")
-async def set_evidence_kind(code: str, body: EvidenceKindIn, request: Request,
-                            pr: Principal = Depends(require_portal("PLATFORM"))):
-    """Switches a kind of evidence on or off for new change requests (the documents accepted are a setting, 1088)."""
+@platform.post("/evidence-kinds/{code}/changes", status_code=201)
+async def request_evidence_change(code: str, body: EvidenceChangeIn, request: Request,
+                                  pr: Principal = Depends(require_portal("PLATFORM"))):
+    """Asks to switch a kind of evidence on or off; a second person approves it (1089)."""
     privacy_staff(pr)
     async with db.transaction(context_for(request, pr)) as conn:
-        kind_id = await photo.set_evidence_kind(conn, code, body.active)
-    request.state.audit = {"action": "photo.evidence_kind_set", "object_type": "photo_evidence_kind", "object_id": kind_id}
-    return {"code": code, "active": body.active}
+        uid, change_id = await photo.request_evidence_change(conn, pr, code, body.active, body.reason)
+    request.state.audit = {"action": "photo.policy_request", "object_type": "photo_policy_change", "object_id": change_id}
+    return {"uid": uid, "status": "PENDING", "approvals": 1}
+
+
+@platform.post("/identity-age/changes", status_code=201)
+async def request_identity_age(body: AgeChangeIn, request: Request, pr: Principal = Depends(require_portal("PLATFORM"))):
+    """Asks to set (or clear) the age below which a national identity card is not accepted; a second person approves it."""
+    privacy_staff(pr)
+    async with db.transaction(context_for(request, pr)) as conn:
+        uid, change_id = await photo.request_identity_age(conn, pr, body.min_age, body.reason)
+    request.state.audit = {"action": "photo.policy_request", "object_type": "photo_policy_change", "object_id": change_id}
+    return {"uid": uid, "status": "PENDING", "approvals": 1}
+
+
+@platform.get("/policy-changes")
+async def list_policy_changes(request: Request, pr: Principal = Depends(require_portal("PLATFORM"))):
+    privacy_staff(pr)
+    async with db.transaction(context_for(request, pr)) as conn:
+        return {"changes": await photo.list_policy_changes(conn)}
+
+
+@platform.post("/policy-changes/{uid}/approve")
+async def approve_policy_change(uid: uuid.UUID, request: Request, pr: Principal = Depends(require_portal("PLATFORM"))):
+    privacy_staff(pr)
+    async with db.transaction(context_for(request, pr)) as conn:
+        out = await photo.approve_policy_change(conn, pr, uid)
+    request.state.audit = {"action": "photo.policy_approve", "object_type": "photo_policy_change", "object_id": out["change_id"]}
+    return {"status": out["status"], "approvals": out["approvals"], "required": out["required"]}
+
+
+@platform.post("/policy-changes/{uid}/reject")
+async def reject_policy_change(uid: uuid.UUID, request: Request, pr: Principal = Depends(require_portal("PLATFORM"))):
+    privacy_staff(pr)
+    async with db.transaction(context_for(request, pr)) as conn:
+        change_id = await photo.reject_policy_change(conn, pr, uid)
+    request.state.audit = {"action": "photo.policy_reject", "object_type": "photo_policy_change", "object_id": change_id}
+    return {"status": "REJECTED"}
 
 
 @platform.get("/changes")

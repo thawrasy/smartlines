@@ -135,3 +135,36 @@ New work items from this round:
 Legal and operating review is still needed before go-live for items 2, 3 and 9, because they depend on agreements with the
 authorities and banks named above.
 
+### Eighth round: approvals for the accepted documents, and the age rule
+
+The owner's answers (eighth round):
+
+- A change to the documents accepted for a photo change needs at least two people. More can be required by the platform's
+  settings, so that no gap is left open. **Built (1089):** a change is asked for by one platform person; the number of
+  approvals required is the setting `photo.policy_min_approvals`, which is 2 and cannot be set below 2. The reading built
+  counts the person who asks as the first approval, so "two people" means the requester plus one approver. This reading
+  is to be confirmed by the owner. If the owner means two approvers besides the requester, the count changes to three
+  people in total and the setting's meaning changes with it.
+- The age below which a national identity card is not accepted is a platform setting, not a fixed value. **Built (1089):**
+  `photo.identity_card_min_age`, changed through the same two-person approval. **The value has not been given yet.** The
+  setting is null, so there is no age rule until the owner sets it. While the rule is set, a national identity card is refused
+  for a person whose birth date is not on file, because the age cannot be checked.
+
+Open after this round: the value of the age rule (owner); the reading of "two people" (owner); the device check of the image
+cache for offline photos (item S5); and the security-gate lookup (item S4).
+
+### Eighth round, addendum: the documents accepted nationally
+
+| Document | Kind (code) | Rule |
+|---|---|---|
+| National identity card | `IDENTITY_DOCUMENT` | Under the age rule of the identity card |
+| Civil registry extract showing the national number | `CIVIL_REGISTRY_EXTRACT` | The second approver checks the national number against the person's record; the platform does not read the document |
+| Passport | `PASSPORT` | None |
+| Travel document issued by a Syrian mission abroad, in place of a passport, for Syrian citizens entering Syria | `TRAVEL_DOCUMENT` | Accepted for Syrian citizens only |
+| Temporary identity document, first phase only, issued by several authorities | `TEMPORARY_ID` | Under the age rule of the identity card; to be switched off later |
+
+All five are settings (`iam.photo_evidence_kind`), switched on or off by two people (1089). Built in 1090.
+
+New work item **S8**: a know-your-customer (KYC) model, and the re-registration of each client registered on the platform
+against the civil registry. The temporary identity document is switched off once that is done, by the two-person change.
+

@@ -162,6 +162,19 @@ because the two constraint changes validate the existing rows.
 the request's evidence kind by a reference to it, and redefines `iam.request_photo_change` to refuse a kind that is off. It
 changes no existing row. The constraint change validates the existing requests, which all carry one of the three kinds.
 
+**1089** makes a change to the accepted documents, and to the age rule for the national identity card, need two people. It adds
+two tables (`iam.photo_policy_change`, `iam.photo_policy_approval`), platform-only under row-level security, and five functions
+that write them. It drops the one-person switch of 1088, which had not been released, and redefines
+`iam.request_photo_change` to check the evidence through `iam.evidence_accepted`. It adds two `sys.setting` keys with
+their defaults (`photo.policy_min_approvals` = 2, `photo.identity_card_min_age` = null, meaning no age rule). It changes no
+existing request, and the approval count cannot be set below two.
+
+**1090** completes the list of documents accepted nationally for a photo change: it adds two kinds (the travel document
+issued by a Syrian mission abroad, for Syrian citizens only; and the temporary identity document of the first phase), adds
+a flag to mark the kinds under the age rule of the identity card (the national identity card and the temporary identity
+document), and redefines `iam.evidence_accepted` to apply the nationality condition. It changes no existing request, and no
+table is added.
+
 ## 1064_partitioned_bookings.sql on a live database (R-06)
 
 1064 turns `sales.booking` into a table partitioned by ranges of id **in place, under an ACCESS EXCLUSIVE lock**: it

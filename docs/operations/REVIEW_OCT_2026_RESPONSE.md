@@ -393,3 +393,19 @@ The owner's decisions on the boarding photo, ticket binding, boarding points, tr
   security-gate lookup, the device image cache check, remittance schedules, and the rules for ride-hailing drivers and
   children's identity.
 
+### Eighth round: two people for the accepted documents, and the age rule (migration 1089)
+
+- A change to the documents accepted for a photo change needs at least two people; the platform's setting
+  `photo.policy_min_approvals` raises the number and cannot lower it below two. The one who asks counts as the first
+  approval (to be confirmed by the owner). Built: `iam.photo_policy_change` and `iam.photo_policy_approval`, the five
+  functions that write them, and the API under `/api/admin/photos`. Tests in `backend/tests/test_photo_policy.py` cover the
+  two-person flow, the refusal of the requester's own approval, the rejected repeat, and the age rule.
+- The age below which a national identity card is not accepted is the setting `photo.identity_card_min_age`. The owner has
+  not given the value yet; until then there is no age rule.
+
+- **Eighth round, addendum (migration 1090).** The documents accepted nationally are five kinds: the national identity card,
+  the civil registry extract with the national number, the passport, the travel document of Syrian missions abroad (Syrian
+  citizens only), and the temporary identity document of the first phase (to be switched off later). The age rule of the
+  identity card covers the national and the temporary identity documents. New work item S8: the know-your-customer model and
+  the re-registration of each client against the civil registry.
+

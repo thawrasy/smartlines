@@ -161,13 +161,13 @@ async def list_rules(conn) -> list[dict]:
 
 async def request_change(conn, ctx: db.Context, pr: Principal, party_uid: uuid.UUID, reason: str, evidence_kind: str,
                          evidence: bytes, evidence_name: str, photo: bytes, photo_name: str) -> tuple[str, int]:
-    accepted = await conn.fetchval("SELECT active FROM iam.photo_evidence_kind WHERE code = $1", evidence_kind)
-    if not accepted:
-        raise ApiError(422, "EVIDENCE_KIND_NOT_ACCEPTED", "this document is not accepted as evidence now", evidence_kind=evidence_kind)
     async with db.system_scope(conn, ctx):
         party_id = await conn.fetchval("SELECT id FROM iam.party WHERE uid = $1", party_uid)
     if party_id is None:
         raise not_found("person")
+    if not await conn.fetchval("SELECT iam.evidence_accepted($1, $2)", party_id, evidence_kind):
+        raise ApiError(422, "EVIDENCE_KIND_NOT_ACCEPTED", "this document is not accepted as evidence for this person now",
+                       evidence_kind=evidence_kind)
     photo_file = await store(conn, ctx, pr, photo, photo_name, PHOTO_TYPES, "PHOTO_TYPE")
     evidence_file = await store(conn, ctx, pr, evidence, evidence_name, EVIDENCE_TYPES, "EVIDENCE_TYPE")
     uid = await conn.fetchval("SELECT iam.request_photo_change($1, $2, $3, $4, $5)",
@@ -226,17 +226,66 @@ async def read_evidence(conn, ctx: db.Context, uid: uuid.UUID) -> tuple[bytes, s
     return data, row["mime_type"], row["party_id"]
 
 
-# ---- 1088: the documents accepted as evidence are a platform setting -----------------------------------------
+# ---- 1088-1089: the documents accepted for a photo change, and the identity age rule, are settings changed by two people
 
-async def evidence_kinds(conn) -> list[dict]:
-    rows = await conn.fetch("SELECT code, label, active FROM iam.photo_evidence_kind ORDER BY id")
-    return [dict(r) for r in rows]
+async def evidence_settings(conn) -> dict:
+    """The accepted documents, the age below which a national identity card is not accepted (None: no rule), and the
+    number of people who approve a change to them (never fewer than two)."""
+    kinds = [dict(r) for r in await conn.fetch("SELECT code, label, active FROM iam.photo_evidence_kind ORDER BY id")]
+    min_age = await conn.fetchval("SELECT (value #>> '{}')::integer FROM sys.setting WHERE key = 'photo.identity_card_min_age'")
+    return {"kinds": kinds, "identity_card_min_age": min_age, "required_approvals": await conn.fetchval("SELECT iam.photo_policy_min_approvals()")}
 
 
-async def set_evidence_kind(conn, code: str, active: bool) -> int:
-    """Switches a kind of evidence on or off for new requests; the request is refused while it is off."""
-    kind_id = await conn.fetchval("SELECT id FROM iam.photo_evidence_kind WHERE code = $1", code)
-    if kind_id is None:
+async def policy_change_row(conn, uid: uuid.UUID):
+    row = await conn.fetchrow("SELECT id, status, requested_by_user_id FROM iam.photo_policy_change WHERE uid = $1", uid)
+    if row is None:
+        raise not_found("photo policy change")
+    return row
+
+
+async def _approvals(conn, change_id: int) -> dict:
+    return {"approvals": await conn.fetchval("SELECT count(*) FROM iam.photo_policy_approval WHERE change_id = $1", change_id),
+            "required": await conn.fetchval("SELECT iam.photo_policy_min_approvals()")}
+
+
+async def request_evidence_change(conn, pr: Principal, code: str, active: bool, reason: str) -> tuple[str, int]:
+    if not await conn.fetchval("SELECT 1 FROM iam.photo_evidence_kind WHERE code = $1", code):
         raise not_found("evidence kind")
-    return await conn.fetchval("SELECT iam.set_photo_evidence_kind($1, $2)", code, active)
+    uid = await conn.fetchval("SELECT iam.request_photo_policy_change('EVIDENCE_KIND', $1, $2, NULL, $3)", code, active, reason)
+    return str(uid), (await policy_change_row(conn, uid))["id"]
 
+
+async def request_identity_age(conn, pr: Principal, min_age: int | None, reason: str) -> tuple[str, int]:
+    uid = await conn.fetchval("SELECT iam.request_photo_policy_change('IDENTITY_MIN_AGE', NULL, NULL, $1, $2)", min_age, reason)
+    return str(uid), (await policy_change_row(conn, uid))["id"]
+
+
+async def approve_policy_change(conn, pr: Principal, uid: uuid.UUID) -> dict:
+    row = await policy_change_row(conn, uid)
+    if row["status"] != "PENDING":
+        raise ApiError(409, "NOT_PENDING", "the change is not waiting for approval")
+    if row["requested_by_user_id"] == pr.user_id:
+        raise ApiError(409, "FOUR_EYES", "the person who asked for the change is already counted; a second person approves it")
+    if await conn.fetchval("SELECT 1 FROM iam.photo_policy_approval WHERE change_id = $1 AND approver_user_id = $2", row["id"], pr.user_id):
+        raise ApiError(409, "ALREADY_APPROVED", "this person has already approved the change")
+    status = await conn.fetchval("SELECT iam.approve_photo_policy_change($1)", uid)
+    return {"status": status, "change_id": row["id"], **(await _approvals(conn, row["id"]))}
+
+
+async def reject_policy_change(conn, pr: Principal, uid: uuid.UUID) -> int:
+    row = await policy_change_row(conn, uid)
+    if row["status"] != "PENDING":
+        raise ApiError(409, "NOT_PENDING", "the change is not waiting for a decision")
+    await conn.execute("SELECT iam.reject_photo_policy_change($1)", uid)
+    return row["id"]
+
+
+async def list_policy_changes(conn) -> list[dict]:
+    required = await conn.fetchval("SELECT iam.photo_policy_min_approvals()")
+    rows = await conn.fetch(
+        """SELECT c.uid, c.change_type, c.evidence_code, c.new_active, c.new_min_age, c.reason, c.status, c.requested_at,
+                  c.decided_at, u.uid AS requested_by,
+                  (SELECT count(*) FROM iam.photo_policy_approval a WHERE a.change_id = c.id) AS approvals
+             FROM iam.photo_policy_change c JOIN iam.app_user u ON u.id = c.requested_by_user_id
+            ORDER BY c.requested_at DESC LIMIT 200""")
+    return [dict(r) | {"uid": str(r["uid"]), "requested_by": str(r["requested_by"]), "required": required} for r in rows]

@@ -287,9 +287,21 @@ section.
   and applies (`/approve`) or rejects (`/reject`) it; the requester cannot apply. An applied change replaces the photo and
   deletes the earlier file; a rejected one deletes the candidate photo. The evidence stays with the request until the
   person is erased.
-- **Accepted evidence is a setting (1088).** `GET /api/admin/photos/evidence-kinds` lists the kinds and whether each is on.
-  `POST /api/admin/photos/evidence-kinds/{code}/active` switches one on or off (audited). A request with a kind that is off
-  is refused with `EVIDENCE_KIND_NOT_ACCEPTED` (422). Requests already made keep their evidence.
+- **Accepted evidence and the age rule (1088, 1089).** `GET /api/admin/photos/evidence-kinds` lists the kinds, whether
+  each is on, the age below which a national identity card is not accepted (`identity_card_min_age`, null: no rule) and
+  the number of approvals required (`required_approvals`, never below 2). A change is asked for by one platform person
+  with a reason: `POST .../evidence-kinds/{code}/changes` (body `active`) or `POST .../identity-age/changes` (body
+  `min_age`). The one who asks counts as the first approval; each further approval is a different platform person
+  (`POST .../policy-changes/{uid}/approve`); the change applies when the approvals reach `required_approvals`. A rejection
+  is `POST .../policy-changes/{uid}/reject`. The kinds (1090): the national identity card (`IDENTITY_DOCUMENT`), the civil registry extract that shows the
+  national number (`CIVIL_REGISTRY_EXTRACT`; the second approver checks the number against the person's record), the passport
+  (`PASSPORT`), the travel document issued by a Syrian mission abroad (`TRAVEL_DOCUMENT`, for Syrian citizens only), and the
+  temporary identity document of the first phase (`TEMPORARY_ID`, to be switched off later after the know-your-customer
+  process). A request with a kind that is off, a travel document for a person who is not a Syrian citizen, or a national or
+  temporary identity document for a person below the age or without a birth date on file while the rule is set, is refused
+  with `EVIDENCE_KIND_NOT_ACCEPTED`
+  below the age or without a birth date on file while the rule is set, is refused with `EVIDENCE_KIND_NOT_ACCEPTED`
+  (422). Requests already made keep their evidence.
 - **Erasure and closing are different.** Closing keeps the data; erasure is the person's written request for
   pseudonymisation, which cannot be undone. A closed account that asks for erasure is erased as any other.
 

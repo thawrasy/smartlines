@@ -2,13 +2,13 @@
 
 > Generated from the built database (`db/tools/gen_docs.py`); do not edit by hand.
 
-**508 tables, 5209 columns, in 26 schemas.**
+**510 tables, 5225 columns, in 26 schemas.**
 
 Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant isolation (RLS) · 🧩 partitioned monthly · 🔒 append-only / change-protected
 
 ## Index
 
-- [`iam` — Identity, parties, users, permissions and API clients](#iam) (37 tables)
+- [`iam` — Identity, parties, users, permissions and API clients](#iam) (39 tables)
 - [`ref` — Reference data, locales and files](#ref) (14 tables)
 - [`sys` — Settings, outbox and webhooks](#sys) (27 tables)
 - [`net` — Network: stations, routes, lines, corridors and geofences](#net) (22 tables)
@@ -583,6 +583,36 @@ The documents accepted as evidence for a change of the boarding photo; a platfor
 | `active` | `boolean` | ✱ | `true` |
 | `changed_by_user_id` | `bigint` | 🔗 `iam.app_user`  |  |
 | `changed_at` | `timestamp with time zone` | ✱ | `now()` |
+| `age_rule` | `boolean` | ✱ | `false` |
+
+### `iam.photo_policy_approval` 🛡️
+
+Who approved a change of the photo policy; the one who asks is the first (1089)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `change_id` | `bigint` | 🔑 🔗 `iam.photo_policy_change` ✱ |  |
+| `approver_user_id` | `bigint` | 🔑 🔗 `iam.app_user` ✱ |  |
+| `approved_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `iam.photo_policy_change` 🛡️
+
+A change to the accepted evidence or the identity age rule of a photo change; two people (1089)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `change_type` | `text` | ✱ |  |
+| `evidence_code` | `text` | 🔗 `iam.photo_evidence_kind`  |  |
+| `new_active` | `boolean` |  |  |
+| `new_min_age` | `integer` |  |  |
+| `reason` | `text` | ✱ |  |
+| `requested_by_user_id` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `requested_at` | `timestamp with time zone` | ✱ | `now()` |
+| `status` | `text` | ✱ | `'PENDING'::text` |
+| `decided_by_user_id` | `bigint` | 🔗 `iam.app_user`  |  |
+| `decided_at` | `timestamp with time zone` |  |  |
 
 ### `iam.photo_rule` 🛡️
 

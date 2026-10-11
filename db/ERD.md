@@ -358,6 +358,18 @@ erDiagram
     text code
     bigint changed_by_user_id FK
   }
+  iam_photo_policy_approval {
+    bigint change_id PK
+    bigint approver_user_id PK
+  }
+  iam_photo_policy_change {
+    bigint id PK
+    uuid uid
+    text evidence_code FK
+    bigint requested_by_user_id FK
+    text status
+    bigint decided_by_user_id FK
+  }
   iam_photo_rule {
     bigint id PK
     uuid uid
@@ -483,13 +495,16 @@ erDiagram
   iam_user_session }o--|| iam_app_user : "user_id"
   iam_auth_token }o..o| iam_app_user : "user_id"
   iam_device_permission_state }o--|| iam_app_user : "user_id"
+  iam_photo_policy_approval }o--|| iam_app_user : "approver_user_id"
   iam_mfa_challenge }o--|| iam_app_user : "user_id"
   iam_photo_change_request }o--|| iam_app_user : "requested_by_user_id"
   iam_photo_evidence_kind }o..o| iam_app_user : "changed_by_user_id"
   iam_family_link_request }o..o| iam_app_user : "requester_user_id"
   iam_party_photo }o--|| iam_app_user : "taken_by_user_id"
+  iam_photo_policy_change }o--|| iam_app_user : "requested_by_user_id"
   iam_family_spend }o..o| iam_app_user : "initiated_by"
   iam_photo_change_request }o..o| iam_app_user : "decided_by_user_id"
+  iam_photo_policy_change }o..o| iam_app_user : "decided_by_user_id"
   iam_photo_rule }o--|| iam_app_user : "proposed_by_user_id"
   iam_photo_rule }o..o| iam_app_user : "approved_by_user_id"
   iam_photo_rule }o..o| iam_app_user : "retired_by_user_id"
@@ -534,7 +549,9 @@ erDiagram
   iam_verification }o..o| iam_party : "subject_party_id"
   iam_document }o..o| iam_party : "owner_party_id"
   iam_role_permission }o--|| iam_permission : "permission_code"
+  iam_photo_policy_change }o..o| iam_photo_evidence_kind : "evidence_code"
   iam_photo_change_request }o--|| iam_photo_evidence_kind : "evidence_kind"
+  iam_photo_policy_approval }o--|| iam_photo_policy_change : "change_id"
   iam_role_permission }o--|| iam_role : "role_id"
   iam_user_role }o--|| iam_role : "role_id"
   iam_role_scope }o--|| iam_role : "role_id"

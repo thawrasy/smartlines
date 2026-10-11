@@ -160,29 +160,66 @@ def party_id_of(email):
     return owner_sql("SELECT party_id FROM iam.app_user WHERE email = $1", email)
 
 
-def test_an_evidence_kind_is_accepted_only_while_it_is_switched_on():
-    admin = staff(ADMIN)
+def test_the_accepted_evidence_and_the_age_rule_change_only_with_a_second_person():
+    admin, sec = staff(ADMIN), staff(SECOND)
     email, c = register()
     assert upload(c, JPEG).status_code == 201
     party = owner_sql("SELECT p.uid FROM iam.party p JOIN iam.app_user u ON u.party_id = p.id WHERE u.email = $1", email)
-    kinds = {k["code"]: k for k in admin.get("/api/admin/photos/evidence-kinds").json()["kinds"]}
-    assert {"CIVIL_REGISTRY_EXTRACT", "IDENTITY_DOCUMENT", "PASSPORT"} <= set(kinds)
-    assert all(k["active"] for k in kinds.values())
-    # the person cannot change the setting; the platform switches a kind off, and a request with it is refused
-    assert c.post("/api/admin/photos/evidence-kinds/PASSPORT/active", json={"active": False}).status_code == 403
-    assert admin.post("/api/admin/photos/evidence-kinds/NO_SUCH_KIND/active", json={"active": False}).status_code == 404
+    settings = admin.get("/api/admin/photos/evidence-kinds").json()
+    assert {"CIVIL_REGISTRY_EXTRACT", "IDENTITY_DOCUMENT", "PASSPORT", "TRAVEL_DOCUMENT", "TEMPORARY_ID"} <= {k["code"] for k in settings["kinds"]}
+    assert all(k["active"] for k in settings["kinds"])
+    assert settings["required_approvals"] == 2 and settings["identity_card_min_age"] is None
+    reason = {"reason": "test: the change needs a second person"}
+    # the person cannot ask; an unknown kind is not found
+    assert c.post("/api/admin/photos/evidence-kinds/PASSPORT/changes", json={"active": False, **reason}).status_code == 403
+    assert admin.post("/api/admin/photos/evidence-kinds/NO_SUCH_KIND/changes", json={"active": False, **reason}).status_code == 404
     files = {"evidence": ("passport.jpg", JPEG, "image/jpeg"), "new_photo": ("new.png", PNG, "image/png")}
     form = {"party_uid": str(party), "reason": "the photo on file is not the holder", "evidence_kind": "PASSPORT"}
+
+    # the switch off: asked by one, counted as the first approval; the same person cannot approve it again; the second applies
+    r = admin.post("/api/admin/photos/evidence-kinds/PASSPORT/changes", json={"active": False, **reason})
+    assert r.status_code == 201 and r.json()["status"] == "PENDING" and r.json()["approvals"] == 1, r.text
+    off = r.json()["uid"]
     try:
-        r = admin.post("/api/admin/photos/evidence-kinds/PASSPORT/active", json={"active": False})
-        assert r.status_code == 200 and r.json() == {"code": "PASSPORT", "active": False}, r.text
+        assert admin.post(f"/api/admin/photos/policy-changes/{off}/approve").json()["error"]["code"] == "FOUR_EYES"
+        r = sec.post(f"/api/admin/photos/policy-changes/{off}/approve")
+        assert r.status_code == 200 and r.json() == {"status": "APPLIED", "approvals": 2, "required": 2}, r.text
+        assert sec.post(f"/api/admin/photos/policy-changes/{off}/approve").json()["error"]["code"] == "NOT_PENDING"
         r = admin.post("/api/admin/photos/changes", data=form, files=files)
         assert r.status_code == 422 and r.json()["error"]["code"] == "EVIDENCE_KIND_NOT_ACCEPTED", r.text
         r = admin.post("/api/admin/photos/changes", data={**form, "evidence_kind": "BIRTH_CERTIFICATE"}, files=files)
         assert r.status_code == 422 and r.json()["error"]["code"] == "EVIDENCE_KIND_NOT_ACCEPTED", r.text
     finally:
-        assert admin.post("/api/admin/photos/evidence-kinds/PASSPORT/active", json={"active": True}).status_code == 200
+        on = admin.post("/api/admin/photos/evidence-kinds/PASSPORT/changes", json={"active": True, **reason}).json()["uid"]
+        assert sec.post(f"/api/admin/photos/policy-changes/{on}/approve").json()["status"] == "APPLIED"
     r = admin.post("/api/admin/photos/changes", data=form, files=files)
     assert r.status_code == 201 and r.json()["status"] == "PENDING", r.text
     assert owner_sql("SELECT evidence_kind FROM iam.photo_change_request WHERE uid = $1", uuid.UUID(r.json()["uid"])) == "PASSPORT"
 
+    # the age rule: under a threshold the national identity card is refused for this person (no birth date on file);
+    # the passport still stands; clearing the rule accepts the card again
+    r = admin.post("/api/admin/photos/identity-age/changes", json={"min_age": 120, **reason})
+    assert r.status_code == 201, r.text
+    age_on = r.json()["uid"]
+    assert sec.post(f"/api/admin/photos/policy-changes/{age_on}/approve").json()["status"] == "APPLIED"
+    assert admin.get("/api/admin/photos/evidence-kinds").json()["identity_card_min_age"] == 120
+    card = {**form, "evidence_kind": "IDENTITY_DOCUMENT"}
+    r = admin.post("/api/admin/photos/changes", data=card, files=files)
+    assert r.status_code == 422 and r.json()["error"]["code"] == "EVIDENCE_KIND_NOT_ACCEPTED", r.text
+    # the temporary identity document is under the same age rule; the travel document is for Syrian citizens only
+    for kind in ("TEMPORARY_ID", "TRAVEL_DOCUMENT"):
+        r = admin.post("/api/admin/photos/changes", data={**form, "evidence_kind": kind}, files=files)
+        assert r.status_code == 422 and r.json()["error"]["code"] == "EVIDENCE_KIND_NOT_ACCEPTED", (kind, r.text)
+    age_off = admin.post("/api/admin/photos/identity-age/changes", json={"min_age": None, **reason}).json()["uid"]
+    assert sec.post(f"/api/admin/photos/policy-changes/{age_off}/approve").json()["status"] == "APPLIED"
+    assert admin.get("/api/admin/photos/evidence-kinds").json()["identity_card_min_age"] is None
+    r = admin.post("/api/admin/photos/changes", data=card, files=files)
+    assert r.status_code == 201, r.text
+    # a travel document is accepted for a Syrian citizen, and only for one
+    r = admin.post("/api/admin/photos/changes", data={**form, "evidence_kind": "TRAVEL_DOCUMENT"}, files=files)
+    assert r.status_code == 422 and r.json()["error"]["code"] == "EVIDENCE_KIND_NOT_ACCEPTED", r.text
+    owner_sql("UPDATE iam.party SET nationality = 'SY' WHERE uid = $1", uuid.UUID(str(party)))
+    r = admin.post("/api/admin/photos/changes", data={**form, "evidence_kind": "TRAVEL_DOCUMENT"}, files=files)
+    assert r.status_code == 201 and r.json()["status"] == "PENDING", r.text
+    # the approvals are in the activity log with the change, never a picture
+    assert owner_sql("SELECT count(*) FROM audit.activity_log WHERE action = 'photo.policy_approve'") >= 3
