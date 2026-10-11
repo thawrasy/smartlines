@@ -14,8 +14,8 @@ supporting index, except references to lookup lists and to the staff member who 
 |---|---|
 | Engine | PostgreSQL 16 with PostGIS 3 (extensions: pgcrypto, citext, btree_gist, pg_trgm, postgis in schema `gis`; Docker and CI image `postgis/postgis:16-3.4`, Ubuntu package `postgresql-16-postgis-3`) |
 | Schemas | 26 separate schemas, each with its own privileges |
-| Tables | 505 tables (8 partitioned), 5,174 columns, 1,443 foreign keys |
-| Security | row-level security on 505 of 505 tables, 928 policies; 435 triggers, 295 functions |
+| Tables | 507 tables (8 partitioned), 5,203 columns, 1,452 foreign keys |
+| Security | row-level security on 507 of 507 tables, 930 policies; 435 triggers, 304 functions |
 | Tests | 515 automated checks against a freshly built database (`db/tests/run.sh`) |
 | Design | [Database design and ERD document](../docs/database/) with diagrams in the study's colors |
 | Docs | [Data dictionary](DATA_DICTIONARY.md) · [ERD diagrams](ERD.md) (both generated from the database) |
@@ -142,7 +142,8 @@ PostGIS in `gis`. Until 9 October 2026 a first start of the Docker stack stopped
 | `1083_default_partition_batches.sql` | A late upkeep moves a large period out of a default partition one period per transaction: the daily upkeep moves a period itself only up to `partitions.inline_move_rows` (50,000 rows), and the worker moves larger ones with `sys.move_default_period()`, each with its own lock and timeout (reviews of October 2026, M-08) |
 | `1084_settings_guard.sql` | The settings the database trusts are listed (`sys.guarded_settings`) and reported as enforced by the server (`sys.guard_status`): the server module `db/guard` defines them, so only the platform's own functions set them (reviews of release 1.49.0, C-01) |
 | `1085_account_deactivation.sql` | A closed account keeps its data: the status `DEACTIVATED` and the sign-in audit events `ACCOUNT_DEACTIVATED` and `ACCOUNT_REACTIVATED`; nothing is deleted, and the same details reactivate it through `POST /api/auth/reactivate` (the owner's rule of 10 October 2026) |
-| `1086_boarding_photo.sql` | The boarding photo of a person: a table of its own (`iam.party_photo`, one row per person, an encrypted file), taken at the profile's creation by the person or the head of their family (`iam.set_party_photo`), kept while the account exists, and removed by `gov.erase_party_photo` in an erasure; nothing refers to the table, so it adds no reference cycle (the owner's decisions of 10 and 11 October 2026) |
+| `1086_boarding_photo.sql` | The boarding photo of a person: a table of its own (`iam.party_photo`, one row per person, an encrypted file), taken at the profile's creation by the person or the head of their family (`iam.set_party_photo`), kept while the account exists, and removed by `gov.erase_party_photo` in an erasure; nothing refers to the table, so it adds no reference cycle
+| `1087_photo_policy.sql` | The boarding photo policy and its replacement (WP1 and WP4 of the sixth round): `iam.photo_rule` (whether a photo is REQUIRED, OPTIONAL or NOT_APPLICABLE, by market, trip scope, traveller class and passenger category, with a legal basis and an effective date; proposed and approved by two platform people, retired by a third), `iam.photo_change_request` (a platform request to replace a photo on file, with its evidence, applied by a second person); `iam.photo_requirement` (read at booking and at boarding), `ops.trip_photo_scope`, `iam.traveller_class`; `PHOTO_REQUIRED` is a boarding result; `gov.erase_party_photo` also removes the evidence and candidate photos; neither new table is referred to, so no reference cycle (the owner's decisions of 10 and 11 October 2026) |
 
 ## Design rules (study 29.1)
 

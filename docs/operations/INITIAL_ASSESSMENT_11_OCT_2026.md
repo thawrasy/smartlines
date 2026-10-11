@@ -11,12 +11,12 @@ decide. Dates and amounts are examples from the owner's brief; the rules themsel
 | Topic | Decision | Status in code |
 |---|---|---|
 | Phase 1 | The photo is optional for a person and for family members; a file may stay empty | Done: no photo is a normal state; the driver sees "no photo" |
-| When it is mandatory | When it is a condition of travel, or once the person is linked to the National Information Centre or the competent authority, which supplies the data and shows the photo as the verification | Not built: needs the policy engine (WP1) |
+| When it is mandatory | When it is a condition of travel, or once the person is linked to the National Information Centre or the competent authority, which supplies the data and shows the photo as the verification | Built (1087): the rules decide it, proposed and approved by two platform people, and enforced at booking and at the gate. Until a rule is approved the photo is optional. The rule values are the owner's decision (question 4) |
 | Who sees it | Driver, carrier agent, carrier manager or operator, escalation office, and any authority with a duty of escalation to the vehicle; **domestic trips and Syrian citizens only** | Partly: driver and carrier office read it; domestic-and-citizen rule and escalation role not built (WP2) |
 | Foreign travellers | No photo; identity checked from the passport; may book on the platform, through an agent, or directly with the carrier with passport data | Passport booking exists; no photo rule (WP7) |
 | Transit passengers | No photo; their data is required | Not built (WP7) |
 | Ticket binding | A ticket booked from the account (for the person or a family member) is bound to that account | Not built: see section 3 (WP3) |
-| Replacement | Not by the person or the family. A change is made by the platform with proof of identity, or a civil registry extract that carries the photo; audited | Corrected in this round: the database and the API refuse a second photo (409 PHOTO_EXISTS). The platform workflow is not built (WP4) |
+| Replacement | Not by the person or the family. A change is made by the platform with proof of identity, or a civil registry extract that carries the photo; audited | Corrected in this round: the database and the API refuse a second photo (409 PHOTO_EXISTS). Built (1087): a platform request with the evidence and the new photo, applied by a second platform person, and audited |
 | Phase 2 | The app keeps a copy of the photo, mandatory once linked. Face matching is an option, off by default, only if the state requires it later | Not built |
 | Ride-hailing drivers | The platform may require a recent photo, licence, identity and vehicle papers | Not built (WP8); the taxi module has permits and shifts |
 
@@ -99,5 +99,5 @@ WP4, WP9 (design and tests) and WP1 can start now. WP3 must wait for the decisio
 
 - Migration 1086 and the photo service: a photo on file is never replaced by the person or the family head; the database
   refuses it and the API answers 409 PHOTO_EXISTS. The test for a second photo now expects the refusal. The platform
-  replacement (WP4) is not built.
+  replacement (WP4) and the photo rules (WP1) are built in 1087; see the response record.
 - The response record gains a sixth-round section, and its fifth-round replacement row is corrected.

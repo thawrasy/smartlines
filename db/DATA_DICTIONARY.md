@@ -2,13 +2,13 @@
 
 > Generated from the built database (`db/tools/gen_docs.py`); do not edit by hand.
 
-**505 tables, 5174 columns, in 26 schemas.**
+**507 tables, 5203 columns, in 26 schemas.**
 
 Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant isolation (RLS) · 🧩 partitioned monthly · 🔒 append-only / change-protected
 
 ## Index
 
-- [`iam` — Identity, parties, users, permissions and API clients](#iam) (34 tables)
+- [`iam` — Identity, parties, users, permissions and API clients](#iam) (36 tables)
 - [`ref` — Reference data, locales and files](#ref) (14 tables)
 - [`sys` — Settings, outbox and webhooks](#sys) (27 tables)
 - [`net` — Network: stations, routes, lines, corridors and geofences](#net) (22 tables)
@@ -551,6 +551,49 @@ Permission catalog (section 33)
 | `scope` | `text` | ✱ |  |
 | `description` | `text` | ✱ |  |
 | `is_sensitive` | `boolean` | ✱ | `false` |
+
+### `iam.photo_change_request` 🛡️
+
+A platform request to change a boarding photo on file, with its evidence; applied by a second person (1087)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `party_id` | `bigint` | 🔗 `iam.party` ✱ |  |
+| `requested_by_user_id` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `reason` | `text` | ✱ |  |
+| `evidence_kind` | `text` | ✱ |  |
+| `evidence_file_id` | `bigint` | 🔗 `ref.file_object`  |  |
+| `photo_file_id` | `bigint` | 🔗 `ref.file_object`  |  |
+| `status` | `text` | ✱ | `'PENDING'::text` |
+| `decided_by_user_id` | `bigint` | 🔗 `iam.app_user`  |  |
+| `decided_at` | `timestamp with time zone` |  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `iam.photo_rule` 🛡️
+
+When a boarding photo is required, by market, trip scope, traveller class and category; four eyes; the legal basis (1087)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `market` | `character(2)` | 🔗 `ref.market`  |  |
+| `trip_scope` | `text` |  |  |
+| `traveller_class` | `text` |  |  |
+| `passenger_category` | `text` |  |  |
+| `requirement` | `text` | ✱ |  |
+| `effective_from` | `date` | ✱ |  |
+| `effective_to` | `date` |  |  |
+| `legal_basis` | `text` | ✱ |  |
+| `status` | `text` | ✱ | `'PROPOSED'::text` |
+| `proposed_by_user_id` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `proposed_at` | `timestamp with time zone` | ✱ | `now()` |
+| `approved_by_user_id` | `bigint` | 🔗 `iam.app_user`  |  |
+| `approved_at` | `timestamp with time zone` |  |  |
+| `retired_by_user_id` | `bigint` | 🔗 `iam.app_user`  |  |
+| `retired_at` | `timestamp with time zone` |  |  |
 
 ### `iam.push_token` 🛡️
 

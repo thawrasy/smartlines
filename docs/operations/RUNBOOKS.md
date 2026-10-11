@@ -273,6 +273,20 @@ section.
 - **Erasure also removes the boarding photo (1086).** `gov.erase_party_photo` clears the reference and deletes the file row in
   the erasure's transaction; the store's daily sweep (`files_sweep`) deletes the bytes after its 24-hour grace period. Taking
   or replacing the photo is checked by the database (`iam.set_party_photo`): the person, or the head of their family.
+- **Photo rules (1087, WP1).** A platform person with `privacy.manage` proposes a rule with `POST /api/admin/photos/rules`:
+  market (the departure country, or none), trip scope, traveller class, passenger category, requirement (`REQUIRED`,
+  `OPTIONAL`, `NOT_APPLICABLE`), effective date and the legal basis. A second person approves it
+  (`POST /api/admin/photos/rules/{uid}/approve`); the proposer cannot. A third person, or anyone but the approver, retires
+  it (`/retire`). With no rule in force the photo is optional. A `REQUIRED` rule refuses a booking for a traveller with no
+  photo on file (`PHOTO_REQUIRED`, 422), and the gate records `PHOTO_REQUIRED` for a passenger without one. A traveller
+  without a linked profile has no photo on file, so a required photo blocks their booking until the profile is linked (WP3).
+  The rule values, and the legal text they cite, are the owner's decision.
+- **Replacing a photo on file (1087, WP4).** The person and the family head cannot. A platform person requests it with
+  `POST /api/admin/photos/changes`: the party, a reason, the evidence kind (`CIVIL_REGISTRY_EXTRACT` or `IDENTITY_DOCUMENT`),
+  the evidence file and the new photo. A second platform person reads the evidence (`GET .../changes/{uid}/evidence`, audited)
+  and applies (`/approve`) or rejects (`/reject`) it; the requester cannot apply. An applied change replaces the photo and
+  deletes the earlier file; a rejected one deletes the candidate photo. The evidence stays with the request until the
+  person is erased.
 - **Erasure and closing are different.** Closing keeps the data; erasure is the person's written request for
   pseudonymisation, which cannot be undone. A closed account that asks for erasure is erased as any other.
 

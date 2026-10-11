@@ -20,6 +20,7 @@ from ...util import booking_ref, row_dict, ticket_name, ticket_no
 from ..family import service as fam
 from ..fares import categories as cat
 from ..notify.outbox import emit
+from ..photo import service as photo
 from . import documents, options, repository as repo
 from .models import MAX_LOCKED_SEATS, BookingIn, HoldIn
 
@@ -303,6 +304,12 @@ async def create_booking(conn: asyncpg.Connection, ctx: db.Context, buyer: Buyer
         codes = documents.check(r, t.id_type, t.id_no, t.passport_expiry, departs)
         documents.enforce(r, [(t.index, codes)])
         doc_issues.append(codes)
+
+    # A boarding photo the platform's rules require (WP1, 1087): refused here, not at the gate. A traveller without a
+    # linked profile has no photo on file, so a required photo blocks their booking until the profile is linked (WP3).
+    for t in people:
+        if await photo.missing(conn, ctx, trip["id"], t.nationality, t.category, t.member["party_id"] if t.member else None):
+            raise ApiError(422, "PHOTO_REQUIRED", "a boarding photo is required for this passenger", passenger=t.index)
 
     total = q["total"]
     if before_payment:

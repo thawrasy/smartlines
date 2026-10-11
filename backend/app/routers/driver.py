@@ -73,7 +73,7 @@ def _ticket_from_token(token: str, trip_uid: uuid.UUID, at: Optional[datetime] =
     return uid, None if uid else "INVALID_QR"
 
 
-async def _board(conn, pr: Principal, t, ticket_uid: Optional[str], early: Optional[str], stop_seq: Optional[int],
+async def _board(conn, ctx: db.Context, pr: Principal, t, ticket_uid: Optional[str], early: Optional[str], stop_seq: Optional[int],
                  method: str = "AGENT_SCAN", device_scan_id: Optional[str] = None, scanned_at=None) -> dict:
     """Applies one boarding decision and records it. A repeated device scan id is answered from the first record.
     The boarding names a stop of the trip, by default the first stop of the ticket; a passenger boards only at a stop
@@ -88,6 +88,7 @@ async def _board(conn, pr: Principal, t, ticket_uid: Optional[str], early: Optio
         return {"result": early or "INVALID_QR"}
     k = await conn.fetchrow(
         """SELECT k.id, k.trip_id, k.status, k.seat_no, k.from_seq, k.to_seq, p.full_name, p.first_name, p.last_name,
+                  p.nationality, p.passenger_category, p.party_id,
                   (SELECT s ->> 'label' FROM ops.trip t, jsonb_array_elements(t.seat_map -> 'seats') s
                     WHERE t.id = k.trip_id AND (s ->> 'n')::int = k.seat_no) AS seat_label
              FROM sales.ticket k JOIN sales.passenger p ON p.id = k.passenger_id WHERE k.uid = $1""", uuid.UUID(ticket_uid))
@@ -106,6 +107,8 @@ async def _board(conn, pr: Principal, t, ticket_uid: Optional[str], early: Optio
             result = "INVALID_QR"
         elif not k["from_seq"] <= stop < k["to_seq"]:
             result = "WRONG_STOP"
+        elif await photo.missing(conn, ctx, t["id"], k["nationality"], k["passenger_category"], k["party_id"]):
+            result = "PHOTO_REQUIRED"            # the rules require a boarding photo and none is on file (WP1)
     await conn.execute(
         """INSERT INTO sales.boarding_event (ticket_id, trip_id, stop_seq, event_type, method, result, scanned_by_user_id,
              device_scan_id, scanned_at)
@@ -124,9 +127,10 @@ async def _board(conn, pr: Principal, t, ticket_uid: Optional[str], early: Optio
 @router.post("/scan")
 async def scan(body: ScanIn, request: Request, pr: Principal = Depends(driver)):
     ticket_uid, early = _ticket_from_token(body.token, body.trip_uid)
-    async with db.transaction(context_for(request, pr)) as conn:
+    ctx = context_for(request, pr)
+    async with db.transaction(ctx) as conn:
         t = await _assigned_trip(conn, pr, body.trip_uid)
-        out = await _board(conn, pr, t, ticket_uid, early, body.stop_seq)
+        out = await _board(conn, ctx, pr, t, ticket_uid, early, body.stop_seq)
     if "ticket_id" in out:
         request.state.audit = {"action": "boarding.scan", "object_type": "ticket", "object_id": out.pop("ticket_id")}
     return out
@@ -185,7 +189,8 @@ async def scans_batch(body: BatchIn, request: Request, pr: Principal = Depends(d
     retried upload harmless); the server's answer is final, so the app corrects its local state from it."""
     now = datetime.now(timezone.utc)
     results = []
-    async with db.transaction(context_for(request, pr)) as conn:
+    ctx = context_for(request, pr)
+    async with db.transaction(ctx) as conn:
         t = await _assigned_trip(conn, pr, body.trip_uid)
         pack_at = await conn.fetchval("SELECT first_at FROM ops.offline_pack_download WHERE trip_id = $1 AND user_id = $2",
                                       t["id"], pr.user_id)
@@ -198,7 +203,7 @@ async def scans_batch(body: BatchIn, request: Request, pr: Principal = Depends(d
             if when < t["departure_at"] - timedelta(hours=SCAN_LEAD_HOURS) or (pack_at and when < pack_at):
                 when = now
             ticket_uid, early = _ticket_from_token(sc.token, body.trip_uid, when)
-            out = await _board(conn, pr, t, ticket_uid, early, sc.stop_seq, "OFFLINE_SCAN", sc.scan_id, when)
+            out = await _board(conn, ctx, pr, t, ticket_uid, early, sc.stop_seq, "OFFLINE_SCAN", sc.scan_id, when)
             out.pop("ticket_id", None)
             results.append({"scan_id": sc.scan_id, **out})
     request.state.audit = {"action": "boarding.offline_batch", "object_type": "trip", "object_id": t["id"]}

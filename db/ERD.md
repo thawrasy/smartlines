@@ -85,7 +85,7 @@ flowchart LR
   iam -->|6| gov
   iam -->|3| net
   iam -->|1| ops
-  iam -->|4| ref
+  iam -->|5| ref
   iam -->|1| sec
   net -->|7| iam
   net -->|3| ref
@@ -342,6 +342,25 @@ erDiagram
   iam_permission {
     text code PK
   }
+  iam_photo_change_request {
+    bigint id PK
+    uuid uid
+    bigint party_id FK
+    bigint requested_by_user_id FK
+    bigint evidence_file_id FK
+    bigint photo_file_id FK
+    text status
+    bigint decided_by_user_id FK
+  }
+  iam_photo_rule {
+    bigint id PK
+    uuid uid
+    character market FK
+    text status
+    bigint proposed_by_user_id FK
+    bigint approved_by_user_id FK
+    bigint retired_by_user_id FK
+  }
   iam_push_token {
     bigint device_id PK
   }
@@ -425,6 +444,9 @@ erDiagram
   ref_locale {
     ref external
   }
+  ref_market {
+    ref external
+  }
   ref_party_role_type {
     ref external
   }
@@ -456,9 +478,14 @@ erDiagram
   iam_auth_token }o..o| iam_app_user : "user_id"
   iam_device_permission_state }o--|| iam_app_user : "user_id"
   iam_mfa_challenge }o--|| iam_app_user : "user_id"
+  iam_photo_change_request }o--|| iam_app_user : "requested_by_user_id"
   iam_family_link_request }o..o| iam_app_user : "requester_user_id"
   iam_party_photo }o--|| iam_app_user : "taken_by_user_id"
   iam_family_spend }o..o| iam_app_user : "initiated_by"
+  iam_photo_change_request }o..o| iam_app_user : "decided_by_user_id"
+  iam_photo_rule }o--|| iam_app_user : "proposed_by_user_id"
+  iam_photo_rule }o..o| iam_app_user : "approved_by_user_id"
+  iam_photo_rule }o..o| iam_app_user : "retired_by_user_id"
   iam_api_client }o..o| iam_app_user : "acting_user_id"
   iam_family_member }o..o| iam_app_user : "linked_user_id"
   iam_company }o..o| iam_bank_account : "payout_bank_account_id"
@@ -493,6 +520,7 @@ erDiagram
   iam_app_user }o--|| iam_party : "party_id"
   iam_family }o--|| iam_party : "head_party_id"
   iam_party_photo }o--|| iam_party : "party_id"
+  iam_photo_change_request }o--|| iam_party : "party_id"
   iam_family_member }o--|| iam_party : "party_id"
   iam_api_client }o--|| iam_party : "owner_party_id"
   iam_family_link_request }o..o| iam_party : "requester_party_id"
@@ -511,6 +539,7 @@ erDiagram
   iam_family_travel_rule }o..o| ref_city : "from_city_id"
   iam_family_travel_rule }o..o| ref_city : "to_city_id"
   iam_app_user }o--|| ref_locale : "preferred_locale"
+  iam_photo_rule }o..o| ref_market : "market"
   iam_party_role }o--|| ref_party_role_type : "role_code"
   iam_api_client }o..o| sec_authority_profile : "authority_id"
 ```

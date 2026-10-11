@@ -148,6 +148,15 @@ erasure). It changes no existing table and no existing row, so it takes no lock 
 written by the API, not by the migration. Nothing refers to the new table, so it adds no reference cycle. An erasure deletes the
 file row in the same transaction; the store deletes the bytes after its 24-hour grace period.
 
+**1087** adds the boarding photo policy and its replacement: two tables (`iam.photo_rule`, `iam.photo_change_request`), both
+platform-only under row-level security, and functions that write them with four eyes (a proposer, an approver and a retirer
+are different people; the database checks it, the API answers first with `FOUR_EYES`). It widens two existing checks, which
+is the only change to existing objects: `iam.party_photo.taken_by` may now be `PLATFORM`, and `sales.boarding_event.result` may
+now be `PHOTO_REQUIRED`. The constraint changes take a short lock on those two tables, and no data is rewritten. `gov.erase_party_photo`
+is redefined to remove the evidence and candidate photos of the person's requests. Nothing refers to the two new tables, so the
+schema dependency check stays at its baseline. Applied on a fresh database; a live database applies it in a maintenance window
+because the two constraint changes validate the existing rows.
+
 ## 1064_partitioned_bookings.sql on a live database (R-06)
 
 1064 turns `sales.booking` into a table partitioned by ranges of id **in place, under an ACCESS EXCLUSIVE lock**: it

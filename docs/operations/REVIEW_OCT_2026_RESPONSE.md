@@ -349,7 +349,7 @@ Still open: whether erasure requests stay beside closing. Closing keeps the data
 | Erasure requests with closing | Both stay. Closing keeps the data and reactivates the account; erasure is the person's written request (1039) | Unchanged |
 | Who takes the photo | The person takes their own at the profile's creation. The head of a family takes a member's | Built: `POST /api/account/photo`, `POST /api/family/members/{uid}/photo`; the database checks the taker (`iam.set_party_photo`) |
 | Who sees it | The assigned driver of the trip, and the carrier's office for the trip, at boarding; every read is audited | Built: `GET /api/driver/trips/{trip}/tickets/{ticket}/photo` and `GET /api/carrier/trips/{trip}/tickets/{ticket}/photo`; the activity log records `photo.view` with the person's party, never the picture |
-| Replacement | Corrected in the sixth round: not by the person or the family. A change is made by the platform with proof of identity | Built: the database and the API refuse a second photo (409 PHOTO_EXISTS); the platform workflow is WP4 |
+| Replacement | Corrected in the sixth round: not by the person or the family. A change is made by the platform with proof of identity | Built: the database and the API refuse a second photo (409 PHOTO_EXISTS); the platform workflow (WP4) is built in 1087 with a second approver |
 
 Tests: `backend/tests/test_boarding_photo.py` (five live tests: the taker and the replacement, the accepted types, the head's upload and the refusal to anyone else, the driver's and the office's reads with the unlinked member refused, the audit rows, the erasure).
 
@@ -363,3 +363,19 @@ Open, for the owner:
 
 The owner's decisions on the boarding photo, ticket binding, boarding points, transit and foreign passengers, ride-hailing drivers, and the money model are recorded in `docs/operations/INITIAL_ASSESSMENT_11_OCT_2026.md`, with the work packages (WP1 to WP11), what the code does today, the risks and the owner's open questions. In short: the photo is optional in phase 1 and mandatory only where a rule or a linked authority requires it; it is shown only for domestic trips and Syrian citizens; a booking from the account binds the ticket to the account; a photo on file is changed only by the platform; the money is recorded as balanced double entries in three stages, with bank-held wallet funds.
 
+
+### Sixth round, implementation: WP1 and WP4 (migration 1087)
+
+- **WP1, photo rules.** `iam.photo_rule` holds the rules; `iam.photo_requirement` gives the most specific approved rule in force,
+  and OPTIONAL when none applies. A rule is proposed by one platform person, approved by a second and retired by a third
+  (the database checks each step; the API answers `FOUR_EYES` first). Booking refuses a traveller with no photo under a
+  `REQUIRED` rule (`PHOTO_REQUIRED`, 422); the gate records `PHOTO_REQUIRED` and leaves the ticket issued. Not built here:
+  the visibility rules (WP2), transit and foreign flows (WP7), offline photos and the rule values (owner decisions).
+- **WP4, replacement.** A platform request carries the evidence (civil registry extract or identity document) and the new
+  photo; a second platform person reads the evidence (audited), then applies or rejects it. The requester cannot apply.
+  An applied change deletes the earlier file; a rejected one deletes the candidate. Erasure removes the evidence too.
+- **Tests.** `backend/tests/test_photo_policy.py`: the two-person rules (including the 403 for passengers), booking and gate
+  refusal for an unlinked child, a linked member who boards once a photo is on file, and the replacement with evidence,
+  rejection and audit. Run on a fresh seeded database with the 1086 tests.
+- **Known limits.** A booking for a traveller with no linked profile is refused under a `REQUIRED` rule until WP3 links
+  self-bookings; this is intended, and it is listed in the risks of the assessment.

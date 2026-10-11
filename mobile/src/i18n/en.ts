@@ -71,7 +71,7 @@ const en = {
     clockOff: "This phone's clock is off by more than 5 minutes. Scans use the server time, but set the clock to automatic.",
     boardedCount: "{n} of {total} boarded", camera: "Allow the camera to scan tickets", allow: "Allow camera",
     results: { OK: "Valid — board", DUPLICATE: "Already boarded", INVALID_QR: "Not a valid ticket",
-               WRONG_TRIP: "Ticket for another trip", CANCELLED: "Ticket cancelled", NOT_IN_PACK: "Not in the offline list — check online", WRONG_STOP: "The ticket does not cover this stop", UNKNOWN_STOP: "Not a stop of this trip" },
+               WRONG_TRIP: "Ticket for another trip", CANCELLED: "Ticket cancelled", NOT_IN_PACK: "Not in the offline list — check online", WRONG_STOP: "The ticket does not cover this stop", UNKNOWN_STOP: "Not a stop of this trip", PHOTO_REQUIRED: "No boarding photo on file, and the rules require one" },
   },
   errors: {
     PAYMENT_METHOD_DISABLED: "This way of paying is not available right now.",
@@ -182,6 +182,7 @@ const en = {
     PASSPORT_EXPIRY_REQUIRED: "Enter the passport's expiry date.",
     DOCUMENT_NOT_ACCEPTED: "This document is not accepted for this destination; a passport is required.",
     DOCUMENT_REQUIRED: "International trips need a travel document for every passenger.",
+    PHOTO_REQUIRED: "This passenger needs a boarding photo on file before the trip can be booked.",
     REQUIRED_FIELDS: "Fill in the required fields.",
     INVALID_STATE: "This can no longer be done for this record.",
     MODULE_DISABLED: "This service is switched off.",
