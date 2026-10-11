@@ -24,12 +24,12 @@ const m = M.meta;
 const FONT = 'Arial', MONO = 'Courier New';
 const C = { navy: '1F3A5F', blue: '2B5C8A', gray: '5B6670', rule: 'BFC9D6', band: 'F5F8FC', head: '1F3A5F', metaKey: 'E8EEF6' };
 const SZ = { body: 20, table: 16, tableCode: 15, h1: 32, h2: 26, small: 16, title: 44, sub: 26 };
-// صفحة A4 أفقية: الأبعاد تُمرَّر عمودية ويُحوَّل الاتجاه بـ PageOrientation.LANDSCAPE
-const PORT_W = 11906, PORT_H = 16838;
+// صفحة A3 أفقية: الأبعاد تُمرَّر عمودية ويُحوَّل الاتجاه بـ PageOrientation.LANDSCAPE (A3 = 297×420 مم)
+const PORT_W = 16838, PORT_H = 23811;
 const MARGIN = { top: 1000, bottom: 1000, left: 900, right: 900 };
-const CONTENT_W = PORT_H - MARGIN.left - MARGIN.right;              // 14796 DXA عرض الصفحة الأفقية المتاح
+const CONTENT_W = PORT_H - MARGIN.left - MARGIN.right;              // 22011 DXA عرض الصفحة الأفقية المتاح
 const IMG_MAX_W = Math.round(CONTENT_W / 1440 * 96);                // بكسل بـ96 dpi
-const IMG_MAX_H = 540;                                              // يترك مجالًا للعنوان والشرح على الصفحة نفسها
+const IMG_MAX_H = 800;                                              // ارتفاع الصفحة الأفقية بعد الهوامش، مع مجال للعنوان والشرح
 const BD = { style: BorderStyle.SINGLE, size: 4, color: C.rule };
 
 // ---------- عدد الجداول بصيغته العربية الصحيحة ----------
