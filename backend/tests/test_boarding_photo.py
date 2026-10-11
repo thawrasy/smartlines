@@ -16,6 +16,30 @@ def upload(c, data: bytes, name: str = "me.jpg", mime: str = "image/jpeg"):
     return c.post("/api/account/photo", files={"file": (name, data, mime)})
 
 
+SWITCH_ADMIN = ("admin@masslak.test", "PLATFORM")
+SWITCH_CHECKER = ("security@masslak.test", "PLATFORM")
+SWITCH_FINAL = ("privacy2@masslak.test", "PLATFORM")
+
+
+def switch_on():
+    """The boarding photo is switched on through an approved change (1094), once per database; a no-op after that."""
+    admin = login(*SWITCH_ADMIN)
+    if admin.get("/api/admin/photos/evidence-kinds").json()["enabled"]:
+        return
+    r = admin.post("/api/admin/photos/feature/changes", json={
+        "enabled": True, "legal_basis": "test: the switch is set by a decision with a legal basis (1094)",
+        "reason": "the photo tests need the feature on (1094)"})
+    assert r.status_code == 201, r.text
+    uid = r.json()["uid"]
+    assert login(*SWITCH_CHECKER).post(f"/api/admin/photos/policy-changes/{uid}/approve").json()["status"] == "PENDING"
+    assert login(*SWITCH_FINAL).post(f"/api/admin/photos/policy-changes/{uid}/approve").json()["status"] == "APPLIED"
+
+
+@pytest.fixture(autouse=True)
+def photo_switched_on():
+    switch_on()
+
+
 def register():
     email = f"photo{uuid.uuid4().hex[:8]}@example.com"
     password = "another-long-password"

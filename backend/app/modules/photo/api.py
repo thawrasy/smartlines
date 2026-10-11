@@ -159,6 +159,23 @@ async def request_identity_age(body: AgeChangeIn, request: Request, pr: Principa
     return {"uid": uid, "status": "PENDING", "approvals": 0}
 
 
+class FeatureIn(BaseModel):
+    enabled: bool
+    legal_basis: str = Field(min_length=10, max_length=500)
+    reason: str = Field(min_length=10, max_length=500)
+
+
+@platform.post("/feature/changes", status_code=201)
+async def request_feature_change(body: FeatureIn, request: Request, pr: Principal = Depends(require_portal("PLATFORM"))):
+    """Asks to switch the boarding photo on or off (1094). Switching on needs the legal basis; the change passes the
+    approval stages, and nothing changes before the last approval."""
+    privacy_staff(pr)
+    async with db.transaction(context_for(request, pr)) as conn:
+        uid, change_id = await photo.request_feature_change(conn, pr, body.enabled, body.legal_basis, body.reason)
+    request.state.audit = {"action": "photo.policy_request", "object_type": "photo_policy_change", "object_id": change_id}
+    return {"uid": uid, "status": "PENDING", "approvals": 0}
+
+
 @platform.post("/data-requirements/{field}/changes", status_code=201)
 async def request_data_requirement(field: str, body: RequirementIn, request: Request,
                                    pr: Principal = Depends(require_portal("PLATFORM"))):

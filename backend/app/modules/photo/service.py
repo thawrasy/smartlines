@@ -50,6 +50,11 @@ async def store(conn, ctx: db.Context, pr: Principal, data: bytes, file_name: st
     return file_id
 
 
+async def switched_on(conn) -> bool:
+    """Whether the boarding photo is in use at all: off at launch, switched on only by an approved change (1094)."""
+    return bool(await conn.fetchval("SELECT iam.photo_enabled()"))
+
+
 async def _has_photo(conn, ctx: db.Context, party_id: int) -> bool:
     async with db.system_scope(conn, ctx):
         return bool(await conn.fetchval("SELECT 1 FROM iam.party_photo WHERE party_id = $1", party_id))
@@ -60,6 +65,8 @@ async def take(conn, ctx: db.Context, pr: Principal, data: bytes, file_name: str
     or the party of a member of a family they head. A photo already on file is never replaced here (1086)."""
     if pr.portal != "PASSENGER":
         raise forbidden("only passenger accounts take boarding photos")
+    if not await switched_on(conn):
+        raise ApiError(409, "PHOTO_DISABLED", "the boarding photo is not in use on this platform")
     if await _has_photo(conn, ctx, target_party):
         raise ApiError(409, "PHOTO_EXISTS", "a boarding photo is already on file; it changes only through the platform, with proof of identity")
     file_id = await store(conn, ctx, pr, data, file_name, PHOTO_TYPES, "PHOTO_TYPE")
@@ -78,6 +85,8 @@ async def status(conn, ctx: db.Context, pr: Principal) -> dict:
 async def read_for_ticket(conn, ctx: db.Context, trip_id: int, ticket_uid: uuid.UUID) -> tuple[int, bytes, str]:
     """The photo of the passenger on a ticket of this trip: (party id, bytes, type). A passenger without a linked profile,
     or without a photo, has none (PHOTO_NONE)."""
+    if not await switched_on(conn):
+        raise ApiError(404, "PHOTO_DISABLED", "the boarding photo is not in use on this platform")
     async with db.system_scope(conn, ctx):
         row = await conn.fetchrow(
             """SELECT p.party_id, f.storage_key, f.enc_key_id, f.sha256, f.mime_type, f.scan_status
@@ -108,7 +117,9 @@ async def requirement(conn, trip_id: int, nationality: str, category: str | None
 
 async def missing(conn, ctx: db.Context, trip_id: int, nationality: str, category: str | None, party_id: int | None) -> bool:
     """True when a photo is required for this traveller on this trip and none is on file. A traveller without a linked
-    profile has no photo on file, so a required photo cannot be shown for them."""
+    profile has no photo on file, so a required photo cannot be shown for them. While the photo is off, none is required."""
+    if not await switched_on(conn):
+        return False
     if await requirement(conn, trip_id, nationality, category) != "REQUIRED":
         return False
     if party_id is None:
@@ -311,7 +322,7 @@ async def settings_view(conn) -> dict:
     kinds = [dict(r) for r in await conn.fetch("SELECT code, label, active, age_rule FROM iam.photo_evidence_kind ORDER BY id")]
     min_age = await conn.fetchval("SELECT (value #>> '{}')::integer FROM sys.setting WHERE key = 'photo.identity_card_min_age'")
     items = [dict(r) for r in await conn.fetch("SELECT field_code, label, requirement FROM iam.data_requirement ORDER BY field_code")]
-    return {"kinds": kinds, "identity_card_min_age": min_age,
+    return {"enabled": await switched_on(conn), "kinds": kinds, "identity_card_min_age": min_age,
             "approval_stages": _jsonb(await conn.fetchval("SELECT iam.photo_approval_stages()")), "data_requirements": items}
 
 
@@ -331,6 +342,12 @@ async def request_evidence_change(conn, pr: Principal, code: str, active: bool, 
 
 async def request_identity_age(conn, pr: Principal, min_age: int | None, reason: str) -> tuple[str, int]:
     uid = await conn.fetchval("SELECT iam.request_photo_policy_change('IDENTITY_MIN_AGE', NULL, NULL, $1, NULL, NULL, $2)", min_age, reason)
+    return str(uid), (await policy_change_row(conn, uid))["id"]
+
+
+async def request_feature_change(conn, pr: Principal, on: bool, legal_basis: str, reason: str) -> tuple[str, int]:
+    """Asks to switch the boarding photo on or off. Switching on needs a legal basis; it passes the approval stages (1094)."""
+    uid = await conn.fetchval("SELECT iam.request_photo_feature_change($1, $2, $3)", on, legal_basis, reason)
     return str(uid), (await policy_change_row(conn, uid))["id"]
 
 

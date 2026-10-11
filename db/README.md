@@ -14,8 +14,8 @@ supporting index, except references to lookup lists and to the staff member who 
 |---|---|
 | Engine | PostgreSQL 16 with PostGIS 3 (extensions: pgcrypto, citext, btree_gist, pg_trgm, postgis in schema `gis`; Docker and CI image `postgis/postgis:16-3.4`, Ubuntu package `postgresql-16-postgis-3`) |
 | Schemas | 26 separate schemas, each with its own privileges |
-| Tables | 511 tables (8 partitioned), 5,243 columns, 1,461 foreign keys |
-| Security | row-level security on 511 of 511 tables, 934 policies; 435 triggers, 314 functions |
+| Tables | 511 tables (8 partitioned), 5,244 columns, 1,461 foreign keys |
+| Security | row-level security on 511 of 511 tables, 934 policies; 435 triggers, 316 functions |
 | Tests | 515 automated checks against a freshly built database (`db/tests/run.sh`) |
 | Design | [Database design and ERD document](../docs/database/) with diagrams in the study's colors |
 | Docs | [Data dictionary](DATA_DICTIONARY.md) · [ERD diagrams](ERD.md) (both generated from the database) |
@@ -150,6 +150,7 @@ PostGIS in `gis`. Until 9 October 2026 a first start of the Docker stack stopped
 | `1091_photo_approval_stages.sql` | The approval stages of a photo change and of a change to the photo policy are a platform setting (`photo.approval_stages`, by default a checker and a final approval; at least two); each change snapshots them when it is asked; one approval table for both kinds (`iam.photo_approval`); the age default is 18; the data items a photo change needs are required or optional by setting (`iam.data_requirement`, `iam.data_requirement_met`); the change of a photo on file passes the stages (`iam.approve_photo_change`). Nothing new refers to the approvals except the requests, so no reference cycle |
 | `1092_photo_rule_stages.sql` | The approval stages apply to the photo rules: a proposal is in force when its stages are passed (`iam.approve_photo_rule`); a proposal not yet in force is withdrawn (`iam.withdraw_photo_rule`); a rule in force is retired through its own stages, and stays in force until they are passed (`iam.request_photo_rule_retirement`, `iam.approve_photo_rule_retirement`, `iam.reject_photo_rule_retirement`); the retirement has its own approval subject, from a sequence; `iam.photo_requirement` counts a rule being retired as in force. Nothing new refers to the rules except the approvals, so no reference cycle |
 | `1093_photo_rule_retirement_proposer.sql` | The person who proposed a photo rule does not approve its retirement (`iam.approve_photo_rule_retirement`); the proposer may still ask for it. Nothing new refers to the rules, so no reference cycle |
+| `1094_photo_feature_switch.sql` | The boarding photo is off at launch. The switch is the setting `photo.enabled` (false), read by `iam.photo_enabled()`. Switching it on is a change with a legal basis (`iam.request_photo_feature_change`) that passes the approval stages of the photo policy (`iam.approve_photo_policy_change`); `iam.set_party_photo` refuses a photo while it is off. Nothing new refers to the table, so no reference cycle |
 
 ## Design rules (study 29.1)
 

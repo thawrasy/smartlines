@@ -2,7 +2,7 @@
 
 > Generated from the built database (`db/tools/gen_docs.py`); do not edit by hand.
 
-**511 tables, 5243 columns, in 26 schemas.**
+**511 tables, 5244 columns, in 26 schemas.**
 
 Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant isolation (RLS) · 🧩 partitioned monthly · 🔒 append-only / change-protected
 
@@ -632,6 +632,7 @@ A change to the accepted evidence or the identity age rule of a photo change; tw
 | `approval_stages` | `jsonb` | ✱ | `'["CHECK", "APPROVE"]'::jsonb` |
 | `field_code` | `text` | 🔗 `iam.data_requirement`  |  |
 | `new_requirement` | `text` |  |  |
+| `legal_basis` | `text` |  |  |
 
 ### `iam.photo_rule` 🛡️
 

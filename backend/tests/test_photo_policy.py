@@ -6,7 +6,9 @@ file changes only through a request with evidence, made by one platform person a
 import uuid
 from datetime import date, timedelta
 
-from test_boarding_photo import JPEG, PNG, assigned_driver, photo_of_email, register, upload
+import pytest
+
+from test_boarding_photo import JPEG, PNG, assigned_driver, photo_of_email, register, switch_on, upload
 from test_e2e import free_seats, hold, login, new_passenger, owner_sql, pax, trip  # noqa: F401
 from test_families import body, funded, make_family, person, years_ago
 
@@ -14,6 +16,11 @@ ADMIN = ("admin@masslak.test", "PLATFORM")
 SECOND = ("security@masslak.test", "PLATFORM")
 PRIVACY = ("privacy@masslak.test", "PLATFORM")
 PRIVACY2 = ("privacy2@masslak.test", "PLATFORM")
+
+
+@pytest.fixture(autouse=True)
+def photo_switched_on():
+    switch_on()
 
 
 def staff(who):

@@ -287,6 +287,13 @@ section.
   - With no rule in force the photo is optional. A `REQUIRED` rule refuses a booking for a traveller with no photo on file
     (`PHOTO_REQUIRED`, 422), and the gate records `PHOTO_REQUIRED` for a passenger without one. A traveller without a linked
     profile has no photo on file, so a required photo blocks their booking until the profile is linked (WP3).
+- **The switch (1094; owner's decision, October 2026).** The boarding photo is off at launch: taking, showing and requiring
+  a photo are refused while the setting `photo.enabled` is false (`409 PHOTO_DISABLED` for the person, `404` at the
+  gate, and no photo is required). It is switched on only by a decision with a legal basis, an exceptional approval or an
+  explicit security approval that the platform commits to. A platform person with `privacy.manage` asks with
+  `POST /api/admin/photos/feature/changes` (body `enabled`, `legal_basis` of at least ten characters, `reason`); the change
+  passes the stages of `photo.approval_stages`, and nothing changes before the last approval. Only one such change waits at a time.
+  Switching it off is the same request with `enabled` false.
 - **Replacing a photo on file (1087, WP4).** The person and the family head cannot. A platform person requests it with
   `POST /api/admin/photos/changes`: the party, a reason, the evidence kind (`CIVIL_REGISTRY_EXTRACT`, `IDENTITY_DOCUMENT` or `PASSPORT`),
   the evidence file and the new photo. A second platform person reads the evidence (`GET .../changes/{uid}/evidence`, audited)
