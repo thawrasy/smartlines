@@ -4,7 +4,7 @@ SET XACT_ABORT ON;
 SET ANSI_NULLS ON; SET QUOTED_IDENTIFIER ON; SET ANSI_PADDING ON; SET ANSI_WARNINGS ON; SET ARITHABORT ON; SET CONCAT_NULL_YIELDS_NULL ON; SET NUMERIC_ROUNDABORT OFF;  -- مطلوبة للفهارس المصفّاة والأعمدة المحسوبة المخزَّنة (sqlcmd يفترض QUOTED_IDENTIFIER OFF)
 GO
 -- ===== schema plat =====
--- باقة: حزمة وحدات وحدود ناعمة (FR-PLT-003/004، Q-PLT-11)
+-- Subscription plan: a bundle of modules and soft limits (FR-PLT-003/004, Q-PLT-11)
 CREATE TABLE [plat].[Plan] (
     [PlanId] INT IDENTITY(1,1) NOT NULL,
     [Code] VARCHAR(30) NOT NULL,
@@ -25,7 +25,7 @@ CREATE TABLE [plat].[Plan] (
     CONSTRAINT [CK_Plan_3] CHECK (MaxStorageGb IS NULL OR MaxStorageGb > 0)
 );
 GO
--- وحدات الباقة (يحل محل Plan.IncludedModules json)
+-- Modules included in a plan (replaces the Plan.IncludedModules JSON column)
 CREATE TABLE [plat].[PlanModule] (
     [PlanId] INT NOT NULL,
     [ModuleCode] VARCHAR(12) NOT NULL,
@@ -37,7 +37,7 @@ CREATE TABLE [plat].[PlanModule] (
     CONSTRAINT [CK_PlanModule_ModuleCode] CHECK ([ModuleCode] IS NULL OR [ModuleCode] IN ('CORE', 'INSTITUTIONS', 'FACILITIES', 'COVENANTS', 'WORKFLOW', 'LC_PURCHASE', 'LC_SALES', 'REQUESTS', 'REPORTS'))
 );
 GO
--- لا وصول مباشر لتطبيق المشترك (يقرأ صفّه عبر plat.v_CurrentTenant) · جذر العزل: المشترك (FR-PLT-001/002/046، BR-PLT-001/002)
+-- No direct access for the tenant application (it reads its row through plat.v_CurrentTenant); isolation root: the tenant (FR-PLT-001/002/046, BR-PLT-001/002)
 CREATE TABLE [plat].[Tenant] (
     [TenantId] INT IDENTITY(1,1) NOT NULL,
     [Code] VARCHAR(30) NOT NULL,
@@ -74,7 +74,7 @@ CREATE TABLE [plat].[Tenant] (
     CONSTRAINT [CK_Tenant_CalendarDisplay] CHECK ([CalendarDisplay] IS NULL OR [CalendarDisplay] IN ('GREGORIAN', 'HIJRI', 'BOTH'))
 );
 GO
--- عناوين فرعية محجوزة للنظام: www · admin · api · app… (FR-PLT-046)
+-- Subdomains reserved for the system: www, admin, api, app and others (FR-PLT-046)
 CREATE TABLE [plat].[ReservedSubdomain] (
     [ReservedSubdomainId] INT IDENTITY(1,1) NOT NULL,
     [Subdomain] VARCHAR(63) NOT NULL,
@@ -88,7 +88,7 @@ CREATE TABLE [plat].[ReservedSubdomain] (
     CONSTRAINT [CK_ReservedSubdomain_1] CHECK (Subdomain NOT LIKE '%[^a-z0-9-]%' AND Subdomain NOT LIKE '-%' AND Subdomain NOT LIKE '%-')
 );
 GO
--- لا يقرؤه تطبيق المشترك (tp_app) · حساب مشغّل المنصة: مخزن هوية منفصل عن AppUser (FR-PLT-006)
+-- Platform operator account: not readable by the tenant application (tp_app); identity store separate from AppUser (FR-PLT-006)
 CREATE TABLE [plat].[PlatformOperator] (
     [PlatformOperatorId] INT IDENTITY(1,1) NOT NULL,
     [Email] NVARCHAR(254) NOT NULL,
@@ -123,7 +123,7 @@ CREATE TABLE [plat].[PlatformOperator] (
     CONSTRAINT [CK_PlatformOperator_Status] CHECK ([Status] IS NULL OR [Status] IN ('INVITED', 'ACTIVE', 'LOCKED', 'DISABLED', 'ARCHIVED'))
 );
 GO
--- الوحدات المفعّلة لكل مشترك؛ ملكية المنصة فقط: لا يكتبها تطبيق المشترك ويقرؤها عبر عرض مُحدَّد (DR-01)
+-- Modules enabled per tenant; owned by the platform only: written by platform operators, read by the tenant through a restricted view (DR-01)
 CREATE TABLE [plat].[TenantModule] (
     [TenantModuleId] BIGINT IDENTITY(1,1) NOT NULL,
     [TenantId] INT NOT NULL,
@@ -141,7 +141,7 @@ CREATE TABLE [plat].[TenantModule] (
     CONSTRAINT [CK_TenantModule_ModuleCode] CHECK ([ModuleCode] IS NULL OR [ModuleCode] IN ('CORE', 'INSTITUTIONS', 'FACILITIES', 'COVENANTS', 'WORKFLOW', 'LC_PURCHASE', 'LC_SALES', 'REQUESTS', 'REPORTS'))
 );
 GO
--- وصول الدعم المؤقت يفعّله مدير حساب المشترك (FR-PLT-007، BR-PLT-017)
+-- Temporary support access, activated by the tenant's account administrator (FR-PLT-007, BR-PLT-017)
 CREATE TABLE [plat].[SupportAccessGrant] (
     [TenantId] INT NOT NULL,
     [SupportAccessGrantId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -164,7 +164,7 @@ CREATE TABLE [plat].[SupportAccessGrant] (
 GO
 
 -- ===== schema sec =====
--- مستخدم بوابة المشترك (FR-PLT-010..016، BR-PLT-004..006)
+-- Tenant portal user (FR-PLT-010..016, BR-PLT-004..006)
 CREATE TABLE [sec].[AppUser] (
     [TenantId] INT NOT NULL,
     [AppUserId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -221,7 +221,7 @@ CREATE TABLE [sec].[AppUser] (
     CONSTRAINT [CK_AppUser_MfaKeyPurpose] CHECK ([MfaKeyPurpose] IS NULL OR [MfaKeyPurpose] IN ('DATA'))
 );
 GO
--- دور يخصصه المشترك أو مبذور (FR-PLT-018)
+-- Role defined by the tenant or seeded (FR-PLT-018)
 CREATE TABLE [sec].[Role] (
     [TenantId] INT NOT NULL,
     [RoleId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -245,7 +245,7 @@ CREATE TABLE [sec].[Role] (
     CONSTRAINT [CK_Role_1] CHECK (IsSystem = 0 OR SeedKey IS NOT NULL)
 );
 GO
--- كتالوج الصلاحيات تملكه المنصة؛ لا يضيف المشترك صلاحية (FR-PLT-017)
+-- Permission catalogue owned by the platform; a tenant cannot add a permission (FR-PLT-017)
 CREATE TABLE [sec].[Permission] (
     [PermissionId] INT IDENTITY(1,1) NOT NULL,
     [Code] VARCHAR(100) NOT NULL,
@@ -267,7 +267,7 @@ CREATE TABLE [sec].[Permission] (
     CONSTRAINT [CK_Permission_LockedToRoleCodes_json] CHECK ([LockedToRoleCodes] IS NULL OR ISJSON([LockedToRoleCodes]) = 1)
 );
 GO
--- ربط دور-صلاحية؛ PERMISSION_LOCKED يُفرض في الخدمة (BR-PLT-019)
+-- Role–permission link; PERMISSION_LOCKED is enforced by the service (BR-PLT-019)
 CREATE TABLE [sec].[RolePermission] (
     [TenantId] INT NOT NULL,
     [RoleId] BIGINT NOT NULL,
@@ -281,7 +281,7 @@ CREATE TABLE [sec].[RolePermission] (
     CONSTRAINT [PK_RolePermission] PRIMARY KEY CLUSTERED ([TenantId], [RoleId], [PermissionId])
 );
 GO
--- ربط مستخدم-دور؛ اتحاد الصلاحيات (BR-PLT-007، FR-PLT-018)
+-- User–role link; permissions are the union of the roles (BR-PLT-007, FR-PLT-018)
 CREATE TABLE [sec].[UserRole] (
     [TenantId] INT NOT NULL,
     [UserId] BIGINT NOT NULL,
@@ -295,7 +295,7 @@ CREATE TABLE [sec].[UserRole] (
     CONSTRAINT [PK_UserRole] PRIMARY KEY CLUSTERED ([TenantId], [UserId], [RoleId])
 );
 GO
--- شركات يراها المستخدم؛ تُهمل إن كان CompanyScopeMode=ALL (FR-PLT-020)
+-- Companies a user can see; ignored when CompanyScopeMode = ALL (FR-PLT-020)
 CREATE TABLE [sec].[UserCompanyScope] (
     [TenantId] INT NOT NULL,
     [UserId] BIGINT NOT NULL,
@@ -309,7 +309,7 @@ CREATE TABLE [sec].[UserCompanyScope] (
     CONSTRAINT [PK_UserCompanyScope] PRIMARY KEY CLUSTERED ([TenantId], [UserId], [CompanyId])
 );
 GO
--- محاولات الدخول لخنق المعدل ونوافذ القفل؛ الأثر الدائم في aud.AuditLog (BR-PLT-005)
+-- Login attempts for rate limiting and lockout windows; the permanent trace is in aud.AuditLog (BR-PLT-005)
 CREATE TABLE [sec].[LoginAttempt] (
     [TenantId] INT NOT NULL,
     [LoginAttemptId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -326,7 +326,7 @@ CREATE TABLE [sec].[LoginAttempt] (
     CONSTRAINT [CK_LoginAttempt_Outcome] CHECK ([Outcome] IS NULL OR [Outcome] IN ('LOGIN_SUCCESS', 'FAILED_PASSWORD', 'DENIED_LOCKED', 'FAILED_MFA', 'LOCKOUT'))
 );
 GO
--- جلسات المستخدم: خمول 30 دقيقة ومطلقة 12 ساعة (FR-PLT-014)
+-- User sessions: 30-minute idle timeout and 12-hour absolute timeout (FR-PLT-014)
 CREATE TABLE [sec].[UserSession] (
     [TenantId] INT NOT NULL,
     [UserSessionId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -352,7 +352,7 @@ CREATE TABLE [sec].[UserSession] (
     CONSTRAINT [CK_UserSession_EndReason] CHECK ([EndReason] IS NULL OR [EndReason] IN ('LOGOUT', 'IDLE_TIMEOUT', 'ABSOLUTE_TIMEOUT', 'TERMINATED_BY_ADMIN', 'PASSWORD_CHANGED', 'MFA_RESET', 'USER_DISABLED', 'TENANT_SUSPENDED'))
 );
 GO
--- 10 رموز استرداد لمرة واحدة مُجزَّأة (FR-PLT-011، BR-PLT-006؛ بديل AppUser.RecoveryCodesHash json)
+-- Ten single-use recovery codes, stored hashed (FR-PLT-011, BR-PLT-006); replaces the AppUser.RecoveryCodesHash JSON
 CREATE TABLE [sec].[MfaRecoveryCode] (
     [TenantId] INT NOT NULL,
     [MfaRecoveryCodeId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -369,7 +369,7 @@ CREATE TABLE [sec].[MfaRecoveryCode] (
     CONSTRAINT [UQ_MfaRecoveryCode_UserId_CodeHash] UNIQUE ([TenantId], [UserId], [CodeHash])
 );
 GO
--- رابط دعوة (48 ساعة) أو إعادة تعيين كلمة المرور (30 دقيقة) لمرة واحدة (FR-PLT-013)
+-- Single-use invitation link (48 hours) or password-reset token (30 minutes) (FR-PLT-013)
 CREATE TABLE [sec].[UserToken] (
     [TenantId] INT NOT NULL,
     [UserTokenId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -395,7 +395,7 @@ CREATE TABLE [sec].[UserToken] (
     CONSTRAINT [CK_UserToken_SendStatus] CHECK ([SendStatus] IS NULL OR [SendStatus] IN ('PENDING', 'SENT', 'FAILED'))
 );
 GO
--- آخر 5 كلمات مرور لمنع إعادة استعمالها (BR-PLT-004)
+-- Last five passwords, to prevent reuse (BR-PLT-004)
 CREATE TABLE [sec].[UserPasswordHistory] (
     [TenantId] INT NOT NULL,
     [UserPasswordHistoryId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -407,7 +407,7 @@ CREATE TABLE [sec].[UserPasswordHistory] (
     CONSTRAINT [UQ_UserPasswordHistory_Tenant] UNIQUE ([TenantId], [UserPasswordHistoryId])
 );
 GO
--- ربط هوية خارجية OIDC/Entra بالمستخدم؛ جاهزية فقط (FR-PLT-015، §11)
+-- Link between an external OIDC or Entra identity and a user; readiness only (FR-PLT-015, section 11)
 CREATE TABLE [sec].[ExternalIdentity] (
     [TenantId] INT NOT NULL,
     [ExternalIdentityId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -429,7 +429,7 @@ CREATE TABLE [sec].[ExternalIdentity] (
     CONSTRAINT [CK_ExternalIdentity_Provider] CHECK ([Provider] IS NULL OR [Provider] IN ('OIDC', 'ENTRA_ID'))
 );
 GO
--- سجل مفاتيح المشترك؛ المفتاح ملفوف بمفتاح رئيسي خارج القاعدة (FR-PLT-037، BR-PLT-015)
+-- Tenant key register; each key is wrapped by a master key held outside the database (FR-PLT-037, BR-PLT-015)
 CREATE TABLE [sec].[TenantKey] (
     [TenantId] INT NOT NULL,
     [TenantKeyId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -457,7 +457,7 @@ CREATE TABLE [sec].[TenantKey] (
     CONSTRAINT [CK_TenantKey_Status] CHECK ([Status] IS NULL OR [Status] IN ('PENDING', 'ACTIVE', 'RETIRING', 'RETIRED', 'REVOKED'))
 );
 GO
--- سجل أحداث المفاتيح: إنشاء وتدوير وإبطال (FR-PLT-037؛ شدة عالية BR-PLT-009)
+-- Key event log: create, rotate and revoke (FR-PLT-037; high severity BR-PLT-009)
 CREATE TABLE [sec].[KeyEvent] (
     [TenantId] INT NOT NULL,
     [KeyEventId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -479,7 +479,7 @@ CREATE TABLE [sec].[KeyEvent] (
 GO
 
 -- ===== schema aud =====
--- للإدراج فقط؛ TenantId الفارغ = حدث منصة لا يراه أي مشترك؛ سياسة RLS خاصة (BR-PLT-001/009)
+-- Append-only audit log; NULL TenantId = platform event, not visible to any tenant; dedicated RLS policy (BR-PLT-001, BR-PLT-009)
 CREATE TABLE [aud].[AuditLog] (
     [TenantId] INT NULL,
     [AuditLogId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -513,7 +513,7 @@ CREATE TABLE [aud].[AuditLog] (
     CONSTRAINT [CK_AuditLog_AfterJson_json] CHECK ([AfterJson] IS NULL OR ISJSON([AfterJson]) = 1)
 );
 GO
--- كشف الهويات والصور والتصدير والتنزيل المقيّد؛ لكشف الشذوذ >20/ساعة وR-PLT-3 (BR-PTY-009)
+-- Access log for sensitive data: identity reveals, image views, exports and restricted downloads; flags anomalies above 20 per hour (BR-PTY-009)
 CREATE TABLE [aud].[SensitiveAccessLog] (
     [TenantId] INT NOT NULL,
     [SensitiveAccessLogId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -547,7 +547,7 @@ CREATE TABLE [aud].[SensitiveAccessLog] (
 GO
 
 -- ===== schema doc =====
--- المستند المنطقي: بيانات المستند وحالته؛ الملف في doc.DocumentVersion (FR-PLT-027/028، BR-PLT-011)
+-- Logical document: document data and status; the file itself is in doc.DocumentVersion (FR-PLT-027/028, BR-PLT-011)
 CREATE TABLE [doc].[Document] (
     [TenantId] INT NOT NULL,
     [DocumentId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -584,7 +584,7 @@ CREATE TABLE [doc].[Document] (
     CONSTRAINT [CK_Document_Status] CHECK ([Status] IS NULL OR [Status] IN ('ACTIVE', 'SUPERSEDED', 'SOFT_DELETED'))
 );
 GO
--- إصدار ثابت من الملف؛ التغيير يُنشئ إصدارًا جديدًا يفرضه التطبيق (FR-PLT-027، BR-PLT-011)
+-- Immutable file version; a change creates a new version, enforced by the application (FR-PLT-027, BR-PLT-011)
 CREATE TABLE [doc].[DocumentVersion] (
     [TenantId] INT NOT NULL,
     [DocumentVersionId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -619,7 +619,7 @@ CREATE TABLE [doc].[DocumentVersion] (
     CONSTRAINT [CK_DocumentVersion_IntegrityStatus] CHECK ([IntegrityStatus] IS NULL OR [IntegrityStatus] IN ('UNVERIFIED', 'OK', 'MISMATCH', 'MISSING'))
 );
 GO
--- ربط مستند بأي كيان بدور وصفحة مرجعية؛ إلغاء الربط منطقي (FR-PLT-028)
+-- Links a document to any entity with a role and a reference page; unlinking is logical (FR-PLT-028)
 CREATE TABLE [doc].[DocumentLink] (
     [TenantId] INT NOT NULL,
     [DocumentLinkId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -644,7 +644,7 @@ CREATE TABLE [doc].[DocumentLink] (
 GO
 
 -- ===== schema cfg =====
--- تعريف مفتاح إعداد بحدود المنصة الدنيا والقصوى (BR-PLT-018، FR-PLT-043)
+-- Setting-key definition with platform minimum and maximum bounds (BR-PLT-018, FR-PLT-043)
 CREATE TABLE [cfg].[SettingDefinition] (
     [SettingDefinitionId] INT IDENTITY(1,1) NOT NULL,
     [Key] VARCHAR(100) NOT NULL,
@@ -669,7 +669,7 @@ CREATE TABLE [cfg].[SettingDefinition] (
     CONSTRAINT [CK_SettingDefinition_MaxValueJson_json] CHECK ([MaxValueJson] IS NULL OR ISJSON([MaxValueJson]) = 1)
 );
 GO
--- إعدادات المشترك: سياسات الأمان والمهل والعتبات وwork.start/work.end (FR-PLT-043)
+-- Tenant settings: security policies, timeouts, thresholds, and work start and end times (FR-PLT-043)
 CREATE TABLE [cfg].[TenantSetting] (
     [TenantId] INT NOT NULL,
     [TenantSettingId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -686,7 +686,7 @@ CREATE TABLE [cfg].[TenantSetting] (
     CONSTRAINT [CK_TenantSetting_ValueJson_json] CHECK ([ValueJson] IS NULL OR ISJSON([ValueJson]) = 1)
 );
 GO
--- تعريف نوع الترقيم بصيغة بوسوم مثل {seq:000}-{erp}-{yy} (FR-PLT-026)
+-- Numbering-type definition with a tag-based format, for example {seq:000}-{erp}-{yy} (FR-PLT-026)
 CREATE TABLE [cfg].[NumberSequenceDefinition] (
     [TenantId] INT NOT NULL,
     [NumberSequenceDefinitionId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -713,7 +713,7 @@ CREATE TABLE [cfg].[NumberSequenceDefinition] (
     CONSTRAINT [CK_NumberSequenceDefinition_GapPolicy] CHECK ([GapPolicy] IS NULL OR [GapPolicy] IN ('GAP_FREE', 'ALLOW_GAPS'))
 );
 GO
--- عدّاد لكل (تعريف، شركة اختيارية، فترة)؛ يُقفل صفه عند التخصيص داخل معاملة المستدعي (BR-PLT-010)
+-- Counter per (definition, optional company, period); its row is locked on allocation inside the caller's transaction (BR-PLT-010)
 CREATE TABLE [cfg].[NumberSequence] (
     [TenantId] INT NOT NULL,
     [NumberSequenceId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -731,7 +731,7 @@ CREATE TABLE [cfg].[NumberSequence] (
     CONSTRAINT [CK_NumberSequence_1] CHECK (NextValue >= 1)
 );
 GO
--- الأرقام الصادرة؛ الملغى لا يُعاد استعماله (FR-PLT-026، BR-PLT-010)
+-- Issued document numbers; a cancelled number is never reused (FR-PLT-026, BR-PLT-010)
 CREATE TABLE [cfg].[NumberIssue] (
     [TenantId] INT NOT NULL,
     [NumberIssueId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -758,7 +758,7 @@ CREATE TABLE [cfg].[NumberIssue] (
     CONSTRAINT [CK_NumberIssue_Status] CHECK ([Status] IS NULL OR [Status] IN ('ISSUED', 'VOID'))
 );
 GO
--- قاعدة تنبيه انتهاء لكل نوع عنصر (FR-PLT-038، BR-PLT-013)
+-- Expiry alert rule per item type (FR-PLT-038, BR-PLT-013)
 CREATE TABLE [cfg].[ExpiryAlertRule] (
     [TenantId] INT NOT NULL,
     [ExpiryAlertRuleId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -782,7 +782,7 @@ CREATE TABLE [cfg].[ExpiryAlertRule] (
     CONSTRAINT [CK_ExpiryAlertRule_RecipientRoles_json] CHECK ([RecipientRoles] IS NULL OR ISJSON([RecipientRoles]) = 1)
 );
 GO
--- سجل التنبيهات المرسَلة: حدث واحد لكل (عنصر، عتبة) ولا تكرار في اليوم نفسه (FR-PLT-038)
+-- Log of sent expiry alerts: one event per (item, threshold), never repeated on the same day (FR-PLT-038)
 CREATE TABLE [cfg].[ExpiryAlertLog] (
     [TenantId] INT NOT NULL,
     [ExpiryAlertLogId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -799,7 +799,7 @@ CREATE TABLE [cfg].[ExpiryAlertLog] (
     CONSTRAINT [CK_ExpiryAlertLog_AlertKind] CHECK ([AlertKind] IS NULL OR [AlertKind] IN ('LEAD', 'EXPIRED', 'REMINDER'))
 );
 GO
--- طلب تصدير بيانات المشترك (FR-PLT-039، BR-PLT-016)
+-- Tenant data export request (FR-PLT-039, BR-PLT-016)
 CREATE TABLE [cfg].[DataExportJob] (
     [TenantId] INT NOT NULL,
     [DataExportJobId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -834,7 +834,7 @@ CREATE TABLE [cfg].[DataExportJob] (
     CONSTRAINT [CK_DataExportJob_ScopeDetailJson_json] CHECK ([ScopeDetailJson] IS NULL OR ISJSON([ScopeDetailJson]) = 1)
 );
 GO
--- يوم غير عمل؛ TenantId الفارغ = عطلة المنصة للقراءة فقط (FR-PLT-035، BR-PLT-014)
+-- Non-working day; NULL TenantId = platform holiday, read-only (FR-PLT-035, BR-PLT-014)
 CREATE TABLE [cfg].[NonWorkingDay] (
     [TenantId] INT NULL,
     [NonWorkingDayId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -854,7 +854,7 @@ CREATE TABLE [cfg].[NonWorkingDay] (
     CONSTRAINT [CK_NonWorkingDay_Kind] CHECK ([Kind] IS NULL OR [Kind] IN ('HOLIDAY', 'BRIDGE', 'OTHER'))
 );
 GO
--- طابور الإرسال: تسليم مرة واحدة على الأقل؛ الحمولة معرّفات بلا بيانات مقيّدة (FR-PLT-042)
+-- Outbound queue with at-least-once delivery; the payload carries identifiers without restricted data (FR-PLT-042)
 CREATE TABLE [cfg].[OutboxEvent] (
     [TenantId] INT NOT NULL,
     [OutboxEventId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -886,7 +886,7 @@ CREATE TABLE [cfg].[OutboxEvent] (
     CONSTRAINT [CK_OutboxEvent_PayloadJson_json] CHECK ([PayloadJson] IS NULL OR ISJSON([PayloadJson]) = 1)
 );
 GO
--- سجل تشغيل المهام الخلفية: آخر تشغيل ومدته ونتيجته ظاهر لمدير الحساب (FR-PLT-044)
+-- Background job run log: last run, duration and result, visible to the account administrator (FR-PLT-044)
 CREATE TABLE [cfg].[JobRun] (
     [TenantId] INT NOT NULL,
     [JobRunId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -916,7 +916,7 @@ CREATE TABLE [cfg].[JobRun] (
     CONSTRAINT [CK_JobRun_DetailJson_json] CHECK ([DetailJson] IS NULL OR ISJSON([DetailJson]) = 1)
 );
 GO
--- سجل تشغيل البذر المُرقَّم لكل حزمة؛ تكرار التشغيل لا يكرر شيئًا (FR-PLT-008)
+-- Numbered seed-run log per package; re-running a seed adds nothing (FR-PLT-008)
 CREATE TABLE [cfg].[SeedRun] (
     [TenantId] INT NOT NULL,
     [SeedRunId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -942,7 +942,7 @@ CREATE TABLE [cfg].[SeedRun] (
 GO
 
 -- ===== schema org =====
--- الشركة: جذر الهيكل المؤسسي (FR-ORG-001..010، BR-ORG-001..004)
+-- Company: root of the corporate structure (FR-ORG-001..010, BR-ORG-001..004)
 CREATE TABLE [org].[Company] (
     [TenantId] INT NOT NULL,
     [CompanyId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -985,7 +985,7 @@ CREATE TABLE [org].[Company] (
     CONSTRAINT [CK_Company_OwnershipStatus] CHECK ([OwnershipStatus] IS NULL OR [OwnershipStatus] IN ('COMPLETE', 'UNDOCUMENTED'))
 );
 GO
--- نسبة ضريبة بتاريخ سريان؛ CompanyId فارغ = افتراضي المشترك (FR-ORG-007، BR-ORG-005)
+-- Tax rate with an effective date; NULL CompanyId = tenant default (FR-ORG-007, BR-ORG-005)
 CREATE TABLE [org].[CompanyTaxRate] (
     [TenantId] INT NOT NULL,
     [CompanyTaxRateId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -1006,7 +1006,7 @@ CREATE TABLE [org].[CompanyTaxRate] (
     CONSTRAINT [CK_CompanyTaxRate_2] CHECK (EffectiveTo IS NULL OR EffectiveTo >= EffectiveFrom)
 );
 GO
--- الإدارة (FR-ORG-014، BR-ORG-016، Q-ORG-09: على مستوى المشترك وشركة اختيارية)
+-- Department (FR-ORG-014, BR-ORG-016, Q-ORG-09): at tenant level, optionally per company
 CREATE TABLE [org].[Department] (
     [TenantId] INT NOT NULL,
     [DepartmentId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -1032,7 +1032,7 @@ CREATE TABLE [org].[Department] (
     CONSTRAINT [CK_Department_Function] CHECK ([Function] IS NULL OR [Function] IN ('PROCUREMENT', 'SALES', 'TREASURY', 'FINANCE', 'OTHER'))
 );
 GO
--- حصة ملكية بتاريخ سريان؛ المالك Party فرد أو جهة (FR-ORG-015..018، BR-ORG-006..008، G-7)
+-- Ownership interest with an effective date; the owner is a Party, an individual or an entity (FR-ORG-015..018, BR-ORG-006..008, G-7)
 CREATE TABLE [org].[Shareholding] (
     [TenantId] INT NOT NULL,
     [ShareholdingId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -1062,7 +1062,7 @@ CREATE TABLE [org].[Shareholding] (
     CONSTRAINT [CK_Shareholding_5] CHECK (NominalValue IS NULL OR (NominalValue >= 0 AND CurrencyId IS NOT NULL))
 );
 GO
--- هيئة حوكمة (FR-ORG-019، BR-ORG-009)
+-- Governing body (FR-ORG-019, BR-ORG-009)
 CREATE TABLE [org].[GoverningBody] (
     [TenantId] INT NOT NULL,
     [GoverningBodyId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -1091,7 +1091,7 @@ CREATE TABLE [org].[GoverningBody] (
     CONSTRAINT [CK_GoverningBody_Status] CHECK ([Status] IS NULL OR [Status] IN ('ACTIVE', 'CLOSED'))
 );
 GO
--- عضوية في هيئة (FR-ORG-020، FR-ORG-021، BR-ORG-010)
+-- Membership of a governing body (FR-ORG-020, FR-ORG-021, BR-ORG-010)
 CREATE TABLE [org].[BodyMember] (
     [TenantId] INT NOT NULL,
     [BodyMemberId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -1118,7 +1118,7 @@ CREATE TABLE [org].[BodyMember] (
     CONSTRAINT [CK_BodyMember_3] CHECK (RepresentedPartyId IS NULL OR RepresentedPartyId <> PartyId)
 );
 GO
--- تفويض/منحة صلاحية لشركة (FR-ORG-023..028، BR-ORG-011..014)
+-- Authority grant to a company (FR-ORG-023..028, BR-ORG-011..014)
 CREATE TABLE [org].[AuthorityGrant] (
     [TenantId] INT NOT NULL,
     [AuthorityGrantId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -1167,7 +1167,7 @@ CREATE TABLE [org].[AuthorityGrant] (
     CONSTRAINT [CK_AuthorityGrant_Status] CHECK ([Status] IS NULL OR [Status] IN ('DRAFT', 'PENDING_APPROVAL', 'ACTIVE', 'SUPERSEDED', 'REVOKED'))
 );
 GO
--- ملف تعريف الشركة 1:1 (G-1)
+-- Company profile, 1:1 (G-1)
 CREATE TABLE [org].[CompanyProfile] (
     [TenantId] INT NOT NULL,
     [CompanyProfileId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -1202,7 +1202,7 @@ CREATE TABLE [org].[CompanyProfile] (
     CONSTRAINT [CK_CompanyProfile_NationalityClass] CHECK ([NationalityClass] IS NULL OR [NationalityClass] IN ('DOMESTIC', 'GCC', 'OTHER'))
 );
 GO
--- فرع/مستودع/تابعة خارج الحساب كنص (G-3)
+-- Branch, warehouse or subsidiary outside the account, held as text (G-3)
 CREATE TABLE [org].[CompanyBranch] (
     [TenantId] INT NOT NULL,
     [CompanyBranchId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -1232,7 +1232,7 @@ CREATE TABLE [org].[CompanyBranch] (
     CONSTRAINT [CK_CompanyBranch_Status] CHECK ([Status] IS NULL OR [Status] IN ('ACTIVE', 'CLOSED'))
 );
 GO
--- الملف المالي KYC بتاريخ سريان: شريحة الإيرادات والغرض (G-4)
+-- KYC financial profile with an effective date: revenue band and purpose (G-4)
 CREATE TABLE [org].[CompanyKycFinancialProfile] (
     [TenantId] INT NOT NULL,
     [CompanyKycFinancialProfileId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -1257,7 +1257,7 @@ CREATE TABLE [org].[CompanyKycFinancialProfile] (
     CONSTRAINT [CK_CompanyKycFinancialProfile_PreferredLanguage] CHECK ([PreferredLanguage] IS NULL OR [PreferredLanguage] IN ('ar', 'en'))
 );
 GO
--- مصفوفة الحركة المتوقعة الشهرية CTP: اتجاه × 5 بنود (G-4)
+-- Monthly expected cash-flow matrix (CTP): direction x five items (G-4)
 CREATE TABLE [org].[CompanyExpectedFlow] (
     [TenantId] INT NOT NULL,
     [CompanyExpectedFlowId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -1279,7 +1279,7 @@ CREATE TABLE [org].[CompanyExpectedFlow] (
     CONSTRAINT [CK_CompanyExpectedFlow_FlowKind] CHECK ([FlowKind] IS NULL OR [FlowKind] IN ('CASH', 'OTHER', 'LOCAL_TRANSFER', 'INTERNATIONAL_TRANSFER', 'CHEQUE'))
 );
 GO
--- مصادر الأموال والثروة: قائمة متعددة (G-4)
+-- Sources of funds and wealth: multiple-value list (G-4)
 CREATE TABLE [org].[CompanyWealthSource] (
     [TenantId] INT NOT NULL,
     [FinancialProfileId] BIGINT NOT NULL,
@@ -1292,7 +1292,7 @@ CREATE TABLE [org].[CompanyWealthSource] (
     CONSTRAINT [PK_CompanyWealthSource] PRIMARY KEY CLUSTERED ([TenantId], [FinancialProfileId], [WealthSourceId])
 );
 GO
--- إفصاحات الشركة (G-5)
+-- Company disclosures (G-5)
 CREATE TABLE [org].[CompanyDisclosure] (
     [TenantId] INT NOT NULL,
     [CompanyDisclosureId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -1315,7 +1315,7 @@ CREATE TABLE [org].[CompanyDisclosure] (
     CONSTRAINT [CK_CompanyDisclosure_Status] CHECK ([Status] IS NULL OR [Status] IN ('OPEN', 'RESOLVED'))
 );
 GO
--- أصحاب العلاقة: مدققون، مستشار قانوني، جهات تنظيمية، أبرز العملاء/الموردين (G-6)
+-- Key relations: auditors, legal counsel, regulators, and major customers and suppliers (G-6)
 CREATE TABLE [org].[CompanyKeyRelation] (
     [TenantId] INT NOT NULL,
     [CompanyKeyRelationId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -1339,7 +1339,7 @@ CREATE TABLE [org].[CompanyKeyRelation] (
 GO
 
 -- ===== schema pty =====
--- شخص أو جهة؛ لا دور مخزَّن (FR-PTY-001..003، BR-PTY-001..004، BR-PTY-016..018)
+-- Person or entity; no stored role (FR-PTY-001..003, BR-PTY-001..004, BR-PTY-016..018)
 CREATE TABLE [pty].[Party] (
     [TenantId] INT NOT NULL,
     [PartyId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -1380,7 +1380,7 @@ CREATE TABLE [pty].[Party] (
     CONSTRAINT [CK_Party_Gender] CHECK ([Gender] IS NULL OR [Gender] IN ('MALE', 'FEMALE'))
 );
 GO
--- وثيقة هوية؛ الرقم مشفّر والصور مستندات مقيَّدة (FR-PTY-004..009، FR-PTY-020..022، BR-PTY-002..008)
+-- Identity document; the number is encrypted and images are restricted documents (FR-PTY-004..009, FR-PTY-020..022, BR-PTY-002..008)
 CREATE TABLE [pty].[IdentityDocument] (
     [TenantId] INT NOT NULL,
     [IdentityDocumentId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -1422,7 +1422,7 @@ CREATE TABLE [pty].[IdentityDocument] (
     CONSTRAINT [CK_IdentityDocument_HashKeyPurpose] CHECK ([HashKeyPurpose] IS NULL OR [HashKeyPurpose] IN ('BLIND_INDEX'))
 );
 GO
--- عنوان متعدد الملكية: OwnerType+OwnerId بلا FK (مزوّد المالك يتحقق منه التطبيق) (FR-PTY-011، BR-PTY-015)
+-- Postal address with an exclusive owner arc: exactly one of Party, Institution, Unit or Contact (FR-PTY-011, BR-PTY-015)
 CREATE TABLE [pty].[Address] (
     [TenantId] INT NOT NULL,
     [AddressId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -1458,7 +1458,7 @@ CREATE TABLE [pty].[Address] (
     CONSTRAINT [CK_Address_AddressType] CHECK ([AddressType] IS NULL OR [AddressType] IN ('NATIONAL', 'RESIDENTIAL', 'WORK', 'PO_BOX', 'REGISTERED', 'OTHER'))
 );
 GO
--- وسيلة اتصال متعددة الملكية (FR-PTY-012، BR-PTY-015)
+-- Contact method (phone, e-mail and similar) with an exclusive owner arc, as for addresses (FR-PTY-012, BR-PTY-015)
 CREATE TABLE [pty].[ContactMethod] (
     [TenantId] INT NOT NULL,
     [ContactMethodId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -1482,7 +1482,7 @@ CREATE TABLE [pty].[ContactMethod] (
     CONSTRAINT [CK_ContactMethod_Kind] CHECK ([Kind] IS NULL OR [Kind] IN ('MOBILE', 'PHONE', 'EMAIL', 'FAX', 'WEBSITE', 'OTHER'))
 );
 GO
--- تعريف حقل مخصص (FR-PTY-013، BR-PTY-014)
+-- Custom field definition (FR-PTY-013, BR-PTY-014)
 CREATE TABLE [pty].[CustomFieldDefinition] (
     [TenantId] INT NOT NULL,
     [CustomFieldDefinitionId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -1511,7 +1511,7 @@ CREATE TABLE [pty].[CustomFieldDefinition] (
     CONSTRAINT [CK_CustomFieldDefinition_ListValues_json] CHECK ([ListValues] IS NULL OR ISJSON([ListValues]) = 1)
 );
 GO
--- قيمة حقل مخصص لشخص (FR-PTY-013، FR-PTY-014)
+-- Custom-field value for a party (FR-PTY-013, FR-PTY-014)
 CREATE TABLE [pty].[PartyCustomField] (
     [TenantId] INT NOT NULL,
     [PartyCustomFieldId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -1537,7 +1537,7 @@ CREATE TABLE [pty].[PartyCustomField] (
     CONSTRAINT [CK_PartyCustomField_EncKeyPurpose] CHECK ([EncKeyPurpose] IS NULL OR [EncKeyPurpose] IN ('DATA'))
 );
 GO
--- قائمة اكتمال KYC لكل بنك ودور (FR-PTY-023، BR-PTY-012..013، G-8، G-14)
+-- KYC completeness checklist per bank and role (FR-PTY-023, BR-PTY-012..013, G-8, G-14)
 CREATE TABLE [pty].[KycProfile] (
     [TenantId] INT NOT NULL,
     [KycProfileId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -1570,7 +1570,7 @@ CREATE TABLE [pty].[KycProfile] (
     CONSTRAINT [CK_KycProfile_Status] CHECK ([Status] IS NULL OR [Status] IN ('DRAFT', 'ACTIVE', 'RETIRED'))
 );
 GO
--- بند اكتمال (FR-PTY-023، FR-PTY-024، G-14)
+-- Completeness item (FR-PTY-023, FR-PTY-024, G-14)
 CREATE TABLE [pty].[KycProfileItem] (
     [TenantId] INT NOT NULL,
     [KycProfileItemId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -1600,7 +1600,7 @@ CREATE TABLE [pty].[KycProfileItem] (
     CONSTRAINT [CK_KycProfileItem_ConditionJson_json] CHECK ([ConditionJson] IS NULL OR ISJSON([ConditionJson]) = 1)
 );
 GO
--- شروط ظهور البند بحسب الشكل القانوني؛ غياب الصفوف = ينطبق على الكل (G-15)
+-- Conditions for an item to apply, by legal form; no rows = applies to all (G-15)
 CREATE TABLE [pty].[KycProfileItemLegalForm] (
     [TenantId] INT NOT NULL,
     [KycProfileItemId] BIGINT NOT NULL,
@@ -1612,7 +1612,7 @@ CREATE TABLE [pty].[KycProfileItemLegalForm] (
     CONSTRAINT [PK_KycProfileItemLegalForm] PRIMARY KEY CLUSTERED ([TenantId], [KycProfileItemId], [LegalEntityTypeId])
 );
 GO
--- إقرارات امتثال بتاريخ لكل شخص بصفته: PEP، عقوبات، تحقيقات، حصانة (G-9)
+-- Dated compliance declarations per person in their capacity: PEP, sanctions, investigations, immunity (G-9)
 CREATE TABLE [pty].[PartyCompliance] (
     [TenantId] INT NOT NULL,
     [PartyComplianceId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -1639,7 +1639,7 @@ CREATE TABLE [pty].[PartyCompliance] (
     CONSTRAINT [CK_PartyCompliance_Capacity] CHECK ([Capacity] IS NULL OR [Capacity] IN ('OWNER', 'BENEFICIAL_OWNER', 'BOARD_MEMBER', 'EXECUTIVE', 'SIGNATORY', 'OTHER'))
 );
 GO
--- الهوية الضريبية والإقرار الضريبي FATCA/CRS (G-13)
+-- Tax identity and FATCA/CRS tax declaration (G-13)
 CREATE TABLE [pty].[TaxIdentity] (
     [TenantId] INT NOT NULL,
     [TaxIdentityId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -1665,7 +1665,7 @@ CREATE TABLE [pty].[TaxIdentity] (
 GO
 
 -- ===== schema ref =====
--- الدولة: مرجع عالمي للقراءة فقط يديره مشغّل المنصة (FR-CAT-026، BR-CAT-018، BR-CAT-015)
+-- Country: global reference, read-only, managed by the platform operator (FR-CAT-026, BR-CAT-018, BR-CAT-015)
 CREATE TABLE [ref].[Country] (
     [CountryId] INT IDENTITY(1,1) NOT NULL,
     [Iso2] CHAR(2) NOT NULL,
@@ -1688,7 +1688,7 @@ CREATE TABLE [ref].[Country] (
     CONSTRAINT [CK_Country_3] CHECK (WeekendDays IS NULL OR WeekendDays NOT LIKE '%[^A-Z,]%')
 );
 GO
--- العملة: مرجع عالمي ISO 4217 للقراءة فقط (FR-CAT-021، Q-CAT-08)
+-- Currency: global ISO 4217 reference, read-only (FR-CAT-021, Q-CAT-08)
 CREATE TABLE [ref].[Currency] (
     [CurrencyId] INT IDENTITY(1,1) NOT NULL,
     [Code] CHAR(3) NOT NULL,
@@ -1710,7 +1710,7 @@ CREATE TABLE [ref].[Currency] (
     CONSTRAINT [CK_Currency_3] CHECK (NumericCode NOT LIKE '%[^0-9]%')
 );
 GO
--- مصطلح تسليم Incoterms: مرجع عالمي للقراءة فقط يديره المشغّل؛ القديم LEGACY للعرض لا للاختيار (FR-LCT-013، FR-CAT-021، BR-CAT-015)
+-- Incoterms delivery term: global reference, read-only, managed by the operator; legacy terms are displayed, not selectable (FR-LCT-013, FR-CAT-021, BR-CAT-015)
 CREATE TABLE [ref].[Incoterm] (
     [IncotermId] INT IDENTITY(1,1) NOT NULL,
     [Code] CHAR(3) NOT NULL,
@@ -1731,7 +1731,7 @@ CREATE TABLE [ref].[Incoterm] (
     CONSTRAINT [CK_Incoterm_Status] CHECK ([Status] IS NULL OR [Status] IN ('ACTIVE', 'LEGACY'))
 );
 GO
--- مادة UCP 600 مرجعية: TenantId الفارغ = صف عام للقراءة فقط ينشره المشغّل وحده (FR-LCT-006، BR-LCT-018، BR-PLT-001)
+-- UCP 600 reference article: NULL TenantId = global read-only row, published only by the platform operator (FR-LCT-006, BR-LCT-018, BR-PLT-001)
 CREATE TABLE [ref].[UcpArticle] (
     [TenantId] INT NULL,
     [UcpArticleId] INT IDENTITY(1,1) NOT NULL,
@@ -1760,7 +1760,7 @@ CREATE TABLE [ref].[UcpArticle] (
 GO
 
 -- ===== schema cat =====
--- العملات المفعّلة للمشترك: تفعيل مجموعة جزئية من المرجع العالمي (FR-CAT-023، Q-CAT-08) -- جدول بنيوي جديد
+-- Currencies enabled for the tenant: a subset of the global currency reference (FR-CAT-023, Q-CAT-08) -- جدول بنيوي جديد
 CREATE TABLE [cat].[TenantCurrency] (
     [TenantId] INT NOT NULL,
     [CurrencyId] INT NOT NULL,
@@ -1773,7 +1773,7 @@ CREATE TABLE [cat].[TenantCurrency] (
     CONSTRAINT [PK_TenantCurrency] PRIMARY KEY CLUSTERED ([TenantId], [CurrencyId])
 );
 GO
--- نوع المنشأة المالية: بنك، شركة تمويل، استثمارية، مالية، فرد (FR-INS-001)
+-- Financial institution type: bank, finance company, investment company, financial company, individual (FR-INS-001)
 CREATE TABLE [cat].[InstitutionType] (
     [TenantId] INT NOT NULL,
     [InstitutionTypeId] INT IDENTITY(1,1) NOT NULL,
@@ -1800,7 +1800,7 @@ CREATE TABLE [cat].[InstitutionType] (
     CONSTRAINT [CK_InstitutionType_2] CHECK ((IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL))
 );
 GO
--- نوع الحساب (FR-ACC-001)
+-- Account type (FR-ACC-001)
 CREATE TABLE [cat].[AccountType] (
     [TenantId] INT NOT NULL,
     [AccountTypeId] INT IDENTITY(1,1) NOT NULL,
@@ -1827,7 +1827,7 @@ CREATE TABLE [cat].[AccountType] (
     CONSTRAINT [CK_AccountType_2] CHECK ((IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL))
 );
 GO
--- الشكل القانوني: الكيان وسماته يعرّفها 10 (FR-ORG-002، BR-CAT-017) وتبذره هذه الوحدة؛ أعمدة الكتالوج مكتوبة يدويًا لأن فرادة الرمز بالدولة (10 §6.2) لا فرادته وحده
+-- Legal entity type: the entity and its attributes are defined in specification 10 (FR-ORG-002, BR-CAT-017) and seeded by this module; catalogue columns are written by hand because code uniqueness is per country (specification 10, section 6.2), not global
 CREATE TABLE [cat].[LegalEntityType] (
     [TenantId] INT NOT NULL,
     [LegalEntityTypeId] INT IDENTITY(1,1) NOT NULL,
@@ -1858,7 +1858,7 @@ CREATE TABLE [cat].[LegalEntityType] (
     CONSTRAINT [CK_LegalEntityType_DefaultBodyTypes_json] CHECK ([DefaultBodyTypes] IS NULL OR ISJSON([DefaultBodyTypes]) = 1)
 );
 GO
--- نوع الوثيقة؛ يطبّق 10 أعلامه عند الرفع (FR-CAT-018، BR-CAT-016، FR-PLT-028)
+-- Document type; applies the flags defined in specification 10 at upload (FR-CAT-018, BR-CAT-016, FR-PLT-028)
 CREATE TABLE [cat].[DocumentType] (
     [TenantId] INT NOT NULL,
     [DocumentTypeId] INT IDENTITY(1,1) NOT NULL,
@@ -1895,7 +1895,7 @@ CREATE TABLE [cat].[DocumentType] (
     CONSTRAINT [CK_DocumentType_AllowedMime_json] CHECK ([AllowedMime] IS NULL OR ISJSON([AllowedMime]) = 1)
 );
 GO
--- المنصب: السمات يعرّفها 10 §6.2 وحده وتبذر هذه الوحدة صفوفه (FR-CAT-019، BR-CAT-017)؛ SortOrder من أساس الكتالوج
+-- Job position: its attributes are defined in specification 10 (section 6.2) only, and this module seeds its rows (FR-CAT-019, BR-CAT-017); SortOrder comes from the catalogue base
 CREATE TABLE [cat].[Position] (
     [TenantId] INT NOT NULL,
     [PositionId] INT IDENTITY(1,1) NOT NULL,
@@ -1924,7 +1924,7 @@ CREATE TABLE [cat].[Position] (
     CONSTRAINT [CK_Position_ApplicableBodyTypes_json] CHECK ([ApplicableBodyTypes] IS NULL OR ISJSON([ApplicableBodyTypes]) = 1)
 );
 GO
--- نوع الصلاحية: السمات يعرّفها 10 §6.2 وحده وتبذر هذه الوحدة صفوفه (FR-CAT-019، FR-ORG-024)
+-- Governance power type: its attributes are defined in specification 10 (section 6.2) only, and this module seeds its rows (FR-CAT-019, FR-ORG-024)
 CREATE TABLE [cat].[PowerType] (
     [TenantId] INT NOT NULL,
     [PowerTypeId] INT IDENTITY(1,1) NOT NULL,
@@ -1953,7 +1953,7 @@ CREATE TABLE [cat].[PowerType] (
     CONSTRAINT [CK_PowerType_Category] CHECK ([Category] IS NULL OR [Category] IN ('CONTRACTS', 'ACCOUNTS', 'BORROWING', 'GUARANTEES', 'TRADE', 'REPRESENTATION', 'ASSETS', 'OTHER'))
 );
 GO
--- نوع العملية البنكية المفوَّض بها (FR-ACC-013، BR-CAT-014)
+-- Bank operation type that a signatory is authorised for (FR-ACC-013, BR-CAT-014)
 CREATE TABLE [cat].[OperationType] (
     [TenantId] INT NOT NULL,
     [OperationTypeId] INT IDENTITY(1,1) NOT NULL,
@@ -1982,7 +1982,7 @@ CREATE TABLE [cat].[OperationType] (
     CONSTRAINT [CK_OperationType_OperationGroup] CHECK ([OperationGroup] IS NULL OR [OperationGroup] IN ('MONEY', 'CREDIT', 'REPRESENTATION', 'CHANNEL'))
 );
 GO
--- ربط عملية بنوع/أنواع صلاحية حوكمة؛ «أي واحد يكفي» (BR-CAT-014، FR-CAT-019، Q-ACC-05) -- جدول وسيط جديد
+-- Links an operation to governance power type(s): any one is sufficient (BR-CAT-014, FR-CAT-019, Q-ACC-05) -- جدول وسيط جديد
 CREATE TABLE [cat].[OperationTypePowerType] (
     [TenantId] INT NOT NULL,
     [OperationTypeId] INT NOT NULL,
@@ -1994,7 +1994,7 @@ CREATE TABLE [cat].[OperationTypePowerType] (
     CONSTRAINT [PK_OperationTypePowerType] PRIMARY KEY CLUSTERED ([TenantId], [OperationTypeId], [PowerTypeId])
 );
 GO
--- تصنيف المنتجات: مسطّح (FR-CAT-007)
+-- Product category: flat list (FR-CAT-007)
 CREATE TABLE [cat].[ProductCategory] (
     [TenantId] INT NOT NULL,
     [ProductCategoryId] INT IDENTITY(1,1) NOT NULL,
@@ -2020,7 +2020,7 @@ CREATE TABLE [cat].[ProductCategory] (
     CONSTRAINT [CK_ProductCategory_2] CHECK ((IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL))
 );
 GO
--- المنتج البنكي بأعلامه (FR-CAT-007، BR-CAT-004)
+-- Bank product with its flags (FR-CAT-007, BR-CAT-004)
 CREATE TABLE [cat].[Product] (
     [TenantId] INT NOT NULL,
     [ProductId] INT IDENTITY(1,1) NOT NULL,
@@ -2054,7 +2054,7 @@ CREATE TABLE [cat].[Product] (
     CONSTRAINT [CK_Product_Compliance] CHECK ([Compliance] IS NULL OR [Compliance] IN ('CONVENTIONAL', 'ISLAMIC', 'NEUTRAL'))
 );
 GO
--- نوع المصروف: فئة عريضة لا بند تعرفة (FR-CAT-008، BR-CAT-005، Q-CAT-10)
+-- Fee type: a broad category, not a tariff item (FR-CAT-008, BR-CAT-005, Q-CAT-10)
 CREATE TABLE [cat].[FeeType] (
     [TenantId] INT NOT NULL,
     [FeeTypeId] INT IDENTITY(1,1) NOT NULL,
@@ -2084,7 +2084,7 @@ CREATE TABLE [cat].[FeeType] (
     CONSTRAINT [CK_FeeType_CalcHint] CHECK ([CalcHint] IS NULL OR [CalcHint] IN ('PERCENT', 'FIXED', 'PER_MILLION', 'TIERED'))
 );
 GO
--- نوع التمويل (FR-CAT-009، BR-CAT-006)
+-- Financing type (FR-CAT-009, BR-CAT-006)
 CREATE TABLE [cat].[FinancingType] (
     [TenantId] INT NOT NULL,
     [FinancingTypeId] INT IDENTITY(1,1) NOT NULL,
@@ -2113,7 +2113,7 @@ CREATE TABLE [cat].[FinancingType] (
     CONSTRAINT [CK_FinancingType_ReturnLabel] CHECK ([ReturnLabel] IS NULL OR [ReturnLabel] IN ('PROFIT', 'INTEREST'))
 );
 GO
--- المصاريف المسموحة للمنتج؛ تعطيل الربط = حذفه ولا يمس قواعد تسعير قائمة (FR-CAT-010، BR-CAT-007) -- يبقى بمفتاح بديل لأنه يحمل سمة
+-- Fee types allowed for a product; disabling a link deletes it and does not affect list pricing rules (FR-CAT-010, BR-CAT-007) -- يبقى بمفتاح بديل لأنه يحمل سمة
 CREATE TABLE [cat].[ProductFeeType] (
     [TenantId] INT NOT NULL,
     [ProductFeeTypeId] INT IDENTITY(1,1) NOT NULL,
@@ -2130,7 +2130,7 @@ CREATE TABLE [cat].[ProductFeeType] (
     CONSTRAINT [UQ_ProductFeeType_ProductId_FeeTypeId] UNIQUE ([TenantId], [ProductId], [FeeTypeId])
 );
 GO
--- أنواع التمويل المسموحة للمنتج (FR-CAT-010، BR-CAT-007)
+-- Financing types allowed for a product (FR-CAT-010, BR-CAT-007)
 CREATE TABLE [cat].[ProductFinancingType] (
     [TenantId] INT NOT NULL,
     [ProductFinancingTypeId] INT IDENTITY(1,1) NOT NULL,
@@ -2147,7 +2147,7 @@ CREATE TABLE [cat].[ProductFinancingType] (
     CONSTRAINT [UQ_ProductFinancingType_ProductId_FinancingTypeId] UNIQUE ([TenantId], [ProductId], [FinancingTypeId])
 );
 GO
--- نوع التسهيل (FR-CAT-011)
+-- Facility type (FR-CAT-011)
 CREATE TABLE [cat].[FacilityType] (
     [TenantId] INT NOT NULL,
     [FacilityTypeId] INT IDENTITY(1,1) NOT NULL,
@@ -2175,7 +2175,7 @@ CREATE TABLE [cat].[FacilityType] (
     CONSTRAINT [CK_FacilityType_Compliance] CHECK ([Compliance] IS NULL OR [Compliance] IN ('CONVENTIONAL', 'ISLAMIC', 'NEUTRAL'))
 );
 GO
--- نوع الحد: رئيسي/جزئي (FR-CAT-012، BR-CAT-008)
+-- Limit type: master or sub-limit (FR-CAT-012, BR-CAT-008)
 CREATE TABLE [cat].[LimitType] (
     [TenantId] INT NOT NULL,
     [LimitTypeId] INT IDENTITY(1,1) NOT NULL,
@@ -2209,7 +2209,7 @@ CREATE TABLE [cat].[LimitType] (
     CONSTRAINT [CK_LimitType_DefaultDistributionMode] CHECK ([DefaultDistributionMode] IS NULL OR [DefaultDistributionMode] IN ('SHARED_CAP', 'PARTITION', 'OUTSIDE_TOTAL'))
 );
 GO
--- المنتجات المسموحة لنوع الحد؛ غياب الصفوف = أي منتج بعلامة ظاهرة (BR-CAT-008) -- جدول وسيط جديد
+-- Products allowed for a limit type; no rows = any product, with a visible flag (BR-CAT-008) -- جدول وسيط جديد
 CREATE TABLE [cat].[LimitTypeProduct] (
     [TenantId] INT NOT NULL,
     [LimitTypeId] INT NOT NULL,
@@ -2221,7 +2221,7 @@ CREATE TABLE [cat].[LimitTypeProduct] (
     CONSTRAINT [PK_LimitTypeProduct] PRIMARY KEY CLUSTERED ([TenantId], [LimitTypeId], [ProductId])
 );
 GO
--- نوع الضمان بنوع بنية وقالب سمات (FR-CAT-013)
+-- Collateral type with its structure type and attribute template (FR-CAT-013)
 CREATE TABLE [cat].[CollateralType] (
     [TenantId] INT NOT NULL,
     [CollateralTypeId] INT IDENTITY(1,1) NOT NULL,
@@ -2249,7 +2249,7 @@ CREATE TABLE [cat].[CollateralType] (
     CONSTRAINT [CK_CollateralType_StructureKind] CHECK ([StructureKind] IS NULL OR [StructureKind] IN ('GUARANTEE', 'PROMISSORY_NOTE', 'INSURANCE_ASSIGNMENT', 'CASH_MARGIN', 'REAL_ESTATE', 'SET_OFF', 'NEGATIVE_PLEDGE', 'GENERIC'))
 );
 GO
--- سمة في قالب نوع الضمان؛ لا تُحذف بل تُرمَّز Retired (BR-CAT-009) -- جدول جديد
+-- Attribute in a collateral-type template; never deleted, only marked Retired (BR-CAT-009) -- جدول جديد
 CREATE TABLE [cat].[CollateralTypeAttribute] (
     [TenantId] INT NOT NULL,
     [CollateralTypeAttributeId] INT IDENTITY(1,1) NOT NULL,
@@ -2275,7 +2275,7 @@ CREATE TABLE [cat].[CollateralTypeAttribute] (
     CONSTRAINT [CK_CollateralTypeAttribute_ListOptions_json] CHECK ([ListOptions] IS NULL OR ISJSON([ListOptions]) = 1)
 );
 GO
--- نوع الالتزام بأربع عائلات (FR-CAT-014، BR-CAT-010)
+-- Obligation type with four families (FR-CAT-014, BR-CAT-010)
 CREATE TABLE [cat].[ObligationType] (
     [TenantId] INT NOT NULL,
     [ObligationTypeId] INT IDENTITY(1,1) NOT NULL,
@@ -2311,7 +2311,7 @@ CREATE TABLE [cat].[ObligationType] (
     CONSTRAINT [CK_ObligationType_DefaultDeadlineBasis] CHECK ([DefaultDeadlineBasis] IS NULL OR [DefaultDeadlineBasis] IN ('AFTER_PERIOD_END', 'AFTER_FISCAL_YEAR_END', 'BEFORE_EVENT', 'AFTER_EVENT', 'ON_DEMAND_REQUEST', 'FIXED_DATE'))
 );
 GO
--- سعر الأساس: سوق (InstitutionId فارغ) أو داخلي لبنك (FR-CAT-015، BR-CAT-011)؛ الأسماء البديلة في BaseRateAlias
+-- Base rate: market-wide (InstitutionId NULL) or internal to a bank (FR-CAT-015, BR-CAT-011); alternative names are in BaseRateAlias
 CREATE TABLE [cat].[BaseRate] (
     [TenantId] INT NOT NULL,
     [BaseRateId] INT IDENTITY(1,1) NOT NULL,
@@ -2349,7 +2349,7 @@ CREATE TABLE [cat].[BaseRate] (
     CONSTRAINT [CK_BaseRate_Tenor] CHECK ([Tenor] IS NULL OR [Tenor] IN ('ON', '1M', '3M', '6M', '12M'))
 );
 GO
--- اسم بديل لسعر أساس (SIBOR ≡ SAIBOR) بحث بلا حساسية حالة وفريد ضمن النطاق (BR-CAT-011، FR-CAT-015) -- جدول وسيط جديد يحل «Aliases set»
+-- Alternative name for a base rate (for example SIBOR and SAIBOR); case-insensitive search; unique within scope (BR-CAT-011, FR-CAT-015) -- جدول وسيط جديد يحل «Aliases set»
 CREATE TABLE [cat].[BaseRateAlias] (
     [TenantId] INT NOT NULL,
     [BaseRateAliasId] INT IDENTITY(1,1) NOT NULL,
@@ -2369,7 +2369,7 @@ CREATE TABLE [cat].[BaseRateAlias] (
     CONSTRAINT [CK_BaseRateAlias_Tenor] CHECK ([Tenor] IS NULL OR [Tenor] IN ('ON', '1M', '3M', '6M', '12M'))
 );
 GO
--- قيمة سعر الأساس بتاريخ سريان؛ لا حذف: التصحيح صف جديد والقديم SUPERSEDED (FR-CAT-016، BR-CAT-012/013)
+-- Base-rate value with an effective date; rows are never deleted: a correction inserts a new row and the old one becomes SUPERSEDED (FR-CAT-016, BR-CAT-012/013)
 CREATE TABLE [cat].[BaseRateValue] (
     [TenantId] INT NOT NULL,
     [BaseRateValueId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -2395,7 +2395,7 @@ CREATE TABLE [cat].[BaseRateValue] (
     CONSTRAINT [CK_BaseRateValue_Status] CHECK ([Status] IS NULL OR [Status] IN ('VALID', 'SUPERSEDED'))
 );
 GO
--- قائمة قيم مملوكة للمشترك (FR-CAT-020، BR-CAT-015) -- DR-03: نسخة النظام تُهيَّأ لكل مشترك من قالب المنصة
+-- Tenant-owned lookup list (FR-CAT-020, BR-CAT-015) -- DR-03: نسخة النظام تُهيَّأ لكل مشترك من قالب المنصة
 CREATE TABLE [cat].[LookupList] (
     [TenantId] INT NOT NULL,
     [LookupListId] INT IDENTITY(1,1) NOT NULL,
@@ -2427,7 +2427,7 @@ CREATE TABLE [cat].[LookupList] (
     CONSTRAINT [CK_LookupList_AttributeSchema_json] CHECK ([AttributeSchema] IS NULL OR ISJSON([AttributeSchema]) = 1)
 );
 GO
--- بند في قائمة قيم مملوك للمشترك (FR-CAT-020) -- DR-03/05/07: نسخ النظام لكل مشترك؛ فرادة الرمز داخل القائمة لا على مستوى المشترك
+-- Item in a tenant-owned lookup list (FR-CAT-020) -- DR-03/05/07: نسخ النظام لكل مشترك؛ فرادة الرمز داخل القائمة لا على مستوى المشترك
 CREATE TABLE [cat].[LookupItem] (
     [TenantId] INT NOT NULL,
     [LookupItemId] INT IDENTITY(1,1) NOT NULL,
@@ -2460,7 +2460,7 @@ CREATE TABLE [cat].[LookupItem] (
 GO
 
 -- ===== schema ins =====
--- المنشأة المالية (FR-INS-001..004، BR-INS-001..003، BR-INS-012)؛ Locality محلي/أجنبي مشتقة (BR-INS-002) فلا تُخزَّن
+-- Financial institution (FR-INS-001..004, BR-INS-001..003, BR-INS-012); Locality (local or foreign) is derived (BR-INS-002) and therefore not stored
 CREATE TABLE [ins].[Institution] (
     [TenantId] INT NOT NULL,
     [InstitutionId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -2490,7 +2490,7 @@ CREATE TABLE [ins].[Institution] (
     CONSTRAINT [CK_Institution_Status] CHECK ([Status] IS NULL OR [Status] IN ('DRAFT', 'ACTIVE', 'INACTIVE'))
 );
 GO
--- وحدة في هيكل المنشأة: إدارة/قسم/فرع، شجرة ذاتية حتى 4 مستويات (FR-INS-005/006، BR-INS-004)
+-- Unit in an institution's structure: division, department or branch; self-referencing tree of up to four levels (FR-INS-005/006, BR-INS-004)
 CREATE TABLE [ins].[InstitutionUnit] (
     [TenantId] INT NOT NULL,
     [InstitutionUnitId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -2512,7 +2512,7 @@ CREATE TABLE [ins].[InstitutionUnit] (
     CONSTRAINT [CK_InstitutionUnit_1] CHECK (ParentUnitId IS NULL OR ParentUnitId <> InstitutionUnitId)
 );
 GO
--- جهة اتصال لدى البنك: سجل خفيف بلا هوية، PartyId اختياري للترقية (FR-INS-007/008، BR-INS-005/006/014)
+-- Contact at a bank: a lightweight record with no identity; PartyId is optional, for promotion (FR-INS-007/008, BR-INS-005/006/014)
 CREATE TABLE [ins].[Contact] (
     [TenantId] INT NOT NULL,
     [ContactId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -2543,7 +2543,7 @@ CREATE TABLE [ins].[Contact] (
     CONSTRAINT [CK_Contact_InactiveReason] CHECK ([InactiveReason] IS NULL OR [InactiveReason] IN ('LEFT_BANK', 'TRANSFERRED', 'OTHER'))
 );
 GO
--- علاقة شركة–منشأة (D-4)؛ فريدة مهما كانت حالتها (FR-INS-009، BR-INS-007/011)
+-- Company–institution relationship (D-4); unique regardless of status (FR-INS-009, BR-INS-007/011)
 CREATE TABLE [ins].[Relationship] (
     [TenantId] INT NOT NULL,
     [RelationshipId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -2572,7 +2572,7 @@ CREATE TABLE [ins].[Relationship] (
     CONSTRAINT [CK_Relationship_Status] CHECK ([Status] IS NULL OR [Status] IN ('PROSPECT', 'ACTIVE', 'SUSPENDED', 'CLOSED'))
 );
 GO
--- تغطية العلاقة (الطبقة الأولى): جهة اتصال بدور ورتبة وفترة (FR-INS-010، BR-INS-008/009)
+-- Relationship coverage (first layer): contact with role, rank and period (FR-INS-010, BR-INS-008/009)
 CREATE TABLE [ins].[RelationshipContact] (
     [TenantId] INT NOT NULL,
     [RelationshipContactId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -2597,7 +2597,7 @@ CREATE TABLE [ins].[RelationshipContact] (
     CONSTRAINT [CK_RelationshipContact_2] CHECK (Rank >= 1)
 );
 GO
--- منتج يُتعامل به ضمن علاقة مع جهة افتراضية وقناة (FR-INS-011..013، BR-INS-010)
+-- Product handled within a relationship, with a default contact and channel (FR-INS-011..013, BR-INS-010)
 CREATE TABLE [ins].[RelationshipProduct] (
     [TenantId] INT NOT NULL,
     [RelationshipProductId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -2622,7 +2622,7 @@ CREATE TABLE [ins].[RelationshipProduct] (
 GO
 
 -- ===== schema acc =====
--- حساب شركة لدى منشأة (FR-ACC-001..009، BR-ACC-001..006، BR-ACC-016)؛ الرقم وIBAN مشفّران بفهرس أعمى للفرادة
+-- Company bank account at a financial institution (FR-ACC-001..009, BR-ACC-001..006, BR-ACC-016); account number and IBAN are encrypted, with blind-index uniqueness
 CREATE TABLE [acc].[BankAccount] (
     [TenantId] INT NOT NULL,
     [BankAccountId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -2678,7 +2678,7 @@ CREATE TABLE [acc].[BankAccount] (
     CONSTRAINT [CK_BankAccount_Status] CHECK ([Status] IS NULL OR [Status] IN ('ACTIVE', 'DORMANT', 'FROZEN', 'CLOSED'))
 );
 GO
--- ربط حساب بتسهيل بغرض (S2) (FR-ACC-010، BR-ACC-007)؛ يُملأ من شاشة التسهيل
+-- Account linked to a facility for a specific purpose (S2) (FR-ACC-010, BR-ACC-007); populated from the facility screen
 CREATE TABLE [acc].[FacilityAccount] (
     [TenantId] INT NOT NULL,
     [FacilityAccountId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -2701,7 +2701,7 @@ CREATE TABLE [acc].[FacilityAccount] (
     CONSTRAINT [CK_FacilityAccount_1] CHECK (ValidTo IS NULL OR ValidFrom IS NULL OR ValidTo >= ValidFrom)
 );
 GO
--- تفويض شخص لدى علاقة (S1-ب) (FR-ACC-012، FR-ACC-023، BR-ACC-008/009) + إضافات docs/05 G-10
+-- Person authorised to sign for a relationship (S1-B) (FR-ACC-012, FR-ACC-023, BR-ACC-008/009), plus additions from docs/05 G-10
 CREATE TABLE [acc].[Signatory] (
     [TenantId] INT NOT NULL,
     [SignatoryId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -2740,7 +2740,7 @@ CREATE TABLE [acc].[Signatory] (
     CONSTRAINT [CK_Signatory_Status] CHECK ([Status] IS NULL OR [Status] IN ('PENDING', 'ACTIVE', 'SUSPENDED', 'EXPIRED', 'REVOKED'))
 );
 GO
--- صلاحية المفوّض لعملية على حساب أو على البنك (S1-ب) (FR-ACC-013/014/017، BR-ACC-010/011)؛ لا تعديل في مكانه: الإغلاق والفتح؛ حالتها مشتقة فلا تُخزَّن
+-- Signatory authority for an operation on an account or on the bank (S1-B) (FR-ACC-013/014/017, BR-ACC-010/011); not edited in place: closed and reopened instead; its status is derived and not stored
 CREATE TABLE [acc].[SignatoryAuthority] (
     [TenantId] INT NOT NULL,
     [SignatoryAuthorityId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -2778,7 +2778,7 @@ CREATE TABLE [acc].[SignatoryAuthority] (
     CONSTRAINT [CK_SignatoryAuthority_CeilingMode] CHECK ([CeilingMode] IS NULL OR [CeilingMode] IN ('LIMITED', 'UNLIMITED', 'UNSPECIFIED'))
 );
 GO
--- فئات التوقيع المطلوبة للتوقيع المشترك (JointClassIds) (BR-ACC-013) -- جدول وسيط جديد؛ لا حذف: التعديل بصف صلاحية جديد
+-- Signature classes required for joint signing (JointClassIds) (BR-ACC-013) -- جدول وسيط جديد؛ لا حذف: التعديل بصف صلاحية جديد
 CREATE TABLE [acc].[SignatoryAuthorityJointClass] (
     [TenantId] INT NOT NULL,
     [SignatoryAuthorityId] BIGINT NOT NULL,
@@ -2790,7 +2790,7 @@ CREATE TABLE [acc].[SignatoryAuthorityJointClass] (
     CONSTRAINT [PK_SignatoryAuthorityJointClass] PRIMARY KEY CLUSTERED ([TenantId], [SignatoryAuthorityId], [SignatureClassId])
 );
 GO
--- نتيجة مقارنة صلاحية المفوّض بالحوكمة وقرار المراجع (S1-ب) (FR-ACC-018، BR-ACC-015)
+-- Result of checking a signatory's authority against governance rules, and the reviewer's decision (S1-B) (FR-ACC-018, BR-ACC-015)
 CREATE TABLE [acc].[AuthorityConflict] (
     [TenantId] INT NOT NULL,
     [AuthorityConflictId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -2818,7 +2818,7 @@ CREATE TABLE [acc].[AuthorityConflict] (
 GO
 
 -- ===== schema fac =====
--- حزمة الاتفاقية الائتمانية: جذر التجميعة (FR-FAC-001..008، BR-FAC-001/005/006)
+-- Facility agreement package: root of the aggregate (FR-FAC-001..008, BR-FAC-001/005/006)
 CREATE TABLE [fac].[Facility] (
     [TenantId] INT NOT NULL,
     [FacilityId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -2876,7 +2876,7 @@ CREATE TABLE [fac].[Facility] (
     CONSTRAINT [CK_Facility_LifecycleStatus] CHECK ([LifecycleStatus] IS NULL OR [LifecycleStatus] IN ('DRAFT', 'ACTIVE', 'SUSPENDED', 'EXPIRED', 'TERMINATED', 'SUPERSEDED'))
 );
 GO
--- مراجعة معدّ/معتمِد لشروط التسهيل (FR-FAC-024، BR-FAC-003/004، §8)
+-- Preparer and approver revision of facility terms (FR-FAC-024, BR-FAC-003/004, section 8)
 CREATE TABLE [fac].[FacilityRevision] (
     [TenantId] INT NOT NULL,
     [FacilityRevisionId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -2912,7 +2912,7 @@ CREATE TABLE [fac].[FacilityRevision] (
     CONSTRAINT [CK_FacilityRevision_IntegrityResult_json] CHECK ([IntegrityResult] IS NULL OR ISJSON([IntegrityResult]) = 1)
 );
 GO
--- وثيقة ضمن الحزمة بأسبقية (FR-FAC-004، BR-FAC-008، V-FAC-03)؛ نوعها من doc.Document.DocumentTypeId
+-- Document within the package, with precedence (FR-FAC-004, BR-FAC-008, V-FAC-03); its type comes from doc.Document.DocumentTypeId
 CREATE TABLE [fac].[FacilityDocument] (
     [TenantId] INT NOT NULL,
     [FacilityDocumentId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -2944,7 +2944,7 @@ CREATE TABLE [fac].[FacilityDocument] (
     CONSTRAINT [CK_FacilityDocument_Language] CHECK ([Language] IS NULL OR [Language] IN ('AR', 'EN', 'BILINGUAL'))
 );
 GO
--- مقرض وحصته (FR-FAC-003، BR-FAC-007، V-FAC-02)؛ مجموع الحصص 100 ووكيل واحد يتحقق منهما التطبيق
+-- Lender and its share (FR-FAC-003, BR-FAC-007, V-FAC-02); shares total 100 and a single agent, both checked by the application
 CREATE TABLE [fac].[FacilityLender] (
     [TenantId] INT NOT NULL,
     [FacilityLenderId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -2969,7 +2969,7 @@ CREATE TABLE [fac].[FacilityLender] (
     CONSTRAINT [CK_FacilityLender_4] CHECK (ToRevision IS NULL OR ToRevision >= FromRevision)
 );
 GO
--- لقطة الرصيد المعترف به (FR-FAC-009، BR-FAC-017)؛ PctOfLimit مشتق لا يُخزَّن
+-- Snapshot of the recognised outstanding balance (FR-FAC-009, BR-FAC-017); PctOfLimit is derived and not stored
 CREATE TABLE [fac].[OutstandingSnapshot] (
     [TenantId] INT NOT NULL,
     [OutstandingSnapshotId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -3006,7 +3006,7 @@ CREATE TABLE [fac].[OutstandingSnapshot] (
     CONSTRAINT [CK_OutstandingSnapshot_Confidence] CHECK ([Confidence] IS NULL OR [Confidence] IN ('CONFIRMED_AGAINST_ORIGINAL', 'READ_FROM_SCAN_UNVERIFIED', 'ENTERED_NO_DOCUMENT'))
 );
 GO
--- عقدة شجرة الحدود (FR-FAC-010/011، BR-FAC-009/010، V-FAC-04..07)
+-- Limit-tree node (FR-FAC-010/011, BR-FAC-009/010, V-FAC-04..07)
 CREATE TABLE [fac].[Limit] (
     [TenantId] INT NOT NULL,
     [LimitId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -3065,7 +3065,7 @@ CREATE TABLE [fac].[Limit] (
     CONSTRAINT [CK_Limit_Confidence] CHECK ([Confidence] IS NULL OR [Confidence] IN ('CONFIRMED_AGAINST_ORIGINAL', 'READ_FROM_SCAN_UNVERIFIED', 'ENTERED_NO_DOCUMENT'))
 );
 GO
--- خط منتج داخل حد: سقف اختياري SHARED_CAP دائمًا (FR-FAC-012، V-FAC-08)
+-- Product line within a limit, with an optional SHARED_CAP ceiling (FR-FAC-012, V-FAC-08)
 CREATE TABLE [fac].[LimitProductLine] (
     [TenantId] INT NOT NULL,
     [LimitProductLineId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -3110,7 +3110,7 @@ CREATE TABLE [fac].[LimitProductLine] (
     CONSTRAINT [CK_LimitProductLine_Confidence] CHECK ([Confidence] IS NULL OR [Confidence] IN ('CONFIRMED_AGAINST_ORIGINAL', 'READ_FROM_SCAN_UNVERIFIED', 'ENTERED_NO_DOCUMENT'))
 );
 GO
--- قيد شركة على حد: مسموح/مستثنى/تخصيص (FR-FAC-013، BR-FAC-012، V-FAC-09)
+-- Company rule on a limit: allowed, excluded or allocated (FR-FAC-013, BR-FAC-012, V-FAC-09)
 CREATE TABLE [fac].[LimitCompanyRule] (
     [TenantId] INT NOT NULL,
     [LimitCompanyRuleId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -3154,7 +3154,7 @@ CREATE TABLE [fac].[LimitCompanyRule] (
     CONSTRAINT [CK_LimitCompanyRule_Confidence] CHECK ([Confidence] IS NULL OR [Confidence] IN ('CONFIRMED_AGAINST_ORIGINAL', 'READ_FROM_SCAN_UNVERIFIED', 'ENTERED_NO_DOCUMENT'))
 );
 GO
--- شروط العملية لخط المنتج بتواريخ سريان؛ الفارغ = «غير محدد» لا صفر (FR-FAC-014، BR-FAC-016)
+-- Operational terms of a product line with effective dates; NULL means 'not specified', not zero (FR-FAC-014, BR-FAC-016)
 CREATE TABLE [fac].[ProductLineTerm] (
     [TenantId] INT NOT NULL,
     [ProductLineTermId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -3206,7 +3206,7 @@ CREATE TABLE [fac].[ProductLineTerm] (
     CONSTRAINT [CK_ProductLineTerm_Confidence] CHECK ([Confidence] IS NULL OR [Confidence] IN ('CONFIRMED_AGAINST_ORIGINAL', 'READ_FROM_SCAN_UNVERIFIED', 'ENTERED_NO_DOCUMENT'))
 );
 GO
--- بند استخدام فعّال: يدوي أو مرتبط باعتماد مستندي؛ لا حذف (FR-FAC-016/030، BR-FAC-013/020)
+-- Active utilisation item: manual or linked to a letter of credit; never deleted (FR-FAC-016/030, BR-FAC-013/020)
 CREATE TABLE [fac].[Utilization] (
     [TenantId] INT NOT NULL,
     [UtilizationId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -3246,7 +3246,7 @@ CREATE TABLE [fac].[Utilization] (
     CONSTRAINT [CK_Utilization_Status] CHECK ([Status] IS NULL OR [Status] IN ('ACTIVE', 'RELEASED'))
 );
 GO
--- حجز مبلغ لطلب = ExposureAmount (FR-FAC-017/018/020، BR-FAC-015)
+-- Amount reserved for a request, equal to ExposureAmount (FR-FAC-017/018/020, BR-FAC-015)
 CREATE TABLE [fac].[LimitReservation] (
     [TenantId] INT NOT NULL,
     [LimitReservationId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -3288,7 +3288,7 @@ CREATE TABLE [fac].[LimitReservation] (
     CONSTRAINT [CK_LimitReservation_AcknowledgedWarnings_json] CHECK ([AcknowledgedWarnings] IS NULL OR ISJSON([AcknowledgedWarnings]) = 1)
 );
 GO
--- سجل حركة على حجز أو استخدام؛ لا تعديل ولا حذف؛ مفتاح عدم التكرار (BR-FAC-015/020)
+-- Movement record on a reservation or usage; no update or delete; duplicate-prevention key (BR-FAC-015, BR-FAC-020)
 CREATE TABLE [fac].[LimitMovement] (
     [TenantId] INT NOT NULL,
     [LimitMovementId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -3320,7 +3320,7 @@ CREATE TABLE [fac].[LimitMovement] (
     CONSTRAINT [CK_LimitMovement_OpKind] CHECK ([OpKind] IS NULL OR [OpKind] IN ('CREATE', 'ADJUST', 'CONVERT', 'RELEASE'))
 );
 GO
--- تعارض قيمتين لحقل واحد وحسمه (FR-FAC-026، BR-FAC-019، BR-FAC-008)
+-- Conflict between two values of one field, and its resolution (FR-FAC-026, BR-FAC-019, BR-FAC-008)
 CREATE TABLE [fac].[ValueConflict] (
     [TenantId] INT NOT NULL,
     [ValueConflictId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -3366,7 +3366,7 @@ CREATE TABLE [fac].[ValueConflict] (
 GO
 
 -- ===== schema prc =====
--- إصدار جدول رسوم لبنك؛ خاص بتسهيل اختياريًا (FR-PRC-001، BR-PRC-001، V-PRC-01)
+-- Bank tariff schedule version; optionally specific to a facility (FR-PRC-001, BR-PRC-001, V-PRC-01)
 CREATE TABLE [prc].[TariffSchedule] (
     [TenantId] INT NOT NULL,
     [TariffScheduleId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -3397,7 +3397,7 @@ CREATE TABLE [prc].[TariffSchedule] (
     CONSTRAINT [CK_TariffSchedule_Status] CHECK ([Status] IS NULL OR [Status] IN ('DRAFT', 'APPROVED', 'SUPERSEDED'))
 );
 GO
--- بند رسم في جدول التعرفة (FR-PRC-002، BR-PRC-002..005)
+-- Fee item in a tariff schedule (FR-PRC-002, BR-PRC-002..005)
 CREATE TABLE [prc].[TariffItem] (
     [TenantId] INT NOT NULL,
     [TariffItemId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -3457,7 +3457,7 @@ CREATE TABLE [prc].[TariffItem] (
     CONSTRAINT [CK_TariffItem_Confidence] CHECK ([Confidence] IS NULL OR [Confidence] IN ('CONFIRMED_AGAINST_ORIGINAL', 'READ_FROM_SCAN_UNVERIFIED', 'ENTERED_NO_DOCUMENT'))
 );
 GO
--- شريحة بند تعرفة بالمبلغ و/أو المدة (FR-PRC-003، BR-PRC-002)
+-- Tier of a tariff item by amount and/or term (FR-PRC-003, BR-PRC-002)
 CREATE TABLE [prc].[TariffTier] (
     [TenantId] INT NOT NULL,
     [TariffTierId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -3489,7 +3489,7 @@ CREATE TABLE [prc].[TariffTier] (
     CONSTRAINT [CK_TariffTier_8] CHECK (MinAmount IS NULL OR MinAmount >= 0)
 );
 GO
--- قاعدة تسعير بنطاق ووراثة وطرق (FR-PRC-006..017، BR-PRC-006..012، V-PRC-02)
+-- Pricing rule with scope, inheritance and methods (FR-PRC-006..017, BR-PRC-006..012, V-PRC-02)
 CREATE TABLE [prc].[PricingRule] (
     [TenantId] INT NOT NULL,
     [PricingRuleId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -3603,7 +3603,7 @@ CREATE TABLE [prc].[PricingRule] (
     CONSTRAINT [CK_PricingRule_Confidence] CHECK ([Confidence] IS NULL OR [Confidence] IN ('CONFIRMED_AGAINST_ORIGINAL', 'READ_FROM_SCAN_UNVERIFIED', 'ENTERED_NO_DOCUMENT'))
 );
 GO
--- شريحة قاعدة TIERED بالمبلغ و/أو المدة (FR-PRC-003، BR-PRC-002)
+-- Tier of a TIERED rule by amount and/or term (FR-PRC-003, BR-PRC-002)
 CREATE TABLE [prc].[PricingTier] (
     [TenantId] INT NOT NULL,
     [PricingTierId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -3639,7 +3639,7 @@ CREATE TABLE [prc].[PricingTier] (
 GO
 
 -- ===== schema cmp =====
--- مفتاح شرط قابل للمقارنة (FR-CMP-001)؛ الرمز بنمط PRC.MARGIN_PCT؛ النظامي لا يُحذف ولا تتغير وحدته (IsSystem)
+-- Comparable term key (FR-CMP-001); the code follows the pattern PRC.MARGIN_PCT; system terms cannot be deleted and their unit cannot change (IsSystem)
 CREATE TABLE [cmp].[TermType] (
     [TenantId] INT NOT NULL,
     [TermTypeId] INT IDENTITY(1,1) NOT NULL,
@@ -3680,7 +3680,7 @@ CREATE TABLE [cmp].[TermType] (
     CONSTRAINT [CK_TermType_EnumOptions_json] CHECK ([EnumOptions] IS NULL OR ISJSON([EnumOptions]) = 1)
 );
 GO
--- قيمة شرط في تسهيل بنطاقها ومصدرها (FR-CMP-002..006، BR-CMP-001..006، V-CMP-01)
+-- Term value in a facility, with its scope and source (FR-CMP-002..006, BR-CMP-001..006, V-CMP-01)
 CREATE TABLE [cmp].[TermValue] (
     [TenantId] INT NOT NULL,
     [TermValueId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -3741,7 +3741,7 @@ CREATE TABLE [cmp].[TermValue] (
 GO
 
 -- ===== schema col =====
--- سجل ضمان؛ اعتماد مستقل عن مراجعة التسهيل، والتعديل يُنشئ إصدارًا جديدًا (FR-COL-001/014، V-COL-01، §8)
+-- Collateral record; approved independently of the facility review, and an amendment creates a new revision (FR-COL-001/014, V-COL-01, section 8)
 CREATE TABLE [col].[Collateral] (
     [TenantId] INT NOT NULL,
     [CollateralId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -3793,7 +3793,7 @@ CREATE TABLE [col].[Collateral] (
     CONSTRAINT [CK_Collateral_Attributes_json] CHECK ([Attributes] IS NULL OR ISJSON([Attributes]) = 1)
 );
 GO
--- ربط ضمان بتسهيل أو حد؛ ضمان واحد لعدة تسهيلات (FR-COL-002، BR-COL-005)
+-- Link between collateral and a facility or limit; one collateral can serve several facilities (FR-COL-002, BR-COL-005)
 CREATE TABLE [col].[CollateralLink] (
     [TenantId] INT NOT NULL,
     [CollateralLinkId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -3820,7 +3820,7 @@ CREATE TABLE [col].[CollateralLink] (
     CONSTRAINT [CK_CollateralLink_4] CHECK (ToRevision IS NULL OR ToRevision >= FromRevision)
 );
 GO
--- كفالة 1:1 مع Collateral؛ الكفيل Party دائمًا ولا أرقام هوية هنا (FR-COL-003/004، BR-COL-001)
+-- Guarantee, 1:1 with Collateral; the guarantor is always a Party, and no identity numbers are stored here (FR-COL-003/004, BR-COL-001)
 CREATE TABLE [col].[Guarantee] (
     [TenantId] INT NOT NULL,
     [GuaranteeId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -3852,7 +3852,7 @@ CREATE TABLE [col].[Guarantee] (
     CONSTRAINT [CK_Guarantee_AmountMode] CHECK ([AmountMode] IS NULL OR [AmountMode] IN ('SPECIFIED', 'UNSPECIFIED'))
 );
 GO
--- سند لأمر 1:1؛ مبلغ مستقل قد يفوق الحد (FR-COL-005، BR-COL-002)؛ NextRenewalDue وPNRatio مشتقان
+-- Promissory note, 1:1; its own amount may exceed the limit (FR-COL-005, BR-COL-002); NextRenewalDue and PNRatio are derived
 CREATE TABLE [col].[PromissoryNote] (
     [TenantId] INT NOT NULL,
     [PromissoryNoteId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -3884,7 +3884,7 @@ CREATE TABLE [col].[PromissoryNote] (
     CONSTRAINT [CK_PromissoryNote_CustodyKind] CHECK ([CustodyKind] IS NULL OR [CustodyKind] IN ('BANK', 'COMPANY', 'OTHER'))
 );
 GO
--- موقّعو السند (SignerPartyIds) -- جدول وسيط جديد؛ موقّعو PromissoryNote (FR-COL-015)
+-- Signers of the promissory note (SignerPartyIds) -- جدول وسيط جديد؛ موقّعو PromissoryNote (FR-COL-015)
 CREATE TABLE [col].[PromissoryNoteSigner] (
     [TenantId] INT NOT NULL,
     [PromissoryNoteId] BIGINT NOT NULL,
@@ -3896,7 +3896,7 @@ CREATE TABLE [col].[PromissoryNoteSigner] (
     CONSTRAINT [PK_PromissoryNoteSigner] PRIMARY KEY CLUSTERED ([TenantId], [PromissoryNoteId], [PartyId])
 );
 GO
--- تجيير وثيقة تأمين؛ مفتاح الفرادة (CollateralId,PolicyNo) يسمح بتجديد الوثيقة (FR-COL-006، BR-COL-003)
+-- Insurance policy assignment; the uniqueness key (CollateralId, PolicyNo) allows the policy to be renewed (FR-COL-006, BR-COL-003)
 CREATE TABLE [col].[InsurancePolicyAssignment] (
     [TenantId] INT NOT NULL,
     [InsurancePolicyAssignmentId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -3929,7 +3929,7 @@ CREATE TABLE [col].[InsurancePolicyAssignment] (
     CONSTRAINT [CK_InsurancePolicyAssignment_CoverageBasis] CHECK ([CoverageBasis] IS NULL OR [CoverageBasis] IN ('PCT_OF_LIMIT', 'FIXED_AMOUNT', 'FULL_LIMITS'))
 );
 GO
--- مراحل تقييم عقار (FR-COL-008، BR-COL-004)؛ مثل 3 مقيّمين في السنة الأولى ثم مقيّم سنويًا
+-- Property valuation schedule (FR-COL-008, BR-COL-004), for example three valuers in the first year, then one valuer per year
 CREATE TABLE [col].[ValuationSchedule] (
     [TenantId] INT NOT NULL,
     [ValuationScheduleId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -3962,7 +3962,7 @@ CREATE TABLE [col].[ValuationSchedule] (
 GO
 
 -- ===== schema obl =====
--- التزام على تسهيل (أو حد/خط/شركات)؛ العائلة من ObligationType ولا تُحرَّر (FR-OBL-001، BR-OBL-001)
+-- Obligation on a facility (or on a limit, line or set of companies); the family comes from ObligationType and cannot be edited (FR-OBL-001, BR-OBL-001)
 CREATE TABLE [obl].[Obligation] (
     [TenantId] INT NOT NULL,
     [ObligationId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -4027,7 +4027,7 @@ CREATE TABLE [obl].[Obligation] (
     CONSTRAINT [CK_Obligation_TriggerValues_json] CHECK ([TriggerValues] IS NULL OR ISJSON([TriggerValues]) = 1)
 );
 GO
--- الشركات التي ينطبق عليها الالتزام (AppliesToCompanyIds) -- جدول وسيط جديد؛ الحذف لصفوف مسودة المراجعة فقط (يفرضه التطبيق)
+-- Companies the obligation applies to (AppliesToCompanyIds) -- جدول وسيط جديد؛ الحذف لصفوف مسودة المراجعة فقط (يفرضه التطبيق)
 CREATE TABLE [obl].[ObligationCompany] (
     [TenantId] INT NOT NULL,
     [ObligationId] BIGINT NOT NULL,
@@ -4039,7 +4039,7 @@ CREATE TABLE [obl].[ObligationCompany] (
     CONSTRAINT [PK_ObligationCompany] PRIMARY KEY CLUSTERED ([TenantId], [ObligationId], [CompanyId])
 );
 GO
--- قاعدة استحقاق تقرير/إخطار 1:1 مع Obligation (FR-OBL-002/003، BR-OBL-002، V-OBL-01)
+-- Reporting or notice-due rule, 1:1 with Obligation (FR-OBL-002/003, BR-OBL-002, V-OBL-01)
 CREATE TABLE [obl].[ReportingObligation] (
     [TenantId] INT NOT NULL,
     [ReportingObligationId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -4086,7 +4086,7 @@ CREATE TABLE [obl].[ReportingObligation] (
     CONSTRAINT [CK_ReportingObligation_StatementScope] CHECK ([StatementScope] IS NULL OR [StatementScope] IN ('STANDALONE', 'CONSOLIDATED', 'ANY'))
 );
 GO
--- بند أجندة مولَّد أو مسجَّل لحدث (FR-OBL-003..005، BR-OBL-003، §8)؛ DUE_SOON/OVERDUE مشتقتان
+-- Agenda item generated or logged for an event (FR-OBL-003..005, BR-OBL-003, section 8); DUE_SOON and OVERDUE are derived
 CREATE TABLE [obl].[ReportingInstance] (
     [TenantId] INT NOT NULL,
     [ReportingInstanceId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -4125,7 +4125,7 @@ CREATE TABLE [obl].[ReportingInstance] (
     CONSTRAINT [CK_ReportingInstance_GeneratedBy] CHECK ([GeneratedBy] IS NULL OR [GeneratedBy] IN ('JOB', 'MANUAL_EVENT'))
 );
 GO
--- إصدار تعهد بتواريخ؛ الحدود المتدرجة = عدة نسخ (FR-OBL-006، BR-OBL-001/005/006، Q-OBL-01)
+-- Covenant revision with dates; graduated limits are several revisions (FR-OBL-006, BR-OBL-001/005/006, Q-OBL-01)
 CREATE TABLE [obl].[Covenant] (
     [TenantId] INT NOT NULL,
     [CovenantId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -4184,7 +4184,7 @@ CREATE TABLE [obl].[Covenant] (
     CONSTRAINT [CK_Covenant_AccountScopeKind] CHECK ([AccountScopeKind] IS NULL OR [AccountScopeKind] IN ('ALL_COMPANY_ACCOUNTS_AT_BANK', 'SELECTED_ACCOUNTS', 'GROUP_ACCOUNTS'))
 );
 GO
--- الحسابات المشمولة بالتعهد عند اختيار حسابات محددة (AccountIds) -- جدول وسيط جديد؛ الحذف لصفوف مسودة المراجعة فقط (يفرضه التطبيق)
+-- Accounts covered by a covenant when specific accounts are selected (AccountIds) -- جدول وسيط جديد؛ الحذف لصفوف مسودة المراجعة فقط (يفرضه التطبيق)
 CREATE TABLE [obl].[CovenantAccount] (
     [TenantId] INT NOT NULL,
     [CovenantId] BIGINT NOT NULL,
@@ -4196,7 +4196,7 @@ CREATE TABLE [obl].[CovenantAccount] (
     CONSTRAINT [PK_CovenantAccount] PRIMARY KEY CLUSTERED ([TenantId], [CovenantId], [BankAccountId])
 );
 GO
--- تقييم تعهد لفترة وإصدار تقييم؛ يمنع التطبيق تعديل التقييم المخزَّن (FR-OBL-011، FR-FIN-012/013، BR-OBL-006/007، §8)
+-- Covenant test for a period and test version; the application prevents editing a stored test (FR-OBL-011, FR-FIN-012/013, BR-OBL-006/007, section 8)
 CREATE TABLE [obl].[CovenantTest] (
     [TenantId] INT NOT NULL,
     [CovenantTestId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -4253,7 +4253,7 @@ CREATE TABLE [obl].[CovenantTest] (
     CONSTRAINT [CK_CovenantTest_InputsSnapshot_json] CHECK ([InputsSnapshot] IS NULL OR ISJSON([InputsSnapshot]) = 1)
 );
 GO
--- سجل خرق وعلاجه وتنازله (FR-OBL-012، BR-OBL-009/011، §8)
+-- Breach record, its remedy and any waiver (FR-OBL-012, BR-OBL-009/011, section 8)
 CREATE TABLE [obl].[ObligationBreach] (
     [TenantId] INT NOT NULL,
     [ObligationBreachId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -4300,7 +4300,7 @@ CREATE TABLE [obl].[ObligationBreach] (
 GO
 
 -- ===== schema fin =====
--- بند معياري للقوائم؛ 39 بندًا مبذورًا؛ النظامي في الصيغ لا يُحذف (FR-FIN-001، CatalogBase)
+-- Standard statement line item; 39 items seeded; system items used in formulas cannot be deleted (FR-FIN-001, CatalogBase)
 CREATE TABLE [fin].[LineCatalogItem] (
     [TenantId] INT NOT NULL,
     [LineCatalogItemId] INT IDENTITY(1,1) NOT NULL,
@@ -4334,7 +4334,7 @@ CREATE TABLE [fin].[LineCatalogItem] (
     CONSTRAINT [CK_LineCatalogItem_Section] CHECK ([Section] IS NULL OR [Section] IN ('BS_ASSET', 'BS_LIABILITY', 'BS_EQUITY', 'IS', 'CF'))
 );
 GO
--- الأسماء البديلة للبند (Aliases) للصق والمطابقة -- جدول جديد للأسماء البديلة (FR-FIN-003)
+-- Alternative names (aliases) for a line item, used for paste and matching -- جدول جديد للأسماء البديلة (FR-FIN-003)
 CREATE TABLE [fin].[LineCatalogItemAlias] (
     [TenantId] INT NOT NULL,
     [LineCatalogItemAliasId] INT IDENTITY(1,1) NOT NULL,
@@ -4351,7 +4351,7 @@ CREATE TABLE [fin].[LineCatalogItemAlias] (
     CONSTRAINT [CK_LineCatalogItemAlias_1] CHECK (Alias <> '')
 );
 GO
--- رأس قائمة مالية؛ سري جدًا (FR-FIN-002/005/006، BR-FIN-001..004، §8)
+-- Financial statement header; highly confidential (FR-FIN-002/005/006, BR-FIN-001..004, section 8)
 CREATE TABLE [fin].[FinancialStatement] (
     [TenantId] INT NOT NULL,
     [FinancialStatementId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -4402,7 +4402,7 @@ CREATE TABLE [fin].[FinancialStatement] (
     CONSTRAINT [CK_FinancialStatement_EntryMethod] CHECK ([EntryMethod] IS NULL OR [EntryMethod] IN ('MANUAL', 'PASTE'))
 );
 GO
--- سطر قائمة؛ بعملة الرأس والمخزَّن = المُدخل x UnitScale؛ Variance مشتق؛ سري جدًا (BR-FIN-001/002)
+-- Statement line in the header currency; stored value = input x UnitScale; Variance is derived; highly confidential (BR-FIN-001/002)
 CREATE TABLE [fin].[StatementLine] (
     [TenantId] INT NOT NULL,
     [StatementLineId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -4420,7 +4420,7 @@ CREATE TABLE [fin].[StatementLine] (
     CONSTRAINT [UQ_StatementLine_StatementId_LineCatalogItemId] UNIQUE ([TenantId], [StatementId], [LineCatalogItemId])
 );
 GO
--- رصيد شهري لحساب بعملة الحساب (FR-FIN-008، BR-FIN-005/006، V-FIN-02)
+-- Monthly balance of an account in the account currency (FR-FIN-008, BR-FIN-005/006, V-FIN-02)
 CREATE TABLE [fin].[AccountMonthlyStat] (
     [TenantId] INT NOT NULL,
     [AccountMonthlyStatId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -4448,7 +4448,7 @@ CREATE TABLE [fin].[AccountMonthlyStat] (
     CONSTRAINT [CK_AccountMonthlyStat_Status] CHECK ([Status] IS NULL OR [Status] IN ('DRAFT', 'CONFIRMED'))
 );
 GO
--- مبلغ محوَّل للبنك في شهر؛ تجميع سنوي آلي (FR-FIN-009/010، BR-FIN-007/008)
+-- Amount transferred to the bank in a month; annual totals are computed automatically (FR-FIN-009/010, BR-FIN-007/008)
 CREATE TABLE [fin].[BankFlowEntry] (
     [TenantId] INT NOT NULL,
     [BankFlowEntryId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -4474,7 +4474,7 @@ CREATE TABLE [fin].[BankFlowEntry] (
     CONSTRAINT [CK_BankFlowEntry_1] CHECK (Amount >= 0)
 );
 GO
--- صيغة مقياس: قالب أو نسخة اتفاقية بإصدارات؛ لا تُنفَّذ نصًا (FR-FIN-011، BR-FIN-009، §12)
+-- Measure formula: a template or a facility-agreement version with revisions; never executed as text (FR-FIN-011, BR-FIN-009, section 12)
 CREATE TABLE [fin].[MeasureFormula] (
     [TenantId] INT NOT NULL,
     [MeasureFormulaId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -4527,7 +4527,7 @@ CREATE TABLE [fin].[MeasureFormula] (
 GO
 
 -- ===== schema wfl =====
--- تعريف نوع الطلب (FR-REQ-001، BR-REQ-001، V-REQ-01)؛ الأنواع الجديدة بلا كود (FR-REQ-021)
+-- Request type definition (FR-REQ-001, BR-REQ-001, V-REQ-01); new types need no code (FR-REQ-021)
 CREATE TABLE [wfl].[RequestType] (
     [TenantId] INT NOT NULL,
     [RequestTypeId] INT IDENTITY(1,1) NOT NULL,
@@ -4564,7 +4564,7 @@ CREATE TABLE [wfl].[RequestType] (
     CONSTRAINT [CK_RequestType_LimitCheckMode] CHECK ([LimitCheckMode] IS NULL OR [LimitCheckMode] IN ('NONE', 'ADVISORY', 'REQUIRED_SELECTION'))
 );
 GO
--- جمهور النوع: من يحق له الطلب؛ غياب الصفوف = لا أحد (فشل مغلق) (FR-REQ-007)
+-- Audience of a request type: who may raise it; no rows = nobody (fail closed) (FR-REQ-007)
 CREATE TABLE [wfl].[RequestTypeAudience] (
     [TenantId] INT NOT NULL,
     [RequestTypeAudienceId] INT IDENTITY(1,1) NOT NULL,
@@ -4585,7 +4585,7 @@ CREATE TABLE [wfl].[RequestTypeAudience] (
     CONSTRAINT [CK_RequestTypeAudience_SubjectKind] CHECK ([SubjectKind] IS NULL OR [SubjectKind] IN ('ROLE', 'DEPARTMENT', 'USER'))
 );
 GO
--- المرحلة الظاهرة للطالب: DRAFT · IN_APPROVAL · RETURNED · AWAITING_REQUESTER · IN_PROGRESS · COMPLETED · REJECTED · CANCELLED (BR-WFL-011، D-6)
+-- Phase shown to the requester: DRAFT, IN_APPROVAL, RETURNED, AWAITING_REQUESTER, IN_PROGRESS, COMPLETED, REJECTED, CANCELLED (BR-WFL-011, D-6)
 CREATE TABLE [wfl].[ExternalPhase] (
     [TenantId] INT NOT NULL,
     [ExternalPhaseId] INT IDENTITY(1,1) NOT NULL,
@@ -4613,7 +4613,7 @@ CREATE TABLE [wfl].[ExternalPhase] (
     CONSTRAINT [CK_ExternalPhase_1] CHECK (RequiresRequesterAction = 0 OR IsFinal = 0)
 );
 GO
--- إصدار قالب دورة عمل؛ المنشور ثابت (FR-WFL-001/028، BR-WFL-019، AC-WFL-6)
+-- Workflow template version; a published version is immutable (FR-WFL-001/028, BR-WFL-019, AC-WFL-6)
 CREATE TABLE [wfl].[WorkflowTemplate] (
     [TenantId] INT NOT NULL,
     [WorkflowTemplateId] INT IDENTITY(1,1) NOT NULL,
@@ -4657,7 +4657,7 @@ CREATE TABLE [wfl].[WorkflowTemplate] (
     CONSTRAINT [CK_WorkflowTemplate_Status] CHECK ([Status] IS NULL OR [Status] IN ('DRAFT', 'PUBLISHED', 'RETIRED'))
 );
 GO
--- مرحلة في نسخة قالب (FR-WFL-003/004/005، BR-WFL-002/010/012)؛ حذف فعلي لمسودة النسخة فقط
+-- Stage in a template version (FR-WFL-003/004/005, BR-WFL-002/010/012); physical delete only for a draft version
 CREATE TABLE [wfl].[WorkflowStage] (
     [TenantId] INT NOT NULL,
     [WorkflowStageId] INT IDENTITY(1,1) NOT NULL,
@@ -4719,7 +4719,7 @@ CREATE TABLE [wfl].[WorkflowStage] (
     CONSTRAINT [CK_WorkflowStage_EditableFieldKeysJson_json] CHECK ([EditableFieldKeysJson] IS NULL OR ISJSON([EditableFieldKeysJson]) = 1)
 );
 GO
--- خانة موافقة في مرحلة APPROVAL؛ ALL = كل الخانات، ودور بشخصين يلزمان معًا = خانتان (FR-WFL-007/041، BR-WFL-003/004)
+-- Approval slot in an APPROVAL stage; ALL = every slot, and a role requiring two people together = two slots (FR-WFL-007/041, BR-WFL-003/004)
 CREATE TABLE [wfl].[StageApprover] (
     [TenantId] INT NOT NULL,
     [StageApproverId] INT IDENTITY(1,1) NOT NULL,
@@ -4754,7 +4754,7 @@ CREATE TABLE [wfl].[StageApprover] (
     CONSTRAINT [CK_StageApprover_SubjectRule] CHECK ([SubjectRule] IS NULL OR [SubjectRule] IN ('REQUESTER', 'REQUESTER_MANAGER', 'ROLE', 'USER', 'DEPARTMENT_HEAD'))
 );
 GO
--- انتقال بين مرحلتين بشرط وأولوية؛ دورة خطية بتفرع شرطي بسيط (FR-WFL-006، BR-WFL-001، D-8)
+-- Transition between two stages with a condition and a priority; a linear flow with simple conditional branching (FR-WFL-006, BR-WFL-001, D-8)
 CREATE TABLE [wfl].[WorkflowTransition] (
     [TenantId] INT NOT NULL,
     [WorkflowTransitionId] INT IDENTITY(1,1) NOT NULL,
@@ -4784,7 +4784,7 @@ CREATE TABLE [wfl].[WorkflowTransition] (
     CONSTRAINT [CK_WorkflowTransition_ConditionJson_json] CHECK ([ConditionJson] IS NULL OR ISJSON([ConditionJson]) = 1)
 );
 GO
--- خطاف مسجَّل بالكود على مرحلة: مفتاح ومعاملات لا كود (FR-WFL-021، BR-WFL-015، §5.4)
+-- Hook registered on a stage: a key and parameters, no code (FR-WFL-021, BR-WFL-015, section 5.4)
 CREATE TABLE [wfl].[WorkflowStageHook] (
     [TenantId] INT NOT NULL,
     [WorkflowStageHookId] INT IDENTITY(1,1) NOT NULL,
@@ -4813,7 +4813,7 @@ CREATE TABLE [wfl].[WorkflowStageHook] (
     CONSTRAINT [CK_WorkflowStageHook_ParamsJson_json] CHECK ([ParamsJson] IS NULL OR ISJSON([ParamsJson]) = 1)
 );
 GO
--- حقل في نسخة قالب يولّد النموذج بلا كود واجهة (FR-REQ-002..005، BR-REQ-003/004)
+-- Field in a template version; the form UI is generated without code (FR-REQ-002..005, BR-REQ-003/004)
 CREATE TABLE [wfl].[TemplateField] (
     [TenantId] INT NOT NULL,
     [TemplateFieldId] INT IDENTITY(1,1) NOT NULL,
@@ -4859,7 +4859,7 @@ CREATE TABLE [wfl].[TemplateField] (
     CONSTRAINT [CK_TemplateField_ValidationJson_json] CHECK ([ValidationJson] IS NULL OR ISJSON([ValidationJson]) = 1)
 );
 GO
--- قاعدة مرفق على نسخة قالب (FR-REQ-006، BR-REQ-005، FR-WFL-024/025)
+-- Attachment rule on a template version (FR-REQ-006, BR-REQ-005, FR-WFL-024/025)
 CREATE TABLE [wfl].[TemplateAttachmentRule] (
     [TenantId] INT NOT NULL,
     [TemplateAttachmentRuleId] INT IDENTITY(1,1) NOT NULL,
@@ -4888,7 +4888,7 @@ CREATE TABLE [wfl].[TemplateAttachmentRule] (
     CONSTRAINT [CK_TemplateAttachmentRule_RequiredWhenJson_json] CHECK ([RequiredWhenJson] IS NULL OR ISJSON([RequiredWhenJson]) = 1)
 );
 GO
--- الطلب: أكثر الجداول ازدحامًا؛ الحالة الداخلية منفصلة عن المرحلة الظاهرة (FR-WFL-001، FR-REQ-009، D-6، BR-REQ-002/003)
+-- Request: the most heavily used table; the internal status is kept separate from the visible phase (FR-WFL-001, FR-REQ-009, D-6, BR-REQ-002/003)
 CREATE TABLE [wfl].[Request] (
     [TenantId] INT NOT NULL,
     [RequestId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -4988,7 +4988,7 @@ CREATE TABLE [wfl].[Request] (
     CONSTRAINT [CK_Request_FormDataJson_json] CHECK ([FormDataJson] IS NULL OR ISJSON([FormDataJson]) = 1)
 );
 GO
--- تعليق ظاهر للطالب أو داخلي؛ يمنع التطبيق تعديله، والسحب يترك الأصل (FR-REQ-017، BR-REQ-014)
+-- Comment visible to the requester or internal; the application prevents editing it, and withdrawal keeps the original (FR-REQ-017, BR-REQ-014)
 CREATE TABLE [wfl].[RequestComment] (
     [TenantId] INT NOT NULL,
     [RequestCommentId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -5013,7 +5013,7 @@ CREATE TABLE [wfl].[RequestComment] (
     CONSTRAINT [CK_RequestComment_Visibility] CHECK ([Visibility] IS NULL OR [Visibility] IN ('INTERNAL', 'REQUESTER_VISIBLE'))
 );
 GO
--- ربط مستند بطلب ينشئ DocumentLink (EntityType=Request) (FR-REQ-006، BR-REQ-005)
+-- Links a document to a request and creates a DocumentLink (EntityType = Request) (FR-REQ-006, BR-REQ-005)
 CREATE TABLE [wfl].[RequestAttachment] (
     [TenantId] INT NOT NULL,
     [RequestAttachmentId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -5034,7 +5034,7 @@ CREATE TABLE [wfl].[RequestAttachment] (
     CONSTRAINT [CK_RequestAttachment_Visibility] CHECK ([Visibility] IS NULL OR [Visibility] IN ('INTERNAL', 'REQUESTER_VISIBLE'))
 );
 GO
--- مرجع خارجي بنص حر؛ تعديل بالإحلال ويبقى التاريخ؛ بلا تحقق خارجي (FR-REQ-010، X-DAT-7، BR-REQ-006)
+-- External reference as free text; edits replace the value and keep the history; no external validation (FR-REQ-010, X-DAT-7, BR-REQ-006)
 CREATE TABLE [wfl].[RequestExternalRef] (
     [TenantId] INT NOT NULL,
     [RequestExternalRefId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -5060,7 +5060,7 @@ CREATE TABLE [wfl].[RequestExternalRef] (
     CONSTRAINT [CK_RequestExternalRef_2] CHECK (SupersededById IS NULL OR SupersededById <> RequestExternalRefId)
 );
 GO
--- دخول طلب إلى مرحلة؛ مصدر مقاييس الأزمنة والسحب والـ SLA (BR-WFL-002/007/012، §8)
+-- Entry of a request into a stage; source of the cycle-time, withdrawal and SLA metrics (BR-WFL-002/007/012, section 8)
 CREATE TABLE [wfl].[RequestStageInstance] (
     [TenantId] INT NOT NULL,
     [RequestStageInstanceId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -5108,7 +5108,7 @@ CREATE TABLE [wfl].[RequestStageInstance] (
     CONSTRAINT [CK_RequestStageInstance_SlaState] CHECK ([SlaState] IS NULL OR [SlaState] IN ('ON_TRACK', 'AT_RISK', 'OVERDUE', 'PAUSED', 'NONE'))
 );
 GO
--- خانة موافقة تُنشأ لكل دخول ودورة؛ الدورة الجديدة بخانات جديدة (BR-WFL-003، FR-WFL-007/008/011)
+-- Approval slot created per entry and cycle; a new cycle creates new slots (BR-WFL-003, FR-WFL-007/008/011)
 CREATE TABLE [wfl].[RequestApproval] (
     [TenantId] INT NOT NULL,
     [RequestApprovalId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -5153,7 +5153,7 @@ CREATE TABLE [wfl].[RequestApproval] (
     CONSTRAINT [CK_RequestApproval_AvailabilitySnapshotJson_json] CHECK ([AvailabilitySnapshotJson] IS NULL OR ISJSON([AvailabilitySnapshotJson]) = 1)
 );
 GO
--- سجل إجراءات للإضافة فقط يغطي كل حدث؛ غير AuditLog الأمني (FR-WFL-033/034، §6.2)
+-- Append-only action log covering every event; separate from the security audit log (FR-WFL-033/034, section 6.2)
 CREATE TABLE [wfl].[RequestAction] (
     [TenantId] INT NOT NULL,
     [RequestActionId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -5187,7 +5187,7 @@ CREATE TABLE [wfl].[RequestAction] (
     CONSTRAINT [CK_RequestAction_SnapshotJson_json] CHECK ([SnapshotJson] IS NULL OR ISJSON([SnapshotJson]) = 1)
 );
 GO
--- تنفيذ خطاف بمفتاح عدم تكرار يعيد النتيجة المخزَّنة (FR-WFL-021، BR-WFL-015) -- جدول جديد
+-- Execution of a hook with an idempotency key; a repeat returns the stored result (FR-WFL-021, BR-WFL-015) -- جدول جديد
 CREATE TABLE [wfl].[HookExecution] (
     [TenantId] INT NOT NULL,
     [HookExecutionId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -5226,7 +5226,7 @@ CREATE TABLE [wfl].[HookExecution] (
     CONSTRAINT [CK_HookExecution_ResultJson_json] CHECK ([ResultJson] IS NULL OR ISJSON([ResultJson]) = 1)
 );
 GO
--- تفويض مهام بفترة ونطاق؛ لا تفويض متسلسل (FR-WFL-020، BR-WFL-021، V-WFL-06)
+-- Task delegation with a period and scope; no chained delegation (FR-WFL-020, BR-WFL-021, V-WFL-06)
 CREATE TABLE [wfl].[UserDelegation] (
     [TenantId] INT NOT NULL,
     [UserDelegationId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -5259,7 +5259,7 @@ CREATE TABLE [wfl].[UserDelegation] (
 GO
 
 -- ===== schema ntf =====
--- كتالوج الأحداث؛ تملكه 13 لكل الوحدات وتبذر فيه الوحدات أحداثها (FR-NTF-001، §9.2، §9.2-ب)
+-- Event catalogue: specification 13 owns it for all modules, and modules seed their events into it (FR-NTF-001, section 9.2)
 CREATE TABLE [ntf].[NotificationEventType] (
     [TenantId] INT NOT NULL,
     [NotificationEventTypeId] INT IDENTITY(1,1) NOT NULL,
@@ -5293,7 +5293,7 @@ CREATE TABLE [ntf].[NotificationEventType] (
     CONSTRAINT [CK_NotificationEventType_AllowedPlaceholdersJson_json] CHECK ([AllowedPlaceholdersJson] IS NULL OR ISJSON([AllowedPlaceholdersJson]) = 1)
 );
 GO
--- قاعدة مستلمين لحدث؛ التعديل يسري على الأحداث التالية فقط (FR-NTF-003، BR-NTF-001، V-NTF-02)
+-- Recipient rule for an event; changes apply to subsequent events only (FR-NTF-003, BR-NTF-001, V-NTF-02)
 CREATE TABLE [ntf].[NotificationRule] (
     [TenantId] INT NOT NULL,
     [NotificationRuleId] INT IDENTITY(1,1) NOT NULL,
@@ -5322,7 +5322,7 @@ CREATE TABLE [ntf].[NotificationRule] (
     CONSTRAINT [CK_NotificationRule_ChannelsOverride_json] CHECK ([ChannelsOverride] IS NULL OR ISJSON([ChannelsOverride]) = 1)
 );
 GO
--- قالب رسالة لكل (حدث، قناة، لغة)؛ الحذف = العودة إلى قالب البذرة (FR-NTF-012، FR-NTF-025)
+-- Message template per (event, channel, language); deleting it reverts to the seed template (FR-NTF-012, FR-NTF-025)
 CREATE TABLE [ntf].[NotificationTemplate] (
     [TenantId] INT NOT NULL,
     [NotificationTemplateId] INT IDENTITY(1,1) NOT NULL,
@@ -5344,7 +5344,7 @@ CREATE TABLE [ntf].[NotificationTemplate] (
     CONSTRAINT [CK_NotificationTemplate_Lang] CHECK ([Lang] IS NULL OR [Lang] IN ('ar', 'en'))
 );
 GO
--- تفضيل المستخدم لكل مجموعة أحداث وقناة (FR-NTF-010، BR-NTF-003/014)؛ الإلزامي لا يُوقَف في التطبيق
+-- User preference per event group and channel (FR-NTF-010, BR-NTF-003/014); mandatory notifications cannot be switched off in the application
 CREATE TABLE [ntf].[NotificationPreference] (
     [TenantId] INT NOT NULL,
     [NotificationPreferenceId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -5364,7 +5364,7 @@ CREATE TABLE [ntf].[NotificationPreference] (
     CONSTRAINT [CK_NotificationPreference_Mode] CHECK ([Mode] IS NULL OR [Mode] IN ('IMMEDIATE', 'DIGEST_DAILY', 'DIGEST_WEEKLY', 'OFF'))
 );
 GO
--- دفعة ملخص لمستخدم وقناة وفترة؛ لا يُرسل فارغًا (FR-NTF-014، BR-NTF-004، JOB-NTF-DIGEST) -- جدول جديد
+-- Digest batch for a user, channel and period; never sent empty (FR-NTF-014, BR-NTF-004, JOB-NTF-DIGEST) -- جدول جديد
 CREATE TABLE [ntf].[DigestBatch] (
     [TenantId] INT NOT NULL,
     [DigestBatchId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -5396,7 +5396,7 @@ CREATE TABLE [ntf].[DigestBatch] (
     CONSTRAINT [CK_DigestBatch_GroupSummaryJson_json] CHECK ([GroupSummaryJson] IS NULL OR ISJSON([GroupSummaryJson]) = 1)
 );
 GO
--- إشعار لمستخدم؛ المحتوى بلا قيم مقيّدة (FR-NTF-005/006/007/021، BR-NTF-001/002/007/008/011)
+-- Notification for a user; the content carries no restricted values (FR-NTF-005/006/007/021, BR-NTF-001/002/007/008/011)
 CREATE TABLE [ntf].[Notification] (
     [TenantId] INT NOT NULL,
     [NotificationId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -5439,7 +5439,7 @@ CREATE TABLE [ntf].[Notification] (
     CONSTRAINT [CK_Notification_PayloadJson_json] CHECK ([PayloadJson] IS NULL OR ISJSON([PayloadJson]) = 1)
 );
 GO
--- تسليم الإشعار لكل قناة بحالاته وإعادة المحاولة (FR-NTF-019، BR-NTF-009، §8)
+-- Delivery of a notification per channel, with status and retries (FR-NTF-019, BR-NTF-009, section 8)
 CREATE TABLE [ntf].[NotificationDelivery] (
     [TenantId] INT NOT NULL,
     [NotificationDeliveryId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -5472,7 +5472,7 @@ CREATE TABLE [ntf].[NotificationDelivery] (
 GO
 
 -- ===== schema lc =====
--- تعريف حقل في شروط الاعتماد: بيانات تُبذر لكل مشترك (FR-LCT-004، BR-LCT-002)؛ مراجع UCP في lc.LcFieldUcpRef
+-- Definition of a field in letter-of-credit terms: data seeded per tenant (FR-LCT-004, BR-LCT-002); UCP references are in lc.LcFieldUcpRef
 CREATE TABLE [lc].[LcFieldDefinition] (
     [TenantId] INT NOT NULL,
     [LcFieldDefinitionId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -5509,7 +5509,7 @@ CREATE TABLE [lc].[LcFieldDefinition] (
     CONSTRAINT [CK_LcFieldDefinition_ValidationJson_json] CHECK ([ValidationJson] IS NULL OR ISJSON([ValidationJson]) = 1)
 );
 GO
--- مرجع UCP لحقل: مادة + فقرة (UcpRefs في المواصفة)؛ يغذّي الشارة وR-LCT-01 وBR-LCT-018 -- وسيط جديد
+-- UCP reference for a field: article and paragraph (UcpRefs in specification); feeds the badge, R-LCT-01 and BR-LCT-018 -- وسيط جديد
 CREATE TABLE [lc].[LcFieldUcpRef] (
     [TenantId] INT NOT NULL,
     [LcFieldUcpRefId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -5526,7 +5526,7 @@ CREATE TABLE [lc].[LcFieldUcpRef] (
     CONSTRAINT [UQ_LcFieldUcpRef_LcFieldDefinitionId_UcpArticleId_Paragraph] UNIQUE ([TenantId], [LcFieldDefinitionId], [UcpArticleId], [Paragraph])
 );
 GO
--- الطرف المقابل: مورّد/عميل خفيف بلا هوية؛ يُرقّى إلى Party عند الحاجة (FR-LCT-036/037، BR-LCT-022، Q-PTY-03)
+-- Counterparty: lightweight supplier or customer without identity; promoted to Party when needed (FR-LCT-036/037, BR-LCT-022, Q-PTY-03)
 CREATE TABLE [lc].[Counterparty] (
     [TenantId] INT NOT NULL,
     [CounterpartyId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -5565,7 +5565,7 @@ CREATE TABLE [lc].[Counterparty] (
     CONSTRAINT [CK_Counterparty_Kind] CHECK ([Kind] IS NULL OR [Kind] IN ('SUPPLIER', 'CUSTOMER', 'BOTH'))
 );
 GO
--- مكتبة بنود المستندات بإصدارات: نص قالب بمعاملات (FR-LCT-017..019، BR-LCT-012)؛ مراجع UCP في lc.LcDocumentClauseUcpRef
+-- Document-clause library with versions: template text with parameters (FR-LCT-017..019, BR-LCT-012); UCP references are in lc.LcDocumentClauseUcpRef
 CREATE TABLE [lc].[LcDocumentClause] (
     [TenantId] INT NOT NULL,
     [LcDocumentClauseId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -5610,7 +5610,7 @@ CREATE TABLE [lc].[LcDocumentClause] (
     CONSTRAINT [CK_LcDocumentClause_ParamSchemaJson_json] CHECK ([ParamSchemaJson] IS NULL OR ISJSON([ParamSchemaJson]) = 1)
 );
 GO
--- مرجع UCP لبند مستند: مادة + فقرة (UcpRefs في المواصفة) -- وسيط جديد
+-- UCP 600 reference for a document clause: article and paragraph (UcpRefs in specification) -- وسيط جديد
 CREATE TABLE [lc].[LcDocumentClauseUcpRef] (
     [TenantId] INT NOT NULL,
     [LcDocumentClauseUcpRefId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -5627,7 +5627,7 @@ CREATE TABLE [lc].[LcDocumentClauseUcpRef] (
     CONSTRAINT [UQ_LcDocumentClauseUcpRef_LcDocumentClauseId_UcpArticleId_Paragraph] UNIQUE ([TenantId], [LcDocumentClauseId], [UcpArticleId], [Paragraph])
 );
 GO
--- إصدار شروط اعتماد: صف لكل إصدار بأعمدة قاموس §6.2؛ مشترك بين البروفورما والطلب والاعتماد والتعديل (FR-LCT-001..035)
+-- Letter-of-credit terms version: one row per version, with the section 6.2 dictionary columns; shared by proforma, request, credit and amendment (FR-LCT-001..035)
 CREATE TABLE [lc].[LcTerms] (
     [TenantId] INT NOT NULL,
     [LcTermsId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -5809,7 +5809,7 @@ CREATE TABLE [lc].[LcTerms] (
     CONSTRAINT [CK_LcTerms_MarginHeldCurrency] CHECK ([MarginHeldCurrency] IS NULL OR [MarginHeldCurrency] IN ('LOCAL', 'FOREIGN'))
 );
 GO
--- بند مستند مختار في الشروط ومعاملاته؛ النص المصيَّر يُجمَّد عند القفل (FR-LCT-018، BR-LCT-012) -- جديد
+-- Document clause selected in the terms, with its parameters; the rendered text is frozen at lock (FR-LCT-018, BR-LCT-012) -- جديد
 CREATE TABLE [lc].[LcTermsDocument] (
     [TenantId] INT NOT NULL,
     [LcTermsDocumentId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -5840,7 +5840,7 @@ CREATE TABLE [lc].[LcTermsDocument] (
     CONSTRAINT [CK_LcTermsDocument_ParamsJson_json] CHECK ([ParamsJson] IS NULL OR ISJSON([ParamsJson]) = 1)
 );
 GO
--- رسوم الشروط: صف لكل فئة (6 صفوف كاملة يتحقق منها التطبيق V-LCT-12) (FR-LCT-020، BR-LCT-014)
+-- Charges per term: one row per category; six complete rows, checked by the application (V-LCT-12) (FR-LCT-020, BR-LCT-014)
 CREATE TABLE [lc].[LcChargesMatrix] (
     [TenantId] INT NOT NULL,
     [LcChargesMatrixId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -5864,7 +5864,7 @@ CREATE TABLE [lc].[LcChargesMatrix] (
     CONSTRAINT [CK_LcChargesMatrix_Payer] CHECK ([Payer] IS NULL OR [Payer] IN ('APPLICANT', 'BENEFICIARY', 'SHARED'))
 );
 GO
--- قالب نموذج بنك/منتج/نوع نموذج بإصدار وفترة نفاذ وملحق عقدي (FR-LCT-026، BR-LCT-017، 02 F-14)
+-- Form template per bank, product and form type, with version, effective period and contract annex (FR-LCT-026, BR-LCT-017, specification 02 F-14)
 CREATE TABLE [lc].[LcFormTemplate] (
     [TenantId] INT NOT NULL,
     [LcFormTemplateId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -5911,7 +5911,7 @@ CREATE TABLE [lc].[LcFormTemplate] (
     CONSTRAINT [CK_LcFormTemplate_Status] CHECK ([Status] IS NULL OR [Status] IN ('DRAFT', 'ACTIVE', 'RETIRED'))
 );
 GO
--- تعيين حقل نظام إلى حقل PDF أو بند في ورقة البوابة (FR-LCT-027، BR-LCT-020) -- جديد
+-- Mapping of a system field to a PDF field or a portal-form item (FR-LCT-027, BR-LCT-020) -- جديد
 CREATE TABLE [lc].[LcFormFieldMap] (
     [TenantId] INT NOT NULL,
     [LcFormFieldMapId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -5937,7 +5937,7 @@ CREATE TABLE [lc].[LcFormFieldMap] (
     CONSTRAINT [CK_LcFormFieldMap_Transform] CHECK ([Transform] IS NULL OR [Transform] IN ('NONE', 'UPPER', 'DATE_DMY', 'DATE_HIJRI', 'AMOUNT_WORDS_AR', 'AMOUNT_WORDS_EN', 'CHECKBOX_EQ', 'CONCAT_DOCS', 'CHARGES_SUMMARY'))
 );
 GO
--- سجل الاعتماد للجانبين: مشتريات (نحن الطالب) ومبيعات (نحن المستفيد) (FR-LCI-011..016، FR-LCE-009، BR-LCI-004/008/016، BR-LCE-007/009)
+-- Letter-of-credit record for both sides: purchases (we are the applicant) and sales (we are the beneficiary) (FR-LCI-011..016, FR-LCE-009, BR-LCI-004/008/016, BR-LCE-007/009)
 CREATE TABLE [lc].[LetterOfCredit] (
     [TenantId] INT NOT NULL,
     [LetterOfCreditId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -6026,7 +6026,7 @@ CREATE TABLE [lc].[LetterOfCredit] (
     CONSTRAINT [CK_LetterOfCredit_Channel] CHECK ([Channel] IS NULL OR [Channel] IN ('BANK_PORTAL', 'MANUAL_FORM', 'DIRECT_INTEGRATION'))
 );
 GO
--- مرجع خارجي للاعتماد (ERP...)؛ بلا فرادة؛ البحث بالمطبَّع (FR-LCI-013، BR-REQ-006) -- جديد
+-- External reference for a credit (ERP and similar); no uniqueness; search on the normalised value (FR-LCI-013, BR-REQ-006) -- جديد
 CREATE TABLE [lc].[LcExternalRef] (
     [TenantId] INT NOT NULL,
     [LcExternalRefId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -6048,7 +6048,7 @@ CREATE TABLE [lc].[LcExternalRef] (
     CONSTRAINT [CK_LcExternalRef_1] CHECK (SupersededById IS NULL OR (IsActive = 0 AND SupersededById <> LcExternalRefId))
 );
 GO
--- تعديل اعتماد صادر أو مستلَم (FR-LCI-018/019، FR-LCE-020، BR-LCI-011/012، BR-LCE-014)؛ الحالات §8
+-- Amendment to an issued or received letter of credit (FR-LCI-018/019, FR-LCE-020, BR-LCI-011/012, BR-LCE-014); statuses in section 8
 CREATE TABLE [lc].[LcAmendment] (
     [TenantId] INT NOT NULL,
     [LcAmendmentId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -6098,7 +6098,7 @@ CREATE TABLE [lc].[LcAmendment] (
     CONSTRAINT [CK_LcAmendment_ChangedFieldsJson_json] CHECK ([ChangedFieldsJson] IS NULL OR ISJSON([ChangedFieldsJson]) = 1)
 );
 GO
--- سحب/تقديم مستندات تحت اعتماد؛ في التصدير يشمل تحويل التخصيص (FR-LCI-023، BR-LCI-013، BR-LCE-011)؛ الحالات §8
+-- Drawing or presentation of documents under a credit; for exports includes transfer of allocation (FR-LCI-023, BR-LCI-013, BR-LCE-011); statuses in section 8
 CREATE TABLE [lc].[LcDrawing] (
     [TenantId] INT NOT NULL,
     [LcDrawingId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -6140,7 +6140,7 @@ CREATE TABLE [lc].[LcDrawing] (
     CONSTRAINT [CK_LcDrawing_Status] CHECK ([Status] IS NULL OR [Status] IN ('PRESENTED', 'DISCREPANT', 'ACCEPTED', 'SETTLED', 'REFUSED', 'CANCELLED'))
 );
 GO
--- تخصيص أمر بيع على اعتماد مستلَم؛ لا يقابله حد ائتماني (FR-LCE-013..015، BR-LCE-009..013)؛ الحالات §8
+-- Allocation of a sales order against a received credit; no credit limit corresponds to it (FR-LCE-013..015, BR-LCE-009..013); statuses in section 8
 CREATE TABLE [lc].[LcSalesOrder] (
     [TenantId] INT NOT NULL,
     [LcSalesOrderId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -6177,7 +6177,7 @@ CREATE TABLE [lc].[LcSalesOrder] (
     CONSTRAINT [CK_LcSalesOrder_Status] CHECK ([Status] IS NULL OR [Status] IN ('EARMARKED', 'PARTIALLY_CONVERTED', 'CONVERTED', 'RELEASED', 'CANCELLED'))
 );
 GO
--- توزيع سحب تصدير على أوامر بيع (FR-LCE-016/017، BR-LCE-011/013) -- جديد؛ Σ التوزيع ≤ مبلغ السحب وكل جزء ≤ متبقي أمره يتحقق منهما التطبيق
+-- Allocation of an export drawing across sales orders (FR-LCE-016/017, BR-LCE-011/013) -- جديد؛ Σ التوزيع ≤ مبلغ السحب وكل جزء ≤ متبقي أمره يتحقق منهما التطبيق
 CREATE TABLE [lc].[LcDrawingAllocation] (
     [TenantId] INT NOT NULL,
     [LcDrawingAllocationId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -6197,7 +6197,7 @@ CREATE TABLE [lc].[LcDrawingAllocation] (
     CONSTRAINT [CK_LcDrawingAllocation_1] CHECK (Amount > 0)
 );
 GO
--- مخالفة على مستندات سحب أو اعتماد؛ القرار يتطلب lc.discrepancy.decide (FR-LCI-024، FR-LCE-021، §8) -- جديد
+-- Discrepancy on presented or issued documents; the decision requires the lc.discrepancy.decide permission (FR-LCI-024, FR-LCE-021, section 8) -- جديد
 CREATE TABLE [lc].[LcDiscrepancy] (
     [TenantId] INT NOT NULL,
     [LcDiscrepancyId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -6222,7 +6222,7 @@ CREATE TABLE [lc].[LcDiscrepancy] (
     CONSTRAINT [CK_LcDiscrepancy_Status] CHECK ([Status] IS NULL OR [Status] IN ('OPEN', 'WAIVED', 'CORRECTED', 'REFUSED'))
 );
 GO
--- البروفورما الصادرة؛ يمنع التطبيق تعديلها بعد الإصدار؛ الرقم {seq:000}-{erp}-{yy} (FR-LCE-005..008، BR-LCE-001..006)
+-- Issued proforma invoice; the application prevents edits after issue; number format {seq:000}-{erp}-{yy} (FR-LCE-005..008, BR-LCE-001..006)
 CREATE TABLE [lc].[ProformaInvoice] (
     [TenantId] INT NOT NULL,
     [ProformaInvoiceId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -6288,7 +6288,7 @@ CREATE TABLE [lc].[ProformaInvoice] (
     CONSTRAINT [CK_ProformaInvoice_PlacesJson_json] CHECK ([PlacesJson] IS NULL OR ISJSON([PlacesJson]) = 1)
 );
 GO
--- بند في البروفورما (FR-LCE-003، BR-LCE-001)؛ يُثبَّت بعد الإصدار
+-- Line item in the proforma (FR-LCE-003, BR-LCE-001); fixed after issue
 CREATE TABLE [lc].[ProformaLine] (
     [TenantId] INT NOT NULL,
     [ProformaLineId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -6314,7 +6314,7 @@ CREATE TABLE [lc].[ProformaLine] (
     CONSTRAINT [CK_ProformaLine_3] CHECK (UnitPrice >= 0 AND LineTotal >= 0)
 );
 GO
--- نتيجة مقارنة شروط الاعتماد المستلَم بالبروفورما (FR-LCT-031، FR-LCE-023، BR-LCT-021) -- جديد (أولوية: ممكن)
+-- Result of comparing received credit terms with the proforma (FR-LCT-031, FR-LCE-023, BR-LCT-021) -- جديد (أولوية: ممكن)
 CREATE TABLE [lc].[LcTermsComparison] (
     [TenantId] INT NOT NULL,
     [LcTermsComparisonId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -6337,7 +6337,7 @@ CREATE TABLE [lc].[LcTermsComparison] (
     CONSTRAINT [CK_LcTermsComparison_SummaryJson_json] CHECK ([SummaryJson] IS NULL OR ISJSON([SummaryJson]) = 1)
 );
 GO
--- فرق حقل واحد وحكمه وقرار الخزينة (FR-LCT-031، BR-LCT-021) -- جديد (أولوية: ممكن)
+-- One field difference, its verdict and the treasury decision (FR-LCT-031, BR-LCT-021) -- جديد (أولوية: ممكن)
 CREATE TABLE [lc].[LcTermsComparisonLine] (
     [TenantId] INT NOT NULL,
     [LcTermsComparisonLineId] BIGINT IDENTITY(1,1) NOT NULL,

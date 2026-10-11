@@ -9,7 +9,7 @@
 
 module ORG
 
-table org.Company public  # الشركة: جذر الهيكل المؤسسي (FR-ORG-001..010، BR-ORG-001..004)
+table org.Company public  # Company: root of the corporate structure (FR-ORG-001..010, BR-ORG-001..004)
   CompanyCode        ascii(20)  req   # رمز داخلي فريد في المشترك (BR-ORG-001)
   NameAr             str(200)   req
   NameEn             str(200)   req
@@ -42,7 +42,7 @@ table org.Company public  # الشركة: جذر الهيكل المؤسسي (FR
   check  ParentCompanyId IS NULL OR ParentCompanyId <> CompanyId   # لا أم ذاتية (الحلقات غير المباشرة في التطبيق)
   check  ErpCompanyCode IS NULL OR ErpCodeNormalized IS NOT NULL   # المطبَّع يُحسب عند كل كتابة
 
-table org.CompanyTaxRate  # نسبة ضريبة بتاريخ سريان؛ CompanyId فارغ = افتراضي المشترك (FR-ORG-007، BR-ORG-005)
+table org.CompanyTaxRate  # Tax rate with an effective date; NULL CompanyId = tenant default (FR-ORG-007, BR-ORG-005)
   CompanyId      ->org.Company
   TaxCode        ascii(20)  req   # مثل VAT
   RatePercent    rate       req   # نقاط مئوية
@@ -53,7 +53,7 @@ table org.CompanyTaxRate  # نسبة ضريبة بتاريخ سريان؛ Compan
   check  RatePercent >= 0 AND RatePercent <= 100
   check  EffectiveTo IS NULL OR EffectiveTo >= EffectiveFrom
 
-table org.Department  # الإدارة (FR-ORG-014، BR-ORG-016، Q-ORG-09: على مستوى المشترك وشركة اختيارية)
+table org.Department  # Department (FR-ORG-014, BR-ORG-016, Q-ORG-09): at tenant level, optionally per company
   Code               ascii(20)  req
   NameAr             str(200)   req
   NameEn             str(200)   req
@@ -68,7 +68,7 @@ table org.Department  # الإدارة (FR-ORG-014، BR-ORG-016، Q-ORG-09: عل
   unique SeedKey where SeedKey IS NOT NULL
   check  ParentDepartmentId IS NULL OR ParentDepartmentId <> DepartmentId
 
-table org.Shareholding  # حصة ملكية بتاريخ سريان؛ المالك Party فرد أو جهة (FR-ORG-015..018، BR-ORG-006..008، G-7)
+table org.Shareholding  # Ownership interest with an effective date; the owner is a Party, an individual or an entity (FR-ORG-015..018, BR-ORG-006..008, G-7)
   CompanyId          ->org.Company req
   HolderPartyId      ->pty.Party req
   SharePercent       rate       req   # (0,100]؛ مجموع الحصص السارية بمستوى Layer=1 = 100 تتحقق منه المعاملة (BR-ORG-006)
@@ -90,7 +90,7 @@ table org.Shareholding  # حصة ملكية بتاريخ سريان؛ المال
   check  SharesCount IS NULL OR SharesCount > 0
   check  NominalValue IS NULL OR (NominalValue >= 0 AND CurrencyId IS NOT NULL)
 
-table org.GoverningBody public  # هيئة حوكمة (FR-ORG-019، BR-ORG-009)
+table org.GoverningBody public  # Governing body (FR-ORG-019, BR-ORG-009)
   CompanyId          ->org.Company req
   BodyType           enum{BOARD_OF_DIRECTORS,BOARD_OF_MANAGERS,MANAGEMENT,GENERAL_ASSEMBLY} req
   NameAr             str(200)
@@ -105,7 +105,7 @@ table org.GoverningBody public  # هيئة حوكمة (FR-ORG-019، BR-ORG-009)
   index  Status,TermEnd   # تنبيهات انتهاء المدة (FR-ORG-022)
   check  TermEnd IS NULL OR TermStart IS NULL OR TermEnd >= TermStart
 
-table org.BodyMember  # عضوية في هيئة (FR-ORG-020، FR-ORG-021، BR-ORG-010)
+table org.BodyMember  # Membership of a governing body (FR-ORG-020, FR-ORG-021, BR-ORG-010)
   CompanyId              ->org.Company req   # مكرَّر من الهيئة لضمان سلامة الربط بالمنح (via)؛ يطابق CompanyId للهيئة بقيد مركّب
   BodyId                 ->org.GoverningBody req via=CompanyId
   PartyId                ->pty.Party req
@@ -123,7 +123,7 @@ table org.BodyMember  # عضوية في هيئة (FR-ORG-020، FR-ORG-021، BR-O
   check  ResignedOn IS NULL OR ResignedOn >= TermStart
   check  RepresentedPartyId IS NULL OR RepresentedPartyId <> PartyId
 
-table org.AuthorityGrant public  # تفويض/منحة صلاحية لشركة (FR-ORG-023..028، BR-ORG-011..014)
+table org.AuthorityGrant public  # Authority grant to a company (FR-ORG-023..028, BR-ORG-011..014)
   CompanyId          ->org.Company req
   GranteeKind        enum{BODY,BODY_MEMBER,PARTY} req
   BodyId             ->org.GoverningBody via=CompanyId        # واحد فقط بحسب GranteeKind
@@ -161,7 +161,7 @@ table org.AuthorityGrant public  # تفويض/منحة صلاحية لشركة (
 
 # --------------------------- إضافات KYC للشركة (docs/05 G-1..G-6) ---------------------------
 
-table org.CompanyProfile  # ملف تعريف الشركة 1:1 (G-1)
+table org.CompanyProfile  # Company profile, 1:1 (G-1)
   CompanyId                          ->org.Company req
   UnifiedNationalNo                  ascii(20)   # الرقم الوطني الموحد
   ForeignInvestmentLicenseNo         ascii(40)   # رخصة الاستثمار الأجنبي
@@ -185,7 +185,7 @@ table org.CompanyProfile  # ملف تعريف الشركة 1:1 (G-1)
   check  ForeignInvestmentLicenseExpiresOn IS NULL OR ForeignInvestmentLicenseIssuedOn IS NULL OR ForeignInvestmentLicenseExpiresOn > ForeignInvestmentLicenseIssuedOn
   check  DeclaredBranchCount IS NULL OR DeclaredBranchCount >= 0
 
-table org.CompanyBranch  # فرع/مستودع/تابعة خارج الحساب كنص (G-3)
+table org.CompanyBranch  # Branch, warehouse or subsidiary outside the account, held as text (G-3)
   CompanyId           ->org.Company req
   BranchKind          enum{BRANCH,WAREHOUSE,EXTERNAL_SUBSIDIARY} req =BRANCH   # التابعة داخل الحساب = Company بأم، لا صف هنا
   NameAr              str(200)
@@ -204,7 +204,7 @@ table org.CompanyBranch  # فرع/مستودع/تابعة خارج الحساب 
   check  OwnershipPercent IS NULL OR (BranchKind = 'EXTERNAL_SUBSIDIARY' AND OwnershipPercent > 0 AND OwnershipPercent <= 100)
   check  ClosedOn IS NULL OR Status = 'CLOSED'
 
-table org.CompanyKycFinancialProfile  # الملف المالي KYC بتاريخ سريان: شريحة الإيرادات والغرض (G-4)
+table org.CompanyKycFinancialProfile  # KYC financial profile with an effective date: revenue band and purpose (G-4)
   CompanyId             ->org.Company req
   EffectiveFrom         date       req
   EffectiveTo           date
@@ -218,7 +218,7 @@ table org.CompanyKycFinancialProfile  # الملف المالي KYC بتاريخ
   unique CompanyId where EffectiveTo IS NULL   # ملف مفتوح واحد
   check  EffectiveTo IS NULL OR EffectiveTo >= EffectiveFrom
 
-table org.CompanyExpectedFlow  # مصفوفة الحركة المتوقعة الشهرية CTP: اتجاه × 5 بنود (G-4)
+table org.CompanyExpectedFlow  # Monthly expected cash-flow matrix (CTP): direction x five items (G-4)
   FinancialProfileId  ->org.CompanyKycFinancialProfile req
   Direction           enum{DEPOSIT,WITHDRAWAL} req
   FlowKind            enum{CASH,OTHER,LOCAL_TRANSFER,INTERNATIONAL_TRANSFER,CHEQUE} req
@@ -227,12 +227,12 @@ table org.CompanyExpectedFlow  # مصفوفة الحركة المتوقعة ال
   unique FinancialProfileId,Direction,FlowKind
   check  MonthlyAmount >= 0
 
-table org.CompanyWealthSource pk=FinancialProfileId,WealthSourceId norv deletable  # مصادر الأموال والثروة: قائمة متعددة (G-4)
+table org.CompanyWealthSource pk=FinancialProfileId,WealthSourceId norv deletable  # Sources of funds and wealth: multiple-value list (G-4)
   FinancialProfileId  ->org.CompanyKycFinancialProfile req cascade
   WealthSourceId      ->cat.LookupItem req   # قائمة WEALTH_SOURCE (تمويل داخلي، إيرادات تجارية، تسهيلات، بيع أصول...)
   OtherText           str(200)               # وصف عند «أخرى»
 
-table org.CompanyDisclosure  # إفصاحات الشركة (G-5)
+table org.CompanyDisclosure  # Company disclosures (G-5)
   CompanyId           ->org.Company req
   DisclosureKind      enum{REGULATORY_DISCIPLINARY,TAX_ISSUE,LITIGATION,FACILITY_RESCHEDULING,CONVICTION,OTHER} req
   Description         text       req
@@ -243,7 +243,7 @@ table org.CompanyDisclosure  # إفصاحات الشركة (G-5)
   index  CompanyId,DisclosureKind,Status
   check  ResolvedOn IS NULL OR Status = 'RESOLVED'
 
-table org.CompanyKeyRelation  # أصحاب العلاقة: مدققون، مستشار قانوني، جهات تنظيمية، أبرز العملاء/الموردين (G-6)
+table org.CompanyKeyRelation  # Key relations: auditors, legal counsel, regulators, and major customers and suppliers (G-6)
   CompanyId       ->org.Company req
   RelationKind    enum{AUDITOR,ACCOUNTANT,LEGAL_ADVISOR,REGULATOR,MAJOR_CUSTOMER,MAJOR_SUPPLIER,OTHER} req
   NameAr          str(200)
@@ -256,7 +256,7 @@ table org.CompanyKeyRelation  # أصحاب العلاقة: مدققون، مست
 
 module PTY
 
-table pty.Party public  # شخص أو جهة؛ لا دور مخزَّن (FR-PTY-001..003، BR-PTY-001..004، BR-PTY-016..018)
+table pty.Party public  # Person or entity; no stored role (FR-PTY-001..003, BR-PTY-001..004, BR-PTY-016..018)
   PartyCode          ascii(20)  req   # مُولَّد من NumberSequence
   Kind               enum{INDIVIDUAL,ORGANIZATION} req
   NameAr             str(200)
@@ -285,7 +285,7 @@ table pty.Party public  # شخص أو جهة؛ لا دور مخزَّن (FR-PTY-
   check  LinkedCompanyId IS NULL OR Kind = 'ORGANIZATION'
   check  MergedIntoPartyId IS NULL OR (IsActive = 0 AND MergedIntoPartyId <> PartyId)
 
-table pty.IdentityDocument  # وثيقة هوية؛ الرقم مشفّر والصور مستندات مقيَّدة (FR-PTY-004..009، FR-PTY-020..022، BR-PTY-002..008)
+table pty.IdentityDocument  # Identity document; the number is encrypted and images are restricted documents (FR-PTY-004..009, FR-PTY-020..022, BR-PTY-002..008)
   PartyId            ->pty.Party req
   DocKind            enum{NATIONAL_ID,RESIDENCE,PASSPORT,GCC_ID,COMMERCIAL_REG,OTHER_ORG} req
   IssuingCountryId   ->ref.Country req
@@ -318,7 +318,7 @@ table pty.IdentityDocument  # وثيقة هوية؛ الرقم مشفّر وال
   check  IsSuperseded = 0 OR IsPrimary = 0
   check  VerifiedBy IS NULL OR VerifiedAt IS NOT NULL
 
-table pty.Address  # عنوان متعدد الملكية: OwnerType+OwnerId بلا FK (مزوّد المالك يتحقق منه التطبيق) (FR-PTY-011، BR-PTY-015)
+table pty.Address  # Postal address with an exclusive owner arc: exactly one of Party, Institution, Unit or Contact (FR-PTY-011, BR-PTY-015)
   PartyId            ->pty.Party                # قوس المالك: شخص (واحد من أربعة فقط؛ DR-04)
   InstitutionId      ->ins.Institution          # قوس المالك: منشأة
   UnitId             ->ins.InstitutionUnit      # قوس المالك: فرع/وحدة
@@ -350,7 +350,7 @@ table pty.Address  # عنوان متعدد الملكية: OwnerType+OwnerId ب�
   check  IsPrimary = 0 OR IsCurrent = 1
   check  AddressType <> 'PO_BOX' OR PoBoxNumber IS NOT NULL
 
-table pty.ContactMethod deletable  # وسيلة اتصال متعددة الملكية (FR-PTY-012، BR-PTY-015)
+table pty.ContactMethod deletable  # Contact method (phone, e-mail and similar) with an exclusive owner arc, as for addresses (FR-PTY-012, BR-PTY-015)
   PartyId            ->pty.Party                # قوس المالك (واحد من أربعة؛ DR-04)
   InstitutionId      ->ins.Institution
   UnitId             ->ins.InstitutionUnit
@@ -375,7 +375,7 @@ table pty.ContactMethod deletable  # وسيلة اتصال متعددة المل
   index  UnitId
   index  ContactId
 
-table pty.CustomFieldDefinition  # تعريف حقل مخصص (FR-PTY-013، BR-PTY-014)
+table pty.CustomFieldDefinition  # Custom field definition (FR-PTY-013, BR-PTY-014)
   FieldKey           ascii(60)  req
   LabelAr            str(200)   req
   LabelEn            str(200)   req
@@ -390,7 +390,7 @@ table pty.CustomFieldDefinition  # تعريف حقل مخصص (FR-PTY-013، BR-P
   unique SeedKey where SeedKey IS NOT NULL
   check  (DataType = 'LIST' AND ListValues IS NOT NULL) OR (DataType <> 'LIST' AND ListValues IS NULL)
 
-table pty.PartyCustomField  # قيمة حقل مخصص لشخص (FR-PTY-013، FR-PTY-014)
+table pty.PartyCustomField  # Custom-field value for a party (FR-PTY-013, FR-PTY-014)
   PartyId            ->pty.Party req
   DefinitionId       ->pty.CustomFieldDefinition req
   ValueText          str(1000)
@@ -404,7 +404,7 @@ table pty.PartyCustomField  # قيمة حقل مخصص لشخص (FR-PTY-013، FR
   check  ValueEnc IS NULL OR ValueMask IS NOT NULL
   check  ValueEnc IS NULL OR (EncKeyId IS NOT NULL AND DATALENGTH(ValueEnc) >= 29)
 
-table pty.KycProfile public  # قائمة اكتمال KYC لكل بنك ودور (FR-PTY-023، BR-PTY-012..013، G-8، G-14)
+table pty.KycProfile public  # KYC completeness checklist per bank and role (FR-PTY-023, BR-PTY-012..013, G-8, G-14)
   InstitutionId      ->ins.Institution   # فارغ فقط لملف الأساس IsBaseline (FR-PTY-023): المواصفة تجعله إلزاميًا
   NameAr             str(200)   req
   NameEn             str(200)   req
@@ -424,7 +424,7 @@ table pty.KycProfile public  # قائمة اكتمال KYC لكل بنك ودو�
   check  Version >= 1
   check  OwnerThresholdPct IS NULL OR (OwnerThresholdPct > 0 AND OwnerThresholdPct <= 100)
 
-table pty.KycProfileItem deletable  # بند اكتمال (FR-PTY-023، FR-PTY-024، G-14)
+table pty.KycProfileItem deletable  # Completeness item (FR-PTY-023, FR-PTY-024, G-14)
   ProfileId          ->pty.KycProfile req
   ItemKind           enum{PARTY_FIELD,IDENTITY_DOC,DOCUMENT_TYPE,ADDRESS_TYPE,CONTACT_KIND,CUSTOM_FIELD,COMPANY_FIELD,RELATED_PARTY_SET} req   # آخر قيمتين إضافة لنماذج الشركات (05 G-14): حقل شركة/ملف مالي/إفصاح، ومجموعة أطراف (ملاك/مجلس/مفوّضون/مستفيدون)
   RefCode            ascii(60)  req   # رمز الحقل أو نوع الوثيقة أو نوع العنوان...
@@ -442,11 +442,11 @@ table pty.KycProfileItem deletable  # بند اكتمال (FR-PTY-023، FR-PTY-0
   check  MinValidityDays IS NULL OR MinValidityDays >= 0
   check  MaxAgeDays IS NULL OR MaxAgeDays > 0
 
-table pty.KycProfileItemLegalForm pk=KycProfileItemId,LegalEntityTypeId norv deletable  # شروط ظهور البند بحسب الشكل القانوني؛ غياب الصفوف = ينطبق على الكل (G-15)
+table pty.KycProfileItemLegalForm pk=KycProfileItemId,LegalEntityTypeId norv deletable  # Conditions for an item to apply, by legal form; no rows = applies to all (G-15)
   KycProfileItemId   ->pty.KycProfileItem req cascade
   LegalEntityTypeId  ->cat.LegalEntityType req
 
-table pty.PartyCompliance  # إقرارات امتثال بتاريخ لكل شخص بصفته: PEP، عقوبات، تحقيقات، حصانة (G-9)
+table pty.PartyCompliance  # Dated compliance declarations per person in their capacity: PEP, sanctions, investigations, immunity (G-9)
   PartyId                ->pty.Party req
   Capacity               enum{OWNER,BENEFICIAL_OWNER,BOARD_MEMBER,EXECUTIVE,SIGNATORY,OTHER} req
   CompanyId              ->org.Company   # الشركة التي صدر الإقرار في سياق ملفها
@@ -464,7 +464,7 @@ table pty.PartyCompliance  # إقرارات امتثال بتاريخ لكل ش�
   index  CompanyId,IsCurrent
   sens   IsPep,IsRelatedToPep,IsSanctioned,IsUnderInvestigation,HasImmunity,Details
 
-table pty.TaxIdentity  # الهوية الضريبية والإقرار الضريبي FATCA/CRS (G-13)
+table pty.TaxIdentity  # Tax identity and FATCA/CRS tax declaration (G-13)
   PartyId                  ->pty.Party req
   CountryId                ->ref.Country req   # بلد الإقامة الضريبية
   TaxNumber                ascii(40)  sens=confidential   # الرقم الضريبي (Company.TaxNumber للمرآة يُزامَن منه)

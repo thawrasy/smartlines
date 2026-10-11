@@ -20,7 +20,7 @@
 # ============================== المخطط fac: التسهيلات والحدود ==============================
 module FAC
 
-table fac.Facility public  # حزمة الاتفاقية الائتمانية: جذر التجميعة (FR-FAC-001..008، BR-FAC-001/005/006)
+table fac.Facility public  # Facility agreement package: root of the aggregate (FR-FAC-001..008, BR-FAC-001/005/006)
   FacilityNo               ascii(40)  req   # FAC-YY-NNN من NumberSequence (BR-FAC-001)
   BankReferenceNo          str(80)          # مرجع البنك: نص حر بلا صيغة (Q-FAC-01)
   BankStructureNo          str(80)          # رقم هيكل البنك: نص حر (Q-FAC-01)
@@ -67,7 +67,7 @@ table fac.Facility public  # حزمة الاتفاقية الائتمانية: �
   check  LifecycleStatus = 'DRAFT' OR ApprovedRevisionNo >= 1   # DRAFT→ACTIVE باعتماد أول مراجعة (§8)
   check  AlertLeadDays IS NULL OR AlertLeadDays NOT LIKE '%[^0-9,]%'
 
-table fac.FacilityRevision  # مراجعة معدّ/معتمِد لشروط التسهيل (FR-FAC-024، BR-FAC-003/004، §8)
+table fac.FacilityRevision  # Preparer and approver revision of facility terms (FR-FAC-024, BR-FAC-003/004, section 8)
   FacilityId       ->fac.Facility req
   RevisionNo       int        req   # يبدأ من 1
   ReasonKind       enum{INITIAL,AMENDMENT,EXTENSION,CORRECTION,RENEWAL_COPY} req
@@ -90,7 +90,7 @@ table fac.FacilityRevision  # مراجعة معدّ/معتمِد لشروط ال
   check  Status <> 'APPROVED' OR (ApprovedBy IS NOT NULL AND ApprovedOn IS NOT NULL)
   check  Status <> 'REJECTED' OR RejectionReason IS NOT NULL   # الرفض بسبب (FR-FAC-024)
 
-table fac.FacilityDocument rev  # وثيقة ضمن الحزمة بأسبقية (FR-FAC-004، BR-FAC-008، V-FAC-03)؛ نوعها من doc.Document.DocumentTypeId
+table fac.FacilityDocument rev  # Document within the package, with precedence (FR-FAC-004, BR-FAC-008, V-FAC-03); its type comes from doc.Document.DocumentTypeId
   FacilityId                ->fac.Facility req
   DocumentId                ->doc.Document req
   DocumentDate              date
@@ -108,7 +108,7 @@ table fac.FacilityDocument rev  # وثيقة ضمن الحزمة بأسبقية 
   check  AmendsFacilityDocumentId IS NULL OR AmendsFacilityDocumentId <> FacilityDocumentId
   check  ToRevision IS NULL OR ToRevision >= FromRevision
 
-table fac.FacilityLender rev  # مقرض وحصته (FR-FAC-003، BR-FAC-007، V-FAC-02)؛ مجموع الحصص 100 ووكيل واحد يتحقق منهما التطبيق
+table fac.FacilityLender rev  # Lender and its share (FR-FAC-003, BR-FAC-007, V-FAC-02); shares total 100 and a single agent, both checked by the application
   FacilityId     ->fac.Facility req
   InstitutionId  ->ins.Institution req
   Roles          set{SOLE,LEAD,AGENT,ARRANGER,PARTICIPANT} req
@@ -120,7 +120,7 @@ table fac.FacilityLender rev  # مقرض وحصته (FR-FAC-003، BR-FAC-007، V
   check  Roles NOT LIKE '%SOLE%' OR SharePct = 100   # SOLE ⇒ 100% (BR-FAC-007)
   check  ToRevision IS NULL OR ToRevision >= FromRevision
 
-table fac.OutstandingSnapshot src  # لقطة الرصيد المعترف به (FR-FAC-009، BR-FAC-017)؛ PctOfLimit مشتق لا يُخزَّن
+table fac.OutstandingSnapshot src  # Snapshot of the recognised outstanding balance (FR-FAC-009, BR-FAC-017); PctOfLimit is derived and not stored
   FacilityId          ->fac.Facility req
   LimitId             ->fac.Limit via=FacilityId
   ProductId           ->cat.Product
@@ -136,7 +136,7 @@ table fac.OutstandingSnapshot src  # لقطة الرصيد المعترف به (
   check  SourceDocumentId IS NOT NULL AND SourcePage IS NOT NULL OR (SourceDocumentId IS NULL AND Confidence = 'ENTERED_NO_DOCUMENT')   # ختم المصدر (BR-FAC-018)
   check  Confidence <> 'CONFIRMED_AGAINST_ORIGINAL' OR (VerifiedBy IS NOT NULL AND VerifiedOn IS NOT NULL)
 
-table fac.Limit rev src  # عقدة شجرة الحدود (FR-FAC-010/011، BR-FAC-009/010، V-FAC-04..07)
+table fac.Limit rev src  # Limit-tree node (FR-FAC-010/011, BR-FAC-009/010, V-FAC-04..07)
   FacilityId             ->fac.Facility req
   ParentLimitId          ->fac.Limit via=FacilityId   # فارغ = جذر (أبوه التسهيل)؛ عمق <= 6 وبلا حلقات في التطبيق
   LimitTypeId            ->cat.LimitType req
@@ -170,7 +170,7 @@ table fac.Limit rev src  # عقدة شجرة الحدود (FR-FAC-010/011، BR-F
   check  SourceDocumentId IS NOT NULL AND SourcePage IS NOT NULL OR (SourceDocumentId IS NULL AND Confidence = 'ENTERED_NO_DOCUMENT')   # ختم المصدر (BR-FAC-018)
   check  Confidence <> 'CONFIRMED_AGAINST_ORIGINAL' OR (VerifiedBy IS NOT NULL AND VerifiedOn IS NOT NULL)
 
-table fac.LimitProductLine rev src  # خط منتج داخل حد: سقف اختياري SHARED_CAP دائمًا (FR-FAC-012، V-FAC-08)
+table fac.LimitProductLine rev src  # Product line within a limit, with an optional SHARED_CAP ceiling (FR-FAC-012, V-FAC-08)
   FacilityId      ->fac.Facility req
   LimitId         ->fac.Limit via=FacilityId req
   ProductId       ->cat.Product req   # من المنتجات المسموحة للحد؛ فارغة = أي منتج بتحذير (SVC-08)
@@ -191,7 +191,7 @@ table fac.LimitProductLine rev src  # خط منتج داخل حد: سقف اخت
   check  SourceDocumentId IS NOT NULL AND SourcePage IS NOT NULL OR (SourceDocumentId IS NULL AND Confidence = 'ENTERED_NO_DOCUMENT')
   check  Confidence <> 'CONFIRMED_AGAINST_ORIGINAL' OR (VerifiedBy IS NOT NULL AND VerifiedOn IS NOT NULL)
 
-table fac.LimitCompanyRule rev src  # قيد شركة على حد: مسموح/مستثنى/تخصيص (FR-FAC-013، BR-FAC-012، V-FAC-09)
+table fac.LimitCompanyRule rev src  # Company rule on a limit: allowed, excluded or allocated (FR-FAC-013, BR-FAC-012, V-FAC-09)
   FacilityId        ->fac.Facility req
   LimitId           ->fac.Limit via=FacilityId req
   CompanyId         ->org.Company req
@@ -212,7 +212,7 @@ table fac.LimitCompanyRule rev src  # قيد شركة على حد: مسموح/م
   check  SourceDocumentId IS NOT NULL AND SourcePage IS NOT NULL OR (SourceDocumentId IS NULL AND Confidence = 'ENTERED_NO_DOCUMENT')
   check  Confidence <> 'CONFIRMED_AGAINST_ORIGINAL' OR (VerifiedBy IS NOT NULL AND VerifiedOn IS NOT NULL)
 
-table fac.ProductLineTerm rev src  # شروط العملية لخط المنتج بتواريخ سريان؛ الفارغ = «غير محدد» لا صفر (FR-FAC-014، BR-FAC-016)
+table fac.ProductLineTerm rev src  # Operational terms of a product line with effective dates; NULL means 'not specified', not zero (FR-FAC-014, BR-FAC-016)
   FacilityId                    ->fac.Facility req
   LimitProductLineId            ->fac.LimitProductLine via=FacilityId req
   MaxTotalTenorDays             int            # أقصى مدة شاملة التأجيل (TENOR)
@@ -239,7 +239,7 @@ table fac.ProductLineTerm rev src  # شروط العملية لخط المنتج
   check  SourceDocumentId IS NOT NULL AND SourcePage IS NOT NULL OR (SourceDocumentId IS NULL AND Confidence = 'ENTERED_NO_DOCUMENT')
   check  Confidence <> 'CONFIRMED_AGAINST_ORIGINAL' OR (VerifiedBy IS NOT NULL AND VerifiedOn IS NOT NULL)
 
-table fac.Utilization public  # بند استخدام فعّال: يدوي أو مرتبط باعتماد مستندي؛ لا حذف (FR-FAC-016/030، BR-FAC-013/020)
+table fac.Utilization public  # Active utilisation item: manual or linked to a letter of credit; never deleted (FR-FAC-016/030, BR-FAC-013/020)
   FacilityId          ->fac.Facility req
   LimitId             ->fac.Limit via=FacilityId req
   LimitProductLineId  ->fac.LimitProductLine via=FacilityId,LimitId   # الخط من الحد نفسه
@@ -269,7 +269,7 @@ table fac.Utilization public  # بند استخدام فعّال: يدوي أو 
   check  Status <> 'RELEASED' OR (ReleasedOn IS NOT NULL AND ReleaseReason IS NOT NULL)
   check  Status = 'RELEASED' OR (ReleasedOn IS NULL AND ReleaseReason IS NULL)
 
-table fac.LimitReservation  # حجز مبلغ لطلب = ExposureAmount (FR-FAC-017/018/020، BR-FAC-015)
+table fac.LimitReservation  # Amount reserved for a request, equal to ExposureAmount (FR-FAC-017/018/020, BR-FAC-015)
   FacilityId              ->fac.Facility req
   LimitId                 ->fac.Limit via=FacilityId req
   LimitProductLineId      ->fac.LimitProductLine via=FacilityId,LimitId   # الخط من الحد نفسه
@@ -300,7 +300,7 @@ table fac.LimitReservation  # حجز مبلغ لطلب = ExposureAmount (FR-FAC-
   check  Status = 'RELEASED' OR (ReleasedOn IS NULL AND ReleaseReason IS NULL)
   check  OverLimit = 0 OR OverrideReason IS NOT NULL   # OVERRIDE_REASON_REQUIRED (BR-FAC-015)
 
-table fac.LimitMovement append  # سجل حركة على حجز أو استخدام؛ لا تعديل ولا حذف؛ مفتاح عدم التكرار (BR-FAC-015/020)
+table fac.LimitMovement append  # Movement record on a reservation or usage; no update or delete; duplicate-prevention key (BR-FAC-015, BR-FAC-020)
   FacilityId          ->fac.Facility req   # إضافة: مفتاح النطاق
   TargetKind          enum{RESERVATION,UTILIZATION} req
   LimitReservationId  ->fac.LimitReservation via=FacilityId   # بدل TargetId متعدد الأشكال لضمان السلامة المرجعية
@@ -323,7 +323,7 @@ table fac.LimitMovement append  # سجل حركة على حجز أو استخد�
   check  AppliedDelta IS NULL OR RequestedDelta IS NULL OR ABS(AppliedDelta) <= ABS(RequestedDelta)   # المطبَّق لا يتجاوز المطلوب
   check  OpKind <> 'ADJUST' OR AmountBefore IS NULL OR AmountAfter IS NULL OR AppliedDelta IS NULL OR AmountAfter = AmountBefore + AppliedDelta
 
-table fac.ValueConflict  # تعارض قيمتين لحقل واحد وحسمه (FR-FAC-026، BR-FAC-019، BR-FAC-008)
+table fac.ValueConflict  # Conflict between two values of one field, and its resolution (FR-FAC-026, BR-FAC-019, BR-FAC-008)
   FacilityId                  ->fac.Facility req   # إضافة: مفتاح النطاق
   TargetEntity                ascii(60)  req   # الكيان المستهدف مثل fac.Limit أو prc.PricingRule (رابط متعدد الأشكال)
   TargetId                    bigint     req
@@ -357,7 +357,7 @@ table fac.ValueConflict  # تعارض قيمتين لحقل واحد وحسمه 
 # ============================== المخطط prc: التعرفة والتسعير ==============================
 module PRC
 
-table prc.TariffSchedule public  # إصدار جدول رسوم لبنك؛ خاص بتسهيل اختياريًا (FR-PRC-001، BR-PRC-001، V-PRC-01)
+table prc.TariffSchedule public  # Bank tariff schedule version; optionally specific to a facility (FR-PRC-001, BR-PRC-001, V-PRC-01)
   InstitutionId     ->ins.Institution req
   FacilityId        ->fac.Facility   # فارغ = جدول عام للبنك؛ الخاص بالتسهيل يغلب (BR-PRC-001)
   NameAr            str(200)   req
@@ -377,7 +377,7 @@ table prc.TariffSchedule public  # إصدار جدول رسوم لبنك؛ خا�
   check  EffectiveTo IS NULL OR EffectiveTo >= EffectiveFrom
   check  Status <> 'APPROVED' OR (ApprovedBy IS NOT NULL AND ApprovedOn IS NOT NULL)
 
-table prc.TariffItem src  # بند رسم في جدول التعرفة (FR-PRC-002، BR-PRC-002..005)
+table prc.TariffItem src  # Fee item in a tariff schedule (FR-PRC-002, BR-PRC-002..005)
   ScheduleId        ->prc.TariffSchedule req
   FeeTypeId         ->cat.FeeType req
   ItemCode          ascii(40)  req
@@ -411,7 +411,7 @@ table prc.TariffItem src  # بند رسم في جدول التعرفة (FR-PRC-0
   check  SourceDocumentId IS NOT NULL AND SourcePage IS NOT NULL OR (SourceDocumentId IS NULL AND Confidence = 'ENTERED_NO_DOCUMENT')   # ختم المصدر (BR-FAC-018)
   check  Confidence <> 'CONFIRMED_AGAINST_ORIGINAL' OR (VerifiedBy IS NOT NULL AND VerifiedOn IS NOT NULL)
 
-table prc.TariffTier  # شريحة بند تعرفة بالمبلغ و/أو المدة (FR-PRC-003، BR-PRC-002)
+table prc.TariffTier  # Tier of a tariff item by amount and/or term (FR-PRC-003, BR-PRC-002)
   TariffItemId    ->prc.TariffItem req
   AmountFrom      money
   AmountTo        money
@@ -432,7 +432,7 @@ table prc.TariffTier  # شريحة بند تعرفة بالمبلغ و/أو ال
   check  Rate IS NULL OR (Rate >= 0 AND Rate <= 100)
   check  MinAmount IS NULL OR MinAmount >= 0
 
-table prc.PricingRule rev src  # قاعدة تسعير بنطاق ووراثة وطرق (FR-PRC-006..017، BR-PRC-006..012، V-PRC-02)
+table prc.PricingRule rev src  # Pricing rule with scope, inheritance and methods (FR-PRC-006..017, BR-PRC-006..012, V-PRC-02)
   FacilityId               ->fac.Facility req
   ScopeLimitId             ->fac.Limit via=FacilityId   # بلا نطاق = مستوى التسهيل
   ScopeLimitProductLineId  ->fac.LimitProductLine via=FacilityId,ScopeLimitId>LimitId   # DR-06: الخط من الحد نفسه
@@ -515,7 +515,7 @@ table prc.PricingRule rev src  # قاعدة تسعير بنطاق ووراثة �
   check  SourceDocumentId IS NOT NULL AND SourcePage IS NOT NULL OR (SourceDocumentId IS NULL AND Confidence = 'ENTERED_NO_DOCUMENT')
   check  Confidence <> 'CONFIRMED_AGAINST_ORIGINAL' OR (VerifiedBy IS NOT NULL AND VerifiedOn IS NOT NULL)
 
-table prc.PricingTier rev  # شريحة قاعدة TIERED بالمبلغ و/أو المدة (FR-PRC-003، BR-PRC-002)
+table prc.PricingTier rev  # Tier of a TIERED rule by amount and/or term (FR-PRC-003, BR-PRC-002)
   FacilityId       ->fac.Facility req   # إضافة: مفتاح النطاق
   PricingRuleId    ->prc.PricingRule via=FacilityId req
   AmountFrom       money
@@ -539,7 +539,7 @@ table prc.PricingTier rev  # شريحة قاعدة TIERED بالمبلغ و/أو
 # ============================== المخطط cmp: مكتبة الشروط القابلة للمقارنة ==============================
 module CMP
 
-table cmp.TermType int catalog  # مفتاح شرط قابل للمقارنة (FR-CMP-001)؛ الرمز بنمط PRC.MARGIN_PCT؛ النظامي لا يُحذف ولا تتغير وحدته (IsSystem)
+table cmp.TermType int catalog  # Comparable term key (FR-CMP-001); the code follows the pattern PRC.MARGIN_PCT; system terms cannot be deleted and their unit cannot change (IsSystem)
   Category       enum{PRICING,DURATION,COLLATERAL,COVENANT,OTHER} req   # الترتيب 1,2,3,4,9 (تسعير ← مدد ← ضمانات ← تعهدات ← أخرى)
   ValueKind      enum{PERCENT,AMOUNT,DAYS,MONTHS,COUNT,BOOLEAN,ENUM,TEXT} req
   Unit           ascii(20)  req   # الرمز والوحدة ثابتان (BR-CMP-001)
@@ -554,7 +554,7 @@ table cmp.TermType int catalog  # مفتاح شرط قابل للمقارنة (F
   check  ValueKind <> 'ENUM' OR EnumOptions IS NOT NULL
   check  ValueKind = 'ENUM' OR EnumOptions IS NULL
 
-table cmp.TermValue rev src  # قيمة شرط في تسهيل بنطاقها ومصدرها (FR-CMP-002..006، BR-CMP-001..006، V-CMP-01)
+table cmp.TermValue rev src  # Term value in a facility, with its scope and source (FR-CMP-002..006, BR-CMP-001..006, V-CMP-01)
   FacilityId          ->fac.Facility req
   TermTypeId          ->cmp.TermType req   # مفتاح OTHER + OtherLabel لشرط خارج الكتالوج (FR-CMP-004)
   OtherLabel          str(200)

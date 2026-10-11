@@ -11,7 +11,7 @@
 # ============================== المخطط plat: المنصة والاشتراكات ==============================
 module PLT-PLAT
 
-table plat.Plan int global   # باقة: حزمة وحدات وحدود ناعمة (FR-PLT-003/004، Q-PLT-11)
+table plat.Plan int global   # Subscription plan: a bundle of modules and soft limits (FR-PLT-003/004, Q-PLT-11)
   Code          ascii(30)  req
   NameAr        str(200)   req
   NameEn        str(200)   req
@@ -24,11 +24,11 @@ table plat.Plan int global   # باقة: حزمة وحدات وحدود ناعم
   check MaxCompanies IS NULL OR MaxCompanies > 0
   check MaxStorageGb IS NULL OR MaxStorageGb > 0
 
-table plat.PlanModule global pk=PlanId,ModuleCode   # وحدات الباقة (يحل محل Plan.IncludedModules json)
+table plat.PlanModule global pk=PlanId,ModuleCode   # Modules included in a plan (replaces the Plan.IncludedModules JSON column)
   PlanId      ->plat.Plan req
   ModuleCode  enum{CORE,INSTITUTIONS,FACILITIES,COVENANTS,WORKFLOW,LC_PURCHASE,LC_SALES,REQUESTS,REPORTS} req
 
-table plat.Tenant int global public noapp   # لا وصول مباشر لتطبيق المشترك (يقرأ صفّه عبر plat.v_CurrentTenant) · جذر العزل: المشترك (FR-PLT-001/002/046، BR-PLT-001/002)
+table plat.Tenant int global public noapp   # No direct access for the tenant application (it reads its row through plat.v_CurrentTenant); isolation root: the tenant (FR-PLT-001/002/046, BR-PLT-001/002)
   Code             ascii(30)  req   # العنوان الفرعي {Code}.bankfas.com؛ لاتيني وأرقام وشرطة؛ مجمَّد بعد التفعيل (FR-PLT-046)
   NameAr           str(200)   req
   NameEn           str(200)   req
@@ -55,13 +55,13 @@ table plat.Tenant int global public noapp   # لا وصول مباشر لتطب�
   check Status <> 'ARCHIVED_READ_ONLY' OR ArchivedAt IS NOT NULL
   check ArchivedAt IS NULL OR (ClosedAt IS NOT NULL AND ArchivedAt >= ClosedAt)
 
-table plat.ReservedSubdomain int global noapp   # عناوين فرعية محجوزة للنظام: www · admin · api · app… (FR-PLT-046)
+table plat.ReservedSubdomain int global noapp   # Subdomains reserved for the system: www, admin, api, app and others (FR-PLT-046)
   Subdomain  ascii(63) req   # تسمية DNS واحدة؛ رفض Tenant.Code المطابق في التطبيق
   Reason     str(200)
   unique Subdomain
   check Subdomain NOT LIKE '%[^a-z0-9-]%' AND Subdomain NOT LIKE '-%' AND Subdomain NOT LIKE '%-'
 
-table plat.PlatformOperator int global public noapp   # لا يقرؤه تطبيق المشترك (tp_app) · حساب مشغّل المنصة: مخزن هوية منفصل عن AppUser (FR-PLT-006)
+table plat.PlatformOperator int global public noapp   # Platform operator account: not readable by the tenant application (tp_app); identity store separate from AppUser (FR-PLT-006)
   Email              str(254)  req
   DisplayName        str(200)
   Role               enum{OPERATOR_ADMIN,OPERATOR_SUPPORT} req
@@ -85,7 +85,7 @@ table plat.PlatformOperator int global public noapp   # لا يقرؤه تطبي
   check MfaSecretEnc IS NULL OR DATALENGTH(MfaSecretEnc) >= 29   # الغلاف: إصدار(1) + nonce(12) + وسم(16) على الأقل (06 §6)
   check FailedAttempts >= 0
 
-table plat.TenantModule global noapp   # الوحدات المفعّلة لكل مشترك؛ ملكية المنصة فقط: لا يكتبها تطبيق المشترك ويقرؤها عبر عرض مُحدَّد (DR-01)
+table plat.TenantModule global noapp   # Modules enabled per tenant; owned by the platform only: written by platform operators, read by the tenant through a restricted view (DR-01)
   TenantId    ->plat.Tenant req   # المشترك المالك (صريح لأن الجدول عالمي)
   ModuleCode  enum{CORE,INSTITUTIONS,FACILITIES,COVENANTS,WORKFLOW,LC_PURCHASE,LC_SALES,REQUESTS,REPORTS} req
   IsEnabled   bool    req =1       # التعطيل يخفي الوحدة دون حذف بياناتها؛ الاعتماديات (00 §9-ب) في التطبيق
@@ -94,7 +94,7 @@ table plat.TenantModule global noapp   # الوحدات المفعّلة لكل 
   unique TenantId,ModuleCode
   check ModuleCode <> 'CORE' OR IsEnabled = 1
 
-table plat.SupportAccessGrant   # وصول الدعم المؤقت يفعّله مدير حساب المشترك (FR-PLT-007، BR-PLT-017)
+table plat.SupportAccessGrant   # Temporary support access, activated by the tenant's account administrator (FR-PLT-007, BR-PLT-017)
   OperatorId  ->plat.PlatformOperator req
   GrantedBy   ->sec.AppUser req
   StartsAt    ts       req
@@ -109,7 +109,7 @@ table plat.SupportAccessGrant   # وصول الدعم المؤقت يفعّله 
 # ============================== المخطط sec: المستخدمون والأدوار والجلسات والمفاتيح ==============================
 module PLT-SEC
 
-table sec.AppUser public   # مستخدم بوابة المشترك (FR-PLT-010..016، BR-PLT-004..006)
+table sec.AppUser public   # Tenant portal user (FR-PLT-010..016, BR-PLT-004..006)
   Email                str(254)  req
   DisplayNameAr        str(200)
   DisplayNameEn        str(200)
@@ -151,7 +151,7 @@ table sec.AppUser public   # مستخدم بوابة المشترك (FR-PLT-010.
   check Status <> 'LOCKED' OR LockedUntil IS NOT NULL OR RequiresAdminUnlock = 1
   check FailedAttempts >= 0 AND LockoutCount >= 0
 
-table sec.Role public   # دور يخصصه المشترك أو مبذور (FR-PLT-018)
+table sec.Role public   # Role defined by the tenant or seeded (FR-PLT-018)
   Code         ascii(50)  req
   NameAr       str(200)   req
   NameEn       str(200)   req
@@ -164,7 +164,7 @@ table sec.Role public   # دور يخصصه المشترك أو مبذور (FR-P
   unique SeedKey where SeedKey IS NOT NULL
   check IsSystem = 0 OR SeedKey IS NOT NULL
 
-table sec.Permission int global   # كتالوج الصلاحيات تملكه المنصة؛ لا يضيف المشترك صلاحية (FR-PLT-017)
+table sec.Permission int global   # Permission catalogue owned by the platform; a tenant cannot add a permission (FR-PLT-017)
   Code              ascii(100) req   # مثل party.identity.reveal — بنصها الحرفي
   ModuleCode        enum{CORE,INSTITUTIONS,FACILITIES,COVENANTS,WORKFLOW,LC_PURCHASE,LC_SALES,REQUESTS,REPORTS} req
   NameAr            str(200)   req
@@ -177,24 +177,24 @@ table sec.Permission int global   # كتالوج الصلاحيات تملكه �
   index ModuleCode
   check LockedToRoleCodes IS NULL OR IsSensitive = 1
 
-table sec.RolePermission pk=RoleId,PermissionId norv deletable   # ربط دور-صلاحية؛ PERMISSION_LOCKED يُفرض في الخدمة (BR-PLT-019)
+table sec.RolePermission pk=RoleId,PermissionId norv deletable   # Role–permission link; PERMISSION_LOCKED is enforced by the service (BR-PLT-019)
   RoleId        ->sec.Role req
   PermissionId  ->sec.Permission req
   AssignedBy    ->sec.AppUser
   AssignedAt    ts req =SYSUTCDATETIME()
 
-table sec.UserRole pk=UserId,RoleId norv deletable   # ربط مستخدم-دور؛ اتحاد الصلاحيات (BR-PLT-007، FR-PLT-018)
+table sec.UserRole pk=UserId,RoleId norv deletable   # User–role link; permissions are the union of the roles (BR-PLT-007, FR-PLT-018)
   UserId      ->sec.AppUser req
   RoleId      ->sec.Role req
   AssignedBy  ->sec.AppUser
   AssignedAt  ts req =SYSUTCDATETIME()
 
-table sec.UserCompanyScope pk=UserId,CompanyId deletable   # شركات يراها المستخدم؛ تُهمل إن كان CompanyScopeMode=ALL (FR-PLT-020)
+table sec.UserCompanyScope pk=UserId,CompanyId deletable   # Companies a user can see; ignored when CompanyScopeMode = ALL (FR-PLT-020)
   UserId              ->sec.AppUser req
   CompanyId           ->org.Company req
   IncludeDescendants  bool req =0
 
-table sec.LoginAttempt append deletable   # محاولات الدخول لخنق المعدل ونوافذ القفل؛ الأثر الدائم في aud.AuditLog (BR-PLT-005)
+table sec.LoginAttempt append deletable   # Login attempts for rate limiting and lockout windows; the permanent trace is in aud.AuditLog (BR-PLT-005)
   UserId     ->sec.AppUser            # فارغ لبريد غير موجود (رسالة موحّدة لا تكشف الوجود)
   LoginName  str(200)                 # البريد المُدخل كما كُتب
   Outcome    enum{LOGIN_SUCCESS,FAILED_PASSWORD,DENIED_LOCKED,FAILED_MFA,LOCKOUT} req
@@ -205,7 +205,7 @@ table sec.LoginAttempt append deletable   # محاولات الدخول لخنق
   index CreatedAt
   check UserId IS NOT NULL OR LoginName IS NOT NULL
 
-table sec.UserSession norv deletable   # جلسات المستخدم: خمول 30 دقيقة ومطلقة 12 ساعة (FR-PLT-014)
+table sec.UserSession norv deletable   # User sessions: 30-minute idle timeout and 12-hour absolute timeout (FR-PLT-014)
   UserId             ->sec.AppUser req
   TokenHash          bin(32)  req sens=restricted   # SHA-256 لمعرّف الجلسة؛ لا يُخزَّن الأصل
   LastSeenAt         ts       req =SYSUTCDATETIME()
@@ -222,7 +222,7 @@ table sec.UserSession norv deletable   # جلسات المستخدم: خمول 3
   index AbsoluteExpiresAt
   check (EndedAt IS NULL AND EndReason IS NULL) OR (EndedAt IS NOT NULL AND EndReason IS NOT NULL)
 
-table sec.MfaRecoveryCode norv deletable   # 10 رموز استرداد لمرة واحدة مُجزَّأة (FR-PLT-011، BR-PLT-006؛ بديل AppUser.RecoveryCodesHash json)
+table sec.MfaRecoveryCode norv deletable   # Ten single-use recovery codes, stored hashed (FR-PLT-011, BR-PLT-006); replaces the AppUser.RecoveryCodesHash JSON
   UserId    ->sec.AppUser req
   CodeHash  bin(32) req sens=restricted
   UsedAt    ts               # الاستهلاك يلغيه ويُنبَّه المستخدم بالعدد الباقي
@@ -230,7 +230,7 @@ table sec.MfaRecoveryCode norv deletable   # 10 رموز استرداد لمرة
   unique UserId,CodeHash
   index UserId where UsedAt IS NULL
 
-table sec.UserToken norv deletable   # رابط دعوة (48 ساعة) أو إعادة تعيين كلمة المرور (30 دقيقة) لمرة واحدة (FR-PLT-013)
+table sec.UserToken norv deletable   # Single-use invitation link (48 hours) or password-reset token (30 minutes) (FR-PLT-013)
   UserId               ->sec.AppUser req
   Purpose              enum{INVITATION,PASSWORD_RESET} req
   TokenHash            bin(32) req sens=restricted   # الرابط مُجزَّأ في القاعدة ولا يحمل بيانات مقيّدة
@@ -246,12 +246,12 @@ table sec.UserToken norv deletable   # رابط دعوة (48 ساعة) أو إع
   index UserId,Purpose where UsedAt IS NULL AND RevokedAt IS NULL
   index ExpiresAt
 
-table sec.UserPasswordHistory append deletable   # آخر 5 كلمات مرور لمنع إعادة استعمالها (BR-PLT-004)
+table sec.UserPasswordHistory append deletable   # Last five passwords, to prevent reuse (BR-PLT-004)
   UserId        ->sec.AppUser req
   PasswordHash  ascii(255) req sens=restricted
   index UserId,CreatedAt
 
-table sec.ExternalIdentity   # ربط هوية خارجية OIDC/Entra بالمستخدم؛ جاهزية فقط (FR-PLT-015، §11)
+table sec.ExternalIdentity   # Link between an external OIDC or Entra identity and a user; readiness only (FR-PLT-015, section 11)
   UserId    ->sec.AppUser req
   Provider  enum{OIDC,ENTRA_ID} req
   Issuer    ascii(300) req
@@ -261,7 +261,7 @@ table sec.ExternalIdentity   # ربط هوية خارجية OIDC/Entra بالم�
   unique Issuer,Subject
   unique UserId,Provider,Issuer
 
-table sec.TenantKey   # سجل مفاتيح المشترك؛ المفتاح ملفوف بمفتاح رئيسي خارج القاعدة (FR-PLT-037، BR-PLT-015)
+table sec.TenantKey   # Tenant key register; each key is wrapped by a master key held outside the database (FR-PLT-037, BR-PLT-015)
   Purpose        enum{DATA,BLIND_INDEX,FILE} req   # DATA أعمدة مشفّرة · BLIND_INDEX فهرس HMAC · FILE ملفات المخزن
   KeyVersion     int       req
   Status         enum{PENDING,ACTIVE,RETIRING,RETIRED,REVOKED} req =PENDING   # ACTIVE للكتابة؛ RETIRING أثناء إعادة التشفير
@@ -276,7 +276,7 @@ table sec.TenantKey   # سجل مفاتيح المشترك؛ المفتاح مل
   check Status NOT IN ('ACTIVE','RETIRING','RETIRED') OR ActivatedAt IS NOT NULL   # DR-02: دورة الحياة لها تواريخ
   check Status <> 'RETIRED' OR RetiredAt IS NOT NULL
 
-table sec.KeyEvent append   # سجل أحداث المفاتيح: إنشاء وتدوير وإبطال (FR-PLT-037؛ شدة عالية BR-PLT-009)
+table sec.KeyEvent append   # Key event log: create, rotate and revoke (FR-PLT-037; high severity BR-PLT-009)
   TenantKeyId  ->sec.TenantKey
   EventType    enum{CREATED,ACTIVATED,ROTATION_STARTED,ROTATION_COMPLETED,RETIRED,REVOKED,UNWRAP_FAILED,MASTER_KEY_CHANGED,BACKUP_VERIFIED} req
   ActorType    enum{USER,OPERATOR,SYSTEM,JOB} req =SYSTEM
@@ -289,7 +289,7 @@ table sec.KeyEvent append   # سجل أحداث المفاتيح: إنشاء و�
 # ============================== المخطط aud: التدقيق ==============================
 module PLT-AUD
 
-table aud.AuditLog mixed append   # للإدراج فقط؛ TenantId الفارغ = حدث منصة لا يراه أي مشترك؛ سياسة RLS خاصة (BR-PLT-001/009)
+table aud.AuditLog mixed append   # Append-only audit log; NULL TenantId = platform event, not visible to any tenant; dedicated RLS policy (BR-PLT-001, BR-PLT-009)
   ChainSeq       bigint            # تسلسل السلسلة لكل مشترك (فارغ حتى تفعيل FR-PLT-025)
   OccurredAt     ts        req
   ActorType      enum{USER,OPERATOR,SYSTEM,JOB} req
@@ -317,7 +317,7 @@ table aud.AuditLog mixed append   # للإدراج فقط؛ TenantId الفار�
   index CompanyId,OccurredAt where CompanyId IS NOT NULL
   index CorrelationId where CorrelationId IS NOT NULL
 
-table aud.SensitiveAccessLog append   # كشف الهويات والصور والتصدير والتنزيل المقيّد؛ لكشف الشذوذ >20/ساعة وR-PLT-3 (BR-PTY-009)
+table aud.SensitiveAccessLog append   # Access log for sensitive data: identity reveals, image views, exports and restricted downloads; flags anomalies above 20 per hour (BR-PTY-009)
   OccurredAt         ts        req
   AccessKind         enum{IDENTITY_REVEAL,IDENTITY_IMAGE_VIEW,SENSITIVE_DOCUMENT_DOWNLOAD,PACK_EXPORT,SENSITIVE_EXPORT,DATA_EXPORT,CUSTOM_FIELD_REVEAL} req
   ActorType          enum{USER,OPERATOR,SYSTEM} req =USER
@@ -345,7 +345,7 @@ table aud.SensitiveAccessLog append   # كشف الهويات والصور وا�
 # ============================== المخطط doc: مخزن المستندات ==============================
 module PLT-DOC
 
-table doc.Document public   # المستند المنطقي: بيانات المستند وحالته؛ الملف في doc.DocumentVersion (FR-PLT-027/028، BR-PLT-011)
+table doc.Document public   # Logical document: document data and status; the file itself is in doc.DocumentVersion (FR-PLT-027/028, BR-PLT-011)
   DocumentTypeId        ->cat.DocumentType req   # يحمل RequiresExpiry وIsSensitive وAllowedMime وMaxSizeMb (11)
   Title                 str(200)  req
   DocumentNumber        str(100)
@@ -371,7 +371,7 @@ table doc.Document public   # المستند المنطقي: بيانات الم
   check Status <> 'SOFT_DELETED' OR (DeletedAt IS NOT NULL AND DeleteReason IS NOT NULL)
   check SupersededByDocumentId IS NULL OR SupersededByDocumentId <> DocumentId
 
-table doc.DocumentVersion   # إصدار ثابت من الملف؛ التغيير يُنشئ إصدارًا جديدًا يفرضه التطبيق (FR-PLT-027، BR-PLT-011)
+table doc.DocumentVersion   # Immutable file version; a change creates a new version, enforced by the application (FR-PLT-027, BR-PLT-011)
   DocumentId         ->doc.Document req
   VersionNo          int       req
   StorageKey         ascii(300) req   # مسار معزول لكل مشترك في مخزن الملفات
@@ -395,7 +395,7 @@ table doc.DocumentVersion   # إصدار ثابت من الملف؛ التغيي
   check SizeBytes > 0
   check ScanStatus = 'PENDING' OR ScannedAt IS NOT NULL
 
-table doc.DocumentLink   # ربط مستند بأي كيان بدور وصفحة مرجعية؛ إلغاء الربط منطقي (FR-PLT-028)
+table doc.DocumentLink   # Links a document to any entity with a role and a reference page; unlinking is logical (FR-PLT-028)
   DocumentId   ->doc.Document req
   EntityType   ascii(60) req   # قيمة لا مفتاح أجنبي (متعدد الأنواع)
   EntityId     bigint    req
@@ -411,7 +411,7 @@ table doc.DocumentLink   # ربط مستند بأي كيان بدور وصفحة
 # ============================== المخطط cfg: الإعدادات والترقيم والتنبيهات والمهام ==============================
 module PLT-CFG
 
-table cfg.SettingDefinition int global   # تعريف مفتاح إعداد بحدود المنصة الدنيا والقصوى (BR-PLT-018، FR-PLT-043)
+table cfg.SettingDefinition int global   # Setting-key definition with platform minimum and maximum bounds (BR-PLT-018, FR-PLT-043)
   Key              ascii(100) req   # مفتاح محجوز في T-SQL: يُقتبس دائمًا
   ModuleCode       enum{CORE,INSTITUTIONS,FACILITIES,COVENANTS,WORKFLOW,LC_PURCHASE,LC_SALES,REQUESTS,REPORTS} req =CORE
   ValueType        enum{STRING,INT,DECIMAL,BOOL,TIME,DURATION,JSON} req
@@ -423,12 +423,12 @@ table cfg.SettingDefinition int global   # تعريف مفتاح إعداد بح
   Description      str(500)
   unique Key
 
-table cfg.TenantSetting   # إعدادات المشترك: سياسات الأمان والمهل والعتبات وwork.start/work.end (FR-PLT-043)
+table cfg.TenantSetting   # Tenant settings: security policies, timeouts, thresholds, and work start and end times (FR-PLT-043)
   Key        ascii(100) req   # مفتاح محجوز في T-SQL: يُقتبس دائمًا؛ work.end−work.start بين 4 و12 ساعة (BR-PLT-018) في التطبيق
   ValueJson  json       req
   unique Key
 
-table cfg.NumberSequenceDefinition   # تعريف نوع الترقيم بصيغة بوسوم مثل {seq:000}-{erp}-{yy} (FR-PLT-026)
+table cfg.NumberSequenceDefinition   # Numbering-type definition with a tag-based format, for example {seq:000}-{erp}-{yy} (FR-PLT-026)
   SequenceKey  ascii(50) req   # مثل PROFORMA · REQUEST (BR-ORG-001 يشترط فعّاله)
   Pattern      str(100)  req
   ScopeLevel   enum{TENANT,COMPANY} req =TENANT
@@ -442,7 +442,7 @@ table cfg.NumberSequenceDefinition   # تعريف نوع الترقيم بصيغ
   check PeriodBasis <> 'FISCAL_YEAR' OR ScopeLevel = 'COMPANY'
   check MinWidth IS NULL OR (MinWidth >= 1 AND MinWidth <= 18)
 
-table cfg.NumberSequence   # عدّاد لكل (تعريف، شركة اختيارية، فترة)؛ يُقفل صفه عند التخصيص داخل معاملة المستدعي (BR-PLT-010)
+table cfg.NumberSequence   # Counter per (definition, optional company, period); its row is locked on allocation inside the caller's transaction (BR-PLT-010)
   DefinitionId  ->cfg.NumberSequenceDefinition req
   CompanyId     ->org.Company     # فارغ لنطاق المشترك
   PeriodKey     ascii(10) req     # مثل 2026 أو ALL عند NONE
@@ -451,7 +451,7 @@ table cfg.NumberSequence   # عدّاد لكل (تعريف، شركة اختيا
   unique DefinitionId,CompanyId,PeriodKey where CompanyId IS NOT NULL
   check NextValue >= 1
 
-table cfg.NumberIssue   # الأرقام الصادرة؛ الملغى لا يُعاد استعماله (FR-PLT-026، BR-PLT-010)
+table cfg.NumberIssue   # Issued document numbers; a cancelled number is never reused (FR-PLT-026, BR-PLT-010)
   SequenceId    ->cfg.NumberSequence req
   SeqValue      bigint    req   # قيمة العدّاد المخصَّصة (كشف الفجوات)
   IssuedNumber  str(60)   req
@@ -467,7 +467,7 @@ table cfg.NumberIssue   # الأرقام الصادرة؛ الملغى لا يُ
   check (Status = 'ISSUED' AND VoidReason IS NULL AND VoidedAt IS NULL) OR (Status = 'VOID' AND VoidReason IS NOT NULL AND VoidedAt IS NOT NULL)
   check (EntityType IS NULL AND EntityId IS NULL) OR (EntityType IS NOT NULL AND EntityId IS NOT NULL)
 
-table cfg.ExpiryAlertRule   # قاعدة تنبيه انتهاء لكل نوع عنصر (FR-PLT-038، BR-PLT-013)
+table cfg.ExpiryAlertRule   # Expiry alert rule per item type (FR-PLT-038, BR-PLT-013)
   ItemType                 ascii(60) req   # مثل COMPANY_DOCUMENT · IDENTITY_DOCUMENT · BODY_TERM · AUTHORITY_GRANT
   LeadDays                 json      req   # تنازلي مثل [90,60,30,7]
   RecipientRoles           json      req   # رموز الأدوار؛ المستلمون داخل نطاق الشركة
@@ -479,7 +479,7 @@ table cfg.ExpiryAlertRule   # قاعدة تنبيه انتهاء لكل نوع �
   unique SeedKey where SeedKey IS NOT NULL
   check ReminderAfterExpiryDays IS NULL OR ReminderAfterExpiryDays > 0
 
-table cfg.ExpiryAlertLog append   # سجل التنبيهات المرسَلة: حدث واحد لكل (عنصر، عتبة) ولا تكرار في اليوم نفسه (FR-PLT-038)
+table cfg.ExpiryAlertLog append   # Log of sent expiry alerts: one event per (item, threshold), never repeated on the same day (FR-PLT-038)
   ExpiryAlertRuleId  ->cfg.ExpiryAlertRule req
   ItemId             bigint req
   ExpiryDate         date   req   # تاريخ الانتهاء وقت الإرسال: التجديد (تاريخ جديد) يعيد ضبط العتبات بلا حذف
@@ -487,7 +487,7 @@ table cfg.ExpiryAlertLog append   # سجل التنبيهات المرسَلة: 
   Threshold          int    req =0   # أيام العتبة لـ LEAD؛ 0 لـ EXPIRED؛ رقم التذكير لـ REMINDER
   unique ExpiryAlertRuleId,ItemId,ExpiryDate,AlertKind,Threshold
 
-table cfg.DataExportJob public   # طلب تصدير بيانات المشترك (FR-PLT-039، BR-PLT-016)
+table cfg.DataExportJob public   # Tenant data export request (FR-PLT-039, BR-PLT-016)
   RequestedBy         ->sec.AppUser req
   RequestedAt         ts   req =SYSUTCDATETIME()
   Scope               enum{FULL,PARTIAL} req =FULL
@@ -508,7 +508,7 @@ table cfg.DataExportJob public   # طلب تصدير بيانات المشترك
   check Status <> 'READY' OR (PackageDocumentId IS NOT NULL AND PackageSha256 IS NOT NULL)
   check FinishedAt IS NULL OR StartedAt IS NULL OR FinishedAt >= StartedAt
 
-table cfg.NonWorkingDay mixed deletable   # يوم غير عمل؛ TenantId الفارغ = عطلة المنصة للقراءة فقط (FR-PLT-035، BR-PLT-014)
+table cfg.NonWorkingDay mixed deletable   # Non-working day; NULL TenantId = platform holiday, read-only (FR-PLT-035, BR-PLT-014)
   CountryId  ->ref.Country req
   OnDate     date      req
   NameAr     str(200)
@@ -517,7 +517,7 @@ table cfg.NonWorkingDay mixed deletable   # يوم غير عمل؛ TenantId ال
   unique CountryId,OnDate
   index OnDate
 
-table cfg.OutboxEvent deletable   # طابور الإرسال: تسليم مرة واحدة على الأقل؛ الحمولة معرّفات بلا بيانات مقيّدة (FR-PLT-042)
+table cfg.OutboxEvent deletable   # Outbound queue with at-least-once delivery; the payload carries identifiers without restricted data (FR-PLT-042)
   MessageId       guid      req =NEWID()   # مفتاح إزالة التكرار عند المستهلك
   EventName       ascii(100) req   # domain.event_name بحروف صغيرة (00 §5)
   AggregateType   ascii(60)
@@ -539,7 +539,7 @@ table cfg.OutboxEvent deletable   # طابور الإرسال: تسليم مرة
   check AttemptCount >= 0
   check EventName LIKE '%.%'
 
-table cfg.JobRun deletable   # سجل تشغيل المهام الخلفية: آخر تشغيل ومدته ونتيجته ظاهر لمدير الحساب (FR-PLT-044)
+table cfg.JobRun deletable   # Background job run log: last run, duration and result, visible to the account administrator (FR-PLT-044)
   JobKey        ascii(80) req   # مثل EXPIRY_ALERTS · FILE_INTEGRITY · AUDIT_CHAIN_VERIFY
   TriggerKind   enum{SCHEDULED,MANUAL,RETRY} req =SCHEDULED
   Status        enum{RUNNING,SUCCEEDED,FAILED,CANCELLED} req =RUNNING
@@ -557,7 +557,7 @@ table cfg.JobRun deletable   # سجل تشغيل المهام الخلفية: آ
   check FinishedAt IS NULL OR FinishedAt >= StartedAt
   check (Status = 'RUNNING' AND FinishedAt IS NULL) OR (Status <> 'RUNNING' AND FinishedAt IS NOT NULL)
 
-table cfg.SeedRun append   # سجل تشغيل البذر المُرقَّم لكل حزمة؛ تكرار التشغيل لا يكرر شيئًا (FR-PLT-008)
+table cfg.SeedRun append   # Numbered seed-run log per package; re-running a seed adds nothing (FR-PLT-008)
   PackKey              ascii(80) req   # حزمة كل وحدة (ITenantSeeder)
   SeedVersion          int       req
   RunKind              enum{INITIAL,UPGRADE,RERUN} req

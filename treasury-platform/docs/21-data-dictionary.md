@@ -30,7 +30,7 @@
 
 ## PLT-PLAT
 
-### `plat.Plan` — باقة: حزمة وحدات وحدود ناعمة (FR-PLT-003/004، Q-PLT-11)
+### `plat.Plan` — Subscription plan: a bundle of modules and soft limits (FR-PLT-003/004, Q-PLT-11)
 
 *عالمي*
 
@@ -53,7 +53,7 @@
 
 **قيود:** `MaxUsers IS NULL OR MaxUsers > 0` · `MaxCompanies IS NULL OR MaxCompanies > 0` · `MaxStorageGb IS NULL OR MaxStorageGb > 0`
 
-### `plat.PlanModule` — وحدات الباقة (يحل محل Plan.IncludedModules json)
+### `plat.PlanModule` — Modules included in a plan (replaces the Plan.IncludedModules JSON column)
 
 *عالمي*
 
@@ -68,7 +68,7 @@
 
 **المفاتيح:** PK(PlanId, ModuleCode)
 
-### `plat.Tenant` — لا وصول مباشر لتطبيق المشترك (يقرأ صفّه عبر plat.v_CurrentTenant) · جذر العزل: المشترك (FR-PLT-001/002/046، BR-PLT-001/002)
+### `plat.Tenant` — No direct access for the tenant application (it reads its row through plat.v_CurrentTenant); isolation root: the tenant (FR-PLT-001/002/046, BR-PLT-001/002)
 
 *عالمي*
 
@@ -100,7 +100,7 @@
 
 **قيود:** `Code NOT LIKE '%[^A-Za-z0-9-]%' AND Code NOT LIKE '-%' AND Code NOT LIKE '%-'` · `Status <> 'TRIAL' OR TrialEndsOn IS NOT NULL` · `Status <> 'SUSPENDED' OR SuspendedReason IS NOT NULL` · `Status NOT IN ('CLOSED','ARCHIVED_READ_ONLY') OR ClosedAt IS NOT NULL` · `Status <> 'ARCHIVED_READ_ONLY' OR ArchivedAt IS NOT NULL` · `ArchivedAt IS NULL OR (ClosedAt IS NOT NULL AND ArchivedAt >= ClosedAt)`
 
-### `plat.ReservedSubdomain` — عناوين فرعية محجوزة للنظام: www · admin · api · app… (FR-PLT-046)
+### `plat.ReservedSubdomain` — Subdomains reserved for the system: www, admin, api, app and others (FR-PLT-046)
 
 *عالمي*
 
@@ -118,7 +118,7 @@
 
 **قيود:** `Subdomain NOT LIKE '%[^a-z0-9-]%' AND Subdomain NOT LIKE '-%' AND Subdomain NOT LIKE '%-'`
 
-### `plat.PlatformOperator` — لا يقرؤه تطبيق المشترك (tp_app) · حساب مشغّل المنصة: مخزن هوية منفصل عن AppUser (FR-PLT-006)
+### `plat.PlatformOperator` — Platform operator account: not readable by the tenant application (tp_app); identity store separate from AppUser (FR-PLT-006)
 
 *عالمي*
 
@@ -149,7 +149,7 @@
 
 **قيود:** `Status NOT IN ('ACTIVE','LOCKED') OR PasswordHash IS NOT NULL` · `Status <> 'ACTIVE' OR MfaEnabled = 1` · `MfaEnabled = 0 OR MfaSecretEnc IS NOT NULL` · `MfaSecretEnc IS NULL OR MfaKeyRef IS NOT NULL` · `MfaSecretEnc IS NULL OR DATALENGTH(MfaSecretEnc) >= 29` · `FailedAttempts >= 0`
 
-### `plat.TenantModule` — الوحدات المفعّلة لكل مشترك؛ ملكية المنصة فقط: لا يكتبها تطبيق المشترك ويقرؤها عبر عرض مُحدَّد (DR-01)
+### `plat.TenantModule` — Modules enabled per tenant; owned by the platform only: written by platform operators, read by the tenant through a restricted view (DR-01)
 
 *عالمي*
 
@@ -170,7 +170,7 @@
 
 **قيود:** `ModuleCode <> 'CORE' OR IsEnabled = 1`
 
-### `plat.SupportAccessGrant` — وصول الدعم المؤقت يفعّله مدير حساب المشترك (FR-PLT-007، BR-PLT-017)
+### `plat.SupportAccessGrant` — Temporary support access, activated by the tenant's account administrator (FR-PLT-007, BR-PLT-017)
 
 *مملوك للمشترك*
 
@@ -196,7 +196,7 @@
 
 ## PLT-SEC
 
-### `sec.AppUser` — مستخدم بوابة المشترك (FR-PLT-010..016، BR-PLT-004..006)
+### `sec.AppUser` — Tenant portal user (FR-PLT-010..016, BR-PLT-004..006)
 
 *مملوك للمشترك*
 
@@ -240,7 +240,7 @@
 
 **قيود:** `LineManagerUserId IS NULL OR LineManagerUserId <> AppUserId` · `DisplayNameAr IS NOT NULL OR DisplayNameEn IS NOT NULL` · `IsSystemUser = 1 OR Status NOT IN ('ACTIVE','LOCKED') OR PasswordHash IS NOT NULL` · `MfaEnabled = 0 OR MfaSecretEnc IS NOT NULL` · `MfaSecretEnc IS NULL OR MfaKeyId IS NOT NULL` · `MfaSecretEnc IS NULL OR DATALENGTH(MfaSecretEnc) >= 29` · `IsSystemUser = 0 OR (PasswordHash IS NULL AND MfaEnabled = 0)` · `Status <> 'ARCHIVED' OR ArchivedAt IS NOT NULL` · `Status <> 'LOCKED' OR LockedUntil IS NOT NULL OR RequiresAdminUnlock = 1` · `FailedAttempts >= 0 AND LockoutCount >= 0`
 
-### `sec.Role` — دور يخصصه المشترك أو مبذور (FR-PLT-018)
+### `sec.Role` — Role defined by the tenant or seeded (FR-PLT-018)
 
 *مملوك للمشترك*
 
@@ -265,7 +265,7 @@
 
 **قيود:** `IsSystem = 0 OR SeedKey IS NOT NULL`
 
-### `sec.Permission` — كتالوج الصلاحيات تملكه المنصة؛ لا يضيف المشترك صلاحية (FR-PLT-017)
+### `sec.Permission` — Permission catalogue owned by the platform; a tenant cannot add a permission (FR-PLT-017)
 
 *عالمي*
 
@@ -289,7 +289,7 @@
 
 **قيود:** `LockedToRoleCodes IS NULL OR IsSensitive = 1`
 
-### `sec.RolePermission` — ربط دور-صلاحية؛ PERMISSION_LOCKED يُفرض في الخدمة (BR-PLT-019)
+### `sec.RolePermission` — Role–permission link; PERMISSION_LOCKED is enforced by the service (BR-PLT-019)
 
 *مملوك للمشترك*
 
@@ -307,7 +307,7 @@
 
 **المفاتيح:** PK(TenantId, RoleId, PermissionId)
 
-### `sec.UserRole` — ربط مستخدم-دور؛ اتحاد الصلاحيات (BR-PLT-007، FR-PLT-018)
+### `sec.UserRole` — User–role link; permissions are the union of the roles (BR-PLT-007, FR-PLT-018)
 
 *مملوك للمشترك*
 
@@ -325,7 +325,7 @@
 
 **المفاتيح:** PK(TenantId, UserId, RoleId)
 
-### `sec.UserCompanyScope` — شركات يراها المستخدم؛ تُهمل إن كان CompanyScopeMode=ALL (FR-PLT-020)
+### `sec.UserCompanyScope` — Companies a user can see; ignored when CompanyScopeMode = ALL (FR-PLT-020)
 
 *مملوك للمشترك*
 
@@ -342,7 +342,7 @@
 
 **المفاتيح:** PK(TenantId, UserId, CompanyId)
 
-### `sec.LoginAttempt` — محاولات الدخول لخنق المعدل ونوافذ القفل؛ الأثر الدائم في aud.AuditLog (BR-PLT-005)
+### `sec.LoginAttempt` — Login attempts for rate limiting and lockout windows; the permanent trace is in aud.AuditLog (BR-PLT-005)
 
 *مملوك للمشترك*
 
@@ -362,7 +362,7 @@
 
 **قيود:** `UserId IS NOT NULL OR LoginName IS NOT NULL`
 
-### `sec.UserSession` — جلسات المستخدم: خمول 30 دقيقة ومطلقة 12 ساعة (FR-PLT-014)
+### `sec.UserSession` — User sessions: 30-minute idle timeout and 12-hour absolute timeout (FR-PLT-014)
 
 *مملوك للمشترك*
 
@@ -390,7 +390,7 @@
 
 **قيود:** `(EndedAt IS NULL AND EndReason IS NULL) OR (EndedAt IS NOT NULL AND EndReason IS NOT NULL)`
 
-### `sec.MfaRecoveryCode` — 10 رموز استرداد لمرة واحدة مُجزَّأة (FR-PLT-011، BR-PLT-006؛ بديل AppUser.RecoveryCodesHash json)
+### `sec.MfaRecoveryCode` — Ten single-use recovery codes, stored hashed (FR-PLT-011, BR-PLT-006); replaces the AppUser.RecoveryCodesHash JSON
 
 *مملوك للمشترك*
 
@@ -409,7 +409,7 @@
 
 **المفاتيح:** PK(MfaRecoveryCodeId) · UQ(TenantId, UserId, CodeHash)
 
-### `sec.UserToken` — رابط دعوة (48 ساعة) أو إعادة تعيين كلمة المرور (30 دقيقة) لمرة واحدة (FR-PLT-013)
+### `sec.UserToken` — Single-use invitation link (48 hours) or password-reset token (30 minutes) (FR-PLT-013)
 
 *مملوك للمشترك*
 
@@ -435,7 +435,7 @@
 
 **المفاتيح:** PK(UserTokenId) · UQ(TenantId, TokenHash)
 
-### `sec.UserPasswordHistory` — آخر 5 كلمات مرور لمنع إعادة استعمالها (BR-PLT-004)
+### `sec.UserPasswordHistory` — Last five passwords, to prevent reuse (BR-PLT-004)
 
 *مملوك للمشترك*
 
@@ -450,7 +450,7 @@
 
 **المفاتيح:** PK(UserPasswordHistoryId)
 
-### `sec.ExternalIdentity` — ربط هوية خارجية OIDC/Entra بالمستخدم؛ جاهزية فقط (FR-PLT-015، §11)
+### `sec.ExternalIdentity` — Link between an external OIDC or Entra identity and a user; readiness only (FR-PLT-015, section 11)
 
 *مملوك للمشترك*
 
@@ -471,7 +471,7 @@
 
 **المفاتيح:** PK(ExternalIdentityId) · UQ(TenantId, Issuer, Subject) · UQ(TenantId, UserId, Provider, Issuer)
 
-### `sec.TenantKey` — سجل مفاتيح المشترك؛ المفتاح ملفوف بمفتاح رئيسي خارج القاعدة (FR-PLT-037، BR-PLT-015)
+### `sec.TenantKey` — Tenant key register; each key is wrapped by a master key held outside the database (FR-PLT-037, BR-PLT-015)
 
 *مملوك للمشترك*
 
@@ -496,7 +496,7 @@
 
 **قيود:** `KeyVersion >= 1` · `Status NOT IN ('ACTIVE','RETIRING','RETIRED') OR ActivatedAt IS NOT NULL` · `Status <> 'RETIRED' OR RetiredAt IS NOT NULL`
 
-### `sec.KeyEvent` — سجل أحداث المفاتيح: إنشاء وتدوير وإبطال (FR-PLT-037؛ شدة عالية BR-PLT-009)
+### `sec.KeyEvent` — Key event log: create, rotate and revoke (FR-PLT-037; high severity BR-PLT-009)
 
 *مملوك للمشترك*
 
@@ -518,7 +518,7 @@
 
 ## PLT-AUD
 
-### `aud.AuditLog` — للإدراج فقط؛ TenantId الفارغ = حدث منصة لا يراه أي مشترك؛ سياسة RLS خاصة (BR-PLT-001/009)
+### `aud.AuditLog` — Append-only audit log; NULL TenantId = platform event, not visible to any tenant; dedicated RLS policy (BR-PLT-001, BR-PLT-009)
 
 *مختلط النطاق*
 
@@ -549,7 +549,7 @@
 
 **المفاتيح:** PK(AuditLogId) · UQ(TenantId, ChainSeq) WHERE ChainSeq IS NOT NULL
 
-### `aud.SensitiveAccessLog` — كشف الهويات والصور والتصدير والتنزيل المقيّد؛ لكشف الشذوذ >20/ساعة وR-PLT-3 (BR-PTY-009)
+### `aud.SensitiveAccessLog` — Access log for sensitive data: identity reveals, image views, exports and restricted downloads; flags anomalies above 20 per hour (BR-PTY-009)
 
 *مملوك للمشترك*
 
@@ -582,7 +582,7 @@
 
 ## PLT-DOC
 
-### `doc.Document` — المستند المنطقي: بيانات المستند وحالته؛ الملف في doc.DocumentVersion (FR-PLT-027/028، BR-PLT-011)
+### `doc.Document` — Logical document: document data and status; the file itself is in doc.DocumentVersion (FR-PLT-027/028, BR-PLT-011)
 
 *مملوك للمشترك*
 
@@ -616,7 +616,7 @@
 
 **قيود:** `IssueDate IS NULL OR ExpiryDate IS NULL OR ExpiryDate > IssueDate` · `Status <> 'SUPERSEDED' OR SupersededByDocumentId IS NOT NULL` · `Status <> 'SOFT_DELETED' OR (DeletedAt IS NOT NULL AND DeleteReason IS NOT NULL)` · `SupersededByDocumentId IS NULL OR SupersededByDocumentId <> DocumentId`
 
-### `doc.DocumentVersion` — إصدار ثابت من الملف؛ التغيير يُنشئ إصدارًا جديدًا يفرضه التطبيق (FR-PLT-027، BR-PLT-011)
+### `doc.DocumentVersion` — Immutable file version; a change creates a new version, enforced by the application (FR-PLT-027, BR-PLT-011)
 
 *مملوك للمشترك*
 
@@ -647,7 +647,7 @@
 
 **قيود:** `VersionNo >= 1` · `SizeBytes > 0` · `ScanStatus = 'PENDING' OR ScannedAt IS NOT NULL`
 
-### `doc.DocumentLink` — ربط مستند بأي كيان بدور وصفحة مرجعية؛ إلغاء الربط منطقي (FR-PLT-028)
+### `doc.DocumentLink` — Links a document to any entity with a role and a reference page; unlinking is logical (FR-PLT-028)
 
 *مملوك للمشترك*
 
@@ -674,7 +674,7 @@
 
 ## PLT-CFG
 
-### `cfg.SettingDefinition` — تعريف مفتاح إعداد بحدود المنصة الدنيا والقصوى (BR-PLT-018، FR-PLT-043)
+### `cfg.SettingDefinition` — Setting-key definition with platform minimum and maximum bounds (BR-PLT-018, FR-PLT-043)
 
 *عالمي*
 
@@ -697,7 +697,7 @@
 
 **المفاتيح:** PK(SettingDefinitionId) · UQ(Key)
 
-### `cfg.TenantSetting` — إعدادات المشترك: سياسات الأمان والمهل والعتبات وwork.start/work.end (FR-PLT-043)
+### `cfg.TenantSetting` — Tenant settings: security policies, timeouts, thresholds, and work start and end times (FR-PLT-043)
 
 *مملوك للمشترك*
 
@@ -714,7 +714,7 @@
 
 **المفاتيح:** PK(TenantSettingId) · UQ(TenantId, Key)
 
-### `cfg.NumberSequenceDefinition` — تعريف نوع الترقيم بصيغة بوسوم مثل {seq:000}-{erp}-{yy} (FR-PLT-026)
+### `cfg.NumberSequenceDefinition` — Numbering-type definition with a tag-based format, for example {seq:000}-{erp}-{yy} (FR-PLT-026)
 
 *مملوك للمشترك*
 
@@ -739,7 +739,7 @@
 
 **قيود:** `PeriodBasis <> 'FISCAL_YEAR' OR ScopeLevel = 'COMPANY'` · `MinWidth IS NULL OR (MinWidth >= 1 AND MinWidth <= 18)`
 
-### `cfg.NumberSequence` — عدّاد لكل (تعريف، شركة اختيارية، فترة)؛ يُقفل صفه عند التخصيص داخل معاملة المستدعي (BR-PLT-010)
+### `cfg.NumberSequence` — Counter per (definition, optional company, period); its row is locked on allocation inside the caller's transaction (BR-PLT-010)
 
 *مملوك للمشترك*
 
@@ -760,7 +760,7 @@
 
 **قيود:** `NextValue >= 1`
 
-### `cfg.NumberIssue` — الأرقام الصادرة؛ الملغى لا يُعاد استعماله (FR-PLT-026، BR-PLT-010)
+### `cfg.NumberIssue` — Issued document numbers; a cancelled number is never reused (FR-PLT-026, BR-PLT-010)
 
 *مملوك للمشترك*
 
@@ -786,7 +786,7 @@
 
 **قيود:** `(Status = 'ISSUED' AND VoidReason IS NULL AND VoidedAt IS NULL) OR (Status = 'VOID' AND VoidReason IS NOT NULL AND VoidedAt IS NOT NULL)` · `(EntityType IS NULL AND EntityId IS NULL) OR (EntityType IS NOT NULL AND EntityId IS NOT NULL)`
 
-### `cfg.ExpiryAlertRule` — قاعدة تنبيه انتهاء لكل نوع عنصر (FR-PLT-038، BR-PLT-013)
+### `cfg.ExpiryAlertRule` — Expiry alert rule per item type (FR-PLT-038, BR-PLT-013)
 
 *مملوك للمشترك*
 
@@ -810,7 +810,7 @@
 
 **قيود:** `ReminderAfterExpiryDays IS NULL OR ReminderAfterExpiryDays > 0`
 
-### `cfg.ExpiryAlertLog` — سجل التنبيهات المرسَلة: حدث واحد لكل (عنصر، عتبة) ولا تكرار في اليوم نفسه (FR-PLT-038)
+### `cfg.ExpiryAlertLog` — Log of sent expiry alerts: one event per (item, threshold), never repeated on the same day (FR-PLT-038)
 
 *مملوك للمشترك*
 
@@ -828,7 +828,7 @@
 
 **المفاتيح:** PK(ExpiryAlertLogId) · UQ(TenantId, ExpiryAlertRuleId, ItemId, ExpiryDate, AlertKind, Threshold)
 
-### `cfg.DataExportJob` — طلب تصدير بيانات المشترك (FR-PLT-039، BR-PLT-016)
+### `cfg.DataExportJob` — Tenant data export request (FR-PLT-039, BR-PLT-016)
 
 *مملوك للمشترك*
 
@@ -860,7 +860,7 @@
 
 **قيود:** `IncludesRestricted = 0 OR Status NOT IN ('APPROVED','RUNNING','READY') OR ApprovedBy IS NOT NULL` · `Status <> 'READY' OR (PackageDocumentId IS NOT NULL AND PackageSha256 IS NOT NULL)` · `FinishedAt IS NULL OR StartedAt IS NULL OR FinishedAt >= StartedAt`
 
-### `cfg.NonWorkingDay` — يوم غير عمل؛ TenantId الفارغ = عطلة المنصة للقراءة فقط (FR-PLT-035، BR-PLT-014)
+### `cfg.NonWorkingDay` — Non-working day; NULL TenantId = platform holiday, read-only (FR-PLT-035, BR-PLT-014)
 
 *مختلط النطاق*
 
@@ -880,7 +880,7 @@
 
 **المفاتيح:** PK(NonWorkingDayId) · UQ(TenantId, CountryId, OnDate)
 
-### `cfg.OutboxEvent` — طابور الإرسال: تسليم مرة واحدة على الأقل؛ الحمولة معرّفات بلا بيانات مقيّدة (FR-PLT-042)
+### `cfg.OutboxEvent` — Outbound queue with at-least-once delivery; the payload carries identifiers without restricted data (FR-PLT-042)
 
 *مملوك للمشترك*
 
@@ -911,7 +911,7 @@
 
 **قيود:** `AttemptCount >= 0` · `EventName LIKE '%.%'`
 
-### `cfg.JobRun` — سجل تشغيل المهام الخلفية: آخر تشغيل ومدته ونتيجته ظاهر لمدير الحساب (FR-PLT-044)
+### `cfg.JobRun` — Background job run log: last run, duration and result, visible to the account administrator (FR-PLT-044)
 
 *مملوك للمشترك*
 
@@ -939,7 +939,7 @@
 
 **قيود:** `AttemptNo >= 1` · `FinishedAt IS NULL OR FinishedAt >= StartedAt` · `(Status = 'RUNNING' AND FinishedAt IS NULL) OR (Status <> 'RUNNING' AND FinishedAt IS NOT NULL)`
 
-### `cfg.SeedRun` — سجل تشغيل البذر المُرقَّم لكل حزمة؛ تكرار التشغيل لا يكرر شيئًا (FR-PLT-008)
+### `cfg.SeedRun` — Numbered seed-run log per package; re-running a seed adds nothing (FR-PLT-008)
 
 *مملوك للمشترك*
 
@@ -966,7 +966,7 @@
 
 ## ORG
 
-### `org.Company` — الشركة: جذر الهيكل المؤسسي (FR-ORG-001..010، BR-ORG-001..004)
+### `org.Company` — Company: root of the corporate structure (FR-ORG-001..010, BR-ORG-001..004)
 
 *مملوك للمشترك*
 
@@ -1004,7 +1004,7 @@
 
 **قيود:** `FiscalYearEndMonth BETWEEN 1 AND 12` · `FiscalYearEndDay IS NULL OR FiscalYearEndDay BETWEEN 1 AND 31` · `ParentCompanyId IS NULL OR ParentCompanyId <> CompanyId` · `ErpCompanyCode IS NULL OR ErpCodeNormalized IS NOT NULL`
 
-### `org.CompanyTaxRate` — نسبة ضريبة بتاريخ سريان؛ CompanyId فارغ = افتراضي المشترك (FR-ORG-007، BR-ORG-005)
+### `org.CompanyTaxRate` — Tax rate with an effective date; NULL CompanyId = tenant default (FR-ORG-007, BR-ORG-005)
 
 *مملوك للمشترك*
 
@@ -1026,7 +1026,7 @@
 
 **قيود:** `RatePercent >= 0 AND RatePercent <= 100` · `EffectiveTo IS NULL OR EffectiveTo >= EffectiveFrom`
 
-### `org.Department` — الإدارة (FR-ORG-014، BR-ORG-016، Q-ORG-09: على مستوى المشترك وشركة اختيارية)
+### `org.Department` — Department (FR-ORG-014, BR-ORG-016, Q-ORG-09): at tenant level, optionally per company
 
 *مملوك للمشترك*
 
@@ -1053,7 +1053,7 @@
 
 **قيود:** `ParentDepartmentId IS NULL OR ParentDepartmentId <> DepartmentId`
 
-### `org.Shareholding` — حصة ملكية بتاريخ سريان؛ المالك Party فرد أو جهة (FR-ORG-015..018، BR-ORG-006..008، G-7)
+### `org.Shareholding` — Ownership interest with an effective date; the owner is a Party, an individual or an entity (FR-ORG-015..018, BR-ORG-006..008, G-7)
 
 *مملوك للمشترك*
 
@@ -1081,7 +1081,7 @@
 
 **قيود:** `SharePercent > 0 AND SharePercent <= 100` · `EffectiveTo IS NULL OR EffectiveTo >= EffectiveFrom` · `Layer >= 1` · `SharesCount IS NULL OR SharesCount > 0` · `NominalValue IS NULL OR (NominalValue >= 0 AND CurrencyId IS NOT NULL)`
 
-### `org.GoverningBody` — هيئة حوكمة (FR-ORG-019، BR-ORG-009)
+### `org.GoverningBody` — Governing body (FR-ORG-019, BR-ORG-009)
 
 *مملوك للمشترك*
 
@@ -1109,7 +1109,7 @@
 
 **قيود:** `TermEnd IS NULL OR TermStart IS NULL OR TermEnd >= TermStart`
 
-### `org.BodyMember` — عضوية في هيئة (FR-ORG-020، FR-ORG-021، BR-ORG-010)
+### `org.BodyMember` — Membership of a governing body (FR-ORG-020, FR-ORG-021, BR-ORG-010)
 
 *مملوك للمشترك*
 
@@ -1135,7 +1135,7 @@
 
 **قيود:** `TermEnd IS NULL OR TermEnd >= TermStart` · `ResignedOn IS NULL OR ResignedOn >= TermStart` · `RepresentedPartyId IS NULL OR RepresentedPartyId <> PartyId`
 
-### `org.AuthorityGrant` — تفويض/منحة صلاحية لشركة (FR-ORG-023..028، BR-ORG-011..014)
+### `org.AuthorityGrant` — Authority grant to a company (FR-ORG-023..028, BR-ORG-011..014)
 
 *مملوك للمشترك*
 
@@ -1177,7 +1177,7 @@
 
 **قيود:** `(GranteeKind = 'BODY' AND BodyId IS NOT NULL AND BodyMemberId IS NULL AND PartyId IS NULL) OR (GranteeKind = 'BODY_MEMBER' AND BodyId IS NULL AND BodyMemberId IS NOT NULL AND PartyId IS NULL) OR (GranteeKind = 'PARTY' AND BodyId IS NULL AND BodyMemberId IS NULL AND PartyId IS NOT NULL)` · `CeilingAmount IS NULL OR CeilingAmount > 0` · `(CeilingAmount IS NULL AND CeilingCurrencyId IS NULL) OR (CeilingAmount IS NOT NULL AND CeilingCurrencyId IS NOT NULL)` · `(RequiresJoint = 1 AND JointMinSignatories IS NOT NULL AND JointMinSignatories >= 2) OR (RequiresJoint = 0 AND JointMinSignatories IS NULL)` · `ValidTo IS NULL OR ValidTo >= ValidFrom` · `Status IN ('DRAFT','PENDING_APPROVAL') OR SourceDocumentId IS NOT NULL OR ExceptionReason IS NOT NULL` · `Status <> 'REVOKED' OR (RevokedAt IS NOT NULL AND RevokedReason IS NOT NULL)` · `SupersedesGrantId IS NULL OR SupersedesGrantId <> AuthorityGrantId`
 
-### `org.CompanyProfile` — ملف تعريف الشركة 1:1 (G-1)
+### `org.CompanyProfile` — Company profile, 1:1 (G-1)
 
 *مملوك للمشترك*
 
@@ -1210,7 +1210,7 @@
 
 **قيود:** `Lei IS NULL OR Lei LIKE '____________________'` · `ForeignInvestmentLicenseExpiresOn IS NULL OR ForeignInvestmentLicenseIssuedOn IS NULL OR ForeignInvestmentLicenseExpiresOn > ForeignInvestmentLicenseIssuedOn` · `DeclaredBranchCount IS NULL OR DeclaredBranchCount >= 0`
 
-### `org.CompanyBranch` — فرع/مستودع/تابعة خارج الحساب كنص (G-3)
+### `org.CompanyBranch` — Branch, warehouse or subsidiary outside the account, held as text (G-3)
 
 *مملوك للمشترك*
 
@@ -1239,7 +1239,7 @@
 
 **قيود:** `NameAr IS NOT NULL OR NameEn IS NOT NULL` · `OwnershipPercent IS NULL OR (BranchKind = 'EXTERNAL_SUBSIDIARY' AND OwnershipPercent > 0 AND OwnershipPercent <= 100)` · `ClosedOn IS NULL OR Status = 'CLOSED'`
 
-### `org.CompanyKycFinancialProfile` — الملف المالي KYC بتاريخ سريان: شريحة الإيرادات والغرض (G-4)
+### `org.CompanyKycFinancialProfile` — KYC financial profile with an effective date: revenue band and purpose (G-4)
 
 *مملوك للمشترك*
 
@@ -1265,7 +1265,7 @@
 
 **قيود:** `EffectiveTo IS NULL OR EffectiveTo >= EffectiveFrom`
 
-### `org.CompanyExpectedFlow` — مصفوفة الحركة المتوقعة الشهرية CTP: اتجاه × 5 بنود (G-4)
+### `org.CompanyExpectedFlow` — Monthly expected cash-flow matrix (CTP): direction x five items (G-4)
 
 *مملوك للمشترك*
 
@@ -1287,7 +1287,7 @@
 
 **قيود:** `MonthlyAmount >= 0`
 
-### `org.CompanyWealthSource` — مصادر الأموال والثروة: قائمة متعددة (G-4)
+### `org.CompanyWealthSource` — Sources of funds and wealth: multiple-value list (G-4)
 
 *مملوك للمشترك*
 
@@ -1304,7 +1304,7 @@
 
 **المفاتيح:** PK(TenantId, FinancialProfileId, WealthSourceId)
 
-### `org.CompanyDisclosure` — إفصاحات الشركة (G-5)
+### `org.CompanyDisclosure` — Company disclosures (G-5)
 
 *مملوك للمشترك*
 
@@ -1328,7 +1328,7 @@
 
 **قيود:** `ResolvedOn IS NULL OR Status = 'RESOLVED'`
 
-### `org.CompanyKeyRelation` — أصحاب العلاقة: مدققون، مستشار قانوني، جهات تنظيمية، أبرز العملاء/الموردين (G-6)
+### `org.CompanyKeyRelation` — Key relations: auditors, legal counsel, regulators, and major customers and suppliers (G-6)
 
 *مملوك للمشترك*
 
@@ -1354,7 +1354,7 @@
 
 ## PTY
 
-### `pty.Party` — شخص أو جهة؛ لا دور مخزَّن (FR-PTY-001..003، BR-PTY-001..004، BR-PTY-016..018)
+### `pty.Party` — Person or entity; no stored role (FR-PTY-001..003, BR-PTY-001..004, BR-PTY-016..018)
 
 *مملوك للمشترك*
 
@@ -1389,7 +1389,7 @@
 
 **قيود:** `NameAr IS NOT NULL OR NameEn IS NOT NULL` · `Kind = 'INDIVIDUAL' OR (ResidencyStatus IS NULL AND BirthDate IS NULL AND MaritalStatus IS NULL AND Gender IS NULL AND EducationLevelId IS NULL)` · `LinkedCompanyId IS NULL OR Kind = 'ORGANIZATION'` · `MergedIntoPartyId IS NULL OR (IsActive = 0 AND MergedIntoPartyId <> PartyId)`
 
-### `pty.IdentityDocument` — وثيقة هوية؛ الرقم مشفّر والصور مستندات مقيَّدة (FR-PTY-004..009، FR-PTY-020..022، BR-PTY-002..008)
+### `pty.IdentityDocument` — Identity document; the number is encrypted and images are restricted documents (FR-PTY-004..009, FR-PTY-020..022, BR-PTY-002..008)
 
 *مملوك للمشترك*
 
@@ -1427,7 +1427,7 @@
 
 **قيود:** `ExpiryDate IS NULL OR IssueDate IS NULL OR ExpiryDate > IssueDate` · `SupersededById IS NULL OR (SupersededById <> IdentityDocumentId AND IsSuperseded = 1)` · `DATALENGTH(NumberEnc) >= 29` · `IsSuperseded = 0 OR IsPrimary = 0` · `VerifiedBy IS NULL OR VerifiedAt IS NOT NULL`
 
-### `pty.Address` — عنوان متعدد الملكية: OwnerType+OwnerId بلا FK (مزوّد المالك يتحقق منه التطبيق) (FR-PTY-011، BR-PTY-015)
+### `pty.Address` — Postal address with an exclusive owner arc: exactly one of Party, Institution, Unit or Contact (FR-PTY-011, BR-PTY-015)
 
 *مملوك للمشترك*
 
@@ -1463,7 +1463,7 @@
 
 **قيود:** `(PartyId IS NOT NULL AND InstitutionId IS NULL AND UnitId IS NULL AND ContactId IS NULL) OR (PartyId IS NULL AND InstitutionId IS NOT NULL AND UnitId IS NULL AND ContactId IS NULL) OR (PartyId IS NULL AND InstitutionId IS NULL AND UnitId IS NOT NULL AND ContactId IS NULL) OR (PartyId IS NULL AND InstitutionId IS NULL AND UnitId IS NULL AND ContactId IS NOT NULL)` · `IsPrimary = 0 OR IsCurrent = 1` · `AddressType <> 'PO_BOX' OR PoBoxNumber IS NOT NULL`
 
-### `pty.ContactMethod` — وسيلة اتصال متعددة الملكية (FR-PTY-012، BR-PTY-015)
+### `pty.ContactMethod` — Contact method (phone, e-mail and similar) with an exclusive owner arc, as for addresses (FR-PTY-012, BR-PTY-015)
 
 *مملوك للمشترك*
 
@@ -1489,7 +1489,7 @@
 
 **قيود:** `(PartyId IS NOT NULL AND InstitutionId IS NULL AND UnitId IS NULL AND ContactId IS NULL) OR (PartyId IS NULL AND InstitutionId IS NOT NULL AND UnitId IS NULL AND ContactId IS NULL) OR (PartyId IS NULL AND InstitutionId IS NULL AND UnitId IS NOT NULL AND ContactId IS NULL) OR (PartyId IS NULL AND InstitutionId IS NULL AND UnitId IS NULL AND ContactId IS NOT NULL)`
 
-### `pty.CustomFieldDefinition` — تعريف حقل مخصص (FR-PTY-013، BR-PTY-014)
+### `pty.CustomFieldDefinition` — Custom field definition (FR-PTY-013, BR-PTY-014)
 
 *مملوك للمشترك*
 
@@ -1516,7 +1516,7 @@
 
 **قيود:** `(DataType = 'LIST' AND ListValues IS NOT NULL) OR (DataType <> 'LIST' AND ListValues IS NULL)`
 
-### `pty.PartyCustomField` — قيمة حقل مخصص لشخص (FR-PTY-013، FR-PTY-014)
+### `pty.PartyCustomField` — Custom-field value for a party (FR-PTY-013, FR-PTY-014)
 
 *مملوك للمشترك*
 
@@ -1541,7 +1541,7 @@
 
 **قيود:** `ValueText IS NULL OR ValueEnc IS NULL` · `ValueEnc IS NULL OR ValueMask IS NOT NULL` · `ValueEnc IS NULL OR (EncKeyId IS NOT NULL AND DATALENGTH(ValueEnc) >= 29)`
 
-### `pty.KycProfile` — قائمة اكتمال KYC لكل بنك ودور (FR-PTY-023، BR-PTY-012..013، G-8، G-14)
+### `pty.KycProfile` — KYC completeness checklist per bank and role (FR-PTY-023, BR-PTY-012..013, G-8, G-14)
 
 *مملوك للمشترك*
 
@@ -1570,7 +1570,7 @@
 
 **قيود:** `InstitutionId IS NOT NULL OR IsBaseline = 1` · `Version >= 1` · `OwnerThresholdPct IS NULL OR (OwnerThresholdPct > 0 AND OwnerThresholdPct <= 100)`
 
-### `pty.KycProfileItem` — بند اكتمال (FR-PTY-023، FR-PTY-024، G-14)
+### `pty.KycProfileItem` — Completeness item (FR-PTY-023, FR-PTY-024, G-14)
 
 *مملوك للمشترك*
 
@@ -1599,7 +1599,7 @@
 
 **قيود:** `MinValidityDays IS NULL OR MinValidityDays >= 0` · `MaxAgeDays IS NULL OR MaxAgeDays > 0`
 
-### `pty.KycProfileItemLegalForm` — شروط ظهور البند بحسب الشكل القانوني؛ غياب الصفوف = ينطبق على الكل (G-15)
+### `pty.KycProfileItemLegalForm` — Conditions for an item to apply, by legal form; no rows = applies to all (G-15)
 
 *مملوك للمشترك*
 
@@ -1615,7 +1615,7 @@
 
 **المفاتيح:** PK(TenantId, KycProfileItemId, LegalEntityTypeId)
 
-### `pty.PartyCompliance` — إقرارات امتثال بتاريخ لكل شخص بصفته: PEP، عقوبات، تحقيقات، حصانة (G-9)
+### `pty.PartyCompliance` — Dated compliance declarations per person in their capacity: PEP, sanctions, investigations, immunity (G-9)
 
 *مملوك للمشترك*
 
@@ -1642,7 +1642,7 @@
 
 **المفاتيح:** PK(PartyComplianceId) · UQ(TenantId, PartyId, Capacity, CompanyId, DeclaredOn) · UQ(TenantId, PartyId, Capacity, CompanyId) WHERE IsCurrent = 1
 
-### `pty.TaxIdentity` — الهوية الضريبية والإقرار الضريبي FATCA/CRS (G-13)
+### `pty.TaxIdentity` — Tax identity and FATCA/CRS tax declaration (G-13)
 
 *مملوك للمشترك*
 
@@ -1670,7 +1670,7 @@
 
 ## REF
 
-### `ref.Country` — الدولة: مرجع عالمي للقراءة فقط يديره مشغّل المنصة (FR-CAT-026، BR-CAT-018، BR-CAT-015)
+### `ref.Country` — Country: global reference, read-only, managed by the platform operator (FR-CAT-026, BR-CAT-018, BR-CAT-015)
 
 *عالمي*
 
@@ -1694,7 +1694,7 @@
 
 **قيود:** `Iso2 NOT LIKE '%[^A-Z]%' AND Iso3 NOT LIKE '%[^A-Z]%'` · `DialCode IS NULL OR (DialCode LIKE '+[0-9]%' AND DialCode NOT LIKE '+%[^0-9]%' AND DialCode NOT LIKE '+_____%')` · `WeekendDays IS NULL OR WeekendDays NOT LIKE '%[^A-Z,]%'`
 
-### `ref.Currency` — العملة: مرجع عالمي ISO 4217 للقراءة فقط (FR-CAT-021، Q-CAT-08)
+### `ref.Currency` — Currency: global ISO 4217 reference, read-only (FR-CAT-021, Q-CAT-08)
 
 *عالمي*
 
@@ -1719,7 +1719,7 @@
 
 ## CAT
 
-### `cat.TenantCurrency` — العملات المفعّلة للمشترك: تفعيل مجموعة جزئية من المرجع العالمي (FR-CAT-023، Q-CAT-08) -- جدول بنيوي جديد
+### `cat.TenantCurrency` — Currencies enabled for the tenant: a subset of the global currency reference (FR-CAT-023, Q-CAT-08) -- جدول بنيوي جديد
 
 *مملوك للمشترك*
 
@@ -1736,7 +1736,7 @@
 
 **المفاتيح:** PK(TenantId, CurrencyId)
 
-### `cat.InstitutionType` — نوع المنشأة المالية: بنك، شركة تمويل، استثمارية، مالية، فرد (FR-INS-001)
+### `cat.InstitutionType` — Financial institution type: bank, finance company, investment company, financial company, individual (FR-INS-001)
 
 *مملوك للمشترك · كتالوج*
 
@@ -1764,7 +1764,7 @@
 
 **قيود:** `Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'` · `(IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)`
 
-### `cat.AccountType` — نوع الحساب (FR-ACC-001)
+### `cat.AccountType` — Account type (FR-ACC-001)
 
 *مملوك للمشترك · كتالوج*
 
@@ -1792,7 +1792,7 @@
 
 **قيود:** `Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'` · `(IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)`
 
-### `cat.LegalEntityType` — الشكل القانوني: الكيان وسماته يعرّفها 10 (FR-ORG-002، BR-CAT-017) وتبذره هذه الوحدة؛ أعمدة الكتالوج مكتوبة يدويًا لأن فرادة الرمز بالدولة (10 §6.2) لا فرادته وحده
+### `cat.LegalEntityType` — Legal entity type: the entity and its attributes are defined in specification 10 (FR-ORG-002, BR-CAT-017) and seeded by this module; catalogue columns are written by hand because code uniqueness is per country (specification 10, section 6.2), not global
 
 *مملوك للمشترك*
 
@@ -1823,7 +1823,7 @@
 
 **قيود:** `Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'` · `(IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)`
 
-### `cat.DocumentType` — نوع الوثيقة؛ يطبّق 10 أعلامه عند الرفع (FR-CAT-018، BR-CAT-016، FR-PLT-028)
+### `cat.DocumentType` — Document type; applies the flags defined in specification 10 at upload (FR-CAT-018, BR-CAT-016, FR-PLT-028)
 
 *مملوك للمشترك · كتالوج*
 
@@ -1857,7 +1857,7 @@
 
 **قيود:** `Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'` · `(IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)` · `MaxSizeMb IS NULL OR MaxSizeMb > 0` · `RetentionYears IS NULL OR RetentionYears > 0` · `MaxAgeDays IS NULL OR MaxAgeDays > 0`
 
-### `cat.Position` — المنصب: السمات يعرّفها 10 §6.2 وحده وتبذر هذه الوحدة صفوفه (FR-CAT-019، BR-CAT-017)؛ SortOrder من أساس الكتالوج
+### `cat.Position` — Job position: its attributes are defined in specification 10 (section 6.2) only, and this module seeds its rows (FR-CAT-019, BR-CAT-017); SortOrder comes from the catalogue base
 
 *مملوك للمشترك · كتالوج*
 
@@ -1886,7 +1886,7 @@
 
 **قيود:** `Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'` · `(IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)`
 
-### `cat.PowerType` — نوع الصلاحية: السمات يعرّفها 10 §6.2 وحده وتبذر هذه الوحدة صفوفه (FR-CAT-019، FR-ORG-024)
+### `cat.PowerType` — Governance power type: its attributes are defined in specification 10 (section 6.2) only, and this module seeds its rows (FR-CAT-019, FR-ORG-024)
 
 *مملوك للمشترك · كتالوج*
 
@@ -1915,7 +1915,7 @@
 
 **قيود:** `Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'` · `(IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)`
 
-### `cat.OperationType` — نوع العملية البنكية المفوَّض بها (FR-ACC-013، BR-CAT-014)
+### `cat.OperationType` — Bank operation type that a signatory is authorised for (FR-ACC-013, BR-CAT-014)
 
 *مملوك للمشترك · كتالوج*
 
@@ -1944,7 +1944,7 @@
 
 **قيود:** `Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'` · `(IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)`
 
-### `cat.OperationTypePowerType` — ربط عملية بنوع/أنواع صلاحية حوكمة؛ «أي واحد يكفي» (BR-CAT-014، FR-CAT-019، Q-ACC-05) -- جدول وسيط جديد
+### `cat.OperationTypePowerType` — Links an operation to governance power type(s): any one is sufficient (BR-CAT-014, FR-CAT-019, Q-ACC-05) -- جدول وسيط جديد
 
 *مملوك للمشترك*
 
@@ -1960,7 +1960,7 @@
 
 **المفاتيح:** PK(TenantId, OperationTypeId, PowerTypeId)
 
-### `cat.ProductCategory` — تصنيف المنتجات: مسطّح (FR-CAT-007)
+### `cat.ProductCategory` — Product category: flat list (FR-CAT-007)
 
 *مملوك للمشترك · كتالوج*
 
@@ -1987,7 +1987,7 @@
 
 **قيود:** `Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'` · `(IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)`
 
-### `cat.Product` — المنتج البنكي بأعلامه (FR-CAT-007، BR-CAT-004)
+### `cat.Product` — Bank product with its flags (FR-CAT-007, BR-CAT-004)
 
 *مملوك للمشترك · كتالوج*
 
@@ -2020,7 +2020,7 @@
 
 **قيود:** `Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'` · `(IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)`
 
-### `cat.FeeType` — نوع المصروف: فئة عريضة لا بند تعرفة (FR-CAT-008، BR-CAT-005، Q-CAT-10)
+### `cat.FeeType` — Fee type: a broad category, not a tariff item (FR-CAT-008, BR-CAT-005, Q-CAT-10)
 
 *مملوك للمشترك · كتالوج*
 
@@ -2049,7 +2049,7 @@
 
 **قيود:** `Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'` · `(IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)`
 
-### `cat.FinancingType` — نوع التمويل (FR-CAT-009، BR-CAT-006)
+### `cat.FinancingType` — Financing type (FR-CAT-009, BR-CAT-006)
 
 *مملوك للمشترك · كتالوج*
 
@@ -2078,7 +2078,7 @@
 
 **قيود:** `Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'` · `(IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)`
 
-### `cat.ProductFeeType` — المصاريف المسموحة للمنتج؛ تعطيل الربط = حذفه ولا يمس قواعد تسعير قائمة (FR-CAT-010، BR-CAT-007) -- يبقى بمفتاح بديل لأنه يحمل سمة
+### `cat.ProductFeeType` — Fee types allowed for a product; disabling a link deletes it and does not affect list pricing rules (FR-CAT-010, BR-CAT-007) -- يبقى بمفتاح بديل لأنه يحمل سمة
 
 *مملوك للمشترك*
 
@@ -2096,7 +2096,7 @@
 
 **المفاتيح:** PK(ProductFeeTypeId) · UQ(TenantId, ProductId, FeeTypeId)
 
-### `cat.ProductFinancingType` — أنواع التمويل المسموحة للمنتج (FR-CAT-010، BR-CAT-007)
+### `cat.ProductFinancingType` — Financing types allowed for a product (FR-CAT-010, BR-CAT-007)
 
 *مملوك للمشترك*
 
@@ -2114,7 +2114,7 @@
 
 **المفاتيح:** PK(ProductFinancingTypeId) · UQ(TenantId, ProductId, FinancingTypeId) · UQ(TenantId, ProductId) WHERE IsDefault = 1
 
-### `cat.FacilityType` — نوع التسهيل (FR-CAT-011)
+### `cat.FacilityType` — Facility type (FR-CAT-011)
 
 *مملوك للمشترك · كتالوج*
 
@@ -2142,7 +2142,7 @@
 
 **قيود:** `Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'` · `(IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)`
 
-### `cat.LimitType` — نوع الحد: رئيسي/جزئي (FR-CAT-012، BR-CAT-008)
+### `cat.LimitType` — Limit type: master or sub-limit (FR-CAT-012, BR-CAT-008)
 
 *مملوك للمشترك · كتالوج*
 
@@ -2173,7 +2173,7 @@
 
 **قيود:** `(Kind = 'MAIN' AND ParentLimitTypeId IS NULL) OR (Kind = 'SUB' AND ParentLimitTypeId IS NOT NULL)` · `ParentLimitTypeId IS NULL OR ParentLimitTypeId <> LimitTypeId` · `Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'` · `(IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)`
 
-### `cat.LimitTypeProduct` — المنتجات المسموحة لنوع الحد؛ غياب الصفوف = أي منتج بعلامة ظاهرة (BR-CAT-008) -- جدول وسيط جديد
+### `cat.LimitTypeProduct` — Products allowed for a limit type; no rows = any product, with a visible flag (BR-CAT-008) -- جدول وسيط جديد
 
 *مملوك للمشترك*
 
@@ -2189,7 +2189,7 @@
 
 **المفاتيح:** PK(TenantId, LimitTypeId, ProductId)
 
-### `cat.CollateralType` — نوع الضمان بنوع بنية وقالب سمات (FR-CAT-013)
+### `cat.CollateralType` — Collateral type with its structure type and attribute template (FR-CAT-013)
 
 *مملوك للمشترك · كتالوج*
 
@@ -2217,7 +2217,7 @@
 
 **قيود:** `Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'` · `(IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)`
 
-### `cat.CollateralTypeAttribute` — سمة في قالب نوع الضمان؛ لا تُحذف بل تُرمَّز Retired (BR-CAT-009) -- جدول جديد
+### `cat.CollateralTypeAttribute` — Attribute in a collateral-type template; never deleted, only marked Retired (BR-CAT-009) -- جدول جديد
 
 *مملوك للمشترك*
 
@@ -2243,7 +2243,7 @@
 
 **قيود:** `DataType <> 'LIST' OR ListOptions IS NOT NULL`
 
-### `cat.ObligationType` — نوع الالتزام بأربع عائلات (FR-CAT-014، BR-CAT-010)
+### `cat.ObligationType` — Obligation type with four families (FR-CAT-014, BR-CAT-010)
 
 *مملوك للمشترك · كتالوج*
 
@@ -2275,7 +2275,7 @@
 
 **قيود:** `Family <> 'COVENANT' OR MeasureKind IS NOT NULL` · `MeasureKind IS NULL OR MeasureKind <> 'NONE' OR IsQualitative = 1` · `Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'` · `(IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)`
 
-### `cat.BaseRate` — سعر الأساس: سوق (InstitutionId فارغ) أو داخلي لبنك (FR-CAT-015، BR-CAT-011)؛ الأسماء البديلة في BaseRateAlias
+### `cat.BaseRate` — Base rate: market-wide (InstitutionId NULL) or internal to a bank (FR-CAT-015, BR-CAT-011); alternative names are in BaseRateAlias
 
 *مملوك للمشترك · كتالوج*
 
@@ -2308,7 +2308,7 @@
 
 **قيود:** `(Kind = 'MARKET' AND InstitutionId IS NULL) OR (Kind = 'BANK_INTERNAL' AND InstitutionId IS NOT NULL)` · `StaleAfterDays IS NULL OR StaleAfterDays > 0` · `Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'` · `(IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)`
 
-### `cat.BaseRateAlias` — اسم بديل لسعر أساس (SIBOR ≡ SAIBOR) بحث بلا حساسية حالة وفريد ضمن النطاق (BR-CAT-011، FR-CAT-015) -- جدول وسيط جديد يحل «Aliases set»
+### `cat.BaseRateAlias` — Alternative name for a base rate (for example SIBOR and SAIBOR); case-insensitive search; unique within scope (BR-CAT-011, FR-CAT-015) -- جدول وسيط جديد يحل «Aliases set»
 
 *مملوك للمشترك*
 
@@ -2328,7 +2328,7 @@
 
 **المفاتيح:** PK(BaseRateAliasId) · UQ(TenantId, InstitutionId, Tenor, AliasKey)
 
-### `cat.BaseRateValue` — قيمة سعر الأساس بتاريخ سريان؛ لا حذف: التصحيح صف جديد والقديم SUPERSEDED (FR-CAT-016، BR-CAT-012/013)
+### `cat.BaseRateValue` — Base-rate value with an effective date; rows are never deleted: a correction inserts a new row and the old one becomes SUPERSEDED (FR-CAT-016, BR-CAT-012/013)
 
 *مملوك للمشترك*
 
@@ -2354,7 +2354,7 @@
 
 **قيود:** `SupersedesId IS NULL OR SupersedesId <> BaseRateValueId`
 
-### `cat.LookupList` — قائمة قيم مملوكة للمشترك (FR-CAT-020، BR-CAT-015) -- DR-03: نسخة النظام تُهيَّأ لكل مشترك من قالب المنصة
+### `cat.LookupList` — Tenant-owned lookup list (FR-CAT-020, BR-CAT-015) -- DR-03: نسخة النظام تُهيَّأ لكل مشترك من قالب المنصة
 
 *مملوك للمشترك · كتالوج*
 
@@ -2384,7 +2384,7 @@
 
 **قيود:** `(Scope = 'SYSTEM' AND IsSystem = 1) OR (Scope = 'TENANT' AND IsSystem = 0)` · `Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'` · `(IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)`
 
-### `cat.LookupItem` — بند في قائمة قيم مملوك للمشترك (FR-CAT-020) -- DR-03/05/07: نسخ النظام لكل مشترك؛ فرادة الرمز داخل القائمة لا على مستوى المشترك
+### `cat.LookupItem` — Item in a tenant-owned lookup list (FR-CAT-020) -- DR-03/05/07: نسخ النظام لكل مشترك؛ فرادة الرمز داخل القائمة لا على مستوى المشترك
 
 *مملوك للمشترك*
 
@@ -2416,7 +2416,7 @@
 
 ## INS
 
-### `ins.Institution` — المنشأة المالية (FR-INS-001..004، BR-INS-001..003، BR-INS-012)؛ Locality محلي/أجنبي مشتقة (BR-INS-002) فلا تُخزَّن
+### `ins.Institution` — Financial institution (FR-INS-001..004, BR-INS-001..003, BR-INS-012); Locality (local or foreign) is derived (BR-INS-002) and therefore not stored
 
 *مملوك للمشترك*
 
@@ -2445,7 +2445,7 @@
 
 **قيود:** `Code NOT LIKE '% %'` · `SwiftBic IS NULL OR SwiftBic LIKE '[A-Z][A-Z][A-Z][A-Z][A-Z][A-Z][A-Z0-9][A-Z0-9]' OR SwiftBic LIKE '[A-Z][A-Z][A-Z][A-Z][A-Z][A-Z][A-Z0-9][A-Z0-9][A-Z0-9][A-Z0-9][A-Z0-9]'`
 
-### `ins.InstitutionUnit` — وحدة في هيكل المنشأة: إدارة/قسم/فرع، شجرة ذاتية حتى 4 مستويات (FR-INS-005/006، BR-INS-004)
+### `ins.InstitutionUnit` — Unit in an institution's structure: division, department or branch; self-referencing tree of up to four levels (FR-INS-005/006, BR-INS-004)
 
 *مملوك للمشترك*
 
@@ -2468,7 +2468,7 @@
 
 **قيود:** `ParentUnitId IS NULL OR ParentUnitId <> InstitutionUnitId`
 
-### `ins.Contact` — جهة اتصال لدى البنك: سجل خفيف بلا هوية، PartyId اختياري للترقية (FR-INS-007/008، BR-INS-005/006/014)
+### `ins.Contact` — Contact at a bank: a lightweight record with no identity; PartyId is optional, for promotion (FR-INS-007/008, BR-INS-005/006/014)
 
 *مملوك للمشترك*
 
@@ -2497,7 +2497,7 @@
 
 **قيود:** `ReportsToContactId IS NULL OR ReportsToContactId <> ContactId` · `Status <> 'INACTIVE' OR InactiveReason IS NOT NULL`
 
-### `ins.Relationship` — علاقة شركة–منشأة (D-4)؛ فريدة مهما كانت حالتها (FR-INS-009، BR-INS-007/011)
+### `ins.Relationship` — Company–institution relationship (D-4); unique regardless of status (FR-INS-009, BR-INS-007/011)
 
 *مملوك للمشترك*
 
@@ -2523,7 +2523,7 @@
 
 **قيود:** `Status <> 'CLOSED' OR (ClosedOn IS NOT NULL AND ClosureReason IS NOT NULL)` · `ClosedOn IS NULL OR StartedOn IS NULL OR ClosedOn >= StartedOn`
 
-### `ins.RelationshipContact` — تغطية العلاقة (الطبقة الأولى): جهة اتصال بدور ورتبة وفترة (FR-INS-010، BR-INS-008/009)
+### `ins.RelationshipContact` — Relationship coverage (first layer): contact with role, rank and period (FR-INS-010, BR-INS-008/009)
 
 *مملوك للمشترك*
 
@@ -2549,7 +2549,7 @@
 
 **قيود:** `ValidTo IS NULL OR ValidTo >= ValidFrom` · `Rank >= 1`
 
-### `ins.RelationshipProduct` — منتج يُتعامل به ضمن علاقة مع جهة افتراضية وقناة (FR-INS-011..013، BR-INS-010)
+### `ins.RelationshipProduct` — Product handled within a relationship, with a default contact and channel (FR-INS-011..013, BR-INS-010)
 
 *مملوك للمشترك*
 
@@ -2574,7 +2574,7 @@
 
 ## ACC
 
-### `acc.BankAccount` — حساب شركة لدى منشأة (FR-ACC-001..009، BR-ACC-001..006، BR-ACC-016)؛ الرقم وIBAN مشفّران بفهرس أعمى للفرادة
+### `acc.BankAccount` — Company bank account at a financial institution (FR-ACC-001..009, BR-ACC-001..006, BR-ACC-016); account number and IBAN are encrypted, with blind-index uniqueness
 
 *مملوك للمشترك*
 
@@ -2617,7 +2617,7 @@
 
 **قيود:** `MinSignatures >= 1` · `DATALENGTH(AccountNoEnc) >= 29` · `IbanEnc IS NULL OR DATALENGTH(IbanEnc) >= 29` · `MasterAccountId IS NULL OR MasterAccountId <> BankAccountId` · `(IbanEnc IS NULL AND IbanMask IS NULL AND IbanHash IS NULL) OR (IbanEnc IS NOT NULL AND IbanMask IS NOT NULL AND IbanHash IS NOT NULL)` · `ClosedOn IS NULL OR OpenedOn IS NULL OR ClosedOn >= OpenedOn` · `Status <> 'CLOSED' OR (ClosedOn IS NOT NULL AND ClosureReason IS NOT NULL)` · `(ClosedOn IS NULL AND ClosureReason IS NULL) OR Status = 'CLOSED'`
 
-### `acc.FacilityAccount` — ربط حساب بتسهيل بغرض (S2) (FR-ACC-010، BR-ACC-007)؛ يُملأ من شاشة التسهيل
+### `acc.FacilityAccount` — Account linked to a facility for a specific purpose (S2) (FR-ACC-010, BR-ACC-007); populated from the facility screen
 
 *مملوك للمشترك*
 
@@ -2642,7 +2642,7 @@
 
 **قيود:** `ValidTo IS NULL OR ValidFrom IS NULL OR ValidTo >= ValidFrom`
 
-### `acc.Signatory` — تفويض شخص لدى علاقة (S1-ب) (FR-ACC-012، FR-ACC-023، BR-ACC-008/009) + إضافات docs/05 G-10
+### `acc.Signatory` — Person authorised to sign for a relationship (S1-B) (FR-ACC-012, FR-ACC-023, BR-ACC-008/009), plus additions from docs/05 G-10
 
 *مملوك للمشترك*
 
@@ -2676,7 +2676,7 @@
 
 **قيود:** `ValidTo IS NULL OR ValidTo >= ValidFrom` · `Status NOT IN ('ACTIVE','SUSPENDED','EXPIRED') OR AuthorizationDocumentId IS NOT NULL` · `(CashWithdrawalMode = 'LIMITED' AND CashWithdrawalLimit IS NOT NULL AND CashWithdrawalLimit > 0 AND CashWithdrawalCurrencyId IS NOT NULL) OR (CashWithdrawalMode <> 'LIMITED' AND CashWithdrawalLimit IS NULL)`
 
-### `acc.SignatoryAuthority` — صلاحية المفوّض لعملية على حساب أو على البنك (S1-ب) (FR-ACC-013/014/017، BR-ACC-010/011)؛ لا تعديل في مكانه: الإغلاق والفتح؛ حالتها مشتقة فلا تُخزَّن
+### `acc.SignatoryAuthority` — Signatory authority for an operation on an account or on the bank (S1-B) (FR-ACC-013/014/017, BR-ACC-010/011); not edited in place: closed and reopened instead; its status is derived and not stored
 
 *مملوك للمشترك*
 
@@ -2707,7 +2707,7 @@
 
 **قيود:** `ValidTo IS NULL OR ValidTo >= ValidFrom` · `CeilingMode <> 'LIMITED' OR (CurrencyId IS NOT NULL AND ((MaxPerTransaction IS NOT NULL AND MaxPerTransaction > 0) OR (DailyLimit IS NOT NULL AND DailyLimit > 0)))` · `CeilingMode = 'LIMITED' OR (MaxPerTransaction IS NULL AND DailyLimit IS NULL)` · `MaxPerTransaction IS NULL OR MaxPerTransaction > 0` · `DailyLimit IS NULL OR DailyLimit > 0` · `MaxPerTransaction IS NULL OR DailyLimit IS NULL OR DailyLimit >= MaxPerTransaction` · `(IsJoint = 1 AND (JointMinCosigners IS NULL OR JointMinCosigners >= 1)) OR (IsJoint = 0 AND JointMinCosigners IS NULL)` · `SupersededById IS NULL OR SupersededById <> SignatoryAuthorityId`
 
-### `acc.SignatoryAuthorityJointClass` — فئات التوقيع المطلوبة للتوقيع المشترك (JointClassIds) (BR-ACC-013) -- جدول وسيط جديد؛ لا حذف: التعديل بصف صلاحية جديد
+### `acc.SignatoryAuthorityJointClass` — Signature classes required for joint signing (JointClassIds) (BR-ACC-013) -- جدول وسيط جديد؛ لا حذف: التعديل بصف صلاحية جديد
 
 *مملوك للمشترك*
 
@@ -2723,7 +2723,7 @@
 
 **المفاتيح:** PK(TenantId, SignatoryAuthorityId, SignatureClassId)
 
-### `acc.AuthorityConflict` — نتيجة مقارنة صلاحية المفوّض بالحوكمة وقرار المراجع (S1-ب) (FR-ACC-018، BR-ACC-015)
+### `acc.AuthorityConflict` — Result of checking a signatory's authority against governance rules, and the reviewer's decision (S1-B) (FR-ACC-018, BR-ACC-015)
 
 *مملوك للمشترك*
 
@@ -2750,7 +2750,7 @@
 
 ## FAC
 
-### `fac.Facility` — حزمة الاتفاقية الائتمانية: جذر التجميعة (FR-FAC-001..008، BR-FAC-001/005/006)
+### `fac.Facility` — Facility agreement package: root of the aggregate (FR-FAC-001..008, BR-FAC-001/005/006)
 
 *مملوك للمشترك*
 
@@ -2796,7 +2796,7 @@
 
 **قيود:** `ExpiryDate >= EffectiveFrom` · `AgreementDate IS NULL OR AgreementDate <= EffectiveFrom` · `TotalAmount > 0` · `PreviousFacilityId IS NULL OR PreviousFacilityId <> FacilityId` · `NoticeDays IS NULL OR NoticeDays >= 0` · `BankUnilateralRights IS NULL OR BankUnilateralRights NOT LIKE '%CHANGE_PRICING%' OR NoticeDays IS NOT NULL` · `HijriAdjusted = 0 OR HijriAdjustReason IS NOT NULL` · `LifecycleStatus NOT IN ('SUSPENDED','EXPIRED','TERMINATED') OR LifecycleReason IS NOT NULL` · `ApprovedRevisionNo >= 0` · `LifecycleStatus = 'DRAFT' OR ApprovedRevisionNo >= 1` · `AlertLeadDays IS NULL OR AlertLeadDays NOT LIKE '%[^0-9,]%'`
 
-### `fac.FacilityRevision` — مراجعة معدّ/معتمِد لشروط التسهيل (FR-FAC-024، BR-FAC-003/004، §8)
+### `fac.FacilityRevision` — Preparer and approver revision of facility terms (FR-FAC-024, BR-FAC-003/004, section 8)
 
 *مملوك للمشترك*
 
@@ -2826,7 +2826,7 @@
 
 **قيود:** `RevisionNo >= 1` · `ReasonKind <> 'INITIAL' OR RevisionNo = 1` · `Status NOT IN ('SUBMITTED','APPROVED') OR (SubmittedBy IS NOT NULL AND SubmittedOn IS NOT NULL)` · `Status <> 'APPROVED' OR (ApprovedBy IS NOT NULL AND ApprovedOn IS NOT NULL)` · `Status <> 'REJECTED' OR RejectionReason IS NOT NULL`
 
-### `fac.FacilityDocument` — وثيقة ضمن الحزمة بأسبقية (FR-FAC-004، BR-FAC-008، V-FAC-03)؛ نوعها من doc.Document.DocumentTypeId
+### `fac.FacilityDocument` — Document within the package, with precedence (FR-FAC-004, BR-FAC-008, V-FAC-03); its type comes from doc.Document.DocumentTypeId
 
 *مملوك للمشترك · مراجَع*
 
@@ -2856,7 +2856,7 @@
 
 **قيود:** `PrecedenceRank >= 1` · `PageCount IS NULL OR PageCount > 0` · `AmendsFacilityDocumentId IS NULL OR AmendsFacilityDocumentId <> FacilityDocumentId` · `ToRevision IS NULL OR ToRevision >= FromRevision`
 
-### `fac.FacilityLender` — مقرض وحصته (FR-FAC-003، BR-FAC-007، V-FAC-02)؛ مجموع الحصص 100 ووكيل واحد يتحقق منهما التطبيق
+### `fac.FacilityLender` — Lender and its share (FR-FAC-003, BR-FAC-007, V-FAC-02); shares total 100 and a single agent, both checked by the application
 
 *مملوك للمشترك · مراجَع*
 
@@ -2881,7 +2881,7 @@
 
 **قيود:** `SharePct > 0 AND SharePct <= 100` · `Roles <> ''` · `Roles NOT LIKE '%SOLE%' OR SharePct = 100` · `ToRevision IS NULL OR ToRevision >= FromRevision`
 
-### `fac.OutstandingSnapshot` — لقطة الرصيد المعترف به (FR-FAC-009، BR-FAC-017)؛ PctOfLimit مشتق لا يُخزَّن
+### `fac.OutstandingSnapshot` — Snapshot of the recognised outstanding balance (FR-FAC-009, BR-FAC-017); PctOfLimit is derived and not stored
 
 *مملوك للمشترك · بمصدر*
 
@@ -2915,7 +2915,7 @@
 
 **قيود:** `AcknowledgedAmount >= 0` · `StatedPct IS NULL OR StatedPct >= 0` · `SourceDocumentId IS NOT NULL AND SourcePage IS NOT NULL OR (SourceDocumentId IS NULL AND Confidence = 'ENTERED_NO_DOCUMENT')` · `Confidence <> 'CONFIRMED_AGAINST_ORIGINAL' OR (VerifiedBy IS NOT NULL AND VerifiedOn IS NOT NULL)`
 
-### `fac.Limit` — عقدة شجرة الحدود (FR-FAC-010/011، BR-FAC-009/010، V-FAC-04..07)
+### `fac.Limit` — Limit-tree node (FR-FAC-010/011, BR-FAC-009/010, V-FAC-04..07)
 
 *مملوك للمشترك · مراجَع · بمصدر*
 
@@ -2963,7 +2963,7 @@
 
 **قيود:** `(AmountBasis = 'ABSOLUTE' AND Amount IS NOT NULL AND PctOfParent IS NULL) OR (AmountBasis = 'PCT_OF_PARENT' AND PctOfParent IS NOT NULL AND Amount IS NULL)` · `Amount IS NULL OR Amount >= 0` · `PctOfParent IS NULL OR (PctOfParent > 0 AND PctOfParent <= 100)` · `EffectiveAmount IS NULL OR EffectiveAmount >= 0` · `ParentLimitId IS NULL OR ParentLimitId <> LimitId` · `StartDate IS NULL OR EndDate IS NULL OR EndDate >= StartDate` · `ToRevision IS NULL OR ToRevision >= FromRevision` · `SourceDocumentId IS NOT NULL AND SourcePage IS NOT NULL OR (SourceDocumentId IS NULL AND Confidence = 'ENTERED_NO_DOCUMENT')` · `Confidence <> 'CONFIRMED_AGAINST_ORIGINAL' OR (VerifiedBy IS NOT NULL AND VerifiedOn IS NOT NULL)`
 
-### `fac.LimitProductLine` — خط منتج داخل حد: سقف اختياري SHARED_CAP دائمًا (FR-FAC-012، V-FAC-08)
+### `fac.LimitProductLine` — Product line within a limit, with an optional SHARED_CAP ceiling (FR-FAC-012, V-FAC-08)
 
 *مملوك للمشترك · مراجَع · بمصدر*
 
@@ -3002,7 +3002,7 @@
 
 **قيود:** `(AmountBasis IS NULL AND Amount IS NULL AND PctOfParent IS NULL) OR (AmountBasis IS NOT NULL AND ((AmountBasis = 'ABSOLUTE' AND Amount IS NOT NULL AND PctOfParent IS NULL) OR (AmountBasis = 'PCT_OF_PARENT' AND PctOfParent IS NOT NULL AND Amount IS NULL)))` · `Amount IS NULL OR Amount >= 0` · `PctOfParent IS NULL OR (PctOfParent > 0 AND PctOfParent <= 100)` · `ToRevision IS NULL OR ToRevision >= FromRevision` · `SourceDocumentId IS NOT NULL AND SourcePage IS NOT NULL OR (SourceDocumentId IS NULL AND Confidence = 'ENTERED_NO_DOCUMENT')` · `Confidence <> 'CONFIRMED_AGAINST_ORIGINAL' OR (VerifiedBy IS NOT NULL AND VerifiedOn IS NOT NULL)`
 
-### `fac.LimitCompanyRule` — قيد شركة على حد: مسموح/مستثنى/تخصيص (FR-FAC-013، BR-FAC-012، V-FAC-09)
+### `fac.LimitCompanyRule` — Company rule on a limit: allowed, excluded or allocated (FR-FAC-013, BR-FAC-012, V-FAC-09)
 
 *مملوك للمشترك · مراجَع · بمصدر*
 
@@ -3040,7 +3040,7 @@
 
 **قيود:** `RuleKind <> 'ALLOCATION' OR (AllocationAmount IS NOT NULL AND AllocationPct IS NULL) OR (AllocationAmount IS NULL AND AllocationPct IS NOT NULL)` · `RuleKind = 'ALLOCATION' OR (AllocationAmount IS NULL AND AllocationPct IS NULL)` · `AllocationAmount IS NULL OR AllocationAmount > 0` · `AllocationPct IS NULL OR (AllocationPct > 0 AND AllocationPct <= 100)` · `ValidTo IS NULL OR ValidTo >= ValidFrom` · `ToRevision IS NULL OR ToRevision >= FromRevision` · `SourceDocumentId IS NOT NULL AND SourcePage IS NOT NULL OR (SourceDocumentId IS NULL AND Confidence = 'ENTERED_NO_DOCUMENT')` · `Confidence <> 'CONFIRMED_AGAINST_ORIGINAL' OR (VerifiedBy IS NOT NULL AND VerifiedOn IS NOT NULL)`
 
-### `fac.ProductLineTerm` — شروط العملية لخط المنتج بتواريخ سريان؛ الفارغ = «غير محدد» لا صفر (FR-FAC-014، BR-FAC-016)
+### `fac.ProductLineTerm` — Operational terms of a product line with effective dates; NULL means 'not specified', not zero (FR-FAC-014, BR-FAC-016)
 
 *مملوك للمشترك · مراجَع · بمصدر*
 
@@ -3082,7 +3082,7 @@
 
 **قيود:** `EffectiveTo IS NULL OR EffectiveTo >= EffectiveFrom` · `MaxTotalTenorDays IS NULL OR MaxTotalTenorDays >= 0` · `MaxDeferralDays IS NULL OR MaxDeferralDays >= 0` · `MaxPostDeferralFinancingDays IS NULL OR MaxPostDeferralFinancingDays >= 0` · `LcValidityDays IS NULL OR LcValidityDays >= 0` · `AdvanceNoticeDays IS NULL OR AdvanceNoticeDays >= 0` · `CashCoverPct IS NULL OR (CashCoverPct >= 0 AND CashCoverPct <= 100)` · `FinancingRatioPct IS NULL OR (FinancingRatioPct >= 0 AND FinancingRatioPct <= 100)` · `ToRevision IS NULL OR ToRevision >= FromRevision` · `SourceDocumentId IS NOT NULL AND SourcePage IS NOT NULL OR (SourceDocumentId IS NULL AND Confidence = 'ENTERED_NO_DOCUMENT')` · `Confidence <> 'CONFIRMED_AGAINST_ORIGINAL' OR (VerifiedBy IS NOT NULL AND VerifiedOn IS NOT NULL)`
 
-### `fac.Utilization` — بند استخدام فعّال: يدوي أو مرتبط باعتماد مستندي؛ لا حذف (FR-FAC-016/030، BR-FAC-013/020)
+### `fac.Utilization` — Active utilisation item: manual or linked to a letter of credit; never deleted (FR-FAC-016/030, BR-FAC-013/020)
 
 *مملوك للمشترك*
 
@@ -3116,7 +3116,7 @@
 
 **قيود:** `Amount >= 0` · `Status = 'RELEASED' OR Amount > 0` · `RateToFacilityCcy IS NULL OR RateToFacilityCcy > 0` · `MaturityDate IS NULL OR MaturityDate >= StartDate` · `Status <> 'RELEASED' OR (ReleasedOn IS NOT NULL AND ReleaseReason IS NOT NULL)` · `Status = 'RELEASED' OR (ReleasedOn IS NULL AND ReleaseReason IS NULL)`
 
-### `fac.LimitReservation` — حجز مبلغ لطلب = ExposureAmount (FR-FAC-017/018/020، BR-FAC-015)
+### `fac.LimitReservation` — Amount reserved for a request, equal to ExposureAmount (FR-FAC-017/018/020, BR-FAC-015)
 
 *مملوك للمشترك*
 
@@ -3150,7 +3150,7 @@
 
 **قيود:** `Amount > 0` · `RateToFacilityCcy IS NULL OR RateToFacilityCcy > 0` · `Status <> 'CONVERTED' OR ConvertedUtilizationId IS NOT NULL` · `Status = 'CONVERTED' OR ConvertedUtilizationId IS NULL` · `Status <> 'RELEASED' OR (ReleasedOn IS NOT NULL AND ReleaseReason IS NOT NULL)` · `Status = 'RELEASED' OR (ReleasedOn IS NULL AND ReleaseReason IS NULL)` · `OverLimit = 0 OR OverrideReason IS NOT NULL`
 
-### `fac.LimitMovement` — سجل حركة على حجز أو استخدام؛ لا تعديل ولا حذف؛ مفتاح عدم التكرار (BR-FAC-015/020)
+### `fac.LimitMovement` — Movement record on a reservation or usage; no update or delete; duplicate-prevention key (BR-FAC-015, BR-FAC-020)
 
 *مملوك للمشترك*
 
@@ -3180,7 +3180,7 @@
 
 **قيود:** `(TargetKind = 'RESERVATION' AND LimitReservationId IS NOT NULL AND UtilizationId IS NULL) OR (TargetKind = 'UTILIZATION' AND UtilizationId IS NOT NULL AND LimitReservationId IS NULL)` · `AmountAfter IS NULL OR AmountAfter >= 0` · `AppliedDelta IS NULL OR RequestedDelta IS NULL OR ABS(AppliedDelta) <= ABS(RequestedDelta)` · `OpKind <> 'ADJUST' OR AmountBefore IS NULL OR AmountAfter IS NULL OR AppliedDelta IS NULL OR AmountAfter = AmountBefore + AppliedDelta`
 
-### `fac.ValueConflict` — تعارض قيمتين لحقل واحد وحسمه (FR-FAC-026، BR-FAC-019، BR-FAC-008)
+### `fac.ValueConflict` — Conflict between two values of one field, and its resolution (FR-FAC-026, BR-FAC-019, BR-FAC-008)
 
 *مملوك للمشترك*
 
@@ -3221,7 +3221,7 @@
 
 ## PRC
 
-### `prc.TariffSchedule` — إصدار جدول رسوم لبنك؛ خاص بتسهيل اختياريًا (FR-PRC-001، BR-PRC-001، V-PRC-01)
+### `prc.TariffSchedule` — Bank tariff schedule version; optionally specific to a facility (FR-PRC-001, BR-PRC-001, V-PRC-01)
 
 *مملوك للمشترك*
 
@@ -3250,7 +3250,7 @@
 
 **قيود:** `VersionNo >= 1` · `EffectiveTo IS NULL OR EffectiveTo >= EffectiveFrom` · `Status <> 'APPROVED' OR (ApprovedBy IS NOT NULL AND ApprovedOn IS NOT NULL)`
 
-### `prc.TariffItem` — بند رسم في جدول التعرفة (FR-PRC-002، BR-PRC-002..005)
+### `prc.TariffItem` — Fee item in a tariff schedule (FR-PRC-002, BR-PRC-002..005)
 
 *مملوك للمشترك · بمصدر*
 
@@ -3295,7 +3295,7 @@
 
 **قيود:** `ChargeKind <> 'PERCENT' OR (Rate IS NOT NULL AND FixedAmount IS NULL AND PerMillionAmount IS NULL)` · `ChargeKind <> 'FIXED' OR (FixedAmount IS NOT NULL AND Rate IS NULL AND PerMillionAmount IS NULL)` · `ChargeKind <> 'PER_MILLION' OR (PerMillionAmount IS NOT NULL AND Rate IS NULL AND FixedAmount IS NULL)` · `ChargeKind <> 'TIERED' OR (Rate IS NULL AND FixedAmount IS NULL AND PerMillionAmount IS NULL)` · `Rate IS NULL OR (Rate >= 0 AND Rate <= 100)` · `PeriodBasis <> 'PER_PERIOD_OR_PART' OR PeriodDays IS NOT NULL` · `PeriodDays IS NULL OR PeriodDays > 0` · `MinAmount IS NULL OR MinAmount >= 0` · `MinAmount IS NULL OR MaxAmount IS NULL OR MinAmount <= MaxAmount` · `SourceDocumentId IS NOT NULL AND SourcePage IS NOT NULL OR (SourceDocumentId IS NULL AND Confidence = 'ENTERED_NO_DOCUMENT')` · `Confidence <> 'CONFIRMED_AGAINST_ORIGINAL' OR (VerifiedBy IS NOT NULL AND VerifiedOn IS NOT NULL)`
 
-### `prc.TariffTier` — شريحة بند تعرفة بالمبلغ و/أو المدة (FR-PRC-003، BR-PRC-002)
+### `prc.TariffTier` — Tier of a tariff item by amount and/or term (FR-PRC-003, BR-PRC-002)
 
 *مملوك للمشترك*
 
@@ -3321,7 +3321,7 @@
 
 **قيود:** `AmountFrom IS NULL OR AmountFrom >= 0` · `AmountTo IS NULL OR AmountFrom IS NULL OR AmountTo > AmountFrom` · `PeriodFromDays IS NULL OR PeriodFromDays >= 0` · `PeriodToDays IS NULL OR PeriodFromDays IS NULL OR PeriodToDays >= PeriodFromDays` · `Rate IS NOT NULL OR FixedAmount IS NOT NULL` · `Rate IS NULL OR FixedAmount IS NULL` · `Rate IS NULL OR (Rate >= 0 AND Rate <= 100)` · `MinAmount IS NULL OR MinAmount >= 0`
 
-### `prc.PricingRule` — قاعدة تسعير بنطاق ووراثة وطرق (FR-PRC-006..017، BR-PRC-006..012، V-PRC-02)
+### `prc.PricingRule` — Pricing rule with scope, inheritance and methods (FR-PRC-006..017, BR-PRC-006..012, V-PRC-02)
 
 *مملوك للمشترك · مراجَع · بمصدر*
 
@@ -3389,7 +3389,7 @@
 
 **قيود:** `ScopeLimitProductLineId IS NULL OR ScopeLimitId IS NOT NULL` · `EffectiveTo IS NULL OR EffectiveTo >= EffectiveFrom` · `ComponentKind <> 'FINANCING_RETURN' OR FeeTypeId IS NULL` · `ComponentKind = 'FINANCING_RETURN' OR (FeeTypeId IS NOT NULL AND FinancingTypeId IS NULL)` · `ComponentKind <> 'PENALTY_NON_INCOME' OR TriggerEvent IS NOT NULL` · `ComponentKind = 'PENALTY_NON_INCOME' OR TriggerEvent IS NULL` · `RateState <> 'NOT_SPECIFIED_IN_AGREEMENT' OR (AddOnPct IS NULL AND MarginPct IS NULL AND RatePct IS NULL AND RateRangeLowPct IS NULL AND RateRangeHighPct IS NULL AND FixedAmount IS NULL AND PerMillionAmount IS NULL)` · `RateState <> 'SET' OR Method <> 'TARIFF_AS_IS' OR TariffItemId IS NOT NULL` · `RateState <> 'SET' OR Method <> 'TARIFF_PLUS_ADDON' OR (TariffItemId IS NOT NULL AND AddOnPct IS NOT NULL)` · `RateState <> 'SET' OR Method <> 'BASE_PLUS_MARGIN' OR (BaseRateId IS NOT NULL AND MarginPct IS NOT NULL AND RateFixing IS NOT NULL AND DayCount IS NOT NULL)` · `RateState <> 'SET' OR Method <> 'PERCENT_OF_AMOUNT' OR RatePct IS NOT NULL OR (RateRangeLowPct IS NOT NULL AND RateRangeHighPct IS NOT NULL)` · `RateState <> 'SET' OR Method <> 'FIXED_AMOUNT' OR FixedAmount IS NOT NULL` · `RateState <> 'SET' OR Method <> 'PER_MILLION' OR PerMillionAmount IS NOT NULL` · `Method IN ('TARIFF_AS_IS','TARIFF_PLUS_ADDON') OR TariffItemId IS NULL` · `Method = 'TARIFF_PLUS_ADDON' OR AddOnPct IS NULL` · `Method = 'BASE_PLUS_MARGIN' OR (BaseRateId IS NULL AND MarginPct IS NULL AND BaseFloorPct IS NULL AND RateFixing IS NULL AND RepricingMonths IS NULL)` · `Method = 'PERCENT_OF_AMOUNT' OR (RatePct IS NULL AND RateRangeLowPct IS NULL AND RateRangeHighPct IS NULL)` · `Method = 'FIXED_AMOUNT' OR FixedAmount IS NULL` · `Method = 'PER_MILLION' OR PerMillionAmount IS NULL` · `RatePct IS NULL OR (RateRangeLowPct IS NULL AND RateRangeHighPct IS NULL)` · `(RateRangeLowPct IS NULL AND RateRangeHighPct IS NULL) OR (RateRangeLowPct IS NOT NULL AND RateRangeHighPct IS NOT NULL AND RateRangeLowPct <= RateRangeHighPct)` · `RatePct IS NULL OR (RatePct >= 0 AND RatePct <= 100)` · `FixedAmount IS NULL OR FixedAmount >= 0` · `PerMillionAmount IS NULL OR PerMillionAmount >= 0` · `MinFeeAmount IS NULL OR MinFeeAmount >= 0` · `MinFeeAmount IS NULL OR MaxFeeAmount IS NULL OR MinFeeAmount <= MaxFeeAmount` · `PeriodDays IS NULL OR PeriodDays > 0` · `PeriodBasis IS NULL OR PeriodBasis <> 'PER_PERIOD_OR_PART' OR PeriodDays IS NOT NULL OR Method IN ('TARIFF_AS_IS','TARIFF_PLUS_ADDON','TIERED')` · `PeriodBasis IS NULL OR PeriodBasis <> 'PER_ANNUM' OR DayCount IS NOT NULL` · `RepricingMonths IS NULL OR RepricingMonths > 0` · `RateFixing IS NULL OR RateFixing <> 'FLOATING' OR RateState <> 'SET' OR RepricingMonths IS NOT NULL` · `BenchmarkReplacement <> 'NAMED_FALLBACK' OR ReplacementText IS NOT NULL` · `BankMayChange <> 'WITH_NOTICE_OBJECTION' OR (ObjectionDays IS NOT NULL AND ObjectionDaysKind IS NOT NULL)` · `ObjectionDays IS NULL OR ObjectionDays >= 0` · `Retroactive = 0 OR RetroactiveReason IS NOT NULL` · `ToRevision IS NULL OR ToRevision >= FromRevision` · `SourceDocumentId IS NOT NULL AND SourcePage IS NOT NULL OR (SourceDocumentId IS NULL AND Confidence = 'ENTERED_NO_DOCUMENT')` · `Confidence <> 'CONFIRMED_AGAINST_ORIGINAL' OR (VerifiedBy IS NOT NULL AND VerifiedOn IS NOT NULL)`
 
-### `prc.PricingTier` — شريحة قاعدة TIERED بالمبلغ و/أو المدة (FR-PRC-003، BR-PRC-002)
+### `prc.PricingTier` — Tier of a TIERED rule by amount and/or term (FR-PRC-003, BR-PRC-002)
 
 *مملوك للمشترك · مراجَع*
 
@@ -3421,7 +3421,7 @@
 
 ## CMP
 
-### `cmp.TermType` — مفتاح شرط قابل للمقارنة (FR-CMP-001)؛ الرمز بنمط PRC.MARGIN_PCT؛ النظامي لا يُحذف ولا تتغير وحدته (IsSystem)
+### `cmp.TermType` — Comparable term key (FR-CMP-001); the code follows the pattern PRC.MARGIN_PCT; system terms cannot be deleted and their unit cannot change (IsSystem)
 
 *مملوك للمشترك · كتالوج*
 
@@ -3457,7 +3457,7 @@
 
 **قيود:** `ScopeKinds <> ''` · `ValueKind <> 'ENUM' OR EnumOptions IS NOT NULL` · `ValueKind = 'ENUM' OR EnumOptions IS NULL`
 
-### `cmp.TermValue` — قيمة شرط في تسهيل بنطاقها ومصدرها (FR-CMP-002..006، BR-CMP-001..006، V-CMP-01)
+### `cmp.TermValue` — Term value in a facility, with its scope and source (FR-CMP-002..006, BR-CMP-001..006, V-CMP-01)
 
 *مملوك للمشترك · مراجَع · بمصدر*
 
@@ -3508,7 +3508,7 @@
 
 ## COL
 
-### `col.Collateral` — سجل ضمان؛ اعتماد مستقل عن مراجعة التسهيل، والتعديل يُنشئ إصدارًا جديدًا (FR-COL-001/014، V-COL-01، §8)
+### `col.Collateral` — Collateral record; approved independently of the facility review, and an amendment creates a new revision (FR-COL-001/014, V-COL-01, section 8)
 
 *مملوك للمشترك · بمصدر*
 
@@ -3550,7 +3550,7 @@
 
 **قيود:** `Status = 'DRAFT' OR ApprovalState = 'APPROVED'` · `ApprovalState <> 'APPROVED' OR Status <> 'DRAFT'` · `ApprovalState <> 'APPROVED' OR (ApprovedBy IS NOT NULL AND ApprovedOn IS NOT NULL)` · `Status <> 'RELEASED' OR (ReleasedOn IS NOT NULL AND ReleaseReason IS NOT NULL)` · `Status = 'RELEASED' OR (ReleasedOn IS NULL AND ReleaseReason IS NULL AND ReleaseDocumentId IS NULL)` · `GrantedOn IS NULL OR ReleasedOn IS NULL OR ReleasedOn >= GrantedOn` · `SupersedesId IS NULL OR SupersedesId <> CollateralId` · `SourceDocumentId IS NOT NULL AND SourcePage IS NOT NULL OR (SourceDocumentId IS NULL AND Confidence = 'ENTERED_NO_DOCUMENT')` · `Confidence <> 'CONFIRMED_AGAINST_ORIGINAL' OR (VerifiedBy IS NOT NULL AND VerifiedOn IS NOT NULL)`
 
-### `col.CollateralLink` — ربط ضمان بتسهيل أو حد؛ ضمان واحد لعدة تسهيلات (FR-COL-002، BR-COL-005)
+### `col.CollateralLink` — Link between collateral and a facility or limit; one collateral can serve several facilities (FR-COL-002, BR-COL-005)
 
 *مملوك للمشترك · مراجَع*
 
@@ -3577,7 +3577,7 @@
 
 **قيود:** `CoverageAmount IS NULL OR CoverageAmount > 0` · `LienRank IS NULL OR LienRank >= 1` · `UnlinkedOn IS NULL OR UnlinkedOn >= LinkedOn` · `ToRevision IS NULL OR ToRevision >= FromRevision`
 
-### `col.Guarantee` — كفالة 1:1 مع Collateral؛ الكفيل Party دائمًا ولا أرقام هوية هنا (FR-COL-003/004، BR-COL-001)
+### `col.Guarantee` — Guarantee, 1:1 with Collateral; the guarantor is always a Party, and no identity numbers are stored here (FR-COL-003/004, BR-COL-001)
 
 *مملوك للمشترك*
 
@@ -3605,7 +3605,7 @@
 
 **قيود:** `AmountMode <> 'SPECIFIED' OR (Amount IS NOT NULL AND CurrencyId IS NOT NULL)` · `AmountMode <> 'UNSPECIFIED' OR (Amount IS NULL AND CurrencyId IS NULL)` · `Amount IS NULL OR Amount > 0` · `SignedOn IS NULL OR ValidTo IS NULL OR ValidTo >= SignedOn` · `GuaranteeForm <> 'JOINT_SEVERAL_PAYMENT_PERFORMANCE' OR IsJointSeveral = 1`
 
-### `col.PromissoryNote` — سند لأمر 1:1؛ مبلغ مستقل قد يفوق الحد (FR-COL-005، BR-COL-002)؛ NextRenewalDue وPNRatio مشتقان
+### `col.PromissoryNote` — Promissory note, 1:1; its own amount may exceed the limit (FR-COL-005, BR-COL-002); NextRenewalDue and PNRatio are derived
 
 *مملوك للمشترك*
 
@@ -3632,7 +3632,7 @@
 
 **قيود:** `NoteAmount > 0` · `DueKind <> 'FIXED_DATE' OR (DueDate IS NOT NULL AND DueDate >= IssuedOn)` · `DueKind <> 'ON_DEMAND' OR DueDate IS NULL` · `LastRenewedOn IS NULL OR LastRenewedOn >= IssuedOn` · `RenewalCycle <> 'NONE' OR LastRenewedOn IS NULL`
 
-### `col.PromissoryNoteSigner` — موقّعو السند (SignerPartyIds) -- جدول وسيط جديد؛ موقّعو PromissoryNote (FR-COL-015)
+### `col.PromissoryNoteSigner` — Signers of the promissory note (SignerPartyIds) -- جدول وسيط جديد؛ موقّعو PromissoryNote (FR-COL-015)
 
 *مملوك للمشترك*
 
@@ -3648,7 +3648,7 @@
 
 **المفاتيح:** PK(TenantId, PromissoryNoteId, PartyId)
 
-### `col.InsurancePolicyAssignment` — تجيير وثيقة تأمين؛ مفتاح الفرادة (CollateralId,PolicyNo) يسمح بتجديد الوثيقة (FR-COL-006، BR-COL-003)
+### `col.InsurancePolicyAssignment` — Insurance policy assignment; the uniqueness key (CollateralId, PolicyNo) allows the policy to be renewed (FR-COL-006, BR-COL-003)
 
 *مملوك للمشترك*
 
@@ -3678,7 +3678,7 @@
 
 **قيود:** `SumInsured > 0` · `PolicyStart IS NULL OR PolicyExpiry >= PolicyStart` · `CoverageBasis <> 'PCT_OF_LIMIT' OR (CoveragePct IS NOT NULL AND CoveragePct > 0 AND CoverageAmount IS NULL)` · `CoverageBasis <> 'FIXED_AMOUNT' OR (CoverageAmount IS NOT NULL AND CoverageAmount > 0 AND CoveragePct IS NULL)` · `CoverageBasis <> 'FULL_LIMITS' OR (CoveragePct IS NULL AND CoverageAmount IS NULL)`
 
-### `col.ValuationSchedule` — مراحل تقييم عقار (FR-COL-008، BR-COL-004)؛ مثل 3 مقيّمين في السنة الأولى ثم مقيّم سنويًا
+### `col.ValuationSchedule` — Property valuation schedule (FR-COL-008, BR-COL-004), for example three valuers in the first year, then one valuer per year
 
 *مملوك للمشترك*
 
@@ -3707,7 +3707,7 @@
 
 ## OBL
 
-### `obl.Obligation` — التزام على تسهيل (أو حد/خط/شركات)؛ العائلة من ObligationType ولا تُحرَّر (FR-OBL-001، BR-OBL-001)
+### `obl.Obligation` — Obligation on a facility (or on a limit, line or set of companies); the family comes from ObligationType and cannot be edited (FR-OBL-001, BR-OBL-001)
 
 *مملوك للمشترك · مراجَع · بمصدر*
 
@@ -3758,7 +3758,7 @@
 
 **قيود:** `ValidTo IS NULL OR ValidTo >= ValidFrom` · `GraceDays IS NULL OR GraceDays >= 0` · `CureDays IS NULL OR CureDays >= 0` · `(ParamValue IS NULL AND ParamUnit IS NULL) OR (ParamValue IS NOT NULL AND ParamUnit IS NOT NULL)` · `ParamValue IS NULL OR ParamValue >= 0` · `ParamUnit IS NULL OR ParamUnit <> 'AMOUNT' OR ParamCurrencyId IS NOT NULL` · `ParamCurrencyId IS NULL OR ParamUnit = 'AMOUNT'` · `TriggerValues IS NULL OR TriggerField IS NOT NULL` · `ToRevision IS NULL OR ToRevision >= FromRevision` · `SourceDocumentId IS NOT NULL AND SourcePage IS NOT NULL OR (SourceDocumentId IS NULL AND Confidence = 'ENTERED_NO_DOCUMENT')` · `Confidence <> 'CONFIRMED_AGAINST_ORIGINAL' OR (VerifiedBy IS NOT NULL AND VerifiedOn IS NOT NULL)`
 
-### `obl.ObligationCompany` — الشركات التي ينطبق عليها الالتزام (AppliesToCompanyIds) -- جدول وسيط جديد؛ الحذف لصفوف مسودة المراجعة فقط (يفرضه التطبيق)
+### `obl.ObligationCompany` — Companies the obligation applies to (AppliesToCompanyIds) -- جدول وسيط جديد؛ الحذف لصفوف مسودة المراجعة فقط (يفرضه التطبيق)
 
 *مملوك للمشترك*
 
@@ -3774,7 +3774,7 @@
 
 **المفاتيح:** PK(TenantId, ObligationId, CompanyId)
 
-### `obl.ReportingObligation` — قاعدة استحقاق تقرير/إخطار 1:1 مع Obligation (FR-OBL-002/003، BR-OBL-002، V-OBL-01)
+### `obl.ReportingObligation` — Reporting or notice-due rule, 1:1 with Obligation (FR-OBL-002/003, BR-OBL-002, V-OBL-01)
 
 *مملوك للمشترك · مراجَع*
 
@@ -3809,7 +3809,7 @@
 
 **قيود:** `AnchorKind <> 'FIXED_DATE' OR (FixedDueDate IS NOT NULL AND OffsetValue IS NULL)` · `AnchorKind = 'FIXED_DATE' OR (FixedDueDate IS NULL AND OffsetValue IS NOT NULL)` · `OffsetValue IS NULL OR OffsetValue >= 0` · `HorizonMonths IS NULL OR HorizonMonths > 0` · `Frequency <> 'EVENT_BASED' OR AnchorKind IN ('BEFORE_EVENT','AFTER_EVENT')` · `AnchorKind NOT IN ('BEFORE_EVENT','AFTER_EVENT') OR Frequency = 'EVENT_BASED'` · `Frequency <> 'ON_DEMAND' OR AnchorKind = 'ON_DEMAND_REQUEST'` · `AnchorKind <> 'ON_DEMAND_REQUEST' OR Frequency = 'ON_DEMAND'` · `AlertLeadDays IS NULL OR AlertLeadDays NOT LIKE '%[^0-9,]%'` · `ToRevision IS NULL OR ToRevision >= FromRevision`
 
-### `obl.ReportingInstance` — بند أجندة مولَّد أو مسجَّل لحدث (FR-OBL-003..005، BR-OBL-003، §8)؛ DUE_SOON/OVERDUE مشتقتان
+### `obl.ReportingInstance` — Agenda item generated or logged for an event (FR-OBL-003..005, BR-OBL-003, section 8); DUE_SOON and OVERDUE are derived
 
 *مملوك للمشترك*
 
@@ -3842,7 +3842,7 @@
 
 **قيود:** `PeriodStart IS NULL OR (PeriodEnd IS NOT NULL AND PeriodEnd >= PeriodStart)` · `GeneratedBy <> 'MANUAL_EVENT' OR EventDate IS NOT NULL` · `Status <> 'SUBMITTED' OR SubmittedOn IS NOT NULL` · `Status = 'SUBMITTED' OR (SubmittedOn IS NULL AND SubmissionChannelUsedId IS NULL AND SubmissionRef IS NULL)` · `Status NOT IN ('NOT_APPLICABLE','CANCELLED') OR StatusReason IS NOT NULL` · `ReportedAmount IS NULL OR CurrencyId IS NOT NULL` · `CurrencyId IS NULL OR ReportedAmount IS NOT NULL`
 
-### `obl.Covenant` — إصدار تعهد بتواريخ؛ الحدود المتدرجة = عدة نسخ (FR-OBL-006، BR-OBL-001/005/006، Q-OBL-01)
+### `obl.Covenant` — Covenant revision with dates; graduated limits are several revisions (FR-OBL-006, BR-OBL-001/005/006, Q-OBL-01)
 
 *مملوك للمشترك · مراجَع*
 
@@ -3883,7 +3883,7 @@
 
 **قيود:** `MeasureKind NOT IN ('RATIO','AMOUNT','PERCENT_OF_REVENUE') OR FormulaId IS NOT NULL` · `MeasureKind <> 'NONE' OR (FormulaId IS NULL AND Operator IS NULL AND ThresholdValue IS NULL AND ThresholdState <> 'SET')` · `ThresholdState <> 'SET' OR (Operator IS NOT NULL AND ThresholdValue IS NOT NULL)` · `ThresholdState = 'SET' OR ThresholdValue IS NULL` · `ThresholdState <> 'SET' OR ThresholdUnit IS NULL OR ThresholdUnit <> 'AMOUNT' OR CurrencyId IS NOT NULL` · `CurrencyId IS NULL OR ThresholdUnit = 'AMOUNT'` · `RevenueBasisRule IS NULL OR MeasureKind = 'PERCENT_OF_REVENUE'` · `SubmissionLagDays IS NULL OR SubmissionLagDays >= 0` · `EarlyWarningPct IS NULL OR (EarlyWarningPct >= 0 AND EarlyWarningPct <= 100)` · `ValidTo IS NULL OR ValidTo >= ValidFrom` · `ToRevision IS NULL OR ToRevision >= FromRevision`
 
-### `obl.CovenantAccount` — الحسابات المشمولة بالتعهد عند اختيار حسابات محددة (AccountIds) -- جدول وسيط جديد؛ الحذف لصفوف مسودة المراجعة فقط (يفرضه التطبيق)
+### `obl.CovenantAccount` — Accounts covered by a covenant when specific accounts are selected (AccountIds) -- جدول وسيط جديد؛ الحذف لصفوف مسودة المراجعة فقط (يفرضه التطبيق)
 
 *مملوك للمشترك*
 
@@ -3899,7 +3899,7 @@
 
 **المفاتيح:** PK(TenantId, CovenantId, BankAccountId)
 
-### `obl.CovenantTest` — تقييم تعهد لفترة وإصدار تقييم؛ يمنع التطبيق تعديل التقييم المخزَّن (FR-OBL-011، FR-FIN-012/013، BR-OBL-006/007، §8)
+### `obl.CovenantTest` — Covenant test for a period and test version; the application prevents editing a stored test (FR-OBL-011, FR-FIN-012/013, BR-OBL-006/007, section 8)
 
 *مملوك للمشترك*
 
@@ -3939,7 +3939,7 @@
 
 **قيود:** `EvaluationNo >= 1` · `PeriodEnd >= PeriodStart` · `DueDate >= PeriodEnd` · `State <> 'SCHEDULED' OR (Result IS NULL AND EvaluatedAt IS NULL)` · `State NOT IN ('EVALUATED','REVIEWED') OR (Result IS NOT NULL AND EvaluatedAt IS NOT NULL AND InputsSnapshot IS NOT NULL)` · `State <> 'REVIEWED' OR (ReviewedBy IS NOT NULL AND ReviewedOn IS NOT NULL)` · `Result NOT IN ('COMPLIANT','WARNING','BREACH') OR (ActualValue IS NOT NULL AND ThresholdApplied IS NOT NULL AND OperatorApplied IS NOT NULL)` · `Result <> 'NOT_ASSESSED_NO_THRESHOLD' OR ThresholdApplied IS NULL` · `ThresholdApplied IS NULL OR OperatorApplied IS NOT NULL` · `Headroom IS NULL OR (ActualValue IS NOT NULL AND ThresholdApplied IS NOT NULL)` · `HeadroomPct IS NULL OR Headroom IS NOT NULL` · `Result NOT IN ('MANUAL_COMPLIANT','MANUAL_NON_COMPLIANT','UNDER_REVIEW') OR Method = 'MANUAL_STATUS'` · `Method <> 'MANUAL_STATUS' OR Result IS NULL OR Result IN ('MANUAL_COMPLIANT','MANUAL_NON_COMPLIANT','UNDER_REVIEW')` · `FormulaVersion IS NULL OR FormulaVersion >= 1`
 
-### `obl.ObligationBreach` — سجل خرق وعلاجه وتنازله (FR-OBL-012، BR-OBL-009/011، §8)
+### `obl.ObligationBreach` — Breach record, its remedy and any waiver (FR-OBL-012, BR-OBL-009/011, section 8)
 
 *مملوك للمشترك*
 
@@ -3977,7 +3977,7 @@
 
 ## FIN
 
-### `fin.LineCatalogItem` — بند معياري للقوائم؛ 39 بندًا مبذورًا؛ النظامي في الصيغ لا يُحذف (FR-FIN-001، CatalogBase)
+### `fin.LineCatalogItem` — Standard statement line item; 39 items seeded; system items used in formulas cannot be deleted (FR-FIN-001, CatalogBase)
 
 *مملوك للمشترك · كتالوج*
 
@@ -4008,7 +4008,7 @@
 
 **قيود:** `IsTotal = 0 OR TotalFormula IS NOT NULL` · `IsTotal = 1 OR TotalFormula IS NULL` · `NameEn IS NOT NULL` · `Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'` · `IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)`
 
-### `fin.LineCatalogItemAlias` — الأسماء البديلة للبند (Aliases) للصق والمطابقة -- جدول جديد للأسماء البديلة (FR-FIN-003)
+### `fin.LineCatalogItemAlias` — Alternative names (aliases) for a line item, used for paste and matching -- جدول جديد للأسماء البديلة (FR-FIN-003)
 
 *مملوك للمشترك*
 
@@ -4027,7 +4027,7 @@
 
 **قيود:** `Alias <> ''`
 
-### `fin.FinancialStatement` — رأس قائمة مالية؛ سري جدًا (FR-FIN-002/005/006، BR-FIN-001..004، §8)
+### `fin.FinancialStatement` — Financial statement header; highly confidential (FR-FIN-002/005/006, BR-FIN-001..004, section 8)
 
 *مملوك للمشترك*
 
@@ -4066,7 +4066,7 @@
 
 **قيود:** `UnitScale IN (1,1000,1000000)` · `PeriodStart IS NULL OR PeriodEnd >= PeriodStart` · `FiscalYear BETWEEN 1900 AND 2200` · `VersionNo >= 1` · `VersionReason <> 'ORIGINAL' OR SupersedesId IS NULL` · `SupersedesId IS NULL OR (VersionNo > 1 AND VersionReason <> 'ORIGINAL' AND SupersedesId <> FinancialStatementId)` · `Status NOT IN ('SUBMITTED','APPROVED','SUPERSEDED') OR (PreparedBy IS NOT NULL AND PreparedOn IS NOT NULL)` · `Status NOT IN ('APPROVED','SUPERSEDED') OR (ApprovedBy IS NOT NULL AND ApprovedOn IS NOT NULL)`
 
-### `fin.StatementLine` — سطر قائمة؛ بعملة الرأس والمخزَّن = المُدخل x UnitScale؛ Variance مشتق؛ سري جدًا (BR-FIN-001/002)
+### `fin.StatementLine` — Statement line in the header currency; stored value = input x UnitScale; Variance is derived; highly confidential (BR-FIN-001/002)
 
 *مملوك للمشترك*
 
@@ -4085,7 +4085,7 @@
 
 **المفاتيح:** PK(StatementLineId) · UQ(TenantId, StatementId, LineCatalogItemId)
 
-### `fin.AccountMonthlyStat` — رصيد شهري لحساب بعملة الحساب (FR-FIN-008، BR-FIN-005/006، V-FIN-02)
+### `fin.AccountMonthlyStat` — Monthly balance of an account in the account currency (FR-FIN-008, BR-FIN-005/006, V-FIN-02)
 
 *مملوك للمشترك*
 
@@ -4111,7 +4111,7 @@
 
 **المفاتيح:** PK(AccountMonthlyStatId) · UQ(PublicId) · UQ(TenantId, BankAccountId, MonthEnd)
 
-### `fin.BankFlowEntry` — مبلغ محوَّل للبنك في شهر؛ تجميع سنوي آلي (FR-FIN-009/010، BR-FIN-007/008)
+### `fin.BankFlowEntry` — Amount transferred to the bank in a month; annual totals are computed automatically (FR-FIN-009/010, BR-FIN-007/008)
 
 *مملوك للمشترك*
 
@@ -4138,7 +4138,7 @@
 
 **قيود:** `Amount >= 0`
 
-### `fin.MeasureFormula` — صيغة مقياس: قالب أو نسخة اتفاقية بإصدارات؛ لا تُنفَّذ نصًا (FR-FIN-011، BR-FIN-009، §12)
+### `fin.MeasureFormula` — Measure formula: a template or a facility-agreement version with revisions; never executed as text (FR-FIN-011, BR-FIN-009, section 12)
 
 *مملوك للمشترك · بمصدر*
 
@@ -4180,7 +4180,7 @@
 
 ## REQ
 
-### `wfl.RequestType` — تعريف نوع الطلب (FR-REQ-001، BR-REQ-001، V-REQ-01)؛ الأنواع الجديدة بلا كود (FR-REQ-021)
+### `wfl.RequestType` — Request type definition (FR-REQ-001, BR-REQ-001, V-REQ-01); new types need no code (FR-REQ-021)
 
 *مملوك للمشترك*
 
@@ -4215,7 +4215,7 @@
 
 **قيود:** `Category <> 'CHILD' OR ParentEntityType IS NOT NULL` · `ConsumesCreditLimit = 1 OR LimitCheckMode = 'NONE'`
 
-### `wfl.RequestTypeAudience` — جمهور النوع: من يحق له الطلب؛ غياب الصفوف = لا أحد (فشل مغلق) (FR-REQ-007)
+### `wfl.RequestTypeAudience` — Audience of a request type: who may raise it; no rows = nobody (fail closed) (FR-REQ-007)
 
 *مملوك للمشترك*
 
@@ -4238,7 +4238,7 @@
 
 **قيود:** `(SubjectKind = 'ROLE' AND RoleId IS NOT NULL AND DepartmentId IS NULL AND UserId IS NULL) OR (SubjectKind = 'DEPARTMENT' AND DepartmentId IS NOT NULL AND RoleId IS NULL AND UserId IS NULL) OR (SubjectKind = 'USER' AND UserId IS NOT NULL AND RoleId IS NULL AND DepartmentId IS NULL)`
 
-### `wfl.TemplateField` — حقل في نسخة قالب يولّد النموذج بلا كود واجهة (FR-REQ-002..005، BR-REQ-003/004)
+### `wfl.TemplateField` — Field in a template version; the form UI is generated without code (FR-REQ-002..005, BR-REQ-003/004)
 
 *مملوك للمشترك*
 
@@ -4274,7 +4274,7 @@
 
 **قيود:** `IndexRole <> 'AMOUNT' OR DataType = 'AMOUNT'` · `IndexRole <> 'TITLE' OR DataType = 'TEXT'` · `IndexRole <> 'REQUIRED_BY_DATE' OR DataType = 'DATE'` · `Sensitivity <> 'RESTRICTED' OR IndexRole = 'NONE'`
 
-### `wfl.TemplateAttachmentRule` — قاعدة مرفق على نسخة قالب (FR-REQ-006، BR-REQ-005، FR-WFL-024/025)
+### `wfl.TemplateAttachmentRule` — Attachment rule on a template version (FR-REQ-006, BR-REQ-005, FR-WFL-024/025)
 
 *مملوك للمشترك*
 
@@ -4301,7 +4301,7 @@
 
 **قيود:** `MinCount >= 0` · `MaxCount IS NULL OR (MaxCount >= 1 AND MaxCount >= MinCount)` · `MinCount = 0 OR RequiredBeforeStageKey IS NOT NULL` · `LabelAr IS NOT NULL OR LabelEn IS NOT NULL`
 
-### `wfl.Request` — الطلب: أكثر الجداول ازدحامًا؛ الحالة الداخلية منفصلة عن المرحلة الظاهرة (FR-WFL-001، FR-REQ-009، D-6، BR-REQ-002/003)
+### `wfl.Request` — Request: the most heavily used table; the internal status is kept separate from the visible phase (FR-WFL-001, FR-REQ-009, D-6, BR-REQ-002/003)
 
 *مملوك للمشترك*
 
@@ -4373,7 +4373,7 @@
 
 **قيود:** `(RequestNo IS NULL AND NumberYear IS NULL AND NumberSeq IS NULL) OR (RequestNo IS NOT NULL AND NumberYear IS NOT NULL AND NumberSeq IS NOT NULL)` · `DraftRef LIKE 'D-%'` · `Status NOT IN ('ACTIVE','AWAITING_CLOSE','COMPLETED','REJECTED') OR SubmittedAt IS NOT NULL` · `(Status IN ('DRAFT','ACTIVE','AWAITING_CLOSE') AND CompletedAt IS NULL) OR (Status IN ('COMPLETED','REJECTED','CANCELLED') AND CompletedAt IS NOT NULL)` · `CompletedAt IS NULL OR SubmittedAt IS NULL OR CompletedAt >= SubmittedAt` · `Status <> 'ACTIVE' OR (CurrentStageInstanceId IS NOT NULL AND CurrentStageId IS NOT NULL)` · `Status <> 'COMPLETED' OR RequestNo IS NOT NULL` · `ArchivedAt IS NULL OR Status = 'DRAFT'` · `Status <> 'AWAITING_CLOSE' OR (ReadyToCloseAt IS NOT NULL AND CurrentStageInstanceId IS NOT NULL)` · `ReadyToCloseAt IS NULL OR Status IN ('AWAITING_CLOSE','COMPLETED')` · `Status <> 'COMPLETED' OR (ClosedByUserId IS NOT NULL AND ClosedAt IS NOT NULL AND ClosedAt = CompletedAt)` · `ClosedByUserId IS NULL OR Status = 'COMPLETED'` · `Priority <> 'URGENT' OR UrgentReason IS NOT NULL` · `CycleNo >= 1` · `Amount IS NULL OR CurrencyId IS NOT NULL` · `SlaState NOT IN ('ON_TRACK','AT_RISK','OVERDUE') OR DueAt IS NOT NULL` · `(ReservationState = 'NONE' AND ReservationId IS NULL AND ReservedAmount IS NULL) OR (ReservationState <> 'NONE' AND ReservationId IS NOT NULL AND ReservedAmount IS NOT NULL)` · `ReservedAmount IS NULL OR (ReservedAmount > 0 AND CurrencyId IS NOT NULL)` · `LimitId IS NULL OR FacilityId IS NOT NULL` · `LimitProductLineId IS NULL OR LimitId IS NOT NULL` · `(ParentEntityType IS NULL AND ParentEntityId IS NULL) OR (ParentEntityType IS NOT NULL AND ParentEntityId IS NOT NULL)` · `ParentRequestId IS NULL OR ParentRequestId <> RequestId` · `CopiedFromRequestId IS NULL OR CopiedFromRequestId <> RequestId`
 
-### `wfl.RequestComment` — تعليق ظاهر للطالب أو داخلي؛ يمنع التطبيق تعديله، والسحب يترك الأصل (FR-REQ-017، BR-REQ-014)
+### `wfl.RequestComment` — Comment visible to the requester or internal; the application prevents editing it, and withdrawal keeps the original (FR-REQ-017, BR-REQ-014)
 
 *مملوك للمشترك*
 
@@ -4398,7 +4398,7 @@
 
 **قيود:** `ParentCommentId IS NULL OR ParentCommentId <> RequestCommentId` · `(RetractedAt IS NULL AND RetractedBy IS NULL) OR (RetractedAt IS NOT NULL AND RetractedBy IS NOT NULL)`
 
-### `wfl.RequestAttachment` — ربط مستند بطلب ينشئ DocumentLink (EntityType=Request) (FR-REQ-006، BR-REQ-005)
+### `wfl.RequestAttachment` — Links a document to a request and creates a DocumentLink (EntityType = Request) (FR-REQ-006, BR-REQ-005)
 
 *مملوك للمشترك*
 
@@ -4419,7 +4419,7 @@
 
 **المفاتيح:** PK(RequestAttachmentId) · UQ(TenantId, RequestId, DocumentId)
 
-### `wfl.RequestExternalRef` — مرجع خارجي بنص حر؛ تعديل بالإحلال ويبقى التاريخ؛ بلا تحقق خارجي (FR-REQ-010، X-DAT-7، BR-REQ-006)
+### `wfl.RequestExternalRef` — External reference as free text; edits replace the value and keep the history; no external validation (FR-REQ-010, X-DAT-7, BR-REQ-006)
 
 *مملوك للمشترك*
 
@@ -4448,7 +4448,7 @@
 
 ## WFL
 
-### `wfl.ExternalPhase` — المرحلة الظاهرة للطالب: DRAFT · IN_APPROVAL · RETURNED · AWAITING_REQUESTER · IN_PROGRESS · COMPLETED · REJECTED · CANCELLED (BR-WFL-011، D-6)
+### `wfl.ExternalPhase` — Phase shown to the requester: DRAFT, IN_APPROVAL, RETURNED, AWAITING_REQUESTER, IN_PROGRESS, COMPLETED, REJECTED, CANCELLED (BR-WFL-011, D-6)
 
 *مملوك للمشترك · كتالوج*
 
@@ -4478,7 +4478,7 @@
 
 **قيود:** `RequiresRequesterAction = 0 OR IsFinal = 0`
 
-### `wfl.WorkflowTemplate` — إصدار قالب دورة عمل؛ المنشور ثابت (FR-WFL-001/028، BR-WFL-019، AC-WFL-6)
+### `wfl.WorkflowTemplate` — Workflow template version; a published version is immutable (FR-WFL-001/028, BR-WFL-019, AC-WFL-6)
 
 *مملوك للمشترك*
 
@@ -4514,7 +4514,7 @@
 
 **قيود:** `VersionNo >= 1` · `IsCurrent = 0 OR Status = 'PUBLISHED'` · `Status <> 'PUBLISHED' OR PublishedAt IS NOT NULL` · `Status <> 'DRAFT' OR PublishedAt IS NULL` · `(Status = 'RETIRED' AND RetiredAt IS NOT NULL) OR (Status <> 'RETIRED' AND RetiredAt IS NULL)` · `IsTenantModified = 0 OR SeedKey IS NULL` · `SeedKey IS NULL OR SourceSeedVersion IS NOT NULL` · `NameAr IS NOT NULL OR NameEn IS NOT NULL`
 
-### `wfl.WorkflowStage` — مرحلة في نسخة قالب (FR-WFL-003/004/005، BR-WFL-002/010/012)؛ حذف فعلي لمسودة النسخة فقط
+### `wfl.WorkflowStage` — Stage in a template version (FR-WFL-003/004/005, BR-WFL-002/010/012); physical delete only for a draft version
 
 *مملوك للمشترك*
 
@@ -4557,7 +4557,7 @@
 
 **قيود:** `(Kind = 'TERMINAL' AND IsTerminal = 1) OR (Kind <> 'TERMINAL' AND IsTerminal = 0)` · `(IsTerminal = 1 AND TerminalOutcome IS NOT NULL) OR (IsTerminal = 0 AND TerminalOutcome IS NULL)` · `(Kind = 'APPROVAL' AND ApprovalMode <> 'NONE') OR (Kind <> 'APPROVAL' AND ApprovalMode = 'NONE')` · `SlaHours IS NULL OR SlaHours > 0` · `ClaimSlaHours IS NULL OR (ClaimSlaHours > 0 AND Kind = 'TREASURY_QUEUE')` · `IsReservationPoint = 0 OR Kind = 'APPROVAL'` · `Kind <> 'TREASURY_QUEUE' OR (AssigneeRule IS NOT NULL AND AssigneeRule = 'ROLE' AND (AssigneeRoleId IS NOT NULL OR PoolPermissionId IS NOT NULL))` · `(AssigneeRoleId IS NULL AND PoolPermissionId IS NULL) OR AssigneeRule = 'ROLE'` · `AssigneeRoleId IS NULL OR PoolPermissionId IS NULL` · `AssigneeUserId IS NULL OR AssigneeRule = 'USER'` · `AssigneeDepartmentId IS NULL OR AssigneeRule = 'DEPARTMENT'` · `AssigneeRule <> 'USER' OR AssigneeUserId IS NOT NULL` · `AssigneeRule <> 'DEPARTMENT' OR AssigneeDepartmentId IS NOT NULL` · `AssigneeRule <> 'ROLE' OR AssigneeRoleId IS NOT NULL OR PoolPermissionId IS NOT NULL`
 
-### `wfl.StageApprover` — خانة موافقة في مرحلة APPROVAL؛ ALL = كل الخانات، ودور بشخصين يلزمان معًا = خانتان (FR-WFL-007/041، BR-WFL-003/004)
+### `wfl.StageApprover` — Approval slot in an APPROVAL stage; ALL = every slot, and a role requiring two people together = two slots (FR-WFL-007/041, BR-WFL-003/004)
 
 *مملوك للمشترك*
 
@@ -4586,7 +4586,7 @@
 
 **قيود:** `SubjectRule <> 'ROLE' OR RoleId IS NOT NULL` · `SubjectRule <> 'USER' OR UserId IS NOT NULL` · `RoleId IS NULL OR SubjectRule = 'ROLE'` · `UserId IS NULL OR SubjectRule = 'USER'` · `DepartmentId IS NULL OR SubjectRule = 'DEPARTMENT_HEAD'` · `AutoCompleteBySubmitter = 0 OR SubjectRule = 'REQUESTER'` · `LabelAr IS NOT NULL OR LabelEn IS NOT NULL`
 
-### `wfl.WorkflowTransition` — انتقال بين مرحلتين بشرط وأولوية؛ دورة خطية بتفرع شرطي بسيط (FR-WFL-006، BR-WFL-001، D-8)
+### `wfl.WorkflowTransition` — Transition between two stages with a condition and a priority; a linear flow with simple conditional branching (FR-WFL-006, BR-WFL-001, D-8)
 
 *مملوك للمشترك*
 
@@ -4613,7 +4613,7 @@
 
 **قيود:** `Priority >= 1` · `FromStageId <> ToStageId` · `ResumeStageId IS NULL OR Action IN ('RETURN','RESUBMIT')` · `Action NOT IN ('RETURN','REJECT') OR RequiresComment = 1`
 
-### `wfl.WorkflowStageHook` — خطاف مسجَّل بالكود على مرحلة: مفتاح ومعاملات لا كود (FR-WFL-021، BR-WFL-015، §5.4)
+### `wfl.WorkflowStageHook` — Hook registered on a stage: a key and parameters, no code (FR-WFL-021, BR-WFL-015, section 5.4)
 
 *مملوك للمشترك*
 
@@ -4638,7 +4638,7 @@
 
 **قيود:** `(TriggerKind = 'ON_ACTION' AND ActionFilter IS NOT NULL) OR (TriggerKind <> 'ON_ACTION' AND ActionFilter IS NULL)` · `HookKey LIKE '%.%'`
 
-### `wfl.RequestStageInstance` — دخول طلب إلى مرحلة؛ مصدر مقاييس الأزمنة والسحب والـ SLA (BR-WFL-002/007/012، §8)
+### `wfl.RequestStageInstance` — Entry of a request into a stage; source of the cycle-time, withdrawal and SLA metrics (BR-WFL-002/007/012, section 8)
 
 *مملوك للمشترك*
 
@@ -4674,7 +4674,7 @@
 
 **قيود:** `(ExitedAt IS NULL AND ExitAction IS NULL AND Status IN ('QUEUED','CLAIMED','AWAITING_APPROVAL')) OR (ExitedAt IS NOT NULL AND ExitAction IS NOT NULL AND Status IN ('DONE','RETURNED','REJECTED','CANCELLED'))` · `Status <> 'RETURNED' OR ExitAction = 'RETURN'` · `Status <> 'REJECTED' OR ExitAction = 'REJECT'` · `Status <> 'CANCELLED' OR ExitAction = 'CANCEL'` · `Status <> 'QUEUED' OR AssigneeUserId IS NULL` · `Status <> 'CLAIMED' OR AssigneeUserId IS NOT NULL` · `ClaimedAt IS NULL OR QueuedAt IS NOT NULL` · `ExitedAt IS NULL OR ExitedAt >= EnteredAt` · `QueuedAt IS NULL OR QueuedAt >= EnteredAt` · `ClaimedAt IS NULL OR QueuedAt IS NULL OR ClaimedAt >= QueuedAt` · `SlaPausedSeconds >= 0 AND ReleaseCount >= 0 AND ReassignCount >= 0` · `CycleNo >= 1`
 
-### `wfl.RequestApproval` — خانة موافقة تُنشأ لكل دخول ودورة؛ الدورة الجديدة بخانات جديدة (BR-WFL-003، FR-WFL-007/008/011)
+### `wfl.RequestApproval` — Approval slot created per entry and cycle; a new cycle creates new slots (BR-WFL-003, FR-WFL-007/008/011)
 
 *مملوك للمشترك*
 
@@ -4711,7 +4711,7 @@
 
 **قيود:** `(Decision = 'PENDING' AND ActedAt IS NULL) OR (Decision <> 'PENDING' AND ActedAt IS NOT NULL)` · `AssignedUserId IS NOT NULL OR AssignedRoleId IS NOT NULL` · `Decision NOT IN ('APPROVED','RETURNED','REJECTED') OR ActedByUserId IS NOT NULL` · `Decision <> 'APPROVED' OR SnapshotHash IS NOT NULL` · `Source <> 'DELEGATE' OR (DelegationId IS NOT NULL AND OnBehalfOfUserId IS NOT NULL)` · `OverrideRequested = 0 OR OverrideReason IS NOT NULL` · `CycleNo >= 1`
 
-### `wfl.RequestAction` — سجل إجراءات للإضافة فقط يغطي كل حدث؛ غير AuditLog الأمني (FR-WFL-033/034، §6.2)
+### `wfl.RequestAction` — Append-only action log covering every event; separate from the security audit log (FR-WFL-033/034, section 6.2)
 
 *مملوك للمشترك*
 
@@ -4743,7 +4743,7 @@
 
 **قيود:** `ActorType <> 'USER' OR ActorUserId IS NOT NULL` · `ActionType NOT IN ('RETURNED','REJECTED') OR Comment IS NOT NULL`
 
-### `wfl.HookExecution` — تنفيذ خطاف بمفتاح عدم تكرار يعيد النتيجة المخزَّنة (FR-WFL-021، BR-WFL-015) -- جدول جديد
+### `wfl.HookExecution` — Execution of a hook with an idempotency key; a repeat returns the stored result (FR-WFL-021, BR-WFL-015) -- جدول جديد
 
 *مملوك للمشترك*
 
@@ -4776,7 +4776,7 @@
 
 **قيود:** `AttemptCount >= 0` · `Status <> 'SUCCEEDED' OR ExecutedAt IS NOT NULL` · `Status <> 'GAVE_UP' OR (ExecMode = 'AFTER_COMMIT' AND AttemptCount >= 5)`
 
-### `wfl.UserDelegation` — تفويض مهام بفترة ونطاق؛ لا تفويض متسلسل (FR-WFL-020، BR-WFL-021، V-WFL-06)
+### `wfl.UserDelegation` — Task delegation with a period and scope; no chained delegation (FR-WFL-020, BR-WFL-021, V-WFL-06)
 
 *مملوك للمشترك*
 
@@ -4806,7 +4806,7 @@
 
 ## NTF
 
-### `ntf.NotificationEventType` — كتالوج الأحداث؛ تملكه 13 لكل الوحدات وتبذر فيه الوحدات أحداثها (FR-NTF-001، §9.2، §9.2-ب)
+### `ntf.NotificationEventType` — Event catalogue: specification 13 owns it for all modules, and modules seed their events into it (FR-NTF-001, section 9.2)
 
 *مملوك للمشترك*
 
@@ -4836,7 +4836,7 @@
 
 **قيود:** `Code LIKE '%.%'` · `NameAr IS NOT NULL OR NameEn IS NOT NULL` · `DedupWindowMinutes IS NULL OR DedupWindowMinutes >= 0` · `CoalesceWindowMinutes IS NULL OR CoalesceWindowMinutes = 0 OR (IsMandatory = 0 AND DefaultSeverity <> 'HIGH')`
 
-### `ntf.NotificationRule` — قاعدة مستلمين لحدث؛ التعديل يسري على الأحداث التالية فقط (FR-NTF-003، BR-NTF-001، V-NTF-02)
+### `ntf.NotificationRule` — Recipient rule for an event; changes apply to subsequent events only (FR-NTF-003, BR-NTF-001, V-NTF-02)
 
 *مملوك للمشترك*
 
@@ -4864,7 +4864,7 @@
 
 **قيود:** `(RecipientKind = 'ROLE' AND RoleId IS NOT NULL AND PermissionId IS NULL AND UserId IS NULL) OR (RecipientKind = 'PERMISSION' AND PermissionId IS NOT NULL AND RoleId IS NULL AND UserId IS NULL) OR (RecipientKind = 'USER' AND UserId IS NOT NULL AND RoleId IS NULL AND PermissionId IS NULL) OR (RecipientKind NOT IN ('ROLE','PERMISSION','USER') AND RoleId IS NULL AND PermissionId IS NULL AND UserId IS NULL)` · `IsMandatory = 0 OR IsActive = 1`
 
-### `ntf.NotificationTemplate` — قالب رسالة لكل (حدث، قناة، لغة)؛ الحذف = العودة إلى قالب البذرة (FR-NTF-012، FR-NTF-025)
+### `ntf.NotificationTemplate` — Message template per (event, channel, language); deleting it reverts to the seed template (FR-NTF-012, FR-NTF-025)
 
 *مملوك للمشترك*
 
@@ -4885,7 +4885,7 @@
 
 **المفاتيح:** PK(NotificationTemplateId) · UQ(TenantId, EventTypeId, Channel, Lang, IsTenantOverride)
 
-### `ntf.NotificationPreference` — تفضيل المستخدم لكل مجموعة أحداث وقناة (FR-NTF-010، BR-NTF-003/014)؛ الإلزامي لا يُوقَف في التطبيق
+### `ntf.NotificationPreference` — User preference per event group and channel (FR-NTF-010, BR-NTF-003/014); mandatory notifications cannot be switched off in the application
 
 *مملوك للمشترك*
 
@@ -4904,7 +4904,7 @@
 
 **المفاتيح:** PK(NotificationPreferenceId) · UQ(TenantId, UserId, GroupKey, Channel)
 
-### `ntf.DigestBatch` — دفعة ملخص لمستخدم وقناة وفترة؛ لا يُرسل فارغًا (FR-NTF-014، BR-NTF-004، JOB-NTF-DIGEST) -- جدول جديد
+### `ntf.DigestBatch` — Digest batch for a user, channel and period; never sent empty (FR-NTF-014, BR-NTF-004, JOB-NTF-DIGEST) -- جدول جديد
 
 *مملوك للمشترك*
 
@@ -4931,7 +4931,7 @@
 
 **قيود:** `PeriodEnd > PeriodStart` · `ItemCount >= 0` · `Status <> 'SENT' OR (SentAt IS NOT NULL AND ItemCount > 0)` · `Status <> 'SKIPPED_EMPTY' OR ItemCount = 0`
 
-### `ntf.Notification` — إشعار لمستخدم؛ المحتوى بلا قيم مقيّدة (FR-NTF-005/006/007/021، BR-NTF-001/002/007/008/011)
+### `ntf.Notification` — Notification for a user; the content carries no restricted values (FR-NTF-005/006/007/021, BR-NTF-001/002/007/008/011)
 
 *مملوك للمشترك*
 
@@ -4969,7 +4969,7 @@
 
 **قيود:** `(ActionRequired = 0 AND ActionState = 'NONE') OR (ActionRequired = 1 AND ActionState IN ('OPEN','RESOLVED'))` · `(ActionState = 'RESOLVED' AND ResolvedAt IS NOT NULL) OR (ActionState <> 'RESOLVED' AND ResolvedAt IS NULL)` · `CoalescedCount >= 1` · `ReminderCount >= 0 AND ReminderCount <= 3` · `NextReminderAt IS NULL OR ActionState = 'OPEN'`
 
-### `ntf.NotificationDelivery` — تسليم الإشعار لكل قناة بحالاته وإعادة المحاولة (FR-NTF-019، BR-NTF-009، §8)
+### `ntf.NotificationDelivery` — Delivery of a notification per channel, with status and retries (FR-NTF-019, BR-NTF-009, section 8)
 
 *مملوك للمشترك*
 
@@ -4997,7 +4997,7 @@
 
 ## LC
 
-### `ref.Incoterm` — مصطلح تسليم Incoterms: مرجع عالمي للقراءة فقط يديره المشغّل؛ القديم LEGACY للعرض لا للاختيار (FR-LCT-013، FR-CAT-021، BR-CAT-015)
+### `ref.Incoterm` — Incoterms delivery term: global reference, read-only, managed by the operator; legacy terms are displayed, not selectable (FR-LCT-013, FR-CAT-021, BR-CAT-015)
 
 *عالمي*
 
@@ -5021,7 +5021,7 @@
 
 **قيود:** `Code NOT LIKE '%[^A-Z]%'`
 
-### `ref.UcpArticle` — مادة UCP 600 مرجعية: TenantId الفارغ = صف عام للقراءة فقط ينشره المشغّل وحده (FR-LCT-006، BR-LCT-018، BR-PLT-001)
+### `ref.UcpArticle` — UCP 600 reference article: NULL TenantId = global read-only row, published only by the platform operator (FR-LCT-006, BR-LCT-018, BR-PLT-001)
 
 *مختلط النطاق*
 
@@ -5048,7 +5048,7 @@
 
 **قيود:** `VerificationStatus <> 'VERIFIED' OR (VerifiedBy IS NOT NULL AND VerifiedOn IS NOT NULL)` · `VerificationStatus = 'VERIFIED' OR (VerifiedBy IS NULL AND VerifiedOn IS NULL)`
 
-### `lc.LcFieldDefinition` — تعريف حقل في شروط الاعتماد: بيانات تُبذر لكل مشترك (FR-LCT-004، BR-LCT-002)؛ مراجع UCP في lc.LcFieldUcpRef
+### `lc.LcFieldDefinition` — Definition of a field in letter-of-credit terms: data seeded per tenant (FR-LCT-004, BR-LCT-002); UCP references are in lc.LcFieldUcpRef
 
 *مملوك للمشترك*
 
@@ -5082,7 +5082,7 @@
 
 **قيود:** `FieldKey NOT LIKE '% %'` · `IsLocked = 0 OR IsActive = 1` · `ListCode IS NULL OR DataType IN ('LIST','ENUM')`
 
-### `lc.LcFieldUcpRef` — مرجع UCP لحقل: مادة + فقرة (UcpRefs في المواصفة)؛ يغذّي الشارة وR-LCT-01 وBR-LCT-018 -- وسيط جديد
+### `lc.LcFieldUcpRef` — UCP reference for a field: article and paragraph (UcpRefs in specification); feeds the badge, R-LCT-01 and BR-LCT-018 -- وسيط جديد
 
 *مملوك للمشترك*
 
@@ -5100,7 +5100,7 @@
 
 **المفاتيح:** PK(LcFieldUcpRefId) · UQ(TenantId, LcFieldDefinitionId, UcpArticleId, Paragraph)
 
-### `lc.Counterparty` — الطرف المقابل: مورّد/عميل خفيف بلا هوية؛ يُرقّى إلى Party عند الحاجة (FR-LCT-036/037، BR-LCT-022، Q-PTY-03)
+### `lc.Counterparty` — Counterparty: lightweight supplier or customer without identity; promoted to Party when needed (FR-LCT-036/037, BR-LCT-022, Q-PTY-03)
 
 *مملوك للمشترك*
 
@@ -5138,7 +5138,7 @@
 
 **قيود:** `ErpCode IS NULL OR ErpCodeNormalized IS NOT NULL` · `MergedIntoId IS NULL OR (MergedIntoId <> CounterpartyId AND IsActive = 0)`
 
-### `lc.LcDocumentClause` — مكتبة بنود المستندات بإصدارات: نص قالب بمعاملات (FR-LCT-017..019، BR-LCT-012)؛ مراجع UCP في lc.LcDocumentClauseUcpRef
+### `lc.LcDocumentClause` — Document-clause library with versions: template text with parameters (FR-LCT-017..019, BR-LCT-012); UCP references are in lc.LcDocumentClauseUcpRef
 
 *مملوك للمشترك*
 
@@ -5174,7 +5174,7 @@
 
 **قيود:** `Code NOT LIKE '%[^A-Z0-9_]%'` · `VersionNo >= 1` · `DefaultOriginals IS NULL OR DefaultOriginals >= 0` · `DefaultCopies IS NULL OR DefaultCopies >= 0` · `LegalReviewStatus <> 'REVIEWED' OR (ReviewedByText IS NOT NULL AND ReviewedOn IS NOT NULL)`
 
-### `lc.LcDocumentClauseUcpRef` — مرجع UCP لبند مستند: مادة + فقرة (UcpRefs في المواصفة) -- وسيط جديد
+### `lc.LcDocumentClauseUcpRef` — UCP 600 reference for a document clause: article and paragraph (UcpRefs in specification) -- وسيط جديد
 
 *مملوك للمشترك*
 
@@ -5192,7 +5192,7 @@
 
 **المفاتيح:** PK(LcDocumentClauseUcpRefId) · UQ(TenantId, LcDocumentClauseId, UcpArticleId, Paragraph)
 
-### `lc.LcTerms` — إصدار شروط اعتماد: صف لكل إصدار بأعمدة قاموس §6.2؛ مشترك بين البروفورما والطلب والاعتماد والتعديل (FR-LCT-001..035)
+### `lc.LcTerms` — Letter-of-credit terms version: one row per version, with the section 6.2 dictionary columns; shared by proforma, request, credit and amendment (FR-LCT-001..035)
 
 *مملوك للمشترك*
 
@@ -5309,7 +5309,7 @@
 
 **قيود:** `VersionNo >= 1` · `VersionNo = 1 OR SupersedesTermsId IS NOT NULL` · `SupersedesTermsId IS NULL OR SupersedesTermsId <> LcTermsId` · `CopiedFromTermsId IS NULL OR CopiedFromTermsId <> LcTermsId` · `(Purpose = 'PROFORMA' AND OwnerType IN ('REQUEST','PROFORMA')) OR (Purpose = 'APPLICATION' AND OwnerType = 'REQUEST') OR (Purpose IN ('ISSUED','RECEIVED') AND OwnerType = 'LETTER_OF_CREDIT') OR (Purpose = 'AMENDMENT' AND OwnerType IN ('REQUEST','AMENDMENT'))` · `(Purpose NOT IN ('APPLICATION','ISSUED') OR LcClass = 'PURCHASE') AND (Purpose NOT IN ('PROFORMA','RECEIVED') OR LcClass = 'SALES')` · `OwnerType <> 'REQUEST' OR OwnerId IS NOT NULL` · `Status = 'DRAFT' OR (SnapshotHash IS NOT NULL AND LockedAt IS NOT NULL)` · `TreasuryHash IS NULL OR SnapshotHash IS NOT NULL` · `Status = 'DRAFT' OR (LcType IS NOT NULL AND CurrencyId IS NOT NULL AND Amount IS NOT NULL AND ExpiryRule IS NOT NULL AND AmountInWordsAr IS NOT NULL AND AmountInWordsEn IS NOT NULL)` · `Amount IS NULL OR Amount > 0` · `TolerancePlusPct BETWEEN 0 AND 100 AND ToleranceMinusPct BETWEEN 0 AND 100` · `Status = 'DRAFT' OR ToleranceMode <> 'NONE' OR (TolerancePlusPct = 0 AND ToleranceMinusPct = 0)` · `Status = 'DRAFT' OR ToleranceMode <> 'ABOUT' OR (TolerancePlusPct = 10 AND ToleranceMinusPct = 10)` · `DeferralDays IS NULL OR DeferralDays BETWEEN 1 AND 720` · `Status = 'DRAFT' OR LcType <> 'SIGHT' OR (DeferralDays IS NULL AND MaturityBasis IS NULL)` · `Status = 'DRAFT' OR LcType NOT IN ('DEFERRED_PAYMENT','ACCEPTANCE') OR (DeferralDays IS NOT NULL AND MaturityBasis IS NOT NULL)` · `Status = 'DRAFT' OR LcType <> 'MIXED' OR MixedPaymentText IS NOT NULL` · `Status = 'DRAFT' OR DraftDrawee IS NULL OR (DraftRequired IS NOT NULL AND DraftRequired = 1)` · `Status = 'DRAFT' OR LcType NOT IN ('ACCEPTANCE','NEGOTIATION') OR (DraftRequired IS NOT NULL AND DraftRequired = 1)` · `Status = 'DRAFT' OR ConfirmingBankBic IS NULL OR ((ConfirmingBankBic LIKE '________' OR ConfirmingBankBic LIKE '___________') AND ConfirmingBankBic NOT LIKE '%[^A-Z0-9]%')` · `Status = 'DRAFT' OR AdvisingBankBic IS NULL OR ((AdvisingBankBic LIKE '________' OR AdvisingBankBic LIKE '___________') AND AdvisingBankBic NOT LIKE '%[^A-Z0-9]%')` · `(BeneficiaryAccountIbanEnc IS NULL AND BeneficiaryAccountIbanMask IS NULL AND BeneficiaryAccountIbanHash IS NULL) OR (BeneficiaryAccountIbanEnc IS NOT NULL AND BeneficiaryAccountIbanMask IS NOT NULL AND BeneficiaryAccountIbanHash IS NOT NULL)` · `BeneficiaryAccountIbanEnc IS NULL OR (EncKeyId IS NOT NULL AND HashKeyId IS NOT NULL AND DATALENGTH(BeneficiaryAccountIbanEnc) >= 29)` · `LcClass = 'SALES' OR (ApplicantCounterpartyId IS NULL AND BeneficiaryCompanyId IS NULL)` · `LcClass = 'PURCHASE' OR (ApplicantCompanyId IS NULL AND BeneficiaryCounterpartyId IS NULL)` · `Status = 'DRAFT' OR (LcClass = 'PURCHASE' AND ApplicantCompanyId IS NOT NULL AND BeneficiaryCounterpartyId IS NOT NULL) OR (LcClass = 'SALES' AND ApplicantCounterpartyId IS NOT NULL AND BeneficiaryCompanyId IS NOT NULL)` · `ExpiryDaysAfterIssue IS NULL OR ExpiryDaysAfterIssue > 0` · `LatestShipmentDaysAfterIssue IS NULL OR LatestShipmentDaysAfterIssue > 0` · `Status = 'DRAFT' OR ExpiryRule IS NULL OR (ExpiryRule = 'ABSOLUTE' AND ExpiryDate IS NOT NULL AND ExpiryDaysAfterIssue IS NULL) OR (ExpiryRule = 'DAYS_AFTER_ISSUE' AND ExpiryDaysAfterIssue IS NOT NULL)` · `Status = 'DRAFT' OR (LatestShipmentRule IS NULL AND LatestShipmentDate IS NULL AND LatestShipmentDaysAfterIssue IS NULL) OR (LatestShipmentRule = 'ABSOLUTE' AND LatestShipmentDate IS NOT NULL AND LatestShipmentDaysAfterIssue IS NULL) OR (LatestShipmentRule = 'DAYS_AFTER_ISSUE' AND LatestShipmentDaysAfterIssue IS NOT NULL)` · `Status = 'DRAFT' OR Purpose IN ('ISSUED','RECEIVED') OR EarliestShipmentDate IS NULL OR LatestShipmentDate IS NULL OR EarliestShipmentDate <= LatestShipmentDate` · `Status = 'DRAFT' OR Purpose IN ('ISSUED','RECEIVED') OR ExpiryDate IS NULL OR LatestShipmentDate IS NULL OR ExpiryDate >= LatestShipmentDate` · `PresentationDays IS NULL OR PresentationDays BETWEEN 1 AND 90` · `Status = 'DRAFT' OR Purpose IN ('ISSUED','RECEIVED') OR IncotermId IS NULL OR IncotermPlace IS NOT NULL` · `InsurancePctStated = 0 OR InsuranceMinPct IS NOT NULL` · `InsuranceMinPct IS NULL OR InsuranceMinPct > 0` · `MarginPct IS NULL OR MarginPct BETWEEN 0 AND 100` · `Status = 'DRAFT' OR DebitAuthorization IS NULL OR DebitAuthorization <> 'FULL_LC_VALUE' OR (MarginPct IS NOT NULL AND MarginPct = 100)` · `PostDeferralFinancingDays IS NULL OR PostDeferralFinancingDays >= 0` · `PrevLcAmount IS NULL OR PrevLcAmount >= 0` · `PrevLcUtilizedAmount IS NULL OR PrevLcUtilizedAmount >= 0` · `PrevLcAmount IS NULL OR PrevLcUtilizedAmount IS NULL OR PrevLcUtilizedAmount <= PrevLcAmount` · `(PrevLcAmount IS NULL AND PrevLcUtilizedAmount IS NULL) OR PrevLcCurrencyId IS NOT NULL`
 
-### `lc.LcTermsDocument` — بند مستند مختار في الشروط ومعاملاته؛ النص المصيَّر يُجمَّد عند القفل (FR-LCT-018، BR-LCT-012) -- جديد
+### `lc.LcTermsDocument` — Document clause selected in the terms, with its parameters; the rendered text is frozen at lock (FR-LCT-018, BR-LCT-012) -- جديد
 
 *مملوك للمشترك*
 
@@ -5337,7 +5337,7 @@
 
 **قيود:** `SeqNo >= 1` · `ClauseVersion >= 1` · `Originals IS NULL OR Originals >= 0` · `Copies IS NULL OR Copies >= 0` · `(IsFreeText = 1 AND FreeText IS NOT NULL) OR (IsFreeText = 0 AND FreeText IS NULL)`
 
-### `lc.LcChargesMatrix` — رسوم الشروط: صف لكل فئة (6 صفوف كاملة يتحقق منها التطبيق V-LCT-12) (FR-LCT-020، BR-LCT-014)
+### `lc.LcChargesMatrix` — Charges per term: one row per category; six complete rows, checked by the application (V-LCT-12) (FR-LCT-020, BR-LCT-014)
 
 *مملوك للمشترك*
 
@@ -5360,7 +5360,7 @@
 
 **قيود:** `Payer <> 'SHARED' OR (ApplicantSharePct IS NOT NULL AND ApplicantSharePct > 0 AND ApplicantSharePct < 100)` · `Payer = 'SHARED' OR ApplicantSharePct IS NULL`
 
-### `lc.LcFormTemplate` — قالب نموذج بنك/منتج/نوع نموذج بإصدار وفترة نفاذ وملحق عقدي (FR-LCT-026، BR-LCT-017، 02 F-14)
+### `lc.LcFormTemplate` — Form template per bank, product and form type, with version, effective period and contract annex (FR-LCT-026, BR-LCT-017, specification 02 F-14)
 
 *مملوك للمشترك*
 
@@ -5398,7 +5398,7 @@
 
 **قيود:** `VersionNo >= 1` · `EffectiveTo IS NULL OR EffectiveTo >= EffectiveFrom` · `LayoutKind <> 'PDF_ACROFORM_FILL' OR SourceDocumentId IS NOT NULL` · `AnnexDocumentId IS NULL OR AnnexVersion IS NOT NULL`
 
-### `lc.LcFormFieldMap` — تعيين حقل نظام إلى حقل PDF أو بند في ورقة البوابة (FR-LCT-027، BR-LCT-020) -- جديد
+### `lc.LcFormFieldMap` — Mapping of a system field to a PDF field or a portal-form item (FR-LCT-027, BR-LCT-020) -- جديد
 
 *مملوك للمشترك*
 
@@ -5422,7 +5422,7 @@
 
 **قيود:** `SourceExpr LIKE 'terms.%' OR SourceExpr LIKE 'company.%' OR SourceExpr LIKE 'counterparty.%' OR SourceExpr LIKE 'facility.%' OR SourceExpr LIKE 'relationship.%' OR SourceExpr LIKE 'request.%' OR SourceExpr LIKE 'lc.%'` · `SourceExpr NOT LIKE '%[^A-Za-z0-9._]%'` · `Transform <> 'CHECKBOX_EQ' OR TransformArg IS NOT NULL` · `SeqNo IS NULL OR SeqNo >= 1`
 
-### `lc.LetterOfCredit` — سجل الاعتماد للجانبين: مشتريات (نحن الطالب) ومبيعات (نحن المستفيد) (FR-LCI-011..016، FR-LCE-009، BR-LCI-004/008/016، BR-LCE-007/009)
+### `lc.LetterOfCredit` — Letter-of-credit record for both sides: purchases (we are the applicant) and sales (we are the beneficiary) (FR-LCI-011..016, FR-LCE-009, BR-LCI-004/008/016, BR-LCE-007/009)
 
 *مملوك للمشترك*
 
@@ -5484,7 +5484,7 @@
 
 **قيود:** `Amount > 0 AND OriginalAmount > 0` · `TolerancePlusPct BETWEEN 0 AND 100 AND ToleranceMinusPct BETWEEN 0 AND 100` · `DrawnAmount >= 0 AND SettledAmount >= 0 AND SettledAmount <= DrawnAmount` · `EarmarkedRemaining >= 0` · `ExposureAmount IS NULL OR ExposureAmount >= Amount` · `(LcClass = 'PURCHASE' AND IssueDate IS NOT NULL AND ReceivedDate IS NULL) OR (LcClass = 'SALES' AND ReceivedDate IS NOT NULL AND IssueDate IS NULL)` · `IssueDate IS NULL OR ExpiryDate >= IssueDate` · `LimitId IS NULL OR FacilityId IS NOT NULL` · `LimitProductLineId IS NULL OR LimitId IS NOT NULL` · `UtilizationId IS NULL OR FacilityId IS NOT NULL` · `RelationshipId IS NULL OR InstitutionId IS NOT NULL` · `LcClass = 'PURCHASE' OR (FacilityId IS NULL AND UtilizationId IS NULL AND ExposureAmount IS NULL AND MarginPct IS NULL AND MarginAmount IS NULL)` · `LcClass = 'SALES' OR ExposureAmount IS NOT NULL` · `LcClass = 'SALES' OR (ProformaId IS NULL AND OtherBankText IS NULL AND OtherBankBic IS NULL AND EarmarkedRemaining = 0)` · `MarginPct IS NULL OR MarginPct BETWEEN 0 AND 100` · `MarginAmount IS NULL OR MarginAmount >= 0` · `Status NOT IN ('CLOSED','CANCELLED') OR (ClosedOn IS NOT NULL AND ClosedReason IS NOT NULL)` · `Status IN ('CLOSED','CANCELLED') OR (ClosedOn IS NULL AND ClosedReason IS NULL)` · `UndrawnReleasedOn IS NULL OR Status IN ('EXPIRED','CLOSED','CANCELLED')` · `LegacyEntry = 0 OR RequestId IS NULL` · `OtherBankBic IS NULL OR ((OtherBankBic LIKE '________' OR OtherBankBic LIKE '___________') AND OtherBankBic NOT LIKE '%[^A-Z0-9]%')` · `AmendmentNo >= 0` · `LcNumberNormalized NOT LIKE '% %'`
 
-### `lc.LcExternalRef` — مرجع خارجي للاعتماد (ERP...)؛ بلا فرادة؛ البحث بالمطبَّع (FR-LCI-013، BR-REQ-006) -- جديد
+### `lc.LcExternalRef` — External reference for a credit (ERP and similar); no uniqueness; search on the normalised value (FR-LCI-013, BR-REQ-006) -- جديد
 
 *مملوك للمشترك*
 
@@ -5508,7 +5508,7 @@
 
 **قيود:** `SupersededById IS NULL OR (IsActive = 0 AND SupersededById <> LcExternalRefId)`
 
-### `lc.LcAmendment` — تعديل اعتماد صادر أو مستلَم (FR-LCI-018/019، FR-LCE-020، BR-LCI-011/012، BR-LCE-014)؛ الحالات §8
+### `lc.LcAmendment` — Amendment to an issued or received letter of credit (FR-LCI-018/019, FR-LCE-020, BR-LCI-011/012, BR-LCE-014); statuses in section 8
 
 *مملوك للمشترك*
 
@@ -5546,7 +5546,7 @@
 
 **قيود:** `AmendmentNo IS NULL OR AmendmentNo >= 1` · `ChangeKinds <> ''` · `ChangeKinds NOT LIKE '%INCREASE_AMOUNT%' OR ChangeKinds NOT LIKE '%DECREASE_AMOUNT%'` · `Status = 'DRAFT' OR ChangeKinds NOT LIKE '%INCREASE_AMOUNT%' OR AmountDelta > 0` · `Status = 'DRAFT' OR ChangeKinds NOT LIKE '%DECREASE_AMOUNT%' OR AmountDelta < 0` · `Status = 'DRAFT' OR (ChangeKinds NOT LIKE '%INCREASE_AMOUNT%' AND ChangeKinds NOT LIKE '%DECREASE_AMOUNT%') OR NewAmount IS NOT NULL` · `Status = 'DRAFT' OR ChangeKinds NOT LIKE '%EXTEND_EXPIRY%' OR NewExpiryDate IS NOT NULL` · `NewAmount IS NULL OR NewAmount > 0` · `Status NOT IN ('BANK_ISSUED','APPLIED') OR (AmendmentNo IS NOT NULL AND BankIssuedOn IS NOT NULL)` · `Status <> 'APPLIED' OR (BeneficiaryResponse = 'ACCEPTED' AND AppliedOn IS NOT NULL AND AppliedBy IS NOT NULL)` · `BeneficiaryResponse IS NULL OR BeneficiaryResponse = 'PENDING' OR RespondedOn IS NOT NULL`
 
-### `lc.LcDrawing` — سحب/تقديم مستندات تحت اعتماد؛ في التصدير يشمل تحويل التخصيص (FR-LCI-023، BR-LCI-013، BR-LCE-011)؛ الحالات §8
+### `lc.LcDrawing` — Drawing or presentation of documents under a credit; for exports includes transfer of allocation (FR-LCI-023, BR-LCI-013, BR-LCE-011); statuses in section 8
 
 *مملوك للمشترك*
 
@@ -5581,7 +5581,7 @@
 
 **قيود:** `Amount > 0` · `SettledAmount >= 0 AND SettledAmount <= Amount` · `Status <> 'SETTLED' OR SettledAmount = Amount` · `Status NOT IN ('REFUSED','CANCELLED') OR SettledAmount = 0` · `SettledAmount = 0 OR LastSettledOn IS NOT NULL` · `MaturityDate IS NULL OR MaturityBasisDate IS NULL OR MaturityDate >= MaturityBasisDate` · `ExaminationDeadline IS NULL OR ExaminationDeadline >= PresentationDate`
 
-### `lc.LcSalesOrder` — تخصيص أمر بيع على اعتماد مستلَم؛ لا يقابله حد ائتماني (FR-LCE-013..015، BR-LCE-009..013)؛ الحالات §8
+### `lc.LcSalesOrder` — Allocation of a sales order against a received credit; no credit limit corresponds to it (FR-LCE-013..015, BR-LCE-009..013); statuses in section 8
 
 *مملوك للمشترك*
 
@@ -5611,7 +5611,7 @@
 
 **قيود:** `Amount > 0` · `ConvertedAmount >= 0 AND ReleasedAmount >= 0 AND Amount >= ConvertedAmount + ReleasedAmount` · `Status <> 'EARMARKED' OR (ConvertedAmount = 0 AND ReleasedAmount = 0)` · `Status <> 'PARTIALLY_CONVERTED' OR (ConvertedAmount > 0 AND ConvertedAmount < Amount)` · `Status <> 'CONVERTED' OR ConvertedAmount = Amount` · `Status <> 'RELEASED' OR ReleasedAmount > 0` · `Status <> 'CANCELLED' OR (ConvertedAmount = 0 AND ReleasedAmount = 0)` · `Status NOT IN ('RELEASED','CANCELLED') OR (ClosedOn IS NOT NULL AND ClosedReason IS NOT NULL)`
 
-### `lc.LcDrawingAllocation` — توزيع سحب تصدير على أوامر بيع (FR-LCE-016/017، BR-LCE-011/013) -- جديد؛ Σ التوزيع ≤ مبلغ السحب وكل جزء ≤ متبقي أمره يتحقق منهما التطبيق
+### `lc.LcDrawingAllocation` — Allocation of an export drawing across sales orders (FR-LCE-016/017, BR-LCE-011/013) -- جديد؛ Σ التوزيع ≤ مبلغ السحب وكل جزء ≤ متبقي أمره يتحقق منهما التطبيق
 
 *مملوك للمشترك*
 
@@ -5633,7 +5633,7 @@
 
 **قيود:** `Amount > 0`
 
-### `lc.LcDiscrepancy` — مخالفة على مستندات سحب أو اعتماد؛ القرار يتطلب lc.discrepancy.decide (FR-LCI-024، FR-LCE-021، §8) -- جديد
+### `lc.LcDiscrepancy` — Discrepancy on presented or issued documents; the decision requires the lc.discrepancy.decide permission (FR-LCI-024, FR-LCE-021, section 8) -- جديد
 
 *مملوك للمشترك*
 
@@ -5658,7 +5658,7 @@
 
 **قيود:** `Status = 'OPEN' OR (DecidedBy IS NOT NULL AND DecidedOn IS NOT NULL AND DecisionNote IS NOT NULL)` · `Status <> 'OPEN' OR (DecidedBy IS NULL AND DecidedOn IS NULL)`
 
-### `lc.ProformaInvoice` — البروفورما الصادرة؛ يمنع التطبيق تعديلها بعد الإصدار؛ الرقم {seq:000}-{erp}-{yy} (FR-LCE-005..008، BR-LCE-001..006)
+### `lc.ProformaInvoice` — Issued proforma invoice; the application prevents edits after issue; number format {seq:000}-{erp}-{yy} (FR-LCE-005..008, BR-LCE-001..006)
 
 *مملوك للمشترك*
 
@@ -5705,7 +5705,7 @@
 
 **قيود:** `ProformaNo LIKE '[0-9][0-9][0-9]%-%-[0-9][0-9]'` · `NumberSeq >= 1 AND NumberYear BETWEEN 2000 AND 2999` · `Subtotal >= 0 AND VatAmount >= 0` · `Total = Subtotal + VatAmount` · `VatRatePct BETWEEN 0 AND 100` · `LcPaymentPct > 0 AND LcPaymentPct <= 100` · `OfferValidityDays IS NULL OR OfferValidityDays > 0` · `Status <> 'VOID' OR VoidReason IS NOT NULL` · `VoidReason IS NULL OR Status = 'VOID'` · `(Status = 'SUPERSEDED' AND SupersededById IS NOT NULL) OR (Status <> 'SUPERSEDED' AND SupersededById IS NULL)` · `SupersededById IS NULL OR SupersededById <> ProformaInvoiceId`
 
-### `lc.ProformaLine` — بند في البروفورما (FR-LCE-003، BR-LCE-001)؛ يُثبَّت بعد الإصدار
+### `lc.ProformaLine` — Line item in the proforma (FR-LCE-003, BR-LCE-001); fixed after issue
 
 *مملوك للمشترك*
 
@@ -5731,7 +5731,7 @@
 
 **قيود:** `LineNo >= 1` · `Qty > 0` · `UnitPrice >= 0 AND LineTotal >= 0`
 
-### `lc.LcTermsComparison` — نتيجة مقارنة شروط الاعتماد المستلَم بالبروفورما (FR-LCT-031، FR-LCE-023، BR-LCT-021) -- جديد (أولوية: ممكن)
+### `lc.LcTermsComparison` — Result of comparing received credit terms with the proforma (FR-LCT-031, FR-LCE-023, BR-LCT-021) -- جديد (أولوية: ممكن)
 
 *مملوك للمشترك*
 
@@ -5754,7 +5754,7 @@
 
 **قيود:** `BaselineTermsId <> ReceivedTermsId`
 
-### `lc.LcTermsComparisonLine` — فرق حقل واحد وحكمه وقرار الخزينة (FR-LCT-031، BR-LCT-021) -- جديد (أولوية: ممكن)
+### `lc.LcTermsComparisonLine` — One field difference, its verdict and the treasury decision (FR-LCT-031, BR-LCT-021) -- جديد (أولوية: ممكن)
 
 *مملوك للمشترك*
 
