@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /* md2docx — converts one Arabic (RTL) Markdown design document to a Word .docx.
-   Usage:  NODE_PATH=$(npm root -g) node tools/md2docx/md2docx.js <in.md> <out.docx> [--header "short header text"]
+   Usage:  NODE_PATH=$(npm root -g) node tools/md2docx/md2docx.js <in.md> <out.docx> [--header "short header text"] [--toc-top-only]
    Pipeline: pandoc (gfm -> JSON AST) -> docx-js (RTL paragraphs/tables/lists) -> post-process (<w:bidi/> on the section).
    Supported Markdown: headings, paragraphs, bold/italic/inline code, pipe tables, bullet/ordered/nested lists,
    block quotes, fenced code blocks, horizontal rules (dropped), links (rendered as plain text). */
@@ -20,6 +20,7 @@ const BASE_DIR = path.dirname(path.resolve(inFile || '.'));
 if (!inFile || !outFile) { console.error('usage: md2docx.js in.md out.docx [--header text]'); process.exit(2); }
 const hi = rest.indexOf('--header');
 const HEADER_TEXT = hi >= 0 ? rest[hi + 1] : '';
+const TOC_TOP_ONLY = rest.includes('--toc-top-only');
 
 // ---------- look & feel ----------
 const FONT = 'Arial', MONO = 'Courier New', EMOJI_FONT = 'Segoe UI Emoji';
@@ -165,10 +166,13 @@ function tableBlock(block, out) {
   const bodyRows = [];
   for (const tb of tbodies) { for (const r of tb[3]) bodyRows.push(r[1].map(c => c[4])); }
   const weights = colWeights([...headRows, ...bodyRows], ncols);
-  const sum = weights.reduce((a, b) => a + b, 0), MIN = 1000;
-  let widths = weights.map(x => Math.max(MIN, Math.round(CONTENT_W * x / sum)));
-  const over = widths.reduce((a, b) => a + b, 0) - CONTENT_W;
-  if (over !== 0) { const k = widths.indexOf(Math.max(...widths)); widths[k] -= over; }
+  // الحد الأدنى لعرض العمود 1000 DXA، ويُخفَّض عند كثرة الأعمدة حتى لا يتجاوز المجموع عرض الصفحة؛
+  // ثم تُعاد قسمة الأعرض على عرض الصفحة بالنسبة، فتبقى كلها موجبة ومجموعها يساوي عرض الصفحة
+  const sum = weights.reduce((a, b) => a + b, 0), MIN = Math.min(1000, Math.floor(CONTENT_W / ncols));
+  let widths = weights.map(x => Math.max(MIN, CONTENT_W * x / sum));
+  const total = widths.reduce((a, b) => a + b, 0);
+  widths = widths.map(w => Math.floor(w * CONTENT_W / total));
+  widths[widths.indexOf(Math.max(...widths))] += CONTENT_W - widths.reduce((a, b) => a + b, 0);
   const hdrTexts = headRows[0] ? headRows[0].map(c => c.map(b => plain(b.c || [])).join('')) : [];
   const isMeta = ncols === 2 && hdrTexts[0] === 'البند';
   const thin = { style: BorderStyle.SINGLE, size: 4, color: C.rule };
@@ -264,6 +268,7 @@ toc.push(new Paragraph({ children: [new TextRun({ text: 'المحتويات', fo
   bidirectional: true, spacing: { before: 280, after: 100 }, border: { bottom: { style: BorderStyle.SINGLE, size: 8, color: C.navy, space: 4 } } }));
 for (const h of headings) {
   if (h.lvl > 2) continue;   // المحتويات: الأقسام الرئيسية فقط لتبقى في صفحة واحدة
+  if (TOC_TOP_ONLY && h.lvl > 2) continue;   // --toc-top-only: الأجزاء الرئيسية فقط (مستندات مجمّعة من عدة ملفات)
   const sub = h.lvl === 3;
   toc.push(new Paragraph({
     bidirectional: true, spacing: { before: 0, after: sub ? 30 : 50 }, indent: { left: sub ? 560 : 0 },
