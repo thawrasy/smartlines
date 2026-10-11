@@ -392,8 +392,10 @@ def render(chart, out_png):
         shift = 10 + n_lanes * LANE_SP + 4
         for f in top:
             top[f] += shift
-        for pl in plans:
+        for pl in plans:                                # markers are drawn from A and B, so they move with the connector
             pl['pts'] = [(x, y + shift) for x, y in pl['pts']]
+            pl['A'] = (pl['A'][0], pl['A'][1] + shift)
+            pl['B'] = (pl['B'][0], pl['B'][1] + shift)
     rects = {fq: (col_x[rk[fq]], top[fq], col_x[rk[fq]] + geo[fq]['w'], top[fq] + geo[fq]['h']) for fq in nodes}
     problems = check(plans, {k: v for k, v in rects.items()})
     # self-loops sit in the gap to the right of their table; they are checked by construction
