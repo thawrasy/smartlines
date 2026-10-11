@@ -294,6 +294,10 @@ section.
   `POST /api/admin/photos/feature/changes` (body `enabled`, `legal_basis` of at least ten characters, `reason`); the change
   passes the stages of `photo.approval_stages`, and nothing changes before the last approval. Only one such change waits at a time.
   Switching it off is the same request with `enabled` false.
+  The stages a change passes are a setting: `PUT /api/admin/photos/settings/approval-stages` (body `stages`, at least two,
+  `APPROVE` last, each `CHECK`, `THIRD_PARTY_CHECK` or `APPROVE`; the default is `CHECK` then `APPROVE`). No stage is forced.
+  A change keeps the stages it was asked with. The approver may record the legal document number with the approval
+  (`{"document_no": ...}` on `POST .../policy-changes/{uid}/approve`); it is optional.
 - **Replacing a photo on file (1087, WP4).** The person and the family head cannot. A platform person requests it with
   `POST /api/admin/photos/changes`: the party, a reason, the evidence kind (`CIVIL_REGISTRY_EXTRACT`, `IDENTITY_DOCUMENT` or `PASSPORT`),
   the evidence file and the new photo. A second platform person reads the evidence (`GET .../changes/{uid}/evidence`, audited)

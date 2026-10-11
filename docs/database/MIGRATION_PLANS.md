@@ -200,6 +200,10 @@ changed, and no table is added.
 passes the approval stages like the others; applying it sets the setting. `iam.set_party_photo` refuses a photo while the
 switch is off. Existing rows are unchanged; one switch change may wait for approval at a time.
 
+**1095** makes the approval stages of the photo policy a setting the platform changes: at least two stages, the final
+approval always last, and no stage forced (a security or third-party check is one choice). A change keeps the stages it was
+asked with. The approval takes an optional legal document number, recorded on the change. No table is added.
+
 ## 1064_partitioned_bookings.sql on a live database (R-06)
 
 1064 turns `sales.booking` into a table partitioned by ranges of id **in place, under an ACCESS EXCLUSIVE lock**: it

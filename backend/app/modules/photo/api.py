@@ -194,14 +194,35 @@ async def list_policy_changes(request: Request, pr: Principal = Depends(require_
         return {"changes": await photo.list_policy_changes(conn)}
 
 
+class ApproveIn(BaseModel):
+    """The legal document number the approver records with the approval (1095); optional, never required."""
+    document_no: Optional[str] = Field(default=None, min_length=1, max_length=100)
+
+
+class StagesIn(BaseModel):
+    stages: list[Literal["CHECK", "THIRD_PARTY_CHECK", "APPROVE"]] = Field(min_length=2, max_length=5)
+
+
 @platform.post("/policy-changes/{uid}/approve")
-async def approve_policy_change(uid: uuid.UUID, request: Request, pr: Principal = Depends(require_portal("PLATFORM"))):
+async def approve_policy_change(uid: uuid.UUID, request: Request, body: Optional[ApproveIn] = None,
+                                pr: Principal = Depends(require_portal("PLATFORM"))):
     privacy_staff(pr)
     async with db.transaction(context_for(request, pr)) as conn:
-        out = await photo.approve_policy_change(conn, pr, uid)
+        out = await photo.approve_policy_change(conn, pr, uid, body.document_no if body else None)
     action = "photo.policy_approve" if out["status"] == "APPLIED" else "photo.policy_stage"
     request.state.audit = {"action": action, "object_type": "photo_policy_change", "object_id": out["change_id"]}
     return {"status": out["status"], "approvals": out["approvals"], "stages": out["stages"]}
+
+
+@platform.put("/settings/approval-stages")
+async def set_approval_stages(body: StagesIn, request: Request, pr: Principal = Depends(require_portal("PLATFORM"))):
+    """Sets the stages a change passes (1095). A setting, changed by a platform person with privacy.manage; the stages of
+    a change already asked are kept as they were when it was asked."""
+    privacy_staff(pr)
+    async with db.transaction(context_for(request, pr)) as conn:
+        stages = await photo.set_approval_stages(conn, pr, body.stages)
+    request.state.audit = {"action": "photo.stages_set", "object_type": "setting", "object_id": 0}
+    return {"approval_stages": stages}
 
 
 @platform.post("/policy-changes/{uid}/reject")

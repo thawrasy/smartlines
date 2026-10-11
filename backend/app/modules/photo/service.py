@@ -359,7 +359,19 @@ async def request_data_requirement(conn, pr: Principal, field: str, requirement:
     return str(uid), (await policy_change_row(conn, uid))["id"]
 
 
-async def approve_policy_change(conn, pr: Principal, uid: uuid.UUID) -> dict:
+PHOTO_STAGES = ("CHECK", "THIRD_PARTY_CHECK", "APPROVE")
+
+
+async def set_approval_stages(conn, pr: Principal, stages: list[str]) -> list[str]:
+    """The stages a change passes after the one who asks, set by the platform (1095). Not forced: a security or
+    third-party check is one of the choices. At least two stages, APPROVE always last."""
+    if len(stages) < 2 or any(s not in PHOTO_STAGES for s in stages) or stages[-1] != "APPROVE":
+        raise ApiError(422, "INVALID_STAGES", "at least two stages, each CHECK, THIRD_PARTY_CHECK or APPROVE, with APPROVE last")
+    await conn.execute("SELECT iam.set_photo_approval_stages($1::jsonb)", json.dumps(stages))
+    return stages
+
+
+async def approve_policy_change(conn, pr: Principal, uid: uuid.UUID, document: str | None = None) -> dict:
     row = await policy_change_row(conn, uid)
     if row["status"] != "PENDING":
         raise ApiError(409, "NOT_PENDING", "the change is not waiting for approval")
@@ -367,7 +379,7 @@ async def approve_policy_change(conn, pr: Principal, uid: uuid.UUID) -> dict:
         raise ApiError(409, "FOUR_EYES", "the one who asks for the change does not approve it")
     if await _already(conn, "POLICY_CHANGE", row["id"], pr.user_id):
         raise ApiError(409, "ALREADY_APPROVED", "this person has already approved the change")
-    status = await conn.fetchval("SELECT iam.approve_photo_policy_change($1)", uid)
+    status = await conn.fetchval("SELECT iam.approve_photo_policy_change($1, $2)", uid, document)
     return {"status": status, "change_id": row["id"], **(await _approvals(conn, "POLICY_CHANGE", row["id"], row["approval_stages"]))}
 
 
@@ -382,7 +394,8 @@ async def reject_policy_change(conn, pr: Principal, uid: uuid.UUID) -> int:
 async def list_policy_changes(conn) -> list[dict]:
     rows = await conn.fetch(
         """SELECT c.id, c.uid, c.change_type, c.evidence_code, c.new_active, c.new_min_age, c.field_code, c.new_requirement,
-                  c.reason, c.status, c.requested_at, c.decided_at, c.approval_stages, u.uid AS requested_by,
+                  c.reason, c.legal_basis, c.legal_document_no, c.status, c.requested_at, c.decided_at, c.approval_stages,
+                  u.uid AS requested_by,
                   (SELECT count(*) FROM iam.photo_approval a WHERE a.subject_type = 'POLICY_CHANGE' AND a.subject_id = c.id) AS approvals
              FROM iam.photo_policy_change c JOIN iam.app_user u ON u.id = c.requested_by_user_id
             ORDER BY c.requested_at DESC LIMIT 200""")
