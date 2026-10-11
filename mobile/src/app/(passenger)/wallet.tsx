@@ -3,13 +3,15 @@ import { AppState, Linking, Text, View } from "react-native";
 import { usePreventScreenCapture } from "expo-screen-capture";
 import { randomUUID } from "expo-crypto";
 import { useI18n } from "../../i18n";
-import { api } from "../../platform/api";
+import { api, ApiError } from "../../platform/api";
 import { API_URL } from "../../platform/config";
+import { getJSON, putJSON } from "../../platform/secure";
 import { Button, Card, Choice, ErrorText, Field, Loading, Notice, Screen, Title, s } from "../../ui/kit";
 import { color } from "../../ui/theme";
 import { useLoad } from "../../ui/useLoad";
 
 interface Wallet { balance: number; sandbox: boolean; entries: { direction: "DR" | "CR"; amount: number; created_at: string; txn_type: string }[] }
+interface WalletView extends Wallet { checkedAt: string; offline: boolean }
 interface Method { code: string; adapter: string; min_amount: number; max_amount: number; fee_pct: number; fee_borne_by: string }
 interface Started { uid: string; status: string; action?: string; url?: string | null; test_code?: string; reference?: string; expires_at?: string | null;
                     bank?: { bank_name: string; account_name: string; iban: string }; amount: number }
@@ -20,7 +22,18 @@ const AMOUNTS = [50_000, 100_000, 250_000, 500_000];   // pounds
 export default function WalletScreen() {
   usePreventScreenCapture();
   const { t, money, date, time } = useI18n();
-  const w = useLoad(() => api.get<Wallet>("/api/wallet"));
+  // the last balance stays on the device (keystore, cleared at sign-out): without a connection it is shown read-only
+  const w = useLoad<WalletView>(async () => {
+    try {
+      const view: WalletView = { ...(await api.get<Wallet>("/api/wallet")), checkedAt: new Date().toISOString(), offline: false };
+      try { await putJSON("wallet", view); } catch { /* no copy when the device store is unavailable */ }
+      return view;
+    } catch (e) {
+      const last = e instanceof ApiError && e.status === 0 ? await getJSON<WalletView>("wallet").catch(() => null) : null;
+      if (last) return { ...last, offline: true };
+      throw e;
+    }
+  });
   const methods = useLoad(() => api.get<{ methods: Method[] }>("/api/payments/methods"));
   const [method, setMethod] = useState<string | null>(null);
   const [amount, setAmount] = useState(100_000);
@@ -96,62 +109,65 @@ export default function WalletScreen() {
           <Text style={{ color: "#fff", fontSize: 32, fontWeight: "700" }}>{money(w.data.balance)}</Text>
         </Card>
       ) : null}
+      {w.data?.offline ? <Notice tone="amber" text={t("wallet.offline", { time: `${date(w.data.checkedAt)} · ${time(w.data.checkedAt)}` })} /> : null}
       {done ? <Notice tone="green" text={done} /> : null}
 
-      <Card>
-        <Text style={s.h2}>{t("pay.topup")}</Text>
-        {!started ? (
-          <>
-            {(methods.data?.methods ?? []).filter((x) => x.adapter !== "SANDBOX" || w.data?.sandbox).map((x) => (
-              <Button key={x.code} kind={method === x.code ? "primary" : "tonal"} label={t(`pay.provider.${x.code}`)} onPress={() => { setMethod(x.code); setError(null); }} />
-            ))}
-            {m ? <Text style={s.small}>{t(`pay.hint.${m.adapter}`)}</Text> : null}
-            {m && m.adapter === "CASH_AGENT" ? <Notice text={t("pay.agentHow")} /> : null}
-            {m && m.adapter !== "CASH_AGENT" ? (
-              <>
-                <Choice label={t("pay.amount")} value={amount} onChange={setAmount} options={AMOUNTS.map((a) => ({ value: a, label: money(a * 100) }))} />
-                <Text style={s.small}>{t("pay.limits", { min: money(m.min_amount), max: money(m.max_amount) })}</Text>
-                {m.adapter === "PARTNER_WALLET" ? <Field label={t("pay.mobile")} hint={t("pay.mobileHint")} value={mobile} onChangeText={setMobile} keyboardType="phone-pad" /> : null}
-                {m.fee_pct > 0 && m.fee_borne_by === "PLATFORM" ? <Text style={s.small}>{t("pay.noFee")}</Text> : null}
-                <Button label={m.adapter === "BANK_TRANSFER" ? t("pay.getReference") : t("pay.continue", { amount: money(amount * 100) })}
-                        busy={busy} disabled={!valid} onPress={start} />
-              </>
-            ) : null}
-          </>
-        ) : started.reference ? (
-          <>
-            <Notice text={t("pay.transferHow")} />
-            <Kv label={t("pay.bank")} value={started.bank?.bank_name} />
-            <Kv label={t("pay.accountName")} value={started.bank?.account_name} />
-            <Kv label="IBAN" value={started.bank?.iban} mono />
-            <Kv label={t("pay.amount")} value={money(started.amount)} />
-            <Kv label={t("pay.reference")} value={started.reference} mono big />
-            {started.expires_at ? <Kv label={t("pay.validUntil")} value={`${date(started.expires_at)} · ${time(started.expires_at)}`} /> : null}
-            <Text style={s.small}>{t("pay.transferNote")}</Text>
-            <Button kind="tonal" label={t("pay.done")} onPress={() => { setStarted(null); setMethod(null); }} />
-          </>
-        ) : started.action === "OTP" ? (
-          <>
-            <Notice text={t("pay.codeSent")} />
-            {started.test_code ? <Notice tone="amber" text={t("pay.testCode", { code: started.test_code })} /> : null}
-            <Field label={t("pay.code")} value={code} onChangeText={setCode} keyboardType="number-pad" maxLength={8} />
-            <Button label={t("pay.confirm")} busy={busy} disabled={code.trim().length < 4} onPress={confirm} />
-          </>
-        ) : started.url?.startsWith("/pay/test/") ? (
-          <>
-            <Notice tone="amber" text={t("pay.testGateway")} />
-            <Kv label={t("pay.amount")} value={money(started.amount)} big />
-            <Button label={t("pay.approve")} busy={busy} onPress={() => testDecide(true)} />
-            <Button kind="danger" label={t("pay.decline")} disabled={busy} onPress={() => testDecide(false)} />
-          </>
-        ) : (
-          <>
-            <Notice text={t("pay.waiting")} />
-            <Button kind="tonal" label={t("pay.openAgain")} onPress={() => started.url && Linking.openURL(started.url.startsWith("/") ? `${API_URL}${started.url}` : started.url)} />
-          </>
-        )}
-        <ErrorText error={error ?? methods.error} />
-      </Card>
+      {w.data?.offline ? null : (
+        <Card>
+          <Text style={s.h2}>{t("pay.topup")}</Text>
+          {!started ? (
+            <>
+              {(methods.data?.methods ?? []).filter((x) => x.adapter !== "SANDBOX" || w.data?.sandbox).map((x) => (
+                <Button key={x.code} kind={method === x.code ? "primary" : "tonal"} label={t(`pay.provider.${x.code}`)} onPress={() => { setMethod(x.code); setError(null); }} />
+              ))}
+              {m ? <Text style={s.small}>{t(`pay.hint.${m.adapter}`)}</Text> : null}
+              {m && m.adapter === "CASH_AGENT" ? <Notice text={t("pay.agentHow")} /> : null}
+              {m && m.adapter !== "CASH_AGENT" ? (
+                <>
+                  <Choice label={t("pay.amount")} value={amount} onChange={setAmount} options={AMOUNTS.map((a) => ({ value: a, label: money(a * 100) }))} />
+                  <Text style={s.small}>{t("pay.limits", { min: money(m.min_amount), max: money(m.max_amount) })}</Text>
+                  {m.adapter === "PARTNER_WALLET" ? <Field label={t("pay.mobile")} hint={t("pay.mobileHint")} value={mobile} onChangeText={setMobile} keyboardType="phone-pad" /> : null}
+                  {m.fee_pct > 0 && m.fee_borne_by === "PLATFORM" ? <Text style={s.small}>{t("pay.noFee")}</Text> : null}
+                  <Button label={m.adapter === "BANK_TRANSFER" ? t("pay.getReference") : t("pay.continue", { amount: money(amount * 100) })}
+                          busy={busy} disabled={!valid} onPress={start} />
+                </>
+              ) : null}
+            </>
+          ) : started.reference ? (
+            <>
+              <Notice text={t("pay.transferHow")} />
+              <Kv label={t("pay.bank")} value={started.bank?.bank_name} />
+              <Kv label={t("pay.accountName")} value={started.bank?.account_name} />
+              <Kv label="IBAN" value={started.bank?.iban} mono />
+              <Kv label={t("pay.amount")} value={money(started.amount)} />
+              <Kv label={t("pay.reference")} value={started.reference} mono big />
+              {started.expires_at ? <Kv label={t("pay.validUntil")} value={`${date(started.expires_at)} · ${time(started.expires_at)}`} /> : null}
+              <Text style={s.small}>{t("pay.transferNote")}</Text>
+              <Button kind="tonal" label={t("pay.done")} onPress={() => { setStarted(null); setMethod(null); }} />
+            </>
+          ) : started.action === "OTP" ? (
+            <>
+              <Notice text={t("pay.codeSent")} />
+              {started.test_code ? <Notice tone="amber" text={t("pay.testCode", { code: started.test_code })} /> : null}
+              <Field label={t("pay.code")} value={code} onChangeText={setCode} keyboardType="number-pad" maxLength={8} />
+              <Button label={t("pay.confirm")} busy={busy} disabled={code.trim().length < 4} onPress={confirm} />
+            </>
+          ) : started.url?.startsWith("/pay/test/") ? (
+            <>
+              <Notice tone="amber" text={t("pay.testGateway")} />
+              <Kv label={t("pay.amount")} value={money(started.amount)} big />
+              <Button label={t("pay.approve")} busy={busy} onPress={() => testDecide(true)} />
+              <Button kind="danger" label={t("pay.decline")} disabled={busy} onPress={() => testDecide(false)} />
+            </>
+          ) : (
+            <>
+              <Notice text={t("pay.waiting")} />
+              <Button kind="tonal" label={t("pay.openAgain")} onPress={() => started.url && Linking.openURL(started.url.startsWith("/") ? `${API_URL}${started.url}` : started.url)} />
+            </>
+          )}
+          <ErrorText error={error ?? methods.error} />
+        </Card>
+      )}
 
       {w.data ? (
         <>
