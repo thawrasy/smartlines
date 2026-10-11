@@ -2,13 +2,13 @@
 
 > Generated from the built database (`db/tools/gen_docs.py`); do not edit by hand.
 
-**504 tables, 5170 columns, in 26 schemas.**
+**505 tables, 5174 columns, in 26 schemas.**
 
 Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant isolation (RLS) · 🧩 partitioned monthly · 🔒 append-only / change-protected
 
 ## Index
 
-- [`iam` — Identity, parties, users, permissions and API clients](#iam) (33 tables)
+- [`iam` — Identity, parties, users, permissions and API clients](#iam) (34 tables)
 - [`ref` — Reference data, locales and files](#ref) (14 tables)
 - [`sys` — Settings, outbox and webhooks](#sys) (27 tables)
 - [`net` — Network: stations, routes, lines, corridors and geofences](#net) (22 tables)
@@ -512,10 +512,21 @@ Unified party: person, company or entity; registered once and holds multiple rol
 | `legal_hold` | `boolean` | ✱ | `false` |
 | `anonymized_at` | `timestamp with time zone` |  |  |
 | `erasure_request_id` | `bigint` | 🔗 `gov.subject_request`  |  |
-| `photo_file_id` | `bigint` | 🔗 `ref.file_object`  |  |
-| `photo_taken_at` | `timestamp with time zone` |  |  |
-| `photo_taken_by_user_id` | `bigint` | 🔗 `iam.app_user`  |  |
-| `photo_taken_by` | `text` |  |  |
+
+### `iam.party_photo` 🛡️
+
+The boarding photo of a person (1086): encrypted file, taken at the profile's creation, removed only by an erasure request
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `party_id` | `bigint` | 🔗 `iam.party` ✱ |  |
+| `file_id` | `bigint` | 🔗 `ref.file_object` ✱ |  |
+| `taken_by` | `text` | ✱ |  |
+| `taken_by_user_id` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `taken_at` | `timestamp with time zone` | ✱ | `now()` |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
 ### `iam.party_role` 🛡️
 

@@ -326,8 +326,13 @@ erDiagram
     text status
     bigint retention_policy_id FK
     bigint erasure_request_id FK
-    bigint photo_file_id FK
-    bigint photo_taken_by_user_id FK
+  }
+  iam_party_photo {
+    bigint id PK
+    uuid uid
+    bigint party_id FK
+    bigint file_id FK
+    bigint taken_by_user_id FK
   }
   iam_party_role {
     bigint party_id PK
@@ -452,10 +457,10 @@ erDiagram
   iam_device_permission_state }o--|| iam_app_user : "user_id"
   iam_mfa_challenge }o--|| iam_app_user : "user_id"
   iam_family_link_request }o..o| iam_app_user : "requester_user_id"
+  iam_party_photo }o--|| iam_app_user : "taken_by_user_id"
   iam_family_spend }o..o| iam_app_user : "initiated_by"
   iam_api_client }o..o| iam_app_user : "acting_user_id"
   iam_family_member }o..o| iam_app_user : "linked_user_id"
-  iam_party }o..o| iam_app_user : "photo_taken_by_user_id"
   iam_company }o..o| iam_bank_account : "payout_bank_account_id"
   iam_beneficial_owner }o--|| iam_company : "company_id"
   iam_company_member }o--|| iam_company : "company_id"
@@ -487,6 +492,7 @@ erDiagram
   iam_bank_account }o--|| iam_party : "party_id"
   iam_app_user }o--|| iam_party : "party_id"
   iam_family }o--|| iam_party : "head_party_id"
+  iam_party_photo }o--|| iam_party : "party_id"
   iam_family_member }o--|| iam_party : "party_id"
   iam_api_client }o--|| iam_party : "owner_party_id"
   iam_family_link_request }o..o| iam_party : "requester_party_id"

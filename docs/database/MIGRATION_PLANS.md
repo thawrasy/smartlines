@@ -141,11 +141,12 @@ false (RUNBOOKS.md, section 30).
 replaces the check constraint, for a moment. It was not rehearsed with the tool, for the same reason as 1084. Existing
 accounts keep their status; no row is rewritten.
 
-**1086** adds four nullable columns to `iam.party` (the boarding photo, its time, its uploader and who took it) with a
-check that they are set together, two indexes, and two functions. It changes no existing row and takes an access
-exclusive lock on `iam.party` for a moment, the same as 1085. The photos themselves are files written by the API,
-not by the migration; an erasure deletes a file row in the same transaction and the store deletes the bytes after its
-24-hour grace period.
+**1086** creates one table, `iam.party_photo` (one row per person: the encrypted file, who took it and when), with its
+row-level policy, its phase, class and lifecycle rows, and three functions: `iam.set_party_photo` (takes or replaces the photo,
+checking that the caller is the person or the head of their family), and `gov.erase_party_photo` (removes the photo in an
+erasure). It changes no existing table and no existing row, so it takes no lock on the party table. The photos themselves are
+written by the API, not by the migration. Nothing refers to the new table, so it adds no reference cycle. An erasure deletes the
+file row in the same transaction; the store deletes the bytes after its 24-hour grace period.
 
 ## 1064_partitioned_bookings.sql on a live database (R-06)
 

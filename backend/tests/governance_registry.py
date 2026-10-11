@@ -34,7 +34,6 @@ SYSTEM_SCOPE = {
     ("app/modules/documents/service.py", "read_file"): (1, "reading a document writes the data access log the reader cannot write"),
     ("app/modules/documents/service.py", "upload"): (1, "encryption key lookup for a new document"),
     ("app/modules/photo/service.py", "read_for_ticket"): (1, "the driver or the carrier office reads a passenger's photo for a ticket of its trip; the caller audits the read"),
-    ("app/modules/photo/service.py", "status"): (1, "the person checks whether a boarding photo is on file; the row is their own party"),
     ("app/modules/photo/service.py", "take"): (1, "encryption key lookup for a new boarding photo"),
     ("app/modules/family/api.py", "_summary"): (1, "the family account (head's wallet) shown to members"),
     ("app/modules/family/api.py", "add_member"): (1, "a member's person record created and sealed for the head"),

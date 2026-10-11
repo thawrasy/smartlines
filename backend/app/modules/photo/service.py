@@ -53,19 +53,17 @@ async def take(conn, ctx: db.Context, pr: Principal, data: bytes, file_name: str
     if await scanner.scan_file(conn, ctx, file_id) in ("REJECTED", "QUARANTINED"):
         raise ApiError(422, "FILE_REJECTED", "the photo did not pass the security scan")
     # the database checks who may take it and removes the earlier file (migration 1086)
-    row = await conn.fetchrow("SELECT replaced_file_id, taken_by FROM iam.set_party_photo($1, $2, $3)",
+    row = await conn.fetchrow("SELECT replaced_file_id, taken_as FROM iam.set_party_photo($1, $2, $3)",
                               target_party, file_id, pr.user_id)
-    return {"party_id": target_party, "taken_by": row["taken_by"], "replaced": row["replaced_file_id"] is not None}
+    return {"party_id": target_party, "taken_by": row["taken_as"], "replaced": row["replaced_file_id"] is not None}
 
 
 async def status(conn, ctx: db.Context, pr: Principal) -> dict:
     """Whether the signed-in person has a boarding photo on file, and when it was taken. Never the picture itself."""
-    async with db.system_scope(conn, ctx):
-        row = await conn.fetchrow(
-            "SELECT photo_file_id IS NOT NULL AS has_photo, photo_taken_at, photo_taken_by FROM iam.party WHERE id = $1",
-            pr.party_id)
-    return {"has_photo": row["has_photo"], "taken_at": row["photo_taken_at"].isoformat() if row["photo_taken_at"] else None,
-            "taken_by": row["photo_taken_by"]}
+    row = await conn.fetchrow("SELECT taken_at, taken_by FROM iam.party_photo WHERE party_id = $1", pr.party_id)
+    if row is None:
+        return {"has_photo": False, "taken_at": None, "taken_by": None}
+    return {"has_photo": True, "taken_at": row["taken_at"].isoformat(), "taken_by": row["taken_by"]}
 
 
 async def read_for_ticket(conn, ctx: db.Context, trip_id: int, ticket_uid: uuid.UUID) -> tuple[int, bytes, str]:
@@ -76,8 +74,8 @@ async def read_for_ticket(conn, ctx: db.Context, trip_id: int, ticket_uid: uuid.
             """SELECT p.party_id, f.storage_key, f.enc_key_id, f.sha256, f.mime_type, f.scan_status
                  FROM sales.ticket k
                  JOIN sales.passenger p ON p.id = k.passenger_id
-                 LEFT JOIN iam.party pa ON pa.id = p.party_id
-                 LEFT JOIN ref.file_object f ON f.id = pa.photo_file_id
+                 LEFT JOIN iam.party_photo pp ON pp.party_id = p.party_id
+                 LEFT JOIN ref.file_object f ON f.id = pp.file_id
                 WHERE k.uid = $1 AND k.trip_id = $2 AND k.status IN ('ISSUED', 'BOARDED')""", ticket_uid, trip_id)
         if row is None:
             raise not_found("ticket")

@@ -24,8 +24,8 @@ def register():
 
 
 def photo_of_email(email):
-    return owner_sql("""SELECT p.photo_file_id, p.photo_taken_by FROM iam.party p JOIN iam.app_user u ON u.party_id = p.id
-                         WHERE u.email = $1""", email, fetch=True)
+    return owner_sql("""SELECT pp.file_id AS photo_file_id, pp.taken_by AS photo_taken_by FROM iam.party_photo pp
+                          JOIN iam.app_user u ON u.party_id = pp.party_id WHERE u.email = $1""", email, fetch=True)
 
 
 def assigned_driver(trip_uid: str):
@@ -119,6 +119,6 @@ def test_erasure_removes_the_photo():
     admin = login("admin@masslak.test", "PLATFORM")
     req = next(r for r in admin.get("/api/admin/privacy/requests").json()["requests"] if r["email"] == email)
     assert admin.post(f"/api/admin/privacy/requests/{req['uid']}/complete").status_code == 200
-    assert owner_sql("SELECT p.photo_file_id FROM gov.subject_request r JOIN iam.party p ON p.id = r.party_id WHERE r.uid = $1",
+    assert owner_sql("SELECT pp.file_id FROM gov.subject_request r JOIN iam.party_photo pp ON pp.party_id = r.party_id WHERE r.uid = $1",
                      uuid.UUID(req["uid"])) is None
     assert owner_sql("SELECT count(*) FROM ref.file_object WHERE id = $1", photo) == 0
