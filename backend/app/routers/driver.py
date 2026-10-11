@@ -3,12 +3,13 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Literal, Optional
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Request, Response
 from pydantic import BaseModel, Field
 
 from .. import db, telemetry
 from ..deps import Principal, context_for, require_portal
 from ..errors import ApiError, not_found
+from ..modules.photo import service as photo
 from ..security import ticket_public_key, verify_ticket_credential, verify_ticket_qr
 from ..util import row_dict, ticket_name
 
@@ -116,7 +117,7 @@ async def _board(conn, pr: Principal, t, ticket_uid: Optional[str], early: Optio
                            k["id"], scanned_at)
         if t["status"] == "PUBLISHED":
             await conn.execute("UPDATE ops.trip SET status = 'BOARDING' WHERE id = $1", t["id"])
-    return {"result": result, "ticket_id": k["id"], "seat_no": k["seat_no"], "seat_label": k["seat_label"] or str(k["seat_no"]),
+    return {"result": result, "ticket_id": k["id"], "ticket_uid": ticket_uid, "seat_no": k["seat_no"], "seat_label": k["seat_label"] or str(k["seat_no"]),
             "passenger": ticket_name(k["first_name"], k["last_name"], k["full_name"])}
 
 
@@ -129,6 +130,17 @@ async def scan(body: ScanIn, request: Request, pr: Principal = Depends(driver)):
     if "ticket_id" in out:
         request.state.audit = {"action": "boarding.scan", "object_type": "ticket", "object_id": out.pop("ticket_id")}
     return out
+
+
+@router.get("/trips/{trip_uid}/tickets/{ticket_uid}/photo")
+async def ticket_photo(trip_uid: uuid.UUID, ticket_uid: uuid.UUID, request: Request, pr: Principal = Depends(driver)):
+    """The boarding photo of a passenger on this trip, shown at boarding (1086). Every read is audited."""
+    ctx = context_for(request, pr)
+    async with db.transaction(ctx) as conn:
+        t = await _assigned_trip(conn, pr, trip_uid)
+        party_id, data, mime = await photo.read_for_ticket(conn, ctx, t["id"], ticket_uid)
+    request.state.audit = {"action": "photo.view", "object_type": "party", "object_id": party_id}
+    return Response(content=data, media_type=mime)
 
 
 @router.get("/trips/{trip_uid}/offline")

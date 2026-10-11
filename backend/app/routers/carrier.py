@@ -6,7 +6,7 @@ from typing import Literal, Optional
 from zoneinfo import ZoneInfo
 
 import asyncpg
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Request, Response
 from pydantic import BaseModel, EmailStr, Field
 
 from .. import db, markets
@@ -15,6 +15,7 @@ from ..errors import ApiError, forbidden, not_found
 from ..ledger import platform_wallet, post_txn
 from ..modules.cash import service as cash
 from ..modules.fleet import service as fleet
+from ..modules.photo import service as photo
 from ..security import hash_password, password_problem
 from ..util import row_dict, rows
 
@@ -412,6 +413,18 @@ async def publish_trip(trip_uid: uuid.UUID, request: Request, pr: Principal = De
         await conn.execute("UPDATE ops.trip SET status = 'PUBLISHED', published_at = now() WHERE id = $1", t["id"])
     request.state.audit = {"action": "trip.publish", "object_type": "trip", "object_id": t["id"]}
     return {"ok": True}
+
+
+@router.get("/trips/{trip_uid}/tickets/{ticket_uid}/photo")
+async def ticket_photo(trip_uid: uuid.UUID, ticket_uid: uuid.UUID, request: Request, pr: Principal = Depends(operator)):
+    """The boarding photo of a passenger on this company's trip, for the office at boarding (1086). Audited."""
+    _need(pr, "manifest.view", "trip.publish")
+    ctx = context_for(request, pr)
+    async with db.transaction(ctx) as conn:
+        t = await _own_trip(conn, pr, trip_uid)
+        party_id, data, mime = await photo.read_for_ticket(conn, ctx, t["id"], ticket_uid)
+    request.state.audit = {"action": "photo.view", "object_type": "party", "object_id": party_id}
+    return Response(content=data, media_type=mime)
 
 
 @router.get("/trips/{trip_uid}/manifest")

@@ -2,7 +2,7 @@
 
 > Generated from the built database (`db/tools/gen_docs.py`); do not edit by hand.
 
-**504 tables, 5166 columns, in 26 schemas.**
+**504 tables, 5170 columns, in 26 schemas.**
 
 Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant isolation (RLS) · 🧩 partitioned monthly · 🔒 append-only / change-protected
 
@@ -512,6 +512,10 @@ Unified party: person, company or entity; registered once and holds multiple rol
 | `legal_hold` | `boolean` | ✱ | `false` |
 | `anonymized_at` | `timestamp with time zone` |  |  |
 | `erasure_request_id` | `bigint` | 🔗 `gov.subject_request`  |  |
+| `photo_file_id` | `bigint` | 🔗 `ref.file_object`  |  |
+| `photo_taken_at` | `timestamp with time zone` |  |  |
+| `photo_taken_by_user_id` | `bigint` | 🔗 `iam.app_user`  |  |
+| `photo_taken_by` | `text` |  |  |
 
 ### `iam.party_role` 🛡️
 

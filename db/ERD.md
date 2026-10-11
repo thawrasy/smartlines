@@ -326,6 +326,8 @@ erDiagram
     text status
     bigint retention_policy_id FK
     bigint erasure_request_id FK
+    bigint photo_file_id FK
+    bigint photo_taken_by_user_id FK
   }
   iam_party_role {
     bigint party_id PK
@@ -453,6 +455,7 @@ erDiagram
   iam_family_spend }o..o| iam_app_user : "initiated_by"
   iam_api_client }o..o| iam_app_user : "acting_user_id"
   iam_family_member }o..o| iam_app_user : "linked_user_id"
+  iam_party }o..o| iam_app_user : "photo_taken_by_user_id"
   iam_company }o..o| iam_bank_account : "payout_bank_account_id"
   iam_beneficial_owner }o--|| iam_company : "company_id"
   iam_company_member }o--|| iam_company : "company_id"

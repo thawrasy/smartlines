@@ -29,15 +29,17 @@ from datetime import date, time, timedelta
 from typing import Literal, Optional
 
 import asyncpg
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, File, Request, UploadFile
 from pydantic import BaseModel, Field, model_validator
 
 from ... import db, markets
+from ...config import get_settings
 from ...deps import Principal, context_for, require_portal
 from ...errors import ApiError, not_found
 from ...ledger import company_wallet, post_txn
 from ...modular import features
 from ..fares.categories import age_on, bands, category_for, family_offer
+from ..photo import service as photo
 from ..notify.outbox import emit
 from ..sales.models import MOBILE, NAME_PART
 from . import service as fam
@@ -233,6 +235,23 @@ async def add_member(body: MemberIn, request: Request, pr: Principal = Depends(p
             body.per_trip_limit, body.daily_limit, body.monthly_limit)
         request.state.audit = {"action": "family.member_add", "object_type": "iam.family_member", "object_id": m["id"]}
     return fam.member_view(m)
+
+
+@router.post("/members/{uid}/photo", status_code=201)
+async def member_photo(uid: uuid.UUID, request: Request, file: UploadFile = File(...), pr: Principal = Depends(passenger)):
+    """The head of the family takes a member's boarding photo (1086). The member's own account takes its photo itself."""
+    await _on()
+    limit = get_settings().max_upload_bytes
+    data = await file.read(limit + 1)
+    if len(data) > limit:
+        raise ApiError(422, "FILE_TOO_LARGE", "the photo is larger than allowed", max_bytes=limit)
+    ctx = context_for(request, pr)
+    async with db.transaction(ctx) as conn:
+        f = await fam.head_family(conn, pr.party_id)
+        m = await fam.member_by_uid(conn, f["id"], uid)
+        out = await photo.take(conn, ctx, pr, data, file.filename or "photo", m["party_id"])
+    request.state.audit = {"action": "photo.upload", "object_type": "party", "object_id": out["party_id"]}
+    return {"taken_by": out["taken_by"], "replaced": out["replaced"]}
 
 
 @router.patch("/members/{uid}")

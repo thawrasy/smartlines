@@ -217,6 +217,8 @@ async def complete_erasure(conn, pr: Principal, request_uid: uuid.UUID) -> int:
     # gov.erase_party pseudonymises the person and their old passenger rows, withdraws consents, refuses under a
     # legal hold, writes gov.erasure_log and closes the request (review 3.15)
     await conn.fetchval("SELECT gov.erase_party($1, $2)::text", r["party_id"], r["id"])
+    # the boarding photo goes with the person (1086): the store deletes the bytes after its grace period
+    await conn.fetchval("SELECT gov.erase_party_photo($1)", r["party_id"])
     await conn.execute("UPDATE iam.user_session SET revoked_at = now(), revoke_reason = 'ERASED' WHERE user_id = $1 AND revoked_at IS NULL",
                        r["user_id"])
     await conn.execute("DELETE FROM iam.mfa_factor WHERE user_id = $1", r["user_id"])

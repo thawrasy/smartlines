@@ -141,6 +141,12 @@ false (RUNBOOKS.md, section 30).
 replaces the check constraint, for a moment. It was not rehearsed with the tool, for the same reason as 1084. Existing
 accounts keep their status; no row is rewritten.
 
+**1086** adds four nullable columns to `iam.party` (the boarding photo, its time, its uploader and who took it) with a
+check that they are set together, two indexes, and two functions. It changes no existing row and takes an access
+exclusive lock on `iam.party` for a moment, the same as 1085. The photos themselves are files written by the API,
+not by the migration; an erasure deletes a file row in the same transaction and the store deletes the bytes after its
+24-hour grace period.
+
 ## 1064_partitioned_bookings.sql on a live database (R-06)
 
 1064 turns `sales.booking` into a table partitioned by ranges of id **in place, under an ACCESS EXCLUSIVE lock**: it

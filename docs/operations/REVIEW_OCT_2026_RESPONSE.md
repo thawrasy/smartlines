@@ -325,7 +325,7 @@ access policy by country (not started).
 
 | Question | Answer | Built |
 |---|---|---|
-| Boarding photo: retention, who uploads for children and family members, when it is taken | Taken when the profile is created. Family photos are uploaded by the head of the family or by the account's creator. A person already linked to a family account cannot open a new account | Not built: the photo, its storage and its check wait for the retention period, which is still open |
+| Boarding photo: retention, who uploads for children and family members, when it is taken | Taken when the profile is created. Family photos are uploaded by the head of the family or by the account's creator. A person already linked to a family account cannot open a new account | Built (1086): the photo, its storage and its check at boarding; the retention rule was decided in the fifth round |
 | Passenger app connection | Approved as proposed | Ticket credential issued only from three hours before departure until one hour after arrival (was six hours after arrival); saved tickets shown offline for 72 hours after their last check; "connect to show" otherwise. The read-only wallet is built: the last balance is kept on the device and shown with its check time, and top-up is hidden without a connection. The driver's trip pack waits for the photo decision (it carries the photos) |
 | Access by country | Top-up of the wallet from abroad allowed at launch; the app is visible abroad; bookings from abroad come in a later stage | Not built: the booking block needs the IP-to-country source (contract) |
 | Mobile ticket | Bound to the passenger's account, not to a device. The tickets appear when the account is opened; requested at each boarding of a scheduled trip and shown at each security check | Account binding is the existing design (the credential is per ticket, the app shows the account's tickets) |
@@ -340,3 +340,22 @@ access policy by country (not started).
 | Top-up from abroad | Allowed. Withdrawal is in Syrian pounds, so the card is charged the same amount in pounds; the exchange rate is set by the card-issuing bank | Not built: the top-up flow follows the payment gateway contract |
 
 Still open: whether erasure requests stay beside closing. Closing keeps the data; erasure is the person's written request for an irreversible pseudonymisation (1039, `gov.erase_party`). The owner has not decided this yet.
+
+### Fifth round of answers (11 October 2026): the boarding photo
+
+| Question | Answer | Built |
+|---|---|---|
+| Retention of the boarding photo | Kept while the account exists. Closing the account keeps it; only an erasure request removes it | Built (1086). `gov.erase_party_photo` runs in the erasure's transaction and clears the reference and the file row; the store's daily sweep deletes the bytes after its 24-hour grace period |
+| Erasure requests with closing | Both stay. Closing keeps the data and reactivates the account; erasure is the person's written request (1039) | Unchanged |
+| Who takes the photo | The person takes their own at the profile's creation. The head of a family takes a member's | Built: `POST /api/account/photo`, `POST /api/family/members/{uid}/photo`; the database checks the taker (`iam.set_party_photo`) |
+| Who sees it | The assigned driver of the trip, and the carrier's office for the trip, at boarding; every read is audited | Built: `GET /api/driver/trips/{trip}/tickets/{ticket}/photo` and `GET /api/carrier/trips/{trip}/tickets/{ticket}/photo`; the activity log records `photo.view` with the person's party, never the picture |
+| Replacement | Allowed by the same rule, the earlier file is removed | Built, audited as `photo.upload` |
+
+Tests: `backend/tests/test_boarding_photo.py` (five live tests: the taker and the replacement, the accepted types, the head's upload and the refusal to anyone else, the driver's and the office's reads with the unlinked member refused, the audit rows, the erasure).
+
+Open, for the owner:
+- **A ticket reaches a photo only through the passenger's profile link.** `sales.passenger.party_id` is set for family members only. A passenger who books for themselves is not linked to their own profile yet, so the driver sees "no photo" for that ticket and checks the identity document by hand. Two options: (a) the booking form marks the account holder as the traveller and the link is set (the party record would then be readable from the manifest path, which needs its own review of the RLS policy on `iam.party`); (b) the link is made when the identity document number matches the profile. Until decided, nothing is linked for self-bookings.
+- **Station officer:** the system has no station portal; the photo is not shown to station staff yet.
+- **Offline boarding:** the driver's trip pack does not carry photos yet, so the photo is shown only after an online scan.
+- **Device caching:** the photo is loaded with the driver's token into the native image view; whether the device keeps a copy is to be checked on a device before the release.
+

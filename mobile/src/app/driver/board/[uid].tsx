@@ -6,6 +6,7 @@ import { CameraView, useCameraPermissions } from "expo-camera";
 import { useI18n } from "../../../i18n";
 import { loadPack, loadScans, scan, sync, type Outcome } from "../../../platform/boarding";
 import { clockIsOff } from "../../../core/offlineBoarding";
+import { PassengerPhoto } from "../../../ui/PassengerPhoto";
 import { Button, ErrorText, Screen, Title, s } from "../../../ui/kit";
 import { color } from "../../../ui/theme";
 
@@ -69,6 +70,7 @@ export default function Board() {
           {outcome.offline ? <Text style={{ color: fg, fontSize: 13 }}>{t("common.offline")}</Text> : null}
         </View>
       ) : null}
+      {outcome?.result === "OK" && outcome.ticket && !outcome.offline ? <PassengerPhoto tripUid={uid} ticketUid={outcome.ticket} /> : null}
       <ErrorText error={error} />
       <View style={s.between}>
         <Text style={s.small}>{pending ? t("driver.pending", { n: pending }) : t("driver.synced")}</Text>

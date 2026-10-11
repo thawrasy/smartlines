@@ -270,6 +270,9 @@ section.
   family links, the boarding photo when it exists) stays. Signing in with the right password says the account is closed;
   `POST /api/auth/reactivate` with the same details brings it back. Closing refuses while the person has confirmed trips
   that have not left yet (`UPCOMING_TRIPS`). Staff accounts are closed by their company or the platform.
+- **Erasure also removes the boarding photo (1086).** `gov.erase_party_photo` clears the reference and deletes the file row in
+  the erasure's transaction; the store's daily sweep (`files_sweep`) deletes the bytes after its 24-hour grace period. Taking
+  or replacing the photo is checked by the database (`iam.set_party_photo`): the person, or the head of their family.
 - **Erasure and closing are different.** Closing keeps the data; erasure is the person's written request for
   pseudonymisation, which cannot be undone. A closed account that asks for erasure is erased as any other.
 
