@@ -12,7 +12,7 @@ sys.path.insert(0, HERE)
 import dbgen, ddl_keys, erd_layout as L, erd_plan as P
 
 ROOT = os.path.join(HERE, '..', '..')
-OUT = os.path.join(ROOT, 'docs', 'diagrams', 'erd-en')
+OUT = os.environ.get('ERD_OUT') or os.path.join(ROOT, 'docs', 'diagrams', 'erd-en')   # ERD_OUT: build elsewhere first
 DATE = '2026-10-11'
 
 SCHEMA_TEXT = {
