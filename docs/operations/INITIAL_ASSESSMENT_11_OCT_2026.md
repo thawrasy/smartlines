@@ -200,3 +200,24 @@ Open after this round:
 - The know-your-customer model and the re-registration of each client against the civil registry (S8) are not built.
 - The device check of the image cache (S5) and the security-gate lookup (S4) are not built.
 
+### Tenth round: the approval stages applied to the photo rules (WP1)
+
+The owner asked for the stages to apply to the photo rules as well. **Built (1092):**
+
+- A proposal is in force when its stages are passed (the stages of the platform's settings, a snapshot taken when it is
+  proposed). Each stage is a different platform person, never the one who proposed it.
+- A proposal not yet in force is withdrawn, which relaxes nothing.
+- A rule in force is retired through the stages. It stays in force until the last stage is recorded, so a retirement that is
+  not approved does not relax a rule. The one who asks for the retirement does not approve it, and neither does the person
+  who gave the rule its final approval.
+- A retirement that is turned down leaves the rule in force.
+
+Open for the owner's decision: the earlier design said a rule is retired by a third person (not the proposer, not the
+approver). The built rule is narrower in one way and wider in another. The proposer may approve a retirement, which the earlier
+design excluded; and the retirement needs only that the requester and the final approver of the rule are not among its
+approvers. If the owner wants the proposer excluded too, the test environment needs one more platform officer for a full cycle.
+
+Test environment: a full cycle of a rule needs four platform people with the privacy permission: the requester, the checker,
+the final approver and a second final approver for the retirement. The demo seed now has four (admin, security, and two
+privacy officers).
+

@@ -122,6 +122,8 @@ async def seed_security(conn) -> bool:
     await conn.execute("INSERT INTO iam.user_role (user_id, role_id) SELECT $1, id FROM iam.role WHERE code = 'PLATFORM_SECURITY' AND company_id IS NULL", uid)
     _, uid_privacy = await user(conn, "PERSON", "Privacy Officer", "privacy@masslak.test", "PLATFORM")
     await conn.execute("INSERT INTO iam.user_role (user_id, role_id) SELECT $1, id FROM iam.role WHERE code = 'PLATFORM_SECURITY' AND company_id IS NULL", uid_privacy)
+    _, uid_privacy2 = await user(conn, "PERSON", "Privacy Officer (second)", "privacy2@masslak.test", "PLATFORM")
+    await conn.execute("INSERT INTO iam.user_role (user_id, role_id) SELECT $1, id FROM iam.role WHERE code = 'PLATFORM_SECURITY' AND company_id IS NULL", uid_privacy2)
     return True
 
 
@@ -335,7 +337,7 @@ async def main():
     for e, p in (("passenger@masslak.test", "PASSENGER"), ("owner@carrier.test", "OPERATOR"), ("counter@carrier.test", "OPERATOR"),
                  ("driver@carrier.test", "DRIVER"),
                  ("agency@agency.test", "AGENCY"), ("finance@masslak.test", "PLATFORM"), ("treasury@masslak.test", "PLATFORM"),
-                 ("security@masslak.test", "PLATFORM"), ("privacy@masslak.test", "PLATFORM"), ("admin@masslak.test", "PLATFORM"), ("regulator@masslak.test", "PLATFORM")):
+                 ("security@masslak.test", "PLATFORM"), ("privacy@masslak.test", "PLATFORM"), ("privacy2@masslak.test", "PLATFORM"), ("admin@masslak.test", "PLATFORM"), ("regulator@masslak.test", "PLATFORM")):
         print(f"  {e:28s} portal {p}")
 
 

@@ -385,6 +385,7 @@ erDiagram
     bigint proposed_by_user_id FK
     bigint approved_by_user_id FK
     bigint retired_by_user_id FK
+    bigint retirement_requested_by_user_id FK
   }
   iam_push_token {
     bigint device_id PK
@@ -517,6 +518,7 @@ erDiagram
   iam_photo_rule }o..o| iam_app_user : "approved_by_user_id"
   iam_photo_rule }o..o| iam_app_user : "retired_by_user_id"
   iam_api_client }o..o| iam_app_user : "acting_user_id"
+  iam_photo_rule }o..o| iam_app_user : "retirement_requested_by_user_id"
   iam_family_member }o..o| iam_app_user : "linked_user_id"
   iam_company }o..o| iam_bank_account : "payout_bank_account_id"
   iam_beneficial_owner }o--|| iam_company : "company_id"

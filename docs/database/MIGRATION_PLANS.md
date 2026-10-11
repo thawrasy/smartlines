@@ -183,6 +183,14 @@ of required data items (`iam.data_requirement`) with four seeded items, all opti
 approval functions to use them. It replaces the photo change's single approver of 1087 with the staged approval. The
 stages are not a fixed number of people: the platform sets them, and the function never accepts fewer than two.
 
+**1092** applies the approval stages to the photo rules. A proposal is in force when its stages are passed; a proposal not
+yet in force is withdrawn; a rule in force is retired through its own stages, and it stays in force until they are passed.
+The retirement has its own approval subject (a value from a sequence), so approvals of a rejected retirement never count for
+a later one. The rule table gains the stage snapshots and the retirement fields, with a check that a retirement has them; the
+status set gains `RETIRING`; the approval table takes the subjects `RULE` and `RULE_RETIREMENT`, and the registry and the JSON
+contracts know them. `iam.photo_requirement` counts a rule being retired as in force. The one-person functions of 1087 for
+approving, retiring and withdrawing a rule are replaced; the rule table had no release. No row is changed.
+
 ## 1064_partitioned_bookings.sql on a live database (R-06)
 
 1064 turns `sales.booking` into a table partitioned by ranges of id **in place, under an ACCESS EXCLUSIVE lock**: it

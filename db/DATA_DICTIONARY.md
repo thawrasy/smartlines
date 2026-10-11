@@ -2,7 +2,7 @@
 
 > Generated from the built database (`db/tools/gen_docs.py`); do not edit by hand.
 
-**511 tables, 5237 columns, in 26 schemas.**
+**511 tables, 5243 columns, in 26 schemas.**
 
 Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant isolation (RLS) · 🧩 partitioned monthly · 🔒 append-only / change-protected
 
@@ -656,6 +656,12 @@ When a boarding photo is required, by market, trip scope, traveller class and ca
 | `approved_at` | `timestamp with time zone` |  |  |
 | `retired_by_user_id` | `bigint` | 🔗 `iam.app_user`  |  |
 | `retired_at` | `timestamp with time zone` |  |  |
+| `approval_stages` | `jsonb` | ✱ | `'["CHECK", "APPROVE"]'::jsonb` |
+| `retirement_request_id` | `bigint` |  |  |
+| `retirement_requested_by_user_id` | `bigint` | 🔗 `iam.app_user`  |  |
+| `retirement_reason` | `text` |  |  |
+| `retirement_stages` | `jsonb` |  |  |
+| `retirement_requested_at` | `timestamp with time zone` |  |  |
 
 ### `iam.push_token` 🛡️
 

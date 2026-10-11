@@ -420,3 +420,11 @@ The owner's decisions on the boarding photo, ticket binding, boarding points, tr
 - Open: the stages for the boarding photo rules (WP1), the customer-side intake, the know-your-customer model (S8), the
   registry check (S9), and the device image cache check (S5).
 
+### Tenth round: the approval stages on the photo rules (migration 1092)
+
+- A boarding photo rule is in force when its stages are passed; a proposal not in force is withdrawn; a rule in force is
+  retired through its own stages and stays in force until they are passed. A retirement that is turned down leaves the rule
+  in force. The one who asks does not approve, and the person who gave the rule its final approval does not approve its
+  retirement.
+- Open for the owner: whether the proposer may approve a retirement (the earlier design excluded them).
+

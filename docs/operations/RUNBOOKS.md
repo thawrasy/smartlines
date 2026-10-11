@@ -273,14 +273,20 @@ section.
 - **Erasure also removes the boarding photo (1086).** `gov.erase_party_photo` clears the reference and deletes the file row in
   the erasure's transaction; the store's daily sweep (`files_sweep`) deletes the bytes after its 24-hour grace period. Taking
   or replacing the photo is checked by the database (`iam.set_party_photo`): the person, or the head of their family.
-- **Photo rules (1087, WP1).** A platform person with `privacy.manage` proposes a rule with `POST /api/admin/photos/rules`:
-  market (the departure country, or none), trip scope, traveller class, passenger category, requirement (`REQUIRED`,
-  `OPTIONAL`, `NOT_APPLICABLE`), effective date and the legal basis. A second person approves it
-  (`POST /api/admin/photos/rules/{uid}/approve`); the proposer cannot. A third person, or anyone but the approver, retires
-  it (`/retire`). With no rule in force the photo is optional. A `REQUIRED` rule refuses a booking for a traveller with no
-  photo on file (`PHOTO_REQUIRED`, 422), and the gate records `PHOTO_REQUIRED` for a passenger without one. A traveller
-  without a linked profile has no photo on file, so a required photo blocks their booking until the profile is linked (WP3).
-  The rule values, and the legal text they cite, are the owner's decision.
+- **Photo rules (1087, WP1; the approval stages 1092).** A platform person with `privacy.manage` proposes a rule with
+  `POST /api/admin/photos/rules`: market (the departure country, or none), trip scope, traveller class, passenger category,
+  requirement (`REQUIRED`, `OPTIONAL`, `NOT_APPLICABLE`), effective date and the legal basis (the platform's own decision
+  reference until a legal text exists). The rule is in force only when its stages are passed, the same stages as the other
+  changes (`photo.approval_stages`): each stage is a different platform person, never the one who proposed it, and never
+  the same person twice. `POST .../rules/{uid}/approve` records a stage; the last one makes the rule APPROVED.
+  - A proposal not yet in force is withdrawn with `POST .../rules/{uid}/withdraw`; this relaxes nothing.
+  - A rule in force is retired through the stages: `POST .../rules/{uid}/retirement` (body `reason`), then
+    `POST .../rules/{uid}/retirement/approve`; `POST .../rules/{uid}/retirement/reject` ends it and the rule stays in force.
+    The rule stays in force until the last stage. The one who asks for a retirement does not approve it, and neither does
+    the person who gave the rule its final approval.
+  - With no rule in force the photo is optional. A `REQUIRED` rule refuses a booking for a traveller with no photo on file
+    (`PHOTO_REQUIRED`, 422), and the gate records `PHOTO_REQUIRED` for a passenger without one. A traveller without a linked
+    profile has no photo on file, so a required photo blocks their booking until the profile is linked (WP3).
 - **Replacing a photo on file (1087, WP4).** The person and the family head cannot. A platform person requests it with
   `POST /api/admin/photos/changes`: the party, a reason, the evidence kind (`CIVIL_REGISTRY_EXTRACT`, `IDENTITY_DOCUMENT` or `PASSPORT`),
   the evidence file and the new photo. A second platform person reads the evidence (`GET .../changes/{uid}/evidence`, audited)

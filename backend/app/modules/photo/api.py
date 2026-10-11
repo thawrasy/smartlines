@@ -60,22 +60,58 @@ async def propose_rule(body: RuleIn, request: Request, pr: Principal = Depends(r
     return {"uid": uid, "status": "PROPOSED"}
 
 
+class RetirementIn(BaseModel):
+    reason: str = Field(min_length=10, max_length=500)
+
+
 @platform.post("/rules/{uid}/approve")
 async def approve_rule(uid: uuid.UUID, request: Request, pr: Principal = Depends(require_portal("PLATFORM"))):
+    """Records this person's stage of a proposal; the rule is in force at the last stage (1092)."""
     privacy_staff(pr)
     async with db.transaction(context_for(request, pr)) as conn:
-        rule_id = await photo.approve_rule(conn, pr, uid)
-    request.state.audit = {"action": "photo.rule_approve", "object_type": "photo_rule", "object_id": rule_id}
-    return {"status": "APPROVED"}
+        out = await photo.approve_rule(conn, pr, uid)
+    action = "photo.rule_approve" if out["status"] == "APPROVED" else "photo.rule_stage"
+    request.state.audit = {"action": action, "object_type": "photo_rule", "object_id": out["rule_id"]}
+    return {"status": out["status"], "approvals": out["approvals"], "stages": out["stages"]}
 
 
-@platform.post("/rules/{uid}/retire")
-async def retire_rule(uid: uuid.UUID, request: Request, pr: Principal = Depends(require_portal("PLATFORM"))):
+@platform.post("/rules/{uid}/withdraw")
+async def withdraw_rule(uid: uuid.UUID, request: Request, pr: Principal = Depends(require_portal("PLATFORM"))):
     privacy_staff(pr)
     async with db.transaction(context_for(request, pr)) as conn:
-        rule_id = await photo.retire_rule(conn, pr, uid)
-    request.state.audit = {"action": "photo.rule_retire", "object_type": "photo_rule", "object_id": rule_id}
+        rule_id = await photo.withdraw_rule(conn, pr, uid)
+    request.state.audit = {"action": "photo.rule_withdraw", "object_type": "photo_rule", "object_id": rule_id}
     return {"status": "RETIRED"}
+
+
+@platform.post("/rules/{uid}/retirement", status_code=201)
+async def request_retirement(uid: uuid.UUID, body: RetirementIn, request: Request,
+                             pr: Principal = Depends(require_portal("PLATFORM"))):
+    """Asks to retire a rule in force; it stays in force until the retirement passes the stages (1092)."""
+    privacy_staff(pr)
+    async with db.transaction(context_for(request, pr)) as conn:
+        rule_id = await photo.request_retirement(conn, pr, uid, body.reason)
+    request.state.audit = {"action": "photo.rule_retirement_request", "object_type": "photo_rule", "object_id": rule_id}
+    return {"status": "RETIRING", "approvals": 0}
+
+
+@platform.post("/rules/{uid}/retirement/approve")
+async def approve_retirement(uid: uuid.UUID, request: Request, pr: Principal = Depends(require_portal("PLATFORM"))):
+    privacy_staff(pr)
+    async with db.transaction(context_for(request, pr)) as conn:
+        out = await photo.approve_retirement(conn, pr, uid)
+    action = "photo.rule_retired" if out["status"] == "RETIRED" else "photo.rule_retirement_stage"
+    request.state.audit = {"action": action, "object_type": "photo_rule", "object_id": out["rule_id"]}
+    return {"status": out["status"], "approvals": out["approvals"], "stages": out["stages"]}
+
+
+@platform.post("/rules/{uid}/retirement/reject")
+async def reject_retirement(uid: uuid.UUID, request: Request, pr: Principal = Depends(require_portal("PLATFORM"))):
+    privacy_staff(pr)
+    async with db.transaction(context_for(request, pr)) as conn:
+        rule_id = await photo.reject_retirement(conn, pr, uid)
+    request.state.audit = {"action": "photo.rule_retirement_reject", "object_type": "photo_rule", "object_id": rule_id}
+    return {"status": "APPROVED"}
 
 
 class EvidenceChangeIn(BaseModel):
@@ -88,8 +124,15 @@ class AgeChangeIn(BaseModel):
     reason: str = Field(min_length=10, max_length=500)
 
 
+class RequirementIn(BaseModel):
+    requirement: Literal["REQUIRED", "OPTIONAL"]
+    reason: str = Field(min_length=10, max_length=500)
+
+
 @platform.get("/evidence-kinds")
 async def settings(request: Request, pr: Principal = Depends(require_portal("PLATFORM"))):
+    """What the platform sets for a photo change: the accepted documents, the age rule, the approval stages and the data
+    items that are required or optional (1088-1091)."""
     privacy_staff(pr)
     async with db.transaction(context_for(request, pr)) as conn:
         return await photo.settings_view(conn)
@@ -98,7 +141,7 @@ async def settings(request: Request, pr: Principal = Depends(require_portal("PLA
 @platform.post("/evidence-kinds/{code}/changes", status_code=201)
 async def request_evidence_change(code: str, body: EvidenceChangeIn, request: Request,
                                   pr: Principal = Depends(require_portal("PLATFORM"))):
-    """Asks to switch a kind of evidence on or off; a second person approves it (1089)."""
+    """Asks to switch a kind of evidence on or off; it passes the approval stages (1089, 1091)."""
     privacy_staff(pr)
     async with db.transaction(context_for(request, pr)) as conn:
         uid, change_id = await photo.request_evidence_change(conn, pr, code, body.active, body.reason)
@@ -108,17 +151,12 @@ async def request_evidence_change(code: str, body: EvidenceChangeIn, request: Re
 
 @platform.post("/identity-age/changes", status_code=201)
 async def request_identity_age(body: AgeChangeIn, request: Request, pr: Principal = Depends(require_portal("PLATFORM"))):
-    """Asks to set (or clear) the age below which a national identity card is not accepted; a second person approves it."""
+    """Asks to set (or clear) the age below which a national identity card is not accepted; it passes the stages."""
     privacy_staff(pr)
     async with db.transaction(context_for(request, pr)) as conn:
         uid, change_id = await photo.request_identity_age(conn, pr, body.min_age, body.reason)
     request.state.audit = {"action": "photo.policy_request", "object_type": "photo_policy_change", "object_id": change_id}
     return {"uid": uid, "status": "PENDING", "approvals": 0}
-
-
-class RequirementIn(BaseModel):
-    requirement: Literal["REQUIRED", "OPTIONAL"]
-    reason: str = Field(min_length=10, max_length=500)
 
 
 @platform.post("/data-requirements/{field}/changes", status_code=201)
@@ -144,7 +182,8 @@ async def approve_policy_change(uid: uuid.UUID, request: Request, pr: Principal 
     privacy_staff(pr)
     async with db.transaction(context_for(request, pr)) as conn:
         out = await photo.approve_policy_change(conn, pr, uid)
-    request.state.audit = {"action": "photo.policy_approve", "object_type": "photo_policy_change", "object_id": out["change_id"]}
+    action = "photo.policy_approve" if out["status"] == "APPLIED" else "photo.policy_stage"
+    request.state.audit = {"action": action, "object_type": "photo_policy_change", "object_id": out["change_id"]}
     return {"status": out["status"], "approvals": out["approvals"], "stages": out["stages"]}
 
 

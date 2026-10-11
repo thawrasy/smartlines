@@ -14,8 +14,8 @@ supporting index, except references to lookup lists and to the staff member who 
 |---|---|
 | Engine | PostgreSQL 16 with PostGIS 3 (extensions: pgcrypto, citext, btree_gist, pg_trgm, postgis in schema `gis`; Docker and CI image `postgis/postgis:16-3.4`, Ubuntu package `postgresql-16-postgis-3`) |
 | Schemas | 26 separate schemas, each with its own privileges |
-| Tables | 511 tables (8 partitioned), 5,237 columns, 1,460 foreign keys |
-| Security | row-level security on 511 of 511 tables, 934 policies; 435 triggers, 311 functions |
+| Tables | 511 tables (8 partitioned), 5,243 columns, 1,461 foreign keys |
+| Security | row-level security on 511 of 511 tables, 934 policies; 435 triggers, 314 functions |
 | Tests | 515 automated checks against a freshly built database (`db/tests/run.sh`) |
 | Design | [Database design and ERD document](../docs/database/) with diagrams in the study's colors |
 | Docs | [Data dictionary](DATA_DICTIONARY.md) · [ERD diagrams](ERD.md) (both generated from the database) |
@@ -148,6 +148,7 @@ PostGIS in `gis`. Until 9 October 2026 a first start of the Docker stack stopped
 | `1089_photo_policy_approvals.sql` | A change to the documents accepted for a photo change, and to the age below which a national identity card is not accepted, needs two people: the one who asks counts as the first approval and the number in the settings (never below two) applies (`iam.photo_policy_change`, `iam.photo_policy_approval`, `iam.request_photo_policy_change`, `iam.approve_photo_policy_change`, `iam.reject_photo_policy_change`). `iam.evidence_accepted` is the rule a request is checked against, with the age; the one-person switch of 1088 is withdrawn. The settings are `sys.setting` keys. Nothing new refers to the tables except the approvals, so no reference cycle |
 | `1090_photo_evidence_national.sql` | The documents accepted nationally for a photo change: the national identity card, the civil registry extract that shows the national number, the passport, the travel document issued by a Syrian mission abroad (for Syrian citizens only), and the temporary identity document of the first phase (to be switched off later). A new flag on the kinds marks those under the age rule of the identity card; `iam.evidence_accepted` applies the nationality condition and the age rule. No table is added, so no reference cycle |
 | `1091_photo_approval_stages.sql` | The approval stages of a photo change and of a change to the photo policy are a platform setting (`photo.approval_stages`, by default a checker and a final approval; at least two); each change snapshots them when it is asked; one approval table for both kinds (`iam.photo_approval`); the age default is 18; the data items a photo change needs are required or optional by setting (`iam.data_requirement`, `iam.data_requirement_met`); the change of a photo on file passes the stages (`iam.approve_photo_change`). Nothing new refers to the approvals except the requests, so no reference cycle |
+| `1092_photo_rule_stages.sql` | The approval stages apply to the photo rules: a proposal is in force when its stages are passed (`iam.approve_photo_rule`); a proposal not yet in force is withdrawn (`iam.withdraw_photo_rule`); a rule in force is retired through its own stages, and stays in force until they are passed (`iam.request_photo_rule_retirement`, `iam.approve_photo_rule_retirement`, `iam.reject_photo_rule_retirement`); the retirement has its own approval subject, from a sequence; `iam.photo_requirement` counts a rule being retired as in force. Nothing new refers to the rules except the approvals, so no reference cycle |
 
 ## Design rules (study 29.1)
 

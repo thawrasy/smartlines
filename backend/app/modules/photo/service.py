@@ -124,38 +124,85 @@ async def propose_rule(conn, pr: Principal, body) -> str:
 
 
 async def rule_row(conn, uid: uuid.UUID):
-    row = await conn.fetchrow("SELECT id, status, proposed_by_user_id, approved_by_user_id FROM iam.photo_rule WHERE uid = $1", uid)
+    row = await conn.fetchrow(
+        """SELECT id, status, proposed_by_user_id, approved_by_user_id, approval_stages, retirement_request_id,
+                  retirement_requested_by_user_id, retirement_stages
+             FROM iam.photo_rule WHERE uid = $1""", uid)
     if row is None:
         raise not_found("photo rule")
     return row
 
 
-async def approve_rule(conn, pr: Principal, uid: uuid.UUID) -> int:
+async def approve_rule(conn, pr: Principal, uid: uuid.UUID) -> dict:
+    """Records this person's stage of a proposal; the rule is in force at the last stage (1092)."""
     r = await rule_row(conn, uid)
     if r["status"] != "PROPOSED":
         raise ApiError(409, "NOT_PROPOSED", "the rule is not waiting for approval")
     if r["proposed_by_user_id"] == pr.user_id:
-        raise ApiError(409, "FOUR_EYES", "a second platform person approves the rule")
-    await conn.execute("SELECT iam.approve_photo_rule($1)", uid)
+        raise ApiError(409, "FOUR_EYES", "the one who proposes the rule does not approve it")
+    if await _already(conn, "RULE", r["id"], pr.user_id):
+        raise ApiError(409, "ALREADY_APPROVED", "this person has already approved the rule")
+    status = await conn.fetchval("SELECT iam.approve_photo_rule($1)", uid)
+    return {"status": status, "rule_id": r["id"], **(await _approvals(conn, "RULE", r["id"], r["approval_stages"]))}
+
+
+async def withdraw_rule(conn, pr: Principal, uid: uuid.UUID) -> int:
+    """Ends a proposal that is not yet in force; nothing is relaxed by it."""
+    r = await rule_row(conn, uid)
+    if r["status"] != "PROPOSED":
+        raise ApiError(409, "NOT_PROPOSED", "only a proposal that is not yet in force is withdrawn")
+    await conn.execute("SELECT iam.withdraw_photo_rule($1)", uid)
     return r["id"]
 
 
-async def retire_rule(conn, pr: Principal, uid: uuid.UUID) -> int:
+async def request_retirement(conn, pr: Principal, uid: uuid.UUID, reason: str) -> int:
+    """Asks to retire a rule in force; it stays in force until its retirement passes the stages (1092)."""
     r = await rule_row(conn, uid)
-    if r["status"] == "RETIRED":
-        raise ApiError(409, "NOT_RETIRABLE", "the rule is already retired")
-    if r["status"] == "APPROVED" and r["approved_by_user_id"] == pr.user_id:
-        raise ApiError(409, "FOUR_EYES", "a second platform person retires an approved rule")
-    await conn.execute("SELECT iam.retire_photo_rule($1)", uid)
+    if r["status"] != "APPROVED":
+        raise ApiError(409, "NOT_APPROVED", "only a rule in force is retired, through its stages")
+    await conn.execute("SELECT iam.request_photo_rule_retirement($1, $2)", uid, reason)
+    return r["id"]
+
+
+async def approve_retirement(conn, pr: Principal, uid: uuid.UUID) -> dict:
+    r = await rule_row(conn, uid)
+    if r["status"] != "RETIRING":
+        raise ApiError(409, "NOT_PENDING", "the retirement is not waiting for approval")
+    if r["retirement_requested_by_user_id"] == pr.user_id:
+        raise ApiError(409, "FOUR_EYES", "the one who asks for the retirement does not approve it")
+    if r["approved_by_user_id"] == pr.user_id:
+        raise ApiError(409, "FOUR_EYES", "the person who gave the final approval of the rule does not retire it")
+    if await _already(conn, "RULE_RETIREMENT", r["retirement_request_id"], pr.user_id):
+        raise ApiError(409, "ALREADY_APPROVED", "this person has already approved the retirement")
+    status = await conn.fetchval("SELECT iam.approve_photo_rule_retirement($1)", uid)
+    return {"status": status, "rule_id": r["id"],
+            **(await _approvals(conn, "RULE_RETIREMENT", r["retirement_request_id"], r["retirement_stages"]))}
+
+
+async def reject_retirement(conn, pr: Principal, uid: uuid.UUID) -> int:
+    r = await rule_row(conn, uid)
+    if r["status"] != "RETIRING":
+        raise ApiError(409, "NOT_PENDING", "the retirement is not waiting for a decision")
+    await conn.execute("SELECT iam.reject_photo_rule_retirement($1)", uid)
     return r["id"]
 
 
 async def list_rules(conn) -> list[dict]:
     rows = await conn.fetch(
-        """SELECT uid, market, trip_scope, traveller_class, passenger_category, requirement, effective_from, effective_to,
-                  legal_basis, status, proposed_at, approved_at, retired_at
-             FROM iam.photo_rule ORDER BY proposed_at DESC LIMIT 200""")
-    return [dict(r) | {"uid": str(r["uid"])} for r in rows]
+        """SELECT r.id, r.uid, r.market, r.trip_scope, r.traveller_class, r.passenger_category, r.requirement,
+                  r.effective_from, r.effective_to, r.legal_basis, r.status, r.proposed_at, r.approved_at, r.retired_at,
+                  r.approval_stages, r.retirement_reason, r.retirement_stages, r.retirement_request_id,
+                  (SELECT count(*) FROM iam.photo_approval a WHERE a.subject_type = 'RULE' AND a.subject_id = r.id) AS approvals,
+                  (SELECT count(*) FROM iam.photo_approval a
+                    WHERE a.subject_type = 'RULE_RETIREMENT' AND a.subject_id = r.retirement_request_id) AS retirement_approvals
+             FROM iam.photo_rule r ORDER BY r.proposed_at DESC LIMIT 200""")
+    out = []
+    for r in rows:
+        item = {k: v for k, v in dict(r).items()
+                if k not in ("id", "uid", "approval_stages", "retirement_stages", "retirement_request_id")}
+        out.append(item | {"uid": str(r["uid"]), "stages": _jsonb(r["approval_stages"]),
+                           "retirement_stages": _jsonb(r["retirement_stages"])})
+    return out
 
 
 # ---- WP4: the platform changes a photo on file -----------------------------------------------------------------

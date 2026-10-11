@@ -13,6 +13,7 @@ from test_families import body, funded, make_family, person, years_ago
 ADMIN = ("admin@masslak.test", "PLATFORM")
 SECOND = ("security@masslak.test", "PLATFORM")
 PRIVACY = ("privacy@masslak.test", "PLATFORM")
+PRIVACY2 = ("privacy2@masslak.test", "PLATFORM")
 
 
 def staff(who):
@@ -27,13 +28,26 @@ def propose(c, **kw):
     return c.post("/api/admin/photos/rules", json=data)
 
 
-def active_child_rule(admin, sec):
-    """A rule that requires a photo for children, approved by the second person; the caller retires it."""
+def rule_status(admin, uid: str) -> str:
+    return next(x["status"] for x in admin.get("/api/admin/photos/rules").json()["rules"] if x["uid"] == uid)
+
+
+def active_child_rule(admin, sec, privacy):
+    """A rule that requires a photo for children, passed through its stages; the caller retires it."""
     r = propose(admin, passenger_category="CHILD")
     assert r.status_code == 201, r.text
     uid = r.json()["uid"]
-    assert sec.post(f"/api/admin/photos/rules/{uid}/approve").status_code == 200
+    assert approve_through("/api/admin/photos/rules", uid, sec, privacy)["status"] == "APPROVED"
     return uid
+
+
+def retire_child_rule(admin, sec, privacy2, uid: str):
+    """The retirement of a rule in force, asked by the admin and passed through its stages: the checker, then the
+    final approval by a person who did not give the rule its final approval."""
+    r = admin.post(f"/api/admin/photos/rules/{uid}/retirement", json={"reason": "test: the rule is retired after its test"})
+    assert r.status_code == 201, r.text
+    assert sec.post(f"/api/admin/photos/rules/{uid}/retirement/approve").json()["status"] == "PENDING"
+    assert privacy2.post(f"/api/admin/photos/rules/{uid}/retirement/approve").json()["status"] == "RETIRED"
 
 
 def ticket_of(booking_ref, category):
@@ -56,29 +70,62 @@ def scan(trip_uid, driver, token):
     return driver.post("/api/driver/scan", json={"trip_uid": trip_uid, "token": token}).json()["result"]
 
 
-def test_a_rule_needs_two_platform_people_and_a_legal_basis():
-    admin, sec = staff(ADMIN), staff(SECOND)
+def test_a_rule_passes_its_stages_and_its_retirement_passes_the_same_stages():
+    admin, sec, privacy, privacy2 = staff(ADMIN), staff(SECOND), staff(PRIVACY), staff(PRIVACY2)
     assert new_passenger().get("/api/admin/photos/rules").status_code == 403
     assert propose(admin, legal_basis="x").status_code == 422
     assert propose(admin, market="ZZ").json()["error"]["code"] == "MARKET_UNKNOWN"
     uid = propose(admin, passenger_category="CHILD").json()["uid"]
     try:
-        r = admin.post(f"/api/admin/photos/rules/{uid}/approve")
-        assert r.status_code == 409 and r.json()["error"]["code"] == "FOUR_EYES", r.text
-        assert sec.post(f"/api/admin/photos/rules/{uid}/approve").json()["status"] == "APPROVED"
-        r = sec.post(f"/api/admin/photos/rules/{uid}/retire")
-        assert r.status_code == 409 and r.json()["error"]["code"] == "FOUR_EYES", r.text
-        assert admin.post(f"/api/admin/photos/rules/{uid}/retire").json()["status"] == "RETIRED"
-        r = sec.post(f"/api/admin/photos/rules/{uid}/retire")
-        assert r.status_code == 409 and r.json()["error"]["code"] == "NOT_RETIRABLE", r.text
+        # the one who proposes does not approve; the first stage is recorded; the rule is in force at the last
+        assert admin.post(f"/api/admin/photos/rules/{uid}/approve").json()["error"]["code"] == "FOUR_EYES"
+        first = sec.post(f"/api/admin/photos/rules/{uid}/approve")
+        assert first.status_code == 200 and first.json()["status"] == "PENDING" and first.json()["approvals"] == 1, first.text
+        assert first.json()["stages"] == ["CHECK", "APPROVE"]
+        assert sec.post(f"/api/admin/photos/rules/{uid}/approve").json()["error"]["code"] == "ALREADY_APPROVED"
+        last = privacy.post(f"/api/admin/photos/rules/{uid}/approve")
+        assert last.status_code == 200 and last.json()["status"] == "APPROVED" and last.json()["approvals"] == 2, last.text
+        assert privacy.post(f"/api/admin/photos/rules/{uid}/approve").json()["error"]["code"] == "NOT_PROPOSED"
+
+        # the retirement of a rule in force: it stays in force until the last stage; the one who asks does not approve it,
+        # and neither does the final approver of the rule
+        r = sec.post(f"/api/admin/photos/rules/{uid}/retirement", json={"reason": "test: the rule is no longer needed"})
+        assert r.status_code == 201 and r.json()["status"] == "RETIRING", r.text
+        assert sec.post(f"/api/admin/photos/rules/{uid}/retirement/approve").json()["error"]["code"] == "FOUR_EYES"
+        assert privacy.post(f"/api/admin/photos/rules/{uid}/retirement/approve").json()["error"]["code"] == "FOUR_EYES"
+        assert admin.post(f"/api/admin/photos/rules/{uid}/retirement/approve").json()["status"] == "PENDING"
+        assert admin.post(f"/api/admin/photos/rules/{uid}/retirement/approve").json()["error"]["code"] == "ALREADY_APPROVED"
+        assert privacy2.post(f"/api/admin/photos/rules/{uid}/retirement/approve").json()["status"] == "RETIRED"
+        assert admin.post(f"/api/admin/photos/rules/{uid}/retirement/approve").json()["error"]["code"] == "NOT_PENDING"
         listed = next(x for x in admin.get("/api/admin/photos/rules").json()["rules"] if x["uid"] == uid)
         assert listed["status"] == "RETIRED" and listed["requirement"] == "REQUIRED"
+        assert listed["stages"] == ["CHECK", "APPROVE"] and listed["retirement_stages"] == ["CHECK", "APPROVE"]
     finally:
-        admin.post(f"/api/admin/photos/rules/{uid}/retire")
+        if rule_status(admin, uid) == "APPROVED":
+            retire_child_rule(admin, sec, privacy2, uid)
+
+
+def test_a_proposal_can_be_withdrawn_and_a_turned_down_retirement_keeps_the_rule_in_force():
+    admin, sec, privacy, privacy2 = staff(ADMIN), staff(SECOND), staff(PRIVACY), staff(PRIVACY2)
+    withdrawn = propose(admin, passenger_category="CHILD").json()["uid"]
+    r = sec.post(f"/api/admin/photos/rules/{withdrawn}/withdraw")
+    assert r.status_code == 200 and r.json()["status"] == "RETIRED", r.text
+    assert sec.post(f"/api/admin/photos/rules/{withdrawn}/approve").json()["error"]["code"] == "NOT_PROPOSED"
+    assert rule_status(admin, withdrawn) == "RETIRED"
+
+    uid = active_child_rule(admin, sec, privacy)
+    try:
+        assert admin.post(f"/api/admin/photos/rules/{uid}/retirement", json={"reason": "test: asked and then turned down"}).status_code == 201
+        assert sec.post(f"/api/admin/photos/rules/{uid}/retirement/reject").json()["status"] == "APPROVED"
+        assert rule_status(admin, uid) == "APPROVED"                  # the rule is still in force
+        assert admin.post(f"/api/admin/photos/rules/{uid}/retirement/approve").json()["error"]["code"] == "NOT_PENDING"
+    finally:
+        if rule_status(admin, uid) == "APPROVED":
+            retire_child_rule(admin, sec, privacy2, uid)
 
 
 def test_a_required_photo_refuses_an_unlinked_child_at_booking_and_at_the_gate(trip):
-    admin, sec = staff(ADMIN), staff(SECOND)
+    admin, sec, privacy, privacy2 = staff(ADMIN), staff(SECOND), staff(PRIVACY), staff(PRIVACY2)
     c = funded(new_passenger())
     # an adult travels with the child; the first child is booked before the rule, the rule then refuses the second,
     # and the gate refuses the first (no cancellation: the ticket stays issued)
@@ -88,7 +135,7 @@ def test_a_required_photo_refuses_an_unlinked_child_at_booking_and_at_the_gate(t
     assert first.status_code == 201, first.text
     token = c.get(f"/api/tickets/{ticket_of(first.json()['booking_ref'], 'CHILD')}/qr").json()["token"]
     ticket = ticket_of(first.json()["booking_ref"], "CHILD")
-    uid = active_child_rule(admin, sec)
+    uid = active_child_rule(admin, sec, privacy)
     try:
         seats = free_seats(c, trip, 2)
         people = [person(seats[0]), person(seats[1], "Sami", birth_date=years_ago(7))]
@@ -97,18 +144,18 @@ def test_a_required_photo_refuses_an_unlinked_child_at_booking_and_at_the_gate(t
         assert scan(trip["uid"], assigned_driver(trip["uid"]), token) == "PHOTO_REQUIRED"
         assert ticket_status(ticket) == "ISSUED"
     finally:
-        admin.post(f"/api/admin/photos/rules/{uid}/retire")
+        retire_child_rule(admin, sec, privacy2, uid)
 
 
 def test_a_linked_member_boards_under_the_rule_once_a_photo_is_on_file(trip):
-    admin, sec = staff(ADMIN), staff(SECOND)
+    admin, sec, privacy, privacy2 = staff(ADMIN), staff(SECOND), staff(PRIVACY), staff(PRIVACY2)
     head = funded(new_passenger())
     fam = make_family(head, ("SON", "Sami", years_ago(7), {}))
 
     def people(seats):
         return [person(seats[0], family_member_uid=fam["SELF"]["uid"]), person(seats[1], family_member_uid=fam["Sami"]["uid"])]
 
-    uid = active_child_rule(admin, sec)
+    uid = active_child_rule(admin, sec, privacy)
     try:
         seats = free_seats(head, trip, 2)
         r = head.post("/api/bookings", json=body(trip, people(seats), hold(head, trip, seats).json()["hold_token"]))
@@ -122,7 +169,7 @@ def test_a_linked_member_boards_under_the_rule_once_a_photo_is_on_file(trip):
         token = head.get(f"/api/tickets/{ticket}/qr").json()["token"]
         assert scan(trip["uid"], assigned_driver(trip["uid"]), token) == "OK"
     finally:
-        admin.post(f"/api/admin/photos/rules/{uid}/retire")
+        retire_child_rule(admin, sec, privacy2, uid)
 
 
 def approve_through(path: str, uid: str, *approvers) -> dict:
