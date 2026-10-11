@@ -1,6 +1,7 @@
 """The boarding photo (migration 1086): taken when the profile is created, kept while the account exists, read at
 boarding only by the assigned driver and the carrier's office, every read audited, removed by an erasure request."""
 import uuid
+from datetime import date, timedelta
 
 import pytest
 
@@ -21,18 +22,37 @@ SWITCH_CHECKER = ("security@masslak.test", "PLATFORM")
 SWITCH_FINAL = ("privacy2@masslak.test", "PLATFORM")
 
 
-def switch_on():
-    """The boarding photo is switched on through an approved change (1094), once per database; a no-op after that."""
+def switch_on(enforce: bool = True):
+    """The boarding photo is switched on through an approved change (1094), once per database; with enforce, its rules are
+    enforced from yesterday (1096: nothing is enforced before the date the platform sets). A no-op after that."""
     admin = login(*SWITCH_ADMIN)
-    if admin.get("/api/admin/photos/evidence-kinds").json()["enabled"]:
-        return
-    r = admin.post("/api/admin/photos/feature/changes", json={
-        "enabled": True, "legal_basis": "test: the switch is set by a decision with a legal basis (1094)",
-        "reason": "the photo tests need the feature on (1094)"})
+    if not admin.get("/api/admin/photos/evidence-kinds").json()["enabled"]:
+        r = admin.post("/api/admin/photos/feature/changes", json={
+            "enabled": True, "legal_basis": "test: the switch is set by a decision with a legal basis (1094)",
+            "reason": "the photo tests need the feature on (1094)"})
+        assert r.status_code == 201, r.text
+        uid = r.json()["uid"]
+        assert login(*SWITCH_CHECKER).post(f"/api/admin/photos/policy-changes/{uid}/approve").json()["status"] == "PENDING"
+        assert login(*SWITCH_FINAL).post(f"/api/admin/photos/policy-changes/{uid}/approve").json()["status"] == "APPLIED"
+    enforced = admin.get("/api/admin/photos/evidence-kinds").json()["enforce_from"]
+    if enforce and enforced is None:
+        change_setting("photo.enforce_from", (date.today() - timedelta(days=1)).isoformat(), "the photo rules are enforced (1096)")
+    if not enforce and enforced is not None:
+        change_setting("photo.enforce_from", None, "no enforcement date before a test that checks the launch values (1096)")
+
+
+def change_setting(key: str, value, reason: str = "test of the photo settings (1096)"):
+    """A photo setting changed through its approval stages (1096): asked by the admin, checked, then applied."""
+    admin = login(*SWITCH_ADMIN)
+    r = admin.post("/api/admin/photos/settings/changes", json={"key": key, "value": value, "reason": reason})
     assert r.status_code == 201, r.text
     uid = r.json()["uid"]
     assert login(*SWITCH_CHECKER).post(f"/api/admin/photos/policy-changes/{uid}/approve").json()["status"] == "PENDING"
     assert login(*SWITCH_FINAL).post(f"/api/admin/photos/policy-changes/{uid}/approve").json()["status"] == "APPLIED"
+
+
+def view_access():
+    return login(*SWITCH_ADMIN).get("/api/admin/photos/evidence-kinds").json()["view_access"]
 
 
 @pytest.fixture(autouse=True)
@@ -121,15 +141,31 @@ def test_boarding_shows_the_photo_to_the_assigned_driver_and_the_office_only(tri
 
     sami, lina = ticket_of(fam["Sami"]["uid"]), ticket_of(fam["Lina"]["uid"])
     driver = assigned_driver(trip["uid"])
-    r = driver.get(f"/api/driver/trips/{trip['uid']}/tickets/{sami}/photo")
-    assert r.status_code == 200 and r.content == JPEG and r.headers["content-type"].startswith("image/jpeg"), r.text
-    r = driver.get(f"/api/driver/trips/{trip['uid']}/tickets/{lina}/photo")
-    assert r.status_code == 404 and r.json()["error"]["code"] == "PHOTO_NONE", r.text
-    assert head.get(f"/api/driver/trips/{trip['uid']}/tickets/{sami}/photo").status_code == 403       # a passenger is no driver
     office = login("owner@carrier.test", "OPERATOR")
-    r = office.get(f"/api/carrier/trips/{trip['uid']}/tickets/{sami}/photo")
-    assert r.status_code == 200 and r.content == JPEG, r.text
-    assert head.get(f"/api/carrier/trips/{trip['uid']}/tickets/{sami}/photo").status_code == 403
+    # the photo is shown only while the trip is boarding (1096): before that, the driver is told so
+    original = owner_sql("SELECT status FROM ops.trip WHERE uid = $1", uuid.UUID(trip["uid"]))
+    r = driver.get(f"/api/driver/trips/{trip['uid']}/tickets/{sami}/photo")
+    assert r.status_code == 409 and r.json()["error"]["code"] == "NOT_BOARDING", r.text
+    owner_sql("UPDATE ops.trip SET status = 'BOARDING' WHERE uid = $1", uuid.UUID(trip["uid"]))
+    try:
+        r = driver.get(f"/api/driver/trips/{trip['uid']}/tickets/{sami}/photo")
+        assert r.status_code == 200 and r.content == JPEG and r.headers["content-type"].startswith("image/jpeg"), r.text
+        r = driver.get(f"/api/driver/trips/{trip['uid']}/tickets/{lina}/photo")
+        assert r.status_code == 404 and r.json()["error"]["code"] == "PHOTO_NONE", r.text
+        assert head.get(f"/api/driver/trips/{trip['uid']}/tickets/{sami}/photo").status_code == 403   # a passenger is no driver
+        # the office sees it only when the platform lets the office see it (1096): not by default
+        r = office.get(f"/api/carrier/trips/{trip['uid']}/tickets/{sami}/photo")
+        assert r.status_code == 403 and r.json()["error"]["code"] == "PHOTO_VIEW_NOT_ALLOWED", r.text
+        access = dict(view_access(), CARRIER_OFFICE_AT_BOARDING=True)
+        change_setting("photo.view_access", access)
+        try:
+            r = office.get(f"/api/carrier/trips/{trip['uid']}/tickets/{sami}/photo")
+            assert r.status_code == 200 and r.content == JPEG, r.text
+        finally:
+            change_setting("photo.view_access", dict(access, CARRIER_OFFICE_AT_BOARDING=False))
+        assert head.get(f"/api/carrier/trips/{trip['uid']}/tickets/{sami}/photo").status_code == 403
+    finally:
+        owner_sql("UPDATE ops.trip SET status = $2 WHERE uid = $1", uuid.UUID(trip["uid"]), original)
     # every read is in the activity log, with the viewer and the person (never the picture)
     party = owner_sql("SELECT m.party_id FROM iam.family_member m WHERE m.uid = $1", uuid.UUID(fam["Sami"]["uid"]))
     reads = owner_sql("SELECT count(*) FROM audit.activity_log WHERE action = 'photo.view' AND object_id::text = $1", str(party))

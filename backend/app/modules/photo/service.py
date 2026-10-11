@@ -9,7 +9,9 @@ Whether a photo is required is decided by the rules of iam.photo_rule (WP1), rea
 that requires it turns a traveller away when no photo is on file; with no rule in force the photo is optional.
 """
 import json
+import re
 import uuid
+from datetime import date
 
 from ... import crypto, db
 from ...config import get_settings
@@ -18,6 +20,8 @@ from ...errors import ApiError, forbidden, not_found
 from ..documents import scanner, storage
 
 PHOTO_TYPES = ("image/jpeg", "image/png")
+VIEW_CONTEXTS = ("TRAVELER", "DRIVER_AT_BOARDING", "CARRIER_OFFICE_AT_BOARDING", "AGENT")
+PHOTO_SETTINGS = ("photo.view_access", "photo.verify_every_days", "photo.enforce_from", "photo.identity_provider")
 EVIDENCE_TYPES = ("application/pdf", "image/jpeg", "image/png")
 
 
@@ -82,12 +86,18 @@ async def status(conn, ctx: db.Context, pr: Principal) -> dict:
     return {"has_photo": True, "taken_at": row["taken_at"].isoformat(), "taken_by": row["taken_by"]}
 
 
-async def read_for_ticket(conn, ctx: db.Context, trip_id: int, ticket_uid: uuid.UUID) -> tuple[int, bytes, str]:
-    """The photo of the passenger on a ticket of this trip: (party id, bytes, type). A passenger without a linked profile,
-    or without a photo, has none (PHOTO_NONE)."""
+async def read_for_ticket(conn, ctx: db.Context, trip_id: int, ticket_uid: uuid.UUID, context: str) -> tuple[int, bytes, str]:
+    """The photo of the passenger on a ticket of this trip: (party id, bytes, type). The role (context) must be allowed to
+    see it by the platform's settings (1096), and the trip must be boarding: the photo is shown only at boarding. A passenger
+    without a linked profile, or without a photo, has none (PHOTO_NONE)."""
     if not await switched_on(conn):
         raise ApiError(404, "PHOTO_DISABLED", "the boarding photo is not in use on this platform")
+    if not await view_allowed(conn, context):
+        raise ApiError(403, "PHOTO_VIEW_NOT_ALLOWED", "the platform does not let this role see the boarding photo")
     async with db.system_scope(conn, ctx):
+        trip_status = await conn.fetchval("SELECT status FROM ops.trip WHERE id = $1", trip_id)
+        if trip_status != "BOARDING":
+            raise ApiError(409, "NOT_BOARDING", "the photo is shown only while the trip is boarding")
         row = await conn.fetchrow(
             """SELECT p.party_id, f.storage_key, f.enc_key_id, f.sha256, f.mime_type, f.scan_status
                  FROM sales.ticket k
@@ -106,6 +116,85 @@ async def read_for_ticket(conn, ctx: db.Context, trip_id: int, ticket_uid: uuid.
     return row["party_id"], data, row["mime_type"]
 
 
+async def read_own(conn, ctx: db.Context, pr: Principal) -> tuple[bytes, str]:
+    """The traveler's own photo, on request in the app (1096): when the platform allows the traveler to see it."""
+    if not await switched_on(conn):
+        raise ApiError(404, "PHOTO_DISABLED", "the boarding photo is not in use on this platform")
+    if not await view_allowed(conn, "TRAVELER"):
+        raise ApiError(403, "PHOTO_VIEW_NOT_ALLOWED", "the platform does not let the traveler see the photo")
+    async with db.system_scope(conn, ctx):
+        row = await conn.fetchrow(
+            """SELECT f.storage_key, f.enc_key_id, f.sha256, f.mime_type, f.scan_status
+                 FROM iam.party_photo pp JOIN ref.file_object f ON f.id = pp.file_id
+                WHERE pp.party_id = $1""", pr.party_id)
+        if row is None:
+            raise ApiError(404, "PHOTO_NONE", "no photo is on file")
+        if row["scan_status"] != "CLEAN":
+            raise ApiError(409, "FILE_NOT_CLEAN", "the photo is not available until it passes the security scan")
+        fc = await crypto.cipher(conn)
+        data = await storage.get(fc, row["storage_key"], row["enc_key_id"], bytes(row["sha256"]))
+    return data, row["mime_type"]
+
+
+async def setting(conn, key: str):
+    """A photo setting as the platform holds it (1096); only the photo's own keys are read."""
+    return _jsonb(await conn.fetchval("SELECT iam.photo_setting($1)", key))
+
+
+async def view_allowed(conn, context: str) -> bool:
+    """Whether the platform lets this role see the boarding photo (the view access setting, 1096)."""
+    access = await setting(conn, "photo.view_access") or {}
+    return bool(access.get(context, False))
+
+
+async def enforcement_started(conn) -> bool:
+    """Whether the photo rules in force are enforced: from the date the platform sets, never before it (1096)."""
+    start = await setting(conn, "photo.enforce_from")
+    return bool(start) and date.today() >= date.fromisoformat(start)
+
+
+async def verify_identity(conn, pr: Principal) -> dict:
+    """Checks the person with the identity provider the platform holds (1096). None is connected yet: the check refuses,
+    and the photo is unchanged. Providers are added in the database and here, not switched on by a setting alone."""
+    provider = await setting(conn, "photo.identity_provider")
+    if provider == "NONE" or provider is None:
+        raise ApiError(409, "IDENTITY_PROVIDER_NOT_CONFIGURED", "no identity verification provider is connected to the platform")
+    raise ApiError(501, "IDENTITY_PROVIDER_NOT_IMPLEMENTED", "the connected identity provider has no adapter yet")
+
+
+def setting_problem(key: str, value) -> str | None:
+    """What is wrong with a photo setting's new value, or None (the database checks the same rules, 1096)."""
+    if key not in PHOTO_SETTINGS:
+        return "not a photo setting"
+    if key == "photo.view_access":
+        if not isinstance(value, dict) or set(value) != set(VIEW_CONTEXTS) or not all(isinstance(v, bool) for v in value.values()):
+            return "the view access is true or false for each of the four roles"
+    elif key == "photo.verify_every_days":
+        if value is not None and not (isinstance(value, int) and not isinstance(value, bool) and 1 <= value <= 365):
+            return "the days are a whole number from 1 to 365, or null"
+    elif key == "photo.enforce_from":
+        if value is not None:
+            if not (isinstance(value, str) and re.fullmatch(r"\d{4}-\d{2}-\d{2}", value)):
+                return "the date is YYYY-MM-DD, or null"
+            try:
+                date.fromisoformat(value)
+            except ValueError:
+                return "the date does not exist"
+    elif key == "photo.identity_provider":
+        if value != "NONE":
+            return "no identity provider is connected yet (NONE)"
+    return None
+
+
+async def request_setting_change(conn, pr: Principal, key: str, value, reason: str) -> tuple[str, int]:
+    """Asks to change a photo setting; it passes the approval stages like the other changes (1096)."""
+    problem = setting_problem(key, value)
+    if problem:
+        raise ApiError(422, "INVALID_SETTING", problem)
+    uid = await conn.fetchval("SELECT iam.request_photo_setting_change($1, $2::jsonb, $3)", key, json.dumps(value), reason)
+    return str(uid), (await policy_change_row(conn, uid))["id"]
+
+
 # ---- WP1: the policy -------------------------------------------------------------------------------------------
 
 async def requirement(conn, trip_id: int, nationality: str, category: str | None, transit: bool = False) -> str:
@@ -118,7 +207,7 @@ async def requirement(conn, trip_id: int, nationality: str, category: str | None
 async def missing(conn, ctx: db.Context, trip_id: int, nationality: str, category: str | None, party_id: int | None) -> bool:
     """True when a photo is required for this traveller on this trip and none is on file. A traveller without a linked
     profile has no photo on file, so a required photo cannot be shown for them. While the photo is off, none is required."""
-    if not await switched_on(conn):
+    if not await switched_on(conn) or not await enforcement_started(conn):
         return False
     if await requirement(conn, trip_id, nationality, category) != "REQUIRED":
         return False
@@ -322,7 +411,11 @@ async def settings_view(conn) -> dict:
     kinds = [dict(r) for r in await conn.fetch("SELECT code, label, active, age_rule FROM iam.photo_evidence_kind ORDER BY id")]
     min_age = await conn.fetchval("SELECT (value #>> '{}')::integer FROM sys.setting WHERE key = 'photo.identity_card_min_age'")
     items = [dict(r) for r in await conn.fetch("SELECT field_code, label, requirement FROM iam.data_requirement ORDER BY field_code")]
-    return {"enabled": await switched_on(conn), "kinds": kinds, "identity_card_min_age": min_age,
+    return {"enabled": await switched_on(conn), "view_access": await setting(conn, "photo.view_access"),
+            "verify_every_days": await setting(conn, "photo.verify_every_days"),
+            "enforce_from": await setting(conn, "photo.enforce_from"),
+            "identity_provider": await setting(conn, "photo.identity_provider"),
+            "kinds": kinds, "identity_card_min_age": min_age,
             "approval_stages": _jsonb(await conn.fetchval("SELECT iam.photo_approval_stages()")), "data_requirements": items}
 
 

@@ -142,7 +142,7 @@ async def ticket_photo(trip_uid: uuid.UUID, ticket_uid: uuid.UUID, request: Requ
     ctx = context_for(request, pr)
     async with db.transaction(ctx) as conn:
         t = await _assigned_trip(conn, pr, trip_uid)
-        party_id, data, mime = await photo.read_for_ticket(conn, ctx, t["id"], ticket_uid)
+        party_id, data, mime = await photo.read_for_ticket(conn, ctx, t["id"], ticket_uid, "DRIVER_AT_BOARDING")
     request.state.audit = {"action": "photo.view", "object_type": "party", "object_id": party_id}
     return Response(content=data, media_type=mime)
 

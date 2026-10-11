@@ -14,8 +14,8 @@ supporting index, except references to lookup lists and to the staff member who 
 |---|---|
 | Engine | PostgreSQL 16 with PostGIS 3 (extensions: pgcrypto, citext, btree_gist, pg_trgm, postgis in schema `gis`; Docker and CI image `postgis/postgis:16-3.4`, Ubuntu package `postgresql-16-postgis-3`) |
 | Schemas | 26 separate schemas, each with its own privileges |
-| Tables | 511 tables (8 partitioned), 5,245 columns, 1,461 foreign keys |
-| Security | row-level security on 511 of 511 tables, 934 policies; 435 triggers, 317 functions |
+| Tables | 511 tables (8 partitioned), 5,247 columns, 1,461 foreign keys |
+| Security | row-level security on 511 of 511 tables, 934 policies; 435 triggers, 319 functions |
 | Tests | 515 automated checks against a freshly built database (`db/tests/run.sh`) |
 | Design | [Database design and ERD document](../docs/database/) with diagrams in the study's colors |
 | Docs | [Data dictionary](DATA_DICTIONARY.md) · [ERD diagrams](ERD.md) (both generated from the database) |
@@ -152,6 +152,7 @@ PostGIS in `gis`. Until 9 October 2026 a first start of the Docker stack stopped
 | `1093_photo_rule_retirement_proposer.sql` | The person who proposed a photo rule does not approve its retirement (`iam.approve_photo_rule_retirement`); the proposer may still ask for it. Nothing new refers to the rules, so no reference cycle |
 | `1094_photo_feature_switch.sql` | The boarding photo is off at launch. The switch is the setting `photo.enabled` (false), read by `iam.photo_enabled()`. Switching it on is a change with a legal basis (`iam.request_photo_feature_change`) that passes the approval stages of the photo policy (`iam.approve_photo_policy_change`); `iam.set_party_photo` refuses a photo while it is off. Nothing new refers to the table, so no reference cycle |
 | `1095_photo_switch_settings.sql` | The approval stages of the photo policy are a setting the platform changes (`iam.set_photo_approval_stages`: at least two stages, APPROVE last, no stage forced); the legal document number is recorded with an approval (`iam.approve_photo_policy_change`, optional). Nothing new refers to the tables, so no reference cycle |
+| `1096_photo_settings.sql` | The photo's settings are platform settings changed through the approval stages: who may see the photo and when (`photo.view_access`: the traveler on request, the driver and the carrier's office only while the trip is boarding), the date the rules are enforced from (`photo.enforce_from`), how often a person is checked (`photo.verify_every_days`) and the identity provider (`photo.identity_provider`, NONE). Read by `iam.photo_setting`; changed by `iam.request_photo_setting_change`, applied by `iam.approve_photo_policy_change`. Nothing new refers to the tables, so no reference cycle |
 
 ## Design rules (study 29.1)
 

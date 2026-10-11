@@ -298,6 +298,16 @@ section.
   `APPROVE` last, each `CHECK`, `THIRD_PARTY_CHECK` or `APPROVE`; the default is `CHECK` then `APPROVE`). No stage is forced.
   A change keeps the stages it was asked with. The approver may record the legal document number with the approval
   (`{"document_no": ...}` on `POST .../policy-changes/{uid}/approve`); it is optional.
+- **Who sees the photo and when (1096).** `photo.view_access` holds four values, each true or false: `TRAVELER` (the person sees their own
+  photo in the app on request, `GET /api/account/photo/image`), `DRIVER_AT_BOARDING`, `CARRIER_OFFICE_AT_BOARDING` (the driver and the
+  carrier's office see a passenger's photo only while the trip is `BOARDING`; the office is off at launch) and `AGENT`. Change it with
+  `POST /api/admin/photos/settings/changes` (`key`, `value`, `reason`); it passes the approval stages.
+- **When the rules are enforced (1096).** `photo.enforce_from` is a date (`YYYY-MM-DD`) or null. A photo required by a rule in force is
+  asked from that date only; before it, nothing is refused for lack of a photo. It is set by the platform from the date the law or a
+  government directive sets, so the platform is ready before the date and nothing is enforced earlier.
+- **Periodic check and identity provider (1096).** `photo.verify_every_days` (1 to 365, or null) and `photo.identity_provider` (`NONE`).
+  With no provider connected, `POST /api/account/photo/verify` answers `409 IDENTITY_PROVIDER_NOT_CONFIGURED`. A provider is connected
+  by adding its adapter and its value in the database; it is not switched on by a setting alone.
 - **Replacing a photo on file (1087, WP4).** The person and the family head cannot. A platform person requests it with
   `POST /api/admin/photos/changes`: the party, a reason, the evidence kind (`CIVIL_REGISTRY_EXTRACT`, `IDENTITY_DOCUMENT` or `PASSPORT`),
   the evidence file and the new photo. A second platform person reads the evidence (`GET .../changes/{uid}/evidence`, audited)

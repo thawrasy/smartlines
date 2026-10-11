@@ -8,7 +8,7 @@ activity log with the people and the rule or the person, never the picture.
 """
 import uuid
 from datetime import date
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 
 from fastapi import APIRouter, Depends, File, Form, Request, Response, UploadFile
 from pydantic import BaseModel, Field
@@ -201,6 +201,24 @@ class ApproveIn(BaseModel):
 
 class StagesIn(BaseModel):
     stages: list[Literal["CHECK", "THIRD_PARTY_CHECK", "APPROVE"]] = Field(min_length=2, max_length=5)
+
+
+class SettingChangeIn(BaseModel):
+    """A photo setting and its new value; the value is checked by the database (1096)."""
+    key: str = Field(max_length=60)
+    value: Any
+    reason: str = Field(min_length=10, max_length=500)
+
+
+@platform.post("/settings/changes", status_code=201)
+async def request_setting_change(body: SettingChangeIn, request: Request, pr: Principal = Depends(require_portal("PLATFORM"))):
+    """Asks to change a photo setting: who may see the photo and when, the date the rules are enforced from, how often a
+    person is checked, the identity provider. It passes the approval stages; nothing changes before the last approval."""
+    privacy_staff(pr)
+    async with db.transaction(context_for(request, pr)) as conn:
+        uid, change_id = await photo.request_setting_change(conn, pr, body.key, body.value, body.reason)
+    request.state.audit = {"action": "photo.policy_request", "object_type": "photo_policy_change", "object_id": change_id}
+    return {"uid": uid, "status": "PENDING", "approvals": 0}
 
 
 @platform.post("/policy-changes/{uid}/approve")

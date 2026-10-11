@@ -2,7 +2,7 @@
 import uuid
 from typing import Literal, Optional
 
-from fastapi import APIRouter, Depends, File, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Request, Response, UploadFile
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
@@ -77,6 +77,24 @@ async def take_photo(request: Request, file: UploadFile = File(...), pr: Princip
         out = await photo.take(conn, ctx, pr, data, file.filename or "photo", pr.party_id)
     request.state.audit = {"action": "photo.upload", "object_type": "party", "object_id": out["party_id"]}
     return {"taken_by": out["taken_by"]}
+
+
+@router.get("/photo/image")
+async def my_photo_image(request: Request, pr: Principal = Depends(require_user)):
+    """The traveler's own boarding photo, on request in the app (1096), when the platform lets the traveler see it."""
+    ctx = context_for(request, pr)
+    async with db.transaction(ctx) as conn:
+        data, mime = await photo.read_own(conn, ctx, pr)
+    request.state.audit = {"action": "photo.view", "object_type": "party", "object_id": pr.party_id}
+    return Response(content=data, media_type=mime)
+
+
+@router.post("/photo/verify")
+async def verify_photo_identity(request: Request, pr: Principal = Depends(require_user)):
+    """Checks the person with the identity provider the platform holds (1096). Refused until one is connected."""
+    ctx = context_for(request, pr)
+    async with db.transaction(ctx) as conn:
+        return await photo.verify_identity(conn, pr)
 
 
 @router.post("/password")
