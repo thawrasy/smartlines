@@ -83,6 +83,15 @@ def index_count():
 
 
 MAX_W, MAX_H, MAX_COLS = 1100.0, 640.0, 4     # A3 landscape at 1:1 leaves about 1100 x 640 pt for a chart
+EXIT_CAP = 4                                  # most relations that may leave one key within a chart; more are split
+
+
+def max_exits(chart):
+    """Largest number of relations drawn from one parent key in a chart."""
+    counts = {}
+    for e in chart['edges']:
+        counts[(e['parent'], e['pcol'])] = counts.get((e['parent'], e['pcol']), 0) + 1
+    return max(counts.values(), default=0)
 
 
 def fit_charts(raw, probe):
@@ -90,10 +99,12 @@ def fit_charts(raw, probe):
     from collections import Counter
 
     def fit(members, allowed=None):
-        m = L.render(L.build_chart('probe', members, allowed), probe)
+        chart = L.build_chart('probe', members, allowed)
+        m = L.render(chart, probe)
         if m['problems']:
             raise SystemExit(f'routing problem in probe chart: {m["problems"][:2]}')
-        if m['w_pt'] <= MAX_W and m['columns'] <= MAX_COLS and (m['h_pt'] <= MAX_H or len(members) == 1 and allowed is None and not refs_of(members[0])):
+        exits_ok = max_exits(chart) <= EXIT_CAP or len(members) == 1
+        if exits_ok and m['w_pt'] <= MAX_W and m['columns'] <= MAX_COLS and (m['h_pt'] <= MAX_H or len(members) == 1 and allowed is None and not refs_of(members[0])):
             return [(members, allowed)]
         if len(members) > 1:
             half = (len(members) + 1) // 2
