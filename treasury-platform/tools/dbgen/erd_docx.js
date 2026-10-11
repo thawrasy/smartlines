@@ -155,8 +155,8 @@ body.push(text(`• الأرقام تُحسب من النموذج والـDDL ا
 
 // §1 مخطط المخططات
 body.push(h1('1. خريطة المخططات'));
-body.push(text('كل مخطط (schema) صندوق، والعلاقة بين مخططين عدد المفاتيح الأجنبية التي تربط جداولهما. تُرسم الأزواج التي فيها خمسة مفاتيح فأكثر فقط؛ الباقي يظهر في جداول المجموعات.', { spacing: { before: 0, after: 120, line: 300 } }));
-body.push(...diagram(M.schemaMap, 'الشكل 1: خريطة المخططات وعدد المفاتيح الأجنبية بين كل مخططين'));
+body.push(text('كل مخطط (schema) صندوق، والعلاقة بين مخططين عدد المفاتيح الأجنبية التي تربط جداولهما. الخريطة مقسومة إلى قسمين ليبقى النص مقروءًا؛ العلاقات بين القسمين ترد في جدول الأزواج أدناه، وتُرسم الأزواج التي فيها خمسة مفاتيح فأكثر فقط.', { spacing: { before: 0, after: 120, line: 300 } }));
+M.schemaMaps.forEach((mp, i) => body.push(...diagram(mp, `الشكل ${i + 1}: خريطة المخططات (${i + 1}/${M.schemaMaps.length}) · ${mp.title}`)));
 body.push(h2('العلاقات بين المخططات (5 مفاتيح فأكثر)', true));
 body.push(table(['المخطط الأب', 'المخطط الابن', 'عدد المفاتيح'],
   M.schemaMap.pairs.map(p => [p.parent, p.child, p.count]), [3000, 3000, 2000], [0, 1]));
@@ -167,7 +167,7 @@ body.push(table(['المخطط', 'عدد الجداول', 'مفتاح الملك
 // §2 النواة: رسم لكل أربعة جداول، كما في الوحدات
 body.push(h1('2. النواة: المشترك والهوية والصلاحيات'));
 body.push(text(`تُرسم جداول النواة (${pl(M.core.members.length)}) في ${M.coreGroups.length} رسوم متتالية، لكل رسم أربعة جداول على الأكثر. العلاقات بين رسوم النواة تظهر في جداول العلاقات.`, { spacing: { before: 0, after: 120, line: 300 } }));
-let coreFig = 1;
+let coreFig = M.schemaMaps.length;
 M.coreGroups.forEach((g, i) => {
   coreFig += 1;
   body.push(h2(`2.${i + 1} ${g.title}`));
@@ -184,7 +184,7 @@ body.push(h1('3. رسوم الوحدات', false));
 body.push(text(`تغطي ${m.module_groups} مجموعةً رسم كل جداول النموذج، وكل جدول يظهر في مجموعة واحدة بالضبط. الجدول التالي يلخص الوحدات:`, { spacing: { before: 0, after: 120, line: 300 } }));
 body.push(table(['الوحدة', 'عدد مجموعات الرسم', 'عدد الجداول'],
   M.modules.map(x => [x.label, x.groups, x.tables]), [3000, 3000, 3000], [0]));
-let fig = 1 + M.coreGroups.length;
+let fig = M.schemaMaps.length + M.coreGroups.length;
 M.groups.forEach((g, i) => {
   fig += 1;
   body.push(h2(`3.${i + 1} ${g.title}`));

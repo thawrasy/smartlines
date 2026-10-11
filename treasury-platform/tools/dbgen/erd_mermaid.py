@@ -128,8 +128,18 @@ def render(name, text):
     return png
 
 
-def schema_source(tables, min_fk=5):
-    # خريطة المخططات: كل مخطط كيان بعدد جداوله، والعلاقة = عدد المفاتيح الأجنبية بين المخططين (≥ min_fk)
+# خريطتا المخططات في Word: الأساس والعمليات، لكل منهما مخططاتها، والعلاقات بينهما ترد في جدول الأزواج
+SCHEMA_SPLITS = [
+    ('schema_map_1', ['plat', 'sec', 'org', 'pty', 'ins', 'acc', 'cat', 'ref', 'cfg', 'aud', 'doc', 'ntf'],
+     'الأساس: المنصة والهوية والمؤسسة والحسابات والإعدادات'),
+    ('schema_map_2', ['fac', 'prc', 'cmp', 'col', 'obl', 'fin', 'wfl', 'lc'],
+     'التسهيلات والعمليات: التسعير والضمانات والالتزامات والبيانات المالية والطلبات والاعتمادات'),
+]
+
+
+def schema_source(tables, min_fk=5, only=None, title='خريطة المخططات'):
+    """خريطة المخططات: كل مخطط كيان بعدد جداوله، والعلاقة = عدد المفاتيح الأجنبية بين المخططين (≥ min_fk).
+    مع only تُرسم المخططات المذكورة فقط وعلاقاتها بينها."""
     sizes, cnt = {}, {}
     for t in tables.values():
         sizes[t.schema] = sizes.get(t.schema, 0) + 1
@@ -137,11 +147,13 @@ def schema_source(tables, min_fk=5):
             if c.fk:
                 p = c.fk.split('.')[0]
                 if p != t.schema: cnt[(p, t.schema)] = cnt.get((p, t.schema), 0) + 1
-    head = [f'%% خريطة المخططات: العلاقة = عدد المفاتيح الأجنبية بين المخططين (≥ {min_fk})', 'erDiagram']
+    keep = set(sizes) if only is None else set(only)
+    head = [f'%% {title}: العلاقة = عدد المفاتيح الأجنبية بين المخططين (≥ {min_fk})', 'erDiagram']
     ents = []
-    for s in sorted(sizes):
+    for s in sorted(keep):
         ents += [f'  {s} {{', f'    int tables "{sizes[s]}"', '  }']
-    rels = [f'  {p} ||--o{{ {c} : "{n} FK"' for (p, c), n in sorted(cnt.items()) if n >= min_fk]
+    rels = [f'  {p} ||--o{{ {c} : "{n} FK"' for (p, c), n in sorted(cnt.items())
+            if n >= min_fk and p in keep and c in keep]
     return '\n'.join(head + ents + rels) + '\n'
 
 
@@ -158,6 +170,11 @@ def main():
     for i, chunk in enumerate(chunks, 1):
         made.append(render(f'core_tenancy_{i}', group_source(f'النواة ({i}/{len(chunks)})', chunk, tables)))
     made.append(render('schema_map', schema_source(tables)))
+    all_schemas = {t.schema for t in tables.values()}
+    split = [x for _, schemas, _ in SCHEMA_SPLITS for x in schemas]
+    assert sorted(split) == sorted(all_schemas) and len(split) == len(set(split)), 'every schema in exactly one map'
+    for key, schemas, title in SCHEMA_SPLITS:
+        made.append(render(key, schema_source(tables, only=schemas, title=title)))
     print('rendered', len(made), 'ERD diagrams (svg + png) ->', OUT)
 
 

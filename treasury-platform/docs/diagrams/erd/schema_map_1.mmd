@@ -1,0 +1,47 @@
+%% الأساس: المنصة والهوية والمؤسسة والحسابات والإعدادات: العلاقة = عدد المفاتيح الأجنبية بين المخططين (≥ 5)
+erDiagram
+  acc {
+    int tables "6"
+  }
+  aud {
+    int tables "2"
+  }
+  cat {
+    int tables "26"
+  }
+  cfg {
+    int tables "12"
+  }
+  doc {
+    int tables "3"
+  }
+  ins {
+    int tables "6"
+  }
+  ntf {
+    int tables "7"
+  }
+  org {
+    int tables "14"
+  }
+  plat {
+    int tables "7"
+  }
+  pty {
+    int tables "11"
+  }
+  ref {
+    int tables "4"
+  }
+  sec {
+    int tables "14"
+  }
+  cat ||--o{ acc : "7 FK"
+  cat ||--o{ org : "7 FK"
+  doc ||--o{ org : "5 FK"
+  ins ||--o{ acc : "5 FK"
+  ins ||--o{ pty : "8 FK"
+  pty ||--o{ org : "5 FK"
+  ref ||--o{ org : "8 FK"
+  ref ||--o{ pty : "6 FK"
+  sec ||--o{ ntf : "6 FK"

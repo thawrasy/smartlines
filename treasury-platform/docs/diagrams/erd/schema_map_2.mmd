@@ -1,0 +1,28 @@
+%% التسهيلات والعمليات: التسعير والضمانات والالتزامات والبيانات المالية والطلبات والاعتمادات: العلاقة = عدد المفاتيح الأجنبية بين المخططين (≥ 5)
+erDiagram
+  cmp {
+    int tables "2"
+  }
+  col {
+    int tables "7"
+  }
+  fac {
+    int tables "13"
+  }
+  fin {
+    int tables "7"
+  }
+  lc {
+    int tables "21"
+  }
+  obl {
+    int tables "8"
+  }
+  prc {
+    int tables "5"
+  }
+  wfl {
+    int tables "19"
+  }
+  fac ||--o{ prc : "7 FK"
+  wfl ||--o{ lc : "5 FK"

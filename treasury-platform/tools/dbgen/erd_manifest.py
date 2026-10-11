@@ -136,6 +136,11 @@ def main():
              for fq in sorted(tables)]
 
     sw, sh = natural_size('schema_map')
+    schema_maps = []
+    for key, schemas, title in erd_mermaid.SCHEMA_SPLITS:
+        mw, mh = natural_size(key)
+        schema_maps.append({'key': key, 'title': title, 'image': f'{DIAG}/{key}.png', 'svg': f'{DIAG}/{key}.svg',
+                            'w': mw, 'h': mh, 'schemas': schemas})
     out = {
         'meta': {
             'title': 'مخطط علاقات جداول قاعدة البيانات',
@@ -153,7 +158,7 @@ def main():
         'modules': modules,
         'schemaMap': {'image': f'{DIAG}/schema_map.png', 'svg': f'{DIAG}/schema_map.svg', 'w': sw, 'h': sh,
                       'schemas': schema_rows, 'pairs': pair_rows},
-        'core': core, 'coreGroups': core_groups, 'groups': groups, 'index': index,
+        'core': core, 'coreGroups': core_groups, 'groups': groups, 'index': index, 'schemaMaps': schema_maps,
     }
     json.dump(out, sys.stdout, ensure_ascii=False, indent=1)
 
