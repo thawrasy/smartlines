@@ -1,0 +1,23 @@
+%% م0 · التدقيق والمستندات (1/2) — Audit & documents
+erDiagram
+  aud_AuditLog["aud.AuditLog"] {
+    bigint AuditLogId PK
+  }
+  aud_SensitiveAccessLog["aud.SensitiveAccessLog"] {
+    bigint SensitiveAccessLogId PK
+    int OperatorId FK
+  }
+  doc_Document["doc.Document"] {
+    bigint DocumentId PK
+    int DocumentTypeId FK
+    bigint OwnerCompanyId FK
+    bigint CurrentVersionId FK
+    bigint SupersededByDocumentId FK
+    bigint DeletedBy FK
+  }
+  doc_DocumentLink["doc.DocumentLink"] {
+    bigint DocumentLinkId PK
+    bigint DocumentId FK
+    bigint UnlinkedBy FK
+  }
+  doc_Document ||--o{ doc_DocumentLink : "DocumentId"

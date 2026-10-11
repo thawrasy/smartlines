@@ -1,0 +1,18 @@
+%% م7/م8 · الاعتمادات والبروفورما (3/3) — Letters of credit & proforma
+erDiagram
+  lc_ProformaLine["lc.ProformaLine"] {
+    bigint ProformaLineId PK
+    bigint ProformaId FK
+    int CurrencyId FK
+  }
+  lc_LcTermsComparison["lc.LcTermsComparison"] {
+    bigint LcTermsComparisonId PK
+    bigint BaselineTermsId FK
+    bigint ReceivedTermsId FK
+    bigint RunBy FK
+  }
+  lc_LcTermsComparisonLine["lc.LcTermsComparisonLine"] {
+    bigint LcTermsComparisonLineId PK
+    bigint ComparisonId FK
+  }
+  lc_LcTermsComparison ||--o{ lc_LcTermsComparisonLine : "ComparisonId"

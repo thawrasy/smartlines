@@ -1,0 +1,14 @@
+%% م0 · الجلسات والمفاتيح والمحاولات (2/2) — Sessions, keys & attempts
+erDiagram
+  sec_UserPasswordHistory["sec.UserPasswordHistory"] {
+    bigint UserPasswordHistoryId PK
+    bigint UserId FK
+  }
+  sec_TenantKey["sec.TenantKey"] {
+    bigint TenantKeyId PK
+  }
+  sec_KeyEvent["sec.KeyEvent"] {
+    bigint KeyEventId PK
+    bigint TenantKeyId FK
+  }
+  sec_TenantKey |o--o{ sec_KeyEvent : "TenantKeyId"

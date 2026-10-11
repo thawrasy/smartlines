@@ -1,0 +1,15 @@
+%% م7/م8 · شروط الاعتماد والنماذج (3/3) — LC terms, fields & form maps
+erDiagram
+  lc_LcFormTemplate["lc.LcFormTemplate"] {
+    bigint LcFormTemplateId PK
+    bigint InstitutionId FK
+    int ProductId FK
+    bigint CompanyId FK
+    bigint AnnexDocumentId FK
+    bigint LetterheadDocumentId FK
+  }
+  lc_LcFormFieldMap["lc.LcFormFieldMap"] {
+    bigint LcFormFieldMapId PK
+    bigint TemplateId FK
+  }
+  lc_LcFormTemplate ||--o{ lc_LcFormFieldMap : "TemplateId"

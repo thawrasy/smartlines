@@ -15,7 +15,7 @@
 # العملة: CollateralLink.CoverageAmount بعملة التسهيل (BR-FAC-002)؛ StatementLine بعملة رأس القائمة؛ AccountMonthlyStat بعملة الحساب؛
 #   وأُضيف CurrencyId حيث تذكر المواصفة مبلغًا بلا عملة (تأمين، تقييم، معلَمة ثابتة).
 # مشتقات لا تُخزَّن (README): PNRatio · NextRenewalDue · Variance · BalanceDifference · الحالة المجمَّعة RED/AMBER/GREEN/GREY · DUE_SOON/OVERDUE.
-# فرادة مع أعمدة قابلة للـ NULL: SQL Server يعدّ NULL مساويًا لـ NULL في الفهرس الفريد (فتفرّد التسهيل بلا حد)؛ PostgreSQL للتحقق البنيوي فقط.
+# فرادة مع أعمدة قابلة للـ NULL: SQL Server يعدّ NULL مساويًا لـ NULL في الفهرس الفريد (فتُفرض فرادة التسهيل بلا حد)؛ PostgreSQL للتحقق البنيوي فقط.
 # مراجع خارجية (يعرّفها غيري): org.Company · pty.Party · pty.IdentityDocument · ins.Institution · ins.Contact · acc.BankAccount
 #   cat.CollateralType · cat.ObligationType · cat.LookupItem · fac.Facility · fac.Limit · fac.LimitProductLine · fac.ValueConflict (عبر src)
 #   doc.Document · sec.AppUser · ref.Currency
@@ -107,7 +107,7 @@ table col.PromissoryNote  # سند لأمر 1:1؛ مبلغ مستقل قد يف�
   check  LastRenewedOn IS NULL OR LastRenewedOn >= IssuedOn
   check  RenewalCycle <> 'NONE' OR LastRenewedOn IS NULL
 
-table col.PromissoryNoteSigner pk=PromissoryNoteId,PartyId norv deletable  # موقّعو السند (SignerPartyIds) -- جدول وسيط جديد؛ مزوّد PromissoryNote signer (FR-COL-015)
+table col.PromissoryNoteSigner pk=PromissoryNoteId,PartyId norv deletable  # موقّعو السند (SignerPartyIds) -- جدول وسيط جديد؛ موقّعو PromissoryNote (FR-COL-015)
   PromissoryNoteId  ->col.PromissoryNote req
   PartyId           ->pty.Party req   # الدمج (FR-PTY-016) يعيد التوجيه ويحذف المكرر لذا الحذف مسموح للتطبيق
 
@@ -380,7 +380,7 @@ table obl.ObligationBreach public  # سجل خرق وعلاجه وتنازله (
 # ============================== المخطط fin: البيانات المالية ==============================
 module FIN
 
-table fin.LineCatalogItem catalog int  # بند معياري للقوائم؛ 39 بندًا مزروعًا؛ النظامي في الصيغ لا يُحذف (FR-FIN-001، CatalogBase)
+table fin.LineCatalogItem catalog int  # بند معياري للقوائم؛ 39 بندًا مبذورًا؛ النظامي في الصيغ لا يُحذف (FR-FIN-001، CatalogBase)
   Section      enum{BS_ASSET,BS_LIABILITY,BS_EQUITY,IS,CF} req
   IsTotal      bool       req =0   # إجمالي محسوب من رموز مكوّناته (BR-FIN-001)
   TotalFormula str(500)            # مثل GROSS_PROFIT - OPEX؛ نحو الإجماليات البسيط
@@ -392,7 +392,7 @@ table fin.LineCatalogItem catalog int  # بند معياري للقوائم؛ 39
   check  Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'   # BR-CAT-001
   check  IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)   # BR-CAT-003
 
-table fin.LineCatalogItemAlias int deletable  # الأسماء البديلة للبند (Aliases) للصق والمطابقة -- جدول جديد يحل «Aliases set» (FR-FIN-003)
+table fin.LineCatalogItemAlias int deletable  # الأسماء البديلة للبند (Aliases) للصق والمطابقة -- جدول جديد للأسماء البديلة (FR-FIN-003)
   LineCatalogItemId  ->fin.LineCatalogItem req
   Alias              str(200)   req
   unique Alias                             # الاسم البديل يطابق بندًا واحدًا

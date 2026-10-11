@@ -1,0 +1,16 @@
+%% م0 · الهوية والصلاحيات (2/2) — Identity & authorisation
+erDiagram
+  sec_UserRole["sec.UserRole"] {
+    int TenantId PK
+    bigint UserId PK
+    bigint RoleId PK
+  }
+  sec_UserCompanyScope["sec.UserCompanyScope"] {
+    int TenantId PK
+    bigint UserId PK
+    bigint CompanyId PK
+  }
+  sec_ExternalIdentity["sec.ExternalIdentity"] {
+    bigint ExternalIdentityId PK
+    bigint UserId FK
+  }

@@ -1,0 +1,15 @@
+%% م0 · المشترك والاشتراكات والمشغّلون (2/2) — Tenancy & platform operators
+erDiagram
+  plat_SupportAccessGrant["plat.SupportAccessGrant"] {
+    bigint SupportAccessGrantId PK
+    int OperatorId FK
+  }
+  plat_Tenant["plat.Tenant"] {
+    int TenantId PK
+    int PlanId FK
+    int HomeCountryId FK
+  }
+  plat_TenantModule["plat.TenantModule"] {
+    bigint TenantModuleId PK
+    int EnabledBy FK
+  }

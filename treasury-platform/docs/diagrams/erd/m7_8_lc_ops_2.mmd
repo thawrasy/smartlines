@@ -1,5 +1,25 @@
-%% م7/م8 · الاعتمادات والبروفورما (2/2) — Letters of credit & proforma
+%% م7/م8 · الاعتمادات والبروفورما (2/3) — Letters of credit & proforma
 erDiagram
+  lc_LcSalesOrder["lc.LcSalesOrder"] {
+    bigint LcSalesOrderId PK
+    bigint CompanyId FK
+    bigint LcId FK
+    bigint RequestId FK
+    int CurrencyId FK
+  }
+  lc_LcDrawingAllocation["lc.LcDrawingAllocation"] {
+    bigint LcDrawingAllocationId PK
+    bigint LcId FK
+    bigint DrawingId FK
+    bigint SalesOrderId FK
+    int CurrencyId FK
+  }
+  lc_LcDiscrepancy["lc.LcDiscrepancy"] {
+    bigint LcDiscrepancyId PK
+    bigint LcId FK
+    bigint DrawingId FK
+    bigint DecidedBy FK
+  }
   lc_ProformaInvoice["lc.ProformaInvoice"] {
     bigint ProformaInvoiceId PK
     bigint CompanyId FK
@@ -11,61 +31,4 @@ erDiagram
     bigint DocumentId FK
     bigint SupersededById FK
   }
-  lc_ProformaLine["lc.ProformaLine"] {
-    bigint ProformaLineId PK
-    bigint ProformaId FK
-    int CurrencyId FK
-    integer LineNo
-    text Description
-    numeric Qty
-  }
-  lc_LcTermsComparison["lc.LcTermsComparison"] {
-    bigint LcTermsComparisonId PK
-    bigint BaselineTermsId FK
-    bigint ReceivedTermsId FK
-    bigint RunBy FK
-    timestamp RunAt
-    varchar Status
-  }
-  lc_LcTermsComparisonLine["lc.LcTermsComparisonLine"] {
-    bigint LcTermsComparisonLineId PK
-    bigint ComparisonId FK
-    varchar FieldKey
-    varchar Verdict
-  }
-  acc_BankAccount["acc.BankAccount"] {
-    bigint BankAccountId PK
-  }
-  doc_Document["doc.Document"] {
-    bigint DocumentId PK
-  }
-  lc_Counterparty["lc.Counterparty"] {
-    bigint CounterpartyId PK
-  }
-  lc_LcTerms["lc.LcTerms"] {
-    bigint LcTermsId PK
-  }
-  org_Company["org.Company"] {
-    bigint CompanyId PK
-  }
-  ref_Currency["ref.Currency"] {
-    int CurrencyId PK
-  }
-  sec_AppUser["sec.AppUser"] {
-    bigint AppUserId PK
-  }
-  wfl_Request["wfl.Request"] {
-    bigint RequestId PK
-  }
-  acc_BankAccount ||--o{ lc_ProformaInvoice : "ProceedsAccountId"
-  doc_Document ||--o{ lc_ProformaInvoice : "DocumentId"
-  lc_Counterparty ||--o{ lc_ProformaInvoice : "CustomerId"
-  lc_LcTerms ||--o{ lc_LcTermsComparison : "BaselineTermsId, ReceivedTermsId"
-  lc_LcTerms ||--o{ lc_ProformaInvoice : "TermsId"
-  lc_LcTermsComparison ||--o{ lc_LcTermsComparisonLine : "ComparisonId"
-  lc_ProformaInvoice ||--o{ lc_ProformaLine : "ProformaId"
-  org_Company ||--o{ lc_ProformaInvoice : "CompanyId"
-  ref_Currency ||--o{ lc_ProformaInvoice : "CurrencyId"
-  ref_Currency ||--o{ lc_ProformaLine : "CurrencyId"
-  sec_AppUser |o--o{ lc_LcTermsComparison : "RunBy"
-  wfl_Request ||--o{ lc_ProformaInvoice : "RequestId"
+  lc_LcSalesOrder ||--o{ lc_LcDrawingAllocation : "SalesOrderId"

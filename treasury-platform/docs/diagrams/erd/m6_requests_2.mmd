@@ -1,34 +1,32 @@
-%% م6 · الطلبات وإجراءاتها (2/2) — Requests, approvals & actions
+%% م6 · الطلبات وإجراءاتها (2/3) — Requests, approvals & actions
 erDiagram
+  wfl_RequestStageInstance["wfl.RequestStageInstance"] {
+    bigint RequestStageInstanceId PK
+    bigint RequestId FK
+    int TemplateId FK
+    int StageId FK
+    bigint AssigneeUserId FK
+    int ResumeStageId FK
+  }
+  wfl_RequestApproval["wfl.RequestApproval"] {
+    bigint RequestApprovalId PK
+    bigint RequestId FK
+    bigint StageInstanceId FK
+    bigint AssignedUserId FK
+    bigint AssignedRoleId FK
+    bigint ActedByUserId FK
+    bigint DelegationId FK
+  }
+  wfl_RequestAction["wfl.RequestAction"] {
+    bigint RequestActionId PK
+    bigint RequestId FK
+    bigint StageInstanceId FK
+  }
   wfl_HookExecution["wfl.HookExecution"] {
     bigint HookExecutionId PK
     bigint RequestId FK
     bigint StageInstanceId FK
-    varchar HookKey
-    varchar TriggerKind
-    varchar ExecMode
   }
-  wfl_UserDelegation["wfl.UserDelegation"] {
-    bigint UserDelegationId PK
-    bigint FromUserId FK
-    bigint ToUserId FK
-    int RequestTypeId FK
-    date StartsOn
-    date EndsOn
-  }
-  sec_AppUser["sec.AppUser"] {
-    bigint AppUserId PK
-  }
-  wfl_Request["wfl.Request"] {
-    bigint RequestId PK
-  }
-  wfl_RequestStageInstance["wfl.RequestStageInstance"] {
-    bigint RequestStageInstanceId PK
-  }
-  wfl_RequestType["wfl.RequestType"] {
-    int RequestTypeId PK
-  }
-  sec_AppUser ||--o{ wfl_UserDelegation : "FromUserId, ToUserId"
-  wfl_Request ||--o{ wfl_HookExecution : "RequestId"
   wfl_RequestStageInstance ||--o{ wfl_HookExecution : "StageInstanceId"
-  wfl_RequestType |o--o{ wfl_UserDelegation : "RequestTypeId"
+  wfl_RequestStageInstance |o--o{ wfl_RequestAction : "StageInstanceId"
+  wfl_RequestStageInstance ||--o{ wfl_RequestApproval : "StageInstanceId"

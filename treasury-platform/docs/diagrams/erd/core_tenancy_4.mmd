@@ -1,0 +1,24 @@
+%% النواة (4/5)
+erDiagram
+  sec_UserSession["sec.UserSession"] {
+    bigint UserSessionId PK
+    bigint UserId FK
+  }
+  org_Company["org.Company"] {
+    bigint CompanyId PK
+    bigint PartyId FK
+    int LegalEntityTypeId FK
+    bigint ParentCompanyId FK
+    int CountryId FK
+    int BaseCurrencyId FK
+  }
+  org_Department["org.Department"] {
+    bigint DepartmentId PK
+    bigint CompanyId FK
+    bigint ParentDepartmentId FK
+    bigint HeadUserId FK
+  }
+  aud_AuditLog["aud.AuditLog"] {
+    bigint AuditLogId PK
+  }
+  org_Company |o--o{ org_Department : "CompanyId"

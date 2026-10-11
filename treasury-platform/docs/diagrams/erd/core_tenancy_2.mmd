@@ -1,0 +1,18 @@
+%% النواة (2/5)
+erDiagram
+  plat_PlatformOperator["plat.PlatformOperator"] {
+    int PlatformOperatorId PK
+  }
+  sec_TenantKey["sec.TenantKey"] {
+    bigint TenantKeyId PK
+  }
+  sec_AppUser["sec.AppUser"] {
+    bigint AppUserId PK
+    bigint DepartmentId FK
+    bigint LineManagerUserId FK
+    bigint MfaKeyId FK
+  }
+  sec_Role["sec.Role"] {
+    bigint RoleId PK
+  }
+  sec_TenantKey |o--o{ sec_AppUser : "MfaKeyId"

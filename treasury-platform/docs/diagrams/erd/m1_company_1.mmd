@@ -1,0 +1,29 @@
+%% م1 · الشركات والحوكمة (1/2) — Company structure & governance
+erDiagram
+  org_Company["org.Company"] {
+    bigint CompanyId PK
+    bigint PartyId FK
+    int LegalEntityTypeId FK
+    bigint ParentCompanyId FK
+    int CountryId FK
+    int BaseCurrencyId FK
+  }
+  org_CompanyTaxRate["org.CompanyTaxRate"] {
+    bigint CompanyTaxRateId PK
+    bigint CompanyId FK
+  }
+  org_Department["org.Department"] {
+    bigint DepartmentId PK
+    bigint CompanyId FK
+    bigint ParentDepartmentId FK
+    bigint HeadUserId FK
+  }
+  org_Shareholding["org.Shareholding"] {
+    bigint ShareholdingId PK
+    bigint CompanyId FK
+    bigint HolderPartyId FK
+    int CurrencyId FK
+  }
+  org_Company |o--o{ org_CompanyTaxRate : "CompanyId"
+  org_Company |o--o{ org_Department : "CompanyId"
+  org_Company ||--o{ org_Shareholding : "CompanyId"

@@ -1,0 +1,21 @@
+%% النواة (3/5)
+erDiagram
+  sec_Permission["sec.Permission"] {
+    int PermissionId PK
+  }
+  sec_RolePermission["sec.RolePermission"] {
+    int TenantId PK
+    bigint RoleId PK
+    int PermissionId PK
+  }
+  sec_UserRole["sec.UserRole"] {
+    int TenantId PK
+    bigint UserId PK
+    bigint RoleId PK
+  }
+  sec_UserCompanyScope["sec.UserCompanyScope"] {
+    int TenantId PK
+    bigint UserId PK
+    bigint CompanyId PK
+  }
+  sec_Permission ||--o{ sec_RolePermission : "PermissionId"

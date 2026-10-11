@@ -2,7 +2,7 @@
 /* erd_docx.js — ملف Word لمخطط علاقات جداول قاعدة البيانات (BankFas)، بصفحات أفقية لقراءة المخططات.
    Usage:  python3 tools/dbgen/erd_manifest.py | NODE_PATH=/opt/node22/lib/node_modules:/opt/node-tools/node_modules \
              node tools/dbgen/erd_docx.js <out.docx> <docs-dir>
-   المدخل: JSON من erd_manifest.py (مصدره النموذج db/model). الصور: <docs-dir>/diagrams/erd/*.png.
+   المدخل: JSON من erd_manifest.py. الصور: <docs-dir>/diagrams/erd/*.png (بدقة مضاعفة).
    نفس لغة الألوان والخطوط والاتجاه RTL في tools/md2docx، مع صفحة أفقية لكل مخطط وجداوله. */
 'use strict';
 const fs = require('fs');
@@ -18,10 +18,11 @@ const [,, outFile, docsDirArg] = process.argv;
 if (!outFile || !docsDirArg) { console.error('usage: erd_docx.js <out.docx> <docs-dir>  (manifest JSON on stdin)'); process.exit(2); }
 const DOCS = path.resolve(docsDirArg);
 const M = JSON.parse(fs.readFileSync(0, 'utf8'));
+const m = M.meta;
 
 // ---------- الألوان والخطوط (مطابقة لـ md2docx) ----------
 const FONT = 'Arial', MONO = 'Courier New';
-const C = { navy: '1F3A5F', blue: '2B5C8A', gray: '5B6670', rule: 'BFC9D6', band: 'F5F8FC', head: '1F3A5F', metaKey: 'E8EEF6', warn: 'FFF8E1' };
+const C = { navy: '1F3A5F', blue: '2B5C8A', gray: '5B6670', rule: 'BFC9D6', band: 'F5F8FC', head: '1F3A5F', metaKey: 'E8EEF6' };
 const SZ = { body: 20, table: 16, tableCode: 15, h1: 32, h2: 26, small: 16, title: 44, sub: 26 };
 // صفحة A4 أفقية: الأبعاد تُمرَّر عمودية ويُحوَّل الاتجاه بـ PageOrientation.LANDSCAPE
 const PORT_W = 11906, PORT_H = 16838;
@@ -31,13 +32,21 @@ const IMG_MAX_W = Math.round(CONTENT_W / 1440 * 96);                // بكسل 
 const IMG_MAX_H = 540;                                              // يترك مجالًا للعنوان والشرح على الصفحة نفسها
 const BD = { style: BorderStyle.SINGLE, size: 4, color: C.rule };
 
+// ---------- عدد الجداول بصيغته العربية الصحيحة ----------
+function pl(n) {
+  if (n === 1) return 'جدول واحد';
+  if (n === 2) return 'جدولان';
+  if (n <= 10) return `${n} جداول`;
+  return `${n} جدولًا`;
+}
+
 // ---------- عناصر مساعدة ----------
 function run(text, o = {}) {
   return new TextRun({ text, font: o.mono ? MONO : FONT, size: o.size || SZ.body, bold: !!o.bold, italics: !!o.italic,
     color: o.color, rightToLeft: !o.mono });
 }
 function para(children, o = {}) {
-  return new Paragraph({ children, bidirectional: true, alignment: o.align, heading: o.heading, pageBreakBefore: !!o.pageBreak,
+  return new Paragraph({ children, bidirectional: true, alignment: o.align, pageBreakBefore: !!o.pageBreak,
     keepNext: !!o.keepNext, spacing: o.spacing || { before: 0, after: 110, line: 300 } });
 }
 function text(t, o = {}) { return para([run(t, o)], o); }
@@ -79,38 +88,36 @@ function keyValue(rows) {
     rows: rows.map(([k, v]) => new TableRow({ children: [cell(k, widths[0], { bold: true, shade: C.metaKey }), cell(v, widths[1])] })) });
 }
 
-// صورة مُقاسة لتملأ الصفحة الأفقية مع الحفاظ على النسبة، ثم شرح تحتها
+// صورة PNG بدقة مضاعفة (تُقرأ في Word وLibreOffice والمتصفحات كلها)، مقاسة لتملأ الصفحة الأفقية مع الحفاظ على النسبة
 function diagram(img, caption) {
-  const file = path.join(DOCS, img.image);
-  const data = fs.readFileSync(file);
-  const scale = Math.min(IMG_MAX_W / img.w, IMG_MAX_H / img.h, 1);
+  const png = fs.readFileSync(path.join(DOCS, img.image));
+  const scale = Math.min(IMG_MAX_W / img.w, IMG_MAX_H / img.h, 1.25);
   const width = Math.round(img.w * scale), height = Math.round(img.h * scale);
   return [
     new Paragraph({ alignment: AlignmentType.CENTER, keepNext: true, bidirectional: true, spacing: { before: 60, after: 60 },
-      children: [new ImageRun({ type: 'png', data, transformation: { width, height },
+      children: [new ImageRun({ type: 'png', data: png, transformation: { width, height },
         altText: { name: img.image, title: caption, description: caption } })] }),
     new Paragraph({ alignment: AlignmentType.CENTER, bidirectional: true, spacing: { before: 0, after: 160 },
       children: [run(caption, { size: SZ.small, color: C.gray, italic: true })] }),
   ];
 }
 
-// شرح الشيء المرسوم: الجداول وعلاقاتها كما في الصورة
 function membersTable(members) {
   return table(['الجدول', 'المخطط', 'الغرض', 'PK', 'FK', 'UK'],
-    members.map(m => [m.fq, m.schema, m.purpose, m.pk, m.fk, m.uq]), [2600, 1000, 7196, 2500, 700, 800], [0]);
+    members.map(x => [x.fq, x.schema, x.purpose, x.pk, x.fk, x.uq]), [2600, 1000, 7196, 2500, 700, 800], [0]);
 }
 function relationsTable(rels) {
-  if (!rels.length) return text('لا توجد مفاتيح أجنبية عملية بين جداول هذه المجموعة؛ علاقاتها الخارجية تظهر في مجموعتها.', { size: SZ.small, color: C.gray, italic: true });
-  return table(['الجدول الابن', 'العمود', 'الجدول الأب', 'الإلزام', 'الحذف', 'نطاق الربط', 'النوع'],
-    rels.map(r => [r.child, r.column, r.parent, r.required ? 'إلزامي' : 'اختياري', r.cascade ? 'CASCADE' : 'قيد',
-      r.via.length ? r.via.join(', ') : '—', r.kind]), [2800, 1700, 2800, 1100, 1100, 3600, 1000], [0, 1, 2]);
+  if (!rels.length) return text('لا توجد مفاتيح أجنبية عملية لجداول هذه المجموعة.', { size: SZ.small, color: C.gray, italic: true });
+  return table(['الجدول الابن', 'العمود', 'الجدول الأب', 'الإلزام', 'الحذف', 'نطاق الربط', 'النوع', 'الرسم'],
+    rels.map(r => [r.child, r.column, r.parent, r.required ? 'إلزامي' : 'اختياري', r.cascade ? 'حذف متسلسل' : 'يمنع الحذف',
+      r.via.length ? r.via.join(', ') : '—', r.kind, r.drawn ? 'مرسوم' : 'لا']),
+    [2700, 2300, 2700, 1000, 1200, 2200, 1000, 900], [0, 1, 2]);
 }
 
 // ---------- المحتوى ----------
 const body = [];
-const m = M.meta;
 
-// الغلاف وبيانات الوثيقة وقراءة المخطط
+// الغلاف وبيانات الوثيقة
 body.push(new Paragraph({ bidirectional: true, alignment: AlignmentType.RIGHT, spacing: { before: 600, after: 120 },
   children: [new TextRun({ text: m.title, font: FONT, size: SZ.title, bold: true, color: C.navy, rightToLeft: true })] }));
 body.push(new Paragraph({ bidirectional: true, alignment: AlignmentType.RIGHT, spacing: { before: 0, after: 360 },
@@ -120,8 +127,9 @@ body.push(keyValue([
   ['الإصدار', m.version],
   ['التاريخ', m.date],
   ['الجداول', `${m.tables} جدولًا في ${m.schemas} مخططًا (schema)`],
-  ['المفاتيح الأجنبية', `${m.fk_total} في قاعدة البيانات = ${m.fk_owner} ملكية المشترك (TenantId → plat.Tenant، تُولَّد آليًا) + ${m.fk_model} علاقة من النموذج، منها ${m.fk_prov} لأعمدة الإثبات`],
-  ['المجموعات', `${m.groups} مخططًا: النواة + ${m.groups - 1} مخطط وحدة مرتبة بالوحدات م0 إلى م7/م8`],
+  ['المفاتيح الأجنبية', `${m.fk_total} مفتاحًا في DDL = ${m.fk_owner} ملكية المشترك (TenantId → plat.Tenant، تُولَّد آليًا) + ${m.fk_model} مفتاحًا في النموذج، منها ${m.fk_prov} أعمدة إثبات`],
+  ['القيود الفريدة', `${m.unique_total} قيدًا في DDL (قيود UQ والفهارس الفريدة)`],
+  ['مجموعات الرسم', `${m.groups} مجموعة: النواة + ${m.module_groups} مجموعة للوحدات م0 إلى م7/م8، بحد ${m.max_tables} جداول لكل رسم`],
   ['المصدر', m.source],
 ]));
 body.push(h1('قراءة المخطط', false));
@@ -130,44 +138,55 @@ body.push(table(['الرمز', 'الطرف', 'المعنى'], [
   ['||', 'طرف الأب، إلزامي', 'كل صف ابن يجب أن يشير إلى أب واحد، فالعمود الإلزامي لا يقبل NULL.'],
   ['|o', 'طرف الأب، اختياري', 'الابن قد لا يشير إلى أب، والعمود يقبل NULL.'],
   ['}o', 'طرف الابن', 'الأب الواحد يمكن أن يملك صفرًا أو أكثر من الأبناء.'],
-  ['PK', 'مفتاح أساسي', 'يعرّف الصف داخل الجدول.'],
-  ['FK', 'مفتاح أجنبي', 'يشير إلى جدول آخر؛ المفاتيح المركّبة (TenantId، …) تمنع الربط عبر المشتركين.'],
-  ['UK', 'قيد فريد', 'لا يتكرر في الجدول، وقد يكون مصفّى بشرط.'],
-], [1200, 2600, 10996], [0]));
+  ['PK', 'مفتاح أساسي', 'كما في DDL؛ يسبقه TenantId في المفاتيح المركّبة.'],
+  ['FK', 'مفتاح أجنبي عملي', 'يشير إلى جدول آخر. عمود الملكية TenantId لا يُعدّ هنا (انظر الملاحظات).'],
+  ['UK', 'عدد القيود الفريدة', 'عدد قيود UQ والفهارس الفريدة في DDL، ومنها المصفّى بشرط؛ لا يُرسم في الشكل.'],
+  ['الحذف', 'حذف متسلسل / يمنع الحذف', 'حذف متسلسل: يُحذف الابن مع أبيه. يمنع الحذف: لا يُحذف الأب ما دام له أبناء.'],
+  ['الرسم', 'مرسوم / لا', 'الشكل يعرض العلاقات بين جداول المجموعة نفسها. العلاقة إلى جدول في مجموعة أخرى، وعمود الإثبات، تُذكر في جدول العلاقات فقط.'],
+], [1200, 2800, 10796], [0]));
 body.push(text('ملاحظات الرسم والجداول:', { bold: true, spacing: { before: 200, after: 80 } }));
-body.push(text('• كل جدول مملوك للمشترك يحمل TenantId يشير إلى plat.Tenant. هذه العلاقة مكررة في كل جدول، فلا تُرسم ولا تُكرَّر في جداول العلاقات.'));
-body.push(text('• أعمدة الإثبات والتدقيق (مثل SourceDocumentId وVerifiedBy وConflictId وSupersedesId) لا تُرسم حتى لا يزدحم المخطط، وتظهر في جداول العلاقات بنوع «إثبات».'));
-body.push(text('• الجدول الواحد يظهر في مخطط مجموعته، وقد يظهر في مخطط النواة أو في مخطط مجموعة أخرى إذا كان طرفًا في علاقة معها.'));
-body.push(text('• الأرقام في هذا الملف تُحسب من النموذج مباشرة، ويتحقق منها الإنتاج بمقارنتها بالـDDL المولَّد.'));
+body.push(text(`• كل جدول مملوك للمشترك يحمل عمود TenantId يشير إلى plat.Tenant، وهي ${m.fk_owner} علاقة ملكية. لا تُرسم ولا تُعرض في جداول العلاقات.`));
+body.push(text(`• أعمدة الإثبات والتتبع (${M.meta.provenance.join('، ')}) تُعلَّم «إثبات» في جداول العلاقات إذا كانت مفاتيح أجنبية، ولا تُرسم.`));
+body.push(text('• كل جدول يظهر في مجموعة واحدة بالضبط في الملحق أ؛ وقد يظهر أيضًا في مخطط النواة.'));
+body.push(text(`• الأرقام تُحسب من النموذج والـDDL المولَّد، وتُقارَن بينهما قبل كتابة هذا الملف: ${m.tables} جدولًا، و${m.fk_total} مفتاحًا أجنبيًا، و${m.unique_total} قيدًا فريدًا.`));
 
 // §1 مخطط المخططات
 body.push(h1('1. خريطة المخططات'));
 body.push(text('كل مخطط (schema) صندوق، والعلاقة بين مخططين عدد المفاتيح الأجنبية التي تربط جداولهما. تُرسم الأزواج التي فيها خمسة مفاتيح فأكثر فقط؛ الباقي يظهر في جداول المجموعات.', { spacing: { before: 0, after: 120, line: 300 } }));
-body.push(...diagram({ image: M.schemaMap.image, w: M.schemaMap.w, h: M.schemaMap.h }, 'الشكل 1: خريطة المخططات وعدد المفاتيح الأجنبية بين كل مخططين'));
+body.push(...diagram(M.schemaMap, 'الشكل 1: خريطة المخططات وعدد المفاتيح الأجنبية بين كل مخططين'));
 body.push(h2('العلاقات بين المخططات (5 مفاتيح فأكثر)', true));
 body.push(table(['المخطط الأب', 'المخطط الابن', 'عدد المفاتيح'],
   M.schemaMap.pairs.map(p => [p.parent, p.child, p.count]), [3000, 3000, 2000], [0, 1]));
 body.push(h2('المخططات والجداول', true));
-body.push(table(['المخطط', 'عدد الجداول', 'المملوكة للمشترك'],
+body.push(table(['المخطط', 'عدد الجداول', 'تحمل TenantId'],
   M.schemaMap.schemas.map(s => [s.schema, s.tables, s.owned]), [3000, 2500, 2500], [0]));
 
-// §2 النواة
+// §2 النواة: رسم لكل أربعة جداول، كما في الوحدات
 body.push(h1('2. النواة: المشترك والهوية والصلاحيات'));
-body.push(...diagram(M.core, 'الشكل 2: ' + M.core.title));
-body.push(h2('الجداول', true));
-body.push(membersTable(M.core.members));
-body.push(h2('العلاقات (المفاتيح الأجنبية داخل النواة)', true));
-body.push(relationsTable(M.core.relations));
+body.push(text(`تُرسم جداول النواة (${pl(M.core.members.length)}) في ${M.coreGroups.length} رسوم متتالية، لكل رسم أربعة جداول على الأكثر. العلاقات بين رسوم النواة تظهر في جداول العلاقات.`, { spacing: { before: 0, after: 120, line: 300 } }));
+let coreFig = 1;
+M.coreGroups.forEach((g, i) => {
+  coreFig += 1;
+  body.push(h2(`2.${i + 1} ${g.title}`));
+  body.push(text(g.sub, { size: SZ.small, color: C.gray, keepNext: true, spacing: { before: 0, after: 60 } }));
+  body.push(...diagram(g, `الشكل ${coreFig}: ${g.title} (${pl(g.members.length)})`));
+  body.push(h2('الجداول', false));
+  body.push(membersTable(g.members));
+  body.push(h2('العلاقات', false));
+  body.push(relationsTable(g.relations));
+});
 
-// §3 مخطط الوحدات
-body.push(h1('3. مخططات الوحدات'));
-body.push(text(`${M.groups.length} مخططًا تغطي كل جداول النموذج؛ كل جدول يظهر في مجموعة واحدة بالضبط. ترتيبها بالوحدة: م0 المنصة والهوية، م1 الهيكل المؤسسي والأشخاص، م2–م3 الجهات المالية والحسابات، م4 الكتالوجات والمراجع، م5 التسهيلات والتسعير والضمانات والالتزامات والبيانات المالية، م6 الطلبات والإشعارات، م7/م8 الاعتمادات والبروفورما.`, { spacing: { before: 0, after: 120, line: 300 } }));
-let fig = 2;
+// §3 مخططات الوحدات
+body.push(h1('3. مخططات الوحدات', false));
+body.push(text(`تغطي ${m.module_groups} مجموعة رسم كل جداول النموذج، وكل جدول يظهر في مجموعة واحدة بالضبط. الجدول التالي يلخص الوحدات:`, { spacing: { before: 0, after: 120, line: 300 } }));
+body.push(table(['الوحدة', 'عدد مجموعات الرسم', 'عدد الجداول'],
+  M.modules.map(x => [x.label, x.groups, x.tables]), [3000, 3000, 3000], [0]));
+let fig = 1 + M.coreGroups.length;
 M.groups.forEach((g, i) => {
   fig += 1;
-  body.push(h2(`3.${i + 1} ${g.title}`, true));
-  body.push(text(g.sub, { size: SZ.small, color: C.gray, spacing: { before: 0, after: 60 } }));
-  body.push(...diagram(g, `الشكل ${fig}: ${g.title} (${g.members.length} جدولًا)`));
+  body.push(h2(`3.${i + 1} ${g.title}`));
+  body.push(text(g.sub, { size: SZ.small, color: C.gray, keepNext: true, spacing: { before: 0, after: 60 } }));
+  body.push(...diagram(g, `الشكل ${fig}: ${g.title} (${pl(g.members.length)})`));
   body.push(h2('الجداول', false));
   body.push(membersTable(g.members));
   body.push(h2('العلاقات', false));
@@ -176,7 +195,7 @@ M.groups.forEach((g, i) => {
 
 // الملحق: فهرس الجداول
 body.push(h1('الملحق أ. فهرس الجداول'));
-body.push(text(`${M.index.length} جدولًا مرتبة بالمخطط ثم الاسم. عمود «المجموعة» يحدد المخطط الذي يرسم الجدول.`, { spacing: { before: 0, after: 120, line: 300 } }));
+body.push(text(`${pl(M.index.length)} مرتبة بالمخطط ثم الاسم. عمود «المجموعة» يحدد مجموعة الرسم التي ترسم الجدول.`, { spacing: { before: 0, after: 120, line: 300 } }));
 body.push(table(['الجدول', 'المخطط', 'المجموعة', 'الغرض'],
   M.index.map(i => [i.fq, i.schema, i.group, i.purpose]), [3000, 1200, 4800, 5796], [0]));
 

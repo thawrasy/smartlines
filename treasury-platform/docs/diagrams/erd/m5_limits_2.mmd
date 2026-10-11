@@ -1,0 +1,30 @@
+%% م5 · الحدود والاستخدام والحجوزات (2/2) — Limits, utilisation & reservations
+erDiagram
+  fac_Utilization["fac.Utilization"] {
+    bigint UtilizationId PK
+    bigint FacilityId FK
+    bigint LimitId FK
+    bigint LimitProductLineId FK
+    bigint CompanyId FK
+    int CurrencyId FK
+  }
+  fac_LimitReservation["fac.LimitReservation"] {
+    bigint LimitReservationId PK
+    bigint FacilityId FK
+    bigint LimitId FK
+    bigint LimitProductLineId FK
+    bigint CompanyId FK
+    bigint RequestId FK
+    int CurrencyId FK
+    bigint ConvertedUtilizationId FK
+  }
+  fac_LimitMovement["fac.LimitMovement"] {
+    bigint LimitMovementId PK
+    bigint FacilityId FK
+    bigint LimitReservationId FK
+    bigint UtilizationId FK
+    int CurrencyId FK
+  }
+  fac_LimitReservation |o--o{ fac_LimitMovement : "LimitReservationId"
+  fac_Utilization |o--o{ fac_LimitMovement : "UtilizationId"
+  fac_Utilization |o--o{ fac_LimitReservation : "ConvertedUtilizationId"

@@ -1,0 +1,15 @@
+%% م1 · ملف الشركة و KYC (2/2) — Company profile & KYC
+erDiagram
+  org_CompanyWealthSource["org.CompanyWealthSource"] {
+    int TenantId PK
+    bigint FinancialProfileId PK
+    int WealthSourceId PK
+  }
+  org_CompanyDisclosure["org.CompanyDisclosure"] {
+    bigint CompanyDisclosureId PK
+    bigint CompanyId FK
+  }
+  org_CompanyKeyRelation["org.CompanyKeyRelation"] {
+    bigint CompanyKeyRelationId PK
+    bigint CompanyId FK
+  }

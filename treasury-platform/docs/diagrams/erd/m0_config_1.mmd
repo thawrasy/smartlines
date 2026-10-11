@@ -1,78 +1,19 @@
-%% م0 · الإعدادات والمهام الخلفية (1/2) — Configuration & background jobs
+%% م0 · الإعدادات والمهام الخلفية (1/3) — Configuration & background jobs
 erDiagram
   cfg_DataExportJob["cfg.DataExportJob"] {
     bigint DataExportJobId PK
     bigint RequestedBy FK
     bigint ApprovedBy FK
     bigint PackageDocumentId FK
-    timestamp RequestedAt
-    varchar Scope
   }
   cfg_ExpiryAlertLog["cfg.ExpiryAlertLog"] {
     bigint ExpiryAlertLogId PK
     bigint ExpiryAlertRuleId FK
-    bigint ItemId
-    date ExpiryDate
-    varchar AlertKind
-    integer Threshold
   }
   cfg_ExpiryAlertRule["cfg.ExpiryAlertRule"] {
     bigint ExpiryAlertRuleId PK
-    varchar ItemType
-    text LeadDays
-    text RecipientRoles
-    smallint ScopeByCompany
-    smallint IsActive
   }
   cfg_JobRun["cfg.JobRun"] {
     bigint JobRunId PK
-    varchar JobKey
-    varchar TriggerKind
-    varchar Status
-    integer AttemptNo
-    timestamp StartedAt
-  }
-  cfg_NonWorkingDay["cfg.NonWorkingDay"] {
-    bigint NonWorkingDayId PK
-    int CountryId FK
-    date OnDate
-    varchar Kind
-  }
-  cfg_NumberIssue["cfg.NumberIssue"] {
-    bigint NumberIssueId PK
-    bigint SequenceId FK
-    bigint VoidedBy FK
-    bigint SeqValue
-    varchar IssuedNumber
-    varchar Status
-  }
-  cfg_NumberSequence["cfg.NumberSequence"] {
-    bigint NumberSequenceId PK
-    bigint DefinitionId FK
-    bigint CompanyId FK
-    varchar PeriodKey
-    bigint NextValue
-  }
-  cfg_NumberSequenceDefinition["cfg.NumberSequenceDefinition"] {
-    bigint NumberSequenceDefinitionId PK
-  }
-  doc_Document["doc.Document"] {
-    bigint DocumentId PK
-  }
-  org_Company["org.Company"] {
-    bigint CompanyId PK
-  }
-  ref_Country["ref.Country"] {
-    int CountryId PK
-  }
-  sec_AppUser["sec.AppUser"] {
-    bigint AppUserId PK
   }
   cfg_ExpiryAlertRule ||--o{ cfg_ExpiryAlertLog : "ExpiryAlertRuleId"
-  cfg_NumberSequence ||--o{ cfg_NumberIssue : "SequenceId"
-  cfg_NumberSequenceDefinition ||--o{ cfg_NumberSequence : "DefinitionId"
-  doc_Document |o--o{ cfg_DataExportJob : "PackageDocumentId"
-  org_Company |o--o{ cfg_NumberSequence : "CompanyId"
-  ref_Country ||--o{ cfg_NonWorkingDay : "CountryId"
-  sec_AppUser ||--o{ cfg_DataExportJob : "ApprovedBy, RequestedBy"
-  sec_AppUser |o--o{ cfg_NumberIssue : "VoidedBy"

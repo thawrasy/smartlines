@@ -214,7 +214,7 @@ table cat.BaseRate catalog int  # سعر الأساس: سوق (InstitutionId ف�
   Tenor           enum{ON,1M,3M,6M,12M} req
   CurrencyId      ->ref.Currency
   StaleAfterDays  int               # تنبيه التقادم NTF-CAT-01 (الافتراضي 35 مقترح)
-  unique FamilyCode,Tenor,InstitutionId   # BR-CAT-011: NULL = قيمة واحدة في SQL Server فيتفرّد السوق بين (FamilyCode,Tenor) ويتفرّد الداخلي لكل بنك
+  unique FamilyCode,Tenor,InstitutionId   # BR-CAT-011: NULL = قيمة واحدة في SQL Server فتُفرض الفرادة للسوق بين (FamilyCode,Tenor) وللداخلي لكل بنك
   index  Kind,FamilyCode,Tenor   # البحث بالسعر والفترة (SVC-05)
   check  (Kind = 'MARKET' AND InstitutionId IS NULL) OR (Kind = 'BANK_INTERNAL' AND InstitutionId IS NOT NULL)   # BR-CAT-011/V-CAT-03
   check  StaleAfterDays IS NULL OR StaleAfterDays > 0

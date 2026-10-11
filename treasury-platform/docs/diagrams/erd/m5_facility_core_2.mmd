@@ -1,0 +1,14 @@
+%% م5 · التسهيلات والمراجعات (2/2) — Facilities & revisions
+erDiagram
+  fac_OutstandingSnapshot["fac.OutstandingSnapshot"] {
+    bigint OutstandingSnapshotId PK
+    bigint FacilityId FK
+    bigint LimitId FK
+    int ProductId FK
+    int CurrencyId FK
+  }
+  fac_ValueConflict["fac.ValueConflict"] {
+    bigint ValueConflictId PK
+    bigint FacilityId FK
+    bigint ResolvedBy FK
+  }

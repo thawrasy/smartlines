@@ -1,0 +1,36 @@
+%% م5 · التسعير وشروط المقارنة (1/2) — Pricing, tariffs & comparable terms
+erDiagram
+  prc_PricingRule["prc.PricingRule"] {
+    bigint PricingRuleId PK
+    bigint FacilityId FK
+    bigint ScopeLimitId FK
+    bigint ScopeLimitProductLineId FK
+    int ScopeProductId FK
+    bigint ScopeCompanyId FK
+    int FeeTypeId FK
+    int FinancingTypeId FK
+    bigint TariffItemId FK
+    int BaseRateId FK
+    int CurrencyId FK
+  }
+  prc_PricingTier["prc.PricingTier"] {
+    bigint PricingTierId PK
+    bigint FacilityId FK
+    bigint PricingRuleId FK
+  }
+  prc_TariffItem["prc.TariffItem"] {
+    bigint TariffItemId PK
+    bigint ScheduleId FK
+    int FeeTypeId FK
+    int ProductId FK
+    int CurrencyId FK
+  }
+  prc_TariffSchedule["prc.TariffSchedule"] {
+    bigint TariffScheduleId PK
+    bigint InstitutionId FK
+    bigint FacilityId FK
+    bigint ApprovedBy FK
+  }
+  prc_PricingRule ||--o{ prc_PricingTier : "PricingRuleId"
+  prc_TariffItem |o--o{ prc_PricingRule : "TariffItemId"
+  prc_TariffSchedule ||--o{ prc_TariffItem : "ScheduleId"

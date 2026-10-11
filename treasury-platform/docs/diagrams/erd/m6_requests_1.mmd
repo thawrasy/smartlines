@@ -1,4 +1,4 @@
-%% م6 · الطلبات وإجراءاتها (1/2) — Requests, approvals & actions
+%% م6 · الطلبات وإجراءاتها (1/3) — Requests, approvals & actions
 erDiagram
   wfl_Request["wfl.Request"] {
     bigint RequestId PK
@@ -38,128 +38,13 @@ erDiagram
     bigint RequestId FK
     bigint DocumentId FK
     bigint StageInstanceId FK
-    varchar Visibility
-    smallint IsActive
   }
   wfl_RequestExternalRef["wfl.RequestExternalRef"] {
     bigint RequestExternalRefId PK
     bigint RequestId FK
     bigint SupersededById FK
     bigint EnteredBy FK
-    varchar SystemCode
-    varchar RefType
   }
-  wfl_RequestStageInstance["wfl.RequestStageInstance"] {
-    bigint RequestStageInstanceId PK
-    bigint RequestId FK
-    int TemplateId FK
-    int StageId FK
-    bigint AssigneeUserId FK
-    int ResumeStageId FK
-  }
-  wfl_RequestApproval["wfl.RequestApproval"] {
-    bigint RequestApprovalId PK
-    bigint RequestId FK
-    bigint StageInstanceId FK
-    bigint AssignedUserId FK
-    bigint AssignedRoleId FK
-    bigint ActedByUserId FK
-    bigint DelegationId FK
-  }
-  wfl_RequestAction["wfl.RequestAction"] {
-    bigint RequestActionId PK
-    bigint RequestId FK
-    bigint StageInstanceId FK
-    varchar ActionType
-    varchar ActorType
-    timestamp OccurredAt
-  }
-  cat_Product["cat.Product"] {
-    int ProductId PK
-  }
-  doc_Document["doc.Document"] {
-    bigint DocumentId PK
-  }
-  fac_Facility["fac.Facility"] {
-    bigint FacilityId PK
-  }
-  fac_Limit["fac.Limit"] {
-    bigint LimitId PK
-  }
-  fac_LimitProductLine["fac.LimitProductLine"] {
-    bigint LimitProductLineId PK
-  }
-  fac_LimitReservation["fac.LimitReservation"] {
-    bigint LimitReservationId PK
-  }
-  ins_Institution["ins.Institution"] {
-    bigint InstitutionId PK
-  }
-  lc_LetterOfCredit["lc.LetterOfCredit"] {
-    bigint LetterOfCreditId PK
-  }
-  org_Company["org.Company"] {
-    bigint CompanyId PK
-  }
-  org_Department["org.Department"] {
-    bigint DepartmentId PK
-  }
-  ref_Currency["ref.Currency"] {
-    int CurrencyId PK
-  }
-  sec_AppUser["sec.AppUser"] {
-    bigint AppUserId PK
-  }
-  sec_Role["sec.Role"] {
-    bigint RoleId PK
-  }
-  wfl_ExternalPhase["wfl.ExternalPhase"] {
-    int ExternalPhaseId PK
-  }
-  wfl_RequestType["wfl.RequestType"] {
-    int RequestTypeId PK
-  }
-  wfl_UserDelegation["wfl.UserDelegation"] {
-    bigint UserDelegationId PK
-  }
-  wfl_WorkflowStage["wfl.WorkflowStage"] {
-    int WorkflowStageId PK
-  }
-  wfl_WorkflowTemplate["wfl.WorkflowTemplate"] {
-    int WorkflowTemplateId PK
-  }
-  cat_Product |o--o{ wfl_Request : "ProductId"
-  doc_Document ||--o{ wfl_RequestAttachment : "DocumentId"
-  fac_Facility |o--o{ wfl_Request : "FacilityId"
-  fac_Limit |o--o{ wfl_Request : "LimitId"
-  fac_LimitProductLine |o--o{ wfl_Request : "LimitProductLineId"
-  fac_LimitReservation |o--o{ wfl_Request : "ReservationId"
-  ins_Institution |o--o{ wfl_Request : "InstitutionId"
-  lc_LetterOfCredit |o--o{ wfl_Request : "LcId"
-  org_Company ||--o{ wfl_Request : "CompanyId"
-  org_Department |o--o{ wfl_Request : "DepartmentId"
-  ref_Currency |o--o{ wfl_Request : "CurrencyId"
-  sec_AppUser ||--o{ wfl_Request : "AssigneeUserId, ClosedByUserId, CreatedByUserId, RequesterUserId, SubmittedByUserId"
-  sec_AppUser |o--o{ wfl_RequestApproval : "ActedByUserId, AssignedUserId"
-  sec_AppUser ||--o{ wfl_RequestComment : "AuthorUserId, RetractedBy"
-  sec_AppUser |o--o{ wfl_RequestExternalRef : "EnteredBy"
-  sec_AppUser |o--o{ wfl_RequestStageInstance : "AssigneeUserId"
-  sec_Role |o--o{ wfl_RequestApproval : "AssignedRoleId"
-  wfl_ExternalPhase ||--o{ wfl_Request : "ExternalPhaseId"
-  wfl_Request ||--o{ wfl_RequestAction : "RequestId"
-  wfl_Request ||--o{ wfl_RequestApproval : "RequestId"
   wfl_Request ||--o{ wfl_RequestAttachment : "RequestId"
   wfl_Request ||--o{ wfl_RequestComment : "RequestId"
   wfl_Request ||--o{ wfl_RequestExternalRef : "RequestId"
-  wfl_Request ||--o{ wfl_RequestStageInstance : "RequestId"
-  wfl_RequestStageInstance |o--o{ wfl_Request : "CurrentStageInstanceId"
-  wfl_RequestStageInstance |o--o{ wfl_RequestAction : "StageInstanceId"
-  wfl_RequestStageInstance ||--o{ wfl_RequestApproval : "StageInstanceId"
-  wfl_RequestStageInstance |o--o{ wfl_RequestAttachment : "StageInstanceId"
-  wfl_RequestStageInstance |o--o{ wfl_RequestComment : "StageInstanceId"
-  wfl_RequestType ||--o{ wfl_Request : "RequestTypeId"
-  wfl_UserDelegation |o--o{ wfl_RequestApproval : "DelegationId"
-  wfl_WorkflowStage |o--o{ wfl_Request : "CurrentStageId"
-  wfl_WorkflowStage ||--o{ wfl_RequestStageInstance : "ResumeStageId, StageId"
-  wfl_WorkflowTemplate ||--o{ wfl_Request : "TemplateId"
-  wfl_WorkflowTemplate ||--o{ wfl_RequestStageInstance : "TemplateId"

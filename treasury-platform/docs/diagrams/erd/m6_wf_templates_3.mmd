@@ -1,0 +1,11 @@
+%% م6 · قوالب دورات العمل (3/3) — Workflow templates
+erDiagram
+  wfl_TemplateField["wfl.TemplateField"] {
+    int TemplateFieldId PK
+    int TemplateId FK
+  }
+  wfl_TemplateAttachmentRule["wfl.TemplateAttachmentRule"] {
+    int TemplateAttachmentRuleId PK
+    int TemplateId FK
+    int DocumentTypeId FK
+  }

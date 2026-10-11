@@ -1,5 +1,24 @@
-%% م2–م3 · الجهات المالية والحسابات والمفوّضون (2/2) — Institutions, bank accounts & signatories
+%% م2–م3 · الجهات المالية والحسابات والمفوّضون (2/3) — Institutions, bank accounts & signatories
 erDiagram
+  ins_RelationshipContact["ins.RelationshipContact"] {
+    bigint RelationshipContactId PK
+    bigint InstitutionId FK
+    bigint RelationshipId FK
+    bigint ContactId FK
+    int RoleId FK
+  }
+  ins_RelationshipProduct["ins.RelationshipProduct"] {
+    bigint RelationshipProductId PK
+    bigint InstitutionId FK
+    bigint RelationshipId FK
+    int ProductId FK
+    bigint DefaultContactId FK
+  }
+  acc_AuthorityConflict["acc.AuthorityConflict"] {
+    bigint AuthorityConflictId PK
+    bigint SignatoryAuthorityId FK
+    bigint ReviewedBy FK
+  }
   acc_BankAccount["acc.BankAccount"] {
     bigint BankAccountId PK
     bigint CompanyId FK
@@ -12,98 +31,3 @@ erDiagram
     bigint HashKeyId FK
     bigint BranchUnitId FK
   }
-  acc_FacilityAccount["acc.FacilityAccount"] {
-    bigint FacilityAccountId PK
-    bigint FacilityId FK
-    bigint BankAccountId FK
-    int CurrencyId FK
-    int PurposeId FK
-    smallint IsDefault
-  }
-  acc_Signatory["acc.Signatory"] {
-    bigint SignatoryId PK
-    bigint RelationshipId FK
-    bigint PartyId FK
-    int SignatureClassId FK
-    int PositionId FK
-    int AuthorisationBasisId FK
-    int CashWithdrawalCurrencyId FK
-    bigint AuthorizationDocumentId FK
-    bigint SpecimenDocumentId FK
-  }
-  acc_SignatoryAuthority["acc.SignatoryAuthority"] {
-    bigint SignatoryAuthorityId PK
-    bigint RelationshipId FK
-    bigint SignatoryId FK
-    bigint BankAccountId FK
-    int OperationTypeId FK
-    int CurrencyId FK
-    bigint SupersededById FK
-  }
-  acc_SignatoryAuthorityJointClass["acc.SignatoryAuthorityJointClass"] {
-    bigint SignatoryAuthorityId PK
-    int SignatureClassId PK
-  }
-  cat_AccountType["cat.AccountType"] {
-    int AccountTypeId PK
-  }
-  cat_LookupItem["cat.LookupItem"] {
-    int LookupItemId PK
-  }
-  cat_OperationType["cat.OperationType"] {
-    int OperationTypeId PK
-  }
-  cat_Position["cat.Position"] {
-    int PositionId PK
-  }
-  doc_Document["doc.Document"] {
-    bigint DocumentId PK
-  }
-  fac_Facility["fac.Facility"] {
-    bigint FacilityId PK
-  }
-  ins_Institution["ins.Institution"] {
-    bigint InstitutionId PK
-  }
-  ins_InstitutionUnit["ins.InstitutionUnit"] {
-    bigint InstitutionUnitId PK
-  }
-  ins_Relationship["ins.Relationship"] {
-    bigint RelationshipId PK
-  }
-  org_Company["org.Company"] {
-    bigint CompanyId PK
-  }
-  pty_Party["pty.Party"] {
-    bigint PartyId PK
-  }
-  ref_Currency["ref.Currency"] {
-    int CurrencyId PK
-  }
-  sec_TenantKey["sec.TenantKey"] {
-    bigint TenantKeyId PK
-  }
-  acc_BankAccount ||--o{ acc_FacilityAccount : "BankAccountId"
-  acc_BankAccount |o--o{ acc_SignatoryAuthority : "BankAccountId"
-  acc_Signatory ||--o{ acc_SignatoryAuthority : "SignatoryId"
-  acc_SignatoryAuthority ||--o{ acc_SignatoryAuthorityJointClass : "SignatoryAuthorityId"
-  cat_AccountType ||--o{ acc_BankAccount : "AccountTypeId"
-  cat_LookupItem ||--o{ acc_FacilityAccount : "PurposeId"
-  cat_LookupItem ||--o{ acc_Signatory : "AuthorisationBasisId, SignatureClassId"
-  cat_LookupItem ||--o{ acc_SignatoryAuthorityJointClass : "SignatureClassId"
-  cat_OperationType ||--o{ acc_SignatoryAuthority : "OperationTypeId"
-  cat_Position |o--o{ acc_Signatory : "PositionId"
-  doc_Document |o--o{ acc_Signatory : "AuthorizationDocumentId, SpecimenDocumentId"
-  fac_Facility ||--o{ acc_FacilityAccount : "FacilityId"
-  ins_Institution ||--o{ acc_BankAccount : "InstitutionId"
-  ins_InstitutionUnit |o--o{ acc_BankAccount : "BranchUnitId"
-  ins_Relationship ||--o{ acc_BankAccount : "RelationshipId"
-  ins_Relationship ||--o{ acc_Signatory : "RelationshipId"
-  ins_Relationship ||--o{ acc_SignatoryAuthority : "RelationshipId"
-  org_Company ||--o{ acc_BankAccount : "CompanyId"
-  pty_Party ||--o{ acc_Signatory : "PartyId"
-  ref_Currency ||--o{ acc_BankAccount : "CurrencyId"
-  ref_Currency ||--o{ acc_FacilityAccount : "CurrencyId"
-  ref_Currency |o--o{ acc_Signatory : "CashWithdrawalCurrencyId"
-  ref_Currency |o--o{ acc_SignatoryAuthority : "CurrencyId"
-  sec_TenantKey ||--o{ acc_BankAccount : "EncKeyId, HashKeyId"

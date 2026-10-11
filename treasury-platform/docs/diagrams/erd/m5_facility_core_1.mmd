@@ -1,0 +1,30 @@
+%% م5 · التسهيلات والمراجعات (1/2) — Facilities & revisions
+erDiagram
+  fac_Facility["fac.Facility"] {
+    bigint FacilityId PK
+    bigint BorrowerCompanyId FK
+    int FacilityTypeId FK
+    int CurrencyId FK
+    bigint PreviousFacilityId FK
+  }
+  fac_FacilityRevision["fac.FacilityRevision"] {
+    bigint FacilityRevisionId PK
+    bigint FacilityId FK
+    bigint SubmittedBy FK
+    bigint ApprovedBy FK
+  }
+  fac_FacilityDocument["fac.FacilityDocument"] {
+    bigint FacilityDocumentId PK
+    bigint FacilityId FK
+    bigint DocumentId FK
+    bigint AmendsFacilityDocumentId FK
+  }
+  fac_FacilityLender["fac.FacilityLender"] {
+    bigint FacilityLenderId PK
+    bigint FacilityId FK
+    bigint InstitutionId FK
+    bigint ContactId FK
+  }
+  fac_Facility ||--o{ fac_FacilityDocument : "FacilityId"
+  fac_Facility ||--o{ fac_FacilityLender : "FacilityId"
+  fac_Facility ||--o{ fac_FacilityRevision : "FacilityId"

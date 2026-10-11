@@ -208,7 +208,7 @@
 | DisplayNameAr | NVARCHAR(200) | نعم |  |  |  |
 | DisplayNameEn | NVARCHAR(200) | نعم |  |  |  |
 | DepartmentId | BIGINT | نعم |  | org.Department |  |
-| LineManagerUserId | BIGINT | نعم |  | sec.AppUser | المدير المباشر: يحل «المدير» في الموافقات (13) |
+| LineManagerUserId | BIGINT | نعم |  | sec.AppUser | المدير المباشر: يُستعمل لتحديد «المدير» في الموافقات (13) |
 | CompanyScopeMode | VARCHAR(10) | لا | SELECTED |  | SELECTED = الرفض هو الأصل (FR-PLT-021) enum: ALL, SELECTED |
 | PreferredLanguage | VARCHAR(10) | نعم |  |  | فارغ = DefaultLanguage للمشترك؛ تقرؤه 13 (FR-NTF-024) enum: ar, en |
 | DigitsPreference | VARCHAR(12) | نعم |  |  | فارغ = تفضيل المشترك (Q-PLT-07) enum: WESTERN, ARABIC_INDIC |
@@ -3632,7 +3632,7 @@
 
 **قيود:** `NoteAmount > 0` · `DueKind <> 'FIXED_DATE' OR (DueDate IS NOT NULL AND DueDate >= IssuedOn)` · `DueKind <> 'ON_DEMAND' OR DueDate IS NULL` · `LastRenewedOn IS NULL OR LastRenewedOn >= IssuedOn` · `RenewalCycle <> 'NONE' OR LastRenewedOn IS NULL`
 
-### `col.PromissoryNoteSigner` — موقّعو السند (SignerPartyIds) -- جدول وسيط جديد؛ مزوّد PromissoryNote signer (FR-COL-015)
+### `col.PromissoryNoteSigner` — موقّعو السند (SignerPartyIds) -- جدول وسيط جديد؛ موقّعو PromissoryNote (FR-COL-015)
 
 *مملوك للمشترك*
 
@@ -3977,7 +3977,7 @@
 
 ## FIN
 
-### `fin.LineCatalogItem` — بند معياري للقوائم؛ 39 بندًا مزروعًا؛ النظامي في الصيغ لا يُحذف (FR-FIN-001، CatalogBase)
+### `fin.LineCatalogItem` — بند معياري للقوائم؛ 39 بندًا مبذورًا؛ النظامي في الصيغ لا يُحذف (FR-FIN-001، CatalogBase)
 
 *مملوك للمشترك · كتالوج*
 
@@ -4008,7 +4008,7 @@
 
 **قيود:** `IsTotal = 0 OR TotalFormula IS NOT NULL` · `IsTotal = 1 OR TotalFormula IS NULL` · `NameEn IS NOT NULL` · `Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'` · `IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)`
 
-### `fin.LineCatalogItemAlias` — الأسماء البديلة للبند (Aliases) للصق والمطابقة -- جدول جديد يحل «Aliases set» (FR-FIN-003)
+### `fin.LineCatalogItemAlias` — الأسماء البديلة للبند (Aliases) للصق والمطابقة -- جدول جديد للأسماء البديلة (FR-FIN-003)
 
 *مملوك للمشترك*
 
@@ -4599,7 +4599,7 @@
 | Action | VARCHAR(10) | لا |  |  | enum: SUBMIT, APPROVE, COMPLETE, RETURN, REJECT, CANCEL, RESUBMIT |
 | ToStageId | INT | لا |  | wfl.WorkflowStage (via TemplateId) | RESUBMIT يعيد إلى ResumeStage المحفوظة في مثيل المرحلة (BR-WFL-008) |
 | Priority | INT | لا | 1 |  | تصاعدي: يُنفَّذ أول شرط محقق (BR-WFL-001) |
-| ConditionJson | NVARCHAR(MAX) | نعم |  |  | تعبير مقيَّد بلا شيفرة؛ الفارغ = دائمًا (FR-REQ-004) |
+| ConditionJson | NVARCHAR(MAX) | نعم |  |  | تعبير مقيَّد بلا كود؛ الفارغ = دائمًا (FR-REQ-004) |
 | ResumeStageId | INT | نعم |  | wfl.WorkflowStage (via TemplateId) | مرحلة الاستئناف عند RETURN (FR-WFL-010) |
 | LabelAr | NVARCHAR(200) | نعم |  |  |  |
 | LabelEn | NVARCHAR(200) | نعم |  |  |  |
@@ -4613,7 +4613,7 @@
 
 **قيود:** `Priority >= 1` · `FromStageId <> ToStageId` · `ResumeStageId IS NULL OR Action IN ('RETURN','RESUBMIT')` · `Action NOT IN ('RETURN','REJECT') OR RequiresComment = 1`
 
-### `wfl.WorkflowStageHook` — خطاف مسجَّل بالكود على مرحلة: مفتاح ومعاملات لا شيفرة (FR-WFL-021، BR-WFL-015، §5.4)
+### `wfl.WorkflowStageHook` — خطاف مسجَّل بالكود على مرحلة: مفتاح ومعاملات لا كود (FR-WFL-021، BR-WFL-015، §5.4)
 
 *مملوك للمشترك*
 
@@ -4904,7 +4904,7 @@
 
 **المفاتيح:** PK(NotificationPreferenceId) · UQ(TenantId, UserId, GroupKey, Channel)
 
-### `ntf.DigestBatch` — دفعة ملخص لمستخدم وقناة وفترة؛ لا يُرسل فارغًا (FR-NTF-014، BR-NTF-004، JOB-NTF-DIGEST) -- جدول جديد يحل DigestBatchId
+### `ntf.DigestBatch` — دفعة ملخص لمستخدم وقناة وفترة؛ لا يُرسل فارغًا (FR-NTF-014، BR-NTF-004، JOB-NTF-DIGEST) -- جدول جديد
 
 *مملوك للمشترك*
 
@@ -5276,7 +5276,7 @@
 | InsuranceClauses | NVARCHAR(300) | نعم |  |  | F6 |
 | BankMayArrangeInsurance | BIT | نعم |  |  | تفويض البنك بترتيب بوليصة (02 B28) |
 | AdditionalConditions | NVARCHAR(2000) | نعم |  |  | G2: تحذير لشرط بلا مستند (V-LCT-18) |
-| IsTransferable | BIT | نعم |  |  | H1 (Could) |
+| IsTransferable | BIT | نعم |  |  | H1 (أولوية: ممكن) |
 | AssignmentOfProceedsText | NVARCHAR(500) | نعم |  |  |  |
 | LcTextLanguage | VARCHAR(10) | لا | EN |  | H2: لغة تصيير البنود والطباعة (FR-LCT-033) enum: EN, AR, BOTH |
 | MarginPct | DECIMAL(9,6) | نعم |  |  | I1 خزينة: 0..100؛ الافتراضي من CashCoverPct (BR-LCT-015) |
@@ -5408,7 +5408,7 @@
 | **LcFormFieldMapId** | BIGINT IDENTITY | لا | | | مفتاح أساسي |
 | TemplateId | BIGINT | لا |  | lc.LcFormTemplate |  |
 | TargetName | NVARCHAR(120) | لا |  |  | اسم حقل PDF أو بند ورقة البوابة |
-| SourceExpr | NVARCHAR(200) | لا |  |  | مسار من جذور مسموحة فقط؛ لا تنفيذ شيفرة (BR-LCT-020) |
+| SourceExpr | NVARCHAR(200) | لا |  |  | مسار من جذور مسموحة فقط؛ لا تنفيذ كود (BR-LCT-020) |
 | Transform | VARCHAR(15) | لا | NONE |  | enum: NONE, UPPER, DATE_DMY, DATE_HIJRI, AMOUNT_WORDS_AR, AMOUNT_WORDS_EN, CHECKBOX_EQ, CONCAT_DOCS, CHARGES_SUMMARY |
 | TransformArg | NVARCHAR(100) | نعم |  |  |  |
 | IsRequired | BIT | لا | 0 |  | هدف إلزامي بلا مصدر يمنع الطباعة الرسمية (BR-LCT-020) |
@@ -5484,7 +5484,7 @@
 
 **قيود:** `Amount > 0 AND OriginalAmount > 0` · `TolerancePlusPct BETWEEN 0 AND 100 AND ToleranceMinusPct BETWEEN 0 AND 100` · `DrawnAmount >= 0 AND SettledAmount >= 0 AND SettledAmount <= DrawnAmount` · `EarmarkedRemaining >= 0` · `ExposureAmount IS NULL OR ExposureAmount >= Amount` · `(LcClass = 'PURCHASE' AND IssueDate IS NOT NULL AND ReceivedDate IS NULL) OR (LcClass = 'SALES' AND ReceivedDate IS NOT NULL AND IssueDate IS NULL)` · `IssueDate IS NULL OR ExpiryDate >= IssueDate` · `LimitId IS NULL OR FacilityId IS NOT NULL` · `LimitProductLineId IS NULL OR LimitId IS NOT NULL` · `UtilizationId IS NULL OR FacilityId IS NOT NULL` · `RelationshipId IS NULL OR InstitutionId IS NOT NULL` · `LcClass = 'PURCHASE' OR (FacilityId IS NULL AND UtilizationId IS NULL AND ExposureAmount IS NULL AND MarginPct IS NULL AND MarginAmount IS NULL)` · `LcClass = 'SALES' OR ExposureAmount IS NOT NULL` · `LcClass = 'SALES' OR (ProformaId IS NULL AND OtherBankText IS NULL AND OtherBankBic IS NULL AND EarmarkedRemaining = 0)` · `MarginPct IS NULL OR MarginPct BETWEEN 0 AND 100` · `MarginAmount IS NULL OR MarginAmount >= 0` · `Status NOT IN ('CLOSED','CANCELLED') OR (ClosedOn IS NOT NULL AND ClosedReason IS NOT NULL)` · `Status IN ('CLOSED','CANCELLED') OR (ClosedOn IS NULL AND ClosedReason IS NULL)` · `UndrawnReleasedOn IS NULL OR Status IN ('EXPIRED','CLOSED','CANCELLED')` · `LegacyEntry = 0 OR RequestId IS NULL` · `OtherBankBic IS NULL OR ((OtherBankBic LIKE '________' OR OtherBankBic LIKE '___________') AND OtherBankBic NOT LIKE '%[^A-Z0-9]%')` · `AmendmentNo >= 0` · `LcNumberNormalized NOT LIKE '% %'`
 
-### `lc.LcExternalRef` — مرجع خارجي للاعتماد (ERP...)؛ بلا تفرّد؛ البحث بالمطبَّع (FR-LCI-013، BR-REQ-006) -- جديد
+### `lc.LcExternalRef` — مرجع خارجي للاعتماد (ERP...)؛ بلا فرادة؛ البحث بالمطبَّع (FR-LCI-013، BR-REQ-006) -- جديد
 
 *مملوك للمشترك*
 
@@ -5731,7 +5731,7 @@
 
 **قيود:** `LineNo >= 1` · `Qty > 0` · `UnitPrice >= 0 AND LineTotal >= 0`
 
-### `lc.LcTermsComparison` — نتيجة مقارنة شروط الاعتماد المستلَم بالبروفورما (FR-LCT-031، FR-LCE-023، BR-LCT-021) -- جديد (Could)
+### `lc.LcTermsComparison` — نتيجة مقارنة شروط الاعتماد المستلَم بالبروفورما (FR-LCT-031، FR-LCE-023، BR-LCT-021) -- جديد (أولوية: ممكن)
 
 *مملوك للمشترك*
 
@@ -5754,7 +5754,7 @@
 
 **قيود:** `BaselineTermsId <> ReceivedTermsId`
 
-### `lc.LcTermsComparisonLine` — فرق حقل واحد وحكمه وقرار الخزينة (FR-LCT-031، BR-LCT-021) -- جديد (Could)
+### `lc.LcTermsComparisonLine` — فرق حقل واحد وحكمه وقرار الخزينة (FR-LCT-031، BR-LCT-021) -- جديد (أولوية: ممكن)
 
 *مملوك للمشترك*
 

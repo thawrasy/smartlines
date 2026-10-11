@@ -235,7 +235,7 @@ table lc.LcTerms public  # إصدار شروط اعتماد: صف لكل نسخ�
   InsuranceClauses             str(300)         # F6
   BankMayArrangeInsurance      bool             # تفويض البنك بترتيب بوليصة (02 B28)
   AdditionalConditions         str(2000)        # G2: تحذير لشرط بلا مستند (V-LCT-18)
-  IsTransferable               bool             # H1 (Could)
+  IsTransferable               bool             # H1 (أولوية: ممكن)
   AssignmentOfProceedsText     str(500)
   LcTextLanguage               enum{EN,AR,BOTH} req =EN   # H2: لغة تصيير البنود والطباعة (FR-LCT-033)
   MarginPct                    rate             # I1 خزينة: 0..100؛ الافتراضي من CashCoverPct (BR-LCT-015)
@@ -373,7 +373,7 @@ table lc.LcFormTemplate public  # قالب نموذج بنك/منتج/نوع ن�
 table lc.LcFormFieldMap deletable  # تعيين حقل نظام إلى حقل PDF أو بند في ورقة البوابة (FR-LCT-027، BR-LCT-020) -- جديد
   TemplateId     ->lc.LcFormTemplate req
   TargetName     str(120)   req   # اسم حقل PDF أو بند ورقة البوابة
-  SourceExpr     str(200)   req   # مسار من جذور مسموحة فقط؛ لا تنفيذ شيفرة (BR-LCT-020)
+  SourceExpr     str(200)   req   # مسار من جذور مسموحة فقط؛ لا تنفيذ كود (BR-LCT-020)
   Transform      enum{NONE,UPPER,DATE_DMY,DATE_HIJRI,AMOUNT_WORDS_AR,AMOUNT_WORDS_EN,CHECKBOX_EQ,CONCAT_DOCS,CHARGES_SUMMARY} req =NONE
   TransformArg   str(100)
   IsRequired     bool       req =0   # هدف إلزامي بلا مصدر يمنع الطباعة الرسمية (BR-LCT-020)
@@ -470,7 +470,7 @@ table lc.LetterOfCredit public  # سجل الاعتماد للجانبين: مش
   check  AmendmentNo >= 0
   check  LcNumberNormalized NOT LIKE '% %'   # المطبَّع بلا فراغات (BR-LCI-016)
 
-table lc.LcExternalRef  # مرجع خارجي للاعتماد (ERP...)؛ بلا تفرّد؛ البحث بالمطبَّع (FR-LCI-013، BR-REQ-006) -- جديد
+table lc.LcExternalRef  # مرجع خارجي للاعتماد (ERP...)؛ بلا فرادة؛ البحث بالمطبَّع (FR-LCI-013، BR-REQ-006) -- جديد
   LcId             ->lc.LetterOfCredit req
   SystemCode       str(40)    req   # نص حر مثل ERP
   RefType          str(60)    req   # نص حر مثل PURCHASE_ORDER
@@ -673,9 +673,9 @@ table lc.ProformaLine  # بند في البروفورما (FR-LCE-003، BR-LCE-0
   check  Qty > 0
   check  UnitPrice >= 0 AND LineTotal >= 0   # V-LCE-03
 
-# ============================== المخطط lc: مقارنة المستلَم بالبروفورما (Could) ==============================
+# ============================== المخطط lc: مقارنة المستلَم بالبروفورما (أولوية: ممكن) ==============================
 
-table lc.LcTermsComparison  # نتيجة مقارنة شروط الاعتماد المستلَم بالبروفورما (FR-LCT-031، FR-LCE-023، BR-LCT-021) -- جديد (Could)
+table lc.LcTermsComparison  # نتيجة مقارنة شروط الاعتماد المستلَم بالبروفورما (FR-LCT-031، FR-LCE-023، BR-LCT-021) -- جديد (أولوية: ممكن)
   BaselineTermsId  ->lc.LcTerms req   # شروط البروفورما (غرض PROFORMA)
   ReceivedTermsId  ->lc.LcTerms req   # شروط الاعتماد المستلَم (غرض RECEIVED)
   RunAt            ts         req
@@ -685,7 +685,7 @@ table lc.LcTermsComparison  # نتيجة مقارنة شروط الاعتماد 
   unique BaselineTermsId,ReceivedTermsId,RunAt
   check  BaselineTermsId <> ReceivedTermsId
 
-table lc.LcTermsComparisonLine  # فرق حقل واحد وحكمه وقرار الخزينة (FR-LCT-031، BR-LCT-021) -- جديد (Could)
+table lc.LcTermsComparisonLine  # فرق حقل واحد وحكمه وقرار الخزينة (FR-LCT-031، BR-LCT-021) -- جديد (أولوية: ممكن)
   ComparisonId   ->lc.LcTermsComparison req
   FieldKey       ascii(60)  req
   BaselineValue  text

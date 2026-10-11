@@ -1,0 +1,19 @@
+%% م0 · الجلسات والمفاتيح والمحاولات (1/2) — Sessions, keys & attempts
+erDiagram
+  sec_UserSession["sec.UserSession"] {
+    bigint UserSessionId PK
+    bigint UserId FK
+  }
+  sec_LoginAttempt["sec.LoginAttempt"] {
+    bigint LoginAttemptId PK
+    bigint UserId FK
+  }
+  sec_MfaRecoveryCode["sec.MfaRecoveryCode"] {
+    bigint MfaRecoveryCodeId PK
+    bigint UserId FK
+  }
+  sec_UserToken["sec.UserToken"] {
+    bigint UserTokenId PK
+    bigint UserId FK
+    bigint RequestedByUserId FK
+  }

@@ -1,5 +1,18 @@
-%% م1 · الأشخاص والهوية والاكتمال (2/2) — Parties, identity documents & KYC
+%% م1 · الأشخاص والهوية و KYC (2/3) — Parties, identity documents & KYC
 erDiagram
+  pty_KycProfile["pty.KycProfile"] {
+    bigint KycProfileId PK
+    bigint InstitutionId FK
+  }
+  pty_KycProfileItem["pty.KycProfileItem"] {
+    bigint KycProfileItemId PK
+    bigint ProfileId FK
+  }
+  pty_KycProfileItemLegalForm["pty.KycProfileItemLegalForm"] {
+    int TenantId PK
+    bigint KycProfileItemId PK
+    int LegalEntityTypeId PK
+  }
   pty_Party["pty.Party"] {
     bigint PartyId PK
     int CountryId FK
@@ -8,57 +21,5 @@ erDiagram
     bigint LinkedCompanyId FK
     bigint MergedIntoPartyId FK
   }
-  pty_PartyCompliance["pty.PartyCompliance"] {
-    bigint PartyComplianceId PK
-    bigint PartyId FK
-    bigint CompanyId FK
-    varchar Capacity
-    date DeclaredOn
-    smallint IsCurrent
-  }
-  pty_PartyCustomField["pty.PartyCustomField"] {
-    bigint PartyCustomFieldId PK
-    bigint PartyId FK
-    bigint DefinitionId FK
-    bigint EncKeyId FK
-    int CurrencyId FK
-    varchar EncKeyPurpose
-  }
-  pty_TaxIdentity["pty.TaxIdentity"] {
-    bigint TaxIdentityId PK
-    bigint PartyId FK
-    int CountryId FK
-    int FatcaClassificationId FK
-    int CrsClassificationId FK
-    date DeclarationDate
-  }
-  cat_LookupItem["cat.LookupItem"] {
-    int LookupItemId PK
-  }
-  org_Company["org.Company"] {
-    bigint CompanyId PK
-  }
-  pty_CustomFieldDefinition["pty.CustomFieldDefinition"] {
-    bigint CustomFieldDefinitionId PK
-  }
-  ref_Country["ref.Country"] {
-    int CountryId PK
-  }
-  ref_Currency["ref.Currency"] {
-    int CurrencyId PK
-  }
-  sec_TenantKey["sec.TenantKey"] {
-    bigint TenantKeyId PK
-  }
-  cat_LookupItem |o--o{ pty_Party : "EducationLevelId"
-  cat_LookupItem |o--o{ pty_TaxIdentity : "CrsClassificationId, FatcaClassificationId"
-  org_Company |o--o{ pty_Party : "LinkedCompanyId"
-  org_Company |o--o{ pty_PartyCompliance : "CompanyId"
-  pty_CustomFieldDefinition ||--o{ pty_PartyCustomField : "DefinitionId"
-  pty_Party ||--o{ pty_PartyCompliance : "PartyId"
-  pty_Party ||--o{ pty_PartyCustomField : "PartyId"
-  pty_Party ||--o{ pty_TaxIdentity : "PartyId"
-  ref_Country |o--o{ pty_Party : "BirthCountryId, CountryId"
-  ref_Country ||--o{ pty_TaxIdentity : "CountryId"
-  ref_Currency |o--o{ pty_PartyCustomField : "CurrencyId"
-  sec_TenantKey |o--o{ pty_PartyCustomField : "EncKeyId"
+  pty_KycProfile ||--o{ pty_KycProfileItem : "ProfileId"
+  pty_KycProfileItem ||--o{ pty_KycProfileItemLegalForm : "KycProfileItemId"

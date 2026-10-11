@@ -8,7 +8,7 @@
 import glob, os, re, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
-import dbgen, erd_pro
+import dbgen, erd_pro, ddl_keys, erd_manifest
 
 ROOT = os.path.join(HERE, '..', '..')
 DOCS = os.path.join(ROOT, 'docs')
@@ -32,12 +32,15 @@ def scope_of(child, parent):
 
 
 def table_rows(members, tables):
+    """المفاتيح من DDL المولَّد (المصدر الفعلي)؛ الغرض من التعليق بلا قطع؛ FK بلا مفتاح الملكية TenantId."""
     rows = ['| الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |', '|---|---|---|---|---|---|---|']
     for fq in members:
         t = tables[fq]
-        pk, fk, uq = erd_pro.key_info(t)
-        others = len(t.cols) - len(set(pk) | {c.name for c in t.cols if c.fk} | {c for c in uq})
-        rows.append(f'| `{fq}` | {esc_cell(trim(t.comment))} | {", ".join(pk)} | {len([c for c in t.cols if c.fk])} | {len(uq)} | {len(t.checks)} | {others} |')
+        pk = ddl_keys.pk_cols(fq)
+        uq = ddl_keys.unique_count(fq)
+        fk = [c for c in t.cols if c.fk and not (c.name == 'TenantId' and c.fk == 'plat.Tenant')]
+        others = len(t.cols) - len(set(pk) | {c.name for c in t.cols if c.fk})
+        rows.append(f'| `{fq}` | {esc_cell(erd_manifest.purpose(t.comment))} | {", ".join(pk)} | {len(fk)} | {uq} | {len(t.checks)} | {others} |')
     return rows
 
 

@@ -169,7 +169,7 @@ table wfl.WorkflowTransition int deletable  # انتقال بين مرحلتين
   Action           enum{SUBMIT,APPROVE,COMPLETE,RETURN,REJECT,CANCEL,RESUBMIT} req
   ToStageId        ->wfl.WorkflowStage via=TemplateId req   # RESUBMIT يعيد إلى ResumeStage المحفوظة في مثيل المرحلة (BR-WFL-008)
   Priority         int        req =1   # تصاعدي: يُنفَّذ أول شرط محقق (BR-WFL-001)
-  ConditionJson    json             # تعبير مقيَّد بلا شيفرة؛ الفارغ = دائمًا (FR-REQ-004)
+  ConditionJson    json             # تعبير مقيَّد بلا كود؛ الفارغ = دائمًا (FR-REQ-004)
   ResumeStageId    ->wfl.WorkflowStage via=TemplateId   # مرحلة الاستئناف عند RETURN (FR-WFL-010)
   LabelAr          str(200)
   LabelEn          str(200)
@@ -180,7 +180,7 @@ table wfl.WorkflowTransition int deletable  # انتقال بين مرحلتين
   check ResumeStageId IS NULL OR Action IN ('RETURN','RESUBMIT')
   check Action NOT IN ('RETURN','REJECT') OR RequiresComment = 1   # السبب إلزامي (FR-WFL-010/012، BR-WFL-008)
 
-table wfl.WorkflowStageHook int deletable  # خطاف مسجَّل بالكود على مرحلة: مفتاح ومعاملات لا شيفرة (FR-WFL-021، BR-WFL-015، §5.4)
+table wfl.WorkflowStageHook int deletable  # خطاف مسجَّل بالكود على مرحلة: مفتاح ومعاملات لا كود (FR-WFL-021، BR-WFL-015، §5.4)
   StageId       ->wfl.WorkflowStage req
   TriggerKind   enum{ON_ENTER,ON_EXIT,ON_ACTION} req   # Trigger في المواصفة؛ الاسم محجوز في T-SQL
   ActionFilter  enum{SUBMIT,APPROVE,COMPLETE,RETURN,REJECT,CANCEL,RESUBMIT}   # للمشغّل ON_ACTION فقط؛ REJECT وCANCEL صفّان
@@ -582,7 +582,7 @@ table ntf.NotificationPreference  # تفضيل المستخدم لكل مجمو�
 
 # ============================== الإشعارات (NTF): الإصدار والتسليم والملخصات ==============================
 
-table ntf.DigestBatch  # دفعة ملخص لمستخدم وقناة وفترة؛ لا يُرسل فارغًا (FR-NTF-014، BR-NTF-004، JOB-NTF-DIGEST) -- جدول جديد يحل DigestBatchId
+table ntf.DigestBatch  # دفعة ملخص لمستخدم وقناة وفترة؛ لا يُرسل فارغًا (FR-NTF-014، BR-NTF-004، JOB-NTF-DIGEST) -- جدول جديد
   UserId            ->sec.AppUser req
   Channel           enum{IN_APP,EMAIL} req =EMAIL
   Kind              enum{DAILY,WEEKLY} req   # يوميًا 07:30 وأسبوعيًا الأحد 07:30 بتوقيت المشترك (Q-NTF-02)

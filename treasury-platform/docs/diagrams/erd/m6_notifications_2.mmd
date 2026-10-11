@@ -1,0 +1,17 @@
+%% م6 · الإشعارات (2/2) — Notifications
+erDiagram
+  ntf_NotificationPreference["ntf.NotificationPreference"] {
+    bigint NotificationPreferenceId PK
+    bigint UserId FK
+  }
+  ntf_NotificationRule["ntf.NotificationRule"] {
+    int NotificationRuleId PK
+    int EventTypeId FK
+    bigint RoleId FK
+    int PermissionId FK
+    bigint UserId FK
+  }
+  ntf_NotificationTemplate["ntf.NotificationTemplate"] {
+    int NotificationTemplateId PK
+    int EventTypeId FK
+  }

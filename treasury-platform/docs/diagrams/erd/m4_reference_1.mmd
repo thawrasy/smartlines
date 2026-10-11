@@ -1,0 +1,16 @@
+%% م4 · الكتالوجات المرجعية (1/2) — Reference catalogues
+erDiagram
+  cat_TenantCurrency["cat.TenantCurrency"] {
+    int TenantId PK
+    int CurrencyId PK
+  }
+  cat_InstitutionType["cat.InstitutionType"] {
+    int InstitutionTypeId PK
+  }
+  cat_AccountType["cat.AccountType"] {
+    int AccountTypeId PK
+  }
+  cat_LegalEntityType["cat.LegalEntityType"] {
+    int LegalEntityTypeId PK
+    int CountryId FK
+  }

@@ -1,39 +1,35 @@
-%% م6 · قوالب دورات العمل (2/2) — Workflow templates
+%% م6 · قوالب دورات العمل (2/3) — Workflow templates
 erDiagram
+  wfl_WorkflowStage["wfl.WorkflowStage"] {
+    int WorkflowStageId PK
+    int TemplateId FK
+    int ExternalPhaseId FK
+    bigint AssigneeRoleId FK
+    int PoolPermissionId FK
+    bigint AssigneeUserId FK
+    bigint AssigneeDepartmentId FK
+    bigint FallbackRoleId FK
+  }
+  wfl_StageApprover["wfl.StageApprover"] {
+    int StageApproverId PK
+    int StageId FK
+    bigint RoleId FK
+    bigint UserId FK
+    bigint DepartmentId FK
+    bigint FallbackRoleId FK
+  }
+  wfl_WorkflowTransition["wfl.WorkflowTransition"] {
+    int WorkflowTransitionId PK
+    int TemplateId FK
+    int FromStageId FK
+    int ToStageId FK
+    int ResumeStageId FK
+  }
   wfl_WorkflowStageHook["wfl.WorkflowStageHook"] {
     int WorkflowStageHookId PK
     int StageId FK
-    varchar TriggerKind
-    varchar HookKey
-    varchar ExecMode
-    varchar OnFailure
   }
-  wfl_TemplateField["wfl.TemplateField"] {
-    int TemplateFieldId PK
-    int TemplateId FK
-    varchar FieldKey
-    varchar LabelAr
-    varchar LabelEn
-    integer SeqNo
-  }
-  wfl_TemplateAttachmentRule["wfl.TemplateAttachmentRule"] {
-    int TemplateAttachmentRuleId PK
-    int TemplateId FK
-    int DocumentTypeId FK
-    varchar SlotKey
-    integer MinCount
-    smallint VisibleToRequester
-  }
-  cat_DocumentType["cat.DocumentType"] {
-    int DocumentTypeId PK
-  }
-  wfl_WorkflowStage["wfl.WorkflowStage"] {
-    int WorkflowStageId PK
-  }
-  wfl_WorkflowTemplate["wfl.WorkflowTemplate"] {
-    int WorkflowTemplateId PK
-  }
-  cat_DocumentType ||--o{ wfl_TemplateAttachmentRule : "DocumentTypeId"
+  wfl_WorkflowStage ||--o{ wfl_StageApprover : "StageId"
   wfl_WorkflowStage ||--o{ wfl_WorkflowStageHook : "StageId"
-  wfl_WorkflowTemplate ||--o{ wfl_TemplateAttachmentRule : "TemplateId"
-  wfl_WorkflowTemplate ||--o{ wfl_TemplateField : "TemplateId"
+  wfl_WorkflowStage ||--o{ wfl_WorkflowTransition : "FromStageId, ToStageId"
+  wfl_WorkflowStage |o--o{ wfl_WorkflowTransition : "ResumeStageId"

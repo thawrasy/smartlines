@@ -122,7 +122,7 @@
 
 ### 3.7 العلاقات الأساسية: المشترك والمستخدمون والصلاحيات
 
-يوضح المخطط كيف يرتبط `plat.Tenant` بالمستخدمين والأدوار والصلاحيات ومفتاح تشفيره وشركاته ووحداته. كل خط **مفتاح أجنبي فعلي** ويحمل اسم عمود الربط، والجداول مرسومة بمفاتيحها (`PK` و`FK` و`UK`) فقط. عمود `TenantId` الذي تحمله جداول المشترك كلها وإشارته إلى `plat.Tenant` **لم يُرسم في كل جدول** لتفادي الازدحام، وترد كاملة في جداول المواصفات (§10). الجداول خارج المجموعة تظهر بمفتاحها فقط.
+يوضح المخطط كيف يرتبط `plat.Tenant` بالمستخدمين والأدوار والصلاحيات ومفتاح تشفيره وشركاته ووحداته. كل خط **مفتاح أجنبي فعلي** ويحمل اسم عمود الربط، والجداول مرسومة بمفاتيحها (`PK` و`FK` و`UK`) فقط. عمود `TenantId` الذي تحمله جداول المشترك كلها وإشارته إلى `plat.Tenant` **لم يُرسم في كل جدول** لتفادي الازدحام، وترد كاملة في جداول المواصفات (§10). الروابط إلى جداول خارج المجموعة لا تُرسم، وتظهر في جدول العلاقات بعمود «مرسوم: لا».
 
 ![العلاقات الأساسية: المشترك والمستخدمون والأدوار والصلاحيات والمفاتيح](diagrams/erd/core_tenancy.png)
 
@@ -314,29 +314,45 @@
 
 ### 10.3 م0 · المنصة والهوية والتدقيق
 
-#### م0 · المشترك والاشتراكات والمشغّلون
+#### م0 · المشترك والاشتراكات والمشغّلون (1/2)
 
-*Tenancy & platform operators* — 7 جدولًا
+*Tenancy & platform operators* — 4 جدولًا
 
-![م0 · المشترك والاشتراكات والمشغّلون](diagrams/erd/m0_tenancy.png)
+![م0 · المشترك والاشتراكات والمشغّلون (1/2)](diagrams/erd/m0_tenancy_1.png)
 
 **مواصفات الجداول**
 
 | الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
 |---|---|---|---|---|---|---|
-| `plat.Plan` | باقة: حزمة وحدات وحدود ناعمة (FR-PLT-003/004، Q-PLT-11) | PlanId | 0 | 0 | 3 | 10 |
+| `plat.Plan` | باقة: حزمة وحدات وحدود ناعمة (FR-PLT-003/004، Q-PLT-11) | PlanId | 0 | 1 | 3 | 10 |
 | `plat.PlanModule` | وحدات الباقة (يحل محل Plan.IncludedModules json) | PlanId, ModuleCode | 1 | 0 | 0 | 4 |
-| `plat.PlatformOperator` | لا يقرؤه تطبيق المشترك (tp_app) · حساب مشغّل المنصة: مخزن هوية منفصل عن AppUser (FR-PLT-006) | PlatformOperatorId | 0 | 0 | 6 | 18 |
-| `plat.ReservedSubdomain` | عناوين فرعية محجوزة للنظام: www · admin · api · app… (FR-PLT-046) | ReservedSubdomainId | 0 | 0 | 1 | 5 |
-| `plat.SupportAccessGrant` | وصول الدعم المؤقت يفعّله مدير حساب المشترك (FR-PLT-007، BR-PLT-017) | SupportAccessGrantId | 3 | 0 | 1 | 7 |
-| `plat.Tenant` | لا وصول مباشر لتطبيق المشترك (يقرأ صفّه عبر plat.v_CurrentTenant) · جذر العزل: المشترك (FR-PLT-001/002/046، BR-PLT-001/002) | TenantId | 2 | 0 | 6 | 17 |
-| `plat.TenantModule` | الوحدات المفعّلة لكل مشترك؛ ملكية المنصة فقط: لا يكتبها تطبيق المشترك ويقرؤها عبر عرض مُحدَّد (DR-01) | TenantModuleId | 2 | 0 | 1 | 6 |
+| `plat.PlatformOperator` | لا يقرؤه تطبيق المشترك (tp_app) · حساب مشغّل المنصة: مخزن هوية منفصل عن AppUser (FR-PLT-006) | PlatformOperatorId | 0 | 2 | 6 | 18 |
+| `plat.ReservedSubdomain` | عناوين فرعية محجوزة للنظام: www · admin · api · app… (FR-PLT-046) | ReservedSubdomainId | 0 | 1 | 1 | 5 |
 
 **العلاقات (المفاتيح الأجنبية)**
 
 | الطفل (الجدول.العمود) | الأب | العلاقة | الإلزام | النطاق | الحذف | أعمدة النطاق |
 |---|---|---|---|---|---|---|
 | `plat.PlanModule.PlanId` | `plat.Plan` | 1 : N | إلزامي | عام | قيد | — |
+
+#### م0 · المشترك والاشتراكات والمشغّلون (2/2)
+
+*Tenancy & platform operators* — 3 جدولًا
+
+![م0 · المشترك والاشتراكات والمشغّلون (2/2)](diagrams/erd/m0_tenancy_2.png)
+
+**مواصفات الجداول**
+
+| الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
+|---|---|---|---|---|---|---|
+| `plat.SupportAccessGrant` | وصول الدعم المؤقت يفعّله مدير حساب المشترك (FR-PLT-007، BR-PLT-017) | SupportAccessGrantId | 3 | 1 | 1 | 7 |
+| `plat.Tenant` | لا وصول مباشر لتطبيق المشترك (يقرأ صفّه عبر plat.v_CurrentTenant) · جذر العزل: المشترك (FR-PLT-001/002/046، BR-PLT-001/002) | TenantId | 2 | 2 | 6 | 17 |
+| `plat.TenantModule` | الوحدات المفعّلة لكل مشترك؛ ملكية المنصة فقط: لا يكتبها تطبيق المشترك ويقرؤها عبر عرض مُحدَّد (DR-01) | TenantModuleId | 1 | 1 | 1 | 6 |
+
+**العلاقات (المفاتيح الأجنبية)**
+
+| الطفل (الجدول.العمود) | الأب | العلاقة | الإلزام | النطاق | الحذف | أعمدة النطاق |
+|---|---|---|---|---|---|---|
 | `plat.SupportAccessGrant.OperatorId` | `plat.PlatformOperator` | 1 : N | إلزامي | مرجع عام | قيد | — |
 | `plat.SupportAccessGrant.GrantedBy` | `sec.AppUser` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `plat.SupportAccessGrant.RevokedBy` | `sec.AppUser` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
@@ -345,23 +361,20 @@
 | `plat.TenantModule.TenantId` | `plat.Tenant` | 1 : N | إلزامي | عام | قيد | — |
 | `plat.TenantModule.EnabledBy` | `plat.PlatformOperator` | 1 : N | اختياري | عام | قيد | — |
 
-#### م0 · الهوية والصلاحيات
+#### م0 · الهوية والصلاحيات (1/2)
 
-*Identity & authorisation* — 7 جدولًا
+*Identity & authorisation* — 4 جدولًا
 
-![م0 · الهوية والصلاحيات](diagrams/erd/m0_identity.png)
+![م0 · الهوية والصلاحيات (1/2)](diagrams/erd/m0_identity_1.png)
 
 **مواصفات الجداول**
 
 | الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
 |---|---|---|---|---|---|---|
-| `sec.AppUser` | مستخدم بوابة المشترك (FR-PLT-010..016، BR-PLT-004..006) | AppUserId | 3 | 0 | 10 | 27 |
-| `sec.Role` | دور يخصصه المشترك أو مبذور (FR-PLT-018) | RoleId | 0 | 0 | 1 | 11 |
-| `sec.Permission` | كتالوج الصلاحيات تملكه المنصة؛ لا يضيف المشترك صلاحية (FR-PLT-017) | PermissionId | 0 | 0 | 1 | 11 |
-| `sec.RolePermission` | ربط دور-صلاحية؛ PERMISSION_LOCKED يُفرض في الخدمة (BR-PLT-019) | RoleId, PermissionId | 3 | 0 | 0 | 5 |
-| `sec.UserRole` | ربط مستخدم-دور؛ اتحاد الصلاحيات (BR-PLT-007، FR-PLT-018) | UserId, RoleId | 3 | 0 | 0 | 5 |
-| `sec.UserCompanyScope` | شركات يراها المستخدم؛ تُهمل إن كان CompanyScopeMode=ALL (FR-PLT-020) | UserId, CompanyId | 2 | 0 | 0 | 5 |
-| `sec.ExternalIdentity` | ربط هوية خارجية OIDC/Entra بالمستخدم؛ جاهزية فقط (FR-PLT-015، §11) | ExternalIdentityId | 1 | 0 | 0 | 8 |
+| `sec.AppUser` | مستخدم بوابة المشترك (FR-PLT-010..016، BR-PLT-004..006) | AppUserId | 3 | 3 | 10 | 27 |
+| `sec.Role` | دور يخصصه المشترك أو مبذور (FR-PLT-018) | RoleId | 0 | 4 | 1 | 11 |
+| `sec.Permission` | كتالوج الصلاحيات تملكه المنصة؛ لا يضيف المشترك صلاحية (FR-PLT-017) | PermissionId | 0 | 1 | 1 | 11 |
+| `sec.RolePermission` | ربط دور-صلاحية؛ PERMISSION_LOCKED يُفرض في الخدمة (BR-PLT-019) | TenantId, RoleId, PermissionId | 3 | 0 | 0 | 4 |
 
 **العلاقات (المفاتيح الأجنبية)**
 
@@ -373,6 +386,25 @@
 | `sec.RolePermission.RoleId` | `sec.Role` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `sec.RolePermission.PermissionId` | `sec.Permission` | 1 : N | إلزامي | مرجع عام | قيد | — |
 | `sec.RolePermission.AssignedBy` | `sec.AppUser` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
+
+#### م0 · الهوية والصلاحيات (2/2)
+
+*Identity & authorisation* — 3 جدولًا
+
+![م0 · الهوية والصلاحيات (2/2)](diagrams/erd/m0_identity_2.png)
+
+**مواصفات الجداول**
+
+| الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
+|---|---|---|---|---|---|---|
+| `sec.UserRole` | ربط مستخدم-دور؛ اتحاد الصلاحيات (BR-PLT-007، FR-PLT-018) | TenantId, UserId, RoleId | 3 | 0 | 0 | 4 |
+| `sec.UserCompanyScope` | شركات يراها المستخدم؛ تُهمل إن كان CompanyScopeMode=ALL (FR-PLT-020) | TenantId, UserId, CompanyId | 2 | 0 | 0 | 4 |
+| `sec.ExternalIdentity` | ربط هوية خارجية OIDC/Entra بالمستخدم؛ جاهزية فقط (FR-PLT-015، §11) | ExternalIdentityId | 1 | 3 | 0 | 8 |
+
+**العلاقات (المفاتيح الأجنبية)**
+
+| الطفل (الجدول.العمود) | الأب | العلاقة | الإلزام | النطاق | الحذف | أعمدة النطاق |
+|---|---|---|---|---|---|---|
 | `sec.UserRole.UserId` | `sec.AppUser` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `sec.UserRole.RoleId` | `sec.Role` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `sec.UserRole.AssignedBy` | `sec.AppUser` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
@@ -380,23 +412,20 @@
 | `sec.UserCompanyScope.CompanyId` | `org.Company` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `sec.ExternalIdentity.UserId` | `sec.AppUser` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 
-#### م0 · الجلسات والمفاتيح والمحاولات
+#### م0 · الجلسات والمفاتيح والمحاولات (1/2)
 
-*Sessions, keys & attempts* — 7 جدولًا
+*Sessions, keys & attempts* — 4 جدولًا
 
-![م0 · الجلسات والمفاتيح والمحاولات](diagrams/erd/m0_sessions.png)
+![م0 · الجلسات والمفاتيح والمحاولات (1/2)](diagrams/erd/m0_sessions_1.png)
 
 **مواصفات الجداول**
 
 | الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
 |---|---|---|---|---|---|---|
-| `sec.UserSession` | جلسات المستخدم: خمول 30 دقيقة ومطلقة 12 ساعة (FR-PLT-014) | UserSessionId | 2 | 0 | 1 | 12 |
-| `sec.LoginAttempt` | محاولات الدخول لخنق المعدل ونوافذ القفل؛ الأثر الدائم في aud.AuditLog (BR-PLT-005) | LoginAttemptId | 1 | 0 | 1 | 5 |
-| `sec.MfaRecoveryCode` | 10 رموز استرداد لمرة واحدة مُجزَّأة (FR-PLT-011، BR-PLT-006؛ بديل AppUser.RecoveryCodesHash json) | MfaRecoveryCodeId | 1 | 0 | 0 | 6 |
-| `sec.UserToken` | رابط دعوة (48 ساعة) أو إعادة تعيين كلمة المرور (30 دقيقة) لمرة واحدة (FR-PLT-013) | UserTokenId | 2 | 0 | 0 | 12 |
-| `sec.UserPasswordHistory` | آخر 5 كلمات مرور لمنع إعادة استعمالها (BR-PLT-004) | UserPasswordHistoryId | 1 | 0 | 0 | 2 |
-| `sec.TenantKey` | سجل مفاتيح المشترك؛ المفتاح ملفوف بمفتاح رئيسي خارج القاعدة (FR-PLT-037، BR-PLT-015) | TenantKeyId | 0 | 0 | 3 | 11 |
-| `sec.KeyEvent` | سجل أحداث المفاتيح: إنشاء وتدوير وإبطال (FR-PLT-037؛ شدة عالية BR-PLT-009) | KeyEventId | 1 | 0 | 0 | 7 |
+| `sec.UserSession` | جلسات المستخدم: خمول 30 دقيقة ومطلقة 12 ساعة (FR-PLT-014) | UserSessionId | 2 | 2 | 1 | 12 |
+| `sec.LoginAttempt` | محاولات الدخول لخنق المعدل ونوافذ القفل؛ الأثر الدائم في aud.AuditLog (BR-PLT-005) | LoginAttemptId | 1 | 1 | 1 | 5 |
+| `sec.MfaRecoveryCode` | 10 رموز استرداد لمرة واحدة مُجزَّأة (FR-PLT-011، BR-PLT-006؛ بديل AppUser.RecoveryCodesHash json) | MfaRecoveryCodeId | 1 | 2 | 0 | 6 |
+| `sec.UserToken` | رابط دعوة (48 ساعة) أو إعادة تعيين كلمة المرور (30 دقيقة) لمرة واحدة (FR-PLT-013) | UserTokenId | 2 | 2 | 0 | 12 |
 
 **العلاقات (المفاتيح الأجنبية)**
 
@@ -408,24 +437,42 @@
 | `sec.MfaRecoveryCode.UserId` | `sec.AppUser` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `sec.UserToken.UserId` | `sec.AppUser` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `sec.UserToken.RequestedByUserId` | `sec.AppUser` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
-| `sec.UserPasswordHistory.UserId` | `sec.AppUser` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
-| `sec.KeyEvent.TenantKeyId` | `sec.TenantKey` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 
-#### م0 · التدقيق والمستندات
+#### م0 · الجلسات والمفاتيح والمحاولات (2/2)
 
-*Audit & documents* — 5 جدولًا
+*Sessions, keys & attempts* — 3 جدولًا
 
-![م0 · التدقيق والمستندات](diagrams/erd/m0_audit_docs.png)
+![م0 · الجلسات والمفاتيح والمحاولات (2/2)](diagrams/erd/m0_sessions_2.png)
 
 **مواصفات الجداول**
 
 | الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
 |---|---|---|---|---|---|---|
-| `aud.AuditLog` | للإدراج فقط؛ TenantId الفارغ = حدث منصة لا يراه أي مشترك؛ سياسة RLS خاصة (BR-PLT-001/009) | AuditLogId | 0 | 0 | 0 | 19 |
-| `aud.SensitiveAccessLog` | كشف الهويات والصور والتصدير والتنزيل المقيّد؛ لكشف الشذوذ >20/ساعة وR-PLT-3 (BR-PTY-009) | SensitiveAccessLogId | 2 | 0 | 3 | 15 |
-| `doc.Document` | المستند المنطقي: بيانات المستند وحالته؛ الملف في doc.DocumentVersion (FR-PLT-027/028، BR-PLT-011) | DocumentId | 5 | 0 | 4 | 15 |
-| `doc.DocumentLink` | ربط مستند بأي كيان بدور وصفحة مرجعية؛ إلغاء الربط منطقي (FR-PLT-028) | DocumentLinkId | 2 | 0 | 1 | 9 |
-| `doc.DocumentVersion` | إصدار ثابت من الملف؛ لا يُستبدل بل يُنشأ إصدار جديد (FR-PLT-027، BR-PLT-011) | DocumentVersionId | 2 | 0 | 3 | 15 |
+| `sec.UserPasswordHistory` | آخر 5 كلمات مرور لمنع إعادة استعمالها (BR-PLT-004) | UserPasswordHistoryId | 1 | 1 | 0 | 2 |
+| `sec.TenantKey` | سجل مفاتيح المشترك؛ المفتاح ملفوف بمفتاح رئيسي خارج القاعدة (FR-PLT-037، BR-PLT-015) | TenantKeyId | 0 | 4 | 3 | 11 |
+| `sec.KeyEvent` | سجل أحداث المفاتيح: إنشاء وتدوير وإبطال (FR-PLT-037؛ شدة عالية BR-PLT-009) | KeyEventId | 1 | 1 | 0 | 7 |
+
+**العلاقات (المفاتيح الأجنبية)**
+
+| الطفل (الجدول.العمود) | الأب | العلاقة | الإلزام | النطاق | الحذف | أعمدة النطاق |
+|---|---|---|---|---|---|---|
+| `sec.UserPasswordHistory.UserId` | `sec.AppUser` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
+| `sec.KeyEvent.TenantKeyId` | `sec.TenantKey` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
+
+#### م0 · التدقيق والمستندات (1/2)
+
+*Audit & documents* — 4 جدولًا
+
+![م0 · التدقيق والمستندات (1/2)](diagrams/erd/m0_audit_docs_1.png)
+
+**مواصفات الجداول**
+
+| الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
+|---|---|---|---|---|---|---|
+| `aud.AuditLog` | للإدراج فقط؛ TenantId الفارغ = حدث منصة لا يراه أي مشترك؛ سياسة RLS خاصة (BR-PLT-001/009) | AuditLogId | 0 | 2 | 0 | 19 |
+| `aud.SensitiveAccessLog` | كشف الهويات والصور والتصدير والتنزيل المقيّد؛ لكشف الشذوذ >20/ساعة وR-PLT-3 (BR-PTY-009) | SensitiveAccessLogId | 2 | 1 | 3 | 15 |
+| `doc.Document` | المستند المنطقي: بيانات المستند وحالته؛ الملف في doc.DocumentVersion (FR-PLT-027/028، BR-PLT-011) | DocumentId | 5 | 2 | 4 | 15 |
+| `doc.DocumentLink` | ربط مستند بأي كيان بدور وصفحة مرجعية؛ إلغاء الربط منطقي (FR-PLT-028) | DocumentLinkId | 2 | 2 | 1 | 9 |
 
 **العلاقات (المفاتيح الأجنبية)**
 
@@ -440,26 +487,40 @@
 | `doc.Document.DeletedBy` | `sec.AppUser` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `doc.DocumentLink.DocumentId` | `doc.Document` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `doc.DocumentLink.UnlinkedBy` | `sec.AppUser` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
-| `doc.DocumentVersion.DocumentId` | `doc.Document` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
-| `doc.DocumentVersion.KeyId` | `sec.TenantKey` | 1 : N | إلزامي | مشترك · مركّب | قيد | KeyPurpose |
 
-#### م0 · الإعدادات والمهام الخلفية (1/2)
+#### م0 · التدقيق والمستندات (2/2)
 
-*Configuration & background jobs* — 7 جدولًا
+*Audit & documents* — 1 جدولًا
 
-![م0 · الإعدادات والمهام الخلفية (1/2)](diagrams/erd/m0_config_1.png)
+![م0 · التدقيق والمستندات (2/2)](diagrams/erd/m0_audit_docs_2.png)
 
 **مواصفات الجداول**
 
 | الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
 |---|---|---|---|---|---|---|
-| `cfg.DataExportJob` | طلب تصدير بيانات المشترك (FR-PLT-039، BR-PLT-016) | DataExportJobId | 3 | 0 | 3 | 15 |
-| `cfg.ExpiryAlertLog` | سجل التنبيهات المرسَلة: حدث واحد لكل (عنصر، عتبة) ولا تكرار في اليوم نفسه (FR-PLT-038) | ExpiryAlertLogId | 1 | 0 | 0 | 5 |
-| `cfg.ExpiryAlertRule` | قاعدة تنبيه انتهاء لكل نوع عنصر (FR-PLT-038، BR-PLT-013) | ExpiryAlertRuleId | 0 | 0 | 1 | 10 |
-| `cfg.JobRun` | سجل تشغيل المهام الخلفية: آخر تشغيل ومدته ونتيجته ظاهر لمدير الحساب (FR-PLT-044) | JobRunId | 0 | 0 | 3 | 14 |
-| `cfg.NonWorkingDay` | يوم غير عمل؛ TenantId الفارغ = عطلة المنصة للقراءة فقط (FR-PLT-035، BR-PLT-014) | NonWorkingDayId | 1 | 0 | 0 | 7 |
-| `cfg.NumberIssue` | الأرقام الصادرة؛ الملغى لا يُعاد استعماله (FR-PLT-026، BR-PLT-010) | NumberIssueId | 2 | 0 | 2 | 10 |
-| `cfg.NumberSequence` | عدّاد لكل (تعريف، شركة اختيارية، فترة)؛ يُقفل صفه عند التخصيص داخل معاملة المستدعي (BR-PLT-010) | NumberSequenceId | 2 | 0 | 1 | 5 |
+| `doc.DocumentVersion` | إصدار ثابت من الملف؛ لا يُستبدل بل يُنشأ إصدار جديد (FR-PLT-027، BR-PLT-011) | DocumentVersionId | 2 | 3 | 3 | 15 |
+
+**العلاقات (المفاتيح الأجنبية)**
+
+| الطفل (الجدول.العمود) | الأب | العلاقة | الإلزام | النطاق | الحذف | أعمدة النطاق |
+|---|---|---|---|---|---|---|
+| `doc.DocumentVersion.DocumentId` | `doc.Document` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
+| `doc.DocumentVersion.KeyId` | `sec.TenantKey` | 1 : N | إلزامي | مشترك · مركّب | قيد | KeyPurpose |
+
+#### م0 · الإعدادات والمهام الخلفية (1/3)
+
+*Configuration & background jobs* — 4 جدولًا
+
+![م0 · الإعدادات والمهام الخلفية (1/3)](diagrams/erd/m0_config_1.png)
+
+**مواصفات الجداول**
+
+| الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
+|---|---|---|---|---|---|---|
+| `cfg.DataExportJob` | طلب تصدير بيانات المشترك (FR-PLT-039، BR-PLT-016) | DataExportJobId | 3 | 2 | 3 | 15 |
+| `cfg.ExpiryAlertLog` | سجل التنبيهات المرسَلة: حدث واحد لكل (عنصر، عتبة) ولا تكرار في اليوم نفسه (FR-PLT-038) | ExpiryAlertLogId | 1 | 2 | 0 | 5 |
+| `cfg.ExpiryAlertRule` | قاعدة تنبيه انتهاء لكل نوع عنصر (FR-PLT-038، BR-PLT-013) | ExpiryAlertRuleId | 0 | 3 | 1 | 10 |
+| `cfg.JobRun` | سجل تشغيل المهام الخلفية: آخر تشغيل ومدته ونتيجته ظاهر لمدير الحساب (FR-PLT-044) | JobRunId | 0 | 1 | 3 | 14 |
 
 **العلاقات (المفاتيح الأجنبية)**
 
@@ -469,27 +530,46 @@
 | `cfg.DataExportJob.ApprovedBy` | `sec.AppUser` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `cfg.DataExportJob.PackageDocumentId` | `doc.Document` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `cfg.ExpiryAlertLog.ExpiryAlertRuleId` | `cfg.ExpiryAlertRule` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
+
+#### م0 · الإعدادات والمهام الخلفية (2/3)
+
+*Configuration & background jobs* — 4 جدولًا
+
+![م0 · الإعدادات والمهام الخلفية (2/3)](diagrams/erd/m0_config_2.png)
+
+**مواصفات الجداول**
+
+| الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
+|---|---|---|---|---|---|---|
+| `cfg.NonWorkingDay` | يوم غير عمل؛ TenantId الفارغ = عطلة المنصة للقراءة فقط (FR-PLT-035، BR-PLT-014) | NonWorkingDayId | 1 | 2 | 0 | 7 |
+| `cfg.NumberIssue` | الأرقام الصادرة؛ الملغى لا يُعاد استعماله (FR-PLT-026، BR-PLT-010) | NumberIssueId | 2 | 3 | 2 | 10 |
+| `cfg.NumberSequence` | عدّاد لكل (تعريف، شركة اختيارية، فترة)؛ يُقفل صفه عند التخصيص داخل معاملة المستدعي (BR-PLT-010) | NumberSequenceId | 2 | 3 | 1 | 5 |
+| `cfg.NumberSequenceDefinition` | تعريف نوع الترقيم بصيغة بوسوم مثل {seq:000}-{erp}-{yy} (FR-PLT-026) | NumberSequenceDefinitionId | 0 | 3 | 2 | 11 |
+
+**العلاقات (المفاتيح الأجنبية)**
+
+| الطفل (الجدول.العمود) | الأب | العلاقة | الإلزام | النطاق | الحذف | أعمدة النطاق |
+|---|---|---|---|---|---|---|
 | `cfg.NonWorkingDay.CountryId` | `ref.Country` | 1 : N | إلزامي | عام | قيد | — |
 | `cfg.NumberIssue.SequenceId` | `cfg.NumberSequence` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `cfg.NumberIssue.VoidedBy` | `sec.AppUser` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `cfg.NumberSequence.DefinitionId` | `cfg.NumberSequenceDefinition` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `cfg.NumberSequence.CompanyId` | `org.Company` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 
-#### م0 · الإعدادات والمهام الخلفية (2/2)
+#### م0 · الإعدادات والمهام الخلفية (3/3)
 
-*Configuration & background jobs* — 5 جدولًا
+*Configuration & background jobs* — 4 جدولًا
 
-![م0 · الإعدادات والمهام الخلفية (2/2)](diagrams/erd/m0_config_2.png)
+![م0 · الإعدادات والمهام الخلفية (3/3)](diagrams/erd/m0_config_3.png)
 
 **مواصفات الجداول**
 
 | الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
 |---|---|---|---|---|---|---|
-| `cfg.NumberSequenceDefinition` | تعريف نوع الترقيم بصيغة بوسوم مثل {seq:000}-{erp}-{yy} (FR-PLT-026) | NumberSequenceDefinitionId | 0 | 0 | 2 | 11 |
-| `cfg.OutboxEvent` | طابور الإرسال: تسليم مرة واحدة على الأقل؛ الحمولة معرّفات بلا بيانات مقيّدة (FR-PLT-042) | OutboxEventId | 0 | 0 | 2 | 17 |
-| `cfg.SeedRun` | سجل تشغيل البذر المُرقَّم لكل حزمة؛ تكرار التشغيل لا يكرر شيئًا (FR-PLT-008) | SeedRunId | 0 | 0 | 1 | 11 |
-| `cfg.SettingDefinition` | تعريف مفتاح إعداد بحدود المنصة الدنيا والقصوى (BR-PLT-018، FR-PLT-043) | SettingDefinitionId | 0 | 0 | 0 | 12 |
-| `cfg.TenantSetting` | إعدادات المشترك: سياسات الأمان والمهل والعتبات وwork.start/work.end (FR-PLT-043) | TenantSettingId | 0 | 0 | 0 | 5 |
+| `cfg.OutboxEvent` | طابور الإرسال: تسليم مرة واحدة على الأقل؛ الحمولة معرّفات بلا بيانات مقيّدة (FR-PLT-042) | OutboxEventId | 0 | 2 | 2 | 17 |
+| `cfg.SeedRun` | سجل تشغيل البذر المُرقَّم لكل حزمة؛ تكرار التشغيل لا يكرر شيئًا (FR-PLT-008) | SeedRunId | 0 | 1 | 1 | 11 |
+| `cfg.SettingDefinition` | تعريف مفتاح إعداد بحدود المنصة الدنيا والقصوى (BR-PLT-018، FR-PLT-043) | SettingDefinitionId | 0 | 1 | 0 | 12 |
+| `cfg.TenantSetting` | إعدادات المشترك: سياسات الأمان والمهل والعتبات وwork.start/work.end (FR-PLT-043) | TenantSettingId | 0 | 2 | 0 | 5 |
 
 **العلاقات (المفاتيح الأجنبية)**
 
@@ -499,23 +579,20 @@
 
 ### 10.4 م1 · الهيكل المؤسسي والأشخاص
 
-#### م1 · الشركات والحوكمة
+#### م1 · الشركات والحوكمة (1/2)
 
-*Company structure & governance* — 7 جدولًا
+*Company structure & governance* — 4 جدولًا
 
-![م1 · الشركات والحوكمة](diagrams/erd/m1_company.png)
+![م1 · الشركات والحوكمة (1/2)](diagrams/erd/m1_company_1.png)
 
 **مواصفات الجداول**
 
 | الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
 |---|---|---|---|---|---|---|
-| `org.Company` | الشركة: جذر الهيكل المؤسسي (FR-ORG-001..010، BR-ORG-001..004) | CompanyId | 5 | 0 | 4 | 19 |
-| `org.CompanyTaxRate` | نسبة ضريبة بتاريخ سريان؛ CompanyId فارغ = افتراضي المشترك (FR-ORG-007، BR-ORG-005) | CompanyTaxRateId | 1 | 0 | 2 | 7 |
-| `org.Department` | الإدارة (FR-ORG-014، BR-ORG-016، Q-ORG-09: على مستوى المشترك وشركة اختيارية) | DepartmentId | 3 | 0 | 1 | 10 |
-| `org.Shareholding` | حصة ملكية بتاريخ سريان؛ المالك Party فرد أو جهة (FR-ORG-015..018، BR-ORG-006..008، G-7) | ShareholdingId | 4 | 0 | 5 | 10 |
-| `org.GoverningBody` | هيئة حوكمة (FR-ORG-019، BR-ORG-009) | GoverningBodyId | 2 | 0 | 1 | 12 |
-| `org.BodyMember` | عضوية في هيئة (FR-ORG-020، FR-ORG-021، BR-ORG-010) | BodyMemberId | 6 | 0 | 3 | 6 |
-| `org.AuthorityGrant` | تفويض/منحة صلاحية لشركة (FR-ORG-023..028، BR-ORG-011..014) | AuthorityGrantId | 10 | 0 | 8 | 18 |
+| `org.Company` | الشركة: جذر الهيكل المؤسسي (FR-ORG-001..010، BR-ORG-001..004) | CompanyId | 5 | 6 | 4 | 19 |
+| `org.CompanyTaxRate` | نسبة ضريبة بتاريخ سريان؛ CompanyId فارغ = افتراضي المشترك (FR-ORG-007، BR-ORG-005) | CompanyTaxRateId | 1 | 3 | 2 | 7 |
+| `org.Department` | الإدارة (FR-ORG-014، BR-ORG-016، Q-ORG-09: على مستوى المشترك وشركة اختيارية) | DepartmentId | 3 | 3 | 1 | 10 |
+| `org.Shareholding` | حصة ملكية بتاريخ سريان؛ المالك Party فرد أو جهة (FR-ORG-015..018، BR-ORG-006..008، G-7) | ShareholdingId | 4 | 3 | 5 | 10 |
 
 **العلاقات (المفاتيح الأجنبية)**
 
@@ -534,6 +611,25 @@
 | `org.Shareholding.HolderPartyId` | `pty.Party` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `org.Shareholding.CurrencyId` | `ref.Currency` | 1 : N | اختياري | مرجع عام | قيد | — |
 | `org.Shareholding.SourceDocumentId` | `doc.Document` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
+
+#### م1 · الشركات والحوكمة (2/2)
+
+*Company structure & governance* — 3 جدولًا
+
+![م1 · الشركات والحوكمة (2/2)](diagrams/erd/m1_company_2.png)
+
+**مواصفات الجداول**
+
+| الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
+|---|---|---|---|---|---|---|
+| `org.GoverningBody` | هيئة حوكمة (FR-ORG-019، BR-ORG-009) | GoverningBodyId | 2 | 4 | 1 | 12 |
+| `org.BodyMember` | عضوية في هيئة (FR-ORG-020، FR-ORG-021، BR-ORG-010) | BodyMemberId | 6 | 4 | 3 | 6 |
+| `org.AuthorityGrant` | تفويض/منحة صلاحية لشركة (FR-ORG-023..028، BR-ORG-011..014) | AuthorityGrantId | 10 | 2 | 8 | 18 |
+
+**العلاقات (المفاتيح الأجنبية)**
+
+| الطفل (الجدول.العمود) | الأب | العلاقة | الإلزام | النطاق | الحذف | أعمدة النطاق |
+|---|---|---|---|---|---|---|
 | `org.GoverningBody.CompanyId` | `org.Company` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `org.GoverningBody.SourceDocumentId` | `doc.Document` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `org.BodyMember.CompanyId` | `org.Company` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
@@ -553,23 +649,20 @@
 | `org.AuthorityGrant.SourceDocumentId` | `doc.Document` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `org.AuthorityGrant.SupersedesGrantId` | `org.AuthorityGrant` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 
-#### م1 · ملف الشركة والاكتمال
+#### م1 · ملف الشركة و KYC (1/2)
 
-*Company profile & KYC* — 7 جدولًا
+*Company profile & KYC* — 4 جدولًا
 
-![م1 · ملف الشركة والاكتمال](diagrams/erd/m1_company_kyc.png)
+![م1 · ملف الشركة و KYC (1/2)](diagrams/erd/m1_company_kyc_1.png)
 
 **مواصفات الجداول**
 
 | الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
 |---|---|---|---|---|---|---|
-| `org.CompanyProfile` | ملف تعريف الشركة 1:1 (G-1) | CompanyProfileId | 4 | 0 | 3 | 15 |
-| `org.CompanyBranch` | فرع/مستودع/تابعة خارج الحساب كنص (G-3) | CompanyBranchId | 2 | 0 | 3 | 13 |
-| `org.CompanyKycFinancialProfile` | الملف المالي KYC بتاريخ سريان: شريحة الإيرادات والغرض (G-4) | CompanyKycFinancialProfileId | 3 | 0 | 1 | 9 |
-| `org.CompanyExpectedFlow` | مصفوفة الحركة المتوقعة الشهرية CTP: اتجاه × 5 بنود (G-4) | CompanyExpectedFlowId | 2 | 0 | 1 | 6 |
-| `org.CompanyWealthSource` | مصادر الأموال والثروة: قائمة متعددة (G-4) | FinancialProfileId, WealthSourceId | 2 | 0 | 0 | 5 |
-| `org.CompanyDisclosure` | إفصاحات الشركة (G-5) | CompanyDisclosureId | 2 | 0 | 1 | 8 |
-| `org.CompanyKeyRelation` | أصحاب العلاقة: مدققون، مستشار قانوني، جهات تنظيمية، أبرز العملاء/الموردين (G-6) | CompanyKeyRelationId | 1 | 0 | 1 | 9 |
+| `org.CompanyProfile` | ملف تعريف الشركة 1:1 (G-1) | CompanyProfileId | 4 | 2 | 3 | 15 |
+| `org.CompanyBranch` | فرع/مستودع/تابعة خارج الحساب كنص (G-3) | CompanyBranchId | 2 | 2 | 3 | 13 |
+| `org.CompanyKycFinancialProfile` | الملف المالي KYC بتاريخ سريان: شريحة الإيرادات والغرض (G-4) | CompanyKycFinancialProfileId | 3 | 3 | 1 | 9 |
+| `org.CompanyExpectedFlow` | مصفوفة الحركة المتوقعة الشهرية CTP: اتجاه × 5 بنود (G-4) | CompanyExpectedFlowId | 2 | 2 | 1 | 6 |
 
 **العلاقات (المفاتيح الأجنبية)**
 
@@ -586,29 +679,45 @@
 | `org.CompanyKycFinancialProfile.AccountCurrencyId` | `ref.Currency` | 1 : N | اختياري | مرجع عام | قيد | — |
 | `org.CompanyExpectedFlow.FinancialProfileId` | `org.CompanyKycFinancialProfile` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `org.CompanyExpectedFlow.CurrencyId` | `ref.Currency` | 1 : N | إلزامي | مرجع عام | قيد | — |
+
+#### م1 · ملف الشركة و KYC (2/2)
+
+*Company profile & KYC* — 3 جدولًا
+
+![م1 · ملف الشركة و KYC (2/2)](diagrams/erd/m1_company_kyc_2.png)
+
+**مواصفات الجداول**
+
+| الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
+|---|---|---|---|---|---|---|
+| `org.CompanyWealthSource` | مصادر الأموال والثروة: قائمة متعددة (G-4) | TenantId, FinancialProfileId, WealthSourceId | 2 | 0 | 0 | 4 |
+| `org.CompanyDisclosure` | إفصاحات الشركة (G-5) | CompanyDisclosureId | 2 | 1 | 1 | 8 |
+| `org.CompanyKeyRelation` | أصحاب العلاقة: مدققون، مستشار قانوني، جهات تنظيمية، أبرز العملاء/الموردين (G-6) | CompanyKeyRelationId | 1 | 1 | 1 | 9 |
+
+**العلاقات (المفاتيح الأجنبية)**
+
+| الطفل (الجدول.العمود) | الأب | العلاقة | الإلزام | النطاق | الحذف | أعمدة النطاق |
+|---|---|---|---|---|---|---|
 | `org.CompanyWealthSource.FinancialProfileId` | `org.CompanyKycFinancialProfile` | 1 : N | إلزامي | مشترك · مركّب | CASCADE | — |
 | `org.CompanyWealthSource.WealthSourceId` | `cat.LookupItem` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `org.CompanyDisclosure.CompanyId` | `org.Company` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `org.CompanyDisclosure.SourceDocumentId` | `doc.Document` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `org.CompanyKeyRelation.CompanyId` | `org.Company` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 
-#### م1 · الأشخاص والهوية والاكتمال (1/2)
+#### م1 · الأشخاص والهوية و KYC (1/3)
 
-*Parties, identity documents & KYC* — 7 جدولًا
+*Parties, identity documents & KYC* — 4 جدولًا
 
-![م1 · الأشخاص والهوية والاكتمال (1/2)](diagrams/erd/m1_party_1.png)
+![م1 · الأشخاص والهوية و KYC (1/3)](diagrams/erd/m1_party_1.png)
 
 **مواصفات الجداول**
 
 | الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
 |---|---|---|---|---|---|---|
-| `pty.Address` | عنوان متعدد الملكية: OwnerType+OwnerId بلا FK (مزوّد المالك يتحقق منه التطبيق) (FR-PTY-011، BR-PTY-015) | AddressId | 5 | 0 | 3 | 17 |
-| `pty.ContactMethod` | وسيلة اتصال متعددة الملكية (FR-PTY-012، BR-PTY-015) | ContactMethodId | 4 | 0 | 1 | 8 |
-| `pty.CustomFieldDefinition` | تعريف حقل مخصص (FR-PTY-013، BR-PTY-014) | CustomFieldDefinitionId | 1 | 0 | 1 | 12 |
-| `pty.IdentityDocument` | وثيقة هوية؛ الرقم مشفّر والصور مستندات مقيَّدة (FR-PTY-004..009، FR-PTY-020..022، BR-PTY-002..008) | IdentityDocumentId | 6 | 0 | 5 | 18 |
-| `pty.KycProfile` | قائمة اكتمال KYC لكل بنك ودور (FR-PTY-023، BR-PTY-012..013، G-8، G-14) | KycProfileId | 2 | 0 | 3 | 13 |
-| `pty.KycProfileItem` | بند اكتمال (FR-PTY-023، FR-PTY-024، G-14) | KycProfileItemId | 1 | 0 | 2 | 14 |
-| `pty.KycProfileItemLegalForm` | شروط ظهور البند بحسب الشكل القانوني؛ غياب الصفوف = ينطبق على الكل (G-15) | KycProfileItemId, LegalEntityTypeId | 2 | 0 | 0 | 4 |
+| `pty.Address` | عنوان متعدد الملكية: OwnerType+OwnerId بلا FK (مزوّد المالك يتحقق منه التطبيق) (FR-PTY-011، BR-PTY-015) | AddressId | 5 | 5 | 3 | 17 |
+| `pty.ContactMethod` | وسيلة اتصال متعددة الملكية (FR-PTY-012، BR-PTY-015) | ContactMethodId | 4 | 9 | 1 | 8 |
+| `pty.CustomFieldDefinition` | تعريف حقل مخصص (FR-PTY-013، BR-PTY-014) | CustomFieldDefinitionId | 1 | 3 | 1 | 12 |
+| `pty.IdentityDocument` | وثيقة هوية؛ الرقم مشفّر والصور مستندات مقيَّدة (FR-PTY-004..009، FR-PTY-020..022، BR-PTY-002..008) | IdentityDocumentId | 6 | 3 | 5 | 18 |
 
 **العلاقات (المفاتيح الأجنبية)**
 
@@ -630,36 +739,55 @@
 | `pty.IdentityDocument.HashKeyId` | `sec.TenantKey` | 1 : N | إلزامي | مشترك · مركّب | قيد | HashKeyPurpose |
 | `pty.IdentityDocument.SupersededById` | `pty.IdentityDocument` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `pty.IdentityDocument.VerifiedBy` | `sec.AppUser` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
-| `pty.KycProfile.InstitutionId` | `ins.Institution` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
-| `pty.KycProfile.SourceDocumentId` | `doc.Document` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
-| `pty.KycProfileItem.ProfileId` | `pty.KycProfile` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
-| `pty.KycProfileItemLegalForm.KycProfileItemId` | `pty.KycProfileItem` | 1 : N | إلزامي | مشترك · مركّب | CASCADE | — |
-| `pty.KycProfileItemLegalForm.LegalEntityTypeId` | `cat.LegalEntityType` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 
-#### م1 · الأشخاص والهوية والاكتمال (2/2)
+#### م1 · الأشخاص والهوية و KYC (2/3)
 
 *Parties, identity documents & KYC* — 4 جدولًا
 
-![م1 · الأشخاص والهوية والاكتمال (2/2)](diagrams/erd/m1_party_2.png)
+![م1 · الأشخاص والهوية و KYC (2/3)](diagrams/erd/m1_party_2.png)
 
 **مواصفات الجداول**
 
 | الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
 |---|---|---|---|---|---|---|
-| `pty.Party` | شخص أو جهة؛ لا دور مخزَّن (FR-PTY-001..003، BR-PTY-001..004، BR-PTY-016..018) | PartyId | 5 | 0 | 4 | 16 |
-| `pty.PartyCompliance` | إقرارات امتثال بتاريخ لكل شخص بصفته: PEP، عقوبات، تحقيقات، حصانة (G-9) | PartyComplianceId | 3 | 0 | 0 | 12 |
-| `pty.PartyCustomField` | قيمة حقل مخصص لشخص (FR-PTY-013، FR-PTY-014) | PartyCustomFieldId | 4 | 0 | 3 | 7 |
-| `pty.TaxIdentity` | الهوية الضريبية والإقرار الضريبي FATCA/CRS (G-13) | TaxIdentityId | 5 | 0 | 1 | 7 |
+| `pty.KycProfile` | قائمة اكتمال KYC لكل بنك ودور (FR-PTY-023، BR-PTY-012..013، G-8، G-14) | KycProfileId | 2 | 5 | 3 | 13 |
+| `pty.KycProfileItem` | بند اكتمال (FR-PTY-023، FR-PTY-024، G-14) | KycProfileItemId | 1 | 3 | 2 | 14 |
+| `pty.KycProfileItemLegalForm` | شروط ظهور البند بحسب الشكل القانوني؛ غياب الصفوف = ينطبق على الكل (G-15) | TenantId, KycProfileItemId, LegalEntityTypeId | 2 | 0 | 0 | 3 |
+| `pty.Party` | شخص أو جهة؛ لا دور مخزَّن (FR-PTY-001..003، BR-PTY-001..004، BR-PTY-016..018) | PartyId | 5 | 4 | 4 | 16 |
 
 **العلاقات (المفاتيح الأجنبية)**
 
 | الطفل (الجدول.العمود) | الأب | العلاقة | الإلزام | النطاق | الحذف | أعمدة النطاق |
 |---|---|---|---|---|---|---|
+| `pty.KycProfile.InstitutionId` | `ins.Institution` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
+| `pty.KycProfile.SourceDocumentId` | `doc.Document` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
+| `pty.KycProfileItem.ProfileId` | `pty.KycProfile` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
+| `pty.KycProfileItemLegalForm.KycProfileItemId` | `pty.KycProfileItem` | 1 : N | إلزامي | مشترك · مركّب | CASCADE | — |
+| `pty.KycProfileItemLegalForm.LegalEntityTypeId` | `cat.LegalEntityType` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `pty.Party.CountryId` | `ref.Country` | 1 : N | اختياري | مرجع عام | قيد | — |
 | `pty.Party.BirthCountryId` | `ref.Country` | 1 : N | اختياري | مرجع عام | قيد | — |
 | `pty.Party.EducationLevelId` | `cat.LookupItem` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `pty.Party.LinkedCompanyId` | `org.Company` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `pty.Party.MergedIntoPartyId` | `pty.Party` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
+
+#### م1 · الأشخاص والهوية و KYC (3/3)
+
+*Parties, identity documents & KYC* — 3 جدولًا
+
+![م1 · الأشخاص والهوية و KYC (3/3)](diagrams/erd/m1_party_3.png)
+
+**مواصفات الجداول**
+
+| الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
+|---|---|---|---|---|---|---|
+| `pty.PartyCompliance` | إقرارات امتثال بتاريخ لكل شخص بصفته: PEP، عقوبات، تحقيقات، حصانة (G-9) | PartyComplianceId | 3 | 3 | 0 | 12 |
+| `pty.PartyCustomField` | قيمة حقل مخصص لشخص (FR-PTY-013، FR-PTY-014) | PartyCustomFieldId | 4 | 2 | 3 | 7 |
+| `pty.TaxIdentity` | الهوية الضريبية والإقرار الضريبي FATCA/CRS (G-13) | TaxIdentityId | 5 | 3 | 1 | 7 |
+
+**العلاقات (المفاتيح الأجنبية)**
+
+| الطفل (الجدول.العمود) | الأب | العلاقة | الإلزام | النطاق | الحذف | أعمدة النطاق |
+|---|---|---|---|---|---|---|
 | `pty.PartyCompliance.PartyId` | `pty.Party` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `pty.PartyCompliance.CompanyId` | `org.Company` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `pty.PartyCompliance.SourceDocumentId` | `doc.Document` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
@@ -675,23 +803,20 @@
 
 ### 10.5 م2–م3 · الجهات المالية والحسابات
 
-#### م2–م3 · الجهات المالية والحسابات والمفوّضون (1/2)
+#### م2–م3 · الجهات المالية والحسابات والمفوّضون (1/3)
 
-*Institutions, bank accounts & signatories* — 7 جدولًا
+*Institutions, bank accounts & signatories* — 4 جدولًا
 
-![م2–م3 · الجهات المالية والحسابات والمفوّضون (1/2)](diagrams/erd/m2_3_institutions_1.png)
+![م2–م3 · الجهات المالية والحسابات والمفوّضون (1/3)](diagrams/erd/m2_3_institutions_1.png)
 
 **مواصفات الجداول**
 
 | الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
 |---|---|---|---|---|---|---|
-| `ins.Contact` | جهة اتصال لدى البنك: سجل خفيف بلا هوية، PartyId اختياري للترقية (FR-INS-007/008، BR-INS-005/006/014) | ContactId | 4 | 0 | 2 | 11 |
-| `ins.Institution` | المنشأة المالية (FR-INS-001..004، BR-INS-001..003، BR-INS-012)؛ Locality محلي/أجنبي مشتقة (BR-INS-002) فلا تُخزَّن | InstitutionId | 3 | 0 | 2 | 12 |
-| `ins.InstitutionUnit` | وحدة في هيكل المنشأة: إدارة/قسم/فرع، شجرة ذاتية حتى 4 مستويات (FR-INS-005/006، BR-INS-004) | InstitutionUnitId | 3 | 0 | 1 | 6 |
-| `ins.Relationship` | علاقة شركة–منشأة (D-4)؛ فريدة مهما كانت حالتها (FR-INS-009، BR-INS-007/011) | RelationshipId | 2 | 0 | 2 | 10 |
-| `ins.RelationshipContact` | تغطية العلاقة (الطبقة الأولى): جهة اتصال بدور ورتبة وفترة (FR-INS-010، BR-INS-008/009) | RelationshipContactId | 4 | 0 | 2 | 8 |
-| `ins.RelationshipProduct` | منتج يُتعامل به ضمن علاقة مع جهة افتراضية وقناة (FR-INS-011..013، BR-INS-010) | RelationshipProductId | 4 | 0 | 0 | 7 |
-| `acc.AuthorityConflict` | نتيجة مقارنة صلاحية المفوّض بالحوكمة وقرار المراجع (S1-ب) (FR-ACC-018، BR-ACC-015) | AuthorityConflictId | 2 | 0 | 2 | 9 |
+| `ins.Contact` | جهة اتصال لدى البنك: سجل خفيف بلا هوية، PartyId اختياري للترقية (FR-INS-007/008، BR-INS-005/006/014) | ContactId | 4 | 4 | 2 | 11 |
+| `ins.Institution` | المنشأة المالية (FR-INS-001..004، BR-INS-001..003، BR-INS-012)؛ Locality محلي/أجنبي مشتقة (BR-INS-002) فلا تُخزَّن | InstitutionId | 3 | 4 | 2 | 12 |
+| `ins.InstitutionUnit` | وحدة في هيكل المنشأة: إدارة/قسم/فرع، شجرة ذاتية حتى 4 مستويات (FR-INS-005/006، BR-INS-004) | InstitutionUnitId | 3 | 3 | 1 | 6 |
+| `ins.Relationship` | علاقة شركة–منشأة (D-4)؛ فريدة مهما كانت حالتها (FR-INS-009، BR-INS-007/011) | RelationshipId | 2 | 5 | 2 | 10 |
 
 **العلاقات (المفاتيح الأجنبية)**
 
@@ -709,6 +834,26 @@
 | `ins.InstitutionUnit.UnitTypeId` | `cat.LookupItem` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `ins.Relationship.CompanyId` | `org.Company` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `ins.Relationship.InstitutionId` | `ins.Institution` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
+
+#### م2–م3 · الجهات المالية والحسابات والمفوّضون (2/3)
+
+*Institutions, bank accounts & signatories* — 4 جدولًا
+
+![م2–م3 · الجهات المالية والحسابات والمفوّضون (2/3)](diagrams/erd/m2_3_institutions_2.png)
+
+**مواصفات الجداول**
+
+| الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
+|---|---|---|---|---|---|---|
+| `ins.RelationshipContact` | تغطية العلاقة (الطبقة الأولى): جهة اتصال بدور ورتبة وفترة (FR-INS-010، BR-INS-008/009) | RelationshipContactId | 4 | 5 | 2 | 8 |
+| `ins.RelationshipProduct` | منتج يُتعامل به ضمن علاقة مع جهة افتراضية وقناة (FR-INS-011..013، BR-INS-010) | RelationshipProductId | 4 | 2 | 0 | 7 |
+| `acc.AuthorityConflict` | نتيجة مقارنة صلاحية المفوّض بالحوكمة وقرار المراجع (S1-ب) (FR-ACC-018، BR-ACC-015) | AuthorityConflictId | 2 | 2 | 2 | 9 |
+| `acc.BankAccount` | حساب شركة لدى منشأة (FR-ACC-001..009، BR-ACC-001..006، BR-ACC-016)؛ الرقم وIBAN مشفّران بفهرس أعمى للفرادة | BankAccountId | 9 | 8 | 8 | 20 |
+
+**العلاقات (المفاتيح الأجنبية)**
+
+| الطفل (الجدول.العمود) | الأب | العلاقة | الإلزام | النطاق | الحذف | أعمدة النطاق |
+|---|---|---|---|---|---|---|
 | `ins.RelationshipContact.InstitutionId` | `ins.Institution` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `ins.RelationshipContact.RelationshipId` | `ins.Relationship` | 1 : N | إلزامي | مشترك · مركّب | قيد | InstitutionId |
 | `ins.RelationshipContact.ContactId` | `ins.Contact` | 1 : N | إلزامي | مشترك · مركّب | قيد | InstitutionId |
@@ -719,27 +864,6 @@
 | `ins.RelationshipProduct.DefaultContactId` | `ins.Contact` | 1 : N | اختياري | مشترك · مركّب | قيد | InstitutionId |
 | `acc.AuthorityConflict.SignatoryAuthorityId` | `acc.SignatoryAuthority` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `acc.AuthorityConflict.ReviewedBy` | `sec.AppUser` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
-
-#### م2–م3 · الجهات المالية والحسابات والمفوّضون (2/2)
-
-*Institutions, bank accounts & signatories* — 5 جدولًا
-
-![م2–م3 · الجهات المالية والحسابات والمفوّضون (2/2)](diagrams/erd/m2_3_institutions_2.png)
-
-**مواصفات الجداول**
-
-| الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
-|---|---|---|---|---|---|---|
-| `acc.BankAccount` | حساب شركة لدى منشأة (FR-ACC-001..009، BR-ACC-001..006، BR-ACC-016)؛ الرقم وIBAN مشفّران بفهرس أعمى للفرادة | BankAccountId | 9 | 0 | 8 | 20 |
-| `acc.FacilityAccount` | ربط حساب بتسهيل بغرض (S2) (FR-ACC-010، BR-ACC-007)؛ يُملأ من شاشة التسهيل | FacilityAccountId | 4 | 0 | 1 | 7 |
-| `acc.Signatory` | تفويض شخص لدى علاقة (S1-ب) (FR-ACC-012، FR-ACC-023، BR-ACC-008/009) + إضافات docs/05 G-10 | SignatoryId | 8 | 0 | 3 | 12 |
-| `acc.SignatoryAuthority` | صلاحية المفوّض لعملية على حساب أو على البنك (S1-ب) (FR-ACC-013/014/017، BR-ACC-010/011)؛ لا تعديل في مكانه: الإغلاق والفتح؛ حالتها مشتقة فلا تُخزَّن | SignatoryAuthorityId | 7 | 0 | 8 | 10 |
-| `acc.SignatoryAuthorityJointClass` | فئات التوقيع المطلوبة للتوقيع المشترك (JointClassIds) (BR-ACC-013) -- جدول وسيط جديد؛ لا حذف: التعديل بصف صلاحية جديد | SignatoryAuthorityId, SignatureClassId | 2 | 0 | 0 | 4 |
-
-**العلاقات (المفاتيح الأجنبية)**
-
-| الطفل (الجدول.العمود) | الأب | العلاقة | الإلزام | النطاق | الحذف | أعمدة النطاق |
-|---|---|---|---|---|---|---|
 | `acc.BankAccount.CompanyId` | `org.Company` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `acc.BankAccount.InstitutionId` | `ins.Institution` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `acc.BankAccount.RelationshipId` | `ins.Relationship` | 1 : N | إلزامي | مشترك · مركّب | قيد | CompanyId, InstitutionId |
@@ -749,6 +873,26 @@
 | `acc.BankAccount.EncKeyId` | `sec.TenantKey` | 1 : N | إلزامي | مشترك · مركّب | قيد | EncKeyPurpose |
 | `acc.BankAccount.HashKeyId` | `sec.TenantKey` | 1 : N | إلزامي | مشترك · مركّب | قيد | HashKeyPurpose |
 | `acc.BankAccount.BranchUnitId` | `ins.InstitutionUnit` | 1 : N | اختياري | مشترك · مركّب | قيد | InstitutionId |
+
+#### م2–م3 · الجهات المالية والحسابات والمفوّضون (3/3)
+
+*Institutions, bank accounts & signatories* — 4 جدولًا
+
+![م2–م3 · الجهات المالية والحسابات والمفوّضون (3/3)](diagrams/erd/m2_3_institutions_3.png)
+
+**مواصفات الجداول**
+
+| الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
+|---|---|---|---|---|---|---|
+| `acc.FacilityAccount` | ربط حساب بتسهيل بغرض (S2) (FR-ACC-010، BR-ACC-007)؛ يُملأ من شاشة التسهيل | FacilityAccountId | 4 | 3 | 1 | 7 |
+| `acc.Signatory` | تفويض شخص لدى علاقة (S1-ب) (FR-ACC-012، FR-ACC-023، BR-ACC-008/009) + إضافات docs/05 G-10 | SignatoryId | 8 | 5 | 3 | 12 |
+| `acc.SignatoryAuthority` | صلاحية المفوّض لعملية على حساب أو على البنك (S1-ب) (FR-ACC-013/014/017، BR-ACC-010/011)؛ لا تعديل في مكانه: الإغلاق والفتح؛ حالتها مشتقة فلا تُخزَّن | SignatoryAuthorityId | 7 | 4 | 8 | 10 |
+| `acc.SignatoryAuthorityJointClass` | فئات التوقيع المطلوبة للتوقيع المشترك (JointClassIds) (BR-ACC-013) | TenantId, SignatoryAuthorityId, SignatureClassId | 2 | 0 | 0 | 3 |
+
+**العلاقات (المفاتيح الأجنبية)**
+
+| الطفل (الجدول.العمود) | الأب | العلاقة | الإلزام | النطاق | الحذف | أعمدة النطاق |
+|---|---|---|---|---|---|---|
 | `acc.FacilityAccount.FacilityId` | `fac.Facility` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `acc.FacilityAccount.BankAccountId` | `acc.BankAccount` | 1 : N | إلزامي | مشترك · مركّب | قيد | CurrencyId |
 | `acc.FacilityAccount.CurrencyId` | `ref.Currency` | 1 : N | إلزامي | مرجع عام | قيد | — |
@@ -773,76 +917,89 @@
 
 ### 10.6 م4 · الكتالوجات والمراجع
 
-#### م4 · المنتجات والرسوم والتمويل والضمانات (1/2)
+#### م4 · المنتجات والرسوم والتمويل والضمانات (1/3)
 
-*Products, fees, financing & collateral types* — 7 جدولًا
+*Products, fees, financing & collateral types* — 4 جدولًا
 
-![م4 · المنتجات والرسوم والتمويل والضمانات (1/2)](diagrams/erd/m4_products_1.png)
+![م4 · المنتجات والرسوم والتمويل والضمانات (1/3)](diagrams/erd/m4_products_1.png)
 
 **مواصفات الجداول**
 
 | الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
 |---|---|---|---|---|---|---|
-| `cat.ProductCategory` | تصنيف المنتجات: مسطّح (FR-CAT-007) | ProductCategoryId | 0 | 0 | 2 | 13 |
-| `cat.Product` | المنتج البنكي بأعلامه (FR-CAT-007، BR-CAT-004) | ProductId | 1 | 0 | 2 | 18 |
-| `cat.FeeType` | نوع المصروف: فئة عريضة لا بند تعرفة (FR-CAT-008، BR-CAT-005، Q-CAT-10) | FeeTypeId | 0 | 0 | 2 | 15 |
-| `cat.FinancingType` | نوع التمويل (FR-CAT-009، BR-CAT-006) | FinancingTypeId | 0 | 0 | 2 | 15 |
-| `cat.ProductFeeType` | المصاريف المسموحة للمنتج؛ تعطيل الربط = حذفه ولا يمس قواعد تسعير قائمة (FR-CAT-010، BR-CAT-007) -- يبقى بمفتاح بديل لأنه يحمل سمة | ProductFeeTypeId | 2 | 0 | 0 | 4 |
-| `cat.ProductFinancingType` | أنواع التمويل المسموحة للمنتج (FR-CAT-010، BR-CAT-007) | ProductFinancingTypeId | 2 | 0 | 0 | 4 |
-| `cat.FacilityType` | نوع التسهيل (FR-CAT-011) | FacilityTypeId | 0 | 0 | 2 | 14 |
+| `cat.ProductCategory` | تصنيف المنتجات: مسطّح (FR-CAT-007) | ProductCategoryId | 0 | 3 | 2 | 13 |
+| `cat.Product` | المنتج البنكي بأعلامه (FR-CAT-007، BR-CAT-004) | ProductId | 1 | 4 | 2 | 18 |
+| `cat.FeeType` | نوع المصروف: فئة عريضة لا بند تعرفة (FR-CAT-008، BR-CAT-005، Q-CAT-10) | FeeTypeId | 0 | 3 | 2 | 15 |
+| `cat.FinancingType` | نوع التمويل (FR-CAT-009، BR-CAT-006) | FinancingTypeId | 0 | 3 | 2 | 15 |
 
 **العلاقات (المفاتيح الأجنبية)**
 
 | الطفل (الجدول.العمود) | الأب | العلاقة | الإلزام | النطاق | الحذف | أعمدة النطاق |
 |---|---|---|---|---|---|---|
 | `cat.Product.ProductCategoryId` | `cat.ProductCategory` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
-| `cat.ProductFeeType.ProductId` | `cat.Product` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
-| `cat.ProductFeeType.FeeTypeId` | `cat.FeeType` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
-| `cat.ProductFinancingType.ProductId` | `cat.Product` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
-| `cat.ProductFinancingType.FinancingTypeId` | `cat.FinancingType` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 
-#### م4 · المنتجات والرسوم والتمويل والضمانات (2/2)
+#### م4 · المنتجات والرسوم والتمويل والضمانات (2/3)
 
-*Products, fees, financing & collateral types* — 5 جدولًا
+*Products, fees, financing & collateral types* — 4 جدولًا
 
-![م4 · المنتجات والرسوم والتمويل والضمانات (2/2)](diagrams/erd/m4_products_2.png)
+![م4 · المنتجات والرسوم والتمويل والضمانات (2/3)](diagrams/erd/m4_products_2.png)
 
 **مواصفات الجداول**
 
 | الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
 |---|---|---|---|---|---|---|
-| `cat.LimitType` | نوع الحد: رئيسي/جزئي (FR-CAT-012، BR-CAT-008) | LimitTypeId | 1 | 0 | 4 | 16 |
-| `cat.LimitTypeProduct` | المنتجات المسموحة لنوع الحد؛ غياب الصفوف = أي منتج بعلامة ظاهرة (BR-CAT-008) -- جدول وسيط جديد | LimitTypeId, ProductId | 2 | 0 | 0 | 4 |
-| `cat.CollateralType` | نوع الضمان بنوع بنية وقالب سمات (FR-CAT-013) | CollateralTypeId | 0 | 0 | 2 | 14 |
-| `cat.CollateralTypeAttribute` | سمة في قالب نوع الضمان؛ لا تُحذف بل تُرمَّز Retired (BR-CAT-009) -- جدول جديد | CollateralTypeAttributeId | 1 | 0 | 1 | 11 |
-| `cat.ObligationType` | نوع الالتزام بأربع عائلات (FR-CAT-014، BR-CAT-010) | ObligationTypeId | 0 | 0 | 4 | 18 |
+| `cat.ProductFeeType` | المصاريف المسموحة للمنتج؛ تعطيل الربط = حذفه ولا يمس قواعد تسعير قائمة (FR-CAT-010، BR-CAT-007) | ProductFeeTypeId | 2 | 2 | 0 | 4 |
+| `cat.ProductFinancingType` | أنواع التمويل المسموحة للمنتج (FR-CAT-010، BR-CAT-007) | ProductFinancingTypeId | 2 | 3 | 0 | 4 |
+| `cat.FacilityType` | نوع التسهيل (FR-CAT-011) | FacilityTypeId | 0 | 3 | 2 | 14 |
+| `cat.LimitType` | نوع الحد: رئيسي/جزئي (FR-CAT-012، BR-CAT-008) | LimitTypeId | 1 | 3 | 4 | 16 |
 
 **العلاقات (المفاتيح الأجنبية)**
 
 | الطفل (الجدول.العمود) | الأب | العلاقة | الإلزام | النطاق | الحذف | أعمدة النطاق |
 |---|---|---|---|---|---|---|
+| `cat.ProductFeeType.ProductId` | `cat.Product` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
+| `cat.ProductFeeType.FeeTypeId` | `cat.FeeType` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
+| `cat.ProductFinancingType.ProductId` | `cat.Product` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
+| `cat.ProductFinancingType.FinancingTypeId` | `cat.FinancingType` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `cat.LimitType.ParentLimitTypeId` | `cat.LimitType` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
-| `cat.LimitTypeProduct.LimitTypeId` | `cat.LimitType` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
-| `cat.LimitTypeProduct.ProductId` | `cat.Product` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
-| `cat.CollateralTypeAttribute.CollateralTypeId` | `cat.CollateralType` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 
-#### م4 · الكتالوجات المرجعية
+#### م4 · المنتجات والرسوم والتمويل والضمانات (3/3)
 
-*Reference catalogues* — 7 جدولًا
+*Products, fees, financing & collateral types* — 4 جدولًا
 
-![م4 · الكتالوجات المرجعية](diagrams/erd/m4_reference.png)
+![م4 · المنتجات والرسوم والتمويل والضمانات (3/3)](diagrams/erd/m4_products_3.png)
 
 **مواصفات الجداول**
 
 | الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
 |---|---|---|---|---|---|---|
-| `cat.TenantCurrency` | العملات المفعّلة للمشترك: تفعيل مجموعة جزئية من المرجع العالمي (FR-CAT-023، Q-CAT-08) -- جدول بنيوي جديد | CurrencyId | 1 | 0 | 0 | 6 |
-| `cat.InstitutionType` | نوع المنشأة المالية: بنك، شركة تمويل، استثمارية، مالية، فرد (FR-INS-001) | InstitutionTypeId | 0 | 0 | 2 | 14 |
-| `cat.AccountType` | نوع الحساب (FR-ACC-001) | AccountTypeId | 0 | 0 | 2 | 14 |
-| `cat.LegalEntityType` | الشكل القانوني: الكيان وسماته يعرّفها 10 (FR-ORG-002، BR-CAT-017) وتبذره هذه الوحدة؛ أعمدة الكتالوج مكتوبة يدويًا لأن فرادة الرمز بالدولة (10 §6.2) ل… | LegalEntityTypeId | 1 | 0 | 2 | 16 |
-| `cat.DocumentType` | نوع الوثيقة؛ يطبّق 10 أعلامه عند الرفع (FR-CAT-018، BR-CAT-016، FR-PLT-028) | DocumentTypeId | 0 | 0 | 5 | 20 |
-| `cat.Position` | المنصب: السمات يعرّفها 10 §6.2 وحده وتبذر هذه الوحدة صفوفه (FR-CAT-019، BR-CAT-017)؛ SortOrder من أساس الكتالوج | PositionId | 0 | 0 | 2 | 15 |
-| `cat.PowerType` | نوع الصلاحية: السمات يعرّفها 10 §6.2 وحده وتبذر هذه الوحدة صفوفه (FR-CAT-019، FR-ORG-024) | PowerTypeId | 0 | 0 | 2 | 15 |
+| `cat.LimitTypeProduct` | المنتجات المسموحة لنوع الحد؛ غياب الصفوف = أي منتج بعلامة ظاهرة (BR-CAT-008) | TenantId, LimitTypeId, ProductId | 2 | 0 | 0 | 3 |
+| `cat.CollateralType` | نوع الضمان بنوع بنية وقالب سمات (FR-CAT-013) | CollateralTypeId | 0 | 3 | 2 | 14 |
+| `cat.CollateralTypeAttribute` | سمة في قالب نوع الضمان؛ لا تُحذف بل تُرمَّز Retired (BR-CAT-009) | CollateralTypeAttributeId | 1 | 2 | 1 | 11 |
+| `cat.ObligationType` | نوع الالتزام بأربع عائلات (FR-CAT-014، BR-CAT-010) | ObligationTypeId | 0 | 3 | 4 | 18 |
+
+**العلاقات (المفاتيح الأجنبية)**
+
+| الطفل (الجدول.العمود) | الأب | العلاقة | الإلزام | النطاق | الحذف | أعمدة النطاق |
+|---|---|---|---|---|---|---|
+| `cat.LimitTypeProduct.LimitTypeId` | `cat.LimitType` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
+| `cat.LimitTypeProduct.ProductId` | `cat.Product` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
+| `cat.CollateralTypeAttribute.CollateralTypeId` | `cat.CollateralType` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
+
+#### م4 · الكتالوجات المرجعية (1/2)
+
+*Reference catalogues* — 4 جدولًا
+
+![م4 · الكتالوجات المرجعية (1/2)](diagrams/erd/m4_reference_1.png)
+
+**مواصفات الجداول**
+
+| الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
+|---|---|---|---|---|---|---|
+| `cat.TenantCurrency` | العملات المفعّلة للمشترك: تفعيل مجموعة جزئية من المرجع العالمي (FR-CAT-023، Q-CAT-08) | TenantId, CurrencyId | 1 | 0 | 0 | 5 |
+| `cat.InstitutionType` | نوع المنشأة المالية: بنك، شركة تمويل، استثمارية، مالية، فرد (FR-INS-001) | InstitutionTypeId | 0 | 3 | 2 | 14 |
+| `cat.AccountType` | نوع الحساب (FR-ACC-001) | AccountTypeId | 0 | 3 | 2 | 14 |
+| `cat.LegalEntityType` | الشكل القانوني: الكيان وسماته يعرّفها 10 (FR-ORG-002، BR-CAT-017) وتبذره هذه الوحدة؛ أعمدة الكتالوج مكتوبة يدويًا لأن فرادة الرمز بالدولة (10 §6.2) لا فرادته وحده | LegalEntityTypeId | 1 | 3 | 2 | 16 |
 
 **العلاقات (المفاتيح الأجنبية)**
 
@@ -851,23 +1008,40 @@
 | `cat.TenantCurrency.CurrencyId` | `ref.Currency` | 1 : N | إلزامي | مرجع عام | قيد | — |
 | `cat.LegalEntityType.CountryId` | `ref.Country` | 1 : N | اختياري | مرجع عام | قيد | — |
 
-#### م4 · الأسعار المرجعية والقوائم
+#### م4 · الكتالوجات المرجعية (2/2)
 
-*Base rates & lookup lists* — 7 جدولًا
+*Reference catalogues* — 3 جدولًا
 
-![م4 · الأسعار المرجعية والقوائم](diagrams/erd/m4_rates_lookups.png)
+![م4 · الكتالوجات المرجعية (2/2)](diagrams/erd/m4_reference_2.png)
 
 **مواصفات الجداول**
 
 | الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
 |---|---|---|---|---|---|---|
-| `cat.OperationType` | نوع العملية البنكية المفوَّض بها (FR-ACC-013، BR-CAT-014) | OperationTypeId | 0 | 0 | 2 | 15 |
-| `cat.OperationTypePowerType` | ربط عملية بنوع/أنواع صلاحية حوكمة؛ «أي واحد يكفي» (BR-CAT-014، FR-CAT-019، Q-ACC-05) -- جدول وسيط جديد | OperationTypeId, PowerTypeId | 2 | 0 | 0 | 4 |
-| `cat.BaseRate` | سعر الأساس: سوق (InstitutionId فارغ) أو داخلي لبنك (FR-CAT-015، BR-CAT-011)؛ الأسماء البديلة في BaseRateAlias | BaseRateId | 2 | 0 | 4 | 17 |
-| `cat.BaseRateAlias` | اسم بديل لسعر أساس (SIBOR ≡ SAIBOR) بحث بلا حساسية حالة وفريد ضمن النطاق (BR-CAT-011، FR-CAT-015) -- جدول وسيط جديد يحل «Aliases set» | BaseRateAliasId | 2 | 0 | 0 | 6 |
-| `cat.BaseRateValue` | قيمة سعر الأساس بتاريخ سريان؛ لا حذف: التصحيح صف جديد والقديم SUPERSEDED (FR-CAT-016، BR-CAT-012/013) | BaseRateValueId | 3 | 0 | 1 | 9 |
-| `cat.LookupList` | DR-03: مملوك للمشترك؛ نسخة النظام تُهيَّأ لكل مشترك من قالب المنصة  # قائمة قيم؛ TenantId فارغ = قائمة عالمية يملكها المشغّل للقراءة (FR-CAT-020، BR-… | LookupListId | 0 | 0 | 3 | 16 |
-| `cat.LookupItem` | DR-03/05/07: مملوك للمشترك (نسخ النظام لكل مشترك)  # بند في قائمة قيم؛ TenantId فارغ = بند عالمي للقراءة فقط؛ أعمدة الكتالوج يدوية لأن فرادة الرمز دا… | LookupItemId | 1 | 0 | 2 | 15 |
+| `cat.DocumentType` | نوع الوثيقة؛ يطبّق 10 أعلامه عند الرفع (FR-CAT-018، BR-CAT-016، FR-PLT-028) | DocumentTypeId | 0 | 3 | 5 | 20 |
+| `cat.Position` | المنصب: السمات يعرّفها 10 §6.2 وحده وتبذر هذه الوحدة صفوفه (FR-CAT-019، BR-CAT-017)؛ SortOrder من أساس الكتالوج | PositionId | 0 | 3 | 2 | 15 |
+| `cat.PowerType` | نوع الصلاحية: السمات يعرّفها 10 §6.2 وحده وتبذر هذه الوحدة صفوفه (FR-CAT-019، FR-ORG-024) | PowerTypeId | 0 | 3 | 2 | 15 |
+
+**العلاقات (المفاتيح الأجنبية)**
+
+| الطفل (الجدول.العمود) | الأب | العلاقة | الإلزام | النطاق | الحذف | أعمدة النطاق |
+|---|---|---|---|---|---|---|
+| — | — | — | — | — | — | — |
+
+#### م4 · الأسعار المرجعية والقوائم (1/2)
+
+*Base rates & lookup lists* — 4 جدولًا
+
+![م4 · الأسعار المرجعية والقوائم (1/2)](diagrams/erd/m4_rates_lookups_1.png)
+
+**مواصفات الجداول**
+
+| الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
+|---|---|---|---|---|---|---|
+| `cat.OperationType` | نوع العملية البنكية المفوَّض بها (FR-ACC-013، BR-CAT-014) | OperationTypeId | 0 | 3 | 2 | 15 |
+| `cat.OperationTypePowerType` | ربط عملية بنوع/أنواع صلاحية حوكمة؛ «أي واحد يكفي» (BR-CAT-014، FR-CAT-019، Q-ACC-05) | TenantId, OperationTypeId, PowerTypeId | 2 | 0 | 0 | 3 |
+| `cat.BaseRate` | سعر الأساس: سوق (InstitutionId فارغ) أو داخلي لبنك (FR-CAT-015، BR-CAT-011)؛ الأسماء البديلة في BaseRateAlias | BaseRateId | 2 | 5 | 4 | 17 |
+| `cat.BaseRateAlias` | اسم بديل لسعر أساس (SIBOR ≡ SAIBOR) بحث بلا حساسية حالة وفريد ضمن النطاق (BR-CAT-011، FR-CAT-015) | BaseRateAliasId | 2 | 2 | 0 | 6 |
 
 **العلاقات (المفاتيح الأجنبية)**
 
@@ -879,25 +1053,44 @@
 | `cat.BaseRate.CurrencyId` | `ref.Currency` | 1 : N | اختياري | مرجع عام | قيد | — |
 | `cat.BaseRateAlias.BaseRateId` | `cat.BaseRate` | 1 : N | إلزامي | مشترك · مركّب | قيد | Tenor |
 | `cat.BaseRateAlias.InstitutionId` | `ins.Institution` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
-| `cat.BaseRateValue.BaseRateId` | `cat.BaseRate` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
-| `cat.BaseRateValue.SupersedesId` | `cat.BaseRateValue` | 1 : N | اختياري | مشترك · مركّب | قيد | BaseRateId |
-| `cat.BaseRateValue.EnteredBy` | `sec.AppUser` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
-| `cat.LookupItem.LookupListId` | `cat.LookupList` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 
-#### المراجع العامة (ref)
+#### م4 · الأسعار المرجعية والقوائم (2/2)
 
-*Global references (shared, read-only)* — 4 جدولًا
+*Base rates & lookup lists* — 3 جدولًا
 
-![المراجع العامة (ref)](diagrams/erd/m4_global_ref.png)
+![م4 · الأسعار المرجعية والقوائم (2/2)](diagrams/erd/m4_rates_lookups_2.png)
 
 **مواصفات الجداول**
 
 | الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
 |---|---|---|---|---|---|---|
-| `ref.Country` | الدولة: مرجع عالمي للقراءة فقط يديره مشغّل المنصة (FR-CAT-026، BR-CAT-018، BR-CAT-015) | CountryId | 0 | 0 | 3 | 11 |
-| `ref.Currency` | العملة: مرجع عالمي ISO 4217 للقراءة فقط (FR-CAT-021، Q-CAT-08) | CurrencyId | 0 | 0 | 3 | 10 |
-| `ref.Incoterm` | مصطلح تسليم Incoterms: مرجع عالمي للقراءة فقط يديره المشغّل؛ القديم LEGACY للعرض لا للاختيار (FR-LCT-013، FR-CAT-021، BR-CAT-015) | IncotermId | 0 | 0 | 1 | 11 |
-| `ref.UcpArticle` | مادة UCP 600 مرجعية: TenantId الفارغ = صف عام للقراءة فقط ينشره المشغّل وحده (FR-LCT-006، BR-LCT-018، BR-PLT-001) | UcpArticleId | 1 | 0 | 2 | 12 |
+| `cat.BaseRateValue` | قيمة سعر الأساس بتاريخ سريان؛ لا حذف: التصحيح صف جديد والقديم SUPERSEDED (FR-CAT-016، BR-CAT-012/013) | BaseRateValueId | 3 | 3 | 1 | 9 |
+| `cat.LookupList` | DR-03: مملوك للمشترك؛ نسخة النظام تُهيَّأ لكل مشترك من قالب المنصة # قائمة قيم؛ TenantId فارغ = قائمة عالمية يملكها المشغّل للقراءة (FR-CAT-020، BR-CAT-015) | LookupListId | 0 | 3 | 3 | 16 |
+| `cat.LookupItem` | DR-03/05/07: مملوك للمشترك (نسخ النظام لكل مشترك) # بند في قائمة قيم؛ TenantId فارغ = بند عالمي للقراءة فقط؛ أعمدة الكتالوج يدوية لأن فرادة الرمز داخل القائمة لا المشترك (FR-CAT-020) | LookupItemId | 1 | 3 | 2 | 15 |
+
+**العلاقات (المفاتيح الأجنبية)**
+
+| الطفل (الجدول.العمود) | الأب | العلاقة | الإلزام | النطاق | الحذف | أعمدة النطاق |
+|---|---|---|---|---|---|---|
+| `cat.BaseRateValue.BaseRateId` | `cat.BaseRate` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
+| `cat.BaseRateValue.SupersedesId` | `cat.BaseRateValue` | 1 : N | اختياري | مشترك · مركّب | قيد | BaseRateId |
+| `cat.BaseRateValue.EnteredBy` | `sec.AppUser` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
+| `cat.LookupItem.LookupListId` | `cat.LookupList` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
+
+#### م4 · المراجع العامة (ref)
+
+*Global references (shared, read-only)* — 4 جدولًا
+
+![م4 · المراجع العامة (ref)](diagrams/erd/m4_global_ref.png)
+
+**مواصفات الجداول**
+
+| الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
+|---|---|---|---|---|---|---|
+| `ref.Country` | الدولة: مرجع عالمي للقراءة فقط يديره مشغّل المنصة (FR-CAT-026، BR-CAT-018، BR-CAT-015) | CountryId | 0 | 2 | 3 | 11 |
+| `ref.Currency` | العملة: مرجع عالمي ISO 4217 للقراءة فقط (FR-CAT-021، Q-CAT-08) | CurrencyId | 0 | 2 | 3 | 10 |
+| `ref.Incoterm` | مصطلح تسليم Incoterms: مرجع عالمي للقراءة فقط يديره المشغّل؛ القديم LEGACY للعرض لا للاختيار (FR-LCT-013، FR-CAT-021، BR-CAT-015) | IncotermId | 0 | 1 | 1 | 11 |
+| `ref.UcpArticle` | مادة UCP 600 مرجعية: TenantId الفارغ = صف عام للقراءة فقط ينشره المشغّل وحده (FR-LCT-006، BR-LCT-018، BR-PLT-001) | UcpArticleId | 1 | 3 | 2 | 12 |
 
 **العلاقات (المفاتيح الأجنبية)**
 
@@ -907,22 +1100,20 @@
 
 ### 10.7 م5 · التسهيلات والتسعير والضمانات والالتزامات والبيانات المالية
 
-#### م5 · التسهيلات والمراجعات
+#### م5 · التسهيلات والمراجعات (1/2)
 
-*Facilities & revisions* — 6 جدولًا
+*Facilities & revisions* — 4 جدولًا
 
-![م5 · التسهيلات والمراجعات](diagrams/erd/m5_facility_core.png)
+![م5 · التسهيلات والمراجعات (1/2)](diagrams/erd/m5_facility_core_1.png)
 
 **مواصفات الجداول**
 
 | الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
 |---|---|---|---|---|---|---|
-| `fac.Facility` | حزمة الاتفاقية الائتمانية: جذر التجميعة (FR-FAC-001..008، BR-FAC-001/005/006) | FacilityId | 4 | 0 | 11 | 28 |
-| `fac.FacilityRevision` | مراجعة معدّ/معتمِد لشروط التسهيل (FR-FAC-024، BR-FAC-003/004، §8) | FacilityRevisionId | 3 | 0 | 5 | 13 |
-| `fac.FacilityDocument` | وثيقة ضمن الحزمة بأسبقية (FR-FAC-004، BR-FAC-008، V-FAC-03)؛ نوعها من doc.Document.DocumentTypeId | FacilityDocumentId | 4 | 0 | 4 | 12 |
-| `fac.FacilityLender` | مقرض وحصته (FR-FAC-003، BR-FAC-007، V-FAC-02)؛ مجموع الحصص 100 ووكيل واحد يتحقق منهما التطبيق | FacilityLenderId | 4 | 0 | 4 | 7 |
-| `fac.OutstandingSnapshot` | لقطة الرصيد المعترف به (FR-FAC-009، BR-FAC-017)؛ PctOfLimit مشتق لا يُخزَّن | OutstandingSnapshotId | 7 | 0 | 4 | 13 |
-| `fac.ValueConflict` | تعارض قيمتين لحقل واحد وحسمه (FR-FAC-026، BR-FAC-019، BR-FAC-008) | ValueConflictId | 4 | 0 | 5 | 21 |
+| `fac.Facility` | حزمة الاتفاقية الائتمانية: جذر التجميعة (FR-FAC-001..008، BR-FAC-001/005/006) | FacilityId | 4 | 4 | 11 | 28 |
+| `fac.FacilityRevision` | مراجعة معدّ/معتمِد لشروط التسهيل (FR-FAC-024، BR-FAC-003/004، §8) | FacilityRevisionId | 3 | 3 | 5 | 13 |
+| `fac.FacilityDocument` | وثيقة ضمن الحزمة بأسبقية (FR-FAC-004، BR-FAC-008، V-FAC-03)؛ نوعها من doc.Document.DocumentTypeId | FacilityDocumentId | 4 | 4 | 4 | 12 |
+| `fac.FacilityLender` | مقرض وحصته (FR-FAC-003، BR-FAC-007، V-FAC-02)؛ مجموع الحصص 100 ووكيل واحد يتحقق منهما التطبيق | FacilityLenderId | 4 | 2 | 4 | 7 |
 
 **العلاقات (المفاتيح الأجنبية)**
 
@@ -943,6 +1134,24 @@
 | `fac.FacilityLender.InstitutionId` | `ins.Institution` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `fac.FacilityLender.ContactId` | `ins.Contact` | 1 : N | اختياري | مشترك · مركّب | قيد | InstitutionId |
 | `fac.FacilityLender.SupersedesId` | `fac.FacilityLender` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
+
+#### م5 · التسهيلات والمراجعات (2/2)
+
+*Facilities & revisions* — 2 جدولًا
+
+![م5 · التسهيلات والمراجعات (2/2)](diagrams/erd/m5_facility_core_2.png)
+
+**مواصفات الجداول**
+
+| الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
+|---|---|---|---|---|---|---|
+| `fac.OutstandingSnapshot` | لقطة الرصيد المعترف به (FR-FAC-009، BR-FAC-017)؛ PctOfLimit مشتق لا يُخزَّن | OutstandingSnapshotId | 7 | 2 | 4 | 13 |
+| `fac.ValueConflict` | تعارض قيمتين لحقل واحد وحسمه (FR-FAC-026، BR-FAC-019، BR-FAC-008) | ValueConflictId | 4 | 2 | 5 | 21 |
+
+**العلاقات (المفاتيح الأجنبية)**
+
+| الطفل (الجدول.العمود) | الأب | العلاقة | الإلزام | النطاق | الحذف | أعمدة النطاق |
+|---|---|---|---|---|---|---|
 | `fac.OutstandingSnapshot.FacilityId` | `fac.Facility` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `fac.OutstandingSnapshot.LimitId` | `fac.Limit` | 1 : N | اختياري | مشترك · مركّب | قيد | FacilityId |
 | `fac.OutstandingSnapshot.ProductId` | `cat.Product` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
@@ -955,23 +1164,20 @@
 | `fac.ValueConflict.CandidateBSourceDocumentId` | `doc.Document` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `fac.ValueConflict.ResolvedBy` | `sec.AppUser` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 
-#### م5 · الحدود والاستخدام والحجوزات
+#### م5 · الحدود والاستخدام والحجوزات (1/2)
 
-*Limits, utilisation & reservations* — 7 جدولًا
+*Limits, utilisation & reservations* — 4 جدولًا
 
-![م5 · الحدود والاستخدام والحجوزات](diagrams/erd/m5_limits.png)
+![م5 · الحدود والاستخدام والحجوزات (1/2)](diagrams/erd/m5_limits_1.png)
 
 **مواصفات الجداول**
 
 | الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
 |---|---|---|---|---|---|---|
-| `fac.Limit` | عقدة شجرة الحدود (FR-FAC-010/011، BR-FAC-009/010، V-FAC-04..07) | LimitId | 7 | 0 | 9 | 27 |
-| `fac.LimitProductLine` | خط منتج داخل حد: سقف اختياري SHARED_CAP دائمًا (FR-FAC-012، V-FAC-08) | LimitProductLineId | 7 | 0 | 6 | 18 |
-| `fac.LimitCompanyRule` | قيد شركة على حد: مسموح/مستثنى/تخصيص (FR-FAC-013، BR-FAC-012، V-FAC-09) | LimitCompanyRuleId | 7 | 0 | 8 | 17 |
-| `fac.ProductLineTerm` | شروط العملية لخط المنتج بتواريخ سريان؛ الفارغ = «غير محدد» لا صفر (FR-FAC-014، BR-FAC-016) | ProductLineTermId | 6 | 0 | 11 | 22 |
-| `fac.Utilization` | بند استخدام فعّال: يدوي أو مرتبط باعتماد مستندي؛ لا حذف (FR-FAC-016/030، BR-FAC-013/020) | UtilizationId | 5 | 0 | 6 | 15 |
-| `fac.LimitReservation` | حجز مبلغ لطلب = ExposureAmount (FR-FAC-017/018/020، BR-FAC-015) | LimitReservationId | 7 | 0 | 7 | 13 |
-| `fac.LimitMovement` | سجل حركة على حجز أو استخدام؛ لا تعديل ولا حذف؛ مفتاح عدم التكرار (BR-FAC-015/020) | LimitMovementId | 5 | 0 | 4 | 11 |
+| `fac.Limit` | عقدة شجرة الحدود (FR-FAC-010/011، BR-FAC-009/010، V-FAC-04..07) | LimitId | 7 | 3 | 9 | 27 |
+| `fac.LimitProductLine` | خط منتج داخل حد: سقف اختياري SHARED_CAP دائمًا (FR-FAC-012، V-FAC-08) | LimitProductLineId | 7 | 4 | 6 | 18 |
+| `fac.LimitCompanyRule` | قيد شركة على حد: مسموح/مستثنى/تخصيص (FR-FAC-013، BR-FAC-012، V-FAC-09) | LimitCompanyRuleId | 7 | 2 | 8 | 17 |
+| `fac.ProductLineTerm` | شروط العملية لخط المنتج بتواريخ سريان؛ الفارغ = «غير محدد» لا صفر (FR-FAC-014، BR-FAC-016) | ProductLineTermId | 6 | 2 | 11 | 22 |
 
 **العلاقات (المفاتيح الأجنبية)**
 
@@ -1004,6 +1210,25 @@
 | `fac.ProductLineTerm.SourceDocumentId` | `doc.Document` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `fac.ProductLineTerm.VerifiedBy` | `sec.AppUser` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `fac.ProductLineTerm.ConflictId` | `fac.ValueConflict` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
+
+#### م5 · الحدود والاستخدام والحجوزات (2/2)
+
+*Limits, utilisation & reservations* — 3 جدولًا
+
+![م5 · الحدود والاستخدام والحجوزات (2/2)](diagrams/erd/m5_limits_2.png)
+
+**مواصفات الجداول**
+
+| الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
+|---|---|---|---|---|---|---|
+| `fac.Utilization` | بند استخدام فعّال: يدوي أو مرتبط باعتماد مستندي؛ لا حذف (FR-FAC-016/030، BR-FAC-013/020) | UtilizationId | 5 | 4 | 6 | 15 |
+| `fac.LimitReservation` | حجز مبلغ لطلب = ExposureAmount (FR-FAC-017/018/020، BR-FAC-015) | LimitReservationId | 7 | 5 | 7 | 13 |
+| `fac.LimitMovement` | سجل حركة على حجز أو استخدام؛ لا تعديل ولا حذف؛ مفتاح عدم التكرار (BR-FAC-015/020) | LimitMovementId | 5 | 2 | 4 | 11 |
+
+**العلاقات (المفاتيح الأجنبية)**
+
+| الطفل (الجدول.العمود) | الأب | العلاقة | الإلزام | النطاق | الحذف | أعمدة النطاق |
+|---|---|---|---|---|---|---|
 | `fac.Utilization.FacilityId` | `fac.Facility` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `fac.Utilization.LimitId` | `fac.Limit` | 1 : N | إلزامي | مشترك · مركّب | قيد | FacilityId |
 | `fac.Utilization.LimitProductLineId` | `fac.LimitProductLine` | 1 : N | اختياري | مشترك · مركّب | قيد | FacilityId, LimitId |
@@ -1022,23 +1247,20 @@
 | `fac.LimitMovement.CurrencyId` | `ref.Currency` | 1 : N | إلزامي | مرجع عام | قيد | — |
 | `fac.LimitMovement.ActorUserId` | `sec.AppUser` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 
-#### م5 · التسعير وشروط المقارنة
+#### م5 · التسعير وشروط المقارنة (1/2)
 
-*Pricing, tariffs & comparable terms* — 7 جدولًا
+*Pricing, tariffs & comparable terms* — 4 جدولًا
 
-![م5 · التسعير وشروط المقارنة](diagrams/erd/m5_pricing.png)
+![م5 · التسعير وشروط المقارنة (1/2)](diagrams/erd/m5_pricing_1.png)
 
 **مواصفات الجداول**
 
 | الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
 |---|---|---|---|---|---|---|
-| `prc.PricingRule` | قاعدة تسعير بنطاق ووراثة وطرق (FR-PRC-006..017، BR-PRC-006..012، V-PRC-02) | PricingRuleId | 14 | 0 | 38 | 40 |
-| `prc.PricingTier` | شريحة قاعدة TIERED بالمبلغ و/أو المدة (FR-PRC-003، BR-PRC-002) | PricingTierId | 3 | 0 | 8 | 13 |
-| `prc.TariffItem` | بند رسم في جدول التعرفة (FR-PRC-002، BR-PRC-002..005) | TariffItemId | 7 | 0 | 11 | 24 |
-| `prc.TariffSchedule` | إصدار جدول رسوم لبنك؛ بخاص بتسهيل اختياريًا (FR-PRC-001، BR-PRC-001، V-PRC-01) | TariffScheduleId | 4 | 0 | 3 | 11 |
-| `prc.TariffTier` | شريحة بند تعرفة بالمبلغ و/أو المدة (FR-PRC-003، BR-PRC-002) | TariffTierId | 1 | 0 | 8 | 11 |
-| `cmp.TermType` | مفتاح شرط قابل للمقارنة (FR-CMP-001)؛ الرمز بنمط PRC.MARGIN_PCT؛ النظامي لا يُحذف ولا تتغير وحدته (IsSystem) | TermTypeId | 0 | 0 | 3 | 22 |
-| `cmp.TermValue` | قيمة شرط في تسهيل بنطاقها ومصدرها (FR-CMP-002..006، BR-CMP-001..006، V-CMP-01) | TermValueId | 11 | 0 | 10 | 24 |
+| `prc.PricingRule` | قاعدة تسعير بنطاق ووراثة وطرق (FR-PRC-006..017، BR-PRC-006..012، V-PRC-02) | PricingRuleId | 14 | 4 | 38 | 40 |
+| `prc.PricingTier` | شريحة قاعدة TIERED بالمبلغ و/أو المدة (FR-PRC-003، BR-PRC-002) | PricingTierId | 3 | 2 | 8 | 13 |
+| `prc.TariffItem` | بند رسم في جدول التعرفة (FR-PRC-002، BR-PRC-002..005) | TariffItemId | 7 | 2 | 11 | 24 |
+| `prc.TariffSchedule` | إصدار جدول رسوم لبنك؛ بخاص بتسهيل اختياريًا (FR-PRC-001، BR-PRC-001، V-PRC-01) | TariffScheduleId | 4 | 4 | 3 | 11 |
 
 **العلاقات (المفاتيح الأجنبية)**
 
@@ -1072,6 +1294,25 @@
 | `prc.TariffSchedule.FacilityId` | `fac.Facility` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `prc.TariffSchedule.SourceDocumentId` | `doc.Document` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `prc.TariffSchedule.ApprovedBy` | `sec.AppUser` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
+
+#### م5 · التسعير وشروط المقارنة (2/2)
+
+*Pricing, tariffs & comparable terms* — 3 جدولًا
+
+![م5 · التسعير وشروط المقارنة (2/2)](diagrams/erd/m5_pricing_2.png)
+
+**مواصفات الجداول**
+
+| الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
+|---|---|---|---|---|---|---|
+| `prc.TariffTier` | شريحة بند تعرفة بالمبلغ و/أو المدة (FR-PRC-003، BR-PRC-002) | TariffTierId | 1 | 3 | 8 | 11 |
+| `cmp.TermType` | مفتاح شرط قابل للمقارنة (FR-CMP-001)؛ الرمز بنمط PRC.MARGIN_PCT؛ النظامي لا يُحذف ولا تتغير وحدته (IsSystem) | TermTypeId | 0 | 3 | 3 | 22 |
+| `cmp.TermValue` | قيمة شرط في تسهيل بنطاقها ومصدرها (FR-CMP-002..006، BR-CMP-001..006، V-CMP-01) | TermValueId | 11 | 2 | 10 | 24 |
+
+**العلاقات (المفاتيح الأجنبية)**
+
+| الطفل (الجدول.العمود) | الأب | العلاقة | الإلزام | النطاق | الحذف | أعمدة النطاق |
+|---|---|---|---|---|---|---|
 | `prc.TariffTier.TariffItemId` | `prc.TariffItem` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `cmp.TermValue.FacilityId` | `fac.Facility` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `cmp.TermValue.TermTypeId` | `cmp.TermType` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
@@ -1085,23 +1326,20 @@
 | `cmp.TermValue.VerifiedBy` | `sec.AppUser` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `cmp.TermValue.ConflictId` | `fac.ValueConflict` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 
-#### م5 · الضمانات
+#### م5 · الضمانات (1/2)
 
-*Collateral & guarantees* — 7 جدولًا
+*Collateral & guarantees* — 4 جدولًا
 
-![م5 · الضمانات](diagrams/erd/m5_collateral.png)
+![م5 · الضمانات (1/2)](diagrams/erd/m5_collateral_1.png)
 
 **مواصفات الجداول**
 
 | الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
 |---|---|---|---|---|---|---|
-| `col.Collateral` | سجل ضمان؛ اعتماد مستقل عن مراجعة التسهيل والتعديل نسخة جديدة (FR-COL-001/014، V-COL-01، §8) | CollateralId | 9 | 0 | 9 | 19 |
-| `col.CollateralLink` | ربط ضمان بتسهيل أو حد؛ ضمان واحد لعدة تسهيلات (FR-COL-002، BR-COL-005) | CollateralLinkId | 4 | 0 | 4 | 9 |
-| `col.Guarantee` | كفالة 1:1 مع Collateral؛ الكفيل Party دائمًا ولا أرقام هوية هنا (FR-COL-003/004، BR-COL-001) | GuaranteeId | 5 | 0 | 5 | 9 |
-| `col.InsurancePolicyAssignment` | تجيير وثيقة تأمين؛ مفتاح الفرادة (CollateralId,PolicyNo) يسمح بتجديد الوثيقة (FR-COL-006، BR-COL-003) | InsurancePolicyAssignmentId | 4 | 0 | 5 | 12 |
-| `col.PromissoryNote` | سند لأمر 1:1؛ مبلغ مستقل قد يفوق الحد (FR-COL-005، BR-COL-002)؛ NextRenewalDue وPNRatio مشتقان | PromissoryNoteId | 3 | 0 | 5 | 10 |
-| `col.PromissoryNoteSigner` | موقّعو السند (SignerPartyIds) -- جدول وسيط جديد؛ مزوّد PromissoryNote signer (FR-COL-015) | PromissoryNoteId, PartyId | 2 | 0 | 0 | 4 |
-| `col.ValuationSchedule` | مراحل تقييم عقار (FR-COL-008، BR-COL-004)؛ مثل 3 مقيّمين في السنة الأولى ثم مقيّم سنويًا | ValuationScheduleId | 2 | 0 | 7 | 11 |
+| `col.Collateral` | سجل ضمان؛ اعتماد مستقل عن مراجعة التسهيل والتعديل نسخة جديدة (FR-COL-001/014، V-COL-01، §8) | CollateralId | 9 | 2 | 9 | 19 |
+| `col.CollateralLink` | ربط ضمان بتسهيل أو حد؛ ضمان واحد لعدة تسهيلات (FR-COL-002، BR-COL-005) | CollateralLinkId | 4 | 2 | 4 | 9 |
+| `col.Guarantee` | كفالة 1:1 مع Collateral؛ الكفيل Party دائمًا ولا أرقام هوية هنا (FR-COL-003/004، BR-COL-001) | GuaranteeId | 5 | 2 | 5 | 9 |
+| `col.InsurancePolicyAssignment` | تجيير وثيقة تأمين؛ مفتاح الفرادة (CollateralId,PolicyNo) يسمح بتجديد الوثيقة (FR-COL-006، BR-COL-003) | InsurancePolicyAssignmentId | 4 | 2 | 5 | 12 |
 
 **العلاقات (المفاتيح الأجنبية)**
 
@@ -1129,6 +1367,25 @@
 | `col.InsurancePolicyAssignment.AssignedToInstitutionId` | `ins.Institution` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `col.InsurancePolicyAssignment.CurrencyId` | `ref.Currency` | 1 : N | إلزامي | مرجع عام | قيد | — |
 | `col.InsurancePolicyAssignment.PolicyDocumentId` | `doc.Document` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
+
+#### م5 · الضمانات (2/2)
+
+*Collateral & guarantees* — 3 جدولًا
+
+![م5 · الضمانات (2/2)](diagrams/erd/m5_collateral_2.png)
+
+**مواصفات الجداول**
+
+| الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
+|---|---|---|---|---|---|---|
+| `col.PromissoryNote` | سند لأمر 1:1؛ مبلغ مستقل قد يفوق الحد (FR-COL-005، BR-COL-002)؛ NextRenewalDue وPNRatio مشتقان | PromissoryNoteId | 3 | 2 | 5 | 10 |
+| `col.PromissoryNoteSigner` | موقّعو السند (SignerPartyIds) | TenantId, PromissoryNoteId, PartyId | 2 | 0 | 0 | 3 |
+| `col.ValuationSchedule` | مراحل تقييم عقار (FR-COL-008، BR-COL-004)؛ مثل 3 مقيّمين في السنة الأولى ثم مقيّم سنويًا | ValuationScheduleId | 2 | 3 | 7 | 11 |
+
+**العلاقات (المفاتيح الأجنبية)**
+
+| الطفل (الجدول.العمود) | الأب | العلاقة | الإلزام | النطاق | الحذف | أعمدة النطاق |
+|---|---|---|---|---|---|---|
 | `col.PromissoryNote.CollateralId` | `col.Collateral` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `col.PromissoryNote.CurrencyId` | `ref.Currency` | 1 : N | إلزامي | مرجع عام | قيد | — |
 | `col.PromissoryNote.NoteDocumentId` | `doc.Document` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
@@ -1139,7 +1396,7 @@
 
 #### م5 · الالتزامات والتعهدات (1/2)
 
-*Obligations, covenants & reporting* — 7 جدولًا
+*Obligations, covenants & reporting* — 4 جدولًا
 
 ![م5 · الالتزامات والتعهدات (1/2)](diagrams/erd/m5_obligations_1.png)
 
@@ -1147,13 +1404,10 @@
 
 | الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
 |---|---|---|---|---|---|---|
-| `obl.Covenant` | نسخة تعهد بتواريخ؛ الحدود المتدرجة = عدة نسخ (FR-OBL-006، BR-OBL-001/005/006، Q-OBL-01) | CovenantId | 5 | 0 | 11 | 22 |
-| `obl.CovenantAccount` | AccountIds لـ SELECTED_ACCOUNTS -- جدول وسيط جديد؛ الحذف لصفوف مسودة المراجعة فقط (يفرضه التطبيق) | CovenantId, BankAccountId | 2 | 0 | 0 | 4 |
-| `obl.CovenantTest` | تقييم تعهد لفترة وإصدار تقييم؛ المخزَّن لا يُعدَّل (FR-OBL-011، FR-FIN-012/013، BR-OBL-006/007، §8) | CovenantTestId | 4 | 0 | 14 | 22 |
-| `obl.Obligation` | التزام على تسهيل (أو حد/خط/شركات)؛ العائلة من ObligationType ولا تُحرَّر (FR-OBL-001، BR-OBL-001) | ObligationId | 9 | 0 | 11 | 28 |
-| `obl.ObligationBreach` | سجل خرق وعلاجه وتنازله (FR-OBL-012، BR-OBL-009/011، §8) | ObligationBreachId | 5 | 0 | 10 | 17 |
-| `obl.ObligationCompany` | AppliesToCompanyIds -- جدول وسيط جديد؛ الحذف لصفوف مسودة المراجعة فقط (يفرضه التطبيق) | ObligationId, CompanyId | 2 | 0 | 0 | 4 |
-| `obl.ReportingInstance` | بند أجندة مولَّد أو مسجَّل لحدث (FR-OBL-003..005، BR-OBL-003، §8)؛ DUE_SOON/OVERDUE مشتقتان | ReportingInstanceId | 4 | 0 | 7 | 15 |
+| `obl.Covenant` | نسخة تعهد بتواريخ؛ الحدود المتدرجة = عدة نسخ (FR-OBL-006، BR-OBL-001/005/006، Q-OBL-01) | CovenantId | 5 | 2 | 11 | 22 |
+| `obl.CovenantAccount` | AccountIds لـ SELECTED_ACCOUNTS | TenantId, CovenantId, BankAccountId | 2 | 0 | 0 | 3 |
+| `obl.CovenantTest` | تقييم تعهد لفترة وإصدار تقييم؛ المخزَّن لا يُعدَّل (FR-OBL-011، FR-FIN-012/013، BR-OBL-006/007، §8) | CovenantTestId | 4 | 3 | 14 | 22 |
+| `obl.Obligation` | التزام على تسهيل (أو حد/خط/شركات)؛ العائلة من ObligationType ولا تُحرَّر (FR-OBL-001، BR-OBL-001) | ObligationId | 9 | 2 | 11 | 28 |
 
 **العلاقات (المفاتيح الأجنبية)**
 
@@ -1179,6 +1433,26 @@
 | `obl.Obligation.SourceDocumentId` | `doc.Document` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `obl.Obligation.VerifiedBy` | `sec.AppUser` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `obl.Obligation.ConflictId` | `fac.ValueConflict` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
+
+#### م5 · الالتزامات والتعهدات (2/2)
+
+*Obligations, covenants & reporting* — 4 جدولًا
+
+![م5 · الالتزامات والتعهدات (2/2)](diagrams/erd/m5_obligations_2.png)
+
+**مواصفات الجداول**
+
+| الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
+|---|---|---|---|---|---|---|
+| `obl.ObligationBreach` | سجل خرق وعلاجه وتنازله (FR-OBL-012، BR-OBL-009/011، §8) | ObligationBreachId | 5 | 4 | 10 | 17 |
+| `obl.ObligationCompany` | AppliesToCompanyIds | TenantId, ObligationId, CompanyId | 2 | 0 | 0 | 3 |
+| `obl.ReportingInstance` | بند أجندة مولَّد أو مسجَّل لحدث (FR-OBL-003..005، BR-OBL-003، §8)؛ DUE_SOON/OVERDUE مشتقتان | ReportingInstanceId | 4 | 5 | 7 | 15 |
+| `obl.ReportingObligation` | قاعدة استحقاق تقرير/إخطار 1:1 مع Obligation (FR-OBL-002/003، BR-OBL-002، V-OBL-01) | ReportingObligationId | 3 | 2 | 10 | 18 |
+
+**العلاقات (المفاتيح الأجنبية)**
+
+| الطفل (الجدول.العمود) | الأب | العلاقة | الإلزام | النطاق | الحذف | أعمدة النطاق |
+|---|---|---|---|---|---|---|
 | `obl.ObligationBreach.ObligationId` | `obl.Obligation` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `obl.ObligationBreach.CovenantTestId` | `obl.CovenantTest` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `obl.ObligationBreach.ReportingInstanceId` | `obl.ReportingInstance` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
@@ -1190,44 +1464,24 @@
 | `obl.ReportingInstance.SubmissionChannelUsedId` | `cat.LookupItem` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `obl.ReportingInstance.EvidenceDocumentId` | `doc.Document` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `obl.ReportingInstance.CurrencyId` | `ref.Currency` | 1 : N | اختياري | مرجع عام | قيد | — |
-
-#### م5 · الالتزامات والتعهدات (2/2)
-
-*Obligations, covenants & reporting* — 1 جدولًا
-
-![م5 · الالتزامات والتعهدات (2/2)](diagrams/erd/m5_obligations_2.png)
-
-**مواصفات الجداول**
-
-| الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
-|---|---|---|---|---|---|---|
-| `obl.ReportingObligation` | قاعدة استحقاق تقرير/إخطار 1:1 مع Obligation (FR-OBL-002/003، BR-OBL-002، V-OBL-01) | ReportingObligationId | 3 | 0 | 10 | 18 |
-
-**العلاقات (المفاتيح الأجنبية)**
-
-| الطفل (الجدول.العمود) | الأب | العلاقة | الإلزام | النطاق | الحذف | أعمدة النطاق |
-|---|---|---|---|---|---|---|
 | `obl.ReportingObligation.ObligationId` | `obl.Obligation` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `obl.ReportingObligation.SubmissionChannelId` | `cat.LookupItem` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `obl.ReportingObligation.SupersedesId` | `obl.ReportingObligation` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 
-#### م5 · البيانات المالية والأرصدة
+#### م5 · البيانات المالية والأرصدة (1/2)
 
-*Financial statements & balances* — 7 جدولًا
+*Financial statements & balances* — 4 جدولًا
 
-![م5 · البيانات المالية والأرصدة](diagrams/erd/m5_financials.png)
+![م5 · البيانات المالية والأرصدة (1/2)](diagrams/erd/m5_financials_1.png)
 
 **مواصفات الجداول**
 
 | الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
 |---|---|---|---|---|---|---|
-| `fin.AccountMonthlyStat` | رصيد شهري لحساب بعملة الحساب (FR-FIN-008، BR-FIN-005/006، V-FIN-02) | AccountMonthlyStatId | 2 | 0 | 0 | 12 |
-| `fin.BankFlowEntry` | مبلغ محوَّل للبنك في شهر؛ تجميع سنوي آلي (FR-FIN-009/010، BR-FIN-007/008) | BankFlowEntryId | 6 | 0 | 1 | 7 |
-| `fin.FinancialStatement` | رأس قائمة مالية؛ سري جدًا (FR-FIN-002/005/006، BR-FIN-001..004، §8) | FinancialStatementId | 6 | 0 | 8 | 19 |
-| `fin.LineCatalogItem` | بند معياري للقوائم؛ 39 بندًا مزروعًا؛ النظامي في الصيغ لا يُحذف (FR-FIN-001، CatalogBase) | LineCatalogItemId | 0 | 0 | 5 | 17 |
-| `fin.LineCatalogItemAlias` | الأسماء البديلة للبند (Aliases) للصق والمطابقة -- جدول جديد يحل «Aliases set» (FR-FIN-003) | LineCatalogItemAliasId | 1 | 0 | 1 | 4 |
-| `fin.MeasureFormula` | صيغة مقياس: قالب أو نسخة اتفاقية بإصدارات؛ لا تُنفَّذ نصًا (FR-FIN-011، BR-FIN-009، §12) | MeasureFormulaId | 6 | 0 | 10 | 20 |
-| `fin.StatementLine` | سطر قائمة؛ بعملة الرأس والمخزَّن = المُدخل x UnitScale؛ Variance مشتق؛ سري جدًا (BR-FIN-001/002) | StatementLineId | 2 | 0 | 0 | 5 |
+| `fin.AccountMonthlyStat` | رصيد شهري لحساب بعملة الحساب (FR-FIN-008، BR-FIN-005/006، V-FIN-02) | AccountMonthlyStatId | 2 | 3 | 0 | 12 |
+| `fin.BankFlowEntry` | مبلغ محوَّل للبنك في شهر؛ تجميع سنوي آلي (FR-FIN-009/010، BR-FIN-007/008) | BankFlowEntryId | 6 | 3 | 1 | 7 |
+| `fin.FinancialStatement` | رأس قائمة مالية؛ سري جدًا (FR-FIN-002/005/006، BR-FIN-001..004، §8) | FinancialStatementId | 6 | 4 | 8 | 19 |
+| `fin.LineCatalogItem` | بند معياري للقوائم؛ 39 بندًا مبذورًا؛ النظامي في الصيغ لا يُحذف (FR-FIN-001، CatalogBase) | LineCatalogItemId | 0 | 3 | 5 | 17 |
 
 **العلاقات (المفاتيح الأجنبية)**
 
@@ -1247,6 +1501,25 @@
 | `fin.FinancialStatement.SourceDocumentId` | `doc.Document` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `fin.FinancialStatement.PreparedBy` | `sec.AppUser` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `fin.FinancialStatement.ApprovedBy` | `sec.AppUser` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
+
+#### م5 · البيانات المالية والأرصدة (2/2)
+
+*Financial statements & balances* — 3 جدولًا
+
+![م5 · البيانات المالية والأرصدة (2/2)](diagrams/erd/m5_financials_2.png)
+
+**مواصفات الجداول**
+
+| الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
+|---|---|---|---|---|---|---|
+| `fin.LineCatalogItemAlias` | الأسماء البديلة للبند (Aliases) للصق والمطابقة | LineCatalogItemAliasId | 1 | 2 | 1 | 4 |
+| `fin.MeasureFormula` | صيغة مقياس: قالب أو نسخة اتفاقية بإصدارات؛ لا تُنفَّذ نصًا (FR-FIN-011، BR-FIN-009، §12) | MeasureFormulaId | 6 | 3 | 10 | 20 |
+| `fin.StatementLine` | سطر قائمة؛ بعملة الرأس والمخزَّن = المُدخل x UnitScale؛ Variance مشتق؛ سري جدًا (BR-FIN-001/002) | StatementLineId | 2 | 2 | 0 | 5 |
+
+**العلاقات (المفاتيح الأجنبية)**
+
+| الطفل (الجدول.العمود) | الأب | العلاقة | الإلزام | النطاق | الحذف | أعمدة النطاق |
+|---|---|---|---|---|---|---|
 | `fin.LineCatalogItemAlias.LineCatalogItemId` | `fin.LineCatalogItem` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `fin.MeasureFormula.FacilityId` | `fac.Facility` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `fin.MeasureFormula.BaseTemplateId` | `fin.MeasureFormula` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
@@ -1259,23 +1532,20 @@
 
 ### 10.8 م6 · الطلبات ودورات العمل والإشعارات
 
-#### م6 · قوالب دورات العمل (1/2)
+#### م6 · قوالب دورات العمل (1/3)
 
-*Workflow templates* — 7 جدولًا
+*Workflow templates* — 4 جدولًا
 
-![م6 · قوالب دورات العمل (1/2)](diagrams/erd/m6_wf_templates_1.png)
+![م6 · قوالب دورات العمل (1/3)](diagrams/erd/m6_wf_templates_1.png)
 
 **مواصفات الجداول**
 
 | الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
 |---|---|---|---|---|---|---|
-| `wfl.RequestType` | تعريف نوع الطلب (FR-REQ-001، BR-REQ-001، V-REQ-01)؛ الأنواع الجديدة بلا كود (FR-REQ-021) | RequestTypeId | 0 | 0 | 2 | 21 |
-| `wfl.RequestTypeAudience` | جمهور النوع: من يحق له الطلب؛ غياب الصفوف = لا أحد (فشل مغلق) (FR-REQ-007) | RequestTypeAudienceId | 4 | 0 | 1 | 5 |
-| `wfl.ExternalPhase` | المرحلة الظاهرة للطالب: DRAFT · IN_APPROVAL · RETURNED · AWAITING_REQUESTER · IN_PROGRESS · COMPLETED · REJECTED · CANCELLED (BR-WFL-011، D-6) | ExternalPhaseId | 0 | 0 | 1 | 16 |
-| `wfl.WorkflowTemplate` | نسخة قالب دورة عمل؛ المنشورة ثابتة (FR-WFL-001/028، BR-WFL-019، AC-WFL-6) | WorkflowTemplateId | 2 | 0 | 8 | 20 |
-| `wfl.WorkflowStage` | مرحلة في نسخة قالب (FR-WFL-003/004/005، BR-WFL-002/010/012)؛ حذف فعلي لمسودة النسخة فقط | WorkflowStageId | 7 | 0 | 14 | 22 |
-| `wfl.StageApprover` | خانة موافقة في مرحلة APPROVAL؛ ALL = كل الخانات، ودور بشخصين يلزمان معًا = خانتان (FR-WFL-007/041، BR-WFL-003/004) | StageApproverId | 5 | 0 | 7 | 10 |
-| `wfl.WorkflowTransition` | انتقال بين مرحلتين بشرط وأولوية؛ دورة خطية بتفرع شرطي بسيط (FR-WFL-006، BR-WFL-001، D-8) | WorkflowTransitionId | 4 | 0 | 4 | 9 |
+| `wfl.RequestType` | تعريف نوع الطلب (FR-REQ-001، BR-REQ-001، V-REQ-01)؛ الأنواع الجديدة بلا كود (FR-REQ-021) | RequestTypeId | 0 | 4 | 2 | 21 |
+| `wfl.RequestTypeAudience` | جمهور النوع: من يحق له الطلب؛ غياب الصفوف = لا أحد (فشل مغلق) (FR-REQ-007) | RequestTypeAudienceId | 4 | 4 | 1 | 5 |
+| `wfl.ExternalPhase` | المرحلة الظاهرة للطالب: DRAFT · IN_APPROVAL · RETURNED · AWAITING_REQUESTER · IN_PROGRESS · COMPLETED · REJECTED · CANCELLED (BR-WFL-011، D-6) | ExternalPhaseId | 0 | 3 | 1 | 16 |
+| `wfl.WorkflowTemplate` | نسخة قالب دورة عمل؛ المنشورة ثابتة (FR-WFL-001/028، BR-WFL-019، AC-WFL-6) | WorkflowTemplateId | 2 | 6 | 8 | 20 |
 
 **العلاقات (المفاتيح الأجنبية)**
 
@@ -1287,6 +1557,26 @@
 | `wfl.RequestTypeAudience.UserId` | `sec.AppUser` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `wfl.WorkflowTemplate.RequestTypeId` | `wfl.RequestType` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `wfl.WorkflowTemplate.PublishedBy` | `sec.AppUser` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
+
+#### م6 · قوالب دورات العمل (2/3)
+
+*Workflow templates* — 4 جدولًا
+
+![م6 · قوالب دورات العمل (2/3)](diagrams/erd/m6_wf_templates_2.png)
+
+**مواصفات الجداول**
+
+| الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
+|---|---|---|---|---|---|---|
+| `wfl.WorkflowStage` | مرحلة في نسخة قالب (FR-WFL-003/004/005، BR-WFL-002/010/012)؛ حذف فعلي لمسودة النسخة فقط | WorkflowStageId | 7 | 4 | 14 | 22 |
+| `wfl.StageApprover` | خانة موافقة في مرحلة APPROVAL؛ ALL = كل الخانات، ودور بشخصين يلزمان معًا = خانتان (FR-WFL-007/041، BR-WFL-003/004) | StageApproverId | 5 | 2 | 7 | 10 |
+| `wfl.WorkflowTransition` | انتقال بين مرحلتين بشرط وأولوية؛ دورة خطية بتفرع شرطي بسيط (FR-WFL-006، BR-WFL-001، D-8) | WorkflowTransitionId | 4 | 2 | 4 | 9 |
+| `wfl.WorkflowStageHook` | خطاف مسجَّل بالكود على مرحلة: مفتاح ومعاملات لا كود (FR-WFL-021، BR-WFL-015، §5.4) | WorkflowStageHookId | 1 | 2 | 2 | 10 |
+
+**العلاقات (المفاتيح الأجنبية)**
+
+| الطفل (الجدول.العمود) | الأب | العلاقة | الإلزام | النطاق | الحذف | أعمدة النطاق |
+|---|---|---|---|---|---|---|
 | `wfl.WorkflowStage.TemplateId` | `wfl.WorkflowTemplate` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `wfl.WorkflowStage.ExternalPhaseId` | `wfl.ExternalPhase` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `wfl.WorkflowStage.AssigneeRoleId` | `sec.Role` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
@@ -1303,47 +1593,43 @@
 | `wfl.WorkflowTransition.FromStageId` | `wfl.WorkflowStage` | 1 : N | إلزامي | مشترك · مركّب | قيد | TemplateId |
 | `wfl.WorkflowTransition.ToStageId` | `wfl.WorkflowStage` | 1 : N | إلزامي | مشترك · مركّب | قيد | TemplateId |
 | `wfl.WorkflowTransition.ResumeStageId` | `wfl.WorkflowStage` | 1 : N | اختياري | مشترك · مركّب | قيد | TemplateId |
+| `wfl.WorkflowStageHook.StageId` | `wfl.WorkflowStage` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 
-#### م6 · قوالب دورات العمل (2/2)
+#### م6 · قوالب دورات العمل (3/3)
 
-*Workflow templates* — 3 جدولًا
+*Workflow templates* — 2 جدولًا
 
-![م6 · قوالب دورات العمل (2/2)](diagrams/erd/m6_wf_templates_2.png)
+![م6 · قوالب دورات العمل (3/3)](diagrams/erd/m6_wf_templates_3.png)
 
 **مواصفات الجداول**
 
 | الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
 |---|---|---|---|---|---|---|
-| `wfl.WorkflowStageHook` | خطاف مسجَّل بالكود على مرحلة: مفتاح ومعاملات لا شيفرة (FR-WFL-021، BR-WFL-015، §5.4) | WorkflowStageHookId | 1 | 0 | 2 | 10 |
-| `wfl.TemplateField` | حقل في نسخة قالب يولّد النموذج بلا كود واجهة (FR-REQ-002..005، BR-REQ-003/004) | TemplateFieldId | 1 | 0 | 4 | 21 |
-| `wfl.TemplateAttachmentRule` | قاعدة مرفق على نسخة قالب (FR-REQ-006، BR-REQ-005، FR-WFL-024/025) | TemplateAttachmentRuleId | 2 | 0 | 4 | 11 |
+| `wfl.TemplateField` | حقل في نسخة قالب يولّد النموذج بلا كود واجهة (FR-REQ-002..005، BR-REQ-003/004) | TemplateFieldId | 1 | 3 | 4 | 21 |
+| `wfl.TemplateAttachmentRule` | قاعدة مرفق على نسخة قالب (FR-REQ-006، BR-REQ-005، FR-WFL-024/025) | TemplateAttachmentRuleId | 2 | 2 | 4 | 11 |
 
 **العلاقات (المفاتيح الأجنبية)**
 
 | الطفل (الجدول.العمود) | الأب | العلاقة | الإلزام | النطاق | الحذف | أعمدة النطاق |
 |---|---|---|---|---|---|---|
-| `wfl.WorkflowStageHook.StageId` | `wfl.WorkflowStage` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `wfl.TemplateField.TemplateId` | `wfl.WorkflowTemplate` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `wfl.TemplateAttachmentRule.TemplateId` | `wfl.WorkflowTemplate` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `wfl.TemplateAttachmentRule.DocumentTypeId` | `cat.DocumentType` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 
-#### م6 · الطلبات وإجراءاتها (1/2)
+#### م6 · الطلبات وإجراءاتها (1/3)
 
-*Requests, approvals & actions* — 7 جدولًا
+*Requests, approvals & actions* — 4 جدولًا
 
-![م6 · الطلبات وإجراءاتها (1/2)](diagrams/erd/m6_requests_1.png)
+![م6 · الطلبات وإجراءاتها (1/3)](diagrams/erd/m6_requests_1.png)
 
 **مواصفات الجداول**
 
 | الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
 |---|---|---|---|---|---|---|
-| `wfl.Request` | الطلب: أكثر الجداول ازدحامًا؛ الحالة الداخلية منفصلة عن المرحلة الظاهرة (FR-WFL-001، FR-REQ-009، D-6، BR-REQ-002/003) | RequestId | 22 | 0 | 23 | 36 |
-| `wfl.RequestComment` | تعليق ظاهر للطالب أو داخلي؛ غير قابل للتعديل (سحب مع بقاء الأصل) (FR-REQ-017، BR-REQ-014) | RequestCommentId | 5 | 0 | 2 | 6 |
-| `wfl.RequestAttachment` | ربط مستند بطلب ينشئ DocumentLink (EntityType=Request) (FR-REQ-006، BR-REQ-005) | RequestAttachmentId | 3 | 0 | 0 | 6 |
-| `wfl.RequestExternalRef` | مرجع خارجي بنص حر؛ تعديل بالإحلال ويبقى التاريخ؛ بلا تحقق خارجي (FR-REQ-010، X-DAT-7، BR-REQ-006) | RequestExternalRefId | 3 | 0 | 2 | 10 |
-| `wfl.RequestStageInstance` | دخول طلب إلى مرحلة؛ مصدر مقاييس الأزمنة والسحب والـ SLA (BR-WFL-002/007/012، §8) | RequestStageInstanceId | 5 | 0 | 12 | 17 |
-| `wfl.RequestApproval` | خانة موافقة تُنشأ لكل دخول ودورة؛ الدورة الجديدة بخانات جديدة (BR-WFL-003، FR-WFL-007/008/011) | RequestApprovalId | 7 | 0 | 7 | 16 |
-| `wfl.RequestAction` | سجل إجراءات للإضافة فقط يغطي كل حدث؛ غير AuditLog الأمني (FR-WFL-033/034، §6.2) | RequestActionId | 4 | 0 | 2 | 14 |
+| `wfl.Request` | الطلب: أكثر الجداول ازدحامًا؛ الحالة الداخلية منفصلة عن المرحلة الظاهرة (FR-WFL-001، FR-REQ-009، D-6، BR-REQ-002/003) | RequestId | 22 | 6 | 23 | 36 |
+| `wfl.RequestComment` | تعليق ظاهر للطالب أو داخلي؛ غير قابل للتعديل (سحب مع بقاء الأصل) (FR-REQ-017، BR-REQ-014) | RequestCommentId | 5 | 2 | 2 | 6 |
+| `wfl.RequestAttachment` | ربط مستند بطلب ينشئ DocumentLink (EntityType=Request) (FR-REQ-006، BR-REQ-005) | RequestAttachmentId | 3 | 2 | 0 | 6 |
+| `wfl.RequestExternalRef` | مرجع خارجي بنص حر؛ تعديل بالإحلال ويبقى التاريخ؛ بلا تحقق خارجي (FR-REQ-010، X-DAT-7، BR-REQ-006) | RequestExternalRefId | 3 | 2 | 2 | 10 |
 
 **العلاقات (المفاتيح الأجنبية)**
 
@@ -1382,6 +1668,26 @@
 | `wfl.RequestExternalRef.RequestId` | `wfl.Request` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `wfl.RequestExternalRef.SupersededById` | `wfl.RequestExternalRef` | 1 : N | اختياري | مشترك · مركّب | قيد | RequestId |
 | `wfl.RequestExternalRef.EnteredBy` | `sec.AppUser` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
+
+#### م6 · الطلبات وإجراءاتها (2/3)
+
+*Requests, approvals & actions* — 4 جدولًا
+
+![م6 · الطلبات وإجراءاتها (2/3)](diagrams/erd/m6_requests_2.png)
+
+**مواصفات الجداول**
+
+| الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
+|---|---|---|---|---|---|---|
+| `wfl.RequestStageInstance` | دخول طلب إلى مرحلة؛ مصدر مقاييس الأزمنة والسحب والـ SLA (BR-WFL-002/007/012، §8) | RequestStageInstanceId | 5 | 3 | 12 | 17 |
+| `wfl.RequestApproval` | خانة موافقة تُنشأ لكل دخول ودورة؛ الدورة الجديدة بخانات جديدة (BR-WFL-003، FR-WFL-007/008/011) | RequestApprovalId | 7 | 2 | 7 | 16 |
+| `wfl.RequestAction` | سجل إجراءات للإضافة فقط يغطي كل حدث؛ غير AuditLog الأمني (FR-WFL-033/034، §6.2) | RequestActionId | 4 | 2 | 2 | 14 |
+| `wfl.HookExecution` | تنفيذ خطاف بمفتاح عدم تكرار يعيد النتيجة المخزَّنة (FR-WFL-021، BR-WFL-015) | HookExecutionId | 2 | 2 | 3 | 17 |
+
+**العلاقات (المفاتيح الأجنبية)**
+
+| الطفل (الجدول.العمود) | الأب | العلاقة | الإلزام | النطاق | الحذف | أعمدة النطاق |
+|---|---|---|---|---|---|---|
 | `wfl.RequestStageInstance.RequestId` | `wfl.Request` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `wfl.RequestStageInstance.TemplateId` | `wfl.WorkflowTemplate` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `wfl.RequestStageInstance.StageId` | `wfl.WorkflowStage` | 1 : N | إلزامي | مشترك · مركّب | قيد | TemplateId |
@@ -1398,48 +1704,44 @@
 | `wfl.RequestAction.StageInstanceId` | `wfl.RequestStageInstance` | 1 : N | اختياري | مشترك · مركّب | قيد | RequestId |
 | `wfl.RequestAction.ActorUserId` | `sec.AppUser` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `wfl.RequestAction.OnBehalfOfUserId` | `sec.AppUser` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
+| `wfl.HookExecution.RequestId` | `wfl.Request` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
+| `wfl.HookExecution.StageInstanceId` | `wfl.RequestStageInstance` | 1 : N | إلزامي | مشترك · مركّب | قيد | RequestId |
 
-#### م6 · الطلبات وإجراءاتها (2/2)
+#### م6 · الطلبات وإجراءاتها (3/3)
 
-*Requests, approvals & actions* — 2 جدولًا
+*Requests, approvals & actions* — 1 جدولًا
 
-![م6 · الطلبات وإجراءاتها (2/2)](diagrams/erd/m6_requests_2.png)
+![م6 · الطلبات وإجراءاتها (3/3)](diagrams/erd/m6_requests_3.png)
 
 **مواصفات الجداول**
 
 | الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
 |---|---|---|---|---|---|---|
-| `wfl.HookExecution` | تنفيذ خطاف بمفتاح عدم تكرار يعيد النتيجة المخزَّنة (FR-WFL-021، BR-WFL-015) -- جدول جديد | HookExecutionId | 2 | 0 | 3 | 17 |
-| `wfl.UserDelegation` | تفويض مهام بفترة ونطاق؛ لا تفويض متسلسل (FR-WFL-020، BR-WFL-021، V-WFL-06) | UserDelegationId | 4 | 0 | 4 | 10 |
+| `wfl.UserDelegation` | تفويض مهام بفترة ونطاق؛ لا تفويض متسلسل (FR-WFL-020، BR-WFL-021، V-WFL-06) | UserDelegationId | 4 | 2 | 4 | 10 |
 
 **العلاقات (المفاتيح الأجنبية)**
 
 | الطفل (الجدول.العمود) | الأب | العلاقة | الإلزام | النطاق | الحذف | أعمدة النطاق |
 |---|---|---|---|---|---|---|
-| `wfl.HookExecution.RequestId` | `wfl.Request` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
-| `wfl.HookExecution.StageInstanceId` | `wfl.RequestStageInstance` | 1 : N | إلزامي | مشترك · مركّب | قيد | RequestId |
 | `wfl.UserDelegation.FromUserId` | `sec.AppUser` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `wfl.UserDelegation.ToUserId` | `sec.AppUser` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `wfl.UserDelegation.RequestTypeId` | `wfl.RequestType` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `wfl.UserDelegation.RevokedBy` | `sec.AppUser` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 
-#### م6 · الإشعارات
+#### م6 · الإشعارات (1/2)
 
-*Notifications* — 7 جدولًا
+*Notifications* — 4 جدولًا
 
-![م6 · الإشعارات](diagrams/erd/m6_notifications.png)
+![م6 · الإشعارات (1/2)](diagrams/erd/m6_notifications_1.png)
 
 **مواصفات الجداول**
 
 | الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
 |---|---|---|---|---|---|---|
-| `ntf.DigestBatch` | دفعة ملخص لمستخدم وقناة وفترة؛ لا يُرسل فارغًا (FR-NTF-014، BR-NTF-004، JOB-NTF-DIGEST) -- جدول جديد يحل DigestBatchId | DigestBatchId | 1 | 0 | 4 | 12 |
-| `ntf.Notification` | إشعار لمستخدم؛ المحتوى بلا قيم مقيّدة (FR-NTF-005/006/007/021، BR-NTF-001/002/007/008/011) | NotificationId | 3 | 0 | 5 | 21 |
-| `ntf.NotificationDelivery` | تسليم الإشعار لكل قناة بحالاته وإعادة المحاولة (FR-NTF-019، BR-NTF-009، §8) | NotificationDeliveryId | 2 | 0 | 6 | 10 |
-| `ntf.NotificationEventType` | كتالوج الأحداث؛ تملكه 13 لكل الوحدات وتبذر فيه الوحدات أحداثها (FR-NTF-001، §9.2، §9.2-ب) | NotificationEventTypeId | 0 | 0 | 4 | 16 |
-| `ntf.NotificationPreference` | تفضيل المستخدم لكل مجموعة أحداث وقناة (FR-NTF-010، BR-NTF-003/014)؛ الإلزامي لا يُوقَف في التطبيق | NotificationPreferenceId | 1 | 0 | 0 | 6 |
-| `ntf.NotificationRule` | قاعدة مستلمين لحدث؛ التعديل يسري على الأحداث التالية فقط (FR-NTF-003، BR-NTF-001، V-NTF-02) | NotificationRuleId | 4 | 0 | 2 | 10 |
-| `ntf.NotificationTemplate` | قالب رسالة لكل (حدث، قناة، لغة)؛ الحذف = العودة إلى قالب البذرة (FR-NTF-012، FR-NTF-025) | NotificationTemplateId | 1 | 0 | 0 | 8 |
+| `ntf.DigestBatch` | دفعة ملخص لمستخدم وقناة وفترة؛ لا يُرسل فارغًا (FR-NTF-014، BR-NTF-004، JOB-NTF-DIGEST) | DigestBatchId | 1 | 2 | 4 | 12 |
+| `ntf.Notification` | إشعار لمستخدم؛ المحتوى بلا قيم مقيّدة (FR-NTF-005/006/007/021، BR-NTF-001/002/007/008/011) | NotificationId | 3 | 3 | 5 | 21 |
+| `ntf.NotificationDelivery` | تسليم الإشعار لكل قناة بحالاته وإعادة المحاولة (FR-NTF-019، BR-NTF-009، §8) | NotificationDeliveryId | 2 | 2 | 6 | 10 |
+| `ntf.NotificationEventType` | كتالوج الأحداث؛ تملكه 13 لكل الوحدات وتبذر فيه الوحدات أحداثها (FR-NTF-001، §9.2، §9.2-ب) | NotificationEventTypeId | 0 | 3 | 4 | 16 |
 
 **العلاقات (المفاتيح الأجنبية)**
 
@@ -1451,6 +1753,25 @@
 | `ntf.Notification.CompanyId` | `org.Company` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `ntf.NotificationDelivery.NotificationId` | `ntf.Notification` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `ntf.NotificationDelivery.DigestBatchId` | `ntf.DigestBatch` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
+
+#### م6 · الإشعارات (2/2)
+
+*Notifications* — 3 جدولًا
+
+![م6 · الإشعارات (2/2)](diagrams/erd/m6_notifications_2.png)
+
+**مواصفات الجداول**
+
+| الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
+|---|---|---|---|---|---|---|
+| `ntf.NotificationPreference` | تفضيل المستخدم لكل مجموعة أحداث وقناة (FR-NTF-010، BR-NTF-003/014)؛ الإلزامي لا يُوقَف في التطبيق | NotificationPreferenceId | 1 | 2 | 0 | 6 |
+| `ntf.NotificationRule` | قاعدة مستلمين لحدث؛ التعديل يسري على الأحداث التالية فقط (FR-NTF-003، BR-NTF-001، V-NTF-02) | NotificationRuleId | 4 | 2 | 2 | 10 |
+| `ntf.NotificationTemplate` | قالب رسالة لكل (حدث، قناة، لغة)؛ الحذف = العودة إلى قالب البذرة (FR-NTF-012، FR-NTF-025) | NotificationTemplateId | 1 | 2 | 0 | 8 |
+
+**العلاقات (المفاتيح الأجنبية)**
+
+| الطفل (الجدول.العمود) | الأب | العلاقة | الإلزام | النطاق | الحذف | أعمدة النطاق |
+|---|---|---|---|---|---|---|
 | `ntf.NotificationPreference.UserId` | `sec.AppUser` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `ntf.NotificationRule.EventTypeId` | `ntf.NotificationEventType` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `ntf.NotificationRule.RoleId` | `sec.Role` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
@@ -1460,23 +1781,20 @@
 
 ### 10.9 م7/م8 · الاعتمادات المستندية والبروفورما
 
-#### م7/م8 · شروط الاعتماد والنماذج (1/2)
+#### م7/م8 · شروط الاعتماد والنماذج (1/3)
 
-*LC terms, fields & form maps* — 7 جدولًا
+*LC terms, fields & form maps* — 4 جدولًا
 
-![م7/م8 · شروط الاعتماد والنماذج (1/2)](diagrams/erd/m7_8_lc_terms_1.png)
+![م7/م8 · شروط الاعتماد والنماذج (1/3)](diagrams/erd/m7_8_lc_terms_1.png)
 
 **مواصفات الجداول**
 
 | الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
 |---|---|---|---|---|---|---|
-| `lc.LcFieldDefinition` | تعريف حقل في شروط الاعتماد: بيانات تُبذر لكل مشترك (FR-LCT-004، BR-LCT-002)؛ مراجع UCP في lc.LcFieldUcpRef | LcFieldDefinitionId | 0 | 0 | 3 | 20 |
-| `lc.LcFieldUcpRef` | مرجع UCP لحقل: مادة + فقرة (UcpRefs في المواصفة)؛ يغذّي الشارة وR-LCT-01 وBR-LCT-018 -- وسيط جديد | LcFieldUcpRefId | 2 | 0 | 0 | 4 |
-| `lc.Counterparty` | الطرف المقابل: مورّد/عميل خفيف بلا هوية؛ يُرقّى إلى Party عند الحاجة (FR-LCT-036/037، BR-LCT-022، Q-PTY-03) | CounterpartyId | 3 | 0 | 2 | 21 |
-| `lc.LcDocumentClause` | مكتبة بنود المستندات بإصدارات: نص قالب بمعاملات (FR-LCT-017..019، BR-LCT-012)؛ مراجع UCP في lc.LcDocumentClauseUcpRef | LcDocumentClauseId | 1 | 0 | 5 | 21 |
-| `lc.LcDocumentClauseUcpRef` | مرجع UCP لبند مستند: مادة + فقرة (UcpRefs في المواصفة) -- وسيط جديد | LcDocumentClauseUcpRefId | 2 | 0 | 0 | 4 |
-| `lc.LcTerms` | إصدار شروط اعتماد: صف لكل نسخة بأعمدة قاموس §6.2؛ مشترك بين البروفورما والطلب والاعتماد والتعديل (FR-LCT-001..035) | LcTermsId | 15 | 0 | 44 | 88 |
-| `lc.LcTermsDocument` | بند مستند مختار في الشروط ومعاملاته؛ النص المصيَّر يُجمَّد عند القفل (FR-LCT-018، BR-LCT-012) -- جديد | LcTermsDocumentId | 2 | 0 | 5 | 12 |
+| `lc.LcFieldDefinition` | تعريف حقل في شروط الاعتماد: بيانات تُبذر لكل مشترك (FR-LCT-004، BR-LCT-002)؛ مراجع UCP في lc.LcFieldUcpRef | LcFieldDefinitionId | 0 | 3 | 3 | 20 |
+| `lc.LcFieldUcpRef` | مرجع UCP لحقل: مادة + فقرة (UcpRefs في المواصفة)؛ يغذّي الشارة وR-LCT-01 وBR-LCT-018 | LcFieldUcpRefId | 2 | 2 | 0 | 4 |
+| `lc.Counterparty` | الطرف المقابل: مورّد/عميل خفيف بلا هوية؛ يُرقّى إلى Party عند الحاجة (FR-LCT-036/037، BR-LCT-022، Q-PTY-03) | CounterpartyId | 3 | 3 | 2 | 21 |
+| `lc.LcDocumentClause` | مكتبة بنود المستندات بإصدارات: نص قالب بمعاملات (FR-LCT-017..019، BR-LCT-012)؛ مراجع UCP في lc.LcDocumentClauseUcpRef | LcDocumentClauseId | 1 | 4 | 5 | 21 |
 
 **العلاقات (المفاتيح الأجنبية)**
 
@@ -1488,6 +1806,26 @@
 | `lc.Counterparty.PartyId` | `pty.Party` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `lc.Counterparty.MergedIntoId` | `lc.Counterparty` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `lc.LcDocumentClause.InstitutionId` | `ins.Institution` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
+
+#### م7/م8 · شروط الاعتماد والنماذج (2/3)
+
+*LC terms, fields & form maps* — 4 جدولًا
+
+![م7/م8 · شروط الاعتماد والنماذج (2/3)](diagrams/erd/m7_8_lc_terms_2.png)
+
+**مواصفات الجداول**
+
+| الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
+|---|---|---|---|---|---|---|
+| `lc.LcDocumentClauseUcpRef` | مرجع UCP لبند مستند: مادة + فقرة (UcpRefs في المواصفة) | LcDocumentClauseUcpRefId | 2 | 2 | 0 | 4 |
+| `lc.LcTerms` | إصدار شروط اعتماد: صف لكل نسخة بأعمدة قاموس §6.2؛ مشترك بين البروفورما والطلب والاعتماد والتعديل (FR-LCT-001..035) | LcTermsId | 15 | 4 | 44 | 88 |
+| `lc.LcTermsDocument` | بند مستند مختار في الشروط ومعاملاته؛ النص المصيَّر يُجمَّد عند القفل (FR-LCT-018، BR-LCT-012) | LcTermsDocumentId | 2 | 2 | 5 | 12 |
+| `lc.LcChargesMatrix` | رسوم الشروط: صف لكل فئة (6 صفوف كاملة يتحقق منها التطبيق V-LCT-12) (FR-LCT-020، BR-LCT-014) | LcChargesMatrixId | 1 | 2 | 2 | 8 |
+
+**العلاقات (المفاتيح الأجنبية)**
+
+| الطفل (الجدول.العمود) | الأب | العلاقة | الإلزام | النطاق | الحذف | أعمدة النطاق |
+|---|---|---|---|---|---|---|
 | `lc.LcDocumentClauseUcpRef.LcDocumentClauseId` | `lc.LcDocumentClause` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `lc.LcDocumentClauseUcpRef.UcpArticleId` | `ref.UcpArticle` | 1 : N | إلزامي | مرجع عام | قيد | — |
 | `lc.LcTerms.ApplicantCompanyId` | `org.Company` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
@@ -1507,26 +1845,25 @@
 | `lc.LcTerms.CopiedFromTermsId` | `lc.LcTerms` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `lc.LcTermsDocument.LcTermsId` | `lc.LcTerms` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `lc.LcTermsDocument.ClauseId` | `lc.LcDocumentClause` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
+| `lc.LcChargesMatrix.LcTermsId` | `lc.LcTerms` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 
-#### م7/م8 · شروط الاعتماد والنماذج (2/2)
+#### م7/م8 · شروط الاعتماد والنماذج (3/3)
 
-*LC terms, fields & form maps* — 3 جدولًا
+*LC terms, fields & form maps* — 2 جدولًا
 
-![م7/م8 · شروط الاعتماد والنماذج (2/2)](diagrams/erd/m7_8_lc_terms_2.png)
+![م7/م8 · شروط الاعتماد والنماذج (3/3)](diagrams/erd/m7_8_lc_terms_3.png)
 
 **مواصفات الجداول**
 
 | الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
 |---|---|---|---|---|---|---|
-| `lc.LcChargesMatrix` | رسوم الشروط: صف لكل فئة (6 صفوف كاملة يتحقق منها التطبيق V-LCT-12) (FR-LCT-020، BR-LCT-014) | LcChargesMatrixId | 1 | 0 | 2 | 8 |
-| `lc.LcFormTemplate` | قالب نموذج بنك/منتج/نوع نموذج بإصدار وفترة نفاذ وملحق عقدي (FR-LCT-026، BR-LCT-017، 02 F-14) | LcFormTemplateId | 6 | 0 | 4 | 18 |
-| `lc.LcFormFieldMap` | تعيين حقل نظام إلى حقل PDF أو بند في ورقة البوابة (FR-LCT-027، BR-LCT-020) -- جديد | LcFormFieldMapId | 1 | 0 | 4 | 9 |
+| `lc.LcFormTemplate` | قالب نموذج بنك/منتج/نوع نموذج بإصدار وفترة نفاذ وملحق عقدي (FR-LCT-026، BR-LCT-017، 02 F-14) | LcFormTemplateId | 6 | 4 | 4 | 18 |
+| `lc.LcFormFieldMap` | تعيين حقل نظام إلى حقل PDF أو بند في ورقة البوابة (FR-LCT-027، BR-LCT-020) | LcFormFieldMapId | 1 | 2 | 4 | 9 |
 
 **العلاقات (المفاتيح الأجنبية)**
 
 | الطفل (الجدول.العمود) | الأب | العلاقة | الإلزام | النطاق | الحذف | أعمدة النطاق |
 |---|---|---|---|---|---|---|
-| `lc.LcChargesMatrix.LcTermsId` | `lc.LcTerms` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `lc.LcFormTemplate.InstitutionId` | `ins.Institution` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `lc.LcFormTemplate.ProductId` | `cat.Product` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `lc.LcFormTemplate.CompanyId` | `org.Company` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
@@ -1535,23 +1872,20 @@
 | `lc.LcFormTemplate.LetterheadDocumentId` | `doc.Document` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `lc.LcFormFieldMap.TemplateId` | `lc.LcFormTemplate` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 
-#### م7/م8 · الاعتمادات والبروفورما (1/2)
+#### م7/م8 · الاعتمادات والبروفورما (1/3)
 
-*Letters of credit & proforma* — 7 جدولًا
+*Letters of credit & proforma* — 4 جدولًا
 
-![م7/م8 · الاعتمادات والبروفورما (1/2)](diagrams/erd/m7_8_lc_ops_1.png)
+![م7/م8 · الاعتمادات والبروفورما (1/3)](diagrams/erd/m7_8_lc_ops_1.png)
 
 **مواصفات الجداول**
 
 | الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
 |---|---|---|---|---|---|---|
-| `lc.LetterOfCredit` | سجل الاعتماد للجانبين: مشتريات (نحن الطالب) ومبيعات (نحن المستفيد) (FR-LCI-011..016، FR-LCE-009، BR-LCI-004/008/016، BR-LCE-007/009) | LetterOfCreditId | 13 | 0 | 23 | 35 |
-| `lc.LcExternalRef` | مرجع خارجي للاعتماد (ERP...)؛ بلا تفرّد؛ البحث بالمطبَّع (FR-LCI-013، BR-REQ-006) -- جديد | LcExternalRefId | 2 | 0 | 1 | 8 |
-| `lc.LcAmendment` | تعديل اعتماد صادر أو مستلَم (FR-LCI-018/019، FR-LCE-020، BR-LCI-011/012، BR-LCE-014)؛ الحالات §8 | LcAmendmentId | 6 | 0 | 11 | 18 |
-| `lc.LcDrawing` | سحب/تقديم مستندات تحت اعتماد؛ في التصدير يشمل تحويل التخصيص (FR-LCI-023، BR-LCI-013، BR-LCE-011)؛ الحالات §8 | LcDrawingId | 5 | 0 | 7 | 16 |
-| `lc.LcSalesOrder` | تخصيص أمر بيع على اعتماد مستلَم؛ لا يقابله حد ائتماني (FR-LCE-013..015، BR-LCE-009..013)؛ الحالات §8 | LcSalesOrderId | 4 | 0 | 8 | 12 |
-| `lc.LcDrawingAllocation` | توزيع سحب تصدير على أوامر بيع (FR-LCE-016/017، BR-LCE-011/013) -- جديد؛ Σ التوزيع ≤ مبلغ السحب وكل جزء ≤ متبقي أمره يتحقق منهما التطبيق | LcDrawingAllocationId | 4 | 0 | 1 | 4 |
-| `lc.LcDiscrepancy` | مخالفة على مستندات سحب أو اعتماد؛ القرار يتطلب lc.discrepancy.decide (FR-LCI-024، FR-LCE-021، §8) -- جديد | LcDiscrepancyId | 3 | 0 | 2 | 8 |
+| `lc.LetterOfCredit` | سجل الاعتماد للجانبين: مشتريات (نحن الطالب) ومبيعات (نحن المستفيد) (FR-LCI-011..016، FR-LCE-009، BR-LCI-004/008/016، BR-LCE-007/009) | LetterOfCreditId | 13 | 9 | 23 | 35 |
+| `lc.LcExternalRef` | مرجع خارجي للاعتماد (ERP...)؛ بلا فرادة؛ البحث بالمطبَّع (FR-LCI-013، BR-REQ-006) | LcExternalRefId | 2 | 2 | 1 | 8 |
+| `lc.LcAmendment` | تعديل اعتماد صادر أو مستلَم (FR-LCI-018/019، FR-LCE-020، BR-LCI-011/012، BR-LCE-014)؛ الحالات §8 | LcAmendmentId | 6 | 4 | 11 | 18 |
+| `lc.LcDrawing` | سحب/تقديم مستندات تحت اعتماد؛ في التصدير يشمل تحويل التخصيص (FR-LCI-023، BR-LCI-013، BR-LCE-011)؛ الحالات §8 | LcDrawingId | 5 | 5 | 7 | 16 |
 
 **العلاقات (المفاتيح الأجنبية)**
 
@@ -1583,6 +1917,26 @@
 | `lc.LcDrawing.CurrencyId` | `ref.Currency` | 1 : N | إلزامي | مرجع عام | قيد | — |
 | `lc.LcDrawing.SettlementAccountId` | `acc.BankAccount` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `lc.LcDrawing.RequestId` | `wfl.Request` | 1 : N | اختياري | مشترك · مركّب | قيد | CompanyId |
+
+#### م7/م8 · الاعتمادات والبروفورما (2/3)
+
+*Letters of credit & proforma* — 4 جدولًا
+
+![م7/م8 · الاعتمادات والبروفورما (2/3)](diagrams/erd/m7_8_lc_ops_2.png)
+
+**مواصفات الجداول**
+
+| الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
+|---|---|---|---|---|---|---|
+| `lc.LcSalesOrder` | تخصيص أمر بيع على اعتماد مستلَم؛ لا يقابله حد ائتماني (FR-LCE-013..015، BR-LCE-009..013)؛ الحالات §8 | LcSalesOrderId | 4 | 3 | 8 | 12 |
+| `lc.LcDrawingAllocation` | توزيع سحب تصدير على أوامر بيع (FR-LCE-016/017، BR-LCE-011/013) | LcDrawingAllocationId | 4 | 2 | 1 | 4 |
+| `lc.LcDiscrepancy` | مخالفة على مستندات سحب أو اعتماد؛ القرار يتطلب lc.discrepancy.decide (FR-LCI-024، FR-LCE-021، §8) | LcDiscrepancyId | 3 | 1 | 2 | 8 |
+| `lc.ProformaInvoice` | البروفورما الصادرة: لا تعديل بعد الإصدار؛ الرقم {seq:000}-{erp}-{yy} (FR-LCE-005..008، BR-LCE-001..006) | ProformaInvoiceId | 8 | 9 | 11 | 25 |
+
+**العلاقات (المفاتيح الأجنبية)**
+
+| الطفل (الجدول.العمود) | الأب | العلاقة | الإلزام | النطاق | الحذف | أعمدة النطاق |
+|---|---|---|---|---|---|---|
 | `lc.LcSalesOrder.CompanyId` | `org.Company` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `lc.LcSalesOrder.LcId` | `lc.LetterOfCredit` | 1 : N | إلزامي | مشترك · مركّب | قيد | CurrencyId |
 | `lc.LcSalesOrder.RequestId` | `wfl.Request` | 1 : N | إلزامي | مشترك · مركّب | قيد | CompanyId |
@@ -1594,26 +1948,6 @@
 | `lc.LcDiscrepancy.LcId` | `lc.LetterOfCredit` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `lc.LcDiscrepancy.DrawingId` | `lc.LcDrawing` | 1 : N | اختياري | مشترك · مركّب | قيد | LcId |
 | `lc.LcDiscrepancy.DecidedBy` | `sec.AppUser` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
-
-#### م7/م8 · الاعتمادات والبروفورما (2/2)
-
-*Letters of credit & proforma* — 4 جدولًا
-
-![م7/م8 · الاعتمادات والبروفورما (2/2)](diagrams/erd/m7_8_lc_ops_2.png)
-
-**مواصفات الجداول**
-
-| الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
-|---|---|---|---|---|---|---|
-| `lc.ProformaInvoice` | البروفورما الصادرة: لا تعديل بعد الإصدار؛ الرقم {seq:000}-{erp}-{yy} (FR-LCE-005..008، BR-LCE-001..006) | ProformaInvoiceId | 8 | 0 | 11 | 25 |
-| `lc.ProformaLine` | بند في البروفورما (FR-LCE-003، BR-LCE-001)؛ يُثبَّت بعد الإصدار | ProformaLineId | 2 | 0 | 3 | 10 |
-| `lc.LcTermsComparison` | نتيجة مقارنة شروط الاعتماد المستلَم بالبروفورما (FR-LCT-031، FR-LCE-023، BR-LCT-021) -- جديد (Could) | LcTermsComparisonId | 3 | 0 | 1 | 6 |
-| `lc.LcTermsComparisonLine` | فرق حقل واحد وحكمه وقرار الخزينة (FR-LCT-031، BR-LCT-021) -- جديد (Could) | LcTermsComparisonLineId | 1 | 0 | 1 | 9 |
-
-**العلاقات (المفاتيح الأجنبية)**
-
-| الطفل (الجدول.العمود) | الأب | العلاقة | الإلزام | النطاق | الحذف | أعمدة النطاق |
-|---|---|---|---|---|---|---|
 | `lc.ProformaInvoice.CompanyId` | `org.Company` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `lc.ProformaInvoice.RequestId` | `wfl.Request` | 1 : N | إلزامي | مشترك · مركّب | قيد | CompanyId |
 | `lc.ProformaInvoice.CustomerId` | `lc.Counterparty` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
@@ -1622,6 +1956,25 @@
 | `lc.ProformaInvoice.ProceedsAccountId` | `acc.BankAccount` | 1 : N | إلزامي | مشترك · مركّب | قيد | CompanyId |
 | `lc.ProformaInvoice.DocumentId` | `doc.Document` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `lc.ProformaInvoice.SupersededById` | `lc.ProformaInvoice` | 1 : N | اختياري | مشترك · مركّب | قيد | CompanyId |
+
+#### م7/م8 · الاعتمادات والبروفورما (3/3)
+
+*Letters of credit & proforma* — 3 جدولًا
+
+![م7/م8 · الاعتمادات والبروفورما (3/3)](diagrams/erd/m7_8_lc_ops_3.png)
+
+**مواصفات الجداول**
+
+| الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
+|---|---|---|---|---|---|---|
+| `lc.ProformaLine` | بند في البروفورما (FR-LCE-003، BR-LCE-001)؛ يُثبَّت بعد الإصدار | ProformaLineId | 2 | 2 | 3 | 10 |
+| `lc.LcTermsComparison` | نتيجة مقارنة شروط الاعتماد المستلَم بالبروفورما (FR-LCT-031، FR-LCE-023، BR-LCT-021) | LcTermsComparisonId | 3 | 2 | 1 | 6 |
+| `lc.LcTermsComparisonLine` | فرق حقل واحد وحكمه وقرار الخزينة (FR-LCT-031، BR-LCT-021) | LcTermsComparisonLineId | 1 | 2 | 1 | 9 |
+
+**العلاقات (المفاتيح الأجنبية)**
+
+| الطفل (الجدول.العمود) | الأب | العلاقة | الإلزام | النطاق | الحذف | أعمدة النطاق |
+|---|---|---|---|---|---|---|
 | `lc.ProformaLine.ProformaId` | `lc.ProformaInvoice` | 1 : N | إلزامي | مشترك · مركّب | قيد | CurrencyId |
 | `lc.ProformaLine.CurrencyId` | `ref.Currency` | 1 : N | إلزامي | مرجع عام | قيد | — |
 | `lc.LcTermsComparison.BaselineTermsId` | `lc.LcTerms` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |

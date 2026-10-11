@@ -1,0 +1,22 @@
+%% م4 · الأسعار المرجعية والقوائم (1/2) — Base rates & lookup lists
+erDiagram
+  cat_OperationType["cat.OperationType"] {
+    int OperationTypeId PK
+  }
+  cat_OperationTypePowerType["cat.OperationTypePowerType"] {
+    int TenantId PK
+    int OperationTypeId PK
+    int PowerTypeId PK
+  }
+  cat_BaseRate["cat.BaseRate"] {
+    int BaseRateId PK
+    bigint InstitutionId FK
+    int CurrencyId FK
+  }
+  cat_BaseRateAlias["cat.BaseRateAlias"] {
+    int BaseRateAliasId PK
+    int BaseRateId FK
+    bigint InstitutionId FK
+  }
+  cat_BaseRate ||--o{ cat_BaseRateAlias : "BaseRateId"
+  cat_OperationType ||--o{ cat_OperationTypePowerType : "OperationTypeId"

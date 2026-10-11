@@ -1,0 +1,26 @@
+%% م5 · البيانات المالية والأرصدة (1/2) — Financial statements & balances
+erDiagram
+  fin_AccountMonthlyStat["fin.AccountMonthlyStat"] {
+    bigint AccountMonthlyStatId PK
+    bigint BankAccountId FK
+    bigint DocumentId FK
+  }
+  fin_BankFlowEntry["fin.BankFlowEntry"] {
+    bigint BankFlowEntryId PK
+    bigint CompanyId FK
+    bigint InstitutionId FK
+    bigint FacilityId FK
+    int FlowKindId FK
+    int CurrencyId FK
+    bigint DocumentId FK
+  }
+  fin_FinancialStatement["fin.FinancialStatement"] {
+    bigint FinancialStatementId PK
+    bigint CompanyId FK
+    int CurrencyId FK
+    bigint PreparedBy FK
+    bigint ApprovedBy FK
+  }
+  fin_LineCatalogItem["fin.LineCatalogItem"] {
+    int LineCatalogItemId PK
+  }

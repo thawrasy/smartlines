@@ -1,0 +1,8 @@
+%% م6 · الطلبات وإجراءاتها (3/3) — Requests, approvals & actions
+erDiagram
+  wfl_UserDelegation["wfl.UserDelegation"] {
+    bigint UserDelegationId PK
+    bigint FromUserId FK
+    bigint ToUserId FK
+    int RequestTypeId FK
+  }

@@ -1,0 +1,20 @@
+%% م5 · التسعير وشروط المقارنة (2/2) — Pricing, tariffs & comparable terms
+erDiagram
+  prc_TariffTier["prc.TariffTier"] {
+    bigint TariffTierId PK
+    bigint TariffItemId FK
+  }
+  cmp_TermType["cmp.TermType"] {
+    int TermTypeId PK
+  }
+  cmp_TermValue["cmp.TermValue"] {
+    bigint TermValueId PK
+    bigint FacilityId FK
+    int TermTypeId FK
+    bigint LimitId FK
+    bigint LimitProductLineId FK
+    int ProductId FK
+    bigint CompanyId FK
+    int CurrencyId FK
+  }
+  cmp_TermType ||--o{ cmp_TermValue : "TermTypeId"

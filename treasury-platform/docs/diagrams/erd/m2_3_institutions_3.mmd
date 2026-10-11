@@ -1,0 +1,36 @@
+%% م2–م3 · الجهات المالية والحسابات والمفوّضون (3/3) — Institutions, bank accounts & signatories
+erDiagram
+  acc_FacilityAccount["acc.FacilityAccount"] {
+    bigint FacilityAccountId PK
+    bigint FacilityId FK
+    bigint BankAccountId FK
+    int CurrencyId FK
+    int PurposeId FK
+  }
+  acc_Signatory["acc.Signatory"] {
+    bigint SignatoryId PK
+    bigint RelationshipId FK
+    bigint PartyId FK
+    int SignatureClassId FK
+    int PositionId FK
+    int AuthorisationBasisId FK
+    int CashWithdrawalCurrencyId FK
+    bigint AuthorizationDocumentId FK
+    bigint SpecimenDocumentId FK
+  }
+  acc_SignatoryAuthority["acc.SignatoryAuthority"] {
+    bigint SignatoryAuthorityId PK
+    bigint RelationshipId FK
+    bigint SignatoryId FK
+    bigint BankAccountId FK
+    int OperationTypeId FK
+    int CurrencyId FK
+    bigint SupersededById FK
+  }
+  acc_SignatoryAuthorityJointClass["acc.SignatoryAuthorityJointClass"] {
+    int TenantId PK
+    bigint SignatoryAuthorityId PK
+    int SignatureClassId PK
+  }
+  acc_Signatory ||--o{ acc_SignatoryAuthority : "SignatoryId"
+  acc_SignatoryAuthority ||--o{ acc_SignatoryAuthorityJointClass : "SignatoryAuthorityId"

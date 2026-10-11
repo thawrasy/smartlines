@@ -1,0 +1,21 @@
+%% م1 · الأشخاص والهوية و KYC (3/3) — Parties, identity documents & KYC
+erDiagram
+  pty_PartyCompliance["pty.PartyCompliance"] {
+    bigint PartyComplianceId PK
+    bigint PartyId FK
+    bigint CompanyId FK
+  }
+  pty_PartyCustomField["pty.PartyCustomField"] {
+    bigint PartyCustomFieldId PK
+    bigint PartyId FK
+    bigint DefinitionId FK
+    bigint EncKeyId FK
+    int CurrencyId FK
+  }
+  pty_TaxIdentity["pty.TaxIdentity"] {
+    bigint TaxIdentityId PK
+    bigint PartyId FK
+    int CountryId FK
+    int FatcaClassificationId FK
+    int CrsClassificationId FK
+  }

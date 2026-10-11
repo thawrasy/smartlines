@@ -1,0 +1,15 @@
+%% م4 · الأسعار المرجعية والقوائم (2/2) — Base rates & lookup lists
+erDiagram
+  cat_BaseRateValue["cat.BaseRateValue"] {
+    bigint BaseRateValueId PK
+    int BaseRateId FK
+    bigint EnteredBy FK
+  }
+  cat_LookupList["cat.LookupList"] {
+    int LookupListId PK
+  }
+  cat_LookupItem["cat.LookupItem"] {
+    int LookupItemId PK
+    int LookupListId FK
+  }
+  cat_LookupList ||--o{ cat_LookupItem : "LookupListId"

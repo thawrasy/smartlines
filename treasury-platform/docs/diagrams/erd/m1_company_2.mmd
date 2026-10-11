@@ -1,0 +1,30 @@
+%% م1 · الشركات والحوكمة (2/2) — Company structure & governance
+erDiagram
+  org_GoverningBody["org.GoverningBody"] {
+    bigint GoverningBodyId PK
+    bigint CompanyId FK
+  }
+  org_BodyMember["org.BodyMember"] {
+    bigint BodyMemberId PK
+    bigint CompanyId FK
+    bigint BodyId FK
+    bigint PartyId FK
+    int PositionId FK
+    bigint RepresentedPartyId FK
+    bigint AppointmentDocumentId FK
+  }
+  org_AuthorityGrant["org.AuthorityGrant"] {
+    bigint AuthorityGrantId PK
+    bigint CompanyId FK
+    bigint BodyId FK
+    bigint BodyMemberId FK
+    bigint PartyId FK
+    int PowerTypeId FK
+    bigint InstitutionId FK
+    int CeilingCurrencyId FK
+    bigint ApprovedBy FK
+    bigint SupersedesGrantId FK
+  }
+  org_BodyMember |o--o{ org_AuthorityGrant : "BodyMemberId"
+  org_GoverningBody |o--o{ org_AuthorityGrant : "BodyId"
+  org_GoverningBody ||--o{ org_BodyMember : "BodyId"

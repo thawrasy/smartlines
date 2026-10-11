@@ -1,0 +1,23 @@
+%% م6 · الإشعارات (1/2) — Notifications
+erDiagram
+  ntf_DigestBatch["ntf.DigestBatch"] {
+    bigint DigestBatchId PK
+    bigint UserId FK
+  }
+  ntf_Notification["ntf.Notification"] {
+    bigint NotificationId PK
+    bigint UserId FK
+    int EventTypeId FK
+    bigint CompanyId FK
+  }
+  ntf_NotificationDelivery["ntf.NotificationDelivery"] {
+    bigint NotificationDeliveryId PK
+    bigint NotificationId FK
+    bigint DigestBatchId FK
+  }
+  ntf_NotificationEventType["ntf.NotificationEventType"] {
+    int NotificationEventTypeId PK
+  }
+  ntf_DigestBatch |o--o{ ntf_NotificationDelivery : "DigestBatchId"
+  ntf_Notification ||--o{ ntf_NotificationDelivery : "NotificationId"
+  ntf_NotificationEventType ||--o{ ntf_Notification : "EventTypeId"

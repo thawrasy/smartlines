@@ -1,0 +1,34 @@
+%% م5 · الضمانات (1/2) — Collateral & guarantees
+erDiagram
+  col_Collateral["col.Collateral"] {
+    bigint CollateralId PK
+    int CollateralTypeId FK
+    bigint OwnerPartyId FK
+    bigint CashMarginAccountId FK
+    bigint ApprovedBy FK
+    bigint ReleaseDocumentId FK
+  }
+  col_CollateralLink["col.CollateralLink"] {
+    bigint CollateralLinkId PK
+    bigint CollateralId FK
+    bigint FacilityId FK
+    bigint LimitId FK
+  }
+  col_Guarantee["col.Guarantee"] {
+    bigint GuaranteeId PK
+    bigint CollateralId FK
+    bigint GuarantorPartyId FK
+    bigint GuarantorIdentityDocumentId FK
+    int CurrencyId FK
+    bigint DeedDocumentId FK
+  }
+  col_InsurancePolicyAssignment["col.InsurancePolicyAssignment"] {
+    bigint InsurancePolicyAssignmentId PK
+    bigint CollateralId FK
+    bigint AssignedToInstitutionId FK
+    int CurrencyId FK
+    bigint PolicyDocumentId FK
+  }
+  col_Collateral ||--o{ col_CollateralLink : "CollateralId"
+  col_Collateral ||--o{ col_Guarantee : "CollateralId"
+  col_Collateral ||--o{ col_InsurancePolicyAssignment : "CollateralId"

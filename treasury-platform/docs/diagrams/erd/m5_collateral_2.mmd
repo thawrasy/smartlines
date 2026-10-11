@@ -1,0 +1,19 @@
+%% م5 · الضمانات (2/2) — Collateral & guarantees
+erDiagram
+  col_PromissoryNote["col.PromissoryNote"] {
+    bigint PromissoryNoteId PK
+    bigint CollateralId FK
+    int CurrencyId FK
+    bigint NoteDocumentId FK
+  }
+  col_PromissoryNoteSigner["col.PromissoryNoteSigner"] {
+    int TenantId PK
+    bigint PromissoryNoteId PK
+    bigint PartyId PK
+  }
+  col_ValuationSchedule["col.ValuationSchedule"] {
+    bigint ValuationScheduleId PK
+    bigint CollateralId FK
+    int CurrencyId FK
+  }
+  col_PromissoryNote ||--o{ col_PromissoryNoteSigner : "PromissoryNoteId"

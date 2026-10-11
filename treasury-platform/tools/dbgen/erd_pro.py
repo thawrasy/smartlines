@@ -213,13 +213,13 @@ def groups_plan():
         ('m0_audit_docs', 'م0 · التدقيق والمستندات', 'Audit & documents', ['aud', 'doc']),
         ('m0_config', 'م0 · الإعدادات والمهام الخلفية', 'Configuration & background jobs', ['cfg']),
         ('m1_company', 'م1 · الشركات والحوكمة', 'Company structure & governance', ['org.Company', 'org.CompanyTaxRate', 'org.Department', 'org.Shareholding', 'org.GoverningBody', 'org.BodyMember', 'org.AuthorityGrant']),
-        ('m1_company_kyc', 'م1 · ملف الشركة والاكتمال', 'Company profile & KYC', ['org.CompanyProfile', 'org.CompanyBranch', 'org.CompanyKycFinancialProfile', 'org.CompanyExpectedFlow', 'org.CompanyWealthSource', 'org.CompanyDisclosure', 'org.CompanyKeyRelation']),
-        ('m1_party', 'م1 · الأشخاص والهوية والاكتمال', 'Parties, identity documents & KYC', ['pty']),
+        ('m1_company_kyc', 'م1 · ملف الشركة و KYC', 'Company profile & KYC', ['org.CompanyProfile', 'org.CompanyBranch', 'org.CompanyKycFinancialProfile', 'org.CompanyExpectedFlow', 'org.CompanyWealthSource', 'org.CompanyDisclosure', 'org.CompanyKeyRelation']),
+        ('m1_party', 'م1 · الأشخاص والهوية و KYC', 'Parties, identity documents & KYC', ['pty']),
         ('m2_3_institutions', 'م2–م3 · الجهات المالية والحسابات والمفوّضون', 'Institutions, bank accounts & signatories', ['ins', 'acc']),
         ('m4_products', 'م4 · المنتجات والرسوم والتمويل والضمانات', 'Products, fees, financing & collateral types', ['cat.ProductCategory', 'cat.Product', 'cat.FeeType', 'cat.FinancingType', 'cat.ProductFeeType', 'cat.ProductFinancingType', 'cat.FacilityType', 'cat.LimitType', 'cat.LimitTypeProduct', 'cat.CollateralType', 'cat.CollateralTypeAttribute', 'cat.ObligationType']),
         ('m4_reference', 'م4 · الكتالوجات المرجعية', 'Reference catalogues', ['cat.TenantCurrency', 'cat.InstitutionType', 'cat.AccountType', 'cat.LegalEntityType', 'cat.DocumentType', 'cat.Position', 'cat.PowerType']),
         ('m4_rates_lookups', 'م4 · الأسعار المرجعية والقوائم', 'Base rates & lookup lists', ['cat.OperationType', 'cat.OperationTypePowerType', 'cat.BaseRate', 'cat.BaseRateAlias', 'cat.BaseRateValue', 'cat.LookupList', 'cat.LookupItem']),
-        ('m4_global_ref', 'المراجع العامة (ref)', 'Global references (shared, read-only)', ['ref']),
+        ('m4_global_ref', 'م4 · المراجع العامة (ref)', 'Global references (shared, read-only)', ['ref']),
         ('m5_facility_core', 'م5 · التسهيلات والمراجعات', 'Facilities & revisions', ['fac.Facility', 'fac.FacilityRevision', 'fac.FacilityDocument', 'fac.FacilityLender', 'fac.OutstandingSnapshot', 'fac.ValueConflict']),
         ('m5_limits', 'م5 · الحدود والاستخدام والحجوزات', 'Limits, utilisation & reservations', ['fac.Limit', 'fac.LimitProductLine', 'fac.LimitCompanyRule', 'fac.ProductLineTerm', 'fac.Utilization', 'fac.LimitReservation', 'fac.LimitMovement']),
         ('m5_pricing', 'م5 · التسعير وشروط المقارنة', 'Pricing, tariffs & comparable terms', ['prc', 'cmp']),
@@ -242,7 +242,7 @@ def expand(spec, tables):
     return out
 
 
-MAX_PER_DIAGRAM = 7   # حجم الصورة يبقى مقروءًا عند عرضها بعرض الصفحة
+MAX_PER_DIAGRAM = 4   # 4 جداول بحد أقصى لكل صورة: النص يبقى بحجم 7pt فأكثر عند عرضها بعرض صفحة أفقية
 
 
 def plan_members(tables):

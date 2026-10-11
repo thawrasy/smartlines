@@ -1,0 +1,26 @@
+%% م1 · ملف الشركة و KYC (1/2) — Company profile & KYC
+erDiagram
+  org_CompanyProfile["org.CompanyProfile"] {
+    bigint CompanyProfileId PK
+    bigint CompanyId FK
+    int HeadquartersCountryId FK
+    int SectorId FK
+    int EmployeeBandId FK
+  }
+  org_CompanyBranch["org.CompanyBranch"] {
+    bigint CompanyBranchId PK
+    bigint CompanyId FK
+    int CountryId FK
+  }
+  org_CompanyKycFinancialProfile["org.CompanyKycFinancialProfile"] {
+    bigint CompanyKycFinancialProfileId PK
+    bigint CompanyId FK
+    int RevenueBandId FK
+    int AccountCurrencyId FK
+  }
+  org_CompanyExpectedFlow["org.CompanyExpectedFlow"] {
+    bigint CompanyExpectedFlowId PK
+    bigint FinancialProfileId FK
+    int CurrencyId FK
+  }
+  org_CompanyKycFinancialProfile ||--o{ org_CompanyExpectedFlow : "FinancialProfileId"

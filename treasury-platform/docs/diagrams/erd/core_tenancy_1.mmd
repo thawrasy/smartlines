@@ -1,0 +1,19 @@
+%% النواة (1/5)
+erDiagram
+  plat_Tenant["plat.Tenant"] {
+    int TenantId PK
+    int PlanId FK
+    int HomeCountryId FK
+  }
+  plat_Plan["plat.Plan"] {
+    int PlanId PK
+  }
+  plat_TenantModule["plat.TenantModule"] {
+    bigint TenantModuleId PK
+    int EnabledBy FK
+  }
+  plat_SupportAccessGrant["plat.SupportAccessGrant"] {
+    bigint SupportAccessGrantId PK
+    int OperatorId FK
+  }
+  plat_Plan ||--o{ plat_Tenant : "PlanId"

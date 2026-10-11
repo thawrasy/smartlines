@@ -3884,7 +3884,7 @@ CREATE TABLE [col].[PromissoryNote] (
     CONSTRAINT [CK_PromissoryNote_CustodyKind] CHECK ([CustodyKind] IS NULL OR [CustodyKind] IN ('BANK', 'COMPANY', 'OTHER'))
 );
 GO
--- موقّعو السند (SignerPartyIds) -- جدول وسيط جديد؛ مزوّد PromissoryNote signer (FR-COL-015)
+-- موقّعو السند (SignerPartyIds) -- جدول وسيط جديد؛ موقّعو PromissoryNote (FR-COL-015)
 CREATE TABLE [col].[PromissoryNoteSigner] (
     [TenantId] INT NOT NULL,
     [PromissoryNoteId] BIGINT NOT NULL,
@@ -4300,7 +4300,7 @@ CREATE TABLE [obl].[ObligationBreach] (
 GO
 
 -- ===== schema fin =====
--- بند معياري للقوائم؛ 39 بندًا مزروعًا؛ النظامي في الصيغ لا يُحذف (FR-FIN-001، CatalogBase)
+-- بند معياري للقوائم؛ 39 بندًا مبذورًا؛ النظامي في الصيغ لا يُحذف (FR-FIN-001، CatalogBase)
 CREATE TABLE [fin].[LineCatalogItem] (
     [TenantId] INT NOT NULL,
     [LineCatalogItemId] INT IDENTITY(1,1) NOT NULL,
@@ -4334,7 +4334,7 @@ CREATE TABLE [fin].[LineCatalogItem] (
     CONSTRAINT [CK_LineCatalogItem_Section] CHECK ([Section] IS NULL OR [Section] IN ('BS_ASSET', 'BS_LIABILITY', 'BS_EQUITY', 'IS', 'CF'))
 );
 GO
--- الأسماء البديلة للبند (Aliases) للصق والمطابقة -- جدول جديد يحل «Aliases set» (FR-FIN-003)
+-- الأسماء البديلة للبند (Aliases) للصق والمطابقة -- جدول جديد للأسماء البديلة (FR-FIN-003)
 CREATE TABLE [fin].[LineCatalogItemAlias] (
     [TenantId] INT NOT NULL,
     [LineCatalogItemAliasId] INT IDENTITY(1,1) NOT NULL,
@@ -4784,7 +4784,7 @@ CREATE TABLE [wfl].[WorkflowTransition] (
     CONSTRAINT [CK_WorkflowTransition_ConditionJson_json] CHECK ([ConditionJson] IS NULL OR ISJSON([ConditionJson]) = 1)
 );
 GO
--- خطاف مسجَّل بالكود على مرحلة: مفتاح ومعاملات لا شيفرة (FR-WFL-021، BR-WFL-015، §5.4)
+-- خطاف مسجَّل بالكود على مرحلة: مفتاح ومعاملات لا كود (FR-WFL-021، BR-WFL-015، §5.4)
 CREATE TABLE [wfl].[WorkflowStageHook] (
     [TenantId] INT NOT NULL,
     [WorkflowStageHookId] INT IDENTITY(1,1) NOT NULL,
@@ -5364,7 +5364,7 @@ CREATE TABLE [ntf].[NotificationPreference] (
     CONSTRAINT [CK_NotificationPreference_Mode] CHECK ([Mode] IS NULL OR [Mode] IN ('IMMEDIATE', 'DIGEST_DAILY', 'DIGEST_WEEKLY', 'OFF'))
 );
 GO
--- دفعة ملخص لمستخدم وقناة وفترة؛ لا يُرسل فارغًا (FR-NTF-014، BR-NTF-004، JOB-NTF-DIGEST) -- جدول جديد يحل DigestBatchId
+-- دفعة ملخص لمستخدم وقناة وفترة؛ لا يُرسل فارغًا (FR-NTF-014، BR-NTF-004، JOB-NTF-DIGEST) -- جدول جديد
 CREATE TABLE [ntf].[DigestBatch] (
     [TenantId] INT NOT NULL,
     [DigestBatchId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -6026,7 +6026,7 @@ CREATE TABLE [lc].[LetterOfCredit] (
     CONSTRAINT [CK_LetterOfCredit_Channel] CHECK ([Channel] IS NULL OR [Channel] IN ('BANK_PORTAL', 'MANUAL_FORM', 'DIRECT_INTEGRATION'))
 );
 GO
--- مرجع خارجي للاعتماد (ERP...)؛ بلا تفرّد؛ البحث بالمطبَّع (FR-LCI-013، BR-REQ-006) -- جديد
+-- مرجع خارجي للاعتماد (ERP...)؛ بلا فرادة؛ البحث بالمطبَّع (FR-LCI-013، BR-REQ-006) -- جديد
 CREATE TABLE [lc].[LcExternalRef] (
     [TenantId] INT NOT NULL,
     [LcExternalRefId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -6314,7 +6314,7 @@ CREATE TABLE [lc].[ProformaLine] (
     CONSTRAINT [CK_ProformaLine_3] CHECK (UnitPrice >= 0 AND LineTotal >= 0)
 );
 GO
--- نتيجة مقارنة شروط الاعتماد المستلَم بالبروفورما (FR-LCT-031، FR-LCE-023، BR-LCT-021) -- جديد (Could)
+-- نتيجة مقارنة شروط الاعتماد المستلَم بالبروفورما (FR-LCT-031، FR-LCE-023، BR-LCT-021) -- جديد (أولوية: ممكن)
 CREATE TABLE [lc].[LcTermsComparison] (
     [TenantId] INT NOT NULL,
     [LcTermsComparisonId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -6337,7 +6337,7 @@ CREATE TABLE [lc].[LcTermsComparison] (
     CONSTRAINT [CK_LcTermsComparison_SummaryJson_json] CHECK ([SummaryJson] IS NULL OR ISJSON([SummaryJson]) = 1)
 );
 GO
--- فرق حقل واحد وحكمه وقرار الخزينة (FR-LCT-031، BR-LCT-021) -- جديد (Could)
+-- فرق حقل واحد وحكمه وقرار الخزينة (FR-LCT-031، BR-LCT-021) -- جديد (أولوية: ممكن)
 CREATE TABLE [lc].[LcTermsComparisonLine] (
     [TenantId] INT NOT NULL,
     [LcTermsComparisonLineId] BIGINT IDENTITY(1,1) NOT NULL,

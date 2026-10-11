@@ -1,39 +1,21 @@
-%% م0 · الإعدادات والمهام الخلفية (2/2) — Configuration & background jobs
+%% م0 · الإعدادات والمهام الخلفية (2/3) — Configuration & background jobs
 erDiagram
+  cfg_NonWorkingDay["cfg.NonWorkingDay"] {
+    bigint NonWorkingDayId PK
+    int CountryId FK
+  }
+  cfg_NumberIssue["cfg.NumberIssue"] {
+    bigint NumberIssueId PK
+    bigint SequenceId FK
+    bigint VoidedBy FK
+  }
+  cfg_NumberSequence["cfg.NumberSequence"] {
+    bigint NumberSequenceId PK
+    bigint DefinitionId FK
+    bigint CompanyId FK
+  }
   cfg_NumberSequenceDefinition["cfg.NumberSequenceDefinition"] {
     bigint NumberSequenceDefinitionId PK
-    varchar SequenceKey
-    varchar Pattern
-    varchar ScopeLevel
-    varchar PeriodBasis
-    varchar GapPolicy
   }
-  cfg_OutboxEvent["cfg.OutboxEvent"] {
-    bigint OutboxEventId PK
-    uuid MessageId
-    varchar EventName
-    text PayloadJson
-    timestamp OccurredAt
-    varchar Status
-  }
-  cfg_SeedRun["cfg.SeedRun"] {
-    bigint SeedRunId PK
-    varchar PackKey
-    integer SeedVersion
-    varchar RunKind
-    varchar Status
-    integer CreatedCount
-  }
-  cfg_SettingDefinition["cfg.SettingDefinition"] {
-    int SettingDefinitionId PK
-    varchar Key
-    varchar ModuleCode
-    varchar ValueType
-    text DefaultValueJson
-    smallint IsSecurity
-  }
-  cfg_TenantSetting["cfg.TenantSetting"] {
-    bigint TenantSettingId PK
-    varchar Key
-    text ValueJson
-  }
+  cfg_NumberSequence ||--o{ cfg_NumberIssue : "SequenceId"
+  cfg_NumberSequenceDefinition ||--o{ cfg_NumberSequence : "DefinitionId"

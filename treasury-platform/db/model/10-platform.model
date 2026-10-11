@@ -114,7 +114,7 @@ table sec.AppUser public   # مستخدم بوابة المشترك (FR-PLT-010.
   DisplayNameAr        str(200)
   DisplayNameEn        str(200)
   DepartmentId         ->org.Department
-  LineManagerUserId    ->sec.AppUser   # المدير المباشر: يحل «المدير» في الموافقات (13)
+  LineManagerUserId    ->sec.AppUser   # المدير المباشر: يُستعمل لتحديد «المدير» في الموافقات (13)
   CompanyScopeMode     enum{ALL,SELECTED} req =SELECTED   # SELECTED = الرفض هو الأصل (FR-PLT-021)
   PreferredLanguage    enum{ar,en}      # فارغ = DefaultLanguage للمشترك؛ تقرؤه 13 (FR-NTF-024)
   DigitsPreference     enum{WESTERN,ARABIC_INDIC}   # فارغ = تفضيل المشترك (Q-PLT-07)

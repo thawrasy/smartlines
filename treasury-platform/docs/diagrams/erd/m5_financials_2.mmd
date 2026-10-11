@@ -1,0 +1,17 @@
+%% م5 · البيانات المالية والأرصدة (2/2) — Financial statements & balances
+erDiagram
+  fin_LineCatalogItemAlias["fin.LineCatalogItemAlias"] {
+    int LineCatalogItemAliasId PK
+    int LineCatalogItemId FK
+  }
+  fin_MeasureFormula["fin.MeasureFormula"] {
+    bigint MeasureFormulaId PK
+    bigint FacilityId FK
+    bigint BaseTemplateId FK
+    bigint ApprovedBy FK
+  }
+  fin_StatementLine["fin.StatementLine"] {
+    bigint StatementLineId PK
+    bigint StatementId FK
+    int LineCatalogItemId FK
+  }
