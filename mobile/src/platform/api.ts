@@ -83,6 +83,11 @@ export async function signIn(identifier: string, password: string): Promise<Logi
   return { mfa: data.mfa };
 }
 
+/** A closed account comes back with the same details (1085); the caller signs in afterwards. */
+export async function reactivate(identifier: string, password: string): Promise<void> {
+  await parse<{ ok: boolean }>(await raw("POST", "/api/auth/reactivate", { identifier: identifier.trim(), password }));
+}
+
 export async function signOut(): Promise<void> {
   try { await api.post("/api/auth/logout"); } catch { /* signed out locally either way */ }
   await tokenStore.clear();
