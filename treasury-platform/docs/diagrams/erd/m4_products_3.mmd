@@ -2,8 +2,8 @@
 erDiagram
   cat_LimitTypeProduct["cat.LimitTypeProduct"] {
     int TenantId PK
-    int LimitTypeId PK
-    int ProductId PK
+    int LimitTypeId PK, FK
+    int ProductId PK, FK
   }
   cat_CollateralType["cat.CollateralType"] {
     int CollateralTypeId PK

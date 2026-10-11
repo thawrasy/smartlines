@@ -584,7 +584,7 @@ CREATE TABLE [doc].[Document] (
     CONSTRAINT [CK_Document_Status] CHECK ([Status] IS NULL OR [Status] IN ('ACTIVE', 'SUPERSEDED', 'SOFT_DELETED'))
 );
 GO
--- إصدار ثابت من الملف؛ لا يُستبدل بل يُنشأ إصدار جديد (FR-PLT-027، BR-PLT-011)
+-- إصدار ثابت من الملف؛ التغيير يُنشئ إصدارًا جديدًا يفرضه التطبيق (FR-PLT-027، BR-PLT-011)
 CREATE TABLE [doc].[DocumentVersion] (
     [TenantId] INT NOT NULL,
     [DocumentVersionId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -2395,7 +2395,7 @@ CREATE TABLE [cat].[BaseRateValue] (
     CONSTRAINT [CK_BaseRateValue_Status] CHECK ([Status] IS NULL OR [Status] IN ('VALID', 'SUPERSEDED'))
 );
 GO
--- DR-03: مملوك للمشترك؛ نسخة النظام تُهيَّأ لكل مشترك من قالب المنصة  # قائمة قيم؛ TenantId فارغ = قائمة عالمية يملكها المشغّل للقراءة (FR-CAT-020، BR-CAT-015)
+-- قائمة قيم مملوكة للمشترك (FR-CAT-020، BR-CAT-015) -- DR-03: نسخة النظام تُهيَّأ لكل مشترك من قالب المنصة
 CREATE TABLE [cat].[LookupList] (
     [TenantId] INT NOT NULL,
     [LookupListId] INT IDENTITY(1,1) NOT NULL,
@@ -2427,7 +2427,7 @@ CREATE TABLE [cat].[LookupList] (
     CONSTRAINT [CK_LookupList_AttributeSchema_json] CHECK ([AttributeSchema] IS NULL OR ISJSON([AttributeSchema]) = 1)
 );
 GO
--- DR-03/05/07: مملوك للمشترك (نسخ النظام لكل مشترك)  # بند في قائمة قيم؛ TenantId فارغ = بند عالمي للقراءة فقط؛ أعمدة الكتالوج يدوية لأن فرادة الرمز داخل القائمة لا المشترك (FR-CAT-020)
+-- بند في قائمة قيم مملوك للمشترك (FR-CAT-020) -- DR-03/05/07: نسخ النظام لكل مشترك؛ فرادة الرمز داخل القائمة لا على مستوى المشترك
 CREATE TABLE [cat].[LookupItem] (
     [TenantId] INT NOT NULL,
     [LookupItemId] INT IDENTITY(1,1) NOT NULL,
@@ -3366,7 +3366,7 @@ CREATE TABLE [fac].[ValueConflict] (
 GO
 
 -- ===== schema prc =====
--- إصدار جدول رسوم لبنك؛ بخاص بتسهيل اختياريًا (FR-PRC-001، BR-PRC-001، V-PRC-01)
+-- إصدار جدول رسوم لبنك؛ خاص بتسهيل اختياريًا (FR-PRC-001، BR-PRC-001، V-PRC-01)
 CREATE TABLE [prc].[TariffSchedule] (
     [TenantId] INT NOT NULL,
     [TariffScheduleId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -3741,7 +3741,7 @@ CREATE TABLE [cmp].[TermValue] (
 GO
 
 -- ===== schema col =====
--- سجل ضمان؛ اعتماد مستقل عن مراجعة التسهيل والتعديل نسخة جديدة (FR-COL-001/014، V-COL-01، §8)
+-- سجل ضمان؛ اعتماد مستقل عن مراجعة التسهيل، والتعديل يُنشئ إصدارًا جديدًا (FR-COL-001/014، V-COL-01، §8)
 CREATE TABLE [col].[Collateral] (
     [TenantId] INT NOT NULL,
     [CollateralId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -4027,7 +4027,7 @@ CREATE TABLE [obl].[Obligation] (
     CONSTRAINT [CK_Obligation_TriggerValues_json] CHECK ([TriggerValues] IS NULL OR ISJSON([TriggerValues]) = 1)
 );
 GO
--- AppliesToCompanyIds -- جدول وسيط جديد؛ الحذف لصفوف مسودة المراجعة فقط (يفرضه التطبيق)
+-- الشركات التي ينطبق عليها الالتزام (AppliesToCompanyIds) -- جدول وسيط جديد؛ الحذف لصفوف مسودة المراجعة فقط (يفرضه التطبيق)
 CREATE TABLE [obl].[ObligationCompany] (
     [TenantId] INT NOT NULL,
     [ObligationId] BIGINT NOT NULL,
@@ -4125,7 +4125,7 @@ CREATE TABLE [obl].[ReportingInstance] (
     CONSTRAINT [CK_ReportingInstance_GeneratedBy] CHECK ([GeneratedBy] IS NULL OR [GeneratedBy] IN ('JOB', 'MANUAL_EVENT'))
 );
 GO
--- نسخة تعهد بتواريخ؛ الحدود المتدرجة = عدة نسخ (FR-OBL-006، BR-OBL-001/005/006، Q-OBL-01)
+-- إصدار تعهد بتواريخ؛ الحدود المتدرجة = عدة نسخ (FR-OBL-006، BR-OBL-001/005/006، Q-OBL-01)
 CREATE TABLE [obl].[Covenant] (
     [TenantId] INT NOT NULL,
     [CovenantId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -4184,7 +4184,7 @@ CREATE TABLE [obl].[Covenant] (
     CONSTRAINT [CK_Covenant_AccountScopeKind] CHECK ([AccountScopeKind] IS NULL OR [AccountScopeKind] IN ('ALL_COMPANY_ACCOUNTS_AT_BANK', 'SELECTED_ACCOUNTS', 'GROUP_ACCOUNTS'))
 );
 GO
--- AccountIds لـ SELECTED_ACCOUNTS -- جدول وسيط جديد؛ الحذف لصفوف مسودة المراجعة فقط (يفرضه التطبيق)
+-- الحسابات المشمولة بالتعهد عند اختيار حسابات محددة (AccountIds) -- جدول وسيط جديد؛ الحذف لصفوف مسودة المراجعة فقط (يفرضه التطبيق)
 CREATE TABLE [obl].[CovenantAccount] (
     [TenantId] INT NOT NULL,
     [CovenantId] BIGINT NOT NULL,
@@ -4196,7 +4196,7 @@ CREATE TABLE [obl].[CovenantAccount] (
     CONSTRAINT [PK_CovenantAccount] PRIMARY KEY CLUSTERED ([TenantId], [CovenantId], [BankAccountId])
 );
 GO
--- تقييم تعهد لفترة وإصدار تقييم؛ المخزَّن لا يُعدَّل (FR-OBL-011، FR-FIN-012/013، BR-OBL-006/007، §8)
+-- تقييم تعهد لفترة وإصدار تقييم؛ يمنع التطبيق تعديل التقييم المخزَّن (FR-OBL-011، FR-FIN-012/013، BR-OBL-006/007، §8)
 CREATE TABLE [obl].[CovenantTest] (
     [TenantId] INT NOT NULL,
     [CovenantTestId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -4613,7 +4613,7 @@ CREATE TABLE [wfl].[ExternalPhase] (
     CONSTRAINT [CK_ExternalPhase_1] CHECK (RequiresRequesterAction = 0 OR IsFinal = 0)
 );
 GO
--- نسخة قالب دورة عمل؛ المنشورة ثابتة (FR-WFL-001/028، BR-WFL-019، AC-WFL-6)
+-- إصدار قالب دورة عمل؛ المنشور ثابت (FR-WFL-001/028، BR-WFL-019، AC-WFL-6)
 CREATE TABLE [wfl].[WorkflowTemplate] (
     [TenantId] INT NOT NULL,
     [WorkflowTemplateId] INT IDENTITY(1,1) NOT NULL,
@@ -4988,7 +4988,7 @@ CREATE TABLE [wfl].[Request] (
     CONSTRAINT [CK_Request_FormDataJson_json] CHECK ([FormDataJson] IS NULL OR ISJSON([FormDataJson]) = 1)
 );
 GO
--- تعليق ظاهر للطالب أو داخلي؛ غير قابل للتعديل (سحب مع بقاء الأصل) (FR-REQ-017، BR-REQ-014)
+-- تعليق ظاهر للطالب أو داخلي؛ يمنع التطبيق تعديله، والسحب يترك الأصل (FR-REQ-017، BR-REQ-014)
 CREATE TABLE [wfl].[RequestComment] (
     [TenantId] INT NOT NULL,
     [RequestCommentId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -5627,7 +5627,7 @@ CREATE TABLE [lc].[LcDocumentClauseUcpRef] (
     CONSTRAINT [UQ_LcDocumentClauseUcpRef_LcDocumentClauseId_UcpArticleId_Paragraph] UNIQUE ([TenantId], [LcDocumentClauseId], [UcpArticleId], [Paragraph])
 );
 GO
--- إصدار شروط اعتماد: صف لكل نسخة بأعمدة قاموس §6.2؛ مشترك بين البروفورما والطلب والاعتماد والتعديل (FR-LCT-001..035)
+-- إصدار شروط اعتماد: صف لكل إصدار بأعمدة قاموس §6.2؛ مشترك بين البروفورما والطلب والاعتماد والتعديل (FR-LCT-001..035)
 CREATE TABLE [lc].[LcTerms] (
     [TenantId] INT NOT NULL,
     [LcTermsId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -6222,7 +6222,7 @@ CREATE TABLE [lc].[LcDiscrepancy] (
     CONSTRAINT [CK_LcDiscrepancy_Status] CHECK ([Status] IS NULL OR [Status] IN ('OPEN', 'WAIVED', 'CORRECTED', 'REFUSED'))
 );
 GO
--- البروفورما الصادرة: لا تعديل بعد الإصدار؛ الرقم {seq:000}-{erp}-{yy} (FR-LCE-005..008، BR-LCE-001..006)
+-- البروفورما الصادرة؛ يمنع التطبيق تعديلها بعد الإصدار؛ الرقم {seq:000}-{erp}-{yy} (FR-LCE-005..008، BR-LCE-001..006)
 CREATE TABLE [lc].[ProformaInvoice] (
     [TenantId] INT NOT NULL,
     [ProformaInvoiceId] BIGINT IDENTITY(1,1) NOT NULL,

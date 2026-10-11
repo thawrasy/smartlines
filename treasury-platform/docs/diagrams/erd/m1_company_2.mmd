@@ -25,6 +25,7 @@ erDiagram
     bigint ApprovedBy FK
     bigint SupersedesGrantId FK
   }
+  org_AuthorityGrant |o--o{ org_AuthorityGrant : "SupersedesGrantId"
   org_BodyMember |o--o{ org_AuthorityGrant : "BodyMemberId"
   org_GoverningBody |o--o{ org_AuthorityGrant : "BodyId"
   org_GoverningBody ||--o{ org_BodyMember : "BodyId"

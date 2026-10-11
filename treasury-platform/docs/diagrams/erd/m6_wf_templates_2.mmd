@@ -31,5 +31,6 @@ erDiagram
   }
   wfl_WorkflowStage ||--o{ wfl_StageApprover : "StageId"
   wfl_WorkflowStage ||--o{ wfl_WorkflowStageHook : "StageId"
-  wfl_WorkflowStage ||--o{ wfl_WorkflowTransition : "FromStageId, ToStageId"
+  wfl_WorkflowStage ||--o{ wfl_WorkflowTransition : "FromStageId"
   wfl_WorkflowStage |o--o{ wfl_WorkflowTransition : "ResumeStageId"
+  wfl_WorkflowStage ||--o{ wfl_WorkflowTransition : "ToStageId"

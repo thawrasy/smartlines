@@ -8,8 +8,8 @@ erDiagram
   }
   col_PromissoryNoteSigner["col.PromissoryNoteSigner"] {
     int TenantId PK
-    bigint PromissoryNoteId PK
-    bigint PartyId PK
+    bigint PromissoryNoteId PK, FK
+    bigint PartyId PK, FK
   }
   col_ValuationSchedule["col.ValuationSchedule"] {
     bigint ValuationScheduleId PK

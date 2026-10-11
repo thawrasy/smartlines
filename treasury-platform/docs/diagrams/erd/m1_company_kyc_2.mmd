@@ -2,8 +2,8 @@
 erDiagram
   org_CompanyWealthSource["org.CompanyWealthSource"] {
     int TenantId PK
-    bigint FinancialProfileId PK
-    int WealthSourceId PK
+    bigint FinancialProfileId PK, FK
+    int WealthSourceId PK, FK
   }
   org_CompanyDisclosure["org.CompanyDisclosure"] {
     bigint CompanyDisclosureId PK

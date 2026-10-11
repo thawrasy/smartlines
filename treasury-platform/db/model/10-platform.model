@@ -371,7 +371,7 @@ table doc.Document public   # المستند المنطقي: بيانات الم
   check Status <> 'SOFT_DELETED' OR (DeletedAt IS NOT NULL AND DeleteReason IS NOT NULL)
   check SupersededByDocumentId IS NULL OR SupersededByDocumentId <> DocumentId
 
-table doc.DocumentVersion   # إصدار ثابت من الملف؛ لا يُستبدل بل يُنشأ إصدار جديد (FR-PLT-027، BR-PLT-011)
+table doc.DocumentVersion   # إصدار ثابت من الملف؛ التغيير يُنشئ إصدارًا جديدًا يفرضه التطبيق (FR-PLT-027، BR-PLT-011)
   DocumentId         ->doc.Document req
   VersionNo          int       req
   StorageKey         ascii(300) req   # مسار معزول لكل مشترك في مخزن الملفات

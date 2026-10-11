@@ -25,6 +25,8 @@ erDiagram
     bigint InstitutionId FK
     bigint ContactId FK
   }
+  fac_Facility |o--o{ fac_Facility : "PreviousFacilityId"
   fac_Facility ||--o{ fac_FacilityDocument : "FacilityId"
   fac_Facility ||--o{ fac_FacilityLender : "FacilityId"
   fac_Facility ||--o{ fac_FacilityRevision : "FacilityId"
+  fac_FacilityDocument |o--o{ fac_FacilityDocument : "AmendsFacilityDocumentId"

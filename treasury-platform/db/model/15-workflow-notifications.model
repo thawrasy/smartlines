@@ -63,7 +63,7 @@ table wfl.ExternalPhase int catalog  # المرحلة الظاهرة للطال�
   IsFinal                  bool  req =0     # نهائية: مكتمل · مرفوض · ملغى
   check RequiresRequesterAction = 0 OR IsFinal = 0   # المرحلة النهائية لا تنتظر إجراء الطالب
 
-table wfl.WorkflowTemplate int public  # نسخة قالب دورة عمل؛ المنشورة ثابتة (FR-WFL-001/028، BR-WFL-019، AC-WFL-6)
+table wfl.WorkflowTemplate int public  # إصدار قالب دورة عمل؛ المنشور ثابت (FR-WFL-001/028، BR-WFL-019، AC-WFL-6)
   RequestTypeId             ->wfl.RequestType req   # قالب لكل نوع؛ CHILD_STANDARD المشترك يُبذر نسخة لكل نوع (انظر تقرير الكاتب)
   TemplateKey               ascii(60)  req
   VersionNo                 int        req   # تصاعدي لكل TemplateKey بلا فجوات
@@ -336,7 +336,7 @@ table wfl.Request public  # الطلب: أكثر الجداول ازدحامًا
   check ParentRequestId IS NULL OR ParentRequestId <> RequestId
   check CopiedFromRequestId IS NULL OR CopiedFromRequestId <> RequestId
 
-table wfl.RequestComment  # تعليق ظاهر للطالب أو داخلي؛ غير قابل للتعديل (سحب مع بقاء الأصل) (FR-REQ-017، BR-REQ-014)
+table wfl.RequestComment  # تعليق ظاهر للطالب أو داخلي؛ يمنع التطبيق تعديله، والسحب يترك الأصل (FR-REQ-017، BR-REQ-014)
   RequestId        ->wfl.Request req
   StageInstanceId  ->wfl.RequestStageInstance via=RequestId
   Visibility       enum{INTERNAL,REQUESTER_VISIBLE} req =INTERNAL   # الداخلي لا يدخل RequesterView أبدًا (BR-WFL-024)

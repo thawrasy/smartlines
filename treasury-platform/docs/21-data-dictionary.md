@@ -616,7 +616,7 @@
 
 **قيود:** `IssueDate IS NULL OR ExpiryDate IS NULL OR ExpiryDate > IssueDate` · `Status <> 'SUPERSEDED' OR SupersededByDocumentId IS NOT NULL` · `Status <> 'SOFT_DELETED' OR (DeletedAt IS NOT NULL AND DeleteReason IS NOT NULL)` · `SupersededByDocumentId IS NULL OR SupersededByDocumentId <> DocumentId`
 
-### `doc.DocumentVersion` — إصدار ثابت من الملف؛ لا يُستبدل بل يُنشأ إصدار جديد (FR-PLT-027، BR-PLT-011)
+### `doc.DocumentVersion` — إصدار ثابت من الملف؛ التغيير يُنشئ إصدارًا جديدًا يفرضه التطبيق (FR-PLT-027، BR-PLT-011)
 
 *مملوك للمشترك*
 
@@ -2354,7 +2354,7 @@
 
 **قيود:** `SupersedesId IS NULL OR SupersedesId <> BaseRateValueId`
 
-### `cat.LookupList` — DR-03: مملوك للمشترك؛ نسخة النظام تُهيَّأ لكل مشترك من قالب المنصة  # قائمة قيم؛ TenantId فارغ = قائمة عالمية يملكها المشغّل للقراءة (FR-CAT-020، BR-CAT-015)
+### `cat.LookupList` — قائمة قيم مملوكة للمشترك (FR-CAT-020، BR-CAT-015) -- DR-03: نسخة النظام تُهيَّأ لكل مشترك من قالب المنصة
 
 *مملوك للمشترك · كتالوج*
 
@@ -2384,7 +2384,7 @@
 
 **قيود:** `(Scope = 'SYSTEM' AND IsSystem = 1) OR (Scope = 'TENANT' AND IsSystem = 0)` · `Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'` · `(IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)`
 
-### `cat.LookupItem` — DR-03/05/07: مملوك للمشترك (نسخ النظام لكل مشترك)  # بند في قائمة قيم؛ TenantId فارغ = بند عالمي للقراءة فقط؛ أعمدة الكتالوج يدوية لأن فرادة الرمز داخل القائمة لا المشترك (FR-CAT-020)
+### `cat.LookupItem` — بند في قائمة قيم مملوك للمشترك (FR-CAT-020) -- DR-03/05/07: نسخ النظام لكل مشترك؛ فرادة الرمز داخل القائمة لا على مستوى المشترك
 
 *مملوك للمشترك*
 
@@ -3221,7 +3221,7 @@
 
 ## PRC
 
-### `prc.TariffSchedule` — إصدار جدول رسوم لبنك؛ بخاص بتسهيل اختياريًا (FR-PRC-001، BR-PRC-001، V-PRC-01)
+### `prc.TariffSchedule` — إصدار جدول رسوم لبنك؛ خاص بتسهيل اختياريًا (FR-PRC-001، BR-PRC-001، V-PRC-01)
 
 *مملوك للمشترك*
 
@@ -3508,7 +3508,7 @@
 
 ## COL
 
-### `col.Collateral` — سجل ضمان؛ اعتماد مستقل عن مراجعة التسهيل والتعديل نسخة جديدة (FR-COL-001/014، V-COL-01، §8)
+### `col.Collateral` — سجل ضمان؛ اعتماد مستقل عن مراجعة التسهيل، والتعديل يُنشئ إصدارًا جديدًا (FR-COL-001/014، V-COL-01، §8)
 
 *مملوك للمشترك · بمصدر*
 
@@ -3758,7 +3758,7 @@
 
 **قيود:** `ValidTo IS NULL OR ValidTo >= ValidFrom` · `GraceDays IS NULL OR GraceDays >= 0` · `CureDays IS NULL OR CureDays >= 0` · `(ParamValue IS NULL AND ParamUnit IS NULL) OR (ParamValue IS NOT NULL AND ParamUnit IS NOT NULL)` · `ParamValue IS NULL OR ParamValue >= 0` · `ParamUnit IS NULL OR ParamUnit <> 'AMOUNT' OR ParamCurrencyId IS NOT NULL` · `ParamCurrencyId IS NULL OR ParamUnit = 'AMOUNT'` · `TriggerValues IS NULL OR TriggerField IS NOT NULL` · `ToRevision IS NULL OR ToRevision >= FromRevision` · `SourceDocumentId IS NOT NULL AND SourcePage IS NOT NULL OR (SourceDocumentId IS NULL AND Confidence = 'ENTERED_NO_DOCUMENT')` · `Confidence <> 'CONFIRMED_AGAINST_ORIGINAL' OR (VerifiedBy IS NOT NULL AND VerifiedOn IS NOT NULL)`
 
-### `obl.ObligationCompany` — AppliesToCompanyIds -- جدول وسيط جديد؛ الحذف لصفوف مسودة المراجعة فقط (يفرضه التطبيق)
+### `obl.ObligationCompany` — الشركات التي ينطبق عليها الالتزام (AppliesToCompanyIds) -- جدول وسيط جديد؛ الحذف لصفوف مسودة المراجعة فقط (يفرضه التطبيق)
 
 *مملوك للمشترك*
 
@@ -3842,7 +3842,7 @@
 
 **قيود:** `PeriodStart IS NULL OR (PeriodEnd IS NOT NULL AND PeriodEnd >= PeriodStart)` · `GeneratedBy <> 'MANUAL_EVENT' OR EventDate IS NOT NULL` · `Status <> 'SUBMITTED' OR SubmittedOn IS NOT NULL` · `Status = 'SUBMITTED' OR (SubmittedOn IS NULL AND SubmissionChannelUsedId IS NULL AND SubmissionRef IS NULL)` · `Status NOT IN ('NOT_APPLICABLE','CANCELLED') OR StatusReason IS NOT NULL` · `ReportedAmount IS NULL OR CurrencyId IS NOT NULL` · `CurrencyId IS NULL OR ReportedAmount IS NOT NULL`
 
-### `obl.Covenant` — نسخة تعهد بتواريخ؛ الحدود المتدرجة = عدة نسخ (FR-OBL-006، BR-OBL-001/005/006، Q-OBL-01)
+### `obl.Covenant` — إصدار تعهد بتواريخ؛ الحدود المتدرجة = عدة نسخ (FR-OBL-006، BR-OBL-001/005/006، Q-OBL-01)
 
 *مملوك للمشترك · مراجَع*
 
@@ -3883,7 +3883,7 @@
 
 **قيود:** `MeasureKind NOT IN ('RATIO','AMOUNT','PERCENT_OF_REVENUE') OR FormulaId IS NOT NULL` · `MeasureKind <> 'NONE' OR (FormulaId IS NULL AND Operator IS NULL AND ThresholdValue IS NULL AND ThresholdState <> 'SET')` · `ThresholdState <> 'SET' OR (Operator IS NOT NULL AND ThresholdValue IS NOT NULL)` · `ThresholdState = 'SET' OR ThresholdValue IS NULL` · `ThresholdState <> 'SET' OR ThresholdUnit IS NULL OR ThresholdUnit <> 'AMOUNT' OR CurrencyId IS NOT NULL` · `CurrencyId IS NULL OR ThresholdUnit = 'AMOUNT'` · `RevenueBasisRule IS NULL OR MeasureKind = 'PERCENT_OF_REVENUE'` · `SubmissionLagDays IS NULL OR SubmissionLagDays >= 0` · `EarlyWarningPct IS NULL OR (EarlyWarningPct >= 0 AND EarlyWarningPct <= 100)` · `ValidTo IS NULL OR ValidTo >= ValidFrom` · `ToRevision IS NULL OR ToRevision >= FromRevision`
 
-### `obl.CovenantAccount` — AccountIds لـ SELECTED_ACCOUNTS -- جدول وسيط جديد؛ الحذف لصفوف مسودة المراجعة فقط (يفرضه التطبيق)
+### `obl.CovenantAccount` — الحسابات المشمولة بالتعهد عند اختيار حسابات محددة (AccountIds) -- جدول وسيط جديد؛ الحذف لصفوف مسودة المراجعة فقط (يفرضه التطبيق)
 
 *مملوك للمشترك*
 
@@ -3899,7 +3899,7 @@
 
 **المفاتيح:** PK(TenantId, CovenantId, BankAccountId)
 
-### `obl.CovenantTest` — تقييم تعهد لفترة وإصدار تقييم؛ المخزَّن لا يُعدَّل (FR-OBL-011، FR-FIN-012/013، BR-OBL-006/007، §8)
+### `obl.CovenantTest` — تقييم تعهد لفترة وإصدار تقييم؛ يمنع التطبيق تعديل التقييم المخزَّن (FR-OBL-011، FR-FIN-012/013، BR-OBL-006/007، §8)
 
 *مملوك للمشترك*
 
@@ -4373,7 +4373,7 @@
 
 **قيود:** `(RequestNo IS NULL AND NumberYear IS NULL AND NumberSeq IS NULL) OR (RequestNo IS NOT NULL AND NumberYear IS NOT NULL AND NumberSeq IS NOT NULL)` · `DraftRef LIKE 'D-%'` · `Status NOT IN ('ACTIVE','AWAITING_CLOSE','COMPLETED','REJECTED') OR SubmittedAt IS NOT NULL` · `(Status IN ('DRAFT','ACTIVE','AWAITING_CLOSE') AND CompletedAt IS NULL) OR (Status IN ('COMPLETED','REJECTED','CANCELLED') AND CompletedAt IS NOT NULL)` · `CompletedAt IS NULL OR SubmittedAt IS NULL OR CompletedAt >= SubmittedAt` · `Status <> 'ACTIVE' OR (CurrentStageInstanceId IS NOT NULL AND CurrentStageId IS NOT NULL)` · `Status <> 'COMPLETED' OR RequestNo IS NOT NULL` · `ArchivedAt IS NULL OR Status = 'DRAFT'` · `Status <> 'AWAITING_CLOSE' OR (ReadyToCloseAt IS NOT NULL AND CurrentStageInstanceId IS NOT NULL)` · `ReadyToCloseAt IS NULL OR Status IN ('AWAITING_CLOSE','COMPLETED')` · `Status <> 'COMPLETED' OR (ClosedByUserId IS NOT NULL AND ClosedAt IS NOT NULL AND ClosedAt = CompletedAt)` · `ClosedByUserId IS NULL OR Status = 'COMPLETED'` · `Priority <> 'URGENT' OR UrgentReason IS NOT NULL` · `CycleNo >= 1` · `Amount IS NULL OR CurrencyId IS NOT NULL` · `SlaState NOT IN ('ON_TRACK','AT_RISK','OVERDUE') OR DueAt IS NOT NULL` · `(ReservationState = 'NONE' AND ReservationId IS NULL AND ReservedAmount IS NULL) OR (ReservationState <> 'NONE' AND ReservationId IS NOT NULL AND ReservedAmount IS NOT NULL)` · `ReservedAmount IS NULL OR (ReservedAmount > 0 AND CurrencyId IS NOT NULL)` · `LimitId IS NULL OR FacilityId IS NOT NULL` · `LimitProductLineId IS NULL OR LimitId IS NOT NULL` · `(ParentEntityType IS NULL AND ParentEntityId IS NULL) OR (ParentEntityType IS NOT NULL AND ParentEntityId IS NOT NULL)` · `ParentRequestId IS NULL OR ParentRequestId <> RequestId` · `CopiedFromRequestId IS NULL OR CopiedFromRequestId <> RequestId`
 
-### `wfl.RequestComment` — تعليق ظاهر للطالب أو داخلي؛ غير قابل للتعديل (سحب مع بقاء الأصل) (FR-REQ-017، BR-REQ-014)
+### `wfl.RequestComment` — تعليق ظاهر للطالب أو داخلي؛ يمنع التطبيق تعديله، والسحب يترك الأصل (FR-REQ-017، BR-REQ-014)
 
 *مملوك للمشترك*
 
@@ -4478,7 +4478,7 @@
 
 **قيود:** `RequiresRequesterAction = 0 OR IsFinal = 0`
 
-### `wfl.WorkflowTemplate` — نسخة قالب دورة عمل؛ المنشورة ثابتة (FR-WFL-001/028، BR-WFL-019، AC-WFL-6)
+### `wfl.WorkflowTemplate` — إصدار قالب دورة عمل؛ المنشور ثابت (FR-WFL-001/028، BR-WFL-019، AC-WFL-6)
 
 *مملوك للمشترك*
 
@@ -5192,7 +5192,7 @@
 
 **المفاتيح:** PK(LcDocumentClauseUcpRefId) · UQ(TenantId, LcDocumentClauseId, UcpArticleId, Paragraph)
 
-### `lc.LcTerms` — إصدار شروط اعتماد: صف لكل نسخة بأعمدة قاموس §6.2؛ مشترك بين البروفورما والطلب والاعتماد والتعديل (FR-LCT-001..035)
+### `lc.LcTerms` — إصدار شروط اعتماد: صف لكل إصدار بأعمدة قاموس §6.2؛ مشترك بين البروفورما والطلب والاعتماد والتعديل (FR-LCT-001..035)
 
 *مملوك للمشترك*
 
@@ -5658,7 +5658,7 @@
 
 **قيود:** `Status = 'OPEN' OR (DecidedBy IS NOT NULL AND DecidedOn IS NOT NULL AND DecisionNote IS NOT NULL)` · `Status <> 'OPEN' OR (DecidedBy IS NULL AND DecidedOn IS NULL)`
 
-### `lc.ProformaInvoice` — البروفورما الصادرة: لا تعديل بعد الإصدار؛ الرقم {seq:000}-{erp}-{yy} (FR-LCE-005..008، BR-LCE-001..006)
+### `lc.ProformaInvoice` — البروفورما الصادرة؛ يمنع التطبيق تعديلها بعد الإصدار؛ الرقم {seq:000}-{erp}-{yy} (FR-LCE-005..008، BR-LCE-001..006)
 
 *مملوك للمشترك*
 

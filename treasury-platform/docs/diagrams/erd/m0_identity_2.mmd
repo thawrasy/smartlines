@@ -2,13 +2,13 @@
 erDiagram
   sec_UserRole["sec.UserRole"] {
     int TenantId PK
-    bigint UserId PK
-    bigint RoleId PK
+    bigint UserId PK, FK
+    bigint RoleId PK, FK
   }
   sec_UserCompanyScope["sec.UserCompanyScope"] {
     int TenantId PK
-    bigint UserId PK
-    bigint CompanyId PK
+    bigint UserId PK, FK
+    bigint CompanyId PK, FK
   }
   sec_ExternalIdentity["sec.ExternalIdentity"] {
     bigint ExternalIdentityId PK

@@ -24,7 +24,7 @@
 # ============================== المخطط col: الضمانات ==============================
 module COL
 
-table col.Collateral public src  # سجل ضمان؛ اعتماد مستقل عن مراجعة التسهيل والتعديل نسخة جديدة (FR-COL-001/014، V-COL-01، §8)
+table col.Collateral public src  # سجل ضمان؛ اعتماد مستقل عن مراجعة التسهيل، والتعديل يُنشئ إصدارًا جديدًا (FR-COL-001/014، V-COL-01، §8)
   CollateralTypeId   ->cat.CollateralType req   # بنية النوع وقالب السمات من 11 (FR-CAT-013)
   TitleAr            str(300)   req
   Description        str(2000)
@@ -196,7 +196,7 @@ table obl.Obligation public rev src  # التزام على تسهيل (أو حد
   check  SourceDocumentId IS NOT NULL AND SourcePage IS NOT NULL OR (SourceDocumentId IS NULL AND Confidence = 'ENTERED_NO_DOCUMENT')   # ختم المصدر (BR-FAC-018)
   check  Confidence <> 'CONFIRMED_AGAINST_ORIGINAL' OR (VerifiedBy IS NOT NULL AND VerifiedOn IS NOT NULL)
 
-table obl.ObligationCompany pk=ObligationId,CompanyId norv deletable  # AppliesToCompanyIds -- جدول وسيط جديد؛ الحذف لصفوف مسودة المراجعة فقط (يفرضه التطبيق)
+table obl.ObligationCompany pk=ObligationId,CompanyId norv deletable  # الشركات التي ينطبق عليها الالتزام (AppliesToCompanyIds) -- جدول وسيط جديد؛ الحذف لصفوف مسودة المراجعة فقط (يفرضه التطبيق)
   ObligationId  ->obl.Obligation req
   CompanyId     ->org.Company req
 
@@ -258,7 +258,7 @@ table obl.ReportingInstance public  # بند أجندة مولَّد أو مسج
   check  ReportedAmount IS NULL OR CurrencyId IS NOT NULL
   check  CurrencyId IS NULL OR ReportedAmount IS NOT NULL
 
-table obl.Covenant rev  # نسخة تعهد بتواريخ؛ الحدود المتدرجة = عدة نسخ (FR-OBL-006، BR-OBL-001/005/006، Q-OBL-01)
+table obl.Covenant rev  # إصدار تعهد بتواريخ؛ الحدود المتدرجة = عدة نسخ (FR-OBL-006، BR-OBL-001/005/006، Q-OBL-01)
   ObligationId       ->obl.Obligation req
   MeasureKind        enum{RATIO,AMOUNT,PERCENT_OF_REVENUE,AVERAGE_BALANCE,FLOW_VOLUME,NONE} req   # NONE = وصفي بلا صيغة ولا حد
   FormulaId          ->fin.MeasureFormula   # إلزامي للثلاثة الأولى؛ انتماؤها للتسهيل أو قالب يتحقق منه التطبيق
@@ -294,11 +294,11 @@ table obl.Covenant rev  # نسخة تعهد بتواريخ؛ الحدود الم
   check  ValidTo IS NULL OR ValidTo >= ValidFrom
   check  ToRevision IS NULL OR ToRevision >= FromRevision
 
-table obl.CovenantAccount pk=CovenantId,BankAccountId norv deletable  # AccountIds لـ SELECTED_ACCOUNTS -- جدول وسيط جديد؛ الحذف لصفوف مسودة المراجعة فقط (يفرضه التطبيق)
+table obl.CovenantAccount pk=CovenantId,BankAccountId norv deletable  # الحسابات المشمولة بالتعهد عند اختيار حسابات محددة (AccountIds) -- جدول وسيط جديد؛ الحذف لصفوف مسودة المراجعة فقط (يفرضه التطبيق)
   CovenantId     ->obl.Covenant req
   BankAccountId  ->acc.BankAccount req
 
-table obl.CovenantTest public  # تقييم تعهد لفترة وإصدار تقييم؛ المخزَّن لا يُعدَّل (FR-OBL-011، FR-FIN-012/013، BR-OBL-006/007، §8)
+table obl.CovenantTest public  # تقييم تعهد لفترة وإصدار تقييم؛ يمنع التطبيق تعديل التقييم المخزَّن (FR-OBL-011، FR-FIN-012/013، BR-OBL-006/007، §8)
   CovenantId         ->obl.Covenant req
   PeriodStart        date       req
   PeriodEnd          date       req

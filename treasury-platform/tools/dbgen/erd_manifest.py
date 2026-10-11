@@ -81,6 +81,8 @@ def main():
     # ---- التحقق من الأرقام مقابل DDL قبل أي كتابة ----
     ddl = ddl_keys.totals()
     model_fk = sum(1 for t in tables.values() for c in t.cols if c.fk and not is_owner_key(c))
+    generated_fk = sum(1 for t in tables.values() for c in t.cols if c.fk and not is_owner_key(c) and c.auto)
+    declared_fk = model_fk - generated_fk
     owners = ddl_keys.owner_tables()
     if len(tables) != ddl['tables']:
         raise SystemExit(f'table count mismatch: model={len(tables)} DDL={ddl["tables"]}')
@@ -113,7 +115,7 @@ def main():
     core_chunks = [core_members[i:i + erd_pro.MAX_PER_DIAGRAM] for i in range(0, len(core_members), erd_pro.MAX_PER_DIAGRAM)]
     core_groups = []
     for i, chunk in enumerate(core_chunks, 1):
-        cg = entry(f'core_tenancy_{i}', f'النواة ({i}/{len(core_chunks)}) · المشترك والهوية والصلاحيات', 'جداول النواة في رسم مستقل ليبقى النص مقروءًا', chunk, tables)
+        cg = entry(f'core_tenancy_{i}', f'النواة ({i}/{len(core_chunks)}) · المشترك والهوية والصلاحيات', 'جداول هذا الرسم من النواة؛ رسم مستقل ليبقى النص مقروءًا', chunk, tables)
         core_groups.append(cg)
 
     groups = []
@@ -140,7 +142,7 @@ def main():
             'subtitle': 'مخطط ERD بتدوين Crow\'s Foot · SQL Server 2025',
             'version': 'v0.3 مسودة', 'date': DATE,
             'tables': ddl['tables'], 'schemas': len(schemas), 'fk_total': ddl['fk_total'],
-            'fk_owner': len(owners), 'fk_model': model_fk,
+            'fk_owner': len(owners), 'fk_model': model_fk, 'fk_declared': declared_fk, 'fk_generated': generated_fk,
             'fk_prov': sum(1 for t in tables.values() for c in t.cols if c.fk and erd_mermaid.is_prov(c.name)),
             'unique_total': ddl['unique_total'],
             'groups': len(groups) + len(core_groups), 'module_groups': len(groups), 'core_groups': len(core_groups),

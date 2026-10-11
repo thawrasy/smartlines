@@ -23,6 +23,7 @@ erDiagram
     bigint FacilityId FK
     bigint LimitProductLineId FK
   }
+  fac_Limit |o--o{ fac_Limit : "ParentLimitId"
   fac_Limit ||--o{ fac_LimitCompanyRule : "LimitId"
   fac_Limit ||--o{ fac_LimitProductLine : "LimitId"
   fac_LimitProductLine ||--o{ fac_ProductLineTerm : "LimitProductLineId"

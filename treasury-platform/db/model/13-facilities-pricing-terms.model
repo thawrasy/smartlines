@@ -357,7 +357,7 @@ table fac.ValueConflict  # تعارض قيمتين لحقل واحد وحسمه 
 # ============================== المخطط prc: التعرفة والتسعير ==============================
 module PRC
 
-table prc.TariffSchedule public  # إصدار جدول رسوم لبنك؛ بخاص بتسهيل اختياريًا (FR-PRC-001، BR-PRC-001، V-PRC-01)
+table prc.TariffSchedule public  # إصدار جدول رسوم لبنك؛ خاص بتسهيل اختياريًا (FR-PRC-001، BR-PRC-001، V-PRC-01)
   InstitutionId     ->ins.Institution req
   FacilityId        ->fac.Facility   # فارغ = جدول عام للبنك؛ الخاص بالتسهيل يغلب (BR-PRC-001)
   NameAr            str(200)   req

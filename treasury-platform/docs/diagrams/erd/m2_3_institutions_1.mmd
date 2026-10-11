@@ -24,7 +24,9 @@ erDiagram
     bigint CompanyId FK
     bigint InstitutionId FK
   }
+  ins_Contact |o--o{ ins_Contact : "ReportsToContactId"
   ins_Institution ||--o{ ins_Contact : "InstitutionId"
   ins_Institution ||--o{ ins_InstitutionUnit : "InstitutionId"
   ins_Institution ||--o{ ins_Relationship : "InstitutionId"
   ins_InstitutionUnit |o--o{ ins_Contact : "UnitId"
+  ins_InstitutionUnit |o--o{ ins_InstitutionUnit : "ParentUnitId"

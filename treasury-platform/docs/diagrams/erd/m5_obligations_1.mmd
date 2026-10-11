@@ -9,8 +9,8 @@ erDiagram
   }
   obl_CovenantAccount["obl.CovenantAccount"] {
     int TenantId PK
-    bigint CovenantId PK
-    bigint BankAccountId PK
+    bigint CovenantId PK, FK
+    bigint BankAccountId PK, FK
   }
   obl_CovenantTest["obl.CovenantTest"] {
     bigint CovenantTestId PK

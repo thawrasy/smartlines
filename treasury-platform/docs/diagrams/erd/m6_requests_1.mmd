@@ -45,6 +45,10 @@ erDiagram
     bigint SupersededById FK
     bigint EnteredBy FK
   }
+  wfl_Request |o--o{ wfl_Request : "CopiedFromRequestId"
+  wfl_Request |o--o{ wfl_Request : "ParentRequestId"
   wfl_Request ||--o{ wfl_RequestAttachment : "RequestId"
   wfl_Request ||--o{ wfl_RequestComment : "RequestId"
   wfl_Request ||--o{ wfl_RequestExternalRef : "RequestId"
+  wfl_RequestComment |o--o{ wfl_RequestComment : "ParentCommentId"
+  wfl_RequestExternalRef |o--o{ wfl_RequestExternalRef : "SupersededById"

@@ -36,18 +36,18 @@ erDiagram
   }
   sec_RolePermission["sec.RolePermission"] {
     int TenantId PK
-    bigint RoleId PK
-    int PermissionId PK
+    bigint RoleId PK, FK
+    int PermissionId PK, FK
   }
   sec_UserRole["sec.UserRole"] {
     int TenantId PK
-    bigint UserId PK
-    bigint RoleId PK
+    bigint UserId PK, FK
+    bigint RoleId PK, FK
   }
   sec_UserCompanyScope["sec.UserCompanyScope"] {
     int TenantId PK
-    bigint UserId PK
-    bigint CompanyId PK
+    bigint UserId PK, FK
+    bigint CompanyId PK, FK
   }
   sec_UserSession["sec.UserSession"] {
     bigint UserSessionId PK
@@ -73,8 +73,10 @@ erDiagram
   ref_Country["ref.Country"] {
     int CountryId PK
   }
+  org_Company |o--o{ org_Company : "ParentCompanyId"
   org_Company |o--o{ org_Department : "CompanyId"
   org_Company ||--o{ sec_UserCompanyScope : "CompanyId"
+  org_Department |o--o{ org_Department : "ParentDepartmentId"
   org_Department |o--o{ sec_AppUser : "DepartmentId"
   plat_Plan ||--o{ plat_Tenant : "PlanId"
   plat_PlatformOperator ||--o{ plat_SupportAccessGrant : "OperatorId"
@@ -82,6 +84,7 @@ erDiagram
   ref_Country ||--o{ org_Company : "CountryId"
   ref_Country ||--o{ plat_Tenant : "HomeCountryId"
   sec_AppUser |o--o{ org_Department : "HeadUserId"
+  sec_AppUser |o--o{ sec_AppUser : "LineManagerUserId"
   sec_AppUser ||--o{ sec_UserCompanyScope : "UserId"
   sec_AppUser ||--o{ sec_UserRole : "UserId"
   sec_AppUser ||--o{ sec_UserSession : "UserId"

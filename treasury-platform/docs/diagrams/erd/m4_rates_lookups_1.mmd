@@ -5,8 +5,8 @@ erDiagram
   }
   cat_OperationTypePowerType["cat.OperationTypePowerType"] {
     int TenantId PK
-    int OperationTypeId PK
-    int PowerTypeId PK
+    int OperationTypeId PK, FK
+    int PowerTypeId PK, FK
   }
   cat_BaseRate["cat.BaseRate"] {
     int BaseRateId PK

@@ -15,4 +15,5 @@ erDiagram
   sec_Role["sec.Role"] {
     bigint RoleId PK
   }
+  sec_AppUser |o--o{ sec_AppUser : "LineManagerUserId"
   sec_TenantKey |o--o{ sec_AppUser : "MfaKeyId"

@@ -10,8 +10,8 @@ erDiagram
   }
   pty_KycProfileItemLegalForm["pty.KycProfileItemLegalForm"] {
     int TenantId PK
-    bigint KycProfileItemId PK
-    int LegalEntityTypeId PK
+    bigint KycProfileItemId PK, FK
+    int LegalEntityTypeId PK, FK
   }
   pty_Party["pty.Party"] {
     bigint PartyId PK
@@ -23,3 +23,4 @@ erDiagram
   }
   pty_KycProfile ||--o{ pty_KycProfileItem : "ProfileId"
   pty_KycProfileItem ||--o{ pty_KycProfileItemLegalForm : "KycProfileItemId"
+  pty_Party |o--o{ pty_Party : "MergedIntoPartyId"

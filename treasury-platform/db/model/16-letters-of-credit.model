@@ -158,7 +158,7 @@ table lc.LcDocumentClauseUcpRef deletable  # مرجع UCP لبند مستند: �
 
 # ============================== المخطط lc: شروط الاعتماد وتوابعها ==============================
 
-table lc.LcTerms public  # إصدار شروط اعتماد: صف لكل نسخة بأعمدة قاموس §6.2؛ مشترك بين البروفورما والطلب والاعتماد والتعديل (FR-LCT-001..035)
+table lc.LcTerms public  # إصدار شروط اعتماد: صف لكل إصدار بأعمدة قاموس §6.2؛ مشترك بين البروفورما والطلب والاعتماد والتعديل (FR-LCT-001..035)
   OwnerType                    enum{REQUEST,PROFORMA,LETTER_OF_CREDIT,AMENDMENT} req
   OwnerId                      bigint            # معرّف المالك متعدد الأشكال بلا FK؛ إلزامي لـ REQUEST ويُعبَّأ لغيره بعد إنشاء المالك في المعاملة نفسها
   Purpose                      enum{PROFORMA,APPLICATION,ISSUED,RECEIVED,AMENDMENT} req   # ما نطلبه من العميل / من البنك / الصادر / المستلَم / لقطة التعديل
@@ -606,7 +606,7 @@ table lc.LcDiscrepancy  # مخالفة على مستندات سحب أو اعت�
 
 # ============================== المخطط lc: البروفورما ==============================
 
-table lc.ProformaInvoice public  # البروفورما الصادرة: لا تعديل بعد الإصدار؛ الرقم {seq:000}-{erp}-{yy} (FR-LCE-005..008، BR-LCE-001..006)
+table lc.ProformaInvoice public  # البروفورما الصادرة؛ يمنع التطبيق تعديلها بعد الإصدار؛ الرقم {seq:000}-{erp}-{yy} (FR-LCE-005..008، BR-LCE-001..006)
   CompanyId                ->org.Company req
   ProformaNo               str(30)    req   # يُمنح عند الإصدار فقط؛ يحمل رمز ERP فيتفرد بين الشركات (BR-LCE-002)
   NumberYear               smallint   req   # سنة الإصدار كاملة بتوقيت المشترك؛ yy آخر خانتين منها جزء من الرقم -- إضافة

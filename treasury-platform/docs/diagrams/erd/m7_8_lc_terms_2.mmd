@@ -33,4 +33,6 @@ erDiagram
     bigint LcTermsId FK
   }
   lc_LcTerms ||--o{ lc_LcChargesMatrix : "LcTermsId"
+  lc_LcTerms |o--o{ lc_LcTerms : "CopiedFromTermsId"
+  lc_LcTerms |o--o{ lc_LcTerms : "SupersedesTermsId"
   lc_LcTerms ||--o{ lc_LcTermsDocument : "LcTermsId"

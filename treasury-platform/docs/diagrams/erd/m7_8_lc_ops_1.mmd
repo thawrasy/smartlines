@@ -38,6 +38,7 @@ erDiagram
     bigint SettlementAccountId FK
     bigint RequestId FK
   }
+  lc_LcExternalRef |o--o{ lc_LcExternalRef : "SupersededById"
   lc_LetterOfCredit ||--o{ lc_LcAmendment : "LcId"
   lc_LetterOfCredit ||--o{ lc_LcDrawing : "LcId"
   lc_LetterOfCredit ||--o{ lc_LcExternalRef : "LcId"

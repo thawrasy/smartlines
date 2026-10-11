@@ -29,8 +29,9 @@ erDiagram
   }
   acc_SignatoryAuthorityJointClass["acc.SignatoryAuthorityJointClass"] {
     int TenantId PK
-    bigint SignatoryAuthorityId PK
-    int SignatureClassId PK
+    bigint SignatoryAuthorityId PK, FK
+    int SignatureClassId PK, FK
   }
   acc_Signatory ||--o{ acc_SignatoryAuthority : "SignatoryId"
+  acc_SignatoryAuthority |o--o{ acc_SignatoryAuthority : "SupersededById"
   acc_SignatoryAuthority ||--o{ acc_SignatoryAuthorityJointClass : "SignatoryAuthorityId"

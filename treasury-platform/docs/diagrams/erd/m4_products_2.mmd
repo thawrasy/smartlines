@@ -17,3 +17,4 @@ erDiagram
     int LimitTypeId PK
     int ParentLimitTypeId FK
   }
+  cat_LimitType |o--o{ cat_LimitType : "ParentLimitTypeId"

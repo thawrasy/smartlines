@@ -10,8 +10,8 @@ erDiagram
   }
   obl_ObligationCompany["obl.ObligationCompany"] {
     int TenantId PK
-    bigint ObligationId PK
-    bigint CompanyId PK
+    bigint ObligationId PK, FK
+    bigint CompanyId PK, FK
   }
   obl_ReportingInstance["obl.ReportingInstance"] {
     bigint ReportingInstanceId PK

@@ -18,4 +18,5 @@ erDiagram
     bigint LcDocumentClauseId PK
     bigint InstitutionId FK
   }
+  lc_Counterparty |o--o{ lc_Counterparty : "MergedIntoId"
   lc_LcFieldDefinition ||--o{ lc_LcFieldUcpRef : "LcFieldDefinitionId"

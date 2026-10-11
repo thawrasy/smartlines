@@ -21,4 +21,6 @@ erDiagram
   aud_AuditLog["aud.AuditLog"] {
     bigint AuditLogId PK
   }
+  org_Company |o--o{ org_Company : "ParentCompanyId"
   org_Company |o--o{ org_Department : "CompanyId"
+  org_Department |o--o{ org_Department : "ParentDepartmentId"

@@ -244,7 +244,7 @@ table cat.BaseRateValue  # قيمة سعر الأساس بتاريخ سريان�
   index  BaseRateId,EffectiveDate include ValuePct,Status   # «القيمة في تاريخ asOf» = أكبر EffectiveDate <= asOf بين VALID (BR-CAT-013)
   check  SupersedesId IS NULL OR SupersedesId <> BaseRateValueId
 
-table cat.LookupList catalog int #  DR-03: مملوك للمشترك؛ نسخة النظام تُهيَّأ لكل مشترك من قالب المنصة  # قائمة قيم؛ TenantId فارغ = قائمة عالمية يملكها المشغّل للقراءة (FR-CAT-020، BR-CAT-015)
+table cat.LookupList catalog int  # قائمة قيم مملوكة للمشترك (FR-CAT-020، BR-CAT-015) -- DR-03: نسخة النظام تُهيَّأ لكل مشترك من قالب المنصة
   Scope            enum{SYSTEM,TENANT} req   # SYSTEM = نسخة من قالب المنصة لكل مشترك (IsSystem=1)؛ TENANT = قائمة يعرّفها المشترك
   AllowTenantItems bool    req =0   # هل يضيف المشترك بنودًا لقائمة عالمية؟
   AttributeSchema  json              # مخطط سمات البنود (JSON Schema مبسّط)
@@ -252,7 +252,7 @@ table cat.LookupList catalog int #  DR-03: مملوك للمشترك؛ نسخة 
   check  Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'   # BR-CAT-001
   check  (IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)   # BR-CAT-003: المقفل نظامي وفعّال؛ BR-CAT-001: NameEn لصفوف النظام
 
-table cat.LookupItem int #  DR-03/05/07: مملوك للمشترك (نسخ النظام لكل مشترك)  # بند في قائمة قيم؛ TenantId فارغ = بند عالمي للقراءة فقط؛ أعمدة الكتالوج يدوية لأن فرادة الرمز داخل القائمة لا المشترك (FR-CAT-020)
+table cat.LookupItem int  # بند في قائمة قيم مملوك للمشترك (FR-CAT-020) -- DR-03/05/07: نسخ النظام لكل مشترك؛ فرادة الرمز داخل القائمة لا على مستوى المشترك
   LookupListId  ->cat.LookupList req
   Code          ascii(80)  req
   NameAr        str(200)   req

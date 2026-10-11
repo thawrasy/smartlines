@@ -498,7 +498,7 @@
 
 | الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
 |---|---|---|---|---|---|---|
-| `doc.DocumentVersion` | إصدار ثابت من الملف؛ لا يُستبدل بل يُنشأ إصدار جديد (FR-PLT-027، BR-PLT-011) | DocumentVersionId | 2 | 3 | 3 | 15 |
+| `doc.DocumentVersion` | إصدار ثابت من الملف؛ التغيير يُنشئ إصدارًا جديدًا يفرضه التطبيق (FR-PLT-027، BR-PLT-011) | DocumentVersionId | 2 | 3 | 3 | 15 |
 
 **العلاقات (المفاتيح الأجنبية)**
 
@@ -1065,8 +1065,8 @@
 | الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
 |---|---|---|---|---|---|---|
 | `cat.BaseRateValue` | قيمة سعر الأساس بتاريخ سريان؛ لا حذف: التصحيح صف جديد والقديم SUPERSEDED (FR-CAT-016، BR-CAT-012/013) | BaseRateValueId | 3 | 3 | 1 | 9 |
-| `cat.LookupList` | DR-03: مملوك للمشترك؛ نسخة النظام تُهيَّأ لكل مشترك من قالب المنصة # قائمة قيم؛ TenantId فارغ = قائمة عالمية يملكها المشغّل للقراءة (FR-CAT-020، BR-CAT-015) | LookupListId | 0 | 3 | 3 | 16 |
-| `cat.LookupItem` | DR-03/05/07: مملوك للمشترك (نسخ النظام لكل مشترك) # بند في قائمة قيم؛ TenantId فارغ = بند عالمي للقراءة فقط؛ أعمدة الكتالوج يدوية لأن فرادة الرمز داخل القائمة لا المشترك (FR-CAT-020) | LookupItemId | 1 | 3 | 2 | 15 |
+| `cat.LookupList` | قائمة قيم مملوكة للمشترك (FR-CAT-020، BR-CAT-015) | LookupListId | 0 | 3 | 3 | 16 |
+| `cat.LookupItem` | بند في قائمة قيم مملوك للمشترك (FR-CAT-020) | LookupItemId | 1 | 3 | 2 | 15 |
 
 **العلاقات (المفاتيح الأجنبية)**
 
@@ -1260,7 +1260,7 @@
 | `prc.PricingRule` | قاعدة تسعير بنطاق ووراثة وطرق (FR-PRC-006..017، BR-PRC-006..012، V-PRC-02) | PricingRuleId | 14 | 4 | 38 | 40 |
 | `prc.PricingTier` | شريحة قاعدة TIERED بالمبلغ و/أو المدة (FR-PRC-003، BR-PRC-002) | PricingTierId | 3 | 2 | 8 | 13 |
 | `prc.TariffItem` | بند رسم في جدول التعرفة (FR-PRC-002، BR-PRC-002..005) | TariffItemId | 7 | 2 | 11 | 24 |
-| `prc.TariffSchedule` | إصدار جدول رسوم لبنك؛ بخاص بتسهيل اختياريًا (FR-PRC-001، BR-PRC-001، V-PRC-01) | TariffScheduleId | 4 | 4 | 3 | 11 |
+| `prc.TariffSchedule` | إصدار جدول رسوم لبنك؛ خاص بتسهيل اختياريًا (FR-PRC-001، BR-PRC-001، V-PRC-01) | TariffScheduleId | 4 | 4 | 3 | 11 |
 
 **العلاقات (المفاتيح الأجنبية)**
 
@@ -1336,7 +1336,7 @@
 
 | الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
 |---|---|---|---|---|---|---|
-| `col.Collateral` | سجل ضمان؛ اعتماد مستقل عن مراجعة التسهيل والتعديل نسخة جديدة (FR-COL-001/014، V-COL-01، §8) | CollateralId | 9 | 2 | 9 | 19 |
+| `col.Collateral` | سجل ضمان؛ اعتماد مستقل عن مراجعة التسهيل، والتعديل يُنشئ إصدارًا جديدًا (FR-COL-001/014، V-COL-01، §8) | CollateralId | 9 | 2 | 9 | 19 |
 | `col.CollateralLink` | ربط ضمان بتسهيل أو حد؛ ضمان واحد لعدة تسهيلات (FR-COL-002، BR-COL-005) | CollateralLinkId | 4 | 2 | 4 | 9 |
 | `col.Guarantee` | كفالة 1:1 مع Collateral؛ الكفيل Party دائمًا ولا أرقام هوية هنا (FR-COL-003/004، BR-COL-001) | GuaranteeId | 5 | 2 | 5 | 9 |
 | `col.InsurancePolicyAssignment` | تجيير وثيقة تأمين؛ مفتاح الفرادة (CollateralId,PolicyNo) يسمح بتجديد الوثيقة (FR-COL-006، BR-COL-003) | InsurancePolicyAssignmentId | 4 | 2 | 5 | 12 |
@@ -1404,9 +1404,9 @@
 
 | الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
 |---|---|---|---|---|---|---|
-| `obl.Covenant` | نسخة تعهد بتواريخ؛ الحدود المتدرجة = عدة نسخ (FR-OBL-006، BR-OBL-001/005/006، Q-OBL-01) | CovenantId | 5 | 2 | 11 | 22 |
-| `obl.CovenantAccount` | AccountIds لـ SELECTED_ACCOUNTS | TenantId, CovenantId, BankAccountId | 2 | 0 | 0 | 3 |
-| `obl.CovenantTest` | تقييم تعهد لفترة وإصدار تقييم؛ المخزَّن لا يُعدَّل (FR-OBL-011، FR-FIN-012/013، BR-OBL-006/007، §8) | CovenantTestId | 4 | 3 | 14 | 22 |
+| `obl.Covenant` | إصدار تعهد بتواريخ؛ الحدود المتدرجة = عدة نسخ (FR-OBL-006، BR-OBL-001/005/006، Q-OBL-01) | CovenantId | 5 | 2 | 11 | 22 |
+| `obl.CovenantAccount` | الحسابات المشمولة بالتعهد عند اختيار حسابات محددة (AccountIds) | TenantId, CovenantId, BankAccountId | 2 | 0 | 0 | 3 |
+| `obl.CovenantTest` | تقييم تعهد لفترة وإصدار تقييم؛ يمنع التطبيق تعديل التقييم المخزَّن (FR-OBL-011، FR-FIN-012/013، BR-OBL-006/007، §8) | CovenantTestId | 4 | 3 | 14 | 22 |
 | `obl.Obligation` | التزام على تسهيل (أو حد/خط/شركات)؛ العائلة من ObligationType ولا تُحرَّر (FR-OBL-001، BR-OBL-001) | ObligationId | 9 | 2 | 11 | 28 |
 
 **العلاقات (المفاتيح الأجنبية)**
@@ -1445,7 +1445,7 @@
 | الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
 |---|---|---|---|---|---|---|
 | `obl.ObligationBreach` | سجل خرق وعلاجه وتنازله (FR-OBL-012، BR-OBL-009/011، §8) | ObligationBreachId | 5 | 4 | 10 | 17 |
-| `obl.ObligationCompany` | AppliesToCompanyIds | TenantId, ObligationId, CompanyId | 2 | 0 | 0 | 3 |
+| `obl.ObligationCompany` | الشركات التي ينطبق عليها الالتزام (AppliesToCompanyIds) | TenantId, ObligationId, CompanyId | 2 | 0 | 0 | 3 |
 | `obl.ReportingInstance` | بند أجندة مولَّد أو مسجَّل لحدث (FR-OBL-003..005، BR-OBL-003، §8)؛ DUE_SOON/OVERDUE مشتقتان | ReportingInstanceId | 4 | 5 | 7 | 15 |
 | `obl.ReportingObligation` | قاعدة استحقاق تقرير/إخطار 1:1 مع Obligation (FR-OBL-002/003، BR-OBL-002، V-OBL-01) | ReportingObligationId | 3 | 2 | 10 | 18 |
 
@@ -1545,7 +1545,7 @@
 | `wfl.RequestType` | تعريف نوع الطلب (FR-REQ-001، BR-REQ-001، V-REQ-01)؛ الأنواع الجديدة بلا كود (FR-REQ-021) | RequestTypeId | 0 | 4 | 2 | 21 |
 | `wfl.RequestTypeAudience` | جمهور النوع: من يحق له الطلب؛ غياب الصفوف = لا أحد (فشل مغلق) (FR-REQ-007) | RequestTypeAudienceId | 4 | 4 | 1 | 5 |
 | `wfl.ExternalPhase` | المرحلة الظاهرة للطالب: DRAFT · IN_APPROVAL · RETURNED · AWAITING_REQUESTER · IN_PROGRESS · COMPLETED · REJECTED · CANCELLED (BR-WFL-011، D-6) | ExternalPhaseId | 0 | 3 | 1 | 16 |
-| `wfl.WorkflowTemplate` | نسخة قالب دورة عمل؛ المنشورة ثابتة (FR-WFL-001/028، BR-WFL-019، AC-WFL-6) | WorkflowTemplateId | 2 | 6 | 8 | 20 |
+| `wfl.WorkflowTemplate` | إصدار قالب دورة عمل؛ المنشور ثابت (FR-WFL-001/028، BR-WFL-019، AC-WFL-6) | WorkflowTemplateId | 2 | 6 | 8 | 20 |
 
 **العلاقات (المفاتيح الأجنبية)**
 
@@ -1627,7 +1627,7 @@
 | الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
 |---|---|---|---|---|---|---|
 | `wfl.Request` | الطلب: أكثر الجداول ازدحامًا؛ الحالة الداخلية منفصلة عن المرحلة الظاهرة (FR-WFL-001، FR-REQ-009، D-6، BR-REQ-002/003) | RequestId | 22 | 6 | 23 | 36 |
-| `wfl.RequestComment` | تعليق ظاهر للطالب أو داخلي؛ غير قابل للتعديل (سحب مع بقاء الأصل) (FR-REQ-017، BR-REQ-014) | RequestCommentId | 5 | 2 | 2 | 6 |
+| `wfl.RequestComment` | تعليق ظاهر للطالب أو داخلي؛ يمنع التطبيق تعديله، والسحب يترك الأصل (FR-REQ-017، BR-REQ-014) | RequestCommentId | 5 | 2 | 2 | 6 |
 | `wfl.RequestAttachment` | ربط مستند بطلب ينشئ DocumentLink (EntityType=Request) (FR-REQ-006، BR-REQ-005) | RequestAttachmentId | 3 | 2 | 0 | 6 |
 | `wfl.RequestExternalRef` | مرجع خارجي بنص حر؛ تعديل بالإحلال ويبقى التاريخ؛ بلا تحقق خارجي (FR-REQ-010، X-DAT-7، BR-REQ-006) | RequestExternalRefId | 3 | 2 | 2 | 10 |
 
@@ -1818,7 +1818,7 @@
 | الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
 |---|---|---|---|---|---|---|
 | `lc.LcDocumentClauseUcpRef` | مرجع UCP لبند مستند: مادة + فقرة (UcpRefs في المواصفة) | LcDocumentClauseUcpRefId | 2 | 2 | 0 | 4 |
-| `lc.LcTerms` | إصدار شروط اعتماد: صف لكل نسخة بأعمدة قاموس §6.2؛ مشترك بين البروفورما والطلب والاعتماد والتعديل (FR-LCT-001..035) | LcTermsId | 15 | 4 | 44 | 88 |
+| `lc.LcTerms` | إصدار شروط اعتماد: صف لكل إصدار بأعمدة قاموس §6.2؛ مشترك بين البروفورما والطلب والاعتماد والتعديل (FR-LCT-001..035) | LcTermsId | 15 | 4 | 44 | 88 |
 | `lc.LcTermsDocument` | بند مستند مختار في الشروط ومعاملاته؛ النص المصيَّر يُجمَّد عند القفل (FR-LCT-018، BR-LCT-012) | LcTermsDocumentId | 2 | 2 | 5 | 12 |
 | `lc.LcChargesMatrix` | رسوم الشروط: صف لكل فئة (6 صفوف كاملة يتحقق منها التطبيق V-LCT-12) (FR-LCT-020، BR-LCT-014) | LcChargesMatrixId | 1 | 2 | 2 | 8 |
 
@@ -1931,7 +1931,7 @@
 | `lc.LcSalesOrder` | تخصيص أمر بيع على اعتماد مستلَم؛ لا يقابله حد ائتماني (FR-LCE-013..015، BR-LCE-009..013)؛ الحالات §8 | LcSalesOrderId | 4 | 3 | 8 | 12 |
 | `lc.LcDrawingAllocation` | توزيع سحب تصدير على أوامر بيع (FR-LCE-016/017، BR-LCE-011/013) | LcDrawingAllocationId | 4 | 2 | 1 | 4 |
 | `lc.LcDiscrepancy` | مخالفة على مستندات سحب أو اعتماد؛ القرار يتطلب lc.discrepancy.decide (FR-LCI-024، FR-LCE-021، §8) | LcDiscrepancyId | 3 | 1 | 2 | 8 |
-| `lc.ProformaInvoice` | البروفورما الصادرة: لا تعديل بعد الإصدار؛ الرقم {seq:000}-{erp}-{yy} (FR-LCE-005..008، BR-LCE-001..006) | ProformaInvoiceId | 8 | 9 | 11 | 25 |
+| `lc.ProformaInvoice` | البروفورما الصادرة؛ يمنع التطبيق تعديلها بعد الإصدار؛ الرقم {seq:000}-{erp}-{yy} (FR-LCE-005..008، BR-LCE-001..006) | ProformaInvoiceId | 8 | 9 | 11 | 25 |
 
 **العلاقات (المفاتيح الأجنبية)**
 

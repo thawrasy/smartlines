@@ -20,4 +20,5 @@ erDiagram
     bigint DocumentId FK
     bigint UnlinkedBy FK
   }
+  doc_Document |o--o{ doc_Document : "SupersededByDocumentId"
   doc_Document ||--o{ doc_DocumentLink : "DocumentId"

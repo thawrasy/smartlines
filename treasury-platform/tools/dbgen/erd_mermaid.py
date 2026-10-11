@@ -49,43 +49,48 @@ def pk_type(t, name, tables):
     return dbgen.pk_sqltype(t)[0].split('(')[0].lower()
 
 
+def is_owner(c):
+    return c.name == 'TenantId' and c.fk == 'plat.Tenant'
+
+
+def fk_columns(t):
+    """الأعمدة التي تُعدّ مفاتيح أجنبية عملية في الرسم (بلا الملكية ولا أعمدة الإثبات)."""
+    return {c.name for c in t.cols if c.fk and not is_prov(c.name) and not is_owner(c)}
+
+
 def entity_block(fq, tables):
-    """المفتاح الأساسي من DDL، والمفاتيح الأجنبية العملية من النموذج؛ بلا أعمدة أخرى."""
+    """المفتاح الأساسي من DDL، والمفاتيح الأجنبية العملية من النموذج. العمود الذي هو مفتاح أساسي ومفتاح أجنبي
+    يُكتب PK, FK حتى لا يضيع أحد الوسمين."""
     t = tables[fq]
     pk = ddl_keys.pk_cols(fq)
-    rows = [f'    {pk_type(t, n, tables)} {n} PK' for n in pk]
-    for c in t.cols:
-        if c.fk and c.name not in pk and not is_prov(c.name) and not (c.name == 'TenantId' and c.fk == 'plat.Tenant'):
-            rows.append(f'    {base_type(c, tables)} {c.name} FK')
+    fks = fk_columns(t)
+    rows = [f'    {pk_type(t, n, tables)} {n} PK' + (', FK' if n in fks else '') for n in pk]
+    rows += [f'    {base_type(c, tables)} {c.name} FK' for c in t.cols if c.name in fks and c.name not in pk]
     return f'  {ent(fq)}["{fq}"] {{\n' + '\n'.join(rows) + '\n  }'
 
 
 def relation_lines(members, tables):
-    """خط لكل (أب، ابن، إلزام): الإلزامي و الاختياري منفصلان، والتسمية = أعمدة الربط."""
-    internal = set(members)
-    groups, stubs = {}, set()
+    """خط لكل عمود مفتاح أجنبي: الأب إلزامي (||) إذا كان العمود إلزاميًا، واختياري (|o) إن لم يكن.
+    يُرسم العمود إذا كان الأب والابن داخل الرسم نفسه، بما فيها العلاقة الذاتية (جدول يشير إلى نفسه)."""
+    inside = set(ent(m) for m in members)
+    lines = []
     for fq in members:
-        for c in tables[fq].cols:
-            if not c.fk or c.fk == fq or is_prov(c.name): continue
-            if c.name == 'TenantId' and c.fk == 'plat.Tenant': continue
-            if c.fk not in internal: stubs.add(c.fk)
-            groups.setdefault((c.fk, fq, bool(c.req)), []).append(c.name)
-    out = []
-    for (parent, child, req), cols in sorted(groups.items(), key=lambda kv: (kv[0][0], kv[0][1], not kv[0][2])):
-        left = '||' if req else '|o'
-        label = ', '.join(sorted(set(cols)))
-        out.append(f'  {ent(parent)} {left}--o{{ {ent(child)} : "{label}"')
-    return out, stubs
+        t = tables[fq]
+        for c in t.cols:
+            if c.name not in fk_columns(t) or c.fk is None:
+                continue
+            if ent(c.fk) not in inside:
+                continue
+            left = '||' if c.req else '|o'
+            lines.append((ent(c.fk), ent(fq), c.name, f'  {ent(c.fk)} {left}--o{{ {ent(fq)} : "{c.name}"'))
+    return [line for *_, line in sorted(lines)]
 
 
 def group_source(title, members, tables):
-    """مخطط المجموعة: جداولها فقط؛ الروابط بين جداولها تُرسم، والروابط إلى جداول خارجية تظهر في جدول العلاقات
-    (والعمود FK يبقى ظاهرًا داخل الجدول)، فيبقى الرسم بعرض صفحة مقروء."""
-    rel, _ = relation_lines(members, tables)
-    keep = [line for line in rel if any(ent(m) == line.split()[0] for m in members)]
+    """مخطط المجموعة: جداولها فقط. الروابط إلى جداول خارجها لا تُرسم، وتظهر في جدول العلاقات بعمود «مرسوم: لا»."""
     head = [f'%% {title}', 'erDiagram']
     ents = [entity_block(fq, tables) for fq in members]
-    return '\n'.join(head + ents + keep) + '\n'
+    return '\n'.join(head + ents + relation_lines(members, tables)) + '\n'
 
 
 def svg_size(svg_path):

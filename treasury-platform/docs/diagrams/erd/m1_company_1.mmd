@@ -24,6 +24,8 @@ erDiagram
     bigint HolderPartyId FK
     int CurrencyId FK
   }
+  org_Company |o--o{ org_Company : "ParentCompanyId"
   org_Company |o--o{ org_CompanyTaxRate : "CompanyId"
   org_Company |o--o{ org_Department : "CompanyId"
   org_Company ||--o{ org_Shareholding : "CompanyId"
+  org_Department |o--o{ org_Department : "ParentDepartmentId"

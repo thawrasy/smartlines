@@ -5,17 +5,17 @@ erDiagram
   }
   sec_RolePermission["sec.RolePermission"] {
     int TenantId PK
-    bigint RoleId PK
-    int PermissionId PK
+    bigint RoleId PK, FK
+    int PermissionId PK, FK
   }
   sec_UserRole["sec.UserRole"] {
     int TenantId PK
-    bigint UserId PK
-    bigint RoleId PK
+    bigint UserId PK, FK
+    bigint RoleId PK, FK
   }
   sec_UserCompanyScope["sec.UserCompanyScope"] {
     int TenantId PK
-    bigint UserId PK
-    bigint CompanyId PK
+    bigint UserId PK, FK
+    bigint CompanyId PK, FK
   }
   sec_Permission ||--o{ sec_RolePermission : "PermissionId"
