@@ -19,14 +19,14 @@ ITEMS = [
     {
         'id': 'O-02', 'sources': f'{REVIEW_A}; {REVIEW_B}',
         'finding': 'The schema has never run on SQL Server 2025.',
-        'status': 'The DDL is generated from the model and checked by count against it. The structure was checked on PostgreSQL only. db/deploy.sql has not been executed on SQL Server.',
-        'next': 'Run db/deploy.sql on a SQL Server 2025 instance and make it a CI gate.',
+        'status': 'Executed on SQL Server 2025 (RTM-CU9) in a test container: db/deploy.sql runs to completion. Deployed counts match the DDL: 194 tables, 20 schemas, 763 foreign keys, 515 unique constraints, 1,158 CHECK constraints, 700 indexes. Not yet run on the production server.',
+        'next': 'Make the deployment a CI gate (SQL Server 2025 service container) and run it on the target Windows server.',
     },
     {
         'id': 'O-03', 'sources': f'{REVIEW_A}; {REVIEW_B}',
         'finding': 'Lender shares must total 100 per facility and at most one lender may hold the AGENT role. The model says the application checks both.',
-        'status': 'Drafted as a trigger for approved revisions: db/static/050_fac_share_rule.sql, deployed by db/deploy.sql. Not executed and not tested.',
-        'next': 'Test insert, update, delete and approval cases on SQL Server 2025 before release.',
+        'status': 'Trigger in db/static/050_fac_share_rule.sql, deployed by db/deploy.sql. Six tests pass on SQL Server 2025 (db/tests/fac_share_rule_tests.sql): valid approval, rejected total above 100, rejected approval without lenders for the new revision, valid new revision, rejected second agent, and a partial draft accepted.',
+        'next': 'Add the test script to CI. Decide the behaviour for a lender change after approval, which the trigger currently rejects.',
     },
     {
         'id': 'O-04', 'sources': REVIEW_B,
@@ -87,6 +87,12 @@ ITEMS = [
         'finding': 'Two cascade deletes exist in the organisation module. Credit and audit data must not be deleted by cascade.',
         'status': 'Open. The two cascade rules are in db/model/11-organization-party.model and have not been reviewed against this rule.',
         'next': 'Review the two rules; replace cascade with archive or close where the data is credit or audit data.',
+    },
+    {
+        'id': 'O-15', 'sources': 'Execution on SQL Server 2025',
+        'finding': 'Running the deployment exposed four defects that no static check had caught: a column named FreeText and a column named LineNo, which are T-SQL keywords, used unbracketed in CHECK text; a composite key whose linking enum column was VARCHAR(10) while the referenced column was VARCHAR(11); dynamic SQL built with EXEC(expression), which T-SQL rejects; and EXECUTE AS on a role, which SQL Server does not allow.',
+        'status': 'Fixed. The generator brackets reserved column names in CHECK text and gives a linking enum column the type of the column it references (tools/dbgen/dbgen.py). The two static scripts use a variable for dynamic SQL, and the context procedure runs as the user tp_auth_exec, a member of role tp_auth (db/static/010, 020, 030).',
+        'next': 'None. Keep running db/deploy.sql on every model change to catch the same class of error.',
     },
     {
         'id': 'O-14', 'sources': f'{REVIEW_A}; {REVIEW_B}',

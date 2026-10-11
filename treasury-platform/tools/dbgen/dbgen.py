@@ -297,6 +297,36 @@ def check_names(tables):
 
 # ----------------------------------------------------------------------------- emitters
 def q_ms(n): return f'[{n}]'
+
+# T-SQL reserved words. A column with one of these names must be bracketed inside CHECK text, where the
+# parser reads it as a keyword (e.g. FreeText is the FREETEXT predicate, LineNo is LINENO).
+TSQL_RESERVED = set("""ADD ALL ALTER AND ANY AS ASC AUTHORIZATION BACKUP BEGIN BETWEEN BREAK BROWSE BULK BY CASCADE CASE
+CHECK CHECKPOINT CLOSE CLUSTERED COALESCE COLLATE COLUMN COMMIT COMPUTE CONSTRAINT CONTAINS CONTAINSTABLE CONTINUE
+CONVERT CREATE CROSS CURRENT CURRENT_DATE CURRENT_TIME CURRENT_TIMESTAMP CURRENT_USER CURSOR DATABASE DBCC DEALLOCATE
+DECLARE DEFAULT DELETE DENY DESC DISK DISTINCT DISTRIBUTED DOUBLE DROP DUMP ELSE END ERRLVL ESCAPE EXCEPT EXEC EXECUTE
+EXISTS EXIT EXTERNAL FETCH FILE FILLFACTOR FOR FOREIGN FREETEXT FREETEXTTABLE FROM FULL FUNCTION GOTO GRANT GROUP
+HAVING HOLDLOCK IDENTITY IDENTITY_INSERT IDENTITYCOL IF IN INDEX INNER INSERT INTERSECT INTO IS JOIN KEY KILL LEFT
+LIKE LINENO LOAD MERGE NATIONAL NOCHECK NONCLUSTERED NOT NULL NULLIF OF OFF OFFSETS ON OPEN OPENDATASOURCE OPENQUERY
+OPENROWSET OPENXML OPTION OR ORDER OUTER OVER PERCENT PIVOT PLAN PRECISION PRIMARY PRINT PROC PROCEDURE PUBLIC RAISERROR
+READ READTEXT RECONFIGURE REFERENCES REPLICATION RESTORE RESTRICT RETURN REVERT REVOKE RIGHT ROLLBACK ROWCOUNT ROWGUIDCOL
+RULE SAVE SCHEMA SECURITYAUDIT SELECT SESSION_USER SET SETUSER SHUTDOWN SOME STATISTICS SYSTEM_USER TABLE TABLESAMPLE
+TEXTSIZE THEN TO TOP TRAN TRANSACTION TRIGGER TRUNCATE TRY_CONVERT UNION UNIQUE UNPIVOT UPDATE UPDATETEXT USE USER VALUES
+VARYING VIEW WAITFOR WHEN WHERE WHILE WITH WRITETEXT""".split())
+
+
+def ms_check_expr(expr, col_names):
+    """Bracket the column names of a table that are T-SQL reserved words inside a CHECK expression.
+    String literals are left as they are; keywords that are not column names are left as they are."""
+    import re as _re
+    out = []
+    for part in _re.split(r"('[^']*')", expr):
+        if part.startswith("'"):
+            out.append(part)
+            continue
+        out.append(_re.sub(r'\b[A-Za-z_][A-Za-z0-9_]*\b',
+                           lambda m: f'[{m.group(0)}]' if m.group(0) in col_names and m.group(0).upper() in TSQL_RESERVED else m.group(0),
+                           part))
+    return ''.join(out)
 import hashlib
 def q_pg(n):
     if len(n) > 60: n = n[:50] + '_' + hashlib.md5(n.encode()).hexdigest()[:8]
@@ -334,8 +364,23 @@ class Emitter:
     def scope_uq_name(self, t, via):
         return f'UQ_{t.name}_Scope_{"_".join(via)}'
 
+    def align_via_types(self):
+        """An enum column that links through via=X>Y takes the type of Y: a composite key must match in length."""
+        for t in self.tables.values():
+            for c in t.cols:
+                if not (c.fk and c.via and c.fk in self.tables):
+                    continue
+                tgt = self.tables[c.fk]
+                for v, tc in zip(c.via, c.via_t):
+                    src, dst = t.colmap.get(v), tgt.colmap.get(tc)
+                    if src is None or dst is None or not src.enum or dst.sqltype is None:
+                        continue
+                    if src.sqltype != dst.sqltype:
+                        src.sqltype, src.pgtype = dst.sqltype, dst.pgtype
+
     def plan(self):
         """compute constraint/index plan shared by both dialects"""
+        self.align_via_types()
         P = {}
         for t in self.tables.values():
             p = {'pk': None, 'uqs': [], 'idx': [], 'fks': [], 'checks': []}
@@ -460,7 +505,7 @@ class Emitter:
                     c = ck[2]; vals = ', '.join("'"+v+"'" for v in c.enum)
                     cons.append(f'    CONSTRAINT {q_ms(ck[0])} CHECK ({q_ms(c.name)} IS NULL OR {q_ms(c.name)} IN ({vals}))')
                 else:
-                    cons.append(f'    CONSTRAINT {q_ms(ck[0])} CHECK ({ck[1]})')
+                    cons.append(f'    CONSTRAINT {q_ms(ck[0])} CHECK ({ms_check_expr(ck[1], {c.name for c in t.cols})})')
             for c in t.cols:
                 if c.is_json:
                     nm = self.reg(t.schema, f'CK_{t.name}_{c.name}_json', c.src_line or t.fq)

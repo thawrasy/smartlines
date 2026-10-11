@@ -20,12 +20,21 @@ DECLARE c CURSOR LOCAL FAST_FORWARD FOR SELECT n FROM @r;
 OPEN c; FETCH NEXT FROM c INTO @n;
 WHILE @@FETCH_STATUS = 0
 BEGIN
-    IF DATABASE_PRINCIPAL_ID(@n) IS NULL EXEC(N'CREATE ROLE ' + QUOTENAME(@n) + N' AUTHORIZATION dbo;');
+    IF DATABASE_PRINCIPAL_ID(@n) IS NULL
+    BEGIN
+        DECLARE @rsql nvarchar(400) = N'CREATE ROLE ' + QUOTENAME(@n) + N' AUTHORIZATION dbo;';
+        EXEC (@rsql);
+    END
     FETCH NEXT FROM c INTO @n;
 END
 CLOSE c; DEALLOCATE c;
 GO
 -- tp_auth لا يملك تسجيل دخول ولا عضوية في أي دور؛ يملك قراءة جدولي المشترك والمستخدم فقط. تجاوز RLS له محصور في 010 (IS_MEMBER)
+-- EXECUTE AS needs a database user, not a role. tp_auth_exec is a user without login that is a member of tp_auth,
+-- so IS_MEMBER(N'tp_auth') = 1 holds while the context procedure runs (030).
+IF DATABASE_PRINCIPAL_ID(N'tp_auth_exec') IS NULL CREATE USER [tp_auth_exec] WITHOUT LOGIN;
+IF IS_ROLEMEMBER(N'tp_auth', N'tp_auth_exec') <> 1 ALTER ROLE [tp_auth] ADD MEMBER [tp_auth_exec];
+GO
 GRANT SELECT ON [sec].[AppUser] TO [tp_auth];
 GRANT SELECT ON [plat].[Tenant] TO [tp_auth];   -- فحص حالة المشترك في 030
 GO

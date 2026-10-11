@@ -15,7 +15,7 @@ CREATE OR ALTER PROCEDURE sec.usp_SetSessionContext
     @UserId        BIGINT,
     @ClientIp      VARCHAR(45) = NULL,
     @CorrelationId UNIQUEIDENTIFIER = NULL
-WITH EXECUTE AS N'tp_auth'
+WITH EXECUTE AS N'tp_auth_exec'
 AS
 BEGIN
     SET NOCOUNT ON;

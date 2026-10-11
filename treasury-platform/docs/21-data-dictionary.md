@@ -218,7 +218,7 @@
 | PasswordChangedAt | DATETIME2(3) | نعم |  |  |  |
 | MfaEnabled | BIT | لا | 0 |  | إعادة تعيين MFA تصفّره وتجبر على إعادة التسجيل (BR-PLT-006) |
 | MfaSecretEnc | VARBINARY(256) | نعم |  |  | سر TOTP مشفَّر بمفتاح المشترك 🔒 restricted |
-| MfaKeyPurpose | VARCHAR(10) | لا | DATA |  | غرض المفتاح الذي شُفِّر به السر (ثابت؛ يُطابَق بالمفتاح المركّب) enum: DATA |
+| MfaKeyPurpose | VARCHAR(11) | لا | DATA |  | غرض المفتاح الذي شُفِّر به السر (ثابت؛ يُطابَق بالمفتاح المركّب) enum: DATA |
 | MfaKeyId | BIGINT | نعم |  | sec.TenantKey (via MfaKeyPurpose) | مفتاح DATA الذي شُفِّر به سر MFA (DR-02) |
 | MfaEnrolledAt | DATETIME2(3) | نعم |  |  |  |
 | MfaLastUsedStep | BIGINT | نعم |  |  | آخر خطوة TOTP مقبولة (منع إعادة الاستعمال) |
@@ -631,7 +631,7 @@
 | ContentType | VARCHAR(150) | نعم |  |  | يُفحص بالمحتوى لا بالامتداد (FR-PLT-029) |
 | SizeBytes | BIGINT | لا |  |  |  |
 | Sha256 | VARBINARY(32) | لا |  |  | يحسبها الخادم من البايتات المستلمة |
-| KeyPurpose | VARCHAR(10) | لا | FILE |  | enum: FILE |
+| KeyPurpose | VARCHAR(11) | لا | FILE |  | enum: FILE |
 | KeyId | BIGINT | لا |  | sec.TenantKey (via KeyPurpose) | مفتاح FILE لتشفير الملف (6.4، DR-02) |
 | ScanStatus | VARCHAR(11) | لا | PENDING |  | لا يُنزَّل إلا CLEAN enum: PENDING, CLEAN, QUARANTINED |
 | ScannedAt | DATETIME2(3) | نعم |  |  |  |
@@ -1405,7 +1405,7 @@
 | NumberEnc | VARBINARY(512) | لا |  |  | الرقم مشفَّر بمفتاح المشترك (FR-PTY-006) 🔒 restricted |
 | NumberMask | NVARCHAR(32) | لا |  |  | قناع العرض يُحسب عند الكتابة؛ آخر 4 خانات (BR-PTY-008) 🔒 restricted |
 | NumberHash | VARBINARY(32) | لا |  |  | HMAC فهرس أعمى: النوع+الدولة+الرقم المطبَّع (BR-PTY-002) 🔒 restricted |
-| EncKeyPurpose | VARCHAR(10) | لا | DATA |  | enum: DATA |
+| EncKeyPurpose | VARCHAR(11) | لا | DATA |  | enum: DATA |
 | EncKeyId | BIGINT | لا |  | sec.TenantKey (via EncKeyPurpose) | مفتاح DATA لهذا الصف (إصدار صريح؛ 06 §6، DR-02) |
 | HashKeyPurpose | VARCHAR(11) | لا | BLIND_INDEX |  | enum: BLIND_INDEX |
 | HashKeyId | BIGINT | لا |  | sec.TenantKey (via HashKeyPurpose) | مفتاح BLIND_INDEX لبصمة NumberHash (DR-02) |
@@ -1528,7 +1528,7 @@
 | DefinitionId | BIGINT | لا |  | pty.CustomFieldDefinition |  |
 | ValueText | NVARCHAR(1000) | نعم |  |  |  |
 | ValueEnc | VARBINARY(512) | نعم |  |  | للحقل المقيَّد بدل ValueText 🔒 restricted |
-| EncKeyPurpose | VARCHAR(10) | لا | DATA |  | enum: DATA |
+| EncKeyPurpose | VARCHAR(11) | لا | DATA |  | enum: DATA |
 | EncKeyId | BIGINT | نعم |  | sec.TenantKey (via EncKeyPurpose) | مفتاح DATA لقيمة الحقل المقيَّد (DR-02) |
 | ValueMask | NVARCHAR(32) | نعم |  |  | قناع يُحسب عند الكتابة (BR-PTY-008) |
 | CurrencyId | INT | نعم |  | ref.Currency | لنوع AMOUNT |
@@ -2596,7 +2596,7 @@
 | IbanEnc | VARBINARY(512) | نعم |  |  | اختياري؛ الطول وmod 97 في التطبيق (BR-ACC-002) 🔒 restricted |
 | IbanMask | NVARCHAR(32) | نعم |  |  | مثل SA•• •••• •••• •••• •••• 7519 🔒 restricted |
 | IbanHash | VARBINARY(32) | نعم |  |  | فرادة IBAN لكل مشترك 🔒 restricted |
-| EncKeyPurpose | VARCHAR(10) | لا | DATA |  | enum: DATA |
+| EncKeyPurpose | VARCHAR(11) | لا | DATA |  | enum: DATA |
 | EncKeyId | BIGINT | لا |  | sec.TenantKey (via EncKeyPurpose) | مفتاح DATA للرقم والآيبان في هذا الصف (DR-02) |
 | HashKeyPurpose | VARCHAR(11) | لا | BLIND_INDEX |  | enum: BLIND_INDEX |
 | HashKeyId | BIGINT | لا |  | sec.TenantKey (via HashKeyPurpose) | مفتاح BLIND_INDEX لبصمتي AccountNoHash وIbanHash (DR-02) |
@@ -5227,7 +5227,7 @@
 | BeneficiaryAccountIbanEnc | VARBINARY(512) | نعم |  |  | B3: IBAN المستفيد مشفّر (FR-REQ-024؛ 02 B9 🔴) 🔒 restricted |
 | BeneficiaryAccountIbanMask | NVARCHAR(40) | نعم |  |  | 🔒 restricted |
 | BeneficiaryAccountIbanHash | VARBINARY(32) | نعم |  |  | 🔒 restricted |
-| EncKeyPurpose | VARCHAR(10) | لا | DATA |  | enum: DATA |
+| EncKeyPurpose | VARCHAR(11) | لا | DATA |  | enum: DATA |
 | EncKeyId | BIGINT | نعم |  | sec.TenantKey (via EncKeyPurpose) | مفتاح DATA لـIBAN المستفيد (إصدار صريح؛ DR-02) |
 | HashKeyPurpose | VARCHAR(11) | لا | BLIND_INDEX |  | enum: BLIND_INDEX |
 | HashKeyId | BIGINT | نعم |  | sec.TenantKey (via HashKeyPurpose) | مفتاح BLIND_INDEX لبصمة IBAN المستفيد (DR-02) |
