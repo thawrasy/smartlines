@@ -37,20 +37,22 @@ def assigned_driver(trip_uid: str):
     raise AssertionError("no driver is assigned to the trip")
 
 
-def test_passenger_takes_the_photo_and_a_new_one_replaces_it():
+def test_passenger_takes_the_photo_and_a_second_one_is_refused():
     email, c = register()
     assert c.get("/api/account/photo").json()["has_photo"] is False
     r = upload(c, JPEG)
-    assert r.status_code == 201 and r.json() == {"taken_by": "SELF", "replaced": False}, r.text
+    assert r.status_code == 201 and r.json() == {"taken_by": "SELF"}, r.text
     status = c.get("/api/account/photo").json()
     assert status["has_photo"] is True and status["taken_by"] == "SELF" and status["taken_at"]
     first = photo_of_email(email)
     assert first["photo_taken_by"] == "SELF"
     assert owner_sql("SELECT data_class || ' ' || mime_type FROM ref.file_object WHERE id = $1", first["photo_file_id"]) \
         == "RESTRICTED image/jpeg"
+    # a photo on file is never replaced by the person: the change goes through the platform (sixth round)
     r = upload(c, PNG, "me.png", "image/png")
-    assert r.status_code == 201 and r.json()["replaced"] is True, r.text
-    assert owner_sql("SELECT count(*) FROM ref.file_object WHERE id = $1", first["photo_file_id"]) == 0    # the old file goes
+    assert r.status_code == 409 and r.json()["error"]["code"] == "PHOTO_EXISTS", r.text
+    assert photo_of_email(email)["photo_file_id"] == first["photo_file_id"]
+    assert owner_sql("SELECT count(*) FROM ref.file_object WHERE id = $1", first["photo_file_id"]) == 1
 
 
 def test_only_jpeg_and_png_photos_are_accepted():
@@ -65,7 +67,7 @@ def test_head_takes_a_members_photo_and_nobody_else_can():
     head = new_passenger()
     fam = make_family(head, ("SON", "Sami", years_ago(7), {}))
     r = head.post(f"/api/family/members/{fam['Sami']['uid']}/photo", files={"file": ("sami.jpg", JPEG, "image/jpeg")})
-    assert r.status_code == 201 and r.json()["taken_by"] == "HEAD_OF_FAMILY", r.text
+    assert r.status_code == 201 and r.json() == {"taken_by": "HEAD_OF_FAMILY"}, r.text
     other = new_passenger()
     r = other.post(f"/api/family/members/{fam['Sami']['uid']}/photo", files={"file": ("sami.jpg", JPEG, "image/jpeg")})
     assert r.status_code == 404, r.text

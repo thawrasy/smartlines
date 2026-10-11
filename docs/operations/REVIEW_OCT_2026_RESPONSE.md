@@ -349,7 +349,7 @@ Still open: whether erasure requests stay beside closing. Closing keeps the data
 | Erasure requests with closing | Both stay. Closing keeps the data and reactivates the account; erasure is the person's written request (1039) | Unchanged |
 | Who takes the photo | The person takes their own at the profile's creation. The head of a family takes a member's | Built: `POST /api/account/photo`, `POST /api/family/members/{uid}/photo`; the database checks the taker (`iam.set_party_photo`) |
 | Who sees it | The assigned driver of the trip, and the carrier's office for the trip, at boarding; every read is audited | Built: `GET /api/driver/trips/{trip}/tickets/{ticket}/photo` and `GET /api/carrier/trips/{trip}/tickets/{ticket}/photo`; the activity log records `photo.view` with the person's party, never the picture |
-| Replacement | Allowed by the same rule, the earlier file is removed | Built, audited as `photo.upload` |
+| Replacement | Corrected in the sixth round: not by the person or the family. A change is made by the platform with proof of identity | Built: the database and the API refuse a second photo (409 PHOTO_EXISTS); the platform workflow is WP4 |
 
 Tests: `backend/tests/test_boarding_photo.py` (five live tests: the taker and the replacement, the accepted types, the head's upload and the refusal to anyone else, the driver's and the office's reads with the unlinked member refused, the audit rows, the erasure).
 
@@ -358,4 +358,8 @@ Open, for the owner:
 - **Station officer:** the system has no station portal; the photo is not shown to station staff yet.
 - **Offline boarding:** the driver's trip pack does not carry photos yet, so the photo is shown only after an online scan.
 - **Device caching:** the photo is loaded with the driver's token into the native image view; whether the device keeps a copy is to be checked on a device before the release.
+
+### Sixth round of answers (11 October 2026): the scenario and the first assessment
+
+The owner's decisions on the boarding photo, ticket binding, boarding points, transit and foreign passengers, ride-hailing drivers, and the money model are recorded in `docs/operations/INITIAL_ASSESSMENT_11_OCT_2026.md`, with the work packages (WP1 to WP11), what the code does today, the risks and the owner's open questions. In short: the photo is optional in phase 1 and mandatory only where a rule or a linked authority requires it; it is shown only for domestic trips and Syrian citizens; a booking from the account binds the ticket to the account; a photo on file is changed only by the platform; the money is recorded as balanced double entries in three stages, with bank-held wallet funds.
 

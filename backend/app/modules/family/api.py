@@ -251,7 +251,7 @@ async def member_photo(uid: uuid.UUID, request: Request, file: UploadFile = File
         m = await fam.member_by_uid(conn, f["id"], uid)
         out = await photo.take(conn, ctx, pr, data, file.filename or "photo", m["party_id"])
     request.state.audit = {"action": "photo.upload", "object_type": "party", "object_id": out["party_id"]}
-    return {"taken_by": out["taken_by"], "replaced": out["replaced"]}
+    return {"taken_by": out["taken_by"]}
 
 
 @router.patch("/members/{uid}")

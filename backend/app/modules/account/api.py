@@ -76,7 +76,7 @@ async def take_photo(request: Request, file: UploadFile = File(...), pr: Princip
     async with db.transaction(ctx) as conn:
         out = await photo.take(conn, ctx, pr, data, file.filename or "photo", pr.party_id)
     request.state.audit = {"action": "photo.upload", "object_type": "party", "object_id": out["party_id"]}
-    return {"taken_by": out["taken_by"], "replaced": out["replaced"]}
+    return {"taken_by": out["taken_by"]}
 
 
 @router.post("/password")

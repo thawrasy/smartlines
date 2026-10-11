@@ -34,12 +34,14 @@ def _check_photo(data: bytes) -> str:
 
 
 async def take(conn, ctx: db.Context, pr: Principal, data: bytes, file_name: str, target_party: int) -> dict:
-    """Stores the photo of target_party, replacing an earlier one (its file goes with it). The caller has checked that
-    the principal may take it: their own party, or the party of a member of a family they head."""
+    """Stores the first photo of target_party. The caller has checked that the principal may take it: their own party,
+    or the party of a member of a family they head. A photo already on file is never replaced here."""
     if pr.portal != "PASSENGER":
         raise forbidden("only passenger accounts take boarding photos")
     _check_photo(data)
     async with db.system_scope(conn, ctx):
+        if await conn.fetchval("SELECT 1 FROM iam.party_photo WHERE party_id = $1", target_party):
+            raise ApiError(409, "PHOTO_EXISTS", "a boarding photo is already on file; it changes only through the platform, with proof of identity")
         fc = await crypto.cipher(conn)
     try:
         stored = await storage.put(fc, data)
@@ -53,9 +55,8 @@ async def take(conn, ctx: db.Context, pr: Principal, data: bytes, file_name: str
     if await scanner.scan_file(conn, ctx, file_id) in ("REJECTED", "QUARANTINED"):
         raise ApiError(422, "FILE_REJECTED", "the photo did not pass the security scan")
     # the database checks who may take it and removes the earlier file (migration 1086)
-    row = await conn.fetchrow("SELECT replaced_file_id, taken_as FROM iam.set_party_photo($1, $2, $3)",
-                              target_party, file_id, pr.user_id)
-    return {"party_id": target_party, "taken_by": row["taken_as"], "replaced": row["replaced_file_id"] is not None}
+    taken_as = await conn.fetchval("SELECT iam.set_party_photo($1, $2, $3)", target_party, file_id, pr.user_id)
+    return {"party_id": target_party, "taken_by": taken_as}
 
 
 async def status(conn, ctx: db.Context, pr: Principal) -> dict:

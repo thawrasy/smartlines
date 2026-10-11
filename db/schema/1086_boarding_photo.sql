@@ -39,12 +39,13 @@ ON CONFLICT (table_name) DO UPDATE SET data_class = excluded.data_class, tenant_
 INSERT INTO gov.dataset_member (table_name, dataset, note)
 VALUES ('iam.party_photo', 'iam.party', 'the boarding photo is erased with the person (1086)');
 
--- Takes or replaces the photo of a person. The database checks who may do it: the person themselves, or the head of
--- the family the person belongs to as a member. The earlier photo's file goes with the replacement.
+-- Takes the first photo of a person (1086). The database checks who may take it: the person themselves, or the head of
+-- the family the person belongs to as a member. A photo on file is never replaced here: a change is made by the platform
+-- with proof of identity, and it is audited (the decision of 11 October 2026, sixth round).
 CREATE OR REPLACE FUNCTION iam.set_party_photo(p_party_id bigint, p_file_id bigint, p_user_id bigint)
-RETURNS TABLE (replaced_file_id bigint, taken_as text)
+RETURNS text
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
-DECLARE v_old bigint; v_as text;
+DECLARE v_as text;
 BEGIN
   IF p_party_id = sys.ctx_party_id() THEN
     v_as := 'SELF';
@@ -55,19 +56,16 @@ BEGIN
   ELSE
     RAISE EXCEPTION 'FORBIDDEN: only the person or the head of their family takes the photo' USING ERRCODE = 'P0001';
   END IF;
-  SELECT pp.file_id INTO v_old FROM iam.party_photo pp WHERE pp.party_id = p_party_id FOR UPDATE;
-  INSERT INTO iam.party_photo (party_id, file_id, taken_by, taken_by_user_id)
-       VALUES (p_party_id, p_file_id, v_as, p_user_id)
-  ON CONFLICT (party_id) DO UPDATE SET file_id = EXCLUDED.file_id, taken_by = EXCLUDED.taken_by,
-         taken_by_user_id = EXCLUDED.taken_by_user_id, taken_at = now();
-  IF v_old IS NOT NULL THEN
-    DELETE FROM ref.file_object WHERE id = v_old;
+  IF EXISTS (SELECT 1 FROM iam.party_photo WHERE party_id = p_party_id) THEN
+    RAISE EXCEPTION 'PHOTO_EXISTS: a photo is on file and changes only through the platform' USING ERRCODE = 'P0001';
   END IF;
-  RETURN QUERY SELECT v_old, v_as;
+  INSERT INTO iam.party_photo (party_id, file_id, taken_by, taken_by_user_id)
+       VALUES (p_party_id, p_file_id, v_as, p_user_id);
+  RETURN v_as;
 END $$;
 REVOKE ALL ON FUNCTION iam.set_party_photo(bigint, bigint, bigint) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION iam.set_party_photo(bigint, bigint, bigint) TO masslak_app;
-COMMENT ON FUNCTION iam.set_party_photo IS 'Takes or replaces the boarding photo of a person (1086): the person or the head of their family only';
+COMMENT ON FUNCTION iam.set_party_photo IS 'Takes the first boarding photo of a person (1086): the person or the head of their family only; never replaces one';
 
 -- Erasure of the photo (1086): part of the erasure request, in the same transaction as gov.erase_party. The bytes go with
 -- the file row: the store's sweep deletes a stored file no row points to, after 24 hours.
