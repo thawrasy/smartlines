@@ -1,0 +1,472 @@
+{
+ "reviewed_on": "2026-10-11",
+ "method": "5 database-architect reviewers, one per module group; each finding cites model/DDL lines; spot-checked by hand for critical items",
+ "counts": {
+  "critical": 10,
+  "major": 36,
+  "minor": 4
+ },
+ "findings": [
+  {
+   "table": "plat.TenantModule",
+   "column": "IsEnabled",
+   "category": "tenancy",
+   "severity": "critical",
+   "issue": "Entitlement rows are tenant-owned (no global flag; DDL has TenantId NOT NULL) and tp_app holds SELECT, INSERT, UPDATE on the table (db/generated/tsql/007_table_grants.sql:20) with no DENY anywhere. A tenant session can insert or flip IsEnabled on its own module rows, re-enable a module the operator disabled, or enable a module outside its Plan; only CK_TenantModule_1 (CORE must stay enabled) is enforced. The model says the platform sets these rows (EnabledBy -> plat.PlatformOperator, 'empty = automatic from plan'), yet design section 3.3 and 3.5 give tp_platform no access to tenant tables, so the operator-side writer has no grant path. The subscription entitlement is not protected by the schema.",
+   "recommendation": "Make TenantModule platform-owned: declare it global with an explicit TenantId FK to plat.Tenant (global noapp is a legal target), expose it to tp_app only through a view filtered on SESSION_CONTEXT('TenantId') with SELECT only, and grant INSERT/UPDATE to tp_platform only. Enforce plan inclusion and the EnabledBy requirement in the platform procedure or a trigger, and add DENY UPDATE for tp_app.",
+   "id": "DR-01"
+  },
+  {
+   "table": "sec.AppUser",
+   "column": "MfaKeyId",
+   "category": "referential",
+   "severity": "critical",
+   "issue": "MfaKeyId (model line 126, comment 'DATA key that encrypted the MFA secret') and doc.DocumentVersion.KeyId (line 378, 'file encryption key') reference sec.TenantKey through a composite FK on (TenantId, TenantKeyId) only (db/generated/tsql/002_foreign_keys.sql:18, :60). The referenced row's Purpose is not part of the key, so a row can point at a BLIND_INDEX or FILE key. The identical pattern exists for pty.IdentityDocument.EncKeyId/HashKeyId, pty.PartyCustomField, acc.BankAccount and lc.LcTerms (002_foreign_keys.sql:154-155, 166, 266-267, 672-673). A wrong-purpose reference is missed by the re-encryption job (design 6.3) and becomes unreadable when its key is RETIRED or REVOKED; a HMAC column pointing at a DATA key silently breaks duplicate detection. Design 9.3 rule R8 only confirms that a key column exists. TenantKey also lacks lifecycle checks: no ActivatedAt requirement for ACTIVE/RETIRING/RETIRED and no RetiredAt for RETIRED, although Status drives rotation.",
+   "recommendation": "Add UNIQUE (TenantId, TenantKeyId, Purpose) on sec.TenantKey. In each referencing table add a KeyPurpose column constrained to its purpose and use the FK (TenantId, KeyId, KeyPurpose) -> (TenantId, TenantKeyId, Purpose). Make DocumentVersion.KeyId NOT NULL, since section 6.4 says every file is encrypted. Add CHECKs: Status IN ('ACTIVE','RETIRING','RETIRED') requires ActivatedAt, and Status = 'RETIRED' requires RetiredAt.",
+   "id": "DR-02"
+  },
+  {
+   "table": "cat.LookupItem",
+   "column": "LookupItemId (targeted by 13 in-scope FKs)",
+   "category": "tenancy",
+   "severity": "critical",
+   "issue": "cat.LookupItem is 'mixed' (12-institutions-accounts-catalogs.model:255; TenantId NULL = global item). dbgen.py:373 emits every FK to a mixed target as a simple key, and the generated DDL confirms it (002_foreign_keys.sql:148 FK_Party_EducationLevelId -> cat.LookupItem(LookupItemId), no TenantId). The 13 in-scope referencing columns (pty.Party.EducationLevelId; org.CompanyProfile.SectorId/EmployeeBandId; org.CompanyKycFinancialProfile.RevenueBandId; org.CompanyWealthSource.WealthSourceId; pty.TaxIdentity.FatcaClassificationId/CrsClassificationId; ins.InstitutionUnit.UnitTypeId; ins.RelationshipContact.RoleId; acc.FacilityAccount.PurposeId; acc.Signatory.SignatureClassId/AuthorisationBasisId; acc.SignatoryAuthorityJointClass.SignatureClassId) accept any existing LookupItemId, including another tenant's private item. The FK check is tenant-blind, so whether an insert succeeds or fails can reveal whether an arbitrary INT id exists in another tenant's catalog. The same columns also accept an item from the wrong list (e.g. EducationLevelId pointing at a REVENUE_BAND item) because no list discriminator is stored. This contradicts the design's claim that a cross-tenant link is impossible even if the app errs (docs/20 line 80, section 3.1 layer 2), and section 3.3 (line 107) accepts simple keys to mixed tables without addressing it.",
+   "recommendation": "Make referenced items tenant-owned: materialise the seeded global items per tenant so every LookupItem row has TenantId NOT NULL, and emit composite FKs (TenantId, X) -> (TenantId, LookupItemId). For list typing, store a constant LookupListId beside each referencing column (CHECK = that list's id) and use a composite FK to a (TenantId, LookupListId, LookupItemId) key. If global items must stay shared, add per-table triggers rejecting items whose TenantId is neither NULL nor the row's TenantId, and record that guarantee as trigger-enforced rather than declarative.",
+   "id": "DR-03"
+  },
+  {
+   "table": "pty.Address",
+   "column": "OwnerType, OwnerId",
+   "category": "tenancy",
+   "severity": "critical",
+   "issue": "OwnerType+OwnerId is a polymorphic owner (PARTY/INSTITUTION/UNIT/CONTACT; 11-organization-party.model:320-321) and the generated DDL has no FK on OwnerId (002_foreign_keys.sql:158-159 lists only FK_Address_Tenant and FK_Address_CountryId). The same holds for pty.ContactMethod (lines 342-347, marked deletable). Consequences: (1) a tenant-A row can name a tenant-B owner id, which breaks the layer-2 isolation guarantee in docs/20 section 3.1 and is not listed among the exceptions in section 7; because RLS filters the row by its own TenantId, the address silently disappears from the owner's view; (2) deleting or merging an owner leaves dangling rows, and no cascade or restrict is possible. KycProfileItem.RefCode (line 406) has the same untyped pattern for CUSTOM_FIELD and DOCUMENT_TYPE items.",
+   "recommendation": "Replace the OwnerType/OwnerId pair with exclusive-arc columns (PartyId, InstitutionId, UnitId, ContactId), each a composite FK (TenantId, X) -> (TenantId, X), with a CHECK that exactly one is non-null; rebuild the owner-based unique and index on the arc. Apply the same to pty.ContactMethod. For KycProfileItem, use typed FKs (CustomFieldDefinitionId; cat.DocumentType) for those kinds and keep RefCode only for enum-valued kinds.",
+   "verdict": "CONFIRMED",
+   "id": "DR-04"
+  },
+  {
+   "table": "cat.LookupItem (mixed) and cat.LookupList (mixed); 13 tenant tables reference LookupItem",
+   "column": "LookupListId / *ItemId referencing columns",
+   "category": "tenancy",
+   "severity": "critical",
+   "issue": "cat.LookupItem and cat.LookupList are mixed (model 12:247-256), so their references are simple FKs with no TenantId (DDL 002:232 FK_LookupItem_LookupListId; docs/20 section 3.3 says mixed references are simple by design). A simple FK checks only that the ID exists. A tenant item (TenantId=A) can therefore point at tenant B's list, and tenant tables can point at another tenant's LookupItem: 13 tables do this, e.g. pty.Party.EducationLevelId (002:148), ins.RelationshipContact.RoleId (002:253), acc.Signatory.SignatureClassId (002:277), org.CompanyProfile.SectorId (002:125). This contradicts docs/20 section 3.1 ('يستحيل ربط سجل بسجل مشترك آخر حتى لو أخطأ التطبيق'). CK_LookupItem_1 (DDL 001:2441) has no scope check, so a tenant item can attach to a global list even when AllowTenantItems=0 (12:249). The tp_platform role has INSERT on LookupItem (007:198), so a TenantId-NULL item can attach to a tenant-owned list and expose that list's item text to every tenant.",
+   "recommendation": "Keep cat.LookupItem tenant-owned. Global list values become per-tenant seeded copies (SeedKey, as the other catalogs already do), and the global list stays read-only. Tenant-to-item references become composite (TenantId, LookupItemId). Tenant items reference lists with composite FK (TenantId, LookupListId) to LookupList (UQ_LookupList_Tenant already exists). Remove the TenantId-NULL item path, or move shared global items into a separate read-only table with its own simple FK. Never mix the two kinds behind one referencing column.",
+   "id": "DR-05"
+  },
+  {
+   "table": "prc.PricingRule (ScopeLimitProductLineId); cmp.TermValue (LimitProductLineId)",
+   "column": "ScopeLimitProductLineId, LimitProductLineId",
+   "category": "referential",
+   "severity": "critical",
+   "issue": "Both are declared via=FacilityId only (model 13:438 and 13:561; DDL 002:398 and 002:419), so the product line need not belong to the limit named in ScopeLimitId (13:437) or LimitId (13:560). fac.Utilization and fac.LimitReservation correctly use via=FacilityId,LimitId (DDL 002:358, 002:364). docs/20 section 3.1 names this exact case ('خط منتج من حد آخر') as prevented. Failure: a pricing rule scoped to limit L1 with a product line from L2 is accepted, and the resolver applies or misses fees on the wrong scope. No CHECK ties the two columns (checks at 13:479-515). ScopeLimitId is nullable ('بلا نطاق = مستوى التسهيل'), so a product line can exist with no limit at all.",
+   "recommendation": "Change both to via=FacilityId,LimitId so the composite key is (TenantId, FacilityId, LimitId, LimitProductLineId). Add CHECK (ScopeLimitProductLineId IS NULL OR ScopeLimitId IS NOT NULL) and CHECK (LimitProductLineId IS NULL OR LimitId IS NOT NULL). A composite FK with a NULL component is skipped under MATCH SIMPLE, so these CHECKs are required, not optional.",
+   "id": "DR-06"
+  },
+  {
+   "table": "fin.BankFlowEntry",
+   "column": "FlowKindId",
+   "category": "tenancy",
+   "severity": "critical",
+   "issue": "cat.LookupItem is declared mixed (db/model/12 line 255: TenantId NULL = global, otherwise tenant-owned), but the generator emits FKs into it as simple keys on LookupItemId alone: db/generated/tsql/002_foreign_keys.sql:524 (fin.BankFlowEntry.FlowKindId, required), :477 and :481 (obl.ReportingObligation.SubmissionChannelId, obl.ReportingInstance.SubmissionChannelUsedId). A tenant row can therefore reference a lookup item owned by another tenant. This contradicts design section 3.1 (يستحيل ربط سجل بسجل مشترك آخر حتى لو أخطأ التطبيق). The FK check reads the physical table, so insert success or failure also reveals whether another tenant's sequential LookupItemId exists. The same simple-key pattern applies to cat.LookupItem.LookupListId into the mixed cat.LookupList (002_foreign_keys.sql:232).",
+   "recommendation": "Give each tenant its own copies of the global lookup items it uses (section 13 tenant initialisation already creates per-tenant catalogs), then make the references composite (TenantId, LookupItemId) to cat.LookupItem(TenantId, LookupItemId) with TenantId NOT NULL on tenant rows. Apply the same to LookupList. Until then, add triggers on the three child tables that reject a referenced item whose TenantId is neither NULL nor the session tenant.",
+   "id": "DR-07"
+  },
+  {
+   "table": "col.Collateral",
+   "column": "Attributes",
+   "category": "sensitivity",
+   "severity": "critical",
+   "issue": "Attributes is an unclassified json column (db/model/14 line 32). Its own comment says it holds the cash-margin account (الهامش النقدي وحسابه) and the seven real-estate attributes. It has no sens flag, so tp_readonly can read it (section 6.4 / 006 deny only sens=restricted columns), and it is neither envelope-encrypted (section 6.2) nor masked. This model encrypts account numbers and IBANs (db/model/12 line 386, AccountNoEnc sens=restricted, with AccountNoMask and AccountNoHash). cat.CollateralTypeAttribute.DataType includes REFERENCE (db/model/12 line 191) with no typed target, so a bank account can sit as plaintext inside the JSON and bypass all of that.",
+   "recommendation": "Model the cash-margin account as a typed FK to acc.BankAccount using the via pattern of acc.BankAccount.RelationshipId. Keep property identifiers in typed columns marked sens=restricted, or envelope-encrypt them. Mark Attributes sens=restricted for any template that may carry identifiers, and forbid free-text REFERENCE values.",
+   "id": "DR-08"
+  },
+  {
+   "table": "wfl.RequestStageInstance",
+   "column": "StageId",
+   "category": "referential",
+   "severity": "critical",
+   "issue": "The stage reference is bound to the tenant only. Generated FK_RequestStageInstance_StageId is (TenantId, StageId) -> WorkflowStage(TenantId, WorkflowStageId) (15:384; DDL 002_foreign_keys.sql:609). The table has no TemplateId, so nothing ties a request's stage instances to the template version pinned on wfl.Request (15:250, BR-WFL-019). ResumeStageId (15:400; DDL 611) has the same gap. Request.CurrentStageInstanceId (15:259; DDL 579) is bound only to (TenantId, CurrentStageInstanceId), so it can point at an instance of another request. Request.CurrentStageId (15:258) is bound to the template (DDL 578) but nothing ties it to the open instance's StageId.",
+   "failure_scenario": "A PURCHASE_LC request pinned to template v3 receives a RequestStageInstance whose StageId is a stage of a SALES template or of an unpublished draft. Both pass FK_RequestStageInstance_StageId. Approvers, SLA and transitions then run from the wrong graph, and no constraint fails.",
+   "recommendation": "Add TemplateId (req, copied from the request at entry) to wfl.RequestStageInstance and declare StageId and ResumeStageId as ->wfl.WorkflowStage via=TemplateId (the WorkflowStage scope unique already exists, DDL 001_tables.sql:4676). Declare Request.CurrentStageInstanceId ->wfl.RequestStageInstance via=RequestId (the scope unique UQ_RequestStageInstance_Scope_RequestId already exists, DDL 5071). To force CurrentStageId = the open instance's StageId, add StageId to that scope unique and reference (TenantId, RequestId, CurrentStageInstanceId, CurrentStageId).",
+   "id": "DR-09"
+  },
+  {
+   "table": "wfl.Request",
+   "column": "LcId",
+   "category": "tenancy",
+   "severity": "critical",
+   "issue": "LcId -> lc.LetterOfCredit is generated as (TenantId, LcId) only (DDL 002_foreign_keys.sql:587), so a request of company A can be linked to a letter of credit of company B inside the same tenant. Company binding exists for LetterOfCredit.RequestId via=CompanyId (16:409; DDL 707) and ProformaInvoice.RequestId via=CompanyId (16:609), but not for the other request-to-LC links: lc.LcSalesOrder.RequestId (16:554; DDL 727), lc.LcDrawing.RequestId (16:536; DDL 724), lc.LcAmendment.RequestId (16:488; DDL 716). Those three child tables have no CompanyId column, so they cannot bind. A child request is also described by ParentEntityType/ParentEntityId (15:284-285), which has no FK at all, and by LcId, so one parent link is stored three ways and only one is bound. BR-REQ-013 scopes requests by company.",
+   "failure_scenario": "A user in company B's scope submits a LC_AMENDMENT or SALES_ORDER_APPROVAL request whose LcId is an LC of company A. Approving it changes company A's LC amount, expiry or earmark, and every constraint passes. A mistyped ParentEntityId produces a dangling child request that no constraint detects.",
+   "recommendation": "Declare Request.LcId ->lc.LetterOfCredit via=CompanyId. On lc.LcSalesOrder, lc.LcDrawing and lc.LcAmendment add a CompanyId column and bind RequestId via=CompanyId (the generator adds the scope uniques). Keep one parent link per child request: for LC children use LcId alone and make ParentEntityType/ParentEntityId typed per parent kind or drop them for LC children. Add a check that the request's RequestType.ParentEntityType matches the parent used (BR-REQ-008).",
+   "id": "DR-10"
+  },
+  {
+   "table": "doc.DocumentVersion",
+   "column": "StorageKey",
+   "category": "tenancy",
+   "severity": "major",
+   "issue": "The storage path is unique only per tenant (UQ_DocumentVersion_StorageKey = UNIQUE (TenantId, StorageKey), db/generated/tsql/001_tables.sql:609), yet the design (6.4) describes one shared file store. Nothing requires the key to carry the tenant prefix (the CHECKs are VersionNo, SizeBytes and ScanStatus only), so two tenants can be given the same physical object path and the insert succeeds. Immutability of a version (BR-PLT-011: a new version is created, the old one is never replaced) is also not enforced. The table is not marked append and tp_app has SELECT, INSERT, UPDATE with no DENY on content columns (007_table_grants.sql:60), so StorageKey, Sha256, SizeBytes, KeyId and FileName can all be rewritten in place. Because Sha256 sits in the same row as the mutable scan fields, the integrity check FR-PLT-031 cannot detect a swap when the attacker or bug also updates Sha256.",
+   "recommendation": "Make StorageKey globally unique and add CHECK (StorageKey LIKE CAST(TenantId AS varchar(10)) + '/%'). Split the table: an append-only DocumentVersion holding the content columns with DENY UPDATE, and a 1:1 mutable DocumentVersionScan (ScanStatus, ScannedAt, ScanDetail, IntegrityStatus, LastVerifiedAt) keyed by DocumentVersionId. Alternatively grant UPDATE only on the mutable columns.",
+   "id": "DR-11"
+  },
+  {
+   "table": "aud.SensitiveAccessLog",
+   "column": "AuditLogId",
+   "category": "referential",
+   "severity": "major",
+   "issue": "AuditLogId is a bare bigint commented 'the corresponding event in AuditLog' (model line 332) with no reference. The generated DDL has no FK for it (002_foreign_keys.sql has only Tenant, ActorUserId and OperatorId) and no uniqueness, so a reveal record can point at nothing, at another tenant's event, or be shared by two records. The design (5.3, BR-PTY-009) relies on this pairing as the proof of audit completeness. Reason is nullable (line 328, 'if the tenant enables it') while design 5.3 says the reason for every reveal, export and image view is mandatory; model and design conflict and the database enforces neither. CompanyId (line 325) is a bare bigint with no FK and no comment justifying that.",
+   "recommendation": "Add composite FK (TenantId, AuditLogId) -> aud.AuditLog (TenantId, AuditLogId); the unique key UQ_AuditLog_Tenant already exists. Add a filtered unique on (TenantId, AuditLogId) where AuditLogId is not null for the 1:1 relation. Resolve the reason rule: either CHECK (Reason IS NOT NULL) to match design 5.3, or change 5.3 and document the tenant-setting gate. Either add the company FK or state why the audit row must stay unkeyed.",
+   "id": "DR-12"
+  },
+  {
+   "table": "cfg.DataExportJob",
+   "column": "ApprovedBy",
+   "category": "workflow_semantics",
+   "severity": "major",
+   "issue": "A restricted export (IncludesRestricted = 1: identity numbers and images) can be approved by its own requester. No CHECK requires ApprovedBy <> RequestedBy, and CK_DataExportJob_1 (line 824) requires an approver only for APPROVED, RUNNING and READY. ApprovedBy and ApprovedAt are not paired. READY does not require ExpiresAt, although section 8 says READY expires after 7 days (line 496). The approver's permission to reveal (party.identity.reveal) appears only in comments. The package document carries the Document.Sensitivity default CONFIDENTIAL, not RESTRICTED (see the doc.Document finding).",
+   "recommendation": "Add CHECK (ApprovedBy IS NULL OR ApprovedBy <> RequestedBy), a pairing CHECK between ApprovedBy and ApprovedAt, and CHECK (Status <> 'READY' OR ExpiresAt IS NOT NULL). Extend the restricted-approval CHECK to every status other than REQUESTED. Have the approval procedure verify the approver holds the reveal permission, and create the package document with Sensitivity RESTRICTED when IncludesRestricted = 1.",
+   "id": "DR-13"
+  },
+  {
+   "table": "cfg.OutboxEvent",
+   "column": "Status",
+   "category": "workflow_semantics",
+   "severity": "major",
+   "issue": "Status has five values, but no CHECK ties the lease and completion fields to them; only the enum and AttemptCount/EventName checks exist (CK_OutboxEvent_1 to _Status). A PROCESSING row can have LockedBy and LockedUntil NULL, a DELIVERED row can lack DeliveredAt, and a DEAD row can lack LastError. The dispatch index IX_OutboxEvent_Status_NextAttemptAt is filtered to PENDING and FAILED, and no index exists on LockedUntil, so a PROCESSING row left behind by a dead worker is invisible to the normal path and lease reclamation becomes a table scan. tp_app also has DELETE on OutboxEvent (005_delete_grants.sql:17), so a bug can remove DEAD events and their evidence.",
+   "recommendation": "Add CHECK (Status <> 'PROCESSING' OR (LockedBy IS NOT NULL AND LockedUntil IS NOT NULL)), CHECK (Status <> 'DELIVERED' OR DeliveredAt IS NOT NULL) and CHECK (Status <> 'DEAD' OR LastError IS NOT NULL). Add a filtered index on (Status, LockedUntil) where Status = 'PROCESSING'. Move dead letters to an append-only table or deny DELETE on DEAD rows.",
+   "id": "DR-14"
+  },
+  {
+   "table": "plat.SupportAccessGrant",
+   "column": "EndsAt",
+   "category": "workflow_semantics",
+   "severity": "major",
+   "issue": "The 1 to 72 hour window (BR-PLT-017) is enforced only in the application; the DDL has only CHECK EndsAt > StartsAt (CK_SupportAccessGrant_1). RevokedAt and RevokedBy are not paired, unlike doc.DocumentLink, which has that pattern. The table is not append-only, and tp_app has SELECT, INSERT, UPDATE with no DENY (007_table_grants.sql:22). A direct UPDATE can extend EndsAt, re-point OperatorId to another operator, or clear RevokedAt and reactivate a revoked grant. This row is the consent record behind operator access, so the database must protect it, not only the application.",
+   "recommendation": "Add CHECK (DATEDIFF(MINUTE, StartsAt, EndsAt) BETWEEN 60 AND 4320). Add the revocation pairing CHECK (both RevokedAt and RevokedBy NULL, or both set) and CHECK (RevokedAt IS NULL OR RevokedAt >= StartsAt). Grant tp_app INSERT, plus column-level UPDATE on RevokedAt and RevokedBy only, with no DELETE. Route revocation through a procedure if column grants are not usable.",
+   "id": "DR-15"
+  },
+  {
+   "table": "sec.Permission",
+   "column": "LockedToRoleCodes",
+   "category": "normalization",
+   "severity": "major",
+   "issue": "LockedToRoleCodes (json, e.g. [\"TM\",\"FO\"]) and cfg.ExpiryAlertRule.RecipientRoles (json role codes) are many-to-many relationships to sec.Role stored as text arrays with only ISJSON checks. Design section 4 says multi-valued relations use a junction table. Without a foreign key, a misspelled or renamed code silently matches nothing, so the lock on a sensitive permission (party.identity.reveal) can be bypassed by any role whose Code matches the list, and alerts can go to nobody. Role.Code is a free-text per-tenant code (UQ_Role_Code on TenantId, Code), and the model states no immutability rule for it, unlike plat.Tenant.Code, which is frozen after activation. If it is editable, a tenant can rename a seeded role, create a custom role with the old code, and satisfy the lock by string match, a guard that exists only in service code (BR-PLT-019). ExpiryAlertLog.Threshold must match a value in the JSON LeadDays list, which nothing constrains.",
+   "recommendation": "Replace the lock with a junction table keyed on a stable role identity (SeedKey or a global role catalog) and enforce it with a trigger on sec.RolePermission. Replace RecipientRoles with cfg.ExpiryAlertRuleRole (ExpiryAlertRuleId, RoleId) using a composite FK to sec.Role. Replace LeadDays with cfg.ExpiryAlertRuleLeadDay (ExpiryAlertRuleId, Days) and use a filtered composite FK from ExpiryAlertLog for AlertKind = LEAD.",
+   "id": "DR-16"
+  },
+  {
+   "table": "cfg.TenantSetting",
+   "column": "Key",
+   "category": "referential",
+   "severity": "major",
+   "issue": "TenantSetting.Key (ascii(100), unique per tenant) has no foreign key to cfg.SettingDefinition.Key. The only FK is to plat.Tenant (002_foreign_keys.sql:64). A misspelled or unknown key is accepted and silently ignored, and a change to an IsSecurity key cannot be audited against its definition. Design 3.3 allows simple tenant-to-global FKs, so this is an omission, not a constraint. The minimum and maximum bounds (BR-PLT-018: the weakest value is rejected, work window 4 to 12 hours) exist only in the application. tp_app has SELECT, INSERT, UPDATE on TenantSetting with no DENY (007_table_grants.sql:67), so a value below SettingDefinition.MinValueJson can be stored directly.",
+   "recommendation": "Add a simple FK (Key) -> cfg.SettingDefinition (Key). Add a trigger or a checked procedure that validates ValueJson against ValueType and the Min/Max JSON, and make the procedure the only writer for IsSecurity keys. Deny direct UPDATE of ValueJson to tp_app for security settings.",
+   "id": "DR-17"
+  },
+  {
+   "table": "doc.Document",
+   "column": "Sensitivity",
+   "category": "sensitivity",
+   "severity": "major",
+   "issue": "Sensitivity is a stored copy of a rule the database never evaluates: the model comment says RESTRICTED if the type is IsSensitive (line 354), but the only CHECK is enum membership (CK_Document_Sensitivity), and the default is CONFIDENTIAL. An identity document whose DocumentTypeId is IsSensitive can be stored as PUBLIC or INTERNAL, and it is not corrected if the type's flag changes, so the copy drifts. CurrentVersionId (line 356) is bound only by (TenantId, CurrentVersionId) -> DocumentVersion (TenantId, DocumentVersionId) (002_foreign_keys.sql:55), so a document's current version can be a version of a different document in the same tenant. The model marks this rule as enforced in the application, but the Document row already holds DocumentId, so a composite key can enforce it.",
+   "recommendation": "Enforce a sensitivity floor with a trigger on doc.Document, and on cat.DocumentType updates, that raises Sensitivity to RESTRICTED when IsSensitive is set. Add UNIQUE (TenantId, DocumentId, DocumentVersionId) on DocumentVersion and change the FK to (TenantId, DocumentId, CurrentVersionId) -> (TenantId, DocumentId, DocumentVersionId).",
+   "id": "DR-18"
+  },
+  {
+   "table": "acc.Signatory",
+   "column": "Status",
+   "category": "workflow_semantics",
+   "severity": "major",
+   "issue": "Status (12-institutions-accounts-catalogs.model:447) includes SUSPENDED, EXPIRED and REVOKED, but the table has no timestamp, actor or reason for any transition. The checks (lines 455-456) require a document for ACTIVE/SUSPENDED/EXPIRED and cash-limit fields only. The model comment says REVOKED is final, yet nothing prevents an UPDATE from moving it back to ACTIVE, and nothing records when signing authority on the company's bank accounts was withdrawn. The same model records RevokedAt/RevokedReason on AuthorityGrant and ClosedOn/ClosureReason on BankAccount and Relationship, so this table is inconsistent with the pattern used elsewhere.",
+   "recommendation": "Add SuspendedAt, RevokedAt, RevokedBy and RevocationReason. Add CHECK (Status <> 'REVOKED' OR (RevokedAt IS NOT NULL AND RevokedBy IS NOT NULL AND RevocationReason IS NOT NULL)) and CHECK (Status <> 'EXPIRED' OR ValidTo IS NOT NULL). Enforce REVOKED as terminal with an UPDATE trigger, since a CHECK cannot see the prior value.",
+   "id": "DR-19"
+  },
+  {
+   "table": "acc.BankAccount",
+   "column": "EncKeyId, HashKeyId",
+   "category": "sensitivity",
+   "severity": "major",
+   "issue": "EncKeyId and HashKeyId reference sec.TenantKey by key id only (generated as (TenantId, EncKeyId) -> (TenantId, TenantKeyId)). sec.TenantKey.Purpose (10-platform.model:263) distinguishes DATA, BLIND_INDEX and FILE, but nothing binds EncKeyId to DATA or HashKeyId to BLIND_INDEX. A row can therefore encrypt with the blind-index key, or use the encryption key as the HMAC key, which breaks key separation. The same pattern appears in pty.IdentityDocument (11-organization-party.model:297-298) and pty.PartyCustomField (line 375). Check R8 in check_grants (docs/20 section 9.3) only verifies that the columns exist. Nothing prevents a row from referencing a RETIRED or REVOKED key, which the rotation counter in docs/20 section 6.3 step 4 assumes.",
+   "recommendation": "Store the purpose on the row as a constant column (e.g. EncKeyPurpose CHECK = 'DATA'; HashKeyPurpose CHECK = 'BLIND_INDEX'). Make the FKs composite on (TenantId, KeyId, Purpose) -> sec.TenantKey (TenantId, TenantKeyId, Purpose), with a unique key on that target. Keep the RETIRED/REVOKED rule in the rotation service and cover it in the static checker.",
+   "id": "DR-20"
+  },
+  {
+   "table": "org.AuthorityGrant",
+   "column": "ApprovedBy, ApprovedAt, SupersedesGrantId",
+   "category": "workflow_semantics",
+   "severity": "major",
+   "issue": "ApprovedBy and ApprovedAt (11-organization-party.model:143-144) are nullable, and the status CHECK (line 156) requires only a source document or an exception reason for ACTIVE/SUPERSEDED/REVOKED. A grant can therefore be ACTIVE with no approver or approval time, which removes the evidence needed for the maker-checker rule BR-ORG-014 that the model cites. Separately, SupersedesGrantId (line 150) is generated as (TenantId, SupersedesGrantId) only (002_foreign_keys.sql:121), unlike BodyId and BodyMemberId, which use via=CompanyId (lines 129-130), so a grant can supersede a grant of another company.",
+   "recommendation": "Add CHECK (Status IN ('DRAFT','PENDING_APPROVAL') OR (ApprovedBy IS NOT NULL AND ApprovedAt IS NOT NULL)) and CHECK (ApprovedBy IS NULL OR ApprovedAt IS NOT NULL). Add via=CompanyId to SupersedesGrantId so supersession stays within one company.",
+   "id": "DR-21"
+  },
+  {
+   "table": "org.Shareholding",
+   "column": "Layer, HolderPartyId, CompanyId",
+   "category": "cardinality",
+   "severity": "major",
+   "issue": "Layer >= 2 means 'indirect, through intermediate entities' (11-organization-party.model:78), but no column identifies the intermediate holder or the parent holding. The uniqueness keys (lines 83-84) are (CompanyId, HolderPartyId, Layer, EffectiveFrom) and the open-row filter (CompanyId, HolderPartyId, Layer WHERE EffectiveTo IS NULL). A holder who owns the company indirectly through two intermediates at the same layer (e.g. 10% via A and 15% via B) cannot be stored, because the second row violates the unique. The 100% check (BR-ORG-006, line 74) covers Layer=1 only, so indirect chains cannot be reconstructed or verified. IsBeneficialOwner (line 79) is a stored determination with no link to the chain it summarises.",
+   "recommendation": "Add a self-referencing ViaShareholdingId (or IntermediatePartyId) with via=CompanyId pointing to the intermediate's layer-1 row, and key the uniqueness and the open-row filter on (CompanyId, HolderPartyId, ViaShareholdingId, EffectiveFrom), using a persisted calc sentinel for direct holdings. Compute effective percentages in a view rather than storing them.",
+   "id": "DR-22"
+  },
+  {
+   "table": "pty.IdentityDocument",
+   "column": "SupersededById, IsSuperseded",
+   "category": "referential",
+   "severity": "major",
+   "issue": "SupersededById (11-organization-party.model:305) is generated as (TenantId, SupersededById) only (002_foreign_keys.sql:156), so a document can be superseded by a document belonging to a different party. The state is stored twice, as IsSuperseded (line 304) and SupersededById. The CHECK at line 314 is one-way (SupersededById set implies IsSuperseded = 1), so IsSuperseded = 1 with no successor is accepted. Such a row silently drops out of the NumberHash uniqueness (line 308, WHERE IsSuperseded = 0) without a replacement. The renewal sequence (mark old, insert new, link) cannot be guarded by a plain CHECK on the two columns, because SQL Server evaluates CHECK per statement.",
+   "recommendation": "Add via=PartyId to SupersededById so the successor must belong to the same party. Replace the IsSuperseded/SupersededById pair with one status column (CURRENT, PENDING_REPLACEMENT for the transitional state inside the renewal transaction, SUPERSEDED), with CHECK (Status <> 'SUPERSEDED' OR SupersededById IS NOT NULL). Restrict the NumberHash uniqueness to CURRENT.",
+   "id": "DR-23"
+  },
+  {
+   "table": "org.Company",
+   "column": "PartyId",
+   "category": "redundancy",
+   "severity": "major",
+   "issue": "The company-party mirror is stored twice: org.Company.PartyId (11-organization-party.model:16, unique line 34) and pty.Party.LinkedCompanyId (line 274, unique line 278). Both are generated as independent FKs (002_foreign_keys.sql:85 and :149). Nothing requires them to agree, so company A can point at the mirror party of company B. Party.LinkedCompanyId then names B while Company.PartyId names the party, and the two sides diverge silently. The mirror is created automatically (line 16 comment), so the second pointer is a derived fact that can drift.",
+   "recommendation": "Keep one pointer and derive the other, or enforce equality declaratively: add a unique key (TenantId, CompanyId, PartyId) on org.Company and make pty.Party's link a composite FK (TenantId, LinkedCompanyId, PartyId) -> org.Company (TenantId, CompanyId, PartyId). With the existing uniques and the Kind check, the two sides cannot diverge.",
+   "id": "DR-24"
+  },
+  {
+   "table": "org.Company",
+   "column": "TaxNumber",
+   "category": "sensitivity",
+   "severity": "major",
+   "issue": "org.Company.TaxNumber (11-organization-party.model:26) is a plain ascii(30) column with no sens tag, on a 'public' aggregate root (line 12) whose PublicId is exposed through the API (docs/20 sections 1 and 4). The same identifier is modelled in pty.TaxIdentity.TaxNumber (line 446) as sens=confidential, and that table's comment says the company copy is synchronised from it. The identifier is therefore duplicated, its copy sits outside the sensitivity classification, and the public aggregate exposes it unless the API layer filters it. The sync is application-only and can drift.",
+   "recommendation": "Drop org.Company.TaxNumber and read the current TaxIdentity row (CountryId = the company's CountryId, IsCurrent = 1) through a view. If the column is kept, tag it sens=confidential and exclude it from the public DTO, and remove the sync requirement.",
+   "id": "DR-25"
+  },
+  {
+   "table": "fac.Utilization (and lc.LetterOfCredit link, file 16)",
+   "column": "SourceType, SourceRefId",
+   "category": "referential",
+   "severity": "major",
+   "issue": "SourceRefId is a bigint that holds an LcId or a RequestId depending on SourceType (13:254-255). It has no FK (none in DDL 002:355-360), and CK_Utilization_SourceType checks only the enum. Nothing ties the kind to the target. The uniqueness at 13:260 is per SourceType, so it does not guarantee a real target. The same LC-to-utilization relation is stored a second time as lc.LetterOfCredit.UtilizationId, which is a real FK (file 16:408 and 436; DDL 002:706). File 16:408 says record_issuance writes Utilization.SourceRefId = LcId, so the two links can disagree. The model's own LimitMovement (13:306) rejects a polymorphic TargetId for exactly this reason.",
+   "recommendation": "Replace SourceRefId with typed nullable FKs (for example a request FK to wfl.Request, and the LC link kept on one side only). Add a CHECK that SourceType determines which column is set, as LimitMovement does at 13:321. Remove the duplicate LC pointer so there is one source of truth.",
+   "id": "DR-26"
+  },
+  {
+   "table": "fac.ValueConflict",
+   "column": "TargetEntity, TargetId, FacilityId",
+   "category": "referential",
+   "severity": "major",
+   "issue": "The conflict targets an entity through free text TargetEntity ascii(60) (13:328) and bigint TargetId (13:329), with no FK and no domain CHECK (DDL 001 has only the NOT NULL). FacilityId (13:327) is checked only against fac.Facility, not against the target's own facility. Failure modes: a conflict on limit 7 of facility A stored under facility B, so V-FAC-12 (open conflicts block approval) blocks the wrong facility; a typo such as 'fac.limit' creates a key that the unique index at 13:349 does not see; and a conflict whose target was superseded or deleted stays OPEN with no referential signal.",
+   "recommendation": "Use typed nullable target FKs with (TenantId, FacilityId, ...) composite keys and an exactly-one CHECK, as LimitMovement does. At minimum add CHECK (TargetEntity IN (...)) and make the facility-consistency rule a tested service invariant.",
+   "id": "DR-27"
+  },
+  {
+   "table": "fac.Facility (header); fac.Limit, fac.LimitProductLine, fac.LimitCompanyRule, prc.PricingRule, cmp.TermValue (rev children)",
+   "column": "ApprovedRevisionNo, ParentLimitId, LimitId, ToRevision",
+   "category": "workflow_semantics",
+   "severity": "major",
+   "issue": "Revision integrity is left to the application. (a) Children reference a versioned parent only by (FacilityId, id): fac.Limit.ParentLimitId (13:141; DDL 002:326), LimitProductLine.LimitId (13:175), LimitCompanyRule.LimitId (13:196), and the scope IDs on PricingRule and TermValue. Nothing ties a child's FromRevision/ToRevision interval to the parent row's interval, so a revision-N child can point to a row closed in revision M. The header (13:11) says copied children must be re-linked in the approval transaction, but the database cannot detect a missed re-link. (b) Facility.ApprovedRevisionNo (13:51; DDL 001:2834) is a counter with no FK to the APPROVED FacilityRevision row, and the only checks are >=0 and >=1 when not DRAFT. (c) The rev contract (13:8-10) relies on FromRevision <= N < ToRevision for reads, but the only check is ToRevision >= FromRevision (e.g. 13:169). The unique index (13:159) covers only ToRevision IS NULL, so two closed rows of the same (FacilityId, Code) can both cover the same approved revision and the read is ambiguous.",
+   "recommendation": "Separate stable identity from versions. Add a node table (for example fac.LimitNode with FacilityId, Code) that children reference, and keep versioned attributes in fac.Limit rows. Children then never need re-pointing at approval. Enforce one version per (node, revision) with a maintained revision table or a trigger, and make ApprovedRevisionNo derived from, or composite-linked to, the approved FacilityRevision row (FacilityId, RevisionNo).",
+   "id": "DR-28"
+  },
+  {
+   "table": "cat.BaseRate (with cat.BaseRateValue and cat.BaseRateAlias)",
+   "column": "InstitutionId (MARKET rows), CurrencyId, Code, BaseRateAlias.InstitutionId",
+   "category": "tenancy",
+   "severity": "major",
+   "issue": "BaseRate is tenant-owned (no global/mixed flag, model 12:210; DDL TenantId NOT NULL and UQ_BaseRate_FamilyCode_Tenor_InstitutionId includes TenantId). MARKET rows (12:212-219) are published market facts: a benchmark such as SAIBOR 3M has one value per date regardless of tenant. Each tenant re-enters its own copy (BaseRateValue, 12:233-244), so two tenants can hold different values for the same index and date, and a corrected market value cannot be fixed once. The planned FEED (12:237) would have to fan out per tenant. docs/20 section 3.3 requires a justification for every non-tenant table; none is given. Secondary: CurrencyId is nullable (DDL INT NULL) and is absent from the uniqueness key (12:217), so an unset currency is not caught and two currencies cannot share a family and tenor. Code duplicates (FamilyCode, Tenor) with no link. BaseRateAlias.InstitutionId (12:227) is a copy whose composite FK covers only Tenor (DDL 002:224), so it can drift from its parent. SVC-05 resolves by (alias, tenor) (12:226, index 12:231 non-unique), while uniqueness is per InstitutionId (12:230), so one alias can resolve to two rows.",
+   "recommendation": "Make MARKET base rates and their values global or mixed (TenantId NULL, platform-written, tenant read-only) and keep BANK_INTERNAL tenant-owned, with a justification line per table. Make CurrencyId NOT NULL or include it in the key. Derive the alias scope from BaseRate (persisted ISNULL(InstitutionId,0) copied with a composite FK), and make the resolution key match the uniqueness key.",
+   "id": "DR-29"
+  },
+  {
+   "table": "cat.FinancingType; cat.ProductFinancingType (with cat.Product and cat.FacilityType)",
+   "column": "IsIslamic, Compliance",
+   "category": "workflow_semantics",
+   "severity": "major",
+   "issue": "Shariah classification is modelled three ways. cat.Product.Compliance (12:127) and cat.FacilityType.Compliance (12:162) use enum{CONVENTIONAL,ISLAMIC,NEUTRAL}, while cat.FinancingType uses bool IsIslamic (12:141), which cannot express NEUTRAL. The junction cat.ProductFinancingType (12:153-159) has uniqueness only, with no CHECK or key tying the product's compliance to the financing type's. A CONVENTIONAL product can therefore be linked to an Islamic financing type, and that pair feeds pricing (prc.PricingRule.FinancingTypeId, 13:444) and reporting. The comment at 12:162 says the compliance enum is aligned across Product and FacilityType, which is not true for FinancingType.",
+   "recommendation": "Replace IsIslamic with the same Compliance enum. Carry Compliance on the junction with composite FKs to (TenantId, ProductId, Compliance) and (TenantId, FinancingTypeId, Compliance) keys, and CHECK the allowed pairs once the Shariah owner confirms the NEUTRAL rule.",
+   "id": "DR-30"
+  },
+  {
+   "table": "fac.Limit, fac.LimitProductLine, fac.LimitCompanyRule, fac.ProductLineTerm, fac.OutstandingSnapshot, fac.ValueConflict, prc.PricingRule, cmp.TermValue (src tables)",
+   "column": "OriginalText (and CandidateAOriginalText, Reason, Notes, ChangeSummary)",
+   "category": "sensitivity",
+   "severity": "major",
+   "issue": "The src flag adds OriginalText NVARCHAR(2000) to each sourced row (DDL 001:2969, 3020, 3070, 3114 and others) and ValueConflict.CandidateA/BOriginalText (13:335, 13:341). None is flagged sens, and db/static/006 (DENY SELECT for tp_readonly) lists no fac, prc or cmp column. tp_readonly has SELECT on all other columns (docs/20 section 9.1). Verbatim clause text is where agreements quote disbursement or repayment accounts and IBANs, which section 6.1 requires to be encrypted and masked (acc.BankAccount does this). Free-text Reason, Notes and ChangeSummary columns carry the same risk. Assumption: source text is stored verbatim, as section 5.2 states.",
+   "recommendation": "Flag OriginalText and the free-text columns in src and rev tables as sens=confidential, and add DENY SELECT for tp_readonly on them. Redact IBAN and account-number patterns at ingestion, keeping the unredacted original only in the document store under doc.Document access. Extend the section 6 rule explicitly to free text.",
+   "id": "DR-31"
+  },
+  {
+   "table": "cat.DocumentType; fac.FacilityLender; fac.Facility; ref.Country; cat.LegalEntityType; cat.Position",
+   "column": "AppliesTo, Roles, AlertLeadDays, BankUnilateralRights, WeekendDays, DefaultBodyTypes, ApplicableBodyTypes",
+   "category": "normalization",
+   "severity": "major",
+   "issue": "Multi-valued columns are not domain-checked. set{} columns generate no membership CHECK: AppliesTo (12:82; DDL 001:1861 VARCHAR(72), no CHECK at all), Roles (13:114; only CK_FacilityLender_2 and _3), AlertLeadDays (13:50; CK_Facility_11 checks only the character class [0-9,], so '45' passes), BankUnilateralRights (13:46; only a LIKE). Concrete bypass: Roles='SOLO' with SharePct=50 passes CK_FacilityLender_3, which is meant to enforce SOLE implies 100% (13:120). ref.Country.WeekendDays (12:20) is a comma list validated only by character class (CK_Country_3 accepts 'XYZ' or 'FRI,FRI'). The JSON lists DefaultBodyTypes (12:69) and ApplicableBodyTypes (12:96) are checked only by ISJSON, so governance-type typos are stored. docs/20 section 4 allows set{} only for tiny fixed lists, and closed values are meant to use CHECK IN, so this is a generator gap, not a chosen design.",
+   "recommendation": "Have dbgen emit a membership CHECK for every set{} column (wrap the value in commas and reject any token outside the list, plus duplicates). Move AppliesTo (which gates uploads, BR-CAT-016) and Roles to junction tables, since they drive rules. Validate JSON lists against the enum set through junction tables or the application, and normalise WeekendDays to a junction table or bit flags.",
+   "id": "DR-32"
+  },
+  {
+   "table": "col.Guarantee",
+   "column": "GuarantorIdentityDocumentId",
+   "category": "referential",
+   "severity": "major",
+   "issue": "The generated FK is (TenantId, GuarantorIdentityDocumentId) to pty.IdentityDocument only (002_foreign_keys.sql:444). The model says ownership by the guarantor is checked by the application (db/model/14 line 73), although pty.IdentityDocument.PartyId is required (db/model/11 line 289). The database therefore accepts a guarantee whose signed-ID document belongs to a different party, and the design treats that document as legal evidence (BR-PTY-006). The project's own pattern for this case is via= (acc.BankAccount.RelationshipId via=CompanyId,InstitutionId).",
+   "recommendation": "Declare GuarantorIdentityDocumentId ->pty.IdentityDocument via=GuarantorPartyId, with a unique (TenantId, PartyId, IdentityDocumentId) on pty.IdentityDocument. A composite FK with a NULL component is not checked, so the optional column is unaffected.",
+   "id": "DR-33"
+  },
+  {
+   "table": "fin.FinancialStatement",
+   "column": "SupersedesId",
+   "category": "referential",
+   "severity": "major",
+   "issue": "The version-chain FK is (TenantId, SupersedesId) to fin.FinancialStatement only (002_foreign_keys.sql:510) with no via= on CompanyId or on the period key. The only check on the column (db/model/14 line 433) forbids self-reference. A restatement of company A can therefore name company B's statement as its predecessor. Any approval that sets the predecessor to SUPERSEDED would then act on another company's row. The approved-uniqueness index (line 424) is keyed per company, basis, assurance and period, but the chain is not. BR-FIN-004 (الأحدث يُسقط السابق) is not enforced by the schema.",
+   "recommendation": "Declare SupersedesId ->fin.FinancialStatement via=CompanyId,Basis,Assurance,PeriodType,PeriodEnd (the columns of the approved-uniqueness key), with a unique on the target (TenantId, those columns, FinancialStatementId).",
+   "id": "DR-34"
+  },
+  {
+   "table": "prc.PricingRule",
+   "column": "ScopeLimitProductLineId",
+   "category": "referential",
+   "severity": "major",
+   "issue": "ScopeLimitProductLineId (db/model/13 line 438), cmp.TermValue.LimitProductLineId (line 561) and obl.Obligation.ScopeProductLineId (db/model/14 line 167) use via=FacilityId only. The generated keys (002_foreign_keys.sql:398, :419, :466) are (TenantId, FacilityId, LineId) to fac.LimitProductLine(TenantId, FacilityId, LimitProductLineId). The line's parent LimitId is not in the key, so a rule can name ScopeLimitId = L1 and a product line of L2 in the same facility. The contrast is fac.LimitReservation, whose key is the full path (TenantId, FacilityId, LimitId, LimitProductLineId) at 002_foreign_keys.sql:364. Design section 3.1 cites exactly this class of error ('حجز على خط منتج من حد آخر') as prevented, but the pricing, covenant and comparison tables do not prevent it. Obligation's comment leaves consistency to the application. Also, a composite FK with a NULL component is not checked, so a product line can be set while ScopeLimitId is NULL.",
+   "recommendation": "Use via=FacilityId,ScopeLimitId for PricingRule and Obligation, and via=FacilityId,LimitId for TermValue. Add CHECK (ScopeLimitProductLineId IS NULL OR ScopeLimitId IS NOT NULL), and the equivalent for TermValue and Obligation.",
+   "id": "DR-35"
+  },
+  {
+   "table": "col.Collateral",
+   "column": "Status",
+   "category": "workflow_semantics",
+   "severity": "major",
+   "issue": "Status is {DRAFT, ACTIVE, RELEASED, EXPIRED} (db/model/14 line 33), and it has no value for a replaced version. SupersedesId (line 37) links a newly approved version to its predecessor, so the schema forces a bad choice. Either the predecessor stays ACTIVE and APPROVED alongside its successor, or it is marked RELEASED, which requires a release date, reason and document and misstates a replacement as a release. IX_Collateral_SupersedesId is not unique (003_indexes.sql:415), so one predecessor can have several successors. The coverage index (Status, ApprovalState; line 44, 003:412) cannot tell a current version from a replaced one, which creates double-count risk under BR-COL-005. Separately, RELEASED does not require ReleaseDocumentId (line 48), although the comment cites FR-COL-010 (بتاريخ وسبب ووثيقة).",
+   "recommendation": "Add SUPERSEDED to Status and set it in the approval transaction. Add a filtered unique index on SupersedesId WHERE SupersedesId IS NOT NULL. Add a logical root id with a filtered unique index allowing one APPROVED, non-superseded version per root. Add CHECK (Status <> 'RELEASED' OR ReleaseDocumentId IS NOT NULL).",
+   "id": "DR-36"
+  },
+  {
+   "table": "fin.AccountMonthlyStat",
+   "column": "MonthEnd",
+   "category": "key",
+   "severity": "major",
+   "issue": "Both fin.AccountMonthlyStat and fin.BankFlowEntry key on MonthEnd (db/model/14 line 456 unique BankAccountId,MonthEnd; line 470 unique includes MonthEnd), and the AccountMonthlyStat comment says it is the month end. The generated checks (001_tables.sql) contain no month-end constraint: CK_BankFlowEntry_1 is only Amount >= 0, and AccountMonthlyStat has only SourceKind and Status checks (lines 4426-4427). Two rows dated 2026-05-15 and 2026-05-31 for the same account or flow therefore both pass the unique keys. BankFlowEntry is aggregated annually (تجميع سنوي آلي, line 459; index line 471), so the annual total is double counted.",
+   "recommendation": "Add CHECK (MonthEnd = EOMONTH(MonthEnd)) to both tables, and apply the same rule to any other MonthEnd used as a key.",
+   "id": "DR-37"
+  },
+  {
+   "table": "obl.Covenant",
+   "column": "ThresholdUnit",
+   "category": "workflow_semantics",
+   "severity": "major",
+   "issue": "CK_Covenant_3 (001_tables.sql:4144) requires Operator and ThresholdValue when ThresholdState = 'SET', but not ThresholdUnit (model lines 286-288). A SET threshold with NULL unit is accepted, so 1.5 can be read as a ratio or as 1.5 percent, and BR-OBL-006 cannot evaluate it. StatementBasis (db/model/14 line 272) is nullable with no check for the statement-based kinds (RATIO, AMOUNT, PERCENT_OF_REVENUE), although its comment (BR-FIN-003) says there is no silent substitute. ThresholdUnit duplicates fin.MeasureFormula.ResultUnit (line 483), and MeasureKind duplicates cat.ObligationType.MeasureKind (db/model/12 line 201), with no equality check.",
+   "recommendation": "Add CHECK (ThresholdState <> 'SET' OR ThresholdUnit IS NOT NULL) and CHECK (MeasureKind NOT IN ('RATIO','AMOUNT','PERCENT_OF_REVENUE') OR StatementBasis IS NOT NULL), and review RequiredAssurance the same way. Enforce ThresholdUnit = MeasureFormula.ResultUnit in the evaluation service with a test.",
+   "id": "DR-38"
+  },
+  {
+   "table": "obl.CovenantTest",
+   "column": "CovenantId",
+   "category": "workflow_semantics",
+   "severity": "major",
+   "issue": "(a) The model says stored results are not edited (المخزَّن لا يُعدَّل, db/model/14 line 300) and InputsSnapshot is fixed after saving (line 314, BR-FIN-010). But CovenantTest is not append-only, and tp_app has SELECT, INSERT, UPDATE on it (007_table_grants.sql:290) with no DENY and no trigger. An evaluated or REVIEWED result can be overwritten, and the only trail is the application audit log. (b) The rev contract (db/model/14 header, line 11) re-points operational rows (CovenantTest, ReportingInstance, ObligationBreach) to the new covenant revision in the approval transaction. After that, a test no longer records which revision governed it. ThresholdApplied and OperatorApplied are snapshots, but FormulaVersion is a bare int with no FK, and other evaluation parameters (SubmissionLagDays, AccountScopeKind, AggregationMode) are not snapshotted.",
+   "recommendation": "Keep a GoverningCovenantId (and GoverningReportingObligationId on ReportingInstance) that is never re-pointed, and resolve the current revision through the logical chain. Make an evaluation immutable once EVALUATED, with a trigger or by moving outcomes into an append-only table. Put every parameter used by the evaluation into InputsSnapshot.",
+   "id": "DR-39"
+  },
+  {
+   "table": "col.Guarantee",
+   "column": "CollateralId",
+   "category": "referential",
+   "severity": "major",
+   "issue": "Subtype rows (Guarantee, PromissoryNote, InsurancePolicyAssignment, ValuationSchedule; likewise obl.ReportingObligation and obl.Covenant under obl.Obligation) key only on the parent id, and nothing ties them to the parent's type discriminator: cat.CollateralType.StructureKind (db/model/12 line 182: GUARANTEE, PROMISSORY_NOTE, INSURANCE_ASSIGNMENT, CASH_MARGIN, REAL_ESTATE, ...) and cat.ObligationType.Family (line 200). A REAL_ESTATE collateral can carry a Guarantee row, a GUARANTEE-typed collateral can have none, and one collateral can hold both a Guarantee and a PromissoryNote. Likewise, a Covenant can hang off a REPORTING-family obligation and a ReportingObligation off a COVENANT-family one. The DB never consults the discriminator.",
+   "recommendation": "Use the typed-FK pattern. Copy the discriminator onto the parent (Collateral.StructureKind, Obligation.Family). Give each subtype a constant discriminator column constrained by CHECK, and a composite FK (TenantId, CollateralId, StructureKind) to col.Collateral(TenantId, CollateralId, StructureKind), plus a unique on the subtype's parent key.",
+   "id": "DR-40"
+  },
+  {
+   "table": "lc.LcTerms",
+   "column": "Status",
+   "category": "workflow_semantics",
+   "severity": "major",
+   "issue": "Locked legal content is mutable at the database level. The model says LOCKED terms cannot go back (16:166) and RenderedTextEn is frozen at lock (lc.LcTermsDocument, 16:316), but the only DB guards are CHECKs on Status and nothing else. tp_app has SELECT, INSERT, UPDATE on lc.LcTerms (007_table_grants.sql:376), DELETE on lc.LcTermsDocument (005_delete_grants.sql:42), and UPDATE/DELETE on published-template children (wfl.WorkflowStage 005:33, 007:316; StageApprover 15:144, WorkflowTransition 15:166, WorkflowStageHook 15:183, TemplateField 15:200, TemplateAttachmentRule 15:227 are all deletable). lc.ProformaInvoice and lc.ProformaLine are UPDATE-able (007:400-402) and ProformaLine has no lock state. No trigger exists anywhere under db/. SnapshotHash (16:252) is stored in the row it protects, so an updater can recompute it; the design's own C-6 disclaims hash chains without an external anchor. Totals are not reconciled: ProformaInvoice.Subtotal and VatAmount (16:621, 623) are not checked against ProformaLine.LineTotal (16:663); only Total = Subtotal + VatAmount (16:647) is enforced.",
+   "failure_scenario": "A bug or direct SQL under tp_app changes LcTerms.Amount or deletes an LcTermsDocument row of an ISSUED letter of credit. No constraint or grant fails, and the hash can be recomputed from the same row. An issued proforma's Subtotal can disagree with its lines.",
+   "recommendation": "Separate mutable draft from issued content: keep LcTerms mutable only while DRAFT and insert a new immutable row on lock, with DENY UPDATE/DELETE to tp_app and tp_platform on the locked table (the append mechanism already used in 005_delete_grants.sql). Alternatively add INSTEAD OF UPDATE/DELETE triggers that reject rows whose owning terms or template is LOCKED/PUBLISHED. Mark the proforma header and lines append-only after issuance and compute Subtotal and VatAmount from the lines at issue time. Anchor SnapshotHash outside the row (§5.3).",
+   "id": "DR-41"
+  },
+  {
+   "table": "lc.LetterOfCredit",
+   "column": "CurrentTermsId",
+   "category": "referential",
+   "severity": "major",
+   "issue": "LcTerms.OwnerType/OwnerId is polymorphic with no FK (16:162-163), and the generated FK for CurrentTermsId is (TenantId, CurrentTermsId) only (DDL 002_foreign_keys.sql:709). Nothing binds the terms to this LC, to its purpose, or to a non-superseded version, so an LC can reference terms owned by another LC, a proforma or a request, including terms of the opposite LcClass. The copied fields are not checked against those terms: CurrencyId (16:412), TolerancePlusPct/ToleranceMinusPct (16:415-416) and MarginPct (16:418) are documented as copies of the current terms, but no check ties them. The same owner gap applies to ProformaInvoice.TermsId (16:627) and LcAmendment.TermsId (16:489).",
+   "failure_scenario": "An LC with CurrencyId USD points at terms whose CurrencyId is EUR, or whose tolerance differs. ExposureAmount (16:417), which is reserved against the limit, is computed from the LC's tolerance while the printed terms show another value. Nothing fails.",
+   "recommendation": "Replace OwnerType/OwnerId with typed nullable owner keys (RequestId, ProformaInvoiceId, LetterOfCreditId, LcAmendmentId) and a check that exactly one applies for the Purpose, so each terms row has a real FK. Bind LetterOfCredit.CurrentTermsId with a composite that includes LetterOfCreditId. Remove the copied currency, tolerance and margin fields, or add checks that they equal the current terms.",
+   "id": "DR-42"
+  },
+  {
+   "table": "wfl.HookExecution",
+   "column": "ActionFilter",
+   "category": "key",
+   "severity": "major",
+   "issue": "The idempotency key omits ActionFilter. The column exists (15:484), but the unique key is (RequestId, StageInstanceId, HookKey, TriggerKind) (15:496; DDL 001_tables.sql:5195). WorkflowStageHook allows the same HookKey on APPROVE and on REJECT/RETURN/CANCEL within one stage (15:186, 15:192). A stage instance can receive several non-exit actions before it exits (ANY/ALL approval modes), so an APPROVE hook and a REJECT hook sharing a HookKey collide. In an ALL stage, the APPROVE hook also runs only once for the whole instance, so later approvers' hooks are silently deduplicated. The model says a duplicate key returns the stored result (15:479).",
+   "failure_scenario": "An ALL-mode stage has hook ntf.emit on APPROVE and on REJECT. Approver 1 approves and the APPROVE hook runs. Approver 2 rejects: the REJECT hook insert violates UQ_HookExecution, and the engine returns the stored APPROVE result. The rejection side effect never runs and no alert fires.",
+   "recommendation": "Include ActionFilter in the unique key (SQL Server treats NULLs as equal in unique constraints, so ON_ENTER and ON_EXIT rows stay unique). For ON_ACTION hooks, also include the triggering approval or action identity (RequestApprovalId or an action sequence number) so each distinct action executes once.",
+   "id": "DR-43"
+  },
+  {
+   "table": "wfl.Request",
+   "column": "DueAt",
+   "category": "redundancy",
+   "severity": "major",
+   "issue": "Request duplicates the open stage instance. CurrentStageId (15:258), AssigneeUserId (15:262), QueueEnteredAt (15:263), ClaimedAt (15:264), DueAt (15:265) and SlaState (15:266) repeat RequestStageInstance fields (AssigneeUserId 15:392, ClaimedAt 15:389, QueuedAt 15:388, DueAt 15:393, SlaState 15:396). The queue and SLA indexes read the copies (15:309-310). ReservationId, ReservedAmount and ReservationState (15:294-296) mirror fac.LimitReservation. No CHECK, composite key or trigger enforces equality, and the only link is the generated (TenantId, CurrentStageInstanceId) FK. The copies are written in separate statements by the stage engine, the SLA job and the reservation hooks.",
+   "failure_scenario": "A stage transition updates RequestStageInstance.DueAt and SlaState, but the write to Request is skipped or fails. The SLA job queries the Request index (15:310) and misses an overdue stage. The queue index (15:309) keeps showing a request as unassigned after a claim. Separately, a m5 release sets LimitReservation to RELEASED while Request.ReservationState stays RESERVED.",
+   "recommendation": "Make RequestStageInstance the single source of stage, assignee and SLA state, and build the queue and SLA indexes on it (it already indexes DueAt where ExitedAt IS NULL, 15:405). Read reservation state through ReservationId. If the Request copy is kept for query speed, enforce it with the composite from the first finding and add a reconciliation job that compares the two, as the design does for available limits (§7.1).",
+   "id": "DR-44"
+  },
+  {
+   "table": "lc.LetterOfCredit",
+   "column": "InstitutionId",
+   "category": "key",
+   "severity": "major",
+   "issue": "InstitutionId is optional (16:397; nullable in DDL). The LC-number uniqueness rule (16:434, BR-LCI-016 / V-LCI-01) is a filtered unique index WHERE LcClass = 'PURCHASE' AND InstitutionId IS NOT NULL (DDL 003_indexes.sql:642). A purchase LC saved without an issuing bank falls outside the rule, and no CHECK requires InstitutionId for PURCHASE. The only check that requires it is for RelationshipId (DDL CK_LetterOfCredit_11).",
+   "failure_scenario": "Two purchase LCs with the same number are inserted with InstitutionId NULL. Both pass every constraint. Duplicate-LC detection, reservation keys and expiry alerts all depend on the number.",
+   "recommendation": "Add CHECK (LcClass = 'SALES' OR InstitutionId IS NOT NULL). If LegacyEntry rows can legitimately lack a bank, scope the check to LegacyEntry = 0 and backfill the rest. Do not rely on the NULL-filtered unique index to carry the rule.",
+   "id": "DR-45"
+  },
+  {
+   "table": "lc.LcTermsComparisonLine",
+   "column": "BaselineValue",
+   "category": "sensitivity",
+   "severity": "major",
+   "issue": "The restricted IBAN is encrypted in one column, but comparison and diff storage writes field values in plaintext with no sensitivity tag. LcTermsComparisonLine.BaselineValue and ReceivedValue are NVARCHAR(MAX) per FieldKey (16:686-687), and LcAmendment.ChangedFieldsJson stores differences by field key (16:490). The source fields BeneficiaryAccountIbanEnc, Mask and Hash are sens=restricted and enveloped (16:186-188; §6.1-6.2). 006_sensitive_columns.sql restricts only the source columns. Nothing in the model excludes restricted keys from these copies.",
+   "failure_scenario": "A PROFORMA vs RECEIVED comparison, or an amendment that changes the beneficiary account, writes the IBAN in clear to LcTermsComparisonLine and LcAmendment.ChangedFieldsJson. The envelope, AAD binding and masking required by §6 do not apply to the copy, and the application role can read those rows.",
+   "recommendation": "Exclude sens=restricted FieldKeys from comparison and diff at write time, storing only the mask and an HMAC for changed restricted fields, or encrypt those values with the §6.2 envelope. Tag the value and diff columns with the highest sensitivity of the fields they can hold.",
+   "id": "DR-46"
+  },
+  {
+   "table": "org.Company",
+   "column": "ErpCodeNormalized",
+   "category": "normalization",
+   "severity": "minor",
+   "issue": "ErpCodeNormalized (11-organization-party.model:28) is a stored derivation of ErpCompanyCode (the comment says it implements the BR-LCE-002 formula). The only CHECK (line 43) forces it to be non-null when the source is set. It does not verify that the value matches the source, and clearing ErpCompanyCode leaves the old normalized value in place. The unique index on it (line 36) is the DB-1 enforcement, so a stale value silently defeats the uniqueness rule. The model already expresses the same kind of derivation as a persisted calc column (12-institutions-accounts-catalogs.model:229, cat.BaseRateAlias.AliasKey = UPPER(Alias)).",
+   "recommendation": "Declare ErpCodeNormalized as a calc column with a persisted expression, e.g. calc ErpCodeNormalized str(20) =UPPER(LTRIM(RTRIM(ErpCompanyCode))), extended with the BR-LCE-002 space rule, and keep the existing unique filter on it. Confirm the DSL accepts the expression.",
+   "id": "DR-47"
+  },
+  {
+   "table": "ref.Country, ref.Currency, and every cat.* table with a Code check (for example cat.BaseRate, cat.LookupItem)",
+   "column": "Iso2, Iso3, Code",
+   "category": "key",
+   "severity": "minor",
+   "issue": "The database collation is Arabic_100_CI_AS_SC (db/deploy.sql:9). Under a case-insensitive collation LIKE '[A-Z]' also matches lowercase, so the uppercase rules are not enforced: CK_Country_1 (DDL 001:1672, BR-CAT-018 'uppercase Latin letters'), CK_Currency_2 (001:1695), and every Code check (e.g. CK_BaseRate_3, CK_LookupItem_1). 'sa' is accepted as Iso2. The unique indexes still reject 'SA' against 'sa' because they are case-insensitive, so the damage is that codes are stored in lowercase, and any binary comparison, ISO feed or ERP export keyed on ExternalCode or Code will miss them.",
+   "recommendation": "Add COLLATE Latin1_General_100_BIN2 inside each Code CHECK, for example Iso2 COLLATE Latin1_General_100_BIN2 NOT LIKE '%[^A-Z]%'. Add a test that inserts 'sa' and expects rejection.",
+   "id": "DR-48"
+  },
+  {
+   "table": "wfl.RequestType",
+   "column": "AmountFieldKey",
+   "category": "redundancy",
+   "severity": "minor",
+   "issue": "RequestType repeats facts that other tables already own. AmountFieldKey, CurrencyFieldKey and ProductFieldKey (15:29-31) duplicate TemplateField.IndexRole (15:217), which is unique per template (15:221) and already encodes AMOUNT, CURRENCY and PRODUCT per version. DefaultTemplateKey (15:27) duplicates WorkflowTemplate.IsCurrent with unique TemplateKey WHERE IsCurrent = 1 (15:71, 15:87). NumberSequenceKey (15:28) is literally 'req:' + Code. ConsumesCreditLimit (15:32) mirrors cat.Product.ConsumesCreditLimit. No FK or check ties any of these copies to its source.",
+   "failure_scenario": "DefaultTemplateKey names a template belonging to another RequestType, since no check ties it to RequestTypeId. AmountFieldKey names a field whose IndexRole is not AMOUNT, so the availability panel and reservation read the wrong amount. A renamed Code leaves NumberSequenceKey pointing at a sequence that no longer exists.",
+   "recommendation": "Derive field keys from TemplateField.IndexRole of the current template, derive the default template from WorkflowTemplate.IsCurrent, and make NumberSequenceKey a computed column or a check equal to 'req:' + Code. Keep ConsumesCreditLimit only if it is the authoritative flag; otherwise read it from the product.",
+   "id": "DR-49"
+  },
+  {
+   "table": "wfl.Request",
+   "column": "OutcomeReason",
+   "category": "workflow_semantics",
+   "severity": "minor",
+   "issue": "Several state columns lack the evidence that their state implies. (a) Request.OutcomeReason is not required for REJECTED or CANCELLED (15:276; the CompletedAt check is at 15:318). (b) WorkflowTemplate.PublishedBy is not required for PUBLISHED (15:80, 15:92). (c) LcTerms.LockedBy is not required for LOCKED (16:255, 16:270). (d) WorkflowTransition has no check that RETURN has a ResumeStageId (15:173, 15:180). (e) RequestApproval.OnBehalfOfUserId is allowed when Source is not DELEGATE (15:430); CK_RequestApproval_5 (15:450) only checks one direction. (f) In ntf.Notification, DedupKey is nullable and the uniqueness applies only WHERE DedupKey IS NOT NULL (15:617, 15:624), and SourceEventId (15:622) has no uniqueness, so outbox redelivery can insert duplicate notifications.",
+   "failure_scenario": "A request is REJECTED with no reason shown to the requester. A RETURN transition with NULL ResumeStageId leaves RESUBMIT with nothing to resume. An approval with OnBehalfOfUserId and Source USER records a delegation that never existed. An outbox retry with a NULL DedupKey creates a second notification for the same user.",
+   "recommendation": "Add CHECKs: Status IN ('REJECTED','CANCELLED') implies OutcomeReason IS NOT NULL; PUBLISHED implies PublishedBy IS NOT NULL; LOCKED implies LockedBy IS NOT NULL; Action = 'RETURN' implies ResumeStageId IS NOT NULL; OnBehalfOfUserId IS NULL OR Source = 'DELEGATE'. For notifications, require DedupKey, or add unique (UserId, SourceEventId, EventTypeId) so redelivery is idempotent.",
+   "id": "DR-50"
+  }
+ ]
+}

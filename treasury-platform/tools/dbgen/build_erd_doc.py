@@ -95,6 +95,42 @@ def generated_section(plan, tables):
     return out
 
 
+REVIEW = os.path.join(DOCS, 'review', 'design-review-2026-10-11.json')
+
+
+def first_sentence(text, limit=230):
+    t = (text or '').strip().replace('|', '/').replace('\n', ' ')
+    cut = re.split(r'(?<=[.;])\s', t, maxsplit=1)[0]
+    return cut if len(cut) <= limit else cut[:limit - 1] + '…'
+
+
+def review_section():
+    import json
+    d = json.load(open(REVIEW, encoding='utf-8'))
+    c = d['counts']
+    out = ['## 18. مراجعة التصميم (Design review)', '',
+           f'أجرى فريق من خمسة مهندسي قواعد بيانات مراجعة مستقلة لكل مجموعة وحدات، فحصت كل جدول وكل علاقة مفتاح أجنبي على أسس النمذجة العلائقية: التطبيع، والمفاتيح، والإلزام والعدد، وسلامة المرجع، والعزل بين المشتركين، والتكرار، والفهرسة، والحساسية، ودلالات دورة العمل. النتائج مسجَّلة بمعرّفاتها في `docs/review/design-review-2026-10-11.json`، وتحمل كل نتيجة مرجع السطر في النموذج أو في DDL.', '',
+           f'**الإجمالي: {len(d["findings"])} نتيجة — حرجة {c["critical"]} · رئيسية {c["major"]} · طفيفة {c["minor"]}.** لم يُعدَّل النموذج بعد؛ القرار المطلوب في §18.3.', '',
+           '### 18.1 النتائج الحرجة', '',
+           '| المعرّف | الكيان | الدلالة | المشكلة (ملخص) | الإصلاح المقترح (ملخص) |', '|---|---|---|---|---|']
+    crit = [f for f in d['findings'] if f['severity'] == 'critical']
+    for f in crit:
+        obj = f['table'] + ('.' + f['column'] if f.get('column') else '')
+        out.append(f'| {f["id"]} | `{esc_cell(obj)}` | {f["category"]} | {esc_cell(first_sentence(f["issue"]))} | {esc_cell(first_sentence(f["recommendation"]))} |')
+    out += ['', '### 18.2 النتائج الرئيسية والطفيفة', '',
+            '| المعرّف | الكيان | الدرجة | الدلالة | المشكلة (ملخص) | الإصلاح المقترح (ملخص) |', '|---|---|---|---|---|---|']
+    for f in d['findings']:
+        if f['severity'] == 'critical': continue
+        obj = f['table'] + ('.' + f['column'] if f.get('column') else '')
+        out.append(f'| {f["id"]} | `{esc_cell(obj)}` | {f["severity"]} | {f["category"]} | {esc_cell(first_sentence(f["issue"]))} | {esc_cell(first_sentence(f["recommendation"]))} |')
+    out += ['', '### 18.3 القرار المطلوب', '',
+            'المطلوب قبل أي تنفيذ على SQL Server:', '',
+            '1. **اعتماد الإصلاحات الحرجة العشر** أو تعديلها، لأن كل منها يغيّر مفتاحًا أجنبيًا أو ملكية جدول. أكثرها أثرًا: تحويل كتالوج القيم المختلط (`cat.LookupItem`) إلى نسخ لكل مشترك وربط المراجع مركّبًا (DR-03 و DR-05 و DR-07)، وتحويل عنوان المالك المتعدد `pty.Address` إلى أقواس خارجية متعددة الأعمدة (DR-04)، ومراجعة ملكية `plat.TenantModule` (DR-01).',
+            '2. **تحديد مفتاح الغرض في مفاتيح التشفير** (DR-02): إضافة `KeyPurpose` وقيد مركّب، أو الإبقاء على الحالي مع فحص آلي.',
+            '3. **إعادة توليد النموذج** بعد الموافقة، ثم تشغيل `check_grants.py` والتحقق البنيوي والتحقق من المخططات، ثم تحديث الـ ERD وفق النتائج.', '']
+    return out
+
+
 def split_sections(text):
     parts = re.split(r'(?m)^(?=## )', text)
     return parts
@@ -142,6 +178,7 @@ def main():
     body = body.replace(marker, '\n' + '\n'.join(gen) + '\n' + marker.lstrip('\n') if False else marker, 1)
     before, after = body.split(marker, 1)
     doc = '\n'.join(front) + '\n' + before.rstrip() + '\n\n' + '\n'.join(gen) + '\n\n## 11. ' + after
+    doc = doc.rstrip() + '\n\n' + '\n'.join(review_section()) + '\n'
     open(NEW, 'w', encoding='utf-8').write(doc)
     print('wrote', NEW, 'lines', doc.count('\n'))
 
