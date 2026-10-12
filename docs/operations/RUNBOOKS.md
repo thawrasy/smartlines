@@ -1000,6 +1000,11 @@ The message names each gap. Fixes:
   secret after its own so the tokens it signed still verify:
   `MASSLAK_QR_KEYS=q<yyyymm>:<openssl rand -base64 32>,s1` and the same for `MASSLAK_DOCUMENT_KEYS` with `d<yyyymm>`,
   then `./deploy/env-split.sh` and a restart of the app and the worker. `s1` can leave `MASSLAK_QR_KEYS` a day later.
+* "MASSLAK_EINVOICE_KEYS must name a key of its own first" (release 1.50.0): e-invoices are signed with a key of
+  their own that each document names. Add `MASSLAK_EINVOICE_KEYS=e<yyyymm>:<openssl rand -base64 32>` (a server that
+  already issued e-invoices may add `,e1` after it; documents signed before keep verifying either way, from the public
+  key kept in the database), then `./deploy/env-split.sh` and a restart. Rotation and the public keys:
+  TAXES_AND_EINVOICES.md.
 
 ### The key service
 

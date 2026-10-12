@@ -25,7 +25,15 @@
   },
   "points.earned": {
     "subject": "You earned {points} points",
-    "body": "Trip {trip_no} earned you {points} loyalty points. Your balance is {balance} points; turn them into wallet credit from your wallet page."
+    "body": "Trip {trip_no} earned you {points} loyalty points. Your balance is {balance} points; turn them into wallet credit or a voucher at a partner from your wallet page."
+  },
+  "voucher.used": {
+    "subject": "Voucher used at {partner}",
+    "body": "Your voucher worth {currency} {amount} was used at {partner}."
+  },
+  "voucher.returned": {
+    "subject": "{points} points back in your balance",
+    "body": "A voucher you did not use has expired or was cancelled, so its {points} points are back in your loyalty balance."
   },
   "booking.reserved": {
     "subject": "Booking {booking_ref} reserved: pay by {pay_by_local}",

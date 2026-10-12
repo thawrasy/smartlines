@@ -70,6 +70,16 @@ async def loyalty_wallet(conn: asyncpg.Connection, currency: str) -> dict:
     return await counted(conn, w)
 
 
+async def partner_wallet(conn: asyncpg.Connection, party_id: int, currency: str) -> dict:
+    """What the platform owes a loyalty partner (1107): credited when the partner honours a voucher, debited when its
+    statement is paid. Never negative."""
+    w = await owned_wallet(
+        conn, party_id, "PARTNER", currency,
+        "INSERT INTO fin.wallet (owner_party_id, wallet_type, label, currency) VALUES ($1, 'PARTNER', 'Loyalty partner', $2)",
+        party_id, currency)
+    return await counted(conn, w)
+
+
 async def company_wallet(conn: asyncpg.Connection, company_id: int, currency: str,
                          label: str = "Carrier wallet") -> dict:
     w = await owned_wallet(

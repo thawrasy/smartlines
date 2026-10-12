@@ -1,7 +1,10 @@
 """Loyalty points in the passenger portal (study 5.12, 5.13; migration 1103).
 
-    GET  /api/loyalty            the programme, my balance and tier, what it is worth, how to redeem, recent movements
-    POST /api/loyalty/redeem     turn points into wallet credit at the programme's point value
+    GET  /api/loyalty                         the programme, my balance and tier, what it is worth, how to redeem, recent
+                                              movements, the partners I can redeem at and my vouchers
+    POST /api/loyalty/redeem                  turn points into wallet credit at the programme's point value
+    POST /api/loyalty/vouchers                turn points into a voucher at a partner, at the agreed rate (1107)
+    POST /api/loyalty/vouchers/{uid}/cancel   cancel an unused voucher; the points come back
 
 Points are earned when the carrier completes a trip (pricing.earn_points_for_trip, called by the trip completion) and
 expire after the programme's months (pricing.expire_points, daily). A redemption moves points and money together in one
@@ -11,6 +14,8 @@ from __future__ import annotations
 
 import json
 
+import uuid
+
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, Field
 
@@ -19,6 +24,7 @@ from ...deps import Principal, context_for, require_portal
 from ...ledger import loyalty_wallet, post_txn, user_wallet
 from ...modular import features
 from ...util import row_dict, rows
+from . import partners
 
 router = APIRouter(prefix="/api/loyalty", tags=["loyalty"], dependencies=[features.require_module("loyalty")])
 passenger = require_portal("PASSENGER")
@@ -35,7 +41,7 @@ async def my_points(request: Request, pr: Principal = Depends(passenger)):
                         ORDER BY r.id DESC LIMIT 1) AS redeem
                  FROM pricing.loyalty_program g WHERE g.status = 'ACTIVE' ORDER BY g.id LIMIT 1""")
         if program is None:
-            return {"program": None, "account": None, "entries": []}
+            return {"program": None, "account": None, "entries": [], "offers": [], "vouchers": []}
         account = await conn.fetchrow(
             """SELECT a.id, a.balance, a.status, t.code AS tier_code, t.name AS tier_name
                  FROM pricing.points_account a LEFT JOIN pricing.loyalty_tier t ON t.id = a.tier_id
@@ -43,6 +49,10 @@ async def my_points(request: Request, pr: Principal = Depends(passenger)):
         entries = await conn.fetch(
             """SELECT l.txn_type, l.points, l.expires_at, l.created_at FROM pricing.points_ledger l
                 WHERE l.account_id = $1 ORDER BY l.id DESC LIMIT 20""", account["id"]) if account else []
+        offers, vouchers = [], []
+        if await features.is_on("loyalty_partners"):
+            offers = json.loads(await conn.fetchval("SELECT pricing.partner_offers($1)::text", pr.party_id))
+            vouchers = await partners.my_vouchers(conn, pr.user_id)
     p = row_dict(program)
     p.pop("id")
     p["redeem"] = json.loads(p["redeem"]) if isinstance(p["redeem"], str) else p["redeem"]
@@ -50,7 +60,7 @@ async def my_points(request: Request, pr: Principal = Depends(passenger)):
     if account:
         a = {k: account[k] for k in ("balance", "status", "tier_code", "tier_name")}
         a["value"] = account["balance"] * program["point_value"]
-    return {"program": p, "account": a, "entries": rows(entries)}
+    return {"program": p, "account": a, "entries": rows(entries), "offers": offers, "vouchers": vouchers}
 
 
 class RedeemIn(BaseModel):
@@ -73,3 +83,27 @@ async def redeem(body: RedeemIn, request: Request, pr: Principal = Depends(passe
                                ref_type="points_ledger", ref_id=out["ledger_id"], user_id=pr.user_id, memo=f"{out['points']} points")
     request.state.audit = {"action": "points.redeem", "object_type": "points_ledger", "object_id": out["ledger_id"]}
     return {k: out[k] for k in ("points", "value", "currency", "replayed") if k in out} | {"balance": out.get("balance")}
+
+
+class VoucherIn(BaseModel):
+    agreement: uuid.UUID
+    points: int = Field(gt=0, le=100_000_000)
+    idempotency_key: str = Field(min_length=8, max_length=64)
+
+
+@router.post("/vouchers", status_code=201, dependencies=[features.require_module("loyalty_partners")])
+async def new_voucher(body: VoucherIn, request: Request, pr: Principal = Depends(passenger)):
+    """Points for a voucher at a partner, at the rate the platform agreed with it; the code is shown with the voucher."""
+    async with db.transaction(context_for(request, pr)) as conn:
+        out = await partners.issue(conn, pr.party_id, pr.user_id, body.agreement, body.points,
+                                   f"voucher:{pr.party_id}:{body.idempotency_key}")
+    request.state.audit = {"action": "points.voucher", "object_type": "reward_voucher", "reason": out["voucher"]}
+    return out
+
+
+@router.post("/vouchers/{voucher}/cancel", dependencies=[features.require_module("loyalty_partners")])
+async def cancel_voucher(voucher: uuid.UUID, request: Request, pr: Principal = Depends(passenger)):
+    async with db.transaction(context_for(request, pr)) as conn:
+        out = json.loads(await conn.fetchval("SELECT pricing.cancel_voucher($1)::text", voucher))
+    request.state.audit = {"action": "points.voucher_cancel", "object_type": "reward_voucher", "reason": str(voucher)}
+    return out

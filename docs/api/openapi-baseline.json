@@ -1409,6 +1409,13 @@
     "200": {}
    }
   },
+  "GET /api/public/keys/einvoice": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
   "GET /api/public/keys/manifest": {
    "body": null,
    "parameters": {},
@@ -2022,6 +2029,29 @@
   "GET /api/v1/events": {
    "body": null,
    "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/v1/loyalty/redemptions": {
+   "body": null,
+   "parameters": {
+    "query:from": {
+     "required": true,
+     "schema": {
+      "format": "date",
+      "type": "string"
+     }
+    },
+    "query:to": {
+     "required": false,
+     "schema": {
+      "format": "date",
+      "nullable": true,
+      "type": "string"
+     }
+    }
+   },
    "responses": {
     "200": {}
    }
@@ -3745,6 +3775,110 @@
    },
    "responses": {
     "200": {}
+   }
+  },
+  "POST /api/admin/loyalty/settlements": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "currency": {
+        "nullable": true,
+        "pattern": "^[A-Z]{3}$",
+        "type": "string"
+       },
+       "date_from": {
+        "format": "date",
+        "type": "string"
+       },
+       "date_to": {
+        "format": "date",
+        "type": "string"
+       },
+       "partner_id": {
+        "exclusiveMinimum": 0.0,
+        "type": "integer"
+       }
+      },
+      "required": [
+       "partner_id",
+       "date_from",
+       "date_to"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "201": {}
+   }
+  },
+  "POST /api/admin/loyalty/settlements/{settlement}/pay": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "bank_ref": {
+        "maxLength": 80,
+        "minLength": 3,
+        "type": "string"
+       }
+      },
+      "required": [
+       "bank_ref"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:settlement": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/admin/loyalty/vouchers/accept": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "code": {
+        "maxLength": 40,
+        "minLength": 10,
+        "type": "string"
+       },
+       "partner_id": {
+        "exclusiveMinimum": 0.0,
+        "type": "integer"
+       },
+       "reference": {
+        "maxLength": 80,
+        "nullable": true,
+        "type": "string"
+       }
+      },
+      "required": [
+       "partner_id",
+       "code"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "201": {}
    }
   },
   "POST /api/admin/manifests/deliveries/{uid}/done": {
@@ -8440,6 +8574,56 @@
     "200": {}
    }
   },
+  "POST /api/loyalty/vouchers": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "agreement": {
+        "format": "uuid",
+        "type": "string"
+       },
+       "idempotency_key": {
+        "maxLength": 64,
+        "minLength": 8,
+        "type": "string"
+       },
+       "points": {
+        "exclusiveMinimum": 0.0,
+        "maximum": 100000000.0,
+        "type": "integer"
+       }
+      },
+      "required": [
+       "agreement",
+       "points",
+       "idempotency_key"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "201": {}
+   }
+  },
+  "POST /api/loyalty/vouchers/{voucher}/cancel": {
+   "body": null,
+   "parameters": {
+    "path:voucher": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
   "POST /api/notifications/read": {
    "body": {
     "content": {
@@ -10043,6 +10227,59 @@
        "from_seq",
        "to_seq",
        "seat_nos"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "201": {}
+   }
+  },
+  "POST /api/v1/loyalty/vouchers/check": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "code": {
+        "maxLength": 40,
+        "minLength": 10,
+        "type": "string"
+       }
+      },
+      "required": [
+       "code"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/v1/loyalty/vouchers/redeem": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "code": {
+        "maxLength": 40,
+        "minLength": 10,
+        "type": "string"
+       },
+       "reference": {
+        "maxLength": 80,
+        "nullable": true,
+        "type": "string"
+       }
+      },
+      "required": [
+       "code"
       ],
       "type": "object"
      }
@@ -11825,6 +12062,29 @@
     "200": {}
    }
   },
+  "GET /api/v1/loyalty/redemptions": {
+   "body": null,
+   "parameters": {
+    "query:from": {
+     "required": true,
+     "schema": {
+      "format": "date",
+      "type": "string"
+     }
+    },
+    "query:to": {
+     "required": false,
+     "schema": {
+      "format": "date",
+      "nullable": true,
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
   "GET /api/v1/manifests/deliveries": {
    "body": null,
    "parameters": {
@@ -12439,6 +12699,59 @@
        "from_seq",
        "to_seq",
        "seat_nos"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "201": {}
+   }
+  },
+  "POST /api/v1/loyalty/vouchers/check": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "code": {
+        "maxLength": 40,
+        "minLength": 10,
+        "type": "string"
+       }
+      },
+      "required": [
+       "code"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/v1/loyalty/vouchers/redeem": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "code": {
+        "maxLength": 40,
+        "minLength": 10,
+        "type": "string"
+       },
+       "reference": {
+        "maxLength": 80,
+        "nullable": true,
+        "type": "string"
+       }
+      },
+      "required": [
+       "code"
       ],
       "type": "object"
      }

@@ -226,6 +226,12 @@ asked with. The approval takes an optional legal document number, recorded on th
 
 **1106** adds the penalty on a carrier that cancels a trip. It adds one setting (`trip.cancel_penalty`, off), one function and one table (`ops.trip_cancel_penalty`, empty); no rule on an existing table changes and the full refund of a cancelled trip is unchanged. Nothing is charged until the platform turns the setting on with the regulator's decision; a penalty the carrier's balance does not cover stays `DUE` and is set off when it next completes a trip.
 
+**1107** adds partner redemption. It adds three tables (`pricing.loyalty_agreement`, `pricing.loyalty_settlement`, `pricing.loyalty_settlement_line`, all empty), columns on vouchers, partner redemptions and partners (all empty or null on existing rows), the `PARTNER` wallet type and eight functions; `pricing.expire_points` now counts points given back by a voucher as not spent. The partner tables move from phase 9 to 1B, and the switch `loyalty_partners` no longer opens phase 9. Nothing changes for members until the platform records an active agreement with an active partner and turns the switch on.
+
+**1108** adds the taxes of e-invoices and their signing keys. It adds two tables (`acct.einvoice_line_tax`, `acct.einvoice_signing_key`, both empty), two columns on e-invoice documents (`canonical_version` 1 and `signing_kid` empty on existing rows, which stay verifiable as issued), checks on tax rules (existing tax tables are empty at launch) and triggers that freeze an active scheme's rules; it deletes the setting `einvoice.tax_rate_pct`. Before upgrading a production server, set `MASSLAK_EINVOICE_KEYS` (the API and the worker refuse to start without a key of their own). Nothing is taxed until the platform activates a tax scheme.
+
+**1109** replaces one function (`brd.station_trips`); no table changes.
+
 ## 1064_partitioned_bookings.sql on a live database (R-06)
 
 1064 turns `sales.booking` into a table partitioned by ranges of id **in place, under an ACCESS EXCLUSIVE lock**: it

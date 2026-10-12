@@ -227,6 +227,28 @@ def _seller_unit(party_sql: str, name: str, tax_no: str, prefix: str) -> int:
         profile, authority, f"{prefix}{uuid.uuid4().hex[:6]}", prefix)
 
 
+def _tax_schemes() -> dict:
+    """VAT 10 % on tickets and booking fees, and a 2 % levy on the VAT for another authority, approved by a second officer."""
+    tag = uuid.uuid4().hex[:5].upper()
+    j = owner_sql("INSERT INTO pricing.jurisdiction (country_code, level, name) VALUES ('SY', 'COUNTRY', $1) RETURNING id", f"Syria {tag}")
+    maker = owner_sql("SELECT id FROM iam.app_user WHERE email = 'admin@masslak.test'")
+    checker = owner_sql("SELECT id FROM iam.app_user WHERE email = 'finance@masslak.test'")
+    authority = owner_sql("INSERT INTO iam.party (party_type, legal_name) VALUES ('COMPANY', $1) RETURNING id", f"Reconstruction fund {tag}")
+    ids = []
+    for code, kind, payable, rate, base_type, include in ((f"VAT{tag}", "VAT", None, 10, "FARE", "[]"),
+                                                           (f"REC{tag}", "LEVY", authority, 2, "TAXES", f'["VAT{tag}"]')):
+        sid = owner_sql("""INSERT INTO pricing.tax_scheme (code, name, jurisdiction_id, tax_type, treatment, scope, collected_by,
+                                                           payable_to_party_id, valid, created_by)
+                           VALUES ($1, $1, $2, $3, 'STANDARD', '{"products": ["TICKET", "BOOKING_FEE"]}', 'PLATFORM', $4,
+                                   tstzrange(now() - interval '1 day', NULL), $5) RETURNING id""", code, j, kind, payable, maker)
+        owner_sql("""INSERT INTO pricing.tax_rule (scheme_id, seq, calc_method, rate, base_type, base_include)
+                     VALUES ($1, 1, 'PERCENT', $2, $3, $4::jsonb)""", sid, rate, base_type, include)
+        ids.append(sid)
+    for sid in ids:
+        owner_sql("UPDATE pricing.tax_scheme SET status = 'ACTIVE', approved_by = $2 WHERE id = $1", sid, checker)
+    return {"ids": ids, "vat_code": f"VAT{tag}", "levy_code": f"REC{tag}"}
+
+
 @pytest.mark.skipif(not OWNER_URL, reason="needs MASSLAK_OWNER_URL")
 def test_paid_booking_gets_signed_einvoices_and_a_refund_a_credit_note():
     import base64
@@ -235,7 +257,8 @@ def test_paid_booking_gets_signed_einvoices_and_a_refund_a_credit_note():
     carrier_unit = _seller_unit(f"SELECT company_id FROM ops.trip WHERE id = {trip['id']}", "Demo Carrier", "0101234567", "CAR-")
     platform_unit = _seller_unit("SELECT id FROM iam.party WHERE legal_name = 'Masslak Platform' AND party_type = 'COMPANY'",
                                  "Masslak Platform", "0109999999", "MSL-")
-    owner_sql("UPDATE sys.setting SET value = '10'::jsonb WHERE key = 'einvoice.tax_rate_pct'")
+    # the platform's taxes (1108): VAT 10 % on tickets and fees, and a 2 % levy on the VAT owed to another authority
+    schemes = _tax_schemes()
     try:
         pax = login("passenger@masslak.test", "PASSENGER")
         assert pax.post("/api/wallet/topup", json={"amount": 10_000_000, "idempotency_key": uuid.uuid4().hex}).status_code == 200
@@ -257,7 +280,16 @@ def test_paid_booking_gets_signed_einvoices_and_a_refund_a_credit_note():
         for inv in invoices:
             v = client().get(f"/api/verify/einvoice/{inv['uuid']}").json()
             assert v["valid"] and v["hash_valid"] and v["signature_valid"] and v["qr_matches"] and v["chain_valid"], v
-            assert v["tax_total"] == round(v["total"] * 10 / 110) and v["number"] == inv["number"]
+            assert v["number"] == inv["number"] and v["kid"] and v["public_key"]
+            by = {x["tax"]: x for x in v["taxes"]}
+            assert set(by) == {schemes["vat_code"], schemes["levy_code"]}, v["taxes"]
+            vat, levy = by[schemes["vat_code"]], by[schemes["levy_code"]]
+            assert abs(vat["amount"] - vat["base"] // 10) <= len(v["taxes"]) and levy["base"] == vat["amount"]
+            assert abs(levy["amount"] - vat["amount"] * 2 / 100) <= 1 and v["tax_total"] == vat["amount"] + levy["amount"]
+            assert owner_sql("SELECT sum(net_amount) + sum(tax_amount) FROM acct.einvoice_line l JOIN acct.einvoice_document d ON d.id = l.document_id WHERE d.uuid = $1::uuid",
+                             inv["uuid"]) == v["total"]
+        keys = client().get("/api/public/keys/einvoice").json()
+        assert any(k["kid"] == v["kid"] and k["public_key"] == v["public_key"] for k in keys["keys"])
         qr = read_qr(owner_sql("SELECT qr_payload FROM acct.einvoice_document WHERE uuid = $1::uuid", invoices[0]["uuid"]))
         assert qr[6] == owner_sql("SELECT hash FROM acct.einvoice_document WHERE uuid = $1::uuid", invoices[0]["uuid"])
         assert base64.b64decode(qr[7]) and qr[1] in ("Demo Carrier", "Masslak Platform")
@@ -272,11 +304,12 @@ def test_paid_booking_gets_signed_einvoices_and_a_refund_a_credit_note():
             assert len(notes) == 1 and notes[0]["total"] == refund and notes[0]["number"].startswith("CAR-")
             v = client().get(f"/api/verify/einvoice/{notes[0]['uuid']}").json()
             assert v["valid"] and v["original_number"].startswith("CAR-")
+            assert {x["tax"] for x in v["taxes"]} == {schemes["vat_code"], schemes["levy_code"]}
         else:
             assert notes == []
         assert owner_sql("SELECT acct.einvoice_chain_breaks($1) + acct.einvoice_chain_breaks($2)", carrier_unit, platform_unit) == 0
     finally:
-        owner_sql("UPDATE sys.setting SET value = '0'::jsonb WHERE key = 'einvoice.tax_rate_pct'")
+        owner_sql("UPDATE pricing.tax_scheme SET status = 'RETIRED' WHERE id = ANY($1::bigint[])", schemes["ids"])
         owner_sql("UPDATE acct.einvoice_unit SET status = 'SUSPENDED' WHERE id = ANY($1::bigint[])", [carrier_unit, platform_unit])
 
 

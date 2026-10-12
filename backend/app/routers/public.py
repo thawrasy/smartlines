@@ -55,6 +55,20 @@ async def manifest_key():
             "canonical": "JSON of the manifest with sorted keys, no spaces and non-ASCII characters escaped; version 1"}
 
 
+@router.get("/public/keys/einvoice")
+async def einvoice_keys(request: Request):
+    """Public keys of every key that signed e-invoices (Ed25519 over the SHA-256 of the canonical document, 1108); each
+    document names its key (kid). Kept after a key is retired, so old documents stay verifiable."""
+    from ..security import einvoice_signer
+    signing, _ = einvoice_signer()
+    async with db.transaction(_ctx(request)) as conn:
+        rs = await conn.fetch("SELECT kid, algorithm, public_key, first_used_at FROM acct.einvoice_signing_key ORDER BY first_used_at")
+    return {"signing_kid": signing,
+            "keys": [{"kid": r["kid"], "alg": r["algorithm"], "public_key": r["public_key"], "first_used_at": r["first_used_at"].isoformat()}
+                     for r in rs],
+            "canonical": "JSON with sorted keys and no spaces; version 2 holds the key id and each line's taxes"}
+
+
 @router.get("/ref")
 async def reference(request: Request):
     async with db.transaction(_ctx(request)) as conn:

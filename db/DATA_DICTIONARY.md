@@ -2,7 +2,7 @@
 
 > Generated from the built database (`db/tools/gen_docs.py`); do not edit by hand.
 
-**516 tables, 5314 columns, in 26 schemas.**
+**521 tables, 5382 columns, in 26 schemas.**
 
 Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant isolation (RLS) · 🧩 partitioned monthly · 🔒 append-only / change-protected
 
@@ -13,11 +13,11 @@ Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant i
 - [`sys` — Settings, outbox and webhooks](#sys) (27 tables)
 - [`net` — Network: stations, routes, lines, corridors and geofences](#net) (25 tables)
 - [`fleet` — Fleet: vehicles, trucks, trailers, seats, crew, licenses and insurance](#fleet) (22 tables)
-- [`pricing` — Pricing, taxes, commissions, campaigns and loyalty](#pricing) (35 tables)
+- [`pricing` — Pricing, taxes, commissions, campaigns and loyalty](#pricing) (38 tables)
 - [`ops` — Trips, inventory, operations, shuttle rides, tracking and incidents](#ops) (36 tables)
 - [`sales` — Channels, bookings, passengers, tickets, subscriptions and travel documents](#sales) (28 tables)
 - [`fin` — Wallets, ledger, payments, allocation, settlement and float](#fin) (35 tables)
-- [`acct` — Simplified accounting, e-invoicing and tax profiles](#acct) (35 tables)
+- [`acct` — Simplified accounting, e-invoicing and tax profiles](#acct) (37 tables)
 - [`bill` — Carrier subscriptions, metering and platform invoices](#bill) (7 tables)
 - [`crm` — Complaints, ratings, notifications, the AI assistant and the contact center](#crm) (19 tables)
 - [`gov` — Governance, obligations and data protection](#gov) (15 tables)
@@ -2441,6 +2441,31 @@ Tax jurisdiction (country, region, border crossing, local)
 | `parent_id` | `bigint` | 🔗 `pricing.jurisdiction`  |  |
 | `name` | `text` | ✱ |  |
 
+### `pricing.loyalty_agreement` 🛡️
+
+Agreed redemption price at a partner: points = amount, and the percentage of the amount the platform pays the partner; four eyes, frozen once active (1107)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `loyalty_partner_id` | `bigint` | 🔗 `pricing.loyalty_partner` ✱ |  |
+| `currency` | `character(3)` | 🔗 `ref.currency` ✱ |  |
+| `points` | `bigint` | ✱ |  |
+| `amount` | `bigint` | ✱ |  |
+| `platform_share_pct` | `numeric(5,2)` | ✱ |  |
+| `min_points` | `bigint` | ✱ |  |
+| `step_points` | `bigint` | ✱ |  |
+| `voucher_days` | `integer` | ✱ | `30` |
+| `valid` | `daterange` | ✱ | `daterange(CURRENT_DATE, NULL::date)` |
+| `contract_ref` | `text` | ✱ |  |
+| `note` | `text` |  |  |
+| `status` | `text` | ✱ | `'DRAFT'::text` |
+| `created_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `approved_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `approved_at` | `timestamp with time zone` |  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
 ### `pricing.loyalty_partner` 🛡️
 
 Earn and burn partner of the loyalty program (5.13 f); extends the partner register
@@ -2458,6 +2483,7 @@ Earn and burn partner of the loyalty program (5.13 f); extends the partner regis
 | `settlement_cycle` | `text` | ✱ | `'MONTHLY'::text` |
 | `contract_ref` | `text` |  |  |
 | `status` | `text` | ✱ | `'PENDING'::text` |
+| `api_client_id` | `bigint` | 🔗 `iam.api_client`  |  |
 
 ### `pricing.loyalty_program` 🛡️
 
@@ -2489,6 +2515,42 @@ Earn and burn partner of the loyalty program (5.13 f); extends the partner regis
 | `valid` | `tstzrange` | ✱ |  |
 | `version` | `integer` | ✱ | `1` |
 | `active` | `boolean` | ✱ | `true` |
+
+### `pricing.loyalty_settlement` 🛡️
+
+A partner's statement of honoured vouchers for a period: drafted, approved by another person, paid by a third (1107)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `loyalty_partner_id` | `bigint` | 🔗 `pricing.loyalty_partner` ✱ |  |
+| `currency` | `character(3)` | 🔗 `ref.currency` ✱ |  |
+| `period` | `daterange` | ✱ |  |
+| `redemptions` | `integer` | ✱ |  |
+| `value` | `bigint` | ✱ |  |
+| `payable` | `bigint` | ✱ |  |
+| `status` | `text` | ✱ | `'DRAFT'::text` |
+| `created_by` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `approved_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `approved_at` | `timestamp with time zone` |  |  |
+| `paid_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `paid_at` | `timestamp with time zone` |  |  |
+| `bank_ref` | `text` |  |  |
+| `ledger_txn_id` | `bigint` | 🔗 `fin.ledger_txn`  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `pricing.loyalty_settlement_line` 🛡️
+
+An honoured voucher covered by a partner statement; each redemption is settled once (1107)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `settlement_id` | `bigint` | 🔗 `pricing.loyalty_settlement` ✱ |  |
+| `redemption_id` | `bigint` | 🔗 `pricing.partner_redemption` ✱ |  |
+| `value` | `bigint` | ✱ |  |
+| `payable` | `bigint` | ✱ |  |
 
 ### `pricing.loyalty_tier` 🛡️
 
@@ -2537,6 +2599,11 @@ Points spent at a partner; the basis of partner settlement and of the liability 
 | `commission` | `bigint` | ✱ | `0` |
 | `currency` | `character(3)` | 🔗 `ref.currency` ✱ | `'SYP'::bpchar` |
 | `redeemed_at` | `timestamp with time zone` | ✱ | `now()` |
+| `agreement_id` | `bigint` | 🔗 `pricing.loyalty_agreement`  |  |
+| `payable` | `bigint` |  |  |
+| `partner_ref` | `text` |  |  |
+| `accepted_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `api_client_id` | `bigint` | 🔗 `iam.api_client`  |  |
 
 ### `pricing.passenger_age_band` 🛡️
 
@@ -2734,6 +2801,11 @@ Single-use temporary token presented at a partner to redeem points
 | `used_at` | `timestamp with time zone` |  |  |
 | `status` | `text` | ✱ | `'ISSUED'::text` |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `agreement_id` | `bigint` | 🔗 `pricing.loyalty_agreement`  |  |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `code_enc` | `bytea` |  |  |
+| `returned_ledger_id` | `bigint` | 🔗 `pricing.points_ledger`  |  |
+| `code_key_id` | `bigint` | 🔗 `sec.key_registry`  |  |
 
 ### `pricing.sponsor_account` 🛡️
 
@@ -4823,6 +4895,8 @@ Invoice, credit note and debit note; after finalization only the status and the 
 | `source_booking_id` | `bigint` | 🔗 `sales.booking`  |  |
 | `source_shipment_id` | `bigint` | 🔗 `ship.shipment`  |  |
 | `source_subscription_id` | `bigint` | 🔗 `sales.subscription`  |  |
+| `canonical_version` | `smallint` | ✱ | `1` |
+| `signing_kid` | `text` | 🔗 `acct.einvoice_signing_key`  |  |
 
 ### `acct.einvoice_line` 🛡️
 
@@ -4843,6 +4917,35 @@ Invoice, credit note and debit note; after finalization only the status and the 
 | `tax_rate` | `numeric(9,6)` | ✱ | `0` |
 | `tax_amount` | `bigint` | ✱ | `0` |
 | `allocation_line_id` | `bigint` | 🔗 `fin.price_allocation_line`  |  |
+
+### `acct.einvoice_line_tax` 🛡️
+
+Each tax of an e-invoice line: scheme, treatment, rate, base, amount and the authority it is owed to; fixed once the document is final (1108)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `line_id` | `bigint` | 🔗 `acct.einvoice_line` ✱ |  |
+| `seq` | `smallint` | ✱ |  |
+| `tax_scheme_id` | `bigint` | 🔗 `pricing.tax_scheme`  |  |
+| `scheme_code` | `text` | ✱ |  |
+| `tax_type` | `text` | ✱ |  |
+| `treatment` | `text` | ✱ |  |
+| `rate` | `numeric(9,6)` | ✱ | `0` |
+| `base` | `bigint` | ✱ |  |
+| `amount` | `bigint` | ✱ |  |
+| `payable_to_party_id` | `bigint` | 🔗 `iam.party`  |  |
+
+### `acct.einvoice_signing_key` 🛡️
+
+Public key of every key that signed an e-invoice, kept for verification after the private key is retired (1108)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `kid` | `text` | 🔑 ✱ |  |
+| `algorithm` | `text` | ✱ | `'Ed25519'::text` |
+| `public_key` | `text` | ✱ |  |
+| `first_used_at` | `timestamp with time zone` | ✱ | `now()` |
 
 ### `acct.einvoice_submission` 🛡️ 🔒
 

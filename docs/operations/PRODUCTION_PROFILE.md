@@ -21,6 +21,7 @@ Nothing runs half set up.
 | Addition 2 | Every metric an alert rests on is watched for absence | alert `MetricsMissing` |
 | C-01 (residual, reviews of release 1.49.0) | The database server loads the settings guard (`db/guard`): only the platform's own functions can set the request context and the flags the row rules and the ledger trust, never a statement a login types | migration preflight; `/api/ready` (`settings_guard`); alert `SettingsGuardMissing` |
 | Reviews of release 1.49.0 | TLS to the telemetry database too; QR codes and document tokens signed with keys of their own (`MASSLAK_QR_KEYS`, `MASSLAK_DOCUMENT_KEYS`); the session cookie over HTTPS only | API and worker start |
+| Owner's decision, October 2026 | E-invoices signed with a key of their own, named on each document (`MASSLAK_EINVOICE_KEYS`; TAXES_AND_EINVOICES.md) | API and worker start |
 
 ## 1. What to prepare before installing
 

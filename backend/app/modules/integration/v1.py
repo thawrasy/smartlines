@@ -9,6 +9,7 @@
     shipments:read  GET  /api/v1/shipments/{tracking_no}
     reports:read    GET  /api/v1/reports, /api/v1/reports/{code}?format=json|csv|txt|xlsx|pdf
     wallet:credit   POST /api/v1/wallet/lookup, POST /api/v1/wallet/credits, GET /api/v1/wallet/credits[/{reference}]
+    vouchers:redeem POST /api/v1/loyalty/vouchers/check, POST /api/v1/loyalty/vouchers/redeem, GET /api/v1/loyalty/redemptions
     border:read     GET  /api/v1/border/manifests, /api/v1/border/manifests/{uid}
     border:respond  POST /api/v1/border/manifests/{uid}/decisions
     webhooks:manage GET/POST /api/v1/webhooks, DELETE /api/v1/webhooks/{uid}, POST /api/v1/webhooks/{uid}/rotate|ping,
@@ -33,6 +34,7 @@ from ...crypto import cipher
 from ...errors import ApiError, not_found
 from ...routers import public
 from ..agency import service as agency
+from ..loyalty import partners as loyalty_partners
 from ..manifests import service as manifests
 from ..payments import service as payments
 from ..reports import api as reports
@@ -324,6 +326,56 @@ async def wallet_credit_status(reference: str, request: Request, caller: Caller 
     if r is None:
         raise not_found("credit")
     return _credit(r)
+
+
+# ------------------------------------------------------------------ loyalty vouchers (partners, 1107)
+class VoucherCodeIn(BaseModel):
+    code: str = Field(min_length=10, max_length=40)
+
+
+class VoucherRedeemIn(VoucherCodeIn):
+    reference: Optional[str] = Field(default=None, max_length=80)
+
+
+async def _loyalty_partner(conn, caller: Caller):
+    caller.need("vouchers:redeem")
+    return await loyalty_partners.partner_by_client(conn, caller.client_id)
+
+
+@router.post("/loyalty/vouchers/check")
+async def voucher_check(body: VoucherCodeIn, request: Request, caller: Caller = Depends(api_caller)):
+    """Before the sale: what a member's voucher is worth here and whether it can still be used."""
+    ctx = context(request, caller)
+    async with db.transaction(ctx) as conn:
+        async with db.system_scope(conn, ctx):
+            partner = await _loyalty_partner(conn, caller)
+            return await loyalty_partners.check(conn, partner["id"], body.code)
+
+
+@router.post("/loyalty/vouchers/redeem", status_code=201)
+async def voucher_redeem(body: VoucherRedeemIn, request: Request, caller: Caller = Depends(api_caller)):
+    """Honours the voucher once; the platform then owes you your share of it under the agreement (payable)."""
+    ctx = context(request, caller)
+    async with db.transaction(ctx) as conn:
+        async with db.system_scope(conn, ctx):
+            partner = await _loyalty_partner(conn, caller)
+        out = await loyalty_partners.accept(conn, ctx, partner["id"], body.code, body.reference, None, caller.client_id)
+    request.state.audit = {"action": "voucher.accept", "object_type": "partner_redemption", "object_id": out["redemption"]}
+    return out
+
+
+@router.get("/loyalty/redemptions")
+async def voucher_redemptions(request: Request, date_from: date = Query(..., alias="from"), date_to: Optional[date] = Query(None, alias="to"),
+                              caller: Caller = Depends(api_caller)):
+    """The vouchers you honoured in a period (at most 62 days) and the statement each was settled in, to reconcile."""
+    end = date_to or date_from
+    if end < date_from or (end - date_from).days > 62:
+        raise ApiError(422, "INVALID_PERIOD", "give a period of at most 62 days")
+    ctx = context(request, caller)
+    async with db.transaction(ctx) as conn:
+        async with db.system_scope(conn, ctx):
+            partner = await _loyalty_partner(conn, caller)
+            return {"redemptions": await loyalty_partners.partner_redemptions(conn, partner["id"], date_from, end)}
 
 
 # ------------------------------------------------------------------ border manifests (authorities)

@@ -7,7 +7,8 @@ On a production server (anything config.is_test_server() does not call a test se
     certificate as sslrootcert);
   * the data keys come from the key service (MASSLAK_KMS_PROVIDER=vault) and none sits in their own environment
     (MASSLAK_FIELD_KEYS, MASSLAK_BIDX_KEY or MASSLAK_KEK there would put the keys next to the data they protect);
-  * ticket codes and document tokens are signed with keys of their own (MASSLAK_QR_KEYS, MASSLAK_DOCUMENT_KEYS);
+  * ticket codes and document tokens are signed with keys of their own (MASSLAK_QR_KEYS, MASSLAK_DOCUMENT_KEYS), and
+    e-invoices with a key of their own (MASSLAK_EINVOICE_KEYS, 1108);
   * their environment holds no secret of the database owner, of replication, of the warehouse, of the backups or of
     pgBackRest (deploy/env-split.sh leaves them out; this catches a container started with the whole deploy/.env).
 The migration checks the database side of the profile itself (app.tools.preflight).
@@ -64,6 +65,12 @@ def problems(environ: Mapping[str, str] | None = None) -> list[str]:
         found.append(f"{', '.join(derived)} must name a key of its own first (kid:base64 of 32 bytes; deploy/init-env.sh "
                      "makes them): tokens would otherwise be signed with a key derived from MASSLAK_SIGNING_SECRET "
                      "(reviews of release 1.49.0)")
+    # e-invoices signed with a key of their own, named on every document (owner's decision, October 2026; 1108)
+    invoice_keys = env.get("MASSLAK_EINVOICE_KEYS", "").strip()
+    if not invoice_keys or invoice_keys.split(",")[0].strip() == "e1":
+        found.append("MASSLAK_EINVOICE_KEYS must name a key of its own first (kid:base64 of a 32-byte Ed25519 seed; "
+                     "deploy/init-env.sh makes it): e-invoices would otherwise be signed with a key derived from the "
+                     "ticket key")
     leaked = [k for k in OWNER_SECRETS if env.get(k, "").strip()]
     if leaked:
         found.append(f"secrets this process must not hold are in its environment ({', '.join(leaked)}): start it with "

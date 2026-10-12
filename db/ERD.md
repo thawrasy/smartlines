@@ -36,10 +36,10 @@ flowchart LR
   rpt["rpt<br/>Report definitions, runs and schedules"]
   audit["audit<br/>Login and activity logs (append-only)"]
   acct -->|4| fin
-  acct -->|23| iam
+  acct -->|24| iam
   acct -->|3| net
   acct -->|1| ops
-  acct -->|6| pricing
+  acct -->|7| pricing
   acct -->|6| sales
   acct -->|2| ship
   bill -->|1| acct
@@ -95,8 +95,8 @@ flowchart LR
   ops -->|17| net
   ops -->|1| ref
   ops -->|3| sales
-  pricing -->|1| fin
-  pricing -->|20| iam
+  pricing -->|2| fin
+  pricing -->|24| iam
   pricing -->|7| net
   pricing -->|2| ptn
   pricing -->|1| sales
@@ -1348,12 +1348,22 @@ erDiagram
     character country_code FK
     bigint parent_id FK
   }
+  pricing_loyalty_agreement {
+    bigint id PK
+    uuid uid
+    bigint loyalty_partner_id FK
+    character currency FK
+    text status
+    bigint created_by FK
+    bigint approved_by FK
+  }
   pricing_loyalty_partner {
     bigint id PK
     bigint program_id FK
     bigint party_id FK
     bigint service_partner_id FK
     text status
+    bigint api_client_id FK
   }
   pricing_loyalty_program {
     bigint id PK
@@ -1364,6 +1374,22 @@ erDiagram
   pricing_loyalty_rule {
     bigint id PK
     bigint program_id FK
+  }
+  pricing_loyalty_settlement {
+    bigint id PK
+    uuid uid
+    bigint loyalty_partner_id FK
+    character currency FK
+    text status
+    bigint created_by FK
+    bigint approved_by FK
+    bigint paid_by FK
+    bigint ledger_txn_id FK
+  }
+  pricing_loyalty_settlement_line {
+    bigint id PK
+    bigint settlement_id FK
+    bigint redemption_id FK
   }
   pricing_loyalty_tier {
     bigint id PK
@@ -1384,6 +1410,9 @@ erDiagram
     bigint token_id FK
     bigint partner_sale_id FK
     character currency FK
+    bigint agreement_id FK
+    bigint accepted_by FK
+    bigint api_client_id FK
   }
   pricing_passenger_age_band {
     bigint id PK
@@ -1455,6 +1484,10 @@ erDiagram
     bigint points_ledger_id FK
     character currency FK
     text status
+    bigint agreement_id FK
+    uuid uid
+    bigint returned_ledger_id FK
+    bigint code_key_id FK
   }
   pricing_sponsor_account {
     bigint id PK
@@ -1476,7 +1509,13 @@ erDiagram
     bigint created_by FK
     bigint approved_by FK
   }
+  fin_ledger_txn {
+    ref external
+  }
   fin_wallet {
+    ref external
+  }
+  iam_api_client {
     ref external
   }
   iam_app_user {
@@ -1506,10 +1545,15 @@ erDiagram
   sales_booking {
     ref external
   }
+  pricing_loyalty_settlement }o..o| fin_ledger_txn : "ledger_txn_id"
   pricing_sponsor_account }o..o| fin_wallet : "wallet_id"
+  pricing_loyalty_partner }o..o| iam_api_client : "api_client_id"
+  pricing_partner_redemption }o..o| iam_api_client : "api_client_id"
   pricing_redemption_token }o--|| iam_app_user : "user_id"
   pricing_reward_voucher }o--|| iam_app_user : "user_id"
   pricing_override_policy }o..o| iam_app_user : "user_id"
+  pricing_loyalty_settlement }o..o| iam_app_user : "paid_by"
+  pricing_partner_redemption }o..o| iam_app_user : "accepted_by"
   pricing_fare_brand }o..o| iam_company : "company_id"
   pricing_pricing_modifier }o..o| iam_company : "company_id"
   pricing_cancellation_policy }o..o| iam_company : "company_id"
@@ -1541,9 +1585,13 @@ erDiagram
   pricing_fare_table_item }o--|| pricing_fare_table : "fare_table_id"
   pricing_jurisdiction }o..o| pricing_jurisdiction : "parent_id"
   pricing_tax_scheme }o--|| pricing_jurisdiction : "jurisdiction_id"
+  pricing_partner_redemption }o..o| pricing_loyalty_agreement : "agreement_id"
+  pricing_reward_voucher }o..o| pricing_loyalty_agreement : "agreement_id"
   pricing_partner_redemption }o--|| pricing_loyalty_partner : "loyalty_partner_id"
   pricing_reward_catalog }o..o| pricing_loyalty_partner : "loyalty_partner_id"
   pricing_points_transfer }o--|| pricing_loyalty_partner : "loyalty_partner_id"
+  pricing_loyalty_agreement }o--|| pricing_loyalty_partner : "loyalty_partner_id"
+  pricing_loyalty_settlement }o--|| pricing_loyalty_partner : "loyalty_partner_id"
   pricing_reward_voucher }o..o| pricing_loyalty_partner : "loyalty_partner_id"
   pricing_loyalty_tier }o--|| pricing_loyalty_program : "program_id"
   pricing_loyalty_rule }o--|| pricing_loyalty_program : "program_id"
@@ -1552,12 +1600,15 @@ erDiagram
   pricing_reward_catalog }o--|| pricing_loyalty_program : "program_id"
   pricing_points_liability }o--|| pricing_loyalty_program : "program_id"
   pricing_points_ledger }o..o| pricing_loyalty_rule : "rule_id"
+  pricing_loyalty_settlement_line }o--|| pricing_loyalty_settlement : "settlement_id"
   pricing_points_account }o..o| pricing_loyalty_tier : "tier_id"
+  pricing_loyalty_settlement_line }o--|| pricing_partner_redemption : "redemption_id"
   pricing_points_ledger }o--|| pricing_points_account : "account_id"
   pricing_points_transfer }o--|| pricing_points_account : "account_id"
   pricing_reward_voucher }o..o| pricing_points_ledger : "points_ledger_id"
   pricing_points_transfer }o..o| pricing_points_ledger : "points_ledger_id"
   pricing_points_ledger }o..o| pricing_points_ledger : "reverses_id"
+  pricing_reward_voucher }o..o| pricing_points_ledger : "returned_ledger_id"
   pricing_redemption_token }o--|| pricing_redemption_channel : "channel_code"
   pricing_partner_redemption }o..o| pricing_redemption_token : "token_id"
   pricing_reward_voucher }o..o| pricing_reward_catalog : "catalog_id"
@@ -2835,12 +2886,22 @@ erDiagram
     bigint source_booking_id FK
     bigint source_shipment_id FK
     bigint source_subscription_id FK
+    text signing_kid FK
   }
   acct_einvoice_line {
     bigint id PK
     bigint document_id FK
     bigint tax_scheme_id FK
     bigint allocation_line_id FK
+  }
+  acct_einvoice_line_tax {
+    bigint id PK
+    bigint line_id FK
+    bigint tax_scheme_id FK
+    bigint payable_to_party_id FK
+  }
+  acct_einvoice_signing_key {
+    text kid PK
   }
   acct_einvoice_submission {
     bigint id PK
@@ -3057,6 +3118,8 @@ erDiagram
   acct_credit_note }o..o| acct_einvoice_document : "einvoice_document_id"
   acct_einvoice_document }o..o| acct_einvoice_document : "original_doc_id"
   acct_sales_invoice }o..o| acct_einvoice_document : "einvoice_document_id"
+  acct_einvoice_line_tax }o--|| acct_einvoice_line : "line_id"
+  acct_einvoice_document }o..o| acct_einvoice_signing_key : "signing_kid"
   acct_einvoice_document }o--|| acct_einvoice_unit : "unit_id"
   acct_journal_line }o--|| acct_gl_account : "account_id"
   acct_gl_account }o..o| acct_gl_account : "parent_id"
@@ -3120,6 +3183,7 @@ erDiagram
   acct_einvoice_document }o..o| iam_party : "buyer_party_id"
   acct_cash_receipt }o--|| iam_party : "party_id"
   acct_cash_payment }o--|| iam_party : "party_id"
+  acct_einvoice_line_tax }o..o| iam_party : "payable_to_party_id"
   acct_cost_center }o..o| net_route : "route_id"
   acct_cash_box }o..o| net_station : "station_id"
   acct_cost_center }o..o| net_station : "station_id"
@@ -3128,6 +3192,7 @@ erDiagram
   acct_tax_registration }o--|| pricing_tax_scheme : "tax_scheme_id"
   acct_tax_collection_no_file }o--|| pricing_tax_scheme : "tax_scheme_id"
   acct_tax_return }o--|| pricing_tax_scheme : "tax_scheme_id"
+  acct_einvoice_line_tax }o..o| pricing_tax_scheme : "tax_scheme_id"
   acct_tax_payment }o--|| pricing_tax_scheme : "tax_scheme_id"
   acct_einvoice_line }o..o| pricing_tax_scheme : "tax_scheme_id"
   acct_sales_invoice }o..o| sales_booking : "source_booking_id"

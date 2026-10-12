@@ -305,9 +305,19 @@ export function TestGateway({ uid }: { uid: string }) {
   );
 }
 
+interface PartnerOffer {
+  agreement: string; partner: string; partner_type: string; points: number; amount: number; currency: string;
+  min_points: number; step_points: number; voucher_days: number; valid_to: string | null;
+}
+interface Voucher {
+  voucher: string; partner: string | null; points: number; value: number; currency: string; status: string;
+  code: string | null; expires_at: string | null; used_at: string | null;
+}
 interface PointsView {
   program: { code: string; name: string; point_value: number; currency: string; expiry_months: number; redeem: { min_points: number; step: number } | null } | null;
   account: { balance: number; value: number; status: string; tier_name: string | null } | null;
+  offers?: PartnerOffer[];
+  vouchers?: Voucher[];
 }
 
 /** Loyalty points (1103): earned after each trip, turned into wallet credit at the programme's point value. */
@@ -350,6 +360,78 @@ function Points({ onRedeemed }: { onRedeemed: () => void }) {
           <button className="btn tonal" disabled={!ok || busy} onClick={submit}>{t("points.redeem")}</button>
         </div>
       )}
+      <ErrorBox error={error} />
+      {(v.offers?.length ?? 0) > 0 && v.account && <PartnerOffers offers={v.offers!} balance={v.account.balance} onDone={state.reload} />}
+      {(v.vouchers?.length ?? 0) > 0 && <Vouchers vouchers={v.vouchers!} onDone={state.reload} />}
+    </div>
+  );
+}
+
+/** Partners that take points under their agreement with the platform (1107): points become a voucher used at the partner. */
+function PartnerOffers({ offers, balance, onDone }: { offers: PartnerOffer[]; balance: number; onDone: () => void }) {
+  const { t, money } = useI18n();
+  const toast = useToast();
+  const [pick, setPick] = useState(offers[0].agreement);
+  const [points, setPoints] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<unknown>(null);
+  const o = offers.find((x) => x.agreement === pick) ?? offers[0];
+  const n = Number(points);
+  const ok = Number.isInteger(n) && n >= o.min_points && n % o.step_points === 0 && n <= balance;
+  const submit = async () => {
+    setBusy(true); setError(null);
+    try {
+      const r = await api.post<{ value: number; code: string }>("/api/loyalty/vouchers", { agreement: o.agreement, points: n, idempotency_key: newKey() });
+      toast(t("points.voucherIssued", { amount: money(r.value), code: r.code }));
+      setPoints(""); onDone();
+    } catch (e) { setError(e); } finally { setBusy(false); }
+  };
+  return (
+    <div className="stack" style={{ borderTop: "1px solid var(--divider)", paddingTop: 12 }}>
+      <h4 style={{ margin: 0 }}>{t("points.partners")}</h4>
+      <div className="row" style={{ gap: 8, alignItems: "flex-end", flexWrap: "wrap" }}>
+        <Field label={t("points.partner")}>
+          <select className="input" value={o.agreement} onChange={(e) => setPick(e.target.value)}>
+            {offers.map((x) => <option key={x.agreement} value={x.agreement}>{x.partner}</option>)}
+          </select>
+        </Field>
+        <Field label={t("points.redeemLabel", { min: o.min_points, step: o.step_points })}>
+          <input className="input mono" inputMode="numeric" value={points} onChange={(e) => setPoints(e.target.value.replace(/\D/g, ""))} />
+        </Field>
+        <button className="btn tonal" disabled={!ok || busy} onClick={submit}>{t("points.getVoucher")}</button>
+      </div>
+      <p className="small muted" style={{ margin: 0 }}>
+        {t("points.rate", { points: o.points, amount: money(o.amount), days: o.voucher_days })}
+        {ok ? " " + t("points.youGet", { amount: money(Math.floor((n * o.amount) / o.points)) }) : ""}
+      </p>
+      <ErrorBox error={error} />
+    </div>
+  );
+}
+
+function Vouchers({ vouchers, onDone }: { vouchers: Voucher[]; onDone: () => void }) {
+  const { t, money, dateTime } = useI18n();
+  const [error, setError] = useState<unknown>(null);
+  const cancel = async (uid: string) => {
+    setError(null);
+    try { await api.post(`/api/loyalty/vouchers/${uid}/cancel`, {}); onDone(); } catch (e) { setError(e); }
+  };
+  return (
+    <div className="stack" style={{ borderTop: "1px solid var(--divider)", paddingTop: 12 }}>
+      <h4 style={{ margin: 0 }}>{t("points.vouchers")}</h4>
+      <div className="table-wrap"><table className="table">
+        <thead><tr><th>{t("points.partner")}</th><th>{t("points.code")}</th><th>{t("points.value")}</th><th>{t("points.state")}</th><th></th></tr></thead>
+        <tbody>{vouchers.map((x) => (
+          <tr key={x.voucher}>
+            <td>{x.partner}</td>
+            <td className="mono">{x.code ?? "—"}</td>
+            <td className="mono">{money(x.value)}</td>
+            <td><span className="chip">{t(`points.status_${x.status}`)}</span>
+              {x.status === "ISSUED" && x.expires_at && <div className="small muted">{t("points.until", { date: dateTime(x.expires_at) })}</div>}</td>
+            <td>{x.status === "ISSUED" && <button className="btn text" onClick={() => cancel(x.voucher)}>{t("points.cancelVoucher")}</button>}</td>
+          </tr>
+        ))}</tbody>
+      </table></div>
       <ErrorBox error={error} />
     </div>
   );

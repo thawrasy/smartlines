@@ -10,7 +10,7 @@ from fastapi import APIRouter, Query, Request
 from .. import db
 from ..deps import base_context
 from ..modules.einvoice import service as einvoice
-from ..security import einvoice_public_key, verify_document_token, verify_ticket_qr
+from ..security import verify_document_token, verify_ticket_qr
 
 router = APIRouter(prefix="/api/verify", tags=["verify"])
 
@@ -55,4 +55,4 @@ async def verify_einvoice(doc_uuid: uuid.UUID, request: Request):
     if out is None:
         return {"valid": False, "reason": "NOT_FOUND"}
     return {"valid": out["hash_valid"] and out["signature_valid"] and out["qr_matches"] and out["chain_valid"], "kind": "einvoice",
-            "public_key": einvoice_public_key(), **out}
+            **out}

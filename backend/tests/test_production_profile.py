@@ -139,7 +139,7 @@ def test_the_archive_check_lines_are_read_as_written():
 URL = "postgresql://masslak_api:x@pgbouncer:6432/masslak?sslmode=verify-full&sslrootcert=/etc/masslak/trust/ca.crt"
 ENV = {"MASSLAK_PROFILE": "production", "MASSLAK_KMS_PROVIDER": "vault",
        "MASSLAK_QR_KEYS": "q202610:" + "A" * 43 + "=", "MASSLAK_DOCUMENT_KEYS": "d202610:" + "B" * 43 + "=",
-       "MASSLAK_LOOKUP_KEYS": "l202610:" + "C" * 43 + "="}
+       "MASSLAK_LOOKUP_KEYS": "l202610:" + "C" * 43 + "=", "MASSLAK_EINVOICE_KEYS": "e202610:" + "D" * 43 + "="}
 
 
 @pytest.fixture
@@ -168,6 +168,8 @@ def test_a_complete_profile_starts(production_urls):
     ({k: v for k, v in ENV.items() if k != "MASSLAK_QR_KEYS"}, "MASSLAK_QR_KEYS must name a key of its own"),
     ({**ENV, "MASSLAK_DOCUMENT_KEYS": "s1,d1:" + "B" * 43 + "="}, "MASSLAK_DOCUMENT_KEYS must name a key of its own"),
     ({k: v for k, v in ENV.items() if k != "MASSLAK_LOOKUP_KEYS"}, "MASSLAK_LOOKUP_KEYS must name a key of its own"),
+    ({k: v for k, v in ENV.items() if k != "MASSLAK_EINVOICE_KEYS"}, "MASSLAK_EINVOICE_KEYS must name a key of its own"),
+    ({**ENV, "MASSLAK_EINVOICE_KEYS": "e1,e202610:" + "D" * 43 + "="}, "MASSLAK_EINVOICE_KEYS must name a key of its own"),
 ])
 def test_each_gap_stops_the_start(production_urls, env, expected):
     assert any(expected in p for p in profile.problems(env)), profile.problems(env)

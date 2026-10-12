@@ -369,7 +369,12 @@ const ar: Messages = {
   myTrips: { title: "رحلاتي", subtitle: "حجوزاتك وتذاكرك", none: "لا توجد حجوزات بعد", book: "احجز رحلة" },
   einvoice: { title: "الفواتير الضريبية", invoice: "فاتورة", creditNote: "إشعار دائن", verify: "تحقّق" },
   points: { balance: "النقاط", worth: "قيمتها", redeem: "تحويل إلى رصيد", redeemLabel: "النقاط المراد استبدالها (على الأقل {min}، بمضاعفات {step})",
-    how: "تربح نقاطاً على كل رحلة تسافرها، وهي صالحة {months} شهراً.", redeemed: "أُضيف {amount} إلى محفظتك." },
+    how: "تربح نقاطاً على كل رحلة تسافرها، وهي صالحة {months} شهراً.", redeemed: "أُضيف {amount} إلى محفظتك.",
+    partners: "استخدم نقاطك لدى شركائنا", partner: "الشريك", getVoucher: "احصل على قسيمة",
+    rate: "{points} نقطة = {amount} لدى هذا الشريك؛ القسيمة صالحة {days} يوماً.", youGet: "تحصل على قسيمة بقيمة {amount}.",
+    voucherIssued: "قسيمتك بقيمة {amount} جاهزة: {code}. أظهر هذا الرمز لدى الشريك.", vouchers: "قسائمي", code: "الرمز",
+    value: "القيمة", state: "الحالة", until: "صالحة حتى {date}", cancelVoucher: "ألغِ القسيمة واسترجع النقاط",
+    status_ISSUED: "جاهزة للاستخدام", status_USED: "مستخدمة", status_EXPIRED: "منتهية (أُعيدت النقاط)", status_CANCELLED: "ملغاة (أُعيدت النقاط)" },
   wallet: {
     title: "المحفظة", subtitle: "ادفع للرحلات فوراً واستلم المبالغ المستردة هنا", balance: "الرصيد المتاح",
     topup: "شحن", topupTitle: "شحن المحفظة", amount: "المبلغ (ل.س)", sandboxNote: "بيئة تجريبية: الدفع محاكى ولا يتم الخصم من أي بطاقة حقيقية.",

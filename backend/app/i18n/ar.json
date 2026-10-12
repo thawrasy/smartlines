@@ -25,7 +25,15 @@
   },
   "points.earned": {
     "subject": "ربحت {points} نقطة",
-    "body": "أكسبتك الرحلة {trip_no} عدد {points} من نقاط الولاء. رصيدك {balance} نقطة؛ حوّلها إلى رصيد في محفظتك من صفحة المحفظة."
+    "body": "أكسبتك الرحلة {trip_no} عدد {points} من نقاط الولاء. رصيدك {balance} نقطة؛ حوّلها إلى رصيد في محفظتك أو إلى قسيمة لدى أحد الشركاء من صفحة المحفظة."
+  },
+  "voucher.used": {
+    "subject": "استُخدمت قسيمتك لدى {partner}",
+    "body": "استُخدمت قسيمتك بقيمة {amount} {currency} لدى {partner}."
+  },
+  "voucher.returned": {
+    "subject": "عادت {points} نقطة إلى رصيدك",
+    "body": "انتهت صلاحية قسيمة لم تستخدمها أو أُلغيت، فعادت نقاطها ({points} نقطة) إلى رصيد الولاء."
   },
   "booking.reserved": {
     "subject": "تم حجز المقاعد {booking_ref}: ادفع قبل {pay_by_local}",

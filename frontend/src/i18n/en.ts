@@ -367,7 +367,12 @@ const en = {
   myTrips: { title: "My trips", subtitle: "Your bookings and tickets", none: "You have no bookings yet", book: "Book a trip" },
   einvoice: { title: "Tax invoices", invoice: "Invoice", creditNote: "Credit note", verify: "Verify" },
   points: { balance: "Points", worth: "Worth", redeem: "Turn into credit", redeemLabel: "Points to redeem (at least {min}, in steps of {step})",
-    how: "You earn points on every trip you travel. They are valid for {months} months.", redeemed: "{amount} added to your wallet." },
+    how: "You earn points on every trip you travel. They are valid for {months} months.", redeemed: "{amount} added to your wallet.",
+    partners: "Use your points at our partners", partner: "Partner", getVoucher: "Get a voucher",
+    rate: "{points} points = {amount} at this partner; the voucher is valid for {days} days.", youGet: "You get a voucher of {amount}.",
+    voucherIssued: "Voucher of {amount} ready: {code}. Show this code at the partner.", vouchers: "My vouchers", code: "Code",
+    value: "Value", state: "Status", until: "valid until {date}", cancelVoucher: "Cancel and get the points back",
+    status_ISSUED: "Ready to use", status_USED: "Used", status_EXPIRED: "Expired (points returned)", status_CANCELLED: "Cancelled (points returned)" },
   wallet: {
     title: "Wallet", subtitle: "Pay for trips instantly and receive refunds here", balance: "Available balance",
     topup: "Top up", topupTitle: "Top up the wallet", amount: "Amount (SYP)", sandboxNote: "Test environment: the payment is simulated, no real card is charged.",

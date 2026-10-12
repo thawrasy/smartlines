@@ -187,9 +187,13 @@ export default function WalletScreen() {
   );
 }
 
+interface PartnerOffer { agreement: string; partner: string; points: number; amount: number; min_points: number; step_points: number; voucher_days: number }
+interface Voucher { voucher: string; partner: string | null; value: number; status: string; code: string | null; expires_at: string | null }
 interface PointsView {
   program: { name: string; point_value: number; expiry_months: number; redeem: { min_points: number; step: number } | null } | null;
   account: { balance: number; value: number; tier_name: string | null } | null;
+  offers?: PartnerOffer[];
+  vouchers?: Voucher[];
 }
 
 /** Loyalty points (1103): earned after each trip, turned into wallet credit at the programme's point value. */
@@ -224,7 +228,45 @@ function Points({ onRedeemed }: { onRedeemed: (text: string) => void }) {
         </>
       ) : null}
       <ErrorText error={error} />
+      {a && (v.data?.offers?.length ?? 0) > 0 ? <PartnerVoucher offers={v.data!.offers!} balance={a.balance} onDone={v.reload} /> : null}
+      {(v.data?.vouchers ?? []).filter((x) => x.status === "ISSUED").map((x) => (
+        <View key={x.voucher} style={{ gap: 2, paddingTop: 8, borderTopWidth: 1, borderColor: color.outline }}>
+          <Text style={s.label}>{x.partner} · {money(x.value)}</Text>
+          <Text selectable style={{ fontFamily: "monospace", fontSize: 18, fontWeight: "700", color: color.navy, writingDirection: "ltr" }}>{x.code}</Text>
+          {x.expires_at ? <Text style={s.small}>{t("points.until", { date: x.expires_at.slice(0, 10) })}</Text> : null}
+        </View>
+      ))}
     </Card>
+  );
+}
+
+/** Points for a voucher at a partner, at the rate it agreed with the platform (1107). */
+function PartnerVoucher({ offers, balance, onDone }: { offers: PartnerOffer[]; balance: number; onDone: () => void }) {
+  const { t, money } = useI18n();
+  const [pick, setPick] = useState(offers[0].agreement);
+  const [points, setPoints] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<unknown>(null);
+  const o = offers.find((x) => x.agreement === pick) ?? offers[0];
+  const n = Number(points);
+  const ok = Number.isInteger(n) && n >= o.min_points && n % o.step_points === 0 && n <= balance;
+  const submit = async () => {
+    setBusy(true); setError(null);
+    try {
+      await api.post("/api/loyalty/vouchers", { agreement: o.agreement, points: n, idempotency_key: randomUUID() });
+      setPoints(""); onDone();
+    } catch (e) { setError(e); } finally { setBusy(false); }
+  };
+  return (
+    <View style={{ gap: 8, paddingTop: 8, borderTopWidth: 1, borderColor: color.outline }}>
+      <Text style={s.h2}>{t("points.partners")}</Text>
+      <Choice options={offers.map((x) => ({ value: x.agreement, label: x.partner }))} value={o.agreement} onChange={setPick} />
+      <Text style={s.small}>{t("points.rate", { points: o.points, amount: money(o.amount), days: o.voucher_days })}</Text>
+      <Field label={t("points.amount", { min: o.min_points, step: o.step_points })} value={points}
+             onChangeText={(x) => setPoints(x.replace(/\D/g, ""))} keyboardType="number-pad" />
+      <Button kind="tonal" label={t("points.getVoucher")} busy={busy} disabled={!ok} onPress={submit} />
+      <ErrorText error={error} />
+    </View>
   );
 }
 

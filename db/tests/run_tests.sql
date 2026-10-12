@@ -2991,4 +2991,149 @@ SELECT pg_temp.ok(has_column_privilege('masslak_app', 'ops.trip_cancel_penalty',
   'Cancellation penalty (1106): a penalty''s amount is never changed, only collected or waived');
 ROLLBACK;
 
+-- Partner redemption (1107): agreements per partner with four eyes, frozen once active; vouchers at the agreed rate;
+-- the partner honours a voucher once and the platform owes it its share; unused vouchers give the points back;
+-- statements drafted, approved and paid by different people
+BEGIN;
+SELECT sys.set_context(:uadmin, NULL, 'SYSTEM');
+INSERT INTO iam.app_user (party_id, account_kind, email, status) VALUES (:pax, 'CUSTOMER', 'lp-pax@masslak.test', 'ACTIVE') RETURNING id AS lpu \gset
+INSERT INTO iam.party (party_type, legal_name) VALUES ('PERSON', 'Second Officer') RETURNING id AS lpo_party \gset
+INSERT INTO iam.app_user (party_id, account_kind, email, status) VALUES (:lpo_party, 'PLATFORM', 'lp-officer@masslak.test', 'ACTIVE') RETURNING id AS lpo \gset
+INSERT INTO pricing.loyalty_program (code, name, point_value, currency, expiry_months) VALUES ('LP-MILES', 'Partner Miles', 10, 'SYP', 12) RETURNING id AS lpg \gset
+INSERT INTO pricing.points_account (program_id, party_id, balance) VALUES (:lpg, :pax, 1000) RETURNING id AS lpa \gset
+INSERT INTO pricing.points_ledger (account_id, txn_type, points, idempotency_key, expires_at) VALUES (:lpa, 'EARN', 1000, 'lp-earn', now() + interval '1 year');
+INSERT INTO iam.party (party_type, legal_name) VALUES ('COMPANY', 'Rest Stop Test') RETURNING id AS lpp \gset
+INSERT INTO pricing.loyalty_partner (program_id, party_id, partner_type) VALUES (:lpg, :lpp, 'REST_STOP') RETURNING id AS lpn \gset
+INSERT INTO pricing.loyalty_agreement (loyalty_partner_id, currency, points, amount, platform_share_pct, min_points, step_points, contract_ref, created_by)
+VALUES (:lpn, 'SYP', 100, 10000, 80, 100, 100, 'RS-2026-01', :uadmin) RETURNING id AS lag \gset
+SELECT pg_temp.expect_error(format($$UPDATE pricing.loyalty_agreement SET status = 'ACTIVE', approved_by = %s WHERE id = %s$$, :lpo, :lag),
+  'PARTNER_NOT_ACTIVE', 'Partner redemption (1107): an agreement waits for its partner to be active');
+UPDATE pricing.loyalty_partner SET status = 'ACTIVE' WHERE id = :lpn;
+SELECT pg_temp.expect_error(format($$UPDATE pricing.loyalty_agreement SET status = 'ACTIVE', approved_by = %s WHERE id = %s$$, :uadmin, :lag),
+  'loyalty_agreement_check', 'Partner redemption (1107): whoever wrote an agreement does not activate it');
+UPDATE pricing.loyalty_agreement SET status = 'ACTIVE', approved_by = :lpo WHERE id = :lag;
+SELECT pg_temp.expect_error(format($$INSERT INTO pricing.loyalty_agreement (loyalty_partner_id, currency, points, amount, platform_share_pct, min_points, step_points, contract_ref, created_by, approved_by, status)
+  VALUES (%s, 'SYP', 100, 20000, 90, 100, 100, 'RS-2026-02', %s, %s, 'ACTIVE')$$, :lpn, :uadmin, :lpo),
+  'loyalty_agreement_loyalty_partner_id_currency_valid_excl', 'Partner redemption (1107): one active agreement per partner and day');
+SELECT pg_temp.expect_error(format($$UPDATE pricing.loyalty_agreement SET platform_share_pct = 100 WHERE id = %s$$, :lag),
+  'AGREEMENT_FROZEN', 'Partner redemption (1107): an active agreement keeps its terms');
+SELECT pg_temp.ok(jsonb_array_length(pricing.partner_offers(:pax)) = 1 AND NOT (pricing.partner_offers(:pax) -> 0) ? 'platform_share_pct'
+  AND (pricing.partner_offers(:pax) -> 0 ->> 'partner') = 'Rest Stop Test',
+  'Partner redemption (1107): members see the partners and rates, not what the platform pays them');
+SELECT uid AS lag_uid FROM pricing.loyalty_agreement WHERE id = :lag \gset
+SELECT sys.set_context(:lpu, NULL, 'PASSENGER', NULL, NULL, NULL, NULL, :pax);
+SELECT pg_temp.expect_error(format($$SELECT pricing.redeem_at_partner(%s, %s, %L, 150, 'v-0', '\x01', NULL, NULL)$$, :pax, :lpu, :'lag_uid'),
+  'POINTS_BAD_AMOUNT', 'Partner redemption (1107): points outside the agreement''s steps are refused');
+SELECT pricing.redeem_at_partner(:pax, :lpu, :'lag_uid', 300, 'v-1', '\x01', NULL, NULL) AS lv1 \gset
+SELECT pg_temp.ok((:'lv1'::jsonb ->> 'value')::bigint = 30000 AND (:'lv1'::jsonb ->> 'balance')::bigint = 700,
+  'Partner redemption (1107): 300 points buy a 30,000 voucher at 100 points = 10,000');
+SELECT pg_temp.ok((pricing.redeem_at_partner(:pax, :lpu, :'lag_uid', 300, 'v-1', '\x01', NULL, NULL) ->> 'voucher') = (:'lv1'::jsonb ->> 'voucher')
+  AND (SELECT balance FROM pricing.points_account WHERE id = :lpa) = 700,
+  'Partner redemption (1107): the same request sent twice issues one voucher');
+SELECT pricing.redeem_at_partner(:pax, :lpu, :'lag_uid', 200, 'v-2', '\x02', NULL, NULL) ->> 'voucher' AS lv2 \gset
+SELECT pricing.redeem_at_partner(:pax, :lpu, :'lag_uid', 100, 'v-3', '\x03', NULL, NULL) ->> 'voucher' AS lv3 \gset
+SELECT pg_temp.expect_error($$SELECT pricing.accept_voucher(1, '\x01', NULL, NULL, NULL)$$, 'FORBIDDEN',
+  'Partner redemption (1107): a member cannot mark a voucher used');
+SELECT sys.set_context(NULL, NULL, 'PASSENGER', NULL, NULL, NULL, NULL, :fstranger);
+SELECT pg_temp.expect_error(format($$SELECT pricing.cancel_voucher(%L)$$, :'lv2'), 'NOT_FOUND', 'Partner redemption (1107): nobody cancels another member''s voucher');
+SELECT sys.set_context(:uadmin, NULL, 'SYSTEM');
+SELECT pg_temp.expect_error(format($$SELECT pricing.accept_voucher(%s, '\x01', NULL, NULL, NULL)$$, :lpn + 100000), 'VOUCHER_UNKNOWN',
+  'Partner redemption (1107): another partner cannot honour the voucher');
+SELECT pricing.accept_voucher(:lpn, '\x01', 'TILL-7', :uadmin, NULL) AS lacc \gset
+SELECT pg_temp.ok((:'lacc'::jsonb ->> 'payable')::bigint = 24000
+  AND (SELECT commission = 6000 AND payable = 24000 AND agreement_id = :lag FROM pricing.partner_redemption WHERE id = (:'lacc'::jsonb ->> 'redemption_id')::bigint),
+  'Partner redemption (1107): the platform owes the partner 80 % of the voucher and the rest is the partner''s share');
+SELECT pg_temp.expect_error(format($$SELECT pricing.accept_voucher(%s, '\x01', NULL, NULL, NULL)$$, :lpn), 'VOUCHER_USED',
+  'Partner redemption (1107): a voucher is honoured once');
+SELECT pg_temp.ok(EXISTS (SELECT 1 FROM sys.outbox_event WHERE event_type = 'voucher.used'), 'Partner redemption (1107): the member is told the voucher was used');
+SELECT sys.set_context(:lpu, NULL, 'PASSENGER', NULL, NULL, NULL, NULL, :pax);
+SELECT pg_temp.ok((pricing.cancel_voucher(:'lv2') ->> 'points')::bigint = 200, 'Partner redemption (1107): the member cancels an unused voucher');
+SELECT sys.set_context(:uadmin, NULL, 'SYSTEM');
+UPDATE pricing.reward_voucher SET expires_at = now() - interval '1 minute' WHERE uid = :'lv3';
+SELECT pricing.release_vouchers() AS lrel \gset
+SELECT pg_temp.ok((:'lrel'::jsonb ->> 'vouchers')::int = 1
+  AND (SELECT balance FROM pricing.points_account WHERE id = :lpa) = 700
+  AND (SELECT status FROM pricing.reward_voucher WHERE uid = :'lv3') = 'EXPIRED'
+  AND (SELECT returned_ledger_id IS NOT NULL FROM pricing.reward_voucher WHERE uid = :'lv2'),
+  'Partner redemption (1107): cancelled and expired vouchers give their points back');
+SELECT pg_temp.ok((SELECT redeemed FROM pricing.points_liability WHERE program_id = :lpg AND issuer_party_id IS NULL) = 3000,
+  'Partner redemption (1107): the points liability counts only the points that stay spent');
+SELECT pg_temp.expect_error(format($$SELECT pricing.accept_voucher(%s, '\x03', NULL, NULL, NULL)$$, :lpn), 'VOUCHER_EXPIRED',
+  'Partner redemption (1107): an expired voucher is refused');
+SELECT pricing.open_loyalty_settlement(:lpn, 'SYP', current_date - 1, current_date, :uadmin) AS lset \gset
+SELECT pg_temp.ok((:'lset'::jsonb ->> 'payable')::bigint = 24000 AND (:'lset'::jsonb ->> 'redemptions')::int = 1,
+  'Partner redemption (1107): the statement sums what the platform owes for the period');
+SELECT pg_temp.expect_error(format($$SELECT pricing.open_loyalty_settlement(%s, 'SYP', current_date - 1, current_date, %s)$$, :lpn, :uadmin),
+  'NOTHING_TO_SETTLE', 'Partner redemption (1107): a voucher is settled once');
+SELECT pg_temp.expect_error(format($$UPDATE pricing.loyalty_settlement SET status = 'APPROVED', approved_by = %s WHERE id = %s$$, :uadmin, (:'lset'::jsonb ->> 'settlement_id')),
+  'loyalty_settlement_check', 'Partner redemption (1107): whoever drew up a statement does not approve it');
+UPDATE pricing.loyalty_settlement SET status = 'APPROVED', approved_by = :lpo WHERE id = (:'lset'::jsonb ->> 'settlement_id')::bigint;
+SELECT pg_temp.expect_error(format($$UPDATE pricing.loyalty_settlement SET status = 'PAID', paid_by = %s, paid_at = now(), bank_ref = 'TRX-1' WHERE id = %s$$, :lpo, (:'lset'::jsonb ->> 'settlement_id')),
+  'loyalty_settlement_check', 'Partner redemption (1107): whoever approved a statement does not pay it');
+SELECT pg_temp.expect_error(format($$UPDATE pricing.loyalty_settlement SET status = 'CANCELLED' WHERE id = %s$$, (:'lset'::jsonb ->> 'settlement_id')),
+  'SETTLEMENT_NOT_DRAFT', 'Partner redemption (1107): an approved statement is not cancelled');
+SELECT pg_temp.ok(NOT has_column_privilege('masslak_app', 'pricing.partner_redemption', 'payable', 'UPDATE')
+  AND NOT has_table_privilege('masslak_app', 'pricing.partner_redemption', 'DELETE')
+  AND NOT has_column_privilege('masslak_app', 'pricing.loyalty_settlement', 'payable', 'UPDATE'),
+  'Partner redemption (1107): what is owed to a partner is never edited');
+SELECT pg_temp.ok((SELECT phase_code FROM sys.table_phase WHERE table_name = 'pricing.reward_voucher') = '1B'
+  AND NOT EXISTS (SELECT 1 FROM sys.project_phase WHERE code = '9' AND 'loyalty_partners' = ANY (feature_keys)),
+  'Partner redemption (1107): partner redemption belongs to the loyalty release');
+ROLLBACK;
+
+-- Taxes and keys of e-invoices (1108): a tax scheme goes live only approved and computable, its rules then frozen;
+-- taxes on taxes without loops; each line's taxes written once; the public keys that signed are kept
+BEGIN;
+SELECT sys.set_context(:uadmin, NULL, 'SYSTEM');
+INSERT INTO iam.party (party_type, legal_name) VALUES ('PERSON', 'Tax Checker') RETURNING id AS tcp \gset
+INSERT INTO iam.app_user (party_id, account_kind, email, status) VALUES (:tcp, 'PLATFORM', 'tax-checker@masslak.test', 'ACTIVE') RETURNING id AS tcu \gset
+INSERT INTO pricing.jurisdiction (country_code, level, name) VALUES ('SY', 'COUNTRY', 'Syria (tax test)') RETURNING id AS tj \gset
+INSERT INTO pricing.tax_scheme (code, name, jurisdiction_id, tax_type, treatment, collected_by, valid, created_by)
+VALUES ('T-VAT', 'VAT', :tj, 'VAT', 'STANDARD', 'PLATFORM', tstzrange(now(), NULL), :uadmin) RETURNING id AS tvat \gset
+SELECT pg_temp.expect_error(format($$UPDATE pricing.tax_scheme SET status = 'ACTIVE', approved_by = %s WHERE id = %s$$, :tcu, :tvat),
+  'TAX_SCHEME_RULES', 'E-invoice taxes (1108): a standard-rated scheme without rules does not go live');
+INSERT INTO pricing.tax_rule (scheme_id, seq, calc_method, rate) VALUES (:tvat, 1, 'PERCENT', 10);
+SELECT pg_temp.expect_error(format($$UPDATE pricing.tax_scheme SET status = 'ACTIVE' WHERE id = %s$$, :tvat),
+  'TAX_SCHEME_UNAPPROVED', 'E-invoice taxes (1108): a tax scheme goes live only once a second officer approves it');
+UPDATE pricing.tax_scheme SET status = 'ACTIVE', approved_by = :tcu WHERE id = :tvat;
+SELECT pg_temp.expect_error(format($$UPDATE pricing.tax_rule SET rate = 12 WHERE scheme_id = %s$$, :tvat),
+  'TAX_SCHEME_FROZEN', 'E-invoice taxes (1108): the rules of a live tax scheme are not changed under it');
+SELECT pg_temp.expect_error(format($$INSERT INTO pricing.tax_rule (scheme_id, seq, calc_method, rate) VALUES (%s, 2, 'PERCENT', 1)$$, :tvat),
+  'TAX_SCHEME_FROZEN', 'E-invoice taxes (1108): nor added to');
+INSERT INTO pricing.tax_scheme (code, name, jurisdiction_id, tax_type, treatment, collected_by, valid, created_by)
+VALUES ('T-FORM', 'Formula', :tj, 'OTHER', 'STANDARD', 'PLATFORM', tstzrange(now(), NULL), :uadmin) RETURNING id AS tform \gset
+SELECT pg_temp.expect_error(format($$INSERT INTO pricing.tax_rule (scheme_id, seq, calc_method) VALUES (%s, 9, 'PERCENT')$$, :tform),
+  'tax_rule_terms_check', 'E-invoice taxes (1108): a percent rule names its rate');
+INSERT INTO pricing.tax_rule (scheme_id, seq, calc_method) VALUES (:tform, 1, 'FORMULA');
+SELECT pg_temp.expect_error(format($$UPDATE pricing.tax_scheme SET status = 'ACTIVE', approved_by = %s WHERE id = %s$$, :tcu, :tform),
+  'formula', 'E-invoice taxes (1108): a rule the issuer cannot compute keeps its scheme from going live');
+-- a levy on the VAT for another authority, and two taxes levied on each other
+INSERT INTO pricing.tax_scheme (code, name, jurisdiction_id, tax_type, treatment, collected_by, valid, created_by, payable_to_party_id)
+VALUES ('T-REC', 'Levy on VAT', :tj, 'LEVY', 'STANDARD', 'PLATFORM', tstzrange(now(), NULL), :uadmin, :tcp) RETURNING id AS trec \gset
+INSERT INTO pricing.tax_rule (scheme_id, seq, calc_method, rate, base_type, base_include) VALUES (:trec, 1, 'PERCENT', 2, 'TAXES', '["T-VAT"]');
+UPDATE pricing.tax_scheme SET status = 'ACTIVE', approved_by = :tcu WHERE id = :trec;
+SELECT pg_temp.ok((SELECT status FROM pricing.tax_scheme WHERE id = :trec) = 'ACTIVE',
+  'E-invoice taxes (1108): a tax levied on the VAT for another authority goes live');
+INSERT INTO pricing.tax_scheme (code, name, jurisdiction_id, tax_type, treatment, collected_by, valid, created_by)
+VALUES ('T-A', 'A', :tj, 'LEVY', 'STANDARD', 'PLATFORM', tstzrange(now(), NULL), :uadmin) RETURNING id AS ta \gset
+INSERT INTO pricing.tax_scheme (code, name, jurisdiction_id, tax_type, treatment, collected_by, valid, created_by)
+VALUES ('T-B', 'B', :tj, 'LEVY', 'STANDARD', 'PLATFORM', tstzrange(now(), NULL), :uadmin) RETURNING id AS tb \gset
+INSERT INTO pricing.tax_rule (scheme_id, seq, calc_method, rate, base_type, base_include) VALUES (:ta, 1, 'PERCENT', 1, 'TAXES', '["T-B"]');
+INSERT INTO pricing.tax_rule (scheme_id, seq, calc_method, rate, base_type, base_include) VALUES (:tb, 1, 'PERCENT', 1, 'TAXES', '["T-A"]');
+SELECT pg_temp.expect_error(format($$UPDATE pricing.tax_scheme SET status = 'ACTIVE', approved_by = %s WHERE id = %s$$, :tcu, :ta),
+  'loop', 'E-invoice taxes (1108): taxes levied on each other in a loop are refused');
+-- a line's taxes are written while its document is a draft, and never changed
+SELECT pg_temp.ok(NOT has_table_privilege('masslak_app', 'acct.einvoice_line_tax', 'UPDATE')
+  AND NOT has_table_privilege('masslak_app', 'acct.einvoice_line_tax', 'DELETE')
+  AND NOT has_table_privilege('masslak_app', 'acct.einvoice_signing_key', 'UPDATE'),
+  'E-invoice taxes (1108): line taxes and signing keys are written once');
+SELECT pg_temp.expect_error($$INSERT INTO acct.einvoice_signing_key (kid, public_key) VALUES ('Bad Kid!', repeat('A', 43))$$,
+  'einvoice_signing_key_kid_check', 'E-invoice keys (1108): a key id is short lowercase letters and digits');
+INSERT INTO acct.einvoice_signing_key (kid, public_key) VALUES ('e209901', repeat('Q', 43));
+SELECT pg_temp.expect_error($$INSERT INTO acct.einvoice_signing_key (kid, public_key) VALUES ('e209902', repeat('Q', 43))$$,
+  'einvoice_signing_key_public_key_key', 'E-invoice keys (1108): one public key, one key id');
+SELECT pg_temp.ok(NOT EXISTS (SELECT 1 FROM sys.setting WHERE key = 'einvoice.tax_rate_pct'),
+  'E-invoice taxes (1108): the single rate of 1104 gives way to the tax schemes');
+ROLLBACK;
+
 \echo '=== ALL TESTS PASSED ==='

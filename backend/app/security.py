@@ -397,14 +397,24 @@ def manifest_signature_valid(digest: bytes, signature: bytes) -> bool:
         return False
 
 
-# ------------------------------------------------------------------ e-invoices (Ed25519, 1104)
+# ------------------------------------------------------------------ e-invoices (Ed25519, 1104; key ring 1108)
 # The hash of every e-invoice and credit note is signed, so a buyer or an authority can prove a document is the one the
-# platform issued. Its own key, derived like the manifest key unless MASSLAK_EINVOICE_SIGNING_KEY gives one.
+# platform issued. Keys form a ring, like the token keys (owner's decision, October 2026):
+#   MASSLAK_EINVOICE_KEYS   kid:base64-of-a-32-byte-Ed25519-seed[,kid:base64...]
+# The first key signs; every key listed can still sign-verify locally. Each document names its key (signing_kid, part
+# of the hashed content) and the public key of every key that ever signed is kept in acct.einvoice_signing_key and
+# published at /api/public/keys/einvoice, so a document verifies for as long as it is kept, whatever keys the server
+# holds then. A bare "e1" in the list is the key used before release 1.50.0: MASSLAK_EINVOICE_SIGNING_KEY if set, else
+# the key derived from the ticket signing seed (HKDF), which is what an unset variable means on a test server.
+# Production requires a key of its own first (app.profile).
 EINVOICE_KID = "einvoice-signature/v1"
+EINVOICE_KEYS_ENV = "MASSLAK_EINVOICE_KEYS"
+EINVOICE_LEGACY_KID = "e1"
 
 
 @lru_cache(maxsize=1)
 def _einvoice_key():
+    """The key of release 1.49.0 and earlier (kid e1): documents of canonical version 1 were signed with it."""
     from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
     from cryptography.hazmat.primitives.hashes import SHA256
     from cryptography.hazmat.primitives.kdf.hkdf import HKDF
@@ -417,21 +427,69 @@ def _einvoice_key():
         HKDF(algorithm=SHA256(), length=32, salt=b"masslak-einvoice", info=EINVOICE_KID.encode()).derive(ticket_seed))
 
 
-def einvoice_sign(digest: bytes) -> bytes:
-    return _einvoice_key().sign(digest)
+def parse_einvoice_keys(raw: str) -> list[tuple[str, object]]:
+    """The e-invoice signing keys, the signing key first; raises KeyConfigError on a malformed list."""
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+    if not raw.strip():
+        return [(EINVOICE_LEGACY_KID, _einvoice_key())]
+    keys: list[tuple[str, object]] = []
+    for item in raw.split(","):
+        kid, _, b64 = item.strip().partition(":")
+        if not _KID.match(kid):
+            raise KeyConfigError(f"{EINVOICE_KEYS_ENV}: a key id is 1 to 12 lowercase letters or digits")
+        if any(k == kid for k, _ in keys):
+            raise KeyConfigError(f"{EINVOICE_KEYS_ENV}: key id {kid} is listed twice")
+        if kid == EINVOICE_LEGACY_KID and not b64:
+            keys.append((kid, _einvoice_key()))
+            continue
+        try:
+            seed = base64.b64decode(b64, validate=True)
+        except ValueError:
+            seed = b""
+        if len(seed) != 32:
+            raise KeyConfigError(f"{EINVOICE_KEYS_ENV}: key {kid} must be base64 of a 32-byte Ed25519 seed")
+        keys.append((kid, Ed25519PrivateKey.from_private_bytes(seed)))
+    return keys
 
 
-def einvoice_public_key() -> str:
+@lru_cache(maxsize=1)
+def einvoice_keys() -> tuple[tuple[str, object], ...]:
+    return tuple(parse_einvoice_keys(os.environ.get(EINVOICE_KEYS_ENV, "")))
+
+
+def _public_b64(key) -> str:
     from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
-    return _b64(_einvoice_key().public_key().public_bytes(Encoding.Raw, PublicFormat.Raw))
+    return _b64(key.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw))
 
 
-def einvoice_signature_valid(digest: bytes, signature: bytes) -> bool:
+def einvoice_sign(digest: bytes) -> tuple[str, bytes, str]:
+    """(key id, signature, public key) with the ring's signing key."""
+    kid, key = einvoice_keys()[0]
+    return kid, key.sign(digest), _public_b64(key)
+
+
+def einvoice_signer() -> tuple[str, str]:
+    """(key id, public key) of the key that signs now."""
+    kid, key = einvoice_keys()[0]
+    return kid, _public_b64(key)
+
+
+def einvoice_public_keys() -> list[dict]:
+    """The public keys of every key this server holds, the signing one first."""
+    return [{"kid": kid, "alg": "Ed25519", "public_key": _public_b64(key)} for kid, key in einvoice_keys()]
+
+
+def einvoice_signature_valid(digest: bytes, signature: bytes, public_key: str | None = None) -> bool:
+    """Checks a signature with the given public key (base64url, from acct.einvoice_signing_key), or with the key of
+    release 1.49.0 for documents that name none."""
     from cryptography.exceptions import InvalidSignature
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
     try:
-        _einvoice_key().public_key().verify(signature, digest)
+        verifier = (Ed25519PublicKey.from_public_bytes(base64.urlsafe_b64decode(public_key + "=" * (-len(public_key) % 4)))
+                    if public_key else _einvoice_key().public_key())
+        verifier.verify(signature, digest)
         return True
-    except InvalidSignature:
+    except (InvalidSignature, ValueError):
         return False
 
 

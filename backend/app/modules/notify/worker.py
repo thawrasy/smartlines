@@ -95,6 +95,8 @@ async def maintenance() -> dict:
         out = json.loads(await conn.fetchval("SELECT sys.run_maintenance()::text"))
         # loyalty points past their expiry leave the balances (1103)
         out["points_expired"] = json.loads(await conn.fetchval("SELECT pricing.expire_points()::text"))
+        # partner vouchers past their date give their points back (1107)
+        out["vouchers_released"] = json.loads(await conn.fetchval("SELECT pricing.release_vouchers()::text"))
         keep = await conn.fetchrow("SELECT * FROM ops.position_retention()")
     # positions in the telemetry database (review stage D2): partitions ahead, the primary's retention and legal holds
     from ... import telemetry
