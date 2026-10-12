@@ -404,7 +404,7 @@ sqlcmd -S "<db-cert-name>,1433" -U "<personal-login>" -Q "SET NOCOUNT ON; SELECT
 ## 13. تعارضات وفجوات في المصادر
 
 1. السجل docs/30-readiness-documents.md:287 يقول إن docs/10-detailed-analysis/00-overview-and-cross-cutting.md:126 يذكر «ويندوز + SQL Server». السطر اليوم يذكر Ubuntu 24.04 LTS لمضيف القاعدة؛ وصف السجل قديم.
-2. السجل docs/30-readiness-documents.md:287 يستشهد بـ `.github/workflows/db-ci.yml:52-62` داخل treasury-platform، والملف غير موجود. سير العمل اليوم في جذر المستودع، وتثبيت الأدوات فيه في الأسطر 61-71 (../.github/workflows/treasury-db-ci.yml).
+2. السجل docs/30-readiness-documents.md:287 يستشهد بالأسطر 52-62 من ../.github/workflows/treasury-db-ci.yml لتثبيت mssql-tools18. بعد إضافة خطوة Pillow صار التثبيت في الأسطر 61-71، والأسطر 52-55 لإعداد Python.
 3. مكان مخزن الملفات: DOC-B11 §3 يضعه على خادم التطبيق (docs/30-readiness/DOC-B11-environments-build-release.md:53)، وDQ-S02-10 يضعه «على VPS» (docs/30-readiness/DOC-S02-key-management-encryption.md:268)، وDQ-F01-4 «على VPS نفسه» (docs/30-readiness/DOC-F01-context-and-trust-boundaries.md:243). مع خادمين منفصلين (DQ-B11-2) لا يُعرف أي VPS. هذا الدليل لا يضعه على خادم القاعدة حتى يُحسم.
 4. ما اختُبر هو الحاوية (docs/adr/0001-schema-work-on-linux.md:11)، والإنتاج تثبيت حزمة على خادم افتراضي (docs/adr/0001-schema-work-on-linux.md:16). خطوات §5 لم تُجرَّب في أي بيئة.
 5. DOC-S02 §5.2 وDOC-S09 §4.1 وDOC-S05 §5.1 تحيل تفاصيل SQL Server على Linux (مفتاح الآلة، والجدولة، وإعدادات TLS) إلى هذا الدليل. القسم 5 يسردها، لكنها كلها [تحقق MS] حتى تُفتح وثائق Microsoft.

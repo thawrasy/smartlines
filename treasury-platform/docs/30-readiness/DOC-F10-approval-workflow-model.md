@@ -149,26 +149,22 @@ stateDiagram-v2
 ```mermaid
 flowchart TB
   subgraph RQ["الطالب"]
-    direction TB
     D["DRAFT مسودة"]
     SO["SIGNED_ORIGINAL الأصل الموقّع"]
     ERP["ERP_ENTRY مرجع ERP"]
     RT["RETURNED معاد للتعديل"]
   end
   subgraph MG["مدير الطالب RQM"]
-    direction TB
     PA["PARALLEL_APPROVALS<br/>ALL منشئ ومدير"]
     PE["POST_ERP_APPROVAL<br/>ANY"]
   end
   subgraph TE["موظفو الخزينة"]
-    direction TB
     FS["FACILITY_SELECTION<br/>طابور الاختيار"]
     Q["TREASURY_QUEUE<br/>طابور التنفيذ"]
     X["EXECUTION<br/>حالات فرعية"]
     I["ISSUANCE<br/>تحويل الحجز"]
   end
   subgraph TM["مدير الخزينة TM"]
-    direction TB
     T["TM_APPROVAL<br/>ANY مع الحجز"]
     AC["AWAITING_CLOSE<br/>ثم CLOSE"]
     RJ(["REJECTED أو CANCELLED"])
@@ -223,21 +219,17 @@ AllowRequesterCancel صحيحة في كل مرحلة قبل EXECUTION، لأن �
 ```mermaid
 flowchart TB
   subgraph RQ["الطالب"]
-    direction TB
     D["DRAFT"]
     RT["RETURNED"]
   end
   subgraph MG["مدير الطالب RQM"]
-    direction TB
     A["APPROVAL<br/>ANY"]
   end
   subgraph TE["موظفو الخزينة"]
-    direction TB
     Q["TREASURY_QUEUE"]
     X["EXECUTION"]
   end
   subgraph TM["مدير الخزينة TM"]
-    direction TB
     AC["AWAITING_CLOSE<br/>ثم CLOSE"]
   end
   D -->|"SUBMIT"| A
@@ -269,22 +261,18 @@ flowchart TB
 ```mermaid
 flowchart TB
   subgraph RQ["الطالب"]
-    direction TB
     D["DRAFT"]
     RT["RETURNED"]
   end
   subgraph MG["مدير الطالب RQM"]
-    direction TB
     A["APPROVAL<br/>ANY"]
   end
   subgraph TE["موظفو الخزينة"]
-    direction TB
     Q["TREASURY_QUEUE"]
     X["EXECUTION"]
     R["AMENDMENT_RESULT<br/>إصدار البنك ورد المستفيد"]
   end
   subgraph TM["مدير الخزينة TM"]
-    direction TB
     T["TM_APPROVAL<br/>ANY مع تعديل التعرّض"]
     AC["AWAITING_CLOSE<br/>ثم CLOSE"]
   end
@@ -323,21 +311,17 @@ flowchart TB
 ```mermaid
 flowchart TB
   subgraph RQ["الطالب"]
-    direction TB
     D["DRAFT"]
     RT["RETURNED"]
   end
   subgraph MG["مدير الطالب RQM"]
-    direction TB
     A["APPROVAL<br/>ANY في GENERIC_APPROVAL"]
   end
   subgraph TE["موظفو الخزينة"]
-    direction TB
     Q["TREASURY_QUEUE"]
     X["EXECUTION"]
   end
   subgraph TM["مدير الخزينة TM"]
-    direction TB
     AC["AWAITING_CLOSE<br/>ثم CLOSE"]
   end
   D -->|"SUBMIT في GENERIC_APPROVAL"| A
@@ -370,25 +354,20 @@ flowchart TB
 ```mermaid
 flowchart TB
   subgraph RQ["الطالب منشئ"]
-    direction TB
     D["DRAFT إعداد"]
     RT["RETURNED"]
   end
   subgraph AU["المراجِع"]
-    direction TB
     A1["AUDIT<br/>ANY مدقق المبيعات"]
   end
   subgraph AP["المعتمِد"]
-    direction TB
     A2["APPROVAL<br/>ANY موافق المبيعات"]
   end
   subgraph TE["موظفو الخزينة"]
-    direction TB
     Q["TREASURY_QUEUE"]
     P["ISSUE_PROFORMA<br/>رقم البروفورما"]
   end
   subgraph TM["مدير الخزينة TM"]
-    direction TB
     AC["AWAITING_CLOSE<br/>ثم CLOSE"]
   end
   D -->|"SUBMIT"| A1
@@ -419,21 +398,17 @@ flowchart TB
 ```mermaid
 flowchart TB
   subgraph RQ["الطالب من المبيعات"]
-    direction TB
     D["DRAFT"]
     RT["RETURNED"]
   end
   subgraph MG["مدير الطالب RQM"]
-    direction TB
     A["SALES_APPROVAL<br/>ANY"]
   end
   subgraph TE["موظفو الخزينة"]
-    direction TB
     Q["TREASURY_QUEUE"]
     E["EARMARK<br/>تخصيص من رصيد الاعتماد"]
   end
   subgraph TM["مدير الخزينة TM"]
-    direction TB
     AC["AWAITING_CLOSE<br/>ثم CLOSE"]
   end
   D -->|"SUBMIT"| A
@@ -458,22 +433,18 @@ flowchart TB
 ```mermaid
 flowchart TB
   subgraph RQ["الطالب من المبيعات"]
-    direction TB
     D["DRAFT"]
     RT["RETURNED"]
   end
   subgraph MG["مدير الطالب RQM"]
-    direction TB
     A["SALES_APPROVAL<br/>ANY"]
   end
   subgraph TE["موظفو الخزينة"]
-    direction TB
     Q["TREASURY_QUEUE"]
     X["EXECUTION"]
     DI["DOCS_ISSUED<br/>تحويل التخصيص"]
   end
   subgraph TM["مدير الخزينة TM"]
-    direction TB
     AC["AWAITING_CLOSE<br/>ثم CLOSE"]
   end
   D -->|"SUBMIT"| A
