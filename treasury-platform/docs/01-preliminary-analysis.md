@@ -453,7 +453,7 @@ flowchart TD
 | المكوّن | الإصدار المعتمد | الحالة والمصدر |
 |---|---|---|
 | **.NET** | **.NET 10 (LTS)** | الإصدار الحالي طويل الدعم؛ آخر تحديث أمني 10.0.12؛ الدعم حتى 14 نوفمبر 2028. وإصداران 8 و9 ينتهي دعمهما **10 نوفمبر 2026** فلا يُعتمدان. [سياسة دعم .NET](https://dotnet.microsoft.com/en-us/platform/support/policy) |
-| **SQL Server** | **SQL Server 2025** (الإصدار 17.0.x) | متاح عامًا منذ نوفمبر 2025، ودعم رئيسي حتى 6 يناير 2031. [الإعلان](https://kurtsh.com/2025/11/25/release-microsoft-sql-server-2025-is-now-generally-available/) |
+| **SQL Server** | **SQL Server 2025** (الإصدار 17.0.x) | متاح عامًا منذ نوفمبر 2025، ودعم رئيسي حتى 6 يناير 2031. مضيف قاعدة البيانات: Ubuntu 24.04 LTS على VPS وفق ADR 0001 (قرار المالك 2026-10-12)، ويُتحقَّق من الدعم الرسمي لهذا المزيج قبل التجهيز. [الإعلان](https://kurtsh.com/2025/11/25/release-microsoft-sql-server-2025-is-now-generally-available/) |
 | **Windows Server** | آخر إصدار (يُتحقَّق منه عند التجهيز) | لم أتحقق منه بعد، وأدرجه في قائمة التجهيز |
 | **UCP 600** | **UCP 600** (2007) | لا نسخة أحدث؛ هو المعمول به. [ICC](https://library.iccwbo.org/content/tfb/dcw/DCW_2023vol27n07/DCW_2023vol27n07-updates-03.htm) |
 | **ISBP** (ممارسة فحص المستندات) | **ISBP 821** (3 يوليو 2023)، ويحل محل ISBP 745 | المرجع الحالي لفحص المستندات. [ICC](https://2go.iccwbo.org/international-standard-banking-practice-isbp-1.html) |

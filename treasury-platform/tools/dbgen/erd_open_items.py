@@ -145,7 +145,7 @@ ITEMS = [
     {
         'id': 'O-23', 'sources': 'Team decision on Linux (docs/adr/0001-schema-work-on-linux.md); Microsoft release notes for SQL Server 2025 on Linux (search summary, to verify)',
         'finding': 'The company servers run SUSE (SLES). SQL Server 2025 on Linux is supported on RHEL and Ubuntu only; SLES is listed through SQL Server 2022. The production VPS is a Linux server, and the owner has chosen Ubuntu 24.04 LTS for it (2026-10-12).',
-        'status': 'Decided by the owner: Ubuntu 24.04 LTS on the external VPS. ADR 0001 is updated to match. CI runs on Ubuntu 24.04 with the Ubuntu-based SQL Server 2025 container (the test run of 2026-10-12 passed on it). FR-PLT-045 and decision 01 section 13 still name Windows Server and are not yet updated.',
-        'next': 'Confirm Ubuntu 24.04 support for SQL Server 2025 on the official Microsoft page. Update FR-PLT-045 and decision 01 section 13. Provision the VPS and run tools/deploy/deploy.sh there. Close the open key-custody and data-residency decisions before real data is loaded.',
+        'status': 'Decided by the owner: Ubuntu 24.04 LTS on the external VPS. ADR 0001 matches it. FR-PLT-045 and decision 01 section 13 are updated for the database host (the application tier is unchanged). CI runs on Ubuntu 24.04 with the Ubuntu-based SQL Server 2025 container, and the full CI passed on it. The official Microsoft support page could not be opened from the sandbox; Ubuntu 24.04 support rests on search summaries only.',
+        'next': 'Verify Ubuntu 24.04 support for SQL Server 2025 on the official Microsoft page. Provision the VPS (needs SSH access) and run tools/deploy/deploy.sh there. Close the open key-custody, data-residency and backup decisions before real data is loaded.',
     },
 ]
