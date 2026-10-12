@@ -1115,7 +1115,10 @@ The rights of the operating company come after step 5, and only while the statio
   carrier. It counts only while `boarding.mode.state_mandated` is `true`.
 - A grant is revoked with `POST .../{uid}/revoke`, by the party that gave it (the platform can revoke any grant).
 
-The operating company's own login is not built yet, so no operating company acts through the system until that is decided.
+An operating company is onboarded by the platform with `POST /api/admin/boarding/operating-companies` (`{"legal_name",
+"license_no", "owner_name", "owner_email", "owner_password"}`). Its owner signs in to the `STATION` portal, enrols a second
+factor at the first sign-in, and sees the rights the company holds and its counters at `GET /api/station/overview`. Give the
+operating company its counters with step 5 above (`"operator_company_uid"` is the uid the onboarding returned).
 
 To stop boarding everywhere, set `boarding.stations.enabled` to `false`. Nothing is deleted: the stations, their counters, their
 bays and the carriers' reference numbers stay as they are. A carrier retires a reference it no longer holds with

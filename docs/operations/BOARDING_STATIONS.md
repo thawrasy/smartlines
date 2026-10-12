@@ -2,11 +2,11 @@
 
 Status (October 2026): requirements recorded from the owner's answers. Build step 1 is in place (migration 1097 and its API):
 the platform settings, each station's own switch, the numbering of counters and bays, and the optional reference fields.
-Step 2 is partly in place (migration 1098 and its API): the rights an operating company holds at a station, given by the
-carrier or by the platform, and the decision whether it may act. Everything is off, or empty, at launch, and nothing in the
-booking, the boarding or the ticket changes until the platform switches a station on. The operating company's own portal,
-the counter check and the boarding pass (steps 2 and 3), the counter screens (step 4) and the counter photo (step 5) are not
-built (section 9).
+Step 2 is in place (migrations 1098 and 1099 and their API): the rights an operating company holds at a station, given by
+the carrier or by the platform, the decision whether it may act, and the operating company's own portal (`STATION`, the
+owner's option A). Everything is off, or empty, at launch, and nothing in the booking, the boarding or the ticket changes
+until the platform switches a station on. The counter check and the boarding pass (step 3), the screens (step 4) and the
+counter photo (step 5) are not built (section 9).
 
 ## 1. What it is
 
@@ -29,8 +29,8 @@ Typical sequence, per passenger and ticket:
   The carrier's portal settings name the company. The company's permissions are granted through the carrier's portal.
 
 The two platform switches (`boarding.mode.state_mandated`, `boarding.mode.carrier_contracted`) exist and default to off. The
-grants that give an operating company its rights are built (1098, section 3). The operating company's own portal role, and
-the carrier-portal screens for the grants, are not built (section 8a, section 9).
+grants that give an operating company its rights are built (1098, section 3), and so is the operating company's own portal
+(1099, section 8a). The screens for the grants, in the carrier portal and in the station portal, are not built (section 9).
 
 ## 3. Permissions the operating company receives
 
@@ -105,8 +105,8 @@ use it, is step 3. The exact list is open (section 8, item 5).
 
 ## 7. Relation to what exists
 
-- Carrier accounts are the `OPERATOR` portal. The state-mandated operating company gets a new portal role (step 2); the
-  carrier-contracted one works through the carrier's portal.
+- Carrier accounts are the `OPERATOR` portal. Every operating company, state-mandated or contracted by a carrier, signs in
+  to its own portal, `STATION` (1099). A carrier gives a contracted operating company its rights from the carrier's portal.
 - Trip statuses today: `PUBLISHED`, `BOARDING`, `DEPARTED`, `COMPLETED`, `CANCELLED`. The photo is shown only while the trip
   is `BOARDING` (migration 1096). The check-in window is a setting, not a status (section 4).
 - The stations already exist (`net.station`, with its code, and `net.station_gate` for platforms, bays, gates and counters,
@@ -136,9 +136,12 @@ use it, is step 3. The exact list is open (section 8, item 5).
 - The station's switch and the grants belong to project phase 7, which is closed while the stations feature
   (`tracking_stations`) is off. A carrier therefore records a grant only after that feature is on, as the runbook says. The
   reference numbers belong to phase 1A, with the carrier's own records, so the stations feature does not close them.
-- The operating company's own login is not decided. Option A: a new portal (`STATION`) for each operating company, which keeps
-  it out of the carrier's own records and the carrier's screens; option B: a company type inside the carrier's portal. This
-  build does not add either. I recommend A.
+- The operating company's own login: the owner chose option A (October 2026), built in 1099. An operating company is a company
+  of its own type (`STATION_OPERATOR`), onboarded by the platform (`POST /api/admin/boarding/operating-companies`), and its
+  staff sign in to the `STATION` portal only; a carrier's staff cannot open it, and the operating company opens no carrier,
+  driver or agency portal. The owner of an operating company holds the station permissions only (`station.counter`), never a
+  carrier's. The portal is a staff portal: it needs a second factor, like the carrier portal. Every other route of the
+  platform refuses the `STATION` portal, because each one names the portals it serves.
 - A grant is the carrier's own record, so the carrier decides it. The platform grants only the state-mandated operator's
   rights, and can revoke any grant.
 
@@ -148,9 +151,10 @@ use it, is step 3. The exact list is open (section 8, item 5).
    window (platform and station), the required references. Each station's own switch and counter system. Counters and bays
    numbered by the platform. The optional reference fields. API under `/api/admin/boarding` and `/api/carrier/references`,
    with tests in the database suite and in the API suite.
-2. Partly built (1098): the grants, the decision and the isolation of the grants (tested in the database). Not built: the
-   operating company's own login and portal (section 8a), the carrier-portal screens for the grants, the carrier's window
-   override, and the check that an operating company sees only the trips and tickets of carriers that gave it rights.
+2. **Done (1098, 1099).** The grants, the decision and the isolation of the grants; the `STATION` portal with the platform's
+   onboarding of an operating company, and the portal's first route (`GET /api/station/overview`: the rights the company holds
+   now and its counters). Not built: the screens for the grants, the carrier's window override, and the operating company's
+   view of the trips and tickets of carriers that gave it rights (it comes with the counter check, step 3).
 3. Counter check, boarding pass and check-in records under the granted permissions, with the activity log. The bay number
    is printed on the boarding pass here, and the rule that refuses a missing required reference is applied here.
 4. Counter screens in the operating company's portal and the carrier portal, and the station screens fed by the bay numbers.

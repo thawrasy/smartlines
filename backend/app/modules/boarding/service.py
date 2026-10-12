@@ -10,6 +10,7 @@ import uuid
 import asyncpg
 
 from ...errors import ApiError, not_found
+from ...security import hash_password
 
 SETTINGS = ("boarding.stations.enabled", "boarding.mode.state_mandated", "boarding.mode.carrier_contracted",
             "boarding.checkin.opens_minutes", "boarding.checkin.closes_minutes", "boarding.references.required")
@@ -188,3 +189,47 @@ async def revoke_grant(conn, uid: uuid.UUID, user_id: int) -> int:
             raise not_found("grant")
         raise ApiError(409, "GRANT_REVOKED", "this grant is already revoked")
     return row["id"]
+
+
+async def onboard_operator(conn, body, user_id: int) -> tuple[int, uuid.UUID]:
+    """A station operating company (1099) with its owner: it signs in to the STATION portal only."""
+    company_id = await conn.fetchval(
+        "INSERT INTO iam.party (party_type, legal_name) VALUES ('COMPANY', $1) RETURNING id", body.legal_name.strip())
+    await conn.execute("INSERT INTO iam.party_role (party_id, role_code) VALUES ($1, 'STATION_OPERATOR')", company_id)
+    await conn.execute(
+        """INSERT INTO iam.company (id, company_type, transport_license_no, approval_status, approved_by, approved_at)
+           VALUES ($1, 'STATION_OPERATOR', $2, 'APPROVED', $3, now())""", company_id, body.license_no, user_id)
+    owner_party = await conn.fetchval(
+        "INSERT INTO iam.party (party_type, legal_name) VALUES ('PERSON', $1) RETURNING id", body.owner_name.strip())
+    try:
+        owner_user = await conn.fetchval(
+            """INSERT INTO iam.app_user (party_id, account_kind, email, password_hash, password_changed_at, status,
+                                         preferred_locale, mfa_required)
+               VALUES ($1, 'COMPANY', $2, $3, now(), 'ACTIVE',
+                       (SELECT value #>> '{}' FROM sys.setting WHERE key = 'ui.default_locale'), true) RETURNING id""",
+            owner_party, body.owner_email, hash_password(body.owner_password))
+    except asyncpg.UniqueViolationError as exc:
+        raise ApiError(409, "EMAIL_TAKEN", "an account with this email exists") from exc
+    await conn.execute("INSERT INTO iam.company_member (user_id, company_id, is_owner) VALUES ($1, $2, true)",
+                       owner_user, company_id)
+    return company_id, await conn.fetchval("SELECT uid FROM iam.party WHERE id = $1", company_id)
+
+
+async def operator_overview(conn, company_id: int) -> dict:
+    """What a station operating company sees in its portal: the rights it holds now, and its counters."""
+    grants = await conn.fetch(
+        """SELECT g.uid, g.permission, g.granted_at, cp.uid AS carrier_uid, cp.legal_name AS carrier_name,
+                  st.uid AS station_uid, st.code AS station_code, st.name AS station_name,
+                  CASE WHEN g.station_id IS NULL THEN NULL
+                       ELSE net.operator_may($1, g.carrier_company_id, g.station_id, g.permission) END AS usable_now
+             FROM net.station_operator_grant g
+             LEFT JOIN iam.party cp ON cp.id = g.carrier_company_id
+             LEFT JOIN net.station st ON st.id = g.station_id
+            WHERE g.operator_company_id = $1 AND g.revoked_at IS NULL
+            ORDER BY st.code NULLS FIRST, cp.legal_name NULLS FIRST, g.permission""", company_id)
+    counters = await conn.fetch(
+        """SELECT st.uid AS station_uid, st.code AS station_code, g.code, g.status,
+                  net.boarding_station_on(st.id) AS boarding_on_now
+             FROM net.station_gate g JOIN net.station st ON st.id = g.station_id
+            WHERE g.operator_company_id = $1 ORDER BY st.code, g.code""", company_id)
+    return {"grants": [dict(r) for r in grants], "counters": [dict(r) for r in counters]}

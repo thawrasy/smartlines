@@ -10,6 +10,10 @@ a boarding or a ticket until the platform switches a station on.
     GET  /api/admin/boarding/operator-grants                every grant (station operators' rights)
     POST /api/admin/boarding/operator-grants                grant a state-mandated operating company a right (no carrier)
     POST /api/admin/boarding/operator-grants/{uid}/revoke   revoke a grant
+    POST /api/admin/boarding/operating-companies            onboard a station operating company and its owner (1099)
+
+    Station operating company (the STATION portal, 1099; owner or station.counter)
+    GET  /api/station/overview                              the rights the company holds now, and its counters
 
     Carrier (boarding.references)
     GET  /api/carrier/references                            the carrier's agreement and licence numbers, and those missing
@@ -26,16 +30,18 @@ from datetime import date
 from typing import Any, Literal, Optional
 
 from fastapi import APIRouter, Depends, Request
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, EmailStr, Field
 
 from ... import db
 from ...deps import Principal, context_for, require_portal
 from ...errors import ApiError, forbidden
+from ...security import password_problem
 from . import service
 
 platform = APIRouter(prefix="/api/admin/boarding", tags=["boarding"])
 carrier = APIRouter(prefix="/api/carrier/references", tags=["boarding"])
 station_operators = APIRouter(prefix="/api/carrier/station-operators", tags=["boarding"])
+station = APIRouter(prefix="/api/station", tags=["boarding"])
 staff = require_portal("PLATFORM")
 operator = require_portal("OPERATOR")
 
@@ -48,6 +54,11 @@ def _platform_staff(pr: Principal) -> None:
 def _reference_keeper(pr: Principal) -> None:
     if pr.company_id is None or "boarding.references" not in pr.permissions:
         raise forbidden("missing permission: boarding.references")
+
+
+def _counter_staff(pr: Principal) -> None:
+    if pr.company_id is None or not (pr.is_owner or "station.counter" in pr.permissions):
+        raise forbidden("missing permission: station.counter")
 
 
 def _grantor(pr: Principal) -> None:
@@ -87,6 +98,14 @@ class GrantIn(BaseModel):
     operator_company_uid: uuid.UUID
     station_uid: Optional[uuid.UUID] = None                         # empty: every station
     permission: Literal["BOOKING", "BOARDING_PASS", "BOARDING"]
+
+
+class OperatorIn(BaseModel):
+    legal_name: str = Field(min_length=3, max_length=160)
+    license_no: Optional[str] = Field(default=None, max_length=60)
+    owner_name: str = Field(min_length=3, max_length=120)
+    owner_email: EmailStr
+    owner_password: str = Field(min_length=1, max_length=200)
 
 
 @platform.get("/settings")
@@ -207,3 +226,24 @@ async def revoke_carrier_grant(uid: uuid.UUID, request: Request, pr: Principal =
         row_id = await service.revoke_grant(conn, uid, pr.user_id)
     request.state.audit = {"action": "boarding.grant_revoke", "object_type": "station_operator_grant", "object_id": row_id}
     return {"uid": uid, "status": "REVOKED"}
+
+
+
+@platform.post("/operating-companies", status_code=201)
+async def onboard_operator(body: OperatorIn, request: Request, pr: Principal = Depends(staff)):
+    """A station operating company and its owner (1099): the owner signs in to the STATION portal, with a second factor."""
+    _platform_staff(pr)
+    problem = password_problem(body.owner_password, body.owner_email, body.owner_name)
+    if problem:
+        raise ApiError(422, problem, "password does not meet the policy")
+    async with db.transaction(context_for(request, pr)) as conn:
+        company_id, uid = await service.onboard_operator(conn, body, pr.user_id)
+    request.state.audit = {"action": "boarding.operator_onboard", "object_type": "company", "object_id": company_id}
+    return {"uid": uid}
+
+
+@station.get("/overview")
+async def station_overview(request: Request, pr: Principal = Depends(require_portal("STATION"))):
+    _counter_staff(pr)
+    async with db.transaction(context_for(request, pr)) as conn:
+        return await service.operator_overview(conn, pr.company_id)

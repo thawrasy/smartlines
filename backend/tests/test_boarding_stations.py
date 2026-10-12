@@ -205,3 +205,95 @@ def test_the_platform_grants_a_state_mandated_operator_and_only_while_that_mode_
         set_setting(admin, "boarding.stations.enabled", False)
         admin.put(f"/api/admin/boarding/stations/{station}", json={"enabled": False})
         stations_module(admin, False)
+
+
+# ------------------------------------------------------------------ the station portal (1099)
+def station_session(company: dict):
+    """Sign in to the STATION portal with the second factor the owner's account requires: enrolled at the first sign-in,
+    verified with a later code at the next ones (a code is used once)."""
+    from app import mfa
+    from test_e2e import client
+    c = client()
+    r = c.post("/api/auth/login", json={"identifier": company["email"], "password": company["password"], "portal": "STATION"})
+    assert r.status_code == 200, r.text
+    if "secret" not in company:
+        start = c.post("/api/auth/mfa/enroll")
+        assert start.status_code == 200, start.text
+        company["secret"], company["step"] = start.json()["secret"], mfa.current_step()
+        done = c.post("/api/auth/mfa/confirm", json={"code": mfa.code_at(company["secret"], company["step"])})
+    else:
+        company["step"] = max(mfa.current_step(), company["step"] + 1)
+        done = c.post("/api/auth/mfa/verify", json={"code": mfa.code_at(company["secret"], company["step"])})
+    assert done.status_code == 200, done.text
+    return c
+
+
+def sign_in(email: str, password: str, portal: str):
+    from test_e2e import client
+    return client().post("/api/auth/login", json={"identifier": email, "password": password, "portal": portal})
+
+
+@pytest.fixture(scope="module")
+def operating_company(admin):
+    email = f"station-{uuid.uuid4().hex[:8]}@example.com"
+    password = f"Harbor-{uuid.uuid4().hex[:10]}-26!q"
+    r = admin.post("/api/admin/boarding/operating-companies", json={
+        "legal_name": "Damascus Station Services", "owner_name": "Station Owner", "owner_email": email, "owner_password": password})
+    assert r.status_code == 201, r.text
+    return {"uid": r.json()["uid"], "email": email, "password": password}
+
+
+def test_onboarding_an_operating_company_is_a_platform_task(admin):
+    carrier = login(*CARRIER)
+    body = {"legal_name": "Some Operator", "owner_name": "Some Owner", "owner_email": f"x-{uuid.uuid4().hex[:6]}@example.com",
+            "owner_password": f"Harbor-{uuid.uuid4().hex[:10]}-26!q"}
+    assert carrier.post("/api/admin/boarding/operating-companies", json=body).status_code == 403
+    weak = admin.post("/api/admin/boarding/operating-companies", json={**body, "owner_password": "short"})
+    assert weak.status_code == 422, weak.text
+
+
+def test_an_operating_company_signs_in_to_the_station_portal_and_nowhere_else(operating_company):
+    c = station_session(operating_company)
+    me = c.get("/api/auth/me").json()
+    assert me["portal"] == "STATION" and me["company"]["uid"] == operating_company["uid"]
+    assert "station.counter" in me["permissions"]
+    assert "trip.publish" not in me["permissions"] and "boarding.operators" not in me["permissions"]   # never a carrier's
+    for portal in ("OPERATOR", "DRIVER"):
+        r = sign_in(operating_company["email"], operating_company["password"], portal)
+        assert r.status_code == 403 and r.json()["error"]["code"] == "COMPANY_NOT_ACTIVE", (portal, r.text)
+    assert c.get("/api/carrier/references").status_code == 403
+    assert c.get("/api/admin/boarding/settings").status_code == 403
+
+
+def test_a_carrier_does_not_open_the_station_portal():
+    r = sign_in("owner@carrier.test", "Masslak-Demo-2026", "STATION")
+    assert r.status_code == 403 and r.json()["error"]["code"] == "COMPANY_NOT_ACTIVE", r.text
+
+
+def test_the_operating_company_sees_the_rights_given_to_it_and_its_counters(admin, station, operating_company):
+    carrier = login(*CARRIER)
+    c = station_session(operating_company)
+    url = "/api/carrier/station-operators/grants"
+    stations_module(admin, True)
+    try:
+        set_setting(admin, "boarding.stations.enabled", True)
+        set_setting(admin, "boarding.mode.carrier_contracted", True)
+        admin.put(f"/api/admin/boarding/stations/{station}", json={"enabled": True})
+        r = carrier.post(url, json={"operator_company_uid": operating_company["uid"], "station_uid": str(station), "permission": "BOARDING"})
+        assert r.status_code == 201, r.text
+        grant = r.json()["uid"]
+        counter = admin.post(f"/api/admin/boarding/stations/{station}/gates",
+                             json={"gate_type": "COUNTER", "operator_company_uid": operating_company["uid"]})
+        assert counter.status_code == 201, counter.text
+        view = c.get("/api/station/overview").json()
+        mine = [g for g in view["grants"] if g["uid"] == grant]
+        assert len(mine) == 1 and mine[0]["permission"] == "BOARDING" and mine[0]["usable_now"] is True
+        assert [x["code"] for x in view["counters"]] == [counter.json()["code"]]
+        assert view["counters"][0]["boarding_on_now"] is True
+        assert carrier.post(f"{url}/{grant}/revoke").status_code == 200
+        assert [g for g in c.get("/api/station/overview").json()["grants"] if g["uid"] == grant] == []
+    finally:
+        set_setting(admin, "boarding.mode.carrier_contracted", False)
+        set_setting(admin, "boarding.stations.enabled", False)
+        admin.put(f"/api/admin/boarding/stations/{station}", json={"enabled": False})
+        stations_module(admin, False)

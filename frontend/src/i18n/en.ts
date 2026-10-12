@@ -586,7 +586,7 @@ const en = {
     mfa: {
       title: "Two-step sign-in policy", sub: "Which methods staff and drivers may use, and which portals must use one. Changes reach every server within half a minute.",
       methods: "Methods open", portals: "Portals that must use it", method: { TOTP: "Authenticator app (Google Authenticator and similar)", SMS: "Code by text message", WHATSAPP: "Code by WhatsApp" },
-      portal: { PLATFORM: "Platform staff", INSPECTOR: "Inspectors", OPERATOR: "Carrier staff", DRIVER: "Drivers", AGENCY: "Agency staff", PASSENGER: "Passengers" },
+      portal: { PLATFORM: "Platform staff", INSPECTOR: "Inspectors", OPERATOR: "Carrier staff", DRIVER: "Drivers", AGENCY: "Agency staff", STATION: "Station operating companies", PASSENGER: "Passengers" },
       delivery: "Delivery", deliveryOn: "configured on this server", deliveryOff: "not configured on this server: not offered until it is",
       always: "always outside the sandbox", enrolled: "{n} person(s) enrolled", without: "Staff without a second factor",
       withoutNone: "Every staff account has a second factor.", sandbox: "Also require it on this sandbox server",

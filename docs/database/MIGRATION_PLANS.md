@@ -210,6 +210,8 @@ asked with. The approval takes an optional legal document number, recorded on th
 
 **1098** adds what an operating company may do at a station, for which carrier (step 2 of the boarding stations). One table is added, `net.station_operator_grant`: a carrier grants a right (`BOOKING`, `BOARDING_PASS`, `BOARDING`) for its own trips at one station or every station; the platform grants a state-mandated operator the same rights with no carrier. Rows are revoked, never changed or deleted; the carrier's rows are written only by the carrier, the platform's only by the platform, and each party sees the grants it gave or received. The decision `net.operator_may` reads the station's switch and the mode that gave the grant, so nothing acts at launch. Phase 7, like the station switch. One permission is added, `boarding.operators`, for the carrier's operations role. The migration is fast: the table is new and empty.
 
+**1099** opens the station portal (`STATION`) for station operating companies, the owner's option A. It changes three rules and adds rows: sessions may open the new portal, a company may be of the type `STATION_OPERATOR`, and the party role of that name exists; the permission `station.counter` and the role template `STATION_COUNTER` are added. On a live server the session rule is added `NOT VALID` and then validated, which reads the table without blocking sign-ins; the company rule checks a small table. The two-factor policy requires the new portal only where it already requires the carrier portal, so a policy the security officers changed is kept. No table is added.
+
 ## 1064_partitioned_bookings.sql on a live database (R-06)
 
 1064 turns `sales.booking` into a table partitioned by ranges of id **in place, under an ACCESS EXCLUSIVE lock**: it

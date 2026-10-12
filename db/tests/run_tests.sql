@@ -2696,4 +2696,21 @@ SELECT pg_temp.ok(has_column_privilege('masslak_app', 'net.station_operator_gran
   'Boarding (1098): the application may revoke a grant, but not change it or delete it');
 ROLLBACK;
 
+-- The station portal (1099): an operating company signs in to its own portal, STATION, with the counter role template, and
+-- the portal follows the carrier portal's two-factor rule
+BEGIN;
+SELECT sys.set_context(:uadmin, NULL, 'SYSTEM');
+SELECT pg_temp.ok((SELECT convalidated AND pg_get_constraintdef(oid) LIKE '%STATION%' FROM pg_constraint
+                    WHERE conname = 'user_session_portal_check' AND conrelid = 'iam.user_session'::regclass),
+  'Station portal (1099): a session may open the STATION portal, and the rule is checked on every row');
+SELECT pg_temp.ok((SELECT pg_get_constraintdef(oid) LIKE '%STATION_OPERATOR%' FROM pg_constraint
+                    WHERE conname = 'company_company_type_check' AND conrelid = 'iam.company'::regclass),
+  'Station portal (1099): an operating company has its own company type');
+SELECT pg_temp.ok(EXISTS (SELECT 1 FROM iam.role r JOIN iam.role_permission rp ON rp.role_id = r.id
+                           WHERE r.code = 'STATION_COUNTER' AND r.company_id IS NULL AND rp.permission_code = 'station.counter'),
+  'Station portal (1099): the counter agent role template holds the counter permission');
+SELECT pg_temp.ok((SELECT (value -> 'required_portals') ? 'STATION' FROM sys.setting WHERE key = 'auth.mfa'),
+  'Station portal (1099): the station portal needs two-factor sign-in, like the carrier portal');
+ROLLBACK;
+
 \echo '=== ALL TESTS PASSED ==='

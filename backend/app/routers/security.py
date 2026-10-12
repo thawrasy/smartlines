@@ -131,7 +131,7 @@ async def activity(pr: Principal = Depends(can_audit), limit: int = Query(100, l
 # ---------------------------------------------------------------- two-factor sign-in policy (owner's decision 2)
 class MfaPolicyIn(BaseModel):
     methods: list[Literal["TOTP", "SMS", "WHATSAPP"]] = Field(min_length=1)
-    required_portals: list[Literal["PLATFORM", "INSPECTOR", "OPERATOR", "DRIVER", "AGENCY", "PASSENGER"]]
+    required_portals: list[Literal["PLATFORM", "INSPECTOR", "OPERATOR", "DRIVER", "AGENCY", "STATION", "PASSENGER"]]
     enforce_in_sandbox: bool = False
     code_minutes: int = Field(default=5, ge=2, le=10)
     resend_seconds: int = Field(default=60, ge=30, le=300)
