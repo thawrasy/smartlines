@@ -30,6 +30,24 @@ AS RETURN
                     AND @TenantId = CAST(SESSION_CONTEXT(N'TenantId') AS INT)
                     AND b.BindingToken = CAST(SESSION_CONTEXT(N'BindingToken') AS UNIQUEIDENTIFIER));
 GO
+-- Write check: the binding, and the tenant is open for writes (TRIAL or ACTIVE, BR-PLT-002).
+-- SUSPENDED and ARCHIVED_READ_ONLY tenants keep reading; CLOSED tenants cannot bind (030).
+CREATE OR ALTER FUNCTION rls.fn_BoundWrite (@TenantId INT)
+RETURNS TABLE WITH SCHEMABINDING
+AS RETURN
+    SELECT 1 AS BoundWrite
+    WHERE EXISTS (SELECT 1 FROM rls.fn_Bound(@TenantId))
+      AND EXISTS (SELECT 1 FROM plat.Tenant AS t
+                  WHERE t.TenantId = @TenantId AND t.Status IN (N'TRIAL', N'ACTIVE'));
+GO
+-- Block predicates of tenant-owned tables: writes need the write check (tp_platform and tp_auth bypass it)
+CREATE OR ALTER FUNCTION rls.fn_TenantWrite (@TenantId INT)
+RETURNS TABLE WITH SCHEMABINDING
+AS RETURN
+    SELECT 1 AS AccessOk
+    WHERE IS_MEMBER(N'tp_platform') = 1 OR IS_MEMBER(N'tp_auth') = 1
+       OR EXISTS (SELECT 1 FROM rls.fn_BoundWrite(@TenantId));
+GO
 -- Tenant-owned tables: a connection sees and changes only the rows of its bound tenant
 CREATE OR ALTER FUNCTION rls.fn_TenantAccess (@TenantId INT)
 RETURNS TABLE WITH SCHEMABINDING
@@ -47,13 +65,13 @@ AS RETURN
        OR IS_MEMBER(N'tp_platform') = 1 OR IS_MEMBER(N'tp_auth') = 1
        OR EXISTS (SELECT 1 FROM rls.fn_Bound(@TenantId));
 GO
--- Mixed-scope tables: writes reach only the bound tenant's rows; platform rows belong to tp_platform
+-- Mixed-scope tables: writes reach only the bound tenant's rows (with the write check); platform rows belong to tp_platform
 CREATE OR ALTER FUNCTION rls.fn_MixedWrite (@TenantId INT)
 RETURNS TABLE WITH SCHEMABINDING
 AS RETURN
     SELECT 1 AS AccessOk
     WHERE IS_MEMBER(N'tp_platform') = 1 OR IS_MEMBER(N'tp_auth') = 1
-       OR EXISTS (SELECT 1 FROM rls.fn_Bound(@TenantId));
+       OR EXISTS (SELECT 1 FROM rls.fn_BoundWrite(@TenantId));
 GO
 -- Audit log aud.AuditLog: its own policy (BR-PLT-001, BR-PLT-009)
 --   Read: a tenant reads its own rows; rows with TenantId NULL (platform events) are for tp_platform only.
@@ -97,8 +115,8 @@ BEGIN
     IF @m = 0
         SET @sql = N'CREATE SECURITY POLICY rls.[' + @pol + N'] '
                  + N'ADD FILTER PREDICATE rls.fn_TenantAccess(TenantId) ON ' + @obj + N', '
-                 + N'ADD BLOCK PREDICATE rls.fn_TenantAccess(TenantId) ON ' + @obj + N' AFTER INSERT, '
-                 + N'ADD BLOCK PREDICATE rls.fn_TenantAccess(TenantId) ON ' + @obj + N' AFTER UPDATE '
+                 + N'ADD BLOCK PREDICATE rls.fn_TenantWrite(TenantId) ON ' + @obj + N' AFTER INSERT, '
+                 + N'ADD BLOCK PREDICATE rls.fn_TenantWrite(TenantId) ON ' + @obj + N' AFTER UPDATE '
                  + N'WITH (STATE = ON);';
     ELSE
         SET @sql = N'CREATE SECURITY POLICY rls.[' + @pol + N'] '

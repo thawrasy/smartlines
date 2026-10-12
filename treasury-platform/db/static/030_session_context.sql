@@ -48,3 +48,32 @@ END;
 GO
 GRANT EXECUTE ON sec.usp_SetSessionContext TO [tp_app];
 GO
+/* Revocation (O-16 review): a binding ends when its user is no longer ACTIVE or its tenant is no longer
+   TRIAL or ACTIVE. The connection then sees no rows, and it cannot bind again without a reset (50004 / 50002).
+   The triggers run as tp_auth_exec, which may delete binding rows. */
+CREATE OR ALTER TRIGGER sec.TR_AppUser_RevokeBinding ON sec.AppUser
+WITH EXECUTE AS N'tp_auth_exec'
+AFTER UPDATE
+AS
+BEGIN
+    SET NOCOUNT ON;
+    IF UPDATE(Status)
+        DELETE b
+        FROM sec.SessionBinding AS b
+        JOIN inserted AS i ON i.AppUserId = b.BoundUserId AND i.TenantId = b.BoundTenantId
+        WHERE i.Status <> 'ACTIVE';
+END;
+GO
+CREATE OR ALTER TRIGGER plat.TR_Tenant_RevokeBinding ON plat.Tenant
+WITH EXECUTE AS N'tp_auth_exec'
+AFTER UPDATE
+AS
+BEGIN
+    SET NOCOUNT ON;
+    IF UPDATE(Status)
+        DELETE b
+        FROM sec.SessionBinding AS b
+        JOIN inserted AS i ON i.TenantId = b.BoundTenantId
+        WHERE i.Status NOT IN (N'TRIAL', N'ACTIVE');
+END;
+GO

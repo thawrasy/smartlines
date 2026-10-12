@@ -19,7 +19,7 @@ GO
 :r generated\tsql\005_delete_grants.sql
 :r generated\tsql\006_sensitive_columns.sql
 :r generated\tsql\007_table_grants.sql
-:r static\025_tenant_views.sql
 :r static\010_rls.sql
+:r static\025_tenant_views.sql
 :r static\030_session_context.sql
 :r static\050_fac_share_rule.sql

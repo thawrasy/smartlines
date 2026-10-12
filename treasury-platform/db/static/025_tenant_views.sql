@@ -11,6 +11,7 @@ AS
     SELECT t.TenantId, t.PublicId, t.Code, t.NameAr, t.NameEn, t.PlanId, t.Status,
            t.HomeCountryId, t.DefaultLanguage, t.TimeZone
     FROM plat.Tenant AS t
+    CROSS APPLY rls.fn_Bound(t.TenantId) AS bd          -- the connection must be bound to this tenant (O-16)
     WHERE t.TenantId = CAST(SESSION_CONTEXT(N'TenantId') AS INT);
 GO
 GRANT SELECT ON plat.v_CurrentTenant TO [tp_app];
@@ -22,6 +23,7 @@ CREATE OR ALTER VIEW plat.v_TenantModule
 AS
     SELECT m.TenantId, m.ModuleCode, m.IsEnabled, m.EnabledAt
     FROM plat.TenantModule AS m
+    CROSS APPLY rls.fn_Bound(m.TenantId) AS bd          -- the connection must be bound to this tenant (O-16)
     WHERE m.TenantId = CAST(SESSION_CONTEXT(N'TenantId') AS INT);
 GO
 GRANT SELECT ON plat.v_TenantModule TO [tp_app];

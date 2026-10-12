@@ -16,6 +16,11 @@ GO
 /* The row filters (010) show rows only to a connection bound to the tenant (sec.SessionBinding, O-16).
    Bind this session to tenant 1; tenant 1 is not seeded here, so the binding's foreign key is switched off too.
    The binding row is removed at the end. */
+ALTER TABLE plat.Tenant NOCHECK CONSTRAINT ALL;
+SET IDENTITY_INSERT plat.Tenant ON;
+INSERT plat.Tenant (TenantId, Code, NameAr, NameEn, PlanId, HomeCountryId, Status, TimeZone)
+VALUES (1, N'TST-TRG', N'Trigger test', N'Trigger test', 1, 1, 'ACTIVE', 'Asia/Riyadh');
+SET IDENTITY_INSERT plat.Tenant OFF;
 ALTER TABLE sec.SessionBinding NOCHECK CONSTRAINT ALL;
 DECLARE @tok UNIQUEIDENTIFIER = NEWID();
 MERGE sec.SessionBinding AS b
@@ -152,6 +157,8 @@ GO
 
 DELETE FROM sec.SessionBinding WHERE SessionId = @@SPID;
 ALTER TABLE sec.SessionBinding WITH CHECK CHECK CONSTRAINT ALL;
+DELETE FROM plat.Tenant WHERE TenantId = 1;
+ALTER TABLE plat.Tenant WITH CHECK CHECK CONSTRAINT ALL;
 ALTER TABLE fac.Facility WITH CHECK CHECK CONSTRAINT ALL;
 ALTER TABLE fac.FacilityLender WITH CHECK CHECK CONSTRAINT ALL;
 PRINT 'Tests finished; every test rolled back.';

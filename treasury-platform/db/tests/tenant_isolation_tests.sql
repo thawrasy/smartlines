@@ -88,6 +88,7 @@ INSERT fac.Facility (TenantId, FacilityNo, BorrowerCompanyId, FacilityTypeId, Cu
 VALUES (@t2, N'TST-F2', 1, 1, 1, 1000, 'EN', '2026-01-01', '2027-01-01');
 SET @f2 = SCOPE_IDENTITY();
 INSERT cfg.NonWorkingDay (TenantId, CountryId, OnDate, NameEn) VALUES (@t2, 1, '2026-12-27', N'TEST-T2');
+INSERT plat.TenantModule (TenantId, ModuleCode, IsEnabled) VALUES (@t2, 'CORE', 1);
 
 -- Seed: one global row (TenantId NULL), written by a platform operator
 EXECUTE AS USER = N'tp_test_plat';
@@ -375,6 +376,22 @@ IF @err IS NULL AND @n = 0 AND @n2 = 0 PRINT 'PASS T16c: a wrong token or no tok
 ELSE PRINT 'FAIL T16c: a wrong or missing token exposed a row of the bound tenant';
 ROLLBACK TRANSACTION sp_t16c;
 
+/* T28: an unbound connection that sets TenantId itself reads no tenant row and no module row through the views (O-16). */
+SAVE TRANSACTION sp_t28;
+EXEC sys.sp_set_session_context @key = N'BindingToken', @value = NULL;
+EXEC sys.sp_set_session_context @key = N'TenantId', @value = @t2;     -- forged: this connection has no binding
+SET @err = NULL; SET @n = NULL; SET @n2 = NULL;
+EXECUTE AS USER = N'tp_test_app';
+BEGIN TRY
+    SELECT @n = COUNT(*) FROM plat.v_CurrentTenant;
+    SELECT @n2 = COUNT(*) FROM plat.v_TenantModule;
+END TRY
+BEGIN CATCH SET @err = ERROR_NUMBER(); END CATCH;
+REVERT;
+IF @err IS NULL AND @n = 0 AND @n2 = 0 PRINT 'PASS T28: an unbound connection reads no tenant or module row through the views';
+ELSE PRINT 'FAIL T28: an unbound connection read a tenant or module row through the views';
+ROLLBACK TRANSACTION sp_t28;
+
 /* ---------- Cases 17-20: the context procedure sec.usp_SetSessionContext ---------- */
 
 /* T17: the procedure refuses an unknown tenant and a closed tenant (50002). */
@@ -402,6 +419,49 @@ REVERT;
 IF @err = 50003 AND @err2 = 50003 PRINT 'PASS T18: the context procedure refuses a non-member and a disabled member';
 ELSE PRINT 'FAIL T18: a non-member or disabled user was not refused with 50003';
 ROLLBACK TRANSACTION sp_t18;
+
+/* T25: disabling the user ends the binding of that user's connection: no row is visible and the binding row is gone. */
+SAVE TRANSACTION sp_t25;
+EXEC #Bind @t1;
+UPDATE sec.AppUser SET Status = 'DISABLED' WHERE AppUserId = @u1;
+SELECT @n2 = COUNT(*) FROM sec.SessionBinding WHERE SessionId = @@SPID;
+SET @err = NULL; SET @n = NULL;
+EXECUTE AS USER = N'tp_test_app';
+BEGIN TRY SELECT @n = COUNT(*) FROM fac.Facility WHERE FacilityId = @f1; END TRY
+BEGIN CATCH SET @err = ERROR_NUMBER(); END CATCH;
+REVERT;
+IF @err IS NULL AND @n = 0 AND @n2 = 0 PRINT 'PASS T25: disabling the user ends its binding';
+ELSE PRINT 'FAIL T25: a disabled user''s connection still sees the tenant''s rows or keeps its binding';
+ROLLBACK TRANSACTION sp_t25;
+
+/* T26: closing the tenant ends the bindings of its connections: no row is visible and the binding row is gone. */
+SAVE TRANSACTION sp_t26;
+EXEC #Bind @t1;
+UPDATE plat.Tenant SET Status = 'CLOSED', ClosedAt = SYSUTCDATETIME() WHERE TenantId = @t1;
+SELECT @n2 = COUNT(*) FROM sec.SessionBinding WHERE SessionId = @@SPID;
+SET @err = NULL; SET @n = NULL;
+EXECUTE AS USER = N'tp_test_app';
+BEGIN TRY SELECT @n = COUNT(*) FROM fac.Facility WHERE FacilityId = @f1; END TRY
+BEGIN CATCH SET @err = ERROR_NUMBER(); END CATCH;
+REVERT;
+IF @err IS NULL AND @n = 0 AND @n2 = 0 PRINT 'PASS T26: closing the tenant ends its bindings';
+ELSE PRINT 'FAIL T26: a connection of a closed tenant still sees rows or keeps its binding';
+ROLLBACK TRANSACTION sp_t26;
+
+/* T27: a suspended tenant keeps reads for its bound connections (BR-PLT-002), but writes are refused (33504). */
+SAVE TRANSACTION sp_t27;
+UPDATE plat.Tenant SET Status = 'SUSPENDED', SuspendedReason = N'test' WHERE TenantId = @t1;
+EXEC #Bind @t1;
+SET @err = NULL; SET @err2 = NULL; SET @n = NULL;
+EXECUTE AS USER = N'tp_test_app';
+BEGIN TRY SELECT @n = COUNT(*) FROM fac.Facility WHERE FacilityId = @f1; END TRY
+BEGIN CATCH SET @err = ERROR_NUMBER(); END CATCH;
+BEGIN TRY UPDATE fac.Facility SET TotalAmount = 1 WHERE FacilityId = @f1; END TRY
+BEGIN CATCH SET @err2 = ERROR_NUMBER(); END CATCH;
+REVERT;
+IF @err IS NULL AND @n = 1 AND @err2 = 33504 PRINT 'PASS T27: a suspended tenant reads but cannot write';
+ELSE PRINT 'FAIL T27: a suspended tenant read or wrote in a way the write check does not allow';
+ROLLBACK TRANSACTION sp_t27;
 
 /* T19: an active member binds the connection to its tenant; afterwards only that tenant's rows are visible. */
 SAVE TRANSACTION sp_t19;
