@@ -345,17 +345,17 @@ sequenceDiagram
 
 | المعرّف | السؤال | الافتراض المقترح | من يقرر | ما يعطّله |
 |---|---|---|---|---|
-| DQ-F03-1 | كيف يُغلق O-9 (20-database-design)؟ | في S0، بإجراءات ضيقة بصفة tp_auth_exec على نمط ADR 0002، بلا usp_SetAuthContext، في ADR جديد | المالك مع معماري القاعدة | الدعوة وإعادة التعيين وMFA في S0 |
+| DQ-F03-1 | كيف يُغلق O-9 (20-database-design)؟ | ✅ معتمد من المالك (2026-10-12): في S0، بإجراءات ضيقة بصفة tp_auth_exec على نمط ADR 0002، بلا usp_SetAuthContext، في ADR جديد | المالك مع معماري القاعدة | الدعوة وإعادة التعيين وMFA في S0 |
 | DQ-F03-2 | كيف يحصل التطبيق على سر TOTP ومفتاحه قبل الربط؟ | sec.usp_GetMfaChallenge لجلسة غير متحقَّقة عمرها 5 دقائق على الأكثر؛ المفتاح حسب DOC-S02 | معماري الأمن | MFA كله |
 | DQ-F03-3 | أين يُستهلك رمز الاسترداد؟ | داخل القاعدة بـ sec.usp_UseRecoveryCode، ثم DENY SELECT على CodeHash لـ tp_app | معماري القاعدة | FR-PLT-011 |
-| DQ-F03-4 | هل يُربط مستخدم MfaEnabled = 0؟ | لا: الربط يشترط MfaVerifiedAt لكل مستخدم غير خدمي، والتسجيل بإجراء؛ يتفق مع DQ-S01-3 ومع خطوة O-24 التالية (tools/dbgen/erd_open_items.py:155) | المالك | BR-PLT-006 |
+| DQ-F03-4 | هل يُربط مستخدم MfaEnabled = 0؟ | ✅ معتمد من المالك (2026-10-12): لا: الربط يشترط MfaVerifiedAt لكل مستخدم غير خدمي، والتسجيل بإجراء؛ يتفق مع DQ-S01-3 ومع خطوة O-24 التالية (tools/dbgen/erd_open_items.py:155) | المالك | BR-PLT-006 |
 | DQ-F03-5 | قبول الدعوة | sec.usp_CheckUserToken ثم sec.usp_CompleteInvitation ذريًا | معماري القاعدة | FR-PLT-013، خروج S0 |
 | DQ-F03-6 | الخروج في مشترك معلّق | sec.usp_EndSession بصفة tp_auth_exec لكل أسباب الإنهاء؛ جزء من DQ-F04-8 | معماري القاعدة | FR-PLT-014 |
 | DQ-F03-7 | إعادة التعيين | sec.usp_RequestPasswordReset وsec.usp_GetPasswordHistoryParams وsec.usp_ResetPassword | معماري القاعدة | FR-PLT-013 |
-| DQ-F03-8 | إعادة تسجيل MFA بعد التصفير | رابط 24 ساعة بغرض جديد MFA_REENROLMENT في sec.UserToken.Purpose، وتعديل FR-PLT-013 لرسالة ثالثة | المالك ومسؤول الأمن | BR-PLT-006 |
+| DQ-F03-8 | إعادة تسجيل MFA بعد التصفير | ✅ معتمد من المالك (2026-10-12): رابط 24 ساعة بغرض جديد MFA_REENROLMENT في sec.UserToken.Purpose، وتعديل FR-PLT-013 لرسالة ثالثة | المالك ومسؤول الأمن | BR-PLT-006 |
 | DQ-F03-9 | حساب الخدمة يُقفل بمحاولات خاطئة | usp_StartSession يعامل IsSystemUser = 1 كحالة لا تدخل بلا عدّ | معماري القاعدة | المهام الخلفية |
 | DQ-F03-10 | من يكتب aud.AuditLog لمحاولات الدخول الفاشلة قبل وجود ربط؟ | الإجراءات تكتب صف التدقيق مع LoginAttempt، ويمنح tp_auth INSERT على aud.AuditLog؛ يتفق مع tools/dbgen/erd_open_items.py:155 | معماري القاعدة | FR-PLT-022، AC-PLT-2 |
-| DQ-F03-11 | خطأ المستخدم الذي أثبت كلمة مروره ورُفض بحالة المشترك | يُقبل 50006 المقترح في DQ-F04-3 بشرط رفعه بعد نجاح المقارنة فقط، مع تعديل docs/adr/0002-login-and-session-bound-context.md:20 | المالك | DOC-B04، §5.3 |
+| DQ-F03-11 | خطأ المستخدم الذي أثبت كلمة مروره ورُفض بحالة المشترك | ✅ معتمد من المالك (2026-10-12): يُقبل 50006 المقترح في DQ-F04-3 بشرط رفعه بعد نجاح المقارنة فقط، مع تعديل docs/adr/0002-login-and-session-bound-context.md:20 | المالك | DOC-B04، §5.3 |
 
 ## 14. تعارضات وفجوات في المصادر
 

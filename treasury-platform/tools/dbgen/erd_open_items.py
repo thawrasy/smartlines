@@ -26,7 +26,7 @@ ITEMS = [
         'id': 'O-03', 'sources': f'{REVIEW_A}; {REVIEW_B}',
         'finding': 'Lender shares must total 100 per facility and at most one lender may hold the AGENT role. The model says the application checks both.',
         'status': 'Trigger in db/static/050_fac_share_rule.sql, deployed by db/deploy.sql. Six tests pass on SQL Server 2025 (db/tests/fac_share_rule_tests.sql): valid approval, rejected total above 100, rejected approval without lenders for the new revision, valid new revision, rejected second agent, and a partial draft accepted.',
-        'next': 'Decide the behaviour for a lender change after approval, which the trigger currently rejects. (The six tests run in step 6 of tools/ci/db_ci.sh.)',
+        'next': 'Decided by the owner (2026-10-12, docs/31-owner-decisions.md): a lender change after approval goes through a CORRECTION revision only; the trigger stays as the last guard (DQ-F13-7). To build with the facility service in S2.',
     },
     {
         'id': 'O-04', 'sources': REVIEW_B,
@@ -50,7 +50,7 @@ ITEMS = [
         'id': 'O-07', 'sources': f'{REVIEW_A}; {REVIEW_B}',
         'finding': '155 open questions are answered with default values.',
         'status': 'Listed in docs/10-detailed-analysis/90-consolidated-open-questions.md. Defaults are in use.',
-        'next': 'Assign an owner and a review date to each question; resolve the critical ones before slices S0 to S2.',
+        'next': 'Owner decision 2026-10-12 (DQ-B09-2): add owner, needed-by and review-date columns to section 14 of each specification and to tools/gen_indexes.py; resolve the critical questions before slices S0 to S2.',
     },
     {
         'id': 'O-08', 'sources': f'{REVIEW_A}; {REVIEW_B}',
@@ -79,8 +79,8 @@ ITEMS = [
     {
         'id': 'O-12', 'sources': REVIEW_B,
         'finding': 'Numbering is required to be gap-free, which conflicts with rollbacks and concurrent writers.',
-        'status': 'Open. Range allocation is proposed; no decision recorded.',
-        'next': 'Legal and operational decision on whether gaps are acceptable, then a numbering design.',
+        'status': 'Decided by the owner (2026-10-12, docs/31-owner-decisions.md): numbers of requests and proformas are gap-free (Q-PLT-08, DQ-B02-4); other series may have gaps.',
+        'next': 'Design and build the gap-free allocation (a locked counter row taken inside the business transaction) with a concurrency test, in S0.',
     },
     {
         'id': 'O-13', 'sources': REVIEW_A,
@@ -115,31 +115,31 @@ ITEMS = [
     {
         'id': 'O-18', 'sources': 'BR-PLT-002 (docs/10-detailed-analysis/10-m0-m1-platform-organization.md); adversarial review findings CTX-2, PRED-07, sb-02',
         'finding': 'Access to a SUSPENDED tenant does not follow BR-PLT-002. The procedure lets any active user bind to a SUSPENDED or ARCHIVED_READ_ONLY tenant, while the rule admits only the account administrator to a suspended tenant (read and export). An existing connection loses its rows when the tenant is suspended, but a new connection still reads them.',
-        'status': 'Open decision. Writes are refused for both statuses (rls.fn_BoundWrite). Reads are allowed for a new bind and lost for an existing one.',
-        'next': 'Decide: (a) bind a SUSPENDED tenant only for its account administrator, which needs the role check in the procedure, or (b) refuse binds for SUSPENDED too and keep the revocation. Then align db/static/030 and the test T27.',
+        'status': 'Decided by the owner (2026-10-12, docs/31-owner-decisions.md): option (a), the matrix in docs/30-readiness/DOC-F04 §7.4 (DQ-F04-1): SUSPENDED binds the account administrator only, read and export; CLOSED binds the account administrator for export only, within 30 days of closing; ARCHIVED_READ_ONLY binds no tenant user.',
+        'next': 'Implement the status-and-role check in sec.usp_SetSessionContext and the revocation trigger, and update test T27.',
     },
     {
         'id': 'O-19', 'sources': 'Adversarial review finding PRED-02',
         'finding': 'A tenant connection can insert audit rows with TenantId NULL. rls.fn_AuditWrite allows NULL, so a tenant can add rows that look like platform events: the platform reads them, the tenant cannot read them back.',
-        'status': 'Open decision. The NULL allowance is written into the design (BR-PLT-001: NULL is a platform event). A tenant connection should not create platform events.',
-        'next': 'Decide: refuse NULL TenantId for non-platform connections in rls.fn_AuditWrite and let only tp_platform write platform events. Then add a test.',
+        'status': 'Decided by the owner (2026-10-12, docs/31-owner-decisions.md): a tenant connection may not write audit rows with TenantId NULL; only tp_platform writes platform events (DQ-S01-5).',
+        'next': 'Change rls.fn_AuditWrite and add a test.',
     },
     {
         'id': 'O-20', 'sources': 'Adversarial review finding PRED-03',
         'finding': 'Foreign keys to mixed-scope tables ignore the row filters. A tenant row can reference another tenant\'s ref.UcpArticle: the insert succeeds, and the owner of the article gets error 547 when it deletes its own row. This is a reference and existence oracle across tenants. The generator writes a simple foreign key to a mixed table, not a tenant-composite one (tools/dbgen/dbgen.py).',
-        'status': 'Open. No check covers references to mixed-scope tables.',
+        'status': 'Accepted by the owner (2026-10-12) as a low residual risk, with an owner and a review before S2, after the application controls in DOC-S01 section 5 (DQ-S01-6).',
         'next': 'Add a check that the referenced row is global or belongs to the referencing row\'s tenant, for every foreign key from a tenant table to a mixed table, and test it.',
     },
     {
         'id': 'O-21', 'sources': 'Adversarial review findings PRED-01 and PRED-05',
         'finding': 'Unique keys are checked before the row filters and block predicates. A tenant connection can learn whether a value exists in another tenant: an e-mail (unique on TenantId and Email) and a PublicId. The insert of a row for another tenant returns 2627 rather than 33504.',
-        'status': 'Open. This follows from SQL Server constraint checking, not from a missing predicate, so the filters cannot prevent it.',
+        'status': 'Accepted by the owner (2026-10-12) as a low residual risk, with an owner and a review before S2 (DQ-S01-6).',
         'next': 'Decide: route inserts that name another tenant through a procedure that takes TenantId from the binding, or accept the oracle as a residual risk with an owner.',
     },
     {
         'id': 'O-22', 'sources': 'Adversarial review findings OUT-02, sb-03, CTX-5, CTX-3 (fixed)',
         'finding': 'Open cursors keep delivering rows after revocation (OUT-02, STATIC and KEYSET cursors). A module owned by dbo could call the procedure through ownership chaining for tp_readonly (sb-03, latent: no such module exists). The procedure\'s error codes reveal the status of any tenant to any caller (CTX-5, low).',
-        'status': 'Open, low. Cursors and error codes are not covered by the row filters. CTX-3 (a deleted user keeps its binding) is fixed by a delete trigger.',
+        'status': 'Accepted by the owner (2026-10-12) as a low residual risk, with an owner and a review before S2 (DQ-S01-6). CTX-3 (a deleted user keeps its binding) is fixed by a delete trigger.',
         'next': 'Require the application to close cursors and reset the connection on revocation, forbid dbo-owned modules that call sec.usp_SetSessionContext, and decide whether the error codes should be unified.',
     },
     {
@@ -151,7 +151,7 @@ ITEMS = [
     {
         'id': 'O-24', 'sources': 'Design of O-17 (docs/adr/0002-login-and-session-bound-context.md)',
         'finding': 'Residual risks within one tenant after O-17. A bound application connection can still: update PasswordHash and the lockout counters (FailedAttempts, LockedUntil, Status) of a user of its own tenant; read sec.UserPasswordHistory.PasswordHash (offline cracking of earlier passwords); delete sec.LoginAttempt rows (the only login trace, since sec.usp_StartSession writes no aud.AuditLog row); read sec.MfaRecoveryCode.CodeHash; extend the idle expiry of a session; and clear EndedAt to reopen an ended session, which would undo a termination by an administrator. The TOTP check is trusted to the application (sec.usp_ConfirmMfa records its result and has no failure limit), and a user with MfaEnabled = 0 binds without MFA although FR-PLT-011 and BR-PLT-006 make MFA mandatory. The 12-hour absolute expiry is protected (DENY in 030, test T35). None of these crosses a tenant boundary. Threat model: docs/30-readiness/DOC-S01-threat-model.md.',
-        'status': 'Open, medium. Cross-tenant access needs the target user\'s password; same-tenant impersonation by a compromised application connection is still possible through the password update.',
+        'status': 'Decided by the owner (2026-10-12, docs/31-owner-decisions.md): close the in-tenant residual risks before login code is written in S0 (DQ-S03-5, DQ-S01-2); MFA is mandatory for every non-system user and a tenant cannot switch it off (DQ-F03-4, DQ-S01-3, DQ-S04-11); the pre-login steps are built in the database in S0 (DQ-F03-1).',
         'next': 'Before login code is written in S0: move password change, administrator reset and the BR-PLT-004 history check into procedures and DENY tp_app UPDATE on PasswordHash and the lockout columns and SELECT on the history hash; DENY tp_app DELETE on sec.LoginAttempt (retention by a job) and write login outcomes to aud.AuditLog; end sessions through a procedure (sec.usp_EndSession) and DENY tp_app UPDATE on EndedAt, EndReason and EndedBy; require an MFA enrolment-only session state for MfaEnabled = 0 users; add a failure limit to sec.usp_ConfirmMfa. Decide whether the idle extension stays with the application.',
     },
 ]
