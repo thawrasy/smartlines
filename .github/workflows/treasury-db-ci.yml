@@ -1,26 +1,31 @@
-name: database-ci
+name: treasury-database-ci
 
-# Runs tools/ci/db_ci.sh on every change to the database model, the generator, or the database scripts.
-# SQL Server 2025 runs as a service container on the job. The container lives only for this job.
+# BankFas treasury platform (treasury-platform/): runs tools/ci/db_ci.sh on every change to the database model,
+# the generator, or the database scripts. SQL Server 2025 runs as a service container on the job.
+# GitHub reads workflows only from the repository root, so this file lives here and works in treasury-platform/.
 
 on:
   push:
     branches: [main, 'claude/**']
     paths:
-      - 'db/**'
-      - 'tools/dbgen/**'
-      - 'tools/ci/**'
-      - '.github/workflows/db-ci.yml'
+      - 'treasury-platform/db/**'
+      - 'treasury-platform/tools/dbgen/**'
+      - 'treasury-platform/tools/ci/**'
+      - '.github/workflows/treasury-db-ci.yml'
   pull_request:
     paths:
-      - 'db/**'
-      - 'tools/dbgen/**'
-      - 'tools/ci/**'
-      - '.github/workflows/db-ci.yml'
+      - 'treasury-platform/db/**'
+      - 'treasury-platform/tools/dbgen/**'
+      - 'treasury-platform/tools/ci/**'
+      - '.github/workflows/treasury-db-ci.yml'
   workflow_dispatch:
 
 permissions:
   contents: read
+
+defaults:
+  run:
+    working-directory: treasury-platform
 
 jobs:
   database:
