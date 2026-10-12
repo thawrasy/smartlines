@@ -157,20 +157,26 @@ sequenceDiagram
   participant DB as القاعدة
   TM->>API: POST approve
   API->>WFL: Approve
-  loop حتى 3 إعادات عند 1205 أو 1222
-    WFL->>DB: BEGIN TRAN وقفل الطلب وتسجيل الموافقة
-    WFL->>FAC: fac.reserve_limit
-    FAC->>DB: الأقفال وحساب Avail
-    FAC-->>WFL: INSUFFICIENT_AVAILABLE مع المطلوب والمتاح
+  WFL->>DB: BEGIN TRAN وقفل الطلب وتسجيل الموافقة
+  WFL->>FAC: fac.reserve_limit
+  FAC->>DB: الأقفال وحساب Avail
+  alt رمز أعمال مثل INSUFFICIENT_AVAILABLE
+    FAC-->>WFL: الرمز مع المطلوب والمتاح
     WFL->>DB: ROLLBACK
+    WFL->>DB: معاملة منفصلة HookExecution FAILED و HOOK_FAILED و AuditLog
+    WFL-->>API: الرمز
+    API-->>TM: 409 أو 422 أو 403 problem+json
+  else جمود 1205 أو مهلة قفل 1222
+    DB-->>WFL: خطأ والمعاملة ملغاة
+    WFL->>WFL: انتظار 50 مللي ثانية ثم إعادة من BEGIN حتى 3 مرات
+    WFL->>DB: بعد الاستنفاد معاملة منفصلة HookExecution FAILED
+    WFL-->>API: CONCURRENT_RETRY
+    API-->>TM: 503 مع Retry-After
   end
-  WFL->>DB: معاملة منفصلة HookExecution FAILED و HOOK_FAILED و AuditLog
-  WFL-->>API: رمز الرفض
-  API-->>TM: 409 problem+json مع المطلوب والمتاح
   Note over TM: الخيارات إرجاع أو انتظار أو تجاوز بسبب
 ```
 
-الحلقة تتكرر للجمود فقط. رمز الأعمال يخرج منها من أول مرة.
+رمز الأعمال لا يُعاد. الجمود ومهلة القفل وحدهما يُعادان (§6.3).
 
 | الحالة | أين | ما يُلغى | ما يُكتب بعد التراجع | HTTP والرمز |
 |---|---|---|---|---|
