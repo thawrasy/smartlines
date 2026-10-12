@@ -80,7 +80,8 @@ CREATE OR ALTER FUNCTION rls.fn_AuditRead (@TenantId INT)
 RETURNS TABLE WITH SCHEMABINDING
 AS RETURN
     SELECT 1 AS AccessOk
-    WHERE IS_MEMBER(N'tp_platform') = 1 OR IS_MEMBER(N'tp_auth') = 1
+    WHERE (IS_MEMBER(N'tp_platform') = 1 AND @TenantId IS NULL)   -- operators read platform events, not tenant rows (C-4)
+       OR IS_MEMBER(N'tp_auth') = 1
        OR EXISTS (SELECT 1 FROM rls.fn_Bound(@TenantId));
 GO
 CREATE OR ALTER FUNCTION rls.fn_AuditWrite (@TenantId INT)

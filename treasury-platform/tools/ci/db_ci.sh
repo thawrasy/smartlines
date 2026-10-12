@@ -84,9 +84,9 @@ if grep -q '^FAIL' "$TMP/isolation.out"; then
     exit 1
 fi
 iso_pass=$(grep -c '^PASS' "$TMP/isolation.out" || true)
-# 40 cases: T1-T37 with T8b, T16b and T16c (T32-T37 cover login and sessions, O-17). A case that stops printing PASS fails the build.
-if [ "$iso_pass" -ne 40 ]; then
-    echo "expected 40 PASS, found $iso_pass"
+# 41 cases: T1-T38 with T8b, T16b and T16c (T32-T37 cover login and sessions, O-17; T38 the platform audit read). A case that stops printing PASS fails the build.
+if [ "$iso_pass" -ne 41 ]; then
+    echo "expected 41 PASS, found $iso_pass"
     exit 1
 fi
 echo "tenant-isolation tests: $iso_pass passed"

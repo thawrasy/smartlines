@@ -337,6 +337,24 @@ IF @err = 229 AND @err2 = 229 PRINT 'PASS T15: the application role cannot updat
 ELSE PRINT 'FAIL T15: update or delete of audit rows was not refused with 229';
 ROLLBACK TRANSACTION sp_t15;
 
+/* T38: the platform role reads platform audit events (TenantId NULL) and no tenant's audit rows (C-4, BR-PLT-009). */
+SAVE TRANSACTION sp_t38;
+EXEC #Bind @t1;
+INSERT aud.AuditLog (TenantId, OccurredAt, ActorType, Action) VALUES (@t1, SYSUTCDATETIME(), 'USER', 'TEST_T38');
+INSERT aud.AuditLog (TenantId, OccurredAt, ActorType, Action) VALUES (NULL, SYSUTCDATETIME(), 'OPERATOR', 'TEST_T38');
+DELETE FROM sec.SessionBinding WHERE SessionId = @@SPID;           -- unbound, so only the role decides what is visible
+SET @err = NULL; SET @n = NULL; SET @n2 = NULL;
+EXECUTE AS USER = N'tp_test_plat';
+BEGIN TRY
+    SELECT @n = COUNT(*) FROM aud.AuditLog WHERE Action = 'TEST_T38' AND TenantId = @t1;
+    SELECT @n2 = COUNT(*) FROM aud.AuditLog WHERE Action = 'TEST_T38' AND TenantId IS NULL;
+END TRY
+BEGIN CATCH SET @err = ERROR_NUMBER(); END CATCH;
+REVERT;
+IF @err IS NULL AND @n = 0 AND @n2 = 1 PRINT 'PASS T38: the platform role reads platform audit events and no tenant audit rows';
+ELSE PRINT 'FAIL T38: the platform role read a tenant audit row or missed a platform event';
+ROLLBACK TRANSACTION sp_t38;
+
 /* ---------- Cases 16-16c: the binding (O-16) ---------- */
 
 /* T16: the application role sets TenantId itself and then reads a tenant-2 facility. The connection stays bound to
