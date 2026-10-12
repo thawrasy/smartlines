@@ -63,7 +63,7 @@ BEGIN
     DECLARE @own BIT = 0, @svc BIGINT, @token UNIQUEIDENTIFIER = NEWID();
     IF NOT EXISTS (SELECT 1 FROM cfg.JobDefinition WHERE JobKey = @JobKey AND Scope = 'TENANT' AND IsActive = 1)
         THROW 50024, 'Unknown job, or a platform job that binds no tenant', 1;
-    IF @@TRANCOUNT = 0 BEGIN BEGIN TRANSACTION; SET @own = 1; END;
+    IF @@TRANCOUNT = 0 BEGIN BEGIN TRANSACTION; SET @own = 1; END ELSE SAVE TRANSACTION sp_SetJobContext;
     BEGIN TRY
         -- Locks held until the binding commits, as in sec.usp_SetSessionContext (OUT-01).
         IF NOT EXISTS (SELECT 1 FROM plat.Tenant WITH (UPDLOCK, HOLDLOCK) WHERE TenantId = @TenantId)
@@ -97,6 +97,7 @@ BEGIN
     END TRY
     BEGIN CATCH
         IF @own = 1 AND XACT_STATE() <> 0 ROLLBACK TRANSACTION;
+        ELSE IF @own = 0 AND XACT_STATE() = 1 ROLLBACK TRANSACTION sp_SetJobContext;   -- undo this procedure only
         THROW;
     END CATCH;
 END;

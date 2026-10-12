@@ -3,9 +3,10 @@
 
    Safe to run again: each block is a MERGE on the natural key, so a second run changes nothing, and a changed
    platform value is updated in place. Runs as the deploying login (the global tables have no row filter).
-   Today it holds the security setting definitions (DOC-S04 section 13, DQ-S04-14, owner decision 2026-10-12) and
-   the background job catalogue (DOC-F17 section 5.2, DOC-F04 section 7.4).
-   The ISO lists, plans, reserved sub-domains and permission codes of DOC-B05 section 4.1 follow with their slices.
+   Today it holds the security setting definitions (DOC-S04 section 13, DQ-S04-14), the background job catalogue
+   (DOC-F17 section 5.2, DOC-F04 section 7.4), the STANDARD plan (DQ-B05-4) and the reserved sub-domains (FR-PLT-046),
+   all owner decisions of 2026-10-12 or their proposals. The ISO lists (DQ-B05-5) and the permission codes of
+   DOC-B05 section 4.1 follow.
    ============================================================================ */
 SET NOCOUNT ON;
 SET ANSI_NULLS ON; SET QUOTED_IDENTIFIER ON; SET ANSI_PADDING ON; SET ANSI_WARNINGS ON; SET ARITHABORT ON; SET CONCAT_NULL_YIELDS_NULL ON; SET NUMERIC_ROUNDABORT OFF;
@@ -63,6 +64,7 @@ USING (VALUES
     ('JOB-PLT-OUTBOX-PURGE', 'TENANT', 'TRIAL,ACTIVE', N'Deletes delivered outbox events after 30 days, weekly.'),
     ('JOB-PLT-JOBRUN-PURGE', 'TENANT', 'TRIAL,ACTIVE', N'Deletes job runs after 90 days, weekly.'),
     ('JOB-PLT-TRIAL-REMIND', 'TENANT', 'TRIAL', N'Trial end reminders 7, 3 and 1 days before (DOC-F05 6.3).'),
+    ('JOB-PLT-ONBOARD', 'TENANT', 'TRIAL,ACTIVE', N'Seeds a new tenant and invites its first administrator, woken by tenant.created (DOC-F05 4.3).'),
     ('JOB-PLT-EXPORT-EXPIRE', 'TENANT', 'TRIAL,ACTIVE,SUSPENDED,CLOSED', N'READY export packages to EXPIRED and the file deleted (DOC-F05 6.3).'),
     ('JOB-PLT-TRIAL-EXPIRE', 'PLATFORM', NULL, N'TRIAL to SUSPENDED when the trial ends, through plat.usp_SetTenantStatus (DOC-F05 6.3).'),
     ('JOB-PLT-ARCHIVE', 'PLATFORM', NULL, N'CLOSED to ARCHIVED_READ_ONLY 30 days after ClosedAt, through plat.usp_SetTenantStatus (DOC-F05 6.3).')
@@ -73,4 +75,30 @@ WHEN MATCHED AND (d.Scope <> s.Scope OR ISNULL(d.RunsInStatuses, '') <> ISNULL(s
     UPDATE SET Scope = s.Scope, RunsInStatuses = s.RunsInStatuses, Description = s.Description, UpdatedAt = SYSUTCDATETIME()
 WHEN NOT MATCHED THEN
     INSERT (JobKey, Scope, RunsInStatuses, Description) VALUES (s.JobKey, s.Scope, s.RunsInStatuses, s.Description);
+GO
+-- One plan with every module and no limits (DQ-B05-4, owner decision 2026-10-12).
+MERGE plat.[Plan] AS d
+USING (VALUES ('STANDARD', N'الباقة القياسية', N'Standard')) AS s (Code, NameAr, NameEn)
+   ON d.Code = s.Code
+WHEN NOT MATCHED THEN INSERT (Code, NameAr, NameEn, IsActive) VALUES (s.Code, s.NameAr, s.NameEn, 1);
+MERGE plat.PlanModule AS d
+USING (SELECT p.PlanId, m.ModuleCode
+       FROM plat.[Plan] AS p
+       CROSS JOIN (VALUES ('CORE'), ('INSTITUTIONS'), ('FACILITIES'), ('COVENANTS'), ('WORKFLOW'), ('LC_PURCHASE'),
+                          ('LC_SALES'), ('REQUESTS'), ('REPORTS')) AS m (ModuleCode)
+       WHERE p.Code = 'STANDARD') AS s
+   ON d.PlanId = s.PlanId AND d.ModuleCode = s.ModuleCode
+WHEN NOT MATCHED THEN INSERT (PlanId, ModuleCode) VALUES (s.PlanId, s.ModuleCode);
+GO
+-- Sub-domains no tenant may take (FR-PLT-046): the four the requirement names and the hosts the platform uses or
+-- may use. plat.usp_CreateTenant refuses them (50025). The list is a proposal for OPS with SEC (DOC-B05 4.1).
+MERGE plat.ReservedSubdomain AS d
+USING (VALUES ('www', N'FR-PLT-046'), ('admin', N'FR-PLT-046'), ('api', N'FR-PLT-046'), ('app', N'FR-PLT-046'),
+              ('operator', N'Operator panel host (DOC-S03)'), ('ops', N'Operations'), ('support', N'Support'),
+              ('auth', N'Identity'), ('login', N'Identity'), ('sso', N'Identity'), ('mail', N'E-mail'), ('smtp', N'E-mail'),
+              ('status', N'Status page'), ('static', N'Static files'), ('cdn', N'Static files'), ('docs', N'Documentation'),
+              ('help', N'Help'), ('dev', N'Environment'), ('test', N'Environment'), ('uat', N'Environment'),
+              ('staging', N'Environment'), ('demo', N'Environment'), ('bankfas', N'Product name')) AS s (Subdomain, Reason)
+   ON d.Subdomain = s.Subdomain
+WHEN NOT MATCHED THEN INSERT (Subdomain, Reason) VALUES (s.Subdomain, s.Reason);
 GO

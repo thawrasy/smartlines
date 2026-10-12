@@ -4,7 +4,7 @@
 
    tp_app       حساب تشغيل تطبيق المشترك: منح جدولية فقط (007)؛ لا كتابة على الجداول العالمية؛ لا plat.PlatformOperator
    tp_platform  مشغّلو المنصة: كتابة على الكتالوجات العالمية والمختلطة وplat؛ لا وصول مباشر لبيانات المشتركين (007)
-   tp_auth      دور داخلي بلا تسجيل دخول: تُنفَّذ به إجراءات الدخول والربط والحساب وقوادح السحب فقط (028، 030، 035، 036، 037، ADR 0002 و0003 و0004)
+   tp_auth      دور داخلي بلا تسجيل دخول: تُنفَّذ به إجراءات الدخول والربط والحساب وقوادح السحب فقط (028، 030، 035 إلى 038، ADR 0002 و0003 و0004)
    tp_support   اتصال الدعم المؤقت: عضو في tp_readonly، يُربط بمشترك بمنحة فعّالة فقط (036، DQ-F04-6)
    tp_jobs      عامل المهام الخلفية: عضو في tp_app، يُربط بحساب خدمة المشترك لمهمة من القائمة المغلقة (037، DQ-F04-4)
    tp_readonly  تقارير/تحليل: قراءة فقط، دون الأعمدة الحساسة (006)
@@ -85,6 +85,15 @@ GRANT SELECT, INSERT, UPDATE ON [plat].[OperatorToken] TO [tp_auth];
 GRANT SELECT ON [plat].[SupportAccessGrant] TO [tp_auth];
 -- The job catalogue for the job binding (037, DQ-F04-4).
 GRANT SELECT ON [cfg].[JobDefinition] TO [tp_auth];
+-- Tenant onboarding and status changes (038, DOC-F05, O-12 of docs/20-database-design.md).
+GRANT INSERT, UPDATE ON [plat].[Tenant] TO [tp_auth];
+GRANT SELECT, INSERT ON [plat].[TenantModule] TO [tp_auth];
+GRANT SELECT ON [plat].[Plan] TO [tp_auth];
+GRANT SELECT ON [plat].[PlanModule] TO [tp_auth];
+GRANT SELECT ON [plat].[ReservedSubdomain] TO [tp_auth];
+GRANT INSERT ON [sec].[AppUser] TO [tp_auth];
+GRANT INSERT ON [sec].[UserRole] TO [tp_auth];
+GRANT INSERT ON [cfg].[OutboxEvent] TO [tp_auth];
 -- Ordering rule: a DENY on a permission that the generated grants (007) later GRANT is removed by that GRANT, and a
 -- table-level GRANT clears column-level DENYs. Such DENYs therefore live in 030, which runs after 007 (deploy.sql).
 -- مخطط rls يُنشأ في 010؛ منحه لـ tp_app هناك بعد إنشائه

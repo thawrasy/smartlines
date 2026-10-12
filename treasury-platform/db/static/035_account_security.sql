@@ -105,7 +105,7 @@ BEGIN
     DECLARE @now DATETIME2(3) = SYSUTCDATETIME(), @own BIT = 0, @sid BIGINT, @uid BIGINT, @enabled BIT,
             @enrolledAt DATETIME2(3), @tid BIGINT;
     DECLARE @codes TABLE (CodeHash VARBINARY(32) NOT NULL PRIMARY KEY);
-    IF @@TRANCOUNT = 0 BEGIN BEGIN TRANSACTION; SET @own = 1; END;
+    IF @@TRANCOUNT = 0 BEGIN BEGIN TRANSACTION; SET @own = 1; END ELSE SAVE TRANSACTION sp_CompleteMfaEnrolment;
     BEGIN TRY
         SELECT @sid = s.UserSessionId, @uid = u.AppUserId, @enabled = u.MfaEnabled, @enrolledAt = u.MfaEnrolledAt
         FROM sec.UserSession AS s WITH (UPDLOCK, HOLDLOCK)
@@ -144,6 +144,7 @@ BEGIN
     END TRY
     BEGIN CATCH
         IF @own = 1 AND XACT_STATE() <> 0 ROLLBACK TRANSACTION;
+        ELSE IF @own = 0 AND XACT_STATE() = 1 ROLLBACK TRANSACTION sp_CompleteMfaEnrolment;   -- undo this procedure only
         THROW;
     END CATCH;
 END;
@@ -162,7 +163,7 @@ BEGIN
     DECLARE @now DATETIME2(3) = SYSUTCDATETIME(), @own BIT = 0, @sid BIGINT, @uid BIGINT, @enabled BIT,
             @cid BIGINT, @locked BIT, @failed BIT = 0;
     SET @Remaining = NULL;
-    IF @@TRANCOUNT = 0 BEGIN BEGIN TRANSACTION; SET @own = 1; END;
+    IF @@TRANCOUNT = 0 BEGIN BEGIN TRANSACTION; SET @own = 1; END ELSE SAVE TRANSACTION sp_UseRecoveryCode;
     BEGIN TRY
         SELECT @sid = s.UserSessionId, @uid = u.AppUserId, @enabled = u.MfaEnabled
         FROM sec.UserSession AS s WITH (UPDLOCK, HOLDLOCK)
@@ -192,6 +193,7 @@ BEGIN
     END TRY
     BEGIN CATCH
         IF @own = 1 AND XACT_STATE() <> 0 ROLLBACK TRANSACTION;
+        ELSE IF @own = 0 AND XACT_STATE() = 1 ROLLBACK TRANSACTION sp_UseRecoveryCode;   -- undo this procedure only
         THROW;
     END CATCH;
     IF @failed = 1 THROW 50009, 'Invalid recovery code', 1;      -- after the failure is committed
@@ -361,7 +363,7 @@ AS
 BEGIN
     SET NOCOUNT ON;
     DECLARE @own BIT = 0, @uid BIGINT, @sid BIGINT, @tid BIGINT, @stored VARCHAR(255), @locked BIT, @wrong BIT = 0;
-    IF @@TRANCOUNT = 0 BEGIN BEGIN TRANSACTION; SET @own = 1; END;
+    IF @@TRANCOUNT = 0 BEGIN BEGIN TRANSACTION; SET @own = 1; END ELSE SAVE TRANSACTION sp_ChangePassword;
     BEGIN TRY
         EXEC sec.usp_ResolvePasswordActor @TenantId, @SessionToken, NULL, @uid OUTPUT, @sid OUTPUT, @tid OUTPUT;
         IF @uid IS NULL THROW 50003, 'No valid session for this tenant', 1;
@@ -379,6 +381,7 @@ BEGIN
     END TRY
     BEGIN CATCH
         IF @own = 1 AND XACT_STATE() <> 0 ROLLBACK TRANSACTION;
+        ELSE IF @own = 0 AND XACT_STATE() = 1 ROLLBACK TRANSACTION sp_ChangePassword;   -- undo this procedure only
         THROW;
     END CATCH;
     IF @wrong = 1 THROW 50010, 'The current password is not correct', 1;
@@ -399,7 +402,7 @@ BEGIN
     SET @SentTo = NULL;
     IF @Token IS NULL OR DATALENGTH(@Token) < 32 THROW 50001, 'A link token of at least 32 bytes is required', 1;
     DECLARE @now DATETIME2(3) = SYSUTCDATETIME(), @own BIT = 0, @uid BIGINT, @addr NVARCHAR(254);
-    IF @@TRANCOUNT = 0 BEGIN BEGIN TRANSACTION; SET @own = 1; END;
+    IF @@TRANCOUNT = 0 BEGIN BEGIN TRANSACTION; SET @own = 1; END ELSE SAVE TRANSACTION sp_RequestPasswordReset;
     BEGIN TRY
         SELECT @uid = AppUserId, @addr = Email FROM sec.AppUser WITH (UPDLOCK, HOLDLOCK)
         WHERE TenantId = @TenantId AND Email = @Email AND Status IN ('ACTIVE', 'LOCKED') AND IsSystemUser = 0
@@ -416,6 +419,7 @@ BEGIN
     END TRY
     BEGIN CATCH
         IF @own = 1 AND XACT_STATE() <> 0 ROLLBACK TRANSACTION;
+        ELSE IF @own = 0 AND XACT_STATE() = 1 ROLLBACK TRANSACTION sp_RequestPasswordReset;   -- undo this procedure only
         THROW;
     END CATCH;
 END;
@@ -432,7 +436,7 @@ AS
 BEGIN
     SET NOCOUNT ON;
     DECLARE @now DATETIME2(3) = SYSUTCDATETIME(), @own BIT = 0, @uid BIGINT, @sid BIGINT, @tid BIGINT;
-    IF @@TRANCOUNT = 0 BEGIN BEGIN TRANSACTION; SET @own = 1; END;
+    IF @@TRANCOUNT = 0 BEGIN BEGIN TRANSACTION; SET @own = 1; END ELSE SAVE TRANSACTION sp_ResetPassword;
     BEGIN TRY
         EXEC sec.usp_ResolvePasswordActor @TenantId, NULL, @Token, @uid OUTPUT, @sid OUTPUT, @tid OUTPUT;
         IF @uid IS NULL THROW 50017, 'Invalid or expired link', 1;
@@ -447,6 +451,7 @@ BEGIN
     END TRY
     BEGIN CATCH
         IF @own = 1 AND XACT_STATE() <> 0 ROLLBACK TRANSACTION;
+        ELSE IF @own = 0 AND XACT_STATE() = 1 ROLLBACK TRANSACTION sp_ResetPassword;   -- undo this procedure only
         THROW;
     END CATCH;
 END;
@@ -462,7 +467,7 @@ AS
 BEGIN
     SET NOCOUNT ON;
     DECLARE @now DATETIME2(3) = SYSUTCDATETIME(), @own BIT = 0, @uid BIGINT, @tid BIGINT;
-    IF @@TRANCOUNT = 0 BEGIN BEGIN TRANSACTION; SET @own = 1; END;
+    IF @@TRANCOUNT = 0 BEGIN BEGIN TRANSACTION; SET @own = 1; END ELSE SAVE TRANSACTION sp_CompleteInvitation;
     BEGIN TRY
         SELECT @uid = u.AppUserId, @tid = t.UserTokenId
         FROM sec.UserToken AS t WITH (UPDLOCK, HOLDLOCK)
@@ -479,6 +484,7 @@ BEGIN
     END TRY
     BEGIN CATCH
         IF @own = 1 AND XACT_STATE() <> 0 ROLLBACK TRANSACTION;
+        ELSE IF @own = 0 AND XACT_STATE() = 1 ROLLBACK TRANSACTION sp_CompleteInvitation;   -- undo this procedure only
         THROW;
     END CATCH;
 END;
@@ -501,7 +507,7 @@ BEGIN
     IF @Token IS NULL OR DATALENGTH(@Token) < 32 THROW 50001, 'A link token of at least 32 bytes is required', 1;
     IF NOT EXISTS (SELECT 1 FROM sec.fn_BoundAsUser(@TenantId, 1)) THROW 50003, 'The connection is not bound to this tenant as a user for writing', 1;
     DECLARE @now DATETIME2(3) = SYSUTCDATETIME(), @own BIT = 0, @email NVARCHAR(254), @ok BIT = 0, @expires DATETIME2(3);
-    IF @@TRANCOUNT = 0 BEGIN BEGIN TRANSACTION; SET @own = 1; END;
+    IF @@TRANCOUNT = 0 BEGIN BEGIN TRANSACTION; SET @own = 1; END ELSE SAVE TRANSACTION sp_IssueUserToken;
     BEGIN TRY
         SELECT @email = Email,
                @ok = CASE WHEN @Purpose = 'INVITATION' AND Status = 'INVITED' THEN 1
@@ -525,6 +531,7 @@ BEGIN
     END TRY
     BEGIN CATCH
         IF @own = 1 AND XACT_STATE() <> 0 ROLLBACK TRANSACTION;
+        ELSE IF @own = 0 AND XACT_STATE() = 1 ROLLBACK TRANSACTION sp_IssueUserToken;   -- undo this procedure only
         THROW;
     END CATCH;
 END;
@@ -556,7 +563,7 @@ BEGIN
     SET NOCOUNT ON;
     IF NOT EXISTS (SELECT 1 FROM sec.fn_BoundAsUser(@TenantId, 1)) THROW 50003, 'The connection is not bound to this tenant as a user for writing', 1;
     DECLARE @now DATETIME2(3) = SYSUTCDATETIME(), @own BIT = 0;
-    IF @@TRANCOUNT = 0 BEGIN BEGIN TRANSACTION; SET @own = 1; END;
+    IF @@TRANCOUNT = 0 BEGIN BEGIN TRANSACTION; SET @own = 1; END ELSE SAVE TRANSACTION sp_ResetMfa;
     BEGIN TRY
         UPDATE sec.AppUser SET MfaEnabled = 0, MfaSecretEnc = NULL, MfaKeyId = NULL, MfaLastUsedStep = NULL
          WHERE TenantId = @TenantId AND AppUserId = @UserId AND IsSystemUser = 0 AND MfaEnabled = 1;
@@ -568,6 +575,7 @@ BEGIN
     END TRY
     BEGIN CATCH
         IF @own = 1 AND XACT_STATE() <> 0 ROLLBACK TRANSACTION;
+        ELSE IF @own = 0 AND XACT_STATE() = 1 ROLLBACK TRANSACTION sp_ResetMfa;   -- undo this procedure only
         THROW;
     END CATCH;
 END;
@@ -584,7 +592,7 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM sec.fn_BoundAsUser(@TenantId, 1)) THROW 50003, 'The connection is not bound to this tenant as a user for writing', 1;
     IF @UserId = CAST(SESSION_CONTEXT(N'UserId') AS BIGINT) THROW 50019, 'A user cannot change the status of their own account', 1;
     DECLARE @now DATETIME2(3) = SYSUTCDATETIME(), @own BIT = 0;
-    IF @@TRANCOUNT = 0 BEGIN BEGIN TRANSACTION; SET @own = 1; END;
+    IF @@TRANCOUNT = 0 BEGIN BEGIN TRANSACTION; SET @own = 1; END ELSE SAVE TRANSACTION sp_SetUserStatus;
     BEGIN TRY
         UPDATE sec.AppUser
            SET Status = @Status, ArchivedAt = CASE WHEN @Status = 'ARCHIVED' THEN @now ELSE ArchivedAt END
@@ -600,6 +608,7 @@ BEGIN
     END TRY
     BEGIN CATCH
         IF @own = 1 AND XACT_STATE() <> 0 ROLLBACK TRANSACTION;
+        ELSE IF @own = 0 AND XACT_STATE() = 1 ROLLBACK TRANSACTION sp_SetUserStatus;   -- undo this procedure only
         THROW;
     END CATCH;
 END;

@@ -105,7 +105,7 @@ BEGIN
         THROW 50001, 'Email and a session token of at least 32 bytes are required', 1;
     DECLARE @now DATETIME2(3) = SYSUTCDATETIME(), @own BIT = 0, @ok BIT = 0, @oid INT, @status VARCHAR(10),
             @stored VARCHAR(255), @locked BIT;
-    IF @@TRANCOUNT = 0 BEGIN BEGIN TRANSACTION; SET @own = 1; END;
+    IF @@TRANCOUNT = 0 BEGIN BEGIN TRANSACTION; SET @own = 1; END ELSE SAVE TRANSACTION sp_StartOperatorSession;
     BEGIN TRY
         SELECT @oid = PlatformOperatorId, @status = Status, @stored = PasswordHash
         FROM plat.PlatformOperator WITH (UPDLOCK, HOLDLOCK)
@@ -129,6 +129,7 @@ BEGIN
     END TRY
     BEGIN CATCH
         IF @own = 1 AND XACT_STATE() <> 0 ROLLBACK TRANSACTION;
+        ELSE IF @own = 0 AND XACT_STATE() = 1 ROLLBACK TRANSACTION sp_StartOperatorSession;   -- undo this procedure only
         THROW;
     END CATCH;
     IF @ok = 0 THROW 50005, 'Invalid e-mail or password', 1;     -- after the failure is committed
@@ -145,7 +146,7 @@ AS
 BEGIN
     SET NOCOUNT ON;
     DECLARE @now DATETIME2(3) = SYSUTCDATETIME(), @own BIT = 0, @sid BIGINT, @oid INT, @last BIGINT, @locked BIT;
-    IF @@TRANCOUNT = 0 BEGIN BEGIN TRANSACTION; SET @own = 1; END;
+    IF @@TRANCOUNT = 0 BEGIN BEGIN TRANSACTION; SET @own = 1; END ELSE SAVE TRANSACTION sp_ConfirmOperatorMfa;
     BEGIN TRY
         SELECT @sid = s.OperatorSessionId, @oid = o.PlatformOperatorId, @last = o.MfaLastUsedStep
         FROM plat.OperatorSession AS s WITH (UPDLOCK, HOLDLOCK)
@@ -171,6 +172,7 @@ BEGIN
     END TRY
     BEGIN CATCH
         IF @own = 1 AND XACT_STATE() <> 0 ROLLBACK TRANSACTION;
+        ELSE IF @own = 0 AND XACT_STATE() = 1 ROLLBACK TRANSACTION sp_ConfirmOperatorMfa;   -- undo this procedure only
         THROW;
     END CATCH;
 END;
@@ -249,7 +251,7 @@ BEGIN
     IF @Email IS NULL OR @Token IS NULL OR DATALENGTH(@Token) < 32
         THROW 50001, 'Email and a link token of at least 32 bytes are required', 1;
     DECLARE @own BIT = 0;
-    IF @@TRANCOUNT = 0 BEGIN BEGIN TRANSACTION; SET @own = 1; END;
+    IF @@TRANCOUNT = 0 BEGIN BEGIN TRANSACTION; SET @own = 1; END ELSE SAVE TRANSACTION sp_BootstrapOperator;
     BEGIN TRY
         IF EXISTS (SELECT 1 FROM plat.PlatformOperator WITH (UPDLOCK, HOLDLOCK))
             THROW 50023, 'Operators already exist; an operator administrator invites new ones', 1;
@@ -261,6 +263,7 @@ BEGIN
     END TRY
     BEGIN CATCH
         IF @own = 1 AND XACT_STATE() <> 0 ROLLBACK TRANSACTION;
+        ELSE IF @own = 0 AND XACT_STATE() = 1 ROLLBACK TRANSACTION sp_BootstrapOperator;   -- undo this procedure only
         THROW;
     END CATCH;
 END;
@@ -281,7 +284,7 @@ BEGIN
         THROW 50001, 'Email and a link token of at least 32 bytes are required', 1;
     DECLARE @caller INT = (SELECT PlatformOperatorId FROM plat.fn_OperatorAdminOfSession(@SessionToken)), @own BIT = 0;
     IF @caller IS NULL THROW 50021, 'An operator administrator session with MFA is required', 1;
-    IF @@TRANCOUNT = 0 BEGIN BEGIN TRANSACTION; SET @own = 1; END;
+    IF @@TRANCOUNT = 0 BEGIN BEGIN TRANSACTION; SET @own = 1; END ELSE SAVE TRANSACTION sp_InviteOperator;
     BEGIN TRY
         INSERT plat.PlatformOperator (Email, DisplayName, Role, Status) VALUES (@Email, @DisplayName, @Role, 'INVITED');
         SET @OperatorId = SCOPE_IDENTITY();
@@ -291,6 +294,7 @@ BEGIN
     END TRY
     BEGIN CATCH
         IF @own = 1 AND XACT_STATE() <> 0 ROLLBACK TRANSACTION;
+        ELSE IF @own = 0 AND XACT_STATE() = 1 ROLLBACK TRANSACTION sp_InviteOperator;   -- undo this procedure only
         THROW;
     END CATCH;
 END;
@@ -308,7 +312,7 @@ AS
 BEGIN
     SET NOCOUNT ON;
     DECLARE @now DATETIME2(3) = SYSUTCDATETIME(), @own BIT = 0, @oid INT, @tid BIGINT;
-    IF @@TRANCOUNT = 0 BEGIN BEGIN TRANSACTION; SET @own = 1; END;
+    IF @@TRANCOUNT = 0 BEGIN BEGIN TRANSACTION; SET @own = 1; END ELSE SAVE TRANSACTION sp_CompleteOperatorSetup;
     BEGIN TRY
         SELECT @oid = o.PlatformOperatorId, @tid = t.OperatorTokenId
         FROM plat.OperatorToken AS t WITH (UPDLOCK, HOLDLOCK)
@@ -328,6 +332,7 @@ BEGIN
     END TRY
     BEGIN CATCH
         IF @own = 1 AND XACT_STATE() <> 0 ROLLBACK TRANSACTION;
+        ELSE IF @own = 0 AND XACT_STATE() = 1 ROLLBACK TRANSACTION sp_CompleteOperatorSetup;   -- undo this procedure only
         THROW;
     END CATCH;
 END;
@@ -349,7 +354,7 @@ BEGIN
             @now DATETIME2(3) = SYSUTCDATETIME(), @own BIT = 0;
     IF @caller IS NULL THROW 50021, 'An operator administrator session with MFA is required', 1;
     IF @caller = @OperatorId THROW 50019, 'An operator cannot reset their own account', 1;
-    IF @@TRANCOUNT = 0 BEGIN BEGIN TRANSACTION; SET @own = 1; END;
+    IF @@TRANCOUNT = 0 BEGIN BEGIN TRANSACTION; SET @own = 1; END ELSE SAVE TRANSACTION sp_ResetOperator;
     BEGIN TRY
         UPDATE plat.PlatformOperator
            SET Status = 'INVITED', PasswordHash = NULL, MfaEnabled = 0, MfaSecretEnc = NULL, MfaKeyRef = NULL,
@@ -366,6 +371,7 @@ BEGIN
     END TRY
     BEGIN CATCH
         IF @own = 1 AND XACT_STATE() <> 0 ROLLBACK TRANSACTION;
+        ELSE IF @own = 0 AND XACT_STATE() = 1 ROLLBACK TRANSACTION sp_ResetOperator;   -- undo this procedure only
         THROW;
     END CATCH;
 END;
@@ -384,7 +390,7 @@ BEGIN
             @now DATETIME2(3) = SYSUTCDATETIME(), @own BIT = 0, @wasActiveAdmin BIT = 0;
     IF @caller IS NULL THROW 50021, 'An operator administrator session with MFA is required', 1;
     IF @caller = @OperatorId THROW 50019, 'An operator cannot change the status of their own account', 1;
-    IF @@TRANCOUNT = 0 BEGIN BEGIN TRANSACTION; SET @own = 1; END;
+    IF @@TRANCOUNT = 0 BEGIN BEGIN TRANSACTION; SET @own = 1; END ELSE SAVE TRANSACTION sp_SetOperatorStatus;
     BEGIN TRY
         -- Every check comes before the first write, so a refusal changes nothing even inside a caller's transaction.
         SELECT @wasActiveAdmin = CASE WHEN Role = 'OPERATOR_ADMIN' AND Status = 'ACTIVE' THEN 1 ELSE 0 END
@@ -409,6 +415,7 @@ BEGIN
     END TRY
     BEGIN CATCH
         IF @own = 1 AND XACT_STATE() <> 0 ROLLBACK TRANSACTION;
+        ELSE IF @own = 0 AND XACT_STATE() = 1 ROLLBACK TRANSACTION sp_SetOperatorStatus;   -- undo this procedure only
         THROW;
     END CATCH;
 END;
@@ -429,7 +436,7 @@ BEGIN
         THROW 50001, 'TenantId, SupportAccessGrantId and the operator session token are required', 1;
     DECLARE @now DATETIME2(3) = SYSUTCDATETIME(), @own BIT = 0, @oid INT, @gid BIGINT, @granted DATETIME2(3),
             @status VARCHAR(18), @suspendedAt DATETIME2(3), @token UNIQUEIDENTIFIER = NEWID();
-    IF @@TRANCOUNT = 0 BEGIN BEGIN TRANSACTION; SET @own = 1; END;
+    IF @@TRANCOUNT = 0 BEGIN BEGIN TRANSACTION; SET @own = 1; END ELSE SAVE TRANSACTION sp_SetSupportContext;
     BEGIN TRY
         -- Locks held until the binding commits, so a concurrent revocation waits and its trigger finds the binding.
         SELECT @oid = o.PlatformOperatorId
@@ -479,6 +486,7 @@ BEGIN
     END TRY
     BEGIN CATCH
         IF @own = 1 AND XACT_STATE() <> 0 ROLLBACK TRANSACTION;
+        ELSE IF @own = 0 AND XACT_STATE() = 1 ROLLBACK TRANSACTION sp_SetSupportContext;   -- undo this procedure only
         THROW;
     END CATCH;
 END;

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Database CI: checks the model, confirms the generated DDL is current, deploys it to SQL Server,
 # compares what was deployed with the DDL, and runs the trigger, tenant-isolation, account-security,
-# operator-and-support and job-binding tests.
+# operator-and-support, job-binding and tenant-onboarding tests.
 #
 # Environment:
 #   SA_PASSWORD   password of the sa login (required)
@@ -55,12 +55,12 @@ sq -Q "IF DB_ID(N'BankFas') IS NOT NULL BEGIN ALTER DATABASE [BankFas] SET SINGL
 SQL_SERVER="$SQL_SERVER" SQL_USER=sa SQLCMD="$SQLCMD" bash tools/deploy/deploy.sh
 
 echo "== 4b. the platform seed is complete and can run again without changing anything (DOC-B05 section 6)"
-seed_state() { sq -d BankFas -h -1 -W -Q "SET NOCOUNT ON; SELECT CONCAT((SELECT COUNT(*) FROM cfg.SettingDefinition), '/', (SELECT COUNT(*) FROM cfg.JobDefinition), '/', (SELECT COUNT(UpdatedAt) FROM cfg.SettingDefinition) + (SELECT COUNT(UpdatedAt) FROM cfg.JobDefinition))"; }
+seed_state() { sq -d BankFas -h -1 -W -Q "SET NOCOUNT ON; SELECT CONCAT((SELECT COUNT(*) FROM cfg.SettingDefinition), '/', (SELECT COUNT(*) FROM cfg.JobDefinition), '/', (SELECT COUNT(*) FROM plat.[Plan]), '/', (SELECT COUNT(*) FROM plat.PlanModule), '/', (SELECT COUNT(*) FROM plat.ReservedSubdomain), '/', (SELECT COUNT(UpdatedAt) FROM cfg.SettingDefinition) + (SELECT COUNT(UpdatedAt) FROM cfg.JobDefinition) + (SELECT COUNT(UpdatedAt) FROM plat.[Plan]))"; }
 seed_before="$(seed_state)"
 sq -d BankFas -i db/seed/100_platform_global.sql >/dev/null
 seed_after="$(seed_state)"
-if [ "$seed_before" != "$seed_after" ] || [ "$seed_before" != "6/29/0" ]; then
-    echo "platform seed is not safe to run again, or incomplete: settings/jobs/updated before $seed_before, after $seed_after (expected 6/29/0)"
+if [ "$seed_before" != "$seed_after" ] || [ "$seed_before" != "6/30/1/9/23/0" ]; then
+    echo "platform seed is not safe to run again, or incomplete: settings/jobs/plans/plan modules/reserved/updated before $seed_before, after $seed_after (expected 6/30/1/9/23/0)"
     exit 1
 fi
 echo "platform seed unchanged on a second run ($seed_after)"
@@ -158,4 +158,22 @@ if [ "$job_pass" -ne 6 ]; then
     exit 1
 fi
 echo "job binding tests: $job_pass passed"
+echo "== 11. tenant onboarding tests (db/tests/tenant_onboarding_tests.sql)"
+sq -i db/tests/tenant_onboarding_tests.sql > "$TMP/onboarding.out" 2>&1 || {
+    cat "$TMP/onboarding.out"
+    echo "tenant onboarding test run failed"
+    exit 1
+}
+cat "$TMP/onboarding.out"
+if grep -q '^FAIL' "$TMP/onboarding.out"; then
+    echo "a tenant onboarding test failed"
+    exit 1
+fi
+onb_pass=$(grep -c '^PASS' "$TMP/onboarding.out" || true)
+# 5 cases: O1-O5 (ADR 0004: tenant creation, first administrator invitation, status changes, daily status jobs).
+if [ "$onb_pass" -ne 5 ]; then
+    echo "expected 5 PASS, found $onb_pass"
+    exit 1
+fi
+echo "tenant onboarding tests: $onb_pass passed"
 echo "all database checks passed"

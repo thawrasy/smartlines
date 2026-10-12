@@ -136,11 +136,7 @@ BEGIN
     DECLARE @uid BIGINT, @status VARCHAR(10), @stored VARCHAR(255), @mfa BIT, @system BIT,
             @lockedUntil DATETIME2(3), @adminUnlock BIT;
 
-    IF @@TRANCOUNT = 0
-    BEGIN
-        BEGIN TRANSACTION;
-        SET @own = 1;
-    END;
+    IF @@TRANCOUNT = 0 BEGIN BEGIN TRANSACTION; SET @own = 1; END ELSE SAVE TRANSACTION sp_StartSession;
     BEGIN TRY
         -- Unknown tenants, and tenants nobody may use any more, fail before the password is looked at.
         IF NOT EXISTS (SELECT 1 FROM plat.Tenant WITH (UPDLOCK, HOLDLOCK) WHERE TenantId = @TenantId)
@@ -192,6 +188,7 @@ BEGIN
     END TRY
     BEGIN CATCH
         IF @own = 1 AND XACT_STATE() <> 0 ROLLBACK TRANSACTION;
+        ELSE IF @own = 0 AND XACT_STATE() = 1 ROLLBACK TRANSACTION sp_StartSession;   -- undo this procedure only
         THROW;
     END CATCH;
 
@@ -215,11 +212,7 @@ BEGIN
     SET NOCOUNT ON;
     DECLARE @now DATETIME2(3) = SYSUTCDATETIME(), @sid BIGINT, @uid BIGINT, @enrolled BIT, @lastStep BIGINT,
             @own BIT = 0, @locked BIT;
-    IF @@TRANCOUNT = 0
-    BEGIN
-        BEGIN TRANSACTION;
-        SET @own = 1;
-    END;
+    IF @@TRANCOUNT = 0 BEGIN BEGIN TRANSACTION; SET @own = 1; END ELSE SAVE TRANSACTION sp_ConfirmMfa;
     BEGIN TRY
         SELECT @sid = s.UserSessionId, @uid = s.UserId, @enrolled = u.MfaEnabled, @lastStep = u.MfaLastUsedStep
         FROM sec.UserSession AS s WITH (UPDLOCK, HOLDLOCK)
@@ -250,6 +243,7 @@ BEGIN
     END TRY
     BEGIN CATCH
         IF @own = 1 AND XACT_STATE() <> 0 ROLLBACK TRANSACTION;
+        ELSE IF @own = 0 AND XACT_STATE() = 1 ROLLBACK TRANSACTION sp_ConfirmMfa;   -- undo this procedure only
         THROW;
     END CATCH;
 END;
@@ -267,11 +261,7 @@ BEGIN
 
     DECLARE @own BIT = 0, @UserId BIGINT, @now DATETIME2(3) = SYSUTCDATETIME();
     DECLARE @token UNIQUEIDENTIFIER = NEWID();
-    IF @@TRANCOUNT = 0
-    BEGIN
-        BEGIN TRANSACTION;
-        SET @own = 1;
-    END;
+    IF @@TRANCOUNT = 0 BEGIN BEGIN TRANSACTION; SET @own = 1; END ELSE SAVE TRANSACTION sp_SetSessionContext;
     BEGIN TRY
         -- The locks last until the binding commits: a concurrent disable, close or logout waits here, and its
         -- revocation trigger then finds the new binding (OUT-01).
@@ -318,6 +308,7 @@ BEGIN
     END TRY
     BEGIN CATCH
         IF @own = 1 AND XACT_STATE() <> 0 ROLLBACK TRANSACTION;
+        ELSE IF @own = 0 AND XACT_STATE() = 1 ROLLBACK TRANSACTION sp_SetSessionContext;   -- undo this procedure only
         THROW;
     END CATCH;
 END;
