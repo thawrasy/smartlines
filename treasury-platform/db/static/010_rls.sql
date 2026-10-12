@@ -72,8 +72,10 @@ BEGIN
     SET @pol = N'TP_' + @s + N'_' + @t;
     SET @obj = QUOTENAME(@s) + N'.' + QUOTENAME(@t);
     IF EXISTS (SELECT 1 FROM sys.security_policies sp WHERE sp.name = @pol AND sp.schema_id = SCHEMA_ID(N'rls'))
+    BEGIN
         DECLARE @dsql nvarchar(400) = N'DROP SECURITY POLICY rls.' + N'[' + @pol + N']';
         EXEC (@dsql);
+    END
     IF @m = 0
         SET @sql = N'CREATE SECURITY POLICY rls.[' + @pol + N'] '
                  + N'ADD FILTER PREDICATE rls.fn_TenantAccess(TenantId) ON ' + @obj + N', '

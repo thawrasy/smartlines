@@ -74,4 +74,23 @@ if [ "$passed" -ne 6 ]; then
     echo "expected 6 PASS lines, found $passed"
     exit 1
 fi
+echo "== 7. tenant-isolation tests (db/tests/tenant_isolation_tests.sql)"
+sq -i db/tests/tenant_isolation_tests.sql > "$TMP/isolation.out" 2>&1 || {
+    cat "$TMP/isolation.out"
+    echo "isolation test run failed"
+    exit 1
+}
+cat "$TMP/isolation.out"
+if grep -q '^FAIL' "$TMP/isolation.out"; then
+    echo "a tenant-isolation test failed"
+    exit 1
+fi
+iso_pass=$(grep -c '^PASS' "$TMP/isolation.out" || true)
+iso_gap=$(grep -c '^KNOWN GAP' "$TMP/isolation.out" || true)
+# 24 cases pass; O-16 (the application role can set TenantId directly) is a known gap until the design changes.
+if [ "$iso_pass" -ne 24 ] || [ "$iso_gap" -ne 1 ]; then
+    echo "expected 24 PASS and 1 KNOWN GAP, found $iso_pass and $iso_gap"
+    exit 1
+fi
+echo "tenant-isolation tests: $iso_pass passed, $iso_gap known gap (O-16)"
 echo "all database checks passed"

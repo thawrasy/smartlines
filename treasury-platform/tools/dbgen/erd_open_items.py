@@ -61,8 +61,8 @@ ITEMS = [
     {
         'id': 'O-09', 'sources': REVIEW_A,
         'finding': 'Tenant isolation is designed (TenantId, row-level security, composite keys) but not tested across endpoints.',
-        'status': 'Row-level security filters rows by SESSION_CONTEXT(TenantId) (db/static/010_rls.sql). For tenant-owned tables a missing context compares as NULL and returns no rows. Endpoint tests do not exist yet.',
-        'next': 'Add cross-tenant (IDOR) and no-context tests to CI for every endpoint.',
+        'status': 'Database tests: db/tests/tenant_isolation_tests.sql runs 24 cases as the application role and the reporting role (cross-tenant reads, inserts, updates and deletes, global rows, the audit log, the context procedure, column grants, policy coverage). CI step 7 in tools/ci/db_ci.sh runs them. With every policy switched off, the row-filter cases fail. One weakness is recorded as O-16.',
+        'next': 'Add cross-tenant (IDOR) and no-context tests at the API level for every endpoint once the API exists. Resolve O-16 first.',
     },
     {
         'id': 'O-10', 'sources': REVIEW_B,
@@ -99,5 +99,11 @@ ITEMS = [
         'finding': 'The vertical-slice plan (S0 to S5) gates the rest of the build.',
         'status': 'Planned in the analysis document; not started.',
         'next': 'Start S0 once O-01, O-02 and O-07 are decided.',
+    },
+    {
+        'id': 'O-16', 'sources': 'Tenant-isolation tests (db/tests/tenant_isolation_tests.sql, case T16)',
+        'finding': 'The application role can set TenantId directly with sp_set_session_context, which skips the membership check in sec.usp_SetSessionContext. Row-level security trusts the session context, so code that runs on the application connection outside the procedure can read or write another tenant. A DENY on the system procedure cannot be applied from a user database (error 4629).',
+        'status': 'Known gap. The test records it as KNOWN GAP O-16 and tools/ci/db_ci.sh counts it, so the build stays green only while the gap is recorded.',
+        'next': 'Decide between (a) binding the tenant to the session in a table that only tp_auth can write and that the row filters check, and (b) accepting that the application process is trusted and recording that as a residual risk. Then change the expectation in db/tests/tenant_isolation_tests.sql and tools/ci/db_ci.sh.',
     },
 ]
