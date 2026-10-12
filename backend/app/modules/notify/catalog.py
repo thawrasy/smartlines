@@ -54,6 +54,8 @@ async def deliveries(conn: asyncpg.Connection, event: asyncpg.Record, payload: d
         return [d] if d else []
     if kind in ("withdrawal.paid", "withdrawal.rejected"):
         return await _owners(conn, event["company_id"], kind, payload)
+    if kind in ("tracking.signal_lost", "tracking.alert_escalated"):       # the platform found a silent trip (1100)
+        return await _owners(conn, event["company_id"], kind, payload)
     if kind in ("document.approved", "document.rejected"):
         d = await _user(conn, payload["uploaded_by"], kind, ["IN_APP", "EMAIL"], payload)
         return [d] if d else []

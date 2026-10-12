@@ -212,6 +212,8 @@ asked with. The approval takes an optional legal document number, recorded on th
 
 **1099** opens the station portal (`STATION`) for station operating companies, the owner's option A. It changes three rules and adds rows: sessions may open the new portal, a company may be of the type `STATION_OPERATOR`, and the party role of that name exists; the permission `station.counter` and the role template `STATION_COUNTER` are added. On a live server the session rule is added `NOT VALID` and then validated, which reads the table without blocking sign-ins; the company rule checks a small table. The two-factor policy requires the new portal only where it already requires the carrier portal, so a policy the security officers changed is kept. No table is added.
 
+**1100** lets the platform open tracking alerts. It adds two settings and two functions; no table and no rule changes. The worker calls `ops.raise_tracking_alerts()` once a minute. The function reads only departed trips, one row each from `ops.vehicle_position` (the latest position per vehicle) and the trip's stops, so its cost follows the trips on the road, not the history of positions. A server that upgrades starts opening alerts on the next minute for trips already silent; the carrier's owners receive one notice per trip, not one per minute, because an open alert stops a second one.
+
 ## 1064_partitioned_bookings.sql on a live database (R-06)
 
 1064 turns `sales.booking` into a table partitioned by ranges of id **in place, under an ACCESS EXCLUSIVE lock**: it

@@ -22,6 +22,14 @@
     "subject": "Withdrawal of SYP {amount} not approved",
     "body": "Your withdrawal of SYP {amount} was not approved: {reason}. The amount is available in your balance again."
   },
+  "tracking.signal_lost": {
+    "subject": "Trip {trip_no}: no position for {minutes} min",
+    "body": "The vehicle on trip {trip_no} has sent no position for {minutes} minutes. Check with the driver; the alert closes when positions return."
+  },
+  "tracking.alert_escalated": {
+    "subject": "Trip {trip_no}: still no position after {minutes} min",
+    "body": "The vehicle on trip {trip_no} has been silent for {minutes} minutes and the alert was escalated. Contact the driver now and record what happened."
+  },
   "document.approved": {
     "subject": "{doc_type} approved",
     "body": "Your {doc_type} was reviewed and approved."

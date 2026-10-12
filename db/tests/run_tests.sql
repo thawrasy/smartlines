@@ -2713,4 +2713,43 @@ SELECT pg_temp.ok((SELECT (value -> 'required_portals') ? 'STATION' FROM sys.set
   'Station portal (1099): the station portal needs two-factor sign-in, like the carrier portal');
 ROLLBACK;
 
+-- Tracking alerts (1100): the worker opens SIGNAL_LOST for a departed trip that went silent, does not open it twice,
+-- escalates it when the silence lasts, tells the carrier through the outbox, and leaves a trip with a recent position alone
+BEGIN;
+SELECT sys.set_context(:uadmin, NULL, 'SYSTEM');
+UPDATE ops.trip SET status = 'DEPARTED', vehicle_id = :va, tracking_level = 'NORMAL', departure_at = now() - interval '6 minutes', arrival_at = now() + interval '3 hours' WHERE id = :t_tr;
+RESET ROLE;   -- positions are written by the telemetry writer only; the test sets them up as the owner
+DELETE FROM ops.vehicle_position WHERE vehicle_id = :va;
+UPDATE ops.trip_stop SET actual_dep = NULL WHERE trip_id = :t_tr;
+SELECT pg_temp.ok((ops.raise_tracking_alerts() ->> 'opened')::int >= 1, 'Tracking alerts (1100): a departed trip silent for six minutes gets an alert');
+SELECT pg_temp.ok((SELECT count(*) = 1 AND bool_and(severity = 'MEDIUM' AND NOT escalated) FROM ops.tracking_alert
+                    WHERE trip_id = :t_tr AND status = 'OPEN' AND kind = 'SIGNAL_LOST'),
+  'Tracking alerts (1100): the alert is SIGNAL_LOST, MEDIUM, not escalated');
+SELECT pg_temp.ok(EXISTS (SELECT 1 FROM sys.outbox_event WHERE event_type = 'tracking.signal_lost' AND aggregate_id = :t_tr
+                           AND company_id = :ca AND payload ? 'trip_no'),
+  'Tracking alerts (1100): the carrier is told through the outbox');
+SELECT ops.raise_tracking_alerts();
+SELECT pg_temp.ok((SELECT count(*) FROM ops.tracking_alert WHERE trip_id = :t_tr AND status = 'OPEN' AND kind = 'SIGNAL_LOST') = 1,
+  'Tracking alerts (1100): a second run does not open a second alert');
+UPDATE ops.trip SET departure_at = now() - interval '20 minutes', arrival_at = now() + interval '3 hours' WHERE id = :t_tr;
+SELECT ops.raise_tracking_alerts() ->> 'escalated' AS escalated_now \gset
+SELECT pg_temp.ok(:escalated_now >= 1
+  AND (SELECT escalated AND severity = 'HIGH' FROM ops.tracking_alert WHERE trip_id = :t_tr AND status = 'OPEN' AND kind = 'SIGNAL_LOST'),
+  'Tracking alerts (1100): twenty minutes of silence escalates the alert to HIGH');
+SELECT pg_temp.ok(EXISTS (SELECT 1 FROM sys.outbox_event WHERE event_type = 'tracking.alert_escalated' AND aggregate_id = :t_tr),
+  'Tracking alerts (1100): the escalation is told through the outbox');
+UPDATE ops.tracking_alert SET status = 'RESOLVED', resolved_at = now() WHERE trip_id = :t_tr;
+UPDATE ops.trip SET departure_at = now() - interval '3 minutes', arrival_at = now() + interval '3 hours', tracking_level = 'STRICT' WHERE id = :t_tr;
+SELECT pg_temp.ok((ops.raise_tracking_alerts() ->> 'opened')::int >= 1, 'Tracking alerts (1100): a STRICT trip is alerted after half the silence');
+UPDATE ops.tracking_alert SET status = 'RESOLVED', resolved_at = now() WHERE trip_id = :t_tr;
+UPDATE ops.trip SET departure_at = now() - interval '1 hour', arrival_at = now() + interval '3 hours', tracking_level = 'NORMAL' WHERE id = :t_tr;
+INSERT INTO ops.vehicle_position (vehicle_id, trip_id, ts, lat, lng, trust) VALUES (:va, :t_tr, now() - interval '1 minute', 33.5, 36.3, 'OK');
+SELECT ops.raise_tracking_alerts();
+SELECT pg_temp.ok(NOT EXISTS (SELECT 1 FROM ops.tracking_alert WHERE trip_id = :t_tr AND status = 'OPEN'),
+  'Tracking alerts (1100): a trip whose vehicle sent a position a minute ago is not alerted');
+SELECT pg_temp.ok(has_function_privilege('masslak_app', 'ops.raise_tracking_alerts()', 'EXECUTE')
+  AND NOT has_function_privilege('masslak_app', 'ops.trip_silence()', 'EXECUTE'),
+  'Tracking alerts (1100): the worker may run the check; the silence list is not open to the application');
+ROLLBACK;
+
 \echo '=== ALL TESTS PASSED ==='

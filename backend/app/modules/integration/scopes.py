@@ -59,6 +59,8 @@ EVENTS = {
     "border.manifest_submitted": {"AUTHORITY", "INTERNAL"},
     "manifest.issued": {"CARRIER", "INTEGRATION", "INTERNAL"},
     "manifest.available": {"AUTHORITY", "INTERNAL"},
+    "tracking.signal_lost": {"CARRIER", "INTERNAL"},
+    "tracking.alert_escalated": {"CARRIER", "INTERNAL"},
     "webhook.ping": set(KIND_SCOPES),
 }
 

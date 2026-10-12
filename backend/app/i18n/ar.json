@@ -22,6 +22,14 @@
     "subject": "لم تتم الموافقة على سحب {amount} ل.س",
     "body": "لم تتم الموافقة على طلب السحب بقيمة {amount} ل.س: {reason}. عاد المبلغ متاحاً في رصيدك."
   },
+  "tracking.signal_lost": {
+    "subject": "الرحلة {trip_no}: لا موقع منذ {minutes} دقيقة",
+    "body": "لم ترسل مركبة الرحلة {trip_no} أي موقع منذ {minutes} دقيقة. تواصل مع السائق؛ يُغلق التنبيه عند عودة المواقع."
+  },
+  "tracking.alert_escalated": {
+    "subject": "الرحلة {trip_no}: ما زال لا موقع بعد {minutes} دقيقة",
+    "body": "مركبة الرحلة {trip_no} صامتة منذ {minutes} دقيقة وتم تصعيد التنبيه. تواصل مع السائق الآن وسجّل ما حدث."
+  },
   "document.approved": {
     "subject": "اعتُمدت {doc_type}",
     "body": "رُوجعت {doc_type} واعتُمدت."
