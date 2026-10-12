@@ -190,3 +190,32 @@ def test_commission_is_released_to_the_agency_when_the_trip_completes(agency, tr
     after = agency.get("/api/agency/dashboard").json()
     assert after["balance"] - before["balance"] >= pytest.agency_commission
     assert after["commission_released"] - before["commission_released"] >= pytest.agency_commission
+
+
+def test_the_agent_sees_a_boarding_photo_of_its_sale_only_when_the_platform_allows_it(agency):
+    from test_boarding_photo import change_setting, switch_on, view_access
+    switch_on(enforce=False)
+    trip = bookable_trip(client())            # a trip still open for sale: the trip fixture is spent by the tests above
+    if trip is None:
+        publish_fresh_trip()
+        trip = bookable_trip(client())
+    r = sell(agency, trip, free_seats(agency, trip, 1))
+    assert r.status_code == 201, r.text
+    ticket = str(owner_sql("""SELECT k.uid FROM sales.ticket k JOIN sales.booking b ON b.id = k.booking_id
+                               WHERE b.booking_ref = $1""", r.json()["booking_ref"]))
+    assert agency.get(f"/api/agency/tickets/{ticket}/photo").status_code == 403       # the agent is off at launch
+    access = dict(view_access(), AGENT=True)
+    change_setting("photo.view_access", access)
+    try:
+        r = agency.get(f"/api/agency/tickets/{ticket}/photo")
+        assert r.status_code == 409 and r.json()["error"]["code"] == "NOT_BOARDING", r.text
+        original = owner_sql("SELECT status FROM ops.trip WHERE uid = $1", uuid.UUID(trip["uid"]))
+        owner_sql("UPDATE ops.trip SET status = 'BOARDING' WHERE uid = $1", uuid.UUID(trip["uid"]))
+        try:
+            r = agency.get(f"/api/agency/tickets/{ticket}/photo")
+            assert r.status_code == 404 and r.json()["error"]["code"] == "PHOTO_NONE", r.text     # no photo on file
+            assert agency.get(f"/api/agency/tickets/{uuid.uuid4()}/photo").status_code == 404     # not a ticket of this agency
+        finally:
+            owner_sql("UPDATE ops.trip SET status = $2 WHERE uid = $1", uuid.UUID(trip["uid"]), original)
+    finally:
+        change_setting("photo.view_access", dict(access, AGENT=False))

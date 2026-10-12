@@ -79,11 +79,16 @@ async def take(conn, ctx: db.Context, pr: Principal, data: bytes, file_name: str
 
 
 async def status(conn, ctx: db.Context, pr: Principal) -> dict:
-    """Whether the signed-in person has a boarding photo on file, and when it was taken. Never the picture itself."""
+    """Whether the signed-in person has a boarding photo on file, and when it was taken. Never the picture itself. The app
+    shows the photo part only when the photo is in use (enabled), and the picture when the platform lets the traveler see it
+    (can_view, 1096)."""
+    enabled = await switched_on(conn)
+    can_view = enabled and await view_allowed(conn, "TRAVELER")
     row = await conn.fetchrow("SELECT taken_at, taken_by FROM iam.party_photo WHERE party_id = $1", pr.party_id)
     if row is None:
-        return {"has_photo": False, "taken_at": None, "taken_by": None}
-    return {"has_photo": True, "taken_at": row["taken_at"].isoformat(), "taken_by": row["taken_by"]}
+        return {"enabled": enabled, "can_view": can_view, "has_photo": False, "taken_at": None, "taken_by": None}
+    return {"enabled": enabled, "can_view": can_view, "has_photo": True, "taken_at": row["taken_at"].isoformat(),
+            "taken_by": row["taken_by"]}
 
 
 async def read_for_ticket(conn, ctx: db.Context, trip_id: int, ticket_uid: uuid.UUID, context: str) -> tuple[int, bytes, str]:

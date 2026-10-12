@@ -300,7 +300,7 @@ section.
   (`{"document_no": ...}` on `POST .../policy-changes/{uid}/approve`); it is optional.
 - **Who sees the photo and when (1096).** `photo.view_access` holds four values, each true or false: `TRAVELER` (the person sees their own
   photo in the app on request, `GET /api/account/photo/image`), `DRIVER_AT_BOARDING`, `CARRIER_OFFICE_AT_BOARDING` (the driver and the
-  carrier's office see a passenger's photo only while the trip is `BOARDING`; the office is off at launch) and `AGENT`. Change it with
+  carrier's office see a passenger's photo only while the trip is `BOARDING`; the office is off at launch) and `AGENT`, which is the agency that sold the ticket, through `GET /api/agency/tickets/{uid}/photo`, only while the trip is boarding. Change it with
   `POST /api/admin/photos/settings/changes` (`key`, `value`, `reason`); it passes the approval stages.
 - **When the rules are enforced (1096).** `photo.enforce_from` is a date (`YYYY-MM-DD`) or null. A photo required by a rule in force is
   asked from that date only; before it, nothing is refused for lack of a photo. It is set by the platform from the date the law or a

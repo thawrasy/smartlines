@@ -65,7 +65,7 @@ const en = {
              photoTake: "Take photo", photoShoot: "Take this photo", photoAllow: "Allow the camera",
              photoHow: "Face the camera in good light, with nothing covering your face." },
   driver: {
-    passengerPhoto: "Passenger photo", noPhoto: "No photo could be shown. Check the identity document by hand.",
+    passengerPhoto: "Passenger photo", noPhoto: "No photo could be shown. Check the identity document by hand.", photoAtBoarding: "The photo is shown when boarding starts.",
     today: "Your trips", board: "Boarding", download: "Download for offline", downloaded: "Ready offline · {n} tickets",
     scan: "Point the camera at the ticket code", pending: "{n} scans waiting to sync", synced: "All scans synced",
     clockOff: "This phone's clock is off by more than 5 minutes. Scans use the server time, but set the clock to automatic.",

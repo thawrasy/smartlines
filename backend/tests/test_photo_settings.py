@@ -88,3 +88,15 @@ def test_the_enforcement_date_decides_when_a_required_photo_is_asked(trip):
     finally:
         change_setting("photo.enforce_from", None)
         retire_child_rule(admin, sec, privacy2, uid)
+
+
+def test_the_app_is_told_whether_the_photo_is_in_use_and_whether_the_traveler_may_see_it():
+    email, c = register()
+    status = c.get("/api/account/photo").json()
+    assert status["enabled"] is True and status["can_view"] is True and status["has_photo"] is False
+    access = dict(view_access(), TRAVELER=False)
+    change_setting("photo.view_access", access)
+    try:
+        assert c.get("/api/account/photo").json()["can_view"] is False
+    finally:
+        change_setting("photo.view_access", dict(access, TRAVELER=True))

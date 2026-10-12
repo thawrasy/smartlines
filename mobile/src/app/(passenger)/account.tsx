@@ -1,19 +1,34 @@
-import { useRef, useState } from "react";
-import { Alert, Text, View } from "react-native";
+import { useEffect, useRef, useState } from "react";
+import { Alert, Image, Text, View } from "react-native";
 import { router } from "expo-router";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { useI18n, type Locale } from "../../i18n";
-import { api } from "../../platform/api";
+import { api, authHeaders } from "../../platform/api";
+import { API_URL } from "../../platform/config";
 import { useAuth } from "../../platform/auth";
 import { Button, Card, Chip, ErrorText, Field, Loading, Screen, Title, s } from "../../ui/kit";
 import { useLoad } from "../../ui/useLoad";
 
 interface Device { id: number; platform: string; app_version: string | null; last_seen_at: string | null; revoked_at: string | null; current: boolean }
 
+/** The traveler's own photo, loaded from the API with the traveler's token (1096: only when the platform lets the traveler see it). */
+function OwnPhoto() {
+  const { t } = useI18n();
+  const [headers, setHeaders] = useState<Record<string, string> | null>(null);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => { void authHeaders().then(setHeaders); }, []);
+  if (failed || !headers) return null;
+  return (
+    <Image accessibilityLabel={t("account.photoTitle")} resizeMode="cover" onError={() => setFailed(true)}
+           source={{ uri: `${API_URL}/api/account/photo/image`, headers }}
+           style={{ width: 160, height: 200, borderRadius: 12, alignSelf: "center" }} />
+  );
+}
+
 /** The boarding photo (1086): taken once, with the front camera; the driver and the office compare it with the ID. */
 function BoardingPhotoCard() {
   const { t, date } = useI18n();
-  const status = useLoad(() => api.get<{ has_photo: boolean; taken_at: string | null }>("/api/account/photo"));
+  const status = useLoad(() => api.get<{ enabled: boolean; can_view: boolean; has_photo: boolean; taken_at: string | null }>("/api/account/photo"));
   const [permission, requestPermission] = useCameraPermissions();
   const cam = useRef<CameraView>(null);
   const [shooting, setShooting] = useState(false);
@@ -32,12 +47,17 @@ function BoardingPhotoCard() {
     } catch (e) { setError(e); } finally { setBusy(false); }
   };
   if (status.loading && !status.data) return <Card><Loading /></Card>;
+  // while the platform does not use the boarding photo, the app shows nothing of it (1096)
+  if (status.data && !status.data.enabled) return null;
   return (
     <Card>
       <Text style={s.h2}>{t("account.photoTitle")}</Text>
       <ErrorText error={status.error ?? error} />
       {status.data?.has_photo ? (
-        <Text style={s.small}>{t("account.photoOnFile", { date: date(status.data.taken_at ?? new Date().toISOString()) })}</Text>
+        <>
+          <Text style={s.small}>{t("account.photoOnFile", { date: date(status.data.taken_at ?? new Date().toISOString()) })}</Text>
+          {status.data.can_view ? <OwnPhoto /> : null}
+        </>
       ) : !shooting ? (
         <>
           <Text style={s.small}>{t("account.photoNone")}</Text>
