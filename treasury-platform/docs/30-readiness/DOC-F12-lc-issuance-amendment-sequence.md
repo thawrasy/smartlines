@@ -36,7 +36,7 @@
 
 **الوسوم:** 🟢 موجود أو مقرر في المستودع أو الوثائق مع الملف والسطر. 🟡 اقتراح.
 
-**اختصارات المراجع:** «14» هو docs/10-detailed-analysis/14-m7-m8-letters-of-credit.md، و«13» هو docs/10-detailed-analysis/13-m6-workflow-engine-notifications.md، و«12» هو docs/10-detailed-analysis/12-m5-facilities-pricing-collateral-obligations.md، و«02» هو docs/02-forms-analysis-ucp600.md. و«m16» هو db/model/16-letters-of-credit.model، و«m13» هو db/model/13-facilities-pricing-terms.model، و«m15» هو db/model/15-workflow-notifications.model، و«m10» هو db/model/10-platform.model. و«001_tables.sql» و«005» و«006» و«007» ملفات db/generated/tsql بالأرقام نفسها. وDR-nn نتائج docs/review/design-review-2026-10-11.json.
+**اختصارات المراجع:** «14» هو docs/10-detailed-analysis/14-m7-m8-letters-of-credit.md، و«13» هو docs/10-detailed-analysis/13-m6-workflow-engine-notifications.md، و«12» هو docs/10-detailed-analysis/12-m5-facilities-pricing-collateral-obligations.md، و«02» هو docs/02-forms-analysis-ucp600.md. و«m16» هو db/model/16-letters-of-credit.model، و«m13» هو db/model/13-facilities-pricing-terms.model، و«m15» هو db/model/15-workflow-notifications.model، و«m10» هو db/model/10-platform.model. و«001_tables.sql» و«005» و«006» و«007» ملفات db/generated/tsql بالأرقام نفسها. وDR-nn نتائج docs/review/design-review-2026-10-11.json. و«DOC-xxx:n» السطر n من الوثيقة نفسها في docs/30-readiness/.
 
 ## 2. ما هو موجود اليوم
 
@@ -368,12 +368,53 @@ sequenceDiagram
 
 ## 10. القرارات المطلوبة
 
-(قيد الكتابة)
+| المعرّف | السؤال | الافتراض المقترح | من يقرر | ما يعطّله |
+|---|---|---|---|---|
+| DQ-F12-1 | هل يُفحص نموذج الإصدار قبل `fac.convert_reservation`؟ | نعم، فحص V-LCI-01 إلى V-LCI-04 بلا كتابة، ثم يُعاد داخل `lc.record_issuance` | معماري الحلول مع مالك M7 | خروج ISSUANCE في S3 |
+| DQ-F12-2 | من ينشئ صف LcAmendment ومتى تُكتب REQUESTED وBANK_ISSUED؟ | DRAFT عند أول حفظ للطلب الفرعي؛ REQUESTED عند خروج EXECUTION؛ BANK_ISSUED بحفظ نموذج `lc.amendment_result` | مالك M7 مع مالك M6 | قالب CHILD_AMENDMENT (DOC-F10) |
+| DQ-F12-3 | من يقفل شروط التعديل ويحسب Delta والفروق؟ | إضافة `lc.validate_terms` على ON_ACTION(SUBMIT/RESUBMIT) في CHILD_AMENDMENT | مالك M6 | تعديل 13:344 |
+| DQ-F12-4 | كيف يُمنع الرفع المزدوج عند مرور ثانٍ بـ TM_APPROVAL؟ | الخطاف يطبّق `Delta − ReservationDeltaApplied`، ومفتاحه (LcAmendmentId، RAISE، CycleNo)؛ والفرق السالب يعيد جزءًا | معماري الحلول | خطاف TM_APPROVAL |
+| DQ-F12-5 | هل يحسب `lc.sync_exposure` والمطابقة الليلية الزيادة المعلّقة؟ | نعم: الهدف = القائم + مجموع ReservationDeltaApplied للتعديلات غير المنتهية | مالك M7 مع مالك M5 | FR-LCI-016، JOB-LC-RECONCILE |
+| DQ-F12-6 | ماذا يحدث لاعتماد ينتهي وعليه تمديد صادر من البنك بانتظار الرد؟ | تؤجل JOB-LC-EXPIRY انتهاءه ما دام التعديل BANK_ISSUED وأُصدر قبل الانتهاء، وتنبّه TM يوميًا | مالك المنتج (مدير الخزينة) | JOB-LC-EXPIRY |
+| DQ-F12-7 | هل يجوز سحب تعديل بعد إصدار البنك له؟ | نعم لـ TM فقط، بتأكيد مكتوب من البنك مرفق وسبب | مالك المنتج مع مختص قانوني بعد تحقق O-06 | نموذج `lc.amendment_result` |
+| DQ-F12-8 | ما شروط تطبيق تعديل الإلغاء؟ | حارس الإغلاق V-LCI-09؛ وإلا يُرفض التطبيق حتى التسديد. عند القبول: CANCELLED و`fac.release_utilization` | مالك المنتج | `lc.apply_amendment` |
+| DQ-F12-9 | ما قيمة `LetterOfCredit.AmendmentNo` بعد التطبيق؟ | رقم التعديل المطبَّق نفسه، لا زيادة بواحد | محلل الأعمال | صياغة BR-LCI-012 |
+| DQ-F12-10 | كيف يُسجَّل القبول بتقديم مطابق والقبول الجزئي؟ | الأول ACCEPTED يدويًا بملاحظة «تقديم مطابق»؛ والثاني REJECTED | مالك المنتج مع مختص بعد تحقق O-06 | نموذج `lc.amendment_result` |
+| DQ-F12-11 | كيف تُعامل القيم المقيّدة في المقارنة وفروق التعديل؟ (DR-46، DQ-F02-1) | §8.3: لا نسخ، والحكم من البصمة، ووسم confidential، وعمود Sensitivity في LcFieldDefinition | معماري قاعدة البيانات مع مالك M7 وM8 | FR-LCI-018 (S3)، FR-LCT-031 (S4) |
+| DQ-F12-12 | هل ينشئ قرار REQUEST_AMENDMENT في المقارنة تعديل تصدير؟ | نعم، مسودة بأصل OUR_REQUEST | مالك M8 | FR-LCE-023 (ممكن) |
+| DQ-F12-13 | هل يُلزم InstitutionId لاعتماد المشتريات؟ (DR-45) | نعم، قيد CHECK لغير LegacyEntry، وتفحصه `lc.record_issuance` | معماري قاعدة البيانات | V-LCI-01 |
+| DQ-F12-14 | أي الرابطين مصدر الحقيقة بين الاعتماد والاستغلال؟ (DR-26) | `LetterOfCredit.UtilizationId`؛ وSourceRefId يُفحص في التطبيق والمطابقة حتى يُحسم DR-26 | معماري قاعدة البيانات مع مالك M5 | `lc.record_issuance` |
+| DQ-F12-15 | رموز أخطاء الاعتمادات في نموذج الأخطاء | إضافة INSUFFICIENT_LC_BALANCE وLC_NOT_ACTIVE وCURRENCY_MISMATCH وIMMUTABLE_SOURCE وDUPLICATE_SOURCE إلى DOC-B04 بحالات HTTP | قائد الواجهات البرمجية | عقد API لـ S3 |
 
 ## 11. تعارضات وفجوات في المصادر
 
-(قيد الكتابة)
+1. **رقم التعديل.** BR-LCI-012 يقول AmendmentNo+1 (14:271). AC-LCI-2 يعطي AmendmentNo = 2 بعد تعديل مطبَّق واحد (14:767)، والنموذج يقول «رقم آخر تعديل مطبَّق» (m16:429، m16:488). DQ-F12-9.
+2. **ترتيب فحص الإصدار.** V-LCI-01 إلى V-LCI-04 مخرجات `lc.record_issuance` (14:308)، وهي تعمل بعد `fac.convert_reservation` (13:332). الفشل يلغي المعاملة، لكن بعد قفل صفوف الحد بلا داع. DQ-F12-1.
+3. **تعرّض صادر أكبر من المحجوز.** 14:266 و14:571 يجعلانه خطأ V-LCI-02. أما 12:253 و13:249 فيقبلانه بفحص الفرق كحجز جديد. المسار في 12 و13 لا يُبلغ من الاعتمادات؛ يُوحَّد النص.
+4. **قفل شروط التعديل.** BR-LCT-019 يقفل الشروط عند التقديم (14:251)، لكن `lc.validate_terms` مبذور في PURCHASE_LC وPROFORMA_REQUEST فقط (14:307؛ 13:344). DQ-F12-3.
+5. **إعادة احتساب التعرّض.** `lc.sync_exposure` يضبط الاستغلال على القائم (14:313)، والرفع يسبق القبول (14:269؛ 13:310). يتعارضان أثناء تعديل معلّق. DQ-F12-5.
+6. **السحب بعد إصدار البنك.** 14:536 يسمح بـ WITHDRAWN من BANK_ISSUED بلا شرط. فهمنا الهندسي للمادة 10 أن البنك ملتزم من وقت الإصدار (§9، غير مُتحقَّق). DQ-F12-7.
+7. **المادة 29.** 02:185 تربطها بـ«تعديل» لتمديد الانتهاء. 14:237 يستعملها لتمديد الانتهاء في يوم عطلة البنك. كلاهما مرجع هندسي، ويُحسم بالتحقق (O-06).
+8. **معالجة DR-46.** DQ-F02-1 (DOC-F02:284) وتوصية DR-46 (docs/review/design-review-2026-10-11.json:486) تقترحان نسخ القناع وبصمة HMAC. لكن القناع والبصمة موسومان مقيّدين في المصدر (m16:187-188)، والنسخة ترث أعلى مستوى (DOC-S06:176). فالنسخة نفسها تصير مقيّدة. هذه الوثيقة تقترح عدم النسخ (§8.3). يُحسم مع DQ-F02-1.
+9. **أسطر قديمة في DR-46.** النتيجة تشير إلى 16:686-687 و16:490. الأعمدة اليوم في m16:691-692 وm16:493 (لوحظ أيضًا في DOC-F02:298).
+10. **عبارة قديمة في DR-41.** «No trigger exists anywhere under db/» (docs/review/design-review-2026-10-11.json:431). توجد اليوم قوادح في db/static/030_session_context.sql:245 وdb/static/050_fac_share_rule.sql:26. العبارة ما زالت صحيحة لجداول lc.
+11. **إكمال الطلب.** 13:485 يصدر `REQ.COMPLETED` عند الإصدار. هذه الوثيقة تتبع DOC-F08 §5: AWAITING_CLOSE عند الإصدار و`REQ.COMPLETED` عند الإقفال، ويبقى LC.ISSUED عند الإصدار.
+12. **رموز الأخطاء.** INSUFFICIENT_LC_BALANCE وLC_NOT_ACTIVE وCURRENCY_MISMATCH (14:311) وIMMUTABLE_SOURCE وDUPLICATE_SOURCE (12:253، 12:258) غير موجودة في DOC-B04، وفيه INSUFFICIENT_AVAILABLE وRESERVATION_NOT_ACTIVE فقط (DOC-B04:234-235). DQ-F12-15.
+13. **أحداث ناقصة.** قائمة Outbox (14:655) بلا حدث لإلغاء الاعتماد ولا لرفض التعديل. الإشعار LC.AMENDMENT_RESPONSE موجود (14:605). يُستكمل في DOC-F17.
 
 ## 12. التتبع
 
-(قيد الكتابة)
+| البند في هذه الوثيقة | المتطلب أو القاعدة أو القرار | المصدر |
+|---|---|---|
+| §4 تسلسل الإصدار | FR-LCI-011، FR-LCI-012، BR-LCI-007، BR-WFL-018، BR-FAC-015 | 14:167-168، 14:266، 14:492؛ 12:455؛ 13:249، 13:332؛ 12:253؛ m16:390-471 |
+| §4 الاعتماد القائم | FR-LCI-029، BR-LCI-017، BR-FAC-020 | 14:185، 14:276؛ 12:258؛ m16:468 |
+| §5 انتقال الحجز | FR-LCI-017، BR-LCI-010، BR-LCI-019، FR-WFL-023 | 14:173، 14:269، 14:278؛ 13:144؛ m13:242-324؛ m15:294-296 |
+| §6.1 أنواع التعديل | FR-LCI-018، BR-LCI-011، FR-REQ-027 | 14:174، 14:270؛ 13:194، 13:344؛ m16:490 |
+| §6.2 رفع التعرّض | FR-WFL-022، BR-FAC-020، AC-WFL-7 | 13:143، 13:310، 13:776-779؛ 12:258؛ m16:505 |
+| §6.3 التطبيق | FR-LCI-019، BR-LCI-012، AC-LCI-2 | 14:175، 14:271، 14:309، 14:494، 14:764-767؛ m16:498-522 |
+| §6.4 أصحاب القرار | صفوف الأدوار 9 و11 و15 و16 | 14:56، 14:58، 14:62، 14:63 |
+| §6.6 والقرارات DQ-F12-2 إلى DQ-F12-8 | BR-WFL-015، BR-LCI-015، V-LCI-07 إلى V-LCI-09 | 13:246؛ 14:274، 14:576-578 |
+| §7 الانتهاء والإغلاق | FR-LCI-015، FR-LCI-025، FR-LCI-026، BR-LCI-009، AC-LCI-1 | 14:171، 14:181-182، 14:268، 14:615، 14:759-762 |
+| §8 المقارنة وDR-46 | FR-LCT-031، FR-LCE-023، BR-LCT-021، FR-REQ-024، DR-46، DQ-F02-1 | 14:145، 14:217، 14:253، 14:667؛ m16:678-697؛ 006:33-35؛ 007:403-405؛ DOC-F02:200-201 |
+| §9 مراجع UCP | O-06 (erd_open_items)، Q-LCT-01 | tools/dbgen/erd_open_items.py:44-48؛ 14:14، 14:696؛ 02:11، 02:161-190؛ docs/10-detailed-analysis/00-overview-and-cross-cutting.md:225 |
+| DQ-F12-13 وDQ-F12-14 | DR-45، DR-26 | docs/review/design-review-2026-10-11.json:280، :475؛ m16:399، m16:410؛ m13:255 |
