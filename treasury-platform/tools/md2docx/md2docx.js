@@ -3,7 +3,10 @@
    Usage:  NODE_PATH=$(npm root -g) node tools/md2docx/md2docx.js <in.md> <out.docx> [--header "short header text"] [--toc-top-only]
    Pipeline: pandoc (gfm -> JSON AST) -> docx-js (RTL paragraphs/tables/lists) -> post-process (<w:bidi/> on the section).
    Supported Markdown: headings, paragraphs, bold/italic/inline code, pipe tables, bullet/ordered/nested lists,
-   block quotes, fenced code blocks, horizontal rules (dropped), links (rendered as plain text). */
+   block quotes, fenced code blocks, horizontal rules (dropped), links (rendered as plain text).
+   Mermaid: when MMDC names the mermaid-cli binary (optionally MMDC_PUPPETEER for its -p config), each ```mermaid block
+   is rendered to a PNG and embedded as a picture; without MMDC it stays a code block and a warning is printed.
+   A diagram that fails to render stops the conversion, so a broken diagram never reaches Word as text. */
 'use strict';
 const fs = require('fs');
 const path = require('path');
@@ -133,8 +136,10 @@ function listBlock(block, level, ordRef, out) {
 function pngSize(buf) { return { w: buf.readUInt32BE(16), h: buf.readUInt32BE(20) }; }
 function imageBlock(img) {
   const [, altInlines, [src]] = img.c;
-  const file = path.resolve(BASE_DIR, src);
-  const data = fs.readFileSync(file);
+  return pictureParas(fs.readFileSync(path.resolve(BASE_DIR, src)), src, altInlines);
+}
+function pictureParas(data, name, altInlines) {
+  const src = name;
   const { w, h } = pngSize(data);
   const MAX_W = 640, MAX_H = 860;                       // بكسل بـ96 dpi: عرض الصفحة وارتفاعها المتاحان تقريبًا
   let width = MAX_W, height = Math.round(h * MAX_W / w);
@@ -218,6 +223,23 @@ function codeBlock(text, out) {
   })));
 }
 
+// ```mermaid -> PNG through mermaid-cli (scale 2 so the picture stays sharp when Word shrinks it to the page width)
+const MMDC = process.env.MMDC || '';
+let mermaidNo = 0;
+function mermaidBlock(text, out) {
+  if (!MMDC) { console.error('warning: MMDC not set; mermaid block kept as code'); codeBlock(text, out); return; }
+  const os = require('os');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'md2docx-mmd-'));
+  const src = path.join(dir, 'd.mmd'), png = path.join(dir, 'd.png');
+  fs.writeFileSync(src, text);
+  const args = ['-q', '-i', src, '-o', png, '-s', '2', '-b', 'white'];
+  if (process.env.MMDC_PUPPETEER) args.push('-p', process.env.MMDC_PUPPETEER);
+  try { execFileSync(MMDC, args, { stdio: ['ignore', 'ignore', 'pipe'], timeout: 180000 }); }
+  catch (e) { throw new Error(`mermaid block ${mermaidNo + 1} failed to render: ${String(e.stderr || e.message).split('\n').find(l => /Error/.test(l)) || e.message}`); }
+  out.push(...pictureParas(fs.readFileSync(png), `diagram-${++mermaidNo}.png`, []));
+  fs.rmSync(dir, { recursive: true, force: true });
+}
+
 function blockToDocx(b, out) {
   switch (b.t) {
     case 'Header': {
@@ -252,7 +274,7 @@ function blockToDocx(b, out) {
       }));
       break;
     }
-    case 'CodeBlock': codeBlock(b.c[1], out); break;
+    case 'CodeBlock': if (b.c[0][1].includes('mermaid')) mermaidBlock(b.c[1], out); else codeBlock(b.c[1], out); break;
     case 'Table': tableBlock(b, out); break;
     case 'HorizontalRule': break;
     default: console.error('unsupported block', b.t);
