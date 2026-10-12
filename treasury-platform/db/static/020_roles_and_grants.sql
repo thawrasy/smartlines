@@ -4,7 +4,7 @@
 
    tp_app       حساب تشغيل تطبيق المشترك: منح جدولية فقط (007)؛ لا كتابة على الجداول العالمية؛ لا plat.PlatformOperator
    tp_platform  مشغّلو المنصة: كتابة على الكتالوجات العالمية والمختلطة وplat؛ لا وصول مباشر لبيانات المشتركين (007)
-   tp_auth      دور داخلي بلا تسجيل دخول: تُنفَّذ به إجراءات الدخول والربط وقوادح السحب فقط (030، ADR 0002)
+   tp_auth      دور داخلي بلا تسجيل دخول: تُنفَّذ به إجراءات الدخول والربط والحساب وقوادح السحب فقط (030، 035، ADR 0002 و0003)
    tp_readonly  تقارير/تحليل: قراءة فقط، دون الأعمدة الحساسة (006)
    tp_migrator  دور النشر والترحيلات (المخططات يملكها dbo اليوم؛ ملكيته قرار في DOC-S08)؛ لا منح تشغيلية له هنا
 
@@ -29,7 +29,7 @@ BEGIN
 END
 CLOSE c; DEALLOCATE c;
 GO
--- tp_auth لا يملك تسجيل دخول؛ منحه هنا على خمسة جداول تحتاجها إجراءات 030 فقط (قاعدة R6 في check_grants.py). تجاوز RLS له محصور في 010 (IS_MEMBER)
+-- tp_auth لا يملك تسجيل دخول؛ منحه هنا على الجداول التي تحتاجها إجراءات 030 و035 فقط (قاعدة R6 في check_grants.py). تجاوز RLS له محصور في 010 (IS_MEMBER)
 -- EXECUTE AS needs a database user, not a role. tp_auth_exec is a user without login that is a member of tp_auth,
 -- so IS_MEMBER(N'tp_auth') = 1 holds while the context procedure runs (030).
 IF DATABASE_PRINCIPAL_ID(N'tp_auth_exec') IS NULL CREATE USER [tp_auth_exec] WITHOUT LOGIN;
@@ -67,6 +67,12 @@ DENY UPDATE, DELETE ON [aud].[AuditLog] TO [tp_app], [tp_platform];
 GRANT UPDATE ON [sec].[AppUser] TO [tp_auth];
 GRANT SELECT, INSERT, UPDATE ON [sec].[UserSession] TO [tp_auth];
 GRANT INSERT ON [sec].[LoginAttempt] TO [tp_auth];
+-- Account security (035, ADR 0003) and the tenant-status rule (O-18: the TA role decides access in SUSPENDED and CLOSED).
+GRANT SELECT ON [sec].[UserRole] TO [tp_auth];
+GRANT SELECT ON [sec].[Role] TO [tp_auth];
+GRANT SELECT, INSERT, UPDATE ON [sec].[UserToken] TO [tp_auth];
+GRANT SELECT, INSERT, UPDATE, DELETE ON [sec].[MfaRecoveryCode] TO [tp_auth];
+GRANT SELECT, INSERT, DELETE ON [sec].[UserPasswordHistory] TO [tp_auth];
 -- Ordering rule: a DENY on a permission that the generated grants (007) later GRANT is removed by that GRANT, and a
 -- table-level GRANT clears column-level DENYs. Such DENYs therefore live in 030, which runs after 007 (deploy.sql).
 -- مخطط rls يُنشأ في 010؛ منحه لـ tp_app هناك بعد إنشائه

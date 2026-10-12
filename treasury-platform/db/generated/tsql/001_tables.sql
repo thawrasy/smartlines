@@ -325,7 +325,7 @@ CREATE TABLE [sec].[LoginAttempt] (
     CONSTRAINT [PK_LoginAttempt] PRIMARY KEY CLUSTERED ([LoginAttemptId]),
     CONSTRAINT [UQ_LoginAttempt_Tenant] UNIQUE ([TenantId], [LoginAttemptId]),
     CONSTRAINT [CK_LoginAttempt_1] CHECK (UserId IS NOT NULL OR LoginName IS NOT NULL),
-    CONSTRAINT [CK_LoginAttempt_Outcome] CHECK ([Outcome] IS NULL OR [Outcome] IN ('LOGIN_SUCCESS', 'FAILED_PASSWORD', 'DENIED_LOCKED', 'FAILED_MFA', 'LOCKOUT'))
+    CONSTRAINT [CK_LoginAttempt_Outcome] CHECK ([Outcome] IS NULL OR [Outcome] IN ('LOGIN_SUCCESS', 'FAILED_PASSWORD', 'DENIED_LOCKED', 'DENIED_TENANT', 'FAILED_MFA', 'LOCKOUT'))
 );
 GO
 -- Connection binding for the row filters (O-16)
@@ -361,7 +361,7 @@ CREATE TABLE [sec].[UserSession] (
     CONSTRAINT [UQ_UserSession_Tenant] UNIQUE ([TenantId], [UserSessionId]),
     CONSTRAINT [UQ_UserSession_TokenHash] UNIQUE ([TenantId], [TokenHash]),
     CONSTRAINT [CK_UserSession_1] CHECK ((EndedAt IS NULL AND EndReason IS NULL) OR (EndedAt IS NOT NULL AND EndReason IS NOT NULL)),
-    CONSTRAINT [CK_UserSession_EndReason] CHECK ([EndReason] IS NULL OR [EndReason] IN ('LOGOUT', 'IDLE_TIMEOUT', 'ABSOLUTE_TIMEOUT', 'TERMINATED_BY_ADMIN', 'PASSWORD_CHANGED', 'MFA_RESET', 'USER_DISABLED', 'TENANT_SUSPENDED'))
+    CONSTRAINT [CK_UserSession_EndReason] CHECK ([EndReason] IS NULL OR [EndReason] IN ('LOGOUT', 'IDLE_TIMEOUT', 'ABSOLUTE_TIMEOUT', 'TERMINATED_BY_ADMIN', 'PASSWORD_CHANGED', 'MFA_RESET', 'MFA_FAILED', 'USER_DISABLED', 'TENANT_SUSPENDED'))
 );
 GO
 -- Ten single-use recovery codes, stored hashed (FR-PLT-011, BR-PLT-006); replaces the AppUser.RecoveryCodesHash JSON
@@ -381,12 +381,12 @@ CREATE TABLE [sec].[MfaRecoveryCode] (
     CONSTRAINT [UQ_MfaRecoveryCode_UserId_CodeHash] UNIQUE ([TenantId], [UserId], [CodeHash])
 );
 GO
--- Single-use invitation link (48 hours) or password-reset token (30 minutes) (FR-PLT-013)
+-- Single-use invitation link (48 hours), password-reset token (30 minutes) or MFA re-enrolment link (24 hours) (FR-PLT-013, DQ-F03-8)
 CREATE TABLE [sec].[UserToken] (
     [TenantId] INT NOT NULL,
     [UserTokenId] BIGINT IDENTITY(1,1) NOT NULL,
     [UserId] BIGINT NOT NULL,
-    [Purpose] VARCHAR(14) NOT NULL,
+    [Purpose] VARCHAR(15) NOT NULL,
     [TokenHash] VARBINARY(32) NOT NULL,
     [ExpiresAt] DATETIME2(3) NOT NULL,
     [UsedAt] DATETIME2(3) NULL,
@@ -403,7 +403,7 @@ CREATE TABLE [sec].[UserToken] (
     CONSTRAINT [PK_UserToken] PRIMARY KEY CLUSTERED ([UserTokenId]),
     CONSTRAINT [UQ_UserToken_Tenant] UNIQUE ([TenantId], [UserTokenId]),
     CONSTRAINT [UQ_UserToken_TokenHash] UNIQUE ([TenantId], [TokenHash]),
-    CONSTRAINT [CK_UserToken_Purpose] CHECK ([Purpose] IS NULL OR [Purpose] IN ('INVITATION', 'PASSWORD_RESET')),
+    CONSTRAINT [CK_UserToken_Purpose] CHECK ([Purpose] IS NULL OR [Purpose] IN ('INVITATION', 'PASSWORD_RESET', 'MFA_REENROLMENT')),
     CONSTRAINT [CK_UserToken_SendStatus] CHECK ([SendStatus] IS NULL OR [SendStatus] IN ('PENDING', 'SENT', 'FAILED'))
 );
 GO

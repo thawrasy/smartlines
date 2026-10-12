@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Database CI: checks the model, confirms the generated DDL is current, deploys it to SQL Server,
-# compares what was deployed with the DDL, and runs the trigger tests and the tenant-isolation tests.
+# compares what was deployed with the DDL, and runs the trigger, tenant-isolation and account-security tests.
 #
 # Environment:
 #   SA_PASSWORD   password of the sa login (required)
@@ -84,10 +84,29 @@ if grep -q '^FAIL' "$TMP/isolation.out"; then
     exit 1
 fi
 iso_pass=$(grep -c '^PASS' "$TMP/isolation.out" || true)
-# 41 cases: T1-T38 with T8b, T16b and T16c (T32-T37 cover login and sessions, O-17; T38 the platform audit read). A case that stops printing PASS fails the build.
-if [ "$iso_pass" -ne 41 ]; then
-    echo "expected 41 PASS, found $iso_pass"
+# 48 cases: T1-T38 and T40-T46 (there is no T39), with T8b, T16b and T16c (T32-T37 cover login and sessions, O-17; T38 the platform audit read;
+# T40-T46 the tenant-status access, mandatory MFA and the O-19/O-24 closures). A case that stops printing PASS fails the build.
+if [ "$iso_pass" -ne 48 ]; then
+    echo "expected 48 PASS, found $iso_pass"
     exit 1
 fi
 echo "tenant-isolation tests: $iso_pass passed"
+echo "== 8. account-security flow tests (db/tests/auth_flow_tests.sql)"
+sq -i db/tests/auth_flow_tests.sql > "$TMP/auth.out" 2>&1 || {
+    cat "$TMP/auth.out"
+    echo "account-security test run failed"
+    exit 1
+}
+cat "$TMP/auth.out"
+if grep -q '^FAIL' "$TMP/auth.out"; then
+    echo "an account-security test failed"
+    exit 1
+fi
+auth_pass=$(grep -c '^PASS' "$TMP/auth.out" || true)
+# 14 cases: A1-A14 (ADR 0003: invitation, MFA enrolment and checks, recovery codes, passwords, administrator actions, sessions).
+if [ "$auth_pass" -ne 14 ]; then
+    echo "expected 14 PASS, found $auth_pass"
+    exit 1
+fi
+echo "account-security tests: $auth_pass passed"
 echo "all database checks passed"

@@ -53,7 +53,7 @@ END;
 GO
 
 DECLARE @t1 INT, @t2 INT, @t3 INT;
-DECLARE @u1 BIGINT, @u1x BIGINT, @u2 BIGINT;
+DECLARE @u1 BIGINT, @u1x BIGINT, @u2 BIGINT, @u1b BIGINT, @usys BIGINT, @rTA BIGINT;
 DECLARE @f1 BIGINT, @f2 BIGINT;
 DECLARE @err INT, @err2 INT, @n INT, @n2 INT, @rows INT, @ctx INT;
 DECLARE @amt DECIMAL(19,4);
@@ -62,7 +62,8 @@ DECLARE @other UNIQUEIDENTIFIER;
 -- Session tokens held by the "application" in these tests, and a well-formed Argon2id PHC string for user 1
 DECLARE @tok1 VARBINARY(64) = CRYPT_GEN_RANDOM(32), @tok1x VARBINARY(64) = CRYPT_GEN_RANDOM(32), @tok2 VARBINARY(64) = CRYPT_GEN_RANDOM(32),
         @tokIdle VARBINARY(64) = CRYPT_GEN_RANDOM(32), @tokEnded VARBINARY(64) = CRYPT_GEN_RANDOM(32),
-        @tokBad VARBINARY(64) = CRYPT_GEN_RANDOM(32), @tokNew VARBINARY(64) = CRYPT_GEN_RANDOM(32);
+        @tokBad VARBINARY(64) = CRYPT_GEN_RANDOM(32), @tokNew VARBINARY(64) = CRYPT_GEN_RANDOM(32),
+        @tok1b VARBINARY(64) = CRYPT_GEN_RANDOM(32), @tokNoMfa VARBINARY(64) = CRYPT_GEN_RANDOM(32);
 DECLARE @phc VARCHAR(255) = '$argon2id$v=19$m=65536,t=3,p=4$c2FsdHNhbHRzYWx0c2FsdA$aGFzaGhhc2hoYXNoaGFzaGhhc2hoYXNoaGFzaGhhc2g';
 DECLARE @params VARCHAR(255), @params2 VARCHAR(255), @outUser BIGINT, @mfaReq BIT, @err3 INT, @i INT, @uctx BIGINT;
 
@@ -70,7 +71,7 @@ DECLARE @params VARCHAR(255), @params2 VARCHAR(255), @outUser BIGINT, @mfaReq BI
 INSERT plat.Tenant (Code, NameAr, NameEn, PlanId, HomeCountryId, Status, TimeZone, ClosedAt)
 VALUES (N'TST-A', N'Test A', N'Test A', 1, 1, 'ACTIVE', 'Asia/Riyadh', NULL),
        (N'TST-B', N'Test B', N'Test B', 1, 1, 'ACTIVE', 'Asia/Riyadh', NULL),
-       (N'TST-C', N'Test C', N'Test C', 1, 1, 'CLOSED', 'Asia/Riyadh', SYSUTCDATETIME());
+       (N'TST-C', N'Test C', N'Test C', 1, 1, 'CLOSED', 'Asia/Riyadh', DATEADD(DAY, -40, SYSUTCDATETIME()));   -- past the 30-day export window
 SELECT @t1 = TenantId FROM plat.Tenant WHERE Code = N'TST-A';
 SELECT @t2 = TenantId FROM plat.Tenant WHERE Code = N'TST-B';
 SELECT @t3 = TenantId FROM plat.Tenant WHERE Code = N'TST-C';
@@ -81,14 +82,28 @@ INSERT sec.AppUser (TenantId, Email, DisplayNameEn, Status, PasswordHash) VALUES
 INSERT sec.AppUser (TenantId, Email, DisplayNameEn, Status, PasswordHash) VALUES (@t1, N'u1x@test.invalid', N'User 1 disabled', 'DISABLED', 'TEST');
 SELECT @u1 = AppUserId FROM sec.AppUser WHERE Email = N'u1@test.invalid';
 SELECT @u1x = AppUserId FROM sec.AppUser WHERE Email = N'u1x@test.invalid';
+-- A second active user without the TA role, and a service account (O-18, ADR 0003)
+INSERT sec.AppUser (TenantId, Email, DisplayNameEn, Status, PasswordHash) VALUES (@t1, N'u1b@test.invalid', N'User 1b', 'ACTIVE', @phc);
+INSERT sec.AppUser (TenantId, Email, DisplayNameEn, Status, IsSystemUser) VALUES (@t1, N'svc@test.invalid', N'Service', 'ACTIVE', 1);
+SELECT @u1b = AppUserId FROM sec.AppUser WHERE Email = N'u1b@test.invalid';
+SELECT @usys = AppUserId FROM sec.AppUser WHERE Email = N'svc@test.invalid';
+-- User 1 is the tenant administrator (system role TA)
+INSERT sec.Role (TenantId, Code, NameAr, NameEn, IsSystem, SeedKey) VALUES (@t1, 'TA', N'مدير الحساب', N'Tenant administrator', 1, 'ROLE.TA');
+SELECT @rTA = RoleId FROM sec.Role WHERE TenantId = @t1 AND Code = 'TA';
+INSERT sec.UserRole (TenantId, UserId, RoleId) VALUES (@t1, @u1, @rTA);
 INSERT fac.Facility (TenantId, FacilityNo, BorrowerCompanyId, FacilityTypeId, CurrencyId, TotalAmount, PrecedenceLanguage, EffectiveFrom, ExpiryDate)
 VALUES (@t1, N'TST-F1', 1, 1, 1, 1000, 'EN', '2026-01-01', '2027-01-01');
 SET @f1 = SCOPE_IDENTITY();
 INSERT cfg.NonWorkingDay (TenantId, CountryId, OnDate, NameEn) VALUES (@t1, 1, '2026-12-26', N'TEST-T1');
 -- Sessions of tenant 1: user 1 (valid), the disabled user, an idle-expired one and an ended one
+-- Sessions with MFA recorded are marked MfaVerifiedAt (MFA is mandatory, ADR 0003); @tokNoMfa has none.
+INSERT sec.UserSession (TenantId, UserId, TokenHash, IdleExpiresAt, AbsoluteExpiresAt, EndedAt, EndReason, MfaVerifiedAt)
+VALUES (@t1, @u1,  HASHBYTES('SHA2_256', @tok1),     DATEADD(MINUTE, 30, SYSUTCDATETIME()), DATEADD(HOUR, 12, SYSUTCDATETIME()), NULL, NULL, SYSUTCDATETIME()),
+       (@t1, @u1x, HASHBYTES('SHA2_256', @tok1x),    DATEADD(MINUTE, 30, SYSUTCDATETIME()), DATEADD(HOUR, 12, SYSUTCDATETIME()), NULL, NULL, SYSUTCDATETIME()),
+       (@t1, @u1b, HASHBYTES('SHA2_256', @tok1b),    DATEADD(MINUTE, 30, SYSUTCDATETIME()), DATEADD(HOUR, 12, SYSUTCDATETIME()), NULL, NULL, SYSUTCDATETIME()),
+       (@t1, @u1,  HASHBYTES('SHA2_256', @tokNoMfa), DATEADD(MINUTE, 30, SYSUTCDATETIME()), DATEADD(HOUR, 12, SYSUTCDATETIME()), NULL, NULL, NULL);
 INSERT sec.UserSession (TenantId, UserId, TokenHash, IdleExpiresAt, AbsoluteExpiresAt, EndedAt, EndReason)
-VALUES (@t1, @u1,  HASHBYTES('SHA2_256', @tok1),     DATEADD(MINUTE, 30, SYSUTCDATETIME()), DATEADD(HOUR, 12, SYSUTCDATETIME()), NULL, NULL),
-       (@t1, @u1x, HASHBYTES('SHA2_256', @tok1x),    DATEADD(MINUTE, 30, SYSUTCDATETIME()), DATEADD(HOUR, 12, SYSUTCDATETIME()), NULL, NULL),
+VALUES
        (@t1, @u1,  HASHBYTES('SHA2_256', @tokIdle),  DATEADD(MINUTE, -1, SYSUTCDATETIME()), DATEADD(HOUR, 11, SYSUTCDATETIME()), NULL, NULL),
        (@t1, @u1,  HASHBYTES('SHA2_256', @tokEnded), DATEADD(MINUTE, 30, SYSUTCDATETIME()), DATEADD(HOUR, 12, SYSUTCDATETIME()), SYSUTCDATETIME(), 'LOGOUT');
 
@@ -101,8 +116,8 @@ VALUES (@t2, N'TST-F2', 1, 1, 1, 1000, 'EN', '2026-01-01', '2027-01-01');
 SET @f2 = SCOPE_IDENTITY();
 INSERT cfg.NonWorkingDay (TenantId, CountryId, OnDate, NameEn) VALUES (@t2, 1, '2026-12-27', N'TEST-T2');
 INSERT plat.TenantModule (TenantId, ModuleCode, IsEnabled) VALUES (@t2, 'CORE', 1);
-INSERT sec.UserSession (TenantId, UserId, TokenHash, IdleExpiresAt, AbsoluteExpiresAt)
-VALUES (@t2, @u2, HASHBYTES('SHA2_256', @tok2), DATEADD(MINUTE, 30, SYSUTCDATETIME()), DATEADD(HOUR, 12, SYSUTCDATETIME()));
+INSERT sec.UserSession (TenantId, UserId, TokenHash, IdleExpiresAt, AbsoluteExpiresAt, MfaVerifiedAt)
+VALUES (@t2, @u2, HASHBYTES('SHA2_256', @tok2), DATEADD(MINUTE, 30, SYSUTCDATETIME()), DATEADD(HOUR, 12, SYSUTCDATETIME()), SYSUTCDATETIME());
 
 -- Seed: one global row (TenantId NULL), written by a platform operator
 EXECUTE AS USER = N'tp_test_plat';
@@ -341,7 +356,9 @@ ROLLBACK TRANSACTION sp_t15;
 SAVE TRANSACTION sp_t38;
 EXEC #Bind @t1;
 INSERT aud.AuditLog (TenantId, OccurredAt, ActorType, Action) VALUES (@t1, SYSUTCDATETIME(), 'USER', 'TEST_T38');
+EXECUTE AS USER = N'tp_test_plat';                                 -- only the platform writes platform events (O-19)
 INSERT aud.AuditLog (TenantId, OccurredAt, ActorType, Action) VALUES (NULL, SYSUTCDATETIME(), 'OPERATOR', 'TEST_T38');
+REVERT;
 DELETE FROM sec.SessionBinding WHERE SessionId = @@SPID;           -- unbound, so only the role decides what is visible
 SET @err = NULL; SET @n = NULL; SET @n2 = NULL;
 EXECUTE AS USER = N'tp_test_plat';
@@ -426,7 +443,7 @@ ROLLBACK TRANSACTION sp_t28;
 
 /* ---------- Cases 17-20 and 32-36: login, sessions and the context procedure (O-01, O-17) ---------- */
 
-/* T17: the procedure refuses an unknown tenant and a closed tenant (50002). */
+/* T17: the procedure refuses an unknown tenant and a tenant closed for more than 30 days (50002, O-18). */
 SAVE TRANSACTION sp_t17;
 SET @err = NULL; SET @err2 = NULL;
 EXECUTE AS USER = N'tp_test_app';
@@ -491,7 +508,7 @@ SELECT @n2 = COUNT(*) FROM sec.UserSession WHERE TenantId = @t1 AND UserId = @u1
 SELECT @rows = COUNT(*) FROM sec.LoginAttempt WHERE UserId = @u1 AND Outcome IN ('FAILED_PASSWORD', 'LOGIN_SUCCESS');
 SELECT @i = FailedAttempts FROM sec.AppUser WHERE AppUserId = @u1;
 IF @params = '$argon2id$v=19$m=65536,t=3,p=4$c2FsdHNhbHRzYWx0c2FsdA' AND @params2 IS NULL AND @err = 50005 AND @err2 IS NULL
-   AND @outUser = @u1 AND @mfaReq = 0 AND @n2 = 1 AND @rows = 2 AND @i = 0
+   AND @outUser = @u1 AND @mfaReq = 1 AND @n2 = 1 AND @rows = 2 AND @i = 0
     PRINT 'PASS T33: login checks the hash in the database, logs both attempts and creates the session';
 ELSE PRINT 'FAIL T33: login parameters, refusal, session or counters are wrong';
 ROLLBACK TRANSACTION sp_t33;
@@ -521,8 +538,8 @@ IF @err = 50005 AND @n = 1 AND @n2 = 1 AND @rows = 1 AND @i = 0 PRINT 'PASS T34:
 ELSE PRINT 'FAIL T34: the lockout rule was not applied';
 ROLLBACK TRANSACTION sp_t34;
 
-/* T35: the application role cannot read stored password hashes (230), create sessions (229), change a session
-   token (230) or extend a session past its 12-hour absolute expiry (230). */
+/* T35: the application role cannot read stored password hashes (230), create sessions (229), or change a session at
+   all: not its token and not its 12-hour absolute expiry (229, ADR 0003). */
 DECLARE @err4 INT;
 SAVE TRANSACTION sp_t35;
 SET @err = NULL; SET @err2 = NULL; SET @err3 = NULL; SET @err4 = NULL;
@@ -539,7 +556,7 @@ BEGIN CATCH SET @err3 = ERROR_NUMBER(); END CATCH;
 BEGIN TRY UPDATE sec.UserSession SET AbsoluteExpiresAt = DATEADD(DAY, 30, SYSUTCDATETIME()) WHERE UserId = @u1; END TRY
 BEGIN CATCH SET @err4 = ERROR_NUMBER(); END CATCH;
 REVERT;
-IF @err = 230 AND @err2 = 229 AND @err3 = 230 AND @err4 = 230 PRINT 'PASS T35: the application role cannot read password hashes, create sessions, change a session token or extend its absolute expiry';
+IF @err = 230 AND @err2 = 229 AND @err3 = 229 AND @err4 = 229 PRINT 'PASS T35: the application role cannot read password hashes, create sessions, change a session token or extend its absolute expiry';
 ELSE PRINT 'FAIL T35: the application role read a hash, created a session, changed a token or extended a session';
 ROLLBACK TRANSACTION sp_t35;
 
@@ -547,6 +564,7 @@ ROLLBACK TRANSACTION sp_t35;
 SAVE TRANSACTION sp_t36;
 EXEC #Bind @t1;
 UPDATE sec.AppUser SET MfaEnabled = 1 WHERE AppUserId = @u1;
+UPDATE sec.UserSession SET MfaVerifiedAt = NULL WHERE TokenHash = HASHBYTES('SHA2_256', @tok1);
 SET @err = NULL; SET @err2 = NULL; SET @err3 = NULL; SET @n = NULL; SET @n2 = NULL;
 EXECUTE AS USER = N'tp_test_app';
 BEGIN TRY EXEC sec.usp_SetSessionContext @TenantId = @t1, @SessionToken = @tok1; END TRY
@@ -609,6 +627,7 @@ ROLLBACK TRANSACTION sp_t27;
 SAVE TRANSACTION sp_t30;
 EXEC #Bind @t1;
 DELETE FROM sec.UserSession WHERE TenantId = @t1 AND UserId = @u1;    -- the user's sessions reference it (foreign key)
+DELETE FROM sec.UserRole WHERE TenantId = @t1 AND UserId = @u1;       -- and so does its role assignment
 EXEC #Bind @t1, @u1;                                                  -- bind after that, so only the user delete can revoke
 DELETE FROM sec.AppUser WHERE AppUserId = @u1;
 SELECT @n2 = COUNT(*) FROM sec.SessionBinding WHERE SessionId = @@SPID;
@@ -654,6 +673,131 @@ REVERT;
 IF @err IS NULL AND @n = 0 AND @n2 = 0 PRINT 'PASS T37: ending a session revokes the binding of its user';
 ELSE PRINT 'FAIL T37: an ended session left a working binding';
 ROLLBACK TRANSACTION sp_t37;
+
+/* T40: in a SUSPENDED tenant the tenant administrator may still log in and is admitted by the access rule; another
+   user is not admitted and its session does not bind (50003). Reads only for the administrator: T27. */
+SAVE TRANSACTION sp_t40;
+UPDATE plat.Tenant SET Status = 'SUSPENDED', SuspendedReason = N'test' WHERE TenantId = @t1;
+EXEC #Bind @t1;                                                     -- sa reads the role rows only when bound
+SET @err = NULL; SET @err2 = NULL; SET @outUser = NULL;
+DECLARE @t40ta INT = (SELECT COUNT(*) FROM sec.fn_TenantLoginAllowed(@t1, @u1));
+DECLARE @t40other INT = (SELECT COUNT(*) FROM sec.fn_TenantLoginAllowed(@t1, @u1b));
+EXECUTE AS USER = N'tp_test_app';
+BEGIN TRY EXEC sec.usp_SetSessionContext @TenantId = @t1, @SessionToken = @tok1b; END TRY
+BEGIN CATCH SET @err = ERROR_NUMBER(); END CATCH;
+BEGIN TRY EXEC sec.usp_StartSession @TenantId = @t1, @Email = N'u1@test.invalid', @PasswordHash = @phc, @SessionToken = @tokNew, @UserId = @outUser OUTPUT; END TRY
+BEGIN CATCH SET @err2 = ERROR_NUMBER(); END CATCH;
+REVERT;
+IF @t40ta = 1 AND @t40other = 0 AND @err = 50003 AND @err2 IS NULL AND @outUser = @u1
+    PRINT 'PASS T40: in a suspended tenant only the tenant administrator is admitted';
+ELSE PRINT 'FAIL T40: the suspended-tenant rule was not applied';
+ROLLBACK TRANSACTION sp_t40;
+
+/* T41: a CLOSED tenant admits only its administrator, only within 30 days of closing; ARCHIVED_READ_ONLY admits nobody. */
+SAVE TRANSACTION sp_t41;
+SET @err = NULL; SET @err2 = NULL; SET @err3 = NULL;
+UPDATE plat.Tenant SET Status = 'CLOSED', ClosedAt = DATEADD(DAY, -1, SYSUTCDATETIME()) WHERE TenantId = @t1;
+EXEC #Bind @t1;                                  -- after the change, which revokes bindings; sa reads role rows only when bound
+DECLARE @t41ok INT = (SELECT COUNT(*) FROM sec.fn_TenantLoginAllowed(@t1, @u1));
+DECLARE @t41no INT = (SELECT COUNT(*) FROM sec.fn_TenantLoginAllowed(@t1, @u1b));
+EXECUTE AS USER = N'tp_test_app';
+BEGIN TRY EXEC sec.usp_SetSessionContext @TenantId = @t1, @SessionToken = @tok1b; END TRY
+BEGIN CATCH SET @err = ERROR_NUMBER(); END CATCH;
+REVERT;
+UPDATE plat.Tenant SET ClosedAt = DATEADD(DAY, -31, SYSUTCDATETIME()) WHERE TenantId = @t1;
+EXECUTE AS USER = N'tp_test_app';
+BEGIN TRY EXEC sec.usp_SetSessionContext @TenantId = @t1, @SessionToken = @tok1; END TRY
+BEGIN CATCH SET @err2 = ERROR_NUMBER(); END CATCH;
+REVERT;
+UPDATE plat.Tenant SET Status = 'ARCHIVED_READ_ONLY', ArchivedAt = SYSUTCDATETIME() WHERE TenantId = @t1;
+EXECUTE AS USER = N'tp_test_app';
+BEGIN TRY EXEC sec.usp_SetSessionContext @TenantId = @t1, @SessionToken = @tok1; END TRY
+BEGIN CATCH SET @err3 = ERROR_NUMBER(); END CATCH;
+REVERT;
+IF @t41ok = 1 AND @t41no = 0 AND @err = 50003 AND @err2 = 50002 AND @err3 = 50002
+    PRINT 'PASS T41: a closed tenant admits its administrator for 30 days only, and an archived tenant admits nobody';
+ELSE PRINT 'FAIL T41: the closed or archived tenant rule was not applied (' + CONCAT(@t41ok, ',', @t41no, ',', @err, ',', @err2, ',', @err3) + ')';
+ROLLBACK TRANSACTION sp_t41;
+
+/* T42: login in a SUSPENDED tenant: a user other than the administrator who proves the password gets 50006 and no
+   session; a wrong password still gets the one message (50005). */
+SAVE TRANSACTION sp_t42;
+UPDATE plat.Tenant SET Status = 'SUSPENDED', SuspendedReason = N'test' WHERE TenantId = @t1;
+SET @err = NULL; SET @err2 = NULL;
+EXECUTE AS USER = N'tp_test_app';
+BEGIN TRY EXEC sec.usp_StartSession @TenantId = @t1, @Email = N'u1b@test.invalid', @PasswordHash = @phc, @SessionToken = @tokNew; END TRY
+BEGIN CATCH SET @err = ERROR_NUMBER(); END CATCH;
+BEGIN TRY EXEC sec.usp_StartSession @TenantId = @t1, @Email = N'u1b@test.invalid', @PasswordHash = 'wrong', @SessionToken = @tokNew; END TRY
+BEGIN CATCH SET @err2 = ERROR_NUMBER(); END CATCH;
+REVERT;
+EXEC #Bind @t1;
+SELECT @n = COUNT(*) FROM sec.UserSession WHERE TokenHash = HASHBYTES('SHA2_256', @tokNew);
+SELECT @n2 = COUNT(*) FROM sec.LoginAttempt WHERE UserId = @u1b AND Outcome = 'DENIED_TENANT';
+IF @err = 50006 AND @err2 = 50005 AND @n = 0 AND @n2 = 1 PRINT 'PASS T42: a proven password in a tenant closed to the user gets 50006 and no session';
+ELSE PRINT 'FAIL T42: the login did not apply the tenant status rule';
+ROLLBACK TRANSACTION sp_t42;
+
+/* T43: MFA is mandatory: a session without a recorded MFA check binds nothing, even for a user without MFA enabled. */
+SAVE TRANSACTION sp_t43;
+EXEC sys.sp_set_session_context @key = N'TenantId', @value = NULL;
+SET @err = NULL;
+EXECUTE AS USER = N'tp_test_app';
+BEGIN TRY EXEC sec.usp_SetSessionContext @TenantId = @t1, @SessionToken = @tokNoMfa; END TRY
+BEGIN CATCH SET @err = ERROR_NUMBER(); END CATCH;
+REVERT;
+IF @err = 50003 PRINT 'PASS T43: a session without a recorded MFA check binds nothing';
+ELSE PRINT 'FAIL T43: a session without MFA was bound';
+ROLLBACK TRANSACTION sp_t43;
+
+/* T44: a tenant connection cannot write a platform audit event (TenantId NULL, O-19). */
+SAVE TRANSACTION sp_t44;
+EXEC #Bind @t1;
+SET @err = NULL;
+EXECUTE AS USER = N'tp_test_app';
+BEGIN TRY INSERT aud.AuditLog (TenantId, OccurredAt, ActorType, Action) VALUES (NULL, SYSUTCDATETIME(), 'USER', 'TEST_T44'); END TRY
+BEGIN CATCH SET @err = ERROR_NUMBER(); END CATCH;
+REVERT;
+IF @err = 33504 PRINT 'PASS T44: a tenant connection cannot write a platform audit event';
+ELSE PRINT 'FAIL T44: a tenant connection wrote an audit row without a tenant';
+ROLLBACK TRANSACTION sp_t44;
+
+/* T45: O-24 closed (ADR 0003): bound to its tenant, the application role cannot set a password or a status, read a
+   password-history or recovery-code hash, mint a link, or reopen an ended session. */
+SAVE TRANSACTION sp_t45;
+EXEC #Bind @t1;
+DECLARE @e1 INT, @e2 INT, @e3 INT, @e4 INT, @e5 INT, @e6 INT;
+EXECUTE AS USER = N'tp_test_app';
+BEGIN TRY UPDATE sec.AppUser SET PasswordHash = @phc WHERE AppUserId = @u1b; END TRY BEGIN CATCH SET @e1 = ERROR_NUMBER(); END CATCH;
+BEGIN TRY UPDATE sec.AppUser SET Status = 'ACTIVE', FailedAttempts = 0 WHERE AppUserId = @u1x; END TRY BEGIN CATCH SET @e2 = ERROR_NUMBER(); END CATCH;
+BEGIN TRY SELECT TOP (1) PasswordHash FROM sec.UserPasswordHistory; END TRY BEGIN CATCH SET @e3 = ERROR_NUMBER(); END CATCH;
+BEGIN TRY SELECT TOP (1) CodeHash FROM sec.MfaRecoveryCode; END TRY BEGIN CATCH SET @e4 = ERROR_NUMBER(); END CATCH;
+BEGIN TRY
+    INSERT sec.UserToken (TenantId, UserId, Purpose, TokenHash, ExpiresAt) VALUES (@t1, @u1b, 'PASSWORD_RESET', 0x01, SYSUTCDATETIME());
+END TRY BEGIN CATCH SET @e5 = ERROR_NUMBER(); END CATCH;
+BEGIN TRY UPDATE sec.UserSession SET EndedAt = NULL, EndReason = NULL WHERE TokenHash = HASHBYTES('SHA2_256', @tokEnded); END TRY
+BEGIN CATCH SET @e6 = ERROR_NUMBER(); END CATCH;
+REVERT;
+IF @e1 = 230 AND @e2 = 230 AND @e3 = 230 AND @e4 = 230 AND @e5 = 229 AND @e6 = 229
+    PRINT 'PASS T45: the application role cannot set passwords or status, read history or recovery hashes, mint links or reopen sessions';
+ELSE PRINT 'FAIL T45: a direct right replaced by the account procedures is still open';
+ROLLBACK TRANSACTION sp_t45;
+
+/* T46: a service account cannot be locked by guessing: its failed logins are not counted (it has no password). */
+SAVE TRANSACTION sp_t46;
+SET @i = 0;
+EXECUTE AS USER = N'tp_test_app';
+WHILE @i < 6
+BEGIN
+    BEGIN TRY EXEC sec.usp_StartSession @TenantId = @t1, @Email = N'svc@test.invalid', @PasswordHash = 'guess', @SessionToken = @tokNew; END TRY
+    BEGIN CATCH SET @err3 = ERROR_NUMBER(); END CATCH;
+    SET @i = @i + 1;
+END;
+REVERT;
+EXEC #Bind @t1;
+SELECT @n = COUNT(*) FROM sec.AppUser WHERE AppUserId = @usys AND Status = 'ACTIVE' AND FailedAttempts = 0;
+IF @n = 1 PRINT 'PASS T46: a service account is never locked by failed logins';
+ELSE PRINT 'FAIL T46: failed logins locked or counted against a service account';
+ROLLBACK TRANSACTION sp_t46;
 
 /* T19: a valid session binds the connection to its tenant and its user; afterwards only that tenant's rows are visible. */
 SAVE TRANSACTION sp_t19;

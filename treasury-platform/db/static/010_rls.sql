@@ -32,7 +32,7 @@ AS RETURN
                     AND b.BindingToken = CAST(SESSION_CONTEXT(N'BindingToken') AS UNIQUEIDENTIFIER));
 GO
 -- Write check: the binding, and the tenant is open for writes (TRIAL or ACTIVE, BR-PLT-002).
--- SUSPENDED and ARCHIVED_READ_ONLY tenants keep reading; CLOSED tenants cannot bind (030).
+-- In SUSPENDED and CLOSED (30 days) only the tenant administrator binds, and reads only; ARCHIVED_READ_ONLY binds nobody (O-18, 030).
 CREATE OR ALTER FUNCTION rls.fn_BoundWrite (@TenantId INT)
 RETURNS TABLE WITH SCHEMABINDING
 AS RETURN
@@ -76,7 +76,8 @@ AS RETURN
 GO
 -- Audit log aud.AuditLog: its own policy (BR-PLT-001, BR-PLT-009)
 --   Read: a tenant reads its own rows; rows with TenantId NULL (platform events) are for tp_platform only.
---   Write (insert only): the tenant's own TenantId or NULL for a platform event; no update and no delete (DENY in 005/020).
+--   Write (insert only): a tenant writes its own TenantId; NULL (a platform event) only tp_platform or tp_auth (O-19);
+--   no update and no delete (DENY in 005/020).
 CREATE OR ALTER FUNCTION rls.fn_AuditRead (@TenantId INT)
 RETURNS TABLE WITH SCHEMABINDING
 AS RETURN
@@ -89,8 +90,7 @@ CREATE OR ALTER FUNCTION rls.fn_AuditWrite (@TenantId INT)
 RETURNS TABLE WITH SCHEMABINDING
 AS RETURN
     SELECT 1 AS AccessOk
-    WHERE @TenantId IS NULL
-       OR IS_MEMBER(N'tp_platform') = 1 OR IS_MEMBER(N'tp_auth') = 1
+    WHERE IS_MEMBER(N'tp_platform') = 1 OR IS_MEMBER(N'tp_auth') = 1   -- platform events (TenantId NULL) only from these (O-19)
        OR EXISTS (SELECT 1 FROM rls.fn_Bound(@TenantId));
 GO
 IF EXISTS (SELECT 1 FROM sys.security_policies sp WHERE sp.name = N'TP_aud_AuditLog' AND sp.schema_id = SCHEMA_ID(N'rls'))

@@ -352,7 +352,7 @@
 | **LoginAttemptId** | BIGINT IDENTITY | لا | | | مفتاح أساسي |
 | UserId | BIGINT | نعم |  | sec.AppUser | فارغ لبريد غير موجود (رسالة موحّدة لا تكشف الوجود) |
 | LoginName | NVARCHAR(200) | نعم |  |  | البريد المُدخل كما كُتب |
-| Outcome | VARCHAR(15) | لا |  |  | enum: LOGIN_SUCCESS, FAILED_PASSWORD, DENIED_LOCKED, FAILED_MFA, LOCKOUT |
+| Outcome | VARCHAR(15) | لا |  |  | enum: LOGIN_SUCCESS, FAILED_PASSWORD, DENIED_LOCKED, DENIED_TENANT, FAILED_MFA, LOCKOUT |
 | IpAddress | VARCHAR(45) | نعم |  |  | تقييد المعدل لكل عنوان IP |
 | UserAgent | NVARCHAR(400) | نعم |  |  |  |
 | CreatedAt | DATETIME2(3) | لا | SYSUTCDATETIME() |  |  |
@@ -393,7 +393,7 @@
 | IpAddress | VARCHAR(45) | نعم |  |  |  |
 | UserAgent | NVARCHAR(400) | نعم |  |  |  |
 | EndedAt | DATETIME2(3) | نعم |  |  |  |
-| EndReason | VARCHAR(19) | نعم |  |  | enum: LOGOUT, IDLE_TIMEOUT, ABSOLUTE_TIMEOUT, TERMINATED_BY_ADMIN, PASSWORD_CHANGED, MFA_RESET, USER_DISABLED, TENANT_SUSPENDED |
+| EndReason | VARCHAR(19) | نعم |  |  | enum: LOGOUT, IDLE_TIMEOUT, ABSOLUTE_TIMEOUT, TERMINATED_BY_ADMIN, PASSWORD_CHANGED, MFA_RESET, MFA_FAILED, USER_DISABLED, TENANT_SUSPENDED |
 | EndedBy | BIGINT | نعم |  | sec.AppUser | المدير الذي أنهى الجلسة |
 | CreatedAt | DATETIME2(3) | لا | SYSUTCDATETIME() |  |  |
 | CreatedBy | BIGINT | نعم |  |  |  |
@@ -423,7 +423,7 @@
 
 **المفاتيح:** PK(MfaRecoveryCodeId) · UQ(TenantId, UserId, CodeHash)
 
-### `sec.UserToken` — Single-use invitation link (48 hours) or password-reset token (30 minutes) (FR-PLT-013)
+### `sec.UserToken` — Single-use invitation link (48 hours), password-reset token (30 minutes) or MFA re-enrolment link (24 hours) (FR-PLT-013, DQ-F03-8)
 
 *مملوك للمشترك*
 
@@ -432,7 +432,7 @@
 | TenantId | INT | لا | | plat.Tenant | عزل المشترك |
 | **UserTokenId** | BIGINT IDENTITY | لا | | | مفتاح أساسي |
 | UserId | BIGINT | لا |  | sec.AppUser |  |
-| Purpose | VARCHAR(14) | لا |  |  | enum: INVITATION, PASSWORD_RESET |
+| Purpose | VARCHAR(15) | لا |  |  | enum: INVITATION, PASSWORD_RESET, MFA_REENROLMENT |
 | TokenHash | VARBINARY(32) | لا |  |  | الرابط مُجزَّأ في القاعدة ولا يحمل بيانات مقيّدة 🔒 restricted |
 | ExpiresAt | DATETIME2(3) | لا |  |  |  |
 | UsedAt | DATETIME2(3) | نعم |  |  |  |

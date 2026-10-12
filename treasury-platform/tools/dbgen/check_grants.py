@@ -7,7 +7,7 @@
   R3  tp_platform بلا أي منح مباشر على جداول المشتركين (المملوكة للمشترك)
   R4  لا REFERENCES لأي دور تطبيقي
   R5  لا منح على مستوى المخطط لـ tp_app أو tp_platform (استثناء: مخطط rls للقراءة)
-  R6  tp_auth لا يملك منحًا إلا على sec.AppUser وplat.Tenant وsec.SessionBinding وsec.UserSession وsec.LoginAttempt (إجراءات 030)
+  R6  tp_auth لا يملك منحًا إلا على الجداول العشرة التي تحتاجها إجراءات 030 و035 (الحساب والجلسة والربط والأدوار والروابط والاسترداد وسجل الكلمات)
   R7  عدد أعمدة sens=restricted = عدد عبارات DENY لـ tp_readonly
   R8  كل جدول فيه عمود *Enc يملك مفتاح بيانات (EncKeyId | MfaKeyId | MfaKeyRef)،
       وكل عمود *Hash مرتبط بمفتاح فهرسة (HashKeyId | MfaKeyRef)
@@ -78,10 +78,12 @@ def main():
         if action == 'GRANT' and obj.startswith('SCHEMA::') and obj != 'SCHEMA::rls' and any(p in ('tp_app', 'tp_platform') for p in principals):
             errs.append(f'R5: منح على مستوى المخطط {obj} لـ {principals}')
     for action, verbs, obj, principals in static_grants:
-        # tp_auth runs the login and binding procedures only (030): the user and tenant checks, the binding (O-16),
-        # sessions and login attempts (O-17). Any other table is a widening of its rights.
+        # tp_auth runs the login, binding and account procedures only (030, 035): the user and tenant checks, the binding
+        # (O-16), sessions and login attempts (O-17), roles for the tenant-status rule (O-18), links, recovery codes and
+        # password history (ADR 0003). Any other table is a widening of its rights.
         if action == 'GRANT' and 'tp_auth' in principals and obj not in (
-                'sec.AppUser', 'plat.Tenant', 'sec.SessionBinding', 'sec.UserSession', 'sec.LoginAttempt'):
+                'sec.AppUser', 'plat.Tenant', 'sec.SessionBinding', 'sec.UserSession', 'sec.LoginAttempt',
+                'sec.UserRole', 'sec.Role', 'sec.UserToken', 'sec.MfaRecoveryCode', 'sec.UserPasswordHistory'):
             errs.append(f'R6: tp_auth يملك منحًا على {obj}')
         if action == 'GRANT' and obj.startswith('SCHEMA::') and 'tp_auth' in principals:
             errs.append(f'R6: tp_auth منح مخطط {obj}')

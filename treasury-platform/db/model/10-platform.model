@@ -199,7 +199,7 @@ table sec.UserCompanyScope pk=UserId,CompanyId deletable   # Companies a user ca
 table sec.LoginAttempt append deletable   # Login attempts for rate limiting and lockout windows (BR-PLT-005); written by sec.usp_StartSession. A permanent trace in aud.AuditLog is not written yet (O-24)
   UserId     ->sec.AppUser            # فارغ لبريد غير موجود (رسالة موحّدة لا تكشف الوجود)
   LoginName  str(200)                 # البريد المُدخل كما كُتب
-  Outcome    enum{LOGIN_SUCCESS,FAILED_PASSWORD,DENIED_LOCKED,FAILED_MFA,LOCKOUT} req
+  Outcome    enum{LOGIN_SUCCESS,FAILED_PASSWORD,DENIED_LOCKED,DENIED_TENANT,FAILED_MFA,LOCKOUT} req
   IpAddress  ascii(45)                # تقييد المعدل لكل عنوان IP
   UserAgent  str(400)
   index IpAddress,CreatedAt
@@ -226,7 +226,7 @@ table sec.UserSession norv deletable   # User sessions: 30-minute idle timeout a
   IpAddress          ascii(45)
   UserAgent          str(400)
   EndedAt            ts
-  EndReason          enum{LOGOUT,IDLE_TIMEOUT,ABSOLUTE_TIMEOUT,TERMINATED_BY_ADMIN,PASSWORD_CHANGED,MFA_RESET,USER_DISABLED,TENANT_SUSPENDED}
+  EndReason          enum{LOGOUT,IDLE_TIMEOUT,ABSOLUTE_TIMEOUT,TERMINATED_BY_ADMIN,PASSWORD_CHANGED,MFA_RESET,MFA_FAILED,USER_DISABLED,TENANT_SUSPENDED}
   EndedBy            ->sec.AppUser   # المدير الذي أنهى الجلسة
   unique TokenHash
   index UserId,AbsoluteExpiresAt where EndedAt IS NULL
@@ -241,9 +241,9 @@ table sec.MfaRecoveryCode norv deletable   # Ten single-use recovery codes, stor
   unique UserId,CodeHash
   index UserId where UsedAt IS NULL
 
-table sec.UserToken norv deletable   # Single-use invitation link (48 hours) or password-reset token (30 minutes) (FR-PLT-013)
+table sec.UserToken norv deletable   # Single-use invitation link (48 hours), password-reset token (30 minutes) or MFA re-enrolment link (24 hours) (FR-PLT-013, DQ-F03-8)
   UserId               ->sec.AppUser req
-  Purpose              enum{INVITATION,PASSWORD_RESET} req
+  Purpose              enum{INVITATION,PASSWORD_RESET,MFA_REENROLMENT} req
   TokenHash            bin(32) req sens=restricted   # الرابط مُجزَّأ في القاعدة ولا يحمل بيانات مقيّدة
   ExpiresAt            ts      req
   UsedAt               ts
