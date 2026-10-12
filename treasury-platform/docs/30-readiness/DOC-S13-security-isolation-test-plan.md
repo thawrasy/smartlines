@@ -357,7 +357,7 @@ flowchart TB
 ## 13. تعارضات وفجوات في المصادر
 
 1. docs/30-readiness-documents.md:312 يذكر 34 سطر PASS وأن db_ci.sh يتحقق من 34، والعدد الفعلي 41 (tools/ci/db_ci.sh:88)، وO-09 يذكر 41 أيضًا (tools/dbgen/erd_open_items.py:63).
-2. السجل docs/30-readiness-documents.md:287 و:339 و:424 ما زال يستشهد بالملف .github/workflows/db-ci.yml، والإيداع d956805 حذفه ونقل الخط إلى ../.github/workflows/treasury-db-ci.yml (جذر المستودع)، وهو يعمل أخضر (O-02، tools/dbgen/erd_open_items.py:22).
+2. ✅ صُحّح (2026-10-12): السجل docs/30-readiness-documents.md يسمّي الآن ../.github/workflows/treasury-db-ci.yml (جذر المستودع) بدل الملف المحذوف .github/workflows/db-ci.yml.
 3. docs/30-readiness/DOC-B04-api-contract-and-error-model.md:62 يقبل X-Correlation-Id من العميل ويولّده الخادم إن غاب، وdocs/30-readiness/DOC-S03-security-architecture-auth-sessions.md:132 يقول إن التطبيق لا يقبله من المتصفح (DQ-S13-11).
 4. هيكل OpenAPI في DOC-B04 §12 لا يضم نقاط المستندات والتدقيق والإعدادات والترقيم والمهام ووصول الدعم، مع أن FR-PLT-007 وFR-PLT-022 إلى FR-PLT-030 وFR-PLT-043 وFR-PLT-044 في S0 (docs/10-detailed-analysis/10-m0-m1-platform-organization.md:109-146).
 5. توقيت اختبار الاختراق: docs/10-detailed-analysis/00-overview-and-cross-cutting.md:217 يقول «قبل الإطلاق»، وdocs/10-detailed-analysis/10-m0-m1-platform-organization.md:591 يقول «قبل التجربة (S5)». نعتمد الأبكر.

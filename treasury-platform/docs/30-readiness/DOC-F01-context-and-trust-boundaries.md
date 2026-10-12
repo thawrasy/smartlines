@@ -249,7 +249,7 @@ flowchart TB
 
 1. docs/20-database-design.md:267 يقول إن `tp_app` ينفّذ إجراء الربط وحده، وdb/static/030_session_context.sql:229-232 تمنحه أربعة إجراءات. وتعليقا db/static/020_roles_and_grants.sql:7 و:32 ما زالا يحصران `tp_auth` في إجراء السياق وقراءة جدولين، والمنح في :59 و:67-69 أوسع (وصف `tp_auth` في docs/20-database-design.md:94 و:269 صُحّح في 1f0f0af).
 2. ✅ القراءة صُحّحت (1f0f0af): `rls.fn_AuditRead` يقصر `tp_platform` على صفوف `TenantId IS NULL` (db/static/010_rls.sql:83؛ T38)، كما يقول docs/20-database-design.md:112. يبقى: docs/20-database-design.md:117 يقول إن `tp_platform` يكتب سجلات المنصة في `aud`، وdb/static/010_rls.sql:92 يتيح له إدراج صف تدقيق بأي `TenantId` (G-06).
-3. tools/dbgen/erd_open_items.py:64 (O-09) وdocs/20-database-design.md:493 يذكران 40 حالة عزل (T1-T37)، والملف يحوي 41 (T1-T38، db/tests/tenant_isolation_tests.sql؛ tools/ci/db_ci.sh:87-88).
+3. ✅ صُحّح (2026-10-12): O-09 في tools/dbgen/erd_open_items.py وdocs/20-database-design.md §14 يذكران الآن 41 حالة عزل (T1-T38).
 
 ## 14. التتبع
 
