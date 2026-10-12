@@ -1,12 +1,12 @@
 import { useState } from "react";
-import { Text, View } from "react-native";
+import { Alert, Text, View } from "react-native";
 import { router } from "expo-router";
 import { useI18n } from "../../i18n";
 import { api } from "../../platform/api";
 import { getJSON, putJSON } from "../../platform/secure";
 import { downloadPack, loadPack, loadScans } from "../../platform/boarding";
 import { AccountBody } from "../(passenger)/account";
-import { Button, Card, Chip, ErrorText, Loading, Screen, Title, s } from "../../ui/kit";
+import { Button, Card, Chip, ErrorText, Loading, Notice, Screen, Title, s } from "../../ui/kit";
 import { useLoad } from "../../ui/useLoad";
 
 interface DriverTrip { uid: string; trip_no: string; status: string; departure_at: string; plate_no: string | null; booked: number; boarded: number;
@@ -37,10 +37,22 @@ export default function DriverHome() {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<unknown>(null);
   const [showAccount, setShowAccount] = useState(false);
+  const [sosSent, setSosSent] = useState<{ uid: string; repeated: boolean } | null>(null);
   const download = async (uid: string) => {
     setBusy(uid); setError(null);
     try { await downloadPack(uid); list.reload(); } catch (e) { setError(e); } finally { setBusy(null); }
   };
+  // the SOS asks once, so a pocket press does not raise the alarm (1101)
+  const sos = (uid: string) => Alert.alert(t("sos.confirm"), t("sos.confirmHint"), [
+    { text: t("common.cancel"), style: "cancel" },
+    { text: t("sos.send"), style: "destructive", onPress: async () => {
+      setError(null);
+      try {
+        const r = await api.post<{ repeated: boolean }>("/api/driver/sos", { trip_uid: uid });
+        setSosSent({ uid, repeated: r.repeated });
+      } catch (e) { setError(e); }
+    } },
+  ]);
   if (showAccount) return <Screen><AccountBody /><Button kind="text" label={t("common.back")} onPress={() => setShowAccount(false)} /></Screen>;
   return (
     <Screen>
@@ -65,6 +77,14 @@ export default function DriverHome() {
             {x.pending ? <Chip tone="amber" label={t("driver.pending", { n: x.pending })} /> : null}
             <Button kind="tonal" label={t("driver.download")} busy={busy === x.uid} onPress={() => download(x.uid)} />
             <Button label={t("driver.board")} onPress={() => router.push({ pathname: "/driver/board/[uid]", params: { uid: x.uid } })} />
+            {x.status === "BOARDING" || x.status === "DEPARTED" || x.status === "PUBLISHED" ? (
+              <>
+                <Button kind="tonal" label={t("incident.button")}
+                        onPress={() => router.push({ pathname: "/driver/incident/[uid]", params: { uid: x.uid, trip_no: x.trip_no } })} />
+                <Button kind="danger" label={t("sos.button")} onPress={() => sos(x.uid)} />
+                {sosSent?.uid === x.uid ? <Notice tone="amber" text={t(sosSent.repeated ? "sos.again" : "sos.sent")} /> : null}
+              </>
+            ) : null}
           </Card>
         );
       })}

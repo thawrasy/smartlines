@@ -30,6 +30,29 @@
     "subject": "الرحلة {trip_no}: ما زال لا موقع بعد {minutes} دقيقة",
     "body": "مركبة الرحلة {trip_no} صامتة منذ {minutes} دقيقة وتم تصعيد التنبيه. تواصل مع السائق الآن وسجّل ما حدث."
   },
+  "sos.raised": {
+    "subject": "استغاثة على الرحلة {trip_no}",
+    "body": "أُطلقت استغاثة على الرحلة {trip_no} (المركبة {plate_no}). الموقع: {where}. اتصل بالسائق وبخدمات الطوارئ الآن، ثم أكّد استلام الإنذار في البوابة.",
+    "sms": "استغاثة مسلك: الرحلة {trip_no}، المركبة {plate_no}، الموقع {where}. تصرّف الآن."
+  },
+  "incident.reported": {
+    "subject": "حادث على الرحلة {trip_no}: {incident_type}، {severity}",
+    "body": "أبلغ سائق الرحلة {trip_no} (المركبة {plate_no}) عن حادث: {incident_type}، {severity}. راجعه في البوابة وقرّر ما يحدث للرحلة."
+  },
+  "incident_type_labels": {
+    "COLLISION": "تصادم",
+    "BREAKDOWN": "عطل",
+    "FIRE": "حريق",
+    "SECURITY": "أمني",
+    "SEIZURE": "حجز",
+    "MEDICAL": "حالة طبية",
+    "OTHER": "أخرى"
+  },
+  "severity_labels": {
+    "MINOR": "بسيط",
+    "MAJOR": "كبير",
+    "SEVERE": "خطير"
+  },
   "document.approved": {
     "subject": "اعتُمدت {doc_type}",
     "body": "رُوجعت {doc_type} واعتُمدت."

@@ -30,6 +30,29 @@
     "subject": "Trip {trip_no}: still no position after {minutes} min",
     "body": "The vehicle on trip {trip_no} has been silent for {minutes} minutes and the alert was escalated. Contact the driver now and record what happened."
   },
+  "sos.raised": {
+    "subject": "SOS on trip {trip_no}",
+    "body": "An SOS was raised on trip {trip_no} (vehicle {plate_no}). Position: {where}. Call the driver and the emergency services now, then acknowledge the alarm in the portal.",
+    "sms": "Masslak SOS: trip {trip_no}, vehicle {plate_no}, position {where}. Act now."
+  },
+  "incident.reported": {
+    "subject": "Incident on trip {trip_no}: {incident_type}, {severity}",
+    "body": "The driver of trip {trip_no} (vehicle {plate_no}) reported an incident: {incident_type}, {severity}. Review it in the portal and decide what happens to the trip."
+  },
+  "incident_type_labels": {
+    "COLLISION": "collision",
+    "BREAKDOWN": "breakdown",
+    "FIRE": "fire",
+    "SECURITY": "security",
+    "SEIZURE": "seizure",
+    "MEDICAL": "medical",
+    "OTHER": "other"
+  },
+  "severity_labels": {
+    "MINOR": "minor",
+    "MAJOR": "major",
+    "SEVERE": "severe"
+  },
   "document.approved": {
     "subject": "{doc_type} approved",
     "body": "Your {doc_type} was reviewed and approved."

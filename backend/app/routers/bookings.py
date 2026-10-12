@@ -139,6 +139,26 @@ async def ticket_qr(ticket_uid: uuid.UUID, request: Request, pr: Principal = Dep
     return qr_response(ticket_uid, status)
 
 
+class SosIn(BaseModel):
+    lat: float | None = Field(default=None, ge=-90, le=90)
+    lng: float | None = Field(default=None, ge=-180, le=180)
+
+
+@router.post("/tickets/{ticket_uid}/sos", status_code=201)
+async def ticket_sos(ticket_uid: uuid.UUID, body: SosIn, request: Request, pr: Principal = Depends(passenger)):
+    """A passenger on the trip presses SOS from their ticket: the carrier and the platform are told at once (1101).
+    The database checks again that the caller travels on the trip and that the trip is under way."""
+    async with db.transaction(context_for(request, pr)) as conn:
+        trip_id = await conn.fetchval(
+            """SELECT k.trip_id FROM sales.ticket k JOIN sales.booking b ON b.id = k.booking_id
+                WHERE k.uid = $1 AND (b.booker_party_id = $2 OR b.booker_user_id = $3)""", ticket_uid, pr.party_id, pr.user_id)
+        if trip_id is None:
+            raise not_found("ticket")
+        out = json.loads(await conn.fetchval("SELECT sec.raise_sos($1, $2, $3)::text", trip_id, body.lat, body.lng))
+    request.state.audit = {"action": "sos.raise", "object_type": "sos_event", "object_id": out["sos_id"]}
+    return out
+
+
 def qr_response(ticket_uid: uuid.UUID, status) -> dict:
     if status is None:
         raise not_found("ticket")

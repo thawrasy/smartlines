@@ -37,6 +37,15 @@ async def _owners(conn, company_id: int, template: str, values: dict) -> list[De
     return [d for d in out if d]
 
 
+async def _platform_staff(conn, permission: str, template: str, channels: list[str], values: dict) -> list[Delivery]:
+    """Platform users whose current roles hold the permission (the security staff for alarms)."""
+    ids = await conn.fetch(
+        """SELECT DISTINCT ur.user_id FROM iam.user_role ur JOIN iam.role_permission rp ON rp.role_id = ur.role_id
+            WHERE rp.permission_code = $1 AND (ur.valid_to IS NULL OR ur.valid_to > now())""", permission)
+    out = [await _user(conn, r["user_id"], template, channels, values) for r in ids]
+    return [d for d in out if d]
+
+
 async def default_locale(conn) -> str:
     return await conn.fetchval("SELECT coalesce((SELECT value #>> '{}' FROM sys.setting WHERE key = 'ui.default_locale'), 'en')")
 
@@ -56,6 +65,16 @@ async def deliveries(conn: asyncpg.Connection, event: asyncpg.Record, payload: d
         return await _owners(conn, event["company_id"], kind, payload)
     if kind in ("tracking.signal_lost", "tracking.alert_escalated"):       # the platform found a silent trip (1100)
         return await _owners(conn, event["company_id"], kind, payload)
+    if kind == "sos.raised":            # an emergency on a trip (1101): the carrier's owners and the platform's security staff
+        owners = await _owners(conn, event["company_id"], kind, payload)
+        for d in owners:
+            d.channels = ["IN_APP", "EMAIL", "SMS"]
+        return owners + await _platform_staff(conn, "security.console", kind, ["IN_APP", "EMAIL", "SMS"], payload)
+    if kind == "incident.reported":     # a driver's report (1101); the platform hears of severe ones and injuries
+        out = await _owners(conn, event["company_id"], kind, payload)
+        if payload.get("platform"):
+            out += await _platform_staff(conn, "security.console", kind, ["IN_APP", "EMAIL"], payload)
+        return out
     if kind in ("document.approved", "document.rejected"):
         d = await _user(conn, payload["uploaded_by"], kind, ["IN_APP", "EMAIL"], payload)
         return [d] if d else []

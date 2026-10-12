@@ -645,7 +645,7 @@ const en = {
     "einvoice-submission": "E-invoice submissions", enrollment: "Enrolments", "exchange-rate": "Exchange rates", "fare-table": "Fare tables",
     "fare-table-item": "Fare table prices", "feature-compliance-review": "Feature compliance reviews", "field-check-log": "Field checks",
     "float-account": "Float accounts", "float-report": "Float reports", "fraud-case": "Fraud cases", "gl-account": "Ledger accounts",
-    "gl-period": "Accounting periods", "incident-evidence": "Incident evidence", "incident-external-link": "Incidents shared with authorities",
+    "gl-period": "Accounting periods", "incident": "Incidents", "incident-evidence": "Incident evidence", "incident-external-link": "Incidents shared with authorities",
     "inspection-check": "Ticket inspections", "insurance-policy": "Insurance policies", "journal-entry": "Journal entries",
     "journal-line": "Journal lines", jurisdiction: "Tax jurisdictions", "ledger-close": "Closed ledger days", "ledger-day-total": "Ledger day totals",
     "legal-hold": "Legal holds", "license-change-request": "Licence change requests", "line-diversion": "Line diversions",

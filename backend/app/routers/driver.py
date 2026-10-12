@@ -1,4 +1,5 @@
-"""Driver app: assigned trips, boarding scan, stop arrival/departure and location reports."""
+"""Driver app: assigned trips, boarding scan, stop arrival/departure, location reports, SOS and incidents."""
+import json
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Literal, Optional
@@ -389,3 +390,46 @@ async def device_attestation(body: AttestationIn, request: Request, pr: Principa
             device, "PASSED" if passed else "FAILED", body.provider, pr.user_id)
     request.state.audit = {"action": "device.attestation", "object_type": "device", "object_id": device}
     return {"attestation": "PASSED" if passed else "FAILED"}
+
+
+# ------------------------------------------------------------------ SOS and incidents (1101)
+class SosIn(BaseModel):
+    trip_uid: uuid.UUID
+    lat: Optional[float] = Field(default=None, ge=-90, le=90)
+    lng: Optional[float] = Field(default=None, ge=-180, le=180)
+
+
+@router.post("/sos", status_code=201)
+async def raise_sos(body: SosIn, request: Request, pr: Principal = Depends(driver)):
+    """The driver presses SOS: the carrier's owners and the platform's security staff are told at once. A second press
+    while the SOS is open returns the same one."""
+    async with db.transaction(context_for(request, pr)) as conn:
+        t = await _assigned_trip(conn, pr, body.trip_uid)
+        out = json.loads(await conn.fetchval("SELECT sec.raise_sos($1, $2, $3)::text", t["id"], body.lat, body.lng))
+    request.state.audit = {"action": "sos.raise", "object_type": "sos_event", "object_id": out["sos_id"]}
+    return out
+
+
+class IncidentIn(BaseModel):
+    trip_uid: uuid.UUID
+    type: Literal["COLLISION", "BREAKDOWN", "FIRE", "SECURITY", "SEIZURE", "MEDICAL", "OTHER"]
+    severity: Literal["MINOR", "MAJOR", "SEVERE"]
+    injuries: bool = False
+    description: Optional[str] = Field(default=None, max_length=2000)
+    lat: Optional[float] = Field(default=None, ge=-90, le=90)
+    lng: Optional[float] = Field(default=None, ge=-180, le=180)
+    occurred_at: Optional[datetime] = None
+    police_report_no: Optional[str] = Field(default=None, max_length=60)
+
+
+@router.post("/incidents", status_code=201)
+async def report_incident(body: IncidentIn, request: Request, pr: Principal = Depends(driver)):
+    """The driver reports an incident on the trip's vehicle. A severe one takes the vehicle out of service at once;
+    the carrier decides what happens to the trip (continuity) from its portal."""
+    async with db.transaction(context_for(request, pr)) as conn:
+        t = await _assigned_trip(conn, pr, body.trip_uid)
+        out = json.loads(await conn.fetchval(
+            "SELECT ops.report_incident($1, $2, $3, $4, $5, $6, $7, $8, $9)::text", t["id"], body.type, body.severity,
+            body.injuries, body.description, body.lat, body.lng, body.occurred_at, body.police_report_no))
+    request.state.audit = {"action": "incident.report", "object_type": "incident", "object_id": out["incident_id"]}
+    return out

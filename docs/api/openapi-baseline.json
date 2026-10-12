@@ -198,6 +198,20 @@
     "200": {}
    }
   },
+  "GET /api/account/photo": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/account/photo/image": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
   "GET /api/account/requests": {
    "body": null,
    "parameters": {},
@@ -238,6 +252,35 @@
   "GET /api/admin/approvals/policies": {
    "body": null,
    "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/admin/boarding/operator-grants": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/admin/boarding/settings": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/admin/boarding/stations/{station_uid}": {
+   "body": null,
+   "parameters": {
+    "path:station_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
    "responses": {
     "200": {}
    }
@@ -481,6 +524,49 @@
     "200": {}
    }
   },
+  "GET /api/admin/photos/changes": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/admin/photos/changes/{uid}/evidence": {
+   "body": null,
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/admin/photos/evidence-kinds": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/admin/photos/policy-changes": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/admin/photos/rules": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
   "GET /api/admin/privacy/requests": {
    "body": null,
    "parameters": {},
@@ -571,6 +657,21 @@
    }
   },
   "GET /api/agency/tickets/{ticket_uid}/offline": {
+   "body": null,
+   "parameters": {
+    "path:ticket_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/agency/tickets/{ticket_uid}/photo": {
    "body": null,
    "parameters": {
     "path:ticket_uid": {
@@ -806,6 +907,13 @@
     "200": {}
    }
   },
+  "GET /api/carrier/references": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
   "GET /api/carrier/routes": {
    "body": null,
    "parameters": {},
@@ -831,6 +939,13 @@
      }
     }
    },
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/carrier/station-operators/grants": {
+   "body": null,
+   "parameters": {},
    "responses": {
     "200": {}
    }
@@ -894,6 +1009,28 @@
     "200": {}
    }
   },
+  "GET /api/carrier/trips/{trip_uid}/tickets/{ticket_uid}/photo": {
+   "body": null,
+   "parameters": {
+    "path:ticket_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    },
+    "path:trip_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
   "GET /api/carrier/vehicles": {
    "body": null,
    "parameters": {},
@@ -933,6 +1070,28 @@
   "GET /api/driver/trips/{trip_uid}/offline": {
    "body": null,
    "parameters": {
+    "path:trip_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/driver/trips/{trip_uid}/tickets/{ticket_uid}/photo": {
+   "body": null,
+   "parameters": {
+    "path:ticket_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    },
     "path:trip_uid": {
      "required": true,
      "schema": {
@@ -1516,6 +1675,13 @@
    }
   },
   "GET /api/security/summary": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/station/overview": {
    "body": null,
    "parameters": {},
    "responses": {
@@ -2455,6 +2621,30 @@
     "200": {}
    }
   },
+  "POST /api/account/deactivate": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "password": {
+        "maxLength": 200,
+        "minLength": 1,
+        "type": "string"
+       }
+      },
+      "required": [
+       "password"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
   "POST /api/account/devices/{device_id}/revoke": {
    "body": null,
    "parameters": {
@@ -2515,6 +2705,36 @@
     },
     "required": true
    },
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/account/photo": {
+   "body": {
+    "content": {
+     "multipart/form-data": {
+      "properties": {
+       "file": {
+        "contentMediaType": "application/octet-stream",
+        "type": "string"
+       }
+      },
+      "required": [
+       "file"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "201": {}
+   }
+  },
+  "POST /api/account/photo/verify": {
+   "body": null,
    "parameters": {},
    "responses": {
     "200": {}
@@ -2793,6 +3013,145 @@
    },
    "responses": {
     "200": {}
+   }
+  },
+  "POST /api/admin/boarding/operating-companies": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "legal_name": {
+        "maxLength": 160,
+        "minLength": 3,
+        "type": "string"
+       },
+       "license_no": {
+        "maxLength": 60,
+        "nullable": true,
+        "type": "string"
+       },
+       "owner_email": {
+        "format": "email",
+        "type": "string"
+       },
+       "owner_name": {
+        "maxLength": 120,
+        "minLength": 3,
+        "type": "string"
+       },
+       "owner_password": {
+        "maxLength": 200,
+        "minLength": 1,
+        "type": "string"
+       }
+      },
+      "required": [
+       "legal_name",
+       "owner_name",
+       "owner_email",
+       "owner_password"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "201": {}
+   }
+  },
+  "POST /api/admin/boarding/operator-grants": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "operator_company_uid": {
+        "format": "uuid",
+        "type": "string"
+       },
+       "permission": {
+        "enum": [
+         "BOOKING",
+         "BOARDING_PASS",
+         "BOARDING"
+        ],
+        "type": "string"
+       },
+       "station_uid": {
+        "format": "uuid",
+        "nullable": true,
+        "type": "string"
+       }
+      },
+      "required": [
+       "operator_company_uid",
+       "permission"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "201": {}
+   }
+  },
+  "POST /api/admin/boarding/operator-grants/{uid}/revoke": {
+   "body": null,
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/admin/boarding/stations/{station_uid}/gates": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "gate_type": {
+        "enum": [
+         "PLATFORM",
+         "BAY",
+         "GATE",
+         "COUNTER"
+        ],
+        "type": "string"
+       },
+       "operator_company_uid": {
+        "format": "uuid",
+        "nullable": true,
+        "type": "string"
+       }
+      },
+      "required": [
+       "gate_type"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:station_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "201": {}
    }
   },
   "POST /api/admin/cash/remittances": {
@@ -3647,6 +4006,460 @@
     "200": {}
    }
   },
+  "POST /api/admin/photos/changes": {
+   "body": {
+    "content": {
+     "multipart/form-data": {
+      "properties": {
+       "evidence": {
+        "contentMediaType": "application/octet-stream",
+        "type": "string"
+       },
+       "evidence_kind": {
+        "maxLength": 40,
+        "minLength": 3,
+        "type": "string"
+       },
+       "new_photo": {
+        "contentMediaType": "application/octet-stream",
+        "type": "string"
+       },
+       "party_uid": {
+        "format": "uuid",
+        "type": "string"
+       },
+       "reason": {
+        "maxLength": 500,
+        "minLength": 10,
+        "type": "string"
+       }
+      },
+      "required": [
+       "party_uid",
+       "reason",
+       "evidence_kind",
+       "evidence",
+       "new_photo"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "201": {}
+   }
+  },
+  "POST /api/admin/photos/changes/{uid}/approve": {
+   "body": null,
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/admin/photos/changes/{uid}/reject": {
+   "body": null,
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/admin/photos/data-requirements/{field}/changes": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "reason": {
+        "maxLength": 500,
+        "minLength": 10,
+        "type": "string"
+       },
+       "requirement": {
+        "enum": [
+         "REQUIRED",
+         "OPTIONAL"
+        ],
+        "type": "string"
+       }
+      },
+      "required": [
+       "requirement",
+       "reason"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:field": {
+     "required": true,
+     "schema": {
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "201": {}
+   }
+  },
+  "POST /api/admin/photos/evidence-kinds/{code}/changes": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "active": {
+        "type": "boolean"
+       },
+       "reason": {
+        "maxLength": 500,
+        "minLength": 10,
+        "type": "string"
+       }
+      },
+      "required": [
+       "active",
+       "reason"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:code": {
+     "required": true,
+     "schema": {
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "201": {}
+   }
+  },
+  "POST /api/admin/photos/feature/changes": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "enabled": {
+        "type": "boolean"
+       },
+       "legal_basis": {
+        "maxLength": 500,
+        "minLength": 10,
+        "type": "string"
+       },
+       "reason": {
+        "maxLength": 500,
+        "minLength": 10,
+        "type": "string"
+       }
+      },
+      "required": [
+       "enabled",
+       "legal_basis",
+       "reason"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "201": {}
+   }
+  },
+  "POST /api/admin/photos/identity-age/changes": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "min_age": {
+        "maximum": 120.0,
+        "minimum": 0.0,
+        "nullable": true,
+        "type": "integer"
+       },
+       "reason": {
+        "maxLength": 500,
+        "minLength": 10,
+        "type": "string"
+       }
+      },
+      "required": [
+       "reason"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "201": {}
+   }
+  },
+  "POST /api/admin/photos/policy-changes/{uid}/approve": {
+   "body": {
+    "content": {
+     "application/json": {
+      "nullable": true,
+      "properties": {
+       "document_no": {
+        "maxLength": 100,
+        "minLength": 1,
+        "nullable": true,
+        "type": "string"
+       }
+      },
+      "type": "object"
+     }
+    },
+    "required": false
+   },
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/admin/photos/policy-changes/{uid}/reject": {
+   "body": null,
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/admin/photos/rules": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "effective_from": {
+        "format": "date",
+        "type": "string"
+       },
+       "legal_basis": {
+        "maxLength": 500,
+        "minLength": 3,
+        "type": "string"
+       },
+       "market": {
+        "nullable": true,
+        "pattern": "^[A-Z]{2}$",
+        "type": "string"
+       },
+       "passenger_category": {
+        "enum": [
+         "ADULT",
+         "CHILD",
+         "INFANT",
+         "STUDENT",
+         "SENIOR",
+         "DISABLED"
+        ],
+        "nullable": true,
+        "type": "string"
+       },
+       "requirement": {
+        "enum": [
+         "REQUIRED",
+         "OPTIONAL",
+         "NOT_APPLICABLE"
+        ],
+        "type": "string"
+       },
+       "traveller_class": {
+        "enum": [
+         "SYRIAN_CITIZEN",
+         "FOREIGN",
+         "TRANSIT"
+        ],
+        "nullable": true,
+        "type": "string"
+       },
+       "trip_scope": {
+        "enum": [
+         "DOMESTIC",
+         "INTERNATIONAL"
+        ],
+        "nullable": true,
+        "type": "string"
+       }
+      },
+      "required": [
+       "requirement",
+       "effective_from",
+       "legal_basis"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "201": {}
+   }
+  },
+  "POST /api/admin/photos/rules/{uid}/approve": {
+   "body": null,
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/admin/photos/rules/{uid}/retirement": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "reason": {
+        "maxLength": 500,
+        "minLength": 10,
+        "type": "string"
+       }
+      },
+      "required": [
+       "reason"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "201": {}
+   }
+  },
+  "POST /api/admin/photos/rules/{uid}/retirement/approve": {
+   "body": null,
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/admin/photos/rules/{uid}/retirement/reject": {
+   "body": null,
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/admin/photos/rules/{uid}/withdraw": {
+   "body": null,
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/admin/photos/settings/changes": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "key": {
+        "maxLength": 60,
+        "type": "string"
+       },
+       "reason": {
+        "maxLength": 500,
+        "minLength": 10,
+        "type": "string"
+       },
+       "value": {}
+      },
+      "required": [
+       "key",
+       "value",
+       "reason"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "201": {}
+   }
+  },
   "POST /api/admin/privacy/requests/{request_uid}/complete": {
    "body": null,
    "parameters": {
@@ -4176,7 +4989,8 @@
          "DRIVER",
          "AGENCY",
          "PLATFORM",
-         "INSPECTOR"
+         "INSPECTOR",
+         "STATION"
         ],
         "type": "string"
        }
@@ -4380,6 +5194,36 @@
       },
       "required": [
        "code"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/auth/reactivate": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "identifier": {
+        "maxLength": 200,
+        "minLength": 3,
+        "type": "string"
+       },
+       "password": {
+        "maxLength": 200,
+        "minLength": 1,
+        "type": "string"
+       }
+      },
+      "required": [
+       "identifier",
+       "password"
       ],
       "type": "object"
      }
@@ -5517,6 +6361,75 @@
     "200": {}
    }
   },
+  "POST /api/carrier/references": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "expires_on": {
+        "format": "date",
+        "nullable": true,
+        "type": "string"
+       },
+       "issued_by": {
+        "maxLength": 120,
+        "minLength": 1,
+        "nullable": true,
+        "type": "string"
+       },
+       "issued_on": {
+        "format": "date",
+        "nullable": true,
+        "type": "string"
+       },
+       "kind": {
+        "enum": [
+         "AGREEMENT",
+         "LICENCE"
+        ],
+        "type": "string"
+       },
+       "licence_type": {
+        "maxLength": 60,
+        "minLength": 1,
+        "nullable": true,
+        "type": "string"
+       },
+       "reference_no": {
+        "maxLength": 60,
+        "minLength": 1,
+        "type": "string"
+       }
+      },
+      "required": [
+       "kind",
+       "reference_no"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "201": {}
+   }
+  },
+  "POST /api/carrier/references/{uid}/retire": {
+   "body": null,
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
   "POST /api/carrier/routes": {
    "body": {
     "content": {
@@ -5699,6 +6612,58 @@
    "body": null,
    "parameters": {
     "path:layout_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/carrier/station-operators/grants": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "operator_company_uid": {
+        "format": "uuid",
+        "type": "string"
+       },
+       "permission": {
+        "enum": [
+         "BOOKING",
+         "BOARDING_PASS",
+         "BOARDING"
+        ],
+        "type": "string"
+       },
+       "station_uid": {
+        "format": "uuid",
+        "nullable": true,
+        "type": "string"
+       }
+      },
+      "required": [
+       "operator_company_uid",
+       "permission"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "201": {}
+   }
+  },
+  "POST /api/carrier/station-operators/grants/{uid}/revoke": {
+   "body": null,
+   "parameters": {
+    "path:uid": {
      "required": true,
      "schema": {
       "format": "uuid",
@@ -6071,6 +7036,77 @@
     "200": {}
    }
   },
+  "POST /api/driver/incidents": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "injuries": {
+        "default": false,
+        "type": "boolean"
+       },
+       "lat": {
+        "maximum": 90.0,
+        "minimum": -90.0,
+        "nullable": true,
+        "type": "number"
+       },
+       "lng": {
+        "maximum": 180.0,
+        "minimum": -180.0,
+        "nullable": true,
+        "type": "number"
+       },
+       "occurred_at": {
+        "format": "date-time",
+        "nullable": true,
+        "type": "string"
+       },
+       "police_report_no": {
+        "maxLength": 60,
+        "nullable": true,
+        "type": "string"
+       },
+       "severity": {
+        "enum": [
+         "MINOR",
+         "MAJOR",
+         "SEVERE"
+        ],
+        "type": "string"
+       },
+       "trip_uid": {
+        "format": "uuid",
+        "type": "string"
+       },
+       "type": {
+        "enum": [
+         "COLLISION",
+         "BREAKDOWN",
+         "FIRE",
+         "SECURITY",
+         "SEIZURE",
+         "MEDICAL",
+         "OTHER"
+        ],
+        "type": "string"
+       }
+      },
+      "required": [
+       "trip_uid",
+       "type",
+       "severity"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "201": {}
+   }
+  },
   "POST /api/driver/location": {
    "body": {
     "content": {
@@ -6325,6 +7361,41 @@
    "parameters": {},
    "responses": {
     "200": {}
+   }
+  },
+  "POST /api/driver/sos": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "lat": {
+        "maximum": 90.0,
+        "minimum": -90.0,
+        "nullable": true,
+        "type": "number"
+       },
+       "lng": {
+        "maximum": 180.0,
+        "minimum": -180.0,
+        "nullable": true,
+        "type": "number"
+       },
+       "trip_uid": {
+        "format": "uuid",
+        "type": "string"
+       }
+      },
+      "required": [
+       "trip_uid"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "201": {}
    }
   },
   "POST /api/driver/trips/{trip_uid}/stops/{seq}": {
@@ -6640,6 +7711,37 @@
   },
   "POST /api/family/members/{uid}/invite": {
    "body": null,
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "201": {}
+   }
+  },
+  "POST /api/family/members/{uid}/photo": {
+   "body": {
+    "content": {
+     "multipart/form-data": {
+      "properties": {
+       "file": {
+        "contentMediaType": "application/octet-stream",
+        "type": "string"
+       }
+      },
+      "required": [
+       "file"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
    "parameters": {
     "path:uid": {
      "required": true,
@@ -8367,6 +9469,42 @@
     "201": {}
    }
   },
+  "POST /api/tickets/{ticket_uid}/sos": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "lat": {
+        "maximum": 90.0,
+        "minimum": -90.0,
+        "nullable": true,
+        "type": "number"
+       },
+       "lng": {
+        "maximum": 180.0,
+        "minimum": -180.0,
+        "nullable": true,
+        "type": "number"
+       }
+      },
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:ticket_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "201": {}
+   }
+  },
   "POST /api/v1/bookings": {
    "body": {
     "content": {
@@ -9564,6 +10702,92 @@
     "200": {}
    }
   },
+  "PUT /api/admin/boarding/settings": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "key": {
+        "enum": [
+         "boarding.stations.enabled",
+         "boarding.mode.state_mandated",
+         "boarding.mode.carrier_contracted",
+         "boarding.checkin.opens_minutes",
+         "boarding.checkin.closes_minutes",
+         "boarding.references.required"
+        ],
+        "type": "string"
+       },
+       "value": {}
+      },
+      "required": [
+       "key",
+       "value"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "PUT /api/admin/boarding/stations/{station_uid}": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "checkin_closes_minutes": {
+        "maximum": 1440.0,
+        "minimum": 0.0,
+        "nullable": true,
+        "type": "integer"
+       },
+       "checkin_opens_minutes": {
+        "maximum": 1440.0,
+        "minimum": 0.0,
+        "nullable": true,
+        "type": "integer"
+       },
+       "counter_system": {
+        "default": "PLATFORM",
+        "enum": [
+         "PLATFORM",
+         "EXTERNAL"
+        ],
+        "type": "string"
+       },
+       "displays": {
+        "default": false,
+        "type": "boolean"
+       },
+       "enabled": {
+        "type": "boolean"
+       }
+      },
+      "required": [
+       "enabled"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:station_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
   "PUT /api/admin/cash/limits/{company_id}": {
    "body": {
     "content": {
@@ -9889,6 +11113,38 @@
     "200": {}
    }
   },
+  "PUT /api/admin/photos/settings/approval-stages": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "stages": {
+        "items": {
+         "enum": [
+          "CHECK",
+          "THIRD_PARTY_CHECK",
+          "APPROVE"
+         ],
+         "type": "string"
+        },
+        "maxItems": 5,
+        "minItems": 2,
+        "type": "array"
+       }
+      },
+      "required": [
+       "stages"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
   "PUT /api/carrier/trips/{trip_uid}/hold": {
    "body": {
     "content": {
@@ -10105,6 +11361,7 @@
           "OPERATOR",
           "DRIVER",
           "AGENCY",
+          "STATION",
           "PASSENGER"
          ],
          "type": "string"

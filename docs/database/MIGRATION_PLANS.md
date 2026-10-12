@@ -214,6 +214,8 @@ asked with. The approval takes an optional legal document number, recorded on th
 
 **1100** lets the platform open tracking alerts. It adds two settings and two functions; no table and no rule changes. The worker calls `ops.raise_tracking_alerts()` once a minute. The function reads only departed trips, one row each from `ops.vehicle_position` (the latest position per vehicle) and the trip's stops, so its cost follows the trips on the road, not the history of positions. A server that upgrades starts opening alerts on the next minute for trips already silent; the carrier's owners receive one notice per trip, not one per minute, because an open alert stops a second one.
 
+**1101** lets the apps raise an SOS and report incidents. It adds one nullable column (`ops.incident.description`, with a length rule on new rows only), three functions and one trigger on `ops.trip`. The trigger reads `fleet.vehicle_service_status` only when a trip is created or its vehicle changes, through the vehicle's index, so trip updates that keep the vehicle cost nothing more. On a live server the column is added without rewriting the table. A vehicle already in an open out-of-service or impound period cannot be given to a new trip after the upgrade; trips that already have it keep it, and the carrier sees them in its incident and vehicle screens.
+
 ## 1064_partitioned_bookings.sql on a live database (R-06)
 
 1064 turns `sales.booking` into a table partitioned by ranges of id **in place, under an ACCESS EXCLUSIVE lock**: it

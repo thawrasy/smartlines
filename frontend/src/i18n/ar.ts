@@ -612,6 +612,7 @@ const ar: Messages = {
   },
   // Module framework: names for generated screens. English falls back to readable column names.
   f: {
+    police_report_no: "رقم ضبط الشرطة", reported_via: "طريقة الإبلاغ", injuries: "إصابات",
     absent_on: "يوم الغياب", account_label: "اسم الحساب", account_ref: "مرجع الحساب", action: "الإجراء", action_type: "نوع التعديل",
     action_value: "قيمة التعديل", actor_id: "المنفّذ", actor_role: "دور المنفّذ", added_by: "أضافه", addon_id: "الإضافة",
     affected_count: "عدد المتأثرين", agent_ref: "مرجع الوكيل", amount_approved: "المبلغ المعتمد", amount_requested: "المبلغ المطلوب",
@@ -885,6 +886,8 @@ const ar: Messages = {
     "window_from": "بداية النافذة", "window_to": "نهاية النافذة", "zone_class": "فئة المنطقة", "zone_id": "المنطقة",
   },
   val: {
+    DRIVER_APP: "تطبيق السائق", COLLISION: "تصادم", BREAKDOWN: "عطل", FIRE: "حريق", SEIZURE: "حجز",
+    MEDICAL: "حالة طبية", MINOR: "بسيط", MAJOR: "كبير", SEVERE: "خطير",
     ACCEPTED_WITH_WARNINGS: "مقبول مع تنبيهات", ADD: "جمع", ADJUST: "تسوية", AGGREGATE_ONLY: "مجمّع فقط", AI_ASSISTANT: "المساعد الذكي",
     ALLOW: "سماح", AMENDED: "معدَّل", AMOUNT: "المبلغ", ANNUAL: "سنوي", ANONYMIZE: "إخفاء الهوية", ANSWERED: "تمت الإجابة", API: "واجهة برمجية",
     API_CLIENT: "عميل الواجهة البرمجية", APPROVED_WITH_CONDITIONS: "موافق بشروط", ARCHIVE: "أرشفة", ASSET: "أصول", ASSIGN: "إسناد",
@@ -1086,7 +1089,7 @@ const ar: Messages = {
     "einvoice-submission": "إرسالات الفواتير الإلكترونية", enrollment: "التسجيلات", "exchange-rate": "أسعار الصرف", "fare-table": "جداول الأجور",
     "fare-table-item": "أسعار جداول الأجور", "feature-compliance-review": "مراجعات امتثال الميزات", "field-check-log": "الفحوص الميدانية",
     "float-account": "حسابات الأموال المودعة", "float-report": "تقارير الأموال المودعة", "fraud-case": "حالات الاحتيال",
-    "gl-account": "حسابات الدفتر", "gl-period": "الفترات المحاسبية", "incident-evidence": "أدلة الحوادث",
+    "gl-account": "حسابات الدفتر", "gl-period": "الفترات المحاسبية", "incident": "الحوادث", "incident-evidence": "أدلة الحوادث",
     "incident-external-link": "الحوادث المحالة إلى الجهات", "inspection-check": "تفتيش التذاكر", "insurance-policy": "وثائق التأمين",
     "journal-entry": "قيود اليومية", "journal-line": "بنود القيود", jurisdiction: "الولايات الضريبية", "ledger-close": "أيام الدفتر المغلقة",
     "ledger-day-total": "مجاميع أيام الدفتر", "legal-hold": "الحجوزات القانونية", "license-change-request": "طلبات تعديل التراخيص",

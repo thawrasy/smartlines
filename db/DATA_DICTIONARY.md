@@ -2,7 +2,7 @@
 
 > Generated from the built database (`db/tools/gen_docs.py`); do not edit by hand.
 
-**514 tables, 5279 columns, in 26 schemas.**
+**514 tables, 5280 columns, in 26 schemas.**
 
 Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant isolation (RLS) · 🧩 partitioned monthly · 🔒 append-only / change-protected
 
@@ -2899,6 +2899,7 @@ Incident or breakdown; a serious one takes the vehicle out of service immediatel
 | `reported_by` | `bigint` | 🔗 `iam.app_user`  |  |
 | `status` | `text` | ✱ | `'OPEN'::text` |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `description` | `text` |  |  |
 
 ### `ops.incident_evidence` 🛡️
 

@@ -2752,4 +2752,58 @@ SELECT pg_temp.ok(has_function_privilege('masslak_app', 'ops.raise_tracking_aler
   'Tracking alerts (1100): the worker may run the check; the silence list is not open to the application');
 ROLLBACK;
 
+-- SOS and incidents (1101): the trip's driver or a passenger on it raises an SOS, once while it is open; nobody else can;
+-- the driver reports an incident that links the SOS and, when severe, takes the vehicle out of service
+BEGIN;
+SELECT sys.set_context(:uadmin, NULL, 'SYSTEM');
+INSERT INTO iam.app_user (party_id, account_kind, email, status) VALUES (:pax, 'CUSTOMER', 'sos-pax@masslak.test', 'ACTIVE') RETURNING id AS upax \gset
+INSERT INTO iam.app_user (party_id, account_kind, email, status) VALUES (:fstranger, 'CUSTOMER', 'sos-stranger@masslak.test', 'ACTIVE') RETURNING id AS ustranger \gset
+UPDATE sales.booking SET booker_user_id = :upax WHERE booking_ref = 'ABC123';
+UPDATE ops.trip SET status = 'DEPARTED', departure_at = now() - interval '1 hour', arrival_at = now() + interval '3 hours' WHERE id = :t_tr;
+RESET ROLE;   -- the relation is read by the two functions only; the test reads it as the owner
+SELECT pg_temp.ok(ops.trip_relation(:t_tr, :upax) = 'PASSENGER' AND ops.trip_relation(:t_tr, :ufin) = 'DRIVER'
+  AND ops.trip_relation(:t_tr, :ustranger) IS NULL, 'SOS (1101): the booker travels on the trip, the assigned crew drives it, a stranger neither');
+SET ROLE masslak_app;
+SELECT sys.set_context(:upax, NULL, 'PASSENGER', NULL, NULL, NULL, NULL, :pax);
+SELECT sec.raise_sos(:t_tr, 33.51, 36.29) AS sos1 \gset
+SELECT pg_temp.ok((:'sos1'::jsonb ->> 'role') = 'PASSENGER' AND NOT (:'sos1'::jsonb ->> 'repeated')::boolean,
+  'SOS (1101): a passenger on the trip raises an SOS');
+SELECT pg_temp.ok((sec.raise_sos(:t_tr) ->> 'sos_id') = (:'sos1'::jsonb ->> 'sos_id'), 'SOS (1101): a second press while it is open returns the same SOS');
+SELECT sys.set_context(:uadmin, NULL, 'SYSTEM');
+SELECT pg_temp.ok((SELECT count(*) FROM sys.outbox_event WHERE event_type = 'sos.raised' AND aggregate_id = (:'sos1'::jsonb ->> 'sos_id')::bigint
+                    AND company_id = :ca AND payload ->> 'where' = '33.51000, 36.29000') = 1,
+  'SOS (1101): the carrier and the platform are told once, with the position');
+SELECT sys.set_context(:ustranger, NULL, 'PASSENGER', NULL, NULL, NULL, NULL, :fstranger);
+SELECT pg_temp.expect_error(format('SELECT sec.raise_sos(%s)', :t_tr), 'SOS_NOT_ON_TRIP', 'SOS (1101): someone not on the trip cannot raise an SOS on it');
+SELECT pg_temp.expect_error(format('SELECT sec.raise_sos(%s, 33.5, NULL)', :t_tr), 'SOS_BAD_POSITION', 'SOS (1101): half a position is refused');
+SELECT sys.set_context(:upax, NULL, 'PASSENGER', NULL, NULL, NULL, NULL, :pax);
+SELECT pg_temp.expect_error(format($$SELECT ops.report_incident(%s, 'COLLISION', 'MINOR', false)$$, :t_tr), 'INCIDENT_NOT_DRIVER',
+  'Incidents (1101): a passenger reports through support, not as the driver');
+SELECT sys.set_context(:ufin, :ca, 'COMPANY');
+SELECT pg_temp.ok((sec.raise_sos(:t_tr) ->> 'role') = 'DRIVER', 'SOS (1101): the trip''s driver raises an SOS');
+SELECT ops.report_incident(:t_tr, 'COLLISION', 'SEVERE', true, 'Hit by a truck at the junction', 33.6, 36.3) AS inc \gset
+SELECT sys.set_context(:uadmin, NULL, 'SYSTEM');
+SELECT pg_temp.ok((SELECT i.reported_via = 'DRIVER_APP' AND i.reported_by = :ufin AND i.driver_party_id = :driver AND i.vehicle_id = :va
+                          AND i.injuries AND i.description LIKE 'Hit by%' AND i.company_id = :ca
+                     FROM ops.incident i WHERE i.id = (:'inc'::jsonb ->> 'incident_id')::bigint),
+  'Incidents (1101): the incident names the trip''s carrier, vehicle and driver, as reported from the app');
+SELECT pg_temp.ok((SELECT incident_id FROM sec.sos_event WHERE id = (:'inc'::jsonb ->> 'sos_id')::bigint) = (:'inc'::jsonb ->> 'incident_id')::bigint
+  AND (SELECT triggered_by FROM sec.sos_event WHERE id = (:'inc'::jsonb ->> 'sos_id')::bigint) = :ufin,
+  'Incidents (1101): the driver''s open SOS is linked to the incident, not the passenger''s');
+SELECT pg_temp.ok((:'inc'::jsonb ->> 'vehicle_out_of_service')::boolean
+  AND EXISTS (SELECT 1 FROM fleet.vehicle_service_status WHERE vehicle_id = :va AND status = 'OUT_OF_SERVICE' AND period @> now()
+               AND incident_id = (:'inc'::jsonb ->> 'incident_id')::bigint),
+  'Incidents (1101): a severe incident takes the vehicle out of service at once');
+SELECT pg_temp.ok((SELECT (payload ->> 'platform')::boolean FROM sys.outbox_event WHERE event_type = 'incident.reported'
+                    AND aggregate_id = (:'inc'::jsonb ->> 'incident_id')::bigint),
+  'Incidents (1101): the platform is told of a severe incident with injuries');
+SELECT pg_temp.expect_error(format($$INSERT INTO ops.trip (trip_no, company_id, route_id, vehicle_id, departure_at, arrival_at, status, seats_total, segments_count, currency, base_price)
+  VALUES ('QDS990/X', %s, %s, %s, now() + interval '1 day', now() + interval '1 day 3 hours', 'PUBLISHED', 48, 1, 'SYP', 1000000)$$, :ca, :route, :va),
+  'VEHICLE_OUT_OF_SERVICE', 'Incidents (1101): a vehicle out of service is not given to a trip departing within the period');
+UPDATE ops.trip SET status = 'COMPLETED' WHERE id = :t_tr;
+SELECT sys.set_context(:upax, NULL, 'PASSENGER', NULL, NULL, NULL, NULL, :pax);
+UPDATE sec.sos_event SET status = 'CLOSED' WHERE triggered_by = :upax;
+SELECT pg_temp.expect_error(format('SELECT sec.raise_sos(%s)', :t_tr), 'SOS_TRIP_NOT_ACTIVE', 'SOS (1101): a finished trip takes no SOS');
+ROLLBACK;
+
 \echo '=== ALL TESTS PASSED ==='

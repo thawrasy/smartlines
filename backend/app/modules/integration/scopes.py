@@ -61,6 +61,8 @@ EVENTS = {
     "manifest.available": {"AUTHORITY", "INTERNAL"},
     "tracking.signal_lost": {"CARRIER", "INTERNAL"},
     "tracking.alert_escalated": {"CARRIER", "INTERNAL"},
+    "sos.raised": {"CARRIER", "INTERNAL"},
+    "incident.reported": {"CARRIER", "INTERNAL"},
     "webhook.ping": set(KIND_SCOPES),
 }
 
