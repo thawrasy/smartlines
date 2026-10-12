@@ -20,7 +20,7 @@ ITEMS = [
         'id': 'O-02', 'sources': f'{REVIEW_A}; {REVIEW_B}',
         'finding': 'The schema has never run on SQL Server 2025.',
         'status': 'Executed on SQL Server 2025 (RTM-CU9): db/deploy.sql runs to completion and the deployed counts match the DDL (194 tables, 20 schemas, 763 foreign keys, 515 unique constraints, 1,158 CHECK constraints, 700 indexes). A CI gate runs the same steps on every change to db/, tools/dbgen/ or tools/ci/ (tools/ci/db_ci.sh, .github/workflows/db-ci.yml). The gate has passed locally; its first run on GitHub is pending. Not yet run on the production server.',
-        'next': 'Check the first GitHub run in the Actions tab, then run db/deploy.sql on the target Windows server.',
+        'next': 'Check the first GitHub run in the Actions tab, then run tools\\deploy\\deploy.ps1 on the target Windows server. The Windows path has not been run yet; the Linux path is tested by CI through tools/deploy/deploy.sh.',
     },
     {
         'id': 'O-03', 'sources': f'{REVIEW_A}; {REVIEW_B}',

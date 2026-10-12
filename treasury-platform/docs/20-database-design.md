@@ -433,7 +433,9 @@
 
 ### 12.1 ترتيب النشر (`db/deploy.sql`، وضع SQLCMD)
 ```
-sqlcmd -S <server> -E -I -f 65001 -i db\deploy.sql -v DbName=BankFas
+cd db
+sqlcmd -S <server> -E -I -f 65001 -b -i deploy.sql
+# or, from the repository root on Windows: tools\deploy\deploy.ps1 -Server <server>
 ```
 1. إنشاء القاعدة بـ `Arabic_100_CI_AS_SC` إن لم تكن موجودة
 2. `000_schemas` → `001_tables` → `002_foreign_keys` → `003_indexes` (مولَّدة)

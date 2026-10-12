@@ -49,11 +49,8 @@ python3 tools/dbgen/check_fk_indexes.py
 
 echo "== 4. deploy db/deploy.sql to a fresh BankFas database"
 sq -Q "IF DB_ID(N'BankFas') IS NOT NULL BEGIN ALTER DATABASE [BankFas] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [BankFas]; END" >/dev/null
-# deploy.sql uses Windows paths; the Linux copy only changes the backslashes in :r lines.
-sed 's#\\#/#g' db/deploy.sql > "$TMP/deploy.linux.sql"
-# Linux sqlcmd reads the UTF-8 files as they are; the paths in :r lines resolve from db/.
-(cd db && sq -i "$TMP/deploy.linux.sql")   # deploy.sql sets DbName = BankFas with :setvar
-echo "deployment finished"
+# The same wrapper that users run: it changes to db/ and runs deploy.sql unchanged.
+SQL_SERVER="$SQL_SERVER" SQL_USER=sa SQLCMD="$SQLCMD" bash tools/deploy/deploy.sh
 
 echo "== 5. deployed objects against the generated DDL"
 python3 tools/dbgen/check_deployed.py --sqlcmd "$SQLCMD" --server "$SQL_SERVER" --database BankFas
