@@ -10,6 +10,10 @@
 | يعتمد على | DOC-F01 (الحدود TB والفاعلون)، DOC-F02 (تدفقات القيم الحساسة) |
 | المصادر | db/static/010_rls.sql، db/static/020_roles_and_grants.sql، db/static/025_tenant_views.sql، db/static/030_session_context.sql، db/generated/tsql/005_delete_grants.sql، db/generated/tsql/006_sensitive_columns.sql، db/generated/tsql/007_table_grants.sql، db/model/10-platform.model، db/tests/tenant_isolation_tests.sql، tools/dbgen/erd_open_items.py، tools/dbgen/check_grants.py، tools/deploy/deploy.sh، tools/ci/db_ci.sh، ../.github/workflows/treasury-db-ci.yml (جذر المستودع)، docs/adr/0002-login-and-session-bound-context.md، docs/review/design-review-2026-10-11.json، docs/10-detailed-analysis/10-m0-m1-platform-organization.md |
 
+> **تحديث التنفيذ (2026-10-12):** نُفّذت قرارات المالك لبوابة S0 في القاعدة (docs/adr/0003-account-security-in-the-database.md، db/static/030_session_context.sql، db/static/035_account_security.sql) وتمر في CI (48 حالة عزل و14 حالة حسابات في db/tests/auth_flow_tests.sql). أرقام الأسطر المذكورة لملف 030 في هذه الوثيقة تسبق هذا التحديث.
+>
+> ما يخص هذه الوثيقة: THR-19 وTHR-20 وTHR-22 وTHR-23 أُغلقت بإجراءات 035 والـDENY ومصفوفة حالة المشترك؛ THR-21 مقبول كما اقتُرح، ومعه فحص تكرار الخطوة وحد الإخفاقات؛ O-19 مغلق (T44). يبقى من فئة O-24 حذف صفوف sec.LoginAttempt حتى يُحسم DQ-F03-10.
+
 ## 1. الغرض والنطاق
 
 - يسجل هذا المستند التهديدات لكل حد ثقة في DOC-F01 بتصنيف STRIDE، والضابط القائم بموضعه في المستودع، والخطر المتبقي، والضابط المقترح، والتقييم، والمالك.
@@ -80,11 +84,11 @@
 |---|---|---|---|---|---|
 | THR-17 | E: ضبط `TenantId` مباشرة (O-16) | المرشح يشترط الربط ورمزه (db/static/010_rls.sql:22-31)؛ T16، T16b، T16c، T28 | لا شيء للقراءة والكتابة | — | منخفض (مغلق) · معماري القاعدة |
 | THR-18 | S: الربط بمعرّف مستخدم متسلسل (O-17) | الربط برمز الجلسة (db/static/030_session_context.sql:191-199)؛ T17-T20، T32-T36 | لا شيء عبر المشتركين | — | منخفض (مغلق) · معماري القاعدة |
-| THR-19 | S، E: انتحال داخل المشترك بتعديل `PasswordHash` أو `MfaEnabled` أو `MfaSecretEnc` (O-24) | DENY القراءة على `PasswordHash` (db/static/030_session_context.sql:237)؛ T35 | `tp_app` يعدّل كل أعمدة `sec.AppUser` (db/generated/tsql/007_table_grants.sql:24) | تغيير الكلمة وإعادة التعيين وMFA بإجراءات؛ DENY UPDATE على الأعمدة الثلاثة | م×ع = **عالٍ** · معماري القاعدة |
+| THR-19 | S، E: انتحال داخل المشترك بتعديل `PasswordHash` أو `MfaEnabled` أو `MfaSecretEnc` (O-24) | DENY القراءة على `PasswordHash` (db/static/030_session_context.sql:237)؛ T35 | `tp_app` يعدّل كل أعمدة `sec.AppUser` (db/generated/tsql/007_table_grants.sql:24) | ✅ نُفّذ (ADR 0003؛ T45) | م×ع = **عالٍ** · معماري القاعدة |
 | THR-20 | S: إعادة تشغيل تجزئة من سجل الكلمات | لا شيء | `tp_app` يقرأ `sec.UserPasswordHistory.PasswordHash` (db/generated/tsql/007_table_grants.sql:46)؛ إن احتوى التجزئة الحالية أمكن تمريرها إلى `usp_StartSession` (DOC-F02 §3) | DENY SELECT على العمود؛ فحص إعادة الاستعمال داخل إجراء (BR-PLT-004) | م×ع = **عالٍ** · معماري القاعدة |
 | THR-21 | S: نتيجة MFA يثق بها التطبيق (O-24) | النتيجة تُسجَّل بإجراء (db/static/030_session_context.sql:143-163) | `@Passed` قيمة يمررها التطبيق (db/static/030_session_context.sql:146) | قبول متبقٍّ مع مراقبة `FAILED_MFA`؛ يُعاد النظر عند فصل خدمة التحقق | ن×ع = متوسط · مسؤول الهوية |
-| THR-22 | T: تمديد الجلسة (O-24) | DENY على خمسة أعمدة منها `AbsoluteExpiresAt` (db/static/030_session_context.sql:239)؛ T35 | `IdleExpiresAt` قابل للتعديل من `tp_app`، ومسح `EndedAt` يعيد فتح جلسة منهاة (tools/dbgen/erd_open_items.py:153) | إجراء يمدد الخمول بحد `AbsoluteExpiresAt`؛ DENY UPDATE على `IdleExpiresAt` (`AbsoluteExpiresAt` ✅ مُنع في e5ea45e) | م×م = متوسط · معماري القاعدة |
-| THR-23 | I: دخول مشترك معلّق (O-18) | الكتابة مرفوضة (db/static/010_rls.sql:35-41)؛ الإبطال عند التعليق (db/static/030_session_context.sql:285-296)؛ T27، T31 | ربط جديد لأي مستخدم نشط يقرأ (db/static/030_session_context.sql:186-188)، خلافًا لـBR-PLT-002 | حسم O-18 في DOC-F04 | م×م = متوسط · معماري القاعدة |
+| THR-22 | T: تمديد الجلسة (O-24) | DENY على خمسة أعمدة منها `AbsoluteExpiresAt` (db/static/030_session_context.sql:239)؛ T35 | `IdleExpiresAt` قابل للتعديل من `tp_app`، ومسح `EndedAt` يعيد فتح جلسة منهاة (tools/dbgen/erd_open_items.py:153) | ✅ نُفّذ: `sec.usp_TouchSession` وDENY UPDATE على `sec.UserSession` كله (ADR 0003؛ T35، A12) | م×م = متوسط · معماري القاعدة |
+| THR-23 | I: دخول مشترك معلّق (O-18) | الكتابة مرفوضة (db/static/010_rls.sql:35-41)؛ الإبطال عند التعليق (db/static/030_session_context.sql:285-296)؛ T27، T31 | ربط جديد لأي مستخدم نشط يقرأ (db/static/030_session_context.sql:186-188)، خلافًا لـBR-PLT-002 | ✅ حُسم O-18 ونُفّذ (ADR 0003؛ T40 إلى T42) | م×م = متوسط · معماري القاعدة |
 | THR-24 | S، R: إدراج تدقيق بمشترك فارغ (O-19) | الكتابة لمشترك آخر مرفوضة (T14) | `rls.fn_AuditWrite` يقبل NULL (db/static/010_rls.sql:91) | رفض NULL لغير `tp_platform` (DQ-S01-5) واختبار | م×م = متوسط · معماري القاعدة |
 | THR-25 | I: كاشف المفاتيح الأجنبية للجداول المختلطة (O-20) | لا شيء | مرجع لصف مشترك آخر في `ref.UcpArticle` يُقبل | فحص أن الصف المرجعي عام أو للمشترك نفسه | ن×م = منخفض · معماري القاعدة |
 | THR-26 | I: كاشف قيود الفرادة (O-21) | الإدراج لمشترك آخر يُرفض (T4) | 2627 بدل 33504 يكشف وجود بريد أو `PublicId` | `TenantId` من السياق لا من الطلب (BR-PLT-001)؛ قبول متبقٍّ (DQ-S01-6) | ن×م = منخفض · معماري القاعدة |
@@ -179,12 +183,12 @@
 |---|---|---|---|---|---|
 | O-16 (erd_open_items) | مغلق (tools/dbgen/erd_open_items.py:106) | THR-17 | — | لا حاجة | معماري القاعدة |
 | O-17 (erd_open_items) | مغلق (tools/dbgen/erd_open_items.py:112) | THR-18 | — | لا حاجة | معماري القاعدة |
-| O-18 (erd_open_items) | قرار مفتوح (:118) | THR-23 | يُحسم في DOC-F04؛ أقل الخيارين خطرًا (ب) رفض الربط للمعلّق حتى يُكتب فحص الدور | لا يُقبل؛ يُحسم قبل S0 | معماري القاعدة |
+| O-18 (erd_open_items) | ✅ مغلق (ADR 0003) | THR-23 | الخيار (أ) منفّذ | — | معماري القاعدة |
 | O-19 (erd_open_items) | قرار مفتوح (:124) | THR-24، THR-39 | رفض NULL لغير المنصة واختبار | لا يُقبل | معماري القاعدة |
 | O-20 (erd_open_items) | مفتوح (:130) | THR-25 | فحص المرجع المختلط | يُقبل مؤقتًا حتى S2 (منخفض) | معماري القاعدة |
 | O-21 (erd_open_items) | مفتوح (:136) | THR-26 | `TenantId` من السياق دائمًا | يُقبل (منخفض) | معماري القاعدة |
 | O-22 (erd_open_items) | مفتوح، منخفض (:142) | THR-27، THR-35 | قواعد التطبيق وفحص ثابت | يُقبل (منخفض) بعد الفحص | مهندس الخلفية |
-| O-24 (erd_open_items) | مفتوح، متوسط (:154) | THR-19، THR-21، THR-22، ومعه THR-20 | إجراءات وDENY قبل خروج S0 | THR-21 فقط يُقبل | معماري القاعدة |
+| O-24 (erd_open_items) | ✅ مغلق لـ R1 وR3 وR4 وR5 (ADR 0003) | THR-19، THR-21، THR-22، ومعه THR-20 | إجراءات وDENY منفّذة | THR-21 يُقبل، وR6 ينتظر DQ-F03-10 | معماري القاعدة |
 
 هذا النموذج يرفع O-24 إلى **عالٍ**: القراءة من سجل الكلمات (THR-20) تتيح الانتحال دون أثر تعديل، وتعديل `MfaEnabled` يسقط MFA.
 

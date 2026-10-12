@@ -104,7 +104,7 @@ ITEMS = [
         'id': 'O-16', 'sources': 'Tenant-isolation tests (db/tests/tenant_isolation_tests.sql, case T16)',
         'finding': 'The application role can set TenantId directly with sp_set_session_context, which skips the membership check in sec.usp_SetSessionContext. Row-level security trusts the session context, so code that runs on the application connection outside the procedure can read or write another tenant. A DENY on the system procedure cannot be applied from a user database (error 4629).',
         'status': 'Closed by design (a), hardened after an adversarial review. Row filters (rls.fn_Bound, db/static/010_rls.sql) show a row only when the connection binding in sec.SessionBinding names the same tenant and its token matches SESSION_CONTEXT(N\'BindingToken\'); only sec.usp_SetSessionContext writes the binding (db/static/030_session_context.sql). The views check the binding (db/static/025_tenant_views.sql). Disabling a user, deleting a user, or closing a tenant revokes its bindings (triggers in db/static/030). Binding locks the tenant and user rows (OUT-01). Writes need an open tenant (BR-PLT-002), including DELETE. Tests T16 to T31 in db/tests/tenant_isolation_tests.sql cover these; a control with the binding check removed fails T16 and T16c.',
-        'next': 'None for the context itself. Residual risks: O-17 (the caller names the user) and O-18 to O-22.',
+        'next': 'None for the context itself. O-17, O-18, O-19 and O-24 are closed; O-20 to O-22 are accepted low residual risks.',
     },
     {
         'id': 'O-17', 'sources': 'Design review of O-16 (db/static/030_session_context.sql); confirmed by CTX-02-KR and PRED-06 in the adversarial review',
@@ -115,14 +115,14 @@ ITEMS = [
     {
         'id': 'O-18', 'sources': 'BR-PLT-002 (docs/10-detailed-analysis/10-m0-m1-platform-organization.md); adversarial review findings CTX-2, PRED-07, sb-02',
         'finding': 'Access to a SUSPENDED tenant does not follow BR-PLT-002. The procedure lets any active user bind to a SUSPENDED or ARCHIVED_READ_ONLY tenant, while the rule admits only the account administrator to a suspended tenant (read and export). An existing connection loses its rows when the tenant is suspended, but a new connection still reads them.',
-        'status': 'Decided by the owner (2026-10-12, docs/31-owner-decisions.md): option (a), the matrix in docs/30-readiness/DOC-F04 §7.4 (DQ-F04-1): SUSPENDED binds the account administrator only, read and export; CLOSED binds the account administrator for export only, within 30 days of closing; ARCHIVED_READ_ONLY binds no tenant user.',
-        'next': 'Implement the status-and-role check in sec.usp_SetSessionContext and the revocation trigger, and update test T27.',
+        'status': 'Closed (decided by the owner 2026-10-12, option (a), DQ-F04-1; docs/adr/0003-account-security-in-the-database.md). sec.fn_TenantOpen and sec.fn_TenantLoginAllowed (db/static/030_session_context.sql): SUSPENDED admits the tenant administrator (system role TA) only, with no writes; CLOSED admits the TA for 30 days after ClosedAt; ARCHIVED_READ_ONLY admits no tenant user. A proven password refused by the status gets 50006 (DQ-F03-11). Tests T40 to T42.',
+        'next': 'None. The application offers only export to a CLOSED tenant.',
     },
     {
         'id': 'O-19', 'sources': 'Adversarial review finding PRED-02',
         'finding': 'A tenant connection can insert audit rows with TenantId NULL. rls.fn_AuditWrite allows NULL, so a tenant can add rows that look like platform events: the platform reads them, the tenant cannot read them back.',
-        'status': 'Decided by the owner (2026-10-12, docs/31-owner-decisions.md): a tenant connection may not write audit rows with TenantId NULL; only tp_platform writes platform events (DQ-S01-5).',
-        'next': 'Change rls.fn_AuditWrite and add a test.',
+        'status': 'Closed (decided by the owner 2026-10-12, DQ-S01-5). rls.fn_AuditWrite admits TenantId NULL only for tp_platform and tp_auth (db/static/010_rls.sql). Test T44.',
+        'next': 'None.',
     },
     {
         'id': 'O-20', 'sources': 'Adversarial review finding PRED-03',
@@ -151,7 +151,7 @@ ITEMS = [
     {
         'id': 'O-24', 'sources': 'Design of O-17 (docs/adr/0002-login-and-session-bound-context.md)',
         'finding': 'Residual risks within one tenant after O-17. A bound application connection can still: update PasswordHash and the lockout counters (FailedAttempts, LockedUntil, Status) of a user of its own tenant; read sec.UserPasswordHistory.PasswordHash (offline cracking of earlier passwords); delete sec.LoginAttempt rows (the only login trace, since sec.usp_StartSession writes no aud.AuditLog row); read sec.MfaRecoveryCode.CodeHash; extend the idle expiry of a session; and clear EndedAt to reopen an ended session, which would undo a termination by an administrator. The TOTP check is trusted to the application (sec.usp_ConfirmMfa records its result and has no failure limit), and a user with MfaEnabled = 0 binds without MFA although FR-PLT-011 and BR-PLT-006 make MFA mandatory. The 12-hour absolute expiry is protected (DENY in 030, test T35). None of these crosses a tenant boundary. Threat model: docs/30-readiness/DOC-S01-threat-model.md.',
-        'status': 'Decided by the owner (2026-10-12, docs/31-owner-decisions.md): close the in-tenant residual risks before login code is written in S0 (DQ-S03-5, DQ-S01-2); MFA is mandatory for every non-system user and a tenant cannot switch it off (DQ-F03-4, DQ-S01-3, DQ-S04-11); the pre-login steps are built in the database in S0 (DQ-F03-1).',
-        'next': 'Before login code is written in S0: move password change, administrator reset and the BR-PLT-004 history check into procedures and DENY tp_app UPDATE on PasswordHash and the lockout columns and SELECT on the history hash; DENY tp_app DELETE on sec.LoginAttempt (retention by a job) and write login outcomes to aud.AuditLog; end sessions through a procedure (sec.usp_EndSession) and DENY tp_app UPDATE on EndedAt, EndReason and EndedBy; require an MFA enrolment-only session state for MfaEnabled = 0 users; add a failure limit to sec.usp_ConfirmMfa. Decide whether the idle extension stays with the application.',
+        'status': 'Closed for R1, R3, R4 and R5 (decided by the owner 2026-10-12, DQ-S03-5, DQ-S01-2, DQ-F03-1; docs/adr/0003-account-security-in-the-database.md). Password change and reset with the history rule, invitation, links, unlock, MFA enrolment and reset, recovery codes, user status, session touch and end are procedures run as tp_auth_exec (db/static/035_account_security.sql); tp_app is denied the direct rights, and an insert guard keeps new users INVITED without credentials. MFA is mandatory for every non-system user; TOTP failures, replayed steps and wrong recovery codes count toward the lockout. Tests T43, T45, T46 and A1 to A14 (db/tests/auth_flow_tests.sql).',
+        'next': 'Kept as accepted residual risks (ADR 0003): the application sees raw link tokens because it sends the e-mail; the TOTP check runs in the application (R2). Still open: R6, tp_app may delete sec.LoginAttempt rows and logins write no aud.AuditLog row (DQ-F03-10, not decided).',
     },
 ]

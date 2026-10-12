@@ -10,6 +10,10 @@
 | يعتمد على | DOC-S03 (شكل الرمز والكوكي)، DOC-S04 (قيم السياسة)، DOC-F04 (ربط الاتصال ومصفوفة حالة المشترك)، DOC-F06 (حالات المستخدم)، DOC-S02 (المفاتيح) |
 | المصادر | docs/adr/0002-login-and-session-bound-context.md، db/static/030_session_context.sql، db/static/010_rls.sql، db/static/020_roles_and_grants.sql، db/model/10-platform.model، db/generated/tsql/007_table_grants.sql، db/tests/tenant_isolation_tests.sql، docs/10-detailed-analysis/10-m0-m1-platform-organization.md، docs/20-database-design.md |
 
+> **تحديث التنفيذ (2026-10-12):** نُفّذت قرارات المالك لبوابة S0 في القاعدة (docs/adr/0003-account-security-in-the-database.md، db/static/030_session_context.sql، db/static/035_account_security.sql) وتمر في CI (48 حالة عزل و14 حالة حسابات في db/tests/auth_flow_tests.sql). أرقام الأسطر المذكورة لملف 030 في هذه الوثيقة تسبق هذا التحديث.
+>
+> ما يخص هذه الوثيقة: MFA إلزامي ولا ربط قبله (DQ-F03-4)؛ مسار ما قبل الدخول بإجراءات ضيقة (DQ-F03-1): `usp_ResolveTenant` و`usp_GetMfaChallenge` و`usp_CompleteMfaEnrolment` و`usp_UseRecoveryCode` و`usp_CompleteInvitation` و`usp_RequestPasswordReset` و`usp_ResetPassword` و`usp_ChangePassword` و`usp_EndSession`؛ رابط إعادة تسجيل MFA لمدة 24 ساعة (DQ-F03-8)؛ الخطأ 50006 بعد إثبات كلمة المرور فقط (DQ-F03-11). لم يُبنَ بعد: `usp_CheckUserToken` (DQ-F03-5) وحد الدقائق الخمس للجلسة المنتظرة MFA (DQ-F03-2) والتدقيق في aud.AuditLog لمحاولات الدخول (DQ-F03-10).
+
 ## 1. الغرض والنطاق
 
 تصف الوثيقة كل خطوة من فتح عنوان المشترك الفرعي حتى إصدار رمز جلسة صالح للربط، ثم الخروج. وتغطي الدعوة وإعادة تعيين كلمة المرور وفقدان جهاز MFA وإعادة المصادقة قبل التصدير الحساس.
@@ -171,12 +175,12 @@ sequenceDiagram
 | القاعدة | الحالة | المرجع |
 |---|---|---|
 | الجلسة موجودة لكنها لا تُربط حتى يُسجَّل MFA | 🟢 | 030:198، T36 |
-| التطبيق يتحقق من TOTP ويسجّل النتيجة فقط | 🟢 مخاطرة متبقية | 030:11-12 و159-162، O-24 (erd_open_items) |
+| التطبيق يتحقق من TOTP ويسجّل النتيجة فقط | 🟢 مخاطرة متبقية مقبولة، ومعها اليوم فحص تكرار الخطوة وحد الإخفاقات في القاعدة | ADR 0003، الاختباران A5 وA6 |
 | جلب السر قبل الربط بإجراء يقبل جلسة غير متحقَّقة عمرها 5 دقائق على الأكثر | 🟡 | DQ-F03-2 |
 | منع إعادة استعمال خطوة TOTP بمقارنة MfaLastUsedStep داخل الإجراء | 🟡 | العمود في db/model/10-platform.model:131 |
 | رمز الاسترداد يُقارن ويُستهلك داخل القاعدة ويُعاد عدد الباقي | 🟡 | DQ-F03-3، BR-PLT-006 |
 | خمس رموز خاطئة في الجلسة الواحدة تنهيها | 🟡 | DOC-S04 §8 |
-| مستخدم MfaEnabled = 0 تُربط جلسته بلا MFA اليوم | 🟢 فجوة | 030:198. الاقتراح في DQ-F03-4 |
+| مستخدم MfaEnabled = 0 تُربط جلسته بلا MFA | ✅ أُغلقت (ADR 0003) | الربط يشترط MfaVerifiedAt؛ الاختباران T43 وA14 |
 
 **سجل الدخول.** يسجّل usp_StartSession الحدث LOGIN_SUCCESS عند قبول كلمة المرور، أي قبل MFA (030:119 و124-126). هذا يطابق عدّ الأحداث التسعة في AC-PLT-2 (10-m0-m1-platform-organization.md:655). 🟡 يضاف حدث MFA_VERIFIED في aud.AuditLog عند اكتمال الدخول.
 
@@ -186,7 +190,7 @@ sequenceDiagram
 |---|---|---|
 | مهلة الخمول | 30 دقيقة من آخر نشاط | 🟢 030:117-118، FR-PLT-014 |
 | المهلة المطلقة | 12 ساعة من الإنشاء، ولا يغيّرها التطبيق | 🟢 030:118 و239، T35 |
-| تمديد الخمول | يحدّثه التطبيق | 🟢 مخاطرة متبقية O-24؛ الاقتراح في DOC-S03 §12 (R3) |
+| تمديد الخمول | `sec.usp_TouchSession` (035) | ✅ أُغلقت (ADR 0003)؛ الاختبار A12 |
 | المخزَّن | SHA-256 للرمز في sec.UserSession.TokenHash | 🟢 030:117، db/model/10-platform.model:221 |
 | الربط لكل طلب | sec.usp_SetSessionContext | 🟢 030:165-227؛ التفصيل في DOC-F04 |
 
@@ -367,8 +371,8 @@ sequenceDiagram
 | المحاولة على مشترك غير مقبول | db/static/030_session_context.sql:67-69 | لا تُسجَّل في sec.LoginAttempt |
 | التدقيق في AC-PLT-2 | docs/10-detailed-analysis/10-m0-m1-platform-organization.md:655 | يعدّ الأحداث في «سجل التدقيق»، والإجراء يكتبها في sec.LoginAttempt فقط (030:123-129) |
 | خطوات الدخول في التحليل | docs/10-detailed-analysis/10-m0-m1-platform-organization.md:402-403 | «يُشعَر المدير» عند كل قفل، و§9.3 في السطر 532 يقصره على القفل الثالث؛ والتسليم داخل المنصة يبدأ في S1 (السطر 539) |
-| الخطأ الواحد | docs/adr/0002-login-and-session-bound-context.md:20 | ينص على 50005 لكل فشل، وDOC-F04 يقترح 50006 لعضو أثبت كلمة مروره ورُفض بحالة المشترك (DQ-F04-3)؛ الموقف في DQ-F03-11 |
-| حالة المشترك عند الدخول | db/static/030_session_context.sql:67-68 | تقبل SUSPENDED وARCHIVED_READ_ONLY لأي مستخدم وترفض CLOSED، خلافًا لـ BR-PLT-002؛ يعالجه DOC-F04 (O-18) |
+| الخطأ الواحد | docs/adr/0002-login-and-session-bound-context.md:20 | ✅ عُدّل ADR 0002 بعد DQ-F03-11: 50005 لكل فشل قبل إثبات كلمة المرور، و50006 بعده فقط (T42) |
+| حالة المشترك عند الدخول | db/static/030_session_context.sql:67-68 | ✅ أُغلق O-18 بالخيار (أ): sec.fn_TenantLoginAllowed (T40 وT41) |
 
 ## 15. التتبع
 

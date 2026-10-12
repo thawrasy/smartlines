@@ -10,6 +10,10 @@
 | يعتمد على | DOC-F01 (حدود الثقة)، DOC-F03 (إصدار رمز الجلسة)، DOC-S03 (شكل الرمز وعنوان العميل الموثوق)، DOC-S08 (الحسابات والأسرار) |
 | المصادر | db/static/010_rls.sql، db/static/020_roles_and_grants.sql، db/static/025_tenant_views.sql، db/static/030_session_context.sql، db/generated/tsql/007_table_grants.sql، db/tests/tenant_isolation_tests.sql، docs/adr/0002-login-and-session-bound-context.md، docs/20-database-design.md، docs/21-data-dictionary.md، docs/10-detailed-analysis/10-m0-m1-platform-organization.md، tools/dbgen/erd_open_items.py |
 
+> **تحديث التنفيذ (2026-10-12):** نُفّذت قرارات المالك لبوابة S0 في القاعدة (docs/adr/0003-account-security-in-the-database.md، db/static/030_session_context.sql، db/static/035_account_security.sql) وتمر في CI (48 حالة عزل و14 حالة حسابات في db/tests/auth_flow_tests.sql). أرقام الأسطر المذكورة لملف 030 في هذه الوثيقة تسبق هذا التحديث.
+>
+> ما يخص هذه الوثيقة: O-18 مغلق بالخيار (أ) ومصفوفة §7.4 (`sec.fn_TenantOpen` و`sec.fn_TenantLoginAllowed`؛ T40 وT41)، و50006 لمن أثبت كلمة مروره ورفضته الحالة (T42)، والتحويل من العنوان الفرعي بـ `sec.usp_ResolveTenant` (DQ-F04-5)، وتمديد الخمول والخروج بإجراءين (DQ-F04-8)، وإنهاء الجلسات عند التعطيل (DQ-F04-9). لم يُبنَ بعد: ربط المهام (DQ-F04-4) وربط الدعم (DQ-F04-6).
+
 ## 1. الغرض والنطاق
 
 تصف هذه الوثيقة كيف يُربط كل اتصال بقاعدة البيانات بمشترك واحد قبل أي استعلام، بعد أن يملك المستخدم رمز جلسة صالحًا. وتغطي أربعة أنواع من الاتصال: طلب مستخدم المشترك، ومهمة الخلفية وعامل Outbox، ومشغّل المنصة، ووصول الدعم المؤقت. وتنتهي بمصفوفة حالة المشترك والدور التي يتتبعها O-18 (erd_open_items) واقتراح لحسمها.
@@ -93,7 +97,7 @@ sequenceDiagram
 | R-4 | يُستدعى الإجراء خارج أي معاملة. فهو يقفل صفوف المشترك والجلسة والمستخدم حتى نهاية معاملته (db/static/030_session_context.sql:184-199). إن استُدعي داخل معاملة المستدعي بقيت الأقفال حتى تنتهي، فتنتظر عمليات التعطيل والإنهاء (db/static/030_session_context.sql:178-182). | 🟢 السلوك، 🟡 القاعدة |
 | R-5 | الرمز الخام يبقى في التطبيق؛ القاعدة تقارن بصمته SHA-256 (db/static/030_session_context.sql:195). لا يُكتب الرمز في أي سجل (DOC-S03). | 🟢 |
 | R-6 | `ClientIp` و`CorrelationId` يُحفظان في السياق للتدقيق فقط. الإجراء لا يقارن `ClientIp` بعنوان الجلسة (db/static/030_session_context.sql:206-207). مصدر العنوان الموثوق في DOC-S03. | 🟢 |
-| R-7 | الإجراء لا يمدّد مهلة الخمول؛ يقرأ الجلسة فقط (db/static/030_session_context.sql:191-198). يمدّدها التطبيق بتحديث `sec.UserSession` (db/generated/tsql/007_table_grants.sql:40)، وهذا خطر متبقٍّ في O-24 (erd_open_items). يُقترح نقله إلى إجراء (DQ-F04-8). | 🟢 الوضع، 🟡 النقل |
+| R-7 | الإجراء لا يمدّد مهلة الخمول؛ يقرأ الجلسة فقط (db/static/030_session_context.sql:191-198). يمدّدها التطبيق بتحديث `sec.UserSession` (db/generated/tsql/007_table_grants.sql:40)، وهذا خطر متبقٍّ في O-24 (erd_open_items). يُقترح نقله إلى إجراء (DQ-F04-8). | ✅ نُقل إلى `sec.usp_TouchSession`، ومُنع التعديل المباشر (ADR 0003) |
 | R-8 | يُغلق الاتصال في نهاية كل طلب. لا يُحتفظ باتصال مربوط بين طلبين، لأن فحص صلاحية الجلسة يجري عند الربط فقط، وبه يسري الانتهاء والسحب في الطلب التالي. | 🟡 |
 | R-9 | الاستعلامات المتوازية في طلب واحد تستعمل اتصالات منفصلة، ويُربط كل منها بالقاعدة R-1. | 🟡 |
 | R-10 | لا يستدعي كود التطبيق `sp_set_session_context` مباشرة. ضبط `TenantId` يدويًا لا يكشف صفًّا (T16 وT28، db/tests/tenant_isolation_tests.sql:375 و:423)، ويجعل الربط اللاحق يفشل بالخطأ 50004. | 🟢 |
@@ -282,7 +286,7 @@ sequenceDiagram
 
 | # | الفجوة | الأثر |
 |---|---|---|
-| G-1 | SUSPENDED يقبل كل مستخدم نشط، والقاعدة تقصره على مدير الحساب (O-18 في tools/dbgen/erd_open_items.py:115-120). | مستخدمو مشترك معلّق يقرؤون بياناته. |
+| G-1 | ✅ أُغلقت (ADR 0003): SUSPENDED يقبل مدير الحساب وحده (O-18). | — |
 | G-2 | الربط القائم يُسحب عند التعليق، والربط الجديد يُقبل. | سلوك غير متسق: من كان داخلًا يُطرد ثم يعود بطلبه التالي. |
 | G-3 | CLOSED يُرفض في الدخول والربط. | التصدير مدة 30 يومًا مستحيل. |
 | G-4 | الكتابة مرفوضة في SUSPENDED وCLOSED، والتصدير يحتاج كتابة صف `cfg.DataExportJob` (docs/21-data-dictionary.md:847) وحفظ الحزمة في `doc.Document`. | لا تصدير حتى لمدير الحساب. |

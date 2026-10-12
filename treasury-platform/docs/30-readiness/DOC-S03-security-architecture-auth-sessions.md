@@ -10,6 +10,10 @@
 | يعتمد على | DOC-F04 (تسلسل الربط)، DOC-F03 (تسلسل الدخول)، DOC-S04 (قيم السياسة)، DOC-S05 (TLS وHSTS)، DOC-S08 (حسابات القاعدة)، DOC-F01 (حدود الثقة TB-1 وTB-3 وTB-4)، DOC-B04 (نموذج الأخطاء)، DOC-B11 (البيئات) |
 | المصادر | docs/adr/0002-login-and-session-bound-context.md، db/static/030_session_context.sql، db/static/010_rls.sql، db/static/020_roles_and_grants.sql، db/generated/tsql/005_delete_grants.sql و006_sensitive_columns.sql و007_table_grants.sql، db/model/10-platform.model، tools/dbgen/erd_open_items.py، docs/10-detailed-analysis/10-m0-m1-platform-organization.md |
 
+> **تحديث التنفيذ (2026-10-12):** نُفّذت قرارات المالك لبوابة S0 في القاعدة (docs/adr/0003-account-security-in-the-database.md، db/static/030_session_context.sql، db/static/035_account_security.sql) وتمر في CI (48 حالة عزل و14 حالة حسابات في db/tests/auth_flow_tests.sql). أرقام الأسطر المذكورة لملف 030 في هذه الوثيقة تسبق هذا التحديث.
+>
+> ما يخص هذه الوثيقة: حزمة إغلاق O-24 في §12 (DQ-S03-5) منفّذة لـ R1 وR3 وR4 وR5؛ R2 مقبول؛ R6 ينتظر DQ-F03-10. مهل الجلسة لكل مشترك (DQ-S03-6) لم تُبنَ بعد، والإجراءات تستعمل قيم المنصة (30 دقيقة و12 ساعة).
+
 ## 1. الغرض والنطاق
 
 تحدد الوثيقة كيف تنتقل الهوية من المتصفح إلى سياق المشترك في قاعدة البيانات، وأين تُفرض كل سياسة: في التطبيق أم في القاعدة.
@@ -202,11 +206,11 @@ O-24 (erd_open_items) يسجّل المخاطر داخل المشترك الوا
 
 | # | الخطر | الوضع الراهن | الاقتراح 🟡 |
 |---|---|---|---|
-| R1 | التطبيق يغيّر PasswordHash وأعمدة القفل لمستخدم من مشتركه | 🟢 UPDATE على sec.AppUser (007:24)، والحجب للقراءة فقط (030:237) | إجراءات للتغيير والإعادة وإعادة التجزئة والدعوة وفك القفل، ثم DENY UPDATE على PasswordHash وStatus وأعمدة القفل لـ tp_app |
+| R1 | التطبيق يغيّر PasswordHash وأعمدة القفل لمستخدم من مشتركه | 🟢 UPDATE على sec.AppUser (007:24)، والحجب للقراءة فقط (030:237) | ✅ نُفّذ (ADR 0003؛ T45): إجراءات التغيير والإعادة والدعوة وفك القفل والحالة، وDENY UPDATE على الأعمدة؛ إعادة التجزئة (DQ-S04-3) لم تُبنَ بعد |
 | R2 | التطبيق يقرر نجاح TOTP | 🟢 030:11-12 و159-162 | يُقبل خطرًا متبقيًا لأن مفاتيح السر في التطبيق (BR-PLT-015)، مع فحص إعادة الخطوة داخل الإجراء والتدقيق |
-| R3 | التطبيق يمدد الجلسة أو يعيد جلسة منتهية | 🟢 المهلة المطلقة محمية (030:239، T35)، وتبقى IdleExpiresAt وLastSeenAt وEndedAt قابلة للتحديث | إجراءان بصفة tp_auth_exec لتمديد الخمول حتى المهلة المطلقة وللإنهاء (DQ-F04-8، DQ-F03-6)، ثم DENY UPDATE على الأعمدة الثلاثة لـ tp_app |
-| R4 | قراءة تجزئة سجل الكلمات | 🟢 SELECT لـ tp_app (007:46)، والحجب لـ tp_readonly وحده (006:14) | DENY SELECT على العمود لـ tp_app، وفحص السجل داخل إجراء؛ وإلا قد تُعاد التجزئة الحالية إن خُزّنت في السجل |
-| R5 | قراءة تجزئات رموز الاسترداد | 🟢 SELECT لـ tp_app (007:42) | الاستهلاك داخل القاعدة ثم DENY SELECT على CodeHash (DQ-F03-3) |
+| R3 | التطبيق يمدد الجلسة أو يعيد جلسة منتهية | 🟢 المهلة المطلقة محمية (030:239، T35)، وتبقى IdleExpiresAt وLastSeenAt وEndedAt قابلة للتحديث | ✅ نُفّذ: `usp_TouchSession` و`usp_EndSession`، وDENY UPDATE على `sec.UserSession` كله (T35، T45، A12) |
+| R4 | قراءة تجزئة سجل الكلمات | 🟢 SELECT لـ tp_app (007:46)، والحجب لـ tp_readonly وحده (006:14) | ✅ نُفّذ: DENY SELECT على العمود، وفحص السجل داخل `usp_ApplyNewPassword` بمرشحين يحسبهم التطبيق (A8) |
+| R5 | قراءة تجزئات رموز الاسترداد | 🟢 SELECT لـ tp_app (007:42) | ✅ نُفّذ: `usp_UseRecoveryCode` وDENY SELECT على CodeHash (A7، T45) |
 | R6 | محو أثر الدخول | 🟢 INSERT وDELETE على sec.LoginAttempt (007:37، 005:11) | الأثر الدائم في aud.AuditLog الذي لا يُحذف (DQ-F03-10) |
 | R7 | عنوان IP غير قابل للتحقق | 🟢 030:44 | §7 |
 | R8 | المؤشرات بعد السحب ورموز الخطأ | O-22 (erd_open_items) | §9 |
