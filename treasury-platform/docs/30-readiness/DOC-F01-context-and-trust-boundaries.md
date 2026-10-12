@@ -8,7 +8,7 @@
 | الأولوية | P0 قبل S0 |
 | يغطي | FR-PLT-005، FR-PLT-006، FR-PLT-007، FR-PLT-011، FR-PLT-013، FR-PLT-027، FR-PLT-036، FR-PLT-037، FR-PLT-041، FR-PLT-042، FR-PLT-046، FR-PLT-047، BR-PLT-001، BR-PLT-015، BR-PLT-017، O-16 وO-17 وO-23 (erd_open_items)، O-12 (20-database-design) |
 | يعتمد على | ADR 0001، ADR 0002. لا يعتمد على وثيقة DOC أخرى؛ تعتمد عليه DOC-F02 وDOC-S01 وDOC-S03 وDOC-S05 وDOC-S08 وDOC-S10 |
-| المصادر | docs/adr/0001-schema-work-on-linux.md، docs/adr/0002-login-and-session-bound-context.md، db/deploy.sql، db/static/010_rls.sql، db/static/020_roles_and_grants.sql، db/static/025_tenant_views.sql، db/static/030_session_context.sql، db/generated/tsql/005_delete_grants.sql، db/generated/tsql/006_sensitive_columns.sql، db/generated/tsql/007_table_grants.sql، db/model/10-platform.model، docs/10-detailed-analysis/00-overview-and-cross-cutting.md، docs/10-detailed-analysis/10-m0-m1-platform-organization.md، docs/20-database-design.md، tools/deploy/deploy.sh، tools/ci/db_ci.sh، .github/workflows/db-ci.yml |
+| المصادر | docs/adr/0001-schema-work-on-linux.md، docs/adr/0002-login-and-session-bound-context.md، db/deploy.sql، db/static/010_rls.sql، db/static/020_roles_and_grants.sql، db/static/025_tenant_views.sql، db/static/030_session_context.sql، db/generated/tsql/005_delete_grants.sql، db/generated/tsql/006_sensitive_columns.sql، db/generated/tsql/007_table_grants.sql، db/model/10-platform.model، docs/10-detailed-analysis/00-overview-and-cross-cutting.md، docs/10-detailed-analysis/10-m0-m1-platform-organization.md، docs/20-database-design.md، tools/deploy/deploy.sh، tools/ci/db_ci.sh، ../.github/workflows/treasury-db-ci.yml (جذر المستودع) |
 
 ## 1. الغرض والنطاق
 
@@ -34,7 +34,7 @@
 | Z6 الإدارة | مسؤولو الخادم والنشر، وCI | المنصة | موثوقة بامتياز عالٍ |
 
 - طبقة التطبيق على Windows Server وفق 01 §13، وهذا مطروح للمراجعة بعد ADR 0001 🟢 (docs/10-detailed-analysis/00-overview-and-cross-cutting.md:126؛ FR-PLT-045 في docs/10-detailed-analysis/10-m0-m1-platform-organization.md:147؛ docs/adr/0001-schema-work-on-linux.md:3). مكانها من VPS القاعدة غير محسوم (DQ-F01-1).
-- CI (tools/ci/db_ci.sh) يمر كاملًا في حاوية التطوير، ولم يعمل على GitHub قط: ملف المسار تحت treasury-platform/.github/workflows/ (.github/workflows/db-ci.yml:26-41)، وGitHub يقرأ المسارات من جذر المستودع فقط (O-02 في tools/dbgen/erd_open_items.py:22؛ docs/adr/0001-schema-work-on-linux.md:11). لا يصل CI إلى الإنتاج.
+- CI (tools/ci/db_ci.sh) يمر كاملًا في حاوية التطوير وعلى GitHub: ملف المسار في جذر المستودع (../.github/workflows/treasury-db-ci.yml:30-74) لأن GitHub يقرأ المسارات من هناك فقط، وأول تشغيل أخضر في 2026-10-12 (https://github.com/thawrasy/smartlines/actions/runs/38283663041؛ O-02 في tools/dbgen/erd_open_items.py:22؛ docs/adr/0001-schema-work-on-linux.md:11). صلاحيته قراءة المحتوى فقط ولا يستعمل أسرارًا (../.github/workflows/treasury-db-ci.yml:23-24)، ولا يصل CI إلى الإنتاج.
 
 ## 3. الفاعلون الخارجيون
 

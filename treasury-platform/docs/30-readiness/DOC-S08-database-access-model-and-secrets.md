@@ -8,7 +8,7 @@
 | الأولوية | P0 قبل S0 |
 | يغطي | BR-PLT-001، BR-PLT-009، FR-PLT-006، FR-PLT-045، O-17 وO-24 (erd_open_items)، O-2 وO-12 (20-database-design)، ADR 0001، ADR 0002 |
 | يعتمد على | DOC-F04 (أنواع الاتصال والأدوار الجديدة)، DOC-F05 (إجراءات المنصة)، DOC-S02 (المفاتيح وTDE)، DOC-S05 (TLS)، DOC-S10 (تقوية خادم Ubuntu)، DOC-S12 (السجلات)، DOC-B11 (البيئات والنشر) |
-| المصادر | db/static/020_roles_and_grants.sql، db/static/030_session_context.sql، db/static/010_rls.sql، db/generated/tsql/000_schemas.sql، db/generated/tsql/005_delete_grants.sql، db/generated/tsql/006_sensitive_columns.sql، db/generated/tsql/007_table_grants.sql، db/deploy.sql، tools/deploy/deploy.sh، tools/ci/db_ci.sh، .github/workflows/db-ci.yml، tools/dbgen/check_grants.py، docs/adr/0001-schema-work-on-linux.md، docs/adr/0002-login-and-session-bound-context.md، docs/20-database-design.md |
+| المصادر | db/static/020_roles_and_grants.sql، db/static/030_session_context.sql، db/static/010_rls.sql، db/generated/tsql/000_schemas.sql، db/generated/tsql/005_delete_grants.sql، db/generated/tsql/006_sensitive_columns.sql، db/generated/tsql/007_table_grants.sql، db/deploy.sql، tools/deploy/deploy.sh، tools/ci/db_ci.sh، ../.github/workflows/treasury-db-ci.yml (جذر المستودع)، tools/dbgen/check_grants.py، docs/adr/0001-schema-work-on-linux.md، docs/adr/0002-login-and-session-bound-context.md، docs/20-database-design.md |
 
 ## 1. الغرض والنطاق
 
@@ -25,7 +25,7 @@
 - المخططات كلها يملكها `dbo` (db/generated/tsql/000_schemas.sql:6-45). دور `tp_migrator` بلا منح (db/static/020_roles_and_grants.sql:9)، والنشر يعمل بحساب مالك القاعدة (docs/20-database-design.md:271).
 - سكربت النشر يستعمل `sa` افتراضيًا (tools/deploy/deploy.sh:17)، ويقرأ كلمة المرور من المتغير `SQLCMDPASSWORD` (tools/deploy/deploy.sh:8، :22)، ويثق بشهادة الخادم بالخيار `-C` إلى أن تُحسم O-08 (tools/deploy/deploy.sh:10-11، :19).
 - مثال النشر في رأس `deploy.sql` يمرر كلمة المرور في سطر الأوامر (db/deploy.sql:9).
-- CI يعمل على حاوية مؤقتة بحساب `sa` (tools/ci/db_ci.sh:14، :21، :54)، ويمر اليوم في حاوية التطوير فقط: لم يعمل على GitHub بعد، لأن ملف سير العمل تحت treasury-platform/.github وGitHub يقرأ سير العمل من جذر المستودع وحده (O-02 (erd_open_items)). كلمة المرور نص صريح في ملف سير العمل لحاوية لا يصل إليها غير هذه المهمة (.github/workflows/db-ci.yml:36-41). ولا يستعمل سير العمل أي سر من GitHub، وصلاحيته قراءة المحتوى فقط (.github/workflows/db-ci.yml:22-23).
+- CI يعمل على حاوية مؤقتة بحساب `sa` (tools/ci/db_ci.sh:14، :21، :54)، ويمر في حاوية التطوير وعلى GitHub منذ 2026-10-12: ملف سير العمل في جذر المستودع (../.github/workflows/treasury-db-ci.yml) لأن GitHub يقرأ سير العمل من هناك وحده (O-02 (erd_open_items)). كلمة المرور نص صريح في ملف سير العمل لحاوية لا يصل إليها غير هذه المهمة (../.github/workflows/treasury-db-ci.yml:41-46). ولا يستعمل سير العمل أي سر من GitHub، وصلاحيته قراءة المحتوى فقط (../.github/workflows/treasury-db-ci.yml:23-24).
 - غلاف Windows `deploy.ps1` غير مختبر وليس مسار الإنتاج (docs/adr/0001-schema-work-on-linux.md:20).
 - الاختبارات تنشئ مستخدمين بلا تسجيل دخول وتعمل بـ`EXECUTE AS` (db/tests/tenant_isolation_tests.sql:21-26).
 - لا أسرار في النماذج (docs/20-database-design.md:220). ومدير القاعدة لا يملك المفتاح الرئيسي (docs/10-detailed-analysis/10-m0-m1-platform-organization.md:583).
@@ -99,7 +99,7 @@ flowchart LR
 | كلمات مرور حسابات المديرين الشخصية | مدير كلمات مرور شخصي | صاحبها | الوصول نفسه يمر عبر SSH بمفتاح شخصي |
 | كلمة مرور `breakglass` | نصفان في ظرفين مختومين عند أمينين مستقلين | الأمينان معًا | على نمط حفظ المفتاح الرئيسي (Q-PLT-12، docs/10-detailed-analysis/10-m0-m1-platform-organization.md:624) |
 | كلمة مرور `sa` | لا تُحفظ: عشوائية عند التثبيت ثم يُعطَّل الحساب | لا أحد | §9 |
-| كلمة مرور `sa` في CI | نص صريح لحاوية مؤقتة (.github/workflows/db-ci.yml:37، :41) | مهمة CI | مقبول لأنها لا تحمي بيانات؛ لا تُستعمل القيمة في أي بيئة أخرى |
+| كلمة مرور `sa` في CI | نص صريح لحاوية مؤقتة (../.github/workflows/treasury-db-ci.yml:42، :46) | مهمة CI | مقبول لأنها لا تحمي بيانات؛ لا تُستعمل القيمة في أي بيئة أخرى |
 | أسرار قاعدة الإنتاج في GitHub | لا توجد | — | النشر يجري على الخادم عبر SSH. إن نفّذ خط النشر في DOC-B11 النشر عن بعد، تحفظ بيئة GitHub المحمية بمراجِعين مفتاح SSH للنشر فقط، وتبقى كلمة حساب الترحيل على الخادم |
 | المفتاح الرئيسي وشهادة TDE | خارج هذه الوثيقة | — | DOC-S02 |
 

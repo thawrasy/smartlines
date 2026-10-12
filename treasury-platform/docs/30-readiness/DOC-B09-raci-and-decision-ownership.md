@@ -60,7 +60,7 @@ flowchart LR
 | البند | A | R | الحالة اليوم | ما يلزم لإغلاقه |
 |---|---|---|---|---|
 | O-01 (erd_open_items) كلمة المرور | OWN | SEC | مقرَّر: Argon2id (ADR 0002) | لا شيء للبوابة |
-| O-02 (erd_open_items) التنفيذ على SQL Server 2025 | SA | DBA | منفَّذ: tools/ci/db_ci.sh يمر كاملًا على حاوية SQL Server 2025 (Ubuntu 24.04) في بيئة التطوير (tools/ci/db_ci.sh:51-93)؛ ولم يعمل على GitHub قط لأن ملف الخط تحت treasury-platform/.github، وتشغيله هناك ينتظر موافقة المالك على خط في جذر المستودع (tools/dbgen/erd_open_items.py:22-23) | قبول التنفيذ في CI للبوابة، ونقل تشغيل الإنتاج إلى O-23 (DQ-B09-3) |
+| O-02 (erd_open_items) التنفيذ على SQL Server 2025 | SA | DBA | منفَّذ: tools/ci/db_ci.sh يمر كاملًا على حاوية SQL Server 2025 (Ubuntu 24.04) في بيئة التطوير (tools/ci/db_ci.sh:51-93)، وعلى GitHub من ../.github/workflows/treasury-db-ci.yml (جذر المستودع)، وأول تشغيل أخضر 2026-10-12 (https://github.com/thawrasy/smartlines/actions/runs/38283663041؛ tools/dbgen/erd_open_items.py:22) | قبول التنفيذ في CI للبوابة، ونقل تشغيل الإنتاج إلى O-23 (DQ-B09-3) |
 | O-07 (erd_open_items) الأسئلة المفتوحة | OWN | PM | مفتوح | مالك وموعد لكل سؤال، وحسم أسئلة S0 التسعة (§7.4) |
 | O-14 (erd_open_items) بدء الشرائح | OWN | PM | مفتوح | إقفال بقية البنود ثم قرار البدء |
 | O-18 (erd_open_items) دخول المشترك المعلّق | OWN | DBA | مفتوح | اختيار (أ) أو (ب)، ثم مواءمة 030 والاختبار T27 |
@@ -74,7 +74,7 @@ flowchart LR
 ```mermaid
 flowchart LR
   G1["O-01 كلمة المرور - مقرَّر"] --> S0["بدء S0"]
-  G2["O-02 التنفيذ على SQL Server - منفَّذ محليًا"] --> S0
+  G2["O-02 التنفيذ على SQL Server - منفَّذ في CI"] --> S0
   G3["O-07 مالكو الأسئلة - مفتوح"] --> S0
   G4["O-18 المشترك المعلّق - مفتوح"] --> S0
   G5["نظام تشغيل التطبيق - للمراجعة"] --> S0
@@ -134,7 +134,7 @@ flowchart LR
 | القرار | A | R | C | I | الشريحة · الحالة |
 |---|---|---|---|---|---|
 | O-01 خوارزمية كلمة المرور (:14) | OWN | SEC | DBA، APP | QA | S0 · مقرَّر 2026-10-12؛ مكتبة .NET مفتوحة (R: APP، A: SEC) |
-| O-02 التنفيذ على SQL Server 2025 (:20) | SA | DBA | OPS | PM، QA | S0 · منفَّذ بـ db_ci.sh في بيئة التطوير، ولم يعمل على GitHub قط (:22-23)؛ الإنتاج ضمن O-23 |
+| O-02 التنفيذ على SQL Server 2025 (:20) | SA | DBA | OPS | PM، QA | S0 · منفَّذ بـ db_ci.sh في بيئة التطوير وعلى GitHub منذ 2026-10-12 (:22)؛ الإنتاج ضمن O-23 |
 | O-03 حصص المقرضين (:26) | TRM | DBA | SA، BA | QA | S2 · القادح منفَّذ؛ تغيير المقرض بعد الاعتماد مفتوح |
 | O-04 دافع SHARED في الرسوم (:32) | SA | DBA | TRM | QA | S3 · مقرَّر ومنفَّذ |
 | O-05 اكتمال صفوف رسوم الاعتماد (:38) | TRM | BA | DBA، LEG | QA | S3 · مفتوح |
@@ -164,7 +164,7 @@ flowchart LR
 
 | البند | A | R | الحالة | ما يقابله |
 |---|---|---|---|---|
-| O-1 التنفيذ على SQL Server (:529) | SA | DBA | محلول في بيئة التطوير؛ يبقى تشغيل GitHub والنشر على الإنتاج | O-02 (erd_open_items) |
+| O-1 التنفيذ على SQL Server (:529) | SA | DBA | محلول في بيئة التطوير ويمر على GitHub؛ يبقى النشر على الإنتاج | O-02 (erd_open_items) |
 | O-2 أداة الترحيل (:530) | SA | DBA | مفتوح؛ قبل أول بيانات حقيقية | DQ-B05-10 |
 | O-3 البذور (:531) | OWN | DBA | مفتوح؛ S0 | DOC-B05 |
 | O-4 الأسئلة المفتوحة (:532) | OWN | PM | مفتوح | O-07 (erd_open_items) |
@@ -268,9 +268,9 @@ flowchart LR
 
 ## 9. تعارضات وفجوات في المصادر
 
-1. ✅ صُحّح (التحقق عند bef5722): كان O-02 يقول إن أول تشغيل على GitHub «معلّق» وADR 0001 يقول إن CI مرّ على مشغّل GitHub. الآن يقول الاثنان إن الخط لم يعمل على GitHub قط، لأن ملفه تحت treasury-platform/.github/workflows/ وGitHub يقرأ الجذر وحده، وإن db_ci.sh يمر كاملًا في حاوية التطوير (tools/dbgen/erd_open_items.py:22-23؛ docs/adr/0001-schema-work-on-linux.md:11، :18).
+1. ✅ صُحّح (2026-10-12): يعمل على GitHub. كان O-02 يقول إن أول تشغيل على GitHub «معلّق» وADR 0001 يقول إن CI مرّ على مشغّل GitHub قبل أن يمر، وملف الخط يومها تحت treasury-platform/.github/workflows/ وGitHub يقرأ الجذر وحده. الخط الآن ../.github/workflows/treasury-db-ci.yml (جذر المستودع)، وأول تشغيل أخضر https://github.com/thawrasy/smartlines/actions/runs/38283663041، ويقول الاثنان ذلك (tools/dbgen/erd_open_items.py:22؛ docs/adr/0001-schema-work-on-linux.md:11، :18).
 2. tools/dbgen/erd_open_items.py:101 (O-14) يشترط O-01 وO-02 وO-07 فقط لبدء S0، بينما السجل يضع O-18 وحالة الطلب ونظام تشغيل التطبيق أولًا (docs/30-readiness-documents.md:445)، وADR 0001 يشترط المفاتيح والإقامة والنسخ قبل البيانات الحقيقية (:26).
-3. 00-overview…:352 ما زال يقول إن وثيقة القاعدة «لم تُنفَّذ على SQL Server بعد». ✅ صُحّح (بعد bef5722) في docs/20-database-design.md: O-1 (:529) صار «محلول في بيئة التطوير» ويُبقي تشغيل GitHub والإنتاج، والرأس (:5) والخطوة التالية (:550) يقولان إنه نُشر في بيئة التطوير، كما في §14 (:492).
+3. 00-overview…:352 ما زال يقول إن وثيقة القاعدة «لم تُنفَّذ على SQL Server بعد». ✅ صُحّح (بعد bef5722) في docs/20-database-design.md: O-1 (:529) صار «محلول في بيئة التطوير» ويمر على GitHub أيضًا، ويُبقي النشر على الإنتاج، والرأس (:5) والخطوة التالية (:550) يقولان إنه نُشر في بيئة التطوير، كما في §14 (:492).
 4. docs/20-database-design.md:537 (O-9) مفتوح في النص ويقترح sec.usp_SetAuthContext، وقد أغلق ADR 0002 و030 مسار الدخول (usp_GetPasswordParams وusp_StartSession). ✅ صُحّح O-11 (:539) فصار «محلول (2026-10-12)» بإحالة إلى ADR 0002.
 5. docs/20-database-design.md:543 (O-15) يحيل إلى §18.2، ولا يوجد §18 في الوثيقة (آخر قسم §17 في :547).
 6. 90-consolidated…:5 يذكر 7 محسومة، وQ-PLT-10 مغلق نصًا (:20)، فالعدد بعد احتسابه 8 محسومة و147 مفتوحة. ✅ صُحّح السجل (docs/30-readiness-documents.md:406) فصار يقول 147.

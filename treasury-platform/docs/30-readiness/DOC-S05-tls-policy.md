@@ -8,7 +8,7 @@
 | الأولوية | P0 قبل S0 |
 | يغطي | O-08 (erd_open_items)، FR-PLT-046، FR-PLT-013، FR-PLT-006، X-SEC-2، FR-NTF-013 |
 | يعتمد على | DOC-F01 (حدود الثقة TB-n)، DOC-S02 (المفاتيح عند التخزين)، DOC-S03 (ملفات تعريف الارتباط وCSP)، DOC-S08 (أسرار القاعدة)، DOC-S10 (تقوية الخادم وSSH)، DOC-B11 (البيئات والأسرار) |
-| المصادر | docs/30-readiness-documents.md:242-248 · tools/dbgen/erd_open_items.py:56-60 · docs/10-detailed-analysis/10-m0-m1-platform-organization.md:115 و148 و582 · docs/10-detailed-analysis/00-overview-and-cross-cutting.md:137 · tools/deploy/deploy.sh · tools/deploy/deploy.ps1 · tools/ci/db_ci.sh · tools/dbgen/check_deployed.py · .github/workflows/db-ci.yml · docs/adr/0001-schema-work-on-linux.md |
+| المصادر | docs/30-readiness-documents.md:242-248 · tools/dbgen/erd_open_items.py:56-60 · docs/10-detailed-analysis/10-m0-m1-platform-organization.md:115 و148 و582 · docs/10-detailed-analysis/00-overview-and-cross-cutting.md:137 · tools/deploy/deploy.sh · tools/deploy/deploy.ps1 · tools/ci/db_ci.sh · tools/dbgen/check_deployed.py · ../.github/workflows/treasury-db-ci.yml (جذر المستودع) · docs/adr/0001-schema-work-on-linux.md |
 
 **وسوم المصدر:** 🟢 ذكره المستخدم أو ورد في الوثائق · 🟡 اقتراح له افتراضي ويُعدَّل.
 
@@ -148,7 +148,7 @@ flowchart LR
 ### 5.3 الخيار `-C` في الأدوات
 
 - `-C` في `sqlcmd` يعني الثقة بشهادة الخادم دون تحقق، أي ما يعادل `TrustServerCertificate=True`.
-- **في CI فقط:** `tools/ci/db_ci.sh:21` و`tools/dbgen/check_deployed.py:52` يتصلان بحاوية SQL Server مؤقتة على المضيف نفسه (`localhost,1433`) بشهادة ذاتية التوقيع: اليوم في حاوية التطوير، وفي سير العمل .github/workflows/db-ci.yml:38-42 الذي لم يعمل على GitHub بعد (O-02 (erd_open_items)). هذا مقبول هناك ولا يُنقل إلى أي بيئة فيها بيانات حقيقية.
+- **في CI فقط:** `tools/ci/db_ci.sh:21` و`tools/dbgen/check_deployed.py:52` يتصلان بحاوية SQL Server مؤقتة على المضيف نفسه (`localhost,1433`) بشهادة ذاتية التوقيع: في حاوية التطوير، وعلى GitHub في سير العمل ../.github/workflows/treasury-db-ci.yml:43-47 (جذر المستودع؛ O-02 (erd_open_items)). هذا مقبول هناك ولا يُنقل إلى أي بيئة فيها بيانات حقيقية.
 - **في أداة النشر:** `tools/deploy/deploy.sh:19` يجعل `-C` افتراضيًا، وADR 0001 يجعل هذه الأداة مسار النشر الإنتاجي (docs/adr/0001-schema-work-on-linux.md:19). حتى يتغير الافتراضي، يُشغَّل النشر الإنتاجي بـ `SQLCMD_OPTS=""` صراحة. المقترح أن يصير الافتراضي بلا `-C`، وأن يمرّره `db_ci.sh` صراحة (DQ-S05-7).
 - `tools/deploy/deploy.ps1:32` يضيف `-C` دائمًا مع تسجيل دخول SQL. المسار غير إنتاجي (docs/adr/0001-schema-work-on-linux.md:20)، ويُصحَّح إن استُعمل يومًا.
 

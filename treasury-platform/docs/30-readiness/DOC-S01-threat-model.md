@@ -8,7 +8,7 @@
 | الأولوية | P0 قبل S0 |
 | يغطي | X-SEC-1 إلى X-SEC-7، FR-PLT-005، FR-PLT-007، FR-PLT-010 إلى FR-PLT-014، FR-PLT-021 إلى FR-PLT-023، FR-PLT-036، FR-PLT-037، BR-PLT-001، BR-PLT-002، BR-PLT-005، BR-PLT-009، BR-PLT-017، O-16 إلى O-24 (erd_open_items)، O-12 وO-13 (20-database-design)، R4 وR5 (01) |
 | يعتمد على | DOC-F01 (الحدود TB والفاعلون)، DOC-F02 (تدفقات القيم الحساسة) |
-| المصادر | db/static/010_rls.sql، db/static/020_roles_and_grants.sql، db/static/025_tenant_views.sql، db/static/030_session_context.sql، db/generated/tsql/005_delete_grants.sql، db/generated/tsql/006_sensitive_columns.sql، db/generated/tsql/007_table_grants.sql، db/model/10-platform.model، db/tests/tenant_isolation_tests.sql، tools/dbgen/erd_open_items.py، tools/dbgen/check_grants.py، tools/deploy/deploy.sh، tools/ci/db_ci.sh، .github/workflows/db-ci.yml، docs/adr/0002-login-and-session-bound-context.md، docs/review/design-review-2026-10-11.json، docs/10-detailed-analysis/10-m0-m1-platform-organization.md |
+| المصادر | db/static/010_rls.sql، db/static/020_roles_and_grants.sql، db/static/025_tenant_views.sql، db/static/030_session_context.sql، db/generated/tsql/005_delete_grants.sql، db/generated/tsql/006_sensitive_columns.sql، db/generated/tsql/007_table_grants.sql، db/model/10-platform.model، db/tests/tenant_isolation_tests.sql، tools/dbgen/erd_open_items.py، tools/dbgen/check_grants.py، tools/deploy/deploy.sh، tools/ci/db_ci.sh، ../.github/workflows/treasury-db-ci.yml (جذر المستودع)، docs/adr/0002-login-and-session-bound-context.md، docs/review/design-review-2026-10-11.json، docs/10-detailed-analysis/10-m0-m1-platform-organization.md |
 
 ## 1. الغرض والنطاق
 
@@ -30,7 +30,7 @@
 
 - **الاحتمال** يفترض مهاجمًا من الإنترنت لـTB-1 وTB-2، واتصال تطبيق مخترقًا (حقن SQL أو تنفيذ شيفرة) لـTB-3 إلى TB-5، وحسابًا إداريًا مخترقًا لـTB-7 وTB-12.
 - **الأثر عالٍ** إذا عبر حد مشترك، أو كشف قيمة مقيّدة، أو انتحل مستخدمًا ذا صلاحية حساسة، أو أفقد البيانات.
-- **الاختبارات القائمة:** 41 حالة عزل (T1-T38 مع T8b وT16b وT16c) و6 حالات لقاعدة الحصص، وكلها تمر في tools/ci/db_ci.sh (:59-92) على حاوية التطوير. لم يعمل CI على GitHub قط (O-02 في tools/dbgen/erd_open_items.py:22). أرقام T في الجداول تشير إلى db/tests/tenant_isolation_tests.sql.
+- **الاختبارات القائمة:** 41 حالة عزل (T1-T38 مع T8b وT16b وT16c) و6 حالات لقاعدة الحصص، وكلها تمر في tools/ci/db_ci.sh (:59-92) على حاوية التطوير وعلى GitHub منذ 2026-10-12 (O-02 في tools/dbgen/erd_open_items.py:22). أرقام T في الجداول تشير إلى db/tests/tenant_isolation_tests.sql.
 - المالك دور لا شخص. «معماري القاعدة» اختصار لمعماري قاعدة البيانات.
 
 ## 3. الأصول
@@ -103,7 +103,7 @@
 | THR-34 | E: ثغرة في إجراء `EXECUTE AS` ترفع إلى `tp_auth` المتجاوز للمرشحات | الإجراءات بلا SQL ديناميكي ومعاملات فقط (db/static/030_session_context.sql:23-227)؛ تجاوز `tp_auth` محصور (db/static/010_rls.sql:48، :56) | منح `tp_auth` اتسعت (db/static/020_roles_and_grants.sql:59، :67-69) | قاعدة مراجعة: لا SQL ديناميكي في وحدات `EXECUTE AS`؛ قائمة منح `tp_auth` موثّقة | ن×ع = متوسط · معماري القاعدة |
 | THR-35 | E: وحدة يملكها `dbo` تستدعي إجراء الربط لـ`tp_readonly` (O-22 sb-03) | لا وحدة كهذه اليوم | كامن | فحص ثابت في CI يرفض أي وحدة تستدعي `sec.usp_SetSessionContext` غير التطبيق | ن×ع = متوسط · معماري القاعدة |
 | THR-36 | D: تنازع الأقفال في الربط | — | كل ربط يأخذ `UPDLOCK, HOLDLOCK` على صف المشترك والمستخدم (db/static/030_session_context.sql:186، :192-193) | قياس في اختبار الحمل (DOC-B03) قبل الإطلاق | م×م = متوسط · مدير القاعدة |
-| THR-37 | T: حارس المنح لا يعمل | CI يقارن المنشور بالمولَّد (tools/ci/db_ci.sh:56-57)؛ `tools/dbgen/check_grants.py` يمر بالقواعد R1-R10 في الخطوة 3 (tools/ci/db_ci.sh:47-49)، وR6 يقبل الجداول الخمسة (tools/dbgen/check_grants.py:80-87) | CI لم يعمل على GitHub قط (O-02)، فلا يعمل الحارس إلا حين يُشغَّل السكربت | ✅ نُفّذ تحديث R6 وإضافة الفحص إلى CI (e5ea45e)؛ يبقى تشغيل CI على GitHub (O-02) | م×م = متوسط · مهندس DevOps |
+| THR-37 | T: حارس المنح لا يعمل | CI يقارن المنشور بالمولَّد (tools/ci/db_ci.sh:56-57)؛ `tools/dbgen/check_grants.py` يمر بالقواعد R1-R10 في الخطوة 3 (tools/ci/db_ci.sh:47-49)، وR6 يقبل الجداول الخمسة (tools/dbgen/check_grants.py:80-87) | ✅ صُحّح (2026-10-12): CI يعمل على GitHub (O-02)؛ يبقى أنه لا يمنع الدمج إلا إن اشترطته حماية الفرع (DOC-B11 §4.1) | ✅ نُفّذ تحديث R6 وإضافة الفحص إلى CI (e5ea45e)، وCI يعمل على GitHub منذ 2026-10-12 (O-02) | م×م = متوسط · مهندس DevOps |
 
 ### 4.5 TB-5 لوحة المشغّل ← القاعدة بدور tp_platform
 
@@ -126,7 +126,7 @@
 | المعرّف | التهديد | الضابط القائم | الخطر المتبقي | الضابط المقترح 🟡 | التقييم والمالك |
 |---|---|---|---|---|---|
 | THR-44 | E، T: نشر بحساب `sa` مع الثقة بأي شهادة | السكربت يرفض بلا كلمة مرور (tools/deploy/deploy.sh:21-23) | الافتراضي `sa` و`-C` (tools/deploy/deploy.sh:17-19)؛ اعتراض الاتصال أو سكربت معدّل يعني سيطرة كاملة | دخول نشر بامتياز مالك القاعدة فقط؛ شهادة موثوقة (O-08)؛ النشر من مضيف محكوم وبحزمة مراجَعة (DOC-S08، DOC-S11) | م×ع = **عالٍ** · مهندس DevOps |
-| THR-45 | I: كلمة مرور CI مكتوبة في الملف | حاوية مؤقتة لا يصلها غير المهمة (.github/workflows/db-ci.yml:36-41) | تُنسخ إلى بيئة أخرى خطأً | منع إعادة استعمالها؛ فحص أسرار في CI | ن×ن = منخفض · مهندس DevOps |
+| THR-45 | I: كلمة مرور CI مكتوبة في الملف | حاوية مؤقتة لا يصلها غير المهمة (../.github/workflows/treasury-db-ci.yml:41-46) | تُنسخ إلى بيئة أخرى خطأً | منع إعادة استعمالها؛ فحص أسرار في CI | ن×ن = منخفض · مهندس DevOps |
 
 ### 4.8 TB-8 التطبيق ← مخزن الملفات
 
@@ -196,7 +196,7 @@
 4. **نطاق كتابة `tp_platform` في التدقيق** مع O-19، واختبار لكتابته (THR-39، THR-24). القراءة ✅ صُحّحت في 1f0f0af مع الاختبار T38 (THR-38).
 5. **ضوابط الحافة قبل خروج S0:** DOC-S03 وDOC-S05 وتقييد المعدل (THR-01، THR-03، THR-04، THR-08، THR-09، THR-11).
 6. **اختبار IDOR لكل نقطة API** شرطًا لخروج S0 (THR-07).
-7. **النشر والإدارة:** دخول نشر منفصل وشهادة موثوقة، سياسة SSH، تدقيق SQL Server، وتشغيل CI على GitHub (O-02؛ `check_grants.py` في CI منذ e5ea45e) (THR-44، THR-56، THR-57، THR-37).
+7. **النشر والإدارة:** دخول نشر منفصل وشهادة موثوقة، سياسة SSH، تدقيق SQL Server، وتشغيل CI على GitHub ✅ منذ 2026-10-12 (O-02؛ `check_grants.py` في CI منذ e5ea45e) (THR-44، THR-56، THR-57، THR-37).
 8. **قبل أي بيانات حقيقية:** المفاتيح وTDE والنسخ والإقامة (THR-49، THR-58، THR-59، THR-60).
 9. **سلامة السجلات الحساسة:** DR-15 وDR-11 وDR-17، وكتابة `sec.TenantKey` بإجراء (THR-14، THR-29، THR-28، THR-31، THR-46).
 10. **حسم O-18** في DOC-F04 (THR-23).

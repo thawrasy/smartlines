@@ -8,7 +8,7 @@
 | الأولوية | P0 قبل S0 |
 | يغطي | FR-PLT-036، FR-PLT-008، FR-PLT-045، FR-PLT-041، BR-PLT-001، X-SEC-4، X-SEC-5، O-09 وO-03 (erd_open_items)، 00 §8 |
 | يعتمد على | DOC-B02، DOC-B03، DOC-B06، DOC-B08، DOC-B11، DOC-S13، DOC-F05 |
-| المصادر | docs/10-detailed-analysis/00-overview-and-cross-cutting.md، docs/10-detailed-analysis/10-m0-m1-platform-organization.md، tools/ci/db_ci.sh، .github/workflows/db-ci.yml، db/tests/tenant_isolation_tests.sql، db/tests/fac_share_rule_tests.sql، tools/dbgen/check_grants.py، tools/dbgen/check_review_fixes.py، tools/dbgen/check_fk_indexes.py، tools/dbgen/check_deployed.py، docs/20-database-design.md، tools/dbgen/erd_open_items.py |
+| المصادر | docs/10-detailed-analysis/00-overview-and-cross-cutting.md، docs/10-detailed-analysis/10-m0-m1-platform-organization.md، tools/ci/db_ci.sh، ../.github/workflows/treasury-db-ci.yml (جذر المستودع)، db/tests/tenant_isolation_tests.sql، db/tests/fac_share_rule_tests.sql، tools/dbgen/check_grants.py، tools/dbgen/check_review_fixes.py، tools/dbgen/check_fk_indexes.py، tools/dbgen/check_deployed.py، docs/20-database-design.md، tools/dbgen/erd_open_items.py |
 
 ## 1. الغرض والنطاق
 
@@ -22,7 +22,7 @@
 
 ### 2.1 خط CI لقاعدة البيانات
 
-يُعرَّف الخط ليعمل على كل دفع إلى main وclaude/** وعلى كل طلب دمج، ولكن فقط عند تغيّر db/ أو tools/dbgen/ أو tools/ci/ أو ملف الخط نفسه (.github/workflows/db-ci.yml:6-20)، على ubuntu-24.04 (السطر 27) مع حاوية mcr.microsoft.com/mssql/server:2025-latest (السطر 32). لكنه **لم يعمل على GitHub قط**: ملف الخط تحت treasury-platform/.github/workflows/، وGitHub يقرأ الخطوط من جذر المستودع فقط، وملف ci.yml هناك لمشروع آخر (O-02، tools/dbgen/erd_open_items.py:22-23؛ docs/adr/0001-schema-work-on-linux.md:11). السكربت tools/ci/db_ci.sh نفسه يمر كاملًا في حاوية التطوير 🟢.
+ملف الخط في جذر المستودع، ../.github/workflows/treasury-db-ci.yml، لأن GitHub يقرأ الخطوط من الجذر فقط. يعمل على كل دفع إلى main وclaude/** وعلى كل طلب دمج، ولكن فقط عند تغيّر treasury-platform/db/ أو tools/dbgen/ أو tools/ci/ أو ملف الخط نفسه (السطور 7-20)، ويمكن تشغيله يدويًا (السطر 21)، وينفّذ أوامره داخل treasury-platform/ (السطور 26-28)، على ubuntu-24.04 (السطر 32) مع حاوية mcr.microsoft.com/mssql/server:2025-latest (السطر 37). يثبّت Pillow (pillow==12.3.0، السطور 57-59) لأن check_fk_indexes.py يستورد erd_layout.py الذي يستورد PIL. **يعمل على GitHub ويمر** 🟢: أول تشغيل أخضر في 2026-10-12 (https://github.com/thawrasy/smartlines/actions/runs/38283663041) نفّذ الخطوات الثماني كلها، 6 حالات للمشغّلات و41 حالة عزل؛ والتشغيل الذي سبقه، قبل خطوة Pillow، فشل في الخطوة 3 (التشغيل 38267525934) (O-02، tools/dbgen/erd_open_items.py:22؛ docs/adr/0001-schema-work-on-linux.md:11). والسكربت tools/ci/db_ci.sh نفسه يمر كاملًا في حاوية التطوير أيضًا.
 
 | الخطوة | ما تفعله | الموضع |
 |---|---|---|
@@ -70,8 +70,8 @@
 4. لا اختبار للمخاطر المفتوحة O-19 وO-20 وO-21 (erd_open_items، tools/dbgen/erd_open_items.py:121-138) لأن قراراتها لم تُتخذ.
 5. معرّفات الحالات متصادمة: T1 إلى T6 موجودة في الملفين بمعنيين مختلفين.
 6. عدّاد CI ثابت (6 و41)، فإضافة حالة تتطلب تعديل tools/ci/db_ci.sh:71 و88 يدويًا.
-7. خط CI لا يعمل عند تغيّر كود التطبيق، لأن مرشّح المسارات يقتصر على ملفات القاعدة (.github/workflows/db-ci.yml:9-13).
-8. الخط لم يعمل على GitHub قط، فلا سجل تشغيل ولا حماية فرع تعتمد عليه؛ تشغيله يحتاج ملف خط في جذر المستودع بموافقة المالك (O-02، tools/dbgen/erd_open_items.py:23).
+7. خط CI لا يعمل عند تغيّر كود التطبيق، لأن مرشّح المسارات يقتصر على ملفات القاعدة (../.github/workflows/treasury-db-ci.yml:10-14 و16-20).
+8. ✅ صُحّح (2026-10-12): يعمل على GitHub من ../.github/workflows/treasury-db-ci.yml (جذر المستودع)، وأول تشغيل أخضر https://github.com/thawrasy/smartlines/actions/runs/38283663041 (O-02، tools/dbgen/erd_open_items.py:22). يبقى أن تشترطه حماية الفرع main قبل الدمج (DOC-B11 §4.1).
 
 ## 3. مستويات الاختبار
 
@@ -258,6 +258,6 @@ flowchart TB
 | §5.3 | خروج S2، اختبار التزامن | docs/10-detailed-analysis/00-overview-and-cross-cutting.md:196؛ docs/20-database-design.md:241 |
 | §7 | R4 تسريب بين المشتركين | docs/01-preliminary-analysis.md:359 |
 | §8 | خصوصية الأمثلة، DOC-B06 | docs/10-detailed-analysis/10-m0-m1-platform-organization.md:11؛ db/tests/tenant_isolation_tests.sql:7 |
-| DQ-B01-2 | FR-PLT-045 | docs/10-detailed-analysis/10-m0-m1-platform-organization.md:147؛ .github/workflows/db-ci.yml:32 |
+| DQ-B01-2 | FR-PLT-045 | docs/10-detailed-analysis/10-m0-m1-platform-organization.md:147؛ ../.github/workflows/treasury-db-ci.yml:37 |
 | DQ-B01-3 | الإصلاحات الحرجة DR-01 إلى DR-10 | tools/dbgen/check_review_fixes.py:2 |
 | DQ-B01-10 | O-19، O-20، O-21 (erd_open_items) | tools/dbgen/erd_open_items.py:121-138 |

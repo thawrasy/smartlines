@@ -8,7 +8,7 @@
 | الأولوية | P0 قبل S0 |
 | يغطي | FR-PLT-045، FR-PLT-046، FR-PLT-047، FR-PLT-041، FR-PLT-013، AC-PLT-4، O-23 (erd_open_items)، O-2 (20-database-design) |
 | يعتمد على | DOC-S08، DOC-S02، DOC-S05، DOC-S09، DOC-S10، DOC-S11، DOC-B01، DOC-B05، DOC-B06، DOC-B09 |
-| المصادر | docs/10-detailed-analysis/00-overview-and-cross-cutting.md، docs/10-detailed-analysis/10-m0-m1-platform-organization.md، docs/adr/0001-schema-work-on-linux.md، docs/01-preliminary-analysis.md، db/deploy.sql، db/generated/tsql/، db/static/، tools/deploy/deploy.sh، tools/deploy/deploy.ps1، tools/ci/db_ci.sh، .github/workflows/db-ci.yml، docs/20-database-design.md، tools/dbgen/erd_open_items.py |
+| المصادر | docs/10-detailed-analysis/00-overview-and-cross-cutting.md، docs/10-detailed-analysis/10-m0-m1-platform-organization.md، docs/adr/0001-schema-work-on-linux.md، docs/01-preliminary-analysis.md، db/deploy.sql، db/generated/tsql/، db/static/، tools/deploy/deploy.sh، tools/deploy/deploy.ps1، tools/ci/db_ci.sh، ../.github/workflows/treasury-db-ci.yml (جذر المستودع)، docs/20-database-design.md، tools/dbgen/erd_open_items.py |
 
 ## 1. الغرض والنطاق
 
@@ -25,7 +25,7 @@
 | البيئة | الغرض | الاستضافة | البيانات | كيف يصلها الإصدار |
 |---|---|---|---|---|
 | تطوير | كتابة الكود والاختبار المحلي | جهاز المطوّر مع حاوية SQL Server 2025 🟡 | اصطناعية | يدويًا |
-| CI | التحقق من كل تغيير | مشغّل ubuntu-24.04 وحاوية خدمة تعيش للمهمة فقط كما يعرّفهما الخط (.github/workflows/db-ci.yml:3-4، 27-32) 🟢؛ لكن الخط لم يعمل على GitHub قط لأن ملفه ليس في جذر المستودع، وtools/ci/db_ci.sh يمر كاملًا في حاوية التطوير (O-02، tools/dbgen/erd_open_items.py:22-23) | اصطناعية داخل معاملة تُلغى | آليًا عند الدفع وطلب الدمج، بعد وضع الخط حيث يقرؤه GitHub |
+| CI | التحقق من كل تغيير | مشغّل ubuntu-24.04 وحاوية خدمة تعيش للمهمة فقط كما يعرّفهما الخط في جذر المستودع (../.github/workflows/treasury-db-ci.yml:3-5، 32-37) 🟢؛ يعمل على GitHub ويمر منذ 2026-10-12 (https://github.com/thawrasy/smartlines/actions/runs/38283663041)، وtools/ci/db_ci.sh يمر كاملًا في حاوية التطوير أيضًا (O-02، tools/dbgen/erd_open_items.py:22) | اصطناعية داخل معاملة تُلغى | آليًا عند الدفع وطلب الدمج |
 | اختبار | التكامل والواجهة والأداء والفحص الديناميكي واختبار خروج الشريحة | خادم مشترك لدى مزوّد الاستضافة نفسه 🟡 | اصطناعية دائمة لمشتركين وهميين | آليًا من main بعد نجاح CI 🟡 |
 | UAT | قبول المستخدم وتمرين الترحيل والتراجع | خادم بمواصفات الإنتاج 🟡 | مجهّلة وفق DOC-B06 | إصدار مرشح موسوم بموافقة QA lead 🟡 |
 | إنتاج | المشتركون | VPS خاص لدى مزوّد استضافة، القاعدة على Ubuntu 24.04 LTS 🟢 | حقيقية | الحزمة نفسها المعتمدة في UAT بعد بوابات §7 |
@@ -61,7 +61,7 @@ flowchart LR
 ### 4.1 التفرّع 🟡
 
 - main محمي: لا دفع مباشر، والدمج بطلب دمج تمر فيه كل فحوص CI.
-- فروع قصيرة لكل عمل، ويبقى نمط `claude/**` الذي يسمّيه ملف الخط (.github/workflows/db-ci.yml:8)، مع أن الخط لم يعمل على GitHub بعد (O-02).
+- فروع قصيرة لكل عمل، ويبقى نمط `claude/**` الذي يسمّيه ملف الخط (../.github/workflows/treasury-db-ci.yml:9، جذر المستودع).
 - إصلاح عاجل: فرع من وسم الإصدار المنشور، ثم دمجه في main.
 
 ### 4.2 ترقيم الإصدارات 🟡
@@ -82,11 +82,11 @@ flowchart LR
 
 ### 5.1 خط القاعدة القائم
 
-الخطوات 0 إلى 7 في tools/ci/db_ci.sh، وتفصيلها في DOC-B01 §2.1. الخط مُعرَّف ليعمل فقط عند تغيّر db/ أو tools/dbgen/ أو tools/ci/ (.github/workflows/db-ci.yml:9-19)، لكنه لم يعمل على GitHub قط: ملفه تحت treasury-platform/.github/workflows/، وGitHub يقرأ الخطوط من جذر المستودع فقط. تشغيله هناك ينتظر موافقة المالك على ملف خط في الجذر مقصور على مسارات treasury-platform/ (O-02، tools/dbgen/erd_open_items.py:22-23؛ docs/adr/0001-schema-work-on-linux.md:11، :18). الإضافات المقترحة 🟡:
+الخطوات 0 إلى 7 في tools/ci/db_ci.sh، وتفصيلها في DOC-B01 §2.1. ملف الخط في جذر المستودع لأن GitHub يقرأ الخطوط من هناك فقط، ويعمل فقط عند تغيّر treasury-platform/db/ أو tools/dbgen/ أو tools/ci/ أو الملف نفسه، وينفّذ أوامره داخل treasury-platform/ (../.github/workflows/treasury-db-ci.yml:10-20، 26-28). يعمل على GitHub ويمر: أول تشغيل أخضر في 2026-10-12 (https://github.com/thawrasy/smartlines/actions/runs/38283663041) بالخطوات الثماني و6 حالات للمشغّلات و41 للعزل. التشغيل الذي سبقه (38267525934) فشل في الخطوة 3 لأن check_fk_indexes.py يستورد erd_layout.py الذي يستورد PIL، فصار الخط يثبّت pillow==12.3.0 (السطور 57-59) (O-02، tools/dbgen/erd_open_items.py:22؛ docs/adr/0001-schema-work-on-linux.md:11، :18). الإضافات المقترحة 🟡:
 
 1. تشغيل tools/dbgen/check_review_fixes.py في الخطوة 3، بجانب check_grants.py الذي يعمل فيها الآن (tools/ci/db_ci.sh:49؛ DQ-B01-3).
 2. فحص تكافؤ الترقية والنشر الجديد (§6.3) على كل طلب دمج يغيّر db/.
-3. تثبيت وسم الصورة بدل `2025-latest` (.github/workflows/db-ci.yml:32) ليطابق سجل الإصدارات.
+3. تثبيت وسم الصورة بدل `2025-latest` (../.github/workflows/treasury-db-ci.yml:37) ليطابق سجل الإصدارات.
 4. تشغيل الخط على كل طلب دمج إلى main بعد وجود كود التطبيق.
 
 ### 5.2 خط التطبيق 🟡
@@ -185,7 +185,7 @@ flowchart TB
 
 | البند | تطوير وCI | اختبار وUAT | إنتاج | المرجع |
 |---|---|---|---|---|
-| كلمة sa | كلمة مؤقتة لحاوية CI فقط (.github/workflows/db-ci.yml:36-41) | لا يستعملها التطبيق ولا النشر 🟡 | كذلك | DOC-S08 |
+| كلمة sa | كلمة مؤقتة لحاوية CI فقط (../.github/workflows/treasury-db-ci.yml:41-46) | لا يستعملها التطبيق ولا النشر 🟡 | كذلك | DOC-S08 |
 | دخول التطبيق tp_app | سر محلي | دخول مستقل لكل بيئة في مخزن أسرار | دخول مستقل مع تدوير | DOC-S08 |
 | دخول الترحيل tp_migrator | sa في CI حاليًا | دخول مستقل | دخول مستقل يُستعمل وقت النشر فقط | DOC-S08 |
 | شهادة SQL Server | `-C` مقبول (tools/deploy/deploy.sh:10-11 و19) | شهادة موثوقة بلا `-C` | شهادة موثوقة بلا `-C` | DOC-S05، O-08 (erd_open_items) |
@@ -227,10 +227,10 @@ FR-PLT-047 (Should، S5) يطلب حزمة تنشر على خادم محلي ل�
 
 ## 13. تعارضات وفجوات في المصادر
 
-1. وسم الصورة `2025-latest` في .github/workflows/db-ci.yml:32 متحرك، والبند 4 من FR-PLT-045 يمنع النشر بإصدار SQL Server مخالف للسجل؛ فما يختبره CI قد يختلف عما يُنشر.
+1. وسم الصورة `2025-latest` في ../.github/workflows/treasury-db-ci.yml:37 متحرك، والبند 4 من FR-PLT-045 يمنع النشر بإصدار SQL Server مخالف للسجل؛ فما يختبره CI قد يختلف عما يُنشر.
 2. docs/30-readiness-documents.md:425 يقول إنه لا يُحدَّد أي سكربت نشر هو المرجعي، وdocs/adr/0001-schema-work-on-linux.md:19-20 يحدده: deploy.sh.
 3. ✅ صُحّح (التحقق عند bef5722): docs/adr/0001-schema-work-on-linux.md:3 صار يقول إن نصي FR-PLT-045 و01 §13 حُدِّثا لمضيف القاعدة (O-23)، وإن طبقة التطبيق تبقى على Windows Server وفق 01 §13 حتى المراجعة، كما في docs/10-detailed-analysis/10-m0-m1-platform-organization.md:147. لكن docs/30-readiness-documents.md:425 ما زال يقول إن ADR يقرّ بأن نص FR-PLT-045 يحتاج تحديثًا.
-4. docs/30-readiness-documents.md:424 يصف .github/workflows/db-ci.yml بأنه «يعمل على main وclaude/**»، والخط لم يعمل على GitHub قط (O-02، tools/dbgen/erd_open_items.py:22).
+4. ✅ صُحّح (2026-10-12): يعمل على GitHub، فوصف docs/30-readiness-documents.md:424 للخط بأنه «يعمل على main وclaude/**» صار صحيحًا (O-02، tools/dbgen/erd_open_items.py:22). والسجل يسمّي الآن الملف الصحيح ../.github/workflows/treasury-db-ci.yml (جذر المستودع).
 
 ## 14. التتبع
 
@@ -239,7 +239,7 @@ FR-PLT-047 (Should، S5) يطلب حزمة تنشر على خادم محلي ل�
 | §2 | مسار البيئات، الاستضافة | docs/10-detailed-analysis/00-overview-and-cross-cutting.md:126-127 |
 | §3 | ADR 0001، 01 §13، FR-PLT-013، FR-PLT-027، FR-PLT-044 | docs/adr/0001-schema-work-on-linux.md:16-20؛ docs/01-preliminary-analysis.md:455-456؛ docs/10-detailed-analysis/10-m0-m1-platform-organization.md:115، 129، 146 |
 | §4.3، §5.3، §7 G2-G4 | FR-PLT-045، AC-PLT-4 | docs/10-detailed-analysis/10-m0-m1-platform-organization.md:147، 695-698 |
-| §5.1 | خط القاعدة القائم | tools/ci/db_ci.sh؛ .github/workflows/db-ci.yml |
+| §5.1 | خط القاعدة القائم | tools/ci/db_ci.sh؛ ../.github/workflows/treasury-db-ci.yml (جذر المستودع) |
 | §5.2 | FR-PLT-041 | docs/10-detailed-analysis/10-m0-m1-platform-organization.md:143 |
 | §6 | O-2 وO-3 (20-database-design)، tp_migrator | docs/20-database-design.md:452، 530-531، 271؛ db/static/020_roles_and_grants.sql:9 |
 | §7 G5 | FR-PLT-036، خروج S0 | docs/10-detailed-analysis/10-m0-m1-platform-organization.md:138؛ docs/10-detailed-analysis/00-overview-and-cross-cutting.md:194 |
