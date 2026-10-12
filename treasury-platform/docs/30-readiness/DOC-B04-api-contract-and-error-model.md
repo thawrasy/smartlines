@@ -59,7 +59,7 @@
 
 ### 3.3 الارتباط والتتبع
 
-كل طلب يحمل `X-Correlation-Id` (UUID). إن غاب يولّده الخادم. يعود في ترويسة الاستجابة وفي حقل `correlationId` للخطأ. يمرّره التطبيق إلى `sec.usp_SetSessionContext` في `@CorrelationId` (db/static/030_session_context.sql:169)، فيُحفظ في `aud.AuditLog.CorrelationId` (db/model/10-platform.model:317) 🟡 للربط و🟢 للأعمدة.
+يولّد الخادم `X-Correlation-Id` (UUID) لكل طلب، ولا يقبله من المتصفح (DOC-S03، DQ-S12-7، DQ-S13-11). يعود في ترويسة الاستجابة وفي حقل `correlationId` للخطأ. يمرّره التطبيق إلى `sec.usp_SetSessionContext` في `@CorrelationId` (db/static/030_session_context.sql:169)، فيُحفظ في `aud.AuditLog.CorrelationId` (db/model/10-platform.model:317) 🟡 للربط و🟢 للأعمدة.
 
 ## 4. المعرّفات العامة والمفاتيح الداخلية
 
