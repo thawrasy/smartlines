@@ -53,6 +53,17 @@ sq -Q "IF DB_ID(N'BankFas') IS NOT NULL BEGIN ALTER DATABASE [BankFas] SET SINGL
 # The same wrapper that users run: it changes to db/ and runs deploy.sql unchanged.
 SQL_SERVER="$SQL_SERVER" SQL_USER=sa SQLCMD="$SQLCMD" bash tools/deploy/deploy.sh
 
+echo "== 4b. the platform seed can run again without changing anything (DOC-B05 section 6)"
+seed_state() { sq -d BankFas -h -1 -W -Q "SET NOCOUNT ON; SELECT CONCAT(COUNT(*), '/', COUNT(UpdatedAt), '/', CONVERT(VARCHAR(30), MAX(CreatedAt), 126)) FROM cfg.SettingDefinition"; }
+seed_before="$(seed_state)"
+sq -d BankFas -i db/seed/100_platform_global.sql >/dev/null
+seed_after="$(seed_state)"
+if [ "$seed_before" != "$seed_after" ] || [ "${seed_before%%/*}" -lt 6 ]; then
+    echo "platform seed is not safe to run again, or incomplete: before $seed_before, after $seed_after"
+    exit 1
+fi
+echo "platform seed unchanged on a second run ($seed_after)"
+
 echo "== 5. deployed objects against the generated DDL"
 python3 tools/dbgen/check_deployed.py --sqlcmd "$SQLCMD" --server "$SQL_SERVER" --database BankFas
 
@@ -103,9 +114,10 @@ if grep -q '^FAIL' "$TMP/auth.out"; then
     exit 1
 fi
 auth_pass=$(grep -c '^PASS' "$TMP/auth.out" || true)
-# 14 cases: A1-A14 (ADR 0003: invitation, MFA enrolment and checks, recovery codes, passwords, administrator actions, sessions).
-if [ "$auth_pass" -ne 14 ]; then
-    echo "expected 14 PASS, found $auth_pass"
+# 20 cases: A1-A14 (ADR 0003: invitation, MFA enrolment and checks, recovery codes, passwords, administrator actions,
+# sessions) and S1-S6 (tenant security settings within the platform bounds, DQ-S03-6, DQ-S04-14).
+if [ "$auth_pass" -ne 20 ]; then
+    echo "expected 20 PASS, found $auth_pass"
     exit 1
 fi
 echo "account-security tests: $auth_pass passed"

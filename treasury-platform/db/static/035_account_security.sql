@@ -185,7 +185,8 @@ END;
 GO
 /* ---------- Sessions ---------- */
 
--- Activity extends the idle expiry, never past the 12-hour absolute expiry (FR-PLT-014). Works in every tenant
+-- Activity extends the idle expiry by the tenant's idle timeout (30 minutes unless the tenant set a shorter one,
+-- FR-PLT-043), never past the absolute expiry (FR-PLT-014). Works in every tenant
 -- status, because it writes only the user's own session (DQ-F04-8).
 CREATE OR ALTER PROCEDURE sec.usp_TouchSession
     @TenantId     INT,
@@ -194,10 +195,11 @@ WITH EXECUTE AS N'tp_auth_exec'
 AS
 BEGIN
     SET NOCOUNT ON;
-    DECLARE @now DATETIME2(3) = SYSUTCDATETIME();
+    DECLARE @now DATETIME2(3) = SYSUTCDATETIME(),
+            @idle INT = (SELECT Value FROM cfg.fn_SettingInt(@TenantId, 'security.session.idle_minutes', 30));
     UPDATE sec.UserSession
        SET LastSeenAt = @now,
-           IdleExpiresAt = CASE WHEN DATEADD(MINUTE, 30, @now) < AbsoluteExpiresAt THEN DATEADD(MINUTE, 30, @now) ELSE AbsoluteExpiresAt END
+           IdleExpiresAt = CASE WHEN DATEADD(MINUTE, @idle, @now) < AbsoluteExpiresAt THEN DATEADD(MINUTE, @idle, @now) ELSE AbsoluteExpiresAt END
      WHERE TenantId = @TenantId AND TokenHash = HASHBYTES('SHA2_256', @SessionToken)
        AND EndedAt IS NULL AND IdleExpiresAt > @now AND AbsoluteExpiresAt > @now;
     IF @@ROWCOUNT = 0 THROW 50003, 'No valid session for this tenant', 1;
@@ -259,7 +261,8 @@ BEGIN
           AND u.Status IN ('ACTIVE', 'LOCKED') AND u.IsSystemUser = 0;
 END;
 GO
--- The Argon2id parameters and salts of the current password and the last five (BR-PLT-004), without the hashes.
+-- The Argon2id parameters and salts of the passwords the new one may not repeat, without the hashes: the last N
+-- including the current one (BR-PLT-004; N = security.password.history_count, 5 unless the tenant set more).
 -- The application hashes the new password with each of them and passes the results to usp_ChangePassword or
 -- usp_ResetPassword, which compare them with the stored hashes.
 CREATE OR ALTER PROCEDURE sec.usp_GetPasswordHistoryParams
@@ -270,18 +273,20 @@ WITH EXECUTE AS N'tp_auth_exec'
 AS
 BEGIN
     SET NOCOUNT ON;
-    DECLARE @uid BIGINT, @sid BIGINT, @tid BIGINT;
+    DECLARE @uid BIGINT, @sid BIGINT, @tid BIGINT,
+            @keep INT = (SELECT Value - 1 FROM cfg.fn_SettingInt(@TenantId, 'security.password.history_count', 5));
     EXEC sec.usp_ResolvePasswordActor @TenantId, @SessionToken, @LinkToken, @uid OUTPUT, @sid OUTPUT, @tid OUTPUT;
     IF @uid IS NULL THROW 50003, 'No valid session or link for this tenant', 1;
     SELECT DISTINCT LEFT(h.PasswordHash, LEN(h.PasswordHash) - CHARINDEX('$', REVERSE(h.PasswordHash))) AS Params
     FROM (SELECT PasswordHash FROM sec.AppUser WHERE TenantId = @TenantId AND AppUserId = @uid AND PasswordHash IS NOT NULL
           UNION ALL
-          SELECT PasswordHash FROM (SELECT TOP (5) PasswordHash FROM sec.UserPasswordHistory
+          SELECT PasswordHash FROM (SELECT TOP (@keep) PasswordHash FROM sec.UserPasswordHistory
                                     WHERE TenantId = @TenantId AND UserId = @uid ORDER BY CreatedAt DESC, UserPasswordHistoryId DESC) AS l
          ) AS h;
 END;
 GO
--- Internal: BR-PLT-004 reuse check and the switch to the new hash. @Candidates is a JSON array with the new
+-- Internal: BR-PLT-004 reuse check and the switch to the new hash. The history keeps the N-1 passwords before the
+-- current one, so the new password differs from the last N including the current one. @Candidates is a JSON array with the new
 -- password hashed under each parameter set from usp_GetPasswordHistoryParams; one is needed for each stored hash.
 CREATE OR ALTER PROCEDURE sec.usp_ApplyNewPassword
     @TenantId        INT,
@@ -293,7 +298,8 @@ WITH EXECUTE AS N'tp_auth_exec'
 AS
 BEGIN
     SET NOCOUNT ON;
-    DECLARE @now DATETIME2(3) = SYSUTCDATETIME(), @current VARCHAR(255);
+    DECLARE @now DATETIME2(3) = SYSUTCDATETIME(), @current VARCHAR(255),
+            @keep INT = (SELECT Value - 1 FROM cfg.fn_SettingInt(@TenantId, 'security.password.history_count', 5));
     DECLARE @stored TABLE (Hash VARCHAR(255) COLLATE Latin1_General_BIN2 NOT NULL, Prefix VARCHAR(255) COLLATE Latin1_General_BIN2 NOT NULL);
     DECLARE @cand TABLE (Hash VARCHAR(255) COLLATE Latin1_General_BIN2 NOT NULL);
 
@@ -302,7 +308,7 @@ BEGIN
     SELECT h.PasswordHash, LEFT(h.PasswordHash, LEN(h.PasswordHash) - CHARINDEX('$', REVERSE(h.PasswordHash)))
     FROM (SELECT @current AS PasswordHash WHERE @current IS NOT NULL
           UNION ALL
-          SELECT PasswordHash FROM (SELECT TOP (5) PasswordHash FROM sec.UserPasswordHistory
+          SELECT PasswordHash FROM (SELECT TOP (@keep) PasswordHash FROM sec.UserPasswordHistory
                                     WHERE TenantId = @TenantId AND UserId = @UserId ORDER BY CreatedAt DESC, UserPasswordHistoryId DESC) AS l
          ) AS h;
     INSERT @cand (Hash) SELECT CAST(j.value AS VARCHAR(255)) FROM OPENJSON(ISNULL(@Candidates, N'[]')) AS j;
@@ -318,7 +324,7 @@ BEGIN
         INSERT sec.UserPasswordHistory (TenantId, UserId, PasswordHash) VALUES (@TenantId, @UserId, @current);
     DELETE h FROM sec.UserPasswordHistory AS h
     WHERE h.TenantId = @TenantId AND h.UserId = @UserId
-      AND h.UserPasswordHistoryId NOT IN (SELECT TOP (5) UserPasswordHistoryId FROM sec.UserPasswordHistory
+      AND h.UserPasswordHistoryId NOT IN (SELECT TOP (@keep) UserPasswordHistoryId FROM sec.UserPasswordHistory
                                           WHERE TenantId = @TenantId AND UserId = @UserId
                                           ORDER BY CreatedAt DESC, UserPasswordHistoryId DESC);
     UPDATE sec.AppUser SET PasswordHash = @NewPasswordHash, PasswordChangedAt = @now

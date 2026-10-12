@@ -8,7 +8,8 @@
      sec.usp_StartSession       compares that hash with the stored one inside the database, applies the lockout
                                 rules (BR-PLT-005, FR-PLT-012), checks the tenant status against the user's role
                                 (O-18), and stores the SHA-256 of a random session token that the application holds
-                                (FR-PLT-014: 30 minutes idle, 12 hours absolute).
+                                (FR-PLT-014: 30 minutes idle, 12 hours absolute; a tenant may set shorter ones,
+                                FR-PLT-043, read through cfg.fn_SettingInt).
      sec.usp_ConfirmMfa         records the result of the TOTP check. The application verifies the code, because the
                                 secret is encrypted with application keys (BR-PLT-006). A reused time step counts as
                                 a failure, and failures count toward the lockout (ADR 0003).
@@ -53,8 +54,8 @@ AS RETURN
                   WHERE ur.TenantId = @TenantId AND ur.UserId = @UserId
                     AND r.Code = 'TA' AND r.IsSystem = 1 AND r.IsActive = 1);
 GO
-/* One failed proof of identity (password, TOTP or recovery code): five within 15 minutes lock the account for
-   15 minutes; the third lockout within 24 hours needs an administrator (BR-PLT-005). Service accounts are never
+/* One failed proof of identity (password, TOTP or recovery code): five within 15 minutes (a tenant may set three
+   or four, security.lockout.threshold) lock the account for 15 minutes; the third lockout within 24 hours needs an administrator (BR-PLT-005). Service accounts are never
    counted, so nobody can lock them by guessing (they have no password). Internal: not granted to tp_app. */
 CREATE OR ALTER PROCEDURE sec.usp_RecordAuthFailure
     @TenantId  INT,
@@ -68,7 +69,8 @@ BEGIN
     SET NOCOUNT ON;
     SET @Locked = 0;
     DECLARE @now DATETIME2(3) = SYSUTCDATETIME(), @failed INT, @firstFailed DATETIME2(3), @lockouts INT,
-            @lastLockout DATETIME2(3), @found BIT = 0;
+            @lastLockout DATETIME2(3), @found BIT = 0,
+            @threshold INT = (SELECT Value FROM cfg.fn_SettingInt(@TenantId, 'security.lockout.threshold', 5));
     SELECT @found = 1, @failed = FailedAttempts, @firstFailed = FirstFailedAt, @lockouts = LockoutCount, @lastLockout = LastLockoutAt
     FROM sec.AppUser WITH (UPDLOCK, HOLDLOCK)
     WHERE TenantId = @TenantId AND AppUserId = @UserId AND IsSystemUser = 0;
@@ -78,7 +80,7 @@ BEGIN
         SELECT @failed = 1, @firstFailed = @now;
     ELSE
         SET @failed = @failed + 1;
-    IF @failed >= 5
+    IF @failed >= @threshold
     BEGIN
         SET @lockouts = CASE WHEN @lastLockout >= DATEADD(HOUR, -24, @now) THEN @lockouts + 1 ELSE 1 END;
         UPDATE sec.AppUser
@@ -170,12 +172,14 @@ BEGIN
                 SET @outcome = 'DENIED_TENANT';
             ELSE
             BEGIN
+                DECLARE @idle INT = (SELECT Value FROM cfg.fn_SettingInt(@TenantId, 'security.session.idle_minutes', 30)),
+                        @absolute INT = (SELECT Value FROM cfg.fn_SettingInt(@TenantId, 'security.session.absolute_hours', 12));
                 UPDATE sec.AppUser
                    SET Status = 'ACTIVE', LockedUntil = NULL, FailedAttempts = 0, FirstFailedAt = NULL, LastLoginAt = @now
                  WHERE TenantId = @TenantId AND AppUserId = @uid;
                 INSERT sec.UserSession (TenantId, UserId, TokenHash, LastSeenAt, IdleExpiresAt, AbsoluteExpiresAt, IpAddress, UserAgent)
                 VALUES (@TenantId, @uid, HASHBYTES('SHA2_256', @SessionToken), @now,
-                        DATEADD(MINUTE, 30, @now), DATEADD(HOUR, 12, @now), @ClientIp, @UserAgent);
+                        DATEADD(MINUTE, @idle, @now), DATEADD(HOUR, @absolute, @now), @ClientIp, @UserAgent);
                 SET @outcome = 'LOGIN_SUCCESS';
                 SELECT @UserId = @uid, @MfaRequired = 1, @MfaEnrolmentRequired = CASE WHEN @mfa = 1 THEN 0 ELSE 1 END;
             END;

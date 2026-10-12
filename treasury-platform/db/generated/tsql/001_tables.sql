@@ -266,7 +266,7 @@ CREATE TABLE [sec].[Permission] (
     CONSTRAINT [UQ_Permission_Code] UNIQUE ([Code]),
     CONSTRAINT [CK_Permission_1] CHECK (LockedToRoleCodes IS NULL OR IsSensitive = 1),
     CONSTRAINT [CK_Permission_ModuleCode] CHECK ([ModuleCode] IS NULL OR [ModuleCode] IN ('CORE', 'INSTITUTIONS', 'FACILITIES', 'COVENANTS', 'WORKFLOW', 'LC_PURCHASE', 'LC_SALES', 'REQUESTS', 'REPORTS')),
-    CONSTRAINT [CK_Permission_LockedToRoleCodes_json] CHECK ([LockedToRoleCodes] IS NULL OR ISJSON([LockedToRoleCodes]) = 1)
+    CONSTRAINT [CK_Permission_LockedToRoleCodes_json] CHECK ([LockedToRoleCodes] IS NULL OR ISJSON([LockedToRoleCodes], VALUE) = 1)
 );
 GO
 -- Role–permission link; PERMISSION_LOCKED is enforced by the service (BR-PLT-019)
@@ -522,8 +522,8 @@ CREATE TABLE [aud].[AuditLog] (
     CONSTRAINT [CK_AuditLog_Category] CHECK ([Category] IS NULL OR [Category] IN ('SECURITY', 'CONFIG', 'TREASURY', 'IDENTITY_ACCESS', 'PLATFORM', 'SYSTEM')),
     CONSTRAINT [CK_AuditLog_Severity] CHECK ([Severity] IS NULL OR [Severity] IN ('INFO', 'HIGH')),
     CONSTRAINT [CK_AuditLog_Result] CHECK ([Result] IS NULL OR [Result] IN ('SUCCESS', 'DENIED', 'FAILED')),
-    CONSTRAINT [CK_AuditLog_BeforeJson_json] CHECK ([BeforeJson] IS NULL OR ISJSON([BeforeJson]) = 1),
-    CONSTRAINT [CK_AuditLog_AfterJson_json] CHECK ([AfterJson] IS NULL OR ISJSON([AfterJson]) = 1)
+    CONSTRAINT [CK_AuditLog_BeforeJson_json] CHECK ([BeforeJson] IS NULL OR ISJSON([BeforeJson], VALUE) = 1),
+    CONSTRAINT [CK_AuditLog_AfterJson_json] CHECK ([AfterJson] IS NULL OR ISJSON([AfterJson], VALUE) = 1)
 );
 GO
 -- Access log for sensitive data: identity reveals, image views, exports and restricted downloads; flags anomalies above 20 per hour (BR-PTY-009)
@@ -677,9 +677,9 @@ CREATE TABLE [cfg].[SettingDefinition] (
     CONSTRAINT [UQ_SettingDefinition_Key] UNIQUE ([Key]),
     CONSTRAINT [CK_SettingDefinition_ModuleCode] CHECK ([ModuleCode] IS NULL OR [ModuleCode] IN ('CORE', 'INSTITUTIONS', 'FACILITIES', 'COVENANTS', 'WORKFLOW', 'LC_PURCHASE', 'LC_SALES', 'REQUESTS', 'REPORTS')),
     CONSTRAINT [CK_SettingDefinition_ValueType] CHECK ([ValueType] IS NULL OR [ValueType] IN ('STRING', 'INT', 'DECIMAL', 'BOOL', 'TIME', 'DURATION', 'JSON')),
-    CONSTRAINT [CK_SettingDefinition_DefaultValueJson_json] CHECK ([DefaultValueJson] IS NULL OR ISJSON([DefaultValueJson]) = 1),
-    CONSTRAINT [CK_SettingDefinition_MinValueJson_json] CHECK ([MinValueJson] IS NULL OR ISJSON([MinValueJson]) = 1),
-    CONSTRAINT [CK_SettingDefinition_MaxValueJson_json] CHECK ([MaxValueJson] IS NULL OR ISJSON([MaxValueJson]) = 1)
+    CONSTRAINT [CK_SettingDefinition_DefaultValueJson_json] CHECK ([DefaultValueJson] IS NULL OR ISJSON([DefaultValueJson], VALUE) = 1),
+    CONSTRAINT [CK_SettingDefinition_MinValueJson_json] CHECK ([MinValueJson] IS NULL OR ISJSON([MinValueJson], VALUE) = 1),
+    CONSTRAINT [CK_SettingDefinition_MaxValueJson_json] CHECK ([MaxValueJson] IS NULL OR ISJSON([MaxValueJson], VALUE) = 1)
 );
 GO
 -- Tenant settings: security policies, timeouts, thresholds, and work start and end times (FR-PLT-043)
@@ -696,7 +696,7 @@ CREATE TABLE [cfg].[TenantSetting] (
     CONSTRAINT [PK_TenantSetting] PRIMARY KEY CLUSTERED ([TenantSettingId]),
     CONSTRAINT [UQ_TenantSetting_Tenant] UNIQUE ([TenantId], [TenantSettingId]),
     CONSTRAINT [UQ_TenantSetting_Key] UNIQUE ([TenantId], [Key]),
-    CONSTRAINT [CK_TenantSetting_ValueJson_json] CHECK ([ValueJson] IS NULL OR ISJSON([ValueJson]) = 1)
+    CONSTRAINT [CK_TenantSetting_ValueJson_json] CHECK ([ValueJson] IS NULL OR ISJSON([ValueJson], VALUE) = 1)
 );
 GO
 -- Numbering-type definition with a tag-based format, for example {seq:000}-{erp}-{yy} (FR-PLT-026)
@@ -791,8 +791,8 @@ CREATE TABLE [cfg].[ExpiryAlertRule] (
     CONSTRAINT [UQ_ExpiryAlertRule_Tenant] UNIQUE ([TenantId], [ExpiryAlertRuleId]),
     CONSTRAINT [UQ_ExpiryAlertRule_ItemType] UNIQUE ([TenantId], [ItemType]),
     CONSTRAINT [CK_ExpiryAlertRule_1] CHECK (ReminderAfterExpiryDays IS NULL OR ReminderAfterExpiryDays > 0),
-    CONSTRAINT [CK_ExpiryAlertRule_LeadDays_json] CHECK ([LeadDays] IS NULL OR ISJSON([LeadDays]) = 1),
-    CONSTRAINT [CK_ExpiryAlertRule_RecipientRoles_json] CHECK ([RecipientRoles] IS NULL OR ISJSON([RecipientRoles]) = 1)
+    CONSTRAINT [CK_ExpiryAlertRule_LeadDays_json] CHECK ([LeadDays] IS NULL OR ISJSON([LeadDays], VALUE) = 1),
+    CONSTRAINT [CK_ExpiryAlertRule_RecipientRoles_json] CHECK ([RecipientRoles] IS NULL OR ISJSON([RecipientRoles], VALUE) = 1)
 );
 GO
 -- Log of sent expiry alerts: one event per (item, threshold), never repeated on the same day (FR-PLT-038)
@@ -844,7 +844,7 @@ CREATE TABLE [cfg].[DataExportJob] (
     CONSTRAINT [CK_DataExportJob_3] CHECK (FinishedAt IS NULL OR StartedAt IS NULL OR FinishedAt >= StartedAt),
     CONSTRAINT [CK_DataExportJob_Scope] CHECK ([Scope] IS NULL OR [Scope] IN ('FULL', 'PARTIAL')),
     CONSTRAINT [CK_DataExportJob_Status] CHECK ([Status] IS NULL OR [Status] IN ('REQUESTED', 'APPROVED', 'RUNNING', 'READY', 'EXPIRED', 'FAILED')),
-    CONSTRAINT [CK_DataExportJob_ScopeDetailJson_json] CHECK ([ScopeDetailJson] IS NULL OR ISJSON([ScopeDetailJson]) = 1)
+    CONSTRAINT [CK_DataExportJob_ScopeDetailJson_json] CHECK ([ScopeDetailJson] IS NULL OR ISJSON([ScopeDetailJson], VALUE) = 1)
 );
 GO
 -- Non-working day; NULL TenantId = platform holiday, read-only (FR-PLT-035, BR-PLT-014)
@@ -896,7 +896,7 @@ CREATE TABLE [cfg].[OutboxEvent] (
     CONSTRAINT [CK_OutboxEvent_1] CHECK (AttemptCount >= 0),
     CONSTRAINT [CK_OutboxEvent_2] CHECK (EventName LIKE '%.%'),
     CONSTRAINT [CK_OutboxEvent_Status] CHECK ([Status] IS NULL OR [Status] IN ('PENDING', 'PROCESSING', 'DELIVERED', 'FAILED', 'DEAD')),
-    CONSTRAINT [CK_OutboxEvent_PayloadJson_json] CHECK ([PayloadJson] IS NULL OR ISJSON([PayloadJson]) = 1)
+    CONSTRAINT [CK_OutboxEvent_PayloadJson_json] CHECK ([PayloadJson] IS NULL OR ISJSON([PayloadJson], VALUE) = 1)
 );
 GO
 -- Background job run log: last run, duration and result, visible to the account administrator (FR-PLT-044)
@@ -926,7 +926,7 @@ CREATE TABLE [cfg].[JobRun] (
     CONSTRAINT [CK_JobRun_3] CHECK ((Status = 'RUNNING' AND FinishedAt IS NULL) OR (Status <> 'RUNNING' AND FinishedAt IS NOT NULL)),
     CONSTRAINT [CK_JobRun_TriggerKind] CHECK ([TriggerKind] IS NULL OR [TriggerKind] IN ('SCHEDULED', 'MANUAL', 'RETRY')),
     CONSTRAINT [CK_JobRun_Status] CHECK ([Status] IS NULL OR [Status] IN ('RUNNING', 'SUCCEEDED', 'FAILED', 'CANCELLED')),
-    CONSTRAINT [CK_JobRun_DetailJson_json] CHECK ([DetailJson] IS NULL OR ISJSON([DetailJson]) = 1)
+    CONSTRAINT [CK_JobRun_DetailJson_json] CHECK ([DetailJson] IS NULL OR ISJSON([DetailJson], VALUE) = 1)
 );
 GO
 -- Numbered seed-run log per package; re-running a seed adds nothing (FR-PLT-008)
@@ -950,7 +950,7 @@ CREATE TABLE [cfg].[SeedRun] (
     CONSTRAINT [CK_SeedRun_1] CHECK (SeedVersion >= 1),
     CONSTRAINT [CK_SeedRun_RunKind] CHECK ([RunKind] IS NULL OR [RunKind] IN ('INITIAL', 'UPGRADE', 'RERUN')),
     CONSTRAINT [CK_SeedRun_Status] CHECK ([Status] IS NULL OR [Status] IN ('SUCCEEDED', 'PARTIAL', 'FAILED')),
-    CONSTRAINT [CK_SeedRun_DiffJson_json] CHECK ([DiffJson] IS NULL OR ISJSON([DiffJson]) = 1)
+    CONSTRAINT [CK_SeedRun_DiffJson_json] CHECK ([DiffJson] IS NULL OR ISJSON([DiffJson], VALUE) = 1)
 );
 GO
 
@@ -1521,7 +1521,7 @@ CREATE TABLE [pty].[CustomFieldDefinition] (
     CONSTRAINT [CK_CustomFieldDefinition_DataType] CHECK ([DataType] IS NULL OR [DataType] IN ('TEXT', 'NUMBER', 'DATE', 'LIST', 'BOOLEAN', 'AMOUNT')),
     CONSTRAINT [CK_CustomFieldDefinition_Sensitivity] CHECK ([Sensitivity] IS NULL OR [Sensitivity] IN ('CONFIDENTIAL', 'RESTRICTED')),
     CONSTRAINT [CK_CustomFieldDefinition_AppliesToKind] CHECK ([AppliesToKind] IS NULL OR [AppliesToKind] IN ('INDIVIDUAL', 'ORGANIZATION')),
-    CONSTRAINT [CK_CustomFieldDefinition_ListValues_json] CHECK ([ListValues] IS NULL OR ISJSON([ListValues]) = 1)
+    CONSTRAINT [CK_CustomFieldDefinition_ListValues_json] CHECK ([ListValues] IS NULL OR ISJSON([ListValues], VALUE) = 1)
 );
 GO
 -- Custom-field value for a party (FR-PTY-013, FR-PTY-014)
@@ -1610,7 +1610,7 @@ CREATE TABLE [pty].[KycProfileItem] (
     CONSTRAINT [CK_KycProfileItem_1] CHECK (MinValidityDays IS NULL OR MinValidityDays >= 0),
     CONSTRAINT [CK_KycProfileItem_2] CHECK (MaxAgeDays IS NULL OR MaxAgeDays > 0),
     CONSTRAINT [CK_KycProfileItem_ItemKind] CHECK ([ItemKind] IS NULL OR [ItemKind] IN ('PARTY_FIELD', 'IDENTITY_DOC', 'DOCUMENT_TYPE', 'ADDRESS_TYPE', 'CONTACT_KIND', 'CUSTOM_FIELD', 'COMPANY_FIELD', 'RELATED_PARTY_SET')),
-    CONSTRAINT [CK_KycProfileItem_ConditionJson_json] CHECK ([ConditionJson] IS NULL OR ISJSON([ConditionJson]) = 1)
+    CONSTRAINT [CK_KycProfileItem_ConditionJson_json] CHECK ([ConditionJson] IS NULL OR ISJSON([ConditionJson], VALUE) = 1)
 );
 GO
 -- Conditions for an item to apply, by legal form; no rows = applies to all (G-15)
@@ -1868,7 +1868,7 @@ CREATE TABLE [cat].[LegalEntityType] (
     CONSTRAINT [UQ_LegalEntityType_Code_CountryId] UNIQUE ([TenantId], [Code], [CountryId]),
     CONSTRAINT [CK_LegalEntityType_1] CHECK (Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'),
     CONSTRAINT [CK_LegalEntityType_2] CHECK ((IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)),
-    CONSTRAINT [CK_LegalEntityType_DefaultBodyTypes_json] CHECK ([DefaultBodyTypes] IS NULL OR ISJSON([DefaultBodyTypes]) = 1)
+    CONSTRAINT [CK_LegalEntityType_DefaultBodyTypes_json] CHECK ([DefaultBodyTypes] IS NULL OR ISJSON([DefaultBodyTypes], VALUE) = 1)
 );
 GO
 -- Document type; applies the flags defined in specification 10 at upload (FR-CAT-018, BR-CAT-016, FR-PLT-028)
@@ -1905,7 +1905,7 @@ CREATE TABLE [cat].[DocumentType] (
     CONSTRAINT [CK_DocumentType_3] CHECK (MaxSizeMb IS NULL OR MaxSizeMb > 0),
     CONSTRAINT [CK_DocumentType_4] CHECK (RetentionYears IS NULL OR RetentionYears > 0),
     CONSTRAINT [CK_DocumentType_5] CHECK (MaxAgeDays IS NULL OR MaxAgeDays > 0),
-    CONSTRAINT [CK_DocumentType_AllowedMime_json] CHECK ([AllowedMime] IS NULL OR ISJSON([AllowedMime]) = 1)
+    CONSTRAINT [CK_DocumentType_AllowedMime_json] CHECK ([AllowedMime] IS NULL OR ISJSON([AllowedMime], VALUE) = 1)
 );
 GO
 -- Job position: its attributes are defined in specification 10 (section 6.2) only, and this module seeds its rows (FR-CAT-019, BR-CAT-017); SortOrder comes from the catalogue base
@@ -1934,7 +1934,7 @@ CREATE TABLE [cat].[Position] (
     CONSTRAINT [UQ_Position_Code] UNIQUE ([TenantId], [Code]),
     CONSTRAINT [CK_Position_1] CHECK (Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'),
     CONSTRAINT [CK_Position_2] CHECK ((IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)),
-    CONSTRAINT [CK_Position_ApplicableBodyTypes_json] CHECK ([ApplicableBodyTypes] IS NULL OR ISJSON([ApplicableBodyTypes]) = 1)
+    CONSTRAINT [CK_Position_ApplicableBodyTypes_json] CHECK ([ApplicableBodyTypes] IS NULL OR ISJSON([ApplicableBodyTypes], VALUE) = 1)
 );
 GO
 -- Governance power type: its attributes are defined in specification 10 (section 6.2) only, and this module seeds its rows (FR-CAT-019, FR-ORG-024)
@@ -2285,7 +2285,7 @@ CREATE TABLE [cat].[CollateralTypeAttribute] (
     CONSTRAINT [UQ_CollateralTypeAttribute_CollateralTypeId_AttrKey] UNIQUE ([TenantId], [CollateralTypeId], [AttrKey]),
     CONSTRAINT [CK_CollateralTypeAttribute_1] CHECK (DataType <> 'LIST' OR ListOptions IS NOT NULL),
     CONSTRAINT [CK_CollateralTypeAttribute_DataType] CHECK ([DataType] IS NULL OR [DataType] IN ('TEXT', 'NUMBER', 'DATE', 'AMOUNT', 'BOOLEAN', 'LIST', 'REFERENCE')),
-    CONSTRAINT [CK_CollateralTypeAttribute_ListOptions_json] CHECK ([ListOptions] IS NULL OR ISJSON([ListOptions]) = 1)
+    CONSTRAINT [CK_CollateralTypeAttribute_ListOptions_json] CHECK ([ListOptions] IS NULL OR ISJSON([ListOptions], VALUE) = 1)
 );
 GO
 -- Obligation type with four families (FR-CAT-014, BR-CAT-010)
@@ -2437,7 +2437,7 @@ CREATE TABLE [cat].[LookupList] (
     CONSTRAINT [CK_LookupList_2] CHECK (Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'),
     CONSTRAINT [CK_LookupList_3] CHECK ((IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)),
     CONSTRAINT [CK_LookupList_Scope] CHECK ([Scope] IS NULL OR [Scope] IN ('SYSTEM', 'TENANT')),
-    CONSTRAINT [CK_LookupList_AttributeSchema_json] CHECK ([AttributeSchema] IS NULL OR ISJSON([AttributeSchema]) = 1)
+    CONSTRAINT [CK_LookupList_AttributeSchema_json] CHECK ([AttributeSchema] IS NULL OR ISJSON([AttributeSchema], VALUE) = 1)
 );
 GO
 -- Item in a tenant-owned lookup list (FR-CAT-020) -- DR-03/05/07: نسخ النظام لكل مشترك؛ فرادة الرمز داخل القائمة لا على مستوى المشترك
@@ -2468,7 +2468,7 @@ CREATE TABLE [cat].[LookupItem] (
     CONSTRAINT [CK_LookupItem_1] CHECK (Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'),
     CONSTRAINT [CK_LookupItem_2] CHECK ((IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)),
     CONSTRAINT [CK_LookupItem_Status] CHECK ([Status] IS NULL OR [Status] IN ('ACTIVE', 'LEGACY')),
-    CONSTRAINT [CK_LookupItem_Attributes_json] CHECK ([Attributes] IS NULL OR ISJSON([Attributes]) = 1)
+    CONSTRAINT [CK_LookupItem_Attributes_json] CHECK ([Attributes] IS NULL OR ISJSON([Attributes], VALUE) = 1)
 );
 GO
 
@@ -2921,8 +2921,8 @@ CREATE TABLE [fac].[FacilityRevision] (
     CONSTRAINT [CK_FacilityRevision_5] CHECK (Status <> 'REJECTED' OR RejectionReason IS NOT NULL),
     CONSTRAINT [CK_FacilityRevision_ReasonKind] CHECK ([ReasonKind] IS NULL OR [ReasonKind] IN ('INITIAL', 'AMENDMENT', 'EXTENSION', 'CORRECTION', 'RENEWAL_COPY')),
     CONSTRAINT [CK_FacilityRevision_Status] CHECK ([Status] IS NULL OR [Status] IN ('DRAFT', 'SUBMITTED', 'APPROVED', 'REJECTED', 'DISCARDED')),
-    CONSTRAINT [CK_FacilityRevision_HeaderChanges_json] CHECK ([HeaderChanges] IS NULL OR ISJSON([HeaderChanges]) = 1),
-    CONSTRAINT [CK_FacilityRevision_IntegrityResult_json] CHECK ([IntegrityResult] IS NULL OR ISJSON([IntegrityResult]) = 1)
+    CONSTRAINT [CK_FacilityRevision_HeaderChanges_json] CHECK ([HeaderChanges] IS NULL OR ISJSON([HeaderChanges], VALUE) = 1),
+    CONSTRAINT [CK_FacilityRevision_IntegrityResult_json] CHECK ([IntegrityResult] IS NULL OR ISJSON([IntegrityResult], VALUE) = 1)
 );
 GO
 -- Document within the package, with precedence (FR-FAC-004, BR-FAC-008, V-FAC-03); its type comes from doc.Document.DocumentTypeId
@@ -3298,7 +3298,7 @@ CREATE TABLE [fac].[LimitReservation] (
     CONSTRAINT [CK_LimitReservation_7] CHECK (OverLimit = 0 OR OverrideReason IS NOT NULL),
     CONSTRAINT [CK_LimitReservation_Status] CHECK ([Status] IS NULL OR [Status] IN ('ACTIVE', 'CONVERTED', 'RELEASED')),
     CONSTRAINT [CK_LimitReservation_ReleaseReason] CHECK ([ReleaseReason] IS NULL OR [ReleaseReason] IN ('REJECTED', 'CANCELLED', 'EXPIRED', 'SUPERSEDED', 'MANUAL')),
-    CONSTRAINT [CK_LimitReservation_AcknowledgedWarnings_json] CHECK ([AcknowledgedWarnings] IS NULL OR ISJSON([AcknowledgedWarnings]) = 1)
+    CONSTRAINT [CK_LimitReservation_AcknowledgedWarnings_json] CHECK ([AcknowledgedWarnings] IS NULL OR ISJSON([AcknowledgedWarnings], VALUE) = 1)
 );
 GO
 -- Movement record on a reservation or usage; no update or delete; duplicate-prevention key (BR-FAC-015, BR-FAC-020)
@@ -3690,7 +3690,7 @@ CREATE TABLE [cmp].[TermType] (
     CONSTRAINT [CK_TermType_ValueKind] CHECK ([ValueKind] IS NULL OR [ValueKind] IN ('PERCENT', 'AMOUNT', 'DAYS', 'MONTHS', 'COUNT', 'BOOLEAN', 'ENUM', 'TEXT')),
     CONSTRAINT [CK_TermType_DefaultBound] CHECK ([DefaultBound] IS NULL OR [DefaultBound] IN ('EXACT', 'MAX', 'MIN')),
     CONSTRAINT [CK_TermType_Direction] CHECK ([Direction] IS NULL OR [Direction] IN ('LOWER_BETTER', 'HIGHER_BETTER', 'NEUTRAL')),
-    CONSTRAINT [CK_TermType_EnumOptions_json] CHECK ([EnumOptions] IS NULL OR ISJSON([EnumOptions]) = 1)
+    CONSTRAINT [CK_TermType_EnumOptions_json] CHECK ([EnumOptions] IS NULL OR ISJSON([EnumOptions], VALUE) = 1)
 );
 GO
 -- Term value in a facility, with its scope and source (FR-CMP-002..006, BR-CMP-001..006, V-CMP-01)
@@ -3803,7 +3803,7 @@ CREATE TABLE [col].[Collateral] (
     CONSTRAINT [CK_Collateral_Status] CHECK ([Status] IS NULL OR [Status] IN ('DRAFT', 'ACTIVE', 'RELEASED', 'EXPIRED')),
     CONSTRAINT [CK_Collateral_ApprovalState] CHECK ([ApprovalState] IS NULL OR [ApprovalState] IN ('DRAFT', 'APPROVED')),
     CONSTRAINT [CK_Collateral_Confidence] CHECK ([Confidence] IS NULL OR [Confidence] IN ('CONFIRMED_AGAINST_ORIGINAL', 'READ_FROM_SCAN_UNVERIFIED', 'ENTERED_NO_DOCUMENT')),
-    CONSTRAINT [CK_Collateral_Attributes_json] CHECK ([Attributes] IS NULL OR ISJSON([Attributes]) = 1)
+    CONSTRAINT [CK_Collateral_Attributes_json] CHECK ([Attributes] IS NULL OR ISJSON([Attributes], VALUE) = 1)
 );
 GO
 -- Link between collateral and a facility or limit; one collateral can serve several facilities (FR-COL-002, BR-COL-005)
@@ -4037,7 +4037,7 @@ CREATE TABLE [obl].[Obligation] (
     CONSTRAINT [CK_Obligation_CheckMode] CHECK ([CheckMode] IS NULL OR [CheckMode] IN ('OFF', 'WARN', 'BLOCK')),
     CONSTRAINT [CK_Obligation_Status] CHECK ([Status] IS NULL OR [Status] IN ('ACTIVE', 'SUSPENDED', 'ENDED')),
     CONSTRAINT [CK_Obligation_Confidence] CHECK ([Confidence] IS NULL OR [Confidence] IN ('CONFIRMED_AGAINST_ORIGINAL', 'READ_FROM_SCAN_UNVERIFIED', 'ENTERED_NO_DOCUMENT')),
-    CONSTRAINT [CK_Obligation_TriggerValues_json] CHECK ([TriggerValues] IS NULL OR ISJSON([TriggerValues]) = 1)
+    CONSTRAINT [CK_Obligation_TriggerValues_json] CHECK ([TriggerValues] IS NULL OR ISJSON([TriggerValues], VALUE) = 1)
 );
 GO
 -- Companies the obligation applies to (AppliesToCompanyIds) -- جدول وسيط جديد؛ الحذف لصفوف مسودة المراجعة فقط (يفرضه التطبيق)
@@ -4263,7 +4263,7 @@ CREATE TABLE [obl].[CovenantTest] (
     CONSTRAINT [CK_CovenantTest_Result] CHECK ([Result] IS NULL OR [Result] IN ('COMPLIANT', 'WARNING', 'BREACH', 'MISSING_DATA', 'NOT_ASSESSED_NO_THRESHOLD', 'NOT_COMPARABLE', 'MANUAL_COMPLIANT', 'MANUAL_NON_COMPLIANT', 'UNDER_REVIEW')),
     CONSTRAINT [CK_CovenantTest_Method] CHECK ([Method] IS NULL OR [Method] IN ('AUTO', 'MANUAL_VALUE', 'MANUAL_STATUS')),
     CONSTRAINT [CK_CovenantTest_OperatorApplied] CHECK ([OperatorApplied] IS NULL OR [OperatorApplied] IN ('GE', 'LE', 'GT', 'LT', 'EQ')),
-    CONSTRAINT [CK_CovenantTest_InputsSnapshot_json] CHECK ([InputsSnapshot] IS NULL OR ISJSON([InputsSnapshot]) = 1)
+    CONSTRAINT [CK_CovenantTest_InputsSnapshot_json] CHECK ([InputsSnapshot] IS NULL OR ISJSON([InputsSnapshot], VALUE) = 1)
 );
 GO
 -- Breach record, its remedy and any waiver (FR-OBL-012, BR-OBL-009/011, section 8)
@@ -4728,8 +4728,8 @@ CREATE TABLE [wfl].[WorkflowStage] (
     CONSTRAINT [CK_WorkflowStage_ApprovalMode] CHECK ([ApprovalMode] IS NULL OR [ApprovalMode] IN ('NONE', 'ANY', 'ALL')),
     CONSTRAINT [CK_WorkflowStage_SlaMode] CHECK ([SlaMode] IS NULL OR [SlaMode] IN ('BUSINESS', 'CALENDAR')),
     CONSTRAINT [CK_WorkflowStage_TerminalOutcome] CHECK ([TerminalOutcome] IS NULL OR [TerminalOutcome] IN ('COMPLETED', 'REJECTED', 'CANCELLED')),
-    CONSTRAINT [CK_WorkflowStage_SubStatusSetJson_json] CHECK ([SubStatusSetJson] IS NULL OR ISJSON([SubStatusSetJson]) = 1),
-    CONSTRAINT [CK_WorkflowStage_EditableFieldKeysJson_json] CHECK ([EditableFieldKeysJson] IS NULL OR ISJSON([EditableFieldKeysJson]) = 1)
+    CONSTRAINT [CK_WorkflowStage_SubStatusSetJson_json] CHECK ([SubStatusSetJson] IS NULL OR ISJSON([SubStatusSetJson], VALUE) = 1),
+    CONSTRAINT [CK_WorkflowStage_EditableFieldKeysJson_json] CHECK ([EditableFieldKeysJson] IS NULL OR ISJSON([EditableFieldKeysJson], VALUE) = 1)
 );
 GO
 -- Approval slot in an APPROVAL stage; ALL = every slot, and a role requiring two people together = two slots (FR-WFL-007/041, BR-WFL-003/004)
@@ -4794,7 +4794,7 @@ CREATE TABLE [wfl].[WorkflowTransition] (
     CONSTRAINT [CK_WorkflowTransition_3] CHECK (ResumeStageId IS NULL OR Action IN ('RETURN','RESUBMIT')),
     CONSTRAINT [CK_WorkflowTransition_4] CHECK (Action NOT IN ('RETURN','REJECT') OR RequiresComment = 1),
     CONSTRAINT [CK_WorkflowTransition_Action] CHECK ([Action] IS NULL OR [Action] IN ('SUBMIT', 'APPROVE', 'COMPLETE', 'RETURN', 'REJECT', 'CANCEL', 'RESUBMIT')),
-    CONSTRAINT [CK_WorkflowTransition_ConditionJson_json] CHECK ([ConditionJson] IS NULL OR ISJSON([ConditionJson]) = 1)
+    CONSTRAINT [CK_WorkflowTransition_ConditionJson_json] CHECK ([ConditionJson] IS NULL OR ISJSON([ConditionJson], VALUE) = 1)
 );
 GO
 -- Hook registered on a stage: a key and parameters, no code (FR-WFL-021, BR-WFL-015, section 5.4)
@@ -4823,7 +4823,7 @@ CREATE TABLE [wfl].[WorkflowStageHook] (
     CONSTRAINT [CK_WorkflowStageHook_ActionFilter] CHECK ([ActionFilter] IS NULL OR [ActionFilter] IN ('SUBMIT', 'APPROVE', 'COMPLETE', 'RETURN', 'REJECT', 'CANCEL', 'RESUBMIT')),
     CONSTRAINT [CK_WorkflowStageHook_ExecMode] CHECK ([ExecMode] IS NULL OR [ExecMode] IN ('SYNC_TX', 'AFTER_COMMIT')),
     CONSTRAINT [CK_WorkflowStageHook_OnFailure] CHECK ([OnFailure] IS NULL OR [OnFailure] IN ('BLOCK', 'WARN')),
-    CONSTRAINT [CK_WorkflowStageHook_ParamsJson_json] CHECK ([ParamsJson] IS NULL OR ISJSON([ParamsJson]) = 1)
+    CONSTRAINT [CK_WorkflowStageHook_ParamsJson_json] CHECK ([ParamsJson] IS NULL OR ISJSON([ParamsJson], VALUE) = 1)
 );
 GO
 -- Field in a template version; the form UI is generated without code (FR-REQ-002..005, BR-REQ-003/004)
@@ -4864,12 +4864,12 @@ CREATE TABLE [wfl].[TemplateField] (
     CONSTRAINT [CK_TemplateField_DataType] CHECK ([DataType] IS NULL OR [DataType] IN ('TEXT', 'LONGTEXT', 'INTEGER', 'DECIMAL', 'AMOUNT', 'PERCENT', 'DATE', 'BOOLEAN', 'LIST', 'MULTILIST', 'CATALOG_REF', 'USER_REF', 'EXTERNAL_REF', 'FILE_SLOT', 'TABLE', 'MODULE_FORM', 'LIMIT_SELECTION')),
     CONSTRAINT [CK_TemplateField_Sensitivity] CHECK ([Sensitivity] IS NULL OR [Sensitivity] IN ('NORMAL', 'CONFIDENTIAL', 'RESTRICTED')),
     CONSTRAINT [CK_TemplateField_IndexRole] CHECK ([IndexRole] IS NULL OR [IndexRole] IN ('NONE', 'TITLE', 'AMOUNT', 'CURRENCY', 'COUNTERPARTY_NAME', 'COUNTERPARTY_CODE', 'PRODUCT', 'REQUIRED_BY_DATE')),
-    CONSTRAINT [CK_TemplateField_ConfigJson_json] CHECK ([ConfigJson] IS NULL OR ISJSON([ConfigJson]) = 1),
-    CONSTRAINT [CK_TemplateField_RequiredWhenJson_json] CHECK ([RequiredWhenJson] IS NULL OR ISJSON([RequiredWhenJson]) = 1),
-    CONSTRAINT [CK_TemplateField_VisibleWhenJson_json] CHECK ([VisibleWhenJson] IS NULL OR ISJSON([VisibleWhenJson]) = 1),
-    CONSTRAINT [CK_TemplateField_VisibleStagesJson_json] CHECK ([VisibleStagesJson] IS NULL OR ISJSON([VisibleStagesJson]) = 1),
-    CONSTRAINT [CK_TemplateField_EditableStagesJson_json] CHECK ([EditableStagesJson] IS NULL OR ISJSON([EditableStagesJson]) = 1),
-    CONSTRAINT [CK_TemplateField_ValidationJson_json] CHECK ([ValidationJson] IS NULL OR ISJSON([ValidationJson]) = 1)
+    CONSTRAINT [CK_TemplateField_ConfigJson_json] CHECK ([ConfigJson] IS NULL OR ISJSON([ConfigJson], VALUE) = 1),
+    CONSTRAINT [CK_TemplateField_RequiredWhenJson_json] CHECK ([RequiredWhenJson] IS NULL OR ISJSON([RequiredWhenJson], VALUE) = 1),
+    CONSTRAINT [CK_TemplateField_VisibleWhenJson_json] CHECK ([VisibleWhenJson] IS NULL OR ISJSON([VisibleWhenJson], VALUE) = 1),
+    CONSTRAINT [CK_TemplateField_VisibleStagesJson_json] CHECK ([VisibleStagesJson] IS NULL OR ISJSON([VisibleStagesJson], VALUE) = 1),
+    CONSTRAINT [CK_TemplateField_EditableStagesJson_json] CHECK ([EditableStagesJson] IS NULL OR ISJSON([EditableStagesJson], VALUE) = 1),
+    CONSTRAINT [CK_TemplateField_ValidationJson_json] CHECK ([ValidationJson] IS NULL OR ISJSON([ValidationJson], VALUE) = 1)
 );
 GO
 -- Attachment rule on a template version (FR-REQ-006, BR-REQ-005, FR-WFL-024/025)
@@ -4898,7 +4898,7 @@ CREATE TABLE [wfl].[TemplateAttachmentRule] (
     CONSTRAINT [CK_TemplateAttachmentRule_2] CHECK (MaxCount IS NULL OR (MaxCount >= 1 AND MaxCount >= MinCount)),
     CONSTRAINT [CK_TemplateAttachmentRule_3] CHECK (MinCount = 0 OR RequiredBeforeStageKey IS NOT NULL),
     CONSTRAINT [CK_TemplateAttachmentRule_4] CHECK (LabelAr IS NOT NULL OR LabelEn IS NOT NULL),
-    CONSTRAINT [CK_TemplateAttachmentRule_RequiredWhenJson_json] CHECK ([RequiredWhenJson] IS NULL OR ISJSON([RequiredWhenJson]) = 1)
+    CONSTRAINT [CK_TemplateAttachmentRule_RequiredWhenJson_json] CHECK ([RequiredWhenJson] IS NULL OR ISJSON([RequiredWhenJson], VALUE) = 1)
 );
 GO
 -- Request: the most heavily used table; the internal status is kept separate from the visible phase (FR-WFL-001, FR-REQ-009, D-6, BR-REQ-002/003)
@@ -4998,7 +4998,7 @@ CREATE TABLE [wfl].[Request] (
     CONSTRAINT [CK_Request_Priority] CHECK ([Priority] IS NULL OR [Priority] IN ('NORMAL', 'URGENT')),
     CONSTRAINT [CK_Request_ExecutionChannel] CHECK ([ExecutionChannel] IS NULL OR [ExecutionChannel] IN ('BANK_PORTAL', 'MANUAL_FORM', 'DIRECT_INTEGRATION')),
     CONSTRAINT [CK_Request_ReservationState] CHECK ([ReservationState] IS NULL OR [ReservationState] IN ('NONE', 'RESERVED', 'CONVERTED', 'RELEASED', 'LOST')),
-    CONSTRAINT [CK_Request_FormDataJson_json] CHECK ([FormDataJson] IS NULL OR ISJSON([FormDataJson]) = 1)
+    CONSTRAINT [CK_Request_FormDataJson_json] CHECK ([FormDataJson] IS NULL OR ISJSON([FormDataJson], VALUE) = 1)
 );
 GO
 -- Comment visible to the requester or internal; the application prevents editing it, and withdrawal keeps the original (FR-REQ-017, BR-REQ-014)
@@ -5162,8 +5162,8 @@ CREATE TABLE [wfl].[RequestApproval] (
     CONSTRAINT [CK_RequestApproval_7] CHECK (CycleNo >= 1),
     CONSTRAINT [CK_RequestApproval_Decision] CHECK ([Decision] IS NULL OR [Decision] IN ('PENDING', 'APPROVED', 'RETURNED', 'REJECTED', 'VOIDED', 'SUPERSEDED')),
     CONSTRAINT [CK_RequestApproval_Source] CHECK ([Source] IS NULL OR [Source] IN ('USER', 'SUBMISSION', 'DELEGATE', 'SYSTEM')),
-    CONSTRAINT [CK_RequestApproval_AckWarningsJson_json] CHECK ([AckWarningsJson] IS NULL OR ISJSON([AckWarningsJson]) = 1),
-    CONSTRAINT [CK_RequestApproval_AvailabilitySnapshotJson_json] CHECK ([AvailabilitySnapshotJson] IS NULL OR ISJSON([AvailabilitySnapshotJson]) = 1)
+    CONSTRAINT [CK_RequestApproval_AckWarningsJson_json] CHECK ([AckWarningsJson] IS NULL OR ISJSON([AckWarningsJson], VALUE) = 1),
+    CONSTRAINT [CK_RequestApproval_AvailabilitySnapshotJson_json] CHECK ([AvailabilitySnapshotJson] IS NULL OR ISJSON([AvailabilitySnapshotJson], VALUE) = 1)
 );
 GO
 -- Append-only action log covering every event; separate from the security audit log (FR-WFL-033/034, section 6.2)
@@ -5196,8 +5196,8 @@ CREATE TABLE [wfl].[RequestAction] (
     CONSTRAINT [CK_RequestAction_ActionType] CHECK ([ActionType] IS NULL OR [ActionType] IN ('CREATED', 'SUBMITTED', 'RESUBMITTED', 'NUMBER_ASSIGNED', 'FIELD_EDITED', 'APPROVED', 'RETURNED', 'REJECTED', 'CANCELLED', 'STAGE_CHANGED', 'SUBSTATUS_CHANGED', 'CLAIMED', 'RELEASED', 'REASSIGNED', 'COMMENT_ADDED', 'ATTACHMENT_ADDED', 'ATTACHMENT_REMOVED', 'EXTREF_ADDED', 'EXTREF_CHANGED', 'HOOK_EXECUTED', 'HOOK_FAILED', 'SLA_AT_RISK', 'SLA_BREACHED', 'ESCALATED', 'DELEGATED_ACTION', 'CHILD_CREATED', 'PRIORITY_CHANGED', 'TEMPLATE_MIGRATED', 'RESERVATION_LOST', 'DRAFT_ARCHIVED', 'DRAFT_RESTORED', 'CHANNEL_CHANGED', 'SOD_EXCEPTION_USED', 'DELEGATION_CREATED', 'DELEGATION_REVOKED', 'READY_TO_CLOSE', 'CLOSED')),
     CONSTRAINT [CK_RequestAction_ActorType] CHECK ([ActorType] IS NULL OR [ActorType] IN ('USER', 'SYSTEM', 'SERVICE')),
     CONSTRAINT [CK_RequestAction_Visibility] CHECK ([Visibility] IS NULL OR [Visibility] IN ('INTERNAL', 'REQUESTER_VISIBLE')),
-    CONSTRAINT [CK_RequestAction_MetaJson_json] CHECK ([MetaJson] IS NULL OR ISJSON([MetaJson]) = 1),
-    CONSTRAINT [CK_RequestAction_SnapshotJson_json] CHECK ([SnapshotJson] IS NULL OR ISJSON([SnapshotJson]) = 1)
+    CONSTRAINT [CK_RequestAction_MetaJson_json] CHECK ([MetaJson] IS NULL OR ISJSON([MetaJson], VALUE) = 1),
+    CONSTRAINT [CK_RequestAction_SnapshotJson_json] CHECK ([SnapshotJson] IS NULL OR ISJSON([SnapshotJson], VALUE) = 1)
 );
 GO
 -- Execution of a hook with an idempotency key; a repeat returns the stored result (FR-WFL-021, BR-WFL-015) -- جدول جديد
@@ -5236,7 +5236,7 @@ CREATE TABLE [wfl].[HookExecution] (
     CONSTRAINT [CK_HookExecution_ExecMode] CHECK ([ExecMode] IS NULL OR [ExecMode] IN ('SYNC_TX', 'AFTER_COMMIT')),
     CONSTRAINT [CK_HookExecution_OnFailure] CHECK ([OnFailure] IS NULL OR [OnFailure] IN ('BLOCK', 'WARN')),
     CONSTRAINT [CK_HookExecution_Status] CHECK ([Status] IS NULL OR [Status] IN ('PENDING', 'SUCCEEDED', 'FAILED', 'GAVE_UP')),
-    CONSTRAINT [CK_HookExecution_ResultJson_json] CHECK ([ResultJson] IS NULL OR ISJSON([ResultJson]) = 1)
+    CONSTRAINT [CK_HookExecution_ResultJson_json] CHECK ([ResultJson] IS NULL OR ISJSON([ResultJson], VALUE) = 1)
 );
 GO
 -- Task delegation with a period and scope; no chained delegation (FR-WFL-020, BR-WFL-021, V-WFL-06)
@@ -5302,8 +5302,8 @@ CREATE TABLE [ntf].[NotificationEventType] (
     CONSTRAINT [CK_NotificationEventType_3] CHECK (DedupWindowMinutes IS NULL OR DedupWindowMinutes >= 0),
     CONSTRAINT [CK_NotificationEventType_4] CHECK (CoalesceWindowMinutes IS NULL OR CoalesceWindowMinutes = 0 OR (IsMandatory = 0 AND DefaultSeverity <> 'HIGH')),
     CONSTRAINT [CK_NotificationEventType_DefaultSeverity] CHECK ([DefaultSeverity] IS NULL OR [DefaultSeverity] IN ('INFO', 'WARNING', 'HIGH')),
-    CONSTRAINT [CK_NotificationEventType_DefaultChannels_json] CHECK ([DefaultChannels] IS NULL OR ISJSON([DefaultChannels]) = 1),
-    CONSTRAINT [CK_NotificationEventType_AllowedPlaceholdersJson_json] CHECK ([AllowedPlaceholdersJson] IS NULL OR ISJSON([AllowedPlaceholdersJson]) = 1)
+    CONSTRAINT [CK_NotificationEventType_DefaultChannels_json] CHECK ([DefaultChannels] IS NULL OR ISJSON([DefaultChannels], VALUE) = 1),
+    CONSTRAINT [CK_NotificationEventType_AllowedPlaceholdersJson_json] CHECK ([AllowedPlaceholdersJson] IS NULL OR ISJSON([AllowedPlaceholdersJson], VALUE) = 1)
 );
 GO
 -- Recipient rule for an event; changes apply to subsequent events only (FR-NTF-003, BR-NTF-001, V-NTF-02)
@@ -5331,8 +5331,8 @@ CREATE TABLE [ntf].[NotificationRule] (
     CONSTRAINT [CK_NotificationRule_1] CHECK ((RecipientKind = 'ROLE' AND RoleId IS NOT NULL AND PermissionId IS NULL AND UserId IS NULL) OR (RecipientKind = 'PERMISSION' AND PermissionId IS NOT NULL AND RoleId IS NULL AND UserId IS NULL) OR (RecipientKind = 'USER' AND UserId IS NOT NULL AND RoleId IS NULL AND PermissionId IS NULL) OR (RecipientKind NOT IN ('ROLE','PERMISSION','USER') AND RoleId IS NULL AND PermissionId IS NULL AND UserId IS NULL)),
     CONSTRAINT [CK_NotificationRule_2] CHECK (IsMandatory = 0 OR IsActive = 1),
     CONSTRAINT [CK_NotificationRule_RecipientKind] CHECK ([RecipientKind] IS NULL OR [RecipientKind] IN ('ROLE', 'PERMISSION', 'USER', 'REQUESTER', 'REQUESTER_MANAGER', 'ASSIGNEE', 'STAGE_APPROVERS', 'DEPARTMENT_HEAD')),
-    CONSTRAINT [CK_NotificationRule_ConditionJson_json] CHECK ([ConditionJson] IS NULL OR ISJSON([ConditionJson]) = 1),
-    CONSTRAINT [CK_NotificationRule_ChannelsOverride_json] CHECK ([ChannelsOverride] IS NULL OR ISJSON([ChannelsOverride]) = 1)
+    CONSTRAINT [CK_NotificationRule_ConditionJson_json] CHECK ([ConditionJson] IS NULL OR ISJSON([ConditionJson], VALUE) = 1),
+    CONSTRAINT [CK_NotificationRule_ChannelsOverride_json] CHECK ([ChannelsOverride] IS NULL OR ISJSON([ChannelsOverride], VALUE) = 1)
 );
 GO
 -- Message template per (event, channel, language); deleting it reverts to the seed template (FR-NTF-012, FR-NTF-025)
@@ -5406,7 +5406,7 @@ CREATE TABLE [ntf].[DigestBatch] (
     CONSTRAINT [CK_DigestBatch_Channel] CHECK ([Channel] IS NULL OR [Channel] IN ('IN_APP', 'EMAIL')),
     CONSTRAINT [CK_DigestBatch_Kind] CHECK ([Kind] IS NULL OR [Kind] IN ('DAILY', 'WEEKLY')),
     CONSTRAINT [CK_DigestBatch_Status] CHECK ([Status] IS NULL OR [Status] IN ('PENDING', 'SENT', 'SKIPPED_EMPTY', 'FAILED')),
-    CONSTRAINT [CK_DigestBatch_GroupSummaryJson_json] CHECK ([GroupSummaryJson] IS NULL OR ISJSON([GroupSummaryJson]) = 1)
+    CONSTRAINT [CK_DigestBatch_GroupSummaryJson_json] CHECK ([GroupSummaryJson] IS NULL OR ISJSON([GroupSummaryJson], VALUE) = 1)
 );
 GO
 -- Notification for a user; the content carries no restricted values (FR-NTF-005/006/007/021, BR-NTF-001/002/007/008/011)
@@ -5449,7 +5449,7 @@ CREATE TABLE [ntf].[Notification] (
     CONSTRAINT [CK_Notification_5] CHECK (NextReminderAt IS NULL OR ActionState = 'OPEN'),
     CONSTRAINT [CK_Notification_Severity] CHECK ([Severity] IS NULL OR [Severity] IN ('INFO', 'WARNING', 'HIGH')),
     CONSTRAINT [CK_Notification_ActionState] CHECK ([ActionState] IS NULL OR [ActionState] IN ('NONE', 'OPEN', 'RESOLVED')),
-    CONSTRAINT [CK_Notification_PayloadJson_json] CHECK ([PayloadJson] IS NULL OR ISJSON([PayloadJson]) = 1)
+    CONSTRAINT [CK_Notification_PayloadJson_json] CHECK ([PayloadJson] IS NULL OR ISJSON([PayloadJson], VALUE) = 1)
 );
 GO
 -- Delivery of a notification per channel, with status and retries (FR-NTF-019, BR-NTF-009, section 8)
@@ -5518,8 +5518,8 @@ CREATE TABLE [lc].[LcFieldDefinition] (
     CONSTRAINT [CK_LcFieldDefinition_2] CHECK (IsLocked = 0 OR IsActive = 1),
     CONSTRAINT [CK_LcFieldDefinition_3] CHECK (ListCode IS NULL OR DataType IN ('LIST','ENUM')),
     CONSTRAINT [CK_LcFieldDefinition_DataType] CHECK ([DataType] IS NULL OR [DataType] IN ('STRING', 'TEXT', 'INT', 'DECIMAL', 'DATE', 'BOOL', 'ENUM', 'LIST', 'REF', 'COMPUTED')),
-    CONSTRAINT [CK_LcFieldDefinition_ApplicabilityJson_json] CHECK ([ApplicabilityJson] IS NULL OR ISJSON([ApplicabilityJson]) = 1),
-    CONSTRAINT [CK_LcFieldDefinition_ValidationJson_json] CHECK ([ValidationJson] IS NULL OR ISJSON([ValidationJson]) = 1)
+    CONSTRAINT [CK_LcFieldDefinition_ApplicabilityJson_json] CHECK ([ApplicabilityJson] IS NULL OR ISJSON([ApplicabilityJson], VALUE) = 1),
+    CONSTRAINT [CK_LcFieldDefinition_ValidationJson_json] CHECK ([ValidationJson] IS NULL OR ISJSON([ValidationJson], VALUE) = 1)
 );
 GO
 -- UCP reference for a field: article and paragraph (UcpRefs in specification); feeds the badge, R-LCT-01 and BR-LCT-018 -- وسيط جديد
@@ -5619,8 +5619,8 @@ CREATE TABLE [lc].[LcDocumentClause] (
     CONSTRAINT [CK_LcDocumentClause_Scope] CHECK ([Scope] IS NULL OR [Scope] IN ('ANY', 'DOMESTIC', 'INTERNATIONAL')),
     CONSTRAINT [CK_LcDocumentClause_LegalReviewStatus] CHECK ([LegalReviewStatus] IS NULL OR [LegalReviewStatus] IN ('UNREVIEWED', 'REVIEWED')),
     CONSTRAINT [CK_LcDocumentClause_Status] CHECK ([Status] IS NULL OR [Status] IN ('ACTIVE', 'RETIRED')),
-    CONSTRAINT [CK_LcDocumentClause_ApplicableModes_json] CHECK ([ApplicableModes] IS NULL OR ISJSON([ApplicableModes]) = 1),
-    CONSTRAINT [CK_LcDocumentClause_ParamSchemaJson_json] CHECK ([ParamSchemaJson] IS NULL OR ISJSON([ParamSchemaJson]) = 1)
+    CONSTRAINT [CK_LcDocumentClause_ApplicableModes_json] CHECK ([ApplicableModes] IS NULL OR ISJSON([ApplicableModes], VALUE) = 1),
+    CONSTRAINT [CK_LcDocumentClause_ParamSchemaJson_json] CHECK ([ParamSchemaJson] IS NULL OR ISJSON([ParamSchemaJson], VALUE) = 1)
 );
 GO
 -- UCP 600 reference for a document clause: article and paragraph (UcpRefs in specification) -- وسيط جديد
@@ -5850,7 +5850,7 @@ CREATE TABLE [lc].[LcTermsDocument] (
     CONSTRAINT [CK_LcTermsDocument_3] CHECK (Originals IS NULL OR Originals >= 0),
     CONSTRAINT [CK_LcTermsDocument_4] CHECK (Copies IS NULL OR Copies >= 0),
     CONSTRAINT [CK_LcTermsDocument_5] CHECK ((IsFreeText = 1 AND [FreeText] IS NOT NULL) OR (IsFreeText = 0 AND [FreeText] IS NULL)),
-    CONSTRAINT [CK_LcTermsDocument_ParamsJson_json] CHECK ([ParamsJson] IS NULL OR ISJSON([ParamsJson]) = 1)
+    CONSTRAINT [CK_LcTermsDocument_ParamsJson_json] CHECK ([ParamsJson] IS NULL OR ISJSON([ParamsJson], VALUE) = 1)
 );
 GO
 -- Charges per term: one row per category; six complete rows, checked by the application (V-LCT-12) (FR-LCT-020, BR-LCT-014)
@@ -6108,7 +6108,7 @@ CREATE TABLE [lc].[LcAmendment] (
     CONSTRAINT [CK_LcAmendment_Origin] CHECK ([Origin] IS NULL OR [Origin] IN ('OUR_REQUEST', 'RECEIVED_FROM_CUSTOMER')),
     CONSTRAINT [CK_LcAmendment_Status] CHECK ([Status] IS NULL OR [Status] IN ('DRAFT', 'REQUESTED', 'BANK_ISSUED', 'APPLIED', 'REJECTED', 'WITHDRAWN')),
     CONSTRAINT [CK_LcAmendment_BeneficiaryResponse] CHECK ([BeneficiaryResponse] IS NULL OR [BeneficiaryResponse] IN ('PENDING', 'ACCEPTED', 'REJECTED')),
-    CONSTRAINT [CK_LcAmendment_ChangedFieldsJson_json] CHECK ([ChangedFieldsJson] IS NULL OR ISJSON([ChangedFieldsJson]) = 1)
+    CONSTRAINT [CK_LcAmendment_ChangedFieldsJson_json] CHECK ([ChangedFieldsJson] IS NULL OR ISJSON([ChangedFieldsJson], VALUE) = 1)
 );
 GO
 -- Drawing or presentation of documents under a credit; for exports includes transfer of allocation (FR-LCI-023, BR-LCI-013, BR-LCE-011); statuses in section 8
@@ -6297,8 +6297,8 @@ CREATE TABLE [lc].[ProformaInvoice] (
     CONSTRAINT [CK_ProformaInvoice_11] CHECK (SupersededById IS NULL OR SupersededById <> ProformaInvoiceId),
     CONSTRAINT [CK_ProformaInvoice_PrintLanguage] CHECK ([PrintLanguage] IS NULL OR [PrintLanguage] IN ('ar', 'en', 'both')),
     CONSTRAINT [CK_ProformaInvoice_Status] CHECK ([Status] IS NULL OR [Status] IN ('ISSUED', 'VOID', 'SUPERSEDED')),
-    CONSTRAINT [CK_ProformaInvoice_CustomerSnapshotJson_json] CHECK ([CustomerSnapshotJson] IS NULL OR ISJSON([CustomerSnapshotJson]) = 1),
-    CONSTRAINT [CK_ProformaInvoice_PlacesJson_json] CHECK ([PlacesJson] IS NULL OR ISJSON([PlacesJson]) = 1)
+    CONSTRAINT [CK_ProformaInvoice_CustomerSnapshotJson_json] CHECK ([CustomerSnapshotJson] IS NULL OR ISJSON([CustomerSnapshotJson], VALUE) = 1),
+    CONSTRAINT [CK_ProformaInvoice_PlacesJson_json] CHECK ([PlacesJson] IS NULL OR ISJSON([PlacesJson], VALUE) = 1)
 );
 GO
 -- Line item in the proforma (FR-LCE-003, BR-LCE-001); fixed after issue
@@ -6347,7 +6347,7 @@ CREATE TABLE [lc].[LcTermsComparison] (
     CONSTRAINT [UQ_LcTermsComparison_BaselineTermsId_ReceivedTermsId_RunAt] UNIQUE ([TenantId], [BaselineTermsId], [ReceivedTermsId], [RunAt]),
     CONSTRAINT [CK_LcTermsComparison_1] CHECK (BaselineTermsId <> ReceivedTermsId),
     CONSTRAINT [CK_LcTermsComparison_Status] CHECK ([Status] IS NULL OR [Status] IN ('OPEN', 'REVIEWED')),
-    CONSTRAINT [CK_LcTermsComparison_SummaryJson_json] CHECK ([SummaryJson] IS NULL OR ISJSON([SummaryJson]) = 1)
+    CONSTRAINT [CK_LcTermsComparison_SummaryJson_json] CHECK ([SummaryJson] IS NULL OR ISJSON([SummaryJson], VALUE) = 1)
 );
 GO
 -- One field difference, its verdict and the treasury decision (FR-LCT-031, BR-LCT-021) -- جديد (أولوية: ممكن)

@@ -509,7 +509,8 @@ class Emitter:
             for c in t.cols:
                 if c.is_json:
                     nm = self.reg(t.schema, f'CK_{t.name}_{c.name}_json', c.src_line or t.fq)
-                    cons.append(f'    CONSTRAINT {q_ms(nm)} CHECK ({q_ms(c.name)} IS NULL OR ISJSON({q_ms(c.name)}) = 1)')
+                    # VALUE accepts any JSON value, scalars included, as jsonb does in PostgreSQL (SQL Server 2022+).
+                    cons.append(f'    CONSTRAINT {q_ms(nm)} CHECK ({q_ms(c.name)} IS NULL OR ISJSON({q_ms(c.name)}, VALUE) = 1)')
             body = ',\n'.join(lines + cons)
             desc = f'-- {t.comment}\n' if t.comment else ''
             out_tables[t.fq] = f'{desc}CREATE TABLE {q_ms(t.schema)}.{q_ms(t.name)} (\n{body}\n);'

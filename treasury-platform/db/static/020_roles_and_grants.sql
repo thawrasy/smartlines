@@ -73,6 +73,9 @@ GRANT SELECT ON [sec].[Role] TO [tp_auth];
 GRANT SELECT, INSERT, UPDATE ON [sec].[UserToken] TO [tp_auth];
 GRANT SELECT, INSERT, UPDATE, DELETE ON [sec].[MfaRecoveryCode] TO [tp_auth];
 GRANT SELECT, INSERT, DELETE ON [sec].[UserPasswordHistory] TO [tp_auth];
+-- Tenant settings within the platform bounds (028, DQ-S03-6): session timeouts, lockout threshold, password history.
+GRANT SELECT ON [cfg].[SettingDefinition] TO [tp_auth];
+GRANT SELECT ON [cfg].[TenantSetting] TO [tp_auth];
 -- Ordering rule: a DENY on a permission that the generated grants (007) later GRANT is removed by that GRANT, and a
 -- table-level GRANT clears column-level DENYs. Such DENYs therefore live in 030, which runs after 007 (deploy.sql).
 -- مخطط rls يُنشأ في 010؛ منحه لـ tp_app هناك بعد إنشائه

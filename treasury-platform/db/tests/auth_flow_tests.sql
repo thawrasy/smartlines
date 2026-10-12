@@ -7,8 +7,9 @@
    Run against a deployed BankFas database that holds no real data, with a sysadmin login (CI uses sa):
        sqlcmd -S <server> -U sa -C -I -b -i db/tests/auth_flow_tests.sql
    A1 runs first in its own transaction, because an error raised in a trigger ends the transaction it runs in.
-   Cases A2-A14 then run in one transaction with a savepoint each, rolled back at the end; A14 binds the connection
-   for real, which makes its context read-only, so it is the last case.
+   S1 and S2 (tenant setting bounds, also a trigger) follow in their own transactions. Cases A2-A13 and S3-S6 then run
+   in one transaction with a savepoint each, rolled back at the end; A14 binds the connection for real, which makes
+   its context read-only, so it is the last case. S cases cover the tenant security settings (DQ-S03-6, DQ-S04-14).
    Each case prints one line that starts with PASS or FAIL.
    ============================================================================ */
 USE [BankFas];
@@ -42,6 +43,65 @@ REVERT;
 IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
 IF @ok = 1 AND @e = 50012 PRINT 'PASS A1: the application role cannot create a user with a password, MFA or lockout state';
 ELSE PRINT 'FAIL A1: a privileged user was created directly (' + ISNULL(CAST(@e AS VARCHAR(10)), 'no error') + ')';
+EXEC sys.sp_set_session_context @key = N'TenantId', @value = NULL;
+EXEC sys.sp_set_session_context @key = N'BindingToken', @value = NULL;
+GO
+/* S1: a tenant may tighten a security setting within the platform bounds (FR-PLT-043); a value looser than the
+   bound is refused by the trigger (50020, BR-PLT-018). Own transaction, as for A1. */
+SET NOCOUNT ON;
+DECLARE @e INT, @ok INT;
+BEGIN TRANSACTION;
+CREATE USER [tp_test_app3] WITHOUT LOGIN;
+ALTER ROLE [tp_app] ADD MEMBER [tp_test_app3];
+ALTER TABLE plat.Tenant NOCHECK CONSTRAINT ALL;
+INSERT plat.Tenant (Code, NameAr, NameEn, PlanId, HomeCountryId, Status, TimeZone) VALUES ('TST-SET', N'S', N'S', 1, 1, 'ACTIVE', 'UTC');
+DECLARE @tg INT = SCOPE_IDENTITY(), @tk UNIQUEIDENTIFIER = NEWID();
+INSERT sec.SessionBinding (SessionId, BoundTenantId, BoundUserId, BindingToken) VALUES (@@SPID, @tg, 0, @tk);
+EXEC sys.sp_set_session_context @key = N'TenantId', @value = @tg;
+EXEC sys.sp_set_session_context @key = N'BindingToken', @value = @tk;
+EXECUTE AS USER = N'tp_test_app3';
+BEGIN TRY
+    INSERT cfg.TenantSetting (TenantId, [Key], ValueJson) VALUES (@tg, 'security.session.idle_minutes', N'10');
+    SET @ok = 1;
+    INSERT cfg.TenantSetting (TenantId, [Key], ValueJson) VALUES (@tg, 'security.session.absolute_hours', N'24');
+END TRY
+BEGIN CATCH
+    SET @e = ERROR_NUMBER();
+    IF XACT_STATE() = -1 ROLLBACK TRANSACTION;
+END CATCH;
+REVERT;
+IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
+IF @ok = 1 AND @e = 50020 PRINT 'PASS S1: a tenant setting within the bounds is accepted and one outside them is refused';
+ELSE PRINT 'FAIL S1: the setting bounds were not enforced (' + ISNULL(CAST(@e AS VARCHAR(10)), 'no error') + ')';
+EXEC sys.sp_set_session_context @key = N'TenantId', @value = NULL;
+EXEC sys.sp_set_session_context @key = N'BindingToken', @value = NULL;
+GO
+/* S2: a security key with no platform definition is refused (50020), so a tenant cannot invent a security setting. */
+SET NOCOUNT ON;
+DECLARE @e INT, @ok INT;
+BEGIN TRANSACTION;
+CREATE USER [tp_test_app3] WITHOUT LOGIN;
+ALTER ROLE [tp_app] ADD MEMBER [tp_test_app3];
+ALTER TABLE plat.Tenant NOCHECK CONSTRAINT ALL;
+INSERT plat.Tenant (Code, NameAr, NameEn, PlanId, HomeCountryId, Status, TimeZone) VALUES ('TST-SET', N'S', N'S', 1, 1, 'ACTIVE', 'UTC');
+DECLARE @tg INT = SCOPE_IDENTITY(), @tk UNIQUEIDENTIFIER = NEWID();
+INSERT sec.SessionBinding (SessionId, BoundTenantId, BoundUserId, BindingToken) VALUES (@@SPID, @tg, 0, @tk);
+EXEC sys.sp_set_session_context @key = N'TenantId', @value = @tg;
+EXEC sys.sp_set_session_context @key = N'BindingToken', @value = @tk;
+EXECUTE AS USER = N'tp_test_app3';
+BEGIN TRY
+    INSERT cfg.TenantSetting (TenantId, [Key], ValueJson) VALUES (@tg, 'security.session.idle_minutes', N'10');
+    SET @ok = 1;
+    INSERT cfg.TenantSetting (TenantId, [Key], ValueJson) VALUES (@tg, 'security.no.such.key', N'1');
+END TRY
+BEGIN CATCH
+    SET @e = ERROR_NUMBER();
+    IF XACT_STATE() = -1 ROLLBACK TRANSACTION;
+END CATCH;
+REVERT;
+IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
+IF @ok = 1 AND @e = 50020 PRINT 'PASS S2: an undefined security setting is refused';
+ELSE PRINT 'FAIL S2: an undefined security setting was accepted (' + ISNULL(CAST(@e AS VARCHAR(10)), 'no error') + ')';
 EXEC sys.sp_set_session_context @key = N'TenantId', @value = NULL;
 EXEC sys.sp_set_session_context @key = N'BindingToken', @value = NULL;
 GO
@@ -335,6 +395,82 @@ REVERT;
 IF @e1 = 229 AND @e2 = 229 PRINT 'PASS A13: the application role cannot run the internal account procedures';
 ELSE PRINT 'FAIL A13: an internal procedure is executable by the application role';
 ROLLBACK TRANSACTION a13;
+
+/* S3: a tenant's shorter session timeouts (DQ-S03-6): the session gets them at login, and each touch extends it by
+   the tenant's idle timeout. */
+SAVE TRANSACTION s3;
+SELECT @n = NULL, @n2 = NULL, @n3 = NULL;
+INSERT cfg.TenantSetting (TenantId, [Key], ValueJson)
+VALUES (@tf, 'security.session.idle_minutes', N'10'), (@tf, 'security.session.absolute_hours', N'2');
+EXECUTE AS USER = N'tp_test_app';
+EXEC sec.usp_StartSession @TenantId = @tf, @Email = N'mfa@test.invalid', @PasswordHash = @phcM, @SessionToken = @s1;
+REVERT;
+SELECT @n = DATEDIFF(SECOND, LastSeenAt, IdleExpiresAt), @n2 = DATEDIFF(SECOND, LastSeenAt, AbsoluteExpiresAt)
+FROM sec.UserSession WHERE TokenHash = HASHBYTES('SHA2_256', @s1);
+UPDATE sec.UserSession SET IdleExpiresAt = DATEADD(MINUTE, 1, SYSUTCDATETIME()) WHERE TokenHash = HASHBYTES('SHA2_256', @s1);
+EXECUTE AS USER = N'tp_test_app';
+EXEC sec.usp_TouchSession @TenantId = @tf, @SessionToken = @s1;
+REVERT;
+SELECT @n3 = DATEDIFF(SECOND, LastSeenAt, IdleExpiresAt) FROM sec.UserSession WHERE TokenHash = HASHBYTES('SHA2_256', @s1);
+IF @n = 600 AND @n2 = 7200 AND @n3 = 600 PRINT 'PASS S3: the tenant''s session timeouts apply at login and at each touch';
+ELSE PRINT 'FAIL S3: tenant session timeouts (' + CONCAT(@n, '/', @n2, '/', @n3) + ')';
+ROLLBACK TRANSACTION s3;
+
+/* S4: a tenant lockout threshold of three: the third wrong password locks the account. */
+SAVE TRANSACTION s4;
+SELECT @e1 = NULL, @i = 0;
+INSERT cfg.TenantSetting (TenantId, [Key], ValueJson) VALUES (@tf, 'security.lockout.threshold', N'3');
+EXECUTE AS USER = N'tp_test_app';
+WHILE @i < 3
+BEGIN
+    BEGIN TRY EXEC sec.usp_StartSession @TenantId = @tf, @Email = N'usr@test.invalid', @PasswordHash = @phcNew, @SessionToken = @s2; END TRY
+    BEGIN CATCH SET @e1 = ERROR_NUMBER(); END CATCH;
+    SET @i = @i + 1;
+END;
+REVERT;
+SELECT @n = COUNT(*) FROM sec.AppUser WHERE AppUserId = @usr AND Status = 'LOCKED';
+IF @e1 = 50005 AND @n = 1 PRINT 'PASS S4: the tenant''s lockout threshold applies';
+ELSE PRINT 'FAIL S4: tenant lockout threshold';
+ROLLBACK TRANSACTION s4;
+
+/* S5: the history rule counts the current password among the last five (BR-PLT-004): with five earlier passwords
+   stored, reusing the fourth newest is refused (50011), reusing the fifth is allowed, and four stay in the history. */
+SAVE TRANSACTION s5;
+SELECT @e1 = NULL;
+INSERT sec.UserPasswordHistory (TenantId, UserId, PasswordHash, CreatedAt)
+SELECT @tf, @mfa, CONCAT('$argon2id$v=19$m=65536,t=3,p=4$c2FsdA', v.n, '$aGFzaA', v.n), DATEADD(DAY, -v.n, SYSUTCDATETIME())
+FROM (VALUES (1),(2),(3),(4),(5)) AS v(n);
+DECLARE @cand4 NVARCHAR(MAX) = N'["$argon2id$v=19$m=65536,t=3,p=4$bWZhc2FsdA$bmV3","$argon2id$v=19$m=65536,t=3,p=4$c2FsdA1$bmV3",'
+      + N'"$argon2id$v=19$m=65536,t=3,p=4$c2FsdA2$bmV3","$argon2id$v=19$m=65536,t=3,p=4$c2FsdA3$bmV3",'
+      + N'"$argon2id$v=19$m=65536,t=3,p=4$c2FsdA4$aGFzaA4"]',
+        @cand5 NVARCHAR(MAX) = N'["$argon2id$v=19$m=65536,t=3,p=4$bWZhc2FsdA$bmV3","$argon2id$v=19$m=65536,t=3,p=4$c2FsdA1$bmV3",'
+      + N'"$argon2id$v=19$m=65536,t=3,p=4$c2FsdA2$bmV3","$argon2id$v=19$m=65536,t=3,p=4$c2FsdA3$bmV3",'
+      + N'"$argon2id$v=19$m=65536,t=3,p=4$c2FsdA4$bmV3","$argon2id$v=19$m=65536,t=3,p=4$c2FsdA5$aGFzaA5"]';
+EXECUTE AS USER = N'tp_test_app';
+BEGIN TRY EXEC sec.usp_ChangePassword @TenantId = @tf, @SessionToken = @sv, @CurrentPasswordHash = @phcM, @NewPasswordHash = @phcNew, @Candidates = @cand4; END TRY
+BEGIN CATCH SET @e1 = ERROR_NUMBER(); END CATCH;
+EXEC sec.usp_ChangePassword @TenantId = @tf, @SessionToken = @sv, @CurrentPasswordHash = @phcM, @NewPasswordHash = @phcNew, @Candidates = @cand5;
+REVERT;
+SELECT @n = COUNT(*) FROM sec.UserPasswordHistory WHERE UserId = @mfa;
+SELECT @n2 = COUNT(*) FROM sec.UserPasswordHistory WHERE UserId = @mfa AND PasswordHash = @phcM;
+SELECT @n3 = COUNT(*) FROM sec.AppUser WHERE AppUserId = @mfa AND PasswordHash = @phcNew;
+IF @e1 = 50011 AND @n = 4 AND @n2 = 1 AND @n3 = 1 PRINT 'PASS S5: the last five passwords, the current one included, cannot be reused';
+ELSE PRINT 'FAIL S5: password history count (' + CONCAT(@e1, '/', @n, '/', @n2, '/', @n3) + ')';
+ROLLBACK TRANSACTION s5;
+
+/* S6: a stored value outside the bounds (written before the bounds changed) is held at the nearest bound, and a key
+   without a definition gives the platform fallback. */
+SAVE TRANSACTION s6;
+ALTER TABLE cfg.TenantSetting DISABLE TRIGGER TR_TenantSetting_Bounds;
+INSERT cfg.TenantSetting (TenantId, [Key], ValueJson)
+VALUES (@tf, 'security.session.idle_minutes', N'600'), (@tf, 'security.lockout.threshold', N'"1"'), (@tf, 'custom.undefined', N'7');
+ALTER TABLE cfg.TenantSetting ENABLE TRIGGER TR_TenantSetting_Bounds;
+SELECT @n = Value FROM cfg.fn_SettingInt(@tf, 'security.session.idle_minutes', 30);
+SELECT @n2 = Value FROM cfg.fn_SettingInt(@tf, 'security.lockout.threshold', 5);
+SELECT @n3 = Value FROM cfg.fn_SettingInt(@tf, 'custom.undefined', 99);
+IF @n = 30 AND @n2 = 3 AND @n3 = 99 PRINT 'PASS S6: stored values are held within the platform bounds';
+ELSE PRINT 'FAIL S6: setting bounds in cfg.fn_SettingInt (' + CONCAT(@n, '/', @n2, '/', @n3) + ')';
+ROLLBACK TRANSACTION s6;
 
 /* A14: the whole path ends in a bound connection: login, enrolment, binding. Runs last, because the binding makes the
    connection's context read-only. */
