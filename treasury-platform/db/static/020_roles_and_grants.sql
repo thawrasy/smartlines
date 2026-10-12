@@ -63,5 +63,11 @@ DENY SELECT ON [plat].[Tenant] TO [tp_readonly];
 DENY SELECT ON [plat].[TenantModule] TO [tp_readonly];
 -- The audit log is append-only (BR-PLT-001, PRED-08): the generated grants give SELECT and INSERT only.
 DENY UPDATE, DELETE ON [aud].[AuditLog] TO [tp_app], [tp_platform];
+-- Login and sessions (O-17, 030): the procedures run as tp_auth and need these rights.
+GRANT UPDATE ON [sec].[AppUser] TO [tp_auth];
+GRANT SELECT, INSERT, UPDATE ON [sec].[UserSession] TO [tp_auth];
+GRANT INSERT ON [sec].[LoginAttempt] TO [tp_auth];
+-- Ordering rule: a DENY on a permission that the generated grants (007) later GRANT is removed by that GRANT, and a
+-- table-level GRANT clears column-level DENYs. Such DENYs therefore live in 030, which runs after 007 (deploy.sql).
 -- مخطط rls يُنشأ في 010؛ منحه لـ tp_app هناك بعد إنشائه
 GO

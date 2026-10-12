@@ -84,6 +84,7 @@ table plat.PlatformOperator int global public noapp   # Platform operator accoun
   check MfaSecretEnc IS NULL OR MfaKeyRef IS NOT NULL
   check MfaSecretEnc IS NULL OR DATALENGTH(MfaSecretEnc) >= 29   # الغلاف: إصدار(1) + nonce(12) + وسم(16) على الأقل (06 §6)
   check FailedAttempts >= 0
+  check PasswordHash IS NULL OR PasswordHash LIKE '$argon2id$v=19$m=%,t=%,p=%$%$%'   # Argon2id PHC string (O-01)
 
 table plat.TenantModule global noapp   # Modules enabled per tenant; owned by the platform only: written by platform operators, read by the tenant through a restricted view (DR-01)
   TenantId    ->plat.Tenant req   # المشترك المالك (صريح لأن الجدول عالمي)
@@ -150,6 +151,7 @@ table sec.AppUser public   # Tenant portal user (FR-PLT-010..016, BR-PLT-004..00
   check Status <> 'ARCHIVED' OR ArchivedAt IS NOT NULL
   check Status <> 'LOCKED' OR LockedUntil IS NOT NULL OR RequiresAdminUnlock = 1
   check FailedAttempts >= 0 AND LockoutCount >= 0
+  check PasswordHash IS NULL OR PasswordHash LIKE '$argon2id$v=19$m=%,t=%,p=%$%$%'   # Argon2id PHC string (O-01)
 
 table sec.Role public   # Role defined by the tenant or seeded (FR-PLT-018)
   Code         ascii(50)  req
@@ -259,6 +261,7 @@ table sec.UserPasswordHistory append deletable   # Last five passwords, to preve
   UserId        ->sec.AppUser req
   PasswordHash  ascii(255) req sens=restricted
   index UserId,CreatedAt
+  check PasswordHash LIKE '$argon2id$v=19$m=%,t=%,p=%$%$%'   # Argon2id PHC string (O-01)
 
 table sec.ExternalIdentity   # Link between an external OIDC or Entra identity and a user; readiness only (FR-PLT-015, section 11)
   UserId    ->sec.AppUser req

@@ -147,7 +147,7 @@
 
 **المفاتيح:** PK(PlatformOperatorId) · UQ(PublicId) · UQ(Email)
 
-**قيود:** `Status NOT IN ('ACTIVE','LOCKED') OR PasswordHash IS NOT NULL` · `Status <> 'ACTIVE' OR MfaEnabled = 1` · `MfaEnabled = 0 OR MfaSecretEnc IS NOT NULL` · `MfaSecretEnc IS NULL OR MfaKeyRef IS NOT NULL` · `MfaSecretEnc IS NULL OR DATALENGTH(MfaSecretEnc) >= 29` · `FailedAttempts >= 0`
+**قيود:** `Status NOT IN ('ACTIVE','LOCKED') OR PasswordHash IS NOT NULL` · `Status <> 'ACTIVE' OR MfaEnabled = 1` · `MfaEnabled = 0 OR MfaSecretEnc IS NOT NULL` · `MfaSecretEnc IS NULL OR MfaKeyRef IS NOT NULL` · `MfaSecretEnc IS NULL OR DATALENGTH(MfaSecretEnc) >= 29` · `FailedAttempts >= 0` · `PasswordHash IS NULL OR PasswordHash LIKE '$argon2id$v=19$m=%,t=%,p=%$%$%'`
 
 ### `plat.TenantModule` — Modules enabled per tenant; owned by the platform only: written by platform operators, read by the tenant through a restricted view (DR-01)
 
@@ -238,7 +238,7 @@
 
 **المفاتيح:** PK(AppUserId) · UQ(PublicId) · UQ(TenantId, Email)
 
-**قيود:** `LineManagerUserId IS NULL OR LineManagerUserId <> AppUserId` · `DisplayNameAr IS NOT NULL OR DisplayNameEn IS NOT NULL` · `IsSystemUser = 1 OR Status NOT IN ('ACTIVE','LOCKED') OR PasswordHash IS NOT NULL` · `MfaEnabled = 0 OR MfaSecretEnc IS NOT NULL` · `MfaSecretEnc IS NULL OR MfaKeyId IS NOT NULL` · `MfaSecretEnc IS NULL OR DATALENGTH(MfaSecretEnc) >= 29` · `IsSystemUser = 0 OR (PasswordHash IS NULL AND MfaEnabled = 0)` · `Status <> 'ARCHIVED' OR ArchivedAt IS NOT NULL` · `Status <> 'LOCKED' OR LockedUntil IS NOT NULL OR RequiresAdminUnlock = 1` · `FailedAttempts >= 0 AND LockoutCount >= 0`
+**قيود:** `LineManagerUserId IS NULL OR LineManagerUserId <> AppUserId` · `DisplayNameAr IS NOT NULL OR DisplayNameEn IS NOT NULL` · `IsSystemUser = 1 OR Status NOT IN ('ACTIVE','LOCKED') OR PasswordHash IS NOT NULL` · `MfaEnabled = 0 OR MfaSecretEnc IS NOT NULL` · `MfaSecretEnc IS NULL OR MfaKeyId IS NOT NULL` · `MfaSecretEnc IS NULL OR DATALENGTH(MfaSecretEnc) >= 29` · `IsSystemUser = 0 OR (PasswordHash IS NULL AND MfaEnabled = 0)` · `Status <> 'ARCHIVED' OR ArchivedAt IS NOT NULL` · `Status <> 'LOCKED' OR LockedUntil IS NOT NULL OR RequiresAdminUnlock = 1` · `FailedAttempts >= 0 AND LockoutCount >= 0` · `PasswordHash IS NULL OR PasswordHash LIKE '$argon2id$v=19$m=%,t=%,p=%$%$%'`
 
 ### `sec.Role` — Role defined by the tenant or seeded (FR-PLT-018)
 
@@ -463,6 +463,8 @@
 | CreatedBy | BIGINT | نعم |  |  |  |
 
 **المفاتيح:** PK(UserPasswordHistoryId)
+
+**قيود:** `PasswordHash LIKE '$argon2id$v=19$m=%,t=%,p=%$%$%'`
 
 ### `sec.ExternalIdentity` — Link between an external OIDC or Entra identity and a user; readiness only (FR-PLT-015, section 11)
 

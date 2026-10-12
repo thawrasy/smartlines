@@ -13,8 +13,8 @@ ITEMS = [
     {
         'id': 'O-01', 'sources': f'{REVIEW_A}; {REVIEW_B}',
         'finding': 'The password hashing algorithm is not documented. Review B recommends Argon2id with 64 MB memory, 3 iterations and 4 lanes.',
-        'status': 'Open decision. The analysis document does not name the algorithm.',
-        'next': 'Record the algorithm and parameters in the security section of the analysis document.',
+        'status': 'Decided by the owner (2026-10-12): Argon2id, PHC string, minimum m=65536, t=3, p=4. Recorded in FR-PLT-010 and docs/adr/0002-login-and-session-bound-context.md. A CHECK enforces the Argon2id format on sec.AppUser, sec.UserPasswordHistory and plat.PlatformOperator (db/model/10-platform.model). The application computes the hash; sec.usp_StartSession compares it in the database.',
+        'next': 'Choose a reviewed Argon2id library for .NET when the application is built.',
     },
     {
         'id': 'O-02', 'sources': f'{REVIEW_A}; {REVIEW_B}',
@@ -109,8 +109,8 @@ ITEMS = [
     {
         'id': 'O-17', 'sources': 'Design review of O-16 (db/static/030_session_context.sql); confirmed by CTX-02-KR and PRED-06 in the adversarial review',
         'finding': 'sec.usp_SetSessionContext trusts the user id that the application passes. A connection that can run the procedure binds to any tenant whose active user id it knows, and user ids are sequential. Confirmed: a refused user of tenant A is refused for tenant B (50003), and a scan of user ids binds to tenant B and reads its rows.',
-        'status': 'Open decision. The binding (O-16) stops a forged context, but not a call to the procedure with another user\'s id.',
-        'next': 'Decide whether the procedure verifies a server-side session token instead of the caller\'s user id (sec.UserSession.TokenHash is already in the model). Recommended. Then add a test that a wrong token is refused.',
+        'status': 'Closed (decided by the owner 2026-10-12, docs/adr/0002-login-and-session-bound-context.md). sec.usp_SetSessionContext takes a session token and takes the user from the session. Sessions are created only by sec.usp_StartSession, which checks the password hash inside the database; the application role cannot read stored hashes, insert sessions or change a session token (db/static/020, 030). Tests T17 to T20 and T32 to T36 cover it.',
+        'next': 'None for the binding. Residual risks within one tenant: O-24.',
     },
     {
         'id': 'O-18', 'sources': 'BR-PLT-002 (docs/10-detailed-analysis/10-m0-m1-platform-organization.md); adversarial review findings CTX-2, PRED-07, sb-02',
@@ -147,5 +147,11 @@ ITEMS = [
         'finding': 'The company servers run SUSE (SLES). SQL Server 2025 on Linux is supported on RHEL and Ubuntu only; SLES is listed through SQL Server 2022. The production VPS is a Linux server, and the owner has chosen Ubuntu 24.04 LTS for it (2026-10-12).',
         'status': 'Decided by the owner: Ubuntu 24.04 LTS on the external VPS. ADR 0001 matches it. FR-PLT-045 and decision 01 section 13 are updated for the database host (the application tier is unchanged). CI runs on Ubuntu 24.04 with the Ubuntu-based SQL Server 2025 container, and the full CI passed on it. The official Microsoft support page could not be opened from the sandbox; Ubuntu 24.04 support rests on search summaries only.',
         'next': 'Verify Ubuntu 24.04 support for SQL Server 2025 on the official Microsoft page. Provision the VPS (needs SSH access) and run tools/deploy/deploy.sh there. Close the open key-custody, data-residency and backup decisions before real data is loaded.',
+    },
+    {
+        'id': 'O-24', 'sources': 'Design of O-17 (docs/adr/0002-login-and-session-bound-context.md)',
+        'finding': 'Residual risks within one tenant after O-17: a bound application connection can still update PasswordHash of a user of its own tenant (password change and reset flows), the TOTP check is trusted to the application (sec.usp_ConfirmMfa records its result), and the application extends the idle expiry of a session. None of these crosses a tenant boundary.',
+        'status': 'Open, medium. Cross-tenant access needs the target user\'s password; same-tenant impersonation by a compromised application connection is still possible through the password update.',
+        'next': 'Decide whether password change and administrator reset go through procedures (old-password proof or reset token, BR-PLT-004 history check) and whether tp_app loses UPDATE on PasswordHash. Decide the same for the idle extension.',
     },
 ]

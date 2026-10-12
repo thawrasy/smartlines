@@ -127,6 +127,7 @@ CREATE TABLE "plat"."PlatformOperator" (
   CONSTRAINT "CK_PlatformOperator_4" CHECK ("MfaSecretEnc" IS NULL OR "MfaKeyRef" IS NOT NULL),
   CONSTRAINT "CK_PlatformOperator_5" CHECK ("MfaSecretEnc" IS NULL OR octet_length("MfaSecretEnc") >= 29),
   CONSTRAINT "CK_PlatformOperator_6" CHECK ("FailedAttempts" >= 0),
+  CONSTRAINT "CK_PlatformOperator_7" CHECK ("PasswordHash" IS NULL OR "PasswordHash" LIKE '$argon2id$v=19$m=%,t=%,p=%$%$%'),
   CONSTRAINT "CK_PlatformOperator_Role" CHECK ("Role" IS NULL OR "Role" IN ('OPERATOR_ADMIN', 'OPERATOR_SUPPORT')),
   CONSTRAINT "CK_PlatformOperator_Status" CHECK ("Status" IS NULL OR "Status" IN ('INVITED', 'ACTIVE', 'LOCKED', 'DISABLED', 'ARCHIVED'))
 );
@@ -216,6 +217,7 @@ CREATE TABLE "sec"."AppUser" (
   CONSTRAINT "CK_AppUser_8" CHECK ("Status" <> 'ARCHIVED' OR "ArchivedAt" IS NOT NULL),
   CONSTRAINT "CK_AppUser_9" CHECK ("Status" <> 'LOCKED' OR "LockedUntil" IS NOT NULL OR "RequiresAdminUnlock" = 1),
   CONSTRAINT "CK_AppUser_10" CHECK ("FailedAttempts" >= 0 AND "LockoutCount" >= 0),
+  CONSTRAINT "CK_AppUser_11" CHECK ("PasswordHash" IS NULL OR "PasswordHash" LIKE '$argon2id$v=19$m=%,t=%,p=%$%$%'),
   CONSTRAINT "CK_AppUser_CompanyScopeMode" CHECK ("CompanyScopeMode" IS NULL OR "CompanyScopeMode" IN ('ALL', 'SELECTED')),
   CONSTRAINT "CK_AppUser_PreferredLanguage" CHECK ("PreferredLanguage" IS NULL OR "PreferredLanguage" IN ('ar', 'en')),
   CONSTRAINT "CK_AppUser_DigitsPreference" CHECK ("DigitsPreference" IS NULL OR "DigitsPreference" IN ('WESTERN', 'ARABIC_INDIC')),
@@ -396,7 +398,8 @@ CREATE TABLE "sec"."UserPasswordHistory" (
   "CreatedAt" timestamp(3) NOT NULL DEFAULT (now() at time zone 'utc'),
   "CreatedBy" bigint NULL,
   PRIMARY KEY ("UserPasswordHistoryId"),
-  CONSTRAINT "UQ_UserPasswordHistory_Tenant" UNIQUE ("TenantId", "UserPasswordHistoryId")
+  CONSTRAINT "UQ_UserPasswordHistory_Tenant" UNIQUE ("TenantId", "UserPasswordHistoryId"),
+  CONSTRAINT "CK_UserPasswordHistory_1" CHECK ("PasswordHash" LIKE '$argon2id$v=19$m=%,t=%,p=%$%$%')
 );
 CREATE TABLE "sec"."ExternalIdentity" (
   "TenantId" integer NOT NULL,
