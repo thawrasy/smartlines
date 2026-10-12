@@ -14,6 +14,10 @@
     "body": "The carrier cancelled trip {trip_no}. Your booking {booking_ref} is cancelled and SYP {refund_amount} is refunded in full {refund_to}. We are sorry for the trouble.",
     "sms": "Masslak: the carrier cancelled trip {trip_no}. Booking {booking_ref}: SYP {refund_amount} refunded {refund_to}."
   },
+  "trip.cancel_penalty": {
+    "subject": "Penalty for cancelling trip {trip_no}",
+    "body": "Under the regulator's decision {legal_ref}, cancelling trip {trip_no} carries a penalty of SYP {amount}. It is taken from your balance, or from your next released earnings if the balance does not cover it."
+  },
   "refund_to_labels": {
     "WALLET": "to your Masslak wallet",
     "AGENCY": "through the agency that sold it",

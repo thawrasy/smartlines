@@ -2,7 +2,7 @@
 
 > Generated from the built database (`db/tools/gen_docs.py`); do not edit by hand.
 
-**515 tables, 5299 columns, in 26 schemas.**
+**516 tables, 5314 columns, in 26 schemas.**
 
 Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant isolation (RLS) · 🧩 partitioned monthly · 🔒 append-only / change-protected
 
@@ -14,7 +14,7 @@ Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant i
 - [`net` — Network: stations, routes, lines, corridors and geofences](#net) (25 tables)
 - [`fleet` — Fleet: vehicles, trucks, trailers, seats, crew, licenses and insurance](#fleet) (22 tables)
 - [`pricing` — Pricing, taxes, commissions, campaigns and loyalty](#pricing) (35 tables)
-- [`ops` — Trips, inventory, operations, shuttle rides, tracking and incidents](#ops) (35 tables)
+- [`ops` — Trips, inventory, operations, shuttle rides, tracking and incidents](#ops) (36 tables)
 - [`sales` — Channels, bookings, passengers, tickets, subscriptions and travel documents](#sales) (28 tables)
 - [`fin` — Wallets, ledger, payments, allocation, settlement and float](#fin) (35 tables)
 - [`acct` — Simplified accounting, e-invoicing and tax profiles](#acct) (35 tables)
@@ -3230,6 +3230,28 @@ Actual trip (the pivotal entity) with its number, vehicle, capacity, snapshots a
 | `timetable_slot` | `time without time zone` |  |  |
 | `fare_regime` | `text` |  |  |
 | `compliance_source` | `text` | ✱ | `'NONE'::text` |
+
+### `ops.trip_cancel_penalty` 🛡️
+
+Penalty charged to a carrier for a cancelled trip under the regulators' rule; DUE until set off from its balance (1106)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `trip_id` | `bigint` | 🔗 `ops.trip` ✱ |  |
+| `company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `currency` | `character(3)` | 🔗 `ref.currency` ✱ |  |
+| `amount` | `bigint` | ✱ |  |
+| `basis` | `text` | ✱ |  |
+| `rate` | `numeric(12,4)` | ✱ |  |
+| `payee` | `text` | ✱ |  |
+| `payee_party_id` | `bigint` | 🔗 `iam.party`  |  |
+| `shares` | `jsonb` | ✱ | `'[]'::jsonb` |
+| `legal_ref` | `text` | ✱ |  |
+| `status` | `text` | ✱ | `'DUE'::text` |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `collected_at` | `timestamp with time zone` |  |  |
 
 ### `ops.trip_change` 🛡️
 

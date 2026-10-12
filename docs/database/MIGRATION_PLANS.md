@@ -224,6 +224,8 @@ asked with. The approval takes an optional legal document number, recorded on th
 
 **1105** adds the counter check of the boarding stations. It adds one table (`brd.station_checkin`, empty until a station is switched on), one sequence and seven functions; no rule on an existing table changes, and the driver's scan is unchanged. The table belongs to phase 7 with the other station tables. Nothing is checked in until the platform switches boarding on, a station on, and a carrier or the platform grants an operating company the `BOARDING_PASS` right there. Setting `boarding.references.required` now refuses check-ins of carriers that lack a listed reference; set it only after the carriers have recorded theirs (`GET /api/carrier/references` lists what each one misses).
 
+**1106** adds the penalty on a carrier that cancels a trip. It adds one setting (`trip.cancel_penalty`, off), one function and one table (`ops.trip_cancel_penalty`, empty); no rule on an existing table changes and the full refund of a cancelled trip is unchanged. Nothing is charged until the platform turns the setting on with the regulator's decision; a penalty the carrier's balance does not cover stays `DUE` and is set off when it next completes a trip.
+
 ## 1064_partitioned_bookings.sql on a live database (R-06)
 
 1064 turns `sales.booking` into a table partitioned by ranges of id **in place, under an ACCESS EXCLUSIVE lock**: it

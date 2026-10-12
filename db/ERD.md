@@ -91,7 +91,7 @@ flowchart LR
   net -->|3| ref
   ops -->|2| fin
   ops -->|10| fleet
-  ops -->|21| iam
+  ops -->|23| iam
   ops -->|17| net
   ops -->|1| ref
   ops -->|3| sales
@@ -1729,6 +1729,15 @@ erDiagram
     bigint corridor_id FK
     bigint line_version_id FK
   }
+  ops_trip_cancel_penalty {
+    bigint id PK
+    uuid uid
+    bigint trip_id FK
+    bigint company_id FK
+    character currency FK
+    bigint payee_party_id FK
+    text status
+  }
   ops_trip_change {
     bigint id PK
     bigint trip_id FK
@@ -1883,11 +1892,13 @@ erDiagram
   ops_offline_pack_download }o--|| iam_company : "company_id"
   ops_position_backlog }o--|| iam_company : "company_id"
   ops_trip }o--|| iam_company : "company_id"
+  ops_trip_cancel_penalty }o--|| iam_company : "company_id"
   ops_trip_disruption }o..o| iam_company : "partner_company_id"
   ops_permission_event }o..o| iam_device : "device_id"
   ops_geo_event }o..o| iam_device : "device_id"
   ops_incident }o..o| iam_party : "driver_party_id"
   ops_route_violation }o..o| iam_party : "driver_party_id"
+  ops_trip_cancel_penalty }o..o| iam_party : "payee_party_id"
   ops_trip }o..o| net_corridor : "corridor_id"
   ops_shuttle_ride }o--|| net_line : "line_id"
   ops_route_violation }o..o| net_line_diversion : "diversion_id"
@@ -1934,6 +1945,7 @@ erDiagram
   ops_vehicle_position }o..o| ops_trip : "trip_id"
   ops_position_backlog }o--|| ops_trip : "trip_id"
   ops_driver_notice }o..o| ops_trip : "trip_id"
+  ops_trip_cancel_penalty }o--|| ops_trip : "trip_id"
   ops_permission_event }o..o| ops_trip : "trip_id"
   ops_incident }o..o| ops_trip : "trip_id"
   ops_shuttle_ride }o--|| ops_trip : "trip_id"

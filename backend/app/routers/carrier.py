@@ -16,6 +16,7 @@ from ..ledger import platform_wallet, post_txn
 from ..modules.cash import service as cash
 from ..modules.fleet import service as fleet
 from ..modules.photo import service as photo
+from ..modules.sales import penalties
 from ..modules.sales import service as sales
 from ..security import hash_password, password_problem
 from ..util import row_dict, rows
@@ -497,7 +498,10 @@ async def complete_trip(trip_uid: uuid.UUID, request: Request, pr: Principal = D
             await conn.execute("UPDATE sales.booking SET status = 'EXPIRED' WHERE trip_id = $1 AND status = 'PENDING_PAYMENT'", t["id"])
             # what the carrier earned pays first for the counter cash it holds for the platform (6.5)
             set_off = await cash.net_cash(conn, t["company_id"], f"trip:{t['id']}:cash-net", pr.user_id, t["currency"])
+            # penalties of cancelled trips still due are set off from the earnings just released (1106)
+            penalties_collected = await penalties.collect_due(conn, t["company_id"], pr.user_id)
             # the travellers who boarded earn their loyalty points (1103)
             points = json.loads(await conn.fetchval("SELECT pricing.earn_points_for_trip($1)::text", t["id"]))
     request.state.audit = {"action": "trip.complete", "object_type": "trip", "object_id": t["id"]}
-    return {"ok": True, "released": released, "cash_set_off": set_off, "points_earned": points["points"]}
+    return {"ok": True, "released": released, "cash_set_off": set_off, "points_earned": points["points"],
+            "penalties_collected": penalties_collected}

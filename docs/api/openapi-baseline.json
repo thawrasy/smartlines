@@ -588,6 +588,13 @@
     "200": {}
    }
   },
+  "GET /api/admin/trips/cancel-penalty": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
   "GET /api/admin/violations/review": {
    "body": null,
    "parameters": {},
@@ -11362,6 +11369,66 @@
       },
       "required": [
        "stages"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "PUT /api/admin/trips/cancel-penalty": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "authority_party_id": {
+        "nullable": true,
+        "type": "integer"
+       },
+       "basis": {
+        "enum": [
+         "PERCENT_OF_FARES",
+         "PER_TICKET",
+         "PER_TRIP"
+        ],
+        "nullable": true,
+        "type": "string"
+       },
+       "enabled": {
+        "type": "boolean"
+       },
+       "legal_ref": {
+        "maxLength": 120,
+        "nullable": true,
+        "type": "string"
+       },
+       "payee": {
+        "enum": [
+         "PLATFORM",
+         "PASSENGERS",
+         "AUTHORITY"
+        ],
+        "nullable": true,
+        "type": "string"
+       },
+       "value": {
+        "exclusiveMinimum": 0.0,
+        "nullable": true,
+        "type": "number"
+       },
+       "within_hours": {
+        "maximum": 720.0,
+        "minimum": 0.0,
+        "nullable": true,
+        "type": "integer"
+       }
+      },
+      "required": [
+       "enabled"
       ],
       "type": "object"
      }

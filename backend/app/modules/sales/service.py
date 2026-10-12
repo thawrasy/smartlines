@@ -21,7 +21,7 @@ from ..family import service as fam
 from ..fares import categories as cat
 from ..notify.outbox import emit
 from ..photo import service as photo
-from . import documents, options, repository as repo
+from . import documents, options, penalties, repository as repo
 from .models import MAX_LOCKED_SEATS, BookingIn, HoldIn
 
 
@@ -576,7 +576,7 @@ async def cancel_trip(conn: asyncpg.Connection, ctx: db.Context, trip_id: int, u
         if parcels:
             raise ApiError(409, "TRIP_HAS_PARCELS", "move the parcels on this trip's hold to another trip first", parcels=parcels)
         escrow = await platform_wallet(conn, "ESCROW", t["currency"])
-        refunded, refund_total, reservations = 0, 0, 0
+        refunded, refund_total, reservations, penalized = 0, 0, 0, []
         for b in await conn.fetch("SELECT * FROM sales.booking WHERE trip_id = $1 AND status IN ('CONFIRMED','PENDING_PAYMENT') "
                                   "ORDER BY id FOR UPDATE", trip_id):
             await repo.mark_cancelled(conn, b["id"], "CARRIER_CANCELLED")
@@ -605,6 +605,9 @@ async def cancel_trip(conn: asyncpg.Connection, ctx: db.Context, trip_id: int, u
                                         "refund", b["id"], user_id, txn)
             refunded += 1
             refund_total += amount
+            fares = await conn.fetchrow("SELECT coalesce(sum(total_amount), 0) AS fares, count(*) AS n FROM sales.ticket WHERE booking_id = $1", b["id"])
+            penalized.append({"booking_id": b["id"], "fares": int(fares["fares"]), "tickets": fares["n"],
+                              "wallet_id": paid["wallet_id"] if paid else None})
             await emit(conn, "booking.cancelled_by_carrier", "booking", b["id"], {
                 "booking_ref": b["booking_ref"], "trip_no": t["trip_no"], "refund_amount": amount,
                 "refund_to": _REFUND_TO.get(paid["wallet_type"] if paid else "", "WALLET"), "booker_user_id": b["booker_user_id"],
@@ -622,8 +625,10 @@ async def cancel_trip(conn: asyncpg.Connection, ctx: db.Context, trip_id: int, u
                VALUES ($1, 'CANCEL', now(), $2, now(), 'DECIDED', $3)""", trip_id, user_id, reason)
         await emit(conn, "trip.cancelled", "trip", trip_id, {"trip_no": t["trip_no"], "bookings_refunded": refunded,
                                                              "reservations_cancelled": reservations}, company_id=t["company_id"])
+        # a penalty on the carrier only where the regulators impose one and the platform turned it on (1106)
+        penalty = await penalties.charge(conn, t, penalized, user_id)
     return {"ok": True, "trip_no": t["trip_no"], "bookings_refunded": refunded, "refund_total": refund_total,
-            "reservations_cancelled": reservations, "currency": t["currency"]}
+            "reservations_cancelled": reservations, "currency": t["currency"], "penalty": penalty}
 
 
 async def booking_view(conn: asyncpg.Connection, ctx: db.Context, b: asyncpg.Record) -> dict:

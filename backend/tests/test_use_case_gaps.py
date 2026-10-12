@@ -278,3 +278,58 @@ def test_paid_booking_gets_signed_einvoices_and_a_refund_a_credit_note():
     finally:
         owner_sql("UPDATE sys.setting SET value = '0'::jsonb WHERE key = 'einvoice.tax_rate_pct'")
         owner_sql("UPDATE acct.einvoice_unit SET status = 'SUSPENDED' WHERE id = ANY($1::bigint[])", [carrier_unit, platform_unit])
+
+
+def _book_on(pax, trip):
+    t = next(x for x in pax.get("/api/trips/search", params={"origin": "DAM", "destination": "ALP", "on": day(2), "passengers": 1}).json()["trips"]
+             if x["uid"] == str(trip["uid"]))
+    seat = free_seats(pax, t, 1)[0]
+    h = pax.post("/api/holds", json={"trip_uid": t["uid"], "from_seq": t["from_seq"], "to_seq": t["to_seq"], "seat_nos": [seat]})
+    r = pax.post("/api/bookings", json={"hold_token": h.json()["hold_token"], "trip_uid": t["uid"], "from_seq": t["from_seq"],
+                                        "to_seq": t["to_seq"], "passengers": [syrian(seat)], "idempotency_key": uuid.uuid4().hex})
+    assert r.status_code == 201, r.text
+    return r.json()
+
+
+@pytest.mark.skipif(not OWNER_URL, reason="needs MASSLAK_OWNER_URL")
+def test_cancellation_penalty_only_when_the_regulators_impose_one():
+    admin = login("admin@masslak.test", "PLATFORM")
+    owner = login("owner@carrier.test", "OPERATOR")
+    pax = login("passenger@masslak.test", "PASSENGER")
+    assert pax.post("/api/wallet/topup", json={"amount": 10_000_000, "idempotency_key": uuid.uuid4().hex}).status_code == 200
+    assert admin.get("/api/admin/trips/cancel-penalty").json() == {"enabled": False}
+    bad = admin.put("/api/admin/trips/cancel-penalty", json={"enabled": True, "basis": "PER_TICKET", "value": 100, "payee": "PLATFORM"})
+    assert bad.status_code == 409 and bad.json()["error"]["code"] == "INVALID_SETTING"          # no regulator's decision
+    assert owner.put("/api/admin/trips/cancel-penalty", json={"enabled": False}).status_code == 403
+    rule = {"enabled": True, "basis": "PER_TICKET", "value": 100, "payee": "PASSENGERS", "legal_ref": "Regulator decision 7/2026"}
+    assert admin.put("/api/admin/trips/cancel-penalty", json=rule).status_code == 200
+    try:
+        trip = fresh_trip()
+        booked = _book_on(pax, trip)
+        wallet = pax.get("/api/wallet").json()["balance"]
+        r = owner.post(f"/api/carrier/trips/{trip['uid']}/cancel", json={"reason": "Road closed by the authorities"})
+        assert r.status_code == 200, r.text
+        out = r.json()
+        # the passenger gets the whole payment back, and the penalty is the regulators' on top, charged to the carrier
+        assert out["refund_total"] == booked["total"] and out["penalty"]["amount"] == 100
+        assert out["penalty"]["legal_ref"] == "Regulator decision 7/2026"
+        if out["penalty"]["status"] == "DUE":
+            # the carrier's balance did not cover it: the next completed trip sets it off from the released earnings
+            assert pax.get("/api/wallet").json()["balance"] == wallet + booked["total"]
+            nxt = fresh_trip()
+            sold = _book_on(pax, nxt)
+            owner_sql("""UPDATE ops.trip SET status = 'DEPARTED', departure_at = now() - interval '4 hours', arrival_at = now() - interval '1 hour'
+                          WHERE id = $1""", nxt["id"])
+            done = owner.post(f"/api/carrier/trips/{nxt['uid']}/complete")
+            assert done.status_code == 200 and done.json()["penalties_collected"] >= 100, done.text
+            assert sold["total"] > 0
+        assert owner_sql("SELECT status FROM ops.trip_cancel_penalty WHERE trip_id = $1", trip["id"]) == "COLLECTED"
+        # the passengers' share reached the wallet that paid the booking, from the carrier's balance
+        moved = owner_sql("""SELECT string_agg(w.wallet_type || ':' || e.direction || ':' || e.amount, ',' ORDER BY e.direction, w.wallet_type)
+                               FROM ops.trip_cancel_penalty p JOIN fin.ledger_txn x ON x.idempotency_key = 'penalty:' || p.id
+                               JOIN fin.ledger_entry e ON e.txn_id = x.id JOIN fin.wallet w ON w.id = e.wallet_id WHERE p.trip_id = $1""", trip["id"])
+        assert moved == "USER:CR:100,COMPANY:DR:100", moved
+        listed = owner.get("/api/r/trip-cancel-penalty").json()["rows"]
+        assert any(x["legal_ref"] == "Regulator decision 7/2026" for x in listed)
+    finally:
+        admin.put("/api/admin/trips/cancel-penalty", json={"enabled": False})

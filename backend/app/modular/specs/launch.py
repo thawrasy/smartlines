@@ -178,6 +178,12 @@ RESOURCES = [
     Resource("inspection-check", "fleet_records", "sales.inspection_check",
              c("company_id inspector_party_id vehicle_id trip_id result fee_charged currency ts"), (),
              {O: None, P: "violation.review"}, create=False, update=False, readonly_portals=(O, P), group="inspections"),
+    # penalties of cancelled trips under the regulators' rule (1106): the carrier reads its own, the platform may waive one
+    Resource("trip-cancel-penalty", "fleet_records", "ops.trip_cancel_penalty",
+             c("trip_id amount currency basis rate payee legal_ref status created_at collected_at"), (),
+             {O: "trip.cancel", P: "policy.matrix"}, create=False, update=False, readonly_portals=(O,), filters=("status",),
+             order="created_at DESC", group="inspections",
+             actions=(Action("waive", {"status": "WAIVED"}, {"status": ["DUE"]}, portals=(P,)),)),
     # incidents are reported by the trip's driver from the app (1101); the carrier and the platform review and close them
     Resource("incident", "fleet_records", "ops.incident",
              c("occurred_at type severity injuries status trip_id vehicle_id driver_party_id reported_via police_report_no description"),

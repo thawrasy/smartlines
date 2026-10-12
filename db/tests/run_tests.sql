@@ -2970,4 +2970,25 @@ SELECT pg_temp.ok(has_table_privilege('masslak_app', 'brd.station_checkin', 'SEL
   'Check-in (1105): check-ins are written only through the check-in functions');
 ROLLBACK;
 
+-- Cancellation penalty (1106): off at launch, turned on by the platform only, with the regulator's decision, and checked
+BEGIN;
+SELECT pg_temp.ok((SELECT value = '{"enabled": false}'::jsonb FROM sys.setting WHERE key = 'trip.cancel_penalty'),
+  'Cancellation penalty (1106): no penalty at launch');
+SELECT sys.set_context(:ua, :ca, 'COMPANY');
+SELECT pg_temp.expect_error($$SELECT ops.set_cancel_penalty('{"enabled": false}')$$, 'FORBIDDEN', 'Cancellation penalty (1106): a carrier cannot change it');
+SELECT sys.set_context(:uadmin, NULL, 'SYSTEM');
+SELECT pg_temp.expect_error($$SELECT ops.set_cancel_penalty('{"enabled": true, "basis": "PERCENT_OF_FARES", "value": 10, "payee": "PLATFORM"}')$$,
+  'legal_ref', 'Cancellation penalty (1106): it cannot be turned on without the regulator''s decision');
+SELECT pg_temp.expect_error($$SELECT ops.set_cancel_penalty('{"enabled": true, "basis": "PERCENT_OF_FARES", "value": 120, "payee": "PLATFORM", "legal_ref": "MoT 12/2026"}')$$,
+  'INVALID_SETTING', 'Cancellation penalty (1106): a percentage is at most 100');
+SELECT pg_temp.expect_error($$SELECT ops.set_cancel_penalty('{"enabled": true, "basis": "PER_TICKET", "value": 5000, "payee": "AUTHORITY", "legal_ref": "MoT 12/2026"}')$$,
+  'AUTHORITY', 'Cancellation penalty (1106): a penalty paid to an authority names it');
+SELECT pg_temp.ok((ops.set_cancel_penalty('{"enabled": true, "basis": "PER_TICKET", "value": 500000, "payee": "PASSENGERS", "within_hours": 24, "legal_ref": "MoT 12/2026"}') ->> 'payee') = 'PASSENGERS',
+  'Cancellation penalty (1106): the platform turns it on under the regulator''s decision');
+SELECT pg_temp.ok(has_column_privilege('masslak_app', 'ops.trip_cancel_penalty', 'status', 'UPDATE')
+  AND NOT has_column_privilege('masslak_app', 'ops.trip_cancel_penalty', 'amount', 'UPDATE')
+  AND NOT has_table_privilege('masslak_app', 'ops.trip_cancel_penalty', 'DELETE'),
+  'Cancellation penalty (1106): a penalty''s amount is never changed, only collected or waived');
+ROLLBACK;
+
 \echo '=== ALL TESTS PASSED ==='

@@ -1,4 +1,5 @@
 """Platform administration: overview, carrier onboarding and approval, central stations."""
+import json
 import uuid
 from datetime import date
 from typing import Literal, Optional
@@ -441,3 +442,33 @@ async def revoke_external_access(uid: uuid.UUID, request: Request, pr: Principal
             raise ApiError(409, "INVALID_TRANSITION", "no active grant with that id")
     request.state.audit = {"action": "external_access.revoke", "object_type": "external_access_grant", "object_id": gid}
     return {"revoked": True}
+
+
+# ------------------------------------------------------------------ cancellation penalty (1106)
+class CancelPenaltyIn(BaseModel):
+    """Only where the regulators impose a penalty on a carrier that cancels a trip; the passengers are refunded in full
+    whatever this says. legal_ref names the regulator's decision."""
+    enabled: bool
+    basis: Optional[Literal["PERCENT_OF_FARES", "PER_TICKET", "PER_TRIP"]] = None
+    value: Optional[float] = Field(default=None, gt=0)
+    payee: Optional[Literal["PLATFORM", "PASSENGERS", "AUTHORITY"]] = None
+    authority_party_id: Optional[int] = None
+    within_hours: Optional[int] = Field(default=None, ge=0, le=720)
+    legal_ref: Optional[str] = Field(default=None, max_length=120)
+
+
+@router.get("/trips/cancel-penalty")
+async def get_cancel_penalty(request: Request, pr: Principal = Depends(require_permission("policy.matrix"))):
+    async with db.transaction(context_for(request, pr)) as conn:
+        value = await conn.fetchval("SELECT value::text FROM sys.setting WHERE key = 'trip.cancel_penalty'")
+    return json.loads(value or '{"enabled": false}')
+
+
+@router.put("/trips/cancel-penalty")
+async def set_cancel_penalty(body: CancelPenaltyIn, request: Request, pr: Principal = Depends(require_permission("policy.matrix"))):
+    value = {k: v for k, v in body.model_dump().items() if v is not None} if body.enabled else {"enabled": False}
+    async with db.transaction(context_for(request, pr)) as conn:
+        out = await conn.fetchval("SELECT ops.set_cancel_penalty($1::jsonb)::text", json.dumps(value))
+    request.state.audit = {"action": "trip.cancel_penalty_setting", "object_type": "setting",
+                           "reason": (body.legal_ref or "turned off")[:120]}
+    return json.loads(out)
