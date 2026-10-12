@@ -2,8 +2,8 @@
    050 - Lender shares of an approved facility revision (V-FAC-02, BR-FAC-007)
    Hand-written; deployed by db/deploy.sql after the generated objects.
 
-   STATUS: DRAFT. Not yet executed on SQL Server 2025. Must be run and tested
-   (insert, update and delete cases below) before release.
+   STATUS: deployed and tested on SQL Server 2025: db/tests/fac_share_rule_tests.sql (six cases) runs in step 6
+   of tools/ci/db_ci.sh, locally and on GitHub. Open: lender changes after approval (O-03 in erd_open_items).
 
    Rule. For every facility with an approved revision (ApprovedRevisionNo >= 1)
    the lenders valid at that revision total 100 percent and at most one lender

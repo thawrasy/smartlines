@@ -46,7 +46,7 @@
 | فصل المهام | SodAllowSamePerson على القالب ويُتجاوز على المرحلة، وHasSodException على الطلب | 15.model:77، :123، :297 |
 | التفويض | UserDelegation بفترة ونطاق ALL أو APPROVALS_ONLY أو REQUEST_TYPE، ولا تفويض للنفس | 15.model:504-522 |
 
-ما لا يوجد بعد: مخطط JSON لـ ConditionJson، وصفوف القوالب، وكود اختيار الانتقال. قيود الرسم (بداية واحدة، نهاية ناجحة، لا يتيم) يفحصها التطبيق عند النشر (FR-WFL-029، 13-m6:150).
+ما لا يوجد بعد: مخطط JSON لـ ConditionJson (DQ-F10-11)، وصفوف القوالب، وكود اختيار الانتقال. قيود الرسم (بداية واحدة، نهاية ناجحة، لا يتيم) يفحصها التطبيق عند النشر (FR-WFL-029، 13-m6:150).
 
 ## 3. الممرات والأدوار
 
@@ -63,7 +63,7 @@
 
 المصادر: مصفوفة الصلاحيات 13-m6:48-78، وقواعد المُسنَد FR-WFL-005 (13-m6:126)، والأدوار منشئ ومدقّق ومعتمِد FR-WFL-041 (13-m6:162)، والإقفال DOC-F08 §4.4.
 
-تنبيه تسمية: «مدقّق» في FR-WFL-041 دور مراجعة داخل الدورة، و«المدقق AU» في المصفوفة قارئ بلا كتابة (13-m6:46). نقترح «المراجِع» للأول (DQ-F10-6).
+تنبيه تسمية: «مدقّق» في FR-WFL-041 دور مراجعة داخل الدورة، و«المدقق AU» في المصفوفة قارئ بلا كتابة (13-m6:46). DOC-B10 يقترح «المراجِع» للأول، وReviewer بالإنجليزية (docs/30-readiness/DOC-B10-glossary-en-ar.md:158، DQ-B10-5)، ونتبعه هنا.
 
 ## 4. قواعد مشتركة لكل القوالب
 
@@ -72,7 +72,7 @@
 1. لكل (مرحلة، إجراء) تُقرأ الانتقالات بترتيب Priority تصاعديًا. يُنفَّذ أول ما تحقق شرطه، والشرط الفارغ يتحقق دائمًا (BR-WFL-001، 13-m6:232).
 2. لا مطابق يعني أن الإجراء غير مسموح: 422 بسببه (DOC-B04 §9).
 3. شرط المبلغ يحمل عملته. عملة مختلفة تعني «غير قابل للمقارنة»، فيُختار المسار الأشد ويُسجَّل NOT_COMPARABLE.
-4. إذا كان للمرحلة أكثر من انتقال RETURN، يختار الفاعل الهدف من بينها، والافتراضي أقلها Priority 🟡 (DQ-F10-9).
+4. إذا كان للمرحلة أكثر من انتقال RETURN، يختار الفاعل الهدف من بينها، والافتراضي أقلها Priority 🟡 (DQ-F10-8).
 
 ### 4.2 دخول المرحلة في معاملة واحدة 🟢
 
@@ -202,7 +202,7 @@ flowchart TB
 | ERP_ENTRY | COMPLETE ‏(1) | الطالب | POST_ERP_APPROVAL | مرجع خارجي ERP / PURCHASE_REQUEST إلزامي | 13-m6:328 |
 | POST_ERP_APPROVAL | APPROVE ‏(1) | RQM | TREASURY_QUEUE | — | 13-m6:329، :717 |
 | POST_ERP_APPROVAL | RETURN ‏(1) | RQM، بسبب | ERP_ENTRY | لا يزيد CycleNo 🟡 | 13-m6:329 |
-| POST_ERP_APPROVAL | REJECT ‏(1) 🟡 | RQM، بسبب | REJECTED | غير مذكور في المصدر (DQ-F10-7) | — |
+| POST_ERP_APPROVAL | REJECT ‏(1) 🟡 | RQM، بسبب | REJECTED | غير مذكور في المصدر (DQ-F10-6) | — |
 | TREASURY_QUEUE | COMPLETE آلي بالسحب 🟡 | الساحب بصلاحية `req.claim` | EXECUTION | المُسنَد CLAIMER (§4.6) | 13-m6:330 |
 | EXECUTION | COMPLETE ‏(1) | الساحب | ISSUANCE | قناة التنفيذ إلزامية | 13-m6:331 |
 | ISSUANCE | COMPLETE ‏(1) | الساحب | COMPLETED، فيدخل الطلب AWAITING_CLOSE | ON_EXIT `fac.convert_reservation` ثم `lc.record_issuance`؛ LC.ISSUED بعد الالتزام (DOC-F12) | 13-m6:332؛ DOC-F08 §4.3 |
@@ -247,12 +247,12 @@ flowchart TB
 | DRAFT | SUBMIT ‏(1) في نسخة LC_SWIFT_REQUEST 🟡 | الطالب | TREASURY_QUEUE | النوع «بلا موافقة» (DQ-F10-5) | 13-m6:421 |
 | APPROVAL | APPROVE ‏(1) | RQM | TREASURY_QUEUE | — | 13-m6:343 |
 | APPROVAL | RETURN ‏(1) 🟡 | RQM، بسبب | RETURNED | ResumeStage = APPROVAL | 13-m6:239 |
-| APPROVAL | REJECT ‏(1) 🟡 | RQM، بسبب | REJECTED | — | DQ-F10-7 |
+| APPROVAL | REJECT ‏(1) 🟡 | RQM، بسبب | REJECTED | — | DQ-F10-6 |
 | TREASURY_QUEUE | COMPLETE آلي بالسحب 🟡 | الساحب | EXECUTION | §4.6 | 13-m6:343 |
 | EXECUTION | COMPLETE ‏(1) | الساحب | COMPLETED، فيدخل AWAITING_CLOSE | — | DOC-F08 §4.3 |
 | RETURNED | RESUBMIT ‏(1) | الطالب | APPROVAL | CycleNo + 1 | 13-m6:239 |
 
-المصدر لا يذكر مرحلة RETURNED في هذا القالب ولا في بقية القوالب غير PURCHASE_LC وPROFORMA_REQUEST (13-m6:341-345). نقترح إضافتها لكل قالب فيه موافقة، لأن الإرجاع للطالب يحتاج مرحلة له (DQ-F10-13).
+المصدر لا يذكر مرحلة RETURNED في هذا القالب ولا في بقية القوالب غير PURCHASE_LC وPROFORMA_REQUEST (13-m6:341-345). نقترح إضافتها لكل قالب فيه موافقة، لأن الإرجاع للطالب يحتاج مرحلة له (DQ-F10-12).
 
 ## 7. القالب CHILD_AMENDMENT (S3)
 
@@ -294,7 +294,7 @@ flowchart TB
 | APPROVAL | APPROVE ‏(1) | `amountDelta > 0` أو `kind = CANCEL` | TM_APPROVAL | — | 13-m6:344 |
 | APPROVAL | APPROVE ‏(2) | بلا شرط | TREASURY_QUEUE | التخفيض يُطبَّق عند قبول المستفيد | 13-m6:344، :249 |
 | APPROVAL | RETURN ‏(1) 🟡 | RQM، بسبب | RETURNED | ResumeStage = APPROVAL | 13-m6:239 |
-| APPROVAL | REJECT ‏(1) 🟡 | RQM، بسبب | REJECTED | — | DQ-F10-7 |
+| APPROVAL | REJECT ‏(1) 🟡 | RQM، بسبب | REJECTED | — | DQ-F10-6 |
 | TM_APPROVAL | APPROVE ‏(1) | TM | TREASURY_QUEUE | حين Delta > 0: `fac.adjust_utilization` على الاعتماد الصادر، أو `fac.adjust_reservation` لحجز ACTIVE؛ لا حجز عند CANCEL | 13-m6:344، :309-310 |
 | TM_APPROVAL | RETURN ‏(1) 🟡 | TM، بسبب | RETURNED | ResumeStage = APPROVAL | 13-m6:239 |
 | TM_APPROVAL | REJECT ‏(1) | TM، بسبب | REJECTED | — | 13-m6:344 |
@@ -338,7 +338,7 @@ flowchart TB
 | GENERIC_SIMPLE | DRAFT | SUBMIT ‏(1) | TREASURY_QUEUE | لا موافقة | 13-m6:345 |
 | GENERIC_APPROVAL | DRAFT | SUBMIT ‏(1) | APPROVAL | — | 13-m6:345 |
 | GENERIC_APPROVAL | APPROVAL | APPROVE ‏(1) | TREASURY_QUEUE | مكان شرط عتبة المبلغ إن أُضيف (Q-WFL-16) | 13-m6:129، :729 |
-| GENERIC_APPROVAL | APPROVAL | RETURN ‏(1) 🟡 أو REJECT ‏(1) 🟡 | RETURNED أو REJECTED | بسبب | DQ-F10-7 |
+| GENERIC_APPROVAL | APPROVAL | RETURN ‏(1) 🟡 أو REJECT ‏(1) 🟡 | RETURNED أو REJECTED | بسبب | DQ-F10-6 |
 | كلاهما | TREASURY_QUEUE | COMPLETE آلي بالسحب 🟡 | EXECUTION | §4.6 | 13-m6:345 |
 | كلاهما | EXECUTION | COMPLETE ‏(1) | COMPLETED، فيدخل AWAITING_CLOSE | — | DOC-F08 §4.3 |
 | GENERIC_APPROVAL | RETURNED | RESUBMIT ‏(1) | APPROVAL | CycleNo + 1 | 13-m6:239 |
@@ -386,7 +386,7 @@ flowchart TB
 | AUDIT | APPROVE ‏(1) | دور مدقق المبيعات، WorkflowRole = AUDITOR | APPROVAL | — | 13-m6:340 |
 | APPROVAL | APPROVE ‏(1) | دور موافق المبيعات، WorkflowRole = APPROVER | TREASURY_QUEUE | — | 13-m6:340 |
 | AUDIT أو APPROVAL | RETURN ‏(1) | بسبب | RETURNED | ResumeStage = AUDIT 🟡 | 13-m6:340 |
-| AUDIT أو APPROVAL | REJECT ‏(1) 🟡 | بسبب | REJECTED | — | DQ-F10-7 |
+| AUDIT أو APPROVAL | REJECT ‏(1) 🟡 | بسبب | REJECTED | — | DQ-F10-6 |
 | TREASURY_QUEUE | COMPLETE آلي بالسحب 🟡 | الساحب | ISSUE_PROFORMA | §4.6 | 13-m6:340 |
 | ISSUE_PROFORMA | COMPLETE ‏(1) | الساحب | COMPLETED، فيدخل AWAITING_CLOSE | ON_ACTION(COMPLETE) `lc.issue_proforma` يخصّص الرقم | 14-m7-m8:310 |
 | RETURNED | RESUBMIT ‏(1) | الطالب | AUDIT | `lc.validate_terms`؛ CycleNo + 1 | 13-m6:340 |
@@ -423,7 +423,7 @@ flowchart TB
 |---|---|---|---|---|---|
 | DRAFT | SUBMIT ‏(1) | الطالب | SALES_APPROVAL | — | 13-m6:341 |
 | SALES_APPROVAL | APPROVE ‏(1) | RQM (Q-WFL-15) | TREASURY_QUEUE | — | 13-m6:341، :728 |
-| SALES_APPROVAL | RETURN ‏(1) 🟡 أو REJECT ‏(1) 🟡 | RQM، بسبب | RETURNED أو REJECTED | — | DQ-F10-7 |
+| SALES_APPROVAL | RETURN ‏(1) 🟡 أو REJECT ‏(1) 🟡 | RQM، بسبب | RETURNED أو REJECTED | — | DQ-F10-6 |
 | TREASURY_QUEUE | COMPLETE آلي بالسحب 🟡 | الساحب | EARMARK | §4.6 | 13-m6:341 |
 | EARMARK | COMPLETE ‏(1) | الساحب | COMPLETED، فيدخل AWAITING_CLOSE | ON_ACTION(COMPLETE) 🟡 `lc.earmark_sales_order`؛ يرفض INSUFFICIENT_LC_BALANCE | 14-m7-m8:311 |
 | RETURNED | RESUBMIT ‏(1) | الطالب | SALES_APPROVAL | CycleNo + 1 | 13-m6:239 |
@@ -460,7 +460,7 @@ flowchart TB
 |---|---|---|---|---|---|
 | DRAFT | SUBMIT ‏(1) | الطالب | SALES_APPROVAL | اختيار أوامر الاعتماد ومبالغها | 13-m6:342؛ 14-m7-m8:516 |
 | SALES_APPROVAL | APPROVE ‏(1) | RQM | TREASURY_QUEUE | — | 13-m6:342 |
-| SALES_APPROVAL | RETURN ‏(1) 🟡 أو REJECT ‏(1) 🟡 | RQM، بسبب | RETURNED أو REJECTED | — | DQ-F10-7 |
+| SALES_APPROVAL | RETURN ‏(1) 🟡 أو REJECT ‏(1) 🟡 | RQM، بسبب | RETURNED أو REJECTED | — | DQ-F10-6 |
 | TREASURY_QUEUE | COMPLETE آلي بالسحب 🟡 | الساحب | EXECUTION | §4.6 | 13-m6:342 |
 | EXECUTION | COMPLETE ‏(1) | الساحب | DOCS_ISSUED | — | 13-m6:342 |
 | DOCS_ISSUED | COMPLETE ‏(1) | الساحب | COMPLETED، فيدخل AWAITING_CLOSE | ON_ACTION(COMPLETE) 🟡 `lc.convert_earmark`؛ مرفق COLLECTION_DOCS_PACKAGE ظاهر للطالب | 14-m7-m8:312، :300 |
@@ -481,7 +481,7 @@ flowchart TB
 
 مقترحات 🟡:
 - تُفحص القواعد على الفاعل وعلى من يعمل نيابةً عنه معًا. فالمفوَّض لا يوافق على طلب أنشأه هو، ولا على طلب أنشأه المفوِّض.
-- من أكمل FACILITY_SELECTION لا يوافق في TM_APPROVAL على الطلب نفسه، إلا بالاستثناء (DQ-F10-10).
+- من أكمل FACILITY_SELECTION لا يوافق في TM_APPROVAL على الطلب نفسه، إلا بالاستثناء (DQ-F10-9).
 - قاعدة البيانات لا تملك الأدوار، فالفرض في التطبيق. النموذج يحفظ الأثر فقط: IsSodException وActedByUserId وOnBehalfOfUserId (15.model:430-441).
 
 ## 11. التفويض
@@ -493,7 +493,7 @@ flowchart TB
 - الموافقة نيابةً تُسجَّل Source = DELEGATE مع DelegationId وOnBehalfOfUserId (15.model:451).
 - الخانة لا تقبل التفويض إن كانت AllowDelegation = 0 (15.model:156).
 
-مقترح 🟡 (DQ-F10-11): المفوَّض يلزمه أن يحمل صلاحية الخانة نفسها. فخانة TM في TM_APPROVAL تتطلب `req.treasury.approve` عند المفوَّض، و`fac.override_limit` لا تنتقل بالتفويض أبدًا. السبب: بغير ذلك يصل موظف الخزينة إلى نقطة الحجز بتفويض.
+مقترح 🟡 (DQ-F10-10): المفوَّض يلزمه أن يحمل صلاحية الخانة نفسها. فخانة TM في TM_APPROVAL تتطلب `req.treasury.approve` عند المفوَّض، و`fac.override_limit` لا تنتقل بالتفويض أبدًا. السبب: بغير ذلك يصل موظف الخزينة إلى نقطة الحجز بتفويض.
 
 ## 12. SLA والتصعيد
 
@@ -513,7 +513,7 @@ flowchart TB
 | TM_APPROVAL | 8 | EXECUTION | 40 |
 | ISSUANCE | 8 | AMENDMENT_RESULT في CHILD_AMENDMENT | 24 |
 
-المصدر لا يحدد SLA لبقية القوالب. نقترح القيم نفسها بحسب نوع المرحلة: موافقة RQM أو المبيعات 16، وTM_APPROVAL ‏8، والسحب 4، والتنفيذ 40، ومهمة الطالب 24 (DQ-F10-8). لا SLA في AWAITING_CLOSE (DOC-F08 §4.3).
+المصدر لا يحدد SLA لبقية القوالب. نقترح القيم نفسها بحسب نوع المرحلة: موافقة RQM أو المبيعات 16، وTM_APPROVAL ‏8، والسحب 4، والتنفيذ 40، ومهمة الطالب 24 (DQ-F10-7). لا SLA في AWAITING_CLOSE (DOC-F08 §4.3).
 
 ## 13. الإرجاع والرفض والإلغاء والإقفال
 
@@ -538,25 +538,24 @@ flowchart TB
 | DQ-F10-3 | أين يوضع تحرير الحجز وعكس التعديل؟ | ON_ENTER لمرحلتي REJECTED وCANCELLED النهائيتين، بخطاف بلا أثر عند غياب الحجز | مالك M6 مع مالك M5 | البذور وFR-WFL-029 |
 | DQ-F10-4 | ماذا يحدث حين لا يوجد مؤهل؟ | السلسلة البديلة حتى TA، ثم فتح المرحلة للدور مع حدث إلزامي مقترح REQ.NO_ELIGIBLE_ASSIGNEE لـ TA وTM | مالك المنتج | المحرك وكتالوج الأحداث |
 | DQ-F10-5 | موافقات LC_DOCUMENT_REQUEST وLC_SWIFT_REQUEST | الوثيقة بموافقة RQM، والسويفت بلا موافقة في نسخته من CHILD_STANDARD | مالك M7 وM8 | بذور S3 |
-| DQ-F10-6 | تسمية WorkflowRole = AUDITOR بالعربية | «المراجِع»، ويبقى «المدقق» للدور AU؛ يُثبَّت في DOC-B10 | محلل الأعمال | الواجهة وDOC-B10 |
-| DQ-F10-7 | هل يُتاح REJECT في كل مرحلة APPROVAL؟ | نعم، بسبب إلزامي، في كل مرحلة APPROVAL من كل قالب | مالك المنتج | البذور |
-| DQ-F10-8 | SLA القوالب غير PURCHASE_LC | قيم PURCHASE_LC بحسب نوع المرحلة كما في §12 | مالك المنتج مع TM لدى العميل | لوحات SLA |
-| DQ-F10-9 | من يختار هدف الإرجاع عند تعدده؟ | الفاعل من انتقالات RETURN المعرّفة، والافتراضي أقلها Priority | مالك M6 | نافذة القرار |
-| DQ-F10-10 | هل يوافق في TM_APPROVAL من أكمل FACILITY_SELECTION للطلب نفسه؟ | لا، إلا بالاستثناء `wf.sod.allow_same_person` | مالك المنتج مع مسؤول الأمن | فصل المهام في S3 |
-| DQ-F10-11 | هل يلزم المفوَّض حمل صلاحية الخانة؟ | نعم؛ و`fac.override_limit` لا تُفوَّض | مسؤول الأمن | التفويض في S3 |
-| DQ-F10-12 | مخطط ConditionJson ومتغيراته | تعبير FR-REQ-004 نفسه، ومتغيراته أعمدة الفهرسة وحقول النموذج غير المقيّدة و`amountDelta` و`kind` للأنواع الفرعية | معماري الحلول | تحقق النشر V-WFL-03 |
-| DQ-F10-13 | مرحلة RETURNED في القوالب التي لا تذكرها | تُضاف لكل قالب فيه موافقة، وResumeStage أول مرحلة موافقة | مالك M6 | البذور |
-| DQ-F10-14 | مفتاح القالب لنسخ CHILD_STANDARD لكل نوع | TemplateKey مستقل لكل نوع، مثل `CHILD_STANDARD.LC_SWIFT_REQUEST`، وSeedKey = CHILD_STANDARD | معماري قاعدة البيانات | بذر S3 (15.model:85، :87) |
+| DQ-F10-6 | هل يُتاح REJECT في كل مرحلة APPROVAL؟ | نعم، بسبب إلزامي، في كل مرحلة APPROVAL من كل قالب | مالك المنتج | البذور |
+| DQ-F10-7 | SLA القوالب غير PURCHASE_LC | قيم PURCHASE_LC بحسب نوع المرحلة كما في §12 | مالك المنتج مع TM لدى العميل | لوحات SLA |
+| DQ-F10-8 | من يختار هدف الإرجاع عند تعدده؟ | الفاعل من انتقالات RETURN المعرّفة، والافتراضي أقلها Priority | مالك M6 | نافذة القرار |
+| DQ-F10-9 | هل يوافق في TM_APPROVAL من أكمل FACILITY_SELECTION للطلب نفسه؟ | لا، إلا بالاستثناء `wf.sod.allow_same_person` | مالك المنتج مع مسؤول الأمن | فصل المهام في S3 |
+| DQ-F10-10 | هل يلزم المفوَّض حمل صلاحية الخانة؟ | نعم؛ و`fac.override_limit` لا تُفوَّض | مسؤول الأمن | التفويض في S3 |
+| DQ-F10-11 | مخطط ConditionJson ومتغيراته | تعبير FR-REQ-004 نفسه، ومتغيراته أعمدة الفهرسة وحقول النموذج غير المقيّدة و`amountDelta` و`kind` للأنواع الفرعية | معماري الحلول | تحقق النشر V-WFL-03 |
+| DQ-F10-12 | مرحلة RETURNED في القوالب التي لا تذكرها | تُضاف لكل قالب فيه موافقة، وResumeStage أول مرحلة موافقة | مالك M6 | البذور |
+| DQ-F10-13 | مفتاح القالب لنسخ CHILD_STANDARD لكل نوع | TemplateKey مستقل لكل نوع، مثل `CHILD_STANDARD.LC_SWIFT_REQUEST`، وSeedKey = CHILD_STANDARD | معماري قاعدة البيانات | بذر S3 (15.model:85، :87) |
 
 ## 15. تعارضات وفجوات في المصادر
 
 1. CHILD_STANDARD فيه مرحلة APPROVAL بموافقة RQM (13-m6:343)، والنوع LC_SWIFT_REQUEST «بلا موافقة» (13-m6:421)، وLC_DOCUMENT_REQUEST «بلا موافقة أو مدير الطالب» (13-m6:420). الموقف في DQ-F10-5.
-2. تعليق النموذج يبذر CHILD_STANDARD نسخة لكل نوع (15.model:67)، لكن الفرادة على (TemplateKey, VersionNo) ونسخة حالية واحدة لكل TemplateKey (15.model:85، :87) تمنعان نسختين بالمفتاح نفسه. الموقف في DQ-F10-14.
+2. تعليق النموذج يبذر CHILD_STANDARD نسخة لكل نوع (15.model:67)، لكن الفرادة على (TemplateKey, VersionNo) ونسخة حالية واحدة لكل TemplateKey (15.model:85، :87) تمنعان نسختين بالمفتاح نفسه. الموقف في DQ-F10-13.
 3. خطاف التحرير معرّف على TM_APPROVAL وحدها (13-m6:327)، والمثال في BR-WFL-009 يلغي في ERP_ENTRY ويتوقع التحرير (13-m6:240). الموقف في DQ-F10-3.
-4. كلمة «مدقّق» تعني دورين: AU قارئ بلا كتابة (13-m6:46)، ودور المراجعة في الدورة (13-m6:162؛ 15.model:149). الموقف في DQ-F10-6.
+4. كلمة «مدقّق» تعني دورين: AU قارئ بلا كتابة (13-m6:46)، ودور المراجعة في الدورة (13-m6:162؛ 15.model:149). الموقف في DOC-B10 (DQ-B10-5).
 5. F-WFL-1 يرسم السحب سهمًا بين مرحلتين (13-m6:470)، ولا قيمة CLAIM في Action (13-m6:127؛ 15.model:169)، ولا نص يحدد كيف يغادر الطلب TREASURY_QUEUE. الموقف في DQ-F10-2.
-6. مرحلة RETURNED غير مذكورة في CHILD_STANDARD وCHILD_AMENDMENT وGENERIC_* وSALES_ORDER_APPROVAL وCOLLECTION_DOCS_REQUEST (13-m6:341-345)، مع أن الإرجاع للطالب عام (FR-WFL-010، 13-m6:131). الموقف في DQ-F10-13.
-7. REJECT غير مذكور في POST_ERP_APPROVAL ومراحل الموافقة في القوالب الأخرى (13-m6:329، :340-345)، مع أن FR-WFL-012 يجعل الرفض عامًا (13-m6:133). الموقف في DQ-F10-7.
+6. مرحلة RETURNED غير مذكورة في CHILD_STANDARD وCHILD_AMENDMENT وGENERIC_* وSALES_ORDER_APPROVAL وCOLLECTION_DOCS_REQUEST (13-m6:341-345)، مع أن الإرجاع للطالب عام (FR-WFL-010، 13-m6:131). الموقف في DQ-F10-12.
+7. REJECT غير مذكور في POST_ERP_APPROVAL ومراحل الموافقة في القوالب الأخرى (13-m6:329، :340-345)، مع أن FR-WFL-012 يجعل الرفض عامًا (13-m6:133). الموقف في DQ-F10-6.
 8. الإكمال الآلي في F-WFL-1 وفي مخطط §8 (13-m6:472، :521) يخالف الإقفال. سجّله DOC-F08 §8 (البندان 2 و3)، وهذه الوثيقة تطبّق AWAITING_CLOSE.
 9. DR-43 مفتوح: مفتاح wfl.HookExecution لا يضم ActionFilter (15.model:497؛ docs/review/design-review-2026-10-11.json:446). حتى يُصلح، لا يوضع HookKey واحد على إجراءين في مرحلة واحدة. مقترح §4.7 يحترم ذلك.
 10. DR-50 (د) مفتوح: لا قيد يلزم ResumeStageId مع RETURN (15.model:173، :180). الإرجاع الداخلي لا يحتاجه، فالفحص الصحيح في تحقق النشر: RETURN إلى مرحلة ظاهرتها RETURNED يلزمه ResumeStageId.

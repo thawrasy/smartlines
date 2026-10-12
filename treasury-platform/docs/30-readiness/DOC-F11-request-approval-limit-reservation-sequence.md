@@ -95,12 +95,12 @@ sequenceDiagram
 | 0 | قبل المعاملة: الصلاحية `req.treasury.approve`، ونطاق الشركة، ومفتاح التكرار (DOC-B04 §7) | قراءة | 403 أو 404؛ إعادة الاستجابة المخزّنة عند التكرار |
 | 1 | BEGIN TRAN بعزل READ_COMMITTED (docs/20-database-design.md:239) | — | — |
 | 2 | قفل wfl.Request بـ UPDLOCK وROWLOCK، ومقارنة RowVersion (BR-WFL-023) | قفل | 409 VERSION_CONFLICT |
-| 3 | ExposureAmount من M7، والتخصيص FacilityId وLimitId وLimitProductLineId | قراءة | 422 إن نقص التخصيص (BR-WFL-016) |
+| 3 | ExposureAmount من M7 (لغير الاعتماد DQ-F11-9)، والتخصيص FacilityId وLimitId وLimitProductLineId | قراءة | 422 إن نقص التخصيص (BR-WFL-016) |
 | 4 | المرحلة الحالية IsReservationPoint، والخانة PENDING للفاعل أو مجموعته، وفصل المهام (BR-WFL-006)، وشروط المغادرة (BR-WFL-014)، وCheckMode (BR-REQ-010) | قراءة | 409 إن سبقه مؤهل؛ 403 SOD_VIOLATION؛ 422 VALIDATION_FAILED أو WARNINGS_REQUIRE_ACK |
 | 5 | تسجيل الموافقة: Decision = APPROVED، وActedByUserId، وOnBehalfOfUserId، وSnapshotHash، وClientIp، وAckWarningsJson، وAvailabilitySnapshotJson، وOverrideRequested وOverrideReason؛ والخانات الأخرى SUPERSEDED في ANY | كتابة wfl.RequestApproval | يُلغى بالتراجع |
 | 6 | HookExecution بحالة PENDING ومفتاحه (§8) | كتابة | يُلغى بالتراجع |
 | 7 | `fac.reserve_limit` (§6) | أقفال M5 وكتابة fac وOutbox | رمز رفض: تراجع كامل (§7) |
-| 8 | HookExecution بحالة SUCCEEDED وResultJson؛ وReservationId وReservedAmount وReservationState = RESERVED على الطلب | كتابة | — |
+| 8 | HookExecution بحالة SUCCEEDED وResultJson؛ وReservationId وReservedAmount وReservationState = RESERVED على الطلب (DQ-F11-10) | كتابة | — |
 | 9 | إغلاق المثيل DONE بـ ExitAction = APPROVE، واختيار الانتقال (BR-WFL-001)، ودخول ERP_ENTRY (BR-WFL-002) | كتابة | خطاف ON_ENTER فاشل بسياسة BLOCK يلغي الكل |
 | 10 | RequestAction بالأنواع APPROVED وHOOK_EXECUTED وSTAGE_CHANGED، وaud.AuditLog بشدة عالية، وصفوف Outbox (§10) | كتابة | — |
 | 11 | COMMIT | تحرير الأقفال | — |
@@ -138,8 +138,8 @@ M6 لا يعيد حساب المتاح ولا يعرض إلا ما تعيده M5
 ### 6.3 إعادة المحاولة عند الجمود 🟡
 
 - الخطأ 1205 (ضحية الجمود) يلغي المعاملة كلها في SQL Server. يعيد المحرك المعاملة من الخطوة 1، لا الجملة وحدها.
-- حتى 3 إعادات بتراجع 50 مللي ثانية (13-m6:315)، ونقترح إضافة تفاوت عشوائي حتى 50 مللي ثانية كي لا تتصادم الإعادات ثانية.
-- انتهاء مهلة القفل (1222) يُعامل كالجمود. نقترح `SET LOCK_TIMEOUT 5000` لهذه المعاملة (DQ-F11-2).
+- حتى 3 إعادات بتراجع 50 مللي ثانية (13-m6:315؛ DQ-F11-4)، ونقترح إضافة تفاوت عشوائي حتى 50 مللي ثانية كي لا تتصادم الإعادات ثانية.
+- انتهاء مهلة القفل (1222) يُعامل كالجمود. هذا الخطأ يلغي الجملة لا المعاملة، فيتراجع المحرك صراحةً، أو يعمل بـ `SET XACT_ABORT ON`. نقترح `SET LOCK_TIMEOUT 5000` لهذه المعاملة (DQ-F11-2).
 - بعد استنفاد الإعادات: CONCURRENT_RETRY ← 503 مع Retry-After (DOC-B04 §9.3).
 - لا إعادة لرموز الأعمال ولا لـ VERSION_CONFLICT.
 
@@ -194,3 +194,122 @@ sequenceDiagram
 النتيجة كما في AC-WFL-3: الموافقة على B تُرفض INSUFFICIENT_AVAILABLE «دون أي موافقة مسجَّلة» (13-m6:759). الخانة تبقى PENDING، والطلب في TM_APPROVAL.
 
 الرموز وحالاتها من DOC-B04 §9.3. النص للمستخدم يُصاغ من إسقاط الموظف، ولا يصل الطالب شيء منه (BR-WFL-024).
+
+## 8. عدم التكرار
+
+خمس طبقات، لكل منها مفتاحها:
+
+| الطبقة | المفتاح | أين يُخزَّن | سلوك التكرار |
+|---|---|---|---|
+| طلب الواجهة | Idempotency-Key لكل (مشترك، مستخدم، مسار)، 24 ساعة (DOC-B04 §7) | wfl.RequestAction.IdempotencyKey مع الإجراء APPROVED (15.model:471-473) | يعيد الاستجابة المخزّنة؛ جسم مختلف 422 IDEMPOTENCY_KEY_REUSED؛ طلب لم ينته 409 IDEMPOTENCY_IN_PROGRESS |
+| الإجراء | RowVersion وخانة PENDING | wfl.Request وwfl.RequestApproval | موافقة ثانية 409 (BR-WFL-023) |
+| الخطاف | `{RequestId}:{StageInstanceId}:{HookKey}:{TriggerKind}:{ActionFilter}` 🟡 | wfl.HookExecution (15.model:480-502) | SUCCEEDED يعيد ResultJson دون استدعاء M5 (BR-WFL-015) |
+| الحجز | upsert بـ RequestId؛ IdempotencyKey بالصيغة `res:{RequestId}:{n}`، ويزيد n بعد كل فك 🟡 | fac.LimitReservation (13.model:289-291) | إعادة الموافقة تعدّل الحجز ولا تنشئ ثانيًا |
+| الحركة | `{مفتاح الخطاف}:{OpKind}` 🟡 | fac.LimitMovement (13.model:316-319) | الإدراج المكرر يفشل بالفرادة، فيُعامل كأنه طُبّق |
+
+قاعدتان مقترحتان 🟡 (DQ-F11-3):
+- الفشل لا يُخزَّن نتيجةً تُعاد. HookExecution بحالة FAILED يُنفَّذ من جديد في المحاولة التالية، ويزيد AttemptCount. وإلا بقي الطلب مرفوضًا بعد تحرير المتاح.
+- صف HOOK_FAILED لا يحمل Idempotency-Key الطلب. فالعميل يعيد بالمفتاح نفسه بعد فشل، ويستعمل مفتاحًا جديدًا إن غيّر الجسم، كطلب التجاوز.
+
+DR-43 مفتوح: الفرادة في wfl.HookExecution لا تضم ActionFilter (15.model:497). صيغة المفتاح أعلاه تضمه، ويلزم تعديل الفرادة لتطابقها (DQ-F11-6).
+
+## 9. مسار التجاوز
+
+1. يصل TM رمز INSUFFICIENT_AVAILABLE مع المطلوب والمتاح (F-WFL-3، 13-m6:492).
+2. يعيد الموافقة بـ OverrideRequested = true وسبب مكتوب، بمفتاح تكرار جديد.
+3. يفحص المحرك في الخطوة 4: الإعداد `fac.override_limit.enabled` مفعّل (الافتراضي معطّل)، والفاعل يحمل `fac.override_limit`، والسبب غير فارغ (BR-WFL-016، 13-m6:247).
+4. تعيد M5 الفحص نفسه ولو فحصته M6 (BR-FAC-015، 12-m5:253).
+5. ينشأ الحجز بـ OverLimit = 1 وOverrideReason (13.model:286-287، :301). وفي الموافقة OverrideRequested وOverrideReason (15.model:439-440، :452).
+6. داخل المعاملة: AuditLog بشدة عالية (FR-WFL-034، 13-m6:155)، وحدث FAC.RESERVATION_ALERT الإلزامي لـ TM وFO (13-m6:595).
+
+الصلاحية `fac.override_limit` لا تنتقل بالتفويض (DOC-F10 DQ-F10-10).
+
+## 10. ما بعد الالتزام: التدقيق والأحداث
+
+كل ما يلي يُكتب داخل المعاملة، ولا يخرج شيء قبل COMMIT. فشل المعاملة لا يترك حدثًا (FR-WFL-038، 13-m6:159).
+
+| الصف | النوع | الغرض | المصدر |
+|---|---|---|---|
+| aud.AuditLog | تدقيق أمني | الموافقة المرتبطة بالحجز بشدة عالية؛ والتجاوز | 13-m6:689، :155 |
+| wfl.RequestAction | سجل الطلب | APPROVED وHOOK_EXECUTED وSTAGE_CHANGED | FR-WFL-033، 13-m6:154 |
+| `request.approved` و`request.stage_changed` | Outbox | أحداث النطاق للمستهلكين لاحقًا | 13-m6:676 |
+| `reservation.created` أو `reservation.adjusted` | Outbox من M5 | حركة الحد | 12-m5:582 |
+| REQ.PHASE_CHANGED وREQ.ACTION_REQUIRED_REQUESTER | طلب إشعار عبر Outbox | الطالب: المرحلة الظاهرة صارت «بانتظار إجراء منك» لمرجع ERP | 13-m6:570، :575 |
+| FAC.RESERVATION_ALERT | طلب إشعار عبر Outbox | عند OverLimit فقط | 13-m6:595 |
+| ntf.Notification.ActionState = RESOLVED | تحديث 🟡 (DQ-F11-8) | إشعارات REQ.APPROVAL_NEEDED المفتوحة لبقية المؤهلين | FR-NTF-007، 13-m6:206 |
+
+بعد الالتزام:
+- يسلّم عامل Outbox الأحداث، ويحوّل طلبات الإشعار إلى إشعارات (DOC-F17).
+- خطافات AFTER_COMMIT تُسجَّل PENDING داخل المعاملة، وتُنفَّذ بعدها حتى 5 محاولات، ثم GAVE_UP وتنبيه TM (BR-WFL-015؛ 15.model:488، :502).
+- تخزّن الواجهة الاستجابة بمفتاح التكرار.
+
+في مسار الفشل تُكتب في معاملة منفصلة: HookExecution بحالة FAILED، وRequestAction ‏HOOK_FAILED داخلي، وAuditLog بشدة متوسطة 🟡 (DQ-F11-7). لا حدث Outbox ولا إشعار للطالب.
+
+## 11. التحرير وإعادة الموافقة
+
+| الحالة | ما يجري في معاملة الإجراء | المصدر |
+|---|---|---|
+| REJECT في TM_APPROVAL، أو CANCEL بعد الحجز | قفل الطلب، ثم الخانات VOIDED، ثم دخول المرحلة النهائية، ثم `fac.release_reservation` على ON_ENTER (DOC-F10 DQ-F10-3): قفل التسهيل، والحجز RELEASED بسبب REJECTED أو CANCELLED، وLimitMovement ‏RELEASE، و`reservation.released`، وReservationState = RELEASED | 13-m6:307؛ BR-WFL-009؛ AC-WFL-3 |
+| لا حجز | التحرير ينجح بلا أثر | 13-m6:307 |
+| إعادة الموافقة بعد إرجاع للطالب | الحجز باقٍ (Q-WFL-08)؛ upsert يعدّل الحجز ACTIVE إلى ExposureAmount الجديد بحركة ADJUST؛ المتاح يستثني حجز الطلب، فالتخفيض ينجح دائمًا | BR-WFL-017، 13-m6:248 |
+| تغيّر الخط أو الحد أو التسهيل بعد إرجاع داخلي | فك الحجز القديم بسبب SUPERSEDED ثم حجز جديد بمفتاح جديد، في المعاملة نفسها؛ تسهيلان يُقفلان بترتيب FacilityId تصاعديًا 🟡 | 13.model:285، :289؛ 15.model:294 |
+| انتهاء الحجز في M5 | M5 تفكّه وتُصدر `fac.reservation.expired`؛ المحرك يعلّم الطلب LOST ويصدر REQ.RESERVATION_LOST في معاملة أخرى | BR-WFL-017، 13-m6:311 |
+
+## 12. الاختبار وربطه بـ NFR-PERF-03
+
+NFR-PERF-03: «100 طلب حجز متزامن على الحد نفسه: لا تجاوز للمتاح، ولكل طلب نتيجة محددة»، قبل خروج S2 على SQL Server 2025 (docs/30-readiness/DOC-B03-nfr-specification.md:30؛ docs/20-database-design.md:241؛ DOC-B01 §5.3).
+
+الاختبار المقترح 🟡:
+
+| البند | القيمة |
+|---|---|
+| البيانات | تسهيل بحد جذر وخط واحد؛ السقف 10,000,000 والقائم 6,000,000، فالمتاح 4,000,000 كما في AC-WFL-3 |
+| الحمل | 100 طلب في TM_APPROVAL، لكل منها ExposureAmount = 100,000، و100 موافقة متوازية |
+| المتوقع | 40 نجاحًا بالضبط، و60 INSUFFICIENT_AVAILABLE؛ مجموع الحجوزات ACTIVE = 4,000,000؛ 40 صف LimitMovement |
+| الاتساق | لا خانة APPROVED بلا حجز ACTIVE، ولا حجز بلا خانة؛ لكل طلب نتيجة واحدة |
+| CONCURRENT_RETRY | يُعدّ ويُبلَّغ، والهدف صفر |
+| التكرار | إعادة المئة بالمفاتيح نفسها لا تغيّر شيئًا |
+| تنويع المسار | حدّان فرعيان تحت أب واحد (مثال BR-FAC-014، 12-m5:252)، 50 طلبًا على كل منهما؛ مجموع المحجوز لا يتجاوز متاح الأب |
+| الجمود | جلستان تأخذان الأقفال بترتيب معاكس عمدًا لإثبات الإعادة ثم CONCURRENT_RETRY |
+
+الأداة: اختبار تكامل بالكود (DQ-B01-6). القاعدة لا تحوي اليوم أي اختبار للتدفق المالي (docs/20-database-design.md:493).
+
+## 13. القرارات المطلوبة
+
+| المعرّف | السؤال | الافتراض المقترح | من يقرر | ما يعطّله |
+|---|---|---|---|---|
+| DQ-F11-1 | ما الذي يُقفل وبأي ترتيب؟ | الطلب، ثم صف التسهيل، ثم الحدود من الجذر إلى الورقة، ثم الخط، كلها UPDLOCK وHOLDLOCK عدا الطلب؛ ويلتزم به كل كاتب للاستغلال والحجز | معماري الحلول مع مالك M5 | خدمات `fac.*` في S2 |
+| DQ-F11-2 | مهلة القفل | `SET LOCK_TIMEOUT 5000`، و1222 يُعاد كالجمود | معماري قاعدة البيانات | NFR-PERF-03 |
+| DQ-F11-3 | هل تُخزَّن نتيجة الفشل وتُعاد؟ | لا؛ تُعاد النتيجة الناجحة فقط، في الخطاف وفي مفتاح الواجهة لإجراءات الطلب | مالك M6 | BR-WFL-015 وDOC-B04 §7 |
+| DQ-F11-4 | معنى «حتى 3 مرات» | محاولة أولى ثم 3 إعادات، بتراجع 50 مللي ثانية مع تفاوت حتى 50 | معماري الحلول | المحرك |
+| DQ-F11-5 | محتوى SnapshotHash وتطبيعه | ما في §5، بتطبيع JSON بمفاتيح مرتبة | مسؤول الأمن مع مالك M6 | عدم الإنكار (13-m6:689) |
+| DQ-F11-6 | صيغ المفاتيح، وتعديل فرادة HookExecution | صيغ §8، وإضافة ActionFilter إلى الفرادة (DR-43) | معماري قاعدة البيانات | db/model قبل S3 |
+| DQ-F11-7 | تدقيق المحاولة الفاشلة | AuditLog بشدة متوسطة في معاملة HOOK_FAILED | مسؤول الأمن | DOC-S12 |
+| DQ-F11-8 | حل إشعارات REQ.APPROVAL_NEEDED | داخل المعاملة نفسها | مالك M6 | FR-NTF-007 |
+| DQ-F11-9 | ExposureAmount لنوع يستهلك حدًّا وليس اعتمادًا (ضمان، سحب تمويل) | قيمة حقل المبلغ AmountFieldKey حين لا مزوّد من M7 | مالك M5 مع مالك M6 | أنواع S5 (Q-REQ-03) |
+| DQ-F11-10 | نسخ حالة الحجز على الطلب (DR-44) | تبقى النسخة وتُكتب في المعاملة نفسها، مع مطابقة ليلية مع fac.LimitReservation | معماري قاعدة البيانات | لوحات الحجز |
+
+## 14. تعارضات وفجوات في المصادر
+
+1. ثلاثة أوصاف للقفل: «صف الحد (UPDLOCK/HOLDLOCK)» (13-m6:315)، و«UPDLOCK, ROWLOCK على fac.Limit» (docs/20-database-design.md:237)، و«تقفل التسهيل ثم الحدود من الجذر إلى الورقة» (12-m5:253). قفل صف واحد لا يمنع حجزين على حدّين شقيقين يتجاوزان متاح الأب. الموقف في DQ-F11-1.
+2. قائمة رموز الرفض في 13-m6:306 بلا OVERRIDE_NOT_ALLOWED وOVERRIDE_REASON_REQUIRED، وهما في 12-m5:253 وDOC-B04 §9.3.
+3. «التكرار يعيد النتيجة المخزَّنة» (BR-WFL-015، 13-m6:246) لا يميّز الفشل من النجاح. الموقف في DQ-F11-3.
+4. DR-43 مفتوح: فرادة wfl.HookExecution بلا ActionFilter (15.model:497؛ docs/review/design-review-2026-10-11.json:446).
+5. DR-44 مفتوح: حالة الحجز منسوخة على wfl.Request بلا قيد يربطها بـ fac.LimitReservation (15.model:294-296؛ docs/review/design-review-2026-10-11.json:457).
+6. لا جدول باسم wfl.RequestStageHook في المستودع. تعريف الخطاف في wfl.WorkflowStageHook (15.model:183)، وتنفيذه في wfl.HookExecution (15.model:480).
+7. خدمات الحجز عقود في التطبيق (docs/20-database-design.md:41)، ولا اختبار للتدفق المالي بعد (docs/20-database-design.md:493).
+
+## 15. التتبع
+
+| البند في هذه الوثيقة | المتطلب أو القاعدة أو القرار | المصدر |
+|---|---|---|
+| §4 و§5 | FR-WFL-022، BR-WFL-003، BR-WFL-016، D-9 | docs/10-detailed-analysis/13-m6-workflow-engine-notifications.md:143، :234، :247، :487-492 |
+| §5 الخطوة 2 | BR-WFL-023، FR-WFL-035 | docs/10-detailed-analysis/13-m6-workflow-engine-notifications.md:156، :254 |
+| §6.1 و§6.2 | BR-FAC-014، BR-FAC-015، FR-FAC-018 | docs/10-detailed-analysis/12-m5-facilities-pricing-collateral-obligations.md:125، :252-253 |
+| §6.3 | التزامن في عقد الخطافات | docs/10-detailed-analysis/13-m6-workflow-engine-notifications.md:315 |
+| §7 | رموز الرفض، AC-WFL-3 | docs/10-detailed-analysis/13-m6-workflow-engine-notifications.md:306، :756-759؛ DOC-B04 §9.3 |
+| §8 | BR-WFL-015، FR-FAC-017 | db/model/15-workflow-notifications.model:471-502؛ db/model/13-facilities-pricing-terms.model:289-319 |
+| §9 | FR-FAC-020، BR-WFL-016، Q-WFL-07 | docs/10-detailed-analysis/12-m5-facilities-pricing-collateral-obligations.md:127؛ docs/10-detailed-analysis/13-m6-workflow-engine-notifications.md:720 |
+| §10 | FR-WFL-033، FR-WFL-034، FR-WFL-038 | docs/10-detailed-analysis/13-m6-workflow-engine-notifications.md:154-155، :159 |
+| §11 | FR-WFL-023، BR-WFL-017 | docs/10-detailed-analysis/13-m6-workflow-engine-notifications.md:144، :248، :307، :311 |
+| §12 | NFR-PERF-03 | docs/30-readiness/DOC-B03-nfr-specification.md:30؛ docs/20-database-design.md:241 |

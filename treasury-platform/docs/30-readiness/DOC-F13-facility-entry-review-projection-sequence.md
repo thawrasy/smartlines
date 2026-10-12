@@ -71,10 +71,13 @@ sequenceDiagram
   A->>A: فحص fac.edit ونطاق شركة المقترض
   A->>D: BEGIN ثم حجز رقم من cfg.NumberSequence
   A->>D: INSERT fac.Facility بحالة DRAFT ورقم معتمد 0
+  alt أمر تجديد وللسابق لاحق
+    D-->>A: 2601 من فهرس PreviousFacilityId
+    A-->>FO: 409 مع رقم اللاحق القائم
+  end
   A->>D: INSERT fac.FacilityRevision رقم 1 بحالة DRAFT
-  alt أمر تجديد
+  opt أمر تجديد
     A->>D: نسخ الصفوف المعتمدة للسابق بـ FromRevision 1
-    D-->>A: 2601 إن كان للسابق لاحق
   end
   A->>D: COMMIT
   A-->>FO: رقم التسهيل وشاشة المسودة

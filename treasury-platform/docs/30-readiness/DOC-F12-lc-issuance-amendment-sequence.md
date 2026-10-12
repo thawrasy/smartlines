@@ -109,12 +109,12 @@ sequenceDiagram
 | # | الخطوة | ما يُكتب والقاعدة | عند الفشل |
 |---|---|---|---|
 | 2-3 | فحص مسبق 🟡 | V-LCI-01 إلى V-LCI-04 (14:570-573) بلا كتابة ولا قفل. يُعاد الفحص داخل `lc.record_issuance` (14:308) | 422 VALIDATION_FAILED، أو WARNINGS_REQUIRE_ACK لـ V-LCI-03 (DOC-B04:189) |
-| 5-8 | التحويل | 🟢 Utilization بنوع LC ومبلغ IssuedExposure ومرجع مصدر فارغ؛ الحجز CONVERTED (12:253؛ m13:283). IssuedExposure يُحسب من المبلغ والتسامح الصادرين ولا يتجاوز الموافَق عليه (BR-LCI-007، 14:266) | RESERVATION_NOT_ACTIVE إن كان الحجز RELEASED أو LOST (DOC-B04:235) |
-| 9-11 | تسجيل الإصدار | 🟢 ترتيب الكتابة يفرضه المفتاح الأجنبي: الشروط أولًا ثم الاعتماد ثم تحديث OwnerId (m16:10-12). الشروط نسخة من APPLICATION بـ CopiedFromTermsId (m16:259)، مقفلة بتجزئة (m16:272) | V-LCI-01 عند تكرار الرقم لمنشأة الإصدار (m16:436) |
-| 10 | فرادة الاعتماد | 🟢 RequestId فريد في الاعتماد (m16:439)، فإعادة التنفيذ لا تنشئ اعتمادًا ثانيًا؛ وUtilizationId فريد (m16:438) | تعارض فريد يلغي المعاملة |
-| 11 | مرجع المصدر | 🟢 SourceRefId يتغير مرة واحدة من فارغ إلى LcId، وأي تغيير آخر IMMUTABLE_SOURCE (12:253). الفرض في التطبيق فقط (m13:255) | يلغي المعاملة |
-| 13 | حالة الطلب | 🟢 ReservationState = CONVERTED (m15:296). 🟡 الطلب AWAITING_CLOSE لا COMPLETED، و`REQ.COMPLETED` عند الإقفال (DOC-F08 §4.3) | — |
-| 14 | التدقيق والأحداث | 🟡 صف aud.AuditLog بفئة TREASURY وفعل LC_ISSUED (m10:309-310). 🟢 حدث Outbox `lc.issued` (14:655) وإشعار LC.ISSUED (14:598) | — |
+| 4-7 | التحويل | 🟢 Utilization بنوع LC ومبلغ IssuedExposure ومرجع مصدر فارغ؛ الحجز CONVERTED (12:253؛ m13:283). IssuedExposure يُحسب من المبلغ والتسامح الصادرين ولا يتجاوز الموافَق عليه (BR-LCI-007، 14:266) | RESERVATION_NOT_ACTIVE إن كان الحجز RELEASED أو LOST (DOC-B04:235) |
+| 8-9 | تسجيل الإصدار | 🟢 ترتيب الكتابة يفرضه المفتاح الأجنبي: الشروط أولًا ثم الاعتماد ثم تحديث OwnerId (m16:10-12). الشروط نسخة من APPLICATION بـ CopiedFromTermsId (m16:259)، مقفلة بتجزئة (m16:272) | V-LCI-01 عند تكرار الرقم لمنشأة الإصدار (m16:436) |
+| 9 | فرادة الاعتماد | 🟢 RequestId فريد في الاعتماد (m16:439)، فإعادة التنفيذ لا تنشئ اعتمادًا ثانيًا؛ وUtilizationId فريد (m16:438) | تعارض فريد يلغي المعاملة |
+| 10 | مرجع المصدر | 🟢 SourceRefId يتغير مرة واحدة من فارغ إلى LcId، وأي تغيير آخر IMMUTABLE_SOURCE (12:253). الفرض في التطبيق فقط (m13:255) | يلغي المعاملة |
+| 12-13 | حالة الطلب | 🟢 ReservationState = CONVERTED (m15:296). 🟡 الطلب AWAITING_CLOSE لا COMPLETED، و`REQ.COMPLETED` عند الإقفال (DOC-F08 §4.3) | — |
+| 13 | التدقيق والأحداث | 🟡 صف aud.AuditLog بفئة TREASURY وفعل LC_ISSUED (m10:309-310). 🟢 حدث Outbox `lc.issued` (14:655) وإشعار LC.ISSUED (14:598) | — |
 
 **الثابتة بعد الالتزام** 🟢: لا يبقى Utilization بنوع LC ومرجع مصدر فارغ، ويساوي LcId الاعتمادَ المنشأ (FR-LCI-012، 14:168). الفهرس m13:264 يكشف أي بند بلا مرجع في التقرير R-FAC-03 (12:533).
 
@@ -143,6 +143,7 @@ sequenceDiagram
 
 - 🟢 `fac.adjust_reservation` على حجز CONVERTED يُرفض RESERVATION_NOT_ACTIVE، فكل تغيير بعد الإصدار على الاستغلال (FR-LCI-017، 14:173).
 - 🟢 الفرق السالب مسموح دائمًا ولا يهبط تحت الصفر، ويُسجَّل المطلوب والمطبَّق في LimitMovement (12:258؛ m13:311-312).
+- 🟢 الاستغلال RELEASED نهائي ولا تعديل عليه (12:455). 🟡 فالإغلاق بعد فك آلي أوصله إلى الصفر لا يستدعي `fac.release_utilization`.
 - 🟢 الطلبان الفرعيان `LC_DOCUMENT_REQUEST` و`LC_SWIFT_REQUEST` يمران بقالب CHILD_STANDARD ولا يمسان الحد (13:343). يُنشآن لاعتماد ACTIVE أو EXPIRED أو CLOSED، لا CANCELLED (FR-LCI-022، 14:178)، ولا يكتملان بلا مرفق ظاهر للطالب (14:176-177).
 
 ## 6. تسلسل التعديل
@@ -189,10 +190,10 @@ sequenceDiagram
   Note over ENG,DB: COMMIT
 ```
 
-- 🟢 الخطوة 10 خطاف ON_ACTION(APPROVE) في TM_APPROVAL (13:310، 13:344). المبلغ لا يتغير في الاعتماد بعد (AC-LCI-2، 14:767).
+- 🟢 الخطوة 9 خطاف ON_ACTION(APPROVE) في TM_APPROVAL (13:310، 13:344). المبلغ لا يتغير في الاعتماد بعد (AC-LCI-2، 14:767).
 - 🟢 فشل الإتاحة يلغي الموافقة كلها، ويرى TM المطلوب والمتاح (AC-WFL-7، 13:779).
 - 🟡 الخطوتان 3 و5: لا يذكر 13:344 خطافًا ينشئ صف LcAmendment أو يقفل شروط التعديل. المقترح في DQ-F12-2 وDQ-F12-3.
-- 🟡 الخطوة 10 تطبّق `Delta − ReservationDeltaApplied` لا Delta كاملًا. السبب: مفتاح الخطاف يحمل StageInstanceId (13:246)، فمرور ثانٍ بـ TM_APPROVAL بعد إرجاع ينتج مفتاحًا جديدًا ورفعًا ثانيًا (DQ-F12-4).
+- 🟡 الخطوة 9 تطبّق `Delta − ReservationDeltaApplied` لا Delta كاملًا. السبب: مفتاح الخطاف يحمل StageInstanceId (13:246)، فمرور ثانٍ بـ TM_APPROVAL بعد إرجاع ينتج مفتاحًا جديدًا ورفعًا ثانيًا (DQ-F12-4).
 
 ### 6.3 إصدار البنك ورد المستفيد والتطبيق
 
@@ -229,7 +230,7 @@ sequenceDiagram
 - 🟢 التطبيق عند القبول فقط، والقيد يفرض ACCEPTED وAppliedOn وAppliedBy (m16:521؛ BR-LCI-012، 14:271).
 - 🟢 حالة BANK_ISSUED تتطلب AmendmentNo وBankIssuedOn (m16:520)، والرقم فريد لكل اعتماد (m16:507).
 - 🟢 عند القبول تصير شروط التعديل هي `CurrentTermsId` (14:486؛ m16:413). شروط ISSUED الأولى تبقى LOCKED لأن مالكها وغرضها مختلفان (m16:263).
-- 🟡 الخطوة 2: REQUESTED تعني «سُلِّم الطلب للبنك»، وتُكتب عند خروج EXECUTION (DQ-F12-2). الخطوة 5 حفظ نموذج لا خطاف، ويبقى الطلب في AMENDMENT_RESULT أيامًا.
+- 🟡 الخطوة 2: REQUESTED تعني «سُلِّم الطلب للبنك»، وتُكتب عند خروج EXECUTION (DQ-F12-2). الخطوتان 4 و5 حفظ نموذج لا خطاف، ويبقى الطلب في AMENDMENT_RESULT أيامًا.
 - 🟡 بعد القبول يُعاد حساب ExposureAmount (m16:419) ونسخ التسامح (m16:417-418). وفي الزيادة لا يُستدعى fac لأن الرفع تم عند موافقة TM.
 - 🟢 رفض الطلب الفرعي أو إلغاؤه بعد TM_APPROVAL يعكس الزيادة بـ `fac.adjust_utilization` على الاستغلال لا على الحجز (13:344). 🟡 والتعديل يصير WITHDRAWN.
 
@@ -325,7 +326,7 @@ sequenceDiagram
   LC->>DB: REVIEWED حين يُقرَّر كل فرق
 ```
 
-🟡 الخطوة 8 اقتراح (DQ-F12-12). وحالة OPEN وREVIEWED في DOC-F16 §12.
+🟡 الخطوة 7 اقتراح (DQ-F12-12). وحالة OPEN وREVIEWED في DOC-F16 §12.
 
 ### 8.2 الفجوة DR-46
 
