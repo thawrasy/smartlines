@@ -1105,6 +1105,18 @@ change is in the activity log.
 A station's row sits in project phase 7: while the `tracking_stations` feature is off, the database keeps the station's row
 closed to everyone except the platform, so turn that feature on before step 4.
 
+The rights of the operating company come after step 5, and only while the stations and their mode are on:
+
+- A carrier gives its operating company a right for its own trips, at one station or every station, with
+  `POST /api/carrier/station-operators/grants` (`{"operator_company_uid", "station_uid", "permission"}`, the permission being
+  `BOOKING`, `BOARDING_PASS` or `BOARDING`). The carrier's grant counts only while `boarding.mode.carrier_contracted` is `true`:
+  set it with `PUT /api/admin/boarding/settings`.
+- The platform gives a state-mandated operating company its right with `POST /api/admin/boarding/operator-grants`, with no
+  carrier. It counts only while `boarding.mode.state_mandated` is `true`.
+- A grant is revoked with `POST .../{uid}/revoke`, by the party that gave it (the platform can revoke any grant).
+
+The operating company's own login is not built yet, so no operating company acts through the system until that is decided.
+
 To stop boarding everywhere, set `boarding.stations.enabled` to `false`. Nothing is deleted: the stations, their counters, their
 bays and the carriers' reference numbers stay as they are. A carrier retires a reference it no longer holds with
 `POST /api/carrier/references/{uid}/retire`; the number itself is never changed or deleted.

@@ -2628,4 +2628,72 @@ SELECT pg_temp.ok(NOT EXISTS (SELECT 1 FROM iam.role_permission rp JOIN iam.role
   'Boarding (1097): a carrier keeps its reference numbers and cannot manage the boarding settings');
 ROLLBACK;
 
+-- Boarding stations, step 2 (1098): an operating company acts at a station only with a grant, for the carrier that gave it
+-- (contracted mode) or the platform (state-mandated mode); a grant is revoked by the party that gave it, and never changed
+RESET ROLE;
+INSERT INTO iam.party (party_type, legal_name) VALUES ('COMPANY', 'Station Operator Test');
+INSERT INTO iam.company (id, approval_status) SELECT id, 'APPROVED' FROM iam.party WHERE legal_name = 'Station Operator Test';
+SELECT id AS op FROM iam.party WHERE legal_name = 'Station Operator Test' \gset
+SET ROLE masslak_app;
+BEGIN;
+SELECT sys.set_context(:uadmin, NULL, 'SYSTEM');
+SELECT net.set_boarding_setting('boarding.stations.enabled', 'true'::jsonb);
+SELECT net.set_boarding_setting('boarding.mode.carrier_contracted', 'true'::jsonb);
+SELECT net.set_boarding_setting('boarding.mode.state_mandated', 'true'::jsonb);
+INSERT INTO net.station_boarding (station_id, enabled) VALUES (:st_dam, true), (:st_alp, true);
+SELECT sys.set_context(:ua, :ca, 'COMPANY');
+INSERT INTO net.station_operator_grant (carrier_company_id, operator_company_id, station_id, permission)
+VALUES (:ca, :op, :st_dam, 'BOARDING');
+SELECT pg_temp.ok(net.operator_may(:op, :ca, :st_dam, 'BOARDING'), 'Boarding (1098): a grant from the carrier lets the operating company board at that station');
+SELECT pg_temp.ok(NOT net.operator_may(:op, :cb, :st_dam, 'BOARDING'), 'Boarding (1098): a grant from one carrier does not reach another carrier''s trips');
+SELECT pg_temp.ok(NOT net.operator_may(:op, :ca, :st_alp, 'BOARDING'), 'Boarding (1098): a grant for one station does not reach another station');
+SELECT pg_temp.ok(NOT net.operator_may(:op, :ca, :st_dam, 'BOOKING'), 'Boarding (1098): a grant of one permission does not give the others');
+SELECT pg_temp.expect_error(format($$INSERT INTO net.station_operator_grant (carrier_company_id, operator_company_id, station_id, permission)
+  VALUES (%s, %s, %s, 'BOARDING')$$, :ca, :ca, :st_dam), 'station_operator_grant_check', 'Boarding (1098): a carrier cannot grant to itself');
+SELECT pg_temp.expect_error(format($$INSERT INTO net.station_operator_grant (carrier_company_id, operator_company_id, station_id, permission)
+  VALUES (%s, %s, %s, 'BOARDING')$$, :ca, :op, :st_dam), 'duplicate key', 'Boarding (1098): one active grant per carrier, operator, station and permission');
+SELECT pg_temp.expect_error(format($$INSERT INTO net.station_operator_grant (carrier_company_id, operator_company_id, permission)
+  VALUES (NULL, %s, 'BOARDING')$$, :op), 'row-level security', 'Boarding (1098): a carrier cannot grant the platform''s state-mandated rights');
+SELECT sys.set_context(:ua, :cb, 'COMPANY');
+SELECT pg_temp.ok((SELECT count(*) FROM net.station_operator_grant WHERE carrier_company_id = :ca) = 0,
+  'Boarding (1098): another carrier does not see the grant');
+UPDATE net.station_operator_grant SET revoked_at = now(), revoked_by_user_id = :ua WHERE carrier_company_id = :ca;
+SELECT sys.set_context(:ua, :ca, 'COMPANY');
+SELECT pg_temp.ok(net.operator_may(:op, :ca, :st_dam, 'BOARDING'), 'Boarding (1098): another carrier cannot revoke this carrier''s grant');
+SELECT sys.set_context(NULL, :op, 'COMPANY');
+SELECT pg_temp.ok((SELECT count(*) FROM net.station_operator_grant WHERE operator_company_id = :op) >= 1,
+  'Boarding (1098): the operating company sees the grants given to it');
+SELECT pg_temp.ok((SELECT count(*) FROM net.station_operator_grant WHERE carrier_company_id = :cb) = 0,
+  'Boarding (1098): the operating company does not see another carrier''s grants');
+SELECT sys.set_context(:uadmin, NULL, 'SYSTEM');
+SELECT net.set_boarding_setting('boarding.mode.carrier_contracted', 'false'::jsonb);
+SELECT sys.set_context(:ua, :ca, 'COMPANY');
+SELECT pg_temp.ok(NOT net.operator_may(:op, :ca, :st_dam, 'BOARDING'), 'Boarding (1098): a carrier''s grant is not used while the contracted mode is off');
+SELECT sys.set_context(:uadmin, NULL, 'SYSTEM');
+SELECT net.set_boarding_setting('boarding.mode.carrier_contracted', 'true'::jsonb);
+SELECT sys.set_context(:ua, :ca, 'COMPANY');
+UPDATE net.station_operator_grant SET revoked_at = now(), revoked_by_user_id = :ua WHERE carrier_company_id = :ca AND station_id = :st_dam;
+SELECT pg_temp.ok(NOT net.operator_may(:op, :ca, :st_dam, 'BOARDING'), 'Boarding (1098): a revoked grant gives nothing');
+SELECT pg_temp.expect_error(format($$UPDATE net.station_operator_grant SET operator_company_id = %s WHERE carrier_company_id = %s$$, :cb, :ca),
+  'permission denied', 'Boarding (1098): a grant is never changed, only revoked');
+-- a station-wide grant from the carrier, and the platform's grant to a state-mandated operator
+SELECT sys.set_context(:ua, :ca, 'COMPANY');
+INSERT INTO net.station_operator_grant (carrier_company_id, operator_company_id, station_id, permission)
+VALUES (:ca, :op, NULL, 'BOOKING');
+SELECT pg_temp.ok(net.operator_may(:op, :ca, :st_alp, 'BOOKING'), 'Boarding (1098): a grant for every station reaches each of them');
+SELECT sys.set_context(:uadmin, NULL, 'SYSTEM');
+INSERT INTO net.station_operator_grant (carrier_company_id, operator_company_id, station_id, permission)
+VALUES (NULL, :op, :st_dam, 'BOARDING_PASS');
+SELECT pg_temp.ok(net.operator_may(:op, :cb, :st_dam, 'BOARDING_PASS'), 'Boarding (1098): the platform''s grant applies to every carrier at the station, in the state-mandated mode');
+SELECT net.set_boarding_setting('boarding.mode.state_mandated', 'false'::jsonb);
+SELECT pg_temp.ok(NOT net.operator_may(:op, :cb, :st_dam, 'BOARDING_PASS'), 'Boarding (1098): the platform''s grant is not used while the state-mandated mode is off');
+SELECT net.set_boarding_setting('boarding.mode.state_mandated', 'true'::jsonb);
+SELECT net.set_boarding_setting('boarding.stations.enabled', 'false'::jsonb);
+SELECT pg_temp.ok(NOT net.operator_may(:op, :cb, :st_dam, 'BOARDING_PASS'), 'Boarding (1098): nothing is granted at a station while boarding is off');
+SELECT pg_temp.ok(has_column_privilege('masslak_app', 'net.station_operator_grant', 'revoked_at', 'UPDATE')
+  AND NOT has_column_privilege('masslak_app', 'net.station_operator_grant', 'permission', 'UPDATE')
+  AND NOT has_table_privilege('masslak_app', 'net.station_operator_grant', 'DELETE'),
+  'Boarding (1098): the application may revoke a grant, but not change it or delete it');
+ROLLBACK;
+
 \echo '=== ALL TESTS PASSED ==='

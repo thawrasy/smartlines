@@ -123,7 +123,7 @@ for r in (metrics.router, auth.router, public.router, bookings.router, wallet.ro
           fleet_api.router, payouts_api.company, payouts_api.platform,
           documents_api.company, documents_api.platform, notify_api.router,
           account_api.router, account_api.platform, modular_api.router, modular_workflows.router, reports_api.router, payments_api.router,
-          integration_console.router, integration_v1.router, family_api.router, photo_api.platform, boarding_api.platform, boarding_api.carrier,
+          integration_console.router, integration_v1.router, family_api.router, photo_api.platform, boarding_api.platform, boarding_api.carrier, boarding_api.station_operators,
           manifests_api.carrier, manifests_api.platform,
           support_api.router, support_api.admin, cash_api.router, seo_pages.router, parcels_api.customer, parcels_api.carrier):
     app.include_router(r)

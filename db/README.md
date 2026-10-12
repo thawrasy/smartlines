@@ -14,9 +14,9 @@ supporting index, except references to lookup lists and to the staff member who 
 |---|---|
 | Engine | PostgreSQL 16 with PostGIS 3 (extensions: pgcrypto, citext, btree_gist, pg_trgm, postgis in schema `gis`; Docker and CI image `postgis/postgis:16-3.4`, Ubuntu package `postgresql-16-postgis-3`) |
 | Schemas | 26 separate schemas, each with its own privileges |
-| Tables | 513 tables (8 partitioned), 5,269 columns, 1,466 foreign keys |
-| Security | row-level security on 513 of 513 tables, 938 policies; 435 triggers, 323 functions |
-| Tests | 541 automated checks against a freshly built database (`db/tests/run.sh`) |
+| Tables | 514 tables (8 partitioned), 5,279 columns, 1,471 foreign keys |
+| Security | row-level security on 514 of 514 tables, 941 policies; 435 triggers, 324 functions |
+| Tests | 560 automated checks against a freshly built database (`db/tests/run.sh`) |
 | Design | [Database design and ERD document](../docs/database/) with diagrams in the study's colors |
 | Docs | [Data dictionary](DATA_DICTIONARY.md) · [ERD diagrams](ERD.md) (both generated from the database) |
 <!-- stats:end -->
@@ -154,6 +154,7 @@ PostGIS in `gis`. Until 9 October 2026 a first start of the Docker stack stopped
 | `1095_photo_switch_settings.sql` | The approval stages of the photo policy are a setting the platform changes (`iam.set_photo_approval_stages`: at least two stages, APPROVE last, no stage forced); the legal document number is recorded with an approval (`iam.approve_photo_policy_change`, optional). Nothing new refers to the tables, so no reference cycle |
 | `1096_photo_settings.sql` | The photo's settings are platform settings changed through the approval stages: who may see the photo and when (`photo.view_access`: the traveler on request, the driver and the carrier's office only while the trip is boarding), the date the rules are enforced from (`photo.enforce_from`), how often a person is checked (`photo.verify_every_days`) and the identity provider (`photo.identity_provider`, NONE). Read by `iam.photo_setting`; changed by `iam.request_photo_setting_change`, applied by `iam.approve_photo_policy_change`. Nothing new refers to the tables, so no reference cycle |
 | `1097_boarding_stations.sql` | Boarding stations, off at launch: the platform settings (`boarding.stations.enabled`, the two operating-company modes, the check-in window, the required references), each checked by `net.set_boarding_setting`; each station's own switch, counter system, screens and window (`net.station_boarding`, read by `net.boarding_station_on`); counters and bays numbered by the platform per station (`net.open_station_gate`, a counter names its operating company, `net.station_gate.operator_company_id`); a carrier's agreement and licence numbers, retired and never changed (`net.operation_reference`, `net.operation_references_missing`). Permissions `boarding.manage` and `boarding.references`; the two new tables are in phases 7 and 1A. The station table refers to `net.station` and `iam.company`, which already precede it |
+| `1098_boarding_operators.sql` | What an operating company may do at a station, for which carrier (boarding stations, step 2): `net.station_operator_grant`, a grant given by the carrier for its own trips or by the platform to a state-mandated operator (no carrier), revoked and never changed; read by the carrier that gave it and the operating company it went to (`sys.rls_split`). The decision `net.operator_may(operator, carrier, station, right)` needs the station to be boarding and the mode that gave the grant to be on. Permission `boarding.operators` for the carrier's operations role. Phase 7, classified and dataset-assigned like 1097 |
 
 ## Design rules (study 29.1)
 

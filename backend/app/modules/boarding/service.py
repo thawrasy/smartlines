@@ -137,3 +137,54 @@ async def retire_reference(conn, uid: uuid.UUID) -> int:
             raise not_found("reference")
         raise ApiError(409, "REFERENCE_RETIRED", "this number is already retired")
     return row["id"]
+
+
+async def grants(conn, carrier_company_id: int | None) -> list[dict]:
+    """The grants a carrier gave (its own), or every grant for the platform (carrier_company_id None)."""
+    rows = await conn.fetch(
+        """SELECT g.uid, g.permission, g.granted_at, g.revoked_at,
+                  cp.uid AS carrier_uid, cp.legal_name AS carrier_name,
+                  op.uid AS operator_uid, op.legal_name AS operator_name,
+                  st.uid AS station_uid, st.code AS station_code
+             FROM net.station_operator_grant g
+             LEFT JOIN iam.party cp ON cp.id = g.carrier_company_id
+             JOIN iam.party op ON op.id = g.operator_company_id
+             LEFT JOIN net.station st ON st.id = g.station_id
+            WHERE ($1::bigint IS NULL OR g.carrier_company_id = $1)
+            ORDER BY g.granted_at DESC, g.id DESC""", carrier_company_id)
+    return [dict(r) for r in rows]
+
+
+async def add_grant(conn, carrier_company_id: int | None, operator_uid: uuid.UUID, station_uid: uuid.UUID | None,
+                    permission: str, user_id: int) -> tuple[int, uuid.UUID]:
+    operator_id = await conn.fetchval(
+        "SELECT c.id FROM iam.company c JOIN iam.party p ON p.id = c.id WHERE p.uid = $1", operator_uid)
+    if operator_id is None:
+        raise not_found("operating company")
+    if operator_id == carrier_company_id:
+        raise ApiError(422, "INVALID_GRANT", "a carrier does not grant its own operations to itself")
+    station_id = None
+    if station_uid is not None:
+        station_id = await conn.fetchval("SELECT id FROM net.station WHERE uid = $1", station_uid)
+        if station_id is None:
+            raise not_found("station")
+    try:
+        row = await conn.fetchrow(
+            """INSERT INTO net.station_operator_grant (carrier_company_id, operator_company_id, station_id, permission,
+                                                       granted_by_user_id)
+               VALUES ($1, $2, $3, $4, $5) RETURNING id, uid""",
+            carrier_company_id, operator_id, station_id, permission, user_id)
+    except asyncpg.UniqueViolationError as exc:
+        raise ApiError(409, "GRANT_EXISTS", "this operating company already has this permission here") from exc
+    return row["id"], row["uid"]
+
+
+async def revoke_grant(conn, uid: uuid.UUID, user_id: int) -> int:
+    row = await conn.fetchrow(
+        """UPDATE net.station_operator_grant SET revoked_at = now(), revoked_by_user_id = $2
+            WHERE uid = $1 AND revoked_at IS NULL RETURNING id""", uid, user_id)
+    if row is None:
+        if await conn.fetchval("SELECT 1 FROM net.station_operator_grant WHERE uid = $1", uid) is None:
+            raise not_found("grant")
+        raise ApiError(409, "GRANT_REVOKED", "this grant is already revoked")
+    return row["id"]

@@ -2,7 +2,7 @@
 
 > Generated from the built database (`db/tools/gen_docs.py`); do not edit by hand.
 
-**513 tables, 5269 columns, in 26 schemas.**
+**514 tables, 5279 columns, in 26 schemas.**
 
 Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant isolation (RLS) · 🧩 partitioned monthly · 🔒 append-only / change-protected
 
@@ -11,7 +11,7 @@ Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant i
 - [`iam` — Identity, parties, users, permissions and API clients](#iam) (40 tables)
 - [`ref` — Reference data, locales and files](#ref) (14 tables)
 - [`sys` — Settings, outbox and webhooks](#sys) (27 tables)
-- [`net` — Network: stations, routes, lines, corridors and geofences](#net) (24 tables)
+- [`net` — Network: stations, routes, lines, corridors and geofences](#net) (25 tables)
 - [`fleet` — Fleet: vehicles, trucks, trailers, seats, crew, licenses and insurance](#fleet) (22 tables)
 - [`pricing` — Pricing, taxes, commissions, campaigns and loyalty](#pricing) (35 tables)
 - [`ops` — Trips, inventory, operations, shuttle rides, tracking and incidents](#ops) (35 tables)
@@ -1753,6 +1753,23 @@ Departure and arrival boards in stations (phase 7)
 | `gate_type` | `text` | ✱ | `'PLATFORM'::text` |
 | `status` | `text` | ✱ | `'ACTIVE'::text` |
 | `operator_company_id` | `bigint` | 🔗 `iam.company`  |  |
+
+### `net.station_operator_grant` 🛡️
+
+What a station's operating company may do, for which carrier and at which station (1097, step 2); revoked, never deleted
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `carrier_company_id` | `bigint` | 🔗 `iam.company`  |  |
+| `operator_company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `station_id` | `bigint` | 🔗 `net.station`  |  |
+| `permission` | `text` | ✱ |  |
+| `granted_by_user_id` | `bigint` | 🔗 `iam.app_user`  |  |
+| `granted_at` | `timestamp with time zone` | ✱ | `now()` |
+| `revoked_by_user_id` | `bigint` | 🔗 `iam.app_user`  |  |
+| `revoked_at` | `timestamp with time zone` |  |  |
 
 ### `net.timetable_template` 🛡️
 

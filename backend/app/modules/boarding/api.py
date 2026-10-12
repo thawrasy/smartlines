@@ -7,11 +7,19 @@ a boarding or a ticket until the platform switches a station on.
     GET  /api/admin/boarding/stations/{station_uid}         the station's switch, its counters and bays
     PUT  /api/admin/boarding/stations/{station_uid}         switch the station on or off, its counter system and window
     POST /api/admin/boarding/stations/{station_uid}/gates   open a platform gate, bay, gate or counter (the platform numbers it)
+    GET  /api/admin/boarding/operator-grants                every grant (station operators' rights)
+    POST /api/admin/boarding/operator-grants                grant a state-mandated operating company a right (no carrier)
+    POST /api/admin/boarding/operator-grants/{uid}/revoke   revoke a grant
 
     Carrier (boarding.references)
     GET  /api/carrier/references                            the carrier's agreement and licence numbers, and those missing
     POST /api/carrier/references                            record a number
     POST /api/carrier/references/{uid}/retire               retire a number: it is never changed or deleted
+
+    Carrier (boarding.operators): the rights it gives an operating company, for its own trips at a station
+    GET  /api/carrier/station-operators/grants              the grants the carrier gave
+    POST /api/carrier/station-operators/grants              give an operating company a right (booking, boarding pass, boarding)
+    POST /api/carrier/station-operators/grants/{uid}/revoke revoke a grant
 """
 import uuid
 from datetime import date
@@ -27,6 +35,7 @@ from . import service
 
 platform = APIRouter(prefix="/api/admin/boarding", tags=["boarding"])
 carrier = APIRouter(prefix="/api/carrier/references", tags=["boarding"])
+station_operators = APIRouter(prefix="/api/carrier/station-operators", tags=["boarding"])
 staff = require_portal("PLATFORM")
 operator = require_portal("OPERATOR")
 
@@ -39,6 +48,11 @@ def _platform_staff(pr: Principal) -> None:
 def _reference_keeper(pr: Principal) -> None:
     if pr.company_id is None or "boarding.references" not in pr.permissions:
         raise forbidden("missing permission: boarding.references")
+
+
+def _grantor(pr: Principal) -> None:
+    if pr.company_id is None or "boarding.operators" not in pr.permissions:
+        raise forbidden("missing permission: boarding.operators")
 
 
 class SettingIn(BaseModel):
@@ -67,6 +81,12 @@ class ReferenceIn(BaseModel):
     issued_by: Optional[str] = Field(default=None, min_length=1, max_length=120)
     issued_on: Optional[date] = None
     expires_on: Optional[date] = None
+
+
+class GrantIn(BaseModel):
+    operator_company_uid: uuid.UUID
+    station_uid: Optional[uuid.UUID] = None                         # empty: every station
+    permission: Literal["BOOKING", "BOARDING_PASS", "BOARDING"]
 
 
 @platform.get("/settings")
@@ -137,3 +157,53 @@ async def retire_reference(uid: uuid.UUID, request: Request, pr: Principal = Dep
         row_id = await service.retire_reference(conn, uid)
     request.state.audit = {"action": "boarding.reference_retire", "object_type": "operation_reference", "object_id": row_id}
     return {"uid": uid, "status": "RETIRED"}
+
+
+@platform.get("/operator-grants")
+async def list_grants(request: Request, pr: Principal = Depends(staff)):
+    _platform_staff(pr)
+    async with db.transaction(context_for(request, pr)) as conn:
+        return {"grants": await service.grants(conn, None)}
+
+
+@platform.post("/operator-grants", status_code=201)
+async def add_platform_grant(body: GrantIn, request: Request, pr: Principal = Depends(staff)):
+    _platform_staff(pr)
+    async with db.transaction(context_for(request, pr)) as conn:
+        row_id, uid = await service.add_grant(conn, None, body.operator_company_uid, body.station_uid, body.permission, pr.user_id)
+    request.state.audit = {"action": "boarding.grant_platform", "object_type": "station_operator_grant", "object_id": row_id}
+    return {"uid": uid, "status": "ACTIVE"}
+
+
+@platform.post("/operator-grants/{uid}/revoke")
+async def revoke_platform_grant(uid: uuid.UUID, request: Request, pr: Principal = Depends(staff)):
+    _platform_staff(pr)
+    async with db.transaction(context_for(request, pr)) as conn:
+        row_id = await service.revoke_grant(conn, uid, pr.user_id)
+    request.state.audit = {"action": "boarding.grant_revoke", "object_type": "station_operator_grant", "object_id": row_id}
+    return {"uid": uid, "status": "REVOKED"}
+
+
+@station_operators.get("/grants")
+async def list_carrier_grants(request: Request, pr: Principal = Depends(operator)):
+    _grantor(pr)
+    async with db.transaction(context_for(request, pr)) as conn:
+        return {"grants": await service.grants(conn, pr.company_id)}
+
+
+@station_operators.post("/grants", status_code=201)
+async def add_carrier_grant(body: GrantIn, request: Request, pr: Principal = Depends(operator)):
+    _grantor(pr)
+    async with db.transaction(context_for(request, pr)) as conn:
+        row_id, uid = await service.add_grant(conn, pr.company_id, body.operator_company_uid, body.station_uid, body.permission, pr.user_id)
+    request.state.audit = {"action": "boarding.grant_carrier", "object_type": "station_operator_grant", "object_id": row_id}
+    return {"uid": uid, "status": "ACTIVE"}
+
+
+@station_operators.post("/grants/{uid}/revoke")
+async def revoke_carrier_grant(uid: uuid.UUID, request: Request, pr: Principal = Depends(operator)):
+    _grantor(pr)
+    async with db.transaction(context_for(request, pr)) as conn:
+        row_id = await service.revoke_grant(conn, uid, pr.user_id)
+    request.state.audit = {"action": "boarding.grant_revoke", "object_type": "station_operator_grant", "object_id": row_id}
+    return {"uid": uid, "status": "REVOKED"}
