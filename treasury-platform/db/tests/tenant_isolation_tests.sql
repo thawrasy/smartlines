@@ -36,7 +36,7 @@ GO
 
 -- #Bind: binds the test connection to one tenant the same way the context procedure does (a binding row for
 -- @@SPID with a new token, and the context). The procedure is session-scoped and dropped by the rollback.
-CREATE PROCEDURE #Bind @TenantId INT
+CREATE PROCEDURE #Bind @TenantId INT, @UserId BIGINT = 0
 AS
 BEGIN
     DECLARE @token UNIQUEIDENTIFIER = NEWID();
@@ -44,9 +44,9 @@ BEGIN
     USING (SELECT @@SPID AS SessionId) AS s
        ON b.SessionId = s.SessionId
     WHEN MATCHED THEN
-        UPDATE SET BoundTenantId = @TenantId, BoundUserId = 0, BindingToken = @token, BoundAt = SYSUTCDATETIME()
+        UPDATE SET BoundTenantId = @TenantId, BoundUserId = @UserId, BindingToken = @token, BoundAt = SYSUTCDATETIME()
     WHEN NOT MATCHED THEN
-        INSERT (SessionId, BoundTenantId, BoundUserId, BindingToken) VALUES (s.SessionId, @TenantId, 0, @token);
+        INSERT (SessionId, BoundTenantId, BoundUserId, BindingToken) VALUES (s.SessionId, @TenantId, @UserId, @token);
     EXEC sys.sp_set_session_context @key = N'TenantId', @value = @TenantId;
     EXEC sys.sp_set_session_context @key = N'BindingToken', @value = @token;
 END;
@@ -422,7 +422,7 @@ ROLLBACK TRANSACTION sp_t18;
 
 /* T25: disabling the user ends the binding of that user's connection: no row is visible and the binding row is gone. */
 SAVE TRANSACTION sp_t25;
-EXEC #Bind @t1;
+EXEC #Bind @t1, @u1;
 UPDATE sec.AppUser SET Status = 'DISABLED' WHERE AppUserId = @u1;
 SELECT @n2 = COUNT(*) FROM sec.SessionBinding WHERE SessionId = @@SPID;
 SET @err = NULL; SET @n = NULL;
@@ -463,6 +463,39 @@ IF @err IS NULL AND @n = 1 AND @err2 = 33504 PRINT 'PASS T27: a suspended tenant
 ELSE PRINT 'FAIL T27: a suspended tenant read or wrote in a way the write check does not allow';
 ROLLBACK TRANSACTION sp_t27;
 
+/* T30: deleting the user row ends the binding of that user's connection: no row is visible and the binding is gone (CTX-3). */
+SAVE TRANSACTION sp_t30;
+EXEC #Bind @t1, @u1;
+DELETE FROM sec.AppUser WHERE AppUserId = @u1;
+SELECT @n2 = COUNT(*) FROM sec.SessionBinding WHERE SessionId = @@SPID;
+SET @err = NULL; SET @n = NULL;
+EXECUTE AS USER = N'tp_test_app';
+BEGIN TRY SELECT @n = COUNT(*) FROM fac.Facility WHERE FacilityId = @f1; END TRY
+BEGIN CATCH SET @err = ERROR_NUMBER(); END CATCH;
+REVERT;
+IF @err IS NULL AND @n = 0 AND @n2 = 0 PRINT 'PASS T30: deleting the user row ends its binding';
+ELSE PRINT 'FAIL T30: a deleted user''s connection still sees rows or keeps its binding';
+ROLLBACK TRANSACTION sp_t30;
+
+/* T31: a suspended tenant keeps reads for its connections but cannot delete its own rows (33504, CTX-1). */
+SAVE TRANSACTION sp_t31;
+EXEC #Bind @t1, @u1;
+INSERT sec.LoginAttempt (TenantId, LoginName, Outcome) VALUES (@t1, N'test-login', 'LOGIN_SUCCESS');
+UPDATE plat.Tenant SET Status = 'SUSPENDED', SuspendedReason = N'test' WHERE TenantId = @t1;
+EXEC #Bind @t1, @u1;
+SET @err = NULL; SET @rows = NULL;
+EXECUTE AS USER = N'tp_test_app';
+BEGIN TRY
+    DELETE FROM sec.LoginAttempt WHERE TenantId = @t1;
+    SET @rows = @@ROWCOUNT;
+END TRY
+BEGIN CATCH SET @err = ERROR_NUMBER(); END CATCH;
+REVERT;
+SELECT @n = COUNT(*) FROM sec.LoginAttempt WHERE TenantId = @t1;
+IF @err = 33504 AND @n = 1 PRINT 'PASS T31: a suspended tenant cannot delete its own rows';
+ELSE PRINT 'FAIL T31: a suspended tenant deleted its own rows or the delete was refused with another error';
+ROLLBACK TRANSACTION sp_t31;
+
 /* T19: an active member binds the connection to its tenant; afterwards only that tenant's rows are visible. */
 SAVE TRANSACTION sp_t19;
 EXEC sys.sp_set_session_context @key = N'TenantId', @value = NULL;        -- the procedure binds only an unbound connection
@@ -496,6 +529,17 @@ IF @err <> 0 AND @ctx = @t1 AND @err2 = 50004 PRINT 'PASS T20: a bound context c
 ELSE PRINT 'FAIL T20: the bound context was changed, or a second binding was not refused with 50004';
 
 /* ---------- Cases 21-23: the reporting role (tp_readonly) ---------- */
+
+/* T29: the reporting role reads neither the tenant registry nor the module list of any tenant (PRED-04). */
+SET @err = NULL; SET @err2 = NULL;
+EXECUTE AS USER = N'tp_test_ro';
+BEGIN TRY SELECT COUNT(*) FROM plat.Tenant; END TRY
+BEGIN CATCH SET @err = ERROR_NUMBER(); END CATCH;
+BEGIN TRY SELECT COUNT(*) FROM plat.TenantModule; END TRY
+BEGIN CATCH SET @err2 = ERROR_NUMBER(); END CATCH;
+REVERT;
+IF @err = 229 AND @err2 = 229 PRINT 'PASS T29: the reporting role cannot read the tenant registry or the module list';
+ELSE PRINT 'FAIL T29: the reporting role read the tenant registry or the module list';
 
 /* T21: the reporting role cannot read a restricted column (230). */
 SET @err = NULL;

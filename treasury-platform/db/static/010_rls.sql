@@ -116,7 +116,8 @@ BEGIN
         SET @sql = N'CREATE SECURITY POLICY rls.[' + @pol + N'] '
                  + N'ADD FILTER PREDICATE rls.fn_TenantAccess(TenantId) ON ' + @obj + N', '
                  + N'ADD BLOCK PREDICATE rls.fn_TenantWrite(TenantId) ON ' + @obj + N' AFTER INSERT, '
-                 + N'ADD BLOCK PREDICATE rls.fn_TenantWrite(TenantId) ON ' + @obj + N' AFTER UPDATE '
+                 + N'ADD BLOCK PREDICATE rls.fn_TenantWrite(TenantId) ON ' + @obj + N' AFTER UPDATE, '
+                 + N'ADD BLOCK PREDICATE rls.fn_TenantWrite(TenantId) ON ' + @obj + N' BEFORE DELETE '
                  + N'WITH (STATE = ON);';
     ELSE
         SET @sql = N'CREATE SECURITY POLICY rls.[' + @pol + N'] '

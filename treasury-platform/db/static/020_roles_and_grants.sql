@@ -58,5 +58,10 @@ DENY SELECT ON [plat].[PlatformOperator] TO [tp_readonly];
 -- reporting or platform role: a copied token would let another connection read the bound tenant.
 GRANT SELECT, INSERT, UPDATE, DELETE ON [sec].[SessionBinding] TO [tp_auth];
 DENY SELECT ON [sec].[SessionBinding] TO [tp_readonly], [tp_platform];
+-- The reporting role reads no other tenant's registry or module list (PRED-04): plat.Tenant has no row filter.
+DENY SELECT ON [plat].[Tenant] TO [tp_readonly];
+DENY SELECT ON [plat].[TenantModule] TO [tp_readonly];
+-- The audit log is append-only (BR-PLT-001, PRED-08): the generated grants give SELECT and INSERT only.
+DENY UPDATE, DELETE ON [aud].[AuditLog] TO [tp_app], [tp_platform];
 -- مخطط rls يُنشأ في 010؛ منحه لـ tp_app هناك بعد إنشائه
 GO

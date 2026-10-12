@@ -103,13 +103,43 @@ ITEMS = [
     {
         'id': 'O-16', 'sources': 'Tenant-isolation tests (db/tests/tenant_isolation_tests.sql, case T16)',
         'finding': 'The application role can set TenantId directly with sp_set_session_context, which skips the membership check in sec.usp_SetSessionContext. Row-level security trusts the session context, so code that runs on the application connection outside the procedure can read or write another tenant. A DENY on the system procedure cannot be applied from a user database (error 4629).',
-        'status': 'Closed by design (a). The row filters (rls.fn_Bound, db/static/010_rls.sql) show a row only when the connection binding in sec.SessionBinding names the same tenant and its token matches SESSION_CONTEXT(N\'BindingToken\'). Only sec.usp_SetSessionContext writes the binding (db/static/030_session_context.sql). Tests T16, T16b and T16c in db/tests/tenant_isolation_tests.sql cover a direct context change, the binding table, and a wrong or missing token.',
-        'next': 'None for the context itself. The residual risk is recorded as O-17.',
+        'status': 'Closed by design (a), hardened after an adversarial review. Row filters (rls.fn_Bound, db/static/010_rls.sql) show a row only when the connection binding in sec.SessionBinding names the same tenant and its token matches SESSION_CONTEXT(N\'BindingToken\'); only sec.usp_SetSessionContext writes the binding (db/static/030_session_context.sql). The views check the binding (db/static/025_tenant_views.sql). Disabling a user, deleting a user, or closing a tenant revokes its bindings (triggers in db/static/030). Binding locks the tenant and user rows (OUT-01). Writes need an open tenant (BR-PLT-002), including DELETE. Tests T16 to T31 in db/tests/tenant_isolation_tests.sql cover these; a control with the binding check removed fails T16 and T16c.',
+        'next': 'None for the context itself. Residual risks: O-17 (the caller names the user) and O-18 to O-22.',
     },
     {
-        'id': 'O-17', 'sources': 'Design review of O-16 (db/static/030_session_context.sql)',
-        'finding': 'sec.usp_SetSessionContext trusts the user id that the application passes. A compromised application connection can bind to any tenant whose active user id it knows, and user ids are sequential.',
+        'id': 'O-17', 'sources': 'Design review of O-16 (db/static/030_session_context.sql); confirmed by CTX-02-KR and PRED-06 in the adversarial review',
+        'finding': 'sec.usp_SetSessionContext trusts the user id that the application passes. A connection that can run the procedure binds to any tenant whose active user id it knows, and user ids are sequential. Confirmed: a refused user of tenant A is refused for tenant B (50003), and a scan of user ids binds to tenant B and reads its rows.',
         'status': 'Open decision. The binding (O-16) stops a forged context, but not a call to the procedure with another user\'s id.',
         'next': 'Decide whether the procedure verifies a server-side session token instead of the caller\'s user id (sec.UserSession.TokenHash is already in the model). Recommended. Then add a test that a wrong token is refused.',
+    },
+    {
+        'id': 'O-18', 'sources': 'BR-PLT-002 (docs/10-detailed-analysis/10-m0-m1-platform-organization.md); adversarial review findings CTX-2, PRED-07, sb-02',
+        'finding': 'Access to a SUSPENDED tenant does not follow BR-PLT-002. The procedure lets any active user bind to a SUSPENDED or ARCHIVED_READ_ONLY tenant, while the rule admits only the account administrator to a suspended tenant (read and export). An existing connection loses its rows when the tenant is suspended, but a new connection still reads them.',
+        'status': 'Open decision. Writes are refused for both statuses (rls.fn_BoundWrite). Reads are allowed for a new bind and lost for an existing one.',
+        'next': 'Decide: (a) bind a SUSPENDED tenant only for its account administrator, which needs the role check in the procedure, or (b) refuse binds for SUSPENDED too and keep the revocation. Then align db/static/030 and the test T27.',
+    },
+    {
+        'id': 'O-19', 'sources': 'Adversarial review finding PRED-02',
+        'finding': 'A tenant connection can insert audit rows with TenantId NULL. rls.fn_AuditWrite allows NULL, so a tenant can add rows that look like platform events: the platform reads them, the tenant cannot read them back.',
+        'status': 'Open decision. The NULL allowance is written into the design (BR-PLT-001: NULL is a platform event). A tenant connection should not create platform events.',
+        'next': 'Decide: refuse NULL TenantId for non-platform connections in rls.fn_AuditWrite and let only tp_platform write platform events. Then add a test.',
+    },
+    {
+        'id': 'O-20', 'sources': 'Adversarial review finding PRED-03',
+        'finding': 'Foreign keys to mixed-scope tables ignore the row filters. A tenant row can reference another tenant\'s ref.UcpArticle: the insert succeeds, and the owner of the article gets error 547 when it deletes its own row. This is a reference and existence oracle across tenants. The generator writes a simple foreign key to a mixed table, not a tenant-composite one (tools/dbgen/dbgen.py).',
+        'status': 'Open. No check covers references to mixed-scope tables.',
+        'next': 'Add a check that the referenced row is global or belongs to the referencing row\'s tenant, for every foreign key from a tenant table to a mixed table, and test it.',
+    },
+    {
+        'id': 'O-21', 'sources': 'Adversarial review findings PRED-01 and PRED-05',
+        'finding': 'Unique keys are checked before the row filters and block predicates. A tenant connection can learn whether a value exists in another tenant: an e-mail (unique on TenantId and Email) and a PublicId. The insert of a row for another tenant returns 2627 rather than 33504.',
+        'status': 'Open. This follows from SQL Server constraint checking, not from a missing predicate, so the filters cannot prevent it.',
+        'next': 'Decide: route inserts that name another tenant through a procedure that takes TenantId from the binding, or accept the oracle as a residual risk with an owner.',
+    },
+    {
+        'id': 'O-22', 'sources': 'Adversarial review findings OUT-02, sb-03, CTX-5, CTX-3 (fixed)',
+        'finding': 'Open cursors keep delivering rows after revocation (OUT-02, STATIC and KEYSET cursors). A module owned by dbo could call the procedure through ownership chaining for tp_readonly (sb-03, latent: no such module exists). The procedure\'s error codes reveal the status of any tenant to any caller (CTX-5, low).',
+        'status': 'Open, low. Cursors and error codes are not covered by the row filters. CTX-3 (a deleted user keeps its binding) is fixed by a delete trigger.',
+        'next': 'Require the application to close cursors and reset the connection on revocation, forbid dbo-owned modules that call sec.usp_SetSessionContext, and decide whether the error codes should be unified.',
     },
 ]
