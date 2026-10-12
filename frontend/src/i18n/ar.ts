@@ -367,6 +367,7 @@ const ar: Messages = {
     tickets: "التذاكر",
   },
   myTrips: { title: "رحلاتي", subtitle: "حجوزاتك وتذاكرك", none: "لا توجد حجوزات بعد", book: "احجز رحلة" },
+  einvoice: { title: "الفواتير الضريبية", invoice: "فاتورة", creditNote: "إشعار دائن", verify: "تحقّق" },
   points: { balance: "النقاط", worth: "قيمتها", redeem: "تحويل إلى رصيد", redeemLabel: "النقاط المراد استبدالها (على الأقل {min}، بمضاعفات {step})",
     how: "تربح نقاطاً على كل رحلة تسافرها، وهي صالحة {months} شهراً.", redeemed: "أُضيف {amount} إلى محفظتك." },
   wallet: {

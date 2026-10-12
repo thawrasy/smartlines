@@ -186,6 +186,9 @@ async def main(once: bool) -> None:
                         await conn.execute("SELECT ops.raise_tracking_alerts()")
                     # refunds whose provider outcome is unknown are asked again, with the same reference (R-17)
                     await resend_refunds()
+                    # paid bookings get their e-invoices, refunded ones their credit notes (1104)
+                    from ..einvoice.service import issue_due
+                    await issue_due()
                     # positions the telemetry database could not take when they arrived (R-03)
                     from ... import telemetry
                     await telemetry.drain_backlog()

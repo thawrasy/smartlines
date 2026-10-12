@@ -159,6 +159,7 @@ export interface BookingDetail {
              price_breakdown: { fare_per_passenger: number; passengers: number; fares_total: number; platform_fee: number; total: number; fare_brand: string;
                                 lines?: Quote["lines"]; family_offer?: Quote["family_offer"] } };
   tickets: Ticket[];
+  invoices?: { uuid: string; doc_type: "INVOICE" | "CREDIT_NOTE"; number: string; total: number; currency: string; finalized_at: string }[];
 }
 
 // A way of paying that platform administration has opened for this channel (1056)

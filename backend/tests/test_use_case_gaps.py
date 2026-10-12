@@ -4,7 +4,7 @@ import uuid
 
 import pytest
 
-from test_e2e import (FRESH_DRIVER_PASSWORD, FRESH_DRIVERS, OWNER_URL, day, free_seats, login, owner_sql, publish_fresh_trip,
+from test_e2e import (FRESH_DRIVER_PASSWORD, FRESH_DRIVERS, OWNER_URL, client, day, free_seats, login, owner_sql, publish_fresh_trip,
                       syrian)
 from test_notifications import run_worker
 
@@ -212,3 +212,69 @@ def test_points_earned_after_the_trip_and_redeemed_to_the_wallet():
         assert any(n["template_code"] == "points.earned" and n["payload"]["trip_no"] == trip["trip_no"] for n in told)
     finally:
         owner_sql("UPDATE pricing.loyalty_rule SET active = false WHERE id = ANY($1::bigint[])", rules)
+
+
+def _seller_unit(party_sql: str, name: str, tax_no: str, prefix: str) -> int:
+    """A tax profile valid now and an active issuing unit for the party (the carrier or the platform)."""
+    authority = owner_sql("""INSERT INTO acct.tax_authority (code, country_code, name) VALUES ('SY-GCTF-T', 'SY', 'Taxes (test)')
+                             ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name RETURNING id""")
+    party = owner_sql(party_sql)
+    profile = owner_sql("SELECT id FROM acct.tax_profile WHERE party_id = $1 AND valid @> now()", party) or owner_sql(
+        """INSERT INTO acct.tax_profile (party_id, authority_id, tax_status, tax_no, legal_name)
+           VALUES ($1, $2, 'REGISTERED', $3, $4) RETURNING id""", party, authority, tax_no, name)
+    return owner_sql("SELECT id FROM acct.einvoice_unit WHERE profile_id = $1 AND status = 'ACTIVE'", profile) or owner_sql(
+        """INSERT INTO acct.einvoice_unit (profile_id, authority_id, unit_code, number_prefix) VALUES ($1, $2, $3, $4) RETURNING id""",
+        profile, authority, f"{prefix}{uuid.uuid4().hex[:6]}", prefix)
+
+
+@pytest.mark.skipif(not OWNER_URL, reason="needs MASSLAK_OWNER_URL")
+def test_paid_booking_gets_signed_einvoices_and_a_refund_a_credit_note():
+    import base64
+    from app.modules.einvoice.service import read_qr
+    trip = fresh_trip()
+    carrier_unit = _seller_unit(f"SELECT company_id FROM ops.trip WHERE id = {trip['id']}", "Demo Carrier", "0101234567", "CAR-")
+    platform_unit = _seller_unit("SELECT id FROM iam.party WHERE legal_name = 'Masslak Platform' AND party_type = 'COMPANY'",
+                                 "Masslak Platform", "0109999999", "MSL-")
+    owner_sql("UPDATE sys.setting SET value = '10'::jsonb WHERE key = 'einvoice.tax_rate_pct'")
+    try:
+        pax = login("passenger@masslak.test", "PASSENGER")
+        assert pax.post("/api/wallet/topup", json={"amount": 10_000_000, "idempotency_key": uuid.uuid4().hex}).status_code == 200
+        t = next(x for x in pax.get("/api/trips/search", params={"origin": "DAM", "destination": "ALP", "on": day(2), "passengers": 1}).json()["trips"]
+                 if x["uid"] == str(trip["uid"]))
+        seat = free_seats(pax, t, 1)[0]
+        h = pax.post("/api/holds", json={"trip_uid": t["uid"], "from_seq": t["from_seq"], "to_seq": t["to_seq"], "seat_nos": [seat]})
+        r = pax.post("/api/bookings", json={"hold_token": h.json()["hold_token"], "trip_uid": t["uid"], "from_seq": t["from_seq"],
+                                            "to_seq": t["to_seq"], "passengers": [syrian(seat)], "idempotency_key": uuid.uuid4().hex})
+        assert r.status_code == 201, r.text
+        ref, total = r.json()["booking_ref"], r.json()["total"]
+        run_worker()
+        detail = pax.get(f"/api/bookings/{ref}").json()
+        invoices = [i for i in detail["invoices"] if i["doc_type"] == "INVOICE"]
+        assert len(invoices) == 2 and sum(i["total"] for i in invoices) == total          # the tickets and the fee
+        assert {i["number"][:4] for i in invoices} == {"CAR-", "MSL-"}
+        run_worker()                                                                        # issued once only
+        assert len(pax.get(f"/api/bookings/{ref}").json()["invoices"]) == 2
+        for inv in invoices:
+            v = client().get(f"/api/verify/einvoice/{inv['uuid']}").json()
+            assert v["valid"] and v["hash_valid"] and v["signature_valid"] and v["qr_matches"] and v["chain_valid"], v
+            assert v["tax_total"] == round(v["total"] * 10 / 110) and v["number"] == inv["number"]
+        qr = read_qr(owner_sql("SELECT qr_payload FROM acct.einvoice_document WHERE uuid = $1::uuid", invoices[0]["uuid"]))
+        assert qr[6] == owner_sql("SELECT hash FROM acct.einvoice_document WHERE uuid = $1::uuid", invoices[0]["uuid"])
+        assert base64.b64decode(qr[7]) and qr[1] in ("Demo Carrier", "Masslak Platform")
+        assert client().get(f"/api/verify/einvoice/{uuid.uuid4()}").json() == {"valid": False, "reason": "NOT_FOUND"}
+        # the passenger cancels: what is refunded of the fare comes back as a credit note against the carrier's invoice
+        c = pax.post(f"/api/bookings/{ref}/cancel")
+        assert c.status_code == 200, c.text
+        refund = c.json()["refund"]
+        run_worker()
+        notes = [i for i in pax.get(f"/api/bookings/{ref}").json()["invoices"] if i["doc_type"] == "CREDIT_NOTE"]
+        if refund:
+            assert len(notes) == 1 and notes[0]["total"] == refund and notes[0]["number"].startswith("CAR-")
+            v = client().get(f"/api/verify/einvoice/{notes[0]['uuid']}").json()
+            assert v["valid"] and v["original_number"].startswith("CAR-")
+        else:
+            assert notes == []
+        assert owner_sql("SELECT acct.einvoice_chain_breaks($1) + acct.einvoice_chain_breaks($2)", carrier_unit, platform_unit) == 0
+    finally:
+        owner_sql("UPDATE sys.setting SET value = '0'::jsonb WHERE key = 'einvoice.tax_rate_pct'")
+        owner_sql("UPDATE acct.einvoice_unit SET status = 'SUSPENDED' WHERE id = ANY($1::bigint[])", [carrier_unit, platform_unit])

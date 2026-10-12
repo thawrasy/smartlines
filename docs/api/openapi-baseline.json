@@ -2317,6 +2317,21 @@
     "200": {}
    }
   },
+  "GET /api/verify/einvoice/{doc_uuid}": {
+   "body": null,
+   "parameters": {
+    "path:doc_uuid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
   "GET /api/w/freight/market": {
    "body": null,
    "parameters": {},

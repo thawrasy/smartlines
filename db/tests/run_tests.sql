@@ -2875,4 +2875,23 @@ SELECT pg_temp.ok(EXISTS (SELECT 1 FROM fin.wallet w JOIN iam.party p ON p.id = 
   'Loyalty (1103): the platform has a loyalty expense wallet that pays redemptions');
 ROLLBACK;
 
+-- E-invoice issuing (1104): the chain check finds a document whose previous hash is not its predecessor's hash
+BEGIN;
+SELECT sys.set_context(:uadmin, NULL, 'SYSTEM');
+SELECT pg_temp.ok(acct.einvoice_chain_breaks(:unit) = 0, 'E-invoice issuing (1104): the finalized documents of a unit form an unbroken chain');
+INSERT INTO acct.einvoice_document (doc_type, subtype, seller_profile_id, unit_id, company_id, source_type, source_id, currency, subtotal, tax_total, total)
+VALUES ('INVOICE', 'SIMPLIFIED', :prof, :unit, :ca, 'BOOKING', 2, 'SYP', 100, 0, 100) RETURNING id AS inv3 \gset
+INSERT INTO acct.einvoice_line (document_id, line_no, description, unit_price, net_amount) VALUES (:inv3, 1, 'Ticket', 100, 100);
+SELECT acct.finalize_einvoice(:inv3, 'HASH-3', 'SIG', 'QR3');
+SELECT pg_temp.ok(acct.einvoice_chain_breaks(:unit) = 0, 'E-invoice issuing (1104): a document finalized after the others extends the chain');
+UPDATE acct.einvoice_unit SET last_hash = 'TAMPERED' WHERE id = :unit;
+INSERT INTO acct.einvoice_document (doc_type, subtype, seller_profile_id, unit_id, company_id, source_type, source_id, currency, subtotal, tax_total, total)
+VALUES ('INVOICE', 'SIMPLIFIED', :prof, :unit, :ca, 'BOOKING', (SELECT id FROM sales.booking WHERE booking_ref = 'ABC123'), 'SYP', 100, 0, 100) RETURNING id AS inv4 \gset
+INSERT INTO acct.einvoice_line (document_id, line_no, description, unit_price, net_amount) VALUES (:inv4, 1, 'Ticket', 100, 100);
+SELECT acct.finalize_einvoice(:inv4, 'HASH-4', 'SIG', 'QR4');
+SELECT pg_temp.ok(acct.einvoice_chain_breaks(:unit) = 1, 'E-invoice issuing (1104): a unit whose last hash was altered shows one break');
+SELECT pg_temp.ok((SELECT (value #>> '{}')::int FROM sys.setting WHERE key = 'einvoice.issue_window_days') = 30,
+  'E-invoice issuing (1104): the worker looks back 30 days by default');
+ROLLBACK;
+
 \echo '=== ALL TESTS PASSED ==='

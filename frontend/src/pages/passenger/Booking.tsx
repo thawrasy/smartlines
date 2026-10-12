@@ -128,7 +128,7 @@ export default function Booking() {
 
   return (
     <div className={ch.staff ? "stack" : "page narrow stack"} style={ch.staff ? { maxWidth: 760 } : undefined}>
-      <Loaded state={state}>{({ booking: b, tickets }) => {
+      <Loaded state={state}>{({ booking: b, tickets, invoices }) => {
         const first = tickets[0];
         const verifyUrl = `${location.origin}/verify?token=${encodeURIComponent(b.verify_token)}`;
         return (
@@ -197,6 +197,20 @@ export default function Booking() {
               {b.contact_mobile && <div className="row between"><span className="muted">{t("agency.contact")}</span><span className="ltr mono">{b.contact_mobile}</span></div>}
               {b.pay_option && <div className="row between"><span className="muted">{t("counter.paidWith")}</span><span>{t(`opt.name.${b.pay_option}`)}</span></div>}
             </div>
+            {invoices && invoices.length > 0 && (
+              <div className="card stack tight">
+                <h3>{t("einvoice.title")}</h3>
+                {invoices.map((i) => (
+                  <div key={i.uuid} className="row between small" style={{ gap: 12, flexWrap: "wrap" }}>
+                    <span>{t(i.doc_type === "INVOICE" ? "einvoice.invoice" : "einvoice.creditNote")} · <span className="mono ltr">{i.number}</span></span>
+                    <span className="row" style={{ gap: 8 }}>
+                      <span>{i.doc_type === "CREDIT_NOTE" ? "−" : ""}{money(i.total)}</span>
+                      <a className="btn text small" href={`/api/verify/einvoice/${i.uuid}`} target="_blank" rel="noreferrer">{t("einvoice.verify")}</a>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
             <div className="card stack tight">
               <h3>{t("booking.verifyLink")}</h3>
               <div className="row nowrap">

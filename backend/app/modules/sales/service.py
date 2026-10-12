@@ -631,6 +631,11 @@ async def booking_view(conn: asyncpg.Connection, ctx: db.Context, b: asyncpg.Rec
     from ...security import document_token
     async with db.system_scope(conn, ctx):
         tickets = await repo.tickets_of(conn, b["id"])
+        # the e-invoices and credit notes issued for it (1104), each checkable at /api/verify/einvoice/{uuid}
+        invoices = await conn.fetch(
+            """SELECT uuid, doc_type, number, total, currency, finalized_at FROM acct.einvoice_document
+                WHERE source_id = $1 AND source_type = 'BOOKING' AND status NOT IN ('DRAFT','CANCELLED_DRAFT')
+                ORDER BY id""", b["id"])
     booking = {k: b[k] for k in ("booking_ref", "status", "total_amount", "currency", "trip_no", "carrier_name")}
     booking["price_breakdown"] = _json(b["price_breakdown"])
     booking["created_at"] = b["created_at"].isoformat()
@@ -645,7 +650,7 @@ async def booking_view(conn: asyncpg.Connection, ctx: db.Context, b: asyncpg.Rec
         d["rules_snapshot"] = _json(d["rules_snapshot"])
         d["ticket_name"] = ticket_name(d.pop("first_name"), d.pop("last_name"), d["full_name"])
         out.append(d)
-    return {"booking": booking, "tickets": out}
+    return {"booking": booking, "tickets": out, "invoices": [{**row_dict(i), "uuid": str(i["uuid"])} for i in invoices]}
 
 
 CREDENTIAL_CLOSES_AFTER_ARRIVAL = 3600      # seconds: a ticket's credential stays valid for an hour after its arrival

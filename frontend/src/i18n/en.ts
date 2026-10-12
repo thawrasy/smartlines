@@ -365,6 +365,7 @@ const en = {
     tickets: "Tickets",
   },
   myTrips: { title: "My trips", subtitle: "Your bookings and tickets", none: "You have no bookings yet", book: "Book a trip" },
+  einvoice: { title: "Tax invoices", invoice: "Invoice", creditNote: "Credit note", verify: "Verify" },
   points: { balance: "Points", worth: "Worth", redeem: "Turn into credit", redeemLabel: "Points to redeem (at least {min}, in steps of {step})",
     how: "You earn points on every trip you travel. They are valid for {months} months.", redeemed: "{amount} added to your wallet." },
   wallet: {

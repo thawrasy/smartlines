@@ -397,6 +397,44 @@ def manifest_signature_valid(digest: bytes, signature: bytes) -> bool:
         return False
 
 
+# ------------------------------------------------------------------ e-invoices (Ed25519, 1104)
+# The hash of every e-invoice and credit note is signed, so a buyer or an authority can prove a document is the one the
+# platform issued. Its own key, derived like the manifest key unless MASSLAK_EINVOICE_SIGNING_KEY gives one.
+EINVOICE_KID = "einvoice-signature/v1"
+
+
+@lru_cache(maxsize=1)
+def _einvoice_key():
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+    from cryptography.hazmat.primitives.hashes import SHA256
+    from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+    from cryptography.hazmat.primitives.serialization import Encoding, NoEncryption, PrivateFormat
+    raw = os.environ.get("MASSLAK_EINVOICE_SIGNING_KEY", "").strip()
+    if raw:
+        return Ed25519PrivateKey.from_private_bytes(base64.b64decode(raw))
+    ticket_seed = _ticket_key().private_bytes(Encoding.Raw, PrivateFormat.Raw, NoEncryption())
+    return Ed25519PrivateKey.from_private_bytes(
+        HKDF(algorithm=SHA256(), length=32, salt=b"masslak-einvoice", info=EINVOICE_KID.encode()).derive(ticket_seed))
+
+
+def einvoice_sign(digest: bytes) -> bytes:
+    return _einvoice_key().sign(digest)
+
+
+def einvoice_public_key() -> str:
+    from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
+    return _b64(_einvoice_key().public_key().public_bytes(Encoding.Raw, PublicFormat.Raw))
+
+
+def einvoice_signature_valid(digest: bytes, signature: bytes) -> bool:
+    from cryptography.exceptions import InvalidSignature
+    try:
+        _einvoice_key().public_key().verify(signature, digest)
+        return True
+    except InvalidSignature:
+        return False
+
+
 def ticket_credential(claims: dict) -> str:
     """T2.<payload>.<signature>, both base64url; claims: k ticket, t trip, s seat, n name, a/b stops, x expiry."""
     payload = _b64(json.dumps({"v": 2, **claims}, separators=(",", ":"), ensure_ascii=False).encode())

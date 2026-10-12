@@ -220,6 +220,8 @@ asked with. The approval takes an optional legal document number, recorded on th
 
 **1103** moves loyalty points. It adds one wallet per platform currency (the loyalty expense wallet, which may go negative), four functions and one reference kind; no table and no rule changes. Points are earned only for trips completed after the upgrade: trips completed before it are not looked at again, so no member receives points in bulk on the day of the upgrade. A programme earns nothing until the platform adds an `EARN` rule, and takes no redemption until it adds a `BURN` rule. The daily expiry reads only accounts with a balance and an earning past its expiry.
 
+**1104** turns on the issuing of e-invoices. It adds two settings, one function and one partial index on `acct.einvoice_document` (built on a table that is empty until the first unit is onboarded). Nothing is issued until a seller has an active issuing unit and a valid tax profile; from then on the worker issues for bookings paid within `einvoice.issue_window_days` (30), so onboarding a carrier also invoices its bookings of the last month, at most 100 per minute. Set the window to 0 before onboarding to start from new sales only. A server in production should set `MASSLAK_EINVOICE_SIGNING_KEY`; without it the key is derived from the ticket signing seed, like the manifest key.
+
 ## 1064_partitioned_bookings.sql on a live database (R-06)
 
 1064 turns `sales.booking` into a table partitioned by ranges of id **in place, under an ACCESS EXCLUSIVE lock**: it

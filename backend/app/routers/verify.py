@@ -9,7 +9,8 @@ from fastapi import APIRouter, Query, Request
 
 from .. import db
 from ..deps import base_context
-from ..security import verify_document_token, verify_ticket_qr
+from ..modules.einvoice import service as einvoice
+from ..security import einvoice_public_key, verify_document_token, verify_ticket_qr
 
 router = APIRouter(prefix="/api/verify", tags=["verify"])
 
@@ -41,3 +42,17 @@ async def verify(request: Request, token: str = Query(..., min_length=10, max_le
             return {"valid": False, "reason": "NOT_FOUND"}
         return {"valid": True, "kind": "ticket", "ticket_no": r["ticket_no"], "status": r["status"],
                 "seat_no": r["seat_no"], "trip_no": r["trip_no"], "departure_at": r["departure_at"].isoformat()}
+
+
+@router.get("/einvoice/{doc_uuid}")
+async def verify_einvoice(doc_uuid: uuid.UUID, request: Request):
+    """An e-invoice or credit note, as its QR code points to it (1104): the stored content is hashed again, the
+    signature and the QR checked, and the link to the document numbered before it in the same unit. No buyer data."""
+    ctx = base_context(request)
+    ctx.scope = "SYSTEM"
+    async with db.transaction(ctx) as conn:
+        out = await einvoice.verify(conn, doc_uuid)
+    if out is None:
+        return {"valid": False, "reason": "NOT_FOUND"}
+    return {"valid": out["hash_valid"] and out["signature_valid"] and out["qr_matches"] and out["chain_valid"], "kind": "einvoice",
+            "public_key": einvoice_public_key(), **out}
