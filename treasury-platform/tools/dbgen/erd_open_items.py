@@ -19,8 +19,8 @@ ITEMS = [
     {
         'id': 'O-02', 'sources': f'{REVIEW_A}; {REVIEW_B}',
         'finding': 'The schema has never run on SQL Server 2025.',
-        'status': 'Executed on SQL Server 2025 (RTM-CU9): db/deploy.sql runs to completion and the deployed counts match the DDL (194 tables, 20 schemas, 763 foreign keys, 515 unique constraints, 1,158 CHECK constraints, 700 indexes). The CI script tools/ci/db_ci.sh passes in full against the Ubuntu-based SQL Server 2025 container in the development environment. It has never run on GitHub: the workflow file is under treasury-platform/.github/workflows/, and GitHub reads workflows only from the repository root, whose ci.yml belongs to another project. Not yet run on the production server.',
-        'next': 'Owner approval to add the database workflow at the repository root (.github/workflows/, limited to treasury-platform/ paths), then confirm the first GitHub run. Then run tools/deploy/deploy.sh on the production Ubuntu 24.04 VPS (ADR 0001). tools/deploy/deploy.ps1 is kept for a Windows host and has not been run.',
+        'status': 'Executed on SQL Server 2025 (RTM-CU9): db/deploy.sql runs to completion and the deployed counts match the DDL (194 tables, 20 schemas, 763 foreign keys, 515 unique constraints, 1,158 CHECK constraints, 700 indexes). The CI script tools/ci/db_ci.sh passes in full against the Ubuntu-based SQL Server 2025 container in the development environment. On GitHub it runs from .github/workflows/treasury-db-ci.yml at the repository root (GitHub reads workflows only there) on every change under treasury-platform/db, tools/dbgen or tools/ci; the first green run is https://github.com/thawrasy/smartlines/actions/runs/38283663041 (6 + 41 tests). Not yet run on the production server.',
+        'next': 'Run tools/deploy/deploy.sh on the production Ubuntu 24.04 VPS (ADR 0001). tools/deploy/deploy.ps1 is kept for a Windows host and has not been run.',
     },
     {
         'id': 'O-03', 'sources': f'{REVIEW_A}; {REVIEW_B}',
