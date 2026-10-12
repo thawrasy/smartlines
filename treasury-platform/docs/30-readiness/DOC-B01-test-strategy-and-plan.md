@@ -242,11 +242,10 @@ flowchart TB
 ## 12. تعارضات وفجوات في المصادر
 
 1. docs/30-readiness-documents.md:312 و339 يذكر 34 حالة عزل وأن db_ci.sh يتحقق من 34، والعدد الفعلي 41.
-2. docs/20-database-design.md:529 (O-1) يقول إن السكربتات لم تُنفَّذ على SQL Server، والسطر 492 من الملف نفسه يثبت النشر في كل تشغيل لـ CI. والأمر نفسه في docs/20-database-design.md:550 وdocs/10-detailed-analysis/00-overview-and-cross-cutting.md:352.
+2. docs/10-detailed-analysis/00-overview-and-cross-cutting.md:352 ما زال يقول إن وثيقة القاعدة «لم تُنفَّذ على SQL Server بعد»، بينما docs/20-database-design.md:492 يثبت النشر في كل تشغيل لـ db_ci.sh، وO-1 فيها (:529) صار «محلول في بيئة التطوير».
 3. رأس tools/ci/db_ci.sh:2-3 يذكر اختبارات المشغّلات فقط، والسكربت يشغّل اختبارات العزل أيضًا (السطر 75).
 4. AC-PLT-1 يفترض صفًا عامًا في LookupItem (docs/10-detailed-analysis/10-m0-m1-platform-organization.md:651)، والقاعدة تجعل LookupItem مملوكًا للمشترك (docs/20-database-design.md:425)، فالحالات T9-T12 تختبر الصف العام على cfg.NonWorkingDay (db/tests/tenant_isolation_tests.sql:107). التفصيل في DOC-B02.
 5. 00 §8 (docs/10-detailed-analysis/00-overview-and-cross-cutting.md:209-219) يعدّد المستويات بوسم 🟡 دون أدوات أو معايير خروج؛ هذه الوثيقة تكمله.
-6. tools/dbgen/erd_open_items.py:64 (O-09: «40 cases (T1-T37)») وdocs/20-database-design.md:493 يذكران 40 حالة عزل، وCI يتوقع 41 بعد إضافة T38 (tools/ci/db_ci.sh:87-88).
 
 ## 13. التتبع
 

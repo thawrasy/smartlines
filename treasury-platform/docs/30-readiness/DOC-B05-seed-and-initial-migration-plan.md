@@ -31,7 +31,7 @@
 | علامة catalog تضيف SeedKey وفرادة (Tenant, SeedKey) | tools/dbgen/README.md:40 |
 | SeedKey موجود أيضًا في: sec.Role، cfg.NumberSequenceDefinition، cfg.ExpiryAlertRule، org.Department، pty.CustomFieldDefinition، pty.KycProfile، pty.KycProfileItem، wfl.RequestType، wfl.WorkflowTemplate، ntf.NotificationEventType، ntf.NotificationRule، lc.LcFieldDefinition، lc.LcDocumentClause، ref.UcpArticle | db/model/10-platform.model:163، :451، :489؛ 11-organization-party.model:66، :388، :418، :439؛ 15-workflow-notifications.model:37، :84، :540، :561؛ 16-letters-of-credit.model:55، :81، :141 |
 | سجل تشغيل البذر cfg.SeedRun مملوك للمشترك (TenantId NOT NULL) | db/model/10-platform.model:572-584؛ db/generated/tsql/001_tables.sql:933-934 |
-| 11 جدولًا عالميًا بلا RLS، و3 مختلطة. صف المنصة في الجدول المختلط لا يكتبه إلا عضو tp_platform | db/generated/tsql/001_tables.sql؛ db/static/010_rls.sql:69-74؛ db/tests/tenant_isolation_tests.sql:107-110 |
+| 11 جدولًا عالميًا بلا RLS، و3 مختلطة. صف المنصة في الجدول المختلط لا يكتبه إلا عضو tp_platform | db/generated/tsql/001_tables.sql؛ db/static/010_rls.sql:70-75؛ db/tests/tenant_isolation_tests.sql:107-110 |
 | الكتالوجات كلها مملوكة للمشترك بعد DR-03، بما فيها الأشكال القانونية وقوائم القيم | docs/20-database-design.md:421-428؛ db/model/12-institutions-accounts-catalogs.model:61-79 |
 | خطة البذر في وثيقة القاعدة «لم تُنفَّذ بعد» | docs/20-database-design.md:470-478 |
 | قوالب Excel مذكورة في استراتيجية الاختبار دون أي متطلب FR | docs/10-detailed-analysis/00-overview-and-cross-cutting.md:219 |
@@ -79,7 +79,7 @@ flowchart TD
 | الخطوة | الملف المقترح | يُشغَّل بصفة | السبب |
 |---|---|---|---|
 | بعد 050 | db/seed/100_platform_global.sql | منفّذ النشر (مالك المخطط) | الجداول العالمية بلا RLS |
-| بعده | db/seed/110_platform_mixed.sql | مستخدم بلا تسجيل دخول عضو في tp_platform، عبر EXECUTE AS | محمول الكتابة يقبل صف المنصة من tp_platform فقط (db/static/010_rls.sql:69-74) |
+| بعده | db/seed/110_platform_mixed.sql | مستخدم بلا تسجيل دخول عضو في tp_platform، عبر EXECUTE AS | محمول الكتابة يقبل صف المنصة من tp_platform فقط (db/static/010_rls.sql:70-75) |
 | قبل الاختبارات | خطوة في tools/ci/db_ci.sh تشغّل الملفين مرتين وتقارن العدد والبصمة | CI | إثبات التكرار الآمن |
 
 السطران يُضافان إلى db/deploy.sql بعد السطر 34 بصيغة `:r seed/...`. ولأن DDL لا يُعاد تشغيله، يُشغَّل الملفان أيضًا وحدهما عند تحديث المراجع على قاعدة قائمة. الحساب الذي يشغّل الملف الثاني تحدده DOC-S08.
@@ -282,7 +282,7 @@ flowchart LR
 | §4.1 الصلاحيات | FR-PLT-017، FR-PLT-019، BR-PLT-019 | 10-m0-m1…:119، :121، :245 |
 | §4.1 الإعدادات | FR-PLT-043، BR-PLT-018 | 10-m0-m1…:145، :244 |
 | §4.2 دليل البنوك | Q-INS-01، FR-INS-020 | 90-consolidated…:48؛ db/model/12-institutions-accounts-catalogs.model:288 |
-| §4.3 ترتيب النشر | deploy.sql، RLS للمختلط | db/deploy.sql:22-34؛ db/static/010_rls.sql:69-74 |
+| §4.3 ترتيب النشر | deploy.sql، RLS للمختلط | db/deploy.sql:22-34؛ db/static/010_rls.sql:70-75 |
 | §5.1 الحزم | FR-PLT-008، FR-CAT-002، FR-CAT-018، FR-CAT-019 | 10-m0-m1…:110؛ 11-m2-m4…:165، :181، :182 |
 | §5.2 الملكية | Q-CAT-03، Q-ORG-10، X-SEC-7 | 90-consolidated…:65، :32؛ 00-overview…:142 |
 | §6 التكرار الآمن | BR-CAT-002، BR-CAT-003، cfg.SeedRun | 11-m2-m4…:240-241؛ db/model/10-platform.model:572-584 |

@@ -228,7 +228,7 @@ sequenceDiagram
 |---|---|---|
 | PERMISSION_LOCKED | FR-PLT-019 (10-m0-m1…:121)؛ BR-PLT-019 (:245)؛ AC-PTY-1 (:668) | 403 🟡 |
 | MODULE_DISABLED | FR-PLT-003 «تُرجع 403» (10-m0-m1…:105) | 403 🟢 للحالة |
-| TENANT_READ_ONLY | BR-PLT-002 (10-m0-m1…:228)؛ rls.fn_BoundWrite (db/static/010_rls.sql:35-41) | 403 🟡 |
+| TENANT_READ_ONLY | BR-PLT-002 (10-m0-m1…:228)؛ rls.fn_BoundWrite (db/static/010_rls.sql:36-42) | 403 🟡 |
 | SOD_VIOLATION | FR-WFL-009 «تُرفض 403» (13-m6…:130) | 403 🟢 للحالة |
 | LAST_ACCOUNT_ADMIN | FR-PLT-016 (10-m0-m1…:118)؛ الاسم مقترح | 409 🟡 |
 | INSUFFICIENT_AVAILABLE | FR-FAC-018 (12-m5…:125)؛ BR-FAC-015 (:253)؛ 13-m6…:306 | 409 مع params المطلوب والمتاح 🟡 |
@@ -250,7 +250,7 @@ sequenceDiagram
 | 50004 | 030:202 | الاتصال مربوط سابقًا | 500؛ يُعاد ضبط الاتصال ويُنبَّه التشغيل |
 | 50005 | 030:140 | أي فشل دخول | 401 INVALID_CREDENTIALS برسالة واحدة |
 | 50071، 50072 | db/static/050_fac_share_rule.sql:57، :92 | حصص المقرضين لا تساوي 100 أو أكثر من وكيل | 422 مع V-FAC-02 |
-| 33504 | محمولات الحجب في db/static/010_rls.sql:44-49؛ الاختبارات T4 وT7 وT10 وT11 وT14 وT27 وT31 | كتابة يرفضها RLS | 403 TENANT_READ_ONLY إن لم يكن المشترك TRIAL أو ACTIVE؛ وإلا 500 مع تنبيه أمني |
+| 33504 | محمولات الحجب في db/static/010_rls.sql:45-50؛ الاختبارات T4 وT7 وT10 وT11 وT14 وT27 وT31 | كتابة يرفضها RLS | 403 TENANT_READ_ONLY إن لم يكن المشترك TRIAL أو ACTIVE؛ وإلا 500 مع تنبيه أمني |
 | 229، 230 | db/static/020_roles_and_grants.sql؛ 030:237-239؛ الاختبارات T15 وT21 وT35 | صلاحية كائن أو عمود مرفوضة | 500 مع تنبيه أمني؛ لا تحدث في تشغيل سليم |
 | 547 (مفتاح أجنبي) | قيود FK_ في 002 | مرجع غير موجود عند الكتابة، أو صف مستعمل عند الحذف | 422 REFERENCE_INVALID، أو 409 IN_USE عند الحذف |
 | 547 (CHECK) | قيود CK_ في 001 | قيمة تخالف قيدًا | 422 مع رمز V من سجل القيود، وإلا CONSTRAINT_VIOLATION |

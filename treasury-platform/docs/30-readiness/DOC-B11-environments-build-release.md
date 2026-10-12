@@ -121,7 +121,7 @@ flowchart TB
 
 - db/deploy.sql ينشئ القاعدة إن لم تكن موجودة (السطران 17-18) ثم ينفّذ الملفات بالترتيب (22-34) ويتوقف عند أول خطأ (السطر 16).
 - الملفات المولَّدة تنشئ الجداول بلا فحص وجود، مثل db/generated/tsql/001_tables.sql:8، فتشغيل deploy.sql على قاعدة قائمة يتوقف عند أول جدول. لذلك يحذف CI القاعدة قبل كل نشر (tools/ci/db_ci.sh:52). أي أن deploy.sql نشر كامل لقاعدة جديدة فقط.
-- الملفات الثابتة مكتوبة لتُعاد: CREATE OR ALTER (db/static/025_tenant_views.sql:9، db/static/030_session_context.sql:23، db/static/050_fac_share_rule.sql:26)، وأدوار محمية بفحص وجود (db/static/020_roles_and_grants.sql:23 و35)، وسياسات RLS تُحذف ثم تُنشأ (db/static/010_rls.sql:95-98 و111-117). لكن إعادة تشغيلها على قاعدة قائمة لم تُختبر، لأن CI يبدأ دائمًا من قاعدة جديدة.
+- الملفات الثابتة مكتوبة لتُعاد: CREATE OR ALTER (db/static/025_tenant_views.sql:9، db/static/030_session_context.sql:23، db/static/050_fac_share_rule.sql:26)، وأدوار محمية بفحص وجود (db/static/020_roles_and_grants.sql:23 و35)، وسياسات RLS تُحذف ثم تُنشأ (db/static/010_rls.sql:96-99 و112-118). لكن إعادة تشغيلها على قاعدة قائمة لم تُختبر، لأن CI يبدأ دائمًا من قاعدة جديدة.
 - وثيقة القاعدة تقر بأنه «لا يوجد بعدُ مسار ترحيل بين الإصدارات» (docs/20-database-design.md:452)، وتقترح أداة ترحيل مثل DbUp أو Flyway عند أول نشر على بيانات حقيقية (O-2 في 20-database-design، السطر 530).
 - الدور tp_migrator موجود بلا منح (db/static/020_roles_and_grants.sql:9 و17)، والنشر يتم بحساب مالك القاعدة (docs/20-database-design.md:271)، وCI ينشر بحساب sa (tools/ci/db_ci.sh:54).
 - البذور غير مكتوبة بعد (O-3 في 20-database-design، السطر 531)، وخطتها في DOC-B05.
@@ -229,9 +229,8 @@ FR-PLT-047 (Should، S5) يطلب حزمة تنشر على خادم محلي ل�
 
 1. وسم الصورة `2025-latest` في .github/workflows/db-ci.yml:32 متحرك، والبند 4 من FR-PLT-045 يمنع النشر بإصدار SQL Server مخالف للسجل؛ فما يختبره CI قد يختلف عما يُنشر.
 2. docs/30-readiness-documents.md:425 يقول إنه لا يُحدَّد أي سكربت نشر هو المرجعي، وdocs/adr/0001-schema-work-on-linux.md:19-20 يحدده: deploy.sh.
-3. تعليق db/static/020_roles_and_grants.sql:9 يصف tp_migrator بأنه «مالك مخطط النشر»، والمخططات تُنشأ بملكية dbo (db/generated/tsql/000_schemas.sql:6)، وdocs/20-database-design.md:271 يقول إن النشر يتم بحساب مالك القاعدة.
-4. ✅ صُحّح (التحقق عند bef5722): docs/adr/0001-schema-work-on-linux.md:3 صار يقول إن نصي FR-PLT-045 و01 §13 حُدِّثا لمضيف القاعدة (O-23)، وإن طبقة التطبيق تبقى على Windows Server وفق 01 §13 حتى المراجعة، كما في docs/10-detailed-analysis/10-m0-m1-platform-organization.md:147. لكن docs/30-readiness-documents.md:425 ما زال يقول إن ADR يقرّ بأن نص FR-PLT-045 يحتاج تحديثًا.
-5. docs/30-readiness-documents.md:424 يصف .github/workflows/db-ci.yml بأنه «يعمل على main وclaude/**»، والخط لم يعمل على GitHub قط (O-02، tools/dbgen/erd_open_items.py:22).
+3. ✅ صُحّح (التحقق عند bef5722): docs/adr/0001-schema-work-on-linux.md:3 صار يقول إن نصي FR-PLT-045 و01 §13 حُدِّثا لمضيف القاعدة (O-23)، وإن طبقة التطبيق تبقى على Windows Server وفق 01 §13 حتى المراجعة، كما في docs/10-detailed-analysis/10-m0-m1-platform-organization.md:147. لكن docs/30-readiness-documents.md:425 ما زال يقول إن ADR يقرّ بأن نص FR-PLT-045 يحتاج تحديثًا.
+4. docs/30-readiness-documents.md:424 يصف .github/workflows/db-ci.yml بأنه «يعمل على main وclaude/**»، والخط لم يعمل على GitHub قط (O-02، tools/dbgen/erd_open_items.py:22).
 
 ## 14. التتبع
 

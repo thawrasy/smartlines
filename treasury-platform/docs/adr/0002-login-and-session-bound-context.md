@@ -21,13 +21,13 @@ Login and binding (all procedures run as `tp_auth_exec`, `db/static/030_session_
 4. If the user has MFA, the application verifies the TOTP code and records the result with `sec.usp_ConfirmMfa(@TenantId, @SessionToken, @Passed)`.
 5. For each request, `sec.usp_SetSessionContext(@TenantId, @SessionToken)` finds a valid session for that tenant (not ended, not expired, active user, MFA recorded when required), takes the user from the session, and binds the connection.
 
-Grants (`db/static/020_roles_and_grants.sql`): the application role cannot read stored password hashes, cannot insert sessions, and cannot change a session's tenant, user, token or MFA mark.
+Grants: the procedures run as `tp_auth_exec`, whose rights are granted in `db/static/020_roles_and_grants.sql`. The application role cannot read stored password hashes, cannot insert sessions, and cannot change a session's tenant, user, token, MFA mark or absolute expiry. These DENYs are in `db/static/030_session_context.sql`, after the generated grants (007), because a later GRANT would remove them.
 
 Revocation: ending or deleting a session, disabling or deleting a user, and closing or suspending a tenant remove the matching bindings at once (triggers in 030).
 
 ## Consequences
 
-- A connection can bind to a tenant only with a valid session of that tenant, and it can create a session only with the user's password. Tests T17, T18, T19, T20 and T32 to T36 in `db/tests/tenant_isolation_tests.sql` cover this.
+- A connection can bind to a tenant only with a valid session of that tenant, and it can create a session only with the user's password. Tests T17 to T20 and T32 to T37 in `db/tests/tenant_isolation_tests.sql` cover this.
 - The application must keep the session token secret (cookie or equivalent) and pass it on every bind. The pool's `sp_reset_connection` clears the context between requests.
-- Residual risks within one tenant are recorded as O-24: the application role can still update `PasswordHash` (password change and reset flows), the TOTP check is trusted to the application, and the application extends the idle expiry.
+- Residual risks within one tenant are recorded as O-24 (tools/dbgen/erd_open_items.py), which holds the full list: among them, the application role can still update `PasswordHash` and the lockout columns, read the password-history hashes, delete login attempts, reopen an ended session, and extend the idle expiry; the TOTP check is trusted to the application; and a user without MFA enabled binds without it. Threat model: docs/30-readiness/DOC-S01-threat-model.md.
 - The login API must not reveal whether an e-mail exists (FR-PLT-012), because `usp_GetPasswordParams` returns NULL for an unknown user.

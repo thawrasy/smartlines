@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Database CI: checks the model, confirms the generated DDL is current, deploys it to SQL Server,
-# compares what was deployed with the DDL, and runs the trigger tests.
+# compares what was deployed with the DDL, and runs the trigger tests and the tenant-isolation tests.
 #
 # Environment:
 #   SA_PASSWORD   password of the sa login (required)
