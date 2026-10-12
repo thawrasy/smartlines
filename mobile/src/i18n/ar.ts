@@ -13,7 +13,7 @@ const ar: Messages = {
            noTickets: "لا رحلات اليوم.", trip: "الرحلة {no}", openTicket: "عرض التذكرة" },
   // names of the currencies of the open markets (1061)
   currencies: { SYP: "ل.س", LBP: "ل.ل", JOD: "د.أ", IQD: "د.ع", SAR: "ر.س", TRY: "ل.ت", USD: "دولار", EUR: "يورو" },
-  txn: { SHIPMENT_PAY: "إرسال طرد", SUBSCRIPTION_PAY: "اشتراك نقل ترددي", BOOKING_PAY: "حجز رحلة", REFUND: "استرداد", TOPUP: "شحن المحفظة", RELEASE: "تسوية", PAYOUT: "صرف مصرفي" },
+  txn: { SHIPMENT_PAY: "إرسال طرد", SUBSCRIPTION_PAY: "اشتراك نقل ترددي", BOOKING_PAY: "حجز رحلة", REFUND: "استرداد", TOPUP: "شحن المحفظة", RELEASE: "تسوية", PAYOUT: "صرف مصرفي", LOYALTY_REDEEM: "استبدال نقاط" },
   common: {
     remove: "إزالة",
     signIn: "تسجيل الدخول", signOut: "تسجيل الخروج", email: "البريد أو الجوال", password: "كلمة المرور", continue: "متابعة",
@@ -62,6 +62,8 @@ const ar: Messages = {
   ticket: { title: "تذكرتك", show: "أظهر هذا الرمز للسائق", offlineReady: "محفوظة على هذا الهاتف: تعمل دون اتصال",
             notSaved: "افتح التذكرة مرة واحدة أثناء الاتصال لحفظها للاستخدام دون اتصال.", valid: "صالحة", boarded: "صعد" },
   trips: { none: "لا توجد رحلات بعد.", upcoming: "القادمة", past: "السابقة" },
+  points: { balance: "النقاط", worth: "قيمتها {amount}", redeem: "تحويل إلى رصيد", amount: "النقاط المراد استبدالها (على الأقل {min}، بمضاعفات {step})",
+            how: "تربح نقاطاً على كل رحلة تسافرها، وهي صالحة {months} شهراً.", redeemed: "أُضيف {amount} إلى محفظتك." },
   wallet: { balance: "الرصيد", history: "السجل", topup: "إضافة رصيد تجريبي",
              offline: "لا يوجد اتصال. هذا هو الرصيد كما كان في {time}؛ الشحن والدفع يحتاجان اتصالاً." },
   account: { devices: "الأجهزة المسجلة", thisDevice: "هذا الجهاز", language: "اللغة", english: "الإنكليزية",

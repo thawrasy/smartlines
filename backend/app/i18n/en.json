@@ -19,6 +19,10 @@
     "AGENCY": "through the agency that sold it",
     "COUNTER": "in cash at the carrier's counter"
   },
+  "points.earned": {
+    "subject": "You earned {points} points",
+    "body": "Trip {trip_no} earned you {points} loyalty points. Your balance is {balance} points; turn them into wallet credit from your wallet page."
+  },
   "booking.reserved": {
     "subject": "Booking {booking_ref} reserved: pay by {pay_by_local}",
     "body": "Your seats on booking {booking_ref} are reserved: {from_city} to {to_city}, departing {departs_local}, {passengers} passenger(s), SYP {total_amount}. Pay by {pay_by_local}, or the reservation lapses and the seats go back on sale. Your tickets are issued once paid.",

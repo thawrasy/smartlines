@@ -111,6 +111,7 @@ export default function WalletScreen() {
       ) : null}
       {w.data?.offline ? <Notice tone="amber" text={t("wallet.offline", { time: `${date(w.data.checkedAt)} · ${time(w.data.checkedAt)}` })} /> : null}
       {done ? <Notice tone="green" text={done} /> : null}
+      {w.data?.offline ? null : <Points onRedeemed={(text) => { setDone(text); w.reload(); }} />}
 
       {w.data?.offline ? null : (
         <Card>
@@ -183,6 +184,47 @@ export default function WalletScreen() {
         </>
       ) : null}
     </Screen>
+  );
+}
+
+interface PointsView {
+  program: { name: string; point_value: number; expiry_months: number; redeem: { min_points: number; step: number } | null } | null;
+  account: { balance: number; value: number; tier_name: string | null } | null;
+}
+
+/** Loyalty points (1103): earned after each trip, turned into wallet credit at the programme's point value. */
+function Points({ onRedeemed }: { onRedeemed: (text: string) => void }) {
+  const { t, money } = useI18n();
+  const v = useLoad(() => api.get<PointsView>("/api/loyalty").catch(() => ({ program: null, account: null }) as PointsView));
+  const [points, setPoints] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<unknown>(null);
+  const p = v.data?.program, a = v.data?.account;
+  if (!p) return null;
+  const n = Number(points);
+  const ok = !!p.redeem && !!a && Number.isInteger(n) && n >= p.redeem.min_points && n % p.redeem.step === 0 && n <= a.balance;
+  const redeem = async () => {
+    setBusy(true); setError(null);
+    try {
+      const r = await api.post<{ value: number }>("/api/loyalty/redeem", { points: n, idempotency_key: randomUUID() });
+      setPoints(""); v.reload(); onRedeemed(t("points.redeemed", { amount: money(r.value) }));
+    } catch (e) { setError(e); } finally { setBusy(false); }
+  };
+  return (
+    <Card>
+      <View style={s.between}><Text style={s.h2}>{p.name}</Text>{a?.tier_name ? <Text style={s.small}>{a.tier_name}</Text> : null}</View>
+      <Text style={{ fontSize: 26, fontWeight: "700", color: color.text }}>{a?.balance ?? 0} · {t("points.balance")}</Text>
+      <Text style={s.muted}>{t("points.worth", { amount: money(a?.value ?? 0) })}</Text>
+      <Text style={s.small}>{t("points.how", { months: p.expiry_months })}</Text>
+      {p.redeem && a && a.balance >= p.redeem.min_points ? (
+        <>
+          <Field label={t("points.amount", { min: p.redeem.min_points, step: p.redeem.step })} value={points}
+                 onChangeText={(x) => setPoints(x.replace(/\D/g, ""))} keyboardType="number-pad" />
+          <Button kind="tonal" label={t("points.redeem")} busy={busy} disabled={!ok} onPress={redeem} />
+        </>
+      ) : null}
+      <ErrorText error={error} />
+    </Card>
   );
 }
 

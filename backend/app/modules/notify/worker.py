@@ -93,6 +93,8 @@ async def maintenance() -> dict:
     reconciliation of every wallet balance with its ledger entries."""
     async with db.transaction(_ctx()) as conn:
         out = json.loads(await conn.fetchval("SELECT sys.run_maintenance()::text"))
+        # loyalty points past their expiry leave the balances (1103)
+        out["points_expired"] = json.loads(await conn.fetchval("SELECT pricing.expire_points()::text"))
         keep = await conn.fetchrow("SELECT * FROM ops.position_retention()")
     # positions in the telemetry database (review stage D2): partitions ahead, the primary's retention and legal holds
     from ... import telemetry

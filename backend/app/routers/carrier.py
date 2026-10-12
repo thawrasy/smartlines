@@ -497,5 +497,7 @@ async def complete_trip(trip_uid: uuid.UUID, request: Request, pr: Principal = D
             await conn.execute("UPDATE sales.booking SET status = 'EXPIRED' WHERE trip_id = $1 AND status = 'PENDING_PAYMENT'", t["id"])
             # what the carrier earned pays first for the counter cash it holds for the platform (6.5)
             set_off = await cash.net_cash(conn, t["company_id"], f"trip:{t['id']}:cash-net", pr.user_id, t["currency"])
+            # the travellers who boarded earn their loyalty points (1103)
+            points = json.loads(await conn.fetchval("SELECT pricing.earn_points_for_trip($1)::text", t["id"]))
     request.state.audit = {"action": "trip.complete", "object_type": "trip", "object_id": t["id"]}
-    return {"ok": True, "released": released, "cash_set_off": set_off}
+    return {"ok": True, "released": released, "cash_set_off": set_off, "points_earned": points["points"]}

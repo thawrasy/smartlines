@@ -116,6 +116,7 @@ export default function Wallet() {
               ))}
             </div>
           )}
+          <Points onRedeemed={state.reload} />
           <div className="card">
             <div className="card-title"><h3>{t("wallet.statement")}</h3></div>
             {w.entries.length === 0 ? <Empty icon="receipt_long" title={t("common.noData")} /> : (
@@ -300,6 +301,56 @@ export function TestGateway({ uid }: { uid: string }) {
         )}</Loaded>
         <ErrorBox error={error} />
       </div>
+    </div>
+  );
+}
+
+interface PointsView {
+  program: { code: string; name: string; point_value: number; currency: string; expiry_months: number; redeem: { min_points: number; step: number } | null } | null;
+  account: { balance: number; value: number; status: string; tier_name: string | null } | null;
+}
+
+/** Loyalty points (1103): earned after each trip, turned into wallet credit at the programme's point value. */
+function Points({ onRedeemed }: { onRedeemed: () => void }) {
+  const { t, money } = useI18n();
+  const toast = useToast();
+  const state = useLoad(() => api.get<PointsView>("/api/loyalty").catch(() => ({ program: null, account: null })));
+  const [points, setPoints] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<unknown>(null);
+  const v = state.data;
+  if (!v?.program) return null;
+  const redeem = v.program.redeem;
+  const n = Number(points);
+  const ok = !!redeem && !!v.account && Number.isInteger(n) && n >= redeem.min_points && n % redeem.step === 0 && n <= v.account.balance;
+  const submit = async () => {
+    setBusy(true); setError(null);
+    try {
+      const r = await api.post<{ value: number }>("/api/loyalty/redeem", { points: n, idempotency_key: newKey() });
+      toast(t("points.redeemed", { amount: money(r.value) }));
+      setPoints(""); state.reload(); onRedeemed();
+    } catch (e) { setError(e); } finally { setBusy(false); }
+  };
+  return (
+    <div className="card stack">
+      <div className="row between">
+        <h3 style={{ margin: 0 }}>{v.program.name}</h3>
+        {v.account?.tier_name && <span className="chip">{v.account.tier_name}</span>}
+      </div>
+      <div className="row" style={{ gap: 24, flexWrap: "wrap" }}>
+        <div><div className="muted small">{t("points.balance")}</div><div className="mono" style={{ fontSize: 28, fontWeight: 700 }}>{v.account?.balance ?? 0}</div></div>
+        <div><div className="muted small">{t("points.worth")}</div><div className="mono" style={{ fontSize: 28, fontWeight: 700 }}>{money(v.account?.value ?? 0)}</div></div>
+      </div>
+      <p className="small muted" style={{ margin: 0 }}>{t("points.how", { months: v.program.expiry_months })}</p>
+      {redeem && v.account && v.account.balance >= redeem.min_points && (
+        <div className="row" style={{ gap: 8, alignItems: "flex-end", flexWrap: "wrap" }}>
+          <Field label={t("points.redeemLabel", { min: redeem.min_points, step: redeem.step })}>
+            <input className="input mono" inputMode="numeric" value={points} onChange={(e) => setPoints(e.target.value.replace(/\D/g, ""))} />
+          </Field>
+          <button className="btn tonal" disabled={!ok || busy} onClick={submit}>{t("points.redeem")}</button>
+        </div>
+      )}
+      <ErrorBox error={error} />
     </div>
   );
 }

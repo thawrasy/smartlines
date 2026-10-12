@@ -2824,4 +2824,55 @@ SELECT sys.set_context(NULL, NULL, 'PASSENGER', NULL, NULL, NULL, NULL, :fstrang
 SELECT pg_temp.ok(NOT EXISTS (SELECT 1 FROM ops.trip WHERE id = :t_tr), 'Trip cancellation (1102): other passengers do not see a cancelled trip');
 ROLLBACK;
 
+-- Loyalty (1103): a completed trip earns points on what was travelled, once; the member redeems them by the BURN rule
+-- with the liability following; points past expiry and not spent leave the balance
+BEGIN;
+SELECT sys.set_context(:uadmin, NULL, 'SYSTEM');
+INSERT INTO pricing.loyalty_program (code, name, point_value, currency, expiry_months) VALUES ('TEST-MILES', 'Test Miles', 10, 'SYP', 12) RETURNING id AS lprog \gset
+INSERT INTO pricing.loyalty_tier (program_id, code, name, min_points) VALUES (:lprog, 'BASE', 'Base', 0), (:lprog, 'SILVER', 'Silver', 150);
+INSERT INTO pricing.loyalty_rule (program_id, kind, formula, valid) VALUES (:lprog, 'EARN', '{"per_amount": 10, "points": 10}', tstzrange(now() - interval '1 day', NULL));
+INSERT INTO pricing.loyalty_rule (program_id, kind, formula, valid) VALUES (:lprog, 'BURN', '{"min_points": 50, "step": 10}', tstzrange(now() - interval '1 day', NULL));
+SELECT id AS lbk FROM sales.booking WHERE booking_ref = 'ABC123' \gset
+UPDATE sales.ticket SET status = 'BOARDED', boarded_at = now() WHERE booking_id = :lbk;
+UPDATE ops.trip SET status = 'COMPLETED' WHERE id = :t_tr;
+UPDATE sales.booking SET status = 'COMPLETED' WHERE id = :lbk;
+SELECT (SELECT coalesce(sum(total_amount), 0) FROM sales.ticket WHERE booking_id = :lbk) AS ltravel \gset
+SELECT pricing.earn_points_for_trip(:t_tr) AS learn \gset
+SELECT pg_temp.ok((:'learn'::jsonb ->> 'points')::bigint = :ltravel / 10 * 10 AND :ltravel > 0,
+  'Loyalty (1103): a completed trip earns the rule''s points on the boarded tickets');
+SELECT pg_temp.ok(((pricing.earn_points_for_trip(:t_tr)) ->> 'points')::bigint = 0
+  AND (SELECT balance FROM pricing.points_account WHERE program_id = :lprog AND party_id = :pax) = :ltravel,
+  'Loyalty (1103): completing again earns nothing more');
+SELECT pg_temp.ok((SELECT t.code FROM pricing.points_account a JOIN pricing.loyalty_tier t ON t.id = a.tier_id
+                    WHERE a.program_id = :lprog AND a.party_id = :pax) = CASE WHEN :ltravel >= 150 THEN 'SILVER' ELSE 'BASE' END,
+  'Loyalty (1103): the tier follows the points earned');
+SELECT pg_temp.ok(EXISTS (SELECT 1 FROM sys.outbox_event WHERE event_type = 'points.earned' AND aggregate_id = :lbk),
+  'Loyalty (1103): the member is told of the points');
+SELECT sys.set_context(NULL, NULL, 'PASSENGER', NULL, NULL, NULL, NULL, :pax);
+SELECT pg_temp.expect_error(format($$SELECT pricing.redeem_points(%s, 30, 'r-1')$$, :pax), 'POINTS_BAD_AMOUNT', 'Loyalty (1103): fewer points than the BURN rule''s minimum are refused');
+SELECT pg_temp.expect_error(format($$SELECT pricing.redeem_points(%s, 55, 'r-1')$$, :pax), 'POINTS_BAD_AMOUNT', 'Loyalty (1103): points outside the rule''s step are refused');
+SELECT pg_temp.expect_error(format($$SELECT pricing.redeem_points(%s, 100000, 'r-1')$$, :pax), 'POINTS_INSUFFICIENT', 'Loyalty (1103): more points than the balance are refused');
+SELECT pricing.redeem_points(:pax, 50, 'r-2') AS lred \gset
+SELECT pg_temp.ok((:'lred'::jsonb ->> 'value')::bigint = 500 AND NOT (:'lred'::jsonb ->> 'replayed')::boolean,
+  'Loyalty (1103): 50 points are worth 50 x the point value');
+SELECT pg_temp.ok((pricing.redeem_points(:pax, 50, 'r-2') ->> 'replayed')::boolean, 'Loyalty (1103): the same redemption sent twice is taken once');
+SELECT sys.set_context(NULL, NULL, 'PASSENGER', NULL, NULL, NULL, NULL, :fstranger);
+SELECT pg_temp.expect_error(format($$SELECT pricing.redeem_points(%s, 50, 'r-3')$$, :pax), 'POINTS_NOT_YOURS', 'Loyalty (1103): nobody redeems another member''s points');
+SELECT sys.set_context(:uadmin, NULL, 'SYSTEM');
+SELECT pg_temp.ok((SELECT balance FROM pricing.points_account WHERE program_id = :lprog AND party_id = :pax) = :ltravel - 50
+  AND (SELECT issued = :ltravel * 10 AND redeemed = 500 FROM pricing.points_liability WHERE program_id = :lprog AND issuer_party_id IS NULL),
+  'Loyalty (1103): the balance and the liability follow the points ledger');
+-- an old earning past its expiry: what was spent counts against it first, the rest expires
+INSERT INTO pricing.points_ledger (account_id, txn_type, points, idempotency_key, expires_at)
+SELECT id, 'EARN', 80, 'old-earn', now() - interval '1 day' FROM pricing.points_account WHERE program_id = :lprog AND party_id = :pax;
+UPDATE pricing.points_account SET balance = balance + 80 WHERE program_id = :lprog AND party_id = :pax;
+SELECT pricing.expire_points() ->> 'points' AS lexp \gset
+SELECT pg_temp.ok(:lexp = 30 AND (SELECT balance FROM pricing.points_account WHERE program_id = :lprog AND party_id = :pax) = :ltravel - 50 + 50,
+  'Loyalty (1103): of 80 expired points, the 50 spent count first and 30 expire');
+SELECT pg_temp.ok((pricing.expire_points() ->> 'points')::bigint = 0, 'Loyalty (1103): expiry runs once per balance');
+SELECT pg_temp.ok(EXISTS (SELECT 1 FROM fin.wallet w JOIN iam.party p ON p.id = w.owner_party_id
+                           WHERE p.legal_name = 'Masslak Platform' AND w.wallet_type = 'EXPENSE' AND w.currency = 'SYP' AND w.allow_negative),
+  'Loyalty (1103): the platform has a loyalty expense wallet that pays redemptions');
+ROLLBACK;
+
 \echo '=== ALL TESTS PASSED ==='

@@ -64,7 +64,7 @@ const en = {
     FAILURE: "Failed", FAILED: "Failed", DENIED: "Denied", LOCKED: "Locked", INACTIVE: "Inactive", EXPIRED: "Expired",
     REFUNDED: "Refunded", REQUESTED: "Requested", PAID: "Paid", DISPUTED: "Disputed", MAINTENANCE: "Maintenance", OPEN: "Open", RESOLVED: "Resolved", ERROR: "Error",
   },
-  txn: { SHIPMENT_PAY: "Parcel", SUBSCRIPTION_PAY: "Shuttle pass", BOOKING_PAY: "Trip booking", REFUND: "Refund", TOPUP: "Wallet top-up", RELEASE: "Settlement", PAYOUT: "Bank payout" },
+  txn: { SHIPMENT_PAY: "Parcel", SUBSCRIPTION_PAY: "Shuttle pass", BOOKING_PAY: "Trip booking", REFUND: "Refund", TOPUP: "Wallet top-up", RELEASE: "Settlement", PAYOUT: "Bank payout", LOYALTY_REDEEM: "Points redeemed" },
   service: { DIRECT: "Direct", INDIRECT: "With stops" },
   errors: {
     timeout: "The server did not answer in time. Check your connection and try again.",
@@ -365,6 +365,8 @@ const en = {
     tickets: "Tickets",
   },
   myTrips: { title: "My trips", subtitle: "Your bookings and tickets", none: "You have no bookings yet", book: "Book a trip" },
+  points: { balance: "Points", worth: "Worth", redeem: "Turn into credit", redeemLabel: "Points to redeem (at least {min}, in steps of {step})",
+    how: "You earn points on every trip you travel. They are valid for {months} months.", redeemed: "{amount} added to your wallet." },
   wallet: {
     title: "Wallet", subtitle: "Pay for trips instantly and receive refunds here", balance: "Available balance",
     topup: "Top up", topupTitle: "Top up the wallet", amount: "Amount (SYP)", sandboxNote: "Test environment: the payment is simulated, no real card is charged.",

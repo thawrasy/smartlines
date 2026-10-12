@@ -59,6 +59,17 @@ async def user_wallet(conn: asyncpg.Connection, party_id: int, currency: str) ->
         party_id, currency)
 
 
+async def loyalty_wallet(conn: asyncpg.Connection, currency: str) -> dict:
+    """The platform's loyalty expense wallet (1103): debited by every redemption of points, so its negative balance is
+    the cost of the rewards; opened on first use for a currency added after the upgrade."""
+    platform = await conn.fetchval("SELECT id FROM iam.party WHERE legal_name = 'Masslak Platform' AND party_type = 'COMPANY'")
+    w = await owned_wallet(
+        conn, platform, "EXPENSE", currency,
+        """INSERT INTO fin.wallet (owner_party_id, wallet_type, label, currency, allow_negative, balance_mode)
+           VALUES ($1, 'EXPENSE', 'Loyalty rewards', $2, true, 'DEFERRED')""", platform, currency)
+    return await counted(conn, w)
+
+
 async def company_wallet(conn: asyncpg.Connection, company_id: int, currency: str,
                          label: str = "Carrier wallet") -> dict:
     w = await owned_wallet(

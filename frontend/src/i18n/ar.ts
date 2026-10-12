@@ -66,7 +66,7 @@ const ar: Messages = {
     FAILURE: "فاشل", FAILED: "فاشل", DENIED: "مرفوض", LOCKED: "مقفل", INACTIVE: "غير فعّال", EXPIRED: "منتهي",
     REQUESTED: "مقدَّم", PAID: "مدفوع", DISPUTED: "معترض عليه", REFUNDED: "مسترد", MAINTENANCE: "صيانة", OPEN: "مفتوح", RESOLVED: "محلول", ERROR: "خطأ",
   },
-  txn: { SHIPMENT_PAY: "إرسال طرد", SUBSCRIPTION_PAY: "اشتراك نقل ترددي", BOOKING_PAY: "حجز رحلة", REFUND: "استرداد", TOPUP: "شحن المحفظة", RELEASE: "تسوية", PAYOUT: "صرف مصرفي" },
+  txn: { SHIPMENT_PAY: "إرسال طرد", SUBSCRIPTION_PAY: "اشتراك نقل ترددي", BOOKING_PAY: "حجز رحلة", REFUND: "استرداد", TOPUP: "شحن المحفظة", RELEASE: "تسوية", PAYOUT: "صرف مصرفي", LOYALTY_REDEEM: "استبدال نقاط" },
   service: { DIRECT: "مباشرة", INDIRECT: "مع توقفات" },
   errors: {
     timeout: "لم يُجب الخادم في الوقت المحدد. تحقق من اتصالك وحاول مجدداً.",
@@ -367,6 +367,8 @@ const ar: Messages = {
     tickets: "التذاكر",
   },
   myTrips: { title: "رحلاتي", subtitle: "حجوزاتك وتذاكرك", none: "لا توجد حجوزات بعد", book: "احجز رحلة" },
+  points: { balance: "النقاط", worth: "قيمتها", redeem: "تحويل إلى رصيد", redeemLabel: "النقاط المراد استبدالها (على الأقل {min}، بمضاعفات {step})",
+    how: "تربح نقاطاً على كل رحلة تسافرها، وهي صالحة {months} شهراً.", redeemed: "أُضيف {amount} إلى محفظتك." },
   wallet: {
     title: "المحفظة", subtitle: "ادفع للرحلات فوراً واستلم المبالغ المستردة هنا", balance: "الرصيد المتاح",
     topup: "شحن", topupTitle: "شحن المحفظة", amount: "المبلغ (ل.س)", sandboxNote: "بيئة تجريبية: الدفع محاكى ولا يتم الخصم من أي بطاقة حقيقية.",

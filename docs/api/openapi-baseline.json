@@ -1241,6 +1241,13 @@
     "200": {}
    }
   },
+  "GET /api/loyalty": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
   "GET /api/m/{module}/dashboard": {
    "body": null,
    "parameters": {
@@ -8348,6 +8355,36 @@
      }
     }
    },
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/loyalty/redeem": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "idempotency_key": {
+        "maxLength": 64,
+        "minLength": 8,
+        "type": "string"
+       },
+       "points": {
+        "exclusiveMinimum": 0.0,
+        "maximum": 100000000.0,
+        "type": "integer"
+       }
+      },
+      "required": [
+       "points",
+       "idempotency_key"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
    "responses": {
     "200": {}
    }

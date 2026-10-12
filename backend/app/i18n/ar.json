@@ -19,6 +19,10 @@
     "AGENCY": "عن طريق الوكالة التي باعته",
     "COUNTER": "نقداً من شباك الناقل"
   },
+  "points.earned": {
+    "subject": "ربحت {points} نقطة",
+    "body": "أكسبتك الرحلة {trip_no} عدد {points} من نقاط الولاء. رصيدك {balance} نقطة؛ حوّلها إلى رصيد في محفظتك من صفحة المحفظة."
+  },
   "booking.reserved": {
     "subject": "تم حجز المقاعد {booking_ref}: ادفع قبل {pay_by_local}",
     "body": "مقاعدك في الحجز {booking_ref} محجوزة: من {from_city} إلى {to_city}، الانطلاق {departs_local}، عدد الركاب {passengers}، المبلغ {total_amount} ل.س. ادفع قبل {pay_by_local} وإلا أُلغي الحجز وعادت المقاعد للبيع. تصدر تذاكرك فور الدفع.",

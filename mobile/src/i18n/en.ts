@@ -11,7 +11,7 @@ const en = {
            noTickets: "No trips today.", trip: "Trip {no}", openTicket: "Show ticket" },
   // names of the currencies of the open markets (1061)
   currencies: { SYP: "SYP", LBP: "LBP", JOD: "JOD", IQD: "IQD", SAR: "SAR", TRY: "TRY", USD: "USD", EUR: "EUR" },
-  txn: { SHIPMENT_PAY: "Parcel", SUBSCRIPTION_PAY: "Shuttle pass", BOOKING_PAY: "Trip booking", REFUND: "Refund", TOPUP: "Wallet top-up", RELEASE: "Settlement", PAYOUT: "Bank payout" },
+  txn: { SHIPMENT_PAY: "Parcel", SUBSCRIPTION_PAY: "Shuttle pass", BOOKING_PAY: "Trip booking", REFUND: "Refund", TOPUP: "Wallet top-up", RELEASE: "Settlement", PAYOUT: "Bank payout", LOYALTY_REDEEM: "Points redeemed" },
   common: {
     remove: "Remove",
     signIn: "Sign in", signOut: "Sign out", email: "Email or mobile", password: "Password", continue: "Continue",
@@ -60,6 +60,8 @@ const en = {
   ticket: { title: "Your ticket", show: "Show this code to the driver", offlineReady: "Saved on this phone: works offline",
             notSaved: "Open this ticket once online to save it for offline use.", valid: "Valid", boarded: "Boarded" },
   trips: { none: "No trips yet.", upcoming: "Upcoming", past: "Past" },
+  points: { balance: "Points", worth: "Worth {amount}", redeem: "Turn into credit", amount: "Points to redeem (at least {min}, in steps of {step})",
+            how: "You earn points on every trip you travel. They are valid for {months} months.", redeemed: "{amount} added to your wallet." },
   wallet: { balance: "Balance", history: "History", topup: "Add test credit",
              offline: "No connection. This is the balance as it was at {time}; top-up and payments need a connection." },
   account: { devices: "Signed-in devices", thisDevice: "This device", language: "Language", english: "English",

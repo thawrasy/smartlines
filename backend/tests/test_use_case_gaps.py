@@ -158,3 +158,57 @@ def test_carrier_cancels_a_trip_with_full_refunds():
     assert n["payload"]["refund_to"] == "WALLET" and n["payload"]["refund_amount"] == online["total"]
     assert owner_sql("""SELECT payload ->> 'refund_to' FROM sys.outbox_event WHERE event_type = 'booking.cancelled_by_carrier'
                          AND payload ->> 'booking_ref' = $1""", cash["booking_ref"]) == "COUNTER"
+
+
+@pytest.mark.skipif(not OWNER_URL, reason="needs MASSLAK_OWNER_URL")
+def test_points_earned_after_the_trip_and_redeemed_to_the_wallet():
+    program = owner_sql("SELECT id, point_value FROM pricing.loyalty_program WHERE status = 'ACTIVE' AND currency = 'SYP' ORDER BY id LIMIT 1",
+                        fetch=True)
+    rules = [owner_sql("""INSERT INTO pricing.loyalty_rule (program_id, kind, formula, valid)
+                          VALUES ($1, $2, $3::jsonb, tstzrange(now() - interval '1 hour', NULL)) RETURNING id""",
+                       program["id"], kind, formula)
+             for kind, formula in (("EARN", '{"per_amount": 100000, "points": 1}'), ("BURN", '{"min_points": 10, "step": 10}'))]
+    try:
+        trip = fresh_trip()
+        pax = login("passenger@masslak.test", "PASSENGER")
+        assert pax.post("/api/wallet/topup", json={"amount": 10_000_000, "idempotency_key": uuid.uuid4().hex}).status_code == 200
+        before = (pax.get("/api/loyalty").json().get("account") or {}).get("balance", 0)
+        t = next(x for x in pax.get("/api/trips/search", params={"origin": "DAM", "destination": "ALP", "on": day(2), "passengers": 1}).json()["trips"]
+                 if x["uid"] == str(trip["uid"]))
+        seat = free_seats(pax, t, 1)[0]
+        h = pax.post("/api/holds", json={"trip_uid": t["uid"], "from_seq": t["from_seq"], "to_seq": t["to_seq"], "seat_nos": [seat]})
+        r = pax.post("/api/bookings", json={"hold_token": h.json()["hold_token"], "trip_uid": t["uid"], "from_seq": t["from_seq"],
+                                            "to_seq": t["to_seq"], "passengers": [syrian(seat)], "idempotency_key": uuid.uuid4().hex})
+        assert r.status_code == 201, r.text
+        ref = r.json()["booking_ref"]
+        fares = owner_sql("""SELECT sum(k.total_amount) FROM sales.ticket k JOIN sales.booking b ON b.id = k.booking_id
+                              WHERE b.booking_ref = $1""", ref)
+        # the trip runs: the passenger boards, the carrier completes it
+        owner_sql("""UPDATE ops.trip SET status = 'DEPARTED', departure_at = now() - interval '4 hours', arrival_at = now() - interval '1 hour'
+                      WHERE id = $1""", trip["id"])
+        owner_sql("""UPDATE sales.ticket SET status = 'BOARDED', boarded_at = now() - interval '4 hours'
+                      WHERE booking_id = (SELECT id FROM sales.booking WHERE booking_ref = $1)""", ref)
+        done = login("owner@carrier.test", "OPERATOR").post(f"/api/carrier/trips/{trip['uid']}/complete")
+        assert done.status_code == 200, done.text
+        earned = fares // 100000
+        assert done.json()["points_earned"] >= earned > 0
+        view = pax.get("/api/loyalty").json()
+        assert view["account"]["balance"] == before + earned and view["program"]["redeem"] == {"min_points": 10, "step": 10}
+        assert view["account"]["value"] == view["account"]["balance"] * program["point_value"]
+        # the member turns points into wallet credit; the same request twice is taken once
+        wallet = pax.get("/api/wallet").json()["balance"]
+        bad = pax.post("/api/loyalty/redeem", json={"points": 15, "idempotency_key": uuid.uuid4().hex})
+        assert bad.status_code == 409 and bad.json()["error"]["code"] == "POINTS_BAD_AMOUNT"
+        key = uuid.uuid4().hex
+        r = pax.post("/api/loyalty/redeem", json={"points": 10, "idempotency_key": key})
+        assert r.status_code == 200 and r.json()["value"] == 10 * program["point_value"], r.text
+        assert pax.post("/api/loyalty/redeem", json={"points": 10, "idempotency_key": key}).json()["replayed"]
+        assert pax.get("/api/wallet").json()["balance"] == wallet + 10 * program["point_value"]
+        assert pax.get("/api/loyalty").json()["account"]["balance"] == before + earned - 10
+        assert owner_sql("""SELECT w.wallet_type FROM fin.ledger_txn x JOIN fin.ledger_entry e ON e.txn_id = x.id JOIN fin.wallet w ON w.id = e.wallet_id
+                             WHERE x.txn_type = 'LOYALTY_REDEEM' AND e.direction = 'DR' ORDER BY x.id DESC LIMIT 1""") == "EXPENSE"
+        run_worker()
+        told = pax.get("/api/notifications").json()["notifications"]
+        assert any(n["template_code"] == "points.earned" and n["payload"]["trip_no"] == trip["trip_no"] for n in told)
+    finally:
+        owner_sql("UPDATE pricing.loyalty_rule SET active = false WHERE id = ANY($1::bigint[])", rules)

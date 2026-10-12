@@ -218,6 +218,8 @@ asked with. The approval takes an optional legal document number, recorded on th
 
 **1102** lets a carrier cancel a trip. It adds a permission, one nullable column on `ops.trip_disruption` with two rules (the cancellation rule is added `NOT VALID` and validated by the upgrade; the table holds few rows), and replaces the read rule of `ops.trip`. The new rule adds one case, for cancelled trips only, that looks up the caller's bookings on the trip through the booking's trip index; reads of trips on sale are unchanged. Owners of carriers hold it at once, and so does every role named `CARRIER_OPERATIONS`, the template and the carriers' copies of it; a carrier that should not let its operations staff cancel removes it from its role.
 
+**1103** moves loyalty points. It adds one wallet per platform currency (the loyalty expense wallet, which may go negative), four functions and one reference kind; no table and no rule changes. Points are earned only for trips completed after the upgrade: trips completed before it are not looked at again, so no member receives points in bulk on the day of the upgrade. A programme earns nothing until the platform adds an `EARN` rule, and takes no redemption until it adds a `BURN` rule. The daily expiry reads only accounts with a balance and an earning past its expiry.
+
 ## 1064_partitioned_bookings.sql on a live database (R-06)
 
 1064 turns `sales.booking` into a table partitioned by ranges of id **in place, under an ACCESS EXCLUSIVE lock**: it

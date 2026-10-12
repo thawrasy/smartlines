@@ -92,6 +92,7 @@ SYSTEM_SCOPE = {
     ("app/modules/reports/scheduler.py", "_deliveries"): (1, "sensitive report files stored encrypted with a link per recipient"),
     ("app/modules/sales/service.py", "booking_view"): (1, "tickets of a booking on another company's trip, for its buyer"),
     ("app/modules/sales/service.py", "cancel_booking"): (1, "refund from escrow and allocation lines the buyer cannot see"),
+    ("app/modules/loyalty/api.py", "redeem"): (1, "a redemption is paid from the platform's loyalty expense wallet to the member's wallet"),
     ("app/modules/sales/service.py", "cancel_trip"): (1, "a carrier's cancellation refunds every buyer's booking from escrow to the wallet that paid it"),
     ("app/modules/sales/service.py", "cancel_reserved"): (1, "an unpaid reservation frees seats and closes its payment"),
     ("app/modules/sales/service.py", "confirm_reserved"): (1, "a paid reservation is settled into escrow and its tickets issued"),

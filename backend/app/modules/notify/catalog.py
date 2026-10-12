@@ -78,6 +78,9 @@ async def deliveries(conn: asyncpg.Connection, event: asyncpg.Record, payload: d
     if kind in ("document.approved", "document.rejected"):
         d = await _user(conn, payload["uploaded_by"], kind, ["IN_APP", "EMAIL"], payload)
         return [d] if d else []
+    if kind == "points.earned" and payload.get("booker_user_id"):       # loyalty points after a trip (1103)
+        d = await _user(conn, payload["booker_user_id"], kind, ["IN_APP"], payload)
+        return [d] if d else []
     if kind in ("case.replied", "claim.paid") and payload.get("user_id"):
         d = await _user(conn, payload["user_id"], kind, ["IN_APP", "EMAIL"], payload)
         return [d] if d else []
