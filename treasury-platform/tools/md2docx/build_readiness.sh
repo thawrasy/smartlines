@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Builds the readiness documents (docs/30-readiness/DOC-*.md) into Word:
 #   - one .docx per document in docs/30-readiness/word/
-#   - one combined volume docs/30-READINESS-P0.docx (register summary first, then every document in register order)
+#   - one combined volume docs/30-READINESS-P0.docx (every document in register order: DOC-F, DOC-S, DOC-B)
 # Diagrams: set MMDC to the mermaid-cli binary (and MMDC_PUPPETEER to its puppeteer config when Chromium needs flags);
 # without MMDC the Mermaid blocks stay as code, which is not fit for review, so the script refuses to run.
 # Usage: MMDC=/path/to/mmdc [MMDC_PUPPETEER=/path/to/pp.json] tools/md2docx/build_readiness.sh
@@ -12,12 +12,13 @@ OUT_DIR="$SRC/word"
 VOLUME="$ROOT/docs/30-READINESS-P0.docx"
 : "${MMDC:?set MMDC to the mermaid-cli binary (mmdc) so diagrams are rendered as pictures}"
 export MMDC
-export NODE_PATH="${NODE_PATH:-/opt/node22/lib/node_modules:/opt/node-tools/node_modules}"
+# docx and jszip: added to any NODE_PATH already set (some environments preset it to another folder)
+export NODE_PATH="${NODE_PATH:+$NODE_PATH:}/opt/node22/lib/node_modules:/opt/node-tools/node_modules"
 CONVERT=(node "$ROOT/tools/md2docx/md2docx.js")
 mkdir -p "$OUT_DIR"
 
 # Register order: DOC-F, then DOC-S, then DOC-B, each by number.
-mapfile -t DOCS < <(cd "$SRC" && ls DOC-F*.md DOC-S*.md DOC-B*.md 2>/dev/null)
+mapfile -t DOCS < <(cd "$SRC" && for p in 'DOC-F*.md' 'DOC-S*.md' 'DOC-B*.md'; do ls $p 2>/dev/null; done)
 [ "${#DOCS[@]}" -gt 0 ] || { echo "no DOC-*.md in $SRC"; exit 1; }
 
 for f in "${DOCS[@]}"; do
