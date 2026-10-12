@@ -33,9 +33,11 @@ const SZ = { body: 21, table: 18, code: 17, inlineCode: 18, tableCode: 16, h1: 3
 const PAGE = { w: 11906, h: 16838, mT: 1134, mB: 1134, mL: 1021, mR: 1021 };
 const CONTENT_W = PAGE.w - PAGE.mL - PAGE.mR;
 const LRM = '‎';
-const EMOJI_RE = /([⚠✅✔❌\u{1F7E1}\u{1F534}\u{1F7E2}]️?)/u;
+const EMOJI_RE = /([⚠✅✔❌\u{1F7E1}\u{1F534}\u{1F7E2}\u{1F512}]️?)/u;
+// Status marks drawn with a glyph of the text font (green/yellow/red circle; lock = sensitive, a dark-red diamond)
+const STATUS_MARK = { '\u{1F7E2}': ['●', '2E9E44'], '\u{1F7E1}': ['●', 'E0A800'], '\u{1F534}': ['●', 'D62828'], '\u{1F512}': ['◆', '7A1F1F'] };
 // Contents entries drop the status marks: a marked entry makes some renderers fall back to a font without Arabic
-const EMOJI_ALL = /[⚠✅✔❌\u{1F7E1}\u{1F534}\u{1F7E2}]️?/gu;
+const EMOJI_ALL = /[⚠✅✔❌\u{1F7E1}\u{1F534}\u{1F7E2}\u{1F512}]️?/gu;
 
 // ---------- pandoc AST ----------
 const ast = JSON.parse(execFileSync('pandoc', ['-f', 'gfm', '-t', 'json', inFile], { maxBuffer: 1 << 28 }).toString('utf8'));
@@ -84,7 +86,11 @@ function runsFrom(inls, o = {}) {
     }
     for (const part of s.t.split(EMOJI_RE)) {
       if (!part) continue;
-      if (EMOJI_RE.test(part)) runs.push(new TextRun({ text: part, font: EMOJI_FONT, size, rightToLeft: rtl }));
+      // Status circles and the lock become a coloured glyph of the text font (STATUS_MARK): no font switch, which
+      // made some renderers drop Arabic shaping or show boxes next to an emoji.
+      const mark = STATUS_MARK[part.replace('\uFE0F', '')];
+      if (mark) runs.push(new TextRun({ text: mark[0], font: FONT, size, color: mark[1], rightToLeft: rtl }));
+      else if (EMOJI_RE.test(part)) runs.push(new TextRun({ text: part, font: EMOJI_FONT, size, rightToLeft: rtl }));
       else runs.push(new TextRun({ text: part, font: FONT, size, bold: s.b || boldAll, italics: s.i, color, rightToLeft: rtl }));
     }
   }
