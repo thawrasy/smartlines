@@ -6772,6 +6772,38 @@
     "201": {}
    }
   },
+  "POST /api/carrier/trips/{trip_uid}/cancel": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "reason": {
+        "maxLength": 500,
+        "minLength": 5,
+        "type": "string"
+       }
+      },
+      "required": [
+       "reason"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:trip_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
   "POST /api/carrier/trips/{trip_uid}/complete": {
    "body": null,
    "parameters": {

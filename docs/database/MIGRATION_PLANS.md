@@ -216,6 +216,8 @@ asked with. The approval takes an optional legal document number, recorded on th
 
 **1101** lets the apps raise an SOS and report incidents. It adds one nullable column (`ops.incident.description`, with a length rule on new rows only), three functions and one trigger on `ops.trip`. The trigger reads `fleet.vehicle_service_status` only when a trip is created or its vehicle changes, through the vehicle's index, so trip updates that keep the vehicle cost nothing more. On a live server the column is added without rewriting the table. A vehicle already in an open out-of-service or impound period cannot be given to a new trip after the upgrade; trips that already have it keep it, and the carrier sees them in its incident and vehicle screens.
 
+**1102** lets a carrier cancel a trip. It adds a permission, one nullable column on `ops.trip_disruption` with two rules (the cancellation rule is added `NOT VALID` and validated by the upgrade; the table holds few rows), and replaces the read rule of `ops.trip`. The new rule adds one case, for cancelled trips only, that looks up the caller's bookings on the trip through the booking's trip index; reads of trips on sale are unchanged. Owners of carriers hold it at once, and so does every role named `CARRIER_OPERATIONS`, the template and the carriers' copies of it; a carrier that should not let its operations staff cancel removes it from its role.
+
 ## 1064_partitioned_bookings.sql on a live database (R-06)
 
 1064 turns `sales.booking` into a table partitioned by ranges of id **in place, under an ACCESS EXCLUSIVE lock**: it

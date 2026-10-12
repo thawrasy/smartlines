@@ -104,3 +104,57 @@ def test_sos_and_incident_from_the_apps():
     finally:
         owner_sql("UPDATE sec.sos_event SET status = 'CLOSED' WHERE trip_id = $1", trip["id"])
         owner_sql("UPDATE ops.trip SET status = 'CANCELLED' WHERE id = $1", trip["id"])
+
+
+@pytest.mark.skipif(not OWNER_URL, reason="needs MASSLAK_OWNER_URL")
+def test_carrier_cancels_a_trip_with_full_refunds():
+    trip = fresh_trip()
+    admin = login("admin@masslak.test", "PLATFORM")
+    owner = login("owner@carrier.test", "OPERATOR")
+    counter = login("counter@carrier.test", "OPERATOR")
+    pax = login("passenger@masslak.test", "PASSENGER")
+    assert pax.post("/api/wallet/topup", json={"amount": 10_000_000, "idempotency_key": uuid.uuid4().hex}).status_code == 200
+    company = owner_sql("SELECT company_id FROM ops.trip WHERE id = $1", trip["id"])
+    assert admin.put(f"/api/admin/cash/limits/{company}", json={"limit_amount": 10_000_000_000, "reason": "test run"}).status_code == 200
+    t = next(x for x in pax.get("/api/trips/search", params={"origin": "DAM", "destination": "ALP", "on": day(2), "passengers": 1}).json()["trips"]
+             if x["uid"] == str(trip["uid"]))
+    wallet_before = pax.get("/api/wallet").json()["balance"]
+    owed_before = counter.get("/api/carrier/counter/dashboard").json()["owed"]
+
+    def sell(c, base, **extra):
+        seat = free_seats(c, t, 1)[0]
+        h = c.post(f"{base}/holds", json={"trip_uid": t["uid"], "from_seq": t["from_seq"], "to_seq": t["to_seq"], "seat_nos": [seat]})
+        assert h.status_code == 201, h.text
+        r = c.post(f"{base}/bookings", json={"hold_token": h.json()["hold_token"], "trip_uid": t["uid"], "from_seq": t["from_seq"],
+                                             "to_seq": t["to_seq"], "passengers": [syrian(seat)], "idempotency_key": uuid.uuid4().hex, **extra})
+        assert r.status_code == 201, r.text
+        return r.json()
+
+    online = sell(pax, "/api")
+    cash = sell(counter, "/api/carrier/counter", contact_mobile="+963944000333")
+    assert pax.get("/api/wallet").json()["balance"] == wallet_before - online["total"]
+    # a reason is required, and the counter clerk may not cancel trips
+    assert owner.post(f"/api/carrier/trips/{trip['uid']}/cancel", json={"reason": "x"}).status_code == 422
+    assert counter.post(f"/api/carrier/trips/{trip['uid']}/cancel", json={"reason": "Vehicle failed inspection"}).status_code == 403
+    r = owner.post(f"/api/carrier/trips/{trip['uid']}/cancel", json={"reason": "Vehicle failed inspection"})
+    assert r.status_code == 200, r.text
+    out = r.json()
+    assert out["bookings_refunded"] == 2 and out["refund_total"] == online["total"] + cash["total"]
+    # everything paid comes back to where it came from: the wallet in full (fee included), the counter's cash account
+    assert pax.get("/api/wallet").json()["balance"] == wallet_before
+    assert counter.get("/api/carrier/counter/dashboard").json()["owed"] == owed_before
+    assert pax.get(f"/api/bookings/{online['booking_ref']}").json()["booking"]["status"] == "CANCELLED"
+    assert owner_sql("""SELECT count(*) FROM fin.price_allocation_line l JOIN sales.booking b ON b.price_allocation_id = l.allocation_id
+                         WHERE b.trip_id = $1 AND l.status <> 'REFUNDED'""", trip["id"]) == 0
+    assert owner_sql("SELECT status FROM ops.trip WHERE id = $1", trip["id"]) == "CANCELLED"
+    assert owner_sql("SELECT reason FROM ops.trip_disruption WHERE trip_id = $1 AND decision = 'CANCEL'", trip["id"]) == "Vehicle failed inspection"
+    assert owner_sql("SELECT count(*) FROM ops.crew_assignment WHERE trip_id = $1 AND status <> 'RELEASED'", trip["id"]) == 0
+    again = owner.post(f"/api/carrier/trips/{trip['uid']}/cancel", json={"reason": "Vehicle failed inspection"})
+    assert again.status_code == 409 and again.json()["error"]["code"] == "TRIP_NOT_CANCELLABLE"
+    # the travellers are told: in the app for the passenger, by text for the counter's customer
+    run_worker()
+    told = pax.get("/api/notifications").json()["notifications"]
+    n = next(x for x in told if x["template_code"] == "booking.cancelled_by_carrier" and x["payload"]["booking_ref"] == online["booking_ref"])
+    assert n["payload"]["refund_to"] == "WALLET" and n["payload"]["refund_amount"] == online["total"]
+    assert owner_sql("""SELECT payload ->> 'refund_to' FROM sys.outbox_event WHERE event_type = 'booking.cancelled_by_carrier'
+                         AND payload ->> 'booking_ref' = $1""", cash["booking_ref"]) == "COUNTER"

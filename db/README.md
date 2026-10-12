@@ -14,9 +14,9 @@ supporting index, except references to lookup lists and to the staff member who 
 |---|---|
 | Engine | PostgreSQL 16 with PostGIS 3 (extensions: pgcrypto, citext, btree_gist, pg_trgm, postgis in schema `gis`; Docker and CI image `postgis/postgis:16-3.4`, Ubuntu package `postgresql-16-postgis-3`) |
 | Schemas | 26 separate schemas, each with its own privileges |
-| Tables | 514 tables (8 partitioned), 5,280 columns, 1,471 foreign keys |
+| Tables | 514 tables (8 partitioned), 5,281 columns, 1,471 foreign keys |
 | Security | row-level security on 514 of 514 tables, 941 policies; 436 triggers, 330 functions |
-| Tests | 587 automated checks against a freshly built database (`db/tests/run.sh`) |
+| Tests | 591 automated checks against a freshly built database (`db/tests/run.sh`) |
 | Design | [Database design and ERD document](../docs/database/) with diagrams in the study's colors |
 | Docs | [Data dictionary](DATA_DICTIONARY.md) · [ERD diagrams](ERD.md) (both generated from the database) |
 <!-- stats:end -->
@@ -158,6 +158,7 @@ PostGIS in `gis`. Until 9 October 2026 a first start of the Docker stack stopped
 | `1099_station_portal.sql` | The station portal (the owner's option A): sessions may open `STATION` (the rule is added `NOT VALID` and then checked, so a live session table is not locked for the check); a company type `STATION_OPERATOR` and its party role; the permission `station.counter` with the role template `STATION_COUNTER`; the two-factor policy (`auth.mfa`) requires the new portal wherever it requires the carrier portal. No table is added |
 | `1100_tracking_alerts.sql` | The platform opens tracking alerts (a gap found by the use case review): `ops.raise_tracking_alerts()`, called by the worker every minute, opens one `SIGNAL_LOST` alert for a departed trip whose vehicle has been silent longer than `tracking.alert.silence_seconds` (300) and escalates it to `HIGH` past `tracking.alert.escalate_seconds` (900); a `STRICT` trip uses half of each. Silence counts from the latest position on the trip, the latest recorded departure or the scheduled one. Each opening and escalation leaves an outbox event that tells the carrier's owners. The existing paths still close the alert when positions return. No table is added |
 | `1101_sos_incidents.sql` | SOS and incident reports from the apps (a gap found by the use case review): `sec.raise_sos` lets the trip's assigned driver or a passenger holding a live ticket (booker or traveller) raise an SOS while the trip is under way; a second press while it is open returns the same SOS; the carrier's owners and the platform's security staff are told (`sos.raised`). `ops.report_incident` lets the assigned driver report an incident: the driver's open SOS is linked, a `SEVERE` one opens an out-of-service period for the vehicle, and the carrier (and the platform when severe or injured) is told (`incident.reported`). The trigger `a_trip_vehicle_in_service` refuses a vehicle that is out of service or impounded at a trip's departure. Adds `ops.incident.description` |
+| `1102_trip_cancellation.sql` | A carrier cancels a trip with full refunds (a gap found by the use case review): the permission `trip.cancel` (sensitive, held by the carrier operations role and owners); `ops.trip_disruption.reason`, required for a `CANCEL` decision; the trip read rule lets whoever booked a cancelled trip (passenger or agency) still see it, so the cancelled booking and its refund stay in their lists. The cancellation itself is `cancel_trip` in `backend/app/modules/sales/service.py`: every paid booking refunded in full, the fee included, to the wallet that paid it (passenger, family, agency, or the carrier's cash account for counter sales), every allocation line refunded, reservations and baskets released, the crew released, parcels on the hold refused until moved |
 
 ## Design rules (study 29.1)
 

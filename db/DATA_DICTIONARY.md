@@ -2,7 +2,7 @@
 
 > Generated from the built database (`db/tools/gen_docs.py`); do not edit by hand.
 
-**514 tables, 5280 columns, in 26 schemas.**
+**514 tables, 5281 columns, in 26 schemas.**
 
 Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant isolation (RLS) · 🧩 partitioned monthly · 🔒 append-only / change-protected
 
@@ -3291,6 +3291,7 @@ Trip continuity decision: replacement, lease, interline, rescue, cancellation (7
 | `decided_at` | `timestamp with time zone` |  |  |
 | `status` | `text` | ✱ | `'AWAITING_DECISION'::text` |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `reason` | `text` |  |  |
 
 ### `ops.trip_pair_fare` 🛡️
 

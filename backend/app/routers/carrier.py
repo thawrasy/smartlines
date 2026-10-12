@@ -16,6 +16,7 @@ from ..ledger import platform_wallet, post_txn
 from ..modules.cash import service as cash
 from ..modules.fleet import service as fleet
 from ..modules.photo import service as photo
+from ..modules.sales import service as sales
 from ..security import hash_password, password_problem
 from ..util import row_dict, rows
 
@@ -441,6 +442,22 @@ async def manifest(trip_uid: uuid.UUID, request: Request, pr: Principal = Depend
                 WHERE k.trip_id = $1 AND k.status <> 'CANCELLED' ORDER BY k.seat_no NULLS LAST""", t["id"])
     request.state.audit = {"action": "manifest.view", "object_type": "trip", "object_id": t["id"]}
     return {"trip_no": t["trip_no"], "passengers": rows(recs)}
+
+
+class CancelTripIn(BaseModel):
+    reason: str = Field(min_length=5, max_length=500)
+
+
+@router.post("/trips/{trip_uid}/cancel")
+async def cancel_trip(trip_uid: uuid.UUID, body: CancelTripIn, request: Request, pr: Principal = Depends(operator)):
+    """Cancels a trip that has not departed and refunds every booking in full to whoever paid it (1102)."""
+    _need(pr, "trip.cancel")
+    ctx = context_for(request, pr)
+    async with db.transaction(ctx) as conn:
+        t = await _own_trip(conn, pr, trip_uid)
+        out = await sales.cancel_trip(conn, ctx, t["id"], pr.user_id, body.reason.strip())
+    request.state.audit = {"action": "trip.cancel", "object_type": "trip", "object_id": t["id"], "reason": body.reason.strip()}
+    return out
 
 
 @router.post("/trips/{trip_uid}/complete")

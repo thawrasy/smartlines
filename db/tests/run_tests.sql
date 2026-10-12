@@ -2806,4 +2806,22 @@ UPDATE sec.sos_event SET status = 'CLOSED' WHERE triggered_by = :upax;
 SELECT pg_temp.expect_error(format('SELECT sec.raise_sos(%s)', :t_tr), 'SOS_TRIP_NOT_ACTIVE', 'SOS (1101): a finished trip takes no SOS');
 ROLLBACK;
 
+-- Trip cancellation (1102): the permission, the reason kept with the decision, and a cancelled trip still visible to whoever
+-- booked it but not to other passengers
+BEGIN;
+SELECT sys.set_context(:uadmin, NULL, 'SYSTEM');
+SELECT pg_temp.ok(EXISTS (SELECT 1 FROM iam.role r JOIN iam.role_permission rp ON rp.role_id = r.id
+                           WHERE r.code = 'CARRIER_OPERATIONS' AND rp.permission_code = 'trip.cancel')
+  AND (SELECT is_sensitive FROM iam.permission WHERE code = 'trip.cancel'),
+  'Trip cancellation (1102): the carrier operations role may cancel trips, a sensitive permission');
+SELECT pg_temp.expect_error(format($$INSERT INTO ops.trip_disruption (trip_id, decision, decision_deadline, status) VALUES (%s, 'CANCEL', now(), 'DECIDED')$$, :t_tr),
+  'trip_disruption_cancel_reason', 'Trip cancellation (1102): a cancellation is not recorded without its reason');
+UPDATE ops.trip SET status = 'CANCELLED' WHERE id = :t_tr;
+INSERT INTO ops.trip_disruption (trip_id, decision, decision_deadline, status, reason) VALUES (:t_tr, 'CANCEL', now(), 'DECIDED', 'Road closed by the authorities');
+SELECT sys.set_context(NULL, NULL, 'PASSENGER', NULL, NULL, NULL, NULL, :pax);
+SELECT pg_temp.ok(EXISTS (SELECT 1 FROM ops.trip WHERE id = :t_tr), 'Trip cancellation (1102): the passenger who booked still sees the cancelled trip');
+SELECT sys.set_context(NULL, NULL, 'PASSENGER', NULL, NULL, NULL, NULL, :fstranger);
+SELECT pg_temp.ok(NOT EXISTS (SELECT 1 FROM ops.trip WHERE id = :t_tr), 'Trip cancellation (1102): other passengers do not see a cancelled trip');
+ROLLBACK;
+
 \echo '=== ALL TESTS PASSED ==='

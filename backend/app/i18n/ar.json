@@ -9,6 +9,16 @@
     "body": "تم إلغاء حجزك {booking_ref}. المبلغ المسترد: {refund_amount} ل.س.",
     "sms": "مسلك: أُلغي الحجز {booking_ref}. المسترد {refund_amount} ل.س."
   },
+  "booking.cancelled_by_carrier": {
+    "subject": "ألغى الناقل الرحلة {trip_no}",
+    "body": "ألغى الناقل الرحلة {trip_no}. أُلغي حجزك {booking_ref} واستُرد مبلغ {refund_amount} ل.س كاملاً {refund_to}. نعتذر عن الإزعاج.",
+    "sms": "مسلك: ألغى الناقل الرحلة {trip_no}. الحجز {booking_ref}: استُرد {refund_amount} ل.س {refund_to}."
+  },
+  "refund_to_labels": {
+    "WALLET": "إلى محفظتك في مسلك",
+    "AGENCY": "عن طريق الوكالة التي باعته",
+    "COUNTER": "نقداً من شباك الناقل"
+  },
   "booking.reserved": {
     "subject": "تم حجز المقاعد {booking_ref}: ادفع قبل {pay_by_local}",
     "body": "مقاعدك في الحجز {booking_ref} محجوزة: من {from_city} إلى {to_city}، الانطلاق {departs_local}، عدد الركاب {passengers}، المبلغ {total_amount} ل.س. ادفع قبل {pay_by_local} وإلا أُلغي الحجز وعادت المقاعد للبيع. تصدر تذاكرك فور الدفع.",

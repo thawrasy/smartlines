@@ -555,6 +555,77 @@ async def cancel_reserved(conn: asyncpg.Connection, ctx: db.Context, b: asyncpg.
     return {"ok": True, "refund": 0, "currency": b["currency"], "status": "CANCELLED"}
 
 
+# where a carrier's cancellation sends the money back, by the type of the wallet that paid (1102)
+_REFUND_TO = {"USER": "WALLET", "FAMILY": "WALLET", "COMPANY": "AGENCY", "CASH_COLLECT": "COUNTER"}
+
+
+async def cancel_trip(conn: asyncpg.Connection, ctx: db.Context, trip_id: int, user_id: int, reason: str) -> dict:
+    """The carrier cancels a published trip (1102). Every paid booking is refunded in full, the platform fee included,
+    to the wallet that paid it: the passenger's or the family's wallet, the agency's balance, or the carrier's cash
+    account for a counter sale (the counter hands the cash back). Every allocation line is refunded, so nobody earns on
+    a trip that did not run. Unpaid reservations and baskets free their seats; the crew is released; the decision is
+    kept in ops.trip_disruption. A trip carrying parcels is refused until they are moved to another trip."""
+    async with db.system_scope(conn, ctx):
+        t = await conn.fetchrow("SELECT * FROM ops.trip WHERE id = $1 FOR UPDATE", trip_id)
+        if t["status"] not in ("DRAFT", "PUBLISHED", "BOARDING"):
+            raise ApiError(409, "TRIP_NOT_CANCELLABLE", "only a trip that has not departed can be cancelled", trip_status=t["status"])
+        if await conn.fetchval("SELECT count(*) FROM sales.ticket WHERE trip_id = $1 AND status = 'BOARDED'", trip_id):
+            raise ApiError(409, "TRIP_NOT_CANCELLABLE", "passengers have boarded: record a continuity decision instead",
+                           trip_status=t["status"])
+        parcels = await conn.fetchval("SELECT count(*) FROM ship.shipment_leg WHERE trip_id = $1 AND status <> 'CANCELLED'", trip_id)
+        if parcels:
+            raise ApiError(409, "TRIP_HAS_PARCELS", "move the parcels on this trip's hold to another trip first", parcels=parcels)
+        escrow = await platform_wallet(conn, "ESCROW", t["currency"])
+        refunded, refund_total, reservations = 0, 0, 0
+        for b in await conn.fetch("SELECT * FROM sales.booking WHERE trip_id = $1 AND status IN ('CONFIRMED','PENDING_PAYMENT') "
+                                  "ORDER BY id FOR UPDATE", trip_id):
+            await repo.mark_cancelled(conn, b["id"], "CARRIER_CANCELLED")
+            if b["status"] == "PENDING_PAYMENT":       # nothing was taken; any pending provider payment is stopped
+                await conn.execute(
+                    """UPDATE fin.payment SET status = 'FAILED', stage = 'CANCELLED', failure_code = 'BOOKING_CANCELLED'
+                        WHERE booking_id = $1 AND purpose = 'BOOKING' AND status = 'PENDING'""", b["id"])
+                reservations += 1
+                continue
+            paid = await conn.fetchrow(
+                """SELECT e.wallet_id, e.amount, w.wallet_type FROM fin.ledger_txn x JOIN fin.ledger_entry e ON e.txn_id = x.id
+                     JOIN fin.wallet w ON w.id = e.wallet_id
+                    WHERE x.idempotency_key = $1 AND e.direction = 'DR'""", f"booking:{b['id']}:pay")
+            if b["price_allocation_id"]:
+                await conn.execute(
+                    """UPDATE fin.price_allocation_line SET refunded_amount = amount, status = 'REFUNDED'
+                        WHERE allocation_id = $1 AND status IN ('HELD','PARTIAL_REFUND')""", b["price_allocation_id"])
+            amount = paid["amount"] if paid else 0
+            if amount:
+                txn = await post_txn(conn, "REFUND", b["currency"], f"booking:{b['id']}:refund",
+                                     [(escrow["id"], "DR", amount), (paid["wallet_id"], "CR", amount)],
+                                     ref_type="booking", ref_id=b["id"], user_id=user_id, memo=f"{b['booking_ref']} trip cancelled")
+                spent = await conn.fetchrow("SELECT member_id FROM iam.family_spend WHERE ref_type = 'booking' AND ref_id = $1", b["id"])
+                if spent and b["family_id"]:
+                    await fam.log_spend(conn, b["family_id"], spent["member_id"], b["funding_source"], amount, b["currency"],
+                                        "refund", b["id"], user_id, txn)
+            refunded += 1
+            refund_total += amount
+            await emit(conn, "booking.cancelled_by_carrier", "booking", b["id"], {
+                "booking_ref": b["booking_ref"], "trip_no": t["trip_no"], "refund_amount": amount,
+                "refund_to": _REFUND_TO.get(paid["wallet_type"] if paid else "", "WALLET"), "booker_user_id": b["booker_user_id"],
+                "agency_id": b["agency_id"], "counter": b["pay_option"] == "CASH_COUNTER" or None,
+                "contact_mobile": b["contact_mobile"]}, company_id=b["company_id"])
+        await conn.execute("UPDATE sales.ticket SET status = 'CANCELLED' WHERE trip_id = $1 AND status = 'HOLD'", trip_id)
+        await conn.execute("UPDATE ops.seat_lock SET released_at = now(), outcome = 'RELEASED' WHERE trip_id = $1 AND released_at IS NULL",
+                           trip_id)
+        await conn.execute("UPDATE ship.parcel_offer SET status = 'WITHDRAWN' WHERE trip_id = $1 AND status IN ('REQUESTED','OFFERED')",
+                           trip_id)
+        await conn.execute("UPDATE ops.crew_assignment SET status = 'RELEASED' WHERE trip_id = $1 AND status <> 'RELEASED'", trip_id)
+        await conn.execute("UPDATE ops.trip SET status = 'CANCELLED' WHERE id = $1", trip_id)
+        await conn.execute(
+            """INSERT INTO ops.trip_disruption (trip_id, decision, decision_deadline, decided_by, decided_at, status, reason)
+               VALUES ($1, 'CANCEL', now(), $2, now(), 'DECIDED', $3)""", trip_id, user_id, reason)
+        await emit(conn, "trip.cancelled", "trip", trip_id, {"trip_no": t["trip_no"], "bookings_refunded": refunded,
+                                                             "reservations_cancelled": reservations}, company_id=t["company_id"])
+    return {"ok": True, "trip_no": t["trip_no"], "bookings_refunded": refunded, "refund_total": refund_total,
+            "reservations_cancelled": reservations, "currency": t["currency"]}
+
+
 async def booking_view(conn: asyncpg.Connection, ctx: db.Context, b: asyncpg.Record) -> dict:
     """Booking with its tickets. Tickets print the first and last name; the full name stays for manifests."""
     from ...security import document_token

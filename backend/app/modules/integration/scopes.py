@@ -62,6 +62,8 @@ EVENTS = {
     "tracking.signal_lost": {"CARRIER", "INTERNAL"},
     "tracking.alert_escalated": {"CARRIER", "INTERNAL"},
     "sos.raised": {"CARRIER", "INTERNAL"},
+    "trip.cancelled": {"CARRIER", "CHANNEL", "INTEGRATION", "INTERNAL"},
+    "booking.cancelled_by_carrier": {"CARRIER", "CHANNEL", "INTEGRATION", "INTERNAL"},
     "incident.reported": {"CARRIER", "INTERNAL"},
     "webhook.ping": set(KIND_SCOPES),
 }

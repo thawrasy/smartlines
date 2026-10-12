@@ -32,7 +32,7 @@ def render(template: str, channel: str, locale: str, values: dict) -> tuple[str,
             v = words.get("cities", {}).get(v, v)          # city codes become names in the reader's language
         elif k == "doc_type":
             v = words.get("doc_types", {}).get(v, v)
-        elif k in ("incident_type", "severity"):           # codes of an incident report become words (1101)
+        elif k in ("incident_type", "severity", "refund_to"):   # codes become words (1101, 1102)
             v = words.get(k + "_labels", {}).get(v, v)
         vals[k] = v
     def fill(s: str) -> str:

@@ -259,6 +259,15 @@ export function CarrierTrips() {
               <td><div className="row nowrap" style={{ gap: 4 }}>
                 <button className="btn text small" onClick={() => setManifest(x.uid)}><Icon name="group" size={18} />{t("carrier.manifest")}</button>
                 {x.status === "DRAFT" && <button className="btn tonal small" onClick={() => act(async () => { await api.post(`/api/carrier/trips/${x.uid}/publish`); })}>{t("carrier.publish")}</button>}
+                {["DRAFT", "PUBLISHED", "BOARDING"].includes(x.status) && (
+                  <button className="btn text small danger" onClick={() => act(async () => {
+                    // every booking is refunded in full to whoever paid it (1102); the reason is kept with the decision
+                    const reason = window.prompt(t("carrier.cancelWhy", { trip: x.trip_no }));
+                    if (!reason || reason.trim().length < 5) return;
+                    const r = await api.post<{ bookings_refunded: number; refund_total: number }>(`/api/carrier/trips/${x.uid}/cancel`, { reason });
+                    toast(t("carrier.cancelled", { n: r.bookings_refunded, amount: money(r.refund_total) }));
+                  })}>{t("carrier.cancelTrip")}</button>
+                )}
                 {["DEPARTED", "BOARDING", "PUBLISHED"].includes(x.status) && new Date(x.arrival_at ?? x.departure_at) < new Date() && (
                   <button className="btn tonal small" onClick={() => act(async () => {
                     const r = await api.post<{ released: number }>(`/api/carrier/trips/${x.uid}/complete`);
