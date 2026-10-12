@@ -34,6 +34,8 @@ const PAGE = { w: 11906, h: 16838, mT: 1134, mB: 1134, mL: 1021, mR: 1021 };
 const CONTENT_W = PAGE.w - PAGE.mL - PAGE.mR;
 const LRM = '‎';
 const EMOJI_RE = /([⚠✅✔❌\u{1F7E1}\u{1F534}\u{1F7E2}]️?)/u;
+// Contents entries drop the status marks: a marked entry makes some renderers fall back to a font without Arabic
+const EMOJI_ALL = /[⚠✅✔❌\u{1F7E1}\u{1F534}\u{1F7E2}]️?/gu;
 
 // ---------- pandoc AST ----------
 const ast = JSON.parse(execFileSync('pandoc', ['-f', 'gfm', '-t', 'json', inFile], { maxBuffer: 1 << 28 }).toString('utf8'));
@@ -294,7 +296,7 @@ for (const h of headings) {
   const sub = h.lvl === 3;
   toc.push(new Paragraph({
     bidirectional: true, spacing: { before: 0, after: sub ? 30 : 50 }, indent: { left: sub ? 560 : 0 },
-    children: [new InternalHyperlink({ anchor: h.id, children: [new TextRun({ text: h.text.replace(/`/g, ''), font: FONT, size: sub ? 18 : 20, bold: !sub,
+    children: [new InternalHyperlink({ anchor: h.id, children: [new TextRun({ text: h.text.replace(/`/g, '').replace(EMOJI_ALL, '').trim(), font: FONT, size: sub ? 18 : 20, bold: !sub,
       color: sub ? C.gray : C.navy, rightToLeft: true })] })],
   }));
 }
