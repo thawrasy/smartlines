@@ -87,7 +87,7 @@ flowchart LR
   iam -->|1| ops
   iam -->|5| ref
   iam -->|1| sec
-  net -->|7| iam
+  net -->|11| iam
   net -->|3| ref
   ops -->|2| fin
   ops -->|10| fleet
@@ -865,6 +865,13 @@ erDiagram
     bigint line_version_id PK
     bigint user_id PK
   }
+  net_operation_reference {
+    bigint id PK
+    uuid uid
+    bigint company_id FK
+    text status
+    bigint created_by_user_id FK
+  }
   net_route {
     bigint id PK
     uuid uid
@@ -898,6 +905,10 @@ erDiagram
     bigint compliance_profile_id FK
     bigint verified_by FK
   }
+  net_station_boarding {
+    bigint station_id PK
+    bigint updated_by_user_id FK
+  }
   net_station_contact {
     bigint id PK
     bigint station_id FK
@@ -913,6 +924,7 @@ erDiagram
     bigint station_id FK
     text code
     text status
+    bigint operator_company_id FK
   }
   net_timetable_template {
     bigint id PK
@@ -933,11 +945,15 @@ erDiagram
     ref external
   }
   net_line_version_approval }o--|| iam_app_user : "user_id"
+  net_station_boarding }o..o| iam_app_user : "updated_by_user_id"
+  net_operation_reference }o..o| iam_app_user : "created_by_user_id"
   net_carrier_code }o--|| iam_company : "company_id"
   net_service_number }o--|| iam_company : "company_id"
   net_route }o--|| iam_company : "company_id"
   net_line_permit }o--|| iam_company : "company_id"
   net_timetable_template }o--|| iam_company : "company_id"
+  net_operation_reference }o--|| iam_company : "company_id"
+  net_station_gate }o..o| iam_company : "operator_company_id"
   net_station }o..o| iam_company : "owner_company_id"
   net_station }o..o| net_compliance_profile : "compliance_profile_id"
   net_approved_rest_stop }o--|| net_corridor : "corridor_id"
@@ -952,6 +968,7 @@ erDiagram
   net_line_stop }o--|| net_line_version : "line_version_id"
   net_route_stop }o--|| net_route : "route_id"
   net_service_number }o..o| net_route : "route_id"
+  net_station_boarding }o--|| net_station : "station_id"
   net_station_contact }o--|| net_station : "station_id"
   net_approved_rest_stop }o--|| net_station : "station_id"
   net_station_gate }o--|| net_station : "station_id"

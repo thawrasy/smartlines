@@ -2,7 +2,7 @@
 
 > Generated from the built database (`db/tools/gen_docs.py`); do not edit by hand.
 
-**511 tables, 5247 columns, in 26 schemas.**
+**513 tables, 5269 columns, in 26 schemas.**
 
 Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant isolation (RLS) · 🧩 partitioned monthly · 🔒 append-only / change-protected
 
@@ -11,7 +11,7 @@ Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant i
 - [`iam` — Identity, parties, users, permissions and API clients](#iam) (40 tables)
 - [`ref` — Reference data, locales and files](#ref) (14 tables)
 - [`sys` — Settings, outbox and webhooks](#sys) (27 tables)
-- [`net` — Network: stations, routes, lines, corridors and geofences](#net) (22 tables)
+- [`net` — Network: stations, routes, lines, corridors and geofences](#net) (24 tables)
 - [`fleet` — Fleet: vehicles, trucks, trailers, seats, crew, licenses and insurance](#fleet) (22 tables)
 - [`pricing` — Pricing, taxes, commissions, campaigns and loyalty](#pricing) (35 tables)
 - [`ops` — Trips, inventory, operations, shuttle rides, tracking and incidents](#ops) (35 tables)
@@ -1588,6 +1588,26 @@ Four-eyes approval of a line version (approved_by[] in 4.15), one row per approv
 | `role` | `text` | ✱ |  |
 | `approved_at` | `timestamp with time zone` | ✱ | `now()` |
 
+### `net.operation_reference` 🛡️
+
+Agreement and licence reference numbers of a carrier (1097); optional until the setting boarding.references.required asks for them
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `kind` | `text` | ✱ |  |
+| `licence_type` | `text` |  |  |
+| `reference_no` | `text` | ✱ |  |
+| `issued_by` | `text` |  |  |
+| `issued_on` | `date` |  |  |
+| `expires_on` | `date` |  |  |
+| `status` | `text` | ✱ | `'ACTIVE'::text` |
+| `created_by_user_id` | `bigint` | 🔗 `iam.app_user`  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `retired_at` | `timestamp with time zone` |  |  |
+
 ### `net.route` 🛡️
 
 Carrier route template between two stations; its stops are copied to the trip when generated (the approved line catalog 4.15 is added in Phase 2)
@@ -1679,6 +1699,21 @@ Register of stations and departure/arrival points (central, company point, exter
 CASE
     WHEN ((lat IS NOT NULL) AND...` |
 
+### `net.station_boarding` 🛡️
+
+Boarding switch, counter system, screens and check-in window of one station (1097); written by the platform
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `station_id` | `bigint` | 🔑 🔗 `net.station` ✱ |  |
+| `enabled` | `boolean` | ✱ | `false` |
+| `counter_system` | `text` | ✱ | `'PLATFORM'::text` |
+| `displays` | `boolean` | ✱ | `false` |
+| `checkin_opens_minutes` | `integer` |  |  |
+| `checkin_closes_minutes` | `integer` |  |  |
+| `updated_by_user_id` | `bigint` | 🔗 `iam.app_user`  |  |
+| `updated_at` | `timestamp with time zone` | ✱ | `now()` |
+
 ### `net.station_contact` 🛡️
 
 
@@ -1717,6 +1752,7 @@ Departure and arrival boards in stations (phase 7)
 | `code` | `text` | ✱ |  |
 | `gate_type` | `text` | ✱ | `'PLATFORM'::text` |
 | `status` | `text` | ✱ | `'ACTIVE'::text` |
+| `operator_company_id` | `bigint` | 🔗 `iam.company`  |  |
 
 ### `net.timetable_template` 🛡️
 

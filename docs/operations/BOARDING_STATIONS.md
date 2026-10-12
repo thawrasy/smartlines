@@ -1,7 +1,9 @@
-# Boarding stations and operating companies (requirements, recorded for later build)
+# Boarding stations and operating companies (requirements and build status)
 
-Status: requirements recorded from the owner's answers (October 2026). Nothing here is built or switched on. Every item
-becomes a platform setting, or a carrier-portal setting, that is off until it is enabled.
+Status (October 2026): requirements recorded from the owner's answers. Build step 1 is in place (migration 1097 and the API
+below): the platform settings, each station's own switch, the numbering of counters and bays, and the optional reference
+fields. Everything is off, or empty, at launch, and nothing in the booking, the boarding or the ticket changes until the
+platform switches a station on. Steps 2 to 5 (section 9) are not built.
 
 ## 1. What it is
 
@@ -23,7 +25,8 @@ Typical sequence, per passenger and ticket:
 - **Contracted by the carrier.** The carrier contracts an operating company to run its travel procedures at the stations.
   The carrier's portal settings name the company. The company's permissions are granted through the carrier's portal.
 
-The platform setting that switches between them, and the rights each mode carries, are platform settings. Default off.
+The two platform switches (`boarding.mode.state_mandated`, `boarding.mode.carrier_contracted`) exist and default to off. The
+portal roles and the carrier's grants are not built yet (step 2).
 
 ## 3. Permissions the operating company receives
 
@@ -34,53 +37,99 @@ operator), and limited to the station's work:
 - issue the boarding pass;
 - run the boarding procedure at the station (check-in and the boarding record).
 
-Nothing else is granted by default. Each permission is in the activity log with the counter and the staff member.
+Nothing else is granted by default. Each permission is in the activity log with the counter and the staff member. Not built
+yet (step 2); the exact list is open (section 8, item 5).
 
 ## 4. Check-in window
 
-- The window is a setting: set in the platform settings, or in the carrier-portal settings.
-- The window must also follow the rules of the competent authorities in the country, which may fix it. Until then it is a
-  setting, and no new trip status is added for it yet.
+- Built as settings. The platform setting `boarding.checkin.opens_minutes` and `boarding.checkin.closes_minutes` (minutes
+  before departure) is empty until the authorities fix it. A station can have its own window (`net.station_boarding`); a
+  station's window must open before it closes, and the platform refuses the other order.
+- The carrier-portal setting that overrides the platform's window is not built (step 2).
+- The window must also follow the rules of the competent authorities in the country, which may fix it. No trip status is
+  added for it: it is a setting.
 
 ## 5. Photo at the counter
 
 - The counter has its own value in the photo settings, separate from the driver's value (for example `COUNTER_AT_STATION`),
   default off. The access is granted per party by the platform settings: the driver, the carrier, the booking office, the
-  operating company, and the others as the platform lists them.
+  operating company, and the others as the platform lists them. **Not built.**
 - Photos and biometric data are regulated by privacy law. The counter value cannot be switched on until a legal document
   supports it. The approval records the legal document number (migration 1095, optional there, required for this value
   later).
 
 ## 6. Agreement and licence references
 
-- Each agreement between the carrier and the platform, and each licence the carrier needs, gets its own reference number.
-  The platform applies a numbering scheme for each licence type.
-- The references are stored in dedicated fields, one set for all the licences the carrier's operation needs.
-- In the first phase the fields are optional. A platform setting makes them mandatory later, when the rules apply.
+- Each agreement between the carrier and the platform, and each licence the carrier needs, has its own reference number.
+  A carrier records them in `net.operation_reference` (API: `GET`, `POST` and `POST .../retire` under `/api/carrier/references`).
+- A reference is kept as the carrier gives it (1 to 60 characters). A reference is retired, never changed or deleted: the
+  carrier records the corrected number and retires the old one. Only one active number per kind and licence type is allowed.
+- The licence type is a code the platform will list. Until the list is decided (section 8, item 3) any code of 1 to 60
+  characters is accepted.
+- The fields are optional. The platform setting `boarding.references.required` lists what must be on file: `AGREEMENT`, and
+  any licence type code. It is empty at launch. `GET /api/carrier/references` returns the required items that are missing.
+  **No purchase, trip or boarding is refused for a missing reference yet**: the point where the rule is applied is part of
+  step 3, so that the platform does not refuse anything before the owner sets the rule.
+- The numbering scheme of each licence type is not decided, so the platform does not validate the format yet (section 8,
+  item 2).
 - The market has no binding rules yet; regulation will follow, and the setting follows the regulation.
+
+## 6a. Counters, bays and their numbers (owner's confirmation, October 2026)
+
+- Each counter is numbered by the platform, per station, so that a passenger who asks the carrier about a counter gets the
+  same answer. Each counter belongs to one operating company. Built in 1097: `net.open_station_gate` numbers them.
+- The bus boarding bay is numbered the same way and is the bay the trip's boarding stop uses (`ops.trip_stop.gate_id`). The
+  bay number is printed on the boarding pass when a bay is assigned at issue. If it is not assigned at issue, it is shown
+  later on the station's screens. Printing and the screens are not built; they belong to steps 3 and 4.
+- Numbers are never reused. A closed counter or bay keeps its number, and the next one takes the next number.
+- Each station is separate: its own switch, its own counter system, its own screens and its own check-in window. A station's
+  counter system is `PLATFORM` (the platform runs the counters) or `EXTERNAL` (the station runs its own system, linked to the
+  platform later). The platform may link a station's system instead of building it here, but the platform keeps the data and
+  the interfaces so that it can be built here when the station has no system of its own.
 
 ## 7. Relation to what exists
 
-- Carrier accounts are the `OPERATOR` portal. The state-mandated operating company gets a new portal role; the carrier-
-  contracted one works through the carrier's portal.
+- Carrier accounts are the `OPERATOR` portal. The state-mandated operating company gets a new portal role (step 2); the
+  carrier-contracted one works through the carrier's portal.
 - Trip statuses today: `PUBLISHED`, `BOARDING`, `DEPARTED`, `COMPLETED`, `CANCELLED`. The photo is shown only while the trip
   is `BOARDING` (migration 1096). The check-in window is a setting, not a status (section 4).
+- The stations already exist (`net.station`, with its code, and `net.station_gate` for platforms, bays, gates and counters,
+  migration 1013). Migration 1097 adds the counter's operating company, the station's boarding switch and the reference
+  numbers.
 - The agency (agent) route for the photo (`GET /api/agency/tickets/{uid}/photo`) follows the same pattern: built, refused
   until the platform's `AGENT` value is on and the trip is boarding.
 
 ## 8. Still open (not decided by the owner)
 
-1. The check-in window values, which the authorities may fix.
-2. The format of the numbering scheme for the agreement and licence references.
+1. The check-in window values, which the authorities may fix. The settings exist and are empty.
+2. The numbering scheme for the agreement and licence references. Counters and bays are numbered by the platform now, as
+   the letter of the kind and three digits (`C001`, `B001`, `G001`, `P001`); this format is the platform's choice and can
+   be changed in one function if the owner decides otherwise.
 3. The list of licences the carrier's operation needs, and which of them are in the first phase.
 4. The legal document that supports the counter photo, and its number.
-5. The exact permission list, after the first operating company is appointed.
+5. The exact permission list, after the first operating company is appointed. Built: `boarding.manage` (platform administrator)
+   and `boarding.references` (the carrier's operations role).
 
-## 9. Build order (when the owner decides)
+## 8a. Decisions taken in build step 1 (for the owner to confirm)
 
-1. Settings: the mode switch, the check-in window, the counter photo value, the reference fields (optional), each default off.
+- The boarding settings are changed by the platform administrator directly, with the activity log, and not through the
+  approval stages of the photo. The owner did not ask for stages here. If the owner wants them, the change is to route
+  `net.set_boarding_setting` through the stages as the photo does (1094 to 1096).
+- Station switches, counters and bays are platform tasks. The carrier's own reference numbers are the carrier's records,
+  isolated by company (row-level security), and the carrier cannot change a number, only retire it.
+- The station's switch belongs to project phase 7, which is closed while the stations feature switch is off. The reference
+  numbers belong to phase 1A, with the carrier's own records, so the stations switch does not close them.
+
+## 9. Build order
+
+1. **Done (1097).** Settings, each default off or empty: the platform switch, the two operating-company modes, the check-in
+   window (platform and station), the required references. Each station's own switch and counter system. Counters and bays
+   numbered by the platform. The optional reference fields. API under `/api/admin/boarding` and `/api/carrier/references`,
+   with tests in the database suite and in the API suite.
 2. The two portal paths: the state-mandated role, and the carrier-granted permissions in the carrier portal, with tests of
-   isolation (an operating company sees only the trips and tickets of carriers that gave it permissions).
-3. Counter check, boarding pass and check-in records under the granted permissions, with the activity log.
-4. Counter screens in the operating company's portal and the carrier portal.
+   isolation (an operating company sees only the trips and tickets of carriers that gave it permissions). The carrier's
+   window override goes here too.
+3. Counter check, boarding pass and check-in records under the granted permissions, with the activity log. The bay number
+   is printed on the boarding pass here, and the rule that refuses a missing required reference is applied here.
+4. Counter screens in the operating company's portal and the carrier portal, and the station screens fed by the bay numbers.
 5. Photo at the counter, under its setting and its legal document.

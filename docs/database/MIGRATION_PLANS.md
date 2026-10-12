@@ -206,6 +206,8 @@ asked with. The approval takes an optional legal document number, recorded on th
 
 **1096** makes the rest of the photo's switches platform settings, each changed through the approval stages: who may see the photo and when (`photo.view_access`), the date the rules are enforced from (`photo.enforce_from`), how often a person is checked (`photo.verify_every_days`) and the identity provider (`photo.identity_provider`, NONE until one is connected). The database checks each new value and reads only these keys. No table is added.
 
+**1097** builds the boarding stations, off at launch (`docs/operations/BOARDING_STATIONS.md`). The platform settings are off or empty and are changed through `net.set_boarding_setting`, which checks each key. Two tables are added: `net.station_boarding` (each station's switch, counter system, screens and check-in window, phase 7 and so closed while the stations switch is off) and `net.operation_reference` (a carrier's agreement and licence numbers, phase 1A). One column is added to `net.station_gate` (`operator_company_id`, required for a counter only). The migration is fast on a live database: the column is nullable and the table is small. The platform numbers the counters and bays per station (`net.open_station_gate`), and no number is reused. Two permissions are added, `boarding.manage` for the platform administrator and `boarding.references` for the carrier's operations role. Each new table has its classification (`sys.table_class`) and dataset (`gov.dataset_member`).
+
 ## 1064_partitioned_bookings.sql on a live database (R-06)
 
 1064 turns `sales.booking` into a table partitioned by ranges of id **in place, under an ACCESS EXCLUSIVE lock**: it

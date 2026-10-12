@@ -2540,4 +2540,92 @@ ROLLBACK;
 \endif
 SET ROLE masslak_app;
 
+-- Boarding stations (1097): off and empty at launch; the platform sets the switches and numbers the counters and bays;
+-- a carrier keeps its own reference numbers, and no one can change a number or delete it
+SELECT id AS st_alp FROM net.station WHERE code = 'SY-ALP-C001' \gset
+BEGIN;
+SELECT sys.set_context(:uadmin, NULL, 'SYSTEM');
+SELECT pg_temp.ok((SELECT value FROM sys.setting WHERE key = 'boarding.stations.enabled') = 'false'::jsonb
+  AND (SELECT value FROM sys.setting WHERE key = 'boarding.checkin.opens_minutes') = 'null'::jsonb
+  AND (SELECT value FROM sys.setting WHERE key = 'boarding.references.required') = '[]'::jsonb,
+  'Boarding stations (1097): off, check-in window empty and no reference required at launch');
+SELECT pg_temp.expect_error($$SELECT net.set_boarding_setting('boarding.stations.enabled', '"yes"'::jsonb)$$,
+  'INVALID_SETTING', 'Boarding setting (1097): a switch is true or false');
+SELECT pg_temp.expect_error($$SELECT net.set_boarding_setting('boarding.unknown', 'true'::jsonb)$$,
+  'INVALID_SETTING', 'Boarding setting (1097): only the boarding keys are accepted');
+SELECT pg_temp.expect_error($$SELECT net.set_boarding_setting('boarding.checkin.opens_minutes', '2000'::jsonb)$$,
+  'INVALID_SETTING', 'Boarding setting (1097): the check-in window is at most 1440 minutes');
+SELECT pg_temp.expect_error($$SELECT net.set_boarding_setting('boarding.references.required', '["AGREEMENT", 7]'::jsonb)$$,
+  'INVALID_SETTING', 'Boarding setting (1097): the required references are codes');
+SELECT net.set_boarding_setting('boarding.checkin.opens_minutes', '120'::jsonb);
+SELECT net.set_boarding_setting('boarding.checkin.closes_minutes', '30'::jsonb);
+SELECT pg_temp.expect_error($$SELECT net.set_boarding_setting('boarding.checkin.closes_minutes', '120'::jsonb)$$,
+  'INVALID_SETTING', 'Boarding setting (1097): the check-in opens before it closes');
+SELECT net.set_boarding_setting('boarding.checkin.closes_minutes', 'null'::jsonb);
+SELECT net.set_boarding_setting('boarding.checkin.opens_minutes', 'null'::jsonb);
+SELECT pg_temp.ok((SELECT value FROM sys.setting WHERE key = 'boarding.checkin.closes_minutes') = 'null'::jsonb,
+  'Boarding setting (1097): the check-in window goes back to empty');
+
+-- each station is switched on its own, and only while the platform switch is on
+SELECT pg_temp.ok(NOT net.boarding_station_on(:st_dam), 'Boarding (1097): a station does not board while the platform switch is off');
+INSERT INTO net.station_boarding (station_id, enabled, displays) VALUES (:st_dam, true, true);
+SELECT pg_temp.ok(NOT net.boarding_station_on(:st_dam), 'Boarding (1097): the station switch alone does not turn boarding on');
+SELECT net.set_boarding_setting('boarding.stations.enabled', 'true'::jsonb);
+SELECT pg_temp.ok(net.boarding_station_on(:st_dam) AND NOT net.boarding_station_on(:st_alp),
+  'Boarding (1097): each station is on its own');
+SELECT net.set_boarding_setting('boarding.stations.enabled', 'false'::jsonb);
+SELECT pg_temp.expect_error(format($$INSERT INTO net.station_boarding (station_id, checkin_opens_minutes, checkin_closes_minutes)
+  VALUES (%s, 30, 60)$$, :st_alp), 'station_boarding_check', 'Boarding (1097): a station''s own window opens before it closes');
+
+-- counters and bays are numbered by the platform, per station; a closed gate keeps its number
+SELECT net.open_station_gate(:st_dam, 'COUNTER', :ca) AS c1 \gset
+SELECT net.open_station_gate(:st_dam, 'COUNTER', :ca) AS c2 \gset
+SELECT net.open_station_gate(:st_dam, 'BAY', NULL) AS b1 \gset
+SELECT pg_temp.ok(:'c1' = 'C001' AND :'c2' = 'C002' AND :'b1' = 'B001',
+  'Boarding (1097): counters and bays are numbered by the platform per station: C001, C002, B001');
+UPDATE net.station_gate SET status = 'CLOSED' WHERE station_id = :st_dam AND code = 'C001';
+SELECT net.open_station_gate(:st_dam, 'COUNTER', :ca) AS c3 \gset
+SELECT pg_temp.ok(:'c3' = 'C003', 'Boarding (1097): a closed counter keeps its number, the next one is C003');
+SELECT net.open_station_gate(:st_alp, 'COUNTER', :ca) AS alp_c1 \gset
+SELECT pg_temp.ok(:'alp_c1' = 'C001', 'Boarding (1097): each station numbers its own counters from C001');
+SELECT pg_temp.expect_error(format($$SELECT net.open_station_gate(%s, 'COUNTER', NULL)$$, :st_dam),
+  'INVALID_GATE', 'Boarding (1097): a counter belongs to one operating company');
+SELECT pg_temp.expect_error(format($$SELECT net.open_station_gate(%s, 'BAY', %s)$$, :st_dam, :ca),
+  'INVALID_GATE', 'Boarding (1097): only counters have an operating company');
+
+-- a carrier's reference numbers: its own only, one active number per kind, retired and never changed
+SELECT sys.set_context(:ua, :ca, 'COMPANY');
+INSERT INTO net.operation_reference (company_id, kind, reference_no, issued_by, issued_on)
+VALUES (:ca, 'AGREEMENT', 'AGR-2026-001', 'Ministry of Transport', '2026-01-01');
+INSERT INTO net.operation_reference (company_id, kind, licence_type, reference_no) VALUES (:ca, 'LICENCE', 'TEST_LICENCE', 'LIC-7');
+SELECT pg_temp.ok((SELECT count(*) FROM net.operation_reference) = 2, 'Boarding (1097): a carrier records its own reference numbers');
+SELECT pg_temp.expect_error(format($$INSERT INTO net.operation_reference (company_id, kind, reference_no) VALUES (%s, 'AGREEMENT', 'AGR-2026-001')$$, :ca),
+  'operation_reference_active_uq', 'Boarding (1097): one active number per kind, no duplicate agreement');
+SELECT pg_temp.expect_error(format($$INSERT INTO net.operation_reference (company_id, kind, reference_no) VALUES (%s, 'LICENCE', 'NO-TYPE')$$, :ca),
+  'operation_reference_check', 'Boarding (1097): a licence has its type, an agreement has none');
+SELECT sys.set_context(:ua, :cb, 'COMPANY');
+SELECT pg_temp.ok((SELECT count(*) FROM net.operation_reference) = 0, 'Boarding (1097): another carrier sees none of these numbers');
+SELECT pg_temp.expect_error(format($$INSERT INTO net.operation_reference (company_id, kind, reference_no) VALUES (%s, 'AGREEMENT', 'X-1')$$, :ca),
+  'row-level security', 'Boarding (1097): a carrier cannot record a number for another carrier');
+SELECT sys.set_context(:uadmin, NULL, 'SYSTEM');
+SELECT net.set_boarding_setting('boarding.references.required', '["AGREEMENT", "TEST_LICENCE", "OTHER_LICENCE"]'::jsonb);
+SELECT sys.set_context(:ua, :ca, 'COMPANY');
+SELECT pg_temp.ok(net.operation_references_missing(:ca) = '{OTHER_LICENCE}'::text[],
+  'Boarding (1097): only the reference not yet on file is listed as missing');
+UPDATE net.operation_reference SET status = 'RETIRED', retired_at = now() WHERE reference_no = 'LIC-7';
+SELECT pg_temp.ok(net.operation_references_missing(:ca) = '{OTHER_LICENCE,TEST_LICENCE}'::text[],
+  'Boarding (1097): a retired reference is no longer on file');
+SELECT pg_temp.expect_error($$UPDATE net.operation_reference SET status = 'ACTIVE' WHERE reference_no = 'LIC-7'$$,
+  'operation_reference_check', 'Boarding (1097): a reference that is active has no retirement time');
+SELECT pg_temp.ok(has_column_privilege('masslak_app', 'net.operation_reference', 'status', 'UPDATE')
+  AND NOT has_column_privilege('masslak_app', 'net.operation_reference', 'reference_no', 'UPDATE')
+  AND NOT has_table_privilege('masslak_app', 'net.operation_reference', 'DELETE'),
+  'Boarding (1097): the application may retire a reference, but not change its number or delete it');
+SELECT pg_temp.ok(NOT EXISTS (SELECT 1 FROM iam.role_permission rp JOIN iam.role r ON r.id = rp.role_id
+                               WHERE r.code = 'CARRIER_OPERATIONS' AND rp.permission_code = 'boarding.manage')
+  AND EXISTS (SELECT 1 FROM iam.role_permission rp JOIN iam.role r ON r.id = rp.role_id
+               WHERE r.code = 'CARRIER_OPERATIONS' AND rp.permission_code = 'boarding.references'),
+  'Boarding (1097): a carrier keeps its reference numbers and cannot manage the boarding settings');
+ROLLBACK;
+
 \echo '=== ALL TESTS PASSED ==='

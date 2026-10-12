@@ -1083,6 +1083,32 @@ A constraint is still NOT VALID because rows that existed before it break it.
   as launch gate evidence. Leave five minutes between two drills: Alertmanager sends a second drill in the same group only at the
   group's next interval (`group_interval`), after the drill has stopped waiting.
 
+## 32. Boarding stations: switching on, and switching off (1097)
+
+The boarding stations are off at launch, and nothing in a booking, a boarding or a ticket changes until a station is switched
+on. The platform administrator (permission `boarding.manage`) does this in the order below; each step is an API call, and each
+change is in the activity log.
+
+1. Read the settings: `GET /api/admin/boarding/settings`.
+2. When the authorities fix the check-in window, set both values, minutes before departure. The opening value must be larger
+   than the closing value: `PUT /api/admin/boarding/settings` with `{"key": "boarding.checkin.opens_minutes", "value": 120}`,
+   and the same for `boarding.checkin.closes_minutes`. A station can have its own window (step 4).
+3. Set the references the platform requires, if the rules ask for any: `{"key": "boarding.references.required", "value": ["AGREEMENT"]}`.
+   Carriers see what is missing at `GET /api/carrier/references`.
+4. Per station: `PUT /api/admin/boarding/stations/{station_uid}` with `{"enabled": true, "counter_system": "PLATFORM", "displays": false}`.
+   `GET` on the same station shows `boarding_on_now`, which is true only when the platform switch and the station's switch are on.
+5. Open the counters and bays: `POST /api/admin/boarding/stations/{station_uid}/gates` with `{"gate_type": "COUNTER",
+   "operator_company_uid": "<the operating company>"}`, or `{"gate_type": "BAY"}`. The platform gives the number (`C001`, `B001`
+   and so on). A closed gate keeps its number and the next one takes the next number.
+6. Switch the platform on last: `PUT /api/admin/boarding/settings` with `{"key": "boarding.stations.enabled", "value": true}`.
+
+A station's row sits in project phase 7: while the `tracking_stations` feature is off, the database keeps the station's row
+closed to everyone except the platform, so turn that feature on before step 4.
+
+To stop boarding everywhere, set `boarding.stations.enabled` to `false`. Nothing is deleted: the stations, their counters, their
+bays and the carriers' reference numbers stay as they are. A carrier retires a reference it no longer holds with
+`POST /api/carrier/references/{uid}/retire`; the number itself is never changed or deleted.
+
 ## Rehearsal schedule
 
 | Procedure | Before launch | After launch |
