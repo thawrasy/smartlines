@@ -1,59 +1,77 @@
 /* ============================================================================
-   BankFas - 010: عزل الصفوف بين المشتركين (Row-Level Security)
-   يُنفَّذ بعد 000..005 المولَّدة، وفي الجلسة نفسها التي أنشأت #rls_tables (انظر deploy.sql).
-   المبدأ: كل جدول مملوك للمشترك يُرشَّح بـ TenantId = SESSION_CONTEXT('TenantId').
-           أعضاء دور tp_platform (المشغّل) يتجاوزون العزل لأعمال المنصة فقط، والدور tp_auth يتجاوزه
-           داخل sec.usp_SetSessionContext فقط لفحص عضوية المستخدم قبل ضبط السياق (030).
+   BankFas - 010: row-level security (tenant isolation)
+   Runs after the generated scripts 000..005, in the same session that created #rls_tables (see deploy.sql).
+
+   A row of a tenant-owned table is visible or writable only when BOTH hold:
+     1. its TenantId equals SESSION_CONTEXT(N'TenantId'), and
+     2. this connection is bound to that tenant: sec.SessionBinding has a row for @@SPID whose BoundTenantId
+        equals the row's TenantId and whose BindingToken equals SESSION_CONTEXT(N'BindingToken').
+   Only sec.usp_SetSessionContext (030) writes the binding and the token. A caller that sets
+   SESSION_CONTEXT itself, or reuses a stale binding, gets no rows (O-16).
+   Members of tp_platform bypass the filters for platform work. tp_auth bypasses them only inside the
+   context procedure, to check membership before the binding exists.
    ============================================================================ */
 SET NOCOUNT ON;
-SET ANSI_NULLS ON; SET QUOTED_IDENTIFIER ON; SET ANSI_PADDING ON; SET ANSI_WARNINGS ON; SET ARITHABORT ON; SET CONCAT_NULL_YIELDS_NULL ON; SET NUMERIC_ROUNDABORT OFF;  -- سياسات RLS والإجراءات تحفظ هذه الخيارات عند الإنشاء
+SET ANSI_NULLS ON; SET QUOTED_IDENTIFIER ON; SET ANSI_PADDING ON; SET ANSI_WARNINGS ON; SET ARITHABORT ON; SET CONCAT_NULL_YIELDS_NULL ON; SET NUMERIC_ROUNDABORT OFF;  -- policies and procedures keep these options when created
 GO
 IF SCHEMA_ID(N'rls') IS NULL EXEC(N'CREATE SCHEMA [rls] AUTHORIZATION dbo;');
 GO
-GRANT SELECT ON SCHEMA::[rls] TO [tp_app];   -- دوال السياسات: يحتاجها محرك الاستعلام في سياق المستخدم (بعد إنشاء المخطط)
+GRANT SELECT ON SCHEMA::[rls] TO [tp_app];   -- predicate functions: the query engine evaluates them in the caller's context
 GO
--- جداول المشترك العادية: لا ترى إلا صفوف مشتركها
+-- Is the current connection bound to @TenantId? Used by every predicate below.
+CREATE OR ALTER FUNCTION rls.fn_Bound (@TenantId INT)
+RETURNS TABLE WITH SCHEMABINDING
+AS RETURN
+    SELECT 1 AS Bound
+    WHERE EXISTS (SELECT 1
+                  FROM sec.SessionBinding AS b
+                  WHERE b.SessionId = @@SPID
+                    AND b.BoundTenantId = @TenantId
+                    AND @TenantId = CAST(SESSION_CONTEXT(N'TenantId') AS INT)
+                    AND b.BindingToken = CAST(SESSION_CONTEXT(N'BindingToken') AS UNIQUEIDENTIFIER));
+GO
+-- Tenant-owned tables: a connection sees and changes only the rows of its bound tenant
 CREATE OR ALTER FUNCTION rls.fn_TenantAccess (@TenantId INT)
 RETURNS TABLE WITH SCHEMABINDING
 AS RETURN
     SELECT 1 AS AccessOk
-    WHERE @TenantId = CAST(SESSION_CONTEXT(N'TenantId') AS INT)
-       OR IS_MEMBER(N'tp_platform') = 1 OR IS_MEMBER(N'tp_auth') = 1;
+    WHERE IS_MEMBER(N'tp_platform') = 1 OR IS_MEMBER(N'tp_auth') = 1
+       OR EXISTS (SELECT 1 FROM rls.fn_Bound(@TenantId));
 GO
--- الجداول المختلطة النطاق: القراءة لصفوف المنصة (TenantId NULL) وصفوف المشترك
+-- Mixed-scope tables: every connection reads the platform rows (TenantId NULL) and its own rows
 CREATE OR ALTER FUNCTION rls.fn_MixedRead (@TenantId INT)
 RETURNS TABLE WITH SCHEMABINDING
 AS RETURN
     SELECT 1 AS AccessOk
     WHERE @TenantId IS NULL
-       OR @TenantId = CAST(SESSION_CONTEXT(N'TenantId') AS INT)
-       OR IS_MEMBER(N'tp_platform') = 1 OR IS_MEMBER(N'tp_auth') = 1;
+       OR IS_MEMBER(N'tp_platform') = 1 OR IS_MEMBER(N'tp_auth') = 1
+       OR EXISTS (SELECT 1 FROM rls.fn_Bound(@TenantId));
 GO
--- ... أما الكتابة فلصفوف المشترك نفسه فقط؛ صفوف المنصة لأعضاء tp_platform
+-- Mixed-scope tables: writes reach only the bound tenant's rows; platform rows belong to tp_platform
 CREATE OR ALTER FUNCTION rls.fn_MixedWrite (@TenantId INT)
 RETURNS TABLE WITH SCHEMABINDING
 AS RETURN
     SELECT 1 AS AccessOk
-    WHERE (@TenantId IS NOT NULL AND @TenantId = CAST(SESSION_CONTEXT(N'TenantId') AS INT))
-       OR IS_MEMBER(N'tp_platform') = 1 OR IS_MEMBER(N'tp_auth') = 1;
+    WHERE IS_MEMBER(N'tp_platform') = 1 OR IS_MEMBER(N'tp_auth') = 1
+       OR EXISTS (SELECT 1 FROM rls.fn_Bound(@TenantId));
 GO
--- سجل التدقيق aud.AuditLog: سياسة خاصة (BR-PLT-001/009)
---   القراءة: المشترك يرى صفوفه فقط؛ صفوف TenantId = NULL (أحداث المنصة) لأعضاء tp_platform فقط.
---   الكتابة (إدراج فقط): TenantId الخاص بالمشترك أو NULL لحدث منصة؛ لا تعديل ولا حذف (DENY في 005/020).
+-- Audit log aud.AuditLog: its own policy (BR-PLT-001, BR-PLT-009)
+--   Read: a tenant reads its own rows; rows with TenantId NULL (platform events) are for tp_platform only.
+--   Write (insert only): the tenant's own TenantId or NULL for a platform event; no update and no delete (DENY in 005/020).
 CREATE OR ALTER FUNCTION rls.fn_AuditRead (@TenantId INT)
 RETURNS TABLE WITH SCHEMABINDING
 AS RETURN
     SELECT 1 AS AccessOk
-    WHERE (@TenantId IS NOT NULL AND @TenantId = CAST(SESSION_CONTEXT(N'TenantId') AS INT))
-       OR IS_MEMBER(N'tp_platform') = 1 OR IS_MEMBER(N'tp_auth') = 1;
+    WHERE IS_MEMBER(N'tp_platform') = 1 OR IS_MEMBER(N'tp_auth') = 1
+       OR EXISTS (SELECT 1 FROM rls.fn_Bound(@TenantId));
 GO
 CREATE OR ALTER FUNCTION rls.fn_AuditWrite (@TenantId INT)
 RETURNS TABLE WITH SCHEMABINDING
 AS RETURN
     SELECT 1 AS AccessOk
     WHERE @TenantId IS NULL
-       OR @TenantId = CAST(SESSION_CONTEXT(N'TenantId') AS INT)
-       OR IS_MEMBER(N'tp_platform') = 1 OR IS_MEMBER(N'tp_auth') = 1;
+       OR IS_MEMBER(N'tp_platform') = 1 OR IS_MEMBER(N'tp_auth') = 1
+       OR EXISTS (SELECT 1 FROM rls.fn_Bound(@TenantId));
 GO
 IF EXISTS (SELECT 1 FROM sys.security_policies sp WHERE sp.name = N'TP_aud_AuditLog' AND sp.schema_id = SCHEMA_ID(N'rls'))
     DROP SECURITY POLICY rls.[TP_aud_AuditLog];
@@ -65,7 +83,7 @@ CREATE SECURITY POLICY rls.[TP_aud_AuditLog]
 GO
 DECLARE @s sysname, @t sysname, @m bit, @pol sysname, @obj nvarchar(300), @sql nvarchar(max);
 DECLARE c CURSOR LOCAL FAST_FORWARD FOR SELECT SchemaName, TableName, IsMixed FROM #rls_tables
-    WHERE NOT (SchemaName = N'aud' AND TableName = N'AuditLog');   -- له سياسة خاصة أعلاه
+    WHERE NOT (SchemaName = N'aud' AND TableName = N'AuditLog');   -- has its own policy above
 OPEN c; FETCH NEXT FROM c INTO @s, @t, @m;
 WHILE @@FETCH_STATUS = 0
 BEGIN

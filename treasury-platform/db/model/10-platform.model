@@ -205,6 +205,15 @@ table sec.LoginAttempt append deletable   # Login attempts for rate limiting and
   index CreatedAt
   check UserId IS NOT NULL OR LoginName IS NOT NULL
 
+# Binds a database connection (@@SPID) to one tenant and user. Written only by sec.usp_SetSessionContext (O-16);
+# read only inside the row filters (rls.fn_Bound). No tenant column, so it is outside the tenant filter rule.
+table sec.SessionBinding global noapp noplat noaudit norv pk=SessionId   # Connection binding for the row filters (O-16)
+  SessionId      int                   req   # @@SPID of the connection
+  BoundTenantId  ->plat.Tenant         req noidx   # tenant named by the context procedure
+  BoundUserId    bigint                req   # user named by the context procedure; no foreign key (sec.AppUser is tenant-owned)
+  BindingToken   guid                  req   # random per binding; the row filters also require SESSION_CONTEXT(N'BindingToken') to match
+  BoundAt        ts                    req =SYSUTCDATETIME()
+
 table sec.UserSession norv deletable   # User sessions: 30-minute idle timeout and 12-hour absolute timeout (FR-PLT-014)
   UserId             ->sec.AppUser req
   TokenHash          bin(32)  req sens=restricted   # SHA-256 لمعرّف الجلسة؛ لا يُخزَّن الأصل

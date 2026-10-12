@@ -27,7 +27,7 @@ GROUPS = [
     ('m0_identity', 'Identity and authorisation', 'sec schema: users, roles, permissions, company scopes, external identities',
      ['sec.AppUser', 'sec.Role', 'sec.Permission', 'sec.RolePermission', 'sec.UserRole', 'sec.UserCompanyScope', 'sec.ExternalIdentity']),
     ('m0_sessions', 'Sessions, keys and authentication attempts', 'sessions, login attempts, MFA recovery codes, tokens, password history, encryption keys',
-     ['sec.UserSession', 'sec.LoginAttempt', 'sec.MfaRecoveryCode', 'sec.UserToken', 'sec.UserPasswordHistory', 'sec.TenantKey', 'sec.KeyEvent']),
+     ['sec.UserSession', 'sec.LoginAttempt', 'sec.MfaRecoveryCode', 'sec.UserToken', 'sec.UserPasswordHistory', 'sec.TenantKey', 'sec.KeyEvent', 'sec.SessionBinding']),
     ('m0_audit_docs', 'Audit trail and documents', 'aud and doc schemas: audit log and document store',
      ['aud', 'doc']),
     ('m0_config', 'Configuration and background jobs', 'cfg schema: tenant settings, scheduled and background jobs',

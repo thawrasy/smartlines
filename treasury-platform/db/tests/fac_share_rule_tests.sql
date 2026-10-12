@@ -13,6 +13,20 @@ SET NOCOUNT ON;
 ALTER TABLE fac.Facility NOCHECK CONSTRAINT ALL;
 ALTER TABLE fac.FacilityLender NOCHECK CONSTRAINT ALL;
 GO
+/* The row filters (010) show rows only to a connection bound to the tenant (sec.SessionBinding, O-16).
+   Bind this session to tenant 1; tenant 1 is not seeded here, so the binding's foreign key is switched off too.
+   The binding row is removed at the end. */
+ALTER TABLE sec.SessionBinding NOCHECK CONSTRAINT ALL;
+DECLARE @tok UNIQUEIDENTIFIER = NEWID();
+MERGE sec.SessionBinding AS b
+USING (SELECT @@SPID AS SessionId) AS s
+   ON b.SessionId = s.SessionId
+WHEN MATCHED THEN
+    UPDATE SET BoundTenantId = 1, BoundUserId = 0, BindingToken = @tok, BoundAt = SYSUTCDATETIME()
+WHEN NOT MATCHED THEN
+    INSERT (SessionId, BoundTenantId, BoundUserId, BindingToken) VALUES (s.SessionId, 1, 0, @tok);
+EXEC sys.sp_set_session_context @key = N'BindingToken', @value = @tok;
+GO
 
 /* T1: shares totalling 100 for the approved revision: approval is accepted. */
 BEGIN TRANSACTION;
@@ -136,6 +150,8 @@ END CATCH;
 ROLLBACK TRANSACTION;
 GO
 
+DELETE FROM sec.SessionBinding WHERE SessionId = @@SPID;
+ALTER TABLE sec.SessionBinding WITH CHECK CHECK CONSTRAINT ALL;
 ALTER TABLE fac.Facility WITH CHECK CHECK CONSTRAINT ALL;
 ALTER TABLE fac.FacilityLender WITH CHECK CHECK CONSTRAINT ALL;
 PRINT 'Tests finished; every test rolled back.';

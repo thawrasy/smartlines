@@ -103,7 +103,13 @@ ITEMS = [
     {
         'id': 'O-16', 'sources': 'Tenant-isolation tests (db/tests/tenant_isolation_tests.sql, case T16)',
         'finding': 'The application role can set TenantId directly with sp_set_session_context, which skips the membership check in sec.usp_SetSessionContext. Row-level security trusts the session context, so code that runs on the application connection outside the procedure can read or write another tenant. A DENY on the system procedure cannot be applied from a user database (error 4629).',
-        'status': 'Known gap. The test records it as KNOWN GAP O-16 and tools/ci/db_ci.sh counts it, so the build stays green only while the gap is recorded.',
-        'next': 'Decide between (a) binding the tenant to the session in a table that only tp_auth can write and that the row filters check, and (b) accepting that the application process is trusted and recording that as a residual risk. Then change the expectation in db/tests/tenant_isolation_tests.sql and tools/ci/db_ci.sh.',
+        'status': 'Closed by design (a). The row filters (rls.fn_Bound, db/static/010_rls.sql) show a row only when the connection binding in sec.SessionBinding names the same tenant and its token matches SESSION_CONTEXT(N\'BindingToken\'). Only sec.usp_SetSessionContext writes the binding (db/static/030_session_context.sql). Tests T16, T16b and T16c in db/tests/tenant_isolation_tests.sql cover a direct context change, the binding table, and a wrong or missing token.',
+        'next': 'None for the context itself. The residual risk is recorded as O-17.',
+    },
+    {
+        'id': 'O-17', 'sources': 'Design review of O-16 (db/static/030_session_context.sql)',
+        'finding': 'sec.usp_SetSessionContext trusts the user id that the application passes. A compromised application connection can bind to any tenant whose active user id it knows, and user ids are sequential.',
+        'status': 'Open decision. The binding (O-16) stops a forged context, but not a call to the procedure with another user\'s id.',
+        'next': 'Decide whether the procedure verifies a server-side session token instead of the caller\'s user id (sec.UserSession.TokenHash is already in the model). Recommended. Then add a test that a wrong token is refused.',
     },
 ]

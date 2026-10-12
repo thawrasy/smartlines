@@ -1,23 +1,17 @@
 /* ============================================================================
-   Tenant-isolation tests (O-09): row-level security, the context procedure and
-   the grants, exercised as the application role (tp_app) and the reporting role
-   (tp_readonly). The cases run as those roles through EXECUTE AS; sa only seeds
-   the data and sets the context where a case needs it.
+   Tenant-isolation tests (O-09, O-16): row-level security, the connection binding, the context procedure and
+   the grants, exercised as the application role (tp_app) and the reporting role (tp_readonly). The cases run as
+   those roles through EXECUTE AS. sa only seeds the data and binds the test connection (#Bind), because the
+   tests need a bound connection for each tenant they check.
 
-   Run against a deployed BankFas database that holds no real data, with a
-   sysadmin login (CI uses sa):
+   Run against a deployed BankFas database that holds no real data, with a sysadmin login (CI uses sa):
        sqlcmd -S <server> -U sa -C -I -b -i db/tests/tenant_isolation_tests.sql
 
-   The whole run is one batch inside one transaction, rolled back at the end, so
-   the test principals, the seed rows and the constraint changes leave nothing
-   behind. Each case uses its own savepoint, so one failed case does not affect
-   the next. The identifiers are captured once while seeding, because the row
-   filters depend on the tenant context, which changes from case to case.
+   The whole run is one transaction, rolled back at the end, so the test principals, the seed rows, the
+   temporary procedure and the constraint changes leave nothing behind. Each case has its own savepoint.
+   Identifiers are captured once while seeding, because the row filters depend on the bound tenant.
 
-   Each case prints one line that starts with PASS, FAIL or KNOWN GAP.
-   A KNOWN GAP is a weakness that is recorded but not yet fixed (O-16 in
-   tools/dbgen/erd_open_items.py). The CI script counts known gaps, so a change in
-   their number fails the build until the expectation is updated.
+   Each case prints one line that starts with PASS or FAIL. INFO lines describe what a case did and are not counted.
    ============================================================================ */
 USE [BankFas];
 GO
@@ -38,6 +32,25 @@ ALTER TABLE plat.Tenant       NOCHECK CONSTRAINT ALL;
 ALTER TABLE sec.AppUser       NOCHECK CONSTRAINT ALL;
 ALTER TABLE fac.Facility      NOCHECK CONSTRAINT ALL;
 ALTER TABLE cfg.NonWorkingDay NOCHECK CONSTRAINT ALL;
+GO
+
+-- #Bind: binds the test connection to one tenant the same way the context procedure does (a binding row for
+-- @@SPID with a new token, and the context). The procedure is session-scoped and dropped by the rollback.
+CREATE PROCEDURE #Bind @TenantId INT
+AS
+BEGIN
+    DECLARE @token UNIQUEIDENTIFIER = NEWID();
+    MERGE sec.SessionBinding AS b
+    USING (SELECT @@SPID AS SessionId) AS s
+       ON b.SessionId = s.SessionId
+    WHEN MATCHED THEN
+        UPDATE SET BoundTenantId = @TenantId, BoundUserId = 0, BindingToken = @token, BoundAt = SYSUTCDATETIME()
+    WHEN NOT MATCHED THEN
+        INSERT (SessionId, BoundTenantId, BoundUserId, BindingToken) VALUES (s.SessionId, @TenantId, 0, @token);
+    EXEC sys.sp_set_session_context @key = N'TenantId', @value = @TenantId;
+    EXEC sys.sp_set_session_context @key = N'BindingToken', @value = @token;
+END;
+GO
 
 DECLARE @t1 INT, @t2 INT, @t3 INT;
 DECLARE @u1 BIGINT, @u1x BIGINT, @u2 BIGINT;
@@ -45,6 +58,7 @@ DECLARE @f1 BIGINT, @f2 BIGINT;
 DECLARE @err INT, @err2 INT, @n INT, @n2 INT, @rows INT, @ctx INT;
 DECLARE @amt DECIMAL(19,4);
 DECLARE @unfiltered INT, @disabled INT, @allowed INT, @tm INT;
+DECLARE @other UNIQUEIDENTIFIER;
 
 -- Seed: three tenants (two open, one closed)
 INSERT plat.Tenant (Code, NameAr, NameEn, PlanId, HomeCountryId, Status, TimeZone, ClosedAt)
@@ -56,7 +70,7 @@ SELECT @t2 = TenantId FROM plat.Tenant WHERE Code = N'TST-B';
 SELECT @t3 = TenantId FROM plat.Tenant WHERE Code = N'TST-C';
 
 -- Seed: tenant 1 (two users, a facility, a non-working day)
-EXEC sys.sp_set_session_context @key = N'TenantId', @value = @t1;
+EXEC #Bind @t1;
 INSERT sec.AppUser (TenantId, Email, DisplayNameEn, Status, PasswordHash) VALUES (@t1, N'u1@test.invalid', N'User 1', 'ACTIVE', 'TEST');
 INSERT sec.AppUser (TenantId, Email, DisplayNameEn, Status, PasswordHash) VALUES (@t1, N'u1x@test.invalid', N'User 1 disabled', 'DISABLED', 'TEST');
 SELECT @u1 = AppUserId FROM sec.AppUser WHERE Email = N'u1@test.invalid';
@@ -67,7 +81,7 @@ SET @f1 = SCOPE_IDENTITY();
 INSERT cfg.NonWorkingDay (TenantId, CountryId, OnDate, NameEn) VALUES (@t1, 1, '2026-12-26', N'TEST-T1');
 
 -- Seed: tenant 2 (a user, a facility, a non-working day)
-EXEC sys.sp_set_session_context @key = N'TenantId', @value = @t2;
+EXEC #Bind @t2;
 INSERT sec.AppUser (TenantId, Email, DisplayNameEn, Status, PasswordHash) VALUES (@t2, N'u2@test.invalid', N'User 2', 'ACTIVE', 'TEST');
 SELECT @u2 = AppUserId FROM sec.AppUser WHERE Email = N'u2@test.invalid';
 INSERT fac.Facility (TenantId, FacilityNo, BorrowerCompanyId, FacilityTypeId, CurrencyId, TotalAmount, PrecedenceLanguage, EffectiveFrom, ExpiryDate)
@@ -80,9 +94,9 @@ EXECUTE AS USER = N'tp_test_plat';
 INSERT cfg.NonWorkingDay (TenantId, CountryId, OnDate, NameEn) VALUES (NULL, 1, '2026-12-25', N'TEST-GLOBAL');
 REVERT;
 
-/* ---------- Cases 1-3: reading without a context and across tenants ---------- */
+/* ---------- Cases 1-3: reading without a binding and across tenants ---------- */
 
-/* T1: without a tenant context the application role sees no facility rows. */
+/* T1: without a tenant context and binding, the application role sees no facility rows. */
 SAVE TRANSACTION sp_t01;
 EXEC sys.sp_set_session_context @key = N'TenantId', @value = NULL;
 SET @err = NULL; SET @n = NULL;
@@ -96,7 +110,7 @@ ROLLBACK TRANSACTION sp_t01;
 
 /* T2: a tenant sees its own facility and no other. */
 SAVE TRANSACTION sp_t02;
-EXEC sys.sp_set_session_context @key = N'TenantId', @value = @t1;
+EXEC #Bind @t1;
 SET @err = NULL; SET @n = NULL;
 EXECUTE AS USER = N'tp_test_app';
 BEGIN TRY SELECT @n = COUNT(*) FROM fac.Facility WHERE FacilityNo LIKE N'TST-F%'; END TRY
@@ -108,7 +122,7 @@ ROLLBACK TRANSACTION sp_t02;
 
 /* T3: a facility of another tenant cannot be read by key (no IDOR). */
 SAVE TRANSACTION sp_t03;
-EXEC sys.sp_set_session_context @key = N'TenantId', @value = @t1;
+EXEC #Bind @t1;
 SET @err = NULL; SET @n = NULL;
 EXECUTE AS USER = N'tp_test_app';
 BEGIN TRY SELECT @n = COUNT(*) FROM fac.Facility WHERE FacilityId = @f2; END TRY
@@ -122,7 +136,7 @@ ROLLBACK TRANSACTION sp_t03;
 
 /* T4: inserting a row for another tenant is refused (block predicate, 33504). */
 SAVE TRANSACTION sp_t04;
-EXEC sys.sp_set_session_context @key = N'TenantId', @value = @t1;
+EXEC #Bind @t1;
 SET @err = NULL;
 EXECUTE AS USER = N'tp_test_app';
 BEGIN TRY
@@ -137,7 +151,7 @@ ROLLBACK TRANSACTION sp_t04;
 
 /* T5: inserting a row for the own tenant is accepted (positive control for T4). */
 SAVE TRANSACTION sp_t05;
-EXEC sys.sp_set_session_context @key = N'TenantId', @value = @t1;
+EXEC #Bind @t1;
 SET @err = NULL;
 EXECUTE AS USER = N'tp_test_app';
 BEGIN TRY
@@ -152,7 +166,7 @@ ROLLBACK TRANSACTION sp_t05;
 
 /* T6: updating a facility of another tenant changes no row, and the row keeps its value. */
 SAVE TRANSACTION sp_t06;
-EXEC sys.sp_set_session_context @key = N'TenantId', @value = @t1;
+EXEC #Bind @t1;
 SET @err = NULL; SET @rows = NULL;
 EXECUTE AS USER = N'tp_test_app';
 BEGIN TRY
@@ -161,7 +175,7 @@ BEGIN TRY
 END TRY
 BEGIN CATCH SET @err = ERROR_NUMBER(); END CATCH;
 REVERT;
-EXEC sys.sp_set_session_context @key = N'TenantId', @value = @t2;
+EXEC #Bind @t2;
 SELECT @amt = TotalAmount FROM fac.Facility WHERE FacilityId = @f2;
 IF @err IS NULL AND @rows = 0 AND @amt = 1000 PRINT 'PASS T6: updating a facility of another tenant changes no row';
 ELSE PRINT 'FAIL T6: an update of another tenant''s facility reached the row';
@@ -169,7 +183,7 @@ ROLLBACK TRANSACTION sp_t06;
 
 /* T7: moving an own row to another tenant is refused (33504). */
 SAVE TRANSACTION sp_t07;
-EXEC sys.sp_set_session_context @key = N'TenantId', @value = @t1;
+EXEC #Bind @t1;
 SET @err = NULL;
 EXECUTE AS USER = N'tp_test_app';
 BEGIN TRY UPDATE fac.Facility SET TenantId = @t2 WHERE FacilityId = @f1; END TRY
@@ -181,7 +195,7 @@ ROLLBACK TRANSACTION sp_t07;
 
 /* T8: deleting a facility of another tenant removes nothing (refused, or no row matched). */
 SAVE TRANSACTION sp_t08;
-EXEC sys.sp_set_session_context @key = N'TenantId', @value = @t1;
+EXEC #Bind @t1;
 SET @err = NULL; SET @rows = NULL;
 EXECUTE AS USER = N'tp_test_app';
 BEGIN TRY
@@ -190,7 +204,7 @@ BEGIN TRY
 END TRY
 BEGIN CATCH SET @err = ERROR_NUMBER(); END CATCH;
 REVERT;
-EXEC sys.sp_set_session_context @key = N'TenantId', @value = @t2;
+EXEC #Bind @t2;
 SELECT @n = COUNT(*) FROM fac.Facility WHERE FacilityId = @f2;
 IF @n = 1 AND (@err IS NOT NULL OR @rows = 0) PRINT 'PASS T8: deleting a facility of another tenant removes nothing';
 ELSE PRINT 'FAIL T8: a facility of another tenant was deleted';
@@ -199,7 +213,7 @@ ROLLBACK TRANSACTION sp_t08;
 /* T8b: a tenant cannot delete another tenant's non-working day. The application role holds DELETE on this table,
    so only the row filter can stop the delete: the row is hidden, nothing is deleted, and no error is raised. */
 SAVE TRANSACTION sp_t08b;
-EXEC sys.sp_set_session_context @key = N'TenantId', @value = @t1;
+EXEC #Bind @t1;
 SET @err = NULL; SET @rows = NULL;
 EXECUTE AS USER = N'tp_test_app';
 BEGIN TRY
@@ -208,7 +222,7 @@ BEGIN TRY
 END TRY
 BEGIN CATCH SET @err = ERROR_NUMBER(); END CATCH;
 REVERT;
-EXEC sys.sp_set_session_context @key = N'TenantId', @value = @t2;
+EXEC #Bind @t2;
 SELECT @n = COUNT(*) FROM cfg.NonWorkingDay WHERE NameEn = N'TEST-T2';
 IF @err IS NULL AND @rows = 0 AND @n = 1 PRINT 'PASS T8b: a tenant cannot delete another tenant''s non-working day';
 ELSE PRINT 'FAIL T8b: a non-working day of another tenant was deleted or the delete was refused';
@@ -218,7 +232,7 @@ ROLLBACK TRANSACTION sp_t08b;
 
 /* T9: a tenant reads the global row and not another tenant's row. */
 SAVE TRANSACTION sp_t09;
-EXEC sys.sp_set_session_context @key = N'TenantId', @value = @t1;
+EXEC #Bind @t1;
 SET @err = NULL; SET @n = NULL; SET @n2 = NULL;
 EXECUTE AS USER = N'tp_test_app';
 BEGIN TRY
@@ -233,7 +247,7 @@ ROLLBACK TRANSACTION sp_t09;
 
 /* T10: a tenant cannot insert a global row (33504). */
 SAVE TRANSACTION sp_t10;
-EXEC sys.sp_set_session_context @key = N'TenantId', @value = @t1;
+EXEC #Bind @t1;
 SET @err = NULL;
 EXECUTE AS USER = N'tp_test_app';
 BEGIN TRY INSERT cfg.NonWorkingDay (TenantId, CountryId, OnDate, NameEn) VALUES (NULL, 1, '2026-12-28', N'TEST-X10'); END TRY
@@ -245,7 +259,7 @@ ROLLBACK TRANSACTION sp_t10;
 
 /* T11: a tenant cannot change a global row (33504). */
 SAVE TRANSACTION sp_t11;
-EXEC sys.sp_set_session_context @key = N'TenantId', @value = @t1;
+EXEC #Bind @t1;
 SET @err = NULL;
 EXECUTE AS USER = N'tp_test_app';
 BEGIN TRY UPDATE cfg.NonWorkingDay SET NameEn = N'CHANGED' WHERE NameEn = N'TEST-GLOBAL'; END TRY
@@ -257,7 +271,7 @@ ROLLBACK TRANSACTION sp_t11;
 
 /* T12: a tenant cannot delete a global row (33504 or 229), and the row is still there afterwards. */
 SAVE TRANSACTION sp_t12;
-EXEC sys.sp_set_session_context @key = N'TenantId', @value = @t1;
+EXEC #Bind @t1;
 SET @err = NULL; SET @n = NULL;
 EXECUTE AS USER = N'tp_test_app';
 BEGIN TRY DELETE FROM cfg.NonWorkingDay WHERE NameEn = N'TEST-GLOBAL'; END TRY
@@ -272,7 +286,7 @@ ROLLBACK TRANSACTION sp_t12;
 
 /* T13: a tenant can append an audit row for itself. */
 SAVE TRANSACTION sp_t13;
-EXEC sys.sp_set_session_context @key = N'TenantId', @value = @t1;
+EXEC #Bind @t1;
 SET @err = NULL;
 EXECUTE AS USER = N'tp_test_app';
 BEGIN TRY INSERT aud.AuditLog (TenantId, OccurredAt, ActorType, Action) VALUES (@t1, SYSUTCDATETIME(), 'USER', 'TEST_T13'); END TRY
@@ -284,7 +298,7 @@ ROLLBACK TRANSACTION sp_t13;
 
 /* T14: a tenant cannot append an audit row for another tenant (33504). */
 SAVE TRANSACTION sp_t14;
-EXEC sys.sp_set_session_context @key = N'TenantId', @value = @t1;
+EXEC #Bind @t1;
 SET @err = NULL;
 EXECUTE AS USER = N'tp_test_app';
 BEGIN TRY INSERT aud.AuditLog (TenantId, OccurredAt, ActorType, Action) VALUES (@t2, SYSUTCDATETIME(), 'USER', 'TEST_T14'); END TRY
@@ -296,7 +310,7 @@ ROLLBACK TRANSACTION sp_t14;
 
 /* T15: the application role cannot update or delete audit rows (229, no permission). */
 SAVE TRANSACTION sp_t15;
-EXEC sys.sp_set_session_context @key = N'TenantId', @value = @t1;
+EXEC #Bind @t1;
 SET @err = NULL; SET @err2 = NULL;
 EXECUTE AS USER = N'tp_test_app';
 BEGIN TRY UPDATE aud.AuditLog SET Action = N'TEST_CHANGED' WHERE TenantId = @t1; END TRY
@@ -308,26 +322,58 @@ IF @err = 229 AND @err2 = 229 PRINT 'PASS T15: the application role cannot updat
 ELSE PRINT 'FAIL T15: update or delete of audit rows was not refused with 229';
 ROLLBACK TRANSACTION sp_t15;
 
-/* ---------- Case 16: the context itself ---------- */
+/* ---------- Cases 16-16c: the binding (O-16) ---------- */
 
-/* T16: the application role must not be able to set TenantId directly. Currently it can:
-   sp_set_session_context is callable by any database user, and a database-level DENY on a
-   system procedure is not possible (error 4629 outside master). The case reports the gap
-   until the design changes (O-16). */
+/* T16: the application role sets TenantId itself and then reads a tenant-2 facility. The connection stays bound to
+   tenant 1 (sec.SessionBinding), so the filter hides the tenant-2 row whatever the context says. */
 SAVE TRANSACTION sp_t16;
-EXEC sys.sp_set_session_context @key = N'TenantId', @value = @t1;
-SET @err = NULL;
+EXEC #Bind @t1;
+SET @err = NULL; SET @err2 = NULL; SET @n = NULL;
 EXECUTE AS USER = N'tp_test_app';
 BEGIN TRY
     EXEC sys.sp_set_session_context @key = N'TenantId', @value = @t2;
-    SET @err = 0;
+    SET @err2 = 0;
 END TRY
+BEGIN CATCH SET @err2 = ERROR_NUMBER(); END CATCH;
+BEGIN TRY SELECT @n = COUNT(*) FROM fac.Facility WHERE FacilityId = @f2; END TRY
 BEGIN CATCH SET @err = ERROR_NUMBER(); END CATCH;
 REVERT;
-IF @err = 0 PRINT 'KNOWN GAP O-16: the application role sets TenantId directly with sp_set_session_context';
-ELSE IF @err = 229 PRINT 'PASS T16: the application role cannot set TenantId directly';
-ELSE PRINT 'FAIL T16: setting TenantId directly raised error ' + CAST(@err AS VARCHAR(10));
+PRINT 'INFO T16: direct change of TenantId by the application role returned ' + CAST(ISNULL(@err2, -1) AS VARCHAR(10)) + ' (0 = accepted)';
+IF @err IS NULL AND @n = 0 PRINT 'PASS T16: a direct change of TenantId does not expose another tenant''s row';
+ELSE PRINT 'FAIL T16: a direct change of TenantId exposed another tenant''s row';
 ROLLBACK TRANSACTION sp_t16;
+
+/* T16b: the application role can neither read nor write the binding table (229). */
+SAVE TRANSACTION sp_t16b;
+SET @err = NULL; SET @err2 = NULL;
+EXECUTE AS USER = N'tp_test_app';
+BEGIN TRY SELECT @n = COUNT(*) FROM sec.SessionBinding; END TRY
+BEGIN CATCH SET @err = ERROR_NUMBER(); END CATCH;
+BEGIN TRY INSERT sec.SessionBinding (SessionId, BoundTenantId, BoundUserId, BindingToken) VALUES (999999, @t1, 0, NEWID()); END TRY
+BEGIN CATCH SET @err2 = ERROR_NUMBER(); END CATCH;
+REVERT;
+IF @err = 229 AND @err2 = 229 PRINT 'PASS T16b: the application role can neither read nor write the binding table';
+ELSE PRINT 'FAIL T16b: reading or writing the binding table was not refused with 229';
+ROLLBACK TRANSACTION sp_t16b;
+
+/* T16c: a token that is not the connection's own, or no token at all, shows no row of the bound tenant. */
+SAVE TRANSACTION sp_t16c;
+EXEC #Bind @t1;
+SET @other = NEWID();
+EXEC sys.sp_set_session_context @key = N'BindingToken', @value = @other;
+SET @err = NULL; SET @n = NULL; SET @n2 = NULL;
+EXECUTE AS USER = N'tp_test_app';
+BEGIN TRY SELECT @n = COUNT(*) FROM fac.Facility WHERE FacilityId = @f1; END TRY
+BEGIN CATCH SET @err = ERROR_NUMBER(); END CATCH;
+REVERT;
+EXEC sys.sp_set_session_context @key = N'BindingToken', @value = NULL;
+EXECUTE AS USER = N'tp_test_app';
+BEGIN TRY SELECT @n2 = COUNT(*) FROM fac.Facility WHERE FacilityId = @f1; END TRY
+BEGIN CATCH SET @err = ERROR_NUMBER(); END CATCH;
+REVERT;
+IF @err IS NULL AND @n = 0 AND @n2 = 0 PRINT 'PASS T16c: a wrong token or no token shows no row of the bound tenant';
+ELSE PRINT 'FAIL T16c: a wrong or missing token exposed a row of the bound tenant';
+ROLLBACK TRANSACTION sp_t16c;
 
 /* ---------- Cases 17-20: the context procedure sec.usp_SetSessionContext ---------- */
 
@@ -357,8 +403,10 @@ IF @err = 50003 AND @err2 = 50003 PRINT 'PASS T18: the context procedure refuses
 ELSE PRINT 'FAIL T18: a non-member or disabled user was not refused with 50003';
 ROLLBACK TRANSACTION sp_t18;
 
-/* T19: an active member binds the session to the tenant; afterwards only that tenant's rows are visible. */
+/* T19: an active member binds the connection to its tenant; afterwards only that tenant's rows are visible. */
 SAVE TRANSACTION sp_t19;
+EXEC sys.sp_set_session_context @key = N'TenantId', @value = NULL;        -- the procedure binds only an unbound connection
+EXEC sys.sp_set_session_context @key = N'BindingToken', @value = NULL;
 SET @err = NULL; SET @n = NULL; SET @n2 = NULL; SET @ctx = NULL;
 EXECUTE AS USER = N'tp_test_app';
 BEGIN TRY
@@ -371,17 +419,21 @@ END TRY
 BEGIN CATCH SET @err = ERROR_NUMBER(); END CATCH;
 REVERT;
 IF @err = 0 AND @n = 1 AND @n2 = 0 AND @ctx = @t1 PRINT 'PASS T19: an active member is bound to its tenant and sees only that tenant';
-ELSE PRINT 'FAIL T19: the procedure did not bind the session to the tenant, or rows of another tenant are visible';
+ELSE PRINT 'FAIL T19: the procedure did not bind the connection to the tenant, or rows of another tenant are visible';
 ROLLBACK TRANSACTION sp_t19;
 
-/* T20: once the procedure has bound the session, the context cannot be changed in that session (read-only).
-   This case runs after T19, which left the session bound to tenant 1. */
-SET @err = NULL;
+/* T20: once bound, the context cannot be changed in that connection, and a second binding is refused (50004).
+   This case runs after T19, which left the connection bound to tenant 1. */
+SET @err = NULL; SET @err2 = NULL;
 BEGIN TRY EXEC sys.sp_set_session_context @key = N'TenantId', @value = @t2; SET @err = 0; END TRY
 BEGIN CATCH SET @err = ERROR_NUMBER(); END CATCH;
 SET @ctx = CAST(SESSION_CONTEXT(N'TenantId') AS INT);
-IF @err <> 0 AND @ctx = @t1 PRINT 'PASS T20: the bound context cannot be changed in the same session';
-ELSE PRINT 'FAIL T20: the bound context was changed in the same session';
+EXECUTE AS USER = N'tp_test_app';
+BEGIN TRY EXEC sec.usp_SetSessionContext @TenantId = @t2, @UserId = @u2; END TRY
+BEGIN CATCH SET @err2 = ERROR_NUMBER(); END CATCH;
+REVERT;
+IF @err <> 0 AND @ctx = @t1 AND @err2 = 50004 PRINT 'PASS T20: a bound context cannot be changed, and a second binding is refused';
+ELSE PRINT 'FAIL T20: the bound context was changed, or a second binding was not refused with 50004';
 
 /* ---------- Cases 21-23: the reporting role (tp_readonly) ---------- */
 
@@ -394,14 +446,16 @@ REVERT;
 IF @err = 230 PRINT 'PASS T21: the reporting role cannot read a restricted column';
 ELSE PRINT 'FAIL T21: reading a restricted column was not refused with 230';
 
-/* T22: the reporting role cannot read the platform operator table (229). */
-SET @err = NULL;
+/* T22: the reporting role cannot read the platform operator table or the binding table (229). */
+SET @err = NULL; SET @err2 = NULL;
 EXECUTE AS USER = N'tp_test_ro';
 BEGIN TRY SELECT COUNT(*) FROM plat.PlatformOperator; END TRY
 BEGIN CATCH SET @err = ERROR_NUMBER(); END CATCH;
+BEGIN TRY SELECT COUNT(*) FROM sec.SessionBinding; END TRY
+BEGIN CATCH SET @err2 = ERROR_NUMBER(); END CATCH;
 REVERT;
-IF @err = 229 PRINT 'PASS T22: the reporting role cannot read the platform operator table';
-ELSE PRINT 'FAIL T22: reading plat.PlatformOperator was not refused with 229';
+IF @err = 229 AND @err2 = 229 PRINT 'PASS T22: the reporting role cannot read the platform operator table or the binding table';
+ELSE PRINT 'FAIL T22: reading plat.PlatformOperator or sec.SessionBinding was not refused with 229';
 
 /* T23: the reporting role can read a column that is not restricted (positive control for T21). */
 SET @err = NULL;

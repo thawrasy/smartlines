@@ -19,7 +19,7 @@ erDiagram
 | SupportAccessGrant | RevokedBy | sec.AppUser |
 | Tenant | HomeCountryId | ref.Country |
 
-## مخطط `sec` (14 جدولًا)
+## مخطط `sec` (15 جدولًا)
 
 ```mermaid
 erDiagram
@@ -45,6 +45,7 @@ erDiagram
 | الجدول | العمود | يشير إلى |
 |---|---|---|
 | AppUser | DepartmentId | org.Department |
+| SessionBinding | BoundTenantId | plat.Tenant |
 | UserCompanyScope | CompanyId | org.Company |
 
 ## مخطط `aud` (2 جدولًا)

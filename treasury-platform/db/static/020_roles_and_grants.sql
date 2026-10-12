@@ -53,5 +53,10 @@ END
 CLOSE c; DEALLOCATE c;
 GO
 DENY SELECT ON [plat].[PlatformOperator] TO [tp_readonly];
+-- sec.SessionBinding (O-16): written and read only by the context procedure (tp_auth, 030). The row filters
+-- (010) read it through the owner chain, so no other role needs a grant. Tokens must not be readable by the
+-- reporting or platform role: a copied token would let another connection read the bound tenant.
+GRANT SELECT, INSERT, UPDATE ON [sec].[SessionBinding] TO [tp_auth];
+DENY SELECT ON [sec].[SessionBinding] TO [tp_readonly], [tp_platform];
 -- مخطط rls يُنشأ في 010؛ منحه لـ tp_app هناك بعد إنشائه
 GO

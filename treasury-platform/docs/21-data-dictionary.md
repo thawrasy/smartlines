@@ -2,12 +2,12 @@
 
 > مُولَّد آليًا من نموذج البيانات بـ `tools/dbgen` — لا يُعدَّل يدويًا. الأعمدة المشتركة التي تضيفها اصطلاحات التوليد (TenantId، المعرّف، التدقيق) تظهر في كل جدول.
 
-**عدد الجداول: 194**
+**عدد الجداول: 195**
 
 | الوحدة | عدد الجداول |
 |---|---|
 | PLT-PLAT | 7 |
-| PLT-SEC | 14 |
+| PLT-SEC | 15 |
 | PLT-AUD | 2 |
 | PLT-DOC | 3 |
 | PLT-CFG | 12 |
@@ -361,6 +361,20 @@
 **المفاتيح:** PK(LoginAttemptId)
 
 **قيود:** `UserId IS NOT NULL OR LoginName IS NOT NULL`
+
+### `sec.SessionBinding` — Connection binding for the row filters (O-16)
+
+*عالمي*
+
+| العمود | النوع | NULL | الافتراضي | المرجع | ملاحظة |
+|---|---|---|---|---|---|
+| SessionId | INT | لا |  |  | @@SPID of the connection |
+| BoundTenantId | INT | لا |  | plat.Tenant | tenant named by the context procedure |
+| BoundUserId | BIGINT | لا |  |  | user named by the context procedure; no foreign key (sec.AppUser is tenant-owned) |
+| BindingToken | UNIQUEIDENTIFIER | لا |  |  | random per binding; the row filters also require SESSION_CONTEXT(N'BindingToken') to match |
+| BoundAt | DATETIME2(3) | لا | SYSUTCDATETIME() |  |  |
+
+**المفاتيح:** PK(SessionId)
 
 ### `sec.UserSession` — User sessions: 30-minute idle timeout and 12-hour absolute timeout (FR-PLT-014)
 

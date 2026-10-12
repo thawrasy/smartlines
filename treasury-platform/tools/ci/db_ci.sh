@@ -86,11 +86,10 @@ if grep -q '^FAIL' "$TMP/isolation.out"; then
     exit 1
 fi
 iso_pass=$(grep -c '^PASS' "$TMP/isolation.out" || true)
-iso_gap=$(grep -c '^KNOWN GAP' "$TMP/isolation.out" || true)
-# 24 cases pass; O-16 (the application role can set TenantId directly) is a known gap until the design changes.
-if [ "$iso_pass" -ne 24 ] || [ "$iso_gap" -ne 1 ]; then
-    echo "expected 24 PASS and 1 KNOWN GAP, found $iso_pass and $iso_gap"
+# 27 cases: T1-T24 with T8b, T16b and T16c. A case that stops printing PASS fails the build.
+if [ "$iso_pass" -ne 27 ]; then
+    echo "expected 27 PASS, found $iso_pass"
     exit 1
 fi
-echo "tenant-isolation tests: $iso_pass passed, $iso_gap known gap (O-16)"
+echo "tenant-isolation tests: $iso_pass passed"
 echo "all database checks passed"

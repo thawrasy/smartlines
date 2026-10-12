@@ -30,6 +30,7 @@ ALTER TABLE [sec].[UserCompanyScope] ADD CONSTRAINT [FK_UserCompanyScope_UserId]
 ALTER TABLE [sec].[UserCompanyScope] ADD CONSTRAINT [FK_UserCompanyScope_CompanyId] FOREIGN KEY ([TenantId], [CompanyId]) REFERENCES [org].[Company] ([TenantId], [CompanyId]);
 ALTER TABLE [sec].[LoginAttempt] ADD CONSTRAINT [FK_LoginAttempt_Tenant] FOREIGN KEY ([TenantId]) REFERENCES [plat].[Tenant] ([TenantId]);
 ALTER TABLE [sec].[LoginAttempt] ADD CONSTRAINT [FK_LoginAttempt_UserId] FOREIGN KEY ([TenantId], [UserId]) REFERENCES [sec].[AppUser] ([TenantId], [AppUserId]);
+ALTER TABLE [sec].[SessionBinding] ADD CONSTRAINT [FK_SessionBinding_BoundTenantId] FOREIGN KEY ([BoundTenantId]) REFERENCES [plat].[Tenant] ([TenantId]);
 ALTER TABLE [sec].[UserSession] ADD CONSTRAINT [FK_UserSession_Tenant] FOREIGN KEY ([TenantId]) REFERENCES [plat].[Tenant] ([TenantId]);
 ALTER TABLE [sec].[UserSession] ADD CONSTRAINT [FK_UserSession_UserId] FOREIGN KEY ([TenantId], [UserId]) REFERENCES [sec].[AppUser] ([TenantId], [AppUserId]);
 ALTER TABLE [sec].[UserSession] ADD CONSTRAINT [FK_UserSession_EndedBy] FOREIGN KEY ([TenantId], [EndedBy]) REFERENCES [sec].[AppUser] ([TenantId], [AppUserId]);

@@ -705,6 +705,7 @@ def main():
     #  - عالمي: tp_app = SELECT فقط؛ tp_platform = SELECT, INSERT, UPDATE (إدارة الكتالوجات العالمية)
     #  - للإضافة فقط (append): بلا UPDATE لأي دور (وتُفرض أيضًا بـ DENY في 005)
     #  - noapp: بلا منح لتطبيق المشترك أبدًا (يُقرأ عبر عرض مُحدَّد إن لزم)
+    #  - noplat: بلا منح لتطبيق المنصة أيضًا (جداول داخلية مثل sec.SessionBinding، تكتبها إجراءات بعينها فقط)
     grant_lines = []
     for t in tables.values():
         obj = f'[{t.schema}].[{t.name}]'
@@ -713,7 +714,7 @@ def main():
         elif 'append' in t.flags: app = 'SELECT, INSERT'
         else: app = 'SELECT, INSERT, UPDATE'
         plat = None
-        if t.is_global or t.is_mixed:
+        if (t.is_global or t.is_mixed) and 'noplat' not in t.flags:
             plat = 'SELECT, INSERT' if 'append' in t.flags else 'SELECT, INSERT, UPDATE'
         grant_lines.append(f'-- {t.fq}' + ('  (noapp: بلا منح لتطبيق المشترك)' if app is None else ''))
         if app: grant_lines.append(f'GRANT {app} ON {obj} TO [tp_app];')

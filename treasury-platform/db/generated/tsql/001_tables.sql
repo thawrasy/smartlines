@@ -326,6 +326,16 @@ CREATE TABLE [sec].[LoginAttempt] (
     CONSTRAINT [CK_LoginAttempt_Outcome] CHECK ([Outcome] IS NULL OR [Outcome] IN ('LOGIN_SUCCESS', 'FAILED_PASSWORD', 'DENIED_LOCKED', 'FAILED_MFA', 'LOCKOUT'))
 );
 GO
+-- Connection binding for the row filters (O-16)
+CREATE TABLE [sec].[SessionBinding] (
+    [SessionId] INT NOT NULL,
+    [BoundTenantId] INT NOT NULL,
+    [BoundUserId] BIGINT NOT NULL,
+    [BindingToken] UNIQUEIDENTIFIER NOT NULL,
+    [BoundAt] DATETIME2(3) NOT NULL CONSTRAINT [DF_SessionBinding_BoundAt] DEFAULT SYSUTCDATETIME(),
+    CONSTRAINT [PK_SessionBinding] PRIMARY KEY CLUSTERED ([SessionId])
+);
+GO
 -- User sessions: 30-minute idle timeout and 12-hour absolute timeout (FR-PLT-014)
 CREATE TABLE [sec].[UserSession] (
     [TenantId] INT NOT NULL,

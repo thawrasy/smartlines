@@ -35,6 +35,7 @@ GRANT SELECT, INSERT, UPDATE ON [sec].[UserRole] TO [tp_app];
 GRANT SELECT, INSERT, UPDATE ON [sec].[UserCompanyScope] TO [tp_app];
 -- sec.LoginAttempt
 GRANT SELECT, INSERT ON [sec].[LoginAttempt] TO [tp_app];
+-- sec.SessionBinding  (noapp: بلا منح لتطبيق المشترك)
 -- sec.UserSession
 GRANT SELECT, INSERT, UPDATE ON [sec].[UserSession] TO [tp_app];
 -- sec.MfaRecoveryCode
