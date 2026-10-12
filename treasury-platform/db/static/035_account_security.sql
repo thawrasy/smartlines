@@ -30,6 +30,19 @@
 SET NOCOUNT ON;
 SET ANSI_NULLS ON; SET QUOTED_IDENTIFIER ON; SET ANSI_PADDING ON; SET ANSI_WARNINGS ON; SET ARITHABORT ON; SET CONCAT_NULL_YIELDS_NULL ON; SET NUMERIC_ROUNDABORT OFF;
 GO
+-- The administrator procedures act for the user of a USER binding only. A job binding (the service account, 037) or
+-- a support binding (036) shares the application's or the reporting role's rights, but must never reset MFA, issue
+-- a link or change a user: with those it could take over an administrator's account. @Write = 1 also needs a
+-- tenant open for writing (TRIAL or ACTIVE).
+CREATE OR ALTER FUNCTION sec.fn_BoundAsUser (@TenantId INT, @Write BIT)
+RETURNS TABLE
+AS RETURN
+    SELECT 1 AS BoundAsUser
+    FROM sec.SessionBinding AS b
+    WHERE b.SessionId = @@SPID AND b.BindingKind = 'USER'
+      AND EXISTS (SELECT 1 FROM rls.fn_Bound(@TenantId))
+      AND (@Write = 0 OR EXISTS (SELECT 1 FROM rls.fn_BoundWrite(@TenantId)));
+GO
 /* ---------- Tenant resolution and MFA before binding ---------- */
 
 -- The sub-domain {Code}.bankfas.com gives the tenant (FR-PLT-046). plat.Tenant is not readable by tp_app.
@@ -222,7 +235,7 @@ BEGIN
          WHERE TenantId = @TenantId AND TokenHash = HASHBYTES('SHA2_256', @SessionToken) AND EndedAt IS NULL;
     ELSE IF @UserSessionId IS NOT NULL
     BEGIN
-        IF NOT EXISTS (SELECT 1 FROM rls.fn_Bound(@TenantId)) THROW 50003, 'The connection is not bound to this tenant', 1;
+        IF NOT EXISTS (SELECT 1 FROM sec.fn_BoundAsUser(@TenantId, 0)) THROW 50003, 'The connection is not bound to this tenant as a user', 1;
         UPDATE sec.UserSession
            SET EndedAt = @now, EndReason = 'TERMINATED_BY_ADMIN', EndedBy = CAST(SESSION_CONTEXT(N'UserId') AS BIGINT)
          WHERE TenantId = @TenantId AND UserSessionId = @UserSessionId AND EndedAt IS NULL;
@@ -486,7 +499,7 @@ BEGIN
     SET NOCOUNT ON;
     SET @SentTo = NULL;
     IF @Token IS NULL OR DATALENGTH(@Token) < 32 THROW 50001, 'A link token of at least 32 bytes is required', 1;
-    IF NOT EXISTS (SELECT 1 FROM rls.fn_BoundWrite(@TenantId)) THROW 50003, 'The connection is not bound to this tenant for writing', 1;
+    IF NOT EXISTS (SELECT 1 FROM sec.fn_BoundAsUser(@TenantId, 1)) THROW 50003, 'The connection is not bound to this tenant as a user for writing', 1;
     DECLARE @now DATETIME2(3) = SYSUTCDATETIME(), @own BIT = 0, @email NVARCHAR(254), @ok BIT = 0, @expires DATETIME2(3);
     IF @@TRANCOUNT = 0 BEGIN BEGIN TRANSACTION; SET @own = 1; END;
     BEGIN TRY
@@ -524,7 +537,7 @@ WITH EXECUTE AS N'tp_auth_exec'
 AS
 BEGIN
     SET NOCOUNT ON;
-    IF NOT EXISTS (SELECT 1 FROM rls.fn_BoundWrite(@TenantId)) THROW 50003, 'The connection is not bound to this tenant for writing', 1;
+    IF NOT EXISTS (SELECT 1 FROM sec.fn_BoundAsUser(@TenantId, 1)) THROW 50003, 'The connection is not bound to this tenant as a user for writing', 1;
     UPDATE sec.AppUser
        SET Status = 'ACTIVE', LockedUntil = NULL, RequiresAdminUnlock = 0, LockoutCount = 0, FailedAttempts = 0, FirstFailedAt = NULL
      WHERE TenantId = @TenantId AND AppUserId = @UserId AND IsSystemUser = 0
@@ -541,7 +554,7 @@ WITH EXECUTE AS N'tp_auth_exec'
 AS
 BEGIN
     SET NOCOUNT ON;
-    IF NOT EXISTS (SELECT 1 FROM rls.fn_BoundWrite(@TenantId)) THROW 50003, 'The connection is not bound to this tenant for writing', 1;
+    IF NOT EXISTS (SELECT 1 FROM sec.fn_BoundAsUser(@TenantId, 1)) THROW 50003, 'The connection is not bound to this tenant as a user for writing', 1;
     DECLARE @now DATETIME2(3) = SYSUTCDATETIME(), @own BIT = 0;
     IF @@TRANCOUNT = 0 BEGIN BEGIN TRANSACTION; SET @own = 1; END;
     BEGIN TRY
@@ -568,7 +581,7 @@ WITH EXECUTE AS N'tp_auth_exec'
 AS
 BEGIN
     SET NOCOUNT ON;
-    IF NOT EXISTS (SELECT 1 FROM rls.fn_BoundWrite(@TenantId)) THROW 50003, 'The connection is not bound to this tenant for writing', 1;
+    IF NOT EXISTS (SELECT 1 FROM sec.fn_BoundAsUser(@TenantId, 1)) THROW 50003, 'The connection is not bound to this tenant as a user for writing', 1;
     IF @UserId = CAST(SESSION_CONTEXT(N'UserId') AS BIGINT) THROW 50019, 'A user cannot change the status of their own account', 1;
     DECLARE @now DATETIME2(3) = SYSUTCDATETIME(), @own BIT = 0;
     IF @@TRANCOUNT = 0 BEGIN BEGIN TRANSACTION; SET @own = 1; END;

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Database CI: checks the model, confirms the generated DDL is current, deploys it to SQL Server,
-# compares what was deployed with the DDL, and runs the trigger, tenant-isolation, account-security and
-# operator-and-support tests.
+# compares what was deployed with the DDL, and runs the trigger, tenant-isolation, account-security,
+# operator-and-support and job-binding tests.
 #
 # Environment:
 #   SA_PASSWORD   password of the sa login (required)
@@ -54,13 +54,13 @@ sq -Q "IF DB_ID(N'BankFas') IS NOT NULL BEGIN ALTER DATABASE [BankFas] SET SINGL
 # The same wrapper that users run: it changes to db/ and runs deploy.sql unchanged.
 SQL_SERVER="$SQL_SERVER" SQL_USER=sa SQLCMD="$SQLCMD" bash tools/deploy/deploy.sh
 
-echo "== 4b. the platform seed can run again without changing anything (DOC-B05 section 6)"
-seed_state() { sq -d BankFas -h -1 -W -Q "SET NOCOUNT ON; SELECT CONCAT(COUNT(*), '/', COUNT(UpdatedAt), '/', CONVERT(VARCHAR(30), MAX(CreatedAt), 126)) FROM cfg.SettingDefinition"; }
+echo "== 4b. the platform seed is complete and can run again without changing anything (DOC-B05 section 6)"
+seed_state() { sq -d BankFas -h -1 -W -Q "SET NOCOUNT ON; SELECT CONCAT((SELECT COUNT(*) FROM cfg.SettingDefinition), '/', (SELECT COUNT(*) FROM cfg.JobDefinition), '/', (SELECT COUNT(UpdatedAt) FROM cfg.SettingDefinition) + (SELECT COUNT(UpdatedAt) FROM cfg.JobDefinition))"; }
 seed_before="$(seed_state)"
 sq -d BankFas -i db/seed/100_platform_global.sql >/dev/null
 seed_after="$(seed_state)"
-if [ "$seed_before" != "$seed_after" ] || [ "${seed_before%%/*}" -lt 6 ]; then
-    echo "platform seed is not safe to run again, or incomplete: before $seed_before, after $seed_after"
+if [ "$seed_before" != "$seed_after" ] || [ "$seed_before" != "6/29/0" ]; then
+    echo "platform seed is not safe to run again, or incomplete: settings/jobs/updated before $seed_before, after $seed_after (expected 6/29/0)"
     exit 1
 fi
 echo "platform seed unchanged on a second run ($seed_after)"
@@ -140,4 +140,22 @@ if [ "$op_pass" -ne 10 ]; then
     exit 1
 fi
 echo "operator and support tests: $op_pass passed"
+echo "== 10. job binding tests (db/tests/job_context_tests.sql)"
+sq -i db/tests/job_context_tests.sql > "$TMP/jobs.out" 2>&1 || {
+    cat "$TMP/jobs.out"
+    echo "job binding test run failed"
+    exit 1
+}
+cat "$TMP/jobs.out"
+if grep -q '^FAIL' "$TMP/jobs.out"; then
+    echo "a job binding test failed"
+    exit 1
+fi
+job_pass=$(grep -c '^PASS' "$TMP/jobs.out" || true)
+# 6 cases: J1-J6 (ADR 0004: job catalogue, service account, tenant status, tenant list, the real job binding).
+if [ "$job_pass" -ne 6 ]; then
+    echo "expected 6 PASS, found $job_pass"
+    exit 1
+fi
+echo "job binding tests: $job_pass passed"
 echo "all database checks passed"

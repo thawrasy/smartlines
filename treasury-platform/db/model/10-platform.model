@@ -588,6 +588,17 @@ table cfg.OutboxEvent deletable   # Outbound queue with at-least-once delivery; 
   check AttemptCount >= 0
   check EventName LIKE '%.%'
 
+# The closed list of background jobs (DOC-F17 section 5.2, DQ-F17-2) and the tenant statuses each may run in
+# (DOC-F04 section 7.4). sec.usp_SetJobContext binds a job connection only for an active TENANT job listed here.
+table cfg.JobDefinition int global noapp   # Background job catalogue: the only JobKey values a job connection may bind with (FR-PLT-044)
+  JobKey          ascii(80) req
+  Scope           enum{TENANT,PLATFORM} req   # PLATFORM: runs without a tenant binding (status transitions, DOC-F05 §6.3)
+  RunsInStatuses  set{TRIAL,ACTIVE,SUSPENDED,CLOSED,ARCHIVED_READ_ONLY}   # CLOSED means within 30 days of ClosedAt; empty for PLATFORM
+  Description     str(500)
+  IsActive        bool      req =1
+  unique JobKey
+  check Scope = 'PLATFORM' OR RunsInStatuses IS NOT NULL
+
 table cfg.JobRun deletable   # Background job run log: last run, duration and result, visible to the account administrator (FR-PLT-044)
   JobKey        ascii(80) req   # مثل EXPIRY_ALERTS · FILE_INTEGRITY · AUDIT_CHAIN_VERIFY
   TriggerKind   enum{SCHEDULED,MANUAL,RETRY} req =SCHEDULED

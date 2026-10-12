@@ -85,6 +85,8 @@ GRANT SELECT, INSERT, UPDATE ON [cfg].[NonWorkingDay] TO [tp_app];
 GRANT SELECT, INSERT, UPDATE ON [cfg].[NonWorkingDay] TO [tp_platform];
 -- cfg.OutboxEvent
 GRANT SELECT, INSERT, UPDATE ON [cfg].[OutboxEvent] TO [tp_app];
+-- cfg.JobDefinition  (noapp: بلا منح لتطبيق المشترك)
+GRANT SELECT, INSERT, UPDATE ON [cfg].[JobDefinition] TO [tp_platform];
 -- cfg.JobRun
 GRANT SELECT, INSERT, UPDATE ON [cfg].[JobRun] TO [tp_app];
 -- cfg.SeedRun

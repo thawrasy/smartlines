@@ -120,7 +120,8 @@ BEGIN
     DECLARE @token UNIQUEIDENTIFIER = NEWID();
     MERGE sec.SessionBinding AS b
     USING (SELECT @@SPID AS SessionId) AS s ON b.SessionId = s.SessionId
-    WHEN MATCHED THEN UPDATE SET BoundTenantId = @TenantId, BoundUserId = @UserId, BindingToken = @token, BoundAt = SYSUTCDATETIME()
+    WHEN MATCHED THEN UPDATE SET BoundTenantId = @TenantId, BoundUserId = @UserId, BindingToken = @token, BoundAt = SYSUTCDATETIME(),
+                                 BindingKind = 'USER', BoundOperatorId = NULL
     WHEN NOT MATCHED THEN INSERT (SessionId, BoundTenantId, BoundUserId, BindingToken) VALUES (s.SessionId, @TenantId, @UserId, @token);
     EXEC sys.sp_set_session_context @key = N'TenantId', @value = @TenantId;
     EXEC sys.sp_set_session_context @key = N'UserId', @value = @UserId;

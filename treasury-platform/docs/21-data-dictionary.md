@@ -2,7 +2,7 @@
 
 > مُولَّد آليًا من نموذج البيانات بـ `tools/dbgen` — لا يُعدَّل يدويًا. الأعمدة المشتركة التي تضيفها اصطلاحات التوليد (TenantId، المعرّف، التدقيق) تظهر في كل جدول.
 
-**عدد الجداول: 197**
+**عدد الجداول: 198**
 
 | الوحدة | عدد الجداول |
 |---|---|
@@ -10,7 +10,7 @@
 | PLT-SEC | 15 |
 | PLT-AUD | 2 |
 | PLT-DOC | 3 |
-| PLT-CFG | 12 |
+| PLT-CFG | 13 |
 | ORG | 14 |
 | PTY | 11 |
 | REF | 2 |
@@ -980,6 +980,27 @@
 **المفاتيح:** PK(OutboxEventId) · UQ(TenantId, MessageId)
 
 **قيود:** `AttemptCount >= 0` · `EventName LIKE '%.%'`
+
+### `cfg.JobDefinition` — Background job catalogue: the only JobKey values a job connection may bind with (FR-PLT-044)
+
+*عالمي*
+
+| العمود | النوع | NULL | الافتراضي | المرجع | ملاحظة |
+|---|---|---|---|---|---|
+| **JobDefinitionId** | INT IDENTITY | لا | | | مفتاح أساسي |
+| JobKey | VARCHAR(80) | لا |  |  |  |
+| Scope | VARCHAR(10) | لا |  |  | PLATFORM: runs without a tenant binding (status transitions, DOC-F05 §6.3) enum: TENANT, PLATFORM |
+| RunsInStatuses | VARCHAR(49) | نعم |  |  | CLOSED means within 30 days of ClosedAt; empty for PLATFORM |
+| Description | NVARCHAR(500) | نعم |  |  |  |
+| IsActive | BIT | لا | 1 |  |  |
+| CreatedAt | DATETIME2(3) | لا | SYSUTCDATETIME() |  |  |
+| CreatedBy | BIGINT | نعم |  |  |  |
+| UpdatedAt | DATETIME2(3) | نعم |  |  |  |
+| UpdatedBy | BIGINT | نعم |  |  |  |
+
+**المفاتيح:** PK(JobDefinitionId) · UQ(JobKey)
+
+**قيود:** `Scope = 'PLATFORM' OR RunsInStatuses IS NOT NULL`
 
 ### `cfg.JobRun` — Background job run log: last run, duration and result, visible to the account administrator (FR-PLT-044)
 

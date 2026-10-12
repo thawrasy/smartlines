@@ -80,7 +80,7 @@ erDiagram
 | DocumentLink | UnlinkedBy | sec.AppUser |
 | DocumentVersion | KeyId | sec.TenantKey |
 
-## مخطط `cfg` (12 جدولًا)
+## مخطط `cfg` (13 جدولًا)
 
 ```mermaid
 erDiagram

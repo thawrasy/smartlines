@@ -7,7 +7,7 @@
   R3  tp_platform بلا أي منح مباشر على جداول المشتركين (المملوكة للمشترك)
   R4  لا REFERENCES لأي دور تطبيقي
   R5  لا منح على مستوى المخطط لـ tp_app أو tp_platform (استثناء: مخطط rls للقراءة)
-  R6  tp_auth لا يملك منحًا إلا على الجداول الستة عشر التي تحتاجها إجراءات 030 و035 (الحساب والجلسة والربط والأدوار والروابط والاسترداد وسجل الكلمات) و028 (تعريفات الإعدادات وإعدادات المشترك) و036 (المشغّلون وجلساتهم وروابطهم ومنح الدعم)
+  R6  tp_auth لا يملك منحًا إلا على الجداول السبعة عشر التي تحتاجها إجراءات 030 و035 (الحساب والجلسة والربط والأدوار والروابط والاسترداد وسجل الكلمات) و028 (تعريفات الإعدادات وإعدادات المشترك) و036 (المشغّلون وجلساتهم وروابطهم ومنح الدعم) و037 (قائمة المهام)
   R7  عدد أعمدة sens=restricted = عدد عبارات DENY لـ tp_readonly
   R8  كل جدول فيه عمود *Enc يملك مفتاح بيانات (EncKeyId | MfaKeyId | MfaKeyRef)،
       وكل عمود *Hash مرتبط بمفتاح فهرسة (HashKeyId | MfaKeyRef)
@@ -85,7 +85,8 @@ def main():
                 'sec.AppUser', 'plat.Tenant', 'sec.SessionBinding', 'sec.UserSession', 'sec.LoginAttempt',
                 'sec.UserRole', 'sec.Role', 'sec.UserToken', 'sec.MfaRecoveryCode', 'sec.UserPasswordHistory',
                 'cfg.SettingDefinition', 'cfg.TenantSetting',
-                'plat.PlatformOperator', 'plat.OperatorSession', 'plat.OperatorToken', 'plat.SupportAccessGrant'):
+                'plat.PlatformOperator', 'plat.OperatorSession', 'plat.OperatorToken', 'plat.SupportAccessGrant',
+                'cfg.JobDefinition'):
             errs.append(f'R6: tp_auth يملك منحًا على {obj}')
         if action == 'GRANT' and obj.startswith('SCHEMA::') and 'tp_auth' in principals:
             errs.append(f'R6: tp_auth منح مخطط {obj}')

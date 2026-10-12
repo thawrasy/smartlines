@@ -949,6 +949,24 @@ CREATE TABLE [cfg].[OutboxEvent] (
     CONSTRAINT [CK_OutboxEvent_PayloadJson_json] CHECK ([PayloadJson] IS NULL OR ISJSON([PayloadJson], VALUE) = 1)
 );
 GO
+-- Background job catalogue: the only JobKey values a job connection may bind with (FR-PLT-044)
+CREATE TABLE [cfg].[JobDefinition] (
+    [JobDefinitionId] INT IDENTITY(1,1) NOT NULL,
+    [JobKey] VARCHAR(80) NOT NULL,
+    [Scope] VARCHAR(10) NOT NULL,
+    [RunsInStatuses] VARCHAR(49) NULL,
+    [Description] NVARCHAR(500) NULL,
+    [IsActive] BIT NOT NULL CONSTRAINT [DF_JobDefinition_IsActive] DEFAULT 1,
+    [CreatedAt] DATETIME2(3) NOT NULL CONSTRAINT [DF_JobDefinition_CreatedAt] DEFAULT SYSUTCDATETIME(),
+    [CreatedBy] BIGINT NULL,
+    [UpdatedAt] DATETIME2(3) NULL,
+    [UpdatedBy] BIGINT NULL,
+    CONSTRAINT [PK_JobDefinition] PRIMARY KEY CLUSTERED ([JobDefinitionId]),
+    CONSTRAINT [UQ_JobDefinition_JobKey] UNIQUE ([JobKey]),
+    CONSTRAINT [CK_JobDefinition_1] CHECK (Scope = 'PLATFORM' OR RunsInStatuses IS NOT NULL),
+    CONSTRAINT [CK_JobDefinition_Scope] CHECK ([Scope] IS NULL OR [Scope] IN ('TENANT', 'PLATFORM'))
+);
+GO
 -- Background job run log: last run, duration and result, visible to the account administrator (FR-PLT-044)
 CREATE TABLE [cfg].[JobRun] (
     [TenantId] INT NOT NULL,
