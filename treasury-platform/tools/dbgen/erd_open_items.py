@@ -142,4 +142,10 @@ ITEMS = [
         'status': 'Open, low. Cursors and error codes are not covered by the row filters. CTX-3 (a deleted user keeps its binding) is fixed by a delete trigger.',
         'next': 'Require the application to close cursors and reset the connection on revocation, forbid dbo-owned modules that call sec.usp_SetSessionContext, and decide whether the error codes should be unified.',
     },
+    {
+        'id': 'O-23', 'sources': 'Team decision on Linux (docs/adr/0001-schema-work-on-linux.md); Microsoft release notes for SQL Server 2025 on Linux (search summary, to verify)',
+        'finding': 'The company servers run SUSE (SLES). SQL Server 2025 on Linux is supported on RHEL and Ubuntu only; SLES is listed through SQL Server 2022.',
+        'status': 'Open. Schema work and CI run on Ubuntu 24.04 with the SQL Server 2025 container. Whether a SQL Server 2025 container may run on a SUSE host is not confirmed.',
+        'next': 'Choose the production host: a RHEL or Ubuntu server (matches the support list), SQL Server 2022 on SUSE (conflicts with FR-PLT-045), or Windows (FR-PLT-045). Confirm the support matrix on the official Microsoft page before the decision.',
+    },
 ]
