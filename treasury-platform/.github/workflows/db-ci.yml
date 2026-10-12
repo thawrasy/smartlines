@@ -1,0 +1,64 @@
+name: database-ci
+
+# Runs tools/ci/db_ci.sh on every change to the database model, the generator, or the database scripts.
+# SQL Server 2025 runs as a service container on the job. The container lives only for this job.
+
+on:
+  push:
+    branches: [main, 'claude/**']
+    paths:
+      - 'db/**'
+      - 'tools/dbgen/**'
+      - 'tools/ci/**'
+      - '.github/workflows/db-ci.yml'
+  pull_request:
+    paths:
+      - 'db/**'
+      - 'tools/dbgen/**'
+      - 'tools/ci/**'
+      - '.github/workflows/db-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  database:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    services:
+      sqlserver:
+        image: mcr.microsoft.com/mssql/server:2025-latest
+        env:
+          ACCEPT_EULA: 'Y'
+          MSSQL_PID: Developer
+          # Throwaway password for an ephemeral container that only this job can reach.
+          MSSQL_SA_PASSWORD: 'CiOnly-Ephemeral-Passw0rd!'
+        ports:
+          - 1433:1433
+    env:
+      SA_PASSWORD: 'CiOnly-Ephemeral-Passw0rd!'
+      SQL_SERVER: 'localhost,1433'
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Make sure sqlcmd is installed
+        run: |
+          if command -v sqlcmd >/dev/null 2>&1; then
+            sqlcmd -? | head -1
+            exit 0
+          fi
+          curl -sSL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor | sudo tee /usr/share/keyrings/microsoft-prod.gpg >/dev/null
+          echo "deb [arch=amd64 signed-by=/usr/share/keyrings/microsoft-prod.gpg] https://packages.microsoft.com/ubuntu/24.04/prod noble main" | sudo tee /etc/apt/sources.list.d/mssql-release.list >/dev/null
+          sudo apt-get update -qq
+          sudo ACCEPT_EULA=Y DEBIAN_FRONTEND=noninteractive apt-get install -y -qq mssql-tools18 unixodbc-dev
+          echo "/opt/mssql-tools18/bin" >> "$GITHUB_PATH"
+
+      - name: Database checks and deployment
+        run: bash tools/ci/db_ci.sh
