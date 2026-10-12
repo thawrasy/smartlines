@@ -54,6 +54,10 @@ jobs:
         with:
           python-version: '3.12'
 
+      # check_fk_indexes.py reads the ERD layout module, which imports Pillow.
+      - name: Install Python packages
+        run: python -m pip install --quiet 'pillow==12.3.0'
+
       - name: Make sure sqlcmd is installed
         run: |
           if command -v sqlcmd >/dev/null 2>&1; then
