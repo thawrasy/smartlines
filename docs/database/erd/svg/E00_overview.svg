@@ -17,7 +17,7 @@
 <path fill="none" stroke="#404040" d="M22,-758.5C22,-758.5 188,-758.5 188,-758.5 194,-758.5 200,-764.5 200,-770.5 200,-770.5 200,-808.5 200,-808.5 200,-814.5 194,-820.5 188,-820.5 188,-820.5 22,-820.5 22,-820.5 16,-820.5 10,-814.5 10,-808.5 10,-808.5 10,-770.5 10,-770.5 10,-764.5 16,-758.5 22,-758.5"/>
 <text text-anchor="start" x="62" y="-791.3" font-family="DejaVu Sans" font-weight="bold" font-size="13.00">iam</text>
 <text text-anchor="start" x="90" y="-791.3" font-family="DejaVu Sans" font-size="14.00"> </text>
-<text text-anchor="start" x="95" y="-791.3" font-family="DejaVu Sans" font-size="10.00">(33 tables)</text>
+<text text-anchor="start" x="95" y="-791.3" font-family="DejaVu Sans" font-size="10.00">(40 tables)</text>
 <text text-anchor="start" x="57" y="-780.5" font-family="DejaVu Sans" font-size="10.00">Parties, users, roles</text>
 <path fill="#dce6f2" stroke="transparent" d="M222,-758.5C222,-758.5 388,-758.5 388,-758.5 394,-758.5 400,-764.5 400,-770.5 400,-770.5 400,-808.5 400,-808.5 400,-814.5 394,-820.5 388,-820.5 388,-820.5 222,-820.5 222,-820.5 216,-820.5 210,-814.5 210,-808.5 210,-808.5 210,-770.5 210,-770.5 210,-764.5 216,-758.5 222,-758.5"/>
 <path fill="none" stroke="#404040" d="M222,-758.5C222,-758.5 388,-758.5 388,-758.5 394,-758.5 400,-764.5 400,-770.5 400,-770.5 400,-808.5 400,-808.5 400,-814.5 394,-820.5 388,-820.5 388,-820.5 222,-820.5 222,-820.5 216,-820.5 210,-814.5 210,-808.5 210,-808.5 210,-770.5 210,-770.5 210,-764.5 216,-758.5 222,-758.5"/>
@@ -52,16 +52,16 @@
 <text text-anchor="start" x="56" y="-672.5" font-family="DejaVu Sans" font-size="10.00">Shipments, network</text>
 <path fill="#e2efda" stroke="transparent" d="M222,-650.5C222,-650.5 388,-650.5 388,-650.5 394,-650.5 400,-656.5 400,-662.5 400,-662.5 400,-700.5 400,-700.5 400,-706.5 394,-712.5 388,-712.5 388,-712.5 222,-712.5 222,-712.5 216,-712.5 210,-706.5 210,-700.5 210,-700.5 210,-662.5 210,-662.5 210,-656.5 216,-650.5 222,-650.5"/>
 <path fill="none" stroke="#404040" d="M222,-650.5C222,-650.5 388,-650.5 388,-650.5 394,-650.5 400,-656.5 400,-662.5 400,-662.5 400,-700.5 400,-700.5 400,-706.5 394,-712.5 388,-712.5 388,-712.5 222,-712.5 222,-712.5 216,-712.5 210,-706.5 210,-700.5 210,-700.5 210,-662.5 210,-662.5 210,-656.5 216,-650.5 222,-650.5"/>
-<text text-anchor="start" x="259" y="-683.3" font-family="DejaVu Sans" font-weight="bold" font-size="13.00">fleet</text>
-<text text-anchor="start" x="293" y="-683.3" font-family="DejaVu Sans" font-size="14.00"> </text>
-<text text-anchor="start" x="298" y="-683.3" font-family="DejaVu Sans" font-size="10.00">(22 tables)</text>
-<text text-anchor="start" x="249" y="-672.5" font-family="DejaVu Sans" font-size="10.00">Vehicles, crews, trucks</text>
+<text text-anchor="start" x="263.5" y="-683.3" font-family="DejaVu Sans" font-weight="bold" font-size="13.00">net</text>
+<text text-anchor="start" x="288.5" y="-683.3" font-family="DejaVu Sans" font-size="14.00"> </text>
+<text text-anchor="start" x="293.5" y="-683.3" font-family="DejaVu Sans" font-size="10.00">(25 tables)</text>
+<text text-anchor="start" x="252" y="-672.5" font-family="DejaVu Sans" font-size="10.00">Stations, routes, lines</text>
 <path fill="#e2efda" stroke="transparent" d="M422,-650.5C422,-650.5 588,-650.5 588,-650.5 594,-650.5 600,-656.5 600,-662.5 600,-662.5 600,-700.5 600,-700.5 600,-706.5 594,-712.5 588,-712.5 588,-712.5 422,-712.5 422,-712.5 416,-712.5 410,-706.5 410,-700.5 410,-700.5 410,-662.5 410,-662.5 410,-656.5 416,-650.5 422,-650.5"/>
 <path fill="none" stroke="#404040" d="M422,-650.5C422,-650.5 588,-650.5 588,-650.5 594,-650.5 600,-656.5 600,-662.5 600,-662.5 600,-700.5 600,-700.5 600,-706.5 594,-712.5 588,-712.5 588,-712.5 422,-712.5 422,-712.5 416,-712.5 410,-706.5 410,-700.5 410,-700.5 410,-662.5 410,-662.5 410,-656.5 416,-650.5 422,-650.5"/>
-<text text-anchor="start" x="463.5" y="-683.3" font-family="DejaVu Sans" font-weight="bold" font-size="13.00">net</text>
-<text text-anchor="start" x="488.5" y="-683.3" font-family="DejaVu Sans" font-size="14.00"> </text>
-<text text-anchor="start" x="493.5" y="-683.3" font-family="DejaVu Sans" font-size="10.00">(22 tables)</text>
-<text text-anchor="start" x="452" y="-672.5" font-family="DejaVu Sans" font-size="10.00">Stations, routes, lines</text>
+<text text-anchor="start" x="459" y="-683.3" font-family="DejaVu Sans" font-weight="bold" font-size="13.00">fleet</text>
+<text text-anchor="start" x="493" y="-683.3" font-family="DejaVu Sans" font-size="14.00"> </text>
+<text text-anchor="start" x="498" y="-683.3" font-family="DejaVu Sans" font-size="10.00">(22 tables)</text>
+<text text-anchor="start" x="449" y="-672.5" font-family="DejaVu Sans" font-size="10.00">Vehicles, crews, trucks</text>
 <text text-anchor="start" x="16" y="-625.1" font-family="DejaVu Sans" font-weight="bold" font-size="13.00" fill="#333333">3. TRIPS, OPERATIONS AND LATER&#45;PHASE TRANSPORT</text>
 <path fill="#fff2cc" stroke="transparent" d="M22,-542.5C22,-542.5 188,-542.5 188,-542.5 194,-542.5 200,-548.5 200,-554.5 200,-554.5 200,-592.5 200,-592.5 200,-598.5 194,-604.5 188,-604.5 188,-604.5 22,-604.5 22,-604.5 16,-604.5 10,-598.5 10,-592.5 10,-592.5 10,-554.5 10,-554.5 10,-548.5 16,-542.5 22,-542.5"/>
 <path fill="none" stroke="#404040" d="M22,-542.5C22,-542.5 188,-542.5 188,-542.5 194,-542.5 200,-548.5 200,-554.5 200,-554.5 200,-592.5 200,-592.5 200,-598.5 194,-604.5 188,-604.5 188,-604.5 22,-604.5 22,-604.5 16,-604.5 10,-598.5 10,-592.5 10,-592.5 10,-554.5 10,-554.5 10,-548.5 16,-542.5 22,-542.5"/>
@@ -175,7 +175,7 @@
 <text text-anchor="start" x="698" y="-71.3" font-family="DejaVu Sans" font-size="14.00"> </text>
 <text text-anchor="start" x="703" y="-71.3" font-family="DejaVu Sans" font-size="10.00">(7 tables)</text>
 <text text-anchor="start" x="680.5" y="-60.5" font-family="DejaVu Sans" font-size="10.00">Audit logs</text>
-<text text-anchor="start" x="1080" y="-16.5" font-family="DejaVu Sans" font-size="10.00" fill="#595959">26 schemas, 504 tables</text>
+<text text-anchor="start" x="1080" y="-16.5" font-family="DejaVu Sans" font-size="10.00" fill="#595959">26 schemas, 514 tables</text>
 </g>
 </g>
 </svg>

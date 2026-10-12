@@ -274,6 +274,18 @@ GROUPS = [
      "request contexts with the rollback windows that accepted contexts without a ticket (1080).",
      ["sys.release_manifest", "sys.backup_run", "sys.failover_probe", "sys.app_delete_grant", "sys.context_key",
       "sys.context_unsigned_window"]),
+    ("E43", "Boarding photo and its policy", "Owner decisions (1086 to 1096)", "security",
+     "The photo of a person for boarding, encrypted, at most one on file; the rules that require it per market, trip scope and "
+     "traveller class with their legal basis; every change to the policy, the switch and the settings, decided in the approval "
+     "stages it was asked with; changes to a photo on file with their evidence; the kinds of evidence accepted; and the data "
+     "items the platform requires or leaves optional.",
+     ["iam.party_photo", "iam.photo_rule", "iam.photo_policy_change", "iam.photo_approval", "iam.photo_change_request",
+      "iam.photo_evidence_kind", "iam.data_requirement"]),
+    ("E44", "Boarding stations and operating companies", "Owner decisions (1097 to 1099)", "asset",
+     "Each station's own boarding switch, counter system and check-in window; the rights an operating company holds at a "
+     "station, given by a carrier for its trips or by the platform for a state-mandated operator, revoked and never changed; "
+     "and the carrier's agreement and licence reference numbers, retired and never changed.",
+     ["net.station_boarding", "net.station_operator_grant", "net.operation_reference"]),
 ]
 
 # Focus diagrams: one business rule across modules; tables keep their own module colour (family None)
@@ -317,6 +329,11 @@ DATA_STORES = [
     ("D15", "Cases and notifications", ["E22", "E23"], []),
     ("D16", "Audit logs", [], ["audit.auth_event", "audit.activity_log", "audit.data_access_log", "audit.row_change", "audit.log_seal", "audit.ddl_event"]),
     ("D17", "Channels and agencies", ["E12"], []),
+    ("D18", "Boarding settings and stations", [], ["net.station_boarding", "net.station_gate"]),
+    ("D19", "Operator grants", [], ["net.station_operator_grant"]),
+    ("D20", "Operation references", [], ["net.operation_reference"]),
+    ("D21", "Boarding photos", [], ["iam.party_photo", "iam.photo_change_request"]),
+    ("D22", "Photo policy", ["E43"], []),
 ]
 
 SCHEMA_TITLE = {

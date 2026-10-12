@@ -14,8 +14,8 @@ const PNG = path.join(HERE, "..", "erd", "png");
 // numbers of the verification run that built this document (verification.py), never typed by hand (audit T3-17)
 const V = JSON.parse(fs.readFileSync(path.join(HERE, "..", "build", "verification.json"), "utf8"));
 const lastFile = V.last_schema_file.split("_")[0];
-const VERSION = "3.12";
-const DATE = "10 October 2026";
+const VERSION = "3.13";
+const DATE = "12 October 2026";
 const FONT = "Arial";
 const C = { navy: "1F3A5F", blue: "2E74B5", blue2: "1F4D78", grid: "B7C3D0", alt: "F2F6FA", grey: "595959" };
 
@@ -110,7 +110,7 @@ front.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 16
 front.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 1200 },
   children: [run(`Complete relational model of the Analysis and Design Study v3.0: ${tableCount} tables, ${fkCount} relationships`, { color: "7F7F7F" })] }));
 front.push(table(["Item", "Details"], [
-  ["Version", `${VERSION} (the database of release 1.48.0: payment options, fee rules and the approval matrix, two-step sign-in by several methods, recorded off-site backups and zero data loss as a setting, markets, partitioned bookings, sealed and signed manifests, parcels booked on a trip's hold, and a lifecycle for every table; replaces version 3.11)`],
+  ["Version", `${VERSION} (the database after schema file 1099: the reviews of October 2026 on releases 1.48.0 and 1.49.0, a request context the application cannot forge, protected settings, closed accounts that keep their data, the boarding photo and its policy in approval stages, and the boarding stations with their operating companies and portal; replaces version 3.12)`],
   ["Date", DATE],
   ["Basis", "Analysis and Design Study v3.0 (English), the Use Case and Data Flow Diagrams v1.0, the Database Architecture Review v1.0, the Strategic Database Review and its relationship audit register, the Third-Party Technical Audit, the Technical Audit of design document 3.7, its re-audit of 3.8 and follow-up of 3.9, the architecture review of 3.9, the expert review and code review of October 2026, and the three reviews of release 1.47.0 with the owner's five decisions"],
   ["Scope", `${schemas.length} schemas, ${tableCount} tables, ${colCount} columns, ${fkCount} foreign keys; all phases 1 to 15`],
@@ -120,7 +120,7 @@ front.push(table(["Item", "Details"], [
 ], [2800, 6946]));
 
 const toc = [H(HeadingLevel.HEADING_1, "Contents", { pageBreak: true })];
-const tocLines = ["Changes in version 3.12", "Changes in version 3.11", "Changes in version 3.10", "Changes in version 3.9", "Changes in version 3.8", "Changes in version 3.7", "Changes in version 3.6", "Changes in version 3.5", "Changes in version 3.4", "Changes in version 3.3", "Changes in version 3.2", "Changes in version 3.1", "Changes in version 3.0", "1. Introduction", "2. Database architecture", "3. Design rules", "4. Security model in the database",
+const tocLines = ["Changes in version 3.13", "Changes in version 3.12", "Changes in version 3.11", "Changes in version 3.10", "Changes in version 3.9", "Changes in version 3.8", "Changes in version 3.7", "Changes in version 3.6", "Changes in version 3.5", "Changes in version 3.4", "Changes in version 3.3", "Changes in version 3.2", "Changes in version 3.1", "Changes in version 3.0", "1. Introduction", "2. Database architecture", "3. Design rules", "4. Security model in the database",
   "5. Data stores of the data flow diagrams", "6. Entity-relationship diagrams by module",
   ...model.groups.map((g, i) => `      6.${i + 1} ${g[0]} ${g[1]}`), `      6.${model.groups.length + 1} Focus diagrams: rules that span modules`,
   "7. Table definitions", "8. Traceability to the study", "9. Verification",
@@ -162,6 +162,72 @@ const changes38 = [H(HeadingLevel.HEADING_2, "b. Hardening after the third-party
     + "infrastructure and moves to Phase 5.", "Owner decisions"),
   P("Schema-level two-way dependencies (21, frozen by test H-07) differ from phase-level dependencies, of which there are none backwards: "
     + "the earlier wording is clarified accordingly. db/tools/audit_pack.sh builds the evidence pack for the second phase of the audit."),
+];
+
+// ------------------------------ changes in 3.13 (the reviews of October 2026, the boarding photo, boarding stations) ------------------------------
+const changes3_13 = [H(HeadingLevel.HEADING_1, "Changes in version 3.13", { pageBreak: true }),
+  P("Version 3.13 describes the database after schema file 1099. Since version 3.12 (schema file 1079, migration 1.48.0), 20 schema "
+    + "files were added, 1080 to 1099: the code reviews and external reports of October 2026 on releases 1.48.0 and 1.49.0, the "
+    + "closing of an account, the boarding photo and its policy, and the boarding stations with their operating companies. They carry "
+    + "no migration version of their own yet; the next release records them. The four relationship rules of chapter 3.2 hold for "
+    + "every new table and column; every new table has row-level security, a project phase and a lifecycle."),
+  H(HeadingLevel.HEADING_2, "a. Schema files 1080 to 1099"),
+  table(["Schema file", "What it adds"], [
+    ["1080_verified_context.sql", "A request context the application's login cannot forge: sys.set_context accepts only a ticket signed with "
+      + "an active key (sys.context_key) and fresh by the database clock, and the settings it writes stay locked; the windows that accepted "
+      + "unsigned contexts are recorded (sys.context_unsigned_window). Finding C-01. Diagram E42."],
+    ["1081_definer_search_path.sql", "Functions that run as their owner search the session's temporary objects last."],
+    ["1082_validate_constraints.sql", "Constraints added NOT VALID are validated afterwards (sys.validate_constraints); readiness names any that is not."],
+    ["1083_default_partition_batches.sql", "A late partition upkeep moves large periods out of the default partition one period per transaction."],
+    ["1084_settings_guard.sql", "The settings the database trusts are protected by the server and change only through the guarded path."],
+    ["1085_account_deactivation.sql", "A closed account keeps its data: status DEACTIVATED, every session ended, sign-in refused until it is reactivated."],
+    ["1086_boarding_photo.sql", "The boarding photo: at most one encrypted photo per person (iam.party_photo), taken by the person or by the head "
+      + "of the family for a member. Diagram E43."],
+    ["1087_photo_policy.sql", "Photo rules per market, trip scope and traveller class with their legal basis (iam.photo_rule); a photo on file "
+      + "changes only by a request with evidence decided by another person (iam.photo_change_request). Diagram E43."],
+    ["1088_photo_evidence_kinds.sql", "The documents accepted as evidence for a photo change, as a platform setting (iam.photo_evidence_kind)."],
+    ["1089_photo_policy_approvals.sql", "Changes to the accepted documents and to the identity age rule need two people (iam.photo_policy_change, "
+      + "iam.photo_approval)."],
+    ["1090_photo_evidence_national.sql", "The documents accepted nationally for a photo change, from the owner's list."],
+    ["1091_photo_approval_stages.sql", "The approval stages of a change are a platform setting; the identity age defaults to 18; each data item is "
+      + "required or optional by setting (iam.data_requirement)."],
+    ["1092_photo_rule_stages.sql", "The approval stages apply to the photo rules: proposal, approval and retirement each pass them."],
+    ["1093_photo_rule_retirement_proposer.sql", "The person who proposed a photo rule, gave its final approval or asked for its retirement does not "
+      + "approve the retirement."],
+    ["1094_photo_feature_switch.sql", "The photo feature is a switch, off at launch, turned on only by a change that names its legal basis and passes "
+      + "the stages; a photo is refused while it is off."],
+    ["1095_photo_switch_settings.sql", "The stages of the switch are a setting, a third-party check is a choice, and the approval records the legal "
+      + "document number when given."],
+    ["1096_photo_settings.sql", "Photo settings changed in stages: who sees the photo and when (the traveller on request; the driver, the carrier's "
+      + "office and the agent only while the trip is boarding, as set), the date from which a required photo is asked, re-verification and the "
+      + "identity provider (none connected)."],
+    ["1097_boarding_stations.sql", "Boarding stations: platform settings off or empty at launch; each station's own switch, counter system and "
+      + "check-in window (net.station_boarding); counters and bays numbered by the platform; the carrier's agreement and licence references "
+      + "(net.operation_reference). Diagram E44."],
+    ["1098_boarding_operators.sql", "The rights of station operating companies (net.station_operator_grant): given by a carrier for its trips or by "
+      + "the platform for a state-mandated operator, revoked and never changed; net.operator_may decides. Diagram E44."],
+    ["1099_station_portal.sql", "The station portal: sessions of portal STATION, the company type STATION_OPERATOR, the role STATION_COUNTER with "
+      + "station.counter, and the second factor wherever the carrier portal needs one."],
+  ], [3000, 6746], { boldFirst: true }),
+  H(HeadingLevel.HEADING_2, "b. The owner's decisions in the database"),
+  bullet("The feature is off until a change naming its legal basis passes the approval stages; rules, evidence and settings change only "
+    + "through the stages, and every view of a photo is logged (files 1086 to 1096).", "1. Boarding photo"),
+  bullet("A closed account keeps its data; only an erasure request removes or anonymises it (file 1085).", "2. Closing an account"),
+  bullet("Each station is separate, off until switched on, with its own counter system (the platform's or the station's own); the platform "
+    + "numbers counters and bays and never reuses a number (file 1097).", "3. Boarding stations"),
+  bullet("An operating company signs in to its own portal and acts only with the rights a carrier or the platform gave it (files 1098, 1099).",
+    "4. Operating companies"),
+  H(HeadingLevel.HEADING_2, "c. Diagrams"),
+  P("Every table is in exactly one module diagram, which the generator checks. The 12 tables added since version 3.12 are placed in E42 "
+    + "(context keys) and in two new diagrams: E43 boarding photo and its policy (data stores D21 and D22) and E44 boarding stations and "
+    + "operating companies (data stores D18 to D20)."),
+  table(["Measure", "Version 3.12", "Version 3.13"], [
+    ["Schema files", "92 (000 to 1079)", `${V.schema_files} (000 to ${lastFile})`],
+    ["Tables", "502", `${tableCount}`],
+    ["Columns", "5,158", `${colCount.toLocaleString("en-US")}`],
+    ["Foreign keys", "1,516", `${fkCount.toLocaleString("en-US")}`],
+    ["Module diagrams", "42", `${model.groups.length} (new: E43 and E44)`],
+  ], [2700, 2400, 4646], { boldFirst: true }),
 ];
 
 // ------------------------------ changes in 3.12 (release 1.48.0) ------------------------------
@@ -910,7 +976,7 @@ const doc = new Document({
   numbering: { config: [{ reference: "bullets", levels: [{ level: 0, format: LevelFormat.BULLET, text: "•", alignment: AlignmentType.LEFT,
     style: { paragraph: { indent: { left: 540, hanging: 270 } } } }] }] },
   sections: [
-    section(PORTRAIT, [...front, ...toc, ...changes3_12, ...changes3_11, ...changes3_10, ...changes3_9, ...changes3_8, ...changes37, ...changes38, ...changes39, ...changes36, ...changes35, ...changes34, ...changes33, ...changes32, ...changes31, ...changes, ...intro, ...arch, ...rules, ...security, ...stores]),
+    section(PORTRAIT, [...front, ...toc, ...changes3_13, ...changes3_12, ...changes3_11, ...changes3_10, ...changes3_9, ...changes3_8, ...changes37, ...changes38, ...changes39, ...changes36, ...changes35, ...changes34, ...changes33, ...changes32, ...changes31, ...changes, ...intro, ...arch, ...rules, ...security, ...stores]),
     ...erdSections,
     section(PORTRAIT, [...defs, ...trace, ...verify, ...flags, ...gens, ...appC]),
   ],

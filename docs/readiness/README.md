@@ -1,30 +1,45 @@
 # Readiness document set (October 2026)
 
-Three Arabic Word documents for the systems company that will study the platform before the real implementation. They
-start from the code and the database as they are after commit `b983b22` (schema files up to 1099).
+Arabic documents for the systems company that will study the platform before the real implementation. They start from
+the code and the database as they are after commit `b983b22` (schema files up to 1099), and each states its facts from
+the code at that commit.
 
 | File | What it is |
 |---|---|
-| `Masslak_Readiness_Document_Register_AR_v1.0.docx` | The register: the 40 documents an implementation needs, grouped by kind, with the state of each one (complete, partial, needs an update, prepared in this set, missing, owner input), where it is, and what the systems company should provide |
-| `Masslak_System_Models_Addendum_AR_v1.0.docx` | Addendum to `../Masslak_Use_Case_and_Data_Flow_Diagrams_v1.0.docx`: use cases UC-11 to UC-13, six use case specifications, level-2 data flows DFD-15 and DFD-16 (processes P15 and P16, stores D18 to D22), state diagrams ST-1 to ST-6, sequence diagrams SQ-1 to SQ-4, glossary |
-| `Masslak_Test_and_Acceptance_Plan_AR_v1.0.docx` | The test and acceptance plan: the test levels that run today, environments and data, entry and exit criteria, 37 acceptance scenarios mapped to the automated tests, the non-functional acceptance (launch gates 1 to 8), defect severity, sign-off, results record |
+| `Masslak_Readiness_Document_Register_AR_v1.1.docx` | The register: the 40 documents an implementation needs, the state of each (complete, prepared in this set, draft awaiting approval, partial, needs an update, missing, owner input), where it is, and what completes it |
+| `Masslak_Use_Case_and_Data_Flow_Diagrams_AR_v2.0.docx` | Use cases and data flows, edition 2.0: the v1.0 model (study 2.5) reviewed case by case against the code, 18 use case diagrams with 217 cases, each with its build status and evidence (route, table, test); context, three level-1 and 13 level-2 data flow diagrams; stores D1 to D22 as database tables; the list of what is not built or only partly built. Replaces `../Masslak_Use_Case_and_Data_Flow_Diagrams_v1.0.docx` and the addendum |
+| `Masslak_Behaviour_Models_AR_v1.0.docx` | State diagrams of 11 entities with where each transition is enforced, 7 sequence diagrams, 6 activity diagrams of daily operations |
+| `Masslak_Software_Requirements_Specification_AR_v1.0.docx` | Requirements baseline as built: 217 functional requirements (FR-xx.yy = UC-x.y), 30 non-functional requirements with their measure and verification, external interfaces, data requirements |
+| `Masslak_Requirements_Traceability_Matrix_AR_v1.0.xlsx` | Each requirement to its use case, actors, processes, data flow diagrams, status, priority, evidence, tests and acceptance scenario |
+| `Masslak_Business_Rules_Catalog_AR_v1.0.docx` and `.xlsx` | The rules the platform enforces: 275 raised by database functions, 480 by the API, 1,543 CHECK constraints, with their codes, places and the tests that name them |
+| `Masslak_Test_and_Acceptance_Plan_AR_v1.0.docx` | Test levels that run today, environments, entry and exit criteria, 37 acceptance scenarios mapped to the automated tests, non-functional acceptance (launch gates), defect severity, sign-off |
+| `Masslak_System_Models_Addendum_AR_v1.0.docx` | The addendum of October 2026 (UC-11 to UC-13 and their specifications, glossary); its diagrams are now part of edition 2.0 |
+| `Masslak_DPIA_Boarding_Photo_AR_v0.1.docx` | Draft data protection impact assessment of the boarding photo, for the data protection officer |
+| `Masslak_RACI_Matrix_AR_v0.1.docx` | Draft responsibility matrix: 21 activities, 9 roles |
+| `Masslak_Initial_Data_Load_Plan_AR_v0.1.docx` | Draft plan for loading reference data, carriers, stations, fleet and network before the pilot |
+| `Masslak_Training_Plan_AR_v0.1.docx` | Draft training plan: ten role paths with pass criteria |
 
-## Diagrams
+The database design document of the same state is `../database/Masslak_Database_Design_and_ERD_v3.13.docx`.
 
-`png/` holds the 17 diagrams the addendum embeds. `generator/models.py` is their model: the new actors, use cases,
-processes and stores (added to the v1.0 model in `../diagrams/uc-dfd/generator`, so the notation and the look stay the
-same), and the state and sequence diagrams in Mermaid. The states and transitions follow the database rules
-(`sales.tg_booking_transition`, `sales.tg_ticket_transition`, `fin.tg_payment_transition`, the photo rule and policy change
-functions of 1087 to 1096, and 1097 to 1098 for the grants and references); the trip transitions are the API's.
+## Diagrams and extracted data
 
-Regenerate after a change to the model (needs Graphviz, cairosvg and the Mermaid CLI with a Chromium):
+- `generator/models_v2.py`: the model of edition 2.0, every case with its status and evidence, the cases added since
+  study 2.5, UC-14 to UC-17, DFD-1C and the new level-2 diagrams. It extends the v1.0 model in
+  `../diagrams/uc-dfd/generator`, whose renderers draw the diagrams (`ucsvg.CASE_LOOK` colours each case by status).
+- `generator/models.py` and `generator/models_beh.py`: state, sequence and activity diagrams in Mermaid.
+- `generator/rules_catalog.py`: extracts the business rules from the database and the API (`work2/rules.json`).
+- `png/v2/`: the diagrams the documents embed; `png/`: those of the addendum.
+
+Regenerate (needs Graphviz, cairosvg, the Mermaid CLI with a Chromium, and a database built with `db/build.sh`):
 
     cd docs/readiness/generator
-    MMDC=/path/to/mmdc PUPPETEER_CONFIG=/path/to/puppeteer.json python3 render.py
+    python3 render_v2.py
+    MMDC=/path/to/mmdc PUPPETEER_CONFIG=/path/to/puppeteer.json python3 render_beh.py
+    PGPASSWORD=... python3 rules_catalog.py <database> -h localhost -U postgres
 
-## The Word documents
+## The Word and Excel files
 
-The Word files are binary deliverables. Their build scripts (`generator/*.js`, with the `docx` npm package) hold the Arabic
-text of the documents, so they are kept out of the repository under the language policy (`scripts/check_language.py`)
-and listed in `.gitignore`. When the code changes what a document says (a new migration, a new test, a changed rule),
-the document is rebuilt and its version raised; the facts each one states are checked against the code at that commit.
+The Word and Excel files are binary deliverables. Their build scripts (`generator/*.js` with the `docx` npm package,
+and `generator/*_ar.py` with openpyxl) hold the Arabic text of the documents, so they are kept out of the repository
+under the language policy (`scripts/check_language.py`) and listed in `.gitignore`. When the code changes what a
+document says, the document is rebuilt and its version raised.
