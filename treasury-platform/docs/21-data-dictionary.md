@@ -342,7 +342,7 @@
 
 **المفاتيح:** PK(TenantId, UserId, CompanyId)
 
-### `sec.LoginAttempt` — Login attempts for rate limiting and lockout windows; the permanent trace is in aud.AuditLog (BR-PLT-005)
+### `sec.LoginAttempt` — Login attempts for rate limiting and lockout windows (BR-PLT-005); written by sec.usp_StartSession. A permanent trace in aud.AuditLog is not written yet (O-24)
 
 *مملوك للمشترك*
 

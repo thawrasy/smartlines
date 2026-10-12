@@ -25,7 +25,7 @@
 | البيئة | الغرض | الاستضافة | البيانات | كيف يصلها الإصدار |
 |---|---|---|---|---|
 | تطوير | كتابة الكود والاختبار المحلي | جهاز المطوّر مع حاوية SQL Server 2025 🟡 | اصطناعية | يدويًا |
-| CI | التحقق من كل تغيير | مشغّل ubuntu-24.04 وحاوية خدمة تعيش للمهمة فقط (.github/workflows/db-ci.yml:3-4، 27-32) 🟢 | اصطناعية داخل معاملة تُلغى | آليًا عند الدفع وطلب الدمج |
+| CI | التحقق من كل تغيير | مشغّل ubuntu-24.04 وحاوية خدمة تعيش للمهمة فقط كما يعرّفهما الخط (.github/workflows/db-ci.yml:3-4، 27-32) 🟢؛ لكن الخط لم يعمل على GitHub قط لأن ملفه ليس في جذر المستودع، وtools/ci/db_ci.sh يمر كاملًا في حاوية التطوير (O-02، tools/dbgen/erd_open_items.py:22-23) | اصطناعية داخل معاملة تُلغى | آليًا عند الدفع وطلب الدمج، بعد وضع الخط حيث يقرؤه GitHub |
 | اختبار | التكامل والواجهة والأداء والفحص الديناميكي واختبار خروج الشريحة | خادم مشترك لدى مزوّد الاستضافة نفسه 🟡 | اصطناعية دائمة لمشتركين وهميين | آليًا من main بعد نجاح CI 🟡 |
 | UAT | قبول المستخدم وتمرين الترحيل والتراجع | خادم بمواصفات الإنتاج 🟡 | مجهّلة وفق DOC-B06 | إصدار مرشح موسوم بموافقة QA lead 🟡 |
 | إنتاج | المشتركون | VPS خاص لدى مزوّد استضافة، القاعدة على Ubuntu 24.04 LTS 🟢 | حقيقية | الحزمة نفسها المعتمدة في UAT بعد بوابات §7 |
@@ -61,7 +61,7 @@ flowchart LR
 ### 4.1 التفرّع 🟡
 
 - main محمي: لا دفع مباشر، والدمج بطلب دمج تمر فيه كل فحوص CI.
-- فروع قصيرة لكل عمل، ويبقى نمط `claude/**` الذي يشغّل CI اليوم (.github/workflows/db-ci.yml:8).
+- فروع قصيرة لكل عمل، ويبقى نمط `claude/**` الذي يسمّيه ملف الخط (.github/workflows/db-ci.yml:8)، مع أن الخط لم يعمل على GitHub بعد (O-02).
 - إصلاح عاجل: فرع من وسم الإصدار المنشور، ثم دمجه في main.
 
 ### 4.2 ترقيم الإصدارات 🟡
@@ -82,7 +82,7 @@ flowchart LR
 
 ### 5.1 خط القاعدة القائم
 
-الخطوات 0 إلى 7 في tools/ci/db_ci.sh، وتفصيلها في DOC-B01 §2.1. يعمل فقط عند تغيّر db/ أو tools/dbgen/ أو tools/ci/ (.github/workflows/db-ci.yml:9-19). الإضافات المقترحة 🟡:
+الخطوات 0 إلى 7 في tools/ci/db_ci.sh، وتفصيلها في DOC-B01 §2.1. الخط مُعرَّف ليعمل فقط عند تغيّر db/ أو tools/dbgen/ أو tools/ci/ (.github/workflows/db-ci.yml:9-19)، لكنه لم يعمل على GitHub قط: ملفه تحت treasury-platform/.github/workflows/، وGitHub يقرأ الخطوط من جذر المستودع فقط. تشغيله هناك ينتظر موافقة المالك على ملف خط في الجذر مقصور على مسارات treasury-platform/ (O-02، tools/dbgen/erd_open_items.py:22-23؛ docs/adr/0001-schema-work-on-linux.md:11، :18). الإضافات المقترحة 🟡:
 
 1. تشغيل tools/dbgen/check_review_fixes.py في الخطوة 3، بجانب check_grants.py الذي يعمل فيها الآن (tools/ci/db_ci.sh:49؛ DQ-B01-3).
 2. فحص تكافؤ الترقية والنشر الجديد (§6.3) على كل طلب دمج يغيّر db/.
@@ -228,9 +228,10 @@ FR-PLT-047 (Should، S5) يطلب حزمة تنشر على خادم محلي ل�
 ## 13. تعارضات وفجوات في المصادر
 
 1. وسم الصورة `2025-latest` في .github/workflows/db-ci.yml:32 متحرك، والبند 4 من FR-PLT-045 يمنع النشر بإصدار SQL Server مخالف للسجل؛ فما يختبره CI قد يختلف عما يُنشر.
-2. docs/30-readiness-documents.md:423 يقول إنه لا يُحدَّد أي سكربت نشر هو المرجعي، وdocs/adr/0001-schema-work-on-linux.md:19-20 يحدده: deploy.sh.
+2. docs/30-readiness-documents.md:425 يقول إنه لا يُحدَّد أي سكربت نشر هو المرجعي، وdocs/adr/0001-schema-work-on-linux.md:19-20 يحدده: deploy.sh.
 3. تعليق db/static/020_roles_and_grants.sql:9 يصف tp_migrator بأنه «مالك مخطط النشر»، والمخططات تُنشأ بملكية dbo (db/generated/tsql/000_schemas.sql:6)، وdocs/20-database-design.md:271 يقول إن النشر يتم بحساب مالك القاعدة.
-4. docs/adr/0001-schema-work-on-linux.md:3 يقول إن نص FR-PLT-045 ما زال يحتاج تحديثًا لجزء مضيف القاعدة، والنص الحالي محدَّث (docs/10-detailed-analysis/10-m0-m1-platform-organization.md:147).
+4. ✅ صُحّح (التحقق عند bef5722): docs/adr/0001-schema-work-on-linux.md:3 صار يقول إن نصي FR-PLT-045 و01 §13 حُدِّثا لمضيف القاعدة (O-23)، وإن طبقة التطبيق تبقى على Windows Server وفق 01 §13 حتى المراجعة، كما في docs/10-detailed-analysis/10-m0-m1-platform-organization.md:147. لكن docs/30-readiness-documents.md:425 ما زال يقول إن ADR يقرّ بأن نص FR-PLT-045 يحتاج تحديثًا.
+5. docs/30-readiness-documents.md:424 يصف .github/workflows/db-ci.yml بأنه «يعمل على main وclaude/**»، والخط لم يعمل على GitHub قط (O-02، tools/dbgen/erd_open_items.py:22).
 
 ## 14. التتبع
 

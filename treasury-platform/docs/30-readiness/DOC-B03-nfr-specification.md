@@ -15,7 +15,7 @@
 تحوّل هذه الوثيقة الأهداف غير الوظيفية المتفرقة إلى سجل بمعرّفات، لكل بند هدف وطريقة قياس وإجراء اختبار ومالك ومصدر.
 
 - مصدرها الرئيسي جدول §6.4 (docs/10-detailed-analysis/00-overview-and-cross-cutting.md:164-173)، وكل قيمه بوسم 🟡 أي مقترحة.
-- تضم متطلبات الأمن والتدقيق (X-SEC وX-AUD في السطور 134-150) بمعايير قبول، فتحل محل DOC-S14 (docs/30-readiness-documents.md:314-316).
+- تضم متطلبات الأمن والتدقيق (X-SEC وX-AUD في السطور 134-150) بمعايير قبول، فتحل محل DOC-S14 (docs/30-readiness-documents.md:316-318).
 - لا تكرر ما تملكه وثائق أخرى: قيم كلمات المرور في DOC-S04، وإعدادات TLS في DOC-S05، وإجراءات النسخ والاستعادة في DOC-S09، والسجلات والتنبيهات في DOC-S12، وخطة الاختبار الأمني في DOC-S13.
 - كل رقم لم يرد في مصدر معتمد مقترح 🟡 ومدرج في §11.
 
@@ -171,11 +171,11 @@ flowchart LR
 ## 12. تعارضات وفجوات في المصادر
 
 1. اللغة: «عربية RTL كاملة» في docs/10-detailed-analysis/00-overview-and-cross-cutting.md:172، و«واجهة ويب RTL عربي/إنجليزي» في السطر 107، والافتراضي القديم «عربية كاملة» في السطر 303، كلها تخالف القرار في السطر 320 وFR-PLT-032 (docs/10-detailed-analysis/10-m0-m1-platform-organization.md:134). وكذلك docs/01-preliminary-analysis.md:333 («اللغة: عربية RTL») وFR-NTF-024 الذي يرجع إلى العربية (docs/10-detailed-analysis/13-m6-workflow-engine-notifications.md:223).
-2. RPO/RTO: تظهر قيمًا في docs/10-detailed-analysis/00-overview-and-cross-cutting.md:169 وdocs/10-detailed-analysis/10-m0-m1-platform-organization.md:590، بينما تقول docs/20-database-design.md:463 إنها لم تُحدَّد، وتسجلها O-14 في السطر 540.
+2. RPO/RTO: تظهر قيمًا في docs/10-detailed-analysis/00-overview-and-cross-cutting.md:169 وdocs/10-detailed-analysis/10-m0-m1-platform-organization.md:590، بينما تقول docs/20-database-design.md:463 إنها لم تُحدَّد، وتسجلها O-14 في السطر 542.
 3. تصادم المعرّف O-14: في docs/20-database-design.md:542 هو أرقام RPO/RTO، وفي tools/dbgen/erd_open_items.py:98-101 هو خطة الشرائح. هذه الوثيقة تقصد الأول.
 4. docs/10-detailed-analysis/00-overview-and-cross-cutting.md:170 يفترض «مئات المشتركين»، وdocs/20-database-design.md:466 يفترض حملًا منخفضًا دون رقم؛ لا تعارض، لكن لا رقم معتمدًا في أي منهما.
 5. لا يوجد هدف رقمي للتزامن غير اختبار الحجز (docs/20-database-design.md:241)، ولا هدف لحجم البيانات، قبل هذه الوثيقة.
-6. docs/30-readiness-documents.md:355 يذكر أن 00-overview يقول «ويندوز» في السطرين 126 و226؛ النص الحالي فيهما يطابق ADR 0001، كما تقول ملاحظة التحقق في السطر 357.
+6. docs/30-readiness-documents.md:357 يذكر أن 00-overview يقول إن الاستضافة «ويندوز» في السطرين 126 و226 خلافًا لـ ADR 0001؛ النص الحالي فيهما يجعل مضيف القاعدة Ubuntu 24.04 LTS وفق ADR 0001، ويُبقي طبقة التطبيق على Windows Server وفق 01 §13 مطروحة للمراجعة بعد ADR 0001، وهو ما يقوله FR-PLT-045 (docs/10-detailed-analysis/10-m0-m1-platform-organization.md:147)، فلا تعارض مع ADR 0001 الذي يغيّر مضيف القاعدة وحده (docs/adr/0001-schema-work-on-linux.md:10). وملاحظة التحقق في السطر 359 تقول إن ذكر ويندوز صُحّح وفق ADR 0001.
 
 ## 13. التتبع
 
@@ -184,7 +184,7 @@ flowchart LR
 | §2 | §6.4 الأداء، اختبار التزامن، FR-INS-019 | docs/10-detailed-analysis/00-overview-and-cross-cutting.md:167؛ docs/20-database-design.md:241؛ docs/10-detailed-analysis/11-m2-m4-institutions-accounts-catalogs.md:128 |
 | §3 | §6.4 التوفر، ADR 0001 | docs/10-detailed-analysis/00-overview-and-cross-cutting.md:168؛ docs/adr/0001-schema-work-on-linux.md:16 |
 | §4 | §6.4 التعافي، O-14 (20-database-design) | docs/10-detailed-analysis/00-overview-and-cross-cutting.md:169؛ docs/20-database-design.md:457-463، 542 |
-| §5 | X-SEC-1 إلى 7، X-AUD-1، ADR 0002، DOC-S14 | docs/10-detailed-analysis/00-overview-and-cross-cutting.md:134-150؛ docs/adr/0002-login-and-session-bound-context.md؛ docs/30-readiness-documents.md:314-320 |
+| §5 | X-SEC-1 إلى 7، X-AUD-1، ADR 0002، DOC-S14 | docs/10-detailed-analysis/00-overview-and-cross-cutting.md:134-150؛ docs/adr/0002-login-and-session-bound-context.md؛ docs/30-readiness-documents.md:316-323 |
 | §6 | §6.4 قابلية التوسع، FR-PLT-004 | docs/10-detailed-analysis/00-overview-and-cross-cutting.md:170؛ docs/10-detailed-analysis/10-m0-m1-platform-organization.md:106 |
 | §7، §9 | §6.4 إمكانية الوصول، FR-PLT-032 إلى 034، Q-PLT-05 | docs/10-detailed-analysis/00-overview-and-cross-cutting.md:172، 320؛ docs/10-detailed-analysis/10-m0-m1-platform-organization.md:134-136 |
 | §8 | §6.4 قابلية الدعم، FR-PLT-044، FR-PLT-045، FR-NTF-018 | docs/10-detailed-analysis/00-overview-and-cross-cutting.md:173؛ docs/10-detailed-analysis/10-m0-m1-platform-organization.md:146-147؛ docs/10-detailed-analysis/13-m6-workflow-engine-notifications.md:217 |

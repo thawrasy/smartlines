@@ -61,7 +61,7 @@ ITEMS = [
     {
         'id': 'O-09', 'sources': REVIEW_A,
         'finding': 'Tenant isolation is designed (TenantId, row-level security, composite keys) but not tested across endpoints.',
-        'status': 'Database tests: db/tests/tenant_isolation_tests.sql runs 40 cases (T1-T37) as the application role and the reporting role (cross-tenant reads, inserts, updates and deletes, global rows, the audit log, the binding procedure, login, lockout, MFA, session revocation, column grants, policy coverage). CI step 7 in tools/ci/db_ci.sh runs them. With every policy switched off, the row-filter cases fail. One weakness is recorded as O-16.',
+        'status': 'Database tests: db/tests/tenant_isolation_tests.sql runs 41 cases (T1-T38) as the application role and the reporting role (cross-tenant reads, inserts, updates and deletes, global rows, the audit log, the binding procedure, login, lockout, MFA, session revocation, the platform audit read, column grants, policy coverage). CI step 7 in tools/ci/db_ci.sh runs them. With every policy switched off, the row-filter cases fail. One weakness is recorded as O-16.',
         'next': 'Add cross-tenant (IDOR) and no-context tests at the API level for every endpoint once the API exists. Resolve O-16 first.',
     },
     {

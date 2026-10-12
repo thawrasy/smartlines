@@ -7,7 +7,7 @@
   R3  tp_platform بلا أي منح مباشر على جداول المشتركين (المملوكة للمشترك)
   R4  لا REFERENCES لأي دور تطبيقي
   R5  لا منح على مستوى المخطط لـ tp_app أو tp_platform (استثناء: مخطط rls للقراءة)
-  R6  tp_auth يملك SELECT على sec.AppUser وplat.Tenant فقط
+  R6  tp_auth لا يملك منحًا إلا على sec.AppUser وplat.Tenant وsec.SessionBinding وsec.UserSession وsec.LoginAttempt (إجراءات 030)
   R7  عدد أعمدة sens=restricted = عدد عبارات DENY لـ tp_readonly
   R8  كل جدول فيه عمود *Enc يملك مفتاح بيانات (EncKeyId | MfaKeyId | MfaKeyRef)،
       وكل عمود *Hash مرتبط بمفتاح فهرسة (HashKeyId | MfaKeyRef)

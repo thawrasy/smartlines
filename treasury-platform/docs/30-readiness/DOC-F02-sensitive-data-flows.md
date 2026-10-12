@@ -42,7 +42,7 @@
 
 ## 3. وسوم الحساسية في النموذج
 
-- **المقيّد:** 29 عمودًا. لكل منها `DENY SELECT` لـ`tp_readonly` (db/generated/tsql/006_sensitive_columns.sql:7-35). الفحص R7 يطابق العددين (tools/dbgen/check_grants.py:89-93)، والاختبار T21 يثبت الرفض (db/tests/tenant_isolation_tests.sql:683-690).
+- **المقيّد:** 29 عمودًا. لكل منها `DENY SELECT` لـ`tp_readonly` (db/generated/tsql/006_sensitive_columns.sql:7-35). الفحص R7 يطابق العددين (tools/dbgen/check_grants.py:92-96)، والاختبار T21 يثبت الرفض (db/tests/tenant_isolation_tests.sql:704-711).
 - **السرّي:** 23 عمودًا موسومًا، **بلا DENY** لأي دور. `tp_readonly` يقرؤها متى رأى الصف (DQ-F02-3).
 - **التطبيق `tp_app` يقرأ كل المقيّد في جداول المشترك عدا `sec.AppUser.PasswordHash`** (db/static/030_session_context.sql:237؛ الاختبار T35)، ولا يصل إلى `plat.PlatformOperator` لأنه `noapp`. القيم المقيّدة في الأعمدة نص مشفّر أو تجزئة، فالقراءة وحدها لا تكشفها دون مفتاح البيانات.
 - **استثناء خطر:** `tp_app` يقرأ `sec.UserPasswordHistory.PasswordHash` (db/generated/tsql/007_table_grants.sql:46) بلا DENY. إن كتب التطبيق التجزئة الحالية في السجل، أمكن اتصالًا مربوطًا قراءتها وتمريرها إلى `usp_StartSession`، فيسقط شرط «لا إعادة تشغيل للتجزئة» في docs/adr/0002-login-and-session-bound-context.md:24. المعالجة مع O-24 (erd_open_items) في DOC-S01.
@@ -295,10 +295,9 @@ flowchart TB
 
 1. docs/20-database-design.md:166 يجعل السبب إلزاميًا لكل كشف وتصدير، وQ-PTY-05 (docs/10-detailed-analysis/10-m0-m1-platform-organization.md:639) لا يطلبه، والعمود `Reason` اختياري (db/model/10-platform.model:344). سجلته DR-12.
 2. docs/20-database-design.md:218 يقول إن الأرقام الكاملة لمدير الخزينة و«موظف التسهيلات»، وBR-PLT-019 (docs/10-detailed-analysis/10-m0-m1-platform-organization.md:245) يقفلها على TM و«مسؤول التسهيلات (FO)».
-3. docs/20-database-design.md:280 يذكر 28 عمودًا محجوبًا، وdocs/20-database-design.md:216 وdb/generated/tsql/006_sensitive_columns.sql:7-35 تذكر 29.
-4. مراجعة التصميم تشير إلى db/model/16 السطور 686-687 و490 (docs/review/design-review-2026-10-11.json، DR-46)؛ الأعمدة اليوم في db/model/16-letters-of-credit.model:691-692 و:493.
-5. db/model/10-platform.model:199 يقول إن الأثر الدائم للدخول في `aud.AuditLog`، لكن `sec.usp_StartSession` يكتب `sec.LoginAttempt` فقط (db/static/030_session_context.sql:124-129)، و`tp_app` يحذف منه (db/generated/tsql/005_delete_grants.sql:11).
-6. docs/10-detailed-analysis/10-m0-m1-platform-organization.md:582 يذكر TDE للقاعدة، ولا كائن TDE في `db/`. ليس تعارضًا في القرار، لكنه غير منفّذ قبل البيانات الحقيقية (docs/adr/0001-schema-work-on-linux.md:26).
+3. مراجعة التصميم تشير إلى db/model/16 السطور 686-687 و490 (docs/review/design-review-2026-10-11.json، DR-46)؛ الأعمدة اليوم في db/model/16-letters-of-credit.model:691-692 و:493.
+4. db/model/10-platform.model:199 يقول إن الأثر الدائم للدخول في `aud.AuditLog`، لكن `sec.usp_StartSession` يكتب `sec.LoginAttempt` فقط (db/static/030_session_context.sql:124-129)، و`tp_app` يحذف منه (db/generated/tsql/005_delete_grants.sql:11). سجّلته O-24 (tools/dbgen/erd_open_items.py:153).
+5. docs/10-detailed-analysis/10-m0-m1-platform-organization.md:582 يذكر TDE للقاعدة، ولا كائن TDE في `db/`. ليس تعارضًا في القرار، لكنه غير منفّذ قبل البيانات الحقيقية (docs/adr/0001-schema-work-on-linux.md:26).
 
 ## 13. التتبع
 

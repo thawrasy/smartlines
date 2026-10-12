@@ -8,7 +8,7 @@
 | الأولوية | P0 قبل S0 (وقبل تحميل بيانات حقيقية) |
 | يغطي | §6.4 «التعافي» في 00-overview، صف «الاستمرارية» في 10-m0-m1 §12، O-14 وO-7 وO-6 (20-database-design)، BR-PLT-015، FR-PLT-031، O-23 (erd_open_items) |
 | يعتمد على | DOC-S02 (المفاتيح وشهادة TDE)، DOC-S05 (النقل المشفّر)، DOC-S07 (الإقامة والاحتفاظ)، DOC-S08 (تسجيلات الدخول)، DOC-S10 (تجهيز الخادم)، DOC-S12 (المراقبة)، DOC-B03 (NFR) |
-| المصادر | docs/30-readiness-documents.md:273-279 · docs/10-detailed-analysis/00-overview-and-cross-cutting.md:164-169 · docs/10-detailed-analysis/10-m0-m1-platform-organization.md:590 · docs/20-database-design.md:455-461 و532-540 · docs/adr/0001-schema-work-on-linux.md · db/deploy.sql · db/model/10-platform.model |
+| المصادر | docs/30-readiness-documents.md:275-281 · docs/10-detailed-analysis/00-overview-and-cross-cutting.md:164-169 · docs/10-detailed-analysis/10-m0-m1-platform-organization.md:590 · docs/20-database-design.md:457-463 و534-542 · docs/adr/0001-schema-work-on-linux.md · db/deploy.sql · db/model/10-platform.model |
 
 **وسوم المصدر:** 🟢 ذكره المستخدم أو ورد في الوثائق · 🟡 اقتراح له افتراضي ويُعدَّل.
 
@@ -27,9 +27,9 @@
 | الأهداف | «RPO ≤ 15 دقيقة · RTO ≤ 4 ساعات؛ نسخ كامل يومي + تفاضلي + سجل معاملات» تحت عنوان «أهداف مقترحة 🟡» | docs/10-detailed-analysis/00-overview-and-cross-cutting.md:164 و169 |
 | التوفر | «99.5% شهريًا في المرحلة الأولى» 🟡 | docs/10-detailed-analysis/00-overview-and-cross-cutting.md:168 |
 | الاستمرارية | استعادة تُختبر دوريًا، و«استعادة العمود المشفَّر تتطلب المفتاح»، والأهداف «تُثبَّت مع الاستضافة» | docs/10-detailed-analysis/10-m0-m1-platform-organization.md:590 |
-| توصيات التشغيل | نسخ كامل ليلي وتفاضلي وسجل كل 15 دقيقة بنموذج `FULL`، وموقع منفصل، والمفاتيح الرئيسية في نسخ منفصل، واختبار استعادة مع فك عيّنة، واسترجاع مشترك واحد بالتصدير والاستيراد من نسخة مؤقتة 🟡 | docs/20-database-design.md:455-460 |
-| القرار | «أرقام RPO/RTO لم تُحدَّد بعد» O-14 (20-database-design) | docs/20-database-design.md:461 و540 |
-| استعادة مشترك واحد | «معقّدة» O-7 (20-database-design) | docs/20-database-design.md:533 |
+| توصيات التشغيل | نسخ كامل ليلي وتفاضلي وسجل كل 15 دقيقة بنموذج `FULL`، وموقع منفصل، والمفاتيح الرئيسية في نسخ منفصل، واختبار استعادة مع فك عيّنة، واسترجاع مشترك واحد بالتصدير والاستيراد من نسخة مؤقتة 🟡 | docs/20-database-design.md:457-462 |
+| القرار | «أرقام RPO/RTO لم تُحدَّد بعد» O-14 (20-database-design) | docs/20-database-design.md:463 و542 |
+| استعادة مشترك واحد | «معقّدة» O-7 (20-database-design) | docs/20-database-design.md:535 |
 | أثر التحقق من النسخ | الحدث `BACKUP_VERIFIED` في `sec.KeyEvent` | db/model/10-platform.model:293 |
 | إنشاء القاعدة | `CREATE DATABASE ... COLLATE Arabic_100_CI_AS_SC` فقط، بلا نموذج استرداد صريح | db/deploy.sql:17-18 |
 | سكربتات نسخ أو استعادة | لا يوجد أي سكربت في `db/` ولا `tools/` | — |
@@ -47,7 +47,7 @@
 ### 3.2 ملاحظتان تلزمان القرار
 
 - **RTO والتوفر متعارضان.** 99.5% من شهر من 30 يومًا تسمح بـ 3.6 ساعة توقف (720 × 0.005). كارثة واحدة تستهلك 4 ساعات تكسر هدف الشهر وحدها، قبل أي صيانة. الخيارات: قبول ذلك صراحة، أو RTO أقصر بخادم احتياطي جاهز، أو هدف توفر أدنى (DQ-S09-1).
-- **RPO عند فقد VPS يساوي فترة نسخ السجل + زمن وصوله إلى الموقع المنفصل.** نسخة سجل على الخادم المفقود لا تفيد. لذلك نسخ السجل كل 15 دقيقة (docs/20-database-design.md:456) لا يحقق 15 دقيقة. المقترح: سجل كل 10 دقائق، ودفع كل ملف إلى الموقع المنفصل فور كتابته بهدف 5 دقائق، فيكون أسوأ فقد نحو 15 دقيقة.
+- **RPO عند فقد VPS يساوي فترة نسخ السجل + زمن وصوله إلى الموقع المنفصل.** نسخة سجل على الخادم المفقود لا تفيد. لذلك نسخ السجل كل 15 دقيقة (docs/20-database-design.md:458) لا يحقق 15 دقيقة. المقترح: سجل كل 10 دقائق، ودفع كل ملف إلى الموقع المنفصل فور كتابته بهدف 5 دقائق، فيكون أسوأ فقد نحو 15 دقيقة.
 
 ## 4. جدول النسخ لـ SQL Server على Linux 🟡
 
@@ -69,7 +69,7 @@
 | كاملة | master وmsdb | يوميًا بعد نسخة `BankFas` | 7 أيام | 35 يومًا |
 | مخزن الملفات | الملفات الجديدة | فور الرفع، أو كل 5 دقائق على الأكثر | — | كمدة المستند (DOC-S07) |
 
-- الحمل المتوقع منخفض (docs/20-database-design.md:464)، فالنسخة الكاملة اليومية لا تثقل الخادم. يُراجع الجدول إذا تجاوزت مدة النسخة الكاملة ساعة.
+- الحمل المتوقع منخفض (docs/20-database-design.md:466)، فالنسخة الكاملة اليومية لا تثقل الخادم. يُراجع الجدول إذا تجاوزت مدة النسخة الكاملة ساعة.
 - التفاضلية تختصر الاستعادة: كاملة + آخر تفاضلية + سجلات أقصاها 6 ساعات.
 - master يحمل شهادة TDE وتسجيلات الدخول، فنسخه لازم لكنه لا يغني عن ضمان الشهادة (DOC-S02 §11).
 
@@ -89,7 +89,7 @@
 - النقل مشفّر (SSH أو HTTPS، DOC-S05 الاتصال NC-8). الملفات مشفّرة أصلًا.
 - حساب الدفع من الخادم يملك **الكتابة فقط**، بلا حذف ولا استبدال، وتُفعَّل خاصية الحفظ غير القابل للتعديل إن وفرها الموقع. خادم مخترق لا يستطيع إذن محو النسخ.
 - الحذف عند انتهاء المدة يتم من جهة الموقع المنفصل بقاعدة دورة حياة، لا من الخادم.
-- **ضمان المفاتيح ليس هنا:** شهادة TDE والمفتاح الرئيسي للتطبيق لا يُحفظان مع النسخ (BR-PLT-015، docs/20-database-design.md:457؛ DOC-S02 §9).
+- **ضمان المفاتيح ليس هنا:** شهادة TDE والمفتاح الرئيسي للتطبيق لا يُحفظان مع النسخ (BR-PLT-015، docs/20-database-design.md:459؛ DOC-S02 §9).
 - دولة الموقع قرار إقامة (DOC-S07، DQ-S07-2).
 - **لقطات VPS التي يقدّمها المزوّد** لا تُعد نسخًا احتياطيًا في هذه الخطة. اللقطة الكاملة تحمل البيانات ومفاتيح TDE معًا (DOC-S02 §3)، فتُعطَّل أو تُقيَّد بموافقة المالك (DQ-S09-6).
 
@@ -112,7 +112,7 @@
 | الاختبار | الدورية | ما يثبته |
 |---|---|---|
 | `RESTORE VERIFYONLY ... WITH CHECKSUM` لآخر كاملة | يوميًا، آليًا | سلامة الملف فقط، لا قابلية الاستعادة |
-| استعادة آلية على خادم استعادة منفصل إلى نقطة زمنية | أسبوعيًا | السلسلة كاملة، و`DBCC CHECKDB` نظيف، ومطابقة البنية بـ `tools/dbgen/check_deployed.py`، وفك عيّنة (docs/20-database-design.md:458) |
+| استعادة آلية على خادم استعادة منفصل إلى نقطة زمنية | أسبوعيًا | السلسلة كاملة، و`DBCC CHECKDB` نظيف، ومطابقة البنية بـ `tools/dbgen/check_deployed.py`، وفك عيّنة (docs/20-database-design.md:460) |
 | تمرين تعافٍ كامل مقاس | كل ربع سنة | RTO وRPO الفعليان، وضمان المفاتيح بحضور الحافظَين (DOC-S02 §11.2) |
 | استعادة ملف واحد ومستند واحد | شهريًا | مخزن الملفات وفك ملف |
 
@@ -176,7 +176,7 @@ flowchart TB
 ### 9.1 المشكلة
 
 - كل المشتركين في قاعدة واحدة 🟢 (T-1، docs/20-database-design.md:61). **استعادة القاعدة كلها ترجع كل المشتركين إلى النقطة نفسها**، فيضيع عمل المشتركين الآخرين بعدها. لا تصلح إذن لإصلاح خطأ مشترك واحد.
-- docs/20-database-design.md:459 يقترح الاستعادة إلى قاعدة مؤقتة ثم تصدير صفوف المشترك واستيرادها بترتيب التبعيات. هذا المسار يواجه عقبات محددة:
+- docs/20-database-design.md:461 يقترح الاستعادة إلى قاعدة مؤقتة ثم تصدير صفوف المشترك واستيرادها بترتيب التبعيات. هذا المسار يواجه عقبات محددة:
 
 | العقبة | السبب | المصدر |
 |---|---|---|
@@ -192,7 +192,7 @@ flowchart TB
 - **حتى S5:** لا تقدّم المنصة خدمة «استعادة مشترك واحد». استعادة القاعدة كلها للكوارث فقط. خطأ المستخدم في مشترك يُصحَّح من التطبيق بما يحفظه التدقيق من القيم السابقة.
 - **قراءة فقط:** يجوز استعادة قاعدة مؤقتة معزولة لاستخراج معلومة لمشترك بطلب مكتوب منه، وتُمحى بعد ذلك.
 - يُذكر هذا الحد صراحة في شروط الخدمة للمشتركين.
-- **لاحقًا:** إن احتاج مشترك كبير استعادة مستقلة، يُنقل إلى قاعدة خاصة به، والبنية تسمح لأنها تحمل `TenantId` في كل جدول (O-7، docs/20-database-design.md:533؛ 01 س-24، docs/01-preliminary-analysis.md:326).
+- **لاحقًا:** إن احتاج مشترك كبير استعادة مستقلة، يُنقل إلى قاعدة خاصة به، والبنية تسمح لأنها تحمل `TenantId` في كل جدول (O-7، docs/20-database-design.md:535؛ 01 س-24، docs/01-preliminary-analysis.md:326).
 - القرار للمالك (DQ-S09-3).
 
 ## 10. الأدوار
@@ -221,24 +221,22 @@ flowchart TB
 
 ## 12. تعارضات وفجوات في المصادر
 
-- docs/20-database-design.md:456 يقترح نسخ السجل كل 15 دقيقة، وهذا لا يحقق RPO ≤ 15 دقيقة (docs/10-detailed-analysis/00-overview-and-cross-cutting.md:169) عند فقد الخادم، لأن زمن النقل إلى الموقع المنفصل يُضاف.
+- docs/20-database-design.md:458 يقترح نسخ السجل كل 15 دقيقة، وهذا لا يحقق RPO ≤ 15 دقيقة (docs/10-detailed-analysis/00-overview-and-cross-cutting.md:169) عند فقد الخادم، لأن زمن النقل إلى الموقع المنفصل يُضاف.
 - RTO ≤ 4 ساعات (docs/10-detailed-analysis/00-overview-and-cross-cutting.md:169) أطول من التوقف الشهري المسموح بتوفر 99.5% (docs/10-detailed-analysis/00-overview-and-cross-cutting.md:168)، أي نحو 3.6 ساعة.
-- تصادم الترقيم: O-14 في docs/20-database-design.md:540 هو «أرقام RPO/RTO»، وO-14 في tools/dbgen/erd_open_items.py:98-101 هو «خطة الشرائح». هذه الوثيقة تكتب «O-14 (20-database-design)».
-- سجل الجاهزية يقول «يعتمد عليه D-02، لأن فقدان المفتاح الرئيسي يعني فقدان الأعمدة المشفّرة» (docs/30-readiness-documents.md:276)، وD-2 في docs/01-preliminary-analysis.md:393 هو كيان «شخص/جهة». المقصود غالبًا DOC-S02.
+- تصادم الترقيم: O-14 في docs/20-database-design.md:542 هو «أرقام RPO/RTO»، وO-14 في tools/dbgen/erd_open_items.py:98-101 هو «خطة الشرائح». هذه الوثيقة تكتب «O-14 (20-database-design)».
 - docs/10-detailed-analysis/10-m0-m1-platform-organization.md:590 يربط الأهداف بـ «01 س-26» (docs/01-preliminary-analysis.md:348، 🔴 الاستضافة)، والاستضافة حُسمت VPS خاصًا (docs/10-detailed-analysis/10-m0-m1-platform-organization.md:615). الباقي دولة الخادم لا نوع الاستضافة.
-- `next` في O-02 يطلب تشغيل `deploy.ps1` «on the target Windows server» (tools/dbgen/erd_open_items.py:23)، وADR 0001 يجعل الإنتاج Ubuntu ومسار النشر `deploy.sh` (docs/adr/0001-schema-work-on-linux.md:16-20). دليل التعافي هنا يتبع ADR 0001.
-- `db/deploy.sql:17-18` ينشئ القاعدة دون نموذج استرداد صريح، والتوصية `FULL` (docs/20-database-design.md:456).
+- `db/deploy.sql:17-18` ينشئ القاعدة دون نموذج استرداد صريح، والتوصية `FULL` (docs/20-database-design.md:458).
 - لا يوجد في المستودع أي سكربت نسخ أو استعادة أو فحص استعادة.
 
 ## 13. التتبع
 
 | البند في هذه الوثيقة | المتطلب أو القاعدة أو القرار | المصدر |
 |---|---|---|
-| القسم 3 | §6.4 التعافي والتوفر، O-14 (20-database-design) | docs/10-detailed-analysis/00-overview-and-cross-cutting.md:164-169؛ docs/20-database-design.md:540 |
-| القسم 4 | §12.3 توصيات التشغيل | docs/20-database-design.md:455-460 |
+| القسم 3 | §6.4 التعافي والتوفر، O-14 (20-database-design) | docs/10-detailed-analysis/00-overview-and-cross-cutting.md:164-169؛ docs/20-database-design.md:542 |
+| القسم 4 | §12.3 توصيات التشغيل | docs/20-database-design.md:457-462 |
 | القسم 5 | BR-PLT-015، صف التشفير «نسخ احتياطية مشفَّرة ومفتاحها منفصل» | docs/10-detailed-analysis/10-m0-m1-platform-organization.md:241 و582 |
 | القسم 6 | FR-PLT-045، DOC-S02 | docs/10-detailed-analysis/10-m0-m1-platform-organization.md:147 |
-| القسم 7 | صف الاستمرارية، `BACKUP_VERIFIED` | docs/10-detailed-analysis/10-m0-m1-platform-organization.md:590؛ db/model/10-platform.model:293؛ docs/20-database-design.md:458 |
+| القسم 7 | صف الاستمرارية، `BACKUP_VERIFIED` | docs/10-detailed-analysis/10-m0-m1-platform-organization.md:590؛ db/model/10-platform.model:293؛ docs/20-database-design.md:460 |
 | القسم 8 | ADR 0001، FR-PLT-046، FR-PLT-031 | docs/adr/0001-schema-work-on-linux.md:16-20؛ docs/10-detailed-analysis/10-m0-m1-platform-organization.md:148 و133 |
-| القسم 9 | T-1، O-7 (20-database-design)، 01 س-24 | docs/20-database-design.md:61 و459 و533؛ docs/01-preliminary-analysis.md:326 |
+| القسم 9 | T-1، O-7 (20-database-design)، 01 س-24 | docs/20-database-design.md:61 و461 و535؛ docs/01-preliminary-analysis.md:326 |
 | القسم 11 | ADR 0001 (إغلاق قرار النسخ قبل البيانات الحقيقية)، O-23 (erd_open_items) | docs/adr/0001-schema-work-on-linux.md:26؛ tools/dbgen/erd_open_items.py:149 |

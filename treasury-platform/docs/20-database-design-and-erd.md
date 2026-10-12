@@ -261,7 +261,7 @@
 ### 9.1 الأدوار
 | الدور | الغرض | الصلاحيات (ملخص؛ التفصيل الجدولي في 007) |
 |---|---|---|
-| `tp_app` | حساب تشغيل تطبيق المشترك | **المشترك والمختلط:** `SELECT, INSERT, UPDATE` (RLS يقصر الصفوف على المشترك) · **العالمي:** `SELECT` فقط · **للإضافة فقط:** `SELECT, INSERT` · **`noapp`:** لا شيء · **`plat.v_CurrentTenant` و`plat.v_TenantModule`:** `SELECT` · الحذف الفعلي على `deletable` فقط · `EXECUTE` على `sec.usp_SetSessionContext` فقط · لا `REFERENCES` · لا منح على مستوى المخطط |
+| `tp_app` | حساب تشغيل تطبيق المشترك | **المشترك والمختلط:** `SELECT, INSERT, UPDATE` (RLS يقصر الصفوف على المشترك) · **العالمي:** `SELECT` فقط · **للإضافة فقط:** `SELECT, INSERT` · **`noapp`:** لا شيء · **`plat.v_CurrentTenant` و`plat.v_TenantModule`:** `SELECT` · الحذف الفعلي على `deletable` فقط · `EXECUTE` على إجراءات 030 الأربعة فقط (`usp_GetPasswordParams` و`usp_StartSession` و`usp_ConfirmMfa` و`usp_SetSessionContext`) · لا `REFERENCES` · لا منح على مستوى المخطط |
 | `tp_platform` | مشغّلو المنصة | **العالمي والمختلط:** `SELECT, INSERT, UPDATE` (للإضافة فقط: `SELECT, INSERT`) · **جداول المشتركين: لا شيء** · لا حذف · `DENY UPDATE` على جداول الإضافة فقط |
 | `tp_auth` | داخلي بلا تسجيل دخول (عبر المستخدم `tp_auth_exec`) | منح 020 على `sec.AppUser` و`plat.Tenant` و`sec.SessionBinding` و`sec.UserSession` و`sec.LoginAttempt` فقط؛ تُنفَّذ به إجراءات 030 الأربعة وقوادحها فقط (`EXECUTE AS`) |
 | `tp_readonly` | تقارير/تحليل | `SELECT` على كل المخططات دون الأعمدة الحساسة (`006`)؛ `DENY SELECT` على `plat.PlatformOperator` كليًا |

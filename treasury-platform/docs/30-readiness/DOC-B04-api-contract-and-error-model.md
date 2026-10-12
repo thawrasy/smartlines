@@ -4,7 +4,7 @@
 |---|---|
 | المعرّف | DOC-B04 (docs/30-readiness-documents.md) |
 | الإصدار | 0.1 — مسودة للمراجعة — 2026-10-12 |
-| المالك المقترح | قائد الواجهات البرمجية مع قائد التطبيق (docs/30-readiness-documents.md:48) |
+| المالك المقترح | قائد الواجهات البرمجية مع قائد التطبيق (docs/30-readiness-documents.md:50) |
 | الأولوية | P0 قبل S0 |
 | يغطي | FR-PLT-041، FR-PLT-003، FR-PLT-012، FR-PLT-013، FR-PLT-016، FR-PLT-019، FR-PLT-020، FR-PLT-021، FR-PLT-032، FR-WFL-035، BR-WFL-023، FR-LCI-031، O-21 وO-22 (erd_open_items) |
 | يعتمد على | DOC-F03، DOC-F04، DOC-F05، DOC-S03، DOC-B03، DOC-B10، DOC-B11 |
@@ -708,8 +708,8 @@ components:
 
 ## 14. تعارضات وفجوات في المصادر
 
-1. السجل ينسب INSUFFICIENT_AVAILABLE إلى 10-m0-m1 سطر 668 (docs/30-readiness-documents.md:363)، والرمز غير موجود في ذلك الملف. مواضعه: 12-m5…:125، :253، 13-m6…:306.
-2. docs/20-database-design.md:90 ما زال يذكر التوقيع القديم `usp_SetSessionContext(@TenantId, @UserId, ...)` ومعنى 50003 «المستخدم نشط ومنتمٍ». التوقيع الحالي يأخذ رمز الجلسة، و50003 يعني «لا جلسة صالحة» (db/static/030_session_context.sql:165-199). والسطر :85 يقول إن الهوية «مصدوقة من التطبيق»، وقد أغلقه ADR 0002.
+1. السجل ينسب INSUFFICIENT_AVAILABLE إلى 10-m0-m1 سطر 668 (docs/30-readiness-documents.md:365)، والرمز غير موجود في ذلك الملف. مواضعه: 12-m5…:125، :253، 13-m6…:306.
+2. docs/20-database-design.md:85 ما زال يقول إن هوية المستخدم «تبقى مصدوقة من التطبيق»، وقد أغلقه ADR 0002؛ والسطر :83 يصف الطبقة 4 بفحص المستخدم لا الجلسة. ✅ صُحّح §3.2 (docs/20-database-design.md:89-98، التحقق عند bef5722): التوقيع فيه صار `usp_SetSessionContext(@TenantId, @SessionToken, @ClientIp, @CorrelationId)`، و50003 «جلسة منتهية أو مستخدم غير نشط أو MFA غير مكتمل»، كما في db/static/030_session_context.sql:165-199.
 3. docs/20-database-design.md:138 يذكر RowVersion في 161 جدولًا، وDDL المولّد فيه 160 (db/generated/tsql/001_tables.sql). الفرق متسق مع نقل plat.TenantModule إلى جدول عالمي (DR-01).
 4. المواصفات تحدد 409 للتعارض (13-m6…:156، :254، :550؛ 14-m7-m8…:187)، والمعيار العام للترويسة If-Match هو 412. اخترنا 409 ولم نغيّر المواصفات (DQ-B04-2).
 5. قواعد التحقق في 10-m0-m1…:497-515 بلا معرّفات V، خلافًا للوحدات الأربع الأخرى.

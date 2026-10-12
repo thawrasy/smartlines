@@ -8,8 +8,9 @@
         equals the row's TenantId and whose BindingToken equals SESSION_CONTEXT(N'BindingToken').
    Only sec.usp_SetSessionContext (030) writes the binding and the token. A caller that sets
    SESSION_CONTEXT itself, or reuses a stale binding, gets no rows (O-16).
-   Members of tp_platform bypass the filters for platform work. tp_auth bypasses them only inside the
-   context procedure, to check membership before the binding exists.
+   Members of tp_platform bypass the filters for platform work, except the audit log, where they read platform
+   events only (fn_AuditRead). tp_auth bypasses them only inside the login and binding procedures and their
+   triggers (030).
    ============================================================================ */
 SET NOCOUNT ON;
 SET ANSI_NULLS ON; SET QUOTED_IDENTIFIER ON; SET ANSI_PADDING ON; SET ANSI_WARNINGS ON; SET ARITHABORT ON; SET CONCAT_NULL_YIELDS_NULL ON; SET NUMERIC_ROUNDABORT OFF;  -- policies and procedures keep these options when created

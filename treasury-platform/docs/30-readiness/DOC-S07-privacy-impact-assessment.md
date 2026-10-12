@@ -8,7 +8,7 @@
 | الأولوية | P0 قبل S0 (وقبل تحميل أي بيانات شخصية حقيقية) |
 | يغطي | X-AUD-3، X-AUD-4، BR-PLT-016، BR-PLT-002، BR-PTY-019، FR-PLT-039، FR-PLT-040، FR-PTY-028، FR-PTY-029، Q-PLT-03، Q-PLT-04، O-23 (erd_open_items) |
 | يعتمد على | DOC-S06 (التصنيف)، DOC-S02 (التشفير)، DOC-S09 (النسخ)، DOC-F02 (تدفقات البيانات الحساسة)، DOC-S15 (إخطار الخرق، P2 لم يُكتب بعد) |
-| المصادر | docs/30-readiness-documents.md:256-262 · docs/10-detailed-analysis/10-m0-m1-platform-organization.md §4 و§5 و§12 و§14 · docs/10-detailed-analysis/00-overview-and-cross-cutting.md §6.2 و§10.4 · docs/01-preliminary-analysis.md · docs/04-facility-agreements-analysis.md:246-254 · docs/05-kyc-forms-analysis.md:73 · db/model/10-platform.model · db/model/11-organization-party.model · db/static/030_session_context.sql |
+| المصادر | docs/30-readiness-documents.md:258-264 · docs/10-detailed-analysis/10-m0-m1-platform-organization.md §4 و§5 و§12 و§14 · docs/10-detailed-analysis/00-overview-and-cross-cutting.md §6.2 و§10.4 · docs/01-preliminary-analysis.md · docs/04-facility-agreements-analysis.md:246-254 · docs/05-kyc-forms-analysis.md:73 · db/model/10-platform.model · db/model/11-organization-party.model · db/static/030_session_context.sql |
 
 **وسوم المصدر:** 🟢 ذكره المستخدم أو ورد في الوثائق · 🟡 اقتراح له افتراضي ويُعدَّل.
 
@@ -97,7 +97,7 @@
 
 - **القاعدة 🟢:** لا إتلاف تلقائي. الإتلاف تقرير ثم موافقة ثم إتلاف أو إخفاء مع أثر (BR-PLT-016، docs/10-detailed-analysis/10-m0-m1-platform-organization.md:242؛ FR-PLT-040 Should في S5، docs/10-detailed-analysis/10-m0-m1-platform-organization.md:142).
 - **المدد المقترحة 🟢 للمراجعة القانونية:** التدقيق 10 سنوات، والمستندات 10 سنوات بعد انتفاء الاستخدام، وهويات الأشخاص وصورها 5 سنوات بعد آخر استخدام نشط (Q-PLT-04، docs/10-detailed-analysis/10-m0-m1-platform-organization.md:616).
-- **ما ليس له مدة في المصادر:** محاولات الدخول، والجلسات، والرموز، وOutbox، وسجل المهام. المقترح في عمود الاحتفاظ بالقسم 4 🟡، وO-6 (20-database-design) يطلب قرارًا لكل جدول (docs/20-database-design.md:532).
+- **ما ليس له مدة في المصادر:** محاولات الدخول، والجلسات، والرموز، وOutbox، وسجل المهام. المقترح في عمود الاحتفاظ بالقسم 4 🟡، وO-6 (20-database-design) يطلب قرارًا لكل جدول (docs/20-database-design.md:534).
 - **المشترك المغلق 🟢:** تصدير 30 يومًا ثم قراءة فقط، والإتلاف بموافقة المشغّل وموافقة المشترك الخطية بعد المدة (BR-PLT-002، docs/10-detailed-analysis/10-m0-m1-platform-organization.md:228).
 - **النسخ الاحتياطية:** البيانات المتلفة تبقى في النسخ حتى تنتهي مدتها (DOC-S09، 35 يومًا للاستعادة النقطية و12 شهرًا للنسخ الشهرية 🟡). يُذكر ذلك في وصف المعالجة. استعادة نسخة بعد إتلاف تتطلب إعادة تنفيذ الإتلافات المسجّلة بعد تاريخ النسخة 🟡.
 
@@ -153,7 +153,7 @@ flowchart TB
 
 | الخطر | الوصف | الضابط اليوم | المقترح 🟡 | المتبقي |
 |---|---|---|---|---|
-| R-P1 تسريب بين المشتركين | قراءة بيانات مشترك آخر | RLS وربط الجلسة و40 اختبار عزل في CI (db/tests/tenant_isolation_tests.sql) | اختبارات IDOR على كل نقطة API (DOC-S13) | منخفض؛ O-20 وO-21 (erd_open_items) مفتوحان |
+| R-P1 تسريب بين المشتركين | قراءة بيانات مشترك آخر | RLS وربط الجلسة و41 حالة عزل (T1 إلى T38 مع T8b وT16b وT16c، db/tests/tenant_isolation_tests.sql) يشغّلها tools/ci/db_ci.sh في حاوية التطوير؛ لم يعمل CI على GitHub بعد (O-02 (erd_open_items)) | اختبارات IDOR على كل نقطة API (DOC-S13) | منخفض؛ O-20 وO-21 (erd_open_items) مفتوحان |
 | R-P2 نسخ مقيّدة غير محمية | IBAN صريح في المقارنات، ونص البنود الحرفي | لا شيء | DR-46 وDR-31 (DOC-S06 §7.1) | متوسط حتى التطبيق |
 | R-P3 سجلات الأمن بلا مدة | عناوين IP وبريد مكتوب خطأ يتراكم | لا شيء | مدد القسم 4، ومهمة إتلاف بموافقة | منخفض |
 | R-P4 النسخ تحمل المحذوف | بيانات متلفة باقية في النسخ | لا شيء | مدد DOC-S09 وإعادة تنفيذ الإتلاف بعد الاستعادة | منخفض |
@@ -167,7 +167,7 @@ flowchart TB
 
 ## 11. إخطار الخرق
 
-- الإجراء الكامل في DOC-S15 (P2، لم يُكتب بعد؛ docs/30-readiness-documents.md:323-328). هذه الوثيقة تحدد ما يلزمه منها.
+- الإجراء الكامل في DOC-S15 (P2، لم يُكتب بعد؛ docs/30-readiness-documents.md:325-330). هذه الوثيقة تحدد ما يلزمه منها.
 - **مصادر الكشف الموجودة:** `UNWRAP_FAILED` في `sec.KeyEvent` (db/model/10-platform.model:293)، وشذوذ الكشف (BR-PTY-009)، وفشل سلامة الملفات `MISMATCH` و`MISSING` (db/model/10-platform.model:399)، وفشل اختبارات العزل.
 - 🟡 تُبلغ المنصة المشترك المتأثر بعد تأكيد الحادث بلا تأخير، وبهدف داخلي 24 ساعة. المهلة النظامية للإبلاغ إلى الجهة المختصة وأصحاب البيانات يحددها المستشار لكل دولة، والمشترك هو المبلِّغ بصفته مسؤول البيانات.
 - 🟡 محتوى الإبلاغ للمشترك: وصف الحادث، والفئات P-n المتأثرة، وعدد السجلات تقريبًا، والإجراءات المتخذة، ونقطة اتصال.
@@ -207,8 +207,8 @@ flowchart TB
 | القسم 4 | النموذج، DOC-S06 | db/model/10-platform.model؛ db/model/11-organization-party.model |
 | القسم 5 | BR-PTY-019، G-12 | docs/10-detailed-analysis/10-m0-m1-platform-organization.md:290؛ docs/05-kyc-forms-analysis.md:73 |
 | القسم 6 | Q-PLT-03، 01 س-4، T-1، FR-PLT-047 | docs/10-detailed-analysis/10-m0-m1-platform-organization.md:615 و149؛ docs/01-preliminary-analysis.md:125؛ docs/20-database-design.md:61 |
-| القسم 7 | BR-PLT-016، Q-PLT-04، FR-PLT-040، BR-PLT-002، X-AUD-3، O-6 (20-database-design) | docs/10-detailed-analysis/10-m0-m1-platform-organization.md:242 و616 و142 و228؛ docs/10-detailed-analysis/00-overview-and-cross-cutting.md:149؛ docs/20-database-design.md:532 |
+| القسم 7 | BR-PLT-016، Q-PLT-04، FR-PLT-040، BR-PLT-002، X-AUD-3، O-6 (20-database-design) | docs/10-detailed-analysis/10-m0-m1-platform-organization.md:242 و616 و142 و228؛ docs/10-detailed-analysis/00-overview-and-cross-cutting.md:149؛ docs/20-database-design.md:534 |
 | القسم 8 | FR-PTY-028، FR-PTY-029، BR-PTY-006، FR-PLT-039، FR-PLT-023 | docs/10-detailed-analysis/10-m0-m1-platform-organization.md:218 و219 و277 و141 و125 |
 | القسم 9 | FR-PLT-013، Q-NTF-01 | docs/10-detailed-analysis/10-m0-m1-platform-organization.md:115؛ docs/10-detailed-analysis/13-m6-workflow-engine-notifications.md:737 |
 | القسم 10 | R4 وR5 | docs/01-preliminary-analysis.md:359-360 |
-| القسم 11 | DOC-S15، BR-PTY-009 | docs/30-readiness-documents.md:323-328؛ docs/10-detailed-analysis/10-m0-m1-platform-organization.md:280 |
+| القسم 11 | DOC-S15، BR-PTY-009 | docs/30-readiness-documents.md:325-330؛ docs/10-detailed-analysis/10-m0-m1-platform-organization.md:280 |

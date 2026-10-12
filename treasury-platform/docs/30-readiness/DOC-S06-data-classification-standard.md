@@ -8,7 +8,7 @@
 | الأولوية | P0 قبل S0 |
 | يغطي | صف «تصنيف البيانات» في 10-m0-m1 §12، X-SEC-2، X-SEC-3، FR-PLT-023، FR-PLT-028، FR-PLT-030، FR-PLT-039، FR-PTY-006 إلى FR-PTY-009، FR-PTY-014، FR-REQ-024، BR-PLT-016، BR-PTY-008 إلى BR-PTY-010، DR-18 وDR-25 وDR-31 وDR-46، O-15 (20-database-design) |
 | يعتمد على | DOC-S02 (التشفير والمفاتيح)، DOC-F02 (تدفقات البيانات الحساسة)، DOC-S07 (الخصوصية والاحتفاظ)، DOC-S12 (السجلات)، DOC-B06 (بيانات الاختبار) |
-| المصادر | docs/30-readiness-documents.md:248-254 · docs/10-detailed-analysis/10-m0-m1-platform-organization.md:294-347 و581 · db/model/*.model · db/generated/tsql/006_sensitive_columns.sql · db/static/020_roles_and_grants.sql · tools/dbgen/dbgen.py · tools/dbgen/README.md · docs/review/design-review-2026-10-11.json |
+| المصادر | docs/30-readiness-documents.md:250-256 · docs/10-detailed-analysis/10-m0-m1-platform-organization.md:294-347 و581 · db/model/*.model · db/generated/tsql/006_sensitive_columns.sql · db/static/020_roles_and_grants.sql · tools/dbgen/dbgen.py · tools/dbgen/README.md · docs/review/design-review-2026-10-11.json |
 
 **وسوم المصدر:** 🟢 ذكره المستخدم أو ورد في الوثائق · 🟡 اقتراح له افتراضي ويُعدَّل.
 
@@ -40,7 +40,7 @@
 - المولّد يقرأ `sens=restricted|confidential` على العمود (tools/dbgen/dbgen.py:172، tools/dbgen/README.md:63)، أو سطر `sens col,col` الذي يعني `restricted` افتراضيًا (tools/dbgen/dbgen.py:142-145 و224-227).
 - **المقيّد وحده** يولّد `DENY SELECT` لدور التقارير `tp_readonly` (tools/dbgen/dbgen.py:723-724)، فيُنتج 29 سطرًا (db/generated/tsql/006_sensitive_columns.sql:7-35).
 - السرّي لا يولّد إلا علامة 🔒 في القاموس (tools/dbgen/dbgen.py:608). و`tp_readonly` يملك `SELECT` على كل المخططات (db/static/020_roles_and_grants.sql:41-53)، **فيقرأ دور التقارير كل الأعمدة السرّية**.
-- الاختبار T21 يثبت رفض قراءة عمود مقيّد بالخطأ 230، وT23 يثبت قراءة عمود غير مقيّد (db/tests/tenant_isolation_tests.sql:683-710).
+- الاختبار T21 يثبت رفض قراءة عمود مقيّد بالخطأ 230، وT23 يثبت قراءة عمود غير مقيّد (db/tests/tenant_isolation_tests.sql:704-731).
 - **العدد اليوم:** 46 وسمًا مباشرًا (23 مقيّدًا و23 سرّيًا) وسطر `sens` واحد بستة أعمدة، فالمجموع 29 مقيّدًا و23 سرّيًا. القاموس يطابقه (29 علامة `🔒 restricted` و23 `🔒 confidential` في docs/21-data-dictionary.md)، وdocs/20-database-design.md:216 يذكر 29.
 
 ## 4. قواعد التعامل لكل مستوى
@@ -165,7 +165,7 @@ flowchart TB
 
 ## 10. منع الانحراف 🟡
 
-- **فحص آلي جديد في CI** بجانب `tools/dbgen/check_fk_indexes.py` (tools/ci/db_ci.sh:47-48)، يفشل البناء إذا:
+- **فحص آلي جديد في CI** بجانب `tools/dbgen/check_fk_indexes.py` و`tools/dbgen/check_grants.py` في الخطوة 3 (tools/ci/db_ci.sh:47-49)، يفشل البناء إذا:
   - عمود اسمه ينتهي بـ `Enc` أو `Hash` أو `Mask` أو يحوي `Password` أو `Token` أو `Secret` أو `Iban` أو `AccountNo` بلا `sens=restricted`؛
   - عمود اسمه يحوي `Email` أو `Phone` أو `IpAddress` أو `OriginalText` أو `Snapshot` بلا وسم ولا استثناء مسجَّل؛
   - عمود مقيّد بلا سطر `DENY` في `006`؛
@@ -203,11 +203,11 @@ flowchart TB
 | البند في هذه الوثيقة | المتطلب أو القاعدة أو القرار | المصدر |
 |---|---|---|
 | القسم 2 | صف «تصنيف البيانات»، عمود الحساسية في §6 | docs/10-detailed-analysis/10-m0-m1-platform-organization.md:581 و294 |
-| القسم 3 | `006`، T21 وT23 | db/generated/tsql/006_sensitive_columns.sql:7-35؛ db/tests/tenant_isolation_tests.sql:683-710 |
+| القسم 3 | `006`، T21 وT23 | db/generated/tsql/006_sensitive_columns.sql:7-35؛ db/tests/tenant_isolation_tests.sql:704-731 |
 | القسم 4 | X-SEC-3، BR-PTY-008، BR-PTY-009، FR-PLT-023، BR-PLT-016، FR-PLT-042 | docs/10-detailed-analysis/00-overview-and-cross-cutting.md:138؛ docs/10-detailed-analysis/10-m0-m1-platform-organization.md:279-280 و125 و242 و144 |
 | القسم 5 | FR-PTY-006، FR-PLT-037 | docs/10-detailed-analysis/10-m0-m1-platform-organization.md:196 و139 |
 | القسم 6.1 | DR-08 | docs/review/design-review-2026-10-11.json:95 |
-| القسم 7.1 | DR-46، DR-31، DR-18، DR-25، DR-13، O-15 (20-database-design) | docs/review/design-review-2026-10-11.json:486 و330 و200 و270 و150؛ docs/20-database-design.md:541 |
+| القسم 7.1 | DR-46، DR-31، DR-18، DR-25، DR-13، O-15 (20-database-design) | docs/review/design-review-2026-10-11.json:486 و330 و200 و270 و150؛ docs/20-database-design.md:543 |
 | القسم 8 | FR-PLT-028، FR-PLT-030، BR-PTY-010، FR-PTY-009 | docs/10-detailed-analysis/10-m0-m1-platform-organization.md:130 و132 و281 و199 |
-| القسم 10 | O-15 (20-database-design) | docs/20-database-design.md:541 |
+| القسم 10 | O-15 (20-database-design) | docs/20-database-design.md:543 |
 | القسم 11، DQ-S06-8 | BR-PTY-019، G-12 | docs/10-detailed-analysis/10-m0-m1-platform-organization.md:290؛ docs/05-kyc-forms-analysis.md:73 |

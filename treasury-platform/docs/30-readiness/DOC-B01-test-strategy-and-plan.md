@@ -15,14 +15,14 @@
 تحدد هذه الوثيقة مستويات الاختبار وأدواتها وبيئاتها، ومعايير الدخول والخروج لكل شريحة من S0 إلى S2، وتصنيف العيوب وفرزها، وقواعد بيانات الاختبار، وإجراء اختبار خروج S0.
 
 - تبني على ما هو موجود اليوم: اختبارات قاعدة البيانات والتحقق الثابت في CI.
-- لا يوجد كود تطبيق في المستودع بعد (docs/30-readiness-documents.md:336)، فكل ما يخص اختبار التطبيق مقترح 🟡.
+- لا يوجد كود تطبيق في المستودع بعد (docs/30-readiness-documents.md:338)، فكل ما يخص اختبار التطبيق مقترح 🟡.
 - تفاصيل الاختبار الأمني (ASVS واختبار الاختراق) في DOC-S13، وسيناريوهات القبول في DOC-B02، وأهداف الأداء والأمن القابلة للقياس في DOC-B03، والبيئات وخط البناء في DOC-B11.
 
 ## 2. ما يوجد اليوم
 
 ### 2.1 خط CI لقاعدة البيانات
 
-يعمل الخط على كل دفع إلى main وclaude/** وعلى كل طلب دمج، ولكن فقط عند تغيّر db/ أو tools/dbgen/ أو tools/ci/ أو ملف الخط نفسه (.github/workflows/db-ci.yml:6-20). يعمل على ubuntu-24.04 (السطر 27) مع حاوية mcr.microsoft.com/mssql/server:2025-latest (السطر 32) 🟢.
+يُعرَّف الخط ليعمل على كل دفع إلى main وclaude/** وعلى كل طلب دمج، ولكن فقط عند تغيّر db/ أو tools/dbgen/ أو tools/ci/ أو ملف الخط نفسه (.github/workflows/db-ci.yml:6-20)، على ubuntu-24.04 (السطر 27) مع حاوية mcr.microsoft.com/mssql/server:2025-latest (السطر 32). لكنه **لم يعمل على GitHub قط**: ملف الخط تحت treasury-platform/.github/workflows/، وGitHub يقرأ الخطوط من جذر المستودع فقط، وملف ci.yml هناك لمشروع آخر (O-02، tools/dbgen/erd_open_items.py:22-23؛ docs/adr/0001-schema-work-on-linux.md:11). السكربت tools/ci/db_ci.sh نفسه يمر كاملًا في حاوية التطوير 🟢.
 
 | الخطوة | ما تفعله | الموضع |
 |---|---|---|
@@ -71,6 +71,7 @@
 5. معرّفات الحالات متصادمة: T1 إلى T6 موجودة في الملفين بمعنيين مختلفين.
 6. عدّاد CI ثابت (6 و41)، فإضافة حالة تتطلب تعديل tools/ci/db_ci.sh:71 و88 يدويًا.
 7. خط CI لا يعمل عند تغيّر كود التطبيق، لأن مرشّح المسارات يقتصر على ملفات القاعدة (.github/workflows/db-ci.yml:9-13).
+8. الخط لم يعمل على GitHub قط، فلا سجل تشغيل ولا حماية فرع تعتمد عليه؛ تشغيله يحتاج ملف خط في جذر المستودع بموافقة المالك (O-02، tools/dbgen/erd_open_items.py:23).
 
 ## 3. مستويات الاختبار
 
@@ -110,7 +111,7 @@
 
 | النوع | المعيار |
 |---|---|
-| دخول | اعتماد وثائق P0: DOC-F01 إلى F05، DOC-S01 إلى S09، DOC-B01 إلى B05، DOC-B11 (docs/30-readiness-documents.md:444) |
+| دخول | اعتماد وثائق P0: DOC-F01 إلى F05، DOC-S01 إلى S09، DOC-B01 إلى B05، DOC-B11 (docs/30-readiness-documents.md:446) |
 | دخول | حسم O-18 (erd_open_items، tools/dbgen/erd_open_items.py:115-120) لأنه يحدد النتيجة المتوقعة لدخول مشترك SUSPENDED |
 | دخول | تصميم إجراء التأهيل وفق O-12 (20-database-design، docs/20-database-design.md:540) |
 | دخول | قرار O-24 (erd_open_items، tools/dbgen/erd_open_items.py:151-156) قبل كتابة كود الدخول، وإضافة حالاته إلى اختبارات القاعدة |
@@ -240,13 +241,12 @@ flowchart TB
 
 ## 12. تعارضات وفجوات في المصادر
 
-1. tools/dbgen/erd_open_items.py:29 يطلب إضافة اختبارات الحصص إلى CI، وهي فيه فعلًا (tools/ci/db_ci.sh:59-74).
-2. docs/30-readiness-documents.md:337 يذكر 34 حالة عزل وأن db_ci.sh يتحقق من 34، والعدد الفعلي 41.
-3. docs/20-database-design.md:529 (O-1) يقول إن السكربتات لم تُنفَّذ على SQL Server، والسطر 492 من الملف نفسه يثبت النشر في كل تشغيل لـ CI. والأمر نفسه في docs/20-database-design.md:550 وdocs/10-detailed-analysis/00-overview-and-cross-cutting.md:352.
-4. رأس tools/ci/db_ci.sh:2-3 يذكر اختبارات المشغّلات فقط، والسكربت يشغّل اختبارات العزل أيضًا (السطر 75).
-5. AC-PLT-1 يفترض صفًا عامًا في LookupItem (docs/10-detailed-analysis/10-m0-m1-platform-organization.md:651)، والقاعدة تجعل LookupItem مملوكًا للمشترك (docs/20-database-design.md:425)، فالحالات T9-T12 تختبر الصف العام على cfg.NonWorkingDay (db/tests/tenant_isolation_tests.sql:107). التفصيل في DOC-B02.
-6. 00 §8 (docs/10-detailed-analysis/00-overview-and-cross-cutting.md:209-219) يعدّد المستويات بوسم 🟡 دون أدوات أو معايير خروج؛ هذه الوثيقة تكمله.
-7. tools/dbgen/erd_open_items.py:64 وdocs/20-database-design.md:493 يذكران 40 حالة عزل، وCI يتوقع 41 بعد إضافة T38 (tools/ci/db_ci.sh:88).
+1. docs/30-readiness-documents.md:312 و339 يذكر 34 حالة عزل وأن db_ci.sh يتحقق من 34، والعدد الفعلي 41.
+2. docs/20-database-design.md:529 (O-1) يقول إن السكربتات لم تُنفَّذ على SQL Server، والسطر 492 من الملف نفسه يثبت النشر في كل تشغيل لـ CI. والأمر نفسه في docs/20-database-design.md:550 وdocs/10-detailed-analysis/00-overview-and-cross-cutting.md:352.
+3. رأس tools/ci/db_ci.sh:2-3 يذكر اختبارات المشغّلات فقط، والسكربت يشغّل اختبارات العزل أيضًا (السطر 75).
+4. AC-PLT-1 يفترض صفًا عامًا في LookupItem (docs/10-detailed-analysis/10-m0-m1-platform-organization.md:651)، والقاعدة تجعل LookupItem مملوكًا للمشترك (docs/20-database-design.md:425)، فالحالات T9-T12 تختبر الصف العام على cfg.NonWorkingDay (db/tests/tenant_isolation_tests.sql:107). التفصيل في DOC-B02.
+5. 00 §8 (docs/10-detailed-analysis/00-overview-and-cross-cutting.md:209-219) يعدّد المستويات بوسم 🟡 دون أدوات أو معايير خروج؛ هذه الوثيقة تكمله.
+6. tools/dbgen/erd_open_items.py:64 (O-09: «40 cases (T1-T37)») وdocs/20-database-design.md:493 يذكران 40 حالة عزل، وCI يتوقع 41 بعد إضافة T38 (tools/ci/db_ci.sh:87-88).
 
 ## 13. التتبع
 

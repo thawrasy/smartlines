@@ -25,11 +25,11 @@
 - المخططات كلها يملكها `dbo` (db/generated/tsql/000_schemas.sql:6-45). دور `tp_migrator` بلا منح (db/static/020_roles_and_grants.sql:9)، والنشر يعمل بحساب مالك القاعدة (docs/20-database-design.md:271).
 - سكربت النشر يستعمل `sa` افتراضيًا (tools/deploy/deploy.sh:17)، ويقرأ كلمة المرور من المتغير `SQLCMDPASSWORD` (tools/deploy/deploy.sh:8، :22)، ويثق بشهادة الخادم بالخيار `-C` إلى أن تُحسم O-08 (tools/deploy/deploy.sh:10-11، :19).
 - مثال النشر في رأس `deploy.sql` يمرر كلمة المرور في سطر الأوامر (db/deploy.sql:9).
-- CI يعمل على حاوية مؤقتة بحساب `sa` (tools/ci/db_ci.sh:14، :21، :53)، وكلمة المرور نص صريح في ملف سير العمل لحاوية لا يصل إليها غير هذه المهمة (.github/workflows/db-ci.yml:36-41). ولا يستعمل سير العمل أي سر من GitHub، وصلاحيته قراءة المحتوى فقط (.github/workflows/db-ci.yml:22-23).
+- CI يعمل على حاوية مؤقتة بحساب `sa` (tools/ci/db_ci.sh:14، :21، :54)، ويمر اليوم في حاوية التطوير فقط: لم يعمل على GitHub بعد، لأن ملف سير العمل تحت treasury-platform/.github وGitHub يقرأ سير العمل من جذر المستودع وحده (O-02 (erd_open_items)). كلمة المرور نص صريح في ملف سير العمل لحاوية لا يصل إليها غير هذه المهمة (.github/workflows/db-ci.yml:36-41). ولا يستعمل سير العمل أي سر من GitHub، وصلاحيته قراءة المحتوى فقط (.github/workflows/db-ci.yml:22-23).
 - غلاف Windows `deploy.ps1` غير مختبر وليس مسار الإنتاج (docs/adr/0001-schema-work-on-linux.md:20).
 - الاختبارات تنشئ مستخدمين بلا تسجيل دخول وتعمل بـ`EXECUTE AS` (db/tests/tenant_isolation_tests.sql:21-26).
 - لا أسرار في النماذج (docs/20-database-design.md:220). ومدير القاعدة لا يملك المفتاح الرئيسي (docs/10-detailed-analysis/10-m0-m1-platform-organization.md:583).
-- نظام تشغيل طبقة التطبيق قرار مفتوح (docs/10-detailed-analysis/00-overview-and-cross-cutting.md:126، :226).
+- طبقة التطبيق على Windows Server وفق 01 §13، ومطروحة للمراجعة بعد ADR 0001 (docs/10-detailed-analysis/00-overview-and-cross-cutting.md:126، :226؛ FR-PLT-045 في docs/10-detailed-analysis/10-m0-m1-platform-organization.md:147).
 
 ## 3. خريطة الحسابات 🟡
 
@@ -42,7 +42,7 @@ flowchart LR
   DEP["deploy.sh على الخادم"] --> L5["bankfas_migrator"]
   DBA["مدير القاعدة عبر SSH"] --> L6["حساب شخصي للمدير"]
   BG["الطوارئ"] --> L7["breakglass معطّل"]
-  CI["GitHub Actions"] --> SA["sa في حاوية مؤقتة فقط"]
+  CI["CI عبر db_ci.sh"] --> SA["sa في حاوية مؤقتة فقط"]
   L1 --> R1["tp_app"]
   L2 --> R1
   L2 --> R2["tp_jobs"]
@@ -138,10 +138,10 @@ sequenceDiagram
 | الدور | ما يملكه اليوم 🟢 | ما لا يملكه 🟢 | فجوات ومقترحات 🟡 |
 |---|---|---|---|
 | `tp_app` | منح جدولية صريحة (db/generated/tsql/007_table_grants.sql، 190 سطرًا)، وحذف على الجداول القابلة للحذف (db/generated/tsql/005_delete_grants.sql:8-43)، و`EXECUTE` على إجراءات الجلسة الأربعة (db/static/030_session_context.sql:229-232)، وقراءة مخطط `rls` (db/static/010_rls.sql:19) والعرضين (db/static/025_tenant_views.sql:17، :29) | لا كتابة على العالمي، ولا شيء على `noapp` (tools/dbgen/check_grants.py:5-6)، ولا قراءة بصمات كلمات المرور ولا إنشاء جلسات (db/static/030_session_context.sql:237-239)، ولا تعديل التدقيق أو حذفه (db/static/020_roles_and_grants.sql:65) | ما زال يحدّث `PasswordHash` ومهلة الخمول (O-24). ويملك حذف `sec.LoginAttempt` (db/generated/tsql/005_delete_grants.sql:11)، والأثر الدائم للمحاولات ليس في `aud.AuditLog` كما يقول القاموس (docs/21-data-dictionary.md:345) بل في `sec.LoginAttempt` وحده (db/static/030_session_context.sql:124-129). المقترح: نزع الحذف أو كتابة الأثر في التدقيق (DQ-S08-8) |
-| `tp_platform` | قراءة وإدراج وتحديث على الجداول العالمية و`plat` والمختلطة، وقراءة وإدراج على `aud.AuditLog` (db/generated/tsql/007_table_grants.sql:9-20، :29، :55، :66، :83، :142، :145، :360، :363)، وتجاوز دوال الصفوف (db/static/010_rls.sql:48) | لا منح على جداول المشترك (docs/20-database-design.md:117)، ولا قراءة للربط (db/static/020_roles_and_grants.sql:60)، ولا حذف | يقرأ `PasswordHash` و`MfaSecretEnc` للمشغّلين (db/generated/tsql/007_table_grants.sql:18). المقترح: `DENY` على العمودين بعد 007 وإجراء دخول للمشغّل على نمط `usp_StartSession` (DQ-S08-7). ويقرأ تدقيق كل المشتركين (DQ-F04-7)، ويحدّث حالة المشترك مباشرة (DQ-F05-5) |
+| `tp_platform` | قراءة وإدراج وتحديث على الجداول العالمية و`plat` والمختلطة، وقراءة وإدراج على `aud.AuditLog` (db/generated/tsql/007_table_grants.sql:9-20، :29، :55، :66، :83، :142، :145، :360، :363)، وتجاوز دوال الصفوف (db/static/010_rls.sql:48) | لا منح على جداول المشترك (docs/20-database-design.md:117)، ولا قراءة للربط (db/static/020_roles_and_grants.sql:60)، ولا حذف | يقرأ `PasswordHash` و`MfaSecretEnc` للمشغّلين (db/generated/tsql/007_table_grants.sql:18). المقترح: `DENY` على العمودين بعد 007 وإجراء دخول للمشغّل على نمط `usp_StartSession` (DQ-S08-7). ويحدّث حالة المشترك مباشرة (DQ-F05-5). أما قراءته تدقيق كل المشتركين (DQ-F04-7) فصُحّحت في 1f0f0af: لا يقرأ إلا أحداث المنصة (`TenantId` فارغ، db/static/010_rls.sql:83، T38) |
 | `tp_readonly` | قراءة كل المخططات (db/static/020_roles_and_grants.sql:41-53) دون 29 عمودًا مقيّدًا (db/generated/tsql/006_sensitive_columns.sql:7-35) | لا قراءة لسجل المشتركين والوحدات والمشغّلين والربط (db/static/020_roles_and_grants.sql:55-63) | يخضع لـRLS ولا يملك `EXECUTE` على إجراء الربط، فلا يرى اليوم أي صف مشترك، بل الصفوف العالمية فقط. لا يُنشأ له حساب حتى تُحسم حالة استعمال (DQ-S08-6) |
-| `tp_migrator` | دور فارغ (db/static/020_roles_and_grants.sql:9) | كل شيء | المقترح: حساب الترحيل عضو في `db_owner` أثناء النشر فقط، لأن `deploy.sql` ينشئ القاعدة والأدوار والمستخدمين والسياسات (db/deploy.sql:17-34). يُعطَّل خارج النافذة. أداة الترحيل بين الإصدارات قرار مفتوح (O-2 في docs/20-database-design.md:528) |
-| `tp_auth` و`tp_auth_exec` | قراءة المستخدم والمشترك، وتحديث المستخدم، وكتابة الجلسات ومحاولات الدخول والربط (db/static/020_roles_and_grants.sql:38-39، :59، :67-69) | لا تسجيل دخول | يحتاج قراءة `sec.UserRole` و`sec.Role` إن اعتُمد DQ-F04-1. والقاعدة R6 قديمة (§12) |
+| `tp_migrator` | دور فارغ (db/static/020_roles_and_grants.sql:9) | كل شيء | المقترح: حساب الترحيل عضو في `db_owner` أثناء النشر فقط، لأن `deploy.sql` ينشئ القاعدة والأدوار والمستخدمين والسياسات (db/deploy.sql:17-34). يُعطَّل خارج النافذة. أداة الترحيل بين الإصدارات قرار مفتوح (O-2 في docs/20-database-design.md:530) |
+| `tp_auth` و`tp_auth_exec` | قراءة المستخدم والمشترك، وتحديث المستخدم، وكتابة الجلسات ومحاولات الدخول والربط (db/static/020_roles_and_grants.sql:38-39، :59، :67-69) | لا تسجيل دخول | يحتاج قراءة `sec.UserRole` و`sec.Role` إن اعتُمد DQ-F04-1. والقاعدة R6 تحصر منحه في هذه الجداول الخمسة ويشغّلها CI منذ e5ea45e (tools/dbgen/check_grants.py:81-87، tools/ci/db_ci.sh:49)؛ وصفها في رأس الملف ما زال قديمًا (§12) |
 | `tp_jobs` و`tp_support` | غير موجودين | — | يُنشآن بمنح `EXECUTE` على إجراءات الربط الجديدة فقط (DOC-F04 §5.2 و§6.2) |
 
 ## 8. قاعدة ترتيب DENY
@@ -160,8 +160,8 @@ sequenceDiagram
 القواعد المقترحة 🟡:
 1. كل `DENY` جديد على صلاحية يمنحها `007` لدور ما يوضع في `030` أو في ملف يُنشر بعده. ومنها المقترحات `DQ-F05-5` و`DQ-S08-7`.
 2. لا يُشغَّل `007` وحده أبدًا، بل `deploy.sql` كاملًا، وإلا اختفت محظورات `030`.
-3. يُضاف فحص ثابت يرفض أي `DENY` في ملف يسبق `007` على ما يمنحه `007`، ويُشغَّل `check_grants.py` في CI.
-4. الحارس الفعلي اليوم هو الاختبار T35 (db/tests/tenant_isolation_tests.sql:506-522)، ويغطي محظورات `030` الثلاثة فقط.
+3. يُضاف فحص ثابت يرفض أي `DENY` في ملف يسبق `007` على ما يمنحه `007`، في `check_grants.py` الذي يشغّله CI في الخطوة 3 منذ e5ea45e (tools/ci/db_ci.sh:49).
+4. الحارس الفعلي اليوم هو الاختبار T35 (db/tests/tenant_isolation_tests.sql:524-544)، ويغطي محظورات `030` الثلاثة فقط.
 
 ## 9. حساب sa والوصول الطارئ 🟡
 
@@ -202,16 +202,11 @@ sequenceDiagram
 
 ## 12. تعارضات وفجوات في المصادر
 
-1. tools/dbgen/check_grants.py:10 (القاعدة R6) تقول إن `tp_auth` يملك القراءة على جدولين فقط، والكود يمنحه أكثر (db/static/020_roles_and_grants.sql:59، :68-69). تشغيل السكربت اليوم يفشل بثلاث مخالفات R6. ولا يشغّله CI (tools/ci/db_ci.sh:36-92)، بينما تقول docs/20-database-design.md:450 إنه يُشغَّل بعد النشر.
-2. docs/20-database-design.md:445-446 تضع `025` قبل `010`، وdb/deploy.sql:31-32 يضع `010` قبل `025`. والقائمة لا تذكر `050` (db/deploy.sql:34).
-3. docs/20-database-design.md:437-438 تعرض النشر بمصادقة Windows والغلاف `deploy.ps1`، وADR 0001 يجعل `deploy.sh` مسار الإنتاج (docs/adr/0001-schema-work-on-linux.md:19-20).
-4. tools/dbgen/erd_open_items.py:23 (الخطوة التالية في O-02) تطلب تشغيل `deploy.ps1` على «خادم Windows المستهدف»، والإنتاج Ubuntu (docs/adr/0001-schema-work-on-linux.md:16).
-5. db/static/020_roles_and_grants.sql:9 يصف `tp_migrator` بأنه «مالك مخطط النشر»، والمخططات يملكها `dbo` (db/generated/tsql/000_schemas.sql:6-45) والدور بلا منح.
-6. docs/20-database-design.md:267 و:269 تصف منح `tp_app` و`tp_auth` قبل 1944f8c (التفصيل في DOC-F04 §9).
-7. docs/21-data-dictionary.md:345 يقول إن الأثر الدائم لمحاولات الدخول في `aud.AuditLog`، والإجراء يكتبها في `sec.LoginAttempt` فقط (db/static/030_session_context.sql:124-129)، و`tp_app` يستطيع حذفها (db/generated/tsql/005_delete_grants.sql:11).
-8. docs/20-database-design.md:280-281 تذكر 28 عمودًا محجوبًا و206 منح، والملفان يحويان 29 سطر `DENY` (db/generated/tsql/006_sensitive_columns.sql:7-35) و204 سطور `GRANT` (db/generated/tsql/007_table_grants.sql).
-9. db/deploy.sql:9 يمرر كلمة المرور في سطر الأوامر في مثاله، وهذا يخالف القاعدة في §5.
-10. FR-PLT-045 ما زال يذكر «تطبيق الواجهة: Windows Server أو IIS» (docs/10-detailed-analysis/10-m0-m1-platform-organization.md:147)، والنظرة العامة تعدّ نظام تشغيل طبقة التطبيق قرارًا مفتوحًا (docs/10-detailed-analysis/00-overview-and-cross-cutting.md:126، :226). مكان حفظ أسرار طبقة التطبيق ينتظر هذا القرار (DQ-S08-3).
+1. ✅ صُحّح (e5ea45e): القاعدة R6 في tools/dbgen/check_grants.py:81-87 تقبل الجداول الخمسة التي يمنحها 020 لـ`tp_auth` (db/static/020_roles_and_grants.sql:38-39، :59، :67-69)، والسكربت يمر ويشغّله CI في الخطوة 3 قبل النشر (tools/ci/db_ci.sh:47-49)، كما تقول docs/20-database-design.md:452. بقي وصف R6 في رأس الملف (tools/dbgen/check_grants.py:10) يقول إن `tp_auth` يملك القراءة على `sec.AppUser` و`plat.Tenant` فقط.
+2. db/static/020_roles_and_grants.sql:9 يصف `tp_migrator` بأنه «مالك مخطط النشر»، والمخططات يملكها `dbo` (db/generated/tsql/000_schemas.sql:6-45) والدور بلا منح.
+3. docs/20-database-design.md:267 ما زال يصف منح `tp_app` قبل 1944f8c («`EXECUTE` على `sec.usp_SetSessionContext` فقط»)، والمنفّذ يمنح الإجراءات الأربعة (db/static/030_session_context.sql:229-232). صف `tp_auth` في :269 صُحّح (التفصيل في DOC-F04 §9).
+4. docs/21-data-dictionary.md:345 يقول إن الأثر الدائم لمحاولات الدخول في `aud.AuditLog`، والإجراء يكتبها في `sec.LoginAttempt` فقط (db/static/030_session_context.sql:124-129)، و`tp_app` يستطيع حذفها (db/generated/tsql/005_delete_grants.sql:11).
+5. db/deploy.sql:9 يمرر كلمة المرور في سطر الأوامر في مثاله، وهذا يخالف القاعدة في §5.
 
 ## 13. التتبع
 
@@ -223,7 +218,7 @@ sequenceDiagram
 | §4 | ADR 0001، O-08 (erd_open_items) | docs/adr/0001-schema-work-on-linux.md:16؛ tools/deploy/deploy.sh:10-11 |
 | §5 | Q-PLT-12، قاعدة «لا أسرار في النماذج» | docs/10-detailed-analysis/10-m0-m1-platform-organization.md:624؛ docs/20-database-design.md:220 |
 | §7 صف `tp_app` | O-17 وO-24 (erd_open_items)، ADR 0002 | db/static/030_session_context.sql:229-239؛ docs/adr/0002-login-and-session-bound-context.md:24 |
-| §7 صف `tp_migrator` | O-2 (20-database-design) | docs/20-database-design.md:528 |
+| §7 صف `tp_migrator` | O-2 (20-database-design) | docs/20-database-design.md:530 |
 | §8 | قاعدة ترتيب DENY | db/static/020_roles_and_grants.sql:70-71؛ db/static/030_session_context.sql:234-239؛ db/deploy.sql:27-34 |
 | §9 | الفصل بين الأدوار: مدير القاعدة لا يملك المفتاح الرئيسي | docs/10-detailed-analysis/10-m0-m1-platform-organization.md:583 |
 | §10 | BR-PLT-009 | docs/10-detailed-analysis/10-m0-m1-platform-organization.md:235 |

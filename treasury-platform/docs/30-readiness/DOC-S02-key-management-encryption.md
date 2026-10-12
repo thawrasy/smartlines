@@ -8,7 +8,7 @@
 | الأولوية | P0 قبل S0 |
 | يغطي | FR-PLT-037، BR-PLT-015، BR-PLT-009، FR-PLT-027، FR-PTY-006، FR-PTY-009، X-SEC-2، X-SEC-6، Q-PLT-12، T-7 (20-database-design)، O-23 (erd_open_items) |
 | يعتمد على | DOC-F01 (حدود الثقة)، DOC-F02 (تدفقات البيانات الحساسة)، DOC-S06 (التصنيف)، DOC-S08 (أسرار حسابات القاعدة)، DOC-S09 (النسخ والاستعادة)، DOC-S10 (تجهيز الخادم) |
-| المصادر | docs/30-readiness-documents.md:214-220 · docs/adr/0001-schema-work-on-linux.md · docs/20-database-design.md §6 · docs/21-data-dictionary.md:490-524 · docs/10-detailed-analysis/10-m0-m1-platform-organization.md §5 و§12 و§14 · db/model/10-platform.model · db/model/11-organization-party.model · db/generated/tsql/006_sensitive_columns.sql · db/generated/tsql/007_table_grants.sql · tools/dbgen/erd_open_items.py |
+| المصادر | docs/30-readiness-documents.md:216-222 · docs/adr/0001-schema-work-on-linux.md · docs/20-database-design.md §6 · docs/21-data-dictionary.md:490-524 · docs/10-detailed-analysis/10-m0-m1-platform-organization.md §5 و§12 و§14 · db/model/10-platform.model · db/model/11-organization-party.model · db/generated/tsql/006_sensitive_columns.sql · db/generated/tsql/007_table_grants.sql · tools/dbgen/erd_open_items.py |
 
 **وسوم المصدر:** 🟢 ذكره المستخدم أو ورد في الوثائق · 🟡 اقتراح له افتراضي ويُعدَّل.
 
@@ -108,7 +108,7 @@ flowchart TB
 
 ### 5.1 الإعداد الأول (مرة واحدة لكل خادم)
 
-يُكتب الإجراء في سكربت تشغيل منفصل عن `db/deploy.sql`، لأن `deploy.sql` يُشغَّل في CI على قاعدة جديدة كل مرة (tools/ci/db_ci.sh:50-53). الخطوات بالترتيب:
+يُكتب الإجراء في سكربت تشغيل منفصل عن `db/deploy.sql`، لأن `deploy.sql` يُشغَّل في CI على قاعدة جديدة كل مرة (tools/ci/db_ci.sh:51-54). الخطوات بالترتيب:
 
 1. إنشاء `MASTER KEY` في master بكلمة مرور مولَّدة عشوائيًا، تُقسم بين الحافظَين (القسم 9).
 2. إنشاء شهادة TDE في master باسم يحمل السنة.
@@ -124,7 +124,7 @@ flowchart TB
 - ملفات الشهادة تُحذف من الخادم بعد إيداعها والتحقق منها؛ تبقى الشهادة داخل master فقط.
 - يحمي SQL Server على Linux مفتاح الخدمة الرئيسي بمفتاح آلة محفوظ في ملفات الخادم. يُتحقق من مساره وطريقة نسخه في وثائق Microsoft عند التجهيز (DOC-S10)، لأن إعادة بناء الخادم تفقده.
 - أداء TDE يُقاس على الخادم الفعلي قبل الإطلاق، ويُسجَّل الأثر في DOC-B03.
-- توفر TDE وتشفير النسخ يُتحقق منه للإصدار المرخَّص (Edition) من SQL Server؛ CI يستعمل الإصدار Developer (.github/workflows/db-ci.yml:35) فلا يثبت شيئًا عن الترخيص الإنتاجي (DQ-S02-5).
+- توفر TDE وتشفير النسخ يُتحقق منه للإصدار المرخَّص (Edition) من SQL Server؛ سير عمل CI يضبط الإصدار Developer (.github/workflows/db-ci.yml:35)، ولم يعمل على GitHub بعد (O-02 (erd_open_items))، والتشغيل في حاوية التطوير لا يثبت هو أيضًا شيئًا عن الترخيص الإنتاجي (DQ-S02-5).
 - لا يُستعمل EKM (حفظ حامي TDE في مخزن مفاتيح خارجي) حتى يُتحقق من دعمه على Linux لهذا الإصدار (DQ-S02-6).
 
 ## 6. تشفير النسخ الاحتياطية 🟡
@@ -133,7 +133,7 @@ flowchart TB
 - الافتراضي: شهادة واحدة لـ TDE وللنسخ، فيبقى سر واحد في الضمان. البديل شهادة نسخ مستقلة (DQ-S02-4).
 - كل نسخة تحمل `CHECKSUM` و`COMPRESSION`. الجدول والاحتفاظ في DOC-S09.
 - **كل شهادة متقاعدة تبقى في الضمان** حتى تنتهي مدة احتفاظ آخر نسخة شُفِّرت بها؛ حذفها قبل ذلك يُتلف تلك النسخ.
-- المفتاح الرئيسي للتطبيق (K-05) **لا يدخل أي نسخة** من القاعدة أو الخادم (BR-PLT-015، docs/20-database-design.md:457). النسخ تحمل `WrappedKey` ملفوفًا فقط، فلا تكشف الأعمدة المقيّدة لمن يملك النسخة وشهادة TDE معًا.
+- المفتاح الرئيسي للتطبيق (K-05) **لا يدخل أي نسخة** من القاعدة أو الخادم (BR-PLT-015، docs/20-database-design.md:459). النسخ تحمل `WrappedKey` ملفوفًا فقط، فلا تكشف الأعمدة المقيّدة لمن يملك النسخة وشهادة TDE معًا.
 - نسخ مخزن الملفات لا تحتاج طبقة إضافية، لأن كل ملف مشفّر بمفتاح FILE ملفوف داخل القاعدة.
 
 ## 7. حماية الأعمدة القائمة في النموذج
@@ -218,7 +218,7 @@ flowchart TB
 
 ### 11.2 التحقق 🟡
 
-- كل ربع سنة يثبت تمرين الاستعادة (DOC-S09) ثلاثة أمور: ملفات K-03 من الضمان تفتح نسخة على خادم نظيف؛ وK-05 من الضمان يفك `WrappedKey` لمشترك اختباري؛ وصف عيّنة يُفك تشفيره (docs/20-database-design.md:458).
+- كل ربع سنة يثبت تمرين الاستعادة (DOC-S09) ثلاثة أمور: ملفات K-03 من الضمان تفتح نسخة على خادم نظيف؛ وK-05 من الضمان يفك `WrappedKey` لمشترك اختباري؛ وصف عيّنة يُفك تشفيره (docs/20-database-design.md:460).
 - يُسجَّل النجاح حدث `BACKUP_VERIFIED` (db/model/10-platform.model:293).
 
 ### 11.3 الاسترداد عند تعطل مخزن المفاتيح
@@ -287,11 +287,11 @@ flowchart TB
 | القسم 3، L3 | T-7، BR-PLT-015، FR-PTY-006 | docs/20-database-design.md:67؛ docs/10-detailed-analysis/10-m0-m1-platform-organization.md:241 و196 |
 | القسم 4 | FR-PLT-037، X-SEC-6 | docs/10-detailed-analysis/10-m0-m1-platform-organization.md:139؛ docs/10-detailed-analysis/00-overview-and-cross-cutting.md:141 |
 | القسم 5 | صف التشفير «TDE لقاعدة البيانات»، ADR 0001 | docs/10-detailed-analysis/10-m0-m1-platform-organization.md:582؛ docs/adr/0001-schema-work-on-linux.md:26 |
-| القسم 6 | «نسخ احتياطية مشفَّرة ومفتاحها منفصل»، BR-PTY-010 | docs/10-detailed-analysis/10-m0-m1-platform-organization.md:582 و281؛ docs/20-database-design.md:457 |
+| القسم 6 | «نسخ احتياطية مشفَّرة ومفتاحها منفصل»، BR-PTY-010 | docs/10-detailed-analysis/10-m0-m1-platform-organization.md:582 و281؛ docs/20-database-design.md:459 |
 | القسم 7 | §6.1 و§6.2، DR-02 | docs/20-database-design.md:174-202؛ db/model/11-organization-party.model:294-300 |
 | القسم 8 | FR-PLT-027، FR-PTY-009، BR-PLT-011 | docs/10-detailed-analysis/10-m0-m1-platform-organization.md:129 و199؛ db/model/10-platform.model:386-408 |
 | القسم 9 | Q-PLT-12، الفصل بين الأدوار | docs/10-detailed-analysis/10-m0-m1-platform-organization.md:624 و583 |
 | القسم 10 | §6.3، BR-PLT-015 | docs/20-database-design.md:204-209 |
-| القسم 11 | `BACKUP_VERIFIED`، اختبار الاستعادة | db/model/10-platform.model:293؛ docs/20-database-design.md:458 |
+| القسم 11 | `BACKUP_VERIFIED`، اختبار الاستعادة | db/model/10-platform.model:293؛ docs/20-database-design.md:460 |
 | القسم 13 | BR-PLT-009، `sec.KeyEvent` | docs/10-detailed-analysis/10-m0-m1-platform-organization.md:235؛ db/model/10-platform.model:291-299 |
 | القسم 14 | FR-PLT-047 | docs/10-detailed-analysis/10-m0-m1-platform-organization.md:149 |

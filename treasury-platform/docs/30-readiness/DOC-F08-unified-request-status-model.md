@@ -18,7 +18,7 @@
 
 اختصارات المسارات: «13-m6» = docs/10-detailed-analysis/13-m6-workflow-engine-notifications.md، و«14-m7-m8» = docs/10-detailed-analysis/14-m7-m8-letters-of-credit.md، و«erd_03_request_lifecycle.dot» = docs/diagrams/src/erd_03_request_lifecycle.dot.
 
-**أي O-10؟** القرار المعني هو O-10 (20-database-design): «تعديل المواصفة 13 لإقفال دورة العمل» (docs/20-database-design.md:536). أما O-10 (erd_open_items) فيخص عدد المفاتيح الأجنبية في wfl.Request ولا علاقة له بالحالة (tools/dbgen/erd_open_items.py:68-71).
+**أي O-10؟** القرار المعني هو O-10 (20-database-design): «تعديل المواصفة 13 لإقفال دورة العمل» (docs/20-database-design.md:538). أما O-10 (erd_open_items) فيخص عدد المفاتيح الأجنبية في wfl.Request ولا علاقة له بالحالة (tools/dbgen/erd_open_items.py:68-71).
 
 **القرار المسجّل:** 🟢 قرار المالك C-7: «لا تُقفل دورة العمل إلا بعد إقفال إدارة الخزينة» (docs/20-database-design.md:27)، وT-13 (docs/20-database-design.md:73).
 
@@ -31,7 +31,7 @@
 | متى يكتمل الطلب | آليًا عند بلوغ مرحلة نهائية ناجحة (13-m6:521) | مرحلة TERMINAL ظاهرتها «مكتمل» (13-m6:334) | بإقفال من إدارة الخزينة فقط (docs/20-database-design.md:396) |
 | من يكمل | المحرك | — | حامل `req.treasury.close` (docs/20-database-design.md:403) |
 | ما يراه الطالب بعد آخر مرحلة | مكتمل | مكتمل | IN_PROGRESS «قيد التنفيذ» حتى الإقفال (docs/20-database-design.md:406) |
-| إشعار REQ.COMPLETED | عند الإصدار (13-m6:485) | — | عند الإقفال (docs/20-database-design.md:404) |
+| إشعار REQ.COMPLETED | عند الإصدار (13-m6:485) | — | عند الإقفال (docs/20-database-design.md:405) |
 | أرشفة المسودة | DRAFT إلى CANCELLED (13-m6:519) | — | تبقى DRAFT مع ArchivedAt (db/model/15-workflow-notifications.model:298 و:322) |
 | الحالة الفرعية | SubStatusKey داخل المرحلة (13-m6:241) | لا تظهر للطالب | SubStatusKey (db/model/15-workflow-notifications.model:261) |
 | أعمدة الإقفال | لا يوجد | لا يوجد | ReadyToCloseAt وClosedByUserId وClosedAt (db/model/15-workflow-notifications.model:273-275) |
@@ -182,7 +182,7 @@ sequenceDiagram
 | المعرّف | السؤال | الافتراض المقترح | من يقرر | ما يعطّله |
 |---|---|---|---|---|
 | DQ-F08-1 | اعتماد النموذج الموحّد (ست حالات بـ AWAITING_CLOSE وأربع طبقات) وتعديل 13-m6 به؛ يُغلق O-10 (20-database-design) | يُعتمد كما في §4، ويسري على كل أنواع الطلبات لأن قيود القاعدة تفرضه | مالك المنتج (مدير الخزينة لدى العميل) مع محلل العمليات؛ المالك النهائي في DOC-B09 | تعديل 13-m6؛ DOC-F10؛ S3 |
-| DQ-F08-2 | هل يبقى الرفض والإلغاء فوريين؟ (سؤال docs/20-database-design.md:536) | نعم، لا يمران بالإقفال | مالك المنتج | تعديل 13-m6 |
+| DQ-F08-2 | هل يبقى الرفض والإلغاء فوريين؟ (سؤال docs/20-database-design.md:538) | نعم، لا يمران بالإقفال | مالك المنتج | تعديل 13-m6 |
 | DQ-F08-3 | من يحمل `req.treasury.close`؟ | TM افتراضيًا؛ ويضيفه المشترك لـ FO إن شاء | مالك المنتج | بذور الأدوار (DOC-B05) |
 | DQ-F08-4 | معنى «مُعتمِده» في قاعدة فصل المهام (docs/20-database-design.md:403) | المُقفِل ليس الطالب ولا المنشئ ولا المُسنَد الذي أكمل آخر مرحلة؛ موافقة TM عند نقطة الحجز لا تمنعه؛ والاستثناء بـ `wf.sod.allow_same_person` | مالك المنتج مع مسؤول الأمن | خدمة الإقفال |
 | DQ-F08-5 | ما يراه الطالب في AWAITING_CLOSE | IN_PROGRESS «تحت الإجراء» كما في docs/20-database-design.md:406 | مالك المنتج | واجهة الطالب |
@@ -195,13 +195,13 @@ sequenceDiagram
 
 1. خمس حالات في 13-m6 (13-m6:370، :515-527) مقابل ست في القاعدة والقاموس (db/model/15-workflow-notifications.model:257، docs/21-data-dictionary.md:4340، docs/20-database-design.md:400).
 2. الإكمال الآلي (13-m6:521) يخالف قرار الإقفال (docs/20-database-design.md:396).
-3. F-WFL-1 ترسم «COMPLETED + LC.ISSUED» عند الإصدار (13-m6:472، :485)، والقاعدة تجعل REQ.COMPLETED عند الإقفال (docs/20-database-design.md:404).
+3. F-WFL-1 ترسم «COMPLETED + LC.ISSUED» عند الإصدار (13-m6:472، :485)، والقاعدة تجعل REQ.COMPLETED عند الإقفال (docs/20-database-design.md:405).
 4. أرشفة المسودة إلى CANCELLED (13-m6:519) تخالف القيد الذي يقصر ArchivedAt على DRAFT (db/model/15-workflow-notifications.model:322) وBR-REQ-012 «المؤرشفة تُسترجع» (13-m6:274).
 5. BR-WFL-027 غير موجودة في 13-m6، وآخر قاعدة فيها BR-WFL-026 (13-m6:257).
-6. `req.treasury.close` في خطة البذور العالمية (docs/20-database-design.md:472) وليس في مصفوفة صلاحيات M6 (13-m6:48-78).
+6. `req.treasury.close` في خطة البذور العالمية (docs/20-database-design.md:474) وليس في مصفوفة صلاحيات M6 (13-m6:48-78).
 7. RequestStageInstance.ExitAction بلا CLOSE (db/model/15-workflow-notifications.model:392).
 8. ثلاث تسميات عربية لمعنيين: «تحت الإجراء» (13-m6:327)، «قيد التنفيذ» (docs/20-database-design.md:406)، «قيد المعالجة» (docs/diagrams/src/erd_03_request_lifecycle.dot:6).
-9. السجل يقول «قرار O-10» دون اسم القائمة (docs/30-readiness-documents.md:20، :129)، وO-10 (erd_open_items) موضوع آخر (tools/dbgen/erd_open_items.py:68-71).
+9. ✅ صُحّح جزئيًا: السجل يسمّي القائمة الآن «O-10 (20-database-design)» (docs/30-readiness-documents.md:22، :129، :132)، وO-10 (erd_open_items) موضوع آخر (tools/dbgen/erd_open_items.py:68-71). بقي :131 يقول «(O-10)» وحده، و:129 يحيل إلى docs/20-database-design.md:536 والبند اليوم في :538.
 10. السجل يحيل إلى docs/21-data-dictionary.md:4338، والسطر الصحيح للعمود Status هو 4340.
 
 ## 9. التتبع
@@ -210,11 +210,11 @@ sequenceDiagram
 |---|---|---|
 | §2 النموذج A | FR-WFL-004، §6 و§8 من 13 | docs/10-detailed-analysis/13-m6-workflow-engine-notifications.md:125، :370، :515-527 |
 | §2 النموذج B | BR-WFL-011، D-6 | docs/10-detailed-analysis/13-m6-workflow-engine-notifications.md:242، :362؛ docs/01-preliminary-analysis.md:397 |
-| §2 النموذج C | BR-WFL-027، C-7، T-13، DB-20 | docs/20-database-design.md:27، :73، :396-408، :518 |
+| §2 النموذج C | BR-WFL-027، C-7، T-13، DB-20 | docs/20-database-design.md:27، :73، :396-408، :520 |
 | §4.3 الإرجاع وإعادة التقديم | BR-WFL-008، FR-WFL-011 | docs/10-detailed-analysis/13-m6-workflow-engine-notifications.md:132، :239 |
 | §4.3 الرفض والإلغاء | BR-WFL-009، FR-WFL-012 | docs/10-detailed-analysis/13-m6-workflow-engine-notifications.md:133، :240 |
 | §4.1 الحالة الفرعية | BR-WFL-010، FR-WFL-015 | docs/10-detailed-analysis/13-m6-workflow-engine-notifications.md:136، :241 |
 | §4.4 الخطافات | `lc.record_issuance` وخطافات المبيعات | docs/10-detailed-analysis/13-m6-workflow-engine-notifications.md:332؛ docs/10-detailed-analysis/14-m7-m8-letters-of-credit.md:308-312 |
 | §4.6 التمثيل | قيود wfl.Request وRequestStageInstance | db/model/15-workflow-notifications.model:257-325، :392، :408، :459 |
 | §5 أرشفة المسودة | FR-WFL-040، BR-REQ-012 | docs/10-detailed-analysis/13-m6-workflow-engine-notifications.md:161، :274 |
-| §7 | O-10 (20-database-design) | docs/20-database-design.md:536 |
+| §7 | O-10 (20-database-design) | docs/20-database-design.md:538 |

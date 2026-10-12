@@ -196,7 +196,7 @@ table sec.UserCompanyScope pk=UserId,CompanyId deletable   # Companies a user ca
   CompanyId           ->org.Company req
   IncludeDescendants  bool req =0
 
-table sec.LoginAttempt append deletable   # Login attempts for rate limiting and lockout windows; the permanent trace is in aud.AuditLog (BR-PLT-005)
+table sec.LoginAttempt append deletable   # Login attempts for rate limiting and lockout windows (BR-PLT-005); written by sec.usp_StartSession. A permanent trace in aud.AuditLog is not written yet (O-24)
   UserId     ->sec.AppUser            # فارغ لبريد غير موجود (رسالة موحّدة لا تكشف الوجود)
   LoginName  str(200)                 # البريد المُدخل كما كُتب
   Outcome    enum{LOGIN_SUCCESS,FAILED_PASSWORD,DENIED_LOCKED,FAILED_MFA,LOCKOUT} req

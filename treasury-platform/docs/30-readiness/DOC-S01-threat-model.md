@@ -30,7 +30,7 @@
 
 - **الاحتمال** يفترض مهاجمًا من الإنترنت لـTB-1 وTB-2، واتصال تطبيق مخترقًا (حقن SQL أو تنفيذ شيفرة) لـTB-3 إلى TB-5، وحسابًا إداريًا مخترقًا لـTB-7 وTB-12.
 - **الأثر عالٍ** إذا عبر حد مشترك، أو كشف قيمة مقيّدة، أو انتحل مستخدمًا ذا صلاحية حساسة، أو أفقد البيانات.
-- **الاختبارات القائمة:** 40 حالة عزل T1-T37 و6 حالات لقاعدة الحصص، وكلها تمر في CI (tools/ci/db_ci.sh:58-91). أرقام T في الجداول تشير إلى db/tests/tenant_isolation_tests.sql.
+- **الاختبارات القائمة:** 41 حالة عزل (T1-T38 مع T8b وT16b وT16c) و6 حالات لقاعدة الحصص، وكلها تمر في tools/ci/db_ci.sh (:59-92) على حاوية التطوير. لم يعمل CI على GitHub قط (O-02 في tools/dbgen/erd_open_items.py:22). أرقام T في الجداول تشير إلى db/tests/tenant_isolation_tests.sql.
 - المالك دور لا شخص. «معماري القاعدة» اختصار لمعماري قاعدة البيانات.
 
 ## 3. الأصول
@@ -83,9 +83,9 @@
 | THR-19 | S، E: انتحال داخل المشترك بتعديل `PasswordHash` أو `MfaEnabled` أو `MfaSecretEnc` (O-24) | DENY القراءة على `PasswordHash` (db/static/030_session_context.sql:237)؛ T35 | `tp_app` يعدّل كل أعمدة `sec.AppUser` (db/generated/tsql/007_table_grants.sql:24) | تغيير الكلمة وإعادة التعيين وMFA بإجراءات؛ DENY UPDATE على الأعمدة الثلاثة | م×ع = **عالٍ** · معماري القاعدة |
 | THR-20 | S: إعادة تشغيل تجزئة من سجل الكلمات | لا شيء | `tp_app` يقرأ `sec.UserPasswordHistory.PasswordHash` (db/generated/tsql/007_table_grants.sql:46)؛ إن احتوى التجزئة الحالية أمكن تمريرها إلى `usp_StartSession` (DOC-F02 §3) | DENY SELECT على العمود؛ فحص إعادة الاستعمال داخل إجراء (BR-PLT-004) | م×ع = **عالٍ** · معماري القاعدة |
 | THR-21 | S: نتيجة MFA يثق بها التطبيق (O-24) | النتيجة تُسجَّل بإجراء (db/static/030_session_context.sql:143-163) | `@Passed` قيمة يمررها التطبيق (db/static/030_session_context.sql:146) | قبول متبقٍّ مع مراقبة `FAILED_MFA`؛ يُعاد النظر عند فصل خدمة التحقق | ن×ع = متوسط · مسؤول الهوية |
-| THR-22 | T: تمديد الجلسة (O-24) | DENY على أربعة أعمدة (db/static/030_session_context.sql:239) | `IdleExpiresAt` **و**`AbsoluteExpiresAt` قابلان للتعديل من `tp_app` | إجراء يمدد الخمول بحد `AbsoluteExpiresAt`؛ DENY UPDATE على العمودين | م×م = متوسط · معماري القاعدة |
+| THR-22 | T: تمديد الجلسة (O-24) | DENY على خمسة أعمدة منها `AbsoluteExpiresAt` (db/static/030_session_context.sql:239)؛ T35 | `IdleExpiresAt` قابل للتعديل من `tp_app`، ومسح `EndedAt` يعيد فتح جلسة منهاة (tools/dbgen/erd_open_items.py:153) | إجراء يمدد الخمول بحد `AbsoluteExpiresAt`؛ DENY UPDATE على `IdleExpiresAt` (`AbsoluteExpiresAt` ✅ مُنع في e5ea45e) | م×م = متوسط · معماري القاعدة |
 | THR-23 | I: دخول مشترك معلّق (O-18) | الكتابة مرفوضة (db/static/010_rls.sql:35-41)؛ الإبطال عند التعليق (db/static/030_session_context.sql:285-296)؛ T27، T31 | ربط جديد لأي مستخدم نشط يقرأ (db/static/030_session_context.sql:186-188)، خلافًا لـBR-PLT-002 | حسم O-18 في DOC-F04 | م×م = متوسط · معماري القاعدة |
-| THR-24 | S، R: إدراج تدقيق بمشترك فارغ (O-19) | الكتابة لمشترك آخر مرفوضة (T14) | `rls.fn_AuditWrite` يقبل NULL (db/static/010_rls.sql:90) | رفض NULL لغير `tp_platform` (DQ-S01-5) واختبار | م×م = متوسط · معماري القاعدة |
+| THR-24 | S، R: إدراج تدقيق بمشترك فارغ (O-19) | الكتابة لمشترك آخر مرفوضة (T14) | `rls.fn_AuditWrite` يقبل NULL (db/static/010_rls.sql:91) | رفض NULL لغير `tp_platform` (DQ-S01-5) واختبار | م×م = متوسط · معماري القاعدة |
 | THR-25 | I: كاشف المفاتيح الأجنبية للجداول المختلطة (O-20) | لا شيء | مرجع لصف مشترك آخر في `ref.UcpArticle` يُقبل | فحص أن الصف المرجعي عام أو للمشترك نفسه | ن×م = منخفض · معماري القاعدة |
 | THR-26 | I: كاشف قيود الفرادة (O-21) | الإدراج لمشترك آخر يُرفض (T4) | 2627 بدل 33504 يكشف وجود بريد أو `PublicId` | `TenantId` من السياق لا من الطلب (BR-PLT-001)؛ قبول متبقٍّ (DQ-S01-6) | ن×م = منخفض · معماري القاعدة |
 | THR-27 | I: مؤشرات مفتوحة بعد الإبطال ورموز خطأ تكشف الحالة (O-22) | الإبطال يحذف الربط (db/static/030_session_context.sql:245-296) | `STATIC` و`KEYSET` تواصل التسليم؛ 50002 و50003 تكشفان الحالة (db/static/030_session_context.sql:188، :199) | منع هذين النوعين؛ إعادة ضبط الاتصال عند الإبطال؛ رسالة واحدة للمستخدم | ن×م = منخفض · مهندس الخلفية |
@@ -103,14 +103,14 @@
 | THR-34 | E: ثغرة في إجراء `EXECUTE AS` ترفع إلى `tp_auth` المتجاوز للمرشحات | الإجراءات بلا SQL ديناميكي ومعاملات فقط (db/static/030_session_context.sql:23-227)؛ تجاوز `tp_auth` محصور (db/static/010_rls.sql:48، :56) | منح `tp_auth` اتسعت (db/static/020_roles_and_grants.sql:59، :67-69) | قاعدة مراجعة: لا SQL ديناميكي في وحدات `EXECUTE AS`؛ قائمة منح `tp_auth` موثّقة | ن×ع = متوسط · معماري القاعدة |
 | THR-35 | E: وحدة يملكها `dbo` تستدعي إجراء الربط لـ`tp_readonly` (O-22 sb-03) | لا وحدة كهذه اليوم | كامن | فحص ثابت في CI يرفض أي وحدة تستدعي `sec.usp_SetSessionContext` غير التطبيق | ن×ع = متوسط · معماري القاعدة |
 | THR-36 | D: تنازع الأقفال في الربط | — | كل ربط يأخذ `UPDLOCK, HOLDLOCK` على صف المشترك والمستخدم (db/static/030_session_context.sql:186، :192-193) | قياس في اختبار الحمل (DOC-B03) قبل الإطلاق | م×م = متوسط · مدير القاعدة |
-| THR-37 | T: حارس المنح لا يعمل | CI يقارن المنشور بالمولَّد (tools/ci/db_ci.sh:55-56) | `tools/dbgen/check_grants.py` يفشل بالقاعدة R6 (tools/dbgen/check_grants.py:80-84) ولا يشغّله CI | تحديث R6 لمنح `tp_auth` الحالية وإضافة الفحص إلى CI | م×م = متوسط · مهندس DevOps |
+| THR-37 | T: حارس المنح لا يعمل | CI يقارن المنشور بالمولَّد (tools/ci/db_ci.sh:56-57)؛ `tools/dbgen/check_grants.py` يمر بالقواعد R1-R10 في الخطوة 3 (tools/ci/db_ci.sh:47-49)، وR6 يقبل الجداول الخمسة (tools/dbgen/check_grants.py:80-87) | CI لم يعمل على GitHub قط (O-02)، فلا يعمل الحارس إلا حين يُشغَّل السكربت | ✅ نُفّذ تحديث R6 وإضافة الفحص إلى CI (e5ea45e)؛ يبقى تشغيل CI على GitHub (O-02) | م×م = متوسط · مهندس DevOps |
 
 ### 4.5 TB-5 لوحة المشغّل ← القاعدة بدور tp_platform
 
 | المعرّف | التهديد | الضابط القائم | الخطر المتبقي | الضابط المقترح 🟡 | التقييم والمالك |
 |---|---|---|---|---|---|
-| THR-38 | I: قراءة تدقيق كل المشتركين | لا منح على جداول المشترك (db/generated/tsql/007_table_grants.sql؛ R3 في tools/dbgen/check_grants.py:72-73) | `rls.fn_AuditRead` يتجاوز للمنصة (db/static/010_rls.sql:79-84)، فتقرأ `BeforeJson` و`AfterJson` لكل مشترك، خلافًا لـFR-PLT-005 | قصر المنصة على صفوف `TenantId IS NULL`؛ عدّادات عبر إجراء؛ اختبار لـ`tp_platform` (لا حالة له اليوم) | م×ع = **عالٍ** · معماري القاعدة |
-| THR-39 | S، R: كتابة تدقيق باسم أي مشترك | — | `rls.fn_AuditWrite` يتجاوز للمنصة (db/static/010_rls.sql:86-92) | المنصة تكتب `TenantId IS NULL` فقط، وأحداث الدعم بإجراء | م×م = متوسط · معماري القاعدة |
+| THR-38 | I: قراءة تدقيق كل المشتركين | لا منح على جداول المشترك (db/generated/tsql/007_table_grants.sql؛ R3 في tools/dbgen/check_grants.py:72-73)؛ `rls.fn_AuditRead` يقصر المنصة على صفوف `TenantId IS NULL` (db/static/010_rls.sql:83)؛ T38 | لا شيء للقراءة. ✅ صُحّح (1f0f0af) | عدّادات عبر إجراء | منخفض (مغلق) · معماري القاعدة |
+| THR-39 | S، R: كتابة تدقيق باسم أي مشترك | — | `rls.fn_AuditWrite` يتجاوز للمنصة (db/static/010_rls.sql:87-93) | المنصة تكتب `TenantId IS NULL` فقط، وأحداث الدعم بإجراء | م×م = متوسط · معماري القاعدة |
 | THR-40 | E: استعمال دخول `tp_platform` في تطبيق المشترك أو المهام | فصل الأدوار في التصميم (db/static/020_roles_and_grants.sql:5-6) | G-01 وG-02 في DOC-F01 تدفع إليه | فصل الدخول والعملية (DQ-F01-2)، ومسارات بديلة (THR-10، THR-32) | م×ع = **عالٍ** · معماري الحلول |
 | THR-41 | I: قراءة تجزئات كلمات مرور المشغّلين | DENY للتقارير فقط (db/generated/tsql/006_sensitive_columns.sql:7) | `tp_platform` يقرأ `PasswordHash` (db/generated/tsql/007_table_grants.sql:18) | DENY القراءة ودخول بإجراء (DQ-F01-3) | ن×ع = متوسط · مسؤول الهوية |
 
@@ -190,13 +190,13 @@
 
 ## 6. قائمة المعالجة المرتبة
 
-1. **قبل كتابة شيفرة الدخول في S0:** إغلاق فئة O-24: إجراءات لتغيير الكلمة وإعادة التعيين وفحص السجل وMFA؛ DENY على `PasswordHash` و`MfaEnabled` و`MfaSecretEnc` و`AbsoluteExpiresAt`، وعلى قراءة سجل الكلمات؛ اختبارات جديدة بعد T37 (THR-19، THR-20، THR-22).
+1. **قبل كتابة شيفرة الدخول في S0:** إغلاق فئة O-24: إجراءات لتغيير الكلمة وإعادة التعيين وفحص السجل وMFA؛ DENY على `PasswordHash` و`MfaEnabled` و`MfaSecretEnc`، وعلى قراءة سجل الكلمات (`AbsoluteExpiresAt` ✅ مُنع في e5ea45e، T35)؛ اختبارات جديدة بعد T38 (THR-19، THR-20، THR-22).
 2. **MFA في القاعدة:** عدّاد إخفاقات لكل جلسة، واشتراط MFA للربط، وإجراء يقرأ السر قبل الربط (THR-05، THR-06؛ DQ-F02-4).
 3. **لا امتياز منصة في مسارات المشترك:** إجراء تحويل العنوان الفرعي (DOC-F03)، وهوية المهام (DOC-F04)، وفصل دخول اللوحة (THR-10، THR-32، THR-40).
-4. **نطاق `tp_platform` في التدقيق** مع O-19، واختبارات لـ`tp_platform` (THR-38، THR-39، THR-24).
+4. **نطاق كتابة `tp_platform` في التدقيق** مع O-19، واختبار لكتابته (THR-39، THR-24). القراءة ✅ صُحّحت في 1f0f0af مع الاختبار T38 (THR-38).
 5. **ضوابط الحافة قبل خروج S0:** DOC-S03 وDOC-S05 وتقييد المعدل (THR-01، THR-03، THR-04، THR-08، THR-09، THR-11).
 6. **اختبار IDOR لكل نقطة API** شرطًا لخروج S0 (THR-07).
-7. **النشر والإدارة:** دخول نشر منفصل وشهادة موثوقة، سياسة SSH، تدقيق SQL Server، وإضافة `check_grants.py` إلى CI بعد تحديث R6 (THR-44، THR-56، THR-57، THR-37).
+7. **النشر والإدارة:** دخول نشر منفصل وشهادة موثوقة، سياسة SSH، تدقيق SQL Server، وتشغيل CI على GitHub (O-02؛ `check_grants.py` في CI منذ e5ea45e) (THR-44، THR-56، THR-57، THR-37).
 8. **قبل أي بيانات حقيقية:** المفاتيح وTDE والنسخ والإقامة (THR-49، THR-58، THR-59، THR-60).
 9. **سلامة السجلات الحساسة:** DR-15 وDR-11 وDR-17، وكتابة `sec.TenantKey` بإجراء (THR-14، THR-29، THR-28، THR-31، THR-46).
 10. **حسم O-18** في DOC-F04 (THR-23).
@@ -217,12 +217,12 @@
 
 ## 8. تعارضات وفجوات في المصادر
 
-1. docs/30-readiness-documents.md:208 يطلب تسجيل قبول O-17 وO-21، وO-17 مغلق (tools/dbgen/erd_open_items.py:112). وdocs/30-readiness-documents.md:211 يذكر انتحال المستخدم عبر معرّف متسلسل خطرًا قائمًا، وقد أُغلق بـADR 0002.
-2. tools/dbgen/check_grants.py:80-84 (R6) يفشل اليوم بثلاثة أخطاء ولا يشغّله tools/ci/db_ci.sh، بينما docs/20-database-design.md:486 يسجل نتيجته OK.
-3. O-24 (tools/dbgen/erd_open_items.py:153) يذكر تمديد الخمول فقط؛ db/static/030_session_context.sql:239 يترك `AbsoluteExpiresAt` قابلًا للتعديل أيضًا، وdb/generated/tsql/007_table_grants.sql:46 يمنح قراءة سجل الكلمات.
+1. docs/30-readiness-documents.md:210 يطلب تسجيل قبول O-17 وO-21، وO-17 مغلق (tools/dbgen/erd_open_items.py:112). وdocs/30-readiness-documents.md:213 يذكر انتحال المستخدم عبر معرّف متسلسل خطرًا قائمًا، وقد أُغلق بـADR 0002.
+2. ✅ صُحّح (e5ea45e): R6 يقبل الجداول الخمسة (tools/dbgen/check_grants.py:80-87)، والفحص يمر ويعمل في الخطوة 3 من tools/ci/db_ci.sh:47-49، فصار تسجيل OK في docs/20-database-design.md:488 صحيحًا.
+3. ✅ صُحّح (e5ea45e وbef5722): `AbsoluteExpiresAt` محمي (db/static/030_session_context.sql:239؛ T35)، وO-24 (tools/dbgen/erd_open_items.py:153) يذكر الآن قراءة تجزئة سجل الكلمات (db/generated/tsql/007_table_grants.sql:46) وحذف محاولات الدخول وقراءة تجزئة رموز الاسترداد وإعادة فتح الجلسة المنهاة.
 4. docs/10-detailed-analysis/13-m6-workflow-engine-notifications.md:693 يؤجل SPF وDKIM وDMARC إلى S5، والدعوة بالبريد في S0 (docs/10-detailed-analysis/10-m0-m1-platform-organization.md:115).
 5. FR-PLT-011 (docs/10-detailed-analysis/10-m0-m1-platform-organization.md:113) يجعل MFA إلزامية افتراضيًا، والنموذج يجعل `MfaEnabled` افتراضيه 0 (db/model/10-platform.model:126) والربط يقبله (db/static/030_session_context.sql:198). الفرض متروك للتطبيق.
-6. docs/20-database-design.md:112 و:117 يحصران المنصة في أحداثها ويمنعانها من بيانات المشترك، وdb/static/010_rls.sql:79-92 تتيح لها كل صفوف التدقيق.
+6. ✅ القراءة صُحّحت (1f0f0af): db/static/010_rls.sql:83 يقصر المنصة على صفوف التدقيق الفارغة كما في docs/20-database-design.md:112؛ T38. يبقى: docs/20-database-design.md:117 يقول إن المنصة تكتب سجلاتها في `aud`، وdb/static/010_rls.sql:92 يتيح لها إدراج صف بأي `TenantId` (THR-39).
 
 ## 9. التتبع
 
@@ -236,12 +236,12 @@
 | THR-13 إلى THR-16، THR-41 | FR-PLT-006، FR-PLT-007، BR-PLT-017 | db/model/10-platform.model:64-108 |
 | THR-19 إلى THR-22 | O-24 (erd_open_items)، BR-PLT-004 | tools/dbgen/erd_open_items.py:151-156 |
 | THR-23 | O-18 (erd_open_items)، BR-PLT-002 | tools/dbgen/erd_open_items.py:115-120 |
-| THR-24، THR-38، THR-39 | O-19 (erd_open_items)، BR-PLT-001، BR-PLT-009، FR-PLT-005 | db/static/010_rls.sql:79-100 |
+| THR-24، THR-38، THR-39 | O-19 (erd_open_items)، BR-PLT-001، BR-PLT-009، FR-PLT-005 | db/static/010_rls.sql:79-101 |
 | THR-25 إلى THR-27، THR-35 | O-20 إلى O-22 (erd_open_items) | tools/dbgen/erd_open_items.py:127-144 |
 | THR-28، THR-29، THR-14، THR-33، THR-46 | DR-17، DR-11، DR-15، DR-14 | docs/review/design-review-2026-10-11.json |
 | THR-30 | FR-PLT-022 | db/model/10-platform.model:199-208 |
 | THR-31، THR-49، THR-50 | FR-PLT-037، BR-PLT-015، X-SEC-6 | db/model/10-platform.model:276-301 |
-| THR-32، THR-40، THR-10 | O-12 (20-database-design) | docs/20-database-design.md:538 |
+| THR-32، THR-40، THR-10 | O-12 (20-database-design) | docs/20-database-design.md:540 |
 | THR-34، THR-36، THR-37 | O-15 (erd_open_items)، ADR 0002 | db/static/020_roles_and_grants.sql:32-69 |
 | THR-44، THR-45 | ADR 0001، O-08 (erd_open_items) | tools/deploy/deploy.sh:7-29 |
 | THR-51 إلى THR-53 | FR-PLT-013 | db/model/10-platform.model:244-258 |

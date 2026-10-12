@@ -4,9 +4,9 @@
 
    tp_app       حساب تشغيل تطبيق المشترك: منح جدولية فقط (007)؛ لا كتابة على الجداول العالمية؛ لا plat.PlatformOperator
    tp_platform  مشغّلو المنصة: كتابة على الكتالوجات العالمية والمختلطة وplat؛ لا وصول مباشر لبيانات المشتركين (007)
-   tp_auth      دور داخلي بلا تسجيل دخول: يُنفَّذ به إجراء ضبط السياق فقط (030) لفحص عضوية المستخدم في المشترك
+   tp_auth      دور داخلي بلا تسجيل دخول: تُنفَّذ به إجراءات الدخول والربط وقوادح السحب فقط (030، ADR 0002)
    tp_readonly  تقارير/تحليل: قراءة فقط، دون الأعمدة الحساسة (006)
-   tp_migrator  مالك مخطط النشر والترحيلات؛ لا منح تشغيلية له هنا
+   tp_migrator  دور النشر والترحيلات (المخططات يملكها dbo اليوم؛ ملكيته قرار في DOC-S08)؛ لا منح تشغيلية له هنا
 
    لا منح على مستوى المخطط لـ tp_app أو tp_platform (تمنح كل جداول المخطط بلا استثناء).
    ============================================================================ */
@@ -29,7 +29,7 @@ BEGIN
 END
 CLOSE c; DEALLOCATE c;
 GO
--- tp_auth لا يملك تسجيل دخول ولا عضوية في أي دور؛ يملك قراءة جدولي المشترك والمستخدم فقط. تجاوز RLS له محصور في 010 (IS_MEMBER)
+-- tp_auth لا يملك تسجيل دخول؛ منحه هنا على خمسة جداول تحتاجها إجراءات 030 فقط (قاعدة R6 في check_grants.py). تجاوز RLS له محصور في 010 (IS_MEMBER)
 -- EXECUTE AS needs a database user, not a role. tp_auth_exec is a user without login that is a member of tp_auth,
 -- so IS_MEMBER(N'tp_auth') = 1 holds while the context procedure runs (030).
 IF DATABASE_PRINCIPAL_ID(N'tp_auth_exec') IS NULL CREATE USER [tp_auth_exec] WITHOUT LOGIN;

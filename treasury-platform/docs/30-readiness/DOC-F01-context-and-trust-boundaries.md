@@ -33,8 +33,8 @@
 | Z5 خدمات خارجية | مخزن المفاتيح، مرحّل SMTP، ولاحقًا ERP والبنوك ومزوّد الهوية | جهات أخرى | غير موثوقة إلا بالعقد والمصادقة |
 | Z6 الإدارة | مسؤولو الخادم والنشر، وCI | المنصة | موثوقة بامتياز عالٍ |
 
-- نظام تشغيل طبقة التطبيق **غير محسوم** 🟢 (docs/10-detailed-analysis/00-overview-and-cross-cutting.md:126)، ومكانها من VPS القاعدة غير محسوم (DQ-F01-1).
-- CI يعمل على مشغّل GitHub بحاوية مؤقتة ولا يصل إلى الإنتاج اليوم (.github/workflows/db-ci.yml:26-41).
+- طبقة التطبيق على Windows Server وفق 01 §13، وهذا مطروح للمراجعة بعد ADR 0001 🟢 (docs/10-detailed-analysis/00-overview-and-cross-cutting.md:126؛ FR-PLT-045 في docs/10-detailed-analysis/10-m0-m1-platform-organization.md:147؛ docs/adr/0001-schema-work-on-linux.md:3). مكانها من VPS القاعدة غير محسوم (DQ-F01-1).
+- CI (tools/ci/db_ci.sh) يمر كاملًا في حاوية التطوير، ولم يعمل على GitHub قط: ملف المسار تحت treasury-platform/.github/workflows/ (.github/workflows/db-ci.yml:26-41)، وGitHub يقرأ المسارات من جذر المستودع فقط (O-02 في tools/dbgen/erd_open_items.py:22؛ docs/adr/0001-schema-work-on-linux.md:11). لا يصل CI إلى الإنتاج.
 
 ## 3. الفاعلون الخارجيون
 
@@ -117,11 +117,11 @@ flowchart LR
 |---|---|---|---|---|---|
 | TB-1 المستخدم ← تطبيق المشترك | HTTPS إلى `{tenant}.bankfas.com` (FR-PLT-046) | لا هوية قبل الدخول؛ بعده رمز جلسة عشوائي (docs/adr/0002-login-and-session-bound-context.md:20، :31) | رسالة فشل واحدة 50005 (db/static/030_session_context.sql:139-140)؛ القفل (db/static/030_session_context.sql:88-103) | TLS وHSTS (O-08)، شكل الرمز وCSRF وCSP 🟡 | DOC-F03، DOC-S03، DOC-S05 |
 | TB-2 المشغّل ← لوحة المشغّل | HTTPS على عنوان مستقل 🟡 (`admin` محجوز: db/model/10-platform.model:58) | `plat.PlatformOperator` وTOTP إلزامي (db/model/10-platform.model:82) | لا إجراء دخول للمشغّل في القاعدة | DQ-F01-2، DQ-F01-3 | DOC-S03، DOC-S04 |
-| TB-3 التطبيق ← القاعدة بدور `tp_app` | TDS | دخول عضو في `tp_app`، ثم ربط الاتصال برمز الجلسة (db/static/030_session_context.sql:165-227) | RLS بربط الاتصال (db/static/010_rls.sql:22-57)؛ منح جدولية (db/generated/tsql/007_table_grants.sql)؛ DENY (db/static/030_session_context.sql:237-239)؛ الاختبارات T1-T37 | TLS للاتصال 🟡؛ هوية المهام (DOC-F04) | DOC-F04، DOC-S08 |
+| TB-3 التطبيق ← القاعدة بدور `tp_app` | TDS | دخول عضو في `tp_app`، ثم ربط الاتصال برمز الجلسة (db/static/030_session_context.sql:165-227) | RLS بربط الاتصال (db/static/010_rls.sql:22-57)؛ منح جدولية (db/generated/tsql/007_table_grants.sql)؛ DENY (db/static/030_session_context.sql:237-239)؛ اختبارات العزل (41 حالة، T1-T38) | TLS للاتصال 🟡؛ هوية المهام (DOC-F04) | DOC-F04، DOC-S08 |
 | TB-4 داخل القاعدة: `tp_app` ← `tp_auth_exec` | `EXECUTE AS` في الإجراءات والقوادح (db/static/030_session_context.sql:27، :48، :148، :170، :246) | `tp_auth_exec` مستخدم بلا دخول عضو في `tp_auth` (db/static/020_roles_and_grants.sql:35-36) | تجاوز RLS لـ`tp_auth` (db/static/010_rls.sql:48، :56)؛ منحه محصورة (db/static/020_roles_and_grants.sql:38-39، :59، :67-69) | لا SQL ديناميكي في وحدات `EXECUTE AS` 🟡 | DOC-F03، DOC-F04 |
-| TB-5 لوحة المشغّل ← القاعدة بدور `tp_platform` | TDS | دخول عضو في `tp_platform` | منح على العالمي والمختلط فقط (db/generated/tsql/007_table_grants.sql:9-20، :29، :55)؛ تجاوز RLS (db/static/010_rls.sql:48، :56، :65، :73، :83، :91) | DQ-F01-2 | DOC-S08، DOC-F05 |
+| TB-5 لوحة المشغّل ← القاعدة بدور `tp_platform` | TDS | دخول عضو في `tp_platform` | منح على العالمي والمختلط فقط (db/generated/tsql/007_table_grants.sql:9-20، :29، :55)؛ تجاوز RLS (db/static/010_rls.sql:48، :56، :65، :73، :92)، عدا قراءة `aud.AuditLog`: صفوف المنصة فقط (:83؛ T38) | DQ-F01-2 | DOC-S08، DOC-F05 |
 | TB-6 التقارير ← القاعدة بدور `tp_readonly` | TDS | دخول عضو في `tp_readonly` | قراءة المخططات (db/static/020_roles_and_grants.sql:49) مع DENY لـ29 عمودًا مقيّدًا (db/generated/tsql/006_sensitive_columns.sql:7-35) | مسار ربط للتقارير (DQ-F01-5) | DOC-S08 |
-| TB-7 النشر ← القاعدة | `sqlcmd` بحساب `sa` وخيار `-C` (tools/deploy/deploy.sh:17-19، :29) | مالك القاعدة؛ `tp_migrator` دور بلا منح (db/static/020_roles_and_grants.sql:9) | CI يقارن المنشور بالمولَّد (tools/ci/db_ci.sh:55-56) | حساب نشر منفصل وشهادة موثوقة 🟡 | DOC-S08، DOC-S11، DOC-B11 |
+| TB-7 النشر ← القاعدة | `sqlcmd` بحساب `sa` وخيار `-C` (tools/deploy/deploy.sh:17-19، :29) | مالك القاعدة؛ `tp_migrator` دور بلا منح (db/static/020_roles_and_grants.sql:9) | CI يقارن المنشور بالمولَّد (tools/ci/db_ci.sh:56-57) | حساب نشر منفصل وشهادة موثوقة 🟡 | DOC-S08، DOC-S11، DOC-B11 |
 | TB-8 التطبيق ← مخزن الملفات | غير محدد 🟡 | هوية خدمة التطبيق | تشفير بمفتاح `FILE` ومسار لكل مشترك (FR-PLT-027) | DQ-F01-4 | DOC-S02، DOC-S09 |
 | TB-9 التطبيق ← مخزن المفاتيح | غير محدد 🟡 | هوية خدمة التطبيق | `WrappedKey` و`MasterKeyRef` (db/model/10-platform.model:281-282) | اختيار المخزن والحفظ | DOC-S02 |
 | TB-10 المنصة ← البريد الخارجي | SMTP عبر مرحّل الاستضافة (FR-PLT-013) | حساب إرسال | الرابط مجزّأ ولا يحمل مقيّدًا (db/model/10-platform.model:247) | SPF وDKIM وDMARC 🟡 | DOC-F03، DOC-S05 |
@@ -158,7 +158,7 @@ flowchart TB
   RLS --> TEN
   RLS --> AUD
   OPC -->|"TB-5 tp_platform"| GLB
-  OPC -->|"TB-5 يتجاوز المرشح"| AUD
+  OPC -->|"TB-5 أحداث المنصة وإدراج"| AUD
   REP -->|"TB-6 tp_readonly"| RLS
   DEP -->|"TB-7 sa"| GLB
   DEP -->|"TB-7 sa"| TEN
@@ -166,7 +166,7 @@ flowchart TB
 
 - **الربط شرط كل صف:** المرشح يُظهر الصف حين يطابق `TenantId` سياق الاتصال **و**يوجد ربط في `sec.SessionBinding` بالرمز نفسه (db/static/010_rls.sql:22-31). لا يكتب الربط إلا `sec.usp_SetSessionContext`، ولا يقبل إلا جلسة صالحة للمشترك (db/static/030_session_context.sql:186-199).
 - **الكتابة تحتاج مشتركًا مفتوحًا:** `TRIAL` أو `ACTIVE` فقط (db/static/010_rls.sql:35-41).
-- **`tp_platform` و`tp_auth` يتجاوزان المرشحات** (db/static/010_rls.sql:48، :56، :65، :73، :83، :91). `tp_platform` بلا منح على جداول المشترك (db/generated/tsql/007_table_grants.sql؛ docs/20-database-design.md:117)، لكنه يقرأ ويكتب صفوف كل المشتركين في الجداول المختلطة، ومنها `aud.AuditLog` (db/generated/tsql/007_table_grants.sql:55). يعالجه DOC-S01.
+- **`tp_platform` و`tp_auth` يتجاوزان المرشحات** (db/static/010_rls.sql:48، :56، :65، :73، :84، :92)، عدا أن `tp_platform` يقرأ من `aud.AuditLog` صفوف المنصة فقط (`TenantId` فارغ؛ db/static/010_rls.sql:83؛ T38؛ صُحّح في 1f0f0af). `tp_platform` بلا منح على جداول المشترك (db/generated/tsql/007_table_grants.sql؛ docs/20-database-design.md:117)، لكنه يقرأ ويكتب صفوف كل المشتركين في الجدولين المختلطين الآخرين `cfg.NonWorkingDay` و`ref.UcpArticle` (db/generated/tsql/007_table_grants.sql:83، :363)، ويُدرج صف تدقيق بأي `TenantId` (db/generated/tsql/007_table_grants.sql:55؛ db/static/010_rls.sql:92). يعالجه DOC-S01.
 - **`tp_readonly` لا يرى صف مشترك اليوم:** لا يملك تنفيذ إجراء الربط (db/static/030_session_context.sql:229-232)، فيرفضه المرشح (db/static/010_rls.sql:52-57). مساره قرار مفتوح (DQ-F01-5).
 - **الإبطال فوري:** تعطيل المستخدم أو حذفه، وإنهاء الجلسة، وتغيير حالة المشترك عن `TRIAL` و`ACTIVE` تحذف الربط (db/static/030_session_context.sql:245-296)؛ الاختبارات T25 وT26 وT30 وT37.
 
@@ -230,7 +230,7 @@ flowchart TB
 | G-03 | وصول الدعم غير منفّذ: لا إجراء يتحقق من `plat.SupportAccessGrant` | docs/20-database-design.md:118 | DOC-F04 (O-12 في 20-database-design) |
 | G-04 | `tp_readonly` بلا مسار ربط، فلا تقارير على بيانات المشترك | db/static/030_session_context.sql:229-232؛ db/static/010_rls.sql:52-57 | DQ-F01-5 |
 | G-05 | دخول المشغّل لا يمر بإجراء في القاعدة، و`tp_platform` يقرأ `PasswordHash` للمشغّلين | db/generated/tsql/007_table_grants.sql:18؛ db/generated/tsql/006_sensitive_columns.sql:7 يحجبه عن `tp_readonly` فقط | DQ-F01-3 |
-| G-06 | `tp_platform` يقرأ تدقيق كل المشتركين ويكتب لأي مشترك | db/static/010_rls.sql:79-92؛ db/generated/tsql/007_table_grants.sql:55 | DOC-S01 |
+| G-06 | `tp_platform` يكتب صف تدقيق لأي مشترك. ✅ القراءة صُحّحت (1f0f0af): يقرأ صفوف المنصة فقط (T38) | db/static/010_rls.sql:83، :92؛ db/generated/tsql/007_table_grants.sql:55 | DOC-S01 |
 | G-07 | التحقق من TOTP قبل الربط يحتاج قراءة `MfaSecretEnc`، والاتصال غير المربوط لا يرى صف المستخدم | db/static/030_session_context.sql:198؛ db/static/010_rls.sql:52-57 | DOC-F03، DOC-F02 |
 
 ## 12. القرارات المطلوبة
@@ -247,12 +247,9 @@ flowchart TB
 
 ## 13. تعارضات وفجوات في المصادر
 
-1. docs/20-database-design.md:90-98 ما زال يصف `usp_SetSessionContext(@TenantId, @UserId, …)` والحد المتبقي O-11 (20-database-design)، وكذلك :537 و:549. ADR 0002 وdb/static/030_session_context.sql:165-199 جعلا الربط برمز الجلسة، وأغلقت O-17 (erd_open_items) هذا الحد (tools/dbgen/erd_open_items.py:112).
-2. docs/20-database-design.md:95 و:269 يقولان إن `tp_auth` يقرأ جدولين فقط، وdocs/20-database-design.md:267 يقول إن `tp_app` ينفّذ إجراء الربط وحده. الواقع: db/static/020_roles_and_grants.sql:59، :67-69 تمنح `tp_auth` أكثر، وdb/static/030_session_context.sql:229-232 تمنح `tp_app` أربعة إجراءات.
-3. docs/20-database-design.md:112 و:117 يقولان إن صفوف التدقيق الفارغة للمنصة وحدها وإن `tp_platform` لا يصل لبيانات المشترك؛ db/static/010_rls.sql:79-92 تسمح لـ`tp_platform` بقراءة صفوف كل المشتركين وكتابتها في `aud.AuditLog`.
-4. docs/20-database-design.md:97 يقول إن مستخدم الخدمة يُربط بالإجراء لمهامه؛ بعد ADR 0002 لا يمكن ذلك (G-02).
-5. FR-PLT-045 (docs/10-detailed-analysis/10-m0-m1-platform-organization.md:147) يذكر «Windows Server أو IIS» لطبقة التطبيق، بينما docs/10-detailed-analysis/00-overview-and-cross-cutting.md:126 يجعل نظام تشغيلها قرارًا مفتوحًا.
-6. tools/dbgen/erd_open_items.py:23 (الخطوة التالية في O-02) ما زال يطلب تشغيل `deploy.ps1` على خادم Windows، وdocs/adr/0001-schema-work-on-linux.md:20 يخرجه من مسار الإنتاج. وtools/dbgen/erd_open_items.py:64 يذكر 24 حالة عزل، والملف يحوي 40 (T1-T37).
+1. docs/20-database-design.md:267 يقول إن `tp_app` ينفّذ إجراء الربط وحده، وdb/static/030_session_context.sql:229-232 تمنحه أربعة إجراءات. وتعليقا db/static/020_roles_and_grants.sql:7 و:32 ما زالا يحصران `tp_auth` في إجراء السياق وقراءة جدولين، والمنح في :59 و:67-69 أوسع (وصف `tp_auth` في docs/20-database-design.md:94 و:269 صُحّح في 1f0f0af).
+2. ✅ القراءة صُحّحت (1f0f0af): `rls.fn_AuditRead` يقصر `tp_platform` على صفوف `TenantId IS NULL` (db/static/010_rls.sql:83؛ T38)، كما يقول docs/20-database-design.md:112. يبقى: docs/20-database-design.md:117 يقول إن `tp_platform` يكتب سجلات المنصة في `aud`، وdb/static/010_rls.sql:92 يتيح له إدراج صف تدقيق بأي `TenantId` (G-06).
+3. tools/dbgen/erd_open_items.py:64 (O-09) وdocs/20-database-design.md:493 يذكران 40 حالة عزل (T1-T37)، والملف يحوي 41 (T1-T38، db/tests/tenant_isolation_tests.sql؛ tools/ci/db_ci.sh:87-88).
 
 ## 14. التتبع
 
@@ -263,7 +260,7 @@ flowchart TB
 | TB-1، DF-05 | FR-PLT-041، FR-PLT-046 | docs/10-detailed-analysis/10-m0-m1-platform-organization.md:143، :148 |
 | TB-2، A-06، A-07، DF-12 | FR-PLT-005، FR-PLT-006، FR-PLT-007، BR-PLT-017 | docs/10-detailed-analysis/10-m0-m1-platform-organization.md:107-109؛ db/model/10-platform.model:64-108 |
 | TB-3، TB-4، §7 | FR-PLT-036، BR-PLT-001، O-16 وO-17 (erd_open_items) | db/static/010_rls.sql؛ tools/dbgen/erd_open_items.py:104-113 |
-| TB-5، G-06 | FR-PLT-005، O-12 (20-database-design) | db/static/010_rls.sql:79-92؛ docs/20-database-design.md:538 |
+| TB-5، G-06 | FR-PLT-005، O-12 (20-database-design) | db/static/010_rls.sql:79-93؛ docs/20-database-design.md:540 |
 | TB-6، G-04 | الأدوار (20-database-design §9.1) | db/static/020_roles_and_grants.sql:49-63 |
 | TB-8، D-03 | FR-PLT-027، FR-PLT-029 | db/model/10-platform.model:386-408 |
 | TB-9، A-11 | FR-PLT-037، BR-PLT-015 | db/model/10-platform.model:276-301 |

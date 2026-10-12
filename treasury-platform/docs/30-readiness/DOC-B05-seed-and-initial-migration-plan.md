@@ -4,7 +4,7 @@
 |---|---|
 | المعرّف | DOC-B05 (docs/30-readiness-documents.md) |
 | الإصدار | 0.1 — مسودة للمراجعة — 2026-10-12 |
-| المالك المقترح | قائد قاعدة البيانات مع مالك الكتالوجات (docs/30-readiness-documents.md:49) |
+| المالك المقترح | قائد قاعدة البيانات مع مالك الكتالوجات (docs/30-readiness-documents.md:51) |
 | الأولوية | P0 قبل S0 |
 | يغطي | FR-PLT-008، FR-PLT-017، FR-PLT-043، FR-CAT-002، FR-CAT-018، FR-CAT-019، FR-CAT-021، FR-CAT-026، BR-CAT-002، BR-CAT-015، BR-CAT-018، Q-CAT-01، Q-CAT-03، Q-ORG-10، Q-INS-01، O-3 وO-2 (20-database-design) |
 | يعتمد على | DOC-F05، DOC-S02، DOC-S06، DOC-S07، DOC-S08، DOC-B01، DOC-B04، DOC-B09، DOC-B11 |
@@ -27,13 +27,13 @@
 | لا توجد بيانات بذر في المستودع. عبارات INSERT الوحيدة تملأ الجدول المؤقت #rls_tables | db/generated/tsql/004_rls_tables.sql:9-18 |
 | ترتيب النشر لا يحوي خطوة بذر | db/deploy.sql:22-34 |
 | اختبارات العزل تعطّل المفاتيح الأجنبية لأن المراجع غير مبذورة، وتستعمل PlanId=1 وHomeCountryId=1 غير موجودين | db/tests/tenant_isolation_tests.sql:29-34، :69-73 |
-| DDL غير قابل لإعادة التشغيل (CREATE TABLE بلا حراسة)، فالنشر لقاعدة جديدة فقط ولا مسار ترحيل | db/generated/tsql/001_tables.sql:8؛ docs/20-database-design.md:528 (O-2) |
+| DDL غير قابل لإعادة التشغيل (CREATE TABLE بلا حراسة)، فالنشر لقاعدة جديدة فقط ولا مسار ترحيل | db/generated/tsql/001_tables.sql:8؛ docs/20-database-design.md:530 (O-2) |
 | علامة catalog تضيف SeedKey وفرادة (Tenant, SeedKey) | tools/dbgen/README.md:40 |
 | SeedKey موجود أيضًا في: sec.Role، cfg.NumberSequenceDefinition، cfg.ExpiryAlertRule، org.Department، pty.CustomFieldDefinition، pty.KycProfile، pty.KycProfileItem، wfl.RequestType، wfl.WorkflowTemplate، ntf.NotificationEventType، ntf.NotificationRule، lc.LcFieldDefinition، lc.LcDocumentClause، ref.UcpArticle | db/model/10-platform.model:163، :451، :489؛ 11-organization-party.model:66، :388، :418، :439؛ 15-workflow-notifications.model:37، :84، :540، :561؛ 16-letters-of-credit.model:55، :81، :141 |
 | سجل تشغيل البذر cfg.SeedRun مملوك للمشترك (TenantId NOT NULL) | db/model/10-platform.model:572-584؛ db/generated/tsql/001_tables.sql:933-934 |
 | 11 جدولًا عالميًا بلا RLS، و3 مختلطة. صف المنصة في الجدول المختلط لا يكتبه إلا عضو tp_platform | db/generated/tsql/001_tables.sql؛ db/static/010_rls.sql:69-74؛ db/tests/tenant_isolation_tests.sql:107-110 |
 | الكتالوجات كلها مملوكة للمشترك بعد DR-03، بما فيها الأشكال القانونية وقوائم القيم | docs/20-database-design.md:421-428؛ db/model/12-institutions-accounts-catalogs.model:61-79 |
-| خطة البذر في وثيقة القاعدة «لم تُنفَّذ بعد» | docs/20-database-design.md:468-476 |
+| خطة البذر في وثيقة القاعدة «لم تُنفَّذ بعد» | docs/20-database-design.md:470-478 |
 | قوالب Excel مذكورة في استراتيجية الاختبار دون أي متطلب FR | docs/10-detailed-analysis/00-overview-and-cross-cutting.md:219 |
 
 ## 3. طبقات التحميل
@@ -70,7 +70,7 @@ flowchart TD
 
 ### 4.2 ما لا يُبذر على مستوى المنصة
 
-- **دليل البنوك:** الافتراض الموصى به لـ Q-INS-01، وهو غير محسوم: لا دليل مشترك في S1، وكل مشترك يدخل منشآته، ويبقى DirectoryRef محجوزًا (90-consolidated…:48؛ db/model/12-institutions-accounts-catalogs.model:289). نعتمده هنا 🟡. تُحمَّل البنوك بالقالب TPL-INSTITUTION (§7).
+- **دليل البنوك:** الافتراض الموصى به لـ Q-INS-01، وهو غير محسوم: لا دليل مشترك في S1، وكل مشترك يدخل منشآته، ويبقى DirectoryRef محجوزًا (90-consolidated…:48؛ db/model/12-institutions-accounts-catalogs.model:288). نعتمده هنا 🟡. تُحمَّل البنوك بالقالب TPL-INSTITUTION (§7).
 - **الأشكال القانونية والمناصب وأنواع الصلاحيات:** جداول مملوكة للمشترك (db/model/12-institutions-accounts-catalogs.model:61، :95، :101). المنصة تحفظ محتواها حزمةً في المستودع، وكل مشترك يأخذ نسخة (§5).
 - **الأدوار:** sec.Role مملوك للمشترك. قوالب الأدوار حزمة مشترك (§5).
 
@@ -99,7 +99,7 @@ flowchart TD
 | CORE.EXPIRY | cfg.ExpiryAlertRule | قواعد الجدول §9.2 | 10-m0-m1…:517-526؛ db/model/10-platform.model:482-491 | S1 |
 | CAT.ORG | cat.LegalEntityType، cat.Position، cat.PowerType | 7 أشكال (5 🟢 و2 🟡)، 12 منصبًا، 10 أنواع صلاحية | 11-m2-m4…:326، :328-329، :351-380؛ Q-CAT-03؛ Q-ORG-10 | S1 |
 | CAT.BANKING | cat.InstitutionType، AccountType، OperationType، OperationTypePowerType، ProductCategory، Product، FeeType، FinancingType، FacilityType، LimitType، CollateralType، ObligationType، BaseRate | 5، 8، 11، 13 صفًا، 8، 22، 19، 6، 6، 9، 9، 30، 9 | 11-m2-m4…:319-340 | S1 |
-| CAT.LOOKUPS | cat.LookupList، cat.LookupItem | UNIT_TYPE وCONTACT_ROLE وACCOUNT_PURPOSE وSIGNATURE_CLASS وAUTHORISATION_BASIS، ثم قوائم الاعتماد في S3 | 11-m2-m4…:320-349؛ docs/20-database-design.md:474 | S1، وقوائم LC في S3 |
+| CAT.LOOKUPS | cat.LookupList، cat.LookupItem | UNIT_TYPE وCONTACT_ROLE وACCOUNT_PURPOSE وSIGNATURE_CLASS وAUTHORISATION_BASIS، ثم قوائم الاعتماد في S3 | 11-m2-m4…:320-349؛ docs/20-database-design.md:476 | S1، وقوائم LC في S3 |
 | CAT.CURRENCY | cat.TenantCurrency | SAR وUSD وEUR وGBP وAED مفعّلة | 11-m2-m4…:341؛ Q-CAT-08 | S1 |
 | NTF.BASE | ntf.NotificationEventType، ntf.NotificationRule، ntf.NotificationTemplate | رموز الأحداث في 13 §9.2 ومنها رموز 10-m0-m1…:539 | db/model/15-workflow-notifications.model:527-570 | S1 |
 | PTY.KYC | pty.KycProfile، pty.KycProfileItem | ملفات KYC المسبقة من 05 §3 | db/model/11-organization-party.model:407-441 | S2 |
@@ -240,7 +240,7 @@ flowchart LR
 | T-SEED-2 | تهيئة مشترك ثم إعادة الحزم؛ CreatedCount=0 في الثانية | FR-PLT-008، BR-CAT-002 |
 | T-SEED-3 | الأعداد بعد التهيئة: 22 منتجًا و19 نوع رسوم و42 نوع مستند و7 أشكال و12 منصبًا و10 أنواع صلاحية و11 نوع عملية | FR-CAT-002 (11-m2-m4…:165) |
 | T-SEED-4 | صف عدّله المشترك لا يتغير عند UPGRADE، ويظهر في DiffJson | FR-PLT-008 |
-| T-SEED-5 | اتصال المشترك لا يكتب جدولًا عالميًا مثل ref.Currency | docs/20-database-design.md:491 (اختبار غير مكتوب) |
+| T-SEED-5 | اتصال المشترك لا يكتب جدولًا عالميًا مثل ref.Currency | docs/20-database-design.md:493 (اختبار غير مكتوب) |
 | T-IMP-1 | التشغيل التجريبي لا يترك صفًا | §7.3 |
 | T-IMP-2 | ملف فيه خطأ E واحد لا يحمّل أي صف، والتقرير يسمّي الصف والعمود | §7.3 |
 | T-IMP-3 | تقرير الحسابات لا يحوي رقمًا كاملًا | X-SEC-3 |
@@ -264,25 +264,24 @@ flowchart LR
 
 ## 10. تعارضات وفجوات في المصادر
 
-1. docs/20-database-design.md:472 يضع ntf.NotificationEventType و«تعريفات حقول الاعتماد» في البذر العالمي. النموذج يجعلهما مملوكين للمشترك (db/model/15-workflow-notifications.model:527؛ db/model/16-letters-of-credit.model:64).
-2. docs/20-database-design.md:472 يقول إن cfg.SeedRun يسجّل البذر العالمي، والجدول مملوك للمشترك (db/generated/tsql/001_tables.sql:933-934).
+1. docs/20-database-design.md:474 يضع ntf.NotificationEventType و«تعريفات حقول الاعتماد» في البذر العالمي. النموذج يجعلهما مملوكين للمشترك (db/model/15-workflow-notifications.model:527؛ db/model/16-letters-of-credit.model:64).
+2. docs/20-database-design.md:474 يقول إن cfg.SeedRun يسجّل البذر العالمي، والجدول مملوك للمشترك (db/generated/tsql/001_tables.sql:933-934).
 3. BR-PLT-001 (10-m0-m1…:227) يعدّ LookupList وLookupItem وIncoterm وLC_TYPE مختلطة، ويقصر العالمية على Country وCurrency وPermission وPlan وPlatformOperator. النموذج: قوائم القيم مملوكة للمشترك (DR-03، docs/20-database-design.md:421-428)، وref.Incoterm عالمي (db/model/16-letters-of-credit.model:32)، والعالمية 11 جدولًا منها ReservedSubdomain وPlanModule وSettingDefinition.
 4. 11-m2-m4…:344-345 تصف LC_TYPE وLC_CONFIRMATION بأنها «عالمي»، وهما قائمتا قيم صارتا مملوكتين للمشترك بعد DR-03.
 5. FR-PLT-008 في S0 (10-m0-m1…:110) يبذر الإدارات والأشكال القانونية والمناصب والكتالوجات، بينما متطلباتها في S1: FR-ORG-014 (:168)، FR-CAT-002 (11-m2-m4…:165)، FR-CAT-019 (:182). الحل هنا: الآلية والحزم الأساسية في S0، والمحتوى مع شريحته.
-6. docs/20-database-design.md:438-449 يضع 025 قبل 010 ويُسقط 050، ويقترح deploy.ps1. الترتيب الفعلي 010 ثم 025 ثم 030 ثم 050 (db/deploy.sql:31-34)، والمسار المعتمد deploy.sh (docs/adr/0001-schema-work-on-linux.md:19-20).
-7. قوالب Excel في 00-overview…:219 بلا أي متطلب FR، وFR-CAT-024 (11-m2-m4…:187) يغطي الكتالوجات فقط في S5.
-8. افتراض Q-CAT-01 «للسعودية/الخليج» (90-consolidated…:63)، وفي 00-overview…:311 «حزمة واحدة (السعودية)».
-9. FR-CAT-026 (11-m2-m4…:189) يربط إضافة الدول بصلاحية `cat.global.manage`، والمشغّل لا يحمل صلاحيات sec.Permission بل دورًا في plat.PlatformOperator.Role (db/model/10-platform.model:67).
+6. قوالب Excel في 00-overview…:219 بلا أي متطلب FR، وFR-CAT-024 (11-m2-m4…:187) يغطي الكتالوجات فقط في S5.
+7. افتراض Q-CAT-01 «للسعودية/الخليج» (90-consolidated…:63)، وفي 00-overview…:311 «حزمة واحدة (السعودية)».
+8. FR-CAT-026 (11-m2-m4…:189) يربط إضافة الدول بصلاحية `cat.global.manage`، والمشغّل لا يحمل صلاحيات sec.Permission بل دورًا في plat.PlatformOperator.Role (db/model/10-platform.model:67).
 
 ## 11. التتبع
 
 | البند في هذه الوثيقة | المتطلب أو القاعدة أو القرار | المصدر |
 |---|---|---|
-| §2 غياب البذر | O-3 (20-database-design) | docs/20-database-design.md:529 |
+| §2 غياب البذر | O-3 (20-database-design) | docs/20-database-design.md:531 |
 | §4.1 المراجع العالمية | FR-CAT-021، FR-CAT-026، BR-CAT-015، BR-CAT-018 | 11-m2-m4…:184، :189، :253، :256 |
 | §4.1 الصلاحيات | FR-PLT-017، FR-PLT-019، BR-PLT-019 | 10-m0-m1…:119، :121، :245 |
 | §4.1 الإعدادات | FR-PLT-043، BR-PLT-018 | 10-m0-m1…:145، :244 |
-| §4.2 دليل البنوك | Q-INS-01، FR-INS-020 | 90-consolidated…:48؛ db/model/12-institutions-accounts-catalogs.model:289 |
+| §4.2 دليل البنوك | Q-INS-01، FR-INS-020 | 90-consolidated…:48؛ db/model/12-institutions-accounts-catalogs.model:288 |
 | §4.3 ترتيب النشر | deploy.sql، RLS للمختلط | db/deploy.sql:22-34؛ db/static/010_rls.sql:69-74 |
 | §5.1 الحزم | FR-PLT-008، FR-CAT-002، FR-CAT-018، FR-CAT-019 | 10-m0-m1…:110؛ 11-m2-m4…:165، :181، :182 |
 | §5.2 الملكية | Q-CAT-03، Q-ORG-10، X-SEC-7 | 90-consolidated…:65، :32؛ 00-overview…:142 |

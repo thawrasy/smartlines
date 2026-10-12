@@ -185,6 +185,8 @@ stateDiagram-v2
 | T-F06-5 | تعطيل آخر مدير حساب فعّال يُرفض | 🟡 اختبار خدمة |
 | T-F06-6 | تعطيل ثم إعادة تفعيل لا يُحيي جلسة قديمة | 🟡 بعد DQ-F06-1 |
 
+«يمر في CI» يعني tools/ci/db_ci.sh في حاوية التطوير (41 حالة عزل، T1-T38). لم يعمل CI على GitHub بعد (O-02 في tools/dbgen/erd_open_items.py:22).
+
 ## 10. القرارات المطلوبة
 
 | المعرّف | السؤال | الافتراض المقترح | من يقرر | ما يعطّله |
@@ -201,8 +203,7 @@ stateDiagram-v2
 
 | البند | الموضع | الملاحظة |
 |---|---|---|
-| مرجع قيم الحالة في السجل | docs/30-readiness-documents.md:111 | يشير إلى docs/21-data-dictionary.md:131، وهو عمود حالة plat.PlatformOperator؛ حالة AppUser في docs/21-data-dictionary.md:215 |
-| أسباب الإنهاء في السجل | docs/30-readiness-documents.md:109 | يعدّ سبعة أسباب، والنموذج ثمانية مع TENANT_SUSPENDED (model:229) |
+| أسباب الإنهاء في السجل | docs/30-readiness-documents.md:111 | يعدّ سبعة أسباب، والنموذج ثمانية مع TENANT_SUSPENDED (model:229) |
 | عودة القفل تلقائيًا | docs/10-detailed-analysis/10-m0-m1-platform-organization.md:483 | «تعود Active بانقضاء المدة»، والمنفّذ يعيدها عند أول دخول صحيح فقط (030:113-114) |
 | قفل حساب الخدمة | db/static/030_session_context.sql:85 | حساب بلا كلمة مرور يُعدّ ويُقفل؛ docs/20-database-design.md:97 تصفه بلا كلمة مرور ولا ربط ولا تذكر أنه قابل للقفل |
 | MFA غير مفروضة في القاعدة للمستخدم | db/model/10-platform.model:146-154 | لا قيد `Status <> 'ACTIVE' OR MfaEnabled = 1` كما في المشغّل (model:82)، والربط يقبل MfaEnabled = 0 (030:198) |

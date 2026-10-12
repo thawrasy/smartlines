@@ -247,7 +247,7 @@ flowchart LR
 - 2أ. رمز مكرر أو محجوز: يُرفض بذكر السبب.
 - 5أ. فشل أي خطوة: لا مشترك نصف مهيّأ يُتاح للدخول، وإعادة التشغيل تستأنف ولا تكرر البذر. التفصيل في DOC-F05.
 - 6أ. فشل الإرسال: SendStatus = FAILED ويُسجَّل في التدقيق (db/model/10-platform.model:252)، ويعيد المشغّل الإرسال من تفاصيل المشترك.
-- ملاحظة: إجراء التهيئة خطة لم تُنفَّذ (docs/20-database-design.md:468-473)، وtp_platform لا يصل إلى جداول المشترك (docs/20-database-design.md:24)، فيلزم إجراء منصة مُراجَع: O-12 (20-database-design).
+- ملاحظة: إجراء التهيئة خطة لم تُنفَّذ (docs/20-database-design.md:470-475)، وtp_platform لا يصل إلى جداول المشترك (docs/20-database-design.md:24)، فيلزم إجراء منصة مُراجَع: O-12 (20-database-design).
 
 ### UC-PLT-03 — تغيير حالة المشترك
 
@@ -766,10 +766,9 @@ flowchart LR
 4. FR-PLT-011 يجعل MFA إلزاميًا (docs/10-detailed-analysis/10-m0-m1-platform-organization.md:113)، والربط يقبل جلسة بلا MFA حين MfaEnabled = 0 (db/static/030_session_context.sql:198)، وهي القيمة الافتراضية (db/model/10-platform.model:126).
 5. لا مسار في القاعدة لقبول الدعوة: usp_StartSession يرفض INVITED (db/static/030_session_context.sql:82). يتبع DOC-F03.
 6. لا إجراء دخول للمشغّل (db/static/030_session_context.sql:3-17 يعدّد إجراءات AppUser فقط).
-7. إجراء التهيئة خطة لم تُنفَّذ (docs/20-database-design.md:468-473)، وtp_platform بلا وصول لجداول المشترك (docs/20-database-design.md:24)؛ O-12 (20-database-design) في docs/20-database-design.md:538.
+7. إجراء التهيئة خطة لم تُنفَّذ (docs/20-database-design.md:470-475)، وtp_platform بلا وصول لجداول المشترك (docs/20-database-design.md:24)؛ O-12 (20-database-design) في docs/20-database-design.md:540.
 8. sec.UserToken.RequestedByUserId يشير إلى sec.AppUser (db/model/10-platform.model:254)، فلا يُسجَّل المشغّل الذي دعا المدير الأول في الصف نفسه؛ يبقى في التدقيق بـ ActorType = OPERATOR.
-9. FR-PLT-045 يذكر Windows Server وIIS لطبقة التطبيق (docs/10-detailed-analysis/10-m0-m1-platform-organization.md:147)، وADR 0001 يترك نظام تشغيلها مفتوحًا؛ O-23 (erd_open_items).
-10. قائمة الشاشات §7.1 لا تحوي قبول الدعوة ولا تسجيل MFA ولا دخول المشغّل ولا حسابات المشغّلين ولا شاشة المهام (docs/10-detailed-analysis/10-m0-m1-platform-organization.md:371-398). تكملها DOC-B07.
+9. قائمة الشاشات §7.1 لا تحوي قبول الدعوة ولا تسجيل MFA ولا دخول المشغّل ولا حسابات المشغّلين ولا شاشة المهام (docs/10-detailed-analysis/10-m0-m1-platform-organization.md:371-398). تكملها DOC-B07.
 
 ## 12. التتبع
 
@@ -836,7 +835,7 @@ flowchart LR
 | §2 الفاعلون | 00 §3، مصفوفة 10-m0-m1 §2 | docs/10-detailed-analysis/00-overview-and-cross-cutting.md:54-67 |
 | §3 رموز الصلاحيات | FR-PLT-017، BR-PLT-008، BR-PLT-019، DQ-F07-1 | docs/10-detailed-analysis/10-m0-m1-platform-organization.md:41-69 |
 | UC-PLT-08 إلى UC-PLT-11 | ADR 0002، O-24 (erd_open_items) | docs/adr/0002-login-and-session-bound-context.md، db/static/030_session_context.sql |
-| UC-PLT-02، UC-PLT-05، UC-PLT-07 | O-12 (20-database-design) | docs/20-database-design.md:538 |
+| UC-PLT-02، UC-PLT-05، UC-PLT-07 | O-12 (20-database-design) | docs/20-database-design.md:540 |
 | UC-PLT-03، UC-PLT-09 | O-18 (erd_open_items) | tools/dbgen/erd_open_items.py:116-120 |
 | UC-PLT-18 | O-12 (erd_open_items) | tools/dbgen/erd_open_items.py:80-83 |
 | §7 و§8 | سيناريوهات القبول AC-ORG-1…3، AC-PTY-1…3 | docs/10-detailed-analysis/10-m0-m1-platform-organization.md:660-693 |

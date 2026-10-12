@@ -21,7 +21,7 @@
 ## 2. ما يقرّه المستودع اليوم 🟢
 
 1. صف جدول المشترك يُرى أو يُكتب فقط إذا اتفق أمران: `TenantId` يساوي `SESSION_CONTEXT(N'TenantId')`، وفي `sec.SessionBinding` صف لـ`@@SPID` بالمشترك نفسه وبرمز يطابق `SESSION_CONTEXT(N'BindingToken')` (db/static/010_rls.sql:5-10، db/static/010_rls.sql:22-31).
-2. لا يكتب الربط إلا `sec.usp_SetSessionContext` (db/static/010_rls.sql:9-10). دور التطبيق لا يقرأ جدول الربط ولا يكتبه (db/generated/tsql/007_table_grants.sql:38، الاختبار T16b في db/tests/tenant_isolation_tests.sql:370).
+2. لا يكتب الربط إلا `sec.usp_SetSessionContext` (db/static/010_rls.sql:9-10). دور التطبيق لا يقرأ جدول الربط ولا يكتبه (db/generated/tsql/007_table_grants.sql:38، الاختبار T16b في db/tests/tenant_isolation_tests.sql:388).
 3. الإجراء يأخذ رمز الجلسة لا معرّف المستخدم، ويأخذ المستخدم من الجلسة (db/static/030_session_context.sql:13-14، db/static/030_session_context.sql:190-199، docs/adr/0002-login-and-session-bound-context.md:22).
 4. مفاتيح السياق تُضبط للقراءة فقط (db/static/030_session_context.sql:205-207، db/static/030_session_context.sql:218-219).
 5. مجمّع الاتصالات يعيد ضبط الاتصال قبل إعادة استعماله (`sp_reset_connection`)، فيمحو السياق (db/static/030_session_context.sql:18، docs/adr/0002-login-and-session-bound-context.md:31).
@@ -49,7 +49,7 @@ flowchart LR
 
 | نوع الاتصال | الدور في القاعدة | طريقة الربط | الحالة اليوم |
 |---|---|---|---|
-| طلب مستخدم المشترك | `tp_app` | `sec.usp_SetSessionContext` برمز الجلسة | 🟢 منفّذ ومختبر: T17 إلى T20 وT25 إلى T37 (db/tests/tenant_isolation_tests.sql:410-668) |
+| طلب مستخدم المشترك | `tp_app` | `sec.usp_SetSessionContext` برمز الجلسة | 🟢 منفّذ ومختبر: T17 إلى T20 وT25 إلى T37 (db/tests/tenant_isolation_tests.sql:427-689) |
 | مهمة خلفية وعامل Outbox | `tp_app` مع دور جديد `tp_jobs` 🟡 | إجراء جديد بحساب `IsSystemUser` 🟡 | غير مبني (§5) |
 | مشغّل المنصة | `tp_platform` | بلا ربط؛ يتجاوز RLS ومنحه محدودة | 🟢 الدور والمنح؛ لا إجراءات منصة بعد (§6.1) |
 | الدعم المؤقت | دور جديد `tp_support` عضو في `tp_readonly` 🟡 | إجراء جديد يتحقق من `plat.SupportAccessGrant` 🟡 | غير مبني (§6.2) |
@@ -96,7 +96,7 @@ sequenceDiagram
 | R-7 | الإجراء لا يمدّد مهلة الخمول؛ يقرأ الجلسة فقط (db/static/030_session_context.sql:191-198). يمدّدها التطبيق بتحديث `sec.UserSession` (db/generated/tsql/007_table_grants.sql:40)، وهذا خطر متبقٍّ في O-24 (erd_open_items). يُقترح نقله إلى إجراء (DQ-F04-8). | 🟢 الوضع، 🟡 النقل |
 | R-8 | يُغلق الاتصال في نهاية كل طلب. لا يُحتفظ باتصال مربوط بين طلبين، لأن فحص صلاحية الجلسة يجري عند الربط فقط، وبه يسري الانتهاء والسحب في الطلب التالي. | 🟡 |
 | R-9 | الاستعلامات المتوازية في طلب واحد تستعمل اتصالات منفصلة، ويُربط كل منها بالقاعدة R-1. | 🟡 |
-| R-10 | لا يستدعي كود التطبيق `sp_set_session_context` مباشرة. ضبط `TenantId` يدويًا لا يكشف صفًّا (T16 وT28، db/tests/tenant_isolation_tests.sql:357 و:405)، ويجعل الربط اللاحق يفشل بالخطأ 50004. | 🟢 |
+| R-10 | لا يستدعي كود التطبيق `sp_set_session_context` مباشرة. ضبط `TenantId` يدويًا لا يكشف صفًّا (T16 وT28، db/tests/tenant_isolation_tests.sql:375 و:423)، ويجعل الربط اللاحق يفشل بالخطأ 50004. | 🟢 |
 | R-11 | لا تُترك مؤشرات (cursors) مفتوحة بعد نهاية الطلب، لأنها تستمر في تسليم الصفوف بعد السحب (O-22 في tools/dbgen/erd_open_items.py:139-143). | 🟢 الخطر، 🟡 القاعدة |
 
 ### 4.3 ما يجري داخل `sec.usp_SetSessionContext`
@@ -130,7 +130,7 @@ flowchart TD
 | 8 | يضبط `BindingToken` ثم `TenantId` | db/static/030_session_context.sql:217-219 | — |
 | 9 | يثبّت المعاملة إن كانت له، ويعيد رفع أي خطأ بعد التراجع | db/static/030_session_context.sql:221-226 | — |
 
-الخطأ 50003 واحد لكل الأسباب: رمز خاطئ، جلسة منتهية أو مُنهاة، مستخدم غير نشط، MFA غير مسجّل. فلا يكشف للمستدعي سبب الرفض. يغطيه T18 وT32 وT36 (db/tests/tenant_isolation_tests.sql:433، :448، :540).
+الخطأ 50003 واحد لكل الأسباب: رمز خاطئ، جلسة منتهية أو مُنهاة، مستخدم غير نشط، MFA غير مسجّل. فلا يكشف للمستدعي سبب الرفض. يغطيه T18 وT32 وT36 (db/tests/tenant_isolation_tests.sql:451، :466، :561).
 
 ### 4.4 صف الربط ودوال RLS
 
@@ -140,14 +140,14 @@ flowchart TD
 |---|---|---|---|
 | `rls.fn_Bound` | db/static/010_rls.sql:22-31 | صف ربط للاتصال بمشترك الصف، والمشترك يساوي السياق، والرمز يطابق | كل الدوال أدناه، والعرضان (db/static/025_tenant_views.sql:14، :26) |
 | `rls.fn_BoundWrite` | db/static/010_rls.sql:35-41 | `fn_Bound` والمشترك TRIAL أو ACTIVE | `fn_TenantWrite` و`fn_MixedWrite` |
-| `rls.fn_TenantAccess` | db/static/010_rls.sql:52-57 | `tp_platform` أو `tp_auth` أو `fn_Bound` | ترشيح جداول المشترك (db/static/010_rls.sql:117) |
-| `rls.fn_TenantWrite` | db/static/010_rls.sql:44-49 | `tp_platform` أو `tp_auth` أو `fn_BoundWrite` | حجب الإدراج والتعديل والحذف (db/static/010_rls.sql:118-120) |
-| `rls.fn_MixedRead` و`rls.fn_MixedWrite` | db/static/010_rls.sql:60-74 | القراءة: صف عام أو تجاوز أو `fn_Bound`؛ الكتابة: تجاوز أو `fn_BoundWrite` | الجداول المختلطة الثلاثة (db/static/010_rls.sql:122-129) |
-| `rls.fn_AuditRead` و`rls.fn_AuditWrite` | db/static/010_rls.sql:79-92 | القراءة: تجاوز أو `fn_Bound`؛ الإدراج: `TenantId` فارغ أو تجاوز أو `fn_Bound` | `aud.AuditLog` (db/static/010_rls.sql:97-100) |
+| `rls.fn_TenantAccess` | db/static/010_rls.sql:52-57 | `tp_platform` أو `tp_auth` أو `fn_Bound` | ترشيح جداول المشترك (db/static/010_rls.sql:118) |
+| `rls.fn_TenantWrite` | db/static/010_rls.sql:44-49 | `tp_platform` أو `tp_auth` أو `fn_BoundWrite` | حجب الإدراج والتعديل والحذف (db/static/010_rls.sql:119-121) |
+| `rls.fn_MixedRead` و`rls.fn_MixedWrite` | db/static/010_rls.sql:60-74 | القراءة: صف عام أو تجاوز أو `fn_Bound`؛ الكتابة: تجاوز أو `fn_BoundWrite` | الجداول المختلطة الثلاثة (db/static/010_rls.sql:123-130) |
+| `rls.fn_AuditRead` و`rls.fn_AuditWrite` | db/static/010_rls.sql:79-93 | القراءة: صف المنصة (`TenantId` فارغ) لـ`tp_platform`، أو `tp_auth`، أو `fn_Bound` (T38)؛ الإدراج: `TenantId` فارغ أو تجاوز أو `fn_Bound` | `aud.AuditLog` (db/static/010_rls.sql:98-101) |
 
 ملاحظتان:
 - `fn_AuditWrite` يستعمل `fn_Bound` لا `fn_BoundWrite`. فإضافة سطر تدقيق تبقى ممكنة في SUSPENDED وARCHIVED_READ_ONLY، وهذا مطلوب لتدقيق القراءة والتصدير فيهما. وقبوله `TenantId` فارغًا من اتصال المشترك هو O-19 (erd_open_items).
-- الكتابة المرفوضة بالحجب تعطي الخطأ 33504 (T4 وT27، db/tests/tenant_isolation_tests.sql:163، :583).
+- الكتابة المرفوضة بالحجب تعطي الخطأ 33504 (T4 وT27، db/tests/tenant_isolation_tests.sql:163، :604).
 
 ### 4.5 الفشل وما يفعله التطبيق
 
@@ -234,13 +234,13 @@ sequenceDiagram
 
 ما هو قائم 🟢:
 - اتصال المشغّل لا يُربط بمشترك. لا يملك `EXECUTE` على إجراءات الجلسة، فهي ممنوحة لـ`tp_app` وحده (db/static/030_session_context.sql:229-232).
-- يتجاوز دوال الصفوف بـ`IS_MEMBER` (db/static/010_rls.sql:48، :56، :65، :73، :83، :91)، لكن منحه محصورة في الجداول العالمية و`plat` والمختلطة و`aud` (db/generated/tsql/007_table_grants.sql:9-20، :29، :55، :66، :83). لا منح له على جداول المشترك (docs/20-database-design.md:117).
+- يتجاوز دوال الصفوف بـ`IS_MEMBER` (db/static/010_rls.sql:48، :56، :65، :73، :92)، عدا قراءة `aud.AuditLog` فهي لصفوف المنصة فقط (:83؛ T38)، لكن منحه محصورة في الجداول العالمية و`plat` والمختلطة و`aud` (db/generated/tsql/007_table_grants.sql:9-20، :29، :55، :66، :83). لا منح له على جداول المشترك (docs/20-database-design.md:117).
 - لا يقرأ جدول الربط (db/static/020_roles_and_grants.sql:60).
 - هوية المشغّل في `plat.PlatformOperator`، مستقلة عن `sec.AppUser`، وMFA إلزامي له (FR-PLT-006، docs/10-detailed-analysis/10-m0-m1-platform-organization.md:108؛ db/generated/tsql/001_tables.sql:117). لا يوجد إجراء دخول للمشغّل بعد؛ مساره عند DOC-F03 وDOC-S03.
 
 فجوات:
-- `tp_platform` يقرأ صفوف `aud.AuditLog` لكل المشتركين: له `SELECT` (db/generated/tsql/007_table_grants.sql:55)، ودالة القراءة تعفيه (db/static/010_rls.sql:79-84). الوثائق تقول إن صفوف المنصة له، ولا تقول إن صفوف المشتركين له (docs/20-database-design.md:112)، وFR-PLT-005 يمنع عرض بيانات الأعمال في لوحة المشغّل (docs/10-detailed-analysis/10-m0-m1-platform-organization.md:107). الاقتراح في DQ-F04-7.
-- أي تعديل على بيانات مشترك يحتاج إجراء منصة مُراجَعًا، ولم يُكتب أي إجراء (O-12 في docs/20-database-design.md:538).
+- ✅ صُحّح (1f0f0af): كان `tp_platform` يقرأ صفوف `aud.AuditLog` لكل المشتركين، خلافًا لـdocs/20-database-design.md:112 ولـFR-PLT-005 (docs/10-detailed-analysis/10-m0-m1-platform-organization.md:107). دالة القراءة تقصره الآن على صفوف المنصة (db/static/010_rls.sql:83)، والاختبار T38 يثبت ذلك. يبقى من DQ-F04-7 قراءة صفوف المشترك عبر إجراء مُراجَع.
+- أي تعديل على بيانات مشترك يحتاج إجراء منصة مُراجَعًا، ولم يُكتب أي إجراء (O-12 في docs/20-database-design.md:540).
 - يستطيع `tp_platform` تحديث `plat.Tenant.Status` مباشرة بلا فحص للانتقال (db/generated/tsql/007_table_grants.sql:14). يقترح DOC-F05 إجراءً واحدًا للانتقال.
 
 ### 6.2 الدعم المؤقت 🟡
@@ -276,7 +276,7 @@ sequenceDiagram
 | CLOSED | مرفوض بالخطأ 50005 (db/static/030_session_context.sql:140) | مرفوض 50002 (T17) | يُسحب (T26) | لا | لا |
 | ARCHIVED_READ_ONLY | مقبول لكل مستخدم | مقبول لكل مستخدم | يُسحب | نعم بعد ربط جديد | لا |
 
-مواضع الاختبارات: T17 في db/tests/tenant_isolation_tests.sql:420، T26 في :568، T27 في :583، T31 في :618.
+مواضع الاختبارات: T17 في db/tests/tenant_isolation_tests.sql:438، T26 في :589، T27 في :604، T31 في :639.
 
 ### 7.3 الفجوة
 
@@ -303,7 +303,7 @@ sequenceDiagram
 | ARCHIVED_READ_ONLY | مرفوض | مرفوض | تقرير الاحتفاظ فقط | قراءة بإجراء مُراجَع بطلب مكتوب | مرفوض |
 
 خطوات التنفيذ:
-1. يفحص `usp_StartSession` و`usp_SetSessionContext` الحالة والدور معًا. مدير الحساب هو من له دور نظام رمزه `TA` (docs/21-data-dictionary.md:255، docs/10-detailed-analysis/10-m0-m1-platform-organization.md:41) عبر `sec.UserRole`. يحتاج `tp_auth` قراءة `sec.UserRole` و`sec.Role`، فتُضاف المنحتان في db/static/020_roles_and_grants.sql وتُحدَّث القاعدة R6 في tools/dbgen/check_grants.py:10.
+1. يفحص `usp_StartSession` و`usp_SetSessionContext` الحالة والدور معًا. مدير الحساب هو من له دور نظام رمزه `TA` (docs/21-data-dictionary.md:255، docs/10-detailed-analysis/10-m0-m1-platform-organization.md:41) عبر `sec.UserRole`. يحتاج `tp_auth` قراءة `sec.UserRole` و`sec.Role`، فتُضاف المنحتان في db/static/020_roles_and_grants.sql وتُحدَّث القاعدة R6 في tools/dbgen/check_grants.py:83-84.
 2. في CLOSED يُقبل مدير الحساب ما دام `SYSUTCDATETIME() < DATEADD(DAY, 30, ClosedAt)`، حتى لو تأخرت مهمة الأرشفة.
 3. المستخدم الذي أثبت كلمة مروره ورُفض بسبب حالة المشترك يأخذ خطأً جديدًا 50006 «المشترك غير متاح لهذا المستخدم»، لأنه عضو في المشترك فلا يُكشف له ما لا يعرفه. يُنسَّق مع DOC-F03 وDOC-B04 (DQ-F04-3).
 4. يبقى `plat.TR_Tenant_RevokeBinding` كما هو: يسحب كل الربوط عند أي انتقال خارج TRIAL وACTIVE، ثم يربط مدير الحساب من جديد بطلبه التالي بالقواعد الجديدة.
@@ -327,14 +327,11 @@ sequenceDiagram
 
 ## 9. تعارضات وفجوات في المصادر
 
-1. docs/20-database-design.md:90-93 تصف الإجراء بالمعامل `@UserId` وثلاثة فحوص. الكود يأخذ `@SessionToken` وله خطأ رابع 50004 (db/static/030_session_context.sql:165-202).
-2. docs/20-database-design.md:97 تقول إن حساب الخدمة «يُستعمل في `usp_SetSessionContext`». هذا مستحيل بعد ADR 0002، لأن الربط يحتاج جلسة والحساب بلا كلمة مرور (db/generated/tsql/001_tables.sql:214).
-3. docs/20-database-design.md:98 و:537 تبقيان O-11 (20-database-design) مفتوحًا: «التطبيق يختار المستخدم». أغلقه ADR 0002 وبند O-17 (tools/dbgen/erd_open_items.py:110-113).
-4. docs/20-database-design.md:267 تقول إن `tp_app` يملك `EXECUTE` على `usp_SetSessionContext` فقط، و:269 تقول إن `tp_auth` يملك `SELECT` على جدولين فقط. الكود يمنح `tp_app` أربعة إجراءات (db/static/030_session_context.sql:229-232)، ويمنح `tp_auth` كتابة على الربط والجلسات والمستخدم ومحاولات الدخول (db/static/020_roles_and_grants.sql:59، :67-69).
-5. docs/30-readiness-documents.md:91 (غرض DOC-F04 في السجل) يذكر التوقيع القديم وثلاثة أخطاء. صحّحته ملاحظة التحقق في السطر 97.
-6. db/static/010_rls.sql:34 يقول إن SUSPENDED وARCHIVED_READ_ONLY «يستمران في القراءة»، وBR-PLT-002 يقصر SUSPENDED على مدير الحساب (docs/10-detailed-analysis/10-m0-m1-platform-organization.md:228). هذا هو O-18 نفسه.
-7. docs/20-database-design.md:112 تحصر صفوف المنصة في `tp_platform` ولا تذكر أنه يقرأ صفوف كل المشتركين، والكود يسمح له بذلك (db/generated/tsql/007_table_grants.sql:55، db/static/010_rls.sql:79-84).
-8. أسباب الإنهاء `USER_DISABLED` و`TENANT_SUSPENDED` معرّفة (docs/21-data-dictionary.md:396) ولا يكتبها القادحان (db/static/030_session_context.sql:245-256، :285-296).
+1. docs/20-database-design.md:267 تقول إن `tp_app` يملك `EXECUTE` على `usp_SetSessionContext` فقط، والكود يمنحه أربعة إجراءات (db/static/030_session_context.sql:229-232). وتعليقا db/static/020_roles_and_grants.sql:7 و:32 ما زالا يحصران `tp_auth` في إجراء السياق وقراءة جدولين، والكود يمنحه كتابة على الربط والجلسات والمستخدم ومحاولات الدخول (db/static/020_roles_and_grants.sql:59، :67-69)؛ وصفه في docs/20-database-design.md:269 صُحّح في 1f0f0af.
+2. docs/30-readiness-documents.md:93 (غرض DOC-F04 في السجل) يذكر التوقيع القديم وثلاثة أخطاء. صحّحته ملاحظة التحقق في السطر 99.
+3. db/static/010_rls.sql:34 يقول إن SUSPENDED وARCHIVED_READ_ONLY «يستمران في القراءة»، وBR-PLT-002 يقصر SUSPENDED على مدير الحساب (docs/10-detailed-analysis/10-m0-m1-platform-organization.md:228). هذا هو O-18 نفسه.
+4. ✅ صُحّح (1f0f0af): كان الكود يسمح لـ`tp_platform` بقراءة صفوف تدقيق كل المشتركين خلافًا لـdocs/20-database-design.md:112؛ `rls.fn_AuditRead` يقصره الآن على صفوف المنصة (db/static/010_rls.sql:83)، والاختبار T38.
+5. أسباب الإنهاء `USER_DISABLED` و`TENANT_SUSPENDED` معرّفة (docs/21-data-dictionary.md:396) ولا يكتبها القادحان (db/static/030_session_context.sql:245-256، :285-296).
 
 ## 10. التتبع
 
@@ -345,9 +342,9 @@ sequenceDiagram
 | §4.2 R-7 وDQ-F04-8 | O-24 (erd_open_items)، FR-PLT-014 | tools/dbgen/erd_open_items.py:151-156 |
 | §4.2 R-11 | O-22 (erd_open_items) | tools/dbgen/erd_open_items.py:139-143 |
 | §4.6 | FR-PLT-014، FR-PLT-016، BR-PLT-005 | db/static/030_session_context.sql:241-296 |
-| §5 | FR-PLT-042، FR-PLT-044، C-8 وDB-18 (20-database-design) | docs/20-database-design.md:97، :516 |
-| §6.1 | FR-PLT-005، FR-PLT-006، O-12 (20-database-design) | docs/20-database-design.md:117، :538 |
+| §5 | FR-PLT-042، FR-PLT-044، C-8 وDB-18 (20-database-design) | docs/20-database-design.md:97، :518 |
+| §6.1 | FR-PLT-005، FR-PLT-006، O-12 (20-database-design) | docs/20-database-design.md:117، :540 |
 | §6.2 | FR-PLT-007، BR-PLT-017، BR-PLT-009 | docs/10-detailed-analysis/10-m0-m1-platform-organization.md:109، :243، :235 |
 | §7 | BR-PLT-002، O-18 (erd_open_items) | docs/10-detailed-analysis/10-m0-m1-platform-organization.md:228، tools/dbgen/erd_open_items.py:115-120 |
-| §7.2 | الاختبارات T17 وT26 وT27 وT31 | db/tests/tenant_isolation_tests.sql:420، :568، :583، :618 |
+| §7.2 | الاختبارات T17 وT26 وT27 وT31 | db/tests/tenant_isolation_tests.sql:438، :589، :604، :639 |
 | خروج S0 | اختبار عزل بين مشتركين | docs/10-detailed-analysis/00-overview-and-cross-cutting.md:194 |

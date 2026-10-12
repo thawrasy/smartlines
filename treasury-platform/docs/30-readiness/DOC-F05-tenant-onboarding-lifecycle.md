@@ -22,7 +22,7 @@
 
 ## 2. الوضع اليوم في المستودع 🟢
 
-- لا إجراء تهيئة ولا بذور. في `db/` أربعة إجراءات للدخول والربط وستة قوادح فقط (db/static/030_session_context.sql:23-296، db/static/050_fac_share_rule.sql:26، :62). وثيقة القاعدة تصف التهيئة «خطة لم تُنفَّذ بعد» (docs/20-database-design.md:468-475)، والبذور غير مكتوبة (O-3 في docs/20-database-design.md:529).
+- لا إجراء تهيئة ولا بذور. في `db/` أربعة إجراءات للدخول والربط وستة قوادح فقط (db/static/030_session_context.sql:23-296، db/static/050_fac_share_rule.sql:26، :62). وثيقة القاعدة تصف التهيئة «خطة لم تُنفَّذ بعد» (docs/20-database-design.md:470-476)، والبذور غير مكتوبة (O-3 في docs/20-database-design.md:531).
 - جدول المشترك: الحالة الافتراضية TRIAL، والرمز فريد، والقيود تفرض `TrialEndsOn` في TRIAL، والسبب في SUSPENDED، و`ClosedAt` في CLOSED وما بعدها، و`ArchivedAt` في الأرشفة (db/generated/tsql/001_tables.sql:41-72).
 - قاعدة البيانات بترتيب غير حساس لحالة الأحرف (db/deploy.sql:18)، فالرمز `Acme` يساوي `acme` في القيد الفريد.
 - العناوين المحجوزة في `plat.Tenant` تُفحص «في التطبيق» (docs/21-data-dictionary.md:110). وتجميد الرمز بعد التفعيل «في التطبيق أو بمحفّز» (docs/21-data-dictionary.md:90)، ولا محفّز له.
@@ -50,7 +50,7 @@
 
 ### 4.1 المراحل
 
-يتعارض نصّان: وثيقة القاعدة تريد «إجراء منصة واحدًا داخل معاملة واحدة» (docs/20-database-design.md:473)، وFR-PLT-008 يريد بذرًا عبر عقد `ITenantSeeder` تسجّل به كل وحدة حزمتها، قابلًا للتكرار (docs/10-detailed-analysis/10-m0-m1-platform-organization.md:110). الحزم كود في التطبيق، و`tp_platform` لا يكتب جداول المشترك. لذلك يُقترح تقسيم التهيئة إلى مراحل، لكل مرحلة معاملتها، مع استئناف آمن (DQ-F05-1):
+يتعارض نصّان: وثيقة القاعدة تريد «إجراء منصة واحدًا داخل معاملة واحدة» (docs/20-database-design.md:475)، وFR-PLT-008 يريد بذرًا عبر عقد `ITenantSeeder` تسجّل به كل وحدة حزمتها، قابلًا للتكرار (docs/10-detailed-analysis/10-m0-m1-platform-organization.md:110). الحزم كود في التطبيق، و`tp_platform` لا يكتب جداول المشترك. لذلك يُقترح تقسيم التهيئة إلى مراحل، لكل مرحلة معاملتها، مع استئناف آمن (DQ-F05-1):
 
 | المرحلة | ما يجري | داخل معاملة القاعدة؟ | من يكتب |
 |---|---|---|---|
@@ -276,21 +276,21 @@ stateDiagram-v2
 
 ## 9. تعارضات وفجوات في المصادر
 
-1. docs/20-database-design.md:473 تريد التهيئة «داخل معاملة واحدة» بإجراء ينفّذه `tp_platform`، وFR-PLT-008 يجعل البذر حزمًا في التطبيق عبر `ITenantSeeder` (docs/10-detailed-analysis/10-m0-m1-platform-organization.md:110)، و`tp_platform` لا منح له على جداول المشترك (docs/20-database-design.md:117).
-2. docs/20-database-design.md:472 تقول إن `cfg.SeedRun` يسجل البذر العالمي، والجدول يشترط `TenantId` (db/generated/tsql/001_tables.sql:934).
+1. docs/20-database-design.md:475 تريد التهيئة «داخل معاملة واحدة» بإجراء ينفّذه `tp_platform`، وFR-PLT-008 يجعل البذر حزمًا في التطبيق عبر `ITenantSeeder` (docs/10-detailed-analysis/10-m0-m1-platform-organization.md:110)، و`tp_platform` لا منح له على جداول المشترك (docs/20-database-design.md:117).
+2. docs/20-database-design.md:474 تقول إن `cfg.SeedRun` يسجل البذر العالمي، والجدول يشترط `TenantId` (db/generated/tsql/001_tables.sql:934).
 3. المخطط في docs/10-detailed-analysis/10-m0-m1-platform-organization.md:409-411 يدعو المدير قبل البذر، ودور TA الذي يُسند إليه يأتي من البذر.
 4. docs/21-data-dictionary.md:90 تقول إن تجميد الرمز يُفرض «في التطبيق أو بمحفّز»، ولا محفّز في db/static.
 5. BR-PLT-002 يتطلب تصديرًا مدة 30 يومًا بعد الإغلاق (السطر 228)، والتصدير FR-PLT-039 في S5 بأولوية Should (السطر 141)، والكود يرفض دخول المشترك المغلق (db/static/030_session_context.sql:67-69).
 6. BR-PLT-002 يفترض أن المشترك المؤرشف بلا مدير حساب فعّال (السطر 228)، ولا انتقال يعطّل المستخدمين عند الإغلاق أو الأرشفة، والكود يقبل دخولهم في ARCHIVED_READ_ONLY (db/static/030_session_context.sql:67-69).
 7. مخطط حالات المشترك (docs/10-detailed-analysis/10-m0-m1-platform-organization.md:455-465) لا يحوي TRIAL إلى CLOSED ولا تمديد التجربة بعد انتهائها، وكلاهما لازم لحالات واقعية.
-8. تصادم الترقيم: O-12 في docs/20-database-design.md:538 هو «إجراءات المنصة على بيانات المشترك»، وO-12 في tools/dbgen/erd_open_items.py:80-84 هو الترقيم بلا فجوات.
+8. تصادم الترقيم: O-12 في docs/20-database-design.md:540 هو «إجراءات المنصة على بيانات المشترك»، وO-12 في tools/dbgen/erd_open_items.py:80-84 هو الترقيم بلا فجوات.
 
 ## 10. التتبع
 
 | البند في هذه الوثيقة | المتطلب أو القاعدة أو القرار | المصدر |
 |---|---|---|
 | §4.2 | FR-PLT-001، FR-PLT-046 | docs/10-detailed-analysis/10-m0-m1-platform-organization.md:103، :148 |
-| §4.1 و§4.3 | FR-PLT-008، O-12 (20-database-design)، O-3 (20-database-design) | docs/10-detailed-analysis/10-m0-m1-platform-organization.md:110؛ docs/20-database-design.md:468-475، :529، :538 |
+| §4.1 و§4.3 | FR-PLT-008، O-12 (20-database-design)، O-3 (20-database-design) | docs/10-detailed-analysis/10-m0-m1-platform-organization.md:110؛ docs/20-database-design.md:470-476، :531، :540 |
 | §4.3 | FR-PLT-013، BR-PLT-015 | docs/10-detailed-analysis/10-m0-m1-platform-organization.md:115، :241 |
 | §4.4 | FR-PLT-046 | docs/10-detailed-analysis/10-m0-m1-platform-organization.md:148 |
 | §4.5 | FR-PLT-003، BR-PLT-003 | docs/10-detailed-analysis/10-m0-m1-platform-organization.md:105، :229 |

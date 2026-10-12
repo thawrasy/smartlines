@@ -311,7 +311,7 @@ CREATE TABLE [sec].[UserCompanyScope] (
     CONSTRAINT [PK_UserCompanyScope] PRIMARY KEY CLUSTERED ([TenantId], [UserId], [CompanyId])
 );
 GO
--- Login attempts for rate limiting and lockout windows; the permanent trace is in aud.AuditLog (BR-PLT-005)
+-- Login attempts for rate limiting and lockout windows (BR-PLT-005); written by sec.usp_StartSession. A permanent trace in aud.AuditLog is not written yet (O-24)
 CREATE TABLE [sec].[LoginAttempt] (
     [TenantId] INT NOT NULL,
     [LoginAttemptId] BIGINT IDENTITY(1,1) NOT NULL,
