@@ -232,11 +232,11 @@ GRANT EXECUTE ON sec.usp_ConfirmMfa TO [tp_app];
 GRANT EXECUTE ON sec.usp_SetSessionContext TO [tp_app];
 GO
 -- The application role cannot read stored password hashes (no replay), cannot create sessions, and cannot change the
--- tenant, user, token or MFA mark of a session; only the procedures above do that (O-17). These DENYs must run after
+-- tenant, user, token, MFA mark or 12-hour absolute expiry of a session; only the procedures above do that (O-17). These DENYs must run after
 -- the generated table grants (007), which GRANT SELECT, INSERT and UPDATE on these tables and would remove them.
 DENY SELECT ON [sec].[AppUser]([PasswordHash]) TO [tp_app];
 DENY INSERT ON [sec].[UserSession] TO [tp_app];
-DENY UPDATE ON [sec].[UserSession]([TenantId], [UserId], [TokenHash], [MfaVerifiedAt]) TO [tp_app];
+DENY UPDATE ON [sec].[UserSession]([TenantId], [UserId], [TokenHash], [MfaVerifiedAt], [AbsoluteExpiresAt]) TO [tp_app];
 GO
 /* Revocation: a binding ends when its user is no longer ACTIVE or is deleted, when its tenant is no longer TRIAL
    or ACTIVE, or when a session of its user is ended or deleted (FR-PLT-014: an administrator's termination takes

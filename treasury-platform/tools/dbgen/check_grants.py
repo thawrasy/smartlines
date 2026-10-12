@@ -78,7 +78,10 @@ def main():
         if action == 'GRANT' and obj.startswith('SCHEMA::') and obj != 'SCHEMA::rls' and any(p in ('tp_app', 'tp_platform') for p in principals):
             errs.append(f'R5: منح على مستوى المخطط {obj} لـ {principals}')
     for action, verbs, obj, principals in static_grants:
-        if action == 'GRANT' and 'tp_auth' in principals and obj not in ('sec.AppUser', 'plat.Tenant'):
+        # tp_auth runs the login and binding procedures only (030): the user and tenant checks, the binding (O-16),
+        # sessions and login attempts (O-17). Any other table is a widening of its rights.
+        if action == 'GRANT' and 'tp_auth' in principals and obj not in (
+                'sec.AppUser', 'plat.Tenant', 'sec.SessionBinding', 'sec.UserSession', 'sec.LoginAttempt'):
             errs.append(f'R6: tp_auth يملك منحًا على {obj}')
         if action == 'GRANT' and obj.startswith('SCHEMA::') and 'tp_auth' in principals:
             errs.append(f'R6: tp_auth منح مخطط {obj}')

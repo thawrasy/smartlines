@@ -20,7 +20,7 @@ ITEMS = [
         'id': 'O-02', 'sources': f'{REVIEW_A}; {REVIEW_B}',
         'finding': 'The schema has never run on SQL Server 2025.',
         'status': 'Executed on SQL Server 2025 (RTM-CU9): db/deploy.sql runs to completion and the deployed counts match the DDL (194 tables, 20 schemas, 763 foreign keys, 515 unique constraints, 1,158 CHECK constraints, 700 indexes). A CI gate runs the same steps on every change to db/, tools/dbgen/ or tools/ci/ (tools/ci/db_ci.sh, .github/workflows/db-ci.yml). The gate has passed locally; its first run on GitHub is pending. Not yet run on the production server.',
-        'next': 'Check the first GitHub run in the Actions tab, then run tools\\deploy\\deploy.ps1 on the target Windows server. The Windows path has not been run yet; the Linux path is tested by CI through tools/deploy/deploy.sh.',
+        'next': 'Check the first GitHub run in the Actions tab, then run tools/deploy/deploy.sh on the production Ubuntu 24.04 VPS (ADR 0001). The same script is tested by CI; tools/deploy/deploy.ps1 is kept for a Windows host and has not been run.',
     },
     {
         'id': 'O-03', 'sources': f'{REVIEW_A}; {REVIEW_B}',
@@ -61,7 +61,7 @@ ITEMS = [
     {
         'id': 'O-09', 'sources': REVIEW_A,
         'finding': 'Tenant isolation is designed (TenantId, row-level security, composite keys) but not tested across endpoints.',
-        'status': 'Database tests: db/tests/tenant_isolation_tests.sql runs 24 cases as the application role and the reporting role (cross-tenant reads, inserts, updates and deletes, global rows, the audit log, the context procedure, column grants, policy coverage). CI step 7 in tools/ci/db_ci.sh runs them. With every policy switched off, the row-filter cases fail. One weakness is recorded as O-16.',
+        'status': 'Database tests: db/tests/tenant_isolation_tests.sql runs 40 cases (T1-T37) as the application role and the reporting role (cross-tenant reads, inserts, updates and deletes, global rows, the audit log, the binding procedure, login, lockout, MFA, session revocation, column grants, policy coverage). CI step 7 in tools/ci/db_ci.sh runs them. With every policy switched off, the row-filter cases fail. One weakness is recorded as O-16.',
         'next': 'Add cross-tenant (IDOR) and no-context tests at the API level for every endpoint once the API exists. Resolve O-16 first.',
     },
     {
@@ -150,8 +150,8 @@ ITEMS = [
     },
     {
         'id': 'O-24', 'sources': 'Design of O-17 (docs/adr/0002-login-and-session-bound-context.md)',
-        'finding': 'Residual risks within one tenant after O-17: a bound application connection can still update PasswordHash of a user of its own tenant (password change and reset flows), the TOTP check is trusted to the application (sec.usp_ConfirmMfa records its result), and the application extends the idle expiry of a session. None of these crosses a tenant boundary.',
+        'finding': 'Residual risks within one tenant after O-17. A bound application connection can still: update PasswordHash and the lockout counters (FailedAttempts, LockedUntil, Status) of a user of its own tenant; read sec.UserPasswordHistory.PasswordHash (offline cracking of earlier passwords); delete sec.LoginAttempt rows (the only login trace, since sec.usp_StartSession writes no aud.AuditLog row); and extend the idle expiry of a session. The TOTP check is trusted to the application (sec.usp_ConfirmMfa records its result and has no failure limit), and a user with MfaEnabled = 0 binds without MFA although FR-PLT-011 and BR-PLT-006 make MFA mandatory. The 12-hour absolute expiry is protected (DENY in 030, test T35). None of these crosses a tenant boundary. Threat model: docs/30-readiness/DOC-S01-threat-model.md.',
         'status': 'Open, medium. Cross-tenant access needs the target user\'s password; same-tenant impersonation by a compromised application connection is still possible through the password update.',
-        'next': 'Decide whether password change and administrator reset go through procedures (old-password proof or reset token, BR-PLT-004 history check) and whether tp_app loses UPDATE on PasswordHash. Decide the same for the idle extension.',
+        'next': 'Before login code is written in S0: move password change, administrator reset and the BR-PLT-004 history check into procedures and DENY tp_app UPDATE on PasswordHash and the lockout columns and SELECT on the history hash; DENY tp_app DELETE on sec.LoginAttempt (retention by a job) and write login outcomes to aud.AuditLog; require an MFA enrolment-only session state for MfaEnabled = 0 users; add a failure limit to sec.usp_ConfirmMfa. Decide whether the idle extension stays with the application.',
     },
 ]

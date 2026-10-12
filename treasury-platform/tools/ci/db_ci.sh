@@ -44,8 +44,9 @@ if ! diff -r "$TMP/generated" db/generated; then
 fi
 echo "generated DDL matches the model"
 
-echo "== 3. every foreign key is indexed or flagged noidx"
+echo "== 3. every foreign key is indexed or flagged noidx; static grant rules R1-R10"
 python3 tools/dbgen/check_fk_indexes.py
+python3 tools/dbgen/check_grants.py
 
 echo "== 4. deploy db/deploy.sql to a fresh BankFas database"
 sq -Q "IF DB_ID(N'BankFas') IS NOT NULL BEGIN ALTER DATABASE [BankFas] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [BankFas]; END" >/dev/null

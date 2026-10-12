@@ -503,10 +503,11 @@ IF @err = 50005 AND @n = 1 AND @n2 = 1 AND @rows = 1 AND @i = 0 PRINT 'PASS T34:
 ELSE PRINT 'FAIL T34: the lockout rule was not applied';
 ROLLBACK TRANSACTION sp_t34;
 
-/* T35: the application role cannot read stored password hashes (230), create sessions (229), or change a session
-   token (230). */
+/* T35: the application role cannot read stored password hashes (230), create sessions (229), change a session
+   token (230) or extend a session past its 12-hour absolute expiry (230). */
+DECLARE @err4 INT;
 SAVE TRANSACTION sp_t35;
-SET @err = NULL; SET @err2 = NULL; SET @err3 = NULL;
+SET @err = NULL; SET @err2 = NULL; SET @err3 = NULL; SET @err4 = NULL;
 EXECUTE AS USER = N'tp_test_app';
 BEGIN TRY SELECT TOP (1) PasswordHash FROM sec.AppUser; END TRY
 BEGIN CATCH SET @err = ERROR_NUMBER(); END CATCH;
@@ -517,9 +518,11 @@ END TRY
 BEGIN CATCH SET @err2 = ERROR_NUMBER(); END CATCH;
 BEGIN TRY UPDATE sec.UserSession SET TokenHash = 0x01 WHERE UserId = @u1; END TRY
 BEGIN CATCH SET @err3 = ERROR_NUMBER(); END CATCH;
+BEGIN TRY UPDATE sec.UserSession SET AbsoluteExpiresAt = DATEADD(DAY, 30, SYSUTCDATETIME()) WHERE UserId = @u1; END TRY
+BEGIN CATCH SET @err4 = ERROR_NUMBER(); END CATCH;
 REVERT;
-IF @err = 230 AND @err2 = 229 AND @err3 = 230 PRINT 'PASS T35: the application role cannot read password hashes, create sessions or change a session token';
-ELSE PRINT 'FAIL T35: the application role read a hash, created a session or changed a token';
+IF @err = 230 AND @err2 = 229 AND @err3 = 230 AND @err4 = 230 PRINT 'PASS T35: the application role cannot read password hashes, create sessions, change a session token or extend its absolute expiry';
+ELSE PRINT 'FAIL T35: the application role read a hash, created a session, changed a token or extended a session';
 ROLLBACK TRANSACTION sp_t35;
 
 /* T36: a user with MFA cannot bind a session until the MFA check is recorded, and a failed check is logged (BR-PLT-006). */
