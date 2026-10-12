@@ -5,6 +5,7 @@ SET ANSI_NULLS ON; SET QUOTED_IDENTIFIER ON; SET ANSI_PADDING ON; SET ANSI_WARNI
 GO
 /* (1) الجداول المسموح للتطبيق بالحذف الفعلي منها (علامة deletable في النموذج)؛ بقية الجداول بلا صلاحية حذف أصلًا.
    (2) جداول الإضافة فقط (append) خارج aud: DENY UPDATE على التطبيق والمنصة فيصير «للإضافة فقط» مفروضًا بالصلاحيات لا بالعُرف. */
+GRANT DELETE ON [plat].[OperatorSession] TO [tp_app];
 GRANT DELETE ON [sec].[RolePermission] TO [tp_app];
 GRANT DELETE ON [sec].[UserRole] TO [tp_app];
 GRANT DELETE ON [sec].[UserCompanyScope] TO [tp_app];

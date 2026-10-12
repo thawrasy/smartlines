@@ -52,6 +52,7 @@ CREATE TABLE [plat].[Tenant] (
     [CalendarDisplay] VARCHAR(10) NOT NULL CONSTRAINT [DF_Tenant_CalendarDisplay] DEFAULT 'GREGORIAN',
     [DataRegion] VARCHAR(30) NULL,
     [SuspendedReason] NVARCHAR(MAX) NULL,
+    [SuspendedAt] DATETIME2(3) NULL,
     [ActivatedAt] DATETIME2(3) NULL,
     [ClosedAt] DATETIME2(3) NULL,
     [ArchivedAt] DATETIME2(3) NULL,
@@ -66,9 +67,10 @@ CREATE TABLE [plat].[Tenant] (
     CONSTRAINT [CK_Tenant_1] CHECK (Code NOT LIKE '%[^A-Za-z0-9-]%' AND Code NOT LIKE '-%' AND Code NOT LIKE '%-'),
     CONSTRAINT [CK_Tenant_2] CHECK (Status <> 'TRIAL' OR TrialEndsOn IS NOT NULL),
     CONSTRAINT [CK_Tenant_3] CHECK (Status <> 'SUSPENDED' OR SuspendedReason IS NOT NULL),
-    CONSTRAINT [CK_Tenant_4] CHECK (Status NOT IN ('CLOSED','ARCHIVED_READ_ONLY') OR ClosedAt IS NOT NULL),
-    CONSTRAINT [CK_Tenant_5] CHECK (Status <> 'ARCHIVED_READ_ONLY' OR ArchivedAt IS NOT NULL),
-    CONSTRAINT [CK_Tenant_6] CHECK (ArchivedAt IS NULL OR (ClosedAt IS NOT NULL AND ArchivedAt >= ClosedAt)),
+    CONSTRAINT [CK_Tenant_4] CHECK (Status <> 'SUSPENDED' OR SuspendedAt IS NOT NULL),
+    CONSTRAINT [CK_Tenant_5] CHECK (Status NOT IN ('CLOSED','ARCHIVED_READ_ONLY') OR ClosedAt IS NOT NULL),
+    CONSTRAINT [CK_Tenant_6] CHECK (Status <> 'ARCHIVED_READ_ONLY' OR ArchivedAt IS NOT NULL),
+    CONSTRAINT [CK_Tenant_7] CHECK (ArchivedAt IS NULL OR (ClosedAt IS NOT NULL AND ArchivedAt >= ClosedAt)),
     CONSTRAINT [CK_Tenant_Status] CHECK ([Status] IS NULL OR [Status] IN ('TRIAL', 'ACTIVE', 'SUSPENDED', 'CLOSED', 'ARCHIVED_READ_ONLY')),
     CONSTRAINT [CK_Tenant_DefaultLanguage] CHECK ([DefaultLanguage] IS NULL OR [DefaultLanguage] IN ('ar', 'en')),
     CONSTRAINT [CK_Tenant_CalendarDisplay] CHECK ([CalendarDisplay] IS NULL OR [CalendarDisplay] IN ('GREGORIAN', 'HIJRI', 'BOTH'))
@@ -103,6 +105,7 @@ CREATE TABLE [plat].[PlatformOperator] (
     [MfaEnrolledAt] DATETIME2(3) NULL,
     [MfaLastUsedStep] BIGINT NULL,
     [FailedAttempts] INT NOT NULL CONSTRAINT [DF_PlatformOperator_FailedAttempts] DEFAULT 0,
+    [FirstFailedAt] DATETIME2(3) NULL,
     [LockedUntil] DATETIME2(3) NULL,
     [LastLoginAt] DATETIME2(3) NULL,
     [PublicId] UNIQUEIDENTIFIER NOT NULL CONSTRAINT [DF_PlatformOperator_PublicId] DEFAULT NEWSEQUENTIALID(),
@@ -161,6 +164,49 @@ CREATE TABLE [plat].[SupportAccessGrant] (
     CONSTRAINT [PK_SupportAccessGrant] PRIMARY KEY CLUSTERED ([SupportAccessGrantId]),
     CONSTRAINT [UQ_SupportAccessGrant_Tenant] UNIQUE ([TenantId], [SupportAccessGrantId]),
     CONSTRAINT [CK_SupportAccessGrant_1] CHECK (EndsAt > StartsAt)
+);
+GO
+-- One-time operator set-up links: password and MFA (FR-PLT-006)
+CREATE TABLE [plat].[OperatorToken] (
+    [OperatorTokenId] BIGINT IDENTITY(1,1) NOT NULL,
+    [OperatorId] INT NOT NULL,
+    [Purpose] VARCHAR(10) NOT NULL,
+    [TokenHash] VARBINARY(32) NOT NULL,
+    [ExpiresAt] DATETIME2(3) NOT NULL,
+    [UsedAt] DATETIME2(3) NULL,
+    [RevokedAt] DATETIME2(3) NULL,
+    [SentTo] NVARCHAR(254) NULL,
+    [RequestedBy] INT NULL,
+    [CreatedAt] DATETIME2(3) NOT NULL CONSTRAINT [DF_OperatorToken_CreatedAt] DEFAULT SYSUTCDATETIME(),
+    [CreatedBy] BIGINT NULL,
+    [UpdatedAt] DATETIME2(3) NULL,
+    [UpdatedBy] BIGINT NULL,
+    CONSTRAINT [PK_OperatorToken] PRIMARY KEY CLUSTERED ([OperatorTokenId]),
+    CONSTRAINT [UQ_OperatorToken_TokenHash] UNIQUE ([TokenHash]),
+    CONSTRAINT [CK_OperatorToken_Purpose] CHECK ([Purpose] IS NULL OR [Purpose] IN ('INVITATION', 'RESET'))
+);
+GO
+-- Platform operator sessions: 15-minute idle and 8-hour absolute timeout (FR-PLT-006)
+CREATE TABLE [plat].[OperatorSession] (
+    [OperatorSessionId] BIGINT IDENTITY(1,1) NOT NULL,
+    [OperatorId] INT NOT NULL,
+    [TokenHash] VARBINARY(32) NOT NULL,
+    [LastSeenAt] DATETIME2(3) NOT NULL CONSTRAINT [DF_OperatorSession_LastSeenAt] DEFAULT SYSUTCDATETIME(),
+    [IdleExpiresAt] DATETIME2(3) NOT NULL,
+    [AbsoluteExpiresAt] DATETIME2(3) NOT NULL,
+    [MfaVerifiedAt] DATETIME2(3) NULL,
+    [IpAddress] VARCHAR(45) NULL,
+    [UserAgent] NVARCHAR(400) NULL,
+    [EndedAt] DATETIME2(3) NULL,
+    [EndReason] VARCHAR(19) NULL,
+    [CreatedAt] DATETIME2(3) NOT NULL CONSTRAINT [DF_OperatorSession_CreatedAt] DEFAULT SYSUTCDATETIME(),
+    [CreatedBy] BIGINT NULL,
+    [UpdatedAt] DATETIME2(3) NULL,
+    [UpdatedBy] BIGINT NULL,
+    CONSTRAINT [PK_OperatorSession] PRIMARY KEY CLUSTERED ([OperatorSessionId]),
+    CONSTRAINT [UQ_OperatorSession_TokenHash] UNIQUE ([TokenHash]),
+    CONSTRAINT [CK_OperatorSession_1] CHECK ((EndedAt IS NULL AND EndReason IS NULL) OR (EndedAt IS NOT NULL AND EndReason IS NOT NULL)),
+    CONSTRAINT [CK_OperatorSession_EndReason] CHECK ([EndReason] IS NULL OR [EndReason] IN ('LOGOUT', 'TERMINATED_BY_ADMIN', 'MFA_FAILED', 'OPERATOR_DISABLED', 'OPERATOR_RESET'))
 );
 GO
 
@@ -335,7 +381,11 @@ CREATE TABLE [sec].[SessionBinding] (
     [BoundUserId] BIGINT NOT NULL,
     [BindingToken] UNIQUEIDENTIFIER NOT NULL,
     [BoundAt] DATETIME2(3) NOT NULL CONSTRAINT [DF_SessionBinding_BoundAt] DEFAULT SYSUTCDATETIME(),
-    CONSTRAINT [PK_SessionBinding] PRIMARY KEY CLUSTERED ([SessionId])
+    [BindingKind] VARCHAR(10) NOT NULL CONSTRAINT [DF_SessionBinding_BindingKind] DEFAULT 'USER',
+    [BoundOperatorId] INT NULL,
+    CONSTRAINT [PK_SessionBinding] PRIMARY KEY CLUSTERED ([SessionId]),
+    CONSTRAINT [CK_SessionBinding_1] CHECK ((BindingKind = 'SUPPORT' AND BoundOperatorId IS NOT NULL) OR (BindingKind <> 'SUPPORT' AND BoundOperatorId IS NULL)),
+    CONSTRAINT [CK_SessionBinding_BindingKind] CHECK ([BindingKind] IS NULL OR [BindingKind] IN ('USER', 'JOB', 'SUPPORT'))
 );
 GO
 -- User sessions: 30-minute idle timeout and 12-hour absolute timeout (FR-PLT-014)

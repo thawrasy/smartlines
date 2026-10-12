@@ -12,6 +12,9 @@ CREATE NONCLUSTERED INDEX [IX_SupportAccessGrant_OperatorId_StartsAt] ON [plat].
 CREATE NONCLUSTERED INDEX [IX_SupportAccessGrant_EndsAt] ON [plat].[SupportAccessGrant] ([TenantId], [EndsAt]) WHERE RevokedAt IS NULL;
 CREATE NONCLUSTERED INDEX [IX_SupportAccessGrant_GrantedBy] ON [plat].[SupportAccessGrant] ([TenantId], [GrantedBy]);
 CREATE NONCLUSTERED INDEX [IX_SupportAccessGrant_RevokedBy] ON [plat].[SupportAccessGrant] ([TenantId], [RevokedBy]);
+CREATE NONCLUSTERED INDEX [IX_OperatorToken_OperatorId_Purpose] ON [plat].[OperatorToken] ([OperatorId], [Purpose]) WHERE UsedAt IS NULL AND RevokedAt IS NULL;
+CREATE NONCLUSTERED INDEX [IX_OperatorToken_RequestedBy] ON [plat].[OperatorToken] ([RequestedBy]);
+CREATE NONCLUSTERED INDEX [IX_OperatorSession_OperatorId_AbsoluteExpiresAt] ON [plat].[OperatorSession] ([OperatorId], [AbsoluteExpiresAt]) WHERE EndedAt IS NULL;
 CREATE NONCLUSTERED INDEX [IX_AppUser_Status] ON [sec].[AppUser] ([TenantId], [Status]);
 CREATE NONCLUSTERED INDEX [IX_AppUser_LockedUntil] ON [sec].[AppUser] ([TenantId], [LockedUntil]) WHERE Status = 'LOCKED';
 CREATE NONCLUSTERED INDEX [IX_AppUser_DepartmentId] ON [sec].[AppUser] ([TenantId], [DepartmentId]);

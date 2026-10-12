@@ -41,6 +41,7 @@ table plat.Tenant int global public noapp   # No direct access for the tenant ap
   CalendarDisplay  enum{GREGORIAN,HIJRI,BOTH} req =GREGORIAN   # FR-PLT-033
   DataRegion       ascii(30)        # إقامة البيانات (Q-PLT-03)
   SuspendedReason  text             # سبب التعليق (إلزامي عند SUSPENDED)
+  SuspendedAt      ts               # بداية التعليق: منحة دعم أُنشئت قبله تبقى للقراءة (DOC-F04 §7.4)
   ActivatedAt      ts               # أول تفعيل؛ بعده لا يتغير Code (يُفرض في التطبيق/محفّز)
   ClosedAt         ts               # بدء مهلة التصدير 30 يومًا (BR-PLT-002)
   ArchivedAt       ts               # = ClosedAt + 30 يومًا؛ القراءة فقط بلا كتابة ولا حذف
@@ -51,6 +52,7 @@ table plat.Tenant int global public noapp   # No direct access for the tenant ap
   check Code NOT LIKE '%[^A-Za-z0-9-]%' AND Code NOT LIKE '-%' AND Code NOT LIKE '%-'
   check Status <> 'TRIAL' OR TrialEndsOn IS NOT NULL
   check Status <> 'SUSPENDED' OR SuspendedReason IS NOT NULL
+  check Status <> 'SUSPENDED' OR SuspendedAt IS NOT NULL
   check Status NOT IN ('CLOSED','ARCHIVED_READ_ONLY') OR ClosedAt IS NOT NULL
   check Status <> 'ARCHIVED_READ_ONLY' OR ArchivedAt IS NOT NULL
   check ArchivedAt IS NULL OR (ClosedAt IS NOT NULL AND ArchivedAt >= ClosedAt)
@@ -74,6 +76,7 @@ table plat.PlatformOperator int global public noapp   # Platform operator accoun
   MfaEnrolledAt      ts
   MfaLastUsedStep    bigint            # آخر خطوة TOTP مقبولة (منع إعادة الاستعمال)
   FailedAttempts     int       req =0
+  FirstFailedAt      ts                # بداية نافذة الإخفاقات (15 دقيقة)؛ الخامس يقفل حتى يفك مدير مشغّلين آخر (DOC-S04 §12)
   LockedUntil        ts
   LastLoginAt        ts
   unique Email
@@ -99,13 +102,44 @@ table plat.SupportAccessGrant   # Temporary support access, activated by the ten
   OperatorId  ->plat.PlatformOperator req
   GrantedBy   ->sec.AppUser req
   StartsAt    ts       req
-  EndsAt      ts       req   # من ساعة إلى 72 ساعة (الافتراضي 4) — يُتحقق في التطبيق؛ ينتهي آليًا
+  EndsAt      ts       req   # من ساعة إلى 72 ساعة (الافتراضي 4) — يُتحقق في التطبيق، وsec.usp_SetSupportContext لا يربط بمنحة أطول؛ ينتهي آليًا
   Reason      str(500) req
   RevokedAt   ts
   RevokedBy   ->sec.AppUser
   index OperatorId,StartsAt
   index EndsAt where RevokedAt IS NULL
   check EndsAt > StartsAt
+
+# One-time links for operators (DOC-S04 section 12, DQ-F07-3): the invitation of a new operator, the first one at
+# deployment included, and the set-up again after an administrator's reset. Written only by the procedures in 036.
+table plat.OperatorToken global noapp noplat norv   # One-time operator set-up links: password and MFA (FR-PLT-006)
+  OperatorId   ->plat.PlatformOperator req
+  Purpose      enum{INVITATION,RESET} req
+  TokenHash    bin(32)  req sens=restricted   # SHA-256 للرابط؛ لا يُخزَّن الأصل
+  ExpiresAt    ts       req   # الدعوة 48 ساعة، والإعادة 24 ساعة
+  UsedAt       ts
+  RevokedAt    ts
+  SentTo       str(254)       # البريد الذي أُرسل إليه الرابط
+  RequestedBy  ->plat.PlatformOperator   # فارغ للمشغّل الأول عند النشر
+  unique TokenHash
+  index OperatorId,Purpose where UsedAt IS NULL AND RevokedAt IS NULL
+
+# Operator sessions (DOC-S04 section 12, DQ-S04-10): written only by the operator login procedures (036), like
+# sec.UserSession for tenant users. Neither application role reads or writes it.
+table plat.OperatorSession global noapp noplat norv deletable   # Platform operator sessions: 15-minute idle and 8-hour absolute timeout (FR-PLT-006)
+  OperatorId         ->plat.PlatformOperator req
+  TokenHash          bin(32)  req sens=restricted   # SHA-256 لمعرّف الجلسة؛ لا يُخزَّن الأصل
+  LastSeenAt         ts       req =SYSUTCDATETIME()
+  IdleExpiresAt      ts       req
+  AbsoluteExpiresAt  ts       req
+  MfaVerifiedAt      ts
+  IpAddress          ascii(45)
+  UserAgent          str(400)
+  EndedAt            ts
+  EndReason          enum{LOGOUT,TERMINATED_BY_ADMIN,MFA_FAILED,OPERATOR_DISABLED,OPERATOR_RESET}
+  unique TokenHash
+  index OperatorId,AbsoluteExpiresAt where EndedAt IS NULL
+  check (EndedAt IS NULL AND EndReason IS NULL) OR (EndedAt IS NOT NULL AND EndReason IS NOT NULL)
 
 # ============================== المخطط sec: المستخدمون والأدوار والجلسات والمفاتيح ==============================
 module PLT-SEC
@@ -215,6 +249,9 @@ table sec.SessionBinding global noapp noplat noaudit norv pk=SessionId   # Conne
   BoundUserId    bigint                req   # user named by the context procedure; no foreign key (sec.AppUser is tenant-owned)
   BindingToken   guid                  req   # random per binding; the row filters also require SESSION_CONTEXT(N'BindingToken') to match
   BoundAt        ts                    req =SYSUTCDATETIME()
+  BindingKind    enum{USER,JOB,SUPPORT} req =USER   # USER: sec.usp_SetSessionContext; JOB: sec.usp_SetJobContext; SUPPORT: sec.usp_SetSupportContext (DQ-F04-4, DQ-F04-6)
+  BoundOperatorId ->plat.PlatformOperator noidx   # the operator of a SUPPORT binding; revoked with the grant or the operator session
+  check (BindingKind = 'SUPPORT' AND BoundOperatorId IS NOT NULL) OR (BindingKind <> 'SUPPORT' AND BoundOperatorId IS NULL)
 
 table sec.UserSession norv deletable   # User sessions: 30-minute idle timeout and 12-hour absolute timeout (FR-PLT-014)
   UserId             ->sec.AppUser req

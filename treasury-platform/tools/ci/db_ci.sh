@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Database CI: checks the model, confirms the generated DDL is current, deploys it to SQL Server,
-# compares what was deployed with the DDL, and runs the trigger, tenant-isolation and account-security tests.
+# compares what was deployed with the DDL, and runs the trigger, tenant-isolation, account-security and
+# operator-and-support tests.
 #
 # Environment:
 #   SA_PASSWORD   password of the sa login (required)
@@ -121,4 +122,22 @@ if [ "$auth_pass" -ne 20 ]; then
     exit 1
 fi
 echo "account-security tests: $auth_pass passed"
+echo "== 9. operator and support tests (db/tests/operator_support_tests.sql)"
+sq -i db/tests/operator_support_tests.sql > "$TMP/operator.out" 2>&1 || {
+    cat "$TMP/operator.out"
+    echo "operator and support test run failed"
+    exit 1
+}
+cat "$TMP/operator.out"
+if grep -q '^FAIL' "$TMP/operator.out"; then
+    echo "an operator or support test failed"
+    exit 1
+fi
+op_pass=$(grep -c '^PASS' "$TMP/operator.out" || true)
+# 10 cases: P1-P10 (ADR 0004: operator bootstrap, login, MFA, lockout, reset, status, direct rights; the support binding).
+if [ "$op_pass" -ne 10 ]; then
+    echo "expected 10 PASS, found $op_pass"
+    exit 1
+fi
+echo "operator and support tests: $op_pass passed"
 echo "all database checks passed"

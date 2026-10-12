@@ -20,6 +20,8 @@ GRANT SELECT, INSERT, UPDATE ON [plat].[PlatformOperator] TO [tp_platform];
 GRANT SELECT, INSERT, UPDATE ON [plat].[TenantModule] TO [tp_platform];
 -- plat.SupportAccessGrant
 GRANT SELECT, INSERT, UPDATE ON [plat].[SupportAccessGrant] TO [tp_app];
+-- plat.OperatorToken  (noapp: بلا منح لتطبيق المشترك)
+-- plat.OperatorSession  (noapp: بلا منح لتطبيق المشترك)
 -- sec.AppUser
 GRANT SELECT, INSERT, UPDATE ON [sec].[AppUser] TO [tp_app];
 -- sec.Role

@@ -2,11 +2,11 @@
 
 > مُولَّد آليًا من نموذج البيانات بـ `tools/dbgen` — لا يُعدَّل يدويًا. الأعمدة المشتركة التي تضيفها اصطلاحات التوليد (TenantId، المعرّف، التدقيق) تظهر في كل جدول.
 
-**عدد الجداول: 195**
+**عدد الجداول: 197**
 
 | الوحدة | عدد الجداول |
 |---|---|
-| PLT-PLAT | 7 |
+| PLT-PLAT | 9 |
 | PLT-SEC | 15 |
 | PLT-AUD | 2 |
 | PLT-DOC | 3 |
@@ -87,6 +87,7 @@
 | CalendarDisplay | VARCHAR(10) | لا | GREGORIAN |  | FR-PLT-033 enum: GREGORIAN, HIJRI, BOTH |
 | DataRegion | VARCHAR(30) | نعم |  |  | إقامة البيانات (Q-PLT-03) |
 | SuspendedReason | NVARCHAR(MAX) | نعم |  |  | سبب التعليق (إلزامي عند SUSPENDED) |
+| SuspendedAt | DATETIME2(3) | نعم |  |  | بداية التعليق: منحة دعم أُنشئت قبله تبقى للقراءة (DOC-F04 §7.4) |
 | ActivatedAt | DATETIME2(3) | نعم |  |  | أول تفعيل؛ بعده لا يتغير Code (يُفرض في التطبيق/محفّز) |
 | ClosedAt | DATETIME2(3) | نعم |  |  | بدء مهلة التصدير 30 يومًا (BR-PLT-002) |
 | ArchivedAt | DATETIME2(3) | نعم |  |  | = ClosedAt + 30 يومًا؛ القراءة فقط بلا كتابة ولا حذف |
@@ -98,7 +99,7 @@
 
 **المفاتيح:** PK(TenantId) · UQ(PublicId) · UQ(Code)
 
-**قيود:** `Code NOT LIKE '%[^A-Za-z0-9-]%' AND Code NOT LIKE '-%' AND Code NOT LIKE '%-'` · `Status <> 'TRIAL' OR TrialEndsOn IS NOT NULL` · `Status <> 'SUSPENDED' OR SuspendedReason IS NOT NULL` · `Status NOT IN ('CLOSED','ARCHIVED_READ_ONLY') OR ClosedAt IS NOT NULL` · `Status <> 'ARCHIVED_READ_ONLY' OR ArchivedAt IS NOT NULL` · `ArchivedAt IS NULL OR (ClosedAt IS NOT NULL AND ArchivedAt >= ClosedAt)`
+**قيود:** `Code NOT LIKE '%[^A-Za-z0-9-]%' AND Code NOT LIKE '-%' AND Code NOT LIKE '%-'` · `Status <> 'TRIAL' OR TrialEndsOn IS NOT NULL` · `Status <> 'SUSPENDED' OR SuspendedReason IS NOT NULL` · `Status <> 'SUSPENDED' OR SuspendedAt IS NOT NULL` · `Status NOT IN ('CLOSED','ARCHIVED_READ_ONLY') OR ClosedAt IS NOT NULL` · `Status <> 'ARCHIVED_READ_ONLY' OR ArchivedAt IS NOT NULL` · `ArchivedAt IS NULL OR (ClosedAt IS NOT NULL AND ArchivedAt >= ClosedAt)`
 
 ### `plat.ReservedSubdomain` — Subdomains reserved for the system: www, admin, api, app and others (FR-PLT-046)
 
@@ -137,6 +138,7 @@
 | MfaEnrolledAt | DATETIME2(3) | نعم |  |  |  |
 | MfaLastUsedStep | BIGINT | نعم |  |  | آخر خطوة TOTP مقبولة (منع إعادة الاستعمال) |
 | FailedAttempts | INT | لا | 0 |  |  |
+| FirstFailedAt | DATETIME2(3) | نعم |  |  | بداية نافذة الإخفاقات (15 دقيقة)؛ الخامس يقفل حتى يفك مدير مشغّلين آخر (DOC-S04 §12) |
 | LockedUntil | DATETIME2(3) | نعم |  |  |  |
 | LastLoginAt | DATETIME2(3) | نعم |  |  |  |
 | PublicId | UNIQUEIDENTIFIER | لا | NEWSEQUENTIALID() |  |  |
@@ -181,7 +183,7 @@
 | OperatorId | INT | لا |  | plat.PlatformOperator |  |
 | GrantedBy | BIGINT | لا |  | sec.AppUser |  |
 | StartsAt | DATETIME2(3) | لا |  |  |  |
-| EndsAt | DATETIME2(3) | لا |  |  | من ساعة إلى 72 ساعة (الافتراضي 4) — يُتحقق في التطبيق؛ ينتهي آليًا |
+| EndsAt | DATETIME2(3) | لا |  |  | من ساعة إلى 72 ساعة (الافتراضي 4) — يُتحقق في التطبيق، وsec.usp_SetSupportContext لا يربط بمنحة أطول؛ ينتهي آليًا |
 | Reason | NVARCHAR(500) | لا |  |  |  |
 | RevokedAt | DATETIME2(3) | نعم |  |  |  |
 | RevokedBy | BIGINT | نعم |  | sec.AppUser |  |
@@ -193,6 +195,54 @@
 **المفاتيح:** PK(SupportAccessGrantId)
 
 **قيود:** `EndsAt > StartsAt`
+
+### `plat.OperatorToken` — One-time operator set-up links: password and MFA (FR-PLT-006)
+
+*عالمي*
+
+| العمود | النوع | NULL | الافتراضي | المرجع | ملاحظة |
+|---|---|---|---|---|---|
+| **OperatorTokenId** | BIGINT IDENTITY | لا | | | مفتاح أساسي |
+| OperatorId | INT | لا |  | plat.PlatformOperator |  |
+| Purpose | VARCHAR(10) | لا |  |  | enum: INVITATION, RESET |
+| TokenHash | VARBINARY(32) | لا |  |  | SHA-256 للرابط؛ لا يُخزَّن الأصل 🔒 restricted |
+| ExpiresAt | DATETIME2(3) | لا |  |  | الدعوة 48 ساعة، والإعادة 24 ساعة |
+| UsedAt | DATETIME2(3) | نعم |  |  |  |
+| RevokedAt | DATETIME2(3) | نعم |  |  |  |
+| SentTo | NVARCHAR(254) | نعم |  |  | البريد الذي أُرسل إليه الرابط |
+| RequestedBy | INT | نعم |  | plat.PlatformOperator | فارغ للمشغّل الأول عند النشر |
+| CreatedAt | DATETIME2(3) | لا | SYSUTCDATETIME() |  |  |
+| CreatedBy | BIGINT | نعم |  |  |  |
+| UpdatedAt | DATETIME2(3) | نعم |  |  |  |
+| UpdatedBy | BIGINT | نعم |  |  |  |
+
+**المفاتيح:** PK(OperatorTokenId) · UQ(TokenHash)
+
+### `plat.OperatorSession` — Platform operator sessions: 15-minute idle and 8-hour absolute timeout (FR-PLT-006)
+
+*عالمي*
+
+| العمود | النوع | NULL | الافتراضي | المرجع | ملاحظة |
+|---|---|---|---|---|---|
+| **OperatorSessionId** | BIGINT IDENTITY | لا | | | مفتاح أساسي |
+| OperatorId | INT | لا |  | plat.PlatformOperator |  |
+| TokenHash | VARBINARY(32) | لا |  |  | SHA-256 لمعرّف الجلسة؛ لا يُخزَّن الأصل 🔒 restricted |
+| LastSeenAt | DATETIME2(3) | لا | SYSUTCDATETIME() |  |  |
+| IdleExpiresAt | DATETIME2(3) | لا |  |  |  |
+| AbsoluteExpiresAt | DATETIME2(3) | لا |  |  |  |
+| MfaVerifiedAt | DATETIME2(3) | نعم |  |  |  |
+| IpAddress | VARCHAR(45) | نعم |  |  |  |
+| UserAgent | NVARCHAR(400) | نعم |  |  |  |
+| EndedAt | DATETIME2(3) | نعم |  |  |  |
+| EndReason | VARCHAR(19) | نعم |  |  | enum: LOGOUT, TERMINATED_BY_ADMIN, MFA_FAILED, OPERATOR_DISABLED, OPERATOR_RESET |
+| CreatedAt | DATETIME2(3) | لا | SYSUTCDATETIME() |  |  |
+| CreatedBy | BIGINT | نعم |  |  |  |
+| UpdatedAt | DATETIME2(3) | نعم |  |  |  |
+| UpdatedBy | BIGINT | نعم |  |  |  |
+
+**المفاتيح:** PK(OperatorSessionId) · UQ(TokenHash)
+
+**قيود:** `(EndedAt IS NULL AND EndReason IS NULL) OR (EndedAt IS NOT NULL AND EndReason IS NOT NULL)`
 
 ## PLT-SEC
 
@@ -373,8 +423,12 @@
 | BoundUserId | BIGINT | لا |  |  | user named by the context procedure; no foreign key (sec.AppUser is tenant-owned) |
 | BindingToken | UNIQUEIDENTIFIER | لا |  |  | random per binding; the row filters also require SESSION_CONTEXT(N'BindingToken') to match |
 | BoundAt | DATETIME2(3) | لا | SYSUTCDATETIME() |  |  |
+| BindingKind | VARCHAR(10) | لا | USER |  | USER: sec.usp_SetSessionContext; JOB: sec.usp_SetJobContext; SUPPORT: sec.usp_SetSupportContext (DQ-F04-4, DQ-F04-6) enum: USER, JOB, SUPPORT |
+| BoundOperatorId | INT | نعم |  | plat.PlatformOperator | the operator of a SUPPORT binding; revoked with the grant or the operator session |
 
 **المفاتيح:** PK(SessionId)
+
+**قيود:** `(BindingKind = 'SUPPORT' AND BoundOperatorId IS NOT NULL) OR (BindingKind <> 'SUPPORT' AND BoundOperatorId IS NULL)`
 
 ### `sec.UserSession` — User sessions: 30-minute idle timeout and 12-hour absolute timeout (FR-PLT-014)
 

@@ -6,6 +6,8 @@ GO
 /* حجب الأعمدة الحساسة (sens في النموذج) عن دور القراءة/التقارير tp_readonly؛ تقرؤها طبقة التطبيق عبر tp_app فقط */
 DENY SELECT ON [plat].[PlatformOperator]([PasswordHash]) TO [tp_readonly]; -- restricted
 DENY SELECT ON [plat].[PlatformOperator]([MfaSecretEnc]) TO [tp_readonly]; -- restricted
+DENY SELECT ON [plat].[OperatorToken]([TokenHash]) TO [tp_readonly]; -- restricted
+DENY SELECT ON [plat].[OperatorSession]([TokenHash]) TO [tp_readonly]; -- restricted
 DENY SELECT ON [sec].[AppUser]([PasswordHash]) TO [tp_readonly]; -- restricted
 DENY SELECT ON [sec].[AppUser]([MfaSecretEnc]) TO [tp_readonly]; -- restricted
 DENY SELECT ON [sec].[UserSession]([TokenHash]) TO [tp_readonly]; -- restricted

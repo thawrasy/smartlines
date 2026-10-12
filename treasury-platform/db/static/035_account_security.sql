@@ -103,6 +103,7 @@ BEGIN
           AND EXISTS (SELECT 1 FROM sec.fn_TenantLoginAllowed(@TenantId, u.AppUserId));
         IF @uid IS NULL OR @enabled = 1 THROW 50003, 'No session waiting for MFA enrolment for this tenant', 1;
 
+        -- Every check comes before the first write, so a refusal changes nothing even inside a caller's transaction.
         IF @enrolledAt IS NOT NULL
         BEGIN
             SELECT @tid = UserTokenId FROM sec.UserToken WITH (UPDLOCK, HOLDLOCK)
@@ -110,7 +111,6 @@ BEGIN
               AND TokenHash = HASHBYTES('SHA2_256', @ReenrolmentToken)
               AND UsedAt IS NULL AND RevokedAt IS NULL AND ExpiresAt > @now;
             IF @tid IS NULL THROW 50013, 'A valid MFA re-enrolment link is required', 1;
-            UPDATE sec.UserToken SET UsedAt = @now WHERE UserTokenId = @tid;
         END;
 
         INSERT @codes (CodeHash)
@@ -120,6 +120,7 @@ BEGIN
         IF (SELECT COUNT(*) FROM @codes) <> 10 OR (SELECT COUNT(*) FROM OPENJSON(@RecoveryCodeHashes)) <> 10
             THROW 50014, 'Ten distinct recovery code hashes (64 hex characters each) are required', 1;
 
+        IF @tid IS NOT NULL UPDATE sec.UserToken SET UsedAt = @now WHERE UserTokenId = @tid;
         DELETE FROM sec.MfaRecoveryCode WHERE TenantId = @TenantId AND UserId = @uid;
         INSERT sec.MfaRecoveryCode (TenantId, UserId, CodeHash) SELECT @TenantId, @uid, CodeHash FROM @codes;
         UPDATE sec.AppUser

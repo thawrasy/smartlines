@@ -4,7 +4,8 @@
 
    tp_app       حساب تشغيل تطبيق المشترك: منح جدولية فقط (007)؛ لا كتابة على الجداول العالمية؛ لا plat.PlatformOperator
    tp_platform  مشغّلو المنصة: كتابة على الكتالوجات العالمية والمختلطة وplat؛ لا وصول مباشر لبيانات المشتركين (007)
-   tp_auth      دور داخلي بلا تسجيل دخول: تُنفَّذ به إجراءات الدخول والربط والحساب وقوادح السحب فقط (030، 035، ADR 0002 و0003)
+   tp_auth      دور داخلي بلا تسجيل دخول: تُنفَّذ به إجراءات الدخول والربط والحساب وقوادح السحب فقط (028، 030، 035، 036، ADR 0002 و0003 و0004)
+   tp_support   اتصال الدعم المؤقت: عضو في tp_readonly، يُربط بمشترك بمنحة فعّالة فقط (036، DQ-F04-6)
    tp_readonly  تقارير/تحليل: قراءة فقط، دون الأعمدة الحساسة (006)
    tp_migrator  دور النشر والترحيلات (المخططات يملكها dbo اليوم؛ ملكيته قرار في DOC-S08)؛ لا منح تشغيلية له هنا
 
@@ -76,6 +77,11 @@ GRANT SELECT, INSERT, DELETE ON [sec].[UserPasswordHistory] TO [tp_auth];
 -- Tenant settings within the platform bounds (028, DQ-S03-6): session timeouts, lockout threshold, password history.
 GRANT SELECT ON [cfg].[SettingDefinition] TO [tp_auth];
 GRANT SELECT ON [cfg].[TenantSetting] TO [tp_auth];
+-- Operator login and accounts, and the support binding (036, DQ-S04-10, DQ-F04-6).
+GRANT SELECT, INSERT, UPDATE ON [plat].[PlatformOperator] TO [tp_auth];
+GRANT SELECT, INSERT, UPDATE ON [plat].[OperatorSession] TO [tp_auth];
+GRANT SELECT, INSERT, UPDATE ON [plat].[OperatorToken] TO [tp_auth];
+GRANT SELECT ON [plat].[SupportAccessGrant] TO [tp_auth];
 -- Ordering rule: a DENY on a permission that the generated grants (007) later GRANT is removed by that GRANT, and a
 -- table-level GRANT clears column-level DENYs. Such DENYs therefore live in 030, which runs after 007 (deploy.sql).
 -- مخطط rls يُنشأ في 010؛ منحه لـ tp_app هناك بعد إنشائه

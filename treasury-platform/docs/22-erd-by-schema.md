@@ -2,12 +2,15 @@
 
 > مُولَّد آليًا. تظهر العلاقات بين الجداول (مفتاح أجنبي ← جدول مرجعي) داخل المخطط، وتُختصَر العلاقات العابرة للمخططات في جدول.
 
-## مخطط `plat` (7 جدولًا)
+## مخطط `plat` (9 جدولًا)
 
 ```mermaid
 erDiagram
   Plan ||--o{ PlanModule : "PlanId"
   Plan ||--o{ Tenant : "PlanId"
+  PlatformOperator ||--o{ OperatorSession : "OperatorId"
+  PlatformOperator ||--o{ OperatorToken : "OperatorId"
+  PlatformOperator ||--o{ OperatorToken : "RequestedBy"
   PlatformOperator ||--o{ SupportAccessGrant : "OperatorId"
   PlatformOperator ||--o{ TenantModule : "EnabledBy"
   Tenant ||--o{ TenantModule : "TenantId"
@@ -45,6 +48,7 @@ erDiagram
 | الجدول | العمود | يشير إلى |
 |---|---|---|
 | AppUser | DepartmentId | org.Department |
+| SessionBinding | BoundOperatorId | plat.PlatformOperator |
 | SessionBinding | BoundTenantId | plat.Tenant |
 | UserCompanyScope | CompanyId | org.Company |
 

@@ -304,9 +304,11 @@ BEGIN
         USING (SELECT @@SPID AS SessionId) AS s
            ON b.SessionId = s.SessionId
         WHEN MATCHED THEN
-            UPDATE SET BoundTenantId = @TenantId, BoundUserId = @UserId, BindingToken = @token, BoundAt = SYSUTCDATETIME()
+            UPDATE SET BoundTenantId = @TenantId, BoundUserId = @UserId, BindingToken = @token, BoundAt = SYSUTCDATETIME(),
+                       BindingKind = 'USER', BoundOperatorId = NULL
         WHEN NOT MATCHED THEN
-            INSERT (SessionId, BoundTenantId, BoundUserId, BindingToken) VALUES (s.SessionId, @TenantId, @UserId, @token);
+            INSERT (SessionId, BoundTenantId, BoundUserId, BindingToken, BindingKind)
+            VALUES (s.SessionId, @TenantId, @UserId, @token, 'USER');
 
         -- The token and the tenant come last: the row filters need both.
         EXEC sp_set_session_context N'BindingToken', @token, @read_only = 1;

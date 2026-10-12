@@ -12,6 +12,9 @@ ALTER TABLE [plat].[SupportAccessGrant] ADD CONSTRAINT [FK_SupportAccessGrant_Te
 ALTER TABLE [plat].[SupportAccessGrant] ADD CONSTRAINT [FK_SupportAccessGrant_OperatorId] FOREIGN KEY ([OperatorId]) REFERENCES [plat].[PlatformOperator] ([PlatformOperatorId]);
 ALTER TABLE [plat].[SupportAccessGrant] ADD CONSTRAINT [FK_SupportAccessGrant_GrantedBy] FOREIGN KEY ([TenantId], [GrantedBy]) REFERENCES [sec].[AppUser] ([TenantId], [AppUserId]);
 ALTER TABLE [plat].[SupportAccessGrant] ADD CONSTRAINT [FK_SupportAccessGrant_RevokedBy] FOREIGN KEY ([TenantId], [RevokedBy]) REFERENCES [sec].[AppUser] ([TenantId], [AppUserId]);
+ALTER TABLE [plat].[OperatorToken] ADD CONSTRAINT [FK_OperatorToken_OperatorId] FOREIGN KEY ([OperatorId]) REFERENCES [plat].[PlatformOperator] ([PlatformOperatorId]);
+ALTER TABLE [plat].[OperatorToken] ADD CONSTRAINT [FK_OperatorToken_RequestedBy] FOREIGN KEY ([RequestedBy]) REFERENCES [plat].[PlatformOperator] ([PlatformOperatorId]);
+ALTER TABLE [plat].[OperatorSession] ADD CONSTRAINT [FK_OperatorSession_OperatorId] FOREIGN KEY ([OperatorId]) REFERENCES [plat].[PlatformOperator] ([PlatformOperatorId]);
 ALTER TABLE [sec].[AppUser] ADD CONSTRAINT [FK_AppUser_Tenant] FOREIGN KEY ([TenantId]) REFERENCES [plat].[Tenant] ([TenantId]);
 ALTER TABLE [sec].[AppUser] ADD CONSTRAINT [FK_AppUser_DepartmentId] FOREIGN KEY ([TenantId], [DepartmentId]) REFERENCES [org].[Department] ([TenantId], [DepartmentId]);
 ALTER TABLE [sec].[AppUser] ADD CONSTRAINT [FK_AppUser_LineManagerUserId] FOREIGN KEY ([TenantId], [LineManagerUserId]) REFERENCES [sec].[AppUser] ([TenantId], [AppUserId]);
@@ -31,6 +34,7 @@ ALTER TABLE [sec].[UserCompanyScope] ADD CONSTRAINT [FK_UserCompanyScope_Company
 ALTER TABLE [sec].[LoginAttempt] ADD CONSTRAINT [FK_LoginAttempt_Tenant] FOREIGN KEY ([TenantId]) REFERENCES [plat].[Tenant] ([TenantId]);
 ALTER TABLE [sec].[LoginAttempt] ADD CONSTRAINT [FK_LoginAttempt_UserId] FOREIGN KEY ([TenantId], [UserId]) REFERENCES [sec].[AppUser] ([TenantId], [AppUserId]);
 ALTER TABLE [sec].[SessionBinding] ADD CONSTRAINT [FK_SessionBinding_BoundTenantId] FOREIGN KEY ([BoundTenantId]) REFERENCES [plat].[Tenant] ([TenantId]);
+ALTER TABLE [sec].[SessionBinding] ADD CONSTRAINT [FK_SessionBinding_BoundOperatorId] FOREIGN KEY ([BoundOperatorId]) REFERENCES [plat].[PlatformOperator] ([PlatformOperatorId]);
 ALTER TABLE [sec].[UserSession] ADD CONSTRAINT [FK_UserSession_Tenant] FOREIGN KEY ([TenantId]) REFERENCES [plat].[Tenant] ([TenantId]);
 ALTER TABLE [sec].[UserSession] ADD CONSTRAINT [FK_UserSession_UserId] FOREIGN KEY ([TenantId], [UserId]) REFERENCES [sec].[AppUser] ([TenantId], [AppUserId]);
 ALTER TABLE [sec].[UserSession] ADD CONSTRAINT [FK_UserSession_EndedBy] FOREIGN KEY ([TenantId], [EndedBy]) REFERENCES [sec].[AppUser] ([TenantId], [AppUserId]);
