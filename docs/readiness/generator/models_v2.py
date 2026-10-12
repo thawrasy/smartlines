@@ -60,7 +60,7 @@ STATUS = {
     "3.10": ("B", "POST /api/carrier/trips/{uid}/publish"),
     "3.11": ("B", "vehicle and driver on POST /api/carrier/trips"),
     "3.12": ("B", "GET /api/carrier/trips/{uid}/manifest; test_manifests"),
-    "3.13": ("D", "ops.trip_change, trip_disruption; no cancellation workflow with refunds"),
+    "3.13": ("B", "POST /api/carrier/trips/{uid}/cancel: full refunds to whoever paid (1102); test_use_case_gaps"),
     "3.14": ("B", "GET /api/carrier/dashboard, /api/finance/balance, settlements; test_payouts"),
     "3.15": ("B", "POST /api/finance/withdrawals; test_payouts"),
     "3.16": ("DC", "bill.* (module carrier_billing)"),
@@ -75,9 +75,9 @@ STATUS = {
     "4.5": ("B", "POST /api/driver/scan, /scans/batch; test_e2e"),
     "4.6": ("B", "POST /api/driver/trips/{uid}/stops/{seq}"),
     "4.7": ("P", "cash sales at the carrier counter (/api/carrier/counter); not in the driver app"),
-    "4.8": ("D", "sec.sos_event; no SOS action in the apps"),
+    "4.8": ("B", "POST /api/driver/sos, /api/tickets/{uid}/sos (1101); test_use_case_gaps"),
     "4.9": ("D", "sec.authority_order"),
-    "4.10": ("D", "ops.incident_evidence; no incident action in the driver app"),
+    "4.10": ("B", "POST /api/driver/incidents (1101); test_use_case_gaps"),
     "4.11": ("DC", "ptn.fuel_card, fuel_session (module service_partners)"),
     "4.12": ("C", "GET /api/driver/trips/{uid}/tickets/{uid}/photo (photo off until its legal basis); test_boarding_photo"),
     "4.13": ("B", "POST /api/driver/device/attestation"),
@@ -101,8 +101,8 @@ STATUS = {
     "5.17": ("C", "/api/parcels/offers, /api/carrier/parcels/offers/{uid}/price; test_parcels"),
     # UC-6 partners and loyalty
     **{f"6.{i}": ("DC", "ptn.* (module service_partners)") for i in (1, 2, 3, 4, 5, 9, 10)},
-    "6.6": ("D", "pricing.points_account, points_ledger (module loyalty); no redemption flow"),
-    "6.7": ("D", "earn rate in pricing.loyalty_program; no earning job"),
+    "6.6": ("B", "POST /api/loyalty/redeem to wallet credit (1103); test_use_case_gaps"),
+    "6.7": ("B", "pricing.earn_points_for_trip at trip completion (1103); test_use_case_gaps"),
     "6.8": ("DC", "pricing.points_transfer (module loyalty_partners)"),
     # UC-7 administration, finance and support
     "7.1": ("B", "/api/admin/companies, /api/admin/agencies, /api/admin/documents"),
@@ -149,7 +149,7 @@ STATUS = {
     "9.9": ("B", "/api/integrations/clients; test_integration"),
     "9.10": ("B", "/api/v1/webhooks; test_integration"),
     # UC-10 accounting and e-invoicing
-    "10.1": ("D", "acct.einvoice_document; invoices are not issued automatically"),
+    "10.1": ("B", "e-invoices and credit notes issued by the worker, signed and chained (1104); test_use_case_gaps"),
     "10.2": ("N", "numbering, hash chain, signature and QR of the invoice"),
     "10.3": ("N", "submission to the tax authority"),
     "10.4": ("DC", "acct.credit_note (module accounting_ops)"),
@@ -285,7 +285,7 @@ STATUS.update({
     **{f"11.{i}": ("C", "1097 to 1099 (stations off at launch); test_boarding_stations") for i in range(1, 12) if i != 6 and i != 7},
     "11.6": ("B", "/api/carrier/references (phase 1A); test_boarding_stations"),
     "11.7": ("B", "POST /api/carrier/references/{uid}/retire; test_boarding_stations"),
-    "11.12": ("N", "build step 3 (counter check and boarding pass)"),
+    "11.12": ("C", "POST /api/station/checkin, boarding pass with the bay (1105, stations off at launch); test_station_checkin"),
     "11.13": ("C", "net.operator_may (1098); test_boarding_stations"),
     "11.14": ("N", "build step 4 (station screens)"),
     "12.1": ("C", "1086, 1094 (photo off until its legal basis); test_boarding_photo"),
@@ -302,7 +302,7 @@ STATUS.update({
 # ---------------------------------------------------------------- data flows
 # the context diagram gains the station operating companies and the identity verification providers
 CONTEXT_LEFT_ADD = [
-    ("stationops", "Station operating companies", "sign-in with a second factor, check-in records (planned)",
+    ("stationops", "Station operating companies", "sign-in with a second factor, check-ins and boarding passes",
      "rights given by carriers or the platform, counters"),
 ]
 CONTEXT_RIGHT_ADD = [
