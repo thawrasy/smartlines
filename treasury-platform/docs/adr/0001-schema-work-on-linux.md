@@ -1,33 +1,34 @@
-# ADR 0001: Schema work and CI run on Linux (RHEL, not Ubuntu)
+# ADR 0001: Production runs on Ubuntu 24.04 LTS; schema work and CI run on Linux
 
-Status: accepted for schema development and verification (2026-10-12). Ubuntu is excluded by the team's decision. The production host operating system is open (O-23).
+Status: accepted by the owner (2026-10-12). The production VPS runs Ubuntu 24.04 LTS. This replaces the earlier exclusion of Ubuntu. The database-host part of FR-PLT-045 and decision 01 section 13 (Windows Server) is superseded by this ADR and still needs its text updated (O-23).
 
 ## Context
 
 - The team works on Linux and can operate Linux servers. Some company developers use SUSE servers.
+- The production database host is an external VPS from a hosting provider (Q-PLT-03, decided 2026-10-10).
 - SQL Server 2025 on Linux is supported on RHEL and Ubuntu. Per the Microsoft release notes, SLES (SUSE) is listed only through SQL Server 2022 (checked by search summary; verify on learn.microsoft.com).
-- The official RHEL-based SQL Server 2025 image is `mcr.microsoft.com/mssql/rhel/server:2025-latest` (Red Hat Ecosystem Catalog; the base OS version of the tag is not confirmed).
-- The earlier stack decision (FR-PLT-045, decision 01 section 13) names Windows Server, ASP.NET Core and the latest GA SQL Server as the target.
-- The existing verified path is CI on a GitHub-hosted Ubuntu runner with the Ubuntu-based SQL Server container (`tools/ci/db_ci.sh`, `.github/workflows/db-ci.yml`). That path is excluded by this decision.
+- FR-PLT-045 and decision 01 section 13 name Windows Server, ASP.NET Core and the latest GA SQL Server as the stack. This ADR changes the database host only.
+- The verified path for this ADR is the CI on a GitHub-hosted Ubuntu 24.04 runner with the Ubuntu-based SQL Server 2025 container (`tools/ci/db_ci.sh`, `.github/workflows/db-ci.yml`). It passed in full.
+- As a further check, the full CI also passed on the RHEL-based image `mcr.microsoft.com/mssql/rhel/server:2025-latest` (Red Hat Enterprise Linux 10.2). That check is evidence, not the production target.
 
 ## Decision
 
-- Schema models, generated DDL, static scripts and database tests are developed and verified on RHEL.
-- The SQL Server container is the RHEL-based image. Verified: the full CI (model, DDL, deployment, object counts, six trigger tests, 34 isolation cases) passes on `mcr.microsoft.com/mssql/rhel/server:2025-latest`, which reports Red Hat Enterprise Linux 10.2. The job runner stays on GitHub's Ubuntu host until a RHEL self-hosted runner exists.
+- The production VPS runs Ubuntu 24.04 LTS with SQL Server 2025.
+- Schema models, generated DDL, static scripts and database tests are developed and verified on Linux.
+- CI runs on `ubuntu-24.04` with the Ubuntu-based SQL Server 2025 container, the same operating system as production.
 - Deployment uses `tools/deploy/deploy.sh`, which changes to `db/` before it runs `deploy.sql`.
-- The CI runner must be a RHEL host (self-hosted), because GitHub-hosted runners run Ubuntu, Windows or macOS. This choice is open until the team decides.
-- The Windows wrapper `tools/deploy/deploy.ps1` is kept, but it has not been run.
+- The Windows wrapper `tools/deploy/deploy.ps1` is kept, but it has not been run and is not part of the production path.
 
 ## Consequences
 
-- The production host must be RHEL for SQL Server 2025 on Linux, or Windows under FR-PLT-045. SUSE is not a supported host. Whether a SQL Server 2025 container may run on a SUSE host is not confirmed.
-- SQL Server 2022 on SUSE would keep SUSE, but it conflicts with the latest-GA rule in FR-PLT-045.
-- Until a RHEL runner exists, the GitHub workflow runs on Ubuntu and is not a RHEL verification.
-- The Windows deployment path remains unverified until it runs on a Windows target.
+- A self-hosted RHEL runner is no longer needed for CI.
+- SUSE is not used for the database. Whether a SQL Server 2025 container may run on a SUSE host is not confirmed, and it is not needed for this decision.
+- Before real data is loaded, the open decisions on key custody (the outer key that wraps `sec.TenantKey`, and the TDE certificate), data residency, and backups must be closed (see the open-items register).
+- The Ubuntu 24.04 support for SQL Server 2025 must be confirmed on the official Microsoft page, because the sources used so far are search summaries.
 
 ## Alternatives considered
 
-- SQL Server 2022 on SLES: conflicts with the latest-GA rule.
+- RHEL on the VPS: supported and tested in this session through the RHEL image. Not chosen by the owner.
+- SQL Server 2022 on SLES: conflicts with the latest-GA rule in FR-PLT-045.
 - Windows Server for the database: consistent with FR-PLT-045, not verified on Windows in this repository.
-- Ubuntu: excluded by the team's decision, although it is supported by SQL Server 2025.
 - PostgreSQL 16: rejected for now. The PostgreSQL output has no security layer.
