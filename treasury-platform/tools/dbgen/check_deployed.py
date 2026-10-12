@@ -54,7 +54,7 @@ def main():
     r = subprocess.run(cmd, capture_output=True, text=True)
     if r.returncode != 0:
         raise SystemExit(f'sqlcmd failed:\n{r.stdout}\n{r.stderr}')
-    line = next(l for l in r.stdout.splitlines() if l.strip())
+    line = next(l.strip() for l in r.stdout.splitlines() if re.fullmatch(r'\d+(\|\d+){%d}' % (len(KEYS) - 1), l.strip()))
     actual = dict(zip(KEYS, (int(x) for x in line.split('|'))))
     want = expected()
     bad = []

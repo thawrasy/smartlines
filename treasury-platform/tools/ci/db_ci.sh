@@ -52,7 +52,7 @@ sq -Q "IF DB_ID(N'BankFas') IS NOT NULL BEGIN ALTER DATABASE [BankFas] SET SINGL
 # deploy.sql uses Windows paths; the Linux copy only changes the backslashes in :r lines.
 sed 's#\\#/#g' db/deploy.sql > "$TMP/deploy.linux.sql"
 # Linux sqlcmd reads the UTF-8 files as they are; the paths in :r lines resolve from db/.
-(cd db && sq -i "$TMP/deploy.linux.sql" -v DbName=BankFas)
+(cd db && sq -i "$TMP/deploy.linux.sql")   # deploy.sql sets DbName = BankFas with :setvar
 echo "deployment finished"
 
 echo "== 5. deployed objects against the generated DDL"
