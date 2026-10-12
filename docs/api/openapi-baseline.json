@@ -1695,6 +1695,35 @@
     "200": {}
    }
   },
+  "GET /api/station/passes/{pass_no}": {
+   "body": null,
+   "parameters": {
+    "path:pass_no": {
+     "required": true,
+     "schema": {
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/station/trips": {
+   "body": null,
+   "parameters": {
+    "query:station_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
   "GET /api/stations": {
    "body": null,
    "parameters": {
@@ -9372,6 +9401,121 @@
   "POST /api/security/statements/reset": {
    "body": null,
    "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/station/board": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "station_uid": {
+        "format": "uuid",
+        "type": "string"
+       },
+       "token": {
+        "maxLength": 600,
+        "minLength": 10,
+        "type": "string"
+       },
+       "trip_uid": {
+        "format": "uuid",
+        "type": "string"
+       }
+      },
+      "required": [
+       "station_uid",
+       "trip_uid",
+       "token"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/station/checkin": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "booking_ref": {
+        "maxLength": 12,
+        "minLength": 4,
+        "nullable": true,
+        "type": "string"
+       },
+       "counter_code": {
+        "nullable": true,
+        "pattern": "^C[0-9]{3}$",
+        "type": "string"
+       },
+       "document_checked": {
+        "type": "boolean"
+       },
+       "station_uid": {
+        "format": "uuid",
+        "type": "string"
+       },
+       "ticket_no": {
+        "maxLength": 40,
+        "minLength": 3,
+        "nullable": true,
+        "type": "string"
+       },
+       "token": {
+        "maxLength": 600,
+        "minLength": 10,
+        "nullable": true,
+        "type": "string"
+       }
+      },
+      "required": [
+       "station_uid",
+       "document_checked"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "201": {}
+   }
+  },
+  "POST /api/station/passes/{pass_no}/cancel": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "reason": {
+        "maxLength": 300,
+        "minLength": 3,
+        "type": "string"
+       }
+      },
+      "required": [
+       "reason"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:pass_no": {
+     "required": true,
+     "schema": {
+      "type": "string"
+     }
+    }
+   },
    "responses": {
     "200": {}
    }

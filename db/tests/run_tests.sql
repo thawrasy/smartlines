@@ -2894,4 +2894,80 @@ SELECT pg_temp.ok((SELECT (value #>> '{}')::int FROM sys.setting WHERE key = 'ei
   'E-invoice issuing (1104): the worker looks back 30 days by default');
 ROLLBACK;
 
+-- Counter check and boarding pass (1105): only with the BOARDING_PASS right, at the company's own counter; one pass per
+-- ticket, with the bay; the check-in window and the required references are applied here; station staff board only
+-- checked-in tickets
+BEGIN;
+SELECT sys.set_context(:uadmin, NULL, 'SYSTEM');
+SELECT net.set_boarding_setting('boarding.stations.enabled', 'true'::jsonb);
+SELECT net.set_boarding_setting('boarding.mode.carrier_contracted', 'true'::jsonb);
+INSERT INTO net.station_boarding (station_id, enabled) VALUES (:st_dam, true) ON CONFLICT (station_id) DO UPDATE SET enabled = true;
+SELECT net.open_station_gate(:st_dam, 'COUNTER', :op) AS ctr \gset
+SELECT net.open_station_gate(:st_dam, 'BAY', NULL) AS bay \gset
+SELECT (now() + interval '3 hours') - sched_dep AS shift FROM ops.trip_stop WHERE trip_id = :t_tr AND seq = 0 \gset
+UPDATE ops.trip SET status = 'PUBLISHED', departure_at = departure_at + :'shift'::interval, arrival_at = arrival_at + :'shift'::interval WHERE id = :t_tr;
+UPDATE ops.trip_stop SET sched_arr = sched_arr + :'shift'::interval, sched_dep = sched_dep + :'shift'::interval WHERE trip_id = :t_tr;
+UPDATE ops.trip_stop SET gate_id = (SELECT id FROM net.station_gate WHERE station_id = :st_dam AND code = :'bay') WHERE trip_id = :t_tr AND seq = 0;
+UPDATE sales.ticket SET status = 'ISSUED', boarded_at = NULL WHERE ticket_no IN ('TK-REV-1', 'TK-REV-3');
+SELECT uid AS tk1uid FROM sales.ticket WHERE ticket_no = 'TK-REV-1' \gset
+SELECT uid AS tk3uid FROM sales.ticket WHERE ticket_no = 'TK-REV-3' \gset
+SELECT sys.set_context(:ufin, :op, 'COMPANY');
+SELECT pg_temp.expect_error(format($$SELECT brd.station_checkin_ticket(%L, %s, %L, true)$$, :'tk1uid', :st_dam, :'ctr'), 'NOT_GRANTED',
+  'Check-in (1105): an operating company without the boarding pass right issues no pass');
+SELECT sys.set_context(:ua, :ca, 'COMPANY');
+INSERT INTO net.station_operator_grant (carrier_company_id, operator_company_id, station_id, permission) VALUES (:ca, :op, :st_dam, 'BOARDING_PASS');
+SELECT sys.set_context(:ufin, :op, 'COMPANY');
+SELECT pg_temp.expect_error(format($$SELECT brd.station_checkin_ticket(%L, %s, 'C999', true)$$, :'tk1uid', :st_dam), 'COUNTER_NOT_YOURS',
+  'Check-in (1105): the operating company works at one of its own counters at the station');
+SELECT pg_temp.expect_error(format($$SELECT brd.station_checkin_ticket(%L, %s, %L, true)$$, :'tk3uid', :st_dam, :'ctr'), 'WRONG_STATION',
+  'Check-in (1105): a passenger who boards at another station is sent there');
+SELECT brd.station_checkin_ticket(:'tk1uid', :st_dam, :'ctr', true) AS pass1 \gset
+SELECT pg_temp.ok((:'pass1'::jsonb ->> 'pass_no') LIKE 'SY-DAM-C001-%' AND (:'pass1'::jsonb ->> 'bay') = :'bay'
+  AND (:'pass1'::jsonb ->> 'counter') = :'ctr' AND NOT (:'pass1'::jsonb ->> 'repeated')::boolean,
+  'Check-in (1105): the boarding pass is numbered by the station and prints the bay and the counter');
+SELECT pg_temp.ok((brd.station_checkin_ticket(:'tk1uid', :st_dam, :'ctr', true) ->> 'pass_no') = (:'pass1'::jsonb ->> 'pass_no'),
+  'Check-in (1105): a second check-in of the ticket gives the same boarding pass');
+SELECT pg_temp.ok((SELECT operator_company_id = :op AND carrier_company_id = :ca AND checked_by_user_id = :ufin AND document_checked
+                     FROM brd.station_checkin WHERE pass_no = :'pass1'::jsonb ->> 'pass_no'),
+  'Check-in (1105): the record keeps the operating company, the carrier, the staff member and the document check');
+SELECT pg_temp.ok(brd.station_may_board(:'tk1uid', :st_dam) = 'NOT_GRANTED', 'Check-in (1105): boarding at the bay needs its own right');
+SELECT sys.set_context(:ua, :ca, 'COMPANY');
+INSERT INTO net.station_operator_grant (carrier_company_id, operator_company_id, station_id, permission) VALUES (:ca, :op, :st_dam, 'BOARDING');
+SELECT sys.set_context(:ufin, :op, 'COMPANY');
+SELECT pg_temp.ok(brd.station_may_board(:'tk1uid', :st_dam) = 'OK', 'Check-in (1105): with the boarding right a checked-in ticket boards at the bay');
+SELECT brd.cancel_station_checkin(:'pass1'::jsonb ->> 'pass_no', 'Wrong passenger at the counter');
+SELECT pg_temp.ok(brd.station_may_board(:'tk1uid', :st_dam) = 'CHECKIN_REQUIRED', 'Check-in (1105): station staff board only checked-in tickets');
+-- the check-in window (the station's), then the required references
+SELECT sys.set_context(:uadmin, NULL, 'SYSTEM');
+UPDATE net.station_boarding SET checkin_opens_minutes = 60, checkin_closes_minutes = 30 WHERE station_id = :st_dam;
+SELECT sys.set_context(:ufin, :op, 'COMPANY');
+SELECT pg_temp.expect_error(format($$SELECT brd.station_checkin_ticket(%L, %s, %L, true)$$, :'tk1uid', :st_dam, :'ctr'), 'CHECKIN_NOT_OPEN',
+  'Check-in (1105): before the window opens the counter does not check in');
+SELECT sys.set_context(:uadmin, NULL, 'SYSTEM');
+UPDATE net.station_boarding SET checkin_opens_minutes = 600, checkin_closes_minutes = 200 WHERE station_id = :st_dam;
+SELECT sys.set_context(:ufin, :op, 'COMPANY');
+SELECT pg_temp.expect_error(format($$SELECT brd.station_checkin_ticket(%L, %s, %L, true)$$, :'tk1uid', :st_dam, :'ctr'), 'CHECKIN_CLOSED',
+  'Check-in (1105): after the window closes the counter does not check in');
+SELECT sys.set_context(:uadmin, NULL, 'SYSTEM');
+UPDATE net.station_boarding SET checkin_opens_minutes = 240, checkin_closes_minutes = 30 WHERE station_id = :st_dam;
+SELECT net.set_boarding_setting('boarding.references.required', '["AGREEMENT"]'::jsonb);
+SELECT sys.set_context(:ufin, :op, 'COMPANY');
+SELECT pg_temp.expect_error(format($$SELECT brd.station_checkin_ticket(%L, %s, %L, true)$$, :'tk1uid', :st_dam, :'ctr'), 'REFERENCES_MISSING',
+  'Check-in (1105): a carrier without the required references on file gets no check-in');
+SELECT sys.set_context(:ua, :ca, 'COMPANY');
+INSERT INTO net.operation_reference (company_id, kind, reference_no) VALUES (:ca, 'AGREEMENT', 'AGR-2026-01');
+SELECT sys.set_context(:ufin, :op, 'COMPANY');
+SELECT pg_temp.ok(NOT (brd.station_checkin_ticket(:'tk1uid', :st_dam, :'ctr', false) ->> 'repeated')::boolean,
+  'Check-in (1105): inside the window and with the references on file, the ticket is checked in again');
+SELECT sys.set_context(:uadmin, NULL, 'SYSTEM');
+SELECT net.set_boarding_setting('boarding.stations.enabled', 'false'::jsonb);
+SELECT sys.set_context(:ufin, :op, 'COMPANY');
+SELECT pg_temp.expect_error(format($$SELECT brd.station_checkin_ticket(%L, %s, %L, true)$$, :'tk3uid', :st_dam, :'ctr'), 'STATION_NOT_BOARDING',
+  'Check-in (1105): nothing is checked in while boarding is off');
+SELECT pg_temp.ok(has_table_privilege('masslak_app', 'brd.station_checkin', 'SELECT')
+  AND NOT has_table_privilege('masslak_app', 'brd.station_checkin', 'INSERT')
+  AND NOT has_table_privilege('masslak_app', 'brd.station_checkin', 'UPDATE'),
+  'Check-in (1105): check-ins are written only through the check-in functions');
+ROLLBACK;
+
 \echo '=== ALL TESTS PASSED ==='

@@ -46,11 +46,11 @@ flowchart LR
   bill -->|1| fin
   bill -->|5| iam
   brd -->|4| fleet
-  brd -->|3| iam
-  brd -->|3| net
-  brd -->|2| ops
+  brd -->|7| iam
+  brd -->|6| net
+  brd -->|3| ops
   brd -->|2| ref
-  brd -->|1| sales
+  brd -->|2| sales
   brd -->|5| sec
   brd -->|2| ship
   crm -->|1| fin
@@ -4820,6 +4820,20 @@ erDiagram
     bigint trailer_id FK
     character plate_country FK
   }
+  brd_station_checkin {
+    bigint id PK
+    uuid uid
+    bigint ticket_id FK
+    bigint trip_id FK
+    bigint station_id FK
+    bigint counter_gate_id FK
+    bigint bay_gate_id FK
+    bigint operator_company_id FK
+    bigint carrier_company_id FK
+    bigint checked_by_user_id FK
+    text status
+    bigint cancelled_by_user_id FK
+  }
   fleet_trailer {
     ref external
   }
@@ -4836,6 +4850,9 @@ erDiagram
     ref external
   }
   net_station {
+    ref external
+  }
+  net_station_gate {
     ref external
   }
   ops_trip {
@@ -4888,17 +4905,26 @@ erDiagram
   brd_manifest_vehicle }o--|| fleet_vehicle : "vehicle_id"
   brd_manifest_response }o..o| fleet_vehicle : "subject_vehicle_id"
   brd_manifest_discrepancy }o..o| fleet_vehicle : "subject_vehicle_id"
+  brd_station_checkin }o--|| iam_app_user : "checked_by_user_id"
   brd_manifest }o..o| iam_app_user : "issued_by"
+  brd_station_checkin }o..o| iam_app_user : "cancelled_by_user_id"
   brd_manifest_route }o..o| iam_company : "company_id"
+  brd_station_checkin }o..o| iam_company : "operator_company_id"
+  brd_station_checkin }o--|| iam_company : "carrier_company_id"
   brd_manifest_person }o..o| iam_party : "crew_party_id"
   brd_border_point }o--|| net_station : "station_id"
+  brd_station_checkin }o--|| net_station : "station_id"
   brd_manifest_person }o..o| net_station : "embark_station_id"
   brd_manifest_person }o..o| net_station : "disembark_station_id"
+  brd_station_checkin }o..o| net_station_gate : "counter_gate_id"
+  brd_station_checkin }o..o| net_station_gate : "bay_gate_id"
   brd_manifest }o--|| ops_trip : "trip_id"
+  brd_station_checkin }o--|| ops_trip : "trip_id"
   brd_manifest }o..o| ops_trip_crossing_plan : "crossing_plan_id"
   brd_manifest_cargo }o--|| ref_cargo_category : "cargo_category"
   brd_manifest_route }o..o| ref_city : "city_id"
   brd_manifest_person }o..o| sales_ticket : "ticket_id"
+  brd_station_checkin }o--|| sales_ticket : "ticket_id"
   brd_crossing_profile }o--|| sec_authority_profile : "authority_id"
   brd_manifest_route }o--|| sec_authority_profile : "authority_id"
   brd_border_point }o..o| sec_authority_profile : "authority_id"

@@ -2,7 +2,7 @@
 
 > Generated from the built database (`db/tools/gen_docs.py`); do not edit by hand.
 
-**514 tables, 5281 columns, in 26 schemas.**
+**515 tables, 5299 columns, in 26 schemas.**
 
 Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant isolation (RLS) · 🧩 partitioned monthly · 🔒 append-only / change-protected
 
@@ -25,7 +25,7 @@ Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant i
 - [`ptn` — Service partners: fuel stations, rest stops and maintenance](#ptn) (14 tables)
 - [`ship` — Shipments and the integrated shipping network](#ship) (57 tables)
 - [`frt` — Trucking, heavy transport and transit freight](#frt) (14 tables)
-- [`brd` — Border manifest gateway](#brd) (10 tables)
+- [`brd` — Border manifest gateway](#brd) (11 tables)
 - [`ctr` — Contracted transport: universities and employees](#ctr) (6 tables)
 - [`sch` — School transport: schools, operators, pupils and guardians, contracts, routes, runs and attendance](#sch) (11 tables)
 - [`gis` — PostGIS reference data](#gis) (1 tables)
@@ -8013,6 +8013,31 @@ Which authority receives which manifests and how; activated only by a second pla
 | `plate_no` | `text` | ✱ |  |
 | `plate_country` | `character(2)` | 🔗 `ref.country` ✱ |  |
 | `chassis_no` | `text` |  |  |
+
+### `brd.station_checkin` 🛡️
+
+Counter check-ins and their boarding passes at boarding stations: station, counter, operating company, staff member (1105)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `pass_no` | `text` | ✱ |  |
+| `ticket_id` | `bigint` | 🔗 `sales.ticket` ✱ |  |
+| `trip_id` | `bigint` | 🔗 `ops.trip` ✱ |  |
+| `stop_seq` | `smallint` | ✱ |  |
+| `station_id` | `bigint` | 🔗 `net.station` ✱ |  |
+| `counter_gate_id` | `bigint` | 🔗 `net.station_gate`  |  |
+| `bay_gate_id` | `bigint` | 🔗 `net.station_gate`  |  |
+| `operator_company_id` | `bigint` | 🔗 `iam.company`  |  |
+| `carrier_company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `checked_by_user_id` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `document_checked` | `boolean` | ✱ |  |
+| `status` | `text` | ✱ | `'CHECKED_IN'::text` |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `cancelled_at` | `timestamp with time zone` |  |  |
+| `cancelled_by_user_id` | `bigint` | 🔗 `iam.app_user`  |  |
+| `cancel_reason` | `text` |  |  |
 
 <a id="ctr"></a>
 ## `ctr` — Contracted transport: universities and employees

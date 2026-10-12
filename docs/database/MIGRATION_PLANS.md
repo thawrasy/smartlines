@@ -222,6 +222,8 @@ asked with. The approval takes an optional legal document number, recorded on th
 
 **1104** turns on the issuing of e-invoices. It adds two settings, one function and one partial index on `acct.einvoice_document` (built on a table that is empty until the first unit is onboarded). Nothing is issued until a seller has an active issuing unit and a valid tax profile; from then on the worker issues for bookings paid within `einvoice.issue_window_days` (30), so onboarding a carrier also invoices its bookings of the last month, at most 100 per minute. Set the window to 0 before onboarding to start from new sales only. A server in production should set `MASSLAK_EINVOICE_SIGNING_KEY`; without it the key is derived from the ticket signing seed, like the manifest key.
 
+**1105** adds the counter check of the boarding stations. It adds one table (`brd.station_checkin`, empty until a station is switched on), one sequence and seven functions; no rule on an existing table changes, and the driver's scan is unchanged. The table belongs to phase 7 with the other station tables. Nothing is checked in until the platform switches boarding on, a station on, and a carrier or the platform grants an operating company the `BOARDING_PASS` right there. Setting `boarding.references.required` now refuses check-ins of carriers that lack a listed reference; set it only after the carriers have recorded theirs (`GET /api/carrier/references` lists what each one misses).
+
 ## 1064_partitioned_bookings.sql on a live database (R-06)
 
 1064 turns `sales.booking` into a table partitioned by ranges of id **in place, under an ACCESS EXCLUSIVE lock**: it

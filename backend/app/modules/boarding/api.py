@@ -14,6 +14,11 @@ a boarding or a ticket until the platform switches a station on.
 
     Station operating company (the STATION portal, 1099; owner or station.counter)
     GET  /api/station/overview                              the rights the company holds now, and its counters
+    GET  /api/station/trips?station_uid=                    trips leaving the station in the next two days it may serve (1105)
+    POST /api/station/checkin                               the counter check: the boarding pass, with the bay (1105)
+    GET  /api/station/passes/{pass_no}                      a boarding pass again (to print it)
+    POST /api/station/passes/{pass_no}/cancel               cancel a check-in made by mistake, before boarding
+    POST /api/station/board                                 record the boarding at the bay, for a checked-in ticket
 
     Carrier (boarding.references)
     GET  /api/carrier/references                            the carrier's agreement and licence numbers, and those missing
@@ -25,6 +30,7 @@ a boarding or a ticket until the platform switches a station on.
     POST /api/carrier/station-operators/grants              give an operating company a right (booking, boarding pass, boarding)
     POST /api/carrier/station-operators/grants/{uid}/revoke revoke a grant
 """
+import json
 import uuid
 from datetime import date
 from typing import Any, Literal, Optional
@@ -35,7 +41,7 @@ from pydantic import BaseModel, EmailStr, Field
 from ... import db
 from ...deps import Principal, context_for, require_portal
 from ...errors import ApiError, forbidden
-from ...security import password_problem
+from ...security import password_problem, verify_ticket_credential, verify_ticket_qr
 from . import service
 
 platform = APIRouter(prefix="/api/admin/boarding", tags=["boarding"])
@@ -247,3 +253,108 @@ async def station_overview(request: Request, pr: Principal = Depends(require_por
     _counter_staff(pr)
     async with db.transaction(context_for(request, pr)) as conn:
         return await service.operator_overview(conn, pr.company_id)
+
+
+# ------------------------------------------------------------------ counter check and boarding pass (1105, build step 3)
+class CheckinIn(BaseModel):
+    station_uid: uuid.UUID
+    counter_code: Optional[str] = Field(default=None, pattern=r"^C[0-9]{3}$")
+    token: Optional[str] = Field(default=None, min_length=10, max_length=600)     # the ticket's code, scanned at the counter
+    ticket_no: Optional[str] = Field(default=None, min_length=3, max_length=40)   # or typed, with its booking reference
+    booking_ref: Optional[str] = Field(default=None, min_length=4, max_length=12)
+    document_checked: bool                                                        # the identity document was seen and matches
+
+
+class CancelPassIn(BaseModel):
+    reason: str = Field(min_length=3, max_length=300)
+
+
+class BoardIn(BaseModel):
+    station_uid: uuid.UUID
+    trip_uid: uuid.UUID
+    token: str = Field(min_length=10, max_length=600)
+
+
+def _ticket_of(token: Optional[str]) -> Optional[str]:
+    """The ticket a scanned code names: the signed offline credential (T2) or the rotating code."""
+    if not token:
+        return None
+    token = token.strip()
+    if token.startswith("T2."):
+        claims = verify_ticket_credential(token)
+        return claims["k"] if claims else None
+    return verify_ticket_qr(token)
+
+
+async def _station_id(conn, station_uid: uuid.UUID) -> int:
+    sid = await conn.fetchval("SELECT id FROM net.station WHERE uid = $1", station_uid)
+    if sid is None:
+        raise ApiError(404, "NOT_FOUND", "station not found")
+    return sid
+
+
+@station.get("/trips")
+async def station_trips(station_uid: uuid.UUID, request: Request, pr: Principal = Depends(require_portal("STATION"))):
+    _counter_staff(pr)
+    async with db.transaction(context_for(request, pr)) as conn:
+        return {"trips": json.loads(await conn.fetchval("SELECT brd.station_trips($1)::text", await _station_id(conn, station_uid)))}
+
+
+@station.post("/checkin", status_code=201)
+async def station_checkin(body: CheckinIn, request: Request, pr: Principal = Depends(require_portal("STATION"))):
+    """The counter check (1105): the right and the counter, the ticket at this station, the check-in window and the
+    carrier's required references are checked in the database; a ticket checked in again gets the same pass."""
+    _counter_staff(pr)
+    async with db.transaction(context_for(request, pr)) as conn:
+        uid = _ticket_of(body.token)
+        if uid is None and body.ticket_no and body.booking_ref:
+            uid = await conn.fetchval("SELECT brd.ticket_uid($1, $2)::text", body.ticket_no, body.booking_ref)
+        if uid is None:
+            raise ApiError(422, "TICKET_NOT_VALID", "scan the ticket's code, or type its number with the booking reference")
+        out = json.loads(await conn.fetchval("SELECT brd.station_checkin_ticket($1::uuid, $2, $3, $4)::text", uid,
+                                             await _station_id(conn, body.station_uid), body.counter_code, body.document_checked))
+    request.state.audit = {"action": "boarding.checkin", "object_type": "boarding_pass", "reason":
+                           f"pass {out['pass_no']} at counter {out.get('counter') or '-'}"}
+    return out
+
+
+@station.get("/passes/{pass_no}")
+async def station_pass(pass_no: str, request: Request, pr: Principal = Depends(require_portal("STATION"))):
+    _counter_staff(pr)
+    async with db.transaction(context_for(request, pr)) as conn:
+        cid = await conn.fetchval("SELECT id FROM brd.station_checkin WHERE pass_no = $1", pass_no)   # the company's own only
+        if cid is None:
+            raise ApiError(404, "NOT_FOUND", "no such boarding pass for this company")
+        return json.loads(await conn.fetchval("SELECT brd.boarding_pass($1)::text", cid))
+
+
+@station.post("/passes/{pass_no}/cancel")
+async def station_pass_cancel(pass_no: str, body: CancelPassIn, request: Request, pr: Principal = Depends(require_portal("STATION"))):
+    _counter_staff(pr)
+    async with db.transaction(context_for(request, pr)) as conn:
+        out = json.loads(await conn.fetchval("SELECT brd.cancel_station_checkin($1, $2)::text", pass_no, body.reason))
+    request.state.audit = {"action": "boarding.checkin_cancel", "object_type": "boarding_pass", "reason": f"pass {pass_no}: {body.reason}"}
+    return out
+
+
+@station.post("/board")
+async def station_board(body: BoardIn, request: Request, pr: Principal = Depends(require_portal("STATION"))):
+    """Boarding at the bay by station staff holding the BOARDING right (1105): only a ticket checked in at this
+    station, then the same boarding path as the driver's scan (the stop, the photo rule, the boarding record)."""
+    from ...routers.driver import _board, _ticket_from_token
+    _counter_staff(pr)
+    ctx = context_for(request, pr)
+    ticket_uid, early = _ticket_from_token(body.token, body.trip_uid)
+    async with db.transaction(ctx) as conn:
+        station_id = await _station_id(conn, body.station_uid)
+        if early or ticket_uid is None:
+            return {"result": early or "INVALID_QR"}
+        verdict = await conn.fetchval("SELECT brd.station_may_board($1::uuid, $2)", ticket_uid, station_id)
+        if verdict != "OK":
+            return {"result": verdict}
+        async with db.system_scope(conn, ctx):
+            t = await conn.fetchrow("SELECT * FROM ops.trip WHERE uid = $1", body.trip_uid)
+            out = await _board(conn, ctx, pr, t, ticket_uid, None, None)
+    if "ticket_id" in out:
+        request.state.audit = {"action": "boarding.station_scan", "object_type": "ticket", "object_id": out.pop("ticket_id")}
+    return out
