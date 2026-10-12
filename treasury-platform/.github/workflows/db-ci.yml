@@ -28,7 +28,8 @@ jobs:
     timeout-minutes: 45
     services:
       sqlserver:
-        image: mcr.microsoft.com/mssql/server:2025-latest
+        # RHEL-based SQL Server 2025 image (the team does not use Ubuntu). The job runner is still GitHub's Ubuntu host (ADR 0001).
+        image: mcr.microsoft.com/mssql/rhel/server:2025-latest
         env:
           ACCEPT_EULA: 'Y'
           MSSQL_PID: Developer

@@ -13,7 +13,8 @@ Status: accepted for schema development and verification (2026-10-12). Ubuntu is
 ## Decision
 
 - Schema models, generated DDL, static scripts and database tests are developed and verified on RHEL.
-- The SQL Server container is the RHEL-based image. Deployment uses `tools/deploy/deploy.sh`, which changes to `db/` before it runs `deploy.sql`.
+- The SQL Server container is the RHEL-based image. Verified: the full CI (model, DDL, deployment, object counts, six trigger tests, 34 isolation cases) passes on `mcr.microsoft.com/mssql/rhel/server:2025-latest`, which reports Red Hat Enterprise Linux 10.2. The job runner stays on GitHub's Ubuntu host until a RHEL self-hosted runner exists.
+- Deployment uses `tools/deploy/deploy.sh`, which changes to `db/` before it runs `deploy.sql`.
 - The CI runner must be a RHEL host (self-hosted), because GitHub-hosted runners run Ubuntu, Windows or macOS. This choice is open until the team decides.
 - The Windows wrapper `tools/deploy/deploy.ps1` is kept, but it has not been run.
 
