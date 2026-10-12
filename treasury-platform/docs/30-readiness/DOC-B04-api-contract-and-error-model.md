@@ -368,7 +368,7 @@ paths:
     get:
       operationId: listUsers
       tags: [users]
-      x-permission: users.manage
+      x-permission: sec.user.manage
       parameters:
         - $ref: '#/components/parameters/limit'
         - $ref: '#/components/parameters/cursor'
@@ -379,7 +379,7 @@ paths:
     post:
       operationId: inviteUser
       tags: [users]
-      x-permission: users.manage
+      x-permission: sec.user.manage
       parameters: [{$ref: '#/components/parameters/idempotencyKey'}]
       requestBody: {$ref: '#/components/requestBodies/UserInvite'}
       responses: {'201': {$ref: '#/components/responses/User'}, default: {$ref: '#/components/responses/Problem'}}
@@ -684,7 +684,7 @@ components:
 
 ملاحظات على الهيكل:
 
-- رموز الصلاحيات في `x-permission` أمثلة 🟡. الرموز الحرفية تأتي من كتالوج sec.Permission (FR-PLT-017، 10-m0-m1…:119)، وفحص البناء يرفض رمزًا غير موجود فيه.
+- رموز الصلاحيات في `x-permission` تتبع الجدول المقترح في DOC-F07 (مثل `sec.user.manage`) 🟡. الرموز الحرفية تأتي من كتالوج sec.Permission بعد اعتمادها (DQ-F07-1، FR-PLT-017، 10-m0-m1…:119)، وفحص البناء يرفض رمزًا غير موجود فيه.
 - PATCH يستعمل `application/merge-patch+json` 🟡 (RFC 7396) لأن حقوله بسيطة.
 - إنشاء المشترك يعيد 202 لأن التهيئة قد تطول وتفشل وتُعاد (DOC-F05).
 

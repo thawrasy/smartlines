@@ -1,6 +1,6 @@
 # ADR 0001: Production runs on Ubuntu 24.04 LTS; schema work and CI run on Linux
 
-Status: accepted by the owner (2026-10-12). The production VPS runs Ubuntu 24.04 LTS. This replaces the earlier exclusion of Ubuntu. The database-host part of FR-PLT-045 and decision 01 section 13 (Windows Server) is superseded by this ADR and still needs its text updated (O-23).
+Status: accepted by the owner (2026-10-12). The production VPS runs Ubuntu 24.04 LTS. This replaces the earlier exclusion of Ubuntu. The database-host part of FR-PLT-045 and decision 01 section 13 (Windows Server) is superseded by this ADR; both texts are updated (O-23). The application tier stays on Windows Server per 01 section 13 until it is reviewed.
 
 ## Context
 
@@ -8,14 +8,14 @@ Status: accepted by the owner (2026-10-12). The production VPS runs Ubuntu 24.04
 - The production database host is an external VPS from a hosting provider (Q-PLT-03, decided 2026-10-10).
 - SQL Server 2025 on Linux is supported on RHEL and Ubuntu. Per the Microsoft release notes, SLES (SUSE) is listed only through SQL Server 2022 (checked by search summary; verify on learn.microsoft.com).
 - FR-PLT-045 and decision 01 section 13 name Windows Server, ASP.NET Core and the latest GA SQL Server as the stack. This ADR changes the database host only.
-- The verified path for this ADR is the CI on a GitHub-hosted Ubuntu 24.04 runner with the Ubuntu-based SQL Server 2025 container (`tools/ci/db_ci.sh`, `.github/workflows/db-ci.yml`). It passed in full.
+- The verified path for this ADR is `tools/ci/db_ci.sh` run against the Ubuntu-based SQL Server 2025 container (`mcr.microsoft.com/mssql/server:2025-latest`, Ubuntu 24.04). It passes in full in the development container. Correction (2026-10-12): it has not run on GitHub. The workflow file sits under `treasury-platform/.github/workflows/`, and GitHub reads workflows only from the repository root, whose `ci.yml` belongs to another project. Running it on GitHub needs a workflow at the root (O-02).
 - As a further check, the full CI also passed on the RHEL-based image `mcr.microsoft.com/mssql/rhel/server:2025-latest` (Red Hat Enterprise Linux 10.2). That check is evidence, not the production target.
 
 ## Decision
 
 - The production VPS runs Ubuntu 24.04 LTS with SQL Server 2025.
 - Schema models, generated DDL, static scripts and database tests are developed and verified on Linux.
-- CI runs on `ubuntu-24.04` with the Ubuntu-based SQL Server 2025 container, the same operating system as production.
+- CI runs on `ubuntu-24.04` with the Ubuntu-based SQL Server 2025 container, the same operating system as production, once the workflow is placed where GitHub reads it (O-02).
 - Deployment uses `tools/deploy/deploy.sh`, which changes to `db/` before it runs `deploy.sql`.
 - The Windows wrapper `tools/deploy/deploy.ps1` is kept, but it has not been run and is not part of the production path.
 
