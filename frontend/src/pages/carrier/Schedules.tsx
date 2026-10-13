@@ -37,7 +37,7 @@ interface Overview {
 const DAYS = [1, 2, 3, 4, 5, 6, 7];
 const toMinor = (v: string) => Math.round(Number(v || 0) * 100);
 
-/** "Every day", "Mon, Wed, Fri", "On the 1, 15 of each month", in the reader's language. */
+/** "Daily", "Mon, Wed, Fri", "On the 1, 15 of each month", in the reader's language. */
 export function usePattern() {
   const { t, intl } = useI18n();
   const sep = t("common.listSep");

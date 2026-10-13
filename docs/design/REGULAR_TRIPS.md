@@ -13,7 +13,7 @@ price, a trip type and a pattern:
 
 | Pattern | Example | Fields |
 | --- | --- | --- |
-| Every day | DC 201 at 07:15 every day | `recurrence = 'DAILY'` |
+| Daily | DC 201 at 07:15 every day | `recurrence = 'DAILY'` |
 | On days of the week | DC 202 at 16:45 on Friday and Sunday; one day is weekly | `recurrence = 'WEEKLY'`, `days_of_week` (1 Monday to 7 Sunday) |
 | On days of the month | DC 301 at 09:30 on the 1st and 15th | `recurrence = 'MONTHLY'`, `days_of_month` (1 to 31; a month without that day skips it) |
 
