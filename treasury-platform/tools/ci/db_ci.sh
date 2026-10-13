@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Database CI: checks the model, confirms the generated DDL is current, deploys it to SQL Server,
 # compares what was deployed with the DDL, and runs the trigger, tenant-isolation, account-security,
-# operator-and-support, job-binding and tenant-onboarding tests.
+# operator-and-support, job-binding, tenant-onboarding and document-numbering tests (one of them with concurrent
+# connections).
 #
 # Environment:
 #   SA_PASSWORD   password of the sa login (required)
@@ -185,4 +186,40 @@ if [ "$onb_pass" -ne 5 ]; then
     exit 1
 fi
 echo "tenant onboarding tests: $onb_pass passed"
+echo "== 12. document numbering tests (db/tests/numbering_tests.sql)"
+sq -i db/tests/numbering_tests.sql > "$TMP/numbering.out" 2>&1 || {
+    cat "$TMP/numbering.out"
+    echo "document numbering test run failed"
+    exit 1
+}
+cat "$TMP/numbering.out"
+if grep -q '^FAIL' "$TMP/numbering.out"; then
+    echo "a document numbering test failed"
+    exit 1
+fi
+num_pass=$(grep -c '^PASS' "$TMP/numbering.out" || true)
+# 8 cases: N1-N8 (O-12: patterns, AC-PLT-3, rollback, widening, fiscal year, company scope, direct rights, isolation).
+if [ "$num_pass" -ne 8 ]; then
+    echo "expected 8 PASS, found $num_pass"
+    exit 1
+fi
+echo "document numbering tests: $num_pass passed"
+echo "== 13. document numbering with concurrent connections (tools/ci/numbering_concurrency.sh)"
+SQL_SERVER="$SQL_SERVER" SQLCMD="$SQLCMD" bash tools/ci/numbering_concurrency.sh > "$TMP/concurrency.out" 2>&1 || {
+    cat "$TMP/concurrency.out"
+    echo "document numbering concurrency run failed"
+    exit 1
+}
+cat "$TMP/concurrency.out"
+if grep -q '^FAIL' "$TMP/concurrency.out"; then
+    echo "a document numbering concurrency check failed"
+    exit 1
+fi
+conc_pass=$(grep -c '^PASS' "$TMP/concurrency.out" || true)
+# 2 checks: C1 (concurrent connections, rollbacks, no duplicate and no gap) and C2 (outside a transaction).
+if [ "$conc_pass" -ne 2 ]; then
+    echo "expected 2 PASS, found $conc_pass"
+    exit 1
+fi
+echo "document numbering concurrency: $conc_pass passed"
 echo "all database checks passed"

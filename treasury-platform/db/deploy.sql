@@ -36,6 +36,7 @@ GO
 :r static/036_operator_and_support.sql
 :r static/037_job_context.sql
 :r static/038_tenant_onboarding.sql
+:r static/039_numbering.sql
 :r static/050_fac_share_rule.sql
 :r seed/100_platform_global.sql
 :r seed/101_iso_reference.sql
