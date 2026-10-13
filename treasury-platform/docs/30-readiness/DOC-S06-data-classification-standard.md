@@ -110,7 +110,7 @@
 | DR-46 | `lc.LcTermsComparisonLine.BaselineValue` و`ReceivedValue`، و`lc.LcAmendment.ChangedFieldsJson` | IBAN المستفيد يُكتب صريحًا في المقارنة والفروق | لا تُكتب قيم الحقول المقيّدة في المقارنة؛ يُكتب القناع وبصمة HMAC فقط، ويوسم العمود بأعلى حساسية يحملها | db/model/16-letters-of-credit.model:691-692 و493؛ docs/review/design-review-2026-10-11.json:486 |
 | DR-31 | `OriginalText` في 11 جدول `src`، و`CandidateAOriginalText` و`CandidateBOriginalText` | نص البند الحرفي قد ينقل رقم حساب أو IBAN | `sens=confidential` مع حجب عن التقارير، وتنقيح أنماط IBAN والحساب عند الإدخال، والأصل في المستند فقط | tools/dbgen/dbgen.py:209؛ db/model/13-facilities-pricing-terms.model:335 و341؛ docs/review/design-review-2026-10-11.json:330 |
 | DR-18 | `doc.Document.Sensitivity` | الافتراضي `CONFIDENTIAL` ويقبل `PUBLIC` لوثيقة هوية | حد أدنى بمحفّز: `RESTRICTED` إذا كان النوع `IsSensitive` | db/model/10-platform.model:370؛ docs/review/design-review-2026-10-11.json:200 |
-| DR-25 | `org.Company.TaxNumber` | نسخة غير موسومة من رقم موسوم سرّيًا | حذف النسخة أو وسمها `confidential` | db/model/11-organization-party.model:26؛ docs/review/design-review-2026-10-11.json:270 |
+| DR-25 | `org.Company.TaxNumber` | نسخة غير موسومة من رقم موسوم سرّيًا | ✅ حُذفت النسخة، والرقم يُقرأ من `pty.TaxIdentity` (ADR 0011) | db/model/11-organization-party.model:26؛ docs/review/design-review-2026-10-11.json:270 |
 | DR-13 | حزمة التصدير `cfg.DataExportJob.PackageDocumentId` | الحزمة تأخذ `CONFIDENTIAL` ولو حملت مقيّدًا | `RESTRICTED` إذا `IncludesRestricted = 1` | db/model/10-platform.model:507 و514؛ docs/review/design-review-2026-10-11.json:150 |
 
 ### 7.2 بيانات شخصية بلا وسم (لم تذكرها المراجعة)
@@ -127,7 +127,7 @@
 | `sec.UserSession` و`sec.UserToken` | `IpAddress`، `UserAgent`، `SentTo`، `RequestIp` | سرّية | db/model/10-platform.model:226-227 و251 و255 |
 | `aud.AuditLog` | `BeforeJson`، `AfterJson`، `IpAddress`، `UserAgent` | سرّية | db/model/10-platform.model:315-319 |
 | `aud.SensitiveAccessLog` | `Reason`، `IpAddress`، `UserAgent` | سرّية | db/model/10-platform.model:344-346 |
-| `org.Company` | `CrNumber`، `TaxNumber` | سرّية | db/model/11-organization-party.model:23 و26 |
+| `org.Company` | `CrNumber` | سرّية | db/model/11-organization-party.model:23 و26 |
 
 ## 8. تصنيف الملفات والصور
 

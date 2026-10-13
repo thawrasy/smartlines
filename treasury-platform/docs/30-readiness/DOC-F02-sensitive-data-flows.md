@@ -244,7 +244,7 @@ flowchart TB
 | مقارنة الشروط | `lc.LcTermsComparisonLine.BaselineValue/ReceivedValue` | IBAN المستفيد | لا شيء | فجوة | DQ-F02-1 (DR-46) |
 | فروق التعديل | `lc.LcAmendment.ChangedFieldsJson` | IBAN المستفيد | لا شيء | فجوة | DQ-F02-1 (DR-46) |
 | نص الاتفاقية | `OriginalText` و`CandidateA/BOriginalText` وحقول `Reason` و`Notes` الحرة | أرقام حسابات وIBAN | لا شيء | فجوة | DQ-F02-2 (DR-31) |
-| الرقم الضريبي للشركة | `org.Company.TaxNumber` (db/model/11-organization-party.model:26) | رقم ضريبي | لا وسم؛ نسخته في `pty.TaxIdentity` سرّية (:470) | فجوة | DQ-F02-8 (DR-25) |
+| الرقم الضريبي للشركة | `pty.TaxIdentity.TaxNumber` وVatNumber عبر `org.v_CompanyTaxIdentity` | رقم ضريبي | سرّي؛ لا نسخة في `org.Company` (حُذفت) | ✅ مغلقة (ADR 0011) | DQ-F02-8 (DR-25) |
 | الحقل المخصص | `pty.PartyCustomField.ValueText` و`ValueMask` (db/model/11-organization-party.model:396، :400) | قيمة غير مقيّدة وقناع | القيد يمنع اجتماع النص والمشفّر (:403) | جزئي | التطبيق يختار `ValueEnc` للحقل المقيّد 🟡 |
 | النموذج ولقطاته | `wfl.Request.FormDataJson`، `SnapshotJson` | حقول مقيّدة | تشفير داخل JSON بقاعدة تطبيق | جزئي | اختبار يمسح JSON بحثًا عن نمط IBAN ورقم هوية 🟡 |
 | نص البحث | `wfl.Request.SearchText` (db/model/15-workflow-notifications.model:282) | نص مطبَّع | المقيّد لا يدخله (BR-REQ-003) | جزئي | الاختبار نفسه 🟡 |
@@ -288,7 +288,7 @@ flowchart TB
 | DQ-F02-5 | من يحذف ملف حزمة التصدير بعد انتهائها؟ | مهمة يومية تتلف الملف عند `EXPIRED` وتسجّل الحدث؛ الحزمة `RESTRICTED` إن شملت المقيّد | مهندس الخلفية مع مسؤول الأمن | FR-PLT-039 (S5) |
 | DQ-F02-6 | ما مدة الاحتفاظ ببيانات التتبع (IP، وكيل المستخدم، البريد المكتوب) وبمحاولات الدخول؟ | 90 يومًا لمحاولات الدخول والجلسات المنتهية 🟡، بحذف بمهمة لا بـ`tp_app`؛ الأثر الدائم في `aud.AuditLog` | مسؤول حماية البيانات | DOC-S07، DOC-S12 |
 | DQ-F02-7 | ما خوارزمية تجزئة رموز الاسترداد؟ | HMAC-SHA-256 بمفتاح منصة سري 🟡، أو Argon2id إن كان الرمز قصيرًا | مسؤول الهوية والأمن | DOC-S04 |
-| DQ-F02-8 | هل يبقى `org.Company.TaxNumber`؟ (DR-25) | ✅ معتمد (O-15، ADR 0011): الوسم السرّي منفّذ، والحذف والقراءة من `pty.TaxIdentity` شرط دخول S1. المقترح: يُحذف ويُقرأ من `pty.TaxIdentity` عبر عرض؛ وإن بقي يوسم سرّيًا | معماري قاعدة البيانات | S1 |
+| DQ-F02-8 | هل يبقى `org.Company.TaxNumber`؟ (DR-25) | ✅ منفّذ (ADR 0011، 2026-10-13): حُذف `org.Company.TaxNumber`، ويُقرأ الرقمان من الهوية الضريبية الحالية للمرآة في دولة التأسيس عبر `org.v_CompanyTaxIdentity`. المقترح: يُحذف ويُقرأ من `pty.TaxIdentity` عبر عرض؛ وإن بقي يوسم سرّيًا | معماري قاعدة البيانات | S1 |
 | DQ-F02-9 | هل يُفرض تقنيع التدقيق في مكان واحد؟ | مُسلسِل واحد للتدقيق يستبدل كل عمود موسوم مقيّدًا بقناعه، تولّد قائمته من النموذج 🟡 | مهندس الخلفية | FR-PLT-023، DOC-B01 |
 
 ## 12. تعارضات وفجوات في المصادر

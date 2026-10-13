@@ -161,7 +161,7 @@ flowchart TD
 | ParentCompanyCode | لا | في القاعدة أو في الملف؛ بلا حلقة؛ العمق 10 على الأكثر (BR-ORG-002) |
 | IsHolding | لا | TRUE أو FALSE (BR-ORG-003) |
 | CrNumber، CrDate، CrDateHijriText | لا | فريد ضمن الدولة لغير المؤرشفة؛ تاريخ هجري صالح |
-| TaxNumber، ErpCompanyCode | لا | تكرار ERP تحذير أو منع (BR-ORG-001) |
+| ErpCompanyCode (الرقم الضريبي في `pty.TaxIdentity`، DR-25) | لا | تكرار ERP ممنوع دائمًا (BR-ORG-001، قرار المالك 2026-10-13) |
 | FiscalYearEndMonth، FiscalYearEndDay | الشهر نعم | 1 إلى 12، و1 إلى 31 (BR-ORG-004) |
 | BaseCurrencyCode | لا | عملة مفعّلة للمشترك |
 

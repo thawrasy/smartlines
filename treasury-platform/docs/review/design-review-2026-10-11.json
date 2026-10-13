@@ -183,9 +183,8 @@
    "issue": "LockedToRoleCodes (json, e.g. [\"TM\",\"FO\"]) and cfg.ExpiryAlertRule.RecipientRoles (json role codes) are many-to-many relationships to sec.Role stored as text arrays with only ISJSON checks. Design section 4 says multi-valued relations use a junction table. Without a foreign key, a misspelled or renamed code silently matches nothing, so the lock on a sensitive permission (party.identity.reveal) can be bypassed by any role whose Code matches the list, and alerts can go to nobody. Role.Code is a free-text per-tenant code (UQ_Role_Code on TenantId, Code), and the model states no immutability rule for it, unlike plat.Tenant.Code, which is frozen after activation. If it is editable, a tenant can rename a seeded role, create a custom role with the old code, and satisfy the lock by string match, a guard that exists only in service code (BR-PLT-019). ExpiryAlertLog.Threshold must match a value in the JSON LeadDays list, which nothing constrains.",
    "recommendation": "Replace the lock with a junction table keyed on a stable role identity (SeedKey or a global role catalog) and enforce it with a trigger on sec.RolePermission. Replace RecipientRoles with cfg.ExpiryAlertRuleRole (ExpiryAlertRuleId, RoleId) using a composite FK to sec.Role. Replace LeadDays with cfg.ExpiryAlertRuleLeadDay (ExpiryAlertRuleId, Days) and use a filtered composite FK from ExpiryAlertLog for AlertKind = LEAD.",
    "id": "DR-16",
-   "status": "applied-partly",
-   "resolution": "O-15, ADR 0011",
-   "before": "S1"
+   "status": "applied",
+   "resolution": "O-15, ADR 0011"
   },
   {
    "table": "cfg.TenantSetting",
@@ -284,9 +283,8 @@
    "issue": "org.Company.TaxNumber (11-organization-party.model:26) is a plain ascii(30) column with no sens tag, on a 'public' aggregate root (line 12) whose PublicId is exposed through the API (docs/20 sections 1 and 4). The same identifier is modelled in pty.TaxIdentity.TaxNumber (line 446) as sens=confidential, and that table's comment says the company copy is synchronised from it. The identifier is therefore duplicated, its copy sits outside the sensitivity classification, and the public aggregate exposes it unless the API layer filters it. The sync is application-only and can drift.",
    "recommendation": "Drop org.Company.TaxNumber and read the current TaxIdentity row (CountryId = the company's CountryId, IsCurrent = 1) through a view. If the column is kept, tag it sens=confidential and exclude it from the public DTO, and remove the sync requirement.",
    "id": "DR-25",
-   "status": "applied-partly",
-   "resolution": "O-15, ADR 0011",
-   "before": "S1"
+   "status": "applied",
+   "resolution": "O-15, ADR 0011"
   },
   {
    "table": "fac.Utilization (and lc.LetterOfCredit link, file 16)",
@@ -342,9 +340,8 @@
    "issue": "Shariah classification is modelled three ways. cat.Product.Compliance (12:127) and cat.FacilityType.Compliance (12:162) use enum{CONVENTIONAL,ISLAMIC,NEUTRAL}, while cat.FinancingType uses bool IsIslamic (12:141), which cannot express NEUTRAL. The junction cat.ProductFinancingType (12:153-159) has uniqueness only, with no CHECK or key tying the product's compliance to the financing type's. A CONVENTIONAL product can therefore be linked to an Islamic financing type, and that pair feeds pricing (prc.PricingRule.FinancingTypeId, 13:444) and reporting. The comment at 12:162 says the compliance enum is aligned across Product and FacilityType, which is not true for FinancingType.",
    "recommendation": "Replace IsIslamic with the same Compliance enum. Carry Compliance on the junction with composite FKs to (TenantId, ProductId, Compliance) and (TenantId, FinancingTypeId, Compliance) keys, and CHECK the allowed pairs once the Shariah owner confirms the NEUTRAL rule.",
    "id": "DR-30",
-   "status": "scheduled",
-   "resolution": "O-15, ADR 0011",
-   "before": "S1"
+   "status": "applied",
+   "resolution": "O-15, ADR 0011"
   },
   {
    "table": "fac.Limit, fac.LimitProductLine, fac.LimitCompanyRule, fac.ProductLineTerm, fac.OutstandingSnapshot, fac.ValueConflict, prc.PricingRule, cmp.TermValue (src tables)",

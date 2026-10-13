@@ -56,10 +56,7 @@ Status: decided by the owner on 2026-10-13 (O-15 in `docs/20-database-design.md`
    - **`028`:** a setting key must be defined; INT, DECIMAL, BOOL, TIME and STRING values are checked; the working day is 4 to 12 hours (50044).
    - **Seed `100`:** `work.start`, `work.end` and `security.reveal.remask_seconds`, nine definitions in all.
 4. **Batch B: entry conditions of the slices.** These are approved but belong to a module's design, so each must land before that module's code:
-   - **Before S1:**
-     - the role junction for alert recipients (DR-16);
-     - dropping `org.Company.TaxNumber` for a view on `pty.TaxIdentity` (DR-25, DQ-F02-8);
-     - the allowed product and financing-type pairs (DR-30).
+   - **Before S1:** done the same day; see the amendment below.
    - **Before S1-b:** indirect shareholding per path through a named intermediate (DR-22).
    - **Before S2:**
      - existence and facility of a conflict's target (DR-27);
@@ -94,3 +91,13 @@ Status: decided by the owner on 2026-10-13 (O-15 in `docs/20-database-design.md`
   - `ref.Country.WeekendDays` and the two body-type lists are `set{}` columns.
 - **ADR 0008:** the tenant pack's `DATA_EXPORT_PACKAGE` type is not sensitive. Otherwise every package would be RESTRICTED; the procedure raises a restricted package itself.
 - **Diagrams:** the relationship charts and `docs/20-DATABASE-RELATIONSHIPS-ERD.docx` are rebuilt from the model.
+
+## Amendment, 2026-10-13: the S1 entry conditions are done
+
+The three batch B items due before S1 were built at once, so the schema of S0 and S1 is complete before their code.
+- **DR-16.** `cfg.ExpiryAlertRule.RecipientRoles` (a JSON code list) is replaced by the junction `cfg.ExpiryAlertRuleRole`. Its composite key to `sec.Role` keeps every recipient a role of the rule's tenant, and a renamed role still receives.
+- **DR-25, DQ-F02-8.** `org.Company.TaxNumber` is dropped. The view `org.v_CompanyTaxIdentity` (025) reads the tax and VAT numbers from the current tax identity of the company's mirror party in its country of incorporation, under the row filters of both tables.
+- **DR-30, the owner's answer.** `cat.ProductFinancingType` carries copies of the product's compliance and the financing type's Islamic flag through composite keys, and a check allows only these pairs: conventional with conventional, Islamic with Islamic, neutral with both. A used product's compliance and a used type's flag no longer change.
+
+Tests RF19 to RF21 pass in CI, and `check_review_fixes.py` verifies 61 fixes. Each test fails when its guard is removed.
+

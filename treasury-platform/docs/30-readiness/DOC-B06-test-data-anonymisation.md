@@ -75,7 +75,7 @@
 | إقرارات الامتثال | pty.PartyCompliance | أعلام عشوائية بنسب يحددها السيناريو، و Details نص ثابت |
 | البريد | sec.AppUser.Email، pty.ContactMethod.Value، lc.Counterparty.Email | النطاق test.invalid أو نطاق فرعي منه لكل مشترك، كما في db/tests/tenant_isolation_tests.sql:78 |
 | الهاتف والفاكس | pty.ContactMethod، lc.Counterparty.Phone | أرقام من نطاق اختبار محجوز يحدده DQ-B06-7 |
-| أسماء الشركات ورموزها وسجلاتها | org.Company.NameEn وCode وCrNumber وTaxNumber وErpCompanyCode | رموز بنمط XX01 كما في أمثلة المواصفات (docs/10-detailed-analysis/10-m0-m1-platform-organization.md:236)، وأسماء مولَّدة، وأرقام سجلات ببادئة محجوزة |
+| أسماء الشركات ورموزها وسجلاتها | org.Company.NameEn وCode وCrNumber وErpCompanyCode، وpty.TaxIdentity.TaxNumber وVatNumber | رموز بنمط XX01 كما في أمثلة المواصفات (docs/10-detailed-analysis/10-m0-m1-platform-organization.md:236)، وأسماء مولَّدة، وأرقام سجلات ببادئة محجوزة |
 | أسماء البنوك المقرضة | ins.Institution.NameAr وNameEn وSwiftBic | أسماء مستعارة BNK-A إلى BNK-D في DS-AGR، وBNK1 فما بعد في غيرها؛ رمز BIC اصطناعي يبدأ بـ TST |
 | المبالغ | fac.Facility.TotalAmount، حدود وخطوط، fin.StatementLine | في الاصطناعية: عشوائية في مدى السيناريو. في DS-AGR: ضرب كل مبالغ الاتفاقية في معامل سري واحد ثم التقريب إلى ألف، فتبقى المساواة والنسب (DQ-B06-3) |
 | النسب | هوامش الربح، والرسوم، ونسب التعهدات | الهوامش والرسوم اصطناعية؛ مهل التقارير ونسب التعهدات وفراغها تبقى، لأنها منطق الاختبار (DQ-B06-5) |
