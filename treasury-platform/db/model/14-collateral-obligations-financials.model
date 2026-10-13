@@ -25,7 +25,8 @@
 module COL
 
 table col.Collateral public src  # Collateral record; approved independently of the facility review, and an amendment creates a new revision (FR-COL-001/014, V-COL-01, section 8)
-  CollateralTypeId   ->cat.CollateralType req   # بنية النوع وقالب السمات من 11 (FR-CAT-013)
+  StructureKind      enum{GUARANTEE,PROMISSORY_NOTE,INSURANCE_ASSIGNMENT,CASH_MARGIN,REAL_ESTATE,SET_OFF,NEGATIVE_PLEDGE,GENERIC} req   # نسخة من بنية النوع: يربط بها كل نوع فرعي نوعَه (DR-40)
+  CollateralTypeId   ->cat.CollateralType req via=StructureKind   # بنية النوع وقالب السمات من 11 (FR-CAT-013)؛ بنية نوع مستعمل لا تتغير
   TitleAr            str(300)   req
   Description        str(2000)
   OwnerPartyId       ->pty.Party          # مزوّد استخدام Collateral owner؛ شركة المجموعة بـ Party المرآة (FR-COL-015)
@@ -69,9 +70,10 @@ table col.CollateralLink rev  # Link between collateral and a facility or limit;
   check  ToRevision IS NULL OR ToRevision >= FromRevision
 
 table col.Guarantee  # Guarantee, 1:1 with Collateral; the guarantor is always a Party, and no identity numbers are stored here (FR-COL-003/004, BR-COL-001)
-  CollateralId                 ->col.Collateral req
+  StructureKind                enum{GUARANTEE} req =GUARANTEE   # ثابت: الكفالة لضمان بنيته GUARANTEE (DR-40)
+  CollateralId                 ->col.Collateral req via=StructureKind
   GuarantorPartyId             ->pty.Party req   # فرد أو جهة؛ نوع الكفيل مشتق من Party.Kind ولا يُخزَّن؛ مزوّد Guarantee (FR-COL-015)
-  GuarantorIdentityDocumentId  ->pty.IdentityDocument   # الوثيقة المقيَّدة وقت التوقيع (BR-PTY-006)؛ انتماؤها للكفيل يتحقق منه التطبيق
+  GuarantorIdentityDocumentId  ->pty.IdentityDocument via=GuarantorPartyId>PartyId   # وثيقة الكفيل نفسه وقت التوقيع (BR-PTY-006، DR-33)؛ دمج الأطراف ينقل الوثائق في معاملة واحدة
   GuaranteeForm                enum{JOINT_SEVERAL_PAYMENT_PERFORMANCE,SIMPLE,OTHER} req
   IsJointSeveral               bool       req
   AmountMode                   enum{SPECIFIED,UNSPECIFIED} req   # UNSPECIFIED تُعدّ ولا تُجمع (BR-COL-001)
@@ -89,7 +91,8 @@ table col.Guarantee  # Guarantee, 1:1 with Collateral; the guarantor is always a
   check  GuaranteeForm <> 'JOINT_SEVERAL_PAYMENT_PERFORMANCE' OR IsJointSeveral = 1   # غرم وأداء تضامنية
 
 table col.PromissoryNote  # Promissory note, 1:1; its own amount may exceed the limit (FR-COL-005, BR-COL-002); NextRenewalDue and PNRatio are derived
-  CollateralId    ->col.Collateral req
+  StructureKind   enum{PROMISSORY_NOTE} req =PROMISSORY_NOTE   # ثابت (DR-40)
+  CollateralId    ->col.Collateral req via=StructureKind
   NoteAmount      money      req
   CurrencyId      ->ref.Currency req
   IssuedOn        date       req
@@ -112,7 +115,8 @@ table col.PromissoryNoteSigner pk=PromissoryNoteId,PartyId norv deletable  # Sig
   PartyId           ->pty.Party req   # الدمج (FR-PTY-016) يعيد التوجيه ويحذف المكرر لذا الحذف مسموح للتطبيق
 
 table col.InsurancePolicyAssignment  # Insurance policy assignment; the uniqueness key (CollateralId, PolicyNo) allows the policy to be renewed (FR-COL-006, BR-COL-003)
-  CollateralId             ->col.Collateral req
+  StructureKind            enum{INSURANCE_ASSIGNMENT} req =INSURANCE_ASSIGNMENT   # ثابت: التنازل لنوع INSURANCE_ASSIGNMENT وحده (قرار المالك 2026-10-13، DR-40)
+  CollateralId             ->col.Collateral req via=StructureKind
   PolicyNo                 str(60)    req
   InsurerName              str(200)   req
   AssignedToInstitutionId  ->ins.Institution req
@@ -134,7 +138,8 @@ table col.InsurancePolicyAssignment  # Insurance policy assignment; the uniquene
   check  CoverageBasis <> 'FULL_LIMITS' OR (CoveragePct IS NULL AND CoverageAmount IS NULL)
 
 table col.ValuationSchedule  # Property valuation schedule (FR-COL-008, BR-COL-004), for example three valuers in the first year, then one valuer per year
-  CollateralId         ->col.Collateral req
+  StructureKind        enum{REAL_ESTATE,GENERIC} req   # جدول التقييم للعقار والضمان العام (قرار المالك 2026-10-13، DR-40)
+  CollateralId         ->col.Collateral req via=StructureKind
   PhaseNo              int        req
   FromYear             int        req   # سنوات من ReferenceDate
   ToYear               int              # فارغ = مفتوحة إلى النهاية
@@ -160,14 +165,15 @@ module OBL
 
 table obl.Obligation public rev src  # Obligation on a facility (or on a limit, line or set of companies); the family comes from ObligationType and cannot be edited (FR-OBL-001, BR-OBL-001)
   FacilityId          ->fac.Facility req
-  ObligationTypeId    ->cat.ObligationType req   # عائلته: REPORTING/COVENANT/TRANSACTION_RESTRICTION/STATIC_CLAUSE (BR-CAT-010)
+  Family              enum{REPORTING,COVENANT,TRANSACTION_RESTRICTION,STATIC_CLAUSE} req   # نسخة من عائلة النوع (BR-CAT-010): يربط بها التقرير والتعهد نوعَهما (DR-40)
+  ObligationTypeId    ->cat.ObligationType req via=Family   # عائلة نوع مستعمل لا تتغير
   TitleAr             str(300)   req
   TitleEn             str(300)
   Phase               enum{PRECEDENT,ONGOING,SUBSEQUENT} req =ONGOING
   ScopeLimitId        ->fac.Limit via=FacilityId             # حد من التسهيل نفسه
-  ScopeProductLineId  ->fac.LimitProductLine via=FacilityId  # خط من التسهيل نفسه؛ اتساقه مع ScopeLimitId يتحقق منه التطبيق
+  ScopeProductLineId  ->fac.LimitProductLine via=FacilityId,ScopeLimitId>LimitId   # خط من الحد نفسه في التسهيل نفسه (DR-35)
   ClauseRef           str(100)
-  ClauseText          text
+  ClauseText          text       sens=confidential   # نص البند كما في الاتفاقية (DR-31)
   ConsequenceText     str(2000)
   GraceDays           int              # مهلة سماح (FR-OBL-010)
   CureDays            int              # مهلة علاج الخرق (FR-OBL-010، BR-OBL-009)
@@ -195,13 +201,15 @@ table obl.Obligation public rev src  # Obligation on a facility (or on a limit, 
   check  ToRevision IS NULL OR ToRevision >= FromRevision
   check  SourceDocumentId IS NOT NULL AND SourcePage IS NOT NULL OR (SourceDocumentId IS NULL AND Confidence = 'ENTERED_NO_DOCUMENT')   # ختم المصدر (BR-FAC-018)
   check  Confidence <> 'CONFIRMED_AGAINST_ORIGINAL' OR (VerifiedBy IS NOT NULL AND VerifiedOn IS NOT NULL)
+  check  ScopeProductLineId IS NULL OR ScopeLimitId IS NOT NULL   # بلا حد لا يُفحص الربط المركّب (DR-35)
 
 table obl.ObligationCompany pk=ObligationId,CompanyId norv deletable  # Companies the obligation applies to (AppliesToCompanyIds) -- جدول وسيط جديد؛ الحذف لصفوف مسودة المراجعة فقط (يفرضه التطبيق)
   ObligationId  ->obl.Obligation req
   CompanyId     ->org.Company req
 
 table obl.ReportingObligation rev  # Reporting or notice-due rule, 1:1 with Obligation (FR-OBL-002/003, BR-OBL-002, V-OBL-01)
-  ObligationId         ->obl.Obligation req
+  Family               enum{REPORTING} req =REPORTING   # ثابت (DR-40)
+  ObligationId         ->obl.Obligation req via=Family
   Frequency            enum{ANNUAL,SEMIANNUAL,QUARTERLY,MONTHLY,ONE_TIME,EVENT_BASED,ON_DEMAND} req
   AnchorKind           enum{AFTER_PERIOD_END,AFTER_FISCAL_YEAR_END,BEFORE_EVENT,AFTER_EVENT,ON_DEMAND_REQUEST,FIXED_DATE} req   # مطابقة لـ ObligationType.DefaultDeadlineBasis
   OffsetValue          int              # فارغ مع FIXED_DATE فقط
@@ -259,7 +267,8 @@ table obl.ReportingInstance public  # Agenda item generated or logged for an eve
   check  CurrencyId IS NULL OR ReportedAmount IS NOT NULL
 
 table obl.Covenant rev  # Covenant revision with dates; graduated limits are several revisions (FR-OBL-006, BR-OBL-001/005/006, Q-OBL-01)
-  ObligationId       ->obl.Obligation req
+  Family             enum{COVENANT} req =COVENANT   # ثابت (DR-40)
+  ObligationId       ->obl.Obligation req via=Family
   MeasureKind        enum{RATIO,AMOUNT,PERCENT_OF_REVENUE,AVERAGE_BALANCE,FLOW_VOLUME,NONE} req   # NONE = وصفي بلا صيغة ولا حد
   FormulaId          ->fin.MeasureFormula   # إلزامي للثلاثة الأولى؛ انتماؤها للتسهيل أو قالب يتحقق منه التطبيق
   Operator           enum{GE,LE,GT,LT,EQ}
@@ -284,7 +293,7 @@ table obl.Covenant rev  # Covenant revision with dates; graduated limits are sev
   index  TestedCompanyId,MeasureKind include ObligationId   # تعهدات الشركة المختبَرة (R-OBL-05)
   check  MeasureKind NOT IN ('RATIO','AMOUNT','PERCENT_OF_REVENUE') OR FormulaId IS NOT NULL   # V-OBL-01: صيغة للمقاييس الرقمية
   check  MeasureKind <> 'NONE' OR (FormulaId IS NULL AND Operator IS NULL AND ThresholdValue IS NULL AND ThresholdState <> 'SET')   # BR-OBL-001
-  check  ThresholdState <> 'SET' OR (Operator IS NOT NULL AND ThresholdValue IS NOT NULL)   # SET يتطلب مشغّلًا وقيمة (V-OBL-01)
+  check  ThresholdState <> 'SET' OR (Operator IS NOT NULL AND ThresholdValue IS NOT NULL AND ThresholdUnit IS NOT NULL)   # SET يتطلب مشغّلًا وقيمة ووحدة (V-OBL-01، DR-38)
   check  ThresholdState = 'SET' OR ThresholdValue IS NULL   # لا قيمة مع غير المحدد ولا تُقدَّر صفرًا (Q-OBL-02)
   check  ThresholdState <> 'SET' OR ThresholdUnit IS NULL OR ThresholdUnit <> 'AMOUNT' OR CurrencyId IS NOT NULL
   check  CurrencyId IS NULL OR ThresholdUnit = 'AMOUNT'
@@ -411,7 +420,7 @@ table fin.FinancialStatement public  # Financial statement header; highly confid
   AccountingStandard str(100)
   VersionNo         int        req =1
   VersionReason     enum{ORIGINAL,RESTATED,CORRECTION} req =ORIGINAL   # سبب الإصدار إلزامي (BR-FIN-004)
-  SupersedesId      ->fin.FinancialStatement   # الإصدار السابق
+  SupersedesId      ->fin.FinancialStatement via=CompanyId,Basis,Assurance,PeriodType,PeriodEnd   # الإصدار السابق للشركة والسلسلة نفسها؛ المدققة لا تحل محل الإدارية (قرار المالك 2026-10-13، DR-34)
   Status            enum{DRAFT,SUBMITTED,APPROVED,SUPERSEDED,REJECTED} req =DRAFT
   EntryMethod       enum{MANUAL,PASTE} req
   BalanceReason     str(500)         # سبب عدم التوازن للتقديم؛ BalanceDifference مشتق (FR-FIN-004)
@@ -423,6 +432,7 @@ table fin.FinancialStatement public  # Financial statement header; highly confid
   unique PublicId
   unique CompanyId,PeriodType,PeriodEnd,Basis,Assurance,VersionNo   # تكرار (شركة، فترة، أساس، تأكيد، إصدار) مرفوض (FR-FIN-002)
   unique CompanyId,Basis,Assurance,PeriodType,PeriodEnd where Status = 'APPROVED'   # معتمد واحد: الأحدث يُسقط السابق (BR-FIN-004)
+  unique SupersedesId where SupersedesId IS NOT NULL AND Status <> 'REJECTED'   # خلف حي واحد لكل إصدار (DR-34)
   index  CompanyId,Basis,PeriodEnd include Assurance,VersionNo,PeriodType,FiscalYear where Status = 'APPROVED'   # اختيار القائمة لاختبار (BR-FIN-003)
   index  CompanyId,FiscalYear,PeriodType include Status   # قائمة الإصدارات والمقارنة بين الفترات (R-FIN-01)
   index  Status,CompanyId include PeriodEnd where Status = 'SUBMITTED'   # بانتظار الاعتماد (NTF-FIN-02)
@@ -455,6 +465,7 @@ table fin.AccountMonthlyStat public  # Monthly balance of an account in the acco
   Status            enum{DRAFT,CONFIRMED} req =DRAFT
   unique PublicId
   unique BankAccountId,MonthEnd
+  check  DAY(DATEADD(DAY, 1, MonthEnd)) = 1   # نهاية الشهر فعلًا (DR-37)
   index  MonthEnd,Status include BankAccountId   # مصفوفة الأرصدة ونقص الشهر السابق (R-FIN-02، NTF-FIN-01)
 
 table fin.BankFlowEntry public  # Amount transferred to the bank in a month; annual totals are computed automatically (FR-FIN-009/010, BR-FIN-007/008)
@@ -469,6 +480,7 @@ table fin.BankFlowEntry public  # Amount transferred to the bank in a month; ann
   DocumentId    ->doc.Document
   unique PublicId
   unique CompanyId,InstitutionId,FacilityId,MonthEnd,FlowKindId   # تكرار (شركة، بنك، تسهيل، شهر) مرفوض (FR-FIN-009)
+  check  DAY(DATEADD(DAY, 1, MonthEnd)) = 1   # نهاية الشهر فعلًا (DR-37)
   index  CompanyId,MonthEnd include InstitutionId,FacilityId,Amount,CurrencyId   # التجميع السنوي والإنجاز (R-FIN-03)
   check  Amount >= 0
 

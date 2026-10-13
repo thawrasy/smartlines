@@ -16,6 +16,11 @@
      DR-18  doc.Document: a document whose type is sensitive is RESTRICTED. Marking a type sensitive raises its
             existing documents to RESTRICTED.
      DR-19  acc.Signatory: a revoked or expired signatory stays so; a renewal is a new row (BR-ACC-009).
+     DR-31  the verbatim text of agreements (OriginalText of every sourced row, the two candidate texts of a value
+            conflict, an obligation's ClauseText) is confidential and may quote accounts: the reporting role
+            tp_readonly, and the support role through it, does not read it.
+     DR-41  lc.ProformaInvoice: after issue only its status, void reason and successor change; its lines are
+            append-only in the model.
 
    An error raised in a trigger ends the caller's transaction; the application validates first.
    Errors: 50041 an undelivered outbox event is deleted, 50042 a revoked support grant changes, 50043 a locked
@@ -108,4 +113,21 @@ BEGIN
                WHERE d.Status IN ('REVOKED', 'EXPIRED') AND i.Status <> d.Status)
         THROW 50046, 'A revoked or expired signatory keeps its status; a renewal is a new signatory row', 1;
 END;
+GO
+/* DR-31 */
+DECLARE @deny NVARCHAR(MAX) = N'';
+SELECT @deny += N'DENY SELECT ON ' + QUOTENAME(s.name) + N'.' + QUOTENAME(t.name) + N' (' + QUOTENAME(c.name) + N') TO [tp_readonly];' + CHAR(10)
+FROM sys.columns AS c
+JOIN sys.tables AS t ON t.object_id = c.object_id
+JOIN sys.schemas AS s ON s.schema_id = t.schema_id
+WHERE s.name IN (N'fac', N'prc', N'cmp', N'col', N'obl', N'fin')
+  AND c.name IN (N'OriginalText', N'CandidateAOriginalText', N'CandidateBOriginalText', N'ClauseText');
+EXEC sys.sp_executesql @deny;
+GO
+/* DR-41 */
+DENY UPDATE ON lc.ProformaInvoice (CompanyId, ProformaNo, NumberYear, NumberSeq, RequestId, ErpCompanyCodeSnapshot, BranchCode,
+                                   BranchName, ProjectCode, ProjectName, ProjectSite, CustomerId, CustomerSnapshotJson, IssueDate,
+                                   OfferValidityDays, CurrencyId, Subtotal, VatRatePct, VatAmount, Total, LcPaymentPct, PlacesJson,
+                                   TermsPurpose, TermsId, ProceedsAccountId, PrintLanguage, DocumentId, PublicId, CreatedAt,
+                                   CreatedBy) TO [tp_app];
 GO

@@ -2994,7 +2994,7 @@
 | SourceDocumentId | BIGINT | نعم |  | doc.Document |  |
 | SourcePage | VARCHAR(40) | نعم |  |  |  |
 | ReadFromScan | BIT | لا | 0 |  |  |
-| OriginalText | NVARCHAR(2000) | نعم |  |  |  |
+| OriginalText | NVARCHAR(2000) | نعم |  |  | 🔒 confidential |
 | NoSourceReason | NVARCHAR(300) | نعم |  |  |  |
 | Confidence | VARCHAR(26) | لا | ENTERED_NO_DOCUMENT |  | enum: CONFIRMED_AGAINST_ORIGINAL, READ_FROM_SCAN_UNVERIFIED, ENTERED_NO_DOCUMENT |
 | VerifiedBy | BIGINT | نعم |  | sec.AppUser |  |
@@ -3042,7 +3042,7 @@
 | SourceDocumentId | BIGINT | نعم |  | doc.Document |  |
 | SourcePage | VARCHAR(40) | نعم |  |  |  |
 | ReadFromScan | BIT | لا | 0 |  |  |
-| OriginalText | NVARCHAR(2000) | نعم |  |  |  |
+| OriginalText | NVARCHAR(2000) | نعم |  |  | 🔒 confidential |
 | NoSourceReason | NVARCHAR(300) | نعم |  |  |  |
 | Confidence | VARCHAR(26) | لا | ENTERED_NO_DOCUMENT |  | enum: CONFIRMED_AGAINST_ORIGINAL, READ_FROM_SCAN_UNVERIFIED, ENTERED_NO_DOCUMENT |
 | VerifiedBy | BIGINT | نعم |  | sec.AppUser |  |
@@ -3081,7 +3081,7 @@
 | SourceDocumentId | BIGINT | نعم |  | doc.Document |  |
 | SourcePage | VARCHAR(40) | نعم |  |  |  |
 | ReadFromScan | BIT | لا | 0 |  |  |
-| OriginalText | NVARCHAR(2000) | نعم |  |  |  |
+| OriginalText | NVARCHAR(2000) | نعم |  |  | 🔒 confidential |
 | NoSourceReason | NVARCHAR(300) | نعم |  |  |  |
 | Confidence | VARCHAR(26) | لا | ENTERED_NO_DOCUMENT |  | enum: CONFIRMED_AGAINST_ORIGINAL, READ_FROM_SCAN_UNVERIFIED, ENTERED_NO_DOCUMENT |
 | VerifiedBy | BIGINT | نعم |  | sec.AppUser |  |
@@ -3119,7 +3119,7 @@
 | SourceDocumentId | BIGINT | نعم |  | doc.Document |  |
 | SourcePage | VARCHAR(40) | نعم |  |  |  |
 | ReadFromScan | BIT | لا | 0 |  |  |
-| OriginalText | NVARCHAR(2000) | نعم |  |  |  |
+| OriginalText | NVARCHAR(2000) | نعم |  |  | 🔒 confidential |
 | NoSourceReason | NVARCHAR(300) | نعم |  |  |  |
 | Confidence | VARCHAR(26) | لا | ENTERED_NO_DOCUMENT |  | enum: CONFIRMED_AGAINST_ORIGINAL, READ_FROM_SCAN_UNVERIFIED, ENTERED_NO_DOCUMENT |
 | VerifiedBy | BIGINT | نعم |  | sec.AppUser |  |
@@ -3161,7 +3161,7 @@
 | SourceDocumentId | BIGINT | نعم |  | doc.Document |  |
 | SourcePage | VARCHAR(40) | نعم |  |  |  |
 | ReadFromScan | BIT | لا | 0 |  |  |
-| OriginalText | NVARCHAR(2000) | نعم |  |  |  |
+| OriginalText | NVARCHAR(2000) | نعم |  |  | 🔒 confidential |
 | NoSourceReason | NVARCHAR(300) | نعم |  |  |  |
 | Confidence | VARCHAR(26) | لا | ENTERED_NO_DOCUMENT |  | enum: CONFIRMED_AGAINST_ORIGINAL, READ_FROM_SCAN_UNVERIFIED, ENTERED_NO_DOCUMENT |
 | VerifiedBy | BIGINT | نعم |  | sec.AppUser |  |
@@ -3196,7 +3196,7 @@
 | StartDate | DATE | لا |  |  |  |
 | MaturityDate | DATE | نعم |  |  |  |
 | SourceType | VARCHAR(13) | لا | MANUAL |  | enum: MANUAL, LC, OTHER_REQUEST |
-| SourceRefId | BIGINT | نعم |  |  | LcId أو RequestId؛ فارغ ابتداءً لبند LC ويُعبَّأ مرة واحدة من فارغ إلى قيمة (IMMUTABLE_SOURCE يفرضه التطبيق) |
+| SourceRequestId | BIGINT | نعم |  | wfl.Request (via CompanyId) | OTHER_REQUEST: الطلب العام لشركة البند نفسها. بند LC يربطه lc.LetterOfCredit.UtilizationId وحده (DQ-F12-14، DR-26) |
 | Status | VARCHAR(10) | لا | ACTIVE |  | RELEASED نهائية (§8) enum: ACTIVE, RELEASED |
 | ReleasedOn | DATE | نعم |  |  |  |
 | ReleaseReason | NVARCHAR(500) | نعم |  |  |  |
@@ -3206,9 +3206,9 @@
 | UpdatedAt | DATETIME2(3) | نعم |  |  |  |
 | UpdatedBy | BIGINT | نعم |  |  |  |
 
-**المفاتيح:** PK(UtilizationId) · UQ(PublicId) · UQ(TenantId, SourceType, SourceRefId) WHERE SourceRefId IS NOT NULL
+**المفاتيح:** PK(UtilizationId) · UQ(PublicId) · UQ(TenantId, SourceRequestId) WHERE SourceRequestId IS NOT NULL
 
-**قيود:** `Amount >= 0` · `Status = 'RELEASED' OR Amount > 0` · `RateToFacilityCcy IS NULL OR RateToFacilityCcy > 0` · `MaturityDate IS NULL OR MaturityDate >= StartDate` · `Status <> 'RELEASED' OR (ReleasedOn IS NOT NULL AND ReleaseReason IS NOT NULL)` · `Status = 'RELEASED' OR (ReleasedOn IS NULL AND ReleaseReason IS NULL)`
+**قيود:** `Amount >= 0` · `Status = 'RELEASED' OR Amount > 0` · `(SourceType = 'OTHER_REQUEST' AND SourceRequestId IS NOT NULL) OR (SourceType <> 'OTHER_REQUEST' AND SourceRequestId IS NULL)` · `RateToFacilityCcy IS NULL OR RateToFacilityCcy > 0` · `MaturityDate IS NULL OR MaturityDate >= StartDate` · `Status <> 'RELEASED' OR (ReleasedOn IS NOT NULL AND ReleaseReason IS NOT NULL)` · `Status = 'RELEASED' OR (ReleasedOn IS NULL AND ReleaseReason IS NULL)`
 
 ### `fac.LimitReservation` — Amount reserved for a request, equal to ExposureAmount (FR-FAC-017/018/020, BR-FAC-015)
 
@@ -3282,21 +3282,21 @@
 |---|---|---|---|---|---|
 | TenantId | INT | لا | | plat.Tenant | عزل المشترك |
 | **ValueConflictId** | BIGINT IDENTITY | لا | | | مفتاح أساسي |
-| FacilityId | BIGINT | لا |  | fac.Facility | إضافة: مفتاح النطاق |
-| TargetEntity | VARCHAR(60) | لا |  |  | الكيان المستهدف مثل fac.Limit أو prc.PricingRule (رابط متعدد الأشكال) |
+| FacilityId | BIGINT | نعم |  | fac.Facility | مفتاح النطاق؛ إلزامي إلا لهدف بلا تسهيل: ضمان أو بند تعرفة أو قالب معادلة (قرار المالك 2026-10-13، DR-27) |
+| TargetEntity | VARCHAR(60) | لا |  |  | الكيان المستهدف من جداول المصدر وحدها (القيد أدناه)؛ وجوده وتسهيله يتحقق منهما قبل S2 |
 | TargetId | BIGINT | لا |  |  |  |
 | FieldName | VARCHAR(80) | لا |  |  |  |
 | CandidateAValue | NVARCHAR(1000) | لا |  |  | القيمة + ختم المصدر (A) |
 | CandidateASourceDocumentId | BIGINT | نعم |  | doc.Document |  |
 | CandidateASourcePage | VARCHAR(40) | نعم |  |  |  |
 | CandidateAReadFromScan | BIT | لا | 0 |  |  |
-| CandidateAOriginalText | NVARCHAR(2000) | نعم |  |  |  |
+| CandidateAOriginalText | NVARCHAR(2000) | نعم |  |  | DR-31 🔒 confidential |
 | CandidateAConfidence | VARCHAR(26) | لا | ENTERED_NO_DOCUMENT |  | enum: CONFIRMED_AGAINST_ORIGINAL, READ_FROM_SCAN_UNVERIFIED, ENTERED_NO_DOCUMENT |
 | CandidateBValue | NVARCHAR(1000) | لا |  |  | القيمة + ختم المصدر (B) |
 | CandidateBSourceDocumentId | BIGINT | نعم |  | doc.Document |  |
 | CandidateBSourcePage | VARCHAR(40) | نعم |  |  |  |
 | CandidateBReadFromScan | BIT | لا | 0 |  |  |
-| CandidateBOriginalText | NVARCHAR(2000) | نعم |  |  |  |
+| CandidateBOriginalText | NVARCHAR(2000) | نعم |  |  | 🔒 confidential |
 | CandidateBConfidence | VARCHAR(26) | لا | ENTERED_NO_DOCUMENT |  | enum: CONFIRMED_AGAINST_ORIGINAL, READ_FROM_SCAN_UNVERIFIED, ENTERED_NO_DOCUMENT |
 | Status | VARCHAR(10) | لا | OPEN |  | enum: OPEN, RESOLVED |
 | ChosenSide | VARCHAR(10) | نعم |  |  | enum: A, B, OTHER |
@@ -3311,7 +3311,7 @@
 
 **المفاتيح:** PK(ValueConflictId) · UQ(TenantId, TargetEntity, TargetId, FieldName) WHERE Status = 'OPEN'
 
-**قيود:** `Status <> 'RESOLVED' OR (ChosenSide IS NOT NULL AND ResolutionReason IS NOT NULL AND ResolvedBy IS NOT NULL AND ResolvedOn IS NOT NULL)` · `Status = 'RESOLVED' OR (ChosenSide IS NULL AND ResolvedBy IS NULL AND ResolvedOn IS NULL)` · `ChosenSide IS NULL OR ChosenSide <> 'OTHER' OR ResolvedValue IS NOT NULL` · `CandidateASourceDocumentId IS NOT NULL AND CandidateASourcePage IS NOT NULL OR (CandidateASourceDocumentId IS NULL AND CandidateAConfidence = 'ENTERED_NO_DOCUMENT')` · `CandidateBSourceDocumentId IS NOT NULL AND CandidateBSourcePage IS NOT NULL OR (CandidateBSourceDocumentId IS NULL AND CandidateBConfidence = 'ENTERED_NO_DOCUMENT')`
+**قيود:** `Status <> 'RESOLVED' OR (ChosenSide IS NOT NULL AND ResolutionReason IS NOT NULL AND ResolvedBy IS NOT NULL AND ResolvedOn IS NOT NULL)` · `Status = 'RESOLVED' OR (ChosenSide IS NULL AND ResolvedBy IS NULL AND ResolvedOn IS NULL)` · `TargetEntity IN ('fac.Facility','fac.Limit','fac.LimitProductLine','fac.LimitCompanyRule','fac.ProductLineTerm','fac.OutstandingSnapshot','prc.TariffItem','prc.PricingRule','cmp.TermValue','col.Collateral','obl.Obligation','fin.MeasureFormula')` · `FacilityId IS NOT NULL OR TargetEntity IN ('col.Collateral','prc.TariffItem','fin.MeasureFormula')` · `ChosenSide IS NULL OR ChosenSide <> 'OTHER' OR ResolvedValue IS NOT NULL` · `CandidateASourceDocumentId IS NOT NULL AND CandidateASourcePage IS NOT NULL OR (CandidateASourceDocumentId IS NULL AND CandidateAConfidence = 'ENTERED_NO_DOCUMENT')` · `CandidateBSourceDocumentId IS NOT NULL AND CandidateBSourcePage IS NOT NULL OR (CandidateBSourceDocumentId IS NULL AND CandidateBConfidence = 'ENTERED_NO_DOCUMENT')`
 
 ## PRC
 
@@ -3374,7 +3374,7 @@
 | SourceDocumentId | BIGINT | نعم |  | doc.Document |  |
 | SourcePage | VARCHAR(40) | نعم |  |  |  |
 | ReadFromScan | BIT | لا | 0 |  |  |
-| OriginalText | NVARCHAR(2000) | نعم |  |  |  |
+| OriginalText | NVARCHAR(2000) | نعم |  |  | 🔒 confidential |
 | NoSourceReason | NVARCHAR(300) | نعم |  |  |  |
 | Confidence | VARCHAR(26) | لا | ENTERED_NO_DOCUMENT |  | enum: CONFIRMED_AGAINST_ORIGINAL, READ_FROM_SCAN_UNVERIFIED, ENTERED_NO_DOCUMENT |
 | VerifiedBy | BIGINT | نعم |  | sec.AppUser |  |
@@ -3468,7 +3468,7 @@
 | SourceDocumentId | BIGINT | نعم |  | doc.Document |  |
 | SourcePage | VARCHAR(40) | نعم |  |  |  |
 | ReadFromScan | BIT | لا | 0 |  |  |
-| OriginalText | NVARCHAR(2000) | نعم |  |  |  |
+| OriginalText | NVARCHAR(2000) | نعم |  |  | 🔒 confidential |
 | NoSourceReason | NVARCHAR(300) | نعم |  |  |  |
 | Confidence | VARCHAR(26) | لا | ENTERED_NO_DOCUMENT |  | enum: CONFIRMED_AGAINST_ORIGINAL, READ_FROM_SCAN_UNVERIFIED, ENTERED_NO_DOCUMENT |
 | VerifiedBy | BIGINT | نعم |  | sec.AppUser |  |
@@ -3585,7 +3585,7 @@
 | SourceDocumentId | BIGINT | نعم |  | doc.Document |  |
 | SourcePage | VARCHAR(40) | نعم |  |  |  |
 | ReadFromScan | BIT | لا | 0 |  |  |
-| OriginalText | NVARCHAR(2000) | نعم |  |  |  |
+| OriginalText | NVARCHAR(2000) | نعم |  |  | 🔒 confidential |
 | NoSourceReason | NVARCHAR(300) | نعم |  |  |  |
 | Confidence | VARCHAR(26) | لا | ENTERED_NO_DOCUMENT |  | enum: CONFIRMED_AGAINST_ORIGINAL, READ_FROM_SCAN_UNVERIFIED, ENTERED_NO_DOCUMENT |
 | VerifiedBy | BIGINT | نعم |  | sec.AppUser |  |
@@ -3610,7 +3610,8 @@
 |---|---|---|---|---|---|
 | TenantId | INT | لا | | plat.Tenant | عزل المشترك |
 | **CollateralId** | BIGINT IDENTITY | لا | | | مفتاح أساسي |
-| CollateralTypeId | INT | لا |  | cat.CollateralType | بنية النوع وقالب السمات من 11 (FR-CAT-013) |
+| StructureKind | VARCHAR(20) | لا |  |  | نسخة من بنية النوع: يربط بها كل نوع فرعي نوعَه (DR-40) enum: GUARANTEE, PROMISSORY_NOTE, INSURANCE_ASSIGNMENT, CASH_MARGIN, REAL_ESTATE, SET_OFF, NEGATIVE_PLEDGE, GENERIC |
+| CollateralTypeId | INT | لا |  | cat.CollateralType (via StructureKind) | بنية النوع وقالب السمات من 11 (FR-CAT-013)؛ بنية نوع مستعمل لا تتغير |
 | TitleAr | NVARCHAR(300) | لا |  |  |  |
 | Description | NVARCHAR(2000) | نعم |  |  |  |
 | OwnerPartyId | BIGINT | نعم |  | pty.Party | مزوّد استخدام Collateral owner؛ شركة المجموعة بـ Party المرآة (FR-COL-015) |
@@ -3628,7 +3629,7 @@
 | SourceDocumentId | BIGINT | نعم |  | doc.Document |  |
 | SourcePage | VARCHAR(40) | نعم |  |  |  |
 | ReadFromScan | BIT | لا | 0 |  |  |
-| OriginalText | NVARCHAR(2000) | نعم |  |  |  |
+| OriginalText | NVARCHAR(2000) | نعم |  |  | 🔒 confidential |
 | NoSourceReason | NVARCHAR(300) | نعم |  |  |  |
 | Confidence | VARCHAR(26) | لا | ENTERED_NO_DOCUMENT |  | enum: CONFIRMED_AGAINST_ORIGINAL, READ_FROM_SCAN_UNVERIFIED, ENTERED_NO_DOCUMENT |
 | VerifiedBy | BIGINT | نعم |  | sec.AppUser |  |
@@ -3679,9 +3680,10 @@
 |---|---|---|---|---|---|
 | TenantId | INT | لا | | plat.Tenant | عزل المشترك |
 | **GuaranteeId** | BIGINT IDENTITY | لا | | | مفتاح أساسي |
-| CollateralId | BIGINT | لا |  | col.Collateral |  |
+| StructureKind | VARCHAR(20) | لا | GUARANTEE |  | ثابت: الكفالة لضمان بنيته GUARANTEE (DR-40) enum: GUARANTEE |
+| CollateralId | BIGINT | لا |  | col.Collateral (via StructureKind) |  |
 | GuarantorPartyId | BIGINT | لا |  | pty.Party | فرد أو جهة؛ نوع الكفيل مشتق من Party.Kind ولا يُخزَّن؛ مزوّد Guarantee (FR-COL-015) |
-| GuarantorIdentityDocumentId | BIGINT | نعم |  | pty.IdentityDocument | الوثيقة المقيَّدة وقت التوقيع (BR-PTY-006)؛ انتماؤها للكفيل يتحقق منه التطبيق |
+| GuarantorIdentityDocumentId | BIGINT | نعم |  | pty.IdentityDocument (via GuarantorPartyId) | وثيقة الكفيل نفسه وقت التوقيع (BR-PTY-006، DR-33)؛ دمج الأطراف ينقل الوثائق في معاملة واحدة |
 | GuaranteeForm | VARCHAR(33) | لا |  |  | enum: JOINT_SEVERAL_PAYMENT_PERFORMANCE, SIMPLE, OTHER |
 | IsJointSeveral | BIT | لا |  |  |  |
 | AmountMode | VARCHAR(11) | لا |  |  | UNSPECIFIED تُعدّ ولا تُجمع (BR-COL-001) enum: SPECIFIED, UNSPECIFIED |
@@ -3707,7 +3709,8 @@
 |---|---|---|---|---|---|
 | TenantId | INT | لا | | plat.Tenant | عزل المشترك |
 | **PromissoryNoteId** | BIGINT IDENTITY | لا | | | مفتاح أساسي |
-| CollateralId | BIGINT | لا |  | col.Collateral |  |
+| StructureKind | VARCHAR(20) | لا | PROMISSORY_NOTE |  | ثابت (DR-40) enum: PROMISSORY_NOTE |
+| CollateralId | BIGINT | لا |  | col.Collateral (via StructureKind) |  |
 | NoteAmount | DECIMAL(19,4) | لا |  |  |  |
 | CurrencyId | INT | لا |  | ref.Currency |  |
 | IssuedOn | DATE | لا |  |  |  |
@@ -3750,7 +3753,8 @@
 |---|---|---|---|---|---|
 | TenantId | INT | لا | | plat.Tenant | عزل المشترك |
 | **InsurancePolicyAssignmentId** | BIGINT IDENTITY | لا | | | مفتاح أساسي |
-| CollateralId | BIGINT | لا |  | col.Collateral |  |
+| StructureKind | VARCHAR(20) | لا | INSURANCE_ASSIGNMENT |  | ثابت: التنازل لنوع INSURANCE_ASSIGNMENT وحده (قرار المالك 2026-10-13، DR-40) enum: INSURANCE_ASSIGNMENT |
+| CollateralId | BIGINT | لا |  | col.Collateral (via StructureKind) |  |
 | PolicyNo | NVARCHAR(60) | لا |  |  |  |
 | InsurerName | NVARCHAR(200) | لا |  |  |  |
 | AssignedToInstitutionId | BIGINT | لا |  | ins.Institution |  |
@@ -3780,7 +3784,8 @@
 |---|---|---|---|---|---|
 | TenantId | INT | لا | | plat.Tenant | عزل المشترك |
 | **ValuationScheduleId** | BIGINT IDENTITY | لا | | | مفتاح أساسي |
-| CollateralId | BIGINT | لا |  | col.Collateral |  |
+| StructureKind | VARCHAR(20) | لا |  |  | جدول التقييم للعقار والضمان العام (قرار المالك 2026-10-13، DR-40) enum: REAL_ESTATE, GENERIC |
+| CollateralId | BIGINT | لا |  | col.Collateral (via StructureKind) |  |
 | PhaseNo | INT | لا |  |  |  |
 | FromYear | INT | لا |  |  | سنوات من ReferenceDate |
 | ToYear | INT | نعم |  |  | فارغ = مفتوحة إلى النهاية |
@@ -3810,14 +3815,15 @@
 | TenantId | INT | لا | | plat.Tenant | عزل المشترك |
 | **ObligationId** | BIGINT IDENTITY | لا | | | مفتاح أساسي |
 | FacilityId | BIGINT | لا |  | fac.Facility |  |
-| ObligationTypeId | INT | لا |  | cat.ObligationType | عائلته: REPORTING/COVENANT/TRANSACTION_RESTRICTION/STATIC_CLAUSE (BR-CAT-010) |
+| Family | VARCHAR(23) | لا |  |  | نسخة من عائلة النوع (BR-CAT-010): يربط بها التقرير والتعهد نوعَهما (DR-40) enum: REPORTING, COVENANT, TRANSACTION_RESTRICTION, STATIC_CLAUSE |
+| ObligationTypeId | INT | لا |  | cat.ObligationType (via Family) | عائلة نوع مستعمل لا تتغير |
 | TitleAr | NVARCHAR(300) | لا |  |  |  |
 | TitleEn | NVARCHAR(300) | نعم |  |  |  |
 | Phase | VARCHAR(10) | لا | ONGOING |  | enum: PRECEDENT, ONGOING, SUBSEQUENT |
 | ScopeLimitId | BIGINT | نعم |  | fac.Limit (via FacilityId) | حد من التسهيل نفسه |
-| ScopeProductLineId | BIGINT | نعم |  | fac.LimitProductLine (via FacilityId) | خط من التسهيل نفسه؛ اتساقه مع ScopeLimitId يتحقق منه التطبيق |
+| ScopeProductLineId | BIGINT | نعم |  | fac.LimitProductLine (via FacilityId,ScopeLimitId) | خط من الحد نفسه في التسهيل نفسه (DR-35) |
 | ClauseRef | NVARCHAR(100) | نعم |  |  |  |
-| ClauseText | NVARCHAR(MAX) | نعم |  |  |  |
+| ClauseText | NVARCHAR(MAX) | نعم |  |  | نص البند كما في الاتفاقية (DR-31) 🔒 confidential |
 | ConsequenceText | NVARCHAR(2000) | نعم |  |  |  |
 | GraceDays | INT | نعم |  |  | مهلة سماح (FR-OBL-010) |
 | CureDays | INT | نعم |  |  | مهلة علاج الخرق (FR-OBL-010، BR-OBL-009) |
@@ -3836,7 +3842,7 @@
 | SourceDocumentId | BIGINT | نعم |  | doc.Document |  |
 | SourcePage | VARCHAR(40) | نعم |  |  |  |
 | ReadFromScan | BIT | لا | 0 |  |  |
-| OriginalText | NVARCHAR(2000) | نعم |  |  |  |
+| OriginalText | NVARCHAR(2000) | نعم |  |  | 🔒 confidential |
 | NoSourceReason | NVARCHAR(300) | نعم |  |  |  |
 | Confidence | VARCHAR(26) | لا | ENTERED_NO_DOCUMENT |  | enum: CONFIRMED_AGAINST_ORIGINAL, READ_FROM_SCAN_UNVERIFIED, ENTERED_NO_DOCUMENT |
 | VerifiedBy | BIGINT | نعم |  | sec.AppUser |  |
@@ -3850,7 +3856,7 @@
 
 **المفاتيح:** PK(ObligationId) · UQ(PublicId)
 
-**قيود:** `ValidTo IS NULL OR ValidTo >= ValidFrom` · `GraceDays IS NULL OR GraceDays >= 0` · `CureDays IS NULL OR CureDays >= 0` · `(ParamValue IS NULL AND ParamUnit IS NULL) OR (ParamValue IS NOT NULL AND ParamUnit IS NOT NULL)` · `ParamValue IS NULL OR ParamValue >= 0` · `ParamUnit IS NULL OR ParamUnit <> 'AMOUNT' OR ParamCurrencyId IS NOT NULL` · `ParamCurrencyId IS NULL OR ParamUnit = 'AMOUNT'` · `TriggerValues IS NULL OR TriggerField IS NOT NULL` · `ToRevision IS NULL OR ToRevision >= FromRevision` · `SourceDocumentId IS NOT NULL AND SourcePage IS NOT NULL OR (SourceDocumentId IS NULL AND Confidence = 'ENTERED_NO_DOCUMENT')` · `Confidence <> 'CONFIRMED_AGAINST_ORIGINAL' OR (VerifiedBy IS NOT NULL AND VerifiedOn IS NOT NULL)`
+**قيود:** `ValidTo IS NULL OR ValidTo >= ValidFrom` · `GraceDays IS NULL OR GraceDays >= 0` · `CureDays IS NULL OR CureDays >= 0` · `(ParamValue IS NULL AND ParamUnit IS NULL) OR (ParamValue IS NOT NULL AND ParamUnit IS NOT NULL)` · `ParamValue IS NULL OR ParamValue >= 0` · `ParamUnit IS NULL OR ParamUnit <> 'AMOUNT' OR ParamCurrencyId IS NOT NULL` · `ParamCurrencyId IS NULL OR ParamUnit = 'AMOUNT'` · `TriggerValues IS NULL OR TriggerField IS NOT NULL` · `ToRevision IS NULL OR ToRevision >= FromRevision` · `SourceDocumentId IS NOT NULL AND SourcePage IS NOT NULL OR (SourceDocumentId IS NULL AND Confidence = 'ENTERED_NO_DOCUMENT')` · `Confidence <> 'CONFIRMED_AGAINST_ORIGINAL' OR (VerifiedBy IS NOT NULL AND VerifiedOn IS NOT NULL)` · `ScopeProductLineId IS NULL OR ScopeLimitId IS NOT NULL`
 
 ### `obl.ObligationCompany` — Companies the obligation applies to (AppliesToCompanyIds) -- جدول وسيط جديد؛ الحذف لصفوف مسودة المراجعة فقط (يفرضه التطبيق)
 
@@ -3876,7 +3882,8 @@
 |---|---|---|---|---|---|
 | TenantId | INT | لا | | plat.Tenant | عزل المشترك |
 | **ReportingObligationId** | BIGINT IDENTITY | لا | | | مفتاح أساسي |
-| ObligationId | BIGINT | لا |  | obl.Obligation |  |
+| Family | VARCHAR(23) | لا | REPORTING |  | ثابت (DR-40) enum: REPORTING |
+| ObligationId | BIGINT | لا |  | obl.Obligation (via Family) |  |
 | Frequency | VARCHAR(11) | لا |  |  | enum: ANNUAL, SEMIANNUAL, QUARTERLY, MONTHLY, ONE_TIME, EVENT_BASED, ON_DEMAND |
 | AnchorKind | VARCHAR(21) | لا |  |  | مطابقة لـ ObligationType.DefaultDeadlineBasis enum: AFTER_PERIOD_END, AFTER_FISCAL_YEAR_END, BEFORE_EVENT, AFTER_EVENT, ON_DEMAND_REQUEST, FIXED_DATE |
 | OffsetValue | INT | نعم |  |  | فارغ مع FIXED_DATE فقط |
@@ -3944,7 +3951,8 @@
 |---|---|---|---|---|---|
 | TenantId | INT | لا | | plat.Tenant | عزل المشترك |
 | **CovenantId** | BIGINT IDENTITY | لا | | | مفتاح أساسي |
-| ObligationId | BIGINT | لا |  | obl.Obligation |  |
+| Family | VARCHAR(23) | لا | COVENANT |  | ثابت (DR-40) enum: COVENANT |
+| ObligationId | BIGINT | لا |  | obl.Obligation (via Family) |  |
 | MeasureKind | VARCHAR(18) | لا |  |  | NONE = وصفي بلا صيغة ولا حد enum: RATIO, AMOUNT, PERCENT_OF_REVENUE, AVERAGE_BALANCE, FLOW_VOLUME, NONE |
 | FormulaId | BIGINT | نعم |  | fin.MeasureFormula | إلزامي للثلاثة الأولى؛ انتماؤها للتسهيل أو قالب يتحقق منه التطبيق |
 | Operator | VARCHAR(10) | نعم |  |  | enum: GE, LE, GT, LT, EQ |
@@ -3975,7 +3983,7 @@
 
 **المفاتيح:** PK(CovenantId) · UQ(TenantId, ObligationId, ValidFrom) WHERE ToRevision IS NULL
 
-**قيود:** `MeasureKind NOT IN ('RATIO','AMOUNT','PERCENT_OF_REVENUE') OR FormulaId IS NOT NULL` · `MeasureKind <> 'NONE' OR (FormulaId IS NULL AND Operator IS NULL AND ThresholdValue IS NULL AND ThresholdState <> 'SET')` · `ThresholdState <> 'SET' OR (Operator IS NOT NULL AND ThresholdValue IS NOT NULL)` · `ThresholdState = 'SET' OR ThresholdValue IS NULL` · `ThresholdState <> 'SET' OR ThresholdUnit IS NULL OR ThresholdUnit <> 'AMOUNT' OR CurrencyId IS NOT NULL` · `CurrencyId IS NULL OR ThresholdUnit = 'AMOUNT'` · `RevenueBasisRule IS NULL OR MeasureKind = 'PERCENT_OF_REVENUE'` · `SubmissionLagDays IS NULL OR SubmissionLagDays >= 0` · `EarlyWarningPct IS NULL OR (EarlyWarningPct >= 0 AND EarlyWarningPct <= 100)` · `ValidTo IS NULL OR ValidTo >= ValidFrom` · `ToRevision IS NULL OR ToRevision >= FromRevision`
+**قيود:** `MeasureKind NOT IN ('RATIO','AMOUNT','PERCENT_OF_REVENUE') OR FormulaId IS NOT NULL` · `MeasureKind <> 'NONE' OR (FormulaId IS NULL AND Operator IS NULL AND ThresholdValue IS NULL AND ThresholdState <> 'SET')` · `ThresholdState <> 'SET' OR (Operator IS NOT NULL AND ThresholdValue IS NOT NULL AND ThresholdUnit IS NOT NULL)` · `ThresholdState = 'SET' OR ThresholdValue IS NULL` · `ThresholdState <> 'SET' OR ThresholdUnit IS NULL OR ThresholdUnit <> 'AMOUNT' OR CurrencyId IS NOT NULL` · `CurrencyId IS NULL OR ThresholdUnit = 'AMOUNT'` · `RevenueBasisRule IS NULL OR MeasureKind = 'PERCENT_OF_REVENUE'` · `SubmissionLagDays IS NULL OR SubmissionLagDays >= 0` · `EarlyWarningPct IS NULL OR (EarlyWarningPct >= 0 AND EarlyWarningPct <= 100)` · `ValidTo IS NULL OR ValidTo >= ValidFrom` · `ToRevision IS NULL OR ToRevision >= FromRevision`
 
 ### `obl.CovenantAccount` — Accounts covered by a covenant when specific accounts are selected (AccountIds) -- جدول وسيط جديد؛ الحذف لصفوف مسودة المراجعة فقط (يفرضه التطبيق)
 
@@ -4141,7 +4149,7 @@
 | AccountingStandard | NVARCHAR(100) | نعم |  |  |  |
 | VersionNo | INT | لا | 1 |  |  |
 | VersionReason | VARCHAR(10) | لا | ORIGINAL |  | سبب الإصدار إلزامي (BR-FIN-004) enum: ORIGINAL, RESTATED, CORRECTION |
-| SupersedesId | BIGINT | نعم |  | fin.FinancialStatement | الإصدار السابق |
+| SupersedesId | BIGINT | نعم |  | fin.FinancialStatement (via CompanyId,Basis,Assurance,PeriodType,PeriodEnd) | الإصدار السابق للشركة والسلسلة نفسها؛ المدققة لا تحل محل الإدارية (قرار المالك 2026-10-13، DR-34) |
 | Status | VARCHAR(10) | لا | DRAFT |  | enum: DRAFT, SUBMITTED, APPROVED, SUPERSEDED, REJECTED |
 | EntryMethod | VARCHAR(10) | لا |  |  | enum: MANUAL, PASTE |
 | BalanceReason | NVARCHAR(500) | نعم |  |  | سبب عدم التوازن للتقديم؛ BalanceDifference مشتق (FR-FIN-004) |
@@ -4156,7 +4164,7 @@
 | UpdatedAt | DATETIME2(3) | نعم |  |  |  |
 | UpdatedBy | BIGINT | نعم |  |  |  |
 
-**المفاتيح:** PK(FinancialStatementId) · UQ(PublicId) · UQ(TenantId, CompanyId, PeriodType, PeriodEnd, Basis, Assurance, VersionNo) · UQ(TenantId, CompanyId, Basis, Assurance, PeriodType, PeriodEnd) WHERE Status = 'APPROVED'
+**المفاتيح:** PK(FinancialStatementId) · UQ(PublicId) · UQ(TenantId, CompanyId, PeriodType, PeriodEnd, Basis, Assurance, VersionNo) · UQ(TenantId, CompanyId, Basis, Assurance, PeriodType, PeriodEnd) WHERE Status = 'APPROVED' · UQ(TenantId, SupersedesId) WHERE SupersedesId IS NOT NULL AND Status <> 'REJECTED'
 
 **قيود:** `UnitScale IN (1,1000,1000000)` · `PeriodStart IS NULL OR PeriodEnd >= PeriodStart` · `FiscalYear BETWEEN 1900 AND 2200` · `VersionNo >= 1` · `VersionReason <> 'ORIGINAL' OR SupersedesId IS NULL` · `SupersedesId IS NULL OR (VersionNo > 1 AND VersionReason <> 'ORIGINAL' AND SupersedesId <> FinancialStatementId)` · `Status NOT IN ('SUBMITTED','APPROVED','SUPERSEDED') OR (PreparedBy IS NOT NULL AND PreparedOn IS NOT NULL)` · `Status NOT IN ('APPROVED','SUPERSEDED') OR (ApprovedBy IS NOT NULL AND ApprovedOn IS NOT NULL)`
 
@@ -4205,6 +4213,8 @@
 
 **المفاتيح:** PK(AccountMonthlyStatId) · UQ(PublicId) · UQ(TenantId, BankAccountId, MonthEnd)
 
+**قيود:** `DAY(DATEADD(DAY, 1, MonthEnd)) = 1`
+
 ### `fin.BankFlowEntry` — Amount transferred to the bank in a month; annual totals are computed automatically (FR-FIN-009/010, BR-FIN-007/008)
 
 *مملوك للمشترك*
@@ -4230,7 +4240,7 @@
 
 **المفاتيح:** PK(BankFlowEntryId) · UQ(PublicId) · UQ(TenantId, CompanyId, InstitutionId, FacilityId, MonthEnd, FlowKindId)
 
-**قيود:** `Amount >= 0`
+**قيود:** `DAY(DATEADD(DAY, 1, MonthEnd)) = 1` · `Amount >= 0`
 
 ### `fin.MeasureFormula` — Measure formula: a template or a facility-agreement version with revisions; never executed as text (FR-FIN-011, BR-FIN-009, section 12)
 
@@ -4257,7 +4267,7 @@
 | SourceDocumentId | BIGINT | نعم |  | doc.Document |  |
 | SourcePage | VARCHAR(40) | نعم |  |  |  |
 | ReadFromScan | BIT | لا | 0 |  |  |
-| OriginalText | NVARCHAR(2000) | نعم |  |  |  |
+| OriginalText | NVARCHAR(2000) | نعم |  |  | 🔒 confidential |
 | NoSourceReason | NVARCHAR(300) | نعم |  |  |  |
 | Confidence | VARCHAR(26) | لا | ENTERED_NO_DOCUMENT |  | enum: CONFIRMED_AGAINST_ORIGINAL, READ_FROM_SCAN_UNVERIFIED, ENTERED_NO_DOCUMENT |
 | VerifiedBy | BIGINT | نعم |  | sec.AppUser |  |
@@ -4289,7 +4299,7 @@
 | Category | VARCHAR(10) | لا |  |  | تصنيف مشتريات/مبيعات الموحّد (لا استيراد/تصدير) enum: PURCHASE, SALES, TREASURY, GENERAL, CHILD |
 | ParentEntityType | VARCHAR(40) | نعم |  |  | نوع الكائن الأب للأنواع الفرعية (اعتماد صادر مثلًا) (FR-REQ-012، BR-REQ-008) |
 | DefaultTemplateKey | VARCHAR(60) | لا |  |  | مفتاح القالب الافتراضي؛ النسخة المعتمدة هي IsCurrent (BR-WFL-019) |
-| NumberSequenceKey | VARCHAR(50) | لا |  |  | = req:<Code> يقابل cfg.NumberSequenceDefinition.SequenceKey (BR-WFL-013، X-DAT-8) |
+| NumberSequenceKey | VARCHAR(50) | لا |  |  | = req:<Code> (قيد أدناه) يقابل cfg.NumberSequenceDefinition.SequenceKey، فيخضع لقاعدة الترقيم بلا فجوات (BR-WFL-013، X-DAT-8، DR-49) |
 | AmountFieldKey | VARCHAR(60) | نعم |  |  | مفاتيح حقول الفهرسة في النموذج (FR-REQ-009) |
 | CurrencyFieldKey | VARCHAR(60) | نعم |  |  |  |
 | ProductFieldKey | VARCHAR(60) | نعم |  |  |  |
@@ -4307,7 +4317,7 @@
 
 **المفاتيح:** PK(RequestTypeId) · UQ(PublicId) · UQ(TenantId, Code) · UQ(TenantId, SeedKey) WHERE SeedKey IS NOT NULL
 
-**قيود:** `Category <> 'CHILD' OR ParentEntityType IS NOT NULL` · `ConsumesCreditLimit = 1 OR LimitCheckMode = 'NONE'`
+**قيود:** `Category <> 'CHILD' OR ParentEntityType IS NOT NULL` · `ConsumesCreditLimit = 1 OR LimitCheckMode = 'NONE'` · `NumberSequenceKey = CONCAT('req:', Code)`
 
 ### `wfl.RequestTypeAudience` — Audience of a request type: who may raise it; no rows = nobody (fail closed) (FR-REQ-007)
 
@@ -4465,7 +4475,7 @@
 
 **المفاتيح:** PK(RequestId) · UQ(PublicId) · UQ(TenantId, DraftRef) · UQ(TenantId, RequestNo) WHERE RequestNo IS NOT NULL · UQ(TenantId, RequestTypeId, NumberYear, NumberSeq) WHERE NumberSeq IS NOT NULL
 
-**قيود:** `(RequestNo IS NULL AND NumberYear IS NULL AND NumberSeq IS NULL) OR (RequestNo IS NOT NULL AND NumberYear IS NOT NULL AND NumberSeq IS NOT NULL)` · `DraftRef LIKE 'D-%'` · `Status NOT IN ('ACTIVE','AWAITING_CLOSE','COMPLETED','REJECTED') OR SubmittedAt IS NOT NULL` · `(Status IN ('DRAFT','ACTIVE','AWAITING_CLOSE') AND CompletedAt IS NULL) OR (Status IN ('COMPLETED','REJECTED','CANCELLED') AND CompletedAt IS NOT NULL)` · `CompletedAt IS NULL OR SubmittedAt IS NULL OR CompletedAt >= SubmittedAt` · `Status <> 'ACTIVE' OR (CurrentStageInstanceId IS NOT NULL AND CurrentStageId IS NOT NULL)` · `Status <> 'COMPLETED' OR RequestNo IS NOT NULL` · `ArchivedAt IS NULL OR Status = 'DRAFT'` · `Status <> 'AWAITING_CLOSE' OR (ReadyToCloseAt IS NOT NULL AND CurrentStageInstanceId IS NOT NULL)` · `ReadyToCloseAt IS NULL OR Status IN ('AWAITING_CLOSE','COMPLETED')` · `Status <> 'COMPLETED' OR (ClosedByUserId IS NOT NULL AND ClosedAt IS NOT NULL AND ClosedAt = CompletedAt)` · `ClosedByUserId IS NULL OR Status = 'COMPLETED'` · `Priority <> 'URGENT' OR UrgentReason IS NOT NULL` · `CycleNo >= 1` · `Amount IS NULL OR CurrencyId IS NOT NULL` · `SlaState NOT IN ('ON_TRACK','AT_RISK','OVERDUE') OR DueAt IS NOT NULL` · `(ReservationState = 'NONE' AND ReservationId IS NULL AND ReservedAmount IS NULL) OR (ReservationState <> 'NONE' AND ReservationId IS NOT NULL AND ReservedAmount IS NOT NULL)` · `ReservedAmount IS NULL OR (ReservedAmount > 0 AND CurrencyId IS NOT NULL)` · `LimitId IS NULL OR FacilityId IS NOT NULL` · `LimitProductLineId IS NULL OR LimitId IS NOT NULL` · `(ParentEntityType IS NULL AND ParentEntityId IS NULL) OR (ParentEntityType IS NOT NULL AND ParentEntityId IS NOT NULL)` · `ParentRequestId IS NULL OR ParentRequestId <> RequestId` · `CopiedFromRequestId IS NULL OR CopiedFromRequestId <> RequestId`
+**قيود:** `(RequestNo IS NULL AND NumberYear IS NULL AND NumberSeq IS NULL) OR (RequestNo IS NOT NULL AND NumberYear IS NOT NULL AND NumberSeq IS NOT NULL)` · `DraftRef LIKE 'D-%'` · `Status NOT IN ('ACTIVE','AWAITING_CLOSE','COMPLETED','REJECTED') OR SubmittedAt IS NOT NULL` · `(Status IN ('DRAFT','ACTIVE','AWAITING_CLOSE') AND CompletedAt IS NULL) OR (Status IN ('COMPLETED','REJECTED','CANCELLED') AND CompletedAt IS NOT NULL)` · `CompletedAt IS NULL OR SubmittedAt IS NULL OR CompletedAt >= SubmittedAt` · `Status <> 'ACTIVE' OR (CurrentStageInstanceId IS NOT NULL AND CurrentStageId IS NOT NULL)` · `Status <> 'COMPLETED' OR RequestNo IS NOT NULL` · `ArchivedAt IS NULL OR Status = 'DRAFT'` · `Status <> 'AWAITING_CLOSE' OR (ReadyToCloseAt IS NOT NULL AND CurrentStageInstanceId IS NOT NULL)` · `ReadyToCloseAt IS NULL OR Status IN ('AWAITING_CLOSE','COMPLETED')` · `Status <> 'COMPLETED' OR (ClosedByUserId IS NOT NULL AND ClosedAt IS NOT NULL AND ClosedAt = CompletedAt)` · `ClosedByUserId IS NULL OR Status = 'COMPLETED'` · `Priority <> 'URGENT' OR UrgentReason IS NOT NULL` · `CycleNo >= 1` · `Amount IS NULL OR CurrencyId IS NOT NULL` · `SlaState NOT IN ('ON_TRACK','AT_RISK','OVERDUE') OR DueAt IS NOT NULL` · `(ReservationState = 'NONE' AND ReservationId IS NULL AND ReservedAmount IS NULL) OR (ReservationState <> 'NONE' AND ReservationId IS NOT NULL AND ReservedAmount IS NOT NULL)` · `ReservedAmount IS NULL OR (ReservedAmount > 0 AND CurrencyId IS NOT NULL)` · `LimitId IS NULL OR FacilityId IS NOT NULL` · `LimitProductLineId IS NULL OR LimitId IS NOT NULL` · `(ParentEntityType IS NULL AND ParentEntityId IS NULL) OR (ParentEntityType IS NOT NULL AND ParentEntityId IS NOT NULL)` · `ParentRequestId IS NULL OR ParentRequestId <> RequestId` · `CopiedFromRequestId IS NULL OR CopiedFromRequestId <> RequestId` · `Status <> 'REJECTED' OR OutcomeReason IS NOT NULL`
 
 ### `wfl.RequestComment` — Comment visible to the requester or internal; the application prevents editing it, and withdrawal keeps the original (FR-REQ-017, BR-REQ-014)
 
@@ -4606,7 +4616,7 @@
 
 **المفاتيح:** PK(WorkflowTemplateId) · UQ(PublicId) · UQ(TenantId, TemplateKey, VersionNo) · UQ(TenantId, TemplateKey) WHERE IsCurrent = 1 · UQ(TenantId, RequestTypeId, SeedKey, SourceSeedVersion) WHERE SeedKey IS NOT NULL
 
-**قيود:** `VersionNo >= 1` · `IsCurrent = 0 OR Status = 'PUBLISHED'` · `Status <> 'PUBLISHED' OR PublishedAt IS NOT NULL` · `Status <> 'DRAFT' OR PublishedAt IS NULL` · `(Status = 'RETIRED' AND RetiredAt IS NOT NULL) OR (Status <> 'RETIRED' AND RetiredAt IS NULL)` · `IsTenantModified = 0 OR SeedKey IS NULL` · `SeedKey IS NULL OR SourceSeedVersion IS NOT NULL` · `NameAr IS NOT NULL OR NameEn IS NOT NULL`
+**قيود:** `VersionNo >= 1` · `IsCurrent = 0 OR Status = 'PUBLISHED'` · `Status <> 'PUBLISHED' OR PublishedAt IS NOT NULL` · `Status <> 'DRAFT' OR PublishedAt IS NULL` · `(PublishedAt IS NULL AND PublishedBy IS NULL) OR (PublishedAt IS NOT NULL AND PublishedBy IS NOT NULL)` · `(Status = 'RETIRED' AND RetiredAt IS NOT NULL) OR (Status <> 'RETIRED' AND RetiredAt IS NULL)` · `IsTenantModified = 0 OR SeedKey IS NULL` · `SeedKey IS NULL OR SourceSeedVersion IS NOT NULL` · `NameAr IS NOT NULL OR NameEn IS NOT NULL`
 
 ### `wfl.WorkflowStage` — Stage in a template version (FR-WFL-003/004/005, BR-WFL-002/010/012); physical delete only for a draft version
 
@@ -4803,7 +4813,7 @@
 
 **المفاتيح:** PK(RequestApprovalId) · UQ(TenantId, StageInstanceId, SlotKey)
 
-**قيود:** `(Decision = 'PENDING' AND ActedAt IS NULL) OR (Decision <> 'PENDING' AND ActedAt IS NOT NULL)` · `AssignedUserId IS NOT NULL OR AssignedRoleId IS NOT NULL` · `Decision NOT IN ('APPROVED','RETURNED','REJECTED') OR ActedByUserId IS NOT NULL` · `Decision <> 'APPROVED' OR SnapshotHash IS NOT NULL` · `Source <> 'DELEGATE' OR (DelegationId IS NOT NULL AND OnBehalfOfUserId IS NOT NULL)` · `OverrideRequested = 0 OR OverrideReason IS NOT NULL` · `CycleNo >= 1`
+**قيود:** `(Decision = 'PENDING' AND ActedAt IS NULL) OR (Decision <> 'PENDING' AND ActedAt IS NOT NULL)` · `AssignedUserId IS NOT NULL OR AssignedRoleId IS NOT NULL` · `Decision NOT IN ('APPROVED','RETURNED','REJECTED') OR ActedByUserId IS NOT NULL` · `Decision <> 'APPROVED' OR SnapshotHash IS NOT NULL` · `Source <> 'DELEGATE' OR (DelegationId IS NOT NULL AND OnBehalfOfUserId IS NOT NULL)` · `(OnBehalfOfUserId IS NULL AND DelegationId IS NULL) OR (Source IS NOT NULL AND Source = 'DELEGATE')` · `OverrideRequested = 0 OR OverrideReason IS NOT NULL` · `CycleNo >= 1`
 
 ### `wfl.RequestAction` — Append-only action log covering every event; separate from the security audit log (FR-WFL-033/034, section 6.2)
 
@@ -4866,9 +4876,9 @@
 | UpdatedAt | DATETIME2(3) | نعم |  |  |  |
 | UpdatedBy | BIGINT | نعم |  |  |  |
 
-**المفاتيح:** PK(HookExecutionId) · UQ(TenantId, RequestId, StageInstanceId, HookKey, TriggerKind)
+**المفاتيح:** PK(HookExecutionId) · UQ(TenantId, RequestId, StageInstanceId, HookKey, TriggerKind, ActionFilter)
 
-**قيود:** `AttemptCount >= 0` · `Status <> 'SUCCEEDED' OR ExecutedAt IS NOT NULL` · `Status <> 'GAVE_UP' OR (ExecMode = 'AFTER_COMMIT' AND AttemptCount >= 5)`
+**قيود:** `AttemptCount >= 0` · `(TriggerKind = 'ON_ACTION' AND ActionFilter IS NOT NULL) OR (TriggerKind <> 'ON_ACTION' AND ActionFilter IS NULL)` · `Status <> 'SUCCEEDED' OR ExecutedAt IS NOT NULL` · `Status <> 'GAVE_UP' OR (ExecMode = 'AFTER_COMMIT' AND AttemptCount >= 5)`
 
 ### `wfl.UserDelegation` — Task delegation with a period and scope; no chained delegation (FR-WFL-020, BR-WFL-021, V-WFL-06)
 
@@ -5047,7 +5057,7 @@
 | ResolvedAt | DATETIME2(3) | نعم |  |  |  |
 | ReadAt | DATETIME2(3) | نعم |  |  | القراءة: UNREAD → READ → ARCHIVED (§8) |
 | ArchivedAt | DATETIME2(3) | نعم |  |  | الإلزامي غير المقروء لا يُؤرشف آليًا (BR-NTF-011) |
-| DedupKey | VARCHAR(200) | نعم |  |  | {EventCode}:{TargetType}:{TargetId}:{Threshold/Cycle}:{ItemVersion} (BR-NTF-002) |
+| DedupKey | VARCHAR(200) | لا |  |  | {EventCode}:{TargetType}:{TargetId}:{Threshold/Cycle}:{ItemVersion} (BR-NTF-002)؛ إلزامي، والافتراضي من MessageId للحدث (DQ-F17-7، DR-50) |
 | CoalescedCount | INT | لا | 1 |  | دمج 15 دقيقة (BR-NTF-005) |
 | ReminderCount | INT | لا | 0 |  | تذكير 24/48/72 ساعة عمل بحد 3 (BR-NTF-006) |
 | NextReminderAt | DATETIME2(3) | نعم |  |  | يحسبها AddBusinessHours؛ المهمة تعتمد حدثًا مخزَّنًا (BR-NTF-010) |
@@ -5059,7 +5069,7 @@
 | UpdatedAt | DATETIME2(3) | نعم |  |  |  |
 | UpdatedBy | BIGINT | نعم |  |  |  |
 
-**المفاتيح:** PK(NotificationId) · UQ(PublicId) · UQ(TenantId, UserId, DedupKey) WHERE DedupKey IS NOT NULL
+**المفاتيح:** PK(NotificationId) · UQ(PublicId) · UQ(TenantId, UserId, DedupKey)
 
 **قيود:** `(ActionRequired = 0 AND ActionState = 'NONE') OR (ActionRequired = 1 AND ActionState IN ('OPEN','RESOLVED'))` · `(ActionState = 'RESOLVED' AND ResolvedAt IS NOT NULL) OR (ActionState <> 'RESOLVED' AND ResolvedAt IS NULL)` · `CoalescedCount >= 1` · `ReminderCount >= 0 AND ReminderCount <= 3` · `NextReminderAt IS NULL OR ActionState = 'OPEN'`
 
@@ -5401,7 +5411,7 @@
 
 **المفاتيح:** PK(LcTermsId) · UQ(PublicId) · UQ(TenantId, OwnerType, OwnerId, Purpose, VersionNo) WHERE OwnerId IS NOT NULL · UQ(TenantId, OwnerType, OwnerId, Purpose) WHERE OwnerId IS NOT NULL AND Status <> 'SUPERSEDED'
 
-**قيود:** `VersionNo >= 1` · `VersionNo = 1 OR SupersedesTermsId IS NOT NULL` · `SupersedesTermsId IS NULL OR SupersedesTermsId <> LcTermsId` · `CopiedFromTermsId IS NULL OR CopiedFromTermsId <> LcTermsId` · `(Purpose = 'PROFORMA' AND OwnerType IN ('REQUEST','PROFORMA')) OR (Purpose = 'APPLICATION' AND OwnerType = 'REQUEST') OR (Purpose IN ('ISSUED','RECEIVED') AND OwnerType = 'LETTER_OF_CREDIT') OR (Purpose = 'AMENDMENT' AND OwnerType IN ('REQUEST','AMENDMENT'))` · `(Purpose NOT IN ('APPLICATION','ISSUED') OR LcClass = 'PURCHASE') AND (Purpose NOT IN ('PROFORMA','RECEIVED') OR LcClass = 'SALES')` · `OwnerType <> 'REQUEST' OR OwnerId IS NOT NULL` · `Status = 'DRAFT' OR (SnapshotHash IS NOT NULL AND LockedAt IS NOT NULL)` · `TreasuryHash IS NULL OR SnapshotHash IS NOT NULL` · `Status = 'DRAFT' OR (LcType IS NOT NULL AND CurrencyId IS NOT NULL AND Amount IS NOT NULL AND ExpiryRule IS NOT NULL AND AmountInWordsAr IS NOT NULL AND AmountInWordsEn IS NOT NULL)` · `Amount IS NULL OR Amount > 0` · `TolerancePlusPct BETWEEN 0 AND 100 AND ToleranceMinusPct BETWEEN 0 AND 100` · `Status = 'DRAFT' OR ToleranceMode <> 'NONE' OR (TolerancePlusPct = 0 AND ToleranceMinusPct = 0)` · `Status = 'DRAFT' OR ToleranceMode <> 'ABOUT' OR (TolerancePlusPct = 10 AND ToleranceMinusPct = 10)` · `DeferralDays IS NULL OR DeferralDays BETWEEN 1 AND 720` · `Status = 'DRAFT' OR LcType <> 'SIGHT' OR (DeferralDays IS NULL AND MaturityBasis IS NULL)` · `Status = 'DRAFT' OR LcType NOT IN ('DEFERRED_PAYMENT','ACCEPTANCE') OR (DeferralDays IS NOT NULL AND MaturityBasis IS NOT NULL)` · `Status = 'DRAFT' OR LcType <> 'MIXED' OR MixedPaymentText IS NOT NULL` · `Status = 'DRAFT' OR DraftDrawee IS NULL OR (DraftRequired IS NOT NULL AND DraftRequired = 1)` · `Status = 'DRAFT' OR LcType NOT IN ('ACCEPTANCE','NEGOTIATION') OR (DraftRequired IS NOT NULL AND DraftRequired = 1)` · `Status = 'DRAFT' OR ConfirmingBankBic IS NULL OR ((ConfirmingBankBic LIKE '________' OR ConfirmingBankBic LIKE '___________') AND ConfirmingBankBic COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9]%')` · `Status = 'DRAFT' OR AdvisingBankBic IS NULL OR ((AdvisingBankBic LIKE '________' OR AdvisingBankBic LIKE '___________') AND AdvisingBankBic COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9]%')` · `(BeneficiaryAccountIbanEnc IS NULL AND BeneficiaryAccountIbanMask IS NULL AND BeneficiaryAccountIbanHash IS NULL) OR (BeneficiaryAccountIbanEnc IS NOT NULL AND BeneficiaryAccountIbanMask IS NOT NULL AND BeneficiaryAccountIbanHash IS NOT NULL)` · `BeneficiaryAccountIbanEnc IS NULL OR (EncKeyId IS NOT NULL AND HashKeyId IS NOT NULL AND DATALENGTH(BeneficiaryAccountIbanEnc) >= 29)` · `LcClass = 'SALES' OR (ApplicantCounterpartyId IS NULL AND BeneficiaryCompanyId IS NULL)` · `LcClass = 'PURCHASE' OR (ApplicantCompanyId IS NULL AND BeneficiaryCounterpartyId IS NULL)` · `Status = 'DRAFT' OR (LcClass = 'PURCHASE' AND ApplicantCompanyId IS NOT NULL AND BeneficiaryCounterpartyId IS NOT NULL) OR (LcClass = 'SALES' AND ApplicantCounterpartyId IS NOT NULL AND BeneficiaryCompanyId IS NOT NULL)` · `ExpiryDaysAfterIssue IS NULL OR ExpiryDaysAfterIssue > 0` · `LatestShipmentDaysAfterIssue IS NULL OR LatestShipmentDaysAfterIssue > 0` · `Status = 'DRAFT' OR ExpiryRule IS NULL OR (ExpiryRule = 'ABSOLUTE' AND ExpiryDate IS NOT NULL AND ExpiryDaysAfterIssue IS NULL) OR (ExpiryRule = 'DAYS_AFTER_ISSUE' AND ExpiryDaysAfterIssue IS NOT NULL)` · `Status = 'DRAFT' OR (LatestShipmentRule IS NULL AND LatestShipmentDate IS NULL AND LatestShipmentDaysAfterIssue IS NULL) OR (LatestShipmentRule = 'ABSOLUTE' AND LatestShipmentDate IS NOT NULL AND LatestShipmentDaysAfterIssue IS NULL) OR (LatestShipmentRule = 'DAYS_AFTER_ISSUE' AND LatestShipmentDaysAfterIssue IS NOT NULL)` · `Status = 'DRAFT' OR Purpose IN ('ISSUED','RECEIVED') OR EarliestShipmentDate IS NULL OR LatestShipmentDate IS NULL OR EarliestShipmentDate <= LatestShipmentDate` · `Status = 'DRAFT' OR Purpose IN ('ISSUED','RECEIVED') OR ExpiryDate IS NULL OR LatestShipmentDate IS NULL OR ExpiryDate >= LatestShipmentDate` · `PresentationDays IS NULL OR PresentationDays BETWEEN 1 AND 90` · `Status = 'DRAFT' OR Purpose IN ('ISSUED','RECEIVED') OR IncotermId IS NULL OR IncotermPlace IS NOT NULL` · `InsurancePctStated = 0 OR InsuranceMinPct IS NOT NULL` · `InsuranceMinPct IS NULL OR InsuranceMinPct > 0` · `MarginPct IS NULL OR MarginPct BETWEEN 0 AND 100` · `Status = 'DRAFT' OR DebitAuthorization IS NULL OR DebitAuthorization <> 'FULL_LC_VALUE' OR (MarginPct IS NOT NULL AND MarginPct = 100)` · `PostDeferralFinancingDays IS NULL OR PostDeferralFinancingDays >= 0` · `PrevLcAmount IS NULL OR PrevLcAmount >= 0` · `PrevLcUtilizedAmount IS NULL OR PrevLcUtilizedAmount >= 0` · `PrevLcAmount IS NULL OR PrevLcUtilizedAmount IS NULL OR PrevLcUtilizedAmount <= PrevLcAmount` · `(PrevLcAmount IS NULL AND PrevLcUtilizedAmount IS NULL) OR PrevLcCurrencyId IS NOT NULL`
+**قيود:** `VersionNo >= 1` · `VersionNo = 1 OR SupersedesTermsId IS NOT NULL` · `SupersedesTermsId IS NULL OR SupersedesTermsId <> LcTermsId` · `CopiedFromTermsId IS NULL OR CopiedFromTermsId <> LcTermsId` · `(Purpose = 'PROFORMA' AND OwnerType IN ('REQUEST','PROFORMA')) OR (Purpose = 'APPLICATION' AND OwnerType = 'REQUEST') OR (Purpose IN ('ISSUED','RECEIVED') AND OwnerType = 'LETTER_OF_CREDIT') OR (Purpose = 'AMENDMENT' AND OwnerType IN ('REQUEST','AMENDMENT'))` · `(Purpose NOT IN ('APPLICATION','ISSUED') OR LcClass = 'PURCHASE') AND (Purpose NOT IN ('PROFORMA','RECEIVED') OR LcClass = 'SALES')` · `OwnerType <> 'REQUEST' OR OwnerId IS NOT NULL` · `Status = 'DRAFT' OR (SnapshotHash IS NOT NULL AND LockedAt IS NOT NULL AND LockedBy IS NOT NULL)` · `TreasuryHash IS NULL OR SnapshotHash IS NOT NULL` · `Status = 'DRAFT' OR (LcType IS NOT NULL AND CurrencyId IS NOT NULL AND Amount IS NOT NULL AND ExpiryRule IS NOT NULL AND AmountInWordsAr IS NOT NULL AND AmountInWordsEn IS NOT NULL)` · `Amount IS NULL OR Amount > 0` · `TolerancePlusPct BETWEEN 0 AND 100 AND ToleranceMinusPct BETWEEN 0 AND 100` · `Status = 'DRAFT' OR ToleranceMode <> 'NONE' OR (TolerancePlusPct = 0 AND ToleranceMinusPct = 0)` · `Status = 'DRAFT' OR ToleranceMode <> 'ABOUT' OR (TolerancePlusPct = 10 AND ToleranceMinusPct = 10)` · `DeferralDays IS NULL OR DeferralDays BETWEEN 1 AND 720` · `Status = 'DRAFT' OR LcType <> 'SIGHT' OR (DeferralDays IS NULL AND MaturityBasis IS NULL)` · `Status = 'DRAFT' OR LcType NOT IN ('DEFERRED_PAYMENT','ACCEPTANCE') OR (DeferralDays IS NOT NULL AND MaturityBasis IS NOT NULL)` · `Status = 'DRAFT' OR LcType <> 'MIXED' OR MixedPaymentText IS NOT NULL` · `Status = 'DRAFT' OR DraftDrawee IS NULL OR (DraftRequired IS NOT NULL AND DraftRequired = 1)` · `Status = 'DRAFT' OR LcType NOT IN ('ACCEPTANCE','NEGOTIATION') OR (DraftRequired IS NOT NULL AND DraftRequired = 1)` · `Status = 'DRAFT' OR ConfirmingBankBic IS NULL OR ((ConfirmingBankBic LIKE '________' OR ConfirmingBankBic LIKE '___________') AND ConfirmingBankBic COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9]%')` · `Status = 'DRAFT' OR AdvisingBankBic IS NULL OR ((AdvisingBankBic LIKE '________' OR AdvisingBankBic LIKE '___________') AND AdvisingBankBic COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9]%')` · `(BeneficiaryAccountIbanEnc IS NULL AND BeneficiaryAccountIbanMask IS NULL AND BeneficiaryAccountIbanHash IS NULL) OR (BeneficiaryAccountIbanEnc IS NOT NULL AND BeneficiaryAccountIbanMask IS NOT NULL AND BeneficiaryAccountIbanHash IS NOT NULL)` · `BeneficiaryAccountIbanEnc IS NULL OR (EncKeyId IS NOT NULL AND HashKeyId IS NOT NULL AND DATALENGTH(BeneficiaryAccountIbanEnc) >= 29)` · `LcClass = 'SALES' OR (ApplicantCounterpartyId IS NULL AND BeneficiaryCompanyId IS NULL)` · `LcClass = 'PURCHASE' OR (ApplicantCompanyId IS NULL AND BeneficiaryCounterpartyId IS NULL)` · `Status = 'DRAFT' OR (LcClass = 'PURCHASE' AND ApplicantCompanyId IS NOT NULL AND BeneficiaryCounterpartyId IS NOT NULL) OR (LcClass = 'SALES' AND ApplicantCounterpartyId IS NOT NULL AND BeneficiaryCompanyId IS NOT NULL)` · `ExpiryDaysAfterIssue IS NULL OR ExpiryDaysAfterIssue > 0` · `LatestShipmentDaysAfterIssue IS NULL OR LatestShipmentDaysAfterIssue > 0` · `Status = 'DRAFT' OR ExpiryRule IS NULL OR (ExpiryRule = 'ABSOLUTE' AND ExpiryDate IS NOT NULL AND ExpiryDaysAfterIssue IS NULL) OR (ExpiryRule = 'DAYS_AFTER_ISSUE' AND ExpiryDaysAfterIssue IS NOT NULL)` · `Status = 'DRAFT' OR (LatestShipmentRule IS NULL AND LatestShipmentDate IS NULL AND LatestShipmentDaysAfterIssue IS NULL) OR (LatestShipmentRule = 'ABSOLUTE' AND LatestShipmentDate IS NOT NULL AND LatestShipmentDaysAfterIssue IS NULL) OR (LatestShipmentRule = 'DAYS_AFTER_ISSUE' AND LatestShipmentDaysAfterIssue IS NOT NULL)` · `Status = 'DRAFT' OR Purpose IN ('ISSUED','RECEIVED') OR EarliestShipmentDate IS NULL OR LatestShipmentDate IS NULL OR EarliestShipmentDate <= LatestShipmentDate` · `Status = 'DRAFT' OR Purpose IN ('ISSUED','RECEIVED') OR ExpiryDate IS NULL OR LatestShipmentDate IS NULL OR ExpiryDate >= LatestShipmentDate` · `PresentationDays IS NULL OR PresentationDays BETWEEN 1 AND 90` · `Status = 'DRAFT' OR Purpose IN ('ISSUED','RECEIVED') OR IncotermId IS NULL OR IncotermPlace IS NOT NULL` · `InsurancePctStated = 0 OR InsuranceMinPct IS NOT NULL` · `InsuranceMinPct IS NULL OR InsuranceMinPct > 0` · `MarginPct IS NULL OR MarginPct BETWEEN 0 AND 100` · `Status = 'DRAFT' OR DebitAuthorization IS NULL OR DebitAuthorization <> 'FULL_LC_VALUE' OR (MarginPct IS NOT NULL AND MarginPct = 100)` · `PostDeferralFinancingDays IS NULL OR PostDeferralFinancingDays >= 0` · `PrevLcAmount IS NULL OR PrevLcAmount >= 0` · `PrevLcUtilizedAmount IS NULL OR PrevLcUtilizedAmount >= 0` · `PrevLcAmount IS NULL OR PrevLcUtilizedAmount IS NULL OR PrevLcUtilizedAmount <= PrevLcAmount` · `(PrevLcAmount IS NULL AND PrevLcUtilizedAmount IS NULL) OR PrevLcCurrencyId IS NOT NULL`
 
 ### `lc.LcTermsDocument` — Document clause selected in the terms, with its parameters; the rendered text is frozen at lock (FR-LCT-018, BR-LCT-012) -- جديد
 
@@ -5543,10 +5553,10 @@
 | FacilityId | BIGINT | نعم |  | fac.Facility |  |
 | LimitId | BIGINT | نعم |  | fac.Limit (via FacilityId) | يعاد ربطه بصف الحد الجديد عند اعتماد مراجعة التسهيل مع Utilization (12) |
 | LimitProductLineId | BIGINT | نعم |  | fac.LimitProductLine (via FacilityId,LimitId) |  |
-| UtilizationId | BIGINT | نعم |  | fac.Utilization (via FacilityId) | ناتج fac.convert_reservation؛ تعبّئ lc.record_issuance Utilization.SourceRefId = LcId (FR-LCI-012) |
+| UtilizationId | BIGINT | نعم |  | fac.Utilization (via FacilityId,CompanyId) | ناتج fac.convert_reservation للشركة نفسها؛ الرابط الوحيد بين الاعتماد واستغلاله (FR-LCI-012، DQ-F12-14، DR-26) |
 | RequestId | BIGINT | نعم |  | wfl.Request (via CompanyId) | طلب الإصدار (مشتريات)؛ فارغ للمسجَّل مباشرة والقائم السابق |
 | ProformaId | BIGINT | نعم |  | lc.ProformaInvoice (via CompanyId) | بروفورما مبيعات واحدة قد تُربط باعتمادات عدة (BR-LCE-018) |
-| CurrentTermsId | BIGINT | لا |  | lc.LcTerms | الشروط الحالية: ISSUED/RECEIVED أو لقطة آخر تعديل مطبَّق |
+| CurrentTermsId | BIGINT | لا |  | lc.LcTerms (via LcClass,CurrencyId,TolerancePlusPct,ToleranceMinusPct) | الشروط الحالية: ISSUED/RECEIVED أو لقطة آخر تعديل مطبَّق؛ الفئة والعملة والتفاوت المنسوخة تطابقها (DR-42) |
 | CurrencyId | INT | لا |  | ref.Currency |  |
 | Amount | DECIMAL(19,4) | لا |  |  | الحالي بعد التعديلات المطبَّقة |
 | OriginalAmount | DECIMAL(19,4) | لا |  |  |  |
@@ -5576,7 +5586,7 @@
 
 **المفاتيح:** PK(LetterOfCreditId) · UQ(PublicId) · UQ(TenantId, InstitutionId, LcNumberNormalized) WHERE LcClass = 'PURCHASE' AND InstitutionId IS NOT NULL · UQ(TenantId, InternalRef) WHERE InternalRef IS NOT NULL · UQ(TenantId, UtilizationId) WHERE UtilizationId IS NOT NULL · UQ(TenantId, RequestId) WHERE RequestId IS NOT NULL · UQ(TenantId, CurrentTermsId)
 
-**قيود:** `Amount > 0 AND OriginalAmount > 0` · `TolerancePlusPct BETWEEN 0 AND 100 AND ToleranceMinusPct BETWEEN 0 AND 100` · `DrawnAmount >= 0 AND SettledAmount >= 0 AND SettledAmount <= DrawnAmount` · `EarmarkedRemaining >= 0` · `ExposureAmount IS NULL OR ExposureAmount >= Amount` · `(LcClass = 'PURCHASE' AND IssueDate IS NOT NULL AND ReceivedDate IS NULL) OR (LcClass = 'SALES' AND ReceivedDate IS NOT NULL AND IssueDate IS NULL)` · `IssueDate IS NULL OR ExpiryDate >= IssueDate` · `LimitId IS NULL OR FacilityId IS NOT NULL` · `LimitProductLineId IS NULL OR LimitId IS NOT NULL` · `UtilizationId IS NULL OR FacilityId IS NOT NULL` · `RelationshipId IS NULL OR InstitutionId IS NOT NULL` · `LcClass = 'PURCHASE' OR (FacilityId IS NULL AND UtilizationId IS NULL AND ExposureAmount IS NULL AND MarginPct IS NULL AND MarginAmount IS NULL)` · `LcClass = 'SALES' OR ExposureAmount IS NOT NULL` · `LcClass = 'SALES' OR (ProformaId IS NULL AND OtherBankText IS NULL AND OtherBankBic IS NULL AND EarmarkedRemaining = 0)` · `MarginPct IS NULL OR MarginPct BETWEEN 0 AND 100` · `MarginAmount IS NULL OR MarginAmount >= 0` · `Status NOT IN ('CLOSED','CANCELLED') OR (ClosedOn IS NOT NULL AND ClosedReason IS NOT NULL)` · `Status IN ('CLOSED','CANCELLED') OR (ClosedOn IS NULL AND ClosedReason IS NULL)` · `UndrawnReleasedOn IS NULL OR Status IN ('EXPIRED','CLOSED','CANCELLED')` · `LegacyEntry = 0 OR RequestId IS NULL` · `OtherBankBic IS NULL OR ((OtherBankBic LIKE '________' OR OtherBankBic LIKE '___________') AND OtherBankBic COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9]%')` · `AmendmentNo >= 0` · `LcNumberNormalized NOT LIKE '% %'`
+**قيود:** `Amount > 0 AND OriginalAmount > 0` · `TolerancePlusPct BETWEEN 0 AND 100 AND ToleranceMinusPct BETWEEN 0 AND 100` · `DrawnAmount >= 0 AND SettledAmount >= 0 AND SettledAmount <= DrawnAmount` · `EarmarkedRemaining >= 0` · `ExposureAmount IS NULL OR ExposureAmount >= Amount` · `(LcClass = 'PURCHASE' AND IssueDate IS NOT NULL AND ReceivedDate IS NULL) OR (LcClass = 'SALES' AND ReceivedDate IS NOT NULL AND IssueDate IS NULL)` · `IssueDate IS NULL OR ExpiryDate >= IssueDate` · `LimitId IS NULL OR FacilityId IS NOT NULL` · `LimitProductLineId IS NULL OR LimitId IS NOT NULL` · `UtilizationId IS NULL OR FacilityId IS NOT NULL` · `RelationshipId IS NULL OR InstitutionId IS NOT NULL` · `LcClass = 'SALES' OR InstitutionId IS NOT NULL` · `LcClass = 'PURCHASE' OR (FacilityId IS NULL AND UtilizationId IS NULL AND ExposureAmount IS NULL AND MarginPct IS NULL AND MarginAmount IS NULL)` · `LcClass = 'SALES' OR ExposureAmount IS NOT NULL` · `LcClass = 'SALES' OR (ProformaId IS NULL AND OtherBankText IS NULL AND OtherBankBic IS NULL AND EarmarkedRemaining = 0)` · `MarginPct IS NULL OR MarginPct BETWEEN 0 AND 100` · `MarginAmount IS NULL OR MarginAmount >= 0` · `Status NOT IN ('CLOSED','CANCELLED') OR (ClosedOn IS NOT NULL AND ClosedReason IS NOT NULL)` · `Status IN ('CLOSED','CANCELLED') OR (ClosedOn IS NULL AND ClosedReason IS NULL)` · `UndrawnReleasedOn IS NULL OR Status IN ('EXPIRED','CLOSED','CANCELLED')` · `LegacyEntry = 0 OR RequestId IS NULL` · `OtherBankBic IS NULL OR ((OtherBankBic LIKE '________' OR OtherBankBic LIKE '___________') AND OtherBankBic COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9]%')` · `AmendmentNo >= 0` · `LcNumberNormalized NOT LIKE '% %'`
 
 ### `lc.LcExternalRef` — External reference for a credit (ERP and similar); no uniqueness; search on the normalised value (FR-LCI-013, BR-REQ-006) -- جديد
 
@@ -5616,8 +5626,9 @@
 | Origin | VARCHAR(22) | لا |  |  | enum: OUR_REQUEST, RECEIVED_FROM_CUSTOMER |
 | ChangeKinds | VARCHAR(87) | لا |  |  | قائمة قيم ثابتة (المواصفة json) |
 | RequestId | BIGINT | نعم |  | wfl.Request (via CompanyId) | الطلب الفرعي LC_AMENDMENT |
-| TermsId | BIGINT | لا |  | lc.LcTerms | شروط غرض AMENDMENT (لقطة ما بعد التعديل) |
-| ChangedFieldsJson | NVARCHAR(MAX) | نعم |  |  | الفروق بمفاتيح الحقول مقارنةً بالحالي |
+| TermsPurpose | VARCHAR(11) | لا | AMENDMENT |  | ثابت (DR-42) enum: AMENDMENT |
+| TermsId | BIGINT | لا |  | lc.LcTerms (via TermsPurpose,CurrencyId) | شروط غرض AMENDMENT بعملة التعديل (لقطة ما بعد التعديل) |
+| ChangedFieldsJson | NVARCHAR(MAX) | نعم |  |  | مفاتيح الحقول المتغيرة؛ لا قيمة لحقل مقيّد (DR-46) 🔒 confidential |
 | CurrencyId | INT | لا |  | ref.Currency |  |
 | AmountDelta | DECIMAL(19,4) | لا |  |  | موقَّع: فرق ExposureAmount (BR-LCI-011) |
 | NewAmount | DECIMAL(19,4) | نعم |  |  |  |
@@ -5752,7 +5763,7 @@
 
 **قيود:** `Status = 'OPEN' OR (DecidedBy IS NOT NULL AND DecidedOn IS NOT NULL AND DecisionNote IS NOT NULL)` · `Status <> 'OPEN' OR (DecidedBy IS NULL AND DecidedOn IS NULL)`
 
-### `lc.ProformaInvoice` — Issued proforma invoice; the application prevents edits after issue; number format {seq:000}-{erp}-{yy} (FR-LCE-005..008, BR-LCE-001..006)
+### `lc.ProformaInvoice` — Issued proforma invoice; after issue only its status, void reason and successor change (043, DR-41); number format {seq:000}-{erp}-{yy} (FR-LCE-005..008, BR-LCE-001..006)
 
 *مملوك للمشترك*
 
@@ -5782,7 +5793,8 @@
 | Total | DECIMAL(19,4) | لا |  |  |  |
 | LcPaymentPct | DECIMAL(9,6) | لا | 100 |  | نسبة الدفع بالاعتماد (BR-LCE-006) |
 | PlacesJson | NVARCHAR(MAX) | نعم |  |  | مكانا الاستلام والتسليم |
-| TermsId | BIGINT | لا |  | lc.LcTerms | شروط غرض PROFORMA مقفلة (نسخة عند الإصدار، BR-LCT-019) |
+| TermsPurpose | VARCHAR(11) | لا | PROFORMA |  | ثابت (DR-42) enum: PROFORMA |
+| TermsId | BIGINT | لا |  | lc.LcTerms (via TermsPurpose,CurrencyId) | شروط غرض PROFORMA مقفلة بعملة البروفورما (نسخة عند الإصدار، BR-LCT-019) |
 | ProceedsAccountId | BIGINT | لا |  | acc.BankAccount (via CompanyId) | حساب LC_COLLECTION للشركة نفسها (BR-LCE-004) |
 | PrintLanguage | VARCHAR(10) | لا | both |  | enum: ar, en, both |
 | DocumentId | BIGINT | لا |  | doc.Document | PDF بنوع PROFORMA_ISSUED (FR-LCE-005) |
@@ -5799,7 +5811,7 @@
 
 **قيود:** `ProformaNo LIKE '[0-9][0-9][0-9]%-%-[0-9][0-9]'` · `NumberSeq >= 1 AND NumberYear BETWEEN 2000 AND 2999` · `Subtotal >= 0 AND VatAmount >= 0` · `Total = Subtotal + VatAmount` · `VatRatePct BETWEEN 0 AND 100` · `LcPaymentPct > 0 AND LcPaymentPct <= 100` · `OfferValidityDays IS NULL OR OfferValidityDays > 0` · `Status <> 'VOID' OR VoidReason IS NOT NULL` · `VoidReason IS NULL OR Status = 'VOID'` · `(Status = 'SUPERSEDED' AND SupersededById IS NOT NULL) OR (Status <> 'SUPERSEDED' AND SupersededById IS NULL)` · `SupersededById IS NULL OR SupersededById <> ProformaInvoiceId`
 
-### `lc.ProformaLine` — Line item in the proforma (FR-LCE-003, BR-LCE-001); fixed after issue
+### `lc.ProformaLine` — Line item in the proforma (FR-LCE-003, BR-LCE-001); fixed after issue: written once, never updated (DR-41)
 
 *مملوك للمشترك*
 
@@ -5818,8 +5830,6 @@
 | Notes | NVARCHAR(500) | نعم |  |  |  |
 | CreatedAt | DATETIME2(3) | لا | SYSUTCDATETIME() |  |  |
 | CreatedBy | BIGINT | نعم |  |  |  |
-| UpdatedAt | DATETIME2(3) | نعم |  |  |  |
-| UpdatedBy | BIGINT | نعم |  |  |  |
 
 **المفاتيح:** PK(ProformaLineId) · UQ(TenantId, ProformaId, LineNo)
 
@@ -5858,8 +5868,8 @@
 | **LcTermsComparisonLineId** | BIGINT IDENTITY | لا | | | مفتاح أساسي |
 | ComparisonId | BIGINT | لا |  | lc.LcTermsComparison |  |
 | FieldKey | VARCHAR(60) | لا |  |  |  |
-| BaselineValue | NVARCHAR(MAX) | نعم |  |  |  |
-| ReceivedValue | NVARCHAR(MAX) | نعم |  |  |  |
+| BaselineValue | NVARCHAR(MAX) | نعم |  |  | لا قيمة لحقل مقيّد: IBAN يُحكم ببصمته ولا يُنسخ (DR-46) 🔒 confidential |
+| ReceivedValue | NVARCHAR(MAX) | نعم |  |  | 🔒 confidential |
 | Verdict | VARCHAR(15) | لا |  |  | enum: MATCH, MORE_FAVOURABLE, LESS_FAVOURABLE, ADDED, MISSING, REVIEW |
 | Decision | VARCHAR(17) | نعم |  |  | enum: ACCEPT, REQUEST_AMENDMENT, IGNORE |
 | DecisionNote | NVARCHAR(1000) | نعم |  |  |  |
@@ -5870,4 +5880,4 @@
 
 **المفاتيح:** PK(LcTermsComparisonLineId) · UQ(TenantId, ComparisonId, FieldKey)
 
-**قيود:** `Decision IS NULL OR Verdict <> 'MATCH'`
+**قيود:** `Decision IS NULL OR Verdict <> 'MATCH'` · `FieldKey <> 'beneficiaryAccountIban' OR (BaselineValue IS NULL AND ReceivedValue IS NULL)`

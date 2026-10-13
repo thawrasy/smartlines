@@ -25,7 +25,7 @@ table wfl.RequestType int public  # Request type definition (FR-REQ-001, BR-REQ-
   Category                enum{PURCHASE,SALES,TREASURY,GENERAL,CHILD} req   # تصنيف مشتريات/مبيعات الموحّد (لا استيراد/تصدير)
   ParentEntityType        ascii(40)        # نوع الكائن الأب للأنواع الفرعية (اعتماد صادر مثلًا) (FR-REQ-012، BR-REQ-008)
   DefaultTemplateKey      ascii(60)  req   # مفتاح القالب الافتراضي؛ النسخة المعتمدة هي IsCurrent (BR-WFL-019)
-  NumberSequenceKey       ascii(50)  req   # = req:<Code> يقابل cfg.NumberSequenceDefinition.SequenceKey (BR-WFL-013، X-DAT-8)
+  NumberSequenceKey       ascii(50)  req   # = req:<Code> (قيد أدناه) يقابل cfg.NumberSequenceDefinition.SequenceKey، فيخضع لقاعدة الترقيم بلا فجوات (BR-WFL-013، X-DAT-8، DR-49)
   AmountFieldKey          ascii(60)        # مفاتيح حقول الفهرسة في النموذج (FR-REQ-009)
   CurrencyFieldKey        ascii(60)
   ProductFieldKey         ascii(60)
@@ -41,6 +41,7 @@ table wfl.RequestType int public  # Request type definition (FR-REQ-001, BR-REQ-
   index Category,IsActive
   check Category <> 'CHILD' OR ParentEntityType IS NOT NULL   # النوع الفرعي يُنشأ تحت كائن أب (FR-REQ-012)
   check ConsumesCreditLimit = 1 OR LimitCheckMode = 'NONE'   # لوحة التوفر لا تُعرض إلا لنوع يستهلك حدًّا (BR-REQ-009)
+  check NumberSequenceKey = CONCAT('req:', Code)   # DR-49
 
 table wfl.RequestTypeAudience int deletable  # Audience of a request type: who may raise it; no rows = nobody (fail closed) (FR-REQ-007)
   RequestTypeId  ->wfl.RequestType req
@@ -91,6 +92,7 @@ table wfl.WorkflowTemplate int public  # Workflow template version; a published 
   check IsCurrent = 0 OR Status = 'PUBLISHED'
   check Status <> 'PUBLISHED' OR PublishedAt IS NOT NULL   # النشر يختم وقته (BR-WFL-019)؛ المسودة المتروكة قد تُسحب RETIRED بلا نشر (§8)
   check Status <> 'DRAFT' OR PublishedAt IS NULL
+  check (PublishedAt IS NULL AND PublishedBy IS NULL) OR (PublishedAt IS NOT NULL AND PublishedBy IS NOT NULL)   # النشر بناشر؛ الحزم ينشرها حساب المهمة (DR-50)
   check (Status = 'RETIRED' AND RetiredAt IS NOT NULL) OR (Status <> 'RETIRED' AND RetiredAt IS NULL)
   check IsTenantModified = 0 OR SeedKey IS NULL   # الصف المعدَّل لا يحمل مفتاح البذرة (FR-WFL-030)
   check SeedKey IS NULL OR SourceSeedVersion IS NOT NULL
@@ -335,6 +337,7 @@ table wfl.Request public  # Request: the most heavily used table; the internal s
   check (ParentEntityType IS NULL AND ParentEntityId IS NULL) OR (ParentEntityType IS NOT NULL AND ParentEntityId IS NOT NULL)
   check ParentRequestId IS NULL OR ParentRequestId <> RequestId
   check CopiedFromRequestId IS NULL OR CopiedFromRequestId <> RequestId
+  check  Status <> 'REJECTED' OR OutcomeReason IS NOT NULL   # الرفض بسبب (FR-WFL-012)؛ الإلغاء بلا سبب إلزامي (قرار المالك 2026-10-13، DR-50)
 
 table wfl.RequestComment  # Comment visible to the requester or internal; the application prevents editing it, and withdrawal keeps the original (FR-REQ-017, BR-REQ-014)
   RequestId        ->wfl.Request req
@@ -449,6 +452,7 @@ table wfl.RequestApproval  # Approval slot created per entry and cycle; a new cy
   check Decision NOT IN ('APPROVED','RETURNED','REJECTED') OR ActedByUserId IS NOT NULL
   check Decision <> 'APPROVED' OR SnapshotHash IS NOT NULL   # BR-WFL-003
   check Source <> 'DELEGATE' OR (DelegationId IS NOT NULL AND OnBehalfOfUserId IS NOT NULL)
+  check (OnBehalfOfUserId IS NULL AND DelegationId IS NULL) OR (Source IS NOT NULL AND Source = 'DELEGATE')   # الإنابة للتفويض وحده (DR-50)
   check OverrideRequested = 0 OR OverrideReason IS NOT NULL   # السبب إلزامي (Q-WFL-07)
   check CycleNo >= 1
 
@@ -494,10 +498,11 @@ table wfl.HookExecution  # Execution of a hook with an idempotency key; a repeat
   ExecutedAt       ts
   NextAttemptAt    ts
   TmNotifiedAt     ts
-  unique RequestId,StageInstanceId,HookKey,TriggerKind   # المفتاح (RequestId, HookKey, StageInstanceId, Trigger)
+  unique RequestId,StageInstanceId,HookKey,TriggerKind,ActionFilter   # المفتاح مع نوع الإجراء: مرة لكل مرحلة ونوع إجراء (قرار المالك 2026-10-13، DR-43)
   index Status,NextAttemptAt where Status = 'FAILED' AND ExecMode = 'AFTER_COMMIT'   # إعادة المحاولة
   index HookKey,ExecutedAt
   check AttemptCount >= 0
+  check (TriggerKind = 'ON_ACTION' AND ActionFilter IS NOT NULL) OR (TriggerKind <> 'ON_ACTION' AND ActionFilter IS NULL)   # DR-43
   check Status <> 'SUCCEEDED' OR ExecutedAt IS NOT NULL
   check Status <> 'GAVE_UP' OR (ExecMode = 'AFTER_COMMIT' AND AttemptCount >= 5)
 
@@ -615,14 +620,14 @@ table ntf.Notification public  # Notification for a user; the content carries no
   ResolvedAt        ts
   ReadAt            ts               # القراءة: UNREAD → READ → ARCHIVED (§8)
   ArchivedAt        ts               # الإلزامي غير المقروء لا يُؤرشف آليًا (BR-NTF-011)
-  DedupKey          ascii(200)       # {EventCode}:{TargetType}:{TargetId}:{Threshold|Cycle}:{ItemVersion} (BR-NTF-002)
+  DedupKey          ascii(200) req   # {EventCode}:{TargetType}:{TargetId}:{Threshold|Cycle}:{ItemVersion} (BR-NTF-002)؛ إلزامي، والافتراضي من MessageId للحدث (DQ-F17-7، DR-50)
   CoalescedCount    int        req =1   # دمج 15 دقيقة (BR-NTF-005)
   ReminderCount     int        req =0   # تذكير 24/48/72 ساعة عمل بحد 3 (BR-NTF-006)
   NextReminderAt    ts               # يحسبها AddBusinessHours؛ المهمة تعتمد حدثًا مخزَّنًا (BR-NTF-010)
   PayloadJson       json             # معرّفات فقط (FR-NTF-002/021)
   SourceEventId     guid             # = cfg.OutboxEvent.MessageId؛ بلا FK لأن الصندوق قابل للحذف
   unique PublicId
-  unique UserId,DedupKey where DedupKey IS NOT NULL   # لا تكرار لمستلم (BR-NTF-002، AC-WFL-8)
+  unique UserId,DedupKey   # لا تكرار لمستلم، وإعادة تسليم الحدث لا تكرر الإشعار (BR-NTF-002، AC-WFL-8، DR-50)
   index UserId,ReadAt,CreatedAt   # الجرس وعدّاد غير المقروء (§6.3)
   index UserId,TargetEntityType,TargetEntityId where ReadAt IS NULL   # فتح الهدف يقرأ إشعاراته (FR-NTF-006)
   index UserId,ActionState,CreatedAt where ActionState = 'OPEN'   # عدّاد «يلزم إجراء» (FR-NTF-006)

@@ -365,6 +365,7 @@ erDiagram
 | ProductLineTerm | VerifiedBy | sec.AppUser |
 | Utilization | CompanyId | org.Company |
 | Utilization | CurrencyId | ref.Currency |
+| Utilization | SourceRequestId | wfl.Request |
 | ValueConflict | CandidateASourceDocumentId | doc.Document |
 | ValueConflict | CandidateBSourceDocumentId | doc.Document |
 | ValueConflict | ResolvedBy | sec.AppUser |

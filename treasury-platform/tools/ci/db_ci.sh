@@ -56,6 +56,7 @@ echo "permission seed matches the documents"
 echo "== 3. every foreign key is indexed or flagged noidx; static grant and cascade rules R1-R11"
 python3 tools/dbgen/check_fk_indexes.py
 python3 tools/dbgen/check_grants.py
+python3 tools/dbgen/check_review_fixes.py | tail -1   # the design-review fixes in the generated DDL (C-12, O-15)
 
 echo "== 4. deploy db/deploy.sql to a fresh BankFas database the way production does (DOC-S11, ADR 0010)"
 sq -Q "IF DB_ID(N'BankFas') IS NOT NULL BEGIN ALTER DATABASE [BankFas] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [BankFas]; END" >/dev/null
@@ -356,10 +357,11 @@ if grep -q '^FAIL' "$TMP/review.out"; then
     exit 1
 fi
 rf_pass=$(grep -c '^PASS' "$TMP/review.out" || true)
-# 16 cases: RF1 list columns, RF2-RF9 the S0 tables (DR-11 to DR-18), RF10 codes in capitals (DR-48), RF11-RF16
-# the S1 tables (DR-19, DR-21, DR-23, DR-24, DR-29, DR-47).
-if [ "$rf_pass" -ne 16 ]; then
-    echo "expected 16 PASS, found $rf_pass"
+# 18 cases: RF1 list columns, RF2-RF9 the S0 tables (DR-11 to DR-18), RF10 codes in capitals (DR-48), RF11-RF16
+# the S1 tables (DR-19, DR-21, DR-23, DR-24, DR-29, DR-47), RF17-RF18 collateral kinds, agreement text and proformas
+# (DR-40, DR-31, DR-41). The declarative S2-S4 fixes are checked on the DDL in step 3 (check_review_fixes.py).
+if [ "$rf_pass" -ne 18 ]; then
+    echo "expected 18 PASS, found $rf_pass"
     exit 1
 fi
 echo "review fixes tests: $rf_pass passed"

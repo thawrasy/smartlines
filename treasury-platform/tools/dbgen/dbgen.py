@@ -213,7 +213,7 @@ def expand(tables):
             extra += [mkcol('FromRevision','int',w,True,'1'), mkcol('ToRevision','int',w), mkcol('SupersedesId',None,w,fk=t.fq)]
         if 'src' in f:
             extra += [mkcol('SourceDocumentId',None,w,fk='doc.Document'), mkcol('SourcePage','ascii(40)',w), mkcol('ReadFromScan','bool',w,True,'0'),
-                      mkcol('OriginalText','str(2000)',w), mkcol('NoSourceReason','str(300)',w), mkcol('Confidence','enum{CONFIRMED_AGAINST_ORIGINAL,READ_FROM_SCAN_UNVERIFIED,ENTERED_NO_DOCUMENT}',w,True,'ENTERED_NO_DOCUMENT'),
+                      mkcol('OriginalText','str(2000)',w, sens='confidential'), mkcol('NoSourceReason','str(300)',w), mkcol('Confidence','enum{CONFIRMED_AGAINST_ORIGINAL,READ_FROM_SCAN_UNVERIFIED,ENTERED_NO_DOCUMENT}',w,True,'ENTERED_NO_DOCUMENT'),
                       mkcol('VerifiedBy',None,w,fk='sec.AppUser'), mkcol('VerifiedOn','ts',w), mkcol('ConflictId',None,w,fk='fac.ValueConflict')]
         for c in extra:
             if c.name not in t.colmap: t.cols.append(c); t.colmap[c.name] = c
@@ -293,7 +293,7 @@ def validate_semantics(tables):
         for expr, where in t.checks:
             bare = re.sub(r'\bCOLLATE\s+\w+', '', re.sub(r"'[^']*'", '', expr), flags=re.I)
             for ident in re.findall(r'\b[A-Za-z_]\w*\b', bare):
-                if ident.upper() in ('AND','OR','NOT','IS','NULL','IN','LIKE','BETWEEN','CASE','WHEN','THEN','ELSE','END','LEN','DATALENGTH','ABS','LOWER','UPPER','LTRIM','RTRIM','DATEADD','DAY','MONTH','YEAR','HOUR','MINUTE'): continue
+                if ident.upper() in ('AND','OR','NOT','IS','NULL','IN','LIKE','BETWEEN','CASE','WHEN','THEN','ELSE','END','LEN','DATALENGTH','ABS','LOWER','UPPER','LTRIM','RTRIM','DATEADD','DAY','MONTH','YEAR','HOUR','MINUTE','CONCAT'): continue
                 if ident not in names: errs.append(f'{where}: check refers to unknown identifier {ident} in {t.fq}')
         if t.has_surrogate and not t.tenant_scoped and t.is_mixed: errs.append(f'{t.fq}: mixed tables are tenant-scoped')
     return errs

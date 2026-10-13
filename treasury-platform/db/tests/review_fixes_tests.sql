@@ -19,6 +19,12 @@
    RF14 a company's mirror party is an organisation (DR-24)
    RF15 a base rate has a currency, and an alias stays in its rate's scope (DR-29)
    RF16 the normalised ERP code is computed from the code, unique while set, and freed when cleared (DR-47)
+   RF17 a collateral has its type's structure, a guarantee hangs only off a guarantee collateral, and a used type
+        keeps its structure (DR-40)
+   RF18 the reporting role reads no agreement text, and the application changes neither an issued proforma's content
+        nor its lines (DR-31, DR-41)
+   The other declarative fixes of S2 to S4 (keys and checks) are verified on the generated DDL by
+   tools/dbgen/check_review_fixes.py, CI step 3.
 
    Run against a deployed BankFas database that holds no real data, with a sysadmin login:
        sqlcmd -S <server> -U sa -C -I -b -i db/tests/review_fixes_tests.sql
@@ -33,6 +39,11 @@ IF USER_ID(N'tp_test_rfapp') IS NULL
 BEGIN
     CREATE USER [tp_test_rfapp] WITHOUT LOGIN;
     ALTER ROLE [tp_app] ADD MEMBER [tp_test_rfapp];
+END;
+IF USER_ID(N'tp_test_rfread') IS NULL
+BEGIN
+    CREATE USER [tp_test_rfread] WITHOUT LOGIN;
+    ALTER ROLE [tp_readonly] ADD MEMBER [tp_test_rfread];
 END;
 GO
 CREATE TABLE #F (k VARCHAR(20) PRIMARY KEY, v BIGINT NOT NULL);
@@ -514,4 +525,57 @@ IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
 IF @n1 = N'AB1' AND @e1 = 2601 AND @ok = 1 AND @e2 = 547 AND @cp = N'45X'
     PRINT 'PASS RF16: the normalised ERP code is computed from the code, unique while set, and freed when cleared';
 ELSE PRINT CONCAT('FAIL RF16: normalised ', @n1, ', duplicate ', @e1, ', after clearing ', @ok, ', spaces ', @e2, ', counterparty ', @cp);
+GO
+/* RF17 (DR-40): a GUARANTEE collateral of a REAL_ESTATE type (547), a guarantee on a REAL_ESTATE collateral (547)
+   and a change of a used type's structure (547) are refused; a guarantee on a GUARANTEE collateral is accepted. */
+DECLARE @t1 INT, @u1 BIGINT, @tg INT, @tr INT, @cg BIGINT, @cr BIGINT, @e1 INT, @e2 INT, @e3 INT, @ok INT;
+BEGIN TRANSACTION;
+EXEC #Fixture;
+SELECT @t1 = v FROM #F WHERE k = 't1'; SELECT @u1 = v FROM #F WHERE k = 'u1';
+EXEC #Bind @t1, @u1;
+INSERT cat.CollateralType (TenantId, Code, NameAr, StructureKind) VALUES (@t1, 'GUAR', N'كفالة', 'GUARANTEE'), (@t1, 'PROPERTY', N'عقار', 'REAL_ESTATE');
+SELECT @tg = CollateralTypeId FROM cat.CollateralType WHERE TenantId = @t1 AND Code = 'GUAR';
+SELECT @tr = CollateralTypeId FROM cat.CollateralType WHERE TenantId = @t1 AND Code = 'PROPERTY';
+BEGIN TRY INSERT col.Collateral (TenantId, StructureKind, CollateralTypeId, TitleAr) VALUES (@t1, 'GUARANTEE', @tr, N'ضمان'); END TRY
+BEGIN CATCH SET @e1 = ERROR_NUMBER(); END CATCH;
+INSERT col.Collateral (TenantId, StructureKind, CollateralTypeId, TitleAr) VALUES (@t1, 'GUARANTEE', @tg, N'كفالة');
+SET @cg = SCOPE_IDENTITY();
+INSERT col.Collateral (TenantId, StructureKind, CollateralTypeId, TitleAr) VALUES (@t1, 'REAL_ESTATE', @tr, N'عقار');
+SET @cr = SCOPE_IDENTITY();
+ALTER TABLE col.Guarantee NOCHECK CONSTRAINT FK_Guarantee_GuarantorPartyId;
+BEGIN TRY INSERT col.Guarantee (TenantId, CollateralId, GuarantorPartyId, GuaranteeForm, IsJointSeveral, AmountMode)
+          VALUES (@t1, @cr, 1, 'SIMPLE', 0, 'UNSPECIFIED'); END TRY BEGIN CATCH SET @e2 = ERROR_NUMBER(); END CATCH;
+BEGIN TRY INSERT col.Guarantee (TenantId, CollateralId, GuarantorPartyId, GuaranteeForm, IsJointSeveral, AmountMode)
+          VALUES (@t1, @cg, 1, 'SIMPLE', 0, 'UNSPECIFIED'); SET @ok = @@ROWCOUNT; END TRY BEGIN CATCH SET @ok = -ERROR_NUMBER(); END CATCH;
+BEGIN TRY UPDATE cat.CollateralType SET StructureKind = 'GENERIC' WHERE CollateralTypeId = @tg; END TRY BEGIN CATCH SET @e3 = ERROR_NUMBER(); END CATCH;
+IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
+IF @e1 = 547 AND @e2 = 547 AND @ok = 1 AND @e3 = 547
+    PRINT 'PASS RF17: a collateral has its type''s structure, a guarantee hangs only off a guarantee collateral, and a used type keeps its structure';
+ELSE PRINT CONCAT('FAIL RF17: collateral of another structure ', @e1, ', guarantee on property ', @e2, ', guarantee on guarantee ', @ok, ', type change ', @e3);
+GO
+/* RF18 (DR-31, DR-41): the reporting role reads a limit's code but not its source text, nor an obligation's clause
+   or a conflict's candidate text (14 denied columns); the application may update an issued proforma's status but
+   not its total, and may add proforma lines but not change them. */
+DECLARE @a INT, @b INT, @c INT, @d INT, @e INT, @f INT, @g INT, @h INT, @n INT;
+EXECUTE AS USER = N'tp_test_rfread';
+SELECT @a = HAS_PERMS_BY_NAME('fac.Limit', 'OBJECT', 'SELECT', 'OriginalText', 'COLUMN'),
+       @b = HAS_PERMS_BY_NAME('fac.Limit', 'OBJECT', 'SELECT', 'Code', 'COLUMN'),
+       @c = HAS_PERMS_BY_NAME('obl.Obligation', 'OBJECT', 'SELECT', 'ClauseText', 'COLUMN'),
+       @d = HAS_PERMS_BY_NAME('fac.ValueConflict', 'OBJECT', 'SELECT', 'CandidateAOriginalText', 'COLUMN');
+REVERT;
+EXECUTE AS USER = N'tp_test_rfapp';
+SELECT @e = HAS_PERMS_BY_NAME('lc.ProformaInvoice', 'OBJECT', 'UPDATE', 'Total', 'COLUMN'),
+       @f = HAS_PERMS_BY_NAME('lc.ProformaInvoice', 'OBJECT', 'UPDATE', 'Status', 'COLUMN'),
+       @g = HAS_PERMS_BY_NAME('lc.ProformaLine', 'OBJECT', 'UPDATE'),
+       @h = HAS_PERMS_BY_NAME('lc.ProformaLine', 'OBJECT', 'INSERT');
+REVERT;
+SELECT @n = COUNT(*)
+FROM sys.database_permissions AS p
+JOIN sys.columns AS c ON c.object_id = p.major_id AND c.column_id = p.minor_id
+WHERE p.grantee_principal_id = DATABASE_PRINCIPAL_ID(N'tp_readonly') AND p.state = 'D' AND p.permission_name = 'SELECT'
+  AND c.name IN (N'OriginalText', N'CandidateAOriginalText', N'CandidateBOriginalText', N'ClauseText');
+IF @a = 0 AND @b = 1 AND @c = 0 AND @d = 0 AND @e = 0 AND @f = 1 AND @g = 0 AND @h = 1 AND @n = 14
+    PRINT 'PASS RF18: the reporting role reads no agreement text, and an issued proforma''s content and lines do not change';
+ELSE PRINT CONCAT('FAIL RF18: read source text ', @a, ', read code ', @b, ', clause ', @c, ', candidate ', @d, ', proforma total ', @e,
+                  ', status ', @f, ', line update ', @g, ', line insert ', @h, ', denied columns ', @n);
 GO

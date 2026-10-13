@@ -252,18 +252,19 @@ table fac.Utilization public  # Active utilisation item: manual or linked to a l
   StartDate           date       req
   MaturityDate        date
   SourceType          enum{MANUAL,LC,OTHER_REQUEST} req =MANUAL
-  SourceRefId         bigint           # LcId أو RequestId؛ فارغ ابتداءً لبند LC ويُعبَّأ مرة واحدة من فارغ إلى قيمة (IMMUTABLE_SOURCE يفرضه التطبيق)
+  SourceRequestId     ->wfl.Request via=CompanyId   # OTHER_REQUEST: الطلب العام لشركة البند نفسها. بند LC يربطه lc.LetterOfCredit.UtilizationId وحده (DQ-F12-14، DR-26)
   Status              enum{ACTIVE,RELEASED} req =ACTIVE   # RELEASED نهائية (§8)
   ReleasedOn          date
   ReleaseReason       str(500)
   unique PublicId
-  unique SourceType,SourceRefId where SourceRefId IS NOT NULL    # DUPLICATE_SOURCE (BR-FAC-020)
+  unique SourceRequestId where SourceRequestId IS NOT NULL    # DUPLICATE_SOURCE (BR-FAC-020)؛ وللاعتماد: unique UtilizationId في lc.LetterOfCredit
   index  FacilityId,LimitId,Status include Amount,CurrencyId,RateToFacilityCcy,CompanyId,LimitProductLineId   # حساب Used(n) (BR-FAC-013)
   index  Reference                         # بحث برقم الاعتماد
   index  MaturityDate where Status = 'ACTIVE' AND MaturityDate IS NOT NULL
-  index  CreatedAt where SourceType = 'LC' AND SourceRefId IS NULL   # بنود LC بلا SourceRefId (V-FAC-11، R-FAC-03)
+  index  CreatedAt where SourceType = 'LC'   # بنود LC بلا اعتماد يشير إليها: ربط عكسي مع lc.LetterOfCredit.UtilizationId (V-FAC-11، R-FAC-03)
   check  Amount >= 0
   check  Status = 'RELEASED' OR Amount > 0   # V-FAC-11: المبلغ > 0 للفعّال
+  check  (SourceType = 'OTHER_REQUEST' AND SourceRequestId IS NOT NULL) OR (SourceType <> 'OTHER_REQUEST' AND SourceRequestId IS NULL)   # DR-26
   check  RateToFacilityCcy IS NULL OR RateToFacilityCcy > 0
   check  MaturityDate IS NULL OR MaturityDate >= StartDate
   check  Status <> 'RELEASED' OR (ReleasedOn IS NOT NULL AND ReleaseReason IS NOT NULL)
@@ -324,21 +325,21 @@ table fac.LimitMovement append  # Movement record on a reservation or usage; no 
   check  OpKind <> 'ADJUST' OR AmountBefore IS NULL OR AmountAfter IS NULL OR AppliedDelta IS NULL OR AmountAfter = AmountBefore + AppliedDelta
 
 table fac.ValueConflict  # Conflict between two values of one field, and its resolution (FR-FAC-026, BR-FAC-019, BR-FAC-008)
-  FacilityId                  ->fac.Facility req   # إضافة: مفتاح النطاق
-  TargetEntity                ascii(60)  req   # الكيان المستهدف مثل fac.Limit أو prc.PricingRule (رابط متعدد الأشكال)
+  FacilityId                  ->fac.Facility   # مفتاح النطاق؛ إلزامي إلا لهدف بلا تسهيل: ضمان أو بند تعرفة أو قالب معادلة (قرار المالك 2026-10-13، DR-27)
+  TargetEntity                ascii(60)  req   # الكيان المستهدف من جداول المصدر وحدها (القيد أدناه)؛ وجوده وتسهيله يتحقق منهما قبل S2
   TargetId                    bigint     req
   FieldName                   ascii(80)  req
   CandidateAValue             str(1000)  req   # القيمة + ختم المصدر (A)
   CandidateASourceDocumentId  ->doc.Document
   CandidateASourcePage        ascii(40)
   CandidateAReadFromScan      bool       req =0
-  CandidateAOriginalText      str(2000)
+  CandidateAOriginalText      str(2000)  sens=confidential   # DR-31
   CandidateAConfidence        enum{CONFIRMED_AGAINST_ORIGINAL,READ_FROM_SCAN_UNVERIFIED,ENTERED_NO_DOCUMENT} req =ENTERED_NO_DOCUMENT
   CandidateBValue             str(1000)  req   # القيمة + ختم المصدر (B)
   CandidateBSourceDocumentId  ->doc.Document
   CandidateBSourcePage        ascii(40)
   CandidateBReadFromScan      bool       req =0
-  CandidateBOriginalText      str(2000)
+  CandidateBOriginalText      str(2000)  sens=confidential
   CandidateBConfidence        enum{CONFIRMED_AGAINST_ORIGINAL,READ_FROM_SCAN_UNVERIFIED,ENTERED_NO_DOCUMENT} req =ENTERED_NO_DOCUMENT
   Status                      enum{OPEN,RESOLVED} req =OPEN
   ChosenSide                  enum{A,B,OTHER}
@@ -350,6 +351,8 @@ table fac.ValueConflict  # Conflict between two values of one field, and its res
   index  FacilityId,Status                 # التعارضات المفتوحة تمنع الاعتماد (FR-FAC-026، V-FAC-12)
   check  Status <> 'RESOLVED' OR (ChosenSide IS NOT NULL AND ResolutionReason IS NOT NULL AND ResolvedBy IS NOT NULL AND ResolvedOn IS NOT NULL)   # القرار بسبب مدوَّن (BR-FAC-008)
   check  Status = 'RESOLVED' OR (ChosenSide IS NULL AND ResolvedBy IS NULL AND ResolvedOn IS NULL)
+  check  TargetEntity IN ('fac.Facility','fac.Limit','fac.LimitProductLine','fac.LimitCompanyRule','fac.ProductLineTerm','fac.OutstandingSnapshot','prc.TariffItem','prc.PricingRule','cmp.TermValue','col.Collateral','obl.Obligation','fin.MeasureFormula')   # DR-27
+  check  FacilityId IS NOT NULL OR TargetEntity IN ('col.Collateral','prc.TariffItem','fin.MeasureFormula')
   check  ChosenSide IS NULL OR ChosenSide <> 'OTHER' OR ResolvedValue IS NOT NULL
   check  CandidateASourceDocumentId IS NOT NULL AND CandidateASourcePage IS NOT NULL OR (CandidateASourceDocumentId IS NULL AND CandidateAConfidence = 'ENTERED_NO_DOCUMENT')   # ختم المصدر (X-DAT-4)
   check  CandidateBSourceDocumentId IS NOT NULL AND CandidateBSourcePage IS NOT NULL OR (CandidateBSourceDocumentId IS NULL AND CandidateBConfidence = 'ENTERED_NO_DOCUMENT')

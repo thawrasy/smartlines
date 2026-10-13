@@ -2341,6 +2341,7 @@ CREATE TABLE [cat].[CollateralType] (
     [RowVersion] ROWVERSION NOT NULL,
     CONSTRAINT [PK_CollateralType] PRIMARY KEY CLUSTERED ([CollateralTypeId]),
     CONSTRAINT [UQ_CollateralType_Tenant] UNIQUE ([TenantId], [CollateralTypeId]),
+    CONSTRAINT [UQ_CollateralType_Scope_StructureKind] UNIQUE ([TenantId], [StructureKind], [CollateralTypeId]),
     CONSTRAINT [UQ_CollateralType_Code] UNIQUE ([TenantId], [Code]),
     CONSTRAINT [CK_CollateralType_1] CHECK (Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'),
     CONSTRAINT [CK_CollateralType_2] CHECK ((IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)),
@@ -2399,6 +2400,7 @@ CREATE TABLE [cat].[ObligationType] (
     [RowVersion] ROWVERSION NOT NULL,
     CONSTRAINT [PK_ObligationType] PRIMARY KEY CLUSTERED ([ObligationTypeId]),
     CONSTRAINT [UQ_ObligationType_Tenant] UNIQUE ([TenantId], [ObligationTypeId]),
+    CONSTRAINT [UQ_ObligationType_Scope_Family] UNIQUE ([TenantId], [Family], [ObligationTypeId]),
     CONSTRAINT [UQ_ObligationType_Code] UNIQUE ([TenantId], [Code]),
     CONSTRAINT [CK_ObligationType_1] CHECK (Family <> 'COVENANT' OR MeasureKind IS NOT NULL),
     CONSTRAINT [CK_ObligationType_2] CHECK (MeasureKind IS NULL OR MeasureKind <> 'NONE' OR IsQualitative = 1),
@@ -3329,7 +3331,7 @@ CREATE TABLE [fac].[Utilization] (
     [StartDate] DATE NOT NULL,
     [MaturityDate] DATE NULL,
     [SourceType] VARCHAR(13) NOT NULL CONSTRAINT [DF_Utilization_SourceType] DEFAULT 'MANUAL',
-    [SourceRefId] BIGINT NULL,
+    [SourceRequestId] BIGINT NULL,
     [Status] VARCHAR(10) NOT NULL CONSTRAINT [DF_Utilization_Status] DEFAULT 'ACTIVE',
     [ReleasedOn] DATE NULL,
     [ReleaseReason] NVARCHAR(500) NULL,
@@ -3342,13 +3344,15 @@ CREATE TABLE [fac].[Utilization] (
     CONSTRAINT [PK_Utilization] PRIMARY KEY CLUSTERED ([UtilizationId]),
     CONSTRAINT [UQ_Utilization_Tenant] UNIQUE ([TenantId], [UtilizationId]),
     CONSTRAINT [UQ_Utilization_Scope_FacilityId] UNIQUE ([TenantId], [FacilityId], [UtilizationId]),
+    CONSTRAINT [UQ_Utilization_Scope_FacilityId_CompanyId] UNIQUE ([TenantId], [FacilityId], [CompanyId], [UtilizationId]),
     CONSTRAINT [UQ_Utilization_PublicId] UNIQUE ([PublicId]),
     CONSTRAINT [CK_Utilization_1] CHECK (Amount >= 0),
     CONSTRAINT [CK_Utilization_2] CHECK (Status = 'RELEASED' OR Amount > 0),
-    CONSTRAINT [CK_Utilization_3] CHECK (RateToFacilityCcy IS NULL OR RateToFacilityCcy > 0),
-    CONSTRAINT [CK_Utilization_4] CHECK (MaturityDate IS NULL OR MaturityDate >= StartDate),
-    CONSTRAINT [CK_Utilization_5] CHECK (Status <> 'RELEASED' OR (ReleasedOn IS NOT NULL AND ReleaseReason IS NOT NULL)),
-    CONSTRAINT [CK_Utilization_6] CHECK (Status = 'RELEASED' OR (ReleasedOn IS NULL AND ReleaseReason IS NULL)),
+    CONSTRAINT [CK_Utilization_3] CHECK ((SourceType = 'OTHER_REQUEST' AND SourceRequestId IS NOT NULL) OR (SourceType <> 'OTHER_REQUEST' AND SourceRequestId IS NULL)),
+    CONSTRAINT [CK_Utilization_4] CHECK (RateToFacilityCcy IS NULL OR RateToFacilityCcy > 0),
+    CONSTRAINT [CK_Utilization_5] CHECK (MaturityDate IS NULL OR MaturityDate >= StartDate),
+    CONSTRAINT [CK_Utilization_6] CHECK (Status <> 'RELEASED' OR (ReleasedOn IS NOT NULL AND ReleaseReason IS NOT NULL)),
+    CONSTRAINT [CK_Utilization_7] CHECK (Status = 'RELEASED' OR (ReleasedOn IS NULL AND ReleaseReason IS NULL)),
     CONSTRAINT [CK_Utilization_SourceType] CHECK ([SourceType] IS NULL OR [SourceType] IN ('MANUAL', 'LC', 'OTHER_REQUEST')),
     CONSTRAINT [CK_Utilization_Status] CHECK ([Status] IS NULL OR [Status] IN ('ACTIVE', 'RELEASED'))
 );
@@ -3431,7 +3435,7 @@ GO
 CREATE TABLE [fac].[ValueConflict] (
     [TenantId] INT NOT NULL,
     [ValueConflictId] BIGINT IDENTITY(1,1) NOT NULL,
-    [FacilityId] BIGINT NOT NULL,
+    [FacilityId] BIGINT NULL,
     [TargetEntity] VARCHAR(60) NOT NULL,
     [TargetId] BIGINT NOT NULL,
     [FieldName] VARCHAR(80) NOT NULL,
@@ -3462,9 +3466,11 @@ CREATE TABLE [fac].[ValueConflict] (
     CONSTRAINT [UQ_ValueConflict_Tenant] UNIQUE ([TenantId], [ValueConflictId]),
     CONSTRAINT [CK_ValueConflict_1] CHECK (Status <> 'RESOLVED' OR (ChosenSide IS NOT NULL AND ResolutionReason IS NOT NULL AND ResolvedBy IS NOT NULL AND ResolvedOn IS NOT NULL)),
     CONSTRAINT [CK_ValueConflict_2] CHECK (Status = 'RESOLVED' OR (ChosenSide IS NULL AND ResolvedBy IS NULL AND ResolvedOn IS NULL)),
-    CONSTRAINT [CK_ValueConflict_3] CHECK (ChosenSide IS NULL OR ChosenSide <> 'OTHER' OR ResolvedValue IS NOT NULL),
-    CONSTRAINT [CK_ValueConflict_4] CHECK (CandidateASourceDocumentId IS NOT NULL AND CandidateASourcePage IS NOT NULL OR (CandidateASourceDocumentId IS NULL AND CandidateAConfidence = 'ENTERED_NO_DOCUMENT')),
-    CONSTRAINT [CK_ValueConflict_5] CHECK (CandidateBSourceDocumentId IS NOT NULL AND CandidateBSourcePage IS NOT NULL OR (CandidateBSourceDocumentId IS NULL AND CandidateBConfidence = 'ENTERED_NO_DOCUMENT')),
+    CONSTRAINT [CK_ValueConflict_3] CHECK (TargetEntity IN ('fac.Facility','fac.Limit','fac.LimitProductLine','fac.LimitCompanyRule','fac.ProductLineTerm','fac.OutstandingSnapshot','prc.TariffItem','prc.PricingRule','cmp.TermValue','col.Collateral','obl.Obligation','fin.MeasureFormula')),
+    CONSTRAINT [CK_ValueConflict_4] CHECK (FacilityId IS NOT NULL OR TargetEntity IN ('col.Collateral','prc.TariffItem','fin.MeasureFormula')),
+    CONSTRAINT [CK_ValueConflict_5] CHECK (ChosenSide IS NULL OR ChosenSide <> 'OTHER' OR ResolvedValue IS NOT NULL),
+    CONSTRAINT [CK_ValueConflict_6] CHECK (CandidateASourceDocumentId IS NOT NULL AND CandidateASourcePage IS NOT NULL OR (CandidateASourceDocumentId IS NULL AND CandidateAConfidence = 'ENTERED_NO_DOCUMENT')),
+    CONSTRAINT [CK_ValueConflict_7] CHECK (CandidateBSourceDocumentId IS NOT NULL AND CandidateBSourcePage IS NOT NULL OR (CandidateBSourceDocumentId IS NULL AND CandidateBConfidence = 'ENTERED_NO_DOCUMENT')),
     CONSTRAINT [CK_ValueConflict_CandidateAConfidence] CHECK ([CandidateAConfidence] IS NULL OR [CandidateAConfidence] IN ('CONFIRMED_AGAINST_ORIGINAL', 'READ_FROM_SCAN_UNVERIFIED', 'ENTERED_NO_DOCUMENT')),
     CONSTRAINT [CK_ValueConflict_CandidateBConfidence] CHECK ([CandidateBConfidence] IS NULL OR [CandidateBConfidence] IN ('CONFIRMED_AGAINST_ORIGINAL', 'READ_FROM_SCAN_UNVERIFIED', 'ENTERED_NO_DOCUMENT')),
     CONSTRAINT [CK_ValueConflict_Status] CHECK ([Status] IS NULL OR [Status] IN ('OPEN', 'RESOLVED')),
@@ -3853,6 +3859,7 @@ GO
 CREATE TABLE [col].[Collateral] (
     [TenantId] INT NOT NULL,
     [CollateralId] BIGINT IDENTITY(1,1) NOT NULL,
+    [StructureKind] VARCHAR(20) NOT NULL,
     [CollateralTypeId] INT NOT NULL,
     [TitleAr] NVARCHAR(300) NOT NULL,
     [Description] NVARCHAR(2000) NULL,
@@ -3885,6 +3892,7 @@ CREATE TABLE [col].[Collateral] (
     [RowVersion] ROWVERSION NOT NULL,
     CONSTRAINT [PK_Collateral] PRIMARY KEY CLUSTERED ([CollateralId]),
     CONSTRAINT [UQ_Collateral_Tenant] UNIQUE ([TenantId], [CollateralId]),
+    CONSTRAINT [UQ_Collateral_Scope_StructureKind] UNIQUE ([TenantId], [StructureKind], [CollateralId]),
     CONSTRAINT [UQ_Collateral_PublicId] UNIQUE ([PublicId]),
     CONSTRAINT [CK_Collateral_1] CHECK (Status = 'DRAFT' OR ApprovalState = 'APPROVED'),
     CONSTRAINT [CK_Collateral_2] CHECK (ApprovalState <> 'APPROVED' OR Status <> 'DRAFT'),
@@ -3895,6 +3903,7 @@ CREATE TABLE [col].[Collateral] (
     CONSTRAINT [CK_Collateral_7] CHECK (SupersedesId IS NULL OR SupersedesId <> CollateralId),
     CONSTRAINT [CK_Collateral_8] CHECK (SourceDocumentId IS NOT NULL AND SourcePage IS NOT NULL OR (SourceDocumentId IS NULL AND Confidence = 'ENTERED_NO_DOCUMENT')),
     CONSTRAINT [CK_Collateral_9] CHECK (Confidence <> 'CONFIRMED_AGAINST_ORIGINAL' OR (VerifiedBy IS NOT NULL AND VerifiedOn IS NOT NULL)),
+    CONSTRAINT [CK_Collateral_StructureKind] CHECK ([StructureKind] IS NULL OR [StructureKind] IN ('GUARANTEE', 'PROMISSORY_NOTE', 'INSURANCE_ASSIGNMENT', 'CASH_MARGIN', 'REAL_ESTATE', 'SET_OFF', 'NEGATIVE_PLEDGE', 'GENERIC')),
     CONSTRAINT [CK_Collateral_Status] CHECK ([Status] IS NULL OR [Status] IN ('DRAFT', 'ACTIVE', 'RELEASED', 'EXPIRED')),
     CONSTRAINT [CK_Collateral_ApprovalState] CHECK ([ApprovalState] IS NULL OR [ApprovalState] IN ('DRAFT', 'APPROVED')),
     CONSTRAINT [CK_Collateral_Confidence] CHECK ([Confidence] IS NULL OR [Confidence] IN ('CONFIRMED_AGAINST_ORIGINAL', 'READ_FROM_SCAN_UNVERIFIED', 'ENTERED_NO_DOCUMENT')),
@@ -3932,6 +3941,7 @@ GO
 CREATE TABLE [col].[Guarantee] (
     [TenantId] INT NOT NULL,
     [GuaranteeId] BIGINT IDENTITY(1,1) NOT NULL,
+    [StructureKind] VARCHAR(20) NOT NULL CONSTRAINT [DF_Guarantee_StructureKind] DEFAULT 'GUARANTEE',
     [CollateralId] BIGINT NOT NULL,
     [GuarantorPartyId] BIGINT NOT NULL,
     [GuarantorIdentityDocumentId] BIGINT NULL,
@@ -3956,6 +3966,7 @@ CREATE TABLE [col].[Guarantee] (
     CONSTRAINT [CK_Guarantee_3] CHECK (Amount IS NULL OR Amount > 0),
     CONSTRAINT [CK_Guarantee_4] CHECK (SignedOn IS NULL OR ValidTo IS NULL OR ValidTo >= SignedOn),
     CONSTRAINT [CK_Guarantee_5] CHECK (GuaranteeForm <> 'JOINT_SEVERAL_PAYMENT_PERFORMANCE' OR IsJointSeveral = 1),
+    CONSTRAINT [CK_Guarantee_StructureKind] CHECK ([StructureKind] IS NULL OR [StructureKind] IN ('GUARANTEE')),
     CONSTRAINT [CK_Guarantee_GuaranteeForm] CHECK ([GuaranteeForm] IS NULL OR [GuaranteeForm] IN ('JOINT_SEVERAL_PAYMENT_PERFORMANCE', 'SIMPLE', 'OTHER')),
     CONSTRAINT [CK_Guarantee_AmountMode] CHECK ([AmountMode] IS NULL OR [AmountMode] IN ('SPECIFIED', 'UNSPECIFIED'))
 );
@@ -3964,6 +3975,7 @@ GO
 CREATE TABLE [col].[PromissoryNote] (
     [TenantId] INT NOT NULL,
     [PromissoryNoteId] BIGINT IDENTITY(1,1) NOT NULL,
+    [StructureKind] VARCHAR(20) NOT NULL CONSTRAINT [DF_PromissoryNote_StructureKind] DEFAULT 'PROMISSORY_NOTE',
     [CollateralId] BIGINT NOT NULL,
     [NoteAmount] DECIMAL(19,4) NOT NULL,
     [CurrencyId] INT NOT NULL,
@@ -3987,6 +3999,7 @@ CREATE TABLE [col].[PromissoryNote] (
     CONSTRAINT [CK_PromissoryNote_3] CHECK (DueKind <> 'ON_DEMAND' OR DueDate IS NULL),
     CONSTRAINT [CK_PromissoryNote_4] CHECK (LastRenewedOn IS NULL OR LastRenewedOn >= IssuedOn),
     CONSTRAINT [CK_PromissoryNote_5] CHECK (RenewalCycle <> 'NONE' OR LastRenewedOn IS NULL),
+    CONSTRAINT [CK_PromissoryNote_StructureKind] CHECK ([StructureKind] IS NULL OR [StructureKind] IN ('PROMISSORY_NOTE')),
     CONSTRAINT [CK_PromissoryNote_DueKind] CHECK ([DueKind] IS NULL OR [DueKind] IN ('ON_DEMAND', 'FIXED_DATE')),
     CONSTRAINT [CK_PromissoryNote_RenewalCycle] CHECK ([RenewalCycle] IS NULL OR [RenewalCycle] IN ('NONE', 'ANNUAL')),
     CONSTRAINT [CK_PromissoryNote_CustodyKind] CHECK ([CustodyKind] IS NULL OR [CustodyKind] IN ('BANK', 'COMPANY', 'OTHER'))
@@ -4008,6 +4021,7 @@ GO
 CREATE TABLE [col].[InsurancePolicyAssignment] (
     [TenantId] INT NOT NULL,
     [InsurancePolicyAssignmentId] BIGINT IDENTITY(1,1) NOT NULL,
+    [StructureKind] VARCHAR(20) NOT NULL CONSTRAINT [DF_InsurancePolicyAssignment_StructureKind] DEFAULT 'INSURANCE_ASSIGNMENT',
     [CollateralId] BIGINT NOT NULL,
     [PolicyNo] NVARCHAR(60) NOT NULL,
     [InsurerName] NVARCHAR(200) NOT NULL,
@@ -4034,6 +4048,7 @@ CREATE TABLE [col].[InsurancePolicyAssignment] (
     CONSTRAINT [CK_InsurancePolicyAssignment_3] CHECK (CoverageBasis <> 'PCT_OF_LIMIT' OR (CoveragePct IS NOT NULL AND CoveragePct > 0 AND CoverageAmount IS NULL)),
     CONSTRAINT [CK_InsurancePolicyAssignment_4] CHECK (CoverageBasis <> 'FIXED_AMOUNT' OR (CoverageAmount IS NOT NULL AND CoverageAmount > 0 AND CoveragePct IS NULL)),
     CONSTRAINT [CK_InsurancePolicyAssignment_5] CHECK (CoverageBasis <> 'FULL_LIMITS' OR (CoveragePct IS NULL AND CoverageAmount IS NULL)),
+    CONSTRAINT [CK_InsurancePolicyAssignment_StructureKind] CHECK ([StructureKind] IS NULL OR [StructureKind] IN ('INSURANCE_ASSIGNMENT')),
     CONSTRAINT [CK_InsurancePolicyAssignment_CoverageBasis] CHECK ([CoverageBasis] IS NULL OR [CoverageBasis] IN ('PCT_OF_LIMIT', 'FIXED_AMOUNT', 'FULL_LIMITS'))
 );
 GO
@@ -4041,6 +4056,7 @@ GO
 CREATE TABLE [col].[ValuationSchedule] (
     [TenantId] INT NOT NULL,
     [ValuationScheduleId] BIGINT IDENTITY(1,1) NOT NULL,
+    [StructureKind] VARCHAR(20) NOT NULL,
     [CollateralId] BIGINT NOT NULL,
     [PhaseNo] INT NOT NULL,
     [FromYear] INT NOT NULL,
@@ -4065,7 +4081,8 @@ CREATE TABLE [col].[ValuationSchedule] (
     CONSTRAINT [CK_ValuationSchedule_4] CHECK (RequiredValuerCount >= 1),
     CONSTRAINT [CK_ValuationSchedule_5] CHECK (FrequencyMonths >= 0),
     CONSTRAINT [CK_ValuationSchedule_6] CHECK (LastValuationAmount IS NULL OR (LastValuationAmount > 0 AND LastValuationOn IS NOT NULL AND CurrencyId IS NOT NULL)),
-    CONSTRAINT [CK_ValuationSchedule_7] CHECK (LastValuationOn IS NULL OR LastValuationAmount IS NOT NULL)
+    CONSTRAINT [CK_ValuationSchedule_7] CHECK (LastValuationOn IS NULL OR LastValuationAmount IS NOT NULL),
+    CONSTRAINT [CK_ValuationSchedule_StructureKind] CHECK ([StructureKind] IS NULL OR [StructureKind] IN ('REAL_ESTATE', 'GENERIC'))
 );
 GO
 
@@ -4075,6 +4092,7 @@ CREATE TABLE [obl].[Obligation] (
     [TenantId] INT NOT NULL,
     [ObligationId] BIGINT IDENTITY(1,1) NOT NULL,
     [FacilityId] BIGINT NOT NULL,
+    [Family] VARCHAR(23) NOT NULL,
     [ObligationTypeId] INT NOT NULL,
     [TitleAr] NVARCHAR(300) NOT NULL,
     [TitleEn] NVARCHAR(300) NULL,
@@ -4115,6 +4133,7 @@ CREATE TABLE [obl].[Obligation] (
     [RowVersion] ROWVERSION NOT NULL,
     CONSTRAINT [PK_Obligation] PRIMARY KEY CLUSTERED ([ObligationId]),
     CONSTRAINT [UQ_Obligation_Tenant] UNIQUE ([TenantId], [ObligationId]),
+    CONSTRAINT [UQ_Obligation_Scope_Family] UNIQUE ([TenantId], [Family], [ObligationId]),
     CONSTRAINT [UQ_Obligation_PublicId] UNIQUE ([PublicId]),
     CONSTRAINT [CK_Obligation_1] CHECK (ValidTo IS NULL OR ValidTo >= ValidFrom),
     CONSTRAINT [CK_Obligation_2] CHECK (GraceDays IS NULL OR GraceDays >= 0),
@@ -4127,6 +4146,8 @@ CREATE TABLE [obl].[Obligation] (
     CONSTRAINT [CK_Obligation_9] CHECK (ToRevision IS NULL OR ToRevision >= FromRevision),
     CONSTRAINT [CK_Obligation_10] CHECK (SourceDocumentId IS NOT NULL AND SourcePage IS NOT NULL OR (SourceDocumentId IS NULL AND Confidence = 'ENTERED_NO_DOCUMENT')),
     CONSTRAINT [CK_Obligation_11] CHECK (Confidence <> 'CONFIRMED_AGAINST_ORIGINAL' OR (VerifiedBy IS NOT NULL AND VerifiedOn IS NOT NULL)),
+    CONSTRAINT [CK_Obligation_12] CHECK (ScopeProductLineId IS NULL OR ScopeLimitId IS NOT NULL),
+    CONSTRAINT [CK_Obligation_Family] CHECK ([Family] IS NULL OR [Family] IN ('REPORTING', 'COVENANT', 'TRANSACTION_RESTRICTION', 'STATIC_CLAUSE')),
     CONSTRAINT [CK_Obligation_Phase] CHECK ([Phase] IS NULL OR [Phase] IN ('PRECEDENT', 'ONGOING', 'SUBSEQUENT')),
     CONSTRAINT [CK_Obligation_ParamUnit] CHECK ([ParamUnit] IS NULL OR [ParamUnit] IN ('DAYS', 'BUSINESS_DAYS', 'MONTHS', 'PCT', 'AMOUNT')),
     CONSTRAINT [CK_Obligation_CheckMode] CHECK ([CheckMode] IS NULL OR [CheckMode] IN ('OFF', 'WARN', 'BLOCK')),
@@ -4151,6 +4172,7 @@ GO
 CREATE TABLE [obl].[ReportingObligation] (
     [TenantId] INT NOT NULL,
     [ReportingObligationId] BIGINT IDENTITY(1,1) NOT NULL,
+    [Family] VARCHAR(23) NOT NULL CONSTRAINT [DF_ReportingObligation_Family] DEFAULT 'REPORTING',
     [ObligationId] BIGINT NOT NULL,
     [Frequency] VARCHAR(11) NOT NULL,
     [AnchorKind] VARCHAR(21) NOT NULL,
@@ -4186,6 +4208,7 @@ CREATE TABLE [obl].[ReportingObligation] (
     CONSTRAINT [CK_ReportingObligation_8] CHECK (AnchorKind <> 'ON_DEMAND_REQUEST' OR Frequency = 'ON_DEMAND'),
     CONSTRAINT [CK_ReportingObligation_9] CHECK (AlertLeadDays IS NULL OR AlertLeadDays NOT LIKE '%[^0-9,]%'),
     CONSTRAINT [CK_ReportingObligation_10] CHECK (ToRevision IS NULL OR ToRevision >= FromRevision),
+    CONSTRAINT [CK_ReportingObligation_Family] CHECK ([Family] IS NULL OR [Family] IN ('REPORTING')),
     CONSTRAINT [CK_ReportingObligation_Frequency] CHECK ([Frequency] IS NULL OR [Frequency] IN ('ANNUAL', 'SEMIANNUAL', 'QUARTERLY', 'MONTHLY', 'ONE_TIME', 'EVENT_BASED', 'ON_DEMAND')),
     CONSTRAINT [CK_ReportingObligation_AnchorKind] CHECK ([AnchorKind] IS NULL OR [AnchorKind] IN ('AFTER_PERIOD_END', 'AFTER_FISCAL_YEAR_END', 'BEFORE_EVENT', 'AFTER_EVENT', 'ON_DEMAND_REQUEST', 'FIXED_DATE')),
     CONSTRAINT [CK_ReportingObligation_OffsetUnit] CHECK ([OffsetUnit] IS NULL OR [OffsetUnit] IN ('CALENDAR_DAYS', 'BUSINESS_DAYS', 'MONTHS')),
@@ -4238,6 +4261,7 @@ GO
 CREATE TABLE [obl].[Covenant] (
     [TenantId] INT NOT NULL,
     [CovenantId] BIGINT IDENTITY(1,1) NOT NULL,
+    [Family] VARCHAR(23) NOT NULL CONSTRAINT [DF_Covenant_Family] DEFAULT 'COVENANT',
     [ObligationId] BIGINT NOT NULL,
     [MeasureKind] VARCHAR(18) NOT NULL,
     [FormulaId] BIGINT NULL,
@@ -4271,7 +4295,7 @@ CREATE TABLE [obl].[Covenant] (
     CONSTRAINT [UQ_Covenant_Tenant] UNIQUE ([TenantId], [CovenantId]),
     CONSTRAINT [CK_Covenant_1] CHECK (MeasureKind NOT IN ('RATIO','AMOUNT','PERCENT_OF_REVENUE') OR FormulaId IS NOT NULL),
     CONSTRAINT [CK_Covenant_2] CHECK (MeasureKind <> 'NONE' OR (FormulaId IS NULL AND Operator IS NULL AND ThresholdValue IS NULL AND ThresholdState <> 'SET')),
-    CONSTRAINT [CK_Covenant_3] CHECK (ThresholdState <> 'SET' OR (Operator IS NOT NULL AND ThresholdValue IS NOT NULL)),
+    CONSTRAINT [CK_Covenant_3] CHECK (ThresholdState <> 'SET' OR (Operator IS NOT NULL AND ThresholdValue IS NOT NULL AND ThresholdUnit IS NOT NULL)),
     CONSTRAINT [CK_Covenant_4] CHECK (ThresholdState = 'SET' OR ThresholdValue IS NULL),
     CONSTRAINT [CK_Covenant_5] CHECK (ThresholdState <> 'SET' OR ThresholdUnit IS NULL OR ThresholdUnit <> 'AMOUNT' OR CurrencyId IS NOT NULL),
     CONSTRAINT [CK_Covenant_6] CHECK (CurrencyId IS NULL OR ThresholdUnit = 'AMOUNT'),
@@ -4280,6 +4304,7 @@ CREATE TABLE [obl].[Covenant] (
     CONSTRAINT [CK_Covenant_9] CHECK (EarlyWarningPct IS NULL OR (EarlyWarningPct >= 0 AND EarlyWarningPct <= 100)),
     CONSTRAINT [CK_Covenant_10] CHECK (ValidTo IS NULL OR ValidTo >= ValidFrom),
     CONSTRAINT [CK_Covenant_11] CHECK (ToRevision IS NULL OR ToRevision >= FromRevision),
+    CONSTRAINT [CK_Covenant_Family] CHECK ([Family] IS NULL OR [Family] IN ('COVENANT')),
     CONSTRAINT [CK_Covenant_MeasureKind] CHECK ([MeasureKind] IS NULL OR [MeasureKind] IN ('RATIO', 'AMOUNT', 'PERCENT_OF_REVENUE', 'AVERAGE_BALANCE', 'FLOW_VOLUME', 'NONE')),
     CONSTRAINT [CK_Covenant_Operator] CHECK ([Operator] IS NULL OR [Operator] IN ('GE', 'LE', 'GT', 'LT', 'EQ')),
     CONSTRAINT [CK_Covenant_ThresholdState] CHECK ([ThresholdState] IS NULL OR [ThresholdState] IN ('SET', 'NOT_SPECIFIED_IN_AGREEMENT', 'TO_BE_DETERMINED')),
@@ -4493,6 +4518,7 @@ CREATE TABLE [fin].[FinancialStatement] (
     [RowVersion] ROWVERSION NOT NULL,
     CONSTRAINT [PK_FinancialStatement] PRIMARY KEY CLUSTERED ([FinancialStatementId]),
     CONSTRAINT [UQ_FinancialStatement_Tenant] UNIQUE ([TenantId], [FinancialStatementId]),
+    CONSTRAINT [UQ_FinancialStatement_Scope_CompanyId_Basis_Assurance_PeriodType_PeriodEnd] UNIQUE ([TenantId], [CompanyId], [Basis], [Assurance], [PeriodType], [PeriodEnd], [FinancialStatementId]),
     CONSTRAINT [UQ_FinancialStatement_PublicId] UNIQUE ([PublicId]),
     CONSTRAINT [UQ_FinancialStatement_CompanyId_PeriodType_PeriodEnd_Basis_Assurance_VersionNo] UNIQUE ([TenantId], [CompanyId], [PeriodType], [PeriodEnd], [Basis], [Assurance], [VersionNo]),
     CONSTRAINT [CK_FinancialStatement_1] CHECK (UnitScale IN (1,1000,1000000)),
@@ -4553,6 +4579,7 @@ CREATE TABLE [fin].[AccountMonthlyStat] (
     CONSTRAINT [UQ_AccountMonthlyStat_Tenant] UNIQUE ([TenantId], [AccountMonthlyStatId]),
     CONSTRAINT [UQ_AccountMonthlyStat_PublicId] UNIQUE ([PublicId]),
     CONSTRAINT [UQ_AccountMonthlyStat_BankAccountId_MonthEnd] UNIQUE ([TenantId], [BankAccountId], [MonthEnd]),
+    CONSTRAINT [CK_AccountMonthlyStat_1] CHECK (DAY(DATEADD(DAY, 1, MonthEnd)) = 1),
     CONSTRAINT [CK_AccountMonthlyStat_SourceKind] CHECK ([SourceKind] IS NULL OR [SourceKind] IN ('BANK_STATEMENT', 'BANK_NOTICE', 'INTERNAL_CALC')),
     CONSTRAINT [CK_AccountMonthlyStat_Status] CHECK ([Status] IS NULL OR [Status] IN ('DRAFT', 'CONFIRMED'))
 );
@@ -4580,7 +4607,8 @@ CREATE TABLE [fin].[BankFlowEntry] (
     CONSTRAINT [UQ_BankFlowEntry_Tenant] UNIQUE ([TenantId], [BankFlowEntryId]),
     CONSTRAINT [UQ_BankFlowEntry_PublicId] UNIQUE ([PublicId]),
     CONSTRAINT [UQ_BankFlowEntry_CompanyId_InstitutionId_FacilityId_MonthEnd_FlowKindId] UNIQUE ([TenantId], [CompanyId], [InstitutionId], [FacilityId], [MonthEnd], [FlowKindId]),
-    CONSTRAINT [CK_BankFlowEntry_1] CHECK (Amount >= 0)
+    CONSTRAINT [CK_BankFlowEntry_1] CHECK (DAY(DATEADD(DAY, 1, MonthEnd)) = 1),
+    CONSTRAINT [CK_BankFlowEntry_2] CHECK (Amount >= 0)
 );
 GO
 -- Measure formula: a template or a facility-agreement version with revisions; never executed as text (FR-FIN-011, BR-FIN-009, section 12)
@@ -4670,6 +4698,7 @@ CREATE TABLE [wfl].[RequestType] (
     CONSTRAINT [UQ_RequestType_Code] UNIQUE ([TenantId], [Code]),
     CONSTRAINT [CK_RequestType_1] CHECK (Category <> 'CHILD' OR ParentEntityType IS NOT NULL),
     CONSTRAINT [CK_RequestType_2] CHECK (ConsumesCreditLimit = 1 OR LimitCheckMode = 'NONE'),
+    CONSTRAINT [CK_RequestType_3] CHECK (NumberSequenceKey = CONCAT('req:', Code)),
     CONSTRAINT [CK_RequestType_Category] CHECK ([Category] IS NULL OR [Category] IN ('PURCHASE', 'SALES', 'TREASURY', 'GENERAL', 'CHILD')),
     CONSTRAINT [CK_RequestType_LimitCheckMode] CHECK ([LimitCheckMode] IS NULL OR [LimitCheckMode] IN ('NONE', 'ADVISORY', 'REQUIRED_SELECTION'))
 );
@@ -4760,10 +4789,11 @@ CREATE TABLE [wfl].[WorkflowTemplate] (
     CONSTRAINT [CK_WorkflowTemplate_2] CHECK (IsCurrent = 0 OR Status = 'PUBLISHED'),
     CONSTRAINT [CK_WorkflowTemplate_3] CHECK (Status <> 'PUBLISHED' OR PublishedAt IS NOT NULL),
     CONSTRAINT [CK_WorkflowTemplate_4] CHECK (Status <> 'DRAFT' OR PublishedAt IS NULL),
-    CONSTRAINT [CK_WorkflowTemplate_5] CHECK ((Status = 'RETIRED' AND RetiredAt IS NOT NULL) OR (Status <> 'RETIRED' AND RetiredAt IS NULL)),
-    CONSTRAINT [CK_WorkflowTemplate_6] CHECK (IsTenantModified = 0 OR SeedKey IS NULL),
-    CONSTRAINT [CK_WorkflowTemplate_7] CHECK (SeedKey IS NULL OR SourceSeedVersion IS NOT NULL),
-    CONSTRAINT [CK_WorkflowTemplate_8] CHECK (NameAr IS NOT NULL OR NameEn IS NOT NULL),
+    CONSTRAINT [CK_WorkflowTemplate_5] CHECK ((PublishedAt IS NULL AND PublishedBy IS NULL) OR (PublishedAt IS NOT NULL AND PublishedBy IS NOT NULL)),
+    CONSTRAINT [CK_WorkflowTemplate_6] CHECK ((Status = 'RETIRED' AND RetiredAt IS NOT NULL) OR (Status <> 'RETIRED' AND RetiredAt IS NULL)),
+    CONSTRAINT [CK_WorkflowTemplate_7] CHECK (IsTenantModified = 0 OR SeedKey IS NULL),
+    CONSTRAINT [CK_WorkflowTemplate_8] CHECK (SeedKey IS NULL OR SourceSeedVersion IS NOT NULL),
+    CONSTRAINT [CK_WorkflowTemplate_9] CHECK (NameAr IS NOT NULL OR NameEn IS NOT NULL),
     CONSTRAINT [CK_WorkflowTemplate_Status] CHECK ([Status] IS NULL OR [Status] IN ('DRAFT', 'PUBLISHED', 'RETIRED'))
 );
 GO
@@ -5090,6 +5120,7 @@ CREATE TABLE [wfl].[Request] (
     CONSTRAINT [CK_Request_21] CHECK ((ParentEntityType IS NULL AND ParentEntityId IS NULL) OR (ParentEntityType IS NOT NULL AND ParentEntityId IS NOT NULL)),
     CONSTRAINT [CK_Request_22] CHECK (ParentRequestId IS NULL OR ParentRequestId <> RequestId),
     CONSTRAINT [CK_Request_23] CHECK (CopiedFromRequestId IS NULL OR CopiedFromRequestId <> RequestId),
+    CONSTRAINT [CK_Request_24] CHECK (Status <> 'REJECTED' OR OutcomeReason IS NOT NULL),
     CONSTRAINT [CK_Request_Status] CHECK ([Status] IS NULL OR [Status] IN ('DRAFT', 'ACTIVE', 'AWAITING_CLOSE', 'COMPLETED', 'REJECTED', 'CANCELLED')),
     CONSTRAINT [CK_Request_SlaState] CHECK ([SlaState] IS NULL OR [SlaState] IN ('ON_TRACK', 'AT_RISK', 'OVERDUE', 'PAUSED', 'NONE')),
     CONSTRAINT [CK_Request_Priority] CHECK ([Priority] IS NULL OR [Priority] IN ('NORMAL', 'URGENT')),
@@ -5255,8 +5286,9 @@ CREATE TABLE [wfl].[RequestApproval] (
     CONSTRAINT [CK_RequestApproval_3] CHECK (Decision NOT IN ('APPROVED','RETURNED','REJECTED') OR ActedByUserId IS NOT NULL),
     CONSTRAINT [CK_RequestApproval_4] CHECK (Decision <> 'APPROVED' OR SnapshotHash IS NOT NULL),
     CONSTRAINT [CK_RequestApproval_5] CHECK (Source <> 'DELEGATE' OR (DelegationId IS NOT NULL AND OnBehalfOfUserId IS NOT NULL)),
-    CONSTRAINT [CK_RequestApproval_6] CHECK (OverrideRequested = 0 OR OverrideReason IS NOT NULL),
-    CONSTRAINT [CK_RequestApproval_7] CHECK (CycleNo >= 1),
+    CONSTRAINT [CK_RequestApproval_6] CHECK ((OnBehalfOfUserId IS NULL AND DelegationId IS NULL) OR (Source IS NOT NULL AND Source = 'DELEGATE')),
+    CONSTRAINT [CK_RequestApproval_7] CHECK (OverrideRequested = 0 OR OverrideReason IS NOT NULL),
+    CONSTRAINT [CK_RequestApproval_8] CHECK (CycleNo >= 1),
     CONSTRAINT [CK_RequestApproval_Decision] CHECK ([Decision] IS NULL OR [Decision] IN ('PENDING', 'APPROVED', 'RETURNED', 'REJECTED', 'VOIDED', 'SUPERSEDED')),
     CONSTRAINT [CK_RequestApproval_Source] CHECK ([Source] IS NULL OR [Source] IN ('USER', 'SUBMISSION', 'DELEGATE', 'SYSTEM')),
     CONSTRAINT [CK_RequestApproval_AckWarningsJson_json] CHECK ([AckWarningsJson] IS NULL OR ISJSON([AckWarningsJson], VALUE) = 1),
@@ -5324,10 +5356,11 @@ CREATE TABLE [wfl].[HookExecution] (
     [RowVersion] ROWVERSION NOT NULL,
     CONSTRAINT [PK_HookExecution] PRIMARY KEY CLUSTERED ([HookExecutionId]),
     CONSTRAINT [UQ_HookExecution_Tenant] UNIQUE ([TenantId], [HookExecutionId]),
-    CONSTRAINT [UQ_HookExecution_RequestId_StageInstanceId_HookKey_TriggerKind] UNIQUE ([TenantId], [RequestId], [StageInstanceId], [HookKey], [TriggerKind]),
+    CONSTRAINT [UQ_HookExecution_RequestId_StageInstanceId_HookKey_TriggerKind_ActionFilter] UNIQUE ([TenantId], [RequestId], [StageInstanceId], [HookKey], [TriggerKind], [ActionFilter]),
     CONSTRAINT [CK_HookExecution_1] CHECK (AttemptCount >= 0),
-    CONSTRAINT [CK_HookExecution_2] CHECK (Status <> 'SUCCEEDED' OR ExecutedAt IS NOT NULL),
-    CONSTRAINT [CK_HookExecution_3] CHECK (Status <> 'GAVE_UP' OR (ExecMode = 'AFTER_COMMIT' AND AttemptCount >= 5)),
+    CONSTRAINT [CK_HookExecution_2] CHECK ((TriggerKind = 'ON_ACTION' AND ActionFilter IS NOT NULL) OR (TriggerKind <> 'ON_ACTION' AND ActionFilter IS NULL)),
+    CONSTRAINT [CK_HookExecution_3] CHECK (Status <> 'SUCCEEDED' OR ExecutedAt IS NOT NULL),
+    CONSTRAINT [CK_HookExecution_4] CHECK (Status <> 'GAVE_UP' OR (ExecMode = 'AFTER_COMMIT' AND AttemptCount >= 5)),
     CONSTRAINT [CK_HookExecution_TriggerKind] CHECK ([TriggerKind] IS NULL OR [TriggerKind] IN ('ON_ENTER', 'ON_EXIT', 'ON_ACTION')),
     CONSTRAINT [CK_HookExecution_ActionFilter] CHECK ([ActionFilter] IS NULL OR [ActionFilter] IN ('SUBMIT', 'APPROVE', 'COMPLETE', 'RETURN', 'REJECT', 'CANCEL', 'RESUBMIT')),
     CONSTRAINT [CK_HookExecution_ExecMode] CHECK ([ExecMode] IS NULL OR [ExecMode] IN ('SYNC_TX', 'AFTER_COMMIT')),
@@ -5524,7 +5557,7 @@ CREATE TABLE [ntf].[Notification] (
     [ResolvedAt] DATETIME2(3) NULL,
     [ReadAt] DATETIME2(3) NULL,
     [ArchivedAt] DATETIME2(3) NULL,
-    [DedupKey] VARCHAR(200) NULL,
+    [DedupKey] VARCHAR(200) NOT NULL,
     [CoalescedCount] INT NOT NULL CONSTRAINT [DF_Notification_CoalescedCount] DEFAULT 1,
     [ReminderCount] INT NOT NULL CONSTRAINT [DF_Notification_ReminderCount] DEFAULT 0,
     [NextReminderAt] DATETIME2(3) NULL,
@@ -5539,6 +5572,7 @@ CREATE TABLE [ntf].[Notification] (
     CONSTRAINT [PK_Notification] PRIMARY KEY CLUSTERED ([NotificationId]),
     CONSTRAINT [UQ_Notification_Tenant] UNIQUE ([TenantId], [NotificationId]),
     CONSTRAINT [UQ_Notification_PublicId] UNIQUE ([PublicId]),
+    CONSTRAINT [UQ_Notification_UserId_DedupKey] UNIQUE ([TenantId], [UserId], [DedupKey]),
     CONSTRAINT [CK_Notification_1] CHECK ((ActionRequired = 0 AND ActionState = 'NONE') OR (ActionRequired = 1 AND ActionState IN ('OPEN','RESOLVED'))),
     CONSTRAINT [CK_Notification_2] CHECK ((ActionState = 'RESOLVED' AND ResolvedAt IS NOT NULL) OR (ActionState <> 'RESOLVED' AND ResolvedAt IS NULL)),
     CONSTRAINT [CK_Notification_3] CHECK (CoalescedCount >= 1),
@@ -5848,6 +5882,8 @@ CREATE TABLE [lc].[LcTerms] (
     [RowVersion] ROWVERSION NOT NULL,
     CONSTRAINT [PK_LcTerms] PRIMARY KEY CLUSTERED ([LcTermsId]),
     CONSTRAINT [UQ_LcTerms_Tenant] UNIQUE ([TenantId], [LcTermsId]),
+    CONSTRAINT [UQ_LcTerms_Scope_LcClass_CurrencyId_TolerancePlusPct_ToleranceMinusPct] UNIQUE ([TenantId], [LcClass], [CurrencyId], [TolerancePlusPct], [ToleranceMinusPct], [LcTermsId]),
+    CONSTRAINT [UQ_LcTerms_Scope_Purpose_CurrencyId] UNIQUE ([TenantId], [Purpose], [CurrencyId], [LcTermsId]),
     CONSTRAINT [UQ_LcTerms_PublicId] UNIQUE ([PublicId]),
     CONSTRAINT [CK_LcTerms_1] CHECK (VersionNo >= 1),
     CONSTRAINT [CK_LcTerms_2] CHECK (VersionNo = 1 OR SupersedesTermsId IS NOT NULL),
@@ -5856,7 +5892,7 @@ CREATE TABLE [lc].[LcTerms] (
     CONSTRAINT [CK_LcTerms_5] CHECK ((Purpose = 'PROFORMA' AND OwnerType IN ('REQUEST','PROFORMA')) OR (Purpose = 'APPLICATION' AND OwnerType = 'REQUEST') OR (Purpose IN ('ISSUED','RECEIVED') AND OwnerType = 'LETTER_OF_CREDIT') OR (Purpose = 'AMENDMENT' AND OwnerType IN ('REQUEST','AMENDMENT'))),
     CONSTRAINT [CK_LcTerms_6] CHECK ((Purpose NOT IN ('APPLICATION','ISSUED') OR LcClass = 'PURCHASE') AND (Purpose NOT IN ('PROFORMA','RECEIVED') OR LcClass = 'SALES')),
     CONSTRAINT [CK_LcTerms_7] CHECK (OwnerType <> 'REQUEST' OR OwnerId IS NOT NULL),
-    CONSTRAINT [CK_LcTerms_8] CHECK (Status = 'DRAFT' OR (SnapshotHash IS NOT NULL AND LockedAt IS NOT NULL)),
+    CONSTRAINT [CK_LcTerms_8] CHECK (Status = 'DRAFT' OR (SnapshotHash IS NOT NULL AND LockedAt IS NOT NULL AND LockedBy IS NOT NULL)),
     CONSTRAINT [CK_LcTerms_9] CHECK (TreasuryHash IS NULL OR SnapshotHash IS NOT NULL),
     CONSTRAINT [CK_LcTerms_10] CHECK (Status = 'DRAFT' OR (LcType IS NOT NULL AND CurrencyId IS NOT NULL AND Amount IS NOT NULL AND ExpiryRule IS NOT NULL AND AmountInWordsAr IS NOT NULL AND AmountInWordsEn IS NOT NULL)),
     CONSTRAINT [CK_LcTerms_11] CHECK (Amount IS NULL OR Amount > 0),
@@ -6118,18 +6154,19 @@ CREATE TABLE [lc].[LetterOfCredit] (
     CONSTRAINT [CK_LetterOfCredit_9] CHECK (LimitProductLineId IS NULL OR LimitId IS NOT NULL),
     CONSTRAINT [CK_LetterOfCredit_10] CHECK (UtilizationId IS NULL OR FacilityId IS NOT NULL),
     CONSTRAINT [CK_LetterOfCredit_11] CHECK (RelationshipId IS NULL OR InstitutionId IS NOT NULL),
-    CONSTRAINT [CK_LetterOfCredit_12] CHECK (LcClass = 'PURCHASE' OR (FacilityId IS NULL AND UtilizationId IS NULL AND ExposureAmount IS NULL AND MarginPct IS NULL AND MarginAmount IS NULL)),
-    CONSTRAINT [CK_LetterOfCredit_13] CHECK (LcClass = 'SALES' OR ExposureAmount IS NOT NULL),
-    CONSTRAINT [CK_LetterOfCredit_14] CHECK (LcClass = 'SALES' OR (ProformaId IS NULL AND OtherBankText IS NULL AND OtherBankBic IS NULL AND EarmarkedRemaining = 0)),
-    CONSTRAINT [CK_LetterOfCredit_15] CHECK (MarginPct IS NULL OR MarginPct BETWEEN 0 AND 100),
-    CONSTRAINT [CK_LetterOfCredit_16] CHECK (MarginAmount IS NULL OR MarginAmount >= 0),
-    CONSTRAINT [CK_LetterOfCredit_17] CHECK (Status NOT IN ('CLOSED','CANCELLED') OR (ClosedOn IS NOT NULL AND ClosedReason IS NOT NULL)),
-    CONSTRAINT [CK_LetterOfCredit_18] CHECK (Status IN ('CLOSED','CANCELLED') OR (ClosedOn IS NULL AND ClosedReason IS NULL)),
-    CONSTRAINT [CK_LetterOfCredit_19] CHECK (UndrawnReleasedOn IS NULL OR Status IN ('EXPIRED','CLOSED','CANCELLED')),
-    CONSTRAINT [CK_LetterOfCredit_20] CHECK (LegacyEntry = 0 OR RequestId IS NULL),
-    CONSTRAINT [CK_LetterOfCredit_21] CHECK (OtherBankBic IS NULL OR ((OtherBankBic LIKE '________' OR OtherBankBic LIKE '___________') AND OtherBankBic COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9]%')),
-    CONSTRAINT [CK_LetterOfCredit_22] CHECK (AmendmentNo >= 0),
-    CONSTRAINT [CK_LetterOfCredit_23] CHECK (LcNumberNormalized NOT LIKE '% %'),
+    CONSTRAINT [CK_LetterOfCredit_12] CHECK (LcClass = 'SALES' OR InstitutionId IS NOT NULL),
+    CONSTRAINT [CK_LetterOfCredit_13] CHECK (LcClass = 'PURCHASE' OR (FacilityId IS NULL AND UtilizationId IS NULL AND ExposureAmount IS NULL AND MarginPct IS NULL AND MarginAmount IS NULL)),
+    CONSTRAINT [CK_LetterOfCredit_14] CHECK (LcClass = 'SALES' OR ExposureAmount IS NOT NULL),
+    CONSTRAINT [CK_LetterOfCredit_15] CHECK (LcClass = 'SALES' OR (ProformaId IS NULL AND OtherBankText IS NULL AND OtherBankBic IS NULL AND EarmarkedRemaining = 0)),
+    CONSTRAINT [CK_LetterOfCredit_16] CHECK (MarginPct IS NULL OR MarginPct BETWEEN 0 AND 100),
+    CONSTRAINT [CK_LetterOfCredit_17] CHECK (MarginAmount IS NULL OR MarginAmount >= 0),
+    CONSTRAINT [CK_LetterOfCredit_18] CHECK (Status NOT IN ('CLOSED','CANCELLED') OR (ClosedOn IS NOT NULL AND ClosedReason IS NOT NULL)),
+    CONSTRAINT [CK_LetterOfCredit_19] CHECK (Status IN ('CLOSED','CANCELLED') OR (ClosedOn IS NULL AND ClosedReason IS NULL)),
+    CONSTRAINT [CK_LetterOfCredit_20] CHECK (UndrawnReleasedOn IS NULL OR Status IN ('EXPIRED','CLOSED','CANCELLED')),
+    CONSTRAINT [CK_LetterOfCredit_21] CHECK (LegacyEntry = 0 OR RequestId IS NULL),
+    CONSTRAINT [CK_LetterOfCredit_22] CHECK (OtherBankBic IS NULL OR ((OtherBankBic LIKE '________' OR OtherBankBic LIKE '___________') AND OtherBankBic COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9]%')),
+    CONSTRAINT [CK_LetterOfCredit_23] CHECK (AmendmentNo >= 0),
+    CONSTRAINT [CK_LetterOfCredit_24] CHECK (LcNumberNormalized NOT LIKE '% %'),
     CONSTRAINT [CK_LetterOfCredit_LcClass] CHECK ([LcClass] IS NULL OR [LcClass] IN ('PURCHASE', 'SALES')),
     CONSTRAINT [CK_LetterOfCredit_Scope] CHECK ([Scope] IS NULL OR [Scope] IN ('DOMESTIC', 'INTERNATIONAL')),
     CONSTRAINT [CK_LetterOfCredit_Status] CHECK ([Status] IS NULL OR [Status] IN ('ACTIVE', 'EXPIRED', 'CLOSED', 'CANCELLED')),
@@ -6168,6 +6205,7 @@ CREATE TABLE [lc].[LcAmendment] (
     [Origin] VARCHAR(22) NOT NULL,
     [ChangeKinds] VARCHAR(87) NOT NULL,
     [RequestId] BIGINT NULL,
+    [TermsPurpose] VARCHAR(11) NOT NULL CONSTRAINT [DF_LcAmendment_TermsPurpose] DEFAULT 'AMENDMENT',
     [TermsId] BIGINT NOT NULL,
     [ChangedFieldsJson] NVARCHAR(MAX) NULL,
     [CurrencyId] INT NOT NULL,
@@ -6204,6 +6242,7 @@ CREATE TABLE [lc].[LcAmendment] (
     CONSTRAINT [CK_LcAmendment_11] CHECK (BeneficiaryResponse IS NULL OR BeneficiaryResponse = 'PENDING' OR RespondedOn IS NOT NULL),
     CONSTRAINT [CK_LcAmendment_Origin] CHECK ([Origin] IS NULL OR [Origin] IN ('OUR_REQUEST', 'RECEIVED_FROM_CUSTOMER')),
     CONSTRAINT [CK_LcAmendment_ChangeKinds] CHECK ([ChangeKinds] IS NULL OR LEN([ChangeKinds]) + 1 = CASE WHEN CHARINDEX(',INCREASE_AMOUNT,', (',' + [ChangeKinds] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 16 ELSE 0 END + CASE WHEN CHARINDEX(',DECREASE_AMOUNT,', (',' + [ChangeKinds] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 16 ELSE 0 END + CASE WHEN CHARINDEX(',EXTEND_EXPIRY,', (',' + [ChangeKinds] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 14 ELSE 0 END + CASE WHEN CHARINDEX(',CHANGE_SHIPMENT_DATE,', (',' + [ChangeKinds] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 21 ELSE 0 END + CASE WHEN CHARINDEX(',CHANGE_TERMS,', (',' + [ChangeKinds] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 13 ELSE 0 END + CASE WHEN CHARINDEX(',CANCEL,', (',' + [ChangeKinds] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 7 ELSE 0 END),
+    CONSTRAINT [CK_LcAmendment_TermsPurpose] CHECK ([TermsPurpose] IS NULL OR [TermsPurpose] IN ('AMENDMENT')),
     CONSTRAINT [CK_LcAmendment_Status] CHECK ([Status] IS NULL OR [Status] IN ('DRAFT', 'REQUESTED', 'BANK_ISSUED', 'APPLIED', 'REJECTED', 'WITHDRAWN')),
     CONSTRAINT [CK_LcAmendment_BeneficiaryResponse] CHECK ([BeneficiaryResponse] IS NULL OR [BeneficiaryResponse] IN ('PENDING', 'ACCEPTED', 'REJECTED')),
     CONSTRAINT [CK_LcAmendment_ChangedFieldsJson_json] CHECK ([ChangedFieldsJson] IS NULL OR ISJSON([ChangedFieldsJson], VALUE) = 1)
@@ -6333,7 +6372,7 @@ CREATE TABLE [lc].[LcDiscrepancy] (
     CONSTRAINT [CK_LcDiscrepancy_Status] CHECK ([Status] IS NULL OR [Status] IN ('OPEN', 'WAIVED', 'CORRECTED', 'REFUSED'))
 );
 GO
--- Issued proforma invoice; the application prevents edits after issue; number format {seq:000}-{erp}-{yy} (FR-LCE-005..008, BR-LCE-001..006)
+-- Issued proforma invoice; after issue only its status, void reason and successor change (043, DR-41); number format {seq:000}-{erp}-{yy} (FR-LCE-005..008, BR-LCE-001..006)
 CREATE TABLE [lc].[ProformaInvoice] (
     [TenantId] INT NOT NULL,
     [ProformaInvoiceId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -6359,6 +6398,7 @@ CREATE TABLE [lc].[ProformaInvoice] (
     [Total] DECIMAL(19,4) NOT NULL,
     [LcPaymentPct] DECIMAL(9,6) NOT NULL CONSTRAINT [DF_ProformaInvoice_LcPaymentPct] DEFAULT 100,
     [PlacesJson] NVARCHAR(MAX) NULL,
+    [TermsPurpose] VARCHAR(11) NOT NULL CONSTRAINT [DF_ProformaInvoice_TermsPurpose] DEFAULT 'PROFORMA',
     [TermsId] BIGINT NOT NULL,
     [ProceedsAccountId] BIGINT NOT NULL,
     [PrintLanguage] VARCHAR(10) NOT NULL CONSTRAINT [DF_ProformaInvoice_PrintLanguage] DEFAULT 'both',
@@ -6393,13 +6433,14 @@ CREATE TABLE [lc].[ProformaInvoice] (
     CONSTRAINT [CK_ProformaInvoice_9] CHECK (VoidReason IS NULL OR Status = 'VOID'),
     CONSTRAINT [CK_ProformaInvoice_10] CHECK ((Status = 'SUPERSEDED' AND SupersededById IS NOT NULL) OR (Status <> 'SUPERSEDED' AND SupersededById IS NULL)),
     CONSTRAINT [CK_ProformaInvoice_11] CHECK (SupersededById IS NULL OR SupersededById <> ProformaInvoiceId),
+    CONSTRAINT [CK_ProformaInvoice_TermsPurpose] CHECK ([TermsPurpose] IS NULL OR [TermsPurpose] IN ('PROFORMA')),
     CONSTRAINT [CK_ProformaInvoice_PrintLanguage] CHECK ([PrintLanguage] IS NULL OR [PrintLanguage] IN ('ar', 'en', 'both')),
     CONSTRAINT [CK_ProformaInvoice_Status] CHECK ([Status] IS NULL OR [Status] IN ('ISSUED', 'VOID', 'SUPERSEDED')),
     CONSTRAINT [CK_ProformaInvoice_CustomerSnapshotJson_json] CHECK ([CustomerSnapshotJson] IS NULL OR ISJSON([CustomerSnapshotJson], VALUE) = 1),
     CONSTRAINT [CK_ProformaInvoice_PlacesJson_json] CHECK ([PlacesJson] IS NULL OR ISJSON([PlacesJson], VALUE) = 1)
 );
 GO
--- Line item in the proforma (FR-LCE-003, BR-LCE-001); fixed after issue
+-- Line item in the proforma (FR-LCE-003, BR-LCE-001); fixed after issue: written once, never updated (DR-41)
 CREATE TABLE [lc].[ProformaLine] (
     [TenantId] INT NOT NULL,
     [ProformaLineId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -6414,9 +6455,6 @@ CREATE TABLE [lc].[ProformaLine] (
     [Notes] NVARCHAR(500) NULL,
     [CreatedAt] DATETIME2(3) NOT NULL CONSTRAINT [DF_ProformaLine_CreatedAt] DEFAULT SYSUTCDATETIME(),
     [CreatedBy] BIGINT NULL,
-    [UpdatedAt] DATETIME2(3) NULL,
-    [UpdatedBy] BIGINT NULL,
-    [RowVersion] ROWVERSION NOT NULL,
     CONSTRAINT [PK_ProformaLine] PRIMARY KEY CLUSTERED ([ProformaLineId]),
     CONSTRAINT [UQ_ProformaLine_Tenant] UNIQUE ([TenantId], [ProformaLineId]),
     CONSTRAINT [UQ_ProformaLine_ProformaId_LineNo] UNIQUE ([TenantId], [ProformaId], [LineNo]),
@@ -6468,6 +6506,7 @@ CREATE TABLE [lc].[LcTermsComparisonLine] (
     CONSTRAINT [UQ_LcTermsComparisonLine_Tenant] UNIQUE ([TenantId], [LcTermsComparisonLineId]),
     CONSTRAINT [UQ_LcTermsComparisonLine_ComparisonId_FieldKey] UNIQUE ([TenantId], [ComparisonId], [FieldKey]),
     CONSTRAINT [CK_LcTermsComparisonLine_1] CHECK (Decision IS NULL OR Verdict <> 'MATCH'),
+    CONSTRAINT [CK_LcTermsComparisonLine_2] CHECK (FieldKey <> 'beneficiaryAccountIban' OR (BaselineValue IS NULL AND ReceivedValue IS NULL)),
     CONSTRAINT [CK_LcTermsComparisonLine_Verdict] CHECK ([Verdict] IS NULL OR [Verdict] IN ('MATCH', 'MORE_FAVOURABLE', 'LESS_FAVOURABLE', 'ADDED', 'MISSING', 'REVIEW')),
     CONSTRAINT [CK_LcTermsComparisonLine_Decision] CHECK ([Decision] IS NULL OR [Decision] IN ('ACCEPT', 'REQUEST_AMENDMENT', 'IGNORE'))
 );

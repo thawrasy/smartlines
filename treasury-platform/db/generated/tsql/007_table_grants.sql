@@ -402,7 +402,7 @@ GRANT SELECT, INSERT, UPDATE ON [lc].[LcDiscrepancy] TO [tp_app];
 -- lc.ProformaInvoice
 GRANT SELECT, INSERT, UPDATE ON [lc].[ProformaInvoice] TO [tp_app];
 -- lc.ProformaLine
-GRANT SELECT, INSERT, UPDATE ON [lc].[ProformaLine] TO [tp_app];
+GRANT SELECT, INSERT ON [lc].[ProformaLine] TO [tp_app];
 -- lc.LcTermsComparison
 GRANT SELECT, INSERT, UPDATE ON [lc].[LcTermsComparison] TO [tp_app];
 -- lc.LcTermsComparisonLine

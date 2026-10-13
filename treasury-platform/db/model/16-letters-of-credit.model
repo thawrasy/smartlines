@@ -269,7 +269,7 @@ table lc.LcTerms public  # Letter-of-credit terms version: one row per version, 
   check  (Purpose = 'PROFORMA' AND OwnerType IN ('REQUEST','PROFORMA')) OR (Purpose = 'APPLICATION' AND OwnerType = 'REQUEST') OR (Purpose IN ('ISSUED','RECEIVED') AND OwnerType = 'LETTER_OF_CREDIT') OR (Purpose = 'AMENDMENT' AND OwnerType IN ('REQUEST','AMENDMENT'))   # §7.2 دورة حياة الشروط، BR-LCT-019
   check  (Purpose NOT IN ('APPLICATION','ISSUED') OR LcClass = 'PURCHASE') AND (Purpose NOT IN ('PROFORMA','RECEIVED') OR LcClass = 'SALES')   # الغرض يطابق الجانب
   check  OwnerType <> 'REQUEST' OR OwnerId IS NOT NULL
-  check  Status = 'DRAFT' OR (SnapshotHash IS NOT NULL AND LockedAt IS NOT NULL)   # القفل بتجزئة وزمن (FR-LCT-002)
+  check  Status = 'DRAFT' OR (SnapshotHash IS NOT NULL AND LockedAt IS NOT NULL AND LockedBy IS NOT NULL)   # القفل بتجزئة وزمن وفاعل (FR-LCT-002، DR-50)
   check  TreasuryHash IS NULL OR SnapshotHash IS NOT NULL
   check  Status = 'DRAFT' OR (LcType IS NOT NULL AND CurrencyId IS NOT NULL AND Amount IS NOT NULL AND ExpiryRule IS NOT NULL AND AmountInWordsAr IS NOT NULL AND AmountInWordsEn IS NOT NULL)   # الحقول المقفلة (BR-LCT-002، V-LCT-15)
   check  Amount IS NULL OR Amount > 0   # C2
@@ -407,10 +407,10 @@ table lc.LetterOfCredit public  # Letter-of-credit record for both sides: purcha
   FacilityId           ->fac.Facility
   LimitId              ->fac.Limit via=FacilityId noidx   # يعاد ربطه بصف الحد الجديد عند اعتماد مراجعة التسهيل مع Utilization (12)
   LimitProductLineId   ->fac.LimitProductLine via=FacilityId,LimitId noidx
-  UtilizationId        ->fac.Utilization via=FacilityId   # ناتج fac.convert_reservation؛ تعبّئ lc.record_issuance Utilization.SourceRefId = LcId (FR-LCI-012)
+  UtilizationId        ->fac.Utilization via=FacilityId,CompanyId   # ناتج fac.convert_reservation للشركة نفسها؛ الرابط الوحيد بين الاعتماد واستغلاله (FR-LCI-012، DQ-F12-14، DR-26)
   RequestId            ->wfl.Request via=CompanyId   # طلب الإصدار (مشتريات)؛ فارغ للمسجَّل مباشرة والقائم السابق
   ProformaId           ->lc.ProformaInvoice via=CompanyId   # بروفورما مبيعات واحدة قد تُربط باعتمادات عدة (BR-LCE-018)
-  CurrentTermsId       ->lc.LcTerms req   # الشروط الحالية: ISSUED/RECEIVED أو لقطة آخر تعديل مطبَّق
+  CurrentTermsId       ->lc.LcTerms req via=LcClass,CurrencyId,TolerancePlusPct,ToleranceMinusPct   # الشروط الحالية: ISSUED/RECEIVED أو لقطة آخر تعديل مطبَّق؛ الفئة والعملة والتفاوت المنسوخة تطابقها (DR-42)
   CurrencyId           ->ref.Currency req noidx
   Amount               money      req   # الحالي بعد التعديلات المطبَّقة
   OriginalAmount       money      req
@@ -457,6 +457,7 @@ table lc.LetterOfCredit public  # Letter-of-credit record for both sides: purcha
   check  LimitProductLineId IS NULL OR LimitId IS NOT NULL
   check  UtilizationId IS NULL OR FacilityId IS NOT NULL
   check  RelationshipId IS NULL OR InstitutionId IS NOT NULL
+  check  LcClass = 'SALES' OR InstitutionId IS NOT NULL   # بنك الإصدار إلزامي لكل اعتماد مشتريات، والقديم منه، فلا يفلت رقمه من قيد عدم التكرار (قرار المالك 2026-10-13، DR-45)
   check  LcClass = 'PURCHASE' OR (FacilityId IS NULL AND UtilizationId IS NULL AND ExposureAmount IS NULL AND MarginPct IS NULL AND MarginAmount IS NULL)   # اعتماد المبيعات لا يستهلك حدًّا ولا يحجز (FR-LCE-027)
   check  LcClass = 'SALES' OR ExposureAmount IS NOT NULL   # مبلغ التعرّض للمشتريات
   check  LcClass = 'SALES' OR (ProformaId IS NULL AND OtherBankText IS NULL AND OtherBankBic IS NULL AND EarmarkedRemaining = 0)   # حقول المبيعات
@@ -489,8 +490,9 @@ table lc.LcAmendment  # Amendment to an issued or received letter of credit (FR-
   Origin                  enum{OUR_REQUEST,RECEIVED_FROM_CUSTOMER} req
   ChangeKinds             set{INCREASE_AMOUNT,DECREASE_AMOUNT,EXTEND_EXPIRY,CHANGE_SHIPMENT_DATE,CHANGE_TERMS,CANCEL} req   # قائمة قيم ثابتة (المواصفة json)
   RequestId               ->wfl.Request via=CompanyId    # الطلب الفرعي LC_AMENDMENT
-  TermsId                 ->lc.LcTerms req   # شروط غرض AMENDMENT (لقطة ما بعد التعديل)
-  ChangedFieldsJson       json             # الفروق بمفاتيح الحقول مقارنةً بالحالي
+  TermsPurpose            enum{AMENDMENT} req =AMENDMENT   # ثابت (DR-42)
+  TermsId                 ->lc.LcTerms req via=TermsPurpose>Purpose,CurrencyId   # شروط غرض AMENDMENT بعملة التعديل (لقطة ما بعد التعديل)
+  ChangedFieldsJson       json sens=confidential   # مفاتيح الحقول المتغيرة؛ لا قيمة لحقل مقيّد (DR-46)
   CurrencyId              ->ref.Currency req noidx
   AmountDelta             money      req   # موقَّع: فرق ExposureAmount (BR-LCI-011)
   NewAmount               money
@@ -606,7 +608,7 @@ table lc.LcDiscrepancy  # Discrepancy on presented or issued documents; the deci
 
 # ============================== المخطط lc: البروفورما ==============================
 
-table lc.ProformaInvoice public  # Issued proforma invoice; the application prevents edits after issue; number format {seq:000}-{erp}-{yy} (FR-LCE-005..008, BR-LCE-001..006)
+table lc.ProformaInvoice public  # Issued proforma invoice; after issue only its status, void reason and successor change (043, DR-41); number format {seq:000}-{erp}-{yy} (FR-LCE-005..008, BR-LCE-001..006)
   CompanyId                ->org.Company req
   ProformaNo               str(30)    req   # يُمنح عند الإصدار فقط؛ يحمل رمز ERP فيتفرد بين الشركات (BR-LCE-002)
   NumberYear               smallint   req   # سنة الإصدار كاملة بتوقيت المشترك؛ yy آخر خانتين منها جزء من الرقم -- إضافة
@@ -629,7 +631,8 @@ table lc.ProformaInvoice public  # Issued proforma invoice; the application prev
   Total                    money      req
   LcPaymentPct             rate       req =100   # نسبة الدفع بالاعتماد (BR-LCE-006)
   PlacesJson               json             # مكانا الاستلام والتسليم
-  TermsId                  ->lc.LcTerms req   # شروط غرض PROFORMA مقفلة (نسخة عند الإصدار، BR-LCT-019)
+  TermsPurpose             enum{PROFORMA} req =PROFORMA   # ثابت (DR-42)
+  TermsId                  ->lc.LcTerms req via=TermsPurpose>Purpose,CurrencyId   # شروط غرض PROFORMA مقفلة بعملة البروفورما (نسخة عند الإصدار، BR-LCT-019)
   ProceedsAccountId        ->acc.BankAccount via=CompanyId req noidx   # حساب LC_COLLECTION للشركة نفسها (BR-LCE-004)
   PrintLanguage            enum{ar,en,both} req =both
   DocumentId               ->doc.Document req   # PDF بنوع PROFORMA_ISSUED (FR-LCE-005)
@@ -658,7 +661,7 @@ table lc.ProformaInvoice public  # Issued proforma invoice; the application prev
   check  (Status = 'SUPERSEDED' AND SupersededById IS NOT NULL) OR (Status <> 'SUPERSEDED' AND SupersededById IS NULL)
   check  SupersededById IS NULL OR SupersededById <> ProformaInvoiceId
 
-table lc.ProformaLine  # Line item in the proforma (FR-LCE-003, BR-LCE-001); fixed after issue
+table lc.ProformaLine append  # Line item in the proforma (FR-LCE-003, BR-LCE-001); fixed after issue: written once, never updated (DR-41)
   ProformaId   ->lc.ProformaInvoice via=CurrencyId req noidx   # عملة البند = عملة البروفورما
   LineNo       int        req
   Description  text       req
@@ -688,10 +691,11 @@ table lc.LcTermsComparison  # Result of comparing received credit terms with the
 table lc.LcTermsComparisonLine  # One field difference, its verdict and the treasury decision (FR-LCT-031, BR-LCT-021) -- جديد (أولوية: ممكن)
   ComparisonId   ->lc.LcTermsComparison req
   FieldKey       ascii(60)  req
-  BaselineValue  text
-  ReceivedValue  text
+  BaselineValue  text       sens=confidential   # لا قيمة لحقل مقيّد: IBAN يُحكم ببصمته ولا يُنسخ (DR-46)
+  ReceivedValue  text       sens=confidential
   Verdict        enum{MATCH,MORE_FAVOURABLE,LESS_FAVOURABLE,ADDED,MISSING,REVIEW} req
   Decision       enum{ACCEPT,REQUEST_AMENDMENT,IGNORE}
   DecisionNote   str(1000)
   unique ComparisonId,FieldKey
   check  Decision IS NULL OR Verdict <> 'MATCH'   # القرار للفروق فقط
+  check  FieldKey <> 'beneficiaryAccountIban' OR (BaselineValue IS NULL AND ReceivedValue IS NULL)   # DR-46
