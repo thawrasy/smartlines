@@ -60,7 +60,7 @@ STATUS = {
     "3.10": ("B", "POST /api/carrier/trips/{uid}/publish"),
     "3.11": ("B", "vehicle and driver on POST /api/carrier/trips"),
     "3.12": ("B", "GET /api/carrier/trips/{uid}/manifest; test_manifests"),
-    "3.13": ("B", "POST /api/carrier/trips/{uid}/cancel: full refunds to whoever paid (1102); test_use_case_gaps"),
+    "3.13": ("B", "POST /api/carrier/trips/{uid}/cancel: full refunds to whoever paid (1102); a penalty only where regulators impose one (1106); test_use_case_gaps"),
     "3.14": ("B", "GET /api/carrier/dashboard, /api/finance/balance, settlements; test_payouts"),
     "3.15": ("B", "POST /api/finance/withdrawals; test_payouts"),
     "3.16": ("DC", "bill.* (module carrier_billing)"),
@@ -100,8 +100,9 @@ STATUS = {
     "5.16": ("C", "POST /api/parcels; test_parcels"),
     "5.17": ("C", "/api/parcels/offers, /api/carrier/parcels/offers/{uid}/price; test_parcels"),
     # UC-6 partners and loyalty
-    **{f"6.{i}": ("DC", "ptn.* (module service_partners)") for i in (1, 2, 3, 4, 5, 9, 10)},
-    "6.6": ("B", "POST /api/loyalty/redeem to wallet credit (1103); test_use_case_gaps"),
+    **{f"6.{i}": ("DC", "ptn.* (module service_partners)") for i in (1, 2, 3, 4, 5, 10)},
+    "6.9": ("P", "loyalty partners' honoured vouchers and statements (1107); fuel and rest-stop sales are in the closed module service_partners; test_loyalty_partners"),
+    "6.6": ("B", "POST /api/loyalty/redeem to wallet credit (1103); vouchers at partners under their agreements (1107); test_use_case_gaps, test_loyalty_partners"),
     "6.7": ("B", "pricing.earn_points_for_trip at trip completion (1103); test_use_case_gaps"),
     "6.8": ("DC", "pricing.points_transfer (module loyalty_partners)"),
     # UC-7 administration, finance and support
@@ -150,13 +151,13 @@ STATUS = {
     "9.10": ("B", "/api/v1/webhooks; test_integration"),
     # UC-10 accounting and e-invoicing
     "10.1": ("B", "e-invoices and credit notes issued by the worker, signed and chained (1104); test_use_case_gaps"),
-    "10.2": ("N", "numbering, hash chain, signature and QR of the invoice"),
+    "10.2": ("B", "numbered, chained, signed with a key id from the key ring, QR (1104, 1108); test_use_case_gaps"),
     "10.3": ("N", "submission to the tax authority"),
     "10.4": ("DC", "acct.credit_note (module accounting_ops)"),
     "10.5": ("P", "every money movement is a balanced ledger transaction; journal entries and posting rules are data"),
     "10.6": ("DC", "acct.export_batch, sync_job (module accounting_ops)"),
     "10.7": ("B", "fin.wallet_reconciliation, ledger_close (1052)"),
-    "10.8": ("D", "acct.tax_registration, pricing tax rules"),
+    "10.8": ("P", "tax schemes, rules and bands approved by finance, applied on e-invoices (1108); tax registrations are data; test_tax_engine"),
     "10.9": ("B", "reports: catalog, run, export, schedules; test_reports"),
 }
 
@@ -287,12 +288,15 @@ STATUS.update({
     "11.7": ("B", "POST /api/carrier/references/{uid}/retire; test_boarding_stations"),
     "11.12": ("C", "POST /api/station/checkin, boarding pass with the bay (1105, stations off at launch); test_station_checkin"),
     "11.13": ("C", "net.operator_may (1098); test_boarding_stations"),
-    "11.14": ("N", "build step 4 (station screens)"),
+    "11.14": ("C", "GET /api/public/stations/{uid}/board, brd.station_board (1112, screens off at launch); test_station_screens"),
+    "11.15": ("C", "/api/station/holds, /bookings: cash sale under the BOOKING right (1110, stations off at launch); test_station_sales"),
+    "11.16": ("C", "POST /api/station/board for a checked-in ticket (1105, stations off at launch); test_station_checkin"),
+    "11.17": ("C", "GET /api/carrier/station-operators/activity, /carrier/stations (1112); test_station_screens"),
     "12.1": ("C", "1086, 1094 (photo off until its legal basis); test_boarding_photo"),
     "12.2": ("C", "GET /api/account/photo/image (1096); test_photo_settings"),
     **{f"12.{i}": ("B", "1087 to 1096 (policy work at launch); test_photo_policy, test_a_photo_switch, test_photo_settings")
        for i in range(3, 11)},
-    "12.11": ("C", "1096 (photo off until its legal basis); test_boarding_photo"),
+    "12.11": ("C", "1096; at the station counter a fifth role, off until a legal document is recorded (1111); test_boarding_photo, test_photo_settings"),
     "12.12": ("C", "1096; test_photo_settings"),
     "12.13": ("N", "no identity provider connected (IDENTITY_PROVIDER_NOT_CONFIGURED)"),
     **{f"13.{i}": ("B", "1056; test_payment_options") for i in (1, 2, 3, 4, 5, 6, 8)},
@@ -302,8 +306,8 @@ STATUS.update({
 # ---------------------------------------------------------------- data flows
 # the context diagram gains the station operating companies and the identity verification providers
 CONTEXT_LEFT_ADD = [
-    ("stationops", "Station operating companies", "sign-in with a second factor, check-ins and boarding passes",
-     "rights given by carriers or the platform, counters"),
+    ("stationops", "Station operating companies", "sign-in with a second factor, check-ins, boarding scans, counter sales and cash",
+     "rights given by carriers or the platform, counters, boarding passes, tickets"),
 ]
 CONTEXT_RIGHT_ADD = [
     ("idprov", "Identity verification providers (not connected)", "verification results", "verification requests"),
@@ -322,12 +326,15 @@ LEVEL1C = dict(
                ("driver", "Driver, carrier office or agent"), ("idprov", "Identity provider (not connected)")],
     procs=[("p15", "P15", "Operate boarding stations"), ("p16", "P16", "Manage boarding photos")],
     refs=[("p1", "P1"), ("p4", "P4"), ("p7", "P7")],
-    stores=[("d18", "D18"), ("d19", "D19"), ("d20", "D20"), ("d21", "D21"), ("d22", "D22"), ("d2", "D2"), ("d5", "D5"),
+    stores=[("d18", "D18"), ("d19", "D19"), ("d20", "D20"), ("d23", "D23"), ("d21", "D21"), ("d22", "D22"), ("d2", "D2"), ("d5", "D5"),
             ("d16", "D16")],
-    flows=[("admin", "p15", "boarding settings, stations, counters, operating companies"),
-           ("carrier", "p15", "operator rights, references"), ("p15", "carrier", "missing references", {"constraint": False}),
+    flows=[("admin", "p15", "boarding settings, stations, counters, screens, operating companies"),
+           ("carrier", "p15", "operator rights, references"),
+           ("p15", "carrier", "missing references, check-ins and sales on its trips", {"constraint": False}),
            ("stationop", "p1", "sign-in, second factor"), ("p1", "p15", "STATION session"),
-           ("p15", "stationop", "rights usable now, counters", {"constraint": False}),
+           ("stationop", "p15", "check-ins, boarding scans, counter sales"),
+           ("p15", "stationop", "rights usable now, boarding passes, tickets", {"constraint": False}),
+           ("p15", "d23", "boarding passes, station sales"), ("d5", "p15", "trips, stops, bays"),
            ("p15", "d18", "settings, station rows, numbered gates"), ("p15", "d19", "grants, revocations"),
            ("p15", "d20", "references"), ("p15", "d2", "operating company and owner"), ("p15", "d16", "who granted, when"),
            ("pax", "p16", "photo of self or a member"), ("privacy", "p16", "rules, changes in stages, approvals"),

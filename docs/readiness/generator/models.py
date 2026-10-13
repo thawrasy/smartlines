@@ -1,5 +1,5 @@
 """Addendum to the use case and data flow model of v1.0 (docs/diagrams/uc-dfd): what the platform gained after study
-v2.5, taken from the code and the schema (migrations 1056 to 1099). Numbering continues v1.0: UC-11.., P15.., D18.."""
+v2.5, taken from the code and the schema (migrations 1056 to 1112). Numbering continues v1.0: UC-11.., P15.., D18.."""
 
 NEW_ACTORS = [
     ("stationop", "Station operating company staff", "Primary",
@@ -25,13 +25,16 @@ NEW_UC = [
                 ("11.5", "Grant a state-mandated operator its rights", 1), ("11.6", "Record agreement and licence numbers", 1),
                 ("11.7", "Retire a reference number", 1), ("11.8", "Grant an operating company rights at a station", 1),
                 ("11.9", "Revoke a grant", 1), ("11.10", "Sign in to the station portal with a second factor", 1),
-                ("11.11", "View the rights held and the counters", 1), ("11.12", "Check in and issue the boarding pass (planned)", 1),
-                ("11.13", "Decide whether the operator may act", 1), ("11.14", "Show the bay on the station screens (planned)", 1)],
+                ("11.11", "View the rights held and the counters", 1), ("11.12", "Check in and issue the boarding pass", 1),
+                ("11.13", "Decide whether the operator may act", 1), ("11.14", "Show departures and bays on the station screens", 1),
+                ("11.15", "Sell a carrier's tickets at the station counter", 1), ("11.16", "Board passengers at the bay", 1),
+                ("11.17", "Follow the operating companies' work on its trips", 1)],
          assoc=[("admin", "11.1"), ("admin", "11.2"), ("admin", "11.3"), ("admin", "11.4"), ("admin", "11.5"), ("admin", "11.9"),
                 ("owner", "11.6"), ("owner", "11.7"), ("owner", "11.8"), ("owner", "11.9"),
                 ("stationop", "11.10"), ("stationop", "11.11"), ("stationop", "11.12"),
+                ("stationop", "11.15"), ("stationop", "11.16"), ("owner", "11.17"), ("admin", "11.14"),
                 ("11.2", "stationsys"), ("11.14", "screens")],
-         include=[("11.11", "11.13"), ("11.12", "11.13")], extend=[]),
+         include=[("11.11", "11.13"), ("11.12", "11.13"), ("11.15", "11.13"), ("11.16", "11.13")], extend=[]),
     dict(id="UC-12", title="Boarding photo and its policy", boundary="Masslak: boarding photo",
          primary=["passenger", "privacy", "boardstaff"], secondary=["idprov"],
          cases=[("12.1", "Take the own photo or a family member's", 1), ("12.2", "See the own photo", 1),
@@ -67,15 +70,20 @@ NEW_STORES = [
     ("D21", "Boarding photos", "iam.party_photo, encrypted files in object storage", "Encrypted; shown only by setting and trip status"),
     ("D22", "Photo policy", "photo_rule, photo_policy_change, photo approvals, evidence kinds, data requirements, photo.* settings",
      "Every change passes the approval stages"),
+    ("D23", "Check-ins and station sales", "brd.station_checkin (boarding passes), brd.station_sale",
+     "Never edited; each operating company and carrier sees its own"),
 ]
 
 DFD15 = ("DFD-15", "DFD-15 Level 2: operate boarding stations (P15)", dict(
-    externals=[("admin", "Platform administrator"), ("carrier", "Carrier (operations)"), ("op", "Station operating company staff")],
+    externals=[("admin", "Platform administrator"), ("carrier", "Carrier (operations)"), ("op", "Station operating company staff"),
+               ("screens", "Station screens")],
     procs=[("s1", "15.1", "Set the boarding settings"), ("s2", "15.2", "Switch stations and number counters and bays"),
            ("s3", "15.3", "Onboard operating companies"), ("s4", "15.4", "Keep reference numbers"),
-           ("s5", "15.5", "Grant and revoke operator rights"), ("s6", "15.6", "Decide and show the operator's rights")],
+           ("s5", "15.5", "Grant and revoke operator rights"), ("s6", "15.6", "Decide and show the operator's rights"),
+           ("s7", "15.7", "Check in, board and sell at the counter"), ("s8", "15.8", "Feed the departure board")],
     refs=[("p1", "P1")],
-    stores=[("d18", "D18"), ("d2", "D2"), ("d1", "D1"), ("d20", "D20"), ("d19", "D19"), ("d16", "D16")],
+    stores=[("d18", "D18"), ("d2", "D2"), ("d1", "D1"), ("d20", "D20"), ("d19", "D19"), ("d16", "D16"), ("d23", "D23"),
+            ("d5", "D5"), ("d6", "D6"), ("d8", "D8")],
     flows=[("admin", "s1", "switch, modes, check-in window, required references"), ("s1", "d18", "checked settings"),
            ("admin", "s2", "station switch, counter system, gate type"), ("s2", "d18", "station boarding row, numbered gate"),
            ("s2", "admin", "gate number (C001, B001)", {"constraint": False}),
@@ -87,7 +95,13 @@ DFD15 = ("DFD-15", "DFD-15 Level 2: operate boarding stations (P15)", dict(
            ("s5", "d19", "grant, revocation"), ("s5", "d16", "who granted, when"),
            ("op", "p1", "sign-in, second factor"), ("p1", "s6", "STATION session"),
            ("d19", "s6", "grants given to the company"), ("d18", "s6", "switches, modes, counters"),
-           ("s6", "op", "rights usable now, counters", {"constraint": False})]))
+           ("s6", "op", "rights usable now, counters", {"constraint": False}),
+           ("op", "s7", "ticket scan, document seen, seats and passengers, cash"), ("s6", "s7", "right usable at this station"),
+           ("d5", "s7", "trip, stop and bay"), ("s7", "d23", "boarding pass, station sale"), ("s7", "d6", "booking, tickets, boarding"),
+           ("s7", "d8", "cash owed by the operating company"), ("s7", "op", "boarding pass with the bay, tickets", {"constraint": False}),
+           ("d23", "carrier", "check-ins and sales on its trips", {"constraint": False}),
+           ("d5", "s8", "departures, arrivals, bays, states"), ("d18", "s8", "screens switched on"),
+           ("s8", "screens", "departure board without passenger data", {"constraint": False})]))
 
 DFD16 = ("DFD-16", "DFD-16 Level 2: manage boarding photos (P16)", dict(
     externals=[("pax", "Passenger or head of family"), ("priv", "Privacy officers"), ("staff", "Driver, carrier office or agent"),
