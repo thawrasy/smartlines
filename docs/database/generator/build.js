@@ -14,8 +14,8 @@ const PNG = path.join(HERE, "..", "erd", "png");
 // numbers of the verification run that built this document (verification.py), never typed by hand (audit T3-17)
 const V = JSON.parse(fs.readFileSync(path.join(HERE, "..", "build", "verification.json"), "utf8"));
 const lastFile = V.last_schema_file.split("_")[0];
-const VERSION = "3.13";
-const DATE = "12 October 2026";
+const VERSION = "3.14";
+const DATE = "13 October 2026";
 const FONT = "Arial";
 const C = { navy: "1F3A5F", blue: "2E74B5", blue2: "1F4D78", grid: "B7C3D0", alt: "F2F6FA", grey: "595959" };
 
@@ -110,9 +110,9 @@ front.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 16
 front.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 1200 },
   children: [run(`Complete relational model of the Analysis and Design Study v3.0: ${tableCount} tables, ${fkCount} relationships`, { color: "7F7F7F" })] }));
 front.push(table(["Item", "Details"], [
-  ["Version", `${VERSION} (the database after schema file 1099: the reviews of October 2026 on releases 1.48.0 and 1.49.0, a request context the application cannot forge, protected settings, closed accounts that keep their data, the boarding photo and its policy in approval stages, and the boarding stations with their operating companies and portal; replaces version 3.12)`],
+  ["Version", `${VERSION} (the database after schema file 1112: tracking alerts the platform opens, SOS and incident reports, a carrier's trip cancellation with full refunds and a penalty only where the regulators impose one, loyalty points earned and redeemed at partners under agreements, e-invoices issued with their taxes and signing keys, the counter check-in, sales and departure board of boarding stations, and the counter photo kept off until a legal approval; replaces version 3.13)`],
   ["Date", DATE],
-  ["Basis", "Analysis and Design Study v3.0 (English), the Use Case and Data Flow Diagrams v1.0, the Database Architecture Review v1.0, the Strategic Database Review and its relationship audit register, the Third-Party Technical Audit, the Technical Audit of design document 3.7, its re-audit of 3.8 and follow-up of 3.9, the architecture review of 3.9, the expert review and code review of October 2026, and the three reviews of release 1.47.0 with the owner's five decisions"],
+  ["Basis", "Analysis and Design Study v3.0 (English), the Use Case and Data Flow Diagrams v1.0, the Database Architecture Review v1.0, the Strategic Database Review and its relationship audit register, the Third-Party Technical Audit, the Technical Audit of design document 3.7, its re-audit of 3.8 and follow-up of 3.9, the architecture review of 3.9, the expert review and code review of October 2026, and the three reviews of release 1.47.0 with the owner's five decisions, the use case review of October 2026 and the owner's decisions that followed it"],
   ["Scope", `${schemas.length} schemas, ${tableCount} tables, ${colCount} columns, ${fkCount} foreign keys; all phases 1 to 15`],
   ["Engine", `PostgreSQL ${V.postgres} with row-level security on every table; PostGIS ${V.postgis} in schema gis; ${V.schema_files} schema files, db/schema/000 to ${lastFile}`],
   ["Status", `Built and verified at commit ${V.source_commit} (migration ${V.migration}, schema SHA-256 ${V.schema_sha256.slice(0, 16)}): fresh build and upgrade identical, ${V.db_checks} database checks and ${V.api_tests} API tests passing, every foreign key indexed or exempt by rule`],
@@ -120,7 +120,7 @@ front.push(table(["Item", "Details"], [
 ], [2800, 6946]));
 
 const toc = [H(HeadingLevel.HEADING_1, "Contents", { pageBreak: true })];
-const tocLines = ["Changes in version 3.13", "Changes in version 3.12", "Changes in version 3.11", "Changes in version 3.10", "Changes in version 3.9", "Changes in version 3.8", "Changes in version 3.7", "Changes in version 3.6", "Changes in version 3.5", "Changes in version 3.4", "Changes in version 3.3", "Changes in version 3.2", "Changes in version 3.1", "Changes in version 3.0", "1. Introduction", "2. Database architecture", "3. Design rules", "4. Security model in the database",
+const tocLines = ["Changes in version 3.14", "Changes in version 3.13", "Changes in version 3.12", "Changes in version 3.11", "Changes in version 3.10", "Changes in version 3.9", "Changes in version 3.8", "Changes in version 3.7", "Changes in version 3.6", "Changes in version 3.5", "Changes in version 3.4", "Changes in version 3.3", "Changes in version 3.2", "Changes in version 3.1", "Changes in version 3.0", "1. Introduction", "2. Database architecture", "3. Design rules", "4. Security model in the database",
   "5. Data stores of the data flow diagrams", "6. Entity-relationship diagrams by module",
   ...model.groups.map((g, i) => `      6.${i + 1} ${g[0]} ${g[1]}`), `      6.${model.groups.length + 1} Focus diagrams: rules that span modules`,
   "7. Table definitions", "8. Traceability to the study", "9. Verification",
@@ -162,6 +162,78 @@ const changes38 = [H(HeadingLevel.HEADING_2, "b. Hardening after the third-party
     + "infrastructure and moves to Phase 5.", "Owner decisions"),
   P("Schema-level two-way dependencies (21, frozen by test H-07) differ from phase-level dependencies, of which there are none backwards: "
     + "the earlier wording is clarified accordingly. db/tools/audit_pack.sh builds the evidence pack for the second phase of the audit."),
+];
+
+// ------------------------------ changes in 3.14 (the use case review, the owner's decisions, boarding stations at work) ------------------------------
+const changes3_14 = [H(HeadingLevel.HEADING_1, "Changes in version 3.14", { pageBreak: true }),
+  P("Version 3.14 describes the database after schema file 1112. Since version 3.13 (schema file 1099), 13 schema files were added, "
+    + "1100 to 1112: the six gaps found when the use cases were checked against the code (tracking alerts, SOS and incidents, a "
+    + "carrier's trip cancellation, loyalty points, e-invoices; the sixth, the bulk import tool, needs no schema change), the owner's "
+    + "decisions that followed (a cancellation penalty only where regulators impose one, partner redemption under agreements, taxes "
+    + "and signing keys on e-invoices, the counter photo kept off), and boarding stations at work: the counter check-in, sales at the "
+    + "station counter and the departure board. They carry no migration version of their own yet; the next release records them. The "
+    + "four relationship rules of chapter 3.2 hold for every new table and column; every new table has row-level security, a project "
+    + "phase and a lifecycle, and is in exactly one diagram."),
+  H(HeadingLevel.HEADING_2, "a. Schema files 1100 to 1112"),
+  table(["Schema file", "What it adds"], [
+    ["1100_tracking_alerts.sql", "The platform opens tracking alerts: a departed trip whose vehicle stays silent past a set time gets one open "
+      + "SIGNAL_LOST alert, escalated when the silence lasts; each opening and escalation tells the carrier through the outbox "
+      + "(ops.raise_tracking_alerts, run every minute by the worker). Diagram E09."],
+    ["1101_sos_incidents.sql", "The apps write SOS and incident reports: sec.raise_sos for the assigned driver or a passenger holding a ticket on "
+      + "the trip, ops.report_incident for the driver; each checks who the caller is on the trip, and an SOS tells the carrier's owners and "
+      + "the platform's security staff at once."],
+    ["1102_trip_cancellation.sql", "A carrier cancels a published trip: every paid booking is cancelled and refunded in full, the platform fee "
+      + "included, to whoever paid it; every line of the price allocation is reversed."],
+    ["1103_loyalty_earn_redeem.sql", "Loyalty points are earned when a trip is completed and redeemed for wallet credit, each step idempotent "
+      + "(pricing.earn_points_for_trip and the redemption functions); points expire after the programme's period."],
+    ["1104_einvoice_issuing.sql", "E-invoices are issued for paid bookings by each seller with an active issuing unit, with credit notes for "
+      + "refunds; numbers are gapless per unit, each hash chains to the previous document and is signed. Diagram E20."],
+    ["1105_station_checkin.sql", "The counter check-in at a boarding station and its boarding pass with the bay (brd.station_checkin), under "
+      + "the operating company's BOARDING_PASS right, the check-in window and the carrier's required references; boarding at the bay "
+      + "only for a checked-in ticket. Diagram E44."],
+    ["1106_cancel_penalty.sql", "A penalty on a carrier that cancels a trip, only when the platform turns it on citing the regulator's "
+      + "decision (setting trip.cancel_penalty, off); each charge is recorded once per trip (ops.trip_cancel_penalty). Diagram E08."],
+    ["1107_loyalty_agreements.sql", "Points redeemed at partners under agreements the platform records per partner (pricing.loyalty_agreement, "
+      + "activated by another person and frozen once used); vouchers honoured by the partner, paid by the platform, and settled by "
+      + "statements (pricing.loyalty_settlement and its lines) approved and paid by different people. Diagram E15."],
+    ["1108_einvoice_taxes_keys.sql", "Taxes on e-invoices from the platform's tax schemes, rules and bands (exempt, zero, standard, compound, a "
+      + "tax on another tax), each line's taxes written once (acct.einvoice_line_tax); the public signing keys named by key id on every "
+      + "document (acct.einvoice_signing_key). Diagram E20."],
+    ["1109_station_trips_horizon.sql", "The station's list of trips covers its calendar days in the station's time zone. No table changes."],
+    ["1110_station_sales.sql", "Tickets sold at a station counter under the carrier's BOOKING right (brd.station_sale), the booking remaining "
+      + "the carrier's and the cash owed by the operating company within its limit; station boarding tables join the first release "
+      + "(phase 1B). Diagram E44."],
+    ["1111_counter_photo_gate.sql", "A fifth photo view role, the station counter at check-in, off; turned on only by an approved change that "
+      + "records the legal document number."],
+    ["1112_station_board.sql", "The station's public departure board (brd.station_board): departures and arrivals with bays and states, "
+      + "without passenger data, only where the platform switched the station's screens on. No table changes."],
+  ], [3000, 6746], { boldFirst: true }),
+  H(HeadingLevel.HEADING_2, "b. The owner's decisions in the database"),
+  bullet("Passengers are always refunded in full; a penalty on the carrier applies only when the platform turns it on with the regulator's "
+    + "decision, and is off at launch (file 1106).", "1. Cancellation penalty"),
+  bullet("The platform bears the cost of redemption at the prices agreed with each partner (points = amount, and the share the platform "
+    + "pays); agreements, statements and payments each need a different person (file 1107).", "2. Partner redemption"),
+  bullet("Out of scope, exempt, zero, by band or by product, compound and a tax on another tax are all configured, not coded; a scheme "
+    + "applies only once finance approves it (file 1108).", "3. Taxes"),
+  bullet("Each document names the key that signed it, so keys can be rotated and old documents still verified (file 1108).", "4. Signing keys"),
+  bullet("Station counter sales are part of the first release (file 1110); the counter photo stays off until legal and legislative "
+    + "approvals allow it (file 1111).", "5. Boarding stations"),
+  H(HeadingLevel.HEADING_2, "c. Diagrams and counts"),
+  P("The 8 tables added since version 3.13 are placed in existing diagrams: ops.trip_cancel_penalty in E08, the three loyalty agreement "
+    + "and statement tables in E15, the line taxes and signing keys in E20, and the station check-ins and sales in E44, which becomes "
+    + "data store D23 with them. The schema brd, which held the border manifests, now also holds station boarding."),
+  P("Foreign keys are now drawn and counted once on a partitioned table. Up to version 3.13 the generator also drew and counted the copy "
+    + "PostgreSQL keeps of a foreign key on each partition of the table it references (sales.booking has three partitions), so 3.13 "
+    + "showed 1,547 foreign keys, 76 of them such copies; counted the same way as now, 3.13 had 1,471. The data dictionary always "
+    + "counted each foreign key once."),
+  table(["Measure", "Version 3.13", "Version 3.14"], [
+    ["Schema files", "112 (000 to 1099)", `${V.schema_files} (000 to ${lastFile})`],
+    ["Tables", "514", `${tableCount}`],
+    ["Columns", "5,279", `${colCount.toLocaleString("en-US")}`],
+    ["Foreign keys", "1,471 (1,547 with the partition copies)", `${fkCount.toLocaleString("en-US")}`],
+    ["Module diagrams", "44", `${model.groups.length}`],
+    ["Data stores", "D1 to D22", "D1 to D23"],
+  ], [2700, 2400, 4646], { boldFirst: true }),
 ];
 
 // ------------------------------ changes in 3.13 (the reviews of October 2026, the boarding photo, boarding stations) ------------------------------
@@ -222,11 +294,11 @@ const changes3_13 = [H(HeadingLevel.HEADING_1, "Changes in version 3.13", { page
     + "(context keys) and in two new diagrams: E43 boarding photo and its policy (data stores D21 and D22) and E44 boarding stations and "
     + "operating companies (data stores D18 to D20)."),
   table(["Measure", "Version 3.12", "Version 3.13"], [
-    ["Schema files", "92 (000 to 1079)", `${V.schema_files} (000 to ${lastFile})`],
-    ["Tables", "502", `${tableCount}`],
-    ["Columns", "5,158", `${colCount.toLocaleString("en-US")}`],
-    ["Foreign keys", "1,516", `${fkCount.toLocaleString("en-US")}`],
-    ["Module diagrams", "42", `${model.groups.length} (new: E43 and E44)`],
+    ["Schema files", "92 (000 to 1079)", "112 (000 to 1099)"],
+    ["Tables", "502", "514"],
+    ["Columns", "5,158", "5,279"],
+    ["Foreign keys", "1,516", "1,547"],
+    ["Module diagrams", "42", "44 (new: E43 and E44)"],
   ], [2700, 2400, 4646], { boldFirst: true }),
 ];
 
@@ -305,11 +377,11 @@ const changes3_12 = [H(HeadingLevel.HEADING_1, "Changes in version 3.12", { page
     + "(booking keys), E25 (shared rate limits), E26 (dataset members) and E29 (parcel tariffs and offers), and in two new diagrams: "
     + "E41 ways of paying, fees and approvals (data store D8) and E42 release, backups and failover records."),
   table(["Measure", "Version 3.11", "Version 3.12"], [
-    ["Schema files", "66 (000 to 1053)", `${V.schema_files} (000 to ${lastFile})`],
-    ["Tables", "481", `${tableCount}`],
-    ["Columns", "4,954", `${colCount.toLocaleString("en-US")}`],
-    ["Foreign keys", "1,403", `${fkCount.toLocaleString("en-US")}`],
-    ["Module diagrams", "40", `${model.groups.length} (new: E41 and E42)`],
+    ["Schema files", "66 (000 to 1053)", "92 (000 to 1079)"],
+    ["Tables", "481", "502"],
+    ["Columns", "4,954", "5,158"],
+    ["Foreign keys", "1,403", "1,516"],
+    ["Module diagrams", "40", "42 (new: E41 and E42)"],
   ], [2700, 2400, 4646], { boldFirst: true }),
 ];
 
@@ -529,7 +601,7 @@ const changes34 = [H(HeadingLevel.HEADING_1, "Changes in version 3.4", { pageBre
   ], [2200, 5146, 2400], { boldFirst: true }),
   gap(),
   table(["Measure", "Version 3.3", "Version 3.4"], [
-    ["Tables", `${tableCount}`, `${tableCount}`],
+    ["Tables", "445", "445"],
     ["References guarded inside one company", "79", "106, and 9 vehicle references by ownership or lease"],
     ["Database checks", "188", "209"],
     ["API tests", "171", "175"],
@@ -544,7 +616,7 @@ const changes33 = [H(HeadingLevel.HEADING_1, "Changes in version 3.3", { pageBre
   table(["Finding", "What the database now does", "Evidence"], [
     ["3.1 Proof of the build", "The SQL, the tests and the generators are in the repository; sys.v_security_inventory lists every table with its class, "
       + "owner path, RLS state, owner and privileges", "db/schema, db/tests, this document regenerated from the built database"],
-    ["3.2 RLS coverage", `Row-level security on all ${tableCount} tables (83 more than in 3.2), each with a data class in sys.table_class; reporting has no access `
+    ["3.2 RLS coverage", `Row-level security on all 445 tables (83 more than in 3.2), each with a data class in sys.table_class; reporting has no access `
       + "to restricted tables; row security forced on credentials, factors and biometrics; sign-in in its own AUTH scope", "tests: classification, sweep, bypass"],
     ["3.3 Polymorphic references", "Decision records (documents, verifications, screening, risk, authority orders, fraud cases, licences, allocations, "
       + "manifest responses, invoices) carry one real foreign key per type, set by a trigger; at most one is set", "test: a document of a missing vehicle"],
@@ -568,7 +640,7 @@ const changes33 = [H(HeadingLevel.HEADING_1, "Changes in version 3.3", { pageBre
   ], [1900, 5346, 2500], { boldFirst: true }),
   gap(),
   table(["Measure", "Version 3.2", "Version 3.3"], [
-    ["Tables", "432", `${tableCount}`],
+    ["Tables", "432", "445"],
     ["Tables with row-level security", "349", `${rlsCount}`],
     ["Database checks", "141", "188"],
   ], [2700, 2400, 4646], { boldFirst: true }),
@@ -593,9 +665,9 @@ const changes32 = [H(HeadingLevel.HEADING_1, "Changes in version 3.2", { pageBre
   ], [2300, 1100, 6346], { boldFirst: true }),
   gap(),
   table(["Measure", "Version 3.1", "Version 3.2"], [
-    ["Schemas", "24", `${schemas.length}`],
-    ["Module diagrams", "38", `${model.groups.length} (new: E39 passenger categories and family accounts)`],
-    ["Focus diagrams", "3", `${(model.focus || []).length}`],
+    ["Schemas", "24", "24"],
+    ["Module diagrams", "38", "39 (new: E39 passenger categories and family accounts)"],
+    ["Focus diagrams", "3", "3"],
   ], [2700, 2400, 4646], { boldFirst: true }),
 ];
 
@@ -616,10 +688,10 @@ const changes31 = [H(HeadingLevel.HEADING_1, "Changes in version 3.1", { pageBre
   ], [2300, 1100, 6346], { boldFirst: true }),
   gap(),
   table(["Measure", "Version 3.0", "Version 3.1"], [
-    ["Schemas", "23", `${schemas.length}`],
-    ["Tables", "415", `${tableCount}`],
-    ["Module diagrams", "37", `${model.groups.length}`],
-    ["Focus diagrams", "2", `${(model.focus || []).length} (new: F03 wallet top-up and partner integration)`],
+    ["Schemas", "23", "24"],
+    ["Tables", "415", "422"],
+    ["Module diagrams", "37", "38"],
+    ["Focus diagrams", "2", "3 (new: F03 wallet top-up and partner integration)"],
     ["Diagram coverage", "checked by hand", "checked by the generator: it stops when a table is in no diagram or in two"],
   ], [2700, 2400, 4646], { boldFirst: true }),
 ];
@@ -632,7 +704,7 @@ const changes = [H(HeadingLevel.HEADING_1, "Changes in version 3.0", { pageBreak
   table(["Change", "Before (2.0)", "Now (3.0)"], [
     ["Study basis", "v2.6", "v2.7: passport required on international trips, approved document exceptions (11.9.1)"],
     ["Tables without a primary key", "1 (acct.gl_period)", "0"],
-    ["Foreign keys", "1,123", `${fkCount}, of which ${cascadeCount} are compositions (cascade)`],
+    ["Foreign keys", "1,123", "1126, of which 57 are compositions (cascade)"],
     ["Reference columns without a foreign key", "64, undocumented", `0 undocumented; ${noFk.length} justified exceptions (appendix C)`],
     ["Foreign keys with a supporting index", "246", `${idxCount("indexed")}; the other ${idxCount("lookup") + idxCount("actor")} point at fixed lookup lists or record an actor; ${idxCount("missing")} missing`],
     ["Polymorphic references", "partly indexed", "every (type, id) pair indexed and documented"],
@@ -976,7 +1048,7 @@ const doc = new Document({
   numbering: { config: [{ reference: "bullets", levels: [{ level: 0, format: LevelFormat.BULLET, text: "•", alignment: AlignmentType.LEFT,
     style: { paragraph: { indent: { left: 540, hanging: 270 } } } }] }] },
   sections: [
-    section(PORTRAIT, [...front, ...toc, ...changes3_13, ...changes3_12, ...changes3_11, ...changes3_10, ...changes3_9, ...changes3_8, ...changes37, ...changes38, ...changes39, ...changes36, ...changes35, ...changes34, ...changes33, ...changes32, ...changes31, ...changes, ...intro, ...arch, ...rules, ...security, ...stores]),
+    section(PORTRAIT, [...front, ...toc, ...changes3_14, ...changes3_13, ...changes3_12, ...changes3_11, ...changes3_10, ...changes3_9, ...changes3_8, ...changes37, ...changes38, ...changes39, ...changes36, ...changes35, ...changes34, ...changes33, ...changes32, ...changes31, ...changes, ...intro, ...arch, ...rules, ...security, ...stores]),
     ...erdSections,
     section(PORTRAIT, [...defs, ...trace, ...verify, ...flags, ...gens, ...appC]),
   ],
