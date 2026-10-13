@@ -214,7 +214,7 @@
 4. «مدقق» دور قراءة AU (docs/10-detailed-analysis/10-m0-m1-platform-organization.md:41) ودور في دورة العمل بقيمة AUDITOR (docs/21-data-dictionary.md:4588، docs/10-detailed-analysis/13-m6-workflow-engine-notifications.md:162).
 5. TA «مدير الحساب» (docs/10-detailed-analysis/10-m0-m1-platform-organization.md:41) و«مدير حساب المشترك» (docs/10-detailed-analysis/00-overview-and-cross-cutting.md:58)، وبالإنجليزية account administrator (db/model/10-platform.model:98، tools/dbgen/erd_open_items.py:117)، وكلمة Account تعني الحساب البنكي في ACC.
 6. ExternalPhase «الحالة الظاهرة» (docs/10-detailed-analysis/00-overview-and-cross-cutting.md:92) و«المرحلة الظاهرة» (docs/10-detailed-analysis/13-m6-workflow-engine-notifications.md:89).
-7. IN_PROGRESS «تحت الإجراء» (docs/10-detailed-analysis/13-m6-workflow-engine-notifications.md:327) و«قيد التنفيذ» (docs/20-database-design.md:406). التفصيل في DOC-F08.
+7. ✅ وُحّدت: IN_PROGRESS «تحت الإجراء» في المواصفة 13 ووثيقة التصميم، ومنها حالة AWAITING_CLOSE (DQ-F08-5، DQ-F08-9). التفصيل في DOC-F08.
 8. «تأهيل مشترك جديد» (docs/10-detailed-analysis/00-overview-and-cross-cutting.md:194) و«تهيئة المشترك» (docs/10-detailed-analysis/10-m0-m1-platform-organization.md:405، docs/20-database-design.md:475).
 9. «مسؤول المشغّل» (docs/10-detailed-analysis/10-m0-m1-platform-organization.md:79) مقابل «مشغّل المنصة» في بقية الوثائق.
 10. «اعتماد» وحده بمعنى الموافقة، مثل «باعتماد السجل» (docs/10-detailed-analysis/12-m5-facilities-pricing-collateral-obligations.md:457)، خلافًا لـ D-13.

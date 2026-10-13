@@ -1728,7 +1728,7 @@
 
 | الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
 |---|---|---|---|---|---|---|
-| `wfl.RequestStageInstance` | Entry of a request into a stage; source of the cycle-time, withdrawal and SLA metrics (BR-WFL-002/007/012, section 8) | RequestStageInstanceId | 5 | 3 | 12 | 17 |
+| `wfl.RequestStageInstance` | Entry of a request into a stage; source of the cycle-time, withdrawal and SLA metrics (BR-WFL-002/007/012, section 8) | RequestStageInstanceId | 5 | 3 | 13 | 17 |
 | `wfl.RequestApproval` | Approval slot created per entry and cycle; a new cycle creates new slots (BR-WFL-003, FR-WFL-007/008/011) | RequestApprovalId | 7 | 2 | 8 | 16 |
 | `wfl.RequestAction` | Append-only action log covering every event; separate from the security audit log (FR-WFL-033/034, section 6.2) | RequestActionId | 4 | 2 | 2 | 14 |
 | `wfl.HookExecution` | Execution of a hook with an idempotency key; a repeat returns the stored result (FR-WFL-021, BR-WFL-015) | HookExecutionId | 2 | 2 | 4 | 17 |
@@ -2060,11 +2060,11 @@
 | دخول `AWAITING_CLOSE` | يلزم `ReadyToCloseAt` و`CurrentStageInstanceId` | قيد `CHECK` |
 | `COMPLETED` | يلزم `ClosedByUserId` و`ClosedAt` و`ClosedAt = CompletedAt`، ولا يُكتب `ClosedByUserId` في غير `COMPLETED` | قيدان `CHECK` |
 | من يقفل | مستخدم يحمل `req.treasury.close`، ولا يقفل منشئ الطلب أو مُعتمِده إلا باستثناء فصل المهام المسجَّل (`wf.sod.allow_same_person`) | **التطبيق** (القاعدة لا تملك الأدوار) |
-| الحالات النهائية الأخرى | `REJECTED` و`CANCELLED` تبقيان فوريتين كما في المواصفة | — (افتراض يُؤكَّد، O-10) |
+| الحالات النهائية الأخرى | `REJECTED` و`CANCELLED` تبقيان فوريتين كما في المواصفة | — (قرار المالك 2026-10-12، DQ-F08-2) |
 | أثر الإقفال | يُكتب `RequestAction` بـ`CLOSED`، ويُرسَل `REQ.COMPLETED` للطالب **عند الإقفال لا عند انتهاء المراحل** | التطبيق |
-| الواجهة للطالب | `AWAITING_CLOSE` يظهر كـ«قيد التنفيذ» (`IN_PROGRESS`) | التطبيق |
+| الواجهة للطالب | `AWAITING_CLOSE` يظهر كـ«تحت الإجراء» (`IN_PROGRESS`) حتى الإقفال (DQ-F08-5) | التطبيق |
 
-**أثر على الموجود:** تعديل قاعدة الانتقال إلى `COMPLETED` (مرحلة `COMPLETE ← ISSUANCE` في `13` و`14`) يصير إلى `AWAITING_CLOSE`. **المواصفة 13 لم تُعدَّل بعد** (O-10)، لذا هذا التغيير معلَّق لحين اعتماده رسميًا.
+**أثر على الموجود:** تعديل قاعدة الانتقال إلى `COMPLETED` (مرحلة `COMPLETE ← ISSUANCE` في `13` و`14`) يصير إلى `AWAITING_CLOSE`. **عُدّلت المواصفة 13** بعد اعتماد المالك (2026-10-12، DQ-F08-1؛ O-10 محلول): BR-WFL-027 وFR-WFL-042 والصلاحية `req.treasury.close` ومخطط الحالات والحدث `REQ.READY_TO_CLOSE`، وصار `CLOSE` إجراء خروج للمثيل النهائي في `wfl.RequestStageInstance` (DQ-F08-6).
 
 ![دورة حياة الطلب: الإكمال يتطلب إقفال إدارة الخزينة](diagrams/erd_03_request_lifecycle.png)
 
@@ -2203,7 +2203,7 @@ tools/deploy/provision_logins.sh                    # the service logins (ADR 00
 | O-7 | نموذج استرداد القاعدة والنسخ المتعدد المشتركين | استعادة مشترك واحد معقّدة (§12.3) | نقل صفوف مشترك كبير إلى قاعدة مستقلة لاحقًا ممكن لأن البنية تحمل `TenantId` |
 | O-8 | نوع JSON الأصلي في SQL Server 2025 | غير مستعمل (T-4) | تقييمه عند الحاجة إلى استعلام داخل JSON |
 | **O-9** | **مسار ما قبل المصادقة** (تسجيل الدخول والدعوة واستعادة كلمة المرور): لا يوجد مستخدم بعد لضبط السياق | لا يستطيع التطبيق تسجيل الدخول بالمسار الحالي | **محلول (2026-10-12):** إجراءات ضيقة بصفة `tp_auth_exec` بلا `usp_SetAuthContext` (ADR 0002 وADR 0003، DQ-F03-1): `usp_ResolveTenant` والدخول وMFA والدعوة وإعادة التعيين في 030 و035 |
-| **O-10** | **تعديل المواصفة 13** لإقفال دورة العمل (C-7) | الوثيقة تتبع قرار الإقفال، والمواصفة ما زالت تقول إن الإكمال تلقائي عند المرحلة الأخيرة | تحديث `13` (حقل `Status`، جدول الحالات، `ExternalPhase`، `FR-WFL`) بعد موافقتك؛ **أكّد أيضًا أن الرفض والإلغاء يبقيان فوريين** |
+| **O-10** | **تعديل المواصفة 13** لإقفال دورة العمل (C-7) | المواصفة كانت تجعل الإكمال تلقائيًا عند المرحلة الأخيرة | **محلول (2026-10-13):** اعتمد المالك النموذج الموحّد (DQ-F08-1، والرفض والإلغاء فوريان DQ-F08-2)، وعُدّلت المواصفة 13 (BR-WFL-027، FR-WFL-042، مخطط الحالات، `REQ.READY_TO_CLOSE`)، وأُضيف `CLOSE` إلى `ExitAction` (DQ-F08-6) |
 | **O-11** | **الهوية تُصدَّق من التطبيق** (§3.2) | **محلول (2026-10-12):** الربط برمز جلسة يصدره الدخول داخل القاعدة (ADR 0002، O-17 erd_open_items)؛ ومخاطر داخل المشترك (O-24) أُغلقت بـ ADR 0003 عدا ما يذكره | — |
 | **O-12** | **إجراءات المنصة على بيانات المشترك** | بلا وصول مباشر لـ`tp_platform`، يلزم إجراء مُراجَع لكل عملية منصة (تهيئة، دعم، إصلاح) | **محلول للتهيئة والحالة والدعم (2026-10-12، ADR 0004):** `plat.usp_CreateTenant` و`plat.usp_SetTenantStatus` و`sec.usp_SetSupportContext`؛ إجراءات الإصلاح تُكتب عند الحاجة، كل منها بإجراء مُراجَع |
 | **O-13** | **موقع مرساة سلسلة التدقيق** (§5.3) | بلا مرساة خارجية، السلسلة لا تكشف العبث | تخزين غير قابل للتعديل أو تجزئة منشورة دوريًا؛ قرار تشغيلي |
@@ -2214,7 +2214,7 @@ tools/deploy/provision_logins.sh                    # the service logins (ADR 00
 
 ## 17. الخطوة التالية
 
-1. **تقييمك** لهذا الإصدار، خاصة القرارات DB-14 إلى DB-21 والنقاط O-9 إلى O-13 و O-15، والأسئلة التي تحتاج قرارك: **هل تعتمد تعديل المواصفة 13 (O-10)؟** نتائج المراجعة الـ40 (O-15) قُرّرت وطُبّقت دفعتها الأولى (ADR 0011).
+1. **تقييمك** لهذا الإصدار، خاصة القرارات DB-14 إلى DB-21 والنقاط O-9 إلى O-13 و O-15، وما بقي من البنود المفتوحة في §16. تعديل المواصفة 13 (O-10) ونتائج المراجعة الـ40 (O-15) حُسما وطُبّقا (DQ-F08-1، ADR 0011).
 2. النشر على SQL Server 2025 تم في بيئة التطوير ويمر CI (O-1)؛ ويمر على GitHub أيضًا (`.github/workflows/treasury-db-ci.yml`)؛ يبقى النشر على خادم الإنتاج (O-02، erd_open_items).
 3. ثم الواجهات والشريحة الرأسية S0. O-9 وO-11 محلولان بـ ADR 0002 وADR 0003، وO-12 للتهيئة والدعم بـ ADR 0004.
 

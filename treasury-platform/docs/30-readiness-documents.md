@@ -126,7 +126,7 @@
 #### DOC-F08 — نموذج حالة الطلب الموحّد وإقفال دورة العمل (توفيق المصادر)
 
 - **الغرض:** نموذج واحد يحدد: Request.Status (DRAFT وACTIVE وAWAITING_CLOSE وCOMPLETED وREJECTED وCANCELLED)، والحالة الفرعية داخل المرحلة (PREPARATION وSIGNING وBANK_COMMUNICATION وAT_BANK وFOLLOW_UP)، والحالة الظاهرة للطالب (ثماني قيم) وربطها بكل مرحلة، ومخطط انتقال كامل يتضمن AWAITING_CLOSE وreq.treasury.close وBR-WFL-027، وأثر الإرجاع (RETURNED وResumeStage) والرفض والإلغاء وإعادة التقديم (CycleNo)، ومن ينفّذ كل انتقال.
-- **ما يعطّله:** S3 مباشرة. وقرار O-10 (20-database-design) مطلوب قبل S0 لأن نموذج القاعدة مبني على AWAITING_CLOSE وسيُنشر كاملًا منذ أول نشر للقاعدة (20-database-design.md:395-408، و:536 للقرار المعلّق).
+- **ما يعطّله:** (✅ حُسم: اعتمد المالك النموذج 2026-10-12، وعُدّلت المواصفة 13 في 2026-10-13؛ O-10 محلول) S3 مباشرة. وقرار O-10 (20-database-design) مطلوب قبل S0 لأن نموذج القاعدة مبني على AWAITING_CLOSE وسيُنشر كاملًا منذ أول نشر للقاعدة (20-database-design.md:395-408، و:536 للقرار المعلّق).
 - **الموجود جزئيًا:** docs/10-detailed-analysis/13-m6-workflow-engine-notifications.md:89 (ExternalPhase بثماني قيم)، :362 (ExternalPhase في §6 بثماني رموز)، :515-527 (مخطط حالات من خمس حالات بلا AWAITING_CLOSE)، :529-538 (جدول الآلات). docs/21-data-dictionary.md:4338 (ست قيم). docs/diagrams/src/erd_03_request_lifecycle.dot (المخطط الوحيد الذي يتضمن AWAITING_CLOSE).
 - **الفجوة:** ثلاثة نماذج متعارضة للحالة: مخطط M6 من خمس حالات، وM6 §6 بثماني رموز ظاهرة، وقاعدة البيانات والقاموس بست قيم؛ وM6 لا تذكر BR-WFL-027 ولا req.treasury.close ولم تُعدَّل بعد (O-10).
 - **الأولوية:** P0 - قرار قبل S0، وتنفيذ قبل S3 · **المالك:** محلل العمليات مع مالك المنتج (قرار O-10، 20-database-design)
