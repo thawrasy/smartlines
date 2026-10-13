@@ -131,7 +131,7 @@ STATES = {
   PENDING_PAYMENT --> CONFIRMED: payment succeeds before the pay-by time
   PENDING_PAYMENT --> EXPIRED: pay-by time passes
   PENDING_PAYMENT --> CANCELLED: cancelled
-  CONFIRMED --> CANCELLED: cancelled and refunded by the fare brand
+  CONFIRMED --> CANCELLED: cancelled and refunded by the fare brand, or in full when the carrier cancels the trip
   CONFIRMED --> COMPLETED: trip completed
   EXPIRED --> [*]
   CANCELLED --> [*]
@@ -164,8 +164,8 @@ STATES = {
   PUBLISHED --> BOARDING: boarding opens
   BOARDING --> DEPARTED: departure
   DEPARTED --> COMPLETED: arrival
-  PUBLISHED --> CANCELLED: cancelled
-  BOARDING --> CANCELLED: cancelled
+  PUBLISHED --> CANCELLED: cancelled by the carrier, paid bookings refunded in full
+  BOARDING --> CANCELLED: cancelled (allowed by the database rule)
   COMPLETED --> [*]
   CANCELLED --> [*]"""),
     "ST-5a": ("Photo policy change", """stateDiagram-v2

@@ -1,7 +1,8 @@
 """Behaviour models: state, sequence and activity diagrams in Mermaid, beyond ST-1 to ST-6 and SQ-1 to SQ-4 of models.py.
 
 States follow the CHECK constraints of the tables and the functions that move them (the module named in each title);
-activities follow the routes and checks of the code at commit b983b22."""
+activities follow the routes and checks of the code at commit b983b22; ST-12 to ST-15, SQ-8 to SQ-10 and AC-7 to AC-9
+were added for schema files 1100 to 1112 (commit c7528af)."""
 
 STATES2 = {
     "ST-7": ("Company withdrawal (payouts)", """stateDiagram-v2
@@ -82,6 +83,66 @@ STATES2 = {
   PENDING --> PENDING: no answer, resent once by finance
   SUCCESS --> [*]
   FAILED --> [*]"""),
+    "ST-12": ("Counter check-in at a boarding station (brd.station_checkin, 1105)", """stateDiagram-v2
+  direction LR
+  [*] --> CHECKED_IN: counter check, right, window and references pass, boarding pass with the bay
+  CHECKED_IN --> CHECKED_IN: the same ticket again returns the same pass
+  CHECKED_IN --> CANCELLED: cancelled at the counter with a reason, before boarding
+  CHECKED_IN --> [*]: ticket BOARDED at the bay
+  CANCELLED --> [*]"""),
+    "ST-13": ("E-invoice document (acct.einvoice_document, 1104 and 1108)", """stateDiagram-v2
+  direction LR
+  [*] --> DRAFT: built by the worker for a paid booking, lines and taxes
+  DRAFT --> FINALIZED: gapless number, chained hash, signature with its key id, QR
+  DRAFT --> CANCELLED_DRAFT: dropped before it is final
+  FINALIZED --> FINALIZED: a refund issues a credit note, a new document naming it
+  FINALIZED --> SUBMITTED: table value, submission to the tax authority not built
+  FINALIZED --> [*]
+  CANCELLED_DRAFT --> [*]"""),
+    "ST-14a": ("Partner agreement (pricing.loyalty_agreement, 1107)", """stateDiagram-v2
+  direction LR
+  [*] --> DRAFT: written by one officer
+  DRAFT --> ACTIVE: activated by another person, one active per partner and currency
+  ACTIVE --> ENDED: ended at the end of its period, frozen once used
+  ENDED --> [*]"""),
+    "ST-14b": ("Voucher (pricing.reward_voucher, 1107)", """stateDiagram-v2
+  direction LR
+  [*] --> ISSUED: member spends points at a partner's offer, code shown once
+  ISSUED --> USED: partner honours the code, the platform owes its share
+  ISSUED --> CANCELLED: member cancels, points returned
+  ISSUED --> EXPIRED: validity passes or the partner ends, points returned
+  USED --> [*]
+  CANCELLED --> [*]
+  EXPIRED --> [*]"""),
+    "ST-14c": ("Partner statement (pricing.loyalty_settlement, 1107)", """stateDiagram-v2
+  direction LR
+  [*] --> DRAFT: drawn up for a period, each honoured voucher once
+  DRAFT --> APPROVED: approved by another person
+  DRAFT --> CANCELLED: cancelled, its vouchers go to the next statement
+  APPROVED --> PAID: bank transfer recorded by a third person, ledger entry
+  PAID --> [*]
+  CANCELLED --> [*]"""),
+    "ST-15a": ("Tracking alert (ops.tracking_alert, 1100)", """stateDiagram-v2
+  direction LR
+  [*] --> OPEN: departed trip silent past the set time, severity MEDIUM, carrier told
+  OPEN --> OPEN: silence lasts, escalated to HIGH, carrier told again
+  OPEN --> RESOLVED: positions come back
+  RESOLVED --> [*]"""),
+    "ST-15b": ("SOS (sec.sos_event, 1101)", """stateDiagram-v2
+  direction LR
+  [*] --> OPEN: driver or passenger on the trip presses SOS, carrier and platform told
+  OPEN --> OPEN: the same person again returns the same SOS
+  OPEN --> ACKNOWLEDGED: taken in hand by the carrier or the platform
+  ACKNOWLEDGED --> CLOSED: closed with a note
+  OPEN --> CLOSED: closed with a note
+  CLOSED --> [*]"""),
+    "ST-15c": ("Cancellation penalty (ops.trip_cancel_penalty, 1106)", """stateDiagram-v2
+  direction LR
+  [*] --> DUE: carrier cancels a trip while the regulator's penalty is on
+  [*] --> COLLECTED: the carrier's balance covers it at once
+  DUE --> COLLECTED: set off when the carrier next completes a trip
+  DUE --> WAIVED: table value, no route sets it yet
+  COLLECTED --> [*]"""),
 }
 
 SEQUENCES2 = {
@@ -136,6 +197,61 @@ SEQUENCES2 = {
   F3->>A: mark paid with the bank reference
   A->>D: F3 is neither requester nor approver, else 403 FOUR_EYES
   A->>D: PAID, ledger entry posted"""),
+    "SQ-8": ("Counter check-in and boarding at a station", """sequenceDiagram
+  autonumber
+  actor C as Counter clerk
+  actor B as Bay staff
+  participant A as API
+  participant D as Database
+  C->>A: POST /api/station/checkin (ticket code or number, document seen)
+  A->>D: brd.station_checkin_ticket
+  D->>D: station on, BOARDING_PASS right, own counter, ticket and stop, window, references
+  alt a check fails
+    A-->>C: 409 with its code (NOT_GRANTED, CHECKIN_CLOSED, REFERENCES_MISSING ...)
+  else checked in
+    D-->>A: boarding pass with the bay (the same pass if already checked in)
+    A-->>C: pass to print, no photo while its legal basis is missing
+  end
+  B->>A: POST /api/station/board (scan at the bay)
+  A->>D: brd.station_may_board: BOARDING right and a check-in at this station
+  A->>D: the driver's boarding path: stop, photo rule, boarding record
+  A-->>B: OK, DUPLICATE or the refusal"""),
+    "SQ-9": ("A carrier cancels a trip", """sequenceDiagram
+  autonumber
+  actor S as Carrier
+  participant A as API
+  participant D as Database
+  participant W as Worker
+  S->>A: POST /api/carrier/trips/{uid}/cancel with a reason
+  A->>D: lock the trip, refused while it carries parcels
+  loop every paid booking
+    A->>D: reverse every allocation line, refund in full to whoever paid
+    A->>D: booking and tickets CANCELLED, seats released
+  end
+  A->>D: unpaid reservations end, crew released, ops.trip_disruption kept
+  opt the regulator's penalty is on
+    A->>D: ops.trip_cancel_penalty COLLECTED or DUE
+  end
+  A-->>S: refunds, reservations ended, penalty
+  A->>D: event trip.cancelled for the carrier's integrations
+  W->>D: credit notes for the invoiced bookings"""),
+    "SQ-10": ("A voucher honoured at a partner and settled", """sequenceDiagram
+  autonumber
+  actor M as Member
+  actor R as Partner
+  actor F as Finance
+  participant A as API
+  participant D as Database
+  M->>A: POST /api/loyalty/vouchers (offer of an active agreement)
+  A->>D: points debited, voucher ISSUED, code kept encrypted
+  A-->>M: the code, once
+  R->>A: POST /api/v1/loyalty/vouchers/redeem (or an officer for it)
+  A->>D: voucher USED, platform's share from EXPENSE to the partner's wallet
+  F->>A: draw up the statement for a period
+  A->>D: statement DRAFT with its lines
+  F->>A: another officer approves it (four eyes)
+  F->>A: a third records the bank transfer
+  A->>D: PAID, partner wallet to bank clearing"""),
 }
 
 ACTIVITIES = {
@@ -194,4 +310,40 @@ ACTIVITIES = {
   F6 -- yes --> F7([Alert: money mismatch, the on-call engineer is paged])
   F6 -- no --> F8[Ledger close of the day]
   F8 --> F9([Settlements and withdrawals, each approved and paid by separate officers])"""),
+    "AC-7": ("SOS and incidents on a trip", """flowchart TD
+  G1([Driver or passenger presses SOS]) --> G2{On this trip and the trip under way?}
+  G2 -- no --> G3[Refused]
+  G2 -- yes --> G4{An open SOS of the same person?}
+  G4 -- yes --> G5[The same SOS is returned]
+  G4 -- no --> G6[SOS OPEN with the position]
+  G6 --> G7[Carrier owners and platform security told at once]
+  G7 --> G8[Acknowledged, then closed with a note]
+  G9([Driver reports an incident with evidence]) --> G10[Incident OPEN, linked to the driver's open SOS if any]
+  G10 --> G12{Severe?}
+  G12 -- yes --> G13[Vehicle out of service at once]
+  G12 -- no --> G11
+  G13 --> G11([Reviewed and closed by the carrier or the platform])"""),
+    "AC-8": ("A passenger at a boarding station", """flowchart TD
+  H1([Passenger at the station]) --> H2{Has a ticket?}
+  H2 -- no --> H3{Counter holds the carrier's BOOKING right and is under its cash limit?}
+  H3 -- no --> H4[Sent to another channel]
+  H3 -- yes --> H5[Seats held, sold for cash, tickets printed]
+  H5 --> H6
+  H2 -- yes --> H6{Check-in window open and references on file?}
+  H6 -- no --> H7[Refused with the reason]
+  H6 -- yes --> H8[Document seen, boarding pass with the bay]
+  H8 --> H9[Departure board shows the bay and the state]
+  H9 --> H10{Scan at the bay: checked in here?}
+  H10 -- no --> H11[CHECKIN_REQUIRED]
+  H10 -- yes --> H12([Ticket BOARDED])"""),
+    "AC-9": ("A carrier cancels a trip", """flowchart TD
+  K1([Carrier decides to cancel]) --> K2{Trip published and no parcels on board?}
+  K2 -- no --> K3[Refused, parcels moved to another trip first]
+  K2 -- yes --> K4[Every paid booking refunded in full to whoever paid]
+  K4 --> K5[Unpaid reservations end, seats and crew released]
+  K5 --> K6{Regulator's penalty switched on?}
+  K6 -- no --> K8
+  K6 -- yes --> K7[Penalty charged from the carrier's balance, or kept DUE]
+  K7 --> K8[Event trip.cancelled, credit notes for invoiced bookings]
+  K8 --> K9([Trip CANCELLED, the decision kept])"""),
 }
