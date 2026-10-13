@@ -6,9 +6,10 @@ Step 2 is in place (migrations 1098 and 1099 and their API): the rights an opera
 the carrier or by the platform, the decision whether it may act, and the operating company's own portal (`STATION`, the
 owner's option A). Step 3 is in place (migration 1105 and its API): the counter check, the boarding pass with the bay,
 and the boarding at the bay by station staff, under the rights of step 2, with the check-in window and the required
-references applied (section 8b). Everything is off, or empty, at launch, and nothing in the booking, the boarding or the
-ticket changes until the platform switches a station on. The screens (step 4) and the counter photo (step 5) are not
-built (section 9).
+references applied (section 8b). Selling at the counter (migration 1110, section 8c) and step 4, the screens and the
+station's departure board (migration 1112, section 8d), are in place. Step 5, the photo at the counter, is built and
+stays off until a legal approval allows it (migration 1111, section 5). Everything is off, or empty, at launch, and
+nothing in the booking, the boarding or the ticket changes until the platform switches a station on.
 
 ## 1. What it is
 
