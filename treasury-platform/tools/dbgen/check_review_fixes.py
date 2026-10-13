@@ -118,6 +118,10 @@ checks['DR-38 covenant unit is the formula result and fits the measure; statemen
     fk_has('Covenant', 'FormulaId', 'FormulaResultUnit', 'FormulaUsesStatements')
     and has_check('obl', 'Covenant', 'ThresholdUnit = FormulaResultUnit') and has_check('obl', 'Covenant', "MeasureKind IN ('AMOUNT','AVERAGE_BALANCE','FLOW_VOLUME')")
     and has_check('obl', 'Covenant', 'StatementBasis IS NOT NULL AND RequiredAssurance IS NOT NULL'))
+checks['DR-39 covenant test names the formula version it used, not its number'] = (
+    fk_has('CovenantTest', 'FormulaId') and 'FormulaVersion' not in block('obl', 'CovenantTest'))
+checks['DR-39 evaluated test frozen but for its review, complete snapshot, final agenda item (044)'] = (
+    'TR_CovenantTest_Frozen' in entry and 'TR_CovenantTest_Evaluation' in entry and 'TR_ReportingInstance_Final' in entry)
 checks['DR-30 product and financing type pair by Shariah classification'] = fk_has('ProductFinancingType', 'ProductId', 'ProductCompliance') and fk_has('ProductFinancingType', 'FinancingTypeId', 'FinancingIsIslamic') and has_check('cat', 'ProductFinancingType', "ProductCompliance = 'NEUTRAL'")
 checks['DR-29 BaseRate currency required; alias in its rate scope'] = '[CurrencyId] INT NOT NULL' in block('cat', 'BaseRate') and fk_has('BaseRateAlias', 'BaseRateId', 'ScopeKey')
 checks['DR-31 agreement text denied to tp_readonly (043)'] = 'OriginalText' in guards and 'tp_readonly' in guards

@@ -21,12 +21,17 @@
      DR-36 (S2)    col.Collateral versions share RootId, the id of the first version, through a composite key; the
                    model allows one current approved version and one open draft per collateral. A link names the
                    collateral by its root, so a new approved version needs no relinking.
+     DR-39 (S2-b)  obl.CovenantTest: an evaluated test changes only by its review, an automatic evaluation names the
+                   formula version it used and stores every input, threshold and operator it read (BR-FIN-010); and
+                   obl.ReportingInstance: an item that left SCHEDULED keeps its status, obligation and period.
 
    An error raised in a trigger ends the caller's transaction; the application validates first.
    Errors: 50047 an indirect path through a company of the tenant, 50048 a conflict on a missing target or with
    another facility than its target's, 50049 an approved revision that is missing,
    unapproved or moved back, 50050 a revision approved with two rows of one node or a row whose parent is not in it,
-   50052 a collateral link to a version that is not the first.
+   50052 a collateral link to a version that is not the first, 50053 an evaluated covenant test changed other than by
+   its review, 50054 an automatic evaluation without its formula version or with an incomplete snapshot, 50055 a final
+   agenda item changed.
    ============================================================================ */
 SET NOCOUNT ON;
 SET ANSI_NULLS ON; SET QUOTED_IDENTIFIER ON; SET ANSI_PADDING ON; SET ANSI_WARNINGS ON; SET ARITHABORT ON; SET CONCAT_NULL_YIELDS_NULL ON; SET NUMERIC_ROUNDABORT OFF;
@@ -254,5 +259,133 @@ BEGIN
                JOIN col.Collateral AS c ON c.TenantId = i.TenantId AND c.CollateralId = i.CollateralId
                WHERE c.SupersedesId IS NOT NULL)
         THROW 50052, 'A collateral link names the collateral by its first version, its root; the current approved version is read by RootId', 1;
+END;
+GO
+/* DR-39: an evaluated covenant test changes only by its review. Its result, its inputs, the formula version and the
+   covenant it was evaluated for stay as stored; EVALUATED may become REVIEWED once, with the reviewer's note, and
+   only NextReviewOn changes after that. A new evaluation is a new row with the next EvaluationNo (BR-OBL-011). */
+CREATE OR ALTER TRIGGER obl.TR_CovenantTest_Frozen ON obl.CovenantTest
+AFTER UPDATE, DELETE
+AS
+BEGIN
+    SET NOCOUNT ON;
+    IF EXISTS (SELECT 1
+               FROM deleted AS d
+               LEFT JOIN inserted AS i ON i.CovenantTestId = d.CovenantTestId
+               WHERE d.State IN ('EVALUATED','REVIEWED')
+                 AND (i.CovenantTestId IS NULL
+                      OR NOT (i.State = d.State OR (d.State = 'EVALUATED' AND i.State = 'REVIEWED'))
+                      OR EXISTS (SELECT i.TenantId, i.PublicId, i.CovenantId, i.PeriodStart, i.PeriodEnd, i.DueDate, i.EvaluationNo,
+                                        i.Result, i.Method, i.ActualValue, i.ThresholdApplied, i.OperatorApplied, i.Headroom,
+                                        i.HeadroomPct, i.InputsSnapshot, i.FormulaId, i.EvaluatedAt, i.EvaluatedBy, i.EvidenceDocumentId
+                                 EXCEPT
+                                 SELECT d.TenantId, d.PublicId, d.CovenantId, d.PeriodStart, d.PeriodEnd, d.DueDate, d.EvaluationNo,
+                                        d.Result, d.Method, d.ActualValue, d.ThresholdApplied, d.OperatorApplied, d.Headroom,
+                                        d.HeadroomPct, d.InputsSnapshot, d.FormulaId, d.EvaluatedAt, d.EvaluatedBy, d.EvidenceDocumentId)
+                      OR (d.State = 'REVIEWED'
+                          AND EXISTS (SELECT i.ReviewNote, i.ReviewedBy, i.ReviewedOn EXCEPT SELECT d.ReviewNote, d.ReviewedBy, d.ReviewedOn))))
+        THROW 50053, 'An evaluated covenant test changes only by its review; a new evaluation is a new row with the next EvaluationNo (BR-OBL-011)', 1;
+END;
+GO
+/* DR-39: an automatic evaluation names the formula version it used and stores every input it read (BR-FIN-010,
+   FR-FIN-013), so the result can be explained and reproduced. When the test becomes EVALUATED or REVIEWED:
+   - FormulaId is a version of the covenant's formula (the same Code and FacilityId), not a draft, and empty when the
+     covenant has no formula;
+   - InputsSnapshot is a JSON object holding formula.id and formula.version of that version; threshold.value and
+     threshold.operator equal ThresholdApplied and OperatorApplied, which are the covenant's own;
+   - for each kind of input the formula reads (an average balance reads account figures and a flow volume bank flows
+     when there is no formula) the snapshot holds an array: statements of {statementId, version, basis}, each a
+     statement of the tested company with that version and basis; accounts of {accountId, month, value}; flows of
+     {entryId, amount}. The array may be empty only when the result is MISSING_DATA.
+   Manual results (MANUAL_VALUE, MANUAL_STATUS) carry their evidence instead and are not checked here. */
+CREATE OR ALTER TRIGGER obl.TR_CovenantTest_Evaluation ON obl.CovenantTest
+AFTER INSERT, UPDATE
+AS
+BEGIN
+    SET NOCOUNT ON;
+    IF NOT EXISTS (SELECT 1 FROM inserted WHERE State IN ('EVALUATED','REVIEWED') AND Method = 'AUTO') RETURN;
+    IF EXISTS (
+        SELECT 1
+        FROM inserted AS i
+        LEFT JOIN deleted AS d ON d.CovenantTestId = i.CovenantTestId
+        JOIN obl.Covenant AS c ON c.TenantId = i.TenantId AND c.CovenantId = i.CovenantId
+        LEFT JOIN fin.MeasureFormula AS cf ON cf.TenantId = c.TenantId AND cf.MeasureFormulaId = c.FormulaId
+        LEFT JOIN fin.MeasureFormula AS tf ON tf.TenantId = i.TenantId AND tf.MeasureFormulaId = i.FormulaId
+        CROSS APPLY (SELECT CASE WHEN tf.MeasureFormulaId IS NOT NULL THEN tf.InputKinds
+                                 WHEN c.MeasureKind = 'AVERAGE_BALANCE' THEN 'ACCOUNT_STATS'
+                                 WHEN c.MeasureKind = 'FLOW_VOLUME' THEN 'BANK_FLOWS'
+                                 ELSE '' END AS Kinds,
+                            CASE WHEN i.Result = 'MISSING_DATA' THEN 0 ELSE 1 END AS NeedRows) AS k
+        WHERE i.State IN ('EVALUATED','REVIEWED') AND i.Method = 'AUTO'
+          AND (d.CovenantTestId IS NULL OR d.State NOT IN ('EVALUATED','REVIEWED'))
+          AND (   (c.FormulaId IS NULL AND i.FormulaId IS NOT NULL)
+               OR (c.FormulaId IS NOT NULL AND (tf.MeasureFormulaId IS NULL OR tf.Status = 'DRAFT' OR tf.Code <> cf.Code
+                                                OR tf.FacilityId IS DISTINCT FROM cf.FacilityId))
+               OR ISNULL(ISJSON(i.InputsSnapshot, OBJECT), 0) = 0
+               OR (tf.MeasureFormulaId IS NOT NULL
+                   AND (TRY_CAST(JSON_VALUE(i.InputsSnapshot, '$.formula.id') AS BIGINT) IS DISTINCT FROM tf.MeasureFormulaId
+                        OR TRY_CAST(JSON_VALUE(i.InputsSnapshot, '$.formula.version') AS INT) IS DISTINCT FROM tf.VersionNo))
+               OR (i.ThresholdApplied IS NOT NULL
+                   AND (TRY_CAST(JSON_VALUE(i.InputsSnapshot, '$.threshold.value') AS DECIMAL(19,6)) IS DISTINCT FROM i.ThresholdApplied
+                        OR JSON_VALUE(i.InputsSnapshot, '$.threshold.operator') IS DISTINCT FROM i.OperatorApplied
+                        OR i.ThresholdApplied IS DISTINCT FROM c.ThresholdValue
+                        OR i.OperatorApplied IS DISTINCT FROM c.Operator))
+               OR (k.Kinds LIKE '%STATEMENT%'
+                   AND (ISNULL(ISJSON(JSON_QUERY(i.InputsSnapshot, '$.statements'), ARRAY), 0) = 0
+                        OR (k.NeedRows = 1 AND NOT EXISTS (SELECT 1 FROM OPENJSON(i.InputsSnapshot, '$.statements')))
+                        OR EXISTS (SELECT 1
+                                   FROM OPENJSON(i.InputsSnapshot, '$.statements')
+                                        WITH (StatementId NVARCHAR(40) '$.statementId', VersionNo NVARCHAR(40) '$.version',
+                                              Basis NVARCHAR(40) '$.basis') AS s
+                                   WHERE NOT EXISTS (SELECT 1 FROM fin.FinancialStatement AS fs
+                                                     WHERE fs.TenantId = i.TenantId
+                                                       AND fs.FinancialStatementId = TRY_CAST(s.StatementId AS BIGINT)
+                                                       AND fs.VersionNo = TRY_CAST(s.VersionNo AS INT)
+                                                       AND fs.Basis = s.Basis
+                                                       AND fs.CompanyId = c.TestedCompanyId))))
+               OR (k.Kinds LIKE '%ACCOUNT_STATS%'
+                   AND (ISNULL(ISJSON(JSON_QUERY(i.InputsSnapshot, '$.accounts'), ARRAY), 0) = 0
+                        OR (k.NeedRows = 1 AND NOT EXISTS (SELECT 1 FROM OPENJSON(i.InputsSnapshot, '$.accounts')))
+                        OR EXISTS (SELECT 1
+                                   FROM OPENJSON(i.InputsSnapshot, '$.accounts')
+                                        WITH (AccountId NVARCHAR(40) '$.accountId', MonthOf NVARCHAR(40) '$.month',
+                                              Amount NVARCHAR(60) '$.value') AS a
+                                   WHERE TRY_CAST(a.AccountId AS BIGINT) IS NULL OR a.MonthOf IS NULL
+                                      OR TRY_CAST(a.Amount AS DECIMAL(19,4)) IS NULL)))
+               OR (k.Kinds LIKE '%BANK_FLOWS%'
+                   AND (ISNULL(ISJSON(JSON_QUERY(i.InputsSnapshot, '$.flows'), ARRAY), 0) = 0
+                        OR (k.NeedRows = 1 AND NOT EXISTS (SELECT 1 FROM OPENJSON(i.InputsSnapshot, '$.flows')))
+                        OR EXISTS (SELECT 1
+                                   FROM OPENJSON(i.InputsSnapshot, '$.flows')
+                                        WITH (EntryId NVARCHAR(40) '$.entryId', Amount NVARCHAR(60) '$.amount') AS b
+                                   WHERE TRY_CAST(b.EntryId AS BIGINT) IS NULL OR TRY_CAST(b.Amount AS DECIMAL(19,4)) IS NULL)))))
+        THROW 50054, 'An automatic covenant evaluation names the version of the covenant''s formula it used and stores all its inputs, its threshold and its operator in InputsSnapshot (BR-FIN-010)', 1;
+END;
+GO
+/* DR-39: an agenda item that left SCHEDULED keeps its status, its obligation, its period and its reason, and is not
+   deleted. A SUBMITTED item's submission details may be corrected (DQ-F15-13); the other final items may only gain
+   their evidence document. */
+CREATE OR ALTER TRIGGER obl.TR_ReportingInstance_Final ON obl.ReportingInstance
+AFTER UPDATE, DELETE
+AS
+BEGIN
+    SET NOCOUNT ON;
+    IF EXISTS (SELECT 1
+               FROM deleted AS d
+               LEFT JOIN inserted AS i ON i.ReportingInstanceId = d.ReportingInstanceId
+               WHERE d.Status <> 'SCHEDULED'
+                 AND (i.ReportingInstanceId IS NULL
+                      OR i.Status <> d.Status
+                      OR EXISTS (SELECT i.TenantId, i.PublicId, i.ReportingObligationId, i.PeriodStart, i.PeriodEnd, i.EventDate, i.DueDate,
+                                        i.DueDateOverrideReason, i.StatusReason, i.GeneratedBy
+                                 EXCEPT
+                                 SELECT d.TenantId, d.PublicId, d.ReportingObligationId, d.PeriodStart, d.PeriodEnd, d.EventDate, d.DueDate,
+                                        d.DueDateOverrideReason, d.StatusReason, d.GeneratedBy)
+                      OR (d.Status <> 'SUBMITTED'
+                          AND (EXISTS (SELECT i.SubmittedOn, i.SubmissionChannelUsedId, i.SubmissionRef, i.ReportedAmount, i.CurrencyId
+                                       EXCEPT
+                                       SELECT d.SubmittedOn, d.SubmissionChannelUsedId, d.SubmissionRef, d.ReportedAmount, d.CurrencyId)
+                               OR (d.EvidenceDocumentId IS NOT NULL AND i.EvidenceDocumentId IS DISTINCT FROM d.EvidenceDocumentId)))))
+        THROW 50055, 'An agenda item that left SCHEDULED keeps its status, obligation and period; only a submission''s details are corrected', 1;
 END;
 GO

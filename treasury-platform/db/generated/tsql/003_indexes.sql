@@ -518,6 +518,7 @@ CREATE NONCLUSTERED INDEX [IX_CovenantAccount_BankAccountId] ON [obl].[CovenantA
 CREATE NONCLUSTERED INDEX [IX_CovenantTest_DueDate] ON [obl].[CovenantTest] ([TenantId], [DueDate]) INCLUDE ([CovenantId], [State]) WHERE State IN ('SCHEDULED','PENDING_DATA');
 CREATE NONCLUSTERED INDEX [IX_CovenantTest_Result_PeriodEnd] ON [obl].[CovenantTest] ([TenantId], [Result], [PeriodEnd]) INCLUDE ([CovenantId], [State]);
 CREATE NONCLUSTERED INDEX [IX_CovenantTest_NextReviewOn] ON [obl].[CovenantTest] ([TenantId], [NextReviewOn]) INCLUDE ([CovenantId]) WHERE NextReviewOn IS NOT NULL;
+CREATE NONCLUSTERED INDEX [IX_CovenantTest_FormulaId] ON [obl].[CovenantTest] ([TenantId], [FormulaId]);
 CREATE NONCLUSTERED INDEX [IX_CovenantTest_EvaluatedBy] ON [obl].[CovenantTest] ([TenantId], [EvaluatedBy]);
 CREATE NONCLUSTERED INDEX [IX_CovenantTest_EvidenceDocumentId] ON [obl].[CovenantTest] ([TenantId], [EvidenceDocumentId]);
 CREATE NONCLUSTERED INDEX [IX_CovenantTest_ReviewedBy] ON [obl].[CovenantTest] ([TenantId], [ReviewedBy]);

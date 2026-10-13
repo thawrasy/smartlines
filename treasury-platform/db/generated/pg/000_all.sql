@@ -4124,7 +4124,7 @@ CREATE TABLE "obl"."CovenantTest" (
   "Headroom" numeric(19,6) NULL,
   "HeadroomPct" numeric(19,6) NULL,
   "InputsSnapshot" text NULL,
-  "FormulaVersion" integer NULL,
+  "FormulaId" bigint NULL,
   "EvaluatedAt" timestamp(3) NULL,
   "EvaluatedBy" bigint NULL,
   "EvidenceDocumentId" bigint NULL,
@@ -4154,7 +4154,6 @@ CREATE TABLE "obl"."CovenantTest" (
   CONSTRAINT "CK_CovenantTest_11" CHECK ("HeadroomPct" IS NULL OR "Headroom" IS NOT NULL),
   CONSTRAINT "CK_CovenantTest_12" CHECK ("Result" NOT IN ('MANUAL_COMPLIANT','MANUAL_NON_COMPLIANT','UNDER_REVIEW') OR "Method" = 'MANUAL_STATUS'),
   CONSTRAINT "CK_CovenantTest_13" CHECK ("Method" <> 'MANUAL_STATUS' OR "Result" IS NULL OR "Result" IN ('MANUAL_COMPLIANT','MANUAL_NON_COMPLIANT','UNDER_REVIEW')),
-  CONSTRAINT "CK_CovenantTest_14" CHECK ("FormulaVersion" IS NULL OR "FormulaVersion" >= 1),
   CONSTRAINT "CK_CovenantTest_State" CHECK ("State" IS NULL OR "State" IN ('SCHEDULED', 'PENDING_DATA', 'EVALUATED', 'REVIEWED')),
   CONSTRAINT "CK_CovenantTest_Result" CHECK ("Result" IS NULL OR "Result" IN ('COMPLIANT', 'WARNING', 'BREACH', 'MISSING_DATA', 'NOT_ASSESSED_NO_THRESHOLD', 'NOT_COMPARABLE', 'MANUAL_COMPLIANT', 'MANUAL_NON_COMPLIANT', 'UNDER_REVIEW')),
   CONSTRAINT "CK_CovenantTest_Method" CHECK ("Method" IS NULL OR "Method" IN ('AUTO', 'MANUAL_VALUE', 'MANUAL_STATUS')),
@@ -6695,6 +6694,7 @@ ALTER TABLE "obl"."CovenantAccount" ADD CONSTRAINT "FK_CovenantAccount_CovenantI
 ALTER TABLE "obl"."CovenantAccount" ADD CONSTRAINT "FK_CovenantAccount_BankAccountId" FOREIGN KEY ("TenantId", "BankAccountId") REFERENCES "acc"."BankAccount" ("TenantId", "BankAccountId");
 ALTER TABLE "obl"."CovenantTest" ADD CONSTRAINT "FK_CovenantTest_Tenant" FOREIGN KEY ("TenantId") REFERENCES "plat"."Tenant" ("TenantId");
 ALTER TABLE "obl"."CovenantTest" ADD CONSTRAINT "FK_CovenantTest_CovenantId" FOREIGN KEY ("TenantId", "CovenantId") REFERENCES "obl"."Covenant" ("TenantId", "CovenantId");
+ALTER TABLE "obl"."CovenantTest" ADD CONSTRAINT "FK_CovenantTest_FormulaId" FOREIGN KEY ("TenantId", "FormulaId") REFERENCES "fin"."MeasureFormula" ("TenantId", "MeasureFormulaId");
 ALTER TABLE "obl"."CovenantTest" ADD CONSTRAINT "FK_CovenantTest_EvaluatedBy" FOREIGN KEY ("TenantId", "EvaluatedBy") REFERENCES "sec"."AppUser" ("TenantId", "AppUserId");
 ALTER TABLE "obl"."CovenantTest" ADD CONSTRAINT "FK_CovenantTest_EvidenceDocumentId" FOREIGN KEY ("TenantId", "EvidenceDocumentId") REFERENCES "doc"."Document" ("TenantId", "DocumentId");
 ALTER TABLE "obl"."CovenantTest" ADD CONSTRAINT "FK_CovenantTest_ReviewedBy" FOREIGN KEY ("TenantId", "ReviewedBy") REFERENCES "sec"."AppUser" ("TenantId", "AppUserId");
@@ -7475,6 +7475,7 @@ CREATE INDEX "IX_CovenantAccount_BankAccountId" ON "obl"."CovenantAccount" ("Ten
 CREATE INDEX "IX_CovenantTest_DueDate" ON "obl"."CovenantTest" ("TenantId", "DueDate") WHERE "State" IN ('SCHEDULED','PENDING_DATA');
 CREATE INDEX "IX_CovenantTest_Result_PeriodEnd" ON "obl"."CovenantTest" ("TenantId", "Result", "PeriodEnd");
 CREATE INDEX "IX_CovenantTest_NextReviewOn" ON "obl"."CovenantTest" ("TenantId", "NextReviewOn") WHERE "NextReviewOn" IS NOT NULL;
+CREATE INDEX "IX_CovenantTest_FormulaId" ON "obl"."CovenantTest" ("TenantId", "FormulaId");
 CREATE INDEX "IX_CovenantTest_EvaluatedBy" ON "obl"."CovenantTest" ("TenantId", "EvaluatedBy");
 CREATE INDEX "IX_CovenantTest_EvidenceDocumentId" ON "obl"."CovenantTest" ("TenantId", "EvidenceDocumentId");
 CREATE INDEX "IX_CovenantTest_ReviewedBy" ON "obl"."CovenantTest" ("TenantId", "ReviewedBy");

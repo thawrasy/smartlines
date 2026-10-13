@@ -487,6 +487,7 @@ erDiagram
 | CovenantAccount | BankAccountId | acc.BankAccount |
 | CovenantTest | EvaluatedBy | sec.AppUser |
 | CovenantTest | EvidenceDocumentId | doc.Document |
+| CovenantTest | FormulaId | fin.MeasureFormula |
 | CovenantTest | ReviewedBy | sec.AppUser |
 | Obligation | ConflictId | fac.ValueConflict |
 | Obligation | FacilityId | fac.Facility |

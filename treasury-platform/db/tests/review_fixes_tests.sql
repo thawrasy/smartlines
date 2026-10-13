@@ -36,6 +36,9 @@
         (DR-36, S2; 044)
    RF27 a covenant's threshold unit is its formula's and its measure's, and a formula on statements fixes the basis
         (DR-38, S2)
+   RF28 an evaluated covenant test changes only by its review, and an automatic evaluation names its formula version
+        and stores all it read (DR-39, DQ-F15-4, S2-b; 044)
+   RF29 an agenda item that left SCHEDULED keeps its status, obligation and period (DR-39, DQ-F15-13, S2-b; 044)
    The other declarative fixes of S2 to S4 (keys and checks) are verified on the generated DDL by
    tools/dbgen/check_review_fixes.py, CI step 3.
 
@@ -1009,4 +1012,175 @@ IF @ok1 = 1 AND @e1 = 547 AND @e2 = 547 AND @e3 = 547 AND @e4 = 547 AND @ok2 = 1
 ELSE PRINT CONCAT('FAIL RF27: ratio covenant ', @ok1, ', wrong unit copy ', @e1, ', unit not the formula''s ', @e2, ', unit not the measure''s ', @e3,
                   ', statements without basis ', @e4, ', average balance ', @ok2, ', used formula''s unit changed ', @e5,
                   ', formula without its copies ', @e6);
+GO
+/* The S2-b fixture: #S2, a current ratio covenant on the approved formula version 1 (a draft version 2 exists), the
+   borrower's audited statement for 2025, and a scheduled test of 2025. */
+CREATE PROCEDURE #Cov
+AS
+BEGIN
+    SET NOCOUNT ON;
+    DECLARE @t1 INT, @u1 BIGINT, @f BIGINT, @co BIGINT, @cur INT, @ot INT, @ob BIGINT, @fr BIGINT, @frd BIGINT, @fs BIGINT, @cv BIGINT, @ct BIGINT;
+    EXEC #S2;
+    SELECT @t1 = v FROM #F WHERE k = 't1'; SELECT @u1 = v FROM #F WHERE k = 'u1'; SELECT @f = v FROM #F WHERE k = 'f';
+    SELECT @co = v FROM #F WHERE k = 'co'; SELECT @cur = v FROM #F WHERE k = 'cur';
+    INSERT cat.ObligationType (TenantId, Code, NameAr, Family, MeasureKind) VALUES (@t1, 'COV', N'COV', 'COVENANT', 'RATIO');
+    SET @ot = SCOPE_IDENTITY();
+    INSERT obl.Obligation (TenantId, FacilityId, Family, ObligationTypeId, TitleAr, ValidFrom) VALUES (@t1, @f, 'COVENANT', @ot, N'Current ratio', '2026-01-01');
+    SET @ob = SCOPE_IDENTITY();
+    INSERT fin.MeasureFormula (TenantId, Code, NameAr, Scope, FacilityId, Expression, InputKinds, ResultUnit, VersionNo, Status, ApprovedBy, ApprovedOn)
+    VALUES (@t1, 'CURRENT_RATIO', N'Current ratio', 'FACILITY_COPY', @f, 'CA / CL', 'STATEMENT', 'RATIO', 1, 'APPROVED', @u1, SYSUTCDATETIME());
+    SET @fr = SCOPE_IDENTITY();
+    INSERT fin.MeasureFormula (TenantId, Code, NameAr, Scope, FacilityId, Expression, InputKinds, ResultUnit, VersionNo, Status)
+    VALUES (@t1, 'CURRENT_RATIO', N'Current ratio', 'FACILITY_COPY', @f, 'CA / (CL + 1)', 'STATEMENT', 'RATIO', 2, 'DRAFT');
+    SET @frd = SCOPE_IDENTITY();
+    INSERT fin.FinancialStatement (TenantId, CompanyId, PeriodType, PeriodEnd, FiscalYear, Basis, Assurance, CurrencyId, EntryMethod)
+    VALUES (@t1, @co, 'ANNUAL', '2025-12-31', 2025, 'STANDALONE', 'AUDITED', @cur, 'MANUAL');
+    SET @fs = SCOPE_IDENTITY();
+    INSERT obl.Covenant (TenantId, ObligationId, MeasureKind, FormulaId, FormulaResultUnit, FormulaUsesStatements, Operator, ThresholdState,
+                         ThresholdValue, ThresholdUnit, TestFrequency, StatementBasis, RequiredAssurance, TestedCompanyId, FirstTestPeriodEnd, ValidFrom)
+    VALUES (@t1, @ob, 'RATIO', @fr, 'RATIO', 1, 'GE', 'SET', 1.2, 'RATIO', 'ANNUAL', 'STANDALONE', 'AUDITED_ONLY', @co, '2025-12-31', '2025-01-01');
+    SET @cv = SCOPE_IDENTITY();
+    INSERT obl.CovenantTest (TenantId, CovenantId, PeriodStart, PeriodEnd, DueDate, Method) VALUES (@t1, @cv, '2025-01-01', '2025-12-31', '2026-01-30', 'AUTO');
+    SET @ct = SCOPE_IDENTITY();
+    INSERT #F (k, v) VALUES ('ob', @ob), ('fr', @fr), ('frd', @frd), ('fs', @fs), ('cv', @cv), ('ct', @ct);
+END;
+GO
+/* One case of RF28 on the fixture: evaluate the test as the case says, then change it. The snapshot names the
+   formula version, the threshold and the statement it read (BR-FIN-010). */
+CREATE PROCEDURE #CovCase @Case INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    DECLARE @t1 INT, @u1 BIGINT, @ob BIGINT, @fr BIGINT, @frd BIGINT, @fs BIGINT, @cv BIGINT, @ct BIGINT, @co BIGINT, @cv2 BIGINT,
+            @formula BIGINT, @version INT = 1, @threshold DECIMAL(19,6) = 1.2, @result VARCHAR(30) = 'COMPLIANT', @statements NVARCHAR(400), @snapshot NVARCHAR(MAX);
+    SELECT @t1 = v FROM #F WHERE k = 't1'; SELECT @u1 = v FROM #F WHERE k = 'u1'; SELECT @ob = v FROM #F WHERE k = 'ob';
+    SELECT @fr = v FROM #F WHERE k = 'fr'; SELECT @frd = v FROM #F WHERE k = 'frd'; SELECT @fs = v FROM #F WHERE k = 'fs';
+    SELECT @cv = v FROM #F WHERE k = 'cv'; SELECT @ct = v FROM #F WHERE k = 'ct'; SELECT @co = v FROM #F WHERE k = 'co';
+    SET @formula = @fr;
+    SET @statements = CONCAT(N'[{"statementId":', @fs, N',"version":1,"basis":"STANDALONE"}]');
+    IF @Case = 8 SET @formula = NULL;
+    IF @Case = 9 SELECT @formula = @frd, @version = 2;
+    IF @Case = 10 SET @statements = NULL;
+    IF @Case = 11 SET @statements = CONCAT(N'[{"statementId":', @fs, N',"version":2,"basis":"STANDALONE"}]');
+    IF @Case = 12 SET @threshold = 1.1;
+    IF @Case = 13 SELECT @result = 'MISSING_DATA', @statements = N'[]';
+    SET @snapshot = CONCAT(N'{"formula":{"id":', ISNULL(@formula, @fr), N',"version":', @version, N'},"threshold":{"value":', @threshold,
+                           N',"operator":"GE"}', CASE WHEN @statements IS NOT NULL THEN CONCAT(N',"statements":', @statements) END, N'}');
+    IF @Case = 13   -- a temporary procedure's variables take tempdb's collation, so no text is compared here
+        UPDATE obl.CovenantTest SET State = 'EVALUATED', Result = 'MISSING_DATA', InputsSnapshot = @snapshot, FormulaId = @formula,
+                                    EvaluatedAt = SYSUTCDATETIME()
+        WHERE CovenantTestId = @ct;
+    ELSE
+        UPDATE obl.CovenantTest SET State = 'EVALUATED', Result = @result, ActualValue = 1.5, ThresholdApplied = @threshold, OperatorApplied = 'GE',
+                                    Headroom = 1.5 - @threshold, HeadroomPct = 25, InputsSnapshot = @snapshot, FormulaId = @formula,
+                                    EvaluatedAt = SYSUTCDATETIME()
+        WHERE CovenantTestId = @ct;
+    IF @Case IN (1, 2)
+    BEGIN
+        UPDATE obl.CovenantTest SET State = 'REVIEWED', ReviewNote = N'Checked against the audited statement', ReviewedBy = @u1, ReviewedOn = SYSUTCDATETIME()
+        WHERE CovenantTestId = @ct;
+        UPDATE obl.CovenantTest SET NextReviewOn = '2026-06-30' WHERE CovenantTestId = @ct;
+    END;
+    IF @Case = 2 UPDATE obl.CovenantTest SET ReviewNote = N'Changed later' WHERE CovenantTestId = @ct;
+    IF @Case = 3 UPDATE obl.CovenantTest SET Result = 'BREACH' WHERE CovenantTestId = @ct;
+    IF @Case = 4 UPDATE obl.CovenantTest SET InputsSnapshot = REPLACE(InputsSnapshot, N'"version":1,"basis"', N'"version":3,"basis"') WHERE CovenantTestId = @ct;
+    IF @Case = 5 DELETE obl.CovenantTest WHERE CovenantTestId = @ct;
+    IF @Case = 6 UPDATE obl.CovenantTest SET State = 'PENDING_DATA' WHERE CovenantTestId = @ct;
+    IF @Case = 7
+    BEGIN
+        INSERT obl.Covenant (TenantId, ObligationId, MeasureKind, FormulaId, FormulaResultUnit, FormulaUsesStatements, Operator, ThresholdState,
+                             ThresholdValue, ThresholdUnit, TestFrequency, StatementBasis, RequiredAssurance, TestedCompanyId, FirstTestPeriodEnd, ValidFrom)
+        VALUES (@t1, @ob, 'RATIO', @fr, 'RATIO', 1, 'GE', 'SET', 1.0, 'RATIO', 'ANNUAL', 'STANDALONE', 'AUDITED_ONLY', @co, '2026-12-31', '2026-01-01');
+        SET @cv2 = SCOPE_IDENTITY();
+        UPDATE obl.CovenantTest SET CovenantId = @cv2 WHERE CovenantTestId = @ct;
+    END;
+END;
+GO
+/* RF28 (DR-39, S2-b): an evaluated covenant test changes only by its review: once reviewed, only NextReviewOn changes
+   (50053 for the note, the result, the snapshot, a deletion, a return to PENDING_DATA and another covenant). An
+   automatic evaluation names a version of the covenant's formula that is not a draft, and its snapshot holds the
+   formula version, the covenant's threshold and every statement it read with its version and basis (50054); a
+   MISSING_DATA result may hold no statement. Each case has its own transaction. */
+DECLARE @r TABLE (CaseNo INT PRIMARY KEY, Err INT NOT NULL);
+DECLARE @i INT = 1, @e INT, @got NVARCHAR(400);
+WHILE @i <= 13
+BEGIN
+    BEGIN TRANSACTION;
+    EXEC #Cov;
+    BEGIN TRY EXEC #CovCase @i; SET @e = 0; END TRY
+    BEGIN CATCH SET @e = ERROR_NUMBER(); END CATCH;
+    WHILE @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
+    INSERT @r (CaseNo, Err) VALUES (@i, @e);
+    SET @i += 1;
+END;
+SET @got = (SELECT STRING_AGG(CONCAT(CaseNo, ':', Err), ' ') WITHIN GROUP (ORDER BY CaseNo) FROM @r);
+IF @got = '1:0 2:50053 3:50053 4:50053 5:50053 6:50053 7:50053 8:50054 9:50054 10:50054 11:50054 12:50054 13:0'
+    PRINT 'PASS RF28: an evaluated covenant test changes only by its review, and an automatic evaluation names its formula version and stores all it read';
+ELSE PRINT CONCAT('FAIL RF28: case:error ', @got, ' (expected 1:0 2-7:50053 8-12:50054 13:0)');
+GO
+/* RF29 (DR-39, S2-b): an agenda item that left SCHEDULED keeps its status, obligation and period and is not deleted
+   (50055); a submission's reference may be corrected, and a waived item may gain its evidence once. A scheduled item
+   moves its due date with a reason. */
+CREATE PROCEDURE #Agenda
+AS
+BEGIN
+    SET NOCOUNT ON;
+    DECLARE @t1 INT, @f BIGINT, @ot INT, @ob BIGINT, @ro BIGINT, @ri BIGINT, @rw BIGINT;
+    EXEC #S2;
+    SELECT @t1 = v FROM #F WHERE k = 't1'; SELECT @f = v FROM #F WHERE k = 'f';
+    ALTER TABLE obl.ReportingInstance NOCHECK CONSTRAINT FK_ReportingInstance_EvidenceDocumentId;
+    INSERT cat.ObligationType (TenantId, Code, NameAr, Family) VALUES (@t1, 'FS_AUDITED', N'FS', 'REPORTING');
+    SET @ot = SCOPE_IDENTITY();
+    INSERT obl.Obligation (TenantId, FacilityId, Family, ObligationTypeId, TitleAr, ValidFrom) VALUES (@t1, @f, 'REPORTING', @ot, N'Audited statements', '2026-01-01');
+    SET @ob = SCOPE_IDENTITY();
+    INSERT obl.ReportingObligation (TenantId, ObligationId, Frequency, AnchorKind, OffsetValue, Direction, DocumentBasis, ExpectsEvidence)
+    VALUES (@t1, @ob, 'ANNUAL', 'AFTER_FISCAL_YEAR_END', 120, 'WE_SUBMIT', 'AUDITED', 0);
+    SET @ro = SCOPE_IDENTITY();
+    INSERT obl.ReportingInstance (TenantId, ReportingObligationId, PeriodStart, PeriodEnd, DueDate) VALUES (@t1, @ro, '2025-01-01', '2025-12-31', '2026-04-30');
+    SET @ri = SCOPE_IDENTITY();
+    INSERT obl.ReportingInstance (TenantId, ReportingObligationId, PeriodStart, PeriodEnd, DueDate) VALUES (@t1, @ro, '2024-01-01', '2024-12-31', '2025-04-30');
+    SET @rw = SCOPE_IDENTITY();
+    UPDATE obl.ReportingInstance SET DueDate = '2026-05-15', DueDateOverrideReason = N'Extension letter' WHERE ReportingInstanceId = @ri;
+    UPDATE obl.ReportingInstance SET Status = 'SUBMITTED', SubmittedOn = '2026-05-10', SubmissionRef = N'REF-1' WHERE ReportingInstanceId = @ri;
+    UPDATE obl.ReportingInstance SET Status = 'WAIVED', StatusReason = N'Waived by the bank' WHERE ReportingInstanceId = @rw;
+    INSERT #F (k, v) VALUES ('ri', @ri), ('rw', @rw);
+END;
+GO
+CREATE PROCEDURE #AgendaCase @Case INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    DECLARE @ri BIGINT, @rw BIGINT;
+    SELECT @ri = v FROM #F WHERE k = 'ri'; SELECT @rw = v FROM #F WHERE k = 'rw';
+    IF @Case = 1
+    BEGIN
+        UPDATE obl.ReportingInstance SET SubmissionRef = N'REF-1A', SubmittedOn = '2026-05-11' WHERE ReportingInstanceId = @ri;
+        UPDATE obl.ReportingInstance SET EvidenceDocumentId = 1 WHERE ReportingInstanceId = @rw;
+    END;
+    IF @Case = 2 UPDATE obl.ReportingInstance SET Status = 'SCHEDULED', SubmittedOn = NULL, SubmissionRef = NULL WHERE ReportingInstanceId = @ri;
+    IF @Case = 3 UPDATE obl.ReportingInstance SET DueDate = '2026-06-30' WHERE ReportingInstanceId = @ri;
+    IF @Case = 4 DELETE obl.ReportingInstance WHERE ReportingInstanceId = @ri;
+    IF @Case = 5 UPDATE obl.ReportingInstance SET StatusReason = N'Another reason' WHERE ReportingInstanceId = @rw;
+    IF @Case = 6
+    BEGIN
+        UPDATE obl.ReportingInstance SET EvidenceDocumentId = 1 WHERE ReportingInstanceId = @rw;
+        UPDATE obl.ReportingInstance SET EvidenceDocumentId = 2 WHERE ReportingInstanceId = @rw;
+    END;
+END;
+GO
+DECLARE @r TABLE (CaseNo INT PRIMARY KEY, Err INT NOT NULL);
+DECLARE @i INT = 0, @e INT, @got NVARCHAR(400);
+WHILE @i <= 6
+BEGIN
+    BEGIN TRANSACTION;
+    BEGIN TRY EXEC #Agenda; IF @i > 0 EXEC #AgendaCase @i; SET @e = 0; END TRY
+    BEGIN CATCH SET @e = ERROR_NUMBER(); END CATCH;
+    WHILE @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
+    INSERT @r (CaseNo, Err) VALUES (@i, @e);
+    SET @i += 1;
+END;
+SET @got = (SELECT STRING_AGG(CONCAT(CaseNo, ':', Err), ' ') WITHIN GROUP (ORDER BY CaseNo) FROM @r);
+IF @got = '0:0 1:0 2:50055 3:50055 4:50055 5:50055 6:50055'
+    PRINT 'PASS RF29: an agenda item that left SCHEDULED keeps its status, obligation and period; only a submission''s details are corrected';
+ELSE PRINT CONCAT('FAIL RF29: case:error ', @got, ' (expected 0:0 1:0 2-6:50055)');
 GO

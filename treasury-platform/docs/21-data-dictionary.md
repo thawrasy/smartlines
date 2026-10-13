@@ -3955,7 +3955,7 @@
 
 **قيود:** `AnchorKind <> 'FIXED_DATE' OR (FixedDueDate IS NOT NULL AND OffsetValue IS NULL)` · `AnchorKind = 'FIXED_DATE' OR (FixedDueDate IS NULL AND OffsetValue IS NOT NULL)` · `OffsetValue IS NULL OR OffsetValue >= 0` · `HorizonMonths IS NULL OR HorizonMonths > 0` · `Frequency <> 'EVENT_BASED' OR AnchorKind IN ('BEFORE_EVENT','AFTER_EVENT')` · `AnchorKind NOT IN ('BEFORE_EVENT','AFTER_EVENT') OR Frequency = 'EVENT_BASED'` · `Frequency <> 'ON_DEMAND' OR AnchorKind = 'ON_DEMAND_REQUEST'` · `AnchorKind <> 'ON_DEMAND_REQUEST' OR Frequency = 'ON_DEMAND'` · `AlertLeadDays IS NULL OR AlertLeadDays NOT LIKE '%[^0-9,]%'` · `ToRevision IS NULL OR ToRevision >= FromRevision` · `(SupersedesId IS NULL AND InheritedRootId IS NULL) OR (SupersedesId IS NOT NULL AND InheritedRootId IS NOT NULL)`
 
-### `obl.ReportingInstance` — Agenda item generated or logged for an event (FR-OBL-003..005, BR-OBL-003, section 8); DUE_SOON and OVERDUE are derived
+### `obl.ReportingInstance` — Agenda item generated or logged for an event (FR-OBL-003..005, BR-OBL-003, section 8); DUE_SOON and OVERDUE are derived; a final status stays (044, DR-39)
 
 *مملوك للمشترك*
 
@@ -4050,7 +4050,7 @@
 
 **المفاتيح:** PK(TenantId, CovenantId, BankAccountId)
 
-### `obl.CovenantTest` — Covenant test for a period and test version; the application prevents editing a stored test (FR-OBL-011, FR-FIN-012/013, BR-OBL-006/007, section 8)
+### `obl.CovenantTest` — Covenant test for a period and test version; an evaluated test changes only by its review (044, DR-39) (FR-OBL-011, FR-FIN-012/013, BR-OBL-006/007, section 8)
 
 *مملوك للمشترك*
 
@@ -4071,8 +4071,8 @@
 | OperatorApplied | VARCHAR(10) | نعم |  |  | enum: GE, LE, GT, LT, EQ |
 | Headroom | DECIMAL(19,6) | نعم |  |  | a-t أو t-a (BR-OBL-007) |
 | HeadroomPct | DECIMAL(19,6) | نعم |  |  | قد يتجاوز 999.999999 عند عتبة صغيرة جدًا فلا rate |
-| InputsSnapshot | NVARCHAR(MAX) | نعم |  |  | لقطة المدخلات؛ إلزامية مع EVALUATED/REVIEWED ثابتة بعد الحفظ (BR-FIN-010) |
-| FormulaVersion | INT | نعم |  |  |  |
+| InputsSnapshot | NVARCHAR(MAX) | نعم |  |  | لقطة المدخلات؛ إلزامية مع EVALUATED/REVIEWED ثابتة بعد الحفظ، وكاملة للتقييم الآلي (BR-FIN-010، DR-39) |
+| FormulaId | BIGINT | نعم |  | fin.MeasureFormula | نسخة الصيغة المستعملة نفسها، لا رقمها (DR-39) |
 | EvaluatedAt | DATETIME2(3) | نعم |  |  |  |
 | EvaluatedBy | BIGINT | نعم |  | sec.AppUser | فارغ = المحرك الآلي |
 | EvidenceDocumentId | BIGINT | نعم |  | doc.Document |  |
@@ -4088,7 +4088,7 @@
 
 **المفاتيح:** PK(CovenantTestId) · UQ(PublicId) · UQ(TenantId, CovenantId, PeriodEnd, EvaluationNo)
 
-**قيود:** `EvaluationNo >= 1` · `PeriodEnd >= PeriodStart` · `DueDate >= PeriodEnd` · `State <> 'SCHEDULED' OR (Result IS NULL AND EvaluatedAt IS NULL)` · `State NOT IN ('EVALUATED','REVIEWED') OR (Result IS NOT NULL AND EvaluatedAt IS NOT NULL AND InputsSnapshot IS NOT NULL)` · `State <> 'REVIEWED' OR (ReviewedBy IS NOT NULL AND ReviewedOn IS NOT NULL)` · `Result NOT IN ('COMPLIANT','WARNING','BREACH') OR (ActualValue IS NOT NULL AND ThresholdApplied IS NOT NULL AND OperatorApplied IS NOT NULL)` · `Result <> 'NOT_ASSESSED_NO_THRESHOLD' OR ThresholdApplied IS NULL` · `ThresholdApplied IS NULL OR OperatorApplied IS NOT NULL` · `Headroom IS NULL OR (ActualValue IS NOT NULL AND ThresholdApplied IS NOT NULL)` · `HeadroomPct IS NULL OR Headroom IS NOT NULL` · `Result NOT IN ('MANUAL_COMPLIANT','MANUAL_NON_COMPLIANT','UNDER_REVIEW') OR Method = 'MANUAL_STATUS'` · `Method <> 'MANUAL_STATUS' OR Result IS NULL OR Result IN ('MANUAL_COMPLIANT','MANUAL_NON_COMPLIANT','UNDER_REVIEW')` · `FormulaVersion IS NULL OR FormulaVersion >= 1`
+**قيود:** `EvaluationNo >= 1` · `PeriodEnd >= PeriodStart` · `DueDate >= PeriodEnd` · `State <> 'SCHEDULED' OR (Result IS NULL AND EvaluatedAt IS NULL)` · `State NOT IN ('EVALUATED','REVIEWED') OR (Result IS NOT NULL AND EvaluatedAt IS NOT NULL AND InputsSnapshot IS NOT NULL)` · `State <> 'REVIEWED' OR (ReviewedBy IS NOT NULL AND ReviewedOn IS NOT NULL)` · `Result NOT IN ('COMPLIANT','WARNING','BREACH') OR (ActualValue IS NOT NULL AND ThresholdApplied IS NOT NULL AND OperatorApplied IS NOT NULL)` · `Result <> 'NOT_ASSESSED_NO_THRESHOLD' OR ThresholdApplied IS NULL` · `ThresholdApplied IS NULL OR OperatorApplied IS NOT NULL` · `Headroom IS NULL OR (ActualValue IS NOT NULL AND ThresholdApplied IS NOT NULL)` · `HeadroomPct IS NULL OR Headroom IS NOT NULL` · `Result NOT IN ('MANUAL_COMPLIANT','MANUAL_NON_COMPLIANT','UNDER_REVIEW') OR Method = 'MANUAL_STATUS'` · `Method <> 'MANUAL_STATUS' OR Result IS NULL OR Result IN ('MANUAL_COMPLIANT','MANUAL_NON_COMPLIANT','UNDER_REVIEW')`
 
 ### `obl.ObligationBreach` — Breach record, its remedy and any waiver (FR-OBL-012, BR-OBL-009/011, section 8)
 

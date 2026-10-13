@@ -510,6 +510,7 @@ ALTER TABLE [obl].[CovenantAccount] ADD CONSTRAINT [FK_CovenantAccount_CovenantI
 ALTER TABLE [obl].[CovenantAccount] ADD CONSTRAINT [FK_CovenantAccount_BankAccountId] FOREIGN KEY ([TenantId], [BankAccountId]) REFERENCES [acc].[BankAccount] ([TenantId], [BankAccountId]);
 ALTER TABLE [obl].[CovenantTest] ADD CONSTRAINT [FK_CovenantTest_Tenant] FOREIGN KEY ([TenantId]) REFERENCES [plat].[Tenant] ([TenantId]);
 ALTER TABLE [obl].[CovenantTest] ADD CONSTRAINT [FK_CovenantTest_CovenantId] FOREIGN KEY ([TenantId], [CovenantId]) REFERENCES [obl].[Covenant] ([TenantId], [CovenantId]);
+ALTER TABLE [obl].[CovenantTest] ADD CONSTRAINT [FK_CovenantTest_FormulaId] FOREIGN KEY ([TenantId], [FormulaId]) REFERENCES [fin].[MeasureFormula] ([TenantId], [MeasureFormulaId]);
 ALTER TABLE [obl].[CovenantTest] ADD CONSTRAINT [FK_CovenantTest_EvaluatedBy] FOREIGN KEY ([TenantId], [EvaluatedBy]) REFERENCES [sec].[AppUser] ([TenantId], [AppUserId]);
 ALTER TABLE [obl].[CovenantTest] ADD CONSTRAINT [FK_CovenantTest_EvidenceDocumentId] FOREIGN KEY ([TenantId], [EvidenceDocumentId]) REFERENCES [doc].[Document] ([TenantId], [DocumentId]);
 ALTER TABLE [obl].[CovenantTest] ADD CONSTRAINT [FK_CovenantTest_ReviewedBy] FOREIGN KEY ([TenantId], [ReviewedBy]) REFERENCES [sec].[AppUser] ([TenantId], [AppUserId]);

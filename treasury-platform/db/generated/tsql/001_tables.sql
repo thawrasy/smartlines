@@ -4301,7 +4301,7 @@ CREATE TABLE [obl].[ReportingObligation] (
     CONSTRAINT [CK_ReportingObligation_AlertLeadDays] CHECK ([AlertLeadDays] IS NULL OR LEN([AlertLeadDays]) + 1 = CASE WHEN CHARINDEX(',30,', (',' + [AlertLeadDays] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 3 ELSE 0 END + CASE WHEN CHARINDEX(',14,', (',' + [AlertLeadDays] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 3 ELSE 0 END + CASE WHEN CHARINDEX(',7,', (',' + [AlertLeadDays] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 2 ELSE 0 END + CASE WHEN CHARINDEX(',3,', (',' + [AlertLeadDays] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 2 ELSE 0 END + CASE WHEN CHARINDEX(',1,', (',' + [AlertLeadDays] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 2 ELSE 0 END)
 );
 GO
--- Agenda item generated or logged for an event (FR-OBL-003..005, BR-OBL-003, section 8); DUE_SOON and OVERDUE are derived
+-- Agenda item generated or logged for an event (FR-OBL-003..005, BR-OBL-003, section 8); DUE_SOON and OVERDUE are derived; a final status stays (044, DR-39)
 CREATE TABLE [obl].[ReportingInstance] (
     [TenantId] INT NOT NULL,
     [ReportingInstanceId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -4424,7 +4424,7 @@ CREATE TABLE [obl].[CovenantAccount] (
     CONSTRAINT [PK_CovenantAccount] PRIMARY KEY CLUSTERED ([TenantId], [CovenantId], [BankAccountId])
 );
 GO
--- Covenant test for a period and test version; the application prevents editing a stored test (FR-OBL-011, FR-FIN-012/013, BR-OBL-006/007, section 8)
+-- Covenant test for a period and test version; an evaluated test changes only by its review (044, DR-39) (FR-OBL-011, FR-FIN-012/013, BR-OBL-006/007, section 8)
 CREATE TABLE [obl].[CovenantTest] (
     [TenantId] INT NOT NULL,
     [CovenantTestId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -4442,7 +4442,7 @@ CREATE TABLE [obl].[CovenantTest] (
     [Headroom] DECIMAL(19,6) NULL,
     [HeadroomPct] DECIMAL(19,6) NULL,
     [InputsSnapshot] NVARCHAR(MAX) NULL,
-    [FormulaVersion] INT NULL,
+    [FormulaId] BIGINT NULL,
     [EvaluatedAt] DATETIME2(3) NULL,
     [EvaluatedBy] BIGINT NULL,
     [EvidenceDocumentId] BIGINT NULL,
@@ -4473,7 +4473,6 @@ CREATE TABLE [obl].[CovenantTest] (
     CONSTRAINT [CK_CovenantTest_11] CHECK (HeadroomPct IS NULL OR Headroom IS NOT NULL),
     CONSTRAINT [CK_CovenantTest_12] CHECK (Result NOT IN ('MANUAL_COMPLIANT','MANUAL_NON_COMPLIANT','UNDER_REVIEW') OR Method = 'MANUAL_STATUS'),
     CONSTRAINT [CK_CovenantTest_13] CHECK (Method <> 'MANUAL_STATUS' OR Result IS NULL OR Result IN ('MANUAL_COMPLIANT','MANUAL_NON_COMPLIANT','UNDER_REVIEW')),
-    CONSTRAINT [CK_CovenantTest_14] CHECK (FormulaVersion IS NULL OR FormulaVersion >= 1),
     CONSTRAINT [CK_CovenantTest_State] CHECK ([State] IS NULL OR [State] IN ('SCHEDULED', 'PENDING_DATA', 'EVALUATED', 'REVIEWED')),
     CONSTRAINT [CK_CovenantTest_Result] CHECK ([Result] IS NULL OR [Result] IN ('COMPLIANT', 'WARNING', 'BREACH', 'MISSING_DATA', 'NOT_ASSESSED_NO_THRESHOLD', 'NOT_COMPARABLE', 'MANUAL_COMPLIANT', 'MANUAL_NON_COMPLIANT', 'UNDER_REVIEW')),
     CONSTRAINT [CK_CovenantTest_Method] CHECK ([Method] IS NULL OR [Method] IN ('AUTO', 'MANUAL_VALUE', 'MANUAL_STATUS')),
