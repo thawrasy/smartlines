@@ -441,8 +441,13 @@
 
 ### 12.1 ترتيب النشر (`db/deploy.sql`، وضع SQLCMD)
 ```
-# Production (Ubuntu 24.04 LTS, ADR 0001) and CI: the wrapper changes to db/ and runs deploy.sql
-SQL_SERVER=<server> SQL_USER=<login> SQLCMDPASSWORD=<secret> tools/deploy/deploy.sh
+# Production (Ubuntu 24.04 LTS, ADR 0001) and CI (ADR 0010): an administrator prepares the database once and opens the
+# window; the deployment login (db_owner only) runs the wrapper, which changes to db/ and runs deploy.sql
+tools/deploy/prepare_database.sh prepare            # first time: empty BankFas, owner bankfas_owner, login bankfas_migrator
+tools/deploy/prepare_database.sh open
+SQL_SERVER=<server> SQL_USER=bankfas_migrator SQLCMDPASSWORD="$(cat <secret file>)" tools/deploy/deploy.sh
+tools/deploy/prepare_database.sh close
+tools/deploy/provision_logins.sh                    # the service logins (ADR 0009)
 # The same thing by hand: cd db && sqlcmd -S <server> -U <login> -I -b -i deploy.sql
 # Windows host (kept, not run yet): tools\deploy\deploy.ps1 -Server <server>
 ```
@@ -501,7 +506,7 @@ SQL_SERVER=<server> SQL_USER=<login> SQLCMDPASSWORD=<secret> tools/deploy/deploy
 | التحقق من الإصلاحات الحرجة (`check_review_fixes.py`) | **OK** — 24 من 24 | يفحص أن كل إصلاح من DR-01 إلى DR-10 موجود في DDL المولَّد، لا في الوثيقة وحدها |
 | تحليل T-SQL بـ `sqlglot` | الملفات `000–004`، `007`، `010`، `025`، `030`، `040`: **بلا أخطاء**؛ `005` و`006` و`020`: خطأ واحد لكل ملف عند عبارة `DENY` | المحلّل لا يدعم عبارة `DENY` بصيغتها الكاملة؛ الصيغة صحيحة في T-SQL. التحليل نحوي جزئي |
 | فحوص آلية لمحاذير SQL Server | لا `OR` في الفهارس المصفّاة · مفاتيح الفهارس ≤ 1,700 بايت و≤ 16 عمودًا · لا مسارات `CASCADE` متعددة · خيارات `SET` ضُمّنت | فحوص نصّية على المخرجات |
-| **التنفيذ على SQL Server 2025** | **OK** — نشر كامل لـ `db/deploy.sql` على قاعدة جديدة في كل تشغيل لـ `tools/ci/db_ci.sh` (صورة Ubuntu 24.04، ومرّ أيضًا على صورة RHEL؛ ADR 0001) ثم مطابقة الكائنات المنشورة مع DDL المولَّد | يثبت أن المحرك يقبل النص وترتيب النشر والمنح كما هي. صفحة الدعم الرسمية لـ Ubuntu 24.04 لم تُراجَع من بيئة العمل (O-23) |
+| **التنفيذ على SQL Server 2025** | **OK** — نشر كامل لـ `db/deploy.sql` على قاعدة جديدة في كل تشغيل لـ `tools/ci/db_ci.sh`، بحساب النشر `bankfas_migrator` وصلاحية `db_owner` وحدها كما في الإنتاج (ADR 0010) (صورة Ubuntu 24.04، ومرّ أيضًا على صورة RHEL؛ ADR 0001) ثم مطابقة الكائنات المنشورة مع DDL المولَّد | يثبت أن المحرك يقبل النص وترتيب النشر والمنح كما هي. صفحة الدعم الرسمية لـ Ubuntu 24.04 لم تُراجَع من بيئة العمل (O-23) |
 | **اختبارات السلوك** (RLS، ربط الهوية، الصلاحيات، التدفق المالي) | **جزئي** — `db/tests/tenant_isolation_tests.sql` 48 حالة (العزل، قراءة المنصة للتدقيق، ربط الاتصال، الدخول والقفل وMFA، حالة المشترك، حدود `tp_app`) و`db/tests/auth_flow_tests.sql` 20 حالة (حسابات المستخدمين وإعدادات المشترك، ADR 0003 و0004) و`db/tests/operator_support_tests.sql` 11 حالة و`db/tests/job_context_tests.sql` 7 حالات و`db/tests/tenant_onboarding_tests.sql` 5 حالات (ADR 0004) و`db/tests/numbering_tests.sql` 8 حالات مع فحص تزامن بستة اتصالات (`tools/ci/numbering_concurrency.sh`: 114 رقمًا من 1 إلى 114 بلا تكرار ولا فجوة بعد 36 تراجعًا، ADR 0005) و`db/tests/kyc_history_tests.sql` 4 حالات (الحذف المتتالي ونسخ ملفات الاكتمال، ADR 0006) و`db/tests/reference_data_tests.sql` 4 حالات (قراءة المشترك للقوائم العالمية ومواد UCP، ومنعه من كتابتها) و`db/tests/audit_trail_tests.sql` 7 حالات (صفوف التدقيق التي تكتبها القاعدة، ADR 0007) و`db/tests/data_export_tests.sql` 6 حالات (التصدير في المعلّق والمغلق، ADR 0008) و`tools/ci/service_logins_check.sh` 6 فحوص (حسابات الخدمة بأسرارها وصلاحياتها، ADR 0009) و`db/tests/fac_share_rule_tests.sql` 6 حالات، وكلها تمر في CI | لم تُكتب بعد: التدفق المالي (الحجز والاستغلال) خارج قاعدة الحصص |
 
 ---
