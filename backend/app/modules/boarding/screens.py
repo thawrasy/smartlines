@@ -92,7 +92,7 @@ async def activity(request: Request, day: Optional[date] = None, pr: Principal =
         start = datetime.combine(day, time.min, zone)
         checkins = await conn.fetch(
             """SELECT c.pass_no, c.status, c.created_at, c.document_checked, st.code AS station, op.legal_name AS operator,
-                      g.code AS counter, t.trip_no, k.ticket_no
+                      g.code AS counter, t.trip_no, t.trip_code, k.ticket_no
                  FROM brd.station_checkin c JOIN net.station st ON st.id = c.station_id JOIN iam.party op ON op.id = c.operator_company_id
                  JOIN ops.trip t ON t.id = c.trip_id JOIN sales.ticket k ON k.id = c.ticket_id
                  LEFT JOIN net.station_gate g ON g.id = c.counter_gate_id
@@ -100,7 +100,7 @@ async def activity(request: Request, day: Optional[date] = None, pr: Principal =
             pr.company_id, start, start + timedelta(days=1))
         sales_ = await conn.fetch(
             """SELECT b.booking_ref, b.status, s.total, s.currency, s.created_at, st.code AS station, op.legal_name AS operator,
-                      g.code AS counter, t.trip_no
+                      g.code AS counter, t.trip_no, t.trip_code
                  FROM brd.station_sale s JOIN sales.booking b ON b.id = s.booking_id JOIN net.station st ON st.id = s.station_id
                  JOIN iam.party op ON op.id = s.operator_company_id JOIN ops.trip t ON t.id = b.trip_id
                  LEFT JOIN net.station_gate g ON g.id = s.counter_gate_id

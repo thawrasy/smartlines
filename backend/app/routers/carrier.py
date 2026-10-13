@@ -54,7 +54,7 @@ async def dashboard(request: Request, pr: Principal = Depends(operator)):
                    FROM ops.trip t WHERE t.company_id = $1 AND t.status IN ('PUBLISHED','BOARDING','DEPARTED','COMPLETED')
                     AND t.departure_at > now() - interval '30 days') x""", pr.company_id)
         trips = await conn.fetch(
-            """SELECT t.uid, t.trip_no, t.status, t.departure_at, t.seats_total, v.plate_no,
+            """SELECT t.uid, t.trip_no, t.trip_code, t.status, t.departure_at, t.seats_total, v.plate_no,
                       so.name AS origin, sd.name AS destination, so.code AS origin_code, sd.code AS dest_code,
                       (SELECT count(*) FROM sales.ticket k WHERE k.trip_id = t.id AND k.status <> 'CANCELLED') AS sold
                  FROM ops.trip t JOIN net.route r ON r.id = t.route_id
@@ -261,13 +261,16 @@ class TripIn(BaseModel):
     publish: bool = True
     # pilgrimages (Umrah, Hajj) and tours can be paid through a financing company where one is contracted (1056)
     trip_type: Literal["SCHEDULED", "INTERNATIONAL", "EXTRA", "PILGRIMAGE", "TOURISM"] = "SCHEDULED"
+    # the trip number passengers read, "QD 214" (1114): one of the carrier's service numbers; omitted, the trip takes the
+    # number the route had at the same time on the nearest other day, or else a free number of the extra block
+    service_number: Optional[int] = Field(default=None, ge=1, le=9999)
 
 
 @router.get("/trips")
 async def trips(request: Request, pr: Principal = Depends(operator)):
     async with db.transaction(context_for(request, pr)) as conn:
         recs = await conn.fetch(
-            """SELECT t.uid, t.trip_no, t.status, t.departure_at, t.arrival_at, t.seats_total, t.segments_count,
+            """SELECT t.uid, t.trip_no, t.trip_code, t.status, t.departure_at, t.arrival_at, t.seats_total, t.segments_count,
                       v.plate_no, r.code AS route_code, so.name AS origin, sd.name AS destination, so.code AS origin_code, sd.code AS dest_code,
                       (SELECT count(*) FROM sales.ticket k WHERE k.trip_id = t.id AND k.status <> 'CANCELLED') AS sold,
                       (SELECT p.legal_name FROM ops.crew_assignment ca JOIN iam.party p ON p.id = ca.party_id
@@ -282,7 +285,7 @@ async def trips(request: Request, pr: Principal = Depends(operator)):
 
 async def _insert_trip(conn, pr: Principal, route, vehicle, dep: datetime, publish: bool,
                        driver_party: Optional[int] = None, template_id: Optional[int] = None,
-                       trip_type: str = "SCHEDULED") -> tuple[int, str]:
+                       trip_type: str = "SCHEDULED", service_number_id: Optional[int] = None) -> tuple[int, str]:
     """Writes one trip with its stops, seat segments and driver: the same trip whether made by hand or from a template."""
     stops = await conn.fetch("SELECT * FROM net.route_stop WHERE route_id = $1 ORDER BY seq", route["id"])
     code3 = await conn.fetchval("SELECT code3 FROM net.carrier_code WHERE company_id = $1 AND status = 'ACTIVE'",
@@ -296,13 +299,14 @@ async def _insert_trip(conn, pr: Principal, route, vehicle, dep: datetime, publi
     seat_map = await fleet.trip_seat_map(conn, vehicle["id"])
     trip_id = await conn.fetchval(
         """INSERT INTO ops.trip (trip_no, company_id, route_id, service_type, vehicle_id, departure_at, arrival_at,
-             status, seats_total, segments_count, currency, base_price, published_at, seat_map, template_id, trip_type)
+             status, seats_total, segments_count, currency, base_price, published_at, seat_map, template_id, trip_type,
+             service_number_id)
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NULL, $11, CASE WHEN $8 = 'PUBLISHED' THEN now() END,
-                   $12::jsonb, $13, $14)
+                   $12::jsonb, $13, $14, $15)
            RETURNING id""",
         trip_no, pr.company_id, route["id"], "INDIRECT" if n > 2 else "DIRECT", vehicle["id"], dep, arrival, status,
         vehicle["passenger_seats"], n - 1, stops[-1]["fare_from_origin"], json.dumps(seat_map) if seat_map else None,
-        template_id, trip_type)
+        template_id, trip_type, service_number_id)
     await conn.executemany(
         """INSERT INTO ops.trip_stop (trip_id, seq, station_id, kind, sched_arr, sched_dep, fare_from_origin, rest_min)
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)""",
@@ -341,10 +345,24 @@ async def create_trip(body: TripIn, request: Request, pr: Principal = Depends(op
                     WHERE p.uid = $1 AND cp.status = 'ACTIVE'""", body.driver_uid)
             if driver is None:
                 raise not_found("driver")
-        trip_id, trip_no = await _insert_trip(conn, pr, route, vehicle, dep, body.publish, driver, trip_type=body.trip_type)
-        uid = await conn.fetchval("SELECT uid FROM ops.trip WHERE id = $1", trip_id)
+        number_id = None
+        if body.service_number is not None:      # one of the carrier's service numbers on the day the trip runs (1114)
+            number_id = await conn.fetchval(
+                """SELECT id FROM net.service_number WHERE company_id = $1 AND number = $2
+                    AND valid @> (($3::timestamptz) AT TIME ZONE $4)::date""", pr.company_id, body.service_number, dep, str(zone))
+            if number_id is None:
+                raise ApiError(422, "SERVICE_NUMBER_UNKNOWN", "define the service number first, or leave it out")
+        try:
+            async with conn.transaction():
+                trip_id, trip_no = await _insert_trip(conn, pr, route, vehicle, dep, body.publish, driver, trip_type=body.trip_type,
+                                                      service_number_id=number_id)
+        except asyncpg.UniqueViolationError as exc:
+            if "trip_number_day_uq" not in str(exc):
+                raise
+            raise ApiError(409, "TRIP_NUMBER_TAKEN", "another trip runs under this number that day") from exc
+        made = await conn.fetchrow("SELECT uid, trip_code FROM ops.trip WHERE id = $1", trip_id)
     request.state.audit = {"action": "trip.create", "object_type": "trip", "object_id": trip_id}
-    return {"uid": str(uid), "trip_no": trip_no}
+    return {"uid": str(made["uid"]), "trip_no": trip_no, "trip_code": made["trip_code"]}
 
 
 class GenerateIn(BaseModel):
@@ -389,10 +407,13 @@ async def generate_trips(template_id: int, body: GenerateIn, request: Request, p
                 else:
                     try:                                  # a vehicle busy that day skips the day, not the whole range
                         async with conn.transaction():
-                            _, trip_no = await _insert_trip(conn, pr, route, vehicle, dep, body.publish, template_id=tpl["id"])
-                        created.append({"date": day.isoformat(), "trip_no": trip_no})
+                            made, trip_no = await _insert_trip(conn, pr, route, vehicle, dep, body.publish, template_id=tpl["id"])
+                        created.append({"date": day.isoformat(), "trip_no": trip_no,
+                                        "trip_code": await conn.fetchval("SELECT trip_code FROM ops.trip WHERE id = $1", made)})
                     except (asyncpg.RaiseError, asyncpg.UniqueViolationError) as e:
-                        skipped.append({"date": day.isoformat(), "reason": str(e).split(":")[0]})
+                        # a service number already used that day by another trip of the carrier (1114)
+                        reason = "TRIP_NUMBER_TAKEN" if "trip_number_day_uq" in str(e) else str(e).split(":")[0]
+                        skipped.append({"date": day.isoformat(), "reason": reason})
             day += timedelta(days=1)
     request.state.audit = {"action": "trip.generate", "object_type": "trip_template", "object_id": tpl["id"]}
     return {"created": created, "skipped": skipped}

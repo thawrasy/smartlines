@@ -223,6 +223,63 @@ carrier route uses them yet. Tests: the database suite (Check-in 1105) and `back
   follow the screen's language, and the departure board keeps the last board up with the time it was updated when the
   connection drops.
 
+## 8e. The owner's decisions after the design review (built in 1114 and 1115, October 2026)
+
+After the design review of the station screens ([STATION_SCREENS_REVIEW.md](../design/STATION_SCREENS_REVIEW.md)) the owner
+approved its two recommendations and added three requirements.
+
+**Bays are assigned by the station's administration.** The platform names a station's administration: a station
+operating company (`net.station_boarding.manager_company_id`, chosen in the platform's station settings; the database
+refuses any other kind of company, `NOT_STATION_OPERATOR`). The administration chooses how the station gives its bays:
+
+- *a permanent bay for each carrier* (`CARRIER`): every departure of the carrier boards at its bay
+  (`net.station_carrier_bay`), which the administration changes at any time;
+- *a bay for each trip* (`TRIP`, the default): the administration gives each departure its bay (`ops.trip_stop.gate_id`).
+
+A bay set on a trip comes first in either mode; cleared, the carrier's permanent bay applies again. The bay in force
+(`brd.stop_bay_id`) is what the counter's trips, the boarding pass and the departure board show. The administration works in
+the station portal (`/station/bays`; owner or the `station.bays` permission, role template `STATION_BAYS`), the platform in
+its boarding page where a station has no administration yet. Only an open bay, gate or platform of the station can be
+given (`BAY_UNKNOWN`), only for a departure not yet gone (`TRIP_NOT_OPEN`), and only by the administration or the platform
+(`NOT_STATION_ADMIN`); every change is in the activity log. Routes: `GET /api/station/bays`, `PUT /api/station/bays/mode`,
+`/carriers`, `/trips`, and the same under `/api/admin/boarding/stations/{uid}/bays`.
+
+**The departure board shows its languages in turn** (decision O2): Arabic and English every 10 seconds, keeping the layout
+of the first language. The platform sets them (`boarding.board.languages`: `["ar","en"]`, `["en","ar"]`, `["ar"]` or
+`["en"]`; `boarding.board.rotate_seconds`: 5 to 60). A cancelled trip turns red, without a line through it.
+
+**A company's logo next to its name**, as airports show it. The platform adds it when it defines the company (companies
+page, "Logo and code"). The specification, checked by the application (`app/company_logo.py`):
+
+| Rule | Value |
+| --- | --- |
+| File | PNG, JPEG or WebP, at most 1 MB |
+| Shape | as wide as it is high, up to four times as wide |
+| Size | at least 120 pixels high; 240 gives the sharpest board |
+| Kept as | a PNG re-encoded by the application, at most 240 pixels high (960 wide), without the file's metadata |
+| Shown | on a white tile next to the name: departure board, search results, booking |
+
+The logo is public like the name (`iam.company_logo`; `GET /api/public/companies/{uid}/logo?v=<version>`, cached for a
+year once versioned). A file that breaks a rule is refused with the rule (`LOGO_FORMAT`, `LOGO_TOO_SMALL`, `LOGO_SHAPE`,
+`LOGO_TOO_LARGE`).
+
+**The trip number passengers read is short**, as in aviation: the carrier's code for trip numbers and a service number,
+"DC 101", the same for the same departure every day. The long number stays the trip's reference. See
+[TRIP_NUMBERS.md](../design/TRIP_NUMBERS.md).
+
+**The driver boards a ticket by its number and booking reference** (decision O1): for a paper ticket printed before its
+code was ready, the driver types the ticket number and the booking reference, checks the passenger's identity document
+and boards, against the trip's manifest: online (`POST /api/driver/scan` with `ticket_no`, `booking_ref` and
+`identity_checked`), or offline from the trip's pack, which names each ticket by its number and a hash of number and
+reference, never the reference itself, and uploaded later (`POST /api/driver/scans/batch`). The boarding is recorded with
+the method `MANUAL`. A typed ticket without the identity check is refused (`IDENTITY_CHECK_REQUIRED`); a wrong number or
+reference finds nothing (`NOT_FOUND`). Note: a ticket number begins with its booking reference, so typing both adds little
+by itself; the safeguards are the manifest (the ticket must be for this trip and this stop, not boarded, not cancelled)
+and the identity document checked against the name the app shows.
+
+Tests: the database suite (Trip numbers 1114; Bays, logos and the board 1115), `backend/tests/test_station_decisions.py`,
+the mobile core tests (`decideTyped`), and the browser checks of `/station/bays`.
+
 ## 9. Build order
 
 1. **Done (1097).** Settings, each default off or empty: the platform switch, the two operating-company modes, the check-in

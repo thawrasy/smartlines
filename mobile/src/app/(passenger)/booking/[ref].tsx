@@ -12,7 +12,7 @@ import { useLoad } from "../../../ui/useLoad";
 interface Ticket { uid: string; ticket_no: string; seat_label: string | null; seat_no: number; status: string; ticket_name: string;
   from_station: string; to_station: string; departs_at: string }
 interface Detail {
-  booking: { booking_ref: string; status: string; total_amount: number; carrier_name: string; trip_no: string;
+  booking: { booking_ref: string; status: string; total_amount: number; carrier_name: string; trip_no: string; trip_code?: string | null;
              pay_option?: string | null; pay_by?: string | null };
   tickets: Ticket[];
 }
@@ -68,7 +68,7 @@ export default function Booking() {
 
   return (
     <Screen>
-      <Title sub={`${booking.carrier_name} · ${money(booking.total_amount)}`}>{t("extra.booked", { ref: booking.booking_ref })}</Title>
+      <Title sub={`${booking.carrier_name} · ${booking.trip_code ?? booking.trip_no} · ${money(booking.total_amount)}`}>{t("extra.booked", { ref: booking.booking_ref })}</Title>
       {notice ? <Notice tone="green" text={notice} /> : null}
       <ErrorText error={error} />
       {booking.status === "EXPIRED" ? <Notice tone="amber" text={t("opt.expired")} /> : null}

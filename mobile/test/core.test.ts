@@ -3,7 +3,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as ed from "@noble/ed25519";
 import { verifyCredential } from "../src/core/ticketCredential.ts";
-import { clockIsOff, clockOffset, decide, reconcile, serverNow, type OfflinePack, type LocalScan } from "../src/core/offlineBoarding.ts";
+import { createHash } from "node:crypto";
+import { clockIsOff, clockOffset, decide, decideTyped, reconcile, refKey, serverNow, type OfflinePack, type LocalScan } from "../src/core/offlineBoarding.ts";
 import { SessionManager, type Tokens } from "../src/core/session.ts";
 import { OFFLINE_SHOW_SECONDS, isFresh } from "../src/core/credentialFreshness.ts";
 
@@ -114,3 +115,20 @@ test("a saved ticket is fresh for 72 hours after its last check, and not after",
   assert.equal(isFresh(checked, checked - 60), true);           // a little clock skew is allowed
   assert.equal(isFresh(checked, checked - 3600), false);         // a clock set back an hour is not
 });
+
+test("a ticket typed in is matched against the pack by its number and a hash of number and reference", () => {
+  const hash = (no: string, ref: string) => createHash("sha256").update(refKey(no, ref)).digest("hex");
+  assert.equal(refKey(" ab12cd-011 ", "ab12cd"), "AB12CD-011:AB12CD");
+  const pack: OfflinePack = { trip_uid: "trip-1", trip_no: "X", generated_at: "2026-10-13T10:00:00Z", public_key: "k", tickets: [
+    { uid: "t1", status: "ISSUED", seat_no: 4, name: "Rami H.", from_seq: 0, to_seq: 2, ticket_no: "AB12CD-011", ref_hash: hash("AB12CD-011", "AB12CD") },
+    { uid: "t2", status: "CANCELLED", seat_no: 5, name: "Sara K.", from_seq: 0, to_seq: 2, ticket_no: "AB12CD-022", ref_hash: hash("AB12CD-022", "AB12CD") },
+  ] };
+  const ok = decideTyped(pack, "ab12cd-011", hash("ab12cd-011", "ab12cd"), []);
+  assert.equal(ok.result, "OK"); assert.equal(ok.seat, "4"); assert.equal(ok.name, "Rami H.");
+  assert.equal(decideTyped(pack, "AB12CD-011", hash("AB12CD-011", "WRONG1"), []).result, "NOT_FOUND");   // a wrong reference
+  assert.equal(decideTyped(pack, "ZZ99ZZ-011", hash("ZZ99ZZ-011", "AB12CD"), []).result, "NOT_FOUND");
+  assert.equal(decideTyped(pack, "AB12CD-022", hash("AB12CD-022", "AB12CD"), []).result, "CANCELLED");
+  const history: LocalScan[] = [{ scan_id: "s1", token: "", ticket_uid: "t1", result: "OK", scanned_at: "2026-10-13T10:05:00Z", synced: false }];
+  assert.equal(decideTyped(pack, "AB12CD-011", hash("AB12CD-011", "AB12CD"), history).result, "DUPLICATE");
+});
+

@@ -278,7 +278,7 @@ async def create_booking(conn: asyncpg.Connection, ctx: db.Context, buyer: Buyer
         return {"booking_ref": existing, "replayed": True}
 
     trip = await conn.fetchrow(
-        "SELECT id, company_id, currency, trip_no, route_id FROM ops.trip WHERE uid = $1 AND status IN ('PUBLISHED','BOARDING')",
+        "SELECT id, company_id, currency, trip_no, trip_code, route_id FROM ops.trip WHERE uid = $1 AND status IN ('PUBLISHED','BOARDING')",
         body.trip_uid)
     if trip is None:
         raise not_found("trip")
@@ -428,7 +428,7 @@ async def create_booking(conn: asyncpg.Connection, ctx: db.Context, buyer: Buyer
 
         if reserve:
             await emit(conn, "booking.reserved", "booking", booking_id, {
-                "booking_ref": ref, "trip_no": trip["trip_no"], **await _journey(conn, trip["id"], body.from_seq, body.to_seq),
+                "booking_ref": ref, "trip_no": trip["trip_no"], "trip_code": trip["trip_code"], **await _journey(conn, trip["id"], body.from_seq, body.to_seq),
                 "passengers": len(people), "total_amount": total, "pay_option": option,
                 "pay_by_local": await _local(conn, pay_by, trip["company_id"]), "booker_user_id": buyer.user_id},
                 company_id=trip["company_id"])
@@ -463,7 +463,7 @@ async def _settle(conn: asyncpg.Connection, booking_id: int, wallet, user_id: in
     """
     b = await conn.fetchrow(
         """SELECT b.id, b.booking_ref, b.trip_id, b.company_id, b.currency, b.total_amount, b.price_breakdown, b.agency_id,
-                  b.booker_user_id, b.contact_mobile, b.pay_option, t.trip_no,
+                  b.booker_user_id, b.contact_mobile, b.pay_option, t.trip_no, t.trip_code,
                   (SELECT min(k.from_seq) FROM sales.ticket k WHERE k.booking_id = b.id) AS from_seq,
                   (SELECT max(k.to_seq) FROM sales.ticket k WHERE k.booking_id = b.id) AS to_seq,
                   (SELECT count(*) FROM sales.ticket k WHERE k.booking_id = b.id) AS passengers
@@ -500,7 +500,7 @@ async def _settle(conn: asyncpg.Connection, booking_id: int, wallet, user_id: in
     await conn.execute("UPDATE sales.booking SET status = 'CONFIRMED', confirmed_at = now() WHERE id = $1", booking_id)
     counter = b["pay_option"] == "CASH_COUNTER"
     await emit(conn, "booking.confirmed", "booking", booking_id, {
-        "booking_ref": b["booking_ref"], "trip_no": b["trip_no"], **await _journey(conn, b["trip_id"], b["from_seq"], b["to_seq"]),
+        "booking_ref": b["booking_ref"], "trip_no": b["trip_no"], "trip_code": b["trip_code"], **await _journey(conn, b["trip_id"], b["from_seq"], b["to_seq"]),
         "passengers": b["passengers"], "total_amount": total, "booker_user_id": b["booker_user_id"], "agency_id": b["agency_id"],
         "counter": counter or None, "contact_mobile": b["contact_mobile"], "pay_option": b["pay_option"]}, company_id=b["company_id"])
     return pay_txn
@@ -611,7 +611,7 @@ async def cancel_trip(conn: asyncpg.Connection, ctx: db.Context, trip_id: int, u
             penalized.append({"booking_id": b["id"], "fares": int(fares["fares"]), "tickets": fares["n"],
                               "wallet_id": paid["wallet_id"] if paid else None})
             await emit(conn, "booking.cancelled_by_carrier", "booking", b["id"], {
-                "booking_ref": b["booking_ref"], "trip_no": t["trip_no"], "refund_amount": amount,
+                "booking_ref": b["booking_ref"], "trip_no": t["trip_no"], "trip_code": t["trip_code"], "refund_amount": amount,
                 "refund_to": _REFUND_TO.get(paid["wallet_type"] if paid else "", "WALLET"), "booker_user_id": b["booker_user_id"],
                 "agency_id": b["agency_id"], "counter": b["pay_option"] == "CASH_COUNTER" or None,
                 "contact_mobile": b["contact_mobile"]}, company_id=b["company_id"])
@@ -679,7 +679,7 @@ async def offline_credential(conn: asyncpg.Connection, ctx: db.Context, ticket_u
     from ...security import ticket_credential
     async with db.system_scope(conn, ctx):
         k = await conn.fetchrow(
-            """SELECT k.uid, k.status, k.seat_no, k.from_seq, k.to_seq, t.uid AS trip_uid, t.arrival_at, t.trip_no,
+            """SELECT k.uid, k.status, k.seat_no, k.from_seq, k.to_seq, t.uid AS trip_uid, t.arrival_at, t.trip_no, t.trip_code,
                       t.departure_at, p.first_name, p.last_name, p.full_name,
                       (SELECT s ->> 'label' FROM jsonb_array_elements(t.seat_map -> 'seats') s
                         WHERE (s ->> 'n')::int = k.seat_no) AS seat_label
@@ -693,7 +693,7 @@ async def offline_credential(conn: asyncpg.Connection, ctx: db.Context, ticket_u
     token = ticket_credential({"k": str(k["uid"]), "t": str(k["trip_uid"]), "s": k["seat_label"] or str(k["seat_no"]),
                                "n": ticket_name(k["first_name"], k["last_name"], k["full_name"]),
                                "a": k["from_seq"], "b": k["to_seq"], "x": expires})
-    return {"credential": token, "valid_until": expires, "trip_no": k["trip_no"]}
+    return {"credential": token, "valid_until": expires, "trip_no": k["trip_no"], "trip_code": k["trip_code"]}
 
 
 async def cancel_booking(conn: asyncpg.Connection, ctx: db.Context, b: asyncpg.Record, buyer: Buyer,

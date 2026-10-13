@@ -1,4 +1,9 @@
-"""Driver app: assigned trips, boarding scan, stop arrival/departure, location reports, SOS and incidents."""
+"""Driver app: assigned trips, boarding scan, stop arrival/departure, location reports, SOS and incidents.
+
+A passenger whose ticket carries no code yet (a paper ticket printed long before departure, owner's decision O1 of the
+station screens review, October 2026) is boarded by the ticket number and booking reference typed in, against the trip's
+manifest, once the driver has checked the passenger's identity document: online here, offline in the app from its pack."""
+import hashlib
 import json
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -32,7 +37,7 @@ async def _assigned_trip(conn, pr: Principal, trip_uid: uuid.UUID):
 async def my_trips(request: Request, pr: Principal = Depends(driver)):
     async with db.transaction(context_for(request, pr)) as conn:
         trips = await conn.fetch(
-            """SELECT t.id, t.uid, t.trip_no, t.status, t.departure_at, t.arrival_at, t.seats_total, v.plate_no,
+            """SELECT t.id, t.uid, t.trip_no, t.trip_code, t.status, t.departure_at, t.arrival_at, t.seats_total, v.plate_no,
                       (SELECT count(*) FROM sales.ticket k WHERE k.trip_id = t.id AND k.status <> 'CANCELLED') AS booked,
                       (SELECT count(*) FROM sales.ticket k WHERE k.trip_id = t.id AND k.status = 'BOARDED') AS boarded
                  FROM ops.trip t JOIN ops.crew_assignment ca ON ca.trip_id = t.id
@@ -52,11 +57,36 @@ async def my_trips(request: Request, pr: Principal = Depends(driver)):
                       for t in trips]}
 
 
-class ScanIn(BaseModel):
+class Typed(BaseModel):
+    """A ticket's code scanned, or its number and booking reference typed in with the identity document checked (O1)."""
+    token: Optional[str] = Field(default=None, min_length=10, max_length=600)
+    ticket_no: Optional[str] = Field(default=None, min_length=3, max_length=40)
+    booking_ref: Optional[str] = Field(default=None, min_length=4, max_length=12)
+    identity_checked: bool = False
+
+    def typed(self) -> bool:
+        if self.token:
+            return False
+        if not (self.ticket_no and self.booking_ref):
+            raise ApiError(422, "TICKET_NOT_VALID", "scan the ticket's code, or type its number with the booking reference")
+        if not self.identity_checked:
+            raise ApiError(422, "IDENTITY_CHECK_REQUIRED", "a typed ticket is boarded once the identity document is checked")
+        return True
+
+
+class ScanIn(Typed):
     trip_uid: uuid.UUID
-    token: str = Field(min_length=10, max_length=600)
     # the stop of the trip where the passenger boards; omitted: the first stop of their ticket (R-10)
     stop_seq: Optional[int] = Field(default=None, ge=0)
+
+
+def ref_hash(ticket_no: str, booking_ref: str) -> str:
+    """What the offline pack keeps to match a typed ticket: neither the booking reference nor anything that opens it."""
+    return hashlib.sha256(f"{ticket_no.strip().upper()}:{booking_ref.strip().upper()}".encode()).hexdigest()
+
+
+async def _typed_ticket(conn, ticket_no: str, booking_ref: str) -> Optional[str]:
+    return await conn.fetchval("SELECT brd.ticket_uid($1, $2)::text", ticket_no, booking_ref)
 
 
 def _ticket_from_token(token: str, trip_uid: uuid.UUID, at: Optional[datetime] = None) -> tuple[Optional[str], Optional[str]]:
@@ -127,13 +157,19 @@ async def _board(conn, ctx: db.Context, pr: Principal, t, ticket_uid: Optional[s
 
 @router.post("/scan")
 async def scan(body: ScanIn, request: Request, pr: Principal = Depends(driver)):
-    ticket_uid, early = _ticket_from_token(body.token, body.trip_uid)
+    typed = body.typed()
+    ticket_uid, early = (None, None) if typed else _ticket_from_token(body.token, body.trip_uid)
     ctx = context_for(request, pr)
     async with db.transaction(ctx) as conn:
         t = await _assigned_trip(conn, pr, body.trip_uid)
-        out = await _board(conn, ctx, pr, t, ticket_uid, early, body.stop_seq)
+        if typed:
+            ticket_uid = await _typed_ticket(conn, body.ticket_no, body.booking_ref)
+            if ticket_uid is None:
+                return {"result": "NOT_FOUND"}
+        out = await _board(conn, ctx, pr, t, ticket_uid, early, body.stop_seq, "MANUAL" if typed else "AGENT_SCAN")
     if "ticket_id" in out:
-        request.state.audit = {"action": "boarding.scan", "object_type": "ticket", "object_id": out.pop("ticket_id")}
+        request.state.audit = {"action": "boarding.typed" if typed else "boarding.scan", "object_type": "ticket",
+                               "object_id": out.pop("ticket_id")}
     return out
 
 
@@ -162,19 +198,22 @@ async def offline_pack(trip_uid: uuid.UUID, request: Request, pr: Principal = De
                  downloads = ops.offline_pack_download.downloads + 1""", t["id"], pr.user_id, t["company_id"])
         async with db.system_scope(conn, context_for(request, pr)):
             tickets = await conn.fetch(
-                """SELECT k.uid, k.status, k.seat_no, k.from_seq, k.to_seq, p.first_name, p.last_name, p.full_name
-                     FROM sales.ticket k JOIN sales.passenger p ON p.id = k.passenger_id
+                """SELECT k.uid, k.ticket_no, b.booking_ref, k.status, k.seat_no, k.from_seq, k.to_seq, p.first_name, p.last_name,
+                          p.full_name
+                     FROM sales.ticket k JOIN sales.passenger p ON p.id = k.passenger_id JOIN sales.booking b ON b.id = k.booking_id
                     WHERE k.trip_id = $1 AND k.status IN ('ISSUED','BOARDED','CANCELLED') ORDER BY k.seat_no""", t["id"])
-    return {"trip_uid": str(trip_uid), "trip_no": t["trip_no"], "generated_at": datetime.now(timezone.utc).isoformat(),
-            "public_key": ticket_public_key(),
-            "tickets": [{"uid": str(k["uid"]), "status": k["status"], "seat_no": k["seat_no"], "from_seq": k["from_seq"],
+    # a typed ticket is matched by its number and a hash of number and booking reference (O1): the pack never holds the
+    # booking reference itself
+    return {"trip_uid": str(trip_uid), "trip_no": t["trip_no"], "trip_code": t["trip_code"],
+            "generated_at": datetime.now(timezone.utc).isoformat(), "public_key": ticket_public_key(),
+            "tickets": [{"uid": str(k["uid"]), "ticket_no": k["ticket_no"], "ref_hash": ref_hash(k["ticket_no"], k["booking_ref"]),
+                         "status": k["status"], "seat_no": k["seat_no"], "from_seq": k["from_seq"],
                          "to_seq": k["to_seq"], "name": ticket_name(k["first_name"], k["last_name"], k["full_name"])}
                         for k in tickets]}
 
 
-class OfflineScan(BaseModel):
+class OfflineScan(Typed):
     scan_id: str = Field(min_length=8, max_length=64, pattern=r"^[A-Za-z0-9_-]+$")   # generated on the device
-    token: str = Field(min_length=10, max_length=600)
     scanned_at: datetime
     stop_seq: Optional[int] = Field(default=None, ge=0)
 
@@ -203,8 +242,15 @@ async def scans_batch(body: BatchIn, request: Request, pr: Principal = Depends(d
             # downloaded the trip's pack (R-09): the upload time is used instead.
             if when < t["departure_at"] - timedelta(hours=SCAN_LEAD_HOURS) or (pack_at and when < pack_at):
                 when = now
-            ticket_uid, early = _ticket_from_token(sc.token, body.trip_uid, when)
-            out = await _board(conn, ctx, pr, t, ticket_uid, early, sc.stop_seq, "OFFLINE_SCAN", sc.scan_id, when)
+            if sc.typed():                       # typed in offline, the identity document checked (O1)
+                ticket_uid, early = await _typed_ticket(conn, sc.ticket_no, sc.booking_ref), None
+                if ticket_uid is None:
+                    results.append({"scan_id": sc.scan_id, "result": "NOT_FOUND"})
+                    continue
+                out = await _board(conn, ctx, pr, t, ticket_uid, None, sc.stop_seq, "MANUAL", sc.scan_id, when)
+            else:
+                ticket_uid, early = _ticket_from_token(sc.token, body.trip_uid, when)
+                out = await _board(conn, ctx, pr, t, ticket_uid, early, sc.stop_seq, "OFFLINE_SCAN", sc.scan_id, when)
             out.pop("ticket_id", None)
             results.append({"scan_id": sc.scan_id, **out})
     request.state.audit = {"action": "boarding.offline_batch", "object_type": "trip", "object_id": t["id"]}

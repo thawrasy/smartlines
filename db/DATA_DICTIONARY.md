@@ -2,16 +2,16 @@
 
 > Generated from the built database (`db/tools/gen_docs.py`); do not edit by hand.
 
-**522 tables, 5392 columns, in 26 schemas.**
+**524 tables, 5410 columns, in 26 schemas.**
 
 Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant isolation (RLS) · 🧩 partitioned monthly · 🔒 append-only / change-protected
 
 ## Index
 
-- [`iam` — Identity, parties, users, permissions and API clients](#iam) (40 tables)
+- [`iam` — Identity, parties, users, permissions and API clients](#iam) (41 tables)
 - [`ref` — Reference data, locales and files](#ref) (14 tables)
 - [`sys` — Settings, outbox and webhooks](#sys) (27 tables)
-- [`net` — Network: stations, routes, lines, corridors and geofences](#net) (25 tables)
+- [`net` — Network: stations, routes, lines, corridors and geofences](#net) (26 tables)
 - [`fleet` — Fleet: vehicles, trucks, trailers, seats, crew, licenses and insurance](#fleet) (22 tables)
 - [`pricing` — Pricing, taxes, commissions, campaigns and loyalty](#pricing) (38 tables)
 - [`ops` — Trips, inventory, operations, shuttle rides, tracking and incidents](#ops) (36 tables)
@@ -204,6 +204,21 @@ Carrier company (tenant): 1:1 profile with party; all company data is isolated b
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 | `updated_at` | `timestamp with time zone` | ✱ | `now()` |
 | `payout_bank_account_id` | `bigint` | 🔗 `iam.bank_account`  |  |
+
+### `iam.company_logo` 🛡️
+
+A company's logo, set by the platform when it defines the company: a PNG the application re-encodes to its specification, public like the name (1115)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `company_id` | `bigint` | 🔑 🔗 `iam.company` ✱ |  |
+| `image` | `bytea` | ✱ |  |
+| `mime_type` | `text` | ✱ | `'image/png'::text` |
+| `width` | `integer` | ✱ |  |
+| `height` | `integer` | ✱ |  |
+| `sha256` | `bytea` | ✱ |  |
+| `uploaded_by` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `uploaded_at` | `timestamp with time zone` | ✱ | `now()` |
 
 ### `iam.company_member` 🛡️
 
@@ -1712,6 +1727,20 @@ Boarding switch, counter system, screens and check-in window of one station (109
 | `checkin_opens_minutes` | `integer` |  |  |
 | `checkin_closes_minutes` | `integer` |  |  |
 | `updated_by_user_id` | `bigint` | 🔗 `iam.app_user`  |  |
+| `updated_at` | `timestamp with time zone` | ✱ | `now()` |
+| `manager_company_id` | `bigint` | 🔗 `iam.company`  |  |
+| `bay_mode` | `text` | ✱ | `'TRIP'::text` |
+
+### `net.station_carrier_bay` 🛡️
+
+The permanent bay of a carrier at a station, set and changed by the station's administration (1115); public like the bays
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `station_id` | `bigint` | 🔑 🔗 `net.station` ✱ |  |
+| `carrier_company_id` | `bigint` | 🔑 🔗 `iam.company` ✱ |  |
+| `gate_id` | `bigint` | 🔗 `net.station_gate` ✱ |  |
+| `set_by_user_id` | `bigint` | 🔗 `iam.app_user`  |  |
 | `updated_at` | `timestamp with time zone` | ✱ | `now()` |
 
 ### `net.station_contact` 🛡️
@@ -3302,6 +3331,9 @@ Actual trip (the pivotal entity) with its number, vehicle, capacity, snapshots a
 | `timetable_slot` | `time without time zone` |  |  |
 | `fare_regime` | `text` |  |  |
 | `compliance_source` | `text` | ✱ | `'NONE'::text` |
+| `service_date` | `date` | ✱ |  |
+| `service_no` | `integer` |  |  |
+| `trip_code` | `text` |  |  |
 
 ### `ops.trip_cancel_penalty` 🛡️
 

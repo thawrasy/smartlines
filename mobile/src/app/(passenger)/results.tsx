@@ -6,7 +6,7 @@ import { Button, Card, Chip, ErrorText, Loading, Screen, Title, s } from "../../
 import { useLoad } from "../../ui/useLoad";
 
 interface Result {
-  uid: string; trip_no: string; carrier_name: string; departs_at: string; arrives_at: string; from_station: string; to_station: string;
+  uid: string; trip_no: string; trip_code?: string | null; carrier_name: string; departs_at: string; arrives_at: string; from_station: string; to_station: string;
   from_seq: number; to_seq: number; price: number; seats_left: number; stops_between: number; bookable: boolean;
 }
 
@@ -34,6 +34,7 @@ export default function Results() {
             <Text style={s.muted}>{x.from_station} → {x.to_station}</Text>
             <View style={s.row}>
               <Chip label={x.carrier_name} />
+              <Chip tone="blue" label={x.trip_code ?? x.trip_no} />
               <Chip tone={x.stops_between ? "neutral" : "green"} label={x.stops_between ? t("extra.stops", { n: x.stops_between }) : t("extra.direct")} />
               <Chip tone={x.seats_left < 6 ? "amber" : "blue"} label={t("search.seatsLeft", { n: x.seats_left })} />
             </View>

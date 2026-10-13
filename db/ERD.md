@@ -87,7 +87,7 @@ flowchart LR
   iam -->|1| ops
   iam -->|5| ref
   iam -->|1| sec
-  net -->|15| iam
+  net -->|18| iam
   net -->|3| ref
   ops -->|2| fin
   ops -->|10| fleet
@@ -214,6 +214,10 @@ erDiagram
     bigint id PK
     bigint approved_by FK
     bigint payout_bank_account_id FK
+  }
+  iam_company_logo {
+    bigint company_id PK
+    bigint uploaded_by FK
   }
   iam_company_member {
     bigint user_id PK
@@ -522,6 +526,7 @@ erDiagram
   iam_family_member }o..o| iam_app_user : "linked_user_id"
   iam_company }o..o| iam_bank_account : "payout_bank_account_id"
   iam_beneficial_owner }o--|| iam_company : "company_id"
+  iam_company_logo }o--|| iam_company : "company_id"
   iam_company_member }o--|| iam_company : "company_id"
   iam_user_station_scope }o--|| iam_company : "company_id"
   iam_role }o..o| iam_company : "company_id"
@@ -908,6 +913,13 @@ erDiagram
   net_station_boarding {
     bigint station_id PK
     bigint updated_by_user_id FK
+    bigint manager_company_id FK
+  }
+  net_station_carrier_bay {
+    bigint station_id PK
+    bigint carrier_company_id PK
+    bigint gate_id FK
+    bigint set_by_user_id FK
   }
   net_station_contact {
     bigint id PK
@@ -954,12 +966,14 @@ erDiagram
     ref external
   }
   net_line_version_approval }o--|| iam_app_user : "user_id"
+  net_station_carrier_bay }o..o| iam_app_user : "set_by_user_id"
   net_station_boarding }o..o| iam_app_user : "updated_by_user_id"
   net_station_operator_grant }o..o| iam_app_user : "granted_by_user_id"
   net_station_operator_grant }o..o| iam_app_user : "revoked_by_user_id"
   net_operation_reference }o..o| iam_app_user : "created_by_user_id"
   net_carrier_code }o--|| iam_company : "company_id"
   net_service_number }o--|| iam_company : "company_id"
+  net_station_carrier_bay }o--|| iam_company : "carrier_company_id"
   net_route }o--|| iam_company : "company_id"
   net_line_permit }o--|| iam_company : "company_id"
   net_timetable_template }o--|| iam_company : "company_id"
@@ -968,6 +982,7 @@ erDiagram
   net_station_operator_grant }o--|| iam_company : "operator_company_id"
   net_station_gate }o..o| iam_company : "operator_company_id"
   net_station }o..o| iam_company : "owner_company_id"
+  net_station_boarding }o..o| iam_company : "manager_company_id"
   net_station }o..o| net_compliance_profile : "compliance_profile_id"
   net_approved_rest_stop }o--|| net_corridor : "corridor_id"
   net_line_version }o--|| net_line : "line_id"
@@ -982,6 +997,7 @@ erDiagram
   net_route_stop }o--|| net_route : "route_id"
   net_service_number }o..o| net_route : "route_id"
   net_station_boarding }o--|| net_station : "station_id"
+  net_station_carrier_bay }o--|| net_station : "station_id"
   net_station_contact }o--|| net_station : "station_id"
   net_approved_rest_stop }o--|| net_station : "station_id"
   net_station_gate }o--|| net_station : "station_id"
@@ -995,6 +1011,7 @@ erDiagram
   net_station_operator_grant }o..o| net_station : "station_id"
   net_route }o--|| net_station : "dest_station_id"
   net_station_display }o..o| net_station_gate : "gate_id"
+  net_station_carrier_bay }o--|| net_station_gate : "gate_id"
   net_station }o--|| ref_city : "city_id"
   net_line }o..o| ref_city : "city_id"
   net_station }o--|| ref_station_subtype : "subtype"

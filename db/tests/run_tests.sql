@@ -3205,4 +3205,98 @@ SELECT pg_temp.ok(brd.station_board(gen_random_uuid()) IS NULL, 'Departure board
 ROLLBACK;
 SET ROLE masslak_app;
 
+-- Trip numbers (1114): the short number passengers read, the same for a departure every day, never twice in a carrier's day
+BEGIN;
+RESET ROLE;
+SELECT sys.set_context(:uadmin, NULL, 'SYSTEM');
+SELECT pg_temp.ok(NOT EXISTS (SELECT 1 FROM ops.trip WHERE service_date IS NULL),
+  'Trip numbers (1114): every trip has its service date');
+INSERT INTO ops.trip (trip_no, company_id, route_id, departure_at, arrival_at, status, seats_total, segments_count, currency, base_price)
+VALUES ('TN-A/01JAN30', :ca, :route, '2030-01-01 06:10+02', '2030-01-01 09:00+02', 'DRAFT', 40, 1, 'SYP', 1)
+RETURNING service_no AS tn1 \gset
+INSERT INTO ops.trip (trip_no, company_id, route_id, departure_at, arrival_at, status, seats_total, segments_count, currency, base_price)
+VALUES ('TN-A/02JAN30', :ca, :route, '2030-01-02 06:10+02', '2030-01-02 09:00+02', 'DRAFT', 40, 1, 'SYP', 1)
+RETURNING service_no AS tn2 \gset
+INSERT INTO ops.trip (trip_no, company_id, route_id, departure_at, arrival_at, status, seats_total, segments_count, currency, base_price)
+VALUES ('TN-B/01JAN30', :ca, :route, '2030-01-01 08:10+02', '2030-01-01 11:00+02', 'DRAFT', 40, 1, 'SYP', 1)
+RETURNING service_no AS tn3 \gset
+SELECT pg_temp.ok(:tn1 = :tn2 AND :tn1 <> :tn3 AND :tn1 BETWEEN 5000 AND 9999,
+  'Trip numbers (1114): a trip made by hand keeps the number of its route and time on the next day, another departure that day takes another');
+SELECT pg_temp.ok((SELECT trip_code IS NOT DISTINCT FROM ops.trip_designator(:ca) || ' ' || service_no FROM ops.trip WHERE trip_no = 'TN-A/01JAN30'),
+  'Trip numbers (1114): the trip code is the carrier''s designator and the number');
+SELECT pg_temp.expect_error(format($$INSERT INTO ops.trip (trip_no, company_id, route_id, departure_at, arrival_at, status, seats_total, segments_count,
+    currency, base_price, service_no) VALUES ('TN-C/01JAN30', %s, %s, '2030-01-01 13:10+02', '2030-01-01 16:00+02', 'DRAFT', 40, 1, 'SYP', 1, %s)$$, :ca, :route, :tn1),
+  'trip_number_day_uq', 'Trip numbers (1114): a carrier never runs two trips under one number on one day');
+INSERT INTO net.service_number (company_id, number, block, route_id, direction, valid)
+VALUES (:ca, 701, 'SCHEDULED', :route, 'OUTBOUND', '[2030-01-01,)') RETURNING id AS tsn \gset
+INSERT INTO ops.trip_template (company_id, route_id, service_number_id, departure_time, base_price, currency, active)
+VALUES (:ca, :route, :tsn, '05:30', 1, 'SYP', '[2030-01-01,2030-06-01)');
+SELECT pg_temp.expect_error(format($$INSERT INTO ops.trip_template (company_id, route_id, service_number_id, departure_time, base_price, currency, active)
+    VALUES (%s, %s, %s, '17:30', 1, 'SYP', '[2030-03-01,2030-09-01)')$$, :ca, :route, :tsn),
+  'SERVICE_NUMBER_TAKEN', 'Trip numbers (1114): a service number serves one template at a time on the same days');
+ROLLBACK;
+SET ROLE masslak_app;
+
+-- The owner's decisions on the station screens (1115): bays by the station's administration, logos, the board's languages
+BEGIN;
+RESET ROLE;
+SELECT sys.set_context(:uadmin, NULL, 'SYSTEM');
+SELECT t.id AS bt, t.uid AS btu, t.company_id AS bc, cp.uid AS bcu, ts.station_id AS bs, s.uid AS bsu
+  FROM sales.booking b JOIN ops.trip t ON t.id = b.trip_id JOIN ops.trip_stop ts ON ts.trip_id = t.id AND ts.seq = 0
+  JOIN net.station s ON s.id = ts.station_id JOIN iam.party cp ON cp.id = t.company_id WHERE b.booking_ref = 'ABC123' \gset
+UPDATE ops.trip SET published_at = coalesce(published_at, now()) WHERE id = :bt;
+UPDATE ops.trip_stop SET gate_id = NULL, sched_dep = now() + interval '90 minutes' WHERE trip_id = :bt AND seq = 0;
+INSERT INTO net.station_gate (station_id, code, gate_type) VALUES (:bs, 'TB91', 'BAY'), (:bs, 'TB92', 'BAY');
+INSERT INTO iam.party (party_type, legal_name) VALUES ('COMPANY', 'Bays Administration Test') RETURNING id AS bop \gset
+INSERT INTO iam.company (id, company_type, approval_status) VALUES (:bop, 'STATION_OPERATOR', 'APPROVED');
+SELECT pg_temp.expect_error(format($$INSERT INTO net.station_boarding (station_id, manager_company_id) VALUES (%s, %s)
+    ON CONFLICT (station_id) DO UPDATE SET manager_company_id = excluded.manager_company_id$$, :bs, :bc),
+  'NOT_STATION_OPERATOR', 'Bays (1115): a station is administered by a station operating company, not a carrier');
+INSERT INTO net.station_boarding (station_id, manager_company_id) VALUES (:bs, :bop)
+  ON CONFLICT (station_id) DO UPDATE SET manager_company_id = excluded.manager_company_id, bay_mode = 'TRIP';
+SET LOCAL ROLE masslak_app;
+SELECT sys.set_context(NULL, :bc, 'COMPANY');
+SELECT pg_temp.expect_error(format($$SELECT net.set_station_bay_mode(%s, 'CARRIER')$$, :bs),
+  'NOT_STATION_ADMIN', 'Bays (1115): a carrier does not assign the station''s bays');
+SELECT sys.set_context(NULL, :bop, 'COMPANY');
+SELECT net.set_carrier_bay(:bs, :'bcu', 'tb91');
+SELECT pg_temp.ok(brd.stop_bay_id(:bt, 0) IS NULL,
+  'Bays (1115): while the station assigns a bay per trip, a carrier''s permanent bay does not apply');
+SELECT net.set_station_bay_mode(:bs, 'CARRIER');
+SELECT pg_temp.ok((SELECT code FROM net.station_gate WHERE id = brd.stop_bay_id(:bt, 0)) = 'TB91',
+  'Bays (1115): per carrier, a departure without its own bay boards at the carrier''s permanent bay');
+SELECT brd.assign_trip_bay(:'btu', 0, 'TB92');
+SELECT pg_temp.ok((SELECT code FROM net.station_gate WHERE id = brd.stop_bay_id(:bt, 0)) = 'TB92'
+                  AND EXISTS (SELECT 1 FROM jsonb_array_elements(brd.station_bays(:bs) -> 'trips') x
+                               WHERE x ->> 'trip_uid' = :'btu' AND x ->> 'bay' = 'TB92' AND x ->> 'bay_source' = 'TRIP'),
+  'Bays (1115): a bay set on the trip comes first');
+SELECT pg_temp.expect_error(format($$SELECT brd.assign_trip_bay(%L, 0, 'NOPE')$$, :'btu'),
+  'BAY_UNKNOWN', 'Bays (1115): only an open bay of the station is assigned');
+SELECT brd.assign_trip_bay(:'btu', 0, NULL);
+SELECT pg_temp.ok((SELECT code FROM net.station_gate WHERE id = brd.stop_bay_id(:bt, 0)) = 'TB91',
+  'Bays (1115): the trip''s bay cleared, the carrier''s permanent bay applies again');
+SELECT pg_temp.ok(NOT has_table_privilege('masslak_app', 'net.station_carrier_bay', 'INSERT')
+                  AND NOT has_table_privilege('masslak_app', 'iam.company_logo', 'DELETE'),
+  'Bays and logos (1115): the application writes permanent bays and removes logos through their functions only');
+SELECT pg_temp.expect_error($$INSERT INTO iam.company_logo (company_id, image, width, height, sha256, uploaded_by)
+    VALUES (1, decode(repeat('00', 100), 'hex'), 400, 200, decode(repeat('00', 32), 'hex'), 1)$$,
+  'row-level security', 'Logos (1115): only the platform sets a company''s logo');
+RESET ROLE;
+SELECT sys.set_context(:uadmin, NULL, 'SYSTEM');
+SELECT pg_temp.expect_error(format($$INSERT INTO iam.company_logo (company_id, image, width, height, sha256, uploaded_by)
+    VALUES (%s, decode(repeat('00', 100), 'hex'), 900, 200, decode(repeat('00', 32), 'hex'), %s)$$, :bc, :uadmin),
+  'check constraint', 'Logos (1115): a logo is 120 to 240 pixels high and one to four times as wide');
+SELECT pg_temp.expect_error($$SELECT net.set_boarding_setting('boarding.board.languages', '["ar","fr"]'::jsonb)$$,
+  'INVALID_SETTING', 'Board languages (1115): the board shows Arabic, English or both');
+SELECT pg_temp.expect_error($$SELECT net.set_boarding_setting('boarding.board.rotate_seconds', '2'::jsonb)$$,
+  'INVALID_SETTING', 'Board languages (1115): each language stays 5 to 60 seconds');
+UPDATE net.station_boarding SET displays = true WHERE station_id = :bs;
+SELECT net.set_boarding_setting('boarding.stations.enabled', 'true'::jsonb);
+SELECT pg_temp.ok((SELECT b -> 'languages' = '["ar","en"]'::jsonb AND (b ->> 'rotate_seconds')::int = 10
+                     AND EXISTS (SELECT 1 FROM jsonb_array_elements(b -> 'departures') d WHERE d ? 'trip_code' AND d ? 'carrier_logo')
+                     FROM (SELECT brd.station_board(:'bsu') AS b) x),
+  'Board (1115): the board gives its languages, the trip codes and the carriers'' logos');
+ROLLBACK;
+SET ROLE masslak_app;
+
 \echo '=== ALL TESTS PASSED ==='

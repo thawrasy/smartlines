@@ -143,7 +143,7 @@ async def export(conn, ctx: db.Context, pr: Principal) -> dict:
         """SELECT u.uid, u.email, u.mobile, u.preferred_locale, u.created_at, u.last_login_at, p.legal_name
              FROM iam.app_user u JOIN iam.party p ON p.id = u.party_id WHERE u.id = $1""", pr.user_id)
     bookings = await conn.fetch(
-        """SELECT b.id, b.booking_ref, b.status, b.total_amount, b.currency, b.created_at, t.trip_no
+        """SELECT b.id, b.booking_ref, b.status, b.total_amount, b.currency, b.created_at, t.trip_no, t.trip_code
              FROM sales.booking b JOIN ops.trip t ON t.id = b.trip_id
             WHERE b.booker_party_id = $1 ORDER BY b.created_at""", pr.party_id)
     async with db.system_scope(conn, ctx):

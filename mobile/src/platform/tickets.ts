@@ -5,7 +5,7 @@ import { getJSON, putJSON } from "./secure";
 import { isFresh } from "../core/credentialFreshness";
 
 // verified_at: when the server last issued it, in epoch seconds (set here, not by the server)
-export interface SavedCredential { credential: string; valid_until: number; trip_no: string; verified_at?: number }
+export interface SavedCredential { credential: string; valid_until: number; trip_no: string; trip_code?: string | null; verified_at?: number }
 
 export async function saveCredential(ticketUid: string): Promise<SavedCredential> {
   const c = await api.get<Omit<SavedCredential, "verified_at">>(`/api/tickets/${ticketUid}/offline`);

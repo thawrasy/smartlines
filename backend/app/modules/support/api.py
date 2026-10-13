@@ -150,7 +150,7 @@ async def ratable(request: Request, pr: Principal = Depends(passenger)):
     """Tickets the caller travelled on in the last 30 days and has not rated yet."""
     async with db.transaction(context_for(request, pr)) as conn:
         recs = await conn.fetch(
-            """SELECT k.uid AS ticket_uid, k.ticket_no, t.trip_no, t.departure_at, so.name AS origin, sd.name AS destination,
+            """SELECT k.uid AS ticket_uid, k.ticket_no, t.trip_no, t.trip_code, t.departure_at, so.name AS origin, sd.name AS destination,
                       cp.legal_name AS carrier_name
                  FROM sales.ticket k JOIN sales.booking b ON b.id = k.booking_id JOIN ops.trip t ON t.id = k.trip_id
                  JOIN net.route r ON r.id = t.route_id JOIN net.station so ON so.id = r.origin_station_id

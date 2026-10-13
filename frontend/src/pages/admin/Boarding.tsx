@@ -5,10 +5,12 @@ import { useI18n } from "../../i18n";
 import { useAuth } from "../../auth";
 import { PageHead } from "../../components/layout";
 import { Empty, ErrorBox, Field, Icon, Loaded, Modal, Stat, Status, useLoad, useToast } from "../../components/ui";
+import { BaysPanel, platformBaysApi } from "../station/Bays";
 
 // Boarding stations in the platform portal (1097-1112, build step 4): the switches and the check-in window, each
 // station's boarding, screens, counters and bays, the station operating companies, and the rights the platform gives a
-// state-mandated operating company. Everything here is checked again by the API and the database.
+// state-mandated operating company. Everything here is checked again by the API and the database. The platform names
+// each station's administration, which assigns its bays (1115), and sets the languages the departure board shows in turn.
 
 interface StationRow {
   uid: string; code: string; name: string; city: string | null; enabled: boolean; displays: boolean; counter_system: string;
@@ -17,7 +19,8 @@ interface StationRow {
 interface Gate { code: string; gate_type: string; status: string; operator_uid: string | null; operator_name: string | null }
 interface StationView {
   uid: string; code: string; name: string; boarding_on_now: boolean; gates: Gate[];
-  boarding: { enabled: boolean; counter_system: "PLATFORM" | "EXTERNAL"; displays: boolean; checkin_opens_minutes: number | null; checkin_closes_minutes: number | null };
+  boarding: { enabled: boolean; counter_system: "PLATFORM" | "EXTERNAL"; displays: boolean; checkin_opens_minutes: number | null; checkin_closes_minutes: number | null;
+    manager_company_uid?: string | null; manager_company_name?: string | null; bay_mode?: "CARRIER" | "TRIP" };
 }
 interface Company { uid: string; name: string; approval_status: string; created_at: string; counters: number; grants: number }
 interface Grant {
@@ -50,6 +53,7 @@ function Stations() {
   const { t, city, station: placeName } = useI18n();
   const list = useLoad(() => api.get<{ stations: StationRow[] }>("/api/admin/boarding/stations"));
   const [open, setOpen] = useState<string | null>(null);
+  const [bays, setBays] = useState<StationRow | null>(null);
   return (
     <div className="card stack">
       <p className="small muted" style={{ margin: 0 }}>{t("brdadm.stationsHint")}</p>
@@ -64,12 +68,20 @@ function Stations() {
               <td>{s.boarding_on_now ? <Status value="ACTIVE" /> : s.enabled ? <span className="small muted">{t("brdadm.onButOff")}</span> : <span className="small muted">{t("brdadm.off")}</span>}</td>
               <td>{s.displays ? <Link className="btn text small" to={`/board/${s.uid}`} target="_blank" rel="noopener"><Icon name="tv" />{t("brdadm.openBoard")}</Link> : <span className="small muted">{t("brdadm.off")}</span>}</td>
               <td className="num">{s.counters}</td><td className="num">{s.bays}</td>
-              <td className="num"><button className="btn text small" onClick={() => setOpen(s.uid)}><Icon name="tune" />{t("brdadm.manage")}</button></td>
+              <td className="num text-nowrap"><button className="btn text small" onClick={() => setOpen(s.uid)}><Icon name="tune" />{t("brdadm.manage")}</button>
+                <button className="btn text small" onClick={() => setBays(s)}><Icon name="local_parking" />{t("bays.nav")}</button></td>
             </tr>
           ))}</tbody>
         </table></div>
       )}</Loaded>
       {open && <StationModal uid={open} onClose={() => { setOpen(null); list.reload(); }} />}
+      {bays && (
+        <Modal wide title={`${t("bays.title")} · ${bays.code}`} onClose={() => setBays(null)}
+          actions={<button className="btn text" onClick={() => setBays(null)}>{t("common.close")}</button>}>
+          <p className="small muted" style={{ marginTop: 0 }}>{t("bays.platformHint")}</p>
+          <BaysPanel calls={platformBaysApi(bays.uid)} />
+        </Modal>
+      )}
     </div>
   );
 }
@@ -89,7 +101,12 @@ function StationModal({ uid, onClose }: { uid: string; onClose: () => void }) {
   const save = async () => {
     if (!b) return;
     setError(null);
-    try { await api.put(`/api/admin/boarding/stations/${uid}`, b); toast(t("common.saved")); setForm(null); view.reload(); } catch (e) { setError(e); }
+    try {
+      await api.put(`/api/admin/boarding/stations/${uid}`, { enabled: b.enabled, counter_system: b.counter_system, displays: b.displays,
+        checkin_opens_minutes: b.checkin_opens_minutes, checkin_closes_minutes: b.checkin_closes_minutes,
+        manager_company_uid: b.manager_company_uid || null });
+      toast(t("common.saved")); setForm(null); view.reload();
+    } catch (e) { setError(e); }
   };
   const openGate = async (e: FormEvent) => {
     e.preventDefault();
@@ -121,6 +138,12 @@ function StationModal({ uid, onClose }: { uid: string; onClose: () => void }) {
               <input className="input" type="number" min={0} max={1440} value={b.checkin_closes_minutes ?? ""} onChange={(e) => set({ checkin_closes_minutes: num(e.target.value) })} />
             </Field>
           </div>
+          <Field label={t("bays.manager")} hint={t("bays.managerHint")}>
+            <select className="input" value={b.manager_company_uid ?? ""} onChange={(e) => set({ manager_company_uid: e.target.value || null })}>
+              <option value="">{t("bays.noManager")}</option>
+              {(companies.data?.companies ?? []).filter((c) => c.approval_status === "APPROVED").map((c) => <option key={c.uid} value={c.uid}>{c.name}</option>)}
+            </select>
+          </Field>
           <div className="alert info small"><Icon name="info" />{v.boarding_on_now ? t("brdadm.onNow") : t("brdadm.offNow")}</div>
           {b.displays && <div className="small"><Link to={`/board/${v.uid}`} target="_blank" rel="noopener"><Icon name="tv" /> {t("brdadm.boardLink")}</Link> <span className="mono ltr">{`${window.location.origin}/board/${v.uid}`}</span></div>}
           <h3 style={{ margin: 0 }}>{t("brdadm.gates")}</h3>
@@ -296,6 +319,7 @@ function BoardingSettings() {
               <input className="input mono ltr" value={refs ?? required.join(", ")} onChange={(e) => setRefs(e.target.value)}
                 onBlur={() => { if (refs !== null) { put("boarding.references.required", refs.split(",").map((s) => s.trim()).filter(Boolean)); setRefs(null); } }} />
             </Field>
+            <BoardLanguages settings={settings} put={put} />
             <div className="alert info small"><Icon name="no_photography" />{t("brdadm.photoNote")}</div>
           </div>
         );
@@ -303,3 +327,26 @@ function BoardingSettings() {
     </div>
   );
 }
+
+/** The languages the departure board shows in turn and how long each stays (1115, owner's decision O2). */
+function BoardLanguages({ settings, put }: { settings: Settings; put: (key: string, value: unknown) => void }) {
+  const { t } = useI18n();
+  const { can } = useAuth();
+  const langs = (settings["boarding.board.languages"] as string[] | undefined) ?? ["ar", "en"];
+  const options: Record<string, string[]> = { "ar,en": ["ar", "en"], "en,ar": ["en", "ar"], ar: ["ar"], en: ["en"] };
+  return (
+    <div className="grid cols-2">
+      <Field label={t("brdadm.set.boarding_board_languages")} hint={t("brdadm.languagesHint")}>
+        <select className="input" disabled={!can("boarding.manage")} value={langs.join(",")} onChange={(e) => put("boarding.board.languages", options[e.target.value])}>
+          {Object.keys(options).map((k) => <option key={k} value={k}>{options[k].map((l) => t(`brdadm.lang.${l}`)).join(" · ")}</option>)}
+        </select>
+      </Field>
+      <Field label={t("brdadm.set.boarding_board_rotate_seconds")} hint={t("brdadm.rotateHint")}>
+        <input className="input" type="number" min={5} max={60} disabled={!can("boarding.manage") || langs.length < 2}
+          defaultValue={(settings["boarding.board.rotate_seconds"] as number | undefined) ?? 10}
+          onBlur={(e) => { const v = Number(e.target.value); if (v !== settings["boarding.board.rotate_seconds"]) put("boarding.board.rotate_seconds", v); }} />
+      </Field>
+    </div>
+  );
+}
+

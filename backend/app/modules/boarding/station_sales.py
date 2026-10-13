@@ -159,7 +159,7 @@ async def day_sales(station_uid: uuid.UUID, request: Request, day: Optional[date
         day = day or datetime.now(zone).date()
         start = datetime.combine(day, time.min, zone)
         rs = await conn.fetch(
-            """SELECT b.booking_ref, b.status, b.total_amount, b.currency, b.pay_method, s.created_at, t.trip_no, cp.legal_name AS carrier,
+            """SELECT b.booking_ref, b.status, b.total_amount, b.currency, b.pay_method, s.created_at, t.trip_no, t.trip_code, cp.legal_name AS carrier,
                       g.code AS counter, (SELECT count(*) FROM sales.ticket k WHERE k.booking_id = b.id) AS tickets
                  FROM brd.station_sale s JOIN sales.booking b ON b.id = s.booking_id JOIN ops.trip t ON t.id = b.trip_id
                  JOIN iam.party cp ON cp.id = s.carrier_company_id LEFT JOIN net.station_gate g ON g.id = s.counter_gate_id
@@ -173,7 +173,7 @@ async def day_sales(station_uid: uuid.UUID, request: Request, day: Optional[date
 async def _sold(conn, ctx, company: int, ref: str):
     async with db.system_scope(conn, ctx):
         b = await conn.fetchrow(
-            """SELECT b.*, t.trip_no, t.uid AS trip_uid, t.departure_at, t.status AS trip_status, cp.legal_name AS carrier_name
+            """SELECT b.*, t.trip_no, t.trip_code, t.uid AS trip_uid, t.departure_at, t.status AS trip_status, cp.legal_name AS carrier_name
                  FROM sales.booking b JOIN ops.trip t ON t.id = b.trip_id JOIN iam.party cp ON cp.id = b.company_id
                  JOIN brd.station_sale s ON s.booking_id = b.id
                 WHERE b.booking_ref = $1 AND s.operator_company_id = $2""", ref.upper(), company)

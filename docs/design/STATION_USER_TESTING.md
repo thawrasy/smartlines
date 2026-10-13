@@ -45,6 +45,9 @@ reads the task as written and does not show where to click.
 | 9 | Platform | "Open a third counter at Damascus Central for this company and switch the hall's screen on." | Counter opened; board visible | 2 min |
 | 10 | Passenger | "Which bay does the next bus to Homs leave from?" (read from 5 m) | Correct bay | 10 s |
 | 11 | Passenger | "The bus to Aleppo at 21:37: is it still leaving?" (a cancelled trip) | "Cancelled" understood | 10 s |
+| 12 | Station administration | "From today Al-Fajr's buses leave from bay B004; tonight's 23:27 to Aleppo leaves from B002." | Permanent bay set; the trip's bay set; both on the board | 90 s |
+| 13 | Driver | "This passenger's paper ticket has no code. Board them." (number and booking reference on the paper) | Boarded after checking the identity document | 45 s |
+| 14 | Passenger | "Which bus is yours?" (ticket shows "DC 101"; read it on the board while it changes language) | Correct row found | 15 s |
 
 Tasks 1 to 5 are done in both languages by at least two clerks. Task 7 is done once with the bay's network switched
 off for a minute (the board and the bay keep working from what they hold).

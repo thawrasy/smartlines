@@ -79,9 +79,10 @@ export interface Me {
 export type MfaStep = "VERIFY" | "ENROLL";
 
 export interface TripResult {
-  uid: string; trip_no: string; service_type: string; has_rest: boolean; seats_total: number; currency: string;
+  uid: string; trip_no: string; trip_code?: string | null; service_type: string; has_rest: boolean; seats_total: number; currency: string;
   from_seq: number; to_seq: number; departs_at: string; arrives_at: string; from_station: string; to_station: string;
   from_code: string; to_code: string; price: number; carrier_name: string; carrier_code: string | null;
+  carrier_uid?: string; carrier_logo?: string | null;
   stops_between: number; seats_left: number; bookable: boolean;
 }
 
@@ -91,8 +92,9 @@ export interface TripStop {
 }
 
 export interface TripDetail {
-  trip: { uid: string; trip_no: string; status: string; seats_total: number; currency: string; hold_min: number;
-          service_type: string; trip_type?: string; departure_at: string; arrival_at: string; carrier_name: string; carrier_code: string | null };
+  trip: { uid: string; trip_no: string; trip_code?: string | null; status: string; seats_total: number; currency: string; hold_min: number;
+          service_type: string; trip_type?: string; departure_at: string; arrival_at: string; carrier_name: string; carrier_code: string | null;
+          carrier_uid?: string; carrier_logo?: string | null };
   stops: TripStop[]; price: number; from_seq: number; to_seq: number; seats: { seat_no: number; free: boolean }[];
   /** The vehicle's real layout, frozen when the trip was created (null for trips created before layouts existed). */
   seat_map: import("./components/SeatGrid").SeatMapData | null;
@@ -151,7 +153,7 @@ export interface Ticket {
 }
 
 export interface BookingDetail {
-  booking: { booking_ref: string; status: string; total_amount: number; currency: string; trip_no: string; carrier_name: string;
+  booking: { booking_ref: string; status: string; total_amount: number; currency: string; trip_no: string; trip_code?: string | null; carrier_name: string;
              created_at: string; verify_token: string; contact_mobile?: string; commission?: number | null;
              // how it is paid (1056): a reserved booking waits for its money until pay_by; the counter view says what it may do
              pay_option?: string | null; pay_by?: string | null; pay_method?: string; counter_sale?: boolean; collectable?: boolean;
@@ -170,6 +172,6 @@ export interface BookingOption {
 }
 
 export interface BookingRow {
-  booking_ref: string; status: string; total_amount: number; currency: string; created_at: string; trip_no: string; carrier_name: string;
+  booking_ref: string; status: string; total_amount: number; currency: string; created_at: string; trip_no: string; trip_code?: string | null; carrier_name: string;
   journey: { from_station: string; from_code: string; from_city: string; departs_at: string; to_station: string; to_code: string; to_city: string; arrives_at: string } | null;
 }

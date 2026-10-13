@@ -555,18 +555,39 @@ tr.clickable:hover td { background: var(--surface-container-low, rgba(10, 91, 21
 /* departed rows are greyed with a colour, not an opacity, so they keep a 4.5:1 contrast even on a phone (axe) */
 .board-dim td, .board-dim .board-bay, .board-dim .board-via { color: #8796B0; }
 .board-go .board-via, .board-bad .board-via { color: inherit; }
-.board-bad td { color: #FF8A8A; text-decoration: line-through; }
-.board-bad .board-status { text-decoration: none; }
+/* a cancelled trip turns red, without a line through it (owner's note, October 2026) */
+.board-bad td, .board-bad .board-bay, .board-bad .board-trip { color: #FF8A8A; }
+.board-bad .board-status { font-weight: 800; }
+.board-carrier { display: inline-flex; align-items: center; gap: .7vw; }
+/* the carrier's logo on a white tile, so a transparent mark reads on the dark board (1115) */
+.board-logo { display: inline-flex; align-items: center; background: #FFFFFF; border-radius: .35vw; padding: .25vw .5vw; height: 2.6vw; }
+.board-logo img { height: 100%; width: auto; max-width: 9vw; object-fit: contain; display: block; }
+.board-trip { font-family: var(--font-mono); font-weight: 700; font-size: 1.8vw; white-space: nowrap; }
+.board-turn { animation: board-turn .5s ease-out; }
+@keyframes board-turn { from { opacity: 0; } to { opacity: 1; } }
 .board-none { text-align: center; opacity: .6; padding: 3vw !important; }
 .board-empty { display: grid; place-items: center; min-height: 80vh; font-size: 2.4vw; opacity: .7; }
 @keyframes board-blink { 50% { opacity: .35; } }
-@media (prefers-reduced-motion: reduce) { .board-go .board-status { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .board-go .board-status, .board-turn { animation: none; } }
 @media (max-width: 900px) {
   .board-table { font-size: 15px; } .board-table th { font-size: 12px; } .board-station { font-size: 22px; } .board-clock { font-size: 28px; }
-  .board-bay { font-size: 18px; } .board-mono { font-size: 13px; } .board-title { font-size: 16px; } .board-via { font-size: 11px; } .board-code { font-size: 12px; } .board-offline { font-size: 11px; }
+  .board-bay { font-size: 18px; } .board-mono { font-size: 13px; } .board-trip { font-size: 14px; }
+  .board-logo { height: 22px; padding: 2px 5px; border-radius: 4px; } .board-logo img { max-width: 80px; } .board-carrier { gap: 6px; } .board-title { font-size: 16px; } .board-via { font-size: 11px; } .board-code { font-size: 12px; } .board-offline { font-size: 11px; }
   .board-screen { padding: 12px; } .board-table td, .board-table th { padding: 8px 5px; }
 }
 /* on a phone the trip number gives way: time, destination, carrier, bay and state stay */
-@media (max-width: 600px) { .board-narrow-hide { display: none; } }
+@media (max-width: 600px) { .board-narrow-hide { display: none; } .board-carrier { flex-direction: column; align-items: flex-start; gap: 3px; } }
 /* A boarding pass prints alone */
 @media print { .boarding-pass { break-inside: avoid; border: 1px solid #0B1F3F !important; padding: 12px !important; } }
+
+/* a choice among a few options, as a card with its explanation (the bays of a station, 1115) */
+.choice { display: flex; gap: 10px; align-items: flex-start; flex: 1 1 260px; padding: 12px 14px; border: 1px solid var(--outline-variant, #C9D1DC);
+  border-radius: 12px; cursor: pointer; background: var(--surface); }
+.choice.on { border-color: var(--primary); background: var(--primary-soft); }
+.choice input { margin-top: 3px; accent-color: var(--primary); }
+.logo-tile { display: inline-flex; align-items: center; justify-content: center; background: #FFFFFF; border: 1px solid var(--outline-variant, #C9D1DC);
+  border-radius: 8px; padding: 4px 8px; height: 40px; }
+.logo-tile img { height: 100%; width: auto; max-width: 160px; object-fit: contain; }
+.logo-tile.sm { height: 24px; padding: 2px 5px; border-radius: 5px; }
+.logo-tile.sm img { max-width: 90px; }
+.trip-ref { font-size: .82em; color: var(--on-surface-variant); }

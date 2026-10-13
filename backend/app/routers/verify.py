@@ -27,21 +27,21 @@ async def verify(request: Request, token: str = Query(..., min_length=10, max_le
         if doc:
             kind, ref = doc
             r = await conn.fetchrow(
-                """SELECT b.booking_ref, b.status, b.total_amount, b.currency, t.trip_no, t.departure_at,
+                """SELECT b.booking_ref, b.status, b.total_amount, b.currency, t.trip_no, t.trip_code, t.departure_at,
                           (SELECT count(*) FROM sales.ticket k WHERE k.booking_id = b.id) AS tickets
                      FROM sales.booking b JOIN ops.trip t ON t.id = b.trip_id WHERE b.booking_ref = $1""", ref)
             if r is None:
                 return {"valid": False, "reason": "NOT_FOUND"}
             return {"valid": True, "kind": "booking", "booking_ref": r["booking_ref"], "status": r["status"],
-                    "trip_no": r["trip_no"], "departure_at": r["departure_at"].isoformat(), "tickets": r["tickets"],
+                    "trip_no": r["trip_no"], "trip_code": r["trip_code"], "departure_at": r["departure_at"].isoformat(), "tickets": r["tickets"],
                     "total_amount": r["total_amount"], "currency": r["currency"]}
         r = await conn.fetchrow(
-            """SELECT k.ticket_no, k.status, k.seat_no, t.trip_no, t.departure_at FROM sales.ticket k
+            """SELECT k.ticket_no, k.status, k.seat_no, t.trip_no, t.trip_code, t.departure_at FROM sales.ticket k
                  JOIN ops.trip t ON t.id = k.trip_id WHERE k.uid = $1""", uuid.UUID(ticket_uid))
         if r is None:
             return {"valid": False, "reason": "NOT_FOUND"}
         return {"valid": True, "kind": "ticket", "ticket_no": r["ticket_no"], "status": r["status"],
-                "seat_no": r["seat_no"], "trip_no": r["trip_no"], "departure_at": r["departure_at"].isoformat()}
+                "seat_no": r["seat_no"], "trip_no": r["trip_no"], "trip_code": r["trip_code"], "departure_at": r["departure_at"].isoformat()}
 
 
 @router.get("/einvoice/{doc_uuid}")

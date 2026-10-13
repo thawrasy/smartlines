@@ -171,7 +171,7 @@ export default function Booking() {
             <ErrorBox error={error} />
             <div className="row between">
               <div><h1 style={{ fontSize: 28 }}>{t("booking.title", { ref: b.booking_ref })}</h1>
-                <p className="muted">{b.carrier_name} · <span className="mono">{b.trip_no}</span></p></div>
+                <p className="muted">{b.carrier_name} · <span className="mono">{b.trip_code ?? b.trip_no}</span></p></div>
               <Status value={b.status} />
             </div>
             {b.status === "PENDING_PAYMENT" && <PayPanel b={b} onChange={state.reload} />}
@@ -190,6 +190,8 @@ export default function Booking() {
                 </div>
                 <div style={{ padding: 24 }} className="stack">
                   <dl className="kv">
+                    <dt>{t("trip.number")}</dt><dd><span className="mono" style={{ fontWeight: 700 }}>{b.trip_code ?? b.trip_no}</span>
+                      {b.trip_code && <div className="mono trip-ref">{t("trip.ref")} {b.trip_no}</div>}</dd>
                     <dt>{t("common.passenger")}</dt><dd>{k.ticket_name || k.full_name}</dd>
                     <dt>{t("common.date")}</dt><dd>{date(k.departs_at, { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</dd>
                     <dt>{t("common.from")}</dt><dd>{station(k.from_code, k.from_station)}</dd>

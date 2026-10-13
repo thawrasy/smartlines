@@ -35,6 +35,8 @@ def render(template: str, channel: str, locale: str, values: dict) -> tuple[str,
         elif k in ("incident_type", "severity", "refund_to"):   # codes become words (1101, 1102)
             v = words.get(k + "_labels", {}).get(v, v)
         vals[k] = v
+    if vals.get("trip_code") is None and "trip_no" in vals:   # the trip number passengers read (1114), else the reference
+        vals["trip_code"] = vals["trip_no"]
     def fill(s: str) -> str:
         return _VAR.sub(lambda m: str(vals.get(m.group(1), m.group(0))), s)
     body = t["sms"] if channel == "SMS" and "sms" in t else t["body"]

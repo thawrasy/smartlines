@@ -9,7 +9,7 @@ import { AccountBody } from "../(passenger)/account";
 import { Button, Card, Chip, ErrorText, Loading, Notice, Screen, Title, s } from "../../ui/kit";
 import { useLoad } from "../../ui/useLoad";
 
-interface DriverTrip { uid: string; trip_no: string; status: string; departure_at: string; plate_no: string | null; booked: number; boarded: number;
+interface DriverTrip { uid: string; trip_no: string; trip_code?: string | null; status: string; departure_at: string; plate_no: string | null; booked: number; boarded: number;
   stops: { seq: number; station_name: string; city_code: string }[] }
 interface Row extends DriverTrip { packTickets: number | null; pending: number }
 
@@ -69,7 +69,7 @@ export default function DriverHome() {
           <Card key={x.uid}>
             <View style={s.between}>
               <Text style={s.h2}>{first ? t(`city.${first.city_code}`) : ""} → {last ? t(`city.${last.city_code}`) : ""}</Text>
-              <Chip tone="blue" label={x.trip_no} />
+              <Chip tone="blue" label={x.trip_code ?? x.trip_no} />
             </View>
             <Text style={s.muted}>{date(x.departure_at)} · {time(x.departure_at)} · {x.plate_no ?? ""}</Text>
             <Text style={s.small}>{t("driver.boardedCount", { n: x.boarded, total: x.booked })}</Text>

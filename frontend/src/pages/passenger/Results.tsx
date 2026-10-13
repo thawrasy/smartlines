@@ -50,8 +50,9 @@ export default function Results() {
             <div key={trip.uid} className="card trip-card">
               <div className="stack tight">
                 <div className="row" style={{ gap: 8 }}>
+                  {trip.carrier_logo && trip.carrier_uid && <span className="logo-tile sm"><img src={`/api/public/companies/${trip.carrier_uid}/logo?v=${trip.carrier_logo}`} alt="" /></span>}
                   <span style={{ fontWeight: 600 }}>{trip.carrier_name}</span>
-                  <span className="chip outline mono">{trip.trip_no}</span>
+                  <span className="chip outline mono" title={trip.trip_no}>{trip.trip_code ?? trip.trip_no}</span>
                   {trip.stops_between === 0 ? <span className="chip green">{t("results.direct")}</span> : <span className="chip">{t("results.stops", { n: trip.stops_between })}</span>}
                   {trip.has_rest && <span className="chip wheat"><Icon name="restaurant" size={16} />{t("results.rest")}</span>}
                 </div>

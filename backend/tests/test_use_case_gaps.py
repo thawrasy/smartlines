@@ -12,7 +12,7 @@ from test_notifications import run_worker
 def fresh_trip():
     """A trip of its own (vehicle, driver) for the carrier owner@carrier.test, still PUBLISHED, with no tickets."""
     publish_fresh_trip()
-    return owner_sql("""SELECT t.id, t.uid, t.trip_no, t.vehicle_id FROM ops.trip t JOIN iam.company_member m ON m.company_id = t.company_id
+    return owner_sql("""SELECT t.id, t.uid, t.trip_no, t.trip_code, t.vehicle_id FROM ops.trip t JOIN iam.company_member m ON m.company_id = t.company_id
                          JOIN iam.app_user u ON u.id = m.user_id
                         WHERE u.email = 'owner@carrier.test' AND t.status = 'PUBLISHED'
                           AND NOT EXISTS (SELECT 1 FROM sales.ticket k WHERE k.trip_id = t.id)

@@ -1,10 +1,12 @@
-// Boarding scanner. Each code is read once per few seconds (the camera reports it many times a second).
+// Boarding scanner. Each code is read once per few seconds (the camera reports it many times a second). A ticket without a
+// code yet (paper printed long before departure, owner's decision O1) is typed in by its number and booking reference and
+// boarded once the identity document is checked, online or from the offline pack.
 import { useCallback, useRef, useState } from "react";
-import { Text, View } from "react-native";
+import { Switch, Text, TextInput, View } from "react-native";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { useI18n } from "../../../i18n";
-import { loadPack, loadScans, scan, sync, type Outcome } from "../../../platform/boarding";
+import { boardTyped, loadPack, loadScans, scan, sync, type Outcome } from "../../../platform/boarding";
 import { clockIsOff } from "../../../core/offlineBoarding";
 import { PassengerPhoto } from "../../../ui/PassengerPhoto";
 import { Button, ErrorText, Screen, Title, s } from "../../../ui/kit";
@@ -21,6 +23,8 @@ export default function Board() {
   const [error, setError] = useState<unknown>(null);
   const [syncing, setSyncing] = useState(false);
   const [clockOff, setClockOff] = useState(false);
+  const [typed, setTyped] = useState({ ticketNo: "", bookingRef: "", checked: false });
+  const [typing, setTyping] = useState(false);
   const last = useRef<{ data: string; at: number } | null>(null);
   const working = useRef(false);
 
@@ -37,6 +41,16 @@ export default function Board() {
     working.current = true;
     setError(null);
     try { setOutcome(await scan(uid, data)); await refreshPending(); } catch (e) { setError(e); } finally { working.current = false; }
+  };
+  const onTyped = async () => {
+    if (working.current) return;
+    working.current = true; setError(null);
+    try {
+      const out = await boardTyped(uid, typed.ticketNo, typed.bookingRef);
+      setOutcome(out);
+      if (out.result === "OK") setTyped({ ticketNo: "", bookingRef: "", checked: false });
+      await refreshPending();
+    } catch (e) { setError(e); } finally { working.current = false; }
   };
   const doSync = async () => {
     setSyncing(true); setError(null);
@@ -56,7 +70,7 @@ export default function Board() {
   }
   const [bg, fg] = outcome ? tone(String(outcome.result)) : [color.surface, color.text];
   return (
-    <Screen scroll={false}>
+    <Screen>
       <Title sub={t("driver.scan")}>{t("driver.board")}</Title>
       {clockOff ? <Text style={{ color: color.amber, fontWeight: "600" }}>{t("driver.clockOff")}</Text> : null}
       <View style={{ height: 320, borderRadius: 20, overflow: "hidden", backgroundColor: "#000" }}>
@@ -71,6 +85,24 @@ export default function Board() {
         </View>
       ) : null}
       {outcome?.result === "OK" && outcome.ticket && !outcome.offline ? <PassengerPhoto tripUid={uid} ticketUid={outcome.ticket} /> : null}
+      <View style={{ gap: 8 }}>
+        <Button kind="text" label={t("driver.typed")} onPress={() => setTyping(!typing)} />
+        {typing ? (
+          <View style={{ gap: 8 }}>
+            <Text style={s.small}>{t("driver.typedHint")}</Text>
+            <TextInput style={s.input} autoCapitalize="characters" autoCorrect={false} placeholder={t("driver.ticketNo")}
+                       accessibilityLabel={t("driver.ticketNo")} value={typed.ticketNo} onChangeText={(v) => setTyped({ ...typed, ticketNo: v })} />
+            <TextInput style={s.input} autoCapitalize="characters" autoCorrect={false} placeholder={t("driver.bookingRef")}
+                       accessibilityLabel={t("driver.bookingRef")} value={typed.bookingRef} onChangeText={(v) => setTyped({ ...typed, bookingRef: v })} />
+            <View style={[s.between, { gap: 12 }]}>
+              <Text style={[s.small, { flex: 1 }]}>{t("driver.identityChecked")}</Text>
+              <Switch value={typed.checked} onValueChange={(v) => setTyped({ ...typed, checked: v })} accessibilityLabel={t("driver.identityChecked")} />
+            </View>
+            <Button label={t("driver.boardTyped")} onPress={onTyped}
+                    disabled={!typed.checked || typed.ticketNo.trim().length < 3 || typed.bookingRef.trim().length < 4} />
+          </View>
+        ) : null}
+      </View>
       <ErrorText error={error} />
       <View style={s.between}>
         <Text style={s.small}>{pending ? t("driver.pending", { n: pending }) : t("driver.synced")}</Text>

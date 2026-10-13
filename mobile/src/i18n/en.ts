@@ -82,7 +82,11 @@ const en = {
     clockOff: "This phone's clock is off by more than 5 minutes. Scans use the server time, but set the clock to automatic.",
     boardedCount: "{n} of {total} boarded", camera: "Allow the camera to scan tickets", allow: "Allow camera",
     results: { OK: "Valid — board", DUPLICATE: "Already boarded", INVALID_QR: "Not a valid ticket",
-               WRONG_TRIP: "Ticket for another trip", CANCELLED: "Ticket cancelled", NOT_IN_PACK: "Not in the offline list — check online", WRONG_STOP: "The ticket does not cover this stop", UNKNOWN_STOP: "Not a stop of this trip", PHOTO_REQUIRED: "No boarding photo on file, and the rules require one" },
+               WRONG_TRIP: "Ticket for another trip", CANCELLED: "Ticket cancelled", NOT_IN_PACK: "Not in the offline list — check online", WRONG_STOP: "The ticket does not cover this stop", UNKNOWN_STOP: "Not a stop of this trip", PHOTO_REQUIRED: "No boarding photo on file, and the rules require one",
+               NOT_FOUND: "No such ticket: check the number and the booking reference" },
+    typed: "Ticket without a code", typedHint: "Type the ticket number and the booking reference, then check the identity document.",
+    ticketNo: "Ticket number", bookingRef: "Booking reference",
+    identityChecked: "I have checked the identity document and it matches", boardTyped: "Board this passenger",
   },
   errors: {
     SOS_TRIP_NOT_ACTIVE: "The trip is not under way. Call 112 in an emergency.", SOS_NOT_ON_TRIP: "This ticket is not on a trip under way.",

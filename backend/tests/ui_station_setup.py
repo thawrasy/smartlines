@@ -46,7 +46,9 @@ def main(out: str) -> None:
     for key, value in (("boarding.stations.enabled", True), ("boarding.mode.carrier_contracted", True),
                        ("boarding.checkin.opens_minutes", 180), ("boarding.checkin.closes_minutes", 20)):
         set_setting(admin, key, value)
-    assert admin.put(f"/api/admin/boarding/stations/{station}", json={"enabled": True, "displays": True}).status_code == 200
+    # the operating company is also the station's administration, so the bays page has a station to show (1115)
+    assert admin.put(f"/api/admin/boarding/stations/{station}",
+                     json={"enabled": True, "displays": True, "manager_company_uid": company["uid"]}).status_code == 200
 
     def gate(kind, who=None):
         g = admin.post(f"/api/admin/boarding/stations/{station}/gates", json={"gate_type": kind, **({"operator_company_uid": who} if who else {})})

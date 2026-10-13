@@ -88,7 +88,7 @@ async def sell(conn: asyncpg.Connection, ctx: db.Context, pr: Principal, body) -
 
 async def _booking(conn: asyncpg.Connection, company_id: int, ref: str) -> asyncpg.Record:
     b = await conn.fetchrow(
-        """SELECT b.*, t.trip_no, t.uid AS trip_uid, t.departure_at, t.status AS trip_status, cp.legal_name AS carrier_name
+        """SELECT b.*, t.trip_no, t.trip_code, t.uid AS trip_uid, t.departure_at, t.status AS trip_status, cp.legal_name AS carrier_name
              FROM sales.booking b JOIN ops.trip t ON t.id = b.trip_id JOIN iam.party cp ON cp.id = b.company_id
             WHERE b.booking_ref = $1 AND b.company_id = $2""", ref.upper(), company_id)
     if b is None:
@@ -144,7 +144,7 @@ async def bookings(conn: asyncpg.Connection, ctx: db.Context, pr: Principal, q: 
     async with db.system_scope(conn, ctx):
         recs = await conn.fetch(
             f"""SELECT b.booking_ref, b.status, b.total_amount, b.currency, b.created_at, b.pay_option, b.pay_method,
-                       b.hold_expires_at AS pay_by, b.contact_mobile, t.trip_no, t.departure_at, sp.legal_name AS sold_by,
+                       b.hold_expires_at AS pay_by, b.contact_mobile, t.trip_no, t.trip_code, t.departure_at, sp.legal_name AS sold_by,
                        (SELECT count(*) FROM sales.ticket k WHERE k.booking_id = b.id) AS passengers, {sales_repo.JOURNEY_SQL}
                   FROM sales.booking b JOIN ops.trip t ON t.id = b.trip_id
                   LEFT JOIN iam.app_user su ON su.id = b.booker_user_id LEFT JOIN iam.party sp ON sp.id = su.party_id

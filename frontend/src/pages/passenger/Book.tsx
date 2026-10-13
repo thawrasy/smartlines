@@ -251,7 +251,7 @@ export default function Book() {
       {/* Journey header */}
       <div className="card row between">
         <div className="stack tight">
-          <div className="row" style={{ gap: 8 }}><span style={{ fontWeight: 600 }}>{d.trip.carrier_name}</span><span className="chip outline mono">{d.trip.trip_no}</span></div>
+          <div className="row" style={{ gap: 8 }}>{d.trip.carrier_logo && d.trip.carrier_uid && <span className="logo-tile sm"><img src={`/api/public/companies/${d.trip.carrier_uid}/logo?v=${d.trip.carrier_logo}`} alt="" /></span>}<span style={{ fontWeight: 600 }}>{d.trip.carrier_name}</span><span className="chip outline mono" title={d.trip.trip_no}>{d.trip.trip_code ?? d.trip.trip_no}</span></div>
           <div className="timeline" style={{ marginTop: 16, minWidth: "min(520px, 80vw)" }}>
             <div><div className="time">{time(from.sched_dep)}</div><div className="small muted">{station(from.station_code, from.station_name)}</div></div>
             <div className="line"><span className="dur">{duration(minutesBetween(from.sched_dep, to.sched_arr))}</span></div>

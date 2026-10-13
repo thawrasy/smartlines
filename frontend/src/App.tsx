@@ -78,6 +78,7 @@ const StationTrips = lazyNamed(() => import("./pages/station/Station"), "Station
 const StationCheckin = lazyNamed(() => import("./pages/station/Station"), "StationCheckin");
 const StationBoarding = lazyNamed(() => import("./pages/station/Station"), "StationBoarding");
 const StationSales = lazyNamed(() => import("./pages/station/Station"), "StationSales");
+const StationBays = lazyNamed(() => import("./pages/station/Bays"), "StationBays");
 const DepartureBoard = lazy(() => import("./pages/station/DepartureBoard"));
 const StationOps = lazy(() => import("./pages/carrier/StationOps"));
 const AdminBoarding = lazy(() => import("./pages/admin/Boarding"));
@@ -184,6 +185,7 @@ function AgencyShell() {
 
 function StationShell() {
   const { t } = useI18n();
+  const { can } = useAuth();
   return (
     <PortalShell title={t("nav.station")} items={[
       { to: "/station", end: true, icon: "dashboard", label: t("st.home") },
@@ -191,6 +193,8 @@ function StationShell() {
       { to: "/station/checkin", icon: "how_to_reg", label: t("st.checkin") },
       { to: "/station/boarding", icon: "qr_code_scanner", label: t("st.boarding") },
       { to: "/station/sales", icon: "point_of_sale", label: t("st.sales") },
+      // the bays, for the station's administration (1115): its owner, or staff holding station.bays
+      ...(can("station.bays") ? [{ to: "/station/bays", icon: "local_parking" as const, label: t("bays.nav") }] : []),
     ]} />
   );
 }
@@ -273,6 +277,7 @@ export default function App() {
           <Route path="station/checkin" element={<StationCheckin />} />
           <Route path="station/boarding" element={<StationBoarding />} />
           <Route path="station/sales" element={<StationSales />} />
+          <Route path="station/bays" element={<StationBays />} />
           <Route path="station/trip/:uid" element={<Book />} />
           <Route path="station/booking/:ref" element={<Booking />} />
         </Route>

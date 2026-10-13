@@ -6,8 +6,8 @@ import { ErrorBox, Field, Icon, Status } from "../components/ui";
 
 type Result =
   | { valid: false; reason: string }
-  | { valid: true; kind: "booking"; booking_ref: string; status: string; trip_no: string; departure_at: string; tickets: number; total_amount: number }
-  | { valid: true; kind: "ticket"; ticket_no: string; status: string; seat_no: number; trip_no: string; departure_at: string };
+  | { valid: true; kind: "booking"; booking_ref: string; status: string; trip_no: string; trip_code?: string | null; departure_at: string; tickets: number; total_amount: number }
+  | { valid: true; kind: "ticket"; ticket_no: string; status: string; seat_no: number; trip_no: string; trip_code?: string | null; departure_at: string };
 
 export default function Verify() {
   const { t, money, dateTime } = useI18n();
@@ -44,7 +44,8 @@ export default function Verify() {
               <dt>{t("booking.ticketTitle")}</dt><dd className="mono">{result.ticket_no}</dd>
               <dt>{t("common.seat")}</dt><dd>{result.seat_no}</dd>
             </>)}
-            <dt>{t("booking.tripNo")}</dt><dd className="mono">{result.trip_no}</dd>
+            <dt>{t("booking.tripNo")}</dt><dd className="mono">{result.trip_code ?? result.trip_no}
+              {result.trip_code && <div className="trip-ref">{t("trip.ref")} {result.trip_no}</div>}</dd>
             <dt>{t("booking.departs")}</dt><dd>{dateTime(result.departure_at)}</dd>
             <dt>{t("common.status")}</dt><dd><Status value={result.status} /></dd>
           </dl>

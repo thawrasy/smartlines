@@ -7,5 +7,6 @@
 
 - `STATION_SCREENS_REVIEW.md`: the design review of the boarding-station screens (October 2026), its findings, what was changed and the owner's decisions.
 - `STATION_USER_TESTING.md`: the protocol for testing those screens with real users at the pilot station.
+- `TRIP_NUMBERS.md`: the short trip number passengers read ("DC 101") and the trip reference staff use (owner's decision, 1114).
 
 The web frontend (`frontend/src/theme.css`) uses the same colour roles and radii as `system/tokens.json`.

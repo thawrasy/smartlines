@@ -8,7 +8,7 @@ import { Empty, ErrorBox, Field, Icon, Loaded, Modal, Stat, Status, useLoad, use
 import { LayoutPreview, type LayoutRow } from "./Layouts";
 
 export interface CarrierTrip {
-  uid: string; trip_no: string; status: string; departure_at: string; arrival_at?: string; seats_total: number; segments_count?: number;
+  uid: string; trip_no: string; trip_code?: string | null; status: string; departure_at: string; arrival_at?: string; seats_total: number; segments_count?: number;
   plate_no: string | null; route_code?: string; origin: string; destination: string; origin_code: string; dest_code: string; sold: number; driver_name?: string | null;
 }
 interface Dashboard {
@@ -62,7 +62,7 @@ export function CarrierDashboard() {
                   <thead><tr><th>{t("booking.tripNo")}</th><th>{t("booking.departs")}</th><th>{t("carrier.route")}</th><th>{t("carrier.sold")}</th><th>{t("common.status")}</th></tr></thead>
                   <tbody>{d.trips.map((x) => (
                     <tr key={x.uid}>
-                      <td className="mono small">{x.trip_no}</td><td>{dateTime(x.departure_at)}</td>
+                      <td className="mono small"><strong>{x.trip_code ?? x.trip_no}</strong>{x.trip_code && <div className="trip-ref">{x.trip_no}</div>}</td><td>{dateTime(x.departure_at)}</td>
                       <td className="small">{line(x)}</td>
                       <td className="num">{x.sold}/{x.seats_total}</td><td><Status value={x.status} /></td>
                     </tr>
@@ -92,13 +92,14 @@ function NewTrip({ onClose, onDone }: { onClose: () => void; onDone: () => void 
   const routes = useLoad(() => api.get<{ routes: Route[] }>("/api/carrier/routes"));
   const vehicles = useLoad(() => api.get<{ vehicles: Vehicle[] }>("/api/carrier/vehicles"));
   const crew = useLoad(() => api.get<{ crew: Crew[] }>("/api/carrier/crew"));
-  const [form, setForm] = useState({ route_uid: "", vehicle_uid: "", driver_uid: "", departure_local: "", publish: true, trip_type: "SCHEDULED" });
+  const [form, setForm] = useState({ route_uid: "", vehicle_uid: "", driver_uid: "", departure_local: "", publish: true, trip_type: "SCHEDULED", service_number: "" });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const submit = async () => {
     setBusy(true); setError(null);
     try {
-      await api.post("/api/carrier/trips", { ...form, driver_uid: form.driver_uid || null });
+      await api.post("/api/carrier/trips", { ...form, driver_uid: form.driver_uid || null,
+        service_number: form.service_number ? Number(form.service_number) : null });
       onDone();
     } catch (e) { setError(e); } finally { setBusy(false); }
   };
@@ -139,6 +140,10 @@ function NewTrip({ onClose, onDone }: { onClose: () => void; onDone: () => void 
             </select>
           </Field>
         </div>
+        <Field label={`${t("trip.serviceNumber")} (${t("common.optional")})`} hint={t("trip.serviceNumberHint")}>
+          <input className="input ltr mono" inputMode="numeric" maxLength={4} value={form.service_number}
+                 onChange={(e) => setForm({ ...form, service_number: e.target.value.replace(/\D/g, "") })} />
+        </Field>
         <label className="check"><input type="checkbox" checked={form.publish} onChange={(e) => setForm({ ...form, publish: e.target.checked })} />{t("carrier.publishNow")}</label>
       </div>
     </Modal>
@@ -253,7 +258,7 @@ export function CarrierTrips() {
           <thead><tr><th>{t("booking.tripNo")}</th><th>{t("booking.departs")}</th><th>{t("carrier.route")}</th><th>{t("carrier.plate")}</th><th>{t("carrier.driver")}</th><th>{t("carrier.sold")}</th><th>{t("common.status")}</th><th>{t("common.actions")}</th></tr></thead>
           <tbody>{trips.map((x) => (
             <tr key={x.uid}>
-              <td className="mono small">{x.trip_no}</td><td>{dateTime(x.departure_at)}</td><td className="small">{line(x)}</td>
+              <td className="mono small"><strong>{x.trip_code ?? x.trip_no}</strong>{x.trip_code && <div className="trip-ref">{x.trip_no}</div>}</td><td>{dateTime(x.departure_at)}</td><td className="small">{line(x)}</td>
               <td className="mono">{x.plate_no}</td><td>{x.driver_name ?? <span className="muted">{t("carrier.noDriver")}</span>}</td>
               <td className="num">{x.sold}/{x.seats_total}</td><td><Status value={x.status} /></td>
               <td><div className="row nowrap" style={{ gap: 4 }}>

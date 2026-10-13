@@ -37,7 +37,7 @@ export default function Ticket() {
       {c.data && claims ? (
         <Card style={{ alignItems: "center" }}>
           <Text style={[s.title, { fontSize: 22 }]}>{claims.n}</Text>
-          <Text style={s.h2}>{t("common.seat")} {claims.s} · {t("extra.trip", { no: c.data.cred.trip_no })}</Text>
+          <Text style={s.h2}>{t("common.seat")} {claims.s} · {t("extra.trip", { no: c.data.cred.trip_code ?? c.data.cred.trip_no })}</Text>
           <View style={{ padding: 16, backgroundColor: "#fff", borderRadius: 16 }}>
             <QRCode value={c.data.cred.credential} size={260} ecl="M" color={color.navy} backgroundColor="#fff" />
           </View>

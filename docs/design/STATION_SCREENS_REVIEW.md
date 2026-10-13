@@ -41,7 +41,7 @@ confuses or looks wrong; **low** is polish.
 | # | Screen | Finding | Severity | Status |
 | --- | --- | --- | --- | --- |
 | F1 | Boarding pass | The printed pass had no code. A passenger holding only paper could not be scanned at the bay or by the driver. | Critical | Fixed |
-| F2 | Ticket printed at a counter or an agency | The ticket showed the rotating code (valid at most three minutes) with "the code changes every 90 seconds". On paper it was useless. | Critical | Fixed; owner decision O1 |
+| F2 | Ticket printed at a counter or an agency | The ticket showed the rotating code (valid at most three minutes) with "the code changes every 90 seconds". On paper it was useless. | Critical | Fixed; O1 done (driver boards a typed ticket) |
 | F3 | Check-in | The identity check came after the scan field and blocked the button. A scan (with its Enter) did nothing while the box was not ticked, with no message. | High | Fixed |
 | F4 | Station trips | No destination column. The status showed the sale state ("open for sale"), not the check-in. Three days were mixed in one list, with a strong "Sell" button on every row. Trips ending at the station were listed. | High | Fixed |
 | F5 | Station portal, board, platform and carrier screens, pass | Station and city names in English inside the Arabic interface ("Aleppo", "via Homs · Hama", "Damascus Central Station"). | High | Fixed |
@@ -55,7 +55,7 @@ confuses or looks wrong; **low** is polish.
 | F13 | Station overview | A station known only from its counters was named by its code twice. Nothing asked the clerk to choose a counter, although check-in and sales need one. | Medium | Fixed |
 | F14 | Platform and carrier tables on a phone | Station codes broke in the middle ("SY-ALP-" / "C001"). | Low | Fixed |
 | F15 | Ticket | The fare class showed its code (`STANDARD`). | Low | Fixed |
-| L1 | Board | One language at a time; Syrian stations usually alternate Arabic and English. | Low | Owner decision O2 |
+| L1 | Board | One language at a time; Syrian stations usually alternate Arabic and English. | Low | Done (O2, file 1115) |
 | L2 | Station trips, carrier rights on a phone | Tables scroll sideways; the revoke action is off screen. The counter works on a desktop, so cards for phones come later. | Low | Later |
 | L3 | Data | Station names are kept in English only; crossings (class X) keep their English name in Arabic. Demo data: two loyalty partners named after the platform and its administrator; Nasib crossing recorded under Damascus. | Low | Later (data) |
 | L4 | Bay | No sound or vibration for the scan result. | Low | User tests |
@@ -120,9 +120,28 @@ or checks in at a station counter. Options:
 **O2. Languages of the departure board.** Arabic only, or alternate Arabic and English every 10 seconds (the usual
 practice in Syrian stations and airports). The second is recommended.
 
+### The owner's answers (October 2026)
+
+The owner approved both recommendations and added three requirements. All five are built (files 1114 and 1115; the
+details are in [BOARDING_STATIONS.md](../operations/BOARDING_STATIONS.md), section 8e):
+
+- **O1, option 2:** the driver's app (and the web driver page) boards a ticket typed in by its number and booking
+  reference, against the trip's manifest, online or offline, once the identity document is checked.
+- **O2:** the board shows Arabic and English in turn every 10 seconds, keeping the layout of the first; the platform can
+  change the languages and the time.
+- **Bays by the station's administration:** the platform names a station's administration (a station operating company),
+  which gives a permanent bay to each carrier, changeable at any time, or a bay to each trip; the trip's own bay comes
+  first. The counter, the pass and the board show the bay in force.
+- **Logos:** the platform adds a company's logo to a specification (PNG, JPEG or WebP up to 1 MB; one to four times as
+  wide as high; at least 120 pixels high; kept as a PNG up to 240 pixels high), shown on a white tile next to the name on
+  the board and in search results.
+- **Short trip numbers:** passengers read the carrier's code and a service number ("DC 101"), the same for a departure
+  every day and never twice in a carrier's day; the long number is the trip's reference
+  ([TRIP_NUMBERS.md](TRIP_NUMBERS.md)). On the board a cancelled trip turns red, without a line through it.
+
 ## 5. Next
 
 - Test with real users at the pilot station on the staging environment, with the station's own devices
-  ([STATION_USER_TESTING.md](STATION_USER_TESTING.md)), before the go/no-go of 29 December 2026.
-- After the owner's answers, build O1 (option 2) in the driver's app and O2 on the board.
+  ([STATION_USER_TESTING.md](STATION_USER_TESTING.md)), before the go/no-go of 29 December 2026; the sessions now include
+  assigning bays and reading the board in turn.
 - Later items L2 and L3 with the next screen work and the initial data load.

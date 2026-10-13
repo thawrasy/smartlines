@@ -34,6 +34,29 @@ function format(template: string, vars?: Vars) {
   return vars ? template.replace(/\{(\w+)\}/g, (_, k) => (k in vars ? String(vars[k]) : `{${k}}`)) : template;
 }
 
+/** A station name from its code in a language's words: central and numbered city stations (class C) are named from the
+ * city code, any other (a border crossing, class X) keeps its own name rather than being called a city station. */
+function stationName(messages: Messages, code: string | null | undefined, fallback: string) {
+  const m = code ? /^SY-([A-Z]{3})-C(\d{3})$/.exec(code) : null;
+  if (!m) return fallback;
+  const n = Number(m[2]);
+  const city = lookup(messages, `city.${m[1]}`) ?? m[1];
+  const key = n === 1 ? "station.central" : "station.numbered";
+  return format(lookup(messages, key) ?? lookup(en, key) ?? key, { city, n });
+}
+
+/** The words of one language, whatever the interface shows: the departure board shows its languages in turn (1115). */
+export function translator(l: Locale) {
+  const cfg = LOCALES[l];
+  return {
+    locale: l, dir: cfg.dir, intl: cfg.intl,
+    t: (key: string, vars?: Vars) => format(lookup(cfg.messages, key) ?? lookup(en, key) ?? key, vars),
+    has: (key: string) => lookup(cfg.messages, key) !== undefined,
+    city: (code: string) => lookup(cfg.messages, `city.${code}`) ?? code,
+    station: (code: string | null | undefined, fallback: string) => stationName(cfg.messages, code, fallback),
+  };
+}
+
 interface I18n {
   locale: Locale;
   dir: "rtl" | "ltr";
@@ -134,14 +157,8 @@ export function I18nProvider({ children }: { children: ReactNode }) {
       time: (v) => new Intl.DateTimeFormat(cfg.intl, { timeZone: market.time_zone, hour: "2-digit", minute: "2-digit", hour12: false }).format(toDate(v)),
       dateTime: (v) => new Intl.DateTimeFormat(cfg.intl, { timeZone: market.time_zone, day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hour12: false }).format(toDate(v)),
       city,
-      // Station names are stored in English; central and numbered city stations (class C) are rendered from the city
-      // code, any other (a border crossing, class X) keeps its own name rather than being called a city station
-      station: (code, fallback) => {
-        const m = code ? /^SY-([A-Z]{3})-C(\d{3})$/.exec(code) : null;
-        if (!m) return fallback;
-        const n = Number(m[2]);
-        return n === 1 ? t("station.central", { city: city(m[1]) }) : t("station.numbered", { city: city(m[1]), n });
-      },
+      // Station names are stored in English and rendered from their codes where they can be (stationName above)
+      station: (code, fallback) => stationName(cfg.messages, code, fallback),
       duration: (minutes) => t("common.duration", { h: Math.floor(minutes / 60), m: minutes % 60 }),
     };
   }, [locale, cfg, setLocale, market, known, setMarket]);

@@ -1,5 +1,20 @@
 {
  "app": {
+  "DELETE /api/admin/companies/{company_uid}/logo": {
+   "body": null,
+   "parameters": {
+    "path:company_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
   "DELETE /api/agency/holds/{hold_token}": {
    "body": null,
    "parameters": {
@@ -300,6 +315,21 @@
    }
   },
   "GET /api/admin/boarding/stations/{station_uid}": {
+   "body": null,
+   "parameters": {
+    "path:station_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/admin/boarding/stations/{station_uid}/bays": {
    "body": null,
    "parameters": {
     "path:station_uid": {
@@ -1490,6 +1520,29 @@
     "200": {}
    }
   },
+  "GET /api/public/companies/{company_uid}/logo": {
+   "body": null,
+   "parameters": {
+    "path:company_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    },
+    "query:v": {
+     "required": false,
+     "schema": {
+      "nullable": true,
+      "pattern": "^[0-9a-f]{12}$",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
   "GET /api/public/keys/einvoice": {
    "body": null,
    "parameters": {},
@@ -1794,6 +1847,21 @@
   "GET /api/security/summary": {
    "body": null,
    "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/station/bays": {
+   "body": null,
+   "parameters": {
+    "query:station_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
    "responses": {
     "200": {}
    }
@@ -3537,6 +3605,11 @@
     "content": {
      "application/json": {
       "properties": {
+       "code2": {
+        "nullable": true,
+        "pattern": "^([A-Z][A-Z0-9]|[0-9][A-Z])$",
+        "type": "string"
+       },
        "code3": {
         "pattern": "^[A-Z]{3}$",
         "type": "string"
@@ -7142,6 +7215,12 @@
         "format": "uuid",
         "type": "string"
        },
+       "service_number": {
+        "maximum": 9999.0,
+        "minimum": 1.0,
+        "nullable": true,
+        "type": "integer"
+       },
        "trip_type": {
         "default": "SCHEDULED",
         "enum": [
@@ -7708,14 +7787,31 @@
     "content": {
      "application/json": {
       "properties": {
+       "booking_ref": {
+        "maxLength": 12,
+        "minLength": 4,
+        "nullable": true,
+        "type": "string"
+       },
+       "identity_checked": {
+        "default": false,
+        "type": "boolean"
+       },
        "stop_seq": {
         "minimum": 0.0,
         "nullable": true,
         "type": "integer"
        },
+       "ticket_no": {
+        "maxLength": 40,
+        "minLength": 3,
+        "nullable": true,
+        "type": "string"
+       },
        "token": {
         "maxLength": 600,
         "minLength": 10,
+        "nullable": true,
         "type": "string"
        },
        "trip_uid": {
@@ -7724,8 +7820,7 @@
        }
       },
       "required": [
-       "trip_uid",
-       "token"
+       "trip_uid"
       ],
       "type": "object"
      }
@@ -7745,6 +7840,16 @@
        "scans": {
         "items": {
          "properties": {
+          "booking_ref": {
+           "maxLength": 12,
+           "minLength": 4,
+           "nullable": true,
+           "type": "string"
+          },
+          "identity_checked": {
+           "default": false,
+           "type": "boolean"
+          },
           "scan_id": {
            "maxLength": 64,
            "minLength": 8,
@@ -7760,15 +7865,21 @@
            "nullable": true,
            "type": "integer"
           },
+          "ticket_no": {
+           "maxLength": 40,
+           "minLength": 3,
+           "nullable": true,
+           "type": "string"
+          },
           "token": {
            "maxLength": 600,
            "minLength": 10,
+           "nullable": true,
            "type": "string"
           }
          },
          "required": [
           "scan_id",
-          "token",
           "scanned_at"
          ],
          "type": "object"
@@ -11850,7 +11961,9 @@
          "boarding.mode.carrier_contracted",
          "boarding.checkin.opens_minutes",
          "boarding.checkin.closes_minutes",
-         "boarding.references.required"
+         "boarding.references.required",
+         "boarding.board.languages",
+         "boarding.board.rotate_seconds"
         ],
         "type": "string"
        },
@@ -11901,10 +12014,127 @@
        },
        "enabled": {
         "type": "boolean"
+       },
+       "manager_company_uid": {
+        "format": "uuid",
+        "nullable": true,
+        "type": "string"
        }
       },
       "required": [
        "enabled"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:station_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "PUT /api/admin/boarding/stations/{station_uid}/bays/carriers": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "bay": {
+        "nullable": true,
+        "pattern": "^[A-Z0-9-]{1,12}$",
+        "type": "string"
+       },
+       "carrier_uid": {
+        "format": "uuid",
+        "type": "string"
+       }
+      },
+      "required": [
+       "carrier_uid"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:station_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "PUT /api/admin/boarding/stations/{station_uid}/bays/mode": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "mode": {
+        "enum": [
+         "CARRIER",
+         "TRIP"
+        ],
+        "type": "string"
+       }
+      },
+      "required": [
+       "mode"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:station_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "PUT /api/admin/boarding/stations/{station_uid}/bays/trips": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "bay": {
+        "nullable": true,
+        "pattern": "^[A-Z0-9-]{1,12}$",
+        "type": "string"
+       },
+       "stop_seq": {
+        "maximum": 500.0,
+        "minimum": 0.0,
+        "type": "integer"
+       },
+       "trip_uid": {
+        "format": "uuid",
+        "type": "string"
+       }
+      },
+      "required": [
+       "trip_uid",
+       "stop_seq"
       ],
       "type": "object"
      }
@@ -11954,6 +12184,66 @@
      "required": true,
      "schema": {
       "type": "integer"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "PUT /api/admin/companies/{company_uid}/designator": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "code2": {
+        "nullable": true,
+        "pattern": "^([A-Z][A-Z0-9]|[0-9][A-Z])$",
+        "type": "string"
+       }
+      },
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:company_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "PUT /api/admin/companies/{company_uid}/logo": {
+   "body": {
+    "content": {
+     "multipart/form-data": {
+      "properties": {
+       "file": {
+        "contentMediaType": "application/octet-stream",
+        "type": "string"
+       }
+      },
+      "required": [
+       "file"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:company_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
      }
     }
    },
@@ -12580,6 +12870,104 @@
       "required": [
        "methods",
        "required_portals"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "PUT /api/station/bays/carriers": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "bay": {
+        "nullable": true,
+        "pattern": "^[A-Z0-9-]{1,12}$",
+        "type": "string"
+       },
+       "carrier_uid": {
+        "format": "uuid",
+        "type": "string"
+       },
+       "station_uid": {
+        "format": "uuid",
+        "type": "string"
+       }
+      },
+      "required": [
+       "carrier_uid",
+       "station_uid"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "PUT /api/station/bays/mode": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "mode": {
+        "enum": [
+         "CARRIER",
+         "TRIP"
+        ],
+        "type": "string"
+       },
+       "station_uid": {
+        "format": "uuid",
+        "type": "string"
+       }
+      },
+      "required": [
+       "mode",
+       "station_uid"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "PUT /api/station/bays/trips": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "bay": {
+        "nullable": true,
+        "pattern": "^[A-Z0-9-]{1,12}$",
+        "type": "string"
+       },
+       "stop_seq": {
+        "maximum": 500.0,
+        "minimum": 0.0,
+        "type": "integer"
+       },
+       "trip_uid": {
+        "format": "uuid",
+        "type": "string"
+       }
+      },
+      "required": [
+       "trip_uid",
+       "stop_seq"
       ],
       "type": "object"
      }

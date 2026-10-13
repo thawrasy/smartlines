@@ -234,8 +234,9 @@ async def main():
         await conn.execute("INSERT INTO iam.party_role (party_id, role_code) VALUES ($1, 'OPERATOR')", company)
         await conn.execute("INSERT INTO iam.company (id, approval_status, approved_by, approved_at) VALUES ($1, 'APPROVED', $2, now())",
                            company, admin)
-        await conn.execute("INSERT INTO net.carrier_code (company_id, code3, status, approved_by, valid_from) VALUES ($1, 'DCA', 'ACTIVE', $2, current_date)",
-                           company, admin)
+        # DCA, and DC the designator of its trip numbers ("DC 101", 1114)
+        await conn.execute("""INSERT INTO net.carrier_code (company_id, code3, code2, status, approved_by, valid_from)
+                              VALUES ($1, 'DCA', 'DC', 'ACTIVE', $2, current_date)""", company, admin)
         await conn.execute("INSERT INTO fin.wallet (owner_party_id, company_id, wallet_type, label, currency) VALUES ($1, $1, 'COMPANY', 'Carrier wallet', 'SYP')",
                            company)
         _, owner = await user(conn, "PERSON", "Maher (carrier owner)", "owner@carrier.test", "COMPANY")
@@ -268,6 +269,7 @@ async def main():
         today = datetime.now(LOCAL_TZ).date()
         busy: dict[int, list] = {v: [] for v, _ in vehicles}
         n_trips = 0
+        next_number = {False: 101, True: 102}
         for code, stops in ROUTES:
             ids = [station[c] for c, *_ in stops]
             rid = await conn.fetchval(
@@ -279,6 +281,17 @@ async def main():
                     """INSERT INTO net.route_stop (route_id, seq, station_id, kind, arr_offset_min, dep_offset_min, fare_from_origin)
                        VALUES ($1, $2, $3, $4, $5, $6, $7)""",
                     rid, i, station[city], "ORIGIN" if i == 0 else ("DEST" if i == len(stops) - 1 else "STOP"), arr, dep, fare * 100)
+            # one service number for each departure time, repeated every day (study 4.16 b, 1114): odd outbound from
+            # Damascus, even on the way back
+            inbound = not code.startswith("DAM-")
+            numbers = {}
+            for hhmm in DEPARTURES[code]:
+                number = next_number[inbound]
+                next_number[inbound] += 2
+                numbers[hhmm] = await conn.fetchval(
+                    """INSERT INTO net.service_number (company_id, number, block, route_id, direction, valid)
+                       VALUES ($1, $2, 'SCHEDULED', $3, $4, daterange(current_date - 1, NULL)) RETURNING id""",
+                    company, number, rid, "INBOUND" if inbound else "OUTBOUND")
             for day in range(0, 7):
                 for hhmm in DEPARTURES[code]:
                     h, m = map(int, hhmm.split(":"))
@@ -295,10 +308,10 @@ async def main():
                     trip_no = f"DCA-{code}-{dep_at:%H%M}/{dep_at:%d%b%y}".upper()
                     tid = await conn.fetchval(
                         """INSERT INTO ops.trip (trip_no, company_id, route_id, service_type, vehicle_id, departure_at, arrival_at, status,
-                             seats_total, segments_count, currency, base_price, published_at)
-                           VALUES ($1, $2, $3, $4, $5, $6, $7, 'PUBLISHED', $8, $9, 'SYP', $10, now()) RETURNING id""",
+                             seats_total, segments_count, currency, base_price, published_at, service_number_id)
+                           VALUES ($1, $2, $3, $4, $5, $6, $7, 'PUBLISHED', $8, $9, 'SYP', $10, now(), $11) RETURNING id""",
                         trip_no, company, rid, "INDIRECT" if len(stops) > 2 else "DIRECT", vid, dep_at, arr_at, seats,
-                        len(stops) - 1, stops[-1][3] * 100)
+                        len(stops) - 1, stops[-1][3] * 100, numbers[hhmm])
                     for i, (city, arr, dep, fare) in enumerate(stops):
                         await conn.execute(
                             """INSERT INTO ops.trip_stop (trip_id, seq, station_id, sched_arr, sched_dep, fare_from_origin)

@@ -13,7 +13,8 @@ from ...errors import ApiError, not_found
 from ...security import hash_password
 
 SETTINGS = ("boarding.stations.enabled", "boarding.mode.state_mandated", "boarding.mode.carrier_contracted",
-            "boarding.checkin.opens_minutes", "boarding.checkin.closes_minutes", "boarding.references.required")
+            "boarding.checkin.opens_minutes", "boarding.checkin.closes_minutes", "boarding.references.required",
+            "boarding.board.languages", "boarding.board.rotate_seconds")
 
 
 def _jsonb(value):
@@ -53,8 +54,9 @@ async def _station(conn, station_uid: uuid.UUID):
 async def station_view(conn, station_uid: uuid.UUID) -> dict:
     st = await _station(conn, station_uid)
     board = await conn.fetchrow(
-        """SELECT enabled, counter_system, displays, checkin_opens_minutes, checkin_closes_minutes
-             FROM net.station_boarding WHERE station_id = $1""", st["id"])
+        """SELECT b.enabled, b.counter_system, b.displays, b.checkin_opens_minutes, b.checkin_closes_minutes, b.bay_mode,
+                  m.uid AS manager_company_uid, m.legal_name AS manager_company_name
+             FROM net.station_boarding b LEFT JOIN iam.party m ON m.id = b.manager_company_id WHERE b.station_id = $1""", st["id"])
     gates = await conn.fetch(
         """SELECT g.code, g.gate_type, g.status, p.uid AS operator_uid, p.legal_name AS operator_name
              FROM net.station_gate g LEFT JOIN iam.party p ON p.id = g.operator_company_id
@@ -62,7 +64,8 @@ async def station_view(conn, station_uid: uuid.UUID) -> dict:
     return {
         "uid": st["uid"], "code": st["code"], "name": st["name"], "status": st["status"],
         "boarding": dict(board) if board else {"enabled": False, "counter_system": "PLATFORM", "displays": False,
-                                                "checkin_opens_minutes": None, "checkin_closes_minutes": None},
+                                                "checkin_opens_minutes": None, "checkin_closes_minutes": None, "bay_mode": "TRIP",
+                                                "manager_company_uid": None, "manager_company_name": None},
         "boarding_on_now": await conn.fetchval("SELECT net.boarding_station_on($1)", st["id"]),
         "gates": [dict(g) for g in gates],
     }
@@ -70,16 +73,23 @@ async def station_view(conn, station_uid: uuid.UUID) -> dict:
 
 async def set_station_boarding(conn, station_uid: uuid.UUID, body, user_id: int) -> int:
     st = await _station(conn, station_uid)
+    manager = None
+    if body.manager_company_uid is not None:            # the station's administration: a station operating company (1115)
+        manager = await conn.fetchval(
+            """SELECT c.id FROM iam.company c JOIN iam.party p ON p.id = c.id
+                WHERE p.uid = $1 AND c.company_type = 'STATION_OPERATOR'""", body.manager_company_uid)
+        if manager is None:
+            raise ApiError(422, "NOT_STATION_OPERATOR", "a station is administered by a station operating company")
     await conn.execute(
         """INSERT INTO net.station_boarding (station_id, enabled, counter_system, displays, checkin_opens_minutes,
-                                             checkin_closes_minutes, updated_by_user_id, updated_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, now())
+                                             checkin_closes_minutes, manager_company_id, updated_by_user_id, updated_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, now())
            ON CONFLICT (station_id) DO UPDATE SET enabled = excluded.enabled, counter_system = excluded.counter_system,
              displays = excluded.displays, checkin_opens_minutes = excluded.checkin_opens_minutes,
-             checkin_closes_minutes = excluded.checkin_closes_minutes,
+             checkin_closes_minutes = excluded.checkin_closes_minutes, manager_company_id = excluded.manager_company_id,
              updated_by_user_id = excluded.updated_by_user_id, updated_at = excluded.updated_at""",
         st["id"], body.enabled, body.counter_system, body.displays, body.checkin_opens_minutes,
-        body.checkin_closes_minutes, user_id)
+        body.checkin_closes_minutes, manager, user_id)
     return st["id"]
 
 
@@ -232,4 +242,9 @@ async def operator_overview(conn, company_id: int) -> dict:
                   net.boarding_station_on(st.id) AS boarding_on_now
              FROM net.station_gate g JOIN net.station st ON st.id = g.station_id
             WHERE g.operator_company_id = $1 ORDER BY st.code, g.code""", company_id)
-    return {"grants": [dict(r) for r in grants], "counters": [dict(r) for r in counters]}
+    administered = await conn.fetch(                    # the stations whose bays it assigns (1115)
+        """SELECT st.uid AS station_uid, st.code AS station_code, st.name AS station_name, b.bay_mode
+             FROM net.station_boarding b JOIN net.station st ON st.id = b.station_id
+            WHERE b.manager_company_id = $1 ORDER BY st.code""", company_id)
+    return {"grants": [dict(r) for r in grants], "counters": [dict(r) for r in counters],
+            "administered": [dict(r) for r in administered]}

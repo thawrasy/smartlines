@@ -22,18 +22,18 @@ interface Grant {
 interface Counter { station_uid: string; station_code: string; code: string; status: string; boarding_on_now: boolean }
 interface Overview { grants: Grant[]; counters: Counter[] }
 export interface StationTrip {
-  trip_uid: string; trip_no: string; carrier: string; status: string; stop_seq: number; departs_at: string; bay: string | null;
+  trip_uid: string; trip_no: string; trip_code?: string | null; carrier: string; status: string; stop_seq: number; departs_at: string; bay: string | null;
   dest_code?: string; dest_name?: string; dest_city?: string | null; checkin_opens_at?: string | null; checkin_closes_at?: string | null;
   may_check_in: boolean; may_board: boolean; may_sell: boolean; tickets: number; checked_in: number; boarded: number;
 }
 interface Pass {
-  pass_no: string; status: string; ticket_no: string; seat_no: number | null; passenger: string; trip_no: string; carrier: string;
+  pass_no: string; status: string; ticket_no: string; seat_no: number | null; passenger: string; trip_no: string; trip_code?: string | null; carrier: string;
   from_station: string; to_station: string; from_code?: string; to_code?: string; departs_at: string; bay: string | null;
   counter: string | null; repeated?: boolean; credential?: string | null; credential_opens_at?: string;
 }
 interface DaySales {
   day: string; count: number; total: number; currency: string | null;
-  bookings: { booking_ref: string; status: string; total_amount: number; created_at: string; trip_no: string; carrier: string; counter: string | null; tickets: number }[];
+  bookings: { booking_ref: string; status: string; total_amount: number; created_at: string; trip_no: string; trip_code?: string | null; carrier: string; counter: string | null; tickets: number }[];
 }
 interface CashPosition { owed: number; limit: number; remaining: number; currency: string }
 
@@ -164,7 +164,7 @@ export function StationTrips() {
               <tr key={`${x.trip_uid}-${x.stop_seq}`}>
                 <td><strong className="mono">{time(x.departs_at)}</strong></td>
                 <td><strong>{dest(x)}</strong></td>
-                <td className="mono small">{x.trip_no}</td>
+                <td className="mono small text-nowrap" title={x.trip_no}>{x.trip_code ?? x.trip_no}</td>
                 <td>{x.carrier}</td>
                 <td className="mono">{x.bay ?? "—"}</td>
                 <td>{x.status === "BOARDING" ? <Status value="BOARDING" />
@@ -192,7 +192,7 @@ function Destination({ trip, onClose }: { trip: StationTrip; onClose: () => void
   const [to, setTo] = useState<number | null>(null);
   const [pax, setPax] = useState(1);
   return (
-    <Modal title={`${t("st.sell")} · ${trip.trip_no}`} onClose={onClose}
+    <Modal title={`${t("st.sell")} · ${trip.trip_code ?? trip.trip_no}`} onClose={onClose}
            actions={<><button className="btn text" onClick={onClose}>{t("common.cancel")}</button>
              <button className="btn" disabled={to === null} onClick={() => nav(`/station/trip/${trip.trip_uid}?from=${trip.stop_seq}&to=${to}&pax=${pax}`)}>{t("common.next")}</button></>}>
       <Loaded state={detail}>{(d) => (
@@ -245,7 +245,8 @@ function PassCard({ pass }: { pass: Pass }) {
       <div className="row between"><strong>{t("st.pass")}</strong><span className="mono">{pass.pass_no}</span></div>
       <div style={{ fontSize: 22, fontWeight: 700 }}>{pass.passenger}</div>
       <div className="row" style={{ gap: 24, flexWrap: "wrap" }}>
-        <div><div className="small muted">{t("st.trip")}</div><div className="mono">{pass.trip_no}</div></div>
+        <div><div className="small muted">{t("st.trip")}</div><div className="mono">{pass.trip_code ?? pass.trip_no}</div>
+          {pass.trip_code && <div className="mono trip-ref">{t("trip.ref")} {pass.trip_no}</div>}</div>
         <div><div className="small muted">{t("st.carrier")}</div><div>{pass.carrier}</div></div>
         <div><div className="small muted">{t("st.seat")}</div><div className="mono">{pass.seat_no ?? "—"}</div></div>
         <div><div className="small muted">{t("st.departs")}</div><div><strong>{time(pass.departs_at)}</strong> {date(pass.departs_at)}</div></div>
@@ -384,7 +385,7 @@ export function StationBoarding() {
           <select className="input" value={tripUid} onChange={(e) => setParams(e.target.value ? { trip: e.target.value } : {})}>
             <option value="">—</option>
             {(trips.data ?? []).filter((x) => x.may_board).map((x) =>
-              <option key={x.trip_uid} value={x.trip_uid}>{time(x.departs_at)} · {x.dest_city && city(x.dest_city) !== x.dest_city ? city(x.dest_city) : placeName(x.dest_code, x.dest_name ?? "")} · {x.trip_no} · {x.carrier}{x.bay ? ` · ${t("st.bay")} ${x.bay}` : ""}</option>)}
+              <option key={x.trip_uid} value={x.trip_uid}>{time(x.departs_at)} · {x.dest_city && city(x.dest_city) !== x.dest_city ? city(x.dest_city) : placeName(x.dest_code, x.dest_name ?? "")} · {x.trip_code ?? x.trip_no} · {x.carrier}{x.bay ? ` · ${t("st.bay")} ${x.bay}` : ""}</option>)}
           </select>
         </Field>
         {tripUid && (() => {
@@ -453,7 +454,7 @@ export function StationSales() {
               <tbody>{d.bookings.map((b) => (
                 <tr key={b.booking_ref}>
                   <td><Link className="mono" to={`/station/booking/${b.booking_ref}`}>{b.booking_ref}</Link></td>
-                  <td>{time(b.created_at)}</td><td className="mono">{b.trip_no}</td><td>{b.carrier}</td><td className="mono">{b.counter ?? "—"}</td>
+                  <td>{time(b.created_at)}</td><td className="mono">{b.trip_code ?? b.trip_no}</td><td>{b.carrier}</td><td className="mono">{b.counter ?? "—"}</td>
                   <td className="num">{b.tickets}</td><td className="num">{money(b.total_amount)}</td><td><Status value={b.status} /></td>
                 </tr>
               ))}</tbody>

@@ -4,10 +4,10 @@ import uuid
 from datetime import date
 from typing import Literal, Optional
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, File, Request, UploadFile
 from pydantic import BaseModel, EmailStr, Field
 
-from .. import db, markets
+from .. import company_logo, db, markets
 from ..deps import Principal, context_for, require_permission, require_portal
 from ..errors import ApiError, not_found
 from ..ledger import company_wallet, platform_wallet, post_txn
@@ -37,7 +37,8 @@ async def overview(request: Request, pr: Principal = Depends(platform)):
 async def companies(request: Request, pr: Principal = Depends(platform)):
     async with db.transaction(context_for(request, pr)) as conn:
         recs = await conn.fetch(
-            """SELECT p.uid, p.legal_name, c.company_type, c.approval_status, c.created_at, cc.code3,
+            """SELECT p.uid, p.legal_name, c.company_type, c.approval_status, c.created_at, cc.code3, cc.code2,
+                      (SELECT encode(substr(l.sha256, 1, 6), 'hex') FROM iam.company_logo l WHERE l.company_id = c.id) AS logo,
                       (SELECT count(*) FROM fleet.vehicle v WHERE v.company_id = c.id) AS vehicles,
                       (SELECT count(*) FROM ops.trip t WHERE t.company_id = c.id) AS trips
                  FROM iam.company c JOIN iam.party p ON p.id = c.id
@@ -54,10 +55,21 @@ async def _open_market(conn, code: Optional[str]) -> markets.Market:
     return m
 
 
+CODE2 = r"^([A-Z][A-Z0-9]|[0-9][A-Z])$"   # two characters, one at least a letter (study 4.16 a)
+
+
+async def _code_free(conn, code: str, company_id: Optional[int] = None) -> bool:
+    """A carrier code nobody else holds and the platform has not reserved (study 4.16 a)."""
+    return not await conn.fetchval(
+        """SELECT 1 FROM net.carrier_code WHERE (code3 = $1 OR code2 = $1) AND company_id IS DISTINCT FROM $2
+           UNION SELECT 1 FROM net.code_reservation WHERE code = $1""", code, company_id)
+
+
 class OnboardIn(BaseModel):
     legal_name: str = Field(min_length=3, max_length=160)
     market: Optional[str] = Field(default=None, pattern=r"^[A-Z]{2}$")     # country of an open market; default market if none
     code3: str = Field(pattern=r"^[A-Z]{3}$")
+    code2: Optional[str] = Field(default=None, pattern=CODE2)      # the designator of its trip numbers, "QD 214" (1114)
     transport_license_no: Optional[str] = None
     owner_name: str = Field(min_length=3, max_length=120)
     owner_email: EmailStr
@@ -72,8 +84,7 @@ async def onboard_carrier(body: OnboardIn, request: Request, pr: Principal = Dep
     if problem:
         raise ApiError(422, problem, "password does not meet the policy")
     async with db.transaction(context_for(request, pr)) as conn:
-        if await conn.fetchval("SELECT 1 FROM net.carrier_code WHERE code3 = $1 UNION SELECT 1 FROM net.code_reservation WHERE code = $1",
-                               body.code3):
+        if not await _code_free(conn, body.code3) or (body.code2 and not await _code_free(conn, body.code2)):
             raise ApiError(409, "CODE_TAKEN", "carrier code is taken or reserved")
         m = await _open_market(conn, body.market)
         cid = await conn.fetchval(
@@ -84,8 +95,9 @@ async def onboard_carrier(body: OnboardIn, request: Request, pr: Principal = Dep
             """INSERT INTO iam.company (id, transport_license_no, approval_status, approved_by, approved_at)
                VALUES ($1, $2, 'APPROVED', $3, now())""", cid, body.transport_license_no, pr.user_id)
         await conn.execute(
-            "INSERT INTO net.carrier_code (company_id, code3, status, approved_by, valid_from) VALUES ($1, $2, 'ACTIVE', $3, current_date)",
-            cid, body.code3, pr.user_id)
+            """INSERT INTO net.carrier_code (company_id, code3, code2, status, approved_by, valid_from)
+               VALUES ($1, $2, $3, 'ACTIVE', $4, current_date)""",
+            cid, body.code3, body.code2, pr.user_id)
         owner_party = await conn.fetchval(
             "INSERT INTO iam.party (party_type, legal_name) VALUES ('PERSON', $1) RETURNING id",   # contact on the account
             body.owner_name.strip())
@@ -118,6 +130,68 @@ async def set_company_status(company_uid: uuid.UUID, body: StatusIn, request: Re
             raise not_found("company")
     request.state.audit = {"action": "company.status", "object_type": "company", "object_id": cid, "reason": body.reason}
     return {"ok": True}
+
+
+class DesignatorIn(BaseModel):
+    code2: Optional[str] = Field(default=None, pattern=CODE2)      # empty: trip numbers use the three-letter code
+
+
+async def _company(conn, company_uid: uuid.UUID) -> int:
+    cid = await conn.fetchval("SELECT c.id FROM iam.company c JOIN iam.party p ON p.id = c.id WHERE p.uid = $1", company_uid)
+    if cid is None:
+        raise not_found("company")
+    return cid
+
+
+def _platform_only(pr: Principal) -> None:
+    if pr.portal != "PLATFORM":
+        raise ApiError(403, "FORBIDDEN", "platform portal only")
+
+
+@router.put("/companies/{company_uid}/designator")
+async def set_designator(company_uid: uuid.UUID, body: DesignatorIn, request: Request,
+                         pr: Principal = Depends(require_permission("company.approve"))):
+    """The two-character designator of a carrier's trip numbers (1114). Trips already made keep the number printed on
+    their tickets; the new designator names the trips made from now on."""
+    _platform_only(pr)
+    async with db.transaction(context_for(request, pr)) as conn:
+        cid = await _company(conn, company_uid)
+        if body.code2 and not await _code_free(conn, body.code2, cid):
+            raise ApiError(409, "CODE_TAKEN", "carrier code is taken or reserved")
+        n = await conn.execute("UPDATE net.carrier_code SET code2 = $2 WHERE company_id = $1 AND status = 'ACTIVE'", cid, body.code2)
+        if n.endswith(" 0"):
+            raise ApiError(409, "NO_CARRIER_CODE", "the company has no active carrier code")
+    request.state.audit = {"action": "company.designator", "object_type": "company", "object_id": cid, "reason": body.code2 or "-"}
+    return {"code2": body.code2}
+
+
+@router.put("/companies/{company_uid}/logo")
+async def set_logo(company_uid: uuid.UUID, request: Request, file: UploadFile = File(...),
+                   pr: Principal = Depends(require_permission("company.approve"))):
+    """The company's logo, to the specification in app/company_logo.py: checked, re-encoded and kept (1115)."""
+    _platform_only(pr)
+    logo = company_logo.prepare(await file.read(company_logo.MAX_BYTES + 1))
+    async with db.transaction(context_for(request, pr)) as conn:
+        cid = await _company(conn, company_uid)
+        await conn.execute(
+            """INSERT INTO iam.company_logo (company_id, image, width, height, sha256, uploaded_by, uploaded_at)
+               VALUES ($1, $2, $3, $4, $5, $6, now())
+               ON CONFLICT (company_id) DO UPDATE SET image = excluded.image, width = excluded.width, height = excluded.height,
+                 sha256 = excluded.sha256, uploaded_by = excluded.uploaded_by, uploaded_at = excluded.uploaded_at""",
+            cid, logo.png, logo.width, logo.height, logo.sha256, pr.user_id)
+    request.state.audit = {"action": "company.logo", "object_type": "company", "object_id": cid, "reason": logo.version}
+    return {"logo": logo.version, "width": logo.width, "height": logo.height, "bytes": len(logo.png)}
+
+
+@router.delete("/companies/{company_uid}/logo")
+async def remove_logo(company_uid: uuid.UUID, request: Request, pr: Principal = Depends(require_permission("company.approve"))):
+    _platform_only(pr)
+    async with db.transaction(context_for(request, pr)) as conn:
+        cid = await _company(conn, company_uid)
+        if not await conn.fetchval("SELECT iam.remove_company_logo($1)", cid):
+            raise not_found("logo")
+    request.state.audit = {"action": "company.logo_remove", "object_type": "company", "object_id": cid}
+    return {"logo": None}
 
 
 @router.get("/stations")

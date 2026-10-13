@@ -14,9 +14,9 @@ supporting index, except references to lookup lists and to the staff member who 
 |---|---|
 | Engine | PostgreSQL 16 with PostGIS 3 (extensions: pgcrypto, citext, btree_gist, pg_trgm, postgis in schema `gis`; Docker and CI image `postgis/postgis:16-3.4`, Ubuntu package `postgresql-16-postgis-3`) |
 | Schemas | 26 separate schemas, each with its own privileges |
-| Tables | 522 tables (8 partitioned), 5,392 columns, 1,514 foreign keys |
-| Security | row-level security on 522 of 522 tables, 943 policies; 446 triggers, 358 functions |
-| Tests | 684 automated checks against a freshly built database (`db/tests/run.sh`) |
+| Tables | 524 tables (8 partitioned), 5,410 columns, 1,521 foreign keys |
+| Security | row-level security on 524 of 524 tables, 947 policies; 449 triggers, 372 functions |
+| Tests | 702 automated checks against a freshly built database (`db/tests/run.sh`) |
 | Design | [Database design and ERD document](../docs/database/) with diagrams in the study's colors |
 | Docs | [Data dictionary](DATA_DICTIONARY.md) · [ERD diagrams](ERD.md) (both generated from the database) |
 <!-- stats:end -->
@@ -170,6 +170,8 @@ PostGIS in `gis`. Until 9 October 2026 a first start of the Docker stack stopped
 | `1111_counter_photo_gate.sql` | The photo at a station counter stays off until a legal approval allows it: a fifth view role `STATION_COUNTER_AT_CHECKIN`, off, turned on only by an approved change that records the legal document number |
 | `1112_station_board.sql` | The station's public departure board (build step 4): departures of the next 12 hours and arrivals of the next 6, with bays and states, without passenger data, only where the platform switched the station's screens on |
 | `1113_station_screens_review.sql` | What the station screens show after their design review of October 2026 (`docs/design/STATION_SCREENS_REVIEW.md`); fields added, none removed: the counter's trips name where each goes and carry the check-in window at the station (`brd.station_trips`, a trip ending at the station is no longer listed), the boarding pass names its ticket for the signed code printed on it (`brd.boarding_pass`), and the departure board gives the city codes of the stops on the way (`brd.station_board`) |
+| `1114_trip_numbers.sql` | The trip number passengers read, as airlines do (owner's decision, October 2026): `ops.trip.trip_code` ("DC 101") is the carrier's designator (`net.carrier_code.code2`, else its three-letter code) and a service number (`service_no`), the same for the same departure every day; `service_date` is the trip's day where it starts; a carrier never runs two trips under one number on one day (`trip_number_day_uq`). The number comes from the trip's or its template's service number, else the route's at the same local time on the nearest other day, else the lowest free number of the extra block (`ops.pick_service_no`); a service number serves one template at a time. Existing trips are numbered; `trip_no` stays the trip's reference |
+| `1115_station_bays_logos_board.sql` | The owner's decisions on the station screens: the platform names a station's administration (`net.station_boarding.manager_company_id`, a station operating company), which assigns the bays per carrier (`net.station_carrier_bay`, permanent and changeable) or per trip (`ops.trip_stop.gate_id`), the trip's own first (`brd.stop_bay_id`, `brd.station_bays`, `brd.assign_trip_bay`, `net.set_carrier_bay`, `net.set_station_bay_mode`, permission `station.bays`); a company's logo, re-encoded to a specification by the application and public like the name (`iam.company_logo`, removed by `iam.remove_company_logo`); the board's languages shown in turn (`boarding.board.languages`, `boarding.board.rotate_seconds`); the counter's trips, the boarding pass and the board show the bay in force, the trip code and the carrier's logo |
 
 ## Design rules (study 29.1)
 

@@ -5,7 +5,8 @@ a boarding or a ticket until the platform switches a station on.
     GET  /api/admin/boarding/settings                       the switches, the check-in window and the required references
     PUT  /api/admin/boarding/settings                       change one setting: {key, value}
     GET  /api/admin/boarding/stations/{station_uid}         the station's switch, its counters and bays
-    PUT  /api/admin/boarding/stations/{station_uid}         switch the station on or off, its counter system and window
+    PUT  /api/admin/boarding/stations/{station_uid}         switch the station on or off, its counter system and window, and
+                                                            name its administration, which assigns its bays (1115; bays.py)
     POST /api/admin/boarding/stations/{station_uid}/gates   open a platform gate, bay, gate or counter (the platform numbers it)
     GET  /api/admin/boarding/operator-grants                every grant (station operators' rights)
     POST /api/admin/boarding/operator-grants                grant a state-mandated operating company a right (no carrier)
@@ -13,7 +14,8 @@ a boarding or a ticket until the platform switches a station on.
     POST /api/admin/boarding/operating-companies            onboard a station operating company and its owner (1099)
 
     Station operating company (the STATION portal, 1099; owner or station.counter)
-    GET  /api/station/overview                              the rights the company holds now, and its counters
+    GET  /api/station/overview                              the rights the company holds now, its counters, and the stations
+                                                            it administers (their bays: bays.py, 1115)
     GET  /api/station/trips?station_uid=                    trips leaving the station in the next two days it may serve (1105),
                                                             with where they go and the station's check-in window (1113)
     POST /api/station/checkin                               the counter check: the boarding pass, with the bay (1105) and the
@@ -77,7 +79,8 @@ def _grantor(pr: Principal) -> None:
 
 class SettingIn(BaseModel):
     key: Literal["boarding.stations.enabled", "boarding.mode.state_mandated", "boarding.mode.carrier_contracted",
-                 "boarding.checkin.opens_minutes", "boarding.checkin.closes_minutes", "boarding.references.required"]
+                 "boarding.checkin.opens_minutes", "boarding.checkin.closes_minutes", "boarding.references.required",
+                 "boarding.board.languages", "boarding.board.rotate_seconds"]
     value: Any
 
 
@@ -87,6 +90,7 @@ class StationBoardingIn(BaseModel):
     displays: bool = False                                          # the station has screens the platform feeds
     checkin_opens_minutes: Optional[int] = Field(default=None, ge=0, le=1440)
     checkin_closes_minutes: Optional[int] = Field(default=None, ge=0, le=1440)
+    manager_company_uid: Optional[uuid.UUID] = None                 # the station's administration, which assigns its bays (1115)
 
 
 class GateIn(BaseModel):

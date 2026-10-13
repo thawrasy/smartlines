@@ -13,7 +13,7 @@ import { useLoad } from "../../../ui/useLoad";
 
 interface Detail {
   seat_map: SeatMapData | null; price: number; from_seq: number; to_seq: number; seats: { seat_no: number; free: boolean }[];
-  trip: { trip_no: string; carrier_name: string; currency: string; hold_min: number; departs_at?: string; trip_type?: string };
+  trip: { trip_no: string; trip_code?: string | null; carrier_name: string; currency: string; hold_min: number; departs_at?: string; trip_type?: string };
   categories?: Band[]; family_offers?: { code: string; name: string; min_members: number; discount_type: string; discount_value: number }[];
   stops: { seq: number; station_name: string; sched_dep: string | null; sched_arr: string | null }[];
 }
@@ -176,7 +176,7 @@ export default function Trip() {
     return b ? `${t(`pax.cat.${c}`)} · ${t("pax.ages", { from: b.min_age, to: b.max_age ?? "+" })} · ${money(b.fare)}` : t(`pax.cat.${c}`); };
   return (
     <Screen>
-      <Title sub={`${d.trip.carrier_name} · ${t("extra.trip", { no: d.trip.trip_no })}`}>
+      <Title sub={`${d.trip.carrier_name} · ${t("extra.trip", { no: d.trip.trip_code ?? d.trip.trip_no })}`}>
         {from?.station_name} → {to?.station_name}
       </Title>
       <Text style={s.muted}>{from?.sched_dep ? time(from.sched_dep) : ""} → {to?.sched_arr ? time(to.sched_arr) : ""} · {money(d.price)}</Text>

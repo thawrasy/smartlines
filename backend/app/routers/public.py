@@ -1,10 +1,11 @@
 """Public catalog: reference data, stations, trip search and trip details with the seat map."""
 import json
+import uuid
 from datetime import date
 from typing import Optional
 from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, Query, Request
+from fastapi import APIRouter, Query, Request, Response
 
 from .. import db, markets
 from ..config import get_settings
@@ -117,7 +118,7 @@ async def search(request: Request, origin: str = Query(..., min_length=3, max_le
             f"""
             WITH pairs AS (
               SELECT DISTINCT ON (t.id)
-                     t.id, t.uid, t.trip_no, t.company_id, t.service_type, t.has_rest, t.seats_total, t.currency,
+                     t.id, t.uid, t.trip_no, t.trip_code, t.company_id, t.service_type, t.has_rest, t.seats_total, t.currency,
                      a.seq AS from_seq, b.seq AS to_seq, a.sched_dep AS departs_at, b.sched_arr AS arrives_at,
                      sa.name AS from_station, sb.name AS to_station, sa.code AS from_code, sb.code AS to_code,
                      coalesce(pf.price, b.fare_from_origin - a.fare_from_origin) AS price
@@ -135,7 +136,8 @@ async def search(request: Request, origin: str = Query(..., min_length=3, max_le
                  AND a.sched_dep > now() + make_interval(mins => t.sales_cutoff_min)
                ORDER BY t.id, a.seq, b.seq DESC
             )
-            SELECT p.*, cp.legal_name AS carrier_name, cc.code3 AS carrier_code,
+            SELECT p.*, cp.legal_name AS carrier_name, cc.code3 AS carrier_code, cp.uid AS carrier_uid,
+                   (SELECT encode(substr(l.sha256, 1, 6), 'hex') FROM iam.company_logo l WHERE l.company_id = p.company_id) AS carrier_logo,
                    (SELECT count(*) FROM ops.trip_stop x WHERE x.trip_id = p.id AND x.seq > p.from_seq
                        AND x.seq < p.to_seq AND x.kind = 'STATION') AS stops_between,
                    p.seats_total - (SELECT count(DISTINCT s.seat_no) FROM ops.seat_segment s
@@ -180,9 +182,10 @@ async def trip_detail(trip_uid: str, request: Request, from_seq: int = Query(...
         raise ApiError(422, "INVALID_PAIR", "to_seq must be after from_seq")
     async with db.transaction(_ctx(request)) as conn:
         t = await conn.fetchrow(
-            """SELECT t.id, t.company_id, t.route_id, t.uid, t.trip_no, t.status, t.seats_total, t.currency, t.seat_selection_mode, t.hold_min,
+            """SELECT t.id, t.company_id, t.route_id, t.uid, t.trip_no, t.trip_code, t.status, t.seats_total, t.currency, t.seat_selection_mode, t.hold_min,
                       t.service_type, t.trip_type, t.segments_count, t.departure_at, t.arrival_at, t.baggage_policy,
-                      t.seat_prices_snapshot, t.seat_map, cp.legal_name AS carrier_name, cc.code3 AS carrier_code
+                      t.seat_prices_snapshot, t.seat_map, cp.legal_name AS carrier_name, cc.code3 AS carrier_code, cp.uid AS carrier_uid,
+                      (SELECT encode(substr(l.sha256, 1, 6), 'hex') FROM iam.company_logo l WHERE l.company_id = t.company_id) AS carrier_logo
                  FROM ops.trip t JOIN iam.party cp ON cp.id = t.company_id
                  LEFT JOIN net.carrier_code cc ON cc.company_id = t.company_id AND cc.status = 'ACTIVE'
                 WHERE t.uid = $1::uuid AND t.status IN ('PUBLISHED','BOARDING')""", trip_uid)
@@ -226,3 +229,19 @@ async def trip_detail(trip_uid: str, request: Request, from_seq: int = Query(...
     return {"seat_map": seat_map, "trip": trip, "stops": rows(stops), "price": price, "from_seq": from_seq, "to_seq": to_seq,
             "seats": [{"seat_no": s["seat_no"], "free": s["free"]} for s in seats], "categories": categories,
             "family_offers": [dict(o) | {"discount_value": float(o["discount_value"])} for o in offers]}
+
+
+@router.get("/public/companies/{company_uid}/logo")
+async def company_logo(company_uid: uuid.UUID, request: Request, v: Optional[str] = Query(None, pattern=r"^[0-9a-f]{12}$")):
+    """A company's logo, public like its name (1115). Asked for with its version (?v=, the first six bytes of its hash, as
+    the board and the search results give it), it is cached for a year; a new logo has a new version."""
+    async with db.transaction(_ctx(request)) as conn:
+        r = await conn.fetchrow(
+            """SELECT l.image, encode(substr(l.sha256, 1, 6), 'hex') AS version FROM iam.company_logo l
+                 JOIN iam.party p ON p.id = l.company_id WHERE p.uid = $1""", company_uid)
+    if r is None:
+        raise not_found("logo")
+    cache = "public, max-age=31536000, immutable" if v == r["version"] else "public, max-age=300"
+    return Response(content=bytes(r["image"]), media_type="image/png",
+                    headers={"Cache-Control": cache, "ETag": f'"{r["version"]}"', "X-Content-Type-Options": "nosniff"})
+
