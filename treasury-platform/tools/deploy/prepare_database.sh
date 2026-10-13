@@ -21,7 +21,7 @@ TEMPLATE="$(cd "$HERE/../../db/ops" && pwd)/prepare_database.sql"
 SQL_SERVER="${SQL_SERVER:-localhost,1433}"
 SQL_USER="${SQL_USER-sa}"
 SQLCMD="${SQLCMD:-sqlcmd}"
-SQLCMD_OPTS="${SQLCMD_OPTS--C}"
+SQLCMD_OPTS="${SQLCMD_OPTS-}"
 ACTION="${1:-}"
 GENERATE=0
 [ "${2:-}" = "--generate" ] && GENERATE=1

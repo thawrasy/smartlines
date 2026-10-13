@@ -3,7 +3,7 @@
 # compares what was deployed with the DDL, and runs the trigger, tenant-isolation, account-security,
 # operator-and-support, job-binding, tenant-onboarding, document-numbering (one of them with concurrent connections),
 # KYC history, reference data, audit trail and data export tests, the service logins of the deployment, and the SQL
-# Server Audit of the server with its AL-18 alerts.
+# Server Audit of the server with its AL-18 alerts, and the monitoring login that runs the post-deployment check.
 #
 # Environment:
 #   SA_PASSWORD   password of the sa login (required)
@@ -18,6 +18,9 @@ cd "$ROOT"
 SQL_SERVER="${SQL_SERVER:-localhost,1433}"
 SQLCMD="${SQLCMD:-sqlcmd}"
 export SQLCMDPASSWORD="$SA_PASSWORD"
+# The tools in tools/deploy and check_deployed.py verify the server certificate by default (DQ-S05-7). The throwaway
+# container of CI has a self-signed one, so CI alone trusts it, here and for every script it runs.
+export SQLCMD_OPTS=-C
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
@@ -58,6 +61,12 @@ echo "== 3. every foreign key is indexed or flagged noidx; static grant and casc
 python3 tools/dbgen/check_fk_indexes.py
 python3 tools/dbgen/check_grants.py
 python3 tools/dbgen/check_review_fixes.py | tail -1   # the design-review fixes in the generated DDL (C-12, O-15)
+# No deployment tool trusts any certificate by itself; only CI passes -C (DQ-S05-7, ADR 0013).
+if grep -n 'SQLCMD_OPTS--C' tools/deploy/*.sh || grep -nE "[\"']-C[\"']" tools/dbgen/check_deployed.py tools/deploy/*.sh; then
+    echo "a deployment tool passes -C by default"
+    exit 1
+fi
+echo "no deployment tool trusts the server certificate by default"
 
 echo "== 4. deploy db/deploy.sql to a fresh BankFas database the way production does (DOC-S11, ADR 0010, ADR 0012)"
 audit_since="$(sq -h -1 -W -Q "SET NOCOUNT ON; SELECT CONVERT(VARCHAR(19), SYSUTCDATETIME(), 126);")"
@@ -76,6 +85,8 @@ SQL_SERVER="$SQL_SERVER" SQL_USER=sa SQLCMD="$SQLCMD" bash tools/deploy/prepare_
 SQL_SERVER="$SQL_SERVER" SQL_USER=bankfas_migrator SQLCMDPASSWORD="$(cat "$TMP/migrator/bankfas_migrator.secret")" SQLCMD="$SQLCMD" \
     bash tools/deploy/deploy.sh
 SQL_SERVER="$SQL_SERVER" SQL_USER=sa SQLCMD="$SQLCMD" bash tools/deploy/server_audit.sh apply
+mkdir -m 700 "$TMP/monitor"
+SQL_SERVER="$SQL_SERVER" SQL_USER=sa SQLCMD="$SQLCMD" BANKFAS_SECRETS_DIR="$TMP/monitor" bash tools/deploy/provision_monitor.sh --generate
 SQL_SERVER="$SQL_SERVER" SQL_USER=sa SQLCMD="$SQLCMD" bash tools/deploy/prepare_database.sh close
 unset BANKFAS_CHANGE_REF
 deploy_state="$(sq -d BankFas -h -1 -W -Q "SET NOCOUNT ON; SELECT CONCAT(
@@ -113,8 +124,9 @@ if [ "$seed_before" != "$seed_after" ] || [ "$seed_before" != "9/31/1/9/23/249/1
 fi
 echo "platform seed unchanged on a second run ($seed_after)"
 
-echo "== 5. deployed objects against the generated DDL"
-python3 tools/dbgen/check_deployed.py --sqlcmd "$SQLCMD" --server "$SQL_SERVER" --database BankFas
+echo "== 5. the post-deployment check against the generated DDL and the static scripts, run by the monitoring login (DOC-S11 section 8.2)"
+SQL_USER=bankfas_monitor SQLCMDPASSWORD="$(cat "$TMP/monitor/bankfas_monitor.secret")" \
+    python3 tools/dbgen/check_deployed.py --sqlcmd "$SQLCMD" --server "$SQL_SERVER" --database BankFas
 
 echo "== 6. trigger tests (db/tests/fac_share_rule_tests.sql)"
 sq -i db/tests/fac_share_rule_tests.sql > "$TMP/tests.out" 2>&1 || {
@@ -396,4 +408,24 @@ if [ "$sa_pass" -ne 7 ]; then
     exit 1
 fi
 echo "server audit checks: $sa_pass passed"
+echo "== 21. the monitoring login (tools/deploy/provision_monitor.sh, tools/ci/monitor_login_check.sh, ADR 0013)"
+SQL_SERVER="$SQL_SERVER" SQLCMD="$SQLCMD" MONITOR_SECRETS="$TMP/monitor" \
+    bash tools/ci/monitor_login_check.sh > "$TMP/monitor.out" 2>&1 || {
+    cat "$TMP/monitor.out"
+    echo "monitoring login check run failed"
+    exit 1
+}
+cat "$TMP/monitor.out"
+if grep -q '^FAIL' "$TMP/monitor.out"; then
+    echo "a monitoring login check failed"
+    exit 1
+fi
+mn_pass=$(grep -c '^PASS' "$TMP/monitor.out" || true)
+# 6 checks: MN1-MN6 (DQ-S12-6: the view rights, what it runs, what it cannot read, the post-deployment check finding
+# a disabled policy, the guards against added rights, rotation).
+if [ "$mn_pass" -ne 6 ]; then
+    echo "expected 6 PASS, found $mn_pass"
+    exit 1
+fi
+echo "monitoring login checks: $mn_pass passed"
 echo "all database checks passed"

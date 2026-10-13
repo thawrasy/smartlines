@@ -61,7 +61,7 @@ Status: decided by the database architect. It builds the proposals of DQ-S08-10 
      - `VIEW SERVER SECURITY STATE` and `VIEW ANY SECURITY DEFINITION`;
      - in `BankFas`, a user with `VIEW DEFINITION` on the schemas `aud`, `sec` and `cfg`, and no right on their rows.
 
-     A reader therefore needs no administrator rights. The login itself waits for DQ-S12-6.
+     A reader therefore needs no administrator rights. The login itself waited for DQ-S12-6. It is now `bankfas_monitor` (ADR 0013), which holds `VIEW DEFINITION` on the whole database instead of the three schemas.
    - **The predicate.** A predicate takes an action as a number: its four characters read backwards (`LGIS` is 1397311308).
 5. **The order of a deployment** (DOC-S11):
    1. `server_audit.sh apply`, the first time;
@@ -99,7 +99,7 @@ Status: decided by the database architect. It builds the proposals of DQ-S08-10 
   - **Faked windows.** Anyone with `sysadmin` can declare a window, or stop the audit. A declaration is recorded with its login, though, and a stop is alerted and recorded before it happens. What remains is the review, and the copy off the server that the server cannot erase (DOC-S12 sections 3.5 and 5.2).
   - **Root on the server.** A root user can stop SQL Server and edit the files. auditd and the immediate shipping cover that (DOC-S10 section 6.8).
   - **Volume.** The log backups every 15 minutes (`BACKUP_RESTORE_GROUP`) and every administrator login are recorded. The volume is small next to 40 files of 256 MB. It is measured in the first weeks (DQ-S12-13).
-  - **Not built here:** the shipping job, the central store, the reading login (DQ-S12-1, DQ-S12-2, DQ-S12-6) and the alerting itself. The rules are ready for them.
+  - **Not built here:** the shipping job, the central store and the alerting itself (DQ-S12-1, DQ-S12-2). The rules are ready for them. The reading login (DQ-S12-6) followed in ADR 0013.
 - **Scripts:**
   - `prepare_database.sh`, `provision_logins.sh` and `server_audit.sh` take `BANKFAS_CHANGE_REF`. Without it a declaration says `unrecorded`, which the review must explain.
   - The service login check (CI step 18) is unchanged.

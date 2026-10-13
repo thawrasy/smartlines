@@ -271,7 +271,7 @@ sudo unattended-upgrade --dry-run --debug | tail -20
 | HS-5 | `chronyc tracking` | فارق ≤ 1 ثانية |
 | HS-6 | `apt-mark showhold` و`unattended-upgrade --dry-run` | mssql-server مجمّد، والأمن وحده آلي |
 | HS-7 | `sa` و`breakglass` و`bankfas_migrator` | معطّلة (DOC-S08 §3) |
-| HS-8 | `tools/deploy/server_audit.sh check` (ADR 0012) | التدقيق ومواصفتاه مطابقة ويكتب، وآخر ملف وصل المخزن المركزي |
+| HS-8 | `tools/deploy/server_audit.sh check` (ADR 0012) بحساب `bankfas_monitor` (ADR 0013) | التدقيق ومواصفتاه مطابقة ويكتب، وآخر ملف وصل المخزن المركزي |
 | HS-9 | محاولة اتصال صادر إلى وجهة غير مسموحة | مرفوضة |
 
 ## 7. الترقيع وسجل الإصدارات
@@ -358,7 +358,7 @@ sqlcmd -S "<db-cert-name>,1433" -U "<personal-login>" -Q "SET NOCOUNT ON; SELECT
 | ما يُرسل | مصدره على الخادم | الوجهة |
 |---|---|---|
 | مقاييس النظام: المعالج والذاكرة والأقراص والشبكة | وكيل مقاييس 🟡 (DQ-S12-1) | نظام المراقبة المركزي |
-| مقاييس SQL Server: الاتصالات والانتظار ومساحة السجل ونجاح النسخ | استعلامات بحساب مراقبة للقراءة (DQ-S12-6) | كذلك |
+| مقاييس SQL Server: الاتصالات والانتظار ومساحة السجل ونجاح النسخ | استعلامات بحساب المراقبة `bankfas_monitor` للقراءة (DQ-S12-6؛ ✅ ADR 0013، ويثبت CI أنه يقرؤها في الفحص MN2) | كذلك |
 | journald وsudo وSSH | journald | مخزن السجلات المركزي |
 | auditd | `/var/log/audit/` | كذلك |
 | سجل أخطاء SQL Server | `/var/opt/mssql/log/` [تحقق MS] | كذلك |

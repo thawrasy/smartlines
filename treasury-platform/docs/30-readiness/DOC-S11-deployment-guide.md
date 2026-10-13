@@ -36,7 +36,7 @@
 | الترتيب | 000 إلى 004، ثم 020، ثم 005 إلى 007، ثم 010 و025 و030 و050، في جلسة واحدة لأن 010 يقرأ جدولًا مؤقتًا من 004 | db/deploy.sql:13-14، :22-34 |
 | قاعدة موجودة | المخططات محمية بفحص وجود، وأول `CREATE TABLE` يفشل فيتوقف النشر دون تغيير | db/generated/tsql/000_schemas.sql:6؛ db/generated/tsql/001_tables.sql:8 |
 | CI | يحذف القاعدة ثم ينشر بـ `sa` بالغلاف نفسه، ثم يقارن ويختبر | tools/ci/db_ci.sh:52-57 |
-| فحص ما بعد النشر | ستة أعداد من الكتالوج مقابل DDL المولَّد، بالحساب `sa` والخيار `-C` ثابتين | tools/dbgen/check_deployed.py:16-28، :52 |
+| فحص ما بعد النشر | ✅ منذ ADR 0013: عشرة فحوص (أعداد الكتالوج مقابل DDL المولَّد، وسياسات الأمن، والإجراءات بصفة `tp_auth_exec`، والترتيب) بحساب المراقبة `bankfas_monitor` وبلا `-C` | tools/dbgen/check_deployed.py |
 | الترحيل بين الإصدارات | لا يوجد | docs/20-database-design.md:452، :530 |
 
 **الترميز اليوم.** في الملفات التي ينشرها `deploy.sql` لا تظهر حروف غير ASCII إلا في التعليقات (فحص هذه المراجعة للملفات تحت db/generated/tsql وdb/static). الاستثناء نص عربي في db/static/040_fulltext_optional.sql:11، وهذا الملف لا يدخل `deploy.sql` (db/deploy.sql:22-34). فغياب `-f 65001` لا يغيّر شيئًا اليوم، ويصير مؤثرًا حين تدخل البذور بأسماء عربية (DOC-B05 §4.3؛ DQ-S11-3).
@@ -59,8 +59,8 @@ sequenceDiagram
   O->>H: فحوص ما قبل النشر وبوابة الإصدارات
   O->>S: deploy.sh بحساب bankfas_migrator بلا -C
   S-->>M: أحداث التدقيق للنشر
-  D->>S: مواصفة تدقيق القاعدة وحسابات الخدمة داخل النافذة
-  O->>S: فحوص ما بعد النشر للقراءة فقط
+  D->>S: مواصفة تدقيق القاعدة وحسابات الخدمة وحساب المراقبة داخل النافذة
+  O->>S: فحوص ما بعد النشر بحساب المراقبة، للقراءة فقط
   D->>S: نموذج الاسترداد FULL وتفعيل TDE
   D->>S: أول نسخة كاملة وفحصها
   D->>S: تعطيل bankfas_migrator وتدوير سره وإعلان إغلاق النافذة (close)
@@ -90,7 +90,7 @@ sequenceDiagram
 | `SQL_USER` | `sa` (:17) | `bankfas_migrator` | `sa` معطّل في الإنتاج (DOC-S08 §9). القيمة الفارغة تعني `-E` ولا نطاق Kerberos في البنية (DOC-S08 §4)، فلا تُترك فارغة |
 | `SQLCMDPASSWORD` | لا افتراضي، وإلزامي مع حساب SQL (:22) | يُقرأ من ملف السر لحظة التشغيل | لا يُكتب في سطر الأوامر، خلافًا لمثالي db/deploy.sql:9 وdocs/20-database-design.md:437 |
 | `SQLCMD` | `sqlcmd` (:18) | `/opt/mssql-tools18/bin/sqlcmd` | المسار نفسه في CI |
-| `SQLCMD_OPTS` | `-C` (:19) | `""` اليوم، و`"-f 65001"` حين تدخل البذور (DQ-S11-3) | انظر §5.1 |
+| `SQLCMD_OPTS` | ✅ لا شيء منذ ADR 0013، فتُتحقق شهادة الخادم | لا شيء اليوم، و`"-f 65001"` حين تدخل البذور (DQ-S11-3) | انظر §5.1 |
 
 ### 5.1 مشكلة `-C` الافتراضي (DQ-S05-7)
 
@@ -98,6 +98,10 @@ sequenceDiagram
 - `-C` يعني الثقة بأي شهادة، أي ما يعادل `TrustServerCertificate=True` (DOC-S05 §5.3). مع الحساب الافتراضي `sa` يصير اعتراض الاتصال سيطرة كاملة (THR-44 في DOC-S01).
 - القيمة غير مقتبسة في :29، فتُقسَّم على المسافات: `SQLCMD_OPTS="-f 65001"` خياران صحيحان.
 - المقترح في DQ-S05-7: أن يصير الافتراضي بلا `-C`، وأن يمرّر CI `SQLCMD_OPTS=-C` صراحة. ويُعدَّل tools/ci/db_ci.sh:54 في التغيير نفسه، لأنه يعتمد اليوم على الافتراضي.
+- ✅ **منفّذ (2026-10-13، docs/adr/0013-monitor-login-and-deployment-checks.md):**
+  - الافتراضي بلا `-C` في كل سكربت تحت `tools/deploy` وفي `check_deployed.py`.
+  - `db_ci.sh` يصدّر `SQLCMD_OPTS=-C` لحاويته المؤقتة وحدها، وتفشل خطوته 3 إن أضاف أي من هذه الأدوات `-C` من تلقاء نفسه.
+  - `deploy.ps1` لا يضيف `-C` إلا بالمفتاح `-TrustServerCertificate`.
 
 ### 5.2 الاستدعاء 🟡
 
@@ -119,6 +123,7 @@ unset SQLCMDPASSWORD
 - **ثم حسابات الخدمة (ADR 0009):** يشغّل DBA بحسابه الشخصي، لأن إنشاء الحسابات يحتاج صلاحية خادم لا يملكها `bankfas_migrator`:
   `BANKFAS_SECRETS_DIR=/etc/bankfas/db-secrets BANKFAS_LOGIN_SET=a bash tools/deploy/provision_logins.sh --generate`
   فتُنشأ ملفات الأسرار الناقصة بصلاحية 600، ثم ينقل كل سر إلى مخزن أسرار عمليته على مضيف التطبيق (DOC-S08 §5)، ويحذف من الخادم ما لا يلزم بقاؤه. والتدوير بالزوج: `BANKFAS_LOGIN_SET=b` ثم نقل العملية إلى `_b` ثم تعطيل `_a` (DOC-S08 §6).
+- **ثم حساب المراقبة (ADR 0013):** `BANKFAS_SECRETS_DIR=/etc/bankfas/db-secrets bash tools/deploy/provision_monitor.sh --generate`. والحساب `bankfas_monitor` يرى حالة الخادم وتعريفات `BankFas` وملفات التدقيق وسجل النسخ، ولا يقرأ صفًا. ينقل DBA سره إلى وكيل المراقبة، وبه تُشغَّل فحوص §8.2 و`server_audit.sh check`.
 - سجل النشر يُشحن إلى المخزن المركزي (DOC-S12)، ولا يحمل كلمة المرور لأن sqlcmd يقرؤها من البيئة.
 - **التدقيق والنافذة (ADR 0012):** يُصدِّر DBA مرجع التغيير في سجل النشر `export BANKFAS_CHANGE_REF=<مرجع النشر>` قبل أي سكربت. يكتب كل سكربت في `tools/deploy` بدايته ونهايته في SQL Server Audit بهذا المرجع، وتنبيهات AL-18 لا تنطلق لما يقع داخل نافذته. الترتيب:
   1. `server_audit.sh apply` (المرة الأولى، قبل كل شيء)؛
@@ -127,7 +132,8 @@ unset SQLCMDPASSWORD
   4. `deploy.sh` بحساب `bankfas_migrator`؛
   5. `server_audit.sh apply`، فتُضاف مواصفة القاعدة على جداول التدقيق؛
   6. `provision_logins.sh`؛
-  7. `prepare_database.sh close`.
+  7. `provision_monitor.sh` (ADR 0013)؛
+  8. `prepare_database.sh close`.
 
   بعد الإغلاق يشغّل SEC `server_audit.sh alerts <بداية النافذة>`، والمتوقع صفر تنبيه. ويرفق `server_audit.sh windows` بسجل النشر.
 
@@ -151,8 +157,8 @@ unset SQLCMDPASSWORD
 | F-04 | نقل الحزمة ومطابقة SHA-256 مع ناتج CI | OPS | DQ-S11-4 |
 | F-05 | فحوص ما قبل النشر (§8.1) | OPS | أي فشل يوقف |
 | F-06 | تشغيل deploy.sh (§5.2) | OPS، ويراقبه شخص ثانٍ | DQ-S11-9 |
-| F-07 | فحوص ما بعد النشر (§8.2) | OPS | أي فشل ينقل إلى §9 |
-| F-07a | `server_audit.sh apply` لمواصفة القاعدة، ثم `provision_logins.sh` (§5.2) | DBA | ✅ داخل النافذة (ADR 0012) |
+| F-07 | فحوص ما بعد النشر (§8.2) بحساب `bankfas_monitor` | OPS | أي فشل ينقل إلى §9. ✅ منفّذ بـ ADR 0013 |
+| F-07a | `server_audit.sh apply` لمواصفة القاعدة، ثم `provision_logins.sh` و`provision_monitor.sh` (§5.2) | DBA | ✅ داخل النافذة (ADR 0012، ADR 0013). في أول نشر يُنشأ حساب المراقبة هنا، فيسبق F-07 |
 | F-08 | `RECOVERY FULL` (DOC-S09 §4.1)، و`READ_COMMITTED_SNAPSHOT ON` (docs/20-database-design.md:462؛ DQ-S11-5) | DBA | لم يضمَّنا في السكربتات |
 | F-09 | تفعيل TDE ومتابعته حتى الاكتمال (DOC-S02 §5.1 الخطوتان 5-6) | DBA | قبل أي بيانات حقيقية (docs/adr/0001-schema-work-on-linux.md:26) |
 | F-10 | أول نسخة كاملة مشفّرة وفحصها، وبها تبدأ سلسلة السجل (DOC-S09 §4.1) | DBA | — |
@@ -199,7 +205,7 @@ unset SQLCMDPASSWORD
 
 | الفحص | الأمر | النتيجة المطلوبة |
 |---|---|---|
-| الأعداد مقابل DDL | `python3 tools/dbgen/check_deployed.py --sqlcmd "$SQLCMD" --server "$SQL_SERVER" --database BankFas` | كل الأسطر `ok` |
+| الأعداد مقابل DDL، والسياسات، والإجراءات بصفة `tp_auth_exec`، والترتيب | `SQL_USER=bankfas_monitor SQLCMDPASSWORD="$(cat <ملف سر المراقبة>)" python3 tools/dbgen/check_deployed.py --sqlcmd "$SQLCMD" --server "$SQL_SERVER" --database BankFas` (ADR 0013) | الأسطر العشرة كلها `ok`، ورمز خروج 0 |
 | السياسات | الاستعلام أدناه | لا سياسة معطّلة |
 | محظورات 030 | الاستعلام أدناه | سبعة صفوف: عمود القراءة، والإدراج، وخمسة أعمدة للتحديث (db/static/030_session_context.sql:237-239) |
 | الإجراءات | الاستعلام أدناه | أربعة إجراءات تعمل بصفة `tp_auth_exec` (db/static/030_session_context.sql:27، :48، :148، :170) |
@@ -207,7 +213,7 @@ unset SQLCMDPASSWORD
 | بعد F-08 وF-09 | `sys.databases` و`sys.dm_database_encryption_keys` | `FULL` ومشفّرة |
 | التطبيق | فحص الدخان في الإنتاج فقط (docs/30-readiness/DOC-B01-test-strategy-and-plan.md:104) | ناجح |
 
-**عائق في `check_deployed.py`.** الأداة تمرّر `-U sa -C` ثابتين (tools/dbgen/check_deployed.py:52)، و`sa` معطّل في الإنتاج (DOC-S08 §9)، و`-C` مرفوض فيه (DOC-S05 §5.3). حتى تُعدَّل (DQ-S11-7)، يُشغَّل استعلامها (tools/dbgen/check_deployed.py:17-28) يدويًا بحساب النشر، وتُقارن الأعداد بناتج الخطوة 5 في CI للوسم نفسه. آخر أعداد مسجّلة: 194 جدولًا و20 مخططًا و763 مفتاحًا أجنبيًا (tools/dbgen/erd_open_items.py:22)، والمرجع هو ناتج CI لا هذا الرقم.
+**✅ رُفع العائق (ADR 0013).** `check_deployed.py` يأخذ الحساب والخيارات من البيئة كالأغلفة، ويضم الآن فحوص السياسات والإجراءات والترتيب أدناه، ويقرأ التعريفات وحدها. فيشغّله `bankfas_monitor`، وتثبت ذلك الخطوة 5 في CI، ويجد سياسة معطّلة (الفحص MN4). الاستعلام اليدوي أدناه للتحقيق فقط. وصف العائق كما كان: الأداة تمرّر `-U sa -C` ثابتين (tools/dbgen/check_deployed.py:52)، و`sa` معطّل في الإنتاج (DOC-S08 §9)، و`-C` مرفوض فيه (DOC-S05 §5.3). حتى تُعدَّل (DQ-S11-7)، يُشغَّل استعلامها (tools/dbgen/check_deployed.py:17-28) يدويًا بحساب النشر، وتُقارن الأعداد بناتج الخطوة 5 في CI للوسم نفسه. آخر أعداد مسجّلة: 194 جدولًا و20 مخططًا و763 مفتاحًا أجنبيًا (tools/dbgen/erd_open_items.py:22)، والمرجع هو ناتج CI لا هذا الرقم.
 
 ```sql
 -- فحوص ما بعد النشر، للقراءة فقط (اقتراح)
@@ -266,9 +272,9 @@ WHERE m.object_id IN (OBJECT_ID(N'sec.usp_GetPasswordParams'), OBJECT_ID(N'sec.u
 
 | # | التعديل | القرار |
 |---|---|---|
-| T-1 | افتراضي `deploy.sh` بلا `-C`، وCI يمرّره صراحة في tools/ci/db_ci.sh:54 | DQ-S05-7 |
+| T-1 | افتراضي `deploy.sh` بلا `-C`، وCI يمرّره صراحة في tools/ci/db_ci.sh:54 | DQ-S05-7. ✅ منفّذ (ADR 0013) |
 | T-2 | `-f 65001` في `deploy.sh` مع دعمه في sqlcmd على Linux [تحقق MS] | DQ-S11-3 |
-| T-3 | `check_deployed.py` يأخذ الحساب وخيارات sqlcmd من البيئة بدل `-U sa -C` | DQ-S11-7 |
+| T-3 | `check_deployed.py` يأخذ الحساب وخيارات sqlcmd من البيئة بدل `-U sa -C` | DQ-S11-7. ✅ منفّذ (ADR 0013) |
 | T-4 | فحص تمهيدي يقرأ الإصدارات ويقارنها بالسجل ويرفض عند الاختلاف (G4)، ويرفض `sa` و`-C` خارج CI | DQ-S11-6 |
 | T-5 | مثالا db/deploy.sql:9 وdocs/20-database-design.md:437 لا يمرّران كلمة المرور في سطر الأوامر | DOC-S08 §5 |
 
@@ -282,17 +288,17 @@ WHERE m.object_id IN (OBJECT_ID(N'sec.usp_GetPasswordParams'), OBJECT_ID(N'sec.u
 | DQ-S11-4 | كيف تصل ملفات الإصدار إلى الخادم؟ | حزمة يبنيها CI من الوسم مع SHA-256، تُنقل عبر SSH؛ لا استنساخ للمستودع على خادم القاعدة (DQ-S10-3) | OPS | F-04 |
 | DQ-S11-5 | `READ_COMMITTED_SNAPSHOT` | يُفعَّل في F-08 بعد قياس أثره على tempdb في بيئة الاختبار | DBA | F-08 |
 | DQ-S11-6 | فحص تمهيدي في الغلاف | نعم: الإصدارات، ورفض `sa` و`-C`، ورفض قاعدة غير فارغة في النشر الجديد | مالك الأدوات | G4 |
-| DQ-S11-7 | `check_deployed.py` في الإنتاج | يُعدَّل ليأخذ الحساب والخيارات من البيئة؛ وحتى ذلك الاستعلام يدويًا | مالك الأدوات | F-07 |
+| DQ-S11-7 | `check_deployed.py` في الإنتاج | يُعدَّل ليأخذ الحساب والخيارات من البيئة؛ وحتى ذلك الاستعلام يدويًا. ✅ منفّذ (2026-10-13، ADR 0013): يأخذهما من البيئة، ويشغّله `bankfas_monitor` بلا صلاحية على الصفوف | مالك الأدوات | F-07 |
 | DQ-S11-8 | إصلاح عاجل قبل منفّذ الترحيل | ✅ معتمد من المالك (2026-10-12): تغيير طارئ مجرَّب على نسخة مستعادة، يعتمده OWN وSEC | OWN | §7.2 |
 | DQ-S11-9 | عينان في نشر الإنتاج | نعم | OPS | F-06 |
 | DQ-S11-10 | مكان سجل النشر | المخزن المركزي مع رابط من الوسم | OPS | §10 |
 
 ## 13. تعارضات وفجوات في المصادر
 
-1. ADR 0001 يجعل `deploy.sh` مسار الإنتاج (docs/adr/0001-schema-work-on-linux.md:19)، وافتراضاته `sa` و`-C` (tools/deploy/deploy.sh:17، :19). الأداة آمنة للإنتاج فقط حين تُعرَّف المتغيرات صراحة (§5).
+1. ADR 0001 يجعل `deploy.sh` مسار الإنتاج (docs/adr/0001-schema-work-on-linux.md:19)، وافتراضاته `sa` و`-C` (tools/deploy/deploy.sh:17، :19). الأداة آمنة للإنتاج فقط حين تُعرَّف المتغيرات صراحة (§5). (✅ `-C` لم يعد افتراضيًا منذ ADR 0013؛ بقي `sa` افتراضيًا، ورفضه خارج CI في DQ-S11-6.)
 2. db/deploy.sql:9 وdocs/20-database-design.md:437 يمرّران كلمة المرور في سطر الأوامر، خلافًا لـ DOC-S08 §5.
 3. ثلاث طرق تشغيل بثلاث مجموعات خيارات: المثال اليدوي بلا `-C` ولا `-f` (docs/20-database-design.md:438)، و`deploy.sh` بـ `-C` بلا `-f` (tools/deploy/deploy.sh:19، :29)، و`deploy.ps1` بـ `-f 65001` و`-C` دائمًا مع حساب SQL (tools/deploy/deploy.ps1:32، :37).
-4. tools/dbgen/check_deployed.py:52 ثابت على `-U sa -C`، بينما يطلب DOC-B11 §6.3 وDOC-S09 §7.1 تشغيله خارج CI، ويعطّل DOC-S08 §9 حساب `sa`.
+4. tools/dbgen/check_deployed.py:52 ثابت على `-U sa -C`، بينما يطلب DOC-B11 §6.3 وDOC-S09 §7.1 تشغيله خارج CI، ويعطّل DOC-S08 §9 حساب `sa`. (✅ صُحّح بـ ADR 0013.)
 5. DOC-S08 §3 يعطي حساب النشر `db_owner` و`tp_migrator` فقط، و`deploy.sql` ينشئ القاعدة (db/deploy.sql:17-18) وهذا يحتاج صلاحية خادم. ثم إن `db_owner` يستطيع حذف القاعدة. يعالجهما DQ-S11-1 و§7.2 البند 5.
 6. السجل docs/30-readiness-documents.md:295 يصف الوضع بدقة، لكنه لا يذكر أن tools/dbgen/check_deployed.py:52 ثابت على `sa`، ولا أن اختبارات db/tests لا تصلح لبيئة فيها بيانات (§8.3).
 

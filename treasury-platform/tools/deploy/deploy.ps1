@@ -5,7 +5,9 @@
 .DESCRIPTION
     The :r paths in deploy.sql are relative to the current directory, so the script changes to the db folder
     first, wherever it is started from. Without -SqlUser it uses Windows authentication (-E). With -SqlUser it
-    uses that SQL login; set the environment variable SQLCMDPASSWORD to its password first.
+    uses that SQL login; set the environment variable SQLCMDPASSWORD to its password first. The server certificate
+    is verified unless -TrustServerCertificate is given, which only a throwaway test server may need (DOC-S05
+    section 5.3, DQ-S05-7). This path has not been run (ADR 0001).
 
 .EXAMPLE
     tools\deploy\deploy.ps1 -Server SQL01
@@ -19,7 +21,9 @@ param(
 
     [string] $SqlUser = '',
 
-    [string] $SqlCmd = 'sqlcmd'
+    [string] $SqlCmd = 'sqlcmd',
+
+    [switch] $TrustServerCertificate
 )
 
 $ErrorActionPreference = 'Stop'
@@ -29,8 +33,9 @@ if ($SqlUser -eq '') {
     $auth = @('-E')
 } else {
     if (-not $env:SQLCMDPASSWORD) { throw 'Set SQLCMDPASSWORD for the SQL login first.' }
-    $auth = @('-U', $SqlUser, '-C')
+    $auth = @('-U', $SqlUser)
 }
+if ($TrustServerCertificate) { $auth += '-C' }
 
 Push-Location $dbDir
 try {
