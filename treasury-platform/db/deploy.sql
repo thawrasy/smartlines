@@ -44,6 +44,7 @@ GO
 :r static/041_kyc_profile_versions.sql
 :r static/042_data_export.sql
 :r static/043_review_guards.sql
+:r static/044_entry_guards.sql
 :r static/050_fac_share_rule.sql
 :r seed/100_platform_global.sql
 :r seed/101_iso_reference.sql

@@ -1145,6 +1145,7 @@ CREATE TABLE [org].[Shareholding] (
     [NominalValue] DECIMAL(19,4) NULL,
     [CurrencyId] INT NULL,
     [Layer] TINYINT NOT NULL CONSTRAINT [DF_Shareholding_Layer] DEFAULT 1,
+    [IntermediatePartyId] BIGINT NULL,
     [IsBeneficialOwner] BIT NOT NULL CONSTRAINT [DF_Shareholding_IsBeneficialOwner] DEFAULT 0,
     [EffectiveFrom] DATE NOT NULL,
     [EffectiveTo] DATE NULL,
@@ -1156,12 +1157,14 @@ CREATE TABLE [org].[Shareholding] (
     [RowVersion] ROWVERSION NOT NULL,
     CONSTRAINT [PK_Shareholding] PRIMARY KEY CLUSTERED ([ShareholdingId]),
     CONSTRAINT [UQ_Shareholding_Tenant] UNIQUE ([TenantId], [ShareholdingId]),
-    CONSTRAINT [UQ_Shareholding_CompanyId_HolderPartyId_Layer_EffectiveFrom] UNIQUE ([TenantId], [CompanyId], [HolderPartyId], [Layer], [EffectiveFrom]),
+    CONSTRAINT [UQ_Shareholding_CompanyId_HolderPartyId_Layer_IntermediatePartyId_EffectiveFrom] UNIQUE ([TenantId], [CompanyId], [HolderPartyId], [Layer], [IntermediatePartyId], [EffectiveFrom]),
     CONSTRAINT [CK_Shareholding_1] CHECK (SharePercent > 0 AND SharePercent <= 100),
     CONSTRAINT [CK_Shareholding_2] CHECK (EffectiveTo IS NULL OR EffectiveTo >= EffectiveFrom),
     CONSTRAINT [CK_Shareholding_3] CHECK (Layer >= 1),
-    CONSTRAINT [CK_Shareholding_4] CHECK (SharesCount IS NULL OR SharesCount > 0),
-    CONSTRAINT [CK_Shareholding_5] CHECK (NominalValue IS NULL OR (NominalValue >= 0 AND CurrencyId IS NOT NULL))
+    CONSTRAINT [CK_Shareholding_4] CHECK ((Layer = 1 AND IntermediatePartyId IS NULL) OR (Layer >= 2 AND IntermediatePartyId IS NOT NULL)),
+    CONSTRAINT [CK_Shareholding_5] CHECK (IntermediatePartyId IS NULL OR IntermediatePartyId <> HolderPartyId),
+    CONSTRAINT [CK_Shareholding_6] CHECK (SharesCount IS NULL OR SharesCount > 0),
+    CONSTRAINT [CK_Shareholding_7] CHECK (NominalValue IS NULL OR (NominalValue >= 0 AND CurrencyId IS NOT NULL))
 );
 GO
 -- Governing body (FR-ORG-019, BR-ORG-009)

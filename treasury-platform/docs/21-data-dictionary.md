@@ -1174,6 +1174,7 @@
 | NominalValue | DECIMAL(19,4) | نعم |  |  | القيمة الاسمية للسهم |
 | CurrencyId | INT | نعم |  | ref.Currency | عملة القيمة الاسمية (إلزامية عند وجودها) |
 | Layer | TINYINT | لا | 1 |  | 1 = مالك مباشر؛ 2.. = غير مباشر عبر كيانات وسيطة (G-7) |
+| IntermediatePartyId | BIGINT | نعم |  | pty.Party | الوسيط المسمّى لمسار غير مباشر (Layer >= 2)، فارغ للمالك المباشر؛ صف لكل مسار، ولا يكون الوسيط شركة من شركات المشترك لأن مسارها مشتق من ملكياتها المباشرة (DR-22، BR-ORG-008؛ قادح في 044) |
 | IsBeneficialOwner | BIT | لا | 0 |  | مستفيد حقيقي >= 25% أو تحكم (G-7) |
 | EffectiveFrom | DATE | لا |  |  |  |
 | EffectiveTo | DATE | نعم |  |  | القديم يُغلق بيوم قبل السريان الجديد (BR-ORG-007) |
@@ -1183,9 +1184,9 @@
 | UpdatedAt | DATETIME2(3) | نعم |  |  |  |
 | UpdatedBy | BIGINT | نعم |  |  |  |
 
-**المفاتيح:** PK(ShareholdingId) · UQ(TenantId, CompanyId, HolderPartyId, Layer, EffectiveFrom) · UQ(TenantId, CompanyId, HolderPartyId, Layer) WHERE EffectiveTo IS NULL
+**المفاتيح:** PK(ShareholdingId) · UQ(TenantId, CompanyId, HolderPartyId, Layer, IntermediatePartyId, EffectiveFrom) · UQ(TenantId, CompanyId, HolderPartyId, Layer, IntermediatePartyId) WHERE EffectiveTo IS NULL
 
-**قيود:** `SharePercent > 0 AND SharePercent <= 100` · `EffectiveTo IS NULL OR EffectiveTo >= EffectiveFrom` · `Layer >= 1` · `SharesCount IS NULL OR SharesCount > 0` · `NominalValue IS NULL OR (NominalValue >= 0 AND CurrencyId IS NOT NULL)`
+**قيود:** `SharePercent > 0 AND SharePercent <= 100` · `EffectiveTo IS NULL OR EffectiveTo >= EffectiveFrom` · `Layer >= 1` · `(Layer = 1 AND IntermediatePartyId IS NULL) OR (Layer >= 2 AND IntermediatePartyId IS NOT NULL)` · `IntermediatePartyId IS NULL OR IntermediatePartyId <> HolderPartyId` · `SharesCount IS NULL OR SharesCount > 0` · `NominalValue IS NULL OR (NominalValue >= 0 AND CurrencyId IS NOT NULL)`
 
 ### `org.GoverningBody` — Governing body (FR-ORG-019, BR-ORG-009)
 

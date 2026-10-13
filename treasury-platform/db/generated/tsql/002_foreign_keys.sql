@@ -106,6 +106,7 @@ ALTER TABLE [org].[Shareholding] ADD CONSTRAINT [FK_Shareholding_Tenant] FOREIGN
 ALTER TABLE [org].[Shareholding] ADD CONSTRAINT [FK_Shareholding_CompanyId] FOREIGN KEY ([TenantId], [CompanyId]) REFERENCES [org].[Company] ([TenantId], [CompanyId]);
 ALTER TABLE [org].[Shareholding] ADD CONSTRAINT [FK_Shareholding_HolderPartyId] FOREIGN KEY ([TenantId], [HolderPartyId]) REFERENCES [pty].[Party] ([TenantId], [PartyId]);
 ALTER TABLE [org].[Shareholding] ADD CONSTRAINT [FK_Shareholding_CurrencyId] FOREIGN KEY ([CurrencyId]) REFERENCES [ref].[Currency] ([CurrencyId]);
+ALTER TABLE [org].[Shareholding] ADD CONSTRAINT [FK_Shareholding_IntermediatePartyId] FOREIGN KEY ([TenantId], [IntermediatePartyId]) REFERENCES [pty].[Party] ([TenantId], [PartyId]);
 ALTER TABLE [org].[Shareholding] ADD CONSTRAINT [FK_Shareholding_SourceDocumentId] FOREIGN KEY ([TenantId], [SourceDocumentId]) REFERENCES [doc].[Document] ([TenantId], [DocumentId]);
 ALTER TABLE [org].[GoverningBody] ADD CONSTRAINT [FK_GoverningBody_Tenant] FOREIGN KEY ([TenantId]) REFERENCES [plat].[Tenant] ([TenantId]);
 ALTER TABLE [org].[GoverningBody] ADD CONSTRAINT [FK_GoverningBody_CompanyId] FOREIGN KEY ([TenantId], [CompanyId]) REFERENCES [org].[Company] ([TenantId], [CompanyId]);

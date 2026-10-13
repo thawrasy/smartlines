@@ -76,17 +76,21 @@ table org.Shareholding  # Ownership interest with an effective date; the owner i
   NominalValue       money            # القيمة الاسمية للسهم
   CurrencyId         ->ref.Currency   # عملة القيمة الاسمية (إلزامية عند وجودها)
   Layer              tinyint    req =1  # 1 = مالك مباشر؛ 2.. = غير مباشر عبر كيانات وسيطة (G-7)
+  IntermediatePartyId ->pty.Party      # الوسيط المسمّى لمسار غير مباشر (Layer >= 2)، فارغ للمالك المباشر؛ صف لكل مسار، ولا يكون الوسيط شركة من شركات المشترك لأن مسارها مشتق من ملكياتها المباشرة (DR-22، BR-ORG-008؛ قادح في 044)
   IsBeneficialOwner  bool       req =0  # مستفيد حقيقي >= 25% أو تحكم (G-7)
   EffectiveFrom      date       req
   EffectiveTo        date             # القديم يُغلق بيوم قبل السريان الجديد (BR-ORG-007)
   SourceDocumentId   ->doc.Document
-  unique CompanyId,HolderPartyId,Layer,EffectiveFrom
-  unique CompanyId,HolderPartyId,Layer where EffectiveTo IS NULL   # صف مفتوح واحد لكل مالك/طبقة؛ عدم التداخل التام في التطبيق
+  unique CompanyId,HolderPartyId,Layer,IntermediatePartyId,EffectiveFrom
+  unique CompanyId,HolderPartyId,Layer,IntermediatePartyId where EffectiveTo IS NULL   # صف مفتوح واحد لكل مالك/طبقة/وسيط (DR-22)؛ عدم التداخل التام في التطبيق
   index  CompanyId,EffectiveTo include HolderPartyId,SharePercent,Layer   # عرض الملكية بتاريخ وفحص الـ100%
   index  HolderPartyId,EffectiveTo   # ملكيات الشخص (دور مالك، FR-PTY-017)
+  index  IntermediatePartyId,EffectiveTo   # المسارات المارة بوسيط: يفحصها قادح الشركة حين يصير الوسيط شركة من المشترك (044)
   check  SharePercent > 0 AND SharePercent <= 100
   check  EffectiveTo IS NULL OR EffectiveTo >= EffectiveFrom
   check  Layer >= 1
+  check  (Layer = 1 AND IntermediatePartyId IS NULL) OR (Layer >= 2 AND IntermediatePartyId IS NOT NULL)
+  check  IntermediatePartyId IS NULL OR IntermediatePartyId <> HolderPartyId
   check  SharesCount IS NULL OR SharesCount > 0
   check  NominalValue IS NULL OR (NominalValue >= 0 AND CurrencyId IS NOT NULL)
 

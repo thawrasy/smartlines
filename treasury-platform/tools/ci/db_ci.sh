@@ -393,12 +393,12 @@ if grep -q '^FAIL' "$TMP/review.out"; then
     exit 1
 fi
 rf_pass=$(grep -c '^PASS' "$TMP/review.out" || true)
-# 21 cases: RF1 list columns, RF2-RF9 the S0 tables (DR-11 to DR-18), RF10 codes in capitals (DR-48), RF11-RF16
+# 22 cases: RF1 list columns, RF2-RF9 the S0 tables (DR-11 to DR-18), RF10 codes in capitals (DR-48), RF11-RF16
 # the S1 tables (DR-19, DR-21, DR-23, DR-24, DR-29, DR-47), RF17-RF18 collateral kinds, agreement text and proformas
-# (DR-40, DR-31, DR-41), RF19-RF21 the S1 entry conditions (DR-30, DR-16, DR-25). The declarative S2-S4 fixes are
-# checked on the DDL in step 3 (check_review_fixes.py).
-if [ "$rf_pass" -ne 21 ]; then
-    echo "expected 21 PASS, found $rf_pass"
+# (DR-40, DR-31, DR-41), RF19-RF21 the S1 entry conditions (DR-30, DR-16, DR-25), RF22 the S1-b entry condition
+# (DR-22). The declarative fixes are checked on the DDL in step 3 (check_review_fixes.py).
+if [ "$rf_pass" -ne 22 ]; then
+    echo "expected 22 PASS, found $rf_pass"
     exit 1
 fi
 echo "review fixes tests: $rf_pass passed"

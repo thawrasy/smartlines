@@ -101,9 +101,10 @@ CREATE UNIQUE NONCLUSTERED INDEX [UQ_Department_SeedKey] ON [org].[Department] (
 CREATE NONCLUSTERED INDEX [IX_Department_CompanyId] ON [org].[Department] ([TenantId], [CompanyId]);
 CREATE NONCLUSTERED INDEX [IX_Department_ParentDepartmentId] ON [org].[Department] ([TenantId], [ParentDepartmentId]);
 CREATE NONCLUSTERED INDEX [IX_Department_HeadUserId] ON [org].[Department] ([TenantId], [HeadUserId]);
-CREATE UNIQUE NONCLUSTERED INDEX [UQ_Shareholding_CompanyId_HolderPartyId_Layer] ON [org].[Shareholding] ([TenantId], [CompanyId], [HolderPartyId], [Layer]) WHERE EffectiveTo IS NULL;
+CREATE UNIQUE NONCLUSTERED INDEX [UQ_Shareholding_CompanyId_HolderPartyId_Layer_IntermediatePartyId] ON [org].[Shareholding] ([TenantId], [CompanyId], [HolderPartyId], [Layer], [IntermediatePartyId]) WHERE EffectiveTo IS NULL;
 CREATE NONCLUSTERED INDEX [IX_Shareholding_CompanyId_EffectiveTo] ON [org].[Shareholding] ([TenantId], [CompanyId], [EffectiveTo]) INCLUDE ([HolderPartyId], [SharePercent], [Layer]);
 CREATE NONCLUSTERED INDEX [IX_Shareholding_HolderPartyId_EffectiveTo] ON [org].[Shareholding] ([TenantId], [HolderPartyId], [EffectiveTo]);
+CREATE NONCLUSTERED INDEX [IX_Shareholding_IntermediatePartyId_EffectiveTo] ON [org].[Shareholding] ([TenantId], [IntermediatePartyId], [EffectiveTo]);
 CREATE NONCLUSTERED INDEX [IX_Shareholding_CurrencyId] ON [org].[Shareholding] ([TenantId], [CurrencyId]);
 CREATE NONCLUSTERED INDEX [IX_Shareholding_SourceDocumentId] ON [org].[Shareholding] ([TenantId], [SourceDocumentId]);
 CREATE UNIQUE NONCLUSTERED INDEX [UQ_GoverningBody_CompanyId_BodyType] ON [org].[GoverningBody] ([TenantId], [CompanyId], [BodyType]) WHERE Status = 'ACTIVE';

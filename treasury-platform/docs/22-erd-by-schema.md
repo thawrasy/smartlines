@@ -152,6 +152,7 @@ erDiagram
 | GoverningBody | SourceDocumentId | doc.Document |
 | Shareholding | CurrencyId | ref.Currency |
 | Shareholding | HolderPartyId | pty.Party |
+| Shareholding | IntermediatePartyId | pty.Party |
 | Shareholding | SourceDocumentId | doc.Document |
 
 ## مخطط `pty` (11 جدولًا)

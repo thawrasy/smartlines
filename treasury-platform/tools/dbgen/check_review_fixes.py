@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """check_review_fixes.py — يتحقق من أن الإصلاحات الحرجة العشرة (docs/review/design-review-2026-10-11.json) موجودة فعلًا في DDL المولَّد،
 ومعها الإصلاحات التصريحية للنتائج الرئيسية والطفيفة التي اعتمدها المالك في 2026-10-13 (O-15، docs/32-review-findings-decisions.md).
-القوادح والمنع في db/static/043_review_guards.sql تختبرها db/tests/review_fixes_tests.sql."""
+القوادح والمنع في db/static/043_review_guards.sql وشروط دخول الشرائح في db/static/044_entry_guards.sql تختبرها
+db/tests/review_fixes_tests.sql."""
 import os, re, sys
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..')
 G = os.path.join(ROOT, 'db', 'generated', 'tsql')
@@ -12,6 +13,7 @@ tb = read(os.path.join(G, '001_tables.sql'))
 sens = read(os.path.join(G, '006_sensitive_columns.sql'))
 static = read(os.path.join(S, '025_tenant_views.sql'))
 guards = read(os.path.join(S, '043_review_guards.sql'))
+entry = read(os.path.join(S, '044_entry_guards.sql'))
 ix = read(os.path.join(G, '003_indexes.sql'))
 grants = read(os.path.join(G, '005_delete_grants.sql')) + read(os.path.join(G, '007_table_grants.sql'))
 checks = {}
@@ -95,6 +97,10 @@ checks['DR-25 no tax number copy on org.Company; read through org.v_CompanyTaxId
 checks['DR-26 Utilization: no polymorphic SourceRefId; typed request link'] = 'SourceRefId' not in block('fac', 'Utilization') and fk_has('Utilization', 'SourceRequestId', 'CompanyId') and fk_has('LetterOfCredit', 'UtilizationId', 'CompanyId')
 checks['DR-27 ValueConflict target list'] = has_check('fac', 'ValueConflict', "TargetEntity IN ('fac.Facility'")
 checks['DR-16 alert recipients are roles of the tenant (junction, no code list)'] = 'RecipientRoles' not in block('cfg', 'ExpiryAlertRule') and fk_has('ExpiryAlertRuleRole', 'RoleId', 'TenantId')
+checks['DR-22 indirect holding per path through a named intermediate, never a tenant company (044)'] = (
+    'UQ_Shareholding_CompanyId_HolderPartyId_Layer_IntermediatePartyId_EffectiveFrom' in tb
+    and has_check('org', 'Shareholding', 'Layer >= 2 AND IntermediatePartyId IS NOT NULL') and 'TR_Shareholding_Intermediate' in entry
+    and 'TR_Company_NotIntermediate' in entry)
 checks['DR-30 product and financing type pair by Shariah classification'] = fk_has('ProductFinancingType', 'ProductId', 'ProductCompliance') and fk_has('ProductFinancingType', 'FinancingTypeId', 'FinancingIsIslamic') and has_check('cat', 'ProductFinancingType', "ProductCompliance = 'NEUTRAL'")
 checks['DR-29 BaseRate currency required; alias in its rate scope'] = '[CurrencyId] INT NOT NULL' in block('cat', 'BaseRate') and fk_has('BaseRateAlias', 'BaseRateId', 'ScopeKey')
 checks['DR-31 agreement text denied to tp_readonly (043)'] = 'OriginalText' in guards and 'tp_readonly' in guards

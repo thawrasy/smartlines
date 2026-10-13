@@ -26,6 +26,8 @@
    RF19 a product and a financing type pair only as the Shariah rule allows, and a used classification stays (DR-30)
    RF20 an alert rule's recipient roles are roles of its own tenant (DR-16)
    RF21 a company's tax numbers come from its mirror's current tax identity, for the bound tenant only (DR-25)
+   RF22 an owner holds a company indirectly per path through a named intermediate, never a company of the tenant
+        (DR-22, S1-b; 044)
    The other declarative fixes of S2 to S4 (keys and checks) are verified on the generated DDL by
    tools/dbgen/check_review_fixes.py, CI step 3.
 
@@ -666,4 +668,73 @@ IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
 IF @n = 1 AND @tax = '300000000000002' AND @vat = '310000000000002'
     PRINT 'PASS RF21: a company''s tax numbers come from its mirror''s current tax identity, for the bound tenant only';
 ELSE PRINT CONCAT('FAIL RF21: companies seen ', @n, ', tax ', @tax, ', VAT ', @vat);
+GO
+/* RF22 (DR-22, S1-b): an owner may hold a company indirectly through two named intermediates at once; a direct row
+   has no intermediate and an indirect row has one that is not the owner; the same path is not entered twice; a path
+   through a company of the tenant is refused (50047), and so is a company whose mirror is the intermediate of an
+   open path. A trigger error ends its transaction, so the last case has its own. */
+DECLARE @t1 INT, @u1 BIGINT, @country INT, @pc BIGINT, @c BIGINT, @pd BIGINT, @h BIGINT, @x BIGINT, @y BIGINT,
+        @ok INT = 0, @dup INT, @e1 INT, @e2 INT, @e3 INT, @e4 INT, @e5 INT;
+SET @country = (SELECT CountryId FROM ref.Country WHERE Iso2 = 'SA');
+BEGIN TRANSACTION;
+EXEC #Fixture;
+SELECT @t1 = v FROM #F WHERE k = 't1'; SELECT @u1 = v FROM #F WHERE k = 'u1';
+ALTER TABLE org.Company NOCHECK CONSTRAINT FK_Company_LegalEntityTypeId;
+EXEC #Bind @t1, @u1;
+INSERT pty.Party (TenantId, PartyCode, Kind, NameEn)
+VALUES (@t1, 'P-C', 'ORGANIZATION', N'Company C'), (@t1, 'P-D', 'ORGANIZATION', N'Company D'), (@t1, 'P-H', 'INDIVIDUAL', N'Holder'),
+       (@t1, 'P-X', 'ORGANIZATION', N'Intermediate X'), (@t1, 'P-Y', 'ORGANIZATION', N'Intermediate Y');
+SELECT @pc = PartyId FROM pty.Party WHERE TenantId = @t1 AND PartyCode = 'P-C';
+SELECT @pd = PartyId FROM pty.Party WHERE TenantId = @t1 AND PartyCode = 'P-D';
+SELECT @h = PartyId FROM pty.Party WHERE TenantId = @t1 AND PartyCode = 'P-H';
+SELECT @x = PartyId FROM pty.Party WHERE TenantId = @t1 AND PartyCode = 'P-X';
+SELECT @y = PartyId FROM pty.Party WHERE TenantId = @t1 AND PartyCode = 'P-Y';
+INSERT org.Company (TenantId, CompanyCode, NameAr, NameEn, PartyId, LegalEntityTypeId, CountryId, FiscalYearEndMonth)
+VALUES (@t1, 'C', N'شركة', N'Company C', @pc, 1, @country, 12), (@t1, 'D', N'شركة', N'Company D', @pd, 1, @country, 12);
+SET @c = (SELECT CompanyId FROM org.Company WHERE TenantId = @t1 AND CompanyCode = 'C');
+EXECUTE AS USER = N'tp_test_rfapp';
+BEGIN TRY
+    INSERT org.Shareholding (TenantId, CompanyId, HolderPartyId, SharePercent, Layer, IntermediatePartyId, EffectiveFrom)
+    VALUES (@t1, @c, @h, 10, 1, NULL, '2026-01-01'), (@t1, @c, @h, 30, 2, @x, '2026-01-01'), (@t1, @c, @h, 5, 2, @y, '2026-01-01');
+    SET @ok = @@ROWCOUNT;
+END TRY BEGIN CATCH SET @ok = -ERROR_NUMBER(); END CATCH;
+BEGIN TRY INSERT org.Shareholding (TenantId, CompanyId, HolderPartyId, SharePercent, Layer, IntermediatePartyId, EffectiveFrom)
+          VALUES (@t1, @c, @h, 1, 2, @x, '2026-01-01'); END TRY BEGIN CATCH SET @dup = ERROR_NUMBER(); END CATCH;
+BEGIN TRY INSERT org.Shareholding (TenantId, CompanyId, HolderPartyId, SharePercent, Layer, IntermediatePartyId, EffectiveFrom)
+          VALUES (@t1, @c, @x, 1, 2, NULL, '2026-01-01'); END TRY BEGIN CATCH SET @e1 = ERROR_NUMBER(); END CATCH;
+BEGIN TRY INSERT org.Shareholding (TenantId, CompanyId, HolderPartyId, SharePercent, Layer, IntermediatePartyId, EffectiveFrom)
+          VALUES (@t1, @c, @y, 1, 1, @x, '2026-01-01'); END TRY BEGIN CATCH SET @e2 = ERROR_NUMBER(); END CATCH;
+BEGIN TRY INSERT org.Shareholding (TenantId, CompanyId, HolderPartyId, SharePercent, Layer, IntermediatePartyId, EffectiveFrom)
+          VALUES (@t1, @c, @y, 1, 2, @y, '2026-01-01'); END TRY BEGIN CATCH SET @e3 = ERROR_NUMBER(); END CATCH;
+BEGIN TRY INSERT org.Shareholding (TenantId, CompanyId, HolderPartyId, SharePercent, Layer, IntermediatePartyId, EffectiveFrom)
+          VALUES (@t1, @c, @h, 2, 3, @pd, '2026-01-01'); END TRY
+BEGIN CATCH SET @e4 = ERROR_NUMBER(); IF XACT_STATE() <> 0 ROLLBACK TRANSACTION; END CATCH;
+REVERT;
+WHILE @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
+-- the last case: X is the intermediate of an open path, then a company with X as its mirror is added
+BEGIN TRANSACTION;
+EXEC #Fixture;
+SELECT @t1 = v FROM #F WHERE k = 't1'; SELECT @u1 = v FROM #F WHERE k = 'u1';
+ALTER TABLE org.Company NOCHECK CONSTRAINT FK_Company_LegalEntityTypeId;
+EXEC #Bind @t1, @u1;
+INSERT pty.Party (TenantId, PartyCode, Kind, NameEn)
+VALUES (@t1, 'P-C', 'ORGANIZATION', N'Company C'), (@t1, 'P-H', 'INDIVIDUAL', N'Holder'), (@t1, 'P-X', 'ORGANIZATION', N'Intermediate X');
+SELECT @pc = PartyId FROM pty.Party WHERE TenantId = @t1 AND PartyCode = 'P-C';
+SELECT @h = PartyId FROM pty.Party WHERE TenantId = @t1 AND PartyCode = 'P-H';
+SELECT @x = PartyId FROM pty.Party WHERE TenantId = @t1 AND PartyCode = 'P-X';
+INSERT org.Company (TenantId, CompanyCode, NameAr, NameEn, PartyId, LegalEntityTypeId, CountryId, FiscalYearEndMonth)
+VALUES (@t1, 'C', N'شركة', N'Company C', @pc, 1, @country, 12);
+SET @c = SCOPE_IDENTITY();
+INSERT org.Shareholding (TenantId, CompanyId, HolderPartyId, SharePercent, Layer, IntermediatePartyId, EffectiveFrom)
+VALUES (@t1, @c, @h, 30, 2, @x, '2026-01-01');
+BEGIN TRY
+    INSERT org.Company (TenantId, CompanyCode, NameAr, NameEn, PartyId, LegalEntityTypeId, CountryId, FiscalYearEndMonth)
+    VALUES (@t1, 'X', N'شركة', N'Company X', @x, 1, @country, 12);
+END TRY BEGIN CATCH SET @e5 = ERROR_NUMBER(); IF XACT_STATE() <> 0 ROLLBACK TRANSACTION; END CATCH;
+WHILE @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
+IF @ok = 3 AND @dup = 2627 AND @e1 = 547 AND @e2 = 547 AND @e3 = 547 AND @e4 = 50047 AND @e5 = 50047
+    PRINT 'PASS RF22: an owner holds a company through two named intermediates, never through a company of the tenant';
+ELSE PRINT CONCAT('FAIL RF22: two paths and a direct row ', @ok, ', same path twice ', @dup, ', indirect without intermediate ', @e1,
+                  ', direct with one ', @e2, ', owner as intermediate ', @e3, ', path through a tenant company ', @e4,
+                  ', intermediate becoming a company ', @e5);
 GO

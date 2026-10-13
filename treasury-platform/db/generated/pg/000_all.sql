@@ -1046,6 +1046,7 @@ CREATE TABLE "org"."Shareholding" (
   "NominalValue" numeric(19,4) NULL,
   "CurrencyId" integer NULL,
   "Layer" smallint NOT NULL DEFAULT 1,
+  "IntermediatePartyId" bigint NULL,
   "IsBeneficialOwner" smallint NOT NULL DEFAULT 0,
   CHECK ("IsBeneficialOwner" IS NULL OR "IsBeneficialOwner" IN (0,1)),
   "EffectiveFrom" date NOT NULL,
@@ -1057,12 +1058,14 @@ CREATE TABLE "org"."Shareholding" (
   "UpdatedBy" bigint NULL,
   PRIMARY KEY ("ShareholdingId"),
   CONSTRAINT "UQ_Shareholding_Tenant" UNIQUE ("TenantId", "ShareholdingId"),
-  CONSTRAINT "UQ_Shareholding_CompanyId_HolderPartyId_Layer_EffectiveFrom" UNIQUE ("TenantId", "CompanyId", "HolderPartyId", "Layer", "EffectiveFrom"),
+  CONSTRAINT "UQ_Shareholding_CompanyId_HolderPartyId_Layer_Inte_7d12f1ba" UNIQUE ("TenantId", "CompanyId", "HolderPartyId", "Layer", "IntermediatePartyId", "EffectiveFrom"),
   CONSTRAINT "CK_Shareholding_1" CHECK ("SharePercent" > 0 AND "SharePercent" <= 100),
   CONSTRAINT "CK_Shareholding_2" CHECK ("EffectiveTo" IS NULL OR "EffectiveTo" >= "EffectiveFrom"),
   CONSTRAINT "CK_Shareholding_3" CHECK ("Layer" >= 1),
-  CONSTRAINT "CK_Shareholding_4" CHECK ("SharesCount" IS NULL OR "SharesCount" > 0),
-  CONSTRAINT "CK_Shareholding_5" CHECK ("NominalValue" IS NULL OR ("NominalValue" >= 0 AND "CurrencyId" IS NOT NULL))
+  CONSTRAINT "CK_Shareholding_4" CHECK (("Layer" = 1 AND "IntermediatePartyId" IS NULL) OR ("Layer" >= 2 AND "IntermediatePartyId" IS NOT NULL)),
+  CONSTRAINT "CK_Shareholding_5" CHECK ("IntermediatePartyId" IS NULL OR "IntermediatePartyId" <> "HolderPartyId"),
+  CONSTRAINT "CK_Shareholding_6" CHECK ("SharesCount" IS NULL OR "SharesCount" > 0),
+  CONSTRAINT "CK_Shareholding_7" CHECK ("NominalValue" IS NULL OR ("NominalValue" >= 0 AND "CurrencyId" IS NOT NULL))
 );
 CREATE TABLE "org"."GoverningBody" (
   "TenantId" integer NOT NULL,
@@ -6208,6 +6211,7 @@ ALTER TABLE "org"."Shareholding" ADD CONSTRAINT "FK_Shareholding_Tenant" FOREIGN
 ALTER TABLE "org"."Shareholding" ADD CONSTRAINT "FK_Shareholding_CompanyId" FOREIGN KEY ("TenantId", "CompanyId") REFERENCES "org"."Company" ("TenantId", "CompanyId");
 ALTER TABLE "org"."Shareholding" ADD CONSTRAINT "FK_Shareholding_HolderPartyId" FOREIGN KEY ("TenantId", "HolderPartyId") REFERENCES "pty"."Party" ("TenantId", "PartyId");
 ALTER TABLE "org"."Shareholding" ADD CONSTRAINT "FK_Shareholding_CurrencyId" FOREIGN KEY ("CurrencyId") REFERENCES "ref"."Currency" ("CurrencyId");
+ALTER TABLE "org"."Shareholding" ADD CONSTRAINT "FK_Shareholding_IntermediatePartyId" FOREIGN KEY ("TenantId", "IntermediatePartyId") REFERENCES "pty"."Party" ("TenantId", "PartyId");
 ALTER TABLE "org"."Shareholding" ADD CONSTRAINT "FK_Shareholding_SourceDocumentId" FOREIGN KEY ("TenantId", "SourceDocumentId") REFERENCES "doc"."Document" ("TenantId", "DocumentId");
 ALTER TABLE "org"."GoverningBody" ADD CONSTRAINT "FK_GoverningBody_Tenant" FOREIGN KEY ("TenantId") REFERENCES "plat"."Tenant" ("TenantId");
 ALTER TABLE "org"."GoverningBody" ADD CONSTRAINT "FK_GoverningBody_CompanyId" FOREIGN KEY ("TenantId", "CompanyId") REFERENCES "org"."Company" ("TenantId", "CompanyId");
@@ -6974,9 +6978,10 @@ CREATE UNIQUE INDEX "UQ_Department_SeedKey" ON "org"."Department" ("TenantId", "
 CREATE INDEX "IX_Department_CompanyId" ON "org"."Department" ("TenantId", "CompanyId");
 CREATE INDEX "IX_Department_ParentDepartmentId" ON "org"."Department" ("TenantId", "ParentDepartmentId");
 CREATE INDEX "IX_Department_HeadUserId" ON "org"."Department" ("TenantId", "HeadUserId");
-CREATE UNIQUE INDEX "UQ_Shareholding_CompanyId_HolderPartyId_Layer" ON "org"."Shareholding" ("TenantId", "CompanyId", "HolderPartyId", "Layer") WHERE "EffectiveTo" IS NULL;
+CREATE UNIQUE INDEX "UQ_Shareholding_CompanyId_HolderPartyId_Layer_Inte_0d2b34fd" ON "org"."Shareholding" ("TenantId", "CompanyId", "HolderPartyId", "Layer", "IntermediatePartyId") WHERE "EffectiveTo" IS NULL;
 CREATE INDEX "IX_Shareholding_CompanyId_EffectiveTo" ON "org"."Shareholding" ("TenantId", "CompanyId", "EffectiveTo");
 CREATE INDEX "IX_Shareholding_HolderPartyId_EffectiveTo" ON "org"."Shareholding" ("TenantId", "HolderPartyId", "EffectiveTo");
+CREATE INDEX "IX_Shareholding_IntermediatePartyId_EffectiveTo" ON "org"."Shareholding" ("TenantId", "IntermediatePartyId", "EffectiveTo");
 CREATE INDEX "IX_Shareholding_CurrencyId" ON "org"."Shareholding" ("TenantId", "CurrencyId");
 CREATE INDEX "IX_Shareholding_SourceDocumentId" ON "org"."Shareholding" ("TenantId", "SourceDocumentId");
 CREATE UNIQUE INDEX "UQ_GoverningBody_CompanyId_BodyType" ON "org"."GoverningBody" ("TenantId", "CompanyId", "BodyType") WHERE "Status" = 'ACTIVE';
