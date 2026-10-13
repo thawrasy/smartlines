@@ -1,6 +1,6 @@
 # ADR 0003: Account lifecycle, mandatory MFA and tenant-status access in the database
 
-Status: accepted by the owner (2026-10-12, docs/31-owner-decisions.md section 1.1, items 1 to 4). It implements DQ-F03-1, DQ-F03-4, DQ-F03-8, DQ-F03-11, DQ-F04-1 (O-18), DQ-S01-3, DQ-S01-5 (O-19), DQ-S03-5 (O-24 R1, R3, R4, R5), DQ-S04-9 and DQ-S04-11. It extends ADR 0002, which stays in force for passwords, sessions and the binding.
+Status: accepted by the owner (2026-10-12, docs/31-owner-decisions.md section 1.1, items 1 to 4). Extended by ADR 0004. It implements DQ-F03-1, DQ-F03-4, DQ-F03-8, DQ-F03-11, DQ-F04-1 (O-18), DQ-S01-3, DQ-S01-5 (O-19), DQ-S03-5 (O-24 R1, R3, R4, R5), DQ-S04-9 and DQ-S04-11. It extends ADR 0002, which stays in force for passwords, sessions and the binding.
 
 ## Context
 
@@ -89,4 +89,6 @@ Residual risks (accepted, within one tenant):
 - The TOTP check runs in the application, which holds the key (R2, accepted in DOC-S03 section 12). The database adds the replay check and the failure limit.
 - `sec.LoginAttempt` is still the only login trace, and tp_app may still delete its rows (R6). The proposal in DQ-F03-10 (procedures also write `aud.AuditLog`, tp_auth gets INSERT on it) is not decided yet.
 
-Not built yet, recorded for S0: per-tenant session timeouts and lockout threshold from `cfg.TenantSetting` (DQ-S03-6, DQ-S04-14; the procedures use the platform values), the support binding (DQ-F04-6), the job binding (DQ-F04-4), a link check before the form is shown (`usp_CheckUserToken`, DQ-F03-5), the five-minute limit on a session waiting for MFA (DQ-F03-2) and rehashing with stronger parameters (DQ-S04-3).
+Built since, in ADR 0004: per-tenant session timeouts, lockout threshold and history count from `cfg.TenantSetting` (DQ-S03-6, DQ-S04-14; the history rule now counts the current password among the last N), the support binding (DQ-F04-6) and the job binding (DQ-F04-4). The administrator procedures above now require a USER binding (`sec.fn_BoundAsUser`), so a job or support binding cannot use them, and each writing procedure undoes only its own work when the caller holds a transaction.
+
+Not built yet, recorded for S0: a link check before the form is shown (`usp_CheckUserToken`, DQ-F03-5), the five-minute limit on a session waiting for MFA (DQ-F03-2) and rehashing with stronger parameters (DQ-S04-3).

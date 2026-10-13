@@ -10,6 +10,8 @@
 | يعتمد على | DOC-F04 (ربط المهام بحساب الخدمة ومصفوفة الحالة)، DOC-B05 (البذور)، DOC-S02 (مفاتيح المشترك)، DOC-S05 (TLS)، DOC-F03 وDOC-F06 (الدعوة وحالات المستخدم)، DOC-S08 (حسابات القاعدة) |
 | المصادر | docs/10-detailed-analysis/10-m0-m1-platform-organization.md، docs/10-detailed-analysis/00-overview-and-cross-cutting.md، docs/20-database-design.md، docs/21-data-dictionary.md، db/generated/tsql/001_tables.sql، db/generated/tsql/007_table_grants.sql، db/static/010_rls.sql، db/static/030_session_context.sql |
 
+> **تحديث التنفيذ (2026-10-12):** نُفّذت التهيئة وانتقالات الحالة في القاعدة (docs/adr/0004-platform-access-jobs-and-onboarding.md، db/static/038_tenant_onboarding.sql) وتمر في CI (الاختبارات O1 إلى O5): المرحلة أ `plat.usp_CreateTenant` بمدير مشغّلين تحقق بـ MFA خلال 5 دقائق (DQ-F05-2) في معاملة واحدة، والمرحلة ج `sec.usp_InviteFirstAdministrator` لمهمة JOB-PLT-ONBOARD، والانتقالات بإجراء واحد مع `plat.usp_SetTenantStatus` للمشغّل و`plat.usp_RunTenantTransitions` للمهمتين اليوميتين (DQ-F05-6)، ورفض إغلاق مشترك نشط حتى يوجد التصدير (DQ-F05-7)، وإغلاق التجربة الملغاة (DQ-F05-4)، و`DENY` على كتابة الحالة مباشرة (DQ-F05-5). الباقة STANDARD والعناوين المحجوزة مبذورة. تبقى المرحلة ب (حزم البذر) في التطبيق، والتدقيق يكتبه التطبيق (O-25 في tools/dbgen/erd_open_items.py).
+
 ## 1. الغرض والنطاق
 
 تصف الوثيقة كيف ينشئ مشغّل المنصة مشتركًا جديدًا يدويًا، بلا فوترة، حتى يصل مدير الحساب الأول إلى قائمة البدء. وتحدد لكل خطوة ما يجري داخل معاملة القاعدة وما يجري خارجها، وما يحدث عند الفشل وكيف يُعوَّض. ثم تصف دورة حياة المشترك من TRIAL إلى ARCHIVED_READ_ONLY، ونافذة التصدير، وحذف البيانات.

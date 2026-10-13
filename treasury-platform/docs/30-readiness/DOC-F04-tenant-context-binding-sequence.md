@@ -13,6 +13,8 @@
 > **تحديث التنفيذ (2026-10-12):** نُفّذت قرارات المالك لبوابة S0 في القاعدة (docs/adr/0003-account-security-in-the-database.md، db/static/030_session_context.sql، db/static/035_account_security.sql) وتمر في CI (48 حالة عزل و14 حالة حسابات في db/tests/auth_flow_tests.sql). أرقام الأسطر المذكورة لملف 030 في هذه الوثيقة تسبق هذا التحديث.
 >
 > ما يخص هذه الوثيقة: O-18 مغلق بالخيار (أ) ومصفوفة §7.4 (`sec.fn_TenantOpen` و`sec.fn_TenantLoginAllowed`؛ T40 وT41)، و50006 لمن أثبت كلمة مروره ورفضته الحالة (T42)، والتحويل من العنوان الفرعي بـ `sec.usp_ResolveTenant` (DQ-F04-5)، وتمديد الخمول والخروج بإجراءين (DQ-F04-8)، وإنهاء الجلسات عند التعطيل (DQ-F04-9). لم يُبنَ بعد: ربط المهام (DQ-F04-4) وربط الدعم (DQ-F04-6).
+>
+> وبـ docs/adr/0004-platform-access-jobs-and-onboarding.md (ADR 0004): ربط المهام (§5.2) منفّذ في db/static/037_job_context.sql بدور `tp_jobs` وقائمة المهام المغلقة `cfg.JobDefinition` وحالات المشترك من §7.4 (الاختبارات J1 إلى J6)، وربط الدعم (§6.2) منفّذ في db/static/036_operator_and_support.sql بدور `tp_support` وجلسة مشغّل داخل القاعدة وعمودي `BindingKind` و`BoundOperatorId` (P1 إلى P10). وإجراءات المدير لا تقبل إلا ربط مستخدم، فلا يستعملها ربط مهمة أو دعم.
 
 ## 1. الغرض والنطاق
 

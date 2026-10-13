@@ -10,6 +10,8 @@
 | يعتمد على | DOC-F04 (أنواع الاتصال والأدوار الجديدة)، DOC-F05 (إجراءات المنصة)، DOC-S02 (المفاتيح وTDE)، DOC-S05 (TLS)، DOC-S10 (تقوية خادم Ubuntu)، DOC-S12 (السجلات)، DOC-B11 (البيئات والنشر) |
 | المصادر | db/static/020_roles_and_grants.sql، db/static/030_session_context.sql، db/static/010_rls.sql، db/generated/tsql/000_schemas.sql، db/generated/tsql/005_delete_grants.sql، db/generated/tsql/006_sensitive_columns.sql، db/generated/tsql/007_table_grants.sql، db/deploy.sql، tools/deploy/deploy.sh، tools/ci/db_ci.sh، ../.github/workflows/treasury-db-ci.yml (جذر المستودع)، tools/dbgen/check_grants.py، docs/adr/0001-schema-work-on-linux.md، docs/adr/0002-login-and-session-bound-context.md، docs/20-database-design.md |
 
+> **تحديث التنفيذ (2026-10-12):** الدوران `tp_jobs` (عضو في `tp_app`) و`tp_support` (عضو في `tp_readonly`) منشآن في db/static/037_job_context.sql وdb/static/036_operator_and_support.sql (ADR 0004)، ولكل منهما إجراءات ربطه فقط. ويفقد `tp_platform` إدراج المشترك والمشغّل وتعديل أعمدة الحالة وبيانات الاعتماد. يبقى إنشاء الحسابين `bankfas_jobs` و`bankfas_support` وأسرارهما عند النشر.
+
 ## 1. الغرض والنطاق
 
 تحدد الوثيقة كل حساب يتصل بقاعدة SQL Server 2025 على خادم Ubuntu 24.04 الخاص (docs/adr/0001-schema-work-on-linux.md:16): اسمه، والدور الذي يأخذه في القاعدة، ومن يستعمله ومن أين، وكيف يُصادَق، وأين يُحفظ سره، وكيف يُدوَّر، وما أقل صلاحياته. وتغطي حساب `sa` والوصول الطارئ وتدقيق الوصول المميّز.
@@ -142,7 +144,7 @@ sequenceDiagram
 | `tp_readonly` | قراءة كل المخططات (db/static/020_roles_and_grants.sql:41-53) دون 29 عمودًا مقيّدًا (db/generated/tsql/006_sensitive_columns.sql:7-35) | لا قراءة لسجل المشتركين والوحدات والمشغّلين والربط (db/static/020_roles_and_grants.sql:55-63) | يخضع لـRLS ولا يملك `EXECUTE` على إجراء الربط، فلا يرى اليوم أي صف مشترك، بل الصفوف العالمية فقط. لا يُنشأ له حساب حتى تُحسم حالة استعمال (DQ-S08-6) |
 | `tp_migrator` | دور فارغ (db/static/020_roles_and_grants.sql:9) | كل شيء | المقترح: حساب الترحيل عضو في `db_owner` أثناء النشر فقط، لأن `deploy.sql` ينشئ القاعدة والأدوار والمستخدمين والسياسات (db/deploy.sql:17-34). يُعطَّل خارج النافذة. أداة الترحيل بين الإصدارات قرار مفتوح (O-2 في docs/20-database-design.md:530) |
 | `tp_auth` و`tp_auth_exec` | قراءة المستخدم والمشترك، وتحديث المستخدم، وكتابة الجلسات ومحاولات الدخول والربط (db/static/020_roles_and_grants.sql:38-39، :59، :67-69) | لا تسجيل دخول | يحتاج قراءة `sec.UserRole` و`sec.Role` إن اعتُمد DQ-F04-1. والقاعدة R6 تحصر منحه في هذه الجداول الخمسة ويشغّلها CI منذ e5ea45e (tools/dbgen/check_grants.py:81-87، tools/ci/db_ci.sh:49)؛ وصفها في رأس الملف ما زال قديمًا (§12) |
-| `tp_jobs` و`tp_support` | غير موجودين | — | يُنشآن بمنح `EXECUTE` على إجراءات الربط الجديدة فقط (DOC-F04 §5.2 و§6.2) |
+| `tp_jobs` و`tp_support` | ✅ منشآن (ADR 0004) | db/static/036 و037 | `tp_jobs` عضو في `tp_app` مع `EXECUTE` على ربط المهام وقائمة المشتركين والانتقالات والدعوة الأولى؛ `tp_support` عضو في `tp_readonly` مع `EXECUTE` على ربط الدعم فقط |
 
 ## 8. قاعدة ترتيب DENY
 

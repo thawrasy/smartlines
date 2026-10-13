@@ -22,8 +22,10 @@ MODULES = [
 
 # key, title, subtitle, members (schema names or schema-qualified table names)
 GROUPS = [
-    ('m0_tenancy', 'Tenancy, plans and platform operators', 'plat schema: tenants, subscriptions, modules, support access, platform operators',
-     ['plat']),
+    ('m0_tenancy', 'Tenancy, plans and support access', 'plat schema: tenants, plans and modules, reserved sub-domains, support access grants',
+     ['plat.Tenant', 'plat.Plan', 'plat.PlanModule', 'plat.TenantModule', 'plat.ReservedSubdomain', 'plat.SupportAccessGrant']),
+    ('m0_operators', 'Platform operators', 'plat schema: operator accounts, their sessions and set-up links (ADR 0004)',
+     ['plat.PlatformOperator', 'plat.OperatorSession', 'plat.OperatorToken']),
     ('m0_identity', 'Identity and authorisation', 'sec schema: users, roles, permissions, company scopes, external identities',
      ['sec.AppUser', 'sec.Role', 'sec.Permission', 'sec.RolePermission', 'sec.UserRole', 'sec.UserCompanyScope', 'sec.ExternalIdentity']),
     ('m0_sessions', 'Sessions, keys and authentication attempts', 'sessions, login attempts, MFA recovery codes, tokens, password history, encryption keys',

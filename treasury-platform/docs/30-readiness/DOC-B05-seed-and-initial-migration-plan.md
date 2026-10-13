@@ -10,6 +10,8 @@
 | يعتمد على | DOC-F05، DOC-S02، DOC-S06، DOC-S07، DOC-S08، DOC-B01، DOC-B04، DOC-B09، DOC-B11 |
 | المصادر | db/deploy.sql، db/model/10-platform.model، 11-organization-party.model، 12-institutions-accounts-catalogs.model، 14-…، 15-…، 16-…، db/generated/tsql/001_tables.sql، db/static/010_rls.sql، db/tests/tenant_isolation_tests.sql، docs/10-detailed-analysis/00-overview-and-cross-cutting.md، 10-m0-m1…، 11-m2-m4…، docs/20-database-design.md |
 
+> **تحديث التنفيذ (2026-10-12):** بدأ بذر المنصة في db/seed/100_platform_global.sql ضمن ترتيب النشر (§4.3)، وهو آمن لإعادة التشغيل وتتحقق منه الخطوة 4b في CI: مفاتيح الإعدادات الأمنية الست، وقائمة المهام الثلاثون، والباقة STANDARD بكل الوحدات (DQ-B05-4)، و23 عنوانًا محجوزًا. وأول مشغّل يُنشأ بإجراء التمهيد `plat.usp_BootstrapOperator` بدعوة (DQ-B05-7، DQ-F07-3). لم تُبذر بعد قوائم الدول والعملات (DQ-B05-5) ولا رموز الصلاحيات (DQ-F07-1).
+
 ## 1. الغرض والنطاق
 
 تحدد الوثيقة ثلاث طبقات للبيانات الأولى:

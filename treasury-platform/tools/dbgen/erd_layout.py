@@ -253,6 +253,19 @@ def layout(chart, rk, geo):
         base = min(top.values())
         for f in top:
             top[f] -= base
+    # Tables with no connector between them can drift apart in the sweeps, since nothing pulls them together, and
+    # leave an empty band across the whole chart. Close each band that no table spans to the normal gap; groups that
+    # sit side by side are left as they are.
+    order = sorted(nodes, key=lambda f: (top[f], f))
+    reach, shift = None, 0.0
+    for f in order:
+        t = top[f]
+        if reach is not None and t - reach > 3 * GAP_Y:
+            shift += t - reach - GAP_Y
+        top[f] = t - shift
+        reach = max(reach if reach is not None else t, t + geo[f]['h'])
+    for r in range(ncol):
+        cols[r] = sorted(cols[r], key=lambda f: (top[f], f))
     return cols, col_x, col_w, top
 
 
