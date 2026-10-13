@@ -90,7 +90,7 @@ Every procedure that writes takes a savepoint when its caller already holds a tr
   - J1 to J6 in `db/tests/job_context_tests.sql`;
   - O1 to O5 in `db/tests/tenant_onboarding_tests.sql`;
   - the seed check, which runs the platform seed twice and expects nothing to change.
-- **Deployment.** It must create the first operator with `plat.usp_BootstrapOperator` and send its link. The worker and the support connection need their own logins, in `tp_jobs` and `tp_support`, whose secrets the web server never holds (DOC-S08).
+- **Deployment.** It must create the first operator with `plat.usp_BootstrapOperator` and send its link. The worker and the support connection need their own logins, in `tp_jobs` and `tp_support`, whose secrets the web server never holds (DOC-S08); built in ADR 0009 (`tools/deploy/provision_logins.sh`).
 - **Application.** The panel calls `plat.usp_ConfirmOperatorMfa` again right before creating a tenant or changing its status.
 
 Residual risks and open points:

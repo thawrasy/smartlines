@@ -113,6 +113,9 @@ unset SQLCMDPASSWORD
 ```
 
 - النجاح: رمز خروج 0 وسطر `deployment finished` (tools/deploy/deploy.sh:30). أي شيء آخر فشل يُعالج بالقسم 9.
+- **ثم حسابات الخدمة (ADR 0009):** يشغّل DBA بحسابه الشخصي، لأن إنشاء الحسابات يحتاج صلاحية خادم لا يملكها `bankfas_migrator`:
+  `BANKFAS_SECRETS_DIR=/etc/bankfas/db-secrets BANKFAS_LOGIN_SET=a bash tools/deploy/provision_logins.sh --generate`
+  فتُنشأ ملفات الأسرار الناقصة بصلاحية 600، ثم ينقل كل سر إلى مخزن أسرار عمليته على مضيف التطبيق (DOC-S08 §5)، ويحذف من الخادم ما لا يلزم بقاؤه. والتدوير بالزوج: `BANKFAS_LOGIN_SET=b` ثم نقل العملية إلى `_b` ثم تعطيل `_a` (DOC-S08 §6).
 - سجل النشر يُشحن إلى المخزن المركزي (DOC-S12)، ولا يحمل كلمة المرور لأن sqlcmd يقرؤها من البيئة.
 
 ## 6. النشر الجديد اليوم
