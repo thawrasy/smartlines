@@ -1,2 +1,4 @@
 __pycache__/
 *.pyc
+# database secrets of the service logins (tools/deploy/provision_logins.sh, DOC-S08 section 5)
+*.secret

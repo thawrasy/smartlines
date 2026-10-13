@@ -2,7 +2,7 @@
 # Database CI: checks the model, confirms the generated DDL is current, deploys it to SQL Server,
 # compares what was deployed with the DDL, and runs the trigger, tenant-isolation, account-security,
 # operator-and-support, job-binding, tenant-onboarding, document-numbering (one of them with concurrent connections),
-# KYC history, reference data, audit trail and data export tests.
+# KYC history, reference data, audit trail and data export tests, and the service logins of the deployment.
 #
 # Environment:
 #   SA_PASSWORD   password of the sa login (required)
@@ -299,4 +299,22 @@ if [ "$exp_pass" -ne 6 ]; then
     exit 1
 fi
 echo "data export tests: $exp_pass passed"
+echo "== 18. service logins (tools/deploy/provision_logins.sh, tools/ci/service_logins_check.sh)"
+SQL_SERVER="$SQL_SERVER" SQLCMD="$SQLCMD" bash tools/ci/service_logins_check.sh > "$TMP/logins.out" 2>&1 || {
+    cat "$TMP/logins.out"
+    echo "service login check run failed"
+    exit 1
+}
+cat "$TMP/logins.out"
+if grep -q '^FAIL' "$TMP/logins.out"; then
+    echo "a service login check failed"
+    exit 1
+fi
+log_pass=$(grep -c '^PASS' "$TMP/logins.out" || true)
+# 6 checks: LG1-LG6 (ADR 0009: one login per process, role rights, rotation, the pair, weak or exposed secrets, guards).
+if [ "$log_pass" -ne 6 ]; then
+    echo "expected 6 PASS, found $log_pass"
+    exit 1
+fi
+echo "service login checks: $log_pass passed"
 echo "all database checks passed"
