@@ -76,6 +76,9 @@ ALTER TABLE [cfg].[NumberIssue] ADD CONSTRAINT [FK_NumberIssue_Tenant] FOREIGN K
 ALTER TABLE [cfg].[NumberIssue] ADD CONSTRAINT [FK_NumberIssue_SequenceId] FOREIGN KEY ([TenantId], [SequenceId]) REFERENCES [cfg].[NumberSequence] ([TenantId], [NumberSequenceId]);
 ALTER TABLE [cfg].[NumberIssue] ADD CONSTRAINT [FK_NumberIssue_VoidedBy] FOREIGN KEY ([TenantId], [VoidedBy]) REFERENCES [sec].[AppUser] ([TenantId], [AppUserId]);
 ALTER TABLE [cfg].[ExpiryAlertRule] ADD CONSTRAINT [FK_ExpiryAlertRule_Tenant] FOREIGN KEY ([TenantId]) REFERENCES [plat].[Tenant] ([TenantId]);
+ALTER TABLE [cfg].[ExpiryAlertRuleRole] ADD CONSTRAINT [FK_ExpiryAlertRuleRole_Tenant] FOREIGN KEY ([TenantId]) REFERENCES [plat].[Tenant] ([TenantId]);
+ALTER TABLE [cfg].[ExpiryAlertRuleRole] ADD CONSTRAINT [FK_ExpiryAlertRuleRole_ExpiryAlertRuleId] FOREIGN KEY ([TenantId], [ExpiryAlertRuleId]) REFERENCES [cfg].[ExpiryAlertRule] ([TenantId], [ExpiryAlertRuleId]);
+ALTER TABLE [cfg].[ExpiryAlertRuleRole] ADD CONSTRAINT [FK_ExpiryAlertRuleRole_RoleId] FOREIGN KEY ([TenantId], [RoleId]) REFERENCES [sec].[Role] ([TenantId], [RoleId]);
 ALTER TABLE [cfg].[ExpiryAlertLog] ADD CONSTRAINT [FK_ExpiryAlertLog_Tenant] FOREIGN KEY ([TenantId]) REFERENCES [plat].[Tenant] ([TenantId]);
 ALTER TABLE [cfg].[ExpiryAlertLog] ADD CONSTRAINT [FK_ExpiryAlertLog_ExpiryAlertRuleId] FOREIGN KEY ([TenantId], [ExpiryAlertRuleId]) REFERENCES [cfg].[ExpiryAlertRule] ([TenantId], [ExpiryAlertRuleId]);
 ALTER TABLE [cfg].[DataExportJob] ADD CONSTRAINT [FK_DataExportJob_Tenant] FOREIGN KEY ([TenantId]) REFERENCES [plat].[Tenant] ([TenantId]);
@@ -218,8 +221,8 @@ ALTER TABLE [cat].[ProductFeeType] ADD CONSTRAINT [FK_ProductFeeType_Tenant] FOR
 ALTER TABLE [cat].[ProductFeeType] ADD CONSTRAINT [FK_ProductFeeType_ProductId] FOREIGN KEY ([TenantId], [ProductId]) REFERENCES [cat].[Product] ([TenantId], [ProductId]);
 ALTER TABLE [cat].[ProductFeeType] ADD CONSTRAINT [FK_ProductFeeType_FeeTypeId] FOREIGN KEY ([TenantId], [FeeTypeId]) REFERENCES [cat].[FeeType] ([TenantId], [FeeTypeId]);
 ALTER TABLE [cat].[ProductFinancingType] ADD CONSTRAINT [FK_ProductFinancingType_Tenant] FOREIGN KEY ([TenantId]) REFERENCES [plat].[Tenant] ([TenantId]);
-ALTER TABLE [cat].[ProductFinancingType] ADD CONSTRAINT [FK_ProductFinancingType_ProductId] FOREIGN KEY ([TenantId], [ProductId]) REFERENCES [cat].[Product] ([TenantId], [ProductId]);
-ALTER TABLE [cat].[ProductFinancingType] ADD CONSTRAINT [FK_ProductFinancingType_FinancingTypeId] FOREIGN KEY ([TenantId], [FinancingTypeId]) REFERENCES [cat].[FinancingType] ([TenantId], [FinancingTypeId]);
+ALTER TABLE [cat].[ProductFinancingType] ADD CONSTRAINT [FK_ProductFinancingType_ProductId] FOREIGN KEY ([TenantId], [ProductCompliance], [ProductId]) REFERENCES [cat].[Product] ([TenantId], [Compliance], [ProductId]);
+ALTER TABLE [cat].[ProductFinancingType] ADD CONSTRAINT [FK_ProductFinancingType_FinancingTypeId] FOREIGN KEY ([TenantId], [FinancingIsIslamic], [FinancingTypeId]) REFERENCES [cat].[FinancingType] ([TenantId], [IsIslamic], [FinancingTypeId]);
 ALTER TABLE [cat].[FacilityType] ADD CONSTRAINT [FK_FacilityType_Tenant] FOREIGN KEY ([TenantId]) REFERENCES [plat].[Tenant] ([TenantId]);
 ALTER TABLE [cat].[LimitType] ADD CONSTRAINT [FK_LimitType_Tenant] FOREIGN KEY ([TenantId]) REFERENCES [plat].[Tenant] ([TenantId]);
 ALTER TABLE [cat].[LimitType] ADD CONSTRAINT [FK_LimitType_ParentLimitTypeId] FOREIGN KEY ([TenantId], [ParentLimitTypeId]) REFERENCES [cat].[LimitType] ([TenantId], [LimitTypeId]);

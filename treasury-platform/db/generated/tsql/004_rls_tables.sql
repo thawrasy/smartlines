@@ -30,6 +30,7 @@ INSERT #rls_tables VALUES (N'cfg', N'NumberSequenceDefinition', 0);
 INSERT #rls_tables VALUES (N'cfg', N'NumberSequence', 0);
 INSERT #rls_tables VALUES (N'cfg', N'NumberIssue', 0);
 INSERT #rls_tables VALUES (N'cfg', N'ExpiryAlertRule', 0);
+INSERT #rls_tables VALUES (N'cfg', N'ExpiryAlertRuleRole', 0);
 INSERT #rls_tables VALUES (N'cfg', N'ExpiryAlertLog', 0);
 INSERT #rls_tables VALUES (N'cfg', N'DataExportJob', 0);
 INSERT #rls_tables VALUES (N'cfg', N'NonWorkingDay', 1);

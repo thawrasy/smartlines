@@ -91,9 +91,11 @@ checks['DR-19 Signatory revocation evidence'] = has_check('acc', 'Signatory', "S
 checks['DR-21 AuthorityGrant approver, supersession within the company'] = has_check('org', 'AuthorityGrant', 'ApprovedAt IS NOT NULL') and fk_has('AuthorityGrant', 'SupersedesGrantId', 'CompanyId')
 checks['DR-23 IdentityDocument.SupersededById bound to the party'] = fk_has('IdentityDocument', 'SupersededById', 'PartyId')
 checks['DR-24 one company-mirror link, to an organisation'] = 'LinkedCompanyId' not in block('pty', 'Party') and fk_has('Company', 'PartyId', 'PartyKind')
-checks['DR-25 Company.TaxNumber labelled confidential'] = bool(re.search(r'TaxNumber\s+ascii\(30\)\s+sens=confidential', read(os.path.join(ROOT, 'db', 'model', '11-organization-party.model'))))
+checks['DR-25 no tax number copy on org.Company; read through org.v_CompanyTaxIdentity'] = '[TaxNumber]' not in block('org', 'Company') and 'org.v_CompanyTaxIdentity' in static
 checks['DR-26 Utilization: no polymorphic SourceRefId; typed request link'] = 'SourceRefId' not in block('fac', 'Utilization') and fk_has('Utilization', 'SourceRequestId', 'CompanyId') and fk_has('LetterOfCredit', 'UtilizationId', 'CompanyId')
 checks['DR-27 ValueConflict target list'] = has_check('fac', 'ValueConflict', "TargetEntity IN ('fac.Facility'")
+checks['DR-16 alert recipients are roles of the tenant (junction, no code list)'] = 'RecipientRoles' not in block('cfg', 'ExpiryAlertRule') and fk_has('ExpiryAlertRuleRole', 'RoleId', 'TenantId')
+checks['DR-30 product and financing type pair by Shariah classification'] = fk_has('ProductFinancingType', 'ProductId', 'ProductCompliance') and fk_has('ProductFinancingType', 'FinancingTypeId', 'FinancingIsIslamic') and has_check('cat', 'ProductFinancingType', "ProductCompliance = 'NEUTRAL'")
 checks['DR-29 BaseRate currency required; alias in its rate scope'] = '[CurrencyId] INT NOT NULL' in block('cat', 'BaseRate') and fk_has('BaseRateAlias', 'BaseRateId', 'ScopeKey')
 checks['DR-31 agreement text denied to tp_readonly (043)'] = 'OriginalText' in guards and 'tp_readonly' in guards
 checks['DR-32 set{} columns carry a membership check'] = all(f'CK_{t}_{c}]' in tb for t, c in [('JobDefinition', 'RunsInStatuses'), ('Country', 'WeekendDays'), ('DocumentType', 'AppliesTo'), ('FacilityLender', 'Roles'), ('LcAmendment', 'ChangeKinds')])

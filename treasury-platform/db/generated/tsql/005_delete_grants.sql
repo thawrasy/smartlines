@@ -14,6 +14,7 @@ GRANT DELETE ON [sec].[UserSession] TO [tp_app];
 GRANT DELETE ON [sec].[MfaRecoveryCode] TO [tp_app];
 GRANT DELETE ON [sec].[UserToken] TO [tp_app];
 GRANT DELETE ON [sec].[UserPasswordHistory] TO [tp_app];
+GRANT DELETE ON [cfg].[ExpiryAlertRuleRole] TO [tp_app];
 GRANT DELETE ON [cfg].[NonWorkingDay] TO [tp_app];
 GRANT DELETE ON [cfg].[OutboxEvent] TO [tp_app];
 GRANT DELETE ON [cfg].[JobRun] TO [tp_app];

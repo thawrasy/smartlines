@@ -76,6 +76,7 @@ CREATE NONCLUSTERED INDEX [IX_NumberSequence_CompanyId] ON [cfg].[NumberSequence
 CREATE NONCLUSTERED INDEX [IX_NumberIssue_EntityType_EntityId] ON [cfg].[NumberIssue] ([TenantId], [EntityType], [EntityId]) WHERE EntityType IS NOT NULL;
 CREATE NONCLUSTERED INDEX [IX_NumberIssue_VoidedBy] ON [cfg].[NumberIssue] ([TenantId], [VoidedBy]);
 CREATE UNIQUE NONCLUSTERED INDEX [UQ_ExpiryAlertRule_SeedKey] ON [cfg].[ExpiryAlertRule] ([TenantId], [SeedKey]) WHERE SeedKey IS NOT NULL;
+CREATE NONCLUSTERED INDEX [IX_ExpiryAlertRuleRole_RoleId] ON [cfg].[ExpiryAlertRuleRole] ([TenantId], [RoleId]);
 CREATE NONCLUSTERED INDEX [IX_DataExportJob_Status_ExpiresAt] ON [cfg].[DataExportJob] ([TenantId], [Status], [ExpiresAt]);
 CREATE NONCLUSTERED INDEX [IX_DataExportJob_RequestedBy] ON [cfg].[DataExportJob] ([TenantId], [RequestedBy]);
 CREATE NONCLUSTERED INDEX [IX_DataExportJob_ApprovedBy] ON [cfg].[DataExportJob] ([TenantId], [ApprovedBy]);
@@ -216,7 +217,9 @@ CREATE UNIQUE NONCLUSTERED INDEX [UQ_FeeType_SeedKey] ON [cat].[FeeType] ([Tenan
 CREATE UNIQUE NONCLUSTERED INDEX [UQ_FinancingType_SeedKey] ON [cat].[FinancingType] ([TenantId], [SeedKey]) WHERE SeedKey IS NOT NULL;
 CREATE NONCLUSTERED INDEX [IX_ProductFeeType_FeeTypeId_IsExpected] ON [cat].[ProductFeeType] ([TenantId], [FeeTypeId], [IsExpected]);
 CREATE UNIQUE NONCLUSTERED INDEX [UQ_ProductFinancingType_ProductId] ON [cat].[ProductFinancingType] ([TenantId], [ProductId]) WHERE IsDefault = 1;
-CREATE NONCLUSTERED INDEX [IX_ProductFinancingType_FinancingTypeId] ON [cat].[ProductFinancingType] ([TenantId], [FinancingTypeId]);
+CREATE NONCLUSTERED INDEX [IX_ProductFinancingType_FinancingTypeId_ProductId] ON [cat].[ProductFinancingType] ([TenantId], [FinancingTypeId], [ProductId]);
+CREATE NONCLUSTERED INDEX [IX_ProductFinancingType_ProductId] ON [cat].[ProductFinancingType] ([TenantId], [ProductCompliance], [ProductId]);
+CREATE NONCLUSTERED INDEX [IX_ProductFinancingType_FinancingTypeId] ON [cat].[ProductFinancingType] ([TenantId], [FinancingIsIslamic], [FinancingTypeId]);
 CREATE UNIQUE NONCLUSTERED INDEX [UQ_FacilityType_SeedKey] ON [cat].[FacilityType] ([TenantId], [SeedKey]) WHERE SeedKey IS NOT NULL;
 CREATE UNIQUE NONCLUSTERED INDEX [UQ_LimitType_SeedKey] ON [cat].[LimitType] ([TenantId], [SeedKey]) WHERE SeedKey IS NOT NULL;
 CREATE NONCLUSTERED INDEX [IX_LimitType_ParentLimitTypeId] ON [cat].[LimitType] ([TenantId], [ParentLimitTypeId]);

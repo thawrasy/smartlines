@@ -28,3 +28,15 @@ AS
 GO
 GRANT SELECT ON plat.v_TenantModule TO [tp_app];
 GO
+
+/* DR-25 (DQ-F02-8): the company's tax and VAT numbers are not copied onto org.Company; they are read from the current
+   tax identity of its mirror party in its country of incorporation. The row filters of both tables apply. */
+CREATE OR ALTER VIEW org.v_CompanyTaxIdentity
+AS
+    SELECT c.TenantId, c.CompanyId, t.TaxIdentityId, t.TaxNumber, t.VatNumber, t.DeclarationDate
+    FROM org.Company AS c
+    LEFT JOIN pty.TaxIdentity AS t
+           ON t.TenantId = c.TenantId AND t.PartyId = c.PartyId AND t.CountryId = c.CountryId AND t.IsCurrent = 1;
+GO
+GRANT SELECT ON org.v_CompanyTaxIdentity TO [tp_app];
+GO

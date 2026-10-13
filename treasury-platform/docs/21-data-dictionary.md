@@ -2,7 +2,7 @@
 
 > مُولَّد آليًا من نموذج البيانات بـ `tools/dbgen` — لا يُعدَّل يدويًا. الأعمدة المشتركة التي تضيفها اصطلاحات التوليد (TenantId، المعرّف، التدقيق) تظهر في كل جدول.
 
-**عدد الجداول: 198**
+**عدد الجداول: 199**
 
 | الوحدة | عدد الجداول |
 |---|---|
@@ -10,7 +10,7 @@
 | PLT-SEC | 15 |
 | PLT-AUD | 2 |
 | PLT-DOC | 3 |
-| PLT-CFG | 13 |
+| PLT-CFG | 14 |
 | ORG | 14 |
 | PTY | 11 |
 | REF | 2 |
@@ -866,7 +866,6 @@
 | **ExpiryAlertRuleId** | BIGINT IDENTITY | لا | | | مفتاح أساسي |
 | ItemType | VARCHAR(60) | لا |  |  | مثل COMPANY_DOCUMENT · IDENTITY_DOCUMENT · BODY_TERM · AUTHORITY_GRANT |
 | LeadDays | NVARCHAR(MAX) | لا |  |  | تنازلي مثل [90,60,30,7] |
-| RecipientRoles | NVARCHAR(MAX) | لا |  |  | رموز الأدوار؛ المستلمون داخل نطاق الشركة |
 | ScopeByCompany | BIT | لا | 1 |  |  |
 | ReminderAfterExpiryDays | INT | نعم |  |  | تذكير دوري بعد الانتهاء (7 افتراضيًا) |
 | IsActive | BIT | لا | 1 |  |  |
@@ -879,6 +878,22 @@
 **المفاتيح:** PK(ExpiryAlertRuleId) · UQ(TenantId, ItemType) · UQ(TenantId, SeedKey) WHERE SeedKey IS NOT NULL
 
 **قيود:** `ReminderAfterExpiryDays IS NULL OR ReminderAfterExpiryDays > 0`
+
+### `cfg.ExpiryAlertRuleRole` — Roles that receive an alert rule's alerts, within the company scope; replaces the RecipientRoles code list, so a renamed or missing role cannot silently receive nothing (FR-PLT-038, DR-16)
+
+*مملوك للمشترك*
+
+| العمود | النوع | NULL | الافتراضي | المرجع | ملاحظة |
+|---|---|---|---|---|---|
+| TenantId | INT | لا | | plat.Tenant | عزل المشترك |
+| ExpiryAlertRuleId | BIGINT | لا |  | cfg.ExpiryAlertRule |  |
+| RoleId | BIGINT | لا |  | sec.Role | دور من المشترك نفسه (مفتاح مركّب) |
+| CreatedAt | DATETIME2(3) | لا | SYSUTCDATETIME() |  |  |
+| CreatedBy | BIGINT | نعم |  |  |  |
+| UpdatedAt | DATETIME2(3) | نعم |  |  |  |
+| UpdatedBy | BIGINT | نعم |  |  |  |
+
+**المفاتيح:** PK(TenantId, ExpiryAlertRuleId, RoleId)
 
 ### `cfg.ExpiryAlertLog` — Log of sent expiry alerts: one event per (item, threshold), never repeated on the same day (FR-PLT-038)
 
@@ -1079,7 +1094,6 @@
 | CrNumber | VARCHAR(30) | نعم |  |  | رقم السجل التجاري (FR-ORG-005) |
 | CrDate | DATE | نعم |  |  |  |
 | CrDateHijriText | NVARCHAR(20) | نعم |  |  | التاريخ الهجري كما في الوثيقة (X-DAT-2) |
-| TaxNumber | VARCHAR(30) | نعم |  |  | الرقم الضريبي؛ التفصيل الضريبي (FATCA/CRS) في pty.TaxIdentity؛ يُحذف قبل S1 ويُقرأ منها (DQ-F02-8، DR-25) 🔒 confidential |
 | ErpCompanyCode | NVARCHAR(20) | نعم |  |  | رمز ERP يدوي بعد التقليم؛ يحمله رقم البروفورما {seq}-{erp}-{yy} (BR-ORG-001) |
 | ErpCodeNormalized | NVARCHAR(20) | نعم |  |  | مشتق محسوب مخزَّن: حروف كبيرة بلا فراغات (=صيغة BR-LCE-002، DR-47) محسوب: `CAST(UPPER(REPLACE(ErpCompanyCode, N' ', N'')) AS NVARCHAR(20))` |
 | FiscalYearEndMonth | TINYINT | لا |  |  | 1..12 (FR-ORG-006، BR-ORG-004) |
@@ -1743,7 +1757,7 @@
 | **TaxIdentityId** | BIGINT IDENTITY | لا | | | مفتاح أساسي |
 | PartyId | BIGINT | لا |  | pty.Party |  |
 | CountryId | INT | لا |  | ref.Country | بلد الإقامة الضريبية |
-| TaxNumber | VARCHAR(40) | نعم |  |  | الرقم الضريبي (Company.TaxNumber للمرآة يُزامَن منه) 🔒 confidential |
+| TaxNumber | VARCHAR(40) | نعم |  |  | الرقم الضريبي؛ رقم الشركة يُقرأ من صف مرآتها الحالي في دولة تأسيسها عبر org.v_CompanyTaxIdentity (DQ-F02-8، DR-25) 🔒 confidential |
 | VatNumber | VARCHAR(40) | نعم |  |  | رقم ضريبة القيمة المضافة 🔒 confidential |
 | FatcaClassificationId | INT | نعم |  | cat.LookupItem | قائمة FATCA_CLASSIFICATION |
 | CrsClassificationId | INT | نعم |  | cat.LookupItem | قائمة CRS_CLASSIFICATION |
@@ -2187,7 +2201,7 @@
 
 **المفاتيح:** PK(ProductFeeTypeId) · UQ(TenantId, ProductId, FeeTypeId)
 
-### `cat.ProductFinancingType` — Financing types allowed for a product (FR-CAT-010, BR-CAT-007)
+### `cat.ProductFinancingType` — Financing types allowed for a product (FR-CAT-010, BR-CAT-007); the pair respects the Shariah classification (DR-30)
 
 *مملوك للمشترك*
 
@@ -2195,8 +2209,10 @@
 |---|---|---|---|---|---|
 | TenantId | INT | لا | | plat.Tenant | عزل المشترك |
 | **ProductFinancingTypeId** | INT IDENTITY | لا | | | مفتاح أساسي |
-| ProductId | INT | لا |  | cat.Product |  |
-| FinancingTypeId | INT | لا |  | cat.FinancingType |  |
+| ProductCompliance | VARCHAR(12) | لا |  |  | نسخة من Product.Compliance؛ امتثال منتج مستعمل لا يتغير enum: CONVENTIONAL, ISLAMIC, NEUTRAL |
+| ProductId | INT | لا |  | cat.Product (via ProductCompliance) |  |
+| FinancingIsIslamic | BIT | لا |  |  | نسخة من FinancingType.IsIslamic؛ علَم نوع مستعمل لا يتغير |
+| FinancingTypeId | INT | لا |  | cat.FinancingType (via FinancingIsIslamic) |  |
 | IsDefault | BIT | لا | 0 |  |  |
 | CreatedAt | DATETIME2(3) | لا | SYSUTCDATETIME() |  |  |
 | CreatedBy | BIGINT | نعم |  |  |  |
@@ -2204,6 +2220,8 @@
 | UpdatedBy | BIGINT | نعم |  |  |  |
 
 **المفاتيح:** PK(ProductFinancingTypeId) · UQ(TenantId, ProductId, FinancingTypeId) · UQ(TenantId, ProductId) WHERE IsDefault = 1
+
+**قيود:** `ProductCompliance = 'NEUTRAL' OR (ProductCompliance = 'ISLAMIC' AND FinancingIsIslamic = 1) OR (ProductCompliance = 'CONVENTIONAL' AND FinancingIsIslamic = 0)`
 
 ### `cat.FacilityType` — Facility type (FR-CAT-011)
 

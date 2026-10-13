@@ -522,7 +522,6 @@ table cfg.NumberIssue   # Issued document numbers; a cancelled number is never r
 table cfg.ExpiryAlertRule   # Expiry alert rule per item type (FR-PLT-038, BR-PLT-013)
   ItemType                 ascii(60) req   # مثل COMPANY_DOCUMENT · IDENTITY_DOCUMENT · BODY_TERM · AUTHORITY_GRANT
   LeadDays                 json      req   # تنازلي مثل [90,60,30,7]
-  RecipientRoles           json      req   # رموز الأدوار؛ المستلمون داخل نطاق الشركة
   ScopeByCompany           bool      req =1
   ReminderAfterExpiryDays  int              # تذكير دوري بعد الانتهاء (7 افتراضيًا)
   IsActive                 bool      req =1
@@ -530,6 +529,10 @@ table cfg.ExpiryAlertRule   # Expiry alert rule per item type (FR-PLT-038, BR-PL
   unique ItemType
   unique SeedKey where SeedKey IS NOT NULL
   check ReminderAfterExpiryDays IS NULL OR ReminderAfterExpiryDays > 0
+
+table cfg.ExpiryAlertRuleRole pk=ExpiryAlertRuleId,RoleId norv deletable   # Roles that receive an alert rule's alerts, within the company scope; replaces the RecipientRoles code list, so a renamed or missing role cannot silently receive nothing (FR-PLT-038, DR-16)
+  ExpiryAlertRuleId  ->cfg.ExpiryAlertRule req
+  RoleId             ->sec.Role req   # دور من المشترك نفسه (مفتاح مركّب)
 
 table cfg.ExpiryAlertLog append   # Log of sent expiry alerts: one event per (item, threshold), never repeated on the same day (FR-PLT-038)
   ExpiryAlertRuleId  ->cfg.ExpiryAlertRule req

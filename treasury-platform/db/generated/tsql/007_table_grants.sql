@@ -76,6 +76,8 @@ GRANT SELECT, INSERT, UPDATE ON [cfg].[NumberSequence] TO [tp_app];
 GRANT SELECT, INSERT, UPDATE ON [cfg].[NumberIssue] TO [tp_app];
 -- cfg.ExpiryAlertRule
 GRANT SELECT, INSERT, UPDATE ON [cfg].[ExpiryAlertRule] TO [tp_app];
+-- cfg.ExpiryAlertRuleRole
+GRANT SELECT, INSERT, UPDATE ON [cfg].[ExpiryAlertRuleRole] TO [tp_app];
 -- cfg.ExpiryAlertLog
 GRANT SELECT, INSERT ON [cfg].[ExpiryAlertLog] TO [tp_app];
 -- cfg.DataExportJob

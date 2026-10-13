@@ -831,7 +831,6 @@ CREATE TABLE [cfg].[ExpiryAlertRule] (
     [ExpiryAlertRuleId] BIGINT IDENTITY(1,1) NOT NULL,
     [ItemType] VARCHAR(60) NOT NULL,
     [LeadDays] NVARCHAR(MAX) NOT NULL,
-    [RecipientRoles] NVARCHAR(MAX) NOT NULL,
     [ScopeByCompany] BIT NOT NULL CONSTRAINT [DF_ExpiryAlertRule_ScopeByCompany] DEFAULT 1,
     [ReminderAfterExpiryDays] INT NULL,
     [IsActive] BIT NOT NULL CONSTRAINT [DF_ExpiryAlertRule_IsActive] DEFAULT 1,
@@ -845,8 +844,19 @@ CREATE TABLE [cfg].[ExpiryAlertRule] (
     CONSTRAINT [UQ_ExpiryAlertRule_Tenant] UNIQUE ([TenantId], [ExpiryAlertRuleId]),
     CONSTRAINT [UQ_ExpiryAlertRule_ItemType] UNIQUE ([TenantId], [ItemType]),
     CONSTRAINT [CK_ExpiryAlertRule_1] CHECK (ReminderAfterExpiryDays IS NULL OR ReminderAfterExpiryDays > 0),
-    CONSTRAINT [CK_ExpiryAlertRule_LeadDays_json] CHECK ([LeadDays] IS NULL OR ISJSON([LeadDays], VALUE) = 1),
-    CONSTRAINT [CK_ExpiryAlertRule_RecipientRoles_json] CHECK ([RecipientRoles] IS NULL OR ISJSON([RecipientRoles], VALUE) = 1)
+    CONSTRAINT [CK_ExpiryAlertRule_LeadDays_json] CHECK ([LeadDays] IS NULL OR ISJSON([LeadDays], VALUE) = 1)
+);
+GO
+-- Roles that receive an alert rule's alerts, within the company scope; replaces the RecipientRoles code list, so a renamed or missing role cannot silently receive nothing (FR-PLT-038, DR-16)
+CREATE TABLE [cfg].[ExpiryAlertRuleRole] (
+    [TenantId] INT NOT NULL,
+    [ExpiryAlertRuleId] BIGINT NOT NULL,
+    [RoleId] BIGINT NOT NULL,
+    [CreatedAt] DATETIME2(3) NOT NULL CONSTRAINT [DF_ExpiryAlertRuleRole_CreatedAt] DEFAULT SYSUTCDATETIME(),
+    [CreatedBy] BIGINT NULL,
+    [UpdatedAt] DATETIME2(3) NULL,
+    [UpdatedBy] BIGINT NULL,
+    CONSTRAINT [PK_ExpiryAlertRuleRole] PRIMARY KEY CLUSTERED ([TenantId], [ExpiryAlertRuleId], [RoleId])
 );
 GO
 -- Log of sent expiry alerts: one event per (item, threshold), never repeated on the same day (FR-PLT-038)
@@ -1051,7 +1061,6 @@ CREATE TABLE [org].[Company] (
     [CrNumber] VARCHAR(30) NULL,
     [CrDate] DATE NULL,
     [CrDateHijriText] NVARCHAR(20) NULL,
-    [TaxNumber] VARCHAR(30) NULL,
     [ErpCompanyCode] NVARCHAR(20) NULL,
     [ErpCodeNormalized] AS (CAST(UPPER(REPLACE(ErpCompanyCode, N' ', N'')) AS NVARCHAR(20))) PERSISTED,
     [FiscalYearEndMonth] TINYINT NOT NULL,
@@ -2145,6 +2154,7 @@ CREATE TABLE [cat].[Product] (
     [RowVersion] ROWVERSION NOT NULL,
     CONSTRAINT [PK_Product] PRIMARY KEY CLUSTERED ([ProductId]),
     CONSTRAINT [UQ_Product_Tenant] UNIQUE ([TenantId], [ProductId]),
+    CONSTRAINT [UQ_Product_Scope_Compliance] UNIQUE ([TenantId], [Compliance], [ProductId]),
     CONSTRAINT [UQ_Product_Code] UNIQUE ([TenantId], [Code]),
     CONSTRAINT [CK_Product_1] CHECK (Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'),
     CONSTRAINT [CK_Product_2] CHECK ((IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)),
@@ -2205,6 +2215,7 @@ CREATE TABLE [cat].[FinancingType] (
     [RowVersion] ROWVERSION NOT NULL,
     CONSTRAINT [PK_FinancingType] PRIMARY KEY CLUSTERED ([FinancingTypeId]),
     CONSTRAINT [UQ_FinancingType_Tenant] UNIQUE ([TenantId], [FinancingTypeId]),
+    CONSTRAINT [UQ_FinancingType_Scope_IsIslamic] UNIQUE ([TenantId], [IsIslamic], [FinancingTypeId]),
     CONSTRAINT [UQ_FinancingType_Code] UNIQUE ([TenantId], [Code]),
     CONSTRAINT [CK_FinancingType_1] CHECK (Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'),
     CONSTRAINT [CK_FinancingType_2] CHECK ((IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)),
@@ -2228,11 +2239,13 @@ CREATE TABLE [cat].[ProductFeeType] (
     CONSTRAINT [UQ_ProductFeeType_ProductId_FeeTypeId] UNIQUE ([TenantId], [ProductId], [FeeTypeId])
 );
 GO
--- Financing types allowed for a product (FR-CAT-010, BR-CAT-007)
+-- Financing types allowed for a product (FR-CAT-010, BR-CAT-007); the pair respects the Shariah classification (DR-30)
 CREATE TABLE [cat].[ProductFinancingType] (
     [TenantId] INT NOT NULL,
     [ProductFinancingTypeId] INT IDENTITY(1,1) NOT NULL,
+    [ProductCompliance] VARCHAR(12) NOT NULL,
     [ProductId] INT NOT NULL,
+    [FinancingIsIslamic] BIT NOT NULL,
     [FinancingTypeId] INT NOT NULL,
     [IsDefault] BIT NOT NULL CONSTRAINT [DF_ProductFinancingType_IsDefault] DEFAULT 0,
     [CreatedAt] DATETIME2(3) NOT NULL CONSTRAINT [DF_ProductFinancingType_CreatedAt] DEFAULT SYSUTCDATETIME(),
@@ -2242,7 +2255,9 @@ CREATE TABLE [cat].[ProductFinancingType] (
     [RowVersion] ROWVERSION NOT NULL,
     CONSTRAINT [PK_ProductFinancingType] PRIMARY KEY CLUSTERED ([ProductFinancingTypeId]),
     CONSTRAINT [UQ_ProductFinancingType_Tenant] UNIQUE ([TenantId], [ProductFinancingTypeId]),
-    CONSTRAINT [UQ_ProductFinancingType_ProductId_FinancingTypeId] UNIQUE ([TenantId], [ProductId], [FinancingTypeId])
+    CONSTRAINT [UQ_ProductFinancingType_ProductId_FinancingTypeId] UNIQUE ([TenantId], [ProductId], [FinancingTypeId]),
+    CONSTRAINT [CK_ProductFinancingType_1] CHECK (ProductCompliance = 'NEUTRAL' OR (ProductCompliance = 'ISLAMIC' AND FinancingIsIslamic = 1) OR (ProductCompliance = 'CONVENTIONAL' AND FinancingIsIslamic = 0)),
+    CONSTRAINT [CK_ProductFinancingType_ProductCompliance] CHECK ([ProductCompliance] IS NULL OR [ProductCompliance] IN ('CONVENTIONAL', 'ISLAMIC', 'NEUTRAL'))
 );
 GO
 -- Facility type (FR-CAT-011)

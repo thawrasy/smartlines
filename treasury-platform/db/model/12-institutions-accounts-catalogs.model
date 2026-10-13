@@ -150,13 +150,16 @@ table cat.ProductFeeType int deletable  # Fee types allowed for a product; disab
   unique ProductId,FeeTypeId   # BR-CAT-007
   index  FeeTypeId,IsExpected
 
-table cat.ProductFinancingType int deletable  # Financing types allowed for a product (FR-CAT-010, BR-CAT-007)
-  ProductId        ->cat.Product req
-  FinancingTypeId  ->cat.FinancingType req
+table cat.ProductFinancingType int deletable  # Financing types allowed for a product (FR-CAT-010, BR-CAT-007); the pair respects the Shariah classification (DR-30)
+  ProductCompliance   enum{CONVENTIONAL,ISLAMIC,NEUTRAL} req   # نسخة من Product.Compliance؛ امتثال منتج مستعمل لا يتغير
+  ProductId           ->cat.Product req via=ProductCompliance>Compliance
+  FinancingIsIslamic  bool    req   # نسخة من FinancingType.IsIslamic؛ علَم نوع مستعمل لا يتغير
+  FinancingTypeId     ->cat.FinancingType req via=FinancingIsIslamic>IsIslamic
   IsDefault        bool    req =0
   unique ProductId,FinancingTypeId   # BR-CAT-007
   unique ProductId where IsDefault = 1   # نوع تمويل افتراضي واحد للمنتج
-  index  FinancingTypeId
+  index  FinancingTypeId,ProductId   # المنتجات التي تستعمل نوع تمويل
+  check  ProductCompliance = 'NEUTRAL' OR (ProductCompliance = 'ISLAMIC' AND FinancingIsIslamic = 1) OR (ProductCompliance = 'CONVENTIONAL' AND FinancingIsIslamic = 0)   # التقليدي مع التقليدي، والإسلامي مع الإسلامي، والمحايد مع النوعين (قرار المالك 2026-10-13، DR-30)
 
 table cat.FacilityType catalog int  # Facility type (FR-CAT-011)
   Compliance  enum{CONVENTIONAL,ISLAMIC,NEUTRAL} req   # قيم الامتثال كما في Product (المواصفة لا تعددها)

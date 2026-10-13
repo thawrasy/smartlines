@@ -81,11 +81,12 @@ erDiagram
 | DocumentLink | UnlinkedBy | sec.AppUser |
 | DocumentVersion | KeyId | sec.TenantKey |
 
-## مخطط `cfg` (13 جدولًا)
+## مخطط `cfg` (14 جدولًا)
 
 ```mermaid
 erDiagram
   ExpiryAlertRule ||--o{ ExpiryAlertLog : "ExpiryAlertRuleId"
+  ExpiryAlertRule ||--o{ ExpiryAlertRuleRole : "ExpiryAlertRuleId"
   NumberSequence ||--o{ NumberIssue : "SequenceId"
   NumberSequenceDefinition ||--o{ NumberSequence : "DefinitionId"
 ```
@@ -95,6 +96,7 @@ erDiagram
 | DataExportJob | ApprovedBy | sec.AppUser |
 | DataExportJob | PackageDocumentId | doc.Document |
 | DataExportJob | RequestedBy | sec.AppUser |
+| ExpiryAlertRuleRole | RoleId | sec.Role |
 | NonWorkingDay | CountryId | ref.Country |
 | NumberIssue | VoidedBy | sec.AppUser |
 | NumberSequence | CompanyId | org.Company |

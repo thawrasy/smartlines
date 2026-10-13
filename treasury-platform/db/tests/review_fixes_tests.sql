@@ -23,6 +23,9 @@
         keeps its structure (DR-40)
    RF18 the reporting role reads no agreement text, and the application changes neither an issued proforma's content
         nor its lines (DR-31, DR-41)
+   RF19 a product and a financing type pair only as the Shariah rule allows, and a used classification stays (DR-30)
+   RF20 an alert rule's recipient roles are roles of its own tenant (DR-16)
+   RF21 a company's tax numbers come from its mirror's current tax identity, for the bound tenant only (DR-25)
    The other declarative fixes of S2 to S4 (keys and checks) are verified on the generated DDL by
    tools/dbgen/check_review_fixes.py, CI step 3.
 
@@ -578,4 +581,89 @@ IF @a = 0 AND @b = 1 AND @c = 0 AND @d = 0 AND @e = 0 AND @f = 1 AND @g = 0 AND 
     PRINT 'PASS RF18: the reporting role reads no agreement text, and an issued proforma''s content and lines do not change';
 ELSE PRINT CONCAT('FAIL RF18: read source text ', @a, ', read code ', @b, ', clause ', @c, ', candidate ', @d, ', proforma total ', @e,
                   ', status ', @f, ', line update ', @g, ', line insert ', @h, ', denied columns ', @n);
+GO
+/* RF19 (DR-30): a conventional product with an Islamic financing type and an Islamic product with a conventional one
+   are refused (547); a neutral product takes both; a used product's compliance and a used type's flag do not change
+   (547). */
+DECLARE @t1 INT, @u1 BIGINT, @pc INT, @pi INT, @pn INT, @fc INT, @fi INT, @e1 INT, @e2 INT, @e3 INT, @e4 INT, @ok INT;
+BEGIN TRANSACTION;
+EXEC #Fixture;
+SELECT @t1 = v FROM #F WHERE k = 't1'; SELECT @u1 = v FROM #F WHERE k = 'u1';
+EXEC #Bind @t1, @u1;
+ALTER TABLE cat.Product NOCHECK CONSTRAINT FK_Product_ProductCategoryId;
+INSERT cat.Product (TenantId, Code, NameAr, ProductCategoryId, ProductFamily, ConsumesCreditLimit, Compliance)
+VALUES (@t1, 'LC_CONV', N'اعتماد تقليدي', 1, 'LC', 1, 'CONVENTIONAL'), (@t1, 'LC_MURABAHA', N'اعتماد مرابحة', 1, 'LC', 1, 'ISLAMIC'),
+       (@t1, 'COLLECTION', N'تحصيل', 1, 'COLLECTION', 0, 'NEUTRAL');
+SELECT @pc = ProductId FROM cat.Product WHERE TenantId = @t1 AND Code = 'LC_CONV';
+SELECT @pi = ProductId FROM cat.Product WHERE TenantId = @t1 AND Code = 'LC_MURABAHA';
+SELECT @pn = ProductId FROM cat.Product WHERE TenantId = @t1 AND Code = 'COLLECTION';
+INSERT cat.FinancingType (TenantId, Code, NameAr, IsIslamic, ReturnLabel)
+VALUES (@t1, 'LOAN', N'قرض', 0, 'INTEREST'), (@t1, 'MURABAHA', N'مرابحة', 1, 'PROFIT');
+SELECT @fc = FinancingTypeId FROM cat.FinancingType WHERE TenantId = @t1 AND Code = 'LOAN';
+SELECT @fi = FinancingTypeId FROM cat.FinancingType WHERE TenantId = @t1 AND Code = 'MURABAHA';
+BEGIN TRY INSERT cat.ProductFinancingType (TenantId, ProductCompliance, ProductId, FinancingIsIslamic, FinancingTypeId) VALUES (@t1, 'CONVENTIONAL', @pc, 1, @fi); END TRY
+BEGIN CATCH SET @e1 = ERROR_NUMBER(); END CATCH;
+BEGIN TRY INSERT cat.ProductFinancingType (TenantId, ProductCompliance, ProductId, FinancingIsIslamic, FinancingTypeId) VALUES (@t1, 'ISLAMIC', @pi, 0, @fc); END TRY
+BEGIN CATCH SET @e2 = ERROR_NUMBER(); END CATCH;
+BEGIN TRY
+    INSERT cat.ProductFinancingType (TenantId, ProductCompliance, ProductId, FinancingIsIslamic, FinancingTypeId)
+    VALUES (@t1, 'CONVENTIONAL', @pc, 0, @fc), (@t1, 'ISLAMIC', @pi, 1, @fi), (@t1, 'NEUTRAL', @pn, 0, @fc), (@t1, 'NEUTRAL', @pn, 1, @fi);
+    SET @ok = @@ROWCOUNT;
+END TRY BEGIN CATCH SET @ok = -ERROR_NUMBER(); END CATCH;
+BEGIN TRY UPDATE cat.Product SET Compliance = 'ISLAMIC' WHERE ProductId = @pc; END TRY BEGIN CATCH SET @e3 = ERROR_NUMBER(); END CATCH;
+BEGIN TRY UPDATE cat.FinancingType SET IsIslamic = 1 WHERE FinancingTypeId = @fc; END TRY BEGIN CATCH SET @e4 = ERROR_NUMBER(); END CATCH;
+IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
+IF @e1 = 547 AND @e2 = 547 AND @ok = 4 AND @e3 = 547 AND @e4 = 547
+    PRINT 'PASS RF19: a product and a financing type pair only as the Shariah rule allows, and a used classification stays';
+ELSE PRINT CONCAT('FAIL RF19: conventional with Islamic ', @e1, ', Islamic with conventional ', @e2, ', allowed pairs ', @ok,
+                  ', product change ', @e3, ', type change ', @e4);
+GO
+/* RF20 (DR-16): a recipient role of another tenant is refused (547); a role of the rule's tenant is accepted. */
+DECLARE @t1 INT, @u1 BIGINT, @rTM BIGINT, @rOther BIGINT, @rule BIGINT, @e1 INT, @ok INT;
+BEGIN TRANSACTION;
+EXEC #Fixture;
+SELECT @t1 = v FROM #F WHERE k = 't1'; SELECT @u1 = v FROM #F WHERE k = 'u1';
+SELECT @rTM = v FROM #F WHERE k = 'rTM1'; SELECT @rOther = v FROM #F WHERE k = 'rTM2';
+EXEC #Bind @t1, @u1;
+INSERT cfg.ExpiryAlertRule (TenantId, ItemType, LeadDays) VALUES (@t1, 'COMPANY_DOCUMENT', N'[90,60,30,7]');
+SET @rule = SCOPE_IDENTITY();
+BEGIN TRY INSERT cfg.ExpiryAlertRuleRole (TenantId, ExpiryAlertRuleId, RoleId) VALUES (@t1, @rule, @rOther); END TRY
+BEGIN CATCH SET @e1 = ERROR_NUMBER(); END CATCH;
+BEGIN TRY INSERT cfg.ExpiryAlertRuleRole (TenantId, ExpiryAlertRuleId, RoleId) VALUES (@t1, @rule, @rTM); SET @ok = @@ROWCOUNT; END TRY
+BEGIN CATCH SET @ok = -ERROR_NUMBER(); END CATCH;
+IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
+IF @e1 = 547 AND @ok = 1
+    PRINT 'PASS RF20: an alert rule''s recipient roles are roles of its own tenant';
+ELSE PRINT CONCAT('FAIL RF20: other tenant''s role ', @e1, ', own role ', @ok);
+GO
+/* RF21 (DR-25): through org.v_CompanyTaxIdentity the application bound to tenant 1 sees its company's current tax and
+   VAT numbers, not the superseded declaration and not tenant 2's company. */
+DECLARE @t1 INT, @t2 INT, @u1 BIGINT, @p1 BIGINT, @p2 BIGINT, @c1 BIGINT, @n INT, @tax VARCHAR(40), @vat VARCHAR(40), @country INT;
+BEGIN TRANSACTION;
+EXEC #Fixture;
+SELECT @t1 = v FROM #F WHERE k = 't1'; SELECT @t2 = v FROM #F WHERE k = 't2'; SELECT @u1 = v FROM #F WHERE k = 'u1';
+SET @country = (SELECT CountryId FROM ref.Country WHERE Iso2 = 'SA');
+ALTER TABLE org.Company NOCHECK CONSTRAINT FK_Company_LegalEntityTypeId;
+EXEC #Bind @t2, 0;
+INSERT pty.Party (TenantId, PartyCode, Kind, NameEn) VALUES (@t2, 'P-ORG', 'ORGANIZATION', N'Other tenant company');
+SET @p2 = SCOPE_IDENTITY();
+INSERT org.Company (TenantId, CompanyCode, NameAr, NameEn, PartyId, LegalEntityTypeId, CountryId, FiscalYearEndMonth)
+VALUES (@t2, 'C2', N'شركة', N'Company 2', @p2, 1, @country, 12);
+EXEC #Bind @t1, @u1;
+INSERT pty.Party (TenantId, PartyCode, Kind, NameEn) VALUES (@t1, 'P-ORG', 'ORGANIZATION', N'Company 1');
+SET @p1 = SCOPE_IDENTITY();
+INSERT org.Company (TenantId, CompanyCode, NameAr, NameEn, PartyId, LegalEntityTypeId, CountryId, FiscalYearEndMonth)
+VALUES (@t1, 'C1', N'شركة', N'Company 1', @p1, 1, @country, 12);
+SET @c1 = SCOPE_IDENTITY();
+INSERT pty.TaxIdentity (TenantId, PartyId, CountryId, TaxNumber, VatNumber, DeclarationDate, IsCurrent)
+VALUES (@t1, @p1, @country, '300000000000001', '310000000000001', '2025-01-01', 0),
+       (@t1, @p1, @country, '300000000000002', '310000000000002', '2026-01-01', 1);
+EXECUTE AS USER = N'tp_test_rfapp';
+SELECT @n = COUNT(*) FROM org.v_CompanyTaxIdentity;
+SELECT @tax = TaxNumber, @vat = VatNumber FROM org.v_CompanyTaxIdentity WHERE CompanyId = @c1;
+REVERT;
+IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
+IF @n = 1 AND @tax = '300000000000002' AND @vat = '310000000000002'
+    PRINT 'PASS RF21: a company''s tax numbers come from its mirror''s current tax identity, for the bound tenant only';
+ELSE PRINT CONCAT('FAIL RF21: companies seen ', @n, ', tax ', @tax, ', VAT ', @vat);
 GO

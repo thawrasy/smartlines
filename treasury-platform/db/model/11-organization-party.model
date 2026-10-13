@@ -24,7 +24,6 @@ table org.Company public  # Company: root of the corporate structure (FR-ORG-001
   CrNumber           ascii(30)          # رقم السجل التجاري (FR-ORG-005)
   CrDate             date
   CrDateHijriText    str(20)            # التاريخ الهجري كما في الوثيقة (X-DAT-2)
-  TaxNumber          ascii(30)  sens=confidential   # الرقم الضريبي؛ التفصيل الضريبي (FATCA/CRS) في pty.TaxIdentity؛ يُحذف قبل S1 ويُقرأ منها (DQ-F02-8، DR-25)
   ErpCompanyCode     str(20)            # رمز ERP يدوي بعد التقليم؛ يحمله رقم البروفورما {seq}-{erp}-{yy} (BR-ORG-001)
   calc ErpCodeNormalized str(20) =CAST(UPPER(REPLACE(ErpCompanyCode, N' ', N'')) AS NVARCHAR(20))   # مشتق محسوب مخزَّن: حروف كبيرة بلا فراغات (=صيغة BR-LCE-002، DR-47)
   FiscalYearEndMonth tinyint    req     # 1..12 (FR-ORG-006، BR-ORG-004)
@@ -467,7 +466,7 @@ table pty.PartyCompliance  # Dated compliance declarations per person in their c
 table pty.TaxIdentity  # Tax identity and FATCA/CRS tax declaration (G-13)
   PartyId                  ->pty.Party req
   CountryId                ->ref.Country req   # بلد الإقامة الضريبية
-  TaxNumber                ascii(40)  sens=confidential   # الرقم الضريبي (Company.TaxNumber للمرآة يُزامَن منه)
+  TaxNumber                ascii(40)  sens=confidential   # الرقم الضريبي؛ رقم الشركة يُقرأ من صف مرآتها الحالي في دولة تأسيسها عبر org.v_CompanyTaxIdentity (DQ-F02-8، DR-25)
   VatNumber                ascii(40)  sens=confidential   # رقم ضريبة القيمة المضافة
   FatcaClassificationId    ->cat.LookupItem   # قائمة FATCA_CLASSIFICATION
   CrsClassificationId      ->cat.LookupItem   # قائمة CRS_CLASSIFICATION
