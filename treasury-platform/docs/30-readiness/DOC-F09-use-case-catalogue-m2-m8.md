@@ -10,6 +10,8 @@
 | يعتمد على | DOC-F01 (الفاعلون)، DOC-F07 (قالب الكتالوج ورموز CORE)، DOC-F08 (حالة الطلب الموحّدة)، DOC-B02 (قبول S1)، DOC-B04 (رموز الأخطاء)، DOC-F10 إلى DOC-F17 (التسلسلات ومخططات الحالات) |
 | المصادر | docs/10-detailed-analysis/11-m2-m4-institutions-accounts-catalogs.md، docs/10-detailed-analysis/12-m5-facilities-pricing-collateral-obligations.md، docs/10-detailed-analysis/13-m6-workflow-engine-notifications.md، docs/10-detailed-analysis/14-m7-m8-letters-of-credit.md، docs/10-detailed-analysis/00-overview-and-cross-cutting.md، db/model/12-institutions-accounts-catalogs.model إلى db/model/16-letters-of-credit.model، docs/20-database-design.md |
 
+> **تحديث التنفيذ (2026-10-12):** الرموز في §3.1 و§3.2 مبذورة في db/seed/102_permissions.sql مع رموز DOC-F07، 138 رمزًا؛ `acc.signature.image.view` وصلاحيات الهوية والتصدير الحساس الأربع مقفلة على TM وFO (DQ-F09-1، BR-PLT-019). وترقيم الطلبات (BR-WFL-013) يستعمل `cfg.usp_AllocateNumber` بلا فجوات (docs/adr/0005-document-numbering-and-reference-seeds.md): يُكتب البادئ نصًا في نمط كل نوع (`LCP-{yy}-{seq:0000}`)، ويُلغى رقم الطلب الملغى بـ`cfg.usp_VoidNumber` ولا يُعاد.
+
 ## 1. الغرض والنطاق
 
 يعطي هذا الكتالوج معرّفًا ثابتًا لكل حالة استخدام في M2 إلى M8، بقالب DOC-F07. تستشهد بهذه المعرّفات سيناريوهات القبول والشاشات والاختبارات ومصفوفة التتبع (DOC-B08).

@@ -100,6 +100,7 @@ Residual risks and open points:
 - **Dates.** `TrialEndsOn` and the trial expiry use the UTC date; the tenant's time zone can move them by a day.
 - **Not built yet:**
   - changing an operator's role;
-  - the ISO country and currency lists (DQ-B05-5) and the permission codes (DQ-F07-1) in the platform seed;
   - the writes a job needs in SUSPENDED or CLOSED, such as export expiry (DQ-F04-8);
   - the data export itself (FR-PLT-039), which closing an active tenant waits for.
+
+Built since, in ADR 0005: the ISO country and currency lists (DQ-B05-5) and the 138 permission codes (DQ-F07-1, DQ-F09-1) in the platform seed, and gap-free document numbering (O-12 of tools/dbgen/erd_open_items.py).

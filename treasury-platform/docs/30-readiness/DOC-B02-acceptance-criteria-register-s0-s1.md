@@ -10,6 +10,8 @@
 | يعتمد على | DOC-B01، DOC-B03، DOC-B04، DOC-B05، DOC-B07، DOC-B08، DOC-F04، DOC-F05 |
 | المصادر | docs/10-detailed-analysis/00-overview-and-cross-cutting.md، docs/10-detailed-analysis/10-m0-m1-platform-organization.md، docs/10-detailed-analysis/11-m2-m4-institutions-accounts-catalogs.md، docs/10-detailed-analysis/13-m6-workflow-engine-notifications.md، docs/10-detailed-analysis/91-requirements-index.md، db/tests/tenant_isolation_tests.sql، docs/20-database-design.md |
 
+> **تحديث التنفيذ (2026-10-12):** AC-PLT-3 مؤتمت في القاعدة (docs/adr/0005-document-numbering-and-reference-seeds.md، db/static/039_numbering.sql) ويمر في CI: الحالة N2 في db/tests/numbering_tests.sql تعطي `003-XX01-26` ثم `004-XX01-26` بعد رقمين، والرقم الملغى يبقى «ملغى» بسببه ولا يُعاد فيأتي بعده `005-XX01-26`، وأول رقم في 2027 هو `001-XX01-27`؛ وفحص التزامن tools/ci/numbering_concurrency.sh يشغّل ستة اتصالات معًا ويتراجع عن ربع المعاملات، فتأتي الأرقام الملتزمة من 1 إلى 114 بلا تكرار ولا فجوة. قرار DQ-B02-4 (بلا فجوات للطلبات والبروفورما) مفروض في القاعدة: تعريفا `req:<TypeCode>` و`PROFORMA` لا يقبلان غير GAP_FREE. ويبقى سيناريو API نفسه على التطبيق.
+
 ## 1. الغرض والنطاق
 
 يربط هذا السجل كل متطلب وظيفي في S0 وS1 بسيناريو قبول واحد على الأقل، بصيغة Given/When/Then، وبطريقة تنفيذه آليًا أو يدويًا.

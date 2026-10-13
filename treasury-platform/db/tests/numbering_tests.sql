@@ -11,16 +11,20 @@
    ============================================================================ */
 USE [BankFas];
 GO
-/* N1: a pattern needs exactly one {seq} or {seq:000} tag and only the known tags; {erp} needs the company scope (50031). */
+/* N1: a pattern needs exactly one {seq} or {seq:000} tag and only the known tags; {erp} needs the company scope; request
+   (req:<TypeCode>) and PROFORMA sequences must be gap-free (50031). */
 SET NOCOUNT ON;
-DECLARE @cases TABLE (n INT, Pattern NVARCHAR(100), Scope VARCHAR(7), Ok BIT);
-INSERT @cases VALUES (1, N'{seq:000}-{erp}-{yy}', 'COMPANY', 1), (2, N'REQ-{yyyy}-{seq}', 'TENANT', 1), (3, N'P-{seq:00}-{seq}', 'TENANT', 0),
-                     (4, N'X-{foo}-{seq}', 'TENANT', 0), (5, N'{erp}-{seq}', 'TENANT', 0), (6, N'NO-SEQ-{yy}', 'TENANT', 0),
-                     (7, N'{seq:0a0}', 'TENANT', 0), (8, N'{seq:000', 'TENANT', 0);
-DECLARE @n INT = 1, @p NVARCHAR(100), @sc VARCHAR(7), @ok BIT, @e INT, @good INT = 0, @tk UNIQUEIDENTIFIER, @t INT;
-WHILE @n <= 8
+DECLARE @cases TABLE (n INT, SeqKey VARCHAR(50), Pattern NVARCHAR(100), Scope VARCHAR(7), Gap VARCHAR(10), Ok BIT);
+INSERT @cases VALUES (1, 'CHECK', N'{seq:000}-{erp}-{yy}', 'COMPANY', 'GAP_FREE', 1), (2, 'CHECK', N'REQ-{yyyy}-{seq}', 'TENANT', 'GAP_FREE', 1),
+                     (3, 'CHECK', N'P-{seq:00}-{seq}', 'TENANT', 'GAP_FREE', 0), (4, 'CHECK', N'X-{foo}-{seq}', 'TENANT', 'GAP_FREE', 0),
+                     (5, 'CHECK', N'{erp}-{seq}', 'TENANT', 'GAP_FREE', 0), (6, 'CHECK', N'NO-SEQ-{yy}', 'TENANT', 'GAP_FREE', 0),
+                     (7, 'CHECK', N'{seq:0a0}', 'TENANT', 'GAP_FREE', 0), (8, 'CHECK', N'{seq:000', 'TENANT', 'GAP_FREE', 0),
+                     (9, 'req:LCP', N'LCP-{yy}-{seq:0000}', 'TENANT', 'ALLOW_GAPS', 0), (10, 'PROFORMA', N'{seq:000}-{erp}-{yy}', 'COMPANY', 'ALLOW_GAPS', 0),
+                     (11, 'req:LCP', N'LCP-{yy}-{seq:0000}', 'TENANT', 'GAP_FREE', 1), (12, 'CHECK', N'G-{seq}', 'TENANT', 'ALLOW_GAPS', 1);
+DECLARE @n INT = 1, @k VARCHAR(50), @p NVARCHAR(100), @sc VARCHAR(7), @gp VARCHAR(10), @ok BIT, @e INT, @good INT = 0, @tk UNIQUEIDENTIFIER, @t INT;
+WHILE @n <= 12
 BEGIN
-    SELECT @p = Pattern, @sc = Scope, @ok = Ok, @e = NULL FROM @cases WHERE n = @n;
+    SELECT @k = SeqKey, @p = Pattern, @sc = Scope, @gp = Gap, @ok = Ok, @e = NULL FROM @cases WHERE n = @n;
     BEGIN TRANSACTION;
     ALTER TABLE plat.Tenant NOCHECK CONSTRAINT FK_Tenant_HomeCountryId;
     INSERT plat.Tenant (Code, NameAr, NameEn, PlanId, HomeCountryId, Status, TimeZone) VALUES ('tst-pattern', N'P', N'P', 1, 1, 'ACTIVE', 'UTC');
@@ -29,8 +33,8 @@ BEGIN
     EXEC sys.sp_set_session_context @key = N'TenantId', @value = @t;
     EXEC sys.sp_set_session_context @key = N'BindingToken', @value = @tk;
     BEGIN TRY
-        INSERT cfg.NumberSequenceDefinition (TenantId, SequenceKey, Pattern, ScopeLevel, PeriodBasis)
-        VALUES (@t, 'CHECK', @p, @sc, CASE WHEN @sc = 'COMPANY' THEN 'CALENDAR_YEAR' ELSE 'NONE' END);
+        INSERT cfg.NumberSequenceDefinition (TenantId, SequenceKey, Pattern, ScopeLevel, PeriodBasis, GapPolicy)
+        VALUES (@t, @k, @p, @sc, CASE WHEN @sc = 'COMPANY' THEN 'CALENDAR_YEAR' ELSE 'NONE' END, @gp);
     END TRY
     BEGIN CATCH SET @e = ERROR_NUMBER(); END CATCH;
     IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
@@ -40,8 +44,8 @@ BEGIN
 END;
 EXEC sys.sp_set_session_context @key = N'TenantId', @value = NULL;
 EXEC sys.sp_set_session_context @key = N'BindingToken', @value = NULL;
-IF @good = 8 PRINT 'PASS N1: numbering patterns are checked: one {seq} tag, known tags only, {erp} at company scope';
-ELSE PRINT CONCAT('FAIL N1: pattern check (', @good, ' of 8)');
+IF @good = 12 PRINT 'PASS N1: numbering patterns are checked (one {seq} tag, known tags only, {erp} at company scope), and request and proforma sequences are gap-free';
+ELSE PRINT CONCAT('FAIL N1: definition check (', @good, ' of 12)');
 GO
 SET NOCOUNT ON;
 BEGIN TRANSACTION;

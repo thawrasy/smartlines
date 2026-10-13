@@ -79,8 +79,8 @@ ITEMS = [
     {
         'id': 'O-12', 'sources': REVIEW_B,
         'finding': 'Numbering is required to be gap-free, which conflicts with rollbacks and concurrent writers.',
-        'status': 'Decided by the owner (2026-10-12, docs/31-owner-decisions.md): numbers of requests and proformas are gap-free (Q-PLT-08, DQ-B02-4); other series may have gaps.',
-        'next': 'Design and build the gap-free allocation (a locked counter row taken inside the business transaction) with a concurrency test, in S0.',
+        'status': 'Closed. Decided by the owner (2026-10-12, docs/31-owner-decisions.md): numbers of requests and proformas are gap-free (Q-PLT-08, DQ-B02-4); other series may have gaps. Built in docs/adr/0005-document-numbering-and-reference-seeds.md: cfg.usp_AllocateNumber takes the counter row under an update lock inside the business transaction, so a rollback returns the number and the next request waits for the commit; a gap-free sequence is refused outside a transaction; a number is voided with a reason, never reused (db/static/039_numbering.sql). Tests N1 to N8 (db/tests/numbering_tests.sql, including AC-PLT-3) and a concurrency test (tools/ci/numbering_concurrency.sh: six connections, a quarter of the transactions rolled back, numbers 1 to N with no duplicate and no gap).',
+        'next': 'Accepted cost: requests on one gap-free sequence are serialised until each commits, so the business transaction that takes a number must stay short (take the number last). Measure under load in S1.',
     },
     {
         'id': 'O-13', 'sources': REVIEW_A,
@@ -156,8 +156,8 @@ ITEMS = [
     },
     {
         'id': 'O-25', 'sources': 'ADR 0004 (docs/adr/0004-platform-access-jobs-and-onboarding.md)',
-        'finding': 'Residual risks and gaps of the platform-side paths built in ADR 0004. The job worker login can bind any tenant as its service account for a catalogued job without a user session (it cannot use the administrator account procedures). The procedures write outbox events but no audit rows, so onboarding, status changes, support and job bindings and operator logins are audited only if the application writes them (FR-PLT-022). Operator roles cannot be changed. The platform seed lacks the ISO country and currency lists (DQ-B05-5) and the permission codes (DQ-F07-1). A job bound in SUSPENDED or CLOSED cannot write (DQ-F04-8). Closing an ACTIVE or SUSPENDED tenant is refused until the data export exists (DQ-F05-7). Trial dates use the UTC date.',
-        'status': 'Open. The job login risk is proposed for acceptance with a named owner (DQ-F04-4); the rest is planned for S0 and S1.',
-        'next': 'Give the worker and support connections their own logins and secrets (DOC-S08); write the audit rows in the application with the chain; add the ISO lists and permission codes to the seed; add the write procedures jobs need in read-only states; lift the closing guard when FR-PLT-039 ships.',
+        'finding': 'Residual risks and gaps of the platform-side paths built in ADR 0004. The job worker login can bind any tenant as its service account for a catalogued job without a user session (it cannot use the administrator account procedures). The procedures write outbox events but no audit rows, so onboarding, status changes, support and job bindings and operator logins are audited only if the application writes them (FR-PLT-022). Operator roles cannot be changed. The ISO seed sets the dial code and weekend for the six GCC states only; the other dial codes need an ITU source, and the GCC weekends are proposals to verify (Q-CAT-12). A job bound in SUSPENDED or CLOSED cannot write (DQ-F04-8). Closing an ACTIVE or SUSPENDED tenant is refused until the data export exists (DQ-F05-7). Trial dates use the UTC date.',
+        'status': 'Open. The job login risk is proposed for acceptance with a named owner (DQ-F04-4); the rest is planned for S0 and S1. The ISO country and currency lists (DQ-B05-5) and the 138 permission codes (DQ-F07-1, DQ-F09-1) are now seeded (docs/adr/0005-document-numbering-and-reference-seeds.md).',
+        'next': 'Give the worker and support connections their own logins and secrets (DOC-S08); write the audit rows in the application with the chain; add the other dial codes from an ITU source; add the write procedures jobs need in read-only states; lift the closing guard when FR-PLT-039 ships.',
     },
 ]

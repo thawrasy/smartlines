@@ -18,10 +18,12 @@
    Periods: CALENDAR_YEAR, the year of @OnDate; FISCAL_YEAR (COMPANY scope), the year in which the company's fiscal
    year containing @OnDate ends (FiscalYearEndMonth and Day, BR-ORG-004); NONE, one counter. @OnDate is the date in
    the tenant's time zone, which the application passes; without it the UTC date is used.
-   A definition's pattern is checked when it is written (trigger, 50031).
+   A definition's pattern is checked when it is written (trigger, 50031), and the request (req:<TypeCode>) and
+   PROFORMA definitions must be GAP_FREE. BR-WFL-013 writes request patterns as {prefix}-{yy}-{seq:0000}: each request
+   type has its own definition, so the pack writes the prefix as text (LCP-{yy}-{seq:0000}); there is no {prefix} tag.
 
    Errors: 50029 gap-free allocation outside a transaction, 50030 no active definition or no company or ERP code
-   for it, 50031 invalid pattern or a number longer than 60 characters, 50032 number not issued or reason missing.
+   for it, 50031 invalid pattern, a request or proforma sequence that allows gaps, or a number longer than 60 characters, 50032 number not issued or reason missing.
    ============================================================================ */
 SET NOCOUNT ON;
 SET ANSI_NULLS ON; SET QUOTED_IDENTIFIER ON; SET ANSI_PADDING ON; SET ANSI_WARNINGS ON; SET ARITHABORT ON; SET CONCAT_NULL_YIELDS_NULL ON; SET NUMERIC_ROUNDABORT OFF;
@@ -50,6 +52,9 @@ BEGIN
     SET NOCOUNT ON;
     IF EXISTS (SELECT 1 FROM inserted AS i WHERE NOT EXISTS (SELECT 1 FROM cfg.fn_NumberPatternOk(i.Pattern, i.ScopeLevel)))
         THROW 50031, 'Invalid numbering pattern: one {seq} or {seq:000} tag, and only {erp} (company scope), {yy} and {yyyy}', 1;
+    -- Owner decision 2026-10-12 (Q-PLT-08): request numbers (req:<TypeCode>, BR-WFL-013) and proforma numbers are gap-free.
+    IF EXISTS (SELECT 1 FROM inserted WHERE (SequenceKey = 'PROFORMA' OR SequenceKey LIKE 'req:%') AND GapPolicy <> 'GAP_FREE')
+        THROW 50031, 'Request and proforma numbers are gap-free', 1;
 END;
 GO
 CREATE OR ALTER PROCEDURE cfg.usp_AllocateNumber
