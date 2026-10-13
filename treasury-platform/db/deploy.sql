@@ -42,3 +42,4 @@ GO
 :r seed/100_platform_global.sql
 :r seed/101_iso_reference.sql
 :r seed/102_permissions.sql
+:r seed/103_lc_reference.sql

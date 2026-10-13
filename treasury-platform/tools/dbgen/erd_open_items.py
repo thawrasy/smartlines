@@ -43,7 +43,7 @@ ITEMS = [
     {
         'id': 'O-06', 'sources': f'{REVIEW_A}; {REVIEW_B}',
         'finding': 'UCP 600 article numbers are not verified against the official ICC text.',
-        'status': 'Open. The analysis document marks them UNVERIFIED.',
+        'status': 'Open. The analysis document marks them UNVERIFIED, and the platform seed holds the 39 articles as UNVERIFIED platform rows (db/seed/103_lc_reference.sql, ADR 0005), so the badge and the print footnote show until they are checked.',
         'next': 'Check each article number against the official text and record the result.',
     },
     {

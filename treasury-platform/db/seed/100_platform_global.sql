@@ -5,8 +5,8 @@
    platform value is updated in place. Runs as the deploying login (the global tables have no row filter).
    Today it holds the security setting definitions (DOC-S04 section 13, DQ-S04-14), the background job catalogue
    (DOC-F17 section 5.2, DOC-F04 section 7.4), the STANDARD plan (DQ-B05-4) and the reserved sub-domains (FR-PLT-046),
-   all owner decisions of 2026-10-12 or their proposals. The ISO lists (DQ-B05-5) and the permission codes of
-   DOC-B05 section 4.1 follow.
+   all owner decisions of 2026-10-12 or their proposals. The ISO lists (101, DQ-B05-5), the permission codes (102)
+   and the letter-of-credit reference data (103) of DOC-B05 section 4.1 are in their own files.
    ============================================================================ */
 SET NOCOUNT ON;
 SET ANSI_NULLS ON; SET QUOTED_IDENTIFIER ON; SET ANSI_PADDING ON; SET ANSI_WARNINGS ON; SET ARITHABORT ON; SET CONCAT_NULL_YIELDS_NULL ON; SET NUMERIC_ROUNDABORT OFF;

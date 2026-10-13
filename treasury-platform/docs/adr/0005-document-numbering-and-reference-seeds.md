@@ -1,4 +1,4 @@
-# ADR 0005: Gap-free document numbering, and the ISO and permission seeds
+# ADR 0005: Gap-free document numbering and the platform reference seeds
 
 Status: accepted by the owner (2026-10-12, docs/31-owner-decisions.md) for the decisions it implements: DQ-B02-4 and Q-PLT-08 (request and proforma numbers are gap-free; O-12 of tools/dbgen/erd_open_items.py), DQ-B05-5 (complete country and currency lists, with IsActive and the ISO version recorded), DQ-F07-1 and DQ-F09-1 (the permission codes). It follows ADR 0004: tenant data changes through procedures that the row filters keep to the bound tenant, and the application role loses the direct rights those procedures replace.
 
@@ -43,7 +43,15 @@ Status: accepted by the owner (2026-10-12, docs/31-owner-decisions.md) for the d
 - Five permissions are locked to the treasury manager and the facilities officer (`LockedToRoleCodes ["TM","FO"]`, BR-PLT-019): `party.identity.reveal`, `party.identity.image.view`, `party.pack.export`, `party.export.sensitive` and `acc.signature.image.view`. They and `acc.reveal` are sensitive (BR-PLT-008).
 - The default assignment of permissions to roles belongs to the CORE.ROLES tenant pack (DOC-B05 section 5.1), not to this seed.
 
-Both seeds insert only: a row that exists is never changed, so an operator's later correction stays (FR-CAT-026). CI step 4b runs the platform seed twice and expects nothing to change.
+### 4. Letter-of-credit reference data (`db/seed/103_lc_reference.sql`, added 2026-10-13)
+
+- `ref.Incoterm`: the 11 Incoterms 2020 rules, and DAT (2010), DAF, DES, DEQ and DDU (2000) as LEGACY, shown on old letters of credit and not selectable on new ones (FR-CAT-021, BR-CAT-015). IsSeaOnly marks FAS, FOB, CFR and CIF (and the legacy DES and DEQ), and RequiresInsurance marks CIF and CIP (BR-LCT-010).
+- `ref.UcpArticle`: the 39 articles of UCP 600 as platform rows, all UNVERIFIED (FR-LCT-006, BR-LCT-018), with the topics of the article map in docs/02-forms-analysis-ucp600.md section 3. A platform operator marks an article verified after a specialist checks it against ICC Publication 600 (O-06, Q-LCT-01).
+- The codes and English names follow ICC usage. The Arabic names and titles are working translations for the treasury manager to confirm.
+- The UCP table has a row filter under which only `tp_platform` writes platform rows. The seed therefore writes them as a temporary user of that role and drops that user at the end.
+- `ntf.NotificationEventType` and the letter-of-credit field definitions are tenant-owned in the model, so they belong to the tenant packs NTF.BASE and LC.BASE (DOC-B05 section 5.1), not to this seed. The design document listed them as global; it now follows the model.
+
+All four seeds insert only: a row that exists is never changed, so an operator's later correction stays (FR-CAT-026). CI step 4b runs the platform seed twice and expects nothing to change.
 
 ### Error numbers added
 
@@ -58,6 +66,7 @@ Both seeds insert only: a row that exists is never changed, so an operator's lat
 
 - **Tests.** Every case passes in CI (`tools/ci/db_ci.sh` steps 2, 4b, 12 and 13):
   - N1 to N8 in `db/tests/numbering_tests.sql`: definition checks, AC-PLT-3 (`003-XX01-26` after `001` and `002`, a void number not reused, `001-XX01-27` in the new year), reuse after a rollback, widening from 99 to 100, fiscal years, company checks, direct rights, tenant isolation;
+  - `db/tests/reference_data_tests.sql` (R1 to R4, CI step 15): a tenant reads the countries, currencies, Incoterms and platform UCP articles, writes none of them, and cannot change or verify a platform article; the seed leaves no user behind;
   - `tools/ci/numbering_concurrency.sh`: six connections take numbers of one gap-free sequence at the same moment, each in its own transactions, and a quarter of the transactions roll back. The committed numbers run 1 to 114 with no duplicate and no gap, and they alternate between the connections, which shows the connections really ran together.
 - **Application.**
   - Take the number last, just before the commit, in the transaction that writes the numbered row. Pass the tenant's date as `@OnDate`.
@@ -66,4 +75,4 @@ Both seeds insert only: a row that exists is never changed, so an operator's lat
 
 Residual risks and open points:
 - **Serialised writers.** Requests for one gap-free counter wait for each other until each transaction commits. The cost is accepted with the owner's decision. The business transaction that takes a number must stay short; measure under load in S1.
-- **Reference data.** Dial codes outside the GCC need an ITU source, and the GCC weekends need confirmation (Q-CAT-12); both are in O-25. Taking a newer ISO version means running the generator again.
+- **Reference data.** Dial codes outside the GCC need an ITU source, and the GCC weekends need confirmation (Q-CAT-12); both are in O-25. Taking a newer ISO version means running the generator again. The UCP 600 articles stay UNVERIFIED, with the badge and the print footnote, until they are checked (O-06).

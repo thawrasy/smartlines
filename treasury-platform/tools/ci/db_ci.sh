@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Database CI: checks the model, confirms the generated DDL is current, deploys it to SQL Server,
 # compares what was deployed with the DDL, and runs the trigger, tenant-isolation, account-security,
-# operator-and-support, job-binding, tenant-onboarding, document-numbering (one of them with concurrent connections)
-# and KYC history tests.
+# operator-and-support, job-binding, tenant-onboarding, document-numbering (one of them with concurrent connections),
+# KYC history and reference data tests.
 #
 # Environment:
 #   SA_PASSWORD   password of the sa login (required)
@@ -63,14 +63,15 @@ sq -Q "IF DB_ID(N'BankFas') IS NOT NULL BEGIN ALTER DATABASE [BankFas] SET SINGL
 SQL_SERVER="$SQL_SERVER" SQL_USER=sa SQLCMD="$SQLCMD" bash tools/deploy/deploy.sh
 
 echo "== 4b. the platform seed is complete and can run again without changing anything (DOC-B05 section 6)"
-seed_state() { sq -d BankFas -h -1 -W -Q "SET NOCOUNT ON; SELECT CONCAT((SELECT COUNT(*) FROM cfg.SettingDefinition), '/', (SELECT COUNT(*) FROM cfg.JobDefinition), '/', (SELECT COUNT(*) FROM plat.[Plan]), '/', (SELECT COUNT(*) FROM plat.PlanModule), '/', (SELECT COUNT(*) FROM plat.ReservedSubdomain), '/', (SELECT COUNT(*) FROM ref.Country), '/', (SELECT COUNT(*) FROM ref.Currency), '/', (SELECT COUNT(*) FROM sec.Permission), '/', (SELECT COUNT(UpdatedAt) FROM cfg.SettingDefinition) + (SELECT COUNT(UpdatedAt) FROM cfg.JobDefinition) + (SELECT COUNT(UpdatedAt) FROM plat.[Plan]))"; }
+seed_state() { sq -d BankFas -h -1 -W -Q "SET NOCOUNT ON; SELECT CONCAT((SELECT COUNT(*) FROM cfg.SettingDefinition), '/', (SELECT COUNT(*) FROM cfg.JobDefinition), '/', (SELECT COUNT(*) FROM plat.[Plan]), '/', (SELECT COUNT(*) FROM plat.PlanModule), '/', (SELECT COUNT(*) FROM plat.ReservedSubdomain), '/', (SELECT COUNT(*) FROM ref.Country), '/', (SELECT COUNT(*) FROM ref.Currency), '/', (SELECT COUNT(*) FROM sec.Permission), '/', (SELECT COUNT(*) FROM ref.Incoterm), '/', (SELECT COUNT(*) FROM ref.UcpArticle WHERE TenantId IS NULL AND VerificationStatus = 'UNVERIFIED'), '/', (SELECT COUNT(UpdatedAt) FROM cfg.SettingDefinition) + (SELECT COUNT(UpdatedAt) FROM cfg.JobDefinition) + (SELECT COUNT(UpdatedAt) FROM plat.[Plan]) + (SELECT COUNT(UpdatedAt) FROM ref.Incoterm) + (SELECT COUNT(UpdatedAt) FROM ref.UcpArticle))"; }
 seed_before="$(seed_state)"
 sq -d BankFas -i db/seed/100_platform_global.sql >/dev/null
 sq -d BankFas -i db/seed/101_iso_reference.sql >/dev/null
 sq -d BankFas -i db/seed/102_permissions.sql >/dev/null
+sq -d BankFas -i db/seed/103_lc_reference.sql >/dev/null
 seed_after="$(seed_state)"
-if [ "$seed_before" != "$seed_after" ] || [ "$seed_before" != "6/30/1/9/23/249/157/138/0" ]; then
-    echo "platform seed is not safe to run again, or incomplete: settings/jobs/plans/plan modules/reserved/countries/currencies/permissions/updated before $seed_before, after $seed_after (expected 6/30/1/9/23/249/157/138/0)"
+if [ "$seed_before" != "$seed_after" ] || [ "$seed_before" != "6/30/1/9/23/249/157/138/16/39/0" ]; then
+    echo "platform seed is not safe to run again, or incomplete: settings/jobs/plans/plan modules/reserved/countries/currencies/permissions/Incoterms/unverified UCP articles/updated before $seed_before, after $seed_after (expected 6/30/1/9/23/249/157/138/16/39/0)"
     exit 1
 fi
 echo "platform seed unchanged on a second run ($seed_after)"
@@ -240,4 +241,22 @@ if [ "$kyc_pass" -ne 4 ]; then
     exit 1
 fi
 echo "KYC history tests: $kyc_pass passed"
+echo "== 15. platform reference data tests (db/tests/reference_data_tests.sql)"
+sq -i db/tests/reference_data_tests.sql > "$TMP/reference.out" 2>&1 || {
+    cat "$TMP/reference.out"
+    echo "reference data test run failed"
+    exit 1
+}
+cat "$TMP/reference.out"
+if grep -q '^FAIL' "$TMP/reference.out"; then
+    echo "a reference data test failed"
+    exit 1
+fi
+ref_pass=$(grep -c '^PASS' "$TMP/reference.out" || true)
+# 4 cases: R1-R4 (a tenant reads the global lists and the platform UCP articles, writes none of them; seed hygiene).
+if [ "$ref_pass" -ne 4 ]; then
+    echo "expected 4 PASS, found $ref_pass"
+    exit 1
+fi
+echo "reference data tests: $ref_pass passed"
 echo "all database checks passed"

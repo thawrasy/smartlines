@@ -10,7 +10,7 @@
 | يعتمد على | DOC-F05، DOC-S02، DOC-S06، DOC-S07، DOC-S08، DOC-B01، DOC-B04، DOC-B09، DOC-B11 |
 | المصادر | db/deploy.sql، db/model/10-platform.model، 11-organization-party.model، 12-institutions-accounts-catalogs.model، 14-…، 15-…، 16-…، db/generated/tsql/001_tables.sql، db/static/010_rls.sql، db/tests/tenant_isolation_tests.sql، docs/10-detailed-analysis/00-overview-and-cross-cutting.md، 10-m0-m1…، 11-m2-m4…، docs/20-database-design.md |
 
-> **تحديث التنفيذ (2026-10-12):** بدأ بذر المنصة في db/seed/100_platform_global.sql ضمن ترتيب النشر (§4.3)، وهو آمن لإعادة التشغيل وتتحقق منه الخطوة 4b في CI: مفاتيح الإعدادات الأمنية الست، وقائمة المهام الثلاثون، والباقة STANDARD بكل الوحدات (DQ-B05-4)، و23 عنوانًا محجوزًا. وأول مشغّل يُنشأ بإجراء التمهيد `plat.usp_BootstrapOperator` بدعوة (DQ-B05-7، DQ-F07-3). وبُذرت بعدها (ADR 0005): قوائم الدول والعملات في db/seed/101_iso_reference.sql (249 دولة و157 عملة فعّالة، بإصدار ISO مسجَّل في رأس الملف: iso-codes 4.16.0-1 مع تعديلات ISO 4217 اللاحقة، والأسماء العربية من CLDR، والكسور من وحدات ISO 4217؛ دون العملات الملغاة والمعادن ووحدات الحساب والعملتين ذواتي الخانات الأربع؛ ورمز الاتصال وعطلة الأسبوع لدول الخليج الست فقط، DQ-B05-5)، ورموز الصلاحيات الـ138 في db/seed/102_permissions.sql بأسمائها ووحداتها، خمس منها مقفلة على TM وFO (DQ-F07-1، DQ-F09-1). الملفان مولَّدان (tools/dbgen/gen_iso_seed.py وgen_permission_seed.py)، والخطوة 2 في CI تعيد توليد الصلاحيات من المستندات وتطابقها. باقٍ: رموز الاتصال لغير الخليج من مصدر ITU، وتأكيد عطلات الخليج (Q-CAT-12، O-25).
+> **تحديث التنفيذ (2026-10-12):** بدأ بذر المنصة في db/seed/100_platform_global.sql ضمن ترتيب النشر (§4.3)، وهو آمن لإعادة التشغيل وتتحقق منه الخطوة 4b في CI: مفاتيح الإعدادات الأمنية الست، وقائمة المهام الثلاثون، والباقة STANDARD بكل الوحدات (DQ-B05-4)، و23 عنوانًا محجوزًا. وأول مشغّل يُنشأ بإجراء التمهيد `plat.usp_BootstrapOperator` بدعوة (DQ-B05-7، DQ-F07-3). وبُذرت بعدها (ADR 0005): قوائم الدول والعملات في db/seed/101_iso_reference.sql (249 دولة و157 عملة فعّالة، بإصدار ISO مسجَّل في رأس الملف: iso-codes 4.16.0-1 مع تعديلات ISO 4217 اللاحقة، والأسماء العربية من CLDR، والكسور من وحدات ISO 4217؛ دون العملات الملغاة والمعادن ووحدات الحساب والعملتين ذواتي الخانات الأربع؛ ورمز الاتصال وعطلة الأسبوع لدول الخليج الست فقط، DQ-B05-5)، ورموز الصلاحيات الـ138 في db/seed/102_permissions.sql بأسمائها ووحداتها، خمس منها مقفلة على TM وFO (DQ-F07-1، DQ-F09-1). الملفان مولَّدان (tools/dbgen/gen_iso_seed.py وgen_permission_seed.py)، والخطوة 2 في CI تعيد توليد الصلاحيات من المستندات وتطابقها. وبُذرت أخيرًا (2026-10-13) في db/seed/103_lc_reference.sql: قواعد Incoterms الـ16 (11 نشطة و5 قديمة LEGACY) ومواد UCP 600 الـ39 صفوفَ منصة بحالة UNVERIFIED حتى يتحقق مختص (O-06)، والأسماء العربية ترجمة عمل يؤكدها TRM. فاكتمل البذر العالمي في §4.1 عدا العطل الرسمية التي يدخلها المشغّل. باقٍ: رموز الاتصال لغير الخليج من مصدر ITU، وتأكيد عطلات الخليج (Q-CAT-12، O-25).
 
 ## 1. الغرض والنطاق
 
@@ -76,13 +76,13 @@ flowchart TD
 - **الأشكال القانونية والمناصب وأنواع الصلاحيات:** جداول مملوكة للمشترك (db/model/12-institutions-accounts-catalogs.model:61، :95، :101). المنصة تحفظ محتواها حزمةً في المستودع، وكل مشترك يأخذ نسخة (§5).
 - **الأدوار:** sec.Role مملوك للمشترك. قوالب الأدوار حزمة مشترك (§5).
 
-### 4.3 الموقع في ترتيب النشر 🟡
+### 4.3 الموقع في ترتيب النشر (منفّذ)
 
 | الخطوة | الملف المقترح | يُشغَّل بصفة | السبب |
 |---|---|---|---|
-| بعد 050 | db/seed/100_platform_global.sql | منفّذ النشر (مالك المخطط) | الجداول العالمية بلا RLS |
-| بعده | db/seed/110_platform_mixed.sql | مستخدم بلا تسجيل دخول عضو في tp_platform، عبر EXECUTE AS | محمول الكتابة يقبل صف المنصة من tp_platform فقط (db/static/010_rls.sql:70-75) |
-| قبل الاختبارات | خطوة في tools/ci/db_ci.sh تشغّل الملفين مرتين وتقارن العدد والبصمة | CI | إثبات التكرار الآمن |
+| بعد 050 | db/seed/100_platform_global.sql و101_iso_reference.sql و102_permissions.sql | منفّذ النشر (مالك المخطط) | الجداول العالمية بلا RLS |
+| بعدها | db/seed/103_lc_reference.sql | منفّذ النشر لـ ref.Incoterm؛ ولصفوف المنصة في ref.UcpArticle مستخدم مؤقت بلا تسجيل دخول عضو في tp_platform، عبر EXECUTE AS، يُحذف في آخر الملف | محمول الكتابة يقبل صف المنصة من tp_platform فقط (db/static/010_rls.sql:70-75) |
+| قبل الاختبارات | الخطوة 4b في tools/ci/db_ci.sh تشغّل الملفات مرة ثانية وتشترط أن يبقى العدد كما هو وألا يُعدَّل صف | CI | إثبات التكرار الآمن |
 
 السطران يُضافان إلى db/deploy.sql بعد السطر 34 بصيغة `:r seed/...`. ولأن DDL لا يُعاد تشغيله، يُشغَّل الملفان أيضًا وحدهما عند تحديث المراجع على قاعدة قائمة. الحساب الذي يشغّل الملف الثاني تحدده DOC-S08.
 
@@ -266,7 +266,7 @@ flowchart LR
 
 ## 10. تعارضات وفجوات في المصادر
 
-1. docs/20-database-design.md:474 يضع ntf.NotificationEventType و«تعريفات حقول الاعتماد» في البذر العالمي. النموذج يجعلهما مملوكين للمشترك (db/model/15-workflow-notifications.model:527؛ db/model/16-letters-of-credit.model:64).
+1. docs/20-database-design.md:474 يضع ntf.NotificationEventType و«تعريفات حقول الاعتماد» في البذر العالمي. النموذج يجعلهما مملوكين للمشترك (db/model/15-workflow-notifications.model:527؛ db/model/16-letters-of-credit.model:64). **محلول (2026-10-13):** صُحّحت وثيقة التصميم §13 لتتبع النموذج، فهما في الحزمتين NTF.BASE وLC.BASE (§5.1).
 2. docs/20-database-design.md:474 يقول إن cfg.SeedRun يسجّل البذر العالمي، والجدول مملوك للمشترك (db/generated/tsql/001_tables.sql:933-934).
 3. BR-PLT-001 (10-m0-m1…:227) يعدّ LookupList وLookupItem وIncoterm وLC_TYPE مختلطة، ويقصر العالمية على Country وCurrency وPermission وPlan وPlatformOperator. النموذج: قوائم القيم مملوكة للمشترك (DR-03، docs/20-database-design.md:421-428)، وref.Incoterm عالمي (db/model/16-letters-of-credit.model:32)، والعالمية 11 جدولًا منها ReservedSubdomain وPlanModule وSettingDefinition.
 4. 11-m2-m4…:344-345 تصف LC_TYPE وLC_CONFIRMATION بأنها «عالمي»، وهما قائمتا قيم صارتا مملوكتين للمشترك بعد DR-03.
