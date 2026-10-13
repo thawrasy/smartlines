@@ -249,9 +249,8 @@
    "issue": "Layer >= 2 means 'indirect, through intermediate entities' (11-organization-party.model:78), but no column identifies the intermediate holder or the parent holding. The uniqueness keys (lines 83-84) are (CompanyId, HolderPartyId, Layer, EffectiveFrom) and the open-row filter (CompanyId, HolderPartyId, Layer WHERE EffectiveTo IS NULL). A holder who owns the company indirectly through two intermediates at the same layer (e.g. 10% via A and 15% via B) cannot be stored, because the second row violates the unique. The 100% check (BR-ORG-006, line 74) covers Layer=1 only, so indirect chains cannot be reconstructed or verified. IsBeneficialOwner (line 79) is a stored determination with no link to the chain it summarises.",
    "recommendation": "Add a self-referencing ViaShareholdingId (or IntermediatePartyId) with via=CompanyId pointing to the intermediate's layer-1 row, and key the uniqueness and the open-row filter on (CompanyId, HolderPartyId, ViaShareholdingId, EffectiveFrom), using a persisted calc sentinel for direct holdings. Compute effective percentages in a view rather than storing them.",
    "id": "DR-22",
-   "status": "scheduled",
-   "resolution": "O-15, ADR 0011",
-   "before": "S1-b"
+   "status": "applied",
+   "resolution": "O-15, ADR 0011"
   },
   {
    "table": "pty.IdentityDocument",
@@ -305,9 +304,8 @@
    "issue": "The conflict targets an entity through free text TargetEntity ascii(60) (13:328) and bigint TargetId (13:329), with no FK and no domain CHECK (DDL 001 has only the NOT NULL). FacilityId (13:327) is checked only against fac.Facility, not against the target's own facility. Failure modes: a conflict on limit 7 of facility A stored under facility B, so V-FAC-12 (open conflicts block approval) blocks the wrong facility; a typo such as 'fac.limit' creates a key that the unique index at 13:349 does not see; and a conflict whose target was superseded or deleted stays OPEN with no referential signal.",
    "recommendation": "Use typed nullable target FKs with (TenantId, FacilityId, ...) composite keys and an exactly-one CHECK, as LimitMovement does. At minimum add CHECK (TargetEntity IN (...)) and make the facility-consistency rule a tested service invariant.",
    "id": "DR-27",
-   "status": "applied-partly",
-   "resolution": "O-15, ADR 0011",
-   "before": "S2"
+   "status": "applied",
+   "resolution": "O-15, ADR 0011"
   },
   {
    "table": "fac.Facility (header); fac.Limit, fac.LimitProductLine, fac.LimitCompanyRule, prc.PricingRule, cmp.TermValue (rev children)",
@@ -317,9 +315,8 @@
    "issue": "Revision integrity is left to the application. (a) Children reference a versioned parent only by (FacilityId, id): fac.Limit.ParentLimitId (13:141; DDL 002:326), LimitProductLine.LimitId (13:175), LimitCompanyRule.LimitId (13:196), and the scope IDs on PricingRule and TermValue. Nothing ties a child's FromRevision/ToRevision interval to the parent row's interval, so a revision-N child can point to a row closed in revision M. The header (13:11) says copied children must be re-linked in the approval transaction, but the database cannot detect a missed re-link. (b) Facility.ApprovedRevisionNo (13:51; DDL 001:2834) is a counter with no FK to the APPROVED FacilityRevision row, and the only checks are >=0 and >=1 when not DRAFT. (c) The rev contract (13:8-10) relies on FromRevision <= N < ToRevision for reads, but the only check is ToRevision >= FromRevision (e.g. 13:169). The unique index (13:159) covers only ToRevision IS NULL, so two closed rows of the same (FacilityId, Code) can both cover the same approved revision and the read is ambiguous.",
    "recommendation": "Separate stable identity from versions. Add a node table (for example fac.LimitNode with FacilityId, Code) that children reference, and keep versioned attributes in fac.Limit rows. Children then never need re-pointing at approval. Enforce one version per (node, revision) with a maintained revision table or a trigger, and make ApprovedRevisionNo derived from, or composite-linked to, the approved FacilityRevision row (FacilityId, RevisionNo).",
    "id": "DR-28",
-   "status": "scheduled",
-   "resolution": "O-15, ADR 0011",
-   "before": "S2"
+   "status": "applied",
+   "resolution": "O-15, ADR 0011"
   },
   {
    "table": "cat.BaseRate (with cat.BaseRateValue and cat.BaseRateAlias)",
@@ -351,9 +348,8 @@
    "issue": "The src flag adds OriginalText NVARCHAR(2000) to each sourced row (DDL 001:2969, 3020, 3070, 3114 and others) and ValueConflict.CandidateA/BOriginalText (13:335, 13:341). None is flagged sens, and db/static/006 (DENY SELECT for tp_readonly) lists no fac, prc or cmp column. tp_readonly has SELECT on all other columns (docs/20 section 9.1). Verbatim clause text is where agreements quote disbursement or repayment accounts and IBANs, which section 6.1 requires to be encrypted and masked (acc.BankAccount does this). Free-text Reason, Notes and ChangeSummary columns carry the same risk. Assumption: source text is stored verbatim, as section 5.2 states.",
    "recommendation": "Flag OriginalText and the free-text columns in src and rev tables as sens=confidential, and add DENY SELECT for tp_readonly on them. Redact IBAN and account-number patterns at ingestion, keeping the unredacted original only in the document store under doc.Document access. Extend the section 6 rule explicitly to free text.",
    "id": "DR-31",
-   "status": "applied-partly",
-   "resolution": "O-15, ADR 0011",
-   "before": "S2"
+   "status": "applied",
+   "resolution": "O-15, ADR 0011"
   },
   {
    "table": "cat.DocumentType; fac.FacilityLender; fac.Facility; ref.Country; cat.LegalEntityType; cat.Position",
@@ -407,9 +403,8 @@
    "issue": "Status is {DRAFT, ACTIVE, RELEASED, EXPIRED} (db/model/14 line 33), and it has no value for a replaced version. SupersedesId (line 37) links a newly approved version to its predecessor, so the schema forces a bad choice. Either the predecessor stays ACTIVE and APPROVED alongside its successor, or it is marked RELEASED, which requires a release date, reason and document and misstates a replacement as a release. IX_Collateral_SupersedesId is not unique (003_indexes.sql:415), so one predecessor can have several successors. The coverage index (Status, ApprovalState; line 44, 003:412) cannot tell a current version from a replaced one, which creates double-count risk under BR-COL-005. Separately, RELEASED does not require ReleaseDocumentId (line 48), although the comment cites FR-COL-010 (بتاريخ وسبب ووثيقة).",
    "recommendation": "Add SUPERSEDED to Status and set it in the approval transaction. Add a filtered unique index on SupersedesId WHERE SupersedesId IS NOT NULL. Add a logical root id with a filtered unique index allowing one APPROVED, non-superseded version per root. Add CHECK (Status <> 'RELEASED' OR ReleaseDocumentId IS NOT NULL).",
    "id": "DR-36",
-   "status": "scheduled",
-   "resolution": "O-15, ADR 0011",
-   "before": "S2"
+   "status": "applied",
+   "resolution": "O-15, ADR 0011"
   },
   {
    "table": "fin.AccountMonthlyStat",
@@ -430,9 +425,8 @@
    "issue": "CK_Covenant_3 (001_tables.sql:4144) requires Operator and ThresholdValue when ThresholdState = 'SET', but not ThresholdUnit (model lines 286-288). A SET threshold with NULL unit is accepted, so 1.5 can be read as a ratio or as 1.5 percent, and BR-OBL-006 cannot evaluate it. StatementBasis (db/model/14 line 272) is nullable with no check for the statement-based kinds (RATIO, AMOUNT, PERCENT_OF_REVENUE), although its comment (BR-FIN-003) says there is no silent substitute. ThresholdUnit duplicates fin.MeasureFormula.ResultUnit (line 483), and MeasureKind duplicates cat.ObligationType.MeasureKind (db/model/12 line 201), with no equality check.",
    "recommendation": "Add CHECK (ThresholdState <> 'SET' OR ThresholdUnit IS NOT NULL) and CHECK (MeasureKind NOT IN ('RATIO','AMOUNT','PERCENT_OF_REVENUE') OR StatementBasis IS NOT NULL), and review RequiredAssurance the same way. Enforce ThresholdUnit = MeasureFormula.ResultUnit in the evaluation service with a test.",
    "id": "DR-38",
-   "status": "applied-partly",
-   "resolution": "O-15, ADR 0011",
-   "before": "S2"
+   "status": "applied",
+   "resolution": "O-15, ADR 0011"
   },
   {
    "table": "obl.CovenantTest",
@@ -442,9 +436,8 @@
    "issue": "(a) The model says stored results are not edited (المخزَّن لا يُعدَّل, db/model/14 line 300) and InputsSnapshot is fixed after saving (line 314, BR-FIN-010). But CovenantTest is not append-only, and tp_app has SELECT, INSERT, UPDATE on it (007_table_grants.sql:290) with no DENY and no trigger. An evaluated or REVIEWED result can be overwritten, and the only trail is the application audit log. (b) The rev contract (db/model/14 header, line 11) re-points operational rows (CovenantTest, ReportingInstance, ObligationBreach) to the new covenant revision in the approval transaction. After that, a test no longer records which revision governed it. ThresholdApplied and OperatorApplied are snapshots, but FormulaVersion is a bare int with no FK, and other evaluation parameters (SubmissionLagDays, AccountScopeKind, AggregationMode) are not snapshotted.",
    "recommendation": "Keep a GoverningCovenantId (and GoverningReportingObligationId on ReportingInstance) that is never re-pointed, and resolve the current revision through the logical chain. Make an evaluation immutable once EVALUATED, with a trigger or by moving outcomes into an append-only table. Put every parameter used by the evaluation into InputsSnapshot.",
    "id": "DR-39",
-   "status": "scheduled",
-   "resolution": "O-15, ADR 0011",
-   "before": "S2-b"
+   "status": "applied",
+   "resolution": "O-15, ADR 0011"
   },
   {
    "table": "col.Guarantee",
@@ -466,9 +459,8 @@
    "failure_scenario": "A bug or direct SQL under tp_app changes LcTerms.Amount or deletes an LcTermsDocument row of an ISSUED letter of credit. No constraint or grant fails, and the hash can be recomputed from the same row. An issued proforma's Subtotal can disagree with its lines.",
    "recommendation": "Separate mutable draft from issued content: keep LcTerms mutable only while DRAFT and insert a new immutable row on lock, with DENY UPDATE/DELETE to tp_app and tp_platform on the locked table (the append mechanism already used in 005_delete_grants.sql). Alternatively add INSTEAD OF UPDATE/DELETE triggers that reject rows whose owning terms or template is LOCKED/PUBLISHED. Mark the proforma header and lines append-only after issuance and compute Subtotal and VatAmount from the lines at issue time. Anchor SnapshotHash outside the row (§5.3).",
    "id": "DR-41",
-   "status": "applied-partly",
-   "resolution": "O-15, ADR 0011",
-   "before": "S3"
+   "status": "applied",
+   "resolution": "O-15, ADR 0011"
   },
   {
    "table": "lc.LetterOfCredit",
@@ -503,9 +495,8 @@
    "failure_scenario": "A stage transition updates RequestStageInstance.DueAt and SlaState, but the write to Request is skipped or fails. The SLA job queries the Request index (15:310) and misses an overdue stage. The queue index (15:309) keeps showing a request as unassigned after a claim. Separately, a m5 release sets LimitReservation to RELEASED while Request.ReservationState stays RESERVED.",
    "recommendation": "Make RequestStageInstance the single source of stage, assignee and SLA state, and build the queue and SLA indexes on it (it already indexes DueAt where ExitedAt IS NULL, 15:405). Read reservation state through ReservationId. If the Request copy is kept for query speed, enforce it with the composite from the first finding and add a reconciliation job that compares the two, as the design does for available limits (§7.1).",
    "id": "DR-44",
-   "status": "scheduled",
-   "resolution": "O-15, ADR 0011",
-   "before": "S3"
+   "status": "applied",
+   "resolution": "O-15, ADR 0011"
   },
   {
    "table": "lc.LetterOfCredit",
@@ -528,9 +519,8 @@
    "failure_scenario": "A PROFORMA vs RECEIVED comparison, or an amendment that changes the beneficiary account, writes the IBAN in clear to LcTermsComparisonLine and LcAmendment.ChangedFieldsJson. The envelope, AAD binding and masking required by §6 do not apply to the copy, and the application role can read those rows.",
    "recommendation": "Exclude sens=restricted FieldKeys from comparison and diff at write time, storing only the mask and an HMAC for changed restricted fields, or encrypt those values with the §6.2 envelope. Tag the value and diff columns with the highest sensitivity of the fields they can hold.",
    "id": "DR-46",
-   "status": "applied-partly",
-   "resolution": "O-15, ADR 0011",
-   "before": "S3"
+   "status": "applied",
+   "resolution": "O-15, ADR 0011"
   },
   {
    "table": "org.Company",
@@ -563,9 +553,8 @@
    "failure_scenario": "DefaultTemplateKey names a template belonging to another RequestType, since no check ties it to RequestTypeId. AmountFieldKey names a field whose IndexRole is not AMOUNT, so the availability panel and reservation read the wrong amount. A renamed Code leaves NumberSequenceKey pointing at a sequence that no longer exists.",
    "recommendation": "Derive field keys from TemplateField.IndexRole of the current template, derive the default template from WorkflowTemplate.IsCurrent, and make NumberSequenceKey a computed column or a check equal to 'req:' + Code. Keep ConsumesCreditLimit only if it is the authoritative flag; otherwise read it from the product.",
    "id": "DR-49",
-   "status": "applied-partly",
-   "resolution": "O-15, ADR 0011",
-   "before": "S3"
+   "status": "applied",
+   "resolution": "O-15, ADR 0011"
   },
   {
    "table": "wfl.Request",
@@ -580,5 +569,5 @@
    "resolution": "O-15, ADR 0011"
   }
  ],
- "decided": "2026-10-13: the owner approved docs/32-review-findings-decisions.md; batch A applied (docs/adr/0011-design-review-fixes.md), batch B before the slice named in \"before\""
+ "decided": "2026-10-13: the owner approved docs/32-review-findings-decisions.md; batch A applied (docs/adr/0011-design-review-fixes.md), batch B before the slice named in \"before\"; batch B applied the same day, every slice entry condition (044_entry_guards.sql, ADR 0011 amendments)"
 }

@@ -72,6 +72,7 @@ table lc.LcFieldDefinition  # Definition of a field in letter-of-credit terms: d
   ListCode            ascii(80)        # رمز قائمة القيم cat.LookupList.Code للنوع LIST/ENUM
   ApplicabilityJson   json       req   # {LcClass:{Scope:{Purpose: REQUIRED|OPTIONAL|HIDDEN}}} (BR-LCT-002)
   VisibleToRequester  bool       req =1   # حقل الخزينة = 0: لا يراه الطالب (FR-LCT-021، BR-LCI-014)
+  Sensitivity         enum{NORMAL,CONFIDENTIAL,RESTRICTED} req =NORMAL   # المقيّد لا تُنسخ قيمته في المقارنة ولا في فروق التعديل (044، DR-46، DQ-F12-11)
   IsLocked            bool       req =0   # المقفل لا يقبل HIDDEN ولا يعدّله المشترك (FR-LCT-004)
   SwiftTagHint        ascii(10)        # إرشادي لربط MT700/707 لاحقًا (FR-LCT-035)
   ValidationJson      json
@@ -85,6 +86,7 @@ table lc.LcFieldDefinition  # Definition of a field in letter-of-credit terms: d
   check  FieldKey NOT LIKE '% %'
   check  IsLocked = 0 OR IsActive = 1   # المقفل لا يُعطَّل (BR-LCT-002)
   check  ListCode IS NULL OR DataType IN ('LIST','ENUM')
+  check  FieldKey <> 'beneficiaryAccountIban' OR Sensitivity = 'RESTRICTED'   # IBAN المستفيد مقيّد دائمًا (DR-46)
 
 table lc.LcFieldUcpRef deletable  # UCP reference for a field: article and paragraph (UcpRefs in specification); feeds the badge, R-LCT-01 and BR-LCT-018 -- وسيط جديد
   LcFieldDefinitionId  ->lc.LcFieldDefinition req
@@ -158,7 +160,7 @@ table lc.LcDocumentClauseUcpRef deletable  # UCP 600 reference for a document cl
 
 # ============================== المخطط lc: شروط الاعتماد وتوابعها ==============================
 
-table lc.LcTerms public  # Letter-of-credit terms version: one row per version, with the section 6.2 dictionary columns; shared by proforma, request, credit and amendment (FR-LCT-001..035)
+table lc.LcTerms public  # Letter-of-credit terms version: one row per version, with the section 6.2 dictionary columns; shared by proforma, request, credit and amendment (FR-LCT-001..035); a locked version changes only in its treasury fields until TreasuryHash (044, DR-41)
   OwnerType                    enum{REQUEST,PROFORMA,LETTER_OF_CREDIT,AMENDMENT} req
   OwnerId                      bigint            # معرّف المالك متعدد الأشكال بلا FK؛ إلزامي لـ REQUEST ويُعبَّأ لغيره بعد إنشاء المالك في المعاملة نفسها
   Purpose                      enum{PROFORMA,APPLICATION,ISSUED,RECEIVED,AMENDMENT} req   # ما نطلبه من العميل / من البنك / الصادر / المستلَم / لقطة التعديل
@@ -307,7 +309,7 @@ table lc.LcTerms public  # Letter-of-credit terms version: one row per version, 
   check  PrevLcAmount IS NULL OR PrevLcUtilizedAmount IS NULL OR PrevLcUtilizedAmount <= PrevLcAmount   # BR-LCT-016 / V-LCT-14: المستغَل ≤ المبلغ
   check  (PrevLcAmount IS NULL AND PrevLcUtilizedAmount IS NULL) OR PrevLcCurrencyId IS NOT NULL   # مبلغ الاعتماد السابق بعملة واحدة
 
-table lc.LcTermsDocument deletable  # Document clause selected in the terms, with its parameters; the rendered text is frozen at lock (FR-LCT-018, BR-LCT-012) -- جديد
+table lc.LcTermsDocument deletable  # Document clause selected in the terms, with its parameters; written only while the terms are a draft (044, DR-41) (FR-LCT-018, BR-LCT-012) -- جديد
   LcTermsId        ->lc.LcTerms req
   SeqNo            int        req
   ClauseId         ->lc.LcDocumentClause req   # إصدار البند المستخدم (يُحصى في R-LCT-02)
@@ -326,7 +328,7 @@ table lc.LcTermsDocument deletable  # Document clause selected in the terms, wit
   check  Copies IS NULL OR Copies >= 0
   check  (IsFreeText = 1 AND FreeText IS NOT NULL) OR (IsFreeText = 0 AND FreeText IS NULL)   # البند الحر ينص عليه
 
-table lc.LcChargesMatrix  # Charges per term: one row per category; six complete rows, checked by the application (V-LCT-12) (FR-LCT-020, BR-LCT-014)
+table lc.LcChargesMatrix  # Charges per term: one row per category; six complete rows, checked by the application (V-LCT-12); written only while the terms are a draft (044, DR-41) (FR-LCT-020, BR-LCT-014)
   LcTermsId           ->lc.LcTerms req
   ChargeCategory      enum{ISSUING_BANK_LOCAL,ADVISING,CONFIRMATION,NEGOTIATION_SETTLEMENT,AMENDMENT,OTHER_OUTSIDE_ISSUING} req   # CHARGE_CATEGORY
   Payer               enum{APPLICANT,BENEFICIARY,SHARED} req   # CHARGE_PAYER
@@ -661,7 +663,7 @@ table lc.ProformaInvoice public  # Issued proforma invoice; after issue only its
   check  (Status = 'SUPERSEDED' AND SupersededById IS NOT NULL) OR (Status <> 'SUPERSEDED' AND SupersededById IS NULL)
   check  SupersededById IS NULL OR SupersededById <> ProformaInvoiceId
 
-table lc.ProformaLine append  # Line item in the proforma (FR-LCE-003, BR-LCE-001); fixed after issue: written once, never updated (DR-41)
+table lc.ProformaLine append  # Line item in the proforma (FR-LCE-003, BR-LCE-001); fixed after issue: written once, in one statement, never updated; the totals match the lines (044, DR-41)
   ProformaId   ->lc.ProformaInvoice via=CurrencyId req noidx   # عملة البند = عملة البروفورما
   LineNo       int        req
   Description  text       req

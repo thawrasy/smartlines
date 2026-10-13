@@ -39,6 +39,15 @@
    RF28 an evaluated covenant test changes only by its review, and an automatic evaluation names its formula version
         and stores all it read (DR-39, DQ-F15-4, S2-b; 044)
    RF29 an agenda item that left SCHEDULED keeps its status, obligation and period (DR-39, DQ-F15-13, S2-b; 044)
+   RF30 locked LC terms change only in their treasury fields until TreasuryHash, and their clauses and charges not at
+        all (DR-41, S3; 044)
+   RF31 a published template version only retires, its parts do not change, and a request type has one current
+        template (DR-41, DR-49, S3; 044)
+   RF32 the request copies its stage instance and reservation through the database only, and a drift is reported
+        (DR-44, DQ-F11-10, S3; 044)
+   RF33 a restricted LC field is never copied into a comparison or an amendment, and its change is read from the keyed
+        hash (DR-46, DQ-F12-11, S3; 044)
+   RF34 a proforma's lines are written once and its totals follow them (DR-41, BR-LCE-001, S4; 044)
    The other declarative fixes of S2 to S4 (keys and checks) are verified on the generated DDL by
    tools/dbgen/check_review_fixes.py, CI step 3.
 
@@ -1183,4 +1192,362 @@ SET @got = (SELECT STRING_AGG(CONCAT(CaseNo, ':', Err), ' ') WITHIN GROUP (ORDER
 IF @got = '0:0 1:0 2:50055 3:50055 4:50055 5:50055 6:50055'
     PRINT 'PASS RF29: an agenda item that left SCHEDULED keeps its status, obligation and period; only a submission''s details are corrected';
 ELSE PRINT CONCAT('FAIL RF29: case:error ', @got, ' (expected 0:0 1:0 2-6:50055)');
+GO
+/* The S3 fixture: #S2, a counterparty, a request type with a published template (a draft stage, a task stage and
+   an amount field), and a draft request of the borrower on it. Parts of the catalogue the tests do not need are left
+   unchecked inside the transaction. */
+CREATE PROCEDURE #S3
+AS
+BEGIN
+    SET NOCOUNT ON;
+    DECLARE @t1 INT, @u1 BIGINT, @co BIGINT, @cur INT, @country INT, @rt INT, @tpl INT, @s1 INT, @s2 INT, @cp BIGINT, @r BIGINT;
+    EXEC #S2;
+    SELECT @t1 = v FROM #F WHERE k = 't1'; SELECT @u1 = v FROM #F WHERE k = 'u1'; SELECT @co = v FROM #F WHERE k = 'co';
+    SELECT @cur = v FROM #F WHERE k = 'cur';
+    SET @country = (SELECT CountryId FROM ref.Country WHERE Iso2 = 'SA');
+    ALTER TABLE wfl.WorkflowStage NOCHECK CONSTRAINT FK_WorkflowStage_ExternalPhaseId;
+    ALTER TABLE wfl.Request NOCHECK CONSTRAINT FK_Request_ExternalPhaseId;
+    ALTER TABLE lc.LcTermsDocument NOCHECK CONSTRAINT FK_LcTermsDocument_ClauseId;
+    ALTER TABLE lc.ProformaInvoice NOCHECK CONSTRAINT FK_ProformaInvoice_ProceedsAccountId;
+    ALTER TABLE lc.ProformaInvoice NOCHECK CONSTRAINT FK_ProformaInvoice_DocumentId;
+    ALTER TABLE lc.LcTerms NOCHECK CONSTRAINT FK_LcTerms_EncKeyId;
+    ALTER TABLE lc.LcTerms NOCHECK CONSTRAINT FK_LcTerms_HashKeyId;
+    ALTER TABLE lc.LcAmendment NOCHECK CONSTRAINT FK_LcAmendment_LcId;
+    INSERT wfl.RequestType (TenantId, Code, NameAr, NameEn, Category, NumberSequenceKey)
+    VALUES (@t1, 'PURCHASE_LC', N'Purchase LC', N'Purchase LC', 'PURCHASE', 'req:PURCHASE_LC');
+    SET @rt = SCOPE_IDENTITY();
+    INSERT wfl.WorkflowTemplate (TenantId, RequestTypeId, TemplateKey, VersionNo, NameEn) VALUES (@t1, @rt, 'PURCHASE_LC', 1, N'Purchase LC');
+    SET @tpl = SCOPE_IDENTITY();
+    INSERT wfl.WorkflowStage (TenantId, TemplateId, StageKey, NameAr, NameEn, Kind, SeqNo, ExternalPhaseId)
+    VALUES (@t1, @tpl, 'DRAFT', N'Draft', N'Draft', 'DRAFT', 1, 1);
+    SET @s1 = SCOPE_IDENTITY();
+    INSERT wfl.WorkflowStage (TenantId, TemplateId, StageKey, NameAr, NameEn, Kind, SeqNo, ExternalPhaseId, AssigneeRule)
+    VALUES (@t1, @tpl, 'PREPARE', N'Prepare', N'Prepare', 'TASK', 2, 1, 'REQUESTER');
+    SET @s2 = SCOPE_IDENTITY();
+    INSERT wfl.TemplateField (TenantId, TemplateId, FieldKey, LabelAr, LabelEn, DataType, IndexRole)
+    VALUES (@t1, @tpl, 'amount', N'Amount', N'Amount', 'AMOUNT', 'AMOUNT');
+    UPDATE wfl.WorkflowTemplate SET Status = 'PUBLISHED', IsCurrent = 1, PublishedAt = SYSUTCDATETIME(), PublishedBy = @u1 WHERE WorkflowTemplateId = @tpl;
+    INSERT lc.Counterparty (TenantId, Code, Kind, NameEn, NameNormalized, CountryId) VALUES (@t1, 'CP1', 'BOTH', N'Supplier', N'supplier', @country);
+    SET @cp = SCOPE_IDENTITY();
+    INSERT wfl.Request (TenantId, DraftRef, RequestTypeId, TemplateId, CompanyId, RequesterUserId, CreatedByUserId, ExternalPhaseId, Amount, CurrencyId)
+    VALUES (@t1, 'D-000001', @rt, @tpl, @co, @u1, @u1, 1, 100000, @cur);
+    SET @r = SCOPE_IDENTITY();
+    INSERT #F (k, v) VALUES ('rt', @rt), ('tpl', @tpl), ('s1', @s1), ('s2', @s2), ('cp', @cp), ('r', @r);
+END;
+GO
+-- Runs cases @From to @To of a case procedure, each in its own transaction on a new fixture, and returns case:error.
+CREATE PROCEDURE #Cases @Fixture SYSNAME, @CaseProc SYSNAME, @From INT, @To INT, @Result NVARCHAR(800) OUTPUT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    DECLARE @r TABLE (CaseNo INT PRIMARY KEY, Err INT NOT NULL);
+    DECLARE @i INT = @From, @e INT;
+    WHILE @i <= @To
+    BEGIN
+        BEGIN TRANSACTION;
+        BEGIN TRY EXEC @Fixture; EXEC @CaseProc @i; SET @e = 0; END TRY
+        BEGIN CATCH SET @e = ERROR_NUMBER(); END CATCH;
+        WHILE @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
+        INSERT @r (CaseNo, Err) VALUES (@i, @e);
+        SET @i += 1;
+    END;
+    SET @Result = (SELECT STRING_AGG(CONCAT(CaseNo, ':', Err), ' ') WITHIN GROUP (ORDER BY CaseNo) FROM @r);
+END;
+GO
+/* RF30 cases (DR-41, S3): terms written as a draft with a clause and a charge, then locked. */
+CREATE PROCEDURE #LcCase @Case INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    DECLARE @t1 INT, @u1 BIGINT, @co BIGINT, @cur INT, @cp BIGINT, @r BIGINT, @lt BIGINT;
+    SELECT @t1 = v FROM #F WHERE k = 't1'; SELECT @u1 = v FROM #F WHERE k = 'u1'; SELECT @co = v FROM #F WHERE k = 'co';
+    SELECT @cur = v FROM #F WHERE k = 'cur'; SELECT @cp = v FROM #F WHERE k = 'cp'; SELECT @r = v FROM #F WHERE k = 'r';
+    IF @Case = 8
+    BEGIN
+        INSERT lc.LcTerms (TenantId, OwnerType, OwnerId, Purpose, LcClass, Scope, Status, SnapshotHash, LockedAt, LockedBy, LcType, CurrencyId, Amount,
+                           ExpiryRule, ExpiryDate, AmountInWordsAr, AmountInWordsEn, ApplicantCompanyId, BeneficiaryCounterpartyId)
+        VALUES (@t1, 'REQUEST', @r, 'APPLICATION', 'PURCHASE', 'DOMESTIC', 'LOCKED', 0x01, SYSUTCDATETIME(), @u1, 'SIGHT', @cur, 100000,
+                'ABSOLUTE', '2027-01-31', N'x', N'x', @co, @cp);
+        RETURN;
+    END;
+    INSERT lc.LcTerms (TenantId, OwnerType, OwnerId, Purpose, LcClass, Scope) VALUES (@t1, 'REQUEST', @r, 'APPLICATION', 'PURCHASE', 'DOMESTIC');
+    SET @lt = SCOPE_IDENTITY();
+    INSERT lc.LcTermsDocument (TenantId, LcTermsId, SeqNo, ClauseId, ClauseVersion, Originals, Copies) VALUES (@t1, @lt, 1, 1, 1, 3, 1);
+    INSERT lc.LcChargesMatrix (TenantId, LcTermsId, ChargeCategory, Payer) VALUES (@t1, @lt, 'ISSUING_BANK_LOCAL', 'APPLICANT');
+    UPDATE lc.LcTerms SET Status = 'LOCKED', SnapshotHash = 0x01, LockedAt = SYSUTCDATETIME(), LockedBy = @u1, LcType = 'SIGHT', CurrencyId = @cur,
+                          Amount = 100000, ExpiryRule = 'ABSOLUTE', ExpiryDate = '2027-01-31', AmountInWordsAr = N'x', AmountInWordsEn = N'x',
+                          ApplicantCompanyId = @co, BeneficiaryCounterpartyId = @cp
+    WHERE LcTermsId = @lt;
+    IF @Case IN (1, 6)
+    BEGIN
+        UPDATE lc.LcTerms SET MarginPct = 20, DebitAuthorization = 'CHARGES_AND_MARGIN', BankSpecificClauses = N'Bank clause' WHERE LcTermsId = @lt;
+        UPDATE lc.LcTerms SET TreasuryHash = 0x02 WHERE LcTermsId = @lt;
+    END;
+    IF @Case = 2 UPDATE lc.LcTerms SET Amount = 120000 WHERE LcTermsId = @lt;
+    IF @Case = 3 UPDATE lc.LcTerms SET Status = 'DRAFT' WHERE LcTermsId = @lt;
+    IF @Case = 4 INSERT lc.LcTermsDocument (TenantId, LcTermsId, SeqNo, ClauseId, ClauseVersion) VALUES (@t1, @lt, 2, 1, 1);
+    IF @Case = 5 DELETE lc.LcChargesMatrix WHERE LcTermsId = @lt;
+    IF @Case = 6 UPDATE lc.LcTerms SET MarginPct = 25 WHERE LcTermsId = @lt;
+    IF @Case = 7   -- a locked version without clauses or charges, so that no key stops the deletion first
+    BEGIN
+        INSERT lc.LcTerms (TenantId, OwnerType, Purpose, LcClass, Scope) VALUES (@t1, 'PROFORMA', 'PROFORMA', 'SALES', 'DOMESTIC');
+        SET @lt = SCOPE_IDENTITY();
+        UPDATE lc.LcTerms SET Status = 'LOCKED', SnapshotHash = 0x01, LockedAt = SYSUTCDATETIME(), LockedBy = @u1, LcType = 'SIGHT', CurrencyId = @cur,
+                              Amount = 100000, ExpiryRule = 'ABSOLUTE', ExpiryDate = '2027-01-31', AmountInWordsAr = N'x', AmountInWordsEn = N'x',
+                              ApplicantCounterpartyId = @cp, BeneficiaryCompanyId = @co
+        WHERE LcTermsId = @lt;
+        DELETE lc.LcTerms WHERE LcTermsId = @lt;
+    END;
+    IF @Case IN (9, 10) UPDATE lc.LcTerms SET Status = 'SUPERSEDED' WHERE LcTermsId = @lt;
+    IF @Case = 10 UPDATE lc.LcTerms SET MarginPct = 30 WHERE LcTermsId = @lt;
+END;
+GO
+/* RF30 (DR-41, S3): terms are written as a draft with their clauses and charges and then locked; a locked version
+   changes only in its treasury fields until TreasuryHash, then not at all (50056): not its amount, not back to draft,
+   not its clauses or charges, not deleted, not inserted locked; it may become SUPERSEDED, and then nothing changes. */
+DECLARE @got NVARCHAR(800);
+EXEC #Cases '#S3', '#LcCase', 0, 10, @got OUTPUT;
+IF @got = '0:0 1:0 2:50056 3:50056 4:50056 5:50056 6:50056 7:50056 8:50056 9:0 10:50056'
+    PRINT 'PASS RF30: locked LC terms change only in their treasury fields until TreasuryHash, and their clauses and charges not at all';
+ELSE PRINT CONCAT('FAIL RF30: case:error ', @got, ' (expected 0:0 1:0 2-8:50056 9:0 10:50056)');
+GO
+/* RF31 cases (DR-41, DR-49, S3): the fixture's template is published. */
+CREATE PROCEDURE #TemplateCase @Case INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    DECLARE @t1 INT, @u1 BIGINT, @rt INT, @tpl INT, @s1 INT, @s2 INT, @rt2 INT, @tpl2 INT;
+    SELECT @t1 = v FROM #F WHERE k = 't1'; SELECT @u1 = v FROM #F WHERE k = 'u1'; SELECT @rt = v FROM #F WHERE k = 'rt';
+    SELECT @tpl = v FROM #F WHERE k = 'tpl'; SELECT @s1 = v FROM #F WHERE k = 's1'; SELECT @s2 = v FROM #F WHERE k = 's2';
+    IF @Case = 1 UPDATE wfl.WorkflowTemplate SET IsCurrent = 0, Status = 'RETIRED', RetiredAt = SYSUTCDATETIME() WHERE WorkflowTemplateId = @tpl;
+    IF @Case = 2 UPDATE wfl.WorkflowTemplate SET NameEn = N'Changed' WHERE WorkflowTemplateId = @tpl;
+    IF @Case = 3 INSERT wfl.WorkflowStage (TenantId, TemplateId, StageKey, NameAr, NameEn, Kind, SeqNo, ExternalPhaseId, AssigneeRule)
+                 VALUES (@t1, @tpl, 'EXTRA', N'Extra', N'Extra', 'TASK', 3, 1, 'REQUESTER');
+    IF @Case = 4 UPDATE wfl.TemplateField SET LabelEn = N'Value' WHERE TemplateId = @tpl;
+    IF @Case = 5 DELETE wfl.WorkflowStage WHERE WorkflowStageId = @s2;
+    IF @Case = 6 INSERT wfl.StageApprover (TenantId, StageId, SlotKey, LabelEn, SubjectRule) VALUES (@t1, @s2, 'TM', N'TM', 'REQUESTER_MANAGER');
+    IF @Case = 7 INSERT wfl.WorkflowTemplate (TenantId, RequestTypeId, TemplateKey, VersionNo, NameEn, Status, PublishedAt, PublishedBy)
+                 VALUES (@t1, @rt, 'PURCHASE_LC', 2, N'Purchase LC', 'PUBLISHED', SYSUTCDATETIME(), @u1);
+    IF @Case = 8
+    BEGIN
+        INSERT wfl.WorkflowTemplate (TenantId, RequestTypeId, TemplateKey, VersionNo, NameEn) VALUES (@t1, @rt, 'PURCHASE_LC_B', 1, N'Second');
+        SET @tpl2 = SCOPE_IDENTITY();
+        UPDATE wfl.WorkflowTemplate SET Status = 'PUBLISHED', IsCurrent = 1, PublishedAt = SYSUTCDATETIME(), PublishedBy = @u1 WHERE WorkflowTemplateId = @tpl2;
+    END;
+    IF @Case = 9
+    BEGIN
+        INSERT wfl.RequestType (TenantId, Code, NameAr, NameEn, Category, NumberSequenceKey) VALUES (@t1, 'OTHER', N'Other', N'Other', 'GENERAL', 'req:OTHER');
+        SET @rt2 = SCOPE_IDENTITY();
+        INSERT wfl.WorkflowTemplate (TenantId, RequestTypeId, TemplateKey, VersionNo, NameEn) VALUES (@t1, @rt2, 'PURCHASE_LC', 2, N'Borrowed key');
+    END;
+    IF @Case = 10
+    BEGIN
+        INSERT wfl.WorkflowTemplate (TenantId, RequestTypeId, TemplateKey, VersionNo, NameEn) VALUES (@t1, @rt, 'PURCHASE_LC', 2, N'Purchase LC v2');
+        SET @tpl2 = SCOPE_IDENTITY();
+        INSERT wfl.WorkflowStage (TenantId, TemplateId, StageKey, NameAr, NameEn, Kind, SeqNo, ExternalPhaseId)
+        VALUES (@t1, @tpl2, 'DRAFT', N'Draft', N'Draft', 'DRAFT', 1, 1);
+        UPDATE wfl.WorkflowTemplate SET IsCurrent = 0, Status = 'RETIRED', RetiredAt = SYSUTCDATETIME() WHERE WorkflowTemplateId = @tpl;
+        UPDATE wfl.WorkflowTemplate SET Status = 'PUBLISHED', IsCurrent = 1, PublishedAt = SYSUTCDATETIME(), PublishedBy = @u1 WHERE WorkflowTemplateId = @tpl2;
+    END;
+END;
+GO
+/* RF31 (DR-41, DR-49, S3): a published template version only retires (50057): its name, its stages, fields and
+   approvers do not change and it is not written published; a second current template for one request type is
+   refused (2601), and a template key stays with its request type (50057). A new version is a draft, then published. */
+DECLARE @got NVARCHAR(800);
+EXEC #Cases '#S3', '#TemplateCase', 0, 10, @got OUTPUT;
+IF @got = '0:0 1:0 2:50057 3:50057 4:50057 5:50057 6:50057 7:50057 8:2601 9:50057 10:0'
+    PRINT 'PASS RF31: a published template version only retires, its parts do not change, and a request type has one current template';
+ELSE PRINT CONCAT('FAIL RF31: case:error ', @got, ' (expected 0:0 1:0 2-7:50057 8:2601 9:50057 10:0)');
+GO
+/* RF32 cases (DR-44, S3): the fixture's draft request enters its task stage. Failed expectations raise 50990. */
+CREATE PROCEDURE #CopyCase @Case INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    DECLARE @t1 INT, @u1 BIGINT, @co BIGINT, @cur INT, @f BIGINT, @l BIGINT, @rt INT, @tpl INT, @s2 INT, @r BIGINT, @r2 BIGINT,
+            @i1 BIGINT, @i2 BIGINT, @lr BIGINT, @due DATETIME2(3) = DATEADD(DAY, 2, SYSUTCDATETIME());
+    SELECT @t1 = v FROM #F WHERE k = 't1'; SELECT @u1 = v FROM #F WHERE k = 'u1'; SELECT @co = v FROM #F WHERE k = 'co';
+    SELECT @cur = v FROM #F WHERE k = 'cur'; SELECT @f = v FROM #F WHERE k = 'f'; SELECT @l = v FROM #F WHERE k = 'l';
+    SELECT @rt = v FROM #F WHERE k = 'rt'; SELECT @tpl = v FROM #F WHERE k = 'tpl'; SELECT @s2 = v FROM #F WHERE k = 's2';
+    SELECT @r = v FROM #F WHERE k = 'r';
+    INSERT wfl.RequestStageInstance (TenantId, RequestId, TemplateId, StageId, Status, EnteredAt, QueuedAt, DueAt, SlaState)
+    VALUES (@t1, @r, @tpl, @s2, 'QUEUED', SYSUTCDATETIME(), SYSUTCDATETIME(), @due, 'ON_TRACK');
+    SET @i1 = SCOPE_IDENTITY();
+    UPDATE wfl.Request SET Status = 'ACTIVE', SubmittedAt = SYSUTCDATETIME(), CurrentStageInstanceId = @i1 WHERE RequestId = @r;
+    IF NOT EXISTS (SELECT 1 FROM wfl.Request WHERE RequestId = @r AND CurrentStageId = @s2 AND DueAt = @due AND SlaState = 'ON_TRACK' AND QueueEnteredAt IS NOT NULL)
+        THROW 50990, 'the request did not take the copies of its new stage instance', 1;
+    IF @Case = 1
+    BEGIN
+        UPDATE wfl.RequestStageInstance SET Status = 'CLAIMED', AssigneeUserId = @u1, ClaimedAt = SYSUTCDATETIME(), SlaState = 'AT_RISK' WHERE RequestStageInstanceId = @i1;
+        IF NOT EXISTS (SELECT 1 FROM wfl.Request WHERE RequestId = @r AND AssigneeUserId = @u1 AND ClaimedAt IS NOT NULL AND SlaState = 'AT_RISK')
+            THROW 50990, 'the request did not follow the claim of its stage instance', 1;
+        IF EXISTS (SELECT 1 FROM wfl.RequestCopyDrift) THROW 50990, 'drift reported without a difference', 1;
+    END;
+    IF @Case = 2
+    BEGIN
+        EXECUTE AS USER = 'tp_test_rfapp';
+        UPDATE wfl.Request SET DueAt = DATEADD(DAY, 9, SYSUTCDATETIME()) WHERE RequestId = @r;
+        REVERT;
+    END;
+    IF @Case = 3
+    BEGIN
+        EXECUTE AS USER = 'tp_test_rfapp';
+        UPDATE wfl.Request SET Title = N'Renamed' WHERE RequestId = @r;
+        REVERT;
+        IF NOT EXISTS (SELECT 1 FROM wfl.Request WHERE RequestId = @r AND Title = N'Renamed' AND DueAt = @due AND CurrentStageId = @s2)
+            THROW 50990, 'a plain update by the application lost the copies', 1;
+    END;
+    IF @Case = 4
+    BEGIN
+        INSERT wfl.Request (TenantId, DraftRef, RequestTypeId, TemplateId, CompanyId, RequesterUserId, CreatedByUserId, ExternalPhaseId)
+        VALUES (@t1, 'D-000002', @rt, @tpl, @co, @u1, @u1, 1);
+        SET @r2 = SCOPE_IDENTITY();
+        INSERT wfl.RequestStageInstance (TenantId, RequestId, TemplateId, StageId, Status, EnteredAt, QueuedAt)
+        VALUES (@t1, @r2, @tpl, @s2, 'QUEUED', SYSUTCDATETIME(), SYSUTCDATETIME());
+        SET @i2 = SCOPE_IDENTITY();
+        UPDATE wfl.Request SET CurrentStageInstanceId = @i2 WHERE RequestId = @r;
+    END;
+    IF @Case = 5
+    BEGIN
+        INSERT fac.LimitReservation (TenantId, FacilityId, LimitId, CompanyId, RequestId, Amount, CurrencyId, IdempotencyKey)
+        VALUES (@t1, @f, @l, @co, @r, 50000, @cur, CONCAT('req-', @r));
+        SET @lr = SCOPE_IDENTITY();
+        IF NOT EXISTS (SELECT 1 FROM wfl.Request WHERE RequestId = @r AND ReservationId = @lr AND ReservedAmount = 50000 AND ReservationState = 'RESERVED')
+            THROW 50990, 'the request did not take its reservation', 1;
+        UPDATE fac.LimitReservation SET Status = 'RELEASED', ReleasedOn = '2026-10-13', ReleaseReason = 'EXPIRED' WHERE LimitReservationId = @lr;
+        IF NOT EXISTS (SELECT 1 FROM wfl.Request WHERE RequestId = @r AND ReservationId = @lr AND ReservationState = 'LOST')
+            THROW 50990, 'an expired reservation did not make the request LOST', 1;
+        IF EXISTS (SELECT 1 FROM wfl.RequestCopyDrift) THROW 50990, 'drift reported without a difference', 1;
+    END;
+    IF @Case = 6
+    BEGIN
+        ALTER TABLE wfl.RequestStageInstance DISABLE TRIGGER TR_RequestStageInstance_Copy;
+        UPDATE wfl.RequestStageInstance SET DueAt = DATEADD(DAY, 5, SYSUTCDATETIME()) WHERE RequestStageInstanceId = @i1;
+        IF NOT EXISTS (SELECT 1 FROM wfl.RequestCopyDrift WHERE RequestId = @r AND StageDrift = 1 AND ReservationDrift = 0)
+            THROW 50990, 'the drift view missed a copy that differs', 1;
+    END;
+END;
+GO
+/* RF32 (DR-44, S3): the request's copies follow its stage instance (entry, claim) and its reservation (reserved, then
+   LOST when it expires), the application cannot write them (230) and its other updates keep them, the current
+   instance belongs to the request (547), and wfl.RequestCopyDrift reports a copy that differs. */
+DECLARE @got NVARCHAR(800);
+EXEC #Cases '#S3', '#CopyCase', 1, 6, @got OUTPUT;
+IF @got = '1:0 2:230 3:0 4:547 5:0 6:0'
+    PRINT 'PASS RF32: the request copies its stage instance and reservation through the database only, and a drift is reported';
+ELSE PRINT CONCAT('FAIL RF32: case:error ', @got, ' (expected 1:0 2:230 3:0 4:547 5:0 6:0)');
+GO
+/* RF33 cases (DR-46, S3): field definitions with the IBAN and a second restricted field, two terms versions. */
+CREATE PROCEDURE #RestrictedCase @Case INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    DECLARE @t1 INT, @co BIGINT, @cur INT, @r BIGINT, @a BIGINT, @b BIGINT, @c BIGINT, @cmp BIGINT, @am BIGINT, @changed INT;
+    SELECT @t1 = v FROM #F WHERE k = 't1'; SELECT @co = v FROM #F WHERE k = 'co'; SELECT @cur = v FROM #F WHERE k = 'cur'; SELECT @r = v FROM #F WHERE k = 'r';
+    IF @Case = 1
+    BEGIN
+        INSERT lc.LcFieldDefinition (TenantId, FieldKey, SectionKey, LabelAr, LabelEn, DataType, ApplicabilityJson)
+        VALUES (@t1, 'beneficiaryAccountIban', 'PARTIES', N'IBAN', N'IBAN', 'STRING', N'{}');
+        RETURN;
+    END;
+    INSERT lc.LcFieldDefinition (TenantId, FieldKey, SectionKey, LabelAr, LabelEn, DataType, ApplicabilityJson, Sensitivity)
+    VALUES (@t1, 'beneficiaryAccountIban', 'PARTIES', N'IBAN', N'IBAN', 'STRING', N'{}', 'RESTRICTED'),
+           (@t1, 'collectionAccount', 'PARTIES', N'Account', N'Account', 'STRING', N'{}', 'RESTRICTED'),
+           (@t1, 'amount', 'AMOUNT', N'Amount', N'Amount', 'DECIMAL', N'{}', 'NORMAL');
+    INSERT lc.LcTerms (TenantId, OwnerType, OwnerId, Purpose, LcClass, Scope, BeneficiaryAccountIbanEnc, BeneficiaryAccountIbanMask,
+                       BeneficiaryAccountIbanHash, EncKeyId, HashKeyId)
+    VALUES (@t1, 'PROFORMA', NULL, 'PROFORMA', 'SALES', 'DOMESTIC', CRYPT_GEN_RANDOM(64), N'SA** **** 7519', 0xAA, 1, 1);
+    SET @a = SCOPE_IDENTITY();
+    INSERT lc.LcTerms (TenantId, OwnerType, OwnerId, Purpose, LcClass, Scope, BeneficiaryAccountIbanEnc, BeneficiaryAccountIbanMask,
+                       BeneficiaryAccountIbanHash, EncKeyId, HashKeyId)
+    VALUES (@t1, 'PROFORMA', NULL, 'PROFORMA', 'SALES', 'DOMESTIC', CRYPT_GEN_RANDOM(64), N'SA** **** 7519', CASE WHEN @Case = 5 THEN 0xBB ELSE 0xAA END, 1,
+            CASE WHEN @Case = 6 THEN 2 ELSE 1 END);
+    SET @b = SCOPE_IDENTITY();
+    INSERT lc.LcTermsComparison (TenantId, BaselineTermsId, ReceivedTermsId, RunAt) VALUES (@t1, @a, @b, SYSUTCDATETIME());
+    SET @cmp = SCOPE_IDENTITY();
+    IF @Case = 2
+    BEGIN
+        INSERT lc.LcTermsComparisonLine (TenantId, ComparisonId, FieldKey, BaselineValue, ReceivedValue, Verdict)
+        VALUES (@t1, @cmp, 'amount', N'100000', N'120000', 'MORE_FAVOURABLE'), (@t1, @cmp, 'beneficiaryAccountIban', NULL, NULL, 'REVIEW');
+        INSERT lc.LcTerms (TenantId, OwnerType, Purpose, LcClass, Scope, CurrencyId) VALUES (@t1, 'AMENDMENT', 'AMENDMENT', 'PURCHASE', 'DOMESTIC', @cur);
+        SET @c = SCOPE_IDENTITY();
+        INSERT lc.LcAmendment (TenantId, CompanyId, LcId, Origin, ChangeKinds, TermsId, ChangedFieldsJson, CurrencyId, AmountDelta)
+        VALUES (@t1, @co, 1, 'OUR_REQUEST', 'CHANGE_TERMS', @c, N'{"amount":{"old":"100000","new":"120000"},"beneficiaryAccountIban":"CHANGED"}', @cur, 0);
+    END;
+    IF @Case = 3 INSERT lc.LcTermsComparisonLine (TenantId, ComparisonId, FieldKey, BaselineValue, ReceivedValue, Verdict)
+                 VALUES (@t1, @cmp, 'collectionAccount', N'SA** 7519', N'SA** 7520', 'REVIEW');
+    IF @Case IN (4, 7, 8)
+    BEGIN
+        INSERT lc.LcTerms (TenantId, OwnerType, Purpose, LcClass, Scope, CurrencyId) VALUES (@t1, 'AMENDMENT', 'AMENDMENT', 'PURCHASE', 'DOMESTIC', @cur);
+        SET @c = SCOPE_IDENTITY();
+        INSERT lc.LcAmendment (TenantId, CompanyId, LcId, Origin, ChangeKinds, TermsId, ChangedFieldsJson, CurrencyId, AmountDelta)
+        VALUES (@t1, @co, 1, 'OUR_REQUEST', 'CHANGE_TERMS', @c,
+                CASE @Case WHEN 4 THEN N'{"beneficiaryAccountIban":{"old":"SA0380000000608010167519","new":"SA0380000000608010167520"}}'
+                           WHEN 7 THEN N'{"collectionAccount":"SA0380000000608010167519"}'
+                           ELSE N'["amount","beneficiaryAccountIban"]' END, @cur, 0);
+    END;
+    IF @Case IN (5, 6, 9)
+    BEGIN
+        SET @changed = (SELECT ISNULL(CAST(Changed AS INT), -1) FROM lc.BeneficiaryIbanChange(@a, @b));
+        IF @changed <> CASE @Case WHEN 5 THEN 1 WHEN 6 THEN -1 ELSE 0 END
+            THROW 50990, 'the IBAN change from the keyed hash is wrong', 1;
+    END;
+END;
+GO
+/* RF33 (DR-46, S3): the IBAN field is always restricted (547); a comparison line on a restricted field holds no
+   value and an amendment's changed fields hold only "CHANGED" for it, in an object keyed by field (50058); the
+   change of the IBAN is read from the keyed hash: changed, unchanged, or unknown when the keys differ. */
+DECLARE @got NVARCHAR(800);
+EXEC #Cases '#S3', '#RestrictedCase', 1, 9, @got OUTPUT;
+IF @got = '1:547 2:0 3:50058 4:50058 5:0 6:0 7:50058 8:50058 9:0'
+    PRINT 'PASS RF33: a restricted LC field is never copied into a comparison or an amendment, and its change is read from the keyed hash';
+ELSE PRINT CONCAT('FAIL RF33: case:error ', @got, ' (expected 1:547 2:0 3:50058 4:50058 5:0 6:0 7:50058 8:50058 9:0)');
+GO
+/* RF34 cases (DR-41, S4): an issued proforma of 3,534,720 + 15% VAT (sample 02), or of 3 x 33.335. */
+CREATE PROCEDURE #ProformaCase @Case INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    DECLARE @t1 INT, @co BIGINT, @cur INT, @cp BIGINT, @r BIGINT, @lt BIGINT, @p BIGINT,
+            @sub DECIMAL(19,4) = 3534720, @vat DECIMAL(19,4) = 530208;
+    SELECT @t1 = v FROM #F WHERE k = 't1'; SELECT @co = v FROM #F WHERE k = 'co'; SELECT @cur = v FROM #F WHERE k = 'cur';
+    SELECT @cp = v FROM #F WHERE k = 'cp'; SELECT @r = v FROM #F WHERE k = 'r';
+    IF @Case = 5 SET @vat = 530000;
+    IF @Case = 7 SELECT @sub = 100.01, @vat = 15.00;
+    INSERT lc.LcTerms (TenantId, OwnerType, OwnerId, Purpose, LcClass, Scope, CurrencyId) VALUES (@t1, 'REQUEST', @r, 'PROFORMA', 'SALES', 'DOMESTIC', @cur);
+    SET @lt = SCOPE_IDENTITY();
+    INSERT lc.ProformaInvoice (TenantId, CompanyId, ProformaNo, NumberYear, NumberSeq, RequestId, ErpCompanyCodeSnapshot, CustomerId, CustomerSnapshotJson,
+                               IssueDate, CurrencyId, Subtotal, VatRatePct, VatAmount, Total, TermsId, ProceedsAccountId, DocumentId)
+    VALUES (@t1, @co, '001-ERP1-26', 2026, 1, @r, 'ERP1', @cp, N'{}', '2026-10-13', @cur, @sub, 15, @vat, @sub + @vat, @lt, 1, 1);
+    SET @p = SCOPE_IDENTITY();
+    IF @Case = 6
+    BEGIN
+        IF NOT EXISTS (SELECT 1 FROM lc.ProformaTotalsDrift WHERE ProformaInvoiceId = @p AND Lines = 0)
+            THROW 50990, 'a proforma without lines is not reported', 1;
+        RETURN;
+    END;
+    IF @Case = 7
+    BEGIN
+        INSERT lc.ProformaLine (TenantId, ProformaId, [LineNo], Description, Qty, UnitCode, UnitPrice, LineTotal, CurrencyId)
+        VALUES (@t1, @p, 1, N'Cable', 3, 'M', 33.335, 100.01, @cur);
+        RETURN;
+    END;
+    INSERT lc.ProformaLine (TenantId, ProformaId, [LineNo], Description, Qty, UnitCode, UnitPrice, LineTotal, CurrencyId)
+    VALUES (@t1, @p, 1, N'Transformers', 3, 'PCS', 1000000, 3000000, @cur),
+           (@t1, @p, 2, N'Installation', 2, 'LOT', 267360, CASE WHEN @Case = 3 THEN 534000 WHEN @Case = 4 THEN 534721 ELSE 534720 END, @cur);
+    IF @Case = 4 RETURN;
+    IF @Case = 2 INSERT lc.ProformaLine (TenantId, ProformaId, [LineNo], Description, Qty, UnitCode, UnitPrice, LineTotal, CurrencyId)
+                 VALUES (@t1, @p, 3, N'Late line', 1, 'LOT', 0, 0, @cur);
+    IF @Case = 1 AND EXISTS (SELECT 1 FROM lc.ProformaTotalsDrift) THROW 50990, 'drift reported for matching totals', 1;
+END;
+GO
+/* RF34 (DR-41, S4): a proforma's lines are written once, each line total is round(Qty x UnitPrice), the subtotal is
+   their sum and the VAT is round(Subtotal x Rate / 100) away from zero (50059); 3 x 33.335 = 100.01 with VAT 15.00 is
+   accepted, and a header without lines is reported by lc.ProformaTotalsDrift. */
+DECLARE @got NVARCHAR(800);
+EXEC #Cases '#S3', '#ProformaCase', 1, 7, @got OUTPUT;
+IF @got = '1:0 2:50059 3:50059 4:50059 5:50059 6:0 7:0'
+    PRINT 'PASS RF34: a proforma''s lines are written once and its totals follow them (BR-LCE-001)';
+ELSE PRINT CONCAT('FAIL RF34: case:error ', @got, ' (expected 1:0 2-5:50059 6:0 7:0)');
 GO

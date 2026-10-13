@@ -3433,6 +3433,7 @@ CREATE TABLE [fac].[LimitReservation] (
     CONSTRAINT [PK_LimitReservation] PRIMARY KEY CLUSTERED ([LimitReservationId]),
     CONSTRAINT [UQ_LimitReservation_Tenant] UNIQUE ([TenantId], [LimitReservationId]),
     CONSTRAINT [UQ_LimitReservation_Scope_FacilityId] UNIQUE ([TenantId], [FacilityId], [LimitReservationId]),
+    CONSTRAINT [UQ_LimitReservation_Scope_RequestId] UNIQUE ([TenantId], [RequestId], [LimitReservationId]),
     CONSTRAINT [UQ_LimitReservation_IdempotencyKey] UNIQUE ([TenantId], [IdempotencyKey]),
     CONSTRAINT [CK_LimitReservation_1] CHECK (Amount > 0),
     CONSTRAINT [CK_LimitReservation_2] CHECK (RateToFacilityCcy IS NULL OR RateToFacilityCcy > 0),
@@ -4761,7 +4762,7 @@ CREATE TABLE [fin].[MeasureFormula] (
 GO
 
 -- ===== schema wfl =====
--- Request type definition (FR-REQ-001, BR-REQ-001, V-REQ-01); new types need no code (FR-REQ-021)
+-- Request type definition (FR-REQ-001, BR-REQ-001, V-REQ-01); new types need no code (FR-REQ-021); its template is the current WorkflowTemplate of the type and its index fields the IndexRole fields of that template (DR-49)
 CREATE TABLE [wfl].[RequestType] (
     [TenantId] INT NOT NULL,
     [RequestTypeId] INT IDENTITY(1,1) NOT NULL,
@@ -4771,11 +4772,7 @@ CREATE TABLE [wfl].[RequestType] (
     [Description] NVARCHAR(500) NULL,
     [Category] VARCHAR(10) NOT NULL,
     [ParentEntityType] VARCHAR(40) NULL,
-    [DefaultTemplateKey] VARCHAR(60) NOT NULL,
     [NumberSequenceKey] VARCHAR(50) NOT NULL,
-    [AmountFieldKey] VARCHAR(60) NULL,
-    [CurrencyFieldKey] VARCHAR(60) NULL,
-    [ProductFieldKey] VARCHAR(60) NULL,
     [ConsumesCreditLimit] BIT NOT NULL CONSTRAINT [DF_RequestType_ConsumesCreditLimit] DEFAULT 0,
     [LimitCheckMode] VARCHAR(18) NOT NULL CONSTRAINT [DF_RequestType_LimitCheckMode] DEFAULT 'NONE',
     [RequiresSignedOriginal] BIT NOT NULL CONSTRAINT [DF_RequestType_RequiresSignedOriginal] DEFAULT 0,
@@ -4848,7 +4845,7 @@ CREATE TABLE [wfl].[ExternalPhase] (
     CONSTRAINT [CK_ExternalPhase_1] CHECK (RequiresRequesterAction = 0 OR IsFinal = 0)
 );
 GO
--- Workflow template version; a published version is immutable (FR-WFL-001/028, BR-WFL-019, AC-WFL-6)
+-- Workflow template version; a published version is immutable and its parts change only while it is a draft (044, DR-41) (FR-WFL-001/028, BR-WFL-019, AC-WFL-6)
 CREATE TABLE [wfl].[WorkflowTemplate] (
     [TenantId] INT NOT NULL,
     [WorkflowTemplateId] INT IDENTITY(1,1) NOT NULL,
@@ -4893,7 +4890,7 @@ CREATE TABLE [wfl].[WorkflowTemplate] (
     CONSTRAINT [CK_WorkflowTemplate_Status] CHECK ([Status] IS NULL OR [Status] IN ('DRAFT', 'PUBLISHED', 'RETIRED'))
 );
 GO
--- Stage in a template version (FR-WFL-003/004/005, BR-WFL-002/010/012); physical delete only for a draft version
+-- Changes only while its template version is a draft (044, DR-41). Stage in a template version (FR-WFL-003/004/005, BR-WFL-002/010/012); physical delete only for a draft version
 CREATE TABLE [wfl].[WorkflowStage] (
     [TenantId] INT NOT NULL,
     [WorkflowStageId] INT IDENTITY(1,1) NOT NULL,
@@ -4955,7 +4952,7 @@ CREATE TABLE [wfl].[WorkflowStage] (
     CONSTRAINT [CK_WorkflowStage_EditableFieldKeysJson_json] CHECK ([EditableFieldKeysJson] IS NULL OR ISJSON([EditableFieldKeysJson], VALUE) = 1)
 );
 GO
--- Approval slot in an APPROVAL stage; ALL = every slot, and a role requiring two people together = two slots (FR-WFL-007/041, BR-WFL-003/004)
+-- Changes only while its template version is a draft (044, DR-41). Approval slot in an APPROVAL stage; ALL = every slot, and a role requiring two people together = two slots (FR-WFL-007/041, BR-WFL-003/004)
 CREATE TABLE [wfl].[StageApprover] (
     [TenantId] INT NOT NULL,
     [StageApproverId] INT IDENTITY(1,1) NOT NULL,
@@ -4990,7 +4987,7 @@ CREATE TABLE [wfl].[StageApprover] (
     CONSTRAINT [CK_StageApprover_SubjectRule] CHECK ([SubjectRule] IS NULL OR [SubjectRule] IN ('REQUESTER', 'REQUESTER_MANAGER', 'ROLE', 'USER', 'DEPARTMENT_HEAD'))
 );
 GO
--- Transition between two stages with a condition and a priority; a linear flow with simple conditional branching (FR-WFL-006, BR-WFL-001, D-8)
+-- Changes only while its template version is a draft (044, DR-41). Transition between two stages with a condition and a priority; a linear flow with simple conditional branching (FR-WFL-006, BR-WFL-001, D-8)
 CREATE TABLE [wfl].[WorkflowTransition] (
     [TenantId] INT NOT NULL,
     [WorkflowTransitionId] INT IDENTITY(1,1) NOT NULL,
@@ -5020,7 +5017,7 @@ CREATE TABLE [wfl].[WorkflowTransition] (
     CONSTRAINT [CK_WorkflowTransition_ConditionJson_json] CHECK ([ConditionJson] IS NULL OR ISJSON([ConditionJson], VALUE) = 1)
 );
 GO
--- Hook registered on a stage: a key and parameters, no code (FR-WFL-021, BR-WFL-015, section 5.4)
+-- Changes only while its template version is a draft (044, DR-41). Hook registered on a stage: a key and parameters, no code (FR-WFL-021, BR-WFL-015, section 5.4)
 CREATE TABLE [wfl].[WorkflowStageHook] (
     [TenantId] INT NOT NULL,
     [WorkflowStageHookId] INT IDENTITY(1,1) NOT NULL,
@@ -5049,7 +5046,7 @@ CREATE TABLE [wfl].[WorkflowStageHook] (
     CONSTRAINT [CK_WorkflowStageHook_ParamsJson_json] CHECK ([ParamsJson] IS NULL OR ISJSON([ParamsJson], VALUE) = 1)
 );
 GO
--- Field in a template version; the form UI is generated without code (FR-REQ-002..005, BR-REQ-003/004)
+-- Changes only while its template version is a draft (044, DR-41). Field in a template version; the form UI is generated without code (FR-REQ-002..005, BR-REQ-003/004)
 CREATE TABLE [wfl].[TemplateField] (
     [TenantId] INT NOT NULL,
     [TemplateFieldId] INT IDENTITY(1,1) NOT NULL,
@@ -5095,7 +5092,7 @@ CREATE TABLE [wfl].[TemplateField] (
     CONSTRAINT [CK_TemplateField_ValidationJson_json] CHECK ([ValidationJson] IS NULL OR ISJSON([ValidationJson], VALUE) = 1)
 );
 GO
--- Attachment rule on a template version (FR-REQ-006, BR-REQ-005, FR-WFL-024/025)
+-- Changes only while its template version is a draft (044, DR-41). Attachment rule on a template version (FR-REQ-006, BR-REQ-005, FR-WFL-024/025)
 CREATE TABLE [wfl].[TemplateAttachmentRule] (
     [TenantId] INT NOT NULL,
     [TemplateAttachmentRuleId] INT IDENTITY(1,1) NOT NULL,
@@ -5198,7 +5195,7 @@ CREATE TABLE [wfl].[Request] (
     CONSTRAINT [CK_Request_3] CHECK (Status NOT IN ('ACTIVE','AWAITING_CLOSE','COMPLETED','REJECTED') OR SubmittedAt IS NOT NULL),
     CONSTRAINT [CK_Request_4] CHECK ((Status IN ('DRAFT','ACTIVE','AWAITING_CLOSE') AND CompletedAt IS NULL) OR (Status IN ('COMPLETED','REJECTED','CANCELLED') AND CompletedAt IS NOT NULL)),
     CONSTRAINT [CK_Request_5] CHECK (CompletedAt IS NULL OR SubmittedAt IS NULL OR CompletedAt >= SubmittedAt),
-    CONSTRAINT [CK_Request_6] CHECK (Status <> 'ACTIVE' OR (CurrentStageInstanceId IS NOT NULL AND CurrentStageId IS NOT NULL)),
+    CONSTRAINT [CK_Request_6] CHECK (Status <> 'ACTIVE' OR CurrentStageInstanceId IS NOT NULL),
     CONSTRAINT [CK_Request_7] CHECK (Status <> 'COMPLETED' OR RequestNo IS NOT NULL),
     CONSTRAINT [CK_Request_8] CHECK (ArchivedAt IS NULL OR Status = 'DRAFT'),
     CONSTRAINT [CK_Request_9] CHECK (Status <> 'AWAITING_CLOSE' OR (ReadyToCloseAt IS NOT NULL AND CurrentStageInstanceId IS NOT NULL)),
@@ -5727,6 +5724,7 @@ CREATE TABLE [lc].[LcFieldDefinition] (
     [ListCode] VARCHAR(80) NULL,
     [ApplicabilityJson] NVARCHAR(MAX) NOT NULL,
     [VisibleToRequester] BIT NOT NULL CONSTRAINT [DF_LcFieldDefinition_VisibleToRequester] DEFAULT 1,
+    [Sensitivity] VARCHAR(12) NOT NULL CONSTRAINT [DF_LcFieldDefinition_Sensitivity] DEFAULT 'NORMAL',
     [IsLocked] BIT NOT NULL CONSTRAINT [DF_LcFieldDefinition_IsLocked] DEFAULT 0,
     [SwiftTagHint] VARCHAR(10) NULL,
     [ValidationJson] NVARCHAR(MAX) NULL,
@@ -5745,7 +5743,9 @@ CREATE TABLE [lc].[LcFieldDefinition] (
     CONSTRAINT [CK_LcFieldDefinition_1] CHECK (FieldKey NOT LIKE '% %'),
     CONSTRAINT [CK_LcFieldDefinition_2] CHECK (IsLocked = 0 OR IsActive = 1),
     CONSTRAINT [CK_LcFieldDefinition_3] CHECK (ListCode IS NULL OR DataType IN ('LIST','ENUM')),
+    CONSTRAINT [CK_LcFieldDefinition_4] CHECK (FieldKey <> 'beneficiaryAccountIban' OR Sensitivity = 'RESTRICTED'),
     CONSTRAINT [CK_LcFieldDefinition_DataType] CHECK ([DataType] IS NULL OR [DataType] IN ('STRING', 'TEXT', 'INT', 'DECIMAL', 'DATE', 'BOOL', 'ENUM', 'LIST', 'REF', 'COMPUTED')),
+    CONSTRAINT [CK_LcFieldDefinition_Sensitivity] CHECK ([Sensitivity] IS NULL OR [Sensitivity] IN ('NORMAL', 'CONFIDENTIAL', 'RESTRICTED')),
     CONSTRAINT [CK_LcFieldDefinition_ApplicabilityJson_json] CHECK ([ApplicabilityJson] IS NULL OR ISJSON([ApplicabilityJson], VALUE) = 1),
     CONSTRAINT [CK_LcFieldDefinition_ValidationJson_json] CHECK ([ValidationJson] IS NULL OR ISJSON([ValidationJson], VALUE) = 1)
 );
@@ -5868,7 +5868,7 @@ CREATE TABLE [lc].[LcDocumentClauseUcpRef] (
     CONSTRAINT [UQ_LcDocumentClauseUcpRef_LcDocumentClauseId_UcpArticleId_Paragraph] UNIQUE ([TenantId], [LcDocumentClauseId], [UcpArticleId], [Paragraph])
 );
 GO
--- Letter-of-credit terms version: one row per version, with the section 6.2 dictionary columns; shared by proforma, request, credit and amendment (FR-LCT-001..035)
+-- Letter-of-credit terms version: one row per version, with the section 6.2 dictionary columns; shared by proforma, request, credit and amendment (FR-LCT-001..035); a locked version changes only in its treasury fields until TreasuryHash (044, DR-41)
 CREATE TABLE [lc].[LcTerms] (
     [TenantId] INT NOT NULL,
     [LcTermsId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -6052,7 +6052,7 @@ CREATE TABLE [lc].[LcTerms] (
     CONSTRAINT [CK_LcTerms_MarginHeldCurrency] CHECK ([MarginHeldCurrency] IS NULL OR [MarginHeldCurrency] IN ('LOCAL', 'FOREIGN'))
 );
 GO
--- Document clause selected in the terms, with its parameters; the rendered text is frozen at lock (FR-LCT-018, BR-LCT-012) -- جديد
+-- Document clause selected in the terms, with its parameters; written only while the terms are a draft (044, DR-41) (FR-LCT-018, BR-LCT-012) -- جديد
 CREATE TABLE [lc].[LcTermsDocument] (
     [TenantId] INT NOT NULL,
     [LcTermsDocumentId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -6083,7 +6083,7 @@ CREATE TABLE [lc].[LcTermsDocument] (
     CONSTRAINT [CK_LcTermsDocument_ParamsJson_json] CHECK ([ParamsJson] IS NULL OR ISJSON([ParamsJson], VALUE) = 1)
 );
 GO
--- Charges per term: one row per category; six complete rows, checked by the application (V-LCT-12) (FR-LCT-020, BR-LCT-014)
+-- Charges per term: one row per category; six complete rows, checked by the application (V-LCT-12); written only while the terms are a draft (044, DR-41) (FR-LCT-020, BR-LCT-014)
 CREATE TABLE [lc].[LcChargesMatrix] (
     [TenantId] INT NOT NULL,
     [LcChargesMatrixId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -6537,7 +6537,7 @@ CREATE TABLE [lc].[ProformaInvoice] (
     CONSTRAINT [CK_ProformaInvoice_PlacesJson_json] CHECK ([PlacesJson] IS NULL OR ISJSON([PlacesJson], VALUE) = 1)
 );
 GO
--- Line item in the proforma (FR-LCE-003, BR-LCE-001); fixed after issue: written once, never updated (DR-41)
+-- Line item in the proforma (FR-LCE-003, BR-LCE-001); fixed after issue: written once, in one statement, never updated; the totals match the lines (044, DR-41)
 CREATE TABLE [lc].[ProformaLine] (
     [TenantId] INT NOT NULL,
     [ProformaLineId] BIGINT IDENTITY(1,1) NOT NULL,

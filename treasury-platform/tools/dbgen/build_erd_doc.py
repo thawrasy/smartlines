@@ -134,7 +134,7 @@ def review_section():
         out.append(f'| {f["id"]} | `{esc_cell(obj)}` | {f["severity"]} | {f["category"]} | {esc_cell(first_sentence(f["issue"]))} | {esc_cell(first_sentence(f["recommendation"]))} | {status_of(f)} |')
     out += ['', '### 18.3 القرار', '',
             '1. **الحرجة (10): مُعتمدة ومُطبَّقة** في النموذج والـDDL بالتغيير C-12، ويتحقق منها `tools/dbgen/check_review_fixes.py` آليًا على DDL المولَّد.',
-            '2. **الرئيسية (36) والطفيفة (4): قرّرها المالك في 2026-10-13** بسجل `docs/32-review-findings-decisions.md` (O-15). الدفعة (أ) مُطبَّقة كلها أو جزئيًا في 33 نتيجة (`docs/adr/0011-design-review-fixes.md`، الاختبارات RF1 إلى RF18)، وست نتائج والأجزاء الباقية شروط دخول لشرائحها، وDR-20 محلولة بـ DR-02.',
+            '2. **الرئيسية (36) والطفيفة (4): قرّرها المالك في 2026-10-13** بسجل `docs/32-review-findings-decisions.md` (O-15). الدفعة (أ) مُطبَّقة في 33 نتيجة (`docs/adr/0011-design-review-fixes.md`، الاختبارات RF1 إلى RF18)، والدفعة (ب)، شروط دخول الشرائح S1 إلى S4، مُطبَّقة كلها في اليوم نفسه (`db/static/044_entry_guards.sql`، الاختبارات RF19 إلى RF34)، وDR-20 محلولة بـ DR-02. المؤجَّل: مرساة البصمة الخارجية (مع O-13) وفحص المفاتيح المتقاعدة.',
             '3. **بعد أي تغيير** في النموذج: `dbgen check` و`dbgen build` و`pg_validate.sh` و`check_grants.py` و`check_review_fixes.py`، ثم `erd_mermaid.py` لتحديث المخططات، ثم إعادة بناء هذه الوثيقة.', '']
     return out
 

@@ -3174,6 +3174,7 @@ CREATE TABLE "fac"."LimitReservation" (
   PRIMARY KEY ("LimitReservationId"),
   CONSTRAINT "UQ_LimitReservation_Tenant" UNIQUE ("TenantId", "LimitReservationId"),
   CONSTRAINT "UQ_LimitReservation_Scope_FacilityId" UNIQUE ("TenantId", "FacilityId", "LimitReservationId"),
+  CONSTRAINT "UQ_LimitReservation_Scope_RequestId" UNIQUE ("TenantId", "RequestId", "LimitReservationId"),
   CONSTRAINT "UQ_LimitReservation_IdempotencyKey" UNIQUE ("TenantId", "IdempotencyKey"),
   CONSTRAINT "CK_LimitReservation_1" CHECK ("Amount" > 0),
   CONSTRAINT "CK_LimitReservation_2" CHECK ("RateToFacilityCcy" IS NULL OR "RateToFacilityCcy" > 0),
@@ -4428,11 +4429,7 @@ CREATE TABLE "wfl"."RequestType" (
   "Description" varchar(500) NULL,
   "Category" varchar(10) NOT NULL,
   "ParentEntityType" varchar(40) NULL,
-  "DefaultTemplateKey" varchar(60) NOT NULL,
   "NumberSequenceKey" varchar(50) NOT NULL,
-  "AmountFieldKey" varchar(60) NULL,
-  "CurrencyFieldKey" varchar(60) NULL,
-  "ProductFieldKey" varchar(60) NULL,
   "ConsumesCreditLimit" smallint NOT NULL DEFAULT 0,
   CHECK ("ConsumesCreditLimit" IS NULL OR "ConsumesCreditLimit" IN (0,1)),
   "LimitCheckMode" varchar(18) NOT NULL DEFAULT 'NONE',
@@ -4839,7 +4836,7 @@ CREATE TABLE "wfl"."Request" (
   CONSTRAINT "CK_Request_3" CHECK ("Status" NOT IN ('ACTIVE','AWAITING_CLOSE','COMPLETED','REJECTED') OR "SubmittedAt" IS NOT NULL),
   CONSTRAINT "CK_Request_4" CHECK (("Status" IN ('DRAFT','ACTIVE','AWAITING_CLOSE') AND "CompletedAt" IS NULL) OR ("Status" IN ('COMPLETED','REJECTED','CANCELLED') AND "CompletedAt" IS NOT NULL)),
   CONSTRAINT "CK_Request_5" CHECK ("CompletedAt" IS NULL OR "SubmittedAt" IS NULL OR "CompletedAt" >= "SubmittedAt"),
-  CONSTRAINT "CK_Request_6" CHECK ("Status" <> 'ACTIVE' OR ("CurrentStageInstanceId" IS NOT NULL AND "CurrentStageId" IS NOT NULL)),
+  CONSTRAINT "CK_Request_6" CHECK ("Status" <> 'ACTIVE' OR "CurrentStageInstanceId" IS NOT NULL),
   CONSTRAINT "CK_Request_7" CHECK ("Status" <> 'COMPLETED' OR "RequestNo" IS NOT NULL),
   CONSTRAINT "CK_Request_8" CHECK ("ArchivedAt" IS NULL OR "Status" = 'DRAFT'),
   CONSTRAINT "CK_Request_9" CHECK ("Status" <> 'AWAITING_CLOSE' OR ("ReadyToCloseAt" IS NOT NULL AND "CurrentStageInstanceId" IS NOT NULL)),
@@ -5365,6 +5362,7 @@ CREATE TABLE "lc"."LcFieldDefinition" (
   "ApplicabilityJson" text NOT NULL,
   "VisibleToRequester" smallint NOT NULL DEFAULT 1,
   CHECK ("VisibleToRequester" IS NULL OR "VisibleToRequester" IN (0,1)),
+  "Sensitivity" varchar(12) NOT NULL DEFAULT 'NORMAL',
   "IsLocked" smallint NOT NULL DEFAULT 0,
   CHECK ("IsLocked" IS NULL OR "IsLocked" IN (0,1)),
   "SwiftTagHint" varchar(10) NULL,
@@ -5384,7 +5382,9 @@ CREATE TABLE "lc"."LcFieldDefinition" (
   CONSTRAINT "CK_LcFieldDefinition_1" CHECK ("FieldKey" NOT LIKE '% %'),
   CONSTRAINT "CK_LcFieldDefinition_2" CHECK ("IsLocked" = 0 OR "IsActive" = 1),
   CONSTRAINT "CK_LcFieldDefinition_3" CHECK ("ListCode" IS NULL OR "DataType" IN ('LIST','ENUM')),
-  CONSTRAINT "CK_LcFieldDefinition_DataType" CHECK ("DataType" IS NULL OR "DataType" IN ('STRING', 'TEXT', 'INT', 'DECIMAL', 'DATE', 'BOOL', 'ENUM', 'LIST', 'REF', 'COMPUTED'))
+  CONSTRAINT "CK_LcFieldDefinition_4" CHECK ("FieldKey" <> 'beneficiaryAccountIban' OR "Sensitivity" = 'RESTRICTED'),
+  CONSTRAINT "CK_LcFieldDefinition_DataType" CHECK ("DataType" IS NULL OR "DataType" IN ('STRING', 'TEXT', 'INT', 'DECIMAL', 'DATE', 'BOOL', 'ENUM', 'LIST', 'REF', 'COMPUTED')),
+  CONSTRAINT "CK_LcFieldDefinition_Sensitivity" CHECK ("Sensitivity" IS NULL OR "Sensitivity" IN ('NORMAL', 'CONFIDENTIAL', 'RESTRICTED'))
 );
 CREATE TABLE "lc"."LcFieldUcpRef" (
   "TenantId" integer NOT NULL,
@@ -6779,7 +6779,7 @@ ALTER TABLE "wfl"."Request" ADD CONSTRAINT "FK_Request_RequesterUserId" FOREIGN 
 ALTER TABLE "wfl"."Request" ADD CONSTRAINT "FK_Request_CreatedByUserId" FOREIGN KEY ("TenantId", "CreatedByUserId") REFERENCES "sec"."AppUser" ("TenantId", "AppUserId");
 ALTER TABLE "wfl"."Request" ADD CONSTRAINT "FK_Request_SubmittedByUserId" FOREIGN KEY ("TenantId", "SubmittedByUserId") REFERENCES "sec"."AppUser" ("TenantId", "AppUserId");
 ALTER TABLE "wfl"."Request" ADD CONSTRAINT "FK_Request_CurrentStageId" FOREIGN KEY ("TenantId", "TemplateId", "CurrentStageId") REFERENCES "wfl"."WorkflowStage" ("TenantId", "TemplateId", "WorkflowStageId");
-ALTER TABLE "wfl"."Request" ADD CONSTRAINT "FK_Request_CurrentStageInstanceId" FOREIGN KEY ("TenantId", "CurrentStageInstanceId") REFERENCES "wfl"."RequestStageInstance" ("TenantId", "RequestStageInstanceId");
+ALTER TABLE "wfl"."Request" ADD CONSTRAINT "FK_Request_CurrentStageInstanceId" FOREIGN KEY ("TenantId", "RequestId", "CurrentStageInstanceId") REFERENCES "wfl"."RequestStageInstance" ("TenantId", "RequestId", "RequestStageInstanceId");
 ALTER TABLE "wfl"."Request" ADD CONSTRAINT "FK_Request_ExternalPhaseId" FOREIGN KEY ("TenantId", "ExternalPhaseId") REFERENCES "wfl"."ExternalPhase" ("TenantId", "ExternalPhaseId");
 ALTER TABLE "wfl"."Request" ADD CONSTRAINT "FK_Request_AssigneeUserId" FOREIGN KEY ("TenantId", "AssigneeUserId") REFERENCES "sec"."AppUser" ("TenantId", "AppUserId");
 ALTER TABLE "wfl"."Request" ADD CONSTRAINT "FK_Request_ClosedByUserId" FOREIGN KEY ("TenantId", "ClosedByUserId") REFERENCES "sec"."AppUser" ("TenantId", "AppUserId");
@@ -6792,7 +6792,7 @@ ALTER TABLE "wfl"."Request" ADD CONSTRAINT "FK_Request_FacilityId" FOREIGN KEY (
 ALTER TABLE "wfl"."Request" ADD CONSTRAINT "FK_Request_LimitId" FOREIGN KEY ("TenantId", "FacilityId", "LimitId") REFERENCES "fac"."Limit" ("TenantId", "FacilityId", "LimitId");
 ALTER TABLE "wfl"."Request" ADD CONSTRAINT "FK_Request_LimitProductLineId" FOREIGN KEY ("TenantId", "FacilityId", "LimitId", "LimitProductLineId") REFERENCES "fac"."LimitProductLine" ("TenantId", "FacilityId", "LimitId", "LimitProductLineId");
 ALTER TABLE "wfl"."Request" ADD CONSTRAINT "FK_Request_InstitutionId" FOREIGN KEY ("TenantId", "InstitutionId") REFERENCES "ins"."Institution" ("TenantId", "InstitutionId");
-ALTER TABLE "wfl"."Request" ADD CONSTRAINT "FK_Request_ReservationId" FOREIGN KEY ("TenantId", "ReservationId") REFERENCES "fac"."LimitReservation" ("TenantId", "LimitReservationId");
+ALTER TABLE "wfl"."Request" ADD CONSTRAINT "FK_Request_ReservationId" FOREIGN KEY ("TenantId", "RequestId", "ReservationId") REFERENCES "fac"."LimitReservation" ("TenantId", "RequestId", "LimitReservationId");
 ALTER TABLE "wfl"."RequestComment" ADD CONSTRAINT "FK_RequestComment_Tenant" FOREIGN KEY ("TenantId") REFERENCES "plat"."Tenant" ("TenantId");
 ALTER TABLE "wfl"."RequestComment" ADD CONSTRAINT "FK_RequestComment_RequestId" FOREIGN KEY ("TenantId", "RequestId") REFERENCES "wfl"."Request" ("TenantId", "RequestId");
 ALTER TABLE "wfl"."RequestComment" ADD CONSTRAINT "FK_RequestComment_StageInstanceId" FOREIGN KEY ("TenantId", "RequestId", "StageInstanceId") REFERENCES "wfl"."RequestStageInstance" ("TenantId", "RequestId", "RequestStageInstanceId");
@@ -7525,6 +7525,7 @@ CREATE INDEX "IX_RequestTypeAudience_DepartmentId" ON "wfl"."RequestTypeAudience
 CREATE INDEX "IX_RequestTypeAudience_UserId" ON "wfl"."RequestTypeAudience" ("TenantId", "UserId");
 CREATE UNIQUE INDEX "UQ_ExternalPhase_SeedKey" ON "wfl"."ExternalPhase" ("TenantId", "SeedKey") WHERE "SeedKey" IS NOT NULL;
 CREATE UNIQUE INDEX "UQ_WorkflowTemplate_TemplateKey" ON "wfl"."WorkflowTemplate" ("TenantId", "TemplateKey") WHERE "IsCurrent" = 1;
+CREATE UNIQUE INDEX "UQ_WorkflowTemplate_RequestTypeId" ON "wfl"."WorkflowTemplate" ("TenantId", "RequestTypeId") WHERE "IsCurrent" = 1;
 CREATE UNIQUE INDEX "UQ_WorkflowTemplate_RequestTypeId_SeedKey_SourceSeedVersion" ON "wfl"."WorkflowTemplate" ("TenantId", "RequestTypeId", "SeedKey", "SourceSeedVersion") WHERE "SeedKey" IS NOT NULL;
 CREATE INDEX "IX_WorkflowTemplate_RequestTypeId_Status" ON "wfl"."WorkflowTemplate" ("TenantId", "RequestTypeId", "Status");
 CREATE INDEX "IX_WorkflowTemplate_PublishedBy" ON "wfl"."WorkflowTemplate" ("TenantId", "PublishedBy");

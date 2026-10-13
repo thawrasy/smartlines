@@ -642,7 +642,7 @@
 | `org.Company` | Company: root of the corporate structure (FR-ORG-001..010, BR-ORG-001..004) | CompanyId | 5 | 6 | 4 | 19 |
 | `org.CompanyTaxRate` | Tax rate with an effective date; NULL CompanyId = tenant default (FR-ORG-007, BR-ORG-005) | CompanyTaxRateId | 1 | 3 | 2 | 7 |
 | `org.Department` | Department (FR-ORG-014, BR-ORG-016, Q-ORG-09): at tenant level, optionally per company | DepartmentId | 3 | 3 | 1 | 10 |
-| `org.Shareholding` | Ownership interest with an effective date; the owner is a Party, an individual or an entity (FR-ORG-015..018, BR-ORG-006..008, G-7) | ShareholdingId | 4 | 3 | 5 | 10 |
+| `org.Shareholding` | Ownership interest with an effective date; the owner is a Party, an individual or an entity (FR-ORG-015..018, BR-ORG-006..008, G-7) | ShareholdingId | 5 | 3 | 7 | 10 |
 
 **العلاقات (المفاتيح الأجنبية)**
 
@@ -660,6 +660,7 @@
 | `org.Shareholding.CompanyId` | `org.Company` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `org.Shareholding.HolderPartyId` | `pty.Party` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `org.Shareholding.CurrencyId` | `ref.Currency` | 1 : N | اختياري | مرجع عام | قيد | — |
+| `org.Shareholding.IntermediatePartyId` | `pty.Party` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `org.Shareholding.SourceDocumentId` | `doc.Document` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 
 #### م1 · الشركات والحوكمة (2/2)
@@ -1160,8 +1161,8 @@
 |---|---|---|---|---|---|---|
 | `fac.Facility` | Facility agreement package: root of the aggregate (FR-FAC-001..008, BR-FAC-001/005/006) | FacilityId | 4 | 4 | 11 | 28 |
 | `fac.FacilityRevision` | Preparer and approver revision of facility terms (FR-FAC-024, BR-FAC-003/004, section 8) | FacilityRevisionId | 3 | 3 | 5 | 13 |
-| `fac.FacilityDocument` | Document within the package, with precedence (FR-FAC-004, BR-FAC-008, V-FAC-03); its type comes from doc.Document.DocumentTypeId | FacilityDocumentId | 4 | 4 | 4 | 12 |
-| `fac.FacilityLender` | Lender and its share (FR-FAC-003, BR-FAC-007, V-FAC-02); shares total 100 and a single agent: checked by the application for every revision, and by trigger fac.TR_FacilityLender_ApprovedShares (db/static/050) for approved revisions | FacilityLenderId | 4 | 2 | 4 | 7 |
+| `fac.FacilityDocument` | Document within the package, with precedence (FR-FAC-004, BR-FAC-008, V-FAC-03); its type comes from doc.Document.DocumentTypeId | FacilityDocumentId | 4 | 6 | 5 | 14 |
+| `fac.FacilityLender` | Lender and its share (FR-FAC-003, BR-FAC-007, V-FAC-02); shares total 100 and a single agent: checked by the application for every revision, and by trigger fac.TR_FacilityLender_ApprovedShares (db/static/050) for approved revisions | FacilityLenderId | 4 | 4 | 5 | 9 |
 
 **العلاقات (المفاتيح الأجنبية)**
 
@@ -1177,11 +1178,11 @@
 | `fac.FacilityDocument.FacilityId` | `fac.Facility` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `fac.FacilityDocument.DocumentId` | `doc.Document` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `fac.FacilityDocument.AmendsFacilityDocumentId` | `fac.FacilityDocument` | 1 : N | اختياري | مشترك · مركّب | قيد | FacilityId |
-| `fac.FacilityDocument.SupersedesId` | `fac.FacilityDocument` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
+| `fac.FacilityDocument.SupersedesId` | `fac.FacilityDocument` | 1 : N | اختياري | مشترك · مركّب | قيد | InheritedRootId |
 | `fac.FacilityLender.FacilityId` | `fac.Facility` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `fac.FacilityLender.InstitutionId` | `ins.Institution` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `fac.FacilityLender.ContactId` | `ins.Contact` | 1 : N | اختياري | مشترك · مركّب | قيد | InstitutionId |
-| `fac.FacilityLender.SupersedesId` | `fac.FacilityLender` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
+| `fac.FacilityLender.SupersedesId` | `fac.FacilityLender` | 1 : N | اختياري | مشترك · مركّب | قيد | InheritedRootId |
 
 #### م5 · التسهيلات والمراجعات (2/2)
 
@@ -1193,8 +1194,8 @@
 
 | الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
 |---|---|---|---|---|---|---|
-| `fac.OutstandingSnapshot` | Snapshot of the recognised outstanding balance (FR-FAC-009, BR-FAC-017); PctOfLimit is derived and not stored | OutstandingSnapshotId | 7 | 2 | 4 | 13 |
-| `fac.ValueConflict` | Conflict between two values of one field, and its resolution (FR-FAC-026, BR-FAC-019, BR-FAC-008) | ValueConflictId | 4 | 2 | 7 | 21 |
+| `fac.OutstandingSnapshot` | Snapshot of the recognised outstanding balance (FR-FAC-009, BR-FAC-017); PctOfLimit is derived and not stored | OutstandingSnapshotId | 7 | 2 | 5 | 13 |
+| `fac.ValueConflict` | Conflict between two values of one field, and its resolution (FR-FAC-026, BR-FAC-019, BR-FAC-008) | ValueConflictId | 4 | 2 | 9 | 21 |
 
 **العلاقات (المفاتيح الأجنبية)**
 
@@ -1222,10 +1223,10 @@
 
 | الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
 |---|---|---|---|---|---|---|
-| `fac.Limit` | Limit-tree node (FR-FAC-010/011, BR-FAC-009/010, V-FAC-04..07) | LimitId | 7 | 3 | 9 | 27 |
-| `fac.LimitProductLine` | Product line within a limit, with an optional SHARED_CAP ceiling (FR-FAC-012, V-FAC-08) | LimitProductLineId | 7 | 4 | 6 | 18 |
-| `fac.LimitCompanyRule` | Company rule on a limit: allowed, excluded or allocated (FR-FAC-013, BR-FAC-012, V-FAC-09) | LimitCompanyRuleId | 7 | 2 | 8 | 17 |
-| `fac.ProductLineTerm` | Operational terms of a product line with effective dates; NULL means 'not specified', not zero (FR-FAC-014, BR-FAC-016) | ProductLineTermId | 6 | 2 | 11 | 22 |
+| `fac.Limit` | Limit-tree node (FR-FAC-010/011, BR-FAC-009/010, V-FAC-04..07) | LimitId | 7 | 5 | 11 | 29 |
+| `fac.LimitProductLine` | Product line within a limit, with an optional SHARED_CAP ceiling (FR-FAC-012, V-FAC-08) | LimitProductLineId | 7 | 6 | 8 | 20 |
+| `fac.LimitCompanyRule` | Company rule on a limit: allowed, excluded or allocated (FR-FAC-013, BR-FAC-012, V-FAC-09) | LimitCompanyRuleId | 7 | 4 | 10 | 19 |
+| `fac.ProductLineTerm` | Operational terms of a product line with effective dates; NULL means 'not specified', not zero (FR-FAC-014, BR-FAC-016) | ProductLineTermId | 6 | 4 | 13 | 24 |
 
 **العلاقات (المفاتيح الأجنبية)**
 
@@ -1234,27 +1235,27 @@
 | `fac.Limit.FacilityId` | `fac.Facility` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `fac.Limit.ParentLimitId` | `fac.Limit` | 1 : N | اختياري | مشترك · مركّب | قيد | FacilityId |
 | `fac.Limit.LimitTypeId` | `cat.LimitType` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
-| `fac.Limit.SupersedesId` | `fac.Limit` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
+| `fac.Limit.SupersedesId` | `fac.Limit` | 1 : N | اختياري | مشترك · مركّب | قيد | InheritedRootId |
 | `fac.Limit.SourceDocumentId` | `doc.Document` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `fac.Limit.VerifiedBy` | `sec.AppUser` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `fac.Limit.ConflictId` | `fac.ValueConflict` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `fac.LimitProductLine.FacilityId` | `fac.Facility` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `fac.LimitProductLine.LimitId` | `fac.Limit` | 1 : N | إلزامي | مشترك · مركّب | قيد | FacilityId |
 | `fac.LimitProductLine.ProductId` | `cat.Product` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
-| `fac.LimitProductLine.SupersedesId` | `fac.LimitProductLine` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
+| `fac.LimitProductLine.SupersedesId` | `fac.LimitProductLine` | 1 : N | اختياري | مشترك · مركّب | قيد | InheritedRootId |
 | `fac.LimitProductLine.SourceDocumentId` | `doc.Document` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `fac.LimitProductLine.VerifiedBy` | `sec.AppUser` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `fac.LimitProductLine.ConflictId` | `fac.ValueConflict` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `fac.LimitCompanyRule.FacilityId` | `fac.Facility` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `fac.LimitCompanyRule.LimitId` | `fac.Limit` | 1 : N | إلزامي | مشترك · مركّب | قيد | FacilityId |
 | `fac.LimitCompanyRule.CompanyId` | `org.Company` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
-| `fac.LimitCompanyRule.SupersedesId` | `fac.LimitCompanyRule` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
+| `fac.LimitCompanyRule.SupersedesId` | `fac.LimitCompanyRule` | 1 : N | اختياري | مشترك · مركّب | قيد | InheritedRootId |
 | `fac.LimitCompanyRule.SourceDocumentId` | `doc.Document` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `fac.LimitCompanyRule.VerifiedBy` | `sec.AppUser` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `fac.LimitCompanyRule.ConflictId` | `fac.ValueConflict` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `fac.ProductLineTerm.FacilityId` | `fac.Facility` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `fac.ProductLineTerm.LimitProductLineId` | `fac.LimitProductLine` | 1 : N | إلزامي | مشترك · مركّب | قيد | FacilityId |
-| `fac.ProductLineTerm.SupersedesId` | `fac.ProductLineTerm` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
+| `fac.ProductLineTerm.SupersedesId` | `fac.ProductLineTerm` | 1 : N | اختياري | مشترك · مركّب | قيد | InheritedRootId |
 | `fac.ProductLineTerm.SourceDocumentId` | `doc.Document` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `fac.ProductLineTerm.VerifiedBy` | `sec.AppUser` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `fac.ProductLineTerm.ConflictId` | `fac.ValueConflict` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
@@ -1270,7 +1271,7 @@
 | الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
 |---|---|---|---|---|---|---|
 | `fac.Utilization` | Active utilisation item: manual or linked to a letter of credit; never deleted (FR-FAC-016/030, BR-FAC-013/020) | UtilizationId | 6 | 5 | 7 | 14 |
-| `fac.LimitReservation` | Amount reserved for a request, equal to ExposureAmount (FR-FAC-017/018/020, BR-FAC-015) | LimitReservationId | 7 | 5 | 7 | 13 |
+| `fac.LimitReservation` | Amount reserved for a request, equal to ExposureAmount (FR-FAC-017/018/020, BR-FAC-015) | LimitReservationId | 7 | 6 | 7 | 13 |
 | `fac.LimitMovement` | Movement record on a reservation or usage; no update or delete; duplicate-prevention key (BR-FAC-015, BR-FAC-020) | LimitMovementId | 5 | 2 | 4 | 11 |
 
 **العلاقات (المفاتيح الأجنبية)**
@@ -1306,9 +1307,9 @@
 
 | الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
 |---|---|---|---|---|---|---|
-| `prc.PricingRule` | Pricing rule with scope, inheritance and methods (FR-PRC-006..017, BR-PRC-006..012, V-PRC-02) | PricingRuleId | 14 | 4 | 38 | 40 |
-| `prc.PricingTier` | Tier of a TIERED rule by amount and/or term (FR-PRC-003, BR-PRC-002) | PricingTierId | 3 | 2 | 8 | 13 |
-| `prc.TariffItem` | Fee item in a tariff schedule (FR-PRC-002, BR-PRC-002..005) | TariffItemId | 7 | 2 | 11 | 24 |
+| `prc.PricingRule` | Pricing rule with scope, inheritance and methods (FR-PRC-006..017, BR-PRC-006..012, V-PRC-02) | PricingRuleId | 14 | 6 | 40 | 42 |
+| `prc.PricingTier` | Tier of a TIERED rule by amount and/or term (FR-PRC-003, BR-PRC-002) | PricingTierId | 3 | 4 | 9 | 15 |
+| `prc.TariffItem` | Fee item in a tariff schedule (FR-PRC-002, BR-PRC-002..005) | TariffItemId | 7 | 2 | 12 | 24 |
 | `prc.TariffSchedule` | Bank tariff schedule version; optionally specific to a facility (FR-PRC-001, BR-PRC-001, V-PRC-01) | TariffScheduleId | 4 | 4 | 3 | 11 |
 
 **العلاقات (المفاتيح الأجنبية)**
@@ -1325,13 +1326,13 @@
 | `prc.PricingRule.TariffItemId` | `prc.TariffItem` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `prc.PricingRule.BaseRateId` | `cat.BaseRate` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `prc.PricingRule.CurrencyId` | `ref.Currency` | 1 : N | اختياري | مرجع عام | قيد | — |
-| `prc.PricingRule.SupersedesId` | `prc.PricingRule` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
+| `prc.PricingRule.SupersedesId` | `prc.PricingRule` | 1 : N | اختياري | مشترك · مركّب | قيد | InheritedRootId |
 | `prc.PricingRule.SourceDocumentId` | `doc.Document` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `prc.PricingRule.VerifiedBy` | `sec.AppUser` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `prc.PricingRule.ConflictId` | `fac.ValueConflict` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `prc.PricingTier.FacilityId` | `fac.Facility` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `prc.PricingTier.PricingRuleId` | `prc.PricingRule` | 1 : N | إلزامي | مشترك · مركّب | قيد | FacilityId |
-| `prc.PricingTier.SupersedesId` | `prc.PricingTier` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
+| `prc.PricingTier.SupersedesId` | `prc.PricingTier` | 1 : N | اختياري | مشترك · مركّب | قيد | InheritedRootId |
 | `prc.TariffItem.ScheduleId` | `prc.TariffSchedule` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `prc.TariffItem.FeeTypeId` | `cat.FeeType` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `prc.TariffItem.ProductId` | `cat.Product` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
@@ -1356,7 +1357,7 @@
 |---|---|---|---|---|---|---|
 | `prc.TariffTier` | Tier of a tariff item by amount and/or term (FR-PRC-003, BR-PRC-002) | TariffTierId | 1 | 3 | 8 | 11 |
 | `cmp.TermType` | Comparable term key (FR-CMP-001); the code follows the pattern PRC.MARGIN_PCT; system terms cannot be deleted and their unit cannot change (IsSystem) | TermTypeId | 0 | 3 | 3 | 22 |
-| `cmp.TermValue` | Term value in a facility, with its scope and source (FR-CMP-002..006, BR-CMP-001..006, V-CMP-01) | TermValueId | 11 | 2 | 10 | 24 |
+| `cmp.TermValue` | Term value in a facility, with its scope and source (FR-CMP-002..006, BR-CMP-001..006, V-CMP-01) | TermValueId | 11 | 4 | 12 | 26 |
 
 **العلاقات (المفاتيح الأجنبية)**
 
@@ -1370,7 +1371,7 @@
 | `cmp.TermValue.ProductId` | `cat.Product` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `cmp.TermValue.CompanyId` | `org.Company` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `cmp.TermValue.CurrencyId` | `ref.Currency` | 1 : N | اختياري | مرجع عام | قيد | — |
-| `cmp.TermValue.SupersedesId` | `cmp.TermValue` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
+| `cmp.TermValue.SupersedesId` | `cmp.TermValue` | 1 : N | اختياري | مشترك · مركّب | قيد | InheritedRootId |
 | `cmp.TermValue.SourceDocumentId` | `doc.Document` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `cmp.TermValue.VerifiedBy` | `sec.AppUser` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `cmp.TermValue.ConflictId` | `fac.ValueConflict` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
@@ -1385,8 +1386,8 @@
 
 | الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
 |---|---|---|---|---|---|---|
-| `col.Collateral` | Collateral record; approved independently of the facility review, and an amendment creates a new revision (FR-COL-001/014, V-COL-01, section 8) | CollateralId | 9 | 3 | 9 | 20 |
-| `col.CollateralLink` | Link between collateral and a facility or limit; one collateral can serve several facilities (FR-COL-002, BR-COL-005) | CollateralLinkId | 4 | 2 | 4 | 9 |
+| `col.Collateral` | Collateral record; approved independently of the facility review, and an amendment creates a new revision (FR-COL-001/014, V-COL-01, section 8) | CollateralId | 9 | 6 | 11 | 22 |
+| `col.CollateralLink` | Link between collateral and a facility or limit; one collateral can serve several facilities (FR-COL-002, BR-COL-005) | CollateralLinkId | 4 | 4 | 5 | 11 |
 | `col.Guarantee` | Guarantee, 1:1 with Collateral; the guarantor is always a Party, and no identity numbers are stored here (FR-COL-003/004, BR-COL-001) | GuaranteeId | 5 | 2 | 5 | 10 |
 | `col.InsurancePolicyAssignment` | Insurance policy assignment; the uniqueness key (CollateralId, PolicyNo) allows the policy to be renewed (FR-COL-006, BR-COL-003) | InsurancePolicyAssignmentId | 4 | 2 | 5 | 13 |
 
@@ -1398,7 +1399,7 @@
 | `col.Collateral.OwnerPartyId` | `pty.Party` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `col.Collateral.CashMarginAccountId` | `acc.BankAccount` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `col.Collateral.ApprovedBy` | `sec.AppUser` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
-| `col.Collateral.SupersedesId` | `col.Collateral` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
+| `col.Collateral.SupersedesId` | `col.Collateral` | 1 : N | اختياري | مشترك · مركّب | قيد | InheritedRootId |
 | `col.Collateral.ReleaseDocumentId` | `doc.Document` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `col.Collateral.SourceDocumentId` | `doc.Document` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `col.Collateral.VerifiedBy` | `sec.AppUser` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
@@ -1406,7 +1407,7 @@
 | `col.CollateralLink.CollateralId` | `col.Collateral` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `col.CollateralLink.FacilityId` | `fac.Facility` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `col.CollateralLink.LimitId` | `fac.Limit` | 1 : N | اختياري | مشترك · مركّب | قيد | FacilityId |
-| `col.CollateralLink.SupersedesId` | `col.CollateralLink` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
+| `col.CollateralLink.SupersedesId` | `col.CollateralLink` | 1 : N | اختياري | مشترك · مركّب | قيد | InheritedRootId |
 | `col.Guarantee.CollateralId` | `col.Collateral` | 1 : N | إلزامي | مشترك · مركّب | قيد | StructureKind |
 | `col.Guarantee.GuarantorPartyId` | `pty.Party` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `col.Guarantee.GuarantorIdentityDocumentId` | `pty.IdentityDocument` | 1 : N | اختياري | مشترك · مركّب | قيد | GuarantorPartyId |
@@ -1453,23 +1454,24 @@
 
 | الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
 |---|---|---|---|---|---|---|
-| `obl.Covenant` | Covenant revision with dates; graduated limits are several revisions (FR-OBL-006, BR-OBL-001/005/006, Q-OBL-01) | CovenantId | 5 | 2 | 11 | 23 |
+| `obl.Covenant` | Covenant revision with dates; graduated limits are several revisions (FR-OBL-006, BR-OBL-001/005/006, Q-OBL-01) | CovenantId | 5 | 4 | 16 | 27 |
 | `obl.CovenantAccount` | Accounts covered by a covenant when specific accounts are selected (AccountIds) | TenantId, CovenantId, BankAccountId | 2 | 0 | 0 | 3 |
-| `obl.CovenantTest` | Covenant test for a period and test version; the application prevents editing a stored test (FR-OBL-011, FR-FIN-012/013, BR-OBL-006/007, section 8) | CovenantTestId | 4 | 3 | 14 | 22 |
-| `obl.Obligation` | Obligation on a facility (or on a limit, line or set of companies); the family comes from ObligationType and cannot be edited (FR-OBL-001, BR-OBL-001) | ObligationId | 9 | 3 | 12 | 29 |
+| `obl.CovenantTest` | Covenant test for a period and test version; an evaluated test changes only by its review (044, DR-39) (FR-OBL-011, FR-FIN-012/013, BR-OBL-006/007, section 8) | CovenantTestId | 5 | 3 | 13 | 21 |
+| `obl.Obligation` | Obligation on a facility (or on a limit, line or set of companies); the family comes from ObligationType and cannot be edited (FR-OBL-001, BR-OBL-001) | ObligationId | 9 | 5 | 15 | 31 |
 
 **العلاقات (المفاتيح الأجنبية)**
 
 | الطفل (الجدول.العمود) | الأب | العلاقة | الإلزام | النطاق | الحذف | أعمدة النطاق |
 |---|---|---|---|---|---|---|
 | `obl.Covenant.ObligationId` | `obl.Obligation` | 1 : N | إلزامي | مشترك · مركّب | قيد | Family |
-| `obl.Covenant.FormulaId` | `fin.MeasureFormula` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
+| `obl.Covenant.FormulaId` | `fin.MeasureFormula` | 1 : N | اختياري | مشترك · مركّب | قيد | FormulaResultUnit, FormulaUsesStatements |
 | `obl.Covenant.CurrencyId` | `ref.Currency` | 1 : N | اختياري | مرجع عام | قيد | — |
 | `obl.Covenant.TestedCompanyId` | `org.Company` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
-| `obl.Covenant.SupersedesId` | `obl.Covenant` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
+| `obl.Covenant.SupersedesId` | `obl.Covenant` | 1 : N | اختياري | مشترك · مركّب | قيد | InheritedRootId |
 | `obl.CovenantAccount.CovenantId` | `obl.Covenant` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `obl.CovenantAccount.BankAccountId` | `acc.BankAccount` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `obl.CovenantTest.CovenantId` | `obl.Covenant` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
+| `obl.CovenantTest.FormulaId` | `fin.MeasureFormula` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `obl.CovenantTest.EvaluatedBy` | `sec.AppUser` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `obl.CovenantTest.EvidenceDocumentId` | `doc.Document` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `obl.CovenantTest.ReviewedBy` | `sec.AppUser` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
@@ -1478,7 +1480,7 @@
 | `obl.Obligation.ScopeLimitId` | `fac.Limit` | 1 : N | اختياري | مشترك · مركّب | قيد | FacilityId |
 | `obl.Obligation.ScopeProductLineId` | `fac.LimitProductLine` | 1 : N | اختياري | مشترك · مركّب | قيد | FacilityId, ScopeLimitId |
 | `obl.Obligation.ParamCurrencyId` | `ref.Currency` | 1 : N | اختياري | مرجع عام | قيد | — |
-| `obl.Obligation.SupersedesId` | `obl.Obligation` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
+| `obl.Obligation.SupersedesId` | `obl.Obligation` | 1 : N | اختياري | مشترك · مركّب | قيد | InheritedRootId |
 | `obl.Obligation.SourceDocumentId` | `doc.Document` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `obl.Obligation.VerifiedBy` | `sec.AppUser` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `obl.Obligation.ConflictId` | `fac.ValueConflict` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
@@ -1495,8 +1497,8 @@
 |---|---|---|---|---|---|---|
 | `obl.ObligationBreach` | Breach record, its remedy and any waiver (FR-OBL-012, BR-OBL-009/011, section 8) | ObligationBreachId | 5 | 4 | 10 | 17 |
 | `obl.ObligationCompany` | Companies the obligation applies to (AppliesToCompanyIds) | TenantId, ObligationId, CompanyId | 2 | 0 | 0 | 3 |
-| `obl.ReportingInstance` | Agenda item generated or logged for an event (FR-OBL-003..005, BR-OBL-003, section 8); DUE_SOON and OVERDUE are derived | ReportingInstanceId | 4 | 5 | 7 | 15 |
-| `obl.ReportingObligation` | Reporting or notice-due rule, 1:1 with Obligation (FR-OBL-002/003, BR-OBL-002, V-OBL-01) | ReportingObligationId | 3 | 2 | 10 | 19 |
+| `obl.ReportingInstance` | Agenda item generated or logged for an event (FR-OBL-003..005, BR-OBL-003, section 8); DUE_SOON and OVERDUE are derived; a final status stays (044, DR-39) | ReportingInstanceId | 4 | 5 | 7 | 15 |
+| `obl.ReportingObligation` | Reporting or notice-due rule, 1:1 with Obligation (FR-OBL-002/003, BR-OBL-002, V-OBL-01) | ReportingObligationId | 3 | 4 | 11 | 21 |
 
 **العلاقات (المفاتيح الأجنبية)**
 
@@ -1515,7 +1517,7 @@
 | `obl.ReportingInstance.CurrencyId` | `ref.Currency` | 1 : N | اختياري | مرجع عام | قيد | — |
 | `obl.ReportingObligation.ObligationId` | `obl.Obligation` | 1 : N | إلزامي | مشترك · مركّب | قيد | Family |
 | `obl.ReportingObligation.SubmissionChannelId` | `cat.LookupItem` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
-| `obl.ReportingObligation.SupersedesId` | `obl.ReportingObligation` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
+| `obl.ReportingObligation.SupersedesId` | `obl.ReportingObligation` | 1 : N | اختياري | مشترك · مركّب | قيد | InheritedRootId |
 
 #### م5 · البيانات المالية والأرصدة (1/2)
 
@@ -1562,7 +1564,7 @@
 | الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
 |---|---|---|---|---|---|---|
 | `fin.LineCatalogItemAlias` | Alternative names (aliases) for a line item, used for paste and matching | LineCatalogItemAliasId | 1 | 2 | 1 | 4 |
-| `fin.MeasureFormula` | Measure formula: a template or a facility-agreement version with revisions; never executed as text (FR-FIN-011, BR-FIN-009, section 12) | MeasureFormulaId | 6 | 3 | 10 | 20 |
+| `fin.MeasureFormula` | Measure formula: a template or a facility-agreement version with revisions; never executed as text (FR-FIN-011, BR-FIN-009, section 12) | MeasureFormulaId | 6 | 4 | 11 | 21 |
 | `fin.StatementLine` | Statement line in the header currency; stored value = input x UnitScale; Variance is derived; highly confidential (BR-FIN-001/002) | StatementLineId | 2 | 2 | 0 | 5 |
 
 **العلاقات (المفاتيح الأجنبية)**
@@ -1591,10 +1593,10 @@
 
 | الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
 |---|---|---|---|---|---|---|
-| `wfl.RequestType` | Request type definition (FR-REQ-001, BR-REQ-001, V-REQ-01); new types need no code (FR-REQ-021) | RequestTypeId | 0 | 4 | 3 | 21 |
+| `wfl.RequestType` | Request type definition (FR-REQ-001, BR-REQ-001, V-REQ-01); new types need no code (FR-REQ-021); its template is the current WorkflowTemplate of the type and its index fields the IndexRole fields of that template (DR-49) | RequestTypeId | 0 | 4 | 3 | 17 |
 | `wfl.RequestTypeAudience` | Audience of a request type: who may raise it; no rows = nobody (fail closed) (FR-REQ-007) | RequestTypeAudienceId | 4 | 4 | 1 | 5 |
 | `wfl.ExternalPhase` | Phase shown to the requester: DRAFT, IN_APPROVAL, RETURNED, AWAITING_REQUESTER, IN_PROGRESS, COMPLETED, REJECTED, CANCELLED (BR-WFL-011, D-6) | ExternalPhaseId | 0 | 3 | 1 | 16 |
-| `wfl.WorkflowTemplate` | Workflow template version; a published version is immutable (FR-WFL-001/028, BR-WFL-019, AC-WFL-6) | WorkflowTemplateId | 2 | 6 | 9 | 20 |
+| `wfl.WorkflowTemplate` | Workflow template version; a published version is immutable and its parts change only while it is a draft (044, DR-41) (FR-WFL-001/028, BR-WFL-019, AC-WFL-6) | WorkflowTemplateId | 2 | 7 | 9 | 20 |
 
 **العلاقات (المفاتيح الأجنبية)**
 
@@ -1617,10 +1619,10 @@
 
 | الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
 |---|---|---|---|---|---|---|
-| `wfl.WorkflowStage` | Stage in a template version (FR-WFL-003/004/005, BR-WFL-002/010/012); physical delete only for a draft version | WorkflowStageId | 7 | 4 | 14 | 22 |
-| `wfl.StageApprover` | Approval slot in an APPROVAL stage; ALL = every slot, and a role requiring two people together = two slots (FR-WFL-007/041, BR-WFL-003/004) | StageApproverId | 5 | 2 | 7 | 10 |
-| `wfl.WorkflowTransition` | Transition between two stages with a condition and a priority; a linear flow with simple conditional branching (FR-WFL-006, BR-WFL-001, D-8) | WorkflowTransitionId | 4 | 2 | 4 | 9 |
-| `wfl.WorkflowStageHook` | Hook registered on a stage: a key and parameters, no code (FR-WFL-021, BR-WFL-015, section 5.4) | WorkflowStageHookId | 1 | 2 | 2 | 10 |
+| `wfl.WorkflowStage` | Changes only while its template version is a draft (044, DR-41). Stage in a template version (FR-WFL-003/004/005, BR-WFL-002/010/012); physical delete only for a draft version | WorkflowStageId | 7 | 4 | 14 | 22 |
+| `wfl.StageApprover` | Changes only while its template version is a draft (044, DR-41). Approval slot in an APPROVAL stage; ALL = every slot, and a role requiring two people together = two slots (FR-WFL-007/041, BR-WFL-003/004) | StageApproverId | 5 | 2 | 7 | 10 |
+| `wfl.WorkflowTransition` | Changes only while its template version is a draft (044, DR-41). Transition between two stages with a condition and a priority; a linear flow with simple conditional branching (FR-WFL-006, BR-WFL-001, D-8) | WorkflowTransitionId | 4 | 2 | 4 | 9 |
+| `wfl.WorkflowStageHook` | Changes only while its template version is a draft (044, DR-41). Hook registered on a stage: a key and parameters, no code (FR-WFL-021, BR-WFL-015, section 5.4) | WorkflowStageHookId | 1 | 2 | 2 | 10 |
 
 **العلاقات (المفاتيح الأجنبية)**
 
@@ -1654,8 +1656,8 @@
 
 | الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
 |---|---|---|---|---|---|---|
-| `wfl.TemplateField` | Field in a template version; the form UI is generated without code (FR-REQ-002..005, BR-REQ-003/004) | TemplateFieldId | 1 | 3 | 4 | 21 |
-| `wfl.TemplateAttachmentRule` | Attachment rule on a template version (FR-REQ-006, BR-REQ-005, FR-WFL-024/025) | TemplateAttachmentRuleId | 2 | 2 | 4 | 11 |
+| `wfl.TemplateField` | Changes only while its template version is a draft (044, DR-41). Field in a template version; the form UI is generated without code (FR-REQ-002..005, BR-REQ-003/004) | TemplateFieldId | 1 | 3 | 4 | 21 |
+| `wfl.TemplateAttachmentRule` | Changes only while its template version is a draft (044, DR-41). Attachment rule on a template version (FR-REQ-006, BR-REQ-005, FR-WFL-024/025) | TemplateAttachmentRuleId | 2 | 2 | 4 | 11 |
 
 **العلاقات (المفاتيح الأجنبية)**
 
@@ -1692,7 +1694,7 @@
 | `wfl.Request.CreatedByUserId` | `sec.AppUser` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `wfl.Request.SubmittedByUserId` | `sec.AppUser` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `wfl.Request.CurrentStageId` | `wfl.WorkflowStage` | 1 : N | اختياري | مشترك · مركّب | قيد | TemplateId |
-| `wfl.Request.CurrentStageInstanceId` | `wfl.RequestStageInstance` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
+| `wfl.Request.CurrentStageInstanceId` | `wfl.RequestStageInstance` | 1 : N | اختياري | مشترك · مركّب | قيد | RequestId |
 | `wfl.Request.ExternalPhaseId` | `wfl.ExternalPhase` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `wfl.Request.AssigneeUserId` | `sec.AppUser` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `wfl.Request.ClosedByUserId` | `sec.AppUser` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
@@ -1705,7 +1707,7 @@
 | `wfl.Request.LimitId` | `fac.Limit` | 1 : N | اختياري | مشترك · مركّب | قيد | FacilityId |
 | `wfl.Request.LimitProductLineId` | `fac.LimitProductLine` | 1 : N | اختياري | مشترك · مركّب | قيد | FacilityId, LimitId |
 | `wfl.Request.InstitutionId` | `ins.Institution` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
-| `wfl.Request.ReservationId` | `fac.LimitReservation` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
+| `wfl.Request.ReservationId` | `fac.LimitReservation` | 1 : N | اختياري | مشترك · مركّب | قيد | RequestId |
 | `wfl.RequestComment.RequestId` | `wfl.Request` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `wfl.RequestComment.StageInstanceId` | `wfl.RequestStageInstance` | 1 : N | اختياري | مشترك · مركّب | قيد | RequestId |
 | `wfl.RequestComment.AuthorUserId` | `sec.AppUser` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
@@ -1840,7 +1842,7 @@
 
 | الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
 |---|---|---|---|---|---|---|
-| `lc.LcFieldDefinition` | Definition of a field in letter-of-credit terms: data seeded per tenant (FR-LCT-004, BR-LCT-002); UCP references are in lc.LcFieldUcpRef | LcFieldDefinitionId | 0 | 3 | 3 | 20 |
+| `lc.LcFieldDefinition` | Definition of a field in letter-of-credit terms: data seeded per tenant (FR-LCT-004, BR-LCT-002); UCP references are in lc.LcFieldUcpRef | LcFieldDefinitionId | 0 | 3 | 4 | 21 |
 | `lc.LcFieldUcpRef` | UCP reference for a field: article and paragraph (UcpRefs in specification); feeds the badge, R-LCT-01 and BR-LCT-018 | LcFieldUcpRefId | 2 | 2 | 0 | 4 |
 | `lc.Counterparty` | Counterparty: lightweight supplier or customer without identity; promoted to Party when needed (FR-LCT-036/037, BR-LCT-022, Q-PTY-03) | CounterpartyId | 3 | 3 | 2 | 21 |
 | `lc.LcDocumentClause` | Document-clause library with versions: template text with parameters (FR-LCT-017..019, BR-LCT-012); UCP references are in lc.LcDocumentClauseUcpRef | LcDocumentClauseId | 1 | 4 | 5 | 21 |
@@ -1867,9 +1869,9 @@
 | الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
 |---|---|---|---|---|---|---|
 | `lc.LcDocumentClauseUcpRef` | UCP 600 reference for a document clause: article and paragraph (UcpRefs in specification) | LcDocumentClauseUcpRefId | 2 | 2 | 0 | 4 |
-| `lc.LcTerms` | Letter-of-credit terms version: one row per version, with the section 6.2 dictionary columns; shared by proforma, request, credit and amendment (FR-LCT-001..035) | LcTermsId | 15 | 6 | 44 | 88 |
-| `lc.LcTermsDocument` | Document clause selected in the terms, with its parameters; the rendered text is frozen at lock (FR-LCT-018, BR-LCT-012) | LcTermsDocumentId | 2 | 2 | 5 | 12 |
-| `lc.LcChargesMatrix` | Charges per term: one row per category; six complete rows, checked by the application (V-LCT-12) (FR-LCT-020, BR-LCT-014) | LcChargesMatrixId | 1 | 2 | 2 | 8 |
+| `lc.LcTerms` | Letter-of-credit terms version: one row per version, with the section 6.2 dictionary columns; shared by proforma, request, credit and amendment (FR-LCT-001..035); a locked version changes only in its treasury fields until TreasuryHash (044, DR-41) | LcTermsId | 15 | 6 | 44 | 88 |
+| `lc.LcTermsDocument` | Document clause selected in the terms, with its parameters; written only while the terms are a draft (044, DR-41) (FR-LCT-018, BR-LCT-012) | LcTermsDocumentId | 2 | 2 | 5 | 12 |
+| `lc.LcChargesMatrix` | Charges per term: one row per category; six complete rows, checked by the application (V-LCT-12); written only while the terms are a draft (044, DR-41) (FR-LCT-020, BR-LCT-014) | LcChargesMatrixId | 1 | 2 | 2 | 8 |
 
 **العلاقات (المفاتيح الأجنبية)**
 
@@ -2016,7 +2018,7 @@
 
 | الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
 |---|---|---|---|---|---|---|
-| `lc.ProformaLine` | Line item in the proforma (FR-LCE-003, BR-LCE-001); fixed after issue: written once, never updated (DR-41) | ProformaLineId | 2 | 2 | 3 | 8 |
+| `lc.ProformaLine` | Line item in the proforma (FR-LCE-003, BR-LCE-001); fixed after issue: written once, in one statement, never updated; the totals match the lines (044, DR-41) | ProformaLineId | 2 | 2 | 3 | 8 |
 | `lc.LcTermsComparison` | Result of comparing received credit terms with the proforma (FR-LCT-031, FR-LCE-023, BR-LCT-021) | LcTermsComparisonId | 3 | 2 | 1 | 6 |
 | `lc.LcTermsComparisonLine` | One field difference, its verdict and the treasury decision (FR-LCT-031, BR-LCT-021) | LcTermsComparisonLineId | 1 | 2 | 2 | 9 |
 
@@ -2120,7 +2122,7 @@ SQL_USER=bankfas_monitor tools/dbgen/check_deployed.py --server <server>   # the
 7. `025_tenant_views` (عرض صف المشترك؛ يحتاج دوال 010)
 8. `028_tenant_settings` (إعدادات المشترك ضمن حدود المنصة، ADR 0004) → `029_audit_writer` (كاتب التدقيق وقادح محاولات الدخول، ADR 0007)
 9. `030_session_context` (إجراءات الدخول والربط بـ`EXECUTE AS tp_auth_exec`، وقوادح السحب، وكل `DENY` تزيله منح 007 لو سبقتها)
-10. `035_account_security` → `036_operator_and_support` → `037_job_context` → `038_tenant_onboarding` (ADR 0003 و0004) → `039_numbering` (الترقيم، ADR 0005) → `041_kyc_profile_versions` (نسخ ملفات الاكتمال، ADR 0006) → `042_data_export` (التصدير في كل حالة تسمح به، ADR 0008)
+10. `035_account_security` → `036_operator_and_support` → `037_job_context` → `038_tenant_onboarding` (ADR 0003 و0004) → `039_numbering` (الترقيم، ADR 0005) → `041_kyc_profile_versions` (نسخ ملفات الاكتمال، ADR 0006) → `042_data_export` (التصدير في كل حالة تسمح به، ADR 0008) → `043_review_guards` (حراس الدفعة أ، ADR 0011) → `044_entry_guards` (شروط دخول الشرائح S1-ب إلى S4، ADR 0011)
 11. `050_fac_share_rule` (قاعدة حصص المقرضين)
 12. البذور العالمية: `seed/100_platform_global` (الإعدادات والمهام والباقة والعناوين المحجوزة) → `seed/101_iso_reference` (الدول والعملات) → `seed/102_permissions` (الصلاحيات) → `seed/103_lc_reference` (Incoterms ومواد UCP 600)؛ إدراج فقط، وتعيد الخطوة 4b في CI تشغيلها وتشترط ألا يتغير شيء
 13. اختياري: `040_fulltext_optional`
@@ -2161,14 +2163,14 @@ SQL_USER=bankfas_monitor tools/dbgen/check_deployed.py --server <server>   # the
 
 | الفحص | النتيجة | ملاحظة |
 |---|---|---|
-| فحص النموذج (`dbgen check`) | **OK** — 198 جدولًا / 3,324 عمودًا؛ لا مراجع معلّقة؛ لا مخالفة لقواعد النطاق | التسمية والمراجع والمفاتيح المركّبة والأعمدة المطلوبة |
+| فحص النموذج (`dbgen check`) | **OK** — 199 جدولًا / 3,370 عمودًا؛ لا مراجع معلّقة؛ لا مخالفة لقواعد النطاق | التسمية والمراجع والمفاتيح المركّبة والأعمدة المطلوبة |
 | تنفيذ PostgreSQL 16 | **OK** — 194 جدولًا / 763 مفتاحًا أجنبيًا / 691 قيد فريد أو أساسي (تشغيل سابق قبل إضافة `sec.SessionBinding`) | يثبت **البنية المنطقية** فقط. **لا** يثبت صحة T-SQL |
 | التحقق الثابت من الصلاحيات (`check_grants.py`) | **OK** — 198 جدولًا، 249 منحة مولّدة، 83 منحة ثابتة، 31 عمودًا مقيّدًا، القواعد R1–R11؛ يعمل في الخطوة 3 من `db_ci.sh` | حُقنت ثلاث مخالفات متعمدة فاكتُشفت كلها (§9.3). **لا يثبت** أن المحرك ينفّذ المنح كما هي |
-| التحقق من الإصلاحات الحرجة (`check_review_fixes.py`) | **OK** — 24 من 24 | يفحص أن كل إصلاح من DR-01 إلى DR-10 موجود في DDL المولَّد، لا في الوثيقة وحدها |
+| التحقق من الإصلاحات (`check_review_fixes.py`) | **OK** — 75 من 75، في الخطوة 3 من `db_ci.sh` | يفحص أن كل إصلاح من DR-01 إلى DR-50 موجود في DDL المولَّد أو في الحارس الثابت (043، 044)، لا في الوثيقة وحدها |
 | تحليل T-SQL بـ `sqlglot` | الملفات `000–004`، `007`، `010`، `025`، `030`، `040`: **بلا أخطاء**؛ `005` و`006` و`020`: خطأ واحد لكل ملف عند عبارة `DENY` | المحلّل لا يدعم عبارة `DENY` بصيغتها الكاملة؛ الصيغة صحيحة في T-SQL. التحليل نحوي جزئي |
 | فحوص آلية لمحاذير SQL Server | لا `OR` في الفهارس المصفّاة · مفاتيح الفهارس ≤ 1,700 بايت و≤ 16 عمودًا · لا مسارات `CASCADE` متعددة · خيارات `SET` ضُمّنت | فحوص نصّية على المخرجات |
 | **التنفيذ على SQL Server 2025** | **OK** — نشر كامل لـ `db/deploy.sql` على قاعدة جديدة في كل تشغيل لـ `tools/ci/db_ci.sh`، بحساب النشر `bankfas_migrator` وصلاحية `db_owner` وحدها كما في الإنتاج (ADR 0010) (صورة Ubuntu 24.04، ومرّ أيضًا على صورة RHEL؛ ADR 0001) ثم مطابقة الكائنات المنشورة مع DDL المولَّد | يثبت أن المحرك يقبل النص وترتيب النشر والمنح كما هي. صفحة الدعم الرسمية لـ Ubuntu 24.04 لم تُراجَع من بيئة العمل (O-23) |
-| **اختبارات السلوك** (RLS، ربط الهوية، الصلاحيات، التدفق المالي) | **جزئي** — `db/tests/tenant_isolation_tests.sql` 48 حالة (العزل، قراءة المنصة للتدقيق، ربط الاتصال، الدخول والقفل وMFA، حالة المشترك، حدود `tp_app`) و`db/tests/auth_flow_tests.sql` 20 حالة (حسابات المستخدمين وإعدادات المشترك، ADR 0003 و0004) و`db/tests/operator_support_tests.sql` 11 حالة و`db/tests/job_context_tests.sql` 7 حالات و`db/tests/tenant_onboarding_tests.sql` 5 حالات (ADR 0004) و`db/tests/numbering_tests.sql` 8 حالات مع فحص تزامن بستة اتصالات (`tools/ci/numbering_concurrency.sh`: 114 رقمًا من 1 إلى 114 بلا تكرار ولا فجوة بعد 36 تراجعًا، ADR 0005) و`db/tests/kyc_history_tests.sql` 4 حالات (الحذف المتتالي ونسخ ملفات الاكتمال، ADR 0006) و`db/tests/reference_data_tests.sql` 4 حالات (قراءة المشترك للقوائم العالمية ومواد UCP، ومنعه من كتابتها) و`db/tests/audit_trail_tests.sql` 7 حالات (صفوف التدقيق التي تكتبها القاعدة، ADR 0007) و`db/tests/data_export_tests.sql` 6 حالات (التصدير في المعلّق والمغلق، ADR 0008) و`tools/ci/service_logins_check.sh` 6 فحوص (حسابات الخدمة بأسرارها وصلاحياتها، ADR 0009) و`db/tests/review_fixes_tests.sql` 21 حالة (إصلاحات المراجعة، ADR 0011) و`tools/ci/server_audit_check.sh` 7 فحوص (تدقيق الخادم ونوافذه وقواعد AL-18، ADR 0012) و`tools/ci/monitor_login_check.sh` 6 فحوص (حساب المراقبة بصلاحيات العرض وحدها، ADR 0013) و`tools/ci/deploy_preflight_check.sh` 5 فحوص (الفحص التمهيدي للنشر وبوابة G4، ADR 0014) و`db/tests/fac_share_rule_tests.sql` 6 حالات، وكلها تمر في CI | لم تُكتب بعد: التدفق المالي (الحجز والاستغلال) خارج قاعدة الحصص |
+| **اختبارات السلوك** (RLS، ربط الهوية، الصلاحيات، التدفق المالي) | **جزئي** — `db/tests/tenant_isolation_tests.sql` 48 حالة (العزل، قراءة المنصة للتدقيق، ربط الاتصال، الدخول والقفل وMFA، حالة المشترك، حدود `tp_app`) و`db/tests/auth_flow_tests.sql` 20 حالة (حسابات المستخدمين وإعدادات المشترك، ADR 0003 و0004) و`db/tests/operator_support_tests.sql` 11 حالة و`db/tests/job_context_tests.sql` 7 حالات و`db/tests/tenant_onboarding_tests.sql` 5 حالات (ADR 0004) و`db/tests/numbering_tests.sql` 8 حالات مع فحص تزامن بستة اتصالات (`tools/ci/numbering_concurrency.sh`: 114 رقمًا من 1 إلى 114 بلا تكرار ولا فجوة بعد 36 تراجعًا، ADR 0005) و`db/tests/kyc_history_tests.sql` 4 حالات (الحذف المتتالي ونسخ ملفات الاكتمال، ADR 0006) و`db/tests/reference_data_tests.sql` 4 حالات (قراءة المشترك للقوائم العالمية ومواد UCP، ومنعه من كتابتها) و`db/tests/audit_trail_tests.sql` 7 حالات (صفوف التدقيق التي تكتبها القاعدة، ADR 0007) و`db/tests/data_export_tests.sql` 6 حالات (التصدير في المعلّق والمغلق، ADR 0008) و`tools/ci/service_logins_check.sh` 6 فحوص (حسابات الخدمة بأسرارها وصلاحياتها، ADR 0009) و`db/tests/review_fixes_tests.sql` 34 حالة (إصلاحات المراجعة وشروط دخول الشرائح S1 إلى S4، ADR 0011) و`tools/ci/server_audit_check.sh` 7 فحوص (تدقيق الخادم ونوافذه وقواعد AL-18، ADR 0012) و`tools/ci/monitor_login_check.sh` 6 فحوص (حساب المراقبة بصلاحيات العرض وحدها، ADR 0013) و`tools/ci/deploy_preflight_check.sh` 5 فحوص (الفحص التمهيدي للنشر وبوابة G4، ADR 0014) و`db/tests/fac_share_rule_tests.sql` 6 حالات، وكلها تمر في CI | لم تُكتب بعد: التدفق المالي (الحجز والاستغلال) خارج قاعدة الحصص |
 
 ---
 
@@ -2218,7 +2220,7 @@ SQL_USER=bankfas_monitor tools/dbgen/check_deployed.py --server <server>   # the
 | **O-12** | **إجراءات المنصة على بيانات المشترك** | بلا وصول مباشر لـ`tp_platform`، يلزم إجراء مُراجَع لكل عملية منصة (تهيئة، دعم، إصلاح) | **محلول للتهيئة والحالة والدعم (2026-10-12، ADR 0004):** `plat.usp_CreateTenant` و`plat.usp_SetTenantStatus` و`sec.usp_SetSupportContext`؛ إجراءات الإصلاح تُكتب عند الحاجة، كل منها بإجراء مُراجَع |
 | **O-13** | **موقع مرساة سلسلة التدقيق** (§5.3) | بلا مرساة خارجية، السلسلة لا تكشف العبث | تخزين غير قابل للتعديل أو تجزئة منشورة دوريًا؛ قرار تشغيلي |
 | **O-14** | أرقام RPO/RTO | لا خطة استعادة مُقاسة بعد | تُحدَّد مع الاعتماد التشغيلي (§12.3) |
-| **O-15** | **36 نتيجة رئيسية و4 طفيفة** من المراجعة (`docs/review/design-review-2026-10-11.json`) | بعضها يغيّر أعمدة أو قيودًا | **محلول (2026-10-13، ADR 0011):** اعتمد المالك سجل `docs/32-review-findings-decisions.md` وأجوبته العشرة. الدفعة (أ) مُطبَّقة في 33 نتيجة كلها أو جزئيًا (المولّد والنموذج و`043_review_guards.sql`، الاختبارات RF1 إلى RF18، و`check_review_fixes.py` في CI)؛ ست نتائج والأجزاء الباقية شروط دخول لشرائحها (S1 إلى S4)، وDR-20 محلولة بـ DR-02 |
+| **O-15** | **36 نتيجة رئيسية و4 طفيفة** من المراجعة (`docs/review/design-review-2026-10-11.json`) | بعضها يغيّر أعمدة أو قيودًا | **محلول (2026-10-13، ADR 0011):** اعتمد المالك سجل `docs/32-review-findings-decisions.md` وأجوبته العشرة. الدفعة (أ) مُطبَّقة في 33 نتيجة كلها أو جزئيًا (المولّد والنموذج و`043_review_guards.sql`، الاختبارات RF1 إلى RF18، و`check_review_fixes.py` في CI)؛ والدفعة (ب)، شروط دخول الشرائح S1 إلى S4، منفّذة كلها في اليوم نفسه (النموذج و`044_entry_guards.sql`، الاختبارات RF19 إلى RF34؛ 75 إصلاحًا يفحصها `check_review_fixes.py`)؛ وDR-20 محلولة بـ DR-02، ويبقى مؤجلًا مرساة البصمة الخارجية (مع O-13) وفحص المفاتيح المتقاعدة (DR-20) |
 
 ---
 
@@ -2264,39 +2266,39 @@ SQL_USER=bankfas_monitor tools/dbgen/check_deployed.py --server <server>   # the
 | DR-19 | `acc.Signatory.Status` | major | workflow_semantics | Status (12-institutions-accounts-catalogs.model:447) includes SUSPENDED, EXPIRED and REVOKED, but the table has no timestamp, actor or reason for any transition. | Add SuspendedAt, RevokedAt, RevokedBy and RevocationReason. | مُطبَّق (O-15, ADR 0011) |
 | DR-20 | `acc.BankAccount.EncKeyId, HashKeyId` | major | sensitivity | EncKeyId and HashKeyId reference sec.TenantKey by key id only (generated as (TenantId, EncKeyId) -> (TenantId, TenantKeyId)). | Store the purpose on the row as a constant column (e.g. | محلول بـ DR-02 |
 | DR-21 | `org.AuthorityGrant.ApprovedBy, ApprovedAt, SupersedesGrantId` | major | workflow_semantics | ApprovedBy and ApprovedAt (11-organization-party.model:143-144) are nullable, and the status CHECK (line 156) requires only a source document or an exception reason for ACTIVE/SUPERSEDED/REVOKED. | Add CHECK (Status IN ('DRAFT','PENDING_APPROVAL') OR (ApprovedBy IS NOT NULL AND ApprovedAt IS NOT NULL)) and CHECK (ApprovedBy IS NULL OR ApprovedAt IS NOT NULL). | مُطبَّق (O-15, ADR 0011) |
-| DR-22 | `org.Shareholding.Layer, HolderPartyId, CompanyId` | major | cardinality | Layer >= 2 means 'indirect, through intermediate entities' (11-organization-party.model:78), but no column identifies the intermediate holder or the parent holding. | Add a self-referencing ViaShareholdingId (or IntermediatePartyId) with via=CompanyId pointing to the intermediate's layer-1 row, and key the uniqueness and the open-row filter on (CompanyId, HolderPartyId, ViaShareholdingId, Effe… | معتمد (ADR 0011)؛ يُطبَّق قبل S1-b |
+| DR-22 | `org.Shareholding.Layer, HolderPartyId, CompanyId` | major | cardinality | Layer >= 2 means 'indirect, through intermediate entities' (11-organization-party.model:78), but no column identifies the intermediate holder or the parent holding. | Add a self-referencing ViaShareholdingId (or IntermediatePartyId) with via=CompanyId pointing to the intermediate's layer-1 row, and key the uniqueness and the open-row filter on (CompanyId, HolderPartyId, ViaShareholdingId, Effe… | مُطبَّق (O-15, ADR 0011) |
 | DR-23 | `pty.IdentityDocument.SupersededById, IsSuperseded` | major | referential | SupersededById (11-organization-party.model:305) is generated as (TenantId, SupersededById) only (002_foreign_keys.sql:156), so a document can be superseded by a document belonging to a different party. | Add via=PartyId to SupersededById so the successor must belong to the same party. | مُطبَّق (O-15, ADR 0011) |
 | DR-24 | `org.Company.PartyId` | major | redundancy | The company-party mirror is stored twice: org.Company.PartyId (11-organization-party.model:16, unique line 34) and pty.Party.LinkedCompanyId (line 274, unique line 278). | Keep one pointer and derive the other, or enforce equality declaratively: add a unique key (TenantId, CompanyId, PartyId) on org.Company and make pty.Party's link a composite FK (TenantId, LinkedCompanyId, PartyId) -> org.Company… | مُطبَّق (O-15, ADR 0011) |
 | DR-25 | `org.Company.TaxNumber` | major | sensitivity | org.Company.TaxNumber (11-organization-party.model:26) is a plain ascii(30) column with no sens tag, on a 'public' aggregate root (line 12) whose PublicId is exposed through the API (docs/20 sections 1 and 4). | Drop org.Company.TaxNumber and read the current TaxIdentity row (CountryId = the company's CountryId, IsCurrent = 1) through a view. | مُطبَّق (O-15, ADR 0011) |
 | DR-26 | `fac.Utilization (and lc.LetterOfCredit link, file 16).SourceType, SourceRefId` | major | referential | SourceRefId is a bigint that holds an LcId or a RequestId depending on SourceType (13:254-255). | Replace SourceRefId with typed nullable FKs (for example a request FK to wfl.Request, and the LC link kept on one side only). | مُطبَّق (O-15, ADR 0011) |
-| DR-27 | `fac.ValueConflict.TargetEntity, TargetId, FacilityId` | major | referential | The conflict targets an entity through free text TargetEntity ascii(60) (13:328) and bigint TargetId (13:329), with no FK and no domain CHECK (DDL 001 has only the NOT NULL). | Use typed nullable target FKs with (TenantId, FacilityId, ...) composite keys and an exactly-one CHECK, as LimitMovement does. | مُطبَّق جزئيًا (ADR 0011)؛ الباقي قبل S2 |
-| DR-28 | `fac.Facility (header); fac.Limit, fac.LimitProductLine, fac.LimitCompanyRule, prc.PricingRule, cmp.TermValue (rev children).ApprovedRevisionNo, ParentLimitId, LimitId, ToRevision` | major | workflow_semantics | Revision integrity is left to the application. | Separate stable identity from versions. | معتمد (ADR 0011)؛ يُطبَّق قبل S2 |
+| DR-27 | `fac.ValueConflict.TargetEntity, TargetId, FacilityId` | major | referential | The conflict targets an entity through free text TargetEntity ascii(60) (13:328) and bigint TargetId (13:329), with no FK and no domain CHECK (DDL 001 has only the NOT NULL). | Use typed nullable target FKs with (TenantId, FacilityId, ...) composite keys and an exactly-one CHECK, as LimitMovement does. | مُطبَّق (O-15, ADR 0011) |
+| DR-28 | `fac.Facility (header); fac.Limit, fac.LimitProductLine, fac.LimitCompanyRule, prc.PricingRule, cmp.TermValue (rev children).ApprovedRevisionNo, ParentLimitId, LimitId, ToRevision` | major | workflow_semantics | Revision integrity is left to the application. | Separate stable identity from versions. | مُطبَّق (O-15, ADR 0011) |
 | DR-29 | `cat.BaseRate (with cat.BaseRateValue and cat.BaseRateAlias).InstitutionId (MARKET rows), CurrencyId, Code, BaseRateAlias.InstitutionId` | major | tenancy | BaseRate is tenant-owned (no global/mixed flag, model 12:210; | Make MARKET base rates and their values global or mixed (TenantId NULL, platform-written, tenant read-only) and keep BANK_INTERNAL tenant-owned, with a justification line per table. | مُطبَّق (O-15, ADR 0011) |
 | DR-30 | `cat.FinancingType; cat.ProductFinancingType (with cat.Product and cat.FacilityType).IsIslamic, Compliance` | major | workflow_semantics | Shariah classification is modelled three ways. | Replace IsIslamic with the same Compliance enum. | مُطبَّق (O-15, ADR 0011) |
-| DR-31 | `fac.Limit, fac.LimitProductLine, fac.LimitCompanyRule, fac.ProductLineTerm, fac.OutstandingSnapshot, fac.ValueConflict, prc.PricingRule, cmp.TermValue (src tables).OriginalText (and CandidateAOriginalText, Reason, Notes, ChangeSummary)` | major | sensitivity | The src flag adds OriginalText NVARCHAR(2000) to each sourced row (DDL 001:2969, 3020, 3070, 3114 and others) and ValueConflict.CandidateA/BOriginalText (13:335, 13:341). | Flag OriginalText and the free-text columns in src and rev tables as sens=confidential, and add DENY SELECT for tp_readonly on them. | مُطبَّق جزئيًا (ADR 0011)؛ الباقي قبل S2 |
+| DR-31 | `fac.Limit, fac.LimitProductLine, fac.LimitCompanyRule, fac.ProductLineTerm, fac.OutstandingSnapshot, fac.ValueConflict, prc.PricingRule, cmp.TermValue (src tables).OriginalText (and CandidateAOriginalText, Reason, Notes, ChangeSummary)` | major | sensitivity | The src flag adds OriginalText NVARCHAR(2000) to each sourced row (DDL 001:2969, 3020, 3070, 3114 and others) and ValueConflict.CandidateA/BOriginalText (13:335, 13:341). | Flag OriginalText and the free-text columns in src and rev tables as sens=confidential, and add DENY SELECT for tp_readonly on them. | مُطبَّق (O-15, ADR 0011) |
 | DR-32 | `cat.DocumentType; fac.FacilityLender; fac.Facility; ref.Country; cat.LegalEntityType; cat.Position.AppliesTo, Roles, AlertLeadDays, BankUnilateralRights, WeekendDays, DefaultBodyTypes, ApplicableBodyTypes` | major | normalization | Multi-valued columns are not domain-checked. | Have dbgen emit a membership CHECK for every set{} column (wrap the value in commas and reject any token outside the list, plus duplicates). | مُطبَّق (O-15, ADR 0011) |
 | DR-33 | `col.Guarantee.GuarantorIdentityDocumentId` | major | referential | The generated FK is (TenantId, GuarantorIdentityDocumentId) to pty.IdentityDocument only (002_foreign_keys.sql:444). | Declare GuarantorIdentityDocumentId ->pty.IdentityDocument via=GuarantorPartyId, with a unique (TenantId, PartyId, IdentityDocumentId) on pty.IdentityDocument. | مُطبَّق (O-15, ADR 0011) |
 | DR-34 | `fin.FinancialStatement.SupersedesId` | major | referential | The version-chain FK is (TenantId, SupersedesId) to fin.FinancialStatement only (002_foreign_keys.sql:510) with no via= on CompanyId or on the period key. | Declare SupersedesId ->fin.FinancialStatement via=CompanyId,Basis,Assurance,PeriodType,PeriodEnd (the columns of the approved-uniqueness key), with a unique on the target (TenantId, those columns, FinancialStatementId). | مُطبَّق (O-15, ADR 0011) |
 | DR-35 | `prc.PricingRule.ScopeLimitProductLineId` | major | referential | ScopeLimitProductLineId (db/model/13 line 438), cmp.TermValue.LimitProductLineId (line 561) and obl.Obligation.ScopeProductLineId (db/model/14 line 167) use via=FacilityId only. | Use via=FacilityId,ScopeLimitId for PricingRule and Obligation, and via=FacilityId,LimitId for TermValue. | مُطبَّق (O-15, ADR 0011) |
-| DR-36 | `col.Collateral.Status` | major | workflow_semantics | Status is {DRAFT, ACTIVE, RELEASED, EXPIRED} (db/model/14 line 33), and it has no value for a replaced version. | Add SUPERSEDED to Status and set it in the approval transaction. | معتمد (ADR 0011)؛ يُطبَّق قبل S2 |
+| DR-36 | `col.Collateral.Status` | major | workflow_semantics | Status is {DRAFT, ACTIVE, RELEASED, EXPIRED} (db/model/14 line 33), and it has no value for a replaced version. | Add SUPERSEDED to Status and set it in the approval transaction. | مُطبَّق (O-15, ADR 0011) |
 | DR-37 | `fin.AccountMonthlyStat.MonthEnd` | major | key | Both fin.AccountMonthlyStat and fin.BankFlowEntry key on MonthEnd (db/model/14 line 456 unique BankAccountId,MonthEnd; | Add CHECK (MonthEnd = EOMONTH(MonthEnd)) to both tables, and apply the same rule to any other MonthEnd used as a key. | مُطبَّق (O-15, ADR 0011) |
-| DR-38 | `obl.Covenant.ThresholdUnit` | major | workflow_semantics | CK_Covenant_3 (001_tables.sql:4144) requires Operator and ThresholdValue when ThresholdState = 'SET', but not ThresholdUnit (model lines 286-288). | Add CHECK (ThresholdState <> 'SET' OR ThresholdUnit IS NOT NULL) and CHECK (MeasureKind NOT IN ('RATIO','AMOUNT','PERCENT_OF_REVENUE') OR StatementBasis IS NOT NULL), and review RequiredAssurance the same way. | مُطبَّق جزئيًا (ADR 0011)؛ الباقي قبل S2 |
-| DR-39 | `obl.CovenantTest.CovenantId` | major | workflow_semantics | (a) The model says stored results are not edited (المخزَّن لا يُعدَّل, db/model/14 line 300) and InputsSnapshot is fixed after saving (line 314, BR-FIN-010). | Keep a GoverningCovenantId (and GoverningReportingObligationId on ReportingInstance) that is never re-pointed, and resolve the current revision through the logical chain. | معتمد (ADR 0011)؛ يُطبَّق قبل S2-b |
+| DR-38 | `obl.Covenant.ThresholdUnit` | major | workflow_semantics | CK_Covenant_3 (001_tables.sql:4144) requires Operator and ThresholdValue when ThresholdState = 'SET', but not ThresholdUnit (model lines 286-288). | Add CHECK (ThresholdState <> 'SET' OR ThresholdUnit IS NOT NULL) and CHECK (MeasureKind NOT IN ('RATIO','AMOUNT','PERCENT_OF_REVENUE') OR StatementBasis IS NOT NULL), and review RequiredAssurance the same way. | مُطبَّق (O-15, ADR 0011) |
+| DR-39 | `obl.CovenantTest.CovenantId` | major | workflow_semantics | (a) The model says stored results are not edited (المخزَّن لا يُعدَّل, db/model/14 line 300) and InputsSnapshot is fixed after saving (line 314, BR-FIN-010). | Keep a GoverningCovenantId (and GoverningReportingObligationId on ReportingInstance) that is never re-pointed, and resolve the current revision through the logical chain. | مُطبَّق (O-15, ADR 0011) |
 | DR-40 | `col.Guarantee.CollateralId` | major | referential | Subtype rows (Guarantee, PromissoryNote, InsurancePolicyAssignment, ValuationSchedule; | Use the typed-FK pattern. | مُطبَّق (O-15, ADR 0011) |
-| DR-41 | `lc.LcTerms.Status` | major | workflow_semantics | Locked legal content is mutable at the database level. | Separate mutable draft from issued content: keep LcTerms mutable only while DRAFT and insert a new immutable row on lock, with DENY UPDATE/DELETE to tp_app and tp_platform on the locked table (the append mechanism already used in… | مُطبَّق جزئيًا (ADR 0011)؛ الباقي قبل S3 |
+| DR-41 | `lc.LcTerms.Status` | major | workflow_semantics | Locked legal content is mutable at the database level. | Separate mutable draft from issued content: keep LcTerms mutable only while DRAFT and insert a new immutable row on lock, with DENY UPDATE/DELETE to tp_app and tp_platform on the locked table (the append mechanism already used in… | مُطبَّق (O-15, ADR 0011) |
 | DR-42 | `lc.LetterOfCredit.CurrentTermsId` | major | referential | LcTerms.OwnerType/OwnerId is polymorphic with no FK (16:162-163), and the generated FK for CurrentTermsId is (TenantId, CurrentTermsId) only (DDL 002_foreign_keys.sql:709). | Replace OwnerType/OwnerId with typed nullable owner keys (RequestId, ProformaInvoiceId, LetterOfCreditId, LcAmendmentId) and a check that exactly one applies for the Purpose, so each terms row has a real FK. | مُطبَّق (O-15, ADR 0011) |
 | DR-43 | `wfl.HookExecution.ActionFilter` | major | key | The idempotency key omits ActionFilter. | Include ActionFilter in the unique key (SQL Server treats NULLs as equal in unique constraints, so ON_ENTER and ON_EXIT rows stay unique). | مُطبَّق (O-15, ADR 0011) |
-| DR-44 | `wfl.Request.DueAt` | major | redundancy | Request duplicates the open stage instance. | Make RequestStageInstance the single source of stage, assignee and SLA state, and build the queue and SLA indexes on it (it already indexes DueAt where ExitedAt IS NULL, 15:405). | معتمد (ADR 0011)؛ يُطبَّق قبل S3 |
+| DR-44 | `wfl.Request.DueAt` | major | redundancy | Request duplicates the open stage instance. | Make RequestStageInstance the single source of stage, assignee and SLA state, and build the queue and SLA indexes on it (it already indexes DueAt where ExitedAt IS NULL, 15:405). | مُطبَّق (O-15, ADR 0011) |
 | DR-45 | `lc.LetterOfCredit.InstitutionId` | major | key | InstitutionId is optional (16:397; | Add CHECK (LcClass = 'SALES' OR InstitutionId IS NOT NULL). | مُطبَّق (O-15, ADR 0011) |
-| DR-46 | `lc.LcTermsComparisonLine.BaselineValue` | major | sensitivity | The restricted IBAN is encrypted in one column, but comparison and diff storage writes field values in plaintext with no sensitivity tag. | Exclude sens=restricted FieldKeys from comparison and diff at write time, storing only the mask and an HMAC for changed restricted fields, or encrypt those values with the §6.2 envelope. | مُطبَّق جزئيًا (ADR 0011)؛ الباقي قبل S3 |
+| DR-46 | `lc.LcTermsComparisonLine.BaselineValue` | major | sensitivity | The restricted IBAN is encrypted in one column, but comparison and diff storage writes field values in plaintext with no sensitivity tag. | Exclude sens=restricted FieldKeys from comparison and diff at write time, storing only the mask and an HMAC for changed restricted fields, or encrypt those values with the §6.2 envelope. | مُطبَّق (O-15, ADR 0011) |
 | DR-47 | `org.Company.ErpCodeNormalized` | minor | normalization | ErpCodeNormalized (11-organization-party.model:28) is a stored derivation of ErpCompanyCode (the comment says it implements the BR-LCE-002 formula). | Declare ErpCodeNormalized as a calc column with a persisted expression, e.g. | مُطبَّق (O-15, ADR 0011) |
 | DR-48 | `ref.Country, ref.Currency, and every cat.* table with a Code check (for example cat.BaseRate, cat.LookupItem).Iso2, Iso3, Code` | minor | key | The database collation is Arabic_100_CI_AS_SC (db/deploy.sql:9). | Add COLLATE Latin1_General_100_BIN2 inside each Code CHECK, for example Iso2 COLLATE Latin1_General_100_BIN2 NOT LIKE '%[^A-Z]%'. | مُطبَّق (O-15, ADR 0011) |
-| DR-49 | `wfl.RequestType.AmountFieldKey` | minor | redundancy | RequestType repeats facts that other tables already own. | Derive field keys from TemplateField.IndexRole of the current template, derive the default template from WorkflowTemplate.IsCurrent, and make NumberSequenceKey a computed column or a check equal to 'req:' + Code. | مُطبَّق جزئيًا (ADR 0011)؛ الباقي قبل S3 |
+| DR-49 | `wfl.RequestType.AmountFieldKey` | minor | redundancy | RequestType repeats facts that other tables already own. | Derive field keys from TemplateField.IndexRole of the current template, derive the default template from WorkflowTemplate.IsCurrent, and make NumberSequenceKey a computed column or a check equal to 'req:' + Code. | مُطبَّق (O-15, ADR 0011) |
 | DR-50 | `wfl.Request.OutcomeReason` | minor | workflow_semantics | Several state columns lack the evidence that their state implies. | Add CHECKs: Status IN ('REJECTED','CANCELLED') implies OutcomeReason IS NOT NULL; | مُطبَّق (O-15, ADR 0011) |
 
 ### 18.3 القرار
 
 1. **الحرجة (10): مُعتمدة ومُطبَّقة** في النموذج والـDDL بالتغيير C-12، ويتحقق منها `tools/dbgen/check_review_fixes.py` آليًا على DDL المولَّد.
-2. **الرئيسية (36) والطفيفة (4): قرّرها المالك في 2026-10-13** بسجل `docs/32-review-findings-decisions.md` (O-15). الدفعة (أ) مُطبَّقة كلها أو جزئيًا في 33 نتيجة (`docs/adr/0011-design-review-fixes.md`، الاختبارات RF1 إلى RF18)، وست نتائج والأجزاء الباقية شروط دخول لشرائحها، وDR-20 محلولة بـ DR-02.
+2. **الرئيسية (36) والطفيفة (4): قرّرها المالك في 2026-10-13** بسجل `docs/32-review-findings-decisions.md` (O-15). الدفعة (أ) مُطبَّقة في 33 نتيجة (`docs/adr/0011-design-review-fixes.md`، الاختبارات RF1 إلى RF18)، والدفعة (ب)، شروط دخول الشرائح S1 إلى S4، مُطبَّقة كلها في اليوم نفسه (`db/static/044_entry_guards.sql`، الاختبارات RF19 إلى RF34)، وDR-20 محلولة بـ DR-02. المؤجَّل: مرساة البصمة الخارجية (مع O-13) وفحص المفاتيح المتقاعدة.
 3. **بعد أي تغيير** في النموذج: `dbgen check` و`dbgen build` و`pg_validate.sh` و`check_grants.py` و`check_review_fixes.py`، ثم `erd_mermaid.py` لتحديث المخططات، ثم إعادة بناء هذه الوثيقة.
 

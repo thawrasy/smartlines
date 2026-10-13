@@ -58,6 +58,7 @@ USING (VALUES
     ('JOB-FIN-EVAL', 'TENANT', 'TRIAL,ACTIVE', N'Financial statement evaluation, nightly.'),
     ('JOB-COL-DUE', 'TENANT', 'TRIAL,ACTIVE', N'Collateral due items, nightly.'),
     ('JOB-CMP-SYNC', 'TENANT', 'TRIAL,ACTIVE', N'Comparison projection sync, nightly.'),
+    ('JOB-PLT-RECONCILE', 'TENANT', 'TRIAL,ACTIVE', N'Reads wfl.RequestCopyDrift and lc.ProformaTotalsDrift, nightly; a row is an incident (DR-44, DR-41).'),
     ('JOB-ACC-EXPIRY', 'TENANT', 'TRIAL,ACTIVE', N'Signatory expiry, daily.'),
     ('JOB-ACC-GOV', 'TENANT', 'TRIAL,ACTIVE', N'Governance checks, daily.'),
     ('JOB-CAT-STALE', 'TENANT', 'TRIAL,ACTIVE', N'Stale base rates, daily.'),

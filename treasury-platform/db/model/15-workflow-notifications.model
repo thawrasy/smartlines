@@ -17,18 +17,14 @@
 # ============================== أنواع الطلبات وجمهورها (REQ) ==============================
 module REQ
 
-table wfl.RequestType int public  # Request type definition (FR-REQ-001, BR-REQ-001, V-REQ-01); new types need no code (FR-REQ-021)
+table wfl.RequestType int public  # Request type definition (FR-REQ-001, BR-REQ-001, V-REQ-01); new types need no code (FR-REQ-021); its template is the current WorkflowTemplate of the type and its index fields the IndexRole fields of that template (DR-49)
   Code                    ascii(40)  req   # رمز النوع: LC_AMENDMENT · PURCHASE_LC · …؛ فريد بالمشترك
   NameAr                  str(200)   req
   NameEn                  str(200)   req
   Description             str(500)
   Category                enum{PURCHASE,SALES,TREASURY,GENERAL,CHILD} req   # تصنيف مشتريات/مبيعات الموحّد (لا استيراد/تصدير)
   ParentEntityType        ascii(40)        # نوع الكائن الأب للأنواع الفرعية (اعتماد صادر مثلًا) (FR-REQ-012، BR-REQ-008)
-  DefaultTemplateKey      ascii(60)  req   # مفتاح القالب الافتراضي؛ النسخة المعتمدة هي IsCurrent (BR-WFL-019)
   NumberSequenceKey       ascii(50)  req   # = req:<Code> (قيد أدناه) يقابل cfg.NumberSequenceDefinition.SequenceKey، فيخضع لقاعدة الترقيم بلا فجوات (BR-WFL-013، X-DAT-8، DR-49)
-  AmountFieldKey          ascii(60)        # مفاتيح حقول الفهرسة في النموذج (FR-REQ-009)
-  CurrencyFieldKey        ascii(60)
-  ProductFieldKey         ascii(60)
   ConsumesCreditLimit     bool       req =0   # تقابل Product.ConsumesCreditLimit؛ يفعّل خطاف الحجز ولوحة التوفر (BR-REQ-009)
   LimitCheckMode          enum{NONE,ADVISORY,REQUIRED_SELECTION} req =NONE   # وضع لوحة التوفر للنوع؛ غير CheckMode لخط المنتج في 12
   RequiresSignedOriginal  bool       req =0   # الأصل الموقّع إلزامي (FR-WFL-025)
@@ -64,7 +60,7 @@ table wfl.ExternalPhase int catalog  # Phase shown to the requester: DRAFT, IN_A
   IsFinal                  bool  req =0     # نهائية: مكتمل · مرفوض · ملغى
   check RequiresRequesterAction = 0 OR IsFinal = 0   # المرحلة النهائية لا تنتظر إجراء الطالب
 
-table wfl.WorkflowTemplate int public  # Workflow template version; a published version is immutable (FR-WFL-001/028, BR-WFL-019, AC-WFL-6)
+table wfl.WorkflowTemplate int public  # Workflow template version; a published version is immutable and its parts change only while it is a draft (044, DR-41) (FR-WFL-001/028, BR-WFL-019, AC-WFL-6)
   RequestTypeId             ->wfl.RequestType req   # قالب لكل نوع؛ CHILD_STANDARD المشترك يُبذر نسخة لكل نوع (انظر تقرير الكاتب)
   TemplateKey               ascii(60)  req
   VersionNo                 int        req   # تصاعدي لكل TemplateKey بلا فجوات
@@ -86,6 +82,7 @@ table wfl.WorkflowTemplate int public  # Workflow template version; a published 
   unique TemplateKey,VersionNo
   unique PublicId
   unique TemplateKey where IsCurrent = 1   # نسخة حالية واحدة لكل مفتاح (BR-WFL-019)
+  unique RequestTypeId where IsCurrent = 1   # قالب حالي واحد لكل نوع طلب: هو قالبه الافتراضي (DR-49)
   unique RequestTypeId,SeedKey,SourceSeedVersion where SeedKey IS NOT NULL   # إعادة البذر لا تكرر (FR-WFL-002)
   index RequestTypeId,Status
   check VersionNo >= 1
@@ -98,7 +95,7 @@ table wfl.WorkflowTemplate int public  # Workflow template version; a published 
   check SeedKey IS NULL OR SourceSeedVersion IS NOT NULL
   check NameAr IS NOT NULL OR NameEn IS NOT NULL
 
-table wfl.WorkflowStage int deletable  # Stage in a template version (FR-WFL-003/004/005, BR-WFL-002/010/012); physical delete only for a draft version
+table wfl.WorkflowStage int deletable  # Changes only while its template version is a draft (044, DR-41). Stage in a template version (FR-WFL-003/004/005, BR-WFL-002/010/012); physical delete only for a draft version
   TemplateId             ->wfl.WorkflowTemplate req
   StageKey               ascii(40)  req   # ثابت عبر النسخ
   NameAr                 str(200)   req   # الاسم الداخلي (لا يراه الطالب، BR-WFL-024)
@@ -143,7 +140,7 @@ table wfl.WorkflowStage int deletable  # Stage in a template version (FR-WFL-003
   check AssigneeRule <> 'DEPARTMENT' OR AssigneeDepartmentId IS NOT NULL
   check AssigneeRule <> 'ROLE' OR AssigneeRoleId IS NOT NULL OR PoolPermissionId IS NOT NULL
 
-table wfl.StageApprover int deletable  # Approval slot in an APPROVAL stage; ALL = every slot, and a role requiring two people together = two slots (FR-WFL-007/041, BR-WFL-003/004)
+table wfl.StageApprover int deletable  # Changes only while its template version is a draft (044, DR-41). Approval slot in an APPROVAL stage; ALL = every slot, and a role requiring two people together = two slots (FR-WFL-007/041, BR-WFL-003/004)
   StageId                  ->wfl.WorkflowStage req
   SlotKey                  ascii(30)  req   # مثل ORIGINATOR · MANAGER · TM
   LabelAr                  str(200)
@@ -165,7 +162,7 @@ table wfl.StageApprover int deletable  # Approval slot in an APPROVAL stage; ALL
   check AutoCompleteBySubmitter = 0 OR SubjectRule = 'REQUESTER'   # BR-WFL-004
   check LabelAr IS NOT NULL OR LabelEn IS NOT NULL
 
-table wfl.WorkflowTransition int deletable  # Transition between two stages with a condition and a priority; a linear flow with simple conditional branching (FR-WFL-006, BR-WFL-001, D-8)
+table wfl.WorkflowTransition int deletable  # Changes only while its template version is a draft (044, DR-41). Transition between two stages with a condition and a priority; a linear flow with simple conditional branching (FR-WFL-006, BR-WFL-001, D-8)
   TemplateId       ->wfl.WorkflowTemplate req
   FromStageId      ->wfl.WorkflowStage via=TemplateId req   # الرسم كله داخل القالب نفسه
   Action           enum{SUBMIT,APPROVE,COMPLETE,RETURN,REJECT,CANCEL,RESUBMIT} req
@@ -182,7 +179,7 @@ table wfl.WorkflowTransition int deletable  # Transition between two stages with
   check ResumeStageId IS NULL OR Action IN ('RETURN','RESUBMIT')
   check Action NOT IN ('RETURN','REJECT') OR RequiresComment = 1   # السبب إلزامي (FR-WFL-010/012، BR-WFL-008)
 
-table wfl.WorkflowStageHook int deletable  # Hook registered on a stage: a key and parameters, no code (FR-WFL-021, BR-WFL-015, section 5.4)
+table wfl.WorkflowStageHook int deletable  # Changes only while its template version is a draft (044, DR-41). Hook registered on a stage: a key and parameters, no code (FR-WFL-021, BR-WFL-015, section 5.4)
   StageId       ->wfl.WorkflowStage req
   TriggerKind   enum{ON_ENTER,ON_EXIT,ON_ACTION} req   # Trigger في المواصفة؛ الاسم محجوز في T-SQL
   ActionFilter  enum{SUBMIT,APPROVE,COMPLETE,RETURN,REJECT,CANCEL,RESUBMIT}   # للمشغّل ON_ACTION فقط؛ REJECT وCANCEL صفّان
@@ -199,7 +196,7 @@ table wfl.WorkflowStageHook int deletable  # Hook registered on a stage: a key a
 # ============================== نموذج الطلب ومرفقاته (REQ) ==============================
 module REQ
 
-table wfl.TemplateField int deletable  # Field in a template version; the form UI is generated without code (FR-REQ-002..005, BR-REQ-003/004)
+table wfl.TemplateField int deletable  # Changes only while its template version is a draft (044, DR-41). Field in a template version; the form UI is generated without code (FR-REQ-002..005, BR-REQ-003/004)
   TemplateId         ->wfl.WorkflowTemplate req
   FieldKey           ascii(60)  req
   LabelAr            str(200)   req
@@ -226,7 +223,7 @@ table wfl.TemplateField int deletable  # Field in a template version; the form U
   check IndexRole <> 'REQUIRED_BY_DATE' OR DataType = 'DATE'
   check Sensitivity <> 'RESTRICTED' OR IndexRole = 'NONE'   # لا فهرسة لحقل مقيّد (BR-REQ-003)
 
-table wfl.TemplateAttachmentRule int deletable  # Attachment rule on a template version (FR-REQ-006, BR-REQ-005, FR-WFL-024/025)
+table wfl.TemplateAttachmentRule int deletable  # Changes only while its template version is a draft (044, DR-41). Attachment rule on a template version (FR-REQ-006, BR-REQ-005, FR-WFL-024/025)
   TemplateId              ->wfl.WorkflowTemplate req
   SlotKey                 ascii(40)  req
   LabelAr                 str(200)
@@ -257,11 +254,11 @@ table wfl.Request public  # Request: the most heavily used table; the internal s
   SubmittedByUserId        ->sec.AppUser noidx  # مقدِّم الطلب: يحدد اكتمال خانة ORIGINATOR (BR-WFL-004، Q-WFL-03)
   Title                    str(200)
   Status                   enum{DRAFT,ACTIVE,AWAITING_CLOSE,COMPLETED,REJECTED,CANCELLED} req =DRAFT   # §8؛ AWAITING_CLOSE: انتهت المراحل بنجاح وتنتظر إقفال إدارة الخزينة؛ COMPLETED لا يُبلَغ إلا بإقفالها (BR-WFL-027)
-  CurrentStageId           ->wfl.WorkflowStage via=TemplateId noidx   # إضافة: المرحلة الحالية مخبأة للفهارس ولوحات الطابور؛ تتبع القالب الملتقَط نفسه
-  CurrentStageInstanceId   ->wfl.RequestStageInstance noidx   # مثيل المرحلة الحالي؛ يتبع الطلب نفسه (يتحقق منه التطبيق)
+  CurrentStageId           ->wfl.WorkflowStage via=TemplateId noidx   # نسخة تكتبها القاعدة من مثيل المرحلة الحالي (044، DR-44)؛ إضافة: المرحلة الحالية مخبأة للفهارس ولوحات الطابور؛ تتبع القالب الملتقَط نفسه
+  CurrentStageInstanceId   ->wfl.RequestStageInstance via=RequestId noidx   # مثيل المرحلة الحالي، من الطلب نفسه بمفتاح مركّب (DR-44)؛ كتابته تنسخ المرحلة والإسناد والمهلة
   ExternalPhaseId          ->wfl.ExternalPhase noidx req   # المرحلة الظاهرة للطالب (BR-WFL-011)
   SubStatusKey             ascii(40)        # الحالة الفرعية الداخلية؛ لا يراها الطالب (FR-WFL-015)
-  AssigneeUserId           ->sec.AppUser    # المُسنَد؛ فارغ في الطابور (BR-WFL-005/007)
+  AssigneeUserId           ->sec.AppUser    # المُسنَد؛ فارغ في الطابور (BR-WFL-005/007)؛ هذه الخمسة نسخ من مثيل المرحلة الحالي تكتبها القاعدة وحدها (044، DR-44)
   QueueEnteredAt           ts               # قِدَم الطابور تراكمي لا يُصفَّر بالتحرير (BR-WFL-007)
   ClaimedAt                ts
   DueAt                    ts               # استحقاق المرحلة الحالية بساعات العمل (BR-WFL-012)
@@ -293,7 +290,7 @@ table wfl.Request public  # Request: the most heavily used table; the internal s
   LimitProductLineId       ->fac.LimitProductLine via=FacilityId,LimitId noidx   # AllocProductLineId (LineId في fac.reserve_limit)
   InstitutionId            ->ins.Institution noidx   # AllocInstitutionId
   ExecutionChannel         enum{BANK_PORTAL,MANUAL_FORM,DIRECT_INTEGRATION}   # تقترحه 11 SVC-02 ويعدّله المنفّذ (FR-WFL-027)
-  ReservationId            ->fac.LimitReservation noidx   # آخر حجز؛ بلا via لأن إعادة الاختيار تسبق إعادة الحجز (BR-WFL-017)
+  ReservationId            ->fac.LimitReservation via=RequestId noidx   # آخر حجز لهذا الطلب نفسه (DR-44)؛ والثلاثة نسخ من fac.LimitReservation تكتبها القاعدة وحدها (044)
   ReservedAmount           money            # ما أعادته fac.reserve_limit = ExposureAmount المحجوز بعملة الطلب
   ReservationState         enum{NONE,RESERVED,CONVERTED,RELEASED,LOST} req =NONE   # §8؛ LOST عند إفراج م5 خارجيًا (BR-WFL-017)
   HasSodException          bool       req =0   # استخدام استثناء فصل المهام: إنذار للمدير عند أول مرة (BR-WFL-026)
@@ -319,7 +316,7 @@ table wfl.Request public  # Request: the most heavily used table; the internal s
   check Status NOT IN ('ACTIVE','AWAITING_CLOSE','COMPLETED','REJECTED') OR SubmittedAt IS NOT NULL   # المسودة المُلغاة قد لا تُقدَّم
   check (Status IN ('DRAFT','ACTIVE','AWAITING_CLOSE') AND CompletedAt IS NULL) OR (Status IN ('COMPLETED','REJECTED','CANCELLED') AND CompletedAt IS NOT NULL)
   check CompletedAt IS NULL OR SubmittedAt IS NULL OR CompletedAt >= SubmittedAt
-  check Status <> 'ACTIVE' OR (CurrentStageInstanceId IS NOT NULL AND CurrentStageId IS NOT NULL)
+  check Status <> 'ACTIVE' OR CurrentStageInstanceId IS NOT NULL   # المرحلة الحالية تنسخها القاعدة من المثيل بعد الكتابة (DR-44)
   check Status <> 'COMPLETED' OR RequestNo IS NOT NULL   # الإكمال بعد مرحلة الترقيم؛ المرفوض قبلها لا يستهلك رقمًا
   check ArchivedAt IS NULL OR Status = 'DRAFT'
   check Status <> 'AWAITING_CLOSE' OR (ReadyToCloseAt IS NOT NULL AND CurrentStageInstanceId IS NOT NULL)   # BR-WFL-027

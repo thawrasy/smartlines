@@ -568,6 +568,7 @@ CREATE NONCLUSTERED INDEX [IX_RequestTypeAudience_DepartmentId] ON [wfl].[Reques
 CREATE NONCLUSTERED INDEX [IX_RequestTypeAudience_UserId] ON [wfl].[RequestTypeAudience] ([TenantId], [UserId]);
 CREATE UNIQUE NONCLUSTERED INDEX [UQ_ExternalPhase_SeedKey] ON [wfl].[ExternalPhase] ([TenantId], [SeedKey]) WHERE SeedKey IS NOT NULL;
 CREATE UNIQUE NONCLUSTERED INDEX [UQ_WorkflowTemplate_TemplateKey] ON [wfl].[WorkflowTemplate] ([TenantId], [TemplateKey]) WHERE IsCurrent = 1;
+CREATE UNIQUE NONCLUSTERED INDEX [UQ_WorkflowTemplate_RequestTypeId] ON [wfl].[WorkflowTemplate] ([TenantId], [RequestTypeId]) WHERE IsCurrent = 1;
 CREATE UNIQUE NONCLUSTERED INDEX [UQ_WorkflowTemplate_RequestTypeId_SeedKey_SourceSeedVersion] ON [wfl].[WorkflowTemplate] ([TenantId], [RequestTypeId], [SeedKey], [SourceSeedVersion]) WHERE SeedKey IS NOT NULL;
 CREATE NONCLUSTERED INDEX [IX_WorkflowTemplate_RequestTypeId_Status] ON [wfl].[WorkflowTemplate] ([TenantId], [RequestTypeId], [Status]);
 CREATE NONCLUSTERED INDEX [IX_WorkflowTemplate_PublishedBy] ON [wfl].[WorkflowTemplate] ([TenantId], [PublishedBy]);

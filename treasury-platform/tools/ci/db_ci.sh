@@ -133,8 +133,8 @@ sq -d BankFas -i db/seed/101_iso_reference.sql >/dev/null
 sq -d BankFas -i db/seed/102_permissions.sql >/dev/null
 sq -d BankFas -i db/seed/103_lc_reference.sql >/dev/null
 seed_after="$(seed_state)"
-if [ "$seed_before" != "$seed_after" ] || [ "$seed_before" != "9/31/1/9/23/249/157/138/16/39/0" ]; then
-    echo "platform seed is not safe to run again, or incomplete: settings/jobs/plans/plan modules/reserved/countries/currencies/permissions/Incoterms/unverified UCP articles/updated before $seed_before, after $seed_after (expected 9/31/1/9/23/249/157/138/16/39/0)"
+if [ "$seed_before" != "$seed_after" ] || [ "$seed_before" != "9/32/1/9/23/249/157/138/16/39/0" ]; then
+    echo "platform seed is not safe to run again, or incomplete: settings/jobs/plans/plan modules/reserved/countries/currencies/permissions/Incoterms/unverified UCP articles/updated before $seed_before, after $seed_after (expected 9/32/1/9/23/249/157/138/16/39/0)"
     exit 1
 fi
 echo "platform seed unchanged on a second run ($seed_after)"
@@ -395,13 +395,14 @@ if grep -qE 'FAIL RF[0-9]+:' "$TMP/review.out"; then
     exit 1
 fi
 rf_pass=$(grep -oE 'PASS RF[0-9]+:' "$TMP/review.out" | sort -u | wc -l)
-# 29 cases: RF1 list columns, RF2-RF9 the S0 tables (DR-11 to DR-18), RF10 codes in capitals (DR-48), RF11-RF16
+# 34 cases: RF1 list columns, RF2-RF9 the S0 tables (DR-11 to DR-18), RF10 codes in capitals (DR-48), RF11-RF16
 # the S1 tables (DR-19, DR-21, DR-23, DR-24, DR-29, DR-47), RF17-RF18 collateral kinds, agreement text and proformas
 # (DR-40, DR-31, DR-41), RF19-RF21 the S1 entry conditions (DR-30, DR-16, DR-25), RF22 the S1-b entry condition
 # (DR-22), RF23-RF27 the S2 entry conditions (DR-27, DR-28, DR-31, DR-36, DR-38), RF28-RF29 the S2-b entry condition
-# (DR-39). The declarative fixes are checked on the DDL in step 3 (check_review_fixes.py).
-if [ "$rf_pass" -ne 29 ]; then
-    echo "expected 29 PASS, found $rf_pass"
+# (DR-39), RF30-RF33 the S3 entry conditions (DR-41, DR-49, DR-44, DR-46) and RF34 the S4 one (DR-41). The declarative
+# fixes are checked on the DDL in step 3 (check_review_fixes.py).
+if [ "$rf_pass" -ne 34 ]; then
+    echo "expected 34 PASS, found $rf_pass"
     exit 1
 fi
 echo "review fixes tests: $rf_pass passed"

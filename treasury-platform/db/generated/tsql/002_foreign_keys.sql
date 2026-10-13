@@ -595,7 +595,7 @@ ALTER TABLE [wfl].[Request] ADD CONSTRAINT [FK_Request_RequesterUserId] FOREIGN 
 ALTER TABLE [wfl].[Request] ADD CONSTRAINT [FK_Request_CreatedByUserId] FOREIGN KEY ([TenantId], [CreatedByUserId]) REFERENCES [sec].[AppUser] ([TenantId], [AppUserId]);
 ALTER TABLE [wfl].[Request] ADD CONSTRAINT [FK_Request_SubmittedByUserId] FOREIGN KEY ([TenantId], [SubmittedByUserId]) REFERENCES [sec].[AppUser] ([TenantId], [AppUserId]);
 ALTER TABLE [wfl].[Request] ADD CONSTRAINT [FK_Request_CurrentStageId] FOREIGN KEY ([TenantId], [TemplateId], [CurrentStageId]) REFERENCES [wfl].[WorkflowStage] ([TenantId], [TemplateId], [WorkflowStageId]);
-ALTER TABLE [wfl].[Request] ADD CONSTRAINT [FK_Request_CurrentStageInstanceId] FOREIGN KEY ([TenantId], [CurrentStageInstanceId]) REFERENCES [wfl].[RequestStageInstance] ([TenantId], [RequestStageInstanceId]);
+ALTER TABLE [wfl].[Request] ADD CONSTRAINT [FK_Request_CurrentStageInstanceId] FOREIGN KEY ([TenantId], [RequestId], [CurrentStageInstanceId]) REFERENCES [wfl].[RequestStageInstance] ([TenantId], [RequestId], [RequestStageInstanceId]);
 ALTER TABLE [wfl].[Request] ADD CONSTRAINT [FK_Request_ExternalPhaseId] FOREIGN KEY ([TenantId], [ExternalPhaseId]) REFERENCES [wfl].[ExternalPhase] ([TenantId], [ExternalPhaseId]);
 ALTER TABLE [wfl].[Request] ADD CONSTRAINT [FK_Request_AssigneeUserId] FOREIGN KEY ([TenantId], [AssigneeUserId]) REFERENCES [sec].[AppUser] ([TenantId], [AppUserId]);
 ALTER TABLE [wfl].[Request] ADD CONSTRAINT [FK_Request_ClosedByUserId] FOREIGN KEY ([TenantId], [ClosedByUserId]) REFERENCES [sec].[AppUser] ([TenantId], [AppUserId]);
@@ -608,7 +608,7 @@ ALTER TABLE [wfl].[Request] ADD CONSTRAINT [FK_Request_FacilityId] FOREIGN KEY (
 ALTER TABLE [wfl].[Request] ADD CONSTRAINT [FK_Request_LimitId] FOREIGN KEY ([TenantId], [FacilityId], [LimitId]) REFERENCES [fac].[Limit] ([TenantId], [FacilityId], [LimitId]);
 ALTER TABLE [wfl].[Request] ADD CONSTRAINT [FK_Request_LimitProductLineId] FOREIGN KEY ([TenantId], [FacilityId], [LimitId], [LimitProductLineId]) REFERENCES [fac].[LimitProductLine] ([TenantId], [FacilityId], [LimitId], [LimitProductLineId]);
 ALTER TABLE [wfl].[Request] ADD CONSTRAINT [FK_Request_InstitutionId] FOREIGN KEY ([TenantId], [InstitutionId]) REFERENCES [ins].[Institution] ([TenantId], [InstitutionId]);
-ALTER TABLE [wfl].[Request] ADD CONSTRAINT [FK_Request_ReservationId] FOREIGN KEY ([TenantId], [ReservationId]) REFERENCES [fac].[LimitReservation] ([TenantId], [LimitReservationId]);
+ALTER TABLE [wfl].[Request] ADD CONSTRAINT [FK_Request_ReservationId] FOREIGN KEY ([TenantId], [RequestId], [ReservationId]) REFERENCES [fac].[LimitReservation] ([TenantId], [RequestId], [LimitReservationId]);
 ALTER TABLE [wfl].[RequestComment] ADD CONSTRAINT [FK_RequestComment_Tenant] FOREIGN KEY ([TenantId]) REFERENCES [plat].[Tenant] ([TenantId]);
 ALTER TABLE [wfl].[RequestComment] ADD CONSTRAINT [FK_RequestComment_RequestId] FOREIGN KEY ([TenantId], [RequestId]) REFERENCES [wfl].[Request] ([TenantId], [RequestId]);
 ALTER TABLE [wfl].[RequestComment] ADD CONSTRAINT [FK_RequestComment_StageInstanceId] FOREIGN KEY ([TenantId], [RequestId], [StageInstanceId]) REFERENCES [wfl].[RequestStageInstance] ([TenantId], [RequestId], [RequestStageInstanceId]);

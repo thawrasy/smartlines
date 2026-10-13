@@ -122,6 +122,19 @@ checks['DR-39 covenant test names the formula version it used, not its number'] 
     fk_has('CovenantTest', 'FormulaId') and 'FormulaVersion' not in block('obl', 'CovenantTest'))
 checks['DR-39 evaluated test frozen but for its review, complete snapshot, final agenda item (044)'] = (
     'TR_CovenantTest_Frozen' in entry and 'TR_CovenantTest_Evaluation' in entry and 'TR_ReportingInstance_Final' in entry)
+checks['DR-41 locked LC terms, clauses and charges, and published templates and their parts frozen (044)'] = all(
+    x in entry for x in ['TR_LcTerms_Locked', 'TR_LcTermsDocument_DraftOnly', 'TR_LcChargesMatrix_DraftOnly', 'TR_WorkflowTemplate_Published', "_DraftOnly')"])
+checks['DR-41 proforma lines written once and totals follow them (044, S4)'] = 'TR_ProformaLine_Totals' in entry and 'lc.ProformaTotalsDrift' in entry
+checks['DR-44 request copies bound to the request and written by the database only'] = (
+    fk_has('Request', 'CurrentStageInstanceId', 'RequestId') and fk_has('Request', 'ReservationId', 'RequestId')
+    and all(x in entry for x in ['TR_RequestStageInstance_Copy', 'TR_LimitReservation_RequestCopy', 'TR_Request_Copies', 'wfl.RequestCopyDrift'])
+    and re.search(r'DENY UPDATE ON wfl\.Request \([^)]*DueAt[^)]*ReservationState', entry) is not None)
+checks['DR-46 restricted LC fields never copied; IBAN change from the keyed hash (044)'] = (
+    has_check('lc', 'LcFieldDefinition', "Sensitivity = 'RESTRICTED'")
+    and all(x in entry for x in ['TR_LcTermsComparisonLine_Restricted', 'TR_LcAmendment_Restricted', 'lc.BeneficiaryIbanChange']))
+checks['DR-49 request type keeps no template or field keys; one current template per type'] = (
+    not any(c in block('wfl', 'RequestType') for c in ['DefaultTemplateKey', 'AmountFieldKey', 'CurrencyFieldKey', 'ProductFieldKey'])
+    and 'UQ_WorkflowTemplate_RequestTypeId] ON [wfl].[WorkflowTemplate] ([TenantId], [RequestTypeId]) WHERE IsCurrent = 1' in ix)
 checks['DR-30 product and financing type pair by Shariah classification'] = fk_has('ProductFinancingType', 'ProductId', 'ProductCompliance') and fk_has('ProductFinancingType', 'FinancingTypeId', 'FinancingIsIslamic') and has_check('cat', 'ProductFinancingType', "ProductCompliance = 'NEUTRAL'")
 checks['DR-29 BaseRate currency required; alias in its rate scope'] = '[CurrencyId] INT NOT NULL' in block('cat', 'BaseRate') and fk_has('BaseRateAlias', 'BaseRateId', 'ScopeKey')
 checks['DR-31 agreement text denied to tp_readonly (043)'] = 'OriginalText' in guards and 'tp_readonly' in guards

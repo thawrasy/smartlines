@@ -101,3 +101,30 @@ The three batch B items due before S1 were built at once, so the schema of S0 an
 
 Tests RF19 to RF21 pass in CI, and `check_review_fixes.py` verifies 61 fixes. Each test fails when its guard is removed.
 
+## Amendment, 2026-10-13: the entry conditions of S1-b to S4 are done
+
+Every batch B item is now built. The model holds the declarative part; `db/static/044_entry_guards.sql` (after 043 in `db/deploy.sql`) holds what a check cannot see. An error raised in a trigger ends the caller's transaction, so the application validates first and the trigger is the last line.
+
+| Slice | Finding | What was built | Error |
+|---|---|---|---|
+| S1-b | DR-22 | `org.Shareholding.IntermediatePartyId` names the intermediate of each indirect path. A path never passes through a company of the tenant, and a party that is the intermediate of an open path becomes a company only after the path closes. | 50047 |
+| S2 | DR-27 | A value conflict names an existing row of its target table and carries that row's facility; a collateral or tariff item has none. | 50048 |
+| S2 | DR-28, DQ-F13-4 | Every revisioned table gets `InheritedRootId` and a computed `RootId`, the stable identity of a node across revisions, bound through `SupersedesId` by a composite key, with one open row per root. An approved revision is final; `ApprovedRevisionNo` only moves forward and names an approved revision; approving refuses two rows of one node or a parent outside the revision. | 50049, 50050 |
+| S2 | DR-31, DQ-S06-7 | A `redact` column token in the generator adds a check that refuses ten digits in a row or an IBAN in groups of four. Every `OriginalText`, the candidate texts of a value conflict and an obligation's clause text carry it. | 547 |
+| S2 | DR-36 | Collateral versions share `RootId`; one draft and one current approved version per root; SUPERSEDED and DISCARDED; a release needs its document; a link names the root. | 50052 |
+| S2 | DR-38 | A covenant copies its formula's result unit and statement use through a composite key. The threshold unit is the formula's and fits the measure kind, and a formula on statements needs the basis and assurance. A used formula keeps its unit. | 547 |
+| S2-b | DR-39, DQ-F15-4 | `obl.CovenantTest.FormulaId` replaces `FormulaVersion`. An evaluated test changes only by its review. An automatic evaluation names a non-draft version of the covenant's formula, and its snapshot holds that version, the covenant's threshold and operator, and every input it read (BR-FIN-010). | 50053, 50054 |
+| S2-b | DR-39, DQ-F15-13 | An agenda item that left SCHEDULED keeps its status, obligation and period; a submission's details may be corrected. | 50055 |
+| S3 | DR-41 | LC terms are written as a draft, get their clauses and charges, then lock. A locked version changes only in its treasury fields, until `TreasuryHash` (BR-LCT-019). The trigger is built from the table's columns, so a new column is frozen unless named. | 50056 |
+| S3 | DR-41, DR-49 | A template version is written as a draft, gets its parts, then publishes; a published version only retires, and its parts do not change. One current template per request type; a template key stays with one type. `RequestType` loses `DefaultTemplateKey` and the three field keys. | 50057, 2601 |
+| S3 | DR-44, DQ-F11-10 | The request's copies of its current stage instance and of its reservation stay, for the queue and SLA indexes, but the database is their only writer. Triggers copy them, `tp_app` is denied the columns, and both references are composite keys to the request itself. `wfl.RequestCopyDrift` lists any that differ, for the new job `JOB-PLT-RECONCILE`. | 230, 547 |
+| S3 | DR-46, DQ-F12-11 | `lc.LcFieldDefinition.Sensitivity`; the IBAN field is always RESTRICTED. A restricted field is never copied into a comparison line or an amendment's changed fields. `lc.BeneficiaryIbanChange` reads the change from the keyed hash, or says the keys differ. | 50058 |
+| S4 | DR-41 | A proforma's lines are written once, in one statement; each line total, the subtotal and the VAT follow BR-LCE-001. `lc.ProformaTotalsDrift` lists a header without lines. | 50059 |
+
+- **Tests:** RF22 to RF34 pass in CI step 19 (34 cases), and `check_review_fixes.py` verifies 75 fixes. Each trigger was disabled in turn, and so was the column denial of DR-44; each time its test failed.
+- **What the application now owes the database:**
+  - the order of writing versioned data (draft, then its parts, then lock or publish);
+  - one statement for a proforma's lines;
+  - the snapshot shape of an automatic evaluation;
+  - ChangedFieldsJson as an object keyed by field key.
+- **Still deferred:** the external anchor of the snapshot hash (with O-13), and the check that no row references a retired key (DR-20).

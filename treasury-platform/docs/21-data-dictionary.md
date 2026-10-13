@@ -4334,7 +4334,7 @@
 
 ## REQ
 
-### `wfl.RequestType` — Request type definition (FR-REQ-001, BR-REQ-001, V-REQ-01); new types need no code (FR-REQ-021)
+### `wfl.RequestType` — Request type definition (FR-REQ-001, BR-REQ-001, V-REQ-01); new types need no code (FR-REQ-021); its template is the current WorkflowTemplate of the type and its index fields the IndexRole fields of that template (DR-49)
 
 *مملوك للمشترك*
 
@@ -4348,11 +4348,7 @@
 | Description | NVARCHAR(500) | نعم |  |  |  |
 | Category | VARCHAR(10) | لا |  |  | تصنيف مشتريات/مبيعات الموحّد (لا استيراد/تصدير) enum: PURCHASE, SALES, TREASURY, GENERAL, CHILD |
 | ParentEntityType | VARCHAR(40) | نعم |  |  | نوع الكائن الأب للأنواع الفرعية (اعتماد صادر مثلًا) (FR-REQ-012، BR-REQ-008) |
-| DefaultTemplateKey | VARCHAR(60) | لا |  |  | مفتاح القالب الافتراضي؛ النسخة المعتمدة هي IsCurrent (BR-WFL-019) |
 | NumberSequenceKey | VARCHAR(50) | لا |  |  | = req:<Code> (قيد أدناه) يقابل cfg.NumberSequenceDefinition.SequenceKey، فيخضع لقاعدة الترقيم بلا فجوات (BR-WFL-013، X-DAT-8، DR-49) |
-| AmountFieldKey | VARCHAR(60) | نعم |  |  | مفاتيح حقول الفهرسة في النموذج (FR-REQ-009) |
-| CurrencyFieldKey | VARCHAR(60) | نعم |  |  |  |
-| ProductFieldKey | VARCHAR(60) | نعم |  |  |  |
 | ConsumesCreditLimit | BIT | لا | 0 |  | تقابل Product.ConsumesCreditLimit؛ يفعّل خطاف الحجز ولوحة التوفر (BR-REQ-009) |
 | LimitCheckMode | VARCHAR(18) | لا | NONE |  | وضع لوحة التوفر للنوع؛ غير CheckMode لخط المنتج في 12 enum: NONE, ADVISORY, REQUIRED_SELECTION |
 | RequiresSignedOriginal | BIT | لا | 0 |  | الأصل الموقّع إلزامي (FR-WFL-025) |
@@ -4392,7 +4388,7 @@
 
 **قيود:** `(SubjectKind = 'ROLE' AND RoleId IS NOT NULL AND DepartmentId IS NULL AND UserId IS NULL) OR (SubjectKind = 'DEPARTMENT' AND DepartmentId IS NOT NULL AND RoleId IS NULL AND UserId IS NULL) OR (SubjectKind = 'USER' AND UserId IS NOT NULL AND RoleId IS NULL AND DepartmentId IS NULL)`
 
-### `wfl.TemplateField` — Field in a template version; the form UI is generated without code (FR-REQ-002..005, BR-REQ-003/004)
+### `wfl.TemplateField` — Changes only while its template version is a draft (044, DR-41). Field in a template version; the form UI is generated without code (FR-REQ-002..005, BR-REQ-003/004)
 
 *مملوك للمشترك*
 
@@ -4428,7 +4424,7 @@
 
 **قيود:** `IndexRole <> 'AMOUNT' OR DataType = 'AMOUNT'` · `IndexRole <> 'TITLE' OR DataType = 'TEXT'` · `IndexRole <> 'REQUIRED_BY_DATE' OR DataType = 'DATE'` · `Sensitivity <> 'RESTRICTED' OR IndexRole = 'NONE'`
 
-### `wfl.TemplateAttachmentRule` — Attachment rule on a template version (FR-REQ-006, BR-REQ-005, FR-WFL-024/025)
+### `wfl.TemplateAttachmentRule` — Changes only while its template version is a draft (044, DR-41). Attachment rule on a template version (FR-REQ-006, BR-REQ-005, FR-WFL-024/025)
 
 *مملوك للمشترك*
 
@@ -4476,11 +4472,11 @@
 | SubmittedByUserId | BIGINT | نعم |  | sec.AppUser | مقدِّم الطلب: يحدد اكتمال خانة ORIGINATOR (BR-WFL-004، Q-WFL-03) |
 | Title | NVARCHAR(200) | نعم |  |  |  |
 | Status | VARCHAR(14) | لا | DRAFT |  | §8؛ AWAITING_CLOSE: انتهت المراحل بنجاح وتنتظر إقفال إدارة الخزينة؛ COMPLETED لا يُبلَغ إلا بإقفالها (BR-WFL-027) enum: DRAFT, ACTIVE, AWAITING_CLOSE, COMPLETED, REJECTED, CANCELLED |
-| CurrentStageId | INT | نعم |  | wfl.WorkflowStage (via TemplateId) | إضافة: المرحلة الحالية مخبأة للفهارس ولوحات الطابور؛ تتبع القالب الملتقَط نفسه |
-| CurrentStageInstanceId | BIGINT | نعم |  | wfl.RequestStageInstance | مثيل المرحلة الحالي؛ يتبع الطلب نفسه (يتحقق منه التطبيق) |
+| CurrentStageId | INT | نعم |  | wfl.WorkflowStage (via TemplateId) | نسخة تكتبها القاعدة من مثيل المرحلة الحالي (044، DR-44)؛ إضافة: المرحلة الحالية مخبأة للفهارس ولوحات الطابور؛ تتبع القالب الملتقَط نفسه |
+| CurrentStageInstanceId | BIGINT | نعم |  | wfl.RequestStageInstance (via RequestId) | مثيل المرحلة الحالي، من الطلب نفسه بمفتاح مركّب (DR-44)؛ كتابته تنسخ المرحلة والإسناد والمهلة |
 | ExternalPhaseId | INT | لا |  | wfl.ExternalPhase | المرحلة الظاهرة للطالب (BR-WFL-011) |
 | SubStatusKey | VARCHAR(40) | نعم |  |  | الحالة الفرعية الداخلية؛ لا يراها الطالب (FR-WFL-015) |
-| AssigneeUserId | BIGINT | نعم |  | sec.AppUser | المُسنَد؛ فارغ في الطابور (BR-WFL-005/007) |
+| AssigneeUserId | BIGINT | نعم |  | sec.AppUser | المُسنَد؛ فارغ في الطابور (BR-WFL-005/007)؛ هذه الخمسة نسخ من مثيل المرحلة الحالي تكتبها القاعدة وحدها (044، DR-44) |
 | QueueEnteredAt | DATETIME2(3) | نعم |  |  | قِدَم الطابور تراكمي لا يُصفَّر بالتحرير (BR-WFL-007) |
 | ClaimedAt | DATETIME2(3) | نعم |  |  |  |
 | DueAt | DATETIME2(3) | نعم |  |  | استحقاق المرحلة الحالية بساعات العمل (BR-WFL-012) |
@@ -4512,7 +4508,7 @@
 | LimitProductLineId | BIGINT | نعم |  | fac.LimitProductLine (via FacilityId,LimitId) | AllocProductLineId (LineId في fac.reserve_limit) |
 | InstitutionId | BIGINT | نعم |  | ins.Institution | AllocInstitutionId |
 | ExecutionChannel | VARCHAR(18) | نعم |  |  | تقترحه 11 SVC-02 ويعدّله المنفّذ (FR-WFL-027) enum: BANK_PORTAL, MANUAL_FORM, DIRECT_INTEGRATION |
-| ReservationId | BIGINT | نعم |  | fac.LimitReservation | آخر حجز؛ بلا via لأن إعادة الاختيار تسبق إعادة الحجز (BR-WFL-017) |
+| ReservationId | BIGINT | نعم |  | fac.LimitReservation (via RequestId) | آخر حجز لهذا الطلب نفسه (DR-44)؛ والثلاثة نسخ من fac.LimitReservation تكتبها القاعدة وحدها (044) |
 | ReservedAmount | DECIMAL(19,4) | نعم |  |  | ما أعادته fac.reserve_limit = ExposureAmount المحجوز بعملة الطلب |
 | ReservationState | VARCHAR(10) | لا | NONE |  | §8؛ LOST عند إفراج م5 خارجيًا (BR-WFL-017) enum: NONE, RESERVED, CONVERTED, RELEASED, LOST |
 | HasSodException | BIT | لا | 0 |  | استخدام استثناء فصل المهام: إنذار للمدير عند أول مرة (BR-WFL-026) |
@@ -4525,7 +4521,7 @@
 
 **المفاتيح:** PK(RequestId) · UQ(PublicId) · UQ(TenantId, DraftRef) · UQ(TenantId, RequestNo) WHERE RequestNo IS NOT NULL · UQ(TenantId, RequestTypeId, NumberYear, NumberSeq) WHERE NumberSeq IS NOT NULL
 
-**قيود:** `(RequestNo IS NULL AND NumberYear IS NULL AND NumberSeq IS NULL) OR (RequestNo IS NOT NULL AND NumberYear IS NOT NULL AND NumberSeq IS NOT NULL)` · `DraftRef LIKE 'D-%'` · `Status NOT IN ('ACTIVE','AWAITING_CLOSE','COMPLETED','REJECTED') OR SubmittedAt IS NOT NULL` · `(Status IN ('DRAFT','ACTIVE','AWAITING_CLOSE') AND CompletedAt IS NULL) OR (Status IN ('COMPLETED','REJECTED','CANCELLED') AND CompletedAt IS NOT NULL)` · `CompletedAt IS NULL OR SubmittedAt IS NULL OR CompletedAt >= SubmittedAt` · `Status <> 'ACTIVE' OR (CurrentStageInstanceId IS NOT NULL AND CurrentStageId IS NOT NULL)` · `Status <> 'COMPLETED' OR RequestNo IS NOT NULL` · `ArchivedAt IS NULL OR Status = 'DRAFT'` · `Status <> 'AWAITING_CLOSE' OR (ReadyToCloseAt IS NOT NULL AND CurrentStageInstanceId IS NOT NULL)` · `ReadyToCloseAt IS NULL OR Status IN ('AWAITING_CLOSE','COMPLETED')` · `Status <> 'COMPLETED' OR (ClosedByUserId IS NOT NULL AND ClosedAt IS NOT NULL AND ClosedAt = CompletedAt)` · `ClosedByUserId IS NULL OR Status = 'COMPLETED'` · `Priority <> 'URGENT' OR UrgentReason IS NOT NULL` · `CycleNo >= 1` · `Amount IS NULL OR CurrencyId IS NOT NULL` · `SlaState NOT IN ('ON_TRACK','AT_RISK','OVERDUE') OR DueAt IS NOT NULL` · `(ReservationState = 'NONE' AND ReservationId IS NULL AND ReservedAmount IS NULL) OR (ReservationState <> 'NONE' AND ReservationId IS NOT NULL AND ReservedAmount IS NOT NULL)` · `ReservedAmount IS NULL OR (ReservedAmount > 0 AND CurrencyId IS NOT NULL)` · `LimitId IS NULL OR FacilityId IS NOT NULL` · `LimitProductLineId IS NULL OR LimitId IS NOT NULL` · `(ParentEntityType IS NULL AND ParentEntityId IS NULL) OR (ParentEntityType IS NOT NULL AND ParentEntityId IS NOT NULL)` · `ParentRequestId IS NULL OR ParentRequestId <> RequestId` · `CopiedFromRequestId IS NULL OR CopiedFromRequestId <> RequestId` · `Status <> 'REJECTED' OR OutcomeReason IS NOT NULL`
+**قيود:** `(RequestNo IS NULL AND NumberYear IS NULL AND NumberSeq IS NULL) OR (RequestNo IS NOT NULL AND NumberYear IS NOT NULL AND NumberSeq IS NOT NULL)` · `DraftRef LIKE 'D-%'` · `Status NOT IN ('ACTIVE','AWAITING_CLOSE','COMPLETED','REJECTED') OR SubmittedAt IS NOT NULL` · `(Status IN ('DRAFT','ACTIVE','AWAITING_CLOSE') AND CompletedAt IS NULL) OR (Status IN ('COMPLETED','REJECTED','CANCELLED') AND CompletedAt IS NOT NULL)` · `CompletedAt IS NULL OR SubmittedAt IS NULL OR CompletedAt >= SubmittedAt` · `Status <> 'ACTIVE' OR CurrentStageInstanceId IS NOT NULL` · `Status <> 'COMPLETED' OR RequestNo IS NOT NULL` · `ArchivedAt IS NULL OR Status = 'DRAFT'` · `Status <> 'AWAITING_CLOSE' OR (ReadyToCloseAt IS NOT NULL AND CurrentStageInstanceId IS NOT NULL)` · `ReadyToCloseAt IS NULL OR Status IN ('AWAITING_CLOSE','COMPLETED')` · `Status <> 'COMPLETED' OR (ClosedByUserId IS NOT NULL AND ClosedAt IS NOT NULL AND ClosedAt = CompletedAt)` · `ClosedByUserId IS NULL OR Status = 'COMPLETED'` · `Priority <> 'URGENT' OR UrgentReason IS NOT NULL` · `CycleNo >= 1` · `Amount IS NULL OR CurrencyId IS NOT NULL` · `SlaState NOT IN ('ON_TRACK','AT_RISK','OVERDUE') OR DueAt IS NOT NULL` · `(ReservationState = 'NONE' AND ReservationId IS NULL AND ReservedAmount IS NULL) OR (ReservationState <> 'NONE' AND ReservationId IS NOT NULL AND ReservedAmount IS NOT NULL)` · `ReservedAmount IS NULL OR (ReservedAmount > 0 AND CurrencyId IS NOT NULL)` · `LimitId IS NULL OR FacilityId IS NOT NULL` · `LimitProductLineId IS NULL OR LimitId IS NOT NULL` · `(ParentEntityType IS NULL AND ParentEntityId IS NULL) OR (ParentEntityType IS NOT NULL AND ParentEntityId IS NOT NULL)` · `ParentRequestId IS NULL OR ParentRequestId <> RequestId` · `CopiedFromRequestId IS NULL OR CopiedFromRequestId <> RequestId` · `Status <> 'REJECTED' OR OutcomeReason IS NOT NULL`
 
 ### `wfl.RequestComment` — Comment visible to the requester or internal; the application prevents editing it, and withdrawal keeps the original (FR-REQ-017, BR-REQ-014)
 
@@ -4632,7 +4628,7 @@
 
 **قيود:** `RequiresRequesterAction = 0 OR IsFinal = 0`
 
-### `wfl.WorkflowTemplate` — Workflow template version; a published version is immutable (FR-WFL-001/028, BR-WFL-019, AC-WFL-6)
+### `wfl.WorkflowTemplate` — Workflow template version; a published version is immutable and its parts change only while it is a draft (044, DR-41) (FR-WFL-001/028, BR-WFL-019, AC-WFL-6)
 
 *مملوك للمشترك*
 
@@ -4664,11 +4660,11 @@
 | UpdatedAt | DATETIME2(3) | نعم |  |  |  |
 | UpdatedBy | BIGINT | نعم |  |  |  |
 
-**المفاتيح:** PK(WorkflowTemplateId) · UQ(PublicId) · UQ(TenantId, TemplateKey, VersionNo) · UQ(TenantId, TemplateKey) WHERE IsCurrent = 1 · UQ(TenantId, RequestTypeId, SeedKey, SourceSeedVersion) WHERE SeedKey IS NOT NULL
+**المفاتيح:** PK(WorkflowTemplateId) · UQ(PublicId) · UQ(TenantId, TemplateKey, VersionNo) · UQ(TenantId, TemplateKey) WHERE IsCurrent = 1 · UQ(TenantId, RequestTypeId) WHERE IsCurrent = 1 · UQ(TenantId, RequestTypeId, SeedKey, SourceSeedVersion) WHERE SeedKey IS NOT NULL
 
 **قيود:** `VersionNo >= 1` · `IsCurrent = 0 OR Status = 'PUBLISHED'` · `Status <> 'PUBLISHED' OR PublishedAt IS NOT NULL` · `Status <> 'DRAFT' OR PublishedAt IS NULL` · `(PublishedAt IS NULL AND PublishedBy IS NULL) OR (PublishedAt IS NOT NULL AND PublishedBy IS NOT NULL)` · `(Status = 'RETIRED' AND RetiredAt IS NOT NULL) OR (Status <> 'RETIRED' AND RetiredAt IS NULL)` · `IsTenantModified = 0 OR SeedKey IS NULL` · `SeedKey IS NULL OR SourceSeedVersion IS NOT NULL` · `NameAr IS NOT NULL OR NameEn IS NOT NULL`
 
-### `wfl.WorkflowStage` — Stage in a template version (FR-WFL-003/004/005, BR-WFL-002/010/012); physical delete only for a draft version
+### `wfl.WorkflowStage` — Changes only while its template version is a draft (044, DR-41). Stage in a template version (FR-WFL-003/004/005, BR-WFL-002/010/012); physical delete only for a draft version
 
 *مملوك للمشترك*
 
@@ -4711,7 +4707,7 @@
 
 **قيود:** `(Kind = 'TERMINAL' AND IsTerminal = 1) OR (Kind <> 'TERMINAL' AND IsTerminal = 0)` · `(IsTerminal = 1 AND TerminalOutcome IS NOT NULL) OR (IsTerminal = 0 AND TerminalOutcome IS NULL)` · `(Kind = 'APPROVAL' AND ApprovalMode <> 'NONE') OR (Kind <> 'APPROVAL' AND ApprovalMode = 'NONE')` · `SlaHours IS NULL OR SlaHours > 0` · `ClaimSlaHours IS NULL OR (ClaimSlaHours > 0 AND Kind = 'TREASURY_QUEUE')` · `IsReservationPoint = 0 OR Kind = 'APPROVAL'` · `Kind <> 'TREASURY_QUEUE' OR (AssigneeRule IS NOT NULL AND AssigneeRule = 'ROLE' AND (AssigneeRoleId IS NOT NULL OR PoolPermissionId IS NOT NULL))` · `(AssigneeRoleId IS NULL AND PoolPermissionId IS NULL) OR AssigneeRule = 'ROLE'` · `AssigneeRoleId IS NULL OR PoolPermissionId IS NULL` · `AssigneeUserId IS NULL OR AssigneeRule = 'USER'` · `AssigneeDepartmentId IS NULL OR AssigneeRule = 'DEPARTMENT'` · `AssigneeRule <> 'USER' OR AssigneeUserId IS NOT NULL` · `AssigneeRule <> 'DEPARTMENT' OR AssigneeDepartmentId IS NOT NULL` · `AssigneeRule <> 'ROLE' OR AssigneeRoleId IS NOT NULL OR PoolPermissionId IS NOT NULL`
 
-### `wfl.StageApprover` — Approval slot in an APPROVAL stage; ALL = every slot, and a role requiring two people together = two slots (FR-WFL-007/041, BR-WFL-003/004)
+### `wfl.StageApprover` — Changes only while its template version is a draft (044, DR-41). Approval slot in an APPROVAL stage; ALL = every slot, and a role requiring two people together = two slots (FR-WFL-007/041, BR-WFL-003/004)
 
 *مملوك للمشترك*
 
@@ -4740,7 +4736,7 @@
 
 **قيود:** `SubjectRule <> 'ROLE' OR RoleId IS NOT NULL` · `SubjectRule <> 'USER' OR UserId IS NOT NULL` · `RoleId IS NULL OR SubjectRule = 'ROLE'` · `UserId IS NULL OR SubjectRule = 'USER'` · `DepartmentId IS NULL OR SubjectRule = 'DEPARTMENT_HEAD'` · `AutoCompleteBySubmitter = 0 OR SubjectRule = 'REQUESTER'` · `LabelAr IS NOT NULL OR LabelEn IS NOT NULL`
 
-### `wfl.WorkflowTransition` — Transition between two stages with a condition and a priority; a linear flow with simple conditional branching (FR-WFL-006, BR-WFL-001, D-8)
+### `wfl.WorkflowTransition` — Changes only while its template version is a draft (044, DR-41). Transition between two stages with a condition and a priority; a linear flow with simple conditional branching (FR-WFL-006, BR-WFL-001, D-8)
 
 *مملوك للمشترك*
 
@@ -4767,7 +4763,7 @@
 
 **قيود:** `Priority >= 1` · `FromStageId <> ToStageId` · `ResumeStageId IS NULL OR Action IN ('RETURN','RESUBMIT')` · `Action NOT IN ('RETURN','REJECT') OR RequiresComment = 1`
 
-### `wfl.WorkflowStageHook` — Hook registered on a stage: a key and parameters, no code (FR-WFL-021, BR-WFL-015, section 5.4)
+### `wfl.WorkflowStageHook` — Changes only while its template version is a draft (044, DR-41). Hook registered on a stage: a key and parameters, no code (FR-WFL-021, BR-WFL-015, section 5.4)
 
 *مملوك للمشترك*
 
@@ -5220,6 +5216,7 @@
 | ListCode | VARCHAR(80) | نعم |  |  | رمز قائمة القيم cat.LookupList.Code للنوع LIST/ENUM |
 | ApplicabilityJson | NVARCHAR(MAX) | لا |  |  | {LcClass:{Scope:{Purpose: REQUIRED/OPTIONAL/HIDDEN}}} (BR-LCT-002) |
 | VisibleToRequester | BIT | لا | 1 |  | حقل الخزينة = 0: لا يراه الطالب (FR-LCT-021، BR-LCI-014) |
+| Sensitivity | VARCHAR(12) | لا | NORMAL |  | المقيّد لا تُنسخ قيمته في المقارنة ولا في فروق التعديل (044، DR-46، DQ-F12-11) enum: NORMAL, CONFIDENTIAL, RESTRICTED |
 | IsLocked | BIT | لا | 0 |  | المقفل لا يقبل HIDDEN ولا يعدّله المشترك (FR-LCT-004) |
 | SwiftTagHint | VARCHAR(10) | نعم |  |  | إرشادي لربط MT700/707 لاحقًا (FR-LCT-035) |
 | ValidationJson | NVARCHAR(MAX) | نعم |  |  |  |
@@ -5234,7 +5231,7 @@
 
 **المفاتيح:** PK(LcFieldDefinitionId) · UQ(TenantId, FieldKey) · UQ(TenantId, SeedKey) WHERE SeedKey IS NOT NULL
 
-**قيود:** `FieldKey NOT LIKE '% %'` · `IsLocked = 0 OR IsActive = 1` · `ListCode IS NULL OR DataType IN ('LIST','ENUM')`
+**قيود:** `FieldKey NOT LIKE '% %'` · `IsLocked = 0 OR IsActive = 1` · `ListCode IS NULL OR DataType IN ('LIST','ENUM')` · `FieldKey <> 'beneficiaryAccountIban' OR Sensitivity = 'RESTRICTED'`
 
 ### `lc.LcFieldUcpRef` — UCP reference for a field: article and paragraph (UcpRefs in specification); feeds the badge, R-LCT-01 and BR-LCT-018 -- وسيط جديد
 
@@ -5346,7 +5343,7 @@
 
 **المفاتيح:** PK(LcDocumentClauseUcpRefId) · UQ(TenantId, LcDocumentClauseId, UcpArticleId, Paragraph)
 
-### `lc.LcTerms` — Letter-of-credit terms version: one row per version, with the section 6.2 dictionary columns; shared by proforma, request, credit and amendment (FR-LCT-001..035)
+### `lc.LcTerms` — Letter-of-credit terms version: one row per version, with the section 6.2 dictionary columns; shared by proforma, request, credit and amendment (FR-LCT-001..035); a locked version changes only in its treasury fields until TreasuryHash (044, DR-41)
 
 *مملوك للمشترك*
 
@@ -5463,7 +5460,7 @@
 
 **قيود:** `VersionNo >= 1` · `VersionNo = 1 OR SupersedesTermsId IS NOT NULL` · `SupersedesTermsId IS NULL OR SupersedesTermsId <> LcTermsId` · `CopiedFromTermsId IS NULL OR CopiedFromTermsId <> LcTermsId` · `(Purpose = 'PROFORMA' AND OwnerType IN ('REQUEST','PROFORMA')) OR (Purpose = 'APPLICATION' AND OwnerType = 'REQUEST') OR (Purpose IN ('ISSUED','RECEIVED') AND OwnerType = 'LETTER_OF_CREDIT') OR (Purpose = 'AMENDMENT' AND OwnerType IN ('REQUEST','AMENDMENT'))` · `(Purpose NOT IN ('APPLICATION','ISSUED') OR LcClass = 'PURCHASE') AND (Purpose NOT IN ('PROFORMA','RECEIVED') OR LcClass = 'SALES')` · `OwnerType <> 'REQUEST' OR OwnerId IS NOT NULL` · `Status = 'DRAFT' OR (SnapshotHash IS NOT NULL AND LockedAt IS NOT NULL AND LockedBy IS NOT NULL)` · `TreasuryHash IS NULL OR SnapshotHash IS NOT NULL` · `Status = 'DRAFT' OR (LcType IS NOT NULL AND CurrencyId IS NOT NULL AND Amount IS NOT NULL AND ExpiryRule IS NOT NULL AND AmountInWordsAr IS NOT NULL AND AmountInWordsEn IS NOT NULL)` · `Amount IS NULL OR Amount > 0` · `TolerancePlusPct BETWEEN 0 AND 100 AND ToleranceMinusPct BETWEEN 0 AND 100` · `Status = 'DRAFT' OR ToleranceMode <> 'NONE' OR (TolerancePlusPct = 0 AND ToleranceMinusPct = 0)` · `Status = 'DRAFT' OR ToleranceMode <> 'ABOUT' OR (TolerancePlusPct = 10 AND ToleranceMinusPct = 10)` · `DeferralDays IS NULL OR DeferralDays BETWEEN 1 AND 720` · `Status = 'DRAFT' OR LcType <> 'SIGHT' OR (DeferralDays IS NULL AND MaturityBasis IS NULL)` · `Status = 'DRAFT' OR LcType NOT IN ('DEFERRED_PAYMENT','ACCEPTANCE') OR (DeferralDays IS NOT NULL AND MaturityBasis IS NOT NULL)` · `Status = 'DRAFT' OR LcType <> 'MIXED' OR MixedPaymentText IS NOT NULL` · `Status = 'DRAFT' OR DraftDrawee IS NULL OR (DraftRequired IS NOT NULL AND DraftRequired = 1)` · `Status = 'DRAFT' OR LcType NOT IN ('ACCEPTANCE','NEGOTIATION') OR (DraftRequired IS NOT NULL AND DraftRequired = 1)` · `Status = 'DRAFT' OR ConfirmingBankBic IS NULL OR ((ConfirmingBankBic LIKE '________' OR ConfirmingBankBic LIKE '___________') AND ConfirmingBankBic COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9]%')` · `Status = 'DRAFT' OR AdvisingBankBic IS NULL OR ((AdvisingBankBic LIKE '________' OR AdvisingBankBic LIKE '___________') AND AdvisingBankBic COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9]%')` · `(BeneficiaryAccountIbanEnc IS NULL AND BeneficiaryAccountIbanMask IS NULL AND BeneficiaryAccountIbanHash IS NULL) OR (BeneficiaryAccountIbanEnc IS NOT NULL AND BeneficiaryAccountIbanMask IS NOT NULL AND BeneficiaryAccountIbanHash IS NOT NULL)` · `BeneficiaryAccountIbanEnc IS NULL OR (EncKeyId IS NOT NULL AND HashKeyId IS NOT NULL AND DATALENGTH(BeneficiaryAccountIbanEnc) >= 29)` · `LcClass = 'SALES' OR (ApplicantCounterpartyId IS NULL AND BeneficiaryCompanyId IS NULL)` · `LcClass = 'PURCHASE' OR (ApplicantCompanyId IS NULL AND BeneficiaryCounterpartyId IS NULL)` · `Status = 'DRAFT' OR (LcClass = 'PURCHASE' AND ApplicantCompanyId IS NOT NULL AND BeneficiaryCounterpartyId IS NOT NULL) OR (LcClass = 'SALES' AND ApplicantCounterpartyId IS NOT NULL AND BeneficiaryCompanyId IS NOT NULL)` · `ExpiryDaysAfterIssue IS NULL OR ExpiryDaysAfterIssue > 0` · `LatestShipmentDaysAfterIssue IS NULL OR LatestShipmentDaysAfterIssue > 0` · `Status = 'DRAFT' OR ExpiryRule IS NULL OR (ExpiryRule = 'ABSOLUTE' AND ExpiryDate IS NOT NULL AND ExpiryDaysAfterIssue IS NULL) OR (ExpiryRule = 'DAYS_AFTER_ISSUE' AND ExpiryDaysAfterIssue IS NOT NULL)` · `Status = 'DRAFT' OR (LatestShipmentRule IS NULL AND LatestShipmentDate IS NULL AND LatestShipmentDaysAfterIssue IS NULL) OR (LatestShipmentRule = 'ABSOLUTE' AND LatestShipmentDate IS NOT NULL AND LatestShipmentDaysAfterIssue IS NULL) OR (LatestShipmentRule = 'DAYS_AFTER_ISSUE' AND LatestShipmentDaysAfterIssue IS NOT NULL)` · `Status = 'DRAFT' OR Purpose IN ('ISSUED','RECEIVED') OR EarliestShipmentDate IS NULL OR LatestShipmentDate IS NULL OR EarliestShipmentDate <= LatestShipmentDate` · `Status = 'DRAFT' OR Purpose IN ('ISSUED','RECEIVED') OR ExpiryDate IS NULL OR LatestShipmentDate IS NULL OR ExpiryDate >= LatestShipmentDate` · `PresentationDays IS NULL OR PresentationDays BETWEEN 1 AND 90` · `Status = 'DRAFT' OR Purpose IN ('ISSUED','RECEIVED') OR IncotermId IS NULL OR IncotermPlace IS NOT NULL` · `InsurancePctStated = 0 OR InsuranceMinPct IS NOT NULL` · `InsuranceMinPct IS NULL OR InsuranceMinPct > 0` · `MarginPct IS NULL OR MarginPct BETWEEN 0 AND 100` · `Status = 'DRAFT' OR DebitAuthorization IS NULL OR DebitAuthorization <> 'FULL_LC_VALUE' OR (MarginPct IS NOT NULL AND MarginPct = 100)` · `PostDeferralFinancingDays IS NULL OR PostDeferralFinancingDays >= 0` · `PrevLcAmount IS NULL OR PrevLcAmount >= 0` · `PrevLcUtilizedAmount IS NULL OR PrevLcUtilizedAmount >= 0` · `PrevLcAmount IS NULL OR PrevLcUtilizedAmount IS NULL OR PrevLcUtilizedAmount <= PrevLcAmount` · `(PrevLcAmount IS NULL AND PrevLcUtilizedAmount IS NULL) OR PrevLcCurrencyId IS NOT NULL`
 
-### `lc.LcTermsDocument` — Document clause selected in the terms, with its parameters; the rendered text is frozen at lock (FR-LCT-018, BR-LCT-012) -- جديد
+### `lc.LcTermsDocument` — Document clause selected in the terms, with its parameters; written only while the terms are a draft (044, DR-41) (FR-LCT-018, BR-LCT-012) -- جديد
 
 *مملوك للمشترك*
 
@@ -5491,7 +5488,7 @@
 
 **قيود:** `SeqNo >= 1` · `ClauseVersion >= 1` · `Originals IS NULL OR Originals >= 0` · `Copies IS NULL OR Copies >= 0` · `(IsFreeText = 1 AND FreeText IS NOT NULL) OR (IsFreeText = 0 AND FreeText IS NULL)`
 
-### `lc.LcChargesMatrix` — Charges per term: one row per category; six complete rows, checked by the application (V-LCT-12) (FR-LCT-020, BR-LCT-014)
+### `lc.LcChargesMatrix` — Charges per term: one row per category; six complete rows, checked by the application (V-LCT-12); written only while the terms are a draft (044, DR-41) (FR-LCT-020, BR-LCT-014)
 
 *مملوك للمشترك*
 
@@ -5861,7 +5858,7 @@
 
 **قيود:** `ProformaNo LIKE '[0-9][0-9][0-9]%-%-[0-9][0-9]'` · `NumberSeq >= 1 AND NumberYear BETWEEN 2000 AND 2999` · `Subtotal >= 0 AND VatAmount >= 0` · `Total = Subtotal + VatAmount` · `VatRatePct BETWEEN 0 AND 100` · `LcPaymentPct > 0 AND LcPaymentPct <= 100` · `OfferValidityDays IS NULL OR OfferValidityDays > 0` · `Status <> 'VOID' OR VoidReason IS NOT NULL` · `VoidReason IS NULL OR Status = 'VOID'` · `(Status = 'SUPERSEDED' AND SupersededById IS NOT NULL) OR (Status <> 'SUPERSEDED' AND SupersededById IS NULL)` · `SupersededById IS NULL OR SupersededById <> ProformaInvoiceId`
 
-### `lc.ProformaLine` — Line item in the proforma (FR-LCE-003, BR-LCE-001); fixed after issue: written once, never updated (DR-41)
+### `lc.ProformaLine` — Line item in the proforma (FR-LCE-003, BR-LCE-001); fixed after issue: written once, in one statement, never updated; the totals match the lines (044, DR-41)
 
 *مملوك للمشترك*
 
