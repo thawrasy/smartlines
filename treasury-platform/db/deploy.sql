@@ -5,9 +5,12 @@
    Run it from the db folder. sqlcmd resolves the relative paths in the :r lines from the current
    directory, not from the folder of this script, so starting it elsewhere fails at the first :r line.
    The wrappers change to the db folder for you:
-       Windows:  tools\deploy\deploy.ps1 -Server <server>               (Windows authentication)
-       Linux:    SQL_SERVER=<server> SQL_USER=sa SQLCMDPASSWORD=... tools/deploy/deploy.sh
+       Windows:  tools\deploy\deploy.ps1 -Server <server>               (Windows authentication; not the production path)
+       Linux:    tools/deploy/prepare_database.sh open, then SQL_SERVER=<server> SQL_USER=bankfas_migrator
+                 tools/deploy/deploy.sh with SQLCMDPASSWORD read from the secret file, then prepare_database.sh close
+                 (DOC-S11 section 5, ADR 0010). Never put the password on the command line.
    Or by hand:  cd db  then  sqlcmd -S <server> -E -I -f 65001 -b -i deploy.sql
+   It needs db_owner in an existing BankFas only: an administrator creates the database first (prepare_database.sh).
 
    Forward slashes in the :r paths work on Windows and Linux alike. -I sets QUOTED_IDENTIFIER ON, which
    the filtered indexes need. The whole script runs in one session, because the temporary table #rls_tables

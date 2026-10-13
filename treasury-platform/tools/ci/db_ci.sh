@@ -57,10 +57,37 @@ echo "== 3. every foreign key is indexed or flagged noidx; static grant and casc
 python3 tools/dbgen/check_fk_indexes.py
 python3 tools/dbgen/check_grants.py
 
-echo "== 4. deploy db/deploy.sql to a fresh BankFas database"
+echo "== 4. deploy db/deploy.sql to a fresh BankFas database the way production does (DOC-S11, ADR 0010)"
 sq -Q "IF DB_ID(N'BankFas') IS NOT NULL BEGIN ALTER DATABASE [BankFas] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [BankFas]; END" >/dev/null
-# The same wrapper that users run: it changes to db/ and runs deploy.sql unchanged.
-SQL_SERVER="$SQL_SERVER" SQL_USER=sa SQLCMD="$SQLCMD" bash tools/deploy/deploy.sh
+# The administrator (sa here) prepares the empty database and the deployment login, and opens the window; the
+# deployment then runs as bankfas_migrator, a member of db_owner and of no server role, through the same wrapper
+# users run; the window closes after it.
+mkdir -m 700 "$TMP/migrator"
+SQL_SERVER="$SQL_SERVER" SQL_USER=sa SQLCMD="$SQLCMD" BANKFAS_SECRETS_DIR="$TMP/migrator" bash tools/deploy/prepare_database.sh prepare --generate
+SQL_SERVER="$SQL_SERVER" SQL_USER=sa SQLCMD="$SQLCMD" bash tools/deploy/prepare_database.sh open
+SQL_SERVER="$SQL_SERVER" SQL_USER=bankfas_migrator SQLCMDPASSWORD="$(cat "$TMP/migrator/bankfas_migrator.secret")" SQLCMD="$SQLCMD" \
+    bash tools/deploy/deploy.sh
+SQL_SERVER="$SQL_SERVER" SQL_USER=sa SQLCMD="$SQLCMD" bash tools/deploy/prepare_database.sh close
+deploy_state="$(sq -d BankFas -h -1 -W -Q "SET NOCOUNT ON; SELECT CONCAT(
+    (SELECT SUSER_SNAME(owner_sid) FROM sys.databases WHERE name = N'BankFas'), '/',
+    (SELECT is_disabled FROM sys.server_principals WHERE name = N'bankfas_owner'), '/',
+    (SELECT is_disabled FROM sys.server_principals WHERE name = N'bankfas_migrator'), '/',
+    (SELECT COUNT(*) FROM sys.server_role_members AS m JOIN sys.server_principals AS p ON p.principal_id = m.member_principal_id WHERE p.name = N'bankfas_migrator'), '/',
+    IS_ROLEMEMBER(N'db_owner', N'bankfas_migrator'), '/',
+    (SELECT COUNT(*) FROM sys.schemas AS s WHERE s.schema_id BETWEEN 5 AND 16383 AND s.principal_id <> 1), '/',
+    (SELECT COUNT(*) FROM sys.objects WHERE principal_id IS NOT NULL), '/',
+    (SELECT COUNT(*) FROM sys.database_principals WHERE type = 'R' AND name LIKE N'tp[_]%' AND owning_principal_id <> 1), '/',
+    CAST(DATABASEPROPERTYEX(N'BankFas', 'Collation') AS NVARCHAR(128)));")"
+expected_state="bankfas_owner/1/1/0/1/0/0/0/Arabic_100_CI_AS_SC"
+if [ "$deploy_state" != "$expected_state" ]; then
+    echo "deployment as bankfas_migrator: owner/owner disabled/migrator disabled/server roles/db_owner/schemas not dbo/objects not dbo/roles not dbo/collation = $deploy_state (expected $expected_state)"
+    exit 1
+fi
+if SQLCMDPASSWORD="$(cat "$TMP/migrator/bankfas_migrator.secret")" "$SQLCMD" -S "$SQL_SERVER" -U bankfas_migrator -C -Q "SELECT 1" >/dev/null 2>&1; then
+    echo "the deployment login still connects after the window closed"
+    exit 1
+fi
+echo "deployed as bankfas_migrator (db_owner only); the owner login and the deployment login are disabled, everything is owned by dbo ($deploy_state)"
 
 echo "== 4b. the platform seed is complete and can run again without changing anything (DOC-B05 section 6)"
 seed_state() { sq -d BankFas -h -1 -W -Q "SET NOCOUNT ON; SELECT CONCAT((SELECT COUNT(*) FROM cfg.SettingDefinition), '/', (SELECT COUNT(*) FROM cfg.JobDefinition), '/', (SELECT COUNT(*) FROM plat.[Plan]), '/', (SELECT COUNT(*) FROM plat.PlanModule), '/', (SELECT COUNT(*) FROM plat.ReservedSubdomain), '/', (SELECT COUNT(*) FROM ref.Country), '/', (SELECT COUNT(*) FROM ref.Currency), '/', (SELECT COUNT(*) FROM sec.Permission), '/', (SELECT COUNT(*) FROM ref.Incoterm), '/', (SELECT COUNT(*) FROM ref.UcpArticle WHERE TenantId IS NULL AND VerificationStatus = 'UNVERIFIED'), '/', (SELECT COUNT(UpdatedAt) FROM cfg.SettingDefinition) + (SELECT COUNT(UpdatedAt) FROM cfg.JobDefinition) + (SELECT COUNT(UpdatedAt) FROM plat.[Plan]) + (SELECT COUNT(UpdatedAt) FROM ref.Incoterm) + (SELECT COUNT(UpdatedAt) FROM ref.UcpArticle))"; }
