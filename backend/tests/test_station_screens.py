@@ -34,7 +34,8 @@ def test_the_departure_board_shows_only_where_the_platform_switched_the_screens_
         board = r.json()
         assert board["station"]["time_zone"] and "departures" in board and "arrivals" in board
         row = next(d for d in board["departures"] if d["trip_no"] == trip["trip_no"])
-        assert row["status"] == "CHECK_IN" and row["city"] and set(row) == {"trip_no", "carrier", "at", "city", "city_code", "via", "bay", "status"}
+        assert row["status"] == "CHECK_IN" and row["city"] and set(row) == {"trip_no", "carrier", "at", "city", "city_code", "via", "via_codes", "bay", "status"}
+        assert len(row["via_codes"]) == len(row["via"])          # the stops on the way, named on screen from their codes (1113)
         assert not any(k in r.text for k in ("passenger", "ticket_no", "booking_ref", "seat_no", "mobile"))
         listed = next(s for s in admin.get("/api/admin/boarding/stations").json()["stations"] if s["uid"] == str(station))
         assert listed["displays"] and not listed["enabled"]

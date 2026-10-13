@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { api } from "../../api";
 import { useI18n } from "../../i18n";
 import { useAuth } from "../../auth";
+import { useLabels } from "../../modules/labels";
 import { Empty, ErrorBox, Field, Icon, Loaded, Modal, Status, useLoad, useToast } from "../../components/ui";
 
 // Two platform settings that move money, in the payments desk: the penalty on a carrier that cancels a trip, only where
@@ -85,6 +86,7 @@ export function CancelPenalty() {
 
 export function LoyaltyDesk() {
   const { t, money, date } = useI18n();
+  const label = useLabels();
   const { can } = useAuth();
   const toast = useToast();
   const partners = useLoad(() => api.get<{ partners: Partner[] }>("/api/admin/loyalty/partners"));
@@ -133,8 +135,8 @@ export function LoyaltyDesk() {
               <th className="num">{t("loyaltyDesk.unsettled")}</th><th className="num">{t("loyaltyDesk.owed")}</th><th>{t("common.status")}</th><th /></tr></thead>
             <tbody>{list.map((p) => (
               <tr key={p.id}>
-                <td>{p.name}</td><td>{p.partner_type}</td><td>{p.agreement ? <Status value="ACTIVE" /> : <span className="small muted">{t("loyaltyDesk.noAgreement")}</span>}</td>
-                <td>{p.settlement_cycle}</td><td className="num">{p.unsettled}</td><td className="num">{money(p.unsettled_payable)} <span className="small muted">{p.currency}</span></td>
+                <td>{p.name}</td><td>{label.value(p.partner_type)}</td><td>{p.agreement ? <Status value="ACTIVE" /> : <span className="small muted">{t("loyaltyDesk.noAgreement")}</span>}</td>
+                <td>{label.value(p.settlement_cycle)}</td><td className="num">{p.unsettled}</td><td className="num">{money(p.unsettled_payable, true, p.currency)}</td>
                 <td><Status value={p.status} /></td>
                 <td className="num" style={{ whiteSpace: "nowrap" }}>
                   {can("loyalty.manage") && !p.has_api && p.agreement && <button className="btn text small" onClick={() => setAccepting(p)}><Icon name="qr_code_scanner" />{t("loyaltyDesk.accept")}</button>}
@@ -155,7 +157,7 @@ export function LoyaltyDesk() {
             <tbody>{settlements.map((s) => (
               <tr key={s.uid}>
                 <td>{s.partner}</td><td className="small">{date(s.date_from)} – {date(s.date_to)}</td><td className="num">{s.redemptions}</td>
-                <td className="num">{money(s.value)}</td><td className="num">{money(s.payable)} <span className="small muted">{s.currency}</span></td>
+                <td className="num">{money(s.value, true, s.currency)}</td><td className="num">{money(s.payable, true, s.currency)}</td>
                 <td><Status value={s.status} />{s.bank_ref && <div className="small muted mono">{s.bank_ref}</div>}</td>
                 <td className="num">{can("payout.run") && s.status === "APPROVED" && <button className="btn text small" onClick={() => setPayFor(s)}><Icon name="account_balance" />{t("loyaltyDesk.pay")}</button>}</td>
               </tr>
@@ -178,7 +180,7 @@ export function LoyaltyDesk() {
           actions={<><button className="btn text" onClick={() => setPayFor(null)}>{t("common.cancel")}</button>
             <button className="btn" disabled={bankRef.trim().length < 3} onClick={pay}>{t("common.confirm")}</button></>}>
           <div className="stack">
-            <p style={{ margin: 0 }}>{t("loyaltyDesk.payConfirm", { amount: money(payFor.payable), currency: payFor.currency })}</p>
+            <p style={{ margin: 0 }}>{t("loyaltyDesk.payConfirm", { amount: money(payFor.payable, true, payFor.currency) })}</p>
             <Field label={t("loyaltyDesk.bankRef")}><input className="input mono ltr" value={bankRef} onChange={(e) => setBankRef(e.target.value)} /></Field>
           </div>
         </Modal>

@@ -5,4 +5,7 @@
 - `prototype/`: source of the portal prototype canvas (mobile passenger flow, shuttle, driver app, public website, carrier, agency and regulator portals).
   Live version: https://claude.ai/artifact/FLzQVmcGudQwCcx7KNp5Z7
 
+- `STATION_SCREENS_REVIEW.md`: the design review of the boarding-station screens (October 2026), its findings, what was changed and the owner's decisions.
+- `STATION_USER_TESTING.md`: the protocol for testing those screens with real users at the pilot station.
+
 The web frontend (`frontend/src/theme.css`) uses the same colour roles and radii as `system/tokens.json`.

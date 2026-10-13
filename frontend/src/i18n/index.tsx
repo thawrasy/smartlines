@@ -37,6 +37,8 @@ function format(template: string, vars?: Vars) {
 interface I18n {
   locale: Locale;
   dir: "rtl" | "ltr";
+  /** The Intl locale of the interface (Latin digits in Arabic), for formats the helpers below do not cover. */
+  intl: string;
   setLocale: (l: Locale) => void;
   t: (key: string, vars?: Vars) => string;
   has: (key: string) => boolean;
@@ -114,7 +116,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
     const toDate = (v: string | Date) => (typeof v === "string" ? new Date(v) : v);
     const city = (code: string) => lookup(cfg.messages, `city.${code}`) ?? code;
     return {
-      locale, dir: cfg.dir, setLocale, t,
+      locale, dir: cfg.dir, intl: cfg.intl, setLocale, t,
       has: (key) => lookup(cfg.messages, key) !== undefined,
       // Amounts travel in minor units (100 to the pound, 1,000 to the dinar); whole amounts show no decimals
       money: (minor, withCurrency = true, currency) => {
@@ -132,12 +134,13 @@ export function I18nProvider({ children }: { children: ReactNode }) {
       time: (v) => new Intl.DateTimeFormat(cfg.intl, { timeZone: market.time_zone, hour: "2-digit", minute: "2-digit", hour12: false }).format(toDate(v)),
       dateTime: (v) => new Intl.DateTimeFormat(cfg.intl, { timeZone: market.time_zone, day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hour12: false }).format(toDate(v)),
       city,
-      // Station names are stored in English; central and numbered stations are rendered from the city code
+      // Station names are stored in English; central and numbered city stations (class C) are rendered from the city
+      // code, any other (a border crossing, class X) keeps its own name rather than being called a city station
       station: (code, fallback) => {
-        const m = code ? /^SY-([A-Z]{3})-([A-Z])(\d{3})$/.exec(code) : null;
+        const m = code ? /^SY-([A-Z]{3})-C(\d{3})$/.exec(code) : null;
         if (!m) return fallback;
-        const n = Number(m[3]);
-        return m[2] === "C" && n === 1 ? t("station.central", { city: city(m[1]) }) : t("station.numbered", { city: city(m[1]), n });
+        const n = Number(m[2]);
+        return n === 1 ? t("station.central", { city: city(m[1]) }) : t("station.numbered", { city: city(m[1]), n });
       },
       duration: (minutes) => t("common.duration", { h: Math.floor(minutes / 60), m: minutes % 60 }),
     };

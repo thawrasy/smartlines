@@ -213,6 +213,15 @@ carrier route uses them yet. Tests: the database suite (Check-in 1105) and `back
   seconds, in the station's time zone. It carries no passenger data and appears only while the platform's boarding
   stations are on and the platform has switched the station's screens on (`displays`); otherwise the address answers 404.
   It is fed by `brd.station_board` (1112) from the trips and the bays the carriers assign.
+- **After the design review of October 2026** (`docs/design/STATION_SCREENS_REVIEW.md`, 1113): the counter's trips name
+  where each goes and show the check-in state at the station (opens at, open until, closed) instead of the sale state,
+  grouped by day; the identity check comes first and is asked for when a scan arrives without it; a pass checked in
+  again is said so on the screen; the boarding pass and a ticket printed at a counter or an agency carry the ticket's
+  signed code (T2), which stays the same, so the bay and the driver's app scan the paper. That code exists only from the
+  hours before departure the platform sets (three in production): a pass or a ticket printed earlier says from when, and
+  is printed again then or checked in at a station counter with its number and booking reference. Station and city names
+  follow the screen's language, and the departure board keeps the last board up with the time it was updated when the
+  connection drops.
 
 ## 9. Build order
 

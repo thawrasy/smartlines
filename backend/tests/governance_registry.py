@@ -97,7 +97,7 @@ SYSTEM_SCOPE = {
     ("app/modules/boarding/screens.py", "grant_options"): (1, "a carrier lists the approved station operating companies it can give rights to"),
     ("app/modules/boarding/station_sales.py", "sell"): (1, "a station counter's cash wallet is opened for the cash it takes on a carrier's trip"),
     ("app/modules/boarding/station_sales.py", "_sold"): (1, "a booking on a carrier's trip that the station's operating company sold, for its counter"),
-    ("app/modules/boarding/station_sales.py", "ticket_qr"): (1, "the code of a ticket the station's operating company sold, to print it"),
+    ("app/modules/boarding/station_sales.py", "_sold_ticket"): (1, "a ticket the station's operating company sold, for its codes on screen and on paper"),
     ("app/modules/photo/service.py", "read_for_counter"): (2, "a station counter reads the trip of a ticket it checks in and, under the legal approval, the passenger's photo"),
     ("app/modules/loyalty/partners.py", "accept"): (1, "a voucher a partner honours is recorded under its agreement and the platform's share posted to the partner's wallet"),
     ("app/modules/loyalty/partners.py", "pay_settlement"): (1, "a paid partner statement is posted from the partner's wallet to bank clearing"),

@@ -2927,6 +2927,15 @@ SELECT pg_temp.ok((:'pass1'::jsonb ->> 'pass_no') LIKE 'SY-DAM-C001-%' AND (:'pa
   'Check-in (1105): the boarding pass is numbered by the station and prints the bay and the counter');
 SELECT pg_temp.ok((brd.station_checkin_ticket(:'tk1uid', :st_dam, :'ctr', true) ->> 'pass_no') = (:'pass1'::jsonb ->> 'pass_no'),
   'Check-in (1105): a second check-in of the ticket gives the same boarding pass');
+SELECT pg_temp.ok((:'pass1'::jsonb ->> 'ticket_uid') = :'tk1uid',
+  'Station screens (1113): the boarding pass names its ticket, for the signed code printed on it');
+SELECT pg_temp.ok(EXISTS (SELECT 1 FROM jsonb_array_elements(brd.station_trips(:st_dam)) x
+                           WHERE (x ->> 'trip_uid')::uuid = (SELECT uid FROM ops.trip WHERE id = :t_tr) AND x ->> 'dest_code' IS NOT NULL
+                             AND x ? 'checkin_opens_at' AND x ? 'checkin_closes_at'),
+  'Station screens (1113): the counter''s trips name where each goes and carry the check-in window');
+SELECT pg_temp.ok(NOT EXISTS (SELECT 1 FROM jsonb_array_elements(brd.station_trips(:st_dam)) x JOIN ops.trip t ON t.uid = (x ->> 'trip_uid')::uuid
+                               WHERE (x ->> 'stop_seq')::int = (SELECT max(seq) FROM ops.trip_stop WHERE trip_id = t.id)),
+  'Station screens (1113): a trip that ends at the station is not listed at its counter');
 SELECT pg_temp.ok((SELECT operator_company_id = :op AND carrier_company_id = :ca AND checked_by_user_id = :ufin AND document_checked
                      FROM brd.station_checkin WHERE pass_no = :'pass1'::jsonb ->> 'pass_no'),
   'Check-in (1105): the record keeps the operating company, the carrier, the staff member and the document check');
@@ -3189,6 +3198,9 @@ SELECT pg_temp.ok(EXISTS (SELECT 1 FROM jsonb_array_elements(brd.station_board(:
   'Departure board (1112): a departure in its check-in window shows on the board as check-in open');
 SELECT pg_temp.ok(brd.station_board(:'dbu')::text !~* '"(passenger|ticket_no|booking_ref|seat_no|mobile|national_id)"',
   'Departure board (1112): the board carries no passenger data');
+SELECT pg_temp.ok((SELECT bool_and(jsonb_array_length(d -> 'via') = jsonb_array_length(d -> 'via_codes'))
+                     FROM jsonb_array_elements(brd.station_board(:'dbu') -> 'departures') d),
+  'Station screens (1113): the board gives the code of every stop on the way, to name it in the screen''s language');
 SELECT pg_temp.ok(brd.station_board(gen_random_uuid()) IS NULL, 'Departure board (1112): an unknown station has no board');
 ROLLBACK;
 SET ROLE masslak_app;

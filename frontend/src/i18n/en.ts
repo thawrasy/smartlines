@@ -358,6 +358,8 @@ const en = {
   booking: {
     title: "Booking {ref}", ticketTitle: "Boarding ticket", showQr: "Show this code to the driver when boarding",
     qrRefresh: "The code changes every {n} seconds to prevent copying", ref: "Booking reference",
+    paperCode: "Show this code at the bay or to the driver. It is valid for this trip only.",
+    paperLater: "The boarding code is ready from {time}. Print the ticket again then, or check in at the station counter with the ticket number and booking reference.",
     cancel: "Cancel booking", cancelConfirm: "Cancel this booking? The refund follows the rules of the fare you chose.",
     cancelled: "Booking cancelled. {amount} returned to your wallet.", cancelledNoRefund: "Booking cancelled. This fare is non-refundable.",
     verifyLink: "Public verification link", carrier: "Carrier", tripNo: "Trip number", departs: "Departs",
@@ -1864,22 +1866,27 @@ const en = {
   st: {
     title: "Station counter", sub: "Station operating company", home: "Overview", whereAmI: "Where you work",
     station: "Station", counter: "Counter", choose: "Choose the station", chooseFirst: "Choose your station and counter first",
+    chooseCounter: "Choose your counter: check-ins and sales are recorded against it.",
     noStation: "No counter is open for your company", noStationHint: "The platform opens the counters of an operating company at each station.",
     trips: "Trips", checkin: "Check-in", boarding: "Boarding", sales: "Sales",
     rights: "Rights carriers gave your company", noRights: "No rights yet",
     noRightsHint: "A carrier, or the platform for a state-mandated company, gives the rights to sell, check in or board its trips here.",
     rightsHint: "A right applies at the station it names, or at every station, while the station's boarding is switched on.",
-    carrier: "Carrier", right: "Right", now: "Usable now", everyCarrier: "Every carrier", everyStation: "Every station",
+    carrier: "Carrier", right: "Right", now: "Usable now", usable: "Usable", notUsable: "Not usable now",
+    everyCarrier: "Every carrier", everyStation: "Every station",
     perm: { BOOKING: "Sell tickets at the counter", BOARDING_PASS: "Check-in and boarding pass", BOARDING: "Boarding at the bay" },
     noTrips: "No trips leave this station in the next days", noTripsHint: "Only trips of carriers that gave your company a right here are shown.",
     departs: "Departs", trip: "Trip", bay: "Bay", tickets: "Tickets", checkedIn: "Checked in", boarded: "Boarded",
-    sell: "Sell", from: "From", to: "To", seat: "Seat", ticket: "Ticket", pass: "Boarding pass",
+    sell: "Sell", from: "From", to: "To", seat: "Seat", ticket: "Ticket", pass: "Boarding pass", today: "Today", tomorrow: "Tomorrow",
+    ck: { NONE: "Open until departure", SOON: "Opens at {time}", OPEN: "Open until {time}", CLOSED: "Closed" },
     scan: "Scan the ticket's code", scanHint: "Or type the ticket number with its booking reference.",
     ticketNo: "Ticket number", bookingRef: "Booking reference",
     docChecked: "I have seen the passenger's identity document and it matches the ticket",
+    docFirst: "Confirm first that you have seen the passenger's identity document: it is required for every passenger.",
     photoOff: "Passenger photos are not shown at the counter: they stay off until the legal approvals that allow showing them are in place.",
     issuePass: "Issue the boarding pass", passIssued: "Boarding pass issued", passAgain: "Already checked in: the same boarding pass",
     print: "Print", cancelPass: "Cancel the check-in", reason: "Reason", passCancelled: "Check-in cancelled",
+    code: "Scanned at the bay and on the bus", codeLater: "The boarding code is ready from {time}: print the pass again then.",
     board: "Record boarding", boardHint: "Scan the boarding pass or the ticket of a checked-in passenger.",
     result: {
       OK: "Boarding allowed", DUPLICATE: "Already boarded", INVALID_QR: "Invalid or expired code", WRONG_TRIP: "The ticket is for another trip",
@@ -1894,7 +1901,7 @@ const en = {
   board: {
     departures: "Departures", arrivals: "Arrivals", time: "Time", to: "To", from: "From", carrier: "Carrier", trip: "Trip", bay: "Bay",
     state: "Status", via: "via", noDepartures: "No departures in the coming hours", noArrivals: "No arrivals in the coming hours",
-    unavailable: "The departure board is not available for this station",
+    unavailable: "The departure board is not available for this station", offline: "Connection lost · last updated {time}",
     status: {
       SCHEDULED: "On time", CHECK_IN: "Check-in open", BOARDING: "Boarding", DEPARTED: "Departed", CANCELLED: "Cancelled",
       ARRIVED: "Arrived", EXPECTED: "Expected",
@@ -1954,7 +1961,7 @@ const en = {
     reference: "Partner's reference", accepted: "Voucher honoured", draw: "Draw up a statement", drawn: "Statement drawn up; another person approves it",
     statements: "Statements", statementsHint: "A statement is approved by another person in the agreements screen; a third person records the bank transfer.",
     partner: "Partner", period: "Period", vouchers: "Vouchers", value: "Value", payable: "Payable", pay: "Record the transfer",
-    payConfirm: "Record the bank transfer of {amount} {currency} to the partner?", bankRef: "Bank transfer reference", paid: "Transfer recorded",
+    payConfirm: "Record the bank transfer of {amount} to the partner?", bankRef: "Bank transfer reference", paid: "Transfer recorded",
   },
 };
 

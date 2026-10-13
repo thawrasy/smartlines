@@ -3,6 +3,7 @@ checks a passenger in at its own counter with the carrier's BOARDING_PASS right,
 window and the carrier's required references are applied, and station staff with the BOARDING right board only
 checked-in tickets. Every action is in the activity log."""
 import uuid
+from datetime import datetime, timedelta
 
 import pytest
 
@@ -74,6 +75,8 @@ def test_counter_check_boarding_pass_and_boarding_at_the_bay(admin, operating_co
         listed = next(x for x in counter_staff.get("/api/station/trips", params={"station_uid": str(station)}).json()["trips"]
                       if x["trip_uid"] == str(trip["uid"]))
         assert listed["may_check_in"] and listed["may_board"] and listed["bay"] == bay and listed["tickets"] >= 2
+        # where the trip goes, for the counter (1113)
+        assert listed["dest_city"] == "ALP" and listed["dest_code"] and listed["dest_name"]
         # the passenger's photo is not shown at the counter: off until a legal approval allows it (build step 5, 1111)
         shown = counter_staff.get(f"/api/station/tickets/{ticket['uid']}/photo", params={"station_uid": str(station)})
         assert shown.status_code in (403, 404) and shown.json()["error"]["code"] in ("PHOTO_VIEW_NOT_ALLOWED", "PHOTO_DISABLED"), shown.text
@@ -82,11 +85,13 @@ def test_counter_check_boarding_pass_and_boarding_at_the_bay(admin, operating_co
         assert r.status_code == 201, r.text
         bp = r.json()
         assert bp["bay"] == bay and bp["counter"] == counter and bp["ticket_no"] == ticket["ticket_no"] and not bp["repeated"]
+        # the pass carries the ticket's signed code, so the bay and the driver's app scan the paper (1113)
+        assert bp["ticket_uid"] == ticket["uid"] and bp["credential"].startswith("T2."), bp
         # typed at the counter: number and booking reference give the same pass
         again = counter_staff.post("/api/station/checkin", json={**body, "token": None, "ticket_no": ticket["ticket_no"], "booking_ref": ref})
         assert again.status_code == 201 and again.json()["pass_no"] == bp["pass_no"] and again.json()["repeated"]
         got = counter_staff.get(f"/api/station/passes/{bp['pass_no']}")
-        assert got.status_code == 200 and got.json()["pass_no"] == bp["pass_no"], got.text
+        assert got.status_code == 200 and got.json()["pass_no"] == bp["pass_no"] and got.json()["credential"].startswith("T2."), got.text
         assert counter_staff.post("/api/station/checkin", json={**body, "token": None, "ticket_no": ticket["ticket_no"],
                                                                 "booking_ref": "WRONG1"}).status_code == 422
         # the carrier's required references: a missing one stops the check-in of the next passenger
@@ -100,6 +105,9 @@ def test_counter_check_boarding_pass_and_boarding_at_the_bay(admin, operating_co
         token = pax.get(f"/api/tickets/{ticket['uid']}/qr").json()["token"]
         assert counter_staff.post("/api/station/board", json={"station_uid": str(station), "trip_uid": trip_uid, "token": token}).json()["result"] == "OK"
         assert counter_staff.post("/api/station/board", json={"station_uid": str(station), "trip_uid": trip_uid, "token": token}).json()["result"] == "DUPLICATE"
+        # the code printed on the pass names the same ticket
+        assert counter_staff.post("/api/station/board", json={"station_uid": str(station), "trip_uid": trip_uid,
+                                                              "token": bp["credential"]}).json()["result"] == "DUPLICATE"
         other_token = pax.get(f"/api/tickets/{other['uid']}/qr").json()["token"]
         assert counter_staff.post("/api/station/board", json={"station_uid": str(station), "trip_uid": trip_uid,
                                                               "token": other_token}).json()["result"] == "CHECKIN_REQUIRED"
@@ -150,6 +158,12 @@ def test_the_check_in_window_of_the_station_is_applied(admin, operating_company)
         r = counter_staff.post("/api/station/checkin", json={"station_uid": str(station), "counter_code": counter, "token": token,
                                                              "document_checked": True})
         assert r.status_code == 409 and r.json()["error"]["code"] == "CHECKIN_NOT_OPEN", r.text
+        # the counter's list shows when the window opens and closes for the trip (1113)
+        listed = next(x for x in counter_staff.get("/api/station/trips", params={"station_uid": str(station)}).json()["trips"]
+                      if x["trip_uid"] == str(trip["uid"]))
+        departs = datetime.fromisoformat(listed["departs_at"])
+        assert departs - datetime.fromisoformat(listed["checkin_opens_at"]) == timedelta(minutes=120)
+        assert departs - datetime.fromisoformat(listed["checkin_closes_at"]) == timedelta(minutes=30)
     finally:
         if grant:
             carrier.post(f"/api/carrier/station-operators/grants/{grant}/revoke")
@@ -158,3 +172,20 @@ def test_the_check_in_window_of_the_station_is_applied(admin, operating_company)
         admin.put(f"/api/admin/boarding/stations/{station}", json={"enabled": False})
         stations_module(admin, False)
         owner_sql("UPDATE ops.trip SET status = 'CANCELLED' WHERE id = $1", trip["id"])
+
+
+def test_a_pass_issued_before_the_ticket_opens_says_when_its_code_is_ready(monkeypatch):
+    """The signed code exists only from the hours before departure the platform sets: a pass issued earlier carries no
+    code and says from when it is ready, and a cancelled pass carries none (design review of the station screens, 1113)."""
+    import asyncio
+
+    from app.errors import ApiError
+    from app.modules.boarding import api as boarding
+
+    async def not_yet(conn, ctx, ticket_uid):
+        raise ApiError(409, "TICKET_NOT_YET", "the ticket opens three hours before departure", opens_at="2026-10-14T05:00:00+00:00")
+    monkeypatch.setattr(boarding.sales, "offline_credential", not_yet)
+    out = asyncio.run(boarding._with_code(None, None, {"status": "CHECKED_IN", "ticket_uid": str(uuid.uuid4())}))
+    assert out["credential"] is None and out["credential_opens_at"] == "2026-10-14T05:00:00+00:00"
+    out = asyncio.run(boarding._with_code(None, None, {"status": "CANCELLED", "ticket_uid": str(uuid.uuid4())}))
+    assert out["credential"] is None and "credential_opens_at" not in out

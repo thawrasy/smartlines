@@ -186,9 +186,12 @@ jobs:
       - name: Unit and end-to-end tests
         working-directory: backend
         run: python -m coverage run -m pytest tests -q
+      - name: A station counter for the browser checks, boarding stations switched on at one station (design review of the station screens)
+        working-directory: backend
+        run: python tests/ui_station_setup.py ../station-ui.json
       - name: Accessibility and right-to-left layout of the web interface, English and Arabic, phone and desktop (code review 6.2)
         working-directory: frontend
-        env: { MASSLAK_UI_BASE: "http://localhost:8077", CHROME: /usr/bin/google-chrome }
+        env: { MASSLAK_UI_BASE: "http://localhost:8077", CHROME: /usr/bin/google-chrome, MASSLAK_UI_STATION: ../station-ui.json }
         run: npm run ui-checks
       - name: Content-Security-Policy in a browser, no inline code allowed and no violation (reviews of release 1.49.0)
         working-directory: frontend

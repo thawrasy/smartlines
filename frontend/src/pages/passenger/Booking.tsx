@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import QRCode from "qrcode";
-import { api, newKey, type BookingDetail, type BookingOption, type Ticket } from "../../api";
+import { api, ApiError, newKey, type BookingDetail, type BookingOption, type Ticket } from "../../api";
 import { useI18n } from "../../i18n";
 import { ErrorBox, Icon, Loaded, Status, useLoad, useToast } from "../../components/ui";
 import { useChannel } from "../../channel";
@@ -45,6 +45,38 @@ function RotatingQr({ ticket }: { ticket: Ticket }) {
       <div className="qr-box">{img ? <img src={img} alt="QR" /> : <div style={{ width: 220, height: 220 }} />}</div>
       <div className="progress" style={{ width: 220 }}><div style={{ width: `${Math.min(100, (remaining / period) * 100)}%` }} /></div>
       <span className="small muted">{t("booking.qrRefresh", { n: period })}</span>
+    </div>
+  );
+}
+
+// The code on a ticket printed at a counter or an agency (design review of the station screens, October 2026): the
+// rotating code cannot be printed, so paper carries the ticket's signed code, which stays the same and scans at the bay
+// and in the driver's app. The server issues it only from the hours before departure the platform sets; before that
+// the ticket says from when, and the passenger prints it again then or checks in at a station counter.
+function PaperCode({ ticket }: { ticket: Ticket }) {
+  const { t, dateTime } = useI18n();
+  const ch = useChannel();
+  const [img, setImg] = useState<string | null>(null);
+  const [opensAt, setOpensAt] = useState<string | null>(null);
+  const [error, setError] = useState<unknown>(null);
+  useEffect(() => {
+    let live = true;
+    api.get<{ credential: string }>(`${ch.api}/tickets/${ticket.uid}/offline`)
+      .then((r) => QRCode.toDataURL(r.credential, { margin: 1, width: 440, errorCorrectionLevel: "M", color: { dark: "#00382A", light: "#FFFFFF" } }))
+      .then((url) => { if (live) setImg(url); })
+      .catch((e) => {
+        if (!live) return;
+        if (e instanceof ApiError && e.code === "TICKET_NOT_YET" && typeof e.details?.opens_at === "string") setOpensAt(e.details.opens_at);
+        else setError(e);
+      });
+    return () => { live = false; };
+  }, [ticket.uid, ch.api]);
+  if (opensAt) return <div className="alert info small" style={{ textAlign: "start" }}><Icon name="schedule" size={20} />{t("booking.paperLater", { time: dateTime(opensAt) })}</div>;
+  if (error) return <ErrorBox error={error} />;
+  return (
+    <div className="stack tight" style={{ alignItems: "center" }}>
+      <div className="qr-box">{img ? <img src={img} alt="QR" /> : <div style={{ width: 220, height: 220 }} />}</div>
+      <span className="small muted">{t("booking.paperCode")}</span>
     </div>
   );
 }
@@ -108,7 +140,7 @@ function PayPanel({ b, onChange }: { b: BookingDetail["booking"]; onChange: () =
 export default function Booking() {
   const { ref = "" } = useParams();
   const [params] = useSearchParams();
-  const { t, money, time, date, station, city } = useI18n();
+  const { t, has, money, time, date, station, city } = useI18n();
   const toast = useToast();
   const ch = useChannel();
   const state = useLoad(() => api.get<BookingDetail>(`${ch.api}/bookings/${ref}`), [ref, ch.api]);
@@ -164,7 +196,7 @@ export default function Booking() {
                     <dt>{t("common.to")}</dt><dd>{station(k.to_code, k.to_station)}</dd>
                     <dt>{t("common.seat")}</dt><dd>{k.seat_no === null ? <span className="chip outline">{t("pax.onLap")}</span>
                       : <span className="chip green">{k.seat_label ?? k.seat_no}</span>}</dd>
-                    <dt>{t("booking.fare")}</dt><dd>{k.fare_brand_code} · {money(k.total_amount)}</dd>
+                    <dt>{t("booking.fare")}</dt><dd>{has(`val.${k.fare_brand_code}`) ? t(`val.${k.fare_brand_code}`) : k.fare_brand_code} · {money(k.total_amount)}</dd>
                     <dt>{t("common.status")}</dt><dd><Status value={k.status} /></dd>
                   </dl>
                   {k.status === "HOLD" && <div className="alert warn small"><Icon name="lock_clock" size={20} />{t("opt.notBoardable")}</div>}
@@ -173,8 +205,7 @@ export default function Booking() {
                   <>
                     <div className="ticket-cut" />
                     <div style={{ padding: 24 }} className="stack tight center">
-                      <strong>{t("booking.showQr")}</strong>
-                      <RotatingQr ticket={k} />
+                      {ch.staff ? <PaperCode ticket={k} /> : <><strong>{t("booking.showQr")}</strong><RotatingQr ticket={k} /></>}
                     </div>
                   </>
                 )}
@@ -214,7 +245,7 @@ export default function Booking() {
             <div className="card stack tight">
               <h3>{t("booking.verifyLink")}</h3>
               <div className="row nowrap">
-                <input className="input filled ltr grow" readOnly value={verifyUrl} style={{ height: 44, fontSize: 13 }} />
+                <input className="input filled ltr grow" readOnly value={verifyUrl} aria-label={t("booking.verifyLink")} style={{ height: 44, fontSize: 13 }} />
                 <button className="btn tonal" onClick={() => { void navigator.clipboard?.writeText(verifyUrl); toast(t("common.copied")); }}>
                   <Icon name="content_copy" />{t("common.copy")}
                 </button>

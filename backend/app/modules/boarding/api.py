@@ -14,8 +14,10 @@ a boarding or a ticket until the platform switches a station on.
 
     Station operating company (the STATION portal, 1099; owner or station.counter)
     GET  /api/station/overview                              the rights the company holds now, and its counters
-    GET  /api/station/trips?station_uid=                    trips leaving the station in the next two days it may serve (1105)
-    POST /api/station/checkin                               the counter check: the boarding pass, with the bay (1105)
+    GET  /api/station/trips?station_uid=                    trips leaving the station in the next two days it may serve (1105),
+                                                            with where they go and the station's check-in window (1113)
+    POST /api/station/checkin                               the counter check: the boarding pass, with the bay (1105) and the
+                                                            ticket's signed code to print once departure is near (1113)
     GET  /api/station/passes/{pass_no}                      a boarding pass again (to print it)
     POST /api/station/passes/{pass_no}/cancel               cancel a check-in made by mistake, before boarding
     POST /api/station/board                                 record the boarding at the bay, for a checked-in ticket
@@ -42,6 +44,7 @@ from ... import db
 from ...deps import Principal, context_for, require_portal
 from ...errors import ApiError, forbidden
 from ...security import password_problem, verify_ticket_credential, verify_ticket_qr
+from ..sales import service as sales
 from . import service
 
 platform = APIRouter(prefix="/api/admin/boarding", tags=["boarding"])
@@ -300,12 +303,29 @@ async def station_trips(station_uid: uuid.UUID, request: Request, pr: Principal 
         return {"trips": json.loads(await conn.fetchval("SELECT brd.station_trips($1)::text", await _station_id(conn, station_uid)))}
 
 
+async def _with_code(conn, ctx: db.Context, out: dict) -> dict:
+    """The boarding pass with the ticket's signed code (T2), so the bay and the driver's app scan the paper (design
+    review of the station screens, October 2026). The code exists only from the hours before departure the platform
+    sets: before that the pass says when it is ready (credential_opens_at) and is printed again then."""
+    out = {**out, "credential": None}
+    if out.get("status") != "CHECKED_IN" or not out.get("ticket_uid"):
+        return out
+    try:
+        c = await sales.offline_credential(conn, ctx, uuid.UUID(out["ticket_uid"]))
+    except ApiError as e:
+        if e.code == "TICKET_NOT_YET":
+            out["credential_opens_at"] = e.details.get("opens_at")
+        return out
+    return {**out, "credential": c["credential"], "credential_valid_until": c["valid_until"]}
+
+
 @station.post("/checkin", status_code=201)
 async def station_checkin(body: CheckinIn, request: Request, pr: Principal = Depends(require_portal("STATION"))):
     """The counter check (1105): the right and the counter, the ticket at this station, the check-in window and the
     carrier's required references are checked in the database; a ticket checked in again gets the same pass."""
     _counter_staff(pr)
-    async with db.transaction(context_for(request, pr)) as conn:
+    ctx = context_for(request, pr)
+    async with db.transaction(ctx) as conn:
         uid = _ticket_of(body.token)
         if uid is None and body.ticket_no and body.booking_ref:
             uid = await conn.fetchval("SELECT brd.ticket_uid($1, $2)::text", body.ticket_no, body.booking_ref)
@@ -313,6 +333,7 @@ async def station_checkin(body: CheckinIn, request: Request, pr: Principal = Dep
             raise ApiError(422, "TICKET_NOT_VALID", "scan the ticket's code, or type its number with the booking reference")
         out = json.loads(await conn.fetchval("SELECT brd.station_checkin_ticket($1::uuid, $2, $3, $4)::text", uid,
                                              await _station_id(conn, body.station_uid), body.counter_code, body.document_checked))
+        out = await _with_code(conn, ctx, out)
     request.state.audit = {"action": "boarding.checkin", "object_type": "boarding_pass", "reason":
                            f"pass {out['pass_no']} at counter {out.get('counter') or '-'}"}
     return out
@@ -321,11 +342,12 @@ async def station_checkin(body: CheckinIn, request: Request, pr: Principal = Dep
 @station.get("/passes/{pass_no}")
 async def station_pass(pass_no: str, request: Request, pr: Principal = Depends(require_portal("STATION"))):
     _counter_staff(pr)
-    async with db.transaction(context_for(request, pr)) as conn:
+    ctx = context_for(request, pr)
+    async with db.transaction(ctx) as conn:
         cid = await conn.fetchval("SELECT id FROM brd.station_checkin WHERE pass_no = $1", pass_no)   # the company's own only
         if cid is None:
             raise ApiError(404, "NOT_FOUND", "no such boarding pass for this company")
-        return json.loads(await conn.fetchval("SELECT brd.boarding_pass($1)::text", cid))
+        return await _with_code(conn, ctx, json.loads(await conn.fetchval("SELECT brd.boarding_pass($1)::text", cid)))
 
 
 @station.post("/passes/{pass_no}/cancel")

@@ -47,7 +47,7 @@ export default function AdminBoarding() {
 }
 
 function Stations() {
-  const { t } = useI18n();
+  const { t, city, station: placeName } = useI18n();
   const list = useLoad(() => api.get<{ stations: StationRow[] }>("/api/admin/boarding/stations"));
   const [open, setOpen] = useState<string | null>(null);
   return (
@@ -59,8 +59,8 @@ function Stations() {
             <th className="num">{t("brdadm.counters")}</th><th className="num">{t("brdadm.bays")}</th><th /></tr></thead>
           <tbody>{stations.map((s) => (
             <tr key={s.uid}>
-              <td><strong className="mono">{s.code}</strong> · {s.name}</td>
-              <td>{s.city ?? "—"}</td>
+              <td><strong className="mono text-nowrap">{s.code}</strong> · {placeName(s.code, s.name)}</td>
+              <td>{s.city ? city(s.city) : "—"}</td>
               <td>{s.boarding_on_now ? <Status value="ACTIVE" /> : s.enabled ? <span className="small muted">{t("brdadm.onButOff")}</span> : <span className="small muted">{t("brdadm.off")}</span>}</td>
               <td>{s.displays ? <Link className="btn text small" to={`/board/${s.uid}`} target="_blank" rel="noopener"><Icon name="tv" />{t("brdadm.openBoard")}</Link> : <span className="small muted">{t("brdadm.off")}</span>}</td>
               <td className="num">{s.counters}</td><td className="num">{s.bays}</td>
@@ -75,7 +75,7 @@ function Stations() {
 }
 
 function StationModal({ uid, onClose }: { uid: string; onClose: () => void }) {
-  const { t } = useI18n();
+  const { t, station: placeName } = useI18n();
   const toast = useToast();
   const view = useLoad(() => api.get<StationView>(`/api/admin/boarding/stations/${uid}`), [uid]);
   const companies = useLoad(() => api.get<{ companies: Company[] }>("/api/admin/boarding/operating-companies"));
@@ -101,7 +101,7 @@ function StationModal({ uid, onClose }: { uid: string; onClose: () => void }) {
     } catch (err) { setError(err); }
   };
   return (
-    <Modal wide title={view.data ? `${view.data.code} · ${view.data.name}` : t("common.loading")} onClose={onClose}
+    <Modal wide title={view.data ? `${view.data.code} · ${placeName(view.data.code, view.data.name)}` : t("common.loading")} onClose={onClose}
       actions={<><button className="btn text" onClick={onClose}>{t("common.close")}</button><button className="btn" disabled={!form} onClick={save}>{t("common.save")}</button></>}>
       <Loaded state={view}>{(v) => b && (
         <div className="stack">
@@ -199,7 +199,7 @@ function Companies() {
 }
 
 function PlatformGrants() {
-  const { t, date } = useI18n();
+  const { t, date, station: placeName } = useI18n();
   const toast = useToast();
   const list = useLoad(() => api.get<{ grants: Grant[] }>("/api/admin/boarding/operator-grants"));
   const companies = useLoad(() => api.get<{ companies: Company[] }>("/api/admin/boarding/operating-companies"));
@@ -232,7 +232,7 @@ function PlatformGrants() {
         <Field label={t("common.station")}>
           <select className="input" value={f.station_uid} onChange={(e) => setF({ ...f, station_uid: e.target.value })}>
             <option value="">{t("st.everyStation")}</option>
-            {(stations.data?.stations ?? []).map((s) => <option key={s.uid} value={s.uid}>{s.code} · {s.name}</option>)}
+            {(stations.data?.stations ?? []).map((s) => <option key={s.uid} value={s.uid}>{s.code} · {placeName(s.code, s.name)}</option>)}
           </select>
         </Field>
         <Field label={t("st.right")}>
@@ -247,7 +247,7 @@ function PlatformGrants() {
           <thead><tr><th>{t("brdadm.operator")}</th><th>{t("st.carrier")}</th><th>{t("common.station")}</th><th>{t("st.right")}</th><th>{t("common.date")}</th><th>{t("common.status")}</th><th /></tr></thead>
           <tbody>{grants.map((g) => (
             <tr key={g.uid}>
-              <td>{g.operator_name}</td><td>{g.carrier_name ?? t("brdadm.byPlatform")}</td><td className="mono">{g.station_code ?? t("st.everyStation")}</td>
+              <td>{g.operator_name}</td><td>{g.carrier_name ?? t("brdadm.byPlatform")}</td><td className="mono text-nowrap">{g.station_code ?? t("st.everyStation")}</td>
               <td>{t(`st.perm.${g.permission}`)}</td><td>{date(g.granted_at)}</td><td><Status value={g.revoked_at ? "REVOKED" : "ACTIVE"} /></td>
               <td className="num">{!g.revoked_at && !g.carrier_uid && <button className="btn text small" onClick={() => revoke(g)}>{t("brdadm.revoke")}</button>}</td>
             </tr>

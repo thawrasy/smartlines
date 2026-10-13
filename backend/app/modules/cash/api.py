@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field
 
 from ... import db
 from ...deps import Principal, context_for, require_portal
-from ...errors import forbidden
+from ...errors import forbidden, not_found
 from ...routers.bookings import qr_response
 from ..sales import options
 from ..sales import service as sales
@@ -114,6 +114,17 @@ async def ticket_qr(ticket_uid: uuid.UUID, request: Request, pr: Principal = Dep
     async with db.transaction(ctx) as conn:
         status = await service.ticket_status(conn, ctx, pr, ticket_uid)
     return qr_response(ticket_uid, status)
+
+
+@router.get("/api/carrier/counter/tickets/{ticket_uid}/offline")
+async def ticket_offline(ticket_uid: uuid.UUID, request: Request, pr: Principal = Depends(operator)):
+    """The signed code (T2) printed on a counter ticket, which stays the same unlike the rotating code; issued only from
+    the hours before departure the platform sets (TICKET_NOT_YET with opens_at before that)."""
+    ctx = context_for(request, pr)
+    async with db.transaction(ctx) as conn:
+        if await service.ticket_status(conn, ctx, pr, ticket_uid) is None:
+            raise not_found("ticket")
+        return await sales.offline_credential(conn, ctx, ticket_uid)
 
 
 @router.get("/api/carrier/counter/report")

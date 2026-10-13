@@ -85,6 +85,7 @@ td.ltr, th.ltr { display: table-cell; text-align: start; }
 .row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .row.between { justify-content: space-between; }
 .row.nowrap { flex-wrap: nowrap; }
+.text-nowrap { white-space: nowrap; }
 .stack { display: flex; flex-direction: column; gap: 16px; }
 .stack.tight { gap: 8px; }
 .grid { display: grid; gap: 16px; }
@@ -508,6 +509,13 @@ tr.clickable { cursor: pointer; }
 tr.clickable:hover td { background: var(--surface-container-low, rgba(10, 91, 211, .04)); }
 .check-row { display: flex; align-items: flex-start; gap: 10px; cursor: pointer; line-height: 1.5; }
 .check-row input { margin-top: 4px; accent-color: var(--primary); }
+/* the station counter: the identity check comes first and is marked when missed; trips grouped by day; the pass code */
+.check-first { padding: 12px 14px; border-radius: 12px; background: var(--surface-tint); border: 1px solid var(--outline-variant); }
+.check-first input { width: 20px; height: 20px; margin-top: 2px; }
+.check-first.invalid { border-color: var(--error); background: var(--error-container); color: var(--on-error-container); }
+.table tr.day-row th { background: var(--surface); color: var(--on-surface); font-weight: 700; font-size: 14px; padding-top: 16px; }
+.pass-qr img { width: 170px; height: 170px; }
+.qr-wait { width: 170px; height: 170px; }
 .code-block { margin: 0; padding: 12px 14px; border-radius: 10px; background: #0B1F3F; color: #E6EEFF; font-family: "IBM Plex Mono", monospace;
   font-size: 13px; overflow-x: auto; white-space: pre; direction: ltr; text-align: left; }
 .secret-box { display: flex; align-items: center; gap: 8px; padding: 12px; border: 1px dashed var(--outline); border-radius: 10px; background: var(--surface); }
@@ -536,14 +544,17 @@ tr.clickable:hover td { background: var(--surface-container-low, rgba(10, 91, 21
 .board-table tbody tr:nth-child(even) td { background: rgba(255, 255, 255, .03); }
 .board-time { font-weight: 800; font-variant-numeric: tabular-nums; direction: ltr; text-align: start; width: 9%; }
 .board-city { font-weight: 700; }
-.board-via { display: block; font-size: 1.05vw; font-weight: 400; opacity: .7; }
+.board-via { display: block; font-size: 1.05vw; font-weight: 400; color: #B4C2DC; }
+.board-offline { font-size: 1vw; font-weight: 600; color: #F2A65A; text-align: end; }
 .board-mono { font-family: var(--font-mono); font-size: 1.5vw; }
 .board-bay { font-family: var(--font-mono); font-weight: 800; color: #E0B44C; font-size: 2.3vw; width: 9%; }
 .board-status { font-weight: 700; width: 16%; }
 .board-go td { color: #7CF0A8; }
 .board-go .board-status { animation: board-blink 1.4s step-start infinite; }
 .board-info .board-status { color: #8EC5FF; }
-.board-dim td { opacity: .45; }
+/* departed rows are greyed with a colour, not an opacity, so they keep a 4.5:1 contrast even on a phone (axe) */
+.board-dim td, .board-dim .board-bay, .board-dim .board-via { color: #8796B0; }
+.board-go .board-via, .board-bad .board-via { color: inherit; }
 .board-bad td { color: #FF8A8A; text-decoration: line-through; }
 .board-bad .board-status { text-decoration: none; }
 .board-none { text-align: center; opacity: .6; padding: 3vw !important; }
@@ -552,7 +563,10 @@ tr.clickable:hover td { background: var(--surface-container-low, rgba(10, 91, 21
 @media (prefers-reduced-motion: reduce) { .board-go .board-status { animation: none; } }
 @media (max-width: 900px) {
   .board-table { font-size: 15px; } .board-table th { font-size: 12px; } .board-station { font-size: 22px; } .board-clock { font-size: 28px; }
-  .board-bay { font-size: 18px; } .board-mono { font-size: 13px; } .board-title { font-size: 16px; } .board-via { font-size: 11px; } .board-code { font-size: 12px; }
+  .board-bay { font-size: 18px; } .board-mono { font-size: 13px; } .board-title { font-size: 16px; } .board-via { font-size: 11px; } .board-code { font-size: 12px; } .board-offline { font-size: 11px; }
+  .board-screen { padding: 12px; } .board-table td, .board-table th { padding: 8px 5px; }
 }
+/* on a phone the trip number gives way: time, destination, carrier, bay and state stay */
+@media (max-width: 600px) { .board-narrow-hide { display: none; } }
 /* A boarding pass prints alone */
 @media print { .boarding-pass { break-inside: avoid; border: 1px solid #0B1F3F !important; padding: 12px !important; } }

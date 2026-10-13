@@ -16,7 +16,7 @@ supporting index, except references to lookup lists and to the staff member who 
 | Schemas | 26 separate schemas, each with its own privileges |
 | Tables | 522 tables (8 partitioned), 5,392 columns, 1,514 foreign keys |
 | Security | row-level security on 522 of 522 tables, 943 policies; 446 triggers, 358 functions |
-| Tests | 680 automated checks against a freshly built database (`db/tests/run.sh`) |
+| Tests | 684 automated checks against a freshly built database (`db/tests/run.sh`) |
 | Design | [Database design and ERD document](../docs/database/) with diagrams in the study's colors |
 | Docs | [Data dictionary](DATA_DICTIONARY.md) · [ERD diagrams](ERD.md) (both generated from the database) |
 <!-- stats:end -->
@@ -169,6 +169,7 @@ PostGIS in `gis`. Until 9 October 2026 a first start of the Docker stack stopped
 | `1110_station_sales.sql` | Selling at a station counter under the carrier's `BOOKING` right (owner's decision: first release): `brd.station_may_sell`, the `STATION` sales channel, `brd.station_sale` (station, counter, clerk; checked against its booking), an operating company sees the bookings it sold at stations, the station's trip list shows whether the counter may sell; station boarding tables move from phase 7 to 1B |
 | `1111_counter_photo_gate.sql` | The photo at a station counter stays off until a legal approval allows it: a fifth view role `STATION_COUNTER_AT_CHECKIN`, off, turned on only by an approved change that records the legal document number |
 | `1112_station_board.sql` | The station's public departure board (build step 4): departures of the next 12 hours and arrivals of the next 6, with bays and states, without passenger data, only where the platform switched the station's screens on |
+| `1113_station_screens_review.sql` | What the station screens show after their design review of October 2026 (`docs/design/STATION_SCREENS_REVIEW.md`); fields added, none removed: the counter's trips name where each goes and carry the check-in window at the station (`brd.station_trips`, a trip ending at the station is no longer listed), the boarding pass names its ticket for the signed code printed on it (`brd.boarding_pass`), and the departure board gives the city codes of the stops on the way (`brd.station_board`) |
 
 ## Design rules (study 29.1)
 

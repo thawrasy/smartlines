@@ -7,7 +7,9 @@
     GET    /api/station/bookings?station_uid=&day=  the counter's sales of a day (the station's time zone) and their total
     GET    /api/station/bookings/{ref}              a booking it sold, with its tickets (to print them)
     POST   /api/station/bookings/{ref}/cancel       cancel at the counter: a cash sale is refunded in cash from the drawer
-    GET    /api/station/tickets/{ticket_uid}/qr     a ticket's code, to print
+    GET    /api/station/tickets/{ticket_uid}/qr     a ticket's rotating code, shown on the counter's screen
+    GET    /api/station/tickets/{ticket_uid}/offline  the ticket's signed code (T2) that stays the same, to print: from the
+                                                    hours before departure the platform sets (TICKET_NOT_YET before)
     GET    /api/station/cash                        what the company owes for cash sales, its limit and what is left
     GET    /api/station/tickets/{ticket_uid}/photo?station_uid=   the passenger's photo at check-in: refused until the
                                                     platform turns it on under a legal approval (build step 5, 1111)
@@ -207,18 +209,36 @@ async def cancel(ref: str, request: Request, pr: Principal = Depends(staff)):
     return out
 
 
+async def _sold_ticket(conn, ctx: db.Context, company: int, ticket_uid: uuid.UUID) -> str:
+    """The status of a ticket the station's operating company sold; any other ticket is not found."""
+    async with db.system_scope(conn, ctx):
+        status = await conn.fetchval(
+            """SELECT k.status FROM sales.ticket k JOIN brd.station_sale s ON s.booking_id = k.booking_id
+                WHERE k.uid = $1 AND s.operator_company_id = $2""", ticket_uid, company)
+    if status is None:
+        raise not_found("ticket")
+    return status
+
+
 @router.get("/tickets/{ticket_uid}/qr")
 async def ticket_qr(ticket_uid: uuid.UUID, request: Request, pr: Principal = Depends(staff)):
     company = _operator(pr)
     ctx = context_for(request, pr)
     async with db.transaction(ctx) as conn:
-        async with db.system_scope(conn, ctx):
-            status = await conn.fetchval(
-                """SELECT k.status FROM sales.ticket k JOIN brd.station_sale s ON s.booking_id = k.booking_id
-                    WHERE k.uid = $1 AND s.operator_company_id = $2""", ticket_uid, company)
-    if status is None:
-        raise not_found("ticket")
+        status = await _sold_ticket(conn, ctx, company, ticket_uid)
     return qr_response(ticket_uid, status)
+
+
+@router.get("/tickets/{ticket_uid}/offline")
+async def ticket_offline(ticket_uid: uuid.UUID, request: Request, pr: Principal = Depends(staff)):
+    """The code printed on a paper ticket: the rotating code changes every window and cannot be printed, so paper
+    carries the signed credential, issued only from the hours before departure the platform sets (design review of
+    the station screens, October 2026)."""
+    company = _operator(pr)
+    ctx = context_for(request, pr)
+    async with db.transaction(ctx) as conn:
+        await _sold_ticket(conn, ctx, company, ticket_uid)
+        return await sales.offline_credential(conn, ctx, ticket_uid)
 
 
 @router.get("/tickets/{ticket_uid}/photo")

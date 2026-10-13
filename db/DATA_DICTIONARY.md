@@ -2804,8 +2804,8 @@ Single-use temporary token presented at a partner to redeem points
 | `agreement_id` | `bigint` | 🔗 `pricing.loyalty_agreement`  |  |
 | `uid` | `uuid` | ✱ | `gen_random_uuid()` |
 | `code_enc` | `bytea` |  |  |
-| `returned_ledger_id` | `bigint` | 🔗 `pricing.points_ledger`  |  |
 | `code_key_id` | `bigint` | 🔗 `sec.key_registry`  |  |
+| `returned_ledger_id` | `bigint` | 🔗 `pricing.points_ledger`  |  |
 
 ### `pricing.sponsor_account` 🛡️
 

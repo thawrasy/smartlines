@@ -1486,8 +1486,8 @@ erDiagram
     text status
     bigint agreement_id FK
     uuid uid
-    bigint returned_ledger_id FK
     bigint code_key_id FK
+    bigint returned_ledger_id FK
   }
   pricing_sponsor_account {
     bigint id PK

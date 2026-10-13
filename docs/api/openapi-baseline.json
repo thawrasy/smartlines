@@ -861,6 +861,21 @@
     "200": {}
    }
   },
+  "GET /api/carrier/counter/tickets/{ticket_uid}/offline": {
+   "body": null,
+   "parameters": {
+    "path:ticket_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
   "GET /api/carrier/counter/tickets/{ticket_uid}/qr": {
    "body": null,
    "parameters": {
@@ -1858,6 +1873,21 @@
       "maximum": 62,
       "minimum": 1,
       "type": "integer"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/station/tickets/{ticket_uid}/offline": {
+   "body": null,
+   "parameters": {
+    "path:ticket_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
      }
     }
    },

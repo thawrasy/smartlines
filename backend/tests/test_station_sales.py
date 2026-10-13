@@ -77,6 +77,10 @@ def test_station_counter_sells_a_carriers_tickets_for_cash_under_its_booking_rig
         assert detail["booking"]["refundable_here"] and len(detail["tickets"]) == 1
         qr = clerk.get(f"/api/station/tickets/{detail['tickets'][0]['uid']}/qr")
         assert qr.status_code == 200
+        # paper carries the ticket's signed code, not the rotating one (design review of the station screens)
+        paper = clerk.get(f"/api/station/tickets/{detail['tickets'][0]['uid']}/offline")
+        assert paper.status_code == 200 and paper.json()["credential"].startswith("T2."), paper.text
+        assert stranger.get(f"/api/station/tickets/{detail['tickets'][0]['uid']}/offline").status_code == 404
         day_sales = clerk.get("/api/station/bookings", params={"station_uid": str(station)}).json()
         assert any(x["booking_ref"] == ref and x["counter"] == counter for x in day_sales["bookings"]) and day_sales["total"] >= total
         # the booking is the carrier's: it sees it on its trip; another operating company does not

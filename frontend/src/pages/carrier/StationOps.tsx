@@ -46,7 +46,7 @@ export default function StationOps() {
 }
 
 function Grants() {
-  const { t, date } = useI18n();
+  const { t, date, station: placeName } = useI18n();
   const toast = useToast();
   const list = useLoad(() => api.get<{ grants: Grant[] }>("/api/carrier/station-operators/grants"));
   const opts = useLoad(() => api.get<{ companies: Option[]; stations: StationOption[] }>("/api/carrier/station-operators/options"));
@@ -79,7 +79,7 @@ function Grants() {
           <Field label={t("common.station")}>
             <select className="input" value={f.station_uid} onChange={(e) => setF({ ...f, station_uid: e.target.value })}>
               <option value="">{t("st.everyStation")}</option>
-              {o.stations.map((s) => <option key={s.uid} value={s.uid}>{s.code} · {s.name}{s.boarding_on_now ? "" : ` (${t("stops.notBoarding")})`}</option>)}
+              {o.stations.map((s) => <option key={s.uid} value={s.uid}>{s.code} · {placeName(s.code, s.name)}{s.boarding_on_now ? "" : ` (${t("stops.notBoarding")})`}</option>)}
             </select>
           </Field>
           <Field label={t("st.right")}>
@@ -95,7 +95,7 @@ function Grants() {
           <thead><tr><th>{t("brdadm.operator")}</th><th>{t("common.station")}</th><th>{t("st.right")}</th><th>{t("common.date")}</th><th>{t("common.status")}</th><th /></tr></thead>
           <tbody>{grants.map((g) => (
             <tr key={g.uid}>
-              <td>{g.operator_name}</td><td className="mono">{g.station_code ?? t("st.everyStation")}</td><td>{t(`st.perm.${g.permission}`)}</td>
+              <td>{g.operator_name}</td><td className="mono text-nowrap">{g.station_code ?? t("st.everyStation")}</td><td>{t(`st.perm.${g.permission}`)}</td>
               <td>{date(g.granted_at)}</td><td><Status value={g.revoked_at ? "REVOKED" : "ACTIVE"} /></td>
               <td className="num">{!g.revoked_at && <button className="btn text small" onClick={() => revoke(g)}>{t("brdadm.revoke")}</button>}</td>
             </tr>
