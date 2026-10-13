@@ -95,7 +95,7 @@ async def _booking_for(conn, pr: Principal, ref: str, family: bool = False):
     travels on (4.20). Changing a booking stays with whoever booked it."""
     b = await conn.fetchrow(
         """SELECT b.*, t.trip_no, t.trip_code, t.uid AS trip_uid, t.departure_at, t.status AS trip_status,
-                  cp.legal_name AS carrier_name
+                  cp.legal_name AS carrier_name, cp.uid AS carrier_uid, iam.logo_version(cp.id) AS carrier_logo
              FROM sales.booking b JOIN ops.trip t ON t.id = b.trip_id JOIN iam.party cp ON cp.id = b.company_id
             WHERE b.booking_ref = $1 AND (b.booker_party_id = $2
                   OR ($3 AND ((b.family_id IS NOT NULL AND iam.is_family_head(b.family_id)) OR sales.travels_on(b.id))))""",
@@ -110,7 +110,8 @@ async def my_bookings(request: Request, pr: Principal = Depends(passenger)):
     async with db.transaction(context_for(request, pr)) as conn:
         recs = await conn.fetch(
             f"""SELECT b.booking_ref, b.status, b.total_amount, b.currency, b.created_at, t.trip_no, t.trip_code, t.uid AS trip_uid,
-                       cp.legal_name AS carrier_name, {sales_repo.JOURNEY_SQL}
+                       cp.legal_name AS carrier_name, cp.uid AS carrier_uid, iam.logo_version(cp.id) AS carrier_logo,
+                       {sales_repo.JOURNEY_SQL}
                   FROM sales.booking b JOIN ops.trip t ON t.id = b.trip_id JOIN iam.party cp ON cp.id = b.company_id
                  WHERE b.booker_party_id = $1 OR (b.family_id IS NOT NULL AND iam.is_family_head(b.family_id)) OR sales.travels_on(b.id)
                  ORDER BY b.created_at DESC LIMIT 50""", pr.party_id)

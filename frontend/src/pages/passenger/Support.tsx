@@ -2,7 +2,7 @@ import { useState } from "react";
 import { api } from "../../api";
 import { useI18n } from "../../i18n";
 import { PageHead } from "../../components/layout";
-import { Empty, ErrorBox, Field, Icon, Loaded, Modal, Status, useLoad, useToast } from "../../components/ui";
+import { CarrierName, Empty, ErrorBox, Field, Icon, Loaded, Modal, Status, useLoad, useToast } from "../../components/ui";
 
 interface Case {
   uid: string; ref: string; kind: string; category: string; status: string; subject: string; booking_ref: string | null;
@@ -10,7 +10,10 @@ interface Case {
   created_at: string; replies?: number;
 }
 interface Message { kind: string; mine: boolean; body: string | null; created_at: string }
-interface Ratable { ticket_uid: string; ticket_no: string; trip_no: string; departure_at: string; origin: string; destination: string; carrier_name: string }
+interface Ratable {
+  ticket_uid: string; ticket_no: string; trip_no: string; departure_at: string; origin: string; destination: string; carrier_name: string;
+  carrier_uid?: string | null; carrier_logo?: string | null;
+}
 
 const KINDS = ["COMPLAINT", "INQUIRY", "CLAIM"] as const;
 
@@ -43,7 +46,7 @@ function RateTrip({ trip, done }: { trip: Ratable; done: () => void }) {
   return (
     <div className="card stack tight">
       <div className="row between" style={{ flexWrap: "wrap", gap: 8 }}>
-        <div><strong>{trip.origin} → {trip.destination}</strong><div className="small muted">{trip.carrier_name} · {dateTime(trip.departure_at)}</div></div>
+        <div><strong>{trip.origin} → {trip.destination}</strong><div className="small muted row" style={{ gap: 6 }}><CarrierName name={trip.carrier_name} uid={trip.carrier_uid} logo={trip.carrier_logo} /> · {dateTime(trip.departure_at)}</div></div>
         <Stars value={stars} onChange={setStars} label={t("support.stars")} />
       </div>
       {stars > 0 && (

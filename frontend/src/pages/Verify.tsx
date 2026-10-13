@@ -2,12 +2,13 @@ import { useEffect, useState, type FormEvent } from "react";
 import { useSearchParams } from "react-router-dom";
 import { api } from "../api";
 import { useI18n } from "../i18n";
-import { ErrorBox, Field, Icon, Status } from "../components/ui";
+import { CarrierName, ErrorBox, Field, Icon, Status } from "../components/ui";
 
+type Carrier = { carrier?: string; carrier_uid?: string | null; carrier_logo?: string | null };
 type Result =
   | { valid: false; reason: string }
-  | { valid: true; kind: "booking"; booking_ref: string; status: string; trip_no: string; trip_code?: string | null; departure_at: string; tickets: number; total_amount: number }
-  | { valid: true; kind: "ticket"; ticket_no: string; status: string; seat_no: number; trip_no: string; trip_code?: string | null; departure_at: string };
+  | { valid: true; kind: "booking"; booking_ref: string; status: string; trip_no: string; trip_code?: string | null; departure_at: string; tickets: number; total_amount: number } & Carrier
+  | { valid: true; kind: "ticket"; ticket_no: string; status: string; seat_no: number; trip_no: string; trip_code?: string | null; departure_at: string } & Carrier;
 
 export default function Verify() {
   const { t, money, dateTime } = useI18n();
@@ -46,6 +47,7 @@ export default function Verify() {
             </>)}
             <dt>{t("booking.tripNo")}</dt><dd className="mono">{result.trip_code ?? result.trip_no}
               {result.trip_code && <div className="trip-ref">{t("trip.ref")} {result.trip_no}</div>}</dd>
+            {result.carrier && <><dt>{t("st.carrier")}</dt><dd><CarrierName name={result.carrier} uid={result.carrier_uid} logo={result.carrier_logo} /></dd></>}
             <dt>{t("booking.departs")}</dt><dd>{dateTime(result.departure_at)}</dd>
             <dt>{t("common.status")}</dt><dd><Status value={result.status} /></dd>
           </dl>

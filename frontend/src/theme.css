@@ -590,4 +590,8 @@ tr.clickable:hover td { background: var(--surface-container-low, rgba(10, 91, 21
 .logo-tile img { height: 100%; width: auto; max-width: 160px; object-fit: contain; }
 .logo-tile.sm { height: 24px; padding: 2px 5px; border-radius: 5px; }
 .logo-tile.sm img { max-width: 90px; }
+/* a carrier's name with its logo beside it (1116); in a narrow cell the logo stays and the name wraps */
+.carrier-name { display: inline-flex; align-items: center; gap: 8px; vertical-align: middle; min-width: 0; }
+.carrier-name .logo-tile { flex: none; }
+.carrier-name.strong .carrier-label { font-weight: 600; }
 .trip-ref { font-size: .82em; color: var(--on-surface-variant); }

@@ -58,6 +58,7 @@ form.search .btn{align-self:end}
 .fact span{display:block;font-size:.85rem;color:var(--muted)}.fact b{font-size:1.15rem;color:var(--navy)}
 table{width:100%;border-collapse:collapse;margin:10px 0 18px;font-size:.95rem}
 th,td{padding:10px;border-bottom:1px solid var(--line);text-align:start}th{background:var(--soft);color:var(--navy)}
+.carrier{display:inline-flex;align-items:center;gap:8px}.carrier img{height:22px;width:auto;max-width:84px;object-fit:contain;background:#fff;border:1px solid var(--line);border-radius:5px;padding:2px 4px}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px;margin:12px 0 8px}
 .card{display:block;border:1px solid var(--line);border-radius:14px;padding:14px 16px;text-decoration:none;color:var(--ink);background:#fff}
 .card:hover{border-color:var(--blue)}.card b{display:block;color:var(--navy)}.card small{color:var(--muted)}

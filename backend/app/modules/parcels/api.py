@@ -107,7 +107,8 @@ async def parcel_trips(request: Request, origin: str = Query(..., min_length=3, 
     await _on()
     async with db.transaction(context_for(request, pr)) as conn:
         trips = await conn.fetch(
-            """SELECT DISTINCT ON (t.id) t.id, t.uid, t.trip_no, t.company_id, cp.legal_name AS carrier_name, a.seq AS from_seq,
+            """SELECT DISTINCT ON (t.id) t.id, t.uid, t.trip_no, t.trip_code, t.company_id, cp.legal_name AS carrier_name, cp.uid AS carrier_uid,
+                      iam.logo_version(cp.id) AS carrier_logo, a.seq AS from_seq,
                       b.seq AS to_seq, a.sched_dep AS departs_at, b.sched_arr AS arrives_at, sa.name AS from_station, sb.name AS to_station
                  FROM ops.trip t JOIN iam.party cp ON cp.id = t.company_id
                  JOIN ops.trip_stop a ON a.trip_id = t.id JOIN net.station sa ON sa.id = a.station_id JOIN ref.city ca ON ca.id = sa.city_id
@@ -188,8 +189,8 @@ def _offer_view(o) -> dict:
     return d
 
 
-_OFFERS = """SELECT o.*, t.code AS tariff_code, t.name AS tariff_name, tr.trip_no, tr.uid AS trip_uid, cp.legal_name AS carrier_name,
-                    s.tracking_no
+_OFFERS = """SELECT o.*, t.code AS tariff_code, t.name AS tariff_name, tr.trip_no, tr.trip_code, tr.uid AS trip_uid, cp.legal_name AS carrier_name,
+                    cp.uid AS carrier_uid, iam.logo_version(cp.id) AS carrier_logo, s.tracking_no
                FROM ship.parcel_offer o JOIN ship.parcel_tariff t ON t.id = o.tariff_id JOIN ops.trip tr ON tr.id = o.trip_id
                JOIN iam.party cp ON cp.id = o.company_id LEFT JOIN ship.shipment s ON s.id = o.shipment_id"""
 

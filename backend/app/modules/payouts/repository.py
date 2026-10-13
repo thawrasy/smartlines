@@ -9,7 +9,7 @@ import asyncpg
 async def bank_accounts(conn: asyncpg.Connection, party_id: Optional[int] = None, unverified_only: bool = False):
     return await conn.fetch(
         """SELECT a.id, a.uid, a.bank_name, a.holder_name, a.iban_last4, a.currency, a.verified, a.status, a.created_at,
-                  p.legal_name AS company_name
+                  p.legal_name AS company_name, p.uid AS company_uid, iam.logo_version(p.id) AS company_logo
              FROM iam.bank_account a JOIN iam.party p ON p.id = a.party_id
             WHERE ($1::bigint IS NULL OR a.party_id = $1) AND (NOT $2 OR (NOT a.verified AND a.status = 'ACTIVE'))
             ORDER BY a.created_at DESC""", party_id, unverified_only)
@@ -35,7 +35,7 @@ async def verify_bank_account(conn, account_id: int, user_id: int) -> None:
 WITHDRAWAL_COLS = """w.id, w.uid, w.amount, w.currency, w.status, w.needs_second, w.created_at, w.decided_at, w.paid_at,
                      w.bank_ref, w.reject_reason, w.requested_by, w.approved_by, w.second_approver,
                      a.bank_name, a.iban_last4, a.uid AS bank_account_uid, p.legal_name AS company_name,
-                     rp.legal_name AS requested_by_name"""
+                     p.uid AS company_uid, iam.logo_version(p.id) AS company_logo, rp.legal_name AS requested_by_name"""
 WITHDRAWAL_FROM = """fin.withdrawal_request w JOIN iam.bank_account a ON a.id = w.bank_account_id
                      JOIN iam.party p ON p.id = w.company_id
                      JOIN iam.app_user ru ON ru.id = w.requested_by JOIN iam.party rp ON rp.id = ru.party_id"""
@@ -94,7 +94,7 @@ async def settlements(conn, company_id: Optional[int] = None):
     return await conn.fetch(
         """SELECT s.id, s.uid, lower(s.period) AS period_from, upper(s.period) - 1 AS period_to, s.currency, s.gross,
                   s.commission, s.refunds, s.net, s.status, s.created_at, s.approved_at, s.created_by, s.approved_by,
-                  p.legal_name AS company_name,
+                  p.legal_name AS company_name, p.uid AS company_uid, iam.logo_version(p.id) AS company_logo,
                   (SELECT count(*) FROM fin.settlement_line l WHERE l.batch_id = s.id) AS trips
              FROM fin.settlement_batch s JOIN iam.party p ON p.id = s.company_id
             WHERE ($1::bigint IS NULL OR s.company_id = $1) ORDER BY s.created_at DESC LIMIT 200""", company_id)

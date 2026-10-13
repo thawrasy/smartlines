@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { api } from "../../api";
 import { LOCALES, translator, type Locale } from "../../i18n";
+import { logoUrl } from "../../components/ui";
 
 // The station's big screen (build step 4): every departure of the next hours with its bay, and the arrivals, fed by the
 // trips and the bays the station's administration assigns. Public and read-only, without any passenger data; shown only
@@ -70,7 +71,7 @@ export default function DepartureBoard() {
   const carrier = (r: BoardRow) => (
     <span className="board-carrier">
       {r.carrier_logo && r.carrier_uid && (
-        <span className="board-logo"><img src={`/api/public/companies/${r.carrier_uid}/logo?v=${r.carrier_logo}`} alt="" /></span>
+        <span className="board-logo"><img src={logoUrl(r.carrier_uid, r.carrier_logo)} alt="" /></span>
       )}
       <span>{r.carrier}</span>
     </span>

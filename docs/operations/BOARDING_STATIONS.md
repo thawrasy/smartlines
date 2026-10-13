@@ -257,11 +257,11 @@ page, "Logo and code"). The specification, checked by the application (`app/comp
 | Shape | as wide as it is high, up to four times as wide |
 | Size | at least 120 pixels high; 240 gives the sharpest board |
 | Kept as | a PNG re-encoded by the application, at most 240 pixels high (960 wide), without the file's metadata |
-| Shown | on a white tile next to the name: departure board, search results, booking |
+| Shown | on a white tile next to the carrier's name wherever it is shown (1116): search results and the trip, the booking and the ticket check, the passenger's trips, support and parcels; the counter's trips and sales, the boarding pass, the bays page and the departure board; the carrier's own portal; the platform's lists (companies, cash desk, payouts, documents, station rights); the public route pages; the mobile app |
 
 The logo is public like the name (`iam.company_logo`; `GET /api/public/companies/{uid}/logo?v=<version>`, cached for a
 year once versioned). A file that breaks a rule is refused with the rule (`LOGO_FORMAT`, `LOGO_TOO_SMALL`, `LOGO_SHAPE`,
-`LOGO_TOO_LARGE`).
+`LOGO_TOO_LARGE`). The logo is the carrier's, never a trip's: it is added once and every answer that names the carrier carries its version (`iam.logo_version`, 1116), so a new logo shows everywhere at once.
 
 **The trip number passengers read is short**, as in aviation: the carrier's code for trip numbers and a service number,
 "DC 101", the same for the same departure every day. The long number stays the trip's reference. See

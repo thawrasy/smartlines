@@ -41,7 +41,8 @@ export function CarrierDashboard() {
   const state = useLoad(() => api.get<Dashboard>("/api/carrier/dashboard"));
   return (
     <div className="stack">
-      <PageHead title={me?.company?.name ?? t("nav.carrier")} sub={me?.company?.code ? `${t("common.code")}: ${me.company.code}` : undefined}>
+      <PageHead title={me?.company?.name ?? t("nav.carrier")} logo={me?.company ?? undefined}
+                sub={me?.company?.code ? `${t("common.code")}: ${me.company.code}` : undefined}>
         <Link className="btn" to="/carrier/trips?new=1"><Icon name="add" />{t("carrier.newTrip")}</Link>
       </PageHead>
       <Loaded state={state}>{(d) => (

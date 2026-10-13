@@ -15,6 +15,11 @@ from ..security import verify_document_token, verify_ticket_qr
 router = APIRouter(prefix="/api/verify", tags=["verify"])
 
 
+def _carrier(r) -> dict:
+    """The carrier that runs the trip, with its logo next to its name (1116): public, like the name on the ticket."""
+    return {"carrier": r["carrier"], "carrier_uid": r["carrier_uid"], "carrier_logo": r["carrier_logo"]}
+
+
 @router.get("")
 async def verify(request: Request, token: str = Query(..., min_length=10, max_length=300)):
     ctx = base_context(request)
@@ -28,20 +33,25 @@ async def verify(request: Request, token: str = Query(..., min_length=10, max_le
             kind, ref = doc
             r = await conn.fetchrow(
                 """SELECT b.booking_ref, b.status, b.total_amount, b.currency, t.trip_no, t.trip_code, t.departure_at,
-                          (SELECT count(*) FROM sales.ticket k WHERE k.booking_id = b.id) AS tickets
-                     FROM sales.booking b JOIN ops.trip t ON t.id = b.trip_id WHERE b.booking_ref = $1""", ref)
+                          (SELECT count(*) FROM sales.ticket k WHERE k.booking_id = b.id) AS tickets,
+                          cp.legal_name AS carrier, cp.uid::text AS carrier_uid, iam.logo_version(cp.id) AS carrier_logo
+                     FROM sales.booking b JOIN ops.trip t ON t.id = b.trip_id JOIN iam.party cp ON cp.id = t.company_id
+                    WHERE b.booking_ref = $1""", ref)
             if r is None:
                 return {"valid": False, "reason": "NOT_FOUND"}
             return {"valid": True, "kind": "booking", "booking_ref": r["booking_ref"], "status": r["status"],
                     "trip_no": r["trip_no"], "trip_code": r["trip_code"], "departure_at": r["departure_at"].isoformat(), "tickets": r["tickets"],
-                    "total_amount": r["total_amount"], "currency": r["currency"]}
+                    "total_amount": r["total_amount"], "currency": r["currency"], **_carrier(r)}
         r = await conn.fetchrow(
-            """SELECT k.ticket_no, k.status, k.seat_no, t.trip_no, t.trip_code, t.departure_at FROM sales.ticket k
-                 JOIN ops.trip t ON t.id = k.trip_id WHERE k.uid = $1""", uuid.UUID(ticket_uid))
+            """SELECT k.ticket_no, k.status, k.seat_no, t.trip_no, t.trip_code, t.departure_at,
+                      cp.legal_name AS carrier, cp.uid::text AS carrier_uid, iam.logo_version(cp.id) AS carrier_logo
+                 FROM sales.ticket k JOIN ops.trip t ON t.id = k.trip_id JOIN iam.party cp ON cp.id = t.company_id
+                WHERE k.uid = $1""", uuid.UUID(ticket_uid))
         if r is None:
             return {"valid": False, "reason": "NOT_FOUND"}
         return {"valid": True, "kind": "ticket", "ticket_no": r["ticket_no"], "status": r["status"],
-                "seat_no": r["seat_no"], "trip_no": r["trip_no"], "trip_code": r["trip_code"], "departure_at": r["departure_at"].isoformat()}
+                "seat_no": r["seat_no"], "trip_no": r["trip_no"], "trip_code": r["trip_code"], "departure_at": r["departure_at"].isoformat(),
+                **_carrier(r)}
 
 
 @router.get("/einvoice/{doc_uuid}")

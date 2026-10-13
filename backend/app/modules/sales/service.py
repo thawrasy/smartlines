@@ -644,6 +644,10 @@ async def booking_view(conn: asyncpg.Connection, ctx: db.Context, b: asyncpg.Rec
                 WHERE source_id = $1 AND source_type = 'BOOKING' AND status NOT IN ('DRAFT','CANCELLED_DRAFT')
                 ORDER BY id""", b["id"])
     booking = {k: b[k] for k in ("booking_ref", "status", "total_amount", "currency", "trip_no", "carrier_name")}
+    # the short trip number (1114) and the carrier's logo next to its name (1116), where the caller's query read them
+    booking["trip_code"] = b.get("trip_code")
+    booking["carrier_uid"] = str(b["carrier_uid"]) if b.get("carrier_uid") else None
+    booking["carrier_logo"] = b.get("carrier_logo")
     booking["price_breakdown"] = _json(b["price_breakdown"])
     booking["created_at"] = b["created_at"].isoformat()
     booking["verify_token"] = document_token("booking", b["booking_ref"])

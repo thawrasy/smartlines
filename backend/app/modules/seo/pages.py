@@ -34,6 +34,18 @@ def _html(body: str, status: int = 200) -> HTMLResponse:
     return HTMLResponse(body, status_code=status, headers={**headers, "Content-Security-Policy": render.CSP})
 
 
+def _logo_url(x: data.Trip) -> str:
+    return f"/api/public/companies/{x.carrier_uid}/logo?v={x.carrier_logo}"
+
+
+def _carrier(x: data.Trip) -> str:
+    """The carrier's name, with its logo beside it when it has one (1116)."""
+    if not (x.carrier_logo and x.carrier_uid):
+        return escape(x.carrier)
+    return (f"<span class='carrier'><img src=\"{escape(_logo_url(x))}\" alt='' width='60' height='22' loading='lazy'>"
+            f"<span>{escape(x.carrier)}</span></span>")
+
+
 def _cities_for_form(cat: data.Catalog, lang: str) -> list[tuple[str, str]]:
     return sorted(((c, city_name(lang, c, x.name)) for c, x in cat.cities.items()), key=lambda p: p[1])
 
@@ -165,10 +177,10 @@ async def route(lang: str, slug: str):
         rows = []
         for x in r.trips[:15]:
             d = local(x.departs, x.zone)
-            rows.append(f"<tr><td>{escape(day_label(lang, x.departs, x.zone))}</td><td>{d.strftime('%H:%M')}</td><td>{escape(x.carrier)}</td>"
+            rows.append(f"<tr><td>{escape(day_label(lang, x.departs, x.zone))}</td><td>{d.strftime('%H:%M')}</td><td>{_carrier(x)}</td>"
                         f"<td>{escape(money(lang, x.price))}</td><td><a href=\"{escape(search_url(r.a, r.b, lang, d.date().isoformat()))}\">"
                         f"{escape(w['nav']['book'])}</a></td></tr>")
-            trips_ld.append({"@type": "BusTrip", "name": f"{A} – {B}", "provider": {"@type": "Organization", "name": x.carrier},
+            trips_ld.append({"@type": "BusTrip", "name": f"{A} – {B}", "provider": {"@type": "Organization", "name": x.carrier, **({"logo": f"{base()}{_logo_url(x)}"} if x.carrier_logo else {})},
                              "departureTime": x.departs.isoformat(), **({"arrivalTime": x.arrives.isoformat()} if x.arrives else {}),
                              "departureBusStop": {"@type": "BusStation", "name": station_name(lang, x.origin_code, x.origin_station)},
                              "arrivalBusStop": {"@type": "BusStation", "name": station_name(lang, x.dest_code, x.dest_station)},

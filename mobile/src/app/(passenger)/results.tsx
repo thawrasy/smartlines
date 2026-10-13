@@ -2,11 +2,11 @@ import { Pressable, Text, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { useI18n } from "../../i18n";
 import { api } from "../../platform/api";
-import { Button, Card, Chip, ErrorText, Loading, Screen, Title, s } from "../../ui/kit";
+import { Button, Card, CarrierName, Chip, ErrorText, Loading, Screen, Title, s } from "../../ui/kit";
 import { useLoad } from "../../ui/useLoad";
 
 interface Result {
-  uid: string; trip_no: string; trip_code?: string | null; carrier_name: string; departs_at: string; arrives_at: string; from_station: string; to_station: string;
+  uid: string; trip_no: string; trip_code?: string | null; carrier_name: string; carrier_uid?: string; carrier_logo?: string | null; departs_at: string; arrives_at: string; from_station: string; to_station: string;
   from_seq: number; to_seq: number; price: number; seats_left: number; stops_between: number; bookable: boolean;
 }
 
@@ -33,7 +33,7 @@ export default function Results() {
             </View>
             <Text style={s.muted}>{x.from_station} → {x.to_station}</Text>
             <View style={s.row}>
-              <Chip label={x.carrier_name} />
+              <CarrierName name={x.carrier_name} uid={x.carrier_uid} logo={x.carrier_logo} />
               <Chip tone="blue" label={x.trip_code ?? x.trip_no} />
               <Chip tone={x.stops_between ? "neutral" : "green"} label={x.stops_between ? t("extra.stops", { n: x.stops_between }) : t("extra.direct")} />
               <Chip tone={x.seats_left < 6 ? "amber" : "blue"} label={t("search.seatsLeft", { n: x.seats_left })} />

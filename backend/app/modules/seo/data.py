@@ -60,6 +60,8 @@ class Trip:
     dest_code: str
     zone: str                         # the departure city's time zone (1061)
     currency: str                     # the trip's currency
+    carrier_uid: str | None = None    # the carrier's logo next to its name (1116)
+    carrier_logo: str | None = None
 
 
 @dataclass
@@ -126,6 +128,7 @@ async def catalog() -> Catalog:
         trips = await conn.fetch(
             """SELECT ca.code AS a, cb.code AS b, sa.sched_dep AS departs, sb.sched_arr AS arrives,
                       sb.fare_from_origin - sa.fare_from_origin AS price, p.legal_name AS carrier,
+                      p.uid::text AS carrier_uid, iam.logo_version(p.id) AS carrier_logo,
                       xa.name AS origin_station, xa.code AS origin_code, xb.name AS dest_station, xb.code AS dest_code,
                       ca.timezone AS zone, t.currency
                  FROM ops.trip t JOIN iam.party p ON p.id = t.company_id
@@ -141,7 +144,7 @@ async def catalog() -> Catalog:
     for t in trips:
         by_pair.setdefault((t["a"], t["b"]), []).append(Trip(t["departs"], t["arrives"], int(t["price"]), t["carrier"], t["origin_station"],
                                                               t["origin_code"], t["dest_station"], t["dest_code"], t["zone"],
-                                                              t["currency"]))
+                                                              t["currency"], t["carrier_uid"], t["carrier_logo"]))
     routes = {}
     for a, b in sorted(pairs):
         if a not in cities or b not in cities:

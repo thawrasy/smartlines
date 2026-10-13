@@ -6,7 +6,7 @@ import { chooseStation, currentStation, type StationChoice } from "../../channel
 import { useI18n } from "../../i18n";
 import { useAuth } from "../../auth";
 import { PageHead } from "../../components/layout";
-import { Empty, ErrorBox, Field, Icon, Loaded, Modal, Stat, Status, useLoad, useToast } from "../../components/ui";
+import { CarrierName, Empty, ErrorBox, Field, Icon, Loaded, Modal, Stat, Status, useLoad, useToast } from "../../components/ui";
 
 // The station portal (operating companies at boarding stations, 1099-1111): the rights carriers gave the company, the
 // station's trips, the counter check and the boarding pass with its bay, boarding at the bay, and selling tickets for
@@ -16,24 +16,25 @@ import { Empty, ErrorBox, Field, Icon, Loaded, Modal, Stat, Status, useLoad, use
 // carries the ticket's signed code, so the bay and the driver's app scan the paper.
 
 interface Grant {
-  uid: string; permission: "BOOKING" | "BOARDING_PASS" | "BOARDING"; carrier_name: string | null; station_uid: string | null;
+  uid: string; permission: "BOOKING" | "BOARDING_PASS" | "BOARDING"; carrier_name: string | null; carrier_uid?: string | null; carrier_logo?: string | null; station_uid: string | null;
   station_code: string | null; station_name: string | null; usable_now: boolean | null;
 }
 interface Counter { station_uid: string; station_code: string; code: string; status: string; boarding_on_now: boolean }
 interface Overview { grants: Grant[]; counters: Counter[] }
 export interface StationTrip {
-  trip_uid: string; trip_no: string; trip_code?: string | null; carrier: string; status: string; stop_seq: number; departs_at: string; bay: string | null;
+  trip_uid: string; trip_no: string; trip_code?: string | null; carrier: string; carrier_uid?: string | null; carrier_logo?: string | null; status: string; stop_seq: number; departs_at: string; bay: string | null;
   dest_code?: string; dest_name?: string; dest_city?: string | null; checkin_opens_at?: string | null; checkin_closes_at?: string | null;
   may_check_in: boolean; may_board: boolean; may_sell: boolean; tickets: number; checked_in: number; boarded: number;
 }
 interface Pass {
   pass_no: string; status: string; ticket_no: string; seat_no: number | null; passenger: string; trip_no: string; trip_code?: string | null; carrier: string;
-  from_station: string; to_station: string; from_code?: string; to_code?: string; departs_at: string; bay: string | null;
+  carrier_uid?: string | null; carrier_logo?: string | null; from_station: string; to_station: string; from_code?: string; to_code?: string; departs_at: string; bay: string | null;
   counter: string | null; repeated?: boolean; credential?: string | null; credential_opens_at?: string;
 }
 interface DaySales {
   day: string; count: number; total: number; currency: string | null;
-  bookings: { booking_ref: string; status: string; total_amount: number; created_at: string; trip_no: string; trip_code?: string | null; carrier: string; counter: string | null; tickets: number }[];
+  bookings: { booking_ref: string; status: string; total_amount: number; created_at: string; trip_no: string; trip_code?: string | null; carrier: string;
+              carrier_uid?: string | null; carrier_logo?: string | null; counter: string | null; tickets: number }[];
 }
 interface CashPosition { owed: number; limit: number; remaining: number; currency: string }
 
@@ -110,7 +111,7 @@ export function StationHome() {
                   <thead><tr><th>{t("st.carrier")}</th><th>{t("st.station")}</th><th>{t("st.right")}</th><th>{t("st.now")}</th></tr></thead>
                   <tbody>{o.grants.map((g) => (
                     <tr key={g.uid}>
-                      <td>{g.carrier_name ?? t("st.everyCarrier")}</td>
+                      <td>{g.carrier_name ? <CarrierName name={g.carrier_name} uid={g.carrier_uid} logo={g.carrier_logo} /> : t("st.everyCarrier")}</td>
                       <td>{g.station_code ? `${g.station_code} · ${placeName(g.station_code, g.station_name ?? "")}` : t("st.everyStation")}</td>
                       <td>{t(`st.perm.${g.permission}`)}</td>
                       <td>{g.usable_now === null ? "—" : <span className={`chip ${g.usable_now ? "green" : ""}`}>{t(g.usable_now ? "st.usable" : "st.notUsable")}</span>}</td>
@@ -165,7 +166,7 @@ export function StationTrips() {
                 <td><strong className="mono">{time(x.departs_at)}</strong></td>
                 <td><strong>{dest(x)}</strong></td>
                 <td className="mono small text-nowrap" title={x.trip_no}>{x.trip_code ?? x.trip_no}</td>
-                <td>{x.carrier}</td>
+                <td><CarrierName name={x.carrier} uid={x.carrier_uid} logo={x.carrier_logo} /></td>
                 <td className="mono">{x.bay ?? "—"}</td>
                 <td>{x.status === "BOARDING" ? <Status value="BOARDING" />
                   : <span className={`chip ${CHECKIN_TONE[ck.key]}`}>{t(`st.ck.${ck.key}`, { time: ck.at ? time(ck.at) : "" })}</span>}</td>
@@ -247,7 +248,7 @@ function PassCard({ pass }: { pass: Pass }) {
       <div className="row" style={{ gap: 24, flexWrap: "wrap" }}>
         <div><div className="small muted">{t("st.trip")}</div><div className="mono">{pass.trip_code ?? pass.trip_no}</div>
           {pass.trip_code && <div className="mono trip-ref">{t("trip.ref")} {pass.trip_no}</div>}</div>
-        <div><div className="small muted">{t("st.carrier")}</div><div>{pass.carrier}</div></div>
+        <div><div className="small muted">{t("st.carrier")}</div><div><CarrierName name={pass.carrier} uid={pass.carrier_uid} logo={pass.carrier_logo} /></div></div>
         <div><div className="small muted">{t("st.seat")}</div><div className="mono">{pass.seat_no ?? "—"}</div></div>
         <div><div className="small muted">{t("st.departs")}</div><div><strong>{time(pass.departs_at)}</strong> {date(pass.departs_at)}</div></div>
       </div>
@@ -454,7 +455,7 @@ export function StationSales() {
               <tbody>{d.bookings.map((b) => (
                 <tr key={b.booking_ref}>
                   <td><Link className="mono" to={`/station/booking/${b.booking_ref}`}>{b.booking_ref}</Link></td>
-                  <td>{time(b.created_at)}</td><td className="mono">{b.trip_code ?? b.trip_no}</td><td>{b.carrier}</td><td className="mono">{b.counter ?? "—"}</td>
+                  <td>{time(b.created_at)}</td><td className="mono">{b.trip_code ?? b.trip_no}</td><td><CarrierName name={b.carrier} uid={b.carrier_uid} logo={b.carrier_logo} /></td><td className="mono">{b.counter ?? "—"}</td>
                   <td className="num">{b.tickets}</td><td className="num">{money(b.total_amount)}</td><td><Status value={b.status} /></td>
                 </tr>
               ))}</tbody>

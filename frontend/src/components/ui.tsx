@@ -24,6 +24,24 @@ export function Logo({ size = 36 }: { size?: number }) {
   );
 }
 
+/** The address of a company's logo. The version (iam.logo_version) changes with the logo, so a new one shows at once and an
+ * unchanged one comes from the browser's cache (1115, 1116). */
+export function logoUrl(uid: string, version: string) { return `/api/public/companies/${uid}/logo?v=${version}`; }
+
+/** A carrier's name with its logo beside it, wherever the name is shown (owner's note, 1116). The logo is the carrier's own,
+ * added once by the platform when it defines the company, never set per trip; without one the name stands alone. The logo
+ * is decorative next to the name, so it carries no text of its own. */
+export function CarrierName({ name, uid, logo, size = "sm", strong, className }: {
+  name: ReactNode; uid?: string | null; logo?: string | null; size?: "sm" | "md"; strong?: boolean; className?: string;
+}) {
+  return (
+    <span className={`carrier-name${strong ? " strong" : ""}${className ? ` ${className}` : ""}`}>
+      {logo && uid && <span className={`logo-tile${size === "sm" ? " sm" : ""}`}><img src={logoUrl(uid, logo)} alt="" loading="lazy" /></span>}
+      <span className="carrier-label">{name}</span>
+    </span>
+  );
+}
+
 export function Spinner() { return <div className="spinner" role="status" />; }
 
 export function Empty({ icon = "travel_explore", title, hint, children }: { icon?: IconName; title: string; hint?: string; children?: ReactNode }) {

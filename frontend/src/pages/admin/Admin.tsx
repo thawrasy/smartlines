@@ -3,7 +3,7 @@ import { api, newKey } from "../../api";
 import { useI18n } from "../../i18n";
 import { useAuth } from "../../auth";
 import { PageHead } from "../../components/layout";
-import { Empty, ErrorBox, Field, Icon, Loaded, Modal, Stat, Status, useLoad, useToast } from "../../components/ui";
+import { CarrierName, Empty, ErrorBox, Field, Icon, Loaded, Modal, Stat, Status, useLoad, useToast } from "../../components/ui";
 
 interface Overview { carriers: number; carriers_pending: number; passengers: number; active_trips: number; bookings: number; gmv: number; stations: number }
 interface Company {
@@ -75,7 +75,7 @@ export function AdminCompanies() {
           <thead><tr><th>{t("admin.legalName")}</th><th>{t("common.code")}</th><th>{t("admin.vehiclesCount")}</th><th>{t("admin.tripsCount")}</th><th>{t("admin.created")}</th><th>{t("common.status")}</th><th>{t("common.actions")}</th></tr></thead>
           <tbody>{companies.map((c) => (
             <tr key={c.uid}>
-              <td style={{ fontWeight: 500 }}><span className="row nowrap" style={{ gap: 8 }}>{c.logo && <span className="logo-tile sm"><img src={`/api/public/companies/${c.uid}/logo?v=${c.logo}`} alt="" /></span>}{c.legal_name}</span></td>
+              <td style={{ fontWeight: 500 }}><CarrierName name={c.legal_name} uid={c.uid} logo={c.logo} /></td>
               <td className="mono text-nowrap">{c.code3}{c.code2 ? ` · ${c.code2}` : ""}</td><td className="num">{c.vehicles}</td><td className="num">{c.trips}</td>
               <td>{date(c.created_at, { year: "numeric" })}</td><td><Status value={c.approval_status} /></td>
               <td>{can("company.approve") && <div className="row nowrap" style={{ gap: 4 }}>

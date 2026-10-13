@@ -1,16 +1,16 @@
 import { useState } from "react";
 import { api } from "../../api";
 import { useI18n } from "../../i18n";
-import { Empty, ErrorBox, Field, Icon, Loaded, Modal, Status, useLoad, useToast } from "../../components/ui";
+import { CarrierName, Empty, ErrorBox, Field, Icon, Loaded, Modal, Status, useLoad, useToast } from "../../components/ui";
 
 type Mode = "WEIGHT" | "VOLUME" | "WEIGHT_AND_VOLUME" | "FIXED" | "NEGOTIATED";
 interface Tariff { uid: string; code: string; name: string; pricing_mode: Mode; currency: string; max_weight_kg: number | null; max_volume_m3: number | null }
 interface Hold { max_weight_kg: number; free_weight_kg: number; free_volume_m3: number | null; free_items: number | null }
-interface HoldTrip { uid: string; trip_no: string; carrier_name: string; from_seq: number; to_seq: number; departs_at: string; from_station: string; to_station: string; hold: Hold; tariffs: Tariff[] }
+interface HoldTrip { uid: string; trip_no: string; trip_code?: string | null; carrier_name: string; carrier_uid?: string | null; carrier_logo?: string | null; from_seq: number; to_seq: number; departs_at: string; from_station: string; to_station: string; hold: Hold; tariffs: Tariff[] }
 interface Price { mode: Mode; currency: string; weight_kg: number; volume_m3: number; weight_charge: number | null; volume_charge: number | null; fixed: number | null; basis: string; total: number | null }
 interface Quote { price: Price; fits: boolean; agreed: boolean }
 interface Mine { tracking_no: string; status: string; trip_no: string | null; weight_kg: number | null; volume_m3: number | null; currency: string; price_breakdown: { total?: number }; guaranteed: boolean }
-interface Offer { uid: string; status: string; trip_no: string; carrier_name: string; tariff_name: string; weight_kg: number; price: number | null; currency: string | null; valid_until: string | null; tracking_no: string | null }
+interface Offer { uid: string; status: string; trip_no: string; trip_code?: string | null; carrier_name: string; carrier_uid?: string | null; carrier_logo?: string | null; tariff_name: string; weight_kg: number; price: number | null; currency: string | null; valid_until: string | null; tracking_no: string | null }
 
 const tomorrow = () => new Date(Date.now() + 86400000).toISOString().slice(0, 10);
 
@@ -63,7 +63,7 @@ export default function Parcels() {
         <div className="stack">{list.map((tr) => (
           <section key={tr.uid} className="card stack">
             <div className="row" style={{ justifyContent: "space-between" }}>
-              <strong>{tr.carrier_name} · <span className="mono">{tr.trip_no}</span></strong>
+              <strong className="row" style={{ gap: 6 }}><CarrierName name={tr.carrier_name} uid={tr.carrier_uid} logo={tr.carrier_logo} /> · <span className="mono">{tr.trip_code ?? tr.trip_no}</span></strong>
               <span className="small">{dateTime(tr.departs_at)} · {tr.from_station} → {tr.to_station}</span>
             </div>
             <p className="small">{t("parcel.free", { kg: num(tr.hold.free_weight_kg) })}{tr.hold.free_volume_m3 != null && ` · ${t("parcel.freeVolume", { m3: num(tr.hold.free_volume_m3) })}`}</p>
@@ -112,7 +112,7 @@ export default function Parcels() {
         <h3 id="my-offers">{t("parcel.offers")}</h3>
         <Loaded state={offers}>{({ offers: list }) => list.length === 0 ? <p className="small muted">{t("parcel.noOffers")}</p> : (
           <div className="table-wrap" tabIndex={0}><table className="table"><tbody>{list.map((o) => (
-            <tr key={o.uid}><td>{o.carrier_name} · <span className="mono">{o.trip_no}</span></td><td>{o.tariff_name}</td><td>{num(o.weight_kg)} kg</td>
+            <tr key={o.uid}><td><CarrierName name={o.carrier_name} uid={o.carrier_uid} logo={o.carrier_logo} /> · <span className="mono">{o.trip_code ?? o.trip_no}</span></td><td>{o.tariff_name}</td><td>{num(o.weight_kg)} kg</td>
               <td><Status value={o.status} /></td><td>{o.price != null && o.currency ? money(o.price, true, o.currency) : "—"}</td>
               <td>{o.status === "OFFERED" && <button className="btn filled" onClick={() => setAccepting(o)}>{t("parcel.accept")}</button>}</td></tr>
           ))}</tbody></table></div>

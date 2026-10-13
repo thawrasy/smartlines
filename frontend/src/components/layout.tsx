@@ -3,7 +3,7 @@ import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-do
 import { useI18n, LOCALES, type Locale } from "../i18n";
 import { useAuth, homeFor } from "../auth";
 import { api } from "../api";
-import { Icon, Logo, Spinner } from "./ui";
+import { CarrierName, Icon, Logo, Spinner } from "./ui";
 import wordmarkAr from "../assets/brand/masslak-wordmark-ar.svg";
 import wordmarkEn from "../assets/brand/masslak-wordmark-en.svg";
 import type { IconName } from "./icons";
@@ -177,7 +177,7 @@ export function PortalShell({ title, items, children }: { title: string; items: 
         ))}
         {children}
         <div className="org-card">
-          <div style={{ fontWeight: 600 }}>{me?.company?.name ?? me?.name}</div>
+          <div style={{ fontWeight: 600 }}>{me?.company ? <CarrierName name={me.company.name} uid={me.company.uid} logo={me.company.logo} /> : me?.name}</div>
           <div className="muted ltr">{me?.email}</div>
           <div className="row" style={{ marginTop: 8, gap: 4 }}>
             <LangSwitch compact />
@@ -199,10 +199,12 @@ export function PortalShell({ title, items, children }: { title: string; items: 
   );
 }
 
-export function PageHead({ title, sub, children }: { title: string; sub?: string; children?: ReactNode }) {
+export function PageHead({ title, sub, logo, children }: {
+  title: string; sub?: string; logo?: { uid: string; logo?: string | null }; children?: ReactNode;
+}) {
   return (
     <div className="page-head">
-      <div><h1 style={{ fontSize: 28 }}>{title}</h1>{sub && <p>{sub}</p>}</div>
+      <div><h1 style={{ fontSize: 28 }}>{logo ? <CarrierName name={title} uid={logo.uid} logo={logo.logo} size="md" /> : title}</h1>{sub && <p>{sub}</p>}</div>
       {children && <div className="row">{children}</div>}
     </div>
   );

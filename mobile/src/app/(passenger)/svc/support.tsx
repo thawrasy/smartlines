@@ -2,14 +2,14 @@ import { useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { useI18n } from "../../../i18n";
 import { api } from "../../../platform/api";
-import { Button, Card, Chip, Choice, ErrorText, Field, Loading, Notice, Row, Screen, Title, s } from "../../../ui/kit";
+import { Button, Card, CarrierName, Chip, Choice, ErrorText, Field, Loading, Notice, Row, Screen, Title, s } from "../../../ui/kit";
 import { color } from "../../../ui/theme";
 import { useLoad } from "../../../ui/useLoad";
 
 interface Case { uid: string; ref: string; kind: string; category: string; status: string; subject: string; booking_ref: string | null;
                  created_at: string; replies?: number; csat?: number | null }
 interface Message { kind: string; mine: boolean; body: string | null; created_at: string }
-interface Ratable { ticket_uid: string; origin: string; destination: string; carrier_name: string; departure_at: string }
+interface Ratable { ticket_uid: string; origin: string; destination: string; carrier_name: string; carrier_uid?: string | null; carrier_logo?: string | null; departure_at: string }
 
 const KINDS = ["COMPLAINT", "INQUIRY", "CLAIM"] as const;
 const CATS = ["DELAY", "CANCELLATION", "REFUND", "BAGGAGE", "STAFF", "VEHICLE", "SAFETY", "PAYMENT", "ACCOUNT", "OTHER"] as const;
@@ -59,7 +59,7 @@ function RateTrip({ trip, done }: { trip: Ratable; done: () => void }) {
   return (
     <Card>
       <Text style={s.h2}>{t("svc.support.rate", { from: trip.origin, to: trip.destination })}</Text>
-      <Text style={s.small}>{trip.carrier_name}</Text>
+      <CarrierName name={trip.carrier_name} uid={trip.carrier_uid} logo={trip.carrier_logo} />
       <Stars value={stars} onChange={setStars} />
       {stars > 0 ? (
         <>

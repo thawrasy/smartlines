@@ -151,7 +151,7 @@ async def ratable(request: Request, pr: Principal = Depends(passenger)):
     async with db.transaction(context_for(request, pr)) as conn:
         recs = await conn.fetch(
             """SELECT k.uid AS ticket_uid, k.ticket_no, t.trip_no, t.trip_code, t.departure_at, so.name AS origin, sd.name AS destination,
-                      cp.legal_name AS carrier_name
+                      cp.legal_name AS carrier_name, cp.uid AS carrier_uid, iam.logo_version(cp.id) AS carrier_logo
                  FROM sales.ticket k JOIN sales.booking b ON b.id = k.booking_id JOIN ops.trip t ON t.id = k.trip_id
                  JOIN net.route r ON r.id = t.route_id JOIN net.station so ON so.id = r.origin_station_id
                  JOIN net.station sd ON sd.id = r.dest_station_id JOIN iam.party cp ON cp.id = t.company_id
@@ -187,7 +187,8 @@ async def claims_due(request: Request, pr: Principal = Depends(require_permissio
     async with db.transaction(context_for(request, pr)) as conn:
         recs = await conn.fetch(
             """SELECT c.uid, c.ref, c.subject, c.claim_amount, c.approved_amount, c.liable, c.payout_status, c.updated_at,
-                      b.booking_ref, b.currency, cp.legal_name AS carrier_name, pp.legal_name AS customer_name
+                      b.booking_ref, b.currency, cp.legal_name AS carrier_name, cp.uid AS carrier_uid, iam.logo_version(cp.id) AS carrier_logo,
+                      pp.legal_name AS customer_name
                  FROM crm."case" c LEFT JOIN sales.booking b ON b.id = c.booking_id
                  LEFT JOIN iam.party cp ON cp.id = c.company_id LEFT JOIN iam.party pp ON pp.id = c.party_id
                 WHERE c.kind = 'CLAIM' AND c.payout_status = 'PENDING_FINANCE' ORDER BY c.updated_at""")

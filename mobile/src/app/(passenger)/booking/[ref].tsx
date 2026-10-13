@@ -5,14 +5,14 @@ import { randomUUID } from "expo-crypto";
 import { useI18n } from "../../../i18n";
 import { api } from "../../../platform/api";
 import { saveBooking } from "../../../platform/tickets";
-import { Button, Card, Chip, ErrorText, Loading, Notice, Screen, Title, s } from "../../../ui/kit";
+import { Button, Card, CarrierName, Chip, ErrorText, Loading, Notice, Screen, Title, s } from "../../../ui/kit";
 import { bookingOptions, openPayment } from "../../../platform/payments";
 import { useLoad } from "../../../ui/useLoad";
 
 interface Ticket { uid: string; ticket_no: string; seat_label: string | null; seat_no: number; status: string; ticket_name: string;
   from_station: string; to_station: string; departs_at: string }
 interface Detail {
-  booking: { booking_ref: string; status: string; total_amount: number; carrier_name: string; trip_no: string; trip_code?: string | null;
+  booking: { booking_ref: string; status: string; total_amount: number; carrier_name: string; carrier_uid?: string | null; carrier_logo?: string | null; trip_no: string; trip_code?: string | null;
              pay_option?: string | null; pay_by?: string | null };
   tickets: Ticket[];
 }
@@ -68,7 +68,8 @@ export default function Booking() {
 
   return (
     <Screen>
-      <Title sub={`${booking.carrier_name} · ${booking.trip_code ?? booking.trip_no} · ${money(booking.total_amount)}`}>{t("extra.booked", { ref: booking.booking_ref })}</Title>
+      <Title sub={`${booking.trip_code ?? booking.trip_no} · ${money(booking.total_amount)}`}>{t("extra.booked", { ref: booking.booking_ref })}</Title>
+      <CarrierName name={booking.carrier_name} uid={booking.carrier_uid} logo={booking.carrier_logo} style={s.muted} />
       {notice ? <Notice tone="green" text={notice} /> : null}
       <ErrorText error={error} />
       {booking.status === "EXPIRED" ? <Notice tone="amber" text={t("opt.expired")} /> : null}

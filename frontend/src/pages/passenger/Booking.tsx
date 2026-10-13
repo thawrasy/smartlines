@@ -3,7 +3,7 @@ import { useParams, useSearchParams } from "react-router-dom";
 import QRCode from "qrcode";
 import { api, ApiError, newKey, type BookingDetail, type BookingOption, type Ticket } from "../../api";
 import { useI18n } from "../../i18n";
-import { ErrorBox, Icon, Loaded, Status, useLoad, useToast } from "../../components/ui";
+import { CarrierName, ErrorBox, Icon, Loaded, Status, useLoad, useToast } from "../../components/ui";
 import { useChannel } from "../../channel";
 
 // The QR code is a short-lived signed token fetched from the server; it is refreshed before it expires,
@@ -171,7 +171,8 @@ export default function Booking() {
             <ErrorBox error={error} />
             <div className="row between">
               <div><h1 style={{ fontSize: 28 }}>{t("booking.title", { ref: b.booking_ref })}</h1>
-                <p className="muted">{b.carrier_name} · <span className="mono">{b.trip_code ?? b.trip_no}</span></p></div>
+                <p className="muted row" style={{ gap: 8, flexWrap: "wrap" }}><CarrierName name={b.carrier_name} uid={b.carrier_uid} logo={b.carrier_logo} />
+                  <span>·</span><span className="mono">{b.trip_code ?? b.trip_no}</span></p></div>
               <Status value={b.status} />
             </div>
             {b.status === "PENDING_PAYMENT" && <PayPanel b={b} onChange={state.reload} />}

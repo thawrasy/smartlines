@@ -2,7 +2,8 @@
 
 * the trip number passengers read is short, the carrier's designator and a service number ("DC 101"), the same for the
   same departure every day and never twice in a carrier's day; the long number stays the trip's reference;
-* a company's logo, added by the platform to a specification, shown next to the name on the board and in search;
+* a company's logo, added by the platform to a specification, shown next to the carrier's name wherever it is shown
+  (search, the trip and the booking, the ticket check, the station's screens, the platform's lists; 1116);
 * the departure board shows its languages in turn;
 * the station's administration assigns the bays: a permanent bay per carrier, or a bay per trip, the trip's own first;
 * the driver boards a ticket typed in by its number and booking reference, the identity document checked (decision O1).
@@ -128,6 +129,50 @@ def test_a_logo_is_kept_to_its_specification_and_shown_next_to_the_name(admin):
         assert admin.delete(url).status_code == 200
     assert client().get(f"/api/public/companies/{carrier_uid}/logo").status_code == 404
     assert admin.delete(url).status_code == 404
+
+
+def test_the_carriers_logo_is_shown_next_to_its_name_wherever_the_name_is(admin):
+    """The logo belongs to the carrier, added once by the platform; every answer that names the carrier carries it (1116)."""
+    carrier_uid = _carrier_uid()
+    url = f"/api/admin/companies/{carrier_uid}/logo"
+    pax = login("passenger@masslak.test", "PASSENGER")
+    assert pax.post("/api/wallet/topup", json={"amount": 10_000_000, "idempotency_key": uuid.uuid4().hex}).status_code == 200
+    ref, _ = book(pax, fresh_trip())
+    try:
+        version = admin.put(url, files={"file": ("logo.png", _png(480, 160), "image/png")}).json()["logo"]
+
+        def named(d: dict, uid: str = "carrier_uid", logo: str = "carrier_logo") -> bool:
+            return str(d.get(uid)) == carrier_uid and d.get(logo) == version
+
+        # the passenger: the trips they booked, the booking with its short number, and anyone checking the printout
+        assert any(named(b) for b in pax.get("/api/bookings").json()["bookings"])
+        booking = pax.get(f"/api/bookings/{ref}").json()["booking"]
+        assert named(booking) and booking["trip_code"], booking
+        checked = client().get("/api/verify", params={"token": booking["verify_token"]}).json()
+        assert checked["valid"] and named(checked) and checked["carrier"], checked
+        # the carrier's own portal shows its logo by its name
+        assert login(*CARRIER).get("/api/auth/me").json()["company"]["logo"] == version
+        # the platform's lists that name companies
+        assert any(named(c, "company_uid", "company_logo") for c in admin.get("/api/admin/cash/positions").json()["positions"])
+        assert any(c["uid"] == carrier_uid and c["logo"] == version for c in admin.get("/api/admin/companies").json()["companies"])
+        # the station's screens and the boarding pass read it in the database
+        assert owner_sql("SELECT iam.logo_version(id) FROM iam.party WHERE uid = $1", uuid.UUID(carrier_uid)) == version
+    finally:
+        assert admin.delete(url).status_code == 200
+    booking = pax.get(f"/api/bookings/{ref}").json()["booking"]
+    assert booking["carrier_logo"] is None and booking["carrier_name"]          # without a logo the name stands alone
+
+
+def test_the_public_route_pages_show_the_carriers_logo_by_its_name():
+    from datetime import timezone
+
+    from app.modules.seo import data, pages
+    trip = data.Trip(datetime.now(timezone.utc), None, 150000, "Damascus Coaches", "Central", "SY-DAM-C001", "North", "SY-ALP-N001",
+                     "Asia/Damascus", "SYP")
+    assert pages._carrier(trip) == "Damascus Coaches"
+    trip.carrier_uid, trip.carrier_logo = str(uuid.uuid4()), "0a1b2c3d4e5f"
+    cell = pages._carrier(trip)
+    assert f"/api/public/companies/{trip.carrier_uid}/logo?v=0a1b2c3d4e5f" in cell and "alt=''" in cell and "Damascus Coaches" in cell
 
 
 def test_the_logo_specification_in_the_process():

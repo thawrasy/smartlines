@@ -3,7 +3,7 @@ import { api, newKey } from "../../api";
 import { useI18n } from "../../i18n";
 import { useAuth } from "../../auth";
 import { PageHead } from "../../components/layout";
-import { Empty, ErrorBox, Field, Icon, Loaded, Modal, Stat, Status, useLoad, useToast } from "../../components/ui";
+import { CarrierName, Empty, ErrorBox, Field, Icon, Loaded, Modal, Stat, Status, useLoad, useToast } from "../../components/ui";
 import { Approvals, FeeRules } from "./Approvals";
 import { CancelPenalty, LoyaltyDesk } from "./Partners";
 import { useModules } from "../../modules/context";
@@ -397,11 +397,11 @@ function MethodModal({ m, tripTypes, onClose, onDone }: { m: Method; tripTypes: 
 
 // ------------------------------------------------------------------ cash held by carriers, limits and remittances (6.5)
 interface Position {
-  company_id: number; name: string; owed: number; limit_amount: number; own_limit: boolean; pending: number; last_remitted_at: string | null;
+  company_id: number; name: string; company_uid?: string; company_logo?: string | null; owed: number; limit_amount: number; own_limit: boolean; pending: number; last_remitted_at: string | null;
   days_0_7: number; days_8_30: number; days_31_60: number; days_61_90: number; days_over_90: number; overdue: number; oldest_unpaid_at: string | null;
 }
 interface Remittance {
-  id: number; company_id: number; carrier: string; amount: number; method: string; ref: string | null; status: string; note: string | null;
+  id: number; company_id: number; carrier: string; carrier_uid?: string; carrier_logo?: string | null; amount: number; method: string; ref: string | null; status: string; note: string | null;
   created_at: string; confirmed_at: string | null; recorded_by_name: string | null; confirmed_by_name: string | null; mine: boolean;
 }
 
@@ -439,7 +439,7 @@ function CounterCash() {
                   <th className="num">{t("cashdesk.pending")}</th><th>{t("cashdesk.lastRemitted")}</th><th /></tr></thead>
                 <tbody>{positions.map((p) => (
                   <tr key={p.company_id}>
-                    <td>{p.name}</td>
+                    <td><CarrierName name={p.name} uid={p.company_uid} logo={p.company_logo} /></td>
                     <td className="num" style={{ color: p.limit_amount > 0 && p.owed >= p.limit_amount ? "var(--error)" : undefined }}>{money(p.owed)}</td>
                     <td className="num" style={{ color: p.overdue > 0 ? "var(--error)" : undefined }}>
                       {p.overdue ? money(p.overdue) : "—"}
@@ -469,7 +469,7 @@ function CounterCash() {
             <tbody>{remittances.map((r) => (
               <tr key={r.id}>
                 <td className="small">{dateTime(r.created_at)}</td>
-                <td>{r.carrier}</td>
+                <td><CarrierName name={r.carrier} uid={r.carrier_uid} logo={r.carrier_logo} /></td>
                 <td className="num">{money(r.amount)}</td>
                 <td className="small">{t(`cashdesk.rm.${r.method}`)}{r.ref && <div className="mono small">{r.ref}</div>}</td>
                 <td className="small">{r.recorded_by_name ?? "—"}{r.confirmed_by_name && <div className="muted">{t("cashdesk.decidedBy")}: {r.confirmed_by_name}</div>}</td>

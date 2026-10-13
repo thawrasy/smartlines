@@ -5,10 +5,10 @@ import { useI18n } from "../../i18n";
 import { api } from "../../platform/api";
 import { getJSON, putJSON } from "../../platform/secure";
 import { saveBooking } from "../../platform/tickets";
-import { Card, Chip, ErrorText, Loading, Screen, Title, s } from "../../ui/kit";
+import { Card, CarrierName, Chip, ErrorText, Loading, Screen, Title, s } from "../../ui/kit";
 import { useLoad } from "../../ui/useLoad";
 
-interface Booking { booking_ref: string; status: string; total_amount: number; carrier_name: string; trip_no: string; trip_code?: string | null;
+interface Booking { booking_ref: string; status: string; total_amount: number; carrier_name: string; carrier_uid?: string | null; carrier_logo?: string | null; trip_no: string; trip_code?: string | null;
   journey: { from_city: string; to_city: string; from_station: string; to_station: string; departs_at: string } | null }
 
 /** Online: the server's list (also kept for offline use). Offline: the last list seen on this phone. */
@@ -44,7 +44,7 @@ export default function Trips() {
         </View>
         {b.status !== "CONFIRMED" ? <Text style={s.small}>{t(`status.${b.status}`)}</Text> : null}
         {b.journey ? <Text style={s.muted}>{date(b.journey.departs_at)} · {time(b.journey.departs_at)} · {b.journey.from_station}</Text> : null}
-        <Text style={s.small}>{b.carrier_name} · {money(b.total_amount)}</Text>
+        <View style={s.between}><CarrierName name={b.carrier_name} uid={b.carrier_uid} logo={b.carrier_logo} /><Text style={s.small}>{money(b.total_amount)}</Text></View>
       </Card>
     </Pressable>
   );

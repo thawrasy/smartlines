@@ -137,7 +137,7 @@ async def search(request: Request, origin: str = Query(..., min_length=3, max_le
                ORDER BY t.id, a.seq, b.seq DESC
             )
             SELECT p.*, cp.legal_name AS carrier_name, cc.code3 AS carrier_code, cp.uid AS carrier_uid,
-                   (SELECT encode(substr(l.sha256, 1, 6), 'hex') FROM iam.company_logo l WHERE l.company_id = p.company_id) AS carrier_logo,
+                   iam.logo_version(p.company_id) AS carrier_logo,
                    (SELECT count(*) FROM ops.trip_stop x WHERE x.trip_id = p.id AND x.seq > p.from_seq
                        AND x.seq < p.to_seq AND x.kind = 'STATION') AS stops_between,
                    p.seats_total - (SELECT count(DISTINCT s.seat_no) FROM ops.seat_segment s
@@ -185,7 +185,7 @@ async def trip_detail(trip_uid: str, request: Request, from_seq: int = Query(...
             """SELECT t.id, t.company_id, t.route_id, t.uid, t.trip_no, t.trip_code, t.status, t.seats_total, t.currency, t.seat_selection_mode, t.hold_min,
                       t.service_type, t.trip_type, t.segments_count, t.departure_at, t.arrival_at, t.baggage_policy,
                       t.seat_prices_snapshot, t.seat_map, cp.legal_name AS carrier_name, cc.code3 AS carrier_code, cp.uid AS carrier_uid,
-                      (SELECT encode(substr(l.sha256, 1, 6), 'hex') FROM iam.company_logo l WHERE l.company_id = t.company_id) AS carrier_logo
+                      iam.logo_version(t.company_id) AS carrier_logo
                  FROM ops.trip t JOIN iam.party cp ON cp.id = t.company_id
                  LEFT JOIN net.carrier_code cc ON cc.company_id = t.company_id AND cc.status = 'ACTIVE'
                 WHERE t.uid = $1::uuid AND t.status IN ('PUBLISHED','BOARDING')""", trip_uid)

@@ -4,7 +4,7 @@ import { api, newKey, type BookingOption, type FamilyView, type FareBrand, type 
 import { useI18n } from "../../i18n";
 import { useAuth } from "../../auth";
 import { minutesBetween } from "../../dates";
-import { ErrorBox, Icon, Spinner, useLoad } from "../../components/ui";
+import { CarrierName, ErrorBox, Icon, Spinner, useLoad } from "../../components/ui";
 import { useChannel } from "../../channel";
 import { SeatGrid } from "../../components/SeatGrid";
 import { PassengerFields, blankPassenger, categoryOf, documentFor, fromMember, namesFor, passengerValid, type PassengerDraft, type TravelDocs } from "./PassengerFields";
@@ -251,7 +251,7 @@ export default function Book() {
       {/* Journey header */}
       <div className="card row between">
         <div className="stack tight">
-          <div className="row" style={{ gap: 8 }}>{d.trip.carrier_logo && d.trip.carrier_uid && <span className="logo-tile sm"><img src={`/api/public/companies/${d.trip.carrier_uid}/logo?v=${d.trip.carrier_logo}`} alt="" /></span>}<span style={{ fontWeight: 600 }}>{d.trip.carrier_name}</span><span className="chip outline mono" title={d.trip.trip_no}>{d.trip.trip_code ?? d.trip.trip_no}</span></div>
+          <div className="row" style={{ gap: 8 }}><CarrierName name={d.trip.carrier_name} uid={d.trip.carrier_uid} logo={d.trip.carrier_logo} strong /><span className="chip outline mono" title={d.trip.trip_no}>{d.trip.trip_code ?? d.trip.trip_no}</span></div>
           <div className="timeline" style={{ marginTop: 16, minWidth: "min(520px, 80vw)" }}>
             <div><div className="time">{time(from.sched_dep)}</div><div className="small muted">{station(from.station_code, from.station_name)}</div></div>
             <div className="line"><span className="dur">{duration(minutesBetween(from.sched_dep, to.sched_arr))}</span></div>

@@ -17,6 +17,7 @@ DOC_TYPES = ("CR", "TAX_CERT", "TRANSPORT_LICENSE", "INSURANCE_POLICY", "VEHICLE
 LIST_SQL = """
     SELECT d.uid, d.doc_type, d.owner_type, d.issuer, d.issue_date, d.expiry_date, d.review_note, d.created_at,
            d.reviewed_at, f.file_name, f.mime_type, f.size_bytes, f.scan_status, p.legal_name AS company_name, v.plate_no,
+           p.uid AS company_uid, iam.logo_version(p.id) AS company_logo,
            CASE WHEN d.status = 'APPROVED' AND d.expiry_date < current_date THEN 'EXPIRED' ELSE d.status END AS status,
            d.expiry_date - current_date AS days_left
       FROM iam.document d JOIN ref.file_object f ON f.id = d.file_id JOIN iam.party p ON p.id = d.company_id

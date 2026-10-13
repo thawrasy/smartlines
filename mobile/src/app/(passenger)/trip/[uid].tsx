@@ -6,14 +6,14 @@ import { useI18n } from "../../../i18n";
 import { api } from "../../../platform/api";
 import { bookingOptions, openPayment, usable as offered, type BookingOption, type PayWith } from "../../../platform/payments";
 import { saveBooking } from "../../../platform/tickets";
-import { Button, Card, Choice, ErrorText, Field, Loading, Notice, Screen, Title, s } from "../../../ui/kit";
+import { Button, Card, CarrierName, Choice, ErrorText, Field, Loading, Notice, Screen, Title, s } from "../../../ui/kit";
 import { SeatMap, type SeatMapData } from "../../../ui/SeatMap";
 import { color } from "../../../ui/theme";
 import { useLoad } from "../../../ui/useLoad";
 
 interface Detail {
   seat_map: SeatMapData | null; price: number; from_seq: number; to_seq: number; seats: { seat_no: number; free: boolean }[];
-  trip: { trip_no: string; trip_code?: string | null; carrier_name: string; currency: string; hold_min: number; departs_at?: string; trip_type?: string };
+  trip: { trip_no: string; trip_code?: string | null; carrier_name: string; carrier_uid?: string; carrier_logo?: string | null; currency: string; hold_min: number; departs_at?: string; trip_type?: string };
   categories?: Band[]; family_offers?: { code: string; name: string; min_members: number; discount_type: string; discount_value: number }[];
   stops: { seq: number; station_name: string; sched_dep: string | null; sched_arr: string | null }[];
 }
@@ -176,9 +176,10 @@ export default function Trip() {
     return b ? `${t(`pax.cat.${c}`)} · ${t("pax.ages", { from: b.min_age, to: b.max_age ?? "+" })} · ${money(b.fare)}` : t(`pax.cat.${c}`); };
   return (
     <Screen>
-      <Title sub={`${d.trip.carrier_name} · ${t("extra.trip", { no: d.trip.trip_code ?? d.trip.trip_no })}`}>
+      <Title sub={t("extra.trip", { no: d.trip.trip_code ?? d.trip.trip_no })}>
         {from?.station_name} → {to?.station_name}
       </Title>
+      <CarrierName name={d.trip.carrier_name} uid={d.trip.carrier_uid} logo={d.trip.carrier_logo} style={s.muted} />
       <Text style={s.muted}>{from?.sched_dep ? time(from.sched_dep) : ""} → {to?.sched_arr ? time(to.sched_arr) : ""} · {money(d.price)}</Text>
       {bands.length ? <Text style={s.small}>{bands.map((b) => catLabel(b.category)).join("\n")}</Text> : null}
       {(d.family_offers ?? []).map((o) => <Notice key={o.code} tone="green" text={`${o.name} · ${t("pax.familyOfferHint", { n: o.min_members })}`} />)}

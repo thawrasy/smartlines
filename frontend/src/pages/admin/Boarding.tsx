@@ -4,7 +4,7 @@ import { api } from "../../api";
 import { useI18n } from "../../i18n";
 import { useAuth } from "../../auth";
 import { PageHead } from "../../components/layout";
-import { Empty, ErrorBox, Field, Icon, Loaded, Modal, Stat, Status, useLoad, useToast } from "../../components/ui";
+import { CarrierName, Empty, ErrorBox, Field, Icon, Loaded, Modal, Stat, Status, useLoad, useToast } from "../../components/ui";
 import { BaysPanel, platformBaysApi } from "../station/Bays";
 
 // Boarding stations in the platform portal (1097-1112, build step 4): the switches and the check-in window, each
@@ -24,7 +24,7 @@ interface StationView {
 }
 interface Company { uid: string; name: string; approval_status: string; created_at: string; counters: number; grants: number }
 interface Grant {
-  uid: string; permission: string; granted_at: string; revoked_at: string | null; carrier_uid: string | null; carrier_name: string | null;
+  uid: string; permission: string; granted_at: string; revoked_at: string | null; carrier_uid: string | null; carrier_name: string | null; carrier_logo?: string | null;
   operator_uid: string; operator_name: string; station_uid: string | null; station_code: string | null;
 }
 type Settings = Record<string, unknown>;
@@ -270,7 +270,7 @@ function PlatformGrants() {
           <thead><tr><th>{t("brdadm.operator")}</th><th>{t("st.carrier")}</th><th>{t("common.station")}</th><th>{t("st.right")}</th><th>{t("common.date")}</th><th>{t("common.status")}</th><th /></tr></thead>
           <tbody>{grants.map((g) => (
             <tr key={g.uid}>
-              <td>{g.operator_name}</td><td>{g.carrier_name ?? t("brdadm.byPlatform")}</td><td className="mono text-nowrap">{g.station_code ?? t("st.everyStation")}</td>
+              <td>{g.operator_name}</td><td>{g.carrier_name ? <CarrierName name={g.carrier_name} uid={g.carrier_uid} logo={g.carrier_logo} /> : t("brdadm.byPlatform")}</td><td className="mono text-nowrap">{g.station_code ?? t("st.everyStation")}</td>
               <td>{t(`st.perm.${g.permission}`)}</td><td>{date(g.granted_at)}</td><td><Status value={g.revoked_at ? "REVOKED" : "ACTIVE"} /></td>
               <td className="num">{!g.revoked_at && !g.carrier_uid && <button className="btn text small" onClick={() => revoke(g)}>{t("brdadm.revoke")}</button>}</td>
             </tr>

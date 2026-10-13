@@ -3296,6 +3296,16 @@ SELECT pg_temp.ok((SELECT b -> 'languages' = '["ar","en"]'::jsonb AND (b ->> 'ro
                      AND EXISTS (SELECT 1 FROM jsonb_array_elements(b -> 'departures') d WHERE d ? 'trip_code' AND d ? 'carrier_logo')
                      FROM (SELECT brd.station_board(:'bsu') AS b) x),
   'Board (1115): the board gives its languages, the trip codes and the carriers'' logos');
+-- the carrier's logo next to its name wherever it is shown (1116): one logo per carrier, its version in every answer
+INSERT INTO iam.company_logo (company_id, image, width, height, sha256, uploaded_by)
+  VALUES (:bc, decode(repeat('00', 100), 'hex'), 400, 200, decode('0a1b2c3d4e5f' || repeat('00', 26), 'hex'), :uadmin)
+  ON CONFLICT (company_id) DO UPDATE SET sha256 = excluded.sha256;
+SELECT pg_temp.ok(iam.logo_version(:bc) = '0a1b2c3d4e5f' AND iam.logo_version(:bop) IS NULL
+                  AND EXISTS (SELECT 1 FROM jsonb_array_elements(brd.station_bays(:bs) -> 'carriers') c
+                               WHERE c ->> 'carrier_uid' = :'bcu' AND c ->> 'carrier_logo' = '0a1b2c3d4e5f')
+                  AND EXISTS (SELECT 1 FROM jsonb_array_elements(brd.station_bays(:bs) -> 'trips') x
+                               WHERE x ->> 'trip_uid' = :'btu' AND x ->> 'carrier_logo' = '0a1b2c3d4e5f'),
+  'Logos (1116): the carrier''s logo is its own, not the trip''s, and the station''s screens give it with the carrier''s name');
 ROLLBACK;
 SET ROLE masslak_app;
 

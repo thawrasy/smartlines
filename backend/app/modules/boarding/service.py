@@ -154,7 +154,7 @@ async def grants(conn, carrier_company_id: int | None) -> list[dict]:
     """The grants a carrier gave (its own), or every grant for the platform (carrier_company_id None)."""
     rows = await conn.fetch(
         """SELECT g.uid, g.permission, g.granted_at, g.revoked_at,
-                  cp.uid AS carrier_uid, cp.legal_name AS carrier_name,
+                  cp.uid AS carrier_uid, cp.legal_name AS carrier_name, iam.logo_version(cp.id) AS carrier_logo,
                   op.uid AS operator_uid, op.legal_name AS operator_name,
                   st.uid AS station_uid, st.code AS station_code
              FROM net.station_operator_grant g
@@ -229,7 +229,7 @@ async def operator_overview(conn, company_id: int) -> dict:
     """What a station operating company sees in its portal: the rights it holds now, and its counters."""
     grants = await conn.fetch(
         """SELECT g.uid, g.permission, g.granted_at, cp.uid AS carrier_uid, cp.legal_name AS carrier_name,
-                  st.uid AS station_uid, st.code AS station_code, st.name AS station_name,
+                  iam.logo_version(cp.id) AS carrier_logo, st.uid AS station_uid, st.code AS station_code, st.name AS station_name,
                   CASE WHEN g.station_id IS NULL THEN NULL
                        ELSE net.operator_may($1, g.carrier_company_id, g.station_id, g.permission) END AS usable_now
              FROM net.station_operator_grant g

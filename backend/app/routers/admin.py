@@ -38,7 +38,7 @@ async def companies(request: Request, pr: Principal = Depends(platform)):
     async with db.transaction(context_for(request, pr)) as conn:
         recs = await conn.fetch(
             """SELECT p.uid, p.legal_name, c.company_type, c.approval_status, c.created_at, cc.code3, cc.code2,
-                      (SELECT encode(substr(l.sha256, 1, 6), 'hex') FROM iam.company_logo l WHERE l.company_id = c.id) AS logo,
+                      iam.logo_version(c.id) AS logo,
                       (SELECT count(*) FROM fleet.vehicle v WHERE v.company_id = c.id) AS vehicles,
                       (SELECT count(*) FROM ops.trip t WHERE t.company_id = c.id) AS trips
                  FROM iam.company c JOIN iam.party p ON p.id = c.id

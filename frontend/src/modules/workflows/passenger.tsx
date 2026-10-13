@@ -3,7 +3,7 @@ import QRCode from "qrcode";
 import { Link } from "react-router-dom";
 import { api, newKey } from "../../api";
 import { useI18n } from "../../i18n";
-import { Empty, ErrorBox, Field, Icon, Loaded, Modal, Status, useLoad, useToast } from "../../components/ui";
+import { CarrierName, Empty, ErrorBox, Field, Icon, Loaded, Modal, Status, useLoad, useToast } from "../../components/ui";
 import { PLACES } from "./places";
 
 const isoLocal = (d: Date) => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
@@ -416,7 +416,7 @@ export function RentCar() {
 
 // ------------------------------------------------------------------ freight (shipper)
 
-interface Bid { id: number; price: number; valid_until: string; status: string; carrier: string; created_at: string }
+interface Bid { id: number; price: number; valid_until: string; status: string; carrier: string; carrier_uid?: string | null; carrier_logo?: string | null; created_at: string }
 interface Load { uid: string; cargo_category: string; cargo_description: string; declared_weight_kg: number; pickup_from: string; pickup_to: string; target_price: number | null; status: string; origin: string; destination: string; origin_code: string; destination_code: string; bids: Bid[] }
 
 const CARGO = ["GENERAL", "FOOD", "REFRIGERATED", "LIQUID", "LIVESTOCK", "VEHICLES", "CONTAINERS", "OTHER"];
@@ -491,7 +491,7 @@ export function PostLoad() {
                   <table className="table compact">
                     <tbody>{r.bids.map((b) => (
                       <tr key={b.id}>
-                        <td>{b.carrier}</td><td className="num">{money(b.price)}</td><td><Status value={b.status} /></td>
+                        <td><CarrierName name={b.carrier} uid={b.carrier_uid} logo={b.carrier_logo} /></td><td className="num">{money(b.price)}</td><td><Status value={b.status} /></td>
                         <td className="num">{r.status === "OPEN" && b.status === "SUBMITTED" && <button className="btn tonal small" onClick={() => accept(b)}>{t("wf.load.accept")}</button>}</td>
                       </tr>
                     ))}</tbody>

@@ -70,7 +70,7 @@ export interface Market { country: string; time_zone: string; currency: string; 
 
 export interface Me {
   uid: string; name: string; email: string; portal: Portal; locale: string; is_owner: boolean;
-  company: { name: string; uid: string; code: string | null } | null;
+  company: { name: string; uid: string; code: string | null; logo?: string | null } | null;
   market?: Market;
   roles: string[]; permissions: string[];
   mfa?: { enrolled: boolean; required: boolean };
@@ -154,6 +154,7 @@ export interface Ticket {
 
 export interface BookingDetail {
   booking: { booking_ref: string; status: string; total_amount: number; currency: string; trip_no: string; trip_code?: string | null; carrier_name: string;
+             carrier_uid?: string | null; carrier_logo?: string | null;
              created_at: string; verify_token: string; contact_mobile?: string; commission?: number | null;
              // how it is paid (1056): a reserved booking waits for its money until pay_by; the counter view says what it may do
              pay_option?: string | null; pay_by?: string | null; pay_method?: string; counter_sale?: boolean; collectable?: boolean;
@@ -173,5 +174,6 @@ export interface BookingOption {
 
 export interface BookingRow {
   booking_ref: string; status: string; total_amount: number; currency: string; created_at: string; trip_no: string; trip_code?: string | null; carrier_name: string;
+  carrier_uid?: string | null; carrier_logo?: string | null;
   journey: { from_station: string; from_code: string; from_city: string; departs_at: string; to_station: string; to_code: string; to_city: string; arrives_at: string } | null;
 }

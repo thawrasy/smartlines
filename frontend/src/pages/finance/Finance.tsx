@@ -4,16 +4,16 @@ import { useI18n } from "../../i18n";
 import { useAuth } from "../../auth";
 import { ClaimsToPay } from "../support/StaffDesk";
 import { PageHead } from "../../components/layout";
-import { Empty, ErrorBox, Field, Icon, Loaded, Modal, Stat, Status, useLoad, useToast } from "../../components/ui";
+import { CarrierName, Empty, ErrorBox, Field, Icon, Loaded, Modal, Stat, Status, useLoad, useToast } from "../../components/ui";
 
 interface Balance { currency: string; balance: number; held: number; available: number }
-interface BankAccount { uid: string; bank_name: string; holder_name: string; iban_last4: string; verified: boolean; status: string; company_name?: string; created_at: string }
+interface BankAccount { uid: string; bank_name: string; holder_name: string; iban_last4: string; verified: boolean; status: string; company_name?: string; company_uid?: string; company_logo?: string | null; created_at: string }
 interface Withdrawal {
   uid: string; amount: number; currency: string; status: string; needs_second: boolean; created_at: string; paid_at: string | null;
   bank_ref: string | null; reject_reason: string | null; bank_name: string; iban_last4: string; bank_account_uid: string;
-  company_name: string; requested_by_name: string; approved_by?: number | null; second_approver?: number | null;
+  company_name: string; company_uid?: string; company_logo?: string | null; requested_by_name: string; approved_by?: number | null; second_approver?: number | null;
 }
-interface Settlement { uid: string; period_from: string; period_to: string; gross: number; commission: number; refunds: number; net: number; status: string; trips: number; company_name: string }
+interface Settlement { uid: string; period_from: string; period_to: string; gross: number; commission: number; refunds: number; net: number; status: string; trips: number; company_name: string; company_uid?: string; company_logo?: string | null; }
 interface SettlementDetail { uid: string; status: string; from: string; to: string; gross: number; commission: number; refunds: number; net: number; lines: { trip_no: string; gross: number; commission: number; refunds: number; net: number }[] }
 
 const toMinor = (v: string) => Math.round(Number(v || 0) * 100);
@@ -198,7 +198,7 @@ export function AdminFinance() {
               return (
                 <tr key={w.uid}>
                   <td className="small">{dateTime(w.created_at)}<div className="muted">{w.requested_by_name}</div></td>
-                  <td>{w.company_name}</td><td className="num">{money(w.amount)}</td>
+                  <td><CarrierName name={w.company_name} uid={w.company_uid} logo={w.company_logo} /></td><td className="num">{money(w.amount)}</td>
                   <td className="small">{w.bank_name} ···· <span className="ltr mono">{w.iban_last4}</span></td>
                   <td className="small">{w.needs_second ? t("finance.twoNeeded") : t("finance.oneNeeded")}{waitingSecond && <div className="chip wheat">{t("finance.waitingSecond")}</div>}</td>
                   <td><Status value={w.status} /></td>
@@ -222,7 +222,7 @@ export function AdminFinance() {
             <div className="table-wrap" tabIndex={0}><table className="table">
               <thead><tr><th>{t("finance.company")}</th><th>{t("finance.period")}</th><th className="num">{t("finance.net")}</th><th>{t("common.status")}</th><th /></tr></thead>
               <tbody>{settlements.map((s) => (
-                <tr key={s.uid}><td>{s.company_name}</td><td className="small">{date(`${s.period_from}T12:00:00Z`)} – {date(`${s.period_to}T12:00:00Z`)}</td>
+                <tr key={s.uid}><td><CarrierName name={s.company_name} uid={s.company_uid} logo={s.company_logo} /></td><td className="small">{date(`${s.period_from}T12:00:00Z`)} – {date(`${s.period_to}T12:00:00Z`)}</td>
                   <td className="num">{money(s.net)}</td><td><Status value={s.status} /></td>
                   <td><div className="row nowrap" style={{ gap: 4 }}>
                     <button className="btn text small" onClick={() => setView(s.uid)}>{t("common.view")}</button>
@@ -236,7 +236,7 @@ export function AdminFinance() {
           <div className="card-title"><h3>{t("finance.accountsToVerify")}</h3></div>
           <Loaded state={accounts}>{({ accounts: list }) => list.length === 0 ? <Empty icon="verified" title={t("common.noData")} /> : (
             <div className="stack tight">{list.map((a) => (
-              <div key={a.uid} className="row between"><span>{a.company_name}<div className="small muted">{a.bank_name} · {a.holder_name} · ···· <span className="ltr mono">{a.iban_last4}</span></div></span>
+              <div key={a.uid} className="row between"><span><CarrierName name={a.company_name} uid={a.company_uid} logo={a.company_logo} /><div className="small muted">{a.bank_name} · {a.holder_name} · ···· <span className="ltr mono">{a.iban_last4}</span></div></span>
                 <button className="btn tonal small" disabled={busy} onClick={() => act(() => api.post(`/api/admin/finance/bank-accounts/${a.uid}/verify`), t("finance.verified"))}>{t("finance.verify")}</button></div>
             ))}</div>
           )}</Loaded>

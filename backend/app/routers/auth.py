@@ -345,11 +345,11 @@ async def me(request: Request, principal: Principal = Depends(require_user)):
     async with db.transaction(ctx) as conn:
         if principal.company_id:
             row = await conn.fetchrow(
-                "SELECT p.legal_name, p.uid FROM iam.party p WHERE p.id = $1", principal.company_id)
+                "SELECT p.legal_name, p.uid, iam.logo_version(p.id) AS logo FROM iam.party p WHERE p.id = $1", principal.company_id)
             code = await conn.fetchval(
                 "SELECT code3 FROM net.carrier_code WHERE company_id = $1 AND status = 'ACTIVE' LIMIT 1",
                 principal.company_id)
-            company = {"name": row["legal_name"], "uid": str(row["uid"]), "code": code}
+            company = {"name": row["legal_name"], "uid": str(row["uid"]), "code": code, "logo": row["logo"]}
         # the market the screens show times and money in (1061): the company's, or the person's
         market = (await markets.of_party(conn, principal.company_id or principal.party_id)).public()
     return {
