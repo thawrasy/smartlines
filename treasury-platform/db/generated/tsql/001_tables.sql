@@ -964,7 +964,8 @@ CREATE TABLE [cfg].[JobDefinition] (
     CONSTRAINT [PK_JobDefinition] PRIMARY KEY CLUSTERED ([JobDefinitionId]),
     CONSTRAINT [UQ_JobDefinition_JobKey] UNIQUE ([JobKey]),
     CONSTRAINT [CK_JobDefinition_1] CHECK (Scope = 'PLATFORM' OR RunsInStatuses IS NOT NULL),
-    CONSTRAINT [CK_JobDefinition_Scope] CHECK ([Scope] IS NULL OR [Scope] IN ('TENANT', 'PLATFORM'))
+    CONSTRAINT [CK_JobDefinition_Scope] CHECK ([Scope] IS NULL OR [Scope] IN ('TENANT', 'PLATFORM')),
+    CONSTRAINT [CK_JobDefinition_RunsInStatuses] CHECK ([RunsInStatuses] IS NULL OR LEN([RunsInStatuses]) + 1 = CASE WHEN CHARINDEX(',TRIAL,', (',' + [RunsInStatuses] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 6 ELSE 0 END + CASE WHEN CHARINDEX(',ACTIVE,', (',' + [RunsInStatuses] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 7 ELSE 0 END + CASE WHEN CHARINDEX(',SUSPENDED,', (',' + [RunsInStatuses] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 10 ELSE 0 END + CASE WHEN CHARINDEX(',CLOSED,', (',' + [RunsInStatuses] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 7 ELSE 0 END + CASE WHEN CHARINDEX(',ARCHIVED_READ_ONLY,', (',' + [RunsInStatuses] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 19 ELSE 0 END)
 );
 GO
 -- Background job run log: last run, duration and result, visible to the account administrator (FR-PLT-044)
@@ -1754,7 +1755,7 @@ CREATE TABLE [ref].[Country] (
     [NameAr] NVARCHAR(100) NOT NULL,
     [NameEn] NVARCHAR(100) NOT NULL,
     [IsGcc] BIT NOT NULL CONSTRAINT [DF_Country_IsGcc] DEFAULT 0,
-    [WeekendDays] VARCHAR(20) NULL,
+    [WeekendDays] VARCHAR(40) NULL,
     [DialCode] VARCHAR(8) NULL,
     [IsActive] BIT NOT NULL CONSTRAINT [DF_Country_IsActive] DEFAULT 1,
     [CreatedAt] DATETIME2(3) NOT NULL CONSTRAINT [DF_Country_CreatedAt] DEFAULT SYSUTCDATETIME(),
@@ -1766,7 +1767,8 @@ CREATE TABLE [ref].[Country] (
     CONSTRAINT [UQ_Country_Iso3] UNIQUE ([Iso3]),
     CONSTRAINT [CK_Country_1] CHECK (Iso2 NOT LIKE '%[^A-Z]%' AND Iso3 NOT LIKE '%[^A-Z]%'),
     CONSTRAINT [CK_Country_2] CHECK (DialCode IS NULL OR (DialCode LIKE '+[0-9]%' AND DialCode NOT LIKE '+%[^0-9]%' AND DialCode NOT LIKE '+_____%')),
-    CONSTRAINT [CK_Country_3] CHECK (WeekendDays IS NULL OR WeekendDays NOT LIKE '%[^A-Z,]%')
+    CONSTRAINT [CK_Country_3] CHECK (WeekendDays IS NULL OR WeekendDays NOT LIKE '%[^A-Z,]%'),
+    CONSTRAINT [CK_Country_WeekendDays] CHECK ([WeekendDays] IS NULL OR LEN([WeekendDays]) + 1 = CASE WHEN CHARINDEX(',MON,', (',' + [WeekendDays] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 4 ELSE 0 END + CASE WHEN CHARINDEX(',TUE,', (',' + [WeekendDays] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 4 ELSE 0 END + CASE WHEN CHARINDEX(',WED,', (',' + [WeekendDays] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 4 ELSE 0 END + CASE WHEN CHARINDEX(',THU,', (',' + [WeekendDays] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 4 ELSE 0 END + CASE WHEN CHARINDEX(',FRI,', (',' + [WeekendDays] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 4 ELSE 0 END + CASE WHEN CHARINDEX(',SAT,', (',' + [WeekendDays] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 4 ELSE 0 END + CASE WHEN CHARINDEX(',SUN,', (',' + [WeekendDays] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 4 ELSE 0 END)
 );
 GO
 -- Currency: global ISO 4217 reference, read-only (FR-CAT-021, Q-CAT-08)
@@ -1919,7 +1921,7 @@ CREATE TABLE [cat].[LegalEntityType] (
     [AbbreviationAr] NVARCHAR(30) NULL,
     [AbbreviationEn] NVARCHAR(30) NULL,
     [CountryId] INT NULL,
-    [DefaultBodyTypes] NVARCHAR(MAX) NULL,
+    [DefaultBodyTypes] VARCHAR(65) NULL,
     [IsActive] BIT NOT NULL CONSTRAINT [DF_LegalEntityType_IsActive] DEFAULT 1,
     [IsSystem] BIT NOT NULL CONSTRAINT [DF_LegalEntityType_IsSystem] DEFAULT 0,
     [IsLocked] BIT NOT NULL CONSTRAINT [DF_LegalEntityType_IsLocked] DEFAULT 0,
@@ -1936,7 +1938,7 @@ CREATE TABLE [cat].[LegalEntityType] (
     CONSTRAINT [UQ_LegalEntityType_Code_CountryId] UNIQUE ([TenantId], [Code], [CountryId]),
     CONSTRAINT [CK_LegalEntityType_1] CHECK (Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'),
     CONSTRAINT [CK_LegalEntityType_2] CHECK ((IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)),
-    CONSTRAINT [CK_LegalEntityType_DefaultBodyTypes_json] CHECK ([DefaultBodyTypes] IS NULL OR ISJSON([DefaultBodyTypes], VALUE) = 1)
+    CONSTRAINT [CK_LegalEntityType_DefaultBodyTypes] CHECK ([DefaultBodyTypes] IS NULL OR LEN([DefaultBodyTypes]) + 1 = CASE WHEN CHARINDEX(',BOARD_OF_DIRECTORS,', (',' + [DefaultBodyTypes] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 19 ELSE 0 END + CASE WHEN CHARINDEX(',BOARD_OF_MANAGERS,', (',' + [DefaultBodyTypes] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 18 ELSE 0 END + CASE WHEN CHARINDEX(',MANAGEMENT,', (',' + [DefaultBodyTypes] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 11 ELSE 0 END + CASE WHEN CHARINDEX(',GENERAL_ASSEMBLY,', (',' + [DefaultBodyTypes] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 17 ELSE 0 END)
 );
 GO
 -- Document type; applies the flags defined in specification 10 at upload (FR-CAT-018, BR-CAT-016, FR-PLT-028)
@@ -1973,6 +1975,7 @@ CREATE TABLE [cat].[DocumentType] (
     CONSTRAINT [CK_DocumentType_3] CHECK (MaxSizeMb IS NULL OR MaxSizeMb > 0),
     CONSTRAINT [CK_DocumentType_4] CHECK (RetentionYears IS NULL OR RetentionYears > 0),
     CONSTRAINT [CK_DocumentType_5] CHECK (MaxAgeDays IS NULL OR MaxAgeDays > 0),
+    CONSTRAINT [CK_DocumentType_AppliesTo] CHECK ([AppliesTo] IS NULL OR LEN([AppliesTo]) + 1 = CASE WHEN CHARINDEX(',COMPANY,', (',' + [AppliesTo] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 8 ELSE 0 END + CASE WHEN CHARINDEX(',PARTY,', (',' + [AppliesTo] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 6 ELSE 0 END + CASE WHEN CHARINDEX(',INSTITUTION,', (',' + [AppliesTo] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 12 ELSE 0 END + CASE WHEN CHARINDEX(',FACILITY,', (',' + [AppliesTo] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 9 ELSE 0 END + CASE WHEN CHARINDEX(',ACCOUNT,', (',' + [AppliesTo] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 8 ELSE 0 END + CASE WHEN CHARINDEX(',SIGNATORY,', (',' + [AppliesTo] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 10 ELSE 0 END + CASE WHEN CHARINDEX(',REQUEST,', (',' + [AppliesTo] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 8 ELSE 0 END + CASE WHEN CHARINDEX(',LC,', (',' + [AppliesTo] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 3 ELSE 0 END + CASE WHEN CHARINDEX(',GENERAL,', (',' + [AppliesTo] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 8 ELSE 0 END),
     CONSTRAINT [CK_DocumentType_AllowedMime_json] CHECK ([AllowedMime] IS NULL OR ISJSON([AllowedMime], VALUE) = 1)
 );
 GO
@@ -1990,7 +1993,7 @@ CREATE TABLE [cat].[Position] (
     [SortOrder] INT NOT NULL CONSTRAINT [DF_Position_SortOrder] DEFAULT 0,
     [SeedKey] VARCHAR(80) NULL,
     [ExternalCode] VARCHAR(80) NULL,
-    [ApplicableBodyTypes] NVARCHAR(MAX) NULL,
+    [ApplicableBodyTypes] VARCHAR(65) NULL,
     [IsSingleHolder] BIT NOT NULL CONSTRAINT [DF_Position_IsSingleHolder] DEFAULT 0,
     [CreatedAt] DATETIME2(3) NOT NULL CONSTRAINT [DF_Position_CreatedAt] DEFAULT SYSUTCDATETIME(),
     [CreatedBy] BIGINT NULL,
@@ -2002,7 +2005,7 @@ CREATE TABLE [cat].[Position] (
     CONSTRAINT [UQ_Position_Code] UNIQUE ([TenantId], [Code]),
     CONSTRAINT [CK_Position_1] CHECK (Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'),
     CONSTRAINT [CK_Position_2] CHECK ((IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)),
-    CONSTRAINT [CK_Position_ApplicableBodyTypes_json] CHECK ([ApplicableBodyTypes] IS NULL OR ISJSON([ApplicableBodyTypes], VALUE) = 1)
+    CONSTRAINT [CK_Position_ApplicableBodyTypes] CHECK ([ApplicableBodyTypes] IS NULL OR LEN([ApplicableBodyTypes]) + 1 = CASE WHEN CHARINDEX(',BOARD_OF_DIRECTORS,', (',' + [ApplicableBodyTypes] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 19 ELSE 0 END + CASE WHEN CHARINDEX(',BOARD_OF_MANAGERS,', (',' + [ApplicableBodyTypes] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 18 ELSE 0 END + CASE WHEN CHARINDEX(',MANAGEMENT,', (',' + [ApplicableBodyTypes] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 11 ELSE 0 END + CASE WHEN CHARINDEX(',GENERAL_ASSEMBLY,', (',' + [ApplicableBodyTypes] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 17 ELSE 0 END)
 );
 GO
 -- Governance power type: its attributes are defined in specification 10 (section 6.2) only, and this module seeds its rows (FR-CAT-019, FR-ORG-024)
@@ -2954,7 +2957,9 @@ CREATE TABLE [fac].[Facility] (
     CONSTRAINT [CK_Facility_11] CHECK (AlertLeadDays IS NULL OR AlertLeadDays NOT LIKE '%[^0-9,]%'),
     CONSTRAINT [CK_Facility_PrecedenceLanguage] CHECK ([PrecedenceLanguage] IS NULL OR [PrecedenceLanguage] IN ('AR', 'EN', 'EQUAL')),
     CONSTRAINT [CK_Facility_OperativeCalendar] CHECK ([OperativeCalendar] IS NULL OR [OperativeCalendar] IN ('GREGORIAN', 'HIJRI')),
-    CONSTRAINT [CK_Facility_LifecycleStatus] CHECK ([LifecycleStatus] IS NULL OR [LifecycleStatus] IN ('DRAFT', 'ACTIVE', 'SUSPENDED', 'EXPIRED', 'TERMINATED', 'SUPERSEDED'))
+    CONSTRAINT [CK_Facility_LifecycleStatus] CHECK ([LifecycleStatus] IS NULL OR [LifecycleStatus] IN ('DRAFT', 'ACTIVE', 'SUSPENDED', 'EXPIRED', 'TERMINATED', 'SUPERSEDED')),
+    CONSTRAINT [CK_Facility_BankUnilateralRights] CHECK ([BankUnilateralRights] IS NULL OR LEN([BankUnilateralRights]) + 1 = CASE WHEN CHARINDEX(',EXTEND,', (',' + [BankUnilateralRights] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 7 ELSE 0 END + CASE WHEN CHARINDEX(',CHANGE_PRICING,', (',' + [BankUnilateralRights] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 15 ELSE 0 END + CASE WHEN CHARINDEX(',CANCEL,', (',' + [BankUnilateralRights] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 7 ELSE 0 END + CASE WHEN CHARINDEX(',REDUCE_LIMITS,', (',' + [BankUnilateralRights] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 14 ELSE 0 END),
+    CONSTRAINT [CK_Facility_AlertLeadDays] CHECK ([AlertLeadDays] IS NULL OR LEN([AlertLeadDays]) + 1 = CASE WHEN CHARINDEX(',90,', (',' + [AlertLeadDays] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 3 ELSE 0 END + CASE WHEN CHARINDEX(',60,', (',' + [AlertLeadDays] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 3 ELSE 0 END + CASE WHEN CHARINDEX(',30,', (',' + [AlertLeadDays] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 3 ELSE 0 END + CASE WHEN CHARINDEX(',15,', (',' + [AlertLeadDays] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 3 ELSE 0 END + CASE WHEN CHARINDEX(',7,', (',' + [AlertLeadDays] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 2 ELSE 0 END + CASE WHEN CHARINDEX(',0,', (',' + [AlertLeadDays] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 2 ELSE 0 END)
 );
 GO
 -- Preparer and approver revision of facility terms (FR-FAC-024, BR-FAC-003/004, section 8)
@@ -3047,7 +3052,8 @@ CREATE TABLE [fac].[FacilityLender] (
     CONSTRAINT [CK_FacilityLender_1] CHECK (SharePct > 0 AND SharePct <= 100),
     CONSTRAINT [CK_FacilityLender_2] CHECK (Roles <> ''),
     CONSTRAINT [CK_FacilityLender_3] CHECK (Roles NOT LIKE '%SOLE%' OR SharePct = 100),
-    CONSTRAINT [CK_FacilityLender_4] CHECK (ToRevision IS NULL OR ToRevision >= FromRevision)
+    CONSTRAINT [CK_FacilityLender_4] CHECK (ToRevision IS NULL OR ToRevision >= FromRevision),
+    CONSTRAINT [CK_FacilityLender_Roles] CHECK ([Roles] IS NULL OR LEN([Roles]) + 1 = CASE WHEN CHARINDEX(',SOLE,', (',' + [Roles] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 5 ELSE 0 END + CASE WHEN CHARINDEX(',LEAD,', (',' + [Roles] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 5 ELSE 0 END + CASE WHEN CHARINDEX(',AGENT,', (',' + [Roles] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 6 ELSE 0 END + CASE WHEN CHARINDEX(',ARRANGER,', (',' + [Roles] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 9 ELSE 0 END + CASE WHEN CHARINDEX(',PARTICIPANT,', (',' + [Roles] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 12 ELSE 0 END)
 );
 GO
 -- Snapshot of the recognised outstanding balance (FR-FAC-009, BR-FAC-017); PctOfLimit is derived and not stored
@@ -3758,6 +3764,7 @@ CREATE TABLE [cmp].[TermType] (
     CONSTRAINT [CK_TermType_ValueKind] CHECK ([ValueKind] IS NULL OR [ValueKind] IN ('PERCENT', 'AMOUNT', 'DAYS', 'MONTHS', 'COUNT', 'BOOLEAN', 'ENUM', 'TEXT')),
     CONSTRAINT [CK_TermType_DefaultBound] CHECK ([DefaultBound] IS NULL OR [DefaultBound] IN ('EXACT', 'MAX', 'MIN')),
     CONSTRAINT [CK_TermType_Direction] CHECK ([Direction] IS NULL OR [Direction] IN ('LOWER_BETTER', 'HIGHER_BETTER', 'NEUTRAL')),
+    CONSTRAINT [CK_TermType_ScopeKinds] CHECK ([ScopeKinds] IS NULL OR LEN([ScopeKinds]) + 1 = CASE WHEN CHARINDEX(',FACILITY,', (',' + [ScopeKinds] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 9 ELSE 0 END + CASE WHEN CHARINDEX(',LIMIT,', (',' + [ScopeKinds] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 6 ELSE 0 END + CASE WHEN CHARINDEX(',PRODUCT_LINE,', (',' + [ScopeKinds] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 13 ELSE 0 END + CASE WHEN CHARINDEX(',PRODUCT,', (',' + [ScopeKinds] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 8 ELSE 0 END + CASE WHEN CHARINDEX(',COMPANY,', (',' + [ScopeKinds] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 8 ELSE 0 END),
     CONSTRAINT [CK_TermType_EnumOptions_json] CHECK ([EnumOptions] IS NULL OR ISJSON([EnumOptions], VALUE) = 1)
 );
 GO
@@ -4164,7 +4171,8 @@ CREATE TABLE [obl].[ReportingObligation] (
     CONSTRAINT [CK_ReportingObligation_OffsetUnit] CHECK ([OffsetUnit] IS NULL OR [OffsetUnit] IN ('CALENDAR_DAYS', 'BUSINESS_DAYS', 'MONTHS')),
     CONSTRAINT [CK_ReportingObligation_Direction] CHECK ([Direction] IS NULL OR [Direction] IN ('WE_SUBMIT', 'WE_RESPOND')),
     CONSTRAINT [CK_ReportingObligation_DocumentBasis] CHECK ([DocumentBasis] IS NULL OR [DocumentBasis] IN ('AUDITED', 'INTERNAL', 'ANY', 'NOT_APPLICABLE')),
-    CONSTRAINT [CK_ReportingObligation_StatementScope] CHECK ([StatementScope] IS NULL OR [StatementScope] IN ('STANDALONE', 'CONSOLIDATED', 'ANY'))
+    CONSTRAINT [CK_ReportingObligation_StatementScope] CHECK ([StatementScope] IS NULL OR [StatementScope] IN ('STANDALONE', 'CONSOLIDATED', 'ANY')),
+    CONSTRAINT [CK_ReportingObligation_AlertLeadDays] CHECK ([AlertLeadDays] IS NULL OR LEN([AlertLeadDays]) + 1 = CASE WHEN CHARINDEX(',30,', (',' + [AlertLeadDays] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 3 ELSE 0 END + CASE WHEN CHARINDEX(',14,', (',' + [AlertLeadDays] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 3 ELSE 0 END + CASE WHEN CHARINDEX(',7,', (',' + [AlertLeadDays] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 2 ELSE 0 END + CASE WHEN CHARINDEX(',3,', (',' + [AlertLeadDays] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 2 ELSE 0 END + CASE WHEN CHARINDEX(',1,', (',' + [AlertLeadDays] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 2 ELSE 0 END)
 );
 GO
 -- Agenda item generated or logged for an event (FR-OBL-003..005, BR-OBL-003, section 8); DUE_SOON and OVERDUE are derived
@@ -4601,6 +4609,7 @@ CREATE TABLE [fin].[MeasureFormula] (
     CONSTRAINT [CK_MeasureFormula_9] CHECK (SourceDocumentId IS NOT NULL AND SourcePage IS NOT NULL OR (SourceDocumentId IS NULL AND Confidence = 'ENTERED_NO_DOCUMENT')),
     CONSTRAINT [CK_MeasureFormula_10] CHECK (Confidence <> 'CONFIRMED_AGAINST_ORIGINAL' OR (VerifiedBy IS NOT NULL AND VerifiedOn IS NOT NULL)),
     CONSTRAINT [CK_MeasureFormula_Scope] CHECK ([Scope] IS NULL OR [Scope] IN ('TEMPLATE', 'FACILITY_COPY')),
+    CONSTRAINT [CK_MeasureFormula_InputKinds] CHECK ([InputKinds] IS NULL OR LEN([InputKinds]) + 1 = CASE WHEN CHARINDEX(',STATEMENT,', (',' + [InputKinds] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 10 ELSE 0 END + CASE WHEN CHARINDEX(',ACCOUNT_STATS,', (',' + [InputKinds] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 14 ELSE 0 END + CASE WHEN CHARINDEX(',BANK_FLOWS,', (',' + [InputKinds] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 11 ELSE 0 END),
     CONSTRAINT [CK_MeasureFormula_ResultUnit] CHECK ([ResultUnit] IS NULL OR [ResultUnit] IN ('RATIO', 'AMOUNT', 'PERCENT')),
     CONSTRAINT [CK_MeasureFormula_Status] CHECK ([Status] IS NULL OR [Status] IN ('DRAFT', 'APPROVED', 'SUPERSEDED')),
     CONSTRAINT [CK_MeasureFormula_Confidence] CHECK ([Confidence] IS NULL OR [Confidence] IN ('CONFIRMED_AGAINST_ORIGINAL', 'READ_FROM_SCAN_UNVERIFIED', 'ENTERED_NO_DOCUMENT'))
@@ -6174,6 +6183,7 @@ CREATE TABLE [lc].[LcAmendment] (
     CONSTRAINT [CK_LcAmendment_10] CHECK (Status <> 'APPLIED' OR (BeneficiaryResponse = 'ACCEPTED' AND AppliedOn IS NOT NULL AND AppliedBy IS NOT NULL)),
     CONSTRAINT [CK_LcAmendment_11] CHECK (BeneficiaryResponse IS NULL OR BeneficiaryResponse = 'PENDING' OR RespondedOn IS NOT NULL),
     CONSTRAINT [CK_LcAmendment_Origin] CHECK ([Origin] IS NULL OR [Origin] IN ('OUR_REQUEST', 'RECEIVED_FROM_CUSTOMER')),
+    CONSTRAINT [CK_LcAmendment_ChangeKinds] CHECK ([ChangeKinds] IS NULL OR LEN([ChangeKinds]) + 1 = CASE WHEN CHARINDEX(',INCREASE_AMOUNT,', (',' + [ChangeKinds] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 16 ELSE 0 END + CASE WHEN CHARINDEX(',DECREASE_AMOUNT,', (',' + [ChangeKinds] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 16 ELSE 0 END + CASE WHEN CHARINDEX(',EXTEND_EXPIRY,', (',' + [ChangeKinds] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 14 ELSE 0 END + CASE WHEN CHARINDEX(',CHANGE_SHIPMENT_DATE,', (',' + [ChangeKinds] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 21 ELSE 0 END + CASE WHEN CHARINDEX(',CHANGE_TERMS,', (',' + [ChangeKinds] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 13 ELSE 0 END + CASE WHEN CHARINDEX(',CANCEL,', (',' + [ChangeKinds] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 7 ELSE 0 END),
     CONSTRAINT [CK_LcAmendment_Status] CHECK ([Status] IS NULL OR [Status] IN ('DRAFT', 'REQUESTED', 'BANK_ISSUED', 'APPLIED', 'REJECTED', 'WITHDRAWN')),
     CONSTRAINT [CK_LcAmendment_BeneficiaryResponse] CHECK ([BeneficiaryResponse] IS NULL OR [BeneficiaryResponse] IN ('PENDING', 'ACCEPTED', 'REJECTED')),
     CONSTRAINT [CK_LcAmendment_ChangedFieldsJson_json] CHECK ([ChangedFieldsJson] IS NULL OR ISJSON([ChangedFieldsJson], VALUE) = 1)

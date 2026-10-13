@@ -1773,7 +1773,7 @@
 | NameAr | NVARCHAR(100) | لا |  |  |  |
 | NameEn | NVARCHAR(100) | لا |  |  |  |
 | IsGcc | BIT | لا | 0 |  | عضو مجلس التعاون: الدول الست فقط في البذرة (قيمة مقترحة تُراجَع) |
-| WeekendDays | VARCHAR(20) | نعم |  |  | رموز أيام العطلة الأسبوعية MON..SUN مفصولة بفاصلة (مثل FRI,SAT)؛ فارغ = غير محدد |
+| WeekendDays | VARCHAR(40) | نعم |  |  | رموز أيام العطلة الأسبوعية MON..SUN مفصولة بفاصلة (مثل FRI,SAT)؛ فارغ = غير محدد |
 | DialCode | VARCHAR(8) | نعم |  |  | رمز الاتصال الدولي مثل +966 |
 | IsActive | BIT | لا | 1 |  |  |
 | CreatedAt | DATETIME2(3) | لا | SYSUTCDATETIME() |  |  |
@@ -1898,7 +1898,7 @@
 | AbbreviationAr | NVARCHAR(30) | نعم |  |  |  |
 | AbbreviationEn | NVARCHAR(30) | نعم |  |  |  |
 | CountryId | INT | نعم |  | ref.Country | فارغ = شكل عام لكل الدول |
-| DefaultBodyTypes | NVARCHAR(MAX) | نعم |  |  | هيئات الحوكمة الافتراضية للشكل (قيم GoverningBody.BodyType) |
+| DefaultBodyTypes | VARCHAR(65) | نعم |  |  | هيئات الحوكمة الافتراضية للشكل (قيم GoverningBody.BodyType، DR-32) |
 | IsActive | BIT | لا | 1 |  |  |
 | IsSystem | BIT | لا | 0 |  |  |
 | IsLocked | BIT | لا | 0 |  |  |
@@ -1966,7 +1966,7 @@
 | SortOrder | INT | لا | 0 |  |  |
 | SeedKey | VARCHAR(80) | نعم |  |  |  |
 | ExternalCode | VARCHAR(80) | نعم |  |  |  |
-| ApplicableBodyTypes | NVARCHAR(MAX) | نعم |  |  | قيم GoverningBody.BodyType التي يصح فيها المنصب |
+| ApplicableBodyTypes | VARCHAR(65) | نعم |  |  | قيم GoverningBody.BodyType التي يصح فيها المنصب (DR-32) |
 | IsSingleHolder | BIT | لا | 0 |  | منصب أحادي الشاغل (CHAIRMAN) -- BR-ORG-010 |
 | CreatedAt | DATETIME2(3) | لا | SYSUTCDATETIME() |  |  |
 | CreatedBy | BIGINT | نعم |  |  |  |

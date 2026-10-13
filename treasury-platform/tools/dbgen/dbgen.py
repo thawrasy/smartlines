@@ -21,7 +21,7 @@ class Col:
         self.req = False; self.default = None; self.fk = None; self.via = []; self.via_t = []
         self.cascade = False; self.noidx = False; self.enum = None; self.sens = None
         self.comment = ''; self.calc = None; self.auto = False; self.is_json = False
-        self.src_line = None; self.isset = False; self.is_bool = False; self.baretype = None
+        self.src_line = None; self.isset = False; self.setvals = None; self.is_bool = False; self.baretype = None
 
 class Table:
     def __init__(self, schema, name):
@@ -63,7 +63,8 @@ def parse_type(tok, col, where):
     if m:
         vals = [v.strip() for v in m.group(1).split(',') if v.strip()]
         n = max(sum(len(v) for v in vals) + len(vals), 40)
-        col.isset = True; col.type = 'set'
+        if not vals: raise ModelError(f'{where}: empty set')
+        col.isset = True; col.type = 'set'; col.setvals = vals
         col.sqltype = f'VARCHAR({n})'; col.pgtype = f'varchar({n})'; return
     m = re.match(r'^(str|ascii|char)\((\d+)\)$', t)
     if m:
@@ -253,7 +254,10 @@ def resolve(tables, allow_missing=False):
                 errs.append(f'{c.src_line}: mixed-scope table {t.fq}.{c.name} cannot reference tenant table {tgt.fq}')
             if c.via:
                 for v in c.via:
-                    if v not in t.colmap: errs.append(f'{c.src_line}: via column {v} missing on {t.fq}')
+                    # via may name the table's own key: the reference then stays inside the row's own parent
+                    # (a document's current version must be a version of that document, DR-18)
+                    if v not in t.colmap and not (t.has_surrogate and v == t.idname):
+                        errs.append(f'{c.src_line}: via column {v} missing on {t.fq}')
                 for v in c.via_t:
                     if v not in tgt.colmap: errs.append(f'{c.src_line}: via column {v} missing on target {tgt.fq}')
                 tgt.required_scopes.add(tuple(c.via_t))
@@ -280,8 +284,9 @@ def validate_semantics(tables):
             for cc in cols + inc:
                 if cc not in names: errs.append(f'{where}: column {cc} not in {t.fq}')
         for expr, where in t.checks:
-            for ident in re.findall(r'\b[A-Za-z_]\w*\b', re.sub(r"'[^']*'", '', expr)):
-                if ident.upper() in ('AND','OR','NOT','IS','NULL','IN','LIKE','BETWEEN','CASE','WHEN','THEN','ELSE','END','LEN','DATALENGTH','ABS','LOWER','UPPER','LTRIM','RTRIM','DATEADD','DAY','MONTH','YEAR'): continue
+            bare = re.sub(r'\bCOLLATE\s+\w+', '', re.sub(r"'[^']*'", '', expr), flags=re.I)
+            for ident in re.findall(r'\b[A-Za-z_]\w*\b', bare):
+                if ident.upper() in ('AND','OR','NOT','IS','NULL','IN','LIKE','BETWEEN','CASE','WHEN','THEN','ELSE','END','LEN','DATALENGTH','ABS','LOWER','UPPER','LTRIM','RTRIM','DATEADD','DAY','MONTH','YEAR','HOUR','MINUTE'): continue
                 if ident not in names: errs.append(f'{where}: check refers to unknown identifier {ident} in {t.fq}')
         if t.has_surrogate and not t.tenant_scoped and t.is_mixed: errs.append(f'{t.fq}: mixed tables are tenant-scoped')
     return errs
@@ -435,7 +440,7 @@ class Emitter:
             for i, (expr, where) in enumerate(t.checks, 1):
                 p['checks'].append((self.reg(t.schema, f'CK_{t.name}_{i}', where), expr))
             for c in t.cols:
-                if c.enum:
+                if c.enum or c.isset:
                     p['checks'].append((self.reg(t.schema, f'CK_{t.name}_{c.name}', c.src_line or t.fq), None, c))
             P[t.fq] = p
         # resolve AUTO idx names, dedupe vs existing leading prefixes
@@ -501,7 +506,9 @@ class Emitter:
                 else:
                     cons.append(f'    CONSTRAINT {q_ms(nm)} UNIQUE ({", ".join(q_ms(c) for c in cols)})')
             for ck in p['checks']:
-                if ck[1] is None:
+                if ck[1] is None and ck[2].isset:
+                    cons.append(f'    CONSTRAINT {q_ms(ck[0])} CHECK ({set_check(ck[2], "ms")})')
+                elif ck[1] is None:
                     c = ck[2]; vals = ', '.join("'"+v+"'" for v in c.enum)
                     cons.append(f'    CONSTRAINT {q_ms(ck[0])} CHECK ({q_ms(c.name)} IS NULL OR {q_ms(c.name)} IN ({vals}))')
                 else:
@@ -552,7 +559,9 @@ class Emitter:
                 if wh: out_idx.append(f'CREATE UNIQUE INDEX {q_pg(nm)} ON {q_pg(t.schema)}.{q_pg(t.name)} ({", ".join(q_pg(c) for c in cols)}) WHERE {pg_expr(wh)};')
                 else: cons.append(f'  CONSTRAINT {q_pg(nm)} UNIQUE ({", ".join(q_pg(c) for c in cols)})')
             for ck in p['checks']:
-                if ck[1] is None:
+                if ck[1] is None and ck[2].isset:
+                    cons.append(f'  CONSTRAINT {q_pg(ck[0])} CHECK ({set_check(ck[2], "pg")})')
+                elif ck[1] is None:
                     c = ck[2]; vals = ', '.join("'"+v+"'" for v in c.enum)
                     cons.append(f'  CONSTRAINT {q_pg(ck[0])} CHECK ({q_pg(c.name)} IS NULL OR {q_pg(c.name)} IN ({vals}))')
                 else:
@@ -566,8 +575,22 @@ class Emitter:
                 out_idx.append(f'CREATE INDEX {q_pg(nm)} ON {q_pg(t.schema)}.{q_pg(t.name)} ({", ".join(q_pg(x) for x in cols)}){whr};')
         return out_tables, out_fk, out_idx
 
+def set_check(c, dialect):
+    """Membership check of a set{} column (DR-32): the value is a comma list of distinct allowed tokens.
+    Each allowed token found between commas adds its length plus one; the total equals LEN(value) + 1 only when
+    every token is allowed and none repeats, so an unknown token, a duplicate, an empty item or a stray space fails.
+    The comparison is binary, so a lower-case token fails too."""
+    if dialect == 'ms':
+        col = q_ms(c.name); wrapped = f"(',' + {col} + ',') COLLATE Arabic_100_BIN2"
+        parts = [f"CASE WHEN CHARINDEX(',{v},', {wrapped}) > 0 THEN {len(v) + 1} ELSE 0 END" for v in c.setvals]
+        return f"{col} IS NULL OR LEN({col}) + 1 = " + ' + '.join(parts)
+    col = q_pg(c.name)
+    parts = [f"CASE WHEN position(',{v},' in ',' || {col} || ',') > 0 THEN {len(v) + 1} ELSE 0 END" for v in c.setvals]
+    return f"{col} IS NULL OR length({col}) + 1 = " + ' + '.join(parts)
+
 def pg_expr(e):
     """quote bare identifiers (PascalCase column names) for PostgreSQL"""
+    e = re.sub(r'\s+COLLATE\s+\w+', '', e, flags=re.I)
     funcs = {'LEN': 'length', 'DATALENGTH': 'octet_length', 'ABS': 'abs', 'LOWER': 'lower', 'UPPER': 'upper', 'LTRIM': 'ltrim', 'RTRIM': 'rtrim'}
     kw = {'AND','OR','NOT','IS','NULL','IN','LIKE','BETWEEN','CASE','WHEN','THEN','ELSE','END','TRUE','FALSE'}
     def sub(m):

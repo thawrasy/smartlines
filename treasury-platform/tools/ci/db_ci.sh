@@ -344,4 +344,22 @@ if [ "$log_pass" -ne 6 ]; then
     exit 1
 fi
 echo "service login checks: $log_pass passed"
+echo "== 19. fixes of the design-review findings (db/tests/review_fixes_tests.sql, O-15, ADR 0011)"
+sq -i db/tests/review_fixes_tests.sql > "$TMP/review.out" 2>&1 || {
+    cat "$TMP/review.out"
+    echo "review fixes test run failed"
+    exit 1
+}
+cat "$TMP/review.out"
+if grep -q '^FAIL' "$TMP/review.out"; then
+    echo "a review fixes test failed"
+    exit 1
+fi
+rf_pass=$(grep -c '^PASS' "$TMP/review.out" || true)
+# 1 case: RF1 (list columns).
+if [ "$rf_pass" -ne 1 ]; then
+    echo "expected 1 PASS, found $rf_pass"
+    exit 1
+fi
+echo "review fixes tests: $rf_pass passed"
 echo "all database checks passed"

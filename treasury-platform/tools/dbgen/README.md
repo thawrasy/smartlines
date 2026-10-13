@@ -56,11 +56,13 @@ table fac.Facility public  # تسهيل: حزمة اتفاقية (FR-FAC-001)
 | `money` · `rate` · `dec(p,s)` | `DECIMAL(19,4)` · `DECIMAL(9,6)` (نقاط مئوية) · عشري |
 | `bin(n)` · `blob` | `VARBINARY(n)` · `VARBINARY(MAX)` |
 | `enum{A,B}` | `VARCHAR` + `CHECK ... IN (...)`؛ الافتراضي `=A` |
-| `set{A,B}` | `VARCHAR` مفصول بفواصل (لقوائم صغيرة جدًا فقط؛ **قائمة مفاتيح = جدول وسيط**) |
+| `set{A,B}` | `VARCHAR` مفصول بفواصل (لقوائم صغيرة جدًا فقط؛ **قائمة مفاتيح = جدول وسيط**)، مع `CK_<Table>_<Col>` يقبل القيم المسموحة فقط، بلا تكرار ولا عنصر فارغ ولا مسافة، وبالأحرف الكبيرة (مقارنة ثنائية، DR-32) |
 | `->schema.Table` | مفتاح أجنبي؛ النوع يؤخذ من الهدف |
 
 ### الرموز على السطر
 `req` إلزامي (الافتراضي اختياري) · `=VALUE` افتراضي · `via=ColA,ColB` أعمدة نطاق للربط المركّب · `cascade` · `noidx` (بلا فهرس تلقائي) · `sens=restricted|confidential`.
+
+`via` يقبل مفتاح الجدول نفسه (`<Table>Id`)، فيبقى المرجع داخل أب الصف نفسه، مثل `CurrentVersionId ->doc.DocumentVersion via=DocumentId` في `doc.Document` (DR-18). وفي `check` تُقبل من الدوال `LEN` و`DATALENGTH` و`ABS` و`LOWER` و`UPPER` و`LTRIM` و`RTRIM` و`DATEADD` بوحدات `HOUR` و`MINUTE` و`DAY` و`MONTH` و`YEAR`، ويُقبل `COLLATE <name>` للمقارنة الثنائية (DR-48).
 
 ## 2. ما يولّده المولّد تلقائيًا
 - **المشترك:** `TenantId INT NOT NULL` وFK إلى `plat.Tenant` لكل جدول مملوك للمشترك.

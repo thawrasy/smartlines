@@ -17,7 +17,7 @@ table ref.Country global int  # Country: global reference, read-only, managed by
   NameAr       str(100)   req
   NameEn       str(100)   req
   IsGcc        bool       req =0   # عضو مجلس التعاون: الدول الست فقط في البذرة (قيمة مقترحة تُراجَع)
-  WeekendDays  ascii(20)         # رموز أيام العطلة الأسبوعية MON..SUN مفصولة بفاصلة (مثل FRI,SAT)؛ فارغ = غير محدد
+  WeekendDays  set{MON,TUE,WED,THU,FRI,SAT,SUN}         # رموز أيام العطلة الأسبوعية MON..SUN مفصولة بفاصلة (مثل FRI,SAT)؛ فارغ = غير محدد
   DialCode     ascii(8)          # رمز الاتصال الدولي مثل +966
   IsActive     bool       req =1
   unique Iso2
@@ -66,7 +66,7 @@ table cat.LegalEntityType int  # Legal entity type: the entity and its attribute
   AbbreviationAr   str(30)
   AbbreviationEn   str(30)
   CountryId        ->ref.Country   # فارغ = شكل عام لكل الدول
-  DefaultBodyTypes json            # هيئات الحوكمة الافتراضية للشكل (قيم GoverningBody.BodyType)
+  DefaultBodyTypes set{BOARD_OF_DIRECTORS,BOARD_OF_MANAGERS,MANAGEMENT,GENERAL_ASSEMBLY}   # هيئات الحوكمة الافتراضية للشكل (قيم GoverningBody.BodyType، DR-32)
   IsActive         bool       req =1
   IsSystem         bool       req =0
   IsLocked         bool       req =0
@@ -93,7 +93,7 @@ table cat.DocumentType catalog int  # Document type; applies the flags defined i
   check  MaxAgeDays IS NULL OR MaxAgeDays > 0
 
 table cat.Position catalog int  # Job position: its attributes are defined in specification 10 (section 6.2) only, and this module seeds its rows (FR-CAT-019, BR-CAT-017); SortOrder comes from the catalogue base
-  ApplicableBodyTypes  json            # قيم GoverningBody.BodyType التي يصح فيها المنصب
+  ApplicableBodyTypes  set{BOARD_OF_DIRECTORS,BOARD_OF_MANAGERS,MANAGEMENT,GENERAL_ASSEMBLY}   # قيم GoverningBody.BodyType التي يصح فيها المنصب (DR-32)
   IsSingleHolder       bool    req =0  # منصب أحادي الشاغل (CHAIRMAN) -- BR-ORG-010
   check  Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'   # BR-CAT-001
   check  (IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)   # BR-CAT-003: المقفل نظامي وفعّال؛ BR-CAT-001: NameEn لصفوف النظام
