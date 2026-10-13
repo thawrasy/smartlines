@@ -7,7 +7,8 @@
        sqlcmd -S <server> -U sa -C -I -b -i db/tests/operator_support_tests.sql
    One transaction with a savepoint per case, rolled back at the end. A successful binding makes the context
    read-only, so P8 checks the tenant-status rule by presetting the context: the procedure then stops at 50004
-   only after every other check has passed. P10 is the one real support binding and runs last.
+   only after every other check has passed. P10 is the one real support binding and runs last; P11 checks the
+   audit row it wrote (ADR 0007).
    Each case prints one line that starts with PASS or FAIL.
    ============================================================================ */
 USE [BankFas];
@@ -18,10 +19,13 @@ CREATE USER [tp_test_panel] WITHOUT LOGIN;
 CREATE USER [tp_test_sup] WITHOUT LOGIN;
 CREATE USER [tp_test_app] WITHOUT LOGIN;
 CREATE USER [tp_test_ro] WITHOUT LOGIN;
+CREATE USER [tp_test_oread] WITHOUT LOGIN;              -- reads every audit row (tp_auth passes the row filters)
 ALTER ROLE [tp_platform] ADD MEMBER [tp_test_panel];
 ALTER ROLE [tp_support] ADD MEMBER [tp_test_sup];
 ALTER ROLE [tp_app] ADD MEMBER [tp_test_app];
 ALTER ROLE [tp_readonly] ADD MEMBER [tp_test_ro];
+ALTER ROLE [tp_auth] ADD MEMBER [tp_test_oread];
+ALTER ROLE [db_datareader] ADD MEMBER [tp_test_oread];
 ALTER TABLE plat.Tenant NOCHECK CONSTRAINT ALL;      -- plan and country rows are not seeded
 ALTER TABLE sec.AppUser NOCHECK CONSTRAINT ALL;
 GO
@@ -349,6 +353,17 @@ REVERT;
 IF @e1 IS NULL AND @n = 1 AND @n2 = 0 AND @x = @op3 AND @e3 = 230 AND @e2 = 229 AND @n3 = 0
     PRINT 'PASS P10: a support binding reads the granted tenant only, without restricted columns or writes, until revoked';
 ELSE PRINT 'FAIL P10: support binding (' + CONCAT(@e1, '/', @n, '/', @n2, '/', @x, '/', @e3, '/', @e2, '/', @n3) + ')';
+/* P11: the binding wrote a high-severity row into the tenant's own audit log, naming the operator and the grant, so
+   the tenant sees who entered its data (BR-PLT-009, ADR 0007). */
+DECLARE @auditRows INT;
+EXECUTE AS USER = N'tp_test_oread';
+SELECT @auditRows = COUNT(*) FROM aud.AuditLog
+ WHERE TenantId = @tA AND Action = 'SUPPORT_ACCESS_BOUND' AND Category = 'SECURITY' AND Severity = 'HIGH' AND ActorType = 'OPERATOR'
+   AND ActorId = (SELECT PublicId FROM plat.PlatformOperator WHERE PlatformOperatorId = @op3)
+   AND EntityType = 'plat.SupportAccessGrant' AND EntityId = @gA;
+REVERT;
+IF @auditRows = 1 PRINT 'PASS P11: a support binding is audited in the tenant''s log with high severity, naming the operator and the grant';
+ELSE PRINT CONCAT('FAIL P11: support binding audit rows ', @auditRows);
 ROLLBACK TRANSACTION p10;
 
 ROLLBACK TRANSACTION;

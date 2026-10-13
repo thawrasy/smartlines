@@ -90,6 +90,10 @@ BEGIN
         WHEN NOT MATCHED THEN
             INSERT (SessionId, BoundTenantId, BoundUserId, BindingToken, BindingKind)
             VALUES (s.SessionId, @TenantId, @svc, @token, 'JOB');
+        -- Every job binding is audited with its JobKey (DOC-F04 section 5.2); the actor is the service account.
+        DECLARE @after NVARCHAR(200) = (SELECT @JobKey AS jobKey FOR JSON PATH, WITHOUT_ARRAY_WRAPPER);
+        EXEC aud.usp_WriteEvent @TenantId = @TenantId, @Action = 'JOB_BOUND', @Category = 'SYSTEM', @ActorType = 'JOB',
+             @ActorUserId = @svc, @AfterJson = @after, @CorrelationId = @CorrelationId;
 
         EXEC sp_set_session_context N'BindingToken', @token, @read_only = 1;
         EXEC sp_set_session_context N'TenantId', @TenantId, @read_only = 1;

@@ -93,6 +93,10 @@ BEGIN
         VALUES (@TenantId, 'tenant.created', 'Tenant', @TenantId,
                 CONCAT(N'{"tenantId":', @TenantId, N',"adminUserId":', @AdminUserId, N',"serviceUserId":', @svc,
                        N',"createdByOperatorId":', @caller, N'}'));
+        DECLARE @after NVARCHAR(400) = (SELECT @slug AS code, @PlanId AS planId, 'TRIAL' AS status
+                                        FOR JSON PATH, WITHOUT_ARRAY_WRAPPER);
+        EXEC aud.usp_WriteEvent @TenantId = NULL, @Action = 'TENANT_CREATED', @Category = 'PLATFORM', @ActorType = 'OPERATOR',
+             @ActorOperatorId = @caller, @EntityType = 'plat.Tenant', @EntityId = @TenantId, @AfterJson = @after;
         IF @own = 1 COMMIT TRANSACTION;
     END TRY
     BEGIN CATCH
@@ -144,6 +148,10 @@ BEGIN
         INSERT sec.UserToken (TenantId, UserId, Purpose, TokenHash, ExpiresAt, SentTo)
         VALUES (@tenant, @UserId, 'INVITATION', HASHBYTES('SHA2_256', @Token), DATEADD(HOUR, 48, @now), @email);
         SET @SentTo = @email;
+        DECLARE @svc BIGINT = CAST(SESSION_CONTEXT(N'UserId') AS BIGINT);
+        EXEC aud.usp_WriteEvent @TenantId = @tenant, @Action = 'FIRST_ADMIN_INVITED', @Category = 'CONFIG', @ActorType = 'JOB',
+             @ActorUserId = @svc, @Severity = 'HIGH', @EntityType = 'sec.AppUser', @EntityId = @UserId,
+             @AfterJson = N'{"role":"TA"}';
         IF @own = 1 COMMIT TRANSACTION;
     END TRY
     BEGIN CATCH
@@ -163,7 +171,8 @@ CREATE OR ALTER PROCEDURE plat.usp_ApplyTenantStatus
     @Status      VARCHAR(18),
     @Actor       VARCHAR(8),
     @Reason      NVARCHAR(500) = NULL,
-    @TrialEndsOn DATE = NULL
+    @TrialEndsOn DATE = NULL,
+    @OperatorId  INT = NULL            -- the operator administrator, when @Actor is OPERATOR (for the audit row)
 WITH EXECUTE AS N'tp_auth_exec'
 AS
 BEGIN
@@ -212,6 +221,14 @@ BEGIN
         INSERT cfg.OutboxEvent (TenantId, EventName, AggregateType, AggregateId, PayloadJson)
         VALUES (@TenantId, 'tenant.status_changed', 'Tenant', @TenantId,
                 CONCAT(N'{"from":"', @old, N'","to":"', @Status, N'","by":"', @Actor, N'"}'));
+        DECLARE @before NVARCHAR(100) = (SELECT @old AS status FOR JSON PATH, WITHOUT_ARRAY_WRAPPER),
+                @after NVARCHAR(1000) = (SELECT @Status AS status, @Reason AS reason,
+                                                CASE WHEN @Status = 'TRIAL' THEN @TrialEndsOn END AS trialEndsOn
+                                         FOR JSON PATH, WITHOUT_ARRAY_WRAPPER),
+                @severity VARCHAR(4) = CASE WHEN @Status IN ('SUSPENDED', 'CLOSED', 'ARCHIVED_READ_ONLY') THEN 'HIGH' ELSE 'INFO' END;
+        EXEC aud.usp_WriteEvent @TenantId = NULL, @Action = 'TENANT_STATUS_CHANGED', @Category = 'PLATFORM', @ActorType = @Actor,
+             @ActorOperatorId = @OperatorId, @Severity = @severity, @EntityType = 'plat.Tenant', @EntityId = @TenantId,
+             @BeforeJson = @before, @AfterJson = @after;
         IF @own = 1 COMMIT TRANSACTION;
     END TRY
     BEGIN CATCH
@@ -231,9 +248,10 @@ WITH EXECUTE AS N'tp_auth_exec'
 AS
 BEGIN
     SET NOCOUNT ON;
-    IF NOT EXISTS (SELECT 1 FROM plat.fn_OperatorAdminStepUp(@OperatorSessionToken))
+    DECLARE @caller INT = (SELECT PlatformOperatorId FROM plat.fn_OperatorAdminStepUp(@OperatorSessionToken));
+    IF @caller IS NULL
         THROW 50021, 'An operator administrator with an MFA check in the last 5 minutes is required', 1;
-    EXEC plat.usp_ApplyTenantStatus @TenantId, @Status, 'OPERATOR', @Reason, @TrialEndsOn;
+    EXEC plat.usp_ApplyTenantStatus @TenantId, @Status, 'OPERATOR', @Reason, @TrialEndsOn, @caller;
 END;
 GO
 -- The daily platform jobs (DOC-F05 6.3): trials that ended become SUSPENDED (reason TRIAL_EXPIRED), and tenants

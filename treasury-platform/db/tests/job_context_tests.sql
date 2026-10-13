@@ -5,7 +5,7 @@
    Run against a deployed BankFas database that holds no real data, with a sysadmin login:
        sqlcmd -S <server> -U sa -C -I -b -i db/tests/job_context_tests.sql
    One transaction with a savepoint per case, rolled back at the end. J4 presets the context, so a call that passes
-   every check stops at 50004 instead of binding; J6 is the one real binding and runs last.
+   every check stops at 50004 instead of binding; J6 is the one real binding and runs last; J7 checks its audit row.
    Each case prints one line that starts with PASS or FAIL.
    ============================================================================ */
 USE [BankFas];
@@ -14,6 +14,9 @@ SET NOCOUNT ON;
 BEGIN TRANSACTION;
 CREATE USER [tp_test_job] WITHOUT LOGIN;
 CREATE USER [tp_test_app] WITHOUT LOGIN;
+CREATE USER [tp_test_jread] WITHOUT LOGIN;              -- reads every audit row (tp_auth passes the row filters)
+ALTER ROLE [tp_auth] ADD MEMBER [tp_test_jread];
+ALTER ROLE [db_datareader] ADD MEMBER [tp_test_jread];
 ALTER ROLE [tp_jobs] ADD MEMBER [tp_test_job];
 ALTER ROLE [tp_app] ADD MEMBER [tp_test_app];
 ALTER TABLE plat.Tenant NOCHECK CONSTRAINT ALL;
@@ -172,6 +175,17 @@ REVERT;
 IF @e1 IS NULL AND @uid = @svcA AND @key = 'JOB-WFL-SLA' AND @n = 2 AND @n2 = 1 AND @e2 = 50003 AND @e3 = 50003 AND @n3 = 0
     PRINT 'PASS J6: a job binds as the tenant''s service account, works in that tenant only, cannot act as an administrator, and loses the tenant when the account is disabled';
 ELSE PRINT 'FAIL J6: job binding (' + CONCAT(@e1, '/', @uid, '/', @key, '/', @n, '/', @n2, '/', @e2, '/', @e3, '/', @n3) + ')';
+/* J7: the binding wrote a row of the tenant with its JobKey and correlation id; the actor is the service account
+   (DOC-F04 section 5.2, ADR 0007). */
+DECLARE @auditRows INT;
+EXECUTE AS USER = N'tp_test_jread';
+SELECT @auditRows = COUNT(*) FROM aud.AuditLog
+ WHERE TenantId = @tA AND Action = 'JOB_BOUND' AND Category = 'SYSTEM' AND ActorType = 'JOB'
+   AND ActorId = (SELECT PublicId FROM sec.AppUser WHERE AppUserId = @svcA)
+   AND JSON_VALUE(AfterJson, '$.jobKey') = 'JOB-WFL-SLA' AND CorrelationId = @corr;
+REVERT;
+IF @auditRows = 1 PRINT 'PASS J7: a job binding is audited in the tenant''s log with its JobKey, correlation id and service account';
+ELSE PRINT CONCAT('FAIL J7: job binding audit rows ', @auditRows);
 ROLLBACK TRANSACTION j6;
 
 ROLLBACK TRANSACTION;

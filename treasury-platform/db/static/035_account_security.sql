@@ -17,6 +17,8 @@
    The application checks the permission code of an administrator action (sec.user.manage, DOC-F07); the database
    checks that the caller is bound to the tenant with write access and that the target belongs to it.
 
+   Each procedure writes its own aud.AuditLog row in the same transaction as the change (029, ADR 0007).
+
    Residual (ADR 0003): the application sends the e-mail with each link, so it sees the raw link token. A fully
    compromised application server can therefore still take over an account through a reset link; the user is told
    by e-mail and the action is logged. What is closed is direct change through table rights.
@@ -140,6 +142,9 @@ BEGIN
            SET MfaEnabled = 1, MfaSecretEnc = @MfaSecretEnc, MfaKeyId = @MfaKeyId, MfaEnrolledAt = @now, MfaLastUsedStep = @Step
          WHERE TenantId = @TenantId AND AppUserId = @uid;
         UPDATE sec.UserSession SET MfaVerifiedAt = @now WHERE UserSessionId = @sid;
+        DECLARE @after NVARCHAR(100) = CASE WHEN @tid IS NULL THEN N'{"reenrolment":false}' ELSE N'{"reenrolment":true}' END;
+        EXEC aud.usp_WriteEvent @TenantId = @TenantId, @Action = 'MFA_ENROLLED', @Category = 'SECURITY', @ActorType = 'USER',
+             @ActorUserId = @uid, @EntityType = 'sec.AppUser', @EntityId = @uid, @AfterJson = @after;
         IF @own = 1 COMMIT TRANSACTION;
     END TRY
     BEGIN CATCH
@@ -181,6 +186,9 @@ BEGIN
             UPDATE sec.MfaRecoveryCode SET UsedAt = @now, UsedIp = @ClientIp WHERE MfaRecoveryCodeId = @cid;
             UPDATE sec.UserSession SET MfaVerifiedAt = @now WHERE UserSessionId = @sid;
             SELECT @Remaining = COUNT(*) FROM sec.MfaRecoveryCode WHERE TenantId = @TenantId AND UserId = @uid AND UsedAt IS NULL;
+            DECLARE @left NVARCHAR(40) = CONCAT(N'{"remaining":', @Remaining, N'}');
+            EXEC aud.usp_WriteEvent @TenantId = @TenantId, @Action = 'RECOVERY_CODE_USED', @Category = 'SECURITY', @ActorType = 'USER',
+                 @ActorUserId = @uid, @EntityType = 'sec.AppUser', @EntityId = @uid, @AfterJson = @left, @IpAddress = @ClientIp;
         END
         ELSE
         BEGIN
@@ -231,18 +239,37 @@ WITH EXECUTE AS N'tp_auth_exec'
 AS
 BEGIN
     SET NOCOUNT ON;
-    DECLARE @now DATETIME2(3) = SYSUTCDATETIME();
-    IF @SessionToken IS NOT NULL
-        UPDATE sec.UserSession SET EndedAt = @now, EndReason = 'LOGOUT'
-         WHERE TenantId = @TenantId AND TokenHash = HASHBYTES('SHA2_256', @SessionToken) AND EndedAt IS NULL;
-    ELSE IF @UserSessionId IS NOT NULL
-    BEGIN
-        IF NOT EXISTS (SELECT 1 FROM sec.fn_BoundAsUser(@TenantId, 0)) THROW 50003, 'The connection is not bound to this tenant as a user', 1;
-        UPDATE sec.UserSession
-           SET EndedAt = @now, EndReason = 'TERMINATED_BY_ADMIN', EndedBy = CAST(SESSION_CONTEXT(N'UserId') AS BIGINT)
-         WHERE TenantId = @TenantId AND UserSessionId = @UserSessionId AND EndedAt IS NULL;
-    END
-    ELSE THROW 50001, 'A session token or a session id is required', 1;
+    DECLARE @now DATETIME2(3) = SYSUTCDATETIME(), @own BIT = 0, @sid BIGINT, @uid BIGINT,
+            @admin BIGINT = CAST(SESSION_CONTEXT(N'UserId') AS BIGINT);
+    IF @SessionToken IS NULL AND @UserSessionId IS NULL THROW 50001, 'A session token or a session id is required', 1;
+    IF @SessionToken IS NULL AND NOT EXISTS (SELECT 1 FROM sec.fn_BoundAsUser(@TenantId, 0))
+        THROW 50003, 'The connection is not bound to this tenant as a user', 1;
+    IF @@TRANCOUNT = 0 BEGIN BEGIN TRANSACTION; SET @own = 1; END ELSE SAVE TRANSACTION sp_EndSession;
+    BEGIN TRY
+        IF @SessionToken IS NOT NULL
+        BEGIN
+            UPDATE sec.UserSession SET EndedAt = @now, EndReason = 'LOGOUT', @sid = UserSessionId, @uid = UserId
+             WHERE TenantId = @TenantId AND TokenHash = HASHBYTES('SHA2_256', @SessionToken) AND EndedAt IS NULL;
+            IF @sid IS NOT NULL
+                EXEC aud.usp_WriteEvent @TenantId = @TenantId, @Action = 'LOGOUT', @Category = 'SECURITY', @ActorType = 'USER',
+                     @ActorUserId = @uid, @EntityType = 'sec.UserSession', @EntityId = @sid;
+        END
+        ELSE
+        BEGIN
+            UPDATE sec.UserSession
+               SET EndedAt = @now, EndReason = 'TERMINATED_BY_ADMIN', EndedBy = @admin, @sid = UserSessionId
+             WHERE TenantId = @TenantId AND UserSessionId = @UserSessionId AND EndedAt IS NULL;
+            IF @sid IS NOT NULL
+                EXEC aud.usp_WriteEvent @TenantId = @TenantId, @Action = 'SESSION_TERMINATED', @Category = 'SECURITY', @ActorType = 'USER',
+                     @ActorUserId = @admin, @EntityType = 'sec.UserSession', @EntityId = @sid;
+        END;
+        IF @own = 1 COMMIT TRANSACTION;
+    END TRY
+    BEGIN CATCH
+        IF @own = 1 AND XACT_STATE() <> 0 ROLLBACK TRANSACTION;
+        ELSE IF @own = 0 AND XACT_STATE() = 1 ROLLBACK TRANSACTION sp_EndSession;   -- undo this procedure only
+        THROW;
+    END CATCH;
 END;
 GO
 /* ---------- Passwords ---------- */
@@ -376,7 +403,11 @@ BEGIN
             EXEC sec.usp_RecordAuthFailure @TenantId, @uid, @ClientIp, NULL, @locked OUTPUT;
         END
         ELSE
+        BEGIN
             EXEC sec.usp_ApplyNewPassword @TenantId, @uid, @NewPasswordHash, @Candidates, @sid;
+            EXEC aud.usp_WriteEvent @TenantId = @TenantId, @Action = 'PASSWORD_CHANGED', @Category = 'SECURITY', @ActorType = 'USER',
+                 @ActorUserId = @uid, @EntityType = 'sec.AppUser', @EntityId = @uid, @IpAddress = @ClientIp;
+        END;
         IF @own = 1 COMMIT TRANSACTION;
     END TRY
     BEGIN CATCH
@@ -414,6 +445,9 @@ BEGIN
             INSERT sec.UserToken (TenantId, UserId, Purpose, TokenHash, ExpiresAt, SentTo, RequestIp)
             VALUES (@TenantId, @uid, 'PASSWORD_RESET', HASHBYTES('SHA2_256', @Token), DATEADD(MINUTE, 30, @now), @addr, @ClientIp);
             SET @SentTo = @addr;
+            -- The requester is not known: no actor, only the account the link is for.
+            EXEC aud.usp_WriteEvent @TenantId = @TenantId, @Action = 'PASSWORD_RESET_REQUESTED', @Category = 'SECURITY', @ActorType = 'USER',
+                 @EntityType = 'sec.AppUser', @EntityId = @uid, @IpAddress = @ClientIp;
         END;
         IF @own = 1 COMMIT TRANSACTION;
     END TRY
@@ -447,6 +481,8 @@ BEGIN
                FailedAttempts = 0, FirstFailedAt = NULL
          WHERE TenantId = @TenantId AND AppUserId = @uid;
         UPDATE sec.UserToken SET UsedAt = @now WHERE UserTokenId = @tid;
+        EXEC aud.usp_WriteEvent @TenantId = @TenantId, @Action = 'PASSWORD_RESET', @Category = 'SECURITY', @ActorType = 'USER',
+             @ActorUserId = @uid, @EntityType = 'sec.AppUser', @EntityId = @uid;
         IF @own = 1 COMMIT TRANSACTION;
     END TRY
     BEGIN CATCH
@@ -480,6 +516,8 @@ BEGIN
         UPDATE sec.AppUser SET PasswordHash = @NewPasswordHash, PasswordChangedAt = @now, Status = 'ACTIVE'
          WHERE TenantId = @TenantId AND AppUserId = @uid;
         UPDATE sec.UserToken SET UsedAt = @now WHERE UserTokenId = @tid;
+        EXEC aud.usp_WriteEvent @TenantId = @TenantId, @Action = 'INVITATION_ACCEPTED', @Category = 'SECURITY', @ActorType = 'USER',
+             @ActorUserId = @uid, @EntityType = 'sec.AppUser', @EntityId = @uid;
         IF @own = 1 COMMIT TRANSACTION;
     END TRY
     BEGIN CATCH
@@ -527,6 +565,10 @@ BEGIN
         VALUES (@TenantId, @UserId, @Purpose, HASHBYTES('SHA2_256', @Token), @expires, @email,
                 CAST(SESSION_CONTEXT(N'UserId') AS BIGINT), CAST(SESSION_CONTEXT(N'ClientIp') AS VARCHAR(45)));
         SET @SentTo = @email;
+        DECLARE @admin BIGINT = CAST(SESSION_CONTEXT(N'UserId') AS BIGINT),
+                @after NVARCHAR(100) = (SELECT @Purpose AS purpose FOR JSON PATH, WITHOUT_ARRAY_WRAPPER);
+        EXEC aud.usp_WriteEvent @TenantId = @TenantId, @Action = 'LINK_ISSUED', @Category = 'SECURITY', @ActorType = 'USER',
+             @ActorUserId = @admin, @EntityType = 'sec.AppUser', @EntityId = @UserId, @AfterJson = @after;
         IF @own = 1 COMMIT TRANSACTION;
     END TRY
     BEGIN CATCH
@@ -545,11 +587,23 @@ AS
 BEGIN
     SET NOCOUNT ON;
     IF NOT EXISTS (SELECT 1 FROM sec.fn_BoundAsUser(@TenantId, 1)) THROW 50003, 'The connection is not bound to this tenant as a user for writing', 1;
-    UPDATE sec.AppUser
-       SET Status = 'ACTIVE', LockedUntil = NULL, RequiresAdminUnlock = 0, LockoutCount = 0, FailedAttempts = 0, FirstFailedAt = NULL
-     WHERE TenantId = @TenantId AND AppUserId = @UserId AND IsSystemUser = 0
-       AND (Status = 'LOCKED' OR RequiresAdminUnlock = 1);
-    IF @@ROWCOUNT = 0 THROW 50018, 'The user is not locked', 1;
+    DECLARE @own BIT = 0, @admin BIGINT = CAST(SESSION_CONTEXT(N'UserId') AS BIGINT);
+    IF @@TRANCOUNT = 0 BEGIN BEGIN TRANSACTION; SET @own = 1; END ELSE SAVE TRANSACTION sp_UnlockUser;
+    BEGIN TRY
+        UPDATE sec.AppUser
+           SET Status = 'ACTIVE', LockedUntil = NULL, RequiresAdminUnlock = 0, LockoutCount = 0, FailedAttempts = 0, FirstFailedAt = NULL
+         WHERE TenantId = @TenantId AND AppUserId = @UserId AND IsSystemUser = 0
+           AND (Status = 'LOCKED' OR RequiresAdminUnlock = 1);
+        IF @@ROWCOUNT = 0 THROW 50018, 'The user is not locked', 1;
+        EXEC aud.usp_WriteEvent @TenantId = @TenantId, @Action = 'USER_UNLOCKED', @Category = 'SECURITY', @ActorType = 'USER',
+             @ActorUserId = @admin, @EntityType = 'sec.AppUser', @EntityId = @UserId;
+        IF @own = 1 COMMIT TRANSACTION;
+    END TRY
+    BEGIN CATCH
+        IF @own = 1 AND XACT_STATE() <> 0 ROLLBACK TRANSACTION;
+        ELSE IF @own = 0 AND XACT_STATE() = 1 ROLLBACK TRANSACTION sp_UnlockUser;   -- undo this procedure only
+        THROW;
+    END CATCH;
 END;
 GO
 -- Clears the user's MFA (lost device, BR-PLT-006): secret and recovery codes removed, sessions ended. The user
@@ -571,6 +625,9 @@ BEGIN
         DELETE FROM sec.MfaRecoveryCode WHERE TenantId = @TenantId AND UserId = @UserId;
         UPDATE sec.UserSession SET EndedAt = @now, EndReason = 'MFA_RESET', EndedBy = CAST(SESSION_CONTEXT(N'UserId') AS BIGINT)
          WHERE TenantId = @TenantId AND UserId = @UserId AND EndedAt IS NULL;
+        DECLARE @admin BIGINT = CAST(SESSION_CONTEXT(N'UserId') AS BIGINT);
+        EXEC aud.usp_WriteEvent @TenantId = @TenantId, @Action = 'MFA_RESET', @Category = 'SECURITY', @ActorType = 'USER',
+             @ActorUserId = @admin, @Severity = 'HIGH', @EntityType = 'sec.AppUser', @EntityId = @UserId;
         IF @own = 1 COMMIT TRANSACTION;
     END TRY
     BEGIN CATCH
@@ -594,6 +651,8 @@ BEGIN
     DECLARE @now DATETIME2(3) = SYSUTCDATETIME(), @own BIT = 0;
     IF @@TRANCOUNT = 0 BEGIN BEGIN TRANSACTION; SET @own = 1; END ELSE SAVE TRANSACTION sp_SetUserStatus;
     BEGIN TRY
+        DECLARE @old VARCHAR(10) = (SELECT Status FROM sec.AppUser WITH (UPDLOCK, HOLDLOCK)
+                                    WHERE TenantId = @TenantId AND AppUserId = @UserId AND IsSystemUser = 0);
         UPDATE sec.AppUser
            SET Status = @Status, ArchivedAt = CASE WHEN @Status = 'ARCHIVED' THEN @now ELSE ArchivedAt END
          WHERE TenantId = @TenantId AND AppUserId = @UserId AND IsSystemUser = 0
@@ -604,6 +663,11 @@ BEGIN
         IF @Status <> 'ACTIVE'
             UPDATE sec.UserSession SET EndedAt = @now, EndReason = 'USER_DISABLED', EndedBy = CAST(SESSION_CONTEXT(N'UserId') AS BIGINT)
              WHERE TenantId = @TenantId AND UserId = @UserId AND EndedAt IS NULL;
+        DECLARE @admin BIGINT = CAST(SESSION_CONTEXT(N'UserId') AS BIGINT),
+                @before NVARCHAR(100) = (SELECT @old AS status FOR JSON PATH, WITHOUT_ARRAY_WRAPPER),
+                @after NVARCHAR(100) = (SELECT @Status AS status FOR JSON PATH, WITHOUT_ARRAY_WRAPPER);
+        EXEC aud.usp_WriteEvent @TenantId = @TenantId, @Action = 'USER_STATUS_CHANGED', @Category = 'SECURITY', @ActorType = 'USER',
+             @ActorUserId = @admin, @EntityType = 'sec.AppUser', @EntityId = @UserId, @BeforeJson = @before, @AfterJson = @after;
         IF @own = 1 COMMIT TRANSACTION;
     END TRY
     BEGIN CATCH

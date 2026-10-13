@@ -31,6 +31,7 @@ GO
 :r static/010_rls.sql
 :r static/025_tenant_views.sql
 :r static/028_tenant_settings.sql
+:r static/029_audit_writer.sql
 :r static/030_session_context.sql
 :r static/035_account_security.sql
 :r static/036_operator_and_support.sql

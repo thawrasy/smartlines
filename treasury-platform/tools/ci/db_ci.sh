@@ -2,7 +2,7 @@
 # Database CI: checks the model, confirms the generated DDL is current, deploys it to SQL Server,
 # compares what was deployed with the DDL, and runs the trigger, tenant-isolation, account-security,
 # operator-and-support, job-binding, tenant-onboarding, document-numbering (one of them with concurrent connections),
-# KYC history and reference data tests.
+# KYC history, reference data and audit trail tests.
 #
 # Environment:
 #   SA_PASSWORD   password of the sa login (required)
@@ -145,9 +145,10 @@ if grep -q '^FAIL' "$TMP/operator.out"; then
     exit 1
 fi
 op_pass=$(grep -c '^PASS' "$TMP/operator.out" || true)
-# 10 cases: P1-P10 (ADR 0004: operator bootstrap, login, MFA, lockout, reset, status, direct rights; the support binding).
-if [ "$op_pass" -ne 10 ]; then
-    echo "expected 10 PASS, found $op_pass"
+# 11 cases: P1-P11 (ADR 0004: operator bootstrap, login, MFA, lockout, reset, status, direct rights; the support binding
+# and its audit row, ADR 0007).
+if [ "$op_pass" -ne 11 ]; then
+    echo "expected 11 PASS, found $op_pass"
     exit 1
 fi
 echo "operator and support tests: $op_pass passed"
@@ -163,9 +164,10 @@ if grep -q '^FAIL' "$TMP/jobs.out"; then
     exit 1
 fi
 job_pass=$(grep -c '^PASS' "$TMP/jobs.out" || true)
-# 6 cases: J1-J6 (ADR 0004: job catalogue, service account, tenant status, tenant list, the real job binding).
-if [ "$job_pass" -ne 6 ]; then
-    echo "expected 6 PASS, found $job_pass"
+# 7 cases: J1-J7 (ADR 0004: job catalogue, service account, tenant status, tenant list, the real job binding and its
+# audit row, ADR 0007).
+if [ "$job_pass" -ne 7 ]; then
+    echo "expected 7 PASS, found $job_pass"
     exit 1
 fi
 echo "job binding tests: $job_pass passed"
@@ -259,4 +261,23 @@ if [ "$ref_pass" -ne 4 ]; then
     exit 1
 fi
 echo "reference data tests: $ref_pass passed"
+echo "== 16. audit rows written by the database (db/tests/audit_trail_tests.sql)"
+sq -i db/tests/audit_trail_tests.sql > "$TMP/audit.out" 2>&1 || {
+    cat "$TMP/audit.out"
+    echo "audit trail test run failed"
+    exit 1
+}
+cat "$TMP/audit.out"
+if grep -q '^FAIL' "$TMP/audit.out"; then
+    echo "an audit trail test failed"
+    exit 1
+fi
+aud_pass=$(grep -c '^PASS' "$TMP/audit.out" || true)
+# 7 cases: AU1-AU7 (ADR 0007: logins, administrator and self-service actions, operators, tenant life, visibility).
+# The support and job bindings are checked in steps 9 (P11) and 10 (J7).
+if [ "$aud_pass" -ne 7 ]; then
+    echo "expected 7 PASS, found $aud_pass"
+    exit 1
+fi
+echo "audit trail tests: $aud_pass passed"
 echo "all database checks passed"

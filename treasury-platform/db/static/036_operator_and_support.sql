@@ -31,6 +31,9 @@
    or an operator leaving ACTIVE removes the support bindings at once (triggers below).
                                                                                             EXECUTE: tp_support
 
+   Every procedure here writes its audit row in the same transaction (029, ADR 0007): operator events as platform
+   rows, a support binding as a row of the tenant, so the tenant sees who entered its data.
+
    Errors: 50001 arguments, 50002 tenant not available for support, 50003 no valid operator session, 50004 already
    bound, 50005 invalid e-mail or password, 50018 operator not locked, 50021 not an operator administrator,
    50022 no active support grant.
@@ -69,6 +72,9 @@ BEGIN
         UPDATE plat.PlatformOperator SET Status = 'LOCKED', FailedAttempts = 0, FirstFailedAt = NULL, LockedUntil = NULL
          WHERE PlatformOperatorId = @OperatorId;
         SET @Locked = 1;
+        EXEC aud.usp_WriteEvent @TenantId = NULL, @Action = 'OPERATOR_LOCKOUT', @Category = 'PLATFORM', @ActorType = 'OPERATOR',
+             @ActorOperatorId = @OperatorId, @Severity = 'HIGH', @Result = 'DENIED',
+             @EntityType = 'plat.PlatformOperator', @EntityId = @OperatorId;
     END
     ELSE
         UPDATE plat.PlatformOperator SET FailedAttempts = @failed, FirstFailedAt = @first WHERE PlatformOperatorId = @OperatorId;
@@ -121,10 +127,22 @@ BEGIN
                 VALUES (@oid, HASHBYTES('SHA2_256', @SessionToken), @now, DATEADD(MINUTE, 15, @now), DATEADD(HOUR, 8, @now),
                         @ClientIp, @UserAgent);
                 SELECT @ok = 1, @OperatorId = @oid;
+                EXEC aud.usp_WriteEvent @TenantId = NULL, @Action = 'OPERATOR_LOGIN_SUCCESS', @Category = 'PLATFORM', @ActorType = 'OPERATOR',
+                     @ActorOperatorId = @oid, @EntityType = 'plat.PlatformOperator', @EntityId = @oid,
+                     @IpAddress = @ClientIp, @UserAgent = @UserAgent;
             END
             ELSE
+            BEGIN
+                EXEC aud.usp_WriteEvent @TenantId = NULL, @Action = 'OPERATOR_LOGIN_FAILED', @Category = 'PLATFORM', @ActorType = 'OPERATOR',
+                     @ActorOperatorId = @oid, @Result = 'FAILED', @EntityType = 'plat.PlatformOperator', @EntityId = @oid,
+                     @IpAddress = @ClientIp, @UserAgent = @UserAgent;
                 EXEC plat.usp_RecordOperatorFailure @oid, @locked OUTPUT;
-        END;
+            END;
+        END
+        ELSE IF @oid IS NOT NULL                                    -- locked, invited, disabled or archived
+            EXEC aud.usp_WriteEvent @TenantId = NULL, @Action = 'OPERATOR_LOGIN_DENIED', @Category = 'PLATFORM', @ActorType = 'OPERATOR',
+                 @ActorOperatorId = @oid, @Result = 'DENIED', @EntityType = 'plat.PlatformOperator', @EntityId = @oid,
+                 @IpAddress = @ClientIp, @UserAgent = @UserAgent;
         IF @own = 1 COMMIT TRANSACTION;
     END TRY
     BEGIN CATCH
@@ -164,6 +182,8 @@ BEGIN
         END
         ELSE
         BEGIN
+            EXEC aud.usp_WriteEvent @TenantId = NULL, @Action = 'OPERATOR_MFA_FAILED', @Category = 'PLATFORM', @ActorType = 'OPERATOR',
+                 @ActorOperatorId = @oid, @Result = 'FAILED', @EntityType = 'plat.OperatorSession', @EntityId = @sid;
             EXEC plat.usp_RecordOperatorFailure @oid, @locked OUTPUT;
             IF @locked = 1
                 UPDATE plat.OperatorSession SET EndedAt = @now, EndReason = 'MFA_FAILED' WHERE OperatorSessionId = @sid;
@@ -198,8 +218,21 @@ WITH EXECUTE AS N'tp_auth_exec'
 AS
 BEGIN
     SET NOCOUNT ON;
-    UPDATE plat.OperatorSession SET EndedAt = SYSUTCDATETIME(), EndReason = 'LOGOUT'
-     WHERE TokenHash = HASHBYTES('SHA2_256', @SessionToken) AND EndedAt IS NULL;
+    DECLARE @own BIT = 0, @sid BIGINT, @oid INT;
+    IF @@TRANCOUNT = 0 BEGIN BEGIN TRANSACTION; SET @own = 1; END ELSE SAVE TRANSACTION sp_EndOperatorSession;
+    BEGIN TRY
+        UPDATE plat.OperatorSession SET EndedAt = SYSUTCDATETIME(), EndReason = 'LOGOUT', @sid = OperatorSessionId, @oid = OperatorId
+         WHERE TokenHash = HASHBYTES('SHA2_256', @SessionToken) AND EndedAt IS NULL;
+        IF @sid IS NOT NULL
+            EXEC aud.usp_WriteEvent @TenantId = NULL, @Action = 'OPERATOR_LOGOUT', @Category = 'PLATFORM', @ActorType = 'OPERATOR',
+                 @ActorOperatorId = @oid, @EntityType = 'plat.OperatorSession', @EntityId = @sid;
+        IF @own = 1 COMMIT TRANSACTION;
+    END TRY
+    BEGIN CATCH
+        IF @own = 1 AND XACT_STATE() <> 0 ROLLBACK TRANSACTION;
+        ELSE IF @own = 0 AND XACT_STATE() = 1 ROLLBACK TRANSACTION sp_EndOperatorSession;   -- undo this procedure only
+        THROW;
+    END CATCH;
 END;
 GO
 -- Another operator administrator, in a live session with MFA recorded, lifts a lock. Never one's own.
@@ -219,9 +252,21 @@ BEGIN
       AND o.Status = 'ACTIVE' AND o.Role = 'OPERATOR_ADMIN';
     IF @caller IS NULL THROW 50021, 'An operator administrator session with MFA is required', 1;
     IF @caller = @OperatorId THROW 50021, 'An operator cannot unlock their own account', 1;
-    UPDATE plat.PlatformOperator SET Status = 'ACTIVE', FailedAttempts = 0, FirstFailedAt = NULL, LockedUntil = NULL
-     WHERE PlatformOperatorId = @OperatorId AND Status = 'LOCKED';
-    IF @@ROWCOUNT = 0 THROW 50018, 'The operator is not locked', 1;
+    DECLARE @own BIT = 0;
+    IF @@TRANCOUNT = 0 BEGIN BEGIN TRANSACTION; SET @own = 1; END ELSE SAVE TRANSACTION sp_UnlockOperator;
+    BEGIN TRY
+        UPDATE plat.PlatformOperator SET Status = 'ACTIVE', FailedAttempts = 0, FirstFailedAt = NULL, LockedUntil = NULL
+         WHERE PlatformOperatorId = @OperatorId AND Status = 'LOCKED';
+        IF @@ROWCOUNT = 0 THROW 50018, 'The operator is not locked', 1;
+        EXEC aud.usp_WriteEvent @TenantId = NULL, @Action = 'OPERATOR_UNLOCKED', @Category = 'PLATFORM', @ActorType = 'OPERATOR',
+             @ActorOperatorId = @caller, @EntityType = 'plat.PlatformOperator', @EntityId = @OperatorId;
+        IF @own = 1 COMMIT TRANSACTION;
+    END TRY
+    BEGIN CATCH
+        IF @own = 1 AND XACT_STATE() <> 0 ROLLBACK TRANSACTION;
+        ELSE IF @own = 0 AND XACT_STATE() = 1 ROLLBACK TRANSACTION sp_UnlockOperator;   -- undo this procedure only
+        THROW;
+    END CATCH;
 END;
 GO
 /* ---------- Operator accounts ---------- */
@@ -259,6 +304,9 @@ BEGIN
         SET @OperatorId = SCOPE_IDENTITY();
         INSERT plat.OperatorToken (OperatorId, Purpose, TokenHash, ExpiresAt, SentTo)
         VALUES (@OperatorId, 'INVITATION', HASHBYTES('SHA2_256', @Token), DATEADD(HOUR, 48, SYSUTCDATETIME()), @Email);
+        EXEC aud.usp_WriteEvent @TenantId = NULL, @Action = 'OPERATOR_BOOTSTRAPPED', @Category = 'PLATFORM', @ActorType = 'SYSTEM',
+             @Severity = 'HIGH', @EntityType = 'plat.PlatformOperator', @EntityId = @OperatorId,
+             @AfterJson = N'{"role":"OPERATOR_ADMIN"}';
         IF @own = 1 COMMIT TRANSACTION;
     END TRY
     BEGIN CATCH
@@ -290,6 +338,10 @@ BEGIN
         SET @OperatorId = SCOPE_IDENTITY();
         INSERT plat.OperatorToken (OperatorId, Purpose, TokenHash, ExpiresAt, SentTo, RequestedBy)
         VALUES (@OperatorId, 'INVITATION', HASHBYTES('SHA2_256', @Token), DATEADD(HOUR, 48, SYSUTCDATETIME()), @Email, @caller);
+        DECLARE @after NVARCHAR(100) = (SELECT @Role AS role FOR JSON PATH, WITHOUT_ARRAY_WRAPPER);
+        EXEC aud.usp_WriteEvent @TenantId = NULL, @Action = 'OPERATOR_INVITED', @Category = 'PLATFORM', @ActorType = 'OPERATOR',
+             @ActorOperatorId = @caller, @Severity = 'HIGH', @EntityType = 'plat.PlatformOperator', @EntityId = @OperatorId,
+             @AfterJson = @after;
         IF @own = 1 COMMIT TRANSACTION;
     END TRY
     BEGIN CATCH
@@ -328,6 +380,8 @@ BEGIN
                FailedAttempts = 0, FirstFailedAt = NULL, LockedUntil = NULL
          WHERE PlatformOperatorId = @oid;
         UPDATE plat.OperatorToken SET UsedAt = @now WHERE OperatorTokenId = @tid;
+        EXEC aud.usp_WriteEvent @TenantId = NULL, @Action = 'OPERATOR_SETUP_COMPLETED', @Category = 'PLATFORM', @ActorType = 'OPERATOR',
+             @ActorOperatorId = @oid, @EntityType = 'plat.PlatformOperator', @EntityId = @oid;
         IF @own = 1 COMMIT TRANSACTION;
     END TRY
     BEGIN CATCH
@@ -367,6 +421,8 @@ BEGIN
         UPDATE plat.OperatorToken SET RevokedAt = @now WHERE OperatorId = @OperatorId AND UsedAt IS NULL AND RevokedAt IS NULL;
         INSERT plat.OperatorToken (OperatorId, Purpose, TokenHash, ExpiresAt, SentTo, RequestedBy)
         VALUES (@OperatorId, 'RESET', HASHBYTES('SHA2_256', @Token), DATEADD(HOUR, 24, @now), @SentTo, @caller);
+        EXEC aud.usp_WriteEvent @TenantId = NULL, @Action = 'OPERATOR_RESET', @Category = 'PLATFORM', @ActorType = 'OPERATOR',
+             @ActorOperatorId = @caller, @Severity = 'HIGH', @EntityType = 'plat.PlatformOperator', @EntityId = @OperatorId;
         IF @own = 1 COMMIT TRANSACTION;
     END TRY
     BEGIN CATCH
@@ -387,13 +443,13 @@ AS
 BEGIN
     SET NOCOUNT ON;
     DECLARE @caller INT = (SELECT PlatformOperatorId FROM plat.fn_OperatorAdminOfSession(@SessionToken)),
-            @now DATETIME2(3) = SYSUTCDATETIME(), @own BIT = 0, @wasActiveAdmin BIT = 0;
+            @now DATETIME2(3) = SYSUTCDATETIME(), @own BIT = 0, @wasActiveAdmin BIT = 0, @old VARCHAR(10);
     IF @caller IS NULL THROW 50021, 'An operator administrator session with MFA is required', 1;
     IF @caller = @OperatorId THROW 50019, 'An operator cannot change the status of their own account', 1;
     IF @@TRANCOUNT = 0 BEGIN BEGIN TRANSACTION; SET @own = 1; END ELSE SAVE TRANSACTION sp_SetOperatorStatus;
     BEGIN TRY
         -- Every check comes before the first write, so a refusal changes nothing even inside a caller's transaction.
-        SELECT @wasActiveAdmin = CASE WHEN Role = 'OPERATOR_ADMIN' AND Status = 'ACTIVE' THEN 1 ELSE 0 END
+        SELECT @wasActiveAdmin = CASE WHEN Role = 'OPERATOR_ADMIN' AND Status = 'ACTIVE' THEN 1 ELSE 0 END, @old = Status
         FROM plat.PlatformOperator WITH (UPDLOCK, HOLDLOCK) WHERE PlatformOperatorId = @OperatorId;
         IF @wasActiveAdmin = 1 AND @Status <> 'ACTIVE'
            AND (SELECT COUNT(*) FROM plat.PlatformOperator WITH (UPDLOCK, HOLDLOCK) WHERE Role = 'OPERATOR_ADMIN' AND Status = 'ACTIVE') <= 2
@@ -411,6 +467,11 @@ BEGIN
              WHERE OperatorId = @OperatorId AND EndedAt IS NULL;
             UPDATE plat.OperatorToken SET RevokedAt = @now WHERE OperatorId = @OperatorId AND UsedAt IS NULL AND RevokedAt IS NULL;
         END;
+        DECLARE @before NVARCHAR(100) = (SELECT @old AS status FOR JSON PATH, WITHOUT_ARRAY_WRAPPER),
+                @after NVARCHAR(100) = (SELECT @Status AS status FOR JSON PATH, WITHOUT_ARRAY_WRAPPER);
+        EXEC aud.usp_WriteEvent @TenantId = NULL, @Action = 'OPERATOR_STATUS_CHANGED', @Category = 'PLATFORM', @ActorType = 'OPERATOR',
+             @ActorOperatorId = @caller, @EntityType = 'plat.PlatformOperator', @EntityId = @OperatorId,
+             @BeforeJson = @before, @AfterJson = @after;
         IF @own = 1 COMMIT TRANSACTION;
     END TRY
     BEGIN CATCH
@@ -479,6 +540,10 @@ BEGIN
         WHEN NOT MATCHED THEN
             INSERT (SessionId, BoundTenantId, BoundUserId, BindingToken, BindingKind, BoundOperatorId)
             VALUES (s.SessionId, @TenantId, 0, @token, 'SUPPORT', @oid);
+        -- A row of the tenant, with high severity: the tenant sees which operator entered its data (BR-PLT-009).
+        EXEC aud.usp_WriteEvent @TenantId = @TenantId, @Action = 'SUPPORT_ACCESS_BOUND', @Category = 'SECURITY', @ActorType = 'OPERATOR',
+             @ActorOperatorId = @oid, @Severity = 'HIGH', @EntityType = 'plat.SupportAccessGrant', @EntityId = @gid,
+             @IpAddress = @ClientIp, @CorrelationId = @CorrelationId;
 
         EXEC sp_set_session_context N'BindingToken', @token, @read_only = 1;
         EXEC sp_set_session_context N'TenantId', @TenantId, @read_only = 1;
