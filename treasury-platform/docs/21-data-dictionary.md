@@ -4777,7 +4777,7 @@
 | QueuedAt | DATETIME2(3) | نعم |  |  |  |
 | ClaimedAt | DATETIME2(3) | نعم |  |  |  |
 | ExitedAt | DATETIME2(3) | نعم |  |  |  |
-| ExitAction | VARCHAR(10) | نعم |  |  | الإجراء الذي أنهى المرحلة enum: SUBMIT, APPROVE, COMPLETE, RETURN, REJECT, CANCEL, RESUBMIT |
+| ExitAction | VARCHAR(10) | نعم |  |  | الإجراء الذي أنهى المرحلة؛ CLOSE يُغلق المثيل النهائي عند إقفال الخزينة (BR-WFL-027، DQ-F08-6) enum: SUBMIT, APPROVE, COMPLETE, RETURN, REJECT, CANCEL, RESUBMIT, CLOSE |
 | AssigneeUserId | BIGINT | نعم |  | sec.AppUser |  |
 | DueAt | DATETIME2(3) | نعم |  |  |  |
 | ClaimDueAt | DATETIME2(3) | نعم |  |  | مهلة السحب (ClaimSlaHours) من QueuedAt (BR-WFL-012) |
@@ -4794,7 +4794,7 @@
 
 **المفاتيح:** PK(RequestStageInstanceId) · UQ(TenantId, RequestId) WHERE ExitedAt IS NULL
 
-**قيود:** `(ExitedAt IS NULL AND ExitAction IS NULL AND Status IN ('QUEUED','CLAIMED','AWAITING_APPROVAL')) OR (ExitedAt IS NOT NULL AND ExitAction IS NOT NULL AND Status IN ('DONE','RETURNED','REJECTED','CANCELLED'))` · `Status <> 'RETURNED' OR ExitAction = 'RETURN'` · `Status <> 'REJECTED' OR ExitAction = 'REJECT'` · `Status <> 'CANCELLED' OR ExitAction = 'CANCEL'` · `Status <> 'QUEUED' OR AssigneeUserId IS NULL` · `Status <> 'CLAIMED' OR AssigneeUserId IS NOT NULL` · `ClaimedAt IS NULL OR QueuedAt IS NOT NULL` · `ExitedAt IS NULL OR ExitedAt >= EnteredAt` · `QueuedAt IS NULL OR QueuedAt >= EnteredAt` · `ClaimedAt IS NULL OR QueuedAt IS NULL OR ClaimedAt >= QueuedAt` · `SlaPausedSeconds >= 0 AND ReleaseCount >= 0 AND ReassignCount >= 0` · `CycleNo >= 1`
+**قيود:** `(ExitedAt IS NULL AND ExitAction IS NULL AND Status IN ('QUEUED','CLAIMED','AWAITING_APPROVAL')) OR (ExitedAt IS NOT NULL AND ExitAction IS NOT NULL AND Status IN ('DONE','RETURNED','REJECTED','CANCELLED'))` · `Status <> 'RETURNED' OR ExitAction = 'RETURN'` · `Status <> 'REJECTED' OR ExitAction = 'REJECT'` · `Status <> 'CANCELLED' OR ExitAction = 'CANCEL'` · `ExitAction IS NULL OR ExitAction <> 'CLOSE' OR Status = 'DONE'` · `Status <> 'QUEUED' OR AssigneeUserId IS NULL` · `Status <> 'CLAIMED' OR AssigneeUserId IS NOT NULL` · `ClaimedAt IS NULL OR QueuedAt IS NOT NULL` · `ExitedAt IS NULL OR ExitedAt >= EnteredAt` · `QueuedAt IS NULL OR QueuedAt >= EnteredAt` · `ClaimedAt IS NULL OR QueuedAt IS NULL OR ClaimedAt >= QueuedAt` · `SlaPausedSeconds >= 0 AND ReleaseCount >= 0 AND ReassignCount >= 0` · `CycleNo >= 1`
 
 ### `wfl.RequestApproval` — Approval slot created per entry and cycle; a new cycle creates new slots (BR-WFL-003, FR-WFL-007/008/011)
 

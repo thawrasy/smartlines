@@ -392,7 +392,7 @@ table wfl.RequestStageInstance  # Entry of a request into a stage; source of the
   QueuedAt          ts
   ClaimedAt         ts
   ExitedAt          ts
-  ExitAction        enum{SUBMIT,APPROVE,COMPLETE,RETURN,REJECT,CANCEL,RESUBMIT}   # الإجراء الذي أنهى المرحلة
+  ExitAction        enum{SUBMIT,APPROVE,COMPLETE,RETURN,REJECT,CANCEL,RESUBMIT,CLOSE}   # الإجراء الذي أنهى المرحلة؛ CLOSE يُغلق المثيل النهائي عند إقفال الخزينة (BR-WFL-027، DQ-F08-6)
   AssigneeUserId    ->sec.AppUser
   DueAt             ts
   ClaimDueAt        ts               # مهلة السحب (ClaimSlaHours) من QueuedAt (BR-WFL-012)
@@ -412,6 +412,7 @@ table wfl.RequestStageInstance  # Entry of a request into a stage; source of the
   check Status <> 'RETURNED' OR ExitAction = 'RETURN'
   check Status <> 'REJECTED' OR ExitAction = 'REJECT'
   check Status <> 'CANCELLED' OR ExitAction = 'CANCEL'
+  check ExitAction IS NULL OR ExitAction <> 'CLOSE' OR Status = 'DONE'   # الإقفال يُنهي المثيل النهائي DONE
   check Status <> 'QUEUED' OR AssigneeUserId IS NULL   # الطابور بلا مُسنَد (BR-WFL-007)
   check Status <> 'CLAIMED' OR AssigneeUserId IS NOT NULL
   check ClaimedAt IS NULL OR QueuedAt IS NOT NULL

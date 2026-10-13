@@ -75,6 +75,7 @@
 | 26 | تفضيلاتي وإشعاراتي | `ntf.prefs` | — | ✔ | ✔ | ✔ | ✔ | ✔ | ✔ | ✔ |
 | 27 | سجل الإشعارات وإخفاقات التسليم | `ntf.log.view` | — | ✔ | — | — | — | — | — | ✔ |
 | 28 | تصدير الخط الزمني وقوائم الطلبات | `req.export` | — | — | ✔ | ✔ | — | — | — | ✔ |
+| 29 | إقفال الطلب المنتهي من الخزينة: AWAITING_CLOSE إلى COMPLETED (BR-WFL-027) | `req.treasury.close` | — | — | ✔ | ◐ | — | — | — | — |
 
 ملاحظات: (أ) الرؤية دائمًا ضمن **نطاق الشركات** (FR-PLT-020) وخارجه 404. (ب) RQ لا يرى بيانات التسهيلات ولا لوحة توفر الحدود ولا المتاح ولا قيم شروط العملية ولا اسم الموظف السّاحب (Q-WFL-12) ولا شيئًا داخليًا (BR-WFL-024). (ج) الصلاحية الحساسة `fac.override_limit` و`req.treasury.approve` وحذف مرفق بعد اجتياز مرحلته تُدقَّق بشدة عالية. (د) الأدوار التفصيلية للمشتريات والمبيعات (مدقق مبيعات، موافق مبيعات) أدوار مخصصة تُبذر مع قوالب S4 وتُعدَّل. (هـ) عائلات الصلاحيات هنا تُسجَّل بـ ModuleCode: `wfl.*` ← `WORKFLOW` · `req.*` ← `REQUESTS` · `ntf.*` ← `CORE` (§13)؛ و`fac.override_limit` تتبع `FACILITIES` (`12`).
 
@@ -160,6 +161,7 @@
 | FR-WFL-039 | تعطيل مستخدم أو تغيير مديره يعيد حل الإسنادات المفتوحة ويُشعر TM بما أُعيد | Must | S3 | 🟡 | موافق عُطّل حسابه: خانته تنتقل للبديل خلال دقيقة مع سجل SYSTEM |
 | FR-WFL-040 | لا حذف فعلي لطلب قُدِّم؛ المسودات غير المقدَّمة تُؤرشف؛ المنتهية تبقى قابلة للبحث والتصدير | Must | S3 | 🟢 (X-DAT-5) | لا توجد عملية DELETE للطلب المقدَّم في API |
 | FR-WFL-041 | **الأدوار والأشخاص (قرار 2026-10-10):** يُعرِّف القالب لكل مرحلة دورًا من **منشئ · مدقّق · معتمِد** (أو غيرها) بالصلاحيات؛ يشغل كل دور **شخص أو أكثر** (حسب نمط الموافقة ANY/ALL). وإعداد القالب `wf.sod.allow_same_person` (الافتراضي **مغلق**) يتيح لمشترك صغير أن يجمع شخص واحد أكثر من دور، فيُسجَّل في التدقيق وسجل الطلب وسم «استثناء فصل المهام» ويظهر في تقرير خاص | Must | S3 | 🟢 | قالب بدور معتمِد لشخصين: يكفي أحدهما في نمط ANY ويلزمان معًا في ALL؛ مع `allow_same_person=false` يُرفض أن يوافق المنشئ على طلبه، ومع `true` يُقبل ويُسجَّل استثناءً |
+| FR-WFL-042 | **إقفال دورة العمل (قرار المالك 2026-10-12، DQ-F08-1):** انتهاء المراحل بنجاح لا يُكمل الطلب؛ ينتقل إلى AWAITING_CLOSE ويظهر في قائمة «بانتظار الإقفال» لحاملي `req.treasury.close` ضمن النطاق، ويُكمله الإقفال وحده (BR-WFL-027) | Must | S3 | ✅ قرار المالك (DQ-F08-1) | طلب صدر اعتماده يبقى «تحت الإجراء» للطالب حتى يقفله TM؛ مستخدم بلا `req.treasury.close` يُرفض إقفاله (403)، وطلب أقفله زميل قبله يعطي 409 |
 
 ### 4.2 تعريف الطلبات والطلبات العامة (REQ)
 
@@ -239,7 +241,7 @@
 | BR-WFL-008 | الإرجاع يتطلب سببًا (ظاهر للطالب افتراضيًا + ملاحظة داخلية اختيارية) وهدفًا من انتقالات RETURN المعرّفة للمرحلة في القالب، ويُبطل الخانات PENDING ويحفظ ResumeStage. إعادة التقديم تعيد الطلب إلى ResumeStage (يحدده الانتقال؛ في PURCHASE_LC بعد إرجاع للطالب: PARALLEL_APPROVALS) بـ CycleNo+1 وخانات جديدة، ولا تبقى الموافقات السابقة (`ResetApprovalsOnResubmit`=true)؛ ويُطلب إصدار مرفق جديد للمرفقات الإلزامية في المراحل المعادة (الأصل الموقّع القديم يبقى إصدارًا سابقًا)؛ ولا يُعاد ترقيم الطلب | إرجاع من مرحلة موافقة TM إلى اختيار التسهيل (داخلي) لا يمر بالطالب ولا يزيد CycleNo؛ وإعادة التقديم بعد إرجاع للطالب تزيده |
 | BR-WFL-009 | الإلغاء والرفض: الطالب يلغي ما دامت المرحلة AllowRequesterCancel (الافتراضي: حتى خروج الطلب من الطابور، أي قبل بدء التنفيذ لدى الخزينة؛ وبعده يطلب من TM)؛ TM يلغي في أي مرحلة غير نهائية. بعد الإصدار (تحويل الحجز) لا إلغاء من هنا بل بطلب فرعي على الاعتماد (`14`). الرفض والإلغاء ينهيان الطلب ويحرّران الحجز ويُغلقان الخانات المفتوحة VOIDED | إلغاء الطالب في ERP_ENTRY بعد الحجز يحرر الحجز |
 | BR-WFL-010 | الحالات الفرعية: SubStatusSet للمرحلة (الافتراضي للتنفيذ: PREPARATION · SIGNING · BANK_COMMUNICATION · AT_BANK · FOLLOW_UP 🟢)، يغيّرها المُسنَد بأي ترتيب، وكل تغيير يسجّل مدة السابقة. خاصية PausesSla لكل حالة (الافتراضي AT_BANK فقط 🟡، Q-WFL-06) | الانتقال إلى AT_BANK يوقف عدّ SLA حتى مغادرتها |
-| BR-WFL-011 | المرحلة الظاهرة = ExternalPhase للمرحلة الحالية؛ DRAFT في الدورة 1 «مسودة» وبعد إرجاع «معاد للتعديل». يرى الطالب فقط: المرحلة الظاهرة وتاريخ دخولها و«بانتظار» على مستوى الجهة (الخزينة/مديرك) لا الشخص (Q-WFL-12) والسبب الظاهر عند الإرجاع والرفض | في اختيار التسهيل وموافقة TM والتنفيذ والإصدار يرى الطالب «تحت الإجراء» |
+| BR-WFL-011 | المرحلة الظاهرة = ExternalPhase للمرحلة الحالية؛ DRAFT في الدورة 1 «مسودة» وبعد إرجاع «معاد للتعديل». يرى الطالب فقط: المرحلة الظاهرة وتاريخ دخولها و«بانتظار» على مستوى الجهة (الخزينة/مديرك) لا الشخص (Q-WFL-12) والسبب الظاهر عند الإرجاع والرفض | في اختيار التسهيل وموافقة TM والتنفيذ والإصدار، وفي AWAITING_CLOSE حتى الإقفال (BR-WFL-027)، يرى الطالب «تحت الإجراء» |
 | BR-WFL-012 | حساب SLA: W=[work.start, work.end] في أيام العمل (BR-PLT-014)، وهما إعدادا المشترك في `10` FR-PLT-043 (الافتراضي 08:00 و17:00 بتوقيت المشترك، أي 9 ساعات/يوم). DueAt = AddBusinessHours(EnteredAt, SlaHours) مع استبعاد فترات الإيقاف، والدالة هي نفسها الوحيدة في كل الوحدات وتحسب بها تذكيرات BR-NTF-006 كذلك. ON_TRACK حتى 80% من SlaHours، AT_RISK من 80% حتى DueAt، OVERDUE بعده. SlaMode=CALENDAR يتجاهل W. مهلة السحب ClaimSlaHours تُحسب بالطريقة نفسها من QueueEnteredAt | الدخول الخميس 2026-10-08 15:00 وSlaHours=8 وعطلة الجمعة والسبت: ساعتان الخميس (15–17) + 6 ساعات الأحد 08:00 ← DueAt=الأحد 2026-10-11 14:00؛ AT_RISK عند 6.4 ساعة = الأحد 12:24. وبالدالة نفسها: 24 ساعة عمل من الاثنين 2026-10-12 09:00 = الأربعاء 2026-10-14 15:00 (8 + 9 + 7) |
 | BR-WFL-013 | الترقيم: SequenceKey=`req:<TypeCode>`، النمط الافتراضي `{prefix}-{yy}-{seq:0000}` (LCP · PFR · SOA · CDR · AMD · DOC · SWF · BGR · FXR · PAY · GEN 🟡)، الفترة سنة ميلادية بتوقيت المشترك، GAP_FREE (Q-PLT-08)؛ يُخصَّص عند دخول NumberOnStageKey (الافتراضي في PURCHASE_LC: مرحلة الأصل الموقّع، Q-WFL-02). ما قبله يُعرف برقم مسودة `D-xxxxxx` خارج التسلسل؛ التخصيص مرة واحدة (إعادة دخول المرحلة بعد إرجاع لا تعيد الترقيم)؛ وإلغاء طلب بعد ترقيمه يُبقي الرقم بحالة «ملغى» ولا يُعاد | أول طلب اعتماد مستندي للمشتريات في 2026: `LCP-26-0001`؛ أول طلب في 2027-01-01: `LCP-27-0001` |
 | BR-WFL-014 | مغادرة المرحلة تتطلب بالترتيب: الحقول الإلزامية والتحقق ← المرفقات الإلزامية ← المراجع الخارجية الإلزامية ← التعليق الإلزامي ← اكتمال الموافقات ← الخطافات السابقة؛ أول إخفاق يوقف برسالة تسمّي البند | مرحلة ERP_ENTRY بلا مرجع ERP: «مرجع نظام ERP: طلب الشراء مطلوب» |
@@ -255,6 +257,7 @@
 | BR-WFL-024 | الفصل بين الداخلي والظاهر: إسقاطان في الخادم (RequesterView وStaffView)؛ المرحلة الداخلية والحالة الفرعية والمُسنَد والتخصيص والحجز والأفعال والتعليقات والمرفقات الداخلية لا تدخل RequesterView أبدًا، ومنه تُصاغ الإشعارات ورسائل الأخطاء | طلب الطالب بمعرّف تعليق داخلي يعيد 404 |
 | BR-WFL-025 | كل رقم افتراضي في هذا القسم (مهل، عتبات، مدد) مفتاح إعداد مشترك TenantSetting بحد أدنى وأقصى (BR-PLT-018) | خفض مهلة التفويض إلى أقل من يوم مرفوض |
 | BR-WFL-026 | **استثناء فصل المهام:** حين `wf.sod.allow_same_person=true` على قالب أو مرحلة تُلغى فقط قاعدتا «لا يشغل مستخدم خانتين في مرحلة واحدة» و«لا موافقة على طلبه» (BR-WFL-006 أ، ب)؛ تبقى قاعدة «لا يتجاوز مرحلة بلا إجراء» وسجل الأثر الكامل، ويُرفع إنذار للمدير عند أول استخدام للاستثناء على كل طلب | طلب بموافقة واحدة من مقدّمه: مقبول ومسجَّل بوسم الاستثناء؛ تعطيل الإعداد لاحقًا لا يغيّر الطلبات المنتهية |
+| BR-WFL-027 | **إقفال دورة العمل:** خروج آخر مرحلة ناجحة ينقل الطلب إلى AWAITING_CLOSE (ReadyToCloseAt، ومثيل مفتوح للمرحلة النهائية بلا مُسنَد) ويصدر `REQ.READY_TO_CLOSE`؛ ولا يصير COMPLETED إلا بإقفال من حامل `req.treasury.close` (TM افتراضيًا، ويضيفه المشترك لـ FO) ضمن نطاق الشركة، فيُسجَّل ClosedByUserId وClosedAt = CompletedAt ويُغلق المثيل النهائي بالإجراء CLOSE. المُقفِل ليس الطالب ولا المنشئ ولا مُسنَد آخر مرحلة، إلا باستثناء `wf.sod.allow_same_person`؛ وحساب الخدمة لا يُقفل. الأثر المالي لا ينتظر الإقفال: الخطافات تعمل عند خروج المرحلة الأخيرة، والإقفال لا يعيد تشغيلها. في AWAITING_CLOSE لا إرجاع ولا إلغاء، والتصحيح بطلب فرعي؛ والرفض والإلغاء قبلها فوريان (DQ-F08-1 إلى DQ-F08-8) | اعتماد صدر وسُجّل رقمه: يصدر LC.ISSUED فورًا ويبقى الطلب «تحت الإجراء» للطالب حتى يقفله TM، فيصدر REQ.COMPLETED |
 
 ### 5.2 الطلبات العامة وتعريف الأنواع (REQ)
 
@@ -331,7 +334,7 @@
 | EXECUTION | TASK | CLAIMER | NONE | تحت الإجراء | 40 | حالات فرعية: PREPARATION · SIGNING · BANK_COMMUNICATION · AT_BANK (يوقف SLA) · FOLLOW_UP؛ قناة التنفيذ إلزامية؛ COMPLETE ← ISSUANCE |
 | ISSUANCE | TASK | CLAIMER | NONE | تحت الإجراء | 8 | MODULE_FORM `lc.issuance` (رقم الاعتماد + نسخته)؛ ON_EXIT بالترتيب في المعاملة نفسها: `fac.convert_reservation(ReservationId, ExposureAmount, LcNumberText)` ثم `lc.record_issuance` (ينشئ LetterOfCredit ويملأ Utilization.SourceRefId = LcId، BR-WFL-018) ثم `ntf.emit LC.ISSUED` AFTER_COMMIT |
 | RETURNED | TASK | REQUESTER | NONE | معاد للتعديل | — | ON_ACTION(RESUBMIT) `lc.validate_terms` (قفل إصدار جديد)؛ RESUBMIT ← ResumeStage |
-| COMPLETED · REJECTED · CANCELLED | TERMINAL | — | — | مكتمل · مرفوض · ملغى | — | — |
+| COMPLETED · REJECTED · CANCELLED | TERMINAL | — (COMPLETED: حاملو `req.treasury.close` يقفلونه، BR-WFL-027) | — | مكتمل · مرفوض · ملغى (قبل الإقفال: «تحت الإجراء») | — | بلوغ COMPLETED يمر بـ AWAITING_CLOSE ثم CLOSE؛ REJECTED وCANCELLED فوريان |
 
 **قوالب أخرى (اختصار):**
 
@@ -367,8 +370,8 @@
 
 | الكيان | الغرض والسمات الرئيسية | العلاقات والتفرّد | الحساسية |
 |---|---|---|---|
-| Request | الطلب. DraftRef `str(20)` م · RequestNo `str(40)` خ (بعد الترقيم) · RequestTypeId م · TemplateId م (للمسودة: النسخة الحالية، ويُثبَّت عند أول تقديم) · CompanyId م · DepartmentId خ · RequesterUserId م · CreatedByUserId م · Title `str(200)` خ · Status `enum{DRAFT,ACTIVE,COMPLETED,REJECTED,CANCELLED}` م · CurrentStageInstanceId خ · ExternalPhaseId م · SubStatusKey خ · AssigneeUserId خ · QueueEnteredAt · ClaimedAt · DueAt · SlaState `enum{ON_TRACK,AT_RISK,OVERDUE,PAUSED,NONE}` · Priority `enum{NORMAL,URGENT}` · UrgentReason · RequiredByDate · CycleNo `int` م · SubmittedAt · CompletedAt · Amount `dec(19,4)` خ · CurrencyCode خ · CounterpartyName/Code خ · SearchText (مطبَّع) · FormDataJson · ParentEntityType/ParentEntityId خ · ParentRequestId خ · AllocFacilityId/AllocLimitId/AllocProductLineId/AllocInstitutionId خ · ExecutionChannel `enum{BANK_PORTAL,MANUAL_FORM,DIRECT_INTEGRATION}` خ · ReservationId →LimitReservation خ · ReservedAmount (ما أعادته `fac.reserve_limit`، أي ExposureAmount المحجوز) · ReservationState `enum{NONE,RESERVED,CONVERTED,RELEASED,LOST}` | N:1 إلى RequestType وCompany وAppUser. فريد (TenantId, RequestNo) وDraftRef. فهارس: (الحالة، المرحلة، المُسنَد) · الشركة · المبلغ · SearchText | سرّية (والحقول RESTRICTED مشفّرة) |
-| RequestStageInstance (جديد) | دخول طلب إلى مرحلة. RequestId م · StageId م · CycleNo م · EnteredAt م · QueuedAt · ClaimedAt · ExitedAt · ExitAction · AssigneeUserId · DueAt · ClaimDueAt · SlaPausedSeconds `int` · SlaState · ReleaseCount · ReassignCount · ResumeStageId خ | 1:N من Request؛ مصدر مقاييس الأزمنة | داخلية |
+| Request | الطلب. DraftRef `str(20)` م · RequestNo `str(40)` خ (بعد الترقيم) · RequestTypeId م · TemplateId م (للمسودة: النسخة الحالية، ويُثبَّت عند أول تقديم) · CompanyId م · DepartmentId خ · RequesterUserId م · CreatedByUserId م · Title `str(200)` خ · Status `enum{DRAFT,ACTIVE,AWAITING_CLOSE,COMPLETED,REJECTED,CANCELLED}` م (AWAITING_CLOSE: انتهت المراحل وينتظر إقفال الخزينة، BR-WFL-027) · ReadyToCloseAt · ClosedByUserId · ClosedAt · CurrentStageInstanceId خ · ExternalPhaseId م · SubStatusKey خ · AssigneeUserId خ · QueueEnteredAt · ClaimedAt · DueAt · SlaState `enum{ON_TRACK,AT_RISK,OVERDUE,PAUSED,NONE}` · Priority `enum{NORMAL,URGENT}` · UrgentReason · RequiredByDate · CycleNo `int` م · SubmittedAt · CompletedAt · Amount `dec(19,4)` خ · CurrencyCode خ · CounterpartyName/Code خ · SearchText (مطبَّع) · FormDataJson · ParentEntityType/ParentEntityId خ · ParentRequestId خ · AllocFacilityId/AllocLimitId/AllocProductLineId/AllocInstitutionId خ · ExecutionChannel `enum{BANK_PORTAL,MANUAL_FORM,DIRECT_INTEGRATION}` خ · ReservationId →LimitReservation خ · ReservedAmount (ما أعادته `fac.reserve_limit`، أي ExposureAmount المحجوز) · ReservationState `enum{NONE,RESERVED,CONVERTED,RELEASED,LOST}` | N:1 إلى RequestType وCompany وAppUser. فريد (TenantId, RequestNo) وDraftRef. فهارس: (الحالة، المرحلة، المُسنَد) · الشركة · المبلغ · SearchText | سرّية (والحقول RESTRICTED مشفّرة) |
+| RequestStageInstance (جديد) | دخول طلب إلى مرحلة. RequestId م · StageId م · CycleNo م · EnteredAt م · QueuedAt · ClaimedAt · ExitedAt · ExitAction (ومنها CLOSE لإقفال المرحلة النهائية) · AssigneeUserId · DueAt · ClaimDueAt · SlaPausedSeconds `int` · SlaState · ReleaseCount · ReassignCount · ResumeStageId خ | 1:N من Request؛ مصدر مقاييس الأزمنة | داخلية |
 | RequestApproval | خانة موافقة منشأة لكل دخول. RequestId م · StageInstanceId م · CycleNo م · SlotKey م · AssignedUserId خ · AssignedRoleId خ (مجموعة) · Decision `enum{PENDING,APPROVED,RETURNED,REJECTED,VOIDED,SUPERSEDED}` م · Source `enum{USER,SUBMISSION,DELEGATE,SYSTEM}` · ActedByUserId · OnBehalfOfUserId خ · ActedAt · Comment · SnapshotHash `binary(32)` · AckWarningsJson | فريد (StageInstanceId, SlotKey) | سرّية |
 | RequestAction | سجل إجراءات للإضافة فقط. ActionId `bigint` م · RequestId م · StageInstanceId خ · CycleNo · ActionType `enum` (CREATED · SUBMITTED · RESUBMITTED · NUMBER_ASSIGNED · FIELD_EDITED · APPROVED · RETURNED · REJECTED · CANCELLED · STAGE_CHANGED · SUBSTATUS_CHANGED · CLAIMED · RELEASED · REASSIGNED · COMMENT_ADDED · ATTACHMENT_ADDED/REMOVED · EXTREF_ADDED/CHANGED · HOOK_EXECUTED/FAILED · SLA_AT_RISK/BREACHED · ESCALATED · DELEGATED_ACTION · CHILD_CREATED · PRIORITY_CHANGED · TEMPLATE_MIGRATED) م · FromStageKey/ToStageKey · ActorType/ActorId · OnBehalfOfUserId · OccurredAt م · Visibility `enum{INTERNAL,REQUESTER_VISIBLE}` م · Comment · MetaJson · SnapshotJson (للتقديم وإعادته) · CorrelationId | N:1 إلى Request. لا UPDATE/DELETE. غير AuditLog (الأمني) | سرّية |
 | RequestComment | تعليق. RequestId م · StageInstanceId خ · Visibility `enum{INTERNAL,REQUESTER_VISIBLE}` م · Body `text` ≤ 4000 م · AuthorUserId م · ParentCommentId خ · RetractedAt/By خ | N:1 إلى Request | سرّية |
@@ -469,7 +472,8 @@ flowchart TD
   A --> Q["TREASURY_QUEUE<br/>غير مُسنَد"]
   Q -- "سحب" --> X["EXECUTION<br/>إعداد · توقيع · بنك · في البنك · متابعة"]
   X --> I["ISSUANCE<br/>رقم الاعتماد + نسخته<br/>fac.convert_reservation ← lc.record_issuance"]
-  I --> C(["COMPLETED + LC.ISSUED"])
+  I -- "LC.ISSUED" --> W(["AWAITING_CLOSE<br/>تحت الإجراء"])
+  W -- "CLOSE: req.treasury.close" --> C(["COMPLETED"])
   P -- RETURN --> R["RETURNED"]
   T -- "RETURN للطالب" --> R
   R -- RESUBMIT --> P
@@ -482,7 +486,7 @@ flowchart TD
 3. يفتح شاشة التنفيذ فيحدد قناة التنفيذ (مقترحة من `11` SVC-02) ويحدّث الحالة الفرعية (إعداد ← توقيع ← اتصالات بنكية ← في البنك ← متابعة)؛ كل تغيير يُسجَّل ولا يُشعر الطالب.
 4. عند «توقيع» يتحقق من كفاية المفوّضين (`11` SVC-04) ويطبع/يعبّئ النموذج في القناة اليدوية، أو يسجل مراجع البوابة وصورة الإشعار في قناة البوابة.
 5. إن تعذّر إكماله يحرّره للطابور (بسبب) أو يعيد TM إسناده.
-6. يكمل التنفيذ فينتقل إلى ISSUANCE: يدخل رقم الاعتماد ويرفق نسخته؛ يُنفَّذ التحويل (`fac.convert_reservation` ثم `lc.record_issuance`) ثم `REQ.COMPLETED` و`LC.ISSUED` للطالب ومن له صلاحية.
+6. يكمل التنفيذ فينتقل إلى ISSUANCE: يدخل رقم الاعتماد ويرفق نسخته؛ يُنفَّذ التحويل (`fac.convert_reservation` ثم `lc.record_issuance`) ثم `LC.ISSUED` للطالب ومن له صلاحية. ينتقل الطلب إلى AWAITING_CLOSE ويصدر `REQ.READY_TO_CLOSE`، ثم يقفله حامل `req.treasury.close` فيصدر `REQ.COMPLETED` (BR-WFL-027).
 
 **F-WFL-3 — موافقة مدير الخزينة والحجز.**
 1. يصل TM إشعار `REQ.APPROVAL_NEEDED`؛ يفتح الطلب من لوحته فتظهر لوحة التوفر بما تُرجعه `12` وحده ونتائج شروط العملية بحسب CheckMode (FR-REQ-013/014).
@@ -516,15 +520,21 @@ flowchart LR
 stateDiagram-v2
   [*] --> DRAFT
   DRAFT --> ACTIVE: SUBMIT (يلتقط القالب)
-  DRAFT --> CANCELLED: إلغاء أو أرشفة المسودة
+  DRAFT --> CANCELLED: إلغاء المسودة
   ACTIVE --> ACTIVE: APPROVE · RETURN · RESUBMIT · COMPLETE · سحب · تحرير
-  ACTIVE --> COMPLETED: بلوغ مرحلة نهائية ناجحة
+  ACTIVE --> AWAITING_CLOSE: إكمال آخر مرحلة ناجحة
   ACTIVE --> REJECTED: REJECT
   ACTIVE --> CANCELLED: CANCEL
+  AWAITING_CLOSE --> COMPLETED: CLOSE من إدارة الخزينة
   COMPLETED --> [*]
   REJECTED --> [*]
   CANCELLED --> [*]
+  note right of DRAFT
+    الأرشفة تبقي DRAFT مع ArchivedAt
+  end note
 ```
+
+الطلب ست حالات (قرار المالك 2026-10-12، DQ-F08-1): الرفض والإلغاء فوريان، والإكمال يمر بـ AWAITING_CLOSE ثم الإقفال (BR-WFL-027). أرشفة المسودة الخاملة لا تغيّر حالتها (ArchivedAt، BR-REQ-012). التفصيل والانتقالات في DOC-F08 §4.
 
 | الآلة | الحالات والانتقالات المسموحة | ملاحظات |
 |---|---|---|
@@ -569,7 +579,8 @@ stateDiagram-v2
 | REQ.APPROVAL_NEEDED | WFL | يلزم موافقتك | موافقو المرحلة ومفوَّضوهم | إ · ط · تطبيق + بريد فوري | تذكير 24/48/72 ساعة عمل؛ يُحَل بالإنجاز من أي مؤهل |
 | REQ.PHASE_CHANGED | WFL | تغيّرت المرحلة الظاهرة | الطالب والمنشئ | تطبيق (+ بريد حسب Q-NTF-03) | عند تغيّر الظاهرة فقط |
 | REQ.RETURNED | WFL | أُعيد للتعديل بسبب ظاهر | الطالب والمنشئ | إ · ط · تطبيق + بريد | فوري |
-| REQ.COMPLETED · REJECTED · CANCELLED | WFL | انتهى الطلب | الطالب · مدير الطالب · المُسنَد (للإلغاء) | تطبيق + بريد | فوري |
+| REQ.READY_TO_CLOSE | WFL | طلب انتهت مراحله بانتظار الإقفال (BR-WFL-027) | حاملو `req.treasury.close` ضمن نطاق الشركة | تطبيق، وعدّاد «بانتظار الإقفال» في اللوحة | عند دخول AWAITING_CLOSE؛ بلا SLA افتراضيًا (DQ-F08-8) |
+| REQ.COMPLETED · REJECTED · CANCELLED | WFL | انتهى الطلب (COMPLETED عند الإقفال لا عند الإصدار) | الطالب · مدير الطالب · المُسنَد (للإلغاء) | تطبيق + بريد | فوري |
 | REQ.QUEUED | WFL | طلب جديد في طابور الخزينة | حاملو `req.claim` ضمن نطاق الشركة | تطبيق | تجميع 15 دقيقة |
 | REQ.CLAIMED · RELEASED · REASSIGNED · STAGE_CHANGED | WFL | أحداث داخلية للخزينة | المُسنَد الجديد · TM (اختياري، مطفأ افتراضيًا) — **لا الطالب** | تطبيق | فوري/تجميع |
 | REQ.ACTION_REQUIRED_REQUESTER | WFL | يلزم إجراء منك (الأصل الموقّع، مرجع ERP…) | الطالب | إ · ط · تطبيق + بريد | تذكير 24/48/72 |
