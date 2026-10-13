@@ -2,7 +2,7 @@
 
 > Generated from the built database (`db/tools/gen_docs.py`); do not edit by hand.
 
-**521 tables, 5382 columns, in 26 schemas.**
+**522 tables, 5392 columns, in 26 schemas.**
 
 Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant isolation (RLS) · 🧩 partitioned monthly · 🔒 append-only / change-protected
 
@@ -25,7 +25,7 @@ Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant i
 - [`ptn` — Service partners: fuel stations, rest stops and maintenance](#ptn) (14 tables)
 - [`ship` — Shipments and the integrated shipping network](#ship) (57 tables)
 - [`frt` — Trucking, heavy transport and transit freight](#frt) (14 tables)
-- [`brd` — Border manifest gateway](#brd) (11 tables)
+- [`brd` — Border manifest gateway](#brd) (12 tables)
 - [`ctr` — Contracted transport: universities and employees](#ctr) (6 tables)
 - [`sch` — School transport: schools, operators, pupils and guardians, contracts, routes, runs and attendance](#sch) (11 tables)
 - [`gis` — PostGIS reference data](#gis) (1 tables)
@@ -8163,6 +8163,23 @@ Counter check-ins and their boarding passes at boarding stations: station, count
 | `cancelled_at` | `timestamp with time zone` |  |  |
 | `cancelled_by_user_id` | `bigint` | 🔗 `iam.app_user`  |  |
 | `cancel_reason` | `text` |  |  |
+
+### `brd.station_sale` 🛡️
+
+A booking sold at a station counter under the carrier's BOOKING right: station, counter, clerk; seen by the operating company and the carrier (1110)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `booking_id` | `bigint` | 🔗 `sales.booking` ✱ |  |
+| `station_id` | `bigint` | 🔗 `net.station` ✱ |  |
+| `counter_gate_id` | `bigint` | 🔗 `net.station_gate`  |  |
+| `operator_company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `carrier_company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `sold_by` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `total` | `bigint` | ✱ |  |
+| `currency` | `character(3)` | 🔗 `ref.currency` ✱ |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
 <a id="ctr"></a>
 ## `ctr` — Contracted transport: universities and employees

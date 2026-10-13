@@ -232,6 +232,12 @@ asked with. The approval takes an optional legal document number, recorded on th
 
 **1109** replaces one function (`brd.station_trips`); no table changes.
 
+**1110** adds selling at station counters. It adds one table (`brd.station_sale`, empty), one sales channel, two functions, replaces the booking isolation policy (one clause added for station sales) and moves five station tables from phase 7 to 1B; nothing is sold until the platform switches boarding stations on and a carrier grants the `BOOKING` right.
+
+**1111** adds the counter's photo role, off, to the photo view access setting, and replaces two photo functions; the photo stays off until a change approved with a legal document number turns it on.
+
+**1112** adds one function (`brd.station_board`), the public departure board; no table changes.
+
 ## 1064_partitioned_bookings.sql on a live database (R-06)
 
 1064 turns `sales.booking` into a table partitioned by ranges of id **in place, under an ACCESS EXCLUSIVE lock**: it

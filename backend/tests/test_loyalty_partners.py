@@ -97,8 +97,13 @@ def test_points_redeemed_at_a_partner_under_its_agreement():
         assert pax.get("/api/loyalty").json()["account"]["balance"] == before - 300
 
         # the statement: drawn up by one officer, approved by another, paid by a third
+        owed = next(p for p in admin.get("/api/admin/loyalty/partners").json()["partners"] if p["id"] == partner)
+        assert owed["agreement"] and owed["unsettled_payable"] == 2_400_000
         st = admin.post("/api/admin/loyalty/settlements", json={"partner_id": partner, "date_from": today, "date_to": today})
         assert st.status_code == 201 and st.json()["payable"] == 2_400_000, st.text
+        assert next(p for p in admin.get("/api/admin/loyalty/partners").json()["partners"] if p["id"] == partner)["unsettled"] == 0
+        assert any(x["uid"] == st.json()["settlement"] and x["status"] == "DRAFT"
+                   for x in admin.get("/api/admin/loyalty/settlements").json()["settlements"])
         sid = owner_sql("SELECT id FROM pricing.loyalty_settlement WHERE uid = $1", uuid.UUID(st.json()["settlement"]))
         assert admin.post(f"/api/r/loyalty-settlement/{sid}/do/approve").json()["error"]["code"] == "FOUR_EYES"
         assert second.post(f"/api/r/loyalty-settlement/{sid}/do/approve").status_code == 200

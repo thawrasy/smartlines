@@ -24,12 +24,12 @@ const PORTALS = [
   { who: null, pages: ["/", `/search?origin=DAM&destination=ALP&on=${tomorrow}`, "@trip", "/login", "/register", "/track", "/verify"] },
   { who: ["passenger@masslak.test", "PASSENGER"], pages: ["/trips", "/wallet", "/family", "/account", "/services", "/support"] },
   { who: ["owner@carrier.test", "OPERATOR"],
-    pages: ["/carrier", "/carrier/trips", "/carrier/routes", "/carrier/vehicles", "/carrier/finance", "/carrier/documents", "/carrier/reports"] },
+    pages: ["/carrier", "/carrier/trips", "/carrier/routes", "/carrier/vehicles", "/carrier/finance", "/carrier/documents", "/carrier/reports", "/carrier/stations"] },
   { who: ["counter@carrier.test", "OPERATOR"], pages: ["/carrier/counter", "/carrier/counter/report"] },
   { who: ["agency@agency.test", "AGENCY"], pages: ["/agency", "/agency/bookings", "/agency/statement", "/agency/staff"] },
   { who: ["driver@carrier.test", "DRIVER"], pages: ["/driver"] },
   { who: ["admin@masslak.test", "PLATFORM"],
-    pages: ["/admin", "/admin/companies", "/admin/finance", "/admin/documents", "/admin/stations", "/admin/modules", "/admin/payments"] },
+    pages: ["/admin", "/admin/companies", "/admin/finance", "/admin/documents", "/admin/stations", "/admin/boarding", "/admin/modules", "/admin/payments"] },
 ];
 
 function executable() {

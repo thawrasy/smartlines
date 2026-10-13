@@ -63,7 +63,7 @@ export function newKey() {
 }
 
 // ---------- Response types ----------
-export type Portal = "PASSENGER" | "OPERATOR" | "DRIVER" | "AGENCY" | "PLATFORM";
+export type Portal = "PASSENGER" | "OPERATOR" | "DRIVER" | "AGENCY" | "PLATFORM" | "STATION";
 
 // The market a user sees times and money in (1061): the company's, or the person's; the default market for visitors
 export interface Market { country: string; time_zone: string; currency: string; locale: string; minor_unit: number }

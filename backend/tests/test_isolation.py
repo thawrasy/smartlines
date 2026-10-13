@@ -42,6 +42,9 @@ ALLOWED = {
     "pricing.cancellation_policy.company_id": "cancellation policies are published terms of sale",
     "ops.trip_disruption.partner_company_id": "the carrier of a disrupted trip sees the partner it called in; the partner reads it only (1054)",
     "sales.passenger_compensation.charged_to_company_id": "the parties of a booking see who bears its compensation; only the platform writes it (1054)",
+    "net.station_operator_grant.carrier_company_id": "a station operating company sees the rights a carrier gave it; only the carrier or the platform writes them (1098)",
+    "brd.station_checkin.carrier_company_id": "the operating company sees the check-ins it made on a carrier's trips, the carrier sees them too (1105)",
+    "brd.station_sale.carrier_company_id": "the operating company sees the sales it made on a carrier's trips, the carrier sees them too (1110)",
 }
 
 

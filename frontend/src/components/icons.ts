@@ -1,6 +1,10 @@
 // Material Symbols (rounded, Apache-2.0), bundled at build time. Generated list: add a name here to use it.
 
 import i_undo from "@material-symbols/svg-400/rounded/undo.svg?raw";
+import i_info from "@material-symbols/svg-400/rounded/info.svg?raw";
+import i_add_business from "@material-symbols/svg-400/rounded/add_business.svg?raw";
+import i_check from "@material-symbols/svg-400/rounded/check.svg?raw";
+import i_open_in_new from "@material-symbols/svg-400/rounded/open_in_new.svg?raw";
 import i_timer_off from "@material-symbols/svg-400/rounded/timer_off.svg?raw";
 import i_lock_clock from "@material-symbols/svg-400/rounded/lock_clock.svg?raw";
 import i_point_of_sale from "@material-symbols/svg-400/rounded/point_of_sale.svg?raw";
@@ -131,7 +135,31 @@ import i_chat from "@material-symbols/svg-400/rounded/chat.svg?raw";
 import i_star from "@material-symbols/svg-400/rounded/star.svg?raw";
 import i_forum from "@material-symbols/svg-400/rounded/forum.svg?raw";
 
+import i_departure_board from "@material-symbols/svg-400/rounded/departure_board.svg?raw";
+import i_no_photography from "@material-symbols/svg-400/rounded/no_photography.svg?raw";
+import i_airline_seat_recline_normal from "@material-symbols/svg-400/rounded/airline_seat_recline_normal.svg?raw";
+import i_key_off from "@material-symbols/svg-400/rounded/key_off.svg?raw";
+import i_location_off from "@material-symbols/svg-400/rounded/location_off.svg?raw";
+import i_tv from "@material-symbols/svg-400/rounded/tv.svg?raw";
+import i_settings from "@material-symbols/svg-400/rounded/settings.svg?raw";
+import i_percent from "@material-symbols/svg-400/rounded/percent.svg?raw";
+import i_door_front from "@material-symbols/svg-400/rounded/door_front.svg?raw";
+import i_login from "@material-symbols/svg-400/rounded/login.svg?raw";
+import i_redeem from "@material-symbols/svg-400/rounded/redeem.svg?raw";
+import i_receipt from "@material-symbols/svg-400/rounded/receipt.svg?raw";
 export const ICONS = {
+  receipt: i_receipt,
+  redeem: i_redeem,
+  login: i_login,
+  door_front: i_door_front,
+  percent: i_percent,
+  settings: i_settings,
+  tv: i_tv,
+  location_off: i_location_off,
+  key_off: i_key_off,
+  airline_seat_recline_normal: i_airline_seat_recline_normal,
+  no_photography: i_no_photography,
+  departure_board: i_departure_board,
   search: i_search,
   swap_horiz: i_swap_horiz,
   directions_bus: i_directions_bus,
@@ -261,6 +289,10 @@ export const ICONS = {
   hourglass_top: i_hourglass_top,
   price_check: i_price_check,
   undo: i_undo,
+  info: i_info,
+  add_business: i_add_business,
+  check: i_check,
+  open_in_new: i_open_in_new,
 } as const;
 
 export type IconName = keyof typeof ICONS;

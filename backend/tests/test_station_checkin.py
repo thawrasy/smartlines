@@ -74,6 +74,9 @@ def test_counter_check_boarding_pass_and_boarding_at_the_bay(admin, operating_co
         listed = next(x for x in counter_staff.get("/api/station/trips", params={"station_uid": str(station)}).json()["trips"]
                       if x["trip_uid"] == str(trip["uid"]))
         assert listed["may_check_in"] and listed["may_board"] and listed["bay"] == bay and listed["tickets"] >= 2
+        # the passenger's photo is not shown at the counter: off until a legal approval allows it (build step 5, 1111)
+        shown = counter_staff.get(f"/api/station/tickets/{ticket['uid']}/photo", params={"station_uid": str(station)})
+        assert shown.status_code in (403, 404) and shown.json()["error"]["code"] in ("PHOTO_VIEW_NOT_ALLOWED", "PHOTO_DISABLED"), shown.text
         # the counter check: the pass prints the bay and the counter
         r = counter_staff.post("/api/station/checkin", json=body)
         assert r.status_code == 201, r.text

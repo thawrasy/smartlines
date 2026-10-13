@@ -50,7 +50,7 @@ def channel_of(channel_code: str) -> str:
     """The switch channel of a sales channel code."""
     if channel_code == "AGENCY":
         return "AGENCY"
-    if channel_code == "COUNTER":
+    if channel_code in ("COUNTER", "STATION"):         # a station counter takes the counter's payment options (1110)
         return "COUNTER"
     return "APP" if channel_code.startswith("APP") else "WEB"
 

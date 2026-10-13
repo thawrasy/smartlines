@@ -25,14 +25,16 @@ def settings_view():
 
 def test_the_settings_have_their_launch_values():
     view = settings_view()
-    assert view["view_access"] == {"TRAVELER": True, "DRIVER_AT_BOARDING": True,
-                                   "CARRIER_OFFICE_AT_BOARDING": False, "AGENT": False}
+    assert view["view_access"] == {"TRAVELER": True, "DRIVER_AT_BOARDING": True, "CARRIER_OFFICE_AT_BOARDING": False,
+                                   "AGENT": False, "STATION_COUNTER_AT_CHECKIN": False}
     assert view["verify_every_days"] is None and view["enforce_from"] is None
     assert view["identity_provider"] == "NONE"
 
 
 @pytest.mark.parametrize("key, value", [
-    ("photo.view_access", {"TRAVELER": True, "DRIVER_AT_BOARDING": True, "CARRIER_OFFICE_AT_BOARDING": "yes", "AGENT": False}),
+    ("photo.view_access", {"TRAVELER": True, "DRIVER_AT_BOARDING": True, "CARRIER_OFFICE_AT_BOARDING": "yes", "AGENT": False,
+                           "STATION_COUNTER_AT_CHECKIN": False}),
+    ("photo.view_access", {"TRAVELER": True, "DRIVER_AT_BOARDING": True, "CARRIER_OFFICE_AT_BOARDING": False, "AGENT": False}),
     ("photo.view_access", {"TRAVELER": True, "DRIVER_AT_BOARDING": True, "CARRIER_OFFICE_AT_BOARDING": False}),
     ("photo.verify_every_days", 0),
     ("photo.verify_every_days", 366),
@@ -60,6 +62,29 @@ def test_the_traveler_sees_the_own_photo_on_request_and_only_when_allowed():
     finally:
         change_setting("photo.view_access", dict(access, TRAVELER=True))
     assert c.get("/api/account/photo/image").status_code == 200
+
+
+def test_the_photo_at_a_station_counter_needs_the_legal_approval_to_be_turned_on():
+    """Build step 5 (1111): the counter photo stays off until the competent authorities approve it; the change that turns
+    it on is applied only with the approval's legal document number."""
+    from test_boarding_photo import SWITCH_ADMIN, SWITCH_CHECKER, SWITCH_FINAL
+    access = view_access()
+    assert access["STATION_COUNTER_AT_CHECKIN"] is False
+    r = login(*SWITCH_ADMIN).post("/api/admin/photos/settings/changes", json={
+        "key": "photo.view_access", "value": dict(access, STATION_COUNTER_AT_CHECKIN=True), "reason": "station counters (test)"})
+    assert r.status_code == 201, r.text
+    uid = r.json()["uid"]
+    assert login(*SWITCH_CHECKER).post(f"/api/admin/photos/policy-changes/{uid}/approve").json()["status"] == "PENDING"
+    final = login(*SWITCH_FINAL).post(f"/api/admin/photos/policy-changes/{uid}/approve")
+    assert final.status_code == 409 and final.json()["error"]["code"] == "LEGAL_BASIS_REQUIRED", final.text
+    assert view_access()["STATION_COUNTER_AT_CHECKIN"] is False
+    done = login(*SWITCH_FINAL).post(f"/api/admin/photos/policy-changes/{uid}/approve", json={"document_no": "MoI-2026/118"})
+    assert done.status_code == 200 and done.json()["status"] == "APPLIED", done.text
+    try:
+        assert view_access()["STATION_COUNTER_AT_CHECKIN"] is True
+    finally:
+        change_setting("photo.view_access", dict(access, STATION_COUNTER_AT_CHECKIN=False))   # turning it off needs no document
+    assert view_access()["STATION_COUNTER_AT_CHECKIN"] is False
 
 
 def test_identity_verification_refuses_until_a_provider_is_connected():

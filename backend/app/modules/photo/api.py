@@ -195,7 +195,8 @@ async def list_policy_changes(request: Request, pr: Principal = Depends(require_
 
 
 class ApproveIn(BaseModel):
-    """The legal document number the approver records with the approval (1095); optional, never required."""
+    """The legal document number the approver records with the approval (1095); optional, except to turn on the photo at
+    station counters, which is applied only with the legal approval's number (1111)."""
     document_no: Optional[str] = Field(default=None, min_length=1, max_length=100)
 
 

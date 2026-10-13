@@ -31,6 +31,8 @@ from .modules.photo import api as photo_api
 from .modules.boarding import api as boarding_api
 from .modules.support import api as support_api
 from .modules.manifests import api as manifests_api
+from .modules.boarding import screens as boarding_screens
+from .modules.boarding import station_sales
 from .modules.loyalty import admin as loyalty_admin
 from .modules.loyalty import api as loyalty_api
 from .modules.parcels import api as parcels_api
@@ -128,7 +130,8 @@ for r in (metrics.router, auth.router, public.router, bookings.router, wallet.ro
           integration_console.router, integration_v1.router, family_api.router, photo_api.platform, boarding_api.platform, boarding_api.carrier, boarding_api.station_operators, boarding_api.station,
           manifests_api.carrier, manifests_api.platform,
           support_api.router, support_api.admin, cash_api.router, seo_pages.router, parcels_api.customer, parcels_api.carrier,
-          loyalty_api.router, loyalty_admin.router):
+          loyalty_api.router, loyalty_admin.router, station_sales.router, boarding_screens.platform, boarding_screens.carrier,
+          boarding_screens.public):
     app.include_router(r)
 
 app.add_middleware(metrics.MetricsMiddleware)   # request counts and latency per route (T3-16)
@@ -140,8 +143,8 @@ app.add_middleware(HeadAsGet)          # added last, so it wraps everything else
 _static = Path(get_settings().static_dir).resolve()
 # top-level paths of the web app (frontend/src/App.tsx; tests/test_api_contract.py keeps the two in step); anything else
 # is a real 404 (no "soft 404" pages for search engines)
-APP_PATHS = {"", "account", "admin", "agency", "booking", "carrier", "driver", "family", "login", "m", "mfa", "parcels", "pay", "register",
-             "regulator", "search", "security", "services", "support", "track", "trip", "trips", "verify", "wallet"}
+APP_PATHS = {"", "account", "admin", "agency", "board", "booking", "carrier", "driver", "family", "login", "m", "mfa", "parcels", "pay",
+             "register", "regulator", "search", "security", "services", "station", "support", "track", "trip", "trips", "verify", "wallet"}
 if (_static / "index.html").exists():
     app.mount("/assets", StaticFiles(directory=_static / "assets"), name="assets")
 

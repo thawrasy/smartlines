@@ -3136,4 +3136,61 @@ SELECT pg_temp.ok(NOT EXISTS (SELECT 1 FROM sys.setting WHERE key = 'einvoice.ta
   'E-invoice taxes (1108): the single rate of 1104 gives way to the tax schemes');
 ROLLBACK;
 
+-- Station counter sales (1110): station boarding joins the first release; a sale is recorded only as its booking was
+-- made; an operating company sees the bookings it sold and nothing else; sales are never edited
+BEGIN;
+SELECT pg_temp.ok((SELECT bool_and(phase_code = '1B') FROM sys.table_phase WHERE table_name IN
+                    ('net.station_boarding', 'net.station_gate', 'net.station_operator_grant', 'brd.station_checkin', 'brd.station_sale')),
+  'Station sales (1110): station boarding, check-in and counter sales belong to the first release');
+SELECT pg_temp.ok(EXISTS (SELECT 1 FROM sales.channel WHERE code = 'STATION' AND channel_type = 'COUNTER'),
+  'Station sales (1110): station counter sales have their own sales channel');
+SELECT pg_temp.ok(NOT has_table_privilege('masslak_app', 'brd.station_sale', 'UPDATE')
+  AND NOT has_table_privilege('masslak_app', 'brd.station_sale', 'DELETE'),
+  'Station sales (1110): a station sale is never edited');
+SELECT sys.set_context(:uadmin, NULL, 'SYSTEM');
+SELECT id AS ssb, trip_id AS sst, company_id AS ssc, total_amount AS sstot, currency AS sscur FROM sales.booking WHERE booking_ref = 'ABC123' \gset
+SELECT station_id AS sss FROM ops.trip_stop WHERE trip_id = :sst AND seq = 0 \gset
+INSERT INTO iam.party (party_type, legal_name) VALUES ('COMPANY', 'Station Ops Test') RETURNING id AS sop \gset
+INSERT INTO iam.company (id, company_type, approval_status) VALUES (:sop, 'STATION_OPERATOR', 'APPROVED');
+SELECT pg_temp.expect_error(format($$INSERT INTO brd.station_sale (booking_id, station_id, operator_company_id, carrier_company_id, sold_by, total, currency)
+  VALUES (%s, %s, %s, %s, %s, %s, %L)$$, :ssb, :sss, :sop, :ssc, :uadmin, :sstot, :'sscur'),
+  'STATION_SALE_MISMATCH', 'Station sales (1110): a sale is recorded only for a booking the operating company booked');
+SELECT sys.set_context(NULL, :sop, 'COMPANY');
+SELECT pg_temp.ok(NOT EXISTS (SELECT 1 FROM sales.booking WHERE id = :ssb),
+  'Station sales (1110): an operating company does not see bookings it did not sell');
+SELECT pg_temp.ok(NOT brd.station_may_sell(:sst, 0, :sss),
+  'Station sales (1110): without the station switched on and the carrier''s BOOKING right, the counter does not sell');
+ROLLBACK;
+
+-- Counter photo (1111): showing the passenger's photo at a station counter is off and needs a legal basis to turn on
+BEGIN;
+SELECT pg_temp.ok(coalesce((iam.photo_setting('photo.view_access') ->> 'STATION_COUNTER_AT_CHECKIN')::boolean, true) = false,
+  'Counter photo (1111): the photo at the station counter is off until a legal approval allows it');
+ROLLBACK;
+
+-- Departure board (1112): public, without passenger data, only where the platform switched the station's screens on
+BEGIN;
+RESET ROLE;
+SELECT sys.set_context(:uadmin, NULL, 'SYSTEM');
+SELECT t.id AS dbt, t.trip_no AS dbno, ts.station_id AS dbs, s.uid AS dbu
+  FROM sales.booking b JOIN ops.trip t ON t.id = b.trip_id JOIN ops.trip_stop ts ON ts.trip_id = t.id AND ts.seq = 0
+  JOIN net.station s ON s.id = ts.station_id WHERE b.booking_ref = 'ABC123' \gset
+UPDATE ops.trip SET published_at = coalesce(published_at, now()) WHERE id = :dbt;
+UPDATE ops.trip_stop SET sched_dep = now() + interval '90 minutes' WHERE trip_id = :dbt AND seq = 0;
+SELECT pg_temp.ok(brd.station_board(:'dbu') IS NULL, 'Departure board (1112): no board for a station whose screens are off');
+INSERT INTO net.station_boarding (station_id, enabled, displays) VALUES (:dbs, false, true)
+  ON CONFLICT (station_id) DO UPDATE SET displays = true;
+SELECT pg_temp.ok(brd.station_board(:'dbu') IS NULL, 'Departure board (1112): no board while the platform''s boarding stations are off');
+SELECT net.set_boarding_setting('boarding.stations.enabled', 'true'::jsonb);
+SELECT net.set_boarding_setting('boarding.checkin.opens_minutes', '120'::jsonb);
+SET LOCAL ROLE masslak_app;
+SELECT pg_temp.ok(EXISTS (SELECT 1 FROM jsonb_array_elements(brd.station_board(:'dbu') -> 'departures') d
+                           WHERE d ->> 'trip_no' = :'dbno' AND d ->> 'status' = 'CHECK_IN'),
+  'Departure board (1112): a departure in its check-in window shows on the board as check-in open');
+SELECT pg_temp.ok(brd.station_board(:'dbu')::text !~* '"(passenger|ticket_no|booking_ref|seat_no|mobile|national_id)"',
+  'Departure board (1112): the board carries no passenger data');
+SELECT pg_temp.ok(brd.station_board(gen_random_uuid()) IS NULL, 'Departure board (1112): an unknown station has no board');
+ROLLBACK;
+SET ROLE masslak_app;
+
 \echo '=== ALL TESTS PASSED ==='

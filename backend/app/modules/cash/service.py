@@ -241,7 +241,7 @@ async def net_cash(conn: asyncpg.Connection, company_id: int, key: str, user_id:
 
 
 async def positions(conn: asyncpg.Connection) -> list[dict]:
-    """Every carrier's cash position in its market's currency (1061)."""
+    """Every carrier's and station operating company's cash position in its market's currency (1061, 1110)."""
     out = []
     for cur in sorted({m.currency for m in await markets.active(conn)}):
         out += await _positions(conn, cur)
@@ -259,7 +259,7 @@ async def _positions(conn: asyncpg.Connection, currency: str) -> list[dict]:
                   coalesce(a.overdue, 0) AS overdue, a.oldest_unpaid_at
              FROM iam.company c JOIN iam.party p ON p.id = c.id LEFT JOIN fin.cash_credit_limit l ON l.company_id = c.id
              LEFT JOIN fin.cash_aging(now(), $1) a ON a.company_id = c.id
-            WHERE c.company_type IN ('CARRIER','INDIVIDUAL_OPERATOR','FOREIGN_CARRIER') AND c.approval_status = 'APPROVED'
+            WHERE c.company_type IN ('CARRIER','INDIVIDUAL_OPERATOR','FOREIGN_CARRIER','STATION_OPERATOR') AND c.approval_status = 'APPROVED'
               AND ref.company_currency(c.id) = $1
             ORDER BY 5 DESC, p.legal_name""", currency)
     return [{**row_dict(r), "own_limit": r["limit_reason"] is not None} for r in rows]

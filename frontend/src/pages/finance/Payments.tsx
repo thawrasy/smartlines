@@ -5,6 +5,8 @@ import { useAuth } from "../../auth";
 import { PageHead } from "../../components/layout";
 import { Empty, ErrorBox, Field, Icon, Loaded, Modal, Stat, Status, useLoad, useToast } from "../../components/ui";
 import { Approvals, FeeRules } from "./Approvals";
+import { CancelPenalty, LoyaltyDesk } from "./Partners";
+import { useModules } from "../../modules/context";
 
 interface Provider {
   code: string; name: string; kind: string; adapter: string; status: string; min_amount: number; max_amount: number; fee_pct: number;
@@ -18,9 +20,12 @@ interface Pay { uid: string; created_at: string; method: string; status: string;
 export function PaymentsDesk() {
   const { t } = useI18n();
   const { can } = useAuth();
-  type Tab = "providers" | "bank" | "payments" | "options" | "cash" | "approvals" | "fees";
+  const { on } = useModules();
+  type Tab = "providers" | "bank" | "payments" | "options" | "cash" | "approvals" | "fees" | "penalty" | "loyalty";
   const [tab, setTab] = useState<Tab>(can("ledger.reconcile") ? "bank" : can("payment.methods") ? "options" : "providers");
   const tabs: Tab[] = ["bank", "approvals", "payments", "providers", "fees", "options", "cash"];
+  if (can("policy.matrix")) tabs.push("penalty");
+  if (can("loyalty.manage", "payout.run") && on("loyalty_partners")) tabs.push("loyalty");
   return (
     <div className="stack">
       <PageHead title={t("pay.desk")} sub={t("pay.deskSub")} />
@@ -36,6 +41,8 @@ export function PaymentsDesk() {
       {tab === "cash" && <CounterCash />}
       {tab === "approvals" && <Approvals />}
       {tab === "fees" && <FeeRules />}
+      {tab === "penalty" && <CancelPenalty />}
+      {tab === "loyalty" && <LoyaltyDesk />}
     </div>
   );
 }

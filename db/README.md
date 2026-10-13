@@ -14,9 +14,9 @@ supporting index, except references to lookup lists and to the staff member who 
 |---|---|
 | Engine | PostgreSQL 16 with PostGIS 3 (extensions: pgcrypto, citext, btree_gist, pg_trgm, postgis in schema `gis`; Docker and CI image `postgis/postgis:16-3.4`, Ubuntu package `postgresql-16-postgis-3`) |
 | Schemas | 26 separate schemas, each with its own privileges |
-| Tables | 521 tables (8 partitioned), 5,382 columns, 1,507 foreign keys |
-| Security | row-level security on 521 of 521 tables, 946 policies; 445 triggers, 355 functions |
-| Tests | 668 automated checks against a freshly built database (`db/tests/run.sh`) |
+| Tables | 522 tables (8 partitioned), 5,392 columns, 1,514 foreign keys |
+| Security | row-level security on 522 of 522 tables, 943 policies; 446 triggers, 358 functions |
+| Tests | 680 automated checks against a freshly built database (`db/tests/run.sh`) |
 | Design | [Database design and ERD document](../docs/database/) with diagrams in the study's colors |
 | Docs | [Data dictionary](DATA_DICTIONARY.md) · [ERD diagrams](ERD.md) (both generated from the database) |
 <!-- stats:end -->
@@ -166,6 +166,9 @@ PostGIS in `gis`. Until 9 October 2026 a first start of the Docker stack stopped
 | `1107_loyalty_agreements.sql` | Points redeemed at partners under agreements per partner (owner's decision): `pricing.loyalty_agreement` (points = amount, the percentage the platform pays the partner, minimum and step, voucher days, contract reference; written by one officer, activated by another, frozen once active, one active per partner, currency and day); `pricing.redeem_at_partner` turns points into a voucher (code stored as a keyed hash and encrypted), `pricing.accept_voucher` records the honoured voucher with what the platform owes, `pricing.cancel_voucher` and the daily `pricing.release_vouchers` give unused points back; `pricing.loyalty_settlement` and its lines draw up, approve and pay a partner's statement with three different people; the `PARTNER` wallet type; partner redemption joins the loyalty release (1B) |
 | `1108_einvoice_taxes_keys.sql` | Taxes on e-invoices from the platform's tax schemes and named signing keys (owner's decisions): `acct.einvoice_line_tax` keeps each tax of each line (scheme, treatment, rate, base, amount, authority) and is written once; a tax scheme goes live only approved by a second officer and computable (rules for its treatment, no formula rules, bands for tiered rules, taxes on taxes without loops), and its rules and bands are then frozen; `base_type` FARE or TAXES with `base_include` for compound taxes and taxes on taxes; documents name their key (`signing_kid`, canonical version 2) and `acct.einvoice_signing_key` keeps the public key of every key that signed; the single rate `einvoice.tax_rate_pct` is retired |
 | `1109_station_trips_horizon.sql` | The station's list of trips covers today, tomorrow and the day after in the station's time zone instead of a rolling 48 hours |
+| `1110_station_sales.sql` | Selling at a station counter under the carrier's `BOOKING` right (owner's decision: first release): `brd.station_may_sell`, the `STATION` sales channel, `brd.station_sale` (station, counter, clerk; checked against its booking), an operating company sees the bookings it sold at stations, the station's trip list shows whether the counter may sell; station boarding tables move from phase 7 to 1B |
+| `1111_counter_photo_gate.sql` | The photo at a station counter stays off until a legal approval allows it: a fifth view role `STATION_COUNTER_AT_CHECKIN`, off, turned on only by an approved change that records the legal document number |
+| `1112_station_board.sql` | The station's public departure board (build step 4): departures of the next 12 hours and arrivals of the next 6, with bays and states, without passenger data, only where the platform switched the station's screens on |
 
 ## Design rules (study 29.1)
 

@@ -35,6 +35,7 @@ class Buyer:
     commission_bp: int = 0           # agency commission in basis points of the fares
     contact_mobile: Optional[str] = None
     cash_company_id: Optional[int] = None   # set for a carrier's counter: the cash taken is owed on its cash wallet (6.5)
+    station_id: Optional[int] = None        # set for a station counter: sells the carriers that gave it the BOOKING right (1110)
 
     async def wallet(self, conn: asyncpg.Connection, currency: str) -> asyncpg.Record:
         if self.cash_company_id:
@@ -283,8 +284,9 @@ async def create_booking(conn: asyncpg.Connection, ctx: db.Context, buyer: Buyer
         raise not_found("trip")
     if (buyer.agency_id or buyer.cash_company_id) and any(p.family_member_uid for p in body.passengers):
         raise ApiError(422, "FAMILY_NOT_AT_AGENCY", "family members are booked from the passenger's own account")
-    if buyer.cash_company_id and trip["company_id"] != buyer.cash_company_id:
-        raise not_found("trip")                                         # a counter sells its own company's trips only
+    if buyer.cash_company_id and trip["company_id"] != buyer.cash_company_id and not (
+            buyer.station_id and await conn.fetchval("SELECT brd.station_may_sell($1, $2, $3)", trip["id"], body.from_seq, buyer.station_id)):
+        raise not_found("trip")     # a counter sells its own company's trips; a station counter, those of carriers that let it (1110)
     membership = await fam.membership(conn, buyer.party_id) if not (buyer.agency_id or buyer.cash_company_id) else None
     people = await travellers(conn, ctx, body, membership)
     departs = await _travel_date(conn, trip["id"], body.from_seq)

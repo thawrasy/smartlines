@@ -20,7 +20,7 @@ from ...errors import ApiError, forbidden, not_found
 from ..documents import scanner, storage
 
 PHOTO_TYPES = ("image/jpeg", "image/png")
-VIEW_CONTEXTS = ("TRAVELER", "DRIVER_AT_BOARDING", "CARRIER_OFFICE_AT_BOARDING", "AGENT")
+VIEW_CONTEXTS = ("TRAVELER", "DRIVER_AT_BOARDING", "CARRIER_OFFICE_AT_BOARDING", "AGENT", "STATION_COUNTER_AT_CHECKIN")
 PHOTO_SETTINGS = ("photo.view_access", "photo.verify_every_days", "photo.enforce_from", "photo.identity_provider")
 EVIDENCE_TYPES = ("application/pdf", "image/jpeg", "image/png")
 
@@ -121,6 +121,37 @@ async def read_for_ticket(conn, ctx: db.Context, trip_id: int, ticket_uid: uuid.
     return row["party_id"], data, row["mime_type"]
 
 
+async def read_for_counter(conn, ctx: db.Context, ticket_uid: uuid.UUID, station_id: int) -> tuple[int, bytes, str]:
+    """The photo of a passenger checked in at a station counter (build step 5, 1111). Off until the platform turns the
+    STATION_COUNTER_AT_CHECKIN role on, which it can do only with the legal approval's document number recorded; then
+    only for a ticket boarding at this station on a carrier's trip the company may check in, before departure."""
+    if not await switched_on(conn):
+        raise ApiError(404, "PHOTO_DISABLED", "the boarding photo is not in use on this platform")
+    if not await view_allowed(conn, "STATION_COUNTER_AT_CHECKIN"):
+        raise ApiError(403, "PHOTO_VIEW_NOT_ALLOWED", "the photo is not shown at station counters until a legal approval allows it")
+    async with db.system_scope(conn, ctx):
+        t = await conn.fetchrow(
+            """SELECT k.trip_id, t.company_id, t.status FROM sales.ticket k JOIN ops.trip t ON t.id = k.trip_id
+                 JOIN ops.trip_stop ts ON ts.trip_id = k.trip_id AND ts.seq = k.from_seq
+                WHERE k.uid = $1 AND ts.station_id = $2 AND k.status IN ('ISSUED', 'BOARDED')""", ticket_uid, station_id)
+    if t is None or t["status"] not in ("PUBLISHED", "BOARDING"):
+        raise not_found("ticket")
+    if not await conn.fetchval("SELECT brd.station_actor_may($1, $2, 'BOARDING_PASS')", t["company_id"], station_id):
+        raise ApiError(409, "NOT_GRANTED", "this company may not check in this carrier's passengers at this station")
+    async with db.system_scope(conn, ctx):
+        row = await conn.fetchrow(
+            """SELECT p.party_id, f.storage_key, f.enc_key_id, f.sha256, f.mime_type, f.scan_status
+                 FROM sales.ticket k JOIN sales.passenger p ON p.id = k.passenger_id
+                 LEFT JOIN iam.party_photo pp ON pp.party_id = p.party_id LEFT JOIN ref.file_object f ON f.id = pp.file_id
+                WHERE k.uid = $1""", ticket_uid)
+        if row["party_id"] is None or row["storage_key"] is None:
+            raise ApiError(404, "PHOTO_NONE", "no photo is on file for this passenger")
+        if row["scan_status"] != "CLEAN":
+            raise ApiError(409, "FILE_NOT_CLEAN", "the photo is not available until it passes the security scan")
+        data = await storage.get(await crypto.cipher(conn), row["storage_key"], row["enc_key_id"], bytes(row["sha256"]))
+    return row["party_id"], data, row["mime_type"]
+
+
 async def read_own(conn, ctx: db.Context, pr: Principal) -> tuple[bytes, str]:
     """The traveler's own photo, on request in the app (1096): when the platform allows the traveler to see it."""
     if not await switched_on(conn):
@@ -173,7 +204,7 @@ def setting_problem(key: str, value) -> str | None:
         return "not a photo setting"
     if key == "photo.view_access":
         if not isinstance(value, dict) or set(value) != set(VIEW_CONTEXTS) or not all(isinstance(v, bool) for v in value.values()):
-            return "the view access is true or false for each of the four roles"
+            return "the view access is true or false for each of the five roles"
     elif key == "photo.verify_every_days":
         if value is not None and not (isinstance(value, int) and not isinstance(value, bool) and 1 <= value <= 365):
             return "the days are a whole number from 1 to 365, or null"

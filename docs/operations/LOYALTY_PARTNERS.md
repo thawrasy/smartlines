@@ -60,6 +60,12 @@ wallet (`PARTNER`), so the partner wallet's balance is what the platform owes it
 
 A draft statement can be cancelled; its vouchers go into the next one.
 
+In the platform portal these steps are on the payments desk, tab **Loyalty partners**: each partner with its active
+agreement and what is honoured but not yet on a statement (`GET /api/admin/loyalty/partners`), the latest statements
+(`GET /api/admin/loyalty/settlements`), and the buttons to honour a voucher, draw up a statement and record the transfer.
+The approval itself stays in the generic screen, by another person. The cancellation penalty of 1106 is on the same desk,
+tab **Cancellation penalty**.
+
 ## Phases and switches
 
 Partners, agreements, vouchers, redemptions and statements belong to the loyalty release (1B). The module switch

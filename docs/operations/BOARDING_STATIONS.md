@@ -56,8 +56,8 @@ Built in 1098, as grants (`net.station_operator_grant`):
 - a grant is revoked by the party that gave it, and never changed or deleted; a carrier cannot grant to itself.
 
 The decision is `net.operator_may(operator, carrier, station, right)`. Since 1105 the counter check asks it for
-`BOARDING_PASS` and the boarding at the bay for `BOARDING` (section 8b); `BOOKING` (selling at the station counter) is not
-used yet. The exact list is open (section 8, item 5).
+`BOARDING_PASS` and the boarding at the bay for `BOARDING` (section 8b); since 1110 the station counter's sales ask it for
+`BOOKING` (section 8c). The exact list is open (section 8, item 5).
 
 ## 4. Check-in window
 
@@ -71,12 +71,14 @@ used yet. The exact list is open (section 8, item 5).
 
 ## 5. Photo at the counter
 
-- The counter has its own value in the photo settings, separate from the driver's value (for example `COUNTER_AT_STATION`),
-  default off. The access is granted per party by the platform settings: the driver, the carrier, the booking office, the
-  operating company, and the others as the platform lists them. **Not built.**
-- Photos and biometric data are regulated by privacy law. The counter value cannot be switched on until a legal document
-  supports it. The approval records the legal document number (migration 1095, optional there, required for this value
-  later).
+- Built in 1111 (owner's decision: not turned on from the platform until legal and legislative approvals allow showing
+  it). The photo's view access has its own role for the counter, `STATION_COUNTER_AT_CHECKIN`, separate from the driver's,
+  **off at launch**. Like every photo setting it changes only through the approval stages, and the change that turns it
+  on is applied only with the legal approval's document number recorded (`LEGAL_BASIS_REQUIRED` otherwise); turning it
+  off needs no document.
+- While it is off, the counter's route `GET /api/station/tickets/{ticket_uid}/photo?station_uid=` answers
+  `PHOTO_VIEW_NOT_ALLOWED` and nothing is shown. Once on, it shows the photo only for a ticket boarding at that station
+  on a carrier's trip the company may check in, before departure; each view is in the activity log.
 
 ## 6. Agreement and licence references
 
@@ -127,7 +129,7 @@ used yet. The exact list is open (section 8, item 5).
    the letter of the kind and three digits (`C001`, `B001`, `G001`, `P001`); this format is the platform's choice and can
    be changed in one function if the owner decides otherwise.
 3. The list of licences the carrier's operation needs, and which of them are in the first phase.
-4. The legal document that supports the counter photo, and its number.
+4. The legal document that supports the counter photo, and its number: the photo stays off until it is given (1111).
 5. The exact permission list, after the first operating company is appointed. Built: `boarding.manage` (platform administrator)
    and `boarding.references` (the carrier's operations role).
 
@@ -180,6 +182,37 @@ The operating company's staff work in the `STATION` portal (owner or `station.co
 The carrier's own staff are accepted by the same functions for the carrier's trips, without an operating company; no
 carrier route uses them yet. Tests: the database suite (Check-in 1105) and `backend/tests/test_station_checkin.py`.
 
+## 8c. Selling at the station counter (built in 1110; owner's decision: first release)
+
+- A carrier gives an operating company the `BOOKING` right at a station. The company's counter staff then sell that
+  carrier's tickets for trips boarding at that station, for cash, from the `STATION` portal: hold the seats, see the
+  price, sell; the tickets are issued at once and printed with their codes.
+- The booking is the carrier's, exactly like a sale at its own counter (1056). The operating company is its booker and
+  sees the bookings it sold; the cash it takes is owed on its own cash wallet, within its cash limit, and it remits it to
+  the platform like a carrier (finance's cash positions list it with the carriers).
+- `brd.station_sale` records each sale with the station, the counter and the clerk, for the company and the carrier. A
+  cash sale cancelled at the same counter is refunded in cash from the drawer, by the fare's rules.
+- Station boarding (check-in, boarding, counter sales, departure boards) joined the first release with 1110: its tables
+  left phase 7. It stays off until the platform switches boarding stations on, a station on, and a carrier grants a right.
+
+## 8d. The screens (built in 1112, build step 4; owner's confirmation: counter screens for check-in and boarding, and the station's big screen)
+
+- **The operating company's portal** (`/station`): where the clerk works (the station and the counter, chosen once on the
+  device), the rights the carriers gave the company, the station's trips with their bays and counts, the counter check
+  that prints the boarding pass with the bay, boarding at the bay, and counter sales with the day's takings and the cash
+  limit. The photo is not shown at the counter (section 5).
+- **The carrier's portal** (`/carrier/stations`): the rights it gives operating companies (sell, check in, board) at a
+  station or at every station, the check-ins and counter sales they made on its trips in a day, and its agreement and
+  licence numbers with those still missing.
+- **The platform's portal** (`/admin/boarding`): every station with its boarding switch, screens, counter system,
+  check-in window, counters and bays; the operating companies and their onboarding; the rights the platform gives a
+  state-mandated company; and the boarding settings.
+- **The station's big screen** (`/board/<station uid>`, public): every departure of the next 12 hours with its bay and its
+  state (on time, check-in open, boarding, departed, cancelled) and the arrivals of the next 6 hours, refreshed every 20
+  seconds, in the station's time zone. It carries no passenger data and appears only while the platform's boarding
+  stations are on and the platform has switched the station's screens on (`displays`); otherwise the address answers 404.
+  It is fed by `brd.station_board` (1112) from the trips and the bays the carriers assign.
+
 ## 9. Build order
 
 1. **Done (1097).** Settings, each default off or empty: the platform switch, the two operating-company modes, the check-in
@@ -193,5 +226,7 @@ carrier route uses them yet. Tests: the database suite (Check-in 1105) and `back
 3. **Done (1105).** Counter check, boarding pass and check-in records under the granted permissions, with the activity log;
    the bay number printed on the boarding pass; the check-in window and the rule that refuses a missing required
    reference applied at the counter; the boarding at the bay by station staff (section 8b).
-4. Counter screens in the operating company's portal and the carrier portal, and the station screens fed by the bay numbers.
-5. Photo at the counter, under its setting and its legal document.
+4. **Done (1110, 1112).** Counter screens in the operating company's portal and the carrier portal, the platform's boarding
+   screen, and the station's departure board fed by the bay numbers (section 8d). Selling at the station counter
+   (`BOOKING`) is built (1110, section 8c).
+5. **Done (1111), off.** Photo at the counter, under its own role and only with the legal approval's document number.

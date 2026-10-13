@@ -94,7 +94,7 @@ export default function Book() {
   // Passengers pay from their wallet; an agency pays from its prepaid balance within its daily limit; a counter takes
   // cash within its carrier's cash limit
   const wallet = useLoad<Funds | null>(() => (me?.portal !== ch.portal ? Promise.resolve(null)
-    : api.get<Funds>(ch.counter ? "/api/carrier/counter/dashboard" : ch.agency ? "/api/agency/dashboard" : "/api/wallet")), [me, ch.portal, ch.counter]);
+    : api.get<Funds>(ch.funds ?? (ch.counter ? "/api/carrier/counter/dashboard" : ch.agency ? "/api/agency/dashboard" : "/api/wallet"))), [me, ch.portal, ch.counter]);
   // The ways of paying platform administration has opened (1056): wallet, pay later at the counter, card, instalments, financing
   const opts = useLoad<BookingOption[] | null>(() => (ch.staff || me?.portal !== "PASSENGER" ? Promise.resolve(null)
     : api.get<{ options: BookingOption[] }>("/api/payments/booking-options").then((r) => r.options)), [me, ch.staff]);
@@ -176,7 +176,7 @@ export default function Book() {
     if (!me || me.portal !== ch.portal) { nav(`/login?portal=${ch.portal}&next=${encodeURIComponent(loc.pathname + loc.search)}`); return; }
     setBusy(true); setError(null);
     try {
-      const h = await api.post<Hold>(`${ch.api}/holds`, { trip_uid: uid, from_seq: fromSeq, to_seq: toSeq, seat_nos: selected });
+      const h = await api.post<Hold>(`${ch.api}/holds`, { trip_uid: uid, from_seq: fromSeq, to_seq: toSeq, seat_nos: selected, ...ch.extra?.() });
       setHold(h);
       setPax(selected.map((_, i) => pax[i] ?? blankPassenger()));
     } catch (e) {
@@ -201,7 +201,7 @@ export default function Book() {
       const r = await api.post<{ booking_ref: string; status?: string }>(`${ch.api}/bookings`, {
         hold_token: hold.hold_token, trip_uid: uid, from_seq: fromSeq, to_seq: toSeq, fare_brand: brand, idempotency_key: idemKey,
         ...(ch.staff ? { contact_mobile: contact.trim() || undefined } : { pay_from: payFrom, pay_with: chosen?.code ?? "WALLET" }),
-        passengers: travellers(),
+        passengers: travellers(), ...ch.extra?.(),
       });
       holdRef.current = null;
       // card, instalments and financing: the seats are reserved, and the passenger goes on to the provider's page
