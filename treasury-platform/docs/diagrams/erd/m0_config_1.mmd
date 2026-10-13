@@ -13,7 +13,10 @@ erDiagram
   cfg_ExpiryAlertRule["cfg.ExpiryAlertRule"] {
     bigint ExpiryAlertRuleId PK
   }
-  cfg_JobDefinition["cfg.JobDefinition"] {
-    int JobDefinitionId PK
+  cfg_ExpiryAlertRuleRole["cfg.ExpiryAlertRuleRole"] {
+    int TenantId PK
+    bigint ExpiryAlertRuleId PK, FK
+    bigint RoleId PK, FK
   }
   cfg_ExpiryAlertRule ||--o{ cfg_ExpiryAlertLog : "ExpiryAlertRuleId"
+  cfg_ExpiryAlertRule ||--o{ cfg_ExpiryAlertRuleRole : "ExpiryAlertRuleId"

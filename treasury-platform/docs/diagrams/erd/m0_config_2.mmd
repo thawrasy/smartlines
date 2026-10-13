@@ -1,5 +1,8 @@
 %% م0 · الإعدادات والمهام الخلفية (2/4) — Configuration & background jobs
 erDiagram
+  cfg_JobDefinition["cfg.JobDefinition"] {
+    int JobDefinitionId PK
+  }
   cfg_JobRun["cfg.JobRun"] {
     bigint JobRunId PK
   }
@@ -12,9 +15,3 @@ erDiagram
     bigint SequenceId FK
     bigint VoidedBy FK
   }
-  cfg_NumberSequence["cfg.NumberSequence"] {
-    bigint NumberSequenceId PK
-    bigint DefinitionId FK
-    bigint CompanyId FK
-  }
-  cfg_NumberSequence ||--o{ cfg_NumberIssue : "SequenceId"

@@ -549,8 +549,8 @@
 |---|---|---|---|---|---|---|
 | `cfg.DataExportJob` | Tenant data export request (FR-PLT-039, BR-PLT-016) | DataExportJobId | 3 | 2 | 5 | 15 |
 | `cfg.ExpiryAlertLog` | Log of sent expiry alerts: one event per (item, threshold), never repeated on the same day (FR-PLT-038) | ExpiryAlertLogId | 1 | 2 | 0 | 5 |
-| `cfg.ExpiryAlertRule` | Expiry alert rule per item type (FR-PLT-038, BR-PLT-013) | ExpiryAlertRuleId | 0 | 3 | 1 | 10 |
-| `cfg.JobDefinition` | Background job catalogue: the only JobKey values a job connection may bind with (FR-PLT-044) | JobDefinitionId | 0 | 1 | 1 | 8 |
+| `cfg.ExpiryAlertRule` | Expiry alert rule per item type (FR-PLT-038, BR-PLT-013) | ExpiryAlertRuleId | 0 | 3 | 1 | 9 |
+| `cfg.ExpiryAlertRuleRole` | Roles that receive an alert rule's alerts, within the company scope; replaces the RecipientRoles code list, so a renamed or missing role cannot silently receive nothing (FR-PLT-038, DR-16) | TenantId, ExpiryAlertRuleId, RoleId | 2 | 0 | 0 | 3 |
 
 **العلاقات (المفاتيح الأجنبية)**
 
@@ -560,6 +560,8 @@
 | `cfg.DataExportJob.ApprovedBy` | `sec.AppUser` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `cfg.DataExportJob.PackageDocumentId` | `doc.Document` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `cfg.ExpiryAlertLog.ExpiryAlertRuleId` | `cfg.ExpiryAlertRule` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
+| `cfg.ExpiryAlertRuleRole.ExpiryAlertRuleId` | `cfg.ExpiryAlertRule` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
+| `cfg.ExpiryAlertRuleRole.RoleId` | `sec.Role` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 
 #### م0 · الإعدادات والمهام الخلفية (2/4)
 
@@ -571,10 +573,10 @@
 
 | الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
 |---|---|---|---|---|---|---|
+| `cfg.JobDefinition` | Background job catalogue: the only JobKey values a job connection may bind with (FR-PLT-044) | JobDefinitionId | 0 | 1 | 1 | 8 |
 | `cfg.JobRun` | Background job run log: last run, duration and result, visible to the account administrator (FR-PLT-044) | JobRunId | 0 | 1 | 3 | 14 |
 | `cfg.NonWorkingDay` | Non-working day; NULL TenantId = platform holiday, read-only (FR-PLT-035, BR-PLT-014) | NonWorkingDayId | 1 | 2 | 0 | 7 |
 | `cfg.NumberIssue` | Issued document numbers; a cancelled number is never reused (FR-PLT-026, BR-PLT-010) | NumberIssueId | 2 | 3 | 2 | 10 |
-| `cfg.NumberSequence` | Counter per (definition, optional company, period); its row is locked on allocation inside the caller's transaction (BR-PLT-010) | NumberSequenceId | 2 | 3 | 1 | 5 |
 
 **العلاقات (المفاتيح الأجنبية)**
 
@@ -583,8 +585,6 @@
 | `cfg.NonWorkingDay.CountryId` | `ref.Country` | 1 : N | إلزامي | عام | قيد | — |
 | `cfg.NumberIssue.SequenceId` | `cfg.NumberSequence` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `cfg.NumberIssue.VoidedBy` | `sec.AppUser` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
-| `cfg.NumberSequence.DefinitionId` | `cfg.NumberSequenceDefinition` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
-| `cfg.NumberSequence.CompanyId` | `org.Company` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 
 #### م0 · الإعدادات والمهام الخلفية (3/4)
 
@@ -596,20 +596,21 @@
 
 | الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
 |---|---|---|---|---|---|---|
+| `cfg.NumberSequence` | Counter per (definition, optional company, period); its row is locked on allocation inside the caller's transaction (BR-PLT-010) | NumberSequenceId | 2 | 3 | 1 | 5 |
 | `cfg.NumberSequenceDefinition` | Numbering-type definition with a tag-based format, for example {seq:000}-{erp}-{yy} (FR-PLT-026) | NumberSequenceDefinitionId | 0 | 3 | 2 | 11 |
 | `cfg.OutboxEvent` | Outbound queue with at-least-once delivery; the payload carries identifiers without restricted data; only DELIVERED events may be deleted (043, FR-PLT-042, DR-14) | OutboxEventId | 0 | 2 | 5 | 17 |
 | `cfg.SeedRun` | Numbered seed-run log per package; re-running a seed adds nothing (FR-PLT-008) | SeedRunId | 0 | 1 | 1 | 11 |
-| `cfg.SettingDefinition` | Setting-key definition with platform minimum and maximum bounds (BR-PLT-018, FR-PLT-043) | SettingDefinitionId | 0 | 1 | 0 | 12 |
 
 **العلاقات (المفاتيح الأجنبية)**
 
 | الطفل (الجدول.العمود) | الأب | العلاقة | الإلزام | النطاق | الحذف | أعمدة النطاق |
 |---|---|---|---|---|---|---|
-| — | — | — | — | — | — | — |
+| `cfg.NumberSequence.DefinitionId` | `cfg.NumberSequenceDefinition` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
+| `cfg.NumberSequence.CompanyId` | `org.Company` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 
 #### م0 · الإعدادات والمهام الخلفية (4/4)
 
-*Configuration & background jobs* — 1 جدولًا
+*Configuration & background jobs* — 2 جدولًا
 
 ![م0 · الإعدادات والمهام الخلفية (4/4)](diagrams/erd/m0_config_4.png)
 
@@ -617,6 +618,7 @@
 
 | الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
 |---|---|---|---|---|---|---|
+| `cfg.SettingDefinition` | Setting-key definition with platform minimum and maximum bounds (BR-PLT-018, FR-PLT-043) | SettingDefinitionId | 0 | 1 | 0 | 12 |
 | `cfg.TenantSetting` | Tenant settings: security policies, timeouts, thresholds, and work start and end times (FR-PLT-043) | TenantSettingId | 0 | 2 | 0 | 5 |
 
 **العلاقات (المفاتيح الأجنبية)**
@@ -637,7 +639,7 @@
 
 | الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
 |---|---|---|---|---|---|---|
-| `org.Company` | Company: root of the corporate structure (FR-ORG-001..010, BR-ORG-001..004) | CompanyId | 5 | 6 | 4 | 20 |
+| `org.Company` | Company: root of the corporate structure (FR-ORG-001..010, BR-ORG-001..004) | CompanyId | 5 | 6 | 4 | 19 |
 | `org.CompanyTaxRate` | Tax rate with an effective date; NULL CompanyId = tenant default (FR-ORG-007, BR-ORG-005) | CompanyTaxRateId | 1 | 3 | 2 | 7 |
 | `org.Department` | Department (FR-ORG-014, BR-ORG-016, Q-ORG-09): at tenant level, optionally per company | DepartmentId | 3 | 3 | 1 | 10 |
 | `org.Shareholding` | Ownership interest with an effective date; the owner is a Party, an individual or an entity (FR-ORG-015..018, BR-ORG-006..008, G-7) | ShareholdingId | 4 | 3 | 5 | 10 |
@@ -975,9 +977,9 @@
 | الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
 |---|---|---|---|---|---|---|
 | `cat.ProductCategory` | Product category: flat list (FR-CAT-007) | ProductCategoryId | 0 | 3 | 2 | 13 |
-| `cat.Product` | Bank product with its flags (FR-CAT-007, BR-CAT-004) | ProductId | 1 | 4 | 2 | 18 |
+| `cat.Product` | Bank product with its flags (FR-CAT-007, BR-CAT-004) | ProductId | 1 | 5 | 2 | 18 |
 | `cat.FeeType` | Fee type: a broad category, not a tariff item (FR-CAT-008, BR-CAT-005, Q-CAT-10) | FeeTypeId | 0 | 3 | 2 | 15 |
-| `cat.FinancingType` | Financing type (FR-CAT-009, BR-CAT-006) | FinancingTypeId | 0 | 3 | 2 | 15 |
+| `cat.FinancingType` | Financing type (FR-CAT-009, BR-CAT-006) | FinancingTypeId | 0 | 4 | 2 | 15 |
 
 **العلاقات (المفاتيح الأجنبية)**
 
@@ -996,7 +998,7 @@
 | الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
 |---|---|---|---|---|---|---|
 | `cat.ProductFeeType` | Fee types allowed for a product; disabling a link deletes it and does not affect list pricing rules (FR-CAT-010, BR-CAT-007) | ProductFeeTypeId | 2 | 2 | 0 | 4 |
-| `cat.ProductFinancingType` | Financing types allowed for a product (FR-CAT-010, BR-CAT-007) | ProductFinancingTypeId | 2 | 3 | 0 | 4 |
+| `cat.ProductFinancingType` | Financing types allowed for a product (FR-CAT-010, BR-CAT-007); the pair respects the Shariah classification (DR-30) | ProductFinancingTypeId | 2 | 3 | 1 | 6 |
 | `cat.FacilityType` | Facility type (FR-CAT-011) | FacilityTypeId | 0 | 3 | 2 | 14 |
 | `cat.LimitType` | Limit type: master or sub-limit (FR-CAT-012, BR-CAT-008) | LimitTypeId | 1 | 3 | 4 | 16 |
 
@@ -1006,8 +1008,8 @@
 |---|---|---|---|---|---|---|
 | `cat.ProductFeeType.ProductId` | `cat.Product` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `cat.ProductFeeType.FeeTypeId` | `cat.FeeType` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
-| `cat.ProductFinancingType.ProductId` | `cat.Product` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
-| `cat.ProductFinancingType.FinancingTypeId` | `cat.FinancingType` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
+| `cat.ProductFinancingType.ProductId` | `cat.Product` | 1 : N | إلزامي | مشترك · مركّب | قيد | ProductCompliance |
+| `cat.ProductFinancingType.FinancingTypeId` | `cat.FinancingType` | 1 : N | إلزامي | مشترك · مركّب | قيد | FinancingIsIslamic |
 | `cat.LimitType.ParentLimitTypeId` | `cat.LimitType` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 
 #### م4 · المنتجات والرسوم والتمويل والضمانات (3/3)
@@ -2246,7 +2248,7 @@ tools/deploy/provision_logins.sh                    # the service logins (ADR 00
 | DR-13 | `cfg.DataExportJob.ApprovedBy` | major | workflow_semantics | A restricted export (IncludesRestricted = 1: identity numbers and images) can be approved by its own requester. | Add CHECK (ApprovedBy IS NULL OR ApprovedBy <> RequestedBy), a pairing CHECK between ApprovedBy and ApprovedAt, and CHECK (Status <> 'READY' OR ExpiresAt IS NOT NULL). | مُطبَّق (O-15, ADR 0011) |
 | DR-14 | `cfg.OutboxEvent.Status` | major | workflow_semantics | Status has five values, but no CHECK ties the lease and completion fields to them; | Add CHECK (Status <> 'PROCESSING' OR (LockedBy IS NOT NULL AND LockedUntil IS NOT NULL)), CHECK (Status <> 'DELIVERED' OR DeliveredAt IS NOT NULL) and CHECK (Status <> 'DEAD' OR LastError IS NOT NULL). | مُطبَّق (O-15, ADR 0011) |
 | DR-15 | `plat.SupportAccessGrant.EndsAt` | major | workflow_semantics | The 1 to 72 hour window (BR-PLT-017) is enforced only in the application; | Add CHECK (DATEDIFF(MINUTE, StartsAt, EndsAt) BETWEEN 60 AND 4320). | مُطبَّق (O-15, ADR 0011) |
-| DR-16 | `sec.Permission.LockedToRoleCodes` | major | normalization | LockedToRoleCodes (json, e.g. | Replace the lock with a junction table keyed on a stable role identity (SeedKey or a global role catalog) and enforce it with a trigger on sec.RolePermission. | مُطبَّق جزئيًا (ADR 0011)؛ الباقي قبل S1 |
+| DR-16 | `sec.Permission.LockedToRoleCodes` | major | normalization | LockedToRoleCodes (json, e.g. | Replace the lock with a junction table keyed on a stable role identity (SeedKey or a global role catalog) and enforce it with a trigger on sec.RolePermission. | مُطبَّق (O-15, ADR 0011) |
 | DR-17 | `cfg.TenantSetting.Key` | major | referential | TenantSetting.Key (ascii(100), unique per tenant) has no foreign key to cfg.SettingDefinition.Key. | Add a simple FK (Key) -> cfg.SettingDefinition (Key). | مُطبَّق (O-15, ADR 0011) |
 | DR-18 | `doc.Document.Sensitivity` | major | sensitivity | Sensitivity is a stored copy of a rule the database never evaluates: the model comment says RESTRICTED if the type is IsSensitive (line 354), but the only CHECK is enum membership (CK_Document_Sensitivity), and the default is CON… | Enforce a sensitivity floor with a trigger on doc.Document, and on cat.DocumentType updates, that raises Sensitivity to RESTRICTED when IsSensitive is set. | مُطبَّق (O-15, ADR 0011) |
 | DR-19 | `acc.Signatory.Status` | major | workflow_semantics | Status (12-institutions-accounts-catalogs.model:447) includes SUSPENDED, EXPIRED and REVOKED, but the table has no timestamp, actor or reason for any transition. | Add SuspendedAt, RevokedAt, RevokedBy and RevocationReason. | مُطبَّق (O-15, ADR 0011) |
@@ -2255,12 +2257,12 @@ tools/deploy/provision_logins.sh                    # the service logins (ADR 00
 | DR-22 | `org.Shareholding.Layer, HolderPartyId, CompanyId` | major | cardinality | Layer >= 2 means 'indirect, through intermediate entities' (11-organization-party.model:78), but no column identifies the intermediate holder or the parent holding. | Add a self-referencing ViaShareholdingId (or IntermediatePartyId) with via=CompanyId pointing to the intermediate's layer-1 row, and key the uniqueness and the open-row filter on (CompanyId, HolderPartyId, ViaShareholdingId, Effe… | معتمد (ADR 0011)؛ يُطبَّق قبل S1-b |
 | DR-23 | `pty.IdentityDocument.SupersededById, IsSuperseded` | major | referential | SupersededById (11-organization-party.model:305) is generated as (TenantId, SupersededById) only (002_foreign_keys.sql:156), so a document can be superseded by a document belonging to a different party. | Add via=PartyId to SupersededById so the successor must belong to the same party. | مُطبَّق (O-15, ADR 0011) |
 | DR-24 | `org.Company.PartyId` | major | redundancy | The company-party mirror is stored twice: org.Company.PartyId (11-organization-party.model:16, unique line 34) and pty.Party.LinkedCompanyId (line 274, unique line 278). | Keep one pointer and derive the other, or enforce equality declaratively: add a unique key (TenantId, CompanyId, PartyId) on org.Company and make pty.Party's link a composite FK (TenantId, LinkedCompanyId, PartyId) -> org.Company… | مُطبَّق (O-15, ADR 0011) |
-| DR-25 | `org.Company.TaxNumber` | major | sensitivity | org.Company.TaxNumber (11-organization-party.model:26) is a plain ascii(30) column with no sens tag, on a 'public' aggregate root (line 12) whose PublicId is exposed through the API (docs/20 sections 1 and 4). | Drop org.Company.TaxNumber and read the current TaxIdentity row (CountryId = the company's CountryId, IsCurrent = 1) through a view. | مُطبَّق جزئيًا (ADR 0011)؛ الباقي قبل S1 |
+| DR-25 | `org.Company.TaxNumber` | major | sensitivity | org.Company.TaxNumber (11-organization-party.model:26) is a plain ascii(30) column with no sens tag, on a 'public' aggregate root (line 12) whose PublicId is exposed through the API (docs/20 sections 1 and 4). | Drop org.Company.TaxNumber and read the current TaxIdentity row (CountryId = the company's CountryId, IsCurrent = 1) through a view. | مُطبَّق (O-15, ADR 0011) |
 | DR-26 | `fac.Utilization (and lc.LetterOfCredit link, file 16).SourceType, SourceRefId` | major | referential | SourceRefId is a bigint that holds an LcId or a RequestId depending on SourceType (13:254-255). | Replace SourceRefId with typed nullable FKs (for example a request FK to wfl.Request, and the LC link kept on one side only). | مُطبَّق (O-15, ADR 0011) |
 | DR-27 | `fac.ValueConflict.TargetEntity, TargetId, FacilityId` | major | referential | The conflict targets an entity through free text TargetEntity ascii(60) (13:328) and bigint TargetId (13:329), with no FK and no domain CHECK (DDL 001 has only the NOT NULL). | Use typed nullable target FKs with (TenantId, FacilityId, ...) composite keys and an exactly-one CHECK, as LimitMovement does. | مُطبَّق جزئيًا (ADR 0011)؛ الباقي قبل S2 |
 | DR-28 | `fac.Facility (header); fac.Limit, fac.LimitProductLine, fac.LimitCompanyRule, prc.PricingRule, cmp.TermValue (rev children).ApprovedRevisionNo, ParentLimitId, LimitId, ToRevision` | major | workflow_semantics | Revision integrity is left to the application. | Separate stable identity from versions. | معتمد (ADR 0011)؛ يُطبَّق قبل S2 |
 | DR-29 | `cat.BaseRate (with cat.BaseRateValue and cat.BaseRateAlias).InstitutionId (MARKET rows), CurrencyId, Code, BaseRateAlias.InstitutionId` | major | tenancy | BaseRate is tenant-owned (no global/mixed flag, model 12:210; | Make MARKET base rates and their values global or mixed (TenantId NULL, platform-written, tenant read-only) and keep BANK_INTERNAL tenant-owned, with a justification line per table. | مُطبَّق (O-15, ADR 0011) |
-| DR-30 | `cat.FinancingType; cat.ProductFinancingType (with cat.Product and cat.FacilityType).IsIslamic, Compliance` | major | workflow_semantics | Shariah classification is modelled three ways. | Replace IsIslamic with the same Compliance enum. | معتمد (ADR 0011)؛ يُطبَّق قبل S1 |
+| DR-30 | `cat.FinancingType; cat.ProductFinancingType (with cat.Product and cat.FacilityType).IsIslamic, Compliance` | major | workflow_semantics | Shariah classification is modelled three ways. | Replace IsIslamic with the same Compliance enum. | مُطبَّق (O-15, ADR 0011) |
 | DR-31 | `fac.Limit, fac.LimitProductLine, fac.LimitCompanyRule, fac.ProductLineTerm, fac.OutstandingSnapshot, fac.ValueConflict, prc.PricingRule, cmp.TermValue (src tables).OriginalText (and CandidateAOriginalText, Reason, Notes, ChangeSummary)` | major | sensitivity | The src flag adds OriginalText NVARCHAR(2000) to each sourced row (DDL 001:2969, 3020, 3070, 3114 and others) and ValueConflict.CandidateA/BOriginalText (13:335, 13:341). | Flag OriginalText and the free-text columns in src and rev tables as sens=confidential, and add DENY SELECT for tp_readonly on them. | مُطبَّق جزئيًا (ADR 0011)؛ الباقي قبل S2 |
 | DR-32 | `cat.DocumentType; fac.FacilityLender; fac.Facility; ref.Country; cat.LegalEntityType; cat.Position.AppliesTo, Roles, AlertLeadDays, BankUnilateralRights, WeekendDays, DefaultBodyTypes, ApplicableBodyTypes` | major | normalization | Multi-valued columns are not domain-checked. | Have dbgen emit a membership CHECK for every set{} column (wrap the value in commas and reject any token outside the list, plus duplicates). | مُطبَّق (O-15, ADR 0011) |
 | DR-33 | `col.Guarantee.GuarantorIdentityDocumentId` | major | referential | The generated FK is (TenantId, GuarantorIdentityDocumentId) to pty.IdentityDocument only (002_foreign_keys.sql:444). | Declare GuarantorIdentityDocumentId ->pty.IdentityDocument via=GuarantorPartyId, with a unique (TenantId, PartyId, IdentityDocumentId) on pty.IdentityDocument. | مُطبَّق (O-15, ADR 0011) |
