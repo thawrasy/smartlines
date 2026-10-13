@@ -228,7 +228,7 @@ table org.CompanyExpectedFlow  # Monthly expected cash-flow matrix (CTP): direct
   check  MonthlyAmount >= 0
 
 table org.CompanyWealthSource pk=FinancialProfileId,WealthSourceId norv deletable  # Sources of funds and wealth: multiple-value list (G-4)
-  FinancialProfileId  ->org.CompanyKycFinancialProfile req cascade
+  FinancialProfileId  ->org.CompanyKycFinancialProfile req   # no cascade (O-13): a KYC profile is dated history; removing it takes an explicit retention step
   WealthSourceId      ->cat.LookupItem req   # قائمة WEALTH_SOURCE (تمويل داخلي، إيرادات تجارية، تسهيلات، بيع أصول...)
   OtherText           str(200)               # وصف عند «أخرى»
 
@@ -443,7 +443,7 @@ table pty.KycProfileItem deletable  # Completeness item (FR-PTY-023, FR-PTY-024,
   check  MaxAgeDays IS NULL OR MaxAgeDays > 0
 
 table pty.KycProfileItemLegalForm pk=KycProfileItemId,LegalEntityTypeId norv deletable  # Conditions for an item to apply, by legal form; no rows = applies to all (G-15)
-  KycProfileItemId   ->pty.KycProfileItem req cascade
+  KycProfileItemId   ->pty.KycProfileItem req cascade   # the condition is part of its item (O-13); items change only in a DRAFT version (041)
   LegalEntityTypeId  ->cat.LegalEntityType req
 
 table pty.PartyCompliance  # Dated compliance declarations per person in their capacity: PEP, sanctions, investigations, immunity (G-9)

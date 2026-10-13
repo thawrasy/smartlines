@@ -145,7 +145,7 @@ flowchart LR
 | O-10 فهارس wfl.Request (:68) | SA | DBA | QA | PM | S3 · مقرَّر؛ مراجعة لاحقة بـ Query Store |
 | O-11 القيم المشتقة (:74) | SA | DBA | TRM | QA | بعد S3 · مؤجَّل |
 | O-12 الترقيم بلا فجوات (:80) | OWN | DBA | LEG، TRM | QA | S0 · مفتوح (Q-PLT-08) |
-| O-13 الحذف المتتالي في org (:86) | SA | DBA | LEG | QA | S1 · مفتوح |
+| O-13 الحذف المتتالي في org (:86) | SA | DBA | LEG | QA | S1 · مغلق (2026-10-13، docs/adr/0006-kyc-history-and-cascade-deletes.md) |
 | O-14 بدء الشرائح (:98) | OWN | PM | SA، QA | TRM | S0 · مفتوح؛ هو البوابة |
 | O-15 عيوب التنفيذ الأربعة (:92) | SA | DBA | QA | PM | مغلق |
 | O-16 ربط الاتصال بالمشترك (:104) | SEC | DBA | SA | QA | مغلق |

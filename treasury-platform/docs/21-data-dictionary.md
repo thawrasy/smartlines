@@ -1385,7 +1385,7 @@
 | العمود | النوع | NULL | الافتراضي | المرجع | ملاحظة |
 |---|---|---|---|---|---|
 | TenantId | INT | لا | | plat.Tenant | عزل المشترك |
-| FinancialProfileId | BIGINT | لا |  | org.CompanyKycFinancialProfile |  |
+| FinancialProfileId | BIGINT | لا |  | org.CompanyKycFinancialProfile | no cascade (O-13): a KYC profile is dated history; removing it takes an explicit retention step |
 | WealthSourceId | INT | لا |  | cat.LookupItem | قائمة WEALTH_SOURCE (تمويل داخلي، إيرادات تجارية، تسهيلات، بيع أصول...) |
 | OtherText | NVARCHAR(200) | نعم |  |  | وصف عند «أخرى» |
 | CreatedAt | DATETIME2(3) | لا | SYSUTCDATETIME() |  |  |
@@ -1697,7 +1697,7 @@
 | العمود | النوع | NULL | الافتراضي | المرجع | ملاحظة |
 |---|---|---|---|---|---|
 | TenantId | INT | لا | | plat.Tenant | عزل المشترك |
-| KycProfileItemId | BIGINT | لا |  | pty.KycProfileItem |  |
+| KycProfileItemId | BIGINT | لا |  | pty.KycProfileItem | the condition is part of its item (O-13); items change only in a DRAFT version (041) |
 | LegalEntityTypeId | INT | لا |  | cat.LegalEntityType |  |
 | CreatedAt | DATETIME2(3) | لا | SYSUTCDATETIME() |  |  |
 | CreatedBy | BIGINT | نعم |  |  |  |

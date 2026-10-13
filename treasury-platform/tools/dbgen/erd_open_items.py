@@ -85,8 +85,8 @@ ITEMS = [
     {
         'id': 'O-13', 'sources': REVIEW_A,
         'finding': 'Two cascade deletes exist in the organisation module. Credit and audit data must not be deleted by cascade.',
-        'status': 'Open. The two cascade rules are in db/model/11-organization-party.model and have not been reviewed against this rule.',
-        'next': 'Review the two rules; replace cascade with archive or close where the data is credit or audit data.',
+        'status': 'Closed (docs/adr/0006-kyc-history-and-cascade-deletes.md). The cascade from org.CompanyWealthSource to the KYC financial profile is removed: a profile is dated history and its removal is an explicit retention step. The cascade from pty.KycProfileItemLegalForm to its item stays, since a condition is part of its item, and items and conditions now change only while the profile is a DRAFT (db/static/041_kyc_profile_versions.sql, 50033). Rule R11 in tools/dbgen/check_grants.py refuses any other cascade. Tests K1 to K4 (db/tests/kyc_history_tests.sql).',
+        'next': 'None. A new cascade needs a review and an entry in CASCADE_ALLOWED.',
     },
     {
         'id': 'O-15', 'sources': 'Execution on SQL Server 2025',

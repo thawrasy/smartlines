@@ -140,7 +140,7 @@ ALTER TABLE [org].[CompanyExpectedFlow] ADD CONSTRAINT [FK_CompanyExpectedFlow_T
 ALTER TABLE [org].[CompanyExpectedFlow] ADD CONSTRAINT [FK_CompanyExpectedFlow_FinancialProfileId] FOREIGN KEY ([TenantId], [FinancialProfileId]) REFERENCES [org].[CompanyKycFinancialProfile] ([TenantId], [CompanyKycFinancialProfileId]);
 ALTER TABLE [org].[CompanyExpectedFlow] ADD CONSTRAINT [FK_CompanyExpectedFlow_CurrencyId] FOREIGN KEY ([CurrencyId]) REFERENCES [ref].[Currency] ([CurrencyId]);
 ALTER TABLE [org].[CompanyWealthSource] ADD CONSTRAINT [FK_CompanyWealthSource_Tenant] FOREIGN KEY ([TenantId]) REFERENCES [plat].[Tenant] ([TenantId]);
-ALTER TABLE [org].[CompanyWealthSource] ADD CONSTRAINT [FK_CompanyWealthSource_FinancialProfileId] FOREIGN KEY ([TenantId], [FinancialProfileId]) REFERENCES [org].[CompanyKycFinancialProfile] ([TenantId], [CompanyKycFinancialProfileId]) ON DELETE CASCADE;
+ALTER TABLE [org].[CompanyWealthSource] ADD CONSTRAINT [FK_CompanyWealthSource_FinancialProfileId] FOREIGN KEY ([TenantId], [FinancialProfileId]) REFERENCES [org].[CompanyKycFinancialProfile] ([TenantId], [CompanyKycFinancialProfileId]);
 ALTER TABLE [org].[CompanyWealthSource] ADD CONSTRAINT [FK_CompanyWealthSource_WealthSourceId] FOREIGN KEY ([TenantId], [WealthSourceId]) REFERENCES [cat].[LookupItem] ([TenantId], [LookupItemId]);
 ALTER TABLE [org].[CompanyDisclosure] ADD CONSTRAINT [FK_CompanyDisclosure_Tenant] FOREIGN KEY ([TenantId]) REFERENCES [plat].[Tenant] ([TenantId]);
 ALTER TABLE [org].[CompanyDisclosure] ADD CONSTRAINT [FK_CompanyDisclosure_CompanyId] FOREIGN KEY ([TenantId], [CompanyId]) REFERENCES [org].[Company] ([TenantId], [CompanyId]);

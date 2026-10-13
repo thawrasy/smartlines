@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Database CI: checks the model, confirms the generated DDL is current, deploys it to SQL Server,
 # compares what was deployed with the DDL, and runs the trigger, tenant-isolation, account-security,
-# operator-and-support, job-binding, tenant-onboarding and document-numbering tests (one of them with concurrent
-# connections).
+# operator-and-support, job-binding, tenant-onboarding, document-numbering (one of them with concurrent connections)
+# and KYC history tests.
 #
 # Environment:
 #   SA_PASSWORD   password of the sa login (required)
@@ -53,7 +53,7 @@ if ! diff -q "$TMP/102_permissions.sql" db/seed/102_permissions.sql >/dev/null; 
 fi
 echo "permission seed matches the documents"
 
-echo "== 3. every foreign key is indexed or flagged noidx; static grant rules R1-R10"
+echo "== 3. every foreign key is indexed or flagged noidx; static grant and cascade rules R1-R11"
 python3 tools/dbgen/check_fk_indexes.py
 python3 tools/dbgen/check_grants.py
 
@@ -222,4 +222,22 @@ if [ "$conc_pass" -ne 2 ]; then
     exit 1
 fi
 echo "document numbering concurrency: $conc_pass passed"
+echo "== 14. KYC history and cascade tests (db/tests/kyc_history_tests.sql)"
+sq -i db/tests/kyc_history_tests.sql > "$TMP/kyc.out" 2>&1 || {
+    cat "$TMP/kyc.out"
+    echo "KYC history test run failed"
+    exit 1
+}
+cat "$TMP/kyc.out"
+if grep -q '^FAIL' "$TMP/kyc.out"; then
+    echo "a KYC history test failed"
+    exit 1
+fi
+kyc_pass=$(grep -c '^PASS' "$TMP/kyc.out" || true)
+# 4 cases: K1-K4 (O-13: no cascade on KYC financial data; completeness profiles change only as drafts).
+if [ "$kyc_pass" -ne 4 ]; then
+    echo "expected 4 PASS, found $kyc_pass"
+    exit 1
+fi
+echo "KYC history tests: $kyc_pass passed"
 echo "all database checks passed"

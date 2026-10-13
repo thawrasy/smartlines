@@ -13,6 +13,8 @@
       وكل عمود *Hash مرتبط بمفتاح فهرسة (HashKeyId | MfaKeyRef)
   R9  لا UPDATE لأي دور على جدول للإضافة فقط (append) خارج aud
   R10 ترتيب النشر: كل ملف في deploy.sql موجود، ومنح مخطط rls يأتي بعد إنشائه (010)
+  R11 لا حذف متتالي (cascade) إلا على الروابط المسموحة في CASCADE_ALLOWED: بيانات الائتمان والتدقيق وKYC لا تُحذف
+      بالتتالي (O-13 في erd_open_items)
 Exit code 0 = كل القواعد محققة؛ غير ذلك = مخالفات مطبوعة.
 """
 import glob, os, re, sys
@@ -22,6 +24,9 @@ MODEL = os.path.join(ROOT, 'db', 'model')
 GEN = os.path.join(ROOT, 'db', 'generated', 'tsql')
 STATIC = os.path.join(ROOT, 'db', 'static')
 APP, PLAT, RO, AUTH = '[tp_app]', '[tp_platform]', '[tp_readonly]', '[tp_auth]'
+# R11: the only cascade the review of O-13 kept: an item's legal-form conditions are part of the item, and items change
+# only in a draft profile version (db/static/041_kyc_profile_versions.sql).
+CASCADE_ALLOWED = {('pty.KycProfileItemLegalForm', 'KycProfileItemId')}
 
 def read(p):
     return open(p, encoding='utf-8').read()
@@ -110,6 +115,12 @@ def main():
         if any(c in cols for c in ('NumberHash', 'AccountNoHash', 'IbanHash', 'BeneficiaryAccountIbanHash')):
             if not any(k in cols for k in ('HashKeyId', 'MfaKeyRef')):
                 errs.append(f'R8: {t.fq} فيه بصمة فهرسة بلا مفتاح HMAC')
+
+    # R11: الحذف المتتالي على الروابط المسموحة فقط
+    for name, t in tables.items():
+        for c in t.cols:
+            if c.cascade and (t.fq, c.name) not in CASCADE_ALLOWED:
+                errs.append(f'R11: حذف متتالي غير مسموح {t.fq}.{c.name}')
 
     # R10: ملفات النشر موجودة، ومنح rls بعد إنشاء المخطط في 010
     deploy = read(os.path.join(ROOT, 'db', 'deploy.sql'))

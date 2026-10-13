@@ -104,7 +104,7 @@ flowchart TD
 | CAT.LOOKUPS | cat.LookupList، cat.LookupItem | UNIT_TYPE وCONTACT_ROLE وACCOUNT_PURPOSE وSIGNATURE_CLASS وAUTHORISATION_BASIS، ثم قوائم الاعتماد في S3 | 11-m2-m4…:320-349؛ docs/20-database-design.md:476 | S1، وقوائم LC في S3 |
 | CAT.CURRENCY | cat.TenantCurrency | SAR وUSD وEUR وGBP وAED مفعّلة | 11-m2-m4…:341؛ Q-CAT-08 | S1 |
 | NTF.BASE | ntf.NotificationEventType، ntf.NotificationRule، ntf.NotificationTemplate | رموز الأحداث في 13 §9.2 ومنها رموز 10-m0-m1…:539 | db/model/15-workflow-notifications.model:527-570 | S1 |
-| PTY.KYC | pty.KycProfile، pty.KycProfileItem | ملفات KYC المسبقة من 05 §3 | db/model/11-organization-party.model:407-441 | S2 |
+| PTY.KYC | pty.KycProfile، pty.KycProfileItem | ملفات KYC المسبقة من 05 §3؛ يُكتب كل ملف مسودة ثم بنوده ثم يُفعَّل، لأن بنود النسخة الفعّالة لا تتغير (ADR 0006) | db/model/11-organization-party.model:407-441 | S2 |
 | CMP.TERMS | cmp.TermType | مفاتيح الشروط القابلة للمقارنة | db/model/13-facilities-pricing-terms.model:542 | S2 |
 | FIN.LINES | fin.LineCatalogItem | 39 بندًا | db/model/14-collateral-obligations-financials.model:383 | S2-ب |
 | WFL.BASE | wfl.ExternalPhase، wfl.RequestType، wfl.WorkflowTemplate | 8 مراحل ظاهرة وأنواع الطلبات وقوالبها | db/model/15-workflow-notifications.model:20-96 | S3 |
