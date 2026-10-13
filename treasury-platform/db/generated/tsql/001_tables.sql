@@ -64,7 +64,7 @@ CREATE TABLE [plat].[Tenant] (
     CONSTRAINT [PK_Tenant] PRIMARY KEY CLUSTERED ([TenantId]),
     CONSTRAINT [UQ_Tenant_PublicId] UNIQUE ([PublicId]),
     CONSTRAINT [UQ_Tenant_Code] UNIQUE ([Code]),
-    CONSTRAINT [CK_Tenant_1] CHECK (Code NOT LIKE '%[^A-Za-z0-9-]%' AND Code NOT LIKE '-%' AND Code NOT LIKE '%-'),
+    CONSTRAINT [CK_Tenant_1] CHECK (Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Za-z0-9-]%' AND Code NOT LIKE '-%' AND Code NOT LIKE '%-'),
     CONSTRAINT [CK_Tenant_2] CHECK (Status <> 'TRIAL' OR TrialEndsOn IS NOT NULL),
     CONSTRAINT [CK_Tenant_3] CHECK (Status <> 'SUSPENDED' OR SuspendedReason IS NOT NULL),
     CONSTRAINT [CK_Tenant_4] CHECK (Status <> 'SUSPENDED' OR SuspendedAt IS NOT NULL),
@@ -163,7 +163,9 @@ CREATE TABLE [plat].[SupportAccessGrant] (
     [RowVersion] ROWVERSION NOT NULL,
     CONSTRAINT [PK_SupportAccessGrant] PRIMARY KEY CLUSTERED ([SupportAccessGrantId]),
     CONSTRAINT [UQ_SupportAccessGrant_Tenant] UNIQUE ([TenantId], [SupportAccessGrantId]),
-    CONSTRAINT [CK_SupportAccessGrant_1] CHECK (EndsAt > StartsAt)
+    CONSTRAINT [CK_SupportAccessGrant_1] CHECK (EndsAt > StartsAt),
+    CONSTRAINT [CK_SupportAccessGrant_2] CHECK (EndsAt >= DATEADD(HOUR, 1, StartsAt) AND EndsAt <= DATEADD(HOUR, 72, StartsAt)),
+    CONSTRAINT [CK_SupportAccessGrant_3] CHECK ((RevokedAt IS NULL AND RevokedBy IS NULL) OR (RevokedAt IS NOT NULL AND RevokedBy IS NOT NULL))
 );
 GO
 -- One-time operator set-up links: password and MFA (FR-PLT-006)
@@ -315,7 +317,7 @@ CREATE TABLE [sec].[Permission] (
     CONSTRAINT [CK_Permission_LockedToRoleCodes_json] CHECK ([LockedToRoleCodes] IS NULL OR ISJSON([LockedToRoleCodes], VALUE) = 1)
 );
 GO
--- Role–permission link; PERMISSION_LOCKED is enforced by the service (BR-PLT-019)
+-- Role–permission link; a locked permission goes only to the system roles it names, enforced by sec.TR_RolePermission_Locked (043, BR-PLT-019, DR-16)
 CREATE TABLE [sec].[RolePermission] (
     [TenantId] INT NOT NULL,
     [RoleId] BIGINT NOT NULL,
@@ -595,7 +597,7 @@ CREATE TABLE [aud].[SensitiveAccessLog] (
     [IpAddress] VARCHAR(45) NULL,
     [UserAgent] NVARCHAR(400) NULL,
     [CorrelationId] UNIQUEIDENTIFIER NULL,
-    [AuditLogId] BIGINT NULL,
+    [AuditLogId] BIGINT NOT NULL,
     [CreatedAt] DATETIME2(3) NOT NULL CONSTRAINT [DF_SensitiveAccessLog_CreatedAt] DEFAULT SYSUTCDATETIME(),
     [CreatedBy] BIGINT NULL,
     CONSTRAINT [PK_SensitiveAccessLog] PRIMARY KEY CLUSTERED ([SensitiveAccessLogId]),
@@ -643,11 +645,12 @@ CREATE TABLE [doc].[Document] (
     CONSTRAINT [CK_Document_2] CHECK (Status <> 'SUPERSEDED' OR SupersededByDocumentId IS NOT NULL),
     CONSTRAINT [CK_Document_3] CHECK (Status <> 'SOFT_DELETED' OR (DeletedAt IS NOT NULL AND DeleteReason IS NOT NULL)),
     CONSTRAINT [CK_Document_4] CHECK (SupersededByDocumentId IS NULL OR SupersededByDocumentId <> DocumentId),
+    CONSTRAINT [CK_Document_5] CHECK (Sensitivity <> 'PUBLIC'),
     CONSTRAINT [CK_Document_Sensitivity] CHECK ([Sensitivity] IS NULL OR [Sensitivity] IN ('PUBLIC', 'INTERNAL', 'CONFIDENTIAL', 'RESTRICTED')),
     CONSTRAINT [CK_Document_Status] CHECK ([Status] IS NULL OR [Status] IN ('ACTIVE', 'SUPERSEDED', 'SOFT_DELETED'))
 );
 GO
--- Immutable file version; a change creates a new version, enforced by the application (FR-PLT-027, BR-PLT-011)
+-- Immutable file version; a change creates a new version: the application may update only the scan and integrity columns (043, FR-PLT-027, BR-PLT-011, DR-11)
 CREATE TABLE [doc].[DocumentVersion] (
     [TenantId] INT NOT NULL,
     [DocumentVersionId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -672,8 +675,9 @@ CREATE TABLE [doc].[DocumentVersion] (
     [RowVersion] ROWVERSION NOT NULL,
     CONSTRAINT [PK_DocumentVersion] PRIMARY KEY CLUSTERED ([DocumentVersionId]),
     CONSTRAINT [UQ_DocumentVersion_Tenant] UNIQUE ([TenantId], [DocumentVersionId]),
+    CONSTRAINT [UQ_DocumentVersion_Scope_DocumentId] UNIQUE ([TenantId], [DocumentId], [DocumentVersionId]),
     CONSTRAINT [UQ_DocumentVersion_DocumentId_VersionNo] UNIQUE ([TenantId], [DocumentId], [VersionNo]),
-    CONSTRAINT [UQ_DocumentVersion_StorageKey] UNIQUE ([TenantId], [StorageKey]),
+    CONSTRAINT [UQ_DocumentVersion_StorageKey] UNIQUE ([StorageKey]),
     CONSTRAINT [CK_DocumentVersion_1] CHECK (VersionNo >= 1),
     CONSTRAINT [CK_DocumentVersion_2] CHECK (SizeBytes > 0),
     CONSTRAINT [CK_DocumentVersion_3] CHECK (ScanStatus = 'PENDING' OR ScannedAt IS NOT NULL),
@@ -889,9 +893,11 @@ CREATE TABLE [cfg].[DataExportJob] (
     CONSTRAINT [PK_DataExportJob] PRIMARY KEY CLUSTERED ([DataExportJobId]),
     CONSTRAINT [UQ_DataExportJob_Tenant] UNIQUE ([TenantId], [DataExportJobId]),
     CONSTRAINT [UQ_DataExportJob_PublicId] UNIQUE ([PublicId]),
-    CONSTRAINT [CK_DataExportJob_1] CHECK (IncludesRestricted = 0 OR Status NOT IN ('APPROVED','RUNNING','READY') OR ApprovedBy IS NOT NULL),
-    CONSTRAINT [CK_DataExportJob_2] CHECK (Status <> 'READY' OR (PackageDocumentId IS NOT NULL AND PackageSha256 IS NOT NULL)),
-    CONSTRAINT [CK_DataExportJob_3] CHECK (FinishedAt IS NULL OR StartedAt IS NULL OR FinishedAt >= StartedAt),
+    CONSTRAINT [CK_DataExportJob_1] CHECK (IncludesRestricted = 0 OR Status = 'REQUESTED' OR ApprovedBy IS NOT NULL),
+    CONSTRAINT [CK_DataExportJob_2] CHECK ((ApprovedBy IS NULL AND ApprovedAt IS NULL) OR (ApprovedBy IS NOT NULL AND ApprovedAt IS NOT NULL)),
+    CONSTRAINT [CK_DataExportJob_3] CHECK (Status NOT IN ('READY','EXPIRED') OR ExpiresAt IS NOT NULL),
+    CONSTRAINT [CK_DataExportJob_4] CHECK (Status <> 'READY' OR (PackageDocumentId IS NOT NULL AND PackageSha256 IS NOT NULL)),
+    CONSTRAINT [CK_DataExportJob_5] CHECK (FinishedAt IS NULL OR StartedAt IS NULL OR FinishedAt >= StartedAt),
     CONSTRAINT [CK_DataExportJob_Scope] CHECK ([Scope] IS NULL OR [Scope] IN ('FULL', 'PARTIAL')),
     CONSTRAINT [CK_DataExportJob_Status] CHECK ([Status] IS NULL OR [Status] IN ('REQUESTED', 'APPROVED', 'RUNNING', 'READY', 'EXPIRED', 'FAILED')),
     CONSTRAINT [CK_DataExportJob_ScopeDetailJson_json] CHECK ([ScopeDetailJson] IS NULL OR ISJSON([ScopeDetailJson], VALUE) = 1)
@@ -917,7 +923,7 @@ CREATE TABLE [cfg].[NonWorkingDay] (
     CONSTRAINT [CK_NonWorkingDay_Kind] CHECK ([Kind] IS NULL OR [Kind] IN ('HOLIDAY', 'BRIDGE', 'OTHER'))
 );
 GO
--- Outbound queue with at-least-once delivery; the payload carries identifiers without restricted data (FR-PLT-042)
+-- Outbound queue with at-least-once delivery; the payload carries identifiers without restricted data; only DELIVERED events may be deleted (043, FR-PLT-042, DR-14)
 CREATE TABLE [cfg].[OutboxEvent] (
     [TenantId] INT NOT NULL,
     [OutboxEventId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -945,6 +951,9 @@ CREATE TABLE [cfg].[OutboxEvent] (
     CONSTRAINT [UQ_OutboxEvent_MessageId] UNIQUE ([TenantId], [MessageId]),
     CONSTRAINT [CK_OutboxEvent_1] CHECK (AttemptCount >= 0),
     CONSTRAINT [CK_OutboxEvent_2] CHECK (EventName LIKE '%.%'),
+    CONSTRAINT [CK_OutboxEvent_3] CHECK (Status <> 'PROCESSING' OR (LockedBy IS NOT NULL AND LockedUntil IS NOT NULL)),
+    CONSTRAINT [CK_OutboxEvent_4] CHECK (Status <> 'DELIVERED' OR DeliveredAt IS NOT NULL),
+    CONSTRAINT [CK_OutboxEvent_5] CHECK (Status <> 'DEAD' OR LastError IS NOT NULL),
     CONSTRAINT [CK_OutboxEvent_Status] CHECK ([Status] IS NULL OR [Status] IN ('PENDING', 'PROCESSING', 'DELIVERED', 'FAILED', 'DEAD')),
     CONSTRAINT [CK_OutboxEvent_PayloadJson_json] CHECK ([PayloadJson] IS NULL OR ISJSON([PayloadJson], VALUE) = 1)
 );
@@ -1765,9 +1774,9 @@ CREATE TABLE [ref].[Country] (
     CONSTRAINT [PK_Country] PRIMARY KEY CLUSTERED ([CountryId]),
     CONSTRAINT [UQ_Country_Iso2] UNIQUE ([Iso2]),
     CONSTRAINT [UQ_Country_Iso3] UNIQUE ([Iso3]),
-    CONSTRAINT [CK_Country_1] CHECK (Iso2 NOT LIKE '%[^A-Z]%' AND Iso3 NOT LIKE '%[^A-Z]%'),
+    CONSTRAINT [CK_Country_1] CHECK (Iso2 COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z]%' AND Iso3 COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z]%'),
     CONSTRAINT [CK_Country_2] CHECK (DialCode IS NULL OR (DialCode LIKE '+[0-9]%' AND DialCode NOT LIKE '+%[^0-9]%' AND DialCode NOT LIKE '+_____%')),
-    CONSTRAINT [CK_Country_3] CHECK (WeekendDays IS NULL OR WeekendDays NOT LIKE '%[^A-Z,]%'),
+    CONSTRAINT [CK_Country_3] CHECK (WeekendDays IS NULL OR WeekendDays COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z,]%'),
     CONSTRAINT [CK_Country_WeekendDays] CHECK ([WeekendDays] IS NULL OR LEN([WeekendDays]) + 1 = CASE WHEN CHARINDEX(',MON,', (',' + [WeekendDays] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 4 ELSE 0 END + CASE WHEN CHARINDEX(',TUE,', (',' + [WeekendDays] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 4 ELSE 0 END + CASE WHEN CHARINDEX(',WED,', (',' + [WeekendDays] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 4 ELSE 0 END + CASE WHEN CHARINDEX(',THU,', (',' + [WeekendDays] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 4 ELSE 0 END + CASE WHEN CHARINDEX(',FRI,', (',' + [WeekendDays] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 4 ELSE 0 END + CASE WHEN CHARINDEX(',SAT,', (',' + [WeekendDays] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 4 ELSE 0 END + CASE WHEN CHARINDEX(',SUN,', (',' + [WeekendDays] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 4 ELSE 0 END)
 );
 GO
@@ -1789,7 +1798,7 @@ CREATE TABLE [ref].[Currency] (
     CONSTRAINT [UQ_Currency_Code] UNIQUE ([Code]),
     CONSTRAINT [UQ_Currency_NumericCode] UNIQUE ([NumericCode]),
     CONSTRAINT [CK_Currency_1] CHECK (Decimals BETWEEN 0 AND 3),
-    CONSTRAINT [CK_Currency_2] CHECK (Code NOT LIKE '%[^A-Z]%'),
+    CONSTRAINT [CK_Currency_2] CHECK (Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z]%'),
     CONSTRAINT [CK_Currency_3] CHECK (NumericCode NOT LIKE '%[^0-9]%')
 );
 GO
@@ -1810,7 +1819,7 @@ CREATE TABLE [ref].[Incoterm] (
     [UpdatedBy] BIGINT NULL,
     CONSTRAINT [PK_Incoterm] PRIMARY KEY CLUSTERED ([IncotermId]),
     CONSTRAINT [UQ_Incoterm_Code] UNIQUE ([Code]),
-    CONSTRAINT [CK_Incoterm_1] CHECK (Code NOT LIKE '%[^A-Z]%'),
+    CONSTRAINT [CK_Incoterm_1] CHECK (Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z]%'),
     CONSTRAINT [CK_Incoterm_Status] CHECK ([Status] IS NULL OR [Status] IN ('ACTIVE', 'LEGACY'))
 );
 GO
@@ -1879,7 +1888,7 @@ CREATE TABLE [cat].[InstitutionType] (
     CONSTRAINT [PK_InstitutionType] PRIMARY KEY CLUSTERED ([InstitutionTypeId]),
     CONSTRAINT [UQ_InstitutionType_Tenant] UNIQUE ([TenantId], [InstitutionTypeId]),
     CONSTRAINT [UQ_InstitutionType_Code] UNIQUE ([TenantId], [Code]),
-    CONSTRAINT [CK_InstitutionType_1] CHECK (Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'),
+    CONSTRAINT [CK_InstitutionType_1] CHECK (Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'),
     CONSTRAINT [CK_InstitutionType_2] CHECK ((IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL))
 );
 GO
@@ -1906,7 +1915,7 @@ CREATE TABLE [cat].[AccountType] (
     CONSTRAINT [PK_AccountType] PRIMARY KEY CLUSTERED ([AccountTypeId]),
     CONSTRAINT [UQ_AccountType_Tenant] UNIQUE ([TenantId], [AccountTypeId]),
     CONSTRAINT [UQ_AccountType_Code] UNIQUE ([TenantId], [Code]),
-    CONSTRAINT [CK_AccountType_1] CHECK (Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'),
+    CONSTRAINT [CK_AccountType_1] CHECK (Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'),
     CONSTRAINT [CK_AccountType_2] CHECK ((IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL))
 );
 GO
@@ -1936,7 +1945,7 @@ CREATE TABLE [cat].[LegalEntityType] (
     CONSTRAINT [PK_LegalEntityType] PRIMARY KEY CLUSTERED ([LegalEntityTypeId]),
     CONSTRAINT [UQ_LegalEntityType_Tenant] UNIQUE ([TenantId], [LegalEntityTypeId]),
     CONSTRAINT [UQ_LegalEntityType_Code_CountryId] UNIQUE ([TenantId], [Code], [CountryId]),
-    CONSTRAINT [CK_LegalEntityType_1] CHECK (Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'),
+    CONSTRAINT [CK_LegalEntityType_1] CHECK (Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'),
     CONSTRAINT [CK_LegalEntityType_2] CHECK ((IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)),
     CONSTRAINT [CK_LegalEntityType_DefaultBodyTypes] CHECK ([DefaultBodyTypes] IS NULL OR LEN([DefaultBodyTypes]) + 1 = CASE WHEN CHARINDEX(',BOARD_OF_DIRECTORS,', (',' + [DefaultBodyTypes] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 19 ELSE 0 END + CASE WHEN CHARINDEX(',BOARD_OF_MANAGERS,', (',' + [DefaultBodyTypes] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 18 ELSE 0 END + CASE WHEN CHARINDEX(',MANAGEMENT,', (',' + [DefaultBodyTypes] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 11 ELSE 0 END + CASE WHEN CHARINDEX(',GENERAL_ASSEMBLY,', (',' + [DefaultBodyTypes] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 17 ELSE 0 END)
 );
@@ -1970,7 +1979,7 @@ CREATE TABLE [cat].[DocumentType] (
     CONSTRAINT [PK_DocumentType] PRIMARY KEY CLUSTERED ([DocumentTypeId]),
     CONSTRAINT [UQ_DocumentType_Tenant] UNIQUE ([TenantId], [DocumentTypeId]),
     CONSTRAINT [UQ_DocumentType_Code] UNIQUE ([TenantId], [Code]),
-    CONSTRAINT [CK_DocumentType_1] CHECK (Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'),
+    CONSTRAINT [CK_DocumentType_1] CHECK (Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'),
     CONSTRAINT [CK_DocumentType_2] CHECK ((IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)),
     CONSTRAINT [CK_DocumentType_3] CHECK (MaxSizeMb IS NULL OR MaxSizeMb > 0),
     CONSTRAINT [CK_DocumentType_4] CHECK (RetentionYears IS NULL OR RetentionYears > 0),
@@ -2003,7 +2012,7 @@ CREATE TABLE [cat].[Position] (
     CONSTRAINT [PK_Position] PRIMARY KEY CLUSTERED ([PositionId]),
     CONSTRAINT [UQ_Position_Tenant] UNIQUE ([TenantId], [PositionId]),
     CONSTRAINT [UQ_Position_Code] UNIQUE ([TenantId], [Code]),
-    CONSTRAINT [CK_Position_1] CHECK (Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'),
+    CONSTRAINT [CK_Position_1] CHECK (Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'),
     CONSTRAINT [CK_Position_2] CHECK ((IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)),
     CONSTRAINT [CK_Position_ApplicableBodyTypes] CHECK ([ApplicableBodyTypes] IS NULL OR LEN([ApplicableBodyTypes]) + 1 = CASE WHEN CHARINDEX(',BOARD_OF_DIRECTORS,', (',' + [ApplicableBodyTypes] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 19 ELSE 0 END + CASE WHEN CHARINDEX(',BOARD_OF_MANAGERS,', (',' + [ApplicableBodyTypes] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 18 ELSE 0 END + CASE WHEN CHARINDEX(',MANAGEMENT,', (',' + [ApplicableBodyTypes] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 11 ELSE 0 END + CASE WHEN CHARINDEX(',GENERAL_ASSEMBLY,', (',' + [ApplicableBodyTypes] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 17 ELSE 0 END)
 );
@@ -2032,7 +2041,7 @@ CREATE TABLE [cat].[PowerType] (
     CONSTRAINT [PK_PowerType] PRIMARY KEY CLUSTERED ([PowerTypeId]),
     CONSTRAINT [UQ_PowerType_Tenant] UNIQUE ([TenantId], [PowerTypeId]),
     CONSTRAINT [UQ_PowerType_Code] UNIQUE ([TenantId], [Code]),
-    CONSTRAINT [CK_PowerType_1] CHECK (Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'),
+    CONSTRAINT [CK_PowerType_1] CHECK (Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'),
     CONSTRAINT [CK_PowerType_2] CHECK ((IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)),
     CONSTRAINT [CK_PowerType_Category] CHECK ([Category] IS NULL OR [Category] IN ('CONTRACTS', 'ACCOUNTS', 'BORROWING', 'GUARANTEES', 'TRADE', 'REPRESENTATION', 'ASSETS', 'OTHER'))
 );
@@ -2061,7 +2070,7 @@ CREATE TABLE [cat].[OperationType] (
     CONSTRAINT [PK_OperationType] PRIMARY KEY CLUSTERED ([OperationTypeId]),
     CONSTRAINT [UQ_OperationType_Tenant] UNIQUE ([TenantId], [OperationTypeId]),
     CONSTRAINT [UQ_OperationType_Code] UNIQUE ([TenantId], [Code]),
-    CONSTRAINT [CK_OperationType_1] CHECK (Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'),
+    CONSTRAINT [CK_OperationType_1] CHECK (Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'),
     CONSTRAINT [CK_OperationType_2] CHECK ((IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)),
     CONSTRAINT [CK_OperationType_OperationGroup] CHECK ([OperationGroup] IS NULL OR [OperationGroup] IN ('MONEY', 'CREDIT', 'REPRESENTATION', 'CHANNEL'))
 );
@@ -2100,7 +2109,7 @@ CREATE TABLE [cat].[ProductCategory] (
     CONSTRAINT [PK_ProductCategory] PRIMARY KEY CLUSTERED ([ProductCategoryId]),
     CONSTRAINT [UQ_ProductCategory_Tenant] UNIQUE ([TenantId], [ProductCategoryId]),
     CONSTRAINT [UQ_ProductCategory_Code] UNIQUE ([TenantId], [Code]),
-    CONSTRAINT [CK_ProductCategory_1] CHECK (Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'),
+    CONSTRAINT [CK_ProductCategory_1] CHECK (Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'),
     CONSTRAINT [CK_ProductCategory_2] CHECK ((IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL))
 );
 GO
@@ -2132,7 +2141,7 @@ CREATE TABLE [cat].[Product] (
     CONSTRAINT [PK_Product] PRIMARY KEY CLUSTERED ([ProductId]),
     CONSTRAINT [UQ_Product_Tenant] UNIQUE ([TenantId], [ProductId]),
     CONSTRAINT [UQ_Product_Code] UNIQUE ([TenantId], [Code]),
-    CONSTRAINT [CK_Product_1] CHECK (Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'),
+    CONSTRAINT [CK_Product_1] CHECK (Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'),
     CONSTRAINT [CK_Product_2] CHECK ((IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)),
     CONSTRAINT [CK_Product_ProductFamily] CHECK ([ProductFamily] IS NULL OR [ProductFamily] IN ('LC', 'GUARANTEE', 'FINANCING', 'COLLECTION', 'FX', 'PAYMENT', 'CARD', 'ACCOUNT_SERVICE', 'OTHER')),
     CONSTRAINT [CK_Product_Compliance] CHECK ([Compliance] IS NULL OR [Compliance] IN ('CONVENTIONAL', 'ISLAMIC', 'NEUTRAL'))
@@ -2162,7 +2171,7 @@ CREATE TABLE [cat].[FeeType] (
     CONSTRAINT [PK_FeeType] PRIMARY KEY CLUSTERED ([FeeTypeId]),
     CONSTRAINT [UQ_FeeType_Tenant] UNIQUE ([TenantId], [FeeTypeId]),
     CONSTRAINT [UQ_FeeType_Code] UNIQUE ([TenantId], [Code]),
-    CONSTRAINT [CK_FeeType_1] CHECK (Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'),
+    CONSTRAINT [CK_FeeType_1] CHECK (Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'),
     CONSTRAINT [CK_FeeType_2] CHECK ((IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)),
     CONSTRAINT [CK_FeeType_Nature] CHECK ([Nature] IS NULL OR [Nature] IN ('FEE', 'PENALTY_NON_INCOME')),
     CONSTRAINT [CK_FeeType_CalcHint] CHECK ([CalcHint] IS NULL OR [CalcHint] IN ('PERCENT', 'FIXED', 'PER_MILLION', 'TIERED'))
@@ -2192,7 +2201,7 @@ CREATE TABLE [cat].[FinancingType] (
     CONSTRAINT [PK_FinancingType] PRIMARY KEY CLUSTERED ([FinancingTypeId]),
     CONSTRAINT [UQ_FinancingType_Tenant] UNIQUE ([TenantId], [FinancingTypeId]),
     CONSTRAINT [UQ_FinancingType_Code] UNIQUE ([TenantId], [Code]),
-    CONSTRAINT [CK_FinancingType_1] CHECK (Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'),
+    CONSTRAINT [CK_FinancingType_1] CHECK (Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'),
     CONSTRAINT [CK_FinancingType_2] CHECK ((IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)),
     CONSTRAINT [CK_FinancingType_ReturnLabel] CHECK ([ReturnLabel] IS NULL OR [ReturnLabel] IN ('PROFIT', 'INTEREST'))
 );
@@ -2254,7 +2263,7 @@ CREATE TABLE [cat].[FacilityType] (
     CONSTRAINT [PK_FacilityType] PRIMARY KEY CLUSTERED ([FacilityTypeId]),
     CONSTRAINT [UQ_FacilityType_Tenant] UNIQUE ([TenantId], [FacilityTypeId]),
     CONSTRAINT [UQ_FacilityType_Code] UNIQUE ([TenantId], [Code]),
-    CONSTRAINT [CK_FacilityType_1] CHECK (Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'),
+    CONSTRAINT [CK_FacilityType_1] CHECK (Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'),
     CONSTRAINT [CK_FacilityType_2] CHECK ((IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)),
     CONSTRAINT [CK_FacilityType_Compliance] CHECK ([Compliance] IS NULL OR [Compliance] IN ('CONVENTIONAL', 'ISLAMIC', 'NEUTRAL'))
 );
@@ -2287,7 +2296,7 @@ CREATE TABLE [cat].[LimitType] (
     CONSTRAINT [UQ_LimitType_Code] UNIQUE ([TenantId], [Code]),
     CONSTRAINT [CK_LimitType_1] CHECK ((Kind = 'MAIN' AND ParentLimitTypeId IS NULL) OR (Kind = 'SUB' AND ParentLimitTypeId IS NOT NULL)),
     CONSTRAINT [CK_LimitType_2] CHECK (ParentLimitTypeId IS NULL OR ParentLimitTypeId <> LimitTypeId),
-    CONSTRAINT [CK_LimitType_3] CHECK (Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'),
+    CONSTRAINT [CK_LimitType_3] CHECK (Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'),
     CONSTRAINT [CK_LimitType_4] CHECK ((IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)),
     CONSTRAINT [CK_LimitType_Kind] CHECK ([Kind] IS NULL OR [Kind] IN ('MAIN', 'SUB')),
     CONSTRAINT [CK_LimitType_DefaultDistributionMode] CHECK ([DefaultDistributionMode] IS NULL OR [DefaultDistributionMode] IN ('SHARED_CAP', 'PARTITION', 'OUTSIDE_TOTAL'))
@@ -2328,7 +2337,7 @@ CREATE TABLE [cat].[CollateralType] (
     CONSTRAINT [PK_CollateralType] PRIMARY KEY CLUSTERED ([CollateralTypeId]),
     CONSTRAINT [UQ_CollateralType_Tenant] UNIQUE ([TenantId], [CollateralTypeId]),
     CONSTRAINT [UQ_CollateralType_Code] UNIQUE ([TenantId], [Code]),
-    CONSTRAINT [CK_CollateralType_1] CHECK (Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'),
+    CONSTRAINT [CK_CollateralType_1] CHECK (Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'),
     CONSTRAINT [CK_CollateralType_2] CHECK ((IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)),
     CONSTRAINT [CK_CollateralType_StructureKind] CHECK ([StructureKind] IS NULL OR [StructureKind] IN ('GUARANTEE', 'PROMISSORY_NOTE', 'INSURANCE_ASSIGNMENT', 'CASH_MARGIN', 'REAL_ESTATE', 'SET_OFF', 'NEGATIVE_PLEDGE', 'GENERIC'))
 );
@@ -2388,7 +2397,7 @@ CREATE TABLE [cat].[ObligationType] (
     CONSTRAINT [UQ_ObligationType_Code] UNIQUE ([TenantId], [Code]),
     CONSTRAINT [CK_ObligationType_1] CHECK (Family <> 'COVENANT' OR MeasureKind IS NOT NULL),
     CONSTRAINT [CK_ObligationType_2] CHECK (MeasureKind IS NULL OR MeasureKind <> 'NONE' OR IsQualitative = 1),
-    CONSTRAINT [CK_ObligationType_3] CHECK (Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'),
+    CONSTRAINT [CK_ObligationType_3] CHECK (Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'),
     CONSTRAINT [CK_ObligationType_4] CHECK ((IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)),
     CONSTRAINT [CK_ObligationType_Family] CHECK ([Family] IS NULL OR [Family] IN ('REPORTING', 'COVENANT', 'TRANSACTION_RESTRICTION', 'STATIC_CLAUSE')),
     CONSTRAINT [CK_ObligationType_MeasureKind] CHECK ([MeasureKind] IS NULL OR [MeasureKind] IN ('RATIO', 'AMOUNT', 'PERCENT_OF_REVENUE', 'AVERAGE_BALANCE', 'FLOW_VOLUME', 'NONE')),
@@ -2427,7 +2436,7 @@ CREATE TABLE [cat].[BaseRate] (
     CONSTRAINT [UQ_BaseRate_Code] UNIQUE ([TenantId], [Code]),
     CONSTRAINT [CK_BaseRate_1] CHECK ((Kind = 'MARKET' AND InstitutionId IS NULL) OR (Kind = 'BANK_INTERNAL' AND InstitutionId IS NOT NULL)),
     CONSTRAINT [CK_BaseRate_2] CHECK (StaleAfterDays IS NULL OR StaleAfterDays > 0),
-    CONSTRAINT [CK_BaseRate_3] CHECK (Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'),
+    CONSTRAINT [CK_BaseRate_3] CHECK (Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'),
     CONSTRAINT [CK_BaseRate_4] CHECK ((IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)),
     CONSTRAINT [CK_BaseRate_Kind] CHECK ([Kind] IS NULL OR [Kind] IN ('MARKET', 'BANK_INTERNAL')),
     CONSTRAINT [CK_BaseRate_Tenor] CHECK ([Tenor] IS NULL OR [Tenor] IN ('ON', '1M', '3M', '6M', '12M'))
@@ -2505,7 +2514,7 @@ CREATE TABLE [cat].[LookupList] (
     CONSTRAINT [UQ_LookupList_Tenant] UNIQUE ([TenantId], [LookupListId]),
     CONSTRAINT [UQ_LookupList_Code] UNIQUE ([TenantId], [Code]),
     CONSTRAINT [CK_LookupList_1] CHECK ((Scope = 'SYSTEM' AND IsSystem = 1) OR (Scope = 'TENANT' AND IsSystem = 0)),
-    CONSTRAINT [CK_LookupList_2] CHECK (Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'),
+    CONSTRAINT [CK_LookupList_2] CHECK (Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'),
     CONSTRAINT [CK_LookupList_3] CHECK ((IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)),
     CONSTRAINT [CK_LookupList_Scope] CHECK ([Scope] IS NULL OR [Scope] IN ('SYSTEM', 'TENANT')),
     CONSTRAINT [CK_LookupList_AttributeSchema_json] CHECK ([AttributeSchema] IS NULL OR ISJSON([AttributeSchema], VALUE) = 1)
@@ -2536,7 +2545,7 @@ CREATE TABLE [cat].[LookupItem] (
     CONSTRAINT [PK_LookupItem] PRIMARY KEY CLUSTERED ([LookupItemId]),
     CONSTRAINT [UQ_LookupItem_Tenant] UNIQUE ([TenantId], [LookupItemId]),
     CONSTRAINT [UQ_LookupItem_LookupListId_Code] UNIQUE ([TenantId], [LookupListId], [Code]),
-    CONSTRAINT [CK_LookupItem_1] CHECK (Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'),
+    CONSTRAINT [CK_LookupItem_1] CHECK (Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'),
     CONSTRAINT [CK_LookupItem_2] CHECK ((IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)),
     CONSTRAINT [CK_LookupItem_Status] CHECK ([Status] IS NULL OR [Status] IN ('ACTIVE', 'LEGACY')),
     CONSTRAINT [CK_LookupItem_Attributes_json] CHECK ([Attributes] IS NULL OR ISJSON([Attributes], VALUE) = 1)
@@ -2570,7 +2579,7 @@ CREATE TABLE [ins].[Institution] (
     CONSTRAINT [UQ_Institution_PublicId] UNIQUE ([PublicId]),
     CONSTRAINT [UQ_Institution_Code] UNIQUE ([TenantId], [Code]),
     CONSTRAINT [CK_Institution_1] CHECK (Code NOT LIKE '% %'),
-    CONSTRAINT [CK_Institution_2] CHECK (SwiftBic IS NULL OR SwiftBic LIKE '[A-Z][A-Z][A-Z][A-Z][A-Z][A-Z][A-Z0-9][A-Z0-9]' OR SwiftBic LIKE '[A-Z][A-Z][A-Z][A-Z][A-Z][A-Z][A-Z0-9][A-Z0-9][A-Z0-9][A-Z0-9][A-Z0-9]'),
+    CONSTRAINT [CK_Institution_2] CHECK (SwiftBic IS NULL OR SwiftBic COLLATE Arabic_100_BIN2 LIKE '[A-Z][A-Z][A-Z][A-Z][A-Z][A-Z][A-Z0-9][A-Z0-9]' OR SwiftBic COLLATE Arabic_100_BIN2 LIKE '[A-Z][A-Z][A-Z][A-Z][A-Z][A-Z][A-Z0-9][A-Z0-9][A-Z0-9][A-Z0-9][A-Z0-9]'),
     CONSTRAINT [CK_Institution_Status] CHECK ([Status] IS NULL OR [Status] IN ('DRAFT', 'ACTIVE', 'INACTIVE'))
 );
 GO
@@ -4418,7 +4427,7 @@ CREATE TABLE [fin].[LineCatalogItem] (
     CONSTRAINT [CK_LineCatalogItem_1] CHECK (IsTotal = 0 OR TotalFormula IS NOT NULL),
     CONSTRAINT [CK_LineCatalogItem_2] CHECK (IsTotal = 1 OR TotalFormula IS NULL),
     CONSTRAINT [CK_LineCatalogItem_3] CHECK (NameEn IS NOT NULL),
-    CONSTRAINT [CK_LineCatalogItem_4] CHECK (Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'),
+    CONSTRAINT [CK_LineCatalogItem_4] CHECK (Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'),
     CONSTRAINT [CK_LineCatalogItem_5] CHECK (IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)),
     CONSTRAINT [CK_LineCatalogItem_Section] CHECK ([Section] IS NULL OR [Section] IN ('BS_ASSET', 'BS_LIABILITY', 'BS_EQUITY', 'IS', 'CF'))
 );
@@ -4604,7 +4613,7 @@ CREATE TABLE [fin].[MeasureFormula] (
     CONSTRAINT [CK_MeasureFormula_4] CHECK (BaseTemplateId IS NULL OR BaseTemplateId <> MeasureFormulaId),
     CONSTRAINT [CK_MeasureFormula_5] CHECK (InputKinds <> ''),
     CONSTRAINT [CK_MeasureFormula_6] CHECK (VersionNo >= 1),
-    CONSTRAINT [CK_MeasureFormula_7] CHECK (Code NOT LIKE '%[^A-Z0-9_]%'),
+    CONSTRAINT [CK_MeasureFormula_7] CHECK (Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%'),
     CONSTRAINT [CK_MeasureFormula_8] CHECK (Status NOT IN ('APPROVED','SUPERSEDED') OR (ApprovedBy IS NOT NULL AND ApprovedOn IS NOT NULL)),
     CONSTRAINT [CK_MeasureFormula_9] CHECK (SourceDocumentId IS NOT NULL AND SourcePage IS NOT NULL OR (SourceDocumentId IS NULL AND Confidence = 'ENTERED_NO_DOCUMENT')),
     CONSTRAINT [CK_MeasureFormula_10] CHECK (Confidence <> 'CONFIRMED_AGAINST_ORIGINAL' OR (VerifiedBy IS NOT NULL AND VerifiedOn IS NOT NULL)),
@@ -5687,7 +5696,7 @@ CREATE TABLE [lc].[LcDocumentClause] (
     CONSTRAINT [UQ_LcDocumentClause_Tenant] UNIQUE ([TenantId], [LcDocumentClauseId]),
     CONSTRAINT [UQ_LcDocumentClause_PublicId] UNIQUE ([PublicId]),
     CONSTRAINT [UQ_LcDocumentClause_Code_VersionNo] UNIQUE ([TenantId], [Code], [VersionNo]),
-    CONSTRAINT [CK_LcDocumentClause_1] CHECK (Code NOT LIKE '%[^A-Z0-9_]%'),
+    CONSTRAINT [CK_LcDocumentClause_1] CHECK (Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%'),
     CONSTRAINT [CK_LcDocumentClause_2] CHECK (VersionNo >= 1),
     CONSTRAINT [CK_LcDocumentClause_3] CHECK (DefaultOriginals IS NULL OR DefaultOriginals >= 0),
     CONSTRAINT [CK_LcDocumentClause_4] CHECK (DefaultCopies IS NULL OR DefaultCopies >= 0),
@@ -5849,8 +5858,8 @@ CREATE TABLE [lc].[LcTerms] (
     CONSTRAINT [CK_LcTerms_18] CHECK (Status = 'DRAFT' OR LcType <> 'MIXED' OR MixedPaymentText IS NOT NULL),
     CONSTRAINT [CK_LcTerms_19] CHECK (Status = 'DRAFT' OR DraftDrawee IS NULL OR (DraftRequired IS NOT NULL AND DraftRequired = 1)),
     CONSTRAINT [CK_LcTerms_20] CHECK (Status = 'DRAFT' OR LcType NOT IN ('ACCEPTANCE','NEGOTIATION') OR (DraftRequired IS NOT NULL AND DraftRequired = 1)),
-    CONSTRAINT [CK_LcTerms_21] CHECK (Status = 'DRAFT' OR ConfirmingBankBic IS NULL OR ((ConfirmingBankBic LIKE '________' OR ConfirmingBankBic LIKE '___________') AND ConfirmingBankBic NOT LIKE '%[^A-Z0-9]%')),
-    CONSTRAINT [CK_LcTerms_22] CHECK (Status = 'DRAFT' OR AdvisingBankBic IS NULL OR ((AdvisingBankBic LIKE '________' OR AdvisingBankBic LIKE '___________') AND AdvisingBankBic NOT LIKE '%[^A-Z0-9]%')),
+    CONSTRAINT [CK_LcTerms_21] CHECK (Status = 'DRAFT' OR ConfirmingBankBic IS NULL OR ((ConfirmingBankBic LIKE '________' OR ConfirmingBankBic LIKE '___________') AND ConfirmingBankBic COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9]%')),
+    CONSTRAINT [CK_LcTerms_22] CHECK (Status = 'DRAFT' OR AdvisingBankBic IS NULL OR ((AdvisingBankBic LIKE '________' OR AdvisingBankBic LIKE '___________') AND AdvisingBankBic COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9]%')),
     CONSTRAINT [CK_LcTerms_23] CHECK ((BeneficiaryAccountIbanEnc IS NULL AND BeneficiaryAccountIbanMask IS NULL AND BeneficiaryAccountIbanHash IS NULL) OR (BeneficiaryAccountIbanEnc IS NOT NULL AND BeneficiaryAccountIbanMask IS NOT NULL AND BeneficiaryAccountIbanHash IS NOT NULL)),
     CONSTRAINT [CK_LcTerms_24] CHECK (BeneficiaryAccountIbanEnc IS NULL OR (EncKeyId IS NOT NULL AND HashKeyId IS NOT NULL AND DATALENGTH(BeneficiaryAccountIbanEnc) >= 29)),
     CONSTRAINT [CK_LcTerms_25] CHECK (LcClass = 'SALES' OR (ApplicantCounterpartyId IS NULL AND BeneficiaryCompanyId IS NULL)),
@@ -6021,7 +6030,7 @@ CREATE TABLE [lc].[LcFormFieldMap] (
     CONSTRAINT [UQ_LcFormFieldMap_Tenant] UNIQUE ([TenantId], [LcFormFieldMapId]),
     CONSTRAINT [UQ_LcFormFieldMap_TemplateId_TargetName] UNIQUE ([TenantId], [TemplateId], [TargetName]),
     CONSTRAINT [CK_LcFormFieldMap_1] CHECK (SourceExpr LIKE 'terms.%' OR SourceExpr LIKE 'company.%' OR SourceExpr LIKE 'counterparty.%' OR SourceExpr LIKE 'facility.%' OR SourceExpr LIKE 'relationship.%' OR SourceExpr LIKE 'request.%' OR SourceExpr LIKE 'lc.%'),
-    CONSTRAINT [CK_LcFormFieldMap_2] CHECK (SourceExpr NOT LIKE '%[^A-Za-z0-9._]%'),
+    CONSTRAINT [CK_LcFormFieldMap_2] CHECK (SourceExpr COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Za-z0-9._]%'),
     CONSTRAINT [CK_LcFormFieldMap_3] CHECK (Transform <> 'CHECKBOX_EQ' OR TransformArg IS NOT NULL),
     CONSTRAINT [CK_LcFormFieldMap_4] CHECK (SeqNo IS NULL OR SeqNo >= 1),
     CONSTRAINT [CK_LcFormFieldMap_Transform] CHECK ([Transform] IS NULL OR [Transform] IN ('NONE', 'UPPER', 'DATE_DMY', 'DATE_HIJRI', 'AMOUNT_WORDS_AR', 'AMOUNT_WORDS_EN', 'CHECKBOX_EQ', 'CONCAT_DOCS', 'CHARGES_SUMMARY'))
@@ -6107,7 +6116,7 @@ CREATE TABLE [lc].[LetterOfCredit] (
     CONSTRAINT [CK_LetterOfCredit_18] CHECK (Status IN ('CLOSED','CANCELLED') OR (ClosedOn IS NULL AND ClosedReason IS NULL)),
     CONSTRAINT [CK_LetterOfCredit_19] CHECK (UndrawnReleasedOn IS NULL OR Status IN ('EXPIRED','CLOSED','CANCELLED')),
     CONSTRAINT [CK_LetterOfCredit_20] CHECK (LegacyEntry = 0 OR RequestId IS NULL),
-    CONSTRAINT [CK_LetterOfCredit_21] CHECK (OtherBankBic IS NULL OR ((OtherBankBic LIKE '________' OR OtherBankBic LIKE '___________') AND OtherBankBic NOT LIKE '%[^A-Z0-9]%')),
+    CONSTRAINT [CK_LetterOfCredit_21] CHECK (OtherBankBic IS NULL OR ((OtherBankBic LIKE '________' OR OtherBankBic LIKE '___________') AND OtherBankBic COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9]%')),
     CONSTRAINT [CK_LetterOfCredit_22] CHECK (AmendmentNo >= 0),
     CONSTRAINT [CK_LetterOfCredit_23] CHECK (LcNumberNormalized NOT LIKE '% %'),
     CONSTRAINT [CK_LetterOfCredit_LcClass] CHECK ([LcClass] IS NULL OR [LcClass] IN ('PURCHASE', 'SALES')),

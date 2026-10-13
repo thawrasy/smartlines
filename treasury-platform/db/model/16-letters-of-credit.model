@@ -40,7 +40,7 @@ table ref.Incoterm global int  # Incoterms delivery term: global reference, read
   SortOrder          int        req =0
   unique Code
   index  Status,SortOrder   # قائمة الاختيار
-  check  Code NOT LIKE '%[^A-Z]%'
+  check  Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z]%'
 
 table ref.UcpArticle int mixed  # UCP 600 reference article: NULL TenantId = global read-only row, published only by the platform operator (FR-LCT-006, BR-LCT-018, BR-PLT-001)
   Version             ascii(10)  req =UCP600   # إصدار القواعد
@@ -144,7 +144,7 @@ table lc.LcDocumentClause public  # Document-clause library with versions: templ
   unique PublicId
   index  Category,Status   # مكتبة مبوّبة
   index  Status,LegalReviewStatus   # R-LCT-02: UNREVIEWED المستخدمة
-  check  Code NOT LIKE '%[^A-Z0-9_]%'
+  check  Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%'
   check  VersionNo >= 1
   check  DefaultOriginals IS NULL OR DefaultOriginals >= 0
   check  DefaultCopies IS NULL OR DefaultCopies >= 0
@@ -282,8 +282,8 @@ table lc.LcTerms public  # Letter-of-credit terms version: one row per version, 
   check  Status = 'DRAFT' OR LcType <> 'MIXED' OR MixedPaymentText IS NOT NULL   # V-LCT-06
   check  Status = 'DRAFT' OR DraftDrawee IS NULL OR (DraftRequired IS NOT NULL AND DraftRequired = 1)   # BR-LCT-011
   check  Status = 'DRAFT' OR LcType NOT IN ('ACCEPTANCE','NEGOTIATION') OR (DraftRequired IS NOT NULL AND DraftRequired = 1)   # القبول والتداول يتطلبان كمبيالة
-  check  Status = 'DRAFT' OR ConfirmingBankBic IS NULL OR ((ConfirmingBankBic LIKE '________' OR ConfirmingBankBic LIKE '___________') AND ConfirmingBankBic NOT LIKE '%[^A-Z0-9]%')   # V-LCT-20
-  check  Status = 'DRAFT' OR AdvisingBankBic IS NULL OR ((AdvisingBankBic LIKE '________' OR AdvisingBankBic LIKE '___________') AND AdvisingBankBic NOT LIKE '%[^A-Z0-9]%')   # V-LCT-20
+  check  Status = 'DRAFT' OR ConfirmingBankBic IS NULL OR ((ConfirmingBankBic LIKE '________' OR ConfirmingBankBic LIKE '___________') AND ConfirmingBankBic COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9]%')   # V-LCT-20
+  check  Status = 'DRAFT' OR AdvisingBankBic IS NULL OR ((AdvisingBankBic LIKE '________' OR AdvisingBankBic LIKE '___________') AND AdvisingBankBic COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9]%')   # V-LCT-20
   check  (BeneficiaryAccountIbanEnc IS NULL AND BeneficiaryAccountIbanMask IS NULL AND BeneficiaryAccountIbanHash IS NULL) OR (BeneficiaryAccountIbanEnc IS NOT NULL AND BeneficiaryAccountIbanMask IS NOT NULL AND BeneficiaryAccountIbanHash IS NOT NULL)   # IBAN مشفّر بالكامل أو غائب
   check  BeneficiaryAccountIbanEnc IS NULL OR (EncKeyId IS NOT NULL AND HashKeyId IS NOT NULL AND DATALENGTH(BeneficiaryAccountIbanEnc) >= 29)   # الغلاف والمفاتيح (06 §6)
   check  LcClass = 'SALES' OR (ApplicantCounterpartyId IS NULL AND BeneficiaryCompanyId IS NULL)   # المشتريات: الطالب شركة والمستفيد طرف مقابل (B1/B2)
@@ -381,7 +381,7 @@ table lc.LcFormFieldMap deletable  # Mapping of a system field to a PDF field or
   unique TemplateId,TargetName
   index  TemplateId,SeqNo   # ترتيب ورقة البوابة (FR-LCT-025)
   check  SourceExpr LIKE 'terms.%' OR SourceExpr LIKE 'company.%' OR SourceExpr LIKE 'counterparty.%' OR SourceExpr LIKE 'facility.%' OR SourceExpr LIKE 'relationship.%' OR SourceExpr LIKE 'request.%' OR SourceExpr LIKE 'lc.%'   # جذور مسموحة (BR-LCT-020)
-  check  SourceExpr NOT LIKE '%[^A-Za-z0-9._]%'   # مسار فقط: لا أقواس ولا عمليات
+  check  SourceExpr COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Za-z0-9._]%'   # مسار فقط: لا أقواس ولا عمليات
   check  Transform <> 'CHECKBOX_EQ' OR TransformArg IS NOT NULL   # قيمة المقارنة
   check  SeqNo IS NULL OR SeqNo >= 1
 
@@ -466,7 +466,7 @@ table lc.LetterOfCredit public  # Letter-of-credit record for both sides: purcha
   check  Status IN ('CLOSED','CANCELLED') OR (ClosedOn IS NULL AND ClosedReason IS NULL)
   check  UndrawnReleasedOn IS NULL OR Status IN ('EXPIRED','CLOSED','CANCELLED')   # الفك عند الانتهاء/الإغلاق/الإلغاء (BR-LCI-009)
   check  LegacyEntry = 0 OR RequestId IS NULL   # الترحيل الأولي بلا طلب (BR-LCI-017)
-  check  OtherBankBic IS NULL OR ((OtherBankBic LIKE '________' OR OtherBankBic LIKE '___________') AND OtherBankBic NOT LIKE '%[^A-Z0-9]%')   # V-LCT-20
+  check  OtherBankBic IS NULL OR ((OtherBankBic LIKE '________' OR OtherBankBic LIKE '___________') AND OtherBankBic COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9]%')   # V-LCT-20
   check  AmendmentNo >= 0
   check  LcNumberNormalized NOT LIKE '% %'   # المطبَّع بلا فراغات (BR-LCI-016)
 

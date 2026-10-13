@@ -105,9 +105,13 @@ SET @gExpired = SCOPE_IDENTITY();
 INSERT plat.SupportAccessGrant (TenantId, OperatorId, GrantedBy, StartsAt, EndsAt, Reason)
 VALUES (@tA, @op3, @uA, DATEADD(HOUR, 1, @now), DATEADD(HOUR, 5, @now), N'future');
 SET @gFuture = SCOPE_IDENTITY();
+-- The table refuses a grant longer than 72 hours (CK_SupportAccessGrant_2, DR-15); the binding procedure refuses one
+-- too, so a row written before that check is not trusted. The check is off for this one row, inside the transaction.
+ALTER TABLE plat.SupportAccessGrant NOCHECK CONSTRAINT CK_SupportAccessGrant_2;
 INSERT plat.SupportAccessGrant (TenantId, OperatorId, GrantedBy, StartsAt, EndsAt, Reason)
 VALUES (@tA, @op3, @uA, DATEADD(HOUR, -1, @now), DATEADD(HOUR, 80, @now), N'longer than 72 hours');
 SET @gLong = SCOPE_IDENTITY();
+ALTER TABLE plat.SupportAccessGrant CHECK CONSTRAINT CK_SupportAccessGrant_2;
 EXEC #Bind @tS;
 INSERT sec.AppUser (TenantId, Email, DisplayNameEn, Status, PasswordHash) VALUES (@tS, N'ta@s.invalid', N'TS', 'ACTIVE', @pw1);
 SELECT @uS = AppUserId FROM sec.AppUser WHERE Email = N'ta@s.invalid';

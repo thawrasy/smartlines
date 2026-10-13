@@ -6,8 +6,11 @@
      cfg.fn_SettingInt              the value the procedures use: the tenant's, held within the bounds, else the
                                     default. Used by 030 and 035 for the session timeouts, the lockout threshold and
                                     the password history.
-     cfg.TR_TenantSetting_Bounds    refuses a tenant value outside the bounds, a value of the wrong type, a key the
-                                    tenant may not edit, and an undefined security.* key (50020).
+     cfg.TR_TenantSetting_Bounds    refuses a key with no definition, a key the tenant may not edit, a value of the
+                                    wrong type (INT, DECIMAL, BOOL, TIME as "HH:MM", STRING) or outside the bounds
+                                    (50020), and a working day, work.end minus work.start, shorter than 4 hours or
+                                    longer than 12 (50044). A key with no definition is refused, so a misspelled key
+                                    is never stored and silently ignored (DR-17).
    Values are JSON scalars, for example 15 or "08:00" (the JSON checks accept scalars, tools/dbgen/dbgen.py).
    Auditing a security change with the old and new value (BR-PLT-018) stays with the application, which writes the
    chained audit log (FR-PLT-022).
@@ -46,13 +49,37 @@ BEGIN
     IF EXISTS (SELECT 1
                FROM inserted AS i
                LEFT JOIN cfg.SettingDefinition AS d ON d.[Key] = i.[Key]
-               CROSS APPLY (SELECT TRY_CAST(JSON_VALUE(N'[' + i.ValueJson + N']', '$[0]') AS INT) AS Val) AS v
-               WHERE (d.[Key] IS NULL AND i.[Key] LIKE 'security.%')
+               CROSS APPLY (SELECT JSON_VALUE(N'[' + i.ValueJson + N']', '$[0]') AS Txt,
+                                   JSON_VALUE(N'[' + d.MinValueJson + N']', '$[0]') AS MinTxt,
+                                   JSON_VALUE(N'[' + d.MaxValueJson + N']', '$[0]') AS MaxTxt) AS v
+               WHERE d.[Key] IS NULL
                   OR d.IsTenantEditable = 0
+                  OR (d.ValueType IN ('STRING', 'INT', 'DECIMAL', 'BOOL', 'TIME') AND v.Txt IS NULL)
                   OR (d.ValueType = 'INT'
-                      AND (v.Val IS NULL
-                           OR v.Val < TRY_CAST(JSON_VALUE(N'[' + d.MinValueJson + N']', '$[0]') AS INT)
-                           OR v.Val > TRY_CAST(JSON_VALUE(N'[' + d.MaxValueJson + N']', '$[0]') AS INT))))
-        THROW 50020, 'Setting value outside the platform bounds, of the wrong type, or not editable by the tenant (BR-PLT-018)', 1;
+                      AND (TRY_CAST(v.Txt AS INT) IS NULL
+                           OR TRY_CAST(v.Txt AS INT) < TRY_CAST(v.MinTxt AS INT)
+                           OR TRY_CAST(v.Txt AS INT) > TRY_CAST(v.MaxTxt AS INT)))
+                  OR (d.ValueType = 'DECIMAL'
+                      AND (TRY_CAST(v.Txt AS DECIMAL(19, 6)) IS NULL
+                           OR TRY_CAST(v.Txt AS DECIMAL(19, 6)) < TRY_CAST(v.MinTxt AS DECIMAL(19, 6))
+                           OR TRY_CAST(v.Txt AS DECIMAL(19, 6)) > TRY_CAST(v.MaxTxt AS DECIMAL(19, 6))))
+                  OR (d.ValueType = 'BOOL' AND v.Txt NOT IN ('true', 'false'))
+                  OR (d.ValueType = 'TIME'
+                      AND (v.Txt NOT LIKE '[0-2][0-9]:[0-5][0-9]' OR TRY_CAST(v.Txt AS TIME(0)) IS NULL
+                           OR TRY_CAST(v.Txt AS TIME(0)) < TRY_CAST(v.MinTxt AS TIME(0))
+                           OR TRY_CAST(v.Txt AS TIME(0)) > TRY_CAST(v.MaxTxt AS TIME(0)))))
+        THROW 50020, 'Setting key undefined or not editable by the tenant, or its value of the wrong type or outside the platform bounds (BR-PLT-018)', 1;
+    -- The working day, after this statement: the tenant's values, else the defaults (BR-PLT-018, AC-PLT-19).
+    IF EXISTS (SELECT 1
+               FROM (SELECT DISTINCT TenantId FROM inserted WHERE [Key] IN ('work.start', 'work.end')) AS x
+               CROSS APPLY (SELECT
+                   TRY_CAST(JSON_VALUE(N'[' + COALESCE(
+                       (SELECT ts.ValueJson FROM cfg.TenantSetting AS ts WHERE ts.TenantId = x.TenantId AND ts.[Key] = 'work.start'),
+                       (SELECT sd.DefaultValueJson FROM cfg.SettingDefinition AS sd WHERE sd.[Key] = 'work.start')) + N']', '$[0]') AS TIME(0)) AS StartsAt,
+                   TRY_CAST(JSON_VALUE(N'[' + COALESCE(
+                       (SELECT ts.ValueJson FROM cfg.TenantSetting AS ts WHERE ts.TenantId = x.TenantId AND ts.[Key] = 'work.end'),
+                       (SELECT sd.DefaultValueJson FROM cfg.SettingDefinition AS sd WHERE sd.[Key] = 'work.end')) + N']', '$[0]') AS TIME(0)) AS EndsAt) AS w
+               WHERE w.StartsAt IS NULL OR w.EndsAt IS NULL OR DATEDIFF(MINUTE, w.StartsAt, w.EndsAt) NOT BETWEEN 240 AND 720)
+        THROW 50044, 'The working day, work.end minus work.start, is 4 to 12 hours (BR-PLT-018)', 1;
 END;
 GO

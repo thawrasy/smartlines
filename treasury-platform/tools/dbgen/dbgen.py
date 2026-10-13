@@ -22,6 +22,7 @@ class Col:
         self.cascade = False; self.noidx = False; self.enum = None; self.sens = None
         self.comment = ''; self.calc = None; self.auto = False; self.is_json = False
         self.src_line = None; self.isset = False; self.setvals = None; self.is_bool = False; self.baretype = None
+        self.same_tenant = False
 
 class Table:
     def __init__(self, schema, name):
@@ -134,9 +135,13 @@ def parse_files(paths):
                 if m: where_expr = rest[m.end():].strip(); rest = rest[:m.start()].strip()
                 m = re.search(r'\binclude\b', rest, re.I)
                 if m: include = [c.strip() for c in rest[m.end():].split(',') if c.strip()]; rest = rest[:m.start()].strip()
+                across = False
+                if head == 'unique' and rest.split(None, 1)[0:1] == ['global']:
+                    # unique global Col: one value across all tenants (DR-11), not per tenant
+                    across = True; rest = rest.split(None, 1)[1] if len(rest.split(None, 1)) > 1 else ''
                 cols = [c.strip() for c in rest.split(',') if c.strip()]
                 if not cols: raise ModelError(f'{where}: {head} needs columns')
-                (t.uniques if head == 'unique' else t.indexes).append([cols, include, where_expr, where])
+                (t.uniques if head == 'unique' else t.indexes).append([cols, include, where_expr, where] + ([True] if across else []))
                 continue
             if head == 'check':
                 t.checks.append((body.strip()[5:].strip(), where)); continue
@@ -166,6 +171,7 @@ def parse_files(paths):
                 elif tk == 'opt': col.req = False
                 elif tk == 'cascade': col.cascade = True
                 elif tk == 'noidx': col.noidx = True
+                elif tk == 'sametenant': col.same_tenant = True   # to a mixed table: the target row is this tenant's (DR-12)
                 elif tk.startswith('via='):
                     # via=A,B : العمود نفسه في الطرفين · via=A>B : عمود A في الابن يقابل B في الأب (مثال: ثابت الغرض)
                     pairs = [v.split('>', 1) if '>' in v else [v, v] for v in tk[4:].split(',') if v]
@@ -280,7 +286,8 @@ def validate_semantics(tables):
         for c in t.cols:
             if c.enum and c.default is not None and c.default.strip("'") not in c.enum:
                 errs.append(f'{c.src_line}: default {c.default} not in enum of {t.fq}.{c.name}')
-        for cols, inc, wh, where in t.uniques + t.indexes:
+        for u in t.uniques + t.indexes:
+            cols, inc, wh, where = u[:4]
             for cc in cols + inc:
                 if cc not in names: errs.append(f'{where}: column {cc} not in {t.fq}')
         for expr, where in t.checks:
@@ -406,9 +413,10 @@ class Emitter:
                 p['uqs'].append((nm, cols, None))
             if 'public' in t.flags:
                 p['uqs'].append((self.reg(t.schema, f'UQ_{t.name}_PublicId', t.fq), ['PublicId'], None))
-            for cols, inc, wh, where in t.uniques:
+            for u in t.uniques:
+                cols, inc, wh, where = u[:4]
                 if cols == ['PublicId'] and 'public' in t.flags: continue
-                full = (['TenantId'] if tenant else []) + cols
+                full = (['TenantId'] if tenant and len(u) == 4 else []) + cols
                 nm = self.reg(t.schema, f'UQ_{t.name}_' + '_'.join(cols), where)
                 p['uqs'].append((nm, full, wh))
             for cols, inc, wh, where in t.indexes:
@@ -424,7 +432,7 @@ class Emitter:
                 tgt = self.tables.get(c.fk)
                 if tgt is None: continue
                 tpk = fk_pkcol(tgt)
-                simple = (not t.tenant_scoped) or (not tgt.tenant_scoped) or tgt.is_mixed
+                simple = (not t.tenant_scoped) or (not tgt.tenant_scoped) or (tgt.is_mixed and not c.same_tenant)
                 if simple:
                     cols, rcols = [c.name], [tpk]
                 else:

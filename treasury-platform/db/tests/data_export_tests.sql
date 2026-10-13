@@ -49,6 +49,10 @@ DECLARE @scope TABLE (DataExportJobId BIGINT, Scope VARCHAR(7), ScopeDetailJson 
 -- reveal), a user without these permissions, the service account, the package document type and a FILE key.
 INSERT plat.Tenant (Code, NameAr, NameEn, PlanId, HomeCountryId, Status, TimeZone) VALUES ('tst-export', N'ص', N'Export', @plan, @country, 'ACTIVE', 'UTC');
 SET @t = SCOPE_IDENTITY();
+-- Paths in the shared file store start with the tenant's PublicId (DOC-S02); StorageKey is unique on the platform (DR-11).
+DECLARE @pre VARCHAR(40) = (SELECT LOWER(CONVERT(VARCHAR(36), PublicId)) FROM plat.Tenant WHERE TenantId = @t);
+DECLARE @k1 VARCHAR(300) = @pre + '/exports/1.zip', @k2 VARCHAR(300) = @pre + '/exports/2.zip', @k3 VARCHAR(300) = @pre + '/exports/3.zip',
+        @k4 VARCHAR(300) = @pre + '/exports/4.zip', @k5 VARCHAR(300) = @pre + '/exports/5.zip';
 EXEC #Bind @t, 0;
 INSERT sec.AppUser (TenantId, Email, DisplayNameEn, Status, PasswordHash)
 VALUES (@t, N'ta@export.invalid', N'TA', 'ACTIVE', @pw), (@t, N'tm@export.invalid', N'TM', 'ACTIVE', @pw),
@@ -67,7 +71,7 @@ SELECT @t, @rTA, PermissionId FROM sec.Permission WHERE Code = 'cfg.export.reque
 UNION ALL SELECT @t, @rTM, PermissionId FROM sec.Permission WHERE Code IN ('cfg.export.request', 'party.identity.reveal');
 INSERT sec.UserRole (TenantId, UserId, RoleId) VALUES (@t, @ta, @rTA), (@t, @rev, @rTM);
 INSERT cat.DocumentType (TenantId, Code, NameAr, NameEn, AppliesTo, IsSensitive, IsSystem, IsLocked)
-VALUES (@t, 'DATA_EXPORT_PACKAGE', N'حزمة تصدير البيانات', N'Data export package', 'GENERAL', 1, 1, 1);
+VALUES (@t, 'DATA_EXPORT_PACKAGE', N'حزمة تصدير البيانات', N'Data export package', 'GENERAL', 0, 1, 1);   -- not sensitive: 042 marks a restricted package RESTRICTED itself (DR-18)
 INSERT sec.TenantKey (TenantId, Purpose, KeyVersion, Status, WrappedKey, MasterKeyRef, ActivatedAt)
 VALUES (@t, 'FILE', 1, 'ACTIVE', CRYPT_GEN_RANDOM(64), 'kms/test/file', SYSUTCDATETIME());
 
@@ -120,7 +124,7 @@ SELECT @n = COUNT(*) FROM cfg.DataExportJob WHERE DataExportJobId = @id AND Stat
 SELECT @n2 = COUNT(*) FROM aud.AuditLog WHERE TenantId = @t AND Action = 'EXPORT_APPROVED' AND Category = 'IDENTITY_ACCESS' AND EntityId = @id;
 REVERT;
 EXECUTE AS USER = N'tp_test_xread';
-UPDATE cfg.DataExportJob SET Status = 'EXPIRED' WHERE DataExportJobId = @id;      -- out of the way for the next request
+UPDATE cfg.DataExportJob SET Status = 'EXPIRED', ExpiresAt = ISNULL(ExpiresAt, SYSUTCDATETIME()) WHERE DataExportJobId = @id;      -- out of the way for the next request
 REVERT;
 EXECUTE AS USER = N'tp_test_xapp';
 EXEC cfg.usp_RequestDataExport @TenantId = @t, @IncludesRestricted = 1, @DataExportJobId = @id2 OUTPUT;
@@ -156,7 +160,7 @@ REVERT;
 EXEC #Bind @t, @svc, 'JOB', 'JOB-PLT-EXPORT';
 EXECUTE AS USER = N'tp_test_xjob';
 INSERT @scope EXEC cfg.usp_StartDataExport @DataExportJobId = @id2 OUTPUT;
-EXEC cfg.usp_FinishDataExport @DataExportJobId = @id2, @StorageKey = 'tenants/tst-export/exports/1.zip', @FileName = N'export-1.zip',
+EXEC cfg.usp_FinishDataExport @DataExportJobId = @id2, @StorageKey = @k1, @FileName = N'export-1.zip',
      @SizeBytes = 1234, @Sha256 = @sha;
 REVERT;
 EXECUTE AS USER = N'tp_test_xread';
@@ -187,14 +191,14 @@ REVERT;
 EXEC #Bind @t, @svc, 'JOB', 'JOB-PLT-EXPORT';
 EXECUTE AS USER = N'tp_test_xjob';
 INSERT @scope EXEC cfg.usp_StartDataExport;
-EXEC cfg.usp_FinishDataExport @DataExportJobId = @id, @StorageKey = 'tenants/tst-export/exports/2.zip', @FileName = N'export-2.zip',
+EXEC cfg.usp_FinishDataExport @DataExportJobId = @id, @StorageKey = @k2, @FileName = N'export-2.zip',
      @SizeBytes = 99, @Sha256 = @sha;
 REVERT;
 EXECUTE AS USER = N'tp_test_xread';
 SELECT @exp = ExpiresAt FROM cfg.DataExportJob WHERE DataExportJobId = @id;
 REVERT;
 EXECUTE AS USER = N'tp_test_xread';
-UPDATE cfg.DataExportJob SET Status = 'EXPIRED' WHERE DataExportJobId = @id;
+UPDATE cfg.DataExportJob SET Status = 'EXPIRED', ExpiresAt = ISNULL(ExpiresAt, SYSUTCDATETIME()) WHERE DataExportJobId = @id;
 REVERT;
 EXEC #Bind @t, @ta;
 EXECUTE AS USER = N'tp_test_xapp';
@@ -234,7 +238,7 @@ REVERT;
 EXEC #Bind @t, @svc, 'JOB', 'JOB-PLT-EXPORT';
 EXECUTE AS USER = N'tp_test_xjob';
 INSERT @scope EXEC cfg.usp_StartDataExport;
-EXEC cfg.usp_FinishDataExport @DataExportJobId = @id, @StorageKey = 'tenants/tst-export/exports/3.zip', @FileName = N'export-3.zip',
+EXEC cfg.usp_FinishDataExport @DataExportJobId = @id, @StorageKey = @k3, @FileName = N'export-3.zip',
      @SizeBytes = 5000, @Sha256 = @sha;
 REVERT;
 EXECUTE AS USER = N'tp_test_xread';
@@ -245,7 +249,7 @@ SELECT @n2 = COUNT(*) FROM doc.Document WHERE DocumentId = (SELECT PackageDocume
                                           AND Sensitivity = 'RESTRICTED';
 REVERT;
 EXECUTE AS USER = N'tp_test_xread';
-UPDATE cfg.DataExportJob SET Status = 'EXPIRED' WHERE DataExportJobId = @id;
+UPDATE cfg.DataExportJob SET Status = 'EXPIRED', ExpiresAt = ISNULL(ExpiresAt, SYSUTCDATETIME()) WHERE DataExportJobId = @id;
 UPDATE cat.DocumentType SET IsActive = 0, IsLocked = 0 WHERE TenantId = @t AND Code = 'DATA_EXPORT_PACKAGE';
 REVERT;
 EXEC #Bind @t, @ta;
@@ -255,7 +259,7 @@ REVERT;
 EXEC #Bind @t, @svc, 'JOB', 'JOB-PLT-EXPORT';
 EXECUTE AS USER = N'tp_test_xjob';
 INSERT @scope EXEC cfg.usp_StartDataExport;
-BEGIN TRY EXEC cfg.usp_FinishDataExport @DataExportJobId = @id2, @StorageKey = 'tenants/tst-export/exports/4.zip', @FileName = N'export-4.zip',
+BEGIN TRY EXEC cfg.usp_FinishDataExport @DataExportJobId = @id2, @StorageKey = @k4, @FileName = N'export-4.zip',
                @SizeBytes = 5000, @Sha256 = @sha; END TRY BEGIN CATCH SET @e1 = ERROR_NUMBER(); END CATCH;
 REVERT;
 EXECUTE AS USER = N'tp_test_xread';
@@ -278,7 +282,7 @@ REVERT;
 EXEC #Bind @t, @svc, 'JOB', 'JOB-PLT-EXPORT';
 EXECUTE AS USER = N'tp_test_xjob';
 INSERT @scope EXEC cfg.usp_StartDataExport;
-EXEC cfg.usp_FinishDataExport @DataExportJobId = @id, @StorageKey = 'tenants/tst-export/exports/5.zip', @FileName = N'export-5.zip',
+EXEC cfg.usp_FinishDataExport @DataExportJobId = @id, @StorageKey = @k5, @FileName = N'export-5.zip',
      @SizeBytes = 10, @Sha256 = @sha;
 BEGIN TRY EXEC cfg.usp_ExpireDataExports; END TRY BEGIN CATCH SET @e1 = ERROR_NUMBER(); END CATCH;
 REVERT;
@@ -294,7 +298,7 @@ EXECUTE AS USER = N'tp_test_xread';
 SELECT @st = Status, @doc = PackageDocumentId FROM cfg.DataExportJob WHERE DataExportJobId = @id;
 SELECT @n3 = COUNT(*) FROM doc.Document WHERE DocumentId = @doc AND Status = 'SOFT_DELETED' AND DeletedBy = @svc;
 SELECT @n4 = COUNT(*) FROM aud.AuditLog WHERE TenantId = @t AND Action = 'EXPORT_EXPIRED' AND EntityId = @id;
-SELECT @n5 = COUNT(*) FROM @keys WHERE DataExportJobId = @id AND StorageKey = 'tenants/tst-export/exports/5.zip';
+SELECT @n5 = COUNT(*) FROM @keys WHERE DataExportJobId = @id AND StorageKey = @k5;
 REVERT;
 IF @e1 = 50034 AND @n = 1 AND @n2 = 0 AND @st = 'EXPIRED' AND @n3 = 1 AND @n4 = 1 AND @n5 = 1
     PRINT 'PASS X6: the expiry job expires ready packages once, soft-deletes them and hands back the files to delete';

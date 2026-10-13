@@ -53,12 +53,13 @@ CREATE NONCLUSTERED INDEX [IX_SensitiveAccessLog_SubjectPartyId_OccurredAt] ON [
 CREATE NONCLUSTERED INDEX [IX_SensitiveAccessLog_AccessKind_OccurredAt] ON [aud].[SensitiveAccessLog] ([TenantId], [AccessKind], [OccurredAt]);
 CREATE NONCLUSTERED INDEX [IX_SensitiveAccessLog_SubjectEntityType_SubjectEntityId] ON [aud].[SensitiveAccessLog] ([TenantId], [SubjectEntityType], [SubjectEntityId]);
 CREATE NONCLUSTERED INDEX [IX_SensitiveAccessLog_OperatorId] ON [aud].[SensitiveAccessLog] ([TenantId], [OperatorId]);
+CREATE NONCLUSTERED INDEX [IX_SensitiveAccessLog_AuditLogId] ON [aud].[SensitiveAccessLog] ([TenantId], [AuditLogId]);
 CREATE NONCLUSTERED INDEX [IX_Document_Status_ExpiryDate] ON [doc].[Document] ([TenantId], [Status], [ExpiryDate]);
 CREATE NONCLUSTERED INDEX [IX_Document_DocumentNumber] ON [doc].[Document] ([TenantId], [DocumentNumber]) WHERE DocumentNumber IS NOT NULL;
 CREATE NONCLUSTERED INDEX [IX_Document_ExpiryDate] ON [doc].[Document] ([TenantId], [ExpiryDate]) WHERE Status = 'ACTIVE' AND ExpiryDate IS NOT NULL;
 CREATE NONCLUSTERED INDEX [IX_Document_DocumentTypeId] ON [doc].[Document] ([TenantId], [DocumentTypeId]);
 CREATE NONCLUSTERED INDEX [IX_Document_OwnerCompanyId] ON [doc].[Document] ([TenantId], [OwnerCompanyId]);
-CREATE NONCLUSTERED INDEX [IX_Document_CurrentVersionId] ON [doc].[Document] ([TenantId], [CurrentVersionId]);
+CREATE NONCLUSTERED INDEX [IX_Document_CurrentVersionId] ON [doc].[Document] ([TenantId], [DocumentId], [CurrentVersionId]);
 CREATE NONCLUSTERED INDEX [IX_Document_SupersededByDocumentId] ON [doc].[Document] ([TenantId], [SupersededByDocumentId]);
 CREATE NONCLUSTERED INDEX [IX_Document_DeletedBy] ON [doc].[Document] ([TenantId], [DeletedBy]);
 CREATE NONCLUSTERED INDEX [IX_DocumentVersion_Sha256] ON [doc].[DocumentVersion] ([TenantId], [Sha256]);
@@ -83,6 +84,7 @@ CREATE NONCLUSTERED INDEX [IX_NonWorkingDay_OnDate] ON [cfg].[NonWorkingDay] ([T
 CREATE NONCLUSTERED INDEX [IX_OutboxEvent_Status_NextAttemptAt] ON [cfg].[OutboxEvent] ([TenantId], [Status], [NextAttemptAt]) WHERE Status IN ('PENDING','FAILED');
 CREATE NONCLUSTERED INDEX [IX_OutboxEvent_EventName_OccurredAt] ON [cfg].[OutboxEvent] ([TenantId], [EventName], [OccurredAt]);
 CREATE NONCLUSTERED INDEX [IX_OutboxEvent_AggregateType_AggregateId] ON [cfg].[OutboxEvent] ([TenantId], [AggregateType], [AggregateId]);
+CREATE NONCLUSTERED INDEX [IX_OutboxEvent_LockedUntil] ON [cfg].[OutboxEvent] ([TenantId], [LockedUntil]) WHERE Status = 'PROCESSING';
 CREATE NONCLUSTERED INDEX [IX_JobRun_JobKey_StartedAt] ON [cfg].[JobRun] ([TenantId], [JobKey], [StartedAt]);
 CREATE NONCLUSTERED INDEX [IX_JobRun_NextRetryAt] ON [cfg].[JobRun] ([TenantId], [NextRetryAt]) WHERE Status = 'FAILED';
 CREATE NONCLUSTERED INDEX [IX_SeedRun_PackKey_SeedVersion] ON [cfg].[SeedRun] ([TenantId], [PackKey], [SeedVersion]);

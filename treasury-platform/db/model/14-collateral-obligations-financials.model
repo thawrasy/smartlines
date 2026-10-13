@@ -389,7 +389,7 @@ table fin.LineCatalogItem catalog int  # Standard statement line item; 39 items 
   check  IsTotal = 0 OR TotalFormula IS NOT NULL
   check  IsTotal = 1 OR TotalFormula IS NULL
   check  NameEn IS NOT NULL                              # NameEn إلزامي في هذا الكتالوج (§6.5)
-  check  Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'   # BR-CAT-001
+  check  Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'   # BR-CAT-001
   check  IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)   # BR-CAT-003
 
 table fin.LineCatalogItemAlias int deletable  # Alternative names (aliases) for a line item, used for paste and matching -- جدول جديد للأسماء البديلة (FR-FIN-003)
@@ -496,7 +496,7 @@ table fin.MeasureFormula src  # Measure formula: a template or a facility-agreem
   check  BaseTemplateId IS NULL OR BaseTemplateId <> MeasureFormulaId
   check  InputKinds <> ''
   check  VersionNo >= 1
-  check  Code NOT LIKE '%[^A-Z0-9_]%'
+  check  Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%'
   check  Status NOT IN ('APPROVED','SUPERSEDED') OR (ApprovedBy IS NOT NULL AND ApprovedOn IS NOT NULL)
   check  SourceDocumentId IS NOT NULL AND SourcePage IS NOT NULL OR (SourceDocumentId IS NULL AND Confidence = 'ENTERED_NO_DOCUMENT')   # ختم المصدر (X-DAT-4)
   check  Confidence <> 'CONFIRMED_AGAINST_ORIGINAL' OR (VerifiedBy IS NOT NULL AND VerifiedOn IS NOT NULL)

@@ -49,7 +49,7 @@ table plat.Tenant int global public noapp   # No direct access for the tenant ap
   unique PublicId
   index Status,TrialEndsOn
   index ClosedAt where Status = 'CLOSED'
-  check Code NOT LIKE '%[^A-Za-z0-9-]%' AND Code NOT LIKE '-%' AND Code NOT LIKE '%-'
+  check Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Za-z0-9-]%' AND Code NOT LIKE '-%' AND Code NOT LIKE '%-'
   check Status <> 'TRIAL' OR TrialEndsOn IS NOT NULL
   check Status <> 'SUSPENDED' OR SuspendedReason IS NOT NULL
   check Status <> 'SUSPENDED' OR SuspendedAt IS NOT NULL
@@ -102,13 +102,15 @@ table plat.SupportAccessGrant   # Temporary support access, activated by the ten
   OperatorId  ->plat.PlatformOperator req
   GrantedBy   ->sec.AppUser req
   StartsAt    ts       req
-  EndsAt      ts       req   # من ساعة إلى 72 ساعة (الافتراضي 4) — يُتحقق في التطبيق، وsec.usp_SetSupportContext لا يربط بمنحة أطول؛ ينتهي آليًا
+  EndsAt      ts       req   # من ساعة إلى 72 ساعة (الافتراضي 4، BR-PLT-017): قيد في الجدول (DR-15)، وsec.usp_SetSupportContext لا يربط بمنحة أطول؛ ينتهي آليًا
   Reason      str(500) req
   RevokedAt   ts
   RevokedBy   ->sec.AppUser
   index OperatorId,StartsAt
   index EndsAt where RevokedAt IS NULL
   check EndsAt > StartsAt
+  check EndsAt >= DATEADD(HOUR, 1, StartsAt) AND EndsAt <= DATEADD(HOUR, 72, StartsAt)   # BR-PLT-017 (DR-15)
+  check (RevokedAt IS NULL AND RevokedBy IS NULL) OR (RevokedAt IS NOT NULL AND RevokedBy IS NOT NULL)   # الإلغاء نهائي وبفاعل (043، DR-15)
 
 # One-time links for operators (DOC-S04 section 12, DQ-F07-3): the invitation of a new operator, the first one at
 # deployment included, and the set-up again after an administrator's reset. Written only by the procedures in 036.
@@ -213,7 +215,7 @@ table sec.Permission int global   # Permission catalogue owned by the platform; 
   index ModuleCode
   check LockedToRoleCodes IS NULL OR IsSensitive = 1
 
-table sec.RolePermission pk=RoleId,PermissionId norv deletable   # Role–permission link; PERMISSION_LOCKED is enforced by the service (BR-PLT-019)
+table sec.RolePermission pk=RoleId,PermissionId norv deletable   # Role–permission link; a locked permission goes only to the system roles it names, enforced by sec.TR_RolePermission_Locked (043, BR-PLT-019, DR-16)
   RoleId        ->sec.Role req
   PermissionId  ->sec.Permission req
   AssignedBy    ->sec.AppUser
@@ -375,14 +377,14 @@ table aud.SensitiveAccessLog append   # Access log for sensitive data: identity 
   SubjectEntityType  ascii(60) req   # IdentityDocument · Document · DataExportJob…
   SubjectEntityId    bigint    req
   SubjectPartyId     bigint            # صاحب الرقم؛ قيمة لا مفتاح أجنبي لتبقى بعد الدمج
-  CompanyId          bigint
+  CompanyId          bigint            # قيمة لا مفتاح أجنبي، كما في aud.AuditLog: يبقى السجل بعد حذف الشركة أو دمجها
   Result             enum{GRANTED,DENIED} req
   DenyReason         ascii(40)         # NO_PERMISSION · SUPPORT_SESSION · OUT_OF_SCOPE · TENANT_STATE
   Reason             str(300)          # سبب الكشف إن فعّله المشترك (Q-PTY-05)
   IpAddress          ascii(45)
   UserAgent          str(400)
   CorrelationId      guid
-  AuditLogId         bigint            # الحدث المقابل في AuditLog
+  AuditLogId         ->aud.AuditLog req sametenant   # الحدث المقابل في AuditLog للمشترك نفسه: كل وصول، مسموحًا أو مرفوضًا، له حدثه (BR-PTY-009، DR-12)
   index ActorUserId,OccurredAt
   index SubjectPartyId,OccurredAt where SubjectPartyId IS NOT NULL
   index AccessKind,OccurredAt
@@ -404,9 +406,9 @@ table doc.Document public   # Logical document: document data and status; the fi
   ExpiryDateHijriText   str(20)
   IssuingAuthority      str(200)
   OwnerCompanyId        ->org.Company    # مالك النطاق للرؤية (BR-PLT-007)؛ الربط بأي كيان عبر DocumentLink
-  Sensitivity           enum{PUBLIC,INTERNAL,CONFIDENTIAL,RESTRICTED} req =CONFIDENTIAL   # RESTRICTED إن كان النوع IsSensitive
+  Sensitivity           enum{PUBLIC,INTERNAL,CONFIDENTIAL,RESTRICTED} req =CONFIDENTIAL   # RESTRICTED إن كان النوع IsSensitive (قادح في 043، DR-18)؛ PUBLIC لمستندات المنصة لا المشترك (DQ-S06-5)
   Status                enum{ACTIVE,SUPERSEDED,SOFT_DELETED} req =ACTIVE
-  CurrentVersionId      ->doc.DocumentVersion   # يجب أن يتبع الإصدارُ المستندَ نفسه (يُفرض في التطبيق)
+  CurrentVersionId      ->doc.DocumentVersion via=DocumentId   # إصدار من المستند نفسه (DR-18)
   SupersededByDocumentId ->doc.Document
   DeletedAt             ts
   DeletedBy             ->sec.AppUser
@@ -419,11 +421,12 @@ table doc.Document public   # Logical document: document data and status; the fi
   check Status <> 'SUPERSEDED' OR SupersededByDocumentId IS NOT NULL
   check Status <> 'SOFT_DELETED' OR (DeletedAt IS NOT NULL AND DeleteReason IS NOT NULL)
   check SupersededByDocumentId IS NULL OR SupersededByDocumentId <> DocumentId
+  check Sensitivity <> 'PUBLIC'   # DQ-S06-5
 
-table doc.DocumentVersion   # Immutable file version; a change creates a new version, enforced by the application (FR-PLT-027, BR-PLT-011)
+table doc.DocumentVersion   # Immutable file version; a change creates a new version: the application may update only the scan and integrity columns (043, FR-PLT-027, BR-PLT-011, DR-11)
   DocumentId         ->doc.Document req
   VersionNo          int       req
-  StorageKey         ascii(300) req   # مسار معزول لكل مشترك في مخزن الملفات
+  StorageKey         ascii(300) req   # مسار في مخزن الملفات المشترك، يبدأ بـ PublicId للمشترك (DOC-S02)؛ فريد على المنصة كلها
   FileName           str(260)
   ContentType        ascii(150)       # يُفحص بالمحتوى لا بالامتداد (FR-PLT-029)
   SizeBytes          bigint    req
@@ -436,7 +439,7 @@ table doc.DocumentVersion   # Immutable file version; a change creates a new ver
   IntegrityStatus    enum{UNVERIFIED,OK,MISMATCH,MISSING} req =UNVERIFIED   # فحص السلامة الدوري (FR-PLT-031)
   LastVerifiedAt     ts
   unique DocumentId,VersionNo
-  unique StorageKey
+  unique global StorageKey   # مخزن واحد للمنصة: مساران متطابقان لمشتركين مستحيلان (DR-11)
   index Sha256
   index ScanStatus where ScanStatus <> 'CLEAN'
   index LastVerifiedAt
@@ -473,7 +476,7 @@ table cfg.SettingDefinition int global   # Setting-key definition with platform 
   unique Key
 
 table cfg.TenantSetting   # Tenant settings: security policies, timeouts, thresholds, and work start and end times (FR-PLT-043)
-  Key        ascii(100) req   # مفتاح محجوز في T-SQL: يُقتبس دائمًا؛ work.end−work.start بين 4 و12 ساعة (BR-PLT-018) في التطبيق
+  Key        ascii(100) req   # مفتاح محجوز في T-SQL: يُقتبس دائمًا؛ مفتاح معرَّف في SettingDefinition فقط، وwork.end−work.start بين 4 و12 ساعة (BR-PLT-018)، يفرضهما القادح في 028 (DR-17)
   ValueJson  json       req
   unique Key
 
@@ -553,7 +556,9 @@ table cfg.DataExportJob public   # Tenant data export request (FR-PLT-039, BR-PL
   FailureReason       str(500)
   unique PublicId
   index Status,ExpiresAt
-  check IncludesRestricted = 0 OR Status NOT IN ('APPROVED','RUNNING','READY') OR ApprovedBy IS NOT NULL
+  check IncludesRestricted = 0 OR Status = 'REQUESTED' OR ApprovedBy IS NOT NULL   # المقيّد معتمَد في كل حالة بعد الطلب (DR-13)
+  check (ApprovedBy IS NULL AND ApprovedAt IS NULL) OR (ApprovedBy IS NOT NULL AND ApprovedAt IS NOT NULL)
+  check Status NOT IN ('READY','EXPIRED') OR ExpiresAt IS NOT NULL   # READY تنتهي بعد 7 أيام (§8)
   check Status <> 'READY' OR (PackageDocumentId IS NOT NULL AND PackageSha256 IS NOT NULL)
   check FinishedAt IS NULL OR StartedAt IS NULL OR FinishedAt >= StartedAt
 
@@ -566,7 +571,7 @@ table cfg.NonWorkingDay mixed deletable   # Non-working day; NULL TenantId = pla
   unique CountryId,OnDate
   index OnDate
 
-table cfg.OutboxEvent deletable   # Outbound queue with at-least-once delivery; the payload carries identifiers without restricted data (FR-PLT-042)
+table cfg.OutboxEvent deletable   # Outbound queue with at-least-once delivery; the payload carries identifiers without restricted data; only DELIVERED events may be deleted (043, FR-PLT-042, DR-14)
   MessageId       guid      req =NEWID()   # مفتاح إزالة التكرار عند المستهلك
   EventName       ascii(100) req   # domain.event_name بحروف صغيرة (00 §5)
   AggregateType   ascii(60)
@@ -585,8 +590,12 @@ table cfg.OutboxEvent deletable   # Outbound queue with at-least-once delivery; 
   index Status,NextAttemptAt where Status IN ('PENDING','FAILED')
   index EventName,OccurredAt
   index AggregateType,AggregateId
+  index LockedUntil where Status = 'PROCESSING'   # استعادة الحجز من عامل متوقف (DR-14)
   check AttemptCount >= 0
   check EventName LIKE '%.%'
+  check Status <> 'PROCESSING' OR (LockedBy IS NOT NULL AND LockedUntil IS NOT NULL)
+  check Status <> 'DELIVERED' OR DeliveredAt IS NOT NULL
+  check Status <> 'DEAD' OR LastError IS NOT NULL
 
 # The closed list of background jobs (DOC-F17 section 5.2, DQ-F17-2) and the tenant statuses each may run in
 # (DOC-F04 section 7.4). sec.usp_SetJobContext binds a job connection only for an active TENANT job listed here.

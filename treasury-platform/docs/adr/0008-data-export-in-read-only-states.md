@@ -51,7 +51,7 @@ It follows ADR 0004 (jobs) and ADR 0007 (audit).
   - a closed tenant within and after its window, with the expiry capped;
   - the sensitive access row, and the error when the package type is missing;
   - expiry of packages.
-- **Seed and packs.** The platform seed adds `JOB-PLT-EXPORT`, 31 jobs in all. The tenant pack CAT.DOCTYPES must add the system document type `DATA_EXPORT_PACKAGE` (general, sensitive, locked), so 43 types; without it the job stops at 50037. Each tenant also needs an active FILE key (DOC-S02).
+- **Seed and packs.** The platform seed adds `JOB-PLT-EXPORT`, 31 jobs in all. The tenant pack CAT.DOCTYPES must add the system document type `DATA_EXPORT_PACKAGE` (general, not sensitive, locked: the procedure marks a package with restricted data RESTRICTED itself, and a sensitive type would force every package to RESTRICTED, ADR 0011), so 43 types; without it the job stops at 50037. Each tenant also needs an active FILE key (DOC-S02).
 - **Application (FR-PLT-039, S5).**
   - The worker builds the package from the scope (JSON or CSV with the files).
   - It leaves out full identity numbers and images unless the export includes restricted data (BR-PLT-016).

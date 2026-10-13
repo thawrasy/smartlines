@@ -22,9 +22,9 @@ table ref.Country global int  # Country: global reference, read-only, managed by
   IsActive     bool       req =1
   unique Iso2
   unique Iso3
-  check  Iso2 NOT LIKE '%[^A-Z]%' AND Iso3 NOT LIKE '%[^A-Z]%'   # BR-CAT-018: حرفان وثلاثة أحرف لاتينية كبيرة
+  check  Iso2 COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z]%' AND Iso3 COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z]%'   # BR-CAT-018: حرفان وثلاثة أحرف لاتينية كبيرة
   check  DialCode IS NULL OR (DialCode LIKE '+[0-9]%' AND DialCode NOT LIKE '+%[^0-9]%' AND DialCode NOT LIKE '+_____%')   # BR-CAT-018: ^\+[0-9]{1,4}$ (+ ثم 1..4 أرقام)
-  check  WeekendDays IS NULL OR WeekendDays NOT LIKE '%[^A-Z,]%'   # BR-CAT-018: رموز أيام مفصولة بفاصلة
+  check  WeekendDays IS NULL OR WeekendDays COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z,]%'   # BR-CAT-018: رموز أيام مفصولة بفاصلة
 
 table ref.Currency global int  # Currency: global ISO 4217 reference, read-only (FR-CAT-021, Q-CAT-08)
   Code         char(3)    req   # ISO alpha-3
@@ -37,7 +37,7 @@ table ref.Currency global int  # Currency: global ISO 4217 reference, read-only 
   unique Code
   unique NumericCode
   check  Decimals BETWEEN 0 AND 3
-  check  Code NOT LIKE '%[^A-Z]%'   # CHAR(3): الفراغ الزائد يُرفض
+  check  Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z]%'   # CHAR(3): الفراغ الزائد يُرفض
   check  NumericCode NOT LIKE '%[^0-9]%'
 
 # =============================================================================
@@ -50,12 +50,12 @@ table cat.TenantCurrency pk=CurrencyId norv  # Currencies enabled for the tenant
 
 table cat.InstitutionType catalog int  # Financial institution type: bank, finance company, investment company, financial company, individual (FR-INS-001)
   RequiresParty  bool     req =0   # نوع «فرد» يشترط Party (BR-INS-003)
-  check  Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'   # BR-CAT-001: أحرف كبيرة وأرقام وشرطة سفلية وأول حرف أبجدي (الطول 2..40 يتركه التطبيق، انظر التقرير)
+  check  Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'   # BR-CAT-001: أحرف كبيرة وأرقام وشرطة سفلية وأول حرف أبجدي (الطول 2..40 يتركه التطبيق، انظر التقرير)
   check  (IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)   # BR-CAT-003: المقفل نظامي وفعّال؛ BR-CAT-001: NameEn لصفوف النظام
 
 table cat.AccountType catalog int  # Account type (FR-ACC-001)
   IsVirtual      bool     req =0   # علم الحساب الافتراضي: على VIRTUAL وحده (BR-ACC-004)
-  check  Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'   # BR-CAT-001
+  check  Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'   # BR-CAT-001
   check  (IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)   # BR-CAT-003: المقفل نظامي وفعّال؛ BR-CAT-001: NameEn لصفوف النظام
 
 table cat.LegalEntityType int  # Legal entity type: the entity and its attributes are defined in specification 10 (FR-ORG-002, BR-CAT-017) and seeded by this module; catalogue columns are written by hand because code uniqueness is per country (specification 10, section 6.2), not global
@@ -75,7 +75,7 @@ table cat.LegalEntityType int  # Legal entity type: the entity and its attribute
   ExternalCode     ascii(80)
   unique Code,CountryId   # 10 §6.2: (TenantId, Code, CountryId)؛ NULL يُعامَل قيمة واحدة في SQL Server
   unique SeedKey,CountryId where SeedKey IS NOT NULL   # BR-CAT-002 (SeedKey مع الدولة لأن الرمز نفسه يتكرر بين الدول)
-  check  Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'   # BR-CAT-001
+  check  Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'   # BR-CAT-001
   check  (IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)   # BR-CAT-003: المقفل نظامي وفعّال؛ BR-CAT-001: NameEn لصفوف النظام
 
 table cat.DocumentType catalog int  # Document type; applies the flags defined in specification 10 at upload (FR-CAT-018, BR-CAT-016, FR-PLT-028)
@@ -86,7 +86,7 @@ table cat.DocumentType catalog int  # Document type; applies the flags defined i
   MaxSizeMb       int               # فارغ = الافتراضي (25)
   RetentionYears  int               # مدد الاحتفاظ فارغة حتى يقرّرها مختص (Q-CAT-06)
   MaxAgeDays      int               # أقصى عمر للمستند منذ إصداره: مستخرج <= 30 يومًا، شهادة <= 365 (05 G-2)
-  check  Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'   # BR-CAT-001
+  check  Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'   # BR-CAT-001
   check  (IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)   # BR-CAT-003: المقفل نظامي وفعّال؛ BR-CAT-001: NameEn لصفوف النظام
   check  MaxSizeMb IS NULL OR MaxSizeMb > 0
   check  RetentionYears IS NULL OR RetentionYears > 0
@@ -95,19 +95,19 @@ table cat.DocumentType catalog int  # Document type; applies the flags defined i
 table cat.Position catalog int  # Job position: its attributes are defined in specification 10 (section 6.2) only, and this module seeds its rows (FR-CAT-019, BR-CAT-017); SortOrder comes from the catalogue base
   ApplicableBodyTypes  set{BOARD_OF_DIRECTORS,BOARD_OF_MANAGERS,MANAGEMENT,GENERAL_ASSEMBLY}   # قيم GoverningBody.BodyType التي يصح فيها المنصب (DR-32)
   IsSingleHolder       bool    req =0  # منصب أحادي الشاغل (CHAIRMAN) -- BR-ORG-010
-  check  Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'   # BR-CAT-001
+  check  Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'   # BR-CAT-001
   check  (IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)   # BR-CAT-003: المقفل نظامي وفعّال؛ BR-CAT-001: NameEn لصفوف النظام
 
 table cat.PowerType catalog int  # Governance power type: its attributes are defined in specification 10 (section 6.2) only, and this module seeds its rows (FR-CAT-019, FR-ORG-024)
   Category      enum{CONTRACTS,ACCOUNTS,BORROWING,GUARANTEES,TRADE,REPRESENTATION,ASSETS,OTHER}
   AllowsCeiling bool    req =0   # يسمح بسقف مبلغ في AuthorityGrant
-  check  Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'   # BR-CAT-001
+  check  Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'   # BR-CAT-001
   check  (IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)   # BR-CAT-003: المقفل نظامي وفعّال؛ BR-CAT-001: NameEn لصفوف النظام
 
 table cat.OperationType catalog int  # Bank operation type that a signatory is authorised for (FR-ACC-013, BR-CAT-014)
   SupportsCeiling  bool   req =0   # يحدّد ظهور السقوف في SignatoryAuthority
   OperationGroup   enum{MONEY,CREDIT,REPRESENTATION,CHANNEL} req
-  check  Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'   # BR-CAT-001
+  check  Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'   # BR-CAT-001
   check  (IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)   # BR-CAT-003: المقفل نظامي وفعّال؛ BR-CAT-001: NameEn لصفوف النظام
 
 table cat.OperationTypePowerType pk=OperationTypeId,PowerTypeId norv deletable  # Links an operation to governance power type(s): any one is sufficient (BR-CAT-014, FR-CAT-019, Q-ACC-05) -- جدول وسيط جديد
@@ -116,7 +116,7 @@ table cat.OperationTypePowerType pk=OperationTypeId,PowerTypeId norv deletable  
   index  PowerTypeId
 
 table cat.ProductCategory catalog int  # Product category: flat list (FR-CAT-007)
-  check  Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'   # BR-CAT-001
+  check  Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'   # BR-CAT-001
   check  (IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)   # BR-CAT-003: المقفل نظامي وفعّال؛ BR-CAT-001: NameEn لصفوف النظام
 
 table cat.Product catalog int  # Bank product with its flags (FR-CAT-007, BR-CAT-004)
@@ -128,19 +128,19 @@ table cat.Product catalog int  # Bank product with its flags (FR-CAT-007, BR-CAT
   VariantGroupCode     ascii(40)   # يزاوج النسختين التقليدية والإسلامية (منتج واحد لكل امتثال)
   unique VariantGroupCode,Compliance where VariantGroupCode IS NOT NULL   # BR-CAT-004
   index  ProductFamily,ConsumesCreditLimit   # SVC-08 وفحص الحدود
-  check  Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'   # BR-CAT-001
+  check  Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'   # BR-CAT-001
   check  (IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)   # BR-CAT-003: المقفل نظامي وفعّال؛ BR-CAT-001: NameEn لصفوف النظام
 
 table cat.FeeType catalog int  # Fee type: a broad category, not a tariff item (FR-CAT-008, BR-CAT-005, Q-CAT-10)
   Nature    enum{FEE,PENALTY_NON_INCOME} req =FEE   # العقوبة غير إيرادية في التقارير؛ تغييرها بعد الاستخدام بتأكيد TM
   CalcHint  enum{PERCENT,FIXED,PER_MILLION,TIERED}
-  check  Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'   # BR-CAT-001
+  check  Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'   # BR-CAT-001
   check  (IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)   # BR-CAT-003: المقفل نظامي وفعّال؛ BR-CAT-001: NameEn لصفوف النظام
 
 table cat.FinancingType catalog int  # Financing type (FR-CAT-009, BR-CAT-006)
   IsIslamic    bool    req =0
   ReturnLabel  enum{PROFIT,INTEREST}   # تسمية العائد في الواجهة فقط (ربح/فائدة)؛ لا تغيّر الحساب
-  check  Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'   # BR-CAT-001
+  check  Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'   # BR-CAT-001
   check  (IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)   # BR-CAT-003: المقفل نظامي وفعّال؛ BR-CAT-001: NameEn لصفوف النظام
 
 table cat.ProductFeeType int deletable  # Fee types allowed for a product; disabling a link deletes it and does not affect list pricing rules (FR-CAT-010, BR-CAT-007) -- يبقى بمفتاح بديل لأنه يحمل سمة
@@ -160,7 +160,7 @@ table cat.ProductFinancingType int deletable  # Financing types allowed for a pr
 
 table cat.FacilityType catalog int  # Facility type (FR-CAT-011)
   Compliance  enum{CONVENTIONAL,ISLAMIC,NEUTRAL} req   # قيم الامتثال كما في Product (المواصفة لا تعددها)
-  check  Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'   # BR-CAT-001
+  check  Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'   # BR-CAT-001
   check  (IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)   # BR-CAT-003: المقفل نظامي وفعّال؛ BR-CAT-001: NameEn لصفوف النظام
 
 table cat.LimitType catalog int  # Limit type: master or sub-limit (FR-CAT-012, BR-CAT-008)
@@ -170,7 +170,7 @@ table cat.LimitType catalog int  # Limit type: master or sub-limit (FR-CAT-012, 
   DefaultIsRevolving      bool
   check  (Kind = 'MAIN' AND ParentLimitTypeId IS NULL) OR (Kind = 'SUB' AND ParentLimitTypeId IS NOT NULL)   # FR-CAT-012: الجزئي بلا أب مرفوض والرئيسي بأب مرفوض
   check  ParentLimitTypeId IS NULL OR ParentLimitTypeId <> LimitTypeId
-  check  Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'   # BR-CAT-001
+  check  Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'   # BR-CAT-001
   check  (IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)   # BR-CAT-003: المقفل نظامي وفعّال؛ BR-CAT-001: NameEn لصفوف النظام
 
 table cat.LimitTypeProduct pk=LimitTypeId,ProductId norv deletable  # Products allowed for a limit type; no rows = any product, with a visible flag (BR-CAT-008) -- جدول وسيط جديد
@@ -180,7 +180,7 @@ table cat.LimitTypeProduct pk=LimitTypeId,ProductId norv deletable  # Products a
 
 table cat.CollateralType catalog int  # Collateral type with its structure type and attribute template (FR-CAT-013)
   StructureKind  enum{GUARANTEE,PROMISSORY_NOTE,INSURANCE_ASSIGNMENT,CASH_MARGIN,REAL_ESTATE,SET_OFF,NEGATIVE_PLEDGE,GENERIC} req
-  check  Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'   # BR-CAT-001
+  check  Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'   # BR-CAT-001
   check  (IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)   # BR-CAT-003: المقفل نظامي وفعّال؛ BR-CAT-001: NameEn لصفوف النظام
 
 table cat.CollateralTypeAttribute int  # Attribute in a collateral-type template; never deleted, only marked Retired (BR-CAT-009) -- جدول جديد
@@ -204,7 +204,7 @@ table cat.ObligationType catalog int  # Obligation type with four families (FR-C
   DefaultUnit          str(30)
   check  Family <> 'COVENANT' OR MeasureKind IS NOT NULL   # التعهد يحدد نوع مقياسه (NONE للوصفي) -- BR-CAT-010
   check  MeasureKind IS NULL OR MeasureKind <> 'NONE' OR IsQualitative = 1   # MeasureKind=NONE يعني تعهدًا وصفيًا (BR-CAT-010، FR-CAT-014)
-  check  Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'   # BR-CAT-001
+  check  Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'   # BR-CAT-001
   check  (IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)   # BR-CAT-003: المقفل نظامي وفعّال؛ BR-CAT-001: NameEn لصفوف النظام
 
 table cat.BaseRate catalog int  # Base rate: market-wide (InstitutionId NULL) or internal to a bank (FR-CAT-015, BR-CAT-011); alternative names are in BaseRateAlias
@@ -218,7 +218,7 @@ table cat.BaseRate catalog int  # Base rate: market-wide (InstitutionId NULL) or
   index  Kind,FamilyCode,Tenor   # البحث بالسعر والفترة (SVC-05)
   check  (Kind = 'MARKET' AND InstitutionId IS NULL) OR (Kind = 'BANK_INTERNAL' AND InstitutionId IS NOT NULL)   # BR-CAT-011/V-CAT-03
   check  StaleAfterDays IS NULL OR StaleAfterDays > 0
-  check  Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'   # BR-CAT-001
+  check  Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'   # BR-CAT-001
   check  (IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)   # BR-CAT-003: المقفل نظامي وفعّال؛ BR-CAT-001: NameEn لصفوف النظام
 
 table cat.BaseRateAlias int deletable  # Alternative name for a base rate (for example SIBOR and SAIBOR); case-insensitive search; unique within scope (BR-CAT-011, FR-CAT-015) -- جدول وسيط جديد يحل «Aliases set»
@@ -249,7 +249,7 @@ table cat.LookupList catalog int  # Tenant-owned lookup list (FR-CAT-020, BR-CAT
   AllowTenantItems bool    req =0   # هل يضيف المشترك بنودًا لقائمة عالمية؟
   AttributeSchema  json              # مخطط سمات البنود (JSON Schema مبسّط)
   check  (Scope = 'SYSTEM' AND IsSystem = 1) OR (Scope = 'TENANT' AND IsSystem = 0)   # DR-03
-  check  Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'   # BR-CAT-001
+  check  Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'   # BR-CAT-001
   check  (IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)   # BR-CAT-003: المقفل نظامي وفعّال؛ BR-CAT-001: NameEn لصفوف النظام
 
 table cat.LookupItem int  # Item in a tenant-owned lookup list (FR-CAT-020) -- DR-03/05/07: نسخ النظام لكل مشترك؛ فرادة الرمز داخل القائمة لا على مستوى المشترك
@@ -269,7 +269,7 @@ table cat.LookupItem int  # Item in a tenant-owned lookup list (FR-CAT-020) -- D
   unique LookupListId,Code   # فريد (LookupList, Code)
   unique LookupListId,SeedKey where SeedKey IS NOT NULL   # BR-CAT-002
   index  LookupListId,IsActive,SortOrder   # SVC-07 GetCatalog
-  check  Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'   # BR-CAT-001
+  check  Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'   # BR-CAT-001
   check  (IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)   # BR-CAT-003: المقفل نظامي وفعّال؛ BR-CAT-001: NameEn لصفوف النظام
 
 # =============================================================================
@@ -294,7 +294,7 @@ table ins.Institution public  # Financial institution (FR-INS-001..004, BR-INS-0
   index  CountryId,Status
   index  NameAr   # بحث الاسم وتنبيه التشابه
   check  Code NOT LIKE '% %'   # BR-INS-001: بلا مسافات
-  check  SwiftBic IS NULL OR SwiftBic LIKE '[A-Z][A-Z][A-Z][A-Z][A-Z][A-Z][A-Z0-9][A-Z0-9]' OR SwiftBic LIKE '[A-Z][A-Z][A-Z][A-Z][A-Z][A-Z][A-Z0-9][A-Z0-9][A-Z0-9][A-Z0-9][A-Z0-9]'   # BR-INS-001: ^[A-Z]{4}[A-Z]{2}[A-Z0-9]{2}([A-Z0-9]{3})?$ (8 أو 11 خانة)
+  check  SwiftBic IS NULL OR SwiftBic COLLATE Arabic_100_BIN2 LIKE '[A-Z][A-Z][A-Z][A-Z][A-Z][A-Z][A-Z0-9][A-Z0-9]' OR SwiftBic COLLATE Arabic_100_BIN2 LIKE '[A-Z][A-Z][A-Z][A-Z][A-Z][A-Z][A-Z0-9][A-Z0-9][A-Z0-9][A-Z0-9][A-Z0-9]'   # BR-INS-001: ^[A-Z]{4}[A-Z]{2}[A-Z0-9]{2}([A-Z0-9]{3})?$ (8 أو 11 خانة)
 
 table ins.InstitutionUnit  # Unit in an institution's structure: division, department or branch; self-referencing tree of up to four levels (FR-INS-005/006, BR-INS-004)
   InstitutionId  ->ins.Institution req

@@ -54,10 +54,11 @@ ALTER TABLE [aud].[AuditLog] ADD CONSTRAINT [FK_AuditLog_Tenant] FOREIGN KEY ([T
 ALTER TABLE [aud].[SensitiveAccessLog] ADD CONSTRAINT [FK_SensitiveAccessLog_Tenant] FOREIGN KEY ([TenantId]) REFERENCES [plat].[Tenant] ([TenantId]);
 ALTER TABLE [aud].[SensitiveAccessLog] ADD CONSTRAINT [FK_SensitiveAccessLog_ActorUserId] FOREIGN KEY ([TenantId], [ActorUserId]) REFERENCES [sec].[AppUser] ([TenantId], [AppUserId]);
 ALTER TABLE [aud].[SensitiveAccessLog] ADD CONSTRAINT [FK_SensitiveAccessLog_OperatorId] FOREIGN KEY ([OperatorId]) REFERENCES [plat].[PlatformOperator] ([PlatformOperatorId]);
+ALTER TABLE [aud].[SensitiveAccessLog] ADD CONSTRAINT [FK_SensitiveAccessLog_AuditLogId] FOREIGN KEY ([TenantId], [AuditLogId]) REFERENCES [aud].[AuditLog] ([TenantId], [AuditLogId]);
 ALTER TABLE [doc].[Document] ADD CONSTRAINT [FK_Document_Tenant] FOREIGN KEY ([TenantId]) REFERENCES [plat].[Tenant] ([TenantId]);
 ALTER TABLE [doc].[Document] ADD CONSTRAINT [FK_Document_DocumentTypeId] FOREIGN KEY ([TenantId], [DocumentTypeId]) REFERENCES [cat].[DocumentType] ([TenantId], [DocumentTypeId]);
 ALTER TABLE [doc].[Document] ADD CONSTRAINT [FK_Document_OwnerCompanyId] FOREIGN KEY ([TenantId], [OwnerCompanyId]) REFERENCES [org].[Company] ([TenantId], [CompanyId]);
-ALTER TABLE [doc].[Document] ADD CONSTRAINT [FK_Document_CurrentVersionId] FOREIGN KEY ([TenantId], [CurrentVersionId]) REFERENCES [doc].[DocumentVersion] ([TenantId], [DocumentVersionId]);
+ALTER TABLE [doc].[Document] ADD CONSTRAINT [FK_Document_CurrentVersionId] FOREIGN KEY ([TenantId], [DocumentId], [CurrentVersionId]) REFERENCES [doc].[DocumentVersion] ([TenantId], [DocumentId], [DocumentVersionId]);
 ALTER TABLE [doc].[Document] ADD CONSTRAINT [FK_Document_SupersededByDocumentId] FOREIGN KEY ([TenantId], [SupersededByDocumentId]) REFERENCES [doc].[Document] ([TenantId], [DocumentId]);
 ALTER TABLE [doc].[Document] ADD CONSTRAINT [FK_Document_DeletedBy] FOREIGN KEY ([TenantId], [DeletedBy]) REFERENCES [sec].[AppUser] ([TenantId], [AppUserId]);
 ALTER TABLE [doc].[DocumentVersion] ADD CONSTRAINT [FK_DocumentVersion_Tenant] FOREIGN KEY ([TenantId]) REFERENCES [plat].[Tenant] ([TenantId]);

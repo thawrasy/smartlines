@@ -99,7 +99,7 @@
 
 **المفاتيح:** PK(TenantId) · UQ(PublicId) · UQ(Code)
 
-**قيود:** `Code NOT LIKE '%[^A-Za-z0-9-]%' AND Code NOT LIKE '-%' AND Code NOT LIKE '%-'` · `Status <> 'TRIAL' OR TrialEndsOn IS NOT NULL` · `Status <> 'SUSPENDED' OR SuspendedReason IS NOT NULL` · `Status <> 'SUSPENDED' OR SuspendedAt IS NOT NULL` · `Status NOT IN ('CLOSED','ARCHIVED_READ_ONLY') OR ClosedAt IS NOT NULL` · `Status <> 'ARCHIVED_READ_ONLY' OR ArchivedAt IS NOT NULL` · `ArchivedAt IS NULL OR (ClosedAt IS NOT NULL AND ArchivedAt >= ClosedAt)`
+**قيود:** `Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Za-z0-9-]%' AND Code NOT LIKE '-%' AND Code NOT LIKE '%-'` · `Status <> 'TRIAL' OR TrialEndsOn IS NOT NULL` · `Status <> 'SUSPENDED' OR SuspendedReason IS NOT NULL` · `Status <> 'SUSPENDED' OR SuspendedAt IS NOT NULL` · `Status NOT IN ('CLOSED','ARCHIVED_READ_ONLY') OR ClosedAt IS NOT NULL` · `Status <> 'ARCHIVED_READ_ONLY' OR ArchivedAt IS NOT NULL` · `ArchivedAt IS NULL OR (ClosedAt IS NOT NULL AND ArchivedAt >= ClosedAt)`
 
 ### `plat.ReservedSubdomain` — Subdomains reserved for the system: www, admin, api, app and others (FR-PLT-046)
 
@@ -183,7 +183,7 @@
 | OperatorId | INT | لا |  | plat.PlatformOperator |  |
 | GrantedBy | BIGINT | لا |  | sec.AppUser |  |
 | StartsAt | DATETIME2(3) | لا |  |  |  |
-| EndsAt | DATETIME2(3) | لا |  |  | من ساعة إلى 72 ساعة (الافتراضي 4) — يُتحقق في التطبيق، وsec.usp_SetSupportContext لا يربط بمنحة أطول؛ ينتهي آليًا |
+| EndsAt | DATETIME2(3) | لا |  |  | من ساعة إلى 72 ساعة (الافتراضي 4، BR-PLT-017): قيد في الجدول (DR-15)، وsec.usp_SetSupportContext لا يربط بمنحة أطول؛ ينتهي آليًا |
 | Reason | NVARCHAR(500) | لا |  |  |  |
 | RevokedAt | DATETIME2(3) | نعم |  |  |  |
 | RevokedBy | BIGINT | نعم |  | sec.AppUser |  |
@@ -194,7 +194,7 @@
 
 **المفاتيح:** PK(SupportAccessGrantId)
 
-**قيود:** `EndsAt > StartsAt`
+**قيود:** `EndsAt > StartsAt` · `EndsAt >= DATEADD(HOUR, 1, StartsAt) AND EndsAt <= DATEADD(HOUR, 72, StartsAt)` · `(RevokedAt IS NULL AND RevokedBy IS NULL) OR (RevokedAt IS NOT NULL AND RevokedBy IS NOT NULL)`
 
 ### `plat.OperatorToken` — One-time operator set-up links: password and MFA (FR-PLT-006)
 
@@ -339,7 +339,7 @@
 
 **قيود:** `LockedToRoleCodes IS NULL OR IsSensitive = 1`
 
-### `sec.RolePermission` — Role–permission link; PERMISSION_LOCKED is enforced by the service (BR-PLT-019)
+### `sec.RolePermission` — Role–permission link; a locked permission goes only to the system roles it names, enforced by sec.TR_RolePermission_Locked (043, BR-PLT-019, DR-16)
 
 *مملوك للمشترك*
 
@@ -635,14 +635,14 @@
 | SubjectEntityType | VARCHAR(60) | لا |  |  | IdentityDocument · Document · DataExportJob… |
 | SubjectEntityId | BIGINT | لا |  |  |  |
 | SubjectPartyId | BIGINT | نعم |  |  | صاحب الرقم؛ قيمة لا مفتاح أجنبي لتبقى بعد الدمج |
-| CompanyId | BIGINT | نعم |  |  |  |
+| CompanyId | BIGINT | نعم |  |  | قيمة لا مفتاح أجنبي، كما في aud.AuditLog: يبقى السجل بعد حذف الشركة أو دمجها |
 | Result | VARCHAR(10) | لا |  |  | enum: GRANTED, DENIED |
 | DenyReason | VARCHAR(40) | نعم |  |  | NO_PERMISSION · SUPPORT_SESSION · OUT_OF_SCOPE · TENANT_STATE |
 | Reason | NVARCHAR(300) | نعم |  |  | سبب الكشف إن فعّله المشترك (Q-PTY-05) |
 | IpAddress | VARCHAR(45) | نعم |  |  |  |
 | UserAgent | NVARCHAR(400) | نعم |  |  |  |
 | CorrelationId | UNIQUEIDENTIFIER | نعم |  |  |  |
-| AuditLogId | BIGINT | نعم |  |  | الحدث المقابل في AuditLog |
+| AuditLogId | BIGINT | لا |  | aud.AuditLog | الحدث المقابل في AuditLog للمشترك نفسه: كل وصول، مسموحًا أو مرفوضًا، له حدثه (BR-PTY-009، DR-12) |
 | CreatedAt | DATETIME2(3) | لا | SYSUTCDATETIME() |  |  |
 | CreatedBy | BIGINT | نعم |  |  |  |
 
@@ -669,9 +669,9 @@
 | ExpiryDateHijriText | NVARCHAR(20) | نعم |  |  |  |
 | IssuingAuthority | NVARCHAR(200) | نعم |  |  |  |
 | OwnerCompanyId | BIGINT | نعم |  | org.Company | مالك النطاق للرؤية (BR-PLT-007)؛ الربط بأي كيان عبر DocumentLink |
-| Sensitivity | VARCHAR(12) | لا | CONFIDENTIAL |  | RESTRICTED إن كان النوع IsSensitive enum: PUBLIC, INTERNAL, CONFIDENTIAL, RESTRICTED |
+| Sensitivity | VARCHAR(12) | لا | CONFIDENTIAL |  | RESTRICTED إن كان النوع IsSensitive (قادح في 043، DR-18)؛ PUBLIC لمستندات المنصة لا المشترك (DQ-S06-5) enum: PUBLIC, INTERNAL, CONFIDENTIAL, RESTRICTED |
 | Status | VARCHAR(12) | لا | ACTIVE |  | enum: ACTIVE, SUPERSEDED, SOFT_DELETED |
-| CurrentVersionId | BIGINT | نعم |  | doc.DocumentVersion | يجب أن يتبع الإصدارُ المستندَ نفسه (يُفرض في التطبيق) |
+| CurrentVersionId | BIGINT | نعم |  | doc.DocumentVersion (via DocumentId) | إصدار من المستند نفسه (DR-18) |
 | SupersededByDocumentId | BIGINT | نعم |  | doc.Document |  |
 | DeletedAt | DATETIME2(3) | نعم |  |  |  |
 | DeletedBy | BIGINT | نعم |  | sec.AppUser |  |
@@ -684,9 +684,9 @@
 
 **المفاتيح:** PK(DocumentId) · UQ(PublicId)
 
-**قيود:** `IssueDate IS NULL OR ExpiryDate IS NULL OR ExpiryDate > IssueDate` · `Status <> 'SUPERSEDED' OR SupersededByDocumentId IS NOT NULL` · `Status <> 'SOFT_DELETED' OR (DeletedAt IS NOT NULL AND DeleteReason IS NOT NULL)` · `SupersededByDocumentId IS NULL OR SupersededByDocumentId <> DocumentId`
+**قيود:** `IssueDate IS NULL OR ExpiryDate IS NULL OR ExpiryDate > IssueDate` · `Status <> 'SUPERSEDED' OR SupersededByDocumentId IS NOT NULL` · `Status <> 'SOFT_DELETED' OR (DeletedAt IS NOT NULL AND DeleteReason IS NOT NULL)` · `SupersededByDocumentId IS NULL OR SupersededByDocumentId <> DocumentId` · `Sensitivity <> 'PUBLIC'`
 
-### `doc.DocumentVersion` — Immutable file version; a change creates a new version, enforced by the application (FR-PLT-027, BR-PLT-011)
+### `doc.DocumentVersion` — Immutable file version; a change creates a new version: the application may update only the scan and integrity columns (043, FR-PLT-027, BR-PLT-011, DR-11)
 
 *مملوك للمشترك*
 
@@ -696,7 +696,7 @@
 | **DocumentVersionId** | BIGINT IDENTITY | لا | | | مفتاح أساسي |
 | DocumentId | BIGINT | لا |  | doc.Document |  |
 | VersionNo | INT | لا |  |  |  |
-| StorageKey | VARCHAR(300) | لا |  |  | مسار معزول لكل مشترك في مخزن الملفات |
+| StorageKey | VARCHAR(300) | لا |  |  | مسار في مخزن الملفات المشترك، يبدأ بـ PublicId للمشترك (DOC-S02)؛ فريد على المنصة كلها |
 | FileName | NVARCHAR(260) | نعم |  |  |  |
 | ContentType | VARCHAR(150) | نعم |  |  | يُفحص بالمحتوى لا بالامتداد (FR-PLT-029) |
 | SizeBytes | BIGINT | لا |  |  |  |
@@ -713,7 +713,7 @@
 | UpdatedAt | DATETIME2(3) | نعم |  |  |  |
 | UpdatedBy | BIGINT | نعم |  |  |  |
 
-**المفاتيح:** PK(DocumentVersionId) · UQ(TenantId, DocumentId, VersionNo) · UQ(TenantId, StorageKey)
+**المفاتيح:** PK(DocumentVersionId) · UQ(TenantId, DocumentId, VersionNo) · UQ(StorageKey)
 
 **قيود:** `VersionNo >= 1` · `SizeBytes > 0` · `ScanStatus = 'PENDING' OR ScannedAt IS NOT NULL`
 
@@ -775,7 +775,7 @@
 |---|---|---|---|---|---|
 | TenantId | INT | لا | | plat.Tenant | عزل المشترك |
 | **TenantSettingId** | BIGINT IDENTITY | لا | | | مفتاح أساسي |
-| Key | VARCHAR(100) | لا |  |  | مفتاح محجوز في T-SQL: يُقتبس دائمًا؛ work.end−work.start بين 4 و12 ساعة (BR-PLT-018) في التطبيق |
+| Key | VARCHAR(100) | لا |  |  | مفتاح محجوز في T-SQL: يُقتبس دائمًا؛ مفتاح معرَّف في SettingDefinition فقط، وwork.end−work.start بين 4 و12 ساعة (BR-PLT-018)، يفرضهما القادح في 028 (DR-17) |
 | ValueJson | NVARCHAR(MAX) | لا |  |  |  |
 | CreatedAt | DATETIME2(3) | لا | SYSUTCDATETIME() |  |  |
 | CreatedBy | BIGINT | نعم |  |  |  |
@@ -928,7 +928,7 @@
 
 **المفاتيح:** PK(DataExportJobId) · UQ(PublicId)
 
-**قيود:** `IncludesRestricted = 0 OR Status NOT IN ('APPROVED','RUNNING','READY') OR ApprovedBy IS NOT NULL` · `Status <> 'READY' OR (PackageDocumentId IS NOT NULL AND PackageSha256 IS NOT NULL)` · `FinishedAt IS NULL OR StartedAt IS NULL OR FinishedAt >= StartedAt`
+**قيود:** `IncludesRestricted = 0 OR Status = 'REQUESTED' OR ApprovedBy IS NOT NULL` · `(ApprovedBy IS NULL AND ApprovedAt IS NULL) OR (ApprovedBy IS NOT NULL AND ApprovedAt IS NOT NULL)` · `Status NOT IN ('READY','EXPIRED') OR ExpiresAt IS NOT NULL` · `Status <> 'READY' OR (PackageDocumentId IS NOT NULL AND PackageSha256 IS NOT NULL)` · `FinishedAt IS NULL OR StartedAt IS NULL OR FinishedAt >= StartedAt`
 
 ### `cfg.NonWorkingDay` — Non-working day; NULL TenantId = platform holiday, read-only (FR-PLT-035, BR-PLT-014)
 
@@ -950,7 +950,7 @@
 
 **المفاتيح:** PK(NonWorkingDayId) · UQ(TenantId, CountryId, OnDate)
 
-### `cfg.OutboxEvent` — Outbound queue with at-least-once delivery; the payload carries identifiers without restricted data (FR-PLT-042)
+### `cfg.OutboxEvent` — Outbound queue with at-least-once delivery; the payload carries identifiers without restricted data; only DELIVERED events may be deleted (043, FR-PLT-042, DR-14)
 
 *مملوك للمشترك*
 
@@ -979,7 +979,7 @@
 
 **المفاتيح:** PK(OutboxEventId) · UQ(TenantId, MessageId)
 
-**قيود:** `AttemptCount >= 0` · `EventName LIKE '%.%'`
+**قيود:** `AttemptCount >= 0` · `EventName LIKE '%.%'` · `Status <> 'PROCESSING' OR (LockedBy IS NOT NULL AND LockedUntil IS NOT NULL)` · `Status <> 'DELIVERED' OR DeliveredAt IS NOT NULL` · `Status <> 'DEAD' OR LastError IS NOT NULL`
 
 ### `cfg.JobDefinition` — Background job catalogue: the only JobKey values a job connection may bind with (FR-PLT-044)
 
@@ -1783,7 +1783,7 @@
 
 **المفاتيح:** PK(CountryId) · UQ(Iso2) · UQ(Iso3)
 
-**قيود:** `Iso2 NOT LIKE '%[^A-Z]%' AND Iso3 NOT LIKE '%[^A-Z]%'` · `DialCode IS NULL OR (DialCode LIKE '+[0-9]%' AND DialCode NOT LIKE '+%[^0-9]%' AND DialCode NOT LIKE '+_____%')` · `WeekendDays IS NULL OR WeekendDays NOT LIKE '%[^A-Z,]%'`
+**قيود:** `Iso2 COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z]%' AND Iso3 COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z]%'` · `DialCode IS NULL OR (DialCode LIKE '+[0-9]%' AND DialCode NOT LIKE '+%[^0-9]%' AND DialCode NOT LIKE '+_____%')` · `WeekendDays IS NULL OR WeekendDays COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z,]%'`
 
 ### `ref.Currency` — Currency: global ISO 4217 reference, read-only (FR-CAT-021, Q-CAT-08)
 
@@ -1806,7 +1806,7 @@
 
 **المفاتيح:** PK(CurrencyId) · UQ(Code) · UQ(NumericCode)
 
-**قيود:** `Decimals BETWEEN 0 AND 3` · `Code NOT LIKE '%[^A-Z]%'` · `NumericCode NOT LIKE '%[^0-9]%'`
+**قيود:** `Decimals BETWEEN 0 AND 3` · `Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z]%'` · `NumericCode NOT LIKE '%[^0-9]%'`
 
 ## CAT
 
@@ -1853,7 +1853,7 @@
 
 **المفاتيح:** PK(InstitutionTypeId) · UQ(TenantId, Code) · UQ(TenantId, SeedKey) WHERE SeedKey IS NOT NULL
 
-**قيود:** `Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'` · `(IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)`
+**قيود:** `Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'` · `(IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)`
 
 ### `cat.AccountType` — Account type (FR-ACC-001)
 
@@ -1881,7 +1881,7 @@
 
 **المفاتيح:** PK(AccountTypeId) · UQ(TenantId, Code) · UQ(TenantId, SeedKey) WHERE SeedKey IS NOT NULL
 
-**قيود:** `Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'` · `(IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)`
+**قيود:** `Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'` · `(IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)`
 
 ### `cat.LegalEntityType` — Legal entity type: the entity and its attributes are defined in specification 10 (FR-ORG-002, BR-CAT-017) and seeded by this module; catalogue columns are written by hand because code uniqueness is per country (specification 10, section 6.2), not global
 
@@ -1912,7 +1912,7 @@
 
 **المفاتيح:** PK(LegalEntityTypeId) · UQ(TenantId, Code, CountryId) · UQ(TenantId, SeedKey, CountryId) WHERE SeedKey IS NOT NULL
 
-**قيود:** `Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'` · `(IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)`
+**قيود:** `Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'` · `(IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)`
 
 ### `cat.DocumentType` — Document type; applies the flags defined in specification 10 at upload (FR-CAT-018, BR-CAT-016, FR-PLT-028)
 
@@ -1946,7 +1946,7 @@
 
 **المفاتيح:** PK(DocumentTypeId) · UQ(TenantId, Code) · UQ(TenantId, SeedKey) WHERE SeedKey IS NOT NULL
 
-**قيود:** `Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'` · `(IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)` · `MaxSizeMb IS NULL OR MaxSizeMb > 0` · `RetentionYears IS NULL OR RetentionYears > 0` · `MaxAgeDays IS NULL OR MaxAgeDays > 0`
+**قيود:** `Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'` · `(IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)` · `MaxSizeMb IS NULL OR MaxSizeMb > 0` · `RetentionYears IS NULL OR RetentionYears > 0` · `MaxAgeDays IS NULL OR MaxAgeDays > 0`
 
 ### `cat.Position` — Job position: its attributes are defined in specification 10 (section 6.2) only, and this module seeds its rows (FR-CAT-019, BR-CAT-017); SortOrder comes from the catalogue base
 
@@ -1975,7 +1975,7 @@
 
 **المفاتيح:** PK(PositionId) · UQ(TenantId, Code) · UQ(TenantId, SeedKey) WHERE SeedKey IS NOT NULL
 
-**قيود:** `Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'` · `(IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)`
+**قيود:** `Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'` · `(IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)`
 
 ### `cat.PowerType` — Governance power type: its attributes are defined in specification 10 (section 6.2) only, and this module seeds its rows (FR-CAT-019, FR-ORG-024)
 
@@ -2004,7 +2004,7 @@
 
 **المفاتيح:** PK(PowerTypeId) · UQ(TenantId, Code) · UQ(TenantId, SeedKey) WHERE SeedKey IS NOT NULL
 
-**قيود:** `Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'` · `(IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)`
+**قيود:** `Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'` · `(IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)`
 
 ### `cat.OperationType` — Bank operation type that a signatory is authorised for (FR-ACC-013, BR-CAT-014)
 
@@ -2033,7 +2033,7 @@
 
 **المفاتيح:** PK(OperationTypeId) · UQ(TenantId, Code) · UQ(TenantId, SeedKey) WHERE SeedKey IS NOT NULL
 
-**قيود:** `Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'` · `(IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)`
+**قيود:** `Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'` · `(IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)`
 
 ### `cat.OperationTypePowerType` — Links an operation to governance power type(s): any one is sufficient (BR-CAT-014, FR-CAT-019, Q-ACC-05) -- جدول وسيط جديد
 
@@ -2076,7 +2076,7 @@
 
 **المفاتيح:** PK(ProductCategoryId) · UQ(TenantId, Code) · UQ(TenantId, SeedKey) WHERE SeedKey IS NOT NULL
 
-**قيود:** `Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'` · `(IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)`
+**قيود:** `Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'` · `(IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)`
 
 ### `cat.Product` — Bank product with its flags (FR-CAT-007, BR-CAT-004)
 
@@ -2109,7 +2109,7 @@
 
 **المفاتيح:** PK(ProductId) · UQ(TenantId, VariantGroupCode, Compliance) WHERE VariantGroupCode IS NOT NULL · UQ(TenantId, Code) · UQ(TenantId, SeedKey) WHERE SeedKey IS NOT NULL
 
-**قيود:** `Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'` · `(IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)`
+**قيود:** `Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'` · `(IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)`
 
 ### `cat.FeeType` — Fee type: a broad category, not a tariff item (FR-CAT-008, BR-CAT-005, Q-CAT-10)
 
@@ -2138,7 +2138,7 @@
 
 **المفاتيح:** PK(FeeTypeId) · UQ(TenantId, Code) · UQ(TenantId, SeedKey) WHERE SeedKey IS NOT NULL
 
-**قيود:** `Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'` · `(IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)`
+**قيود:** `Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'` · `(IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)`
 
 ### `cat.FinancingType` — Financing type (FR-CAT-009, BR-CAT-006)
 
@@ -2167,7 +2167,7 @@
 
 **المفاتيح:** PK(FinancingTypeId) · UQ(TenantId, Code) · UQ(TenantId, SeedKey) WHERE SeedKey IS NOT NULL
 
-**قيود:** `Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'` · `(IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)`
+**قيود:** `Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'` · `(IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)`
 
 ### `cat.ProductFeeType` — Fee types allowed for a product; disabling a link deletes it and does not affect list pricing rules (FR-CAT-010, BR-CAT-007) -- يبقى بمفتاح بديل لأنه يحمل سمة
 
@@ -2231,7 +2231,7 @@
 
 **المفاتيح:** PK(FacilityTypeId) · UQ(TenantId, Code) · UQ(TenantId, SeedKey) WHERE SeedKey IS NOT NULL
 
-**قيود:** `Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'` · `(IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)`
+**قيود:** `Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'` · `(IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)`
 
 ### `cat.LimitType` — Limit type: master or sub-limit (FR-CAT-012, BR-CAT-008)
 
@@ -2262,7 +2262,7 @@
 
 **المفاتيح:** PK(LimitTypeId) · UQ(TenantId, Code) · UQ(TenantId, SeedKey) WHERE SeedKey IS NOT NULL
 
-**قيود:** `(Kind = 'MAIN' AND ParentLimitTypeId IS NULL) OR (Kind = 'SUB' AND ParentLimitTypeId IS NOT NULL)` · `ParentLimitTypeId IS NULL OR ParentLimitTypeId <> LimitTypeId` · `Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'` · `(IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)`
+**قيود:** `(Kind = 'MAIN' AND ParentLimitTypeId IS NULL) OR (Kind = 'SUB' AND ParentLimitTypeId IS NOT NULL)` · `ParentLimitTypeId IS NULL OR ParentLimitTypeId <> LimitTypeId` · `Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'` · `(IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)`
 
 ### `cat.LimitTypeProduct` — Products allowed for a limit type; no rows = any product, with a visible flag (BR-CAT-008) -- جدول وسيط جديد
 
@@ -2306,7 +2306,7 @@
 
 **المفاتيح:** PK(CollateralTypeId) · UQ(TenantId, Code) · UQ(TenantId, SeedKey) WHERE SeedKey IS NOT NULL
 
-**قيود:** `Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'` · `(IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)`
+**قيود:** `Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'` · `(IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)`
 
 ### `cat.CollateralTypeAttribute` — Attribute in a collateral-type template; never deleted, only marked Retired (BR-CAT-009) -- جدول جديد
 
@@ -2364,7 +2364,7 @@
 
 **المفاتيح:** PK(ObligationTypeId) · UQ(TenantId, Code) · UQ(TenantId, SeedKey) WHERE SeedKey IS NOT NULL
 
-**قيود:** `Family <> 'COVENANT' OR MeasureKind IS NOT NULL` · `MeasureKind IS NULL OR MeasureKind <> 'NONE' OR IsQualitative = 1` · `Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'` · `(IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)`
+**قيود:** `Family <> 'COVENANT' OR MeasureKind IS NOT NULL` · `MeasureKind IS NULL OR MeasureKind <> 'NONE' OR IsQualitative = 1` · `Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'` · `(IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)`
 
 ### `cat.BaseRate` — Base rate: market-wide (InstitutionId NULL) or internal to a bank (FR-CAT-015, BR-CAT-011); alternative names are in BaseRateAlias
 
@@ -2397,7 +2397,7 @@
 
 **المفاتيح:** PK(BaseRateId) · UQ(TenantId, FamilyCode, Tenor, InstitutionId) · UQ(TenantId, Code) · UQ(TenantId, SeedKey) WHERE SeedKey IS NOT NULL
 
-**قيود:** `(Kind = 'MARKET' AND InstitutionId IS NULL) OR (Kind = 'BANK_INTERNAL' AND InstitutionId IS NOT NULL)` · `StaleAfterDays IS NULL OR StaleAfterDays > 0` · `Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'` · `(IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)`
+**قيود:** `(Kind = 'MARKET' AND InstitutionId IS NULL) OR (Kind = 'BANK_INTERNAL' AND InstitutionId IS NOT NULL)` · `StaleAfterDays IS NULL OR StaleAfterDays > 0` · `Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'` · `(IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)`
 
 ### `cat.BaseRateAlias` — Alternative name for a base rate (for example SIBOR and SAIBOR); case-insensitive search; unique within scope (BR-CAT-011, FR-CAT-015) -- جدول وسيط جديد يحل «Aliases set»
 
@@ -2473,7 +2473,7 @@
 
 **المفاتيح:** PK(LookupListId) · UQ(TenantId, Code) · UQ(TenantId, SeedKey) WHERE SeedKey IS NOT NULL
 
-**قيود:** `(Scope = 'SYSTEM' AND IsSystem = 1) OR (Scope = 'TENANT' AND IsSystem = 0)` · `Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'` · `(IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)`
+**قيود:** `(Scope = 'SYSTEM' AND IsSystem = 1) OR (Scope = 'TENANT' AND IsSystem = 0)` · `Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'` · `(IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)`
 
 ### `cat.LookupItem` — Item in a tenant-owned lookup list (FR-CAT-020) -- DR-03/05/07: نسخ النظام لكل مشترك؛ فرادة الرمز داخل القائمة لا على مستوى المشترك
 
@@ -2503,7 +2503,7 @@
 
 **المفاتيح:** PK(LookupItemId) · UQ(TenantId, LookupListId, Code) · UQ(TenantId, LookupListId, SeedKey) WHERE SeedKey IS NOT NULL
 
-**قيود:** `Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'` · `(IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)`
+**قيود:** `Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'` · `(IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)`
 
 ## INS
 
@@ -2534,7 +2534,7 @@
 
 **المفاتيح:** PK(InstitutionId) · UQ(PublicId) · UQ(TenantId, Code) · UQ(TenantId, PartyId) WHERE PartyId IS NOT NULL
 
-**قيود:** `Code NOT LIKE '% %'` · `SwiftBic IS NULL OR SwiftBic LIKE '[A-Z][A-Z][A-Z][A-Z][A-Z][A-Z][A-Z0-9][A-Z0-9]' OR SwiftBic LIKE '[A-Z][A-Z][A-Z][A-Z][A-Z][A-Z][A-Z0-9][A-Z0-9][A-Z0-9][A-Z0-9][A-Z0-9]'`
+**قيود:** `Code NOT LIKE '% %'` · `SwiftBic IS NULL OR SwiftBic COLLATE Arabic_100_BIN2 LIKE '[A-Z][A-Z][A-Z][A-Z][A-Z][A-Z][A-Z0-9][A-Z0-9]' OR SwiftBic COLLATE Arabic_100_BIN2 LIKE '[A-Z][A-Z][A-Z][A-Z][A-Z][A-Z][A-Z0-9][A-Z0-9][A-Z0-9][A-Z0-9][A-Z0-9]'`
 
 ### `ins.InstitutionUnit` — Unit in an institution's structure: division, department or branch; self-referencing tree of up to four levels (FR-INS-005/006, BR-INS-004)
 
@@ -4097,7 +4097,7 @@
 
 **المفاتيح:** PK(LineCatalogItemId) · UQ(TenantId, Code) · UQ(TenantId, SeedKey) WHERE SeedKey IS NOT NULL
 
-**قيود:** `IsTotal = 0 OR TotalFormula IS NOT NULL` · `IsTotal = 1 OR TotalFormula IS NULL` · `NameEn IS NOT NULL` · `Code NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'` · `IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)`
+**قيود:** `IsTotal = 0 OR TotalFormula IS NOT NULL` · `IsTotal = 1 OR TotalFormula IS NULL` · `NameEn IS NOT NULL` · `Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'` · `IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)`
 
 ### `fin.LineCatalogItemAlias` — Alternative names (aliases) for a line item, used for paste and matching -- جدول جديد للأسماء البديلة (FR-FIN-003)
 
@@ -4267,7 +4267,7 @@
 
 **المفاتيح:** PK(MeasureFormulaId) · UQ(TenantId, Code, FacilityId, VersionNo) · UQ(TenantId, Code, FacilityId) WHERE Status = 'APPROVED'
 
-**قيود:** `Scope <> 'TEMPLATE' OR FacilityId IS NULL` · `Scope <> 'FACILITY_COPY' OR FacilityId IS NOT NULL` · `Scope = 'FACILITY_COPY' OR BaseTemplateId IS NULL` · `BaseTemplateId IS NULL OR BaseTemplateId <> MeasureFormulaId` · `InputKinds <> ''` · `VersionNo >= 1` · `Code NOT LIKE '%[^A-Z0-9_]%'` · `Status NOT IN ('APPROVED','SUPERSEDED') OR (ApprovedBy IS NOT NULL AND ApprovedOn IS NOT NULL)` · `SourceDocumentId IS NOT NULL AND SourcePage IS NOT NULL OR (SourceDocumentId IS NULL AND Confidence = 'ENTERED_NO_DOCUMENT')` · `Confidence <> 'CONFIRMED_AGAINST_ORIGINAL' OR (VerifiedBy IS NOT NULL AND VerifiedOn IS NOT NULL)`
+**قيود:** `Scope <> 'TEMPLATE' OR FacilityId IS NULL` · `Scope <> 'FACILITY_COPY' OR FacilityId IS NOT NULL` · `Scope = 'FACILITY_COPY' OR BaseTemplateId IS NULL` · `BaseTemplateId IS NULL OR BaseTemplateId <> MeasureFormulaId` · `InputKinds <> ''` · `VersionNo >= 1` · `Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%'` · `Status NOT IN ('APPROVED','SUPERSEDED') OR (ApprovedBy IS NOT NULL AND ApprovedOn IS NOT NULL)` · `SourceDocumentId IS NOT NULL AND SourcePage IS NOT NULL OR (SourceDocumentId IS NULL AND Confidence = 'ENTERED_NO_DOCUMENT')` · `Confidence <> 'CONFIRMED_AGAINST_ORIGINAL' OR (VerifiedBy IS NOT NULL AND VerifiedOn IS NOT NULL)`
 
 ## REQ
 
@@ -5110,7 +5110,7 @@
 
 **المفاتيح:** PK(IncotermId) · UQ(Code)
 
-**قيود:** `Code NOT LIKE '%[^A-Z]%'`
+**قيود:** `Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z]%'`
 
 ### `ref.UcpArticle` — UCP 600 reference article: NULL TenantId = global read-only row, published only by the platform operator (FR-LCT-006, BR-LCT-018, BR-PLT-001)
 
@@ -5263,7 +5263,7 @@
 
 **المفاتيح:** PK(LcDocumentClauseId) · UQ(PublicId) · UQ(TenantId, Code, VersionNo) · UQ(TenantId, SeedKey, VersionNo) WHERE SeedKey IS NOT NULL
 
-**قيود:** `Code NOT LIKE '%[^A-Z0-9_]%'` · `VersionNo >= 1` · `DefaultOriginals IS NULL OR DefaultOriginals >= 0` · `DefaultCopies IS NULL OR DefaultCopies >= 0` · `LegalReviewStatus <> 'REVIEWED' OR (ReviewedByText IS NOT NULL AND ReviewedOn IS NOT NULL)`
+**قيود:** `Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%'` · `VersionNo >= 1` · `DefaultOriginals IS NULL OR DefaultOriginals >= 0` · `DefaultCopies IS NULL OR DefaultCopies >= 0` · `LegalReviewStatus <> 'REVIEWED' OR (ReviewedByText IS NOT NULL AND ReviewedOn IS NOT NULL)`
 
 ### `lc.LcDocumentClauseUcpRef` — UCP 600 reference for a document clause: article and paragraph (UcpRefs in specification) -- وسيط جديد
 
@@ -5398,7 +5398,7 @@
 
 **المفاتيح:** PK(LcTermsId) · UQ(PublicId) · UQ(TenantId, OwnerType, OwnerId, Purpose, VersionNo) WHERE OwnerId IS NOT NULL · UQ(TenantId, OwnerType, OwnerId, Purpose) WHERE OwnerId IS NOT NULL AND Status <> 'SUPERSEDED'
 
-**قيود:** `VersionNo >= 1` · `VersionNo = 1 OR SupersedesTermsId IS NOT NULL` · `SupersedesTermsId IS NULL OR SupersedesTermsId <> LcTermsId` · `CopiedFromTermsId IS NULL OR CopiedFromTermsId <> LcTermsId` · `(Purpose = 'PROFORMA' AND OwnerType IN ('REQUEST','PROFORMA')) OR (Purpose = 'APPLICATION' AND OwnerType = 'REQUEST') OR (Purpose IN ('ISSUED','RECEIVED') AND OwnerType = 'LETTER_OF_CREDIT') OR (Purpose = 'AMENDMENT' AND OwnerType IN ('REQUEST','AMENDMENT'))` · `(Purpose NOT IN ('APPLICATION','ISSUED') OR LcClass = 'PURCHASE') AND (Purpose NOT IN ('PROFORMA','RECEIVED') OR LcClass = 'SALES')` · `OwnerType <> 'REQUEST' OR OwnerId IS NOT NULL` · `Status = 'DRAFT' OR (SnapshotHash IS NOT NULL AND LockedAt IS NOT NULL)` · `TreasuryHash IS NULL OR SnapshotHash IS NOT NULL` · `Status = 'DRAFT' OR (LcType IS NOT NULL AND CurrencyId IS NOT NULL AND Amount IS NOT NULL AND ExpiryRule IS NOT NULL AND AmountInWordsAr IS NOT NULL AND AmountInWordsEn IS NOT NULL)` · `Amount IS NULL OR Amount > 0` · `TolerancePlusPct BETWEEN 0 AND 100 AND ToleranceMinusPct BETWEEN 0 AND 100` · `Status = 'DRAFT' OR ToleranceMode <> 'NONE' OR (TolerancePlusPct = 0 AND ToleranceMinusPct = 0)` · `Status = 'DRAFT' OR ToleranceMode <> 'ABOUT' OR (TolerancePlusPct = 10 AND ToleranceMinusPct = 10)` · `DeferralDays IS NULL OR DeferralDays BETWEEN 1 AND 720` · `Status = 'DRAFT' OR LcType <> 'SIGHT' OR (DeferralDays IS NULL AND MaturityBasis IS NULL)` · `Status = 'DRAFT' OR LcType NOT IN ('DEFERRED_PAYMENT','ACCEPTANCE') OR (DeferralDays IS NOT NULL AND MaturityBasis IS NOT NULL)` · `Status = 'DRAFT' OR LcType <> 'MIXED' OR MixedPaymentText IS NOT NULL` · `Status = 'DRAFT' OR DraftDrawee IS NULL OR (DraftRequired IS NOT NULL AND DraftRequired = 1)` · `Status = 'DRAFT' OR LcType NOT IN ('ACCEPTANCE','NEGOTIATION') OR (DraftRequired IS NOT NULL AND DraftRequired = 1)` · `Status = 'DRAFT' OR ConfirmingBankBic IS NULL OR ((ConfirmingBankBic LIKE '________' OR ConfirmingBankBic LIKE '___________') AND ConfirmingBankBic NOT LIKE '%[^A-Z0-9]%')` · `Status = 'DRAFT' OR AdvisingBankBic IS NULL OR ((AdvisingBankBic LIKE '________' OR AdvisingBankBic LIKE '___________') AND AdvisingBankBic NOT LIKE '%[^A-Z0-9]%')` · `(BeneficiaryAccountIbanEnc IS NULL AND BeneficiaryAccountIbanMask IS NULL AND BeneficiaryAccountIbanHash IS NULL) OR (BeneficiaryAccountIbanEnc IS NOT NULL AND BeneficiaryAccountIbanMask IS NOT NULL AND BeneficiaryAccountIbanHash IS NOT NULL)` · `BeneficiaryAccountIbanEnc IS NULL OR (EncKeyId IS NOT NULL AND HashKeyId IS NOT NULL AND DATALENGTH(BeneficiaryAccountIbanEnc) >= 29)` · `LcClass = 'SALES' OR (ApplicantCounterpartyId IS NULL AND BeneficiaryCompanyId IS NULL)` · `LcClass = 'PURCHASE' OR (ApplicantCompanyId IS NULL AND BeneficiaryCounterpartyId IS NULL)` · `Status = 'DRAFT' OR (LcClass = 'PURCHASE' AND ApplicantCompanyId IS NOT NULL AND BeneficiaryCounterpartyId IS NOT NULL) OR (LcClass = 'SALES' AND ApplicantCounterpartyId IS NOT NULL AND BeneficiaryCompanyId IS NOT NULL)` · `ExpiryDaysAfterIssue IS NULL OR ExpiryDaysAfterIssue > 0` · `LatestShipmentDaysAfterIssue IS NULL OR LatestShipmentDaysAfterIssue > 0` · `Status = 'DRAFT' OR ExpiryRule IS NULL OR (ExpiryRule = 'ABSOLUTE' AND ExpiryDate IS NOT NULL AND ExpiryDaysAfterIssue IS NULL) OR (ExpiryRule = 'DAYS_AFTER_ISSUE' AND ExpiryDaysAfterIssue IS NOT NULL)` · `Status = 'DRAFT' OR (LatestShipmentRule IS NULL AND LatestShipmentDate IS NULL AND LatestShipmentDaysAfterIssue IS NULL) OR (LatestShipmentRule = 'ABSOLUTE' AND LatestShipmentDate IS NOT NULL AND LatestShipmentDaysAfterIssue IS NULL) OR (LatestShipmentRule = 'DAYS_AFTER_ISSUE' AND LatestShipmentDaysAfterIssue IS NOT NULL)` · `Status = 'DRAFT' OR Purpose IN ('ISSUED','RECEIVED') OR EarliestShipmentDate IS NULL OR LatestShipmentDate IS NULL OR EarliestShipmentDate <= LatestShipmentDate` · `Status = 'DRAFT' OR Purpose IN ('ISSUED','RECEIVED') OR ExpiryDate IS NULL OR LatestShipmentDate IS NULL OR ExpiryDate >= LatestShipmentDate` · `PresentationDays IS NULL OR PresentationDays BETWEEN 1 AND 90` · `Status = 'DRAFT' OR Purpose IN ('ISSUED','RECEIVED') OR IncotermId IS NULL OR IncotermPlace IS NOT NULL` · `InsurancePctStated = 0 OR InsuranceMinPct IS NOT NULL` · `InsuranceMinPct IS NULL OR InsuranceMinPct > 0` · `MarginPct IS NULL OR MarginPct BETWEEN 0 AND 100` · `Status = 'DRAFT' OR DebitAuthorization IS NULL OR DebitAuthorization <> 'FULL_LC_VALUE' OR (MarginPct IS NOT NULL AND MarginPct = 100)` · `PostDeferralFinancingDays IS NULL OR PostDeferralFinancingDays >= 0` · `PrevLcAmount IS NULL OR PrevLcAmount >= 0` · `PrevLcUtilizedAmount IS NULL OR PrevLcUtilizedAmount >= 0` · `PrevLcAmount IS NULL OR PrevLcUtilizedAmount IS NULL OR PrevLcUtilizedAmount <= PrevLcAmount` · `(PrevLcAmount IS NULL AND PrevLcUtilizedAmount IS NULL) OR PrevLcCurrencyId IS NOT NULL`
+**قيود:** `VersionNo >= 1` · `VersionNo = 1 OR SupersedesTermsId IS NOT NULL` · `SupersedesTermsId IS NULL OR SupersedesTermsId <> LcTermsId` · `CopiedFromTermsId IS NULL OR CopiedFromTermsId <> LcTermsId` · `(Purpose = 'PROFORMA' AND OwnerType IN ('REQUEST','PROFORMA')) OR (Purpose = 'APPLICATION' AND OwnerType = 'REQUEST') OR (Purpose IN ('ISSUED','RECEIVED') AND OwnerType = 'LETTER_OF_CREDIT') OR (Purpose = 'AMENDMENT' AND OwnerType IN ('REQUEST','AMENDMENT'))` · `(Purpose NOT IN ('APPLICATION','ISSUED') OR LcClass = 'PURCHASE') AND (Purpose NOT IN ('PROFORMA','RECEIVED') OR LcClass = 'SALES')` · `OwnerType <> 'REQUEST' OR OwnerId IS NOT NULL` · `Status = 'DRAFT' OR (SnapshotHash IS NOT NULL AND LockedAt IS NOT NULL)` · `TreasuryHash IS NULL OR SnapshotHash IS NOT NULL` · `Status = 'DRAFT' OR (LcType IS NOT NULL AND CurrencyId IS NOT NULL AND Amount IS NOT NULL AND ExpiryRule IS NOT NULL AND AmountInWordsAr IS NOT NULL AND AmountInWordsEn IS NOT NULL)` · `Amount IS NULL OR Amount > 0` · `TolerancePlusPct BETWEEN 0 AND 100 AND ToleranceMinusPct BETWEEN 0 AND 100` · `Status = 'DRAFT' OR ToleranceMode <> 'NONE' OR (TolerancePlusPct = 0 AND ToleranceMinusPct = 0)` · `Status = 'DRAFT' OR ToleranceMode <> 'ABOUT' OR (TolerancePlusPct = 10 AND ToleranceMinusPct = 10)` · `DeferralDays IS NULL OR DeferralDays BETWEEN 1 AND 720` · `Status = 'DRAFT' OR LcType <> 'SIGHT' OR (DeferralDays IS NULL AND MaturityBasis IS NULL)` · `Status = 'DRAFT' OR LcType NOT IN ('DEFERRED_PAYMENT','ACCEPTANCE') OR (DeferralDays IS NOT NULL AND MaturityBasis IS NOT NULL)` · `Status = 'DRAFT' OR LcType <> 'MIXED' OR MixedPaymentText IS NOT NULL` · `Status = 'DRAFT' OR DraftDrawee IS NULL OR (DraftRequired IS NOT NULL AND DraftRequired = 1)` · `Status = 'DRAFT' OR LcType NOT IN ('ACCEPTANCE','NEGOTIATION') OR (DraftRequired IS NOT NULL AND DraftRequired = 1)` · `Status = 'DRAFT' OR ConfirmingBankBic IS NULL OR ((ConfirmingBankBic LIKE '________' OR ConfirmingBankBic LIKE '___________') AND ConfirmingBankBic COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9]%')` · `Status = 'DRAFT' OR AdvisingBankBic IS NULL OR ((AdvisingBankBic LIKE '________' OR AdvisingBankBic LIKE '___________') AND AdvisingBankBic COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9]%')` · `(BeneficiaryAccountIbanEnc IS NULL AND BeneficiaryAccountIbanMask IS NULL AND BeneficiaryAccountIbanHash IS NULL) OR (BeneficiaryAccountIbanEnc IS NOT NULL AND BeneficiaryAccountIbanMask IS NOT NULL AND BeneficiaryAccountIbanHash IS NOT NULL)` · `BeneficiaryAccountIbanEnc IS NULL OR (EncKeyId IS NOT NULL AND HashKeyId IS NOT NULL AND DATALENGTH(BeneficiaryAccountIbanEnc) >= 29)` · `LcClass = 'SALES' OR (ApplicantCounterpartyId IS NULL AND BeneficiaryCompanyId IS NULL)` · `LcClass = 'PURCHASE' OR (ApplicantCompanyId IS NULL AND BeneficiaryCounterpartyId IS NULL)` · `Status = 'DRAFT' OR (LcClass = 'PURCHASE' AND ApplicantCompanyId IS NOT NULL AND BeneficiaryCounterpartyId IS NOT NULL) OR (LcClass = 'SALES' AND ApplicantCounterpartyId IS NOT NULL AND BeneficiaryCompanyId IS NOT NULL)` · `ExpiryDaysAfterIssue IS NULL OR ExpiryDaysAfterIssue > 0` · `LatestShipmentDaysAfterIssue IS NULL OR LatestShipmentDaysAfterIssue > 0` · `Status = 'DRAFT' OR ExpiryRule IS NULL OR (ExpiryRule = 'ABSOLUTE' AND ExpiryDate IS NOT NULL AND ExpiryDaysAfterIssue IS NULL) OR (ExpiryRule = 'DAYS_AFTER_ISSUE' AND ExpiryDaysAfterIssue IS NOT NULL)` · `Status = 'DRAFT' OR (LatestShipmentRule IS NULL AND LatestShipmentDate IS NULL AND LatestShipmentDaysAfterIssue IS NULL) OR (LatestShipmentRule = 'ABSOLUTE' AND LatestShipmentDate IS NOT NULL AND LatestShipmentDaysAfterIssue IS NULL) OR (LatestShipmentRule = 'DAYS_AFTER_ISSUE' AND LatestShipmentDaysAfterIssue IS NOT NULL)` · `Status = 'DRAFT' OR Purpose IN ('ISSUED','RECEIVED') OR EarliestShipmentDate IS NULL OR LatestShipmentDate IS NULL OR EarliestShipmentDate <= LatestShipmentDate` · `Status = 'DRAFT' OR Purpose IN ('ISSUED','RECEIVED') OR ExpiryDate IS NULL OR LatestShipmentDate IS NULL OR ExpiryDate >= LatestShipmentDate` · `PresentationDays IS NULL OR PresentationDays BETWEEN 1 AND 90` · `Status = 'DRAFT' OR Purpose IN ('ISSUED','RECEIVED') OR IncotermId IS NULL OR IncotermPlace IS NOT NULL` · `InsurancePctStated = 0 OR InsuranceMinPct IS NOT NULL` · `InsuranceMinPct IS NULL OR InsuranceMinPct > 0` · `MarginPct IS NULL OR MarginPct BETWEEN 0 AND 100` · `Status = 'DRAFT' OR DebitAuthorization IS NULL OR DebitAuthorization <> 'FULL_LC_VALUE' OR (MarginPct IS NOT NULL AND MarginPct = 100)` · `PostDeferralFinancingDays IS NULL OR PostDeferralFinancingDays >= 0` · `PrevLcAmount IS NULL OR PrevLcAmount >= 0` · `PrevLcUtilizedAmount IS NULL OR PrevLcUtilizedAmount >= 0` · `PrevLcAmount IS NULL OR PrevLcUtilizedAmount IS NULL OR PrevLcUtilizedAmount <= PrevLcAmount` · `(PrevLcAmount IS NULL AND PrevLcUtilizedAmount IS NULL) OR PrevLcCurrencyId IS NOT NULL`
 
 ### `lc.LcTermsDocument` — Document clause selected in the terms, with its parameters; the rendered text is frozen at lock (FR-LCT-018, BR-LCT-012) -- جديد
 
@@ -5511,7 +5511,7 @@
 
 **المفاتيح:** PK(LcFormFieldMapId) · UQ(TenantId, TemplateId, TargetName)
 
-**قيود:** `SourceExpr LIKE 'terms.%' OR SourceExpr LIKE 'company.%' OR SourceExpr LIKE 'counterparty.%' OR SourceExpr LIKE 'facility.%' OR SourceExpr LIKE 'relationship.%' OR SourceExpr LIKE 'request.%' OR SourceExpr LIKE 'lc.%'` · `SourceExpr NOT LIKE '%[^A-Za-z0-9._]%'` · `Transform <> 'CHECKBOX_EQ' OR TransformArg IS NOT NULL` · `SeqNo IS NULL OR SeqNo >= 1`
+**قيود:** `SourceExpr LIKE 'terms.%' OR SourceExpr LIKE 'company.%' OR SourceExpr LIKE 'counterparty.%' OR SourceExpr LIKE 'facility.%' OR SourceExpr LIKE 'relationship.%' OR SourceExpr LIKE 'request.%' OR SourceExpr LIKE 'lc.%'` · `SourceExpr COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Za-z0-9._]%'` · `Transform <> 'CHECKBOX_EQ' OR TransformArg IS NOT NULL` · `SeqNo IS NULL OR SeqNo >= 1`
 
 ### `lc.LetterOfCredit` — Letter-of-credit record for both sides: purchases (we are the applicant) and sales (we are the beneficiary) (FR-LCI-011..016, FR-LCE-009, BR-LCI-004/008/016, BR-LCE-007/009)
 
@@ -5573,7 +5573,7 @@
 
 **المفاتيح:** PK(LetterOfCreditId) · UQ(PublicId) · UQ(TenantId, InstitutionId, LcNumberNormalized) WHERE LcClass = 'PURCHASE' AND InstitutionId IS NOT NULL · UQ(TenantId, InternalRef) WHERE InternalRef IS NOT NULL · UQ(TenantId, UtilizationId) WHERE UtilizationId IS NOT NULL · UQ(TenantId, RequestId) WHERE RequestId IS NOT NULL · UQ(TenantId, CurrentTermsId)
 
-**قيود:** `Amount > 0 AND OriginalAmount > 0` · `TolerancePlusPct BETWEEN 0 AND 100 AND ToleranceMinusPct BETWEEN 0 AND 100` · `DrawnAmount >= 0 AND SettledAmount >= 0 AND SettledAmount <= DrawnAmount` · `EarmarkedRemaining >= 0` · `ExposureAmount IS NULL OR ExposureAmount >= Amount` · `(LcClass = 'PURCHASE' AND IssueDate IS NOT NULL AND ReceivedDate IS NULL) OR (LcClass = 'SALES' AND ReceivedDate IS NOT NULL AND IssueDate IS NULL)` · `IssueDate IS NULL OR ExpiryDate >= IssueDate` · `LimitId IS NULL OR FacilityId IS NOT NULL` · `LimitProductLineId IS NULL OR LimitId IS NOT NULL` · `UtilizationId IS NULL OR FacilityId IS NOT NULL` · `RelationshipId IS NULL OR InstitutionId IS NOT NULL` · `LcClass = 'PURCHASE' OR (FacilityId IS NULL AND UtilizationId IS NULL AND ExposureAmount IS NULL AND MarginPct IS NULL AND MarginAmount IS NULL)` · `LcClass = 'SALES' OR ExposureAmount IS NOT NULL` · `LcClass = 'SALES' OR (ProformaId IS NULL AND OtherBankText IS NULL AND OtherBankBic IS NULL AND EarmarkedRemaining = 0)` · `MarginPct IS NULL OR MarginPct BETWEEN 0 AND 100` · `MarginAmount IS NULL OR MarginAmount >= 0` · `Status NOT IN ('CLOSED','CANCELLED') OR (ClosedOn IS NOT NULL AND ClosedReason IS NOT NULL)` · `Status IN ('CLOSED','CANCELLED') OR (ClosedOn IS NULL AND ClosedReason IS NULL)` · `UndrawnReleasedOn IS NULL OR Status IN ('EXPIRED','CLOSED','CANCELLED')` · `LegacyEntry = 0 OR RequestId IS NULL` · `OtherBankBic IS NULL OR ((OtherBankBic LIKE '________' OR OtherBankBic LIKE '___________') AND OtherBankBic NOT LIKE '%[^A-Z0-9]%')` · `AmendmentNo >= 0` · `LcNumberNormalized NOT LIKE '% %'`
+**قيود:** `Amount > 0 AND OriginalAmount > 0` · `TolerancePlusPct BETWEEN 0 AND 100 AND ToleranceMinusPct BETWEEN 0 AND 100` · `DrawnAmount >= 0 AND SettledAmount >= 0 AND SettledAmount <= DrawnAmount` · `EarmarkedRemaining >= 0` · `ExposureAmount IS NULL OR ExposureAmount >= Amount` · `(LcClass = 'PURCHASE' AND IssueDate IS NOT NULL AND ReceivedDate IS NULL) OR (LcClass = 'SALES' AND ReceivedDate IS NOT NULL AND IssueDate IS NULL)` · `IssueDate IS NULL OR ExpiryDate >= IssueDate` · `LimitId IS NULL OR FacilityId IS NOT NULL` · `LimitProductLineId IS NULL OR LimitId IS NOT NULL` · `UtilizationId IS NULL OR FacilityId IS NOT NULL` · `RelationshipId IS NULL OR InstitutionId IS NOT NULL` · `LcClass = 'PURCHASE' OR (FacilityId IS NULL AND UtilizationId IS NULL AND ExposureAmount IS NULL AND MarginPct IS NULL AND MarginAmount IS NULL)` · `LcClass = 'SALES' OR ExposureAmount IS NOT NULL` · `LcClass = 'SALES' OR (ProformaId IS NULL AND OtherBankText IS NULL AND OtherBankBic IS NULL AND EarmarkedRemaining = 0)` · `MarginPct IS NULL OR MarginPct BETWEEN 0 AND 100` · `MarginAmount IS NULL OR MarginAmount >= 0` · `Status NOT IN ('CLOSED','CANCELLED') OR (ClosedOn IS NOT NULL AND ClosedReason IS NOT NULL)` · `Status IN ('CLOSED','CANCELLED') OR (ClosedOn IS NULL AND ClosedReason IS NULL)` · `UndrawnReleasedOn IS NULL OR Status IN ('EXPIRED','CLOSED','CANCELLED')` · `LegacyEntry = 0 OR RequestId IS NULL` · `OtherBankBic IS NULL OR ((OtherBankBic LIKE '________' OR OtherBankBic LIKE '___________') AND OtherBankBic COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9]%')` · `AmendmentNo >= 0` · `LcNumberNormalized NOT LIKE '% %'`
 
 ### `lc.LcExternalRef` — External reference for a credit (ERP and similar); no uniqueness; search on the normalised value (FR-LCI-013, BR-REQ-006) -- جديد
 
