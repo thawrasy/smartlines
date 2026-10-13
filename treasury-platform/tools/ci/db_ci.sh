@@ -2,7 +2,7 @@
 # Database CI: checks the model, confirms the generated DDL is current, deploys it to SQL Server,
 # compares what was deployed with the DDL, and runs the trigger, tenant-isolation, account-security,
 # operator-and-support, job-binding, tenant-onboarding, document-numbering (one of them with concurrent connections),
-# KYC history, reference data and audit trail tests.
+# KYC history, reference data, audit trail and data export tests.
 #
 # Environment:
 #   SA_PASSWORD   password of the sa login (required)
@@ -70,8 +70,8 @@ sq -d BankFas -i db/seed/101_iso_reference.sql >/dev/null
 sq -d BankFas -i db/seed/102_permissions.sql >/dev/null
 sq -d BankFas -i db/seed/103_lc_reference.sql >/dev/null
 seed_after="$(seed_state)"
-if [ "$seed_before" != "$seed_after" ] || [ "$seed_before" != "6/30/1/9/23/249/157/138/16/39/0" ]; then
-    echo "platform seed is not safe to run again, or incomplete: settings/jobs/plans/plan modules/reserved/countries/currencies/permissions/Incoterms/unverified UCP articles/updated before $seed_before, after $seed_after (expected 6/30/1/9/23/249/157/138/16/39/0)"
+if [ "$seed_before" != "$seed_after" ] || [ "$seed_before" != "6/31/1/9/23/249/157/138/16/39/0" ]; then
+    echo "platform seed is not safe to run again, or incomplete: settings/jobs/plans/plan modules/reserved/countries/currencies/permissions/Incoterms/unverified UCP articles/updated before $seed_before, after $seed_after (expected 6/31/1/9/23/249/157/138/16/39/0)"
     exit 1
 fi
 echo "platform seed unchanged on a second run ($seed_after)"
@@ -280,4 +280,23 @@ if [ "$aud_pass" -ne 7 ]; then
     exit 1
 fi
 echo "audit trail tests: $aud_pass passed"
+echo "== 17. data export in every status that allows it (db/tests/data_export_tests.sql)"
+sq -i db/tests/data_export_tests.sql > "$TMP/export.out" 2>&1 || {
+    cat "$TMP/export.out"
+    echo "data export test run failed"
+    exit 1
+}
+cat "$TMP/export.out"
+if grep -q '^FAIL' "$TMP/export.out"; then
+    echo "a data export test failed"
+    exit 1
+fi
+exp_pass=$(grep -c '^PASS' "$TMP/export.out" || true)
+# 6 cases: X1-X6 (ADR 0008: request rules, approval of restricted data, SUSPENDED, the CLOSED window, sensitive access
+# log, expiry).
+if [ "$exp_pass" -ne 6 ]; then
+    echo "expected 6 PASS, found $exp_pass"
+    exit 1
+fi
+echo "data export tests: $exp_pass passed"
 echo "all database checks passed"

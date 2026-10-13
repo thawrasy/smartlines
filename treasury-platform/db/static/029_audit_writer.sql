@@ -51,7 +51,8 @@ CREATE OR ALTER PROCEDURE aud.usp_WriteEvent
     @AfterJson       NVARCHAR(MAX) = NULL,
     @IpAddress       VARCHAR(45) = NULL,
     @UserAgent       NVARCHAR(400) = NULL,
-    @CorrelationId   UNIQUEIDENTIFIER = NULL
+    @CorrelationId   UNIQUEIDENTIFIER = NULL,
+    @AuditLogId      BIGINT = NULL OUTPUT       -- the new row, for a link from aud.SensitiveAccessLog
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -65,6 +66,7 @@ BEGIN
             @Action, @Category, @Severity, @EntityType, @EntityId, @BeforeJson, @AfterJson,
             COALESCE(@CorrelationId, CAST(SESSION_CONTEXT(N'CorrelationId') AS UNIQUEIDENTIFIER)),
             COALESCE(@IpAddress, CAST(SESSION_CONTEXT(N'ClientIp') AS VARCHAR(45))), @UserAgent, @Result);
+    SET @AuditLogId = SCOPE_IDENTITY();
 END;
 GO
 CREATE OR ALTER TRIGGER sec.TR_LoginAttempt_Audit ON sec.LoginAttempt
