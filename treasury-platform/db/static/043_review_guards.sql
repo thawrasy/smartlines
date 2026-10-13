@@ -15,10 +15,12 @@
             which this rule and the account-administrator checks (030, 038) rest.
      DR-18  doc.Document: a document whose type is sensitive is RESTRICTED. Marking a type sensitive raises its
             existing documents to RESTRICTED.
+     DR-19  acc.Signatory: a revoked or expired signatory stays so; a renewal is a new row (BR-ACC-009).
 
    An error raised in a trigger ends the caller's transaction; the application validates first.
    Errors: 50041 an undelivered outbox event is deleted, 50042 a revoked support grant changes, 50043 a locked
-   permission is given to another role, 50045 a document below the sensitivity of its type.
+   permission is given to another role, 50045 a document below the sensitivity of its type, 50046 a revoked or expired
+   signatory changes status.
    ============================================================================ */
 SET NOCOUNT ON;
 SET ANSI_NULLS ON; SET QUOTED_IDENTIFIER ON; SET ANSI_PADDING ON; SET ANSI_WARNINGS ON; SET ARITHABORT ON; SET CONCAT_NULL_YIELDS_NULL ON; SET NUMERIC_ROUNDABORT OFF;
@@ -93,5 +95,17 @@ BEGIN
     JOIN inserted AS i ON i.TenantId = d.TenantId AND i.DocumentTypeId = d.DocumentTypeId
     JOIN deleted AS o ON o.TenantId = i.TenantId AND o.DocumentTypeId = i.DocumentTypeId
     WHERE i.IsSensitive = 1 AND o.IsSensitive = 0 AND d.Sensitivity <> 'RESTRICTED';
+END;
+GO
+/* DR-19 */
+CREATE OR ALTER TRIGGER acc.TR_Signatory_FinalStatus ON acc.Signatory
+AFTER UPDATE
+AS
+BEGIN
+    SET NOCOUNT ON;
+    IF EXISTS (SELECT 1 FROM deleted AS d
+               JOIN inserted AS i ON i.TenantId = d.TenantId AND i.SignatoryId = d.SignatoryId
+               WHERE d.Status IN ('REVOKED', 'EXPIRED') AND i.Status <> d.Status)
+        THROW 50046, 'A revoked or expired signatory keeps its status; a renewal is a new signatory row', 1;
 END;
 GO

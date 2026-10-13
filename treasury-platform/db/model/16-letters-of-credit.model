@@ -107,7 +107,7 @@ table lc.Counterparty public  # Counterparty: lightweight supplier or customer w
   Fax                str(40)    sens=confidential
   Email              str(254)   sens=confidential
   ErpCode            str(40)          # رمز ERP (حساب الذمم/المورّد) نصي يدوي قابل للبحث
-  ErpCodeNormalized  str(40)          # مطبَّع: أرقام عربية-هندية → لاتينية + حروف كبيرة + بلا فراغات (BR-REQ-006)
+  calc ErpCodeNormalized str(40) =CAST(UPPER(REPLACE(TRANSLATE(ErpCode, N'٠١٢٣٤٥٦٧٨٩', N'0123456789'), N' ', N'')) AS NVARCHAR(40))   # مطبَّع محسوب مخزَّن: أرقام عربية-هندية → لاتينية + حروف كبيرة + بلا فراغات (BR-REQ-006، DR-47)
   TaxNumber          str(50)
   PartyId            ->pty.Party      # فارغ ما لم يُرقَّ؛ عند التعبئة يصير مزوّد استخدام Party (FR-LCT-037، BR-PTY-001)
   MergedIntoId       ->lc.Counterparty noidx   # الدمج: الباقي بعد إعادة توجيه الاعتمادات والبروفورمات (BR-LCT-022)
@@ -115,9 +115,9 @@ table lc.Counterparty public  # Counterparty: lightweight supplier or customer w
   Notes              str(1000)
   unique Code
   unique PublicId
-  index  ErpCodeNormalized,Kind where ErpCodeNormalized IS NOT NULL   # تحذير تكرار (النوع، الرمز) لا منع (BR-LCT-022) وبحث الرمز
+  index  ErpCodeNormalized,Kind where ErpCode IS NOT NULL   # تحذير تكرار (النوع، الرمز) لا منع (BR-LCT-022) وبحث الرمز؛ الشرط على العمود الأصلي
   index  NameNormalized,CountryId   # بحث الاسم وتحذير الاسم المطبَّع + البلد
-  check  ErpCode IS NULL OR ErpCodeNormalized IS NOT NULL   # المطبَّع يُحسب عند كل كتابة
+  check  ErpCode IS NULL OR LEN(ErpCode) > 0   # رمز من فراغات فقط مرفوض
   check  MergedIntoId IS NULL OR (MergedIntoId <> CounterpartyId AND IsActive = 0)   # المدموج يُعطَّل (BR-LCT-022)
 
 table lc.LcDocumentClause public  # Document-clause library with versions: template text with parameters (FR-LCT-017..019, BR-LCT-012); UCP references are in lc.LcDocumentClauseUcpRef

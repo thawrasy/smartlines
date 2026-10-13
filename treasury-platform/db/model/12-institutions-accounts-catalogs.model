@@ -212,23 +212,24 @@ table cat.BaseRate catalog int  # Base rate: market-wide (InstitutionId NULL) or
   InstitutionId   ->ins.Institution   # فارغ للسوق وإلزامي للداخلي
   FamilyCode      ascii(40)  req   # رمز العائلة مثل SAIBOR
   Tenor           enum{ON,1M,3M,6M,12M} req
-  CurrencyId      ->ref.Currency
+  CurrencyId      ->ref.Currency req   # لكل سعر عملته (DR-29)
   StaleAfterDays  int               # تنبيه التقادم NTF-CAT-01 (الافتراضي 35 مقترح)
   unique FamilyCode,Tenor,InstitutionId   # BR-CAT-011: NULL = قيمة واحدة في SQL Server فتُفرض الفرادة للسوق بين (FamilyCode,Tenor) وللداخلي لكل بنك
   index  Kind,FamilyCode,Tenor   # البحث بالسعر والفترة (SVC-05)
+  calc ScopeKey   bigint =CASE WHEN InstitutionId IS NULL THEN 0 ELSE InstitutionId END   # نطاق الأسماء البديلة: 0 للسوق ورقم البنك للداخلي (DR-29)
   check  (Kind = 'MARKET' AND InstitutionId IS NULL) OR (Kind = 'BANK_INTERNAL' AND InstitutionId IS NOT NULL)   # BR-CAT-011/V-CAT-03
   check  StaleAfterDays IS NULL OR StaleAfterDays > 0
   check  Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'   # BR-CAT-001
   check  (IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)   # BR-CAT-003: المقفل نظامي وفعّال؛ BR-CAT-001: NameEn لصفوف النظام
 
 table cat.BaseRateAlias int deletable  # Alternative name for a base rate (for example SIBOR and SAIBOR); case-insensitive search; unique within scope (BR-CAT-011, FR-CAT-015) -- جدول وسيط جديد يحل «Aliases set»
-  BaseRateId     ->cat.BaseRate req via=Tenor   # الربط المركّب يضمن أن الفترة المنسوخة تطابق الأب
-  Tenor          enum{ON,1M,3M,6M,12M} req      # نسخة من BaseRate.Tenor: حل الاسم يكون بـ (اسم بديل + فترة) في SVC-05
-  InstitutionId  ->ins.Institution              # نسخة من BaseRate.InstitutionId (فارغ = سوق) تحفظها الخدمة؛ نطاق الفرادة
+  BaseRateId     ->cat.BaseRate req via=Tenor,ScopeKey   # الربط المركّب يضمن أن الفترة والنطاق المنسوخين يطابقان الأب (DR-29)
+  Tenor          enum{ON,1M,3M,6M,12M} req      # نسخة من BaseRate.Tenor: حل الاسم يكون بـ (نطاق + اسم بديل + فترة) في SVC-05
+  ScopeKey       bigint req                     # نسخة من BaseRate.ScopeKey: 0 للسوق ورقم البنك للداخلي؛ نطاق الفرادة والبحث (DR-29)
   Alias          str(60)    req
   calc AliasKey  str(60) =UPPER(Alias)          # مفتاح البحث والفرادة بلا حساسية حالة
-  unique InstitutionId,Tenor,AliasKey   # الفرادة ضمن النطاق: المشترك للسوق (NULL قيمة واحدة) والمنشأة للداخلي
-  index  AliasKey,Tenor   # SVC-05: حل الاسم البديل
+  unique ScopeKey,Tenor,AliasKey   # الفرادة ضمن النطاق، وهو مفتاح البحث نفسه في SVC-05: السوق (0) أو البنك
+  index  AliasKey,Tenor   # بحث الاسم البديل في كل النطاقات
 
 table cat.BaseRateValue  # Base-rate value with an effective date; rows are never deleted: a correction inserts a new row and the old one becomes SUPERSEDED (FR-CAT-016, BR-CAT-012/013)
   BaseRateId    ->cat.BaseRate req
@@ -446,7 +447,9 @@ table acc.Signatory public  # Person authorised to sign for a relationship (S1-B
   SpecimenDocumentId       ->doc.Document   # صورة نموذج التوقيع حساسة بقيد صور الهوية (FR-ACC-022)
   ValidFrom                date       req
   ValidTo                  date
-  Status                   enum{PENDING,ACTIVE,SUSPENDED,EXPIRED,REVOKED} req =PENDING   # EXPIRED آليًا بعد ValidTo؛ REVOKED نهائي؛ التجديد صف جديد
+  Status                   enum{PENDING,ACTIVE,SUSPENDED,EXPIRED,REVOKED} req =PENDING   # EXPIRED آليًا بعد ValidTo؛ REVOKED وEXPIRED نهائيان (043)؛ التجديد صف جديد
+  RevokedAt                ts         # سحب التفويض: التاريخ والسبب، والفاعل في UpdatedBy والتدقيق (DR-19)
+  RevokedReason            str(500)
   Notes                    str(1000)
   unique RelationshipId,PartyId,SignatureClassId,ValidFrom
   unique RelationshipId,PartyId,SignatureClassId where ValidTo IS NULL AND Status <> 'REVOKED'   # BR-ACC-008: صف مفتوح واحد؛ عدم التداخل التام في التطبيق
@@ -456,6 +459,9 @@ table acc.Signatory public  # Person authorised to sign for a relationship (S1-B
   check  ValidTo IS NULL OR ValidTo >= ValidFrom
   check  Status NOT IN ('ACTIVE','SUSPENDED','EXPIRED') OR AuthorizationDocumentId IS NOT NULL   # BR-ACC-009: PENDING حتى إرفاق وثيقة التفويض
   check  (CashWithdrawalMode = 'LIMITED' AND CashWithdrawalLimit IS NOT NULL AND CashWithdrawalLimit > 0 AND CashWithdrawalCurrencyId IS NOT NULL) OR (CashWithdrawalMode <> 'LIMITED' AND CashWithdrawalLimit IS NULL)   # مثل BR-ACC-011
+  check  Status <> 'REVOKED' OR (RevokedAt IS NOT NULL AND RevokedReason IS NOT NULL)   # DR-19
+  check  RevokedAt IS NULL OR Status = 'REVOKED'
+  check  Status <> 'EXPIRED' OR ValidTo IS NOT NULL
 
 table acc.SignatoryAuthority  # Signatory authority for an operation on an account or on the bank (S1-B) (FR-ACC-013/014/017, BR-ACC-010/011); not edited in place: closed and reopened instead; its status is derived and not stored
   RelationshipId      ->ins.Relationship req noidx   # مكرَّر من المفوّض لضمان أن الحساب من العلاقة نفسها (FR-ACC-013)

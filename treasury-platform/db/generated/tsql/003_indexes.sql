@@ -89,10 +89,11 @@ CREATE NONCLUSTERED INDEX [IX_JobRun_JobKey_StartedAt] ON [cfg].[JobRun] ([Tenan
 CREATE NONCLUSTERED INDEX [IX_JobRun_NextRetryAt] ON [cfg].[JobRun] ([TenantId], [NextRetryAt]) WHERE Status = 'FAILED';
 CREATE NONCLUSTERED INDEX [IX_SeedRun_PackKey_SeedVersion] ON [cfg].[SeedRun] ([TenantId], [PackKey], [SeedVersion]);
 CREATE UNIQUE NONCLUSTERED INDEX [UQ_Company_CountryId_CrNumber] ON [org].[Company] ([TenantId], [CountryId], [CrNumber]) WHERE CrNumber IS NOT NULL AND Status <> 'ARCHIVED';
-CREATE UNIQUE NONCLUSTERED INDEX [UQ_Company_ErpCodeNormalized] ON [org].[Company] ([TenantId], [ErpCodeNormalized]) WHERE ErpCodeNormalized IS NOT NULL AND Status <> 'ARCHIVED';
+CREATE UNIQUE NONCLUSTERED INDEX [UQ_Company_ErpCodeNormalized] ON [org].[Company] ([TenantId], [ErpCodeNormalized]) WHERE ErpCompanyCode IS NOT NULL AND Status <> 'ARCHIVED';
 CREATE NONCLUSTERED INDEX [IX_Company_Status_CountryId] ON [org].[Company] ([TenantId], [Status], [CountryId]);
 CREATE NONCLUSTERED INDEX [IX_Company_ParentCompanyId] ON [org].[Company] ([TenantId], [ParentCompanyId]);
 CREATE NONCLUSTERED INDEX [IX_Company_LegalEntityTypeId] ON [org].[Company] ([TenantId], [LegalEntityTypeId]);
+CREATE NONCLUSTERED INDEX [IX_Company_PartyId] ON [org].[Company] ([TenantId], [PartyKind], [PartyId]);
 CREATE NONCLUSTERED INDEX [IX_Company_BaseCurrencyId] ON [org].[Company] ([TenantId], [BaseCurrencyId]);
 CREATE UNIQUE NONCLUSTERED INDEX [UQ_CompanyTaxRate_CompanyId_TaxCode] ON [org].[CompanyTaxRate] ([TenantId], [CompanyId], [TaxCode]) WHERE EffectiveTo IS NULL;
 CREATE UNIQUE NONCLUSTERED INDEX [UQ_Department_SeedKey] ON [org].[Department] ([TenantId], [SeedKey]) WHERE SeedKey IS NOT NULL;
@@ -124,7 +125,7 @@ CREATE NONCLUSTERED INDEX [IX_AuthorityGrant_InstitutionId] ON [org].[AuthorityG
 CREATE NONCLUSTERED INDEX [IX_AuthorityGrant_CeilingCurrencyId] ON [org].[AuthorityGrant] ([TenantId], [CeilingCurrencyId]);
 CREATE NONCLUSTERED INDEX [IX_AuthorityGrant_ApprovedBy] ON [org].[AuthorityGrant] ([TenantId], [ApprovedBy]);
 CREATE NONCLUSTERED INDEX [IX_AuthorityGrant_SourceDocumentId] ON [org].[AuthorityGrant] ([TenantId], [SourceDocumentId]);
-CREATE NONCLUSTERED INDEX [IX_AuthorityGrant_SupersedesGrantId] ON [org].[AuthorityGrant] ([TenantId], [SupersedesGrantId]);
+CREATE NONCLUSTERED INDEX [IX_AuthorityGrant_SupersedesGrantId] ON [org].[AuthorityGrant] ([TenantId], [CompanyId], [SupersedesGrantId]);
 CREATE NONCLUSTERED INDEX [IX_CompanyProfile_UnifiedNationalNo] ON [org].[CompanyProfile] ([TenantId], [UnifiedNationalNo]);
 CREATE NONCLUSTERED INDEX [IX_CompanyProfile_Lei] ON [org].[CompanyProfile] ([TenantId], [Lei]);
 CREATE NONCLUSTERED INDEX [IX_CompanyProfile_HeadquartersCountryId] ON [org].[CompanyProfile] ([TenantId], [HeadquartersCountryId]);
@@ -141,7 +142,6 @@ CREATE NONCLUSTERED INDEX [IX_CompanyWealthSource_WealthSourceId] ON [org].[Comp
 CREATE NONCLUSTERED INDEX [IX_CompanyDisclosure_CompanyId_DisclosureKind_Status] ON [org].[CompanyDisclosure] ([TenantId], [CompanyId], [DisclosureKind], [Status]);
 CREATE NONCLUSTERED INDEX [IX_CompanyDisclosure_SourceDocumentId] ON [org].[CompanyDisclosure] ([TenantId], [SourceDocumentId]);
 CREATE NONCLUSTERED INDEX [IX_CompanyKeyRelation_CompanyId_RelationKind] ON [org].[CompanyKeyRelation] ([TenantId], [CompanyId], [RelationKind]);
-CREATE UNIQUE NONCLUSTERED INDEX [UQ_Party_LinkedCompanyId] ON [pty].[Party] ([TenantId], [LinkedCompanyId]) WHERE LinkedCompanyId IS NOT NULL;
 CREATE NONCLUSTERED INDEX [IX_Party_NameNormalized] ON [pty].[Party] ([TenantId], [NameNormalized]);
 CREATE NONCLUSTERED INDEX [IX_Party_Kind_IsActive] ON [pty].[Party] ([TenantId], [Kind], [IsActive]);
 CREATE NONCLUSTERED INDEX [IX_Party_MergedIntoPartyId] ON [pty].[Party] ([TenantId], [MergedIntoPartyId]);
@@ -155,7 +155,7 @@ CREATE NONCLUSTERED INDEX [IX_IdentityDocument_NumberHash] ON [pty].[IdentityDoc
 CREATE NONCLUSTERED INDEX [IX_IdentityDocument_ExpiryDate] ON [pty].[IdentityDocument] ([TenantId], [ExpiryDate]) INCLUDE ([PartyId], [DocKind]) WHERE IsSuperseded = 0;
 CREATE NONCLUSTERED INDEX [IX_IdentityDocument_PartyId_DocKind_IsSuperseded] ON [pty].[IdentityDocument] ([TenantId], [PartyId], [DocKind], [IsSuperseded]);
 CREATE NONCLUSTERED INDEX [IX_IdentityDocument_IssuingCountryId] ON [pty].[IdentityDocument] ([TenantId], [IssuingCountryId]);
-CREATE NONCLUSTERED INDEX [IX_IdentityDocument_SupersededById] ON [pty].[IdentityDocument] ([TenantId], [SupersededById]);
+CREATE NONCLUSTERED INDEX [IX_IdentityDocument_SupersededById] ON [pty].[IdentityDocument] ([TenantId], [PartyId], [SupersededById]);
 CREATE NONCLUSTERED INDEX [IX_IdentityDocument_VerifiedBy] ON [pty].[IdentityDocument] ([TenantId], [VerifiedBy]);
 CREATE UNIQUE NONCLUSTERED INDEX [UQ_Address_PartyId] ON [pty].[Address] ([TenantId], [PartyId]) WHERE IsPrimary = 1 AND IsCurrent = 1 AND PartyId IS NOT NULL;
 CREATE UNIQUE NONCLUSTERED INDEX [UQ_Address_InstitutionId] ON [pty].[Address] ([TenantId], [InstitutionId]) WHERE IsPrimary = 1 AND IsCurrent = 1 AND InstitutionId IS NOT NULL;
@@ -228,7 +228,7 @@ CREATE NONCLUSTERED INDEX [IX_BaseRate_Kind_FamilyCode_Tenor] ON [cat].[BaseRate
 CREATE NONCLUSTERED INDEX [IX_BaseRate_InstitutionId] ON [cat].[BaseRate] ([TenantId], [InstitutionId]);
 CREATE NONCLUSTERED INDEX [IX_BaseRate_CurrencyId] ON [cat].[BaseRate] ([TenantId], [CurrencyId]);
 CREATE NONCLUSTERED INDEX [IX_BaseRateAlias_AliasKey_Tenor] ON [cat].[BaseRateAlias] ([TenantId], [AliasKey], [Tenor]);
-CREATE NONCLUSTERED INDEX [IX_BaseRateAlias_BaseRateId] ON [cat].[BaseRateAlias] ([TenantId], [Tenor], [BaseRateId]);
+CREATE NONCLUSTERED INDEX [IX_BaseRateAlias_BaseRateId] ON [cat].[BaseRateAlias] ([TenantId], [Tenor], [ScopeKey], [BaseRateId]);
 CREATE UNIQUE NONCLUSTERED INDEX [UQ_BaseRateValue_BaseRateId_EffectiveDate] ON [cat].[BaseRateValue] ([TenantId], [BaseRateId], [EffectiveDate]) WHERE Status = 'VALID';
 CREATE NONCLUSTERED INDEX [IX_BaseRateValue_BaseRateId_EffectiveDate] ON [cat].[BaseRateValue] ([TenantId], [BaseRateId], [EffectiveDate]) INCLUDE ([ValuePct], [Status]);
 CREATE NONCLUSTERED INDEX [IX_BaseRateValue_SupersedesId] ON [cat].[BaseRateValue] ([TenantId], [BaseRateId], [SupersedesId]);
@@ -646,7 +646,7 @@ CREATE NONCLUSTERED INDEX [IX_UcpArticle_VerificationStatus] ON [ref].[UcpArticl
 CREATE UNIQUE NONCLUSTERED INDEX [UQ_LcFieldDefinition_SeedKey] ON [lc].[LcFieldDefinition] ([TenantId], [SeedKey]) WHERE SeedKey IS NOT NULL;
 CREATE NONCLUSTERED INDEX [IX_LcFieldDefinition_SectionKey_SortOrder] ON [lc].[LcFieldDefinition] ([TenantId], [SectionKey], [SortOrder]);
 CREATE NONCLUSTERED INDEX [IX_LcFieldUcpRef_UcpArticleId] ON [lc].[LcFieldUcpRef] ([TenantId], [UcpArticleId]);
-CREATE NONCLUSTERED INDEX [IX_Counterparty_ErpCodeNormalized_Kind] ON [lc].[Counterparty] ([TenantId], [ErpCodeNormalized], [Kind]) WHERE ErpCodeNormalized IS NOT NULL;
+CREATE NONCLUSTERED INDEX [IX_Counterparty_ErpCodeNormalized_Kind] ON [lc].[Counterparty] ([TenantId], [ErpCodeNormalized], [Kind]) WHERE ErpCode IS NOT NULL;
 CREATE NONCLUSTERED INDEX [IX_Counterparty_NameNormalized_CountryId] ON [lc].[Counterparty] ([TenantId], [NameNormalized], [CountryId]);
 CREATE NONCLUSTERED INDEX [IX_Counterparty_PartyId] ON [lc].[Counterparty] ([TenantId], [PartyId]);
 CREATE UNIQUE NONCLUSTERED INDEX [UQ_LcDocumentClause_SeedKey_VersionNo] ON [lc].[LcDocumentClause] ([TenantId], [SeedKey], [VersionNo]) WHERE SeedKey IS NOT NULL;

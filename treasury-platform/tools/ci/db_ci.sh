@@ -356,9 +356,10 @@ if grep -q '^FAIL' "$TMP/review.out"; then
     exit 1
 fi
 rf_pass=$(grep -c '^PASS' "$TMP/review.out" || true)
-# 10 cases: RF1 list columns, RF2-RF9 the S0 tables (DR-11 to DR-18), RF10 codes in capitals (DR-48).
-if [ "$rf_pass" -ne 10 ]; then
-    echo "expected 10 PASS, found $rf_pass"
+# 16 cases: RF1 list columns, RF2-RF9 the S0 tables (DR-11 to DR-18), RF10 codes in capitals (DR-48), RF11-RF16
+# the S1 tables (DR-19, DR-21, DR-23, DR-24, DR-29, DR-47).
+if [ "$rf_pass" -ne 16 ]; then
+    echo "expected 16 PASS, found $rf_pass"
     exit 1
 fi
 echo "review fixes tests: $rf_pass passed"

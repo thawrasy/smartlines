@@ -1068,7 +1068,8 @@
 | CompanyCode | VARCHAR(20) | لا |  |  | رمز داخلي فريد في المشترك (BR-ORG-001) |
 | NameAr | NVARCHAR(200) | لا |  |  |  |
 | NameEn | NVARCHAR(200) | لا |  |  |  |
-| PartyId | BIGINT | لا |  | pty.Party | Party المرآة تُنشأ آليًا وتبقى للقراءة (FR-PTY-003، BR-PTY-018) |
+| PartyKind | VARCHAR(12) | لا | ORGANIZATION |  | ثابت: المرآة جهة اعتبارية (DR-24) enum: ORGANIZATION |
+| PartyId | BIGINT | لا |  | pty.Party (via PartyKind) | Party المرآة تُنشأ آليًا وتبقى للقراءة (FR-PTY-003، BR-PTY-018)؛ الرابط الوحيد بين الشركة ومرآتها (DR-24) |
 | LegalEntityTypeId | INT | لا |  | cat.LegalEntityType | الشكل القانوني؛ توافق دولته مع CountryId في التطبيق (BR-ORG-016) |
 | IsHolding | BIT | لا | 0 |  | قابضة: علم مستقل عن الشكل القانوني (FR-ORG-003، BR-ORG-003) |
 | ParentCompanyId | BIGINT | نعم |  | org.Company | الأم؛ منع الحلقات والعمق الأقصى 10 في التطبيق (FR-ORG-004، BR-ORG-002) |
@@ -1078,9 +1079,9 @@
 | CrNumber | VARCHAR(30) | نعم |  |  | رقم السجل التجاري (FR-ORG-005) |
 | CrDate | DATE | نعم |  |  |  |
 | CrDateHijriText | NVARCHAR(20) | نعم |  |  | التاريخ الهجري كما في الوثيقة (X-DAT-2) |
-| TaxNumber | VARCHAR(30) | نعم |  |  | الرقم الضريبي؛ التفصيل الضريبي (FATCA/CRS) في pty.TaxIdentity |
+| TaxNumber | VARCHAR(30) | نعم |  |  | الرقم الضريبي؛ التفصيل الضريبي (FATCA/CRS) في pty.TaxIdentity؛ يُحذف قبل S1 ويُقرأ منها (DQ-F02-8، DR-25) 🔒 confidential |
 | ErpCompanyCode | NVARCHAR(20) | نعم |  |  | رمز ERP يدوي بعد التقليم؛ يحمله رقم البروفورما {seq}-{erp}-{yy} (BR-ORG-001) |
-| ErpCodeNormalized | NVARCHAR(20) | نعم |  |  | مشتق مخزَّن: تقليم + حروف كبيرة + حذف الفراغات (=صيغة BR-LCE-002) |
+| ErpCodeNormalized | NVARCHAR(20) | نعم |  |  | مشتق محسوب مخزَّن: حروف كبيرة بلا فراغات (=صيغة BR-LCE-002، DR-47) محسوب: `CAST(UPPER(REPLACE(ErpCompanyCode, N' ', N'')) AS NVARCHAR(20))` |
 | FiscalYearEndMonth | TINYINT | لا |  |  | 1..12 (FR-ORG-006، BR-ORG-004) |
 | FiscalYearEndDay | TINYINT | نعم |  |  | فارغ = آخر الشهر |
 | BaseCurrencyId | INT | نعم |  | ref.Currency | العملة الأساسية (FR-ORG-008)؛ المواصفة تسميه BaseCurrencyCode |
@@ -1091,9 +1092,9 @@
 | UpdatedAt | DATETIME2(3) | نعم |  |  |  |
 | UpdatedBy | BIGINT | نعم |  |  |  |
 
-**المفاتيح:** PK(CompanyId) · UQ(PublicId) · UQ(TenantId, CompanyCode) · UQ(TenantId, PartyId) · UQ(TenantId, CountryId, CrNumber) WHERE CrNumber IS NOT NULL AND Status <> 'ARCHIVED' · UQ(TenantId, ErpCodeNormalized) WHERE ErpCodeNormalized IS NOT NULL AND Status <> 'ARCHIVED'
+**المفاتيح:** PK(CompanyId) · UQ(PublicId) · UQ(TenantId, CompanyCode) · UQ(TenantId, PartyId) · UQ(TenantId, CountryId, CrNumber) WHERE CrNumber IS NOT NULL AND Status <> 'ARCHIVED' · UQ(TenantId, ErpCodeNormalized) WHERE ErpCompanyCode IS NOT NULL AND Status <> 'ARCHIVED'
 
-**قيود:** `FiscalYearEndMonth BETWEEN 1 AND 12` · `FiscalYearEndDay IS NULL OR FiscalYearEndDay BETWEEN 1 AND 31` · `ParentCompanyId IS NULL OR ParentCompanyId <> CompanyId` · `ErpCompanyCode IS NULL OR ErpCodeNormalized IS NOT NULL`
+**قيود:** `FiscalYearEndMonth BETWEEN 1 AND 12` · `FiscalYearEndDay IS NULL OR FiscalYearEndDay BETWEEN 1 AND 31` · `ParentCompanyId IS NULL OR ParentCompanyId <> CompanyId` · `ErpCompanyCode IS NULL OR LEN(ErpCompanyCode) > 0`
 
 ### `org.CompanyTaxRate` — Tax rate with an effective date; NULL CompanyId = tenant default (FR-ORG-007, BR-ORG-005)
 
@@ -1257,7 +1258,7 @@
 | SourceDocumentId | BIGINT | نعم |  | doc.Document | وكالة/قرار مجلس (BR-ORG-013) |
 | SourcePage | VARCHAR(40) | نعم |  |  |  |
 | ExceptionReason | NVARCHAR(500) | نعم |  |  | استثناء موثَّق بدل مستند المصدر يوافق عليه مدير الخزينة |
-| SupersedesGrantId | BIGINT | نعم |  | org.AuthorityGrant | المنحة الجديدة تحل محل القديمة (BR-ORG-014) |
+| SupersedesGrantId | BIGINT | نعم |  | org.AuthorityGrant (via CompanyId) | المنحة الجديدة تحل محل القديمة للشركة نفسها (BR-ORG-014، DR-21) |
 | PublicId | UNIQUEIDENTIFIER | لا | NEWSEQUENTIALID() |  |  |
 | CreatedAt | DATETIME2(3) | لا | SYSUTCDATETIME() |  |  |
 | CreatedBy | BIGINT | نعم |  |  |  |
@@ -1266,7 +1267,7 @@
 
 **المفاتيح:** PK(AuthorityGrantId) · UQ(PublicId)
 
-**قيود:** `(GranteeKind = 'BODY' AND BodyId IS NOT NULL AND BodyMemberId IS NULL AND PartyId IS NULL) OR (GranteeKind = 'BODY_MEMBER' AND BodyId IS NULL AND BodyMemberId IS NOT NULL AND PartyId IS NULL) OR (GranteeKind = 'PARTY' AND BodyId IS NULL AND BodyMemberId IS NULL AND PartyId IS NOT NULL)` · `CeilingAmount IS NULL OR CeilingAmount > 0` · `(CeilingAmount IS NULL AND CeilingCurrencyId IS NULL) OR (CeilingAmount IS NOT NULL AND CeilingCurrencyId IS NOT NULL)` · `(RequiresJoint = 1 AND JointMinSignatories IS NOT NULL AND JointMinSignatories >= 2) OR (RequiresJoint = 0 AND JointMinSignatories IS NULL)` · `ValidTo IS NULL OR ValidTo >= ValidFrom` · `Status IN ('DRAFT','PENDING_APPROVAL') OR SourceDocumentId IS NOT NULL OR ExceptionReason IS NOT NULL` · `Status <> 'REVOKED' OR (RevokedAt IS NOT NULL AND RevokedReason IS NOT NULL)` · `SupersedesGrantId IS NULL OR SupersedesGrantId <> AuthorityGrantId`
+**قيود:** `(GranteeKind = 'BODY' AND BodyId IS NOT NULL AND BodyMemberId IS NULL AND PartyId IS NULL) OR (GranteeKind = 'BODY_MEMBER' AND BodyId IS NULL AND BodyMemberId IS NOT NULL AND PartyId IS NULL) OR (GranteeKind = 'PARTY' AND BodyId IS NULL AND BodyMemberId IS NULL AND PartyId IS NOT NULL)` · `CeilingAmount IS NULL OR CeilingAmount > 0` · `(CeilingAmount IS NULL AND CeilingCurrencyId IS NULL) OR (CeilingAmount IS NOT NULL AND CeilingCurrencyId IS NOT NULL)` · `(RequiresJoint = 1 AND JointMinSignatories IS NOT NULL AND JointMinSignatories >= 2) OR (RequiresJoint = 0 AND JointMinSignatories IS NULL)` · `ValidTo IS NULL OR ValidTo >= ValidFrom` · `Status IN ('DRAFT','PENDING_APPROVAL') OR SourceDocumentId IS NOT NULL OR ExceptionReason IS NOT NULL` · `Status <> 'REVOKED' OR (RevokedAt IS NOT NULL AND RevokedReason IS NOT NULL)` · `SupersedesGrantId IS NULL OR SupersedesGrantId <> AuthorityGrantId` · `Status IN ('DRAFT','PENDING_APPROVAL') OR (ApprovedBy IS NOT NULL AND ApprovedAt IS NOT NULL)` · `(ApprovedBy IS NULL AND ApprovedAt IS NULL) OR (ApprovedBy IS NOT NULL AND ApprovedAt IS NOT NULL)`
 
 ### `org.CompanyProfile` — Company profile, 1:1 (G-1)
 
@@ -1467,7 +1468,6 @@
 | MaritalStatus | VARCHAR(10) | نعم |  |  | قيم مقترحة؛ المواصفة لا تعددها enum: SINGLE, MARRIED, DIVORCED, WIDOWED 🔒 confidential |
 | Gender | VARCHAR(10) | نعم |  |  | اختياري يطلبه نموذج بنك (G-12، BR-PTY-019) enum: MALE, FEMALE 🔒 confidential |
 | EducationLevelId | INT | نعم |  | cat.LookupItem | اختياري (G-12، س-14)؛ قائمة EDUCATION_LEVEL 🔒 confidential |
-| LinkedCompanyId | BIGINT | نعم |  | org.Company | الشركة التي هذه مرآتها (FR-PTY-003) |
 | IsActive | BIT | لا | 1 |  |  |
 | MergedIntoPartyId | BIGINT | نعم |  | pty.Party | Merged لا تعود (BR-PTY-016) |
 | PublicId | UNIQUEIDENTIFIER | لا | NEWSEQUENTIALID() |  |  |
@@ -1476,9 +1476,9 @@
 | UpdatedAt | DATETIME2(3) | نعم |  |  |  |
 | UpdatedBy | BIGINT | نعم |  |  |  |
 
-**المفاتيح:** PK(PartyId) · UQ(PublicId) · UQ(TenantId, PartyCode) · UQ(TenantId, LinkedCompanyId) WHERE LinkedCompanyId IS NOT NULL
+**المفاتيح:** PK(PartyId) · UQ(PublicId) · UQ(TenantId, PartyCode)
 
-**قيود:** `NameAr IS NOT NULL OR NameEn IS NOT NULL` · `Kind = 'INDIVIDUAL' OR (ResidencyStatus IS NULL AND BirthDate IS NULL AND MaritalStatus IS NULL AND Gender IS NULL AND EducationLevelId IS NULL)` · `LinkedCompanyId IS NULL OR Kind = 'ORGANIZATION'` · `MergedIntoPartyId IS NULL OR (IsActive = 0 AND MergedIntoPartyId <> PartyId)`
+**قيود:** `NameAr IS NOT NULL OR NameEn IS NOT NULL` · `Kind = 'INDIVIDUAL' OR (ResidencyStatus IS NULL AND BirthDate IS NULL AND MaritalStatus IS NULL AND Gender IS NULL AND EducationLevelId IS NULL)` · `MergedIntoPartyId IS NULL OR (IsActive = 0 AND MergedIntoPartyId <> PartyId)`
 
 ### `pty.IdentityDocument` — Identity document; the number is encrypted and images are restricted documents (FR-PTY-004..009, FR-PTY-020..022, BR-PTY-002..008)
 
@@ -1506,7 +1506,7 @@
 | ExpiryDateHijriText | NVARCHAR(20) | نعم |  |  | G-11 |
 | IsPrimary | BIT | لا | 0 |  | أساسية واحدة بين غير المستبدلة (BR-PTY-005) |
 | IsSuperseded | BIT | لا | 0 |  | «مستبدلة» مخزَّنة عند التجديد (القسم 8)؛ تُعلَّم أولًا ثم يُنشأ البديل ثم يُربط SupersededById ضمن معاملة التجديد (الرقم نفسه يتكرر في تجديد الهوية) |
-| SupersededById | BIGINT | نعم |  | pty.IdentityDocument | التجديد ينشئ وثيقة جديدة تستبدل القديمة (FR-PTY-022، BR-PTY-006) |
+| SupersededById | BIGINT | نعم |  | pty.IdentityDocument (via PartyId) | التجديد ينشئ وثيقة جديدة للطرف نفسه تستبدل القديمة (FR-PTY-022، BR-PTY-006، DR-23) |
 | VerifiedAt | DATETIME2(3) | نعم |  |  | «تم التحقق من الأصل» (FR-PTY-020) |
 | VerifiedBy | BIGINT | نعم |  | sec.AppUser |  |
 | CreatedAt | DATETIME2(3) | لا | SYSUTCDATETIME() |  |  |
@@ -2388,8 +2388,9 @@
 | InstitutionId | BIGINT | نعم |  | ins.Institution | فارغ للسوق وإلزامي للداخلي |
 | FamilyCode | VARCHAR(40) | لا |  |  | رمز العائلة مثل SAIBOR |
 | Tenor | VARCHAR(10) | لا |  |  | enum: ON, 1M, 3M, 6M, 12M |
-| CurrencyId | INT | نعم |  | ref.Currency |  |
+| CurrencyId | INT | لا |  | ref.Currency | لكل سعر عملته (DR-29) |
 | StaleAfterDays | INT | نعم |  |  | تنبيه التقادم NTF-CAT-01 (الافتراضي 35 مقترح) |
+| ScopeKey | BIGINT | نعم |  |  | نطاق الأسماء البديلة: 0 للسوق ورقم البنك للداخلي (DR-29) محسوب: `CASE WHEN InstitutionId IS NULL THEN 0 ELSE InstitutionId END` |
 | CreatedAt | DATETIME2(3) | لا | SYSUTCDATETIME() |  |  |
 | CreatedBy | BIGINT | نعم |  |  |  |
 | UpdatedAt | DATETIME2(3) | نعم |  |  |  |
@@ -2407,9 +2408,9 @@
 |---|---|---|---|---|---|
 | TenantId | INT | لا | | plat.Tenant | عزل المشترك |
 | **BaseRateAliasId** | INT IDENTITY | لا | | | مفتاح أساسي |
-| BaseRateId | INT | لا |  | cat.BaseRate (via Tenor) | الربط المركّب يضمن أن الفترة المنسوخة تطابق الأب |
-| Tenor | VARCHAR(10) | لا |  |  | نسخة من BaseRate.Tenor: حل الاسم يكون بـ (اسم بديل + فترة) في SVC-05 enum: ON, 1M, 3M, 6M, 12M |
-| InstitutionId | BIGINT | نعم |  | ins.Institution | نسخة من BaseRate.InstitutionId (فارغ = سوق) تحفظها الخدمة؛ نطاق الفرادة |
+| BaseRateId | INT | لا |  | cat.BaseRate (via Tenor,ScopeKey) | الربط المركّب يضمن أن الفترة والنطاق المنسوخين يطابقان الأب (DR-29) |
+| Tenor | VARCHAR(10) | لا |  |  | نسخة من BaseRate.Tenor: حل الاسم يكون بـ (نطاق + اسم بديل + فترة) في SVC-05 enum: ON, 1M, 3M, 6M, 12M |
+| ScopeKey | BIGINT | لا |  |  | نسخة من BaseRate.ScopeKey: 0 للسوق ورقم البنك للداخلي؛ نطاق الفرادة والبحث (DR-29) |
 | Alias | NVARCHAR(60) | لا |  |  |  |
 | AliasKey | NVARCHAR(60) | نعم |  |  | مفتاح البحث والفرادة بلا حساسية حالة محسوب: `UPPER(Alias)` |
 | CreatedAt | DATETIME2(3) | لا | SYSUTCDATETIME() |  |  |
@@ -2417,7 +2418,7 @@
 | UpdatedAt | DATETIME2(3) | نعم |  |  |  |
 | UpdatedBy | BIGINT | نعم |  |  |  |
 
-**المفاتيح:** PK(BaseRateAliasId) · UQ(TenantId, InstitutionId, Tenor, AliasKey)
+**المفاتيح:** PK(BaseRateAliasId)
 
 ### `cat.BaseRateValue` — Base-rate value with an effective date; rows are never deleted: a correction inserts a new row and the old one becomes SUPERSEDED (FR-CAT-016, BR-CAT-012/013)
 
@@ -2755,7 +2756,9 @@
 | SpecimenDocumentId | BIGINT | نعم |  | doc.Document | صورة نموذج التوقيع حساسة بقيد صور الهوية (FR-ACC-022) |
 | ValidFrom | DATE | لا |  |  |  |
 | ValidTo | DATE | نعم |  |  |  |
-| Status | VARCHAR(10) | لا | PENDING |  | EXPIRED آليًا بعد ValidTo؛ REVOKED نهائي؛ التجديد صف جديد enum: PENDING, ACTIVE, SUSPENDED, EXPIRED, REVOKED |
+| Status | VARCHAR(10) | لا | PENDING |  | EXPIRED آليًا بعد ValidTo؛ REVOKED وEXPIRED نهائيان (043)؛ التجديد صف جديد enum: PENDING, ACTIVE, SUSPENDED, EXPIRED, REVOKED |
+| RevokedAt | DATETIME2(3) | نعم |  |  | سحب التفويض: التاريخ والسبب، والفاعل في UpdatedBy والتدقيق (DR-19) |
+| RevokedReason | NVARCHAR(500) | نعم |  |  |  |
 | Notes | NVARCHAR(1000) | نعم |  |  |  |
 | PublicId | UNIQUEIDENTIFIER | لا | NEWSEQUENTIALID() |  |  |
 | CreatedAt | DATETIME2(3) | لا | SYSUTCDATETIME() |  |  |
@@ -2765,7 +2768,7 @@
 
 **المفاتيح:** PK(SignatoryId) · UQ(PublicId) · UQ(TenantId, RelationshipId, PartyId, SignatureClassId, ValidFrom) · UQ(TenantId, RelationshipId, PartyId, SignatureClassId) WHERE ValidTo IS NULL AND Status <> 'REVOKED'
 
-**قيود:** `ValidTo IS NULL OR ValidTo >= ValidFrom` · `Status NOT IN ('ACTIVE','SUSPENDED','EXPIRED') OR AuthorizationDocumentId IS NOT NULL` · `(CashWithdrawalMode = 'LIMITED' AND CashWithdrawalLimit IS NOT NULL AND CashWithdrawalLimit > 0 AND CashWithdrawalCurrencyId IS NOT NULL) OR (CashWithdrawalMode <> 'LIMITED' AND CashWithdrawalLimit IS NULL)`
+**قيود:** `ValidTo IS NULL OR ValidTo >= ValidFrom` · `Status NOT IN ('ACTIVE','SUSPENDED','EXPIRED') OR AuthorizationDocumentId IS NOT NULL` · `(CashWithdrawalMode = 'LIMITED' AND CashWithdrawalLimit IS NOT NULL AND CashWithdrawalLimit > 0 AND CashWithdrawalCurrencyId IS NOT NULL) OR (CashWithdrawalMode <> 'LIMITED' AND CashWithdrawalLimit IS NULL)` · `Status <> 'REVOKED' OR (RevokedAt IS NOT NULL AND RevokedReason IS NOT NULL)` · `RevokedAt IS NULL OR Status = 'REVOKED'` · `Status <> 'EXPIRED' OR ValidTo IS NOT NULL`
 
 ### `acc.SignatoryAuthority` — Signatory authority for an operation on an account or on the bank (S1-B) (FR-ACC-013/014/017, BR-ACC-010/011); not edited in place: closed and reopened instead; its status is derived and not stored
 
@@ -5213,7 +5216,7 @@
 | Fax | NVARCHAR(40) | نعم |  |  | 🔒 confidential |
 | Email | NVARCHAR(254) | نعم |  |  | 🔒 confidential |
 | ErpCode | NVARCHAR(40) | نعم |  |  | رمز ERP (حساب الذمم/المورّد) نصي يدوي قابل للبحث |
-| ErpCodeNormalized | NVARCHAR(40) | نعم |  |  | مطبَّع: أرقام عربية-هندية → لاتينية + حروف كبيرة + بلا فراغات (BR-REQ-006) |
+| ErpCodeNormalized | NVARCHAR(40) | نعم |  |  | مطبَّع محسوب مخزَّن: أرقام عربية-هندية → لاتينية + حروف كبيرة + بلا فراغات (BR-REQ-006، DR-47) محسوب: `CAST(UPPER(REPLACE(TRANSLATE(ErpCode, N'٠١٢٣٤٥٦٧٨٩', N'0123456789'), N' ', N'')) AS NVARCHAR(40))` |
 | TaxNumber | NVARCHAR(50) | نعم |  |  |  |
 | PartyId | BIGINT | نعم |  | pty.Party | فارغ ما لم يُرقَّ؛ عند التعبئة يصير مزوّد استخدام Party (FR-LCT-037، BR-PTY-001) |
 | MergedIntoId | BIGINT | نعم |  | lc.Counterparty | الدمج: الباقي بعد إعادة توجيه الاعتمادات والبروفورمات (BR-LCT-022) |
@@ -5227,7 +5230,7 @@
 
 **المفاتيح:** PK(CounterpartyId) · UQ(PublicId) · UQ(TenantId, Code)
 
-**قيود:** `ErpCode IS NULL OR ErpCodeNormalized IS NOT NULL` · `MergedIntoId IS NULL OR (MergedIntoId <> CounterpartyId AND IsActive = 0)`
+**قيود:** `ErpCode IS NULL OR LEN(ErpCode) > 0` · `MergedIntoId IS NULL OR (MergedIntoId <> CounterpartyId AND IsActive = 0)`
 
 ### `lc.LcDocumentClause` — Document-clause library with versions: template text with parameters (FR-LCT-017..019, BR-LCT-012); UCP references are in lc.LcDocumentClauseUcpRef
 

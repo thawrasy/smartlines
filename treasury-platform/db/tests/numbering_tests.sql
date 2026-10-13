@@ -83,8 +83,9 @@ INSERT sec.AppUser (TenantId, Email, DisplayNameEn, Status, PasswordHash)
 VALUES (@tA, N'ta@num.invalid', N'TA', 'ACTIVE', '$argon2id$v=19$m=65536,t=3,p=4$c2FsdA$aGFzaA');
 SELECT @u = AppUserId FROM sec.AppUser WHERE TenantId = @tA;
 EXEC #Bind @tA, @u;
-INSERT org.Company (TenantId, CompanyCode, NameAr, NameEn, PartyId, LegalEntityTypeId, CountryId, ErpCompanyCode, ErpCodeNormalized, FiscalYearEndMonth)
-VALUES (@tA, 'C1', N'ش1', N'C1', 1, 1, 1, ' xx01 ', 'XX01', 12), (@tA, 'C2', N'ش2', N'C2', 2, 1, 1, 'XX02', 'XX02', 3);
+-- ErpCodeNormalized is computed from ErpCompanyCode (DR-47): ' xx01 ' gives XX01.
+INSERT org.Company (TenantId, CompanyCode, NameAr, NameEn, PartyId, LegalEntityTypeId, CountryId, ErpCompanyCode, FiscalYearEndMonth)
+VALUES (@tA, 'C1', N'ش1', N'C1', 1, 1, 1, ' xx01 ', 12), (@tA, 'C2', N'ش2', N'C2', 2, 1, 1, 'XX02', 3);
 SELECT @c1 = CompanyId FROM org.Company WHERE TenantId = @tA AND CompanyCode = 'C1';
 SELECT @c2 = CompanyId FROM org.Company WHERE TenantId = @tA AND CompanyCode = 'C2';
 INSERT cfg.NumberSequenceDefinition (TenantId, SequenceKey, Pattern, ScopeLevel, PeriodBasis, GapPolicy)
@@ -158,7 +159,7 @@ ROLLBACK TRANSACTION n5;
 /* N6: a company sequence needs a company of the tenant, and {erp} needs its ERP code (50030). */
 SAVE TRANSACTION n6;
 SELECT @e1 = NULL, @e2 = NULL;
-UPDATE org.Company SET ErpCompanyCode = NULL, ErpCodeNormalized = NULL WHERE CompanyId = @c2;
+UPDATE org.Company SET ErpCompanyCode = NULL WHERE CompanyId = @c2;   -- the normalised code follows
 EXECUTE AS USER = N'tp_test_app';
 BEGIN TRY EXEC cfg.usp_AllocateNumber @SequenceKey = 'PROFORMA', @CompanyId = NULL; END TRY BEGIN CATCH SET @e1 = ERROR_NUMBER(); END CATCH;
 BEGIN TRY EXEC cfg.usp_AllocateNumber @SequenceKey = 'PROFORMA', @CompanyId = @c2; END TRY BEGIN CATCH SET @e2 = ERROR_NUMBER(); END CATCH;

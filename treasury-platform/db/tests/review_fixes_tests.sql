@@ -13,6 +13,12 @@
         AC-PLT-19)
    RF9  a document of a sensitive type is RESTRICTED, never PUBLIC, and its current version is its own (DR-18)
    RF10 codes are checked in capitals: a lower-case country or catalogue code is refused (DR-48)
+   RF11 a signatory's revocation has its date and reason, an expiry its end date, and both are final (DR-19)
+   RF12 an authority grant in force has its approver and time, and supersedes only a grant of its own company (DR-21)
+   RF13 an identity document is superseded only by a document of the same party (DR-23)
+   RF14 a company's mirror party is an organisation (DR-24)
+   RF15 a base rate has a currency, and an alias stays in its rate's scope (DR-29)
+   RF16 the normalised ERP code is computed from the code, unique while set, and freed when cleared (DR-47)
 
    Run against a deployed BankFas database that holds no real data, with a sysadmin login:
        sqlcmd -S <server> -U sa -C -I -b -i db/tests/review_fixes_tests.sql
@@ -363,4 +369,149 @@ IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
 IF @e1 = 547 AND @e2 = 547
     PRINT 'PASS RF10: codes are checked in capitals: a lower-case country or catalogue code is refused';
 ELSE PRINT CONCAT('FAIL RF10: country ', @e1, ', catalogue code ', @e2);
+GO
+/* RF11 (DR-19): REVOKED without date and reason, a revocation date on an active row and EXPIRED without an end date
+   are refused (547); a revoked signatory does not return to ACTIVE (50046). Foreign keys to the relationship, party,
+   class and document are off: they are not what is tested. */
+DECLARE @t1 INT, @u1 BIGINT, @s BIGINT, @e1 INT, @e2 INT, @e3 INT, @e4 INT, @today DATE = CAST(SYSUTCDATETIME() AS DATE);
+BEGIN TRANSACTION;
+EXEC #Fixture;
+SELECT @t1 = v FROM #F WHERE k = 't1'; SELECT @u1 = v FROM #F WHERE k = 'u1';
+EXEC #Bind @t1, @u1;
+ALTER TABLE acc.Signatory NOCHECK CONSTRAINT FK_Signatory_RelationshipId, FK_Signatory_PartyId, FK_Signatory_SignatureClassId, FK_Signatory_AuthorizationDocumentId;
+INSERT acc.Signatory (TenantId, RelationshipId, PartyId, SignatureClassId, AuthorizationDocumentId, ValidFrom, Status)
+VALUES (@t1, 1, 1, 1, 1, @today, 'ACTIVE');
+SET @s = SCOPE_IDENTITY();
+BEGIN TRY UPDATE acc.Signatory SET Status = 'REVOKED' WHERE SignatoryId = @s; END TRY BEGIN CATCH SET @e1 = ERROR_NUMBER(); END CATCH;
+BEGIN TRY UPDATE acc.Signatory SET RevokedAt = SYSUTCDATETIME() WHERE SignatoryId = @s; END TRY BEGIN CATCH SET @e2 = ERROR_NUMBER(); END CATCH;
+BEGIN TRY UPDATE acc.Signatory SET Status = 'EXPIRED' WHERE SignatoryId = @s; END TRY BEGIN CATCH SET @e3 = ERROR_NUMBER(); END CATCH;
+UPDATE acc.Signatory SET Status = 'REVOKED', RevokedAt = SYSUTCDATETIME(), RevokedReason = N'Left the company' WHERE SignatoryId = @s;
+BEGIN TRY UPDATE acc.Signatory SET Status = 'ACTIVE', RevokedAt = NULL, RevokedReason = NULL WHERE SignatoryId = @s; END TRY
+BEGIN CATCH SET @e4 = ERROR_NUMBER(); IF XACT_STATE() <> 0 ROLLBACK TRANSACTION; END CATCH;
+IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
+IF @e1 = 547 AND @e2 = 547 AND @e3 = 547 AND @e4 = 50046
+    PRINT 'PASS RF11: a signatory''s revocation has its date and reason, an expiry its end date, and both are final';
+ELSE PRINT CONCAT('FAIL RF11: revoked bare ', @e1, ', date on active ', @e2, ', expired open ', @e3, ', back to active ', @e4);
+GO
+/* RF12 (DR-21): an ACTIVE grant without its approver, an approver without a time, and a grant of company 2 that
+   supersedes a grant of company 1 are refused (547); within company 1 the supersession is accepted. */
+DECLARE @t1 INT, @u1 BIGINT, @g BIGINT, @e1 INT, @e2 INT, @e3 INT, @ok INT, @today DATE = CAST(SYSUTCDATETIME() AS DATE), @now DATETIME2(3) = SYSUTCDATETIME();
+BEGIN TRANSACTION;
+EXEC #Fixture;
+SELECT @t1 = v FROM #F WHERE k = 't1'; SELECT @u1 = v FROM #F WHERE k = 'u1';
+EXEC #Bind @t1, @u1;
+ALTER TABLE org.AuthorityGrant NOCHECK CONSTRAINT FK_AuthorityGrant_CompanyId, FK_AuthorityGrant_PartyId, FK_AuthorityGrant_PowerTypeId;
+BEGIN TRY INSERT org.AuthorityGrant (TenantId, CompanyId, GranteeKind, PartyId, PowerTypeId, ValidFrom, Status, ExceptionReason)
+          VALUES (@t1, 1, 'PARTY', 1, 1, @today, 'ACTIVE', N'Board minute pending'); END TRY BEGIN CATCH SET @e1 = ERROR_NUMBER(); END CATCH;
+BEGIN TRY INSERT org.AuthorityGrant (TenantId, CompanyId, GranteeKind, PartyId, PowerTypeId, ValidFrom, Status, ApprovedBy)
+          VALUES (@t1, 1, 'PARTY', 1, 1, @today, 'DRAFT', @u1); END TRY BEGIN CATCH SET @e2 = ERROR_NUMBER(); END CATCH;
+INSERT org.AuthorityGrant (TenantId, CompanyId, GranteeKind, PartyId, PowerTypeId, ValidFrom, Status, ExceptionReason, ApprovedBy, ApprovedAt)
+VALUES (@t1, 1, 'PARTY', 1, 1, @today, 'ACTIVE', N'Board minute pending', @u1, @now);
+SET @g = SCOPE_IDENTITY();
+BEGIN TRY INSERT org.AuthorityGrant (TenantId, CompanyId, GranteeKind, PartyId, PowerTypeId, ValidFrom, SupersedesGrantId)
+          VALUES (@t1, 2, 'PARTY', 1, 1, @today, @g); END TRY BEGIN CATCH SET @e3 = ERROR_NUMBER(); END CATCH;
+BEGIN TRY INSERT org.AuthorityGrant (TenantId, CompanyId, GranteeKind, PartyId, PowerTypeId, ValidFrom, SupersedesGrantId)
+          VALUES (@t1, 1, 'PARTY', 1, 1, @today, @g); SET @ok = @@ROWCOUNT; END TRY BEGIN CATCH SET @ok = -ERROR_NUMBER(); END CATCH;
+IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
+IF @e1 = 547 AND @e2 = 547 AND @e3 = 547 AND @ok = 1
+    PRINT 'PASS RF12: an authority grant in force has its approver and time, and supersedes only a grant of its own company';
+ELSE PRINT CONCAT('FAIL RF12: active without approver ', @e1, ', approver without time ', @e2, ', other company ', @e3, ', same company ', @ok);
+GO
+/* RF13 (DR-23): a document of party 1 superseded by a document of party 2 is refused (547); by a document of
+   party 1 it is accepted. */
+DECLARE @t1 INT, @u1 BIGINT, @d1 BIGINT, @d2 BIGINT, @d3 BIGINT, @e1 INT, @ok INT;
+BEGIN TRANSACTION;
+EXEC #Fixture;
+SELECT @t1 = v FROM #F WHERE k = 't1'; SELECT @u1 = v FROM #F WHERE k = 'u1';
+EXEC #Bind @t1, @u1;
+ALTER TABLE pty.IdentityDocument NOCHECK CONSTRAINT FK_IdentityDocument_PartyId, FK_IdentityDocument_IssuingCountryId, FK_IdentityDocument_EncKeyId, FK_IdentityDocument_HashKeyId;
+INSERT pty.IdentityDocument (TenantId, PartyId, DocKind, IssuingCountryId, NumberEnc, NumberMask, NumberHash, EncKeyId, HashKeyId)
+VALUES (@t1, 1, 'PASSPORT', 1, CRYPT_GEN_RANDOM(40), N'****0001', HASHBYTES('SHA2_256', 'p1-a'), 1, 1);
+SET @d1 = SCOPE_IDENTITY();
+INSERT pty.IdentityDocument (TenantId, PartyId, DocKind, IssuingCountryId, NumberEnc, NumberMask, NumberHash, EncKeyId, HashKeyId)
+VALUES (@t1, 2, 'PASSPORT', 1, CRYPT_GEN_RANDOM(40), N'****0002', HASHBYTES('SHA2_256', 'p2-a'), 1, 1);
+SET @d2 = SCOPE_IDENTITY();
+INSERT pty.IdentityDocument (TenantId, PartyId, DocKind, IssuingCountryId, NumberEnc, NumberMask, NumberHash, EncKeyId, HashKeyId)
+VALUES (@t1, 1, 'PASSPORT', 1, CRYPT_GEN_RANDOM(40), N'****0003', HASHBYTES('SHA2_256', 'p1-b'), 1, 1);
+SET @d3 = SCOPE_IDENTITY();
+BEGIN TRY UPDATE pty.IdentityDocument SET IsSuperseded = 1, SupersededById = @d2 WHERE IdentityDocumentId = @d1; END TRY BEGIN CATCH SET @e1 = ERROR_NUMBER(); END CATCH;
+BEGIN TRY UPDATE pty.IdentityDocument SET IsSuperseded = 1, SupersededById = @d3 WHERE IdentityDocumentId = @d1; SET @ok = @@ROWCOUNT; END TRY BEGIN CATCH SET @ok = -ERROR_NUMBER(); END CATCH;
+IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
+IF @e1 = 547 AND @ok = 1
+    PRINT 'PASS RF13: an identity document is superseded only by a document of the same party';
+ELSE PRINT CONCAT('FAIL RF13: other party ', @e1, ', same party ', @ok);
+GO
+/* RF14 (DR-24): a company whose mirror is an individual is refused (547); an organisation is accepted. */
+DECLARE @t1 INT, @u1 BIGINT, @pi BIGINT, @po BIGINT, @e1 INT, @ok INT;
+BEGIN TRANSACTION;
+EXEC #Fixture;
+SELECT @t1 = v FROM #F WHERE k = 't1'; SELECT @u1 = v FROM #F WHERE k = 'u1';
+EXEC #Bind @t1, @u1;
+ALTER TABLE org.Company NOCHECK CONSTRAINT FK_Company_LegalEntityTypeId, FK_Company_CountryId;
+INSERT pty.Party (TenantId, PartyCode, Kind, NameEn) VALUES (@t1, 'P-IND', 'INDIVIDUAL', N'A person');
+SET @pi = SCOPE_IDENTITY();
+INSERT pty.Party (TenantId, PartyCode, Kind, NameEn) VALUES (@t1, 'P-ORG', 'ORGANIZATION', N'A company');
+SET @po = SCOPE_IDENTITY();
+BEGIN TRY INSERT org.Company (TenantId, CompanyCode, NameAr, NameEn, PartyId, LegalEntityTypeId, CountryId, FiscalYearEndMonth)
+          VALUES (@t1, 'C1', N'شركة', N'Company', @pi, 1, 1, 12); END TRY BEGIN CATCH SET @e1 = ERROR_NUMBER(); END CATCH;
+BEGIN TRY INSERT org.Company (TenantId, CompanyCode, NameAr, NameEn, PartyId, LegalEntityTypeId, CountryId, FiscalYearEndMonth)
+          VALUES (@t1, 'C1', N'شركة', N'Company', @po, 1, 1, 12); SET @ok = @@ROWCOUNT; END TRY BEGIN CATCH SET @ok = -ERROR_NUMBER(); END CATCH;
+IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
+IF @e1 = 547 AND @ok = 1
+    PRINT 'PASS RF14: a company''s mirror party is an organisation';
+ELSE PRINT CONCAT('FAIL RF14: individual mirror ', @e1, ', organisation ', @ok);
+GO
+/* RF15 (DR-29): a base rate without a currency (515) and an alias of a bank's rate in the market scope (547) are
+   refused; the same alias in two scopes is accepted, twice in one scope is not (2627). */
+DECLARE @t1 INT, @u1 BIGINT, @m INT, @b INT, @e1 INT, @e2 INT, @e3 INT, @ok INT;
+BEGIN TRANSACTION;
+EXEC #Fixture;
+SELECT @t1 = v FROM #F WHERE k = 't1'; SELECT @u1 = v FROM #F WHERE k = 'u1';
+EXEC #Bind @t1, @u1;
+ALTER TABLE cat.BaseRate NOCHECK CONSTRAINT FK_BaseRate_InstitutionId, FK_BaseRate_CurrencyId;
+BEGIN TRY INSERT cat.BaseRate (TenantId, Code, NameAr, Kind, FamilyCode, Tenor) VALUES (@t1, 'SAIBOR_3M', N'سايبور', 'MARKET', 'SAIBOR', '3M'); END TRY
+BEGIN CATCH SET @e1 = ERROR_NUMBER(); END CATCH;
+INSERT cat.BaseRate (TenantId, Code, NameAr, Kind, FamilyCode, Tenor, CurrencyId) VALUES (@t1, 'SAIBOR_3M', N'سايبور', 'MARKET', 'SAIBOR', '3M', 1);
+SET @m = SCOPE_IDENTITY();
+INSERT cat.BaseRate (TenantId, Code, NameAr, Kind, InstitutionId, FamilyCode, Tenor, CurrencyId) VALUES (@t1, 'BANK7_3M', N'سعر البنك', 'BANK_INTERNAL', 7, 'BANK7', '3M', 1);
+SET @b = SCOPE_IDENTITY();
+BEGIN TRY INSERT cat.BaseRateAlias (TenantId, BaseRateId, Tenor, ScopeKey, Alias) VALUES (@t1, @b, '3M', 0, N'House rate'); END TRY
+BEGIN CATCH SET @e2 = ERROR_NUMBER(); END CATCH;
+BEGIN TRY
+    INSERT cat.BaseRateAlias (TenantId, BaseRateId, Tenor, ScopeKey, Alias) VALUES (@t1, @b, '3M', 7, N'SIBOR'), (@t1, @m, '3M', 0, N'SIBOR');
+    SET @ok = @@ROWCOUNT;
+END TRY BEGIN CATCH SET @ok = -ERROR_NUMBER(); END CATCH;
+BEGIN TRY INSERT cat.BaseRateAlias (TenantId, BaseRateId, Tenor, ScopeKey, Alias) VALUES (@t1, @m, '3M', 0, N'sibor'); END TRY
+BEGIN CATCH SET @e3 = ERROR_NUMBER(); END CATCH;
+IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
+IF @e1 = 515 AND @e2 = 547 AND @ok = 2 AND @e3 = 2627
+    PRINT 'PASS RF15: a base rate has a currency, and an alias stays in its rate''s scope, unique within it';
+ELSE PRINT CONCAT('FAIL RF15: no currency ', @e1, ', alias out of scope ', @e2, ', two scopes ', @ok, ', same scope ', @e3);
+GO
+/* RF16 (DR-47): ' ab 1 ' gives AB1; a second company with 'AB 1' is refused (2601) until the first clears its code;
+   a code of spaces is refused (547); a counterparty's Arabic-Indic digits become Latin. */
+DECLARE @t1 INT, @u1 BIGINT, @c1 BIGINT, @n1 NVARCHAR(20), @e1 INT, @e2 INT, @ok INT, @cp NVARCHAR(40);
+BEGIN TRANSACTION;
+EXEC #Fixture;
+SELECT @t1 = v FROM #F WHERE k = 't1'; SELECT @u1 = v FROM #F WHERE k = 'u1';
+EXEC #Bind @t1, @u1;
+ALTER TABLE org.Company NOCHECK CONSTRAINT FK_Company_LegalEntityTypeId, FK_Company_CountryId, FK_Company_PartyId;
+ALTER TABLE lc.Counterparty NOCHECK CONSTRAINT FK_Counterparty_CountryId;
+INSERT org.Company (TenantId, CompanyCode, NameAr, NameEn, PartyId, LegalEntityTypeId, CountryId, FiscalYearEndMonth, ErpCompanyCode)
+VALUES (@t1, 'C1', N'شركة', N'Company 1', 1, 1, 1, 12, N' ab 1 ');
+SET @c1 = SCOPE_IDENTITY();
+SELECT @n1 = ErpCodeNormalized FROM org.Company WHERE CompanyId = @c1;
+BEGIN TRY INSERT org.Company (TenantId, CompanyCode, NameAr, NameEn, PartyId, LegalEntityTypeId, CountryId, FiscalYearEndMonth, ErpCompanyCode)
+          VALUES (@t1, 'C2', N'شركة', N'Company 2', 2, 1, 1, 12, N'AB 1'); END TRY BEGIN CATCH SET @e1 = ERROR_NUMBER(); END CATCH;
+UPDATE org.Company SET ErpCompanyCode = NULL WHERE CompanyId = @c1;
+BEGIN TRY INSERT org.Company (TenantId, CompanyCode, NameAr, NameEn, PartyId, LegalEntityTypeId, CountryId, FiscalYearEndMonth, ErpCompanyCode)
+          VALUES (@t1, 'C2', N'شركة', N'Company 2', 2, 1, 1, 12, N'AB 1'); SET @ok = @@ROWCOUNT; END TRY BEGIN CATCH SET @ok = -ERROR_NUMBER(); END CATCH;
+BEGIN TRY INSERT org.Company (TenantId, CompanyCode, NameAr, NameEn, PartyId, LegalEntityTypeId, CountryId, FiscalYearEndMonth, ErpCompanyCode)
+          VALUES (@t1, 'C3', N'شركة', N'Company 3', 3, 1, 1, 12, N'   '); END TRY BEGIN CATCH SET @e2 = ERROR_NUMBER(); END CATCH;
+INSERT lc.Counterparty (TenantId, Code, Kind, NameEn, NameNormalized, CountryId, ErpCode) VALUES (@t1, 'CP1', 'SUPPLIER', N'Supplier', N'SUPPLIER', 1, N'٤٥ x');
+SELECT @cp = ErpCodeNormalized FROM lc.Counterparty WHERE TenantId = @t1 AND Code = 'CP1';
+IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
+IF @n1 = N'AB1' AND @e1 = 2601 AND @ok = 1 AND @e2 = 547 AND @cp = N'45X'
+    PRINT 'PASS RF16: the normalised ERP code is computed from the code, unique while set, and freed when cleared';
+ELSE PRINT CONCAT('FAIL RF16: normalised ', @n1, ', duplicate ', @e1, ', after clearing ', @ok, ', spaces ', @e2, ', counterparty ', @cp);
 GO

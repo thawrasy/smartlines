@@ -187,7 +187,6 @@ erDiagram
 | Party | BirthCountryId | ref.Country |
 | Party | CountryId | ref.Country |
 | Party | EducationLevelId | cat.LookupItem |
-| Party | LinkedCompanyId | org.Company |
 | PartyCompliance | CompanyId | org.Company |
 | PartyCompliance | SourceDocumentId | doc.Document |
 | PartyCustomField | CurrencyId | ref.Currency |
@@ -230,7 +229,6 @@ erDiagram
 |---|---|---|
 | BaseRate | CurrencyId | ref.Currency |
 | BaseRate | InstitutionId | ins.Institution |
-| BaseRateAlias | InstitutionId | ins.Institution |
 | BaseRateValue | EnteredBy | sec.AppUser |
 | LegalEntityType | CountryId | ref.Country |
 | TenantCurrency | CurrencyId | ref.Currency |

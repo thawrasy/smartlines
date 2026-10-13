@@ -88,7 +88,7 @@ ALTER TABLE [cfg].[OutboxEvent] ADD CONSTRAINT [FK_OutboxEvent_Tenant] FOREIGN K
 ALTER TABLE [cfg].[JobRun] ADD CONSTRAINT [FK_JobRun_Tenant] FOREIGN KEY ([TenantId]) REFERENCES [plat].[Tenant] ([TenantId]);
 ALTER TABLE [cfg].[SeedRun] ADD CONSTRAINT [FK_SeedRun_Tenant] FOREIGN KEY ([TenantId]) REFERENCES [plat].[Tenant] ([TenantId]);
 ALTER TABLE [org].[Company] ADD CONSTRAINT [FK_Company_Tenant] FOREIGN KEY ([TenantId]) REFERENCES [plat].[Tenant] ([TenantId]);
-ALTER TABLE [org].[Company] ADD CONSTRAINT [FK_Company_PartyId] FOREIGN KEY ([TenantId], [PartyId]) REFERENCES [pty].[Party] ([TenantId], [PartyId]);
+ALTER TABLE [org].[Company] ADD CONSTRAINT [FK_Company_PartyId] FOREIGN KEY ([TenantId], [PartyKind], [PartyId]) REFERENCES [pty].[Party] ([TenantId], [Kind], [PartyId]);
 ALTER TABLE [org].[Company] ADD CONSTRAINT [FK_Company_LegalEntityTypeId] FOREIGN KEY ([TenantId], [LegalEntityTypeId]) REFERENCES [cat].[LegalEntityType] ([TenantId], [LegalEntityTypeId]);
 ALTER TABLE [org].[Company] ADD CONSTRAINT [FK_Company_ParentCompanyId] FOREIGN KEY ([TenantId], [ParentCompanyId]) REFERENCES [org].[Company] ([TenantId], [CompanyId]);
 ALTER TABLE [org].[Company] ADD CONSTRAINT [FK_Company_CountryId] FOREIGN KEY ([CountryId]) REFERENCES [ref].[Country] ([CountryId]);
@@ -124,7 +124,7 @@ ALTER TABLE [org].[AuthorityGrant] ADD CONSTRAINT [FK_AuthorityGrant_Institution
 ALTER TABLE [org].[AuthorityGrant] ADD CONSTRAINT [FK_AuthorityGrant_CeilingCurrencyId] FOREIGN KEY ([CeilingCurrencyId]) REFERENCES [ref].[Currency] ([CurrencyId]);
 ALTER TABLE [org].[AuthorityGrant] ADD CONSTRAINT [FK_AuthorityGrant_ApprovedBy] FOREIGN KEY ([TenantId], [ApprovedBy]) REFERENCES [sec].[AppUser] ([TenantId], [AppUserId]);
 ALTER TABLE [org].[AuthorityGrant] ADD CONSTRAINT [FK_AuthorityGrant_SourceDocumentId] FOREIGN KEY ([TenantId], [SourceDocumentId]) REFERENCES [doc].[Document] ([TenantId], [DocumentId]);
-ALTER TABLE [org].[AuthorityGrant] ADD CONSTRAINT [FK_AuthorityGrant_SupersedesGrantId] FOREIGN KEY ([TenantId], [SupersedesGrantId]) REFERENCES [org].[AuthorityGrant] ([TenantId], [AuthorityGrantId]);
+ALTER TABLE [org].[AuthorityGrant] ADD CONSTRAINT [FK_AuthorityGrant_SupersedesGrantId] FOREIGN KEY ([TenantId], [CompanyId], [SupersedesGrantId]) REFERENCES [org].[AuthorityGrant] ([TenantId], [CompanyId], [AuthorityGrantId]);
 ALTER TABLE [org].[CompanyProfile] ADD CONSTRAINT [FK_CompanyProfile_Tenant] FOREIGN KEY ([TenantId]) REFERENCES [plat].[Tenant] ([TenantId]);
 ALTER TABLE [org].[CompanyProfile] ADD CONSTRAINT [FK_CompanyProfile_CompanyId] FOREIGN KEY ([TenantId], [CompanyId]) REFERENCES [org].[Company] ([TenantId], [CompanyId]);
 ALTER TABLE [org].[CompanyProfile] ADD CONSTRAINT [FK_CompanyProfile_HeadquartersCountryId] FOREIGN KEY ([HeadquartersCountryId]) REFERENCES [ref].[Country] ([CountryId]);
@@ -152,14 +152,13 @@ ALTER TABLE [pty].[Party] ADD CONSTRAINT [FK_Party_Tenant] FOREIGN KEY ([TenantI
 ALTER TABLE [pty].[Party] ADD CONSTRAINT [FK_Party_CountryId] FOREIGN KEY ([CountryId]) REFERENCES [ref].[Country] ([CountryId]);
 ALTER TABLE [pty].[Party] ADD CONSTRAINT [FK_Party_BirthCountryId] FOREIGN KEY ([BirthCountryId]) REFERENCES [ref].[Country] ([CountryId]);
 ALTER TABLE [pty].[Party] ADD CONSTRAINT [FK_Party_EducationLevelId] FOREIGN KEY ([TenantId], [EducationLevelId]) REFERENCES [cat].[LookupItem] ([TenantId], [LookupItemId]);
-ALTER TABLE [pty].[Party] ADD CONSTRAINT [FK_Party_LinkedCompanyId] FOREIGN KEY ([TenantId], [LinkedCompanyId]) REFERENCES [org].[Company] ([TenantId], [CompanyId]);
 ALTER TABLE [pty].[Party] ADD CONSTRAINT [FK_Party_MergedIntoPartyId] FOREIGN KEY ([TenantId], [MergedIntoPartyId]) REFERENCES [pty].[Party] ([TenantId], [PartyId]);
 ALTER TABLE [pty].[IdentityDocument] ADD CONSTRAINT [FK_IdentityDocument_Tenant] FOREIGN KEY ([TenantId]) REFERENCES [plat].[Tenant] ([TenantId]);
 ALTER TABLE [pty].[IdentityDocument] ADD CONSTRAINT [FK_IdentityDocument_PartyId] FOREIGN KEY ([TenantId], [PartyId]) REFERENCES [pty].[Party] ([TenantId], [PartyId]);
 ALTER TABLE [pty].[IdentityDocument] ADD CONSTRAINT [FK_IdentityDocument_IssuingCountryId] FOREIGN KEY ([IssuingCountryId]) REFERENCES [ref].[Country] ([CountryId]);
 ALTER TABLE [pty].[IdentityDocument] ADD CONSTRAINT [FK_IdentityDocument_EncKeyId] FOREIGN KEY ([TenantId], [EncKeyPurpose], [EncKeyId]) REFERENCES [sec].[TenantKey] ([TenantId], [Purpose], [TenantKeyId]);
 ALTER TABLE [pty].[IdentityDocument] ADD CONSTRAINT [FK_IdentityDocument_HashKeyId] FOREIGN KEY ([TenantId], [HashKeyPurpose], [HashKeyId]) REFERENCES [sec].[TenantKey] ([TenantId], [Purpose], [TenantKeyId]);
-ALTER TABLE [pty].[IdentityDocument] ADD CONSTRAINT [FK_IdentityDocument_SupersededById] FOREIGN KEY ([TenantId], [SupersededById]) REFERENCES [pty].[IdentityDocument] ([TenantId], [IdentityDocumentId]);
+ALTER TABLE [pty].[IdentityDocument] ADD CONSTRAINT [FK_IdentityDocument_SupersededById] FOREIGN KEY ([TenantId], [PartyId], [SupersededById]) REFERENCES [pty].[IdentityDocument] ([TenantId], [PartyId], [IdentityDocumentId]);
 ALTER TABLE [pty].[IdentityDocument] ADD CONSTRAINT [FK_IdentityDocument_VerifiedBy] FOREIGN KEY ([TenantId], [VerifiedBy]) REFERENCES [sec].[AppUser] ([TenantId], [AppUserId]);
 ALTER TABLE [pty].[Address] ADD CONSTRAINT [FK_Address_Tenant] FOREIGN KEY ([TenantId]) REFERENCES [plat].[Tenant] ([TenantId]);
 ALTER TABLE [pty].[Address] ADD CONSTRAINT [FK_Address_PartyId] FOREIGN KEY ([TenantId], [PartyId]) REFERENCES [pty].[Party] ([TenantId], [PartyId]);
@@ -235,8 +234,7 @@ ALTER TABLE [cat].[BaseRate] ADD CONSTRAINT [FK_BaseRate_Tenant] FOREIGN KEY ([T
 ALTER TABLE [cat].[BaseRate] ADD CONSTRAINT [FK_BaseRate_InstitutionId] FOREIGN KEY ([TenantId], [InstitutionId]) REFERENCES [ins].[Institution] ([TenantId], [InstitutionId]);
 ALTER TABLE [cat].[BaseRate] ADD CONSTRAINT [FK_BaseRate_CurrencyId] FOREIGN KEY ([CurrencyId]) REFERENCES [ref].[Currency] ([CurrencyId]);
 ALTER TABLE [cat].[BaseRateAlias] ADD CONSTRAINT [FK_BaseRateAlias_Tenant] FOREIGN KEY ([TenantId]) REFERENCES [plat].[Tenant] ([TenantId]);
-ALTER TABLE [cat].[BaseRateAlias] ADD CONSTRAINT [FK_BaseRateAlias_BaseRateId] FOREIGN KEY ([TenantId], [Tenor], [BaseRateId]) REFERENCES [cat].[BaseRate] ([TenantId], [Tenor], [BaseRateId]);
-ALTER TABLE [cat].[BaseRateAlias] ADD CONSTRAINT [FK_BaseRateAlias_InstitutionId] FOREIGN KEY ([TenantId], [InstitutionId]) REFERENCES [ins].[Institution] ([TenantId], [InstitutionId]);
+ALTER TABLE [cat].[BaseRateAlias] ADD CONSTRAINT [FK_BaseRateAlias_BaseRateId] FOREIGN KEY ([TenantId], [Tenor], [ScopeKey], [BaseRateId]) REFERENCES [cat].[BaseRate] ([TenantId], [Tenor], [ScopeKey], [BaseRateId]);
 ALTER TABLE [cat].[BaseRateValue] ADD CONSTRAINT [FK_BaseRateValue_Tenant] FOREIGN KEY ([TenantId]) REFERENCES [plat].[Tenant] ([TenantId]);
 ALTER TABLE [cat].[BaseRateValue] ADD CONSTRAINT [FK_BaseRateValue_BaseRateId] FOREIGN KEY ([TenantId], [BaseRateId]) REFERENCES [cat].[BaseRate] ([TenantId], [BaseRateId]);
 ALTER TABLE [cat].[BaseRateValue] ADD CONSTRAINT [FK_BaseRateValue_SupersedesId] FOREIGN KEY ([TenantId], [BaseRateId], [SupersedesId]) REFERENCES [cat].[BaseRateValue] ([TenantId], [BaseRateId], [BaseRateValueId]);

@@ -948,6 +948,7 @@ CREATE TABLE "org"."Company" (
   "CompanyCode" varchar(20) NOT NULL,
   "NameAr" varchar(200) NOT NULL,
   "NameEn" varchar(200) NOT NULL,
+  "PartyKind" varchar(12) NOT NULL DEFAULT 'ORGANIZATION',
   "PartyId" bigint NOT NULL,
   "LegalEntityTypeId" integer NOT NULL,
   "IsHolding" smallint NOT NULL DEFAULT 0,
@@ -961,7 +962,7 @@ CREATE TABLE "org"."Company" (
   "CrDateHijriText" varchar(20) NULL,
   "TaxNumber" varchar(30) NULL,
   "ErpCompanyCode" varchar(20) NULL,
-  "ErpCodeNormalized" varchar(20) NULL,
+  "ErpCodeNormalized" varchar(20) GENERATED ALWAYS AS ("CAST"(upper("REPLACE"("ErpCompanyCode", "N"' ', "N"'')) "AS" "NVARCHAR"(20))) STORED,
   "FiscalYearEndMonth" smallint NOT NULL,
   "FiscalYearEndDay" smallint NULL,
   "BaseCurrencyId" integer NULL,
@@ -979,7 +980,8 @@ CREATE TABLE "org"."Company" (
   CONSTRAINT "CK_Company_1" CHECK ("FiscalYearEndMonth" BETWEEN 1 AND 12),
   CONSTRAINT "CK_Company_2" CHECK ("FiscalYearEndDay" IS NULL OR "FiscalYearEndDay" BETWEEN 1 AND 31),
   CONSTRAINT "CK_Company_3" CHECK ("ParentCompanyId" IS NULL OR "ParentCompanyId" <> "CompanyId"),
-  CONSTRAINT "CK_Company_4" CHECK ("ErpCompanyCode" IS NULL OR "ErpCodeNormalized" IS NOT NULL),
+  CONSTRAINT "CK_Company_4" CHECK ("ErpCompanyCode" IS NULL OR length("ErpCompanyCode") > 0),
+  CONSTRAINT "CK_Company_PartyKind" CHECK ("PartyKind" IS NULL OR "PartyKind" IN ('ORGANIZATION')),
   CONSTRAINT "CK_Company_Status" CHECK ("Status" IS NULL OR "Status" IN ('ACTIVE', 'DORMANT', 'LIQUIDATED', 'ARCHIVED')),
   CONSTRAINT "CK_Company_OwnershipStatus" CHECK ("OwnershipStatus" IS NULL OR "OwnershipStatus" IN ('COMPLETE', 'UNDOCUMENTED'))
 );
@@ -1139,6 +1141,7 @@ CREATE TABLE "org"."AuthorityGrant" (
   "UpdatedBy" bigint NULL,
   PRIMARY KEY ("AuthorityGrantId"),
   CONSTRAINT "UQ_AuthorityGrant_Tenant" UNIQUE ("TenantId", "AuthorityGrantId"),
+  CONSTRAINT "UQ_AuthorityGrant_Scope_CompanyId" UNIQUE ("TenantId", "CompanyId", "AuthorityGrantId"),
   CONSTRAINT "UQ_AuthorityGrant_PublicId" UNIQUE ("PublicId"),
   CONSTRAINT "CK_AuthorityGrant_1" CHECK (("GranteeKind" = 'BODY' AND "BodyId" IS NOT NULL AND "BodyMemberId" IS NULL AND "PartyId" IS NULL) OR ("GranteeKind" = 'BODY_MEMBER' AND "BodyId" IS NULL AND "BodyMemberId" IS NOT NULL AND "PartyId" IS NULL) OR ("GranteeKind" = 'PARTY' AND "BodyId" IS NULL AND "BodyMemberId" IS NULL AND "PartyId" IS NOT NULL)),
   CONSTRAINT "CK_AuthorityGrant_2" CHECK ("CeilingAmount" IS NULL OR "CeilingAmount" > 0),
@@ -1148,6 +1151,8 @@ CREATE TABLE "org"."AuthorityGrant" (
   CONSTRAINT "CK_AuthorityGrant_6" CHECK ("Status" IN ('DRAFT','PENDING_APPROVAL') OR "SourceDocumentId" IS NOT NULL OR "ExceptionReason" IS NOT NULL),
   CONSTRAINT "CK_AuthorityGrant_7" CHECK ("Status" <> 'REVOKED' OR ("RevokedAt" IS NOT NULL AND "RevokedReason" IS NOT NULL)),
   CONSTRAINT "CK_AuthorityGrant_8" CHECK ("SupersedesGrantId" IS NULL OR "SupersedesGrantId" <> "AuthorityGrantId"),
+  CONSTRAINT "CK_AuthorityGrant_9" CHECK ("Status" IN ('DRAFT','PENDING_APPROVAL') OR ("ApprovedBy" IS NOT NULL AND "ApprovedAt" IS NOT NULL)),
+  CONSTRAINT "CK_AuthorityGrant_10" CHECK (("ApprovedBy" IS NULL AND "ApprovedAt" IS NULL) OR ("ApprovedBy" IS NOT NULL AND "ApprovedAt" IS NOT NULL)),
   CONSTRAINT "CK_AuthorityGrant_GranteeKind" CHECK ("GranteeKind" IS NULL OR "GranteeKind" IN ('BODY', 'BODY_MEMBER', 'PARTY')),
   CONSTRAINT "CK_AuthorityGrant_Status" CHECK ("Status" IS NULL OR "Status" IN ('DRAFT', 'PENDING_APPROVAL', 'ACTIVE', 'SUPERSEDED', 'REVOKED'))
 );
@@ -1319,7 +1324,6 @@ CREATE TABLE "pty"."Party" (
   "MaritalStatus" varchar(10) NULL,
   "Gender" varchar(10) NULL,
   "EducationLevelId" integer NULL,
-  "LinkedCompanyId" bigint NULL,
   "IsActive" smallint NOT NULL DEFAULT 1,
   CHECK ("IsActive" IS NULL OR "IsActive" IN (0,1)),
   "MergedIntoPartyId" bigint NULL,
@@ -1330,12 +1334,12 @@ CREATE TABLE "pty"."Party" (
   "UpdatedBy" bigint NULL,
   PRIMARY KEY ("PartyId"),
   CONSTRAINT "UQ_Party_Tenant" UNIQUE ("TenantId", "PartyId"),
+  CONSTRAINT "UQ_Party_Scope_Kind" UNIQUE ("TenantId", "Kind", "PartyId"),
   CONSTRAINT "UQ_Party_PublicId" UNIQUE ("PublicId"),
   CONSTRAINT "UQ_Party_PartyCode" UNIQUE ("TenantId", "PartyCode"),
   CONSTRAINT "CK_Party_1" CHECK ("NameAr" IS NOT NULL OR "NameEn" IS NOT NULL),
   CONSTRAINT "CK_Party_2" CHECK ("Kind" = 'INDIVIDUAL' OR ("ResidencyStatus" IS NULL AND "BirthDate" IS NULL AND "MaritalStatus" IS NULL AND "Gender" IS NULL AND "EducationLevelId" IS NULL)),
-  CONSTRAINT "CK_Party_3" CHECK ("LinkedCompanyId" IS NULL OR "Kind" = 'ORGANIZATION'),
-  CONSTRAINT "CK_Party_4" CHECK ("MergedIntoPartyId" IS NULL OR ("IsActive" = 0 AND "MergedIntoPartyId" <> "PartyId")),
+  CONSTRAINT "CK_Party_3" CHECK ("MergedIntoPartyId" IS NULL OR ("IsActive" = 0 AND "MergedIntoPartyId" <> "PartyId")),
   CONSTRAINT "CK_Party_Kind" CHECK ("Kind" IS NULL OR "Kind" IN ('INDIVIDUAL', 'ORGANIZATION')),
   CONSTRAINT "CK_Party_ResidencyStatus" CHECK ("ResidencyStatus" IS NULL OR "ResidencyStatus" IN ('CITIZEN', 'RESIDENT', 'NON_RESIDENT', 'UNKNOWN')),
   CONSTRAINT "CK_Party_MaritalStatus" CHECK ("MaritalStatus" IS NULL OR "MaritalStatus" IN ('SINGLE', 'MARRIED', 'DIVORCED', 'WIDOWED')),
@@ -1373,6 +1377,7 @@ CREATE TABLE "pty"."IdentityDocument" (
   "UpdatedBy" bigint NULL,
   PRIMARY KEY ("IdentityDocumentId"),
   CONSTRAINT "UQ_IdentityDocument_Tenant" UNIQUE ("TenantId", "IdentityDocumentId"),
+  CONSTRAINT "UQ_IdentityDocument_Scope_PartyId" UNIQUE ("TenantId", "PartyId", "IdentityDocumentId"),
   CONSTRAINT "CK_IdentityDocument_1" CHECK ("ExpiryDate" IS NULL OR "IssueDate" IS NULL OR "ExpiryDate" > "IssueDate"),
   CONSTRAINT "CK_IdentityDocument_2" CHECK ("SupersededById" IS NULL OR ("SupersededById" <> "IdentityDocumentId" AND "IsSuperseded" = 1)),
   CONSTRAINT "CK_IdentityDocument_3" CHECK (octet_length("NumberEnc") >= 29),
@@ -2226,15 +2231,16 @@ CREATE TABLE "cat"."BaseRate" (
   "InstitutionId" bigint NULL,
   "FamilyCode" varchar(40) NOT NULL,
   "Tenor" varchar(10) NOT NULL,
-  "CurrencyId" integer NULL,
+  "CurrencyId" integer NOT NULL,
   "StaleAfterDays" integer NULL,
+  "ScopeKey" bigint GENERATED ALWAYS AS (CASE WHEN "InstitutionId" IS NULL THEN 0 ELSE "InstitutionId" END) STORED,
   "CreatedAt" timestamp(3) NOT NULL DEFAULT (now() at time zone 'utc'),
   "CreatedBy" bigint NULL,
   "UpdatedAt" timestamp(3) NULL,
   "UpdatedBy" bigint NULL,
   PRIMARY KEY ("BaseRateId"),
   CONSTRAINT "UQ_BaseRate_Tenant" UNIQUE ("TenantId", "BaseRateId"),
-  CONSTRAINT "UQ_BaseRate_Scope_Tenor" UNIQUE ("TenantId", "Tenor", "BaseRateId"),
+  CONSTRAINT "UQ_BaseRate_Scope_Tenor_ScopeKey" UNIQUE ("TenantId", "Tenor", "ScopeKey", "BaseRateId"),
   CONSTRAINT "UQ_BaseRate_FamilyCode_Tenor_InstitutionId" UNIQUE ("TenantId", "FamilyCode", "Tenor", "InstitutionId"),
   CONSTRAINT "UQ_BaseRate_Code" UNIQUE ("TenantId", "Code"),
   CONSTRAINT "CK_BaseRate_1" CHECK (("Kind" = 'MARKET' AND "InstitutionId" IS NULL) OR ("Kind" = 'BANK_INTERNAL' AND "InstitutionId" IS NOT NULL)),
@@ -2249,7 +2255,7 @@ CREATE TABLE "cat"."BaseRateAlias" (
   "BaseRateAliasId" integer GENERATED BY DEFAULT AS IDENTITY NOT NULL,
   "BaseRateId" integer NOT NULL,
   "Tenor" varchar(10) NOT NULL,
-  "InstitutionId" bigint NULL,
+  "ScopeKey" bigint NOT NULL,
   "Alias" varchar(60) NOT NULL,
   "AliasKey" varchar(60) GENERATED ALWAYS AS (upper("Alias")) STORED,
   "CreatedAt" timestamp(3) NOT NULL DEFAULT (now() at time zone 'utc'),
@@ -2258,7 +2264,7 @@ CREATE TABLE "cat"."BaseRateAlias" (
   "UpdatedBy" bigint NULL,
   PRIMARY KEY ("BaseRateAliasId"),
   CONSTRAINT "UQ_BaseRateAlias_Tenant" UNIQUE ("TenantId", "BaseRateAliasId"),
-  CONSTRAINT "UQ_BaseRateAlias_InstitutionId_Tenor_AliasKey" UNIQUE ("TenantId", "InstitutionId", "Tenor", "AliasKey"),
+  CONSTRAINT "UQ_BaseRateAlias_ScopeKey_Tenor_AliasKey" UNIQUE ("TenantId", "ScopeKey", "Tenor", "AliasKey"),
   CONSTRAINT "CK_BaseRateAlias_Tenor" CHECK ("Tenor" IS NULL OR "Tenor" IN ('ON', '1M', '3M', '6M', '12M'))
 );
 CREATE TABLE "cat"."BaseRateValue" (
@@ -2583,6 +2589,8 @@ CREATE TABLE "acc"."Signatory" (
   "ValidFrom" date NOT NULL,
   "ValidTo" date NULL,
   "Status" varchar(10) NOT NULL DEFAULT 'PENDING',
+  "RevokedAt" timestamp(3) NULL,
+  "RevokedReason" varchar(500) NULL,
   "Notes" varchar(1000) NULL,
   "PublicId" uuid NOT NULL DEFAULT gen_random_uuid(),
   "CreatedAt" timestamp(3) NOT NULL DEFAULT (now() at time zone 'utc'),
@@ -2597,6 +2605,9 @@ CREATE TABLE "acc"."Signatory" (
   CONSTRAINT "CK_Signatory_1" CHECK ("ValidTo" IS NULL OR "ValidTo" >= "ValidFrom"),
   CONSTRAINT "CK_Signatory_2" CHECK ("Status" NOT IN ('ACTIVE','SUSPENDED','EXPIRED') OR "AuthorizationDocumentId" IS NOT NULL),
   CONSTRAINT "CK_Signatory_3" CHECK (("CashWithdrawalMode" = 'LIMITED' AND "CashWithdrawalLimit" IS NOT NULL AND "CashWithdrawalLimit" > 0 AND "CashWithdrawalCurrencyId" IS NOT NULL) OR ("CashWithdrawalMode" <> 'LIMITED' AND "CashWithdrawalLimit" IS NULL)),
+  CONSTRAINT "CK_Signatory_4" CHECK ("Status" <> 'REVOKED' OR ("RevokedAt" IS NOT NULL AND "RevokedReason" IS NOT NULL)),
+  CONSTRAINT "CK_Signatory_5" CHECK ("RevokedAt" IS NULL OR "Status" = 'REVOKED'),
+  CONSTRAINT "CK_Signatory_6" CHECK ("Status" <> 'EXPIRED' OR "ValidTo" IS NOT NULL),
   CONSTRAINT "CK_Signatory_SignatureType" CHECK ("SignatureType" IS NULL OR "SignatureType" IN ('INDIVIDUAL', 'WITH_PRIMARY_SIGNATORY')),
   CONSTRAINT "CK_Signatory_CashWithdrawalMode" CHECK ("CashWithdrawalMode" IS NULL OR "CashWithdrawalMode" IN ('LIMITED', 'UNLIMITED', 'UNSPECIFIED')),
   CONSTRAINT "CK_Signatory_Status" CHECK ("Status" IS NULL OR "Status" IN ('PENDING', 'ACTIVE', 'SUSPENDED', 'EXPIRED', 'REVOKED'))
@@ -5274,7 +5285,7 @@ CREATE TABLE "lc"."Counterparty" (
   "Fax" varchar(40) NULL,
   "Email" varchar(254) NULL,
   "ErpCode" varchar(40) NULL,
-  "ErpCodeNormalized" varchar(40) NULL,
+  "ErpCodeNormalized" varchar(40) GENERATED ALWAYS AS ("CAST"(upper("REPLACE"("TRANSLATE"("ErpCode", "N"'٠١٢٣٤٥٦٧٨٩', "N"'0123456789'), "N"' ', "N"'')) "AS" "NVARCHAR"(40))) STORED,
   "TaxNumber" varchar(50) NULL,
   "PartyId" bigint NULL,
   "MergedIntoId" bigint NULL,
@@ -5290,7 +5301,7 @@ CREATE TABLE "lc"."Counterparty" (
   CONSTRAINT "UQ_Counterparty_Tenant" UNIQUE ("TenantId", "CounterpartyId"),
   CONSTRAINT "UQ_Counterparty_PublicId" UNIQUE ("PublicId"),
   CONSTRAINT "UQ_Counterparty_Code" UNIQUE ("TenantId", "Code"),
-  CONSTRAINT "CK_Counterparty_1" CHECK ("ErpCode" IS NULL OR "ErpCodeNormalized" IS NOT NULL),
+  CONSTRAINT "CK_Counterparty_1" CHECK ("ErpCode" IS NULL OR length("ErpCode") > 0),
   CONSTRAINT "CK_Counterparty_2" CHECK ("MergedIntoId" IS NULL OR ("MergedIntoId" <> "CounterpartyId" AND "IsActive" = 0)),
   CONSTRAINT "CK_Counterparty_Kind" CHECK ("Kind" IS NULL OR "Kind" IN ('SUPPLIER', 'CUSTOMER', 'BOTH'))
 );
@@ -6123,7 +6134,7 @@ ALTER TABLE "cfg"."OutboxEvent" ADD CONSTRAINT "FK_OutboxEvent_Tenant" FOREIGN K
 ALTER TABLE "cfg"."JobRun" ADD CONSTRAINT "FK_JobRun_Tenant" FOREIGN KEY ("TenantId") REFERENCES "plat"."Tenant" ("TenantId");
 ALTER TABLE "cfg"."SeedRun" ADD CONSTRAINT "FK_SeedRun_Tenant" FOREIGN KEY ("TenantId") REFERENCES "plat"."Tenant" ("TenantId");
 ALTER TABLE "org"."Company" ADD CONSTRAINT "FK_Company_Tenant" FOREIGN KEY ("TenantId") REFERENCES "plat"."Tenant" ("TenantId");
-ALTER TABLE "org"."Company" ADD CONSTRAINT "FK_Company_PartyId" FOREIGN KEY ("TenantId", "PartyId") REFERENCES "pty"."Party" ("TenantId", "PartyId");
+ALTER TABLE "org"."Company" ADD CONSTRAINT "FK_Company_PartyId" FOREIGN KEY ("TenantId", "PartyKind", "PartyId") REFERENCES "pty"."Party" ("TenantId", "Kind", "PartyId");
 ALTER TABLE "org"."Company" ADD CONSTRAINT "FK_Company_LegalEntityTypeId" FOREIGN KEY ("TenantId", "LegalEntityTypeId") REFERENCES "cat"."LegalEntityType" ("TenantId", "LegalEntityTypeId");
 ALTER TABLE "org"."Company" ADD CONSTRAINT "FK_Company_ParentCompanyId" FOREIGN KEY ("TenantId", "ParentCompanyId") REFERENCES "org"."Company" ("TenantId", "CompanyId");
 ALTER TABLE "org"."Company" ADD CONSTRAINT "FK_Company_CountryId" FOREIGN KEY ("CountryId") REFERENCES "ref"."Country" ("CountryId");
@@ -6159,7 +6170,7 @@ ALTER TABLE "org"."AuthorityGrant" ADD CONSTRAINT "FK_AuthorityGrant_Institution
 ALTER TABLE "org"."AuthorityGrant" ADD CONSTRAINT "FK_AuthorityGrant_CeilingCurrencyId" FOREIGN KEY ("CeilingCurrencyId") REFERENCES "ref"."Currency" ("CurrencyId");
 ALTER TABLE "org"."AuthorityGrant" ADD CONSTRAINT "FK_AuthorityGrant_ApprovedBy" FOREIGN KEY ("TenantId", "ApprovedBy") REFERENCES "sec"."AppUser" ("TenantId", "AppUserId");
 ALTER TABLE "org"."AuthorityGrant" ADD CONSTRAINT "FK_AuthorityGrant_SourceDocumentId" FOREIGN KEY ("TenantId", "SourceDocumentId") REFERENCES "doc"."Document" ("TenantId", "DocumentId");
-ALTER TABLE "org"."AuthorityGrant" ADD CONSTRAINT "FK_AuthorityGrant_SupersedesGrantId" FOREIGN KEY ("TenantId", "SupersedesGrantId") REFERENCES "org"."AuthorityGrant" ("TenantId", "AuthorityGrantId");
+ALTER TABLE "org"."AuthorityGrant" ADD CONSTRAINT "FK_AuthorityGrant_SupersedesGrantId" FOREIGN KEY ("TenantId", "CompanyId", "SupersedesGrantId") REFERENCES "org"."AuthorityGrant" ("TenantId", "CompanyId", "AuthorityGrantId");
 ALTER TABLE "org"."CompanyProfile" ADD CONSTRAINT "FK_CompanyProfile_Tenant" FOREIGN KEY ("TenantId") REFERENCES "plat"."Tenant" ("TenantId");
 ALTER TABLE "org"."CompanyProfile" ADD CONSTRAINT "FK_CompanyProfile_CompanyId" FOREIGN KEY ("TenantId", "CompanyId") REFERENCES "org"."Company" ("TenantId", "CompanyId");
 ALTER TABLE "org"."CompanyProfile" ADD CONSTRAINT "FK_CompanyProfile_HeadquartersCountryId" FOREIGN KEY ("HeadquartersCountryId") REFERENCES "ref"."Country" ("CountryId");
@@ -6187,14 +6198,13 @@ ALTER TABLE "pty"."Party" ADD CONSTRAINT "FK_Party_Tenant" FOREIGN KEY ("TenantI
 ALTER TABLE "pty"."Party" ADD CONSTRAINT "FK_Party_CountryId" FOREIGN KEY ("CountryId") REFERENCES "ref"."Country" ("CountryId");
 ALTER TABLE "pty"."Party" ADD CONSTRAINT "FK_Party_BirthCountryId" FOREIGN KEY ("BirthCountryId") REFERENCES "ref"."Country" ("CountryId");
 ALTER TABLE "pty"."Party" ADD CONSTRAINT "FK_Party_EducationLevelId" FOREIGN KEY ("TenantId", "EducationLevelId") REFERENCES "cat"."LookupItem" ("TenantId", "LookupItemId");
-ALTER TABLE "pty"."Party" ADD CONSTRAINT "FK_Party_LinkedCompanyId" FOREIGN KEY ("TenantId", "LinkedCompanyId") REFERENCES "org"."Company" ("TenantId", "CompanyId");
 ALTER TABLE "pty"."Party" ADD CONSTRAINT "FK_Party_MergedIntoPartyId" FOREIGN KEY ("TenantId", "MergedIntoPartyId") REFERENCES "pty"."Party" ("TenantId", "PartyId");
 ALTER TABLE "pty"."IdentityDocument" ADD CONSTRAINT "FK_IdentityDocument_Tenant" FOREIGN KEY ("TenantId") REFERENCES "plat"."Tenant" ("TenantId");
 ALTER TABLE "pty"."IdentityDocument" ADD CONSTRAINT "FK_IdentityDocument_PartyId" FOREIGN KEY ("TenantId", "PartyId") REFERENCES "pty"."Party" ("TenantId", "PartyId");
 ALTER TABLE "pty"."IdentityDocument" ADD CONSTRAINT "FK_IdentityDocument_IssuingCountryId" FOREIGN KEY ("IssuingCountryId") REFERENCES "ref"."Country" ("CountryId");
 ALTER TABLE "pty"."IdentityDocument" ADD CONSTRAINT "FK_IdentityDocument_EncKeyId" FOREIGN KEY ("TenantId", "EncKeyPurpose", "EncKeyId") REFERENCES "sec"."TenantKey" ("TenantId", "Purpose", "TenantKeyId");
 ALTER TABLE "pty"."IdentityDocument" ADD CONSTRAINT "FK_IdentityDocument_HashKeyId" FOREIGN KEY ("TenantId", "HashKeyPurpose", "HashKeyId") REFERENCES "sec"."TenantKey" ("TenantId", "Purpose", "TenantKeyId");
-ALTER TABLE "pty"."IdentityDocument" ADD CONSTRAINT "FK_IdentityDocument_SupersededById" FOREIGN KEY ("TenantId", "SupersededById") REFERENCES "pty"."IdentityDocument" ("TenantId", "IdentityDocumentId");
+ALTER TABLE "pty"."IdentityDocument" ADD CONSTRAINT "FK_IdentityDocument_SupersededById" FOREIGN KEY ("TenantId", "PartyId", "SupersededById") REFERENCES "pty"."IdentityDocument" ("TenantId", "PartyId", "IdentityDocumentId");
 ALTER TABLE "pty"."IdentityDocument" ADD CONSTRAINT "FK_IdentityDocument_VerifiedBy" FOREIGN KEY ("TenantId", "VerifiedBy") REFERENCES "sec"."AppUser" ("TenantId", "AppUserId");
 ALTER TABLE "pty"."Address" ADD CONSTRAINT "FK_Address_Tenant" FOREIGN KEY ("TenantId") REFERENCES "plat"."Tenant" ("TenantId");
 ALTER TABLE "pty"."Address" ADD CONSTRAINT "FK_Address_PartyId" FOREIGN KEY ("TenantId", "PartyId") REFERENCES "pty"."Party" ("TenantId", "PartyId");
@@ -6270,8 +6280,7 @@ ALTER TABLE "cat"."BaseRate" ADD CONSTRAINT "FK_BaseRate_Tenant" FOREIGN KEY ("T
 ALTER TABLE "cat"."BaseRate" ADD CONSTRAINT "FK_BaseRate_InstitutionId" FOREIGN KEY ("TenantId", "InstitutionId") REFERENCES "ins"."Institution" ("TenantId", "InstitutionId");
 ALTER TABLE "cat"."BaseRate" ADD CONSTRAINT "FK_BaseRate_CurrencyId" FOREIGN KEY ("CurrencyId") REFERENCES "ref"."Currency" ("CurrencyId");
 ALTER TABLE "cat"."BaseRateAlias" ADD CONSTRAINT "FK_BaseRateAlias_Tenant" FOREIGN KEY ("TenantId") REFERENCES "plat"."Tenant" ("TenantId");
-ALTER TABLE "cat"."BaseRateAlias" ADD CONSTRAINT "FK_BaseRateAlias_BaseRateId" FOREIGN KEY ("TenantId", "Tenor", "BaseRateId") REFERENCES "cat"."BaseRate" ("TenantId", "Tenor", "BaseRateId");
-ALTER TABLE "cat"."BaseRateAlias" ADD CONSTRAINT "FK_BaseRateAlias_InstitutionId" FOREIGN KEY ("TenantId", "InstitutionId") REFERENCES "ins"."Institution" ("TenantId", "InstitutionId");
+ALTER TABLE "cat"."BaseRateAlias" ADD CONSTRAINT "FK_BaseRateAlias_BaseRateId" FOREIGN KEY ("TenantId", "Tenor", "ScopeKey", "BaseRateId") REFERENCES "cat"."BaseRate" ("TenantId", "Tenor", "ScopeKey", "BaseRateId");
 ALTER TABLE "cat"."BaseRateValue" ADD CONSTRAINT "FK_BaseRateValue_Tenant" FOREIGN KEY ("TenantId") REFERENCES "plat"."Tenant" ("TenantId");
 ALTER TABLE "cat"."BaseRateValue" ADD CONSTRAINT "FK_BaseRateValue_BaseRateId" FOREIGN KEY ("TenantId", "BaseRateId") REFERENCES "cat"."BaseRate" ("TenantId", "BaseRateId");
 ALTER TABLE "cat"."BaseRateValue" ADD CONSTRAINT "FK_BaseRateValue_SupersedesId" FOREIGN KEY ("TenantId", "BaseRateId", "SupersedesId") REFERENCES "cat"."BaseRateValue" ("TenantId", "BaseRateId", "BaseRateValueId");
@@ -6893,10 +6902,11 @@ CREATE INDEX "IX_JobRun_JobKey_StartedAt" ON "cfg"."JobRun" ("TenantId", "JobKey
 CREATE INDEX "IX_JobRun_NextRetryAt" ON "cfg"."JobRun" ("TenantId", "NextRetryAt") WHERE "Status" = 'FAILED';
 CREATE INDEX "IX_SeedRun_PackKey_SeedVersion" ON "cfg"."SeedRun" ("TenantId", "PackKey", "SeedVersion");
 CREATE UNIQUE INDEX "UQ_Company_CountryId_CrNumber" ON "org"."Company" ("TenantId", "CountryId", "CrNumber") WHERE "CrNumber" IS NOT NULL AND "Status" <> 'ARCHIVED';
-CREATE UNIQUE INDEX "UQ_Company_ErpCodeNormalized" ON "org"."Company" ("TenantId", "ErpCodeNormalized") WHERE "ErpCodeNormalized" IS NOT NULL AND "Status" <> 'ARCHIVED';
+CREATE UNIQUE INDEX "UQ_Company_ErpCodeNormalized" ON "org"."Company" ("TenantId", "ErpCodeNormalized") WHERE "ErpCompanyCode" IS NOT NULL AND "Status" <> 'ARCHIVED';
 CREATE INDEX "IX_Company_Status_CountryId" ON "org"."Company" ("TenantId", "Status", "CountryId");
 CREATE INDEX "IX_Company_ParentCompanyId" ON "org"."Company" ("TenantId", "ParentCompanyId");
 CREATE INDEX "IX_Company_LegalEntityTypeId" ON "org"."Company" ("TenantId", "LegalEntityTypeId");
+CREATE INDEX "IX_Company_PartyId" ON "org"."Company" ("TenantId", "PartyKind", "PartyId");
 CREATE INDEX "IX_Company_BaseCurrencyId" ON "org"."Company" ("TenantId", "BaseCurrencyId");
 CREATE UNIQUE INDEX "UQ_CompanyTaxRate_CompanyId_TaxCode" ON "org"."CompanyTaxRate" ("TenantId", "CompanyId", "TaxCode") WHERE "EffectiveTo" IS NULL;
 CREATE UNIQUE INDEX "UQ_Department_SeedKey" ON "org"."Department" ("TenantId", "SeedKey") WHERE "SeedKey" IS NOT NULL;
@@ -6928,7 +6938,7 @@ CREATE INDEX "IX_AuthorityGrant_InstitutionId" ON "org"."AuthorityGrant" ("Tenan
 CREATE INDEX "IX_AuthorityGrant_CeilingCurrencyId" ON "org"."AuthorityGrant" ("TenantId", "CeilingCurrencyId");
 CREATE INDEX "IX_AuthorityGrant_ApprovedBy" ON "org"."AuthorityGrant" ("TenantId", "ApprovedBy");
 CREATE INDEX "IX_AuthorityGrant_SourceDocumentId" ON "org"."AuthorityGrant" ("TenantId", "SourceDocumentId");
-CREATE INDEX "IX_AuthorityGrant_SupersedesGrantId" ON "org"."AuthorityGrant" ("TenantId", "SupersedesGrantId");
+CREATE INDEX "IX_AuthorityGrant_SupersedesGrantId" ON "org"."AuthorityGrant" ("TenantId", "CompanyId", "SupersedesGrantId");
 CREATE INDEX "IX_CompanyProfile_UnifiedNationalNo" ON "org"."CompanyProfile" ("TenantId", "UnifiedNationalNo");
 CREATE INDEX "IX_CompanyProfile_Lei" ON "org"."CompanyProfile" ("TenantId", "Lei");
 CREATE INDEX "IX_CompanyProfile_HeadquartersCountryId" ON "org"."CompanyProfile" ("TenantId", "HeadquartersCountryId");
@@ -6945,7 +6955,6 @@ CREATE INDEX "IX_CompanyWealthSource_WealthSourceId" ON "org"."CompanyWealthSour
 CREATE INDEX "IX_CompanyDisclosure_CompanyId_DisclosureKind_Status" ON "org"."CompanyDisclosure" ("TenantId", "CompanyId", "DisclosureKind", "Status");
 CREATE INDEX "IX_CompanyDisclosure_SourceDocumentId" ON "org"."CompanyDisclosure" ("TenantId", "SourceDocumentId");
 CREATE INDEX "IX_CompanyKeyRelation_CompanyId_RelationKind" ON "org"."CompanyKeyRelation" ("TenantId", "CompanyId", "RelationKind");
-CREATE UNIQUE INDEX "UQ_Party_LinkedCompanyId" ON "pty"."Party" ("TenantId", "LinkedCompanyId") WHERE "LinkedCompanyId" IS NOT NULL;
 CREATE INDEX "IX_Party_NameNormalized" ON "pty"."Party" ("TenantId", "NameNormalized");
 CREATE INDEX "IX_Party_Kind_IsActive" ON "pty"."Party" ("TenantId", "Kind", "IsActive");
 CREATE INDEX "IX_Party_MergedIntoPartyId" ON "pty"."Party" ("TenantId", "MergedIntoPartyId");
@@ -6959,7 +6968,7 @@ CREATE INDEX "IX_IdentityDocument_NumberHash" ON "pty"."IdentityDocument" ("Tena
 CREATE INDEX "IX_IdentityDocument_ExpiryDate" ON "pty"."IdentityDocument" ("TenantId", "ExpiryDate") WHERE "IsSuperseded" = 0;
 CREATE INDEX "IX_IdentityDocument_PartyId_DocKind_IsSuperseded" ON "pty"."IdentityDocument" ("TenantId", "PartyId", "DocKind", "IsSuperseded");
 CREATE INDEX "IX_IdentityDocument_IssuingCountryId" ON "pty"."IdentityDocument" ("TenantId", "IssuingCountryId");
-CREATE INDEX "IX_IdentityDocument_SupersededById" ON "pty"."IdentityDocument" ("TenantId", "SupersededById");
+CREATE INDEX "IX_IdentityDocument_SupersededById" ON "pty"."IdentityDocument" ("TenantId", "PartyId", "SupersededById");
 CREATE INDEX "IX_IdentityDocument_VerifiedBy" ON "pty"."IdentityDocument" ("TenantId", "VerifiedBy");
 CREATE UNIQUE INDEX "UQ_Address_PartyId" ON "pty"."Address" ("TenantId", "PartyId") WHERE "IsPrimary" = 1 AND "IsCurrent" = 1 AND "PartyId" IS NOT NULL;
 CREATE UNIQUE INDEX "UQ_Address_InstitutionId" ON "pty"."Address" ("TenantId", "InstitutionId") WHERE "IsPrimary" = 1 AND "IsCurrent" = 1 AND "InstitutionId" IS NOT NULL;
@@ -7032,7 +7041,7 @@ CREATE INDEX "IX_BaseRate_Kind_FamilyCode_Tenor" ON "cat"."BaseRate" ("TenantId"
 CREATE INDEX "IX_BaseRate_InstitutionId" ON "cat"."BaseRate" ("TenantId", "InstitutionId");
 CREATE INDEX "IX_BaseRate_CurrencyId" ON "cat"."BaseRate" ("TenantId", "CurrencyId");
 CREATE INDEX "IX_BaseRateAlias_AliasKey_Tenor" ON "cat"."BaseRateAlias" ("TenantId", "AliasKey", "Tenor");
-CREATE INDEX "IX_BaseRateAlias_BaseRateId" ON "cat"."BaseRateAlias" ("TenantId", "Tenor", "BaseRateId");
+CREATE INDEX "IX_BaseRateAlias_BaseRateId" ON "cat"."BaseRateAlias" ("TenantId", "Tenor", "ScopeKey", "BaseRateId");
 CREATE UNIQUE INDEX "UQ_BaseRateValue_BaseRateId_EffectiveDate" ON "cat"."BaseRateValue" ("TenantId", "BaseRateId", "EffectiveDate") WHERE "Status" = 'VALID';
 CREATE INDEX "IX_BaseRateValue_BaseRateId_EffectiveDate" ON "cat"."BaseRateValue" ("TenantId", "BaseRateId", "EffectiveDate");
 CREATE INDEX "IX_BaseRateValue_SupersedesId" ON "cat"."BaseRateValue" ("TenantId", "BaseRateId", "SupersedesId");
@@ -7450,7 +7459,7 @@ CREATE INDEX "IX_UcpArticle_VerificationStatus" ON "ref"."UcpArticle" ("TenantId
 CREATE UNIQUE INDEX "UQ_LcFieldDefinition_SeedKey" ON "lc"."LcFieldDefinition" ("TenantId", "SeedKey") WHERE "SeedKey" IS NOT NULL;
 CREATE INDEX "IX_LcFieldDefinition_SectionKey_SortOrder" ON "lc"."LcFieldDefinition" ("TenantId", "SectionKey", "SortOrder");
 CREATE INDEX "IX_LcFieldUcpRef_UcpArticleId" ON "lc"."LcFieldUcpRef" ("TenantId", "UcpArticleId");
-CREATE INDEX "IX_Counterparty_ErpCodeNormalized_Kind" ON "lc"."Counterparty" ("TenantId", "ErpCodeNormalized", "Kind") WHERE "ErpCodeNormalized" IS NOT NULL;
+CREATE INDEX "IX_Counterparty_ErpCodeNormalized_Kind" ON "lc"."Counterparty" ("TenantId", "ErpCodeNormalized", "Kind") WHERE "ErpCode" IS NOT NULL;
 CREATE INDEX "IX_Counterparty_NameNormalized_CountryId" ON "lc"."Counterparty" ("TenantId", "NameNormalized", "CountryId");
 CREATE INDEX "IX_Counterparty_PartyId" ON "lc"."Counterparty" ("TenantId", "PartyId");
 CREATE UNIQUE INDEX "UQ_LcDocumentClause_SeedKey_VersionNo" ON "lc"."LcDocumentClause" ("TenantId", "SeedKey", "VersionNo") WHERE "SeedKey" IS NOT NULL;

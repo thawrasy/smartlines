@@ -13,7 +13,8 @@ table org.Company public  # Company: root of the corporate structure (FR-ORG-001
   CompanyCode        ascii(20)  req   # رمز داخلي فريد في المشترك (BR-ORG-001)
   NameAr             str(200)   req
   NameEn             str(200)   req
-  PartyId            ->pty.Party req  # Party المرآة تُنشأ آليًا وتبقى للقراءة (FR-PTY-003، BR-PTY-018)
+  PartyKind          enum{ORGANIZATION} req =ORGANIZATION   # ثابت: المرآة جهة اعتبارية (DR-24)
+  PartyId            ->pty.Party req via=PartyKind>Kind  # Party المرآة تُنشأ آليًا وتبقى للقراءة (FR-PTY-003، BR-PTY-018)؛ الرابط الوحيد بين الشركة ومرآتها (DR-24)
   LegalEntityTypeId  ->cat.LegalEntityType req  # الشكل القانوني؛ توافق دولته مع CountryId في التطبيق (BR-ORG-016)
   IsHolding          bool       req =0   # قابضة: علم مستقل عن الشكل القانوني (FR-ORG-003، BR-ORG-003)
   ParentCompanyId    ->org.Company       # الأم؛ منع الحلقات والعمق الأقصى 10 في التطبيق (FR-ORG-004، BR-ORG-002)
@@ -23,9 +24,9 @@ table org.Company public  # Company: root of the corporate structure (FR-ORG-001
   CrNumber           ascii(30)          # رقم السجل التجاري (FR-ORG-005)
   CrDate             date
   CrDateHijriText    str(20)            # التاريخ الهجري كما في الوثيقة (X-DAT-2)
-  TaxNumber          ascii(30)          # الرقم الضريبي؛ التفصيل الضريبي (FATCA/CRS) في pty.TaxIdentity
+  TaxNumber          ascii(30)  sens=confidential   # الرقم الضريبي؛ التفصيل الضريبي (FATCA/CRS) في pty.TaxIdentity؛ يُحذف قبل S1 ويُقرأ منها (DQ-F02-8، DR-25)
   ErpCompanyCode     str(20)            # رمز ERP يدوي بعد التقليم؛ يحمله رقم البروفورما {seq}-{erp}-{yy} (BR-ORG-001)
-  ErpCodeNormalized  str(20)            # مشتق مخزَّن: تقليم + حروف كبيرة + حذف الفراغات (=صيغة BR-LCE-002)
+  calc ErpCodeNormalized str(20) =CAST(UPPER(REPLACE(ErpCompanyCode, N' ', N'')) AS NVARCHAR(20))   # مشتق محسوب مخزَّن: حروف كبيرة بلا فراغات (=صيغة BR-LCE-002، DR-47)
   FiscalYearEndMonth tinyint    req     # 1..12 (FR-ORG-006، BR-ORG-004)
   FiscalYearEndDay   tinyint            # فارغ = آخر الشهر
   BaseCurrencyId     ->ref.Currency     # العملة الأساسية (FR-ORG-008)؛ المواصفة تسميه BaseCurrencyCode
@@ -33,14 +34,14 @@ table org.Company public  # Company: root of the corporate structure (FR-ORG-001
   unique CompanyCode                      # BR-ORG-001
   unique PartyId                          # مرآة واحدة لكل شركة
   unique CountryId,CrNumber where CrNumber IS NOT NULL AND Status <> 'ARCHIVED'   # السجل التجاري فريد ضمن الدولة لغير المؤرشفة
-  unique ErpCodeNormalized where ErpCodeNormalized IS NOT NULL AND Status <> 'ARCHIVED'  # BR-ORG-001: قاعدة PROFORMA؛ التحذير حين لا يُفعَّل التسلسل في التطبيق
+  unique ErpCodeNormalized where ErpCompanyCode IS NOT NULL AND Status <> 'ARCHIVED'  # BR-ORG-001: فريد دائمًا (قرار المالك 2026-10-13، DR-47)؛ الشرط على العمود الأصلي لأن SQL Server لا يقبل عمودًا محسوبًا في شرط الفهرس
   index  Status,CountryId
   index  ParentCompanyId
   index  LegalEntityTypeId
   check  FiscalYearEndMonth BETWEEN 1 AND 12
   check  FiscalYearEndDay IS NULL OR FiscalYearEndDay BETWEEN 1 AND 31
   check  ParentCompanyId IS NULL OR ParentCompanyId <> CompanyId   # لا أم ذاتية (الحلقات غير المباشرة في التطبيق)
-  check  ErpCompanyCode IS NULL OR ErpCodeNormalized IS NOT NULL   # المطبَّع يُحسب عند كل كتابة
+  check  ErpCompanyCode IS NULL OR LEN(ErpCompanyCode) > 0   # رمز من فراغات فقط مرفوض
 
 table org.CompanyTaxRate  # Tax rate with an effective date; NULL CompanyId = tenant default (FR-ORG-007, BR-ORG-005)
   CompanyId      ->org.Company
@@ -147,7 +148,7 @@ table org.AuthorityGrant public  # Authority grant to a company (FR-ORG-023..028
   SourceDocumentId   ->doc.Document     # وكالة/قرار مجلس (BR-ORG-013)
   SourcePage         ascii(40)
   ExceptionReason    str(500)           # استثناء موثَّق بدل مستند المصدر يوافق عليه مدير الخزينة
-  SupersedesGrantId  ->org.AuthorityGrant   # المنحة الجديدة تحل محل القديمة (BR-ORG-014)
+  SupersedesGrantId  ->org.AuthorityGrant via=CompanyId   # المنحة الجديدة تحل محل القديمة للشركة نفسها (BR-ORG-014، DR-21)
   check  (GranteeKind = 'BODY' AND BodyId IS NOT NULL AND BodyMemberId IS NULL AND PartyId IS NULL) OR (GranteeKind = 'BODY_MEMBER' AND BodyId IS NULL AND BodyMemberId IS NOT NULL AND PartyId IS NULL) OR (GranteeKind = 'PARTY' AND BodyId IS NULL AND BodyMemberId IS NULL AND PartyId IS NOT NULL)   # XOR المانَح (FR-ORG-023)
   check  CeilingAmount IS NULL OR CeilingAmount > 0
   check  (CeilingAmount IS NULL AND CeilingCurrencyId IS NULL) OR (CeilingAmount IS NOT NULL AND CeilingCurrencyId IS NOT NULL)
@@ -156,6 +157,8 @@ table org.AuthorityGrant public  # Authority grant to a company (FR-ORG-023..028
   check  Status IN ('DRAFT','PENDING_APPROVAL') OR SourceDocumentId IS NOT NULL OR ExceptionReason IS NOT NULL   # التفعيل يتطلب مستند مصدر أو استثناء
   check  Status <> 'REVOKED' OR (RevokedAt IS NOT NULL AND RevokedReason IS NOT NULL)   # السحب بسبب وتاريخ (FR-ORG-028)
   check  SupersedesGrantId IS NULL OR SupersedesGrantId <> AuthorityGrantId
+  check  Status IN ('DRAFT','PENDING_APPROVAL') OR (ApprovedBy IS NOT NULL AND ApprovedAt IS NOT NULL)   # BR-ORG-014: النافذة وما بعدها بمعتمِد ووقت؛ بلا فصل المهام يُسجَّل المفعِّل (DR-21)
+  check  (ApprovedBy IS NULL AND ApprovedAt IS NULL) OR (ApprovedBy IS NOT NULL AND ApprovedAt IS NOT NULL)
   index  CompanyId,PowerTypeId,Status include ValidFrom,ValidTo,CeilingAmount   # استعلام الصلاحية (FR-ORG-025) ومصفوفتها (FR-ORG-027)
   index  Status,ValidTo   # تنبيهات انتهاء المنح (FR-ORG-028)
 
@@ -271,18 +274,15 @@ table pty.Party public  # Person or entity; no stored role (FR-PTY-001..003, BR-
   MaritalStatus      enum{SINGLE,MARRIED,DIVORCED,WIDOWED} sens=confidential   # قيم مقترحة؛ المواصفة لا تعددها
   Gender             enum{MALE,FEMALE} sens=confidential   # اختياري يطلبه نموذج بنك (G-12، BR-PTY-019)
   EducationLevelId   ->cat.LookupItem sens=confidential   # اختياري (G-12، س-14)؛ قائمة EDUCATION_LEVEL
-  LinkedCompanyId    ->org.Company   # الشركة التي هذه مرآتها (FR-PTY-003)
   IsActive           bool       req =1
   MergedIntoPartyId  ->pty.Party   # Merged لا تعود (BR-PTY-016)
   unique PartyCode
-  unique LinkedCompanyId where LinkedCompanyId IS NOT NULL   # مرآة واحدة لكل شركة
   index  NameNormalized   # بحث بالاسم المطبَّع (FR-PTY-002)
   index  Kind,IsActive
   index  MergedIntoPartyId
   index  BirthDate,NameNormalized   # تحذير «محتمل تكرار»: تطابق الميلاد مع تشابه الاسم (BR-PTY-004)
   check  NameAr IS NOT NULL OR NameEn IS NOT NULL   # اسم واحد على الأقل (FR-PTY-001)
   check  Kind = 'INDIVIDUAL' OR (ResidencyStatus IS NULL AND BirthDate IS NULL AND MaritalStatus IS NULL AND Gender IS NULL AND EducationLevelId IS NULL)   # حقول الفرد للأفراد فقط
-  check  LinkedCompanyId IS NULL OR Kind = 'ORGANIZATION'
   check  MergedIntoPartyId IS NULL OR (IsActive = 0 AND MergedIntoPartyId <> PartyId)
 
 table pty.IdentityDocument  # Identity document; the number is encrypted and images are restricted documents (FR-PTY-004..009, FR-PTY-020..022, BR-PTY-002..008)
@@ -304,7 +304,7 @@ table pty.IdentityDocument  # Identity document; the number is encrypted and ima
   ExpiryDateHijriText str(20)         # G-11
   IsPrimary          bool       req =0   # أساسية واحدة بين غير المستبدلة (BR-PTY-005)
   IsSuperseded       bool       req =0   # «مستبدلة» مخزَّنة عند التجديد (القسم 8)؛ تُعلَّم أولًا ثم يُنشأ البديل ثم يُربط SupersededById ضمن معاملة التجديد (الرقم نفسه يتكرر في تجديد الهوية)
-  SupersededById     ->pty.IdentityDocument   # التجديد ينشئ وثيقة جديدة تستبدل القديمة (FR-PTY-022، BR-PTY-006)
+  SupersededById     ->pty.IdentityDocument via=PartyId   # التجديد ينشئ وثيقة جديدة للطرف نفسه تستبدل القديمة (FR-PTY-022، BR-PTY-006، DR-23)
   VerifiedAt         ts                 # «تم التحقق من الأصل» (FR-PTY-020)
   VerifiedBy         ->sec.AppUser
   unique DocKind,IssuingCountryId,NumberHash where IsSuperseded = 0   # BR-PTY-003: فرادة الرقم المطبَّع بين غير المستبدلة
