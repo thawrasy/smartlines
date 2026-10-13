@@ -87,7 +87,7 @@ tp_app keeps INSERT on `sec.AppUser` for user creation, but the trigger `sec.TR_
 Residual risks (accepted, within one tenant):
 - The application sends each link by e-mail, so it sees the raw token. A fully compromised application server can still take over an account through a reset link; the user is told by e-mail and the action is logged. What is closed is change through table rights.
 - The TOTP check runs in the application, which holds the key (R2, accepted in DOC-S03 section 12). The database adds the replay check and the failure limit.
-- `sec.LoginAttempt` is still the only login trace, and tp_app may still delete its rows (R6). The proposal in DQ-F03-10 (procedures also write `aud.AuditLog`, tp_auth gets INSERT on it) is not decided yet.
+- ~~`sec.LoginAttempt` is the only login trace, and tp_app may delete its rows (R6).~~ Closed by ADR 0007 (DQ-F03-10): every login attempt and every account change made by these procedures is also written to `aud.AuditLog`, which nobody may update or delete. No grant to tp_auth was needed.
 
 Built since, in ADR 0004: per-tenant session timeouts, lockout threshold and history count from `cfg.TenantSetting` (DQ-S03-6, DQ-S04-14; the history rule now counts the current password among the last N), the support binding (DQ-F04-6) and the job binding (DQ-F04-4). The administrator procedures above now require a USER binding (`sec.fn_BoundAsUser`), so a job or support binding cannot use them, and each writing procedure undoes only its own work when the caller holds a transaction.
 

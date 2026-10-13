@@ -358,7 +358,7 @@ sequenceDiagram
 | DQ-F03-7 | إعادة التعيين | sec.usp_RequestPasswordReset وsec.usp_GetPasswordHistoryParams وsec.usp_ResetPassword | معماري القاعدة | FR-PLT-013 |
 | DQ-F03-8 | إعادة تسجيل MFA بعد التصفير | ✅ معتمد من المالك (2026-10-12): رابط 24 ساعة بغرض جديد MFA_REENROLMENT في sec.UserToken.Purpose، وتعديل FR-PLT-013 لرسالة ثالثة | المالك ومسؤول الأمن | BR-PLT-006 |
 | DQ-F03-9 | حساب الخدمة يُقفل بمحاولات خاطئة | usp_StartSession يعامل IsSystemUser = 1 كحالة لا تدخل بلا عدّ | معماري القاعدة | المهام الخلفية |
-| DQ-F03-10 | من يكتب aud.AuditLog لمحاولات الدخول الفاشلة قبل وجود ربط؟ | الإجراءات تكتب صف التدقيق مع LoginAttempt، ويمنح tp_auth INSERT على aud.AuditLog؛ يتفق مع tools/dbgen/erd_open_items.py:155 | معماري القاعدة | FR-PLT-022، AC-PLT-2 |
+| DQ-F03-10 | من يكتب aud.AuditLog لمحاولات الدخول الفاشلة قبل وجود ربط؟ | ✅ منفّذ (2026-10-13، ADR 0007): قادح على sec.LoginAttempt يكتب صف التدقيق مع كل محاولة، ولم يلزم منح tp_auth شيئًا. المقترح الأصلي: الإجراءات تكتب صف التدقيق مع LoginAttempt، ويمنح tp_auth INSERT على aud.AuditLog؛ يتفق مع tools/dbgen/erd_open_items.py:155 | معماري القاعدة | FR-PLT-022، AC-PLT-2 |
 | DQ-F03-11 | خطأ المستخدم الذي أثبت كلمة مروره ورُفض بحالة المشترك | ✅ معتمد من المالك (2026-10-12): يُقبل 50006 المقترح في DQ-F04-3 بشرط رفعه بعد نجاح المقارنة فقط، مع تعديل docs/adr/0002-login-and-session-bound-context.md:20 | المالك | DOC-B04، §5.3 |
 
 ## 14. تعارضات وفجوات في المصادر

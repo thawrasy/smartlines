@@ -25,9 +25,9 @@
 | البند | الحالة | المصدر |
 |---|---|---|
 | سجل التدقيق | جدول مختلط للإضافة فقط بفئة وشدة ونتيجة وارتباط وعنوان، وأعمدة سلسلة فارغة حتى تفعيل FR-PLT-025 | db/model/10-platform.model:304-330 |
-| من يكتب التدقيق | التطبيق ولوحة المشغّل (`tp_app` و`tp_platform`). لا إجراء ولا قادح في القاعدة يكتب `aud.AuditLog` | db/static/020_roles_and_grants.sql:65؛ db/generated/tsql/007_table_grants.sql:54-55 |
+| من يكتب التدقيق | التطبيق ولوحة المشغّل (`tp_app` و`tp_platform`) لما يفعلانه؛ و**منذ ADR 0007 (2026-10-13)** إجراءات القاعدة لأحداثها: الدخول (قادح على `sec.LoginAttempt`) والحسابات والجلسات ودخول المشغّلين وحساباتهم وربط الدعم والمهام والتهيئة وحالة المشترك، عبر `aud.usp_WriteEvent` (db/static/029_audit_writer.sql) | db/static/020_roles_and_grants.sql:65؛ db/generated/tsql/007_table_grants.sql:54-55 |
 | حماية التدقيق | `tp_app` و`tp_platform` بلا تحديث ولا حذف؛ المنصة تقرأ صفوف `TenantId` الفارغ فقط (T38) | db/static/020_roles_and_grants.sql:65؛ db/static/010_rls.sql:80-86 |
-| محاولات الدخول | يكتبها `usp_StartSession` و`usp_ConfirmMfa` في `sec.LoginAttempt` فقط، بلا أثر في التدقيق (O-24) | db/static/030_session_context.sql:124-129، :162؛ db/model/10-platform.model:199 |
+| محاولات الدخول | يكتبها `usp_StartSession` و`usp_ConfirmMfa` في `sec.LoginAttempt`، وينسخها قادح إلى `aud.AuditLog` (ADR 0007، DQ-F03-10؛ R6 من O-24 مغلق) | db/static/030_session_context.sql:124-129، :162؛ db/model/10-platform.model:199 |
 | محاولة لمشترك غير معروف | لا تُكتب: الإدراج داخل فرع المشترك المعروف | db/static/030_session_context.sql:67-69، :124-129 |
 | حذف آثار التشغيل | `tp_app` يحذف من `sec.LoginAttempt` و`cfg.OutboxEvent` و`cfg.JobRun` | db/generated/tsql/005_delete_grants.sql:11، :17-18 |
 | معرّف الارتباط في القاعدة | يُحفظ في سياق الجلسة للقراءة فقط، ولا يقرؤه شيء في القاعدة | db/static/030_session_context.sql:169، :207 |
@@ -69,7 +69,7 @@ flowchart LR
 | `SYSTEM` | ربط مهمة (DOC-F04 §5.2)، وفشل السلامة، ودمج الأشخاص | `HIGH` لفشل السلامة والدمج | docs/10-detailed-analysis/10-m0-m1-platform-organization.md:592 |
 
 - فتح عارض التدقيق يضيف `AUDIT_VIEWED` (FR-PLT-024 في :126).
-- أحداث الدخول تُكتب في التدقيق بعد معالجة O-24 (tools/dbgen/erd_open_items.py:155)؛ حتى ذلك الحين `sec.LoginAttempt` هو الأثر الوحيد.
+- أحداث الدخول تُكتب في التدقيق منذ ADR 0007: قادح ينسخ كل صف من `sec.LoginAttempt`، فحذف المحاولات لا يمحو الأثر (الاختبار AU2). وقائمة الأحداث التي تكتبها القاعدة بفئتها وشدتها في docs/adr/0007-audit-written-by-the-database.md.
 - `rls.fn_AuditWrite` يقبل `TenantId` فارغًا من أي اتصال مربوط (db/static/010_rls.sql:88-94، O-19). المقترح في DQ-S01-5 يحصر صفوف المنصة في `tp_platform`.
 
 ### 3.2 السجلات التشغيلية في القاعدة

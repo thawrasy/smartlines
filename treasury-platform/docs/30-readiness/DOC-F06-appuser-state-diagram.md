@@ -93,7 +93,7 @@ stateDiagram-v2
 | 13 | ACTIVE إلى ACTIVE بإعادة التعيين | المستخدم برابط 30 دقيقة | sec.usp_ResetPassword 🟡 | 🟡 تنتهي كل الجلسات PASSWORD_CHANGED | PASSWORD_RESET_COMPLETED |
 | 14 | ACTIVE إلى ACTIVE بتصفير MFA | TA بـ sec.user.manage بعد إعادة مصادقته | MfaEnabled = 0 وحذف السر والرموز (007:42، 005:13) | تنتهي كل الجلسات MFA_RESET | MFA_RESET بشدة عالية (BR-PLT-009) وإشعار SEC.MFA_RESET |
 
-القفل لا يُسجَّل اليوم إلا في sec.LoginAttempt. كتابة صف aud.AuditLog لمحاولات ما قبل الربط قرار في DOC-F03 (DQ-F03-10).
+القفل يُسجَّل في sec.LoginAttempt، وينسخه قادح إلى aud.AuditLog منذ ADR 0007 (DQ-F03-10)، وكذلك فك القفل وتغيير الحالة وإعادة MFA التي يكتبها إجراء كل منها.
 
 ## 5. عداد القفل
 

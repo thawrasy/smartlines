@@ -96,7 +96,7 @@ Every procedure that writes takes a savepoint when its caller already holds a tr
 Residual risks and open points:
 - **Job worker login (DQ-F04-4 proposes accepting it with a named owner).** Whoever holds it can bind any tenant as its service account for a catalogued job, without a user session. It cannot use the administrator account procedures.
 - **Link e-mails.** The application, the panel and the worker send them, so they see raw link tokens (as in ADR 0003).
-- **Audit rows.** The procedures write events to `cfg.OutboxEvent` but no audit rows. The audit chain (FR-PLT-022) is written by the application, which must record onboarding, status changes, support and job bindings, and operator logins.
+- **Audit rows.** ~~The procedures write events to `cfg.OutboxEvent` but no audit rows.~~ Built in ADR 0007: onboarding, status changes, support and job bindings, and operator logins and accounts write their audit rows in the same transaction.
 - **Dates.** `TrialEndsOn` and the trial expiry use the UTC date; the tenant's time zone can move them by a day.
 - **Not built yet:**
   - changing an operator's role;
