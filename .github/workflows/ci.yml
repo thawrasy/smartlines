@@ -263,7 +263,7 @@ jobs:
           python -m coverage combine
           python -m coverage report --sort=cover | tail -60
           python -m coverage json -q -o coverage.json
-          python scripts/coverage_gate.py > gate.txt; rc=$?
+          rc=0; python scripts/coverage_gate.py > gate.txt || rc=$?    # the shell stops at a failed command: keep going to print why
           cat gate.txt
           { echo "### Test coverage (R-52)"; echo '```'; cat gate.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
           exit $rc
