@@ -44,6 +44,13 @@ if ! diff -r "$TMP/generated" db/generated; then
     exit 1
 fi
 echo "generated DDL matches the model"
+# The permission catalogue is generated from the readiness documents and the specs' role matrices (DQ-F07-1, DQ-F09-1).
+python3 tools/dbgen/gen_permission_seed.py "$TMP/102_permissions.sql" >/dev/null
+if ! diff -q "$TMP/102_permissions.sql" db/seed/102_permissions.sql >/dev/null; then
+    echo "db/seed/102_permissions.sql is stale: run tools/dbgen/gen_permission_seed.py and commit the result"
+    exit 1
+fi
+echo "permission seed matches the documents"
 
 echo "== 3. every foreign key is indexed or flagged noidx; static grant rules R1-R10"
 python3 tools/dbgen/check_fk_indexes.py
@@ -55,12 +62,14 @@ sq -Q "IF DB_ID(N'BankFas') IS NOT NULL BEGIN ALTER DATABASE [BankFas] SET SINGL
 SQL_SERVER="$SQL_SERVER" SQL_USER=sa SQLCMD="$SQLCMD" bash tools/deploy/deploy.sh
 
 echo "== 4b. the platform seed is complete and can run again without changing anything (DOC-B05 section 6)"
-seed_state() { sq -d BankFas -h -1 -W -Q "SET NOCOUNT ON; SELECT CONCAT((SELECT COUNT(*) FROM cfg.SettingDefinition), '/', (SELECT COUNT(*) FROM cfg.JobDefinition), '/', (SELECT COUNT(*) FROM plat.[Plan]), '/', (SELECT COUNT(*) FROM plat.PlanModule), '/', (SELECT COUNT(*) FROM plat.ReservedSubdomain), '/', (SELECT COUNT(UpdatedAt) FROM cfg.SettingDefinition) + (SELECT COUNT(UpdatedAt) FROM cfg.JobDefinition) + (SELECT COUNT(UpdatedAt) FROM plat.[Plan]))"; }
+seed_state() { sq -d BankFas -h -1 -W -Q "SET NOCOUNT ON; SELECT CONCAT((SELECT COUNT(*) FROM cfg.SettingDefinition), '/', (SELECT COUNT(*) FROM cfg.JobDefinition), '/', (SELECT COUNT(*) FROM plat.[Plan]), '/', (SELECT COUNT(*) FROM plat.PlanModule), '/', (SELECT COUNT(*) FROM plat.ReservedSubdomain), '/', (SELECT COUNT(*) FROM ref.Country), '/', (SELECT COUNT(*) FROM ref.Currency), '/', (SELECT COUNT(*) FROM sec.Permission), '/', (SELECT COUNT(UpdatedAt) FROM cfg.SettingDefinition) + (SELECT COUNT(UpdatedAt) FROM cfg.JobDefinition) + (SELECT COUNT(UpdatedAt) FROM plat.[Plan]))"; }
 seed_before="$(seed_state)"
 sq -d BankFas -i db/seed/100_platform_global.sql >/dev/null
+sq -d BankFas -i db/seed/101_iso_reference.sql >/dev/null
+sq -d BankFas -i db/seed/102_permissions.sql >/dev/null
 seed_after="$(seed_state)"
-if [ "$seed_before" != "$seed_after" ] || [ "$seed_before" != "6/30/1/9/23/0" ]; then
-    echo "platform seed is not safe to run again, or incomplete: settings/jobs/plans/plan modules/reserved/updated before $seed_before, after $seed_after (expected 6/30/1/9/23/0)"
+if [ "$seed_before" != "$seed_after" ] || [ "$seed_before" != "6/30/1/9/23/249/157/138/0" ]; then
+    echo "platform seed is not safe to run again, or incomplete: settings/jobs/plans/plan modules/reserved/countries/currencies/permissions/updated before $seed_before, after $seed_after (expected 6/30/1/9/23/249/157/138/0)"
     exit 1
 fi
 echo "platform seed unchanged on a second run ($seed_after)"

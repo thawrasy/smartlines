@@ -38,3 +38,5 @@ GO
 :r static/038_tenant_onboarding.sql
 :r static/050_fac_share_rule.sql
 :r seed/100_platform_global.sql
+:r seed/101_iso_reference.sql
+:r seed/102_permissions.sql
