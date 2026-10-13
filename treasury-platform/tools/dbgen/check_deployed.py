@@ -12,7 +12,8 @@ It reads definitions only, so the monitoring login bankfas_monitor (VIEW DEFINIT
 (docs/adr/0013-monitor-login-and-deployment-checks.md).
 
 The connection follows tools/deploy/deploy.sh (DQ-S11-7): SQL_USER (default sa; an empty value selects -E),
-SQLCMDPASSWORD, and SQLCMD_OPTS (default none, so the server certificate is verified; CI passes -C, DQ-S05-7).
+SQLCMDPASSWORD, and SQLCMD_OPTS (default none, so the server certificate is verified; CI passes -C, DQ-S05-7). As in
+tools/deploy/preflight.sh, -C is refused unless BANKFAS_ALLOW_TRUST_CERT=1, which only CI sets (DQ-S11-6).
 
 Usage: SQL_USER=bankfas_monitor python3 tools/dbgen/check_deployed.py --sqlcmd sqlcmd --server <server> --database BankFas
 Exit code 1 when any value differs.
@@ -83,8 +84,11 @@ def main():
         auth = ['-U', user]
     else:
         auth = ['-E']
-    cmd = (shlex.split(args.sqlcmd) + ['-S', args.server] + auth + ['-I', '-b']
-           + shlex.split(os.environ.get('SQLCMD_OPTS', ''))
+    opts = shlex.split(os.environ.get('SQLCMD_OPTS', ''))
+    if '-C' in opts and os.environ.get('BANKFAS_ALLOW_TRUST_CERT') != '1':
+        raise SystemExit('check_deployed: -C trusts any server certificate; only CI may pass it '
+                         '(BANKFAS_ALLOW_TRUST_CERT=1, DOC-S05 section 5.3)')
+    cmd = (shlex.split(args.sqlcmd) + ['-S', args.server] + auth + ['-I', '-b'] + opts
            + ['-h', '-1', '-W', '-s', '|', '-Q', QUERY.format(db=args.database)])
     r = subprocess.run(cmd, capture_output=True, text=True)
     if r.returncode != 0:

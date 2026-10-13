@@ -229,7 +229,7 @@ flowchart TB
 | المعرّف | السؤال | الافتراض المقترح | من يقرر | ما يعطّله |
 |---|---|---|---|---|
 | DQ-B01-1 | أدوات اختبار التطبيق | xUnit، وTestcontainers مع صورة SQL Server 2025، وPlaywright لـ .NET مع axe-core 🟡 | قائد التطبيق مع QA lead | أول كود في S0 |
-| DQ-B01-2 | وسم صورة SQL Server في CI والاختبارات | تثبيت وسم تحديث تراكمي محدد يطابق سجل الإصدارات بدل 2025-latest | DevOps lead | بوابة FR-PLT-045 |
+| DQ-B01-2 | وسم صورة SQL Server في CI والاختبارات | تثبيت وسم تحديث تراكمي محدد يطابق سجل الإصدارات بدل 2025-latest. ✅ منفّذ (2026-10-13، ADR 0014): `2025-CU9-GDR1-ubuntu-24.04`، تفحص CI تطابقه مع `versions.json` | DevOps lead | بوابة FR-PLT-045 |
 | DQ-B01-3 | إضافة check_review_fixes.py إلى db_ci.sh | نعم، في الخطوة 3 بجانب check_grants.py | قائد قاعدة البيانات | دخول S0 |
 | DQ-B01-4 | بادئات معرّفات الحالات | ISO-Tn وFSR-Tn، ووسم AC وFR لكل اختبار تطبيق | QA lead | DOC-B08 |
 | DQ-B01-5 | تشغيل خط القاعدة عند تغيّر كود التطبيق | تشغيله على كل طلب دمج إلى main | DevOps lead | S0 |

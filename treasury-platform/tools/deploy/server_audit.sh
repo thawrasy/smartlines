@@ -11,7 +11,8 @@
 #   windows [SINCE]  the declared deployment windows and administrative changes, for the monthly review.
 # BANKFAS_AUDIT_DIR is the folder of the audit files, default /var/opt/mssql/audit (V5, DOC-S10 section 3). It must
 # exist, owned by mssql. apply runs with an administrator's own login (SQL_USER, SQLCMDPASSWORD, as for
-# prepare_database.sh); check, alerts and windows need only the read permissions in docs/adr/0012-server-audit.md.
+# prepare_database.sh; sa is refused outside CI); check, alerts and windows need only the read permissions in
+# docs/adr/0012-server-audit.md. -C is refused outside CI (tools/deploy/preflight.sh, DQ-S11-6).
 set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -27,6 +28,8 @@ ACTION="${1:-}"
 fail() { echo "server_audit: $*" >&2; exit 1; }
 # shellcheck source=tools/deploy/audit_declare.sh
 . "$HERE/audit_declare.sh"
+# shellcheck source=tools/deploy/preflight.sh
+. "$HERE/preflight.sh"
 [[ "$AUDIT_DIR" =~ ^/[A-Za-z0-9/_.-]+$ ]] || fail "BANKFAS_AUDIT_DIR must be an absolute path of [A-Za-z0-9/_.-]"
 if [ -n "$SQL_USER" ]; then
     : "${SQLCMDPASSWORD:?set SQLCMDPASSWORD for the login $SQL_USER}"
@@ -56,7 +59,7 @@ since() {
 case "$ACTION" in
 apply)
     # The end of the change is declared even when the run fails, so the window never outlives the run.
-    { declare_sql 1103 "server_audit apply started"; fill "$OPS/server_audit.sql" APPLY; } > "$WORK/run.sql"
+    { sa_guard_sql; declare_sql 1103 "server_audit apply started"; fill "$OPS/server_audit.sql" APPLY; } > "$WORK/run.sql"
     declare_sql 1104 "server_audit apply finished" > "$WORK/end.sql"
     rc=0
     sq -i "$WORK/run.sql" || rc=$?

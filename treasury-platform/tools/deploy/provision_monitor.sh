@@ -13,7 +13,8 @@
 # The secret reaches sqlcmd in a private temporary copy of the template, never on a command line.
 #
 # Usage: BANKFAS_SECRETS_DIR=/etc/bankfas/db-secrets tools/deploy/provision_monitor.sh [--generate]
-# Environment: SQL_SERVER, SQL_USER, SQLCMDPASSWORD, SQLCMD and SQLCMD_OPTS as for tools/deploy/deploy.sh.
+# Environment: SQL_SERVER, SQL_USER, SQLCMDPASSWORD, SQLCMD and SQLCMD_OPTS as for tools/deploy/deploy.sh; sa and -C
+# are refused outside CI (tools/deploy/preflight.sh, DQ-S11-6).
 set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -29,6 +30,8 @@ GENERATE=0
 fail() { echo "provision_monitor: $*" >&2; exit 1; }
 # shellcheck source=tools/deploy/audit_declare.sh
 . "$HERE/audit_declare.sh"
+# shellcheck source=tools/deploy/preflight.sh
+. "$HERE/preflight.sh"
 [ -d "$DIR" ] || fail "no folder $DIR"
 if [ -n "$SQL_USER" ]; then
     : "${SQLCMDPASSWORD:?set SQLCMDPASSWORD for the login $SQL_USER}"
@@ -62,7 +65,7 @@ chmod 700 "$WORK"
 trap 'rm -rf "$WORK"' EXIT
 sql="$(cat "$TEMPLATE")"
 sql="${sql//\$(BANKFAS_MONITOR_PASSWORD)/$secret}"
-( umask 077; { declare_sql 1103 "provision_monitor started"; printf '%s\n' "$sql"; } > "$WORK/monitor_login.sql" )
+( umask 077; { sa_guard_sql; declare_sql 1103 "provision_monitor started"; printf '%s\n' "$sql"; } > "$WORK/monitor_login.sql" )
 declare_sql 1104 "provision_monitor finished" > "$WORK/end.sql"
 # The end of the change is declared even when the run fails, so the window never outlives the run.
 rc=0

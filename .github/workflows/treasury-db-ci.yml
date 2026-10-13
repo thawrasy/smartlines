@@ -13,6 +13,7 @@ on:
       - 'treasury-platform/tools/dbgen/**'
       - 'treasury-platform/tools/ci/**'
       - 'treasury-platform/tools/deploy/**'
+      - 'treasury-platform/versions.json'
       - '.github/workflows/treasury-db-ci.yml'
   pull_request:
     paths:
@@ -20,6 +21,7 @@ on:
       - 'treasury-platform/tools/dbgen/**'
       - 'treasury-platform/tools/ci/**'
       - 'treasury-platform/tools/deploy/**'
+      - 'treasury-platform/versions.json'
       - '.github/workflows/treasury-db-ci.yml'
   workflow_dispatch:
 
@@ -36,8 +38,10 @@ jobs:
     timeout-minutes: 45
     services:
       sqlserver:
-        # Ubuntu-based SQL Server 2025 image, the same OS as the production VPS (Ubuntu 24.04 LTS, ADR 0001).
-        image: mcr.microsoft.com/mssql/server:2025-latest
+        # The SQL Server build of the release register treasury-platform/versions.json, on Ubuntu 24.04 like the
+        # production VPS (ADR 0001, DQ-B01-2). db_ci.sh step 3 fails when the two differ, and the deployment preflight
+        # (gate G4, ADR 0014) refuses a server of another build.
+        image: mcr.microsoft.com/mssql/server:2025-CU9-GDR1-ubuntu-24.04
         env:
           ACCEPT_EULA: 'Y'
           MSSQL_PID: Developer

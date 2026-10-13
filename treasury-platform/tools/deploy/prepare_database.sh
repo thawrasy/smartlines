@@ -12,7 +12,8 @@
 # Each run declares itself in the audit with BANKFAS_CHANGE_REF (audit_declare.sh): prepare as an administrative
 # change, open and close as the deployment window. The alerts on the migrator, grants and schema changes fire only
 # outside a declared window (db/ops/server_audit_alerts.sql, docs/adr/0012-server-audit.md).
-# Run with an administrator's own login (SQL_USER and SQLCMDPASSWORD), as for tools/deploy/deploy.sh. The secret goes
+# Run with an administrator's own login (SQL_USER and SQLCMDPASSWORD): sa is refused outside CI (50144, preflight.sh),
+# and so is -C (DQ-S11-6). The secret goes
 # to sqlcmd in a private temporary copy of db/ops/prepare_database.sql, never on a command line.
 set -euo pipefail
 
@@ -29,6 +30,8 @@ GENERATE=0
 fail() { echo "prepare_database: $*" >&2; exit 1; }
 # shellcheck source=tools/deploy/audit_declare.sh
 . "$HERE/audit_declare.sh"
+# shellcheck source=tools/deploy/preflight.sh
+. "$HERE/preflight.sh"
 if [ -n "$SQL_USER" ]; then
     : "${SQLCMDPASSWORD:?set SQLCMDPASSWORD for the login $SQL_USER}"
     AUTH=(-U "$SQL_USER")
@@ -38,7 +41,7 @@ fi
 WORK="$(mktemp -d)"
 chmod 700 "$WORK"
 trap 'rm -rf "$WORK"' EXIT
-run() { ( umask 077; printf '%s\n' "$1" > "$WORK/stmt.sql" ); "$SQLCMD" -S "$SQL_SERVER" "${AUTH[@]}" -I -b $SQLCMD_OPTS -i "$WORK/stmt.sql"; }
+run() { ( umask 077; { sa_guard_sql; printf '%s\n' "$1"; } > "$WORK/stmt.sql" ); "$SQLCMD" -S "$SQL_SERVER" "${AUTH[@]}" -I -b $SQLCMD_OPTS -i "$WORK/stmt.sql"; }
 
 strong() { [[ "$1" =~ ^[A-Za-z0-9_-]{32,128}$ && "$1" =~ [A-Z] && "$1" =~ [a-z] && "$1" =~ [0-9] ]]; }
 new_secret() {

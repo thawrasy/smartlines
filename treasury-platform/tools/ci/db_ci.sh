@@ -19,8 +19,10 @@ SQL_SERVER="${SQL_SERVER:-localhost,1433}"
 SQLCMD="${SQLCMD:-sqlcmd}"
 export SQLCMDPASSWORD="$SA_PASSWORD"
 # The tools in tools/deploy and check_deployed.py verify the server certificate by default (DQ-S05-7). The throwaway
-# container of CI has a self-signed one, so CI alone trusts it, here and for every script it runs.
-export SQLCMD_OPTS=-C
+# container of CI has a self-signed one, so CI alone trusts it, here and for every script it runs. The same tools
+# refuse -C, and the administrator scripts refuse sa, unless these two allowances are set (DQ-S11-6, ADR 0014); only CI
+# sets them.
+export SQLCMD_OPTS=-C BANKFAS_ALLOW_TRUST_CERT=1 BANKFAS_ALLOW_SA=1
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
@@ -62,11 +64,24 @@ python3 tools/dbgen/check_fk_indexes.py
 python3 tools/dbgen/check_grants.py
 python3 tools/dbgen/check_review_fixes.py | tail -1   # the design-review fixes in the generated DDL (C-12, O-15)
 # No deployment tool trusts any certificate by itself; only CI passes -C (DQ-S05-7, ADR 0013).
-if grep -n 'SQLCMD_OPTS--C' tools/deploy/*.sh || grep -nE "[\"']-C[\"']" tools/dbgen/check_deployed.py tools/deploy/*.sh; then
+# A default of -C, or -C written into a command, in the shell, Python and PowerShell tools.
+if grep -n 'SQLCMD_OPTS--C' tools/deploy/*.sh \
+   || grep -nE "'-C',|, '-C'[])]|SQLCMD_OPTS', '[^']*-C" tools/dbgen/check_deployed.py tools/deploy/deploy.ps1; then
     echo "a deployment tool passes -C by default"
     exit 1
 fi
 echo "no deployment tool trusts the server certificate by default"
+# CI runs the SQL Server image of the release register (DQ-B01-2, FR-PLT-045); the deployment preflight compares the
+# server's build with the same register (gate G4).
+python3 - <<'PY'
+import json, re, sys
+want = json.load(open('versions.json', encoding='utf-8'))['database_host']['ci_image']
+flow = open('../.github/workflows/treasury-db-ci.yml', encoding='utf-8').read()
+got = re.findall(r'^\s*image:\s*(mcr\.microsoft\.com/mssql/\S+)', flow, re.M)
+if got != [want]:
+    sys.exit(f'the CI image {got} is not the one of versions.json ({want})')
+print(f'CI runs the SQL Server image of the release register: {want}')
+PY
 
 echo "== 4. deploy db/deploy.sql to a fresh BankFas database the way production does (DOC-S11, ADR 0010, ADR 0012)"
 audit_since="$(sq -h -1 -W -Q "SET NOCOUNT ON; SELECT CONVERT(VARCHAR(19), SYSUTCDATETIME(), 126);")"
@@ -428,4 +443,24 @@ if [ "$mn_pass" -ne 6 ]; then
     exit 1
 fi
 echo "monitoring login checks: $mn_pass passed"
+echo "== 22. the deployment preflight (db/ops/deploy_preflight.sql, tools/deploy/preflight.sh, tools/ci/deploy_preflight_check.sh, ADR 0014)"
+SQL_SERVER="$SQL_SERVER" SQLCMD="$SQLCMD" MIGRATOR_SECRET="$TMP/migrator/bankfas_migrator.secret" MONITOR_SECRETS="$TMP/monitor" \
+    bash tools/ci/deploy_preflight_check.sh > "$TMP/preflight.out" 2>&1 || {
+    cat "$TMP/preflight.out"
+    echo "deployment preflight check run failed"
+    exit 1
+}
+cat "$TMP/preflight.out"
+if grep -q '^FAIL' "$TMP/preflight.out"; then
+    echo "a deployment preflight check failed"
+    exit 1
+fi
+pf_pass=$(grep -c '^PASS' "$TMP/preflight.out" || true)
+# 5 checks: PF1-PF5 (DQ-S11-6: a database that is not empty, sa and a sysadmin, -C outside CI, sa in the
+# administrator scripts outside CI, the release register).
+if [ "$pf_pass" -ne 5 ]; then
+    echo "expected 5 PASS, found $pf_pass"
+    exit 1
+fi
+echo "deployment preflight checks: $pf_pass passed"
 echo "all database checks passed"

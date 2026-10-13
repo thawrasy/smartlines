@@ -1,0 +1,22 @@
+{
+  "about": "Release register of the BankFas treasury platform (FR-PLT-045; DOC-B11 section 4.3, DOC-S10 section 7.2). tools/deploy/deploy.sh refuses a server whose SQL Server build or Ubuntu release differs from it (gate G4, docs/adr/0014-deployment-preflight.md), and CI runs the image named here.",
+  "database_host": {
+    "os": "Ubuntu",
+    "os_release": "24.04",
+    "sqlserver": {
+      "release": "SQL Server 2025",
+      "update": "CU9 GDR1",
+      "kb": "KB5126967",
+      "product_version": "17.0.5015.4"
+    },
+    "ci_image": "mcr.microsoft.com/mssql/server:2025-CU9-GDR1-ubuntu-24.04"
+  },
+  "reviews": [
+    {
+      "date": "2026-10-13",
+      "subject": "SQL Server 2025 CU9 GDR1 (17.0.5015.4) on Ubuntu 24.04",
+      "decision": "adopt",
+      "reason": "The latest build of SQL Server 2025 (NFR-OPS-05) and the one CI already ran from 2025-latest. CI now names it instead of 2025-latest (DQ-B01-2)."
+    }
+  ]
+}

@@ -87,7 +87,7 @@ flowchart LR
 | P-11 | وكيل المقاييس وشحن السجلات (§9) | OPS | الخادم ظاهر في اللوحة |
 | P-12 | خطوات TDE في master: DMK والشهادة ونسخهما إلى الضمان (DOC-S02 §5.1 الخطوات 1-4) | DBA مع KC-1 وKC-2 | سجل الضمان |
 | P-13 | جدولة النسخ ودفعها إلى الموقع المنفصل (DOC-S09 §4) | DBA | أول نسخة master وmsdb في الموقع المنفصل |
-| P-14 | تسجيل الخادم في سجل الإصدارات (§7.2) | OPS | تغيير `versions.json` مع سجل المراجعة |
+| P-14 | تسجيل الخادم في سجل الإصدارات (§7.2) | OPS | تغيير `versions.json` مع سجل المراجعة. ✅ السجل قائم (ADR 0014)، و`deploy.sh` يرفض خادمًا يختلف عنه |
 | P-15 | فحص القبول §6.9 وتوقيعه | SEC | القائمة موقّعة |
 | P-16 | أول نشر للقاعدة، ثم تفعيل TDE عليها (DOC-S11) | OPS مع DBA | سجل النشر |
 
@@ -310,6 +310,8 @@ sudo unattended-upgrade --dry-run --debug | tail -20
 dpkg-query -W -f='${Package}=${Version}\n' mssql-server mssql-tools18 msodbcsql18
 sqlcmd -S "<db-cert-name>,1433" -U "<personal-login>" -Q "SET NOCOUNT ON; SELECT SERVERPROPERTY('ProductVersion'), SERVERPROPERTY('ProductUpdateLevel'), SERVERPROPERTY('Edition');"
 ```
+
+✅ منذ ADR 0014 (2026-10-13): السجل `treasury-platform/versions.json` قائم. و`tools/deploy/deploy.sh` يقرأ البناء (`ProductVersion`) ونسخة Ubuntu (من `@@VERSION`) بحساب النشر نفسه، ويرفض الخادم المختلف (50143، بوابة G4). وتبقى النواة وحزم العميل في القائمة اليدوية أعلاه. لذلك تبدأ ترقية الخادم في §7.3 بتغيير مراجَع في `versions.json` ووسم صورة CI معًا.
 
 ### 7.3 إجراء ترقية SQL Server 🟡
 
