@@ -2,7 +2,8 @@
 # Database CI: checks the model, confirms the generated DDL is current, deploys it to SQL Server,
 # compares what was deployed with the DDL, and runs the trigger, tenant-isolation, account-security,
 # operator-and-support, job-binding, tenant-onboarding, document-numbering (one of them with concurrent connections),
-# KYC history, reference data, audit trail and data export tests, and the service logins of the deployment.
+# KYC history, reference data, audit trail and data export tests, the service logins of the deployment, and the SQL
+# Server Audit of the server with its AL-18 alerts.
 #
 # Environment:
 #   SA_PASSWORD   password of the sa login (required)
@@ -58,17 +59,25 @@ python3 tools/dbgen/check_fk_indexes.py
 python3 tools/dbgen/check_grants.py
 python3 tools/dbgen/check_review_fixes.py | tail -1   # the design-review fixes in the generated DDL (C-12, O-15)
 
-echo "== 4. deploy db/deploy.sql to a fresh BankFas database the way production does (DOC-S11, ADR 0010)"
+echo "== 4. deploy db/deploy.sql to a fresh BankFas database the way production does (DOC-S11, ADR 0010, ADR 0012)"
+audit_since="$(sq -h -1 -W -Q "SET NOCOUNT ON; SELECT CONVERT(VARCHAR(19), SYSUTCDATETIME(), 126);")"
 sq -Q "IF DB_ID(N'BankFas') IS NOT NULL BEGIN ALTER DATABASE [BankFas] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [BankFas]; END" >/dev/null
-# The administrator (sa here) prepares the empty database and the deployment login, and opens the window; the
-# deployment then runs as bankfas_migrator, a member of db_owner and of no server role, through the same wrapper
-# users run; the window closes after it.
+# The administrator (sa here) starts the server audit first, so everything after it is recorded, then prepares the
+# empty database and the deployment login and opens the window; the deployment runs as bankfas_migrator, a member of
+# db_owner and of no server role, through the same wrapper users run; the administrator adds the database audit
+# specification inside the window, and the window closes. Each step declares itself in the audit (change CI).
+# In production the audit folder is a volume made by DOC-S10 section 3; the CI container has none, so it is made here.
+sq -Q "EXEC master.sys.xp_create_subdir N'/var/opt/mssql/audit';" >/dev/null
+export BANKFAS_CHANGE_REF=CI
+SQL_SERVER="$SQL_SERVER" SQL_USER=sa SQLCMD="$SQLCMD" bash tools/deploy/server_audit.sh apply
 mkdir -m 700 "$TMP/migrator"
 SQL_SERVER="$SQL_SERVER" SQL_USER=sa SQLCMD="$SQLCMD" BANKFAS_SECRETS_DIR="$TMP/migrator" bash tools/deploy/prepare_database.sh prepare --generate
 SQL_SERVER="$SQL_SERVER" SQL_USER=sa SQLCMD="$SQLCMD" bash tools/deploy/prepare_database.sh open
 SQL_SERVER="$SQL_SERVER" SQL_USER=bankfas_migrator SQLCMDPASSWORD="$(cat "$TMP/migrator/bankfas_migrator.secret")" SQLCMD="$SQLCMD" \
     bash tools/deploy/deploy.sh
+SQL_SERVER="$SQL_SERVER" SQL_USER=sa SQLCMD="$SQLCMD" bash tools/deploy/server_audit.sh apply
 SQL_SERVER="$SQL_SERVER" SQL_USER=sa SQLCMD="$SQLCMD" bash tools/deploy/prepare_database.sh close
+unset BANKFAS_CHANGE_REF
 deploy_state="$(sq -d BankFas -h -1 -W -Q "SET NOCOUNT ON; SELECT CONCAT(
     (SELECT SUSER_SNAME(owner_sid) FROM sys.databases WHERE name = N'BankFas'), '/',
     (SELECT is_disabled FROM sys.server_principals WHERE name = N'bankfas_owner'), '/',
@@ -366,4 +375,25 @@ if [ "$rf_pass" -ne 21 ]; then
     exit 1
 fi
 echo "review fixes tests: $rf_pass passed"
+echo "== 20. SQL Server Audit and its AL-18 alerts (tools/deploy/server_audit.sh, tools/ci/server_audit_check.sh, ADR 0012)"
+SQL_SERVER="$SQL_SERVER" SQLCMD="$SQLCMD" AUDIT_SINCE="$audit_since" MIGRATOR_SECRET="$TMP/migrator/bankfas_migrator.secret" \
+    bash tools/ci/server_audit_check.sh > "$TMP/server_audit.out" 2>&1 || {
+    cat "$TMP/server_audit.out"
+    echo "server audit check run failed"
+    exit 1
+}
+cat "$TMP/server_audit.out"
+if grep -q '^FAIL' "$TMP/server_audit.out"; then
+    echo "a server audit check failed"
+    exit 1
+fi
+sa_pass=$(grep -c '^PASS' "$TMP/server_audit.out" || true)
+# 7 checks: SA1-SA7 (DOC-S08 section 10, DQ-S08-10: the audit in place, the deployment inside its window, service
+# logins, dbo on the audit tables, the AL-18 rules outside a window, a reader without administrator rights, a stopped
+# audit).
+if [ "$sa_pass" -ne 7 ]; then
+    echo "expected 7 PASS, found $sa_pass"
+    exit 1
+fi
+echo "server audit checks: $sa_pass passed"
 echo "all database checks passed"

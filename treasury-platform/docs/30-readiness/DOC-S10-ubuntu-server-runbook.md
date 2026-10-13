@@ -83,7 +83,7 @@ flowchart LR
 | P-07 | ضبط mssql-conf ثم إعادة تشغيل الخدمة (§5.2) | DBA | ناتج `mssql-conf list` [تحقق MS] |
 | P-08 | شهادة TLS لـ SQL Server وفرض التشفير (DOC-S05 §5.1-5.2) | DBA | اتصال بلا `-C` ينجح، وبشهادة غير موثوقة يفشل (TLS-5) |
 | P-09 | تسجيلات الدخول: حساب شخصي لكل مدير، و`breakglass` و`bankfas_migrator` معطّلان، ثم تعطيل `sa` (DOC-S08 §3، §9) | DBA | قائمة `sys.server_principals` |
-| P-10 | SQL Server Audit يعمل وملفاته تصل المخزن المركزي (DOC-S12 §3.6) | DBA مع SEC | أول ملف في المخزن |
+| P-10 | SQL Server Audit يعمل وملفاته تصل المخزن المركزي (DOC-S12 §3.5). الإعداد: `tools/deploy/server_audit.sh apply` بعد إنشاء `/var/opt/mssql/audit` (ADR 0012) | DBA مع SEC | `server_audit.sh check` يخرج بصفر، وأول ملف في المخزن |
 | P-11 | وكيل المقاييس وشحن السجلات (§9) | OPS | الخادم ظاهر في اللوحة |
 | P-12 | خطوات TDE في master: DMK والشهادة ونسخهما إلى الضمان (DOC-S02 §5.1 الخطوات 1-4) | DBA مع KC-1 وKC-2 | سجل الضمان |
 | P-13 | جدولة النسخ ودفعها إلى الموقع المنفصل (DOC-S09 §4) | DBA | أول نسخة master وmsdb في الموقع المنفصل |
@@ -271,7 +271,7 @@ sudo unattended-upgrade --dry-run --debug | tail -20
 | HS-5 | `chronyc tracking` | فارق ≤ 1 ثانية |
 | HS-6 | `apt-mark showhold` و`unattended-upgrade --dry-run` | mssql-server مجمّد، والأمن وحده آلي |
 | HS-7 | `sa` و`breakglass` و`bankfas_migrator` | معطّلة (DOC-S08 §3) |
-| HS-8 | `sys.server_audits` | التدقيق يعمل، وآخر ملف وصل المخزن المركزي |
+| HS-8 | `tools/deploy/server_audit.sh check` (ADR 0012) | التدقيق ومواصفتاه مطابقة ويكتب، وآخر ملف وصل المخزن المركزي |
 | HS-9 | محاولة اتصال صادر إلى وجهة غير مسموحة | مرفوضة |
 
 ## 7. الترقيع وسجل الإصدارات

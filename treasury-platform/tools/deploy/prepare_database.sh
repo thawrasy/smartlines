@@ -5,10 +5,13 @@
 #                         Its secret is BANKFAS_SECRETS_DIR/bankfas_migrator.secret (owned by the caller, mode 600 or
 #                         400, 32 to 128 characters of [A-Za-z0-9_-] with upper, lower and digit; --generate makes it).
 #                         BANKFAS_DATA_DIR and BANKFAS_LOG_DIR place the files of a new database (DOC-S10 section 3).
-#   open                  enables bankfas_migrator for a deployment window.
-#   close                 disables it again and ends its sessions.
-# A deployment: prepare (first time) -> open -> SQL_USER=bankfas_migrator tools/deploy/deploy.sh -> close
-#               -> tools/deploy/provision_logins.sh.
+#   open                  opens a deployment window: declares it in SQL Server Audit and enables bankfas_migrator.
+#   close                 disables it again, ends its sessions and declares the window closed.
+# A deployment (DOC-S11): server_audit.sh apply (first time) -> prepare (first time) -> open
+#               -> SQL_USER=bankfas_migrator tools/deploy/deploy.sh -> server_audit.sh apply -> provision_logins.sh -> close.
+# Each run declares itself in the audit with BANKFAS_CHANGE_REF (audit_declare.sh): prepare as an administrative
+# change, open and close as the deployment window. The alerts on the migrator, grants and schema changes fire only
+# outside a declared window (db/ops/server_audit_alerts.sql, docs/adr/0012-server-audit.md).
 # Run with an administrator's own login (SQL_USER and SQLCMDPASSWORD), as for tools/deploy/deploy.sh. The secret goes
 # to sqlcmd in a private temporary copy of db/ops/prepare_database.sql, never on a command line.
 set -euo pipefail
@@ -24,6 +27,8 @@ GENERATE=0
 [ "${2:-}" = "--generate" ] && GENERATE=1
 
 fail() { echo "prepare_database: $*" >&2; exit 1; }
+# shellcheck source=tools/deploy/audit_declare.sh
+. "$HERE/audit_declare.sh"
 if [ -n "$SQL_USER" ]; then
     : "${SQLCMDPASSWORD:?set SQLCMDPASSWORD for the login $SQL_USER}"
     AUTH=(-U "$SQL_USER")
@@ -66,10 +71,16 @@ prepare)
     sql="${sql//\$(BANKFAS_MIGRATOR_PASSWORD)/$secret}"
     sql="${sql//\$(BANKFAS_DATA_DIR)/$data}"
     sql="${sql//\$(BANKFAS_LOG_DIR)/$log}"
-    run "$sql"
+    # The end of the change is declared even when the run fails, so the window never outlives the run.
+    rc=0
+    run "$(declare_sql 1103 "prepare_database prepare started")
+$sql" || rc=$?
+    run "$(declare_sql 1104 "prepare_database prepare finished")" >/dev/null || true
+    exit "$rc"
     ;;
 open)
-    run "ALTER LOGIN [bankfas_migrator] ENABLE;"
+    run "$(declare_sql 1101 "deployment window opened")
+ALTER LOGIN [bankfas_migrator] ENABLE;"
     echo "deployment window open: bankfas_migrator enabled"
     ;;
 close)
@@ -79,7 +90,9 @@ DECLARE @s INT, @sql NVARCHAR(40);
 DECLARE c CURSOR LOCAL FAST_FORWARD FOR SELECT session_id FROM sys.dm_exec_sessions WHERE login_name = N'bankfas_migrator';
 OPEN c; FETCH NEXT FROM c INTO @s;
 WHILE @@FETCH_STATUS = 0 BEGIN SET @sql = CONCAT(N'KILL ', @s); EXEC (@sql); FETCH NEXT FROM c INTO @s; END;
-CLOSE c; DEALLOCATE c;"
+CLOSE c; DEALLOCATE c;
+GO
+$(declare_sql 1102 "deployment window closed")"
     echo "deployment window closed: bankfas_migrator disabled"
     ;;
 *)

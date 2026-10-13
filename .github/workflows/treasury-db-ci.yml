@@ -1,7 +1,8 @@
 name: treasury-database-ci
 
 # BankFas treasury platform (treasury-platform/): runs tools/ci/db_ci.sh on every change to the database model,
-# the generator, or the database scripts. SQL Server 2025 runs as a service container on the job.
+# the generator, the database scripts, or the deployment scripts it runs (tools/deploy). SQL Server 2025 runs as a
+# service container on the job.
 # GitHub reads workflows only from the repository root, so this file lives here and works in treasury-platform/.
 
 on:
@@ -11,12 +12,14 @@ on:
       - 'treasury-platform/db/**'
       - 'treasury-platform/tools/dbgen/**'
       - 'treasury-platform/tools/ci/**'
+      - 'treasury-platform/tools/deploy/**'
       - '.github/workflows/treasury-db-ci.yml'
   pull_request:
     paths:
       - 'treasury-platform/db/**'
       - 'treasury-platform/tools/dbgen/**'
       - 'treasury-platform/tools/ci/**'
+      - 'treasury-platform/tools/deploy/**'
       - '.github/workflows/treasury-db-ci.yml'
   workflow_dispatch:
 

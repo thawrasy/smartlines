@@ -52,16 +52,19 @@ sequenceDiagram
   participant S as SQL Server
   participant M as المراقبة
   O->>O: بوابات G1 إلى G9 وفتح النافذة
-  D->>S: تفعيل bankfas_migrator للنافذة
+  D->>S: تدقيق الخادم قائم ويكتب (server_audit.sh apply ثم check)
   D->>S: إنشاء BankFas فارغة بالترتيب والملفات الصحيحة
+  D->>S: إعلان النافذة في التدقيق وتفعيل bankfas_migrator (open)
   O->>H: نقل حزمة الإصدار ومطابقة SHA-256
   O->>H: فحوص ما قبل النشر وبوابة الإصدارات
   O->>S: deploy.sh بحساب bankfas_migrator بلا -C
   S-->>M: أحداث التدقيق للنشر
+  D->>S: مواصفة تدقيق القاعدة وحسابات الخدمة داخل النافذة
   O->>S: فحوص ما بعد النشر للقراءة فقط
   D->>S: نموذج الاسترداد FULL وتفعيل TDE
   D->>S: أول نسخة كاملة وفحصها
-  D->>S: تعطيل bankfas_migrator وتدوير سره
+  D->>S: تعطيل bankfas_migrator وتدوير سره وإعلان إغلاق النافذة (close)
+  O->>M: تنبيهات AL-18 للنافذة وقائمة النوافذ (server_audit.sh alerts وwindows)
   O->>M: سجل النشر والتوقيع
 ```
 
@@ -76,7 +79,7 @@ sequenceDiagram
 | R-05 | حزمة إصدار من وسم `vX.Y.Z` (DOC-B11 §4.2)، وCI أخضر على الوسم نفسه (G1) | رابط تشغيل CI ومجموع SHA-256 للحزمة |
 | R-06 | حساب `bankfas_migrator` موجود ومعطّل خارج النافذة، وسره في ملف يملكه root بصلاحية 0600 (DOC-S08 §3، §5) | قائمة الحسابات |
 | R-07 | خطوات TDE في master منجزة وشهادتها في الضمان (DOC-S02 §5.1 الخطوات 1-4) | سجل الضمان |
-| R-08 | SQL Server Audit يعمل، فيُسجَّل النشر نفسه (DOC-S12 §3.6) | `sys.dm_server_audit_status` |
+| R-08 | SQL Server Audit يعمل، فيُسجَّل النشر نفسه (DOC-S12 §3.5). ✅ منفّذ (ADR 0012): `tools/deploy/server_audit.sh apply` قبل النشر الأول، ومجلد الملفات على V5 (DOC-S10 §3) | `tools/deploy/server_audit.sh check` يخرج بصفر |
 | R-09 | النافذة معلنة قبل 48 ساعة (NFR-AVL-02)، والتوقيعات قبل التنفيذ (§10) | الإشعار وسجل التوقيع |
 
 ## 5. متغيرات البيئة
@@ -117,6 +120,16 @@ unset SQLCMDPASSWORD
   `BANKFAS_SECRETS_DIR=/etc/bankfas/db-secrets BANKFAS_LOGIN_SET=a bash tools/deploy/provision_logins.sh --generate`
   فتُنشأ ملفات الأسرار الناقصة بصلاحية 600، ثم ينقل كل سر إلى مخزن أسرار عمليته على مضيف التطبيق (DOC-S08 §5)، ويحذف من الخادم ما لا يلزم بقاؤه. والتدوير بالزوج: `BANKFAS_LOGIN_SET=b` ثم نقل العملية إلى `_b` ثم تعطيل `_a` (DOC-S08 §6).
 - سجل النشر يُشحن إلى المخزن المركزي (DOC-S12)، ولا يحمل كلمة المرور لأن sqlcmd يقرؤها من البيئة.
+- **التدقيق والنافذة (ADR 0012):** يُصدِّر DBA مرجع التغيير في سجل النشر `export BANKFAS_CHANGE_REF=<مرجع النشر>` قبل أي سكربت. يكتب كل سكربت في `tools/deploy` بدايته ونهايته في SQL Server Audit بهذا المرجع، وتنبيهات AL-18 لا تنطلق لما يقع داخل نافذته. الترتيب:
+  1. `server_audit.sh apply` (المرة الأولى، قبل كل شيء)؛
+  2. `prepare_database.sh prepare` (المرة الأولى)؛
+  3. `prepare_database.sh open`؛
+  4. `deploy.sh` بحساب `bankfas_migrator`؛
+  5. `server_audit.sh apply`، فتُضاف مواصفة القاعدة على جداول التدقيق؛
+  6. `provision_logins.sh`؛
+  7. `prepare_database.sh close`.
+
+  بعد الإغلاق يشغّل SEC `server_audit.sh alerts <بداية النافذة>`، والمتوقع صفر تنبيه. ويرفق `server_audit.sh windows` بسجل النشر.
 
 ## 6. النشر الجديد اليوم
 
@@ -132,17 +145,20 @@ unset SQLCMDPASSWORD
 | # | الخطوة | المنفّذ | ملاحظة |
 |---|---|---|---|
 | F-01 | فتح النافذة وتسجيل بدايتها | OPS | §10 |
-| F-02 | تفعيل `bankfas_migrator` | DBA | تنبيه «دخول خارج النافذة» يُعلَّق للنافذة فقط (DOC-S08 §10) |
+| F-01a | تدقيق الخادم: `server_audit.sh apply` في المرة الأولى، ثم `server_audit.sh check` | DBA | ✅ ADR 0012؛ يوقف النشر إن فشل |
+| F-02 | `prepare_database.sh open`: إعلان النافذة في التدقيق وتفعيل `bankfas_migrator` | DBA | ✅ تنبيه «دخول خارج النافذة» يسكت داخل النافذة المعلنة فقط (DOC-S08 §10، ADR 0012). في المرة الأولى يسبقه F-03، لأن `prepare` ينشئ الحساب |
 | F-03 | إنشاء القاعدة الفارغة (§6.1) | DBA | — |
 | F-04 | نقل الحزمة ومطابقة SHA-256 مع ناتج CI | OPS | DQ-S11-4 |
 | F-05 | فحوص ما قبل النشر (§8.1) | OPS | أي فشل يوقف |
 | F-06 | تشغيل deploy.sh (§5.2) | OPS، ويراقبه شخص ثانٍ | DQ-S11-9 |
 | F-07 | فحوص ما بعد النشر (§8.2) | OPS | أي فشل ينقل إلى §9 |
+| F-07a | `server_audit.sh apply` لمواصفة القاعدة، ثم `provision_logins.sh` (§5.2) | DBA | ✅ داخل النافذة (ADR 0012) |
 | F-08 | `RECOVERY FULL` (DOC-S09 §4.1)، و`READ_COMMITTED_SNAPSHOT ON` (docs/20-database-design.md:462؛ DQ-S11-5) | DBA | لم يضمَّنا في السكربتات |
 | F-09 | تفعيل TDE ومتابعته حتى الاكتمال (DOC-S02 §5.1 الخطوتان 5-6) | DBA | قبل أي بيانات حقيقية (docs/adr/0001-schema-work-on-linux.md:26) |
 | F-10 | أول نسخة كاملة مشفّرة وفحصها، وبها تبدأ سلسلة السجل (DOC-S09 §4.1) | DBA | — |
 | F-11 | بذور المنصة حين توجد (DOC-B05 §4.3) | OPS | لا بذور في المستودع اليوم |
-| F-12 | تعطيل `bankfas_migrator` وتدوير سره (DOC-S08 §6) | DBA | — |
+| F-12 | `prepare_database.sh close`: تعطيل `bankfas_migrator` وإعلان إغلاق النافذة، ثم تدوير سره (DOC-S08 §6) | DBA | — |
+| F-12a | `server_audit.sh alerts <بداية النافذة>` و`windows` | SEC | صفر تنبيه متوقع؛ أي تنبيه يُفسَّر في سجل النشر |
 | F-13 | سجل النشر والتوقيع (§10) | OPS | — |
 
 ## 7. ترقية قاعدة قائمة
@@ -176,7 +192,7 @@ unset SQLCMDPASSWORD
 | الإصدارات (G4) | DOC-S10 §7.2 | اختلاف عن السجل |
 | حالة الهدف | `SELECT DB_ID(N'BankFas'), DATABASEPROPERTYEX(N'BankFas','Collation')`، وعدد الجداول | القاعدة غير فارغة، أو الترتيب غير `Arabic_100_CI_AS_SC` |
 | المساحة | المساحة الحرة على V2 وV3 وV4 | أقل من 20% 🟡 |
-| التدقيق | `sys.dm_server_audit_status` | التدقيق متوقف |
+| التدقيق | `tools/deploy/server_audit.sh check` (ADR 0012) | خروج غير صفري: التدقيق متوقف أو غير مطابق |
 | النسخ (للترقية لاحقًا) | نسخة كاملة مفحوصة في النافذة (G8) | غيابها |
 
 ### 8.2 بعد النشر

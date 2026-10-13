@@ -441,13 +441,16 @@
 
 ### 12.1 ترتيب النشر (`db/deploy.sql`، وضع SQLCMD)
 ```
-# Production (Ubuntu 24.04 LTS, ADR 0001) and CI (ADR 0010): an administrator prepares the database once and opens the
-# window; the deployment login (db_owner only) runs the wrapper, which changes to db/ and runs deploy.sql
+# Production (Ubuntu 24.04 LTS, ADR 0001) and CI (ADR 0010, ADR 0012): an administrator starts the server audit and
+# prepares the database once, then opens the window; the deployment login (db_owner only) runs the wrapper, which
+# changes to db/ and runs deploy.sql. Each step declares itself in the audit with BANKFAS_CHANGE_REF.
+tools/deploy/server_audit.sh apply                  # first time: SQL Server Audit before anything else (ADR 0012)
 tools/deploy/prepare_database.sh prepare            # first time: empty BankFas, owner bankfas_owner, login bankfas_migrator
 tools/deploy/prepare_database.sh open
 SQL_SERVER=<server> SQL_USER=bankfas_migrator SQLCMDPASSWORD="$(cat <secret file>)" tools/deploy/deploy.sh
+tools/deploy/server_audit.sh apply                  # the database audit specification, inside the window
+tools/deploy/provision_logins.sh                    # the service logins (ADR 0009), inside the window
 tools/deploy/prepare_database.sh close
-tools/deploy/provision_logins.sh                    # the service logins (ADR 0009)
 # The same thing by hand: cd db && sqlcmd -S <server> -U <login> -I -b -i deploy.sql
 # Windows host (kept, not run yet): tools\deploy\deploy.ps1 -Server <server>
 ```
@@ -464,7 +467,8 @@ tools/deploy/provision_logins.sh                    # the service logins (ADR 00
 11. `050_fac_share_rule` (قاعدة حصص المقرضين)
 12. البذور العالمية: `seed/100_platform_global` (الإعدادات والمهام والباقة والعناوين المحجوزة) → `seed/101_iso_reference` (الدول والعملات) → `seed/102_permissions` (الصلاحيات) → `seed/103_lc_reference` (Incoterms ومواد UCP 600)؛ إدراج فقط، وتعيد الخطوة 4b في CI تشغيلها وتشترط ألا يتغير شيء
 13. اختياري: `040_fulltext_optional`
-14. بعد النشر، بحساب مدير شخصي يملك إنشاء الحسابات: `tools/deploy/provision_logins.sh` ينشئ حسابات الخدمة الأربعة (`bankfas_app` و`bankfas_jobs` و`bankfas_platform` و`bankfas_support`، كلٌّ بزوج a/b للتدوير) ويربط كلًا بدوره وحده، وأسرارها من ملفات خاصة لا من سطر الأوامر (ADR 0009، DOC-S08)
+14. بعد النشر وداخل النافذة، بحساب مدير شخصي: `tools/deploy/server_audit.sh apply` يضيف مواصفة تدقيق القاعدة على جداول التدقيق، بعد أن شغّله المدير مرة قبل النشر الأول فبدأ تدقيق الخادم (SQL Server Audit) وسُجّل النشر نفسه. وكل سكربت في `tools/deploy` يعلن عمله في التدقيق، فتنبيهات AL-18 لا تنطلق إلا لما يقع خارج نافذة معلنة (`server_audit.sh alerts`؛ ADR 0012، DOC-S08 §10)
+15. داخل النافذة أيضًا، بحساب مدير شخصي يملك إنشاء الحسابات: `tools/deploy/provision_logins.sh` ينشئ حسابات الخدمة الأربعة (`bankfas_app` و`bankfas_jobs` و`bankfas_platform` و`bankfas_support`، كلٌّ بزوج a/b للتدوير) ويربط كلًا بدوره وحده، وأسرارها من ملفات خاصة لا من سطر الأوامر (ADR 0009، DOC-S08)
 
 **الفحص:** `tools/dbgen/check_grants.py` يفحص الملفات (لا القاعدة) في الخطوة 3 من `tools/ci/db_ci.sh` قبل النشر، ثم اختبارات S0 على SQL Server الفعلي (§14). الملفات تحوي `GO` وتُنفَّذ بالترتيب نفسه عند كل نشر؛ **لا يوجد بعدُ مسار ترحيل بين الإصدارات** (O-2).
 
@@ -507,7 +511,7 @@ tools/deploy/provision_logins.sh                    # the service logins (ADR 00
 | تحليل T-SQL بـ `sqlglot` | الملفات `000–004`، `007`، `010`، `025`، `030`، `040`: **بلا أخطاء**؛ `005` و`006` و`020`: خطأ واحد لكل ملف عند عبارة `DENY` | المحلّل لا يدعم عبارة `DENY` بصيغتها الكاملة؛ الصيغة صحيحة في T-SQL. التحليل نحوي جزئي |
 | فحوص آلية لمحاذير SQL Server | لا `OR` في الفهارس المصفّاة · مفاتيح الفهارس ≤ 1,700 بايت و≤ 16 عمودًا · لا مسارات `CASCADE` متعددة · خيارات `SET` ضُمّنت | فحوص نصّية على المخرجات |
 | **التنفيذ على SQL Server 2025** | **OK** — نشر كامل لـ `db/deploy.sql` على قاعدة جديدة في كل تشغيل لـ `tools/ci/db_ci.sh`، بحساب النشر `bankfas_migrator` وصلاحية `db_owner` وحدها كما في الإنتاج (ADR 0010) (صورة Ubuntu 24.04، ومرّ أيضًا على صورة RHEL؛ ADR 0001) ثم مطابقة الكائنات المنشورة مع DDL المولَّد | يثبت أن المحرك يقبل النص وترتيب النشر والمنح كما هي. صفحة الدعم الرسمية لـ Ubuntu 24.04 لم تُراجَع من بيئة العمل (O-23) |
-| **اختبارات السلوك** (RLS، ربط الهوية، الصلاحيات، التدفق المالي) | **جزئي** — `db/tests/tenant_isolation_tests.sql` 48 حالة (العزل، قراءة المنصة للتدقيق، ربط الاتصال، الدخول والقفل وMFA، حالة المشترك، حدود `tp_app`) و`db/tests/auth_flow_tests.sql` 20 حالة (حسابات المستخدمين وإعدادات المشترك، ADR 0003 و0004) و`db/tests/operator_support_tests.sql` 11 حالة و`db/tests/job_context_tests.sql` 7 حالات و`db/tests/tenant_onboarding_tests.sql` 5 حالات (ADR 0004) و`db/tests/numbering_tests.sql` 8 حالات مع فحص تزامن بستة اتصالات (`tools/ci/numbering_concurrency.sh`: 114 رقمًا من 1 إلى 114 بلا تكرار ولا فجوة بعد 36 تراجعًا، ADR 0005) و`db/tests/kyc_history_tests.sql` 4 حالات (الحذف المتتالي ونسخ ملفات الاكتمال، ADR 0006) و`db/tests/reference_data_tests.sql` 4 حالات (قراءة المشترك للقوائم العالمية ومواد UCP، ومنعه من كتابتها) و`db/tests/audit_trail_tests.sql` 7 حالات (صفوف التدقيق التي تكتبها القاعدة، ADR 0007) و`db/tests/data_export_tests.sql` 6 حالات (التصدير في المعلّق والمغلق، ADR 0008) و`tools/ci/service_logins_check.sh` 6 فحوص (حسابات الخدمة بأسرارها وصلاحياتها، ADR 0009) و`db/tests/fac_share_rule_tests.sql` 6 حالات، وكلها تمر في CI | لم تُكتب بعد: التدفق المالي (الحجز والاستغلال) خارج قاعدة الحصص |
+| **اختبارات السلوك** (RLS، ربط الهوية، الصلاحيات، التدفق المالي) | **جزئي** — `db/tests/tenant_isolation_tests.sql` 48 حالة (العزل، قراءة المنصة للتدقيق، ربط الاتصال، الدخول والقفل وMFA، حالة المشترك، حدود `tp_app`) و`db/tests/auth_flow_tests.sql` 20 حالة (حسابات المستخدمين وإعدادات المشترك، ADR 0003 و0004) و`db/tests/operator_support_tests.sql` 11 حالة و`db/tests/job_context_tests.sql` 7 حالات و`db/tests/tenant_onboarding_tests.sql` 5 حالات (ADR 0004) و`db/tests/numbering_tests.sql` 8 حالات مع فحص تزامن بستة اتصالات (`tools/ci/numbering_concurrency.sh`: 114 رقمًا من 1 إلى 114 بلا تكرار ولا فجوة بعد 36 تراجعًا، ADR 0005) و`db/tests/kyc_history_tests.sql` 4 حالات (الحذف المتتالي ونسخ ملفات الاكتمال، ADR 0006) و`db/tests/reference_data_tests.sql` 4 حالات (قراءة المشترك للقوائم العالمية ومواد UCP، ومنعه من كتابتها) و`db/tests/audit_trail_tests.sql` 7 حالات (صفوف التدقيق التي تكتبها القاعدة، ADR 0007) و`db/tests/data_export_tests.sql` 6 حالات (التصدير في المعلّق والمغلق، ADR 0008) و`tools/ci/service_logins_check.sh` 6 فحوص (حسابات الخدمة بأسرارها وصلاحياتها، ADR 0009) و`db/tests/review_fixes_tests.sql` 21 حالة (إصلاحات المراجعة، ADR 0011) و`tools/ci/server_audit_check.sh` 7 فحوص (تدقيق الخادم ونوافذه وقواعد AL-18، ADR 0012) و`db/tests/fac_share_rule_tests.sql` 6 حالات، وكلها تمر في CI | لم تُكتب بعد: التدفق المالي (الحجز والاستغلال) خارج قاعدة الحصص |
 
 ---
 

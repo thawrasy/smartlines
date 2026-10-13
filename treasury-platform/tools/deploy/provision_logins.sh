@@ -4,7 +4,8 @@
 #     bankfas_app_<set> -> tp_app, bankfas_jobs_<set> -> tp_jobs, bankfas_platform_<set> -> tp_platform,
 #     bankfas_support_<set> -> tp_support
 # Run it after tools/deploy/deploy.sh, with the same deploying login. <set> is a or b, the two accounts of each pair
-# used to rotate a secret without downtime (DOC-S08 section 6).
+# used to rotate a secret without downtime (DOC-S08 section 6). Each run declares itself in SQL Server Audit as an
+# administrative change with BANKFAS_CHANGE_REF (audit_declare.sh, docs/adr/0012-server-audit.md).
 #
 # Secrets: one file per login in BANKFAS_SECRETS_DIR, named <login>.secret (bankfas_app_a.secret, ...). Each file is
 # owned by the caller, has mode 0600 or 0400, and holds one line of 32 to 128 characters from [A-Za-z0-9_-] with an
@@ -29,6 +30,8 @@ GENERATE=0
 [ "${1:-}" = "--generate" ] && GENERATE=1
 
 fail() { echo "provision_logins: $*" >&2; exit 1; }
+# shellcheck source=tools/deploy/audit_declare.sh
+. "$HERE/audit_declare.sh"
 case "$SET" in a|b) ;; *) fail "BANKFAS_LOGIN_SET must be a or b" ;; esac
 [ -d "$DIR" ] || fail "no folder $DIR"
 if [ -n "$SQL_USER" ]; then
@@ -76,7 +79,11 @@ sql="${sql//\$(BANKFAS_APP_PASSWORD)/$APP}"
 sql="${sql//\$(BANKFAS_JOBS_PASSWORD)/$JOBS}"
 sql="${sql//\$(BANKFAS_PLATFORM_PASSWORD)/$PLATFORM}"
 sql="${sql//\$(BANKFAS_SUPPORT_PASSWORD)/$SUPPORT}"
-( umask 077; printf '%s\n' "$sql" > "$WORK/service_logins.sql" )
-
-"$SQLCMD" -S "$SQL_SERVER" "${AUTH[@]}" -I -b $SQLCMD_OPTS -i "$WORK/service_logins.sql"
+( umask 077; { declare_sql 1103 "provision_logins set $SET started"; printf '%s\n' "$sql"; } > "$WORK/service_logins.sql" )
+declare_sql 1104 "provision_logins set $SET finished" > "$WORK/end.sql"
+# The end of the change is declared even when the run fails, so the window never outlives the run.
+rc=0
+"$SQLCMD" -S "$SQL_SERVER" "${AUTH[@]}" -I -b $SQLCMD_OPTS -i "$WORK/service_logins.sql" || rc=$?
+"$SQLCMD" -S "$SQL_SERVER" "${AUTH[@]}" -I -b $SQLCMD_OPTS -i "$WORK/end.sql" >/dev/null || true
+[ "$rc" -eq 0 ] || exit "$rc"
 echo "service logins of set $SET provisioned"
