@@ -3309,4 +3309,81 @@ SELECT pg_temp.ok(iam.logo_version(:bc) = '0a1b2c3d4e5f' AND iam.logo_version(:b
 ROLLBACK;
 SET ROLE masslak_app;
 
+-- Regular trips the carrier defines, approved before they run (1117)
+BEGIN;
+RESET ROLE;
+SELECT pg_temp.ok((SELECT count(*) FROM ops.recurrence_days('2027-03-01', '2027-03-07', 'DAILY', NULL, NULL)) = 7
+  AND (SELECT count(*) FROM ops.recurrence_days('2027-03-01', '2027-03-14', 'WEEKLY', '{1,5}', NULL)) = 4
+  AND (SELECT array_agg(d) FROM ops.recurrence_days('2027-02-01', '2027-03-31', 'MONTHLY', NULL, '{31}') d) = ARRAY['2027-03-31'::date]
+  AND NOT EXISTS (SELECT 1 FROM ops.recurrence_days('2027-03-01', '2027-03-07', 'DAILY', NULL, NULL, '{2027-03-03}') d WHERE d = '2027-03-03'),
+  'Regular trips (1117): every day, on days of the week, on days of the month (a day a month lacks is not run), without its dates off');
+INSERT INTO sec.authority_profile (code, name, authority_type, protocol, active) VALUES ('MOT-T', 'Transport authority (test)', 'REGULATOR', 'MANUAL', true);
+INSERT INTO iam.party (party_type, legal_name) VALUES ('PERSON', 'Authority Member (test)') RETURNING id AS preg \gset
+INSERT INTO iam.app_user (party_id, account_kind, email, status) VALUES (:preg, 'PLATFORM', 'regulator@mot.test', 'ACTIVE') RETURNING id AS ureg \gset
+INSERT INTO sec.authority_member (authority_id, user_id) SELECT id, :ureg FROM sec.authority_profile WHERE code = 'MOT-T';
+SELECT pg_temp.ok(ops.schedule_setting_problem('schedule.approval_stages', '[{"by":"AUTHORITY","authority":"NOPE"}]') IS NOT NULL
+  AND ops.schedule_setting_problem('schedule.approval_stages', '[{"by":"PLATFORM"},{"by":"AUTHORITY","authority":"MOT-T"}]') IS NULL
+  AND ops.schedule_setting_problem('schedule.horizon_days', '200') IS NOT NULL
+  AND ops.schedule_setting('schedule.approval_stages') = '[{"by":"PLATFORM"}]'::jsonb,
+  'Regular trips (1117): the approval stages are a checked setting, the platform by default, an authority by a known code');
+SET LOCAL ROLE masslak_app;
+SELECT sys.set_context(:ua, :ca, 'COMPANY');
+SELECT pg_temp.expect_error($$SELECT ops.set_schedule_setting('schedule.horizon_days', '40')$$, 'FORBIDDEN',
+  'Regular trips (1117): only the platform sets their rules');
+SELECT pg_temp.expect_error(format($$INSERT INTO ops.trip_template (company_id, route_id, departure_time, base_price, currency, active)
+    VALUES (%s, %s, '05:00', 0, 'SYP', daterange(current_date, NULL))$$, :ca, :route), 'permission denied',
+  'Regular trips (1117): a carrier no longer writes a regular trip itself, it asks for one');
+SELECT (ops.request_schedule('NEW', NULL, NULL, format('{"route_id": %s, "vehicle_id": %s, "departure_time": "05:05", "recurrence": "WEEKLY",
+          "days_of_week": [1,3,5], "from": "%s", "until": null, "base_price": 1000, "currency": "SYP"}', :route, :va, current_date + 3)::jsonb,
+          NULL, NULL, NULL) ->> 'uid') AS sr1 \gset
+SELECT pg_temp.ok((SELECT status = 'PENDING' AND template_id IS NULL AND approval_stages = '[{"by":"PLATFORM"}]'::jsonb
+                     FROM ops.schedule_request WHERE uid = :'sr1'),
+  'Regular trips (1117): a new regular trip waits for the stages in force, and nothing runs before');
+SELECT pg_temp.expect_error(format($$SELECT ops.decide_schedule_request(%L, true, NULL, NULL)$$, :'sr1'), 'NOT_YOUR_STAGE',
+  'Regular trips (1117): a carrier does not approve its own request');
+SELECT pg_temp.expect_error(format($$SELECT ops.request_schedule('NEW', NULL, NULL, '{"route_id": %s, "departure_time": "25:00", "recurrence": "DAILY",
+    "from": "%s", "base_price": 1, "currency": "SYP"}'::jsonb, NULL, NULL, NULL)$$, :route, current_date + 3), 'SCHEDULE_INVALID',
+  'Regular trips (1117): what is asked is checked');
+-- the platform approves with the number it organizes
+SELECT sys.set_context(:uadmin, NULL, 'PLATFORM');
+SELECT pg_temp.expect_error(format($$SELECT ops.decide_schedule_request(%L, true, NULL, 102)$$, :'sr1'), 'NUMBER_PARITY',
+  'Regular trips (1117): an outbound regular trip takes an odd number, its return an even one');
+SELECT ops.decide_schedule_request(:'sr1', true, NULL, 101) ->> 'status' AS sr1_status \gset
+SELECT pg_temp.ok(:'sr1_status' = 'APPROVED'
+  AND (SELECT t.status = 'ACTIVE' AND t.rolling AND s.number = 101 AND upper(t.active) IS NULL AND t.days_of_week = '{1,3,5}'
+         FROM ops.schedule_request q JOIN ops.trip_template t ON t.id = q.template_id JOIN net.service_number s ON s.id = t.service_number_id
+        WHERE q.uid = :'sr1')
+  AND EXISTS (SELECT 1 FROM ops.schedules_due() d JOIN ops.schedule_request q ON q.template_id = d.template_id WHERE q.uid = :'sr1'),
+  'Regular trips (1117): approved, it runs under its number with no end, and its trips are due');
+-- the law adds an authority: its member decides its stage, the platform does not; one person decides one stage
+SELECT ops.set_schedule_setting('schedule.approval_stages', '[{"by":"PLATFORM"},{"by":"AUTHORITY","authority":"MOT-T"}]');
+SELECT sys.set_context(:ua, :ca, 'COMPANY');
+SELECT t.uid AS st1 FROM ops.schedule_request q JOIN ops.trip_template t ON t.id = q.template_id WHERE q.uid = :'sr1' \gset
+SELECT (ops.request_schedule('CHANGE', :'st1', NULL, '{"departure_time": "06:15"}'::jsonb, current_date + 10, NULL, NULL) ->> 'uid') AS sr2 \gset
+SELECT sys.set_context(:uadmin, NULL, 'PLATFORM');
+SELECT ops.decide_schedule_request(:'sr2', true, NULL, NULL);
+SELECT pg_temp.expect_error(format($$SELECT ops.decide_schedule_request(%L, true, NULL, NULL)$$, :'sr2'), 'NOT_YOUR_STAGE',
+  'Regular trips (1117): the platform does not decide an authority''s stage');
+SELECT sys.set_context(:ureg, NULL, 'PLATFORM');
+SELECT ops.decide_schedule_request(:'sr2', true, 'Line licensed', NULL) ->> 'status' AS sr2_status \gset
+SELECT pg_temp.ok(:'sr2_status' = 'APPROVED'
+  AND (SELECT count(*) FROM ops.schedule_approval a JOIN ops.schedule_request q ON q.id = a.request_id
+        WHERE q.uid = :'sr2' AND a.authority_id IS NOT NULL) = 1
+  AND (SELECT upper(active) = current_date + 10 FROM ops.trip_template WHERE uid = :'st1')
+  AND (SELECT t.departure_time = '06:15' AND lower(t.active) = current_date + 10 AND t.service_number_id = o.service_number_id
+         FROM ops.schedule_request q JOIN ops.trip_template t ON t.uid = (q.result ->> 'template_uid')::uuid
+         JOIN ops.trip_template o ON o.uid = :'st1' WHERE q.uid = :'sr2'),
+  'Regular trips (1117): after the platform, the authority''s member approves; the change starts the next version under the same number');
+SELECT pg_temp.expect_error($$UPDATE ops.schedule_approval SET note = 'edited'$$, 'permission denied',
+  'Regular trips (1117): the decisions are never changed');
+-- while TRIP is among the kinds, a trip made by hand waits for its approval
+SELECT sys.set_context(:uadmin, NULL, 'PLATFORM');
+SELECT ops.set_schedule_setting('schedule.approval_kinds', '["NEW","CHANGE","TRIP"]');
+RESET ROLE;
+SELECT pg_temp.expect_error(format($$INSERT INTO ops.trip (trip_no, company_id, route_id, departure_at, arrival_at, status, seats_total, segments_count, currency, base_price)
+    VALUES ('TRIP-APPROVAL-1', %s, %s, now() + interval '3 days', now() + interval '3 days 4 hours', 'PUBLISHED', 40, 1, 'SYP', 0)$$, :ca, :route),
+  'TRIP_APPROVAL_REQUIRED', 'Regular trips (1117): while the settings ask for it, a trip made by hand is published only once approved');
+ROLLBACK;
+SET ROLE masslak_app;
+
 \echo '=== ALL TESTS PASSED ==='

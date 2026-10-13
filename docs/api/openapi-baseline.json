@@ -1,5 +1,26 @@
 {
  "app": {
+  "DELETE /api/admin/authorities/{code}/members/{user_uid}": {
+   "body": null,
+   "parameters": {
+    "path:code": {
+     "required": true,
+     "schema": {
+      "type": "string"
+     }
+    },
+    "path:user_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
   "DELETE /api/admin/companies/{company_uid}/logo": {
    "body": null,
    "parameters": {
@@ -647,6 +668,33 @@
     "200": {}
    }
   },
+  "GET /api/admin/schedules/requests": {
+   "body": null,
+   "parameters": {
+    "query:status": {
+     "required": false,
+     "schema": {
+      "default": "PENDING",
+      "enum": [
+       "PENDING",
+       "DECIDED",
+       "ALL"
+      ],
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/admin/schedules/settings": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
   "GET /api/admin/stations": {
    "body": null,
    "parameters": {},
@@ -1010,6 +1058,13 @@
    }
   },
   "GET /api/carrier/routes": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/carrier/schedules": {
    "body": null,
    "parameters": {},
    "responses": {
@@ -3380,6 +3435,37 @@
     "200": {}
    }
   },
+  "POST /api/admin/authorities/{code}/members": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "email": {
+        "maxLength": 200,
+        "minLength": 3,
+        "type": "string"
+       }
+      },
+      "required": [
+       "email"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:code": {
+     "required": true,
+     "schema": {
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "201": {}
+   }
+  },
   "POST /api/admin/boarding/operating-companies": {
    "body": {
     "content": {
@@ -4936,6 +5022,47 @@
   },
   "POST /api/admin/privacy/requests/{request_uid}/complete": {
    "body": null,
+   "parameters": {
+    "path:request_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/admin/schedules/requests/{request_uid}/decide": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "approve": {
+        "type": "boolean"
+       },
+       "note": {
+        "maxLength": 500,
+        "nullable": true,
+        "type": "string"
+       },
+       "number": {
+        "maximum": 9999.0,
+        "minimum": 1.0,
+        "nullable": true,
+        "type": "integer"
+       }
+      },
+      "required": [
+       "approve"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
    "parameters": {
     "path:request_uid": {
      "required": true,
@@ -6958,6 +7085,364 @@
     "required": true
    },
    "parameters": {},
+   "responses": {
+    "201": {}
+   }
+  },
+  "POST /api/carrier/schedule-requests/{request_uid}/withdraw": {
+   "body": null,
+   "parameters": {
+    "path:request_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/carrier/schedules": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "auto_publish": {
+        "default": true,
+        "type": "boolean"
+       },
+       "base_price": {
+        "maximum": 1000000000000.0,
+        "minimum": 0.0,
+        "type": "integer"
+       },
+       "days_of_month": {
+        "items": {
+         "type": "integer"
+        },
+        "maxItems": 31,
+        "type": "array"
+       },
+       "days_of_week": {
+        "items": {
+         "type": "integer"
+        },
+        "maxItems": 7,
+        "type": "array"
+       },
+       "departure_time": {
+        "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$",
+        "type": "string"
+       },
+       "direction": {
+        "default": "OUTBOUND",
+        "enum": [
+         "OUTBOUND",
+         "INBOUND"
+        ],
+        "type": "string"
+       },
+       "from_date": {
+        "format": "date",
+        "type": "string"
+       },
+       "note": {
+        "maxLength": 500,
+        "nullable": true,
+        "type": "string"
+       },
+       "proposed_number": {
+        "maximum": 9999.0,
+        "minimum": 1.0,
+        "nullable": true,
+        "type": "integer"
+       },
+       "recurrence": {
+        "enum": [
+         "DAILY",
+         "WEEKLY",
+         "MONTHLY"
+        ],
+        "type": "string"
+       },
+       "route_uid": {
+        "format": "uuid",
+        "type": "string"
+       },
+       "skip_dates": {
+        "items": {
+         "format": "date",
+         "type": "string"
+        },
+        "maxItems": 400,
+        "type": "array"
+       },
+       "trip_type": {
+        "default": "SCHEDULED",
+        "enum": [
+         "SCHEDULED",
+         "SHUTTLE",
+         "INTERNATIONAL",
+         "CARGO",
+         "EXTRA"
+        ],
+        "type": "string"
+       },
+       "until_date": {
+        "format": "date",
+        "nullable": true,
+        "type": "string"
+       },
+       "vehicle_uid": {
+        "format": "uuid",
+        "nullable": true,
+        "type": "string"
+       }
+      },
+      "required": [
+       "departure_time",
+       "recurrence",
+       "from_date",
+       "route_uid",
+       "base_price"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "201": {}
+   }
+  },
+  "POST /api/carrier/schedules/preview": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "days_of_month": {
+        "items": {
+         "type": "integer"
+        },
+        "maxItems": 31,
+        "type": "array"
+       },
+       "days_of_week": {
+        "items": {
+         "type": "integer"
+        },
+        "maxItems": 7,
+        "type": "array"
+       },
+       "departure_time": {
+        "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$",
+        "type": "string"
+       },
+       "from_date": {
+        "format": "date",
+        "type": "string"
+       },
+       "recurrence": {
+        "enum": [
+         "DAILY",
+         "WEEKLY",
+         "MONTHLY"
+        ],
+        "type": "string"
+       },
+       "skip_dates": {
+        "items": {
+         "format": "date",
+         "type": "string"
+        },
+        "maxItems": 400,
+        "type": "array"
+       },
+       "until_date": {
+        "format": "date",
+        "nullable": true,
+        "type": "string"
+       }
+      },
+      "required": [
+       "departure_time",
+       "recurrence",
+       "from_date"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/carrier/schedules/{schedule_uid}/change": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "auto_publish": {
+        "nullable": true,
+        "type": "boolean"
+       },
+       "base_price": {
+        "maximum": 1000000000000.0,
+        "minimum": 0.0,
+        "nullable": true,
+        "type": "integer"
+       },
+       "days_of_month": {
+        "items": {
+         "type": "integer"
+        },
+        "maxItems": 31,
+        "nullable": true,
+        "type": "array"
+       },
+       "days_of_week": {
+        "items": {
+         "type": "integer"
+        },
+        "maxItems": 7,
+        "nullable": true,
+        "type": "array"
+       },
+       "departure_time": {
+        "nullable": true,
+        "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$",
+        "type": "string"
+       },
+       "effective_from": {
+        "format": "date",
+        "type": "string"
+       },
+       "no_end": {
+        "default": false,
+        "type": "boolean"
+       },
+       "note": {
+        "maxLength": 500,
+        "nullable": true,
+        "type": "string"
+       },
+       "recurrence": {
+        "enum": [
+         "DAILY",
+         "WEEKLY",
+         "MONTHLY"
+        ],
+        "nullable": true,
+        "type": "string"
+       },
+       "skip_dates": {
+        "items": {
+         "format": "date",
+         "type": "string"
+        },
+        "maxItems": 400,
+        "nullable": true,
+        "type": "array"
+       },
+       "until_date": {
+        "format": "date",
+        "nullable": true,
+        "type": "string"
+       },
+       "vehicle_uid": {
+        "format": "uuid",
+        "nullable": true,
+        "type": "string"
+       }
+      },
+      "required": [
+       "effective_from"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:schedule_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "201": {}
+   }
+  },
+  "POST /api/carrier/schedules/{schedule_uid}/pause": {
+   "body": null,
+   "parameters": {
+    "path:schedule_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/carrier/schedules/{schedule_uid}/resume": {
+   "body": null,
+   "parameters": {
+    "path:schedule_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/carrier/schedules/{schedule_uid}/stop": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "from_date": {
+        "format": "date",
+        "type": "string"
+       },
+       "note": {
+        "maxLength": 500,
+        "nullable": true,
+        "type": "string"
+       }
+      },
+      "required": [
+       "from_date"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:schedule_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
    "responses": {
     "201": {}
    }
@@ -12567,6 +13052,33 @@
     "required": true
    },
    "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "PUT /api/admin/schedules/settings/{key}": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "value": {}
+      },
+      "required": [
+       "value"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:key": {
+     "required": true,
+     "schema": {
+      "type": "string"
+     }
+    }
+   },
    "responses": {
     "200": {}
    }

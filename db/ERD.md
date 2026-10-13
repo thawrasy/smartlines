@@ -91,10 +91,11 @@ flowchart LR
   net -->|3| ref
   ops -->|2| fin
   ops -->|10| fleet
-  ops -->|23| iam
+  ops -->|24| iam
   ops -->|17| net
   ops -->|1| ref
   ops -->|3| sales
+  ops -->|1| sec
   pricing -->|2| fin
   pricing -->|24| iam
   pricing -->|7| net
@@ -135,7 +136,7 @@ flowchart LR
   sec -->|6| fin
   sec -->|5| fleet
   sec -->|1| gov
-  sec -->|28| iam
+  sec -->|29| iam
   sec -->|6| ops
   sec -->|5| sales
   ship -->|1| crm
@@ -1736,6 +1737,21 @@ erDiagram
     bigint diversion_id FK
     bigint reviewed_by FK
   }
+  ops_schedule_approval {
+    bigint request_id PK
+    smallint step PK
+    bigint decided_by FK
+    bigint authority_id FK
+  }
+  ops_schedule_request {
+    bigint id PK
+    uuid uid
+    bigint company_id FK
+    bigint template_id FK
+    bigint trip_id FK
+    text status
+    bigint requested_by FK
+  }
   ops_seat_lock {
     bigint id PK
     bigint trip_id FK
@@ -1854,6 +1870,7 @@ erDiagram
     bigint default_vehicle_id FK
     character currency FK
     text status
+    uuid uid
   }
   ops_vehicle_position {
     bigint vehicle_id PK
@@ -1932,6 +1949,9 @@ erDiagram
   sales_ticket {
     ref external
   }
+  sec_authority_profile {
+    ref external
+  }
   ops_ride_segment_charge }o..o| fin_ledger_txn : "ledger_txn_id"
   ops_shuttle_ride }o--|| fin_wallet : "wallet_id"
   ops_crew_assignment }o--|| fleet_crew_profile : "party_id"
@@ -1959,6 +1979,7 @@ erDiagram
   ops_route_violation }o--|| iam_company : "company_id"
   ops_offline_pack_download }o--|| iam_company : "company_id"
   ops_position_backlog }o--|| iam_company : "company_id"
+  ops_schedule_request }o--|| iam_company : "company_id"
   ops_trip }o--|| iam_company : "company_id"
   ops_trip_cancel_penalty }o--|| iam_company : "company_id"
   ops_trip_disruption }o..o| iam_company : "partner_company_id"
@@ -1988,6 +2009,7 @@ erDiagram
   ops_incident_external_link }o--|| ops_incident : "incident_id"
   ops_trip_disruption }o..o| ops_incident : "incident_id"
   ops_violation_report }o--|| ops_route_violation : "violation_id"
+  ops_schedule_approval }o--|| ops_schedule_request : "request_id"
   ops_proximity_sample }o--|| ops_shuttle_ride : "ride_id"
   ops_ride_segment_charge }o--|| ops_shuttle_ride : "ride_id"
   ops_trip_stop }o--|| ops_trip : "trip_id"
@@ -2018,14 +2040,17 @@ erDiagram
   ops_incident }o..o| ops_trip : "trip_id"
   ops_shuttle_ride }o--|| ops_trip : "trip_id"
   ops_route_violation }o..o| ops_trip : "trip_id"
+  ops_schedule_request }o..o| ops_trip : "trip_id"
   ops_trip_pair_fare }o--|| ops_trip_stop : "trip_id,from_seq"
   ops_trip_pair_fare }o--|| ops_trip_stop : "trip_id,to_seq"
   ops_trip_stop_event }o--|| ops_trip_stop : "trip_id,seq"
+  ops_schedule_request }o..o| ops_trip_template : "template_id"
   ops_trip }o..o| ops_trip_template : "template_id"
   ops_trip }o--|| ref_trip_type : "trip_type"
   ops_shuttle_ride }o..o| sales_boarding_event : "boarding_event_id"
   ops_seat_segment }o..o| sales_ticket : "ticket_id"
   ops_seat_segment }o..o| sales_ticket : "trip_id,ticket_id"
+  ops_schedule_approval }o..o| sec_authority_profile : "authority_id"
 ```
 
 ## `sales` — Channels, bookings, passengers, tickets, subscriptions and travel documents
@@ -3600,6 +3625,11 @@ erDiagram
     bigint approved_by FK
     text status
   }
+  sec_authority_member {
+    bigint authority_id PK
+    bigint user_id PK
+    bigint added_by FK
+  }
   sec_authority_order {
     bigint id PK
     bigint authority_id FK
@@ -3826,6 +3856,7 @@ erDiagram
   sec_risk_assessment }o..o| iam_api_client : "subject_api_client_id"
   sec_fraud_case }o..o| iam_api_client : "subject_api_client_id"
   sec_access_review }o--|| iam_app_user : "user_id"
+  sec_authority_member }o--|| iam_app_user : "user_id"
   sec_sos_event }o..o| iam_app_user : "triggered_by"
   sec_external_access_grant }o--|| iam_app_user : "user_id"
   sec_policy_decision }o..o| iam_app_user : "user_id"
@@ -3861,6 +3892,7 @@ erDiagram
   sec_screening_request }o..o| sales_booking : "context_booking_id"
   sec_authority_order }o..o| sales_booking : "target_booking_id"
   sec_authority_order }o..o| sales_ticket : "target_ticket_id"
+  sec_authority_member }o--|| sec_authority_profile : "authority_id"
   sec_authority_policy }o--|| sec_authority_profile : "authority_id"
   sec_screening_request }o--|| sec_authority_profile : "authority_id"
   sec_watchlist_entry }o..o| sec_authority_profile : "authority_id"

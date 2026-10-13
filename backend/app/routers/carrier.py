@@ -18,6 +18,7 @@ from ..modules.fleet import service as fleet
 from ..modules.photo import service as photo
 from ..modules.sales import penalties
 from ..modules.sales import service as sales
+from ..modules.schedules import service as schedules
 from ..security import hash_password, password_problem
 from ..util import row_dict, rows
 
@@ -283,46 +284,6 @@ async def trips(request: Request, pr: Principal = Depends(operator)):
     return {"trips": rows(recs)}
 
 
-async def _insert_trip(conn, pr: Principal, route, vehicle, dep: datetime, publish: bool,
-                       driver_party: Optional[int] = None, template_id: Optional[int] = None,
-                       trip_type: str = "SCHEDULED", service_number_id: Optional[int] = None) -> tuple[int, str]:
-    """Writes one trip with its stops, seat segments and driver: the same trip whether made by hand or from a template."""
-    stops = await conn.fetch("SELECT * FROM net.route_stop WHERE route_id = $1 ORDER BY seq", route["id"])
-    code3 = await conn.fetchval("SELECT code3 FROM net.carrier_code WHERE company_id = $1 AND status = 'ACTIVE'",
-                                pr.company_id) or "XXX"
-    local = dep.astimezone(ZoneInfo(await markets.station_zone(conn, stops[0]["station_id"])))
-    trip_no = f"{code3}-{route['code']}-{local:%H%M}/{local:%d%b%y}".upper()
-    n = len(stops)
-    arrival = dep + timedelta(minutes=stops[-1]["arr_offset_min"])
-    status = "PUBLISHED" if publish else "DRAFT"
-    # The trip keeps the vehicle's seat map as it is today, so seats sold never move if the layout changes
-    seat_map = await fleet.trip_seat_map(conn, vehicle["id"])
-    trip_id = await conn.fetchval(
-        """INSERT INTO ops.trip (trip_no, company_id, route_id, service_type, vehicle_id, departure_at, arrival_at,
-             status, seats_total, segments_count, currency, base_price, published_at, seat_map, template_id, trip_type,
-             service_number_id)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NULL, $11, CASE WHEN $8 = 'PUBLISHED' THEN now() END,
-                   $12::jsonb, $13, $14, $15)
-           RETURNING id""",
-        trip_no, pr.company_id, route["id"], "INDIRECT" if n > 2 else "DIRECT", vehicle["id"], dep, arrival, status,
-        vehicle["passenger_seats"], n - 1, stops[-1]["fare_from_origin"], json.dumps(seat_map) if seat_map else None,
-        template_id, trip_type, service_number_id)
-    await conn.executemany(
-        """INSERT INTO ops.trip_stop (trip_id, seq, station_id, kind, sched_arr, sched_dep, fare_from_origin, rest_min)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)""",
-        [(trip_id, s["seq"], s["station_id"], "REST" if s["kind"] == "REST" else "STATION",
-          dep + timedelta(minutes=s["arr_offset_min"]), dep + timedelta(minutes=s["dep_offset_min"]),
-          s["fare_from_origin"], s["rest_min"]) for s in stops])
-    await conn.execute(
-        """INSERT INTO ops.seat_segment (trip_id, seat_no, seg)
-           SELECT $1, seat, seg FROM generate_series(1, $2) seat, generate_series(0, $3) seg""",
-        trip_id, vehicle["passenger_seats"], n - 2)
-    if driver_party:
-        await conn.execute("INSERT INTO ops.crew_assignment (trip_id, party_id, crew_role) VALUES ($1, $2, 'DRIVER')",
-                           trip_id, driver_party)
-    return trip_id, trip_no
-
-
 @router.post("/trips", status_code=201)
 async def create_trip(body: TripIn, request: Request, pr: Principal = Depends(operator)):
     _need(pr, "trip.publish")
@@ -345,6 +306,9 @@ async def create_trip(body: TripIn, request: Request, pr: Principal = Depends(op
                     WHERE p.uid = $1 AND cp.status = 'ACTIVE'""", body.driver_uid)
             if driver is None:
                 raise not_found("driver")
+        # while the settings ask for it, a trip made by hand is published once its approval stages are passed (1117)
+        approval = body.publish and await conn.fetchval("SELECT ops.schedule_needs_approval('TRIP')")
+        publish = body.publish and not approval
         number_id = None
         if body.service_number is not None:      # one of the carrier's service numbers on the day the trip runs (1114)
             number_id = await conn.fetchval(
@@ -354,15 +318,20 @@ async def create_trip(body: TripIn, request: Request, pr: Principal = Depends(op
                 raise ApiError(422, "SERVICE_NUMBER_UNKNOWN", "define the service number first, or leave it out")
         try:
             async with conn.transaction():
-                trip_id, trip_no = await _insert_trip(conn, pr, route, vehicle, dep, body.publish, driver, trip_type=body.trip_type,
-                                                      service_number_id=number_id)
+                trip_id, trip_no = await schedules.insert_trip(conn, pr.company_id, route, vehicle, dep, publish, driver,
+                                                               trip_type=body.trip_type, service_number_id=number_id)
         except asyncpg.UniqueViolationError as exc:
             if "trip_number_day_uq" not in str(exc):
                 raise
             raise ApiError(409, "TRIP_NUMBER_TAKEN", "another trip runs under this number that day") from exc
         made = await conn.fetchrow("SELECT uid, trip_code FROM ops.trip WHERE id = $1", trip_id)
+        asked = None
+        if approval:
+            asked = json.loads(await conn.fetchval(
+                "SELECT ops.request_schedule('TRIP', NULL, $1, '{}'::jsonb, NULL, NULL, NULL)::text", made["uid"]))
     request.state.audit = {"action": "trip.create", "object_type": "trip", "object_id": trip_id}
-    return {"uid": str(made["uid"]), "trip_no": trip_no, "trip_code": made["trip_code"]}
+    return {"uid": str(made["uid"]), "trip_no": trip_no, "trip_code": made["trip_code"],
+            "approval": {"uid": asked["uid"], "status": asked["status"]} if asked else None}
 
 
 class GenerateIn(BaseModel):
@@ -374,47 +343,27 @@ class GenerateIn(BaseModel):
 
 @router.post("/trip-templates/{template_id}/generate")
 async def generate_trips(template_id: int, body: GenerateIn, request: Request, pr: Principal = Depends(operator)):
-    """Trips of a recurring template for every operating day in the range. A departure the template already produced
-    is skipped (one trip per template and departure, schema file 1054), so the same range can be generated again."""
+    """Trips of a regular trip for every day it runs in the range (its pattern, period and dates off; 1117). A departure
+    it already produced is skipped (one trip per template and departure, schema file 1054), so the same range can be
+    generated again. An approved regular trip also makes its trips by itself, up to the horizon the platform sets."""
     _need(pr, "trip.publish")
     if body.to_date < body.from_date or (body.to_date - body.from_date).days > 62:
         raise ApiError(422, "INVALID_RANGE", "generate at most 63 days at a time, from a date to a later one")
-    created, skipped = [], []
     async with db.transaction(context_for(request, pr)) as conn:
         tpl = await conn.fetchrow("SELECT * FROM ops.trip_template WHERE id = $1 AND company_id = $2", template_id, pr.company_id)
         if tpl is None:
             raise not_found("template")
         if tpl["status"] != "ACTIVE":
             raise ApiError(409, "TEMPLATE_NOT_ACTIVE", "only an active template generates trips")
-        route = await conn.fetchrow("SELECT id, code, origin_station_id FROM net.route WHERE id = $1 AND status = 'ACTIVE'", tpl["route_id"])
+        vehicle_id = None
         if body.vehicle_uid:
-            vehicle = await conn.fetchrow("SELECT id, passenger_seats FROM fleet.vehicle WHERE uid = $1", body.vehicle_uid)
-        else:
-            vehicle = await conn.fetchrow("SELECT id, passenger_seats FROM fleet.vehicle WHERE id = $1", tpl["default_vehicle_id"])
-        if route is None or vehicle is None:
-            raise ApiError(422, "TEMPLATE_INCOMPLETE", "the template needs an active route and a vehicle")
-        zone = ZoneInfo(await markets.station_zone(conn, route["origin_station_id"]))   # the template's times are local there
-        active, soonest = tpl["active"], datetime.now(zone) + timedelta(minutes=30)
-        day = body.from_date
-        while day <= body.to_date:
-            in_period = (active.lower is None or day >= active.lower) and (active.upper is None or day < active.upper)
-            if in_period and day.isoweekday() in tpl["days_of_week"]:
-                dep = datetime.combine(day, tpl["departure_time"], tzinfo=zone)
-                if dep < soonest:
-                    skipped.append({"date": day.isoformat(), "reason": "TOO_SOON"})
-                elif await conn.fetchval("SELECT 1 FROM ops.trip WHERE template_id = $1 AND departure_at = $2", tpl["id"], dep):
-                    skipped.append({"date": day.isoformat(), "reason": "EXISTS"})
-                else:
-                    try:                                  # a vehicle busy that day skips the day, not the whole range
-                        async with conn.transaction():
-                            made, trip_no = await _insert_trip(conn, pr, route, vehicle, dep, body.publish, template_id=tpl["id"])
-                        created.append({"date": day.isoformat(), "trip_no": trip_no,
-                                        "trip_code": await conn.fetchval("SELECT trip_code FROM ops.trip WHERE id = $1", made)})
-                    except (asyncpg.RaiseError, asyncpg.UniqueViolationError) as e:
-                        # a service number already used that day by another trip of the carrier (1114)
-                        reason = "TRIP_NUMBER_TAKEN" if "trip_number_day_uq" in str(e) else str(e).split(":")[0]
-                        skipped.append({"date": day.isoformat(), "reason": reason})
-            day += timedelta(days=1)
+            vehicle_id = await conn.fetchval("SELECT id FROM fleet.vehicle WHERE uid = $1 AND company_id = $2", body.vehicle_uid, pr.company_id)
+            if vehicle_id is None:
+                raise not_found("vehicle")
+        try:
+            created, skipped = await schedules.make_trips(conn, tpl, body.from_date, body.to_date, body.publish, vehicle_id)
+        except schedules.Incomplete as exc:
+            raise ApiError(422, "TEMPLATE_INCOMPLETE", "the template needs an active route and a vehicle") from exc
     request.state.audit = {"action": "trip.generate", "object_type": "trip_template", "object_id": tpl["id"]}
     return {"created": created, "skipped": skipped}
 
@@ -433,9 +382,18 @@ async def publish_trip(trip_uid: uuid.UUID, request: Request, pr: Principal = De
         t = await _own_trip(conn, pr, trip_uid)
         if t["status"] != "DRAFT":
             raise ApiError(409, "INVALID_TRANSITION", "only draft trips can be published")
+        # a trip made by hand waits for its approval stages while the settings ask for them (1117)
+        if t["template_id"] is None and await conn.fetchval("SELECT ops.schedule_needs_approval('TRIP')") and not await conn.fetchval(
+                "SELECT 1 FROM ops.schedule_request WHERE trip_id = $1 AND kind = 'TRIP' AND status = 'APPROVED'", t["id"]):
+            pending = await conn.fetchval("SELECT uid FROM ops.schedule_request WHERE trip_id = $1 AND status = 'PENDING'", t["id"])
+            if pending is None:
+                pending = json.loads(await conn.fetchval(
+                    "SELECT ops.request_schedule('TRIP', NULL, $1, '{}'::jsonb, NULL, NULL, NULL)::text", trip_uid))["uid"]
+            request.state.audit = {"action": "trip.publish_request", "object_type": "trip", "object_id": t["id"]}
+            return {"ok": True, "status": "PENDING_APPROVAL", "approval": {"uid": str(pending), "status": "PENDING"}}
         await conn.execute("UPDATE ops.trip SET status = 'PUBLISHED', published_at = now() WHERE id = $1", t["id"])
     request.state.audit = {"action": "trip.publish", "object_type": "trip", "object_id": t["id"]}
-    return {"ok": True}
+    return {"ok": True, "status": "PUBLISHED"}
 
 
 @router.get("/trips/{trip_uid}/tickets/{ticket_uid}/photo")

@@ -186,6 +186,9 @@ async def main(once: bool) -> None:
                         await conn.execute("SELECT ship.expire_parcel_offers()")
                         # departed trips whose vehicle went silent get an alert, escalated if the silence lasts (1100)
                         await conn.execute("SELECT ops.raise_tracking_alerts()")
+                    # approved regular trips make their trips ahead, so one with no end runs until it is stopped (1117)
+                    from ..schedules.service import generate_due
+                    await generate_due()
                     # refunds whose provider outcome is unknown are asked again, with the same reference (R-17)
                     await resend_refunds()
                     # paid bookings get their e-invoices, refunded ones their credit notes (1104)

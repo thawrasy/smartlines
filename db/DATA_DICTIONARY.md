@@ -2,7 +2,7 @@
 
 > Generated from the built database (`db/tools/gen_docs.py`); do not edit by hand.
 
-**524 tables, 5410 columns, in 26 schemas.**
+**527 tables, 5452 columns, in 26 schemas.**
 
 Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant isolation (RLS) · 🧩 partitioned monthly · 🔒 append-only / change-protected
 
@@ -14,14 +14,14 @@ Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant i
 - [`net` — Network: stations, routes, lines, corridors and geofences](#net) (26 tables)
 - [`fleet` — Fleet: vehicles, trucks, trailers, seats, crew, licenses and insurance](#fleet) (22 tables)
 - [`pricing` — Pricing, taxes, commissions, campaigns and loyalty](#pricing) (38 tables)
-- [`ops` — Trips, inventory, operations, shuttle rides, tracking and incidents](#ops) (36 tables)
+- [`ops` — Trips, inventory, operations, shuttle rides, tracking and incidents](#ops) (38 tables)
 - [`sales` — Channels, bookings, passengers, tickets, subscriptions and travel documents](#sales) (28 tables)
 - [`fin` — Wallets, ledger, payments, allocation, settlement and float](#fin) (35 tables)
 - [`acct` — Simplified accounting, e-invoicing and tax profiles](#acct) (37 tables)
 - [`bill` — Carrier subscriptions, metering and platform invoices](#bill) (7 tables)
 - [`crm` — Complaints, ratings, notifications, the AI assistant and the contact center](#crm) (19 tables)
 - [`gov` — Governance, obligations and data protection](#gov) (15 tables)
-- [`sec` — Security: IP rules, risk, signing, the security hub and government adapters](#sec) (26 tables)
+- [`sec` — Security: IP rules, risk, signing, the security hub and government adapters](#sec) (27 tables)
 - [`ptn` — Service partners: fuel stations, rest stops and maintenance](#ptn) (14 tables)
 - [`ship` — Shipments and the integrated shipping network](#ship) (57 tables)
 - [`frt` — Trucking, heavy transport and transit freight](#frt) (14 tables)
@@ -3159,6 +3159,48 @@ A deviation from the route the trip must keep to: warning, continuous alarm, cor
 | `updated_at` | `timestamp with time zone` | ✱ | `now()` |
 | `evidence_trust` | `text` | ✱ | `'HIGH'::text` |
 
+### `ops.schedule_approval` 🛡️ 🔒
+
+Each stage's decision on a request of regular trips: who, for whom (the platform or an authority), and when; never changed (1117)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `request_id` | `bigint` | 🔑 🔗 `ops.schedule_request` ✱ |  |
+| `step` | `smallint` | 🔑 ✱ |  |
+| `stage` | `jsonb` | ✱ |  |
+| `decision` | `text` | ✱ |  |
+| `decided_by` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `authority_id` | `bigint` | 🔗 `sec.authority_profile`  |  |
+| `assigned_number` | `integer` |  |  |
+| `note` | `text` |  |  |
+| `decided_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `ops.schedule_request` 🛡️
+
+A carrier's request for a new regular trip, a change, a stop, or a trip made by hand, with the approval stages in force when it was made (1117)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `kind` | `text` | ✱ |  |
+| `template_id` | `bigint` | 🔗 `ops.trip_template`  |  |
+| `trip_id` | `bigint` | 🔗 `ops.trip`  |  |
+| `proposal` | `jsonb` | ✱ | `'{}'::jsonb` |
+| `effective_from` | `date` |  |  |
+| `proposed_number` | `integer` |  |  |
+| `assigned_number` | `integer` |  |  |
+| `note` | `text` |  |  |
+| `approval_stages` | `jsonb` | ✱ | `'[]'::jsonb` |
+| `step` | `smallint` | ✱ | `0` |
+| `status` | `text` | ✱ | `'PENDING'::text` |
+| `requested_by` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `requested_at` | `timestamp with time zone` | ✱ | `now()` |
+| `decided_at` | `timestamp with time zone` |  |  |
+| `decision_note` | `text` |  |  |
+| `result` | `jsonb` |  |  |
+
 ### `ops.seat_lock` 🛡️
 
 Audit trail of seat holds. Never read to decide availability: the hold itself is the LOCKED row of ops.seat_segment (study 16.28)
@@ -3486,6 +3528,16 @@ Recurring trip pattern that generates the actual trips
 | `active` | `daterange` | ✱ |  |
 | `status` | `text` | ✱ | `'ACTIVE'::text` |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `recurrence` | `text` | ✱ | `'WEEKLY'::text` |
+| `days_of_month` | `smallint[]` | ✱ | `'{}'::smallint[]` |
+| `skip_dates` | `date[]` | ✱ | `'{}'::date[]` |
+| `trip_type` | `text` | ✱ | `'SCHEDULED'::text` |
+| `auto_publish` | `boolean` | ✱ | `true` |
+| `rolling` | `boolean` | ✱ | `false` |
+| `generated_until` | `date` |  |  |
+| `last_run` | `jsonb` |  |  |
+| `approved_at` | `timestamp with time zone` |  |  |
 
 ### `ops.vehicle_position` 🛡️
 
@@ -6084,6 +6136,17 @@ Official data request with dual authorization; nothing is delivered to any autho
 | `delivered_at` | `timestamp with time zone` |  |  |
 | `delivery_ref` | `text` |  |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `sec.authority_member` 🛡️
+
+The staff accounts that decide for a government authority, at the approval stages that name it (1117)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `authority_id` | `bigint` | 🔑 🔗 `sec.authority_profile` ✱ |  |
+| `user_id` | `bigint` | 🔑 🔗 `iam.app_user` ✱ |  |
+| `added_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `added_at` | `timestamp with time zone` | ✱ | `now()` |
 
 ### `sec.authority_order` 🛡️
 

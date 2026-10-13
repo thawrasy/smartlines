@@ -123,14 +123,15 @@ RESOURCES = [
              {P: "loyalty.manage", PA: None}, create=False, update=False, readonly_portals=(P, PA), group="members"),
 
     # ------------------------------------------------------------- fleet records and trip planning (4.13, 4.17, 7.x)
+    # regular trips and their numbers come from approved requests (1117, /api/carrier/schedules): read here; a carrier
+    # pauses and resumes a regular trip, and ends it through a stop request
     Resource("trip-template", "fleet_records", "ops.trip_template",
-             c("route_id service_number_id default_vehicle_id departure_time days_of_week base_price currency active status"),
-             c("route_id service_number_id default_vehicle_id departure_time days_of_week fare_brand_codes base_price currency active"),
-             {O: "trip.publish", P: None}, company_col="company_id", readonly_portals=(P,), filters=("status",), group="planning",
-             actions=(Action("pause", {"status": "PAUSED"}, {"status": ["ACTIVE"]}), resume(("PAUSED",)),
-                      retire(("ACTIVE", "PAUSED")))),
+             c("route_id service_number_id default_vehicle_id departure_time recurrence days_of_week days_of_month active status"),
+             (), {O: "trip.publish", P: None}, company_col="company_id", create=False, update=False, readonly_portals=(P,),
+             filters=("status",), group="planning",
+             actions=(Action("pause", {"status": "PAUSED"}, {"status": ["ACTIVE"]}), resume(("PAUSED",)))),
     Resource("service-number", "fleet_records", "net.service_number", c("company_id number block route_id direction valid created_at"),
-             c("number block route_id direction valid"), {O: "trip.publish", P: None}, company_col="company_id",
+             (), {O: "trip.publish", P: None}, company_col="company_id", create=False, update=False,
              readonly_portals=(P,), group="planning"),
     Resource("trip-change", "fleet_records", "ops.trip_change",
              c("trip_id kind old_departure new_departure shift_min reason by_user_id created_at"), (),

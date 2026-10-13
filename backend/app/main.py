@@ -30,6 +30,7 @@ from .modules.family import api as family_api
 from .modules.photo import api as photo_api
 from .modules.boarding import api as boarding_api
 from .modules.boarding import bays as boarding_bays
+from .modules.schedules import api as schedules_api
 from .modules.support import api as support_api
 from .modules.manifests import api as manifests_api
 from .modules.boarding import screens as boarding_screens
@@ -132,7 +133,7 @@ for r in (metrics.router, auth.router, public.router, bookings.router, wallet.ro
           manifests_api.carrier, manifests_api.platform,
           support_api.router, support_api.admin, cash_api.router, seo_pages.router, parcels_api.customer, parcels_api.carrier,
           loyalty_api.router, loyalty_admin.router, station_sales.router, boarding_screens.platform, boarding_screens.carrier,
-          boarding_screens.public, boarding_bays.station, boarding_bays.platform):
+          boarding_screens.public, boarding_bays.station, boarding_bays.platform, schedules_api.carrier, schedules_api.platform):
     app.include_router(r)
 
 app.add_middleware(metrics.MetricsMiddleware)   # request counts and latency per route (T3-16)

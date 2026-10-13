@@ -35,3 +35,6 @@ The station's departure board, the counter's trips and the boarding pass, the pa
 ticket and verification page, the driver's trips and offline pack, and the carrier's trip list (with the reference
 under it). The passenger's message when a carrier cancels a trip names it too. Reports, manifests, settlements and the
 partners' API keep the reference.
+
+A regular trip's number is given by the platform when it approves the regular trip, in a block by trip type with an odd
+number outbound and an even one on the return: see `REGULAR_TRIPS.md` (1117).

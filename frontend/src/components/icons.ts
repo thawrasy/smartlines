@@ -1,5 +1,11 @@
 // Material Symbols (rounded, Apache-2.0), bundled at build time. Generated list: add a name here to use it.
 
+import i_event_repeat from "@material-symbols/svg-400/rounded/event_repeat.svg?raw";
+import i_pending_actions from "@material-symbols/svg-400/rounded/pending_actions.svg?raw";
+import i_pause_circle from "@material-symbols/svg-400/rounded/pause_circle.svg?raw";
+import i_play_circle from "@material-symbols/svg-400/rounded/play_circle.svg?raw";
+import i_stop_circle from "@material-symbols/svg-400/rounded/stop_circle.svg?raw";
+import i_edit_calendar from "@material-symbols/svg-400/rounded/edit_calendar.svg?raw";
 import i_local_parking from "@material-symbols/svg-400/rounded/local_parking.svg?raw";
 import i_event_busy from "@material-symbols/svg-400/rounded/event_busy.svg?raw";
 import i_image from "@material-symbols/svg-400/rounded/image.svg?raw";
@@ -301,6 +307,12 @@ export const ICONS = {
   event_busy: i_event_busy,
   image: i_image,
   keyboard: i_keyboard,
+  event_repeat: i_event_repeat,
+  pending_actions: i_pending_actions,
+  pause_circle: i_pause_circle,
+  play_circle: i_play_circle,
+  stop_circle: i_stop_circle,
+  edit_calendar: i_edit_calendar,
 } as const;
 
 export type IconName = keyof typeof ICONS;

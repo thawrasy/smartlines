@@ -40,6 +40,8 @@ const CarrierRoutes = lazyNamed(() => import("./pages/carrier/Carrier"), "Carrie
 const CarrierTrips = lazyNamed(() => import("./pages/carrier/Carrier"), "CarrierTrips");
 const CarrierVehicles = lazyNamed(() => import("./pages/carrier/Carrier"), "CarrierVehicles");
 const CarrierLayouts = lazyNamed(() => import("./pages/carrier/Layouts"), "CarrierLayouts");
+const CarrierSchedules = lazyNamed(() => import("./pages/carrier/Schedules"), "CarrierSchedules");
+const AdminSchedules = lazyNamed(() => import("./pages/admin/Schedules"), "AdminSchedules");
 const CounterDashboard = lazyNamed(() => import("./pages/carrier/Counter"), "CounterDashboard");
 const CounterReport = lazyNamed(() => import("./pages/carrier/Counter"), "CounterReport");
 const CounterSell = lazyNamed(() => import("./pages/carrier/Counter"), "CounterSell");
@@ -121,6 +123,8 @@ function PlatformShell() {
       { to: "/admin/finance", icon: "payments", label: t("finance.desk"), show: can("withdrawal.approve", "payout.run") },
       { to: "/admin/stations", icon: "location_on", label: t("admin.stations"), show: can("station.approve") },
       { to: "/admin/boarding", icon: "departure_board", label: t("brdadm.nav"), show: can("boarding.manage", "payout.run") },
+      // regular trips: the platform's stages (schedule.approve), and the members of government authorities (regulators)
+      { to: "/admin/schedules", icon: "event_repeat", label: t("schedadm.nav"), show: can("schedule.approve", "schedule.settings", "regulator.dashboard") },
       { to: "/security", end: true, icon: "shield", label: t("security.title"), show: can("audit.view", "security.ip_rules") },
       { to: "/security/rules", icon: "block", label: t("security.rules"), show: can("security.ip_rules") },
       { to: "/security/auth", icon: "lock", label: t("security.authEvents"), show: can("audit.view", "security.ip_rules") },
@@ -147,6 +151,7 @@ function CarrierShell() {
       { to: "/carrier", end: true, icon: "dashboard", label: t("carrier.dashboard") },
       { to: "/carrier/counter", icon: "point_of_sale", label: t("counter.nav"), show: can("sale.cash") },
       { to: "/carrier/trips", icon: "directions_bus", label: t("carrier.trips") },
+      { to: "/carrier/schedules", icon: "event_repeat", label: t("sched.nav"), show: can("trip.publish") },
       { to: "/carrier/routes", icon: "route", label: t("carrier.routes") },
       { to: "/carrier/vehicles", icon: "directions_car", label: t("carrier.vehicles") },
       { to: "/carrier/layouts", icon: "event_seat", label: t("layout.title") },
@@ -239,6 +244,7 @@ export default function App() {
         <Route element={<RequirePortal portal="OPERATOR"><CarrierShell /></RequirePortal>}>
           <Route path="carrier" element={<CarrierDashboard />} />
           <Route path="carrier/trips" element={<CarrierTrips />} />
+          <Route path="carrier/schedules" element={<CarrierSchedules />} />
           <Route path="carrier/routes" element={<CarrierRoutes />} />
           <Route path="carrier/vehicles" element={<CarrierVehicles />} />
           <Route path="carrier/layouts" element={<CarrierLayouts />} />
@@ -295,6 +301,7 @@ export default function App() {
           <Route path="admin/privacy" element={<AdminPrivacy />} />
           <Route path="admin/stations" element={<AdminStations />} />
           <Route path="admin/boarding" element={<AdminBoarding />} />
+          <Route path="admin/schedules" element={<AdminSchedules />} />
           <Route path="admin/modules" element={<AdminModules />} />
           <Route path="admin/m/:module" element={<ModulePage />} />
           <Route path="admin/reports" element={<ReportsPage />} />
