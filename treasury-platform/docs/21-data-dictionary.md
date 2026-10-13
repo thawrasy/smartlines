@@ -2959,15 +2959,17 @@
 | IsScanned | BIT | لا | 0 |  |  |
 | FromRevision | INT | لا | 1 |  |  |
 | ToRevision | INT | نعم |  |  |  |
-| SupersedesId | BIGINT | نعم |  | fac.FacilityDocument |  |
+| SupersedesId | BIGINT | نعم |  | fac.FacilityDocument (via InheritedRootId) |  |
+| InheritedRootId | BIGINT | نعم |  |  | RootId of the predecessor; empty for the first row of a node (DR-28) |
+| RootId | BIGINT | نعم |  |  | the stable identity of the node across revisions (DQ-F13-4, DR-28) محسوب: `CASE WHEN InheritedRootId IS NULL THEN FacilityDocumentId ELSE InheritedRootId END` |
 | CreatedAt | DATETIME2(3) | لا | SYSUTCDATETIME() |  |  |
 | CreatedBy | BIGINT | نعم |  |  |  |
 | UpdatedAt | DATETIME2(3) | نعم |  |  |  |
 | UpdatedBy | BIGINT | نعم |  |  |  |
 
-**المفاتيح:** PK(FacilityDocumentId) · UQ(TenantId, FacilityId, DocumentId) WHERE ToRevision IS NULL · UQ(TenantId, FacilityId, PrecedenceRank) WHERE ToRevision IS NULL
+**المفاتيح:** PK(FacilityDocumentId) · UQ(TenantId, FacilityId, DocumentId) WHERE ToRevision IS NULL · UQ(TenantId, FacilityId, PrecedenceRank) WHERE ToRevision IS NULL · UQ(TenantId, RootId) WHERE ToRevision IS NULL
 
-**قيود:** `PrecedenceRank >= 1` · `PageCount IS NULL OR PageCount > 0` · `AmendsFacilityDocumentId IS NULL OR AmendsFacilityDocumentId <> FacilityDocumentId` · `ToRevision IS NULL OR ToRevision >= FromRevision`
+**قيود:** `PrecedenceRank >= 1` · `PageCount IS NULL OR PageCount > 0` · `AmendsFacilityDocumentId IS NULL OR AmendsFacilityDocumentId <> FacilityDocumentId` · `ToRevision IS NULL OR ToRevision >= FromRevision` · `(SupersedesId IS NULL AND InheritedRootId IS NULL) OR (SupersedesId IS NOT NULL AND InheritedRootId IS NOT NULL)`
 
 ### `fac.FacilityLender` — Lender and its share (FR-FAC-003, BR-FAC-007, V-FAC-02); shares total 100 and a single agent: checked by the application for every revision, and by trigger fac.TR_FacilityLender_ApprovedShares (db/static/050) for approved revisions
 
@@ -2984,15 +2986,17 @@
 | ContactId | BIGINT | نعم |  | ins.Contact (via InstitutionId) | جهة اتصال المشارك من المنشأة نفسها |
 | FromRevision | INT | لا | 1 |  |  |
 | ToRevision | INT | نعم |  |  |  |
-| SupersedesId | BIGINT | نعم |  | fac.FacilityLender |  |
+| SupersedesId | BIGINT | نعم |  | fac.FacilityLender (via InheritedRootId) |  |
+| InheritedRootId | BIGINT | نعم |  |  | RootId of the predecessor; empty for the first row of a node (DR-28) |
+| RootId | BIGINT | نعم |  |  | the stable identity of the node across revisions (DQ-F13-4, DR-28) محسوب: `CASE WHEN InheritedRootId IS NULL THEN FacilityLenderId ELSE InheritedRootId END` |
 | CreatedAt | DATETIME2(3) | لا | SYSUTCDATETIME() |  |  |
 | CreatedBy | BIGINT | نعم |  |  |  |
 | UpdatedAt | DATETIME2(3) | نعم |  |  |  |
 | UpdatedBy | BIGINT | نعم |  |  |  |
 
-**المفاتيح:** PK(FacilityLenderId) · UQ(TenantId, FacilityId, InstitutionId) WHERE ToRevision IS NULL
+**المفاتيح:** PK(FacilityLenderId) · UQ(TenantId, FacilityId, InstitutionId) WHERE ToRevision IS NULL · UQ(TenantId, RootId) WHERE ToRevision IS NULL
 
-**قيود:** `SharePct > 0 AND SharePct <= 100` · `Roles <> ''` · `Roles NOT LIKE '%SOLE%' OR SharePct = 100` · `ToRevision IS NULL OR ToRevision >= FromRevision`
+**قيود:** `SharePct > 0 AND SharePct <= 100` · `Roles <> ''` · `Roles NOT LIKE '%SOLE%' OR SharePct = 100` · `ToRevision IS NULL OR ToRevision >= FromRevision` · `(SupersedesId IS NULL AND InheritedRootId IS NULL) OR (SupersedesId IS NOT NULL AND InheritedRootId IS NOT NULL)`
 
 ### `fac.OutstandingSnapshot` — Snapshot of the recognised outstanding balance (FR-FAC-009, BR-FAC-017); PctOfLimit is derived and not stored
 
@@ -3026,7 +3030,7 @@
 
 **المفاتيح:** PK(OutstandingSnapshotId) · UQ(TenantId, FacilityId, LimitId, ProductId, AsOfDate, SourceKind)
 
-**قيود:** `AcknowledgedAmount >= 0` · `StatedPct IS NULL OR StatedPct >= 0` · `SourceDocumentId IS NOT NULL AND SourcePage IS NOT NULL OR (SourceDocumentId IS NULL AND Confidence = 'ENTERED_NO_DOCUMENT')` · `Confidence <> 'CONFIRMED_AGAINST_ORIGINAL' OR (VerifiedBy IS NOT NULL AND VerifiedOn IS NOT NULL)`
+**قيود:** `AcknowledgedAmount >= 0` · `StatedPct IS NULL OR StatedPct >= 0` · `SourceDocumentId IS NOT NULL AND SourcePage IS NOT NULL OR (SourceDocumentId IS NULL AND Confidence = 'ENTERED_NO_DOCUMENT')` · `Confidence <> 'CONFIRMED_AGAINST_ORIGINAL' OR (VerifiedBy IS NOT NULL AND VerifiedOn IS NOT NULL)` · `OriginalText IS NULL OR (OriginalText COLLATE Arabic_100_BIN2 NOT LIKE '%[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]%' AND OriginalText COLLATE Arabic_100_BIN2 NOT LIKE '%[A-Za-z][A-Za-z][0-9][0-9] [0-9][0-9][0-9][0-9] [0-9][0-9][0-9][0-9] [0-9][0-9][0-9][0-9]%')`
 
 ### `fac.Limit` — Limit-tree node (FR-FAC-010/011, BR-FAC-009/010, V-FAC-04..07)
 
@@ -3057,7 +3061,9 @@
 | CompanyAllocationMode | VARCHAR(10) | لا | NONE |  | تخصيص الشركات (BR-FAC-012) enum: NONE, PARTITION, SHARED_CAP |
 | FromRevision | INT | لا | 1 |  |  |
 | ToRevision | INT | نعم |  |  |  |
-| SupersedesId | BIGINT | نعم |  | fac.Limit |  |
+| SupersedesId | BIGINT | نعم |  | fac.Limit (via InheritedRootId) |  |
+| InheritedRootId | BIGINT | نعم |  |  | RootId of the predecessor; empty for the first row of a node (DR-28) |
+| RootId | BIGINT | نعم |  |  | the stable identity of the node across revisions (DQ-F13-4, DR-28) محسوب: `CASE WHEN InheritedRootId IS NULL THEN LimitId ELSE InheritedRootId END` |
 | SourceDocumentId | BIGINT | نعم |  | doc.Document |  |
 | SourcePage | VARCHAR(40) | نعم |  |  |  |
 | ReadFromScan | BIT | لا | 0 |  |  |
@@ -3072,9 +3078,9 @@
 | UpdatedAt | DATETIME2(3) | نعم |  |  |  |
 | UpdatedBy | BIGINT | نعم |  |  |  |
 
-**المفاتيح:** PK(LimitId) · UQ(TenantId, FacilityId, Code) WHERE ToRevision IS NULL
+**المفاتيح:** PK(LimitId) · UQ(TenantId, FacilityId, Code) WHERE ToRevision IS NULL · UQ(TenantId, RootId) WHERE ToRevision IS NULL
 
-**قيود:** `(AmountBasis = 'ABSOLUTE' AND Amount IS NOT NULL AND PctOfParent IS NULL) OR (AmountBasis = 'PCT_OF_PARENT' AND PctOfParent IS NOT NULL AND Amount IS NULL)` · `Amount IS NULL OR Amount >= 0` · `PctOfParent IS NULL OR (PctOfParent > 0 AND PctOfParent <= 100)` · `EffectiveAmount IS NULL OR EffectiveAmount >= 0` · `ParentLimitId IS NULL OR ParentLimitId <> LimitId` · `StartDate IS NULL OR EndDate IS NULL OR EndDate >= StartDate` · `ToRevision IS NULL OR ToRevision >= FromRevision` · `SourceDocumentId IS NOT NULL AND SourcePage IS NOT NULL OR (SourceDocumentId IS NULL AND Confidence = 'ENTERED_NO_DOCUMENT')` · `Confidence <> 'CONFIRMED_AGAINST_ORIGINAL' OR (VerifiedBy IS NOT NULL AND VerifiedOn IS NOT NULL)`
+**قيود:** `(AmountBasis = 'ABSOLUTE' AND Amount IS NOT NULL AND PctOfParent IS NULL) OR (AmountBasis = 'PCT_OF_PARENT' AND PctOfParent IS NOT NULL AND Amount IS NULL)` · `Amount IS NULL OR Amount >= 0` · `PctOfParent IS NULL OR (PctOfParent > 0 AND PctOfParent <= 100)` · `EffectiveAmount IS NULL OR EffectiveAmount >= 0` · `ParentLimitId IS NULL OR ParentLimitId <> LimitId` · `StartDate IS NULL OR EndDate IS NULL OR EndDate >= StartDate` · `ToRevision IS NULL OR ToRevision >= FromRevision` · `SourceDocumentId IS NOT NULL AND SourcePage IS NOT NULL OR (SourceDocumentId IS NULL AND Confidence = 'ENTERED_NO_DOCUMENT')` · `Confidence <> 'CONFIRMED_AGAINST_ORIGINAL' OR (VerifiedBy IS NOT NULL AND VerifiedOn IS NOT NULL)` · `(SupersedesId IS NULL AND InheritedRootId IS NULL) OR (SupersedesId IS NOT NULL AND InheritedRootId IS NOT NULL)` · `OriginalText IS NULL OR (OriginalText COLLATE Arabic_100_BIN2 NOT LIKE '%[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]%' AND OriginalText COLLATE Arabic_100_BIN2 NOT LIKE '%[A-Za-z][A-Za-z][0-9][0-9] [0-9][0-9][0-9][0-9] [0-9][0-9][0-9][0-9] [0-9][0-9][0-9][0-9]%')`
 
 ### `fac.LimitProductLine` — Product line within a limit, with an optional SHARED_CAP ceiling (FR-FAC-012, V-FAC-08)
 
@@ -3096,7 +3102,9 @@
 | IsActive | BIT | لا | 1 |  |  |
 | FromRevision | INT | لا | 1 |  |  |
 | ToRevision | INT | نعم |  |  |  |
-| SupersedesId | BIGINT | نعم |  | fac.LimitProductLine |  |
+| SupersedesId | BIGINT | نعم |  | fac.LimitProductLine (via InheritedRootId) |  |
+| InheritedRootId | BIGINT | نعم |  |  | RootId of the predecessor; empty for the first row of a node (DR-28) |
+| RootId | BIGINT | نعم |  |  | the stable identity of the node across revisions (DQ-F13-4, DR-28) محسوب: `CASE WHEN InheritedRootId IS NULL THEN LimitProductLineId ELSE InheritedRootId END` |
 | SourceDocumentId | BIGINT | نعم |  | doc.Document |  |
 | SourcePage | VARCHAR(40) | نعم |  |  |  |
 | ReadFromScan | BIT | لا | 0 |  |  |
@@ -3111,9 +3119,9 @@
 | UpdatedAt | DATETIME2(3) | نعم |  |  |  |
 | UpdatedBy | BIGINT | نعم |  |  |  |
 
-**المفاتيح:** PK(LimitProductLineId) · UQ(TenantId, LimitId, ProductId, BankProductCode) WHERE ToRevision IS NULL
+**المفاتيح:** PK(LimitProductLineId) · UQ(TenantId, LimitId, ProductId, BankProductCode) WHERE ToRevision IS NULL · UQ(TenantId, RootId) WHERE ToRevision IS NULL
 
-**قيود:** `(AmountBasis IS NULL AND Amount IS NULL AND PctOfParent IS NULL) OR (AmountBasis IS NOT NULL AND ((AmountBasis = 'ABSOLUTE' AND Amount IS NOT NULL AND PctOfParent IS NULL) OR (AmountBasis = 'PCT_OF_PARENT' AND PctOfParent IS NOT NULL AND Amount IS NULL)))` · `Amount IS NULL OR Amount >= 0` · `PctOfParent IS NULL OR (PctOfParent > 0 AND PctOfParent <= 100)` · `ToRevision IS NULL OR ToRevision >= FromRevision` · `SourceDocumentId IS NOT NULL AND SourcePage IS NOT NULL OR (SourceDocumentId IS NULL AND Confidence = 'ENTERED_NO_DOCUMENT')` · `Confidence <> 'CONFIRMED_AGAINST_ORIGINAL' OR (VerifiedBy IS NOT NULL AND VerifiedOn IS NOT NULL)`
+**قيود:** `(AmountBasis IS NULL AND Amount IS NULL AND PctOfParent IS NULL) OR (AmountBasis IS NOT NULL AND ((AmountBasis = 'ABSOLUTE' AND Amount IS NOT NULL AND PctOfParent IS NULL) OR (AmountBasis = 'PCT_OF_PARENT' AND PctOfParent IS NOT NULL AND Amount IS NULL)))` · `Amount IS NULL OR Amount >= 0` · `PctOfParent IS NULL OR (PctOfParent > 0 AND PctOfParent <= 100)` · `ToRevision IS NULL OR ToRevision >= FromRevision` · `SourceDocumentId IS NOT NULL AND SourcePage IS NOT NULL OR (SourceDocumentId IS NULL AND Confidence = 'ENTERED_NO_DOCUMENT')` · `Confidence <> 'CONFIRMED_AGAINST_ORIGINAL' OR (VerifiedBy IS NOT NULL AND VerifiedOn IS NOT NULL)` · `(SupersedesId IS NULL AND InheritedRootId IS NULL) OR (SupersedesId IS NOT NULL AND InheritedRootId IS NOT NULL)` · `OriginalText IS NULL OR (OriginalText COLLATE Arabic_100_BIN2 NOT LIKE '%[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]%' AND OriginalText COLLATE Arabic_100_BIN2 NOT LIKE '%[A-Za-z][A-Za-z][0-9][0-9] [0-9][0-9][0-9][0-9] [0-9][0-9][0-9][0-9] [0-9][0-9][0-9][0-9]%')`
 
 ### `fac.LimitCompanyRule` — Company rule on a limit: allowed, excluded or allocated (FR-FAC-013, BR-FAC-012, V-FAC-09)
 
@@ -3134,7 +3142,9 @@
 | ValidTo | DATE | نعم |  |  |  |
 | FromRevision | INT | لا | 1 |  |  |
 | ToRevision | INT | نعم |  |  |  |
-| SupersedesId | BIGINT | نعم |  | fac.LimitCompanyRule |  |
+| SupersedesId | BIGINT | نعم |  | fac.LimitCompanyRule (via InheritedRootId) |  |
+| InheritedRootId | BIGINT | نعم |  |  | RootId of the predecessor; empty for the first row of a node (DR-28) |
+| RootId | BIGINT | نعم |  |  | the stable identity of the node across revisions (DQ-F13-4, DR-28) محسوب: `CASE WHEN InheritedRootId IS NULL THEN LimitCompanyRuleId ELSE InheritedRootId END` |
 | SourceDocumentId | BIGINT | نعم |  | doc.Document |  |
 | SourcePage | VARCHAR(40) | نعم |  |  |  |
 | ReadFromScan | BIT | لا | 0 |  |  |
@@ -3149,9 +3159,9 @@
 | UpdatedAt | DATETIME2(3) | نعم |  |  |  |
 | UpdatedBy | BIGINT | نعم |  |  |  |
 
-**المفاتيح:** PK(LimitCompanyRuleId) · UQ(TenantId, LimitId, CompanyId, RuleKind, ValidFrom) WHERE ToRevision IS NULL
+**المفاتيح:** PK(LimitCompanyRuleId) · UQ(TenantId, LimitId, CompanyId, RuleKind, ValidFrom) WHERE ToRevision IS NULL · UQ(TenantId, RootId) WHERE ToRevision IS NULL
 
-**قيود:** `RuleKind <> 'ALLOCATION' OR (AllocationAmount IS NOT NULL AND AllocationPct IS NULL) OR (AllocationAmount IS NULL AND AllocationPct IS NOT NULL)` · `RuleKind = 'ALLOCATION' OR (AllocationAmount IS NULL AND AllocationPct IS NULL)` · `AllocationAmount IS NULL OR AllocationAmount > 0` · `AllocationPct IS NULL OR (AllocationPct > 0 AND AllocationPct <= 100)` · `ValidTo IS NULL OR ValidTo >= ValidFrom` · `ToRevision IS NULL OR ToRevision >= FromRevision` · `SourceDocumentId IS NOT NULL AND SourcePage IS NOT NULL OR (SourceDocumentId IS NULL AND Confidence = 'ENTERED_NO_DOCUMENT')` · `Confidence <> 'CONFIRMED_AGAINST_ORIGINAL' OR (VerifiedBy IS NOT NULL AND VerifiedOn IS NOT NULL)`
+**قيود:** `RuleKind <> 'ALLOCATION' OR (AllocationAmount IS NOT NULL AND AllocationPct IS NULL) OR (AllocationAmount IS NULL AND AllocationPct IS NOT NULL)` · `RuleKind = 'ALLOCATION' OR (AllocationAmount IS NULL AND AllocationPct IS NULL)` · `AllocationAmount IS NULL OR AllocationAmount > 0` · `AllocationPct IS NULL OR (AllocationPct > 0 AND AllocationPct <= 100)` · `ValidTo IS NULL OR ValidTo >= ValidFrom` · `ToRevision IS NULL OR ToRevision >= FromRevision` · `SourceDocumentId IS NOT NULL AND SourcePage IS NOT NULL OR (SourceDocumentId IS NULL AND Confidence = 'ENTERED_NO_DOCUMENT')` · `Confidence <> 'CONFIRMED_AGAINST_ORIGINAL' OR (VerifiedBy IS NOT NULL AND VerifiedOn IS NOT NULL)` · `(SupersedesId IS NULL AND InheritedRootId IS NULL) OR (SupersedesId IS NOT NULL AND InheritedRootId IS NOT NULL)` · `OriginalText IS NULL OR (OriginalText COLLATE Arabic_100_BIN2 NOT LIKE '%[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]%' AND OriginalText COLLATE Arabic_100_BIN2 NOT LIKE '%[A-Za-z][A-Za-z][0-9][0-9] [0-9][0-9][0-9][0-9] [0-9][0-9][0-9][0-9] [0-9][0-9][0-9][0-9]%')`
 
 ### `fac.ProductLineTerm` — Operational terms of a product line with effective dates; NULL means 'not specified', not zero (FR-FAC-014, BR-FAC-016)
 
@@ -3176,7 +3186,9 @@
 | EffectiveTo | DATE | نعم |  |  |  |
 | FromRevision | INT | لا | 1 |  |  |
 | ToRevision | INT | نعم |  |  |  |
-| SupersedesId | BIGINT | نعم |  | fac.ProductLineTerm |  |
+| SupersedesId | BIGINT | نعم |  | fac.ProductLineTerm (via InheritedRootId) |  |
+| InheritedRootId | BIGINT | نعم |  |  | RootId of the predecessor; empty for the first row of a node (DR-28) |
+| RootId | BIGINT | نعم |  |  | the stable identity of the node across revisions (DQ-F13-4, DR-28) محسوب: `CASE WHEN InheritedRootId IS NULL THEN ProductLineTermId ELSE InheritedRootId END` |
 | SourceDocumentId | BIGINT | نعم |  | doc.Document |  |
 | SourcePage | VARCHAR(40) | نعم |  |  |  |
 | ReadFromScan | BIT | لا | 0 |  |  |
@@ -3191,9 +3203,9 @@
 | UpdatedAt | DATETIME2(3) | نعم |  |  |  |
 | UpdatedBy | BIGINT | نعم |  |  |  |
 
-**المفاتيح:** PK(ProductLineTermId) · UQ(TenantId, LimitProductLineId, EffectiveFrom) WHERE ToRevision IS NULL
+**المفاتيح:** PK(ProductLineTermId) · UQ(TenantId, LimitProductLineId, EffectiveFrom) WHERE ToRevision IS NULL · UQ(TenantId, RootId) WHERE ToRevision IS NULL
 
-**قيود:** `EffectiveTo IS NULL OR EffectiveTo >= EffectiveFrom` · `MaxTotalTenorDays IS NULL OR MaxTotalTenorDays >= 0` · `MaxDeferralDays IS NULL OR MaxDeferralDays >= 0` · `MaxPostDeferralFinancingDays IS NULL OR MaxPostDeferralFinancingDays >= 0` · `LcValidityDays IS NULL OR LcValidityDays >= 0` · `AdvanceNoticeDays IS NULL OR AdvanceNoticeDays >= 0` · `CashCoverPct IS NULL OR (CashCoverPct >= 0 AND CashCoverPct <= 100)` · `FinancingRatioPct IS NULL OR (FinancingRatioPct >= 0 AND FinancingRatioPct <= 100)` · `ToRevision IS NULL OR ToRevision >= FromRevision` · `SourceDocumentId IS NOT NULL AND SourcePage IS NOT NULL OR (SourceDocumentId IS NULL AND Confidence = 'ENTERED_NO_DOCUMENT')` · `Confidence <> 'CONFIRMED_AGAINST_ORIGINAL' OR (VerifiedBy IS NOT NULL AND VerifiedOn IS NOT NULL)`
+**قيود:** `EffectiveTo IS NULL OR EffectiveTo >= EffectiveFrom` · `MaxTotalTenorDays IS NULL OR MaxTotalTenorDays >= 0` · `MaxDeferralDays IS NULL OR MaxDeferralDays >= 0` · `MaxPostDeferralFinancingDays IS NULL OR MaxPostDeferralFinancingDays >= 0` · `LcValidityDays IS NULL OR LcValidityDays >= 0` · `AdvanceNoticeDays IS NULL OR AdvanceNoticeDays >= 0` · `CashCoverPct IS NULL OR (CashCoverPct >= 0 AND CashCoverPct <= 100)` · `FinancingRatioPct IS NULL OR (FinancingRatioPct >= 0 AND FinancingRatioPct <= 100)` · `ToRevision IS NULL OR ToRevision >= FromRevision` · `SourceDocumentId IS NOT NULL AND SourcePage IS NOT NULL OR (SourceDocumentId IS NULL AND Confidence = 'ENTERED_NO_DOCUMENT')` · `Confidence <> 'CONFIRMED_AGAINST_ORIGINAL' OR (VerifiedBy IS NOT NULL AND VerifiedOn IS NOT NULL)` · `(SupersedesId IS NULL AND InheritedRootId IS NULL) OR (SupersedesId IS NOT NULL AND InheritedRootId IS NOT NULL)` · `OriginalText IS NULL OR (OriginalText COLLATE Arabic_100_BIN2 NOT LIKE '%[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]%' AND OriginalText COLLATE Arabic_100_BIN2 NOT LIKE '%[A-Za-z][A-Za-z][0-9][0-9] [0-9][0-9][0-9][0-9] [0-9][0-9][0-9][0-9] [0-9][0-9][0-9][0-9]%')`
 
 ### `fac.Utilization` — Active utilisation item: manual or linked to a letter of credit; never deleted (FR-FAC-016/030, BR-FAC-013/020)
 
@@ -3330,7 +3342,7 @@
 
 **المفاتيح:** PK(ValueConflictId) · UQ(TenantId, TargetEntity, TargetId, FieldName) WHERE Status = 'OPEN'
 
-**قيود:** `Status <> 'RESOLVED' OR (ChosenSide IS NOT NULL AND ResolutionReason IS NOT NULL AND ResolvedBy IS NOT NULL AND ResolvedOn IS NOT NULL)` · `Status = 'RESOLVED' OR (ChosenSide IS NULL AND ResolvedBy IS NULL AND ResolvedOn IS NULL)` · `TargetEntity IN ('fac.Facility','fac.Limit','fac.LimitProductLine','fac.LimitCompanyRule','fac.ProductLineTerm','fac.OutstandingSnapshot','prc.TariffItem','prc.PricingRule','cmp.TermValue','col.Collateral','obl.Obligation','fin.MeasureFormula')` · `FacilityId IS NOT NULL OR TargetEntity IN ('col.Collateral','prc.TariffItem','fin.MeasureFormula')` · `ChosenSide IS NULL OR ChosenSide <> 'OTHER' OR ResolvedValue IS NOT NULL` · `CandidateASourceDocumentId IS NOT NULL AND CandidateASourcePage IS NOT NULL OR (CandidateASourceDocumentId IS NULL AND CandidateAConfidence = 'ENTERED_NO_DOCUMENT')` · `CandidateBSourceDocumentId IS NOT NULL AND CandidateBSourcePage IS NOT NULL OR (CandidateBSourceDocumentId IS NULL AND CandidateBConfidence = 'ENTERED_NO_DOCUMENT')`
+**قيود:** `Status <> 'RESOLVED' OR (ChosenSide IS NOT NULL AND ResolutionReason IS NOT NULL AND ResolvedBy IS NOT NULL AND ResolvedOn IS NOT NULL)` · `Status = 'RESOLVED' OR (ChosenSide IS NULL AND ResolvedBy IS NULL AND ResolvedOn IS NULL)` · `TargetEntity IN ('fac.Facility','fac.Limit','fac.LimitProductLine','fac.LimitCompanyRule','fac.ProductLineTerm','fac.OutstandingSnapshot','prc.TariffItem','prc.PricingRule','cmp.TermValue','col.Collateral','obl.Obligation','fin.MeasureFormula')` · `FacilityId IS NOT NULL OR TargetEntity IN ('col.Collateral','prc.TariffItem','fin.MeasureFormula')` · `ChosenSide IS NULL OR ChosenSide <> 'OTHER' OR ResolvedValue IS NOT NULL` · `CandidateASourceDocumentId IS NOT NULL AND CandidateASourcePage IS NOT NULL OR (CandidateASourceDocumentId IS NULL AND CandidateAConfidence = 'ENTERED_NO_DOCUMENT')` · `CandidateBSourceDocumentId IS NOT NULL AND CandidateBSourcePage IS NOT NULL OR (CandidateBSourceDocumentId IS NULL AND CandidateBConfidence = 'ENTERED_NO_DOCUMENT')` · `CandidateAOriginalText IS NULL OR (CandidateAOriginalText COLLATE Arabic_100_BIN2 NOT LIKE '%[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]%' AND CandidateAOriginalText COLLATE Arabic_100_BIN2 NOT LIKE '%[A-Za-z][A-Za-z][0-9][0-9] [0-9][0-9][0-9][0-9] [0-9][0-9][0-9][0-9] [0-9][0-9][0-9][0-9]%')` · `CandidateBOriginalText IS NULL OR (CandidateBOriginalText COLLATE Arabic_100_BIN2 NOT LIKE '%[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]%' AND CandidateBOriginalText COLLATE Arabic_100_BIN2 NOT LIKE '%[A-Za-z][A-Za-z][0-9][0-9] [0-9][0-9][0-9][0-9] [0-9][0-9][0-9][0-9] [0-9][0-9][0-9][0-9]%')`
 
 ## PRC
 
@@ -3406,7 +3418,7 @@
 
 **المفاتيح:** PK(TariffItemId) · UQ(TenantId, ScheduleId, ItemCode)
 
-**قيود:** `ChargeKind <> 'PERCENT' OR (Rate IS NOT NULL AND FixedAmount IS NULL AND PerMillionAmount IS NULL)` · `ChargeKind <> 'FIXED' OR (FixedAmount IS NOT NULL AND Rate IS NULL AND PerMillionAmount IS NULL)` · `ChargeKind <> 'PER_MILLION' OR (PerMillionAmount IS NOT NULL AND Rate IS NULL AND FixedAmount IS NULL)` · `ChargeKind <> 'TIERED' OR (Rate IS NULL AND FixedAmount IS NULL AND PerMillionAmount IS NULL)` · `Rate IS NULL OR (Rate >= 0 AND Rate <= 100)` · `PeriodBasis <> 'PER_PERIOD_OR_PART' OR PeriodDays IS NOT NULL` · `PeriodDays IS NULL OR PeriodDays > 0` · `MinAmount IS NULL OR MinAmount >= 0` · `MinAmount IS NULL OR MaxAmount IS NULL OR MinAmount <= MaxAmount` · `SourceDocumentId IS NOT NULL AND SourcePage IS NOT NULL OR (SourceDocumentId IS NULL AND Confidence = 'ENTERED_NO_DOCUMENT')` · `Confidence <> 'CONFIRMED_AGAINST_ORIGINAL' OR (VerifiedBy IS NOT NULL AND VerifiedOn IS NOT NULL)`
+**قيود:** `ChargeKind <> 'PERCENT' OR (Rate IS NOT NULL AND FixedAmount IS NULL AND PerMillionAmount IS NULL)` · `ChargeKind <> 'FIXED' OR (FixedAmount IS NOT NULL AND Rate IS NULL AND PerMillionAmount IS NULL)` · `ChargeKind <> 'PER_MILLION' OR (PerMillionAmount IS NOT NULL AND Rate IS NULL AND FixedAmount IS NULL)` · `ChargeKind <> 'TIERED' OR (Rate IS NULL AND FixedAmount IS NULL AND PerMillionAmount IS NULL)` · `Rate IS NULL OR (Rate >= 0 AND Rate <= 100)` · `PeriodBasis <> 'PER_PERIOD_OR_PART' OR PeriodDays IS NOT NULL` · `PeriodDays IS NULL OR PeriodDays > 0` · `MinAmount IS NULL OR MinAmount >= 0` · `MinAmount IS NULL OR MaxAmount IS NULL OR MinAmount <= MaxAmount` · `SourceDocumentId IS NOT NULL AND SourcePage IS NOT NULL OR (SourceDocumentId IS NULL AND Confidence = 'ENTERED_NO_DOCUMENT')` · `Confidence <> 'CONFIRMED_AGAINST_ORIGINAL' OR (VerifiedBy IS NOT NULL AND VerifiedOn IS NOT NULL)` · `OriginalText IS NULL OR (OriginalText COLLATE Arabic_100_BIN2 NOT LIKE '%[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]%' AND OriginalText COLLATE Arabic_100_BIN2 NOT LIKE '%[A-Za-z][A-Za-z][0-9][0-9] [0-9][0-9][0-9][0-9] [0-9][0-9][0-9][0-9] [0-9][0-9][0-9][0-9]%')`
 
 ### `prc.TariffTier` — Tier of a tariff item by amount and/or term (FR-PRC-003, BR-PRC-002)
 
@@ -3483,7 +3495,9 @@
 | RetroactiveReason | NVARCHAR(500) | نعم |  |  | إضافة: سبب الإدخال بأثر رجعي (BR-PRC-011) |
 | FromRevision | INT | لا | 1 |  |  |
 | ToRevision | INT | نعم |  |  |  |
-| SupersedesId | BIGINT | نعم |  | prc.PricingRule |  |
+| SupersedesId | BIGINT | نعم |  | prc.PricingRule (via InheritedRootId) |  |
+| InheritedRootId | BIGINT | نعم |  |  | RootId of the predecessor; empty for the first row of a node (DR-28) |
+| RootId | BIGINT | نعم |  |  | the stable identity of the node across revisions (DQ-F13-4, DR-28) محسوب: `CASE WHEN InheritedRootId IS NULL THEN PricingRuleId ELSE InheritedRootId END` |
 | SourceDocumentId | BIGINT | نعم |  | doc.Document |  |
 | SourcePage | VARCHAR(40) | نعم |  |  |  |
 | ReadFromScan | BIT | لا | 0 |  |  |
@@ -3498,9 +3512,9 @@
 | UpdatedAt | DATETIME2(3) | نعم |  |  |  |
 | UpdatedBy | BIGINT | نعم |  |  |  |
 
-**المفاتيح:** PK(PricingRuleId) · UQ(TenantId, FacilityId, FeeTypeId, ScopeLimitId, ScopeLimitProductLineId, ScopeProductId, ScopeCompanyId, EffectiveFrom) WHERE ToRevision IS NULL AND FeeTypeId IS NOT NULL · UQ(TenantId, FacilityId, FinancingTypeId, ScopeLimitId, ScopeLimitProductLineId, ScopeProductId, ScopeCompanyId, EffectiveFrom) WHERE ToRevision IS NULL AND FeeTypeId IS NULL
+**المفاتيح:** PK(PricingRuleId) · UQ(TenantId, FacilityId, FeeTypeId, ScopeLimitId, ScopeLimitProductLineId, ScopeProductId, ScopeCompanyId, EffectiveFrom) WHERE ToRevision IS NULL AND FeeTypeId IS NOT NULL · UQ(TenantId, FacilityId, FinancingTypeId, ScopeLimitId, ScopeLimitProductLineId, ScopeProductId, ScopeCompanyId, EffectiveFrom) WHERE ToRevision IS NULL AND FeeTypeId IS NULL · UQ(TenantId, RootId) WHERE ToRevision IS NULL
 
-**قيود:** `ScopeLimitProductLineId IS NULL OR ScopeLimitId IS NOT NULL` · `EffectiveTo IS NULL OR EffectiveTo >= EffectiveFrom` · `ComponentKind <> 'FINANCING_RETURN' OR FeeTypeId IS NULL` · `ComponentKind = 'FINANCING_RETURN' OR (FeeTypeId IS NOT NULL AND FinancingTypeId IS NULL)` · `ComponentKind <> 'PENALTY_NON_INCOME' OR TriggerEvent IS NOT NULL` · `ComponentKind = 'PENALTY_NON_INCOME' OR TriggerEvent IS NULL` · `RateState <> 'NOT_SPECIFIED_IN_AGREEMENT' OR (AddOnPct IS NULL AND MarginPct IS NULL AND RatePct IS NULL AND RateRangeLowPct IS NULL AND RateRangeHighPct IS NULL AND FixedAmount IS NULL AND PerMillionAmount IS NULL)` · `RateState <> 'SET' OR Method <> 'TARIFF_AS_IS' OR TariffItemId IS NOT NULL` · `RateState <> 'SET' OR Method <> 'TARIFF_PLUS_ADDON' OR (TariffItemId IS NOT NULL AND AddOnPct IS NOT NULL)` · `RateState <> 'SET' OR Method <> 'BASE_PLUS_MARGIN' OR (BaseRateId IS NOT NULL AND MarginPct IS NOT NULL AND RateFixing IS NOT NULL AND DayCount IS NOT NULL)` · `RateState <> 'SET' OR Method <> 'PERCENT_OF_AMOUNT' OR RatePct IS NOT NULL OR (RateRangeLowPct IS NOT NULL AND RateRangeHighPct IS NOT NULL)` · `RateState <> 'SET' OR Method <> 'FIXED_AMOUNT' OR FixedAmount IS NOT NULL` · `RateState <> 'SET' OR Method <> 'PER_MILLION' OR PerMillionAmount IS NOT NULL` · `Method IN ('TARIFF_AS_IS','TARIFF_PLUS_ADDON') OR TariffItemId IS NULL` · `Method = 'TARIFF_PLUS_ADDON' OR AddOnPct IS NULL` · `Method = 'BASE_PLUS_MARGIN' OR (BaseRateId IS NULL AND MarginPct IS NULL AND BaseFloorPct IS NULL AND RateFixing IS NULL AND RepricingMonths IS NULL)` · `Method = 'PERCENT_OF_AMOUNT' OR (RatePct IS NULL AND RateRangeLowPct IS NULL AND RateRangeHighPct IS NULL)` · `Method = 'FIXED_AMOUNT' OR FixedAmount IS NULL` · `Method = 'PER_MILLION' OR PerMillionAmount IS NULL` · `RatePct IS NULL OR (RateRangeLowPct IS NULL AND RateRangeHighPct IS NULL)` · `(RateRangeLowPct IS NULL AND RateRangeHighPct IS NULL) OR (RateRangeLowPct IS NOT NULL AND RateRangeHighPct IS NOT NULL AND RateRangeLowPct <= RateRangeHighPct)` · `RatePct IS NULL OR (RatePct >= 0 AND RatePct <= 100)` · `FixedAmount IS NULL OR FixedAmount >= 0` · `PerMillionAmount IS NULL OR PerMillionAmount >= 0` · `MinFeeAmount IS NULL OR MinFeeAmount >= 0` · `MinFeeAmount IS NULL OR MaxFeeAmount IS NULL OR MinFeeAmount <= MaxFeeAmount` · `PeriodDays IS NULL OR PeriodDays > 0` · `PeriodBasis IS NULL OR PeriodBasis <> 'PER_PERIOD_OR_PART' OR PeriodDays IS NOT NULL OR Method IN ('TARIFF_AS_IS','TARIFF_PLUS_ADDON','TIERED')` · `PeriodBasis IS NULL OR PeriodBasis <> 'PER_ANNUM' OR DayCount IS NOT NULL` · `RepricingMonths IS NULL OR RepricingMonths > 0` · `RateFixing IS NULL OR RateFixing <> 'FLOATING' OR RateState <> 'SET' OR RepricingMonths IS NOT NULL` · `BenchmarkReplacement <> 'NAMED_FALLBACK' OR ReplacementText IS NOT NULL` · `BankMayChange <> 'WITH_NOTICE_OBJECTION' OR (ObjectionDays IS NOT NULL AND ObjectionDaysKind IS NOT NULL)` · `ObjectionDays IS NULL OR ObjectionDays >= 0` · `Retroactive = 0 OR RetroactiveReason IS NOT NULL` · `ToRevision IS NULL OR ToRevision >= FromRevision` · `SourceDocumentId IS NOT NULL AND SourcePage IS NOT NULL OR (SourceDocumentId IS NULL AND Confidence = 'ENTERED_NO_DOCUMENT')` · `Confidence <> 'CONFIRMED_AGAINST_ORIGINAL' OR (VerifiedBy IS NOT NULL AND VerifiedOn IS NOT NULL)`
+**قيود:** `ScopeLimitProductLineId IS NULL OR ScopeLimitId IS NOT NULL` · `EffectiveTo IS NULL OR EffectiveTo >= EffectiveFrom` · `ComponentKind <> 'FINANCING_RETURN' OR FeeTypeId IS NULL` · `ComponentKind = 'FINANCING_RETURN' OR (FeeTypeId IS NOT NULL AND FinancingTypeId IS NULL)` · `ComponentKind <> 'PENALTY_NON_INCOME' OR TriggerEvent IS NOT NULL` · `ComponentKind = 'PENALTY_NON_INCOME' OR TriggerEvent IS NULL` · `RateState <> 'NOT_SPECIFIED_IN_AGREEMENT' OR (AddOnPct IS NULL AND MarginPct IS NULL AND RatePct IS NULL AND RateRangeLowPct IS NULL AND RateRangeHighPct IS NULL AND FixedAmount IS NULL AND PerMillionAmount IS NULL)` · `RateState <> 'SET' OR Method <> 'TARIFF_AS_IS' OR TariffItemId IS NOT NULL` · `RateState <> 'SET' OR Method <> 'TARIFF_PLUS_ADDON' OR (TariffItemId IS NOT NULL AND AddOnPct IS NOT NULL)` · `RateState <> 'SET' OR Method <> 'BASE_PLUS_MARGIN' OR (BaseRateId IS NOT NULL AND MarginPct IS NOT NULL AND RateFixing IS NOT NULL AND DayCount IS NOT NULL)` · `RateState <> 'SET' OR Method <> 'PERCENT_OF_AMOUNT' OR RatePct IS NOT NULL OR (RateRangeLowPct IS NOT NULL AND RateRangeHighPct IS NOT NULL)` · `RateState <> 'SET' OR Method <> 'FIXED_AMOUNT' OR FixedAmount IS NOT NULL` · `RateState <> 'SET' OR Method <> 'PER_MILLION' OR PerMillionAmount IS NOT NULL` · `Method IN ('TARIFF_AS_IS','TARIFF_PLUS_ADDON') OR TariffItemId IS NULL` · `Method = 'TARIFF_PLUS_ADDON' OR AddOnPct IS NULL` · `Method = 'BASE_PLUS_MARGIN' OR (BaseRateId IS NULL AND MarginPct IS NULL AND BaseFloorPct IS NULL AND RateFixing IS NULL AND RepricingMonths IS NULL)` · `Method = 'PERCENT_OF_AMOUNT' OR (RatePct IS NULL AND RateRangeLowPct IS NULL AND RateRangeHighPct IS NULL)` · `Method = 'FIXED_AMOUNT' OR FixedAmount IS NULL` · `Method = 'PER_MILLION' OR PerMillionAmount IS NULL` · `RatePct IS NULL OR (RateRangeLowPct IS NULL AND RateRangeHighPct IS NULL)` · `(RateRangeLowPct IS NULL AND RateRangeHighPct IS NULL) OR (RateRangeLowPct IS NOT NULL AND RateRangeHighPct IS NOT NULL AND RateRangeLowPct <= RateRangeHighPct)` · `RatePct IS NULL OR (RatePct >= 0 AND RatePct <= 100)` · `FixedAmount IS NULL OR FixedAmount >= 0` · `PerMillionAmount IS NULL OR PerMillionAmount >= 0` · `MinFeeAmount IS NULL OR MinFeeAmount >= 0` · `MinFeeAmount IS NULL OR MaxFeeAmount IS NULL OR MinFeeAmount <= MaxFeeAmount` · `PeriodDays IS NULL OR PeriodDays > 0` · `PeriodBasis IS NULL OR PeriodBasis <> 'PER_PERIOD_OR_PART' OR PeriodDays IS NOT NULL OR Method IN ('TARIFF_AS_IS','TARIFF_PLUS_ADDON','TIERED')` · `PeriodBasis IS NULL OR PeriodBasis <> 'PER_ANNUM' OR DayCount IS NOT NULL` · `RepricingMonths IS NULL OR RepricingMonths > 0` · `RateFixing IS NULL OR RateFixing <> 'FLOATING' OR RateState <> 'SET' OR RepricingMonths IS NOT NULL` · `BenchmarkReplacement <> 'NAMED_FALLBACK' OR ReplacementText IS NOT NULL` · `BankMayChange <> 'WITH_NOTICE_OBJECTION' OR (ObjectionDays IS NOT NULL AND ObjectionDaysKind IS NOT NULL)` · `ObjectionDays IS NULL OR ObjectionDays >= 0` · `Retroactive = 0 OR RetroactiveReason IS NOT NULL` · `ToRevision IS NULL OR ToRevision >= FromRevision` · `SourceDocumentId IS NOT NULL AND SourcePage IS NOT NULL OR (SourceDocumentId IS NULL AND Confidence = 'ENTERED_NO_DOCUMENT')` · `Confidence <> 'CONFIRMED_AGAINST_ORIGINAL' OR (VerifiedBy IS NOT NULL AND VerifiedOn IS NOT NULL)` · `(SupersedesId IS NULL AND InheritedRootId IS NULL) OR (SupersedesId IS NOT NULL AND InheritedRootId IS NOT NULL)` · `OriginalText IS NULL OR (OriginalText COLLATE Arabic_100_BIN2 NOT LIKE '%[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]%' AND OriginalText COLLATE Arabic_100_BIN2 NOT LIKE '%[A-Za-z][A-Za-z][0-9][0-9] [0-9][0-9][0-9][0-9] [0-9][0-9][0-9][0-9] [0-9][0-9][0-9][0-9]%')`
 
 ### `prc.PricingTier` — Tier of a TIERED rule by amount and/or term (FR-PRC-003, BR-PRC-002)
 
@@ -3522,15 +3536,17 @@
 | SortOrder | INT | لا |  |  |  |
 | FromRevision | INT | لا | 1 |  |  |
 | ToRevision | INT | نعم |  |  |  |
-| SupersedesId | BIGINT | نعم |  | prc.PricingTier |  |
+| SupersedesId | BIGINT | نعم |  | prc.PricingTier (via InheritedRootId) |  |
+| InheritedRootId | BIGINT | نعم |  |  | RootId of the predecessor; empty for the first row of a node (DR-28) |
+| RootId | BIGINT | نعم |  |  | the stable identity of the node across revisions (DQ-F13-4, DR-28) محسوب: `CASE WHEN InheritedRootId IS NULL THEN PricingTierId ELSE InheritedRootId END` |
 | CreatedAt | DATETIME2(3) | لا | SYSUTCDATETIME() |  |  |
 | CreatedBy | BIGINT | نعم |  |  |  |
 | UpdatedAt | DATETIME2(3) | نعم |  |  |  |
 | UpdatedBy | BIGINT | نعم |  |  |  |
 
-**المفاتيح:** PK(PricingTierId) · UQ(TenantId, PricingRuleId, SortOrder) WHERE ToRevision IS NULL
+**المفاتيح:** PK(PricingTierId) · UQ(TenantId, PricingRuleId, SortOrder) WHERE ToRevision IS NULL · UQ(TenantId, RootId) WHERE ToRevision IS NULL
 
-**قيود:** `AmountFrom IS NULL OR AmountFrom >= 0` · `AmountTo IS NULL OR AmountFrom IS NULL OR AmountTo > AmountFrom` · `PeriodFromDays IS NULL OR PeriodFromDays >= 0` · `PeriodToDays IS NULL OR PeriodFromDays IS NULL OR PeriodToDays >= PeriodFromDays` · `(CASE WHEN RatePct IS NULL THEN 0 ELSE 1 END + CASE WHEN MarginPct IS NULL THEN 0 ELSE 1 END + CASE WHEN FixedAmount IS NULL THEN 0 ELSE 1 END) = 1` · `RatePct IS NULL OR (RatePct >= 0 AND RatePct <= 100)` · `FixedAmount IS NULL OR FixedAmount >= 0` · `ToRevision IS NULL OR ToRevision >= FromRevision`
+**قيود:** `AmountFrom IS NULL OR AmountFrom >= 0` · `AmountTo IS NULL OR AmountFrom IS NULL OR AmountTo > AmountFrom` · `PeriodFromDays IS NULL OR PeriodFromDays >= 0` · `PeriodToDays IS NULL OR PeriodFromDays IS NULL OR PeriodToDays >= PeriodFromDays` · `(CASE WHEN RatePct IS NULL THEN 0 ELSE 1 END + CASE WHEN MarginPct IS NULL THEN 0 ELSE 1 END + CASE WHEN FixedAmount IS NULL THEN 0 ELSE 1 END) = 1` · `RatePct IS NULL OR (RatePct >= 0 AND RatePct <= 100)` · `FixedAmount IS NULL OR FixedAmount >= 0` · `ToRevision IS NULL OR ToRevision >= FromRevision` · `(SupersedesId IS NULL AND InheritedRootId IS NULL) OR (SupersedesId IS NOT NULL AND InheritedRootId IS NOT NULL)`
 
 ## CMP
 
@@ -3600,7 +3616,9 @@
 | EffectiveTo | DATE | نعم |  |  |  |
 | FromRevision | INT | لا | 1 |  |  |
 | ToRevision | INT | نعم |  |  |  |
-| SupersedesId | BIGINT | نعم |  | cmp.TermValue |  |
+| SupersedesId | BIGINT | نعم |  | cmp.TermValue (via InheritedRootId) |  |
+| InheritedRootId | BIGINT | نعم |  |  | RootId of the predecessor; empty for the first row of a node (DR-28) |
+| RootId | BIGINT | نعم |  |  | the stable identity of the node across revisions (DQ-F13-4, DR-28) محسوب: `CASE WHEN InheritedRootId IS NULL THEN TermValueId ELSE InheritedRootId END` |
 | SourceDocumentId | BIGINT | نعم |  | doc.Document |  |
 | SourcePage | VARCHAR(40) | نعم |  |  |  |
 | ReadFromScan | BIT | لا | 0 |  |  |
@@ -3615,9 +3633,9 @@
 | UpdatedAt | DATETIME2(3) | نعم |  |  |  |
 | UpdatedBy | BIGINT | نعم |  |  |  |
 
-**المفاتيح:** PK(TermValueId) · UQ(TenantId, FacilityId, TermTypeId, OtherLabel, LimitId, LimitProductLineId, ProductId, CompanyId, Bound, EffectiveFrom) WHERE ToRevision IS NULL
+**المفاتيح:** PK(TermValueId) · UQ(TenantId, FacilityId, TermTypeId, OtherLabel, LimitId, LimitProductLineId, ProductId, CompanyId, Bound, EffectiveFrom) WHERE ToRevision IS NULL · UQ(TenantId, RootId) WHERE ToRevision IS NULL
 
-**قيود:** `LimitProductLineId IS NULL OR LimitId IS NOT NULL` · `EffectiveTo IS NULL OR EffectiveTo >= EffectiveFrom` · `ValueState = 'SPECIFIED' OR (ValueNumber IS NULL AND ValueText IS NULL AND ValueBool IS NULL AND ValueEnum IS NULL AND NormalizedValue IS NULL)` · `ValueState <> 'SPECIFIED' OR (CASE WHEN ValueNumber IS NULL THEN 0 ELSE 1 END + CASE WHEN ValueText IS NULL THEN 0 ELSE 1 END + CASE WHEN ValueBool IS NULL THEN 0 ELSE 1 END + CASE WHEN ValueEnum IS NULL THEN 0 ELSE 1 END) = 1` · `NormalizedValue IS NULL OR ValueNumber IS NOT NULL` · `Origin <> 'PROJECTED' OR ProjectedFrom IS NOT NULL` · `Origin = 'PROJECTED' OR ProjectedFrom IS NULL` · `ToRevision IS NULL OR ToRevision >= FromRevision` · `SourceDocumentId IS NOT NULL AND SourcePage IS NOT NULL OR (SourceDocumentId IS NULL AND Confidence = 'ENTERED_NO_DOCUMENT')` · `Confidence <> 'CONFIRMED_AGAINST_ORIGINAL' OR (VerifiedBy IS NOT NULL AND VerifiedOn IS NOT NULL)`
+**قيود:** `LimitProductLineId IS NULL OR LimitId IS NOT NULL` · `EffectiveTo IS NULL OR EffectiveTo >= EffectiveFrom` · `ValueState = 'SPECIFIED' OR (ValueNumber IS NULL AND ValueText IS NULL AND ValueBool IS NULL AND ValueEnum IS NULL AND NormalizedValue IS NULL)` · `ValueState <> 'SPECIFIED' OR (CASE WHEN ValueNumber IS NULL THEN 0 ELSE 1 END + CASE WHEN ValueText IS NULL THEN 0 ELSE 1 END + CASE WHEN ValueBool IS NULL THEN 0 ELSE 1 END + CASE WHEN ValueEnum IS NULL THEN 0 ELSE 1 END) = 1` · `NormalizedValue IS NULL OR ValueNumber IS NOT NULL` · `Origin <> 'PROJECTED' OR ProjectedFrom IS NOT NULL` · `Origin = 'PROJECTED' OR ProjectedFrom IS NULL` · `ToRevision IS NULL OR ToRevision >= FromRevision` · `SourceDocumentId IS NOT NULL AND SourcePage IS NOT NULL OR (SourceDocumentId IS NULL AND Confidence = 'ENTERED_NO_DOCUMENT')` · `Confidence <> 'CONFIRMED_AGAINST_ORIGINAL' OR (VerifiedBy IS NOT NULL AND VerifiedOn IS NOT NULL)` · `(SupersedesId IS NULL AND InheritedRootId IS NULL) OR (SupersedesId IS NOT NULL AND InheritedRootId IS NOT NULL)` · `OriginalText IS NULL OR (OriginalText COLLATE Arabic_100_BIN2 NOT LIKE '%[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]%' AND OriginalText COLLATE Arabic_100_BIN2 NOT LIKE '%[A-Za-z][A-Za-z][0-9][0-9] [0-9][0-9][0-9][0-9] [0-9][0-9][0-9][0-9] [0-9][0-9][0-9][0-9]%')`
 
 ## COL
 
@@ -3636,11 +3654,13 @@
 | OwnerPartyId | BIGINT | نعم |  | pty.Party | مزوّد استخدام Collateral owner؛ شركة المجموعة بـ Party المرآة (FR-COL-015) |
 | Attributes | NVARCHAR(MAX) | نعم |  |  | DR-08: سمات القالب (قد تحمل معرّفات) محجوبة عن التقارير؛ الحساب النقدي يُربط بالنوع أدناه 🔒 restricted |
 | CashMarginAccountId | BIGINT | نعم |  | acc.BankAccount | الحساب النقدي للهامش: مرجع مُعرَّف لا سمة حرّة (DR-08) |
-| Status | VARCHAR(10) | لا | DRAFT |  | enum: DRAFT, ACTIVE, RELEASED, EXPIRED |
+| Status | VARCHAR(10) | لا | DRAFT |  | SUPERSEDED: نسخة معتمدة حلّت محلها أحدث؛ DISCARDED: مسودة متروكة (DR-36) enum: DRAFT, ACTIVE, RELEASED, EXPIRED, SUPERSEDED, DISCARDED |
 | ApprovalState | VARCHAR(10) | لا | DRAFT |  | enum: DRAFT, APPROVED |
 | ApprovedBy | BIGINT | نعم |  | sec.AppUser | إضافة: لازم لعقد المُعِدّ/المعتمِد (FR-COL-014، §12) |
 | ApprovedOn | DATETIME2(3) | نعم |  |  | إضافة |
-| SupersedesId | BIGINT | نعم |  | col.Collateral | النسخة الجديدة DRAFT تشير إلى المعتمدة (FR-COL-014) |
+| SupersedesId | BIGINT | نعم |  | col.Collateral (via InheritedRootId) | النسخة الجديدة DRAFT تشير إلى المعتمدة (FR-COL-014)، ومن الجذر نفسه (DR-36) |
+| InheritedRootId | BIGINT | نعم |  |  | RootId للنسخة السابقة؛ فارغ للنسخة الأولى (DR-36) |
+| RootId | BIGINT | نعم |  |  | هوية الضمان الثابتة عبر نسخه: معرّف نسخته الأولى؛ إليها يشير CollateralLink (DR-36) محسوب: `CASE WHEN InheritedRootId IS NULL THEN CollateralId ELSE InheritedRootId END` |
 | GrantedOn | DATE | نعم |  |  |  |
 | ReleasedOn | DATE | نعم |  |  | الفك بتاريخ وسبب ووثيقة بلا حذف (FR-COL-010) |
 | ReleaseReason | NVARCHAR(500) | نعم |  |  |  |
@@ -3660,9 +3680,9 @@
 | UpdatedAt | DATETIME2(3) | نعم |  |  |  |
 | UpdatedBy | BIGINT | نعم |  |  |  |
 
-**المفاتيح:** PK(CollateralId) · UQ(PublicId)
+**المفاتيح:** PK(CollateralId) · UQ(PublicId) · UQ(TenantId, RootId) WHERE ApprovalState = 'APPROVED' AND Status <> 'SUPERSEDED' · UQ(TenantId, RootId, Status) WHERE Status = 'DRAFT'
 
-**قيود:** `Status = 'DRAFT' OR ApprovalState = 'APPROVED'` · `ApprovalState <> 'APPROVED' OR Status <> 'DRAFT'` · `ApprovalState <> 'APPROVED' OR (ApprovedBy IS NOT NULL AND ApprovedOn IS NOT NULL)` · `Status <> 'RELEASED' OR (ReleasedOn IS NOT NULL AND ReleaseReason IS NOT NULL)` · `Status = 'RELEASED' OR (ReleasedOn IS NULL AND ReleaseReason IS NULL AND ReleaseDocumentId IS NULL)` · `GrantedOn IS NULL OR ReleasedOn IS NULL OR ReleasedOn >= GrantedOn` · `SupersedesId IS NULL OR SupersedesId <> CollateralId` · `SourceDocumentId IS NOT NULL AND SourcePage IS NOT NULL OR (SourceDocumentId IS NULL AND Confidence = 'ENTERED_NO_DOCUMENT')` · `Confidence <> 'CONFIRMED_AGAINST_ORIGINAL' OR (VerifiedBy IS NOT NULL AND VerifiedOn IS NOT NULL)`
+**قيود:** `Status IN ('DRAFT','DISCARDED') OR ApprovalState = 'APPROVED'` · `ApprovalState <> 'APPROVED' OR Status NOT IN ('DRAFT','DISCARDED')` · `ApprovalState <> 'APPROVED' OR (ApprovedBy IS NOT NULL AND ApprovedOn IS NOT NULL)` · `Status <> 'RELEASED' OR (ReleasedOn IS NOT NULL AND ReleaseReason IS NOT NULL AND ReleaseDocumentId IS NOT NULL)` · `Status = 'RELEASED' OR (ReleasedOn IS NULL AND ReleaseReason IS NULL AND ReleaseDocumentId IS NULL)` · `GrantedOn IS NULL OR ReleasedOn IS NULL OR ReleasedOn >= GrantedOn` · `SupersedesId IS NULL OR SupersedesId <> CollateralId` · `SourceDocumentId IS NOT NULL AND SourcePage IS NOT NULL OR (SourceDocumentId IS NULL AND Confidence = 'ENTERED_NO_DOCUMENT')` · `Confidence <> 'CONFIRMED_AGAINST_ORIGINAL' OR (VerifiedBy IS NOT NULL AND VerifiedOn IS NOT NULL)` · `(SupersedesId IS NULL AND InheritedRootId IS NULL) OR (SupersedesId IS NOT NULL AND InheritedRootId IS NOT NULL)` · `OriginalText IS NULL OR (OriginalText COLLATE Arabic_100_BIN2 NOT LIKE '%[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]%' AND OriginalText COLLATE Arabic_100_BIN2 NOT LIKE '%[A-Za-z][A-Za-z][0-9][0-9] [0-9][0-9][0-9][0-9] [0-9][0-9][0-9][0-9] [0-9][0-9][0-9][0-9]%')`
 
 ### `col.CollateralLink` — Link between collateral and a facility or limit; one collateral can serve several facilities (FR-COL-002, BR-COL-005)
 
@@ -3672,7 +3692,7 @@
 |---|---|---|---|---|---|
 | TenantId | INT | لا | | plat.Tenant | عزل المشترك |
 | **CollateralLinkId** | BIGINT IDENTITY | لا | | | مفتاح أساسي |
-| CollateralId | BIGINT | لا |  | col.Collateral |  |
+| CollateralId | BIGINT | لا |  | col.Collateral | النسخة الأولى للضمان، جذره؛ فلا يُعاد الربط عند نسخة جديدة، والنسخة المعتمدة الحالية تُقرأ بـ RootId (DR-36؛ قادح في 044) |
 | FacilityId | BIGINT | لا |  | fac.Facility |  |
 | LimitId | BIGINT | نعم |  | fac.Limit (via FacilityId) | حد من التسهيل نفسه؛ فارغ = على مستوى التسهيل |
 | CoverageAmount | DECIMAL(19,4) | نعم |  |  | بعملة التسهيل (BR-FAC-002) |
@@ -3681,15 +3701,17 @@
 | UnlinkedOn | DATE | نعم |  |  | فك الربط يضع التاريخ ولا يحذف (FR-COL-002) |
 | FromRevision | INT | لا | 1 |  |  |
 | ToRevision | INT | نعم |  |  |  |
-| SupersedesId | BIGINT | نعم |  | col.CollateralLink |  |
+| SupersedesId | BIGINT | نعم |  | col.CollateralLink (via InheritedRootId) |  |
+| InheritedRootId | BIGINT | نعم |  |  | RootId of the predecessor; empty for the first row of a node (DR-28) |
+| RootId | BIGINT | نعم |  |  | the stable identity of the node across revisions (DQ-F13-4, DR-28) محسوب: `CASE WHEN InheritedRootId IS NULL THEN CollateralLinkId ELSE InheritedRootId END` |
 | CreatedAt | DATETIME2(3) | لا | SYSUTCDATETIME() |  |  |
 | CreatedBy | BIGINT | نعم |  |  |  |
 | UpdatedAt | DATETIME2(3) | نعم |  |  |  |
 | UpdatedBy | BIGINT | نعم |  |  |  |
 
-**المفاتيح:** PK(CollateralLinkId) · UQ(TenantId, CollateralId, FacilityId, LimitId) WHERE UnlinkedOn IS NULL AND ToRevision IS NULL
+**المفاتيح:** PK(CollateralLinkId) · UQ(TenantId, CollateralId, FacilityId, LimitId) WHERE UnlinkedOn IS NULL AND ToRevision IS NULL · UQ(TenantId, RootId) WHERE ToRevision IS NULL
 
-**قيود:** `CoverageAmount IS NULL OR CoverageAmount > 0` · `LienRank IS NULL OR LienRank >= 1` · `UnlinkedOn IS NULL OR UnlinkedOn >= LinkedOn` · `ToRevision IS NULL OR ToRevision >= FromRevision`
+**قيود:** `CoverageAmount IS NULL OR CoverageAmount > 0` · `LienRank IS NULL OR LienRank >= 1` · `UnlinkedOn IS NULL OR UnlinkedOn >= LinkedOn` · `ToRevision IS NULL OR ToRevision >= FromRevision` · `(SupersedesId IS NULL AND InheritedRootId IS NULL) OR (SupersedesId IS NOT NULL AND InheritedRootId IS NOT NULL)`
 
 ### `col.Guarantee` — Guarantee, 1:1 with Collateral; the guarantor is always a Party, and no identity numbers are stored here (FR-COL-003/004, BR-COL-001)
 
@@ -3842,7 +3864,7 @@
 | ScopeLimitId | BIGINT | نعم |  | fac.Limit (via FacilityId) | حد من التسهيل نفسه |
 | ScopeProductLineId | BIGINT | نعم |  | fac.LimitProductLine (via FacilityId,ScopeLimitId) | خط من الحد نفسه في التسهيل نفسه (DR-35) |
 | ClauseRef | NVARCHAR(100) | نعم |  |  |  |
-| ClauseText | NVARCHAR(MAX) | نعم |  |  | نص البند كما في الاتفاقية (DR-31) 🔒 confidential |
+| ClauseText | NVARCHAR(MAX) | نعم |  |  | نص البند كما في الاتفاقية (DR-31)؛ بلا IBAN أو رقم حساب صريح (DQ-S06-7) 🔒 confidential |
 | ConsequenceText | NVARCHAR(2000) | نعم |  |  |  |
 | GraceDays | INT | نعم |  |  | مهلة سماح (FR-OBL-010) |
 | CureDays | INT | نعم |  |  | مهلة علاج الخرق (FR-OBL-010، BR-OBL-009) |
@@ -3857,7 +3879,9 @@
 | ValidTo | DATE | نعم |  |  |  |
 | FromRevision | INT | لا | 1 |  |  |
 | ToRevision | INT | نعم |  |  |  |
-| SupersedesId | BIGINT | نعم |  | obl.Obligation |  |
+| SupersedesId | BIGINT | نعم |  | obl.Obligation (via InheritedRootId) |  |
+| InheritedRootId | BIGINT | نعم |  |  | RootId of the predecessor; empty for the first row of a node (DR-28) |
+| RootId | BIGINT | نعم |  |  | the stable identity of the node across revisions (DQ-F13-4, DR-28) محسوب: `CASE WHEN InheritedRootId IS NULL THEN ObligationId ELSE InheritedRootId END` |
 | SourceDocumentId | BIGINT | نعم |  | doc.Document |  |
 | SourcePage | VARCHAR(40) | نعم |  |  |  |
 | ReadFromScan | BIT | لا | 0 |  |  |
@@ -3873,9 +3897,9 @@
 | UpdatedAt | DATETIME2(3) | نعم |  |  |  |
 | UpdatedBy | BIGINT | نعم |  |  |  |
 
-**المفاتيح:** PK(ObligationId) · UQ(PublicId)
+**المفاتيح:** PK(ObligationId) · UQ(PublicId) · UQ(TenantId, RootId) WHERE ToRevision IS NULL
 
-**قيود:** `ValidTo IS NULL OR ValidTo >= ValidFrom` · `GraceDays IS NULL OR GraceDays >= 0` · `CureDays IS NULL OR CureDays >= 0` · `(ParamValue IS NULL AND ParamUnit IS NULL) OR (ParamValue IS NOT NULL AND ParamUnit IS NOT NULL)` · `ParamValue IS NULL OR ParamValue >= 0` · `ParamUnit IS NULL OR ParamUnit <> 'AMOUNT' OR ParamCurrencyId IS NOT NULL` · `ParamCurrencyId IS NULL OR ParamUnit = 'AMOUNT'` · `TriggerValues IS NULL OR TriggerField IS NOT NULL` · `ToRevision IS NULL OR ToRevision >= FromRevision` · `SourceDocumentId IS NOT NULL AND SourcePage IS NOT NULL OR (SourceDocumentId IS NULL AND Confidence = 'ENTERED_NO_DOCUMENT')` · `Confidence <> 'CONFIRMED_AGAINST_ORIGINAL' OR (VerifiedBy IS NOT NULL AND VerifiedOn IS NOT NULL)` · `ScopeProductLineId IS NULL OR ScopeLimitId IS NOT NULL`
+**قيود:** `ValidTo IS NULL OR ValidTo >= ValidFrom` · `GraceDays IS NULL OR GraceDays >= 0` · `CureDays IS NULL OR CureDays >= 0` · `(ParamValue IS NULL AND ParamUnit IS NULL) OR (ParamValue IS NOT NULL AND ParamUnit IS NOT NULL)` · `ParamValue IS NULL OR ParamValue >= 0` · `ParamUnit IS NULL OR ParamUnit <> 'AMOUNT' OR ParamCurrencyId IS NOT NULL` · `ParamCurrencyId IS NULL OR ParamUnit = 'AMOUNT'` · `TriggerValues IS NULL OR TriggerField IS NOT NULL` · `ToRevision IS NULL OR ToRevision >= FromRevision` · `SourceDocumentId IS NOT NULL AND SourcePage IS NOT NULL OR (SourceDocumentId IS NULL AND Confidence = 'ENTERED_NO_DOCUMENT')` · `Confidence <> 'CONFIRMED_AGAINST_ORIGINAL' OR (VerifiedBy IS NOT NULL AND VerifiedOn IS NOT NULL)` · `ScopeProductLineId IS NULL OR ScopeLimitId IS NOT NULL` · `(SupersedesId IS NULL AND InheritedRootId IS NULL) OR (SupersedesId IS NOT NULL AND InheritedRootId IS NOT NULL)` · `ClauseText IS NULL OR (ClauseText COLLATE Arabic_100_BIN2 NOT LIKE '%[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]%' AND ClauseText COLLATE Arabic_100_BIN2 NOT LIKE '%[A-Za-z][A-Za-z][0-9][0-9] [0-9][0-9][0-9][0-9] [0-9][0-9][0-9][0-9] [0-9][0-9][0-9][0-9]%')` · `OriginalText IS NULL OR (OriginalText COLLATE Arabic_100_BIN2 NOT LIKE '%[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]%' AND OriginalText COLLATE Arabic_100_BIN2 NOT LIKE '%[A-Za-z][A-Za-z][0-9][0-9] [0-9][0-9][0-9][0-9] [0-9][0-9][0-9][0-9] [0-9][0-9][0-9][0-9]%')`
 
 ### `obl.ObligationCompany` — Companies the obligation applies to (AppliesToCompanyIds) -- جدول وسيط جديد؛ الحذف لصفوف مسودة المراجعة فقط (يفرضه التطبيق)
 
@@ -3919,15 +3943,17 @@
 | ExpectsEvidence | BIT | لا |  |  | الدليل إلزامي عند التقديم (FR-OBL-004) |
 | FromRevision | INT | لا | 1 |  |  |
 | ToRevision | INT | نعم |  |  |  |
-| SupersedesId | BIGINT | نعم |  | obl.ReportingObligation |  |
+| SupersedesId | BIGINT | نعم |  | obl.ReportingObligation (via InheritedRootId) |  |
+| InheritedRootId | BIGINT | نعم |  |  | RootId of the predecessor; empty for the first row of a node (DR-28) |
+| RootId | BIGINT | نعم |  |  | the stable identity of the node across revisions (DQ-F13-4, DR-28) محسوب: `CASE WHEN InheritedRootId IS NULL THEN ReportingObligationId ELSE InheritedRootId END` |
 | CreatedAt | DATETIME2(3) | لا | SYSUTCDATETIME() |  |  |
 | CreatedBy | BIGINT | نعم |  |  |  |
 | UpdatedAt | DATETIME2(3) | نعم |  |  |  |
 | UpdatedBy | BIGINT | نعم |  |  |  |
 
-**المفاتيح:** PK(ReportingObligationId) · UQ(TenantId, ObligationId) WHERE ToRevision IS NULL
+**المفاتيح:** PK(ReportingObligationId) · UQ(TenantId, ObligationId) WHERE ToRevision IS NULL · UQ(TenantId, RootId) WHERE ToRevision IS NULL
 
-**قيود:** `AnchorKind <> 'FIXED_DATE' OR (FixedDueDate IS NOT NULL AND OffsetValue IS NULL)` · `AnchorKind = 'FIXED_DATE' OR (FixedDueDate IS NULL AND OffsetValue IS NOT NULL)` · `OffsetValue IS NULL OR OffsetValue >= 0` · `HorizonMonths IS NULL OR HorizonMonths > 0` · `Frequency <> 'EVENT_BASED' OR AnchorKind IN ('BEFORE_EVENT','AFTER_EVENT')` · `AnchorKind NOT IN ('BEFORE_EVENT','AFTER_EVENT') OR Frequency = 'EVENT_BASED'` · `Frequency <> 'ON_DEMAND' OR AnchorKind = 'ON_DEMAND_REQUEST'` · `AnchorKind <> 'ON_DEMAND_REQUEST' OR Frequency = 'ON_DEMAND'` · `AlertLeadDays IS NULL OR AlertLeadDays NOT LIKE '%[^0-9,]%'` · `ToRevision IS NULL OR ToRevision >= FromRevision`
+**قيود:** `AnchorKind <> 'FIXED_DATE' OR (FixedDueDate IS NOT NULL AND OffsetValue IS NULL)` · `AnchorKind = 'FIXED_DATE' OR (FixedDueDate IS NULL AND OffsetValue IS NOT NULL)` · `OffsetValue IS NULL OR OffsetValue >= 0` · `HorizonMonths IS NULL OR HorizonMonths > 0` · `Frequency <> 'EVENT_BASED' OR AnchorKind IN ('BEFORE_EVENT','AFTER_EVENT')` · `AnchorKind NOT IN ('BEFORE_EVENT','AFTER_EVENT') OR Frequency = 'EVENT_BASED'` · `Frequency <> 'ON_DEMAND' OR AnchorKind = 'ON_DEMAND_REQUEST'` · `AnchorKind <> 'ON_DEMAND_REQUEST' OR Frequency = 'ON_DEMAND'` · `AlertLeadDays IS NULL OR AlertLeadDays NOT LIKE '%[^0-9,]%'` · `ToRevision IS NULL OR ToRevision >= FromRevision` · `(SupersedesId IS NULL AND InheritedRootId IS NULL) OR (SupersedesId IS NOT NULL AND InheritedRootId IS NOT NULL)`
 
 ### `obl.ReportingInstance` — Agenda item generated or logged for an event (FR-OBL-003..005, BR-OBL-003, section 8); DUE_SOON and OVERDUE are derived
 
@@ -3973,7 +3999,9 @@
 | Family | VARCHAR(23) | لا | COVENANT |  | ثابت (DR-40) enum: COVENANT |
 | ObligationId | BIGINT | لا |  | obl.Obligation (via Family) |  |
 | MeasureKind | VARCHAR(18) | لا |  |  | NONE = وصفي بلا صيغة ولا حد enum: RATIO, AMOUNT, PERCENT_OF_REVENUE, AVERAGE_BALANCE, FLOW_VOLUME, NONE |
-| FormulaId | BIGINT | نعم |  | fin.MeasureFormula | إلزامي للثلاثة الأولى؛ انتماؤها للتسهيل أو قالب يتحقق منه التطبيق |
+| FormulaId | BIGINT | نعم |  | fin.MeasureFormula (via FormulaResultUnit,FormulaUsesStatements) | إلزامي للثلاثة الأولى؛ انتماؤها للتسهيل أو قالب يتحقق منه التطبيق |
+| FormulaResultUnit | VARCHAR(10) | نعم |  |  | نسخة من وحدة ناتج الصيغة بربط مركّب: الحد بوحدتها (DR-38) enum: RATIO, AMOUNT, PERCENT |
+| FormulaUsesStatements | BIT | نعم |  |  | نسخة: الصيغة تقرأ القوائم المالية، فيلزم أساس القائمة ومستوى تدقيقها (DR-38) |
 | Operator | VARCHAR(10) | نعم |  |  | enum: GE, LE, GT, LT, EQ |
 | ThresholdState | VARCHAR(26) | لا |  |  | الحكم لا يصدر إلا لـ SET (BR-OBL-006) enum: SET, NOT_SPECIFIED_IN_AGREEMENT, TO_BE_DETERMINED |
 | ThresholdValue | DECIMAL(19,6) | نعم |  |  | نسبة أو مبلغ أو نقاط مئوية بحسب ThresholdUnit |
@@ -3994,15 +4022,17 @@
 | ValidTo | DATE | نعم |  |  |  |
 | FromRevision | INT | لا | 1 |  |  |
 | ToRevision | INT | نعم |  |  |  |
-| SupersedesId | BIGINT | نعم |  | obl.Covenant |  |
+| SupersedesId | BIGINT | نعم |  | obl.Covenant (via InheritedRootId) |  |
+| InheritedRootId | BIGINT | نعم |  |  | RootId of the predecessor; empty for the first row of a node (DR-28) |
+| RootId | BIGINT | نعم |  |  | the stable identity of the node across revisions (DQ-F13-4, DR-28) محسوب: `CASE WHEN InheritedRootId IS NULL THEN CovenantId ELSE InheritedRootId END` |
 | CreatedAt | DATETIME2(3) | لا | SYSUTCDATETIME() |  |  |
 | CreatedBy | BIGINT | نعم |  |  |  |
 | UpdatedAt | DATETIME2(3) | نعم |  |  |  |
 | UpdatedBy | BIGINT | نعم |  |  |  |
 
-**المفاتيح:** PK(CovenantId) · UQ(TenantId, ObligationId, ValidFrom) WHERE ToRevision IS NULL
+**المفاتيح:** PK(CovenantId) · UQ(TenantId, ObligationId, ValidFrom) WHERE ToRevision IS NULL · UQ(TenantId, RootId) WHERE ToRevision IS NULL
 
-**قيود:** `MeasureKind NOT IN ('RATIO','AMOUNT','PERCENT_OF_REVENUE') OR FormulaId IS NOT NULL` · `MeasureKind <> 'NONE' OR (FormulaId IS NULL AND Operator IS NULL AND ThresholdValue IS NULL AND ThresholdState <> 'SET')` · `ThresholdState <> 'SET' OR (Operator IS NOT NULL AND ThresholdValue IS NOT NULL AND ThresholdUnit IS NOT NULL)` · `ThresholdState = 'SET' OR ThresholdValue IS NULL` · `ThresholdState <> 'SET' OR ThresholdUnit IS NULL OR ThresholdUnit <> 'AMOUNT' OR CurrencyId IS NOT NULL` · `CurrencyId IS NULL OR ThresholdUnit = 'AMOUNT'` · `RevenueBasisRule IS NULL OR MeasureKind = 'PERCENT_OF_REVENUE'` · `SubmissionLagDays IS NULL OR SubmissionLagDays >= 0` · `EarlyWarningPct IS NULL OR (EarlyWarningPct >= 0 AND EarlyWarningPct <= 100)` · `ValidTo IS NULL OR ValidTo >= ValidFrom` · `ToRevision IS NULL OR ToRevision >= FromRevision`
+**قيود:** `MeasureKind NOT IN ('RATIO','AMOUNT','PERCENT_OF_REVENUE') OR FormulaId IS NOT NULL` · `MeasureKind <> 'NONE' OR (FormulaId IS NULL AND Operator IS NULL AND ThresholdValue IS NULL AND ThresholdState <> 'SET')` · `ThresholdState <> 'SET' OR (Operator IS NOT NULL AND ThresholdValue IS NOT NULL AND ThresholdUnit IS NOT NULL)` · `ThresholdState = 'SET' OR ThresholdValue IS NULL` · `ThresholdState <> 'SET' OR ThresholdUnit IS NULL OR ThresholdUnit <> 'AMOUNT' OR CurrencyId IS NOT NULL` · `CurrencyId IS NULL OR ThresholdUnit = 'AMOUNT'` · `RevenueBasisRule IS NULL OR MeasureKind = 'PERCENT_OF_REVENUE'` · `(FormulaId IS NULL AND FormulaResultUnit IS NULL AND FormulaUsesStatements IS NULL) OR (FormulaId IS NOT NULL AND FormulaResultUnit IS NOT NULL AND FormulaUsesStatements IS NOT NULL)` · `ThresholdUnit IS NULL OR FormulaResultUnit IS NULL OR ThresholdUnit = FormulaResultUnit` · `ThresholdUnit IS NULL OR (MeasureKind = 'RATIO' AND ThresholdUnit = 'RATIO') OR (MeasureKind IN ('AMOUNT','AVERAGE_BALANCE','FLOW_VOLUME') AND ThresholdUnit = 'AMOUNT') OR (MeasureKind = 'PERCENT_OF_REVENUE' AND ThresholdUnit = 'PERCENT')` · `FormulaUsesStatements IS NULL OR FormulaUsesStatements = 0 OR (StatementBasis IS NOT NULL AND RequiredAssurance IS NOT NULL)` · `SubmissionLagDays IS NULL OR SubmissionLagDays >= 0` · `EarlyWarningPct IS NULL OR (EarlyWarningPct >= 0 AND EarlyWarningPct <= 100)` · `ValidTo IS NULL OR ValidTo >= ValidFrom` · `ToRevision IS NULL OR ToRevision >= FromRevision` · `(SupersedesId IS NULL AND InheritedRootId IS NULL) OR (SupersedesId IS NOT NULL AND InheritedRootId IS NOT NULL)`
 
 ### `obl.CovenantAccount` — Accounts covered by a covenant when specific accounts are selected (AccountIds) -- جدول وسيط جديد؛ الحذف لصفوف مسودة المراجعة فقط (يفرضه التطبيق)
 
@@ -4277,7 +4307,8 @@
 | BaseTemplateId | BIGINT | نعم |  | fin.MeasureFormula | القالب المنسوخ منه؛ كونه TEMPLATE يتحقق منه التطبيق |
 | Expression | NVARCHAR(2000) | لا |  |  | نحو مقيَّد يُحلَّل إلى شجرة (BR-FIN-009) |
 | InputKinds | VARCHAR(40) | لا |  |  |  |
-| ResultUnit | VARCHAR(10) | لا |  |  | على غرار Covenant.ThresholdUnit (المواصفة لا تعدّد القيم) enum: RATIO, AMOUNT, PERCENT |
+| ResultUnit | VARCHAR(10) | لا |  |  | على غرار Covenant.ThresholdUnit (المواصفة لا تعدّد القيم)؛ وحدة صيغة مستعملة لا تتغير (DR-38) enum: RATIO, AMOUNT, PERCENT |
+| UsesStatements | BIT | نعم |  |  | تقرأ القوائم المالية (DR-38) محسوب: `CAST(CASE WHEN InputKinds LIKE '%STATEMENT%' THEN 1 ELSE 0 END AS BIT)` |
 | DefinitionNote | NVARCHAR(1000) | نعم |  |  | مثل: هل يشمل الدين التزامات الإيجار |
 | VersionNo | INT | لا | 1 |  |  |
 | Status | VARCHAR(10) | لا | DRAFT |  | enum: DRAFT, APPROVED, SUPERSEDED |
@@ -4299,7 +4330,7 @@
 
 **المفاتيح:** PK(MeasureFormulaId) · UQ(TenantId, Code, FacilityId, VersionNo) · UQ(TenantId, Code, FacilityId) WHERE Status = 'APPROVED'
 
-**قيود:** `Scope <> 'TEMPLATE' OR FacilityId IS NULL` · `Scope <> 'FACILITY_COPY' OR FacilityId IS NOT NULL` · `Scope = 'FACILITY_COPY' OR BaseTemplateId IS NULL` · `BaseTemplateId IS NULL OR BaseTemplateId <> MeasureFormulaId` · `InputKinds <> ''` · `VersionNo >= 1` · `Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%'` · `Status NOT IN ('APPROVED','SUPERSEDED') OR (ApprovedBy IS NOT NULL AND ApprovedOn IS NOT NULL)` · `SourceDocumentId IS NOT NULL AND SourcePage IS NOT NULL OR (SourceDocumentId IS NULL AND Confidence = 'ENTERED_NO_DOCUMENT')` · `Confidence <> 'CONFIRMED_AGAINST_ORIGINAL' OR (VerifiedBy IS NOT NULL AND VerifiedOn IS NOT NULL)`
+**قيود:** `Scope <> 'TEMPLATE' OR FacilityId IS NULL` · `Scope <> 'FACILITY_COPY' OR FacilityId IS NOT NULL` · `Scope = 'FACILITY_COPY' OR BaseTemplateId IS NULL` · `BaseTemplateId IS NULL OR BaseTemplateId <> MeasureFormulaId` · `InputKinds <> ''` · `VersionNo >= 1` · `Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%'` · `Status NOT IN ('APPROVED','SUPERSEDED') OR (ApprovedBy IS NOT NULL AND ApprovedOn IS NOT NULL)` · `SourceDocumentId IS NOT NULL AND SourcePage IS NOT NULL OR (SourceDocumentId IS NULL AND Confidence = 'ENTERED_NO_DOCUMENT')` · `Confidence <> 'CONFIRMED_AGAINST_ORIGINAL' OR (VerifiedBy IS NOT NULL AND VerifiedOn IS NOT NULL)` · `OriginalText IS NULL OR (OriginalText COLLATE Arabic_100_BIN2 NOT LIKE '%[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]%' AND OriginalText COLLATE Arabic_100_BIN2 NOT LIKE '%[A-Za-z][A-Za-z][0-9][0-9] [0-9][0-9][0-9][0-9] [0-9][0-9][0-9][0-9] [0-9][0-9][0-9][0-9]%')`
 
 ## REQ
 

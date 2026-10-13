@@ -12,6 +12,17 @@ GO
 SET NOCOUNT ON;
 ALTER TABLE fac.Facility NOCHECK CONSTRAINT ALL;
 ALTER TABLE fac.FacilityLender NOCHECK CONSTRAINT ALL;
+ALTER TABLE fac.FacilityRevision NOCHECK CONSTRAINT ALL;
+GO
+/* An approval records the APPROVED revision first, then raises the facility's ApprovedRevisionNo, as the facility
+   trigger of 044 requires (DR-28). */
+CREATE PROCEDURE #Approve @FacilityId BIGINT, @RevisionNo INT
+AS
+BEGIN
+    INSERT fac.FacilityRevision (TenantId, FacilityId, RevisionNo, ReasonKind, Status, EffectiveOn)
+    VALUES (1, @FacilityId, @RevisionNo, CASE WHEN @RevisionNo = 1 THEN 'INITIAL' ELSE 'AMENDMENT' END, 'APPROVED', '2026-01-01');
+    UPDATE fac.Facility SET ApprovedRevisionNo = @RevisionNo WHERE FacilityId = @FacilityId;
+END;
 GO
 /* The row filters (010) show rows only to a connection bound to the tenant (sec.SessionBinding, O-16).
    Bind this session to tenant 1; tenant 1 is not seeded here, so the binding's foreign key is switched off too.
@@ -43,7 +54,7 @@ SET @f = SCOPE_IDENTITY();
 INSERT fac.FacilityLender (TenantId, FacilityId, InstitutionId, Roles, SharePct, FromRevision) VALUES (1, @f, 1, 'LEAD', 60, 1);
 INSERT fac.FacilityLender (TenantId, FacilityId, InstitutionId, Roles, SharePct, FromRevision) VALUES (1, @f, 2, 'PARTICIPANT', 40, 1);
 BEGIN TRY
-    UPDATE fac.Facility SET ApprovedRevisionNo = 1 WHERE FacilityId = @f;
+    EXEC #Approve @f, 1;
     PRINT 'PASS T1: approval with shares totalling 100 is accepted';
 END TRY
 BEGIN CATCH
@@ -61,7 +72,7 @@ VALUES (1, N'TEST-T2', 1, 1, 1, 1000, 'EN', '2026-01-01', '2027-01-01');
 SET @f = SCOPE_IDENTITY();
 INSERT fac.FacilityLender (TenantId, FacilityId, InstitutionId, Roles, SharePct, FromRevision) VALUES (1, @f, 1, 'LEAD', 60, 1);
 INSERT fac.FacilityLender (TenantId, FacilityId, InstitutionId, Roles, SharePct, FromRevision) VALUES (1, @f, 2, 'PARTICIPANT', 40, 1);
-UPDATE fac.Facility SET ApprovedRevisionNo = 1 WHERE FacilityId = @f;
+EXEC #Approve @f, 1;
 BEGIN TRY
     INSERT fac.FacilityLender (TenantId, FacilityId, InstitutionId, Roles, SharePct, FromRevision) VALUES (1, @f, 3, 'PARTICIPANT', 5, 1);
     PRINT 'FAIL T2: a total of 105 was accepted';
@@ -83,10 +94,10 @@ VALUES (1, N'TEST-T3', 1, 1, 1, 1000, 'EN', '2026-01-01', '2027-01-01');
 SET @f = SCOPE_IDENTITY();
 INSERT fac.FacilityLender (TenantId, FacilityId, InstitutionId, Roles, SharePct, FromRevision) VALUES (1, @f, 1, 'LEAD', 60, 1);
 INSERT fac.FacilityLender (TenantId, FacilityId, InstitutionId, Roles, SharePct, FromRevision) VALUES (1, @f, 2, 'PARTICIPANT', 40, 1);
-UPDATE fac.Facility SET ApprovedRevisionNo = 1 WHERE FacilityId = @f;
+EXEC #Approve @f, 1;
 UPDATE fac.FacilityLender SET ToRevision = 2 WHERE FacilityId = @f;
 BEGIN TRY
-    UPDATE fac.Facility SET ApprovedRevisionNo = 2 WHERE FacilityId = @f;
+    EXEC #Approve @f, 2;
     PRINT 'FAIL T3: approval of revision 2 without lenders for revision 2 was accepted';
 END TRY
 BEGIN CATCH
@@ -105,11 +116,11 @@ VALUES (1, N'TEST-T4', 1, 1, 1, 1000, 'EN', '2026-01-01', '2027-01-01');
 SET @f = SCOPE_IDENTITY();
 INSERT fac.FacilityLender (TenantId, FacilityId, InstitutionId, Roles, SharePct, FromRevision) VALUES (1, @f, 1, 'LEAD', 60, 1);
 INSERT fac.FacilityLender (TenantId, FacilityId, InstitutionId, Roles, SharePct, FromRevision) VALUES (1, @f, 2, 'PARTICIPANT', 40, 1);
-UPDATE fac.Facility SET ApprovedRevisionNo = 1 WHERE FacilityId = @f;
+EXEC #Approve @f, 1;
 UPDATE fac.FacilityLender SET ToRevision = 2 WHERE FacilityId = @f;
 INSERT fac.FacilityLender (TenantId, FacilityId, InstitutionId, Roles, SharePct, FromRevision) VALUES (1, @f, 1, 'LEAD', 100, 2);
 BEGIN TRY
-    UPDATE fac.Facility SET ApprovedRevisionNo = 2 WHERE FacilityId = @f;
+    EXEC #Approve @f, 2;
     PRINT 'PASS T4: approval of revision 2 with shares totalling 100 is accepted';
 END TRY
 BEGIN CATCH
@@ -128,7 +139,7 @@ SET @f = SCOPE_IDENTITY();
 INSERT fac.FacilityLender (TenantId, FacilityId, InstitutionId, Roles, SharePct, FromRevision) VALUES (1, @f, 1, 'AGENT,LEAD', 50, 1);
 INSERT fac.FacilityLender (TenantId, FacilityId, InstitutionId, Roles, SharePct, FromRevision) VALUES (1, @f, 2, 'AGENT,PARTICIPANT', 50, 1);
 BEGIN TRY
-    UPDATE fac.Facility SET ApprovedRevisionNo = 1 WHERE FacilityId = @f;
+    EXEC #Approve @f, 1;
     PRINT 'FAIL T5: approval with two agents was accepted';
 END TRY
 BEGIN CATCH
@@ -161,5 +172,6 @@ DELETE FROM plat.Tenant WHERE TenantId = 1;
 ALTER TABLE plat.Tenant WITH CHECK CHECK CONSTRAINT ALL;
 ALTER TABLE fac.Facility WITH CHECK CHECK CONSTRAINT ALL;
 ALTER TABLE fac.FacilityLender WITH CHECK CHECK CONSTRAINT ALL;
+ALTER TABLE fac.FacilityRevision WITH CHECK CHECK CONSTRAINT ALL;
 PRINT 'Tests finished; every test rolled back.';
 GO

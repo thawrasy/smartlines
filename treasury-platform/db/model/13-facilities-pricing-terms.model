@@ -333,13 +333,13 @@ table fac.ValueConflict  # Conflict between two values of one field, and its res
   CandidateASourceDocumentId  ->doc.Document
   CandidateASourcePage        ascii(40)
   CandidateAReadFromScan      bool       req =0
-  CandidateAOriginalText      str(2000)  sens=confidential   # DR-31
+  CandidateAOriginalText      str(2000)  sens=confidential redact   # DR-31
   CandidateAConfidence        enum{CONFIRMED_AGAINST_ORIGINAL,READ_FROM_SCAN_UNVERIFIED,ENTERED_NO_DOCUMENT} req =ENTERED_NO_DOCUMENT
   CandidateBValue             str(1000)  req   # القيمة + ختم المصدر (B)
   CandidateBSourceDocumentId  ->doc.Document
   CandidateBSourcePage        ascii(40)
   CandidateBReadFromScan      bool       req =0
-  CandidateBOriginalText      str(2000)  sens=confidential
+  CandidateBOriginalText      str(2000)  sens=confidential redact
   CandidateBConfidence        enum{CONFIRMED_AGAINST_ORIGINAL,READ_FROM_SCAN_UNVERIFIED,ENTERED_NO_DOCUMENT} req =ENTERED_NO_DOCUMENT
   Status                      enum{OPEN,RESOLVED} req =OPEN
   ChosenSide                  enum{A,B,OTHER}

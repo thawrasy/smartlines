@@ -32,11 +32,13 @@ table col.Collateral public src  # Collateral record; approved independently of 
   OwnerPartyId       ->pty.Party          # مزوّد استخدام Collateral owner؛ شركة المجموعة بـ Party المرآة (FR-COL-015)
   Attributes         json sens=restricted   # DR-08: سمات القالب (قد تحمل معرّفات) محجوبة عن التقارير؛ الحساب النقدي يُربط بالنوع أدناه
   CashMarginAccountId ->acc.BankAccount     # الحساب النقدي للهامش: مرجع مُعرَّف لا سمة حرّة (DR-08)
-  Status             enum{DRAFT,ACTIVE,RELEASED,EXPIRED} req =DRAFT
+  Status             enum{DRAFT,ACTIVE,RELEASED,EXPIRED,SUPERSEDED,DISCARDED} req =DRAFT   # SUPERSEDED: نسخة معتمدة حلّت محلها أحدث؛ DISCARDED: مسودة متروكة (DR-36)
   ApprovalState      enum{DRAFT,APPROVED} req =DRAFT
   ApprovedBy         ->sec.AppUser        # إضافة: لازم لعقد المُعِدّ/المعتمِد (FR-COL-014، §12)
   ApprovedOn         ts                   # إضافة
-  SupersedesId       ->col.Collateral     # النسخة الجديدة DRAFT تشير إلى المعتمدة (FR-COL-014)
+  SupersedesId       ->col.Collateral via=InheritedRootId>RootId   # النسخة الجديدة DRAFT تشير إلى المعتمدة (FR-COL-014)، ومن الجذر نفسه (DR-36)
+  InheritedRootId    bigint               # RootId للنسخة السابقة؛ فارغ للنسخة الأولى (DR-36)
+  calc RootId        bigint =CASE WHEN InheritedRootId IS NULL THEN CollateralId ELSE InheritedRootId END   # هوية الضمان الثابتة عبر نسخه: معرّف نسخته الأولى؛ إليها يشير CollateralLink (DR-36)
   GrantedOn          date
   ReleasedOn         date                 # الفك بتاريخ وسبب ووثيقة بلا حذف (FR-COL-010)
   ReleaseReason      str(500)
@@ -44,18 +46,21 @@ table col.Collateral public src  # Collateral record; approved independently of 
   unique PublicId
   index  CollateralTypeId,Status include OwnerPartyId,ApprovalState   # سجل الضمانات بالنوع والحالة وتنبيه التشابه (R-COL-02)
   index  Status,ApprovalState              # المعتمد الفعّال للتغطية (BR-COL-005)
-  check  Status = 'DRAFT' OR ApprovalState = 'APPROVED'   # DRAFT→ACTIVE باعتماد السجل (§8)
-  check  ApprovalState <> 'APPROVED' OR Status <> 'DRAFT'
+  check  Status IN ('DRAFT','DISCARDED') OR ApprovalState = 'APPROVED'   # DRAFT→ACTIVE باعتماد السجل (§8)؛ المتروكة مسودة لم تُعتمد
+  check  ApprovalState <> 'APPROVED' OR Status NOT IN ('DRAFT','DISCARDED')
   check  ApprovalState <> 'APPROVED' OR (ApprovedBy IS NOT NULL AND ApprovedOn IS NOT NULL)   # FR-COL-014
-  check  Status <> 'RELEASED' OR (ReleasedOn IS NOT NULL AND ReleaseReason IS NOT NULL)   # FR-COL-010
+  check  Status <> 'RELEASED' OR (ReleasedOn IS NOT NULL AND ReleaseReason IS NOT NULL AND ReleaseDocumentId IS NOT NULL)   # FR-COL-010: بتاريخ وسبب ووثيقة (DR-36، جواب السؤال 5)
   check  Status = 'RELEASED' OR (ReleasedOn IS NULL AND ReleaseReason IS NULL AND ReleaseDocumentId IS NULL)
   check  GrantedOn IS NULL OR ReleasedOn IS NULL OR ReleasedOn >= GrantedOn
   check  SupersedesId IS NULL OR SupersedesId <> CollateralId
   check  SourceDocumentId IS NOT NULL AND SourcePage IS NOT NULL OR (SourceDocumentId IS NULL AND Confidence = 'ENTERED_NO_DOCUMENT')   # ختم المصدر (BR-FAC-018)
   check  Confidence <> 'CONFIRMED_AGAINST_ORIGINAL' OR (VerifiedBy IS NOT NULL AND VerifiedOn IS NOT NULL)
+  check  (SupersedesId IS NULL AND InheritedRootId IS NULL) OR (SupersedesId IS NOT NULL AND InheritedRootId IS NOT NULL)
+  unique RootId where ApprovalState = 'APPROVED' AND Status <> 'SUPERSEDED'   # نسخة معتمدة حالية واحدة لكل ضمان (DR-36)
+  unique RootId,Status where Status = 'DRAFT'   # مسودة مفتوحة واحدة لكل ضمان (Status ثابت في المرشّح)
 
 table col.CollateralLink rev  # Link between collateral and a facility or limit; one collateral can serve several facilities (FR-COL-002, BR-COL-005)
-  CollateralId    ->col.Collateral req
+  CollateralId    ->col.Collateral req   # النسخة الأولى للضمان، جذره؛ فلا يُعاد الربط عند نسخة جديدة، والنسخة المعتمدة الحالية تُقرأ بـ RootId (DR-36؛ قادح في 044)
   FacilityId      ->fac.Facility req
   LimitId         ->fac.Limit via=FacilityId   # حد من التسهيل نفسه؛ فارغ = على مستوى التسهيل
   CoverageAmount  money                        # بعملة التسهيل (BR-FAC-002)
@@ -173,7 +178,7 @@ table obl.Obligation public rev src  # Obligation on a facility (or on a limit, 
   ScopeLimitId        ->fac.Limit via=FacilityId             # حد من التسهيل نفسه
   ScopeProductLineId  ->fac.LimitProductLine via=FacilityId,ScopeLimitId>LimitId   # خط من الحد نفسه في التسهيل نفسه (DR-35)
   ClauseRef           str(100)
-  ClauseText          text       sens=confidential   # نص البند كما في الاتفاقية (DR-31)
+  ClauseText          text       sens=confidential redact   # نص البند كما في الاتفاقية (DR-31)؛ بلا IBAN أو رقم حساب صريح (DQ-S06-7)
   ConsequenceText     str(2000)
   GraceDays           int              # مهلة سماح (FR-OBL-010)
   CureDays            int              # مهلة علاج الخرق (FR-OBL-010، BR-OBL-009)
@@ -270,7 +275,9 @@ table obl.Covenant rev  # Covenant revision with dates; graduated limits are sev
   Family             enum{COVENANT} req =COVENANT   # ثابت (DR-40)
   ObligationId       ->obl.Obligation req via=Family
   MeasureKind        enum{RATIO,AMOUNT,PERCENT_OF_REVENUE,AVERAGE_BALANCE,FLOW_VOLUME,NONE} req   # NONE = وصفي بلا صيغة ولا حد
-  FormulaId          ->fin.MeasureFormula   # إلزامي للثلاثة الأولى؛ انتماؤها للتسهيل أو قالب يتحقق منه التطبيق
+  FormulaId          ->fin.MeasureFormula via=FormulaResultUnit>ResultUnit,FormulaUsesStatements>UsesStatements   # إلزامي للثلاثة الأولى؛ انتماؤها للتسهيل أو قالب يتحقق منه التطبيق
+  FormulaResultUnit  enum{RATIO,AMOUNT,PERCENT}   # نسخة من وحدة ناتج الصيغة بربط مركّب: الحد بوحدتها (DR-38)
+  FormulaUsesStatements bool             # نسخة: الصيغة تقرأ القوائم المالية، فيلزم أساس القائمة ومستوى تدقيقها (DR-38)
   Operator           enum{GE,LE,GT,LT,EQ}
   ThresholdState     enum{SET,NOT_SPECIFIED_IN_AGREEMENT,TO_BE_DETERMINED} req   # الحكم لا يصدر إلا لـ SET (BR-OBL-006)
   ThresholdValue     dec(19,6)        # نسبة أو مبلغ أو نقاط مئوية بحسب ThresholdUnit
@@ -298,6 +305,10 @@ table obl.Covenant rev  # Covenant revision with dates; graduated limits are sev
   check  ThresholdState <> 'SET' OR ThresholdUnit IS NULL OR ThresholdUnit <> 'AMOUNT' OR CurrencyId IS NOT NULL
   check  CurrencyId IS NULL OR ThresholdUnit = 'AMOUNT'
   check  RevenueBasisRule IS NULL OR MeasureKind = 'PERCENT_OF_REVENUE'
+  check  (FormulaId IS NULL AND FormulaResultUnit IS NULL AND FormulaUsesStatements IS NULL) OR (FormulaId IS NOT NULL AND FormulaResultUnit IS NOT NULL AND FormulaUsesStatements IS NOT NULL)
+  check  ThresholdUnit IS NULL OR FormulaResultUnit IS NULL OR ThresholdUnit = FormulaResultUnit   # وحدة الحد = وحدة ناتج الصيغة (DR-38)
+  check  ThresholdUnit IS NULL OR (MeasureKind = 'RATIO' AND ThresholdUnit = 'RATIO') OR (MeasureKind IN ('AMOUNT','AVERAGE_BALANCE','FLOW_VOLUME') AND ThresholdUnit = 'AMOUNT') OR (MeasureKind = 'PERCENT_OF_REVENUE' AND ThresholdUnit = 'PERCENT')   # الوحدة من نوع القياس (DR-38)
+  check  FormulaUsesStatements IS NULL OR FormulaUsesStatements = 0 OR (StatementBasis IS NOT NULL AND RequiredAssurance IS NOT NULL)   # صيغة على القوائم تحدد أساسها ومستوى تدقيقها، بلا بديل صامت (BR-FIN-003، DR-38)
   check  SubmissionLagDays IS NULL OR SubmissionLagDays >= 0
   check  EarlyWarningPct IS NULL OR (EarlyWarningPct >= 0 AND EarlyWarningPct <= 100)
   check  ValidTo IS NULL OR ValidTo >= ValidFrom
@@ -493,7 +504,8 @@ table fin.MeasureFormula src  # Measure formula: a template or a facility-agreem
   BaseTemplateId  ->fin.MeasureFormula    # القالب المنسوخ منه؛ كونه TEMPLATE يتحقق منه التطبيق
   Expression      str(2000)  req          # نحو مقيَّد يُحلَّل إلى شجرة (BR-FIN-009)
   InputKinds      set{STATEMENT,ACCOUNT_STATS,BANK_FLOWS} req
-  ResultUnit      enum{RATIO,AMOUNT,PERCENT} req   # على غرار Covenant.ThresholdUnit (المواصفة لا تعدّد القيم)
+  ResultUnit      enum{RATIO,AMOUNT,PERCENT} req   # على غرار Covenant.ThresholdUnit (المواصفة لا تعدّد القيم)؛ وحدة صيغة مستعملة لا تتغير (DR-38)
+  calc UsesStatements bool =CAST(CASE WHEN InputKinds LIKE '%STATEMENT%' THEN 1 ELSE 0 END AS BIT)   # تقرأ القوائم المالية (DR-38)
   DefinitionNote  str(1000)               # مثل: هل يشمل الدين التزامات الإيجار
   VersionNo       int        req =1
   Status          enum{DRAFT,APPROVED,SUPERSEDED} req =DRAFT

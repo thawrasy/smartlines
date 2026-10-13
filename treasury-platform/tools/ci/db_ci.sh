@@ -388,17 +388,20 @@ sq -i db/tests/review_fixes_tests.sql > "$TMP/review.out" 2>&1 || {
     exit 1
 }
 cat "$TMP/review.out"
-if grep -q '^FAIL' "$TMP/review.out"; then
+# The older sqlcmd of the development container can print a fragment of its input before a result line; the cases
+# are therefore matched anywhere on the line and counted once each.
+if grep -qE 'FAIL RF[0-9]+:' "$TMP/review.out"; then
     echo "a review fixes test failed"
     exit 1
 fi
-rf_pass=$(grep -c '^PASS' "$TMP/review.out" || true)
-# 22 cases: RF1 list columns, RF2-RF9 the S0 tables (DR-11 to DR-18), RF10 codes in capitals (DR-48), RF11-RF16
+rf_pass=$(grep -oE 'PASS RF[0-9]+:' "$TMP/review.out" | sort -u | wc -l)
+# 27 cases: RF1 list columns, RF2-RF9 the S0 tables (DR-11 to DR-18), RF10 codes in capitals (DR-48), RF11-RF16
 # the S1 tables (DR-19, DR-21, DR-23, DR-24, DR-29, DR-47), RF17-RF18 collateral kinds, agreement text and proformas
 # (DR-40, DR-31, DR-41), RF19-RF21 the S1 entry conditions (DR-30, DR-16, DR-25), RF22 the S1-b entry condition
-# (DR-22). The declarative fixes are checked on the DDL in step 3 (check_review_fixes.py).
-if [ "$rf_pass" -ne 22 ]; then
-    echo "expected 22 PASS, found $rf_pass"
+# (DR-22), RF23-RF27 the S2 entry conditions (DR-27, DR-28, DR-31, DR-36, DR-38). The declarative fixes are checked on
+# the DDL in step 3 (check_review_fixes.py).
+if [ "$rf_pass" -ne 27 ]; then
+    echo "expected 27 PASS, found $rf_pass"
     exit 1
 fi
 echo "review fixes tests: $rf_pass passed"

@@ -101,6 +101,23 @@ checks['DR-22 indirect holding per path through a named intermediate, never a te
     'UQ_Shareholding_CompanyId_HolderPartyId_Layer_IntermediatePartyId_EffectiveFrom' in tb
     and has_check('org', 'Shareholding', 'Layer >= 2 AND IntermediatePartyId IS NOT NULL') and 'TR_Shareholding_Intermediate' in entry
     and 'TR_Company_NotIntermediate' in entry)
+checks['DR-27 conflict target exists and carries its facility (044)'] = 'TR_ValueConflict_Target' in entry
+rev_tables = re.findall(r'CREATE TABLE \[(\w+)\]\.\[(\w+)\] \(\n(?:(?!\n\);).)*?\[FromRevision\]', tb, re.S)
+checks['DR-28 every revisioned table has a stable node identity, one open row per node'] = bool(rev_tables) and all(
+    f'[RootId] AS (CASE WHEN InheritedRootId IS NULL THEN {t}Id ELSE InheritedRootId END) PERSISTED' in block(sch, t)
+    and f'UQ_{t}_RootId] ON [{sch}].[{t}] ([TenantId], [RootId]) WHERE ToRevision IS NULL' in ix
+    and fk_has(t, 'SupersedesId', 'InheritedRootId') for sch, t in rev_tables)
+checks['DR-28 revision integrity at approval (044)'] = 'TR_Facility_RevisionIntegrity' in entry and 'TR_FacilityRevision_ApprovedFinal' in entry
+redacted = re.findall(r"CHECK \((\w+) IS NULL OR \(\1 COLLATE Arabic_100_BIN2 NOT LIKE '%\[0-9\]", tb)
+checks['DR-31 agreement text refuses an unmasked IBAN or account number (14 columns)'] = sorted(set(redacted)) == ['CandidateAOriginalText', 'CandidateBOriginalText', 'ClauseText', 'OriginalText'] and len(redacted) == 14
+checks['DR-36 collateral versions: root, one current approved and one draft, release document, link to the root'] = (
+    fk_has('Collateral', 'SupersedesId', 'InheritedRootId') and 'UQ_Collateral_RootId]' in ix and 'UQ_Collateral_RootId_Status]' in ix
+    and has_check('col', 'Collateral', 'ReleaseDocumentId IS NOT NULL') and "'SUPERSEDED'" in block('col', 'Collateral')
+    and 'TR_CollateralLink_Root' in entry)
+checks['DR-38 covenant unit is the formula result and fits the measure; statement formulas fix the basis'] = (
+    fk_has('Covenant', 'FormulaId', 'FormulaResultUnit', 'FormulaUsesStatements')
+    and has_check('obl', 'Covenant', 'ThresholdUnit = FormulaResultUnit') and has_check('obl', 'Covenant', "MeasureKind IN ('AMOUNT','AVERAGE_BALANCE','FLOW_VOLUME')")
+    and has_check('obl', 'Covenant', 'StatementBasis IS NOT NULL AND RequiredAssurance IS NOT NULL'))
 checks['DR-30 product and financing type pair by Shariah classification'] = fk_has('ProductFinancingType', 'ProductId', 'ProductCompliance') and fk_has('ProductFinancingType', 'FinancingTypeId', 'FinancingIsIslamic') and has_check('cat', 'ProductFinancingType', "ProductCompliance = 'NEUTRAL'")
 checks['DR-29 BaseRate currency required; alias in its rate scope'] = '[CurrencyId] INT NOT NULL' in block('cat', 'BaseRate') and fk_has('BaseRateAlias', 'BaseRateId', 'ScopeKey')
 checks['DR-31 agreement text denied to tp_readonly (043)'] = 'OriginalText' in guards and 'tp_readonly' in guards

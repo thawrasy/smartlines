@@ -22,6 +22,7 @@ class Col:
         self.cascade = False; self.noidx = False; self.enum = None; self.sens = None
         self.comment = ''; self.calc = None; self.auto = False; self.is_json = False
         self.src_line = None; self.isset = False; self.setvals = None; self.is_bool = False; self.baretype = None
+        self.redact = False
         self.same_tenant = False
 
 class Table:
@@ -172,6 +173,7 @@ def parse_files(paths):
                 elif tk == 'cascade': col.cascade = True
                 elif tk == 'noidx': col.noidx = True
                 elif tk == 'sametenant': col.same_tenant = True   # to a mixed table: the target row is this tenant's (DR-12)
+                elif tk == 'redact': col.redact = True   # free text that must not hold an unmasked IBAN or account number (DR-31)
                 elif tk.startswith('via='):
                     # via=A,B : العمود نفسه في الطرفين · via=A>B : عمود A في الابن يقابل B في الأب (مثال: ثابت الغرض)
                     pairs = [v.split('>', 1) if '>' in v else [v, v] for v in tk[4:].split(',') if v]
@@ -210,13 +212,29 @@ def expand(tables):
             if c.name not in t.colmap: t.cols.insert(0, c); t.colmap[c.name] = c
         extra = []
         if 'rev' in f:
-            extra += [mkcol('FromRevision','int',w,True,'1'), mkcol('ToRevision','int',w), mkcol('SupersedesId',None,w,fk=t.fq)]
+            # The stable identity of a node across revisions (DQ-F13-4, DR-28): RootId is the id of the node's first row.
+            # A new row copies its predecessor's RootId into InheritedRootId, and the composite key through SupersedesId
+            # makes it equal to the predecessor's. One open row (ToRevision IS NULL) per node.
+            idt = 'int' if t.idtype == 'int' else 'bigint'
+            extra += [mkcol('FromRevision','int',w,True,'1'), mkcol('ToRevision','int',w),
+                      mkcol('SupersedesId',None,w,fk=t.fq, via=['InheritedRootId'], via_t=['RootId']),
+                      mkcol('InheritedRootId',idt,w, comment='RootId of the predecessor; empty for the first row of a node (DR-28)'),
+                      mkcol('RootId',idt,w, calc=f'CASE WHEN InheritedRootId IS NULL THEN {t.idname} ELSE InheritedRootId END',
+                            comment='the stable identity of the node across revisions (DQ-F13-4, DR-28)')]
+            t.checks.append(('(SupersedesId IS NULL AND InheritedRootId IS NULL) OR (SupersedesId IS NOT NULL AND InheritedRootId IS NOT NULL)', w))
+            t.uniques.append([['RootId'], [], 'ToRevision IS NULL', w])
         if 'src' in f:
             extra += [mkcol('SourceDocumentId',None,w,fk='doc.Document'), mkcol('SourcePage','ascii(40)',w), mkcol('ReadFromScan','bool',w,True,'0'),
-                      mkcol('OriginalText','str(2000)',w, sens='confidential'), mkcol('NoSourceReason','str(300)',w), mkcol('Confidence','enum{CONFIRMED_AGAINST_ORIGINAL,READ_FROM_SCAN_UNVERIFIED,ENTERED_NO_DOCUMENT}',w,True,'ENTERED_NO_DOCUMENT'),
+                      mkcol('OriginalText','str(2000)',w, sens='confidential', redact=True), mkcol('NoSourceReason','str(300)',w), mkcol('Confidence','enum{CONFIRMED_AGAINST_ORIGINAL,READ_FROM_SCAN_UNVERIFIED,ENTERED_NO_DOCUMENT}',w,True,'ENTERED_NO_DOCUMENT'),
                       mkcol('VerifiedBy',None,w,fk='sec.AppUser'), mkcol('VerifiedOn','ts',w), mkcol('ConflictId',None,w,fk='fac.ValueConflict')]
         for c in extra:
             if c.name not in t.colmap: t.cols.append(c); t.colmap[c.name] = c
+        # DR-31, DQ-S06-7: the application masks IBANs and account numbers when the text is entered, and the check refuses
+        # what it missed: ten digits in a row, or an IBAN written in groups of four digits.
+        for c in t.cols:
+            if c.redact:
+                t.checks.append((f"{c.name} IS NULL OR ({c.name} COLLATE Arabic_100_BIN2 NOT LIKE '%[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]%'"
+                                 f" AND {c.name} COLLATE Arabic_100_BIN2 NOT LIKE '%[A-Za-z][A-Za-z][0-9][0-9] [0-9][0-9][0-9][0-9] [0-9][0-9][0-9][0-9] [0-9][0-9][0-9][0-9]%')", w))
         # public id
         if 'public' in f and 'PublicId' not in t.colmap:
             c = mkcol('PublicId','guid',w,True,'NEWSEQUENTIALID()'); t.cols.append(c); t.colmap['PublicId'] = c

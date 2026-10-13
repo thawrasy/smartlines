@@ -28,6 +28,14 @@
    RF21 a company's tax numbers come from its mirror's current tax identity, for the bound tenant only (DR-25)
    RF22 an owner holds a company indirectly per path through a named intermediate, never a company of the tenant
         (DR-22, S1-b; 044)
+   RF23 a value conflict names an existing target and carries its facility (DR-27, S2; 044)
+   RF24 a facility revision is approved whole: its approved row, parents in the revision, one row per node, and no
+        way back (DR-28, DQ-F13-4, S2; 044 and the generator's RootId)
+   RF25 agreement text holds no unmasked IBAN or account number (DR-31, DQ-S06-7, S2)
+   RF26 collateral versions share their root, with one draft and one current approved version, and links name the root
+        (DR-36, S2; 044)
+   RF27 a covenant's threshold unit is its formula's and its measure's, and a formula on statements fixes the basis
+        (DR-38, S2)
    The other declarative fixes of S2 to S4 (keys and checks) are verified on the generated DDL by
    tools/dbgen/check_review_fixes.py, CI step 3.
 
@@ -737,4 +745,268 @@ IF @ok = 3 AND @dup = 2627 AND @e1 = 547 AND @e2 = 547 AND @e3 = 547 AND @e4 = 5
 ELSE PRINT CONCAT('FAIL RF22: two paths and a direct row ', @ok, ', same path twice ', @dup, ', indirect without intermediate ', @e1,
                   ', direct with one ', @e2, ', owner as intermediate ', @e3, ', path through a tenant company ', @e4,
                   ', intermediate becoming a company ', @e5);
+GO
+/* The S2 fixture: in tenant 1, a company, a facility with one lender at 100 percent, a root limit and its child at
+   revision 1, revision 1 approved. Runs inside the caller's transaction; #F holds 'f', 'l', 'lc', 'co', 'cur'.
+   Catalogue and lender references are switched off for these rows (the transaction rolls the switch back). */
+CREATE PROCEDURE #S2
+AS
+BEGIN
+    SET NOCOUNT ON;
+    DECLARE @t1 INT, @u1 BIGINT, @country INT, @cur INT, @p BIGINT, @co BIGINT, @f BIGINT, @l BIGINT, @lc BIGINT;
+    EXEC #Fixture;
+    SELECT @t1 = v FROM #F WHERE k = 't1'; SELECT @u1 = v FROM #F WHERE k = 'u1';
+    SET @country = (SELECT CountryId FROM ref.Country WHERE Iso2 = 'SA');
+    SET @cur = (SELECT CurrencyId FROM ref.Currency WHERE Code = 'SAR');
+    ALTER TABLE org.Company NOCHECK CONSTRAINT FK_Company_LegalEntityTypeId;
+    ALTER TABLE fac.Facility NOCHECK CONSTRAINT FK_Facility_FacilityTypeId;
+    ALTER TABLE fac.FacilityLender NOCHECK CONSTRAINT FK_FacilityLender_InstitutionId;
+    ALTER TABLE fac.Limit NOCHECK CONSTRAINT FK_Limit_LimitTypeId;
+    EXEC #Bind @t1, @u1;
+    INSERT pty.Party (TenantId, PartyCode, Kind, NameEn) VALUES (@t1, 'P-CO', 'ORGANIZATION', N'Borrower');
+    SET @p = SCOPE_IDENTITY();
+    INSERT org.Company (TenantId, CompanyCode, NameAr, NameEn, PartyId, LegalEntityTypeId, CountryId, FiscalYearEndMonth)
+    VALUES (@t1, 'CO', N'شركة', N'Borrower', @p, 1, @country, 12);
+    SET @co = SCOPE_IDENTITY();
+    INSERT fac.Facility (TenantId, FacilityNo, BorrowerCompanyId, FacilityTypeId, CurrencyId, TotalAmount, PrecedenceLanguage, EffectiveFrom, ExpiryDate)
+    VALUES (@t1, 'FAC-26-001', @co, 1, @cur, 1000000, 'EN', '2026-01-01', '2027-01-01');
+    SET @f = SCOPE_IDENTITY();
+    INSERT fac.FacilityLender (TenantId, FacilityId, InstitutionId, Roles, SharePct, FromRevision) VALUES (@t1, @f, 1, 'LEAD', 100, 1);
+    INSERT fac.Limit (TenantId, FacilityId, LimitTypeId, Code, NameAr, AmountBasis, Amount, IsRevolving, FromRevision)
+    VALUES (@t1, @f, 1, 'L1', N'حد', 'ABSOLUTE', 800000, 1, 1);
+    SET @l = SCOPE_IDENTITY();
+    INSERT fac.Limit (TenantId, FacilityId, ParentLimitId, LimitTypeId, Code, NameAr, AmountBasis, Amount, IsRevolving, FromRevision)
+    VALUES (@t1, @f, @l, 1, 'L1A', N'حد فرعي', 'ABSOLUTE', 300000, 1, 1);
+    SET @lc = SCOPE_IDENTITY();
+    INSERT fac.FacilityRevision (TenantId, FacilityId, RevisionNo, ReasonKind, Status, EffectiveOn, SubmittedBy, SubmittedOn, ApprovedBy, ApprovedOn)
+    VALUES (@t1, @f, 1, 'INITIAL', 'APPROVED', '2026-01-01', @u1, SYSUTCDATETIME(), @u1, SYSUTCDATETIME());
+    UPDATE fac.Facility SET ApprovedRevisionNo = 1 WHERE FacilityId = @f;
+    INSERT #F (k, v) VALUES ('f', @f), ('l', @l), ('lc', @lc), ('co', @co), ('cur', @cur);
+END;
+GO
+/* RF23 (DR-27, S2): a conflict names an existing target and carries its facility: on a limit of facility 1 with
+   facility 1 and on a collateral with no facility it is accepted; with another facility or on a missing row it is
+   refused (50048). A trigger error ends its transaction, so each refusal has its own. */
+DECLARE @t1 INT, @u1 BIGINT, @f BIGINT, @f2 BIGINT, @l BIGINT, @co BIGINT, @cur INT, @tg INT, @c BIGINT, @ok INT = 0, @e1 INT, @e2 INT;
+BEGIN TRANSACTION;
+EXEC #S2;
+SELECT @t1 = v FROM #F WHERE k = 't1'; SELECT @f = v FROM #F WHERE k = 'f'; SELECT @l = v FROM #F WHERE k = 'l';
+INSERT cat.CollateralType (TenantId, Code, NameAr, StructureKind) VALUES (@t1, 'GUAR', N'كفالة', 'GUARANTEE');
+SET @tg = SCOPE_IDENTITY();
+INSERT col.Collateral (TenantId, StructureKind, CollateralTypeId, TitleAr) VALUES (@t1, 'GUARANTEE', @tg, N'كفالة');
+SET @c = SCOPE_IDENTITY();
+BEGIN TRY
+    INSERT fac.ValueConflict (TenantId, FacilityId, TargetEntity, TargetId, FieldName, CandidateAValue, CandidateBValue)
+    VALUES (@t1, @f, 'fac.Limit', @l, 'Amount', N'800000', N'850000'), (@t1, NULL, 'col.Collateral', @c, 'TitleAr', N'أ', N'ب');
+    SET @ok = @@ROWCOUNT;
+END TRY BEGIN CATCH SET @ok = -ERROR_NUMBER(); IF XACT_STATE() <> 0 ROLLBACK TRANSACTION; END CATCH;
+WHILE @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
+BEGIN TRANSACTION;
+EXEC #S2;
+SELECT @t1 = v FROM #F WHERE k = 't1'; SELECT @l = v FROM #F WHERE k = 'l'; SELECT @co = v FROM #F WHERE k = 'co'; SELECT @cur = v FROM #F WHERE k = 'cur';
+INSERT fac.Facility (TenantId, FacilityNo, BorrowerCompanyId, FacilityTypeId, CurrencyId, TotalAmount, PrecedenceLanguage, EffectiveFrom, ExpiryDate)
+VALUES (@t1, 'FAC-26-002', @co, 1, @cur, 500000, 'EN', '2026-01-01', '2027-01-01');
+SET @f2 = SCOPE_IDENTITY();
+BEGIN TRY
+    INSERT fac.ValueConflict (TenantId, FacilityId, TargetEntity, TargetId, FieldName, CandidateAValue, CandidateBValue)
+    VALUES (@t1, @f2, 'fac.Limit', @l, 'Amount', N'800000', N'850000');
+END TRY BEGIN CATCH SET @e1 = ERROR_NUMBER(); IF XACT_STATE() <> 0 ROLLBACK TRANSACTION; END CATCH;
+WHILE @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
+BEGIN TRANSACTION;
+EXEC #S2;
+SELECT @t1 = v FROM #F WHERE k = 't1'; SELECT @f = v FROM #F WHERE k = 'f';
+BEGIN TRY
+    INSERT fac.ValueConflict (TenantId, FacilityId, TargetEntity, TargetId, FieldName, CandidateAValue, CandidateBValue)
+    VALUES (@t1, @f, 'fac.Limit', 987654321, 'Amount', N'1', N'2');
+END TRY BEGIN CATCH SET @e2 = ERROR_NUMBER(); IF XACT_STATE() <> 0 ROLLBACK TRANSACTION; END CATCH;
+WHILE @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
+IF @ok = 2 AND @e1 = 50048 AND @e2 = 50048
+    PRINT 'PASS RF23: a value conflict names an existing target and carries its facility';
+ELSE PRINT CONCAT('FAIL RF23: on a limit and on a collateral ', @ok, ', with another facility ', @e1, ', on a missing row ', @e2);
+GO
+/* RF24 (DR-28, S2): approving a revision needs its APPROVED row (50049) and never goes back (50049), and an approved
+   revision stays approved (50049). At the approved revision a child points to a parent row valid at it (50050), and
+   a node has one row valid at it (50050), and one open row (2601); a new row keeps its predecessor's root (547). */
+DECLARE @t1 INT, @u1 BIGINT, @f BIGINT, @l BIGINT, @lc BIGINT, @l2 BIGINT, @root BIGINT, @lcroot BIGINT,
+        @setup INT = 0, @e1 INT, @e2 INT, @ok INT = 0, @e3 INT, @e4 INT, @e5 INT, @e6 INT, @e7 INT, @e8 INT;
+DECLARE @newRevision NVARCHAR(400) = N'INSERT fac.FacilityRevision (TenantId, FacilityId, RevisionNo, ReasonKind, Status, EffectiveOn, SubmittedBy, SubmittedOn, ApprovedBy, ApprovedOn)
+    VALUES (@t, @f, 2, ''AMENDMENT'', ''APPROVED'', ''2026-06-01'', @u, SYSUTCDATETIME(), @u, SYSUTCDATETIME());';
+-- 1: revision 1 approved by the fixture; revision 2 without its row is refused
+BEGIN TRANSACTION;
+EXEC #S2;
+SELECT @t1 = v FROM #F WHERE k = 't1'; SELECT @f = v FROM #F WHERE k = 'f';
+SET @setup = (SELECT ApprovedRevisionNo FROM fac.Facility WHERE FacilityId = @f);
+BEGIN TRY UPDATE fac.Facility SET ApprovedRevisionNo = 2 WHERE FacilityId = @f; END TRY
+BEGIN CATCH SET @e1 = ERROR_NUMBER(); IF XACT_STATE() <> 0 ROLLBACK TRANSACTION; END CATCH;
+WHILE @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
+-- 2: the parent limit is amended in revision 2 and its child is left on the old row
+BEGIN TRANSACTION;
+EXEC #S2;
+SELECT @t1 = v FROM #F WHERE k = 't1'; SELECT @u1 = v FROM #F WHERE k = 'u1'; SELECT @f = v FROM #F WHERE k = 'f';
+SELECT @l = v FROM #F WHERE k = 'l';
+EXEC sys.sp_executesql @newRevision, N'@t INT, @f BIGINT, @u BIGINT', @t = @t1, @f = @f, @u = @u1;
+SET @root = (SELECT RootId FROM fac.Limit WHERE LimitId = @l);
+UPDATE fac.Limit SET ToRevision = 2 WHERE LimitId = @l;
+INSERT fac.Limit (TenantId, FacilityId, LimitTypeId, Code, NameAr, AmountBasis, Amount, IsRevolving, FromRevision, SupersedesId, InheritedRootId)
+VALUES (@t1, @f, 1, 'L1', N'حد', 'ABSOLUTE', 900000, 1, 2, @l, @root);
+BEGIN TRY UPDATE fac.Facility SET ApprovedRevisionNo = 2 WHERE FacilityId = @f; END TRY
+BEGIN CATCH SET @e2 = ERROR_NUMBER(); IF XACT_STATE() <> 0 ROLLBACK TRANSACTION; END CATCH;
+WHILE @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
+-- 3: the child follows its parent into revision 2: approved; then the approved revision cannot be reopened
+BEGIN TRANSACTION;
+EXEC #S2;
+SELECT @t1 = v FROM #F WHERE k = 't1'; SELECT @u1 = v FROM #F WHERE k = 'u1'; SELECT @f = v FROM #F WHERE k = 'f';
+SELECT @l = v FROM #F WHERE k = 'l'; SELECT @lc = v FROM #F WHERE k = 'lc';
+EXEC sys.sp_executesql @newRevision, N'@t INT, @f BIGINT, @u BIGINT', @t = @t1, @f = @f, @u = @u1;
+SET @root = (SELECT RootId FROM fac.Limit WHERE LimitId = @l); SET @lcroot = (SELECT RootId FROM fac.Limit WHERE LimitId = @lc);
+UPDATE fac.Limit SET ToRevision = 2 WHERE LimitId IN (@l, @lc);
+INSERT fac.Limit (TenantId, FacilityId, LimitTypeId, Code, NameAr, AmountBasis, Amount, IsRevolving, FromRevision, SupersedesId, InheritedRootId)
+VALUES (@t1, @f, 1, 'L1', N'حد', 'ABSOLUTE', 900000, 1, 2, @l, @root);
+SET @l2 = SCOPE_IDENTITY();
+INSERT fac.Limit (TenantId, FacilityId, ParentLimitId, LimitTypeId, Code, NameAr, AmountBasis, Amount, IsRevolving, FromRevision, SupersedesId, InheritedRootId)
+VALUES (@t1, @f, @l2, 1, 'L1A', N'حد فرعي', 'ABSOLUTE', 300000, 1, 2, @lc, @lcroot);
+BEGIN TRY UPDATE fac.Facility SET ApprovedRevisionNo = 2 WHERE FacilityId = @f; SET @ok = @@ROWCOUNT; END TRY
+BEGIN CATCH SET @ok = -ERROR_NUMBER(); IF XACT_STATE() <> 0 ROLLBACK TRANSACTION; END CATCH;
+IF @@TRANCOUNT > 0
+BEGIN TRY UPDATE fac.FacilityRevision SET Status = 'DRAFT' WHERE FacilityId = @f AND RevisionNo = 2; END TRY
+BEGIN CATCH SET @e3 = ERROR_NUMBER(); IF XACT_STATE() <> 0 ROLLBACK TRANSACTION; END CATCH;
+WHILE @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
+-- 4: a second open row of a node (2601), a wrong root (547), and two rows of a node valid at revision 2 (50050)
+BEGIN TRANSACTION;
+EXEC #S2;
+SELECT @t1 = v FROM #F WHERE k = 't1'; SELECT @u1 = v FROM #F WHERE k = 'u1'; SELECT @f = v FROM #F WHERE k = 'f';
+SELECT @l = v FROM #F WHERE k = 'l'; SELECT @lc = v FROM #F WHERE k = 'lc';
+EXEC sys.sp_executesql @newRevision, N'@t INT, @f BIGINT, @u BIGINT', @t = @t1, @f = @f, @u = @u1;
+SET @root = (SELECT RootId FROM fac.Limit WHERE LimitId = @l);
+BEGIN TRY INSERT fac.Limit (TenantId, FacilityId, LimitTypeId, Code, NameAr, AmountBasis, Amount, IsRevolving, FromRevision, SupersedesId, InheritedRootId)
+          VALUES (@t1, @f, 1, 'L1B', N'حد', 'ABSOLUTE', 900000, 1, 2, @l, @root); END TRY BEGIN CATCH SET @e4 = ERROR_NUMBER(); END CATCH;
+BEGIN TRY INSERT fac.Limit (TenantId, FacilityId, LimitTypeId, Code, NameAr, AmountBasis, Amount, IsRevolving, FromRevision, SupersedesId, InheritedRootId)
+          VALUES (@t1, @f, 1, 'L1C', N'حد', 'ABSOLUTE', 900000, 1, 2, @l, @root + 100000); END TRY BEGIN CATCH SET @e5 = ERROR_NUMBER(); END CATCH;
+UPDATE fac.Limit SET ToRevision = 3 WHERE LimitId = @l;
+INSERT fac.Limit (TenantId, FacilityId, LimitTypeId, Code, NameAr, AmountBasis, Amount, IsRevolving, FromRevision, SupersedesId, InheritedRootId)
+VALUES (@t1, @f, 1, 'L1', N'حد', 'ABSOLUTE', 900000, 1, 2, @l, @root);
+BEGIN TRY UPDATE fac.Facility SET ApprovedRevisionNo = 2 WHERE FacilityId = @f; END TRY
+BEGIN CATCH SET @e6 = ERROR_NUMBER(); IF XACT_STATE() <> 0 ROLLBACK TRANSACTION; END CATCH;
+WHILE @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
+-- 5: revision 2 approved without changes; going back to revision 1 is refused
+BEGIN TRANSACTION;
+EXEC #S2;
+SELECT @t1 = v FROM #F WHERE k = 't1'; SELECT @u1 = v FROM #F WHERE k = 'u1'; SELECT @f = v FROM #F WHERE k = 'f';
+EXEC sys.sp_executesql @newRevision, N'@t INT, @f BIGINT, @u BIGINT', @t = @t1, @f = @f, @u = @u1;
+BEGIN TRY UPDATE fac.Facility SET ApprovedRevisionNo = 2 WHERE FacilityId = @f; SET @e7 = 0; END TRY
+BEGIN CATCH SET @e7 = ERROR_NUMBER(); IF XACT_STATE() <> 0 ROLLBACK TRANSACTION; END CATCH;
+IF @@TRANCOUNT > 0
+BEGIN TRY UPDATE fac.Facility SET ApprovedRevisionNo = 1 WHERE FacilityId = @f; END TRY
+BEGIN CATCH SET @e8 = ERROR_NUMBER(); IF XACT_STATE() <> 0 ROLLBACK TRANSACTION; END CATCH;
+WHILE @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
+IF @setup = 1 AND @e1 = 50049 AND @e2 = 50050 AND @ok = 1 AND @e3 = 50049 AND @e4 = 2601 AND @e5 = 547 AND @e6 = 50050
+   AND @e7 = 0 AND @e8 = 50049
+    PRINT 'PASS RF24: a facility revision is approved whole: its approved row, parents in the revision, one row per node, and no way back';
+ELSE PRINT CONCAT('FAIL RF24: setup ', @setup, ', no revision row ', @e1, ', child on the old parent ', @e2, ', whole revision ', @ok,
+                  ', reopened ', @e3, ', second open row ', @e4, ', wrong root ', @e5, ', two rows valid ', @e6,
+                  ', plain approval ', @e7, ', back to 1 ', @e8);
+GO
+/* RF25 (DR-31, S2): agreement text holds no unmasked IBAN or account number: a run of ten digits and an IBAN in groups
+   are refused (547) in a limit's source text and a conflict's candidate text; the masked form is accepted. */
+DECLARE @t1 INT, @f BIGINT, @l BIGINT, @e1 INT, @e2 INT, @e3 INT, @e4 INT, @ok INT = 0;
+BEGIN TRANSACTION;
+EXEC #S2;
+SELECT @t1 = v FROM #F WHERE k = 't1'; SELECT @f = v FROM #F WHERE k = 'f'; SELECT @l = v FROM #F WHERE k = 'l';
+BEGIN TRY UPDATE fac.Limit SET OriginalText = N'Proceeds to IBAN SA0380000000608010167519' WHERE LimitId = @l; END TRY BEGIN CATCH SET @e1 = ERROR_NUMBER(); END CATCH;
+BEGIN TRY UPDATE fac.Limit SET OriginalText = N'Proceeds to IBAN SA03 8000 0000 6080 1016 7519' WHERE LimitId = @l; END TRY BEGIN CATCH SET @e2 = ERROR_NUMBER(); END CATCH;
+BEGIN TRY UPDATE fac.Limit SET OriginalText = N'Account no. 6080101675 with the bank' WHERE LimitId = @l; END TRY BEGIN CATCH SET @e3 = ERROR_NUMBER(); END CATCH;
+BEGIN TRY INSERT fac.ValueConflict (TenantId, FacilityId, TargetEntity, TargetId, FieldName, CandidateAValue, CandidateBValue, CandidateAOriginalText)
+          VALUES (@t1, @f, 'fac.Limit', @l, 'Amount', N'1', N'2', N'paid to SA0380000000608010167519'); END TRY BEGIN CATCH SET @e4 = ERROR_NUMBER(); END CATCH;
+BEGIN TRY UPDATE fac.Limit SET OriginalText = N'Proceeds to IBAN SA** **** **** **** **** 7519, amount SAR 1,000,000' WHERE LimitId = @l; SET @ok = @@ROWCOUNT; END TRY
+BEGIN CATCH SET @ok = -ERROR_NUMBER(); END CATCH;
+WHILE @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
+IF @e1 = 547 AND @e2 = 547 AND @e3 = 547 AND @e4 = 547 AND @ok = 1
+    PRINT 'PASS RF25: agreement text holds no unmasked IBAN or account number; the masked form is accepted';
+ELSE PRINT CONCAT('FAIL RF25: IBAN ', @e1, ', IBAN in groups ', @e2, ', account ', @e3, ', candidate text ', @e4, ', masked ', @ok);
+GO
+/* RF26 (DR-36, S2): collateral versions share their root: a new version keeps its predecessor's root (547 otherwise),
+   one open draft (2601) and one current approved version (2601) per collateral, an approved version is never a draft
+   or discarded (547), a release needs its document (547), and a link names the root, not a later version (50052). */
+DECLARE @t1 INT, @u1 BIGINT, @f BIGINT, @tg INT, @v1 BIGINT, @v2 BIGINT, @v3 BIGINT, @e1 INT, @e2 INT, @e3 INT, @e4 INT,
+        @e5 INT, @e6 INT, @e7 INT, @ok1 INT = 0, @ok2 INT = 0, @ok3 INT = 0;
+BEGIN TRANSACTION;
+EXEC #S2;
+SELECT @t1 = v FROM #F WHERE k = 't1'; SELECT @u1 = v FROM #F WHERE k = 'u1'; SELECT @f = v FROM #F WHERE k = 'f';
+INSERT cat.CollateralType (TenantId, Code, NameAr, StructureKind) VALUES (@t1, 'GUAR', N'كفالة', 'GUARANTEE');
+SET @tg = SCOPE_IDENTITY();
+INSERT col.Collateral (TenantId, StructureKind, CollateralTypeId, TitleAr) VALUES (@t1, 'GUARANTEE', @tg, N'كفالة');
+SET @v1 = SCOPE_IDENTITY();
+UPDATE col.Collateral SET ApprovalState = 'APPROVED', Status = 'ACTIVE', ApprovedBy = @u1, ApprovedOn = SYSUTCDATETIME() WHERE CollateralId = @v1;
+BEGIN TRY INSERT col.Collateral (TenantId, StructureKind, CollateralTypeId, TitleAr, SupersedesId, InheritedRootId)
+          VALUES (@t1, 'GUARANTEE', @tg, N'كفالة', @v1, @v1 + 1000); END TRY BEGIN CATCH SET @e1 = ERROR_NUMBER(); END CATCH;
+INSERT col.Collateral (TenantId, StructureKind, CollateralTypeId, TitleAr, SupersedesId, InheritedRootId)
+VALUES (@t1, 'GUARANTEE', @tg, N'كفالة معدلة', @v1, @v1);
+SET @v2 = SCOPE_IDENTITY();
+BEGIN TRY INSERT col.Collateral (TenantId, StructureKind, CollateralTypeId, TitleAr, SupersedesId, InheritedRootId)
+          VALUES (@t1, 'GUARANTEE', @tg, N'مسودة ثانية', @v1, @v1); END TRY BEGIN CATCH SET @e2 = ERROR_NUMBER(); END CATCH;
+BEGIN TRY UPDATE col.Collateral SET ApprovalState = 'APPROVED', Status = 'ACTIVE', ApprovedBy = @u1, ApprovedOn = SYSUTCDATETIME() WHERE CollateralId = @v2; END TRY
+BEGIN CATCH SET @e3 = ERROR_NUMBER(); END CATCH;
+UPDATE col.Collateral SET Status = 'SUPERSEDED' WHERE CollateralId = @v1;
+BEGIN TRY UPDATE col.Collateral SET ApprovalState = 'APPROVED', Status = 'ACTIVE', ApprovedBy = @u1, ApprovedOn = SYSUTCDATETIME() WHERE CollateralId = @v2;
+          SET @ok1 = @@ROWCOUNT; END TRY BEGIN CATCH SET @ok1 = -ERROR_NUMBER(); END CATCH;
+BEGIN TRY UPDATE col.Collateral SET Status = 'DISCARDED' WHERE CollateralId = @v2; END TRY BEGIN CATCH SET @e4 = ERROR_NUMBER(); END CATCH;
+INSERT col.Collateral (TenantId, StructureKind, CollateralTypeId, TitleAr, SupersedesId, InheritedRootId)
+VALUES (@t1, 'GUARANTEE', @tg, N'مسودة متروكة', @v2, @v1);
+SET @v3 = SCOPE_IDENTITY();
+BEGIN TRY UPDATE col.Collateral SET Status = 'DISCARDED' WHERE CollateralId = @v3; SET @ok2 = @@ROWCOUNT; END TRY BEGIN CATCH SET @ok2 = -ERROR_NUMBER(); END CATCH;
+BEGIN TRY UPDATE col.Collateral SET Status = 'RELEASED', ReleasedOn = '2026-09-01', ReleaseReason = N'سداد' WHERE CollateralId = @v2; END TRY
+BEGIN CATCH SET @e5 = ERROR_NUMBER(); END CATCH;
+BEGIN TRY INSERT col.CollateralLink (TenantId, CollateralId, FacilityId, LinkedOn) VALUES (@t1, @v1, @f, '2026-01-01'); SET @ok3 = @@ROWCOUNT; END TRY
+BEGIN CATCH SET @ok3 = -ERROR_NUMBER(); END CATCH;
+BEGIN TRY INSERT col.CollateralLink (TenantId, CollateralId, FacilityId, LinkedOn) VALUES (@t1, @v2, @f, '2026-01-01'); END TRY
+BEGIN CATCH SET @e6 = ERROR_NUMBER(); IF XACT_STATE() <> 0 ROLLBACK TRANSACTION; END CATCH;
+WHILE @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
+IF @e1 = 547 AND @e2 = 2601 AND @e3 = 2601 AND @ok1 = 1 AND @e4 = 547 AND @ok2 = 1 AND @e5 = 547 AND @ok3 = 1 AND @e6 = 50052
+    PRINT 'PASS RF26: collateral versions share their root, with one draft and one current approved version, and links name the root';
+ELSE PRINT CONCAT('FAIL RF26: wrong root ', @e1, ', second draft ', @e2, ', second approved ', @e3, ', approval after superseding ', @ok1,
+                  ', approved discarded ', @e4, ', draft discarded ', @ok2, ', release without document ', @e5, ', link to root ', @ok3,
+                  ', link to a later version ', @e6);
+GO
+/* RF27 (DR-38, S2): a covenant's threshold unit is its formula's result unit (547) and fits its measure kind (547),
+   each tried alone; its copy of the formula's unit is checked against the formula (547) and cannot be left out (547), a
+   used formula keeps its unit (547), and a formula on statements needs the statement basis and assurance (547). */
+DECLARE @t1 INT, @f BIGINT, @co BIGINT, @cur INT, @ot INT, @ob BIGINT, @fr BIGINT, @fa BIGINT,
+        @ok1 INT = 0, @ok2 INT = 0, @e1 INT, @e2 INT, @e3 INT, @e4 INT, @e5 INT, @e6 INT;
+DECLARE @cov NVARCHAR(MAX) = N'INSERT obl.Covenant (TenantId, ObligationId, MeasureKind, FormulaId, FormulaResultUnit, FormulaUsesStatements, Operator,
+    ThresholdState, ThresholdValue, ThresholdUnit, CurrencyId, TestFrequency, StatementBasis, RequiredAssurance, TestedCompanyId, FirstTestPeriodEnd, ValidFrom)
+    VALUES (@t, @ob, @kind, @formula, @unitCopy, @stmtCopy, ''GE'', ''SET'', 1.2, @unit, @cur, ''ANNUAL'', @basis, @assurance, @co, ''2026-12-31'',
+            DATEADD(DAY, (SELECT COUNT(*) FROM obl.Covenant WHERE ObligationId = @ob), ''2026-01-01''))';
+DECLARE @p NVARCHAR(400) = N'@t INT, @ob BIGINT, @kind VARCHAR(30), @formula BIGINT, @unitCopy VARCHAR(10), @stmtCopy BIT, @unit VARCHAR(10), @cur INT, @basis VARCHAR(20), @assurance VARCHAR(20), @co BIGINT';
+BEGIN TRANSACTION;
+EXEC #S2;
+SELECT @t1 = v FROM #F WHERE k = 't1'; SELECT @f = v FROM #F WHERE k = 'f'; SELECT @co = v FROM #F WHERE k = 'co'; SELECT @cur = v FROM #F WHERE k = 'cur';
+INSERT cat.ObligationType (TenantId, Code, NameAr, Family, MeasureKind) VALUES (@t1, 'COV', N'تعهد', 'COVENANT', 'RATIO');
+SET @ot = SCOPE_IDENTITY();
+INSERT obl.Obligation (TenantId, FacilityId, Family, ObligationTypeId, TitleAr, ValidFrom) VALUES (@t1, @f, 'COVENANT', @ot, N'نسبة التداول', '2026-01-01');
+SET @ob = SCOPE_IDENTITY();
+INSERT fin.MeasureFormula (TenantId, Code, NameAr, Scope, Expression, InputKinds, ResultUnit) VALUES (@t1, 'CURRENT_RATIO', N'نسبة التداول', 'TEMPLATE', 'CA / CL', 'STATEMENT', 'RATIO');
+SET @fr = SCOPE_IDENTITY();
+INSERT fin.MeasureFormula (TenantId, Code, NameAr, Scope, Expression, InputKinds, ResultUnit) VALUES (@t1, 'AVG_BALANCE', N'متوسط الرصيد', 'TEMPLATE', 'AVG(B)', 'ACCOUNT_STATS', 'AMOUNT');
+SET @fa = SCOPE_IDENTITY();
+BEGIN TRY EXEC sys.sp_executesql @cov, @p, @t = @t1, @ob = @ob, @kind = 'RATIO', @formula = @fr, @unitCopy = 'RATIO', @stmtCopy = 1, @unit = 'RATIO',
+          @cur = NULL, @basis = 'STANDALONE', @assurance = 'AUDITED_ONLY', @co = @co; SET @ok1 = 1; END TRY BEGIN CATCH SET @ok1 = -ERROR_NUMBER(); END CATCH;
+BEGIN TRY EXEC sys.sp_executesql @cov, @p, @t = @t1, @ob = @ob, @kind = 'RATIO', @formula = @fr, @unitCopy = 'AMOUNT', @stmtCopy = 1, @unit = 'AMOUNT',
+          @cur = @cur, @basis = 'STANDALONE', @assurance = 'AUDITED_ONLY', @co = @co; END TRY BEGIN CATCH SET @e1 = ERROR_NUMBER(); END CATCH;
+BEGIN TRY EXEC sys.sp_executesql @cov, @p, @t = @t1, @ob = @ob, @kind = 'RATIO', @formula = @fa, @unitCopy = 'AMOUNT', @stmtCopy = 0, @unit = 'RATIO',
+          @cur = NULL, @basis = NULL, @assurance = NULL, @co = @co; END TRY BEGIN CATCH SET @e2 = ERROR_NUMBER(); END CATCH;
+BEGIN TRY EXEC sys.sp_executesql @cov, @p, @t = @t1, @ob = @ob, @kind = 'AVERAGE_BALANCE', @formula = @fr, @unitCopy = 'RATIO', @stmtCopy = 1, @unit = 'RATIO',
+          @cur = NULL, @basis = 'STANDALONE', @assurance = 'AUDITED_ONLY', @co = @co; END TRY BEGIN CATCH SET @e3 = ERROR_NUMBER(); END CATCH;
+BEGIN TRY EXEC sys.sp_executesql @cov, @p, @t = @t1, @ob = @ob, @kind = 'RATIO', @formula = @fr, @unitCopy = 'RATIO', @stmtCopy = 1, @unit = 'RATIO',
+          @cur = NULL, @basis = NULL, @assurance = NULL, @co = @co; END TRY BEGIN CATCH SET @e4 = ERROR_NUMBER(); END CATCH;
+BEGIN TRY EXEC sys.sp_executesql @cov, @p, @t = @t1, @ob = @ob, @kind = 'AVERAGE_BALANCE', @formula = @fa, @unitCopy = 'AMOUNT', @stmtCopy = 0, @unit = 'AMOUNT',
+          @cur = @cur, @basis = NULL, @assurance = NULL, @co = @co; SET @ok2 = 1; END TRY BEGIN CATCH SET @ok2 = -ERROR_NUMBER(); END CATCH;
+BEGIN TRY UPDATE fin.MeasureFormula SET ResultUnit = 'PERCENT' WHERE MeasureFormulaId = @fr; END TRY BEGIN CATCH SET @e5 = ERROR_NUMBER(); END CATCH;
+BEGIN TRY EXEC sys.sp_executesql @cov, @p, @t = @t1, @ob = @ob, @kind = 'RATIO', @formula = @fr, @unitCopy = NULL, @stmtCopy = NULL, @unit = 'RATIO',
+          @cur = NULL, @basis = NULL, @assurance = NULL, @co = @co; END TRY BEGIN CATCH SET @e6 = ERROR_NUMBER(); END CATCH;
+WHILE @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
+IF @ok1 = 1 AND @e1 = 547 AND @e2 = 547 AND @e3 = 547 AND @e4 = 547 AND @ok2 = 1 AND @e5 = 547 AND @e6 = 547
+    PRINT 'PASS RF27: a covenant''s threshold unit is its formula''s and its measure''s, and a formula on statements fixes their basis';
+ELSE PRINT CONCAT('FAIL RF27: ratio covenant ', @ok1, ', wrong unit copy ', @e1, ', unit not the formula''s ', @e2, ', unit not the measure''s ', @e3,
+                  ', statements without basis ', @e4, ', average balance ', @ok2, ', used formula''s unit changed ', @e5,
+                  ', formula without its copies ', @e6);
 GO
