@@ -34,7 +34,7 @@ audit() {   # ADIR replaces the audit folder for one call
     SQLCMDPASSWORD="$SA_PW" SQL_USER=sa BANKFAS_AUDIT_DIR="${ADIR:-$DIR}" BANKFAS_CHANGE_REF=CI-audit bash "$ROOT/tools/deploy/server_audit.sh" "$@"
 }
 reader() { SQLCMDPASSWORD="$READER_PW" SQL_USER=ci_audit_reader BANKFAS_AUDIT_DIR="$DIR" bash "$ROOT/tools/deploy/server_audit.sh" "$@"; }
-now() { sa_run "SET NOCOUNT ON; SELECT CONVERT(VARCHAR(19), SYSUTCDATETIME(), 126);"; }
+now() { sa_run "SET NOCOUNT ON; SELECT CONVERT(VARCHAR(27), SYSUTCDATETIME(), 126);"; }   # to the 100 ns: what the case before did in the same second stays out
 written() { sleep 3; }   # the audit writes within a second (QUEUE_DELAY = 1000); a slow runner gets more
 records() {   # since, condition on sys.fn_get_audit_file: the number of records
     sa_run "SET NOCOUNT ON; SELECT COUNT(*) FROM sys.fn_get_audit_file(N'$DIR/BankFas_Audit_*.sqlaudit', DEFAULT, DEFAULT)

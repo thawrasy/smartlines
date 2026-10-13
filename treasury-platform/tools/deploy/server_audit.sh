@@ -5,7 +5,8 @@
 #                    is recorded, and inside every deployment window after deploy.sh. What already matches is left
 #                    running untouched. It declares itself in the audit as an administrative change (audit_declare.sh).
 #   check            fails unless the three are in place and the audit is writing (HS-8 in DOC-S10, R-08 in DOC-S11).
-#   alerts [SINCE]   the AL-18 alerts in the audit files since SINCE (UTC, YYYY-MM-DDTHH:MM:SS; default 24 hours ago),
+#   alerts [SINCE]   the AL-18 alerts in the audit files since SINCE (UTC, YYYY-MM-DDTHH:MM:SS with optional fractions of
+#                    a second; default 24 hours ago),
 #                    from db/ops/server_audit_alerts.sql. Exit code 3 when there is any.
 #   windows [SINCE]  the declared deployment windows and administrative changes, for the monthly review.
 # BANKFAS_AUDIT_DIR is the folder of the audit files, default /var/opt/mssql/audit (V5, DOC-S10 section 3). It must
@@ -48,7 +49,7 @@ fill() {   # template, mode or report, since: the $(...) values, filled here as 
 }
 since() {
     local s="${1:-$(date -u -d '24 hours ago' +%Y-%m-%dT%H:%M:%S)}"
-    [[ "$s" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}$ ]] || fail "SINCE must be YYYY-MM-DDTHH:MM:SS (UTC)"
+    [[ "$s" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]{1,7})?$ ]] || fail "SINCE must be YYYY-MM-DDTHH:MM:SS[.fffffff] (UTC)"
     printf '%s' "$s"
 }
 
