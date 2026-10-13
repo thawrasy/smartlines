@@ -56,6 +56,7 @@ erDiagram
 
 ```mermaid
 erDiagram
+  AuditLog ||--o{ SensitiveAccessLog : "AuditLogId"
 ```
 
 | الجدول | العمود | يشير إلى |
