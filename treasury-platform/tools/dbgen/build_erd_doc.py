@@ -99,7 +99,12 @@ def generated_section(plan, tables):
 
 
 REVIEW = os.path.join(DOCS, 'review', 'design-review-2026-10-11.json')
-STATUS = {'applied': 'مُطبَّق (C-12)', 'open': 'مفتوح'}
+STATUS = {'applied': 'مُطبَّق ({res})', 'applied-partly': 'مُطبَّق جزئيًا (ADR 0011)؛ الباقي قبل {before}',
+          'scheduled': 'معتمد (ADR 0011)؛ يُطبَّق قبل {before}', 'resolved': 'محلول بـ DR-02', 'open': 'مفتوح'}
+
+
+def status_of(f):
+    return STATUS[f.get('status', 'open')].format(res=f.get('resolution', ''), before=f.get('before', ''))
 
 
 def first_sentence(text, limit=230):
@@ -114,22 +119,22 @@ def review_section():
     c = d['counts']
     out = ['## 18. مراجعة التصميم (Design review)', '',
            f'أجرى فريق من خمسة مهندسي قواعد بيانات مراجعة مستقلة لكل مجموعة وحدات، فحصت كل جدول وكل علاقة مفتاح أجنبي على أسس النمذجة العلائقية: التطبيع، والمفاتيح، والإلزام والعدد، وسلامة المرجع، والعزل بين المشتركين، والتكرار، والفهرسة، والحساسية، ودلالات دورة العمل. النتائج مسجَّلة بمعرّفاتها في `docs/review/design-review-2026-10-11.json`، وتحمل كل نتيجة مرجع السطر في النموذج أو في DDL.', '',
-           f'**الإجمالي: {len(d["findings"])} نتيجة — حرجة {c["critical"]} · رئيسية {c["major"]} · طفيفة {c["minor"]}.** الحرجة مُطبَّقة في النموذج والـDDL (C-12) ويتحقق منها آليًا، والرئيسية والطفيفة مفتوحة (§18.3).', '',
+           f'**الإجمالي: {len(d["findings"])} نتيجة — حرجة {c["critical"]} · رئيسية {c["major"]} · طفيفة {c["minor"]}.** الحرجة مُطبَّقة في النموذج والـDDL (C-12)، والرئيسية والطفيفة قرّرها المالك في 2026-10-13 (O-15، §18.3)، ويتحقق من التصريحي منها آليًا.', '',
            '### 18.1 النتائج الحرجة', '',
            '| المعرّف | الكيان | الدلالة | المشكلة (ملخص) | الإصلاح المقترح (ملخص) | الحالة |', '|---|---|---|---|---|---|']
     crit = [f for f in d['findings'] if f['severity'] == 'critical']
     for f in crit:
         obj = f['table'] + ('.' + f['column'] if f.get('column') else '')
-        out.append(f'| {f["id"]} | `{esc_cell(obj)}` | {f["category"]} | {esc_cell(first_sentence(f["issue"]))} | {esc_cell(first_sentence(f["recommendation"]))} | {STATUS[f.get("status", "open")]} |')
+        out.append(f'| {f["id"]} | `{esc_cell(obj)}` | {f["category"]} | {esc_cell(first_sentence(f["issue"]))} | {esc_cell(first_sentence(f["recommendation"]))} | {status_of(f)} |')
     out += ['', '### 18.2 النتائج الرئيسية والطفيفة', '',
             '| المعرّف | الكيان | الدرجة | الدلالة | المشكلة (ملخص) | الإصلاح المقترح (ملخص) | الحالة |', '|---|---|---|---|---|---|---|']
     for f in d['findings']:
         if f['severity'] == 'critical': continue
         obj = f['table'] + ('.' + f['column'] if f.get('column') else '')
-        out.append(f'| {f["id"]} | `{esc_cell(obj)}` | {f["severity"]} | {f["category"]} | {esc_cell(first_sentence(f["issue"]))} | {esc_cell(first_sentence(f["recommendation"]))} | {STATUS[f.get("status", "open")]} |')
+        out.append(f'| {f["id"]} | `{esc_cell(obj)}` | {f["severity"]} | {f["category"]} | {esc_cell(first_sentence(f["issue"]))} | {esc_cell(first_sentence(f["recommendation"]))} | {status_of(f)} |')
     out += ['', '### 18.3 القرار', '',
             '1. **الحرجة (10): مُعتمدة ومُطبَّقة** في النموذج والـDDL بالتغيير C-12، ويتحقق منها `tools/dbgen/check_review_fixes.py` آليًا على DDL المولَّد.',
-            '2. **الرئيسية (36) والطفيفة (4): مفتوحة.** المطلوب قرار لكل نتيجة: تُطبَّق قبل S0، أو تُؤجَّل بسبب مكتوب (O-15). ما يُطبَّق منها يغيّر النموذج، فيُعاد التوليد والتحقق.',
+            '2. **الرئيسية (36) والطفيفة (4): قرّرها المالك في 2026-10-13** بسجل `docs/32-review-findings-decisions.md` (O-15). الدفعة (أ) مُطبَّقة كلها أو جزئيًا في 33 نتيجة (`docs/adr/0011-design-review-fixes.md`، الاختبارات RF1 إلى RF18)، وست نتائج والأجزاء الباقية شروط دخول لشرائحها، وDR-20 محلولة بـ DR-02.',
             '3. **بعد أي تغيير** في النموذج: `dbgen check` و`dbgen build` و`pg_validate.sh` و`check_grants.py` و`check_review_fixes.py`، ثم `erd_mermaid.py` لتحديث المخططات، ثم إعادة بناء هذه الوثيقة.', '']
     return out
 

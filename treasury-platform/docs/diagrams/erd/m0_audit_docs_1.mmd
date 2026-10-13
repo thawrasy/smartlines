@@ -6,6 +6,7 @@ erDiagram
   aud_SensitiveAccessLog["aud.SensitiveAccessLog"] {
     bigint SensitiveAccessLogId PK
     int OperatorId FK
+    bigint AuditLogId FK
   }
   doc_Document["doc.Document"] {
     bigint DocumentId PK
@@ -20,5 +21,6 @@ erDiagram
     bigint DocumentId FK
     bigint UnlinkedBy FK
   }
+  aud_AuditLog ||--o{ aud_SensitiveAccessLog : "AuditLogId"
   doc_Document |o--o{ doc_Document : "SupersededByDocumentId"
   doc_Document ||--o{ doc_DocumentLink : "DocumentId"

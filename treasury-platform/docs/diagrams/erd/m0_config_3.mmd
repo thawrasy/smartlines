@@ -1,5 +1,8 @@
-%% م0 · الإعدادات والمهام الخلفية (3/3) — Configuration & background jobs
+%% م0 · الإعدادات والمهام الخلفية (3/4) — Configuration & background jobs
 erDiagram
+  cfg_NumberSequenceDefinition["cfg.NumberSequenceDefinition"] {
+    bigint NumberSequenceDefinitionId PK
+  }
   cfg_OutboxEvent["cfg.OutboxEvent"] {
     bigint OutboxEventId PK
   }
@@ -8,7 +11,4 @@ erDiagram
   }
   cfg_SettingDefinition["cfg.SettingDefinition"] {
     int SettingDefinitionId PK
-  }
-  cfg_TenantSetting["cfg.TenantSetting"] {
-    bigint TenantSettingId PK
   }

@@ -16,7 +16,6 @@ erDiagram
   cat_BaseRateAlias["cat.BaseRateAlias"] {
     int BaseRateAliasId PK
     int BaseRateId FK
-    bigint InstitutionId FK
   }
   cat_BaseRate ||--o{ cat_BaseRateAlias : "BaseRateId"
   cat_OperationType ||--o{ cat_OperationTypePowerType : "OperationTypeId"

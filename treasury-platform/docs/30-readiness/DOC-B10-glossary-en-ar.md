@@ -123,7 +123,7 @@
 | Power type | نوع التفويض 🟡 | توقيع عقود، اقتراض، ضمانات… | cat.PowerType | الوثائق تقول «نوع الصلاحية» (10-m0-m1:178) |
 | Party | الشخص أو الجهة | فرد أو جهة اعتبارية يُعاد استخدامه | pty.Party | يُتجنَّب «العميل» و«الطرف» وحده |
 | Identity document · Primary document | وثيقة الهوية · الوثيقة الأساسية | وثيقة برقم مشفَّر؛ والأساسية بحسب الجنسية والإقامة | pty.IdentityDocument | — |
-| Mirror party | الجهة المرآة | Party تُنشأ آليًا لكل شركة وتبقى للقراءة | pty.Party.LinkedCompanyId | — |
+| Mirror party | الجهة المرآة | Party تُنشأ آليًا لكل شركة وتبقى للقراءة | org.Company.PartyId (الرابط الوحيد، DR-24) | — |
 | Usage provider | مزوّد الاستخدام | واجهة تكشف أدوار الشخص المشتقة | BR-PTY-001 | «الاستخدام» محجوز لهذا المعنى؛ انظر Utilisation |
 | Merge | الدمج | توحيد شخصين مكرَّرين | UC-PTY-06 | — |
 | KYC profile · Completeness | ملف الاكتمال (KYC) · الاكتمال | ما يطلبه بنك عن شخص بدور معيّن | pty.KycProfile | — |

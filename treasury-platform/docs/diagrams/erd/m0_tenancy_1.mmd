@@ -1,16 +1,19 @@
-%% م0 · المشترك والاشتراكات والمشغّلون (1/2) — Tenancy & platform operators
+%% م0 · المشترك والاشتراكات والمشغّلون (1/3) — Tenancy & platform operators
 erDiagram
+  plat_OperatorSession["plat.OperatorSession"] {
+    bigint OperatorSessionId PK
+    int OperatorId FK
+  }
+  plat_OperatorToken["plat.OperatorToken"] {
+    bigint OperatorTokenId PK
+    int OperatorId FK
+    int RequestedBy FK
+  }
   plat_Plan["plat.Plan"] {
     int PlanId PK
   }
   plat_PlanModule["plat.PlanModule"] {
     int PlanId PK, FK
     varchar ModuleCode PK
-  }
-  plat_PlatformOperator["plat.PlatformOperator"] {
-    int PlatformOperatorId PK
-  }
-  plat_ReservedSubdomain["plat.ReservedSubdomain"] {
-    int ReservedSubdomainId PK
   }
   plat_Plan ||--o{ plat_PlanModule : "PlanId"

@@ -1,5 +1,8 @@
-%% م0 · الإعدادات والمهام الخلفية (2/3) — Configuration & background jobs
+%% م0 · الإعدادات والمهام الخلفية (2/4) — Configuration & background jobs
 erDiagram
+  cfg_JobRun["cfg.JobRun"] {
+    bigint JobRunId PK
+  }
   cfg_NonWorkingDay["cfg.NonWorkingDay"] {
     bigint NonWorkingDayId PK
     int CountryId FK
@@ -14,8 +17,4 @@ erDiagram
     bigint DefinitionId FK
     bigint CompanyId FK
   }
-  cfg_NumberSequenceDefinition["cfg.NumberSequenceDefinition"] {
-    bigint NumberSequenceDefinitionId PK
-  }
   cfg_NumberSequence ||--o{ cfg_NumberIssue : "SequenceId"
-  cfg_NumberSequenceDefinition ||--o{ cfg_NumberSequence : "DefinitionId"
