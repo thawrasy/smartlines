@@ -43,7 +43,7 @@ Status: accepted by the owner (2026-10-12, docs/31-owner-decisions.md) for the d
 
 ### 4. Job binding (DQ-F04-4, `db/static/037_job_context.sql`)
 
-- `cfg.JobDefinition` is the closed catalogue of the 29 jobs of DOC-F17 section 5.2 plus the onboarding job, 30 in all, with the scope (TENANT or PLATFORM) and the tenant statuses each may run in (DOC-F04 section 7.4).
+- `cfg.JobDefinition` is the closed catalogue of the 29 jobs of DOC-F17 section 5.2 plus the onboarding job, 30 in all (31 with JOB-PLT-EXPORT, ADR 0008), with the scope (TENANT or PLATFORM) and the tenant statuses each may run in (DOC-F04 section 7.4).
 - The worker logs in as a member of `tp_jobs`, a member of `tp_app`.
 - `plat.usp_ListTenantsForJobs` gives the tenants a job runs for: id, status and time zone.
 - `sec.usp_SetJobContext` binds as the tenant's active service account, for a catalogued tenant job, in an allowed status. UserId, JobKey and CorrelationId are read-only.
@@ -100,7 +100,6 @@ Residual risks and open points:
 - **Dates.** `TrialEndsOn` and the trial expiry use the UTC date; the tenant's time zone can move them by a day.
 - **Not built yet:**
   - changing an operator's role;
-  - the writes a job needs in SUSPENDED or CLOSED, such as export expiry (DQ-F04-8);
-  - the data export itself (FR-PLT-039), which closing an active tenant waits for.
+  - the package builder of the data export (FR-PLT-039, application), which closing an active tenant waits for. The export's database side, with the writes jobs need in SUSPENDED and CLOSED (DQ-F04-8), is built in ADR 0008.
 
 Built since, in ADR 0005: the ISO country and currency lists (DQ-B05-5) and the 138 permission codes (DQ-F07-1, DQ-F09-1) in the platform seed, and gap-free document numbering (O-12 of tools/dbgen/erd_open_items.py).

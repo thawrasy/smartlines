@@ -10,7 +10,7 @@
 | يعتمد على | DOC-F04 (ربط المهمة بالمشترك، DQ-F04-4)، DOC-F05 (المؤقتات الزمنية للمشترك)، DOC-F10 وDOC-F11 (مصادر الأحداث)، DOC-B03 (NFR-OPS وNFR-I18N)، DOC-B10 (اللغة)، DOC-S01 (التهديدات)، DOC-S08 (حسابات القاعدة)، DOC-S12 (السجلات والمراقبة) |
 | المصادر | db/model/10-platform.model، db/model/15-workflow-notifications.model، db/generated/tsql/005_delete_grants.sql، db/generated/tsql/007_table_grants.sql، docs/10-detailed-analysis/10-m0-m1-platform-organization.md، docs/10-detailed-analysis/13-m6-workflow-engine-notifications.md، docs/10-detailed-analysis/14-m7-m8-letters-of-credit.md، docs/21-data-dictionary.md، docs/20-database-design.md، docs/review/design-review-2026-10-11.json |
 
-> **تحديث التنفيذ (2026-10-12):** قائمة JobKey المغلقة (DQ-F17-2) جدول `cfg.JobDefinition` مبذور بالمهام التسع والعشرين في §5.2 ومعها JOB-PLT-ONBOARD، بنطاق كل مهمة وحالات المشترك المسموحة، و`sec.usp_SetJobContext` يرفض غيرها (docs/adr/0004-platform-access-jobs-and-onboarding.md، db/static/037_job_context.sql؛ الاختبارات J1 إلى J6). ومهمتا JOB-PLT-TRIAL-EXPIRE وJOB-PLT-ARCHIVE تستدعيان `plat.usp_RunTenantTransitions`.
+> **تحديث التنفيذ (2026-10-12):** قائمة JobKey المغلقة (DQ-F17-2) جدول `cfg.JobDefinition` مبذور بالمهام التسع والعشرين في §5.2 ومعها JOB-PLT-ONBOARD، ثم JOB-PLT-EXPORT (ADR 0008؛ 31 مهمة)، بنطاق كل مهمة وحالات المشترك المسموحة، و`sec.usp_SetJobContext` يرفض غيرها (docs/adr/0004-platform-access-jobs-and-onboarding.md، db/static/037_job_context.sql؛ الاختبارات J1 إلى J6). ومهمتا JOB-PLT-TRIAL-EXPIRE وJOB-PLT-ARCHIVE تستدعيان `plat.usp_RunTenantTransitions`.
 
 ## 1. الغرض والنطاق
 
@@ -185,6 +185,7 @@ stateDiagram-v2
 | JOB-PLT-TRIAL-REMIND | مشترك في TRIAL | يومية | تنبيه نهاية التجربة 7 و3 و1 | (المشترك، الأيام) | DOC-F05 §6.3 |
 | JOB-PLT-TRIAL-EXPIRE وJOB-PLT-ARCHIVE | منصة | يومية | TRIAL إلى SUSPENDED؛ CLOSED إلى ARCHIVED_READ_ONLY | (المشترك، التاريخ) | DOC-F05 §6.3 |
 | JOB-PLT-EXPORT-EXPIRE | مشترك، ومسموحة في SUSPENDED وCLOSED | يومية | READY إلى EXPIRED وحذف الحزمة | DataExportJobId | DOC-F05 §6.3 |
+| JOB-PLT-EXPORT (أُضيفت 2026-10-13، ADR 0008) | مشترك، ومسموحة في SUSPENDED وCLOSED خلال النافذة | عند وجود طلب معتمد | بناء الحزمة المختومة: APPROVED إلى RUNNING إلى READY أو FAILED | DataExportJobId | FR-PLT-039، DQ-F04-8 |
 | JOB-PLT-OUTBOX-PURGE وJOB-PLT-JOBRUN-PURGE 🟡 | مشترك | أسبوعيًا | حذف DELIVERED بعد 30 يومًا، وJobRun بعد 90 يومًا | (المهمة، الأسبوع) | §4.7، §5.7 |
 
 المهمة اليومية لإطار FR-PLT-038 هي JOB-NTF-EXPIRY نفسها 🟡: تستدعي كل مزوّدي `IExpiryProvider` (FR-NTF-017، 13-m6:216)، ومنها مزوّدات 10 و11 و12 و14. ويقترح تعليق النموذج اسم EXPIRY_ALERTS (10.model:555)، فنوحّد على JOB-NTF-EXPIRY (DQ-F17-2).
