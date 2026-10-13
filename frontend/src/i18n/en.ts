@@ -1955,7 +1955,7 @@ const en = {
     publish: "Publish its trips for sale as they are made", note: "Note to the reviewer", preview: "Show the next days",
     nextDays: "The next days it runs", inMonth: "{n} trip(s) in the first 30 days", ask: "Send for approval", askNow: "Save",
     asked: "Sent for approval", applied: "Applied", none: "No regular trip yet", noneHint: "A regular trip makes its trips by itself once approved.",
-    col: { number: "Number", route: "Route", time: "Time", pattern: "Repeats", period: "Period", next: "Next departure", upcoming: "Trips ahead", status: "State" },
+    col: { number: "Number", route: "Route", pattern: "Repeats", period: "Period", next: "Next departure", upcoming: "Trips ahead", status: "State" },
     change: "Change", stop: "Stop", pause: "Pause", resume: "Resume", paused: "Paused", resumed: "Resumed",
     changeTitle: "Change {code}", effective: "From the day", changeHint: "The current version ends the day before; the next one keeps the number. Leave a field empty to keep it.",
     keep: "Keep as it is", stopTitle: "Stop {code}", stopFrom: "First day without the trip",

@@ -315,28 +315,31 @@ export function CarrierSchedules() {
           <div className="card">
             {d.schedules.length === 0 ? <Empty icon="event_repeat" title={t("sched.none")} hint={t("sched.noneHint")} /> : (
               <div className="table-wrap" tabIndex={0}><table className="table">
-                <thead><tr><th>{t("sched.col.number")}</th><th>{t("sched.col.route")}</th><th>{t("sched.col.time")}</th><th>{t("sched.col.pattern")}</th>
-                  <th>{t("sched.col.period")}</th><th>{t("sched.col.next")}</th><th className="num">{t("sched.col.upcoming")}</th><th>{t("sched.col.status")}</th><th /></tr></thead>
+                <thead><tr><th>{t("sched.col.number")}</th><th>{t("sched.col.route")}</th><th>{t("sched.col.pattern")}</th>
+                  <th>{t("sched.col.period")}</th><th>{t("sched.col.upcoming")}</th><th>{t("sched.col.status")}</th><th /></tr></thead>
                 <tbody>{d.schedules.map((s) => (
                   <tr key={s.uid}>
-                    <td className="mono text-nowrap"><strong>{s.trip_code ?? "—"}</strong></td>
-                    <td style={{ minWidth: 220 }}><strong className="mono">{s.route_code}</strong>
+                    <td className="mono text-nowrap"><strong>{s.trip_code ?? "—"}</strong><div className="small">{s.departure_time}</div></td>
+                    <td style={{ minWidth: 190 }}><strong className="mono">{s.route_code}</strong>
                       <div className="small muted">{station(s.origin_code, s.origin)} → {station(s.dest_code, s.destination)}{s.plate_no ? ` · ${s.plate_no}` : ""}</div></td>
-                    <td className="mono">{s.departure_time}</td>
                     <td>{pattern.text(s)}{s.skip_dates.length > 0 && <div className="small muted">{t("sched.skip")}: {s.skip_dates.length}</div>}</td>
                     <td className="small text-nowrap">{period(s.from_date, s.until_date)}</td>
-                    <td className="small text-nowrap">{s.next_departure ? `${day(s.next_departure)} ${time(s.next_departure)}` : "—"}</td>
-                    <td className="num">{s.upcoming}{s.last_run && s.last_run.skipped_count > 0 && (
+                    <td><strong>{s.upcoming}</strong>
+                      {s.next_departure && <div className="small muted text-nowrap">{t("sched.col.next")}: {day(s.next_departure)} {time(s.next_departure)}</div>}
+                      {s.last_run && s.last_run.skipped_count > 0 && (
                       <div className="small" style={{ color: "var(--error)" }} title={s.last_run.skipped.map((x) => `${x.date}: ${t(`sched.skipReason.${x.reason}`)}`).join("\n")}>
                         {t("sched.skipped", { n: s.last_run.skipped_count })}</div>)}</td>
                     <td><span className={`chip ${s.status === "ACTIVE" ? "green" : s.status === "PAUSED" ? "wheat" : ""}`}>{t(`sched.status.${s.status}`)}</span></td>
-                    <td><div className="row nowrap" style={{ gap: 4 }}>
-                      {s.status !== "RETIRED" && <button className="btn text small" onClick={() => setModal({ kind: "change", s })}><Icon name="edit_calendar" />{t("sched.change")}</button>}
-                      {s.status === "ACTIVE" && <button className="btn text small" onClick={() => act(() => api.post(`/api/carrier/schedules/${s.uid}/pause`), t("sched.paused"))}>
-                        <Icon name="pause_circle" />{t("sched.pause")}</button>}
-                      {s.status === "PAUSED" && <button className="btn text small" onClick={() => act(() => api.post(`/api/carrier/schedules/${s.uid}/resume`), t("sched.resumed"))}>
-                        <Icon name="play_circle" />{t("sched.resume")}</button>}
-                      {s.status !== "RETIRED" && <button className="btn text small" onClick={() => setModal({ kind: "stop", s })}><Icon name="stop_circle" />{t("sched.stop")}</button>}
+                    <td><div className="row nowrap" style={{ gap: 0 }}>
+                      {/* icons with their names, so the row fits the screen; the name shows on hover and is read aloud */}
+                      {s.status !== "RETIRED" && <button className="icon-btn" title={t("sched.change")} aria-label={`${t("sched.change")} ${s.trip_code ?? ""}`}
+                        onClick={() => setModal({ kind: "change", s })}><Icon name="edit_calendar" /></button>}
+                      {s.status === "ACTIVE" && <button className="icon-btn" title={t("sched.pause")} aria-label={`${t("sched.pause")} ${s.trip_code ?? ""}`}
+                        onClick={() => act(() => api.post(`/api/carrier/schedules/${s.uid}/pause`), t("sched.paused"))}><Icon name="pause_circle" /></button>}
+                      {s.status === "PAUSED" && <button className="icon-btn" title={t("sched.resume")} aria-label={`${t("sched.resume")} ${s.trip_code ?? ""}`}
+                        onClick={() => act(() => api.post(`/api/carrier/schedules/${s.uid}/resume`), t("sched.resumed"))}><Icon name="play_circle" /></button>}
+                      {s.status !== "RETIRED" && <button className="icon-btn" title={t("sched.stop")} aria-label={`${t("sched.stop")} ${s.trip_code ?? ""}`}
+                        onClick={() => setModal({ kind: "stop", s })}><Icon name="stop_circle" /></button>}
                     </div></td>
                   </tr>
                 ))}</tbody>
