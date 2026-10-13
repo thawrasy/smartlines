@@ -9,5 +9,6 @@
 - `STATION_USER_TESTING.md`: the protocol for testing those screens with real users at the pilot station.
 - `TRIP_NUMBERS.md`: the short trip number passengers read ("DC 101") and the trip reference staff use (owner's decision, 1114).
 - `REGULAR_TRIPS.md`: regular trips the carrier defines (every day, on days of the week or of the month, with or without an end) under one number, their requests and approval stages, number blocks and settings (owner's decision, 1117).
+- `COMPANY_KYC.md`: the know-your-customer file of each company on the platform: the form and the standards it follows, its review stages, risk rules, encrypted values, settings and screens (owner's request, 1118).
 
 The web frontend (`frontend/src/theme.css`) uses the same colour roles and radii as `system/tokens.json`.

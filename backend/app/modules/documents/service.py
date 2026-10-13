@@ -12,7 +12,9 @@ from ...util import rows
 from ..notify.outbox import emit
 from . import scanner, storage
 
-DOC_TYPES = ("CR", "TAX_CERT", "TRANSPORT_LICENSE", "INSURANCE_POLICY", "VEHICLE_REG", "AGENCY_LICENSE", "OTHER")
+# the same list as iam.kyc_document_types(): the documents a KYC form may ask for (1118)
+DOC_TYPES = ("CR", "ARTICLES", "TRANSPORT_LICENSE", "TAX_CERT", "ID_DOCUMENT", "BANK_LETTER", "INSURANCE_POLICY", "POA",
+             "OWNERSHIP_CHART", "CHAMBER_CERT", "FINANCIAL_STATEMENTS", "TAX_CLEARANCE", "VEHICLE_REG", "AGENCY_LICENSE", "OTHER")
 
 LIST_SQL = """
     SELECT d.uid, d.doc_type, d.owner_type, d.issuer, d.issue_date, d.expiry_date, d.review_note, d.created_at,

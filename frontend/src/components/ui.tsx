@@ -37,7 +37,7 @@ export function CarrierName({ name, uid, logo, size = "sm", strong, className }:
   return (
     <span className={`carrier-name${strong ? " strong" : ""}${className ? ` ${className}` : ""}`}>
       {logo && uid && <span className={`logo-tile${size === "sm" ? " sm" : ""}`}><img src={logoUrl(uid, logo)} alt="" loading="lazy" /></span>}
-      <span className="carrier-label">{name}</span>
+      <bdi className="carrier-label">{name}</bdi>
     </span>
   );
 }

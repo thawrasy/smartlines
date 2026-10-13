@@ -42,6 +42,8 @@ const CarrierVehicles = lazyNamed(() => import("./pages/carrier/Carrier"), "Carr
 const CarrierLayouts = lazyNamed(() => import("./pages/carrier/Layouts"), "CarrierLayouts");
 const CarrierSchedules = lazyNamed(() => import("./pages/carrier/Schedules"), "CarrierSchedules");
 const AdminSchedules = lazyNamed(() => import("./pages/admin/Schedules"), "AdminSchedules");
+const CarrierKyc = lazyNamed(() => import("./pages/carrier/Kyc"), "CarrierKyc");
+const AdminKyc = lazyNamed(() => import("./pages/admin/Kyc"), "AdminKyc");
 const CounterDashboard = lazyNamed(() => import("./pages/carrier/Counter"), "CounterDashboard");
 const CounterReport = lazyNamed(() => import("./pages/carrier/Counter"), "CounterReport");
 const CounterSell = lazyNamed(() => import("./pages/carrier/Counter"), "CounterSell");
@@ -119,6 +121,8 @@ function PlatformShell() {
       { to: "/admin", end: true, icon: "dashboard", label: t("admin.overview"), show: can("company.approve", "station.approve") },
       { to: "/admin/companies", icon: "apartment", label: t("admin.companies"), show: can("company.approve") },
       { to: "/admin/documents", icon: "fact_check", label: t("documents.review"), show: can("company.approve") },
+      // KYC files: compliance, finance and tax reviewers, staff who capture files, and government authorities' members
+      { to: "/admin/kyc", icon: "policy", label: t("kycadm.nav"), show: can("kyc.view", "kyc.settings", "regulator.dashboard") },
       { to: "/admin/agencies", icon: "store", label: t("admin.agencies"), show: can("company.approve", "cash.remittance") },
       { to: "/admin/finance", icon: "payments", label: t("finance.desk"), show: can("withdrawal.approve", "payout.run") },
       { to: "/admin/stations", icon: "location_on", label: t("admin.stations"), show: can("station.approve") },
@@ -158,6 +162,7 @@ function CarrierShell() {
       { to: "/carrier/crew", icon: "badge", label: t("carrier.crew") },
       { to: "/carrier/stations", icon: "storefront", label: t("stops.nav"), show: can("boarding.operators", "boarding.references") },
       { to: "/carrier/parcels", icon: "local_shipping", label: t("parcel.carrierNav"), show: can("parcels.tariffs", "shipping.operate") },
+      { to: "/carrier/kyc", icon: "policy", label: t("kyc.nav"), show: can("company.kyc") },
       { to: "/carrier/documents", icon: "fact_check", label: t("documents.title"), show: can("company.staff", "vehicle.manage", "company.billing") },
       { to: "/carrier/finance", icon: "payments", label: t("finance.title") },
       { to: "/carrier/reports", icon: "summarize", label: t("rpt.nav"), show: can("report.company") },
@@ -245,6 +250,7 @@ export default function App() {
           <Route path="carrier" element={<CarrierDashboard />} />
           <Route path="carrier/trips" element={<CarrierTrips />} />
           <Route path="carrier/schedules" element={<CarrierSchedules />} />
+          <Route path="carrier/kyc" element={<CarrierKyc />} />
           <Route path="carrier/routes" element={<CarrierRoutes />} />
           <Route path="carrier/vehicles" element={<CarrierVehicles />} />
           <Route path="carrier/layouts" element={<CarrierLayouts />} />
@@ -302,6 +308,7 @@ export default function App() {
           <Route path="admin/stations" element={<AdminStations />} />
           <Route path="admin/boarding" element={<AdminBoarding />} />
           <Route path="admin/schedules" element={<AdminSchedules />} />
+          <Route path="admin/kyc" element={<AdminKyc />} />
           <Route path="admin/modules" element={<AdminModules />} />
           <Route path="admin/m/:module" element={<ModulePage />} />
           <Route path="admin/reports" element={<ReportsPage />} />

@@ -2,13 +2,13 @@
 
 > Generated from the built database (`db/tools/gen_docs.py`); do not edit by hand.
 
-**527 tables, 5452 columns, in 26 schemas.**
+**530 tables, 5499 columns, in 26 schemas.**
 
 Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant isolation (RLS) · 🧩 partitioned monthly · 🔒 append-only / change-protected
 
 ## Index
 
-- [`iam` — Identity, parties, users, permissions and API clients](#iam) (41 tables)
+- [`iam` — Identity, parties, users, permissions and API clients](#iam) (44 tables)
 - [`ref` — Reference data, locales and files](#ref) (14 tables)
 - [`sys` — Settings, outbox and webhooks](#sys) (27 tables)
 - [`net` — Network: stations, routes, lines, corridors and geofences](#net) (26 tables)
@@ -204,6 +204,40 @@ Carrier company (tenant): 1:1 profile with party; all company data is isolated b
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 | `updated_at` | `timestamp with time zone` | ✱ | `now()` |
 | `payout_bank_account_id` | `bigint` | 🔗 `iam.bank_account`  |  |
+
+### `iam.company_kyc` 🛡️
+
+A company's KYC file in versions: the answers to the form, the review stages it passes, its risk and when it is reviewed again; one open and one approved at a time (1118)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `version` | `smallint` | ✱ |  |
+| `form_id` | `bigint` | 🔗 `iam.kyc_form` ✱ |  |
+| `answers` | `jsonb` | ✱ | `'{}'::jsonb` |
+| `completeness` | `smallint` | ✱ | `0` |
+| `status` | `text` | ✱ | `'DRAFT'::text` |
+| `round` | `smallint` | ✱ | `0` |
+| `review_stages` | `jsonb` | ✱ | `'[]'::jsonb` |
+| `step` | `smallint` | ✱ | `0` |
+| `risk_score` | `integer` |  |  |
+| `risk_level` | `text` |  |  |
+| `risk_factors` | `jsonb` | ✱ | `'[]'::jsonb` |
+| `risk_override` | `text` |  |  |
+| `risk_override_reason` | `text` |  |  |
+| `return_note` | `text` |  |  |
+| `return_fields` | `text[]` | ✱ | `'{}'::text[]` |
+| `submitted_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `submitted_at` | `timestamp with time zone` |  |  |
+| `decided_at` | `timestamp with time zone` |  |  |
+| `approved_at` | `timestamp with time zone` |  |  |
+| `review_due` | `date` |  |  |
+| `created_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `updated_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `updated_at` | `timestamp with time zone` | ✱ | `now()` |
 
 ### `iam.company_logo` 🛡️
 
@@ -462,6 +496,40 @@ Verification adapters: KYC vendor, national registry, telecom, digital identity 
 | `protocol` | `text` | ✱ |  |
 | `config` | `jsonb` | ✱ | `'{}'::jsonb` |
 | `status` | `text` | ✱ | `'INACTIVE'::text` |
+
+### `iam.kyc_decision` 🛡️ 🔒
+
+Each review stage's decision on a KYC file: approved, returned with what to correct, or rejected; who decided and when; never changed (1118)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `kyc_id` | `bigint` | 🔑 🔗 `iam.company_kyc` ✱ |  |
+| `round` | `smallint` | 🔑 ✱ |  |
+| `step` | `smallint` | 🔑 ✱ |  |
+| `stage` | `jsonb` | ✱ |  |
+| `decision` | `text` | ✱ |  |
+| `note` | `text` |  |  |
+| `fields` | `text[]` | ✱ | `'{}'::text[]` |
+| `risk_override` | `text` |  |  |
+| `decided_by` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `authority_id` | `bigint` | 🔗 `sec.authority_profile`  |  |
+| `decided_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `iam.kyc_form` 🛡️
+
+The KYC form in versions: its sections, fields, option sets and documents; one version is active, a new one is checked and activated by the platform (1118)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `version` | `integer` | ✱ |  |
+| `definition` | `jsonb` | ✱ |  |
+| `status` | `text` | ✱ | `'DRAFT'::text` |
+| `note` | `text` |  |  |
+| `created_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `activated_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `activated_at` | `timestamp with time zone` |  |  |
 
 ### `iam.mfa_challenge` 🛡️
 

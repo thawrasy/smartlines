@@ -595,3 +595,17 @@ tr.clickable:hover td { background: var(--surface-container-low, rgba(10, 91, 21
 .carrier-name .logo-tile { flex: none; }
 .carrier-name.strong .carrier-label { font-weight: 600; }
 .trip-ref { font-size: .82em; color: var(--on-surface-variant); }
+
+/* ---------- KYC form (1118): fields in two columns on wide screens, tables and long questions across ---------- */
+.kyc-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 24px; }
+.kyc-field { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.kyc-field.wide { grid-column: 1 / -1; }
+.kyc-field.flagged { outline: 2px solid var(--secondary-container); outline-offset: 6px; border-radius: 4px; }
+.kyc-label { font-size: 14px; font-weight: 500; color: var(--on-surface-variant); }
+.kyc-error { color: var(--error); font-size: 13px; }
+.kyc-yesno { border: 0; margin: 0; padding: 0; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.kyc-yesno legend { padding: 0; font-size: 14px; font-weight: 500; margin-bottom: 4px; }
+.input.invalid { border-color: var(--error); }
+.kyc-sections { display: flex; gap: 6px; flex-wrap: wrap; }
+.kyc-actions { position: sticky; bottom: 0; z-index: 5; background: var(--surface); border-top: 1px solid var(--divider); padding: 12px 16px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+@media (max-width: 720px) { .kyc-grid { grid-template-columns: minmax(0, 1fr); } }

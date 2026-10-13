@@ -86,7 +86,7 @@ flowchart LR
   iam -->|3| net
   iam -->|1| ops
   iam -->|5| ref
-  iam -->|1| sec
+  iam -->|2| sec
   net -->|18| iam
   net -->|3| ref
   ops -->|2| fin
@@ -216,6 +216,16 @@ erDiagram
     bigint approved_by FK
     bigint payout_bank_account_id FK
   }
+  iam_company_kyc {
+    bigint id PK
+    uuid uid
+    bigint company_id FK
+    bigint form_id FK
+    text status
+    bigint submitted_by FK
+    bigint created_by FK
+    bigint updated_by FK
+  }
   iam_company_logo {
     bigint company_id PK
     bigint uploaded_by FK
@@ -312,6 +322,19 @@ erDiagram
     text code
     character country_code FK
     text status
+  }
+  iam_kyc_decision {
+    bigint kyc_id PK
+    smallint round PK
+    smallint step PK
+    bigint decided_by FK
+    bigint authority_id FK
+  }
+  iam_kyc_form {
+    bigint id PK
+    text status
+    bigint created_by FK
+    bigint activated_by FK
   }
   iam_mfa_challenge {
     bigint id PK
@@ -516,12 +539,14 @@ erDiagram
   iam_family_link_request }o..o| iam_app_user : "requester_user_id"
   iam_party_photo }o--|| iam_app_user : "taken_by_user_id"
   iam_photo_policy_change }o--|| iam_app_user : "requested_by_user_id"
+  iam_kyc_form }o..o| iam_app_user : "activated_by"
   iam_family_spend }o..o| iam_app_user : "initiated_by"
   iam_photo_change_request }o..o| iam_app_user : "decided_by_user_id"
   iam_photo_policy_change }o..o| iam_app_user : "decided_by_user_id"
   iam_photo_rule }o--|| iam_app_user : "proposed_by_user_id"
   iam_photo_rule }o..o| iam_app_user : "approved_by_user_id"
   iam_photo_rule }o..o| iam_app_user : "retired_by_user_id"
+  iam_company_kyc }o..o| iam_app_user : "submitted_by"
   iam_api_client }o..o| iam_app_user : "acting_user_id"
   iam_photo_rule }o..o| iam_app_user : "retirement_requested_by_user_id"
   iam_family_member }o..o| iam_app_user : "linked_user_id"
@@ -530,12 +555,14 @@ erDiagram
   iam_company_logo }o--|| iam_company : "company_id"
   iam_company_member }o--|| iam_company : "company_id"
   iam_user_station_scope }o--|| iam_company : "company_id"
+  iam_company_kyc }o--|| iam_company : "company_id"
   iam_role }o..o| iam_company : "company_id"
   iam_user_session }o..o| iam_company : "company_id"
   iam_api_client }o..o| iam_company : "company_id"
   iam_document }o..o| iam_company : "company_id"
   iam_verification }o..o| iam_company : "subject_company_id"
   iam_document }o..o| iam_company : "owner_company_id"
+  iam_kyc_decision }o--|| iam_company_kyc : "kyc_id"
   iam_photo_policy_change }o..o| iam_data_requirement : "field_code"
   iam_push_token }o--|| iam_device : "device_id"
   iam_device_permission_state }o--|| iam_device : "device_id"
@@ -549,6 +576,7 @@ erDiagram
   iam_family_link_request }o--|| iam_family_member : "member_id"
   iam_gov_identity_link }o--|| iam_identity_provider : "provider_id"
   iam_verification }o..o| iam_identity_provider : "provider_id"
+  iam_company_kyc }o--|| iam_kyc_form : "form_id"
   iam_mfa_challenge }o--|| iam_mfa_factor : "factor_id"
   iam_party_role }o--|| iam_party : "party_id"
   iam_company }o--|| iam_party : "id"
@@ -582,6 +610,7 @@ erDiagram
   iam_app_user }o--|| ref_locale : "preferred_locale"
   iam_photo_rule }o..o| ref_market : "market"
   iam_party_role }o--|| ref_party_role_type : "role_code"
+  iam_kyc_decision }o..o| sec_authority_profile : "authority_id"
   iam_api_client }o..o| sec_authority_profile : "authority_id"
 ```
 

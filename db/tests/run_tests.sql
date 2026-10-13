@@ -3386,4 +3386,104 @@ SELECT pg_temp.expect_error(format($$INSERT INTO ops.trip (trip_no, company_id, 
 ROLLBACK;
 SET ROLE masslak_app;
 
+-- Know your customer: the companies' KYC files (1118)
+BEGIN;
+RESET ROLE;
+SELECT pg_temp.ok((SELECT iam.kyc_form_problem(definition) IS NULL AND jsonb_array_length(definition -> 'sections') = 13
+                     FROM iam.kyc_form WHERE status = 'ACTIVE')
+  AND iam.kyc_form_problem('{"sections":[{"key":"a1","fields":[{"key":"x1","type":"text"},{"key":"x1","type":"text"}]}]}') LIKE '%appears twice%'
+  AND iam.kyc_form_problem('{"sections":[{"key":"a1","fields":[{"key":"x1","type":"number","sensitive":true}]}]}') IS NOT NULL
+  AND iam.kyc_form_problem('{"sections":[{"key":"a1","fields":[{"key":"x1","type":"select","options":"nope"}]}]}') IS NOT NULL
+  AND iam.kyc_form_problem('{"sections":[{"key":"a1","fields":[{"key":"x1","type":"text"}]}],"documents":[{"type":"SCAN","required":true}]}') IS NOT NULL
+  AND iam.kyc_form_problem('{"sections":[{"key":"a1","fields":[{"key":"x1","type":"text","label":{"en":"X"}}]}]}') IS NOT NULL,
+  'KYC (1118): the form in force is complete and valid; a repeated key, an encrypted number, an unknown option set or document, a label without Arabic are refused');
+SELECT pg_temp.ok((iam.kyc_risk('{"sanctions_listed":{"value":true}}') ->> 'level') = 'PROHIBITED'
+  AND (iam.kyc_risk('{"pep_any":{"value":true}}') ->> 'level') = 'HIGH'
+  AND (iam.kyc_risk('{"litigation":{"value":true},"penalties":{"value":true},"ownership_layers":3}') ->> 'level') = 'MEDIUM'
+  AND (iam.kyc_risk('{"ubos":[{"pep":true}]}') -> 'factors') @> '[{"code":"PEP_OWNER"}]'
+  AND (iam.kyc_risk('{}') ->> 'level') = 'LOW',
+  'KYC (1118): risk is scored by the rules of the settings: a sanctions match is prohibited, an exposed person high, points add up to a level');
+SELECT pg_temp.ok(iam.kyc_setting_problem('kyc.review_stages', '[{"by":"BOSS"}]') IS NOT NULL
+  AND iam.kyc_setting_problem('kyc.review_stages', '[{"by":"COMPLIANCE"},{"by":"TAX"}]') IS NULL
+  AND iam.kyc_setting_problem('kyc.risk_levels', '{"MEDIUM": 60, "HIGH": 50}') IS NOT NULL
+  AND iam.kyc_setting_problem('kyc.risk_rules', '[{"code":"X1","field":"ab","op":"gte","value":"ten"}]') IS NOT NULL
+  AND iam.kyc_setting_problem('kyc.required_before', '["SELL"]') IS NOT NULL
+  AND iam.kyc_setting('kyc.review_stages') = '[{"by":"COMPLIANCE"},{"by":"FINANCE"}]'::jsonb,
+  'KYC (1118): the review stages, risk rules and levels and the gates are checked settings');
+SELECT pg_temp.expect_error($$UPDATE iam.kyc_form SET definition = '{"sections":[{"key":"zz","fields":[{"key":"zz","type":"text"}]}]}' WHERE status = 'ACTIVE'$$,
+  'KYC_FORM_FROZEN', 'KYC (1118): a version of the form that is in force is never changed');
+INSERT INTO iam.user_role (user_id, role_id) SELECT :uadmin, id FROM iam.role WHERE code IN ('PLATFORM_SECURITY', 'PLATFORM_FINANCE') AND company_id IS NULL ON CONFLICT DO NOTHING;
+INSERT INTO iam.user_role (user_id, role_id) SELECT :ufin, id FROM iam.role WHERE code = 'PLATFORM_FINANCE' AND company_id IS NULL ON CONFLICT DO NOTHING;
+SET LOCAL ROLE masslak_app;
+-- a small form for the file's life: a name, and a yes that asks for details
+SELECT sys.set_context(:uadmin, NULL, 'PLATFORM');
+SELECT iam.set_kyc_setting('kyc.documents_on_submit', 'false');
+SELECT iam.save_kyc_form($${"sections": [{"key": "s1", "label": {"en": "One", "ar": "One (ar)"}, "fields": [
+  {"key": "name1", "type": "text", "required": true, "label": {"en": "Name", "ar": "Name (ar)"}},
+  {"key": "pep_any", "type": "yesno", "required": true, "details": true, "details_required": true}]}]}$$::jsonb, 'test') AS kfv \gset
+SELECT iam.activate_kyc_form(:kfv);
+SELECT sys.set_context(:ua, :ca, 'COMPANY');
+SELECT iam.open_company_kyc(:ca) AS kuid \gset
+SELECT pg_temp.ok((SELECT status = 'DRAFT' AND answers ->> 'legal_name' = 'Al-Quds Transport' FROM iam.company_kyc WHERE uid = :'kuid')
+  AND iam.open_company_kyc(:ca) = :'kuid'::uuid,
+  'KYC (1118): a company has one open file, started from what the platform knows of it');
+SELECT pg_temp.expect_error(format($$SELECT iam.open_company_kyc(%s)$$, :cb), 'FORBIDDEN', 'KYC (1118): a company opens only its own file');
+-- while the settings ask for it, a company without an approved file publishes no trip
+SELECT sys.set_context(:uadmin, NULL, 'PLATFORM');
+SELECT iam.set_kyc_setting('kyc.required_before', '["PUBLISH_TRIPS"]');
+RESET ROLE;
+SELECT pg_temp.expect_error(format($$INSERT INTO ops.trip (trip_no, company_id, route_id, departure_at, arrival_at, status, seats_total, segments_count, currency, base_price)
+    VALUES ('KYC-GATE-1', %s, %s, now() + interval '3 days', now() + interval '3 days 4 hours', 'PUBLISHED', 40, 1, 'SYP', 0)$$, :ca, :route),
+  'KYC_REQUIRED', 'KYC (1118): while the settings ask for it, a company publishes trips only with an approved file');
+SET LOCAL ROLE masslak_app;
+SELECT sys.set_context(:uadmin, NULL, 'PLATFORM');
+SELECT iam.set_kyc_setting('kyc.required_before', '[]');
+SELECT sys.set_context(:ua, :ca, 'COMPANY');
+SELECT iam.save_company_kyc(:'kuid', '{"name1": "Al-Quds", "pep_any": {"value": true}}', 50::smallint);
+SELECT pg_temp.expect_error(format($$SELECT iam.submit_company_kyc(%L)$$, :'kuid'), 'KYC_INCOMPLETE',
+  'KYC (1118): a file is submitted only when nothing is missing, here the details a yes asks for');
+SELECT iam.save_company_kyc(:'kuid', '{"name1": "Al-Quds", "pep_any": {"value": true, "details": "Brother of a deputy"}}', 100::smallint);
+SELECT iam.submit_company_kyc(:'kuid');
+SELECT pg_temp.ok((SELECT status = 'SUBMITTED' AND risk_level = 'HIGH' AND round = 1
+                          AND review_stages = '[{"by":"COMPLIANCE"},{"by":"FINANCE"}]'::jsonb FROM iam.company_kyc WHERE uid = :'kuid'),
+  'KYC (1118): a submitted file has its risk scored and keeps the review stages in force');
+SELECT pg_temp.expect_error(format($$SELECT iam.save_company_kyc(%L, '{}', 0::smallint)$$, :'kuid'), 'KYC_LOCKED',
+  'KYC (1118): a file under review is not changed');
+SELECT sys.set_context(:ufin, NULL, 'PLATFORM');
+SELECT pg_temp.expect_error(format($$SELECT iam.decide_company_kyc(%L, 'APPROVE', NULL, NULL, NULL)$$, :'kuid'), 'NOT_YOUR_STAGE',
+  'KYC (1118): the stage waiting is compliance; finance decides only its own stage');
+SELECT sys.set_context(:uadmin, NULL, 'PLATFORM');
+SELECT pg_temp.expect_error(format($$SELECT iam.decide_company_kyc(%L, 'RETURN', NULL, NULL, NULL)$$, :'kuid'), 'REASON_REQUIRED',
+  'KYC (1118): a return says why');
+SELECT iam.decide_company_kyc(:'kuid', 'RETURN', 'Name the deputy in full', ARRAY['pep_any'], NULL);
+SELECT pg_temp.ok((SELECT status = 'RETURNED' AND return_fields = ARRAY['pep_any'] FROM iam.company_kyc WHERE uid = :'kuid'),
+  'KYC (1118): a returned file goes back to the company with what to correct');
+SELECT sys.set_context(:ua, :ca, 'COMPANY');
+SELECT iam.save_company_kyc(:'kuid', '{"name1": "Al-Quds", "pep_any": {"value": true, "details": "Brother of the deputy Nabil Example"}}', 100::smallint);
+SELECT iam.submit_company_kyc(:'kuid');
+SELECT sys.set_context(:uadmin, NULL, 'PLATFORM');
+SELECT iam.decide_company_kyc(:'kuid', 'APPROVE', 'Exposure is indirect; medium is enough', NULL, 'MEDIUM');
+SELECT pg_temp.expect_error(format($$SELECT iam.decide_company_kyc(%L, 'APPROVE', NULL, NULL, NULL)$$, :'kuid'), 'SECOND_PERSON_REQUIRED',
+  'KYC (1118): one person decides one stage of a file');
+SELECT sys.set_context(:ufin, NULL, 'PLATFORM');
+SELECT iam.decide_company_kyc(:'kuid', 'APPROVE', NULL, NULL, NULL);
+SELECT pg_temp.ok((SELECT status = 'APPROVED' AND round = 2 AND coalesce(risk_override, risk_level) = 'MEDIUM'
+                          AND review_due = ((now() AT TIME ZONE ref.company_tz(company_id))::date + interval '24 months')::date FROM iam.company_kyc WHERE uid = :'kuid')
+  AND (SELECT count(*) FROM iam.kyc_decision d JOIN iam.company_kyc k ON k.id = d.kyc_id WHERE k.uid = :'kuid') = 3,
+  'KYC (1118): the last stage approves the file; compliance set its level, which sets when it is reviewed again; every decision is kept');
+SELECT pg_temp.expect_error($$UPDATE iam.kyc_decision SET note = 'edited'$$, 'permission denied', 'KYC (1118): the decisions are never changed');
+-- an update is a new version from the approved answers; a sanctions match is never approved
+SELECT sys.set_context(:ua, :ca, 'COMPANY');
+SELECT iam.open_company_kyc(:ca) AS kuid2 \gset
+SELECT iam.save_company_kyc(:'kuid2', '{"name1": "Al-Quds", "pep_any": {"value": false}, "sanctions_listed": {"value": true}}', 100::smallint);
+SELECT iam.submit_company_kyc(:'kuid2');
+SELECT sys.set_context(:uadmin, NULL, 'PLATFORM');
+SELECT pg_temp.expect_error(format($$SELECT iam.decide_company_kyc(%L, 'APPROVE', NULL, NULL, NULL)$$, :'kuid2'), 'KYC_PROHIBITED',
+  'KYC (1118): a file of prohibited risk is not approved');
+SELECT pg_temp.ok((SELECT version = 2 AND status = 'SUBMITTED' FROM iam.company_kyc WHERE uid = :'kuid2')
+  AND (SELECT status FROM iam.company_kyc WHERE uid = :'kuid') = 'APPROVED',
+  'KYC (1118): an update is a new version; the approved file stays in force until the new one is approved');
+ROLLBACK;
+SET ROLE masslak_app;
+
 \echo '=== ALL TESTS PASSED ==='

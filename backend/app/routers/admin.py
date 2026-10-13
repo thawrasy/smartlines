@@ -108,6 +108,7 @@ async def onboard_carrier(body: OnboardIn, request: Request, pr: Principal = Dep
         await conn.execute("INSERT INTO iam.company_member (user_id, company_id, is_owner) VALUES ($1, $2, true)",
                            owner_user, cid)
         await company_wallet(conn, cid, m.currency)
+        await conn.fetchval("SELECT iam.open_company_kyc($1)", cid)       # its KYC file to fill (1118)
         uid = await conn.fetchval("SELECT uid FROM iam.party WHERE id = $1", cid)
     request.state.audit = {"action": "company.onboard", "object_type": "company", "object_id": cid}
     return {"uid": str(uid)}

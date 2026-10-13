@@ -1,6 +1,8 @@
 // Material Symbols (rounded, Apache-2.0), bundled at build time. Generated list: add a name here to use it.
 
 import i_event_repeat from "@material-symbols/svg-400/rounded/event_repeat.svg?raw";
+import i_policy from "@material-symbols/svg-400/rounded/policy.svg?raw";
+import i_upload_file from "@material-symbols/svg-400/rounded/upload_file.svg?raw";
 import i_pending_actions from "@material-symbols/svg-400/rounded/pending_actions.svg?raw";
 import i_pause_circle from "@material-symbols/svg-400/rounded/pause_circle.svg?raw";
 import i_play_circle from "@material-symbols/svg-400/rounded/play_circle.svg?raw";
@@ -313,6 +315,8 @@ export const ICONS = {
   play_circle: i_play_circle,
   stop_circle: i_stop_circle,
   edit_calendar: i_edit_calendar,
+  policy: i_policy,
+  upload_file: i_upload_file,
 } as const;
 
 export type IconName = keyof typeof ICONS;

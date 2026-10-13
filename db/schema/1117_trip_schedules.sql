@@ -590,7 +590,9 @@ BEGIN
   IF v_problem IS NOT NULL THEN
     RAISE EXCEPTION 'SCHEDULE_INVALID: %', v_problem USING ERRCODE = 'P0001';
   END IF;
-  IF v_day IS NOT NULL AND v_day < current_date + (ops.schedule_setting('schedule.min_notice_days') #>> '{}')::integer THEN
+  -- the carrier's today is its market's, not the server's (00:00 to 03:00 in Damascus is still yesterday in UTC)
+  IF v_day IS NOT NULL
+     AND v_day < (now() AT TIME ZONE ref.company_tz(v_company))::date + (ops.schedule_setting('schedule.min_notice_days') #>> '{}')::integer THEN
     RAISE EXCEPTION 'SCHEDULE_NOTICE: it takes effect at least % day(s) after it is asked for, and never in the past',
       ops.schedule_setting('schedule.min_notice_days') #>> '{}' USING ERRCODE = 'P0001';
   END IF;
@@ -712,15 +714,18 @@ CREATE TRIGGER b_trip_publish_approval BEFORE INSERT OR UPDATE OF status ON ops.
   FOR EACH ROW EXECUTE FUNCTION ops.tg_trip_publish_approval();
 
 -- ------------------------------------------------------------------ the regular trips whose trips are due
+-- the days run from the carrier's today, in its market's time zone, to the horizon
 CREATE OR REPLACE FUNCTION ops.schedules_due() RETURNS TABLE (template_id bigint, from_day date, to_day date)
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
-  SELECT t.id, greatest(coalesce(t.generated_until + 1, lower(t.active)), current_date),
-         least(current_date + (ops.schedule_setting('schedule.horizon_days') #>> '{}')::integer, coalesce(upper(t.active) - 1, 'infinity'::date))
-    FROM ops.trip_template t
-   WHERE t.rolling AND t.status = 'ACTIVE' AND NOT isempty(t.active)
-     AND greatest(coalesce(t.generated_until + 1, lower(t.active)), current_date)
-         <= least(current_date + (ops.schedule_setting('schedule.horizon_days') #>> '{}')::integer, coalesce(upper(t.active) - 1, 'infinity'::date))
-   ORDER BY t.id
+  SELECT id, from_day, to_day FROM (
+    SELECT t.id, greatest(coalesce(t.generated_until + 1, lower(t.active)), d.today) AS from_day,
+           least(d.today + (ops.schedule_setting('schedule.horizon_days') #>> '{}')::integer,
+                 coalesce(upper(t.active) - 1, 'infinity'::date)) AS to_day
+      FROM ops.trip_template t
+     CROSS JOIN LATERAL (SELECT (now() AT TIME ZONE ref.company_tz(t.company_id))::date AS today) d
+     WHERE t.rolling AND t.status = 'ACTIVE' AND NOT isempty(t.active)) due
+   WHERE from_day <= to_day
+   ORDER BY id
 $$;
 
 -- ------------------------------------------------------------------ privileges, comments
