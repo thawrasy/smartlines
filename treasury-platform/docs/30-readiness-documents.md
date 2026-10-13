@@ -76,7 +76,7 @@
 - **الموجود جزئيًا:** docs/10-detailed-analysis/10-m0-m1-platform-organization.md:431-446 (تسلسل الكشف الوحيد المرسوم). .../00-overview-and-cross-cutting.md:137-138 (X-SEC-2 وX-SEC-3). docs/20-database-design.md:172-203 (تصنيف ما يُخزَّن والغلاف المشفّر). .../13-m6-workflow-engine-notifications.md:683-694 (الأمن والبيانات الحساسة للطلبات).
 - **الفجوة:** المرسوم تدفق الكشف فقط، ومراجعة التصميم وجدت نسخًا مقيّدة غير محمية لم يصورها أي مخطط: عمود JSON بلا تصنيف في col.Collateral.Attributes، وقيم BaselineValue وReceivedValue في lc.LcTermsComparisonLine تحمل IBAN بنص صريح (docs/review/design-review-2026-10-11.json).
 - **الأولوية:** P0 - قبل S0 · **المالك:** مسؤول الأمن مع معماري قاعدة البيانات
-- **ملاحظة التحقق:** تصحيح: col.Collateral.Attributes صار مصنفًا restricted (DR-08). يبقى IBAN في lc.LcTermsComparisonLine ونسخ OriginalText بلا تصنيف (DR-46، DR-31).
+- **ملاحظة التحقق:** تصحيح: col.Collateral.Attributes صار مصنفًا restricted (DR-08). وأُغلقت الفجوتان الباقيتان في 2026-10-13 (ADR 0011): نسخ OriginalText ونصا التعارض و`ClauseText` موسومة سرّية، وقيد يرفض فيها IBAN أو رقم حساب غير مقنَّع (DR-31)؛ وقيمة الحقل المقيّد لا تُنسخ في المقارنة ولا في فروق التعديل، والحكم من البصمة (DR-46).
 
 #### DOC-F03 — تسلسل الدخول وMFA والاسترداد
 
