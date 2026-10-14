@@ -14,9 +14,9 @@ supporting index, except references to lookup lists and to the staff member who 
 |---|---|
 | Engine | PostgreSQL 16 with PostGIS 3 (extensions: pgcrypto, citext, btree_gist, pg_trgm, postgis in schema `gis`; Docker and CI image `postgis/postgis:16-3.4`, Ubuntu package `postgresql-16-postgis-3`) |
 | Schemas | 26 separate schemas, each with its own privileges |
-| Tables | 534 tables (8 partitioned), 5,590 columns, 1,566 foreign keys |
-| Security | row-level security on 534 of 534 tables, 959 policies; 471 triggers, 444 functions |
-| Tests | 784 automated checks against a freshly built database (`db/tests/run.sh`) |
+| Tables | 537 tables (8 partitioned), 5,631 columns, 1,575 foreign keys |
+| Security | row-level security on 537 of 537 tables, 965 policies; 473 triggers, 446 functions |
+| Tests | 793 automated checks against a freshly built database (`db/tests/run.sh`) |
 | Design | [Database design and ERD document](../docs/database/) with diagrams in the study's colors |
 | Docs | [Data dictionary](DATA_DICTIONARY.md) · [ERD diagrams](ERD.md) (both generated from the database) |
 <!-- stats:end -->
@@ -180,6 +180,7 @@ PostGIS in `gis`. Until 9 October 2026 a first start of the Docker stack stopped
 | `1121_journeys.sql` | Journeys booked together (owner's request): one way, a round trip or several places one after the other, and an agency's group, booked in one go and paid at once, one booking per trip sharing the journey (`sales.booking.journey_uid`, `journey_kind`, `journey_leg`); an agency books a group of up to `agency.group.max_passengers` travellers in bookings of four seats (`docs/design/JOURNEYS.md`) |
 | `1122_seat_limits.sql` | Seats booked at once (owner's decision): four by default, the platform's to change with the decision behind it (`booking.max_seats`); the head of a larger family books up to the family's size within `booking.family.max_seats`; read wherever seats are held or booked (`sales.seat_limit`), changed by the platform only (`sales.set_seat_limits`, `sales.seat_limits`) (`docs/design/JOURNEYS.md`) |
 | `1123_charter.sql` | Charter (owner's request): carriers hire out a vehicle apart from their trips or their scheduled trips whole or in blocks, to tourism companies and travellers by special request, on their own terms (`sales.charter_offer`); requests with the offer's terms frozen, the carrier's price, payment into escrow, release to the carrier less the platform's commission (`charter.commission_bp`), refunds (`sales.charter_request`); the seats a confirmed trip charter takes off sale (`sales.charter_seat`, `sales.charter_block_seats`, `sales.charter_release_seats`); permission `charter.manage` (`docs/design/CHARTER.md`) |
+| `1124_admin_geography.sql` | Administrative geography (owner's request): governorates, districts and sub-districts (`ref.admin_area`), communities and city neighbourhoods with positions (`ref.place`) under the United Nations' codes, each load recorded (`ref.geo_source`); cities and stations linked to places (`ref.city.place_id`, `net.station.place_id`); a community opened for routes as a city of the network (`ref.serve_place`), the way up from a place (`ref.place_path`); permission `geo.manage` (`docs/design/ADMIN_GEOGRAPHY.md`) |
 
 ## Design rules (study 29.1)
 

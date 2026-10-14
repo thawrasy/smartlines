@@ -613,6 +613,13 @@
     "200": {}
    }
   },
+  "GET /api/admin/geo": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
   "GET /api/admin/kyc": {
    "body": null,
    "parameters": {
@@ -1702,6 +1709,69 @@
   "GET /api/finance/withdrawals": {
    "body": null,
    "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/geo/areas": {
+   "body": null,
+   "parameters": {
+    "query:parent": {
+     "required": false,
+     "schema": {
+      "nullable": true,
+      "pattern": "^[A-Z]{2}([0-9]{2}){0,3}$",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/geo/places": {
+   "body": null,
+   "parameters": {
+    "query:kind": {
+     "required": false,
+     "schema": {
+      "nullable": true,
+      "pattern": "^(COMMUNITY|NEIGHBOURHOOD)$",
+      "type": "string"
+     }
+    },
+    "query:limit": {
+     "required": false,
+     "schema": {
+      "default": 20,
+      "maximum": 50,
+      "minimum": 1,
+      "type": "integer"
+     }
+    },
+    "query:q": {
+     "required": true,
+     "schema": {
+      "maxLength": 60,
+      "minLength": 2,
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/geo/places/{pcode}": {
+   "body": null,
+   "parameters": {
+    "path:pcode": {
+     "required": true,
+     "schema": {
+      "type": "string"
+     }
+    }
+   },
    "responses": {
     "200": {}
    }
@@ -4736,6 +4806,57 @@
      "required": true,
      "schema": {
       "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/admin/geo/import": {
+   "body": {
+    "content": {
+     "multipart/form-data": {
+      "properties": {
+       "file": {
+        "contentMediaType": "application/octet-stream",
+        "type": "string"
+       }
+      },
+      "required": [
+       "file"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/admin/geo/places/{pcode}/serve": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "code": {
+        "nullable": true,
+        "pattern": "^[A-Za-z]{3}$",
+        "type": "string"
+       }
+      },
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:pcode": {
+     "required": true,
+     "schema": {
       "type": "string"
      }
     }

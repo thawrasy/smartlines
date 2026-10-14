@@ -11,6 +11,7 @@
 - `REGULAR_TRIPS.md`: regular trips the carrier defines (every day, on days of the week or of the month, with or without an end) under one number, their requests and approval stages, number blocks and settings (owner's decision, 1117).
 - `STATION_DISPLAY_SCREENS.md`: separate Departures and Arrivals screens at a station: the kinds the platform allows, the screens the station's administration registers and distributes, their links, last seen, and the board of one kind (owner's decision, 1120).
 - `JOURNEYS.md`: one way, round trip and several places booked together, direct trips or trips with stops, and tourism groups booked by agencies as one journey (owner's request, 1121).
+- `ADMIN_GEOGRAPHY.md`: the country's administrative geography from the United Nations' P-code file (governorates, districts, sub-districts, communities, neighbourhoods), how it is loaded and how a place is opened for routes (owner's request, 1124).
 - `CHARTER.md`: carriers hire out a vehicle apart from their trips or a scheduled trip whole or in blocks of seats, to tourism companies and, by special request, to travellers, on their own terms; requests are priced, paid into escrow, the seats held, and the carrier paid when done (owner's request, 1123).
 - `COMPANY_KYC.md`: the know-your-customer file of each company on the platform: the form and the standards it follows, its review stages, risk rules, encrypted values, settings and screens (owner's request, 1118).
 

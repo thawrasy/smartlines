@@ -2,14 +2,14 @@
 
 > Generated from the built database (`db/tools/gen_docs.py`); do not edit by hand.
 
-**534 tables, 5590 columns, in 26 schemas.**
+**537 tables, 5631 columns, in 26 schemas.**
 
 Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant isolation (RLS) · 🧩 partitioned monthly · 🔒 append-only / change-protected
 
 ## Index
 
 - [`iam` — Identity, parties, users, permissions and API clients](#iam) (44 tables)
-- [`ref` — Reference data, locales and files](#ref) (14 tables)
+- [`ref` — Reference data, locales and files](#ref) (17 tables)
 - [`sys` — Settings, outbox and webhooks](#sys) (27 tables)
 - [`net` — Network: stations, routes, lines, corridors and geofences](#net) (27 tables)
 - [`fleet` — Fleet: vehicles, trucks, trailers, seats, crew, licenses and insurance](#fleet) (22 tables)
@@ -875,6 +875,25 @@ Record of every verification (identity levels L0..L3, company, vehicle, document
 <a id="ref"></a>
 ## `ref` — Reference data, locales and files
 
+### `ref.admin_area` 🛡️
+
+Governorates (1), districts (2) and sub-districts (3), with their United Nations codes and Arabic and English names (1124)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `pcode` | `text` | ✱ |  |
+| `country_code` | `character(2)` | 🔗 `ref.country` ✱ |  |
+| `level` | `smallint` | ✱ |  |
+| `parent_id` | `bigint` | 🔗 `ref.admin_area`  |  |
+| `name_en` | `text` | ✱ |  |
+| `name_ar` | `text` | ✱ |  |
+| `ref_name` | `text` |  |  |
+| `valid_on` | `date` |  |  |
+| `source_id` | `bigint` | 🔗 `ref.geo_source`  |  |
+| `status` | `text` | ✱ | `'ACTIVE'::text` |
+| `updated_at` | `timestamp with time zone` | ✱ | `now()` |
+
 ### `ref.cargo_category` 🛡️
 
 Cargo categories as additional information for transit and freight (annex D.3)
@@ -906,6 +925,7 @@ Cities (domestic and international)
 | `lng` | `numeric(9,6)` |  |  |
 | `timezone` | `text` | ✱ |  |
 | `is_active` | `boolean` | ✱ | `true` |
+| `place_id` | `bigint` | 🔗 `ref.place`  |  |
 
 ### `ref.country` 🛡️
 
@@ -969,6 +989,23 @@ Metadata for every uploaded file (documents, images, signed PDFs); content is in
 | `scan_detail` | `text` |  |  |
 | `scan_attempts` | `integer` | ✱ | `0` |
 
+### `ref.geo_source` 🛡️
+
+Each load of the administrative geography: the publisher, the file and its hash, and what it held (1124)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `publisher` | `text` | ✱ |  |
+| `dataset` | `text` | ✱ |  |
+| `file_name` | `text` |  |  |
+| `sha256` | `text` |  |  |
+| `valid_on` | `date` |  |  |
+| `counts` | `jsonb` | ✱ | `'{}'::jsonb` |
+| `imported_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `imported_at` | `timestamp with time zone` | ✱ | `now()` |
+
 ### `ref.locale` 🛡️
 
 Supported UI locales with text direction; English is the system default, other locales are UI-only
@@ -1010,6 +1047,30 @@ Party roles (2.1); rows replace the former fixed list
 | `is_active` | `boolean` | ✱ | `true` |
 | `sort` | `integer` | ✱ | `100` |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `ref.place` 🛡️
+
+Communities (cities, towns, villages) and the neighbourhoods of cities, with their United Nations codes, names and positions (1124)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `pcode` | `text` | ✱ |  |
+| `kind` | `text` | ✱ |  |
+| `area_id` | `bigint` | 🔗 `ref.admin_area` ✱ |  |
+| `parent_place_id` | `bigint` | 🔗 `ref.place`  |  |
+| `city_area_code` | `text` |  |  |
+| `city_area_en` | `text` |  |  |
+| `city_area_ar` | `text` |  |  |
+| `name_en` | `text` | ✱ |  |
+| `name_ar` | `text` | ✱ |  |
+| `lat` | `numeric(9,6)` | ✱ |  |
+| `lng` | `numeric(9,6)` | ✱ |  |
+| `previous_pcode` | `text` |  |  |
+| `updated_on` | `date` |  |  |
+| `source_id` | `bigint` | 🔗 `ref.geo_source`  |  |
+| `status` | `text` | ✱ | `'ACTIVE'::text` |
+| `updated_at` | `timestamp with time zone` | ✱ | `now()` |
 
 ### `ref.seed_version` 🛡️
 
@@ -1782,6 +1843,7 @@ Register of stations and departure/arrival points (central, company point, exter
 | `geo` | `gis.geography` |  | `
 CASE
     WHEN ((lat IS NOT NULL) AND...` |
+| `place_id` | `bigint` | 🔗 `ref.place`  |  |
 
 ### `net.station_boarding` 🛡️
 

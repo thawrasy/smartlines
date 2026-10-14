@@ -88,7 +88,7 @@ flowchart LR
   iam -->|5| ref
   iam -->|2| sec
   net -->|20| iam
-  net -->|3| ref
+  net -->|4| ref
   ops -->|2| fin
   ops -->|10| fleet
   ops -->|24| iam
@@ -111,7 +111,7 @@ flowchart LR
   rail -->|2| net
   rail -->|2| ops
   rail -->|1| sales
-  ref -->|1| iam
+  ref -->|2| iam
   rent -->|1| crm
   rent -->|1| fin
   rent -->|3| fleet
@@ -618,6 +618,13 @@ erDiagram
 
 ```mermaid
 erDiagram
+  ref_admin_area {
+    bigint id PK
+    character country_code FK
+    bigint parent_id FK
+    bigint source_id FK
+    text status
+  }
   ref_cargo_category {
     text code PK
   }
@@ -625,6 +632,7 @@ erDiagram
     bigint id PK
     text code
     character country_code FK
+    bigint place_id FK
   }
   ref_country {
     character code PK
@@ -645,6 +653,11 @@ erDiagram
     bigint uploaded_by FK
     bigint company_id FK
   }
+  ref_geo_source {
+    bigint id PK
+    uuid uid
+    bigint imported_by FK
+  }
   ref_locale {
     text code PK
   }
@@ -656,6 +669,13 @@ erDiagram
   }
   ref_party_role_type {
     text code PK
+  }
+  ref_place {
+    bigint id PK
+    bigint area_id FK
+    bigint parent_place_id FK
+    bigint source_id FK
+    text status
   }
   ref_seed_version {
     bigint id PK
@@ -673,12 +693,22 @@ erDiagram
   ref_vehicle_class {
     text code PK
   }
+  iam_app_user {
+    ref external
+  }
   iam_company {
     ref external
   }
+  ref_geo_source }o..o| iam_app_user : "imported_by"
   ref_file_object }o..o| iam_company : "company_id"
+  ref_place }o--|| ref_admin_area : "area_id"
+  ref_admin_area }o..o| ref_admin_area : "parent_id"
+  ref_admin_area }o..o| ref_geo_source : "source_id"
+  ref_place }o..o| ref_geo_source : "source_id"
   ref_market }o--|| ref_locale : "locale"
   ref_translation }o--|| ref_locale : "locale"
+  ref_place }o..o| ref_place : "parent_place_id"
+  ref_city }o..o| ref_place : "place_id"
 ```
 
 ## `sys` — Settings, outbox and webhooks
@@ -940,6 +970,7 @@ erDiagram
     text status
     bigint compliance_profile_id FK
     bigint verified_by FK
+    bigint place_id FK
   }
   net_station_boarding {
     bigint station_id PK
@@ -1000,6 +1031,9 @@ erDiagram
   ref_city {
     ref external
   }
+  ref_place {
+    ref external
+  }
   ref_station_subtype {
     ref external
   }
@@ -1056,6 +1090,7 @@ erDiagram
   net_station_carrier_bay }o--|| net_station_gate : "gate_id"
   net_station }o--|| ref_city : "city_id"
   net_line }o..o| ref_city : "city_id"
+  net_station }o..o| ref_place : "place_id"
   net_station }o--|| ref_station_subtype : "subtype"
 ```
 

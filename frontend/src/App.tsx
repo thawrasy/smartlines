@@ -89,6 +89,7 @@ const Journey = lazy(() => import("./pages/passenger/Journey"));
 const CustomerCharter = lazyNamed(() => import("./pages/charter/Charter"), "CustomerCharter");
 const CarrierCharter = lazyNamed(() => import("./pages/charter/Charter"), "CarrierCharter");
 const AdminBookingRules = lazyNamed(() => import("./pages/charter/Charter"), "AdminBookingRules");
+const AdminGeography = lazyNamed(() => import("./pages/admin/Geography"), "AdminGeography");
 const StationOps = lazy(() => import("./pages/carrier/StationOps"));
 const AdminBoarding = lazy(() => import("./pages/admin/Boarding"));
 
@@ -136,6 +137,8 @@ function PlatformShell() {
       { to: "/admin/schedules", icon: "event_repeat", label: t("schedadm.nav"), show: can("schedule.approve", "schedule.settings", "regulator.dashboard") },
       // seats booked at once (1122) and charter (1123)
       { to: "/admin/booking", icon: "airport_shuttle", label: t("rules.nav"), show: can("policy.matrix", "report.platform") },
+      // governorates to neighbourhoods from the United Nations P-codes, and places opened for routes (1124)
+      { to: "/admin/geography", icon: "map", label: t("geo.nav"), show: can("geo.manage") },
       { to: "/security", end: true, icon: "shield", label: t("security.title"), show: can("audit.view", "security.ip_rules") },
       { to: "/security/rules", icon: "block", label: t("security.rules"), show: can("security.ip_rules") },
       { to: "/security/auth", icon: "lock", label: t("security.authEvents"), show: can("audit.view", "security.ip_rules") },
@@ -327,6 +330,7 @@ export default function App() {
           <Route path="admin/boarding" element={<AdminBoarding />} />
           <Route path="admin/schedules" element={<AdminSchedules />} />
           <Route path="admin/booking" element={<AdminBookingRules />} />
+          <Route path="admin/geography" element={<AdminGeography />} />
           <Route path="admin/kyc" element={<AdminKyc />} />
           <Route path="admin/modules" element={<AdminModules />} />
           <Route path="admin/m/:module" element={<ModulePage />} />

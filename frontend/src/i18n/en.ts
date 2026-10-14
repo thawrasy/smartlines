@@ -2876,6 +2876,23 @@ const en = {
     activeOffers: "Active offers", carriers: "Carriers offering", open: "Open requests", confirmed: "Confirmed",
     commission: "Platform commission (%)", commissionHint: "Taken from the carrier's payment when a charter is done.",
   },
+  geo: {
+    nav: "Geography", title: "Geography of the country",
+    sub: "Governorates, districts, sub-districts, communities and city neighbourhoods with the United Nations' codes and positions; any community can be opened for routes.",
+    governorates: "Governorates", subDistricts: "Sub-districts", communities: "Communities", neighbourhoods: "Neighbourhoods",
+    servedCities: "Cities of the network", load: "Load the United Nations file",
+    loadHint: "The common operational dataset of administrative divisions and populated places (P-codes), as an Excel workbook. A file with mistakes loads nothing and says what is wrong; a newer file updates the places and retires those it no longer holds.",
+    file: "File", loadBtn: "Check and load", loaded: "Loaded: {n} communities", already: "This file is already loaded",
+    loadedAt: "Loaded", validOn: "Valid on", changes: "Changes", changeLine: "{a} added · {u} updated · {r} retired",
+    empty: "No geography loaded yet", emptyHint: "Load the United Nations workbook above.",
+    search: "Find a place (Arabic, English or code)", find: "Find", noneFound: "No place by that name.",
+    place: "Place", where: "Where", code: "Code", position: "Position", inside: "Inside",
+    neighbourhoodOf: "Neighbourhood of {city}", browse: "Browse", country: "Syria",
+    levelName: { "1": "Governorate", "2": "District", "3": "Sub-district", "4": "Community" },
+    serve: "Open for routes", serveTitle: "Open {name} for routes", served: "Opened as {code}",
+    serveHint: "The community becomes a city of the network with a code of three letters; carriers then set up their stations and routes there.",
+    cityCode: "City code (three letters)",
+  },
 };
 
 export default en;

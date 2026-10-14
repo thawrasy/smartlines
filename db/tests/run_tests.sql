@@ -3726,4 +3726,35 @@ SELECT pg_temp.ok(:bp = 500 AND sales.setting_int('charter.commission_bp', 0) = 
 ROLLBACK;
 SET ROLE masslak_app;
 
+-- Administrative geography (1124): governorates to neighbourhoods with the United Nations codes; places opened for routes
+BEGIN;
+RESET ROLE;
+SELECT pg_temp.expect_error($$INSERT INTO ref.admin_area (pcode, country_code, level, name_en, name_ar) VALUES ('SY0101', 'SY', 1, 'X', 'X')$$,
+  'check constraint', 'Geography (1124): a governorate''s code has two digits after the country');
+INSERT INTO ref.admin_area (pcode, country_code, level, name_en, name_ar) VALUES ('SY91', 'SY', 1, 'Test governorate', 'Test') RETURNING id AS g1 \gset
+SELECT pg_temp.expect_error($$INSERT INTO ref.admin_area (pcode, country_code, level, name_en, name_ar) VALUES ('SY9100', 'SY', 2, 'X', 'X')$$,
+  'check constraint', 'Geography (1124): a district is under a governorate');
+INSERT INTO ref.admin_area (pcode, country_code, level, parent_id, name_en, name_ar) VALUES ('SY9100', 'SY', 2, :g1, 'Test district', 'Test') RETURNING id AS g2 \gset
+INSERT INTO ref.admin_area (pcode, country_code, level, parent_id, name_en, name_ar) VALUES ('SY910000', 'SY', 3, :g2, 'Test sub-district', 'Test') RETURNING id AS g3 \gset
+INSERT INTO ref.place (pcode, kind, area_id, name_en, name_ar, lat, lng) VALUES ('C9901', 'COMMUNITY', :g3, 'Test town', 'Test', 34.5, 37.5) RETURNING id AS pl \gset
+SELECT pg_temp.expect_error(format($$INSERT INTO ref.place (pcode, kind, area_id, name_en, name_ar, lat, lng) VALUES ('N9901', 'NEIGHBOURHOOD', %s, 'X', 'X', 34.5, 37.5)$$, :g3),
+  'check constraint', 'Geography (1124): a neighbourhood belongs to its city');
+SELECT pg_temp.ok((ref.place_path(:pl) -> 'governorate' ->> 'pcode') = 'SY91' AND ref.place_path(:pl) ->> 'served' IS NULL,
+  'Geography (1124): a place knows its sub-district, district and governorate');
+SET LOCAL ROLE masslak_app;
+SELECT sys.set_context(:ua, :ca, 'COMPANY');
+SELECT pg_temp.expect_error($$SELECT ref.serve_place('C9901', 'TTW')$$, 'FORBIDDEN', 'Geography (1124): only the platform opens a place for routes');
+WITH u AS (UPDATE ref.place SET name_en = 'Mine' WHERE pcode = 'C9901' RETURNING 1) SELECT count(*) AS geo_changed FROM u \gset
+SELECT pg_temp.ok(:geo_changed = 0 AND (SELECT count(*) FROM ref.place WHERE pcode = 'C9901') = 1,
+  'Geography (1124): everyone reads the geography; a carrier does not change it');
+SELECT sys.set_context(:uadmin, NULL, 'SYSTEM');
+SELECT pg_temp.expect_error($$SELECT ref.serve_place('C9901', 'DAM')$$, 'CITY_CODE_TAKEN', 'Geography (1124): a city code is not reused');
+SELECT ref.serve_place('C9901', 'ttw') AS served \gset
+SELECT ref.serve_place('C9901', NULL) AS served_again \gset
+SELECT pg_temp.ok(:'served' = 'TTW' AND :'served_again' = 'TTW',
+  'Geography (1124): a community opened for routes is a city of the network, once');
+SELECT pg_temp.ok((SELECT place_id FROM ref.city WHERE code = 'TTW') = :pl, 'Geography (1124): the city knows its place');
+ROLLBACK;
+SET ROLE masslak_app;
+
 \echo '=== ALL TESTS PASSED ==='
