@@ -118,3 +118,27 @@ def test_the_search_offers_direct_trips_or_trips_with_stops():
     assert all(t["stops_between"] == 0 for t in direct) and all(t["stops_between"] > 0 for t in stops)
     assert len(direct) + len(stops) == len(every)
     assert c.get("/api/trips/search", params={"origin": "DAM", "destination": "ALP", "on": day(1), "stops": "maybe"}).status_code == 422
+
+
+def test_a_baby_on_a_lap_travels_with_the_adult_on_every_trip():
+    """A baby on an adult's lap takes no seat and is in the adult's booking on every leg of the journey (1121)."""
+    import datetime as dt
+    pax = login("passenger@masslak.test", "PASSENGER")
+    assert pax.post("/api/wallet/topup", json={"amount": 20_000_000, "idempotency_key": uuid.uuid4().hex}).status_code == 200
+    out = _first("DAM", "ALP", seats=2)
+    back = _first("ALP", "DAM", after=out["arrives_at"], seats=2)
+    baby = _traveller(3) | {"birth_date": (dt.date.today() - dt.timedelta(days=300)).isoformat(), "with_adult": 2}
+    for bad in ({**baby, "with_adult": 3}, {**baby, "birth_date": None}):
+        r = pax.post("/api/journeys", json={"kind": "ROUND_TRIP", "legs": [_leg(out), _leg(back)], "passengers": [_traveller(1), _traveller(2), bad],
+                                            "idempotency_key": uuid.uuid4().hex})
+        assert r.status_code == 422, r.text
+    r = pax.post("/api/journeys", json={"kind": "ROUND_TRIP", "legs": [_leg(out), _leg(back)], "passengers": [_traveller(1), _traveller(2), baby],
+                                        "idempotency_key": uuid.uuid4().hex})
+    if r.status_code == 422 and r.json()["error"]["code"] in ("SEAT_REQUIRED", "INFANT_SEAT_REQUIRED"):
+        pytest.skip("the carrier seats every infant")
+    assert r.status_code == 201, r.text
+    j = r.json()
+    legs = owner_sql("""SELECT string_agg(format('%s:%s:%s', leg, laps, n), ',' ORDER BY leg) FROM (
+                          SELECT b.journey_leg AS leg, count(*) FILTER (WHERE k.seat_no IS NULL) AS laps, count(*) AS n FROM sales.ticket k
+                            JOIN sales.booking b ON b.id = k.booking_id WHERE b.journey_uid = $1::uuid GROUP BY 1) x""", j["journey_uid"])
+    assert legs == "1:1:3,2:1:3"                                                         # on both trips: two seats and a lap

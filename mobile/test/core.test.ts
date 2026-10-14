@@ -132,3 +132,26 @@ test("a ticket typed in is matched against the pack by its number and a hash of 
   assert.equal(decideTyped(pack, "AB12CD-011", hash("AB12CD-011", "AB12CD"), history).result, "DUPLICATE");
 });
 
+
+// ------------------------------------------------------------------ journeys (1121)
+import { canFollow, journeyLegs, legsParam, parseLegs, parsePicked, pickedParam } from "../src/core/journey.ts";
+
+test("a journey's address reads back as it was written, and a broken one gives nothing", () => {
+  const legs = [{ from: "DAM", to: "ALP", on: "2026-10-16" }, { from: "ALP", to: "LTK", on: "2026-10-18" }];
+  assert.deepEqual(parseLegs(legsParam(legs)), legs);
+  assert.deepEqual(parseLegs("DAM_ALP_2026-10-16,ALP-LTK"), []);
+  const picked = [{ uid: "75c5a8f3-16de-4274-8b03-492172a8be8c", from: 0, to: 3 }];
+  assert.deepEqual(parsePicked(pickedParam(picked)), picked);
+  assert.deepEqual(parsePicked("not-a-trip:0:3"), []);
+});
+
+test("a round trip comes back the way it went; several places follow each other in time", () => {
+  const first = { from: "DAM", to: "ALP", on: "2026-10-16" };
+  assert.deepEqual(journeyLegs("ROUND_TRIP", first, "2026-10-18", []), [first, { from: "ALP", to: "DAM", on: "2026-10-18" }]);
+  assert.equal(journeyLegs("ROUND_TRIP", first, "2026-10-15", []), null);                  // back before going
+  assert.equal(journeyLegs("MULTI_CITY", first, null, []), null);                          // one trip is not several places
+  assert.equal(journeyLegs("MULTI_CITY", first, null, [{ from: "ALP", to: "ALP", on: "2026-10-17" }]), null);
+  assert.equal(journeyLegs("MULTI_CITY", first, null, [{ from: "ALP", to: "LTK", on: "2026-10-17" }])?.length, 2);
+  assert.equal(canFollow("2026-10-16T12:45:00Z", "2026-10-16T12:30:00Z"), false);
+  assert.equal(canFollow("2026-10-16T12:45:00Z", "2026-10-16T16:00:00Z"), true);
+});

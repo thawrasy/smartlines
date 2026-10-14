@@ -2,7 +2,7 @@
 
 > Generated from the built database (`db/tools/gen_docs.py`); do not edit by hand.
 
-**531 tables, 5515 columns, in 26 schemas.**
+**534 tables, 5590 columns, in 26 schemas.**
 
 Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant isolation (RLS) · 🧩 partitioned monthly · 🔒 append-only / change-protected
 
@@ -15,7 +15,7 @@ Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant i
 - [`fleet` — Fleet: vehicles, trucks, trailers, seats, crew, licenses and insurance](#fleet) (22 tables)
 - [`pricing` — Pricing, taxes, commissions, campaigns and loyalty](#pricing) (38 tables)
 - [`ops` — Trips, inventory, operations, shuttle rides, tracking and incidents](#ops) (38 tables)
-- [`sales` — Channels, bookings, passengers, tickets, subscriptions and travel documents](#sales) (28 tables)
+- [`sales` — Channels, bookings, passengers, tickets, subscriptions and travel documents](#sales) (31 tables)
 - [`fin` — Wallets, ledger, payments, allocation, settlement and float](#fin) (35 tables)
 - [`acct` — Simplified accounting, e-invoicing and tax profiles](#acct) (37 tables)
 - [`bill` — Carrier subscriptions, metering and platform invoices](#bill) (7 tables)
@@ -3918,6 +3918,102 @@ Debit and credit memos that correct a channel statement (ADM/ACM pattern)
 | `commission` | `bigint` | ✱ | `0` |
 | `tax` | `bigint` | ✱ | `0` |
 | `net` | `bigint` | ✱ |  |
+
+### `sales.charter_offer` 🛡️
+
+What a carrier hires out: a vehicle apart from the trips, or its scheduled trips whole or in blocks; who may ask, how it prices, its notice, refunds and policy (1123)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `kind` | `text` | ✱ |  |
+| `title` | `text` | ✱ |  |
+| `vehicle_type` | `text` |  |  |
+| `seats` | `smallint` |  |  |
+| `vehicles` | `smallint` | ✱ | `1` |
+| `partial_seats` | `boolean` | ✱ | `true` |
+| `min_seats` | `smallint` |  |  |
+| `audience` | `text[]` | ✱ |  |
+| `price_basis` | `text` | ✱ |  |
+| `price` | `bigint` |  |  |
+| `currency` | `character(3)` | 🔗 `ref.currency` ✱ |  |
+| `notice_hours` | `smallint` | ✱ | `48` |
+| `cancel_before_hours` | `smallint` | ✱ | `48` |
+| `cancel_refund_pct` | `smallint` | ✱ | `100` |
+| `with_driver` | `boolean` | ✱ | `true` |
+| `base_city_id` | `bigint` | 🔗 `ref.city`  |  |
+| `policy` | `text` | ✱ |  |
+| `status` | `text` | ✱ | `'ACTIVE'::text` |
+| `created_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `updated_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `sales.charter_request` 🛡️
+
+A customer's request to hire a vehicle or a trip under a carrier's offer: the carrier's price, the payment held in escrow, the service done or cancelled (1123)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `ref` | `text` | ✱ |  |
+| `offer_id` | `bigint` | 🔗 `sales.charter_offer` ✱ |  |
+| `company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `requester_party_id` | `bigint` | 🔗 `iam.party` ✱ |  |
+| `requester_user_id` | `bigint` | 🔗 `iam.app_user`  |  |
+| `requester_kind` | `text` | ✱ |  |
+| `agency_id` | `bigint` | 🔗 `iam.company`  |  |
+| `contact_name` | `text` | ✱ |  |
+| `contact_mobile` | `text` | ✱ |  |
+| `kind` | `text` | ✱ |  |
+| `terms` | `jsonb` | ✱ |  |
+| `from_city_id` | `bigint` | 🔗 `ref.city`  |  |
+| `to_city_id` | `bigint` | 🔗 `ref.city`  |  |
+| `starts_at` | `timestamp with time zone` |  |  |
+| `ends_at` | `timestamp with time zone` |  |  |
+| `passengers` | `smallint` |  |  |
+| `vehicles` | `smallint` |  |  |
+| `itinerary` | `text` |  |  |
+| `trip_id` | `bigint` | 🔗 `ops.trip`  |  |
+| `from_seq` | `smallint` |  |  |
+| `to_seq` | `smallint` |  |  |
+| `seats` | `smallint` |  |  |
+| `whole` | `boolean` |  |  |
+| `note` | `text` |  |  |
+| `status` | `text` | ✱ | `'REQUESTED'::text` |
+| `price` | `bigint` |  |  |
+| `currency` | `character(3)` | 🔗 `ref.currency`  |  |
+| `valid_until` | `timestamp with time zone` |  |  |
+| `quote_note` | `text` |  |  |
+| `quoted_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `quoted_at` | `timestamp with time zone` |  |  |
+| `vehicle_id` | `bigint` | 🔗 `fleet.vehicle`  |  |
+| `paid_txn_id` | `bigint` | 🔗 `fin.ledger_txn`  |  |
+| `paid_at` | `timestamp with time zone` |  |  |
+| `released_txn_id` | `bigint` | 🔗 `fin.ledger_txn`  |  |
+| `refund_txn_id` | `bigint` | 🔗 `fin.ledger_txn`  |  |
+| `refunded_amount` | `bigint` |  |  |
+| `closed_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `closed_at` | `timestamp with time zone` |  |  |
+| `closed_reason` | `text` |  |  |
+| `idempotency_key` | `text` | ✱ |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `updated_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `sales.charter_seat` 🛡️
+
+The seats of a scheduled trip a confirmed whole-trip request took off sale (BLOCKED on ops.seat_segment) until released (1123)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `request_id` | `bigint` | 🔑 🔗 `sales.charter_request` ✱ |  |
+| `trip_id` | `bigint` | 🔗 `ops.trip` ✱ |  |
+| `seat_no` | `smallint` | 🔑 ✱ |  |
+| `from_seq` | `smallint` | ✱ |  |
+| `to_seq` | `smallint` | ✱ |  |
+| `released_at` | `timestamp with time zone` |  |  |
 
 ### `sales.entry_rule` 🛡️
 

@@ -8,11 +8,11 @@
     POST /api/agency/journeys               the same, with contact_mobile; paid from the agency's balance
     GET  /api/agency/journeys/{journey_uid}
 
-A passenger books at most four seats at once (GROUP_THROUGH_AGENCY beyond); an agency's group is split into bookings of
-four seats on each leg (GROUP_TOO_LARGE beyond its setting). Every leg is booked through the channel's own sale, so its
+A passenger books the platform's seat limit at once (four unless it decides otherwise, more for a family head; 1122),
+GROUP_THROUGH_AGENCY beyond; an agency's group is split into bookings of that many seats on each leg (GROUP_TOO_LARGE
+beyond its setting). Every leg is booked through the channel's own sale, so its
 price, rules, limits and payment are those of a single booking; the journey is one transaction.
 """
-import json
 import uuid
 
 from fastapi import APIRouter, Depends, Request
@@ -23,16 +23,14 @@ from ...errors import ApiError, not_found
 from ..agency import service as agency_service
 from . import journeys
 from . import service as sales
-from .models import MAX_SEATS, AgencyBookingIn, BookingIn
+from .models import AgencyBookingIn, BookingIn
 
 passenger = APIRouter(prefix="/api/journeys", tags=["bookings"])
 agency = APIRouter(prefix="/api/agency/journeys", tags=["agency"])
 
 
 async def _group_limit(conn) -> int:
-    v = await conn.fetchval("SELECT value FROM sys.setting WHERE key = 'agency.group.max_passengers'")
-    v = json.loads(v) if isinstance(v, str) else v
-    return int(v) if isinstance(v, (int, float)) and v >= 1 else 50
+    return await conn.fetchval("SELECT sales.setting_int('agency.group.max_passengers', 50)")
 
 
 def _answer(out: dict) -> dict:
@@ -57,15 +55,18 @@ async def _replayed(conn, party_id: int, journey_uid: uuid.UUID) -> dict:
 # ------------------------------------------------------------------ passenger
 @passenger.post("", status_code=201)
 async def book_journey(body: journeys.JourneyIn, request: Request, pr: Principal = Depends(require_portal("PASSENGER"))):
-    if len(body.passengers) > MAX_SEATS:
-        raise ApiError(422, "GROUP_THROUGH_AGENCY", f"a passenger books at most {MAX_SEATS} seats at once; a group books through an agency")
     ctx = context_for(request, pr)
     buyer = sales.Buyer(party_id=pr.party_id, user_id=pr.user_id, channel=sales_channel(request))
 
     async with db.transaction(ctx) as conn:
+        limit = await sales.seat_limit(conn, pr.party_id)
+        if body.seated > limit:
+            raise ApiError(422, "GROUP_THROUGH_AGENCY", f"a passenger books at most {limit} seats at once; a group books through an agency",
+                           max_seats=limit)
+
         async def sell(b: BookingIn) -> dict:
             return await sales.create_booking(conn, ctx, buyer, b, option=b.pay_with)
-        out = await journeys.book(conn, pr.party_id, pr.user_id, body, sell)
+        out = await journeys.book(conn, pr.party_id, pr.user_id, body, limit, sell)
         if out.get("replayed"):
             return await _replayed(conn, pr.party_id, out["journey_uid"])
     request.state.audit = {"action": "booking.journey", "object_type": "booking", "object_id": out["bookings"][0]["booking_id"],
@@ -87,7 +88,7 @@ async def journey(journey_uid: uuid.UUID, request: Request, pr: Principal = Depe
 async def agency_options(request: Request, pr: Principal = Depends(require_portal("AGENCY"))):
     agency_service.require_agency(pr)
     async with db.transaction(context_for(request, pr)) as conn:
-        return {"max_passengers": await _group_limit(conn), "seats_per_booking": MAX_SEATS, "max_legs": journeys.MAX_LEGS}
+        return {"max_passengers": await _group_limit(conn), "seats_per_booking": await sales.seat_limit(conn), "max_legs": journeys.MAX_LEGS}
 
 
 @agency.post("", status_code=201)
@@ -97,12 +98,12 @@ async def agency_journey(body: journeys.AgencyJourneyIn, request: Request, pr: P
     ctx = context_for(request, pr)
     async with db.transaction(ctx) as conn:
         limit = await _group_limit(conn)
-        if len(body.passengers) > limit:
+        if body.seated > limit:
             raise ApiError(422, "GROUP_TOO_LARGE", f"a group has at most {limit} travellers", max_passengers=limit)
 
         async def sell(b: BookingIn) -> dict:
             return await agency_service.sell(conn, ctx, pr, AgencyBookingIn(**b.model_dump(), contact_mobile=body.contact_mobile))
-        out = await journeys.book(conn, agency_id, pr.user_id, body, sell)
+        out = await journeys.book(conn, agency_id, pr.user_id, body, await sales.seat_limit(conn), sell)
         if out.get("replayed"):
             return await _replayed(conn, agency_id, out["journey_uid"])
     request.state.audit = {"action": "agency.journey", "object_type": "booking", "object_id": out["bookings"][0]["booking_id"],

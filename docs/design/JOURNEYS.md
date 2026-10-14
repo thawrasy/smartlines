@@ -28,8 +28,26 @@ money in the wallet, and the whole journey is refused with the reason and the tr
 
 An agency books a group of up to `agency.group.max_passengers` travellers (50 by default, a platform setting) on every
 trip of a journey, one way included, from its prepaid balance, within its daily limit and with its commission, as for
-a single sale. The group is split into bookings of at most four seats on each trip, all of the same journey. A
-passenger's own journey has at most four travellers (`GROUP_THROUGH_AGENCY` beyond).
+a single sale. The group is split into bookings of the platform's seat limit on each trip (`booking.max_seats`, four by
+default), all of the same journey. A passenger's own journey has at most that many travellers with a seat, more for the
+head of a larger family (`GROUP_THROUGH_AGENCY` beyond); see "Seats booked at once" below.
+
+## Babies on a lap
+
+A baby on an adult's lap (`with_adult`: the position of the traveller who carries them, and a date of birth) takes no
+seat and travels in the booking of that traveller on every trip of the journey. Whether the carrier of each trip lets an
+infant travel without a seat is checked on each trip as for a single booking; if one does not, nothing is booked. The
+web checkout offers "Add a baby on a lap" only when every trip's carrier allows it.
+
+## Seats booked at once (1122)
+
+Owner's decision: a traveller books four seats at once; the number is the platform's to raise or lower (a regulator may
+impose it); the head of a registered family books up to the family's active members when the family is larger, within a
+ceiling the platform sets. `sales.seat_limit(party)` is read wherever seats are held or booked (passenger, agency,
+counters, partners), and `sales.set_seat_limits` changes the three numbers (booking, family ceiling, agency group)
+together, naming the decision behind them; it is the platform's alone (`policy.matrix`). The screens read the limit:
+`GET /api/bookings/limits` (the passenger's own), `GET /api/ref` (`booking.max_seats`), the platform's page "Booking
+rules" (`GET|PUT /api/admin/booking/seat-limits`).
 
 ## Data and API
 
@@ -41,11 +59,14 @@ passenger's own journey has at most four travellers (`GROUP_THROUGH_AGENCY` beyo
   journey already booked.
 - `GET /api/trips/search?stops=direct|stops`: direct trips only, or trips with stops only.
 - Refusals: `JOURNEY_SHAPE`, `JOURNEY_ORDER`, `JOURNEY_INFANT`, `NOT_ENOUGH_SEATS`, `SALES_CLOSED`,
-  `GROUP_THROUGH_AGENCY`, `GROUP_TOO_LARGE`, and whatever a single booking of the journey would be refused for.
+  `GROUP_THROUGH_AGENCY`, `GROUP_TOO_LARGE`, `TOO_MANY_SEATS`, and whatever a single booking of the journey would be
+  refused for.
+- The mobile app books journeys too: modes on the search screen, the trips chosen leg by leg with the direct / with stops
+  filter, a journey checkout (travellers, documents on international trips, wallet or pay later), and the journey shown
+  on each of its bookings.
 
 ## Not done (possible next steps)
 
 - Connections found by the platform (a trip from A to C through B with two carriers, offered as one result).
-- A baby on a lap in a journey (a journey gives every traveller a seat; a baby on a lap is booked with a single trip).
 - Paying a journey by card, instalments or financing in one payment (each booking is paid on its own for now).
 - Choosing seats on each trip of a journey (they are given side by side).

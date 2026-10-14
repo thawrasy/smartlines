@@ -31,14 +31,14 @@ const STATION = process.env.MASSLAK_UI_STATION && existsSync(process.env.MASSLAK
   ? JSON.parse(readFileSync(process.env.MASSLAK_UI_STATION, "utf8")) : null;
 const PORTALS = [
   { who: null, pages: ["/", `/search?origin=DAM&destination=ALP&on=${tomorrow}`, `/search?${ROUND}&pax=2`, "@trip", "/login", "/register", "/track", "/verify"] },
-  { who: ["passenger@masslak.test", "PASSENGER"], pages: ["/trips", "/wallet", "/family", "/account", "/services", "/support", "@journey"] },
+  { who: ["passenger@masslak.test", "PASSENGER"], pages: ["/trips", "/wallet", "/family", "/account", "/services", "/support", "@journey", "/charter"] },
   { who: ["owner@carrier.test", "OPERATOR"],
-    pages: ["/carrier", "/carrier/trips", "/carrier/routes", "/carrier/vehicles", "/carrier/finance", "/carrier/documents", "/carrier/reports", "/carrier/stations", "/carrier/schedules", "/carrier/kyc"] },
+    pages: ["/carrier", "/carrier/trips", "/carrier/routes", "/carrier/vehicles", "/carrier/finance", "/carrier/documents", "/carrier/reports", "/carrier/stations", "/carrier/schedules", "/carrier/kyc", "/carrier/charter"] },
   { who: ["counter@carrier.test", "OPERATOR"], pages: ["/carrier/counter", "/carrier/counter/report"] },
-  { who: ["agency@agency.test", "AGENCY"], pages: ["/agency", "/agency/bookings", "/agency/statement", "/agency/staff", `/agency/search?${MULTI}&pax=6`] },
+  { who: ["agency@agency.test", "AGENCY"], pages: ["/agency", "/agency/bookings", "/agency/statement", "/agency/staff", `/agency/search?${MULTI}&pax=6`, "/agency/charter"] },
   { who: ["driver@carrier.test", "DRIVER"], pages: ["/driver"] },
   { who: ["admin@masslak.test", "PLATFORM"],
-    pages: ["/admin", "/admin/companies", "/admin/finance", "/admin/documents", "/admin/stations", "/admin/boarding", "/admin/schedules", "/admin/kyc", "/admin/modules", "/admin/payments"] },
+    pages: ["/admin", "/admin/companies", "/admin/finance", "/admin/documents", "/admin/stations", "/admin/boarding", "/admin/schedules", "/admin/kyc", "/admin/modules", "/admin/payments", "/admin/booking"] },
   ...(STATION ? [{
     label: "STATION", cookies: STATION.cookies,
     choice: { station_uid: STATION.station_uid, station_code: STATION.station_code, station_name: STATION.station_code, counter_code: STATION.counter },

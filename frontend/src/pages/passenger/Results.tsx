@@ -3,7 +3,7 @@ import { api, type TripResult } from "../../api";
 import { useI18n } from "../../i18n";
 import { localDate, minutesBetween } from "../../dates";
 import { CarrierName, Empty, ErrorBox, Icon, Spinner, useLoad } from "../../components/ui";
-import { SearchForm } from "./Home";
+import { SearchForm, useSeatLimits } from "./Home";
 import { useChannel } from "../../channel";
 import { useAuth } from "../../auth";
 import { legsParam, parseLegs, parsePicked, pickedParam, rememberTrip, rememberedTrip, type JourneyKind } from "./journeyLinks";
@@ -42,7 +42,8 @@ export default function Results() {
   const trips = (res.data?.trips ?? []).filter((x) => !ch.counter || x.carrier_name === me?.company?.name);
   const previous = picked.length ? rememberedTrip(picked[picked.length - 1]) : null;
   // a group larger than one booking (an agency's) checks out as a journey even on one trip
-  const asJourney = journey || pax > 4;
+  const { perBooking } = useSeatLimits();
+  const asJourney = journey || (ch.agency && pax > perBooking);
 
   const choose = (trip: TripResult) => {
     rememberTrip(trip);

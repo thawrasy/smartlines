@@ -14,9 +14,9 @@ supporting index, except references to lookup lists and to the staff member who 
 |---|---|
 | Engine | PostgreSQL 16 with PostGIS 3 (extensions: pgcrypto, citext, btree_gist, pg_trgm, postgis in schema `gis`; Docker and CI image `postgis/postgis:16-3.4`, Ubuntu package `postgresql-16-postgis-3`) |
 | Schemas | 26 separate schemas, each with its own privileges |
-| Tables | 531 tables (8 partitioned), 5,515 columns, 1,545 foreign keys |
-| Security | row-level security on 531 of 531 tables, 955 policies; 466 triggers, 437 functions |
-| Tests | 762 automated checks against a freshly built database (`db/tests/run.sh`) |
+| Tables | 534 tables (8 partitioned), 5,590 columns, 1,566 foreign keys |
+| Security | row-level security on 534 of 534 tables, 959 policies; 471 triggers, 444 functions |
+| Tests | 784 automated checks against a freshly built database (`db/tests/run.sh`) |
 | Design | [Database design and ERD document](../docs/database/) with diagrams in the study's colors |
 | Docs | [Data dictionary](DATA_DICTIONARY.md) · [ERD diagrams](ERD.md) (both generated from the database) |
 <!-- stats:end -->
@@ -178,6 +178,8 @@ PostGIS in `gis`. Until 9 October 2026 a first start of the Docker stack stopped
 | `1119_trip_rotations.sql` | Four-digit trip numbers and the legs of a vehicle's day (owner's decision): blocks by trip type (scheduled 1000-4999, international 5000-5999, shuttle 6000-6999, cargo 7000-7999, extra 8000-8999, 9000-9999 kept), odd outbound and even return on the last digit; the numbers given so far move into their blocks with the same parity and trips ahead nobody booked take them; a number may continue the leg before it on the same vehicle (`net.service_number.follows_id`, the carrier's number one lower in the same block); a regular trip names the leg it continues and takes the next number, checked for the city, vehicle, days and turnaround (`schedule.min_turnaround_min`, `ops.leg_problem`, `ops.rotation_problem`, `ops.followers_problem`); a regular trip on its own starts a free line (`ops.suggest_schedule_number`, `ops.request_number`); passengers see the return on the same vehicle (`ops.trip_return`) (`docs/design/TRIP_NUMBERS.md`) |
 | `1120_station_screens.sql` | Separate Departures and Arrivals screens at a station (owner's decision): the platform allows the kinds a station shows (`net.station_boarding.display_kinds`: departures, arrivals, both on one board); the station's administration registers its screens, each with a kind, a place and its own link, and distributes them (`net.station_screen`, `net.add_station_screen`, `net.change_station_screen`, `net.remove_station_screen`, `net.station_screens`; permission `station.screens`); the board of one kind (`brd.station_board(uid, kind)`) and of one screen, which marks it seen (`brd.screen_board`) (`docs/design/STATION_DISPLAY_SCREENS.md`) |
 | `1121_journeys.sql` | Journeys booked together (owner's request): one way, a round trip or several places one after the other, and an agency's group, booked in one go and paid at once, one booking per trip sharing the journey (`sales.booking.journey_uid`, `journey_kind`, `journey_leg`); an agency books a group of up to `agency.group.max_passengers` travellers in bookings of four seats (`docs/design/JOURNEYS.md`) |
+| `1122_seat_limits.sql` | Seats booked at once (owner's decision): four by default, the platform's to change with the decision behind it (`booking.max_seats`); the head of a larger family books up to the family's size within `booking.family.max_seats`; read wherever seats are held or booked (`sales.seat_limit`), changed by the platform only (`sales.set_seat_limits`, `sales.seat_limits`) (`docs/design/JOURNEYS.md`) |
+| `1123_charter.sql` | Charter (owner's request): carriers hire out a vehicle apart from their trips or their scheduled trips whole or in blocks, to tourism companies and travellers by special request, on their own terms (`sales.charter_offer`); requests with the offer's terms frozen, the carrier's price, payment into escrow, release to the carrier less the platform's commission (`charter.commission_bp`), refunds (`sales.charter_request`); the seats a confirmed trip charter takes off sale (`sales.charter_seat`, `sales.charter_block_seats`, `sales.charter_release_seats`); permission `charter.manage` (`docs/design/CHARTER.md`) |
 
 ## Design rules (study 29.1)
 

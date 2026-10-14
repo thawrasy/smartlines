@@ -417,6 +417,13 @@
     "200": {}
    }
   },
+  "GET /api/admin/booking/seat-limits": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
   "GET /api/admin/cash/positions": {
    "body": null,
    "parameters": {},
@@ -434,6 +441,38 @@
        "PENDING",
        "CONFIRMED",
        "REJECTED"
+      ],
+      "nullable": true,
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/admin/charter/commission": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/admin/charter/requests": {
+   "body": null,
+   "parameters": {
+    "query:status": {
+     "required": false,
+     "schema": {
+      "enum": [
+       "REQUESTED",
+       "QUOTED",
+       "CONFIRMED",
+       "COMPLETED",
+       "DECLINED",
+       "WITHDRAWN",
+       "EXPIRED",
+       "CANCELLED"
       ],
       "nullable": true,
       "type": "string"
@@ -857,6 +896,65 @@
     "200": {}
    }
   },
+  "GET /api/agency/charter/offers": {
+   "body": null,
+   "parameters": {
+    "query:kind": {
+     "required": false,
+     "schema": {
+      "enum": [
+       "VEHICLE",
+       "WHOLE_TRIP"
+      ],
+      "nullable": true,
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/agency/charter/requests": {
+   "body": null,
+   "parameters": {
+    "query:status": {
+     "required": false,
+     "schema": {
+      "enum": [
+       "REQUESTED",
+       "QUOTED",
+       "CONFIRMED",
+       "COMPLETED",
+       "DECLINED",
+       "WITHDRAWN",
+       "EXPIRED",
+       "CANCELLED"
+      ],
+      "nullable": true,
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/agency/charter/requests/{uid}": {
+   "body": null,
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
   "GET /api/agency/dashboard": {
    "body": null,
    "parameters": {},
@@ -982,12 +1080,51 @@
     "200": {}
    }
   },
+  "GET /api/bookings/limits": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
   "GET /api/bookings/{ref}": {
    "body": null,
    "parameters": {
     "path:ref": {
      "required": true,
      "schema": {
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/carrier/charter/offers": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/carrier/charter/requests": {
+   "body": null,
+   "parameters": {
+    "query:status": {
+     "required": false,
+     "schema": {
+      "enum": [
+       "REQUESTED",
+       "QUOTED",
+       "CONFIRMED",
+       "COMPLETED",
+       "DECLINED",
+       "WITHDRAWN",
+       "EXPIRED",
+       "CANCELLED"
+      ],
+      "nullable": true,
       "type": "string"
      }
     }
@@ -1339,6 +1476,65 @@
   "GET /api/carrier/vehicles": {
    "body": null,
    "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/charter/offers": {
+   "body": null,
+   "parameters": {
+    "query:kind": {
+     "required": false,
+     "schema": {
+      "enum": [
+       "VEHICLE",
+       "WHOLE_TRIP"
+      ],
+      "nullable": true,
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/charter/requests": {
+   "body": null,
+   "parameters": {
+    "query:status": {
+     "required": false,
+     "schema": {
+      "enum": [
+       "REQUESTED",
+       "QUOTED",
+       "CONFIRMED",
+       "COMPLETED",
+       "DECLINED",
+       "WITHDRAWN",
+       "EXPIRED",
+       "CANCELLED"
+      ],
+      "nullable": true,
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/charter/requests/{uid}": {
+   "body": null,
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
    "responses": {
     "200": {}
    }
@@ -3136,6 +3332,87 @@
     "required": true
    },
    "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "PATCH /api/carrier/charter/offers/{uid}": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "audience": {
+        "items": {
+         "enum": [
+          "AGENCY",
+          "PASSENGER"
+         ],
+         "type": "string"
+        },
+        "maxItems": 2,
+        "minItems": 1,
+        "nullable": true,
+        "type": "array"
+       },
+       "cancel_before_hours": {
+        "maximum": 2160.0,
+        "minimum": 0.0,
+        "nullable": true,
+        "type": "integer"
+       },
+       "cancel_refund_pct": {
+        "maximum": 100.0,
+        "minimum": 0.0,
+        "nullable": true,
+        "type": "integer"
+       },
+       "notice_hours": {
+        "maximum": 2160.0,
+        "minimum": 0.0,
+        "nullable": true,
+        "type": "integer"
+       },
+       "policy": {
+        "maxLength": 2000,
+        "minLength": 10,
+        "nullable": true,
+        "type": "string"
+       },
+       "price": {
+        "exclusiveMinimum": 0.0,
+        "nullable": true,
+        "type": "integer"
+       },
+       "status": {
+        "enum": [
+         "ACTIVE",
+         "PAUSED",
+         "ARCHIVED"
+        ],
+        "nullable": true,
+        "type": "string"
+       },
+       "vehicles": {
+        "maximum": 500.0,
+        "minimum": 1.0,
+        "nullable": true,
+        "type": "integer"
+       }
+      },
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
    "responses": {
     "200": {}
    }
@@ -5814,7 +6091,7 @@
            "type": "integer"
           },
           "with_adult": {
-           "maximum": 8.0,
+           "maximum": 120.0,
            "minimum": 1.0,
            "nullable": true,
            "type": "integer"
@@ -5826,7 +6103,7 @@
          ],
          "type": "object"
         },
-        "maxItems": 8,
+        "maxItems": 40,
         "minItems": 1,
         "type": "array"
        },
@@ -5890,6 +6167,177 @@
     "200": {}
    }
   },
+  "POST /api/agency/charter/requests": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "contact_mobile": {
+        "pattern": "^\\+?[0-9]{8,15}$",
+        "type": "string"
+       },
+       "contact_name": {
+        "maxLength": 120,
+        "minLength": 2,
+        "type": "string"
+       },
+       "ends_at": {
+        "format": "date-time",
+        "nullable": true,
+        "type": "string"
+       },
+       "from_city": {
+        "nullable": true,
+        "pattern": "^[A-Z]{3}$",
+        "type": "string"
+       },
+       "from_seq": {
+        "maximum": 500.0,
+        "minimum": 0.0,
+        "nullable": true,
+        "type": "integer"
+       },
+       "idempotency_key": {
+        "maxLength": 80,
+        "minLength": 8,
+        "type": "string"
+       },
+       "itinerary": {
+        "maxLength": 1000,
+        "nullable": true,
+        "type": "string"
+       },
+       "note": {
+        "maxLength": 500,
+        "nullable": true,
+        "type": "string"
+       },
+       "offer_uid": {
+        "format": "uuid",
+        "type": "string"
+       },
+       "passengers": {
+        "maximum": 999.0,
+        "minimum": 1.0,
+        "nullable": true,
+        "type": "integer"
+       },
+       "seats": {
+        "maximum": 99.0,
+        "minimum": 1.0,
+        "nullable": true,
+        "type": "integer"
+       },
+       "starts_at": {
+        "format": "date-time",
+        "nullable": true,
+        "type": "string"
+       },
+       "to_city": {
+        "nullable": true,
+        "pattern": "^[A-Z]{3}$",
+        "type": "string"
+       },
+       "to_seq": {
+        "maximum": 500.0,
+        "minimum": 1.0,
+        "nullable": true,
+        "type": "integer"
+       },
+       "trip_uid": {
+        "format": "uuid",
+        "nullable": true,
+        "type": "string"
+       },
+       "vehicles": {
+        "default": 1,
+        "maximum": 50.0,
+        "minimum": 1.0,
+        "type": "integer"
+       },
+       "whole": {
+        "default": false,
+        "type": "boolean"
+       }
+      },
+      "required": [
+       "offer_uid",
+       "contact_name",
+       "contact_mobile",
+       "idempotency_key"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "201": {}
+   }
+  },
+  "POST /api/agency/charter/requests/{uid}/accept": {
+   "body": null,
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/agency/charter/requests/{uid}/cancel": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "reason": {
+        "maxLength": 300,
+        "minLength": 3,
+        "type": "string"
+       }
+      },
+      "required": [
+       "reason"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/agency/charter/requests/{uid}/withdraw": {
+   "body": null,
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
   "POST /api/agency/holds": {
    "body": {
     "content": {
@@ -5903,7 +6351,7 @@
         "items": {
          "type": "integer"
         },
-        "maxItems": 4,
+        "maxItems": 20,
         "minItems": 1,
         "type": "array"
        },
@@ -6087,7 +6535,7 @@
            "type": "integer"
           },
           "with_adult": {
-           "maximum": 8.0,
+           "maximum": 120.0,
            "minimum": 1.0,
            "nullable": true,
            "type": "integer"
@@ -6689,7 +7137,7 @@
            "type": "integer"
           },
           "with_adult": {
-           "maximum": 8.0,
+           "maximum": 120.0,
            "minimum": 1.0,
            "nullable": true,
            "type": "integer"
@@ -6701,7 +7149,7 @@
          ],
          "type": "object"
         },
-        "maxItems": 8,
+        "maxItems": 40,
         "minItems": 1,
         "type": "array"
        },
@@ -6873,7 +7321,7 @@
            "type": "integer"
           },
           "with_adult": {
-           "maximum": 8.0,
+           "maximum": 120.0,
            "minimum": 1.0,
            "nullable": true,
            "type": "integer"
@@ -6881,7 +7329,7 @@
          },
          "type": "object"
         },
-        "maxItems": 8,
+        "maxItems": 40,
         "minItems": 1,
         "type": "array"
        },
@@ -6976,6 +7424,289 @@
    },
    "responses": {
     "201": {}
+   }
+  },
+  "POST /api/carrier/charter/offers": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "audience": {
+        "items": {
+         "enum": [
+          "AGENCY",
+          "PASSENGER"
+         ],
+         "type": "string"
+        },
+        "maxItems": 2,
+        "minItems": 1,
+        "type": "array"
+       },
+       "base_city": {
+        "nullable": true,
+        "pattern": "^[A-Z]{3}$",
+        "type": "string"
+       },
+       "cancel_before_hours": {
+        "default": 48,
+        "maximum": 2160.0,
+        "minimum": 0.0,
+        "type": "integer"
+       },
+       "cancel_refund_pct": {
+        "default": 100,
+        "maximum": 100.0,
+        "minimum": 0.0,
+        "type": "integer"
+       },
+       "currency": {
+        "pattern": "^[A-Z]{3}$",
+        "type": "string"
+       },
+       "kind": {
+        "enum": [
+         "VEHICLE",
+         "WHOLE_TRIP"
+        ],
+        "type": "string"
+       },
+       "min_seats": {
+        "maximum": 99.0,
+        "minimum": 1.0,
+        "nullable": true,
+        "type": "integer"
+       },
+       "notice_hours": {
+        "default": 48,
+        "maximum": 2160.0,
+        "minimum": 0.0,
+        "type": "integer"
+       },
+       "partial_seats": {
+        "default": true,
+        "type": "boolean"
+       },
+       "policy": {
+        "maxLength": 2000,
+        "minLength": 10,
+        "type": "string"
+       },
+       "price": {
+        "exclusiveMinimum": 0.0,
+        "nullable": true,
+        "type": "integer"
+       },
+       "price_basis": {
+        "enum": [
+         "PER_DAY",
+         "PER_KM",
+         "PER_TRIP",
+         "PER_SEAT",
+         "ON_REQUEST"
+        ],
+        "type": "string"
+       },
+       "seats": {
+        "maximum": 99.0,
+        "minimum": 1.0,
+        "nullable": true,
+        "type": "integer"
+       },
+       "vehicle_type": {
+        "enum": [
+         "COACH",
+         "MINIBUS",
+         "VAN",
+         "CITY_BUS"
+        ],
+        "nullable": true,
+        "type": "string"
+       },
+       "vehicles": {
+        "default": 1,
+        "maximum": 500.0,
+        "minimum": 1.0,
+        "type": "integer"
+       },
+       "with_driver": {
+        "default": true,
+        "type": "boolean"
+       }
+      },
+      "required": [
+       "kind",
+       "title",
+       "audience",
+       "price_basis",
+       "currency",
+       "policy"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "201": {}
+   }
+  },
+  "POST /api/carrier/charter/requests/{uid}/cancel": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "reason": {
+        "maxLength": 300,
+        "minLength": 3,
+        "type": "string"
+       }
+      },
+      "required": [
+       "reason"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/carrier/charter/requests/{uid}/complete": {
+   "body": null,
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/carrier/charter/requests/{uid}/decline": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "reason": {
+        "maxLength": 300,
+        "minLength": 3,
+        "type": "string"
+       }
+      },
+      "required": [
+       "reason"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/carrier/charter/requests/{uid}/quote": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "note": {
+        "maxLength": 500,
+        "nullable": true,
+        "type": "string"
+       },
+       "price": {
+        "exclusiveMinimum": 0.0,
+        "type": "integer"
+       },
+       "valid_hours": {
+        "default": 48,
+        "maximum": 168.0,
+        "minimum": 1.0,
+        "type": "integer"
+       },
+       "vehicle_uid": {
+        "format": "uuid",
+        "nullable": true,
+        "type": "string"
+       }
+      },
+      "required": [
+       "price"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/carrier/charter/requests/{uid}/vehicle": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "vehicle_uid": {
+        "format": "uuid",
+        "type": "string"
+       }
+      },
+      "required": [
+       "vehicle_uid"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
    }
   },
   "POST /api/carrier/counter/bookings": {
@@ -7104,7 +7835,7 @@
            "type": "integer"
           },
           "with_adult": {
-           "maximum": 8.0,
+           "maximum": 120.0,
            "minimum": 1.0,
            "nullable": true,
            "type": "integer"
@@ -7116,7 +7847,7 @@
          ],
          "type": "object"
         },
-        "maxItems": 8,
+        "maxItems": 40,
         "minItems": 1,
         "type": "array"
        },
@@ -7291,7 +8022,7 @@
            "type": "integer"
           },
           "with_adult": {
-           "maximum": 8.0,
+           "maximum": 120.0,
            "minimum": 1.0,
            "nullable": true,
            "type": "integer"
@@ -7303,7 +8034,7 @@
          ],
          "type": "object"
         },
-        "maxItems": 8,
+        "maxItems": 40,
         "minItems": 1,
         "type": "array"
        },
@@ -7393,7 +8124,7 @@
         "items": {
          "type": "integer"
         },
-        "maxItems": 4,
+        "maxItems": 20,
         "minItems": 1,
         "type": "array"
        },
@@ -8636,6 +9367,177 @@
     "200": {}
    }
   },
+  "POST /api/charter/requests": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "contact_mobile": {
+        "pattern": "^\\+?[0-9]{8,15}$",
+        "type": "string"
+       },
+       "contact_name": {
+        "maxLength": 120,
+        "minLength": 2,
+        "type": "string"
+       },
+       "ends_at": {
+        "format": "date-time",
+        "nullable": true,
+        "type": "string"
+       },
+       "from_city": {
+        "nullable": true,
+        "pattern": "^[A-Z]{3}$",
+        "type": "string"
+       },
+       "from_seq": {
+        "maximum": 500.0,
+        "minimum": 0.0,
+        "nullable": true,
+        "type": "integer"
+       },
+       "idempotency_key": {
+        "maxLength": 80,
+        "minLength": 8,
+        "type": "string"
+       },
+       "itinerary": {
+        "maxLength": 1000,
+        "nullable": true,
+        "type": "string"
+       },
+       "note": {
+        "maxLength": 500,
+        "nullable": true,
+        "type": "string"
+       },
+       "offer_uid": {
+        "format": "uuid",
+        "type": "string"
+       },
+       "passengers": {
+        "maximum": 999.0,
+        "minimum": 1.0,
+        "nullable": true,
+        "type": "integer"
+       },
+       "seats": {
+        "maximum": 99.0,
+        "minimum": 1.0,
+        "nullable": true,
+        "type": "integer"
+       },
+       "starts_at": {
+        "format": "date-time",
+        "nullable": true,
+        "type": "string"
+       },
+       "to_city": {
+        "nullable": true,
+        "pattern": "^[A-Z]{3}$",
+        "type": "string"
+       },
+       "to_seq": {
+        "maximum": 500.0,
+        "minimum": 1.0,
+        "nullable": true,
+        "type": "integer"
+       },
+       "trip_uid": {
+        "format": "uuid",
+        "nullable": true,
+        "type": "string"
+       },
+       "vehicles": {
+        "default": 1,
+        "maximum": 50.0,
+        "minimum": 1.0,
+        "type": "integer"
+       },
+       "whole": {
+        "default": false,
+        "type": "boolean"
+       }
+      },
+      "required": [
+       "offer_uid",
+       "contact_name",
+       "contact_mobile",
+       "idempotency_key"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "201": {}
+   }
+  },
+  "POST /api/charter/requests/{uid}/accept": {
+   "body": null,
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/charter/requests/{uid}/cancel": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "reason": {
+        "maxLength": 300,
+        "minLength": 3,
+        "type": "string"
+       }
+      },
+      "required": [
+       "reason"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/charter/requests/{uid}/withdraw": {
+   "body": null,
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
   "POST /api/company/documents": {
    "body": {
     "content": {
@@ -9719,7 +10621,7 @@
         "items": {
          "type": "integer"
         },
-        "maxItems": 4,
+        "maxItems": 20,
         "minItems": 1,
         "type": "array"
        },
@@ -10184,7 +11086,7 @@
            "type": "integer"
           },
           "with_adult": {
-           "maximum": 8.0,
+           "maximum": 120.0,
            "minimum": 1.0,
            "nullable": true,
            "type": "integer"
@@ -11442,7 +12344,7 @@
            "type": "integer"
           },
           "with_adult": {
-           "maximum": 8.0,
+           "maximum": 120.0,
            "minimum": 1.0,
            "nullable": true,
            "type": "integer"
@@ -11454,7 +12356,7 @@
          ],
          "type": "object"
         },
-        "maxItems": 8,
+        "maxItems": 40,
         "minItems": 1,
         "type": "array"
        },
@@ -11639,7 +12541,7 @@
            "type": "integer"
           },
           "with_adult": {
-           "maximum": 8.0,
+           "maximum": 120.0,
            "minimum": 1.0,
            "nullable": true,
            "type": "integer"
@@ -11651,7 +12553,7 @@
          ],
          "type": "object"
         },
-        "maxItems": 8,
+        "maxItems": 40,
         "minItems": 1,
         "type": "array"
        },
@@ -11782,7 +12684,7 @@
         "items": {
          "type": "integer"
         },
-        "maxItems": 4,
+        "maxItems": 20,
         "minItems": 1,
         "type": "array"
        },
@@ -12223,7 +13125,7 @@
            "type": "integer"
           },
           "with_adult": {
-           "maximum": 8.0,
+           "maximum": 120.0,
            "minimum": 1.0,
            "nullable": true,
            "type": "integer"
@@ -12235,7 +13137,7 @@
          ],
          "type": "object"
         },
-        "maxItems": 8,
+        "maxItems": 40,
         "minItems": 1,
         "type": "array"
        },
@@ -12383,7 +13285,7 @@
         "items": {
          "type": "integer"
         },
-        "maxItems": 4,
+        "maxItems": 20,
         "minItems": 1,
         "type": "array"
        },
@@ -13567,6 +14469,48 @@
     "200": {}
    }
   },
+  "PUT /api/admin/booking/seat-limits": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "agency_group": {
+        "maximum": 60.0,
+        "minimum": 1.0,
+        "type": "integer"
+       },
+       "basis": {
+        "maxLength": 160,
+        "minLength": 3,
+        "type": "string"
+       },
+       "family_max_seats": {
+        "maximum": 20.0,
+        "minimum": 1.0,
+        "type": "integer"
+       },
+       "max_seats": {
+        "maximum": 20.0,
+        "minimum": 1.0,
+        "type": "integer"
+       }
+      },
+      "required": [
+       "max_seats",
+       "family_max_seats",
+       "agency_group",
+       "basis"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
   "PUT /api/admin/cash/limits/{company_id}": {
    "body": {
     "content": {
@@ -13600,6 +14544,30 @@
      }
     }
    },
+   "responses": {
+    "200": {}
+   }
+  },
+  "PUT /api/admin/charter/commission": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "commission_bp": {
+        "maximum": 3000.0,
+        "minimum": 0.0,
+        "type": "integer"
+       }
+      },
+      "required": [
+       "commission_bp"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
    "responses": {
     "200": {}
    }
@@ -15130,7 +16098,7 @@
            "type": "integer"
           },
           "with_adult": {
-           "maximum": 8.0,
+           "maximum": 120.0,
            "minimum": 1.0,
            "nullable": true,
            "type": "integer"
@@ -15142,7 +16110,7 @@
          ],
          "type": "object"
         },
-        "maxItems": 8,
+        "maxItems": 40,
         "minItems": 1,
         "type": "array"
        },
@@ -15290,7 +16258,7 @@
         "items": {
          "type": "integer"
         },
-        "maxItems": 4,
+        "maxItems": 20,
         "minItems": 1,
         "type": "array"
        },

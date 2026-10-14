@@ -4,8 +4,10 @@
 A journey is booked in one go and paid at once: one booking per trip, as before, each with its own tickets, rules and
 refunds, sharing the journey's uid and numbered by leg. Every traveller takes a seat on every leg; the seats are given
 side by side where the trip has them. A group larger than a booking (an agency's tourism group) is split into bookings
-of at most four seats on each leg, all of the same journey. If any leg cannot be booked (no seats, sales closed, not
-enough money), nothing is: the whole journey is one transaction. The legs must follow each other in time.
+of the platform's seat limit (four unless it decides otherwise, 1122) on each leg, all of the same journey. If any leg cannot be booked (no seats, sales closed, not
+enough money), nothing is: the whole journey is one transaction. The legs must follow each other in time. A baby on a
+lap (with_adult naming the traveller who carries them) takes no seat and travels in the same booking as that traveller
+on every leg; whether the carrier lets a baby travel on a lap is checked on each leg, as for a single booking.
 """
 from __future__ import annotations
 
@@ -18,7 +20,7 @@ from pydantic import BaseModel, Field, model_validator
 
 from ...errors import ApiError
 from . import repository as repo
-from .models import MAX_SEATS, MOBILE, BookingIn, HoldIn, PassengerIn
+from .models import MOBILE, BookingIn, HoldIn, PassengerIn
 from .service import create_hold
 
 MAX_LEGS = 6
@@ -47,9 +49,19 @@ class JourneyIn(BaseModel):
             raise ValueError("JOURNEY_SHAPE: one way has one trip, a round trip two, several places two to six")
         if any(leg.to_seq <= leg.from_seq for leg in self.legs):
             raise ValueError("INVALID_HOLD: each trip is booked from a stop to a later one")
-        if any(p.category == "INFANT" or p.with_adult for p in self.passengers):
-            raise ValueError("JOURNEY_INFANT: a journey gives every traveller a seat; book a baby on a lap with a single trip")
+        for i, p in enumerate(self.passengers, start=1):
+            if p.with_adult is None:
+                continue
+            if p.with_adult == i or p.with_adult > len(self.passengers) or self.passengers[p.with_adult - 1].with_adult is not None:
+                raise ValueError("JOURNEY_INFANT: a baby on a lap names a traveller of the journey with a seat, who carries them")
+            if p.birth_date is None:
+                raise ValueError("JOURNEY_INFANT: give the date of birth of a baby on a lap")
         return self
+
+    @property
+    def seated(self) -> int:
+        """The travellers who take a seat: all but the babies on a lap."""
+        return sum(p.with_adult is None for p in self.passengers)
 
 
 class AgencyJourneyIn(JourneyIn):
@@ -73,17 +85,18 @@ async def _legs(conn: asyncpg.Connection, body: JourneyIn) -> list[asyncpg.Recor
             raise ApiError(409, "SALES_CLOSED", f"trip {i} of the journey is not on sale for these stops", leg=i)
         if out and row["departs_at"] < out[-1]["arrives_at"]:
             raise ApiError(422, "JOURNEY_ORDER", f"trip {i} leaves before trip {i - 1} arrives", leg=i)
-        if len(row["free"]) < len(body.passengers):
-            raise ApiError(409, "NOT_ENOUGH_SEATS", f"trip {i} has {len(row['free'])} seats left for {len(body.passengers)} travellers",
+        if len(row["free"]) < body.seated:
+            raise ApiError(409, "NOT_ENOUGH_SEATS", f"trip {i} has {len(row['free'])} seats left for {body.seated} travellers",
                            leg=i, seats_left=len(row["free"]))
         out.append(row)
     return out
 
 
-async def book(conn: asyncpg.Connection, party_id: int, user_id: int, body: JourneyIn,
+async def book(conn: asyncpg.Connection, party_id: int, user_id: int, body: JourneyIn, per: int,
                sell: Callable[[BookingIn], Awaitable[dict]], extra: Optional[dict] = None) -> dict:
-    """Books every leg for every traveller in one transaction: on each leg the travellers in bookings of at most four
-    seats, each seat held and then booked through the channel's own sale (sell), which prices, checks and pays it."""
+    """Books every leg for every traveller in one transaction: on each leg the travellers in bookings of at most per
+    seats (the caller's seat limit), each seat held and then booked through the channel's own sale (sell), which
+    prices, checks and pays it."""
     first_key = f"{body.idempotency_key}:1:1"
     done = await conn.fetchval("SELECT journey_uid FROM sales.booking WHERE booker_party_id = $1 AND idempotency_key = $2",
                                party_id, first_key)
@@ -91,18 +104,24 @@ async def book(conn: asyncpg.Connection, party_id: int, user_id: int, body: Jour
         return {"journey_uid": done, "replayed": True}
     legs = await _legs(conn, body)
     journey = uuid.uuid4()
-    groups = [body.passengers[i:i + MAX_SEATS] for i in range(0, len(body.passengers), MAX_SEATS)]
+    # the travellers with a seat in bookings of per seats; a baby on a lap goes in the booking of the one who carries them
+    seated = [i for i, p in enumerate(body.passengers) if p.with_adult is None]
+    groups = [seated[i:i + per] for i in range(0, len(seated), per)]
+    laps = {i: p.with_adult - 1 for i, p in enumerate(body.passengers) if p.with_adult is not None}
     booked = []
     for n, (leg, trip) in enumerate(zip(body.legs, legs), start=1):
         seats = list(trip["free"])
         for g, people in enumerate(groups, start=1):
             mine, seats = seats[:len(people)], seats[len(people):]
             hold = await create_hold(conn, user_id, HoldIn(trip_uid=leg.trip_uid, from_seq=leg.from_seq, to_seq=leg.to_seq,
-                                                           seat_nos=mine))
+                                                           seat_nos=mine), limit=per)
+            travellers = [body.passengers[i].model_copy(update={"seat_no": s, "with_adult": None}) for i, s in zip(people, mine)]
+            travellers += [body.passengers[i].model_copy(update={"seat_no": None, "with_adult": people.index(a) + 1})
+                           for i, a in laps.items() if a in people]
             out = await sell(BookingIn(
                 hold_token=uuid.UUID(hold["hold_token"]), trip_uid=leg.trip_uid, from_seq=leg.from_seq, to_seq=leg.to_seq,
                 fare_brand=body.fare_brand, idempotency_key=f"{body.idempotency_key}:{n}:{g}", pay_with=body.pay_with,
-                passengers=[p.model_copy(update={"seat_no": s}) for p, s in zip(people, mine)], **(extra or {})))
+                passengers=travellers, **(extra or {})))
             await conn.execute("UPDATE sales.booking SET journey_uid = $1, journey_kind = $2, journey_leg = $3 WHERE id = $4",
                                journey, body.kind, n, out["booking_id"])
             booked.append({"leg": n, "booking_ref": out["booking_ref"], "booking_id": out["booking_id"], "total": out["total"],

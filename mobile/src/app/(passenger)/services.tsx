@@ -15,6 +15,7 @@ const SERVICES = [
   { key: "track", module: "cargo", glyph: "⌖", href: "/svc/track" },
   { key: "family", module: "family_accounts", glyph: "◎", href: "/svc/family" },
   { key: "support", module: "support_cases", glyph: "✉", href: "/svc/support" },
+  { key: "charter", module: null, glyph: "▭", href: "/svc/charter" },          // hiring a bus or a trip (1123): always offered
 ] as const;
 
 /** Everything beyond intercity trips, shown only when the platform has the module switched on. */
@@ -22,7 +23,7 @@ export default function Services() {
   const { t } = useI18n();
   const features = useLoad(() => api.get<{ enabled: string[] }>("/api/features"));
   const on = new Set(features.data?.enabled ?? []);
-  const shown = SERVICES.filter((x) => on.has(x.module));
+  const shown = SERVICES.filter((x) => x.module === null || on.has(x.module));
   return (
     <Screen>
       <Title sub={t("svc.sub")}>{t("tabs.services")}</Title>

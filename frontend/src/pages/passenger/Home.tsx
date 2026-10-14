@@ -6,6 +6,7 @@ import { localDate } from "../../dates";
 import { Field, Icon, useLoad } from "../../components/ui";
 import type { IconName } from "../../components/icons";
 import { useChannel } from "../../channel";
+import { useAuth } from "../../auth";
 import { MAX_LEGS, legsParam, type JourneyKind, type JourneyLeg } from "./journeyLinks";
 
 interface Ref { cities: { code: string; country_code: string }[] }
@@ -19,10 +20,24 @@ export function useCities() {
     .sort((a, b) => a.name.localeCompare(b.name, locale)), [ref.data, city, locale]);
 }
 
+// The seats one booking holds and the travellers the form takes (1122): the platform's number (four unless it decides
+// otherwise, as a regulator may require), the passenger's own when they head a larger family, an agency's group
+export function useSeatLimits() {
+  const ch = useChannel();
+  const { me } = useAuth();
+  const passenger = !ch.staff && me?.portal === "PASSENGER";
+  const base = useLoad(() => api.get<{ booking?: { max_seats: number } }>("/api/ref").then((r) => r.booking?.max_seats ?? 4));
+  const own = useLoad(() => (ch.agency ? api.get<{ max_passengers: number }>("/api/agency/journeys/options").then((r) => r.max_passengers)
+    : passenger ? api.get<{ max_seats: number }>("/api/bookings/limits").then((r) => r.max_seats) : Promise.resolve(null)), [ch.agency, passenger]);
+  const perBooking = base.data ?? 4;
+  return { perBooking, maxPax: Math.max(own.data ?? perBooking, 1) };
+}
+
 export interface SearchInitial { from: string; to: string; on: string; pax: number; kind?: JourneyKind; legs?: JourneyLeg[] }
 
 // One way, a round trip, or several places one after the other (owner's request, October 2026; 1121). Passengers book
-// up to four seats; an agency books a group (its setting, 50 by default) and every trip of the journey for all of them.
+// up to the platform's seat limit (useSeatLimits); an agency books a group (its setting, 50 by default) and every trip
+// of the journey for all of them.
 // A carrier's or a station's counter sells single trips.
 export function SearchForm({ initial }: { initial?: SearchInitial }) {
   const { t } = useI18n();
@@ -30,9 +45,7 @@ export function SearchForm({ initial }: { initial?: SearchInitial }) {
   const ch = useChannel();
   const cities = useCities();
   const journeys = !ch.counter;
-  const group = useLoad(() => (ch.agency ? api.get<{ max_passengers: number }>("/api/agency/journeys/options").then((r) => r.max_passengers)
-    : Promise.resolve(4)), [ch.agency]);
-  const maxPax = group.data ?? 4;
+  const { maxPax } = useSeatLimits();
   const [kind, setKind] = useState<JourneyKind>(journeys ? initial?.kind ?? "ONE_WAY" : "ONE_WAY");
   const [from, setFrom] = useState(initial?.from ?? "DAM");
   const [to, setTo] = useState(initial?.to ?? "ALP");
@@ -65,11 +78,11 @@ export function SearchForm({ initial }: { initial?: SearchInitial }) {
   }));
   const passengers = (
     <Field label={t("home.passengers")}>
-      {maxPax > 4 ? (
+      {maxPax > 8 ? (
         <input className="input" type="number" min={1} max={maxPax} value={pax} onChange={(e) => setPax(Math.min(maxPax, Math.max(1, Number(e.target.value) || 1)))} />
       ) : (
         <select className="input" value={pax} onChange={(e) => setPax(Number(e.target.value))}>
-          {[1, 2, 3, 4].map((n) => <option key={n} value={n}>{n}</option>)}
+          {Array.from({ length: maxPax }, (_, i) => i + 1).map((n) => <option key={n} value={n}>{n}</option>)}
         </select>
       )}
     </Field>

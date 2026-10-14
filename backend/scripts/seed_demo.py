@@ -200,6 +200,32 @@ async def seed_families(conn) -> bool:
     return True
 
 
+async def seed_charter(conn) -> bool:
+    """What the demo carrier hires out (1123): coaches for tourism companies by the day, its scheduled trips whole or in
+    blocks of ten seats, and a van for travellers by special request. Idempotent."""
+    carrier = await conn.fetchval("SELECT id FROM iam.party WHERE legal_name = 'Demo Carrier A' AND party_type = 'COMPANY'")
+    if carrier is None or await conn.fetchval("SELECT 1 FROM sales.charter_offer WHERE company_id = $1", carrier):
+        return False
+    owner = await conn.fetchval("SELECT id FROM iam.app_user WHERE email = 'owner@carrier.test'")
+    dam = await conn.fetchval("SELECT id FROM ref.city WHERE code = 'DAM'")
+    offers = (
+        ("VEHICLE", "Coach with driver for tours", "COACH", 45, 4, None, ["AGENCY"], "PER_DAY", 150_000_000, 48, 72, 80,
+         "Driver and fuel included up to 300 km a day; the driver rests 9 hours a night; waiting beyond two hours is charged."),
+        ("WHOLE_TRIP", "Our scheduled trips, whole or in blocks", None, None, 1, 10, ["AGENCY"], "PER_SEAT", 2_500_000, 24, 48, 100,
+         "A block of ten seats or more on any of our scheduled trips, or the whole trip when no seat is sold yet."),
+        ("VEHICLE", "Family van by special request", "VAN", 12, 2, None, ["PASSENGER", "AGENCY"], "ON_REQUEST", None, 24, 24, 50,
+         "Priced for each request: the route, the day and the waiting. Driver included."),
+    )
+    for kind, title, vtype, seats, vehicles, min_seats, audience, basis, price, notice, before, pct, policy in offers:
+        await conn.execute(
+            """INSERT INTO sales.charter_offer (company_id, kind, title, vehicle_type, seats, vehicles, partial_seats, min_seats, audience,
+                 price_basis, price, currency, notice_hours, cancel_before_hours, cancel_refund_pct, base_city_id, policy, created_by)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'SYP', $12, $13, $14, $15, $16, $17)""",
+            carrier, kind, title, vtype, seats, vehicles, min_seats is not None, min_seats, audience, basis, price, notice, before, pct,
+            dam, policy, owner)
+    return True
+
+
 async def main():
     url = os.environ.get("MASSLAK_OWNER_URL", "postgresql://postgres@localhost:5432/masslak")
     conn = await asyncpg.connect(url)
@@ -214,7 +240,8 @@ async def main():
                                                     ("finance user", await seed_finance(conn)),
                                                     ("security officer", await seed_security(conn)),
                                                     ("counter clerk", await seed_counter(conn)),
-                                                    ("family and manifest route", await seed_families(conn))) if done]
+                                                    ("family and manifest route", await seed_families(conn)),
+                                                    ("charter offers", await seed_charter(conn))) if done]
             print(f"demo {' and '.join(added)} added" if added else "demo data already present")
             return
         # Platform staff
@@ -362,6 +389,7 @@ async def main():
                            txn, clearing, wallet)
         await seed_families(conn)
         await seed_counter(conn)
+        await seed_charter(conn)
     await conn.close()
     print(f"demo data created: {n_trips} trips")
     print(f"accounts (password: {PASSWORD}):")

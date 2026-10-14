@@ -3637,4 +3637,93 @@ SELECT pg_temp.ok((SELECT count(*) FROM sales.booking WHERE journey_uid = '00000
 ROLLBACK;
 SET ROLE masslak_app;
 
+-- Seats booked at once (1122): four by default, the platform's to change with the decision behind it, more for a family
+BEGIN;
+RESET ROLE;
+SELECT pg_temp.ok(sales.seat_limit(NULL) = 4 AND sales.seat_limit(:pax) = 4,
+  'Seat limits (1122): a traveller books four seats at once by default');
+INSERT INTO iam.party (party_type, legal_name) VALUES ('PERSON', 'Seat Limit Head') RETURNING id AS slh \gset
+INSERT INTO iam.family (head_party_id, name) VALUES (:slh, 'Seat limit family') RETURNING id AS slf \gset
+WITH m AS (INSERT INTO iam.party (party_type, legal_name) SELECT 'PERSON', 'Seat Limit Member ' || n FROM generate_series(2, 6) n RETURNING id)
+INSERT INTO iam.family_member (family_id, party_id, relation, first_name, last_name, birth_date)
+SELECT :slf, id, 'OTHER', 'Member', 'Test', date '1990-01-01' FROM m
+UNION ALL SELECT :slf, :slh, 'SELF', 'Head', 'Test', date '1980-01-01';
+SELECT pg_temp.ok(sales.seat_limit(:slh) = 6, 'Seat limits (1122): the head of a family of six books six seats');
+UPDATE sys.setting SET value = '5' WHERE key = 'booking.family.max_seats';
+SELECT pg_temp.ok(sales.seat_limit(:slh) = 5, 'Seat limits (1122): within the family ceiling the platform sets');
+SET LOCAL ROLE masslak_app;
+SELECT sys.set_context(:ua, :ca, 'COMPANY');
+SELECT pg_temp.expect_error($$SELECT sales.set_seat_limits(6, 8, 50, 'a carrier tries')$$, 'FORBIDDEN',
+  'Seat limits (1122): only the platform changes them');
+SELECT sys.set_context(:uadmin, NULL, 'SYSTEM');
+SELECT pg_temp.expect_error($$SELECT sales.set_seat_limits(6, 5, 50, 'Authority decision 3/2026')$$, 'INVALID_SETTING',
+  'Seat limits (1122): a family is never held below anyone');
+SELECT pg_temp.expect_error($$SELECT sales.set_seat_limits(6, 8, 50, '')$$, 'INVALID_SETTING',
+  'Seat limits (1122): a change names the decision behind it');
+SELECT pg_temp.ok((SELECT (v ->> 'max_seats')::int = 3 AND (v ->> 'agency_group')::int = 40 AND v ->> 'basis' = 'Authority decision 3/2026'
+                     FROM (SELECT sales.set_seat_limits(3, 8, 40, 'Authority decision 3/2026') AS v) x),
+  'Seat limits (1122): the platform lowers the limit as a regulator decides, naming the decision');
+SELECT pg_temp.ok(sales.seat_limit(NULL) = 3 AND sales.seat_limit(:slh) = 6,
+  'Seat limits (1122): every channel reads the new limit; a family still books its size');
+ROLLBACK;
+SET ROLE masslak_app;
+
+-- Charter (1123): carriers hire out vehicles and whole trips on their terms; requests are priced, paid and their seats held
+BEGIN;
+RESET ROLE;
+SELECT sys.set_context(:uadmin, NULL, 'SYSTEM');
+SELECT t.id AS ct, t.company_id AS cc, CASE WHEN t.company_id = :ca THEN :cb ELSE :ca END AS cother
+  FROM sales.booking b JOIN ops.trip t ON t.id = b.trip_id WHERE b.booking_ref = 'ABC123' \gset
+SELECT pg_temp.expect_error(format($$INSERT INTO sales.charter_offer (company_id, kind, title, vehicle_type, seats, audience, price_basis, currency, policy)
+    VALUES (%s, 'VEHICLE', 'Coach', 'COACH', 45, '{AGENCY}', 'PER_DAY', 'SYP', 'Driver and fuel included.')$$, :cc),
+  'check constraint', 'Charter (1123): an offer gives its price, or prices on request');
+SELECT pg_temp.expect_error(format($$INSERT INTO sales.charter_offer (company_id, kind, title, audience, price_basis, price, currency, policy)
+    VALUES (%s, 'VEHICLE', 'Coach', '{AGENCY}', 'PER_DAY', 100, 'SYP', 'Driver and fuel included.')$$, :cc),
+  'check constraint', 'Charter (1123): a vehicle offer names the kind of vehicle and its seats');
+SELECT pg_temp.expect_error(format($$INSERT INTO sales.charter_offer (company_id, kind, title, audience, price_basis, price, currency, policy, partial_seats)
+    VALUES (%s, 'WHOLE_TRIP', 'Trips', '{AGENCY}', 'PER_DAY', 100, 'SYP', 'Whole trips only, on request.', false)$$, :cc),
+  'check constraint', 'Charter (1123): a trip is not priced by the day');
+SELECT pg_temp.expect_error(format($$INSERT INTO sales.charter_offer (company_id, kind, title, vehicle_type, seats, audience, price_basis, currency, policy)
+    VALUES (%s, 'VEHICLE', 'Van', 'VAN', 12, '{TOURISTS}', 'ON_REQUEST', 'SYP', 'By special request only.')$$, :cc),
+  'check constraint', 'Charter (1123): an offer is made to tourism companies, travellers, or both');
+INSERT INTO sales.charter_offer (company_id, kind, title, audience, price_basis, price, currency, policy, partial_seats, min_seats)
+VALUES (:cc, 'WHOLE_TRIP', 'Trips in blocks', '{AGENCY,PASSENGER}', 'PER_SEAT', 2000000, 'SYP', 'Blocks of two seats or more.', true, 2)
+RETURNING id AS co \gset
+SELECT pg_temp.expect_error(format($$INSERT INTO sales.charter_request (ref, offer_id, company_id, requester_party_id, requester_kind, contact_name,
+    contact_mobile, kind, terms, idempotency_key) VALUES ('CH00000001', %s, %s, %s, 'PASSENGER', 'Rami', '+963944000000', 'WHOLE_TRIP', '{}', 'charter-key-1')$$,
+    :co, :cc, :pax),
+  'check constraint', 'Charter (1123): a whole-trip request names the trip, its stops and the seats');
+INSERT INTO sales.charter_request (ref, offer_id, company_id, requester_party_id, requester_kind, contact_name, contact_mobile, kind, terms,
+                                   trip_id, from_seq, to_seq, seats, whole, idempotency_key)
+VALUES ('CH00000002', :co, :cc, :pax, 'PASSENGER', 'Rami', '+963944000000', 'WHOLE_TRIP',
+        '{"title": "Trips in blocks", "price_basis": "PER_SEAT", "currency": "SYP", "cancel_before_hours": 48, "cancel_refund_pct": 100, "policy": "Blocks."}',
+        :ct, 0, 1, 2, false, 'charter-key-2') RETURNING id AS cr \gset
+SELECT pg_temp.expect_error(format($$UPDATE sales.charter_request SET status = 'QUOTED' WHERE id = %s$$, :cr),
+  'check constraint', 'Charter (1123): a request is priced with an amount and a time it is valid until');
+SELECT pg_temp.expect_error(format($$UPDATE sales.charter_request SET status = 'CONFIRMED', price = 100, currency = 'SYP', valid_until = now() + interval '1 day',
+    quoted_at = now() WHERE id = %s$$, :cr),
+  'check constraint', 'Charter (1123): a request is confirmed only once paid');
+SELECT pg_temp.expect_error(format($$UPDATE sales.charter_request SET terms = terms || '{"cancel_refund_pct": 0}' WHERE id = %s$$, :cr),
+  'SNAPSHOT_FROZEN', 'Charter (1123): the terms a request was made under never change');
+INSERT INTO ops.seat_segment (trip_id, seat_no, seg) VALUES (:ct, 90, 0), (:ct, 91, 0) ON CONFLICT DO NOTHING;
+SELECT (SELECT count(*) FROM ops.seat_segment WHERE trip_id = :ct AND seg = 0 AND status = 'BLOCKED') AS blocked_before \gset
+SELECT sales.charter_block_seats(:cr) AS first_block \gset
+SELECT pg_temp.ok(:first_block = 2 AND sales.charter_block_seats(:cr) = 2,
+  'Charter (1123): a confirmed block takes its seats once');
+SELECT pg_temp.ok((SELECT count(*) FROM ops.seat_segment WHERE trip_id = :ct AND seg = 0 AND status = 'BLOCKED') = :blocked_before + 2,
+  'Charter (1123): the seats of a confirmed block are off sale');
+SELECT sales.charter_release_seats(:cr) AS released \gset
+SELECT pg_temp.ok(:released = 2 AND (SELECT count(*) FROM ops.seat_segment WHERE trip_id = :ct AND seg = 0 AND status = 'BLOCKED') = :blocked_before,
+  'Charter (1123): a cancelled block puts its seats back on sale');
+SET LOCAL ROLE masslak_app;
+SELECT sys.set_context(NULL, :cother, 'COMPANY');
+SELECT pg_temp.ok((SELECT count(*) FROM sales.charter_request WHERE id = :cr) = 0 AND (SELECT count(*) FROM sales.charter_offer WHERE id = :co) = 1,
+  'Charter (1123): another carrier sees the published offer but not the request');
+SELECT pg_temp.expect_error($$SELECT sales.set_charter_commission(500)$$, 'FORBIDDEN', 'Charter (1123): the commission is the platform''s to set');
+SELECT sys.set_context(:uadmin, NULL, 'SYSTEM');
+SELECT sales.set_charter_commission(500) AS bp \gset
+SELECT pg_temp.ok(:bp = 500 AND sales.setting_int('charter.commission_bp', 0) = 500, 'Charter (1123): the platform sets its commission');
+ROLLBACK;
+SET ROLE masslak_app;
+
 \echo '=== ALL TESTS PASSED ==='

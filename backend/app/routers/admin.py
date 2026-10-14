@@ -547,3 +547,29 @@ async def set_cancel_penalty(body: CancelPenaltyIn, request: Request, pr: Princi
     request.state.audit = {"action": "trip.cancel_penalty_setting", "object_type": "setting",
                            "reason": (body.legal_ref or "turned off")[:120]}
     return json.loads(out)
+
+
+# ------------------------------------------------------------------ seats booked at once (1122)
+class SeatLimitsIn(BaseModel):
+    """Four seats a booking unless the platform or a regulator decides otherwise; a family head up to the family's size
+    within family_max_seats; an agency's group up to agency_group. basis names the decision behind the change."""
+    max_seats: int = Field(ge=1, le=20)
+    family_max_seats: int = Field(ge=1, le=20)
+    agency_group: int = Field(ge=1, le=60)
+    basis: str = Field(min_length=3, max_length=160)
+
+
+@router.get("/booking/seat-limits")
+async def get_seat_limits(request: Request, pr: Principal = Depends(require_permission("policy.matrix"))):
+    async with db.transaction(context_for(request, pr)) as conn:
+        return json.loads(await conn.fetchval("SELECT sales.seat_limits()::text"))
+
+
+@router.put("/booking/seat-limits")
+async def set_seat_limits(body: SeatLimitsIn, request: Request, pr: Principal = Depends(require_permission("policy.matrix"))):
+    async with db.transaction(context_for(request, pr)) as conn:
+        out = await conn.fetchval("SELECT sales.set_seat_limits($1, $2, $3, $4)::text",
+                                  body.max_seats, body.family_max_seats, body.agency_group, body.basis)
+    request.state.audit = {"action": "booking.seat_limits", "object_type": "setting",
+                           "reason": f"{body.max_seats}/{body.family_max_seats}/{body.agency_group}: {body.basis}"[:120]}
+    return json.loads(out)

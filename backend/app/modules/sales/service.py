@@ -74,16 +74,30 @@ def _json(v):
     return json.loads(v) if isinstance(v, str) else v
 
 
-async def create_hold(conn: asyncpg.Connection, user_id: int, body: HoldIn) -> dict:
+async def seat_limit(conn: asyncpg.Connection, party_id: Optional[int] = None) -> int:
+    """The seats a party books at once (1122): the platform's number, or the size of the family it heads when larger."""
+    return await conn.fetchval("SELECT sales.seat_limit($1)", party_id)
+
+
+def check_seats(seats: int, limit: int) -> None:
+    if seats > limit:
+        raise ApiError(422, "TOO_MANY_SEATS", f"at most {limit} seats per booking", max_seats=limit)
+
+
+async def create_hold(conn: asyncpg.Connection, user_id: int, body: HoldIn, limit: Optional[int] = None) -> dict:
+    """Holds seats for a while. limit is the seats the caller books at once (a passenger's own, seat_limit); a channel
+    that sells for others (an agency, a counter) passes none and holds the platform's number."""
     if body.to_seq <= body.from_seq or len(set(body.seat_nos)) != len(body.seat_nos):
         raise ApiError(422, "INVALID_HOLD", "invalid pair or duplicate seats")
+    limit = limit or await seat_limit(conn)
+    check_seats(len(body.seat_nos), limit)
     trip = await repo.trip_on_sale_from(conn, body.trip_uid, body.from_seq)
     if trip is None or body.to_seq > trip["segments_count"]:
         raise ApiError(409, "SALES_CLOSED", "the trip is not on sale for this stop")
     # One hold of a person at a time: counting and locking are one step, so two holds sent together cannot both pass
     # the count (review of release 1.47.0, R-07). A transaction-level advisory lock, released on commit or rollback.
     await conn.execute("SELECT pg_advisory_xact_lock(hashtext('seat-holds'), hashtext($1::bigint::text))", user_id)
-    if await repo.seats_held_by(conn, user_id) + len(body.seat_nos) > MAX_LOCKED_SEATS:
+    if await repo.seats_held_by(conn, user_id) + len(body.seat_nos) > max(MAX_LOCKED_SEATS, 2 * limit):
         raise ApiError(429, "TOO_MANY_HOLDS", "too many seats on hold")
     token = uuid.uuid4()
     locked = await repo.lock_segments(conn, trip["id"], body.seat_nos, body.from_seq, body.to_seq, token, user_id,
@@ -277,6 +291,7 @@ async def create_booking(conn: asyncpg.Connection, ctx: db.Context, buyer: Buyer
     if existing:
         return {"booking_ref": existing, "replayed": True}
 
+    check_seats(sum(p.seat_no is not None for p in body.passengers), await seat_limit(conn, buyer.party_id))
     trip = await conn.fetchrow(
         "SELECT id, company_id, currency, trip_no, trip_code, route_id FROM ops.trip WHERE uid = $1 AND status IN ('PUBLISHED','BOARDING')",
         body.trip_uid)

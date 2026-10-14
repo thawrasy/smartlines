@@ -120,14 +120,14 @@ flowchart LR
   rpt -->|7| iam
   rpt -->|1| ref
   sales -->|2| acct
-  sales -->|6| fin
-  sales -->|3| fleet
+  sales -->|9| fin
+  sales -->|4| fleet
   sales -->|2| gov
-  sales -->|27| iam
+  sales -->|33| iam
   sales -->|2| net
-  sales -->|8| ops
+  sales -->|10| ops
   sales -->|5| pricing
-  sales -->|2| ref
+  sales -->|5| ref
   sch -->|4| fleet
   sch -->|13| iam
   sch -->|2| net
@@ -2195,6 +2195,40 @@ erDiagram
     integer line_no PK
     bigint booking_id FK
   }
+  sales_charter_offer {
+    bigint id PK
+    uuid uid
+    bigint company_id FK
+    character currency FK
+    bigint base_city_id FK
+    text status
+    bigint created_by FK
+  }
+  sales_charter_request {
+    bigint id PK
+    uuid uid
+    bigint offer_id FK
+    bigint company_id FK
+    bigint requester_party_id FK
+    bigint requester_user_id FK
+    bigint agency_id FK
+    bigint from_city_id FK
+    bigint to_city_id FK
+    bigint trip_id FK
+    text status
+    character currency FK
+    bigint quoted_by FK
+    bigint vehicle_id FK
+    bigint paid_txn_id FK
+    bigint released_txn_id FK
+    bigint refund_txn_id FK
+    bigint closed_by FK
+  }
+  sales_charter_seat {
+    bigint request_id PK
+    bigint trip_id FK
+    smallint seat_no PK
+  }
   sales_entry_rule {
     bigint id PK
     character country_code FK
@@ -2411,27 +2445,36 @@ erDiagram
   sales_refund_request }o..o| acct_einvoice_document : "credit_note_id"
   sales_channel_statement }o..o| fin_ledger_txn : "ledger_txn_id"
   sales_subscription }o..o| fin_ledger_txn : "ledger_txn_id"
+  sales_charter_request }o..o| fin_ledger_txn : "paid_txn_id"
+  sales_charter_request }o..o| fin_ledger_txn : "released_txn_id"
+  sales_charter_request }o..o| fin_ledger_txn : "refund_txn_id"
   sales_booking }o..o| fin_payment_method : "pay_option"
   sales_booking }o..o| fin_price_allocation : "price_allocation_id"
   sales_nfc_card }o..o| fin_wallet : "wallet_id"
   sales_subscription }o..o| fin_wallet : "wallet_id"
   sales_boarding_event }o..o| fleet_boarding_validator : "validator_id"
   sales_inspection_check }o..o| fleet_vehicle : "vehicle_id"
+  sales_charter_request }o..o| fleet_vehicle : "vehicle_id"
   sales_boarding_event }o..o| fleet_vehicle_qr_tag : "vehicle_tag_id"
   sales_passenger }o..o| gov_retention_policy : "retention_policy_id"
   sales_passenger }o..o| gov_subject_request : "erasure_request_id"
   sales_channel_api_profile }o--|| iam_api_client : "api_client_id"
   sales_channel }o..o| iam_api_client : "api_client_id"
   sales_booking }o..o| iam_app_user : "booker_user_id"
+  sales_charter_request }o..o| iam_app_user : "requester_user_id"
+  sales_charter_request }o..o| iam_app_user : "quoted_by"
   sales_agency_agreement }o--|| iam_company : "agency_id"
   sales_subscription_plan }o..o| iam_company : "company_id"
   sales_inspection_check }o--|| iam_company : "company_id"
   sales_channel_agreement }o..o| iam_company : "company_id"
   sales_channel_inventory_rule }o--|| iam_company : "company_id"
+  sales_charter_offer }o--|| iam_company : "company_id"
   sales_subscription }o..o| iam_company : "company_id"
   sales_supplier_source }o..o| iam_company : "company_id"
   sales_booking }o--|| iam_company : "company_id"
+  sales_charter_request }o--|| iam_company : "company_id"
   sales_passenger_compensation }o..o| iam_company : "charged_to_company_id"
+  sales_charter_request }o..o| iam_company : "agency_id"
   sales_booking }o..o| iam_company : "agency_id"
   sales_boarding_event }o..o| iam_device : "device_id"
   sales_subscription }o..o| iam_family : "family_id"
@@ -2445,15 +2488,18 @@ erDiagram
   sales_campaign_redemption }o--|| iam_party : "party_id"
   sales_subscription }o--|| iam_party : "party_id"
   sales_booking }o--|| iam_party : "booker_party_id"
+  sales_charter_request }o--|| iam_party : "requester_party_id"
   sales_subscription }o..o| iam_party : "purchased_by_party_id"
   sales_booking }o..o| iam_party : "funded_by_party_id"
   sales_subscription_plan }o..o| net_line : "line_id"
   sales_channel_inventory_rule }o..o| net_route : "route_id"
   sales_waitlist_entry }o--|| ops_trip : "trip_id"
+  sales_charter_seat }o--|| ops_trip : "trip_id"
   sales_boarding_event }o--|| ops_trip : "trip_id"
   sales_booking }o--|| ops_trip : "trip_id"
   sales_inspection_check }o..o| ops_trip : "trip_id"
   sales_ticket }o--|| ops_trip : "trip_id"
+  sales_charter_request }o..o| ops_trip : "trip_id"
   sales_passenger_compensation }o..o| ops_trip_disruption : "trip_disruption_id"
   sales_ticket }o--|| ops_trip_stop : "trip_id,from_seq"
   sales_ticket }o--|| ops_trip_stop : "trip_id,to_seq"
@@ -2463,6 +2509,9 @@ erDiagram
   sales_ticket }o..o| pricing_fare_brand : "fare_brand_code"
   sales_campaign_redemption }o..o| pricing_promo_code : "promo_code_id"
   sales_shuttle_zone }o--|| ref_city : "city_id"
+  sales_charter_request }o..o| ref_city : "from_city_id"
+  sales_charter_request }o..o| ref_city : "to_city_id"
+  sales_charter_offer }o..o| ref_city : "base_city_id"
   sales_channel_inventory_rule }o..o| ref_trip_type : "trip_type"
   sales_inspection_check }o..o| sales_boarding_event : "boarding_event_id"
   sales_channel_booking_ref }o--|| sales_booking : "booking_id"
@@ -2484,6 +2533,8 @@ erDiagram
   sales_booking }o--|| sales_channel : "channel_id"
   sales_channel_statement_line }o--|| sales_channel_statement : "statement_id"
   sales_channel_memo }o..o| sales_channel_statement : "statement_id"
+  sales_charter_request }o--|| sales_charter_offer : "offer_id"
+  sales_charter_seat }o--|| sales_charter_request : "request_id"
   sales_ticket_doc }o..o| sales_entry_rule : "entry_rule_id"
   sales_shuttle_pass }o..o| sales_nfc_card : "nfc_card_id"
   sales_boarding_event }o..o| sales_nfc_card : "nfc_card_id"

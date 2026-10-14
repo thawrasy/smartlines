@@ -86,6 +86,9 @@ const StationBays = lazyNamed(() => import("./pages/station/Bays"), "StationBays
 const StationScreens = lazyNamed(() => import("./pages/station/Screens"), "StationScreens");
 const DepartureBoard = lazy(() => import("./pages/station/DepartureBoard"));
 const Journey = lazy(() => import("./pages/passenger/Journey"));
+const CustomerCharter = lazyNamed(() => import("./pages/charter/Charter"), "CustomerCharter");
+const CarrierCharter = lazyNamed(() => import("./pages/charter/Charter"), "CarrierCharter");
+const AdminBookingRules = lazyNamed(() => import("./pages/charter/Charter"), "AdminBookingRules");
 const StationOps = lazy(() => import("./pages/carrier/StationOps"));
 const AdminBoarding = lazy(() => import("./pages/admin/Boarding"));
 
@@ -131,6 +134,8 @@ function PlatformShell() {
       { to: "/admin/boarding", icon: "departure_board", label: t("brdadm.nav"), show: can("boarding.manage", "payout.run") },
       // regular trips: the platform's stages (schedule.approve), and the members of government authorities (regulators)
       { to: "/admin/schedules", icon: "event_repeat", label: t("schedadm.nav"), show: can("schedule.approve", "schedule.settings", "regulator.dashboard") },
+      // seats booked at once (1122) and charter (1123)
+      { to: "/admin/booking", icon: "airport_shuttle", label: t("rules.nav"), show: can("policy.matrix", "report.platform") },
       { to: "/security", end: true, icon: "shield", label: t("security.title"), show: can("audit.view", "security.ip_rules") },
       { to: "/security/rules", icon: "block", label: t("security.rules"), show: can("security.ip_rules") },
       { to: "/security/auth", icon: "lock", label: t("security.authEvents"), show: can("audit.view", "security.ip_rules") },
@@ -164,6 +169,7 @@ function CarrierShell() {
       { to: "/carrier/crew", icon: "badge", label: t("carrier.crew") },
       { to: "/carrier/stations", icon: "storefront", label: t("stops.nav"), show: can("boarding.operators", "boarding.references") },
       { to: "/carrier/parcels", icon: "local_shipping", label: t("parcel.carrierNav"), show: can("parcels.tariffs", "shipping.operate") },
+      { to: "/carrier/charter", icon: "airport_shuttle", label: t("chr.carrierNav"), show: can("charter.manage") },
       { to: "/carrier/kyc", icon: "policy", label: t("kyc.nav"), show: can("company.kyc") },
       { to: "/carrier/documents", icon: "fact_check", label: t("documents.title"), show: can("company.staff", "vehicle.manage", "company.billing") },
       { to: "/carrier/finance", icon: "payments", label: t("finance.title") },
@@ -182,6 +188,7 @@ function AgencyShell() {
     <PortalShell title={t("nav.agency")} items={[
       { to: "/agency", end: true, icon: "dashboard", label: t("agency.dashboard") },
       { to: "/agency/search", icon: "search", label: t("agency.sell"), show: can("booking.on_behalf") },
+      { to: "/agency/charter", icon: "airport_shuttle", label: t("chr.nav"), show: can("booking.on_behalf") },
       { to: "/agency/bookings", icon: "confirmation_number", label: t("agency.bookings") },
       { to: "/agency/statement", icon: "receipt_long", label: t("agency.statement"), show: can("report.company", "company.billing", "booking.on_behalf") },
       { to: "/agency/staff", icon: "badge", label: t("agency.staff"), show: can("company.staff") },
@@ -233,6 +240,7 @@ export default function App() {
           <Route path="search" element={<Results />} />
           <Route path="trip/:uid" element={<Book />} />
           <Route path="journey" element={<RequirePortal portal="PASSENGER"><Journey /></RequirePortal>} />
+          <Route path="charter" element={<RequirePortal portal="PASSENGER"><CustomerCharter who="traveller" /></RequirePortal>} />
           <Route path="booking/:ref" element={<RequirePortal portal="PASSENGER"><Booking /></RequirePortal>} />
           <Route path="trips" element={<RequirePortal portal="PASSENGER"><MyTrips /></RequirePortal>} />
           <Route path="wallet" element={<RequirePortal portal="PASSENGER"><Wallet /></RequirePortal>} />
@@ -264,6 +272,7 @@ export default function App() {
           <Route path="carrier/crew" element={<CarrierCrew />} />
           <Route path="carrier/stations" element={<StationOps />} />
           <Route path="carrier/parcels" element={<CarrierParcels />} />
+          <Route path="carrier/charter" element={<CarrierCharter />} />
           <Route path="carrier/m/:module" element={<ModulePage />} />
           <Route path="carrier/reports" element={<ReportsPage />} />
           <Route path="carrier/integrations" element={<IntegrationsPage />} />
@@ -278,6 +287,7 @@ export default function App() {
           <Route path="agency/search" element={<AgencySell />} />
           <Route path="agency/trip/:uid" element={<Book />} />
           <Route path="agency/journey" element={<Journey />} />
+          <Route path="agency/charter" element={<CustomerCharter who="agency" />} />
           <Route path="agency/booking/:ref" element={<Booking />} />
           <Route path="agency/bookings" element={<AgencyBookings />} />
           <Route path="agency/statement" element={<AgencyStatement />} />
@@ -316,6 +326,7 @@ export default function App() {
           <Route path="admin/stations" element={<AdminStations />} />
           <Route path="admin/boarding" element={<AdminBoarding />} />
           <Route path="admin/schedules" element={<AdminSchedules />} />
+          <Route path="admin/booking" element={<AdminBookingRules />} />
           <Route path="admin/kyc" element={<AdminKyc />} />
           <Route path="admin/modules" element={<AdminModules />} />
           <Route path="admin/m/:module" element={<ModulePage />} />

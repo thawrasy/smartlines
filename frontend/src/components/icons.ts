@@ -1,5 +1,8 @@
 // Material Symbols (rounded, Apache-2.0), bundled at build time. Generated list: add a name here to use it.
 
+import i_airport_shuttle from "@material-symbols/svg-400/rounded/airport_shuttle.svg?raw";
+import i_request_quote from "@material-symbols/svg-400/rounded/request_quote.svg?raw";
+import i_tour from "@material-symbols/svg-400/rounded/tour.svg?raw";
 import i_swap_calls from "@material-symbols/svg-400/rounded/swap_calls.svg?raw";
 import i_airline_stops from "@material-symbols/svg-400/rounded/airline_stops.svg?raw";
 import i_multiple_stop from "@material-symbols/svg-400/rounded/multiple_stop.svg?raw";
@@ -323,6 +326,9 @@ export const ICONS = {
   edit_calendar: i_edit_calendar,
   policy: i_policy,
   upload_file: i_upload_file,
+  airport_shuttle: i_airport_shuttle,
+  request_quote: i_request_quote,
+  tour: i_tour,
   swap_calls: i_swap_calls,
   airline_stops: i_airline_stops,
   multiple_stop: i_multiple_stop,

@@ -41,9 +41,18 @@ async def quote(body: QuoteIn, request: Request, pr: Principal = Depends(passeng
 @router.post("/holds", status_code=201)
 async def create_hold(body: HoldIn, request: Request, pr: Principal = Depends(passenger)):
     async with db.transaction(context_for(request, pr)) as conn:
-        hold = await sales.create_hold(conn, pr.user_id, body)
+        hold = await sales.create_hold(conn, pr.user_id, body, limit=await sales.seat_limit(conn, pr.party_id))
     request.state.audit = {"action": "booking.hold", "object_type": "trip", "object_id": hold.pop("trip_id")}
     return hold
+
+
+@router.get("/bookings/limits")
+async def booking_limits(request: Request, pr: Principal = Depends(passenger)):
+    """The seats the passenger books at once (1122): the platform's number, more when they head a larger family."""
+    async with db.transaction(context_for(request, pr)) as conn:
+        mine = await sales.seat_limit(conn, pr.party_id)
+        limits = json.loads(await conn.fetchval("SELECT sales.seat_limits()::text"))
+    return {"max_seats": mine, "default_seats": limits["max_seats"], "family": mine > limits["max_seats"]}
 
 
 @router.delete("/holds/{hold_token}")

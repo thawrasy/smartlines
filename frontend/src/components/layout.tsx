@@ -59,6 +59,7 @@ export function PublicLayout() {
           {passenger && <NavLink to="/trips">{t("nav.myTrips")}</NavLink>}
           {passenger && <NavLink to="/wallet">{t("nav.wallet")}</NavLink>}
           {passenger && <NavLink to="/family">{t("nav.family")}</NavLink>}
+          {passenger && <NavLink to="/charter">{t("nav.charter")}</NavLink>}
           {passenger && <NavLink to="/support">{t("nav.support")}</NavLink>}
           {passenger && mine.some((m) => m.key === "cargo") && <NavLink to="/parcels">{t("nav.parcels")}</NavLink>}
           {mine.length > 0 && <ModulesMenu items={mine.map((m) => ({ to: `/m/${m.key}`, icon: m.icon as IconName, label: L.module(m.key) }))} />}

@@ -83,7 +83,8 @@ async def reference(request: Request):
             "SELECT code, name, factor, rules FROM pricing.fare_brand WHERE active AND company_id IS NULL ORDER BY sort")
         default_market = (await markets.default(conn)).public()       # visitors see the default market's time and money (1061)
         open_markets = [m.public() for m in await markets.active(conn)]
-    return {"cities": rows(cities), "locales": rows(locales), "platform_fee": get_settings().platform_fee,
+        seats = await conn.fetchval("SELECT sales.setting_int('booking.max_seats', 4)")
+    return {"booking": {"max_seats": seats}, "cities": rows(cities), "locales": rows(locales), "platform_fee": get_settings().platform_fee,
             "market": default_market, "markets": open_markets,
             "countries": [c["code"] for c in countries],
             "fare_brands": [{**row_dict(b), "factor": float(b["factor"]),

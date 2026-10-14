@@ -15,6 +15,8 @@ interface Detail {
   booking: { booking_ref: string; status: string; total_amount: number; carrier_name: string; carrier_uid?: string | null; carrier_logo?: string | null; trip_no: string; trip_code?: string | null;
              pay_option?: string | null; pay_by?: string | null; return_trip?: Return | null };
   tickets: Ticket[];
+  // the journey the booking belongs to (1121): this trip's leg and the booker's bookings of every leg
+  journey?: { uid: string; kind: string; leg: number; bookings: { booking_ref: string; leg: number; status: string; trip_no: string; trip_code: string | null }[] } | null;
 }
 // the trip that continues the traveller's on the same vehicle that day, and the way back (1119)
 interface Return { uid: string; trip_code: string | null; trip_no: string; from_seq: number; to_seq: number; departs_at: string;
@@ -100,6 +102,16 @@ export default function Booking() {
           </Card>
         </Pressable>
       ))}
+      {b.data.journey ? (
+        <Card>
+          <Text style={s.h2}>{t("jrn.partOf")}</Text>
+          <Text style={s.small}>{t("jrn.partOfHint", { leg: b.data.journey.leg })}</Text>
+          {b.data.journey.bookings.filter((x) => x.booking_ref !== booking.booking_ref).map((x) => (
+            <Button key={x.booking_ref} kind="tonal" label={`${t("jrn.legN", { n: x.leg })} · ${x.trip_code ?? x.trip_no} · ${x.booking_ref}`}
+                    onPress={() => router.push({ pathname: "/booking/[ref]", params: { ref: x.booking_ref } })} />
+          ))}
+        </Card>
+      ) : null}
       {booking.return_trip ? (
         <Card>
           <Text style={s.h2}>{t(booking.return_trip.same_vehicle === false ? "ret.other" : "ret.title")}</Text>

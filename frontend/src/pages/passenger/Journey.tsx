@@ -11,8 +11,9 @@ import { parseLegs, parsePicked, type JourneyKind } from "./journeyLinks";
 // A journey booked in one go (owner's request, October 2026; migration 1121): one way, a round trip or several places
 // one after the other, chosen trip by trip on the results page and checked out here: the same travellers on every
 // trip, seats given side by side, paid at once from the wallet (or reserved to pay at the counter where the platform
-// opened it). An agency books a group here too, split into bookings of four seats. Each trip becomes its own booking,
-// all of the same journey; nothing is booked unless every trip is.
+// opened it). An agency books a group here too, split into bookings of the platform's seat limit (1122). A baby on an
+// adult's lap takes no seat and travels in that adult's booking on every trip. Each trip becomes its own booking, all of
+// the same journey; nothing is booked unless every trip is.
 
 interface JourneyOut {
   journey_uid: string; kind: JourneyKind; status: string; replayed?: boolean;
@@ -35,6 +36,7 @@ export default function Journey() {
   const options = useLoad<BookingOption[]>(() => (ch.agency || !me ? Promise.resolve([])
     : api.get<{ options: BookingOption[] }>("/api/payments/booking-options").then((r) => r.options)), [me, ch.agency]);
   const [people, setPeople] = useState<PassengerDraft[]>(() => Array.from({ length: pax }, () => blankPassenger()));
+  const laps = people.filter((p) => p.lap).length;
   const [docs, setDocs] = useState<Record<string, TravelDocs>>({});
   const [payWith, setPayWith] = useState<"WALLET" | "PAY_LATER">("WALLET");
   const [contact, setContact] = useState("");
@@ -67,7 +69,9 @@ export default function Journey() {
     try {
       const out = await api.post<JourneyOut>(ch.agency ? "/api/agency/journeys" : "/api/journeys", {
         kind, legs: picked.map((p) => ({ trip_uid: p.uid, from_seq: p.from, to_seq: p.to })),
-        passengers: people.map((p) => ({ ...namesFor(p), ...documentFor(p, docs[p.nationality]), birth_date: p.birth_date || undefined })),
+        // the k-th baby on a lap is carried by the k-th traveller with a seat
+        passengers: people.map((p, i) => ({ ...namesFor(p), ...documentFor(p, docs[p.nationality]), birth_date: p.birth_date || undefined,
+                                            with_adult: p.lap ? i - pax + 1 : undefined })),
         idempotency_key: key, ...(ch.agency ? { contact_mobile: contact.trim() } : { pay_with: payWith }),
       });
       setDone(out);
@@ -102,6 +106,8 @@ export default function Journey() {
       </div></div>
       <Loaded state={trips}>{(details) => {
         const sums: Record<string, number> = {};
+        // a baby travels on a lap only where every trip's carrier lets an infant travel without a seat
+        const lapAllowed = details.every((d) => d.categories.some((c) => c.category === "INFANT" && !c.seat_required));
         details.forEach((d) => { sums[d.trip.currency] = (sums[d.trip.currency] ?? 0) + d.price * pax; });
         return (
           <>
@@ -135,12 +141,18 @@ export default function Journey() {
               <p className="small muted" style={{ margin: 0 }}>{t("jrn.travellersHint")}</p>
               {people.map((p, i) => (
                 <fieldset key={i} className="stack" style={{ border: 0, padding: 0, margin: 0 }}>
-                  <legend className="small"><strong>{t("common.passenger")} {i + 1}</strong></legend>
+                  <legend className="small row" style={{ gap: 8 }}><strong>{p.lap ? t("jrn.lapOf", { n: i - pax + 1 }) : `${t("common.passenger")} ${i + 1}`}</strong>
+                    {p.lap && i === people.length - 1 && <button className="btn text small" onClick={() => setPeople((all) => all.slice(0, -1))}>{t("common.remove")}</button>}</legend>
                   <PassengerFields value={p} countries={countries.data ?? ["SY"]} docs={docs[p.nationality]} bands={details[0].categories}
                                    travel={details[0].stops.find((s) => s.seq === details[0].from_seq)?.sched_dep.slice(0, 10)}
                                    onChange={(v) => setPeople((all) => all.map((x, j) => (j === i ? v : x)))} />
                 </fieldset>
               ))}
+              {lapAllowed && laps < pax && (
+                <button className="btn outlined" style={{ alignSelf: "flex-start" }} onClick={() => setPeople((all) => [...all, blankPassenger(true)])}>
+                  <Icon name="child_care" />{t("jrn.addLap")}
+                </button>
+              )}
             </div>
             <div className="card stack">
               {ch.agency ? (
