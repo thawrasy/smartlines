@@ -14,9 +14,9 @@ supporting index, except references to lookup lists and to the staff member who 
 |---|---|
 | Engine | PostgreSQL 16 with PostGIS 3 (extensions: pgcrypto, citext, btree_gist, pg_trgm, postgis in schema `gis`; Docker and CI image `postgis/postgis:16-3.4`, Ubuntu package `postgresql-16-postgis-3`) |
 | Schemas | 26 separate schemas, each with its own privileges |
-| Tables | 537 tables (8 partitioned), 5,643 columns, 1,580 foreign keys |
-| Security | row-level security on 537 of 537 tables, 965 policies; 473 triggers, 452 functions |
-| Tests | 803 automated checks against a freshly built database (`db/tests/run.sh`) |
+| Tables | 538 tables (8 partitioned), 5,656 columns, 1,581 foreign keys |
+| Security | row-level security on 538 of 538 tables, 967 policies; 475 triggers, 457 functions |
+| Tests | 809 automated checks against a freshly built database (`db/tests/run.sh`) |
 | Design | [Database design and ERD document](../docs/database/) with diagrams in the study's colors |
 | Docs | [Data dictionary](DATA_DICTIONARY.md) · [ERD diagrams](ERD.md) (both generated from the database) |
 <!-- stats:end -->
@@ -183,6 +183,7 @@ PostGIS in `gis`. Until 9 October 2026 a first start of the Docker stack stopped
 | `1124_admin_geography.sql` | Administrative geography (owner's request): governorates, districts and sub-districts (`ref.admin_area`), communities and city neighbourhoods with positions (`ref.place`) under the United Nations' codes, each load recorded (`ref.geo_source`); cities and stations linked to places (`ref.city.place_id`, `net.station.place_id`); a community opened for routes as a city of the network (`ref.serve_place`), the way up from a place (`ref.place_path`); permission `geo.manage` (`docs/design/ADMIN_GEOGRAPHY.md`) |
 | `1125_geography_in_use.sql` | The geography in use (owner's decision): places surveyed in the field proposed with an F code and accepted by a second person (`ref.propose_place`, `ref.review_place`, role `PLATFORM_GEOGRAPHY`); the areas' boundaries (`ref.admin_area.boundary`, PostGIS); where a point lies (`ref.locate`) (`docs/design/ADMIN_GEOGRAPHY.md`) |
 | `1126_charter_passengers.sql` | Charter travellers (owner's decision): the travellers named on a charter's blocked seats are tickets of a booking of the charter (`sales.booking.charter_request_id`, `sales.charter_seat.ticket_id`), on the manifest; a name taken off blocks the seat again (`sales.charter_seat_ticket`, `sales.charter_seat_unticket`); a released charter cancels its travellers' tickets (`docs/design/CHARTER.md`) |
+| `1127_place_name_corrections.sql` | Corrected names (owner's request): names kept as published (`published_en`, `published_ar`) and shown with the platform's corrections (`ref.name_correction`, by area, place or country; `ref.corrected`, `ref.apply_name_corrections`, `ref.set_name_correction`), applied again after each load; the owner's spellings (Palmyra for the city of Tadmor, Qamishli, Latakia, Idlib and others) (`docs/design/ADMIN_GEOGRAPHY.md`) |
 
 ## Design rules (study 29.1)
 

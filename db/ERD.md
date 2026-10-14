@@ -111,7 +111,7 @@ flowchart LR
   rail -->|2| net
   rail -->|2| ops
   rail -->|1| sales
-  ref -->|3| iam
+  ref -->|4| iam
   rent -->|1| crm
   rent -->|1| fin
   rent -->|3| fleet
@@ -668,6 +668,11 @@ erDiagram
     text locale FK
     text status
   }
+  ref_name_correction {
+    bigint id PK
+    text status
+    bigint set_by FK
+  }
   ref_party_role_type {
     text code PK
   }
@@ -702,6 +707,7 @@ erDiagram
   iam_company {
     ref external
   }
+  ref_name_correction }o..o| iam_app_user : "set_by"
   ref_geo_source }o..o| iam_app_user : "imported_by"
   ref_place }o..o| iam_app_user : "proposed_by"
   ref_file_object }o..o| iam_company : "company_id"

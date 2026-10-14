@@ -2942,6 +2942,11 @@ const en = {
     acceptTitle: "Accept {name}", rejectTitle: "Reject {name}",
     acceptHint: "Once accepted, the place is found by everyone and can be opened for routes.",
     rejectHint: "Say why: the surveyor sees it.", reviewNote: "Note", proposedAs: "Proposed as {code}",
+    names: "Corrected names", namesHint: "Words of the published names written as they are known locally and internationally, in an area, in one place, or in the whole country; applied to every name that carries them and again after each newer file. The published name is kept and still found.",
+    nameAdd: "Correct a name", published: "As published", correctName: "Correct name", scope: "Where", places: "Places",
+    scopeHint: "An area's code (SY0802) or a place's (C2889); the whole country when empty.", nameRemove: "Remove", nameLang: "Language",
+    reason: "Reason", namesChanged: "{n} names updated", asPublished: "Published as {name}",
+    langEn: "English", langAr: "Arabic",
   },
 };
 

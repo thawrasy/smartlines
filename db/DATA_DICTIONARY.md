@@ -2,14 +2,14 @@
 
 > Generated from the built database (`db/tools/gen_docs.py`); do not edit by hand.
 
-**537 tables, 5643 columns, in 26 schemas.**
+**538 tables, 5656 columns, in 26 schemas.**
 
 Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant isolation (RLS) · 🧩 partitioned monthly · 🔒 append-only / change-protected
 
 ## Index
 
 - [`iam` — Identity, parties, users, permissions and API clients](#iam) (44 tables)
-- [`ref` — Reference data, locales and files](#ref) (17 tables)
+- [`ref` — Reference data, locales and files](#ref) (18 tables)
 - [`sys` — Settings, outbox and webhooks](#sys) (27 tables)
 - [`net` — Network: stations, routes, lines, corridors and geofences](#net) (27 tables)
 - [`fleet` — Fleet: vehicles, trucks, trailers, seats, crew, licenses and insurance](#fleet) (22 tables)
@@ -895,6 +895,8 @@ Governorates (1), districts (2) and sub-districts (3), with their United Nations
 | `updated_at` | `timestamp with time zone` | ✱ | `now()` |
 | `boundary` | `gis.geometry(MultiPolygon,4326)` |  |  |
 | `boundary_source_id` | `bigint` | 🔗 `ref.geo_source`  |  |
+| `published_en` | `text` |  |  |
+| `published_ar` | `text` |  |  |
 
 ### `ref.cargo_category` 🛡️
 
@@ -1037,6 +1039,22 @@ Countries the platform operates in: time zone, currency and default language of 
 | `opened_at` | `timestamp with time zone` |  |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
+### `ref.name_correction` 🛡️
+
+Words of the published names the platform writes otherwise, in the areas under a code (1127)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `lang` | `text` | ✱ |  |
+| `wrong` | `text` | ✱ |  |
+| `correct` | `text` | ✱ |  |
+| `scope_pcode` | `text` |  |  |
+| `reason` | `text` | ✱ |  |
+| `status` | `text` | ✱ | `'ACTIVE'::text` |
+| `set_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `set_at` | `timestamp with time zone` | ✱ | `now()` |
+
 ### `ref.party_role_type` 🛡️
 
 Party roles (2.1); rows replace the former fixed list
@@ -1081,6 +1099,8 @@ Communities (cities, towns, villages) and the neighbourhoods of cities, with the
 | `reviewed_by` | `bigint` | 🔗 `iam.app_user`  |  |
 | `reviewed_at` | `timestamp with time zone` |  |  |
 | `review_note` | `text` |  |  |
+| `published_en` | `text` |  |  |
+| `published_ar` | `text` |  |  |
 
 ### `ref.seed_version` 🛡️
 

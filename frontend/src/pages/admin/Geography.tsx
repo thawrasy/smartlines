@@ -4,6 +4,7 @@ import { useI18n } from "../../i18n";
 import { PageHead } from "../../components/layout";
 import { Empty, ErrorBox, Field, Icon, Loaded, Modal, Stat, useLoad, useToast } from "../../components/ui";
 import { FieldSurveys } from "./FieldSurveys";
+import { NameCorrections } from "./NameCorrections";
 
 // The administrative geography (owner's request, October 2026; migration 1124): the governorates, districts,
 // sub-districts, communities and city neighbourhoods of the United Nations' P-code workbook, loaded by the platform, and
@@ -17,6 +18,7 @@ interface Summary { governorates: Gov[]; loads: Load[]; cities: City[]; proposed
 interface Area { pcode: string; name_en: string; name_ar: string; level: number; areas: number; communities: number | null }
 interface Place { pcode: string; name_en: string; name_ar: string; lat: number; lng: number; city_code: string | null; neighbourhoods: number }
 interface Found { pcode: string; kind: string; name_en: string; name_ar: string; lat: number; lng: number; served: string | null;
+  published_en: string | null; published_ar: string | null;
   city: { name_en: string; name_ar: string } | null; sub_district: { name_en: string; name_ar: string }; district: { name_en: string; name_ar: string };
   governorate: { name_en: string; name_ar: string } }
 
@@ -123,7 +125,7 @@ export function AdminGeography() {
                     <div className="table-wrap" tabIndex={0}><table className="table">
                       <thead><tr><th>{t("geo.place")}</th><th>{t("geo.where")}</th><th>{t("geo.code")}</th><th /></tr></thead>
                       <tbody>{found.map((p) => (
-                        <tr key={p.pcode}><td><strong>{name(p)}</strong>{p.kind === "NEIGHBOURHOOD" && p.city && <div className="small muted">{t("geo.neighbourhoodOf", { city: name(p.city) })}</div>}</td>
+                        <tr key={p.pcode}><td><strong>{name(p)}</strong>{(locale === "ar" ? p.published_ar : p.published_en) && <div className="small muted">{t("geo.asPublished", { name: (locale === "ar" ? p.published_ar : p.published_en) ?? "" })}</div>}{p.kind === "NEIGHBOURHOOD" && p.city && <div className="small muted">{t("geo.neighbourhoodOf", { city: name(p.city) })}</div>}</td>
                           <td className="small">{name(p.sub_district)} · {name(p.district)} · {name(p.governorate)}</td>
                           <td className="mono small">{p.pcode}<div className="muted">{p.lat}, {p.lng}</div></td>
                           <td>{p.served ? <span className="chip green">{p.served}</span> : p.kind === "COMMUNITY"
@@ -158,6 +160,7 @@ export function AdminGeography() {
                   )}</Loaded>
                 </div>
                 <FieldSurveys waiting={d.proposed} onChange={() => { state.reload(); level.reload(); }} />
+                <NameCorrections onChange={() => { level.reload(); if (found) void search(); }} />
               </>
             )}
           </>

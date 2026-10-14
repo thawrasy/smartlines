@@ -200,3 +200,33 @@ def test_boundaries_field_surveys_and_stations_in_their_places():
     # the new city is named in both languages wherever cities are listed
     named = next(c for c in client().get("/api/geo/cities").json()["cities"] if c["code"] == code)
     assert named["name_en"] == "Survey Base" and named["pcode"] == village
+
+
+def test_the_platform_corrects_published_names_and_they_survive_a_newer_file():
+    """1127: a word of the published names written as it is known, in one place or an area; the published name is kept
+    and found, the correction holds after a newer file, and removing it gives the published name back."""
+    admin = login("admin@masslak.test", "PLATFORM")
+    village = f"C{8000 + uuid.uuid4().int % 1999}"
+    data = workbook([(village, "Tal Hmeis Quamishli", 36.12, 37.22), ("C1999", "Kfar Quamishli", 36.13, 37.23)])
+    assert _upload(admin, data, "syr_names.xlsx").status_code == 200
+    # the owner's corrections hold in their areas only: this test file puts the villages in Aleppo, not in Qamishli's district
+    assert client().get(f"/api/geo/places/{village}").json()["name_en"] == "Tal Hmeis Quamishli"
+    r = admin.post("/api/admin/geo/names", json={"lang": "en", "wrong": "Quamishli", "correct": "Qamishli", "scope": village,
+                                                 "reason": "the spelling known locally and internationally"})
+    assert r.status_code == 201 and r.json()["changed"] >= 1, r.text
+    one = client().get(f"/api/geo/places/{village}").json()
+    assert one["name_en"] == "Tal Hmeis Qamishli" and one["published_en"] == "Tal Hmeis Quamishli"
+    assert client().get("/api/geo/places/C1999").json()["name_en"] == "Kfar Quamishli"            # another place keeps its name
+    # the published spelling still finds it
+    assert any(p["pcode"] == village for p in client().get("/api/geo/places", params={"q": "Tal Hmeis Quamishli"}).json()["places"])
+    listed = next(c for c in admin.get("/api/admin/geo/names").json()["corrections"] if c["scope_pcode"] == village)
+    assert listed["places"] == 1 and listed["correct"] == "Qamishli"
+    assert any(c["wrong"] == "Tadmor" and c["scope_pcode"] == "C2889" for c in admin.get("/api/admin/geo/names").json()["corrections"])
+    # a newer file publishes the old spelling again: the correction holds
+    newer = workbook([(village, "Tal Hmeis Quamishli", 36.12, 37.22), ("C1999", "Kfar Quamishli", 36.13, 37.24)])
+    assert _upload(admin, newer, "syr_names_newer.xlsx").status_code == 200
+    assert client().get(f"/api/geo/places/{village}").json()["name_en"] == "Tal Hmeis Qamishli"
+    assert login("owner@carrier.test", "OPERATOR").post("/api/admin/geo/names", json={
+        "lang": "en", "wrong": "Kfar", "correct": "Kafr", "reason": "a carrier tries"}).status_code == 403
+    assert admin.delete(f"/api/admin/geo/names/{listed['id']}").status_code == 200
+    assert client().get(f"/api/geo/places/{village}").json()["name_en"] == "Tal Hmeis Quamishli"

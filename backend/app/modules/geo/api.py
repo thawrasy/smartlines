@@ -15,6 +15,9 @@
     GET  /api/admin/geo/proposed             places surveyed in the field waiting for review, and the last reviewed (1125)
     POST /api/admin/geo/places               propose a place surveyed in the field (1125)
     POST /api/admin/geo/places/{pcode}/review {accept, note}: another person accepts or rejects it (1125)
+    GET  /api/admin/geo/names                corrections of the published names (1127)
+    POST /api/admin/geo/names                {lang, wrong, correct, scope, reason}: set one, applied at once and after each load
+    DELETE /api/admin/geo/names/{id}         remove one: the names go back to the published ones
 """
 import json
 import re
@@ -76,8 +79,10 @@ async def places(request: Request, q: str = Query(min_length=2, max_length=60), 
             """SELECT p.id FROM ref.place p
                 WHERE p.status = 'ACTIVE' AND ($3::text IS NULL OR p.kind = $3)
                   AND (p.pcode = upper($1) OR p.name_en ILIKE '%' || $1 || '%' OR p.name_ar LIKE '%' || $1 || '%'
-                       OR p.name_en % $1 OR p.name_ar % $1)
-                ORDER BY p.pcode = upper($1) DESC, greatest(similarity(p.name_en, $1), similarity(p.name_ar, $1)) DESC,
+                       OR p.name_en % $1 OR p.name_ar % $1
+                       OR p.published_en ILIKE '%' || $1 || '%' OR p.published_ar LIKE '%' || $1 || '%')
+                ORDER BY p.pcode = upper($1) DESC,
+                         greatest(similarity(p.name_en, $1), similarity(p.name_ar, $1), similarity(p.published_en, $1)) DESC,
                          p.kind, p.name_en
                 LIMIT $2""", q, limit, kind)
         out = [json.loads(await conn.fetchval("SELECT ref.place_path($1)::text", r["id"])) for r in ids]
@@ -290,3 +295,55 @@ async def review(pcode: str, body: ReviewIn, request: Request, pr: Principal = D
         status = await conn.fetchval("SELECT ref.review_place($1, $2, $3)", pcode, body.accept, body.note)
     request.state.audit = {"action": "geo.review", "object_type": "place", "reason": f"{pcode} {status}"}
     return {"pcode": pcode, "status": status}
+
+
+# ------------------------------------------------------------------ corrections of the published names (1127)
+@platform.get("/names")
+async def names(request: Request, pr: Principal = Depends(require_portal("PLATFORM"))):
+    _need(pr)
+    async with db.transaction(context_for(request, pr)) as conn:
+        rows = await conn.fetch(
+            """SELECT c.id, c.lang, c.wrong, c.correct, c.scope_pcode, a.name_en AS scope_en, a.name_ar AS scope_ar, c.reason,
+                      c.set_at, u.email AS set_by,
+                      (SELECT count(*) FROM ref.place p JOIN ref.admin_area s ON s.id = p.area_id
+                        WHERE p.status = 'ACTIVE' AND (c.scope_pcode IS NULL OR c.scope_pcode = p.pcode
+                               OR (c.scope_pcode ~ '^[A-Z]{2}' AND left(s.pcode, length(c.scope_pcode)) = c.scope_pcode))
+                          AND CASE c.lang WHEN 'en' THEN p.published_en ELSE p.published_ar END ~ ('(^|[^[:alpha:]])' || c.wrong || '([^[:alpha:]]|$)'))
+                        AS places
+                 FROM ref.name_correction c
+                 LEFT JOIN LATERAL (SELECT name_en, name_ar FROM ref.admin_area WHERE pcode = c.scope_pcode
+                                    UNION ALL SELECT name_en, name_ar FROM ref.place WHERE pcode = c.scope_pcode LIMIT 1) a ON true
+                 LEFT JOIN iam.app_user u ON u.id = c.set_by
+                WHERE c.status = 'ACTIVE' ORDER BY c.id""")
+    return {"corrections": [dict(r) for r in rows]}
+
+
+class NameIn(BaseModel):
+    lang: str = Field(pattern="^(en|ar)$")
+    wrong: str = Field(min_length=2, max_length=60)
+    correct: str = Field(min_length=1, max_length=80)
+    scope: Optional[str] = Field(default=None, pattern=r"^([A-Z]{2}([0-9]{2}){0,3}|[A-Z][0-9]{3,7})$")   # an area, or one place
+    reason: str = Field(min_length=3, max_length=300)
+
+
+@platform.post("/names", status_code=201)
+async def set_name(body: NameIn, request: Request, pr: Principal = Depends(require_portal("PLATFORM"))):
+    """A word of the published names written otherwise, in the areas under scope (the country when none): applied at
+    once to every name that carries it, and again after each load."""
+    _need(pr)
+    async with db.transaction(context_for(request, pr)) as conn:
+        changed = await conn.fetchval("SELECT ref.set_name_correction($1, $2, $3, $4, $5)", body.lang, body.wrong.strip(),
+                                      body.correct.strip(), body.scope, body.reason)
+    request.state.audit = {"action": "geo.name", "object_type": "name_correction",
+                           "reason": f"{body.wrong} -> {body.correct} in {body.scope or 'all'}"[:120]}
+    return {"changed": changed}
+
+
+@platform.delete("/names/{correction_id}")
+async def remove_name(correction_id: int, request: Request, pr: Principal = Depends(require_portal("PLATFORM"))):
+    _need(pr)
+    async with db.transaction(context_for(request, pr)) as conn:
+        changed = await conn.fetchval("SELECT ref.remove_name_correction($1)", correction_id)
+    request.state.audit = {"action": "geo.name_remove", "object_type": "name_correction", "object_id": correction_id}
+    return {"changed": changed}
+

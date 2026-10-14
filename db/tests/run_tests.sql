@@ -3796,4 +3796,34 @@ SELECT pg_temp.ok(:'reviewed' = 'ACTIVE' AND (SELECT reviewed_by FROM ref.place 
 ROLLBACK;
 SET ROLE masslak_app;
 
+-- Corrected names (1127): the spellings accepted locally and internationally, each where it holds
+SELECT pg_temp.ok(ref.corrected('Tadmor', 'en', 'SY040500', 'C2889') = 'Palmyra'
+                  AND ref.corrected('Tadmor', 'en', 'SY040500', NULL) = 'Tadmor'
+                  AND ref.corrected('Bab Tadmor (ne)', 'en', 'SY040100', 'N0252') = 'Bab Tadmor (ne)',
+  'Corrected names (1127): Palmyra is the city of Tadmor alone; its district and the Homs gate keep the name');
+SELECT pg_temp.ok(ref.corrected('Kita (Quamishli)', 'en', 'SY080200', 'C4536') = 'Kita (Qamishli)'
+                  AND ref.corrected('Quamishli', 'en', 'SY0802') = 'Qamishli'
+                  AND ref.corrected('Lattakia', 'en', 'SY060000', 'C3480') = 'Latakia'
+                  AND ref.corrected('Idleb', 'en', 'SY07') = 'Idlib',
+  'Corrected names (1127): Qamishli, Latakia, Idlib wherever the published names carry them');
+BEGIN;
+RESET ROLE;
+INSERT INTO ref.admin_area (pcode, country_code, level, name_en, name_ar) VALUES ('SY93', 'SY', 1, 'Test Lattakia', 'Test') RETURNING id AS k1 \gset
+SELECT pg_temp.ok((SELECT name_en FROM ref.admin_area WHERE id = :k1) = 'Test Latakia'
+                  AND (SELECT published_en FROM ref.admin_area WHERE id = :k1) = 'Test Lattakia',
+  'Corrected names (1127): a name is kept as published and shown corrected');
+SET LOCAL ROLE masslak_app;
+SELECT sys.set_context(:ua, :ca, 'COMPANY');
+SELECT pg_temp.expect_error($$SELECT ref.set_name_correction('en', 'Test', 'Trial', 'SY93', 'a carrier tries')$$,
+  'FORBIDDEN', 'Corrected names (1127): only the platform corrects names');
+SELECT sys.set_context(:uadmin, NULL, 'SYSTEM');
+SELECT ref.set_name_correction('en', 'Test', 'Trial', 'SY93', 'checking a correction') AS renamed \gset
+SELECT pg_temp.ok(:renamed >= 1 AND (SELECT name_en FROM ref.admin_area WHERE id = :k1) = 'Trial Latakia',
+  'Corrected names (1127): a correction set by the platform applies at once');
+SELECT ref.remove_name_correction((SELECT id FROM ref.name_correction WHERE wrong = 'Test' AND status = 'ACTIVE')) AS restored \gset
+SELECT pg_temp.ok((SELECT name_en FROM ref.admin_area WHERE id = :k1) = 'Test Latakia',
+  'Corrected names (1127): a correction removed gives the published name back');
+ROLLBACK;
+SET ROLE masslak_app;
+
 \echo '=== ALL TESTS PASSED ==='

@@ -96,6 +96,25 @@ The owner approved the next steps; migration `db/schema/1125_geography_in_use.sq
 - **New cities named everywhere.** The web and the app name the cities of the network from the server
   (`GET /api/geo/cities`), so a city opened from the geography reads in Arabic and English at once.
 
+## Corrected names (1127)
+
+The owner asked that names be written as they are known locally and internationally. Migration
+`db/schema/1127_place_name_corrections.sql`.
+
+- Each place and area keeps its name as published (`published_en`, `published_ar`); the name shown is the published
+  one with the platform's corrections (`ref.name_correction`): a word replaced by another, in English or Arabic, in the
+  names under an area (a district, a governorate), of one place, or in the whole country. A correction is applied at
+  once and again after every newer file, so it is never lost; the published name is still found by search, and the
+  cities of the network take their place's corrected name.
+- Set by the owner: Palmyra for the city of Tadmor alone (C2889; its district and sub-district stay Tadmor, and Bab
+  Tadmor, a neighbourhood of Homs named so, keeps its name); Qamishli in its district (the town, the district, the
+  sub-district and the villages named after it); the governorates as Latakia, Idlib, Al-Hasakah, Deir ez-Zor, Tartus,
+  Raqqa, Daraa and As-Suwayda wherever their names appear; and, each in its own area, Manbij, Azaz, Jisr al-Shughur,
+  Maarat al-Numan, Khan Shaykhun, Ras al-Ayn, Tell Abyad, Douma, Zabadani, Maaloula, Saydnaya, Bosra and Salamiyah.
+  On the real file: 182 places and 48 areas.
+- The platform manages them on the Geography page (Corrected names; `GET|POST /api/admin/geo/names`,
+  `DELETE /api/admin/geo/names/{id}`); removing one gives the published names back.
+
 ## Next steps
 
 - Loading the real boundaries file: the environment that built this could not reach the publisher; the platform loads

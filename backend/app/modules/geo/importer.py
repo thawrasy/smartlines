@@ -7,7 +7,8 @@ their positions (Location) and the areas of the cities the neighbourhoods are in
 
 read() checks the workbook and gathers it; load() writes it in the caller's transaction: what is new is added, what
 changed is updated, what a newer file no longer holds is retired (never deleted: stations may stand in it), and the
-cities of the network are linked to their places. The same file loaded again changes nothing.
+cities of the network are linked to their places. The same file loaded again changes nothing. The names are written as
+published; the platform's corrections of them (ref.name_correction, 1127) are applied after each load.
 """
 from __future__ import annotations
 
@@ -209,7 +210,7 @@ AREA_SQL = """
       FROM x
     ON CONFLICT (pcode) DO UPDATE SET parent_id = excluded.parent_id, name_en = excluded.name_en, name_ar = excluded.name_ar,
         ref_name = excluded.ref_name, valid_on = excluded.valid_on, source_id = excluded.source_id, status = 'ACTIVE'
-     WHERE (a.parent_id, a.name_en, a.name_ar, a.ref_name, a.valid_on, a.status)
+     WHERE (a.parent_id, a.published_en, a.published_ar, a.ref_name, a.valid_on, a.status)
            IS DISTINCT FROM (excluded.parent_id, excluded.name_en, excluded.name_ar, excluded.ref_name, excluded.valid_on, 'ACTIVE')
     RETURNING (xmax = 0) AS added"""
 
@@ -227,7 +228,7 @@ PLACE_SQL = """
         name_en = excluded.name_en, name_ar = excluded.name_ar, lat = excluded.lat, lng = excluded.lng,
         city_area_code = excluded.city_area_code, city_area_en = excluded.city_area_en, city_area_ar = excluded.city_area_ar,
         previous_pcode = excluded.previous_pcode, updated_on = excluded.updated_on, source_id = excluded.source_id, status = 'ACTIVE'
-     WHERE (p.kind, p.area_id, p.parent_place_id, p.name_en, p.name_ar, p.lat, p.lng, p.city_area_code, p.status)
+     WHERE (p.kind, p.area_id, p.parent_place_id, p.published_en, p.published_ar, p.lat, p.lng, p.city_area_code, p.status)
            IS DISTINCT FROM (excluded.kind, excluded.area_id, excluded.parent_place_id, excluded.name_en, excluded.name_ar,
                              excluded.lat, excluded.lng, excluded.city_area_code, 'ACTIVE')
     RETURNING (xmax = 0) AS added"""
@@ -279,6 +280,8 @@ async def load(conn: asyncpg.Connection, wb: Workbook, user_id: Optional[int], f
                        WHERE c.code = k.code AND c.place_id IS NULL
                          AND NOT EXISTS (SELECT 1 FROM ref.city o WHERE o.place_id = p.id) RETURNING 1)
            SELECT count(*) FROM l""", list(KNOWN_CITIES), list(KNOWN_CITIES.values()))
+    # the platform's corrections of the published names hold for the newer file too (1127)
+    await conn.fetchval("SELECT ref.apply_name_corrections()")
     report = wb.counts() | {"added": added, "updated": updated, "retired": retired, "cities_linked": linked}
     await conn.execute("UPDATE ref.geo_source SET counts = $2::jsonb WHERE id = $1", source, json.dumps(report))
     return {"already_loaded": False, "counts": report}
