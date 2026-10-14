@@ -368,6 +368,10 @@ const ar: Messages = {
     partOf: "جزء من رحلة متعددة", partOfHint: "الرحلة {leg} من الرحلة الكاملة؛ وكل رحلة حجز مستقل.",
   },
   chr: {
+    travellers: "المسافرون", travellersOf: "مسافرو {ref}",
+    travellersHint: "سمِّ من يسافر على كل مقعد استأجرته؛ كل اسم تذكرة في الرحلة.",
+    namedOf: "سُمّي {n} من {of} مقعدًا", seat: "المقعد", unnamed: "لم يُسمَّ بعد", takeOff: "ارفع الاسم", addTraveller: "أضف مسافرًا",
+    firstName: "الاسم", fatherName: "اسم الأب", grandfatherName: "اسم الجد", lastName: "الكنية",
     title: "استئجار باص أو رحلة", sub: "بطلب خاص: ناقلون يؤجّرون مركبة أو رحلة كاملة للمسافرين وفق شروطهم.",
     mine: "طلباتي", offers: "عروض الناقلين", noRequests: "لا توجد طلبات بعد.", noOffers: "لا يقدّم أي ناقل هذا للمسافرين بعد.",
     status: { REQUESTED: "مقدَّم", QUOTED: "مسعَّر", CONFIRMED: "مؤكَّد", COMPLETED: "منجز", DECLINED: "مرفوض", WITHDRAWN: "مسحوب", EXPIRED: "انتهى السعر", CANCELLED: "ملغى" },

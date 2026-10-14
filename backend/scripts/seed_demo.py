@@ -107,6 +107,16 @@ async def seed_finance(conn) -> bool:
     return added
 
 
+async def seed_geography(conn) -> bool:
+    """A geography officer, so the places surveyed in the field that the administrator proposes are reviewed by
+    someone else (1125)."""
+    if await conn.fetchval("SELECT 1 FROM iam.app_user WHERE email = 'geo@masslak.test'"):
+        return False
+    _, uid = await user(conn, "PERSON", "Geography Officer", "geo@masslak.test", "PLATFORM")
+    await conn.execute("INSERT INTO iam.user_role (user_id, role_id) SELECT $1, id FROM iam.role WHERE code = 'PLATFORM_GEOGRAPHY' AND company_id IS NULL", uid)
+    return True
+
+
 async def seed_counter(conn) -> bool:
     """A counter clerk of the demo carrier, who sells tickets for cash and collects pay-later reservations (1056)."""
     if await conn.fetchval("SELECT 1 FROM iam.app_user WHERE email = 'counter@carrier.test'"):
@@ -239,6 +249,7 @@ async def main():
             added = [what for what, done in (("agency", await seed_agency(conn)), ("seat layouts", await seed_layouts(conn)),
                                                     ("finance user", await seed_finance(conn)),
                                                     ("security officer", await seed_security(conn)),
+                                                    ("geography officer", await seed_geography(conn)),
                                                     ("counter clerk", await seed_counter(conn)),
                                                     ("family and manifest route", await seed_families(conn)),
                                                     ("charter offers", await seed_charter(conn))) if done]
@@ -374,6 +385,7 @@ async def main():
         await seed_layouts(conn)
         await seed_finance(conn)
         await seed_security(conn)
+        await seed_geography(conn)
 
         # Passenger with a funded wallet
         await conn.execute("SELECT sys.set_context(NULL, NULL, 'SYSTEM')")
@@ -396,7 +408,7 @@ async def main():
     for e, p in (("passenger@masslak.test", "PASSENGER"), ("owner@carrier.test", "OPERATOR"), ("counter@carrier.test", "OPERATOR"),
                  ("driver@carrier.test", "DRIVER"),
                  ("agency@agency.test", "AGENCY"), ("finance@masslak.test", "PLATFORM"), ("treasury@masslak.test", "PLATFORM"),
-                 ("security@masslak.test", "PLATFORM"), ("privacy@masslak.test", "PLATFORM"), ("privacy2@masslak.test", "PLATFORM"), ("admin@masslak.test", "PLATFORM"), ("regulator@masslak.test", "PLATFORM")):
+                 ("security@masslak.test", "PLATFORM"), ("privacy@masslak.test", "PLATFORM"), ("privacy2@masslak.test", "PLATFORM"), ("geo@masslak.test", "PLATFORM"), ("admin@masslak.test", "PLATFORM"), ("regulator@masslak.test", "PLATFORM")):
         print(f"  {e:28s} portal {p}")
 
 

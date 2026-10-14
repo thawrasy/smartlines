@@ -10,6 +10,7 @@
     POST  /api/carrier/charter/requests/{uid}/vehicle    the vehicle of a vehicle hire
     POST  /api/carrier/charter/requests/{uid}/complete   the service is done: the carrier is paid
     POST  /api/carrier/charter/requests/{uid}/cancel     a confirmed charter cancelled: refunded in full
+    GET   /api/carrier/charter/requests/{uid}/travellers the travellers named on a trip charter's seats (1126)
     Tourism company (booking.on_behalf), and a traveller by special request
     GET   /api/agency/charter/offers                     GET /api/charter/offers
     POST  /api/agency/charter/requests                   POST /api/charter/requests
@@ -17,6 +18,8 @@
     POST  /api/agency/charter/requests/{uid}/accept      POST /api/charter/requests/{uid}/accept      pays into escrow
     POST  /api/agency/charter/requests/{uid}/withdraw    POST /api/charter/requests/{uid}/withdraw
     POST  /api/agency/charter/requests/{uid}/cancel      POST /api/charter/requests/{uid}/cancel      refunded as the offer says
+    GET|POST /api/agency/charter/requests/{uid}/travellers               the travellers on the seats (1126)
+    DELETE   /api/agency/charter/requests/{uid}/travellers/{ticket_no}   (and the same under /api/charter)
     Platform
     GET   /api/admin/charter/requests                    every carrier's requests (report.platform)
     GET   /api/admin/charter/commission                  PUT the platform's commission (policy.matrix)
@@ -136,6 +139,14 @@ async def complete(uid: uuid.UUID, request: Request, pr: Principal = Depends(req
     return _audit(request, "charter.complete", out)
 
 
+@carrier.get("/requests/{uid}/travellers")
+async def carrier_travellers(uid: uuid.UUID, request: Request, pr: Principal = Depends(require_portal("OPERATOR"))):
+    """The travellers named on the seats of a charter (1126); they are on the trip's manifest as well."""
+    company = _carrier(pr)
+    async with db.transaction(context_for(request, pr)) as conn:
+        return await charter.travellers_view(conn, uid, company_id=company)
+
+
 @carrier.post("/requests/{uid}/cancel")
 async def carrier_cancel(uid: uuid.UUID, body: ReasonIn, request: Request, pr: Principal = Depends(require_portal("OPERATOR"))):
     company = _carrier(pr)
@@ -207,6 +218,28 @@ def _customer_routes(router: APIRouter, portal: str, who) -> None:
         async with db.transaction(ctx) as conn:
             out = await charter.cancel(conn, ctx, uid, pr.user_id, body.reason, who=c)
         return _audit(request, "charter.cancel", out)
+
+    @router.get("/requests/{uid}/travellers")
+    async def travellers(uid: uuid.UUID, request: Request, pr: Principal = Depends(require_portal(portal))):
+        c = who(pr)
+        async with db.transaction(context_for(request, pr)) as conn:
+            return await charter.travellers_view(conn, uid, party_id=c.party_id)
+
+    @router.post("/requests/{uid}/travellers")
+    async def name(uid: uuid.UUID, body: charter.TravellersIn, request: Request, pr: Principal = Depends(require_portal(portal))):
+        c = who(pr)
+        ctx = context_for(request, pr)
+        async with db.transaction(ctx) as conn:
+            out = await charter.name_travellers(conn, ctx, c, uid, body)
+        return _audit(request, "charter.travellers", out)
+
+    @router.delete("/requests/{uid}/travellers/{ticket_no}")
+    async def unname(uid: uuid.UUID, ticket_no: str, request: Request, pr: Principal = Depends(require_portal(portal))):
+        c = who(pr)
+        ctx = context_for(request, pr)
+        async with db.transaction(ctx) as conn:
+            out = await charter.unname_traveller(conn, ctx, c, uid, ticket_no)
+        return _audit(request, "charter.traveller_off", out)
 
 
 _customer_routes(agency, "AGENCY", _agency)

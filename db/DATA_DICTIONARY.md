@@ -2,7 +2,7 @@
 
 > Generated from the built database (`db/tools/gen_docs.py`); do not edit by hand.
 
-**537 tables, 5631 columns, in 26 schemas.**
+**537 tables, 5643 columns, in 26 schemas.**
 
 Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant isolation (RLS) · 🧩 partitioned monthly · 🔒 append-only / change-protected
 
@@ -893,6 +893,8 @@ Governorates (1), districts (2) and sub-districts (3), with their United Nations
 | `source_id` | `bigint` | 🔗 `ref.geo_source`  |  |
 | `status` | `text` | ✱ | `'ACTIVE'::text` |
 | `updated_at` | `timestamp with time zone` | ✱ | `now()` |
+| `boundary` | `gis.geometry(MultiPolygon,4326)` |  |  |
+| `boundary_source_id` | `bigint` | 🔗 `ref.geo_source`  |  |
 
 ### `ref.cargo_category` 🛡️
 
@@ -1005,6 +1007,7 @@ Each load of the administrative geography: the publisher, the file and its hash,
 | `counts` | `jsonb` | ✱ | `'{}'::jsonb` |
 | `imported_by` | `bigint` | 🔗 `iam.app_user`  |  |
 | `imported_at` | `timestamp with time zone` | ✱ | `now()` |
+| `content` | `text` | ✱ | `'PLACES'::text` |
 
 ### `ref.locale` 🛡️
 
@@ -1071,6 +1074,13 @@ Communities (cities, towns, villages) and the neighbourhoods of cities, with the
 | `source_id` | `bigint` | 🔗 `ref.geo_source`  |  |
 | `status` | `text` | ✱ | `'ACTIVE'::text` |
 | `updated_at` | `timestamp with time zone` | ✱ | `now()` |
+| `proposed_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `proposed_at` | `timestamp with time zone` |  |  |
+| `surveyed_on` | `date` |  |  |
+| `survey_note` | `text` |  |  |
+| `reviewed_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `reviewed_at` | `timestamp with time zone` |  |  |
+| `review_note` | `text` |  |  |
 
 ### `ref.seed_version` 🛡️
 
@@ -3822,6 +3832,7 @@ Booking: price snapshot, channel, allocation tree and idempotency key; statuses 
 | `journey_uid` | `uuid` |  |  |
 | `journey_kind` | `text` |  |  |
 | `journey_leg` | `smallint` |  |  |
+| `charter_request_id` | `bigint` | 🔗 `sales.charter_request`  |  |
 
 ### `sales.booking_key` 🛡️
 
@@ -4076,6 +4087,7 @@ The seats of a scheduled trip a confirmed whole-trip request took off sale (BLOC
 | `from_seq` | `smallint` | ✱ |  |
 | `to_seq` | `smallint` | ✱ |  |
 | `released_at` | `timestamp with time zone` |  |  |
+| `ticket_id` | `bigint` | 🔗 `sales.ticket`  |  |
 
 ### `sales.entry_rule` 🛡️
 

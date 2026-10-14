@@ -200,35 +200,88 @@ async def all_stations(request: Request, pr: Principal = Depends(platform)):
     async with db.transaction(context_for(request, pr)) as conn:
         recs = await conn.fetch(
             """SELECT s.uid, s.code, s.name, s.station_class, s.status, c.code AS city_code, s.lat, s.lng,
-                      op.legal_name AS owner_name
+                      op.legal_name AS owner_name, p.pcode AS place_pcode, p.name_en AS place_en, p.name_ar AS place_ar
                  FROM net.station s JOIN ref.city c ON c.id = s.city_id LEFT JOIN iam.party op ON op.id = s.owner_company_id
+                 LEFT JOIN ref.place p ON p.id = s.place_id
                 ORDER BY s.code""")
     return {"stations": rows(recs)}
 
 
+async def _station_place(conn, pcode: Optional[str], city_code: Optional[str]):
+    """The place a station stands in (1125): an active community or neighbourhood. The city of the network is the
+    place's own when its community is open for routes, else the one given; a station of a city stands in that city's
+    governorate."""
+    place = None
+    if pcode:
+        place = await conn.fetchrow(
+            """SELECT p.id, p.lat, p.lng, k.code AS served, g.id AS governorate
+                 FROM ref.place p
+                 LEFT JOIN ref.city k ON k.place_id = coalesce(p.parent_place_id, p.id)
+                 JOIN ref.admin_area s ON s.id = p.area_id JOIN ref.admin_area d ON d.id = s.parent_id JOIN ref.admin_area g ON g.id = d.parent_id
+                WHERE p.pcode = $1 AND p.status = 'ACTIVE'""", pcode)
+        if place is None:
+            raise ApiError(422, "PLACE_UNKNOWN", "no active place with this code", place=pcode)
+    code = city_code or (place["served"] if place else None)
+    if code is None:
+        raise ApiError(422, "CITY_REQUIRED", "the place is not in a city open for routes: open it, or name the city")
+    city = await conn.fetchrow(
+        """SELECT c.id, c.code, c.country_code,
+                  (SELECT g.id FROM ref.place p JOIN ref.admin_area s ON s.id = p.area_id JOIN ref.admin_area d ON d.id = s.parent_id
+                     JOIN ref.admin_area g ON g.id = d.parent_id WHERE p.id = c.place_id) AS governorate
+             FROM ref.city c WHERE c.code = $1""", code)
+    if city is None:
+        raise not_found("city")
+    if place and city["governorate"] and place["governorate"] != city["governorate"]:
+        raise ApiError(422, "PLACE_NOT_IN_CITY", "the place is in another governorate than the city", place=pcode, city=code)
+    return city, place
+
+
 class StationIn(BaseModel):
-    city_code: str = Field(pattern=r"^[A-Z]{3}$")
+    city_code: Optional[str] = Field(default=None, pattern=r"^[A-Z]{3}$")
+    place: Optional[str] = Field(default=None, pattern=r"^[A-Z][0-9]{3,7}$")     # the community or neighbourhood (1125)
     number: int = Field(ge=1, le=999)
     name: str = Field(min_length=3, max_length=160)
     address: Optional[str] = None
-    lat: float = Field(ge=-90, le=90)
-    lng: float = Field(ge=-180, le=180)
+    lat: Optional[float] = Field(default=None, ge=-90, le=90)                   # the place's position when not given
+    lng: Optional[float] = Field(default=None, ge=-180, le=180)
 
 
 @router.post("/stations", status_code=201)
 async def add_central_station(body: StationIn, request: Request, pr: Principal = Depends(require_permission("station.approve"))):
     async with db.transaction(context_for(request, pr)) as conn:
-        city = await conn.fetchrow("SELECT id, country_code FROM ref.city WHERE code = $1", body.city_code)
-        if city is None:
-            raise not_found("city")
-        code = f"{city['country_code']}-{body.city_code}-C{body.number:03d}"
+        city, place = await _station_place(conn, body.place, body.city_code)
+        lat = body.lat if body.lat is not None else (float(place["lat"]) if place else None)
+        lng = body.lng if body.lng is not None else (float(place["lng"]) if place else None)
+        if lat is None or lng is None:
+            raise ApiError(422, "POSITION_REQUIRED", "a station needs its position, or a place to take it from")
+        code = f"{city['country_code']}-{city['code']}-C{body.number:03d}"
         sid = await conn.fetchval(
             """INSERT INTO net.station (code, city_id, country_code, station_class, name, address, lat, lng, status,
-                 verified_by, verified_at)
-               VALUES ($1, $2, $3, 'CENTRAL', $4, $5, $6, $7, 'ACTIVE', $8, now()) RETURNING id""",
-            code, city["id"], city["country_code"], body.name.strip(), body.address, body.lat, body.lng, pr.user_id)
+                 verified_by, verified_at, place_id)
+               VALUES ($1, $2, $3, 'CENTRAL', $4, $5, $6, $7, 'ACTIVE', $8, now(), $9) RETURNING id""",
+            code, city["id"], city["country_code"], body.name.strip(), body.address, lat, lng, pr.user_id,
+            place["id"] if place else None)
     request.state.audit = {"action": "station.create", "object_type": "station", "object_id": sid}
     return {"code": code}
+
+
+class StationPlaceIn(BaseModel):
+    place: str = Field(pattern=r"^[A-Z][0-9]{3,7}$")
+
+
+@router.put("/stations/{station_uid}/place")
+async def set_station_place(station_uid: uuid.UUID, body: StationPlaceIn, request: Request,
+                            pr: Principal = Depends(require_permission("station.approve"))):
+    """Records the place an existing station stands in (1125), in the governorate of its city."""
+    async with db.transaction(context_for(request, pr)) as conn:
+        st = await conn.fetchrow(
+            "SELECT s.id, c.code AS city_code FROM net.station s JOIN ref.city c ON c.id = s.city_id WHERE s.uid = $1", station_uid)
+        if st is None:
+            raise not_found("station")
+        _, place = await _station_place(conn, body.place, st["city_code"])
+        await conn.execute("UPDATE net.station SET place_id = $2 WHERE id = $1", st["id"], place["id"])
+    request.state.audit = {"action": "station.place", "object_type": "station", "object_id": st["id"], "reason": body.place}
+    return {"place": body.place}
 
 
 # ------------------------------------------------------------------ agencies

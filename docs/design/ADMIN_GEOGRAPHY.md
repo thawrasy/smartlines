@@ -71,8 +71,33 @@ Al-Hasakah; Homs to Latakia, Damascus, Aleppo, Hama, Tartus, Idlib, Tadmor (Palm
 Damascus, Idlib, Latakia, Qamishli, Deir ez-Zor and Raqqa. Tadmor (`C2889`, Homs governorate) and Qamishli (`C4564`,
 written "Quamishli" in the file, Al-Hasakeh governorate) are opened for routes like any other community.
 
+## The geography in use (1125)
+
+The owner approved the next steps; migration `db/schema/1125_geography_in_use.sql`.
+
+- **Places surveyed in the field.** A place the United Nations file does not hold (a new village, a neighbourhood of a
+  town) is proposed by the platform (`ref.propose_place`, `POST /api/admin/geo/places`) with its sub-district (or its
+  city, for a neighbourhood), names in both languages, position, the day of the survey and what was found. It gets a
+  code of its own, `F` and five digits, apart from the United Nations' codes, so a newer United Nations file never
+  touches it. It is checked: in its sub-district (by the boundary when loaded, else near the area's places), and not a
+  like name within 2 km of a known place unless the surveyor says it is another place. It is used only once another
+  person of the platform accepts it (`ref.review_place`, four eyes); a rejection says why. The platform's geography
+  officers (role `PLATFORM_GEOGRAPHY`, permission `geo.manage`) do this apart from the administrators.
+- **Boundaries.** The same publisher's boundaries of governorates, districts and sub-districts (COD-AB, GeoJSON with
+  `ADM1_PCODE` to `ADM3_PCODE`) are loaded on the same page (`POST /api/admin/geo/boundaries`) onto
+  `ref.admin_area.boundary`; a file naming an unknown area, or holding a shape that is not a polygon, loads nothing;
+  the places lying more than 2 km outside their sub-district are reported. `GET /api/geo/areas/{pcode}/boundary` gives a
+  boundary for a map.
+- **Where a point lies.** `ref.locate` (`GET /api/geo/locate?lat=&lng=`) gives the sub-district holding a point and
+  the nearest places with their distance.
+- **Stations in their places.** The platform puts a new station in its place by searching a name, a code or a
+  position: its city and position follow from the place, and a station of a city stands in that city's governorate;
+  an existing station gets its place the same way (`PUT /api/admin/stations/{uid}/place`).
+- **New cities named everywhere.** The web and the app name the cities of the network from the server
+  (`GET /api/geo/cities`), so a city opened from the geography reads in Arabic and English at once.
+
 ## Next steps
 
-- Field surveys: places added by the platform with source `FIELD`, reviewed before they are used.
-- Choosing the place of a station by search when a carrier or the platform sets it up.
-- Boundaries (polygons) of governorates and districts, from the same publisher, for maps and reports by area.
+- Loading the real boundaries file: the environment that built this could not reach the publisher; the platform loads
+  it from the Geography page.
+- A map of an area with its places and stations, from the boundaries and positions now held.

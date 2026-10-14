@@ -21,7 +21,7 @@ from ..family import service as fam
 from ..fares import categories as cat
 from ..notify.outbox import emit
 from ..photo import service as photo
-from . import documents, options, penalties, repository as repo
+from . import charter, documents, options, penalties, repository as repo
 from .models import MAX_LOCKED_SEATS, BookingIn, HoldIn
 
 
@@ -625,7 +625,7 @@ async def cancel_trip(conn: asyncpg.Connection, ctx: db.Context, trip_id: int, u
         escrow = await platform_wallet(conn, "ESCROW", t["currency"])
         refunded, refund_total, reservations, penalized = 0, 0, 0, []
         for b in await conn.fetch("SELECT * FROM sales.booking WHERE trip_id = $1 AND status IN ('CONFIRMED','PENDING_PAYMENT') "
-                                  "ORDER BY id FOR UPDATE", trip_id):
+                                  "AND charter_request_id IS NULL ORDER BY id FOR UPDATE", trip_id):
             await repo.mark_cancelled(conn, b["id"], "CARRIER_CANCELLED")
             if b["status"] == "PENDING_PAYMENT":       # nothing was taken; any pending provider payment is stopped
                 await conn.execute(
@@ -660,6 +660,7 @@ async def cancel_trip(conn: asyncpg.Connection, ctx: db.Context, trip_id: int, u
                 "refund_to": _REFUND_TO.get(paid["wallet_type"] if paid else "", "WALLET"), "booker_user_id": b["booker_user_id"],
                 "agency_id": b["agency_id"], "counter": b["pay_option"] == "CASH_COUNTER" or None,
                 "contact_mobile": b["contact_mobile"]}, company_id=b["company_id"])
+        charters = await charter.cancel_on_trip(conn, trip_id, user_id)        # refunded in full, their seats freed (1126)
         await conn.execute("UPDATE sales.ticket SET status = 'CANCELLED' WHERE trip_id = $1 AND status = 'HOLD'", trip_id)
         await conn.execute("UPDATE ops.seat_lock SET released_at = now(), outcome = 'RELEASED' WHERE trip_id = $1 AND released_at IS NULL",
                            trip_id)
@@ -675,7 +676,7 @@ async def cancel_trip(conn: asyncpg.Connection, ctx: db.Context, trip_id: int, u
         # a penalty on the carrier only where the regulators impose one and the platform turned it on (1106)
         penalty = await penalties.charge(conn, t, penalized, user_id)
     return {"ok": True, "trip_no": t["trip_no"], "bookings_refunded": refunded, "refund_total": refund_total,
-            "reservations_cancelled": reservations, "currency": t["currency"], "penalty": penalty}
+            "reservations_cancelled": reservations, "charters_cancelled": charters, "currency": t["currency"], "penalty": penalty}
 
 
 async def booking_view(conn: asyncpg.Connection, ctx: db.Context, b: asyncpg.Record) -> dict:
@@ -773,6 +774,8 @@ async def cancel_booking(conn: asyncpg.Connection, ctx: db.Context, b: asyncpg.R
     """
     if b["status"] != "CONFIRMED" or b["trip_status"] not in ("PUBLISHED",):
         raise ApiError(409, "CANNOT_CANCEL", "this booking can no longer be cancelled")
+    if await conn.fetchval("SELECT charter_request_id FROM sales.booking WHERE id = $1", b["id"]):
+        raise ApiError(409, "CHARTER_BOOKING", "the travellers of a charter are taken off its list, and the charter is cancelled as a whole")
     async with db.system_scope(conn, ctx):
         tickets = await repo.tickets_for_cancel(conn, b["id"])
         if any(t["status"] != "ISSUED" for t in tickets):

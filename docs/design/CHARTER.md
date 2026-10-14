@@ -66,3 +66,21 @@ Every money movement is a ledger transaction naming the request (`CHARTER_PAY`, 
   (the seats are held; the carrier receives the passenger list as its policy says).
 - Several vehicles of a vehicle hire named one by one, and a vehicle hire placed on the vehicle's schedule.
 - Paying a charter by card, instalments or in parts (a deposit, then the rest).
+
+## The travellers on a block of seats (1126)
+
+Owner's decision on the next steps; migration `db/schema/1126_charter_passengers.sql`.
+
+- Whoever hired seats of a scheduled trip (a block or the whole trip) names the travellers on them, on the web
+  (Travellers, on a confirmed request) or in the app, until the trip leaves: a seat of the block they choose, or the
+  next free one. A Syrian traveller gives the four parts of the name; a document number is stored encrypted, as for any
+  booking.
+- Each name is a ticket of the trip on a booking of the charter (`sales.booking.charter_request_id`), already paid by
+  the charter (an amount of nothing, no invoice of its own): the travellers are on the carrier's list and the
+  manifest the authorities receive, and board by ticket like anyone else. The carrier sees the list on the request.
+- A name taken off cancels its ticket and puts the seat back in the block (still off sale). The booking is not
+  cancelled or refunded on its own (`CHARTER_BOOKING`): the charter is, and its release cancels the tickets and frees
+  every seat (`sales.charter_release_seats`).
+- A trip the carrier cancels now cancels the charters holding its seats, each refunded in full.
+- Babies on a lap are arranged with the carrier; each traveller named here has a seat.
+

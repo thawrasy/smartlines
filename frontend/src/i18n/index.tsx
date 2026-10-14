@@ -21,6 +21,14 @@ export const zone = () => currentZone;
 
 type Vars = Record<string, string | number>;
 
+// The names of the cities of the network as the server knows them (GET /api/geo/cities, 1125): a city opened for routes
+// from the administrative geography is named in both languages at once, without a message key of its own
+let cityNames: Record<string, { en: string; ar: string }> = {};
+function cityName(messages: Messages, locale: string, code: string) {
+  const known = cityNames[code];
+  return lookup(messages, `city.${code}`) ?? (known ? (locale === "ar" ? known.ar : known.en) : undefined) ?? code;
+}
+
 function lookup(messages: Messages, key: string): string | undefined {
   let node: unknown = messages;
   for (const part of key.split(".")) {
@@ -40,7 +48,7 @@ function stationName(messages: Messages, code: string | null | undefined, fallba
   const m = code ? /^SY-([A-Z]{3})-C(\d{3})$/.exec(code) : null;
   if (!m) return fallback;
   const n = Number(m[2]);
-  const city = lookup(messages, `city.${m[1]}`) ?? m[1];
+  const city = cityName(messages, messages === ar ? "ar" : "en", m[1]);
   const key = n === 1 ? "station.central" : "station.numbered";
   return format(lookup(messages, key) ?? lookup(en, key) ?? key, { city, n });
 }
@@ -52,7 +60,7 @@ export function translator(l: Locale) {
     locale: l, dir: cfg.dir, intl: cfg.intl,
     t: (key: string, vars?: Vars) => format(lookup(cfg.messages, key) ?? lookup(en, key) ?? key, vars),
     has: (key: string) => lookup(cfg.messages, key) !== undefined,
-    city: (code: string) => lookup(cfg.messages, `city.${code}`) ?? code,
+    city: (code: string) => cityName(cfg.messages, l, code),
     station: (code: string | null | undefined, fallback: string) => stationName(cfg.messages, code, fallback),
   };
 }
@@ -103,6 +111,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   const [locale, setLocaleState] = useState<Locale>(initialLocale);
   const [market, setMarketState] = useState<Market>(FIRST_MARKET);
   const [known, setKnown] = useState<Record<string, number>>({ [FIRST_MARKET.currency]: FIRST_MARKET.minor_unit });
+  const [namesVersion, setNamesVersion] = useState(0);
   const userMarket = useRef(false);                 // the signed-in user's market wins over the default
   const cfg = LOCALES[locale];
   const apply = useCallback((m: Market) => {
@@ -123,6 +132,16 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   }, [apply]);
 
   useEffect(() => {
+    let live = true;
+    fetch("/api/geo/cities", { headers: { "X-Masslak-Client": "web" } }).then((r) => (r.ok ? r.json() : null)).then((d) => {
+      if (!live || !d) return;
+      cityNames = Object.fromEntries((d.cities as { code: string; name_en: string; name_ar: string }[]).map((c) => [c.code, { en: c.name_en, ar: c.name_ar }]));
+      setNamesVersion((v) => v + 1);
+    }).catch(() => {});
+    return () => { live = false; };
+  }, []);
+
+  useEffect(() => {
     document.documentElement.lang = locale;
     document.documentElement.dir = cfg.dir;
     document.title = cfg.messages.app.name;
@@ -137,7 +156,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
     const t = (key: string, vars?: Vars) => format(lookup(cfg.messages, key) ?? lookup(en, key) ?? key, vars);
     const nf = new Intl.NumberFormat(cfg.intl, { maximumFractionDigits: 0 });
     const toDate = (v: string | Date) => (typeof v === "string" ? new Date(v) : v);
-    const city = (code: string) => lookup(cfg.messages, `city.${code}`) ?? code;
+    const city = (code: string) => cityName(cfg.messages, locale, code);
     return {
       locale, dir: cfg.dir, intl: cfg.intl, setLocale, t,
       has: (key) => lookup(cfg.messages, key) !== undefined,
@@ -161,7 +180,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
       station: (code, fallback) => stationName(cfg.messages, code, fallback),
       duration: (minutes) => t("common.duration", { h: Math.floor(minutes / 60), m: minutes % 60 }),
     };
-  }, [locale, cfg, setLocale, market, known, setMarket]);
+  }, [locale, cfg, setLocale, market, known, setMarket, namesVersion]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

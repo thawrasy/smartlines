@@ -58,6 +58,27 @@
     "200": {}
    }
   },
+  "DELETE /api/agency/charter/requests/{uid}/travellers/{ticket_no}": {
+   "body": null,
+   "parameters": {
+    "path:ticket_no": {
+     "required": true,
+     "schema": {
+      "type": "string"
+     }
+    },
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
   "DELETE /api/agency/holds/{hold_token}": {
    "body": null,
    "parameters": {
@@ -77,6 +98,27 @@
    "body": null,
    "parameters": {
     "path:hold_token": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "DELETE /api/charter/requests/{uid}/travellers/{ticket_no}": {
+   "body": null,
+   "parameters": {
+    "path:ticket_no": {
+     "required": true,
+     "schema": {
+      "type": "string"
+     }
+    },
+    "path:uid": {
      "required": true,
      "schema": {
       "format": "uuid",
@@ -620,6 +662,13 @@
     "200": {}
    }
   },
+  "GET /api/admin/geo/proposed": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
   "GET /api/admin/kyc": {
    "body": null,
    "parameters": {
@@ -962,6 +1011,21 @@
     "200": {}
    }
   },
+  "GET /api/agency/charter/requests/{uid}/travellers": {
+   "body": null,
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
   "GET /api/agency/dashboard": {
    "body": null,
    "parameters": {},
@@ -1132,6 +1196,21 @@
        "CANCELLED"
       ],
       "nullable": true,
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/carrier/charter/requests/{uid}/travellers": {
+   "body": null,
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
       "type": "string"
      }
     }
@@ -1546,6 +1625,21 @@
     "200": {}
    }
   },
+  "GET /api/charter/requests/{uid}/travellers": {
+   "body": null,
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
   "GET /api/company/documents": {
    "body": null,
    "parameters": {},
@@ -1722,6 +1816,69 @@
       "nullable": true,
       "pattern": "^[A-Z]{2}([0-9]{2}){0,3}$",
       "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/geo/areas/{pcode}/boundary": {
+   "body": null,
+   "parameters": {
+    "path:pcode": {
+     "required": true,
+     "schema": {
+      "type": "string"
+     }
+    },
+    "query:detail": {
+     "required": false,
+     "schema": {
+      "default": 0.002,
+      "maximum": 0.05,
+      "minimum": 0,
+      "type": "number"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/geo/cities": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/geo/locate": {
+   "body": null,
+   "parameters": {
+    "query:lat": {
+     "required": true,
+     "schema": {
+      "maximum": 90,
+      "minimum": -90,
+      "type": "number"
+     }
+    },
+    "query:limit": {
+     "required": false,
+     "schema": {
+      "default": 5,
+      "maximum": 20,
+      "minimum": 1,
+      "type": "integer"
+     }
+    },
+    "query:lng": {
+     "required": true,
+     "schema": {
+      "maximum": 180,
+      "minimum": -180,
+      "type": "number"
      }
     }
    },
@@ -4814,6 +4971,29 @@
     "200": {}
    }
   },
+  "POST /api/admin/geo/boundaries": {
+   "body": {
+    "content": {
+     "multipart/form-data": {
+      "properties": {
+       "file": {
+        "contentMediaType": "application/octet-stream",
+        "type": "string"
+       }
+      },
+      "required": [
+       "file"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
   "POST /api/admin/geo/import": {
    "body": {
     "content": {
@@ -4833,6 +5013,111 @@
     "required": true
    },
    "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/admin/geo/places": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "city": {
+        "nullable": true,
+        "pattern": "^[A-Z][0-9]{3,7}$",
+        "type": "string"
+       },
+       "kind": {
+        "pattern": "^(COMMUNITY|NEIGHBOURHOOD)$",
+        "type": "string"
+       },
+       "lat": {
+        "maximum": 90.0,
+        "minimum": -90.0,
+        "type": "number"
+       },
+       "lng": {
+        "maximum": 180.0,
+        "minimum": -180.0,
+        "type": "number"
+       },
+       "name_ar": {
+        "maxLength": 160,
+        "minLength": 2,
+        "type": "string"
+       },
+       "name_en": {
+        "maxLength": 160,
+        "minLength": 2,
+        "type": "string"
+       },
+       "not_duplicate": {
+        "default": false,
+        "type": "boolean"
+       },
+       "note": {
+        "maxLength": 1000,
+        "nullable": true,
+        "type": "string"
+       },
+       "sub_district": {
+        "nullable": true,
+        "pattern": "^[A-Z]{2}[0-9]{6}$",
+        "type": "string"
+       },
+       "surveyed_on": {
+        "format": "date",
+        "type": "string"
+       }
+      },
+      "required": [
+       "kind",
+       "name_en",
+       "name_ar",
+       "lat",
+       "lng",
+       "surveyed_on"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "201": {}
+   }
+  },
+  "POST /api/admin/geo/places/{pcode}/review": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "accept": {
+        "type": "boolean"
+       },
+       "note": {
+        "maxLength": 500,
+        "nullable": true,
+        "type": "string"
+       }
+      },
+      "required": [
+       "accept"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:pcode": {
+     "required": true,
+     "schema": {
+      "type": "string"
+     }
+    }
+   },
    "responses": {
     "200": {}
    }
@@ -5944,17 +6229,20 @@
         "type": "string"
        },
        "city_code": {
+        "nullable": true,
         "pattern": "^[A-Z]{3}$",
         "type": "string"
        },
        "lat": {
         "maximum": 90.0,
         "minimum": -90.0,
+        "nullable": true,
         "type": "number"
        },
        "lng": {
         "maximum": 180.0,
         "minimum": -180.0,
+        "nullable": true,
         "type": "number"
        },
        "name": {
@@ -5966,14 +6254,16 @@
         "maximum": 999.0,
         "minimum": 1.0,
         "type": "integer"
+       },
+       "place": {
+        "nullable": true,
+        "pattern": "^[A-Z][0-9]{3,7}$",
+        "type": "string"
        }
       },
       "required": [
-       "city_code",
        "number",
-       "name",
-       "lat",
-       "lng"
+       "name"
       ],
       "type": "object"
      }
@@ -6425,6 +6715,149 @@
       },
       "required": [
        "reason"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/agency/charter/requests/{uid}/travellers": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "travellers": {
+        "items": {
+         "properties": {
+          "birth_date": {
+           "format": "date",
+           "nullable": true,
+           "type": "string"
+          },
+          "category": {
+           "enum": [
+            "ADULT",
+            "CHILD",
+            "INFANT"
+           ],
+           "nullable": true,
+           "type": "string"
+          },
+          "family_member_uid": {
+           "format": "uuid",
+           "nullable": true,
+           "type": "string"
+          },
+          "father_name": {
+           "maxLength": 60,
+           "minLength": 1,
+           "nullable": true,
+           "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
+           "type": "string"
+          },
+          "first_name": {
+           "maxLength": 60,
+           "minLength": 1,
+           "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
+           "type": "string"
+          },
+          "gender": {
+           "enum": [
+            "M",
+            "F"
+           ],
+           "nullable": true,
+           "type": "string"
+          },
+          "grandfather_name": {
+           "maxLength": 60,
+           "minLength": 1,
+           "nullable": true,
+           "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
+           "type": "string"
+          },
+          "id_last4": {
+           "nullable": true,
+           "pattern": "^[0-9A-Za-z]{3,4}$",
+           "type": "string"
+          },
+          "id_no": {
+           "maxLength": 24,
+           "minLength": 4,
+           "nullable": true,
+           "pattern": "^[0-9A-Za-z \\-/]+$",
+           "type": "string"
+          },
+          "id_type": {
+           "enum": [
+            "NATIONAL_ID",
+            "PASSPORT",
+            "RESIDENCE",
+            "LAISSEZ_PASSER",
+            "TRAVEL_DOCUMENT",
+            "OTHER"
+           ],
+           "nullable": true,
+           "type": "string"
+          },
+          "last_name": {
+           "maxLength": 60,
+           "minLength": 1,
+           "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
+           "type": "string"
+          },
+          "mobile": {
+           "nullable": true,
+           "pattern": "^\\+?[0-9]{8,15}$",
+           "type": "string"
+          },
+          "nationality": {
+           "default": "SY",
+           "pattern": "^[A-Z]{2}$",
+           "type": "string"
+          },
+          "passport_expiry": {
+           "format": "date",
+           "nullable": true,
+           "type": "string"
+          },
+          "seat_no": {
+           "nullable": true,
+           "type": "integer"
+          },
+          "with_adult": {
+           "maximum": 120.0,
+           "minimum": 1.0,
+           "nullable": true,
+           "type": "integer"
+          }
+         },
+         "required": [
+          "first_name",
+          "last_name"
+         ],
+         "type": "object"
+        },
+        "maxItems": 99,
+        "minItems": 1,
+        "type": "array"
+       }
+      },
+      "required": [
+       "travellers"
       ],
       "type": "object"
      }
@@ -9625,6 +10058,149 @@
       },
       "required": [
        "reason"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/charter/requests/{uid}/travellers": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "travellers": {
+        "items": {
+         "properties": {
+          "birth_date": {
+           "format": "date",
+           "nullable": true,
+           "type": "string"
+          },
+          "category": {
+           "enum": [
+            "ADULT",
+            "CHILD",
+            "INFANT"
+           ],
+           "nullable": true,
+           "type": "string"
+          },
+          "family_member_uid": {
+           "format": "uuid",
+           "nullable": true,
+           "type": "string"
+          },
+          "father_name": {
+           "maxLength": 60,
+           "minLength": 1,
+           "nullable": true,
+           "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
+           "type": "string"
+          },
+          "first_name": {
+           "maxLength": 60,
+           "minLength": 1,
+           "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
+           "type": "string"
+          },
+          "gender": {
+           "enum": [
+            "M",
+            "F"
+           ],
+           "nullable": true,
+           "type": "string"
+          },
+          "grandfather_name": {
+           "maxLength": 60,
+           "minLength": 1,
+           "nullable": true,
+           "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
+           "type": "string"
+          },
+          "id_last4": {
+           "nullable": true,
+           "pattern": "^[0-9A-Za-z]{3,4}$",
+           "type": "string"
+          },
+          "id_no": {
+           "maxLength": 24,
+           "minLength": 4,
+           "nullable": true,
+           "pattern": "^[0-9A-Za-z \\-/]+$",
+           "type": "string"
+          },
+          "id_type": {
+           "enum": [
+            "NATIONAL_ID",
+            "PASSPORT",
+            "RESIDENCE",
+            "LAISSEZ_PASSER",
+            "TRAVEL_DOCUMENT",
+            "OTHER"
+           ],
+           "nullable": true,
+           "type": "string"
+          },
+          "last_name": {
+           "maxLength": 60,
+           "minLength": 1,
+           "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
+           "type": "string"
+          },
+          "mobile": {
+           "nullable": true,
+           "pattern": "^\\+?[0-9]{8,15}$",
+           "type": "string"
+          },
+          "nationality": {
+           "default": "SY",
+           "pattern": "^[A-Z]{2}$",
+           "type": "string"
+          },
+          "passport_expiry": {
+           "format": "date",
+           "nullable": true,
+           "type": "string"
+          },
+          "seat_no": {
+           "nullable": true,
+           "type": "integer"
+          },
+          "with_adult": {
+           "maximum": 120.0,
+           "minimum": 1.0,
+           "nullable": true,
+           "type": "integer"
+          }
+         },
+         "required": [
+          "first_name",
+          "last_name"
+         ],
+         "type": "object"
+        },
+        "maxItems": 99,
+        "minItems": 1,
+        "type": "array"
+       }
+      },
+      "required": [
+       "travellers"
       ],
       "type": "object"
      }
@@ -15178,6 +15754,37 @@
     "path:key": {
      "required": true,
      "schema": {
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "PUT /api/admin/stations/{station_uid}/place": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "place": {
+        "pattern": "^[A-Z][0-9]{3,7}$",
+        "type": "string"
+       }
+      },
+      "required": [
+       "place"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:station_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
       "type": "string"
      }
     }

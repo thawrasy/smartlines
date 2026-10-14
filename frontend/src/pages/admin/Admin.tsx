@@ -3,6 +3,7 @@ import { api, newKey } from "../../api";
 import { useI18n } from "../../i18n";
 import { useAuth } from "../../auth";
 import { PageHead } from "../../components/layout";
+import { PlacePicker, type PickedPlace } from "../../components/PlacePicker";
 import { CarrierName, Empty, ErrorBox, Field, Icon, Loaded, Modal, Stat, Status, useLoad, useToast } from "../../components/ui";
 
 interface Overview { carriers: number; carriers_pending: number; passengers: number; active_trips: number; bookings: number; gmv: number; stations: number }
@@ -10,7 +11,8 @@ interface Company {
   uid: string; legal_name: string; company_type: string; approval_status: string; created_at: string; code3: string | null;
   code2?: string | null; logo?: string | null; vehicles: number; trips: number;
 }
-interface AdminStation { uid: string; code: string; name: string; station_class: string; status: string; city_code: string; lat: number; lng: number; owner_name: string | null }
+interface AdminStation { uid: string; code: string; name: string; station_class: string; status: string; city_code: string; lat: number; lng: number; owner_name: string | null;
+  place_pcode: string | null; place_en: string | null; place_ar: string | null }
 
 export function AdminOverview() {
   const { t, num, money } = useI18n();
@@ -177,53 +179,88 @@ function CompanyIdentity({ company, onClose }: { company: Company; onClose: () =
 }
 
 export function AdminStations() {
-  const { t, station, city } = useI18n();
+  const { t, station, city, locale } = useI18n();
   const { can } = useAuth();
   const toast = useToast();
   const state = useLoad(() => api.get<{ stations: AdminStation[] }>("/api/admin/stations"));
+  // the cities of the network as the server knows them, including those opened from the geography (1125)
+  const cities = useLoad(() => api.get<{ cities: { code: string }[] }>("/api/geo/cities"));
   const [open, setOpen] = useState(false);
-  const blank = { city_code: "DAM", number: "2", name: "", address: "", lat: "", lng: "" };
+  const blank = { city_code: "", number: "2", name: "", address: "", lat: "", lng: "" };
   const [f, setF] = useState(blank);
+  const [place, setPlace] = useState<PickedPlace | null>(null);
+  const [placing, setPlacing] = useState<AdminStation | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const set = (k: keyof typeof blank) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setF({ ...f, [k]: e.target.value });
-  const cities = ["ALP", "DAM", "DRA", "DRZ", "HMA", "HMS", "HSK", "IDL", "LTK", "QNT", "RDM", "RQA", "SWD", "TRT"];
+  const close = () => { setOpen(false); setPlacing(null); setPlace(null); setError(null); };
   const submit = async () => {
     setBusy(true); setError(null);
     try {
-      await api.post("/api/admin/stations", { ...f, number: Number(f.number), lat: Number(f.lat), lng: Number(f.lng), address: f.address || null });
-      setOpen(false); setF(blank); toast(t("common.saved")); state.reload();
+      await api.post("/api/admin/stations", {
+        city_code: f.city_code || undefined, place: place?.pcode, number: Number(f.number), name: f.name, address: f.address || null,
+        lat: f.lat ? Number(f.lat) : undefined, lng: f.lng ? Number(f.lng) : undefined });
+      close(); setF(blank); toast(t("common.saved")); state.reload();
     } catch (e) { setError(e); } finally { setBusy(false); }
   };
+  const savePlace = async () => {
+    if (!placing || !place) return;
+    setBusy(true); setError(null);
+    try {
+      await api.put(`/api/admin/stations/${placing.uid}/place`, { place: place.pcode });
+      close(); toast(t("common.saved")); state.reload();
+    } catch (e) { setError(e); } finally { setBusy(false); }
+  };
+  const placeName = (s: AdminStation) => (locale === "ar" ? s.place_ar : s.place_en);
   return (
     <div className="stack">
       <PageHead title={t("admin.stations")}>
-        {can("station.approve") && <button className="btn" onClick={() => setOpen(true)}><Icon name="add" />{t("admin.newStation")}</button>}
+        {can("station.approve") && <button className="btn" onClick={() => { setOpen(true); setPlace(null); }}><Icon name="add" />{t("admin.newStation")}</button>}
       </PageHead>
       <Loaded state={state}>{({ stations }) => (
         <div className="table-wrap" tabIndex={0}><table className="table">
-          <thead><tr><th>{t("common.code")}</th><th>{t("common.station")}</th><th>{t("common.city")}</th><th>{t("common.type")}</th><th>{t("admin.lat")}, {t("admin.lng")}</th><th>{t("common.status")}</th></tr></thead>
+          <thead><tr><th>{t("common.code")}</th><th>{t("common.station")}</th><th>{t("common.city")}</th><th>{t("geo.place")}</th><th>{t("common.type")}</th><th>{t("admin.lat")}, {t("admin.lng")}</th><th>{t("common.status")}</th></tr></thead>
           <tbody>{stations.map((s) => (
-            <tr key={s.uid}><td className="mono small">{s.code}</td><td>{station(s.code, s.name)}</td><td>{city(s.city_code)}</td><td>{s.station_class}</td>
+            <tr key={s.uid}><td className="mono small">{s.code}</td><td>{station(s.code, s.name)}</td><td>{city(s.city_code)}</td>
+              <td>{s.place_pcode ? <span>{placeName(s)} <span className="mono small muted">{s.place_pcode}</span></span>
+                : can("station.approve") && <button className="btn text small" onClick={() => { setPlacing(s); setPlace(null); }}>{t("geo.setPlace")}</button>}</td>
+              <td>{s.station_class}</td>
               <td className="mono small ltr">{s.lat.toFixed(4)}, {s.lng.toFixed(4)}</td><td><Status value={s.status} /></td></tr>
           ))}</tbody>
         </table></div>
       )}</Loaded>
       {open && (
-        <Modal title={t("admin.newStation")} onClose={() => setOpen(false)}
-               actions={<><button className="btn text" onClick={() => setOpen(false)}>{t("common.cancel")}</button><button className="btn" disabled={busy} onClick={submit}>{t("common.save")}</button></>}>
+        <Modal title={t("admin.newStation")} onClose={close}
+               actions={<><button className="btn text" onClick={close}>{t("common.cancel")}</button><button className="btn" disabled={busy} onClick={submit}>{t("common.save")}</button></>}>
           <div className="stack">
             <ErrorBox error={error} />
+            <PlacePicker label={t("geo.stationPlace")} value={place} onPick={setPlace} />
+            <p className="small muted" style={{ margin: 0 }}>{t("geo.stationPlaceHint")}</p>
             <div className="grid cols-2">
-              <Field label={t("common.city")}><select className="input" value={f.city_code} onChange={set("city_code")}>{cities.map((c) => <option key={c} value={c}>{city(c)}</option>)}</select></Field>
+              <Field label={`${t("common.city")} (${t("common.optional")})`}>
+                <select className="input" value={f.city_code} onChange={set("city_code")}>
+                  <option value="">{place?.served ? city(place.served) : t("geo.cityOfPlace")}</option>
+                  {(cities.data?.cities ?? []).map((c) => <option key={c.code} value={c.code}>{city(c.code)}</option>)}
+                </select>
+              </Field>
               <Field label={t("admin.number")}><input className="input ltr" type="number" min={1} max={999} value={f.number} onChange={set("number")} /></Field>
             </div>
             <Field label={`${t("common.name")} (English)`}><input className="input ltr" value={f.name} onChange={set("name")} /></Field>
             <Field label={`${t("admin.address")} (${t("common.optional")})`}><input className="input" value={f.address} onChange={set("address")} /></Field>
             <div className="grid cols-2">
-              <Field label={t("admin.lat")}><input className="input ltr" type="number" step="0.0001" value={f.lat} onChange={set("lat")} /></Field>
-              <Field label={t("admin.lng")}><input className="input ltr" type="number" step="0.0001" value={f.lng} onChange={set("lng")} /></Field>
+              <Field label={`${t("admin.lat")} (${t("common.optional")})`}><input className="input ltr" type="number" step="0.0001" value={f.lat} placeholder={place ? String(place.lat) : ""} onChange={set("lat")} /></Field>
+              <Field label={`${t("admin.lng")} (${t("common.optional")})`}><input className="input ltr" type="number" step="0.0001" value={f.lng} placeholder={place ? String(place.lng) : ""} onChange={set("lng")} /></Field>
             </div>
+          </div>
+        </Modal>
+      )}
+      {placing && (
+        <Modal title={t("geo.setPlaceOf", { station: station(placing.code, placing.name) })} onClose={close}
+               actions={<><button className="btn text" onClick={close}>{t("common.cancel")}</button><button className="btn" disabled={busy || !place} onClick={savePlace}>{t("common.save")}</button></>}>
+          <div className="stack">
+            <ErrorBox error={error} />
+            <PlacePicker label={t("geo.stationPlace")} value={place} onPick={setPlace} />
+            <p className="small muted" style={{ margin: 0 }}>{t("geo.pickNear", { lat: placing.lat.toFixed(4), lng: placing.lng.toFixed(4) })}</p>
           </div>
         </Modal>
       )}

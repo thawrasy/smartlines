@@ -111,7 +111,7 @@ flowchart LR
   rail -->|2| net
   rail -->|2| ops
   rail -->|1| sales
-  ref -->|2| iam
+  ref -->|3| iam
   rent -->|1| crm
   rent -->|1| fin
   rent -->|3| fleet
@@ -624,6 +624,7 @@ erDiagram
     bigint parent_id FK
     bigint source_id FK
     text status
+    bigint boundary_source_id FK
   }
   ref_cargo_category {
     text code PK
@@ -676,6 +677,8 @@ erDiagram
     bigint parent_place_id FK
     bigint source_id FK
     text status
+    bigint proposed_by FK
+    bigint reviewed_by FK
   }
   ref_seed_version {
     bigint id PK
@@ -700,10 +703,12 @@ erDiagram
     ref external
   }
   ref_geo_source }o..o| iam_app_user : "imported_by"
+  ref_place }o..o| iam_app_user : "proposed_by"
   ref_file_object }o..o| iam_company : "company_id"
   ref_place }o--|| ref_admin_area : "area_id"
   ref_admin_area }o..o| ref_admin_area : "parent_id"
   ref_admin_area }o..o| ref_geo_source : "source_id"
+  ref_admin_area }o..o| ref_geo_source : "boundary_source_id"
   ref_place }o..o| ref_geo_source : "source_id"
   ref_market }o--|| ref_locale : "locale"
   ref_translation }o--|| ref_locale : "locale"
@@ -2166,6 +2171,7 @@ erDiagram
     bigint family_id FK
     bigint funded_by_party_id FK
     text pay_option FK
+    bigint charter_request_id FK
   }
   sales_booking_key {
     bigint booking_id PK
@@ -2263,6 +2269,7 @@ erDiagram
     bigint request_id PK
     bigint trip_id FK
     smallint seat_no PK
+    bigint ticket_id FK
   }
   sales_entry_rule {
     bigint id PK
@@ -2570,6 +2577,7 @@ erDiagram
   sales_channel_memo }o..o| sales_channel_statement : "statement_id"
   sales_charter_request }o--|| sales_charter_offer : "offer_id"
   sales_charter_seat }o--|| sales_charter_request : "request_id"
+  sales_booking }o..o| sales_charter_request : "charter_request_id"
   sales_ticket_doc }o..o| sales_entry_rule : "entry_rule_id"
   sales_shuttle_pass }o..o| sales_nfc_card : "nfc_card_id"
   sales_boarding_event }o..o| sales_nfc_card : "nfc_card_id"
@@ -2583,6 +2591,7 @@ erDiagram
   sales_ticket_doc }o--|| sales_ticket : "ticket_id"
   sales_boarding_event }o..o| sales_ticket : "ticket_id"
   sales_refund_request }o..o| sales_ticket : "ticket_id"
+  sales_charter_seat }o..o| sales_ticket : "ticket_id"
 ```
 
 ## `fin` — Wallets, ledger, payments, allocation, settlement and float

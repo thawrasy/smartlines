@@ -83,6 +83,9 @@ interface CustomerCalls {
   requests: (signal: AbortSignal) => Promise<{ requests: CharterRequest[] }>;
   ask: (body: unknown) => Promise<unknown>;
   act: (uid: string, what: "accept" | "withdraw" | "cancel", body?: unknown) => Promise<unknown>;
+  travellers: (uid: string) => Promise<Travellers>;
+  name: (uid: string, body: unknown) => Promise<Travellers>;
+  unname: (uid: string, ticket: string) => Promise<Travellers>;
 }
 // each channel's own addresses, written out in full
 const CALLS: Record<Who, CustomerCalls> = {
@@ -91,12 +94,18 @@ const CALLS: Record<Who, CustomerCalls> = {
     requests: (signal) => api.get("/api/agency/charter/requests", undefined, { signal }),
     ask: (body) => api.post("/api/agency/charter/requests", body),
     act: (uid, what, body) => api.post(`/api/agency/charter/requests/${uid}/${what}`, body),
+    travellers: (uid) => api.get(`/api/agency/charter/requests/${uid}/travellers`),
+    name: (uid, body) => api.post(`/api/agency/charter/requests/${uid}/travellers`, body),
+    unname: (uid, ticket) => api.del(`/api/agency/charter/requests/${uid}/travellers/${ticket}`),
   },
   traveller: {
     offers: (kind, signal) => api.get("/api/charter/offers", kind ? { kind } : undefined, { signal }),
     requests: (signal) => api.get("/api/charter/requests", undefined, { signal }),
     ask: (body) => api.post("/api/charter/requests", body),
     act: (uid, what, body) => api.post(`/api/charter/requests/${uid}/${what}`, body),
+    travellers: (uid) => api.get(`/api/charter/requests/${uid}/travellers`),
+    name: (uid, body) => api.post(`/api/charter/requests/${uid}/travellers`, body),
+    unname: (uid, ticket) => api.del(`/api/charter/requests/${uid}/travellers/${ticket}`),
   },
 };
 
@@ -289,6 +298,7 @@ function CustomerRequests({ calls, state }: { calls: CustomerCalls; state: Retur
   const toast = useToast();
   const [error, setError] = useState<unknown>(null);
   const [cancelling, setCancelling] = useState<CharterRequest | null>(null);
+  const [naming, setNaming] = useState<CharterRequest | null>(null);
   const [reason, setReason] = useState("");
   const act = async (r: CharterRequest, what: "accept" | "withdraw") => {
     setError(null);
@@ -317,12 +327,15 @@ function CustomerRequests({ calls, state }: { calls: CustomerCalls; state: Retur
               <td className="row" style={{ gap: 6, justifyContent: "flex-end" }}>
                 {r.status === "QUOTED" && <button className="btn filled small" onClick={() => act(r, "accept")}><Icon name="payments" />{t("chr.acceptPay")}</button>}
                 {["REQUESTED", "QUOTED"].includes(r.status) && <button className="btn text small" onClick={() => act(r, "withdraw")}>{t("chr.withdraw")}</button>}
+                {r.status === "CONFIRMED" && r.kind === "WHOLE_TRIP" && <button className="btn outlined small" onClick={() => setNaming(r)}><Icon name="badge" />{t("chr.travellers")}</button>}
                 {r.status === "CONFIRMED" && <button className="btn text small" onClick={() => { setCancelling(r); setReason(""); }}>{t("chr.cancel")}</button>}
               </td>
             </tr>
           ))}</tbody>
         </table></div>
       )}</Loaded>
+      {naming && <TravellersModal r={naming} load={() => calls.travellers(naming.uid)} name={(body) => calls.name(naming.uid, body)}
+                                  unname={(ticket) => calls.unname(naming.uid, ticket)} onClose={() => setNaming(null)} />}
       {cancelling && (
         <Modal title={t("chr.cancelTitle", { ref: cancelling.ref })} onClose={() => setCancelling(null)}
                actions={<button className="btn filled" disabled={reason.trim().length < 3} onClick={cancel}>{t("chr.cancel")}</button>}>
@@ -333,6 +346,92 @@ function CustomerRequests({ calls, state }: { calls: CustomerCalls; state: Retur
         </Modal>
       )}
     </div>
+  );
+}
+
+// ------------------------------------------------------------------ the travellers on a block of seats (1126)
+interface Seat { seat_no: number; ticket_no: string | null; ticket_status: string | null; full_name: string | null; nationality: string | null;
+  category: string | null; id_type: string | null; id_no_last4: string | null }
+interface Travellers { ref: string; status: string; booking_ref: string | null; seats: Seat[]; named: number }
+const PERSON = { nationality: "SY", first_name: "", father_name: "", grandfather_name: "", last_name: "", id_type: "NATIONAL_ID", id_no: "", seat_no: "" };
+
+/** The seats a trip charter holds and who travels on each: named by the customer, read by the carrier. Each name is a
+ * ticket of the trip, on its manifest; a name taken off frees the seat in the block. */
+function TravellersModal({ r, load, name, unname, onClose }: { r: CharterRequest; load: () => Promise<Travellers>;
+  name?: (body: unknown) => Promise<Travellers>; unname?: (ticket: string) => Promise<Travellers>; onClose: () => void }) {
+  const { t } = useI18n();
+  const toast = useToast();
+  const state = useLoad(() => load(), [r.uid]);
+  const [p, setP] = useState(PERSON);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<unknown>(null);
+  const set = (k: keyof typeof PERSON) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setP({ ...p, [k]: e.target.value });
+  const syrian = p.nationality === "SY";
+  const ready = p.first_name.trim() && p.last_name.trim() && (!syrian || (p.father_name.trim() && p.grandfather_name.trim()));
+  const add = async () => {
+    if (!name) return;
+    setBusy(true); setError(null);
+    try {
+      await name({ travellers: [{ nationality: p.nationality, first_name: p.first_name, father_name: p.father_name || undefined,
+        grandfather_name: p.grandfather_name || undefined, last_name: p.last_name, id_type: p.id_no ? p.id_type : undefined,
+        id_no: p.id_no || undefined, seat_no: p.seat_no ? Number(p.seat_no) : undefined }] });
+      toast(t("chr.travellerAdded")); setP(PERSON); state.reload();
+    } catch (e) { setError(e); } finally { setBusy(false); }
+  };
+  const remove = async (ticket: string) => {
+    if (!unname) return;
+    setError(null);
+    try { await unname(ticket); toast(t("chr.travellerRemoved")); state.reload(); } catch (e) { setError(e); }
+  };
+  return (
+    <Modal title={t("chr.travellersOf", { ref: r.ref })} onClose={onClose} wide>
+      <div className="stack">
+        <ErrorBox error={error} />
+        <p className="small muted" style={{ margin: 0 }}>{t(name ? "chr.travellersHint" : "chr.travellersCarrier")}</p>
+        <Loaded state={state}>{(d) => (
+          <>
+            <div className="row small" style={{ gap: 12 }}>
+              <span>{t("chr.namedOf", { n: d.named, of: d.seats.length })}</span>
+              {d.booking_ref && <span className="mono">{t("chr.bookingRef", { ref: d.booking_ref })}</span>}
+            </div>
+            <div className="table-wrap" tabIndex={0}><table className="table">
+              <thead><tr><th>{t("chr.seat")}</th><th>{t("chr.traveller")}</th><th>{t("chr.ticket")}</th><th /></tr></thead>
+              <tbody>{d.seats.map((x) => (
+                <tr key={x.seat_no}><td className="mono">{x.seat_no}</td>
+                  <td>{x.full_name ?? <span className="muted">{t("chr.unnamed")}</span>}{x.id_no_last4 && <div className="small muted">{x.id_type} ···{x.id_no_last4}</div>}</td>
+                  <td className="mono small">{x.ticket_no ?? "—"}</td>
+                  <td>{unname && x.ticket_no && x.ticket_status === "ISSUED" &&
+                    <button className="btn text small" onClick={() => remove(x.ticket_no!)}>{t("chr.takeOff")}</button>}</td></tr>
+              ))}</tbody>
+            </table></div>
+            {name && d.named < d.seats.length && (
+              <div className="card stack" style={{ padding: 12 }}>
+                <strong>{t("chr.addTraveller")}</strong>
+                <div className="grid cols-3">
+                  <Field label={t("chr.nationality")}><input className="input mono ltr" maxLength={2} value={p.nationality} onChange={(e) => setP({ ...p, nationality: e.target.value.toUpperCase() })} /></Field>
+                  <Field label={t("chr.seat")}>
+                    <select className="input" value={p.seat_no} onChange={set("seat_no")}>
+                      <option value="">{t("chr.anySeat")}</option>
+                      {d.seats.filter((x) => !x.ticket_no).map((x) => <option key={x.seat_no} value={x.seat_no}>{x.seat_no}</option>)}
+                    </select>
+                  </Field>
+                  <Field label={t("chr.idNo")}><input className="input ltr" value={p.id_no} onChange={set("id_no")} /></Field>
+                </div>
+                <div className="grid cols-4">
+                  <Field label={t("chr.firstName")}><input className="input" value={p.first_name} onChange={set("first_name")} /></Field>
+                  <Field label={syrian ? t("chr.fatherName") : `${t("chr.fatherName")} (${t("common.optional")})`}><input className="input" value={p.father_name} onChange={set("father_name")} /></Field>
+                  <Field label={syrian ? t("chr.grandfatherName") : `${t("chr.grandfatherName")} (${t("common.optional")})`}><input className="input" value={p.grandfather_name} onChange={set("grandfather_name")} /></Field>
+                  <Field label={t("chr.lastName")}><input className="input" value={p.last_name} onChange={set("last_name")} /></Field>
+                </div>
+                <div className="row" style={{ justifyContent: "flex-end" }}>
+                  <button className="btn filled" disabled={busy || !ready} onClick={add}><Icon name="person_add" />{t("chr.addTraveller")}</button>
+                </div>
+              </div>
+            )}
+          </>
+        )}</Loaded>
+      </div>
+    </Modal>
   );
 }
 
@@ -498,6 +597,7 @@ function CarrierRequests() {
   const [pricing, setPricing] = useState<CharterRequest | null>(null);
   const [q, setQ] = useState({ price: "", valid_hours: 48, note: "", vehicle_uid: "" });
   const [closing, setClosing] = useState<{ r: CharterRequest; how: "decline" | "cancel" } | null>(null);
+  const [listing, setListing] = useState<CharterRequest | null>(null);
   const [naming, setNaming] = useState<CharterRequest | null>(null);
   const [reason, setReason] = useState("");
   const [error, setError] = useState<unknown>(null);
@@ -533,6 +633,7 @@ function CarrierRequests() {
                   <button className="btn text small" onClick={() => { setClosing({ r, how: "decline" }); setReason(""); }}>{t("chr.decline")}</button>
                 </>}
                 {r.status === "CONFIRMED" && r.kind === "VEHICLE" && <button className="btn text small" onClick={() => setNaming(r)}>{t("chr.nameVehicle")}</button>}
+                {r.status === "CONFIRMED" && r.kind === "WHOLE_TRIP" && <button className="btn text small" onClick={() => setListing(r)}>{t("chr.travellers")}</button>}
                 {r.status === "CONFIRMED" && <button className="btn small" onClick={() => run(() => api.post(`/api/carrier/charter/requests/${r.uid}/complete`), "chr.completed")}>{t("chr.done")}</button>}
                 {r.status === "CONFIRMED" && <button className="btn text small" onClick={() => { setClosing({ r, how: "cancel" }); setReason(""); }}>{t("chr.cancel")}</button>}
               </td>
@@ -576,6 +677,8 @@ function CarrierRequests() {
           </div>
         </Modal>
       )}
+      {listing && <TravellersModal r={listing} load={() => api.get<Travellers>(`/api/carrier/charter/requests/${listing.uid}/travellers`)}
+                                   onClose={() => setListing(null)} />}
       {closing && (
         <Modal title={t(closing.how === "decline" ? "chr.declineTitle" : "chr.cancelTitle", { ref: closing.r.ref })} onClose={() => setClosing(null)}
                actions={<button className="btn filled" disabled={reason.trim().length < 3} onClick={async () => {

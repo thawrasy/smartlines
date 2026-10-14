@@ -3712,6 +3712,10 @@ SELECT pg_temp.ok(:first_block = 2 AND sales.charter_block_seats(:cr) = 2,
   'Charter (1123): a confirmed block takes its seats once');
 SELECT pg_temp.ok((SELECT count(*) FROM ops.seat_segment WHERE trip_id = :ct AND seg = 0 AND status = 'BLOCKED') = :blocked_before + 2,
   'Charter (1123): the seats of a confirmed block are off sale');
+SELECT pg_temp.expect_error(format($$SELECT sales.charter_seat_ticket(%s, (SELECT min(seat_no) FROM sales.charter_seat WHERE request_id = %s), 0)$$, :cr, :cr),
+  'CHARTER_SEAT', 'Charter travellers (1126): only a ticket of the charter''s own booking takes one of its seats');
+SELECT pg_temp.expect_error(format($$SELECT sales.charter_seat_unticket(%s, 0)$$, :cr),
+  'CHARTER_TICKET', 'Charter travellers (1126): only a traveller on the charter is taken off it');
 SELECT sales.charter_release_seats(:cr) AS released \gset
 SELECT pg_temp.ok(:released = 2 AND (SELECT count(*) FROM ops.seat_segment WHERE trip_id = :ct AND seg = 0 AND status = 'BLOCKED') = :blocked_before,
   'Charter (1123): a cancelled block puts its seats back on sale');
@@ -3754,6 +3758,41 @@ SELECT ref.serve_place('C9901', NULL) AS served_again \gset
 SELECT pg_temp.ok(:'served' = 'TTW' AND :'served_again' = 'TTW',
   'Geography (1124): a community opened for routes is a city of the network, once');
 SELECT pg_temp.ok((SELECT place_id FROM ref.city WHERE code = 'TTW') = :pl, 'Geography (1124): the city knows its place');
+ROLLBACK;
+SET ROLE masslak_app;
+
+-- Geography in use (1125): boundaries, where a point lies, places surveyed in the field under four eyes
+BEGIN;
+RESET ROLE;
+INSERT INTO ref.admin_area (pcode, country_code, level, name_en, name_ar) VALUES ('SY92', 'SY', 1, 'Test governorate', 'Test') RETURNING id AS h1 \gset
+INSERT INTO ref.admin_area (pcode, country_code, level, parent_id, name_en, name_ar) VALUES ('SY9200', 'SY', 2, :h1, 'Test district', 'Test') RETURNING id AS h2 \gset
+INSERT INTO ref.admin_area (pcode, country_code, level, parent_id, name_en, name_ar, boundary)
+VALUES ('SY920000', 'SY', 3, :h2, 'Test sub-district', 'Test',
+        gis.st_multi(gis.st_geomfromtext('POLYGON((37.4 34.4, 37.6 34.4, 37.6 34.6, 37.4 34.6, 37.4 34.4))', 4326))) RETURNING id AS h3 \gset
+INSERT INTO ref.place (pcode, kind, area_id, name_en, name_ar, lat, lng) VALUES ('C9902', 'COMMUNITY', :h3, 'Test village', 'Test', 34.5, 37.5);
+SELECT pg_temp.expect_error(format($$INSERT INTO ref.place (pcode, kind, area_id, name_en, name_ar, lat, lng, status) VALUES ('F99999', 'COMMUNITY', %s, 'X', 'X', 34.5, 37.5, 'PROPOSED')$$, :h3),
+  'check constraint', 'Geography (1125): a proposed place names who proposed it');
+SELECT pg_temp.ok((ref.locate(34.51, 37.51) ->> 'by_boundary')::boolean AND ref.locate(34.51, 37.51) #>> '{sub_district,pcode}' = 'SY920000'
+                  AND ref.locate(34.51, 37.51) #>> '{places,0,pcode}' = 'C9902',
+  'Geography (1125): a point lies in the sub-district whose boundary holds it, near its places');
+SET LOCAL ROLE masslak_app;
+SELECT sys.set_context(:ua, :ca, 'COMPANY');
+SELECT pg_temp.expect_error($$SELECT ref.propose_place('COMMUNITY', 'SY920000', NULL, 'New farm', 'Farm', 34.45, 37.45, current_date, NULL)$$,
+  'FORBIDDEN', 'Geography (1125): only the platform records places surveyed in the field');
+SELECT sys.set_context(:uadmin, NULL, 'SYSTEM');
+SELECT pg_temp.expect_error($$SELECT ref.propose_place('COMMUNITY', 'SY920000', NULL, 'Far farm', 'Farm', 33.0, 36.0, current_date, NULL)$$,
+  'PLACE_OUTSIDE_AREA', 'Geography (1125): a place surveyed lies in its sub-district');
+SELECT pg_temp.expect_error($$SELECT ref.propose_place('COMMUNITY', 'SY920000', NULL, 'Test village', 'Test', 34.501, 37.501, current_date, NULL)$$,
+  'PLACE_DUPLICATE', 'Geography (1125): a like name next to a known place is taken for that place');
+SELECT ref.propose_place('COMMUNITY', 'SY920000', NULL, 'New farm', 'Farm', 34.45, 37.45, current_date, 'four houses') AS farm \gset
+SELECT pg_temp.ok(:'farm' ~ '^F[0-9]{5}$' AND (SELECT status FROM ref.place WHERE pcode = :'farm') = 'PROPOSED',
+  'Geography (1125): a place surveyed is proposed with a code of its own');
+SELECT pg_temp.expect_error(format($$SELECT ref.review_place(%L, true, NULL)$$, :'farm'), 'FOUR_EYES',
+  'Geography (1125): who proposed a place does not accept it');
+SELECT sys.set_context(:ua, NULL, 'SYSTEM');
+SELECT ref.review_place(:'farm', true, 'seen') AS reviewed \gset
+SELECT pg_temp.ok(:'reviewed' = 'ACTIVE' AND (SELECT reviewed_by FROM ref.place WHERE pcode = :'farm') = :ua,
+  'Geography (1125): another person accepts it and it is used');
 ROLLBACK;
 SET ROLE masslak_app;
 

@@ -109,3 +109,94 @@ def test_the_platform_loads_the_united_nations_geography_and_opens_a_place_for_r
     assert r.status_code == 200 and r.json()["counts"]["retired"] >= 1, r.text
     assert owner_sql("SELECT status FROM ref.place WHERE pcode = $1", village) == "RETIRED"
     assert not c.get("/api/geo/places", params={"q": village}).json()["places"]
+
+
+def _box(lat0, lat1, lng0, lng1) -> dict:
+    return {"type": "Polygon", "coordinates": [[[lng0, lat0], [lng1, lat0], [lng1, lat1], [lng0, lat1], [lng0, lat0]]]}
+
+
+def _boundaries(features: list[tuple[dict, dict]]) -> bytes:
+    import json
+    return json.dumps({"type": "FeatureCollection", "name": f"syr_admbnda_{uuid.uuid4().hex[:6]}",
+                       "features": [{"type": "Feature", "properties": p, "geometry": g} for p, g in features]}).encode()
+
+
+def _upload_boundaries(admin, data: bytes):
+    return admin.post("/api/admin/geo/boundaries", files={"file": ("syr_admbnda.geojson", data, "application/geo+json")})
+
+
+def test_boundaries_field_surveys_and_stations_in_their_places():
+    """1125: the areas' boundaries are loaded from the same publisher; a point is located in its sub-district; places
+    found in the field are proposed and used once a second person accepts them; a station stands in its place."""
+    admin = login("admin@masslak.test", "PLATFORM")
+    village = f"C{8000 + uuid.uuid4().int % 1999}"
+    assert _upload(admin, workbook([(village, "Survey Base", 36.15, 37.25)]), "syr_locations_survey.xlsx").status_code == 200
+
+    # boundaries: a wrong file loads nothing; a good one puts each shape on its area
+    aleppo = _box(35.9, 36.6, 36.8, 37.7)
+    r = _upload_boundaries(admin, _boundaries([({"ADM1_PCODE": "SY99"}, aleppo)]))
+    assert r.status_code == 422 and r.json()["error"]["code"] == "GEO_FILE_INVALID" and "SY99" in r.json()["error"]["message"], r.text
+    r = _upload_boundaries(admin, _boundaries([({"ADM1_PCODE": "SY02"}, {"type": "Point", "coordinates": [37.1, 36.2]})]))
+    assert r.status_code == 422 and "not a polygon" in r.json()["error"]["message"], r.text
+    assert _upload_boundaries(admin, b"{not json").json()["error"]["code"] == "GEO_FILE_FORMAT"
+    r = _upload_boundaries(admin, _boundaries([
+        ({"ADM0_PCODE": "SY", "ADM1_PCODE": "SY02"}, aleppo),
+        ({"ADM1_PCODE": "SY02", "ADM2_PCODE": "SY0200"}, aleppo),
+        ({"ADM1_PCODE": "SY02", "ADM2_PCODE": "SY0200", "ADM3_PCODE": "SY020000"}, aleppo)]))
+    assert r.status_code == 200 and r.json()["counts"]["updated"] == 3 and r.json()["counts"]["sub_districts"] == 1, r.text
+    shape = client().get("/api/geo/areas/SY020000/boundary").json()
+    assert shape["properties"]["pcode"] == "SY020000" and shape["geometry"]["type"] in ("Polygon", "MultiPolygon")
+    assert client().get("/api/geo/areas/SY010000/boundary").status_code == 404
+    # where a point lies: in its sub-district by the boundary, with the nearest places
+    here = client().get("/api/geo/locate", params={"lat": 36.151, "lng": 37.251}).json()
+    assert here["by_boundary"] is True and here["sub_district"]["pcode"] == "SY020000" and here["places"][0]["pcode"] == village
+    assert here["places"][0]["metres"] < 200
+
+    # a place found in the field: proposed, invisible until a second person accepts it
+    body = {"kind": "COMMUNITY", "sub_district": "SY020000", "name_en": f"New Hamlet {uuid.uuid4().hex[:4]}",
+            "name_ar": "قرية", "lat": 36.31, "lng": 37.31, "surveyed_on": "2026-10-01", "note": "eleven houses"}
+    r = admin.post("/api/admin/geo/places", json=body | {"lat": 33.5, "lng": 36.3})
+    assert r.status_code == 409 and r.json()["error"]["code"] == "PLACE_OUTSIDE_AREA", r.text
+    r = admin.post("/api/admin/geo/places", json=body)
+    assert r.status_code == 201 and r.json()["pcode"].startswith("F") and r.json()["status"] == "PROPOSED", r.text
+    hamlet = r.json()["pcode"]
+    assert not client().get("/api/geo/places", params={"q": body["name_en"]}).json()["places"]
+    assert admin.post(f"/api/admin/geo/places/{hamlet}/review", json={"accept": True}).json()["error"]["code"] == "FOUR_EYES"
+    geo = login("geo@masslak.test", "PLATFORM")
+    waiting = geo.get("/api/admin/geo/proposed").json()["places"]
+    assert any(p["pcode"] == hamlet and p["status"] == "PROPOSED" and p["proposed_by"] == "admin@masslak.test" for p in waiting)
+    assert geo.post(f"/api/admin/geo/places/{hamlet}/review", json={"accept": True, "note": "seen on the survey"}).json()["status"] == "ACTIVE"
+    assert client().get("/api/geo/places", params={"q": body["name_en"]}).json()["places"][0]["pcode"] == hamlet
+    # a like name close to a known place is most likely that place, unless the surveyor says otherwise
+    twin = body | {"name_en": "Survey Base", "lat": 36.151, "lng": 37.251}
+    r = admin.post("/api/admin/geo/places", json=twin)
+    assert r.status_code == 409 and r.json()["error"]["code"] == "PLACE_DUPLICATE" and village in r.json()["error"]["message"], r.text
+    other = admin.post("/api/admin/geo/places", json=twin | {"not_duplicate": True}).json()["pcode"]
+    assert geo.post(f"/api/admin/geo/places/{other}/review", json={"accept": False}).json()["error"]["code"] == "REVIEW_NOTE"
+    assert geo.post(f"/api/admin/geo/places/{other}/review", json={"accept": False, "note": "the same farm as the known place"}
+                    ).json()["status"] == "REJECTED"
+    assert geo.post(f"/api/admin/geo/places/{other}/review", json={"accept": True}).json()["error"]["code"] == "PLACE_NOT_PROPOSED"
+    assert login("owner@carrier.test", "OPERATOR").post("/api/admin/geo/places", json=body).status_code == 403
+
+    # stations stand in places: the city comes from the place when it is open for routes
+    code = "Q" + "".join(chr(65 + (uuid.uuid4().int >> k) % 26) for k in (0, 8))
+    while owner_sql("SELECT 1 FROM ref.city WHERE code = $1", code):
+        code = "Q" + "".join(chr(65 + (uuid.uuid4().int >> k) % 26) for k in (0, 8))
+    r = admin.post("/api/admin/stations", json={"place": hamlet, "number": 1, "name": "Hamlet Stop"})
+    assert r.status_code == 422 and r.json()["error"]["code"] == "CITY_REQUIRED", r.text
+    assert admin.post(f"/api/admin/geo/places/{village}/serve", json={"code": code}).status_code == 200
+    r = admin.post("/api/admin/stations", json={"place": village, "number": 1, "name": "Survey Base Central"})
+    assert r.status_code == 201 and r.json()["code"] == f"SY-{code}-C001", r.text
+    listed = next(s for s in admin.get("/api/admin/stations").json()["stations"] if s["code"] == f"SY-{code}-C001")
+    assert listed["place_pcode"] == village and abs(listed["lat"] - 36.15) < 1e-6
+    # a station in the city's governorate takes a village's place; one in another governorate is refused
+    r = admin.post("/api/admin/stations", json={"place": hamlet, "city_code": code, "number": 2, "name": "Hamlet Stop"})
+    assert r.status_code == 201, r.text
+    r = admin.post("/api/admin/stations", json={"place": "N0001", "city_code": code, "number": 3, "name": "Far Stop"})
+    assert r.status_code == 422 and r.json()["error"]["code"] == "PLACE_NOT_IN_CITY", r.text
+    dam = next(s for s in admin.get("/api/admin/stations").json()["stations"] if s["code"] == "SY-DAM-C001")
+    assert admin.put(f"/api/admin/stations/{dam['uid']}/place", json={"place": "N0001"}).status_code == 200
+    assert owner_sql("SELECT p.pcode FROM net.station s JOIN ref.place p ON p.id = s.place_id WHERE s.code = 'SY-DAM-C001'") == "N0001"
+    # the new city is named in both languages wherever cities are listed
+    named = next(c for c in client().get("/api/geo/cities").json()["cities"] if c["code"] == code)
+    assert named["name_en"] == "Survey Base" and named["pcode"] == village

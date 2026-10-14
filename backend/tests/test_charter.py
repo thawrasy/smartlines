@@ -8,7 +8,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from test_e2e import OWNER_URL, client, day, login, new_passenger, owner_sql
+from test_e2e import OWNER_URL, client, day, login, new_passenger, owner_sql, syrian
 
 pytestmark = pytest.mark.skipif(not OWNER_URL, reason="needs MASSLAK_OWNER_URL")
 
@@ -217,3 +217,70 @@ def test_a_traveller_asks_by_special_request_and_the_price_lapses():
     assert pax.post(f"/api/charter/requests/{r2['uid']}/withdraw").json()["status"] == "WITHDRAWN"
     assert o.post(f"/api/carrier/charter/requests/{r2['uid']}/quote", json={"price": 1000}).json()["error"]["code"] == "CHARTER_CLOSED"
     assert o.patch(f"/api/carrier/charter/offers/{offer['uid']}", json={"status": "ARCHIVED"}).status_code == 200
+
+
+def test_the_travellers_named_on_a_block_are_ticketed_and_on_the_manifest():
+    """1126: the tourism company names the travellers on the seats it hired; they are tickets of the trip, on the
+    carrier's list and the manifest, taken off one by one, and cancelled with the charter when the carrier cancels the trip."""
+    o = _carrier()
+    t = _fresh_trip(o)
+    r = o.post("/api/carrier/charter/offers", json={
+        "kind": "WHOLE_TRIP", "title": "Blocks of our trips for groups", "partial_seats": True, "min_seats": 4,
+        "audience": ["AGENCY"], "price_basis": "PER_SEAT", "price": 2_000_000, "currency": "SYP", "notice_hours": 12,
+        "cancel_before_hours": 48, "cancel_refund_pct": 100, "policy": "Blocks of four seats or more, named before departure."})
+    assert r.status_code == 201, r.text
+    offer = r.json()
+    agency = _funded_agency()
+    r = agency.post("/api/agency/charter/requests", json={
+        "offer_uid": offer["uid"], "contact_name": "Rami Haddad", "contact_mobile": "+963944000444", "trip_uid": t["uid"],
+        "from_seq": t["from_seq"], "to_seq": t["to_seq"], "seats": 5, "idempotency_key": uuid.uuid4().hex})
+    assert r.status_code == 201, r.text
+    block = r.json()
+    path = f"/api/agency/charter/requests/{block['uid']}/travellers"
+    # nobody is named before the charter is confirmed
+    assert agency.post(path, json={"travellers": [syrian(1) | {"seat_no": None}]}).json()["error"]["code"] == "CHARTER_NOT_CONFIRMED"
+    assert o.post(f"/api/carrier/charter/requests/{block['uid']}/quote", json={"price": 9_000_000}).status_code == 200
+    assert agency.post(f"/api/agency/charter/requests/{block['uid']}/accept").json()["seats_held"] == 5
+    held = agency.get(path).json()
+    seats = [x["seat_no"] for x in held["seats"]]
+    assert len(seats) == 5 and held["named"] == 0 and held["booking_ref"] is None
+    # a seat outside the block, a baby on a lap and more people than seats are refused
+    outside = next(n for n in range(1, 45) if n not in seats)
+    assert agency.post(path, json={"travellers": [syrian(outside)]}).json()["error"]["code"] == "CHARTER_SEAT"
+    assert agency.post(path, json={"travellers": [syrian(1) | {"seat_no": None, "category": "INFANT", "birth_date": "2026-01-01"}]}
+                       ).json()["error"]["code"] == "CHARTER_INFANT"
+    assert agency.post(path, json={"travellers": [syrian(n) | {"seat_no": None} for n in range(6)]}).json()["error"]["code"] == "CHARTER_SEATS_FULL"
+    # two travellers: one on the seat asked for, one on the next free seat of the block
+    r = agency.post(path, json={"travellers": [syrian(seats[2]), syrian(7) | {"seat_no": None, "first_name": "Lina"}]})
+    assert r.status_code == 200 and r.json()["named"] == 2, r.text
+    named = r.json()
+    assert {x["seat_no"] for x in named["issued"]} == {seats[2], seats[0]} and named["booking_ref"]
+    assert agency.post(path, json={"travellers": [syrian(seats[2])]}).json()["error"]["code"] == "CHARTER_SEAT_NAMED"
+    # tickets of the trip, on the carrier's list and its manifest; the booking costs nothing and is not cancelled alone
+    assert {x["ticket_no"] for x in o.get(f"/api/carrier/charter/requests/{block['uid']}/travellers").json()["seats"] if x["ticket_no"]} \
+        == {x["ticket_no"] for x in named["issued"]}
+    manifest = o.get(f"/api/carrier/trips/{t['uid']}/manifest").json()["passengers"]
+    on_list = {p["ticket_no"]: p for p in manifest}
+    assert all(x["ticket_no"] in on_list for x in named["issued"])
+    assert on_list[named["issued"][1]["ticket_no"]]["full_name"].startswith("Lina")
+    assert owner_sql("SELECT total_amount FROM sales.booking WHERE booking_ref = $1", named["booking_ref"]) == 0
+    r = agency.post(f"/api/agency/bookings/{named['booking_ref']}/cancel")
+    assert r.status_code == 409 and r.json()["error"]["code"] == "CHARTER_BOOKING", r.text
+    # one taken off: the ticket is cancelled and the seat is free again in the block, still off sale
+    gone = named["issued"][1]["ticket_no"]
+    r = agency.delete(f"{path}/{gone}")
+    assert r.status_code == 200 and r.json()["named"] == 1 and r.json()["freed"] == seats[0], r.text
+    assert gone not in {p["ticket_no"] for p in o.get(f"/api/carrier/trips/{t['uid']}/manifest").json()["passengers"]}
+    assert owner_sql("""SELECT count(*) FROM ops.seat_segment s JOIN ops.trip x ON x.id = s.trip_id
+                         WHERE x.uid = $1::uuid AND s.seat_no = $2 AND s.status = 'BLOCKED'""", t["uid"], seats[0]) >= 1
+    # the carrier cancels the trip: the charter is refunded in full and its travellers' tickets are cancelled with it
+    balance = _wallet(agency)
+    r = o.post(f"/api/carrier/trips/{t['uid']}/cancel", json={"reason": "the road is closed by snow"})
+    assert r.status_code == 200 and r.json()["charters_cancelled"] == 1, r.text
+    assert _wallet(agency) - balance == 9_000_000
+    assert agency.get(f"/api/agency/charter/requests/{block['uid']}").json()["status"] == "CANCELLED"
+    assert owner_sql("""SELECT count(*) FROM sales.ticket k JOIN sales.booking b ON b.id = k.booking_id
+                         WHERE b.booking_ref = $1 AND k.status <> 'CANCELLED'""", named["booking_ref"]) == 0
+    assert owner_sql("SELECT status FROM sales.booking WHERE booking_ref = $1", named["booking_ref"]) == "CANCELLED"
+    assert o.patch(f"/api/carrier/charter/offers/{offer['uid']}", json={"status": "ARCHIVED"}).status_code == 200
+

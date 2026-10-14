@@ -47,6 +47,7 @@ export default function Charter() {
   const mine = useLoad(() => api.get<{ requests: Request[] }>("/api/charter/requests").then((r) => r.requests));
   const ref = useLoad(() => api.get<{ cities: { code: string }[] }>("/api/ref"));
   const [asking, setAsking] = useState<Offer | null>(null);
+  const [naming, setNaming] = useState<Request | null>(null);
   const [error, setError] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
   const act = async (r: Request, what: "accept" | "withdraw" | "cancel") => {
@@ -56,6 +57,7 @@ export default function Charter() {
       mine.reload();
     } catch (e) { setError(e); } finally { setBusy(false); }
   };
+  if (naming) return <Travellers r={naming} onDone={() => setNaming(null)} />;
   if (asking) return <Ask offer={asking} cities={(ref.data?.cities ?? []).map((c) => c.code)} onDone={() => { setAsking(null); mine.reload(); }} />;
   return (
     <Screen>
@@ -79,6 +81,7 @@ export default function Charter() {
           {r.status === "CONFIRMED" ? (
             <>
               <Text style={s.small}>{t("chr.refundRule", { pct: r.terms.cancel_refund_pct, h: r.terms.cancel_before_hours })}</Text>
+              {r.kind === "WHOLE_TRIP" ? <Button kind="tonal" label={t("chr.travellers")} onPress={() => setNaming(r)} /> : null}
               <Button kind="danger" label={t("common.cancel")} busy={busy} onPress={() => act(r, "cancel")} />
             </>
           ) : null}
@@ -185,3 +188,57 @@ function Ask({ offer, cities, onDone }: { offer: Offer; cities: string[]; onDone
     </Screen>
   );
 }
+
+
+// The travellers on the seats of a trip charter (1126): each name is a ticket of the trip, on its manifest
+interface Seat { seat_no: number; ticket_no: string | null; ticket_status: string | null; full_name: string | null }
+function Travellers({ r, onDone }: { r: Request; onDone: () => void }) {
+  const { t } = useI18n();
+  const list = useLoad(() => api.get<{ seats: Seat[]; named: number; booking_ref: string | null }>(`/api/charter/requests/${r.uid}/travellers`));
+  const blank = { first_name: "", father_name: "", grandfather_name: "", last_name: "" };
+  const [p, setP] = useState(blank);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<unknown>(null);
+  const add = async () => {
+    setBusy(true); setError(null);
+    try {
+      await api.post(`/api/charter/requests/${r.uid}/travellers`, { travellers: [{ nationality: "SY", ...p }] });
+      setP(blank); list.reload();
+    } catch (e) { setError(e); } finally { setBusy(false); }
+  };
+  const remove = async (ticket: string) => {
+    setError(null);
+    try { await api.del(`/api/charter/requests/${r.uid}/travellers/${ticket}`); list.reload(); } catch (e) { setError(e); }
+  };
+  const seats = list.data?.seats ?? [];
+  return (
+    <Screen>
+      <Title sub={t("chr.travellersHint")}>{t("chr.travellersOf", { ref: r.ref })}</Title>
+      <Button kind="text" label={t("common.back")} onPress={onDone} />
+      <ErrorText error={error ?? list.error} />
+      {list.loading && !list.data ? <Loading /> : null}
+      {list.data ? <Text style={s.muted}>{t("chr.namedOf", { n: list.data.named, of: seats.length })}</Text> : null}
+      {seats.map((x) => (
+        <Card key={x.seat_no}>
+          <View style={s.between}>
+            <Text style={s.h2}>{t("chr.seat")} {x.seat_no}</Text>
+            {x.ticket_no ? <Text style={s.small}>{x.ticket_no}</Text> : null}
+          </View>
+          <Text style={x.full_name ? s.h2 : s.muted}>{x.full_name ?? t("chr.unnamed")}</Text>
+          {x.ticket_no && x.ticket_status === "ISSUED" ? <Button kind="text" label={t("chr.takeOff")} onPress={() => remove(x.ticket_no!)} /> : null}
+        </Card>
+      ))}
+      {list.data && list.data.named < seats.length ? (
+        <Card>
+          <Text style={s.h2}>{t("chr.addTraveller")}</Text>
+          <Field label={t("chr.firstName")} value={p.first_name} onChangeText={(v) => setP({ ...p, first_name: v })} />
+          <Field label={t("chr.fatherName")} value={p.father_name} onChangeText={(v) => setP({ ...p, father_name: v })} />
+          <Field label={t("chr.grandfatherName")} value={p.grandfather_name} onChangeText={(v) => setP({ ...p, grandfather_name: v })} />
+          <Field label={t("chr.lastName")} value={p.last_name} onChangeText={(v) => setP({ ...p, last_name: v })} />
+          <Button label={t("chr.addTraveller")} busy={busy} disabled={!p.first_name.trim() || !p.father_name.trim() || !p.grandfather_name.trim() || !p.last_name.trim()} onPress={add} />
+        </Card>
+      ) : null}
+    </Screen>
+  );
+}
+

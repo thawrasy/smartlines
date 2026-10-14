@@ -7,11 +7,15 @@ under an offer; the carrier prices the request (valid for some hours) or decline
 once, into the platform's escrow, and the request is confirmed. A confirmed whole-trip request takes its seats off sale.
 When the service is done the carrier marks it so and is paid, less the platform's commission (charter.commission_bp).
 A carrier that cancels refunds in full; a customer that cancels a confirmed request is refunded as the offer says.
+Whoever hired seats of a trip names the travellers on them (1126): each named seat is a ticket of the charter's own
+booking, paid by the charter, so the travellers are on the carrier's list and the authorities' manifest and board like
+anyone else; a name taken off puts the seat back in the block.
 """
 from __future__ import annotations
 
 import json
 import math
+import re
 import secrets
 import uuid
 from dataclasses import dataclass
@@ -21,11 +25,12 @@ from typing import Literal, Optional
 import asyncpg
 from pydantic import BaseModel, Field, model_validator
 
-from ... import db
+from ... import crypto, db
 from ...errors import ApiError, not_found
 from ...ledger import company_wallet, platform_wallet, post_txn, user_wallet
 from ..notify.outbox import emit
-from .models import MOBILE
+from ...util import booking_ref, ticket_no
+from .models import MOBILE, PassengerIn
 
 KINDS = ("VEHICLE", "WHOLE_TRIP")
 VEHICLE_TYPES = ("COACH", "MINIBUS", "VAN", "CITY_BUS")
@@ -515,3 +520,155 @@ async def cancel(conn: asyncpg.Connection, ctx: db.Context, uid: uuid.UUID, user
     await emit(conn, "charter.cancelled", "charter_request", r["id"],
                {"ref": r["ref"], "refund": refund, "by": "CARRIER" if company_id is not None else "CUSTOMER"}, company_id=r["company_id"])
     return await request_view(conn, uid)
+
+
+# ------------------------------------------------------------------ the travellers on a block of seats (1126)
+async def travellers(conn: asyncpg.Connection, request_id: int) -> list[dict]:
+    """The seats a charter holds, each with the traveller named on it, if any."""
+    rows = await conn.fetch(
+        """SELECT c.seat_no, k.ticket_no, k.status AS ticket_status, p.full_name, p.nationality, p.passenger_category AS category,
+                  p.id_type, p.id_no_last4
+             FROM sales.charter_seat c
+             LEFT JOIN sales.ticket k ON k.id = c.ticket_id LEFT JOIN sales.passenger p ON p.id = k.passenger_id
+            WHERE c.request_id = $1 AND c.released_at IS NULL ORDER BY c.seat_no""", request_id)
+    return [dict(r) for r in rows]
+
+
+async def travellers_view(conn: asyncpg.Connection, uid: uuid.UUID, *, company_id: Optional[int] = None,
+                          party_id: Optional[int] = None) -> dict:
+    r = await conn.fetchrow(
+        """SELECT r.id, r.ref, r.kind, r.status, b.booking_ref FROM sales.charter_request r
+             LEFT JOIN sales.booking b ON b.charter_request_id = r.id AND b.status = 'CONFIRMED'
+            WHERE r.uid = $1 AND ($2::bigint IS NULL OR r.company_id = $2) AND ($3::bigint IS NULL OR r.requester_party_id = $3)""",
+        uid, company_id, party_id)
+    if r is None:
+        raise not_found("charter request")
+    seats = await travellers(conn, r["id"])
+    return {"ref": r["ref"], "status": r["status"], "booking_ref": r["booking_ref"], "seats": seats,
+            "named": sum(1 for x in seats if x["ticket_no"])}
+
+
+class TravellersIn(BaseModel):
+    travellers: list[PassengerIn] = Field(min_length=1, max_length=99)
+
+
+async def _charter_booking(conn: asyncpg.Connection, r, who: Customer) -> asyncpg.Record:
+    """The one booking a charter's travellers are ticketed on, made with the first names."""
+    b = await conn.fetchrow("SELECT id, booking_ref FROM sales.booking WHERE charter_request_id = $1 AND status = 'CONFIRMED'", r["id"])
+    if b is not None:
+        return b
+    trip = await conn.fetchrow("SELECT id, company_id, currency FROM ops.trip WHERE id = $1", r["trip_id"])
+    agency = who.kind == "AGENCY"
+    booker = await conn.fetchval("SELECT party_id FROM iam.app_user WHERE id = $1", who.user_id) if agency else who.party_id
+    channel = await conn.fetchval("SELECT id FROM sales.channel WHERE code = $1", "AGENCY" if agency else "WEB")
+    ref = booking_ref()
+    while await conn.fetchval("SELECT 1 FROM sales.booking WHERE booking_ref = $1", ref):
+        ref = booking_ref()
+    mobile = r["contact_mobile"] if r["contact_mobile"] and re.fullmatch(r"\+?[0-9]{8,15}", r["contact_mobile"]) else None
+    return await conn.fetchrow(
+        """INSERT INTO sales.booking (booking_ref, trip_id, company_id, booker_party_id, booker_user_id, channel_id, status,
+             currency, total_amount, price_breakdown, rules_version, idempotency_key, agency_id, contact_mobile, confirmed_at,
+             charter_request_id)
+           VALUES ($1, $2, $3, $4, $5, $6, 'CONFIRMED', $7, 0, $8::jsonb, 'v1', $9, $10, $11, now(), $12) RETURNING id, booking_ref""",
+        ref, trip["id"], trip["company_id"], booker, who.user_id, channel, trip["currency"],
+        json.dumps({"charter": r["ref"], "paid_by": "CHARTER"}), f"charter:{r['id']}:travellers",
+        who.party_id if agency else None, mobile, r["id"])
+
+
+async def name_travellers(conn: asyncpg.Connection, ctx: db.Context, who: Customer, uid: uuid.UUID, body: TravellersIn) -> dict:
+    """Names travellers on the seats a confirmed charter holds: the seat each one asks for, else the first free one.
+    Each becomes a ticket of the charter's booking, already paid by the charter. Until the trip leaves."""
+    r = await _mine(conn, uid, party_id=who.party_id)
+    if r["kind"] != "WHOLE_TRIP" or r["status"] != "CONFIRMED":
+        raise ApiError(409, "CHARTER_NOT_CONFIRMED", "travellers are named on the seats of a confirmed trip charter",
+                       charter_status=r["status"])
+    if await _starts(conn, r) <= datetime.now(timezone.utc):
+        raise ApiError(409, "CHARTER_STARTED", "the trip has left; the list is closed")
+    held = {x["seat_no"]: x for x in await travellers(conn, r["id"])}
+    free = [n for n, x in held.items() if not x["ticket_no"]]
+    asked = [t.seat_no for t in body.travellers if t.seat_no is not None]
+    if len(set(asked)) != len(asked):
+        raise ApiError(422, "CHARTER_SEAT_TWICE", "a seat is given to two travellers")
+    for n in asked:
+        if n not in held:
+            raise ApiError(409, "CHARTER_SEAT", "the seat is not held by this charter", seat=n)
+        if held[n]["ticket_no"]:
+            raise ApiError(409, "CHARTER_SEAT_NAMED", "the seat already has a traveller", seat=n)
+    if len(body.travellers) > len(free):
+        raise ApiError(409, "CHARTER_SEATS_FULL", "more travellers than free seats in the block", free=len(free))
+    if any(t.category == "INFANT" for t in body.travellers):
+        raise ApiError(422, "CHARTER_INFANT", "a baby on a lap is named with the carrier; each traveller here has a seat")
+    spare = iter([n for n in free if n not in asked])
+    async with db.system_scope(conn, ctx):
+        b = await _charter_booking(conn, r, who)
+        index = await conn.fetchval("SELECT count(*) FROM sales.ticket WHERE booking_id = $1", b["id"])
+        fc = await crypto.cipher(conn)
+        issued = []
+        for t in body.travellers:
+            seat = t.seat_no if t.seat_no is not None else next(spare)
+            enc = bidx = key_id = mobile_enc = mobile_last4 = None
+            masked = t.id_last4
+            if t.id_no:
+                sealed = fc.encrypt(t.id_no, "sales.passenger.id_no")
+                enc, key_id = sealed.ciphertext, sealed.key_id
+                bidx = fc.blind_index(t.id_no, f"{t.id_type}:{t.nationality}")
+                masked = crypto.last4(t.id_no)
+            if t.mobile:
+                sealed = fc.encrypt(t.mobile, "sales.passenger.mobile")
+                mobile_enc, mobile_last4, key_id = sealed.ciphertext, crypto.last4(t.mobile), key_id or sealed.key_id
+            pid = await conn.fetchval(
+                """INSERT INTO sales.passenger (booking_id, full_name, first_name, father_name, grandfather_name, last_name,
+                     nationality, id_type, id_no_last4, mobile_enc, id_no_enc, id_no_bidx, enc_key_id, passport_expiry,
+                     passport_country, passenger_category, birth_date, gender, mobile_last4)
+                   VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19) RETURNING id""",
+                b["id"], t.full_name, t.first_name, t.father_name, t.grandfather_name, t.last_name, t.nationality, t.id_type,
+                masked, mobile_enc, enc, bidx, key_id, t.passport_expiry if t.id_type == "PASSPORT" else None,
+                t.nationality if t.id_type == "PASSPORT" else None, t.category or "ADULT", t.birth_date, t.gender, mobile_last4)
+            index += 1
+            number = ticket_no(b["booking_ref"], index)
+            tid = await conn.fetchval(
+                """INSERT INTO sales.ticket (ticket_no, booking_id, passenger_id, trip_id, from_seq, to_seq, seat_no, fare_amount,
+                     total_amount, rules_snapshot, status)
+                   VALUES ($1, $2, $3, $4, $5, $6, $7, 0, 0, $8::jsonb, 'ISSUED') RETURNING id""",
+                number, b["id"], pid, r["trip_id"], r["from_seq"], r["to_seq"], seat,
+                json.dumps({"charter": r["ref"], "category": t.category or "ADULT", "refund": "with the charter"}))
+            await conn.execute("SELECT sales.charter_seat_ticket($1, $2::smallint, $3)", r["id"], seat, tid)
+            issued.append({"seat_no": seat, "ticket_no": number, "full_name": t.full_name})
+    await emit(conn, "charter.travellers", "charter_request", r["id"], {"ref": r["ref"], "named": len(issued)}, company_id=r["company_id"])
+    return await travellers_view(conn, uid, party_id=who.party_id) | {"issued": issued}
+
+
+async def unname_traveller(conn: asyncpg.Connection, ctx: db.Context, who: Customer, uid: uuid.UUID, ticket: str) -> dict:
+    """Takes a traveller off the list before the trip leaves: the ticket is cancelled and the seat is free in the block."""
+    r = await _mine(conn, uid, party_id=who.party_id)
+    if r["status"] != "CONFIRMED":
+        raise ApiError(409, "CHARTER_NOT_CONFIRMED", "the charter is closed", charter_status=r["status"])
+    if await _starts(conn, r) <= datetime.now(timezone.utc):
+        raise ApiError(409, "CHARTER_STARTED", "the trip has left; the list is closed")
+    async with db.system_scope(conn, ctx):
+        tid = await conn.fetchval(
+            """SELECT k.id FROM sales.ticket k JOIN sales.booking b ON b.id = k.booking_id
+                WHERE k.ticket_no = $1 AND b.charter_request_id = $2""", ticket, r["id"])
+        if tid is None:
+            raise not_found("ticket")
+        seat = await conn.fetchval("SELECT sales.charter_seat_unticket($1, $2)", r["id"], tid)
+    return await travellers_view(conn, uid, party_id=who.party_id) | {"freed": seat}
+
+
+async def cancel_on_trip(conn: asyncpg.Connection, trip_id: int, user_id: int) -> int:
+    """A trip the carrier cancels cancels the charters holding its seats, each refunded in full (1126). The caller is in
+    the platform scope of its transaction."""
+    n = 0
+    for r in await conn.fetch(
+            """SELECT r.*, (r.terms ->> 'cancel_before_hours')::int AS cancel_before_hours,
+                      (r.terms ->> 'cancel_refund_pct')::int AS cancel_refund_pct
+                 FROM sales.charter_request r WHERE r.trip_id = $1 AND r.status = 'CONFIRMED' ORDER BY r.id FOR UPDATE""", trip_id):
+        await conn.fetchval("SELECT sales.charter_release_seats($1)", r["id"])
+        txn, _ = await _settle(conn, r, r["price"], user_id, "CHARTER_REFUND")
+        await conn.execute(
+            """UPDATE sales.charter_request SET status = 'CANCELLED', refund_txn_id = $2, refunded_amount = $3, closed_by = $4,
+                 closed_at = now(), closed_reason = 'the carrier cancelled the trip' WHERE id = $1""", r["id"], txn, r["price"], user_id)
+        await emit(conn, "charter.cancelled", "charter_request", r["id"], {"ref": r["ref"], "refund": r["price"], "by": "CARRIER"},
+                   company_id=r["company_id"])
+        n += 1
+    return n

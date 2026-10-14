@@ -3,15 +3,17 @@ import { api } from "../../api";
 import { useI18n } from "../../i18n";
 import { PageHead } from "../../components/layout";
 import { Empty, ErrorBox, Field, Icon, Loaded, Modal, Stat, useLoad, useToast } from "../../components/ui";
+import { FieldSurveys } from "./FieldSurveys";
 
 // The administrative geography (owner's request, October 2026; migration 1124): the governorates, districts,
 // sub-districts, communities and city neighbourhoods of the United Nations' P-code workbook, loaded by the platform, and
-// the communities opened for routes as cities of the network.
+// the communities opened for routes as cities of the network; the areas' boundaries from the same publisher and the
+// places surveyed in the field, reviewed by a second person (1125).
 
 interface Gov { pcode: string; name_en: string; name_ar: string; districts: number; sub_districts: number; communities: number; neighbourhoods: number; served: number }
-interface Load { uid: string; publisher: string; file_name: string | null; valid_on: string | null; imported_at: string; imported_by: string | null; counts: Record<string, number> }
+interface Load { uid: string; publisher: string; content: string; file_name: string | null; valid_on: string | null; imported_at: string; imported_by: string | null; counts: Record<string, number> }
 interface City { code: string; name: string; is_active: boolean; pcode: string | null; name_ar: string | null; stations: number }
-interface Summary { governorates: Gov[]; loads: Load[]; cities: City[] }
+interface Summary { governorates: Gov[]; loads: Load[]; cities: City[]; proposed: number }
 interface Area { pcode: string; name_en: string; name_ar: string; level: number; areas: number; communities: number | null }
 interface Place { pcode: string; name_en: string; name_ar: string; lat: number; lng: number; city_code: string | null; neighbourhoods: number }
 interface Found { pcode: string; kind: string; name_en: string; name_ar: string; lat: number; lng: number; served: string | null;
@@ -30,6 +32,7 @@ export function AdminGeography() {
   const [serving, setServing] = useState<{ pcode: string; name: string } | null>(null);
   const [code, setCode] = useState("");
   const file = useRef<HTMLInputElement>(null);
+  const shapes = useRef<HTMLInputElement>(null);
   const name = (x: { name_en: string; name_ar: string }) => (locale === "ar" ? x.name_ar : x.name_en);
   const parent = path.length ? path[path.length - 1].pcode : "SY";
   const level = useLoad((signal) => api.get<{ areas?: Area[]; places?: Place[] }>("/api/geo/areas", { parent }, { signal }), [parent]);
@@ -45,6 +48,18 @@ export function AdminGeography() {
       toast(out.already_loaded ? t("geo.already") : t("geo.loaded", { n: out.counts.communities ?? 0 }));
       state.reload(); level.reload();
     } catch (e) { setError(e); } finally { setBusy(false); if (file.current) file.current.value = ""; }
+  };
+  const uploadBoundaries = async () => {
+    const f = shapes.current?.files?.[0];
+    if (!f) return;
+    setBusy(true); setError(null);
+    try {
+      const form = new FormData();
+      form.append("file", f);
+      const out = await api.upload<{ already_loaded: boolean; counts: Record<string, number> }>("/api/admin/geo/boundaries", form);
+      toast(out.already_loaded ? t("geo.already") : t("geo.shapesLoaded", { n: out.counts.updated ?? 0, out: out.counts.places_outside ?? 0 }));
+      state.reload();
+    } catch (e) { setError(e); } finally { setBusy(false); if (shapes.current) shapes.current.value = ""; }
   };
   const search = async () => {
     setError(null);
@@ -80,13 +95,19 @@ export function AdminGeography() {
                 <input ref={file} type="file" accept=".xlsx" aria-label={t("geo.file")} />
                 <button className="btn" disabled={busy} onClick={upload}><Icon name="upload_file" />{t("geo.loadBtn")}</button>
               </div>
+              <p className="small muted" style={{ margin: 0 }}>{t("geo.shapesHint")}</p>
+              <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
+                <input ref={shapes} type="file" accept=".geojson,.json" aria-label={t("geo.shapesFile")} />
+                <button className="btn outlined" disabled={busy} onClick={uploadBoundaries}><Icon name="upload_file" />{t("geo.shapesBtn")}</button>
+              </div>
               {d.loads.length > 0 && (
                 <div className="table-wrap" tabIndex={0}><table className="table">
                   <thead><tr><th>{t("geo.loadedAt")}</th><th>{t("geo.file")}</th><th>{t("geo.validOn")}</th><th className="num">{t("geo.communities")}</th><th className="num">{t("geo.changes")}</th></tr></thead>
                   <tbody>{d.loads.map((l) => (
-                    <tr key={l.uid}><td>{date(l.imported_at)}<div className="small muted">{l.imported_by}</div></td><td className="small">{l.file_name ?? l.publisher}</td>
-                      <td>{l.valid_on ? date(`${l.valid_on}T12:00:00Z`) : "—"}</td><td className="num">{num(l.counts.communities ?? 0)}</td>
-                      <td className="num small">{t("geo.changeLine", { a: l.counts.added ?? 0, u: l.counts.updated ?? 0, r: l.counts.retired ?? 0 })}</td></tr>
+                    <tr key={l.uid}><td>{date(l.imported_at)}<div className="small muted">{l.imported_by}</div></td><td className="small">{l.file_name ?? l.publisher}<div className="muted">{t(`geo.content.${l.content}`)}</div></td>
+                      <td>{l.valid_on ? date(`${l.valid_on}T12:00:00Z`) : "—"}</td><td className="num">{l.content === "BOUNDARIES" ? "—" : num(l.counts.communities ?? 0)}</td>
+                      <td className="num small">{l.content === "BOUNDARIES" ? t("geo.shapesLine", { n: l.counts.updated ?? 0, out: l.counts.places_outside ?? 0 })
+                        : t("geo.changeLine", { a: l.counts.added ?? 0, u: l.counts.updated ?? 0, r: l.counts.retired ?? 0 })}</td></tr>
                   ))}</tbody>
                 </table></div>
               )}
@@ -136,6 +157,7 @@ export function AdminGeography() {
                     </table></div>
                   )}</Loaded>
                 </div>
+                <FieldSurveys waiting={d.proposed} onChange={() => { state.reload(); level.reload(); }} />
               </>
             )}
           </>

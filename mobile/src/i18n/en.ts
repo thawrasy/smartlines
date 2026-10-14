@@ -367,6 +367,10 @@ const en = {
     partOf: "Part of a journey", partOfHint: "Trip {leg} of the journey; each trip is a booking of its own.",
   },
   chr: {
+    travellers: "Travellers", travellersOf: "Travellers of {ref}",
+    travellersHint: "Name who travels on each seat you hired; each name is a ticket of the trip.",
+    namedOf: "{n} of {of} seats named", seat: "Seat", unnamed: "Not named yet", takeOff: "Take off", addTraveller: "Add a traveller",
+    firstName: "First name", fatherName: "Father's name", grandfatherName: "Grandfather's name", lastName: "Family name",
     title: "Hire a bus or a trip", sub: "By special request: carriers that hire out a vehicle or a whole trip to travellers, on their own terms.",
     mine: "My requests", offers: "What carriers offer", noRequests: "No requests yet.", noOffers: "No carrier offers this to travellers yet.",
     status: { REQUESTED: "Requested", QUOTED: "Priced", CONFIRMED: "Confirmed", COMPLETED: "Done", DECLINED: "Declined", WITHDRAWN: "Withdrawn", EXPIRED: "Price lapsed", CANCELLED: "Cancelled" },
