@@ -927,6 +927,7 @@ erDiagram
     bigint company_id FK
     integer number
     bigint route_id FK
+    bigint follows_id FK
   }
   net_station {
     bigint id PK
@@ -1026,6 +1027,7 @@ erDiagram
   net_line_stop }o--|| net_line_version : "line_version_id"
   net_route_stop }o--|| net_route : "route_id"
   net_service_number }o..o| net_route : "route_id"
+  net_service_number }o..o| net_service_number : "follows_id"
   net_station_boarding }o--|| net_station : "station_id"
   net_station_carrier_bay }o--|| net_station : "station_id"
   net_station_contact }o--|| net_station : "station_id"

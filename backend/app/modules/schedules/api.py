@@ -19,8 +19,8 @@
     DELETE /api/admin/authorities/{code}/members/{user_uid}
 
 The database checks what is asked (SCHEDULE_INVALID), the notice (SCHEDULE_NOTICE), who decides which stage
-(NOT_YOUR_STAGE), that one person decides one stage (SECOND_PERSON_REQUIRED) and the numbers (SERVICE_NUMBER_TAKEN,
-NUMBER_NOT_IN_BLOCK, NUMBER_PARITY).
+(NOT_YOUR_STAGE), that one person decides one stage (SECOND_PERSON_REQUIRED), the numbers (SERVICE_NUMBER_TAKEN,
+NUMBER_NOT_IN_BLOCK, NUMBER_PARITY) and a leg that continues the vehicle's leg before it (ROTATION_INVALID, 1119).
 """
 import json
 import re
@@ -48,7 +48,7 @@ Recurrence = Literal["DAILY", "WEEKLY", "MONTHLY"]
 STATUS = {"NOT_FOUND": 404, "FORBIDDEN": 403, "NOT_YOUR_STAGE": 403, "SCHEDULE_INVALID": 422, "SCHEDULE_NOTICE": 422,
           "NUMBER_NOT_IN_BLOCK": 422, "NUMBER_PARITY": 422, "REASON_REQUIRED": 422, "INVALID_SETTING": 422,
           "SERVICE_NUMBER_TAKEN": 409, "SECOND_PERSON_REQUIRED": 409, "SCHEDULE_DECIDED": 409, "SCHEDULE_REQUEST_OPEN": 409,
-          "SCHEDULE_ENDED": 409, "SCHEDULE_STOP_REQUIRED": 409, "TRIP_APPROVAL_REQUIRED": 409}
+          "SCHEDULE_ENDED": 409, "SCHEDULE_STOP_REQUIRED": 409, "TRIP_APPROVAL_REQUIRED": 409, "ROTATION_INVALID": 422}
 
 
 async def _db(call):
@@ -98,7 +98,9 @@ class ScheduleIn(Pattern):
     trip_type: Literal["SCHEDULED", "SHUTTLE", "INTERNATIONAL", "CARGO", "EXTRA"] = "SCHEDULED"
     direction: Literal["OUTBOUND", "INBOUND"] = "OUTBOUND"
     auto_publish: bool = True
-    proposed_number: Optional[int] = Field(default=None, ge=1, le=9999)
+    proposed_number: Optional[int] = Field(default=None, ge=1000, le=9999)
+    # the carrier's regular trip whose vehicle runs this one next (1119): this one takes the number after it
+    follows_uid: Optional[uuid.UUID] = None
     note: Optional[str] = Field(default=None, max_length=500)
 
 
@@ -125,7 +127,7 @@ class StopIn(BaseModel):
 class DecideIn(BaseModel):
     approve: bool
     note: Optional[str] = Field(default=None, max_length=500)
-    number: Optional[int] = Field(default=None, ge=1, le=9999)
+    number: Optional[int] = Field(default=None, ge=1000, le=9999)
 
 
 class SettingIn(BaseModel):
@@ -159,7 +161,7 @@ async def _made(conn, result: Optional[dict]) -> Optional[dict]:
 
 async def _rules(conn) -> dict:
     keys = ("schedule.approval_stages", "schedule.approval_kinds", "schedule.min_notice_days", "schedule.horizon_days",
-            "schedule.recurrences")
+            "schedule.recurrences", "schedule.min_turnaround_min")
     return {k.split(".", 1)[1]: json.loads(await conn.fetchval("SELECT ops.schedule_setting($1)::text", k)) for k in keys}
 
 
@@ -171,11 +173,14 @@ SCHEDULES_SQL = """
            r.uid AS route_uid, r.code AS route_code, so.name AS origin, sd.name AS destination, so.code AS origin_code, sd.code AS dest_code,
            v.uid AS vehicle_uid, v.plate_no, s.number AS service_no, s.direction,
            CASE WHEN s.number IS NOT NULL THEN ops.trip_designator(t.company_id) || ' ' || s.number END AS trip_code,
+           CASE WHEN fs.number IS NOT NULL THEN ops.trip_designator(t.company_id) || ' ' || fs.number END AS follows_code,
+           (SELECT ops.trip_designator(t.company_id) || ' ' || min(x.number) FROM net.service_number x WHERE x.follows_id = s.id) AS next_code,
            (SELECT min(x.departure_at) FROM ops.trip x WHERE x.template_id = t.id AND x.departure_at > now() AND x.status <> 'CANCELLED') AS next_departure,
            (SELECT count(*) FROM ops.trip x WHERE x.template_id = t.id AND x.departure_at > now() AND x.status <> 'CANCELLED') AS upcoming
       FROM ops.trip_template t JOIN net.route r ON r.id = t.route_id
       JOIN net.station so ON so.id = r.origin_station_id JOIN net.station sd ON sd.id = r.dest_station_id
-      LEFT JOIN fleet.vehicle v ON v.id = t.default_vehicle_id LEFT JOIN net.service_number s ON s.id = t.service_number_id"""
+      LEFT JOIN fleet.vehicle v ON v.id = t.default_vehicle_id LEFT JOIN net.service_number s ON s.id = t.service_number_id
+      LEFT JOIN net.service_number fs ON fs.id = s.follows_id"""
 
 REQUESTS_SQL = """
     SELECT q.uid, q.kind, q.status, q.proposal, q.effective_from, q.proposed_number, q.assigned_number, q.note, q.approval_stages,
@@ -274,12 +279,21 @@ async def ask_new(body: ScheduleIn, request: Request, pr: Principal = Depends(op
         if route_id is None:
             raise not_found("route")
         currency = await conn.fetchval("SELECT ref.company_currency($1)", pr.company_id)
+        follows = None
+        if body.follows_uid is not None:
+            follows = await conn.fetchval(
+                """SELECT s.number FROM ops.trip_template t JOIN net.service_number s ON s.id = t.service_number_id
+                    WHERE t.uid = $1 AND t.company_id = $2 AND t.status <> 'RETIRED'""", body.follows_uid, pr.company_id)
+            if follows is None:
+                raise not_found("regular trip")
         proposal = {"route_id": route_id, "vehicle_id": await _vehicle_id(conn, pr, body.vehicle_uid),
                     "departure_time": body.departure_time, "recurrence": body.recurrence, "days_of_week": body.days_of_week,
                     "days_of_month": body.days_of_month, "skip_dates": [d.isoformat() for d in body.skip_dates],
                     "from": body.from_date.isoformat(), "until": _iso(body.until_date), "base_price": body.base_price,
                     "currency": currency, "trip_type": body.trip_type, "direction": body.direction, "auto_publish": body.auto_publish}
-        out = await _ask(conn, "NEW", proposal=proposal, number=body.proposed_number, note=body.note)
+        if follows is not None:
+            proposal["follows"] = follows
+        out = await _ask(conn, "NEW", proposal=proposal, number=None if follows else body.proposed_number, note=body.note)
     request.state.audit = {"action": "schedule.request", "object_type": "schedule_request", "object_id": out.pop("_id")}
     return out
 
@@ -378,11 +392,9 @@ async def requests_list(request: Request, status: Literal["PENDING", "DECIDED", 
                 d["waiting_for"]["by"] == "AUTHORITY" or "schedule.approve" in pr.permissions)
             p = d.get("proposal") or {}
             if d["kind"] == "NEW" and d["status"] == "PENDING" and p.get("route_id"):
-                period = asyncpg.Range(date.fromisoformat(p["from"]),
-                                       date.fromisoformat(p["until"]) + timedelta(days=1) if p.get("until") else None)
-                d["suggested_number"] = await conn.fetchval(
-                    "SELECT ops.suggest_schedule_number($1, $2, $3, $4, $5)",
-                    d["company_id"], p.get("trip_type", "SCHEDULED"), p.get("direction", "OUTBOUND"), period, int(p["route_id"]))
+                # the number after the leg it continues, else the first leg of a free line (1119)
+                d["suggested_number"] = await conn.fetchval("SELECT ops.request_number(id) FROM ops.schedule_request WHERE uid = $1",
+                                                            uuid.UUID(str(d["uid"])))
                 d["designator"] = await conn.fetchval("SELECT ops.trip_designator($1)", d["company_id"])
             d.pop("company_id", None)
             out.append(d)

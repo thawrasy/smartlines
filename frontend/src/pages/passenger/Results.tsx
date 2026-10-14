@@ -54,6 +54,11 @@ export default function Results() {
                   <span className="chip outline mono" title={trip.trip_no}>{trip.trip_code ?? trip.trip_no}</span>
                   {trip.stops_between === 0 ? <span className="chip green">{t("results.direct")}</span> : <span className="chip">{t("results.stops", { n: trip.stops_between })}</span>}
                   {trip.has_rest && <span className="chip wheat"><Icon name="restaurant" size={16} />{t("results.rest")}</span>}
+                  {trip.returns_as && (
+                    <span className="chip outline" title={trip.returns_as.same_vehicle !== false ? t("ret.title") : t("ret.other")}>
+                      <Icon name="swap_calls" size={16} />{t("ret.returnsAs", { code: trip.returns_as.trip_code ?? "", time: time(trip.returns_as.departs_at) })}
+                    </span>
+                  )}
                 </div>
                 <div className="timeline" style={{ marginTop: 18 }}>
                   <div><div className="time">{time(trip.departs_at)}</div><div className="small muted">{station(trip.from_code, trip.from_station)}</div></div>

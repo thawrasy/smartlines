@@ -10,7 +10,7 @@ import { logoUrl } from "../../components/ui";
 // display. Cities and central stations are named from their codes; when the connection drops, the last board stays up
 // with the time it was last updated (design review of the station screens, October 2026).
 // The owner's decisions (1114, 1115): the board shows its languages in turn (Arabic and English every 10 seconds unless
-// the platform sets otherwise), keeping the layout of the first; each trip shows its short number ("DC 101") and the
+// the platform sets otherwise), keeping the layout of the first; each trip shows its short number ("DC 1201") and the
 // carrier's logo next to its name; a cancelled trip turns red.
 
 interface BoardRow {

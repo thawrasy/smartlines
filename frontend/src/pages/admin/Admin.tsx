@@ -120,7 +120,7 @@ export function AdminCompanies() {
 }
 
 /** A company's identity on the platform's screens: its logo, to a specification, and the designator of its trip numbers
- * ("DC 101"). The logo is shown next to the name on the station's departure board and in search results (1114, 1115). */
+ * ("DC 1201"). The logo is shown next to the name on the station's departure board and in search results (1114, 1115). */
 function CompanyIdentity({ company, onClose }: { company: Company; onClose: () => void }) {
   const { t } = useI18n();
   const toast = useToast();

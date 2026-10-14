@@ -13,6 +13,7 @@ from ..deps import base_context
 from ..errors import ApiError, not_found
 from ..modules.fares import categories as cat
 from ..modules.sales import documents
+from ..modules.sales import service as sales
 from ..util import row_dict, rows
 
 router = APIRouter(prefix="/api", tags=["public"])
@@ -141,7 +142,9 @@ async def search(request: Request, origin: str = Query(..., min_length=3, max_le
                    (SELECT count(*) FROM ops.trip_stop x WHERE x.trip_id = p.id AND x.seq > p.from_seq
                        AND x.seq < p.to_seq AND x.kind = 'STATION') AS stops_between,
                    p.seats_total - (SELECT count(DISTINCT s.seat_no) FROM ops.seat_segment s
-                       WHERE s.trip_id = p.id AND s.seg >= p.from_seq AND s.seg < p.to_seq AND NOT {FREE_SEG}) AS seats_left
+                       WHERE s.trip_id = p.id AND s.seg >= p.from_seq AND s.seg < p.to_seq AND NOT {FREE_SEG}) AS seats_left,
+                   (SELECT jsonb_build_object('trip_code', rt.trip_code, 'departs_at', rt.departure_at, 'same_vehicle', x.same_vehicle)
+                      FROM ops.trip_return(p.id) x JOIN ops.trip rt ON rt.id = x.trip_id) AS returns_as
               FROM pairs p
               JOIN iam.party cp ON cp.id = p.company_id
               LEFT JOIN net.carrier_code cc ON cc.company_id = p.company_id AND cc.status = 'ACTIVE'
@@ -149,6 +152,8 @@ async def search(request: Request, origin: str = Query(..., min_length=3, max_le
             """, origin.upper(), destination.upper(), on)
     trips = [row_dict(r) for r in recs]
     for t in trips:
+        if isinstance(t.get("returns_as"), str):              # the return on the same vehicle (1119)
+            t["returns_as"] = json.loads(t["returns_as"])
         t.pop("id")
         t.pop("company_id")
         t["bookable"] = t["seats_left"] >= passengers
@@ -221,13 +226,14 @@ async def trip_detail(trip_uid: str, request: Request, from_seq: int = Query(...
                  FROM pricing.family_offer WHERE company_id = $1 AND status = 'ACTIVE' AND valid @> $2::date
                   AND applies_to IN ('TICKETS','BOTH') AND (route_id IS NULL OR route_id = $3) ORDER BY code""",
             t["company_id"], travel, t["route_id"])
+        back = await sales.return_trip(conn, t["id"], from_seq, to_seq)
     trip = row_dict(t)
     for k in ("id", "company_id", "route_id"):
         trip.pop(k)
     seat_map = trip.pop("seat_map")
     seat_map = json.loads(seat_map) if isinstance(seat_map, str) else seat_map
     return {"seat_map": seat_map, "trip": trip, "stops": rows(stops), "price": price, "from_seq": from_seq, "to_seq": to_seq,
-            "seats": [{"seat_no": s["seat_no"], "free": s["free"]} for s in seats], "categories": categories,
+            "seats": [{"seat_no": s["seat_no"], "free": s["free"]} for s in seats], "categories": categories, "return_trip": back,
             "family_offers": [dict(o) | {"discount_value": float(o["discount_value"])} for o in offers]}
 
 

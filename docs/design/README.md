@@ -7,7 +7,7 @@
 
 - `STATION_SCREENS_REVIEW.md`: the design review of the boarding-station screens (October 2026), its findings, what was changed and the owner's decisions.
 - `STATION_USER_TESTING.md`: the protocol for testing those screens with real users at the pilot station.
-- `TRIP_NUMBERS.md`: the short trip number passengers read ("DC 101") and the trip reference staff use (owner's decision, 1114).
+- `TRIP_NUMBERS.md`: the short trip number passengers read ("DC 1201") and the trip reference staff use; four digits, odd outbound and even return, the legs of a vehicle's day and the return on the same vehicle (owner's decisions, 1114 and 1119).
 - `REGULAR_TRIPS.md`: regular trips the carrier defines (every day, on days of the week or of the month, with or without an end) under one number, their requests and approval stages, number blocks and settings (owner's decision, 1117).
 - `COMPANY_KYC.md`: the know-your-customer file of each company on the platform: the form and the standards it follows, its review stages, risk rules, encrypted values, settings and screens (owner's request, 1118).
 

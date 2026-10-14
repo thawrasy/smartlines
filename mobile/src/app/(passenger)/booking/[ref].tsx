@@ -13,9 +13,12 @@ interface Ticket { uid: string; ticket_no: string; seat_label: string | null; se
   from_station: string; to_station: string; departs_at: string }
 interface Detail {
   booking: { booking_ref: string; status: string; total_amount: number; carrier_name: string; carrier_uid?: string | null; carrier_logo?: string | null; trip_no: string; trip_code?: string | null;
-             pay_option?: string | null; pay_by?: string | null };
+             pay_option?: string | null; pay_by?: string | null; return_trip?: Return | null };
   tickets: Ticket[];
 }
+// the trip that continues the traveller's on the same vehicle that day, and the way back (1119)
+interface Return { uid: string; trip_code: string | null; trip_no: string; from_seq: number; to_seq: number; departs_at: string;
+  from_station: string; to_station: string; on_sale: boolean; same_vehicle: boolean | null }
 
 export default function Booking() {
   const { t, money, time, date } = useI18n();
@@ -97,6 +100,19 @@ export default function Booking() {
           </Card>
         </Pressable>
       ))}
+      {booking.return_trip ? (
+        <Card>
+          <Text style={s.h2}>{t(booking.return_trip.same_vehicle === false ? "ret.other" : "ret.title")}</Text>
+          <Text style={s.muted}>{booking.return_trip.trip_code ?? booking.return_trip.trip_no} · {date(booking.return_trip.departs_at)} · {time(booking.return_trip.departs_at)}</Text>
+          <Text style={s.muted}>{booking.return_trip.from_station} → {booking.return_trip.to_station}</Text>
+          {booking.return_trip.same_vehicle !== false ? <Text style={s.small}>{t("ret.planned")}</Text> : null}
+          {booking.return_trip.on_sale ? (
+            <Button kind="tonal" label={t("ret.book")} onPress={() => router.push({ pathname: "/trip/[uid]", params: {
+              uid: booking.return_trip!.uid, from_seq: String(booking.return_trip!.from_seq), to_seq: String(booking.return_trip!.to_seq),
+              passengers: String(Math.max(1, tickets.filter((k) => k.seat_no !== null).length)) } })} />
+          ) : null}
+        </Card>
+      ) : null}
       <Button kind="text" label={t("tabs.trips")} onPress={() => router.replace("/trips")} />
     </Screen>
   );

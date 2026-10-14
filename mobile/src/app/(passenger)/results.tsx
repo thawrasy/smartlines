@@ -8,6 +8,7 @@ import { useLoad } from "../../ui/useLoad";
 interface Result {
   uid: string; trip_no: string; trip_code?: string | null; carrier_name: string; carrier_uid?: string; carrier_logo?: string | null; departs_at: string; arrives_at: string; from_station: string; to_station: string;
   from_seq: number; to_seq: number; price: number; seats_left: number; stops_between: number; bookable: boolean;
+  returns_as?: { trip_code: string | null; departs_at: string; same_vehicle: boolean | null } | null;   // the return on the same vehicle (1119)
 }
 
 export default function Results() {
@@ -38,6 +39,7 @@ export default function Results() {
               <Chip tone={x.stops_between ? "neutral" : "green"} label={x.stops_between ? t("extra.stops", { n: x.stops_between }) : t("extra.direct")} />
               <Chip tone={x.seats_left < 6 ? "amber" : "blue"} label={t("search.seatsLeft", { n: x.seats_left })} />
             </View>
+            {x.returns_as ? <Text style={s.small}>↩ {t("ret.returnsAs", { code: x.returns_as.trip_code ?? "", time: time(x.returns_as.departs_at) })}</Text> : null}
           </Card>
         </Pressable>
       ))}

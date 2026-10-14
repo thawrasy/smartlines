@@ -5246,7 +5246,7 @@
        },
        "number": {
         "maximum": 9999.0,
-        "minimum": 1.0,
+        "minimum": 1000.0,
         "nullable": true,
         "type": "integer"
        }
@@ -7362,6 +7362,11 @@
         ],
         "type": "string"
        },
+       "follows_uid": {
+        "format": "uuid",
+        "nullable": true,
+        "type": "string"
+       },
        "from_date": {
         "format": "date",
         "type": "string"
@@ -7373,7 +7378,7 @@
        },
        "proposed_number": {
         "maximum": 9999.0,
-        "minimum": 1.0,
+        "minimum": 1000.0,
         "nullable": true,
         "type": "integer"
        },

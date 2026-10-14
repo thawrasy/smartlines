@@ -14,7 +14,7 @@ from datetime import date, timedelta
 import pytest
 
 from test_boarding_stations import ADMIN, CARRIER
-from test_e2e import OWNER_URL, client, day, free_seats, login, owner_sql, syrian
+from test_e2e import OWNER_URL, book, client, day, free_seats, hold, login, new_passenger, owner_sql, syrian
 from test_launch import _fresh_vehicle
 
 pytestmark = pytest.mark.skipif(not OWNER_URL, reason="needs MASSLAK_OWNER_URL")
@@ -82,7 +82,8 @@ def test_a_regular_trip_runs_under_its_number_once_the_platform_approves_it(admi
     q = _pending(admin, asked)
     assert q["may_decide"] and q["waiting_for"] == {"by": "PLATFORM"} and q["company_logo"] is None or True
     suggested = q["suggested_number"]
-    assert suggested % 2 == 1 and 1 <= suggested <= 999 and q["designator"] in ("DC", "DMC")
+    # four digits in the scheduled block, the first leg of a line whose eight numbers are free (1119)
+    assert suggested % 10 == 1 and 1000 <= suggested <= 4999 and q["designator"] in ("DC", "DMC")
     assert carrier.post(f"/api/admin/schedules/requests/{asked}/decide", json={"approve": True}).status_code in (401, 403)
     # an even number does not fit an outbound trip; a refusal says why
     bad = admin.post(f"/api/admin/schedules/requests/{asked}/decide", json={"approve": True, "number": suggested + 1})
@@ -307,3 +308,58 @@ def test_schedule_pages_are_closed_to_others():
     assert anyone.get("/api/admin/schedules/requests").status_code == 401
     pax = login("passenger@masslak.test", "PASSENGER")
     assert pax.get("/api/admin/schedules/requests").status_code == 403
+
+
+def test_a_regular_trip_that_continues_a_vehicles_leg_takes_the_number_after_it(admin, carrier):
+    """The legs of a vehicle's day (1119): a regular trip on its own starts a line (leg 1); the carrier names the regular
+    trip whose vehicle runs a new one next, and the new one takes the number after it, its direction from that number,
+    and is checked against it: from the city where the leg arrives, the turnaround after it, the same vehicle."""
+    vehicle = _fresh_vehicle(carrier)
+    first = _ask(carrier, vehicle_uid=vehicle, departure_time="05:10").json()["uid"]
+    done = admin.post(f"/api/admin/schedules/requests/{first}/decide", json={"approve": True}).json()
+    number, leg = done["result"]["number"], done["result"]["template_uid"]
+    assert number % 10 == 1 and 1000 <= number <= 4999, done
+    # in Aleppo at 10:25 (315 minutes), so not before 10:55 with the turnaround of 30 minutes
+    r = _ask(carrier, route_uid=_route(carrier, "ALP-DAM"), vehicle_uid=vehicle, departure_time="10:40", follows_uid=leg)
+    assert r.status_code == 422 and r.json()["error"]["code"] == "ROTATION_INVALID", r.text
+    r = _ask(carrier, route_uid=_route(carrier, "DAM-LTK"), vehicle_uid=vehicle, departure_time="12:00", follows_uid=leg)
+    assert r.status_code == 422 and r.json()["error"]["code"] == "ROTATION_INVALID", r.text      # it would leave from Damascus
+    asked = _ask(carrier, route_uid=_route(carrier, "ALP-DAM"), vehicle_uid=vehicle, departure_time="11:30", follows_uid=leg).json()["uid"]
+    q = _pending(admin, asked)
+    assert q["suggested_number"] == number + 1 and q["proposal"]["direction"] == "INBOUND" and q["proposal"]["follows"] == number, q
+    bad = admin.post(f"/api/admin/schedules/requests/{asked}/decide", json={"approve": True, "number": number + 11})
+    assert bad.status_code == 422 and bad.json()["error"]["code"] == "ROTATION_INVALID", bad.text
+    done = admin.post(f"/api/admin/schedules/requests/{asked}/decide", json={"approve": True}).json()
+    assert done["result"]["number"] == number + 1, done
+    mine = {s["uid"]: s for s in carrier.get("/api/carrier/schedules").json()["schedules"]}
+    assert mine[leg]["next_code"].endswith(f" {number + 1}") and mine[done["result"]["template_uid"]]["follows_code"].endswith(f" {number}")
+    # a later change to the first leg that would not leave the vehicle time to return is refused
+    r = carrier.post(f"/api/carrier/schedules/{leg}/change", json={"effective_from": day(10), "departure_time": "07:00"})
+    assert r.status_code == 422 and r.json()["error"]["code"] == "ROTATION_INVALID", r.text
+
+
+def test_passengers_see_the_return_on_the_same_vehicle(carrier):
+    """The demo carrier's DC 1101 to Aleppo returns as DC 1102 on the same vehicle (1119): search, the trip page and the
+    booking name it, with the way back from where the traveller gets off to where they got on."""
+    c = client()
+    found = None
+    for offset in range(1, 6):
+        trips = c.get("/api/trips/search", params={"origin": "DAM", "destination": "HMA", "on": day(offset), "passengers": 1}).json()["trips"]
+        found = next((t for t in trips if (t["trip_code"] or "").endswith(" 1101") and t["returns_as"] and t["bookable"]), None)
+        if found:
+            break
+    assert found, "no DC 1101 with its return in the demo week"
+    assert found["returns_as"]["trip_code"].endswith(" 1102") and found["returns_as"]["same_vehicle"] is True
+    detail = c.get(f"/api/trips/{found['uid']}", params={"from_seq": found["from_seq"], "to_seq": found["to_seq"]}).json()
+    back = detail["return_trip"]
+    # Damascus to Hama out; the return from Hama (its stop 1) to Damascus (its last stop)
+    assert back["trip_code"].endswith(" 1102") and back["same_vehicle"] is True and (back["from_seq"], back["to_seq"]) == (1, 3), back
+    assert back["from_station"] and back["to_station"] and back["departs_at"] > detail["stops"][found["to_seq"]]["sched_arr"]
+    pax = new_passenger()
+    assert pax.post("/api/wallet/topup", json={"amount": 10000000, "idempotency_key": uuid.uuid4().hex}).status_code == 200
+    seats = free_seats(pax, found, 1)
+    token = hold(pax, found, seats).json()["hold_token"]
+    r = book(pax, found, token, seats)
+    assert r.status_code == 201, r.text
+    mine = pax.get(f"/api/bookings/{r.json()['booking_ref']}").json()["booking"]
+    assert mine["return_trip"]["uid"] == back["uid"] and (mine["return_trip"]["from_seq"], mine["return_trip"]["to_seq"]) == (1, 3)

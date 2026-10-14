@@ -1,6 +1,6 @@
 """The owner's decisions on the station screens (October 2026; migrations 1114 and 1115):
 
-* the trip number passengers read is short, the carrier's designator and a service number ("DC 101"), the same for the
+* the trip number passengers read is short, the carrier's designator and a service number ("DC 1101"), the same for the
   same departure every day and never twice in a carrier's day; the long number stays the trip's reference;
 * a company's logo, added by the platform to a specification, shown next to the carrier's name wherever it is shown
   (search, the trip and the booking, the ticket check, the station's screens, the platform's lists; 1116);

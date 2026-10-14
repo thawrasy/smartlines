@@ -84,6 +84,8 @@ export interface TripResult {
   from_code: string; to_code: string; price: number; carrier_name: string; carrier_code: string | null;
   carrier_uid?: string; carrier_logo?: string | null;
   stops_between: number; seats_left: number; bookable: boolean;
+  /** The trip that continues this one on the same vehicle that day (1119). */
+  returns_as?: { trip_code: string | null; departs_at: string; same_vehicle: boolean | null } | null;
 }
 
 export interface TripStop {
@@ -96,6 +98,7 @@ export interface TripDetail {
           service_type: string; trip_type?: string; departure_at: string; arrival_at: string; carrier_name: string; carrier_code: string | null;
           carrier_uid?: string; carrier_logo?: string | null };
   stops: TripStop[]; price: number; from_seq: number; to_seq: number; seats: { seat_no: number; free: boolean }[];
+  return_trip?: import("./components/ReturnTrip").ReturnInfo | null;
   /** The vehicle's real layout, frozen when the trip was created (null for trips created before layouts existed). */
   seat_map: import("./components/SeatGrid").SeatMapData | null;
   /** Who counts as an adult, a child or an infant on this carrier, and what each pays on this segment (4.19). */
@@ -159,6 +162,7 @@ export interface BookingDetail {
              // how it is paid (1056): a reserved booking waits for its money until pay_by; the counter view says what it may do
              pay_option?: string | null; pay_by?: string | null; pay_method?: string; counter_sale?: boolean; collectable?: boolean;
              refundable_here?: boolean;
+             return_trip?: import("./components/ReturnTrip").ReturnInfo | null;
              price_breakdown: { fare_per_passenger: number; passengers: number; fares_total: number; platform_fee: number; total: number; fare_brand: string;
                                 lines?: Quote["lines"]; family_offer?: Quote["family_offer"] } };
   tickets: Ticket[];

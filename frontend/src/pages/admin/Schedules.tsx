@@ -19,7 +19,8 @@ interface AdminRequest extends ScheduleRequest {
   suggested_number?: number | null; designator?: string | null;
   decisions: { step: number; stage: Stage; decision: string; by: string; authority: string | null; number: number | null; note: string | null; at: string }[];
 }
-interface Rules { approval_stages: Stage[]; approval_kinds: string[]; min_notice_days: number; horizon_days: number; recurrences: string[] }
+interface Rules { approval_stages: Stage[]; approval_kinds: string[]; min_notice_days: number; horizon_days: number; recurrences: string[];
+                 min_turnaround_min: number }
 interface Authority { code: string; name: string; type: string; active: boolean; members: { uid: string; email: string; name: string }[] }
 
 function Detail({ r }: { r: AdminRequest }) {
@@ -41,6 +42,7 @@ function Detail({ r }: { r: AdminRequest }) {
   if (Array.isArray(p.skip_dates) && p.skip_dates.length > 0) rows.push([t("sched.skip"), (p.skip_dates as string[]).map((x) => day(x)).join(" · ")]);
   if (r.plate_no) rows.push([t("schedadm.detail.vehicle"), r.plate_no]);
   if (typeof p.trip_type === "string") rows.push([t("schedadm.detail.type"), `${t(`sched.type.${p.trip_type}`)} · ${t(`sched.dir.${String(p.direction)}`)}`]);
+  if (typeof p.follows === "number") rows.push([t("sched.follows"), `${r.designator ?? ""} ${p.follows} → ${r.designator ?? ""} ${p.follows + 1}`]);
   if (r.proposed_number) rows.push([t("schedadm.detail.number"), String(r.proposed_number)]);
   if (r.trip_code || r.trip_no) rows.push([t("trip.number"), r.trip_code ?? r.trip_no ?? ""]);
   return <dl className="kv">{rows.map(([k, v], i) => <Fragment key={i}><dt>{k}</dt><dd>{v}</dd></Fragment>)}</dl>;
@@ -189,6 +191,10 @@ function Settings() {
               <Field label={t("schedadm.horizonDays")} hint={t("schedadm.horizonHint")}>
                 <input className="input ltr" type="number" min={7} max={120} defaultValue={rules.horizon_days}
                        onBlur={(e) => Number(e.target.value) !== rules.horizon_days && save("horizon_days", Number(e.target.value))} />
+              </Field>
+              <Field label={t("schedadm.turnaround")} hint={t("schedadm.turnaroundHint")}>
+                <input className="input ltr" type="number" min={0} max={600} defaultValue={rules.min_turnaround_min}
+                       onBlur={(e) => Number(e.target.value) !== rules.min_turnaround_min && save("min_turnaround_min", Number(e.target.value))} />
               </Field>
             </div>
           </div>

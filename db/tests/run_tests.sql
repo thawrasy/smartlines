@@ -350,7 +350,7 @@ SELECT pg_temp.ok((SELECT row_count FROM audit.log_seal WHERE log_name = 'activi
 -- 9) Miscellaneous
 SELECT pg_temp.ok(sys.mod11_check_digit('004512378') BETWEEN 0 AND 9, 'Tracking numbers: Mod-11 check digit function');
 SELECT pg_temp.expect_error($$INSERT INTO net.station (code, city_id, country_code, station_class, name, lat, lng) VALUES ('BAD', 1, 'SY', 'CENTRAL', 'x', 0, 0)$$, 'station_code_check', 'Station code format enforced (SY-DAM-C001)');
-SELECT pg_temp.expect_error(format($$INSERT INTO net.service_number (company_id, number, block, direction) VALUES (%s, 1500, 'SCHEDULED', 'OUTBOUND')$$, :ca), 'service_number_check', 'Service number must be inside its block');
+SELECT pg_temp.expect_error(format($$INSERT INTO net.service_number (company_id, number, block, direction) VALUES (%s, 5501, 'SCHEDULED', 'OUTBOUND')$$, :ca), 'service_number_block_range', 'Service number must be inside its block');
 
 SELECT pg_temp.ok((SELECT code FROM ref.locale WHERE is_default) = 'en', 'Locales: English is the single default locale');
 SELECT pg_temp.ok((SELECT direction FROM ref.locale WHERE code = 'ar') = 'RTL', 'Locales: Arabic UI locale is RTL');
@@ -3220,7 +3220,7 @@ RETURNING service_no AS tn2 \gset
 INSERT INTO ops.trip (trip_no, company_id, route_id, departure_at, arrival_at, status, seats_total, segments_count, currency, base_price)
 VALUES ('TN-B/01JAN30', :ca, :route, '2030-01-01 08:10+02', '2030-01-01 11:00+02', 'DRAFT', 40, 1, 'SYP', 1)
 RETURNING service_no AS tn3 \gset
-SELECT pg_temp.ok(:tn1 = :tn2 AND :tn1 <> :tn3 AND :tn1 BETWEEN 5000 AND 9999,
+SELECT pg_temp.ok(:tn1 = :tn2 AND :tn1 <> :tn3 AND :tn1 BETWEEN 8000 AND 8999,
   'Trip numbers (1114): a trip made by hand keeps the number of its route and time on the next day, another departure that day takes another');
 SELECT pg_temp.ok((SELECT trip_code IS NOT DISTINCT FROM ops.trip_designator(:ca) || ' ' || service_no FROM ops.trip WHERE trip_no = 'TN-A/01JAN30'),
   'Trip numbers (1114): the trip code is the carrier''s designator and the number');
@@ -3228,7 +3228,7 @@ SELECT pg_temp.expect_error(format($$INSERT INTO ops.trip (trip_no, company_id, 
     currency, base_price, service_no) VALUES ('TN-C/01JAN30', %s, %s, '2030-01-01 13:10+02', '2030-01-01 16:00+02', 'DRAFT', 40, 1, 'SYP', 1, %s)$$, :ca, :route, :tn1),
   'trip_number_day_uq', 'Trip numbers (1114): a carrier never runs two trips under one number on one day');
 INSERT INTO net.service_number (company_id, number, block, route_id, direction, valid)
-VALUES (:ca, 701, 'SCHEDULED', :route, 'OUTBOUND', '[2030-01-01,)') RETURNING id AS tsn \gset
+VALUES (:ca, 1701, 'SCHEDULED', :route, 'OUTBOUND', '[2030-01-01,)') RETURNING id AS tsn \gset
 INSERT INTO ops.trip_template (company_id, route_id, service_number_id, departure_time, base_price, currency, active)
 VALUES (:ca, :route, :tsn, '05:30', 1, 'SYP', '[2030-01-01,2030-06-01)');
 SELECT pg_temp.expect_error(format($$INSERT INTO ops.trip_template (company_id, route_id, service_number_id, departure_time, base_price, currency, active)
@@ -3346,11 +3346,11 @@ SELECT pg_temp.expect_error(format($$SELECT ops.request_schedule('NEW', NULL, NU
   'Regular trips (1117): what is asked is checked');
 -- the platform approves with the number it organizes
 SELECT sys.set_context(:uadmin, NULL, 'PLATFORM');
-SELECT pg_temp.expect_error(format($$SELECT ops.decide_schedule_request(%L, true, NULL, 102)$$, :'sr1'), 'NUMBER_PARITY',
+SELECT pg_temp.expect_error(format($$SELECT ops.decide_schedule_request(%L, true, NULL, 1102)$$, :'sr1'), 'NUMBER_PARITY',
   'Regular trips (1117): an outbound regular trip takes an odd number, its return an even one');
-SELECT ops.decide_schedule_request(:'sr1', true, NULL, 101) ->> 'status' AS sr1_status \gset
+SELECT ops.decide_schedule_request(:'sr1', true, NULL, 1101) ->> 'status' AS sr1_status \gset
 SELECT pg_temp.ok(:'sr1_status' = 'APPROVED'
-  AND (SELECT t.status = 'ACTIVE' AND t.rolling AND s.number = 101 AND upper(t.active) IS NULL AND t.days_of_week = '{1,3,5}'
+  AND (SELECT t.status = 'ACTIVE' AND t.rolling AND s.number = 1101 AND upper(t.active) IS NULL AND t.days_of_week = '{1,3,5}'
          FROM ops.schedule_request q JOIN ops.trip_template t ON t.id = q.template_id JOIN net.service_number s ON s.id = t.service_number_id
         WHERE q.uid = :'sr1')
   AND EXISTS (SELECT 1 FROM ops.schedules_due() d JOIN ops.schedule_request q ON q.template_id = d.template_id WHERE q.uid = :'sr1'),
@@ -3383,6 +3383,77 @@ RESET ROLE;
 SELECT pg_temp.expect_error(format($$INSERT INTO ops.trip (trip_no, company_id, route_id, departure_at, arrival_at, status, seats_total, segments_count, currency, base_price)
     VALUES ('TRIP-APPROVAL-1', %s, %s, now() + interval '3 days', now() + interval '3 days 4 hours', 'PUBLISHED', 40, 1, 'SYP', 0)$$, :ca, :route),
   'TRIP_APPROVAL_REQUIRED', 'Regular trips (1117): while the settings ask for it, a trip made by hand is published only once approved');
+ROLLBACK;
+SET ROLE masslak_app;
+
+-- Four-digit trip numbers and the legs of a vehicle's day (1119)
+BEGIN;
+RESET ROLE;
+SELECT pg_temp.ok(NOT EXISTS (SELECT 1 FROM net.service_number WHERE number < 1000)
+  AND ops.number_problem('SCHEDULED', 'OUTBOUND', 999) LIKE 'NUMBER_NOT_IN_BLOCK%' AND ops.number_problem('INTL', 'OUTBOUND', 5001) IS NULL
+  AND ops.number_problem('EXTRA', 'INBOUND', 8001) IS NULL AND ops.number_problem('CARGO', 'OUTBOUND', 7002) LIKE 'NUMBER_PARITY%'
+  AND ops.number_problem('SCHEDULED', 'OUTBOUND', 9001) LIKE 'NUMBER_NOT_IN_BLOCK%',
+  'Trip numbers (1119): four digits in the block of the trip type, odd outbound and even return; 9000-9999 kept for later');
+UPDATE net.route SET std_duration_min = 300 WHERE id = :route;
+INSERT INTO net.route (company_id, code, origin_station_id, dest_station_id, service_type, std_duration_min)
+VALUES (:ca, 'ALP-DAM', (SELECT id FROM net.station WHERE code = 'SY-ALP-C001'), (SELECT id FROM net.station WHERE code = 'SY-DAM-C001'), 'INDIRECT', 300)
+RETURNING id AS route_back \gset
+SET LOCAL ROLE masslak_app;
+SELECT sys.set_context(:ua, :ca, 'COMPANY');
+SELECT (ops.request_schedule('NEW', NULL, NULL, format('{"route_id": %s, "vehicle_id": %s, "departure_time": "07:00", "recurrence": "DAILY",
+          "from": "%s", "until": null, "base_price": 1000, "currency": "SYP"}', :route, :va, current_date + 3)::jsonb, NULL, NULL, NULL) ->> 'uid') AS rq1 \gset
+SELECT sys.set_context(:uadmin, NULL, 'PLATFORM');
+SELECT pg_temp.ok((SELECT ops.request_number(id) = 1001 FROM ops.schedule_request WHERE uid = :'rq1'),
+  'Trip numbers (1119): a regular trip on its own takes the first leg of a line whose eight numbers are free');
+SELECT ops.decide_schedule_request(:'rq1', true, NULL, NULL);
+SELECT sys.set_context(:ua, :ca, 'COMPANY');
+SELECT pg_temp.expect_error(format($$SELECT ops.request_schedule('NEW', NULL, NULL, '{"route_id": %s, "vehicle_id": %s, "departure_time": "12:10",
+    "recurrence": "DAILY", "from": "%s", "base_price": 1000, "currency": "SYP", "follows": 1001}'::jsonb, NULL, NULL, NULL)$$,
+    :route_back, :va, current_date + 3), 'ROTATION_INVALID',
+  'Trip numbers (1119): the next leg leaves at least the turnaround after the vehicle arrives');
+SELECT pg_temp.expect_error(format($$SELECT ops.request_schedule('NEW', NULL, NULL, '{"route_id": %s, "vehicle_id": %s, "departure_time": "14:00",
+    "recurrence": "DAILY", "from": "%s", "base_price": 1000, "currency": "SYP", "follows": 1001}'::jsonb, NULL, NULL, NULL)$$,
+    :route, :va, current_date + 3), 'ROTATION_INVALID',
+  'Trip numbers (1119): the next leg leaves from the city where the vehicle arrives');
+SELECT (ops.request_schedule('NEW', NULL, NULL, format('{"route_id": %s, "vehicle_id": %s, "departure_time": "13:00", "recurrence": "DAILY",
+          "from": "%s", "until": null, "base_price": 1000, "currency": "SYP", "follows": 1001}', :route_back, :va, current_date + 3)::jsonb,
+          NULL, NULL, NULL) ->> 'uid') AS rq2 \gset
+SELECT pg_temp.ok((SELECT proposed_number = 1002 AND proposal ->> 'direction' = 'INBOUND' FROM ops.schedule_request WHERE uid = :'rq2'),
+  'Trip numbers (1119): the leg after 1001 asks for 1002, on the way back');
+SELECT sys.set_context(:uadmin, NULL, 'PLATFORM');
+SELECT pg_temp.expect_error(format($$SELECT ops.decide_schedule_request(%L, true, NULL, 1012)$$, :'rq2'), 'ROTATION_INVALID',
+  'Trip numbers (1119): the platform gives the leg after 1001 no other number than 1002');
+SELECT ops.decide_schedule_request(:'rq2', true, NULL, NULL);
+SELECT pg_temp.ok((SELECT s.number = 1002 AND f.number = 1001
+                     FROM ops.schedule_request q JOIN ops.trip_template t ON t.id = q.template_id
+                     JOIN net.service_number s ON s.id = t.service_number_id JOIN net.service_number f ON f.id = s.follows_id
+                    WHERE q.uid = :'rq2')
+  AND ops.suggest_schedule_number(:ca, 'SCHEDULED', 'OUTBOUND', daterange(current_date + 3, NULL), :route) = 1011,
+  'Trip numbers (1119): approved, 1002 continues 1001 on the same vehicle; the next line suggested is 1011');
+SELECT sys.set_context(:ua, :ca, 'COMPANY');
+SELECT t.uid AS rt1 FROM ops.schedule_request q JOIN ops.trip_template t ON t.id = q.template_id WHERE q.uid = :'rq1' \gset
+SELECT pg_temp.expect_error(format($$SELECT ops.request_schedule('CHANGE', %L, NULL, '{"departure_time": "09:00"}'::jsonb, current_date + 10, NULL, NULL)$$,
+    :'rt1'), 'ROTATION_INVALID',
+  'Trip numbers (1119): a change to a leg is checked against the leg that continues it');
+RESET ROLE;
+SELECT sys.set_context(:uadmin, NULL, 'SYSTEM');
+SELECT s.id AS rn1 FROM net.service_number s WHERE s.company_id = :ca AND s.number = 1001 \gset
+SELECT s.id AS rn2 FROM net.service_number s WHERE s.company_id = :ca AND s.number = 1002 \gset
+SELECT pg_temp.expect_error(format($$INSERT INTO net.service_number (company_id, number, block, route_id, direction, follows_id)
+    VALUES (%s, 1004, 'SCHEDULED', %s, 'INBOUND', %s)$$, :ca, :route_back, :rn1), 'ROTATION_INVALID',
+  'Trip numbers (1119): a number continues only the carrier''s number one lower');
+INSERT INTO fleet.license_record (company_id, subject_type, subject_id, license_type, license_no, issuer, issue_date, expiry_date, status)
+SELECT :ca, 'VEHICLE', :va, k, 'ROT-' || k, 'Test', '2029-01-01', '2031-01-01', 'VALID' FROM unnest(ARRAY['INSPECTION', 'INSURANCE']) k;
+INSERT INTO ops.trip (trip_no, company_id, route_id, vehicle_id, departure_at, arrival_at, status, seats_total, segments_count, currency, base_price, service_number_id)
+VALUES ('ROT-1/01JAN30', :ca, :route, :va, '2030-01-01 07:00+03', '2030-01-01 12:00+03', 'PUBLISHED', 40, 1, 'SYP', 1, :rn1)
+RETURNING id AS rot1 \gset
+INSERT INTO ops.trip (trip_no, company_id, route_id, vehicle_id, departure_at, arrival_at, status, seats_total, segments_count, currency, base_price, service_number_id)
+VALUES ('ROT-2/01JAN30', :ca, :route_back, :va, '2030-01-01 13:00+03', '2030-01-01 18:00+03', 'PUBLISHED', 40, 1, 'SYP', 1, :rn2)
+RETURNING id AS rot2 \gset
+SELECT pg_temp.ok((SELECT trip_id = :rot2 AND same_vehicle FROM ops.trip_return(:rot1))
+  AND NOT EXISTS (SELECT 1 FROM ops.trip_return(:rot2))
+  AND (SELECT service_no FROM ops.trip WHERE id = :rot2) = 1002,
+  'Trip numbers (1119): the passenger of 1001 sees the return on the same vehicle, 1002 that day; a return shows none');
 ROLLBACK;
 SET ROLE masslak_app;
 

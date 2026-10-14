@@ -2,7 +2,7 @@
 
 > Generated from the built database (`db/tools/gen_docs.py`); do not edit by hand.
 
-**530 tables, 5499 columns, in 26 schemas.**
+**530 tables, 5500 columns, in 26 schemas.**
 
 Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant isolation (RLS) · 🧩 partitioned monthly · 🔒 append-only / change-protected
 
@@ -1730,7 +1730,7 @@ Ordered route stops, time offsets and the fare ladder from the origin
 
 ### `net.service_number` 🛡️
 
-Recurring service number from its type block; never repeated for a carrier in an overlapping period
+A carrier's trip number from its type block, four digits, odd outbound and even return; never repeated for a carrier in an overlapping period; may continue the leg before it on the same vehicle (1119)
 
 | Column | Type | Constraints | Default |
 |---|---|---|---|
@@ -1742,6 +1742,7 @@ Recurring service number from its type block; never repeated for a carrier in an
 | `direction` | `text` | ✱ |  |
 | `valid` | `daterange` | ✱ | `daterange(CURRENT_DATE, NULL::date)` |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `follows_id` | `bigint` | 🔗 `net.service_number`  |  |
 
 ### `net.station` 🛡️
 

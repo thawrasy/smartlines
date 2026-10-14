@@ -304,6 +304,8 @@ const ar: Messages = {
   },
   // generated from the website's locale files (scratch generator; keep in step with frontend/src/i18n)
   // ways of paying a booking (1056) in the passenger app (review stage C8); the same texts as the website
+  ret: { title: "العودة على المركبة نفسها", other: "رحلة العودة", book: "احجز العودة", returnsAs: "تعود كرحلة {code} الساعة {time}",
+         planned: "المركبة المخطّطة للرحلتين، وقد تُستبدل يوم السفر." },
   opt: {
     title: "كيف تريد الدفع؟",
     name: { WALLET: "المحفظة", PAY_LATER: "ادفع لاحقاً في المكتب", CARD: "بطاقة مصرفية", INSTALLMENT: "التقسيط", FINANCING: "تمويل السفر" },

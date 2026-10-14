@@ -5,6 +5,7 @@ import { api, ApiError, newKey, type BookingDetail, type BookingOption, type Tic
 import { useI18n } from "../../i18n";
 import { CarrierName, ErrorBox, Icon, Loaded, Status, useLoad, useToast } from "../../components/ui";
 import { useChannel } from "../../channel";
+import { ReturnTrip } from "../../components/ReturnTrip";
 
 // The QR code is a short-lived signed token fetched from the server; it is refreshed before it expires,
 // so a screenshot stops working after a minute or two.
@@ -214,6 +215,7 @@ export default function Booking() {
                 )}
               </div>
             ))}
+            {b.return_trip && <ReturnTrip r={b.return_trip} pax={Math.max(1, tickets.filter((k) => k.seat_no !== null).length)} />}
             <div className="card stack">
               <h3>{t("booking.breakdown")}</h3>
               {b.price_breakdown.lines ? b.price_breakdown.lines.map((l) => (

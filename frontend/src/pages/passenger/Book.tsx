@@ -257,6 +257,13 @@ export default function Book() {
             <div className="line"><span className="dur">{duration(minutesBetween(from.sched_dep, to.sched_arr))}</span></div>
             <div style={{ textAlign: "end" }}><div className="time">{time(to.sched_arr)}</div><div className="small muted">{station(to.station_code, to.station_name)}</div></div>
           </div>
+          {d.return_trip && (
+            <div className="small muted row" style={{ gap: 6, marginTop: 8 }}>
+              <Icon name="swap_calls" size={16} />
+              {t("ret.returnsAs", { code: d.return_trip.trip_code ?? d.return_trip.trip_no, time: time(d.return_trip.departs_at) })}
+              {d.return_trip.same_vehicle !== false ? ` · ${t("ret.sameVehicle")}` : ""}
+            </div>
+          )}
         </div>
         <div className="stack tight" style={{ alignItems: "flex-end" }}>
           <span className="muted">{date(from.sched_dep, { weekday: "long", day: "numeric", month: "long" })}</span>

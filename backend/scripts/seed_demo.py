@@ -42,6 +42,13 @@ ROUTES = [
 ]
 DEPARTURES = {"DAM-ALP": ["07:30", "10:00", "15:00"], "ALP-DAM": ["08:00", "16:00"], "DAM-LTK": ["09:00", "14:00"],
               "DAM-DRA": ["08:30", "13:30", "18:00"]}
+# Four-digit trip numbers (1119): the first three digits are the line of a vehicle's day, the last its leg, odd away
+# from Damascus and even back. DC 1101 to Aleppo at 07:30 returns as DC 1102 at 16:00 on the same vehicle; the other
+# departures start lines of their own (a return on its own takes leg 2 of its line).
+NUMBERS = {("DAM-ALP", "07:30"): (1101, None), ("DAM-ALP", "10:00"): (1111, None), ("DAM-ALP", "15:00"): (1121, None),
+           ("ALP-DAM", "08:00"): (1132, None), ("ALP-DAM", "16:00"): (1102, ("DAM-ALP", "07:30")),
+           ("DAM-LTK", "09:00"): (1141, None), ("DAM-LTK", "14:00"): (1151, None),
+           ("DAM-DRA", "08:30"): (1161, None), ("DAM-DRA", "13:30"): (1171, None), ("DAM-DRA", "18:00"): (1181, None)}
 
 
 async def user(conn, party_type, name, email, kind, locale="en"):
@@ -234,7 +241,7 @@ async def main():
         await conn.execute("INSERT INTO iam.party_role (party_id, role_code) VALUES ($1, 'OPERATOR')", company)
         await conn.execute("INSERT INTO iam.company (id, approval_status, approved_by, approved_at) VALUES ($1, 'APPROVED', $2, now())",
                            company, admin)
-        # DCA, and DC the designator of its trip numbers ("DC 101", 1114)
+        # DCA, and DC the designator of its trip numbers ("DC 1101", 1114, 1119)
         await conn.execute("""INSERT INTO net.carrier_code (company_id, code3, code2, status, approved_by, valid_from)
                               VALUES ($1, 'DCA', 'DC', 'ACTIVE', $2, current_date)""", company, admin)
         await conn.execute("INSERT INTO fin.wallet (owner_party_id, company_id, wallet_type, label, currency) VALUES ($1, $1, 'COMPANY', 'Carrier wallet', 'SYP')",
@@ -269,7 +276,10 @@ async def main():
         today = datetime.now(LOCAL_TZ).date()
         busy: dict[int, list] = {v: [] for v, _ in vehicles}
         n_trips = 0
-        next_number = {False: 101, True: 102}
+        number_ids: dict[tuple, int] = {}          # (route, departure) -> its service number
+        reserved: dict[tuple, tuple] = {}          # (route, departure, day) -> the vehicle kept for it, and when
+        followers = {after: key for key, (_, after) in NUMBERS.items() if after}
+        stops_of = dict(ROUTES)
         for code, stops in ROUTES:
             ids = [station[c] for c, *_ in stops]
             rid = await conn.fetchval(
@@ -282,16 +292,14 @@ async def main():
                        VALUES ($1, $2, $3, $4, $5, $6, $7)""",
                     rid, i, station[city], "ORIGIN" if i == 0 else ("DEST" if i == len(stops) - 1 else "STOP"), arr, dep, fare * 100)
             # one service number for each departure time, repeated every day (study 4.16 b, 1114): odd outbound from
-            # Damascus, even on the way back
-            inbound = not code.startswith("DAM-")
+            # Damascus, even on the way back; a leg after another on the same vehicle follows it (1119)
             numbers = {}
             for hhmm in DEPARTURES[code]:
-                number = next_number[inbound]
-                next_number[inbound] += 2
-                numbers[hhmm] = await conn.fetchval(
-                    """INSERT INTO net.service_number (company_id, number, block, route_id, direction, valid)
-                       VALUES ($1, $2, 'SCHEDULED', $3, $4, daterange(current_date - 1, NULL)) RETURNING id""",
-                    company, number, rid, "INBOUND" if inbound else "OUTBOUND")
+                number, after = NUMBERS[(code, hhmm)]
+                numbers[hhmm] = number_ids[(code, hhmm)] = await conn.fetchval(
+                    """INSERT INTO net.service_number (company_id, number, block, route_id, direction, valid, follows_id)
+                       VALUES ($1, $2, 'SCHEDULED', $3, $4, daterange(current_date - 1, NULL), $5) RETURNING id""",
+                    company, number, rid, "OUTBOUND" if number % 2 else "INBOUND", number_ids.get(after) if after else None)
             for day in range(0, 7):
                 for hhmm in DEPARTURES[code]:
                     h, m = map(int, hhmm.split(":"))
@@ -299,12 +307,22 @@ async def main():
                     if dep_at < datetime.now(LOCAL_TZ) + timedelta(minutes=45):
                         continue
                     arr_at = dep_at + timedelta(minutes=stops[-1][1])
-                    vid, seats = next(((v, s) for v, s in vehicles
+                    kept = reserved.pop((code, hhmm, day), None)                  # the vehicle of the leg before it
+                    if kept:
+                        busy[kept[0]].remove(kept[1])
+                    vid, seats = next(((v, s) for v, s in sorted(vehicles, key=lambda x: x[0] != (kept[0] if kept else None))
                                        if all(arr_at + timedelta(minutes=30) <= b0 or dep_at >= b1 + timedelta(minutes=30) for b0, b1 in busy[v])),
                                       (None, None))
                     if vid is None:
                         continue
                     busy[vid].append((dep_at, arr_at))
+                    if (code, hhmm) in followers:                                  # keep the vehicle for its next leg
+                        fcode, fhhmm = followers[(code, hhmm)]
+                        fh, fm = map(int, fhhmm.split(":"))
+                        f_dep = datetime(today.year, today.month, today.day, fh, fm, tzinfo=LOCAL_TZ) + timedelta(days=day)
+                        window = (f_dep, f_dep + timedelta(minutes=stops_of[fcode][-1][1]))
+                        busy[vid].append(window)
+                        reserved[(fcode, fhhmm, day)] = (vid, window)
                     trip_no = f"DCA-{code}-{dep_at:%H%M}/{dep_at:%d%b%y}".upper()
                     tid = await conn.fetchval(
                         """INSERT INTO ops.trip (trip_no, company_id, route_id, service_type, vehicle_id, departure_at, arrival_at, status,

@@ -440,6 +440,36 @@ async def create_booking(conn: asyncpg.Connection, ctx: db.Context, buyer: Buyer
             "pay_option": option, "commission": q["commission"] if buyer.agency_id else None}
 
 
+async def return_trip(conn: asyncpg.Connection, trip_id: int, from_seq: int, to_seq: int) -> Optional[dict]:
+    """The trip that continues this one on the same vehicle on its day (1119), with the way back: from where the traveller
+    gets off to where they got on when the return stops at both, else the whole return trip. None when there is none."""
+    r = await conn.fetchrow("SELECT trip_id, same_vehicle FROM ops.trip_return($1)", trip_id)
+    if r is None:
+        return None
+    back = await conn.fetchrow(
+        """WITH c AS (SELECT (SELECT s.city_id FROM ops.trip_stop x JOIN net.station s ON s.id = x.station_id
+                               WHERE x.trip_id = $2 AND x.seq = $3) AS boarded,
+                             (SELECT s.city_id FROM ops.trip_stop x JOIN net.station s ON s.id = x.station_id
+                               WHERE x.trip_id = $2 AND x.seq = $4) AS alighted),
+              q AS (SELECT t.id, t.uid, t.trip_code, t.trip_no, t.segments_count, t.sales_cutoff_min,
+                           (SELECT min(x.seq) FROM ops.trip_stop x JOIN net.station s ON s.id = x.station_id, c
+                             WHERE x.trip_id = t.id AND x.kind = 'STATION' AND s.city_id = c.alighted) AS f,
+                           (SELECT max(x.seq) FROM ops.trip_stop x JOIN net.station s ON s.id = x.station_id, c
+                             WHERE x.trip_id = t.id AND x.kind = 'STATION' AND s.city_id = c.boarded) AS l
+                      FROM ops.trip t WHERE t.id = $1),
+              seg AS (SELECT q.*, CASE WHEN f IS NOT NULL AND l IS NOT NULL AND f < l THEN f ELSE 0 END AS from_seq,
+                                  CASE WHEN f IS NOT NULL AND l IS NOT NULL AND f < l THEN l ELSE segments_count END AS to_seq FROM q)
+           SELECT seg.uid, seg.trip_code, seg.trip_no, seg.from_seq, seg.to_seq, a.sched_dep AS departs_at, z.sched_arr AS arrives_at,
+                  sa.name AS from_station, sa.code AS from_code, sb.name AS to_station, sb.code AS to_code,
+                  a.sched_dep > now() + make_interval(mins => seg.sales_cutoff_min) AND a.sellable AND a.sales_closed_at IS NULL AS on_sale
+             FROM seg JOIN ops.trip_stop a ON a.trip_id = seg.id AND a.seq = seg.from_seq JOIN net.station sa ON sa.id = a.station_id
+             JOIN ops.trip_stop z ON z.trip_id = seg.id AND z.seq = seg.to_seq JOIN net.station sb ON sb.id = z.station_id""",
+        r["trip_id"], trip_id, from_seq, to_seq)
+    if back is None:
+        return None
+    return {**row_dict(back), "uid": str(back["uid"]), "same_vehicle": r["same_vehicle"]}
+
+
 async def _journey(conn: asyncpg.Connection, trip_id: int, from_seq: int, to_seq: int) -> dict:
     row = await conn.fetchrow(
         """SELECT ca.code AS from_city, cb.code AS to_city,
@@ -655,6 +685,9 @@ async def booking_view(conn: asyncpg.Connection, ctx: db.Context, b: asyncpg.Rec
         booking["contact_mobile"] = b["contact_mobile"]
     booking["pay_option"] = b.get("pay_option")
     booking["pay_by"] = b["hold_expires_at"].isoformat() if b["status"] == "PENDING_PAYMENT" and b.get("hold_expires_at") else None
+    # the return on the same vehicle (1119), offered while the booking stands
+    booking["return_trip"] = await return_trip(conn, b["trip_id"], tickets[0]["from_seq"], tickets[0]["to_seq"]) \
+        if tickets and b["status"] in ("CONFIRMED", "PENDING_PAYMENT") else None
     out = []
     for t in tickets:
         d = row_dict(t)

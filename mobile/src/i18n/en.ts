@@ -303,6 +303,8 @@ const en = {
   },
   // generated from the website's locale files (scratch generator; keep in step with frontend/src/i18n)
   // ways of paying a booking (1056) in the passenger app (review stage C8); the same texts as the website
+  ret: { title: "Return on the same vehicle", other: "Return trip", book: "Book the return", returnsAs: "Returns as {code} at {time}",
+         planned: "The vehicle planned for both trips; it may be replaced on the day." },
   opt: {
     title: "How do you want to pay?",
     name: { WALLET: "Wallet", PAY_LATER: "Pay later at the counter", CARD: "Bank card", INSTALLMENT: "Instalments", FINANCING: "Travel financing" },

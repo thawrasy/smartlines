@@ -1,5 +1,11 @@
 // Material Symbols (rounded, Apache-2.0), bundled at build time. Generated list: add a name here to use it.
 
+import i_swap_calls from "@material-symbols/svg-400/rounded/swap_calls.svg?raw";
+import i_airline_stops from "@material-symbols/svg-400/rounded/airline_stops.svg?raw";
+import i_multiple_stop from "@material-symbols/svg-400/rounded/multiple_stop.svg?raw";
+import i_groups from "@material-symbols/svg-400/rounded/groups.svg?raw";
+import i_flight_land from "@material-symbols/svg-400/rounded/flight_land.svg?raw";
+import i_flight_takeoff from "@material-symbols/svg-400/rounded/flight_takeoff.svg?raw";
 import i_event_repeat from "@material-symbols/svg-400/rounded/event_repeat.svg?raw";
 import i_policy from "@material-symbols/svg-400/rounded/policy.svg?raw";
 import i_upload_file from "@material-symbols/svg-400/rounded/upload_file.svg?raw";
@@ -317,6 +323,12 @@ export const ICONS = {
   edit_calendar: i_edit_calendar,
   policy: i_policy,
   upload_file: i_upload_file,
+  swap_calls: i_swap_calls,
+  airline_stops: i_airline_stops,
+  multiple_stop: i_multiple_stop,
+  groups: i_groups,
+  flight_land: i_flight_land,
+  flight_takeoff: i_flight_takeoff,
 } as const;
 
 export type IconName = keyof typeof ICONS;

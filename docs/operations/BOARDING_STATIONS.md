@@ -264,7 +264,7 @@ year once versioned). A file that breaks a rule is refused with the rule (`LOGO_
 `LOGO_TOO_LARGE`). The logo is the carrier's, never a trip's: it is added once and every answer that names the carrier carries its version (`iam.logo_version`, 1116), so a new logo shows everywhere at once.
 
 **The trip number passengers read is short**, as in aviation: the carrier's code for trip numbers and a service number,
-"DC 101", the same for the same departure every day. The long number stays the trip's reference. See
+"DC 1201", the same for the same departure every day. The long number stays the trip's reference. See
 [TRIP_NUMBERS.md](../design/TRIP_NUMBERS.md).
 
 **The driver boards a ticket by its number and booking reference** (decision O1): for a paper ticket printed before its

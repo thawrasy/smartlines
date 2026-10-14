@@ -13,11 +13,14 @@ import { Empty, ErrorBox, Field, Icon, Loaded, Modal, useLoad, useToast } from "
 type Recurrence = "DAILY" | "WEEKLY" | "MONTHLY";
 type Stage = { by: "PLATFORM" | "AUTHORITY"; authority?: string };
 export interface PatternLike { recurrence: Recurrence | string; days_of_week?: number[]; days_of_month?: number[] }
-interface Rules { approval_stages: Stage[]; approval_kinds: string[]; min_notice_days: number; horizon_days: number; recurrences: Recurrence[] }
+interface Rules { approval_stages: Stage[]; approval_kinds: string[]; min_notice_days: number; horizon_days: number; recurrences: Recurrence[];
+                 min_turnaround_min: number }
 interface Schedule extends PatternLike {
   uid: string; status: "ACTIVE" | "PAUSED" | "RETIRED"; departure_time: string; from_date: string; until_date: string | null;
   skip_dates: string[]; base_price: number; currency: string; trip_type: string; auto_publish: boolean; route_code: string;
   origin: string; destination: string; origin_code: string; dest_code: string; plate_no: string | null; trip_code: string | null;
+  // the legs of a vehicle's day (1119): the number this one continues and the one that continues it
+  service_no: number | null; follows_code: string | null; next_code: string | null;
   next_departure: string | null; upcoming: number; last_run: { created: number; skipped_count: number; skipped: { date: string; reason: string }[] } | null;
 }
 export interface ScheduleRequest {
@@ -97,13 +100,18 @@ function SkipDates({ value, onChange }: { value: string[]; onChange: (v: string[
 }
 
 function NewSchedule({ data, onClose, onDone }: { data: Overview; onClose: () => void; onDone: (msg: string) => void }) {
-  const { t, date } = useI18n();
+  const { t, date, station } = useI18n();
   const today = new Date().toISOString().slice(0, 10);
   const [f, setF] = useState({
     route_uid: data.routes[0]?.uid ?? "", vehicle_uid: "", departure_time: "08:00", recurrence: data.rules.recurrences[0] ?? "DAILY" as Recurrence,
     days_of_week: [] as number[], days_of_month: [] as number[], skip_dates: [] as string[], from_date: today, no_end: true, until_date: "",
-    price: "", trip_type: "SCHEDULED", direction: "OUTBOUND", proposed_number: "", auto_publish: true, note: "",
+    price: "", trip_type: "SCHEDULED", direction: "OUTBOUND", proposed_number: "", auto_publish: true, note: "", follows_uid: "",
   });
+  // a leg the vehicle runs before this one: a regular trip of the carrier whose number ends in 1 to 7 and that nothing continues yet
+  const legs = data.schedules.filter((s) => s.status !== "RETIRED" && s.service_no !== null && s.service_no % 10 >= 1 && s.service_no % 10 <= 7 && !s.next_code);
+  const after = legs.find((s) => s.uid === f.follows_uid) ?? null;
+  const cityOf = (code: string) => code.split("-")[1] ?? code;
+  const routes = after ? data.routes.filter((r) => cityOf(r.origin_code) === cityOf(after.dest_code)) : data.routes;
   const [preview, setPreview] = useState<{ dates: string[]; in_30_days: number } | null>(null);
   const [error, setError] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
@@ -117,7 +125,8 @@ function NewSchedule({ data, onClose, onDone }: { data: Overview; onClose: () =>
     try {
       const r = await api.post<{ status: string }>("/api/carrier/schedules", {
         ...pattern(), route_uid: f.route_uid, vehicle_uid: f.vehicle_uid || null, base_price: toMinor(f.price), trip_type: f.trip_type,
-        direction: f.direction, auto_publish: f.auto_publish, proposed_number: f.proposed_number ? Number(f.proposed_number) : null, note: f.note || null });
+        direction: f.direction, auto_publish: f.auto_publish, note: f.note || null,
+        ...(after ? { follows_uid: after.uid } : { proposed_number: f.proposed_number ? Number(f.proposed_number) : null }) });
       onDone(r.status === "PENDING" ? t("sched.asked") : t("sched.applied"));
     } catch (e) { setError(e); } finally { setBusy(false); }
   };
@@ -126,10 +135,23 @@ function NewSchedule({ data, onClose, onDone }: { data: Overview; onClose: () =>
            actions={<><button className="btn text" onClick={onClose}>{t("common.cancel")}</button>
              <button className="btn" disabled={busy || !f.route_uid} onClick={submit}><Icon name="send" />{needs ? t("sched.ask") : t("sched.askNow")}</button></>}>
       <div className="stack">
+        <Field label={t("sched.follows")} hint={after ? t("sched.followsHint", { code: after.trip_code ?? "", n: data.rules.min_turnaround_min,
+                                                                                 next: (after.service_no ?? 0) + 1 }) : t("sched.followsNone")}>
+          <select className="input" value={f.follows_uid} onChange={(e) => {
+            const leg = legs.find((s) => s.uid === e.target.value);
+            const next = leg ? data.routes.find((r) => cityOf(r.origin_code) === cityOf(leg.dest_code)) : undefined;
+            setF({ ...f, follows_uid: e.target.value, route_uid: next?.uid ?? f.route_uid, vehicle_uid: f.vehicle_uid,
+                   direction: leg ? (((leg.service_no ?? 0) + 1) % 2 === 1 ? "OUTBOUND" : "INBOUND") : f.direction, proposed_number: "" });
+            setPreview(null);
+          }}>
+            <option value="">{t("sched.followsStandalone")}</option>
+            {legs.map((s) => <option key={s.uid} value={s.uid}>{s.trip_code} · {s.departure_time} · {station(s.origin_code, s.origin)} → {station(s.dest_code, s.destination)}</option>)}
+          </select>
+        </Field>
         <div className="grid cols-2">
           <Field label={t("sched.route")}>
             <select className="input" value={f.route_uid} onChange={(e) => set("route_uid", e.target.value)}>
-              {data.routes.map((r) => <option key={r.uid} value={r.uid}>{r.code} · {r.origin} → {r.destination}</option>)}
+              {routes.map((r) => <option key={r.uid} value={r.uid}>{r.code} · {r.origin} → {r.destination}</option>)}
             </select>
           </Field>
           <Field label={t("sched.vehicle")}>
@@ -166,12 +188,13 @@ function NewSchedule({ data, onClose, onDone }: { data: Overview; onClose: () =>
             </select>
           </Field>
           <Field label={t("sched.direction")}>
-            <select className="input" value={f.direction} onChange={(e) => set("direction", e.target.value)}>
+            <select className="input" value={f.direction} disabled={!!after} onChange={(e) => set("direction", e.target.value)}>
               {["OUTBOUND", "INBOUND"].map((x) => <option key={x} value={x}>{t(`sched.dir.${x}`)}</option>)}
             </select>
           </Field>
-          <Field label={t("sched.number")} hint={t("sched.numberHint")}>
-            <input className="input ltr" inputMode="numeric" value={f.proposed_number} onChange={(e) => set("proposed_number", e.target.value.replace(/\D/g, "").slice(0, 4))} />
+          <Field label={t("sched.number")} hint={after ? t("sched.numberAfter", { n: (after.service_no ?? 0) + 1 }) : t("sched.numberHint")}>
+            <input className="input ltr" inputMode="numeric" disabled={!!after} value={after ? String((after.service_no ?? 0) + 1) : f.proposed_number}
+                   onChange={(e) => set("proposed_number", e.target.value.replace(/\D/g, "").slice(0, 4))} />
           </Field>
         </div>
         <label className="row" style={{ gap: 8 }}><input type="checkbox" checked={f.auto_publish} onChange={(e) => set("auto_publish", e.target.checked)} />{t("sched.publish")}</label>
@@ -319,7 +342,9 @@ export function CarrierSchedules() {
                   <th>{t("sched.col.period")}</th><th>{t("sched.col.upcoming")}</th><th>{t("sched.col.status")}</th><th /></tr></thead>
                 <tbody>{d.schedules.map((s) => (
                   <tr key={s.uid}>
-                    <td className="mono text-nowrap"><strong>{s.trip_code ?? "—"}</strong><div className="small">{s.departure_time}</div></td>
+                    <td className="mono text-nowrap"><strong>{s.trip_code ?? "—"}</strong><div className="small">{s.departure_time}</div>
+                      {s.follows_code && <div className="small muted" title={t("sched.follows")}>{t("sched.after", { code: s.follows_code })}</div>}
+                      {s.next_code && <div className="small muted" title={t("sched.follows")}>{t("sched.then", { code: s.next_code })}</div>}</td>
                     <td style={{ minWidth: 190 }}><strong className="mono">{s.route_code}</strong>
                       <div className="small muted">{station(s.origin_code, s.origin)} → {station(s.dest_code, s.destination)}{s.plate_no ? ` · ${s.plate_no}` : ""}</div></td>
                     <td>{pattern.text(s)}{s.skip_dates.length > 0 && <div className="small muted">{t("sched.skip")}: {s.skip_dates.length}</div>}</td>
