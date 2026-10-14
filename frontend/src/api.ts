@@ -167,6 +167,10 @@ export interface BookingDetail {
                                 lines?: Quote["lines"]; family_offer?: Quote["family_offer"] } };
   tickets: Ticket[];
   invoices?: { uuid: string; doc_type: "INVOICE" | "CREDIT_NOTE"; number: string; total: number; currency: string; finalized_at: string }[];
+  /** The journey the booking belongs to (1121): a round trip, several places or a group, booked together. */
+  journey?: { uid: string; kind: "ONE_WAY" | "ROUND_TRIP" | "MULTI_CITY"; leg: number;
+              bookings: { booking_ref: string; leg: number; status: string; trip_no: string; trip_code: string | null;
+                          way: { from_city: string; to_city: string; departs_at: string } | null }[] } | null;
 }
 
 // A way of paying that platform administration has opened for this channel (1056)

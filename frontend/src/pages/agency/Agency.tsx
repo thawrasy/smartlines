@@ -80,7 +80,7 @@ export function AgencyDashboard() {
 // ------------------------------------------------------------------ sell: search, then the shared results screen
 export function AgencySell() {
   const [params] = useSearchParams();
-  return params.get("from") ? <Results /> : <AgencySearch />;
+  return params.get("from") || params.get("legs") ? <Results /> : <AgencySearch />;
 }
 
 function AgencySearch() {

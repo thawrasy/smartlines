@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useParams, useSearchParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import QRCode from "qrcode";
 import { api, ApiError, newKey, type BookingDetail, type BookingOption, type Ticket } from "../../api";
 import { useI18n } from "../../i18n";
@@ -161,7 +161,7 @@ export default function Booking() {
 
   return (
     <div className={ch.staff ? "stack" : "page narrow stack"} style={ch.staff ? { maxWidth: 760 } : undefined}>
-      <Loaded state={state}>{({ booking: b, tickets, invoices }) => {
+      <Loaded state={state}>{({ booking: b, tickets, invoices, journey }) => {
         const first = tickets[0];
         const verifyUrl = `${location.origin}/verify?token=${encodeURIComponent(b.verify_token)}`;
         return (
@@ -215,6 +215,25 @@ export default function Booking() {
                 )}
               </div>
             ))}
+            {journey && (
+              <div className="card stack tight">
+                <div className="row" style={{ gap: 8 }}><Icon name={journey.kind === "ROUND_TRIP" ? "swap_horiz" : journey.kind === "MULTI_CITY" ? "multiple_stop" : "groups"} />
+                  <h3 style={{ margin: 0 }}>{t("jrn.partOf")}</h3><span className="chip">{t(`home.mode.${journey.kind}`)}</span></div>
+                <p className="small muted" style={{ margin: 0 }}>{t("jrn.partOfHint", { leg: journey.leg })}</p>
+                <ol className="journey-steps">
+                  {journey.bookings.map((x) => (
+                    <li key={x.booking_ref} className={x.booking_ref === b.booking_ref ? "on" : ""}>
+                      <span className="chip blue">{t("jrn.legN", { n: x.leg })}</span>
+                      {x.way && <span><strong>{city(x.way.from_city)} → {city(x.way.to_city)}</strong> · {date(x.way.departs_at, { weekday: "short", day: "numeric", month: "short" })} {time(x.way.departs_at)}</span>}
+                      <span className="mono small">{x.trip_code ?? x.trip_no}</span>
+                      {x.booking_ref === b.booking_ref ? <span className="mono small">{x.booking_ref}</span>
+                        : <Link className="mono small" to={ch.link(`/booking/${x.booking_ref}`)}>{x.booking_ref}</Link>}
+                      <Status value={x.status} />
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            )}
             {b.return_trip && <ReturnTrip r={b.return_trip} pax={Math.max(1, tickets.filter((k) => k.seat_no !== null).length)} />}
             <div className="card stack">
               <h3>{t("booking.breakdown")}</h3>

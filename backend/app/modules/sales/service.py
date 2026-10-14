@@ -694,7 +694,23 @@ async def booking_view(conn: asyncpg.Connection, ctx: db.Context, b: asyncpg.Rec
         d["rules_snapshot"] = _json(d["rules_snapshot"])
         d["ticket_name"] = ticket_name(d.pop("first_name"), d.pop("last_name"), d["full_name"])
         out.append(d)
-    return {"booking": booking, "tickets": out, "invoices": [{**row_dict(i), "uuid": str(i["uuid"])} for i in invoices]}
+    return {"booking": booking, "tickets": out, "invoices": [{**row_dict(i), "uuid": str(i["uuid"])} for i in invoices],
+            "journey": await journey_of(conn, b["id"])}
+
+
+async def journey_of(conn: asyncpg.Connection, booking_id: int) -> Optional[dict]:
+    """The journey a booking belongs to (1121): its kind, this booking's leg, and the booker's bookings of every leg."""
+    j = await conn.fetchrow("SELECT journey_uid, journey_kind, journey_leg, booker_party_id FROM sales.booking WHERE id = $1", booking_id)
+    if j is None or j["journey_uid"] is None:
+        return None
+    legs = await conn.fetch(
+        f"""SELECT b.booking_ref, b.journey_leg AS leg, b.status, t.trip_no, t.trip_code, {repo.JOURNEY_SQL.strip()}
+              FROM sales.booking b JOIN ops.trip t ON t.id = b.trip_id
+             WHERE b.journey_uid = $1 AND b.booker_party_id = $2 ORDER BY b.journey_leg, b.id""",
+        j["journey_uid"], j["booker_party_id"])
+    return {"uid": str(j["journey_uid"]), "kind": j["journey_kind"], "leg": j["journey_leg"],
+            "bookings": [{**{k: r[k] for k in ("booking_ref", "leg", "status", "trip_no", "trip_code")}, "way": _json(r["journey"])}
+                         for r in legs]}
 
 
 CREDENTIAL_CLOSES_AFTER_ARRIVAL = 3600      # seconds: a ticket's credential stays valid for an hour after its arrival

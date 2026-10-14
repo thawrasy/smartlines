@@ -2,7 +2,7 @@
 import json
 import uuid
 from datetime import date
-from typing import Optional
+from typing import Literal, Optional
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Query, Request, Response
@@ -111,7 +111,10 @@ async def stations(request: Request, city: Optional[str] = None):
 @router.get("/trips/search")
 async def search(request: Request, origin: str = Query(..., min_length=3, max_length=3),
                  destination: str = Query(..., min_length=3, max_length=3), on: date = Query(...),
-                 passengers: int = Query(1, ge=1, le=4)):
+                 passengers: int = Query(1, ge=1, le=60),
+                 stops: Optional[Literal["direct", "stops"]] = Query(default=None)):
+    """Trips between two cities on a day; direct trips only, or trips with stops only, when asked (1121). A group of up
+    to 60 travellers (an agency's, booked as a journey) sees which trips have the seats for all of them."""
     if origin == destination:
         raise ApiError(422, "SAME_CITY", "origin and destination must differ")
     async with db.transaction(_ctx(request)) as conn:
@@ -157,6 +160,8 @@ async def search(request: Request, origin: str = Query(..., min_length=3, max_le
         t.pop("id")
         t.pop("company_id")
         t["bookable"] = t["seats_left"] >= passengers
+    if stops:
+        trips = [t for t in trips if (t["stops_between"] == 0) == (stops == "direct")]
     return {"trips": trips}
 
 

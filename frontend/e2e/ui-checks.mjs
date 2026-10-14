@@ -23,15 +23,19 @@ const SCREENS = { phone: { width: 390, height: 844 }, desktop: { width: 1280, he
 const LOCALES = ["en", "ar"];
 
 const tomorrow = new Date(Date.now() + 27 * 3600e3).toISOString().slice(0, 10);    // Damascus time, roughly
+const later = new Date(Date.now() + 75 * 3600e3).toISOString().slice(0, 10);
+// a round trip and a trip to several places, chosen leg by leg (1121)
+const ROUND = `kind=ROUND_TRIP&legs=DAM_ALP_${tomorrow},ALP_DAM_${later}`;
+const MULTI = `kind=MULTI_CITY&legs=DAM_HMA_${tomorrow},HMA_ALP_${later}`;
 const STATION = process.env.MASSLAK_UI_STATION && existsSync(process.env.MASSLAK_UI_STATION)
   ? JSON.parse(readFileSync(process.env.MASSLAK_UI_STATION, "utf8")) : null;
 const PORTALS = [
-  { who: null, pages: ["/", `/search?origin=DAM&destination=ALP&on=${tomorrow}`, "@trip", "/login", "/register", "/track", "/verify"] },
-  { who: ["passenger@masslak.test", "PASSENGER"], pages: ["/trips", "/wallet", "/family", "/account", "/services", "/support"] },
+  { who: null, pages: ["/", `/search?origin=DAM&destination=ALP&on=${tomorrow}`, `/search?${ROUND}&pax=2`, "@trip", "/login", "/register", "/track", "/verify"] },
+  { who: ["passenger@masslak.test", "PASSENGER"], pages: ["/trips", "/wallet", "/family", "/account", "/services", "/support", "@journey"] },
   { who: ["owner@carrier.test", "OPERATOR"],
     pages: ["/carrier", "/carrier/trips", "/carrier/routes", "/carrier/vehicles", "/carrier/finance", "/carrier/documents", "/carrier/reports", "/carrier/stations", "/carrier/schedules", "/carrier/kyc"] },
   { who: ["counter@carrier.test", "OPERATOR"], pages: ["/carrier/counter", "/carrier/counter/report"] },
-  { who: ["agency@agency.test", "AGENCY"], pages: ["/agency", "/agency/bookings", "/agency/statement", "/agency/staff"] },
+  { who: ["agency@agency.test", "AGENCY"], pages: ["/agency", "/agency/bookings", "/agency/statement", "/agency/staff", `/agency/search?${MULTI}&pax=6`] },
   { who: ["driver@carrier.test", "DRIVER"], pages: ["/driver"] },
   { who: ["admin@masslak.test", "PLATFORM"],
     pages: ["/admin", "/admin/companies", "/admin/finance", "/admin/documents", "/admin/stations", "/admin/boarding", "/admin/schedules", "/admin/kyc", "/admin/modules", "/admin/payments"] },
@@ -49,6 +53,14 @@ function executable() {
   if (process.env.CHROME) return process.env.CHROME;
   for (const p of ["/usr/bin/google-chrome", "/opt/pw-browsers/chromium-1194/chrome-linux/chrome"]) if (existsSync(p)) return p;
   return undefined;
+}
+
+// the checkout of a round trip: the first trip there, and the first one back that leaves after it arrives (1121)
+async function roundTrip(request) {
+  const there = (await (await request.get(`${BASE}/api/trips/search?origin=DAM&destination=ALP&on=${tomorrow}`)).json()).trips?.[0];
+  const back = (await (await request.get(`${BASE}/api/trips/search?origin=ALP&destination=DAM&on=${later}`)).json()).trips?.[0];
+  if (!there || !back) return null;
+  return `/journey?${ROUND}&picked=${there.uid}:${there.from_seq}:${there.to_seq},${back.uid}:${back.from_seq}:${back.to_seq}&pax=2`;
 }
 
 async function firstTrip(request) {
@@ -107,6 +119,7 @@ try {
         await page.setViewportSize(size);
         for (let path of portal.pages) {
           if (path === "@trip") path = await firstTrip(context.request);
+          if (path === "@journey") path = await roundTrip(context.request);
           if (!path) continue;
           const where = `${locale} ${screen} ${portal.label ?? portal.who?.[1] ?? "VISITOR"} ${path}`;
           const resp = await page.goto(BASE + path, { waitUntil: "networkidle" });

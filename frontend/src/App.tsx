@@ -85,6 +85,7 @@ const StationSales = lazyNamed(() => import("./pages/station/Station"), "Station
 const StationBays = lazyNamed(() => import("./pages/station/Bays"), "StationBays");
 const StationScreens = lazyNamed(() => import("./pages/station/Screens"), "StationScreens");
 const DepartureBoard = lazy(() => import("./pages/station/DepartureBoard"));
+const Journey = lazy(() => import("./pages/passenger/Journey"));
 const StationOps = lazy(() => import("./pages/carrier/StationOps"));
 const AdminBoarding = lazy(() => import("./pages/admin/Boarding"));
 
@@ -231,6 +232,7 @@ export default function App() {
           <Route index element={<Home />} />
           <Route path="search" element={<Results />} />
           <Route path="trip/:uid" element={<Book />} />
+          <Route path="journey" element={<RequirePortal portal="PASSENGER"><Journey /></RequirePortal>} />
           <Route path="booking/:ref" element={<RequirePortal portal="PASSENGER"><Booking /></RequirePortal>} />
           <Route path="trips" element={<RequirePortal portal="PASSENGER"><MyTrips /></RequirePortal>} />
           <Route path="wallet" element={<RequirePortal portal="PASSENGER"><Wallet /></RequirePortal>} />
@@ -275,6 +277,7 @@ export default function App() {
           <Route path="agency" element={<AgencyDashboard />} />
           <Route path="agency/search" element={<AgencySell />} />
           <Route path="agency/trip/:uid" element={<Book />} />
+          <Route path="agency/journey" element={<Journey />} />
           <Route path="agency/booking/:ref" element={<Booking />} />
           <Route path="agency/bookings" element={<AgencyBookings />} />
           <Route path="agency/statement" element={<AgencyStatement />} />

@@ -2,7 +2,7 @@
 
 > Generated from the built database (`db/tools/gen_docs.py`); do not edit by hand.
 
-**531 tables, 5512 columns, in 26 schemas.**
+**531 tables, 5515 columns, in 26 schemas.**
 
 Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant isolation (RLS) · 🧩 partitioned monthly · 🔒 append-only / change-protected
 
@@ -3757,6 +3757,9 @@ Booking: price snapshot, channel, allocation tree and idempotency key; statuses 
 | `funded_by_party_id` | `bigint` | 🔗 `iam.party`  |  |
 | `funding_source` | `text` |  |  |
 | `pay_option` | `text` | 🔗 `fin.payment_method`  |  |
+| `journey_uid` | `uuid` |  |  |
+| `journey_kind` | `text` |  |  |
+| `journey_leg` | `smallint` |  |  |
 
 ### `sales.booking_key` 🛡️
 

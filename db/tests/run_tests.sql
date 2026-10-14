@@ -3620,4 +3620,21 @@ SELECT pg_temp.ok(brd.screen_board(:'sarr') IS NULL AND jsonb_array_length(net.s
 ROLLBACK;
 SET ROLE masslak_app;
 
+-- Journeys: a round trip, several places or a group, booked together (1121)
+BEGIN;
+RESET ROLE;
+SELECT pg_temp.expect_error($$UPDATE sales.booking SET journey_uid = gen_random_uuid() WHERE booking_ref = 'ABC123'$$,
+  'check constraint', 'Journeys (1121): a booking of a journey names its kind and its leg');
+SELECT pg_temp.expect_error($$UPDATE sales.booking SET journey_uid = gen_random_uuid(), journey_kind = 'ROUND_TRIP', journey_leg = 7
+    WHERE booking_ref = 'ABC123'$$, 'check constraint', 'Journeys (1121): a journey has at most six trips');
+SELECT pg_temp.expect_error($$UPDATE sales.booking SET journey_uid = gen_random_uuid(), journey_kind = 'TOUR', journey_leg = 1
+    WHERE booking_ref = 'ABC123'$$, 'check constraint', 'Journeys (1121): one way, round trip or several places');
+UPDATE sales.booking SET journey_uid = '00000000-0000-4000-8000-000000001121', journey_kind = 'MULTI_CITY', journey_leg = 2
+ WHERE booking_ref = 'ABC123';
+SELECT pg_temp.ok((SELECT count(*) FROM sales.booking WHERE journey_uid = '00000000-0000-4000-8000-000000001121') = 1
+                  AND (SELECT (value #>> '{}')::int FROM sys.setting WHERE key = 'agency.group.max_passengers') = 50,
+  'Journeys (1121): a booking takes its place in a journey; an agency group has 50 travellers at most by default');
+ROLLBACK;
+SET ROLE masslak_app;
+
 \echo '=== ALL TESTS PASSED ==='
