@@ -11,7 +11,7 @@ from test_e2e import OWNER_URL, client, login, owner_sql
 
 pytestmark = pytest.mark.skipif(not OWNER_URL, reason="needs MASSLAK_OWNER_URL")
 
-AR = "مكان"          # an Arabic word, written with escapes so the source stays in English
+AR = "\u0645\u0643\u0627\u0646"          # an Arabic word, written with escapes so the source stays in English
 COLUMNS = {
     "admin1": ["admin0Name_ar", "admin0Name_en", "admin0Pcode", "admin1Name_ar", "admin1Name_en", "admin1Pcode", "admin1RefName",
                "LastUpdateDate", "validOn", "validTo"],
@@ -154,7 +154,7 @@ def test_boundaries_field_surveys_and_stations_in_their_places():
 
     # a place found in the field: proposed, invisible until a second person accepts it
     body = {"kind": "COMMUNITY", "sub_district": "SY020000", "name_en": f"New Hamlet {uuid.uuid4().hex[:4]}",
-            "name_ar": "قرية", "lat": 36.31, "lng": 37.31, "surveyed_on": "2026-10-01", "note": "eleven houses"}
+            "name_ar": "\u0642\u0631\u064a\u0629", "lat": 36.31, "lng": 37.31, "surveyed_on": "2026-10-01", "note": "eleven houses"}
     r = admin.post("/api/admin/geo/places", json=body | {"lat": 33.5, "lng": 36.3})
     assert r.status_code == 409 and r.json()["error"]["code"] == "PLACE_OUTSIDE_AREA", r.text
     r = admin.post("/api/admin/geo/places", json=body)
