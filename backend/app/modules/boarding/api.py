@@ -91,6 +91,8 @@ class StationBoardingIn(BaseModel):
     checkin_opens_minutes: Optional[int] = Field(default=None, ge=0, le=1440)
     checkin_closes_minutes: Optional[int] = Field(default=None, ge=0, le=1440)
     manager_company_uid: Optional[uuid.UUID] = None                 # the station's administration, which assigns its bays (1115)
+    # the kinds of screen the station may show (1120): departures, arrivals, both on one board; absent keeps them
+    display_kinds: Optional[list[Literal["DEPARTURES", "ARRIVALS", "COMBINED"]]] = Field(default=None, min_length=1, max_length=3)
 
 
 class GateIn(BaseModel):

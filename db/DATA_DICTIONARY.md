@@ -2,7 +2,7 @@
 
 > Generated from the built database (`db/tools/gen_docs.py`); do not edit by hand.
 
-**530 tables, 5500 columns, in 26 schemas.**
+**531 tables, 5512 columns, in 26 schemas.**
 
 Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant isolation (RLS) · 🧩 partitioned monthly · 🔒 append-only / change-protected
 
@@ -11,7 +11,7 @@ Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant i
 - [`iam` — Identity, parties, users, permissions and API clients](#iam) (44 tables)
 - [`ref` — Reference data, locales and files](#ref) (14 tables)
 - [`sys` — Settings, outbox and webhooks](#sys) (27 tables)
-- [`net` — Network: stations, routes, lines, corridors and geofences](#net) (26 tables)
+- [`net` — Network: stations, routes, lines, corridors and geofences](#net) (27 tables)
 - [`fleet` — Fleet: vehicles, trucks, trailers, seats, crew, licenses and insurance](#fleet) (22 tables)
 - [`pricing` — Pricing, taxes, commissions, campaigns and loyalty](#pricing) (38 tables)
 - [`ops` — Trips, inventory, operations, shuttle rides, tracking and incidents](#ops) (38 tables)
@@ -1799,6 +1799,7 @@ Boarding switch, counter system, screens and check-in window of one station (109
 | `updated_at` | `timestamp with time zone` | ✱ | `now()` |
 | `manager_company_id` | `bigint` | 🔗 `iam.company`  |  |
 | `bay_mode` | `text` | ✱ | `'TRIP'::text` |
+| `display_kinds` | `text[]` | ✱ | `'{DEPARTURES,ARRIVALS,COMBINED}'::text[]` |
 
 ### `net.station_carrier_bay` 🛡️
 
@@ -1868,6 +1869,24 @@ What a station's operating company may do, for which carrier and at which statio
 | `granted_at` | `timestamp with time zone` | ✱ | `now()` |
 | `revoked_by_user_id` | `bigint` | 🔗 `iam.app_user`  |  |
 | `revoked_at` | `timestamp with time zone` |  |  |
+
+### `net.station_screen` 🛡️
+
+A display screen of a station: its kind (departures, arrivals or both), its place, and when it was last seen; registered by the station's administration (1120)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `station_id` | `bigint` | 🔗 `net.station` ✱ |  |
+| `kind` | `text` | ✱ |  |
+| `label` | `text` | ✱ |  |
+| `active` | `boolean` | ✱ | `true` |
+| `last_seen_at` | `timestamp with time zone` |  |  |
+| `created_by_user_id` | `bigint` | 🔗 `iam.app_user`  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `updated_by_user_id` | `bigint` | 🔗 `iam.app_user`  |  |
+| `updated_at` | `timestamp with time zone` | ✱ | `now()` |
 
 ### `net.timetable_template` 🛡️
 

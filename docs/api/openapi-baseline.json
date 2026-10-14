@@ -21,6 +21,28 @@
     "200": {}
    }
   },
+  "DELETE /api/admin/boarding/stations/{station_uid}/screens/{screen_uid}": {
+   "body": null,
+   "parameters": {
+    "path:screen_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    },
+    "path:station_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
   "DELETE /api/admin/companies/{company_uid}/logo": {
    "body": null,
    "parameters": {
@@ -198,6 +220,21 @@
     "200": {}
    }
   },
+  "DELETE /api/station/screens/{screen_uid}": {
+   "body": null,
+   "parameters": {
+    "path:screen_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
   "DELETE /api/v1/holds/{hold_token}": {
    "body": null,
    "parameters": {
@@ -351,6 +388,21 @@
    }
   },
   "GET /api/admin/boarding/stations/{station_uid}/bays": {
+   "body": null,
+   "parameters": {
+    "path:station_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/admin/boarding/stations/{station_uid}/screens": {
    "body": null,
    "parameters": {
     "path:station_uid": {
@@ -1677,6 +1729,21 @@
     "200": {}
    }
   },
+  "GET /api/public/screens/{screen_uid}": {
+   "body": null,
+   "parameters": {
+    "path:screen_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
   "GET /api/public/stations/{station_uid}/board": {
    "body": null,
    "parameters": {
@@ -2054,6 +2121,21 @@
       "maximum": 62,
       "minimum": 1,
       "type": "integer"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/station/screens": {
+   "body": null,
+   "parameters": {
+    "query:station_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
      }
     }
    },
@@ -2938,6 +3020,56 @@
     "200": {}
    }
   },
+  "PATCH /api/admin/boarding/stations/{station_uid}/screens/{screen_uid}": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "active": {
+        "nullable": true,
+        "type": "boolean"
+       },
+       "kind": {
+        "enum": [
+         "DEPARTURES",
+         "ARRIVALS",
+         "COMBINED"
+        ],
+        "nullable": true,
+        "type": "string"
+       },
+       "label": {
+        "maxLength": 60,
+        "minLength": 1,
+        "nullable": true,
+        "type": "string"
+       }
+      },
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:screen_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    },
+    "path:station_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
   "PATCH /api/auth/me/locale": {
    "body": {
     "content": {
@@ -3060,6 +3192,49 @@
     "path:res_key": {
      "required": true,
      "schema": {
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "PATCH /api/station/screens/{screen_uid}": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "active": {
+        "nullable": true,
+        "type": "boolean"
+       },
+       "kind": {
+        "enum": [
+         "DEPARTURES",
+         "ARRIVALS",
+         "COMBINED"
+        ],
+        "nullable": true,
+        "type": "string"
+       },
+       "label": {
+        "maxLength": 60,
+        "minLength": 1,
+        "nullable": true,
+        "type": "string"
+       }
+      },
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:screen_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
       "type": "string"
      }
     }
@@ -3644,6 +3819,47 @@
       },
       "required": [
        "gate_type"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:station_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "201": {}
+   }
+  },
+  "POST /api/admin/boarding/stations/{station_uid}/screens": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "kind": {
+        "enum": [
+         "DEPARTURES",
+         "ARRIVALS",
+         "COMBINED"
+        ],
+        "type": "string"
+       },
+       "label": {
+        "maxLength": 60,
+        "minLength": 1,
+        "type": "string"
+       }
+      },
+      "required": [
+       "kind",
+       "label"
       ],
       "type": "object"
      }
@@ -11194,6 +11410,44 @@
     "200": {}
    }
   },
+  "POST /api/station/screens": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "kind": {
+        "enum": [
+         "DEPARTURES",
+         "ARRIVALS",
+         "COMBINED"
+        ],
+        "type": "string"
+       },
+       "label": {
+        "maxLength": 60,
+        "minLength": 1,
+        "type": "string"
+       },
+       "station_uid": {
+        "format": "uuid",
+        "type": "string"
+       }
+      },
+      "required": [
+       "kind",
+       "label",
+       "station_uid"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "201": {}
+   }
+  },
   "POST /api/support/cases": {
    "body": {
     "content": {
@@ -12715,6 +12969,20 @@
          "EXTERNAL"
         ],
         "type": "string"
+       },
+       "display_kinds": {
+        "items": {
+         "enum": [
+          "DEPARTURES",
+          "ARRIVALS",
+          "COMBINED"
+         ],
+         "type": "string"
+        },
+        "maxItems": 3,
+        "minItems": 1,
+        "nullable": true,
+        "type": "array"
        },
        "displays": {
         "default": false,

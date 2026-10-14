@@ -30,6 +30,7 @@ from .modules.family import api as family_api
 from .modules.photo import api as photo_api
 from .modules.boarding import api as boarding_api
 from .modules.boarding import bays as boarding_bays
+from .modules.boarding import displays as boarding_displays
 from .modules.schedules import api as schedules_api
 from .modules.kyc import api as kyc_api
 from .modules.support import api as support_api
@@ -134,7 +135,8 @@ for r in (metrics.router, auth.router, public.router, bookings.router, wallet.ro
           manifests_api.carrier, manifests_api.platform,
           support_api.router, support_api.admin, cash_api.router, seo_pages.router, parcels_api.customer, parcels_api.carrier,
           loyalty_api.router, loyalty_admin.router, station_sales.router, boarding_screens.platform, boarding_screens.carrier,
-          boarding_screens.public, boarding_bays.station, boarding_bays.platform, schedules_api.carrier, schedules_api.platform,
+          boarding_screens.public, boarding_bays.station, boarding_bays.platform,
+          boarding_displays.station, boarding_displays.platform, boarding_displays.public, schedules_api.carrier, schedules_api.platform,
           kyc_api.carrier, kyc_api.platform):
     app.include_router(r)
 
@@ -148,7 +150,7 @@ _static = Path(get_settings().static_dir).resolve()
 # top-level paths of the web app (frontend/src/App.tsx; tests/test_api_contract.py keeps the two in step); anything else
 # is a real 404 (no "soft 404" pages for search engines)
 APP_PATHS = {"", "account", "admin", "agency", "board", "booking", "carrier", "driver", "family", "login", "m", "mfa", "parcels", "pay",
-             "register", "regulator", "search", "security", "services", "station", "support", "track", "trip", "trips", "verify", "wallet"}
+             "register", "regulator", "screen", "search", "security", "services", "station", "support", "track", "trip", "trips", "verify", "wallet"}
 if (_static / "index.html").exists():
     app.mount("/assets", StaticFiles(directory=_static / "assets"), name="assets")
 

@@ -538,6 +538,13 @@ tr.clickable:hover td { background: var(--surface-container-low, rgba(10, 91, 21
 .board-code { font-size: 1.4vw; opacity: .7; font-family: var(--font-mono); }
 .board-clock { font-size: 4.4vw; font-weight: 800; font-variant-numeric: tabular-nums; color: #E0B44C; direction: ltr; }
 .board-title { font-size: 1.8vw; margin: 1.2vw 0 .6vw; color: #9FB8E6; letter-spacing: .02em; }
+/* a screen of one kind (1120): its word heads it, large, in the colour of its kind */
+.board-kind { margin: 0; display: inline-flex; align-items: center; gap: 1vw; font-size: 4.4vw; font-weight: 800; letter-spacing: .02em; }
+.board-kind .icon { width: 4.4vw; height: 4.4vw; }
+.board-dep .board-kind { color: #E0B44C; }
+.board-arr .board-kind { color: #7CF0A8; }
+.board-arr .board-head { border-bottom-color: #7CF0A8; }
+.board-place { font-family: var(--font); }
 .board-table { width: 100%; border-collapse: collapse; font-size: 1.9vw; }
 .board-table th { text-align: start; font-size: 1.1vw; font-weight: 600; color: #9FB8E6; padding: .5vw .8vw; border-bottom: 1px solid #23395E; }
 .board-table td { padding: .9vw .8vw; border-bottom: 1px solid #16294A; vertical-align: middle; }
@@ -574,6 +581,7 @@ tr.clickable:hover td { background: var(--surface-container-low, rgba(10, 91, 21
   .board-bay { font-size: 18px; } .board-mono { font-size: 13px; } .board-trip { font-size: 14px; }
   .board-logo { height: 22px; padding: 2px 5px; border-radius: 4px; } .board-logo img { max-width: 80px; } .board-carrier { gap: 6px; } .board-title { font-size: 16px; } .board-via { font-size: 11px; } .board-code { font-size: 12px; } .board-offline { font-size: 11px; }
   .board-screen { padding: 12px; } .board-table td, .board-table th { padding: 8px 5px; }
+  .board-head { flex-wrap: wrap; gap: 8px; } .board-kind { font-size: 24px; gap: 6px; } .board-kind .icon { width: 24px; height: 24px; }
 }
 /* on a phone the trip number gives way: time, destination, carrier, bay and state stay */
 @media (max-width: 600px) { .board-narrow-hide { display: none; } .board-carrier { flex-direction: column; align-items: flex-start; gap: 3px; } }

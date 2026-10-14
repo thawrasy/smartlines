@@ -280,6 +280,35 @@ and the identity document checked against the name the app shows.
 Tests: the database suite (Trip numbers 1114; Bays, logos and the board 1115), `backend/tests/test_station_decisions.py`,
 the mobile core tests (`decideTyped`), and the browser checks of `/station/bays`.
 
+## 8f. Separate Departures and Arrivals screens (owner's decision, October 2026; built in 1120)
+
+A station shows its departures and its arrivals on separate screens, each headed with its word in large type,
+"Departures" or "Arrivals", in the languages the board shows in turn. See
+[STATION_DISPLAY_SCREENS.md](../design/STATION_DISPLAY_SCREENS.md).
+
+- **The platform decides which kinds a station shows** (`net.station_boarding.display_kinds`, set in the station's
+  boarding settings: Departures, Arrivals, and Departures and arrivals on one board, the board the station had before).
+  At least one kind; every station allows all three until the platform changes it.
+- **The station's administration registers its screens** (the station portal, `/station/screens`; its owner or staff
+  holding `station.screens`, role template `STATION_SCREENS`): each screen has a kind among those allowed and a place
+  ("Main hall", "Gate 2"), and its own link, `/screen/<screen uid>`, opened full screen on the display. The
+  administration places as many screens of each kind as it needs (at most 200 per station), changes a screen's kind or
+  place, stops and starts it, or takes it down for good (its link stops working). The platform does the same where a
+  station has no administration yet (Boarding stations, the station's Screens).
+- **A screen reports when it was last seen** (to the minute, when it reads its board): the page shows which screens are
+  on now, when the others were last seen, and those never opened.
+- **What a screen shows**: its kind's board from `brd.screen_board` (the departures of the next 12 hours, or the arrivals
+  of the next 6, with bays, states, logos and the stops on the way), public and without passenger data, only while the
+  platform switch, the station's screens and its kind are on. Otherwise it says it shows nothing at the moment
+  (`SCREEN_OFF`); a kind the platform stops goes dark at once, and the administration sees those screens marked so it
+  can give them another kind. `/board/<station uid>` stays the board with both, where that kind is allowed.
+
+Refusals: `NOT_STATION_ADMIN` (403), `SCREEN_UNKNOWN` (404), `SCREEN_KIND_NOT_ALLOWED` and `SCREEN_LABEL_INVALID` (422),
+`SCREEN_LABEL_TAKEN` and `SCREENS_LIMIT` (409).
+
+Tests: the database suite (Screens 1120), `backend/tests/test_station_display_screens.py`, and the browser checks of
+`/station/screens` and of a departures and an arrivals screen.
+
 ## 9. Build order
 
 1. **Done (1097).** Settings, each default off or empty: the platform switch, the two operating-company modes, the check-in

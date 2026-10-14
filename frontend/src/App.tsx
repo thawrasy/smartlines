@@ -83,6 +83,7 @@ const StationCheckin = lazyNamed(() => import("./pages/station/Station"), "Stati
 const StationBoarding = lazyNamed(() => import("./pages/station/Station"), "StationBoarding");
 const StationSales = lazyNamed(() => import("./pages/station/Station"), "StationSales");
 const StationBays = lazyNamed(() => import("./pages/station/Bays"), "StationBays");
+const StationScreens = lazyNamed(() => import("./pages/station/Screens"), "StationScreens");
 const DepartureBoard = lazy(() => import("./pages/station/DepartureBoard"));
 const StationOps = lazy(() => import("./pages/carrier/StationOps"));
 const AdminBoarding = lazy(() => import("./pages/admin/Boarding"));
@@ -205,6 +206,8 @@ function StationShell() {
       { to: "/station/sales", icon: "point_of_sale", label: t("st.sales") },
       // the bays, for the station's administration (1115): its owner, or staff holding station.bays
       ...(can("station.bays") ? [{ to: "/station/bays", icon: "local_parking" as const, label: t("bays.nav") }] : []),
+      // the display screens, for the station's administration (1120): its owner, or staff holding station.screens
+      ...(can("station.screens") ? [{ to: "/station/screens", icon: "tv" as const, label: t("scr.nav") }] : []),
     ]} />
   );
 }
@@ -290,10 +293,12 @@ export default function App() {
           <Route path="station/boarding" element={<StationBoarding />} />
           <Route path="station/sales" element={<StationSales />} />
           <Route path="station/bays" element={<StationBays />} />
+          <Route path="station/screens" element={<StationScreens />} />
           <Route path="station/trip/:uid" element={<Book />} />
           <Route path="station/booking/:ref" element={<Booking />} />
         </Route>
         <Route path="board/:uid" element={<DepartureBoard />} />
+        <Route path="screen/:uid" element={<DepartureBoard screen />} />
         <Route element={<RequirePortal portal="DRIVER"><DriverLayout /></RequirePortal>}>
           <Route path="driver" element={<DriverTrips />} />
           <Route path="driver/trip/:uid" element={<DriverTrip />} />

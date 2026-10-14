@@ -88,10 +88,17 @@ def main(out: str) -> None:
     assert sold.status_code == 201, sold.text
 
     browser = station_session(company)     # a session of its own for the browser (a code is used once)
+    # a departures screen and an arrivals screen, registered by the station's administration (1120)
+    screens = {}
+    for kind, label in (("DEPARTURES", "Main hall"), ("ARRIVALS", "Arrivals hall")):
+        r = browser.post("/api/station/screens", json={"station_uid": station, "kind": kind, "label": label})
+        assert r.status_code == 201, r.text
+        screens[kind] = r.json()["uid"]
     code = owner_sql("SELECT code FROM net.station WHERE uid = $1", uuid.UUID(station))
     with open(out, "w") as f:
         json.dump({"cookies": dict(browser.cookies), "station_uid": station, "station_code": code, "counter": counter,
-                   "trip_uid": leg["uid"], "booking_ref": sold.json()["booking_ref"]}, f, indent=1)
+                   "trip_uid": leg["uid"], "booking_ref": sold.json()["booking_ref"],
+                   "departures_screen": screens["DEPARTURES"], "arrivals_screen": screens["ARRIVALS"]}, f, indent=1)
     print(f"station {code} counter {counter} trip {trip['trip_no']} sold {sold.json()['booking_ref']}")
 
 

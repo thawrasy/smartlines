@@ -46,6 +46,8 @@ async def stations(request: Request, pr: Principal = Depends(require_portal("PLA
     async with db.transaction(context_for(request, pr)) as conn:
         rs = await conn.fetch(
             """SELECT s.uid, s.code, s.name, c.code AS city, coalesce(b.enabled, false) AS enabled, coalesce(b.displays, false) AS displays,
+                      coalesce(b.display_kinds, '{DEPARTURES,ARRIVALS,COMBINED}') AS display_kinds,
+                      (SELECT count(*) FROM net.station_screen sc WHERE sc.station_id = s.id AND sc.active) AS screens,
                       coalesce(b.counter_system, 'PLATFORM') AS counter_system, b.checkin_opens_minutes, b.checkin_closes_minutes,
                       net.boarding_station_on(s.id) AS boarding_on_now,
                       (SELECT count(*) FROM net.station_gate g WHERE g.station_id = s.id AND g.gate_type = 'COUNTER' AND g.status = 'ACTIVE') AS counters,

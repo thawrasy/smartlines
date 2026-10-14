@@ -6,21 +6,26 @@ import { useAuth } from "../../auth";
 import { PageHead } from "../../components/layout";
 import { CarrierName, Empty, ErrorBox, Field, Icon, Loaded, Modal, Stat, Status, useLoad, useToast } from "../../components/ui";
 import { BaysPanel, platformBaysApi } from "../station/Bays";
+import { SCREEN_KINDS, ScreensPanel, platformScreensApi, type ScreenKind } from "../station/Screens";
 
 // Boarding stations in the platform portal (1097-1112, build step 4): the switches and the check-in window, each
 // station's boarding, screens, counters and bays, the station operating companies, and the rights the platform gives a
 // state-mandated operating company. Everything here is checked again by the API and the database. The platform names
 // each station's administration, which assigns its bays (1115), and sets the languages the departure board shows in turn.
+// It decides which kinds of screen each station shows (1120): departures, arrivals, or both on one board; the station's
+// administration registers the screens and distributes them, as the platform does where a station has none yet.
 
 interface StationRow {
   uid: string; code: string; name: string; city: string | null; enabled: boolean; displays: boolean; counter_system: string;
   checkin_opens_minutes: number | null; checkin_closes_minutes: number | null; boarding_on_now: boolean; counters: number; bays: number;
+  display_kinds: ScreenKind[]; screens: number;
 }
 interface Gate { code: string; gate_type: string; status: string; operator_uid: string | null; operator_name: string | null }
 interface StationView {
   uid: string; code: string; name: string; boarding_on_now: boolean; gates: Gate[];
   boarding: { enabled: boolean; counter_system: "PLATFORM" | "EXTERNAL"; displays: boolean; checkin_opens_minutes: number | null; checkin_closes_minutes: number | null;
-    manager_company_uid?: string | null; manager_company_name?: string | null; bay_mode?: "CARRIER" | "TRIP" };
+    manager_company_uid?: string | null; manager_company_name?: string | null; bay_mode?: "CARRIER" | "TRIP"; display_kinds: ScreenKind[] };
+  screens: { uid: string; kind: ScreenKind; label: string; active: boolean; online: boolean }[];
 }
 interface Company { uid: string; name: string; approval_status: string; created_at: string; counters: number; grants: number }
 interface Grant {
@@ -54,6 +59,7 @@ function Stations() {
   const list = useLoad(() => api.get<{ stations: StationRow[] }>("/api/admin/boarding/stations"));
   const [open, setOpen] = useState<string | null>(null);
   const [bays, setBays] = useState<StationRow | null>(null);
+  const [screens, setScreens] = useState<StationRow | null>(null);
   return (
     <div className="card stack">
       <p className="small muted" style={{ margin: 0 }}>{t("brdadm.stationsHint")}</p>
@@ -66,10 +72,13 @@ function Stations() {
               <td><strong className="mono text-nowrap">{s.code}</strong> · {placeName(s.code, s.name)}</td>
               <td>{s.city ? city(s.city) : "—"}</td>
               <td>{s.boarding_on_now ? <Status value="ACTIVE" /> : s.enabled ? <span className="small muted">{t("brdadm.onButOff")}</span> : <span className="small muted">{t("brdadm.off")}</span>}</td>
-              <td>{s.displays ? <Link className="btn text small" to={`/board/${s.uid}`} target="_blank" rel="noopener"><Icon name="tv" />{t("brdadm.openBoard")}</Link> : <span className="small muted">{t("brdadm.off")}</span>}</td>
+              <td>{s.displays ? <span className="text-nowrap">{t("brdadm.screensCount", { n: s.screens })}
+                {s.display_kinds.includes("COMBINED") && <Link className="btn text small" to={`/board/${s.uid}`} target="_blank" rel="noopener"><Icon name="tv" />{t("brdadm.openBoard")}</Link>}</span>
+                : <span className="small muted">{t("brdadm.off")}</span>}</td>
               <td className="num">{s.counters}</td><td className="num">{s.bays}</td>
               <td className="num text-nowrap"><button className="btn text small" onClick={() => setOpen(s.uid)}><Icon name="tune" />{t("brdadm.manage")}</button>
-                <button className="btn text small" onClick={() => setBays(s)}><Icon name="local_parking" />{t("bays.nav")}</button></td>
+                <button className="btn text small" onClick={() => setBays(s)}><Icon name="local_parking" />{t("bays.nav")}</button>
+                <button className="btn text small" onClick={() => setScreens(s)}><Icon name="tv" />{t("scr.nav")}</button></td>
             </tr>
           ))}</tbody>
         </table></div>
@@ -80,6 +89,13 @@ function Stations() {
           actions={<button className="btn text" onClick={() => setBays(null)}>{t("common.close")}</button>}>
           <p className="small muted" style={{ marginTop: 0 }}>{t("bays.platformHint")}</p>
           <BaysPanel calls={platformBaysApi(bays.uid)} />
+        </Modal>
+      )}
+      {screens && (
+        <Modal wide title={`${t("scr.title")} · ${screens.code}`} onClose={() => { setScreens(null); list.reload(); }}
+          actions={<button className="btn text" onClick={() => { setScreens(null); list.reload(); }}>{t("common.close")}</button>}>
+          <p className="small muted" style={{ marginTop: 0 }}>{t("scr.platformHint")}</p>
+          <ScreensPanel calls={platformScreensApi(screens.uid)} />
         </Modal>
       )}
     </div>
@@ -104,7 +120,7 @@ function StationModal({ uid, onClose }: { uid: string; onClose: () => void }) {
     try {
       await api.put(`/api/admin/boarding/stations/${uid}`, { enabled: b.enabled, counter_system: b.counter_system, displays: b.displays,
         checkin_opens_minutes: b.checkin_opens_minutes, checkin_closes_minutes: b.checkin_closes_minutes,
-        manager_company_uid: b.manager_company_uid || null });
+        manager_company_uid: b.manager_company_uid || null, display_kinds: b.display_kinds });
       toast(t("common.saved")); setForm(null); view.reload();
     } catch (e) { setError(e); }
   };
@@ -125,6 +141,22 @@ function StationModal({ uid, onClose }: { uid: string; onClose: () => void }) {
           <ErrorBox error={error} />
           <label className="check-row"><input type="checkbox" checked={b.enabled} onChange={(e) => set({ enabled: e.target.checked })} />{t("brdadm.enabled")}</label>
           <label className="check-row"><input type="checkbox" checked={b.displays} onChange={(e) => set({ displays: e.target.checked })} />{t("brdadm.displays")}</label>
+          {b.displays && (
+            <fieldset className="stack tight" style={{ border: 0, padding: 0, margin: "0 0 0 28px" }}>
+              <legend className="small">{t("brdadm.kinds")}</legend>
+              <div className="row" style={{ gap: 16, flexWrap: "wrap" }}>
+                {SCREEN_KINDS.map((k) => (
+                  <label key={k} className="check-row">
+                    <input type="checkbox" checked={b.display_kinds.includes(k)}
+                           disabled={b.display_kinds.length === 1 && b.display_kinds.includes(k)}
+                           onChange={(e) => set({ display_kinds: SCREEN_KINDS.filter((x) => (x === k ? e.target.checked : b.display_kinds.includes(x))) })} />
+                    {t(`scr.kind.${k}`)}
+                  </label>
+                ))}
+              </div>
+              <span className="small muted">{t("brdadm.kindsHint", { n: v.screens.length })}</span>
+            </fieldset>
+          )}
           <div className="grid cols-3">
             <Field label={t("brdadm.counterSystem")}>
               <select className="input" value={b.counter_system} onChange={(e) => set({ counter_system: e.target.value as "PLATFORM" | "EXTERNAL" })}>
@@ -145,7 +177,7 @@ function StationModal({ uid, onClose }: { uid: string; onClose: () => void }) {
             </select>
           </Field>
           <div className="alert info small"><Icon name="info" />{v.boarding_on_now ? t("brdadm.onNow") : t("brdadm.offNow")}</div>
-          {b.displays && <div className="small"><Link to={`/board/${v.uid}`} target="_blank" rel="noopener"><Icon name="tv" /> {t("brdadm.boardLink")}</Link> <span className="mono ltr">{`${window.location.origin}/board/${v.uid}`}</span></div>}
+          {b.displays && b.display_kinds.includes("COMBINED") && <div className="small"><Link to={`/board/${v.uid}`} target="_blank" rel="noopener"><Icon name="tv" /> {t("brdadm.boardLink")}</Link> <span className="mono ltr">{`${window.location.origin}/board/${v.uid}`}</span></div>}
           <h3 style={{ margin: 0 }}>{t("brdadm.gates")}</h3>
           {v.gates.length === 0 ? <Empty icon="door_front" title={t("brdadm.noGates")} /> : (
             <div className="table-wrap" tabIndex={0}><table className="table">

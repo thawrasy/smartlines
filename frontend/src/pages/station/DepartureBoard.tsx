@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { api } from "../../api";
 import { LOCALES, translator, type Locale } from "../../i18n";
-import { logoUrl } from "../../components/ui";
+import { Icon, logoUrl } from "../../components/ui";
 
 // The station's big screen (build step 4): every departure of the next hours with its bay, and the arrivals, fed by the
 // trips and the bays the station's administration assigns. Public and read-only, without any passenger data; shown only
@@ -12,15 +12,20 @@ import { logoUrl } from "../../components/ui";
 // The owner's decisions (1114, 1115): the board shows its languages in turn (Arabic and English every 10 seconds unless
 // the platform sets otherwise), keeping the layout of the first; each trip shows its short number ("DC 1201") and the
 // carrier's logo next to its name; a cancelled trip turns red.
+// Separate screens (1120): a screen the station's administration registered opens at /screen/{uid} and shows one kind,
+// headed with its word in large type ("Departures", "Arrivals") in the languages shown in turn; /board/{uid} stays the
+// board with both, where the platform allows it at the station.
 
 interface BoardRow {
   trip_no: string; trip_code?: string | null; carrier: string; carrier_uid?: string; carrier_logo?: string | null;
   at: string; city: string; city_code: string; via: string[]; via_codes?: (string | null)[]; bay: string | null;
   status: "SCHEDULED" | "CHECK_IN" | "BOARDING" | "DEPARTED" | "CANCELLED" | "ARRIVED" | "EXPECTED";
 }
+type Kind = "DEPARTURES" | "ARRIVALS" | "COMBINED";
 interface Board {
   station: { code: string; name: string; time_zone: string }; now: string;
-  languages?: string[]; rotate_seconds?: number;
+  languages?: string[]; rotate_seconds?: number; kind?: Kind;
+  screen?: { uid: string; kind: Kind; label: string };
   departures: BoardRow[]; arrivals: BoardRow[];
 }
 
@@ -31,7 +36,7 @@ function languagesOf(b: Board | null): Locale[] {
   return wanted.length ? wanted : ["ar"];
 }
 
-export default function DepartureBoard() {
+export default function DepartureBoard({ screen = false }: { screen?: boolean }) {
   const { uid } = useParams();
   const [board, setBoard] = useState<Board | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -41,14 +46,14 @@ export default function DepartureBoard() {
 
   useEffect(() => {
     let live = true;
-    const load = () => api.get<Board>(`/api/public/stations/${uid}/board`)
+    const load = () => api.get<Board>(screen ? `/api/public/screens/${uid}` : `/api/public/stations/${uid}/board`)
       .then((b) => { if (live) { setBoard(b); setError(null); setUpdated(new Date()); } })
       .catch((e: { code?: string }) => { if (live) setError(e?.code ?? "UNAVAILABLE"); });
     load();
     const refresh = window.setInterval(load, 20000);
     const tick = window.setInterval(() => setClock(new Date()), 1000);
     return () => { live = false; window.clearInterval(refresh); window.clearInterval(tick); };
-  }, [uid]);
+  }, [uid, screen]);
 
   const langs = languagesOf(board);
   const seconds = Math.min(60, Math.max(5, board?.rotate_seconds ?? 10));
@@ -66,7 +71,7 @@ export default function DepartureBoard() {
   const label = (s: string) => (has(`board.status.${s}`) ? t(`board.status.${s}`) : s);
   const place = (code: string | null | undefined, name: string) => (code && city(code) !== code ? city(code) : name);
 
-  if (error && !board) return <div className="board-screen" dir={layout.dir} lang={tr.locale}><div className="board-empty">{t("board.unavailable")}</div></div>;
+  if (error && !board) return <div className="board-screen" dir={layout.dir} lang={tr.locale}><div className="board-empty">{t(screen ? "board.screenOff" : "board.unavailable")}</div></div>;
   if (!board) return <div className="board-screen" dir={layout.dir}><div className="board-empty">…</div></div>;
   const carrier = (r: BoardRow) => (
     <span className="board-carrier">
@@ -93,21 +98,32 @@ export default function DepartureBoard() {
     <thead><tr><th>{t("board.time")}</th><th>{t(kind === "dep" ? "board.to" : "board.from")}</th><th>{t("board.carrier")}</th>
       <th className="board-narrow-hide">{t("board.trip")}</th><th>{t("board.bay")}</th><th>{t("board.state")}</th></tr></thead>
   );
+  const kind: Kind = board.kind ?? "COMBINED";
+  // one kind on the screen: its word heads it, large, and only its table is shown
+  const single = kind !== "COMBINED";
   return (
-    <div className="board-screen" dir={layout.dir} lang={tr.locale}>
+    <div className={`board-screen${single ? ` board-${kind === "DEPARTURES" ? "dep" : "arr"}` : ""}`} dir={layout.dir} lang={tr.locale}>
       <header className="board-head">
-        <div><div className="board-station">{station(board.station.code, board.station.name)}</div><div className="board-code">{board.station.code}</div></div>
+        <div><div className="board-station">{station(board.station.code, board.station.name)}</div>
+          <div className="board-code">{board.station.code}{board.screen && <span className="board-place"> · {board.screen.label}</span>}</div></div>
+        {single && (
+          <h1 key={tr.locale} className="board-kind board-turn">
+            <Icon name={kind === "DEPARTURES" ? "flight_takeoff" : "flight_land"} />{t(kind === "DEPARTURES" ? "board.departures" : "board.arrivals")}
+          </h1>
+        )}
         <div className="board-clock">{hm(clock)}
           {error && updated && <div className="board-offline" role="status">{t("board.offline", { time: hm(updated) })}</div>}</div>
       </header>
       <div key={tr.locale} className="board-turn">
-        <section>
-          <h2 className="board-title">{t("board.departures")}</h2>
-          <table className="board-table">{head("dep")}<tbody>{rows(board.departures, "dep")}</tbody></table>
-        </section>
-        {board.arrivals.length > 0 && (
+        {kind !== "ARRIVALS" && (
           <section>
-            <h2 className="board-title">{t("board.arrivals")}</h2>
+            {!single && <h2 className="board-title">{t("board.departures")}</h2>}
+            <table className="board-table">{head("dep")}<tbody>{rows(board.departures, "dep")}</tbody></table>
+          </section>
+        )}
+        {(kind === "ARRIVALS" || (kind === "COMBINED" && board.arrivals.length > 0)) && (
+          <section>
+            {!single && <h2 className="board-title">{t("board.arrivals")}</h2>}
             <table className="board-table">{head("arr")}<tbody>{rows(board.arrivals, "arr")}</tbody></table>
           </section>
         )}

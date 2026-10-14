@@ -44,6 +44,9 @@ async def set_setting(conn, key: str, value) -> object:
     return _jsonb(out)
 
 
+KINDS = ["DEPARTURES", "ARRIVALS", "COMBINED"]          # the kinds of station screen, in the order they are shown (1120)
+
+
 async def _station(conn, station_uid: uuid.UUID):
     st = await conn.fetchrow("SELECT id, uid, code, name, status FROM net.station WHERE uid = $1", station_uid)
     if st is None:
@@ -54,20 +57,26 @@ async def _station(conn, station_uid: uuid.UUID):
 async def station_view(conn, station_uid: uuid.UUID) -> dict:
     st = await _station(conn, station_uid)
     board = await conn.fetchrow(
-        """SELECT b.enabled, b.counter_system, b.displays, b.checkin_opens_minutes, b.checkin_closes_minutes, b.bay_mode,
+        """SELECT b.enabled, b.counter_system, b.displays, b.display_kinds, b.checkin_opens_minutes, b.checkin_closes_minutes, b.bay_mode,
                   m.uid AS manager_company_uid, m.legal_name AS manager_company_name
              FROM net.station_boarding b LEFT JOIN iam.party m ON m.id = b.manager_company_id WHERE b.station_id = $1""", st["id"])
     gates = await conn.fetch(
         """SELECT g.code, g.gate_type, g.status, p.uid AS operator_uid, p.legal_name AS operator_name
              FROM net.station_gate g LEFT JOIN iam.party p ON p.id = g.operator_company_id
             WHERE g.station_id = $1 ORDER BY g.gate_type, g.code""", st["id"])
+    screens = await conn.fetch(                         # the station's screens, registered by its administration (1120)
+        """SELECT uid, kind, label, active, last_seen_at, coalesce(last_seen_at >= now() - interval '2 minutes', false) AS online
+             FROM net.station_screen WHERE station_id = $1
+            ORDER BY array_position(ARRAY['DEPARTURES', 'ARRIVALS', 'COMBINED']::text[], kind), label""", st["id"])
     return {
         "uid": st["uid"], "code": st["code"], "name": st["name"], "status": st["status"],
         "boarding": dict(board) if board else {"enabled": False, "counter_system": "PLATFORM", "displays": False,
+                                                "display_kinds": ["DEPARTURES", "ARRIVALS", "COMBINED"],
                                                 "checkin_opens_minutes": None, "checkin_closes_minutes": None, "bay_mode": "TRIP",
                                                 "manager_company_uid": None, "manager_company_name": None},
         "boarding_on_now": await conn.fetchval("SELECT net.boarding_station_on($1)", st["id"]),
         "gates": [dict(g) for g in gates],
+        "screens": [dict(r) for r in screens],
     }
 
 
@@ -82,14 +91,17 @@ async def set_station_boarding(conn, station_uid: uuid.UUID, body, user_id: int)
             raise ApiError(422, "NOT_STATION_OPERATOR", "a station is administered by a station operating company")
     await conn.execute(
         """INSERT INTO net.station_boarding (station_id, enabled, counter_system, displays, checkin_opens_minutes,
-                                             checkin_closes_minutes, manager_company_id, updated_by_user_id, updated_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, now())
+                                             checkin_closes_minutes, manager_company_id, updated_by_user_id, updated_at,
+                                             display_kinds)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, now(), coalesce($9::text[], '{DEPARTURES,ARRIVALS,COMBINED}'))
            ON CONFLICT (station_id) DO UPDATE SET enabled = excluded.enabled, counter_system = excluded.counter_system,
              displays = excluded.displays, checkin_opens_minutes = excluded.checkin_opens_minutes,
              checkin_closes_minutes = excluded.checkin_closes_minutes, manager_company_id = excluded.manager_company_id,
-             updated_by_user_id = excluded.updated_by_user_id, updated_at = excluded.updated_at""",
+             updated_by_user_id = excluded.updated_by_user_id, updated_at = excluded.updated_at,
+             display_kinds = coalesce($9::text[], net.station_boarding.display_kinds)""",
         st["id"], body.enabled, body.counter_system, body.displays, body.checkin_opens_minutes,
-        body.checkin_closes_minutes, manager, user_id)
+        body.checkin_closes_minutes, manager, user_id,
+        sorted(set(body.display_kinds), key=KINDS.index) if body.display_kinds else None)
     return st["id"]
 
 

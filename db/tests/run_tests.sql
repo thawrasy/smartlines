@@ -3557,4 +3557,67 @@ SELECT pg_temp.ok((SELECT version = 2 AND status = 'SUBMITTED' FROM iam.company_
 ROLLBACK;
 SET ROLE masslak_app;
 
+-- Separate Departures and Arrivals screens at a station (1120)
+BEGIN;
+RESET ROLE;
+SELECT sys.set_context(:uadmin, NULL, 'SYSTEM');
+SELECT t.id AS dt, ts.station_id AS ds, s.uid AS dsu, t.trip_no AS dtn, t.company_id AS dc
+  FROM sales.booking b JOIN ops.trip t ON t.id = b.trip_id JOIN ops.trip_stop ts ON ts.trip_id = t.id AND ts.seq = 0
+  JOIN net.station s ON s.id = ts.station_id WHERE b.booking_ref = 'ABC123' \gset
+UPDATE ops.trip SET published_at = coalesce(published_at, now()) WHERE id = :dt;
+UPDATE ops.trip_stop SET sched_dep = now() + interval '90 minutes' WHERE trip_id = :dt AND seq = 0;
+INSERT INTO iam.party (party_type, legal_name) VALUES ('COMPANY', 'Screens Administration Test') RETURNING id AS sop \gset
+INSERT INTO iam.company (id, company_type, approval_status) VALUES (:sop, 'STATION_OPERATOR', 'APPROVED');
+INSERT INTO net.station_boarding (station_id, manager_company_id, displays) VALUES (:ds, :sop, true)
+  ON CONFLICT (station_id) DO UPDATE SET manager_company_id = excluded.manager_company_id, displays = true,
+                                         display_kinds = '{DEPARTURES,ARRIVALS,COMBINED}';
+SELECT net.set_boarding_setting('boarding.stations.enabled', 'true'::jsonb);
+SELECT pg_temp.expect_error(format($$UPDATE net.station_boarding SET display_kinds = '{DEPARTURES,PLATFORMS}' WHERE station_id = %s$$, :ds),
+  'check constraint', 'Screens (1120): a station shows departures, arrivals or both, nothing else');
+SELECT pg_temp.expect_error(format($$UPDATE net.station_boarding SET display_kinds = '{}' WHERE station_id = %s$$, :ds),
+  'check constraint', 'Screens (1120): the platform allows at least one kind of screen');
+SET LOCAL ROLE masslak_app;
+SELECT sys.set_context(NULL, :dc, 'COMPANY');
+SELECT pg_temp.expect_error(format($$SELECT net.add_station_screen(%s, 'DEPARTURES', 'Hall A')$$, :ds),
+  'NOT_STATION_ADMIN', 'Screens (1120): a carrier does not register the station''s screens');
+SELECT pg_temp.expect_error($$INSERT INTO net.station_screen (station_id, kind, label) VALUES (1, 'DEPARTURES', 'Hall A')$$,
+  'permission denied', 'Screens (1120): the application registers screens through their functions only');
+SELECT sys.set_context(NULL, :sop, 'COMPANY');
+SELECT net.add_station_screen(:ds, 'DEPARTURES', ' Hall A ') AS sdep \gset
+SELECT net.add_station_screen(:ds, 'ARRIVALS', 'Arrivals hall') AS sarr \gset
+SELECT pg_temp.expect_error(format($$SELECT net.add_station_screen(%s, 'ARRIVALS', 'HALL A')$$, :ds),
+  'SCREEN_LABEL_TAKEN', 'Screens (1120): two screens of a station are not named the same');
+SELECT pg_temp.ok((SELECT count(*) FROM net.station_screen) = 0,
+  'Screens (1120): the screens are the platform''s data; the administration reads them through its function');
+SELECT pg_temp.ok((SELECT jsonb_array_length(v -> 'screens') = 2 AND v -> 'kinds' = '["DEPARTURES","ARRIVALS","COMBINED"]'::jsonb
+                          AND v -> 'screens' -> 0 ->> 'label' = 'Hall A' AND (v -> 'screens' -> 0 ->> 'online')::boolean = false
+                     FROM (SELECT net.station_screens(:ds) AS v) x),
+  'Screens (1120): the administration sees the kinds allowed and its screens, departures first, none seen yet');
+SELECT pg_temp.ok((SELECT b ->> 'kind' = 'DEPARTURES' AND b -> 'arrivals' = '[]'::jsonb AND b -> 'screen' ->> 'label' = 'Hall A'
+                          AND EXISTS (SELECT 1 FROM jsonb_array_elements(b -> 'departures') d WHERE d ->> 'trip_no' = :'dtn')
+                     FROM (SELECT brd.screen_board(:'sdep') AS b) x)
+  AND (SELECT b -> 'departures' = '[]'::jsonb FROM (SELECT brd.screen_board(:'sarr') AS b) x),
+  'Screens (1120): a departures screen shows the departures alone, an arrivals screen the arrivals alone');
+SELECT pg_temp.ok((SELECT bool_and((s ->> 'online')::boolean) FROM jsonb_array_elements(net.station_screens(:ds) -> 'screens') s),
+  'Screens (1120): a screen that read its board is seen');
+RESET ROLE;
+UPDATE net.station_boarding SET display_kinds = '{DEPARTURES}' WHERE station_id = :ds;
+SET LOCAL ROLE masslak_app;
+SELECT sys.set_context(NULL, :sop, 'COMPANY');
+SELECT pg_temp.ok(brd.screen_board(:'sarr') IS NULL AND brd.station_board(:'dsu') IS NULL AND brd.screen_board(:'sdep') IS NOT NULL,
+  'Screens (1120): a kind the platform no longer allows goes dark, the board with both too');
+SELECT pg_temp.expect_error(format($$SELECT net.change_station_screen(%L, 'COMBINED', NULL, NULL)$$, :'sdep'),
+  'SCREEN_KIND_NOT_ALLOWED', 'Screens (1120): a screen takes only a kind the platform allows');
+SELECT net.change_station_screen(:'sdep', NULL, NULL, false);
+SELECT pg_temp.ok(brd.screen_board(:'sdep') IS NULL, 'Screens (1120): a stopped screen shows nothing');
+SELECT sys.set_context(NULL, :dc, 'COMPANY');
+SELECT pg_temp.expect_error(format($$SELECT net.remove_station_screen(%L)$$, :'sdep'),
+  'SCREEN_UNKNOWN', 'Screens (1120): only the station''s administration takes a screen down');
+SELECT sys.set_context(NULL, :sop, 'COMPANY');
+SELECT net.remove_station_screen(:'sarr');
+SELECT pg_temp.ok(brd.screen_board(:'sarr') IS NULL AND jsonb_array_length(net.station_screens(:ds) -> 'screens') = 1,
+  'Screens (1120): a screen taken down loses its link');
+ROLLBACK;
+SET ROLE masslak_app;
+
 \echo '=== ALL TESTS PASSED ==='

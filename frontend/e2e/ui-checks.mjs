@@ -39,7 +39,9 @@ const PORTALS = [
     label: "STATION", cookies: STATION.cookies,
     choice: { station_uid: STATION.station_uid, station_code: STATION.station_code, station_name: STATION.station_code, counter_code: STATION.counter },
     pages: ["/station", "/station/trips", "/station/checkin", `/station/boarding?trip=${STATION.trip_uid}`, "/station/sales",
-            `/station/booking/${STATION.booking_ref}`, "/station/bays", `/board/${STATION.station_uid}`],
+            `/station/booking/${STATION.booking_ref}`, "/station/bays", `/board/${STATION.station_uid}`,
+            // the screens the station's administration registers, and one screen of each kind (1120)
+            "/station/screens", ...(STATION.departures_screen ? [`/screen/${STATION.departures_screen}`, `/screen/${STATION.arrivals_screen}`] : [])],
   }] : []),
 ];
 
