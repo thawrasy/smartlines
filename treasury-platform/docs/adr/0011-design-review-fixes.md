@@ -128,3 +128,9 @@ Every batch B item is now built. The model holds the declarative part; `db/stati
   - the snapshot shape of an automatic evaluation;
   - ChangedFieldsJson as an object keyed by field key.
 - **Still deferred:** the external anchor of the snapshot hash (with O-13), and the check that no row references a retired key (DR-20).
+- **Owner approval, 2026-10-14.** The owner approved the choices made during this work (register section 3.3):
+  - the restricted flag as a column of `lc.LcFieldDefinition` (DQ-F12-11);
+  - the nightly `JOB-PLT-RECONCILE`, whose rows are incidents and are not repaired automatically;
+  - LOST for an expired or manual release, RELEASED for a release the request caused;
+  - an ACTIVE request needing only its current stage instance;
+  - the redaction check refusing ten digits in a row, so amounts in agreement text are written with separators.
