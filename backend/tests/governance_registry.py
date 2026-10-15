@@ -65,6 +65,7 @@ SYSTEM_SCOPE = {
     ("app/modules/sales/charter.py", "accept"): (1, "a charter paid from the customer's wallet into the platform's escrow"),
     ("app/modules/sales/charter.py", "cancel"): (1, "a cancelled charter: escrow refunds the customer and pays the carrier what it keeps"),
     ("app/modules/sales/charter.py", "complete"): (1, "a charter done: escrow pays the carrier and the platform's commission"),
+    ("app/modules/sales/charter.py", "pay_balance"): (1, "the balance of a charter paid from the customer's wallet into the platform's escrow"),
     ("app/modules/sales/charter.py", "name_travellers"): (1, "travellers named on a charter's seats: tickets of the carrier's trip, passenger documents encrypted with the platform's keys"),
     ("app/modules/sales/charter.py", "unname_traveller"): (1, "a traveller taken off a charter: the carrier's ticket cancelled and its seat blocked again"),
     ("app/modules/parcels/service.py", "book"): (1, "a booked parcel's shipment, parcel and leg on the carrier's trip, before the charge"),

@@ -69,4 +69,10 @@ rules" (`GET|PUT /api/admin/booking/seat-limits`).
 
 - Connections found by the platform (a trip from A to C through B with two carriers, offered as one result).
 - Paying a journey by card, instalments or financing in one payment (each booking is paid on its own for now).
-- Choosing seats on each trip of a journey (they are given side by side).
+
+## Seats chosen on each trip (1129 batch)
+
+Each leg of a journey may name its seats (`JourneyLegIn.seats`, as many as the travellers who take a seat, all
+different, `JOURNEY_SEATS` otherwise); without them the seats are given side by side as before. A seat taken by someone
+else in the meantime refuses the whole journey with `SEAT_TAKEN` naming the leg and the seats, so nothing is booked
+half. The web checkout shows each trip's seat map ("Choose seats") and keeps the choice per leg.

@@ -21,9 +21,10 @@ export interface Offer {
   uid: string; kind: Kind; title: string; vehicle_type: string | null; seats: number | null; vehicles: number; partial_seats: boolean;
   min_seats: number | null; audience: Audience[]; price_basis: Basis; price: number | null; currency: string; notice_hours: number;
   cancel_before_hours: number; cancel_refund_pct: number; with_driver: boolean; policy: string; status: string; base_city: string | null;
-  carrier_name: string; carrier_uid: string; carrier_logo: string | null;
+  deposit_pct: number; balance_hours: number; carrier_name: string; carrier_uid: string; carrier_logo: string | null;
 }
-interface Terms { title: string; price_basis: Basis; price: number | null; currency: string; cancel_before_hours: number; cancel_refund_pct: number; policy: string }
+interface Terms { title: string; price_basis: Basis; price: number | null; currency: string; cancel_before_hours: number; cancel_refund_pct: number; policy: string;
+  deposit_pct?: number; balance_hours?: number }
 export interface CharterRequest {
   uid: string; ref: string; kind: Kind; status: string; requester_kind: Audience; contact_name: string; contact_mobile: string;
   note: string | null; created_at: string; starts_at: string | null; ends_at: string | null; passengers: number | null; vehicles: number | null;
@@ -31,6 +32,8 @@ export interface CharterRequest {
   trip_code: string | null; seats: number | null; whole: boolean | null; trip_departs_at: string | null; trip_from: string | null;
   trip_to: string | null; price: number | null; currency: string | null; valid_until: string | null; quote_note: string | null;
   paid_at: string | null; refunded_amount: number | null; closed_reason: string | null; vehicle_plate: string | null;
+  paid_amount: number | null; balance_due: number; balance_due_at: string | null; balance_paid_at: string | null;
+  vehicle_plates: string[]; vehicle_uids: string[];
   terms: Terms; carrier_name: string; carrier_uid: string; carrier_logo: string | null; agency_name: string | null;
   seats_held: number; estimate: number | null;
 }
@@ -58,8 +61,20 @@ function What({ r }: { r: CharterRequest }) {
 }
 
 function Price({ r }: { r: CharterRequest }) {
-  const { t, money } = useI18n();
-  if (r.price != null && r.currency) return <strong className="text-nowrap">{money(r.price, true, r.currency)}</strong>;
+  const { t, money, date, time } = useI18n();
+  if (r.price != null && r.currency) {
+    return (
+      <span className="stack tight">
+        <strong className="text-nowrap">{money(r.price, true, r.currency)}</strong>
+        {r.status === "QUOTED" && (r.terms.deposit_pct ?? 0) > 0 && (
+          <span className="small muted">{t("chr.depositNow", { amount: money(Math.floor(r.price * (r.terms.deposit_pct ?? 0) / 100), true, r.currency), pct: r.terms.deposit_pct ?? 0 })}</span>)}
+        {r.balance_due > 0 && r.balance_due_at && r.status === "CONFIRMED" && (
+          <span className="small"><span className="chip wheat">{t("chr.balanceDue", { amount: money(r.balance_due, true, r.currency) })}</span>
+            <span className="muted"> {t("chr.balanceBy", { at: `${date(r.balance_due_at, { day: "numeric", month: "short" })} ${time(r.balance_due_at)}` })}</span></span>)}
+        {r.balance_paid_at && <span className="small muted">{t("chr.paidInFull")}</span>}
+      </span>
+    );
+  }
   if (r.estimate != null) return <span className="muted text-nowrap" title={t("chr.estimateHint")}>≈ {money(r.estimate, true, r.terms.currency)}</span>;
   return <span className="muted">{t("chr.onRequest")}</span>;
 }
@@ -76,13 +91,20 @@ function Refunds({ o }: { o: { cancel_before_hours: number; cancel_refund_pct: n
   return <span className="small muted">{t("chr.refundRule", { pct: o.cancel_refund_pct, h: o.cancel_before_hours })}</span>;
 }
 
+/** A deposit on acceptance and the rest before the start (1128). */
+function Deposit({ o }: { o: { deposit_pct?: number; balance_hours?: number } }) {
+  const { t } = useI18n();
+  if (!o.deposit_pct) return null;
+  return <span className="small muted">{t("chr.depositRule", { pct: o.deposit_pct, h: o.balance_hours ?? 48 })}</span>;
+}
+
 // ------------------------------------------------------------------ the customer: a tourism company or a traveller
 type Who = "agency" | "traveller";
 interface CustomerCalls {
   offers: (kind: Kind | "", signal: AbortSignal) => Promise<{ offers: Offer[] }>;
   requests: (signal: AbortSignal) => Promise<{ requests: CharterRequest[] }>;
   ask: (body: unknown) => Promise<unknown>;
-  act: (uid: string, what: "accept" | "withdraw" | "cancel", body?: unknown) => Promise<unknown>;
+  act: (uid: string, what: "accept" | "withdraw" | "cancel" | "balance", body?: unknown) => Promise<unknown>;
   travellers: (uid: string) => Promise<Travellers>;
   name: (uid: string, body: unknown) => Promise<Travellers>;
   unname: (uid: string, ticket: string) => Promise<Travellers>;
@@ -158,6 +180,7 @@ export function CustomerCharter({ who }: { who: Who }) {
                   </div>
                   <OfferPrice o={o} />
                   <Refunds o={o} />
+                  <Deposit o={o} />
                   <details><summary className="small">{t("chr.policy")}</summary><p className="small" style={{ whiteSpace: "pre-wrap" }}>{o.policy}</p></details>
                   <button className="btn" style={{ alignSelf: "flex-start" }} onClick={() => setAsking(o)}><Icon name="request_quote" />{t("chr.ask")}</button>
                 </div>
@@ -300,9 +323,9 @@ function CustomerRequests({ calls, state }: { calls: CustomerCalls; state: Retur
   const [cancelling, setCancelling] = useState<CharterRequest | null>(null);
   const [naming, setNaming] = useState<CharterRequest | null>(null);
   const [reason, setReason] = useState("");
-  const act = async (r: CharterRequest, what: "accept" | "withdraw") => {
+  const act = async (r: CharterRequest, what: "accept" | "withdraw" | "balance") => {
     setError(null);
-    try { await calls.act(r.uid, what); toast(t(what === "accept" ? "chr.paid" : "chr.withdrawn")); state.reload(); }
+    try { await calls.act(r.uid, what); toast(t(what === "accept" ? "chr.paid" : what === "balance" ? "chr.balancePaid" : "chr.withdrawn")); state.reload(); }
     catch (e) { setError(e); }
   };
   const cancel = async () => {
@@ -325,7 +348,8 @@ function CustomerRequests({ calls, state }: { calls: CustomerCalls; state: Retur
               <td><Status value={r.status} />{r.status === "QUOTED" && r.valid_until && <div className="small muted">{t("chr.validUntil", { at: `${date(r.valid_until, { day: "numeric", month: "short" })} ${time(r.valid_until)}` })}</div>}</td>
               <td><Price r={r} />{r.quote_note && <div className="small muted">{r.quote_note}</div>}{r.refunded_amount != null && <div className="small">{t("chr.refunded")}</div>}</td>
               <td className="row" style={{ gap: 6, justifyContent: "flex-end" }}>
-                {r.status === "QUOTED" && <button className="btn filled small" onClick={() => act(r, "accept")}><Icon name="payments" />{t("chr.acceptPay")}</button>}
+                {r.status === "QUOTED" && <button className="btn filled small" onClick={() => act(r, "accept")}><Icon name="payments" />{t((r.terms.deposit_pct ?? 0) > 0 ? "chr.acceptDeposit" : "chr.acceptPay")}</button>}
+                {r.status === "CONFIRMED" && r.balance_due > 0 && <button className="btn filled small" onClick={() => act(r, "balance")}><Icon name="payments" />{t("chr.payBalance")}</button>}
                 {["REQUESTED", "QUOTED"].includes(r.status) && <button className="btn text small" onClick={() => act(r, "withdraw")}>{t("chr.withdraw")}</button>}
                 {r.status === "CONFIRMED" && r.kind === "WHOLE_TRIP" && <button className="btn outlined small" onClick={() => setNaming(r)}><Icon name="badge" />{t("chr.travellers")}</button>}
                 {r.status === "CONFIRMED" && <button className="btn text small" onClick={() => { setCancelling(r); setReason(""); }}>{t("chr.cancel")}</button>}
@@ -341,6 +365,7 @@ function CustomerRequests({ calls, state }: { calls: CustomerCalls; state: Retur
                actions={<button className="btn filled" disabled={reason.trim().length < 3} onClick={cancel}>{t("chr.cancel")}</button>}>
           <div className="stack">
             <Refunds o={cancelling.terms} />
+            {cancelling.paid_amount != null && cancelling.price != null && cancelling.paid_amount < cancelling.price && <span className="small muted">{t("chr.refundOfPaid")}</span>}
             <Field label={t("chr.reason")}><input className="input" value={reason} onChange={(e) => setReason(e.target.value)} /></Field>
           </div>
         </Modal>
@@ -439,7 +464,7 @@ function TravellersModal({ r, load, name, unname, onClose }: { r: CharterRequest
 const BLANK = {
   kind: "VEHICLE" as Kind, title: "", vehicle_type: "COACH", seats: 45, vehicles: 1, partial_seats: true, min_seats: 10,
   audience: ["AGENCY"] as Audience[], price_basis: "PER_DAY" as Basis, price: "", currency: "", notice_hours: 48,
-  cancel_before_hours: 48, cancel_refund_pct: 100, with_driver: true, base_city: "", policy: "",
+  cancel_before_hours: 48, cancel_refund_pct: 100, with_driver: true, base_city: "", policy: "", deposit_pct: 0, balance_hours: 48,
 };
 
 export function CarrierCharter() {
@@ -474,7 +499,8 @@ function CarrierOffers() {
       if (editing) {
         await api.patch(`/api/carrier/charter/offers/${editing.uid}`, {
           title: f.title, vehicles: f.vehicles, audience: f.audience, price: f.price_basis === "ON_REQUEST" ? undefined : toMinor(f.price),
-          notice_hours: f.notice_hours, cancel_before_hours: f.cancel_before_hours, cancel_refund_pct: f.cancel_refund_pct, policy: f.policy });
+          notice_hours: f.notice_hours, cancel_before_hours: f.cancel_before_hours, cancel_refund_pct: f.cancel_refund_pct, policy: f.policy,
+          deposit_pct: f.deposit_pct, balance_hours: f.balance_hours });
       } else {
         await api.post("/api/carrier/charter/offers", {
           ...f, price: f.price_basis === "ON_REQUEST" ? null : toMinor(f.price), base_city: f.base_city || null,
@@ -504,7 +530,7 @@ function CarrierOffers() {
               <td><strong>{o.title}</strong><div className="small muted">{t(`chr.kind.${o.kind}`)}{o.vehicle_type ? ` · ${t(`chr.vehicle.${o.vehicle_type}`)} · ${t("chr.seatsN", { n: o.seats ?? 0 })} × ${o.vehicles}` : ""}</div></td>
               <td>{o.audience.map((a) => <span key={a} className="chip">{t(`chr.aud.${a}`)}</span>)}</td>
               <td><OfferPrice o={o} /></td>
-              <td><Refunds o={o} /><div className="small muted">{t("chr.notice", { h: o.notice_hours })}</div></td>
+              <td><Refunds o={o} /><div><Deposit o={o} /></div><div className="small muted">{t("chr.notice", { h: o.notice_hours })}</div></td>
               <td><Status value={o.status} /></td>
               <td className="row" style={{ gap: 6, justifyContent: "flex-end" }}>
                 <button className="btn text small" onClick={() => { setEditing(o); setF({ ...BLANK, ...o, price: o.price != null ? String(o.price / 100) : "", vehicle_type: o.vehicle_type ?? "COACH",
@@ -559,6 +585,8 @@ function CarrierOffers() {
               <Field label={t("chr.noticeHours")}><input className="input" type="number" min={0} max={2160} value={f.notice_hours} onChange={(e) => set({ notice_hours: Number(e.target.value) })} /></Field>
               <Field label={t("chr.cancelBefore")}><input className="input" type="number" min={0} max={2160} value={f.cancel_before_hours} onChange={(e) => set({ cancel_before_hours: Number(e.target.value) })} /></Field>
               <Field label={t("chr.cancelRefund")}><input className="input" type="number" min={0} max={100} value={f.cancel_refund_pct} onChange={(e) => set({ cancel_refund_pct: Number(e.target.value) })} /></Field>
+              <Field label={t("chr.depositPct")} hint={t("chr.depositHint")}><input className="input" type="number" min={0} max={90} value={f.deposit_pct} onChange={(e) => set({ deposit_pct: Math.min(90, Math.max(0, Number(e.target.value) || 0)) })} /></Field>
+              {f.deposit_pct > 0 && <Field label={t("chr.balanceHours")}><input className="input" type="number" min={0} max={2160} value={f.balance_hours} onChange={(e) => set({ balance_hours: Number(e.target.value) })} /></Field>}
               {!editing && (
                 <Field label={t("chr.baseCity")}>
                   <select className="input" value={f.base_city} onChange={(e) => set({ base_city: e.target.value })}>
@@ -623,7 +651,16 @@ function CarrierRequests() {
               <td>{r.agency_name ?? r.contact_name}<div className="small muted ltr">{r.contact_mobile}</div>
                 <span className="chip">{t(`chr.aud.${r.requester_kind}`)}</span></td>
               <td><What r={r} />{r.itinerary && <div className="small">{r.itinerary}</div>}{r.note && <div className="small muted">“{r.note}”</div>}
-                {r.vehicle_plate && <div className="small"><Icon name="directions_bus" size={14} /> {r.vehicle_plate}</div>}</td>
+                {r.kind === "VEHICLE" && r.vehicle_plates.length > 0 && (
+                  <div className="row small" style={{ gap: 4, flexWrap: "wrap" }}>
+                    {r.vehicle_plates.map((plate, i) => (
+                      <span key={plate} className="chip outline"><Icon name="directions_bus" size={14} />{plate}
+                        {["QUOTED", "CONFIRMED"].includes(r.status) && (
+                          <button className="btn text small" aria-label={t("chr.vehicleOff", { plate })}
+                                  onClick={() => run(() => api.del(`/api/carrier/charter/requests/${r.uid}/vehicles/${r.vehicle_uids[i]}`), "common.saved")}><Icon name="close" size={14} /></button>)}
+                      </span>
+                    ))}
+                  </div>)}</td>
               <td><Status value={r.status} /></td>
               <td><Price r={r} /></td>
               <td className="row" style={{ gap: 6, justifyContent: "flex-end", flexWrap: "wrap" }}>
@@ -632,7 +669,8 @@ function CarrierRequests() {
                     <Icon name="request_quote" />{t(r.status === "QUOTED" ? "chr.reprice" : "chr.priceIt")}</button>
                   <button className="btn text small" onClick={() => { setClosing({ r, how: "decline" }); setReason(""); }}>{t("chr.decline")}</button>
                 </>}
-                {r.status === "CONFIRMED" && r.kind === "VEHICLE" && <button className="btn text small" onClick={() => setNaming(r)}>{t("chr.nameVehicle")}</button>}
+                {["QUOTED", "CONFIRMED"].includes(r.status) && r.kind === "VEHICLE" && r.vehicle_plates.length < (r.vehicles ?? 1) && (
+                  <button className="btn text small" onClick={() => setNaming(r)}>{t("chr.nameVehicleN", { n: r.vehicle_plates.length, of: r.vehicles ?? 1 })}</button>)}
                 {r.status === "CONFIRMED" && r.kind === "WHOLE_TRIP" && <button className="btn text small" onClick={() => setListing(r)}>{t("chr.travellers")}</button>}
                 {r.status === "CONFIRMED" && <button className="btn small" onClick={() => run(() => api.post(`/api/carrier/charter/requests/${r.uid}/complete`), "chr.completed")}>{t("chr.done")}</button>}
                 {r.status === "CONFIRMED" && <button className="btn text small" onClick={() => { setClosing({ r, how: "cancel" }); setReason(""); }}>{t("chr.cancel")}</button>}
@@ -669,7 +707,8 @@ function CarrierRequests() {
       {naming && (
         <Modal title={t("chr.nameVehicle")} onClose={() => setNaming(null)}>
           <div className="stack">
-            {(vehicles.data ?? []).map((v) => (
+            <ErrorBox error={error} />
+            {(vehicles.data ?? []).filter((v) => !naming.vehicle_uids.includes(v.uid)).map((v) => (
               <button key={v.uid} className="btn outlined" onClick={async () => {
                 if (await run(() => api.post(`/api/carrier/charter/requests/${naming.uid}/vehicle`, { vehicle_uid: v.uid }), "common.saved")) setNaming(null);
               }}>{v.plate_no} · {t(`chr.vehicle.${v.vehicle_type}`)} · {t("chr.seatsN", { n: v.passenger_seats })}</button>

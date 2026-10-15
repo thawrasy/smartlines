@@ -7,7 +7,8 @@
     GET   /api/carrier/charter/requests                  the requests it received
     POST  /api/carrier/charter/requests/{uid}/quote      a price valid for some hours (and the vehicle, when known)
     POST  /api/carrier/charter/requests/{uid}/decline
-    POST  /api/carrier/charter/requests/{uid}/vehicle    the vehicle of a vehicle hire
+    POST  /api/carrier/charter/requests/{uid}/vehicle    a vehicle of a vehicle hire, one by one (1128)
+    DELETE /api/carrier/charter/requests/{uid}/vehicles/{vehicle_uid}   a vehicle taken off a hire
     POST  /api/carrier/charter/requests/{uid}/complete   the service is done: the carrier is paid
     POST  /api/carrier/charter/requests/{uid}/cancel     a confirmed charter cancelled: refunded in full
     GET   /api/carrier/charter/requests/{uid}/travellers the travellers named on a trip charter's seats (1126)
@@ -16,6 +17,7 @@
     POST  /api/agency/charter/requests                   POST /api/charter/requests
     GET   /api/agency/charter/requests[/{uid}]           GET /api/charter/requests[/{uid}]
     POST  /api/agency/charter/requests/{uid}/accept      POST /api/charter/requests/{uid}/accept      pays into escrow
+    POST  /api/agency/charter/requests/{uid}/balance     POST /api/charter/requests/{uid}/balance     the rest after a deposit (1128)
     POST  /api/agency/charter/requests/{uid}/withdraw    POST /api/charter/requests/{uid}/withdraw
     POST  /api/agency/charter/requests/{uid}/cancel      POST /api/charter/requests/{uid}/cancel      refunded as the offer says
     GET|POST /api/agency/charter/requests/{uid}/travellers               the travellers on the seats (1126)
@@ -126,8 +128,17 @@ async def decline(uid: uuid.UUID, body: ReasonIn, request: Request, pr: Principa
 async def vehicle(uid: uuid.UUID, body: VehicleIn, request: Request, pr: Principal = Depends(require_portal("OPERATOR"))):
     company = _carrier(pr)
     async with db.transaction(context_for(request, pr)) as conn:
-        out = await charter.assign_vehicle(conn, company, uid, body.vehicle_uid)
+        out = await charter.assign_vehicle(conn, company, uid, body.vehicle_uid, pr.user_id)
     return _audit(request, "charter.vehicle", out)
+
+
+@carrier.delete("/requests/{uid}/vehicles/{vehicle_uid}")
+async def remove_vehicle(uid: uuid.UUID, vehicle_uid: uuid.UUID, request: Request, pr: Principal = Depends(require_portal("OPERATOR"))):
+    """Takes a vehicle off a hire (1128)."""
+    company = _carrier(pr)
+    async with db.transaction(context_for(request, pr)) as conn:
+        out = await charter.remove_vehicle(conn, company, uid, vehicle_uid)
+    return _audit(request, "charter.vehicle_off", out)
 
 
 @carrier.post("/requests/{uid}/complete")
@@ -203,6 +214,14 @@ def _customer_routes(router: APIRouter, portal: str, who) -> None:
         async with db.transaction(ctx) as conn:
             out = await charter.accept(conn, ctx, c, uid)
         return out if out.get("replayed") else _audit(request, "charter.accept", out)
+
+    @router.post("/requests/{uid}/balance")
+    async def balance(uid: uuid.UUID, request: Request, pr: Principal = Depends(require_portal(portal))):
+        c = who(pr)
+        ctx = context_for(request, pr)
+        async with db.transaction(ctx) as conn:
+            out = await charter.pay_balance(conn, ctx, c, uid)
+        return out if out.get("replayed") else _audit(request, "charter.balance", out)
 
     @router.post("/requests/{uid}/withdraw")
     async def withdraw(uid: uuid.UUID, request: Request, pr: Principal = Depends(require_portal(portal))):

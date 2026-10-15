@@ -108,6 +108,28 @@
     "200": {}
    }
   },
+  "DELETE /api/carrier/charter/requests/{uid}/vehicles/{vehicle_uid}": {
+   "body": null,
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    },
+    "path:vehicle_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
   "DELETE /api/carrier/counter/holds/{hold_token}": {
    "body": null,
    "parameters": {
@@ -672,6 +694,20 @@
   "GET /api/admin/geo": {
    "body": null,
    "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/admin/geo/areas/{pcode}/map": {
+   "body": null,
+   "parameters": {
+    "path:pcode": {
+     "required": true,
+     "schema": {
+      "type": "string"
+     }
+    }
+   },
    "responses": {
     "200": {}
    }
@@ -3602,6 +3638,12 @@
         "nullable": true,
         "type": "array"
        },
+       "balance_hours": {
+        "maximum": 2160.0,
+        "minimum": 0.0,
+        "nullable": true,
+        "type": "integer"
+       },
        "cancel_before_hours": {
         "maximum": 2160.0,
         "minimum": 0.0,
@@ -3610,6 +3652,12 @@
        },
        "cancel_refund_pct": {
         "maximum": 100.0,
+        "minimum": 0.0,
+        "nullable": true,
+        "type": "integer"
+       },
+       "deposit_pct": {
+        "maximum": 90.0,
         "minimum": 0.0,
         "nullable": true,
         "type": "integer"
@@ -4450,6 +4498,45 @@
    },
    "responses": {
     "201": {}
+   }
+  },
+  "POST /api/admin/boarding/stations/{station_uid}/screens/{screen_uid}/pair": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "code": {
+        "maxLength": 8,
+        "minLength": 6,
+        "type": "string"
+       }
+      },
+      "required": [
+       "code"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:screen_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    },
+    "path:station_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
    }
   },
   "POST /api/admin/cash/remittances": {
@@ -6769,6 +6856,21 @@
     "200": {}
    }
   },
+  "POST /api/agency/charter/requests/{uid}/balance": {
+   "body": null,
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
   "POST /api/agency/charter/requests/{uid}/cancel": {
    "body": {
     "content": {
@@ -7034,6 +7136,15 @@
            "maximum": 500.0,
            "minimum": 0.0,
            "type": "integer"
+          },
+          "seats": {
+           "items": {
+            "type": "integer"
+           },
+           "maxItems": 60,
+           "minItems": 1,
+           "nullable": true,
+           "type": "array"
           },
           "to_seq": {
            "maximum": 500.0,
@@ -8064,6 +8175,12 @@
         "minItems": 1,
         "type": "array"
        },
+       "balance_hours": {
+        "default": 48,
+        "maximum": 2160.0,
+        "minimum": 0.0,
+        "type": "integer"
+       },
        "base_city": {
         "nullable": true,
         "pattern": "^[A-Z]{3}$",
@@ -8084,6 +8201,12 @@
        "currency": {
         "pattern": "^[A-Z]{3}$",
         "type": "string"
+       },
+       "deposit_pct": {
+        "default": 0,
+        "maximum": 90.0,
+        "minimum": 0.0,
+        "type": "integer"
        },
        "kind": {
         "enum": [
@@ -10112,6 +10235,21 @@
     "200": {}
    }
   },
+  "POST /api/charter/requests/{uid}/balance": {
+   "body": null,
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
   "POST /api/charter/requests/{uid}/cancel": {
    "body": {
     "content": {
@@ -11729,6 +11867,15 @@
            "minimum": 0.0,
            "type": "integer"
           },
+          "seats": {
+           "items": {
+            "type": "integer"
+           },
+           "maxItems": 60,
+           "minItems": 1,
+           "nullable": true,
+           "type": "array"
+          },
           "to_seq": {
            "maximum": 500.0,
            "minimum": 1.0,
@@ -12432,6 +12579,37 @@
      }
     }
    },
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/public/screens/pair": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/public/screens/pair/state": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "token": {
+        "maxLength": 64,
+        "minLength": 32,
+        "type": "string"
+       }
+      },
+      "required": [
+       "token"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
    "responses": {
     "200": {}
    }
@@ -13549,6 +13727,38 @@
    "parameters": {},
    "responses": {
     "201": {}
+   }
+  },
+  "POST /api/station/screens/{screen_uid}/pair": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "code": {
+        "maxLength": 8,
+        "minLength": 6,
+        "type": "string"
+       }
+      },
+      "required": [
+       "code"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:screen_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
    }
   },
   "POST /api/support/cases": {
@@ -15233,6 +15443,52 @@
     "200": {}
    }
   },
+  "PUT /api/admin/boarding/stations/{station_uid}/screens/{screen_uid}/filter": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "bays": {
+        "items": {
+         "type": "string"
+        },
+        "maxItems": 40,
+        "type": "array"
+       },
+       "carriers": {
+        "items": {
+         "format": "uuid",
+         "type": "string"
+        },
+        "maxItems": 40,
+        "type": "array"
+       }
+      },
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:screen_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    },
+    "path:station_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
   "PUT /api/admin/booking/seat-limits": {
    "body": {
     "content": {
@@ -16295,6 +16551,45 @@
     "required": true
    },
    "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "PUT /api/station/screens/{screen_uid}/filter": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "bays": {
+        "items": {
+         "type": "string"
+        },
+        "maxItems": 40,
+        "type": "array"
+       },
+       "carriers": {
+        "items": {
+         "format": "uuid",
+         "type": "string"
+        },
+        "maxItems": 40,
+        "type": "array"
+       }
+      },
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:screen_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
    "responses": {
     "200": {}
    }

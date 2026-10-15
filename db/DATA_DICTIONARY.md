@@ -2,7 +2,7 @@
 
 > Generated from the built database (`db/tools/gen_docs.py`); do not edit by hand.
 
-**538 tables, 5656 columns, in 26 schemas.**
+**540 tables, 5678 columns, in 26 schemas.**
 
 Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant isolation (RLS) · 🧩 partitioned monthly · 🔒 append-only / change-protected
 
@@ -11,11 +11,11 @@ Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant i
 - [`iam` — Identity, parties, users, permissions and API clients](#iam) (44 tables)
 - [`ref` — Reference data, locales and files](#ref) (18 tables)
 - [`sys` — Settings, outbox and webhooks](#sys) (27 tables)
-- [`net` — Network: stations, routes, lines, corridors and geofences](#net) (27 tables)
+- [`net` — Network: stations, routes, lines, corridors and geofences](#net) (28 tables)
 - [`fleet` — Fleet: vehicles, trucks, trailers, seats, crew, licenses and insurance](#fleet) (22 tables)
 - [`pricing` — Pricing, taxes, commissions, campaigns and loyalty](#pricing) (38 tables)
 - [`ops` — Trips, inventory, operations, shuttle rides, tracking and incidents](#ops) (38 tables)
-- [`sales` — Channels, bookings, passengers, tickets, subscriptions and travel documents](#sales) (31 tables)
+- [`sales` — Channels, bookings, passengers, tickets, subscriptions and travel documents](#sales) (32 tables)
 - [`fin` — Wallets, ledger, payments, allocation, settlement and float](#fin) (35 tables)
 - [`acct` — Simplified accounting, e-invoicing and tax profiles](#acct) (37 tables)
 - [`bill` — Carrier subscriptions, metering and platform invoices](#bill) (7 tables)
@@ -1819,6 +1819,21 @@ Ordered route stops, time offsets and the fare ladder from the origin
 | `fare_from_origin` | `bigint` |  |  |
 | `sellable` | `boolean` | ✱ | `true` |
 
+### `net.screen_pairing` 🛡️
+
+A display asking to be paired: the short code it shows, the hash of the secret only it holds, and the screen the station's administration gave it (1129)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `code` | `text` | ✱ |  |
+| `token_hash` | `bytea` | ✱ |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `expires_at` | `timestamp with time zone` | ✱ |  |
+| `screen_id` | `bigint` | 🔗 `net.station_screen`  |  |
+| `paired_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `paired_at` | `timestamp with time zone` |  |  |
+
 ### `net.service_number` 🛡️
 
 A carrier's trip number from its type block, four digits, odd outbound and even return; never repeated for a carrier in an overlapping period; may continue the leg before it on the same vehicle (1119)
@@ -1979,6 +1994,9 @@ A display screen of a station: its kind (departures, arrivals or both), its plac
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 | `updated_by_user_id` | `bigint` | 🔗 `iam.app_user`  |  |
 | `updated_at` | `timestamp with time zone` | ✱ | `now()` |
+| `bays` | `text[]` | ✱ | `'{}'::text[]` |
+| `carrier_ids` | `bigint[]` | ✱ | `'{}'::bigint[]` |
+| `unseen_told_at` | `timestamp with time zone` |  |  |
 
 ### `net.timetable_template` 🛡️
 
@@ -4042,6 +4060,8 @@ What a carrier hires out: a vehicle apart from the trips, or its scheduled trips
 | `created_by` | `bigint` | 🔗 `iam.app_user`  |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 | `updated_at` | `timestamp with time zone` | ✱ | `now()` |
+| `deposit_pct` | `smallint` | ✱ | `0` |
+| `balance_hours` | `smallint` | ✱ | `48` |
 
 ### `sales.charter_request` 🛡️
 
@@ -4094,6 +4114,11 @@ A customer's request to hire a vehicle or a trip under a carrier's offer: the ca
 | `idempotency_key` | `text` | ✱ |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 | `updated_at` | `timestamp with time zone` | ✱ | `now()` |
+| `paid_amount` | `bigint` |  |  |
+| `balance_due` | `bigint` | ✱ | `0` |
+| `balance_due_at` | `timestamp with time zone` |  |  |
+| `balance_txn_id` | `bigint` | 🔗 `fin.ledger_txn`  |  |
+| `balance_paid_at` | `timestamp with time zone` |  |  |
 
 ### `sales.charter_seat` 🛡️
 
@@ -4108,6 +4133,17 @@ The seats of a scheduled trip a confirmed whole-trip request took off sale (BLOC
 | `to_seq` | `smallint` | ✱ |  |
 | `released_at` | `timestamp with time zone` |  |  |
 | `ticket_id` | `bigint` | 🔗 `sales.ticket`  |  |
+
+### `sales.charter_vehicle` 🛡️
+
+The vehicles a carrier names on a vehicle hire, one by one (1128)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `request_id` | `bigint` | 🔑 🔗 `sales.charter_request` ✱ |  |
+| `vehicle_id` | `bigint` | 🔑 🔗 `fleet.vehicle` ✱ |  |
+| `named_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `named_at` | `timestamp with time zone` | ✱ | `now()` |
 
 ### `sales.entry_rule` 🛡️
 

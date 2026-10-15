@@ -11,16 +11,21 @@ import type { IconName } from "../../components/icons";
 // administration registers its screens here, gives each a kind and a place, and distributes them: each screen opens
 // its own link full screen on its display, and reports when it was last seen. The same panel serves the station portal
 // and the platform (where a station has no administration yet). The API and the database check everything again.
+// 1129: a screen may show only some bays or carriers; a display is paired by the short code it shows at /screen/pair;
+// a screen that stops reading its board is marked unseen here, and the administration is told.
 
 export type ScreenKind = "DEPARTURES" | "ARRIVALS" | "COMBINED";
 export const SCREEN_KINDS: ScreenKind[] = ["DEPARTURES", "ARRIVALS", "COMBINED"];
 const ICON: Record<ScreenKind, IconName> = { DEPARTURES: "flight_takeoff", ARRIVALS: "flight_land", COMBINED: "departure_board" };
 
+interface Carrier { uid: string; name: string }
 interface Screen {
   uid: string; kind: ScreenKind; label: string; active: boolean; allowed: boolean;
-  last_seen_at: string | null; online: boolean; created_at: string; updated_at: string;
+  last_seen_at: string | null; online: boolean; unseen?: boolean; created_at: string; updated_at: string;
+  bays?: string[]; carriers?: Carrier[];
 }
-interface ScreensView { boards_on: boolean; displays: boolean; kinds: ScreenKind[]; screens: Screen[] }
+interface ScreensView { boards_on: boolean; displays: boolean; kinds: ScreenKind[]; screens: Screen[];
+  unseen_minutes?: number; bays?: string[]; carriers?: Carrier[] }
 type Change = { kind?: ScreenKind; label?: string; active?: boolean };
 
 export interface ScreensApi {
@@ -28,6 +33,8 @@ export interface ScreensApi {
   add: (kind: ScreenKind, label: string) => Promise<unknown>;
   change: (uid: string, change: Change) => Promise<unknown>;
   remove: (uid: string) => Promise<unknown>;
+  filter: (uid: string, bays: string[], carriers: string[]) => Promise<unknown>;
+  pair: (uid: string, code: string) => Promise<unknown>;
 }
 
 /** The station portal's calls: the station is named in each request. */
@@ -37,6 +44,8 @@ export function stationScreensApi(stationUid: string): ScreensApi {
     add: (kind, label) => api.post("/api/station/screens", { station_uid: stationUid, kind, label }),
     change: (uid, change) => api.patch(`/api/station/screens/${uid}`, change),
     remove: (uid) => api.del(`/api/station/screens/${uid}`),
+    filter: (uid, bays, carriers) => api.put(`/api/station/screens/${uid}/filter`, { bays, carriers }),
+    pair: (uid, code) => api.post(`/api/station/screens/${uid}/pair`, { code }),
   };
 }
 
@@ -47,6 +56,8 @@ export function platformScreensApi(stationUid: string): ScreensApi {
     add: (kind, label) => api.post(`/api/admin/boarding/stations/${stationUid}/screens`, { kind, label }),
     change: (uid, change) => api.patch(`/api/admin/boarding/stations/${stationUid}/screens/${uid}`, change),
     remove: (uid) => api.del(`/api/admin/boarding/stations/${stationUid}/screens/${uid}`),
+    filter: (uid, bays, carriers) => api.put(`/api/admin/boarding/stations/${stationUid}/screens/${uid}/filter`, { bays, carriers }),
+    pair: (uid, code) => api.post(`/api/admin/boarding/stations/${stationUid}/screens/${uid}/pair`, { code }),
   };
 }
 
@@ -60,6 +71,8 @@ export function ScreensPanel({ calls }: { calls: ScreensApi }) {
   const [busy, setBusy] = useState(false);
   const [editing, setEditing] = useState<Screen | null>(null);
   const [removing, setRemoving] = useState<Screen | null>(null);
+  const [filtering, setFiltering] = useState<Screen | null>(null);
+  const [pairing, setPairing] = useState<Screen | null>(null);
   const run = async (call: () => Promise<unknown>, done: string) => {
     setBusy(true);
     try { await call(); toast(done); state.reload(); return true; } catch (e) { toast(errorText(e)); return false; } finally { setBusy(false); }
@@ -78,12 +91,16 @@ export function ScreensPanel({ calls }: { calls: ScreensApi }) {
       };
       const seen = (s: Screen) => !s.active ? <span className="chip">{t("scr.stopped")}</span>
         : !s.allowed ? <span className="chip red">{t("scr.kindOff")}</span>
+        : s.unseen && s.last_seen_at ? <span className="chip red"><Icon name="warning" size={16} />{t("scr.unseenSince", { when: `${date(s.last_seen_at, { day: "numeric", month: "short" })} ${time(s.last_seen_at)}` })}</span>
         : s.online ? <span className="chip green"><Icon name="check_circle" size={16} />{t("scr.online")}</span>
         : s.last_seen_at ? <span className="small muted">{t("scr.seen", { when: `${date(s.last_seen_at, { day: "numeric", month: "short" })} ${time(s.last_seen_at)}` })}</span>
         : <span className="small muted">{t("scr.never")}</span>;
       return (
         <div className="stack">
           {(!v.boards_on || !v.displays) && <div className="alert warn small"><Icon name="info" />{t("scr.off")}</div>}
+          {v.screens.some((s) => s.unseen) && (
+            <div className="alert error small" role="alert"><Icon name="warning" />{t("scr.unseenAlert", { n: v.screens.filter((s) => s.unseen).length, m: v.unseen_minutes ?? 10 })}</div>
+          )}
           <div className="card stack">
             <h3 style={{ margin: 0 }}>{t("scr.add")}</h3>
             <p className="small muted" style={{ margin: 0 }}>{t("scr.allowed", { kinds: allowed.map((k) => t(`scr.kind.${k}`)).join(" · ") })}</p>
@@ -113,14 +130,18 @@ export function ScreensPanel({ calls }: { calls: ScreensApi }) {
                     <thead><tr><th>{t("scr.place")}</th><th>{t("scr.state")}</th><th>{t("scr.link")}</th><th /></tr></thead>
                     <tbody>{list.map((s) => (
                       <tr key={s.uid}>
-                        <td><strong>{s.label}</strong></td>
+                        <td><strong>{s.label}</strong>
+                          {((s.bays?.length ?? 0) > 0 || (s.carriers?.length ?? 0) > 0) && (
+                            <div className="small muted">{[...(s.bays ?? []).map((b) => t("scr.bayN", { code: b })), ...(s.carriers ?? []).map((c) => c.name)].join(" · ")}</div>)}</td>
                         <td>{seen(s)}</td>
                         <td className="text-nowrap">
                           <Link className="btn text small" to={`/screen/${s.uid}`} target="_blank" rel="noopener"><Icon name="open_in_new" />{t("scr.open")}</Link>
                           <button className="btn text small" onClick={() => copy(s.uid)}><Icon name="content_copy" />{t("scr.copy")}</button>
+                          <button className="btn text small" disabled={busy} onClick={() => setPairing(s)}><Icon name="link" />{t("scr.pair")}</button>
                         </td>
                         <td className="num text-nowrap">
                           <button className="btn text small" disabled={busy} onClick={() => setEditing(s)}><Icon name="edit" />{t("scr.edit")}</button>
+                          <button className="btn text small" disabled={busy} onClick={() => setFiltering(s)}><Icon name="filter_list" />{t("scr.filter")}</button>
                           <button className="btn text small" disabled={busy}
                                   onClick={() => run(() => calls.change(s.uid, { active: !s.active }), t(s.active ? "scr.stoppedDone" : "scr.startedDone"))}>
                             <Icon name={s.active ? "pause" : "play_arrow"} />{t(s.active ? "scr.stop" : "scr.start")}</button>
@@ -137,6 +158,14 @@ export function ScreensPanel({ calls }: { calls: ScreensApi }) {
           {editing && (
             <EditScreen screen={editing} kinds={allowed} busy={busy} onClose={() => setEditing(null)}
                         onSave={async (change) => { if (await run(() => calls.change(editing.uid, change), t("scr.saved"))) setEditing(null); }} />
+          )}
+          {filtering && (
+            <FilterScreen screen={filtering} bays={v.bays ?? []} carriers={v.carriers ?? []} busy={busy} onClose={() => setFiltering(null)}
+                          onSave={async (bays, carriers) => { if (await run(() => calls.filter(filtering.uid, bays, carriers), t("scr.saved"))) setFiltering(null); }} />
+          )}
+          {pairing && (
+            <PairScreen screen={pairing} busy={busy} onClose={() => setPairing(null)}
+                        onPair={async (code) => { if (await run(() => calls.pair(pairing.uid, code), t("scr.paired"))) setPairing(null); }} />
           )}
           {removing && (
             <Modal title={t("scr.removeTitle", { label: removing.label })} onClose={() => setRemoving(null)}
@@ -177,6 +206,59 @@ function EditScreen({ screen, kinds, busy, onClose, onSave }: {
           <input className="input" value={label} maxLength={60} onChange={(e) => setLabel(e.target.value)} />
         </Field>
         <p className="small muted" style={{ margin: 0 }}>{t("scr.sameLink")}</p>
+      </div>
+    </Modal>
+  );
+}
+
+function FilterScreen({ screen, bays, carriers, busy, onClose, onSave }: {
+  screen: Screen; bays: string[]; carriers: Carrier[]; busy: boolean; onClose: () => void; onSave: (bays: string[], carriers: string[]) => void;
+}) {
+  const { t } = useI18n();
+  const [chosenBays, setBays] = useState<string[]>(screen.bays ?? []);
+  const [chosenCarriers, setCarriers] = useState<string[]>((screen.carriers ?? []).map((c) => c.uid));
+  // a carrier named on the screen that no longer calls at the station stays listed, so it can be taken off
+  const all = [...carriers, ...(screen.carriers ?? []).filter((c) => !carriers.some((x) => x.uid === c.uid))];
+  const flip = (list: string[], v: string) => (list.includes(v) ? list.filter((x) => x !== v) : [...list, v]);
+  return (
+    <Modal title={t("scr.filterTitle", { label: screen.label })} onClose={onClose}
+      actions={<><button className="btn text" onClick={onClose}>{t("common.cancel")}</button>
+        <button className="btn" disabled={busy} onClick={() => onSave(chosenBays, chosenCarriers)}>{t("common.save")}</button></>}>
+      <div className="stack">
+        <p className="small muted" style={{ margin: 0 }}>{t("scr.filterHint")}</p>
+        <fieldset className="stack tight" style={{ border: 0, padding: 0, margin: 0 }}>
+          <legend className="small"><strong>{t("scr.filterBays")}</strong></legend>
+          {bays.length === 0 ? <span className="small muted">{t("scr.noBays")}</span> : (
+            <div className="row" style={{ gap: 12, flexWrap: "wrap" }}>
+              {bays.map((b) => <label key={b} className="check"><input type="checkbox" checked={chosenBays.includes(b)} onChange={() => setBays(flip(chosenBays, b))} />{t("scr.bayN", { code: b })}</label>)}
+            </div>)}
+        </fieldset>
+        <fieldset className="stack tight" style={{ border: 0, padding: 0, margin: 0 }}>
+          <legend className="small"><strong>{t("scr.filterCarriers")}</strong></legend>
+          {all.length === 0 ? <span className="small muted">{t("scr.noCarriers")}</span> : (
+            <div className="row" style={{ gap: 12, flexWrap: "wrap" }}>
+              {all.map((c) => <label key={c.uid} className="check"><input type="checkbox" checked={chosenCarriers.includes(c.uid)} onChange={() => setCarriers(flip(chosenCarriers, c.uid))} />{c.name}</label>)}
+            </div>)}
+        </fieldset>
+      </div>
+    </Modal>
+  );
+}
+
+function PairScreen({ screen, busy, onClose, onPair }: { screen: Screen; busy: boolean; onClose: () => void; onPair: (code: string) => void }) {
+  const { t } = useI18n();
+  const [code, setCode] = useState("");
+  const clean = code.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6);
+  return (
+    <Modal title={t("scr.pairTitle", { label: screen.label })} onClose={onClose}
+      actions={<><button className="btn text" onClick={onClose}>{t("common.cancel")}</button>
+        <button className="btn" disabled={busy || clean.length !== 6} onClick={() => onPair(clean)}>{t("scr.pair")}</button></>}>
+      <div className="stack">
+        <p className="small" style={{ margin: 0 }}>{t("scr.pairHint", { url: `${window.location.origin}/screen/pair` })}</p>
+        <Field label={t("scr.pairCode")}>
+          <input className="input mono ltr" autoComplete="off" inputMode="text" value={clean} maxLength={6} style={{ fontSize: "1.5rem", letterSpacing: "0.2em" }}
+                 onChange={(e) => setCode(e.target.value)} />
+        </Field>
       </div>
     </Modal>
   );

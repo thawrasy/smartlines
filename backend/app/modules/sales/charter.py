@@ -65,6 +65,8 @@ class OfferIn(BaseModel):
     with_driver: bool = True
     base_city: Optional[str] = Field(default=None, pattern=r"^[A-Z]{3}$")
     policy: str = Field(min_length=10, max_length=2000)
+    deposit_pct: int = Field(default=0, ge=0, le=90)            # paid on acceptance; the rest before the start (1128)
+    balance_hours: int = Field(default=48, ge=0, le=2160)       # how long before the start the balance is due
 
     @model_validator(mode="after")
     def _shape(self):
@@ -91,12 +93,15 @@ class OfferPatch(BaseModel):
     cancel_before_hours: Optional[int] = Field(default=None, ge=0, le=2160)
     cancel_refund_pct: Optional[int] = Field(default=None, ge=0, le=100)
     policy: Optional[str] = Field(default=None, min_length=10, max_length=2000)
+    deposit_pct: Optional[int] = Field(default=None, ge=0, le=90)
+    balance_hours: Optional[int] = Field(default=None, ge=0, le=2160)
     status: Optional[Literal["ACTIVE", "PAUSED", "ARCHIVED"]] = None
 
 
 OFFER_SQL = """
     SELECT o.uid, o.kind, o.title, o.vehicle_type, o.seats, o.vehicles, o.partial_seats, o.min_seats, o.audience, o.price_basis,
            o.price, o.currency, o.notice_hours, o.cancel_before_hours, o.cancel_refund_pct, o.with_driver, o.policy, o.status,
+           o.deposit_pct, o.balance_hours,
            c.code AS base_city, p.legal_name AS carrier_name, p.uid AS carrier_uid, iam.logo_version(o.company_id) AS carrier_logo,
            o.created_at, o.updated_at
       FROM sales.charter_offer o JOIN iam.party p ON p.id = o.company_id LEFT JOIN ref.city c ON c.id = o.base_city_id"""
@@ -120,12 +125,12 @@ async def create_offer(conn: asyncpg.Connection, company_id: int, user_id: int, 
     uid = await conn.fetchval(
         """INSERT INTO sales.charter_offer (company_id, kind, title, vehicle_type, seats, vehicles, partial_seats, min_seats, audience,
              price_basis, price, currency, notice_hours, cancel_before_hours, cancel_refund_pct, with_driver, base_city_id, policy,
-             created_by)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19) RETURNING uid""",
+             created_by, deposit_pct, balance_hours)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21) RETURNING uid""",
         company_id, body.kind, body.title.strip(), body.vehicle_type, body.seats, body.vehicles, body.partial_seats,
         body.min_seats if body.kind == "WHOLE_TRIP" and body.partial_seats else None, body.audience, body.price_basis, body.price,
         body.currency, body.notice_hours, body.cancel_before_hours, body.cancel_refund_pct, body.with_driver, city, body.policy.strip(),
-        user_id)
+        user_id, body.deposit_pct, body.balance_hours)
     return _offer(await conn.fetchrow(OFFER_SQL + " WHERE o.uid = $1", uid))
 
 
@@ -254,7 +259,7 @@ async def create_request(conn: asyncpg.Connection, who: Customer, body: RequestI
     while await conn.fetchval("SELECT 1 FROM sales.charter_request WHERE ref = $1", ref):
         ref = _ref()
     terms = {k: o[k] for k in ("title", "price_basis", "price", "currency", "vehicle_type", "seats", "with_driver", "cancel_before_hours",
-                               "cancel_refund_pct", "policy")}
+                               "cancel_refund_pct", "policy", "deposit_pct", "balance_hours")}
     names = ["ref", "offer_id", "company_id", "requester_party_id", "requester_user_id", "requester_kind", "agency_id", "contact_name",
              "contact_mobile", "kind", "terms", "note", "idempotency_key", *cols]
     values = [ref, o["id"], o["company_id"], who.party_id, who.user_id, who.kind, who.party_id if who.kind == "AGENCY" else None,
@@ -273,6 +278,11 @@ REQUEST_SQL = """
            t.uid AS trip_uid, t.trip_no, t.trip_code, r.from_seq, r.to_seq, r.seats, r.whole,
            a.sched_dep AS trip_departs_at, sa.code AS trip_from, sb.code AS trip_to,
            r.price, r.currency, r.valid_until, r.quote_note, r.quoted_at, r.paid_at, r.refunded_amount, r.closed_at, r.closed_reason,
+           r.paid_amount, r.balance_due, r.balance_due_at, r.balance_paid_at,
+           ARRAY(SELECT fv.plate_no FROM sales.charter_vehicle cv JOIN fleet.vehicle fv ON fv.id = cv.vehicle_id
+                  WHERE cv.request_id = r.id ORDER BY cv.named_at) AS vehicle_plates,
+           ARRAY(SELECT fv.uid::text FROM sales.charter_vehicle cv JOIN fleet.vehicle fv ON fv.id = cv.vehicle_id
+                  WHERE cv.request_id = r.id ORDER BY cv.named_at) AS vehicle_uids,
            v.plate_no AS vehicle_plate, v.vehicle_type AS vehicle_kind,
            o.uid AS offer_uid, r.terms,
            cp.legal_name AS carrier_name, cp.uid AS carrier_uid, iam.logo_version(r.company_id) AS carrier_logo,
@@ -387,6 +397,9 @@ async def quote(conn: asyncpg.Connection, company_id: int, user_id: int, uid: uu
              quoted_by = $6, quoted_at = now(), vehicle_id = coalesce($7, vehicle_id) WHERE id = $1""",
         r["id"], body.price, currency, min(now + timedelta(hours=body.valid_hours), starts), (body.note or "").strip() or None,
         user_id, vehicle)
+    if vehicle is not None and r["kind"] == "VEHICLE":
+        await conn.execute("INSERT INTO sales.charter_vehicle (request_id, vehicle_id, named_by) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING",
+                           r["id"], vehicle, user_id)
     await emit(conn, "charter.quoted", "charter_request", r["id"], {"ref": r["ref"], "price": body.price, "currency": currency},
                company_id=company_id)
     return await request_view(conn, uid)
@@ -402,11 +415,40 @@ async def decline(conn: asyncpg.Connection, company_id: int, user_id: int, uid: 
     return await request_view(conn, uid)
 
 
-async def assign_vehicle(conn: asyncpg.Connection, company_id: int, uid: uuid.UUID, vehicle_uid: uuid.UUID) -> dict:
+async def assign_vehicle(conn: asyncpg.Connection, company_id: int, uid: uuid.UUID, vehicle_uid: uuid.UUID,
+                         user_id: Optional[int] = None) -> dict:
+    """Names one more vehicle of a vehicle hire, up to the vehicles asked for (1128). A vehicle running a trip or another
+    hire at the same time is refused: the hire goes on the vehicle's schedule."""
     r = await _mine(conn, uid, company_id=company_id)
     if r["kind"] != "VEHICLE" or r["status"] not in ("QUOTED", "CONFIRMED"):
         raise ApiError(409, "CHARTER_CLOSED", "a vehicle is named on a priced or confirmed vehicle hire", charter_status=r["status"])
-    await conn.execute("UPDATE sales.charter_request SET vehicle_id = $2 WHERE id = $1", r["id"], await _vehicle(conn, company_id, vehicle_uid))
+    vid = await _vehicle(conn, company_id, vehicle_uid)
+    if await conn.fetchval("SELECT 1 FROM sales.charter_vehicle WHERE request_id = $1 AND vehicle_id = $2", r["id"], vid):
+        return await request_view(conn, uid)
+    named = await conn.fetchval("SELECT count(*) FROM sales.charter_vehicle WHERE request_id = $1", r["id"])
+    if named >= (r["vehicles"] or 1):
+        raise ApiError(409, "CHARTER_VEHICLES_FULL", "every vehicle of this hire is named; take one off first", vehicles=r["vehicles"])
+    other = await conn.fetchval("SELECT sales.vehicle_hired($1, $2, $3, $4)", vid, r["starts_at"], r["ends_at"], r["id"])
+    trip = await conn.fetchval(
+        """SELECT trip_no FROM ops.trip WHERE vehicle_id = $1 AND status NOT IN ('CANCELLED', 'COMPLETED')
+              AND tstzrange(departure_at, coalesce(arrival_at, departure_at + interval '1 hour')) && tstzrange($2, $3) LIMIT 1""",
+        vid, r["starts_at"], r["ends_at"])
+    if other or trip:
+        raise ApiError(409, "VEHICLE_BUSY", "the vehicle runs a trip or another hire at that time", hire=other, trip=trip)
+    await conn.execute("INSERT INTO sales.charter_vehicle (request_id, vehicle_id, named_by) VALUES ($1, $2, $3)", r["id"], vid, user_id)
+    await conn.execute("UPDATE sales.charter_request SET vehicle_id = coalesce(vehicle_id, $2) WHERE id = $1", r["id"], vid)
+    return await request_view(conn, uid)
+
+
+async def remove_vehicle(conn: asyncpg.Connection, company_id: int, uid: uuid.UUID, vehicle_uid: uuid.UUID) -> dict:
+    r = await _mine(conn, uid, company_id=company_id)
+    if r["status"] not in ("QUOTED", "CONFIRMED"):
+        raise ApiError(409, "CHARTER_CLOSED", "the hire is closed", charter_status=r["status"])
+    vid = await _vehicle(conn, company_id, vehicle_uid)
+    await conn.execute("DELETE FROM sales.charter_vehicle WHERE request_id = $1 AND vehicle_id = $2", r["id"], vid)
+    await conn.execute(
+        """UPDATE sales.charter_request SET vehicle_id = (SELECT vehicle_id FROM sales.charter_vehicle WHERE request_id = $1
+                                                          ORDER BY named_at LIMIT 1) WHERE id = $1""", r["id"])
     return await request_view(conn, uid)
 
 
@@ -431,17 +473,50 @@ async def accept(conn: asyncpg.Connection, ctx: db.Context, who: Customer, uid: 
     if r["kind"] == "WHOLE_TRIP":
         await conn.fetchval("SELECT sales.charter_block_seats($1)", r["id"])
     async with db.system_scope(conn, ctx):
+        # a deposit when the offer asks for one (1128), else the whole price
+        terms = r["terms"] if isinstance(r["terms"], dict) else json.loads(r["terms"])
+        pct = int(terms.get("deposit_pct") or 0)
+        now_pay = r["price"] * pct // 100 if pct else r["price"]
         wallet = await _payer_wallet(conn, r, r["currency"])
         available = wallet["balance"] - wallet["hold_balance"]
-        if available < r["price"]:
-            raise ApiError(402, "INSUFFICIENT_BALANCE", "wallet balance is not enough", required=r["price"], balance=available)
+        if available < now_pay:
+            raise ApiError(402, "INSUFFICIENT_BALANCE", "wallet balance is not enough", required=now_pay, balance=available)
         escrow = await platform_wallet(conn, "ESCROW", r["currency"])
         txn = await post_txn(conn, "CHARTER_PAY", r["currency"], f"charter:{r['id']}:pay",
-                             [(wallet["id"], "DR", r["price"]), (escrow["id"], "CR", r["price"])],
+                             [(wallet["id"], "DR", now_pay), (escrow["id"], "CR", now_pay)],
                              ref_type="charter_request", ref_id=r["id"], user_id=who.user_id, memo=r["ref"])
-    await conn.execute("UPDATE sales.charter_request SET status = 'CONFIRMED', paid_txn_id = $2, paid_at = now() WHERE id = $1",
-                       r["id"], txn)
+    balance = r["price"] - now_pay
+    due_at = None
+    if balance:
+        starts = await _starts(conn, r)
+        due_at = max(datetime.now(timezone.utc), starts - timedelta(hours=int(terms.get("balance_hours") or 0)))
+    await conn.execute(
+        """UPDATE sales.charter_request SET status = 'CONFIRMED', paid_txn_id = $2, paid_at = now(), paid_amount = $3, balance_due = $4,
+             balance_due_at = $5 WHERE id = $1""", r["id"], txn, now_pay, balance, due_at)
     await emit(conn, "charter.confirmed", "charter_request", r["id"], {"ref": r["ref"], "price": r["price"]}, company_id=r["company_id"])
+    return await request_view(conn, uid)
+
+
+async def pay_balance(conn: asyncpg.Connection, ctx: db.Context, who: Customer, uid: uuid.UUID) -> dict:
+    """The rest of a charter paid after its deposit, from the same wallet, into escrow (1128)."""
+    r = await _mine(conn, uid, party_id=who.party_id)
+    if r["status"] != "CONFIRMED":
+        raise ApiError(409, "CHARTER_NOT_CONFIRMED", "only a confirmed charter is paid", charter_status=r["status"])
+    if not r["balance_due"]:
+        return await request_view(conn, uid) | {"replayed": True}
+    async with db.system_scope(conn, ctx):
+        wallet = await _payer_wallet(conn, r, r["currency"])
+        available = wallet["balance"] - wallet["hold_balance"]
+        if available < r["balance_due"]:
+            raise ApiError(402, "INSUFFICIENT_BALANCE", "wallet balance is not enough", required=r["balance_due"], balance=available)
+        escrow = await platform_wallet(conn, "ESCROW", r["currency"])
+        txn = await post_txn(conn, "CHARTER_PAY", r["currency"], f"charter:{r['id']}:balance",
+                             [(wallet["id"], "DR", r["balance_due"]), (escrow["id"], "CR", r["balance_due"])],
+                             ref_type="charter_request", ref_id=r["id"], user_id=who.user_id, memo=f"{r['ref']} balance")
+    await conn.execute(
+        """UPDATE sales.charter_request SET paid_amount = paid_amount + balance_due, balance_due = 0, balance_txn_id = $2,
+             balance_paid_at = now() WHERE id = $1""", r["id"], txn)
+    await emit(conn, "charter.paid", "charter_request", r["id"], {"ref": r["ref"], "balance": r["balance_due"]}, company_id=r["company_id"])
     return await request_view(conn, uid)
 
 
@@ -461,7 +536,7 @@ async def _commission_bp(conn: asyncpg.Connection) -> int:
 async def _settle(conn: asyncpg.Connection, r, refund: int, user_id: int, kind: str) -> tuple[int, int]:
     """Pays out what escrow holds for a confirmed request: refund to the customer, the rest to the carrier less the
     platform's commission. Returns the transaction and the commission."""
-    price, cur = r["price"], r["currency"]
+    price, cur = (r["paid_amount"] if r["paid_amount"] is not None else r["price"]), r["currency"]      # what escrow holds (1128)
     kept = price - refund
     commission = kept * await _commission_bp(conn) // 10000
     escrow = await platform_wallet(conn, "ESCROW", cur)
@@ -484,6 +559,8 @@ async def complete(conn: asyncpg.Connection, ctx: db.Context, company_id: int, u
         raise ApiError(409, "CHARTER_NOT_CONFIRMED", "only a confirmed charter is done", charter_status=r["status"])
     if await _starts(conn, r) > datetime.now(timezone.utc):
         raise ApiError(409, "CHARTER_NOT_STARTED", "the service is marked done once it has begun")
+    if r["balance_due"]:
+        raise ApiError(409, "CHARTER_BALANCE_DUE", "the customer has not paid the balance yet", balance_due=r["balance_due"])
     async with db.system_scope(conn, ctx):
         txn, commission = await _settle(conn, r, 0, user_id, "CHARTER_RELEASE")
     await conn.execute("UPDATE sales.charter_request SET status = 'COMPLETED', released_txn_id = $2, closed_by = $3, closed_at = now() WHERE id = $1",
@@ -505,11 +582,13 @@ async def cancel(conn: asyncpg.Connection, ctx: db.Context, uid: uuid.UUID, user
     starts = await _starts(conn, r)
     if who is not None and starts <= datetime.now(timezone.utc):
         raise ApiError(409, "CHARTER_STARTED", "the service has already begun")
-    if company_id is not None:
-        refund = r["price"]
-    else:
-        in_time = starts - datetime.now(timezone.utc) >= timedelta(hours=r["cancel_before_hours"])
-        refund = r["price"] * r["cancel_refund_pct"] // 100 if in_time else 0
+    paid = r["paid_amount"] if r["paid_amount"] is not None else r["price"]
+    overdue = bool(r["balance_due"]) and r["balance_due_at"] is not None and r["balance_due_at"] < datetime.now(timezone.utc)
+    in_time = starts - datetime.now(timezone.utc) >= timedelta(hours=r["cancel_before_hours"])
+    if company_id is not None and not overdue:
+        refund = paid
+    else:                       # the customer's own cancellation, or a balance left unpaid past its time (1128)
+        refund = paid * r["cancel_refund_pct"] // 100 if in_time and not overdue else 0
     if r["kind"] == "WHOLE_TRIP":
         await conn.fetchval("SELECT sales.charter_release_seats($1)", r["id"])
     async with db.system_scope(conn, ctx):
@@ -664,11 +743,12 @@ async def cancel_on_trip(conn: asyncpg.Connection, trip_id: int, user_id: int) -
                       (r.terms ->> 'cancel_refund_pct')::int AS cancel_refund_pct
                  FROM sales.charter_request r WHERE r.trip_id = $1 AND r.status = 'CONFIRMED' ORDER BY r.id FOR UPDATE""", trip_id):
         await conn.fetchval("SELECT sales.charter_release_seats($1)", r["id"])
-        txn, _ = await _settle(conn, r, r["price"], user_id, "CHARTER_REFUND")
+        paid = r["paid_amount"] if r["paid_amount"] is not None else r["price"]
+        txn, _ = await _settle(conn, r, paid, user_id, "CHARTER_REFUND")
         await conn.execute(
             """UPDATE sales.charter_request SET status = 'CANCELLED', refund_txn_id = $2, refunded_amount = $3, closed_by = $4,
-                 closed_at = now(), closed_reason = 'the carrier cancelled the trip' WHERE id = $1""", r["id"], txn, r["price"], user_id)
-        await emit(conn, "charter.cancelled", "charter_request", r["id"], {"ref": r["ref"], "refund": r["price"], "by": "CARRIER"},
+                 closed_at = now(), closed_reason = 'the carrier cancelled the trip' WHERE id = $1""", r["id"], txn, paid, user_id)
+        await emit(conn, "charter.cancelled", "charter_request", r["id"], {"ref": r["ref"], "refund": paid, "by": "CARRIER"},
                    company_id=r["company_id"])
         n += 1
     return n

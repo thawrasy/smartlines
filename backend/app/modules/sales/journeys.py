@@ -2,7 +2,8 @@
 2026; migration 1121).
 
 A journey is booked in one go and paid at once: one booking per trip, as before, each with its own tickets, rules and
-refunds, sharing the journey's uid and numbered by leg. Every traveller takes a seat on every leg; the seats are given
+refunds, sharing the journey's uid and numbered by leg. Every traveller takes a seat on every leg, the one chosen on that
+trip or, when none is chosen, the seats given
 side by side where the trip has them. A group larger than a booking (an agency's tourism group) is split into bookings
 of the platform's seat limit (four unless it decides otherwise, 1122) on each leg, all of the same journey. If any leg cannot be booked (no seats, sales closed, not
 enough money), nothing is: the whole journey is one transaction. The legs must follow each other in time. A baby on a
@@ -31,6 +32,8 @@ class JourneyLegIn(BaseModel):
     trip_uid: uuid.UUID
     from_seq: int = Field(ge=0, le=500)
     to_seq: int = Field(ge=1, le=500)
+    # the seats chosen on this trip, one per traveller with a seat in their order; none: given side by side
+    seats: Optional[list[int]] = Field(default=None, min_length=1, max_length=GROUP_LIMIT)
 
 
 class JourneyIn(BaseModel):
@@ -49,6 +52,9 @@ class JourneyIn(BaseModel):
             raise ValueError("JOURNEY_SHAPE: one way has one trip, a round trip two, several places two to six")
         if any(leg.to_seq <= leg.from_seq for leg in self.legs):
             raise ValueError("INVALID_HOLD: each trip is booked from a stop to a later one")
+        for leg in self.legs:
+            if leg.seats is not None and (len(set(leg.seats)) != len(leg.seats) or len(leg.seats) != self.seated):
+                raise ValueError("JOURNEY_SEATS: choose one different seat for each traveller with a seat, on every trip where seats are chosen")
         for i, p in enumerate(self.passengers, start=1):
             if p.with_adult is None:
                 continue
@@ -88,6 +94,9 @@ async def _legs(conn: asyncpg.Connection, body: JourneyIn) -> list[asyncpg.Recor
         if len(row["free"]) < body.seated:
             raise ApiError(409, "NOT_ENOUGH_SEATS", f"trip {i} has {len(row['free'])} seats left for {body.seated} travellers",
                            leg=i, seats_left=len(row["free"]))
+        taken = [n for n in (leg.seats or []) if n not in row["free"]]
+        if taken:
+            raise ApiError(409, "SEAT_TAKEN", f"seat {taken[0]} of trip {i} is no longer free", leg=i, seats=taken)
         out.append(row)
     return out
 
@@ -110,7 +119,7 @@ async def book(conn: asyncpg.Connection, party_id: int, user_id: int, body: Jour
     laps = {i: p.with_adult - 1 for i, p in enumerate(body.passengers) if p.with_adult is not None}
     booked = []
     for n, (leg, trip) in enumerate(zip(body.legs, legs), start=1):
-        seats = list(trip["free"])
+        seats = list(leg.seats) if leg.seats else list(trip["free"])     # chosen in the travellers' order, else side by side
         for g, people in enumerate(groups, start=1):
             mine, seats = seats[:len(people)], seats[len(people):]
             hold = await create_hold(conn, user_id, HoldIn(trip_uid=leg.trip_uid, from_seq=leg.from_seq, to_seq=leg.to_seq,

@@ -7,10 +7,11 @@ import { useChannel } from "../../channel";
 import { CarrierName, ErrorBox, Field, Icon, Loaded, Spinner, useLoad } from "../../components/ui";
 import { PassengerFields, blankPassenger, documentFor, namesFor, passengerValid, type PassengerDraft, type TravelDocs } from "./PassengerFields";
 import { parseLegs, parsePicked, type JourneyKind } from "./journeyLinks";
+import { SeatMap } from "./Book";
 
 // A journey booked in one go (owner's request, October 2026; migration 1121): one way, a round trip or several places
 // one after the other, chosen trip by trip on the results page and checked out here: the same travellers on every
-// trip, seats given side by side, paid at once from the wallet (or reserved to pay at the counter where the platform
+// trip, seats chosen on each trip or given side by side, paid at once from the wallet (or reserved to pay at the counter where the platform
 // opened it). An agency books a group here too, split into bookings of the platform's seat limit (1122). A baby on an
 // adult's lap takes no seat and travels in that adult's booking on every trip. Each trip becomes its own booking, all of
 // the same journey; nothing is booked unless every trip is.
@@ -44,6 +45,12 @@ export default function Journey() {
   const [error, setError] = useState<unknown>(null);
   const [done, setDone] = useState<JourneyOut | null>(null);
   const [key] = useState(() => crypto.randomUUID().replace(/-/g, ""));
+  // the seats chosen on each trip, in the travellers' order; a trip with none chosen gets seats side by side
+  const [seatsOf, setSeatsOf] = useState<number[][]>(() => picked.map(() => []));
+  const [choosing, setChoosing] = useState<number | null>(null);
+  const seated = people.filter((p) => !p.lap).length;
+  const toggleSeat = (leg: number, n: number) => setSeatsOf((all) => all.map((x, i) => (i !== leg ? x
+    : x.includes(n) ? x.filter((y) => y !== n) : x.length < seated ? [...x, n] : x)));
 
   // the documents each nationality needs: those of the first international trip of the journey, where there is one
   const nationalities = useMemo(() => [...new Set(["SY", ...people.map((p) => p.nationality)])], [people]);
@@ -61,14 +68,16 @@ export default function Journey() {
     return <div className="page"><div className="card"><ErrorBox error={{ message: t("jrn.incomplete") }} /></div></div>;
   }
   const docsKnown = nationalities.every((n) => docs[n]);
-  const valid = docsKnown && people.every((p) => passengerValid(p, docs[p.nationality])) && (!ch.agency || /^\+?[0-9]{8,15}$/.test(contact.trim()));
+  const seatsReady = seatsOf.every((x) => x.length === 0 || x.length === seated);
+  const valid = docsKnown && seatsReady && people.every((p) => passengerValid(p, docs[p.nationality])) && (!ch.agency || /^\+?[0-9]{8,15}$/.test(contact.trim()));
   const payLater = options.data?.some((o) => o.code === "PAY_LATER");
 
   const book = async () => {
     setBusy(true); setError(null);
     try {
       const out = await api.post<JourneyOut>(ch.agency ? "/api/agency/journeys" : "/api/journeys", {
-        kind, legs: picked.map((p) => ({ trip_uid: p.uid, from_seq: p.from, to_seq: p.to })),
+        kind, legs: picked.map((p, i) => ({ trip_uid: p.uid, from_seq: p.from, to_seq: p.to,
+                                            seats: seatsOf[i]?.length === seated ? seatsOf[i] : undefined })),
         // the k-th baby on a lap is carried by the k-th traveller with a seat
         passengers: people.map((p, i) => ({ ...namesFor(p), ...documentFor(p, docs[p.nationality]), birth_date: p.birth_date || undefined,
                                             with_adult: p.lap ? i - pax + 1 : undefined })),
@@ -130,6 +139,16 @@ export default function Journey() {
                       </span>
                     </div>
                     <span className="text-nowrap">{money(d.price, false, d.trip.currency)} {currency(d.trip.currency)} × {pax}</span>
+                    <div className="stack tight" style={{ flexBasis: "100%" }}>
+                      <div className="row small" style={{ gap: 8, flexWrap: "wrap" }}>
+                        <span className="muted">{seatsOf[i].length ? t("jrn.seatsChosen", { seats: seatsOf[i].join(", ") }) : t("jrn.seatsAuto")}</span>
+                        <button type="button" className="btn text small" onClick={() => setChoosing(choosing === i ? null : i)}>
+                          <Icon name="event_seat" />{t(choosing === i ? "jrn.seatsDone" : "jrn.seatsChoose")}</button>
+                        {seatsOf[i].length > 0 && <button type="button" className="btn text small" onClick={() => setSeatsOf((all) => all.map((x, j) => (j === i ? [] : x)))}>{t("jrn.seatsClear")}</button>}
+                      </div>
+                      {seatsOf[i].length > 0 && seatsOf[i].length < seated && <span className="small" role="status">{t("jrn.seatsMore", { n: seated - seatsOf[i].length })}</span>}
+                      {choosing === i && <SeatMap seats={d.seats} map={d.seat_map} selected={seatsOf[i]} toggle={(n) => toggleSeat(i, n)} max={seated} />}
+                    </div>
                   </div>
                 );
               })}

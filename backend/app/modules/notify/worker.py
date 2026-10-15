@@ -186,6 +186,8 @@ async def main(once: bool) -> None:
                         await conn.execute("SELECT ship.expire_parcel_offers()")
                         # departed trips whose vehicle went silent get an alert, escalated if the silence lasts (1100)
                         await conn.execute("SELECT ops.raise_tracking_alerts()")
+                        # station screens that stopped reading their board are reported to the administration (1129)
+                        await conn.execute("SELECT net.raise_screen_alerts()")
                     # approved regular trips make their trips ahead, so one with no end runs until it is stopped (1117)
                     from ..schedules.service import generate_due
                     await generate_due()

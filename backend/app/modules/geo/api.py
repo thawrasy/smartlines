@@ -16,6 +16,7 @@
     POST /api/admin/geo/places               propose a place surveyed in the field (1125)
     POST /api/admin/geo/places/{pcode}/review {accept, note}: another person accepts or rejects it (1125)
     GET  /api/admin/geo/names                corrections of the published names (1127)
+    GET  /api/admin/geo/areas/{pcode}/map    an area drawn: its boundary, the areas under it, its places and stations
     POST /api/admin/geo/names                {lang, wrong, correct, scope, reason}: set one, applied at once and after each load
     DELETE /api/admin/geo/names/{id}         remove one: the names go back to the published ones
 """
@@ -180,6 +181,60 @@ async def summary(request: Request, pr: Principal = Depends(require_portal("PLAT
     return {"governorates": [dict(r) for r in by_gov], "proposed": proposed,
             "loads": [dict(r) | {"counts": json.loads(r["counts"])} for r in loads],
             "cities": [dict(r) for r in cities]}
+
+
+@platform.get("/areas/{pcode}/map")
+async def area_map(pcode: str, request: Request, pr: Principal = Depends(require_portal("PLATFORM"))):
+    """What the map of an area draws: its boundary (simplified), the areas under it with theirs, its places (the
+    communities of a sub-district; the cities of the network above that) and the stations in it, located by their
+    place or, without one, by the boundary. SY is the whole country, drawn by its governorates."""
+    _need(pr)
+    if not re.fullmatch(r"SY([0-9]{2}){0,3}", pcode):
+        raise not_found("area")
+    detail = {2: 0.01, 4: 0.004, 6: 0.002, 8: 0.001}[len(pcode)]
+    async with db.transaction(context_for(request, pr)) as conn:
+        area = None
+        if pcode != "SY":
+            area = await conn.fetchrow(
+                """SELECT a.id, a.pcode, a.level, a.name_en, a.name_ar,
+                          gis.st_asgeojson(gis.st_simplifypreservetopology(a.boundary, $2), 5) AS boundary
+                     FROM ref.admin_area a WHERE a.pcode = $1 AND a.status = 'ACTIVE'""", pcode, detail)
+            if area is None:
+                raise not_found("area")
+        children = await conn.fetch(
+            """SELECT a.pcode, a.level, a.name_en, a.name_ar,
+                      gis.st_asgeojson(gis.st_simplifypreservetopology(a.boundary, $3), 5) AS boundary,
+                      (SELECT round(avg(p.lat), 5) FROM ref.place p JOIN ref.admin_area x ON x.id = p.area_id
+                        WHERE left(x.pcode, length(a.pcode)) = a.pcode AND p.status = 'ACTIVE') AS lat,
+                      (SELECT round(avg(p.lng), 5) FROM ref.place p JOIN ref.admin_area x ON x.id = p.area_id
+                        WHERE left(x.pcode, length(a.pcode)) = a.pcode AND p.status = 'ACTIVE') AS lng
+                 FROM ref.admin_area a
+                WHERE a.status = 'ACTIVE' AND a.level = $2 AND left(a.pcode, length($1)) = $1 ORDER BY a.pcode""",
+            pcode, LEVELS[len(pcode)] if len(pcode) < 8 else 0, detail * 1.5)
+        places = await conn.fetch(
+            """SELECT p.pcode, p.kind, p.status, p.name_en, p.name_ar, p.lat, p.lng, k.code AS city_code
+                 FROM ref.place p JOIN ref.admin_area a ON a.id = p.area_id LEFT JOIN ref.city k ON k.place_id = p.id
+                WHERE left(a.pcode, length($1)) = $1 AND p.status IN ('ACTIVE', 'PROPOSED')
+                  AND (length($1) = 8 OR k.code IS NOT NULL) AND p.kind = 'COMMUNITY'
+                ORDER BY k.code NULLS LAST, p.name_en LIMIT 2000""", pcode)
+        stations = await conn.fetch(
+            """SELECT s.code, s.name, s.lat, s.lng, s.status, s.station_class
+                 FROM net.station s LEFT JOIN ref.place p ON p.id = s.place_id LEFT JOIN ref.admin_area a ON a.id = p.area_id
+                WHERE s.status <> 'CLOSED' AND (
+                        left(a.pcode, length($1)) = $1
+                     OR (s.place_id IS NULL AND ($1 = 'SY' OR EXISTS (
+                           SELECT 1 FROM ref.admin_area b WHERE b.pcode = $1 AND b.boundary IS NOT NULL
+                              AND gis.st_contains(b.boundary, gis.st_setsrid(gis.st_makepoint(s.lng::float8, s.lat::float8), 4326))))))
+                ORDER BY s.code LIMIT 500""", pcode)
+    geo = lambda v: json.loads(v) if v else None              # noqa: E731
+    return {
+        "area": {"pcode": pcode, "level": area["level"] if area else 0, "name_en": area["name_en"] if area else None,
+                 "name_ar": area["name_ar"] if area else None, "boundary": geo(area["boundary"]) if area else None},
+        "children": [{**{k: c[k] for k in ("pcode", "level", "name_en", "name_ar", "lat", "lng")}, "boundary": geo(c["boundary"])}
+                     for c in children],
+        "places": [dict(r) for r in places],
+        "stations": [dict(r) for r in stations],
+    }
 
 
 @platform.post("/import")

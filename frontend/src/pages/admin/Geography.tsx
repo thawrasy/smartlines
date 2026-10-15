@@ -4,6 +4,7 @@ import { useI18n } from "../../i18n";
 import { PageHead } from "../../components/layout";
 import { Empty, ErrorBox, Field, Icon, Loaded, Modal, Stat, useLoad, useToast } from "../../components/ui";
 import { FieldSurveys } from "./FieldSurveys";
+import { AreaMap } from "./AreaMap";
 import { NameCorrections } from "./NameCorrections";
 
 // The administrative geography (owner's request, October 2026; migration 1124): the governorates, districts,
@@ -33,6 +34,7 @@ export function AdminGeography() {
   const [found, setFound] = useState<Found[] | null>(null);
   const [serving, setServing] = useState<{ pcode: string; name: string } | null>(null);
   const [code, setCode] = useState("");
+  const [asMap, setAsMap] = useState(false);
   const file = useRef<HTMLInputElement>(null);
   const shapes = useRef<HTMLInputElement>(null);
   const name = (x: { name_en: string; name_ar: string }) => (locale === "ar" ? x.name_ar : x.name_en);
@@ -139,6 +141,11 @@ export function AdminGeography() {
                     <button className="btn text small" onClick={() => setPath([])}>{t("geo.country")}</button>
                     {path.map((p, i) => <span key={p.pcode} className="row" style={{ gap: 6 }}>›<button className="btn text small" onClick={() => setPath(path.slice(0, i + 1))}>{p.label}</button></span>)}
                   </nav>
+                  <div className="segmented" role="tablist" aria-label={t("geo.browse")} style={{ alignSelf: "flex-start" }}>
+                    <button role="tab" aria-selected={!asMap} className={!asMap ? "on" : ""} onClick={() => setAsMap(false)}>{t("geo.asList")}</button>
+                    <button role="tab" aria-selected={asMap} className={asMap ? "on" : ""} onClick={() => setAsMap(true)}>{t("geo.asMap")}</button>
+                  </div>
+                  {asMap ? <AreaMap pcode={parent} onOpen={(pcode, label) => setPath([...path, { pcode, label }])} /> : (
                   <Loaded state={level}>{(l) => l.areas ? (
                     <div className="table-wrap" tabIndex={0}><table className="table">
                       <thead><tr><th>{t(`geo.levelName.${l.areas[0]?.level ?? 1}`)}</th><th>{t("geo.code")}</th><th className="num">{t("geo.inside")}</th></tr></thead>
@@ -157,7 +164,7 @@ export function AdminGeography() {
                             : <button className="btn text small" onClick={() => { setServing({ pcode: p.pcode, name: name(p) }); setCode(""); }}>{t("geo.serve")}</button>}</td></tr>
                       ))}</tbody>
                     </table></div>
-                  )}</Loaded>
+                  )}</Loaded>)}
                 </div>
                 <FieldSurveys waiting={d.proposed} onChange={() => { state.reload(); level.reload(); }} />
                 <NameCorrections onChange={() => { level.reload(); if (found) void search(); }} />

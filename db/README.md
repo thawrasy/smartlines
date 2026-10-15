@@ -1,6 +1,6 @@
 # Masslak Database
 
-Built from the **Analysis and Design Study**, first v2.7 and now v3.5 (`docs/Masslak_Analysis_and_Design_EN_v3.5.docx`). Files 000 to 998
+Built from the **Analysis and Design Study**, first v2.7 and now v3.6 (`docs/Masslak_Analysis_and_Design_EN_v3.6.docx`). Files 000 to 998
 cover the Phase 1 scope of sections 21 and 22.2 and the fields the owner decided to build from Phase 1 onwards
 (Decision 88). Files 1003 and 1010 to 1032 complete the model against every entity the study defines, including the
 modules of later phases (sections 4.10, 9, 10, 11, 13, 14, 21 and appendix D). Those modules stay disabled behind
@@ -14,9 +14,9 @@ supporting index, except references to lookup lists and to the staff member who 
 |---|---|
 | Engine | PostgreSQL 16 with PostGIS 3 (extensions: pgcrypto, citext, btree_gist, pg_trgm, postgis in schema `gis`; Docker and CI image `postgis/postgis:16-3.4`, Ubuntu package `postgresql-16-postgis-3`) |
 | Schemas | 26 separate schemas, each with its own privileges |
-| Tables | 538 tables (8 partitioned), 5,656 columns, 1,581 foreign keys |
-| Security | row-level security on 538 of 538 tables, 967 policies; 475 triggers, 457 functions |
-| Tests | 809 automated checks against a freshly built database (`db/tests/run.sh`) |
+| Tables | 540 tables (8 partitioned), 5,678 columns, 1,587 foreign keys |
+| Security | row-level security on 540 of 540 tables, 969 policies; 476 triggers, 465 functions |
+| Tests | 829 automated checks against a freshly built database (`db/tests/run.sh`) |
 | Design | [Database design and ERD document](../docs/database/) with diagrams in the study's colors |
 | Docs | [Data dictionary](DATA_DICTIONARY.md) · [ERD diagrams](ERD.md) (both generated from the database) |
 <!-- stats:end -->
@@ -184,6 +184,8 @@ PostGIS in `gis`. Until 9 October 2026 a first start of the Docker stack stopped
 | `1125_geography_in_use.sql` | The geography in use (owner's decision): places surveyed in the field proposed with an F code and accepted by a second person (`ref.propose_place`, `ref.review_place`, role `PLATFORM_GEOGRAPHY`); the areas' boundaries (`ref.admin_area.boundary`, PostGIS); where a point lies (`ref.locate`) (`docs/design/ADMIN_GEOGRAPHY.md`) |
 | `1126_charter_passengers.sql` | Charter travellers (owner's decision): the travellers named on a charter's blocked seats are tickets of a booking of the charter (`sales.booking.charter_request_id`, `sales.charter_seat.ticket_id`), on the manifest; a name taken off blocks the seat again (`sales.charter_seat_ticket`, `sales.charter_seat_unticket`); a released charter cancels its travellers' tickets (`docs/design/CHARTER.md`) |
 | `1127_place_name_corrections.sql` | Corrected names (owner's request): names kept as published (`published_en`, `published_ar`) and shown with the platform's corrections (`ref.name_correction`, by area, place or country; `ref.corrected`, `ref.apply_name_corrections`, `ref.set_name_correction`), applied again after each load; the owner's spellings (Palmyra for the city of Tadmor, Qamishli, Latakia, Idlib and others) (`docs/design/ADMIN_GEOGRAPHY.md`) |
+| `1128_charter_deposit_vehicles.sql` | Charter paid in parts and vehicles named one by one (open items of 1123): `charter_offer.deposit_pct` and `balance_hours`; `charter_request.paid_amount`, `balance_due`, `balance_due_at`, `balance_txn_id`, `balance_paid_at`; `sales.charter_vehicle`, `sales.vehicle_hired` and the trigger that refuses a trip on a vehicle hired out at its time (`VEHICLE_HIRED`) (`docs/design/CHARTER.md`) |
+| `1129_station_screen_pairing.sql` | Station screens (open items of 1120): a screen's bays and carriers (`net.station_screen.bays`, `carrier_ids`, `net.set_screen_filter`); a display paired by a short code (`net.screen_pairing`, `net.start_screen_pairing`, `net.claim_screen_pairing`, `net.screen_pairing_state`); a screen unseen past `boarding.screens.unseen_minutes` told once per outage (`net.raise_screen_alerts`, outbox `screen.unseen`) (`docs/design/STATION_DISPLAY_SCREENS.md`) |
 
 ## Design rules (study 29.1)
 

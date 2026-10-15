@@ -230,3 +230,27 @@ def test_the_platform_corrects_published_names_and_they_survive_a_newer_file():
         "lang": "en", "wrong": "Kfar", "correct": "Kafr", "reason": "a carrier tries"}).status_code == 403
     assert admin.delete(f"/api/admin/geo/names/{listed['id']}").status_code == 200
     assert client().get(f"/api/geo/places/{village}").json()["name_en"] == "Tal Hmeis Quamishli"
+
+
+def test_the_platform_draws_an_area_with_its_boundary_places_and_stations():
+    """1129: the map of an area: its boundary, the areas under it, its places (the communities of a sub-district; the
+    cities of the network above it) and its stations; for the platform's geography staff only."""
+    admin = login("admin@masslak.test", "PLATFORM")
+    village = f"C{8000 + uuid.uuid4().int % 1999}"
+    assert _upload(admin, workbook([(village, "Map Village", 36.2, 37.3)]), "syr_locations_map.xlsx").status_code == 200
+    aleppo = _box(35.9, 36.6, 36.8, 37.7)
+    assert _upload_boundaries(admin, _boundaries([
+        ({"ADM0_PCODE": "SY", "ADM1_PCODE": "SY02"}, aleppo),
+        ({"ADM1_PCODE": "SY02", "ADM2_PCODE": "SY0200"}, aleppo),
+        ({"ADM1_PCODE": "SY02", "ADM2_PCODE": "SY0200", "ADM3_PCODE": "SY020000"}, aleppo)])).status_code == 200
+    country = admin.get("/api/admin/geo/areas/SY/map")
+    assert country.status_code == 200, country.text
+    country = country.json()
+    assert country["area"]["level"] == 0 and any(c["pcode"] == "SY02" and c["boundary"] for c in country["children"])
+    assert all(p["city_code"] for p in country["places"]) and country["stations"]
+    sub = admin.get("/api/admin/geo/areas/SY020000/map").json()
+    assert sub["area"]["boundary"]["type"] in ("Polygon", "MultiPolygon") and sub["children"] == []
+    assert any(p["pcode"] == village for p in sub["places"])
+    assert admin.get("/api/admin/geo/areas/SY99/map").status_code == 404
+    assert admin.get("/api/admin/geo/areas/XX/map").status_code == 404
+    assert login("owner@carrier.test", "OPERATOR").get("/api/admin/geo/areas/SY/map").status_code == 403

@@ -52,8 +52,34 @@ taken down stops working; a stopped screen shows that it shows nothing at the mo
     Platform (boarding.manage): the same under /api/admin/boarding/stations/{station_uid}/screens
     Public: GET /api/public/screens/{screen_uid}
 
+## Some bays or carriers, pairing by a short code, unseen screens (1129)
+
+**What a screen shows.** A screen may show only some bays (a screen above bays 1 to 4) or only some carriers (a
+carrier's own hall): `net.station_screen.bays` (codes of open bays, gates or platforms of the station) and
+`carrier_ids`, empty for all, at most 40 of each (`net.set_screen_filter`; `SCREEN_BAY_UNKNOWN`,
+`SCREEN_CARRIER_UNKNOWN`). The screen's board leaves the other trips out; its header carries the bays it shows.
+
+**Pairing a display.** A display opens `/screen/pair` and shows a six-character code drawn from letters and digits that
+are not mistaken for one another (no 0/O, 1/I/L, 2/Z, 5/S, 6/G, 8/B), valid ten minutes. It holds a secret of its own;
+the database keeps only its SHA-256 (`net.screen_pairing.token_hash`). The station's administration chooses the screen,
+"Pair a display", and types the code (`net.claim_screen_pairing`); the display, asking every few seconds with its
+secret (`net.screen_pairing_state`), opens that screen's board. A code is used once (`PAIRING_UNKNOWN` after), and at
+most 2,000 displays wait at once (`PAIRING_BUSY`). The public endpoints are under `/api/public/`, limited per address.
+
+**Unseen screens.** A screen that was seen and stops reading its board for longer than
+`boarding.screens.unseen_minutes` (10 by default, at least 2) is marked unseen in the administration's list, with a
+banner counting them. The worker runs `net.raise_screen_alerts()` every minute: each outage is told once (outbox event
+`screen.unseen`, in-app and email to the administration's owners, or to the platform's boarding staff where the station
+has none); reading the board again clears it.
+
+| Endpoint | What it does |
+|---|---|
+| `PUT /api/station/screens/{uid}/filter` | `{bays, carriers}`; the platform's equivalent under `/api/admin/boarding/stations/{station}/screens/{uid}/filter` |
+| `POST /api/station/screens/{uid}/pair` | `{code}`: the display showing it opens this screen |
+| `POST /api/public/screens/pair` | a display asks for a code: `{code, token, expires_at}` |
+| `POST /api/public/screens/pair/state` | `{token}`: `WAITING`, `PAIRED` with `screen_uid`, `EXPIRED` or `UNKNOWN` |
+
 ## Not done (possible next steps)
 
-- A screen for one hall's bays only (for example bays B001 to B010), or for one carrier.
-- Pairing a display by a short code typed on it instead of opening its link.
-- An alert when a screen stays unseen during opening hours.
+- Opening hours per station, so a screen switched off at night is not reported unseen (today the station stops the
+  screen, or the alert is read as such).

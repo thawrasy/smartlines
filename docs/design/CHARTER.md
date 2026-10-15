@@ -62,10 +62,7 @@ Every money movement is a ledger transaction naming the request (`CHARTER_PAY`, 
 
 ## Not done (possible next steps)
 
-- Naming the travellers of a chartered block so their tickets are issued and they appear on the trip's manifest
-  (the seats are held; the carrier receives the passenger list as its policy says).
-- Several vehicles of a vehicle hire named one by one, and a vehicle hire placed on the vehicle's schedule.
-- Paying a charter by card, instalments or in parts (a deposit, then the rest).
+- Paying a charter by card or instalments (the wallet pays it, in full or a deposit and the rest; see 1128 below).
 
 ## The travellers on a block of seats (1126)
 
@@ -84,3 +81,26 @@ Owner's decision on the next steps; migration `db/schema/1126_charter_passengers
 - A trip the carrier cancels now cancels the charters holding its seats, each refunded in full.
 - Babies on a lap are arranged with the carrier; each traveller named here has a seat.
 
+
+## A deposit, then the rest; several vehicles named one by one (1128)
+
+A carrier may ask for a deposit on acceptance: `charter_offer.deposit_pct` (0 to 90; 0 pays in full on acceptance) and
+`balance_hours`, how many hours before the start the rest is due. Both are kept in the request's frozen terms.
+
+| Step | What happens |
+|---|---|
+| Accept | the wallet pays the deposit (price × deposit % rounded down) into escrow; `paid_amount` is what escrow holds, `balance_due` the rest, `balance_due_at` its time |
+| Pay the balance | `POST .../requests/{uid}/balance` (tourism company or traveller) pays the rest from the same wallet, once (key `charter:{id}:balance`) |
+| Complete | refused with `CHARTER_BALANCE_DUE` while a balance is owed; the escrow pays the carrier out of `paid_amount` |
+| Cancel | the refund share is worked out on what was paid; a carrier cancelling a charter whose balance is overdue refunds it as the customer's own late cancellation |
+
+A vehicle hire of several vehicles names each one (`sales.charter_vehicle`, at most the number asked): when pricing or
+later, and a vehicle is taken off before the start (`DELETE /api/carrier/charter/requests/{uid}/vehicles/{vehicle_uid}`).
+A vehicle is not named while it runs a trip or another priced or confirmed hire at that time (`VEHICLE_BUSY`), and a
+trip is not given a vehicle hired out at its time (`ops.tg_trip_vehicle_hired`, `VEHICLE_HIRED`): the hire is on the
+vehicle's schedule (`sales.vehicle_hired`). The table is one of the 39 the application may delete from (a vehicle taken
+off a hire); the hire itself is never deleted.
+
+Screens: the carrier's offer form has the deposit and the balance hours; its requests list shows the plates named with
+a button to take one off and "Name a vehicle (n of m)"; the customer sees "n now (x%), the rest later", then the amount
+due and its time with "Pay the balance" (web and mobile).

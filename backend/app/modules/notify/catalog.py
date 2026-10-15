@@ -67,6 +67,10 @@ async def deliveries(conn: asyncpg.Connection, event: asyncpg.Record, payload: d
         return await _owners(conn, event["company_id"], kind, payload)
     if kind in ("tracking.signal_lost", "tracking.alert_escalated"):       # the platform found a silent trip (1100)
         return await _owners(conn, event["company_id"], kind, payload)
+    if kind == "screen.unseen":         # a station screen stopped reading its board (1129): its administration, else the platform
+        if event["company_id"] is not None:
+            return await _owners(conn, event["company_id"], kind, payload)
+        return await _platform_staff(conn, "boarding.manage", kind, ["IN_APP", "EMAIL"], payload)
     if kind == "sos.raised":            # an emergency on a trip (1101): the carrier's owners and the platform's security staff
         owners = await _owners(conn, event["company_id"], kind, payload)
         for d in owners:

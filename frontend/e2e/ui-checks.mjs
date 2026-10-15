@@ -30,7 +30,8 @@ const MULTI = `kind=MULTI_CITY&legs=DAM_HMA_${tomorrow},HMA_ALP_${later}`;
 const STATION = process.env.MASSLAK_UI_STATION && existsSync(process.env.MASSLAK_UI_STATION)
   ? JSON.parse(readFileSync(process.env.MASSLAK_UI_STATION, "utf8")) : null;
 const PORTALS = [
-  { who: null, pages: ["/", `/search?origin=DAM&destination=ALP&on=${tomorrow}`, `/search?${ROUND}&pax=2`, "@trip", "/login", "/register", "/track", "/verify"] },
+  { who: null, pages: ["/", `/search?origin=DAM&destination=ALP&on=${tomorrow}`, `/search?${ROUND}&pax=2`, "@trip", "/login", "/register", "/track", "/verify",
+    "/screen/pair"] },      // a display asking to be paired with a station screen (1129)
   { who: ["passenger@masslak.test", "PASSENGER"], pages: ["/trips", "/wallet", "/family", "/account", "/services", "/support", "@journey", "/charter"] },
   { who: ["owner@carrier.test", "OPERATOR"],
     pages: ["/carrier", "/carrier/trips", "/carrier/routes", "/carrier/vehicles", "/carrier/finance", "/carrier/documents", "/carrier/reports", "/carrier/stations", "/carrier/schedules", "/carrier/kyc", "/carrier/charter"] },
@@ -38,7 +39,7 @@ const PORTALS = [
   { who: ["agency@agency.test", "AGENCY"], pages: ["/agency", "/agency/bookings", "/agency/statement", "/agency/staff", `/agency/search?${MULTI}&pax=6`, "/agency/charter"] },
   { who: ["driver@carrier.test", "DRIVER"], pages: ["/driver"] },
   { who: ["admin@masslak.test", "PLATFORM"],
-    pages: ["/admin", "/admin/companies", "/admin/finance", "/admin/documents", "/admin/stations", "/admin/boarding", "/admin/schedules", "/admin/kyc", "/admin/modules", "/admin/payments", "/admin/booking", "/admin/geography"] },
+    pages: ["/admin", "/admin/companies", "/admin/finance", "/admin/documents", "/admin/stations", "/admin/boarding", "/admin/schedules", "/admin/kyc", "/admin/modules", "/admin/payments", "/admin/booking", "/admin/geography", "/admin/photo"] },
   ...(STATION ? [{
     label: "STATION", cookies: STATION.cookies,
     choice: { station_uid: STATION.station_uid, station_code: STATION.station_code, station_name: STATION.station_code, counter_code: STATION.counter },

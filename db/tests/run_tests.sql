@@ -1899,8 +1899,8 @@ SELECT pg_temp.ok(NOT EXISTS (
      WHERE c.relkind IN ('r', 'p') AND NOT c.relispartition AND n.nspname NOT IN ('pg_catalog', 'information_schema', 'public', 'gis')
        AND has_table_privilege('masslak_app', c.oid, 'DELETE') <> EXISTS (SELECT 1 FROM sys.app_delete_grant g
                                                                            WHERE g.table_name = n.nspname || '.' || c.relname))
-  AND (SELECT count(*) FROM sys.app_delete_grant) = 38,
-  'Narrower grants: DELETE for the application on exactly the 38 listed tables (36 in 1059, the approval matrix''s two in 1074)');
+  AND (SELECT count(*) FROM sys.app_delete_grant) = 39,
+  'Narrower grants: DELETE for the application on exactly the 39 listed tables (36 in 1059, the approval matrix''s two in 1074, the vehicles of a hire in 1128)');
 SET ROLE masslak_app;
 SELECT pg_temp.expect_error($$DELETE FROM sales.passenger WHERE id = -1$$, 'permission denied',
   'Narrower grants: the application cannot delete a business record, even one row-level security would show it');
@@ -3823,6 +3823,109 @@ SELECT pg_temp.ok(:renamed >= 1 AND (SELECT name_en FROM ref.admin_area WHERE id
 SELECT ref.remove_name_correction((SELECT id FROM ref.name_correction WHERE wrong = 'Test' AND status = 'ACTIVE')) AS restored \gset
 SELECT pg_temp.ok((SELECT name_en FROM ref.admin_area WHERE id = :k1) = 'Test Latakia',
   'Corrected names (1127): a correction removed gives the published name back');
+ROLLBACK;
+SET ROLE masslak_app;
+
+-- Charter paid in parts, vehicles named one by one (1128)
+BEGIN;
+RESET ROLE;
+SELECT sys.set_context(:uadmin, NULL, 'SYSTEM');
+SELECT t.id AS vt, t.company_id AS vc, t.vehicle_id AS vv, t.departure_at AS vdep
+  FROM sales.booking b JOIN ops.trip t ON t.id = b.trip_id WHERE b.booking_ref = 'ABC123' \gset
+SELECT pg_temp.expect_error(format($$INSERT INTO sales.charter_offer (company_id, kind, title, vehicle_type, seats, audience, price_basis, price, currency, policy, deposit_pct)
+    VALUES (%s, 'VEHICLE', 'Coach', 'COACH', 45, '{AGENCY}', 'PER_DAY', 100, 'SYP', 'Driver and fuel included.', 95)$$, :vc),
+  'check constraint', 'Charter deposit (1128): a deposit is a share of the price up to 90%');
+INSERT INTO sales.charter_offer (company_id, kind, title, vehicle_type, seats, audience, price_basis, price, currency, policy, deposit_pct, balance_hours)
+VALUES (:vc, 'VEHICLE', 'Coach', 'COACH', 45, '{AGENCY,PASSENGER}', 'PER_DAY', 100, 'SYP', 'Driver and fuel included.', 30, 24) RETURNING id AS vo \gset
+INSERT INTO sales.charter_request (ref, offer_id, company_id, requester_party_id, requester_kind, contact_name, contact_mobile, kind, terms,
+                                   from_city_id, to_city_id, starts_at, ends_at, passengers, vehicles, status, price, currency, valid_until, quoted_at,
+                                   idempotency_key)
+VALUES ('CH00000003', :vo, :vc, :pax, 'PASSENGER', 'Rami', '+963944000000', 'VEHICLE',
+        '{"title": "Coach", "price_basis": "PER_DAY", "currency": "SYP", "deposit_pct": 30, "policy": "Driver."}',
+        (SELECT min(id) FROM ref.city), (SELECT max(id) FROM ref.city), :'vdep'::timestamptz - interval '1 hour', :'vdep'::timestamptz + interval '1 day',
+        40, 2, 'QUOTED', 1000, 'SYP', now() + interval '1 day', now(), 'charter-key-3') RETURNING id AS vr, ref AS vref \gset
+SELECT pg_temp.expect_error(format($$UPDATE sales.charter_request SET balance_due = 700 WHERE id = %s$$, :vr),
+  'check constraint', 'Charter deposit (1128): a balance has the time it is due by');
+INSERT INTO sales.charter_vehicle (request_id, vehicle_id) VALUES (:vr, :vv);
+SELECT pg_temp.ok(sales.vehicle_hired(:vv, :'vdep'::timestamptz, :'vdep'::timestamptz + interval '2 hours') = :'vref'
+                  AND sales.vehicle_hired(:vv, :'vdep'::timestamptz, :'vdep'::timestamptz + interval '2 hours', :vr) IS NULL
+                  AND sales.vehicle_hired(:vv, :'vdep'::timestamptz + interval '3 days', :'vdep'::timestamptz + interval '4 days') IS NULL,
+  'Charter vehicles (1128): a vehicle named on a hire is on its schedule for the hire''s time only');
+SELECT pg_temp.expect_error(format($$UPDATE ops.trip SET departure_at = departure_at + interval '1 minute' WHERE id = %s$$, :vt),
+  'VEHICLE_HIRED', 'Charter vehicles (1128): a trip is not given a vehicle hired out at its time');
+UPDATE sales.charter_request SET status = 'DECLINED' WHERE id = :vr;
+SELECT pg_temp.ok(sales.vehicle_hired(:vv, :'vdep'::timestamptz, :'vdep'::timestamptz + interval '2 hours') IS NULL,
+  'Charter vehicles (1128): a hire that ended does not hold its vehicles');
+SELECT pg_temp.ok(EXISTS (SELECT 1 FROM sys.app_delete_grant WHERE table_name = 'sales.charter_vehicle')
+                  AND has_table_privilege('masslak_app', 'sales.charter_vehicle', 'DELETE')
+                  AND NOT has_table_privilege('masslak_app', 'sales.charter_request', 'DELETE'),
+  'Charter vehicles (1128): a vehicle is taken off a hire; the hire itself is never deleted');
+ROLLBACK;
+SET ROLE masslak_app;
+
+-- Station screens: some bays or carriers, paired by a short code, told when unseen (1129)
+BEGIN;
+RESET ROLE;
+SELECT sys.set_context(:uadmin, NULL, 'SYSTEM');
+SELECT t.id AS pt, ts.station_id AS ps, t.trip_no AS ptn, t.company_id AS pc, p.uid AS pcu
+  FROM sales.booking b JOIN ops.trip t ON t.id = b.trip_id JOIN ops.trip_stop ts ON ts.trip_id = t.id AND ts.seq = 0
+  JOIN iam.party p ON p.id = t.company_id WHERE b.booking_ref = 'ABC123' \gset
+UPDATE ops.trip SET published_at = coalesce(published_at, now()) WHERE id = :pt;
+UPDATE ops.trip_stop SET sched_dep = now() + interval '90 minutes' WHERE trip_id = :pt AND seq = 0;
+INSERT INTO iam.party (party_type, legal_name) VALUES ('COMPANY', 'Paired Screens Test') RETURNING id AS pop, uid AS popu \gset
+INSERT INTO iam.company (id, company_type, approval_status) VALUES (:pop, 'STATION_OPERATOR', 'APPROVED');
+INSERT INTO net.station_boarding (station_id, manager_company_id, displays) VALUES (:ps, :pop, true)
+  ON CONFLICT (station_id) DO UPDATE SET manager_company_id = excluded.manager_company_id, displays = true,
+                                         display_kinds = '{DEPARTURES,ARRIVALS,COMBINED}';
+SELECT net.set_boarding_setting('boarding.stations.enabled', 'true'::jsonb);
+INSERT INTO net.station_gate (station_id, code, gate_type, status) VALUES (:ps, 'T91', 'BAY', 'ACTIVE'), (:ps, 'T92', 'BAY', 'ACTIVE');
+SET LOCAL ROLE masslak_app;
+SELECT sys.set_context(NULL, :pop, 'COMPANY');
+SELECT net.add_station_screen(:ps, 'DEPARTURES', 'Bays T91-T92') AS psc \gset
+SELECT net.set_screen_filter(:'psc', ARRAY['t92'], NULL);
+SELECT pg_temp.ok((SELECT NOT EXISTS (SELECT 1 FROM jsonb_array_elements(b -> 'departures') d WHERE d ->> 'trip_no' = :'ptn')
+                          AND b -> 'screen' -> 'bays' = '["T92"]'::jsonb FROM (SELECT brd.screen_board(:'psc') AS b) x),
+  'Screens (1129): a screen above some bays leaves out the trips at the others');
+SELECT net.set_screen_filter(:'psc', NULL, ARRAY[:'pcu'::uuid]);
+SELECT pg_temp.ok((SELECT EXISTS (SELECT 1 FROM jsonb_array_elements(b -> 'departures') d WHERE d ->> 'trip_no' = :'ptn')
+                          AND NOT EXISTS (SELECT 1 FROM jsonb_array_elements(b -> 'departures') d WHERE d ->> 'carrier_uid' <> :'pcu')
+                     FROM (SELECT brd.screen_board(:'psc') AS b) x),
+  'Screens (1129): a carrier''s screen shows that carrier''s trips alone');
+SELECT pg_temp.expect_error(format($$SELECT net.set_screen_filter(%L, ARRAY['NOPE9'], NULL)$$, :'psc'),
+  'SCREEN_BAY_UNKNOWN', 'Screens (1129): a screen names only open bays of its station');
+SELECT pg_temp.expect_error(format($$SELECT net.set_screen_filter(%L, NULL, ARRAY[%L::uuid])$$, :'psc', :'popu'),
+  'SCREEN_CARRIER_UNKNOWN', 'Screens (1129): a screen names only carriers');
+SELECT sys.set_context(NULL, :pc, 'COMPANY');
+SELECT pg_temp.expect_error(format($$SELECT net.set_screen_filter(%L, NULL, NULL)$$, :'psc'),
+  'SCREEN_UNKNOWN', 'Screens (1129): only the station''s administration chooses what a screen shows');
+SELECT sys.set_context(NULL, NULL, 'PASSENGER');
+SELECT net.start_screen_pairing('ACDEFH', sha256('display-secret-1129'::bytea)) IS NOT NULL AS started \gset
+SELECT pg_temp.expect_error($$SELECT net.start_screen_pairing('ACDEFH', sha256('another-display'::bytea))$$,
+  'PAIRING_CODE_TAKEN', 'Screens (1129): a code shown by one display is not given to another');
+SELECT pg_temp.expect_error($$SELECT net.start_screen_pairing('ABC-12', sha256('a third display'::bytea))$$,
+  'check constraint', 'Screens (1129): a code has six letters and digits that are not mistaken for one another');
+SELECT pg_temp.ok(net.screen_pairing_state(sha256('display-secret-1129'::bytea)) ->> 'status' = 'WAITING',
+  'Screens (1129): a display waits with its secret');
+SELECT pg_temp.expect_error($$SELECT count(*) FROM net.screen_pairing$$, 'permission denied',
+  'Screens (1129): the application reaches the pairings through their functions only');
+SELECT sys.set_context(NULL, :pc, 'COMPANY');
+SELECT pg_temp.expect_error(format($$SELECT net.claim_screen_pairing('ACDEFH', %L)$$, :'psc'),
+  'SCREEN_UNKNOWN', 'Screens (1129): only the station''s administration pairs a display with its screen');
+SELECT sys.set_context(NULL, :pop, 'COMPANY');
+SELECT net.claim_screen_pairing('acdefh', :'psc') = :ps AS claimed \gset
+SELECT pg_temp.ok(:'claimed' AND net.screen_pairing_state(sha256('display-secret-1129'::bytea)) ->> 'screen_uid' = :'psc',
+  'Screens (1129): the display learns the screen the administration gave it');
+SELECT pg_temp.expect_error(format($$SELECT net.claim_screen_pairing('ACDEFH', %L)$$, :'psc'),
+  'PAIRING_UNKNOWN', 'Screens (1129): a code is used once');
+RESET ROLE;
+UPDATE net.station_screen SET last_seen_at = now() - interval '1 hour', unseen_told_at = NULL WHERE uid = :'psc';
+SET LOCAL ROLE masslak_app;
+SELECT pg_temp.ok(net.raise_screen_alerts() >= 1 AND net.raise_screen_alerts() = 0,
+  'Screens (1129): a screen that stopped reading its board is told once per outage');
+RESET ROLE;
+SELECT pg_temp.ok(EXISTS (SELECT 1 FROM sys.outbox_event WHERE event_type = 'screen.unseen' AND company_id = :pop
+                            AND aggregate_id = (SELECT id FROM net.station_screen WHERE uid = :'psc')),
+  'Screens (1129): the station''s administration is the one told');
 ROLLBACK;
 SET ROLE masslak_app;
 

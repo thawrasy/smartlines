@@ -56,6 +56,10 @@
     "subject": "Trip {trip_no}: still no position after {minutes} min",
     "body": "The vehicle on trip {trip_no} has been silent for {minutes} minutes and the alert was escalated. Contact the driver now and record what happened."
   },
+  "screen.unseen": {
+    "subject": "Screen {label} at {station}: unseen for {minutes} min",
+    "body": "The screen {label} at station {station} has not read its board for {minutes} minutes. Check its power, network and browser; the alert clears when it reads its board again."
+  },
   "sos.raised": {
     "subject": "SOS on trip {trip_no}",
     "body": "An SOS was raised on trip {trip_no} (vehicle {plate_no}). Position: {where}. Call the driver and the emergency services now, then acknowledge the alarm in the portal.",

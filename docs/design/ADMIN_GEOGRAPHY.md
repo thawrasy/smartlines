@@ -119,4 +119,12 @@ The owner asked that names be written as they are known locally and internationa
 
 - Loading the real boundaries file: the environment that built this could not reach the publisher; the platform loads
   it from the Geography page.
-- A map of an area with its places and stations, from the boundaries and positions now held.
+
+## The map of an area (1129 batch)
+
+The Geography page browses the country as a list or as a map. The map (`GET /api/admin/geo/areas/{pcode}/map`, SY for
+the whole country) draws, as plain SVG with no map tiles from outside, the area's boundary, the areas under it (each
+opens its own map), its places (the communities of a sub-district; above that the cities of the network; places
+proposed in the field in another colour) and the stations in it, found by their place or, without one, by the
+boundary. Where no boundary is loaded, each area is placed at the middle of its places. Boundaries are simplified for
+drawing (0.01° for the country down to 0.001° for a sub-district).

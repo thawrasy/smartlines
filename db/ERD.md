@@ -87,7 +87,7 @@ flowchart LR
   iam -->|1| ops
   iam -->|5| ref
   iam -->|2| sec
-  net -->|20| iam
+  net -->|21| iam
   net -->|4| ref
   ops -->|2| fin
   ops -->|10| fleet
@@ -120,10 +120,10 @@ flowchart LR
   rpt -->|7| iam
   rpt -->|1| ref
   sales -->|2| acct
-  sales -->|9| fin
-  sales -->|4| fleet
+  sales -->|10| fin
+  sales -->|5| fleet
   sales -->|2| gov
-  sales -->|33| iam
+  sales -->|34| iam
   sales -->|2| net
   sales -->|10| ops
   sales -->|5| pricing
@@ -963,6 +963,12 @@ erDiagram
     smallint seq PK
     bigint station_id FK
   }
+  net_screen_pairing {
+    bigint id PK
+    text code
+    bigint screen_id FK
+    bigint paired_by FK
+  }
   net_service_number {
     bigint id PK
     bigint company_id FK
@@ -1052,6 +1058,7 @@ erDiagram
   net_station_carrier_bay }o..o| iam_app_user : "set_by_user_id"
   net_station_boarding }o..o| iam_app_user : "updated_by_user_id"
   net_station_operator_grant }o..o| iam_app_user : "granted_by_user_id"
+  net_screen_pairing }o..o| iam_app_user : "paired_by"
   net_station_screen }o..o| iam_app_user : "created_by_user_id"
   net_station_operator_grant }o..o| iam_app_user : "revoked_by_user_id"
   net_station_screen }o..o| iam_app_user : "updated_by_user_id"
@@ -1099,6 +1106,7 @@ erDiagram
   net_route }o--|| net_station : "dest_station_id"
   net_station_display }o..o| net_station_gate : "gate_id"
   net_station_carrier_bay }o--|| net_station_gate : "gate_id"
+  net_screen_pairing }o..o| net_station_screen : "screen_id"
   net_station }o--|| ref_city : "city_id"
   net_line }o..o| ref_city : "city_id"
   net_station }o..o| ref_place : "place_id"
@@ -2270,12 +2278,18 @@ erDiagram
     bigint released_txn_id FK
     bigint refund_txn_id FK
     bigint closed_by FK
+    bigint balance_txn_id FK
   }
   sales_charter_seat {
     bigint request_id PK
     bigint trip_id FK
     smallint seat_no PK
     bigint ticket_id FK
+  }
+  sales_charter_vehicle {
+    bigint request_id PK
+    bigint vehicle_id PK
+    bigint named_by FK
   }
   sales_entry_rule {
     bigint id PK
@@ -2496,11 +2510,13 @@ erDiagram
   sales_charter_request }o..o| fin_ledger_txn : "paid_txn_id"
   sales_charter_request }o..o| fin_ledger_txn : "released_txn_id"
   sales_charter_request }o..o| fin_ledger_txn : "refund_txn_id"
+  sales_charter_request }o..o| fin_ledger_txn : "balance_txn_id"
   sales_booking }o..o| fin_payment_method : "pay_option"
   sales_booking }o..o| fin_price_allocation : "price_allocation_id"
   sales_nfc_card }o..o| fin_wallet : "wallet_id"
   sales_subscription }o..o| fin_wallet : "wallet_id"
   sales_boarding_event }o..o| fleet_boarding_validator : "validator_id"
+  sales_charter_vehicle }o--|| fleet_vehicle : "vehicle_id"
   sales_inspection_check }o..o| fleet_vehicle : "vehicle_id"
   sales_charter_request }o..o| fleet_vehicle : "vehicle_id"
   sales_boarding_event }o..o| fleet_vehicle_qr_tag : "vehicle_tag_id"
@@ -2508,6 +2524,7 @@ erDiagram
   sales_passenger }o..o| gov_subject_request : "erasure_request_id"
   sales_channel_api_profile }o--|| iam_api_client : "api_client_id"
   sales_channel }o..o| iam_api_client : "api_client_id"
+  sales_charter_vehicle }o..o| iam_app_user : "named_by"
   sales_booking }o..o| iam_app_user : "booker_user_id"
   sales_charter_request }o..o| iam_app_user : "requester_user_id"
   sales_charter_request }o..o| iam_app_user : "quoted_by"
@@ -2583,6 +2600,7 @@ erDiagram
   sales_channel_memo }o..o| sales_channel_statement : "statement_id"
   sales_charter_request }o--|| sales_charter_offer : "offer_id"
   sales_charter_seat }o--|| sales_charter_request : "request_id"
+  sales_charter_vehicle }o--|| sales_charter_request : "request_id"
   sales_booking }o..o| sales_charter_request : "charter_request_id"
   sales_ticket_doc }o..o| sales_entry_rule : "entry_rule_id"
   sales_shuttle_pass }o..o| sales_nfc_card : "nfc_card_id"

@@ -85,11 +85,13 @@ const StationSales = lazyNamed(() => import("./pages/station/Station"), "Station
 const StationBays = lazyNamed(() => import("./pages/station/Bays"), "StationBays");
 const StationScreens = lazyNamed(() => import("./pages/station/Screens"), "StationScreens");
 const DepartureBoard = lazy(() => import("./pages/station/DepartureBoard"));
+const ScreenPair = lazy(() => import("./pages/station/ScreenPair"));
 const Journey = lazy(() => import("./pages/passenger/Journey"));
 const CustomerCharter = lazyNamed(() => import("./pages/charter/Charter"), "CustomerCharter");
 const CarrierCharter = lazyNamed(() => import("./pages/charter/Charter"), "CarrierCharter");
 const AdminBookingRules = lazyNamed(() => import("./pages/charter/Charter"), "AdminBookingRules");
 const AdminGeography = lazyNamed(() => import("./pages/admin/Geography"), "AdminGeography");
+const AdminPhotoPolicy = lazyNamed(() => import("./pages/admin/PhotoPolicy"), "AdminPhotoPolicy");
 const StationOps = lazy(() => import("./pages/carrier/StationOps"));
 const AdminBoarding = lazy(() => import("./pages/admin/Boarding"));
 
@@ -146,6 +148,7 @@ function PlatformShell() {
       { to: "/security/mfa", icon: "password", label: t("security.mfaNav"), show: can("security.console") },
       { to: "/security/statements", icon: "monitoring", label: t("security.stmt.nav"), show: can("security.console") },
       { to: "/admin/privacy", icon: "privacy_tip", label: t("account.privacyRequests"), show: can("privacy.manage") },
+      { to: "/admin/photo", icon: "badge", label: t("photo.nav"), show: can("privacy.manage") },
       { to: "/regulator", icon: "gavel", label: t("nav.regulator"), show: can("regulator.dashboard", "report.platform") },
       { to: "/admin/reports", icon: "summarize", label: t("rpt.nav"), show: can("report.platform") },
       { to: "/admin/payments", icon: "account_balance", label: t("pay.nav"), show: can("ledger.reconcile", "payment.fee_policy", "compensation.pay", "payment.methods", "cash.remittance", "cash.credit_limit", "policy.matrix", "loyalty.manage") },
@@ -314,6 +317,7 @@ export default function App() {
           <Route path="station/booking/:ref" element={<Booking />} />
         </Route>
         <Route path="board/:uid" element={<DepartureBoard />} />
+        <Route path="screen/pair" element={<ScreenPair />} />
         <Route path="screen/:uid" element={<DepartureBoard screen />} />
         <Route element={<RequirePortal portal="DRIVER"><DriverLayout /></RequirePortal>}>
           <Route path="driver" element={<DriverTrips />} />
@@ -331,6 +335,7 @@ export default function App() {
           <Route path="admin/schedules" element={<AdminSchedules />} />
           <Route path="admin/booking" element={<AdminBookingRules />} />
           <Route path="admin/geography" element={<AdminGeography />} />
+          <Route path="admin/photo" element={<AdminPhotoPolicy />} />
           <Route path="admin/kyc" element={<AdminKyc />} />
           <Route path="admin/modules" element={<AdminModules />} />
           <Route path="admin/m/:module" element={<ModulePage />} />

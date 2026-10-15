@@ -15,12 +15,14 @@ interface Offer {
   uid: string; kind: "VEHICLE" | "WHOLE_TRIP"; title: string; vehicle_type: string | null; seats: number | null; vehicles: number;
   partial_seats: boolean; min_seats: number | null; price_basis: string; price: number | null; notice_hours: number;
   cancel_before_hours: number; cancel_refund_pct: number; policy: string; carrier_name: string; carrier_uid: string; carrier_logo: string | null;
+  deposit_pct?: number; balance_hours?: number;
 }
 interface Request {
   uid: string; ref: string; kind: string; status: string; price: number | null; estimate: number | null; valid_until: string | null;
   carrier_name: string; from_city: string | null; to_city: string | null; starts_at: string | null; trip_code: string | null;
   trip_no: string | null; trip_departs_at: string | null; seats: number | null; whole: boolean | null; quote_note: string | null;
-  terms: { cancel_before_hours: number; cancel_refund_pct: number };
+  terms: { cancel_before_hours: number; cancel_refund_pct: number; deposit_pct?: number };
+  balance_due?: number; balance_due_at?: string | null; vehicle_plates?: string[];
 }
 interface Trip { uid: string; trip_no: string; trip_code?: string | null; carrier_uid?: string; departs_at: string; from_seq: number; to_seq: number; seats_left: number }
 
@@ -50,7 +52,7 @@ export default function Charter() {
   const [naming, setNaming] = useState<Request | null>(null);
   const [error, setError] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
-  const act = async (r: Request, what: "accept" | "withdraw" | "cancel") => {
+  const act = async (r: Request, what: "accept" | "withdraw" | "cancel" | "balance") => {
     setBusy(true); setError(null);
     try {
       await api.post(`/api/charter/requests/${r.uid}/${what}`, what === "cancel" ? { reason: "Cancelled by the traveller" } : undefined);
@@ -76,7 +78,16 @@ export default function Charter() {
           <Text style={s.h2}>{r.price != null ? money(r.price) : r.estimate != null ? `≈ ${money(r.estimate)}` : t("chr.onRequest")}</Text>
           {r.quote_note ? <Text style={s.small}>{r.quote_note}</Text> : null}
           {r.status === "QUOTED" && r.valid_until ? <Text style={s.small}>{t("chr.validUntil", { at: `${date(r.valid_until)} ${time(r.valid_until)}` })}</Text> : null}
-          {r.status === "QUOTED" ? <Button label={t("chr.acceptPay")} busy={busy} onPress={() => act(r, "accept")} /> : null}
+          {r.status === "QUOTED" && r.price != null && (r.terms.deposit_pct ?? 0) > 0
+            ? <Text style={s.small}>{t("chr.depositNow", { amount: money(Math.floor(r.price * (r.terms.deposit_pct ?? 0) / 100)), pct: r.terms.deposit_pct ?? 0 })}</Text> : null}
+          {r.status === "QUOTED" ? <Button label={t((r.terms.deposit_pct ?? 0) > 0 ? "chr.acceptDeposit" : "chr.acceptPay")} busy={busy} onPress={() => act(r, "accept")} /> : null}
+          {r.status === "CONFIRMED" && (r.balance_due ?? 0) > 0 && r.balance_due_at ? (
+            <>
+              <Text style={s.small}>{t("chr.balanceDue", { amount: money(r.balance_due ?? 0), at: `${date(r.balance_due_at)} ${time(r.balance_due_at)}` })}</Text>
+              <Button label={t("chr.payBalance")} busy={busy} onPress={() => act(r, "balance")} />
+            </>
+          ) : null}
+          {r.vehicle_plates && r.vehicle_plates.length > 0 ? <Text style={s.small}>{t("chr.vehiclesNamed", { plates: r.vehicle_plates.join(" · ") })}</Text> : null}
           {["REQUESTED", "QUOTED"].includes(r.status) ? <Button kind="text" label={t("chr.withdraw")} onPress={() => act(r, "withdraw")} /> : null}
           {r.status === "CONFIRMED" ? (
             <>
@@ -100,6 +111,7 @@ export default function Charter() {
           </View>
           <Text style={s.small}>{o.price != null ? `${money(o.price)} ${t(`chr.per.${o.price_basis}`)}` : t("chr.onRequest")}</Text>
           <Text style={s.small}>{t("chr.refundRule", { pct: o.cancel_refund_pct, h: o.cancel_before_hours })}</Text>
+          {o.deposit_pct ? <Text style={s.small}>{t("chr.depositRule", { pct: o.deposit_pct, h: o.balance_hours ?? 48 })}</Text> : null}
           <Text style={s.small}>{o.policy}</Text>
           <Button kind="tonal" label={t("chr.ask")} onPress={() => setAsking(o)} />
         </Card>

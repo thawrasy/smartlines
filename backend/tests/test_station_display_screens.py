@@ -136,3 +136,76 @@ def test_only_the_station_portal_and_the_platform_manage_screens(admin):
     assert pax.get("/api/admin/boarding/stations/00000000-0000-0000-0000-000000000000/screens").status_code in (401, 403)
     r = client().get("/api/public/screens/00000000-0000-0000-0000-000000000000")
     assert r.status_code == 404 and r.json()["error"]["code"] == "SCREEN_OFF"
+
+
+def test_a_screen_shows_some_bays_or_carriers_is_paired_by_a_short_code_and_is_told_when_unseen(admin):
+    """1129: a screen above some bays, or for some carriers, shows only theirs; a display opens /screen/pair, shows a
+    short code, and the administration gives it a screen with that code; a screen that stops reading its board is told
+    to the administration once per outage."""
+    trip = fresh_trip()
+    _leaves_soon(trip["id"])
+    origin = _stop_station(trip["id"], False)
+    carrier_uid = str(owner_sql("SELECT p.uid FROM ops.trip t JOIN iam.party p ON p.id = t.company_id WHERE t.id = $1", trip["id"]))
+    manager = _company(admin, "Paired Screens Administration")
+    anyone = client()
+    stations_module(admin, True)
+    try:
+        set_setting(admin, "boarding.stations.enabled", True)
+        assert admin.put(f"/api/admin/boarding/stations/{origin}", json={
+            "enabled": True, "displays": True, "manager_company_uid": manager["uid"], "display_kinds": ALL}).status_code == 200
+        bays = [admin.post(f"/api/admin/boarding/stations/{origin}/gates", json={"gate_type": "BAY"}).json()["code"] for _ in range(2)]
+        staff = station_session(manager)
+        assert staff.put("/api/station/bays/trips", json={"trip_uid": str(trip["uid"]), "stop_seq": 0, "bay": bays[0]}).status_code == 200
+        screen = staff.post("/api/station/screens", json={"station_uid": origin, "kind": "DEPARTURES", "label": "Bays 1-2"}).json()["uid"]
+        view = staff.get("/api/station/screens", params={"station_uid": origin}).json()
+        assert set(bays) <= set(view["bays"]) and any(c["uid"] == carrier_uid for c in view["carriers"]) and view["unseen_minutes"] == 10
+        # the screen above the other bay leaves the trip out; above its bay, it shows it
+        r = staff.put(f"/api/station/screens/{screen}/filter", json={"bays": [bays[1].lower()]})
+        assert r.status_code == 200, r.text
+        board = anyone.get(f"/api/public/screens/{screen}").json()
+        assert not any(d["trip_no"] == trip["trip_no"] for d in board["departures"]) and board["screen"]["bays"] == [bays[1]]
+        assert staff.put(f"/api/station/screens/{screen}/filter", json={"bays": bays}).status_code == 200
+        assert any(d["trip_no"] == trip["trip_no"] for d in anyone.get(f"/api/public/screens/{screen}").json()["departures"])
+        # a carrier's own screen
+        assert staff.put(f"/api/station/screens/{screen}/filter", json={"carriers": [carrier_uid]}).status_code == 200
+        board = anyone.get(f"/api/public/screens/{screen}").json()
+        assert board["departures"] and all(d["carrier_uid"] == carrier_uid for d in board["departures"]) and board["screen"]["carriers_only"]
+        r = staff.put(f"/api/station/screens/{screen}/filter", json={"bays": ["NOPE9"]})
+        assert r.status_code == 422 and r.json()["error"]["code"] == "SCREEN_BAY_UNKNOWN"
+        r = staff.put(f"/api/station/screens/{screen}/filter", json={"carriers": [manager["uid"]]})
+        assert r.status_code == 422 and r.json()["error"]["code"] == "SCREEN_CARRIER_UNKNOWN"
+        assert staff.put(f"/api/station/screens/{screen}/filter", json={}).status_code == 200            # all again
+        listed = next(s for s in staff.get("/api/station/screens", params={"station_uid": origin}).json()["screens"] if s["uid"] == screen)
+        assert listed["bays"] == [] and listed["carriers"] == []
+        # pairing: the display shows a code, the administration enters it, the display learns its screen
+        display = client()
+        start = display.post("/api/public/screens/pair")
+        assert start.status_code == 200, start.text
+        code, token = start.json()["code"], start.json()["token"]
+        assert len(code) == 6 and not set(code) & set("0O1IL25S8B6G")
+        assert display.post("/api/public/screens/pair/state", json={"token": token}).json()["status"] == "WAITING"
+        assert display.post("/api/public/screens/pair/state", json={"token": "x" * 43}).json()["status"] == "UNKNOWN"
+        r = staff.post(f"/api/station/screens/{screen}/pair", json={"code": "AAAAAA" if code != "AAAAAA" else "CCCCCC"})
+        assert r.status_code == 404 and r.json()["error"]["code"] == "PAIRING_UNKNOWN"
+        assert staff.post(f"/api/station/screens/{screen}/pair", json={"code": code.lower()}).json()["paired"] is True
+        assert display.post("/api/public/screens/pair/state", json={"token": token}).json() == {"status": "PAIRED", "screen_uid": screen}
+        r = staff.post(f"/api/station/screens/{screen}/pair", json={"code": code})                      # used once
+        assert r.status_code == 404 and r.json()["error"]["code"] == "PAIRING_UNKNOWN"
+        assert owner_sql("SELECT count(*) FROM net.screen_pairing WHERE token_hash = sha256($1::text::bytea)", token) == 1
+        # the screen stops reading its board: told once, and again only after it came back and went silent once more
+        owner_sql("UPDATE net.station_screen SET last_seen_at = now() - interval '30 minutes', unseen_told_at = NULL WHERE uid = $1", screen)
+        assert next(s for s in staff.get("/api/station/screens", params={"station_uid": origin}).json()["screens"] if s["uid"] == screen)["unseen"]
+        assert owner_sql("SELECT net.raise_screen_alerts()") >= 1
+        assert owner_sql("SELECT net.raise_screen_alerts()") == 0
+        told = owner_sql("""SELECT count(*) FROM sys.outbox_event e JOIN iam.party p ON p.id = e.company_id
+                             WHERE e.event_type = 'screen.unseen' AND e.aggregate_id = (SELECT id FROM net.station_screen WHERE uid = $1)
+                               AND p.uid = $2""", screen, manager["uid"])
+        assert told == 1
+        anyone.get(f"/api/public/screens/{screen}")
+        assert owner_sql("SELECT unseen_told_at IS NULL FROM net.station_screen WHERE uid = $1", screen)
+    finally:
+        owner_sql("DELETE FROM net.station_screen WHERE station_id = (SELECT id FROM net.station WHERE uid = $1::uuid)", origin)
+        admin.put(f"/api/admin/boarding/stations/{origin}", json={"enabled": False, "displays": False, "display_kinds": ALL})
+        set_setting(admin, "boarding.stations.enabled", False)
+        stations_module(admin, False)
+        owner_sql("UPDATE ops.trip SET status = 'CANCELLED' WHERE id = $1", trip["id"])

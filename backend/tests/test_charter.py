@@ -111,9 +111,10 @@ def test_a_tourism_company_hires_a_coach_apart_from_the_trips():
     assert agency.post(f"/api/agency/charter/requests/{req['uid']}/accept").json()["replayed"] is True        # paid once
     assert owner_sql("""SELECT count(*) FROM fin.ledger_txn WHERE ref_type = 'charter_request' AND txn_type = 'CHARTER_PAY'
                          AND memo = $1""", req["ref"]) == 1
-    # the carrier names the vehicle
+    # the carrier names the vehicle: one that runs a trip at that time is refused (1128), a free one is named
     vehicles = o.get("/api/carrier/vehicles").json()["vehicles"]
-    coach = next(v for v in vehicles if v["status"] == "ACTIVE")
+    assert vehicles
+    coach = _new_vehicle(o)
     r = o.post(f"/api/carrier/charter/requests/{req['uid']}/vehicle", json={"vehicle_uid": coach["uid"]})
     assert r.status_code == 200 and r.json()["vehicle_plate"] == coach["plate_no"], r.text
     # done only once it has begun
@@ -284,3 +285,71 @@ def test_the_travellers_named_on_a_block_are_ticketed_and_on_the_manifest():
     assert owner_sql("SELECT status FROM sales.booking WHERE booking_ref = $1", named["booking_ref"]) == "CANCELLED"
     assert o.patch(f"/api/carrier/charter/offers/{offer['uid']}", json={"status": "ARCHIVED"}).status_code == 200
 
+
+
+def _new_vehicle(o) -> dict:
+    layout = next(x for x in o.get("/api/carrier/seat-layouts").json()["layouts"] if x["total_seats"] == 44)
+    plate = str(100000 + secrets.randbelow(900000))
+    r = o.post("/api/carrier/vehicles", json={
+        "plate_no": plate, "chassis_no": f"CHS-V{plate}", "vehicle_type": "COACH", "seat_layout_uid": layout["uid"],
+        "insurance_no": f"POL-V{plate}", "insurer": "Test", "insurance_issue": "2026-01-01", "insurance_expiry": "2030-01-01"})
+    assert r.status_code == 201, r.text
+    return {"uid": r.json()["uid"], "plate_no": plate}
+
+
+def test_a_hire_paid_by_deposit_and_balance_with_its_vehicles_named_one_by_one():
+    """1128: a deposit on acceptance and the rest before the start; done only once paid in full; each vehicle of the hire
+    named, and a vehicle hired out cannot run a trip at that time."""
+    o = _carrier()
+    r = o.post("/api/carrier/charter/offers", json={
+        "kind": "VEHICLE", "title": "Coaches for groups, deposit 30%", "vehicle_type": "COACH", "seats": 45, "vehicles": 3,
+        "audience": ["AGENCY"], "price_basis": "PER_TRIP", "price": 50_000_000, "currency": "SYP", "notice_hours": 24,
+        "cancel_before_hours": 24, "cancel_refund_pct": 80, "deposit_pct": 30, "balance_hours": 24, "policy": POLICY})
+    assert r.status_code == 201 and r.json()["deposit_pct"] == 30, r.text
+    offer = r.json()
+    agency = _funded_agency()
+    starts = (datetime.now(timezone.utc) + timedelta(days=5)).replace(microsecond=0)
+    r = agency.post("/api/agency/charter/requests", json={
+        "offer_uid": offer["uid"], "contact_name": "Rami Haddad", "contact_mobile": "+963944000555", "from_city": "DAM", "to_city": "ALP",
+        "starts_at": starts.isoformat(), "ends_at": (starts + timedelta(days=2)).isoformat(), "passengers": 80, "vehicles": 2,
+        "idempotency_key": uuid.uuid4().hex})
+    assert r.status_code == 201 and r.json()["terms"]["deposit_pct"] == 30, r.text
+    req = r.json()
+    assert o.post(f"/api/carrier/charter/requests/{req['uid']}/quote", json={"price": 100_000_000}).status_code == 200
+    # two vehicles named; a third is refused
+    a, b, c = _new_vehicle(o), _new_vehicle(o), _new_vehicle(o)
+    for v in (a, b):
+        r = o.post(f"/api/carrier/charter/requests/{req['uid']}/vehicle", json={"vehicle_uid": v["uid"]})
+        assert r.status_code == 200, r.text
+    assert sorted(r.json()["vehicle_plates"]) == sorted([a["plate_no"], b["plate_no"]])
+    r = o.post(f"/api/carrier/charter/requests/{req['uid']}/vehicle", json={"vehicle_uid": c["uid"]})
+    assert r.status_code == 409 and r.json()["error"]["code"] == "CHARTER_VEHICLES_FULL", r.text
+    # the deposit on acceptance
+    balance = _wallet(agency)
+    r = agency.post(f"/api/agency/charter/requests/{req['uid']}/accept")
+    assert r.status_code == 200 and r.json()["paid_amount"] == 30_000_000 and r.json()["balance_due"] == 70_000_000, r.text
+    assert r.json()["balance_due_at"] and balance - _wallet(agency) == 30_000_000
+    # a hired-out vehicle is on its schedule: a trip at that time is refused
+    route = next(x for x in o.get("/api/carrier/routes").json()["routes"] if x["code"] == "DAM-ALP")
+    driver = o.post("/api/carrier/crew", json={"full_name": "Hire Driver", "email": f"hire{uuid.uuid4().hex[:8]}@example.com",
+                                               "password": "fresh-crew-long-passphrase"}).json()["uid"]
+    r = o.post("/api/carrier/trips", json={"route_uid": route["uid"], "vehicle_uid": a["uid"], "driver_uid": driver,
+                                           "departure_local": f"{day(6)}T10:00:00"})
+    assert r.status_code == 409 and r.json()["error"]["code"] == "VEHICLE_HIRED", r.text
+    # the balance, once
+    r = agency.post(f"/api/agency/charter/requests/{req['uid']}/balance")
+    assert r.status_code == 200 and r.json()["balance_due"] == 0 and r.json()["paid_amount"] == 100_000_000, r.text
+    assert agency.post(f"/api/agency/charter/requests/{req['uid']}/balance").json()["replayed"] is True
+    assert balance - _wallet(agency) == 100_000_000
+    # a vehicle taken off frees it; one that runs a trip at that time cannot take its place
+    r = o.delete(f"/api/carrier/charter/requests/{req['uid']}/vehicles/{b['uid']}")
+    assert r.status_code == 200 and r.json()["vehicle_plates"] == [a["plate_no"]], r.text
+    r = o.post("/api/carrier/trips", json={"route_uid": route["uid"], "vehicle_uid": c["uid"], "driver_uid": driver,
+                                           "departure_local": f"{day(6)}T15:40:00"})
+    assert r.status_code == 201, r.text
+    r = o.post(f"/api/carrier/charter/requests/{req['uid']}/vehicle", json={"vehicle_uid": c["uid"]})
+    assert r.status_code == 409 and r.json()["error"]["code"] == "VEHICLE_BUSY", r.text
+    # cancelled in time by the tourism company: 80% of what was paid back
+    r = agency.post(f"/api/agency/charter/requests/{req['uid']}/cancel", json={"reason": "the group was postponed"})
+    assert r.status_code == 200 and r.json()["refunded_amount"] == 80_000_000, r.text
+    assert o.patch(f"/api/carrier/charter/offers/{offer['uid']}", json={"status": "ARCHIVED"}).status_code == 200
