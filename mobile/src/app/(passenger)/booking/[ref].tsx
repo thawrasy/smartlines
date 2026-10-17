@@ -8,12 +8,14 @@ import { saveBooking } from "../../../platform/tickets";
 import { Button, Card, CarrierName, Chip, ErrorText, Loading, Notice, Screen, Title, s } from "../../../ui/kit";
 import { bookingOptions, openPayment } from "../../../platform/payments";
 import { useLoad } from "../../../ui/useLoad";
+import { ChangeTripCard } from "../../../ui/connections";
 
 interface Ticket { uid: string; ticket_no: string; seat_label: string | null; seat_no: number; status: string; ticket_name: string;
   from_station: string; to_station: string; departs_at: string }
 interface Detail {
   booking: { booking_ref: string; status: string; total_amount: number; carrier_name: string; carrier_uid?: string | null; carrier_logo?: string | null; trip_no: string; trip_code?: string | null;
-             pay_option?: string | null; pay_by?: string | null; return_trip?: Return | null };
+             pay_option?: string | null; pay_by?: string | null; return_trip?: Return | null;
+             changed_from?: string | null; changed_to?: string | null };   // a booking changed to another trip (1130)
   tickets: Ticket[];
   // the journey the booking belongs to (1121): this trip's leg and the booker's bookings of every leg
   journey?: { uid: string; kind: string; leg: number; bookings: { booking_ref: string; leg: number; status: string; trip_no: string; trip_code: string | null }[] } | null;
@@ -78,6 +80,11 @@ export default function Booking() {
       {notice ? <Notice tone="green" text={notice} /> : null}
       <ErrorText error={error} />
       {booking.status === "EXPIRED" ? <Notice tone="amber" text={t("opt.expired")} /> : null}
+      {booking.changed_from ? <Button kind="text" label={`${t("conn.changedFrom")} ${booking.changed_from}`}
+                                      onPress={() => router.push({ pathname: "/booking/[ref]", params: { ref: booking.changed_from! } })} /> : null}
+      {booking.changed_to ? <Button kind="tonal" label={`${t("conn.changedTo")} ${booking.changed_to}`}
+                                    onPress={() => router.replace({ pathname: "/booking/[ref]", params: { ref: booking.changed_to! } })} /> : null}
+      {b.data.journey?.kind === "CONNECTION" && booking.status === "CONFIRMED" ? <Notice tone="amber" text={t("conn.bookingNote")} /> : null}
       {reserved ? (
         <Card>
           <Text style={s.h2}>{t("opt.reserved")}</Text>
@@ -125,6 +132,7 @@ export default function Booking() {
           ) : null}
         </Card>
       ) : null}
+      {booking.status === "CONFIRMED" && tickets.every((k) => k.status === "ISSUED") ? <ChangeTripCard bookingRef={booking.booking_ref} /> : null}
       <Button kind="text" label={t("tabs.trips")} onPress={() => router.replace("/trips")} />
     </Screen>
   );

@@ -6,6 +6,7 @@ import { useAuth } from "../../auth";
 import { PageHead } from "../../components/layout";
 import { Empty, ErrorBox, Field, Icon, Loaded, Modal, Stat, Status, useLoad, useToast } from "../../components/ui";
 import { LayoutPreview, type LayoutRow } from "./Layouts";
+import { CarrierConnectionPolicy } from "../passenger/Connections";
 
 export interface CarrierTrip {
   uid: string; trip_no: string; trip_code?: string | null; status: string; departure_at: string; arrival_at?: string; seats_total: number; segments_count?: number;
@@ -480,6 +481,7 @@ export function CarrierRoutes() {
           </div>
         ))}</div>
       )}</Loaded>
+      <CarrierConnectionPolicy />
       {open && (
         <Modal title={t("carrier.newRoute")} onClose={() => setOpen(false)} wide
                actions={<><button className="btn text" onClick={() => setOpen(false)}>{t("common.cancel")}</button><button className="btn" disabled={busy || !code} onClick={submit}>{t("common.save")}</button></>}>

@@ -6,19 +6,23 @@ import { useI18n } from "../../i18n";
 import { api } from "../../platform/api";
 import { bookingOptions } from "../../platform/payments";
 import { saveBooking } from "../../platform/tickets";
-import { Button, Card, CarrierName, ErrorText, Field, Loading, Notice, Row, Screen, Title, s } from "../../ui/kit";
+import { Button, Card, CarrierName, Choice, ErrorText, Field, Loading, Notice, Row, Screen, Title, s } from "../../ui/kit";
 import { color } from "../../ui/theme";
 import { useLoad } from "../../ui/useLoad";
 import { parseLegs, parsePicked, type JourneyKind } from "../../core/journey";
+import { PolicyText, RiskNotice, type Policy } from "../../ui/connections";
 
 // A journey checked out in the app (owner's request, October 2026; 1121): the trips chosen leg by leg, the same travellers
 // on every trip with seats given side by side, paid at once from the wallet or reserved to pay at the counter where the
 // platform opened it. Each trip becomes its own booking, all of the same journey; nothing is booked unless every trip is.
+// A connection through a city on the way (1130) shows each carrier's policy for a missed trip and the change time, takes a
+// fare per trip (a changeable one for the later trips where needed), and is booked once the traveller accepted its risks.
 
 interface Detail {
   price: number; from_seq: number; to_seq: number;
   trip: { trip_no: string; trip_code?: string | null; carrier_name: string; carrier_uid?: string; carrier_logo?: string | null; currency: string };
   stops: { seq: number; station_name: string; sched_dep: string | null; sched_arr: string | null }[];
+  connection_policy?: Policy;
 }
 interface Docs { international: boolean; docs: string[]; passport_min_days: number; exception: boolean; notes: string[]; departs: string }
 interface Out { journey_uid: string; status: string; bookings: { leg: number; booking_ref: string; total: number; status: string }[]; totals: { currency: string; total: number }[] }
@@ -44,6 +48,11 @@ export default function Journey() {
   const [error, setError] = useState<unknown>(null);
   const [done, setDone] = useState<Out | null>(null);
   const key = useRef(randomUUID().replace(/-/g, ""));
+  const connection = kind === "CONNECTION";
+  const [accepted, setAccepted] = useState(false);
+  const [brandOf, setBrandOf] = useState<Record<number, string>>({});
+  // a later trip of a connection takes a changeable fare unless its carrier changes a missed trip free
+  const brandFor = (i: number, d?: Detail) => brandOf[i] ?? (i > 0 && d?.connection_policy?.missed_connection !== "FREE_CHANGE" ? "FLEX" : "STANDARD");
   const nat = (x: Person) => (x.syrian ? "SY" : x.country);
   const nats = useMemo(() => [...new Set(["SY", ...people.map(nat)])].filter((c) => /^[A-Z]{2}$/.test(c)), [people]);
   // the documents a nationality needs: those of the first international trip of the journey, where there is one
@@ -74,7 +83,8 @@ export default function Journey() {
     setBusy(true); setError(null);
     try {
       const out = await api.post<Out>("/api/journeys", {
-        kind, legs: picked.map((x) => ({ trip_uid: x.uid, from_seq: x.from, to_seq: x.to })), idempotency_key: key.current, pay_with: payWith,
+        kind, legs: picked.map((x, i) => ({ trip_uid: x.uid, from_seq: x.from, to_seq: x.to, ...(connection ? { fare_brand: brandFor(i, trips.data?.[i]) } : {}) })),
+        idempotency_key: key.current, pay_with: payWith, ...(connection ? { accept_risks: accepted } : {}),
         passengers: people.map((x) => {
           const d = docs[nat(x)];
           return { nationality: nat(x), first_name: x.first_name.trim(), last_name: x.last_name.trim(),
@@ -109,12 +119,22 @@ export default function Journey() {
       <Title sub={t("jrn.sub", { n: legs.length, pax })}>{t(`jrn.title.${kind}`)}</Title>
       {trips.data.map((d, i) => {
         const a = d.stops.find((x) => x.seq === d.from_seq), b = d.stops.find((x) => x.seq === d.to_seq);
+        const prev = i > 0 ? trips.data![i - 1] : null;
+        const prevArr = prev?.stops.find((x) => x.seq === prev.to_seq)?.sched_arr;
         return (
           <Card key={i}>
+            {connection && prevArr && a?.sched_dep ? (
+              <Text style={[s.small, { color: color.amber }]}>⇄ {t("conn.changeMinutes", { n: Math.round((Date.parse(a.sched_dep) - Date.parse(prevArr)) / 60000) })}</Text>
+            ) : null}
             <Text style={s.h2}>{t("jrn.legN", { n: i + 1 })} · {a?.station_name} → {b?.station_name}</Text>
             <Text style={s.muted}>{a?.sched_dep ? `${date(a.sched_dep)} · ${time(a.sched_dep)}` : ""} → {b?.sched_arr ? time(b.sched_arr) : ""} · {d.trip.trip_code ?? d.trip.trip_no}</Text>
             <CarrierName name={d.trip.carrier_name} uid={d.trip.carrier_uid} logo={d.trip.carrier_logo} />
             <Text style={s.small}>{money(d.price)} × {pax}</Text>
+            {connection && d.connection_policy ? <PolicyText p={d.connection_policy} /> : null}
+            {connection ? (
+              <Choice label={t("conn.fare")} value={brandFor(i, d)} onChange={(v) => setBrandOf((all) => ({ ...all, [i]: v }))}
+                      options={["SAVER", "STANDARD", "FLEX"].map((c) => ({ value: c, label: t(`conn.brand.${c}`) }))} />
+            ) : null}
           </Card>
         );
       })}
@@ -166,9 +186,11 @@ export default function Journey() {
           ))}
         </View>
       ) : null}
+      {connection ? <RiskNotice accepted={accepted} onChange={setAccepted}
+                                flexible={trips.data.some((d, i) => i > 0 && d.connection_policy?.missed_connection !== "FREE_CHANGE")} /> : null}
       <Notice text={t("jrn.allOrNothing")} />
       <ErrorText error={error} />
-      <Button label={t("jrn.book", { n: legs.length })} busy={busy} disabled={!people.every(complete)} onPress={book} />
+      <Button label={t("jrn.book", { n: legs.length })} busy={busy} disabled={!people.every(complete) || (connection && !accepted)} onPress={book} />
     </Screen>
   );
 }

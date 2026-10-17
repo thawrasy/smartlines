@@ -6,6 +6,7 @@ import { api } from "../../platform/api";
 import { Button, Card, CarrierName, Chip, ErrorText, Loading, Screen, Title, s } from "../../ui/kit";
 import { color } from "../../ui/theme";
 import { useLoad } from "../../ui/useLoad";
+import { Connections } from "../../ui/connections";
 import { canFollow, parseLegs, parsePicked, pickedParam, rememberTrip, rememberedTrip, type JourneyKind } from "../../core/journey";
 
 interface Result {
@@ -16,7 +17,8 @@ interface Result {
 type Stops = "all" | "direct" | "stops";
 
 // The trips between two cities on a day, or, for a journey (1121), the trips of one of its legs at a time: a trip that
-// leaves before the one chosen before it arrives cannot be chosen. Every list shows all trips, direct ones or ones with stops.
+// leaves before the one chosen before it arrives cannot be chosen. Every list shows all trips, direct ones or ones with stops;
+// below them the connections through a city on the way (1130), at once where no trip runs, on request otherwise.
 export default function Results() {
   const { t, money, time, date } = useI18n();
   const p = useLocalSearchParams<{ origin?: string; destination?: string; on?: string; passengers: string; kind?: string; legs?: string; picked?: string }>();
@@ -27,6 +29,7 @@ export default function Results() {
   const leg = journey ? legs[picked.length] : null;
   const origin = leg?.from ?? p.origin ?? "DAM", destination = leg?.to ?? p.destination ?? "ALP", on = leg?.on ?? p.on ?? "";
   const [stops, setStops] = useState<Stops>("all");
+  const [showConn, setShowConn] = useState(false);
   const q = `origin=${origin}&destination=${destination}&on=${on}&passengers=${p.passengers}${stops === "all" ? "" : `&stops=${stops}`}`;
   const res = useLoad(() => api.get<{ trips: Result[] }>(`/api/trips/search?${q}`), [q]);
   const previous = picked.length ? rememberedTrip(picked[picked.length - 1].uid) : undefined;
@@ -101,6 +104,9 @@ export default function Results() {
           </Pressable>
         );
       })}
+      {!journey && res.data ? (res.data.trips.length === 0 || showConn
+        ? <Connections origin={origin} destination={destination} on={on} passengers={p.passengers} />
+        : <Button kind="tonal" label={t("conn.show")} onPress={() => setShowConn(true)} />) : null}
     </Screen>
   );
 }

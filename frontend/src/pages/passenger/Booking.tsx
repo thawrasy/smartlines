@@ -6,6 +6,7 @@ import { useI18n } from "../../i18n";
 import { CarrierName, ErrorBox, Icon, Loaded, Status, useLoad, useToast } from "../../components/ui";
 import { useChannel } from "../../channel";
 import { ReturnTrip } from "../../components/ReturnTrip";
+import { ChangeLinks, ChangeTrip } from "./Connections";
 
 // The QR code is a short-lived signed token fetched from the server; it is refreshed before it expires,
 // so a screenshot stops working after a minute or two.
@@ -176,6 +177,8 @@ export default function Booking() {
                   <span>·</span><span className="mono">{b.trip_code ?? b.trip_no}</span></p></div>
               <Status value={b.status} />
             </div>
+            <ChangeLinks from={b.changed_from} to={b.changed_to} />
+            {journey?.kind === "CONNECTION" && b.status === "CONFIRMED" && <div className="alert warn small"><Icon name="warning" size={20} />{t("conn.bookingNote")}</div>}
             {b.status === "PENDING_PAYMENT" && <PayPanel b={b} onChange={state.reload} />}
             {tickets.map((k) => (
               <div key={k.uid} className="ticket">
@@ -217,7 +220,7 @@ export default function Booking() {
             ))}
             {journey && (
               <div className="card stack tight">
-                <div className="row" style={{ gap: 8 }}><Icon name={journey.kind === "ROUND_TRIP" ? "swap_horiz" : journey.kind === "MULTI_CITY" ? "multiple_stop" : "groups"} />
+                <div className="row" style={{ gap: 8 }}><Icon name={journey.kind === "ROUND_TRIP" ? "swap_horiz" : journey.kind === "MULTI_CITY" ? "multiple_stop" : journey.kind === "CONNECTION" ? "airline_stops" : "groups"} />
                   <h3 style={{ margin: 0 }}>{t("jrn.partOf")}</h3><span className="chip">{t(`home.mode.${journey.kind}`)}</span></div>
                 <p className="small muted" style={{ margin: 0 }}>{t("jrn.partOfHint", { leg: journey.leg })}</p>
                 <ol className="journey-steps">
@@ -278,7 +281,8 @@ export default function Booking() {
             {b.status === "CONFIRMED" && first?.status === "ISSUED" && (
               <div className="row">
                 {(!ch.counter || b.refundable_here) && <button className="btn danger" disabled={busy} onClick={cancel}><Icon name="cancel" />{t("booking.cancel")}</button>}
-                <button className="btn outlined" onClick={() => print()}><Icon name="download" />{t("common.print")}</button></div>
+                <button className="btn outlined" onClick={() => print()}><Icon name="download" />{t("common.print")}</button>
+                {!ch.staff && <ChangeTrip bookingRef={b.booking_ref} />}</div>
             )}
             {ch.counter && b.status === "CONFIRMED" && !b.refundable_here && <p className="small muted">{t("errors.CANCEL_ONLINE")}</p>}
           </>

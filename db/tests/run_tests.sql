@@ -3929,4 +3929,45 @@ SELECT pg_temp.ok(EXISTS (SELECT 1 FROM sys.outbox_event WHERE event_type = 'scr
 ROLLBACK;
 SET ROLE masslak_app;
 
+-- Connections across carriers, risks accepted, a booking changed to another trip (1130)
+BEGIN;
+SET LOCAL ROLE masslak_app;
+SELECT sys.set_context(:ua, :ca, 'COMPANY');
+SELECT pg_temp.ok((sales.connection_settings() ->> 'enabled')::boolean AND (sales.connection_settings() ->> 'min_minutes')::int = 30
+                  AND (sales.connection_settings() ->> 'require_flexible')::boolean,
+  'Connections (1130): offered by default, a change takes 30 minutes at least, and later trips must be changeable');
+SELECT pg_temp.expect_error($$SELECT sales.set_connection_settings(false, 30, 60, 240, true)$$,
+  'FORBIDDEN', 'Connections (1130): only the platform sets the connection settings');
+SELECT pg_temp.ok(ops.connection_policy(:ca) ->> 'missed_connection' = 'FARE_RULES' AND NOT (ops.connection_policy(:ca) ->> 'set')::boolean,
+  'Connections (1130): a carrier that set no policy changes a missed trip under its fares'' rules');
+INSERT INTO ops.carrier_connection_policy (company_id, missed_connection, change_window_hours, updated_by) VALUES (:ca, 'FREE_CHANGE', 12, :ua);
+SELECT pg_temp.ok(ops.connection_policy(:ca) ->> 'missed_connection' = 'FREE_CHANGE' AND (ops.connection_policy(:ca) ->> 'change_window_hours')::int = 12,
+  'Connections (1130): a carrier sets what it does when a traveller misses its trip');
+SELECT pg_temp.expect_error(format($$INSERT INTO ops.carrier_connection_policy (company_id, missed_connection) VALUES (%s, 'NONE')$$, :cb),
+  'row-level security', 'Connections (1130): a carrier sets its own policy only');
+SELECT pg_temp.expect_error(format($$UPDATE ops.carrier_connection_policy SET change_window_hours = 200 WHERE company_id = %s$$, :ca),
+  'check constraint', 'Connections (1130): a change is accepted up to a week after the departure at most');
+SELECT sys.set_context(:uadmin, NULL, 'PLATFORM');
+SELECT pg_temp.expect_error($$SELECT sales.set_connection_settings(true, 30, 20, 240, true)$$,
+  'INVALID_SETTING', 'Connections (1130): a change between two stations takes at least as long as at one');
+SELECT (sales.set_connection_settings(true, 45, 90, 300, false) ->> 'min_minutes')::int = 45 AS set45 \gset
+SELECT pg_temp.ok(:'set45' AND NOT (sales.connection_settings() ->> 'require_flexible')::boolean,
+  'Connections (1130): the platform sets how long a change takes and whether later trips must be changeable');
+RESET ROLE;
+SELECT pg_temp.expect_error($$UPDATE sales.booking SET journey_uid = gen_random_uuid(), journey_kind = 'CONNECTION', journey_leg = 2
+    WHERE booking_ref = 'ABC123'$$, 'booking_connection_ack_ck', 'Connections (1130): a connection is booked only once the traveller accepted its risks');
+UPDATE sales.booking SET journey_uid = gen_random_uuid(), journey_kind = 'CONNECTION', journey_leg = 2, risk_ack_at = now()
+ WHERE booking_ref = 'ABC123' RETURNING id AS cbk \gset
+SELECT pg_temp.ok(NOT (sales.missed_connection(:cbk) ->> 'connection')::boolean AND NOT (sales.missed_connection(:cbk) ->> 'inbound_late')::boolean,
+  'Connections (1130): a later trip with no trip booked before it is not a missed connection');
+SELECT pg_temp.expect_error(format($$INSERT INTO sales.booking_change (from_booking_id, to_booking_id, reason, missed, basis, fee, refunded, paid, currency)
+    VALUES (%s, %s, 'MISSED_CONNECTION', true, 'FREE_CHANGE', 100, 0, 0, 'SYP')$$, :cbk, :cbk),
+  'check constraint', 'Connections (1130): a free change has no fee and changes to another booking');
+SELECT pg_temp.ok(has_table_privilege('masslak_app', 'sales.booking_change', 'INSERT')
+                  AND NOT has_table_privilege('masslak_app', 'sales.booking_change', 'UPDATE')
+                  AND NOT has_table_privilege('masslak_app', 'sales.booking_change', 'DELETE'),
+  'Connections (1130): a change is recorded once and never rewritten');
+ROLLBACK;
+SET ROLE masslak_app;
+
 \echo '=== ALL TESTS PASSED ==='

@@ -9,6 +9,9 @@ of the platform's seat limit (four unless it decides otherwise, 1122) on each le
 enough money), nothing is: the whole journey is one transaction. The legs must follow each other in time. A baby on a
 lap (with_adult naming the traveller who carries them) takes no seat and travels in the same booking as that traveller
 on every leg; whether the carrier lets a baby travel on a lap is checked on each leg, as for a single booking.
+A connection (CONNECTION, 1130) is two or three trips, of one carrier or several, through a city on the way: each trip
+leaves where the one before arrives within the platform's change times, the traveller accepts its risks (accept_risks),
+and each trip may take its own fare (a changeable one for the later trips, connections.py).
 """
 from __future__ import annotations
 
@@ -20,6 +23,7 @@ import asyncpg
 from pydantic import BaseModel, Field, model_validator
 
 from ...errors import ApiError
+from . import connections
 from . import repository as repo
 from .models import MOBILE, BookingIn, HoldIn, PassengerIn
 from .service import create_hold
@@ -34,22 +38,30 @@ class JourneyLegIn(BaseModel):
     to_seq: int = Field(ge=1, le=500)
     # the seats chosen on this trip, one per traveller with a seat in their order; none: given side by side
     seats: Optional[list[int]] = Field(default=None, min_length=1, max_length=GROUP_LIMIT)
+    # this trip's own fare (1130); none: the journey's
+    fare_brand: Optional[str] = Field(default=None, min_length=2, max_length=20)
 
 
 class JourneyIn(BaseModel):
-    kind: Literal["ONE_WAY", "ROUND_TRIP", "MULTI_CITY"]
+    kind: Literal["ONE_WAY", "ROUND_TRIP", "MULTI_CITY", "CONNECTION"]
     legs: list[JourneyLegIn] = Field(min_length=1, max_length=MAX_LEGS)
     passengers: list[PassengerIn] = Field(min_length=1, max_length=GROUP_LIMIT)
     fare_brand: str = "STANDARD"
     idempotency_key: str = Field(min_length=8, max_length=60)
     # options paid at once or reserved for a cash payment; card, instalments and financing go booking by booking
     pay_with: Literal["WALLET", "PAY_LATER"] = "WALLET"
+    # a connection: the traveller read and accepted its risks (each carrier answers for its own trip only, a late trip
+    # does not hold the next, a missed trip is changed under its carrier's policy)
+    accept_risks: bool = False
 
     @model_validator(mode="after")
     def _shape(self):
         n = len(self.legs)
-        if (self.kind == "ONE_WAY" and n != 1) or (self.kind == "ROUND_TRIP" and n != 2) or (self.kind == "MULTI_CITY" and n < 2):
-            raise ValueError("JOURNEY_SHAPE: one way has one trip, a round trip two, several places two to six")
+        if (self.kind == "ONE_WAY" and n != 1) or (self.kind == "ROUND_TRIP" and n != 2) or (self.kind == "MULTI_CITY" and n < 2) \
+                or (self.kind == "CONNECTION" and not 2 <= n <= 3):
+            raise ValueError("JOURNEY_SHAPE: one way has one trip, a round trip two, several places two to six, a connection two or three")
+        if self.kind == "CONNECTION" and not self.accept_risks:
+            raise ValueError("CONNECTION_RISKS_NOT_ACCEPTED: read and accept the risks of a connection before booking it")
         if any(leg.to_seq <= leg.from_seq for leg in self.legs):
             raise ValueError("INVALID_HOLD: each trip is booked from a stop to a later one")
         for leg in self.legs:
@@ -112,6 +124,9 @@ async def book(conn: asyncpg.Connection, party_id: int, user_id: int, body: Jour
     if done:                                                     # the same journey sent again: its bookings stand
         return {"journey_uid": done, "replayed": True}
     legs = await _legs(conn, body)
+    brands = [leg.fare_brand or body.fare_brand for leg in body.legs]
+    if body.kind == "CONNECTION":
+        await connections.check(conn, body.legs, brands)
     journey = uuid.uuid4()
     # the travellers with a seat in bookings of per seats; a baby on a lap goes in the booking of the one who carries them
     seated = [i for i, p in enumerate(body.passengers) if p.with_adult is None]
@@ -129,10 +144,12 @@ async def book(conn: asyncpg.Connection, party_id: int, user_id: int, body: Jour
                            for i, a in laps.items() if a in people]
             out = await sell(BookingIn(
                 hold_token=uuid.UUID(hold["hold_token"]), trip_uid=leg.trip_uid, from_seq=leg.from_seq, to_seq=leg.to_seq,
-                fare_brand=body.fare_brand, idempotency_key=f"{body.idempotency_key}:{n}:{g}", pay_with=body.pay_with,
+                fare_brand=brands[n - 1], idempotency_key=f"{body.idempotency_key}:{n}:{g}", pay_with=body.pay_with,
                 passengers=travellers, **(extra or {})))
-            await conn.execute("UPDATE sales.booking SET journey_uid = $1, journey_kind = $2, journey_leg = $3 WHERE id = $4",
-                               journey, body.kind, n, out["booking_id"])
+            await conn.execute(
+                """UPDATE sales.booking SET journey_uid = $1, journey_kind = $2, journey_leg = $3,
+                          risk_ack_at = CASE WHEN $2 = 'CONNECTION' THEN now() END WHERE id = $4""",
+                journey, body.kind, n, out["booking_id"])
             booked.append({"leg": n, "booking_ref": out["booking_ref"], "booking_id": out["booking_id"], "total": out["total"],
                            "currency": out["currency"], "status": out["status"], "pay_by": out.get("pay_by")})
     totals: dict[str, int] = {}

@@ -4,7 +4,7 @@
  * (legs=DAM_ALP_2026-10-16,ALP_DAM_2026-10-18 and picked=<trip uid>:<from>:<to>,...), so a shared link opens the same
  * journey in either.
  */
-export type JourneyKind = "ONE_WAY" | "ROUND_TRIP" | "MULTI_CITY";
+export type JourneyKind = "ONE_WAY" | "ROUND_TRIP" | "MULTI_CITY" | "CONNECTION";  // CONNECTION: through a city on the way (1130)
 export interface JourneyLeg { from: string; to: string; on: string }
 export interface Picked { uid: string; from: number; to: number }
 

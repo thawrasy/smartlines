@@ -31,15 +31,16 @@ const STATION = process.env.MASSLAK_UI_STATION && existsSync(process.env.MASSLAK
   ? JSON.parse(readFileSync(process.env.MASSLAK_UI_STATION, "utf8")) : null;
 const PORTALS = [
   { who: null, pages: ["/", `/search?origin=DAM&destination=ALP&on=${tomorrow}`, `/search?${ROUND}&pax=2`, "@trip", "/login", "/register", "/track", "/verify",
-    "/screen/pair"] },      // a display asking to be paired with a station screen (1129)
-  { who: ["passenger@masslak.test", "PASSENGER"], pages: ["/trips", "/wallet", "/family", "/account", "/services", "/support", "@journey", "/charter"] },
+    "/screen/pair",         // a display asking to be paired with a station screen (1129)
+    `/search?from=DRA&to=ALP&on=${later}`] },   // no trip runs direct: the connections through Damascus (1130)
+  { who: ["passenger@masslak.test", "PASSENGER"], pages: ["/trips", "/wallet", "/family", "/account", "/services", "/support", "@journey", "@connection", "/charter"] },
   { who: ["owner@carrier.test", "OPERATOR"],
     pages: ["/carrier", "/carrier/trips", "/carrier/routes", "/carrier/vehicles", "/carrier/finance", "/carrier/documents", "/carrier/reports", "/carrier/stations", "/carrier/schedules", "/carrier/kyc", "/carrier/charter"] },
   { who: ["counter@carrier.test", "OPERATOR"], pages: ["/carrier/counter", "/carrier/counter/report"] },
   { who: ["agency@agency.test", "AGENCY"], pages: ["/agency", "/agency/bookings", "/agency/statement", "/agency/staff", `/agency/search?${MULTI}&pax=6`, "/agency/charter"] },
   { who: ["driver@carrier.test", "DRIVER"], pages: ["/driver"] },
   { who: ["admin@masslak.test", "PLATFORM"],
-    pages: ["/admin", "/admin/companies", "/admin/finance", "/admin/documents", "/admin/stations", "/admin/boarding", "/admin/schedules", "/admin/kyc", "/admin/modules", "/admin/payments", "/admin/booking", "/admin/geography", "/admin/photo"] },
+    pages: ["/admin", "/admin/companies", "/admin/finance", "/admin/documents", "/admin/stations", "/admin/boarding", "/admin/schedules", "/admin/kyc", "/admin/modules", "/admin/payments", "/admin/booking", "/admin/booking?tab=connections", "/admin/geography", "/admin/photo"] },
   ...(STATION ? [{
     label: "STATION", cookies: STATION.cookies,
     choice: { station_uid: STATION.station_uid, station_code: STATION.station_code, station_name: STATION.station_code, counter_code: STATION.counter },
@@ -62,6 +63,15 @@ async function roundTrip(request) {
   const back = (await (await request.get(`${BASE}/api/trips/search?origin=ALP&destination=DAM&on=${later}`)).json()).trips?.[0];
   if (!there || !back) return null;
   return `/journey?${ROUND}&picked=${there.uid}:${there.from_seq}:${there.to_seq},${back.uid}:${back.from_seq}:${back.to_seq}&pax=2`;
+}
+
+// the checkout of a connection from Daraa to Aleppo through Damascus, on two carriers (1130)
+async function connection(request) {
+  const c = (await (await request.get(`${BASE}/api/trips/connections?origin=DRA&destination=ALP&on=${later}`)).json()).connections?.[0];
+  if (!c) return null;
+  const day = (iso) => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Damascus" }).format(new Date(iso));
+  const legs = c.legs.map((l) => `${l.from_city}_${l.to_city}_${day(l.departs_at)}`).join(",");
+  return `/journey?kind=CONNECTION&legs=${legs}&picked=${c.legs.map((l) => `${l.trip_uid}:${l.from_seq}:${l.to_seq}`).join(",")}&pax=1`;
 }
 
 async function firstTrip(request) {
@@ -121,6 +131,7 @@ try {
         for (let path of portal.pages) {
           if (path === "@trip") path = await firstTrip(context.request);
           if (path === "@journey") path = await roundTrip(context.request);
+          if (path === "@connection") path = await connection(context.request);
           if (!path) continue;
           const where = `${locale} ${screen} ${portal.label ?? portal.who?.[1] ?? "VISITOR"} ${path}`;
           const resp = await page.goto(BASE + path, { waitUntil: "networkidle" });

@@ -4,7 +4,7 @@ import type { TripResult } from "../../api";
 // so far, so the results page walks it leg by leg and the back button and a shared link keep it. The trips chosen are
 // remembered for this tab only, to show them while the next leg is chosen.
 
-export type JourneyKind = "ONE_WAY" | "ROUND_TRIP" | "MULTI_CITY";
+export type JourneyKind = "ONE_WAY" | "ROUND_TRIP" | "MULTI_CITY" | "CONNECTION";
 export interface JourneyLeg { from: string; to: string; on: string }
 export interface Picked { uid: string; from: number; to: number }
 

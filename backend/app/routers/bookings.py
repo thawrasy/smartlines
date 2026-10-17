@@ -1,5 +1,5 @@
 """Passenger channel: seat holds, bookings paid from the wallet or reserved and paid later, tickets with rotating QR
-codes, and cancellation.
+codes, cancellation, and a booking changed to another trip of its carrier (1130).
 
 The use cases live in modules/sales/service.py and are shared with the agency and counter channels. Which ways of
 paying are offered is decided by platform administration (fin.payment_method, 1056).
@@ -15,7 +15,7 @@ from ..config import get_settings
 from ..deps import Principal, context_for, public_base, require_portal, sales_channel
 from ..errors import ApiError, not_found
 from ..modules.payments import service as payments
-from ..modules.sales import options
+from ..modules.sales import connections, options
 from ..modules.sales import repository as sales_repo
 from ..modules.sales import service as sales
 from ..modules.sales.models import BookingIn, HoldIn, QuoteIn
@@ -205,4 +205,26 @@ async def cancel_booking(ref: str, request: Request, pr: Principal = Depends(pas
             out = await sales.cancel_booking(conn, ctx, b, _buyer(pr, request))
     request.state.audit = {"action": "booking.cancel", "object_type": "booking", "object_id": b["id"]}
     out.pop("commission_kept", None)
+    return out
+
+
+@router.get("/bookings/{ref}/change-options")
+async def change_options(ref: str, request: Request, pr: Principal = Depends(passenger)):
+    """Whether the booking may be changed now and on what basis (its fare's rules, or its carrier's policy after a missed
+    connection), with the carrier's trips between the same cities in the next three days."""
+    async with db.transaction(context_for(request, pr)) as conn:
+        return await connections.options(conn, await _booking_for(conn, pr, ref))
+
+
+@router.post("/bookings/{ref}/change")
+async def change_booking(ref: str, body: connections.ChangeIn, request: Request, pr: Principal = Depends(passenger)):
+    """Changes the booking to another trip of its carrier: the old one cancelled with its value back less the change fee,
+    the new one paid from the wallet, in one transaction."""
+    ctx = context_for(request, pr)
+    async with db.transaction(ctx) as conn:
+        b = await _booking_for(conn, pr, ref)
+        out = await connections.change(conn, ctx, b, _buyer(pr, request), body, await sales.seat_limit(conn, pr.party_id))
+    if not out.get("replayed"):
+        request.state.audit = {"action": "booking.change", "object_type": "booking", "object_id": out.pop("booking_id"),
+                               "reason": f"{b['booking_ref']} -> {out['booking_ref']}: {out['basis']}, fee {out['fee']}"}
     return out

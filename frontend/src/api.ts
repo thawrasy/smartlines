@@ -104,6 +104,12 @@ export interface TripDetail {
   /** Who counts as an adult, a child or an infant on this carrier, and what each pays on this segment (4.19). */
   categories: CategoryFare[];
   family_offers: FamilyOfferBrief[];
+  /** What the carrier does when a traveller of a connection misses this trip (1130). */
+  connection_policy?: ConnectionPolicy;
+}
+
+export interface ConnectionPolicy {
+  offer_in_connections: boolean; missed_connection: "FREE_CHANGE" | "FARE_RULES" | "NONE"; change_window_hours: number; note: string | null;
 }
 
 export type Category = "ADULT" | "CHILD" | "INFANT";
@@ -162,13 +168,15 @@ export interface BookingDetail {
              // how it is paid (1056): a reserved booking waits for its money until pay_by; the counter view says what it may do
              pay_option?: string | null; pay_by?: string | null; pay_method?: string; counter_sale?: boolean; collectable?: boolean;
              refundable_here?: boolean;
+             // a booking changed to another trip (1130): the booking it replaced, and the one that replaced it
+             changed_from?: string | null; changed_to?: string | null;
              return_trip?: import("./components/ReturnTrip").ReturnInfo | null;
              price_breakdown: { fare_per_passenger: number; passengers: number; fares_total: number; platform_fee: number; total: number; fare_brand: string;
                                 lines?: Quote["lines"]; family_offer?: Quote["family_offer"] } };
   tickets: Ticket[];
   invoices?: { uuid: string; doc_type: "INVOICE" | "CREDIT_NOTE"; number: string; total: number; currency: string; finalized_at: string }[];
   /** The journey the booking belongs to (1121): a round trip, several places or a group, booked together. */
-  journey?: { uid: string; kind: "ONE_WAY" | "ROUND_TRIP" | "MULTI_CITY"; leg: number;
+  journey?: { uid: string; kind: "ONE_WAY" | "ROUND_TRIP" | "MULTI_CITY" | "CONNECTION"; leg: number;
               bookings: { booking_ref: string; leg: number; status: string; trip_no: string; trip_code: string | null;
                           way: { from_city: string; to_city: string; departs_at: string } | null }[] } | null;
 }

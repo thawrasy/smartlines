@@ -12,7 +12,7 @@ from ..config import get_settings
 from ..deps import base_context
 from ..errors import ApiError, not_found
 from ..modules.fares import categories as cat
-from ..modules.sales import documents
+from ..modules.sales import connections, documents
 from ..modules.sales import service as sales
 from ..util import row_dict, rows
 
@@ -166,6 +166,18 @@ async def search(request: Request, origin: str = Query(..., min_length=3, max_le
     return {"trips": trips}
 
 
+@router.get("/trips/connections")
+async def connection_search(request: Request, origin: str = Query(..., min_length=3, max_length=3),
+                            destination: str = Query(..., min_length=3, max_length=3), on: date = Query(...),
+                            passengers: int = Query(1, ge=1, le=60)):
+    """Connections of two trips, of one carrier or several, through a city on the way, where no trip runs direct (1130);
+    each trip with its carrier's policy for a missed connection."""
+    if origin == destination:
+        raise ApiError(422, "SAME_CITY", "origin and destination must differ")
+    async with db.transaction(_ctx(request)) as conn:
+        return await connections.search(conn, origin.upper(), destination.upper(), on, passengers)
+
+
 @router.get("/trips/{trip_uid}/documents")
 async def trip_documents(trip_uid: str, request: Request, from_seq: int = Query(..., ge=0), to_seq: int = Query(..., ge=1),
                          nationality: str = Query("SY", pattern=r"^[A-Z]{2}$")):
@@ -233,6 +245,7 @@ async def trip_detail(trip_uid: str, request: Request, from_seq: int = Query(...
                   AND applies_to IN ('TICKETS','BOTH') AND (route_id IS NULL OR route_id = $3) ORDER BY code""",
             t["company_id"], travel, t["route_id"])
         back = await sales.return_trip(conn, t["id"], from_seq, to_seq)
+        policy = await connections.policy(conn, t["company_id"])     # what the carrier does when a connection is missed (1130)
     trip = row_dict(t)
     for k in ("id", "company_id", "route_id"):
         trip.pop(k)
@@ -240,6 +253,7 @@ async def trip_detail(trip_uid: str, request: Request, from_seq: int = Query(...
     seat_map = json.loads(seat_map) if isinstance(seat_map, str) else seat_map
     return {"seat_map": seat_map, "trip": trip, "stops": rows(stops), "price": price, "from_seq": from_seq, "to_seq": to_seq,
             "seats": [{"seat_no": s["seat_no"], "free": s["free"]} for s in seats], "categories": categories, "return_trip": back,
+            "connection_policy": {k: policy[k] for k in ("offer_in_connections", "missed_connection", "change_window_hours", "note")},
             "family_offers": [dict(o) | {"discount_value": float(o["discount_value"])} for o in offers]}
 
 

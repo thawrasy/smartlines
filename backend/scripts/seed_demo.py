@@ -236,6 +236,73 @@ async def seed_charter(conn) -> bool:
     return True
 
 
+async def seed_carrier_b(conn) -> bool:
+    """A second carrier, from Daraa to Damascus, timed so its trips connect with Demo Carrier A's trips from Damascus to
+    Aleppo (1130): Daraa to Aleppo has no direct trip, and the search offers the connection. Demo Carrier B changes a
+    missed trip free when the first trip of a connection arrived late; Demo Carrier A keeps its fares' change rules."""
+    if await conn.fetchval("SELECT 1 FROM iam.party WHERE legal_name = 'Demo Carrier B' AND party_type = 'COMPANY'"):
+        return False
+    admin = await conn.fetchval("SELECT id FROM iam.app_user WHERE email = 'admin@masslak.test'")
+    await conn.execute("SELECT sys.set_context($1, NULL, 'SYSTEM')", admin)
+    dra = await conn.fetchval("SELECT s.id FROM net.station s JOIN ref.city c ON c.id = s.city_id WHERE c.code = 'DRA' AND s.station_class = 'CENTRAL' ORDER BY s.id LIMIT 1")
+    dam = await conn.fetchval("SELECT s.id FROM net.station s JOIN ref.city c ON c.id = s.city_id WHERE c.code = 'DAM' AND s.station_class = 'CENTRAL' ORDER BY s.id LIMIT 1")
+    company = await conn.fetchval("INSERT INTO iam.party (party_type, legal_name) VALUES ('COMPANY', 'Demo Carrier B') RETURNING id")
+    await conn.execute("INSERT INTO iam.party_role (party_id, role_code) VALUES ($1, 'OPERATOR')", company)
+    await conn.execute("INSERT INTO iam.company (id, approval_status, approved_by, approved_at) VALUES ($1, 'APPROVED', $2, now())",
+                       company, admin)
+    await conn.execute("""INSERT INTO net.carrier_code (company_id, code3, code2, status, approved_by, valid_from)
+                          VALUES ($1, 'DCB', 'DB', 'ACTIVE', $2, current_date)""", company, admin)
+    await conn.execute("INSERT INTO fin.wallet (owner_party_id, company_id, wallet_type, label, currency) VALUES ($1, $1, 'COMPANY', 'Carrier wallet', 'SYP')",
+                       company)
+    _, owner = await user(conn, "PERSON", "Nour (carrier owner)", "owner@carrierb.test", "COMPANY")
+    await conn.execute("INSERT INTO iam.company_member (user_id, company_id, is_owner) VALUES ($1, $2, true)", owner, company)
+    dparty, duser = await user(conn, "PERSON", "Fadi (driver)", "driver@carrierb.test", "COMPANY")
+    await conn.execute("INSERT INTO iam.company_member (user_id, company_id, role_id) SELECT $1, $2, id FROM iam.role WHERE code = 'CARRIER_DRIVER' AND company_id IS NULL",
+                       duser, company)
+    await conn.execute("INSERT INTO fleet.crew_profile (party_id, company_id, crew_type, license_class) VALUES ($1, $2, 'DRIVER', 'D')", dparty, company)
+    vehicle = await conn.fetchval(
+        """INSERT INTO fleet.vehicle (company_id, vehicle_type, make, model, manufacture_year, plate_no, chassis_no, passenger_seats,
+             owner_party_id, status, cargo_capacity_kg) VALUES ($1, 'COACH', 'Demo', 'Coach', 2021, '445566', 'CHS-DCB-0001', 44, $1, 'ACTIVE', 800)
+           RETURNING id""", company)
+    await conn.execute(
+        """INSERT INTO fleet.license_record (company_id, subject_type, subject_id, license_type, license_no, issuer, issue_date, expiry_date, status)
+           VALUES ($1, 'VEHICLE', $2, 'INSURANCE', 'POL-445566', 'Demo Insurance Co.', current_date - 30, current_date + 335, 'VALID')""",
+        company, vehicle)
+    await conn.execute("""INSERT INTO ops.carrier_connection_policy (company_id, missed_connection, change_window_hours, note, updated_by)
+                          VALUES ($1, 'FREE_CHANGE', 24, 'A traveller who misses our trip because the first trip arrived late travels on our next trip at no charge.', $2)""",
+                       company, owner)
+    await conn.execute("SELECT sys.set_context($1, $2, 'COMPANY')", owner, company)
+    route = await conn.fetchval(
+        """INSERT INTO net.route (company_id, code, origin_station_id, dest_station_id, service_type, std_duration_min)
+           VALUES ($1, 'DRA-DAM', $2, $3, 'DIRECT', 90) RETURNING id""", company, dra, dam)
+    await conn.execute(
+        """INSERT INTO net.route_stop (route_id, seq, station_id, kind, arr_offset_min, dep_offset_min, fare_from_origin)
+           VALUES ($1, 0, $2, 'ORIGIN', 0, 0, 0), ($1, 1, $3, 'DEST', 90, 90, 1500000)""", route, dra, dam)
+    today = datetime.now(LOCAL_TZ).date()
+    for hhmm, number in (("05:30", 1201), ("08:00", 1211), ("13:00", 1221)):
+        sn = await conn.fetchval(
+            """INSERT INTO net.service_number (company_id, number, block, route_id, direction, valid)
+               VALUES ($1, $2, 'SCHEDULED', $3, 'OUTBOUND', daterange(current_date - 1, NULL)) RETURNING id""", company, number, route)
+        h, m = map(int, hhmm.split(":"))
+        for day in range(0, 7):
+            dep_at = datetime(today.year, today.month, today.day, h, m, tzinfo=LOCAL_TZ) + timedelta(days=day)
+            if dep_at < datetime.now(LOCAL_TZ) + timedelta(minutes=45):
+                continue
+            arr_at = dep_at + timedelta(minutes=90)
+            tid = await conn.fetchval(
+                """INSERT INTO ops.trip (trip_no, company_id, route_id, service_type, vehicle_id, departure_at, arrival_at, status,
+                     seats_total, segments_count, currency, base_price, published_at, service_number_id)
+                   VALUES ($1, $2, $3, 'DIRECT', $4, $5, $6, 'PUBLISHED', 44, 1, 'SYP', 1500000, now(), $7) RETURNING id""",
+                f"DCB-DRA-DAM-{dep_at:%H%M}/{dep_at:%d%b%y}".upper(), company, route, vehicle, dep_at, arr_at, sn)
+            await conn.execute(
+                """INSERT INTO ops.trip_stop (trip_id, seq, station_id, sched_arr, sched_dep, fare_from_origin)
+                   VALUES ($1, 0, $2, $3, $3, 0), ($1, 1, $4, $5, $5, 1500000)""", tid, dra, dep_at, dam, arr_at)
+            await conn.execute("INSERT INTO ops.seat_segment (trip_id, seat_no, seg) SELECT $1, s, 0 FROM generate_series(1, 44) s", tid)
+            await conn.execute("INSERT INTO ops.crew_assignment (trip_id, party_id, crew_role) VALUES ($1, $2, 'DRIVER')", tid, dparty)
+    await conn.execute("SELECT sys.set_context(NULL, NULL, 'SYSTEM')")
+    return True
+
+
 async def main():
     url = os.environ.get("MASSLAK_OWNER_URL", "postgresql://postgres@localhost:5432/masslak")
     conn = await asyncpg.connect(url)
@@ -252,7 +319,8 @@ async def main():
                                                     ("geography officer", await seed_geography(conn)),
                                                     ("counter clerk", await seed_counter(conn)),
                                                     ("family and manifest route", await seed_families(conn)),
-                                                    ("charter offers", await seed_charter(conn))) if done]
+                                                    ("charter offers", await seed_charter(conn)),
+                                                    ("second carrier", await seed_carrier_b(conn))) if done]
             print(f"demo {' and '.join(added)} added" if added else "demo data already present")
             return
         # Platform staff
@@ -402,10 +470,11 @@ async def main():
         await seed_families(conn)
         await seed_counter(conn)
         await seed_charter(conn)
+        await seed_carrier_b(conn)
     await conn.close()
     print(f"demo data created: {n_trips} trips")
     print(f"accounts (password: {PASSWORD}):")
-    for e, p in (("passenger@masslak.test", "PASSENGER"), ("owner@carrier.test", "OPERATOR"), ("counter@carrier.test", "OPERATOR"),
+    for e, p in (("passenger@masslak.test", "PASSENGER"), ("owner@carrier.test", "OPERATOR"), ("owner@carrierb.test", "OPERATOR"), ("counter@carrier.test", "OPERATOR"),
                  ("driver@carrier.test", "DRIVER"),
                  ("agency@agency.test", "AGENCY"), ("finance@masslak.test", "PLATFORM"), ("treasury@masslak.test", "PLATFORM"),
                  ("security@masslak.test", "PLATFORM"), ("privacy@masslak.test", "PLATFORM"), ("privacy2@masslak.test", "PLATFORM"), ("geo@masslak.test", "PLATFORM"), ("admin@masslak.test", "PLATFORM"), ("regulator@masslak.test", "PLATFORM")):

@@ -6,6 +6,7 @@ import { PageHead } from "../../components/layout";
 import { CarrierName, Empty, ErrorBox, Field, Icon, Loaded, Modal, Stat, Status, useLoad, useToast } from "../../components/ui";
 import { localDate } from "../../dates";
 import { useCities } from "../passenger/Home";
+import { ConnectionSettings } from "../passenger/Connections";
 
 // Charter (owner's request, October 2026; migration 1123). A carrier hires out a vehicle apart from its trips (a coach,
 // a minibus, a van) or its scheduled trips whole or in blocks of seats, to tourism companies and, by special request, to
@@ -737,19 +738,20 @@ function CarrierRequests() {
 // ------------------------------------------------------------------ the platform
 interface Limits { max_seats: number; family_max_seats: number; agency_group: number; basis: string | null; set_at: string | null }
 
-/** Booking rules: the seats booked at once (1122) and charter oversight (1123). */
+/** Booking rules: the seats booked at once (1122), connections across carriers (1130) and charter oversight (1123). */
 export function AdminBookingRules() {
   const { t } = useI18n();
   const { can } = useAuth();
-  const tabs = [...(can("policy.matrix") ? ["limits"] : []), ...(can("report.platform", "policy.matrix") ? ["charter"] : [])] as ("limits" | "charter")[];
-  const [tab, setTab] = useState(tabs[0] ?? "charter");
+  const tabs = [...(can("policy.matrix") ? ["limits", "connections"] : []), ...(can("report.platform", "policy.matrix") ? ["charter"] : [])] as ("limits" | "connections" | "charter")[];
+  const asked = new URLSearchParams(location.search).get("tab") as (typeof tabs)[number] | null;
+  const [tab, setTab] = useState(asked && tabs.includes(asked) ? asked : tabs[0] ?? "charter");
   return (
     <div className="stack">
       <PageHead title={t("rules.title")} sub={t("rules.sub")} />
       <div className="segmented" role="tablist" style={{ alignSelf: "flex-start" }}>
         {tabs.map((v) => <button key={v} role="tab" aria-selected={tab === v} className={tab === v ? "on" : ""} onClick={() => setTab(v)}>{t(`rules.tab.${v}`)}</button>)}
       </div>
-      {tab === "limits" ? <SeatLimits /> : <PlatformCharter />}
+      {tab === "limits" ? <SeatLimits /> : tab === "connections" ? <ConnectionSettings /> : <PlatformCharter />}
     </div>
   );
 }

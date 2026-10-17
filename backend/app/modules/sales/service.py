@@ -700,6 +700,12 @@ async def booking_view(conn: asyncpg.Connection, ctx: db.Context, b: asyncpg.Rec
     if b.get("contact_mobile"):
         booking["contact_mobile"] = b["contact_mobile"]
     booking["pay_option"] = b.get("pay_option")
+    # a booking changed to another trip (1130): the booking it replaced, and the one that replaced it
+    booking["changed_from"] = await conn.fetchval("SELECT booking_ref FROM sales.booking WHERE id = $1", b["changed_from_id"]) \
+        if b.get("changed_from_id") else None
+    booking["changed_to"] = await conn.fetchval(
+        """SELECT nb.booking_ref FROM sales.booking_change c JOIN sales.booking nb ON nb.id = c.to_booking_id
+            WHERE c.from_booking_id = $1""", b["id"]) if b["status"] == "CANCELLED" else None
     booking["pay_by"] = b["hold_expires_at"].isoformat() if b["status"] == "PENDING_PAYMENT" and b.get("hold_expires_at") else None
     # the return on the same vehicle (1119), offered while the booking stands
     booking["return_trip"] = await return_trip(conn, b["trip_id"], tickets[0]["from_seq"], tickets[0]["to_seq"]) \
@@ -766,13 +772,16 @@ async def offline_credential(conn: asyncpg.Connection, ctx: db.Context, ticket_u
 
 
 async def cancel_booking(conn: asyncpg.Connection, ctx: db.Context, b: asyncpg.Record, buyer: Buyer,
-                         reason: str = "CUSTOMER") -> dict:
+                         reason: str = "CUSTOMER", refund: Optional[int] = None, missed: bool = False, notify: bool = True) -> dict:
     """Cancels a confirmed booking before boarding and refunds by the fare brand schedule to the buyer's wallet.
 
     Whatever is not refunded stays with the carrier as the cancellation fee. An agency keeps commission only on
     that retained part, in proportion, so the allocation still adds up to what is left in escrow.
+    A booking changed to another trip (connections.py, 1130) is cancelled with the refund its change decided (the fares
+    less the change fee), also after its trip left without the traveller (missed), and the traveller is told of the new
+    booking instead.
     """
-    if b["status"] != "CONFIRMED" or b["trip_status"] not in ("PUBLISHED",):
+    if b["status"] != "CONFIRMED" or b["trip_status"] not in (("PUBLISHED", "BOARDING", "DEPARTED") if missed else ("PUBLISHED",)):
         raise ApiError(409, "CANNOT_CANCEL", "this booking can no longer be cancelled")
     if await conn.fetchval("SELECT charter_request_id FROM sales.booking WHERE id = $1", b["id"]):
         raise ApiError(409, "CHARTER_BOOKING", "the travellers of a charter are taken off its list, and the charter is cancelled as a whole")
@@ -781,12 +790,13 @@ async def cancel_booking(conn: asyncpg.Connection, ctx: db.Context, b: asyncpg.R
         if any(t["status"] != "ISSUED" for t in tickets):
             raise ApiError(409, "CANNOT_CANCEL", "a passenger has already boarded")
         now = datetime.now(timezone.utc)
-        refund = 0
-        fares = 0
+        decided, refund, fares = refund, 0, 0
         for t in tickets:
             hours = (t["sched_dep"] - now).total_seconds() / 3600
             refund += t["total_amount"] * refund_pct(_json(t["rules_snapshot"]), hours) // 100
             fares += t["total_amount"]
+        if decided is not None:
+            refund = max(0, min(decided, fares))
         await repo.mark_cancelled(conn, b["id"], reason)
         commission = await conn.fetchval(
             "SELECT amount FROM fin.price_allocation_line WHERE allocation_id = $1 AND code = 'AGENCY_COMMISSION'",
@@ -796,9 +806,10 @@ async def cancel_booking(conn: asyncpg.Connection, ctx: db.Context, b: asyncpg.R
         if commission:
             await repo.refund_allocation_line(conn, b["price_allocation_id"], "AGENCY_COMMISSION", commission - kept)
         await repo.refund_allocation_line(conn, b["price_allocation_id"], "CARRIER_FARE", refund - (commission - kept))
-        await emit(conn, "booking.cancelled", "booking", b["id"], {
-            "booking_ref": b["booking_ref"], "refund_amount": refund, "booker_user_id": b["booker_user_id"],
-            "agency_id": b["agency_id"], "contact_mobile": b["contact_mobile"]}, company_id=b["company_id"])
+        if notify:
+            await emit(conn, "booking.cancelled", "booking", b["id"], {
+                "booking_ref": b["booking_ref"], "refund_amount": refund, "booker_user_id": b["booker_user_id"],
+                "agency_id": b["agency_id"], "contact_mobile": b["contact_mobile"]}, company_id=b["company_id"])
         if refund > 0:
             # The refund debits the shared escrow wallet, which locks it until commit so that it stays covered; it is
             # posted last, so every other refund waits only for this commit (booking burst test, review stage B)

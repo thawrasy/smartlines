@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { api, type TripResult } from "../../api";
 import { useI18n } from "../../i18n";
@@ -6,16 +7,19 @@ import { CarrierName, Empty, ErrorBox, Icon, Spinner, useLoad } from "../../comp
 import { SearchForm, useSeatLimits } from "./Home";
 import { useChannel } from "../../channel";
 import { useAuth } from "../../auth";
+import { ConnectionOptions } from "./Connections";
 import { legsParam, parseLegs, parsePicked, pickedParam, rememberTrip, rememberedTrip, type JourneyKind } from "./journeyLinks";
 
 type Stops = "all" | "direct" | "stops";
 
 // The trips between two cities on a day, or, for a journey (owner's request, October 2026; 1121), the trips of one of
 // its legs at a time, the trips chosen so far above: a trip that leaves before the chosen one arrives cannot be chosen.
-// Every list shows all trips, direct trips only, or trips with stops only.
+// Every list shows all trips, direct trips only, or trips with stops only. Below them, the connections through a city on
+// the way (1130): at once where no trip runs, on request otherwise.
 export default function Results() {
   const { t, city, money, time, date, station, duration, currency } = useI18n();
   const [params, setParams] = useSearchParams();
+  const [showConn, setShowConn] = useState(false);
   const nav = useNavigate();
   const ch = useChannel();
   const { me } = useAuth();
@@ -153,6 +157,11 @@ export default function Results() {
             </div>
           );
         })}
+        {/* connections through a city on the way (1130): offered at once where no trip runs, on request otherwise;
+            a carrier's counter sells its own trips only */}
+        {!journey && !ch.counter && !res.loading && (trips.length === 0 || showConn
+          ? <ConnectionOptions from={from} to={to} on={on} pax={pax} />
+          : <button className="btn outlined" style={{ alignSelf: "flex-start" }} onClick={() => setShowConn(true)}><Icon name="airline_stops" />{t("conn.show")}</button>)}
       </div>
     </>
   );

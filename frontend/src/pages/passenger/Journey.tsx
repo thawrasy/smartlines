@@ -8,13 +8,17 @@ import { CarrierName, ErrorBox, Field, Icon, Loaded, Spinner, useLoad } from "..
 import { PassengerFields, blankPassenger, documentFor, namesFor, passengerValid, type PassengerDraft, type TravelDocs } from "./PassengerFields";
 import { parseLegs, parsePicked, type JourneyKind } from "./journeyLinks";
 import { SeatMap } from "./Book";
+import { PolicyLine, RiskNotice } from "./Connections";
+import { minutesBetween } from "../../dates";
 
 // A journey booked in one go (owner's request, October 2026; migration 1121): one way, a round trip or several places
 // one after the other, chosen trip by trip on the results page and checked out here: the same travellers on every
 // trip, seats chosen on each trip or given side by side, paid at once from the wallet (or reserved to pay at the counter where the platform
 // opened it). An agency books a group here too, split into bookings of the platform's seat limit (1122). A baby on an
 // adult's lap takes no seat and travels in that adult's booking on every trip. Each trip becomes its own booking, all of
-// the same journey; nothing is booked unless every trip is.
+// the same journey; nothing is booked unless every trip is. A connection through a city on the way (1130) is checked out
+// here too: each trip with its carrier's policy for a missed connection and its own fare (a changeable one for the later
+// trips, where the platform requires it), booked only once the traveller accepted its risks.
 
 interface JourneyOut {
   journey_uid: string; kind: JourneyKind; status: string; replayed?: boolean;
@@ -23,7 +27,7 @@ interface JourneyOut {
 }
 
 export default function Journey() {
-  const { t, time, date, station, money, currency } = useI18n();
+  const { t, has, time, date, station, money, currency } = useI18n();
   const { me } = useAuth();
   const ch = useChannel();
   const [params] = useSearchParams();
@@ -47,6 +51,13 @@ export default function Journey() {
   const [key] = useState(() => crypto.randomUUID().replace(/-/g, ""));
   // the seats chosen on each trip, in the travellers' order; a trip with none chosen gets seats side by side
   const [seatsOf, setSeatsOf] = useState<number[][]>(() => picked.map(() => []));
+  const connection = kind === "CONNECTION";
+  const [accepted, setAccepted] = useState(false);
+  const [brandOf, setBrandOf] = useState<Record<number, string>>({});
+  const brands = useLoad(() => (connection ? api.get<{ fare_brands: { code: string; name: string; rules: { changeable?: boolean } }[] }>("/api/ref")
+    .then((r) => r.fare_brands) : Promise.resolve([])), [connection]);
+  // a later trip of a connection takes a changeable fare unless its carrier changes a missed trip free
+  const brandFor = (i: number, d?: TripDetail) => brandOf[i] ?? (i > 0 && d?.connection_policy?.missed_connection !== "FREE_CHANGE" ? "FLEX" : "STANDARD");
   const [choosing, setChoosing] = useState<number | null>(null);
   const seated = people.filter((p) => !p.lap).length;
   const toggleSeat = (leg: number, n: number) => setSeatsOf((all) => all.map((x, i) => (i !== leg ? x
@@ -69,7 +80,7 @@ export default function Journey() {
   }
   const docsKnown = nationalities.every((n) => docs[n]);
   const seatsReady = seatsOf.every((x) => x.length === 0 || x.length === seated);
-  const valid = docsKnown && seatsReady && people.every((p) => passengerValid(p, docs[p.nationality])) && (!ch.agency || /^\+?[0-9]{8,15}$/.test(contact.trim()));
+  const valid = docsKnown && seatsReady && (!connection || accepted) && people.every((p) => passengerValid(p, docs[p.nationality])) && (!ch.agency || /^\+?[0-9]{8,15}$/.test(contact.trim()));
   const payLater = options.data?.some((o) => o.code === "PAY_LATER");
 
   const book = async () => {
@@ -77,7 +88,9 @@ export default function Journey() {
     try {
       const out = await api.post<JourneyOut>(ch.agency ? "/api/agency/journeys" : "/api/journeys", {
         kind, legs: picked.map((p, i) => ({ trip_uid: p.uid, from_seq: p.from, to_seq: p.to,
-                                            seats: seatsOf[i]?.length === seated ? seatsOf[i] : undefined })),
+                                            seats: seatsOf[i]?.length === seated ? seatsOf[i] : undefined,
+                                            fare_brand: connection ? brandFor(i, trips.data?.[i]) : undefined })),
+        ...(connection ? { accept_risks: accepted } : {}),
         // the k-th baby on a lap is carried by the k-th traveller with a seat
         passengers: people.map((p, i) => ({ ...namesFor(p), ...documentFor(p, docs[p.nationality]), birth_date: p.birth_date || undefined,
                                             with_adult: p.lap ? i - pax + 1 : undefined })),
@@ -125,8 +138,18 @@ export default function Journey() {
               {details.map((d, i) => {
                 const a = d.stops.find((s) => s.seq === d.from_seq)!, b = d.stops.find((s) => s.seq === d.to_seq)!;
                 const stops = d.stops.filter((s) => s.seq > d.from_seq && s.seq < d.to_seq && s.kind === "STATION").length;
+                const prev = i > 0 ? details[i - 1] : null;
+                const prevArr = prev?.stops.find((s) => s.seq === prev.to_seq);
                 return (
-                  <div key={d.trip.uid} className="journey-leg">
+                  <div key={d.trip.uid} className="stack tight">
+                  {connection && prevArr && (
+                    <div className={`alert ${prevArr.station_code === a.station_code ? "info" : "warn"} small`} role="note">
+                      <Icon name="swap_horiz" size={20} />
+                      {t(prevArr.station_code === a.station_code ? "conn.changeSame" : "conn.changeOther",
+                         { city: a.city_code, n: minutesBetween(prevArr.sched_arr, a.sched_dep), from: prevArr.station_name, to: a.station_name })}
+                    </div>
+                  )}
+                  <div className="journey-leg">
                     <span className="chip blue">{t("jrn.legN", { n: i + 1 })}</span>
                     <div className="grow stack tight">
                       <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
@@ -149,6 +172,18 @@ export default function Journey() {
                       {seatsOf[i].length > 0 && seatsOf[i].length < seated && <span className="small" role="status">{t("jrn.seatsMore", { n: seated - seatsOf[i].length })}</span>}
                       {choosing === i && <SeatMap seats={d.seats} map={d.seat_map} selected={seatsOf[i]} toggle={(n) => toggleSeat(i, n)} max={seated} />}
                     </div>
+                    {connection && (
+                      <div className="row" style={{ flexBasis: "100%", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
+                        {d.connection_policy && <PolicyLine p={d.connection_policy} />}
+                        <label className="row small" style={{ gap: 6 }}>{t("conn.fare")}
+                          <select className="input" style={{ height: 36, width: "auto" }} value={brandFor(i, d)}
+                                  onChange={(e) => setBrandOf((all) => ({ ...all, [i]: e.target.value }))}>
+                            {(brands.data ?? []).map((b) => <option key={b.code} value={b.code}>{has(`conn.brand.${b.code}`) ? t(`conn.brand.${b.code}`) : b.name}{b.rules.changeable ? "" : ` · ${t("conn.notChangeable")}`}</option>)}
+                          </select>
+                        </label>
+                      </div>
+                    )}
+                  </div>
                   </div>
                 );
               })}
@@ -173,6 +208,7 @@ export default function Journey() {
                 </button>
               )}
             </div>
+            {connection && <RiskNotice accepted={accepted} onChange={setAccepted} flexible={details.some((d, i) => i > 0 && d.connection_policy?.missed_connection !== "FREE_CHANGE")} />}
             <div className="card stack">
               {ch.agency ? (
                 <Field label={t("jrn.contact")} hint={t("jrn.contactHint")}>
