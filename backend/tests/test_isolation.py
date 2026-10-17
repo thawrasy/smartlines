@@ -45,6 +45,7 @@ ALLOWED = {
     "net.station_operator_grant.carrier_company_id": "a station operating company sees the rights a carrier gave it; only the carrier or the platform writes them (1098)",
     "brd.station_checkin.carrier_company_id": "the operating company sees the check-ins it made on a carrier's trips, the carrier sees them too (1105)",
     "sales.charter_offer.company_id": "published charter offers are a public catalog of what carriers hire out (1123)",
+    "ops.carrier_connection_policy.company_id": "a carrier's policy for missed connections is shown to travellers with its trips (1130)",
     "sales.charter_request.company_id": "a tourism company sees the charter it asked of a carrier (1123)",
     "sales.charter_request.agency_id": "a carrier sees the charter requests tourism companies made of it (1123)",
     "brd.station_sale.carrier_company_id": "the operating company sees the sales it made on a carrier's trips, the carrier sees them too (1110)",

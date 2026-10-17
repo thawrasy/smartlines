@@ -142,14 +142,14 @@ export function ChangeTrip({ bookingRef }: { bookingRef: string }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const [key] = useState(() => newKey());
-  const opts = useLoad(() => (open ? api.get<{ change: ChangeState; trips: ChangeTripRow[] }>(`${ch.api}/bookings/${bookingRef}/change-options`)
+  const opts = useLoad(() => (open ? api.get<{ change: ChangeState; trips: ChangeTripRow[] }>(`/api/bookings/${bookingRef}/change-options`)
     : Promise.resolve(null)), [open, bookingRef]);
   const change = async (x: ChangeTripRow) => {
     if (!confirm(t("conn.change.confirm", { code: x.trip_code ?? x.trip_no, time: time(x.departs_at) }))) return;
     setBusy(true); setError(null);
     try {
       const out = await api.post<{ booking_ref: string; fee: number; refunded: number; paid: number; currency: string }>(
-        `${ch.api}/bookings/${bookingRef}/change`, { trip_uid: x.trip_uid, from_seq: x.from_seq, to_seq: x.to_seq, idempotency_key: key });
+        `/api/bookings/${bookingRef}/change`, { trip_uid: x.trip_uid, from_seq: x.from_seq, to_seq: x.to_seq, idempotency_key: key });
       toast(t("conn.change.done", { ref: out.booking_ref, fee: money(out.fee, false, out.currency) }));
       nav(ch.link(`/booking/${out.booking_ref}`));
     } catch (e) { setError(e); } finally { setBusy(false); }

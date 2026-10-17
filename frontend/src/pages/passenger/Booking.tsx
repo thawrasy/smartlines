@@ -282,7 +282,7 @@ export default function Booking() {
               <div className="row">
                 {(!ch.counter || b.refundable_here) && <button className="btn danger" disabled={busy} onClick={cancel}><Icon name="cancel" />{t("booking.cancel")}</button>}
                 <button className="btn outlined" onClick={() => print()}><Icon name="download" />{t("common.print")}</button>
-                {!ch.staff && <ChangeTrip bookingRef={b.booking_ref} />}</div>
+                {!ch.staff && !ch.agency && !ch.counter && <ChangeTrip bookingRef={b.booking_ref} />}</div>
             )}
             {ch.counter && b.status === "CONFIRMED" && !b.refundable_here && <p className="small muted">{t("errors.CANCEL_ONLINE")}</p>}
           </>
