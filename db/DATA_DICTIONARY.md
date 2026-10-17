@@ -2,7 +2,7 @@
 
 > Generated from the built database (`db/tools/gen_docs.py`); do not edit by hand.
 
-**540 tables, 5678 columns, in 26 schemas.**
+**542 tables, 5700 columns, in 26 schemas.**
 
 Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant isolation (RLS) · 🧩 partitioned monthly · 🔒 append-only / change-protected
 
@@ -14,8 +14,8 @@ Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant i
 - [`net` — Network: stations, routes, lines, corridors and geofences](#net) (28 tables)
 - [`fleet` — Fleet: vehicles, trucks, trailers, seats, crew, licenses and insurance](#fleet) (22 tables)
 - [`pricing` — Pricing, taxes, commissions, campaigns and loyalty](#pricing) (38 tables)
-- [`ops` — Trips, inventory, operations, shuttle rides, tracking and incidents](#ops) (38 tables)
-- [`sales` — Channels, bookings, passengers, tickets, subscriptions and travel documents](#sales) (32 tables)
+- [`ops` — Trips, inventory, operations, shuttle rides, tracking and incidents](#ops) (39 tables)
+- [`sales` — Channels, bookings, passengers, tickets, subscriptions and travel documents](#sales) (33 tables)
 - [`fin` — Wallets, ledger, payments, allocation, settlement and float](#fin) (35 tables)
 - [`acct` — Simplified accounting, e-invoicing and tax profiles](#acct) (37 tables)
 - [`bill` — Carrier subscriptions, metering and platform invoices](#bill) (7 tables)
@@ -3094,6 +3094,20 @@ Tax or fee scheme with its treatment, jurisdiction and collecting party, version
 <a id="ops"></a>
 ## `ops` — Trips, inventory, operations, shuttle rides, tracking and incidents
 
+### `ops.carrier_connection_policy` 🛡️
+
+A carrier's policy for connections: whether its trips are offered in them, and what it does when a traveller misses its trip (1130)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `company_id` | `bigint` | 🔑 🔗 `iam.company` ✱ |  |
+| `offer_in_connections` | `boolean` | ✱ | `true` |
+| `missed_connection` | `text` | ✱ | `'FARE_RULES'::text` |
+| `change_window_hours` | `smallint` | ✱ | `24` |
+| `note` | `text` |  |  |
+| `updated_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `updated_at` | `timestamp with time zone` | ✱ | `now()` |
+
 ### `ops.crew_assignment` 🛡️
 
 Crew assignment to the trip; an exclusion constraint prevents assigning a person to two overlapping trips
@@ -3871,6 +3885,28 @@ Booking: price snapshot, channel, allocation tree and idempotency key; statuses 
 | `journey_kind` | `text` |  |  |
 | `journey_leg` | `smallint` |  |  |
 | `charter_request_id` | `bigint` | 🔗 `sales.charter_request`  |  |
+| `risk_ack_at` | `timestamp with time zone` |  |  |
+| `changed_from_id` | `bigint` | 🔗 `sales.booking`  |  |
+
+### `sales.booking_change` 🛡️
+
+A booking changed to another trip of the same carrier: the old and the new booking, why, on what basis and for what fee (1130)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `from_booking_id` | `bigint` | 🔗 `sales.booking` ✱ |  |
+| `to_booking_id` | `bigint` | 🔗 `sales.booking` ✱ |  |
+| `reason` | `text` | ✱ |  |
+| `missed` | `boolean` | ✱ |  |
+| `inbound_late` | `boolean` | ✱ | `false` |
+| `basis` | `text` | ✱ |  |
+| `fee` | `bigint` | ✱ |  |
+| `refunded` | `bigint` | ✱ |  |
+| `paid` | `bigint` | ✱ |  |
+| `currency` | `character(3)` | 🔗 `ref.currency` ✱ |  |
+| `created_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
 ### `sales.booking_key` 🛡️
 

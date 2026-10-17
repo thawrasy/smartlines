@@ -575,6 +575,13 @@
     "200": {}
    }
   },
+  "GET /api/admin/connections/settings": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
   "GET /api/admin/delivery-retries": {
    "body": null,
    "parameters": {},
@@ -1229,6 +1236,20 @@
     "200": {}
    }
   },
+  "GET /api/bookings/{ref}/change-options": {
+   "body": null,
+   "parameters": {
+    "path:ref": {
+     "required": true,
+     "schema": {
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
   "GET /api/carrier/charter/offers": {
    "body": null,
    "parameters": {},
@@ -1272,6 +1293,13 @@
      }
     }
    },
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/carrier/connection-policy": {
+   "body": null,
+   "parameters": {},
    "responses": {
     "200": {}
    }
@@ -2808,6 +2836,46 @@
      "required": true,
      "schema": {
       "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/trips/connections": {
+   "body": null,
+   "parameters": {
+    "query:destination": {
+     "required": true,
+     "schema": {
+      "maxLength": 3,
+      "minLength": 3,
+      "type": "string"
+     }
+    },
+    "query:on": {
+     "required": true,
+     "schema": {
+      "format": "date",
+      "type": "string"
+     }
+    },
+    "query:origin": {
+     "required": true,
+     "schema": {
+      "maxLength": 3,
+      "minLength": 3,
+      "type": "string"
+     }
+    },
+    "query:passengers": {
+     "required": false,
+     "schema": {
+      "default": 1,
+      "maximum": 60,
+      "minimum": 1,
+      "type": "integer"
      }
     }
    },
@@ -7108,6 +7176,10 @@
     "content": {
      "application/json": {
       "properties": {
+       "accept_risks": {
+        "default": false,
+        "type": "boolean"
+       },
        "contact_mobile": {
         "pattern": "^\\+?[0-9]{8,15}$",
         "type": "string"
@@ -7125,13 +7197,20 @@
         "enum": [
          "ONE_WAY",
          "ROUND_TRIP",
-         "MULTI_CITY"
+         "MULTI_CITY",
+         "CONNECTION"
         ],
         "type": "string"
        },
        "legs": {
         "items": {
          "properties": {
+          "fare_brand": {
+           "maxLength": 20,
+           "minLength": 2,
+           "nullable": true,
+           "type": "string"
+          },
           "from_seq": {
            "maximum": 500.0,
            "minimum": 0.0,
@@ -8110,6 +8189,54 @@
   },
   "POST /api/bookings/{ref}/cancel": {
    "body": null,
+   "parameters": {
+    "path:ref": {
+     "required": true,
+     "schema": {
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/bookings/{ref}/change": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "from_seq": {
+        "maximum": 500.0,
+        "minimum": 0.0,
+        "type": "integer"
+       },
+       "idempotency_key": {
+        "maxLength": 60,
+        "minLength": 8,
+        "type": "string"
+       },
+       "to_seq": {
+        "maximum": 500.0,
+        "minimum": 1.0,
+        "type": "integer"
+       },
+       "trip_uid": {
+        "format": "uuid",
+        "type": "string"
+       }
+      },
+      "required": [
+       "trip_uid",
+       "from_seq",
+       "to_seq",
+       "idempotency_key"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
    "parameters": {
     "path:ref": {
      "required": true,
@@ -11842,6 +11969,10 @@
     "content": {
      "application/json": {
       "properties": {
+       "accept_risks": {
+        "default": false,
+        "type": "boolean"
+       },
        "fare_brand": {
         "default": "STANDARD",
         "type": "string"
@@ -11855,13 +11986,20 @@
         "enum": [
          "ONE_WAY",
          "ROUND_TRIP",
-         "MULTI_CITY"
+         "MULTI_CITY",
+         "CONNECTION"
         ],
         "type": "string"
        },
        "legs": {
         "items": {
          "properties": {
+          "fare_brand": {
+           "maxLength": 20,
+           "minLength": 2,
+           "nullable": true,
+           "type": "string"
+          },
           "from_seq": {
            "maximum": 500.0,
            "minimum": 0.0,
@@ -15652,6 +15790,50 @@
     "200": {}
    }
   },
+  "PUT /api/admin/connections/settings": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "enabled": {
+        "type": "boolean"
+       },
+       "max_minutes": {
+        "maximum": 720.0,
+        "minimum": 10.0,
+        "type": "integer"
+       },
+       "min_minutes": {
+        "maximum": 240.0,
+        "minimum": 10.0,
+        "type": "integer"
+       },
+       "min_minutes_station_change": {
+        "maximum": 360.0,
+        "minimum": 10.0,
+        "type": "integer"
+       },
+       "require_flexible": {
+        "type": "boolean"
+       }
+      },
+      "required": [
+       "enabled",
+       "min_minutes",
+       "min_minutes_station_change",
+       "max_minutes",
+       "require_flexible"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
   "PUT /api/admin/kyc/form": {
    "body": {
     "content": {
@@ -16166,6 +16348,46 @@
       "required": [
        "enabled"
       ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "PUT /api/carrier/connection-policy": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "change_window_hours": {
+        "default": 24,
+        "maximum": 168.0,
+        "minimum": 1.0,
+        "type": "integer"
+       },
+       "missed_connection": {
+        "default": "FARE_RULES",
+        "enum": [
+         "FREE_CHANGE",
+         "FARE_RULES",
+         "NONE"
+        ],
+        "type": "string"
+       },
+       "note": {
+        "maxLength": 500,
+        "nullable": true,
+        "type": "string"
+       },
+       "offer_in_connections": {
+        "default": true,
+        "type": "boolean"
+       }
+      },
       "type": "object"
      }
     },

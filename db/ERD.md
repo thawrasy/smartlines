@@ -91,7 +91,7 @@ flowchart LR
   net -->|4| ref
   ops -->|2| fin
   ops -->|10| fleet
-  ops -->|24| iam
+  ops -->|25| iam
   ops -->|17| net
   ops -->|1| ref
   ops -->|3| sales
@@ -1738,6 +1738,10 @@ erDiagram
 
 ```mermaid
 erDiagram
+  ops_carrier_connection_policy {
+    bigint company_id PK
+    bigint updated_by FK
+  }
   ops_crew_assignment {
     bigint id PK
     bigint trip_id FK
@@ -2069,6 +2073,7 @@ erDiagram
   ops_transit_reconciliation }o..o| iam_app_user : "resolved_by_user_id"
   ops_seat_lock }o..o| iam_app_user : "user_id"
   ops_crossing_event }o..o| iam_app_user : "recorded_by_user_id"
+  ops_carrier_connection_policy }o--|| iam_company : "company_id"
   ops_trip_template }o--|| iam_company : "company_id"
   ops_incident }o--|| iam_company : "company_id"
   ops_route_violation }o--|| iam_company : "company_id"
@@ -2186,6 +2191,14 @@ erDiagram
     bigint funded_by_party_id FK
     text pay_option FK
     bigint charter_request_id FK
+    bigint changed_from_id FK
+  }
+  sales_booking_change {
+    bigint id PK
+    bigint from_booking_id FK
+    bigint to_booking_id FK
+    character currency FK
+    bigint created_by FK
   }
   sales_booking_key {
     bigint booking_id PK
@@ -2584,11 +2597,14 @@ erDiagram
   sales_passenger }o--|| sales_booking : "booking_id"
   sales_refund_request }o--|| sales_booking : "booking_id"
   sales_passenger_compensation }o--|| sales_booking : "booking_id"
+  sales_booking_change }o--|| sales_booking : "from_booking_id"
   sales_channel_statement_line }o..o| sales_booking : "booking_id"
+  sales_booking_change }o--|| sales_booking : "to_booking_id"
   sales_ticket }o--|| sales_booking : "booking_id"
   sales_campaign_redemption }o--|| sales_booking : "booking_id"
   sales_ticket }o--|| sales_booking : "booking_id,trip_id"
   sales_waitlist_entry }o..o| sales_booking : "booking_id"
+  sales_booking }o..o| sales_booking : "changed_from_id"
   sales_channel_api_profile }o--|| sales_channel : "channel_id"
   sales_channel_agreement }o--|| sales_channel : "channel_id"
   sales_channel_inventory_rule }o--|| sales_channel : "channel_id"
