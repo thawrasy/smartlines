@@ -14,6 +14,7 @@
 - `ADMIN_GEOGRAPHY.md`: the country's administrative geography from the United Nations' P-code file (governorates, districts, sub-districts, communities, neighbourhoods), how it is loaded and how a place is opened for routes (owner's request, 1124).
 - `CHARTER.md`: carriers hire out a vehicle apart from their trips or a scheduled trip whole or in blocks of seats, to tourism companies and, by special request, to travellers, on their own terms; requests are priced, paid into escrow, the seats held, and the carrier paid when done (owner's request, 1123).
 - `CONNECTIONS.md`: connections across carriers where no trip runs direct (Daraa to Aleppo through Damascus), the risks the traveller accepts, each carrier's policy for a missed trip, and a booking changed to another trip under that policy or the fare's rules (owner's request, 1130).
+- `FREIGHT_TRANSPORT.md`: trucks carrying goods and containers inside Syria, to and from the port, in transit and across borders: bills of lading, house bills and containers, consignments, the truck owner's prices, trucks and trailers, transport invoices per bill or container, and consignment notes and TCNs issued by the platform (owner's request, 1131).
 - `COMPANY_KYC.md`: the know-your-customer file of each company on the platform: the form and the standards it follows, its review stages, risk rules, encrypted values, settings and screens (owner's request, 1118).
 
 The web frontend (`frontend/src/theme.css`) uses the same colour roles and radii as `system/tokens.json`.

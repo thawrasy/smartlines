@@ -17,6 +17,7 @@ from .middleware import HeadAsGet, RequestContextMiddleware
 from .modules.agency import api as agency_api
 from .modules.cash import api as cash_api
 from .modules.fleet import api as fleet_api
+from .modules.freight import api as freight_api
 from .modules.payouts import api as payouts_api
 from .modules.documents import api as documents_api
 from .modules.documents import storage
@@ -141,7 +142,8 @@ for r in (metrics.router, auth.router, public.router, bookings.router, wallet.ro
           boarding_displays.station, boarding_displays.platform, boarding_displays.public, schedules_api.carrier, schedules_api.platform,
           kyc_api.carrier, kyc_api.platform, journeys_api.passenger, journeys_api.agency,
           charter_api.carrier, charter_api.agency, charter_api.passenger, charter_api.platform,
-          geo_api.public, geo_api.platform, connections_api.carrier, connections_api.platform):
+          geo_api.public, geo_api.platform, connections_api.carrier, connections_api.platform,
+          freight_api.carrier, freight_api.public):
     app.include_router(r)
 
 app.add_middleware(metrics.MetricsMiddleware)   # request counts and latency per route (T3-16)

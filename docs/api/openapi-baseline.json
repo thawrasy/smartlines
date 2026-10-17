@@ -1416,6 +1416,94 @@
     "200": {}
    }
   },
+  "GET /api/carrier/freight/bills": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/carrier/freight/bills/{uid}": {
+   "body": null,
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/carrier/freight/consignments": {
+   "body": null,
+   "parameters": {
+    "query:status": {
+     "required": false,
+     "schema": {
+      "maxLength": 20,
+      "nullable": true,
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/carrier/freight/consignments/{uid}": {
+   "body": null,
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/carrier/freight/documents": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/carrier/freight/documents/{doc_no}": {
+   "body": null,
+   "parameters": {
+    "path:doc_no": {
+     "required": true,
+     "schema": {
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/carrier/freight/invoices": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/carrier/freight/rates": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
   "GET /api/carrier/kyc": {
    "body": null,
    "parameters": {},
@@ -2249,6 +2337,75 @@
      }
     }
    },
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/public/freight/documents/{doc_no}": {
+   "body": null,
+   "parameters": {
+    "path:doc_no": {
+     "required": true,
+     "schema": {
+      "type": "string"
+     }
+    },
+    "query:code": {
+     "required": true,
+     "schema": {
+      "maxLength": 10,
+      "minLength": 10,
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/public/freight/rates": {
+   "body": null,
+   "parameters": {
+    "query:from_city": {
+     "required": false,
+     "schema": {
+      "nullable": true,
+      "pattern": "^[A-Z]{3}$",
+      "type": "string"
+     }
+    },
+    "query:to_city": {
+     "required": false,
+     "schema": {
+      "nullable": true,
+      "pattern": "^[A-Z]{3}$",
+      "type": "string"
+     }
+    },
+    "query:to_country": {
+     "required": false,
+     "schema": {
+      "nullable": true,
+      "pattern": "^[A-Z]{2}$",
+      "type": "string"
+     }
+    },
+    "query:unit": {
+     "required": false,
+     "schema": {
+      "nullable": true,
+      "pattern": "^[A-Z_0-9]{2,12}$",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/public/freight/shipping-lines": {
+   "body": null,
+   "parameters": {},
    "responses": {
     "200": {}
    }
@@ -9064,6 +9221,1114 @@
    "parameters": {},
    "responses": {
     "201": {}
+   }
+  },
+  "POST /api/carrier/freight/bills": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "bl_no": {
+        "maxLength": 35,
+        "minLength": 4,
+        "type": "string"
+       },
+       "cargo_description": {
+        "maxLength": 500,
+        "nullable": true,
+        "type": "string"
+       },
+       "consignee_name": {
+        "maxLength": 200,
+        "nullable": true,
+        "type": "string"
+       },
+       "container_count": {
+        "maximum": 999.0,
+        "minimum": 0.0,
+        "type": "integer"
+       },
+       "direction": {
+        "default": "IMPORT",
+        "enum": [
+         "IMPORT",
+         "EXPORT",
+         "TRANSIT"
+        ],
+        "type": "string"
+       },
+       "notify_name": {
+        "maxLength": 200,
+        "nullable": true,
+        "type": "string"
+       },
+       "port_of_discharge": {
+        "nullable": true,
+        "pattern": "^[A-Z]{2}[A-Z0-9]{3}$",
+        "type": "string"
+       },
+       "port_of_loading": {
+        "nullable": true,
+        "pattern": "^[A-Z]{2}[A-Z0-9]{3}$",
+        "type": "string"
+       },
+       "port_station_uid": {
+        "format": "uuid",
+        "nullable": true,
+        "type": "string"
+       },
+       "release_date": {
+        "format": "date",
+        "nullable": true,
+        "type": "string"
+       },
+       "release_no": {
+        "nullable": true,
+        "pattern": "^[A-Za-z0-9/ -]{2,40}$",
+        "type": "string"
+       },
+       "shipping_line": {
+        "pattern": "^[A-Z0-9]{2,6}$",
+        "type": "string"
+       },
+       "vessel": {
+        "maxLength": 80,
+        "nullable": true,
+        "type": "string"
+       },
+       "voyage": {
+        "maxLength": 30,
+        "nullable": true,
+        "type": "string"
+       }
+      },
+      "required": [
+       "shipping_line",
+       "bl_no",
+       "container_count"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "201": {}
+   }
+  },
+  "POST /api/carrier/freight/bills/{uid}/containers": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "containers": {
+        "items": {
+         "properties": {
+          "container_no": {
+           "pattern": "^[A-Z]{3}[UJZ][0-9]{7}$",
+           "type": "string"
+          },
+          "empty_return_depot": {
+           "maxLength": 120,
+           "nullable": true,
+           "type": "string"
+          },
+          "free_time_until": {
+           "format": "date",
+           "nullable": true,
+           "type": "string"
+          },
+          "gross_weight_kg": {
+           "maximum": 40000.0,
+           "minimum": 1.0,
+           "nullable": true,
+           "type": "integer"
+          },
+          "hbl_no": {
+           "maxLength": 35,
+           "nullable": true,
+           "type": "string"
+          },
+          "seal_no": {
+           "nullable": true,
+           "pattern": "^[A-Za-z0-9-]{3,20}$",
+           "type": "string"
+          },
+          "size_type": {
+           "pattern": "^[24L][0-9A-Z][0-9A-Z]{2}$",
+           "type": "string"
+          }
+         },
+         "required": [
+          "container_no",
+          "size_type"
+         ],
+         "type": "object"
+        },
+        "maxItems": 200,
+        "minItems": 1,
+        "type": "array"
+       }
+      },
+      "required": [
+       "containers"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "201": {}
+   }
+  },
+  "POST /api/carrier/freight/bills/{uid}/house-bills": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "consignee_name": {
+        "maxLength": 200,
+        "nullable": true,
+        "type": "string"
+       },
+       "forwarder_name": {
+        "maxLength": 200,
+        "minLength": 2,
+        "type": "string"
+       },
+       "hbl_no": {
+        "maxLength": 35,
+        "minLength": 3,
+        "type": "string"
+       }
+      },
+      "required": [
+       "hbl_no",
+       "forwarder_name"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "201": {}
+   }
+  },
+  "POST /api/carrier/freight/bills/{uid}/release": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "release_date": {
+        "format": "date",
+        "nullable": true,
+        "type": "string"
+       },
+       "release_no": {
+        "pattern": "^[A-Za-z0-9/ -]{2,40}$",
+        "type": "string"
+       }
+      },
+      "required": [
+       "release_no"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/carrier/freight/consignments": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "arrival_port": {
+        "nullable": true,
+        "pattern": "^[A-Z]{2}[A-Z0-9]{3}$",
+        "type": "string"
+       },
+       "bill_uid": {
+        "format": "uuid",
+        "nullable": true,
+        "type": "string"
+       },
+       "cargo": {
+        "properties": {
+         "adr_class": {
+          "nullable": true,
+          "pattern": "^[1-9](\\.[1-6])?$",
+          "type": "string"
+         },
+         "category": {
+          "pattern": "^[A-Z_]{2,20}$",
+          "type": "string"
+         },
+         "declared_value": {
+          "minimum": 0.0,
+          "nullable": true,
+          "type": "integer"
+         },
+         "gross_weight_kg": {
+          "exclusiveMinimum": 0.0,
+          "maximum": 1000000.0,
+          "type": "number"
+         },
+         "hs_code": {
+          "nullable": true,
+          "pattern": "^[0-9]{4,10}$",
+          "type": "string"
+         },
+         "net_weight_kg": {
+          "exclusiveMinimum": 0.0,
+          "nullable": true,
+          "type": "number"
+         },
+         "package_type": {
+          "maxLength": 40,
+          "nullable": true,
+          "type": "string"
+         },
+         "packages": {
+          "minimum": 1.0,
+          "nullable": true,
+          "type": "integer"
+         },
+         "temp_max_c": {
+          "nullable": true,
+          "type": "number"
+         },
+         "temp_min_c": {
+          "nullable": true,
+          "type": "number"
+         },
+         "un_number": {
+          "nullable": true,
+          "pattern": "^UN[0-9]{4}$",
+          "type": "string"
+         },
+         "value_currency": {
+          "nullable": true,
+          "pattern": "^[A-Z]{3}$",
+          "type": "string"
+         },
+         "volume_m3": {
+          "exclusiveMinimum": 0.0,
+          "nullable": true,
+          "type": "number"
+         }
+        },
+        "required": [
+         "category",
+         "description",
+         "gross_weight_kg"
+        ],
+        "type": "object"
+       },
+       "consignee": {
+        "properties": {
+         "address": {
+          "maxLength": 300,
+          "nullable": true,
+          "type": "string"
+         },
+         "country": {
+          "pattern": "^[A-Z]{2}$",
+          "type": "string"
+         },
+         "name": {
+          "maxLength": 200,
+          "minLength": 2,
+          "type": "string"
+         },
+         "tax_no": {
+          "maxLength": 40,
+          "nullable": true,
+          "type": "string"
+         }
+        },
+        "required": [
+         "name",
+         "country"
+        ],
+        "type": "object"
+       },
+       "customs_declaration_no": {
+        "nullable": true,
+        "pattern": "^[A-Za-z0-9/ -]{2,40}$",
+        "type": "string"
+       },
+       "destination": {
+        "properties": {
+         "address": {
+          "maxLength": 300,
+          "nullable": true,
+          "type": "string"
+         },
+         "city": {
+          "nullable": true,
+          "pattern": "^[A-Z]{3}$",
+          "type": "string"
+         },
+         "country": {
+          "default": "SY",
+          "pattern": "^[A-Z]{2}$",
+          "type": "string"
+         },
+         "station_uid": {
+          "format": "uuid",
+          "nullable": true,
+          "type": "string"
+         }
+        },
+        "type": "object"
+       },
+       "entry_border_uid": {
+        "format": "uuid",
+        "nullable": true,
+        "type": "string"
+       },
+       "exit_border_uid": {
+        "format": "uuid",
+        "nullable": true,
+        "type": "string"
+       },
+       "export_permit_date": {
+        "format": "date",
+        "nullable": true,
+        "type": "string"
+       },
+       "export_permit_no": {
+        "nullable": true,
+        "pattern": "^[A-Za-z0-9/ -]{2,40}$",
+        "type": "string"
+       },
+       "freight_payer": {
+        "default": "SHIPPER",
+        "enum": [
+         "SHIPPER",
+         "CONSIGNEE",
+         "THIRD_PARTY"
+        ],
+        "type": "string"
+       },
+       "hbl_no": {
+        "maxLength": 35,
+        "nullable": true,
+        "type": "string"
+       },
+       "incoterm": {
+        "enum": [
+         "EXW",
+         "FCA",
+         "CPT",
+         "CIP",
+         "DAP",
+         "DPU",
+         "DDP",
+         "FAS",
+         "FOB",
+         "CFR",
+         "CIF"
+        ],
+        "nullable": true,
+        "type": "string"
+       },
+       "load_type": {
+        "enum": [
+         "FCL",
+         "LCL",
+         "BREAK_BULK",
+         "BULK",
+         "LIQUID",
+         "VEHICLES"
+        ],
+        "type": "string"
+       },
+       "notify_name": {
+        "maxLength": 200,
+        "nullable": true,
+        "type": "string"
+       },
+       "origin": {
+        "properties": {
+         "address": {
+          "maxLength": 300,
+          "nullable": true,
+          "type": "string"
+         },
+         "city": {
+          "nullable": true,
+          "pattern": "^[A-Z]{3}$",
+          "type": "string"
+         },
+         "country": {
+          "default": "SY",
+          "pattern": "^[A-Z]{2}$",
+          "type": "string"
+         },
+         "station_uid": {
+          "format": "uuid",
+          "nullable": true,
+          "type": "string"
+         }
+        },
+        "type": "object"
+       },
+       "port_station_uid": {
+        "format": "uuid",
+        "nullable": true,
+        "type": "string"
+       },
+       "release_no": {
+        "nullable": true,
+        "pattern": "^[A-Za-z0-9/ -]{2,40}$",
+        "type": "string"
+       },
+       "route_kind": {
+        "enum": [
+         "DOMESTIC",
+         "PORT_IMPORT",
+         "PORT_EXPORT",
+         "EXPORT",
+         "IMPORT",
+         "TRANSIT_PORT_OUT",
+         "TRANSIT_IN_PORT",
+         "TRANSIT_LAND"
+        ],
+        "type": "string"
+       },
+       "shipper": {
+        "properties": {
+         "address": {
+          "maxLength": 300,
+          "nullable": true,
+          "type": "string"
+         },
+         "country": {
+          "pattern": "^[A-Z]{2}$",
+          "type": "string"
+         },
+         "name": {
+          "maxLength": 200,
+          "minLength": 2,
+          "type": "string"
+         },
+         "tax_no": {
+          "maxLength": 40,
+          "nullable": true,
+          "type": "string"
+         }
+        },
+        "required": [
+         "name",
+         "country"
+        ],
+        "type": "object"
+       },
+       "tir_carnet_no": {
+        "nullable": true,
+        "pattern": "^[A-Z]{0,3}[0-9]{6,10}$",
+        "type": "string"
+       }
+      },
+      "required": [
+       "route_kind",
+       "load_type",
+       "shipper",
+       "consignee",
+       "origin",
+       "destination",
+       "cargo"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "201": {}
+   }
+  },
+  "POST /api/carrier/freight/consignments/{uid}/containers": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "containers": {
+        "items": {
+         "properties": {
+          "container_no": {
+           "pattern": "^[A-Z]{3}[UJZ][0-9]{7}$",
+           "type": "string"
+          },
+          "empty_return_depot": {
+           "maxLength": 120,
+           "nullable": true,
+           "type": "string"
+          },
+          "free_time_until": {
+           "format": "date",
+           "nullable": true,
+           "type": "string"
+          },
+          "gross_weight_kg": {
+           "maximum": 40000.0,
+           "minimum": 1.0,
+           "nullable": true,
+           "type": "integer"
+          },
+          "hbl_no": {
+           "maxLength": 35,
+           "nullable": true,
+           "type": "string"
+          },
+          "seal_no": {
+           "nullable": true,
+           "pattern": "^[A-Za-z0-9-]{3,20}$",
+           "type": "string"
+          },
+          "size_type": {
+           "pattern": "^[24L][0-9A-Z][0-9A-Z]{2}$",
+           "type": "string"
+          }
+         },
+         "required": [
+          "container_no",
+          "size_type"
+         ],
+         "type": "object"
+        },
+        "maxItems": 200,
+        "type": "array"
+       },
+       "from_bill": {
+        "default": false,
+        "type": "boolean"
+       }
+      },
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "201": {}
+   }
+  },
+  "POST /api/carrier/freight/consignments/{uid}/invoices": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "amount": {
+        "minimum": 0.0,
+        "nullable": true,
+        "type": "integer"
+       },
+       "currency": {
+        "nullable": true,
+        "pattern": "^[A-Z]{3}$",
+        "type": "string"
+       },
+       "invoice_date": {
+        "format": "date",
+        "nullable": true,
+        "type": "string"
+       },
+       "invoice_no": {
+        "pattern": "^[A-Za-z0-9/ -]{1,40}$",
+        "type": "string"
+       }
+      },
+      "required": [
+       "invoice_no"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "201": {}
+   }
+  },
+  "POST /api/carrier/freight/consignments/{uid}/movements": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "container_nos": {
+        "items": {
+         "type": "string"
+        },
+        "maxItems": 3,
+        "type": "array"
+       },
+       "currency": {
+        "default": "SYP",
+        "pattern": "^[A-Z]{3}$",
+        "type": "string"
+       },
+       "driver_licence_no": {
+        "maxLength": 40,
+        "nullable": true,
+        "type": "string"
+       },
+       "driver_mobile": {
+        "nullable": true,
+        "pattern": "^\\+?[0-9]{8,15}$",
+        "type": "string"
+       },
+       "driver_name": {
+        "maxLength": 120,
+        "minLength": 2,
+        "nullable": true,
+        "type": "string"
+       },
+       "driver_uid": {
+        "format": "uuid",
+        "nullable": true,
+        "type": "string"
+       },
+       "price": {
+        "minimum": 0.0,
+        "nullable": true,
+        "type": "integer"
+       },
+       "rate_uid": {
+        "format": "uuid",
+        "nullable": true,
+        "type": "string"
+       },
+       "trailer_capacity_ft": {
+        "enum": [
+         20,
+         40,
+         45
+        ],
+        "nullable": true,
+        "type": "integer"
+       },
+       "trailer_plate": {
+        "maxLength": 20,
+        "minLength": 2,
+        "nullable": true,
+        "type": "string"
+       },
+       "trailer_uid": {
+        "format": "uuid",
+        "nullable": true,
+        "type": "string"
+       },
+       "vehicle_uid": {
+        "format": "uuid",
+        "type": "string"
+       }
+      },
+      "required": [
+       "vehicle_uid"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "201": {}
+   }
+  },
+  "POST /api/carrier/freight/documents": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "consignment_uids": {
+        "items": {
+         "format": "uuid",
+         "type": "string"
+        },
+        "maxItems": 50,
+        "minItems": 1,
+        "type": "array"
+       },
+       "doc_type": {
+        "enum": [
+         "CONSIGNMENT_NOTE",
+         "TCN"
+        ],
+        "type": "string"
+       },
+       "replaces": {
+        "maxLength": 40,
+        "nullable": true,
+        "type": "string"
+       }
+      },
+      "required": [
+       "doc_type",
+       "consignment_uids"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "201": {}
+   }
+  },
+  "POST /api/carrier/freight/documents/{doc_no}/void": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "reason": {
+        "maxLength": 300,
+        "minLength": 3,
+        "type": "string"
+       }
+      },
+      "required": [
+       "reason"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:doc_no": {
+     "required": true,
+     "schema": {
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/carrier/freight/invoices": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "basis": {
+        "enum": [
+         "BL",
+         "CONTAINER",
+         "CONSIGNMENT"
+        ],
+        "type": "string"
+       },
+       "consignment_uid": {
+        "format": "uuid",
+        "type": "string"
+       },
+       "container_no": {
+        "nullable": true,
+        "pattern": "^[A-Z]{3}[UJZ][0-9]{7}$",
+        "type": "string"
+       }
+      },
+      "required": [
+       "consignment_uid",
+       "basis"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "201": {}
+   }
+  },
+  "POST /api/carrier/freight/invoices/{uid}/paid": {
+   "body": null,
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/carrier/freight/invoices/{uid}/void": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "reason": {
+        "maxLength": 300,
+        "minLength": 3,
+        "type": "string"
+       }
+      },
+      "required": [
+       "reason"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/carrier/freight/movements/{uid}/status": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "note": {
+        "maxLength": 300,
+        "nullable": true,
+        "type": "string"
+       },
+       "received_by": {
+        "maxLength": 120,
+        "nullable": true,
+        "type": "string"
+       },
+       "station_uid": {
+        "format": "uuid",
+        "nullable": true,
+        "type": "string"
+       },
+       "status": {
+        "enum": [
+         "LOADING",
+         "IN_TRANSIT",
+         "AT_BORDER",
+         "DELIVERED",
+         "CANCELLED"
+        ],
+        "type": "string"
+       }
+      },
+      "required": [
+       "status"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/carrier/freight/rates": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "currency": {
+        "default": "SYP",
+        "pattern": "^[A-Z]{3}$",
+        "type": "string"
+       },
+       "free_waiting_hours": {
+        "default": 24,
+        "maximum": 240.0,
+        "minimum": 0.0,
+        "type": "integer"
+       },
+       "from_city": {
+        "nullable": true,
+        "pattern": "^[A-Z]{3}$",
+        "type": "string"
+       },
+       "from_station_uid": {
+        "format": "uuid",
+        "nullable": true,
+        "type": "string"
+       },
+       "includes_empty_return": {
+        "default": false,
+        "type": "boolean"
+       },
+       "note": {
+        "maxLength": 300,
+        "nullable": true,
+        "type": "string"
+       },
+       "price": {
+        "exclusiveMinimum": 0.0,
+        "type": "integer"
+       },
+       "route_kind": {
+        "enum": [
+         "DOMESTIC",
+         "PORT_IMPORT",
+         "PORT_EXPORT",
+         "EXPORT",
+         "IMPORT",
+         "TRANSIT_PORT_OUT",
+         "TRANSIT_IN_PORT",
+         "TRANSIT_LAND"
+        ],
+        "nullable": true,
+        "type": "string"
+       },
+       "to_city": {
+        "nullable": true,
+        "pattern": "^[A-Z]{3}$",
+        "type": "string"
+       },
+       "to_country": {
+        "nullable": true,
+        "pattern": "^[A-Z]{2}$",
+        "type": "string"
+       },
+       "to_station_uid": {
+        "format": "uuid",
+        "nullable": true,
+        "type": "string"
+       },
+       "unit": {
+        "enum": [
+         "CONTAINER_20",
+         "CONTAINER_40",
+         "CONTAINER_45",
+         "TRUCK",
+         "TON",
+         "BL"
+        ],
+        "type": "string"
+       },
+       "valid_from": {
+        "format": "date",
+        "nullable": true,
+        "type": "string"
+       },
+       "valid_to": {
+        "format": "date",
+        "nullable": true,
+        "type": "string"
+       },
+       "waiting_per_day": {
+        "minimum": 0.0,
+        "nullable": true,
+        "type": "integer"
+       }
+      },
+      "required": [
+       "unit",
+       "price"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "201": {}
+   }
+  },
+  "POST /api/carrier/freight/rates/{uid}/archive": {
+   "body": null,
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
    }
   },
   "POST /api/carrier/kyc/open": {

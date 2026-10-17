@@ -3970,4 +3970,135 @@ SELECT pg_temp.ok(has_table_privilege('masslak_app', 'sales.booking_change', 'IN
 ROLLBACK;
 SET ROLE masslak_app;
 
+-- Truck transport of goods and containers: bills of lading, consignments, trucks, invoices and documents (1131)
+BEGIN;
+RESET ROLE;
+UPDATE sys.setting SET value = value || '{"freight": true}'::jsonb WHERE key = 'features';
+INSERT INTO net.station (code, city_id, country_code, station_class, name, lat, lng, status)
+SELECT 'SY-LTK-P001', id, 'SY', 'CENTRAL', 'Latakia Port', lat, lng, 'ACTIVE' FROM ref.city WHERE code = 'LTK' RETURNING id AS port \gset
+INSERT INTO brd.border_point (station_id, point_type, country_code) VALUES (:b_in, 'LAND', 'SY') ON CONFLICT DO NOTHING;
+INSERT INTO fleet.truck_unit (vehicle_id, axle_config, gvw_kg, tare_kg) VALUES (:va, '6x4', 40000, 9000) ON CONFLICT DO NOTHING;
+INSERT INTO fleet.trailer (company_id, plate_no, trailer_type, payload_kg, container_capacity)
+VALUES (:ca, 'TR-1131', 'CONTAINER_CHASSIS', 30000, 40) RETURNING id AS trl \gset
+SELECT id AS msc FROM frt.shipping_line WHERE code = 'MSCU' \gset
+SET LOCAL ROLE masslak_app;
+SELECT sys.set_context(:ua, :ca, 'COMPANY');
+SELECT pg_temp.ok(frt.iso6346_ok('CSQU3054383') AND NOT frt.iso6346_ok('CSQU3054384') AND frt.container_feet('45G1') = 40
+                  AND frt.container_feet('L5G1') = 45,
+  'Freight (1131): container numbers carry a valid ISO 6346 check digit; the size code gives the length');
+INSERT INTO frt.bill_of_lading (company_id, shipping_line_id, bl_no, port_station_id, container_count, vessel, voyage)
+VALUES (:ca, :msc, 'MEDU1131001', :port, 2, 'MSC AURORA', 'FA1131') RETURNING id AS bl \gset
+INSERT INTO frt.house_bill (bl_id, hbl_no, forwarder_name) VALUES (:bl, 'HBL-77', 'Levant Freight') RETURNING id AS hbl \gset
+INSERT INTO frt.bl_container (bl_id, house_bill_id, container_no, size_type, seal_no) VALUES
+  (:bl, :hbl, 'CSQU3054383', '22G1', 'SL001'), (:bl, :hbl, 'MSKU1234565', '22G1', 'SL002');
+SELECT pg_temp.expect_error(format($$INSERT INTO frt.bl_container (bl_id, container_no, size_type) VALUES (%s, 'MSCU6639870', '42G1')$$, :bl),
+  'BL_CONTAINER_COUNT', 'Freight (1131): a bill of lading lists no more containers than it declares');
+SELECT pg_temp.expect_error(format($$INSERT INTO frt.bl_container (bl_id, container_no, size_type) VALUES (%s, 'CSQU3054384', '22G1')$$, :bl),
+  'check constraint', 'Freight (1131): a container number with a wrong check digit is refused');
+SELECT pg_temp.expect_error(format($$UPDATE frt.bill_of_lading SET status = 'RELEASED' WHERE id = %s$$, :bl),
+  'bill_of_lading_release_ck', 'Freight (1131): a bill is released only with its customs release number');
+INSERT INTO frt.consignment (company_id, route_kind, load_type, shipper_name, shipper_country, consignee_name, consignee_country,
+                             origin_country, dest_country, port_station_id, dest_station_id, bl_id, house_bill_id, cargo_category,
+                             cargo_description, gross_weight_kg)
+VALUES (:ca, 'PORT_IMPORT', 'FCL', 'Hamburg Textiles GmbH', 'DE', 'Damascus Trading', 'SY', 'SY', 'SY', :port, :st_dam, :bl, :hbl,
+        'GENERAL', 'Cotton fabric', 36000) RETURNING id AS cn, consignment_no AS cnno \gset
+SELECT pg_temp.ok(:'cnno' ~ '^CS-[0-9]{4}-[0-9]{7}$', 'Freight (1131): a consignment takes its number');
+SELECT pg_temp.expect_error(format($$INSERT INTO frt.consignment (company_id, route_kind, load_type, shipper_name, shipper_country, consignee_name,
+    consignee_country, origin_country, dest_country, cargo_category, cargo_description, gross_weight_kg)
+    VALUES (%s, 'EXPORT', 'BULK', 'A Co', 'SY', 'B Co', 'JO', 'SY', 'SY', 'GENERAL', 'Phosphate', 25000)$$, :ca),
+  'consignment_countries_ck', 'Freight (1131): an export leaves the country');
+INSERT INTO frt.consignment_container (consignment_id, bl_container_id, container_no, size_type)
+SELECT :cn, id, container_no, 'XXXX' FROM frt.bl_container WHERE bl_id = :bl;
+SELECT pg_temp.ok((SELECT bool_and(size_type = '22G1' AND seal_no IS NOT NULL) FROM frt.consignment_container WHERE consignment_id = :cn),
+  'Freight (1131): a container of the bill keeps the bill''s size and seal');
+SELECT pg_temp.ok(frt.document_gaps(:cn, 'TCN') @> ARRAY['RELEASE','TRUCKS','CONTAINERS_WITHOUT_TRUCK'],
+  'Freight (1131): a document waits for the customs release, the trucks and every container on a truck');
+INSERT INTO frt.truck_movement (consignment_id, carrier_company_id, truck_vehicle_id, trailer_id, truck_plate, trailer_plate,
+                                trailer_capacity_ft, driver_name, price, currency)
+VALUES (:cn, :ca, :va, :trl, '123456', 'TR-1131', 40, 'Test Driver', 1000000, 'SYP') RETURNING id AS mv \gset
+INSERT INTO frt.movement_container (movement_id, consignment_container_id) SELECT :mv, id FROM frt.consignment_container WHERE consignment_id = :cn;
+SELECT pg_temp.expect_error(format($$INSERT INTO frt.truck_movement (consignment_id, carrier_company_id, truck_vehicle_id, truck_plate, price, currency)
+    VALUES (%s, %s, %s, '123456', 1, 'SYP')$$, :cn, :ca, :va),
+  'truck_movement_one_active', 'Freight (1131): a truck is on one active movement at a time');
+SELECT pg_temp.expect_error(format($$INSERT INTO frt.truck_movement (consignment_id, carrier_company_id, truck_vehicle_id, truck_plate, price, currency)
+    VALUES (%s, %s, %s, '654321', 1, 'SYP')$$, :cn, :ca, :vb),
+  'TRUCK_NOT_OWNED', 'Freight (1131): a carrier puts only its own trucks on a consignment');
+SELECT pg_temp.expect_error(format($$SELECT frt.issue_document('TCN', ARRAY[%s]::bigint[])$$, :cn),
+  'DOCUMENT_INCOMPLETE', 'Freight (1131): no TCN before the customs release is recorded');
+UPDATE frt.bill_of_lading SET release_no = 'REL-2026-55', release_date = current_date, status = 'RELEASED' WHERE id = :bl;
+SELECT frt.issue_document('TCN', ARRAY[:cn]::bigint[]) ->> 'doc_no' AS tcn \gset
+SELECT id AS tcn_id, verify_code AS tcn_code FROM frt.transport_document WHERE doc_no = :'tcn' \gset
+SELECT pg_temp.ok(:'tcn' ~ '^TCN-[0-9]{4}-[0-9]{7}$'
+                  AND (SELECT length(sha256) = 32 AND snapshot -> 'totals' ->> 'containers' = '2' AND snapshot -> 'totals' ->> 'vehicles' = '1'
+                              AND snapshot #>> '{consignments,0,bill_of_lading,release_no}' = 'REL-2026-55'
+                              AND snapshot #>> '{consignments,0,house_bill}' = 'HBL-77'
+                         FROM frt.transport_document WHERE id = :tcn_id)
+                  AND (SELECT status FROM frt.consignment WHERE id = :cn) = 'CONFIRMED',
+  'Freight (1131): the TCN freezes the consignment, its bill, house bill, release, containers and truck');
+SELECT pg_temp.expect_error(format($$UPDATE frt.transport_document SET snapshot = '{}' WHERE id = %s$$, :tcn_id),
+  'permission denied', 'Freight (1131): the application never edits an issued document');
+RESET ROLE;
+SELECT pg_temp.expect_error(format($$UPDATE frt.transport_document SET snapshot = '{}' WHERE id = %s$$, :tcn_id),
+  'DOCUMENT_FROZEN', 'Freight (1131): even the owner cannot change an issued document, only void or replace it');
+SET LOCAL ROLE masslak_app;
+SELECT sys.set_context(:ua, :ca, 'COMPANY');
+SELECT pg_temp.ok(frt.verify_document(:'tcn', lower(:'tcn_code')) ->> 'status' = 'ISSUED' AND frt.verify_document(:'tcn', 'WRONGCODE2') IS NULL,
+  'Freight (1131): a document is checked with its number and code');
+SELECT frt.issue_document('TCN', ARRAY[:cn]::bigint[], :tcn_id) ->> 'doc_no' AS tcn2 \gset
+SELECT verify_code AS tcn2_code FROM frt.transport_document WHERE doc_no = :'tcn2' \gset
+SELECT pg_temp.ok(:'tcn2' = :'tcn' || '/2' AND frt.verify_document(:'tcn', :'tcn_code') ->> 'replaced_by' = :'tcn2',
+  'Freight (1131): a new version keeps the number and the old one shows what replaced it');
+-- an export by land: a consignment note, never a TCN; the export approval and the exit border first
+INSERT INTO frt.consignment (company_id, route_kind, load_type, shipper_name, shipper_country, consignee_name, consignee_country,
+                             origin_country, origin_station_id, dest_country, dest_address, cargo_category, cargo_description, gross_weight_kg)
+VALUES (:ca, 'EXPORT', 'BREAK_BULK', 'Damascus Trading', 'SY', 'Amman Foods', 'JO', 'SY', :st_dam, 'JO', 'Amman, Sahab', 'FOOD', 'Olive oil', 18000)
+RETURNING id AS ex \gset
+SELECT pg_temp.expect_error(format($$SELECT frt.issue_document('TCN', ARRAY[%s]::bigint[])$$, :ex),
+  'TCN_DOMESTIC_ONLY', 'Freight (1131): a TCN is for consignments inside Syria');
+SELECT pg_temp.ok(frt.document_gaps(:ex, 'CONSIGNMENT_NOTE') @> ARRAY['EXIT_BORDER','EXPORT_PERMIT','INVOICES','TRUCKS'],
+  'Freight (1131): an export needs its exit border, its export approval, its invoices and its trucks');
+-- invoices: one container, then the whole bill only for what is not invoiced yet
+SELECT (frt.issue_transport_invoice(:cn, 'CONTAINER', (SELECT id FROM frt.consignment_container WHERE consignment_id = :cn AND container_no = 'CSQU3054383')))
+       ->> 'total' AS inv1_total \gset
+SELECT pg_temp.ok(:'inv1_total'::bigint = 500000, 'Freight (1131): a container''s invoice is its share of the truck''s price');
+SELECT pg_temp.expect_error(format($$SELECT frt.issue_transport_invoice(%s, 'BL')$$, :cn),
+  'ALREADY_INVOICED', 'Freight (1131): a container is never invoiced twice');
+UPDATE frt.transport_invoice SET status = 'VOID', void_reason = 'invoice the whole bill instead' WHERE consignment_id = :cn;
+SELECT pg_temp.ok((frt.issue_transport_invoice(:cn, 'BL') ->> 'total')::bigint = 1000000,
+  'Freight (1131): voided, the containers go on one invoice for the whole bill of lading');
+SELECT pg_temp.expect_error(format($$UPDATE frt.transport_invoice SET total = 1 WHERE consignment_id = %s AND status = 'ISSUED'$$, :cn),
+  'permission denied', 'Freight (1131): an issued invoice''s amounts do not change');
+-- the truck moves forward one step at a time, and the delivery names who received it
+SELECT pg_temp.expect_error(format($$SELECT frt.set_movement_status(%s, 'DELIVERED')$$, :mv), 'MOVEMENT_STEP',
+  'Freight (1131): a truck movement does not skip its steps');
+SELECT frt.set_movement_status(:mv, 'LOADING');
+SELECT frt.set_movement_status(:mv, 'IN_TRANSIT', :port, 'Left the port gate');
+SELECT pg_temp.ok((SELECT status FROM frt.consignment WHERE id = :cn) = 'IN_TRANSIT'
+                  AND (SELECT bool_and(status = 'ON_TRUCK') FROM frt.bl_container WHERE bl_id = :bl),
+  'Freight (1131): with its first truck on the road the consignment and its containers are in transit');
+SELECT pg_temp.expect_error(format($$SELECT frt.set_movement_status(%s, 'DELIVERED')$$, :mv), 'POD_REQUIRED',
+  'Freight (1131): a delivery names who received the goods');
+SELECT frt.set_movement_status(:mv, 'DELIVERED', :st_dam, NULL, 'Warehouse keeper');
+SELECT pg_temp.ok((SELECT status FROM frt.consignment WHERE id = :cn) = 'DELIVERED'
+                  AND (SELECT count(*) FROM frt.movement_event WHERE movement_id = :mv) = 3,
+  'Freight (1131): delivered with its last truck, every step recorded');
+-- prices: one active price per lane and unit; others see the active prices, never another carrier's records
+INSERT INTO frt.rate_card (company_id, route_kind, from_station_id, to_city_id, unit, price, currency)
+VALUES (:ca, 'PORT_IMPORT', :port, (SELECT id FROM ref.city WHERE code = 'DAM'), 'CONTAINER_40', 2500000, 'SYP');
+SELECT pg_temp.expect_error(format($$INSERT INTO frt.rate_card (company_id, route_kind, from_station_id, to_city_id, unit, price, currency)
+    VALUES (%s, 'PORT_IMPORT', %s, (SELECT id FROM ref.city WHERE code = 'DAM'), 'CONTAINER_40', 2600000, 'SYP')$$, :ca, :port),
+  'rate_card_one_price', 'Freight (1131): one active price per lane and unit');
+SELECT pg_temp.ok((frt.find_rate(:ca, 'CONTAINER_40', 'PORT_IMPORT', NULL, :port, (SELECT id FROM ref.city WHERE code = 'DAM'), NULL, 'SY')).price = 2500000,
+  'Freight (1131): the truck owner''s price is found for the lane');
+SELECT sys.set_context(NULL, :cb, 'COMPANY');
+SELECT pg_temp.ok((SELECT count(*) FROM frt.consignment WHERE id = :cn) = 0 AND (SELECT count(*) FROM frt.bill_of_lading WHERE id = :bl) = 0
+                  AND (SELECT count(*) FROM frt.transport_document WHERE id = :tcn_id) = 0
+                  AND (SELECT count(*) FROM frt.rate_card WHERE company_id = :ca) = 1,
+  'Freight (1131): another company sees the active prices, not the consignments, bills or documents');
+SELECT sys.set_context(NULL, NULL, 'PASSENGER');
+SELECT pg_temp.ok(frt.verify_document(:'tcn2', :'tcn2_code') ->> 'status' = 'ISSUED',
+  'Freight (1131): anyone holding the document can check it');
+ROLLBACK;
+SET ROLE masslak_app;
+
 \echo '=== ALL TESTS PASSED ==='

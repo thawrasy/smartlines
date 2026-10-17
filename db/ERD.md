@@ -72,11 +72,12 @@ flowchart LR
   fleet -->|4| ops
   fleet -->|1| ptn
   fleet -->|2| ref
+  frt -->|2| brd
   frt -->|1| crm
-  frt -->|4| fleet
-  frt -->|8| iam
-  frt -->|10| net
-  frt -->|2| ref
+  frt -->|6| fleet
+  frt -->|22| iam
+  frt -->|17| net
+  frt -->|7| ref
   frt -->|12| ship
   gov -->|9| iam
   gov -->|1| sec
@@ -4848,6 +4849,54 @@ erDiagram
 
 ```mermaid
 erDiagram
+  frt_bill_of_lading {
+    bigint id PK
+    uuid uid
+    bigint company_id FK
+    bigint shipping_line_id FK
+    bigint port_station_id FK
+    text status
+    bigint created_by FK
+  }
+  frt_bl_container {
+    bigint id PK
+    bigint bl_id FK
+    text status
+  }
+  frt_consignment {
+    bigint id PK
+    uuid uid
+    bigint company_id FK
+    bigint shipper_party_id FK
+    character shipper_country FK
+    bigint consignee_party_id FK
+    character consignee_country FK
+    character origin_country FK
+    bigint origin_city_id FK
+    bigint origin_station_id FK
+    character dest_country FK
+    bigint dest_city_id FK
+    bigint dest_station_id FK
+    bigint port_station_id FK
+    bigint exit_border_id FK
+    bigint entry_border_id FK
+    bigint bl_id FK
+    text cargo_category FK
+    character value_currency FK
+    text status
+    bigint created_by FK
+  }
+  frt_consignment_container {
+    bigint id PK
+    bigint consignment_id FK
+    bigint bl_container_id FK
+    text status
+  }
+  frt_consignment_invoice {
+    bigint id PK
+    bigint consignment_id FK
+    character currency FK
+  }
   frt_container {
     bigint id PK
     bigint owner_party_id FK
@@ -4860,6 +4909,14 @@ erDiagram
     bigint station_id FK
     character currency FK
     text status
+  }
+  frt_document_consignment {
+    bigint document_id PK
+    bigint consignment_id PK
+  }
+  frt_document_vehicle {
+    bigint document_id PK
+    bigint movement_id PK
   }
   frt_escort_assignment {
     bigint id PK
@@ -4929,15 +4986,54 @@ erDiagram
     bigint from_signature_file_id FK
     bigint to_signature_file_id FK
   }
+  frt_house_bill {
+    bigint id PK
+    bigint bl_id FK
+    bigint forwarder_company_id FK
+  }
   frt_leg_container {
     bigint leg_id PK
     bigint container_id PK
+  }
+  frt_movement_container {
+    bigint movement_id PK
+    bigint consignment_container_id PK
+  }
+  frt_movement_event {
+    bigint id PK
+    bigint movement_id FK
+    text status
+    bigint station_id FK
+    bigint user_id FK
+  }
+  frt_number_series {
+    text series PK
+    bigint company_id PK
+    smallint year PK
   }
   frt_port_appointment {
     bigint id PK
     bigint port_station_id FK
     bigint truck_vehicle_id FK
     bigint leg_id FK
+    text status
+  }
+  frt_rate_card {
+    bigint id PK
+    uuid uid
+    bigint company_id FK
+    bigint from_city_id FK
+    bigint from_station_id FK
+    bigint to_city_id FK
+    bigint to_station_id FK
+    character to_country FK
+    character currency FK
+    text status
+  }
+  frt_shipping_line {
+    bigint id PK
+    text code
+    character country FK
     text status
   }
   frt_transit_declaration {
@@ -4949,19 +5045,68 @@ erDiagram
     text cargo_category FK
     text status
   }
+  frt_transport_document {
+    bigint id PK
+    uuid uid
+    bigint issuer_company_id FK
+    bigint supersedes_id FK
+    text status
+    bigint issued_by FK
+  }
+  frt_transport_invoice {
+    bigint id PK
+    uuid uid
+    bigint carrier_company_id FK
+    bigint consignment_id FK
+    bigint bl_id FK
+    bigint bill_to_party_id FK
+    character currency FK
+    text status
+    bigint issued_by FK
+  }
+  frt_transport_invoice_line {
+    bigint invoice_id PK
+    smallint line_no PK
+    bigint consignment_container_id FK
+    bigint movement_id FK
+  }
+  frt_truck_movement {
+    bigint id PK
+    uuid uid
+    bigint consignment_id FK
+    bigint carrier_company_id FK
+    bigint truck_vehicle_id FK
+    bigint trailer_id FK
+    bigint driver_party_id FK
+    character truck_plate_country FK
+    character driver_nationality FK
+    bigint rate_card_id FK
+    character currency FK
+    text status
+    bigint created_by FK
+  }
   frt_weighbridge_reading {
     bigint id PK
     bigint leg_id FK
     bigint station_id FK
     bigint vehicle_id FK
   }
+  brd_border_point {
+    ref external
+  }
   crm_case {
+    ref external
+  }
+  fleet_trailer {
     ref external
   }
   fleet_truck_unit {
     ref external
   }
   fleet_vehicle {
+    ref external
+  }
+  iam_app_user {
     ref external
   }
   iam_company {
@@ -4979,17 +5124,36 @@ erDiagram
   ref_cargo_category {
     ref external
   }
+  ref_city {
+    ref external
+  }
   ship_address {
     ref external
   }
   ship_shipment_leg {
     ref external
   }
+  frt_consignment }o..o| brd_border_point : "exit_border_id"
+  frt_consignment }o..o| brd_border_point : "entry_border_id"
   frt_freight_claim }o..o| crm_case : "case_id"
+  frt_truck_movement }o..o| fleet_trailer : "trailer_id"
   frt_port_appointment }o--|| fleet_truck_unit : "truck_vehicle_id"
   frt_freight_bid }o..o| fleet_truck_unit : "truck_vehicle_id"
   frt_gate_event }o--|| fleet_truck_unit : "truck_vehicle_id"
   frt_weighbridge_reading }o--|| fleet_vehicle : "vehicle_id"
+  frt_truck_movement }o--|| fleet_vehicle : "truck_vehicle_id"
+  frt_house_bill }o--|| frt_bill_of_lading : "bl_id"
+  frt_bl_container }o--|| frt_bill_of_lading : "bl_id"
+  frt_transport_invoice }o..o| frt_bill_of_lading : "bl_id"
+  frt_consignment }o..o| frt_bill_of_lading : "bl_id"
+  frt_consignment_container }o..o| frt_bl_container : "bl_container_id"
+  frt_consignment_invoice }o--|| frt_consignment : "consignment_id"
+  frt_consignment_container }o--|| frt_consignment : "consignment_id"
+  frt_document_consignment }o--|| frt_consignment : "consignment_id"
+  frt_truck_movement }o--|| frt_consignment : "consignment_id"
+  frt_transport_invoice }o--|| frt_consignment : "consignment_id"
+  frt_movement_container }o--|| frt_consignment_container : "consignment_container_id"
+  frt_transport_invoice_line }o..o| frt_consignment_container : "consignment_container_id"
   frt_leg_container }o--|| frt_container : "container_id"
   frt_freight_contract }o..o| frt_freight_bid : "accepted_bid_id"
   frt_freight_document }o..o| frt_freight_contract : "contract_id"
@@ -4997,27 +5161,65 @@ erDiagram
   frt_freight_claim }o--|| frt_freight_contract : "contract_id"
   frt_freight_bid }o--|| frt_freight_request : "request_id"
   frt_freight_contract }o--|| frt_freight_request : "request_id"
+  frt_bl_container }o..o| frt_house_bill : "bl_id,house_bill_id"
+  frt_consignment }o..o| frt_house_bill : "bl_id,house_bill_id"
   frt_gate_event }o..o| frt_port_appointment : "appointment_id"
+  frt_truck_movement }o..o| frt_rate_card : "rate_card_id"
+  frt_bill_of_lading }o--|| frt_shipping_line : "shipping_line_id"
+  frt_document_consignment }o--|| frt_transport_document : "document_id"
+  frt_document_vehicle }o--|| frt_transport_document : "document_id"
+  frt_transport_document }o..o| frt_transport_document : "supersedes_id"
+  frt_transport_invoice_line }o--|| frt_transport_invoice : "invoice_id"
+  frt_movement_container }o--|| frt_truck_movement : "movement_id"
+  frt_movement_event }o--|| frt_truck_movement : "movement_id"
+  frt_document_vehicle }o--|| frt_truck_movement : "movement_id"
+  frt_transport_invoice_line }o..o| frt_truck_movement : "movement_id"
+  frt_movement_event }o..o| iam_app_user : "user_id"
+  frt_transport_invoice }o..o| iam_app_user : "issued_by"
+  frt_transport_document }o..o| iam_app_user : "issued_by"
   frt_freight_bid }o--|| iam_company : "carrier_company_id"
+  frt_bill_of_lading }o--|| iam_company : "company_id"
+  frt_rate_card }o--|| iam_company : "company_id"
   frt_freight_request }o..o| iam_company : "shipper_company_id"
   frt_freight_contract }o--|| iam_company : "carrier_company_id"
   frt_handover_event }o--|| iam_company : "from_company_id"
+  frt_consignment }o--|| iam_company : "company_id"
+  frt_truck_movement }o--|| iam_company : "carrier_company_id"
+  frt_transport_invoice }o--|| iam_company : "carrier_company_id"
   frt_handover_event }o--|| iam_company : "to_company_id"
+  frt_house_bill }o..o| iam_company : "forwarder_company_id"
+  frt_transport_document }o--|| iam_company : "issuer_company_id"
   frt_freight_request }o--|| iam_party : "shipper_party_id"
   frt_escort_assignment }o--|| iam_party : "escort_party_id"
   frt_container }o..o| iam_party : "owner_party_id"
+  frt_truck_movement }o..o| iam_party : "driver_party_id"
+  frt_consignment }o..o| iam_party : "shipper_party_id"
+  frt_transport_invoice }o..o| iam_party : "bill_to_party_id"
+  frt_consignment }o..o| iam_party : "consignee_party_id"
   frt_transit_declaration }o..o| net_corridor : "corridor_id"
   frt_port_appointment }o--|| net_station : "port_station_id"
   frt_gate_event }o--|| net_station : "port_station_id"
   frt_weighbridge_reading }o--|| net_station : "station_id"
   frt_transit_declaration }o--|| net_station : "entry_station_id"
   frt_detention_claim }o..o| net_station : "station_id"
+  frt_movement_event }o..o| net_station : "station_id"
   frt_freight_request }o..o| net_station : "origin_station_id"
   frt_transit_declaration }o--|| net_station : "exit_station_id"
   frt_handover_event }o..o| net_station : "station_id"
+  frt_rate_card }o..o| net_station : "from_station_id"
   frt_freight_request }o..o| net_station : "dest_station_id"
+  frt_rate_card }o..o| net_station : "to_station_id"
+  frt_bill_of_lading }o..o| net_station : "port_station_id"
+  frt_consignment }o..o| net_station : "origin_station_id"
+  frt_consignment }o..o| net_station : "dest_station_id"
+  frt_consignment }o..o| net_station : "port_station_id"
   frt_transit_declaration }o--|| ref_cargo_category : "cargo_category"
   frt_freight_request }o--|| ref_cargo_category : "cargo_category"
+  frt_consignment }o--|| ref_cargo_category : "cargo_category"
+  frt_rate_card }o..o| ref_city : "from_city_id"
+  frt_rate_card }o..o| ref_city : "to_city_id"
+  frt_consignment }o..o| ref_city : "origin_city_id"
+  frt_consignment }o..o| ref_city : "dest_city_id"
   frt_freight_request }o..o| ship_address : "origin_address_id"
   frt_freight_request }o..o| ship_address : "dest_address_id"
   frt_leg_container }o--|| ship_shipment_leg : "leg_id"

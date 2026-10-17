@@ -14,9 +14,9 @@ supporting index, except references to lookup lists and to the staff member who 
 |---|---|
 | Engine | PostgreSQL 16 with PostGIS 3 (extensions: pgcrypto, citext, btree_gist, pg_trgm, postgis in schema `gis`; Docker and CI image `postgis/postgis:16-3.4`, Ubuntu package `postgresql-16-postgis-3`) |
 | Schemas | 26 separate schemas, each with its own privileges |
-| Tables | 542 tables (8 partitioned), 5,700 columns, 1,594 foreign keys |
-| Security | row-level security on 542 of 542 tables, 972 policies; 476 triggers, 470 functions |
-| Tests | 841 automated checks against a freshly built database (`db/tests/run.sh`) |
+| Tables | 559 tables (8 partitioned), 5,911 columns, 1,664 foreign keys |
+| Security | row-level security on 559 of 559 tables, 1,022 policies; 485 triggers, 494 functions |
+| Tests | 871 automated checks against a freshly built database (`db/tests/run.sh`) |
 | Design | [Database design and ERD document](../docs/database/) with diagrams in the study's colors |
 | Docs | [Data dictionary](DATA_DICTIONARY.md) · [ERD diagrams](ERD.md) (both generated from the database) |
 <!-- stats:end -->
@@ -187,6 +187,7 @@ PostGIS in `gis`. Until 9 October 2026 a first start of the Docker stack stopped
 | `1128_charter_deposit_vehicles.sql` | Charter paid in parts and vehicles named one by one (open items of 1123): `charter_offer.deposit_pct` and `balance_hours`; `charter_request.paid_amount`, `balance_due`, `balance_due_at`, `balance_txn_id`, `balance_paid_at`; `sales.charter_vehicle`, `sales.vehicle_hired` and the trigger that refuses a trip on a vehicle hired out at its time (`VEHICLE_HIRED`) (`docs/design/CHARTER.md`) |
 | `1129_station_screen_pairing.sql` | Station screens (open items of 1120): a screen's bays and carriers (`net.station_screen.bays`, `carrier_ids`, `net.set_screen_filter`); a display paired by a short code (`net.screen_pairing`, `net.start_screen_pairing`, `net.claim_screen_pairing`, `net.screen_pairing_state`); a screen unseen past `boarding.screens.unseen_minutes` told once per outage (`net.raise_screen_alerts`, outbox `screen.unseen`) (`docs/design/STATION_DISPLAY_SCREENS.md`) |
 | `1130_connections.sql` | Connections across carriers (owner's request): the platform's change times and flexible later trips (`journey.connections.*`, `sales.connection_settings`, `sales.set_connection_settings`); each carrier's policy for a missed trip (`ops.carrier_connection_policy`, `ops.connection_policy`: FREE_CHANGE, FARE_RULES, NONE, change window); the risks accepted on a connection's bookings (`sales.booking.risk_ack_at`, `booking_connection_ack_ck`, journey kind `CONNECTION`); a booking changed to another trip (`sales.booking.changed_from_id`, `sales.booking_change`, `sales.missed_connection`) (`docs/design/CONNECTIONS.md`) |
+| `1131_freight_transport.sql` | Truck transport of goods and containers (owner's request, phase 8, module E33, switch `features.freight`): shipping lines, bills of lading with house bills and containers (ISO 6346 check digit, the declared count, the customs release), consignments by route kind (domestic, port, export, import, transit) with seller, buyer, papers and goods, the truck owner's rates, truck movements with trailer and driver copied and the trailer's length checked, transport invoices per bill, container or consignment (never twice, frozen), and consignment notes and TCNs issued as frozen snapshots with a hash and a verification code (`docs/design/FREIGHT_TRANSPORT.md`) |
 
 ## Design rules (study 29.1)
 

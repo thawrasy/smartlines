@@ -2,7 +2,7 @@
 
 > Generated from the built database (`db/tools/gen_docs.py`); do not edit by hand.
 
-**542 tables, 5700 columns, in 26 schemas.**
+**559 tables, 5911 columns, in 26 schemas.**
 
 Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant isolation (RLS) · 🧩 partitioned monthly · 🔒 append-only / change-protected
 
@@ -24,7 +24,7 @@ Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant i
 - [`sec` — Security: IP rules, risk, signing, the security hub and government adapters](#sec) (27 tables)
 - [`ptn` — Service partners: fuel stations, rest stops and maintenance](#ptn) (14 tables)
 - [`ship` — Shipments and the integrated shipping network](#ship) (57 tables)
-- [`frt` — Trucking, heavy transport and transit freight](#frt) (14 tables)
+- [`frt` — Trucking, heavy transport and transit freight](#frt) (31 tables)
 - [`brd` — Border manifest gateway](#brd) (12 tables)
 - [`ctr` — Contracted transport: universities and employees](#ctr) (6 tables)
 - [`sch` — School transport: schools, operators, pupils and guardians, contracts, routes, runs and attendance](#sch) (11 tables)
@@ -8134,6 +8134,143 @@ Hold capacity of a passenger trip offered to parcels (9.4)
 <a id="frt"></a>
 ## `frt` — Trucking, heavy transport and transit freight
 
+### `frt.bill_of_lading` 🛡️
+
+The shipping line's bill of lading: its number, line, vessel, ports, how many containers it covers and the customs release number (1131)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `shipping_line_id` | `bigint` | 🔗 `frt.shipping_line` ✱ |  |
+| `bl_no` | `text` | ✱ |  |
+| `direction` | `text` | ✱ | `'IMPORT'::text` |
+| `vessel` | `text` |  |  |
+| `voyage` | `text` |  |  |
+| `port_of_loading` | `text` |  |  |
+| `port_of_discharge` | `text` |  |  |
+| `port_station_id` | `bigint` | 🔗 `net.station`  |  |
+| `consignee_name` | `text` |  |  |
+| `notify_name` | `text` |  |  |
+| `container_count` | `smallint` | ✱ |  |
+| `release_no` | `text` |  |  |
+| `release_date` | `date` |  |  |
+| `cargo_description` | `text` |  |  |
+| `status` | `text` | ✱ | `'OPEN'::text` |
+| `created_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `frt.bl_container` 🛡️
+
+The containers of a bill of lading, never more than it declares, each under one of its house bills where there are any (1131)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `bl_id` | `bigint` | 🔗 `frt.bill_of_lading` ✱ |  |
+| `house_bill_id` | `bigint` |  |  |
+| `container_no` | `text` | ✱ |  |
+| `size_type` | `text` | ✱ |  |
+| `seal_no` | `text` |  |  |
+| `gross_weight_kg` | `integer` |  |  |
+| `empty_return_depot` | `text` |  |  |
+| `free_time_until` | `date` |  |  |
+| `status` | `text` | ✱ | `'AT_PORT'::text` |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `frt.consignment` 🛡️
+
+Goods transported by truck and documented by the platform: seller, buyer, route, borders or port, papers and cargo (1131)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `consignment_no` | `text` | ✱ | `''::text` |
+| `company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `route_kind` | `text` | ✱ |  |
+| `international` | `boolean` |  | `(route_kind <> ALL (ARRAY['DOMESTIC':...` |
+| `load_type` | `text` | ✱ |  |
+| `shipper_party_id` | `bigint` | 🔗 `iam.party`  |  |
+| `shipper_name` | `text` | ✱ |  |
+| `shipper_address` | `text` |  |  |
+| `shipper_country` | `character(2)` | 🔗 `ref.country` ✱ |  |
+| `shipper_tax_no` | `text` |  |  |
+| `consignee_party_id` | `bigint` | 🔗 `iam.party`  |  |
+| `consignee_name` | `text` | ✱ |  |
+| `consignee_address` | `text` |  |  |
+| `consignee_country` | `character(2)` | 🔗 `ref.country` ✱ |  |
+| `consignee_tax_no` | `text` |  |  |
+| `notify_name` | `text` |  |  |
+| `origin_country` | `character(2)` | 🔗 `ref.country` ✱ |  |
+| `origin_city_id` | `bigint` | 🔗 `ref.city`  |  |
+| `origin_station_id` | `bigint` | 🔗 `net.station`  |  |
+| `origin_address` | `text` |  |  |
+| `dest_country` | `character(2)` | 🔗 `ref.country` ✱ |  |
+| `dest_city_id` | `bigint` | 🔗 `ref.city`  |  |
+| `dest_station_id` | `bigint` | 🔗 `net.station`  |  |
+| `dest_address` | `text` |  |  |
+| `port_station_id` | `bigint` | 🔗 `net.station`  |  |
+| `exit_border_id` | `bigint` | 🔗 `brd.border_point`  |  |
+| `entry_border_id` | `bigint` | 🔗 `brd.border_point`  |  |
+| `arrival_port` | `text` |  |  |
+| `bl_id` | `bigint` | 🔗 `frt.bill_of_lading`  |  |
+| `house_bill_id` | `bigint` |  |  |
+| `export_permit_no` | `text` |  |  |
+| `export_permit_date` | `date` |  |  |
+| `customs_declaration_no` | `text` |  |  |
+| `release_no` | `text` |  |  |
+| `tir_carnet_no` | `text` |  |  |
+| `incoterm` | `text` |  |  |
+| `freight_payer` | `text` | ✱ | `'SHIPPER'::text` |
+| `cargo_category` | `text` | 🔗 `ref.cargo_category` ✱ |  |
+| `cargo_description` | `text` | ✱ |  |
+| `hs_code` | `text` |  |  |
+| `packages` | `integer` |  |  |
+| `package_type` | `text` |  |  |
+| `gross_weight_kg` | `numeric(12,1)` | ✱ |  |
+| `net_weight_kg` | `numeric(12,1)` |  |  |
+| `volume_m3` | `numeric(10,2)` |  |  |
+| `un_number` | `text` |  |  |
+| `adr_class` | `text` |  |  |
+| `temp_min_c` | `numeric(4,1)` |  |  |
+| `temp_max_c` | `numeric(4,1)` |  |  |
+| `declared_value` | `bigint` |  |  |
+| `value_currency` | `character(3)` | 🔗 `ref.currency`  |  |
+| `status` | `text` | ✱ | `'DRAFT'::text` |
+| `created_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `frt.consignment_container` 🛡️
+
+The containers of a consignment, each the same container as on its bill of lading where it comes from one (1131)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `consignment_id` | `bigint` | 🔗 `frt.consignment` ✱ |  |
+| `bl_container_id` | `bigint` | 🔗 `frt.bl_container`  |  |
+| `container_no` | `text` | ✱ |  |
+| `size_type` | `text` | ✱ |  |
+| `seal_no` | `text` |  |  |
+| `gross_weight_kg` | `integer` |  |  |
+| `packages` | `integer` |  |  |
+| `status` | `text` | ✱ | `'PLANNED'::text` |
+
+### `frt.consignment_invoice` 🛡️
+
+The commercial invoices a consignment carries, named on its documents (1131)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `consignment_id` | `bigint` | 🔗 `frt.consignment` ✱ |  |
+| `invoice_no` | `text` | ✱ |  |
+| `invoice_date` | `date` |  |  |
+| `amount` | `bigint` |  |  |
+| `currency` | `character(3)` | 🔗 `ref.currency`  |  |
+
 ### `frt.container` 🛡️
 
 
@@ -8163,6 +8300,24 @@ Hold capacity of a passenger trip offered to parcels (9.4)
 | `amount` | `bigint` | ✱ | `0` |
 | `currency` | `character(3)` | 🔗 `ref.currency` ✱ | `'SYP'::bpchar` |
 | `status` | `text` | ✱ | `'OPEN'::text` |
+
+### `frt.document_consignment` 🛡️
+
+The consignments a document covers (1131)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `document_id` | `bigint` | 🔑 🔗 `frt.transport_document` ✱ |  |
+| `consignment_id` | `bigint` | 🔑 🔗 `frt.consignment` ✱ |  |
+
+### `frt.document_vehicle` 🛡️
+
+Every truck and trailer a document lists in its one statement (1131)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `document_id` | `bigint` | 🔑 🔗 `frt.transport_document` ✱ |  |
+| `movement_id` | `bigint` | 🔑 🔗 `frt.truck_movement` ✱ |  |
 
 ### `frt.escort_assignment` 🛡️
 
@@ -8309,6 +8464,20 @@ Handover between carriers in the yard: seal, weight, documents and both signatur
 | `to_signature_file_id` | `bigint` | 🔗 `ref.file_object`  |  |
 | `ts` | `timestamp with time zone` | ✱ | `now()` |
 
+### `frt.house_bill` 🛡️
+
+A freight forwarder's house bill of lading (in-house BL) under a shipping line's bill (1131)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `bl_id` | `bigint` | 🔗 `frt.bill_of_lading` ✱ |  |
+| `hbl_no` | `text` | ✱ |  |
+| `forwarder_name` | `text` | ✱ |  |
+| `forwarder_company_id` | `bigint` | 🔗 `iam.company`  |  |
+| `consignee_name` | `text` |  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
 ### `frt.leg_container` 🛡️
 
 Containers carried on a leg, with the seal and gross weight of that leg
@@ -8319,6 +8488,40 @@ Containers carried on a leg, with the seal and gross weight of that leg
 | `container_id` | `bigint` | 🔑 🔗 `frt.container` ✱ |  |
 | `seal_no` | `text` |  |  |
 | `gross_weight_kg` | `integer` |  |  |
+
+### `frt.movement_container` 🛡️
+
+The containers on a truck: of its consignment, within the trailer's length, each on one active truck (1131)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `movement_id` | `bigint` | 🔑 🔗 `frt.truck_movement` ✱ |  |
+| `consignment_container_id` | `bigint` | 🔑 🔗 `frt.consignment_container` ✱ |  |
+
+### `frt.movement_event` 🛡️
+
+Each step of a truck movement, as it happened; never changed (1131)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `movement_id` | `bigint` | 🔗 `frt.truck_movement` ✱ |  |
+| `status` | `text` | ✱ |  |
+| `station_id` | `bigint` | 🔗 `net.station`  |  |
+| `note` | `text` |  |  |
+| `user_id` | `bigint` | 🔗 `iam.app_user`  |  |
+| `at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `frt.number_series` 🛡️
+
+The last number given in each series of freight documents and invoices, by year (1131)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `series` | `text` | 🔑 ✱ |  |
+| `company_id` | `bigint` | 🔑 ✱ | `0` |
+| `year` | `smallint` | 🔑 ✱ |  |
+| `last_no` | `integer` | ✱ | `0` |
 
 ### `frt.port_appointment` 🛡️
 
@@ -8332,6 +8535,45 @@ Containers carried on a leg, with the seal and gross weight of that leg
 | `leg_id` | `bigint` | 🔗 `ship.shipment_leg`  |  |
 | `slot` | `tstzrange` | ✱ |  |
 | `status` | `text` | ✱ | `'BOOKED'::text` |
+
+### `frt.rate_card` 🛡️
+
+The truck owner's own prices by lane and unit (a 20, 40 or 45 ft container, a truck, a ton or a bill of lading); one active price per lane and unit at a time (1131)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `route_kind` | `text` |  |  |
+| `from_city_id` | `bigint` | 🔗 `ref.city`  |  |
+| `from_station_id` | `bigint` | 🔗 `net.station`  |  |
+| `to_city_id` | `bigint` | 🔗 `ref.city`  |  |
+| `to_station_id` | `bigint` | 🔗 `net.station`  |  |
+| `to_country` | `character(2)` | 🔗 `ref.country`  |  |
+| `unit` | `text` | ✱ |  |
+| `price` | `bigint` | ✱ |  |
+| `currency` | `character(3)` | 🔗 `ref.currency` ✱ |  |
+| `includes_empty_return` | `boolean` | ✱ | `false` |
+| `free_waiting_hours` | `smallint` | ✱ | `24` |
+| `waiting_per_day` | `bigint` |  |  |
+| `note` | `text` |  |  |
+| `valid` | `daterange` | ✱ | `daterange(CURRENT_DATE, NULL::date)` |
+| `status` | `text` | ✱ | `'ACTIVE'::text` |
+| `lane` | `text` |  | `((((COALESCE(route_kind, '*'::text) \...` |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `frt.shipping_line` 🛡️
+
+Shipping lines that issue bills of lading for the containers trucks carry from and to the port (1131)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `code` | `text` | ✱ |  |
+| `name` | `text` | ✱ |  |
+| `country` | `character(2)` | 🔗 `ref.country`  |  |
+| `status` | `text` | ✱ | `'ACTIVE'::text` |
 
 ### `frt.transit_declaration` 🛡️
 
@@ -8356,6 +8598,94 @@ Transit across the country on a corridor with a deadline; carries the D.3 cargo 
 | `temp_min_c` | `numeric(4,1)` |  |  |
 | `temp_max_c` | `numeric(4,1)` |  |  |
 | `status` | `text` | ✱ | `'OPEN'::text` |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `frt.transport_document` 🛡️
+
+Documents the platform issues: the consignment note of a consignment and, inside Syria, the truck consignment note (TCN) of one or several consignments; a frozen snapshot with its SHA-256 and a verification code (1131)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `doc_type` | `text` | ✱ |  |
+| `doc_no` | `text` | ✱ |  |
+| `scope` | `text` | ✱ |  |
+| `issuer_company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `version` | `smallint` | ✱ | `1` |
+| `supersedes_id` | `bigint` | 🔗 `frt.transport_document`  |  |
+| `snapshot` | `jsonb` | ✱ |  |
+| `sha256` | `bytea` | ✱ |  |
+| `verify_code` | `text` | ✱ |  |
+| `status` | `text` | ✱ | `'ISSUED'::text` |
+| `void_reason` | `text` |  |  |
+| `issued_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `issued_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `frt.transport_invoice` 🛡️
+
+The truck owner's invoice for the transport: the whole bill of lading and its containers, one container, or the consignment (1131)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `invoice_no` | `text` | ✱ |  |
+| `carrier_company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `consignment_id` | `bigint` | 🔗 `frt.consignment` ✱ |  |
+| `bl_id` | `bigint` | 🔗 `frt.bill_of_lading`  |  |
+| `basis` | `text` | ✱ |  |
+| `bill_to_name` | `text` | ✱ |  |
+| `bill_to_party_id` | `bigint` | 🔗 `iam.party`  |  |
+| `currency` | `character(3)` | 🔗 `ref.currency` ✱ |  |
+| `total` | `bigint` | ✱ |  |
+| `status` | `text` | ✱ | `'ISSUED'::text` |
+| `void_reason` | `text` |  |  |
+| `issued_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `issued_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `frt.transport_invoice_line` 🛡️
+
+Lines of a transport invoice: a container or a truck movement each (1131)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `invoice_id` | `bigint` | 🔑 🔗 `frt.transport_invoice` ✱ |  |
+| `line_no` | `smallint` | 🔑 ✱ |  |
+| `description` | `text` | ✱ |  |
+| `consignment_container_id` | `bigint` | 🔗 `frt.consignment_container`  |  |
+| `movement_id` | `bigint` | 🔗 `frt.truck_movement`  |  |
+| `amount` | `bigint` | ✱ |  |
+
+### `frt.truck_movement` 🛡️
+
+One truck (and its trailer and driver) carrying part or all of a consignment, at the truck owner's price; a truck or trailer is on one active movement at a time (1131)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `consignment_id` | `bigint` | 🔗 `frt.consignment` ✱ |  |
+| `carrier_company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `truck_vehicle_id` | `bigint` | 🔗 `fleet.vehicle` ✱ |  |
+| `trailer_id` | `bigint` | 🔗 `fleet.trailer`  |  |
+| `driver_party_id` | `bigint` | 🔗 `iam.party`  |  |
+| `truck_plate` | `text` | ✱ |  |
+| `truck_plate_country` | `character(2)` | 🔗 `ref.country` ✱ | `'SY'::bpchar` |
+| `trailer_plate` | `text` |  |  |
+| `trailer_capacity_ft` | `smallint` |  |  |
+| `driver_name` | `text` |  |  |
+| `driver_licence_no` | `text` |  |  |
+| `driver_nationality` | `character(2)` | 🔗 `ref.country`  |  |
+| `driver_mobile` | `text` |  |  |
+| `rate_card_id` | `bigint` | 🔗 `frt.rate_card`  |  |
+| `price` | `bigint` | ✱ |  |
+| `currency` | `character(3)` | 🔗 `ref.currency` ✱ |  |
+| `status` | `text` | ✱ | `'ASSIGNED'::text` |
+| `loaded_at` | `timestamp with time zone` |  |  |
+| `delivered_at` | `timestamp with time zone` |  |  |
+| `pod_received_by` | `text` |  |  |
+| `created_by` | `bigint` | 🔗 `iam.app_user`  |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
 ### `frt.weighbridge_reading` 🛡️ 🔒
