@@ -8,7 +8,7 @@
 -- borders (TRANSIT_LAND).
 --
 -- A container carried from the port belongs to the shipping line's bill of lading (frt.bill_of_lading): its number, the
--- shipping line, the customs release (فسح) number, how many containers the bill covers, and the freight forwarder's
+-- shipping line, the customs release number, how many containers the bill covers, and the freight forwarder's
 -- house bills (frt.house_bill). Its containers (frt.bl_container) carry valid ISO 6346 numbers, no more than the bill
 -- declares, with the empty-return depot and the shipping line's free time.
 --
@@ -105,7 +105,7 @@ CREATE TABLE IF NOT EXISTS frt.bill_of_lading (
   consignee_name      text CHECK (consignee_name IS NULL OR length(consignee_name) <= 200),
   notify_name         text CHECK (notify_name IS NULL OR length(notify_name) <= 200),
   container_count     smallint NOT NULL CHECK (container_count BETWEEN 0 AND 999),   -- as the bill declares
-  release_no          text CHECK (release_no IS NULL OR release_no ~ '^[A-Za-z0-9/ -]{2,40}$'),   -- customs release (فسح)
+  release_no          text CHECK (release_no IS NULL OR release_no ~ '^[A-Za-z0-9/ -]{2,40}$'),   -- customs release
   release_date        date,
   cargo_description   text CHECK (cargo_description IS NULL OR length(cargo_description) <= 500),
   status              text NOT NULL DEFAULT 'OPEN' CHECK (status IN ('OPEN','RELEASED','COMPLETED','CANCELLED')),
@@ -118,7 +118,7 @@ CREATE INDEX IF NOT EXISTS bill_of_lading_shipping_line_id_fkx ON frt.bill_of_la
 CREATE INDEX IF NOT EXISTS bill_of_lading_port_station_id_fkx ON frt.bill_of_lading (port_station_id);
 CREATE INDEX IF NOT EXISTS bill_of_lading_created_by_fkx ON frt.bill_of_lading (created_by);
 COMMENT ON TABLE frt.bill_of_lading IS 'The shipping line''s bill of lading: its number, line, vessel, ports, how many containers it covers and the customs release number (1131)';
-COMMENT ON COLUMN frt.bill_of_lading.release_no IS 'The customs release (فسح) that lets the containers leave the port';
+COMMENT ON COLUMN frt.bill_of_lading.release_no IS 'The customs release that lets the containers leave the port';
 
 CREATE TABLE IF NOT EXISTS frt.house_bill (
   id                    bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,

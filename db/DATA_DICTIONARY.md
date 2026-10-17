@@ -2,7 +2,7 @@
 
 > Generated from the built database (`db/tools/gen_docs.py`); do not edit by hand.
 
-**559 tables, 5911 columns, in 26 schemas.**
+**560 tables, 5920 columns, in 26 schemas.**
 
 Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant isolation (RLS) · 🧩 partitioned monthly · 🔒 append-only / change-protected
 
@@ -15,7 +15,7 @@ Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant i
 - [`fleet` — Fleet: vehicles, trucks, trailers, seats, crew, licenses and insurance](#fleet) (22 tables)
 - [`pricing` — Pricing, taxes, commissions, campaigns and loyalty](#pricing) (38 tables)
 - [`ops` — Trips, inventory, operations, shuttle rides, tracking and incidents](#ops) (39 tables)
-- [`sales` — Channels, bookings, passengers, tickets, subscriptions and travel documents](#sales) (33 tables)
+- [`sales` — Channels, bookings, passengers, tickets, subscriptions and travel documents](#sales) (34 tables)
 - [`fin` — Wallets, ledger, payments, allocation, settlement and float](#fin) (35 tables)
 - [`acct` — Simplified accounting, e-invoicing and tax profiles](#acct) (37 tables)
 - [`bill` — Carrier subscriptions, metering and platform invoices](#bill) (7 tables)
@@ -4180,6 +4180,22 @@ The vehicles a carrier names on a vehicle hire, one by one (1128)
 | `vehicle_id` | `bigint` | 🔑 🔗 `fleet.vehicle` ✱ |  |
 | `named_by` | `bigint` | 🔗 `iam.app_user`  |  |
 | `named_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `sales.connection_hold` 🛡️
+
+A connection's booking whose travellers missed the trip, kept open with its escrow held until the carrier's change window ends (1132)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `booking_id` | `bigint` | 🔑 🔗 `sales.booking` ✱ |  |
+| `trip_id` | `bigint` | 🔗 `ops.trip` ✱ |  |
+| `basis` | `text` | ✱ |  |
+| `hold_until` | `timestamp with time zone` | ✱ |  |
+| `amount` | `bigint` | ✱ |  |
+| `currency` | `character(3)` | 🔗 `ref.currency` ✱ |  |
+| `status` | `text` | ✱ | `'HELD'::text` |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `closed_at` | `timestamp with time zone` |  |  |
 
 ### `sales.entry_rule` 🛡️
 

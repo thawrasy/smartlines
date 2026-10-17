@@ -98,6 +98,7 @@ SYSTEM_SCOPE = {
     ("app/modules/reports/scheduler.py", "_deliveries"): (1, "sensitive report files stored encrypted with a link per recipient"),
     ("app/modules/sales/service.py", "booking_view"): (1, "tickets and e-invoices of a booking on another company's trip, for its buyer"),
     ("app/modules/sales/connections.py", "change"): (1, "the travellers' documents read with the platform's keys to book them again on the new trip (1130)"),
+    ("app/modules/sales/connections.py", "release_due_holds"): (1, "escrow released to the carrier's wallets when a held connection's change window ends, run by the worker (1132)"),
     ("app/modules/sales/service.py", "cancel_booking"): (1, "refund from escrow and allocation lines the buyer cannot see"),
     ("app/modules/boarding/api.py", "station_board"): (1, "station staff record the boarding of a carrier's ticket they may board, through the driver's boarding path"),
     ("app/modules/loyalty/api.py", "redeem"): (1, "a redemption is paid from the platform's loyalty expense wallet to the member's wallet"),

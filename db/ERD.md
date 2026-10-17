@@ -126,7 +126,7 @@ flowchart LR
   sales -->|2| gov
   sales -->|34| iam
   sales -->|2| net
-  sales -->|10| ops
+  sales -->|11| ops
   sales -->|5| pricing
   sales -->|5| ref
   sch -->|4| fleet
@@ -2305,6 +2305,12 @@ erDiagram
     bigint vehicle_id PK
     bigint named_by FK
   }
+  sales_connection_hold {
+    bigint booking_id PK
+    bigint trip_id FK
+    character currency FK
+    text status
+  }
   sales_entry_rule {
     bigint id PK
     character country_code FK
@@ -2574,6 +2580,7 @@ erDiagram
   sales_channel_inventory_rule }o..o| net_route : "route_id"
   sales_waitlist_entry }o--|| ops_trip : "trip_id"
   sales_charter_seat }o--|| ops_trip : "trip_id"
+  sales_connection_hold }o--|| ops_trip : "trip_id"
   sales_boarding_event }o--|| ops_trip : "trip_id"
   sales_booking }o--|| ops_trip : "trip_id"
   sales_inspection_check }o..o| ops_trip : "trip_id"
@@ -2595,6 +2602,7 @@ erDiagram
   sales_inspection_check }o..o| sales_boarding_event : "boarding_event_id"
   sales_channel_booking_ref }o--|| sales_booking : "booking_id"
   sales_booking_key }o--|| sales_booking : "booking_id"
+  sales_connection_hold }o--|| sales_booking : "booking_id"
   sales_passenger }o--|| sales_booking : "booking_id"
   sales_refund_request }o--|| sales_booking : "booking_id"
   sales_passenger_compensation }o--|| sales_booking : "booking_id"

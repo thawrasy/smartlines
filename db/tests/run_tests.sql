@@ -4101,4 +4101,37 @@ SELECT pg_temp.ok(frt.verify_document(:'tcn2', :'tcn2_code') ->> 'status' = 'ISS
 ROLLBACK;
 SET ROLE masslak_app;
 
+-- A connection's missed booking held until the change window ends (1132)
+BEGIN;
+RESET ROLE;
+UPDATE sales.booking SET journey_uid = gen_random_uuid(), journey_kind = 'CONNECTION', journey_leg = 2, risk_ack_at = now(), pay_method = 'WALLET'
+ WHERE booking_ref = 'ABC123' RETURNING id AS hbk, trip_id AS htrip \gset
+SET LOCAL ROLE masslak_app;
+SELECT sys.set_context(:ua, :ca, 'COMPANY');
+INSERT INTO ops.carrier_connection_policy (company_id, missed_connection, change_window_hours, updated_by) VALUES (:ca, 'NONE', 12, :ua)
+ON CONFLICT (company_id) DO UPDATE SET missed_connection = 'NONE';
+SELECT pg_temp.ok(sales.hold_missed_connections(:htrip) = '{}',
+  'Connection holds (1132): a carrier that does not change a missed trip holds nothing');
+UPDATE ops.carrier_connection_policy SET missed_connection = 'FREE_CHANGE' WHERE company_id = :ca;
+SELECT pg_temp.ok(NOT (:hbk = ANY (sales.hold_missed_connections(:htrip))),
+  'Connection holds (1132): a booking without issued tickets is not held');
+INSERT INTO sales.connection_hold (booking_id, trip_id, basis, hold_until, amount, currency)
+VALUES (:hbk, :htrip, 'FREE_CHANGE', now() + interval '12 hours', 3500000, 'SYP');
+SELECT pg_temp.expect_error(format($$UPDATE sales.connection_hold SET hold_until = now() + interval '5 days' WHERE booking_id = %s$$, :hbk),
+  'permission denied', 'Connection holds (1132): the application cannot move the end of a hold');
+SELECT pg_temp.expect_error(format($$UPDATE sales.connection_hold SET status = 'RELEASED' WHERE booking_id = %s$$, :hbk),
+  'connection_hold_closed_ck', 'Connection holds (1132): a hold that ends records when');
+UPDATE sales.connection_hold SET status = 'CHANGED', closed_at = now() WHERE booking_id = :hbk;
+SELECT pg_temp.expect_error(format($$UPDATE sales.connection_hold SET status = 'HELD', closed_at = NULL WHERE booking_id = %s$$, :hbk),
+  'HOLD_FROZEN', 'Connection holds (1132): an ended hold is never opened again');
+SELECT pg_temp.ok(NOT has_table_privilege('masslak_app', 'sales.connection_hold', 'DELETE')
+                  AND has_column_privilege('masslak_app', 'sales.connection_hold', 'status', 'UPDATE')
+                  AND NOT has_column_privilege('masslak_app', 'sales.connection_hold', 'amount', 'UPDATE'),
+  'Connection holds (1132): a hold is ended, never deleted or rewritten');
+SELECT sys.set_context(:ua, :cb, 'COMPANY');
+SELECT pg_temp.ok((SELECT count(*) FROM sales.connection_hold WHERE booking_id = :hbk) = 0,
+  'Connection holds (1132): another carrier does not see the hold');
+ROLLBACK;
+SET ROLE masslak_app;
+
 \echo '=== ALL TESTS PASSED ==='

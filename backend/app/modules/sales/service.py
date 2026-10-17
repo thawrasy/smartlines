@@ -781,7 +781,11 @@ async def cancel_booking(conn: asyncpg.Connection, ctx: db.Context, b: asyncpg.R
     less the change fee), also after its trip left without the traveller (missed), and the traveller is told of the new
     booking instead.
     """
-    if b["status"] != "CONFIRMED" or b["trip_status"] not in (("PUBLISHED", "BOARDING", "DEPARTED") if missed else ("PUBLISHED",)):
+    # a connection's missed booking held after its trip was completed is cancelled only to change it (1132)
+    held = missed and b["trip_status"] == "COMPLETED" and await conn.fetchval(
+        "SELECT true FROM sales.connection_hold WHERE booking_id = $1 AND status = 'HELD' AND hold_until > now()", b["id"])
+    if b["status"] != "CONFIRMED" or (b["trip_status"] not in (("PUBLISHED", "BOARDING", "DEPARTED") if missed else ("PUBLISHED",))
+                                      and not held):
         raise ApiError(409, "CANNOT_CANCEL", "this booking can no longer be cancelled")
     if await conn.fetchval("SELECT charter_request_id FROM sales.booking WHERE id = $1", b["id"]):
         raise ApiError(409, "CHARTER_BOOKING", "the travellers of a charter are taken off its list, and the charter is cancelled as a whole")

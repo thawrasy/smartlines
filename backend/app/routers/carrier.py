@@ -451,6 +451,8 @@ async def complete_trip(trip_uid: uuid.UUID, request: Request, pr: Principal = D
             raise ApiError(409, "INVALID_TRANSITION", "trip cannot be completed from its current status")
         if t["departure_at"] > datetime.now(timezone.utc):
             raise ApiError(409, "TRIP_NOT_STARTED", "a trip can be completed only after departure")
+        # a connection's booking missed by all its travellers stays open, its escrow held, until the change window ends (1132)
+        held = list(await conn.fetchval("SELECT sales.hold_missed_connections($1)", t["id"]))
         await conn.execute("UPDATE ops.trip SET status = 'COMPLETED' WHERE id = $1", t["id"])
         released = 0
         async with db.system_scope(conn, ctx):
@@ -460,7 +462,7 @@ async def complete_trip(trip_uid: uuid.UUID, request: Request, pr: Principal = D
                      FROM fin.price_allocation_line l JOIN fin.price_allocation a ON a.id = l.allocation_id
                      JOIN sales.booking b ON b.id = a.booking_id
                     WHERE b.trip_id = $1 AND l.is_leaf AND l.release_event = 'TRIP_COMPLETED'
-                      AND l.status IN ('HELD','PARTIAL_REFUND')""", t["id"])
+                      AND l.status IN ('HELD','PARTIAL_REFUND') AND b.id <> ALL($2::bigint[])""", t["id"], held)
             entries = [(ln["wallet_id"], "CR", ln["due"]) for ln in lines if ln["due"] > 0]
             released = sum(e[2] for e in entries)
             if released:
@@ -469,9 +471,10 @@ async def complete_trip(trip_uid: uuid.UUID, request: Request, pr: Principal = D
                                ref_type="trip", ref_id=t["id"], user_id=pr.user_id, memo=t["trip_no"])
             await conn.execute(
                 "UPDATE fin.price_allocation_line SET status = 'RELEASED', released_at = now() WHERE id = ANY($1::bigint[])", [ln["id"] for ln in lines])
-            await conn.execute("UPDATE sales.booking SET status = 'COMPLETED' WHERE trip_id = $1 AND status = 'CONFIRMED'",
-                               t["id"])
-            await conn.execute("UPDATE sales.ticket SET status = 'NO_SHOW' WHERE trip_id = $1 AND status = 'ISSUED'", t["id"])
+            await conn.execute("UPDATE sales.booking SET status = 'COMPLETED' WHERE trip_id = $1 AND status = 'CONFIRMED' AND id <> ALL($2::bigint[])",
+                               t["id"], held)
+            await conn.execute("UPDATE sales.ticket SET status = 'NO_SHOW' WHERE trip_id = $1 AND status = 'ISSUED' AND booking_id <> ALL($2::bigint[])",
+                               t["id"], held)
             # reservations never paid end with the trip (1056); nothing was taken for them
             await conn.execute("UPDATE sales.ticket SET status = 'CANCELLED' WHERE trip_id = $1 AND status = 'HOLD'", t["id"])
             await conn.execute("UPDATE sales.booking SET status = 'EXPIRED' WHERE trip_id = $1 AND status = 'PENDING_PAYMENT'", t["id"])
@@ -483,4 +486,4 @@ async def complete_trip(trip_uid: uuid.UUID, request: Request, pr: Principal = D
             points = json.loads(await conn.fetchval("SELECT pricing.earn_points_for_trip($1)::text", t["id"]))
     request.state.audit = {"action": "trip.complete", "object_type": "trip", "object_id": t["id"]}
     return {"ok": True, "released": released, "cash_set_off": set_off, "points_earned": points["points"],
-            "penalties_collected": penalties_collected}
+            "penalties_collected": penalties_collected, "connections_held": len(held)}

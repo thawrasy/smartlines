@@ -196,8 +196,10 @@ async def state(conn: asyncpg.Connection, b) -> dict:
         return out
     now = datetime.now(timezone.utc)
     departs = min(t["actual_dep"] or t["sched_dep"] for t in tickets)
-    missed = b["trip_status"] == "DEPARTED" or (b["trip_status"] == "BOARDING" and now >= departs)
-    if b["trip_status"] not in ("PUBLISHED", "BOARDING", "DEPARTED"):
+    # a completed trip keeps a connection's missed booking open until the change window ends (1132)
+    held = await held_until(conn, b) if b["trip_status"] == "COMPLETED" else None
+    missed = held is not None or b["trip_status"] == "DEPARTED" or (b["trip_status"] == "BOARDING" and now >= departs)
+    if b["trip_status"] not in ("PUBLISHED", "BOARDING", "DEPARTED") and held is None:
         out["why"] = "CANNOT_CHANGE"
         return out
     mc = _json(await conn.fetchval("SELECT sales.missed_connection($1)::text", b["id"]))
@@ -205,7 +207,7 @@ async def state(conn: asyncpg.Connection, b) -> dict:
     out.update(missed=missed, inbound_late=mc["inbound_late"], connection=mc["connection"], fares=fares,
                departs_at=departs, brand=tickets[0]["fare_brand_code"])
     if missed:
-        until = departs + timedelta(hours=pol["change_window_hours"])
+        until = held or departs + timedelta(hours=pol["change_window_hours"])
         out["change_until"] = until
         if now > until:
             out["why"] = "CHANGE_WINDOW_CLOSED"
@@ -224,6 +226,41 @@ async def state(conn: asyncpg.Connection, b) -> dict:
     fee = sum(t["total_amount"] * int(r.get("change_fee_pct") or 0) // 100 for t, r in zip(tickets, rules))
     out.update(allowed=True, reason=reason, basis="FARE_RULES", fee=fee, refund=fares - fee)
     return out
+
+
+async def held_until(conn: asyncpg.Connection, b) -> datetime | None:
+    """When the hold of a connection's missed booking ends, while it is held (1132)."""
+    return await conn.fetchval("SELECT hold_until FROM sales.connection_hold WHERE booking_id = $1 AND status = 'HELD'", b["id"])
+
+
+async def release_due_holds(conn: asyncpg.Connection, ctx: db.Context) -> int:
+    """Held connections whose change window ended: the escrow goes to the carrier and its partners, the tickets are
+    closed as no-show and the booking completed, as when the trip was completed (1132). Run by the worker each minute."""
+    from ...ledger import platform_wallet, post_txn
+    done = 0
+    async with db.system_scope(conn, ctx):
+        due = await conn.fetch(
+            """SELECT h.booking_id, h.currency, b.booking_ref FROM sales.connection_hold h JOIN sales.booking b ON b.id = h.booking_id
+                WHERE h.status = 'HELD' AND h.hold_until <= now() ORDER BY h.hold_until LIMIT 200 FOR UPDATE OF h SKIP LOCKED""")
+        for h in due:
+            lines = await conn.fetch(
+                """SELECT l.id, l.amount - l.refunded_amount AS due, l.wallet_id
+                     FROM fin.price_allocation_line l JOIN fin.price_allocation a ON a.id = l.allocation_id
+                    WHERE a.booking_id = $1 AND l.is_leaf AND l.release_event = 'TRIP_COMPLETED'
+                      AND l.status IN ('HELD','PARTIAL_REFUND')""", h["booking_id"])
+            entries = [(ln["wallet_id"], "CR", ln["due"]) for ln in lines if ln["due"] > 0]
+            if entries:
+                escrow = await platform_wallet(conn, "ESCROW", h["currency"])
+                await post_txn(conn, "RELEASE", h["currency"], f"hold:{h['booking_id']}:release",
+                               [(escrow["id"], "DR", sum(e[2] for e in entries)), *entries],
+                               ref_type="booking", ref_id=h["booking_id"], memo=h["booking_ref"])
+            await conn.execute("UPDATE fin.price_allocation_line SET status = 'RELEASED', released_at = now() WHERE id = ANY($1::bigint[])",
+                               [ln["id"] for ln in lines])
+            await conn.execute("UPDATE sales.ticket SET status = 'NO_SHOW' WHERE booking_id = $1 AND status = 'ISSUED'", h["booking_id"])
+            await conn.execute("UPDATE sales.booking SET status = 'COMPLETED' WHERE id = $1 AND status = 'CONFIRMED'", h["booking_id"])
+            await conn.execute("UPDATE sales.connection_hold SET status = 'RELEASED', closed_at = now() WHERE booking_id = $1", h["booking_id"])
+            done += 1
+    return done
 
 
 OPTIONS_SQL = f"""
@@ -328,6 +365,7 @@ async def change(conn: asyncpg.Connection, ctx: db.Context, b, buyer, body: Chan
     seats = list(free[:len(seated)])
     people = [p.model_copy(update={"seat_no": seats.pop(0)}) if p.seat_no is not None else p for p in people]
     cancelled = await cancel_booking(conn, ctx, b, buyer, reason="CHANGED", refund=st["refund"], missed=st["missed"], notify=False)
+    await conn.execute("UPDATE sales.connection_hold SET status = 'CHANGED', closed_at = now() WHERE booking_id = $1 AND status = 'HELD'", b["id"])
     hold = await create_hold(conn, buyer.user_id, HoldIn(trip_uid=body.trip_uid, from_seq=body.from_seq, to_seq=body.to_seq,
                                                          seat_nos=[p.seat_no for p in people if p.seat_no is not None]), limit=seat_limit)
     new = await create_booking(conn, ctx, buyer, BookingIn(

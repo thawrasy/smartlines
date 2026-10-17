@@ -5,7 +5,7 @@
     GET      /api/carrier/freight/bills/{uid}                   with its house bills and containers
     POST     /api/carrier/freight/bills/{uid}/house-bills       a forwarder's house bill (in-house BL)
     POST     /api/carrier/freight/bills/{uid}/containers        containers, no more than the bill declares
-    POST     /api/carrier/freight/bills/{uid}/release           the customs release (فسح) number
+    POST     /api/carrier/freight/bills/{uid}/release           the customs release number
     GET|POST /api/carrier/freight/consignments                  consignments: seller, buyer, route, papers, cargo
     GET      /api/carrier/freight/consignments/{uid}            with containers, invoices, trucks, documents and what it lacks
     POST     /api/carrier/freight/consignments/{uid}/containers     from its bill of lading, or listed

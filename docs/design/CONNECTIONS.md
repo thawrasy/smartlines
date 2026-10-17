@@ -94,12 +94,34 @@ leaving in the next three days.
 - **The booking page** shows the booking it replaced and the one that replaced it. A connection's trip carries a
   reminder of what to do if the trip before is late.
 
-### A limit to know
+### Money held until the change window ends
 
-When the carrier completes the missed trip, its escrow is released and its tickets not travelled are closed as no-show.
-From then on the booking can no longer be changed. A traveller who missed a trip changes it before the carrier closes
-that trip, which is usually on arrival. Moving this point is a decision for the owner: for example, holding the escrow
-of a connection's missed tickets until the change window ends.
+Owner's decision, October 2026, built in migration 1132 (`db/schema/1132_connection_holds.sql`).
+
+Before this, completing a trip released its escrow and closed the tickets not travelled as no-show, so a traveller who
+missed a connection's trip could no longer change it once the carrier closed that trip, often on arrival.
+
+Now, when the carrier completes a trip (`POST /api/carrier/trips/{uid}/complete`), a booking is held
+(`sales.connection_hold`, `sales.hold_missed_connections`) when all of these hold:
+
+- it belongs to a journey of kind `CONNECTION` and is confirmed;
+- none of its travellers boarded: every ticket is still issued;
+- its traveller may change it: paid from their own wallet, not for an agency, a charter or a family;
+- the carrier's policy is `FREE_CHANGE`, or `FARE_RULES` with a changeable fare;
+- the change window has not ended: the trip's departure plus the carrier's hours.
+
+A held booking stays confirmed, its tickets issued and its fares in escrow. The completion's answer counts them
+(`connections_held`). The traveller changes it as before (`GET .../change-options`, `POST .../change`); the change ends
+the hold (`CHANGED`).
+
+When the window ends, the worker (each minute) releases the fares to the carrier and its partners, closes the tickets
+as no-show and completes the booking (`RELEASED`). A hold is ended, never deleted or rewritten (`HOLD_FROZEN`); the
+application cannot move its end.
+
+A carrier whose policy is `NONE` holds nothing: the trip completes as before.
+
+The money released later is not set off against the carrier's counter cash or due penalties at that moment; these
+are settled on its next completed trip, as usual.
 
 ## The platform's settings
 
@@ -136,7 +158,11 @@ and 13:00 (90 minutes). Its trips reach Damascus Central Station 30 minutes befo
 
 - **Database** (`db/tests/run_tests.sql`, "Connections (1130)"): the defaults; settings are the platform's own; bounds;
   a carrier sets its own policy only; the acceptance is required on a connection's booking; a free change has no fee;
-  a change is never rewritten.
+  a change is never rewritten. "Connection holds (1132)": nothing held under `NONE` or without issued tickets; a hold's
+  end cannot be moved; an ended hold records when and never opens again; other carriers do not see it.
+- **API** (`backend/tests/test_connection_holds.py`): two travellers miss the second trip and the carrier completes it;
+  both are held; one changes the trip after it was closed; the other's window ends and the worker releases the money,
+  closes the tickets and completes the booking; nothing is held under `NONE`.
 - **API** (`backend/tests/test_connections.py`):
   - search across carriers where no trip runs direct;
   - risks to accept, a changeable later trip, trips too far apart refused;

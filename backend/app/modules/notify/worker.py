@@ -188,6 +188,11 @@ async def main(once: bool) -> None:
                         await conn.execute("SELECT ops.raise_tracking_alerts()")
                         # station screens that stopped reading their board are reported to the administration (1129)
                         await conn.execute("SELECT net.raise_screen_alerts()")
+                    # connections held after their trip was completed are released when the change window ends (1132)
+                    from ..sales.connections import release_due_holds
+                    hold_ctx = _ctx()
+                    async with db.transaction(hold_ctx) as conn:
+                        await release_due_holds(conn, hold_ctx)
                     # approved regular trips make their trips ahead, so one with no end runs until it is stopped (1117)
                     from ..schedules.service import generate_due
                     await generate_due()
