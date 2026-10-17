@@ -1,0 +1,334 @@
+<!doctype html><html lang="en" dir="ltr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Masslak Implementation Timeline</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Arabic:wght@400;500;600&family=Readex+Pro:wght@500;600;700&display=swap">
+<style>
+/* Layout: a departure-board style Gantt. Label column on the reading-start side, time flows in the reading direction (right-to-left in Arabic). */
+:root {
+  --bg: #F4F5F1; --surface: #FFFFFF; --fg: #17201C; --muted: #59645E; --line: #DDE1DA; --line-strong: #C3C9C0;
+  --ink: #1E3A31;
+  --own: #B8336A; --ui: #2E6BD8; --dev: #0D8566; --db: #B4761B; --ops: #8A4EC1;
+  --holiday: rgba(180, 118, 27, .10); --today: #C23A2B;
+  --f-display: "Readex Pro", "IBM Plex Sans Arabic", system-ui, sans-serif;
+  --f-body: "IBM Plex Sans Arabic", "Segoe UI", Tahoma, system-ui, sans-serif;
+  --f-data: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  --label-w: 250px;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #101613; --surface: #17201B; --fg: #E5EBE7; --muted: #9AA59F; --line: #29322D; --line-strong: #3A453F;
+  --ink: #CFE3D9; --own: #F27BA6; --ui: #79A4FF; --dev: #3FC79F; --db: #E3A94E; --ops: #BB91F2;
+  --holiday: rgba(227, 169, 78, .10); --today: #FF6B5B; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #101613; --surface: #17201B; --fg: #E5EBE7; --muted: #9AA59F; --line: #29322D; --line-strong: #3A453F;
+  --ink: #CFE3D9; --own: #F27BA6; --ui: #79A4FF; --dev: #3FC79F; --db: #E3A94E; --ops: #BB91F2;
+  --holiday: rgba(227, 169, 78, .10); --today: #FF6B5B; color-scheme: dark }
+
+* { box-sizing: border-box }
+body { background: var(--bg); color: var(--fg); font-family: var(--f-body); font-size: 14px; line-height: 1.55 }
+.wrap { max-width: 1440px; margin: 0 auto; padding-inline: 24px; padding-block: 28px 56px; display: grid; gap: 22px }
+@media (max-width: 640px) { .wrap { padding-inline: 16px } :root { --label-w: 158px } }
+
+header.top { display: flex; flex-wrap: wrap; gap: 16px 32px; align-items: end; justify-content: space-between }
+.top h1 { font-family: var(--f-display); font-weight: 700; font-size: clamp(22px, 3vw, 30px); line-height: 1.2; margin: 0; color: var(--ink); text-wrap: balance }
+.top p { margin: 6px 0 0; color: var(--muted); max-width: 70ch }
+.lang { display: inline-flex; border: 1px solid var(--line-strong); border-radius: 6px; overflow: hidden }
+.lang button { font: 500 13px var(--f-body); background: transparent; color: var(--muted); border: 0; padding: 6px 12px; cursor: pointer }
+.lang button[aria-pressed="true"] { background: var(--ink); color: var(--bg) }
+
+.keys { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 0; border-block: 1px solid var(--line-strong) }
+.key { padding: 12px 16px; border-inline-start: 1px solid var(--line); min-width: 0 }
+.key:first-child { border-inline-start: 0; padding-inline-start: 0 }
+.key .k { font-size: 12px; color: var(--muted); letter-spacing: .02em }
+.key .v { font-family: var(--f-display); font-weight: 600; font-size: 18px; color: var(--ink) }
+.key .s { font-family: var(--f-data); font-size: 12px; color: var(--muted) }
+
+.controls { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; justify-content: space-between }
+.tabs { display: inline-flex; gap: 4px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 3px }
+.tabs button { font: 500 13px var(--f-body); border: 0; background: transparent; color: var(--muted); padding: 7px 14px; border-radius: 6px; cursor: pointer }
+.tabs button[aria-selected="true"] { background: var(--ink); color: var(--bg) }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; align-items: center }
+.chips .hint { font-size: 12px; color: var(--muted) }
+.chip { display: inline-flex; align-items: center; gap: 7px; font: 500 13px var(--f-body); color: var(--fg); background: var(--surface); border: 1px solid var(--line-strong); border-radius: 999px; padding: 4px 12px 4px 10px; cursor: pointer }
+.chip i { width: 10px; height: 10px; border-radius: 2px; background: var(--c) }
+.chip[aria-pressed="false"] { opacity: .45; text-decoration: line-through }
+button:focus-visible { outline: 2px solid var(--today); outline-offset: 2px }
+
+.legend { display: flex; flex-wrap: wrap; gap: 6px 22px; font-size: 12px; color: var(--muted) }
+.legend span { display: inline-flex; align-items: center; gap: 7px }
+.sw { display: inline-block; width: 26px; height: 10px; border-radius: 2px; border: 1px solid var(--dev); background: color-mix(in srgb, var(--dev) 18%, var(--surface)); position: relative; overflow: hidden }
+.sw.done::before { content: ""; position: absolute; inset-block: 0; inset-inline-start: 0; width: 55%; background: var(--dev) }
+.sw.dia { width: 10px; height: 10px; transform: rotate(45deg); background: var(--ink); border: 0 }
+.sw.swh { background: var(--holiday); border: 1px dashed var(--db) }
+.sw.swt { width: 2px; height: 14px; background: var(--today); border: 0; border-radius: 0 }
+
+.chart { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; overflow-x: auto; position: relative }
+.grid { position: relative; min-width: calc(var(--label-w) + var(--tl-w)) }
+.row { display: grid; grid-template-columns: var(--label-w) 1fr; min-height: 30px; border-top: 1px solid var(--line) }
+.row:first-child { border-top: 0 }
+.lab { position: sticky; inset-inline-start: 0; z-index: 3; background: var(--surface); padding: 6px 12px; border-inline-end: 1px solid var(--line); font-size: 13px; line-height: 1.35; display: flex; align-items: center; gap: 8px; min-width: 0 }
+.lab .ref { font-family: var(--f-data); font-size: 10.5px; color: var(--muted); margin-inline-start: auto; white-space: nowrap }
+.tl { position: relative; min-width: 0 }
+.grp .lab { font-family: var(--f-display); font-weight: 600; font-size: 13px; color: var(--ink); letter-spacing: .01em }
+.grp .lab i { width: 10px; height: 10px; border-radius: 2px; background: var(--c) }
+.grp { background: color-mix(in srgb, var(--c, var(--ink)) 6%, var(--surface)); }
+.grp .lab { background: color-mix(in srgb, var(--c, var(--ink)) 6%, var(--surface)) }
+
+.hdr .lab { font-size: 11.5px; color: var(--muted) }
+.hdr.months { min-height: 26px }
+.tick { position: absolute; inset-block: 0; display: flex; align-items: center; padding-inline-start: 5px; font-size: 11px; color: var(--muted); white-space: nowrap; border-inline-start: 1px solid var(--line) }
+.tick.y { font-family: var(--f-data); font-weight: 500; color: var(--fg) }
+.band { position: absolute; inset-block: 4px; border-radius: 4px; background: color-mix(in srgb, var(--ink) 10%, var(--surface)); border: 1px solid color-mix(in srgb, var(--ink) 25%, var(--surface)); display: flex; align-items: center; justify-content: center; font: 600 11.5px var(--f-display); color: var(--ink); overflow: hidden; white-space: nowrap; padding-inline: 4px }
+.band.alt { background: color-mix(in srgb, var(--ink) 4%, var(--surface)) }
+
+.overlay { position: absolute; inset-block: 0; inset-inline-start: var(--label-w); inset-inline-end: 0; pointer-events: none; z-index: 1 }
+.vline { position: absolute; inset-block: 0; border-inline-start: 1px solid var(--line); opacity: .7 }
+.vline.y { border-inline-start: 1px solid var(--line-strong); opacity: 1 }
+.hol { position: absolute; inset-block: 0; background: var(--holiday); border-inline: 1px dashed color-mix(in srgb, var(--db) 50%, transparent) }
+.hol span { position: absolute; bottom: 4px; inset-inline-start: 4px; font-size: 10px; color: var(--db); white-space: nowrap; writing-mode: horizontal-tb }
+.today { position: absolute; inset-block: 0; border-inline-start: 2px solid var(--today); z-index: 2 }
+.today span { position: absolute; top: 2px; inset-inline-start: 4px; font: 500 10.5px var(--f-data); color: var(--today); white-space: nowrap; background: var(--surface); padding-inline: 3px }
+
+.bar { position: absolute; top: 8px; height: 14px; border-radius: 3px; border: 1px solid var(--c); background: color-mix(in srgb, var(--c) 18%, var(--surface)); padding: 0; cursor: pointer; z-index: 2; overflow: hidden; min-width: 6px }
+.bar .done { position: absolute; inset-block: 0; inset-inline-start: 0; background: var(--c) }
+.bar:hover, .bar:focus-visible { box-shadow: 0 0 0 2px color-mix(in srgb, var(--c) 35%, transparent) }
+.ms { position: absolute; top: 8px; width: 14px; height: 14px; margin-inline-start: -7px; transform: rotate(45deg); background: var(--ink); border: 2px solid var(--surface); padding: 0; cursor: pointer; z-index: 2 }
+.ms.key { background: var(--today) }
+
+.rm .row { min-height: 52px }
+.rm .tl .span { position: absolute; inset-block: 6px; border-radius: 4px; background: color-mix(in srgb, var(--ink) 5%, var(--surface)); border: 1px solid var(--line-strong); cursor: pointer; padding: 0; z-index: 2 }
+.rm .tl .span.ind { border-style: dashed }
+.rm .lane { position: absolute; height: 5px; border-radius: 2px; background: var(--c) }
+.rm .lab b { font-family: var(--f-data); font-weight: 500; font-size: 12px; color: var(--muted); min-width: 2.2em }
+
+#tip { position: fixed; z-index: 50; max-width: 330px; background: var(--surface); color: var(--fg); border: 1px solid var(--line-strong); border-radius: 8px; box-shadow: 0 8px 28px rgba(0,0,0,.18); padding: 10px 12px; font-size: 13px; pointer-events: none }
+#tip h4 { margin: 0 0 4px; font: 600 13.5px var(--f-display); color: var(--ink); display: flex; gap: 8px; align-items: center }
+#tip h4 i { width: 9px; height: 9px; border-radius: 2px; background: var(--c); flex: none }
+#tip .d { font-family: var(--f-data); font-size: 11.5px; color: var(--muted) }
+#tip p { margin: 6px 0 0 }
+#tip .built { margin-top: 6px; font-size: 12px; color: var(--dev) }
+
+.notes { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 28px }
+.notes section { min-width: 0 }
+.notes h2 { font: 600 15px var(--f-display); color: var(--ink); margin: 0 0 8px }
+.notes ul { margin: 0; padding-inline-start: 18px; display: grid; gap: 6px; color: var(--fg) }
+.notes li { max-width: 68ch }
+.notes li::marker { color: var(--muted) }
+.foot { font-size: 12px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 12px }
+@media (prefers-reduced-motion: no-preference) { .bar, .ms, .span { transition: box-shadow .12s } }
+
+.bar.dep { border-style: dashed; background: transparent }
+.sw.dep { border-style: dashed; background: transparent }
+.ms.done { background: var(--dev) }
+.rm .tl .span.done { background: color-mix(in srgb, var(--dev) 14%, var(--surface)); border-color: var(--dev) }
+.rm .tl .span.done .lane { opacity: 1 }
+#tip .built.no { color: var(--muted) }
+.keys .key .s.v1 { color: var(--muted); font-family: var(--f-body) }
+
+/* Arabic has no glyphs in the monospace face: data lines use the Arabic body face, digits stay tabular */
+html:lang(ar) .key .s, html:lang(ar) .lab .ref, html:lang(ar) #tip .d, html:lang(ar) .tick, html:lang(ar) .today span { font-family: var(--f-body); font-variant-numeric: tabular-nums; letter-spacing: 0 }
+</style>
+
+</head><body>
+<div class="wrap" id="app">
+  <header class="top">
+    <div>
+      <h1 id="t-title"></h1>
+      <p id="t-sub"></p>
+    </div>
+  </header>
+
+  <div class="keys" id="keys"></div>
+
+  <div class="controls">
+    <div class="tabs" role="tablist">
+      <button id="v-detail" role="tab" type="button"></button>
+      <button id="v-road" role="tab" type="button"></button>
+    </div>
+    <div class="chips" id="chips"></div>
+  </div>
+  <div class="legend" id="legend"></div>
+
+  <div class="chart" id="chart"></div>
+
+  <div class="notes" id="notes"></div>
+  <div class="foot" id="foot"></div>
+</div>
+<div id="tip" hidden></div>
+
+<script>
+// Data: one language per file (build.py); tasks are [workstream, start, end, name, reference, done %, note, tag, key milestone, flag]
+const D = {"L": {"dir": "ltr", "locale": "en-GB", "title": "Masslak Implementation Timeline", "sub": "What is done and what remains: from the built software to the pilot, the general launch and the later phases. Version 3.1, 17 October 2026; replaces version 3.0 of 15 October 2026.", "detail": "To the general launch in detail", "road": "Full phase roadmap", "ws": {"own": "Owner, contracts and authorities", "ui": "Interfaces and apps", "dev": "Programming", "db": "Databases and data", "ops": "System preparation and operations", "ms": "Milestones"}, "show": "Show:", "lg": {"bar": "Planned task", "done": "Done", "dep": "Depends on an outside party", "ms": "Milestone", "hol": "Holidays (approximate)", "today": "Today"}, "keys": [["Software of releases 1A and 1B built", "2026-10-17", "Version 1.0: end of the sprints, 1 October 2027"], ["Pilot launch", "2027-01-04", "Version 1.0: 4 October 2027"], ["General launch", "2027-03-22", "Version 1.0: Phase 1 closed on 26 November 2027"], ["Shuttle go-live", "2027-09-03", "Version 1.0: 7 April 2028"]], "phaseRow": "Stages", "monthRow": "Months", "yearRow": "Years", "today": "Today", "doneNote": "Done: in the repository and tested.", "weeks": ["# week", "# weeks", "# weeks", "# weeks"], "months": ["# month", "# months", "# months", "# months"], "ref": "Reference:", "indicative": "indicative dates", "depends": "depends on an outside party", "roadRef": "21, 22, RELEASE_MAP", "notesT": ["What is done (3 to 17 October 2026)", "What remains before the pilot", "Planning assumptions", "What changed since version 1.0"], "notes": [["Releases 1A and 1B are built: booking, wallet and payments with cash first, settlements, e-invoices with the tax engine, loyalty, support cases, families, manifests, and boarding stations with counter sales and the departure board.", "Web portals in Arabic and English for passengers, carriers, agencies, station operating companies, finance and administration; passenger and driver apps with offline tickets.", "The database has 143 schema files up to 1130 and 541 tables under row-level security; 867 database checks and 754 API tests pass; releases 1.48.0 to 1.50.0 are signed.", "Production readiness in the code: the production profile, two database hosts with failover, signed images, monitoring and alert rules, and the launch gate tools, rehearsed.", "Later phases are built and switched off. Of 220 use cases, 151 are built (108 on at launch, 43 off until switched on), 15 partly, 49 have data and screens only, and 5 are not built.", "Documents: study 3.7, database design 3.14, requirements, traceability, business rules, behaviour models, the test plan and the readiness register 1.9.", "Since study 3.5 (schema files 1113 to 1129): know your customer for companies, logos and four-digit trip numbers, regular trips, booking modes and groups, seats chosen on each trip, charter with a deposit, separate departures and arrivals screens paired by a short code, Syria's administrative geography with field surveys, boundaries, corrected names and a map, and the photo settings screens.", "Since study 3.6 (schema file 1130): connections across carriers where no trip runs direct (Daraa to Aleppo through Damascus), with the risks accepted, flexible later trips, each carrier's policy for a missed trip and a booking changed to another trip."], ["Owner inputs: approvals, the systems company, contracts (hosting, staging firm, penetration test, SMS and mail), legal texts and the pilot carriers.", "Evidence on staging and production for launch gates 1 to 8. Only staging or production evidence can pass a gate; the development team cannot.", "People: an on-call rota of three engineers, support and finance operations, each trained on its track.", "Data and acceptance: the pilot cities' stations and the carriers' fleets loaded, and the 45 acceptance scenarios signed.", "The apps in the stores, after the device matrix on real phones."], ["The owner's inputs are in place by 13 November 2026. Every week of delay moves every later date by a week.", "If the go/no-go slips past late January 2027, the pilot moves to after Eid al-Fitr (about 22 March 2027), so that it does not start in Ramadan.", "Staging follows the gate closure plan: about three weeks once the servers, the on-call rota, the audit bucket and the penetration test firm exist.", "The pilot is paid in cash and uses the platform's own sign-in. Card payments, identity providers and the tax authority link follow their contracts and specifications; they do not hold the pilot.", "Later phases: their tables, interfaces and many screens are built and switched off. Each window covers the workflows that are still data only, the phase's acceptance gate and any field trial. One continuing team; phases that depend on authorities or contracts are indicative.", "Ramadan and Eid dates are approximate because they follow the lunar calendar."], ["Version 1.0 planned twelve months of programming for Phase 1, with the pilot on 4 October 2027. The software of Phase 1 is now built, so the pilot moves to 4 January 2027, and Phase 1 closes on 9 April 2027 instead of 26 November 2027.", "The critical path is no longer programming. It is the owner's inputs, the staging evidence, the people and the acceptance tests.", "A lane for the owner, contracts and authorities is added. Dashed bars depend on an outside party.", "Boarding stations, counter sales and the departure board moved from Phase 7 into the first release (owner's decision, October 2026).", "The later phases start about seven months earlier, and the roadmap ends in 2031 instead of 2032."]], "foot": "Sources: Analysis and Design Study 3.7 (sections 21, 22, 22.6, 22.7 and 22.8), the gate closure plan (docs/operations/GATE_CLOSURE_PLAN.md), the release map, the use case document 2.1 and the repository at schema file 1130, 17 October 2026. Version 3.1."}, "WS": ["own", "ui", "dev", "db", "ops"], "TASKS": [["ms", "2026-10-17", null, "Software of releases 1A and 1B built, tested and documented", "22.6", 100, "Schema files up to 1130; 867 database checks and 754 API tests pass; study 3.7, timeline 3.1 and the readiness pack delivered.", "built", false, ""], ["ms", "2026-11-13", null, "Owner inputs and contracts in place", "Reg. F1", 0, "Approvals, the systems company, hosting, the staging firm, the penetration test firm, SMS and mail.", "inputs", false, ""], ["ms", "2026-12-04", null, "Gates 1, 3, 4, 5 and 7 passed on staging", "Launch gates", 0, "Evidence from staging, signed by each gate's approver.", "", false, ""], ["ms", "2026-12-29", null, "Go/no-go: gates 1 to 8 passed and signed", "Gate plan 3", 0, "launch_gates.py check shows every gate passed; the approvers sign; the owner decides.", "gonogo", false, ""], ["ms", "2027-01-04", null, "Pilot launch", "22.3", 0, "One or two routes with two or three carriers, paid in cash; before Ramadan.", "pilot", true, ""], ["ms", "2027-02-05", null, "Pilot review and decision to expand", "22.6", 0, "Incidents, support cases, cash remittances and the carriers' feedback.", "", false, ""], ["ms", "2027-03-22", null, "General launch of releases 1A and 1B", "22.6", 0, "After Eid al-Fitr, in the cities the owner chooses.", "golive", true, ""], ["ms", "2027-04-09", null, "Phase 1 closed", "2.7", 0, "With the phase's full documentation package.", "p1end", false, ""], ["own", "2026-10-19", "2026-10-30", "Approve study 3.7 and the readiness pack", "Reg. A1", 0, "Study 3.7 in Arabic and English, the register 1.9 and the documents it lists.", "", false, ""], ["own", "2026-10-19", "2026-11-13", "Decide on missed connections after the carrier completes the trip", "22.8", 0, "Today a booking can be changed only until the carrier completes the missed trip; the option is to hold the money of a connection's missed tickets until the change window ends.", "", false, ""], ["own", "2026-10-19", "2026-11-06", "Appoint the systems company and name the approvers", "Reg. F2", 0, "The responsibility matrix gets names and deputies, and each launch gate an approver.", "", false, ""], ["own", "2026-10-19", "2026-11-13", "Contracts: hosting, staging firm, penetration test firm, SMS and mail", "Gate plan 3", 0, "Staging servers are rented by the hour for two to three weeks. The pilot is paid in cash, so it needs no payment provider.", "", false, ""], ["own", "2026-10-19", "2026-11-27", "Legal texts: privacy policy, terms of use, carrier and operating company agreements", "Reg. G1", 0, "Needed before the first passenger.", "", false, ""], ["own", "2026-10-26", "2026-11-27", "Pilot carriers and routes signed", "22.3", 0, "Two or three carriers on one or two routes, with their stations.", "", false, ""], ["own", "2026-11-02", "2026-11-20", "Approve the drafts: photo DPIA, training plan, data load plan", "Reg. C7, F4, F5", 0, "", "", false, ""], ["own", "2026-10-19", "2026-12-18", "Bank agreement for the wallet funds", "6.8", 0, "Not on the pilot's path (cash); needed before wallet top-ups open.", "", false, ""], ["own", "2026-11-02", "2027-05-28", "Authorities' inputs: tax values, check-in window, licence list, photo legal basis, penalty decision", "Reg. G2–G7", 0, "Not needed for the pilot: each feature stays off, or its setting empty, until the input arrives.", "", false, "dep"], ["own", "2027-01-04", "2027-04-30", "Payment provider contract: card, instalments, financing", "Reg. G5", 0, "These ways of paying stay closed until a provider is contracted.", "", false, "dep"], ["ui", "2026-10-03", "2026-10-17", "Web portals in Arabic and English: passenger, carrier, agency, station, finance, admin", "32", 100, "Accessibility and right-to-left checks on every page in CI.", "", false, ""], ["ui", "2026-10-03", "2026-10-17", "Passenger and driver apps, with offline tickets and boarding", "3.10", 100, "", "", false, ""], ["ui", "2026-10-03", "2026-10-17", "Station screens and the departure board", "7.16", 100, "", "", false, ""], ["ui", "2026-11-02", "2026-11-27", "Design review of the new screens with real users", "Reg. C6", 0, "Station portal, the carrier's station screen, the departure board, points and vouchers.", "", false, ""], ["ui", "2026-11-16", "2026-12-11", "Store accounts, app signing and the device matrix on real phones", "Device matrix", 0, "Expo account token, Apple developer team and Google Play console; one passing run per device row.", "", false, ""], ["ui", "2026-11-23", "2026-12-11", "Update the Arabic user guide with the latest screens", "Reg. F4", 0, "", "", false, ""], ["ui", "2026-12-14", "2026-12-24", "Store review and publication of the passenger and driver apps", "3.5", 0, "", "", false, ""], ["ui", "2027-01-04", "2027-03-05", "Usability fixes from acceptance and the pilot", "36", 0, "", "", false, ""], ["ui", "2027-03-22", "2027-04-16", "Photo policy screens for the platform (API only today)", "7.15", 0, "Needed only before the photo is switched on.", "", false, ""], ["dev", "2026-10-03", "2026-10-17", "Releases 1A and 1B: booking, wallet, cash, settlements, e-invoices, loyalty, stations", "22.6", 100, "", "", false, ""], ["dev", "2026-10-03", "2026-10-17", "Security: verified context, settings guard, two-step sign-in, encryption", "16.42", 100, "", "", false, ""], ["dev", "2026-10-03", "2026-10-17", "Since study 3.5: know your customer, regular trips, booking modes, charter, station screens, Syria's geography", "3.11 to 12.7", 100, "Schema files 1113 to 1129, with their screens on the web and in the apps.", "", false, ""], ["dev", "2026-10-03", "2026-10-17", "Connections across carriers, with the risks accepted and a booking changed to another trip", "7.24", 100, "Schema file 1130: search through a city on the way, flexible later trips, each carrier's policy for a missed trip, web and app screens.", "", false, ""], ["dev", "2026-10-03", "2026-10-17", "Later phases built and switched off; partner API and reports engine", "Release map", 100, "", "", false, ""], ["dev", "2026-11-02", "2026-12-11", "Review of the code, requirements and traceability by the systems company", "Reg. A2, A3", 0, "", "", false, ""], ["dev", "2026-11-16", "2026-12-04", "Second root-detection signal: Play Integrity and App Attest", "Decision 10 Oct", 0, "Approved by the owner; needs the store accounts.", "", false, ""], ["dev", "2026-12-07", "2026-12-18", "Fixes from the penetration test, then the retest", "Gate 8", 0, "", "", false, ""], ["dev", "2027-01-04", "2027-03-26", "Pilot support: fixes and small releases", "22.6", 0, "", "", false, ""], ["dev", "2027-03-01", "2027-04-16", "Payment provider adapter and its sandbox tests", "6.4", 0, "Starts when the contract is signed.", "", false, "dep"], ["dev", "2027-03-01", "2027-05-28", "Tax authority link, identity provider, booking from abroad", "13.15, 3.10", 0, "Each needs its specification, provider or data source first.", "", false, "dep"], ["db", "2026-10-03", "2026-10-17", "541 tables under row-level security; 143 schema files up to 1130", "29", 100, "", "", false, ""], ["db", "2026-10-03", "2026-10-17", "Partitions, telemetry database, warehouse, two database hosts with failover", "17.8, 16.42", 100, "", "", false, ""], ["db", "2026-11-17", "2026-11-18", "Recovery to a new host on staging", "Gate 1", 0, "", "", false, ""], ["db", "2026-11-17", "2026-11-18", "Migration rehearsal at production size", "Gate 4", 0, "", "", false, ""], ["db", "2026-11-16", "2026-12-04", "Production database: two hosts with a synchronous standby", "16.42", 0, "Or the owner's written acceptance of one host.", "", false, ""], ["db", "2026-11-16", "2026-12-04", "Reference data of the pilot cities: stations, counters and bays", "Reg. F5", 0, "", "", false, ""], ["db", "2026-11-30", "2026-12-18", "Initial data load of the pilot carriers (bulk import)", "7.17", 0, "Vehicles, drivers, routes and trips through the API, with a report per row.", "", false, ""], ["db", "2026-11-30", "2026-12-24", "Audit archive bucket with object lock, and its custodian", "Gate 6", 0, "In a cloud account separate from production.", "", false, ""], ["ops", "2026-10-03", "2026-10-17", "Production profile, signed images, installer, monitoring and alert rules", "16.42", 100, "", "", false, ""], ["ops", "2026-10-03", "2026-10-17", "Launch gate tools rehearsed; readiness documents and study 3.7", "Gate plan 2", 100, "", "", false, ""], ["ops", "2026-10-19", "2026-12-11", "On-call rota of three engineers, support and finance operations", "Staffing", 0, "Hired or assigned; pages go to the rota's channel.", "", false, ""], ["ops", "2026-11-16", "2026-11-17", "Staging environment up", "Staging", 0, "", "", false, ""], ["ops", "2026-11-17", "2026-11-18", "File scanning and the alert drill on staging", "Gates 7, 5", 0, "", "", false, ""], ["ops", "2026-11-19", "2026-11-27", "Capacity: 1x, 2x and 5x bursts and an 8-hour soak", "Gate 3", 0, "", "", false, ""], ["ops", "2026-11-16", "2026-12-04", "External penetration test", "Gate 8", 0, "", "", false, ""], ["ops", "2026-11-23", "2026-12-11", "Production environment: key service, object storage, alert receivers, egress allowlist", "Prod. profile", 0, "", "", false, ""], ["ops", "2026-11-30", "2026-12-18", "Training: carriers, station staff, support and finance", "Reg. F4", 0, "", "", false, ""], ["ops", "2026-12-07", "2026-12-23", "Acceptance tests with the owner and the pilot carriers (45 scenarios)", "Reg. D1, D5", 0, "Signed minutes for each scenario.", "", false, ""], ["ops", "2026-12-21", "2026-12-24", "Egress and the audit archive on production", "Gates 2, 6", 0, "", "", false, ""], ["ops", "2027-01-04", "2027-02-05", "Pilot operations, paid in cash", "22.3", 0, "", "", false, ""], ["ops", "2027-02-08", "2027-03-12", "Controlled expansion during Ramadan: more routes and carriers", "22.6", 0, "", "", false, ""], ["ops", "2027-03-22", "2027-04-09", "Phase 1 documentation package and closure", "2.7", 0, "", "", false, ""]], "PHASES": [["0", "2026-10-03", "2026-10-17", "Build and readiness (done)", "Releases 1A and 1B built, the later phases built and switched off, the readiness documents and study 3.7.", "done", "Of 220 use cases: 151 built (108 on at launch, 43 off), 15 partly, 49 data and screens only, 5 not built."], ["1", "2026-10-19", "2027-04-09", "Releases 1A and 1B: pilot and general launch", "Owner inputs, staging and the launch gates, acceptance, the pilot from 4 January 2027 and the general launch on 22 March 2027.", "detail", "261 tables of releases 1A and 1B built and tested."], ["2", "2027-04-12", "2027-09-03", "Shuttle, city by city", "Workflows for lines, subscriptions and segment fares, then a 4 to 6 week field trial on the busiest lines.", "", "26 tables built and switched off; of 17 shuttle use cases, 2 built and 15 have data and screens only."], ["3", "2027-09-06", "2028-01-21", "Shipments and consignments", "Courier companies, sorting hubs, delivery and cash on delivery, on top of the parcels already booked on a trip's hold.", "", "59 tables; of 17 shipping use cases, 7 built (parcels on a trip's hold among them) and 10 data and screens only."], ["4", "2028-01-24", "2028-04-28", "International trips", "Border crossings, passports and visas, foreign carriers; the international manifests are built.", "", "8 tables; pre-arrival manifests and the border contract built and switched off."], ["5–6", "2028-05-01", "2028-10-27", "Government integration and borders", "Verification adapters and manifest exchange with border systems, once the authorities are ready.", "dep", "8 tables; adapters are data only; manifests are issued, routed and acknowledged."], ["7", "2028-10-30", "2029-01-26", "Tracking devices and station gates", "Independent GPS devices and station gate systems; boarding stations, counters and the departure board are already in the first release.", "", "5 tables; boarding stations moved into the first release (owner's decision, October 2026)."], ["8", "2029-01-29", "2029-06-29", "Trucks and transit", "Trucks, contracts, legs, the port and transit.", "", "15 tables, data and screens only."], ["9", "2029-07-02", "2029-09-28", "Intermediary platforms and partners", "Channels, commissions, quotas and settlement; fuel and rest-stop partners.", "", "33 tables; loyalty partners and their statements are built in the first release."], ["SCH", "2029-10-01", "2030-01-25", "School transport", "Operators, guardians, attendance and the empty-bus check; the licence registry when the Ministry provides it.", "dep", "11 tables and the school transport module, switched off."], ["10", "2030-01-28", "2030-06-28", "Rail", "Carriage layouts, connecting journeys and booking classes.", "ind", "5 tables."], ["11", "2030-07-01", "2030-12-20", "Taxi", "Registration, tracking, requests and the meter.", "ind", "7 tables."], ["12", "2031-01-06", "2031-06-27", "Car rental", "Companies, branches, fleet, booking, contracts and tracking.", "ind", "15 tables."], ["CS", "2031-06-30", "2031-10-31", "Contact centre and AI assistant", "Voice assistant and staff; opens only with an approved data protection impact assessment (gate 9).", "ind", "14 tables, switched off until an approved DPIA is recorded."]], "LANE": {"own": [0, 0.2], "db": [0, 0.3], "dev": [0.1, 0.8], "ui": [0.2, 0.88], "ops": [0.7, 1]}, "TODAY": "2026-10-17", "DETAIL": ["2026-10-01", "2027-05-31"], "ROAD": ["2026-10-01", "2031-12-31"], "BANDS": [["2026-10-03", "2026-10-17", "Built"], ["2026-10-19", "2026-11-13", "Inputs and contracts"], ["2026-11-16", "2026-12-24", "Staging, gates and acceptance"], ["2027-01-04", "2027-02-05", "Pilot"], ["2027-02-08", "2027-03-19", "Expansion"], ["2027-03-22", "2027-04-09", "General launch"], ["2027-04-12", "2027-05-31", "Phase 2: shuttle"]], "HOLIDAYS": [["2026-12-25", "2026-12-25", "Christmas"], ["2027-01-01", "2027-01-01", "New Year"], ["2027-02-08", "2027-03-09", "Ramadan"], ["2027-03-10", "2027-03-12", "Eid al-Fitr"], ["2027-05-16", "2027-05-19", "Eid al-Adha"]]};
+const L = D.L, WS = D.WS, TASKS = D.TASKS, PHASES = D.PHASES, BANDS = D.BANDS, HOLIDAYS = D.HOLIDAYS, LANE = D.LANE, TODAY = D.TODAY;
+const DAY = 864e5;
+const d = (s) => Date.UTC(+s.slice(0, 4), +s.slice(5, 7) - 1, +s.slice(8, 10));
+let view = "detail";
+const on = Object.fromEntries(WS.map((w) => [w, true]));
+try { const s = JSON.parse(localStorage.getItem("masslak-tl2") || "{}"); if (s.view) view = s.view; } catch (e) {}
+const save = () => { try { localStorage.setItem("masslak-tl2", JSON.stringify({ view })); } catch (e) {} };
+
+const fmt = (s, opt = { day: "numeric", month: "long", year: "numeric" }) => new Intl.DateTimeFormat(L.locale, { ...opt, timeZone: "UTC" }).format(new Date(d(s)));
+const weeks = (a, b) => Math.max(1, Math.round((d(b) - d(a) + 3 * DAY) / (7 * DAY)));
+const monthsBetween = (a, b) => Math.max(1, Math.round((d(b) - d(a)) / (30.44 * DAY)));
+const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const plural = (n, f) => { const k = n === 1 ? 0 : n === 2 ? 1 : n <= 10 ? 2 : 3; return f[Math.min(k, f.length - 1)].replace("#", new Intl.NumberFormat(L.locale).format(n)); };
+function scale(a, b) { const A = d(a), B = d(b); return (s) => ((d(s) - A) / (B - A)) * 100; }
+
+function render() {
+  document.getElementById("t-title").textContent = L.title;
+  document.getElementById("t-sub").textContent = L.sub;
+  const vd = document.getElementById("v-detail"), vr = document.getElementById("v-road");
+  vd.textContent = L.detail; vr.textContent = L.road;
+  vd.setAttribute("aria-selected", view === "detail"); vr.setAttribute("aria-selected", view === "road");
+
+  const keys = document.getElementById("keys"); keys.innerHTML = "";
+  for (const [k, date, was] of L.keys) {
+    const box = el("div", "key");
+    box.append(el("div", "k", esc(k)), el("div", "v", esc(fmt(date, { month: "long", year: "numeric" }))), el("div", "s", esc(fmt(date, { weekday: "long", day: "numeric" }))));
+    if (was) box.append(el("div", "s v1", esc(was)));
+    keys.append(box);
+  }
+
+  const chips = document.getElementById("chips"); chips.innerHTML = "";
+  chips.append(el("span", "hint", esc(L.show)));
+  for (const w of WS) {
+    const b = el("button", "chip", `<i></i>${esc(L.ws[w])}`); b.type = "button";
+    b.style.setProperty("--c", `var(--${w})`); b.setAttribute("aria-pressed", on[w]);
+    b.onclick = () => { on[w] = !on[w]; render(); };
+    chips.append(b);
+  }
+
+  const lg = document.getElementById("legend");
+  lg.innerHTML = `<span><i class="sw"></i>${esc(L.lg.bar)}</span><span><i class="sw done"></i>${esc(L.lg.done)}</span><span><i class="sw dep"></i>${esc(L.lg.dep)}</span><span><i class="sw dia"></i>${esc(L.lg.ms)}</span>` +
+    (view === "detail" ? `<span><i class="sw swh"></i>${esc(L.lg.hol)}</span>` : "") + `<span><i class="sw swt"></i>${esc(L.lg.today)}</span>`;
+
+  const chart = document.getElementById("chart"); chart.innerHTML = "";
+  chart.append(view === "detail" ? detail() : roadmap());
+
+  const notes = document.getElementById("notes"); notes.innerHTML = "";
+  L.notesT.forEach((h, i) => { const s = el("section"); s.append(el("h2", null, esc(h))); const ul = el("ul"); L.notes[i].forEach((n) => ul.append(el("li", null, esc(n)))); s.append(ul); notes.append(s); });
+  document.getElementById("foot").textContent = L.foot;
+}
+
+function overlay(x, ticks, today) {
+  const ov = el("div", "overlay");
+  for (const t of ticks) { const v = el("div", "vline" + (t.y ? " y" : "")); v.style.insetInlineStart = x(t.s) + "%"; ov.append(v); }
+  if (today) { const t = el("div", "today", `<span>${esc(L.today)}</span>`); t.style.insetInlineStart = x(TODAY) + "%"; ov.append(t); }
+  return ov;
+}
+
+function detail() {
+  const A = D.DETAIL[0], B = D.DETAIL[1], x = scale(A, B);
+  const g = el("div", "grid"); g.style.setProperty("--tl-w", "1500px");
+  const ticks = [];
+  for (let t = new Date(d(A)); t.getTime() <= d(B); t.setUTCMonth(t.getUTCMonth() + 1)) {
+    const s = t.toISOString().slice(0, 7) + "-01"; ticks.push({ s, y: t.getUTCMonth() === 0 });
+  }
+
+  const hp = el("div", "row hdr"); hp.append(el("div", "lab", esc(L.phaseRow)));
+  const tp = el("div", "tl"); tp.style.minHeight = "34px";
+  BANDS.forEach(([s, e, n], i) => { const b = el("div", "band" + (i % 2 ? " alt" : ""), esc(n)); b.style.insetInlineStart = x(s) + "%"; b.style.width = (x(e) - x(s)) + "%"; b.title = n; tp.append(b); });
+  hp.append(tp); g.append(hp);
+
+  const hm = el("div", "row hdr months"); hm.append(el("div", "lab", esc(L.monthRow)));
+  const tm = el("div", "tl");
+  ticks.forEach((t, i) => { const nx = ticks[i + 1] ? x(ticks[i + 1].s) : 100; const k = el("div", "tick" + (t.y || i === 0 ? " y" : ""), esc(t.y || i === 0 ? fmt(t.s, { month: "short", year: "numeric" }) : fmt(t.s, { month: "short" }))); k.style.insetInlineStart = x(t.s) + "%"; k.style.width = (nx - x(t.s)) + "%"; tm.append(k); });
+  hm.append(tm); g.append(hm);
+
+  const body = el("div"); body.style.position = "relative";
+  for (const w of ["ms", ...WS]) {
+    if (w !== "ms" && !on[w]) continue;
+    const gr = el("div", "row grp"); gr.style.setProperty("--c", w === "ms" ? "var(--ink)" : `var(--${w})`);
+    gr.append(el("div", "lab", `<i></i>${esc(L.ws[w])}`), el("div", "tl")); body.append(gr);
+    for (const t of TASKS.filter((t) => t[0] === w)) {
+      const [ws, s, e, name, ref, built, note, tag, key, flag] = t;
+      const r = el("div", "row"); r.append(el("div", "lab", `<span>${esc(name)}</span><span class="ref">${esc(ref)}</span>`));
+      const tl = el("div", "tl");
+      let m;
+      if (ws === "ms") { m = el("button", "ms" + (key ? " key" : "") + (built === 100 ? " done" : "")); m.style.insetInlineStart = x(s) + "%"; }
+      else {
+        m = el("button", "bar" + (flag === "dep" ? " dep" : "")); m.style.setProperty("--c", `var(--${ws})`);
+        m.style.insetInlineStart = x(s) + "%"; m.style.width = (x(e) - x(s) + 100 / ((d(B) - d(A)) / DAY)) + "%";
+        if (built) { const dn = el("span", "done"); dn.style.width = built + "%"; m.append(dn); }
+      }
+      m.type = "button"; m.setAttribute("aria-label", `${name}, ${fmt(s)}${e ? " – " + fmt(e) : ""}`);
+      tip(m, () => ({ c: ws === "ms" ? "var(--ink)" : `var(--${ws})`, h: name, dates: e ? `${fmt(s)} → ${fmt(e)} · ${plural(weeks(s, e), L.weeks)}` : fmt(s, { weekday: "long", day: "numeric", month: "long", year: "numeric" }), p: note + (flag === "dep" ? ` (${L.depends})` : ""), ref, built: built === 100 ? L.doneNote : "" }));
+      tl.append(m); r.append(tl); body.append(r);
+    }
+  }
+  const ov = overlay(x, ticks, true);
+  for (const [s, e, n] of HOLIDAYS) { const h = el("div", "hol", d(e) - d(s) > 10 * DAY ? `<span>${esc(n)}</span>` : ""); h.style.insetInlineStart = x(s) + "%"; h.style.width = Math.max(.25, x(e) - x(s)) + "%"; h.title = n; ov.append(h); }
+  body.append(ov);
+  g.append(body);
+  return g;
+}
+
+function roadmap() {
+  const A = D.ROAD[0], B = D.ROAD[1], x = scale(A, B);
+  const y0 = +A.slice(0, 4), y1 = +B.slice(0, 4);
+  const g = el("div", "grid rm"); g.style.setProperty("--tl-w", "1180px");
+  const ticks = [];
+  for (let y = y0; y <= y1; y++) for (let q = 0; q < 4; q++) { const s = `${y}-${String(q * 3 + 1).padStart(2, "0")}-01`; if (d(s) >= d(A) && d(s) <= d(B)) ticks.push({ s, y: q === 0 }); }
+  const hy = el("div", "row hdr months"); hy.append(el("div", "lab", esc(L.yearRow)));
+  const ty = el("div", "tl");
+  for (let y = y0; y <= y1; y++) { const s = y === y0 ? A : `${y}-01-01`, e = y === y1 ? B : `${y + 1}-01-01`; const k = el("div", "tick y", esc(new Intl.NumberFormat(L.locale, { useGrouping: false }).format(y))); k.style.insetInlineStart = x(s) + "%"; k.style.width = (x(e) - x(s)) + "%"; ty.append(k); }
+  hy.append(ty); g.append(hy);
+
+  const body = el("div"); body.style.position = "relative";
+  // the first release's lanes come from its detailed tasks; later phases use the typical split
+  const span = (ws, a, b) => { const ts = TASKS.filter((t) => t[0] === ws && t[2] && t[5] !== 100 && d(t[1]) >= d(a) && d(t[1]) <= d(b)); return ts.length ? [ts.reduce((m, t) => Math.min(m, d(t[1])), Infinity), ts.reduce((m, t) => Math.max(m, d(t[2])), 0)] : null; };
+  for (const [num, s, e, name, deliver, flag, built] of PHASES) {
+    const r = el("div", "row");
+    r.append(el("div", "lab", `<b>${esc(num)}</b><span>${esc(name)}</span>`));
+    const tl = el("div", "tl");
+    const sp = el("button", "span" + (flag === "ind" || flag === "dep" ? " ind" : "") + (flag === "done" ? " done" : "")); sp.type = "button";
+    sp.style.insetInlineStart = x(s) + "%"; sp.style.width = Math.max(.4, x(e) - x(s)) + "%";
+    sp.setAttribute("aria-label", `${name}, ${fmt(s)} – ${fmt(e)}`);
+    WS.forEach((w, i) => {
+      if (!on[w]) return;
+      let a, b;
+      const real = flag === "detail" ? span(w, s, e) : null;
+      if (flag === "done") [a, b] = [0, 1];
+      else if (real) { a = (real[0] - d(s)) / (d(e) - d(s)); b = (real[1] - d(s)) / (d(e) - d(s)); } else [a, b] = LANE[w];
+      a = Math.max(0, a); b = Math.min(1, b);
+      const ln = el("span", "lane"); ln.style.setProperty("--c", `var(--${w})`);
+      ln.style.top = (5 + i * 7) + "px"; ln.style.insetInlineStart = (a * 100) + "%"; ln.style.width = Math.max(2, (b - a) * 100) + "%";
+      sp.append(ln);
+    });
+    const note = flag === "dep" ? L.depends : flag === "ind" ? L.indicative : "";
+    const dates = flag === "done" ? `${fmt(s)} → ${fmt(e)}` : `${fmt(s, { month: "long", year: "numeric" })} → ${fmt(e, { month: "long", year: "numeric" })} · ${plural(monthsBetween(s, e), L.months)}`;
+    tip(sp, () => ({ c: flag === "done" ? "var(--dev)" : "var(--ink)", h: `${num} · ${name}`, dates, p: deliver + (note ? ` (${note})` : ""), ref: L.roadRef, built }));
+    tl.append(sp); r.append(tl); body.append(r);
+  }
+  body.append(overlay(x, ticks, true));
+  g.append(body);
+  return g;
+}
+
+const tipEl = document.getElementById("tip");
+function tip(node, fn) {
+  const show = () => {
+    const o = fn();
+    tipEl.dir = L.dir; tipEl.style.setProperty("--c", o.c);
+    tipEl.innerHTML = `<h4><i></i>${esc(o.h)}</h4><div class="d">${esc(o.dates)}</div>` + (o.p ? `<p>${esc(o.p)}</p>` : "") +
+      (o.built ? `<div class="built">${esc(o.built)}</div>` : "") + `<div class="d" style="margin-top:6px">${esc(L.ref)} ${esc(o.ref)}</div>`;
+    tipEl.hidden = false;
+    const r = node.getBoundingClientRect(), tw = tipEl.offsetWidth, th = tipEl.offsetHeight;
+    let left = r.left + Math.min(r.width, 60) / 2 - 20; left = Math.max(8, Math.min(left, innerWidth - tw - 8));
+    let top = r.bottom + 8; if (top + th > innerHeight - 8) top = r.top - th - 8;
+    tipEl.style.left = left + "px"; tipEl.style.top = Math.max(8, top) + "px";
+  };
+  const hide = () => { tipEl.hidden = true; };
+  node.addEventListener("mouseenter", show); node.addEventListener("mouseleave", hide);
+  node.addEventListener("focus", show); node.addEventListener("blur", hide);
+  node.addEventListener("click", show);
+}
+document.getElementById("chart").addEventListener("scroll", () => { tipEl.hidden = true; });
+addEventListener("scroll", () => { tipEl.hidden = true; }, { passive: true });
+
+document.getElementById("v-detail").onclick = () => { view = "detail"; save(); render(); };
+document.getElementById("v-road").onclick = () => { view = "road"; save(); render(); };
+render();
+</script>
+</body></html>
