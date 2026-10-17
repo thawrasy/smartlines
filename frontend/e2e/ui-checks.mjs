@@ -8,8 +8,11 @@
 //   * nothing makes the page scroll sideways (a common right-to-left fault), with the elements that stick out.
 //
 //   npm run build && node e2e/ui-checks.mjs
-//   MASSLAK_UI_BASE   the API serving frontend/dist (default http://localhost:8077)
-//   CHROME            a Chromium or Chrome executable (default: Playwright's own, or /usr/bin/google-chrome)
+//   MASSLAK_UI_BASE     the API serving frontend/dist (default http://localhost:8077)
+//   CHROME              a Chromium or Chrome executable (default: Playwright's own, or /usr/bin/google-chrome)
+//   MASSLAK_UI_STATION  a station counter's session and pages (written by backend/tests/ui_station_setup.py): the
+//                       station portal, whose sign-in needs a second factor, and the public departure board are
+//                       checked too; without it they are left out and the run says so
 import { readFileSync, existsSync } from "node:fs";
 import { chromium } from "playwright-core";
 
@@ -20,22 +23,55 @@ const SCREENS = { phone: { width: 390, height: 844 }, desktop: { width: 1280, he
 const LOCALES = ["en", "ar"];
 
 const tomorrow = new Date(Date.now() + 27 * 3600e3).toISOString().slice(0, 10);    // Damascus time, roughly
+const later = new Date(Date.now() + 75 * 3600e3).toISOString().slice(0, 10);
+// a round trip and a trip to several places, chosen leg by leg (1121)
+const ROUND = `kind=ROUND_TRIP&legs=DAM_ALP_${tomorrow},ALP_DAM_${later}`;
+const MULTI = `kind=MULTI_CITY&legs=DAM_HMA_${tomorrow},HMA_ALP_${later}`;
+const STATION = process.env.MASSLAK_UI_STATION && existsSync(process.env.MASSLAK_UI_STATION)
+  ? JSON.parse(readFileSync(process.env.MASSLAK_UI_STATION, "utf8")) : null;
 const PORTALS = [
-  { who: null, pages: ["/", `/search?origin=DAM&destination=ALP&on=${tomorrow}`, "@trip", "/login", "/register", "/track", "/verify"] },
-  { who: ["passenger@masslak.test", "PASSENGER"], pages: ["/trips", "/wallet", "/family", "/account", "/services", "/support"] },
+  { who: null, pages: ["/", `/search?origin=DAM&destination=ALP&on=${tomorrow}`, `/search?${ROUND}&pax=2`, "@trip", "/login", "/register", "/track", "/verify",
+    "/screen/pair",         // a display asking to be paired with a station screen (1129)
+    `/search?from=DRA&to=ALP&on=${later}`] },   // no trip runs direct: the connections through Damascus (1130)
+  { who: ["passenger@masslak.test", "PASSENGER"], pages: ["/trips", "/wallet", "/family", "/account", "/services", "/support", "@journey", "@connection", "/charter"] },
   { who: ["owner@carrier.test", "OPERATOR"],
-    pages: ["/carrier", "/carrier/trips", "/carrier/routes", "/carrier/vehicles", "/carrier/finance", "/carrier/documents", "/carrier/reports"] },
+    pages: ["/carrier", "/carrier/trips", "/carrier/routes", "/carrier/vehicles", "/carrier/finance", "/carrier/documents", "/carrier/reports", "/carrier/stations", "/carrier/schedules", "/carrier/kyc", "/carrier/charter"] },
   { who: ["counter@carrier.test", "OPERATOR"], pages: ["/carrier/counter", "/carrier/counter/report"] },
-  { who: ["agency@agency.test", "AGENCY"], pages: ["/agency", "/agency/bookings", "/agency/statement", "/agency/staff"] },
+  { who: ["agency@agency.test", "AGENCY"], pages: ["/agency", "/agency/bookings", "/agency/statement", "/agency/staff", `/agency/search?${MULTI}&pax=6`, "/agency/charter"] },
   { who: ["driver@carrier.test", "DRIVER"], pages: ["/driver"] },
   { who: ["admin@masslak.test", "PLATFORM"],
-    pages: ["/admin", "/admin/companies", "/admin/finance", "/admin/documents", "/admin/stations", "/admin/modules", "/admin/payments"] },
+    pages: ["/admin", "/admin/companies", "/admin/finance", "/admin/documents", "/admin/stations", "/admin/boarding", "/admin/schedules", "/admin/kyc", "/admin/modules", "/admin/payments", "/admin/booking", "/admin/booking?tab=connections", "/admin/geography", "/admin/photo"] },
+  ...(STATION ? [{
+    label: "STATION", cookies: STATION.cookies,
+    choice: { station_uid: STATION.station_uid, station_code: STATION.station_code, station_name: STATION.station_code, counter_code: STATION.counter },
+    pages: ["/station", "/station/trips", "/station/checkin", `/station/boarding?trip=${STATION.trip_uid}`, "/station/sales",
+            `/station/booking/${STATION.booking_ref}`, "/station/bays", `/board/${STATION.station_uid}`,
+            // the screens the station's administration registers, and one screen of each kind (1120)
+            "/station/screens", ...(STATION.departures_screen ? [`/screen/${STATION.departures_screen}`, `/screen/${STATION.arrivals_screen}`] : [])],
+  }] : []),
 ];
 
 function executable() {
   if (process.env.CHROME) return process.env.CHROME;
   for (const p of ["/usr/bin/google-chrome", "/opt/pw-browsers/chromium-1194/chrome-linux/chrome"]) if (existsSync(p)) return p;
   return undefined;
+}
+
+// the checkout of a round trip: the first trip there, and the first one back that leaves after it arrives (1121)
+async function roundTrip(request) {
+  const there = (await (await request.get(`${BASE}/api/trips/search?origin=DAM&destination=ALP&on=${tomorrow}`)).json()).trips?.[0];
+  const back = (await (await request.get(`${BASE}/api/trips/search?origin=ALP&destination=DAM&on=${later}`)).json()).trips?.[0];
+  if (!there || !back) return null;
+  return `/journey?${ROUND}&picked=${there.uid}:${there.from_seq}:${there.to_seq},${back.uid}:${back.from_seq}:${back.to_seq}&pax=2`;
+}
+
+// the checkout of a connection from Daraa to Aleppo through Damascus, on two carriers (1130)
+async function connection(request) {
+  const c = (await (await request.get(`${BASE}/api/trips/connections?origin=DRA&destination=ALP&on=${later}`)).json()).connections?.[0];
+  if (!c) return null;
+  const day = (iso) => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Damascus" }).format(new Date(iso));
+  const legs = c.legs.map((l) => `${l.from_city}_${l.to_city}_${day(l.departs_at)}`).join(",");
+  return `/journey?kind=CONNECTION&legs=${legs}&picked=${c.legs.map((l) => `${l.trip_uid}:${l.from_seq}:${l.to_seq}`).join(",")}&pax=1`;
 }
 
 async function firstTrip(request) {
@@ -75,8 +111,14 @@ try {
     for (const locale of LOCALES) {
       // the site's CSP refuses inline scripts, axe included: only this test browser bypasses it
       const context = await browser.newContext({ locale: locale === "ar" ? "ar-SY" : "en-GB", bypassCSP: true });
-      await context.addInitScript((l) => { try { localStorage.setItem("masslak.locale", l); } catch { /* none */ } }, locale);
+      await context.addInitScript(([l, choice]) => {
+        try { localStorage.setItem("masslak.locale", l); if (choice) localStorage.setItem("masslak.station", JSON.stringify(choice)); } catch { /* none */ }
+      }, [locale, portal.choice ?? null]);
       const headers = { "X-Masslak-Client": "web", "Content-Type": "application/json" };
+      if (portal.cookies) {
+        await context.addCookies(Object.entries(portal.cookies).map(([name, value]) => ({ name, value, url: BASE })));
+        await context.request.patch(`${BASE}/api/auth/me/locale`, { headers, data: { locale } });
+      }
       if (portal.who) {
         const r = await context.request.post(`${BASE}/api/auth/login`,
           { headers, data: { identifier: portal.who[0], password: PASSWORD, portal: portal.who[1] } });
@@ -88,8 +130,10 @@ try {
         await page.setViewportSize(size);
         for (let path of portal.pages) {
           if (path === "@trip") path = await firstTrip(context.request);
+          if (path === "@journey") path = await roundTrip(context.request);
+          if (path === "@connection") path = await connection(context.request);
           if (!path) continue;
-          const where = `${locale} ${screen} ${portal.who?.[1] ?? "VISITOR"} ${path}`;
+          const where = `${locale} ${screen} ${portal.label ?? portal.who?.[1] ?? "VISITOR"} ${path}`;
           const resp = await page.goto(BASE + path, { waitUntil: "networkidle" });
           if (!resp || resp.status() >= 400) { failures.push(`${where}: answered ${resp?.status()}`); continue; }
           await page.waitForSelector("#root *", { timeout: 10000 });
@@ -121,6 +165,7 @@ try {
 }
 
 console.log(`checked ${checked} page views (${LOCALES.length} languages, ${Object.keys(SCREENS).length} screen sizes)`);
+if (!STATION) console.log("the station portal and the departure board were not checked: MASSLAK_UI_STATION names no station session");
 for (const [k, where] of minor) console.log(`${k} (${where.length} views, e.g. ${where[0]})`);
 if (failures.length) {
   console.error(`\n${failures.length} failure(s):\n` + failures.join("\n"));

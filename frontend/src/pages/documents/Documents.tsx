@@ -3,11 +3,11 @@ import { api } from "../../api";
 import { useI18n } from "../../i18n";
 import { useAuth } from "../../auth";
 import { PageHead } from "../../components/layout";
-import { Empty, ErrorBox, Field, Icon, Loaded, Modal, Status, useLoad, useToast } from "../../components/ui";
+import { CarrierName, Empty, ErrorBox, Field, Icon, Loaded, Modal, Status, useLoad, useToast } from "../../components/ui";
 
 interface Doc {
   uid: string; doc_type: string; owner_type: string; issuer: string | null; issue_date: string | null; expiry_date: string | null;
-  review_note: string | null; created_at: string; file_name: string; mime_type: string; size_bytes: number; company_name: string;
+  review_note: string | null; created_at: string; file_name: string; mime_type: string; size_bytes: number; company_name: string; company_uid?: string; company_logo?: string | null;
   plate_no: string | null; status: string; days_left: number | null;
 }
 
@@ -140,7 +140,7 @@ export function AdminDocuments() {
           <thead><tr><th>{t("finance.company")}</th><th>{t("documents.type")}</th><th>{t("documents.subject")}</th><th>{t("documents.expiry")}</th><th>{t("documents.file")}</th><th>{t("common.status")}</th><th>{t("common.actions")}</th></tr></thead>
           <tbody>{documents.map((d) => (
             <tr key={d.uid}>
-              <td style={{ fontWeight: 500 }}>{d.company_name}<div className="small muted">{dateTime(d.created_at)}</div></td>
+              <td style={{ fontWeight: 500 }}><CarrierName name={d.company_name} uid={d.company_uid} logo={d.company_logo} /><div className="small muted">{dateTime(d.created_at)}</div></td>
               <td>{t(`documents.types.${d.doc_type}`)}<div className="small muted">{d.issuer}</div></td>
               <td>{d.plate_no ? <span className="mono">{d.plate_no}</span> : t("documents.company")}</td>
               <td><Expiry d={d} /></td>

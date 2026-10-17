@@ -20,7 +20,7 @@ from fastapi import APIRouter
 from fastapi.responses import HTMLResponse, PlainTextResponse, Response
 
 from ...config import get_settings
-from . import data, images
+from . import data, images, render
 from .render import (base, breadcrumbs, city_name, day_label, distance, duration, faq, local, money, page, search_form,
                      search_url, station_name, words)
 
@@ -31,7 +31,19 @@ CACHE = {"Cache-Control": "public, max-age=600"}
 
 def _html(body: str, status: int = 200) -> HTMLResponse:
     headers = dict(CACHE) if status == 200 else {"Cache-Control": "no-store", "X-Robots-Tag": "noindex"}
-    return HTMLResponse(body, status_code=status, headers=headers)
+    return HTMLResponse(body, status_code=status, headers={**headers, "Content-Security-Policy": render.CSP})
+
+
+def _logo_url(x: data.Trip) -> str:
+    return f"/api/public/companies/{x.carrier_uid}/logo?v={x.carrier_logo}"
+
+
+def _carrier(x: data.Trip) -> str:
+    """The carrier's name, with its logo beside it when it has one (1116)."""
+    if not (x.carrier_logo and x.carrier_uid):
+        return escape(x.carrier)
+    return (f"<span class='carrier'><img src=\"{escape(_logo_url(x))}\" alt='' width='60' height='22' loading='lazy'>"
+            f"<span>{escape(x.carrier)}</span></span>")
 
 
 def _cities_for_form(cat: data.Catalog, lang: str) -> list[tuple[str, str]]:
@@ -104,7 +116,7 @@ async def home(lang: str):
     h = w["home"]
     hero = (f'<section class="hero"><div class="wrap"><h1>{escape(h["h1"])}</h1><p class="lead">{escape(h["lead"])}</p>'
             f"{search_form(lang, _cities_for_form(cat, lang))}</div></section>")
-    body = [f'<section><p style="margin-top:24px">{escape(h["intro"])}</p></section>']
+    body = [f'<section><p class="gap-top">{escape(h["intro"])}</p></section>']
     body.append(f'<section id="routes"><h2>{escape(h["popular_title"])}</h2><div class="grid">'
                 + "".join(_route_card(lang, r) for r in _popular(cat)) + "</div></section>")
     body.append(f'<section><h2>{escape(h["intl_title"])}</h2><p>{escape(h["intl_text"])}</p><div class="grid">'
@@ -165,10 +177,10 @@ async def route(lang: str, slug: str):
         rows = []
         for x in r.trips[:15]:
             d = local(x.departs, x.zone)
-            rows.append(f"<tr><td>{escape(day_label(lang, x.departs, x.zone))}</td><td>{d.strftime('%H:%M')}</td><td>{escape(x.carrier)}</td>"
+            rows.append(f"<tr><td>{escape(day_label(lang, x.departs, x.zone))}</td><td>{d.strftime('%H:%M')}</td><td>{_carrier(x)}</td>"
                         f"<td>{escape(money(lang, x.price))}</td><td><a href=\"{escape(search_url(r.a, r.b, lang, d.date().isoformat()))}\">"
                         f"{escape(w['nav']['book'])}</a></td></tr>")
-            trips_ld.append({"@type": "BusTrip", "name": f"{A} – {B}", "provider": {"@type": "Organization", "name": x.carrier},
+            trips_ld.append({"@type": "BusTrip", "name": f"{A} – {B}", "provider": {"@type": "Organization", "name": x.carrier, **({"logo": f"{base()}{_logo_url(x)}"} if x.carrier_logo else {})},
                              "departureTime": x.departs.isoformat(), **({"arrivalTime": x.arrives.isoformat()} if x.arrives else {}),
                              "departureBusStop": {"@type": "BusStation", "name": station_name(lang, x.origin_code, x.origin_station)},
                              "arrivalBusStop": {"@type": "BusStation", "name": station_name(lang, x.dest_code, x.dest_station)},
@@ -353,7 +365,7 @@ async def not_found(lang: str):
     cat = await data.catalog()
     w = words(lang)
     t = w["notfound"]
-    body = (f"<h1 style='margin-top:32px'>{escape(t['h1'])}</h1><p>{escape(t['text'])}</p>{search_form(lang, _cities_for_form(cat, lang))}"
+    body = (f"<h1 class='gap-top-lg'>{escape(t['h1'])}</h1><p>{escape(t['text'])}</p>{search_form(lang, _cities_for_form(cat, lang))}"
             f"<div class='grid'>" + "".join(_route_card(lang, r) for r in _popular(cat, 8)) + "</div>")
     return _html(page(lang=lang, path="", title=t["title"], description=t["text"], body=body, status_noindex=True), 404)
 

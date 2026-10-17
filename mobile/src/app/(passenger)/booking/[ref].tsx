@@ -5,17 +5,24 @@ import { randomUUID } from "expo-crypto";
 import { useI18n } from "../../../i18n";
 import { api } from "../../../platform/api";
 import { saveBooking } from "../../../platform/tickets";
-import { Button, Card, Chip, ErrorText, Loading, Notice, Screen, Title, s } from "../../../ui/kit";
+import { Button, Card, CarrierName, Chip, ErrorText, Loading, Notice, Screen, Title, s } from "../../../ui/kit";
 import { bookingOptions, openPayment } from "../../../platform/payments";
 import { useLoad } from "../../../ui/useLoad";
+import { ChangeTripCard } from "../../../ui/connections";
 
 interface Ticket { uid: string; ticket_no: string; seat_label: string | null; seat_no: number; status: string; ticket_name: string;
   from_station: string; to_station: string; departs_at: string }
 interface Detail {
-  booking: { booking_ref: string; status: string; total_amount: number; carrier_name: string; trip_no: string;
-             pay_option?: string | null; pay_by?: string | null };
+  booking: { booking_ref: string; status: string; total_amount: number; carrier_name: string; carrier_uid?: string | null; carrier_logo?: string | null; trip_no: string; trip_code?: string | null;
+             pay_option?: string | null; pay_by?: string | null; return_trip?: Return | null;
+             changed_from?: string | null; changed_to?: string | null };   // a booking changed to another trip (1130)
   tickets: Ticket[];
+  // the journey the booking belongs to (1121): this trip's leg and the booker's bookings of every leg
+  journey?: { uid: string; kind: string; leg: number; bookings: { booking_ref: string; leg: number; status: string; trip_no: string; trip_code: string | null }[] } | null;
 }
+// the trip that continues the traveller's on the same vehicle that day, and the way back (1119)
+interface Return { uid: string; trip_code: string | null; trip_no: string; from_seq: number; to_seq: number; departs_at: string;
+  from_station: string; to_station: string; on_sale: boolean; same_vehicle: boolean | null }
 
 export default function Booking() {
   const { t, money, time, date } = useI18n();
@@ -68,10 +75,16 @@ export default function Booking() {
 
   return (
     <Screen>
-      <Title sub={`${booking.carrier_name} · ${money(booking.total_amount)}`}>{t("extra.booked", { ref: booking.booking_ref })}</Title>
+      <Title sub={`${booking.trip_code ?? booking.trip_no} · ${money(booking.total_amount)}`}>{t("extra.booked", { ref: booking.booking_ref })}</Title>
+      <CarrierName name={booking.carrier_name} uid={booking.carrier_uid} logo={booking.carrier_logo} style={s.muted} />
       {notice ? <Notice tone="green" text={notice} /> : null}
       <ErrorText error={error} />
       {booking.status === "EXPIRED" ? <Notice tone="amber" text={t("opt.expired")} /> : null}
+      {booking.changed_from ? <Button kind="text" label={`${t("conn.changedFrom")} ${booking.changed_from}`}
+                                      onPress={() => router.push({ pathname: "/booking/[ref]", params: { ref: booking.changed_from! } })} /> : null}
+      {booking.changed_to ? <Button kind="tonal" label={`${t("conn.changedTo")} ${booking.changed_to}`}
+                                    onPress={() => router.replace({ pathname: "/booking/[ref]", params: { ref: booking.changed_to! } })} /> : null}
+      {b.data.journey?.kind === "CONNECTION" && booking.status === "CONFIRMED" ? <Notice tone="amber" text={t("conn.bookingNote")} /> : null}
       {reserved ? (
         <Card>
           <Text style={s.h2}>{t("opt.reserved")}</Text>
@@ -96,6 +109,30 @@ export default function Booking() {
           </Card>
         </Pressable>
       ))}
+      {b.data.journey ? (
+        <Card>
+          <Text style={s.h2}>{t("jrn.partOf")}</Text>
+          <Text style={s.small}>{t("jrn.partOfHint", { leg: b.data.journey.leg })}</Text>
+          {b.data.journey.bookings.filter((x) => x.booking_ref !== booking.booking_ref).map((x) => (
+            <Button key={x.booking_ref} kind="tonal" label={`${t("jrn.legN", { n: x.leg })} · ${x.trip_code ?? x.trip_no} · ${x.booking_ref}`}
+                    onPress={() => router.push({ pathname: "/booking/[ref]", params: { ref: x.booking_ref } })} />
+          ))}
+        </Card>
+      ) : null}
+      {booking.return_trip ? (
+        <Card>
+          <Text style={s.h2}>{t(booking.return_trip.same_vehicle === false ? "ret.other" : "ret.title")}</Text>
+          <Text style={s.muted}>{booking.return_trip.trip_code ?? booking.return_trip.trip_no} · {date(booking.return_trip.departs_at)} · {time(booking.return_trip.departs_at)}</Text>
+          <Text style={s.muted}>{booking.return_trip.from_station} → {booking.return_trip.to_station}</Text>
+          {booking.return_trip.same_vehicle !== false ? <Text style={s.small}>{t("ret.planned")}</Text> : null}
+          {booking.return_trip.on_sale ? (
+            <Button kind="tonal" label={t("ret.book")} onPress={() => router.push({ pathname: "/trip/[uid]", params: {
+              uid: booking.return_trip!.uid, from_seq: String(booking.return_trip!.from_seq), to_seq: String(booking.return_trip!.to_seq),
+              passengers: String(Math.max(1, tickets.filter((k) => k.seat_no !== null).length)) } })} />
+          ) : null}
+        </Card>
+      ) : null}
+      {booking.status === "CONFIRMED" && tickets.every((k) => k.status === "ISSUED") ? <ChangeTripCard bookingRef={booking.booking_ref} /> : null}
       <Button kind="text" label={t("tabs.trips")} onPress={() => router.replace("/trips")} />
     </Screen>
   );

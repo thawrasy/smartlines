@@ -31,10 +31,13 @@ fi
 passfile="$PGDATA/../.pgpass-replica"
 printf 'db:5432:replication:replicator:%s\n' "$PGPASSWORD" > "$passfile"
 chmod 0600 "$passfile"
+# the settings guard (db/guard) when the image has it: reports set their request context here as on the primary
+preload=pg_stat_statements
+[ ! -f "$(pg_config --pkglibdir)/masslak_guard.so" ] || preload="$preload,masslak_guard"
 # cluster_name is the name the primary sees (application_name): the standby named by deploy/durability.sh when every
 # commit must wait for a copy (MASSLAK_ZERO_DATA_LOSS=on)
 # shellcheck disable=SC2086  # server_tls is a list of options
 exec postgres $server_tls -c hot_standby=on -c max_standby_streaming_delay=30s -c max_connections=200 \
      -c "primary_conninfo=$primary passfile=$passfile application_name=replica1" -c primary_slot_name=$SLOT \
-     -c cluster_name=replica1 -c shared_preload_libraries=pg_stat_statements -c pg_stat_statements.track_utility=off \
+     -c cluster_name=replica1 -c shared_preload_libraries=$preload -c pg_stat_statements.track_utility=off \
      -c track_io_timing=on -c log_min_duration_statement=1000 -c log_parameter_max_length=0

@@ -6,6 +6,8 @@ and JSON-LD structured data.
 """
 from __future__ import annotations
 
+import base64
+import hashlib
 import json
 import re
 from datetime import date, datetime, timedelta
@@ -56,6 +58,7 @@ form.search .btn{align-self:end}
 .fact span{display:block;font-size:.85rem;color:var(--muted)}.fact b{font-size:1.15rem;color:var(--navy)}
 table{width:100%;border-collapse:collapse;margin:10px 0 18px;font-size:.95rem}
 th,td{padding:10px;border-bottom:1px solid var(--line);text-align:start}th{background:var(--soft);color:var(--navy)}
+.carrier{display:inline-flex;align-items:center;gap:8px}.carrier img{height:22px;width:auto;max-width:84px;object-fit:contain;background:#fff;border:1px solid var(--line);border-radius:5px;padding:2px 4px}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px;margin:12px 0 8px}
 .card{display:block;border:1px solid var(--line);border-radius:14px;padding:14px 16px;text-decoration:none;color:var(--ink);background:#fff}
 .card:hover{border-color:var(--blue)}.card b{display:block;color:var(--navy)}.card small{color:var(--muted)}
@@ -68,7 +71,15 @@ footer a{color:#fff;text-decoration:none}footer .cols{display:grid;grid-template
 footer h3{color:#fff;font-size:1rem}footer ul{list-style:none;padding:0;margin:0}footer li{margin:4px 0}
 section{padding-bottom:8px}
 @media(max-width:640px){nav.main{width:100%;margin:0;padding-bottom:10px;gap:12px}.hero{padding:32px 0}}
+.gap-top{margin-top:24px}.gap-top-lg{margin-top:32px}
 """
+
+# The pages' Content-Security-Policy: no inline style or script runs but this stylesheet, named by its hash, and the
+# fonts' stylesheet (reviews of release 1.49.0: 'unsafe-inline' is gone from every page). The structured data block
+# (application/ld+json) is data, not a script.
+CSP = ("default-src 'self'; img-src 'self' data:; style-src 'self' https://fonts.googleapis.com "
+       f"'sha256-{base64.b64encode(hashlib.sha256(CSS.encode()).digest()).decode()}'; font-src 'self' https://fonts.gstatic.com; "
+       "script-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'")
 
 
 def base() -> str:

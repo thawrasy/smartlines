@@ -5,7 +5,9 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-MAX_SEATS, MAX_LOCKED_SEATS = 4, 8
+# A request's own bounds. The seats a booking holds are the platform's setting (sales.seat_limit, 1122: four unless the
+# platform or a regulator decides otherwise, more for a family head), checked by the service and never above these.
+SEATS_BOUND, MAX_LOCKED_SEATS = 20, 8
 
 # One name part: letters in any script, single spaces, hyphens, apostrophes or dots between them
 NAME_PART = r"^[^\W\d_]+(?:[ '\-.][^\W\d_]+)*\.?$"
@@ -16,7 +18,7 @@ class HoldIn(BaseModel):
     trip_uid: uuid.UUID
     from_seq: int = Field(ge=0)
     to_seq: int = Field(ge=1)
-    seat_nos: list[int] = Field(min_length=1, max_length=MAX_SEATS)
+    seat_nos: list[int] = Field(min_length=1, max_length=SEATS_BOUND)
 
 
 class PassengerIn(BaseModel):
@@ -36,8 +38,9 @@ class PassengerIn(BaseModel):
     gender: Optional[Literal["M", "F"]] = None
     # A registered member of the booker's family (4.20): counts for family offers; their stored document is used if none is given
     family_member_uid: Optional[uuid.UUID] = None
-    # A lap infant: the position (1-based) of the adult on this booking who carries them; default the first adult
-    with_adult: Optional[int] = Field(default=None, ge=1, le=MAX_SEATS * 2)
+    # A lap infant: the position (1-based) of the adult who carries them, on this booking (default the first adult) or,
+    # in a journey (1121), among the journey's travellers, so up to a tourism group's size
+    with_adult: Optional[int] = Field(default=None, ge=1, le=120)
     id_type: Optional[Literal["NATIONAL_ID", "PASSPORT", "RESIDENCE", "LAISSEZ_PASSER", "TRAVEL_DOCUMENT", "OTHER"]] = None
     # Full document number: stored only as AES-256-GCM ciphertext, a blind index and the masked last 4
     id_no: Optional[str] = Field(default=None, min_length=4, max_length=24, pattern=r"^[0-9A-Za-z \-/]+$")
@@ -74,20 +77,14 @@ class BookingIn(BaseModel):
     from_seq: int
     to_seq: int
     fare_brand: str = "STANDARD"
-    # seats are capped at MAX_SEATS; lap infants come on top of them
-    passengers: list[PassengerIn] = Field(min_length=1, max_length=MAX_SEATS * 2)
+    # the seats are capped by the platform's setting (1122); lap infants come on top of them
+    passengers: list[PassengerIn] = Field(min_length=1, max_length=SEATS_BOUND * 2)
     idempotency_key: str = Field(min_length=8, max_length=80)
     # Family bookings (4.20): the head may pay from the family trips account; a member's own booking is paid as the head set
     pay_from: Literal["WALLET", "FAMILY_ACCOUNT"] = "WALLET"
     # How the booking is paid (1056): at once from the wallet, or reserved and paid later in cash at the carrier's counter,
     # by card, in instalments or through a financing company, as far as platform administration has opened these options
     pay_with: Literal["WALLET", "PAY_LATER", "CARD", "INSTALLMENT", "FINANCING"] = "WALLET"
-
-    @model_validator(mode="after")
-    def _seats(self):
-        if sum(p.seat_no is not None for p in self.passengers) > MAX_SEATS:
-            raise ValueError(f"TOO_MANY_SEATS: at most {MAX_SEATS} seats per booking")
-        return self
 
 
 class QuotePassenger(PassengerIn):
@@ -104,7 +101,7 @@ class QuoteIn(BookingIn):
     """A booking request priced before seats are held or paid for."""
     hold_token: Optional[uuid.UUID] = None
     idempotency_key: str = "quote-only"
-    passengers: list[QuotePassenger] = Field(min_length=1, max_length=MAX_SEATS * 2)
+    passengers: list[QuotePassenger] = Field(min_length=1, max_length=SEATS_BOUND * 2)
 
 
 class AgencyBookingIn(BookingIn):

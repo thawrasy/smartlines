@@ -20,10 +20,10 @@ from .config import get_settings
 
 METHODS = ("TOTP", "SMS", "WHATSAPP")
 MESSAGE_METHODS = ("SMS", "WHATSAPP")
-PORTALS = ("PLATFORM", "INSPECTOR", "OPERATOR", "DRIVER", "AGENCY", "PASSENGER")
+PORTALS = ("PLATFORM", "INSPECTOR", "OPERATOR", "DRIVER", "AGENCY", "STATION", "PASSENGER")
 ALWAYS = ("PLATFORM",)                 # outside the sandbox, whatever the setting says
 CACHE_SECONDS = 30
-DEFAULT = {"methods": list(METHODS), "required_portals": ["PLATFORM", "INSPECTOR", "OPERATOR", "DRIVER", "AGENCY"],
+DEFAULT = {"methods": list(METHODS), "required_portals": ["PLATFORM", "INSPECTOR", "OPERATOR", "DRIVER", "AGENCY", "STATION"],
            "enforce_in_sandbox": False, "code_minutes": 5, "resend_seconds": 60, "sends_per_hour": 5}
 
 

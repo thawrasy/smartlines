@@ -9,6 +9,32 @@
     "body": "Your booking {booking_ref} is cancelled. Refund: SYP {refund_amount}.",
     "sms": "Masslak: booking {booking_ref} cancelled. Refund SYP {refund_amount}."
   },
+  "booking.cancelled_by_carrier": {
+    "subject": "Trip {trip_no} cancelled by the carrier",
+    "body": "The carrier cancelled trip {trip_no}. Your booking {booking_ref} is cancelled and SYP {refund_amount} is refunded in full {refund_to}. We are sorry for the trouble.",
+    "sms": "Masslak: the carrier cancelled trip {trip_no}. Booking {booking_ref}: SYP {refund_amount} refunded {refund_to}."
+  },
+  "trip.cancel_penalty": {
+    "subject": "Penalty for cancelling trip {trip_no}",
+    "body": "Under the regulator's decision {legal_ref}, cancelling trip {trip_no} carries a penalty of SYP {amount}. It is taken from your balance, or from your next released earnings if the balance does not cover it."
+  },
+  "refund_to_labels": {
+    "WALLET": "to your Masslak wallet",
+    "AGENCY": "through the agency that sold it",
+    "COUNTER": "in cash at the carrier's counter"
+  },
+  "points.earned": {
+    "subject": "You earned {points} points",
+    "body": "Trip {trip_no} earned you {points} loyalty points. Your balance is {balance} points; turn them into wallet credit or a voucher at a partner from your wallet page."
+  },
+  "voucher.used": {
+    "subject": "Voucher used at {partner}",
+    "body": "Your voucher worth {currency} {amount} was used at {partner}."
+  },
+  "voucher.returned": {
+    "subject": "{points} points back in your balance",
+    "body": "A voucher you did not use has expired or was cancelled, so its {points} points are back in your loyalty balance."
+  },
   "booking.reserved": {
     "subject": "Booking {booking_ref} reserved: pay by {pay_by_local}",
     "body": "Your seats on booking {booking_ref} are reserved: {from_city} to {to_city}, departing {departs_local}, {passengers} passenger(s), SYP {total_amount}. Pay by {pay_by_local}, or the reservation lapses and the seats go back on sale. Your tickets are issued once paid.",
@@ -21,6 +47,41 @@
   "withdrawal.rejected": {
     "subject": "Withdrawal of SYP {amount} not approved",
     "body": "Your withdrawal of SYP {amount} was not approved: {reason}. The amount is available in your balance again."
+  },
+  "tracking.signal_lost": {
+    "subject": "Trip {trip_no}: no position for {minutes} min",
+    "body": "The vehicle on trip {trip_no} has sent no position for {minutes} minutes. Check with the driver; the alert closes when positions return."
+  },
+  "tracking.alert_escalated": {
+    "subject": "Trip {trip_no}: still no position after {minutes} min",
+    "body": "The vehicle on trip {trip_no} has been silent for {minutes} minutes and the alert was escalated. Contact the driver now and record what happened."
+  },
+  "screen.unseen": {
+    "subject": "Screen {label} at {station}: unseen for {minutes} min",
+    "body": "The screen {label} at station {station} has not read its board for {minutes} minutes. Check its power, network and browser; the alert clears when it reads its board again."
+  },
+  "sos.raised": {
+    "subject": "SOS on trip {trip_no}",
+    "body": "An SOS was raised on trip {trip_no} (vehicle {plate_no}). Position: {where}. Call the driver and the emergency services now, then acknowledge the alarm in the portal.",
+    "sms": "Masslak SOS: trip {trip_no}, vehicle {plate_no}, position {where}. Act now."
+  },
+  "incident.reported": {
+    "subject": "Incident on trip {trip_no}: {incident_type}, {severity}",
+    "body": "The driver of trip {trip_no} (vehicle {plate_no}) reported an incident: {incident_type}, {severity}. Review it in the portal and decide what happens to the trip."
+  },
+  "incident_type_labels": {
+    "COLLISION": "collision",
+    "BREAKDOWN": "breakdown",
+    "FIRE": "fire",
+    "SECURITY": "security",
+    "SEIZURE": "seizure",
+    "MEDICAL": "medical",
+    "OTHER": "other"
+  },
+  "severity_labels": {
+    "MINOR": "minor",
+    "MAJOR": "major",
+    "SEVERE": "severe"
   },
   "document.approved": {
     "subject": "{doc_type} approved",

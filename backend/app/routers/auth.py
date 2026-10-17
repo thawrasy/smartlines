@@ -13,14 +13,15 @@ from .. import crypto, db, markets, metrics, mfa, mfa_policy, ratelimit
 from ..config import get_settings
 from ..deps import SESSION_COOKIE, Principal, base_context, mfa_required_for, require_session, require_user
 from ..errors import ApiError
-from ..security import hash_password, identifier_hash, new_token, password_problem, token_hash, verify_password
+from ..security import (hash_password, identifier_blocked, identifier_hash, new_token, password_needs_rehash, password_problem, token_hash,
+                        verify_password)
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
-Portal = Literal["PASSENGER", "OPERATOR", "DRIVER", "AGENCY", "PLATFORM", "INSPECTOR"]
+Portal = Literal["PASSENGER", "OPERATOR", "DRIVER", "AGENCY", "PLATFORM", "INSPECTOR", "STATION"]
 PORTALS_BY_KIND = {
     "CUSTOMER": {"PASSENGER"},
-    "COMPANY": {"OPERATOR", "DRIVER"},
+    "COMPANY": {"OPERATOR", "DRIVER", "STATION"},       # STATION: a station's operating company (1099)
     "AGENCY": {"AGENCY"},
     "PLATFORM": {"PLATFORM", "INSPECTOR"},
 }
@@ -64,14 +65,40 @@ async def _auth_event(conn, request: Request, event: str, result: str, *, user_i
 async def _blocked(conn, *pairs) -> bool:
     """Whether any (type, value) is on the active blocklist; values are compared as digests (sec.is_blocked, 1054)."""
     for kind, value in pairs:
-        if value and await conn.fetchval("SELECT sec.is_blocked($1, $2)", kind, identifier_hash("".join(str(value).split()))):
+        if value and await identifier_blocked(conn, kind, value):
             return True
     return False
 
 
+class ReactivateIn(BaseModel):
+    identifier: str = Field(min_length=3, max_length=200)
+    password: str = Field(min_length=1, max_length=200)
+
+
+@router.post("/reactivate")
+async def reactivate(body: ReactivateIn, request: Request):
+    """A closed account (1085) comes back with all its data when its owner signs in again with the same details. The
+    answer for a wrong password is the answer for an unknown identifier, so the endpoint does not reveal accounts."""
+    ctx = base_context(request)
+    ctx.scope = "AUTH"
+    ident = body.identifier.strip()
+    async with db.transaction(ctx) as conn:
+        await ratelimit.check_identifier(conn, ident)
+    async with db.transaction(ctx) as conn:
+        user = await conn.fetchrow("SELECT id, password_hash, status FROM iam.app_user WHERE email = $1 OR mobile = $1", ident)
+        if user is None:
+            verify_password(None, body.password)
+        if user is None or user["status"] != "DEACTIVATED" or not verify_password(user["password_hash"], body.password):
+            raise ApiError(401, "INVALID_CREDENTIALS", "invalid login details")
+        await conn.execute("UPDATE iam.app_user SET status = 'ACTIVE', failed_attempts = 0, locked_until = NULL WHERE id = $1",
+                           user["id"])
+        await _auth_event(conn, request, "ACCOUNT_REACTIVATED", "SUCCESS", user_id=user["id"], identifier=ident)
+    return {"ok": True}
+
+
 @router.post("/register", status_code=201)
 async def register(body: RegisterIn, request: Request):
-    problem = password_problem(body.password)
+    problem = password_problem(body.password, body.email, body.full_name, body.mobile)
     if problem:
         raise ApiError(422, problem, "password does not meet the policy")
     ctx = base_context(request)
@@ -122,6 +149,7 @@ async def login(body: LoginIn, request: Request, response: Response):
                                AND f.verified_at IS NOT NULL AND f.disabled_at IS NULL) AS mfa_factors
                  FROM iam.app_user WHERE email = $1 OR mobile = $1""", ident)
         policy = await mfa_policy.current(conn)
+        deactivated = False
         blocked = await _blocked(conn, ("EMAIL" if "@" in ident else "PHONE", ident), ("DEVICE", body.device_id))
         if blocked:             # recorded, then refused once the record is committed
             await _auth_event(conn, request, "LOGIN_FAILED", "BLOCKED", user_id=user["id"] if user else None,
@@ -138,7 +166,14 @@ async def login(body: LoginIn, request: Request, response: Response):
                 await _auth_event(conn, request, "LOGIN_FAILED", "BLOCKED", user_id=user["id"], portal=body.portal,
                                   reason="account_locked")
                 raise ApiError(423, "ACCOUNT_LOCKED", "account temporarily locked after failed attempts")
-            if not verify_password(user["password_hash"], body.password) or user["status"] != "ACTIVE":
+            password_ok = verify_password(user["password_hash"], body.password)
+            if password_ok and user["status"] == "DEACTIVATED":
+                # closed by its owner (1085): the right password is told so, and nothing is counted against the account
+                deactivated = True
+                raise_invalid = True
+                await _auth_event(conn, request, "LOGIN_FAILED", "BLOCKED", user_id=user["id"], portal=body.portal,
+                                  reason="deactivated")
+            elif not password_ok or user["status"] != "ACTIVE":
                 fails = user["failed_attempts"] + 1
                 locked = fails >= MAX_FAILS
                 await conn.execute(
@@ -151,6 +186,8 @@ async def login(body: LoginIn, request: Request, response: Response):
                 raise_invalid = True
     if blocked:
         raise ApiError(403, "BLOCKED", "sign-in is not possible; contact support")
+    if deactivated:
+        raise ApiError(403, "ACCOUNT_DEACTIVATED", "this account is closed; reactivate it with the same details")
     if raise_invalid:
         raise ApiError(401, "INVALID_CREDENTIALS", "invalid login details")
 
@@ -158,14 +195,19 @@ async def login(body: LoginIn, request: Request, response: Response):
         raise ApiError(403, "PORTAL_NOT_ALLOWED", "this account cannot open the requested portal")
 
     ctx.user_id = user["id"]
+    # a hash made with weaker Argon2 parameters is replaced now that the password is known to be right
+    rehashed = hash_password(body.password) if password_needs_rehash(user["password_hash"]) else None
     async with db.transaction(ctx) as conn:
         company_id = None
-        if body.portal in ("OPERATOR", "DRIVER", "AGENCY"):
-            # Agency staff open only the agency portal, carrier staff only the carrier and driver portals
+        if body.portal in ("OPERATOR", "DRIVER", "AGENCY", "STATION"):
+            # Agency staff open only the agency portal, a station operating company's staff only the station portal
+            # (1099), carrier staff only the carrier and driver portals
             company_id = await conn.fetchval(
                 """SELECT m.company_id FROM iam.company_member m JOIN iam.company c ON c.id = m.company_id
                     WHERE m.user_id = $1 AND m.status = 'ACTIVE' AND c.approval_status = 'APPROVED'
-                      AND (c.company_type = 'AGENCY') = ($2 = 'AGENCY')
+                      AND CASE $2 WHEN 'AGENCY' THEN c.company_type = 'AGENCY'
+                                  WHEN 'STATION' THEN c.company_type = 'STATION_OPERATOR'
+                                  ELSE c.company_type NOT IN ('AGENCY', 'STATION_OPERATOR') END
                     ORDER BY m.is_owner DESC LIMIT 1""", user["id"], body.portal)
             if company_id is None:
                 raise ApiError(403, "COMPANY_NOT_ACTIVE", "no approved company for this account")
@@ -204,7 +246,8 @@ async def login(body: LoginIn, request: Request, response: Response):
             request.headers.get("user-agent", "")[:300], expires, client, device, refresh_hash, access_expires)
         await conn.execute(
             "UPDATE iam.app_user SET failed_attempts = 0, locked_until = NULL, last_login_at = now(), "
-            "last_login_ip = $2::inet WHERE id = $1", user["id"], request.state.client_ip)
+            "last_login_ip = $2::inet, password_hash = coalesce($3, password_hash) WHERE id = $1",
+            user["id"], request.state.client_ip, rehashed)
         await _auth_event(conn, request, "LOGIN_SUCCESS", "SUCCESS", user_id=user["id"], portal=body.portal,
                           company_id=company_id, session_id=session_id)
     factors = list(user["mfa_factors"])
@@ -302,11 +345,11 @@ async def me(request: Request, principal: Principal = Depends(require_user)):
     async with db.transaction(ctx) as conn:
         if principal.company_id:
             row = await conn.fetchrow(
-                "SELECT p.legal_name, p.uid FROM iam.party p WHERE p.id = $1", principal.company_id)
+                "SELECT p.legal_name, p.uid, iam.logo_version(p.id) AS logo FROM iam.party p WHERE p.id = $1", principal.company_id)
             code = await conn.fetchval(
                 "SELECT code3 FROM net.carrier_code WHERE company_id = $1 AND status = 'ACTIVE' LIMIT 1",
                 principal.company_id)
-            company = {"name": row["legal_name"], "uid": str(row["uid"]), "code": code}
+            company = {"name": row["legal_name"], "uid": str(row["uid"]), "code": code, "logo": row["logo"]}
         # the market the screens show times and money in (1061): the company's, or the person's
         market = (await markets.of_party(conn, principal.company_id or principal.party_id)).public()
     return {

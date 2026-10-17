@@ -6,6 +6,8 @@ import { localDate } from "../../dates";
 import { Field, Icon, useLoad } from "../../components/ui";
 import type { IconName } from "../../components/icons";
 import { useChannel } from "../../channel";
+import { useAuth } from "../../auth";
+import { MAX_LEGS, legsParam, type JourneyKind, type JourneyLeg } from "./journeyLinks";
 
 interface Ref { cities: { code: string; country_code: string }[] }
 
@@ -18,41 +20,129 @@ export function useCities() {
     .sort((a, b) => a.name.localeCompare(b.name, locale)), [ref.data, city, locale]);
 }
 
-export function SearchForm({ initial }: { initial?: { from: string; to: string; on: string; pax: number } }) {
+// The seats one booking holds and the travellers the form takes (1122): the platform's number (four unless it decides
+// otherwise, as a regulator may require), the passenger's own when they head a larger family, an agency's group
+export function useSeatLimits() {
+  const ch = useChannel();
+  const { me } = useAuth();
+  const passenger = !ch.staff && me?.portal === "PASSENGER";
+  const base = useLoad(() => api.get<{ booking?: { max_seats: number } }>("/api/ref").then((r) => r.booking?.max_seats ?? 4));
+  const own = useLoad(() => (ch.agency ? api.get<{ max_passengers: number }>("/api/agency/journeys/options").then((r) => r.max_passengers)
+    : passenger ? api.get<{ max_seats: number }>("/api/bookings/limits").then((r) => r.max_seats) : Promise.resolve(null)), [ch.agency, passenger]);
+  const perBooking = base.data ?? 4;
+  return { perBooking, maxPax: Math.max(own.data ?? perBooking, 1) };
+}
+
+export interface SearchInitial { from: string; to: string; on: string; pax: number; kind?: JourneyKind; legs?: JourneyLeg[] }
+
+// One way, a round trip, or several places one after the other (owner's request, October 2026; 1121). Passengers book
+// up to the platform's seat limit (useSeatLimits); an agency books a group (its setting, 50 by default) and every trip
+// of the journey for all of them.
+// A carrier's or a station's counter sells single trips.
+export function SearchForm({ initial }: { initial?: SearchInitial }) {
   const { t } = useI18n();
   const nav = useNavigate();
   const ch = useChannel();
   const cities = useCities();
+  const journeys = !ch.counter;
+  const { maxPax } = useSeatLimits();
+  const [kind, setKind] = useState<JourneyKind>(journeys ? initial?.kind ?? "ONE_WAY" : "ONE_WAY");
   const [from, setFrom] = useState(initial?.from ?? "DAM");
   const [to, setTo] = useState(initial?.to ?? "ALP");
   const [on, setOn] = useState(initial?.on ?? localDate(1));
+  const [back, setBack] = useState(initial?.kind === "ROUND_TRIP" && initial.legs?.[1] ? initial.legs[1].on : localDate(3));
+  const [legs, setLegs] = useState<JourneyLeg[]>(initial?.kind === "MULTI_CITY" && initial.legs?.length ? initial.legs
+    : [{ from: initial?.from ?? "DAM", to: initial?.to ?? "ALP", on: initial?.on ?? localDate(1) }, { from: initial?.to ?? "ALP", to: "", on: localDate(3) }]);
   const [pax, setPax] = useState(initial?.pax ?? 1);
+  const multiOk = legs.every((l, i) => l.from && l.to && l.from !== l.to && (i === 0 || l.on >= legs[i - 1].on));
+  const ok = kind === "MULTI_CITY" ? multiOk : !!from && !!to && from !== to && (kind !== "ROUND_TRIP" || back >= on);
   const submit = (e: FormEvent) => {
     e.preventDefault();
-    if (from && to && from !== to) nav(ch.link(`/search?from=${from}&to=${to}&on=${on}&pax=${pax}`));
+    if (!ok) return;
+    if (kind === "ONE_WAY") nav(ch.link(`/search?from=${from}&to=${to}&on=${on}&pax=${pax}`));
+    else {
+      const chosen = kind === "ROUND_TRIP" ? [{ from, to, on }, { from: to, to: from, on: back }] : legs;
+      nav(ch.link(`/search?kind=${kind}&legs=${legsParam(chosen)}&pax=${pax}`));
+    }
   };
-  const select = (value: string, set: (v: string) => void) => (
-    <select className="input" value={value} onChange={(e) => set(e.target.value)} required>
+  const select = (value: string, set: (v: string) => void, label?: string) => (
+    <select className="input" value={value} onChange={(e) => set(e.target.value)} required aria-label={label}>
       <option value="" disabled>{t("home.selectCity")}</option>
       {cities.map((c) => <option key={c.code} value={c.code}>{c.name}</option>)}
     </select>
   );
-  return (
-    <form className="search-grid" onSubmit={submit}>
-      <Field label={t("home.origin")}>{select(from, setFrom)}</Field>
-      <button type="button" className="swap" title={t("home.swap")} onClick={() => { setFrom(to); setTo(from); }}>
-        <Icon name="swap_horiz" />
-      </button>
-      <Field label={t("home.destination")}>{select(to, setTo)}</Field>
-      <Field label={t("home.date")}>
-        <input className="input" type="date" value={on} min={localDate(0)} max={localDate(60)} onChange={(e) => setOn(e.target.value)} required />
-      </Field>
-      <Field label={t("home.passengers")}>
+  const setLeg = (i: number, patch: Partial<JourneyLeg>) => setLegs((all) => all.map((l, j) => {
+    if (j === i) return { ...l, ...patch };
+    if (j === i + 1 && patch.to !== undefined && (!l.from || l.from === all[i].to)) return { ...l, from: patch.to };   // the next trip leaves from here
+    return l;
+  }));
+  const passengers = (
+    <Field label={t("home.passengers")}>
+      {maxPax > 8 ? (
+        <input className="input" type="number" min={1} max={maxPax} value={pax} onChange={(e) => setPax(Math.min(maxPax, Math.max(1, Number(e.target.value) || 1)))} />
+      ) : (
         <select className="input" value={pax} onChange={(e) => setPax(Number(e.target.value))}>
-          {[1, 2, 3, 4].map((n) => <option key={n} value={n}>{n}</option>)}
+          {Array.from({ length: maxPax }, (_, i) => i + 1).map((n) => <option key={n} value={n}>{n}</option>)}
         </select>
-      </Field>
-      <button className="btn large" type="submit" disabled={from === to}><Icon name="search" />{t("home.searchBtn")}</button>
+      )}
+    </Field>
+  );
+  return (
+    <form className="stack" onSubmit={submit}>
+      {journeys && (
+        <div className="segmented search-modes" role="tablist" aria-label={t("home.mode.label")}>
+          {(["ONE_WAY", "ROUND_TRIP", "MULTI_CITY"] as JourneyKind[]).map((k) => (
+            <button key={k} type="button" role="tab" aria-selected={kind === k} className={kind === k ? "on" : ""} onClick={() => setKind(k)}>
+              <Icon name={k === "ONE_WAY" ? "arrow_forward" : k === "ROUND_TRIP" ? "swap_horiz" : "multiple_stop"} size={18} flip={k === "ONE_WAY"} />{t(`home.mode.${k}`)}
+            </button>
+          ))}
+        </div>
+      )}
+      {kind !== "MULTI_CITY" ? (
+        <div className={`search-grid${kind === "ROUND_TRIP" ? " round" : ""}`}>
+          <Field label={t("home.origin")}>{select(from, setFrom)}</Field>
+          <button type="button" className="swap" title={t("home.swap")} onClick={() => { setFrom(to); setTo(from); }}>
+            <Icon name="swap_horiz" />
+          </button>
+          <Field label={t("home.destination")}>{select(to, setTo)}</Field>
+          <Field label={t("home.date")}>
+            <input className="input" type="date" value={on} min={localDate(0)} max={localDate(60)} onChange={(e) => { setOn(e.target.value); if (back < e.target.value) setBack(e.target.value); }} required />
+          </Field>
+          {kind === "ROUND_TRIP" && (
+            <Field label={t("home.return")}>
+              <input className="input" type="date" value={back} min={on} max={localDate(60)} onChange={(e) => setBack(e.target.value)} required />
+            </Field>
+          )}
+          {passengers}
+          <button className="btn large" type="submit" disabled={!ok}><Icon name="search" />{t("home.searchBtn")}</button>
+        </div>
+      ) : (
+        <div className="stack">
+          {legs.map((l, i) => (
+            <div key={i} className="journey-row">
+              <span className="chip blue">{t("jrn.legN", { n: i + 1 })}</span>
+              <Field label={t("home.origin")}>{select(l.from, (v) => setLeg(i, { from: v }))}</Field>
+              <Field label={t("home.destination")}>{select(l.to, (v) => setLeg(i, { to: v }))}</Field>
+              <Field label={t("home.date")}>
+                <input className="input" type="date" value={l.on} min={i ? legs[i - 1].on : localDate(0)} max={localDate(60)}
+                       onChange={(e) => setLeg(i, { on: e.target.value })} required />
+              </Field>
+              <button type="button" className="btn text small" disabled={legs.length <= 2} aria-label={t("home.removeLeg", { n: i + 1 })}
+                      onClick={() => setLegs((all) => all.filter((_, j) => j !== i))}><Icon name="close" /></button>
+            </div>
+          ))}
+          <div className="row between" style={{ gap: 12, flexWrap: "wrap", alignItems: "flex-end" }}>
+            <button type="button" className="btn outlined" disabled={legs.length >= MAX_LEGS}
+                    onClick={() => setLegs((all) => [...all, { from: all[all.length - 1].to, to: "", on: all[all.length - 1].on }])}>
+              <Icon name="add" />{t("home.addLeg")}</button>
+            <div className="row" style={{ gap: 12, alignItems: "flex-end" }}>
+              {passengers}
+              <button className="btn large" type="submit" disabled={!ok}><Icon name="search" />{t("home.searchBtn")}</button>
+            </div>
+          </div>
+          <p className="small muted" style={{ margin: 0 }}>{t("home.multiHint")}</p>
+        </div>
+      )}
     </form>
   );
 }

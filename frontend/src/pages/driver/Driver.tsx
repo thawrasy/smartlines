@@ -7,11 +7,11 @@ import { LangSwitch } from "../../components/layout";
 import { Empty, ErrorBox, Icon, Loaded, Logo, Status, useLoad, useToast } from "../../components/ui";
 
 interface DriverTrip {
-  uid: string; trip_no: string; status: string; departure_at: string; arrival_at: string; seats_total: number; plate_no: string | null;
+  uid: string; trip_no: string; trip_code?: string | null; status: string; departure_at: string; arrival_at: string; seats_total: number; plate_no: string | null;
   booked: number; boarded: number;
   stops: { seq: number; kind: string; sched_arr: string; sched_dep: string; actual_arr: string | null; actual_dep: string | null; station_name: string; station_code: string; city_code: string }[];
 }
-type ScanResult = { result: "OK" | "DUPLICATE" | "INVALID_QR" | "WRONG_TRIP"; seat_no?: number; passenger?: string };
+type ScanResult = { result: "OK" | "DUPLICATE" | "INVALID_QR" | "WRONG_TRIP" | "WRONG_STOP" | "NOT_FOUND" | "PHOTO_REQUIRED"; seat_no?: number; passenger?: string };
 
 export function DriverLayout() {
   const { t } = useI18n();
@@ -43,7 +43,7 @@ export function DriverTrips() {
           const a = x.stops[0], b = x.stops[x.stops.length - 1];
           return (
             <Link key={x.uid} to={`/driver/trip/${x.uid}`} className="card stack tight" style={{ color: "inherit", textDecoration: "none" }}>
-              <div className="row between"><span className="mono small muted">{x.trip_no}</span><Status value={x.status} /></div>
+              <div className="row between"><span className="mono small muted">{x.trip_code ?? x.trip_no}</span><Status value={x.status} /></div>
               <div className="row between" style={{ marginTop: 6 }}>
                 <div><div style={{ fontSize: 22, fontWeight: 600 }}>{city(a.city_code)}</div><div className="muted">{time(a.sched_dep)}</div></div>
                 <Icon name="directions_bus" />
@@ -118,17 +118,26 @@ export function DriverTrip() {
   const [code, setCode] = useState("");
   const [scan, setScan] = useState<ScanResult | null>(null);
   const [error, setError] = useState<unknown>(null);
+  // a ticket without a code yet (paper printed long before departure, owner's decision O1): its number and booking
+  // reference, boarded against the trip's manifest once the identity document is checked
+  const [typed, setTyped] = useState({ ticket_no: "", booking_ref: "", identity_checked: false });
 
-  const check = async (token: string) => {
+  const send = async (body: Record<string, unknown>) => {
     setError(null);
     try {
-      const r = await api.post<ScanResult>("/api/driver/scan", { trip_uid: uid, token });
+      const r = await api.post<ScanResult>("/api/driver/scan", { trip_uid: uid, ...body });
       setScan(r); setCode("");
+      if (r.result === "OK") setTyped({ ticket_no: "", booking_ref: "", identity_checked: false });
       if (navigator.vibrate) navigator.vibrate(r.result === "OK" ? 80 : [80, 60, 80]);
       if (r.result === "OK") state.reload();
     } catch (e) { setError(e); }
   };
+  const check = (token: string) => send({ token });
   const submit = (e: FormEvent) => { e.preventDefault(); if (code.trim()) void check(code.trim()); };
+  const submitTyped = (e: FormEvent) => {
+    e.preventDefault();
+    void send({ ticket_no: typed.ticket_no.trim().toUpperCase(), booking_ref: typed.booking_ref.trim().toUpperCase(), identity_checked: true });
+  };
 
   const stopEvent = async (seq: number, kind: "ARRIVE" | "DEPART") => {
     setError(null);
@@ -158,7 +167,7 @@ export function DriverTrip() {
       <Loaded state={state}>{(trip) => !trip ? <Empty title={t("errors.NOT_FOUND")} /> : (
         <>
           <div className="card stack tight">
-            <div className="row between"><span className="mono small">{trip.trip_no}</span><Status value={trip.status} /></div>
+            <div className="row between"><span className="mono small" title={trip.trip_no}>{trip.trip_code ?? trip.trip_no}</span><Status value={trip.status} /></div>
             <h2>{city(trip.stops[0].city_code)} — {city(trip.stops[trip.stops.length - 1].city_code)}</h2>
             <div className="grid cols-3" style={{ gridTemplateColumns: "repeat(3, 1fr)" }}>
               <div className="stat" style={{ boxShadow: "none", background: "var(--surface-tint)", padding: 12 }}><div className="label">{t("driver.booked")}</div><div className="value" style={{ fontSize: 22 }}>{trip.booked}</div></div>
@@ -178,10 +187,24 @@ export function DriverTrip() {
             )}
             <CameraScanner onCode={check} />
             <form onSubmit={submit} className="row nowrap">
-              <input className="input ltr mono grow" placeholder={t("driver.manual")} value={code} onChange={(e) => setCode(e.target.value)} />
+              <input className="input ltr mono grow" aria-label={t("driver.manual")} placeholder={t("driver.manual")} value={code} onChange={(e) => setCode(e.target.value)} />
               <button className="btn">{t("driver.check")}</button>
             </form>
           </div>
+          <form className="card stack" onSubmit={submitTyped}>
+            <h3 style={{ margin: 0 }}><Icon name="keyboard" /> {t("driver.typedTitle")}</h3>
+            <p className="small muted" style={{ margin: 0 }}>{t("driver.typedHint")}</p>
+            <div className="grid cols-2">
+              <input className="input ltr mono" aria-label={t("driver.ticketNo")} placeholder={t("driver.ticketNo")} value={typed.ticket_no}
+                     onChange={(e) => setTyped({ ...typed, ticket_no: e.target.value })} />
+              <input className="input ltr mono" aria-label={t("driver.bookingRef")} placeholder={t("driver.bookingRef")} value={typed.booking_ref}
+                     onChange={(e) => setTyped({ ...typed, booking_ref: e.target.value })} />
+            </div>
+            <label className="check-row"><input type="checkbox" checked={typed.identity_checked}
+                   onChange={(e) => setTyped({ ...typed, identity_checked: e.target.checked })} />{t("driver.identityChecked")}</label>
+            <button className="btn" disabled={!typed.identity_checked || typed.ticket_no.trim().length < 3 || typed.booking_ref.trim().length < 4}>
+              {t("driver.boardTyped")}</button>
+          </form>
           <div className="card">
             <div className="card-title"><h3>{t("driver.stops")}</h3><button className="btn text small" onClick={shareLocation}><Icon name="location_on" size={18} />{t("driver.location")}</button></div>
             <div className="stops">

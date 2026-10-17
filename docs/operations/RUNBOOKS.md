@@ -56,9 +56,10 @@ section.
   3. Run `python -m app.tools.keys check`, to prove the key service still opens every data key.
   4. Run the reconciliation checks from section 1.5.
   5. Run `python -m app.tools.files_check` in the API container: every file the restored database refers to is read
-     back, decrypted and compared with its recorded size and hash (R-44). With the files in an object store, first
-     restore the bucket to the time the database was restored to (bucket versioning: the object versions current at
-     that time), then run the check; it must report nothing missing.
+     back, decrypted and compared with its recorded size and hash (R-44); it must report nothing missing. With the
+     files in an object store, `deploy/restore.sh` first puts back the version each file had when the backup was taken
+     (`files_versions.jsonl` in the backup; `python -m app.tools.files_versions restore`, H-04). A backup made before
+     release 1.49.0 has no such record: restore the bucket to the database's time by hand first.
 - **Targets approved by the owner on 8 October 2026 (T3-01; settings `recovery.rpo_seconds` and `recovery.rto_minutes`):**
   - **RPO:** 60 seconds when the server is lost. WAL is archived at least every `archive_timeout = 60` s; pgBackRest
     archives asynchronously. With the streaming standby, a failover loses only what the standby had not received,
@@ -86,27 +87,44 @@ section.
 
 ## 3. Failover
 
-- **Who decides:** Patroni promotes the standby when the primary fails its health checks, for about 30 seconds of
-  detection. The application connects through the Patroni-aware endpoint (HAProxy or PgBouncer in front), so it reaches
-  the new primary on reconnect.
+- **The production layout** (reviews of October 2026, H-01; [HIGH_AVAILABILITY.md](HIGH_AVAILABILITY.md)): two
+  database hosts under Patroni with a synchronous standby, etcd on both and on the application host, HAProxy on the
+  application host under the names `db` and `db-replica`. `deploy/install.sh` requires it (`MASSLAK_DB_LAYOUT=ha`), or
+  the owner's written acceptance of one host (`MASSLAK_SINGLE_HOST_ACCEPTED`).
+- **Who decides:** Patroni promotes the synchronous standby when the primary stops renewing its leader key (30 s).
+  HAProxy marks the old primary down within 3 s of Patroni's answer changing and cuts its sessions; clients
+  reconnect to the new primary through the same names.
 - **During failover:**
   - Transactions in flight are rolled back.
-  - The API retries idempotent requests. Bookings and payments carry idempotency keys, so a retry never doubles them.
-- **Manual switchover** for maintenance: `patronictl switchover --leader <old> --candidate <new>`.
-- **The application side** (review stage D6): list every server with `target_session_attrs=read-write`, or go through
-  HAProxy port 5000. While no primary answers, the API returns 503 `SERVICE_BUSY` with `Retry-After`, and
-  `/api/ready` stays not ready until the pool reaches a primary. Measured on a development pair: writing back 2.3 s
-  after the promotion, nothing lost ([HIGH_AVAILABILITY.md](HIGH_AVAILABILITY.md)); the full procedure, the second
-  site included, is section 23.
-- **Single-server stack (`docker-compose.yml`):**
+  - The API answers 503 `SERVICE_BUSY` with `Retry-After`, and `/api/ready` stays not ready until the pool reaches a
+    primary. Bookings and payments carry idempotency keys, so a retry never doubles them.
+- **What to look at:** `docker compose --env-file deploy/.env exec -T db masslak-patroni cluster` (members, roles,
+  lag; exit 0 with one primary and a synchronous standby streaming).
+- **Bring the failed host back:** fix the cause and start its Patroni (`docker start masslak-dbN-patroni-1` on that
+  host, or reboot it): Patroni rewinds it (`pg_rewind`) and it rejoins as the synchronous standby. A host whose disk is
+  lost is reinstalled from its bundle (`install-db-host.sh`); it copies the primary.
+- **Zero data loss with two hosts:** while one host is down, `MASSLAK_ZERO_DATA_LOSS=on` (owner's decision 1) makes
+  every commit wait for it, and the platform stops taking bookings (`CommitsWaitingForStandby`). If the host cannot
+  come back within minutes, the on-call lead decides whether to switch it off for the duration:
+  `MASSLAK_ZERO_DATA_LOSS=off` in `deploy/.env`, then `./deploy/durability.sh` (commits waiting go through); switch it
+  on again once the standby streams. The decision and its times go in the incident record.
+- **Manual switchover** for maintenance:
+  `docker exec masslak-dbN-patroni-1 patronictl -c /etc/patroni/patroni.yml switchover --leader dbN --candidate dbM
+  --force` on the primary's host; `install-db-host.sh` does it on its own before it restarts the primary.
+- **The application side** (review stage D6): list every host with `target_session_attrs=read-write`, or go through
+  HAProxy (`db`). Measured: back to writing 23.3 s after the primary's container was killed in CI (25.4 s locally),
+  nothing lost; CI repeats the drill on every push (HIGH_AVAILABILITY.md, Measured). While no standby is up, reports
+  run on the primary (`db-replica` falls back to it) and the API stays ready. The second site is section 23.
+- **One database host (`MASSLAK_DB_LAYOUT=single`, accepted by the owner):**
   - **The replica:** the `db-replica` service is a streaming hot standby. Reports and exports read it; the API and the
     worker refuse to start in production without it.
   - **To promote it:** `docker compose exec -u postgres db-replica pg_ctl promote`. Then point
-    `MASSLAK_DATABASE_URL` at `db-replica` and recreate a new replica from it.
+    `MASSLAK_DATABASE_URL` at `db-replica` and recreate a new replica from it. Losing the host itself means a restore
+    (section 2), about 30 minutes.
   - **If the replica falls behind:** reports show the moment their data reflects (`data_as_of`), and
     `ReplicaLagging` alerts after 30 s.
 - **After failover:**
-  - Check replica lag on the remaining standby.
+  - Check the standby's lag (`masslak-patroni cluster`).
   - Check that the outbox worker resumed (`SELECT count(*) FROM sys.outbox_event WHERE status = 'PENDING'`).
   - Run the reconciliation checks from section 1.5.
 - **Failure tests** before launch: kill the primary, kill an API instance, kill the worker, block the payment provider,
@@ -247,6 +265,79 @@ section.
 - **Legal holds:** a legal hold on a dataset (`gov.legal_hold` with scope `DATASET`) stops its purge.
 - **Erasure:** an erasure request pseudonymises the person in the database. Copies in backups expire with the backup
   retention. Archives keep only masked contact fields, because the change log masks them.
+- **Closing an account (1085):** the owner closes a passenger account with `POST /api/account/deactivate`, giving the
+  password. Nothing is deleted: the status becomes `DEACTIVATED`, every session ends, and the data (bookings, wallet,
+  family links, the boarding photo when it exists) stays. Signing in with the right password says the account is closed;
+  `POST /api/auth/reactivate` with the same details brings it back. Closing refuses while the person has confirmed trips
+  that have not left yet (`UPCOMING_TRIPS`). Staff accounts are closed by their company or the platform.
+- **Erasure also removes the boarding photo (1086).** `gov.erase_party_photo` clears the reference and deletes the file row in
+  the erasure's transaction; the store's daily sweep (`files_sweep`) deletes the bytes after its 24-hour grace period. Taking
+  or replacing the photo is checked by the database (`iam.set_party_photo`): the person, or the head of their family.
+- **Photo rules (1087, WP1; the approval stages 1092).** A platform person with `privacy.manage` proposes a rule with
+  `POST /api/admin/photos/rules`: market (the departure country, or none), trip scope, traveller class, passenger category,
+  requirement (`REQUIRED`, `OPTIONAL`, `NOT_APPLICABLE`), effective date and the legal basis (the platform's own decision
+  reference until a legal text exists). The rule is in force only when its stages are passed, the same stages as the other
+  changes (`photo.approval_stages`): each stage is a different platform person, never the one who proposed it, and never
+  the same person twice. `POST .../rules/{uid}/approve` records a stage; the last one makes the rule APPROVED.
+  - A proposal not yet in force is withdrawn with `POST .../rules/{uid}/withdraw`; this relaxes nothing.
+  - A rule in force is retired through the stages: `POST .../rules/{uid}/retirement` (body `reason`), then
+    `POST .../rules/{uid}/retirement/approve`; `POST .../rules/{uid}/retirement/reject` ends it and the rule stays in force.
+    The rule stays in force until the last stage. The one who asks for a retirement does not approve it, and neither does the person who proposed the rule or the
+    person who gave it its final approval (owner's decision, 1093).
+  - With no rule in force the photo is optional. A `REQUIRED` rule refuses a booking for a traveller with no photo on file
+    (`PHOTO_REQUIRED`, 422), and the gate records `PHOTO_REQUIRED` for a passenger without one. A traveller without a linked
+    profile has no photo on file, so a required photo blocks their booking until the profile is linked (WP3).
+- **The switch (1094; owner's decision, October 2026).** The boarding photo is off at launch: taking, showing and requiring
+  a photo are refused while the setting `photo.enabled` is false (`409 PHOTO_DISABLED` for the person, `404` at the
+  gate, and no photo is required). It is switched on only by a decision with a legal basis, an exceptional approval or an
+  explicit security approval that the platform commits to. A platform person with `privacy.manage` asks with
+  `POST /api/admin/photos/feature/changes` (body `enabled`, `legal_basis` of at least ten characters, `reason`); the change
+  passes the stages of `photo.approval_stages`, and nothing changes before the last approval. Only one such change waits at a time.
+  Switching it off is the same request with `enabled` false.
+  The stages a change passes are a setting: `PUT /api/admin/photos/settings/approval-stages` (body `stages`, at least two,
+  `APPROVE` last, each `CHECK`, `THIRD_PARTY_CHECK` or `APPROVE`; the default is `CHECK` then `APPROVE`). No stage is forced.
+  A change keeps the stages it was asked with. The approver may record the legal document number with the approval
+  (`{"document_no": ...}` on `POST .../policy-changes/{uid}/approve`); it is optional.
+- **Who sees the photo and when (1096).** `photo.view_access` holds four values, each true or false: `TRAVELER` (the person sees their own
+  photo in the app on request, `GET /api/account/photo/image`), `DRIVER_AT_BOARDING`, `CARRIER_OFFICE_AT_BOARDING` (the driver and the
+  carrier's office see a passenger's photo only while the trip is `BOARDING`; the office is off at launch) and `AGENT`, which is the agency that sold the ticket, through `GET /api/agency/tickets/{uid}/photo`, only while the trip is boarding. Change it with
+  `POST /api/admin/photos/settings/changes` (`key`, `value`, `reason`); it passes the approval stages.
+- **When the rules are enforced (1096).** `photo.enforce_from` is a date (`YYYY-MM-DD`) or null. A photo required by a rule in force is
+  asked from that date only; before it, nothing is refused for lack of a photo. It is set by the platform from the date the law or a
+  government directive sets, so the platform is ready before the date and nothing is enforced earlier.
+- **Periodic check and identity provider (1096).** `photo.verify_every_days` (1 to 365, or null) and `photo.identity_provider` (`NONE`).
+  With no provider connected, `POST /api/account/photo/verify` answers `409 IDENTITY_PROVIDER_NOT_CONFIGURED`. A provider is connected
+  by adding its adapter and its value in the database; it is not switched on by a setting alone.
+- **Replacing a photo on file (1087, WP4).** The person and the family head cannot. A platform person requests it with
+  `POST /api/admin/photos/changes`: the party, a reason, the evidence kind (`CIVIL_REGISTRY_EXTRACT`, `IDENTITY_DOCUMENT` or `PASSPORT`),
+  the evidence file and the new photo. A second platform person reads the evidence (`GET .../changes/{uid}/evidence`, audited)
+  and applies (`/approve`) or rejects (`/reject`) it; the requester cannot apply. An applied change replaces the photo and
+  deletes the earlier file; a rejected one deletes the candidate photo. The evidence stays with the request until the
+  person is erased.
+- **Accepted evidence, the age rule and the required data (1088-1091).** `GET /api/admin/photos/evidence-kinds` returns the
+  kinds (each on or off, and whether the age rule applies to it), the age below which a national identity card is not
+  accepted (`identity_card_min_age`, default 18; null: no rule), the approval stages in force (`approval_stages`, default
+  `["CHECK","APPROVE"]`), and the data items with their requirement (`data_requirements`). A change to any of them is asked
+  for by one platform person with a reason, and goes through the stages:
+  - `POST .../evidence-kinds/{code}/changes` (body `active`), `POST .../identity-age/changes` (body `min_age`), and
+    `POST .../data-requirements/{field}/changes` (body `requirement`: `REQUIRED` or `OPTIONAL`).
+  - Each stage is one platform person, who is not the one who asked and has not approved this change before:
+    `POST .../policy-changes/{uid}/approve`. The stages are read when the change is asked, so a later change of the
+    setting does not alter it. The last stage applies the change; `POST .../policy-changes/{uid}/reject` ends it.
+  - The stages are `photo.approval_stages` in the platform settings, at least two, the last one `APPROVE`. The
+    `THIRD_PARTY_CHECK` stage is recorded, but a third party's own account is not built.
+  - A photo change request (`POST /api/admin/photos/changes`) is refused with `EVIDENCE_KIND_NOT_ACCEPTED` (422) when its
+    kind is off, a travel document is for a person who is not a Syrian citizen, or a national or temporary identity document
+    is for a person below the age or without a birth date while the rule is set; and with `DATA_REQUIRED` (422) when an item
+    the platform requires is missing from the person's record. Requests already made keep their evidence.
+  - Each photo change passes the same stages (`POST /api/admin/photos/changes/{uid}/approve`); the photo is replaced at the
+    last stage. The one who asks does not approve it.
+  - The kinds: the national identity card (`IDENTITY_DOCUMENT`), the civil registry extract that shows the national number
+    (`CIVIL_REGISTRY_EXTRACT`; the approver checks the number against the person's record), the passport (`PASSPORT`), the
+    travel document of a Syrian mission abroad (`TRAVEL_DOCUMENT`, Syrian citizens only), and the temporary identity document
+    of the first phase (`TEMPORARY_ID`, to be switched off later after the know-your-customer process).
+- **Erasure and closing are different.** Closing keeps the data; erasure is the person's written request for
+  pseudonymisation, which cannot be undone. A closed account that asks for erasure is erased as any other.
 
 ## 10. Load and capacity (R-12)
 
@@ -465,6 +556,23 @@ The capacity model and its stages are in `CAPACITY_MODEL.md`.
   signed by this repository's release workflow for a `v*` tag, or one that does not match the checksums, and prints the
   commit recorded in `RELEASE`. `deploy/update.sh --sha <commit>` then checks that commit, and the release manifest
   records it.
+- **The images of a release (H-08):** the release workflow builds the API, egress proxy and production database images
+  once, pushes them to `ghcr.io/<owner>/masslak`, `masslak-egress` and `masslak-db`, and signs each digest keylessly,
+  with its bill of materials (an SPDX attestation) and its build provenance. `IMAGES`, inside the signed archive (and
+  published next to it as `masslak-vX.Y.Z.IMAGES`), names them by digest. A production server never builds its own:
+  `deploy/install.sh` and `deploy/update.sh` run `deploy/images.sh pull IMAGES <tag>`, which checks every signature and
+  bill of materials with cosign (signed by this repository's release workflow for a `v*` tag) before pulling the images
+  by digest, and refuses an image that is not. The server needs `cosign`, HTTPS to the Sigstore services
+  (`tuf-repo-cdn.sigstore.dev`, `rekor.sigstore.dev`), to `ghcr.io` and to `pkg-containers.githubusercontent.com`,
+  where ghcr.io serves every blob, the signatures and bills of materials included: a firewall that lets through
+  `ghcr.io` alone makes cosign report "no signatures found" for a signed image, and one that stops
+  `tuf-repo-cdn.sigstore.dev` makes it report that a trusted root is required. The packages of this repository are
+  public (pulled without signing in, release 1.49.0); a fork whose packages are private signs in once with a token
+  that may only read them (`docker login ghcr.io`). The provenance can be checked by hand:
+  `gh attestation verify oci://ghcr.io/<owner>/masslak@sha256:<digest> --owner <owner>`. A server that keeps its
+  images in a private registry signs them with a key and sets `MASSLAK_IMAGE_KEY` (the public key file) in
+  `deploy/.env`. The API's Python packages are installed from `backend/requirements.lock`, every one pinned with its
+  hashes (`pip --require-hashes`).
 - **Publishing a release:** push the tag with git (`git tag -a vX.Y.Z <commit> -m "Masslak vX.Y.Z"`, then
   `git push origin vX.Y.Z`), or publish a release from the repository's Releases page with a new tag `vX.Y.Z` on the
   branch or commit to release. Either way the workflow runs CI on the tagged commit, then creates the release or adds
@@ -486,11 +594,11 @@ The capacity model and its stages are in `CAPACITY_MODEL.md`.
 - **Partitions running out (`PartitionsRunningOut`) or rows in a default partition (`RowsInDefaultPartition`):** the
   daily upkeep (`sys.run_maintenance()`) creates daily partitions 7 days ahead and monthly ones 3 months ahead.
   - Running out: check `masslak_job_last_success_age_seconds{task="maintenance"}` and run `SELECT sys.run_maintenance()`.
-  - Rows in a default partition block creating the partition for their range. Move them with one reviewed migration
-    file, rehearsed on staging first: detach the default partition, create the missing partition and a new empty
-    default, copy the rows of the detached table into the parent table (they land in the new partition), then drop
-    the detached table. The rows are copied, never edited, so append-only tables such as `fin.ledger_entry` keep their
-    guards.
+  - Rows in a default partition wait for their period's partition, readable through their table. The daily upkeep
+    moves a period of up to `partitions.inline_move_rows` rows (50,000) itself (1070); the worker moves larger ones
+    within ten minutes, one period per transaction (`sys.move_default_period()`, 1083, M-08), and logs each move
+    ("late partition upkeep: moved ..."). A period whose table stays busy is tried again on the next round. To move
+    one at once: `SET statement_timeout = '15min'; SELECT sys.move_default_period();` as the application role.
 - **Waiting for a connection (`PoolWaits`):** `masslak_db_pool_acquire_seconds` is the time a request waited for a
   connection of its API process. Before raising the pool or PgBouncer sizes, look for slow transactions
   (`LongTransaction`) and lock waits, which hold connections longer (section 10).
@@ -561,12 +669,14 @@ the grades, the latest position of each vehicle and the tracking alerts (schema 
 
 ## 23. Automatic failover and the second site (review stage D)
 
-Design and measured times: [HIGH_AVAILABILITY.md](HIGH_AVAILABILITY.md). Configuration: `deploy/ha/`.
+Design and measured times: [HIGH_AVAILABILITY.md](HIGH_AVAILABILITY.md). Configuration: the main site in
+`deploy/production/ha/` and the production database image, the second site in `deploy/ha/`.
 
-- **A failover happened (Patroni promoted a standby):** nothing to do to keep bookings running. Then:
-  - `patronictl -c /etc/patroni/patroni.yml list`: one leader, the old primary rejoining as a replica (pg_rewind);
-  - `NoFailoverCandidate` or `NoSynchronousStandby` clear once it streams again; if the old server cannot rejoin,
-    build a new standby from the backup repository (`create_replica_methods: pgbackrest`);
+- **A failover happened (Patroni promoted the standby):** nothing to do to keep bookings running. Then:
+  - `docker compose --env-file deploy/.env exec -T db masslak-patroni cluster` on the application host: one
+    primary, the old one rejoining as the synchronous standby (pg_rewind) once its host runs again;
+  - `NoFailoverCandidate` or `NoSynchronousStandby` clear once it streams again; if the old host cannot rejoin,
+    reinstall it from its bundle (`deploy/production/ha/install-db-host.sh`), which copies the primary;
   - the checks of section 3 (lag, outbox, reconciliation), and the warehouse slot moved with the primary
     (`SELECT * FROM pg_replication_slots` on the new primary).
 - **No standby (`NoFailoverCandidate`, page):** a failure now stops bookings until a restore. Bring the standby back or
@@ -580,9 +690,10 @@ Design and measured times: [HIGH_AVAILABILITY.md](HIGH_AVAILABILITY.md). Configu
   4. Start the API, the worker and Caddy at the second site; move the DNS name to it.
   5. Note the last WAL the second site replayed (`pg_last_wal_replay_lsn()` before promotion) and compare with
      repo1 when the main site returns: transactions after it are the loss, reconciled by hand with the ledger tools.
-- **Drills:** `python3 db/tools/failover_drill.py --dsn "<every server, target_session_attrs=read-write>" --kill "<stop
-  the primary>" [--promote ...] --api https://<site>/api/ready --json evidence.json` on staging; it fails when writing
-  is not back within 60 s or an acknowledged write is lost with a synchronous standby.
+- **Drills:** `python3 db/tools/failover_drill.py --dsn "<both hosts, target_session_attrs=read-write>" --kill "<stop
+  the primary>" --api https://<site>/api/ready [--api-ca <authority>] --json evidence.json` on staging; it fails when
+  writing is not back within 60 s or an acknowledged write is lost with a synchronous standby. CI runs it on every push
+  against the installed layout (job "Production with two database hosts", `deploy/production/ci/kill-primary.sh`).
 
 ## 24. Files in an S3-compatible object store (code review of October 2026, 3.2)
 
@@ -592,12 +703,25 @@ written either to the `files` volume (`MASSLAK_FILES_BACKEND=local`) or to an S3
 object store. Every write asks the store for server-side encryption (`MASSLAK_FILES_S3_SSE`, `AES256` or `aws:kms`)
 and is removed and refused unless the store confirms it, so a bucket without encryption shows at the first upload.
 
-**The bucket.** A dedicated bucket with versioning on, replication to a second site (or object lock), no public
-access, and server-side encryption enabled. The credentials in `deploy/.env` belong to a user that may only read and
-write objects of that bucket. A store outside the private network is reached through the egress proxy
-(`MASSLAK_FILES_S3_VIA_PROXY=true`): the worker adds its domain to the proxy's allowlist. The nightly backup no longer
-copies the files once they are in the store (it writes `FILES_IN_OBJECT_STORE`, naming the bucket); the bucket's
-versions and replica are their backup.
+**The bucket.** A dedicated bucket created with Object Lock (which turns versioning on, and cannot be added later),
+a default retention of at least `MASSLAK_BACKUP_KEEP_DAYS` days in GOVERNANCE or COMPLIANCE mode, replication to a
+second site, no public access, and server-side encryption enabled. On a production server the migration's preflight
+refuses a bucket without versioning, without Object Lock or with a shorter retention (H-04). The credentials in
+`deploy/.env` belong to a user that may only read and write objects of that bucket. A store outside the private network
+is reached through the egress proxy (`MASSLAK_FILES_S3_VIA_PROXY=true`): the worker adds its domain to the proxy's
+allowlist. The nightly backup does not copy the files once they are in the store. It records the version each file
+has (`files_versions.jsonl`, encrypted like the rest of the backup), so a restore brings every file back to that
+moment:
+
+```
+docker compose --env-file deploy/.env run --rm --no-deps app python -m app.tools.files_versions check
+aws s3api create-bucket --bucket masslak-files --object-lock-enabled-for-bucket
+aws s3api put-object-lock-configuration --bucket masslak-files \
+  --object-lock-configuration '{"ObjectLockEnabled":"Enabled","Rule":{"DefaultRetention":{"Mode":"GOVERNANCE","Days":30}}}'
+```
+
+Deleting a file (the daily sweep of unreferenced files, M-04) only adds a delete marker: the locked versions stay until
+their retention ends, and a lifecycle rule removes noncurrent versions after that.
 
 **Moving an installation from the volume to the store**, without stopping it:
 
@@ -701,17 +825,17 @@ batches are purged after 7 days.
 **Zero data loss** (owner's decision 1) is the setting `MASSLAK_ZERO_DATA_LOSS` in `deploy/.env`: `on` (the production
 default) makes the standby confirm every commit before the client is told, so nothing the platform confirmed is lost
 with the primary; `off` lets the primary confirm alone, and a lost primary may take the last seconds with it.
-`deploy/durability.sh` applies it (install and every update run it; run it by hand after changing the setting). In the
-standard stack the standby is the read replica, `replica1`; with Patroni, `deploy/ha/durability.sh` sets
-`synchronous_mode_strict` from the same setting. The choice has a cost the owner accepted: with `on`, when no standby
+`deploy/durability.sh` applies it (install and every update run it; run it by hand after changing the setting). On one
+host the standby is the read replica, `replica1`; with two database hosts it sets Patroni's `synchronous_mode_strict`
+through the REST API (`masslak-patroni durability`). The choice has a cost the owner accepted: with `on`, when no standby
 can confirm, commits wait and bookings pause rather than be confirmed without a copy.
 
 - **CommitsWaitingForStandby** (page): commits wait and no standby confirms. Bring the standby back
-  (`docker compose restart db-replica`, or the Patroni replica). Only if it cannot come back soon and the owner's
+  (`docker compose restart db-replica` on one host; the standby's host and its Patroni with two, section 3). Only if it cannot come back soon and the owner's
   representative agrees, switch the setting to `off` and run `./deploy/durability.sh`; record the decision, and switch
   it back once a standby streams again.
 - **ZeroDataLossNotEnforced** (page): the setting is `on` but commits do not wait (a restore, a configuration reset, a
-  new primary after a failover). Run `./deploy/durability.sh` (Patroni: `./deploy/ha/durability.sh`).
+  new primary after a failover). Run `./deploy/durability.sh`.
 
 **Backups off the server** (R-41): every nightly backup is copied to `MASSLAK_BACKUP_OFFSITE` with rclone, checked
 against its checksums, and both copies are recorded (`sys.backup_run`). **BackupStale** and **BackupOffsiteStale**
@@ -801,8 +925,10 @@ the login cannot read (`sys.context_key`). `set_config` and temporary objects ar
 roles, so no statement it runs can rewrite the context or the transaction flags the ledger and wallet guards read.
 
 - **The key.** Derived from `MASSLAK_SIGNING_SECRET` (`python -m app.tools.context_key` prints it in hex);
-  `deploy/migrate.sh` writes it on every start through `db/create_login_roles.sql -v context_key=...`. A changed
-  signing secret brings its key; the key it replaces stays a day for API processes still running with it.
+  `deploy/migrate.sh` writes it on every start through `db/create_login_roles.sql`, which reads it and the logins'
+  passwords from the environment (`\getenv`), so no secret appears on a command line or in the process list (reviews
+  of release 1.49.0). A changed signing secret brings its key; the key it replaces stays a day for API processes still
+  running with it.
 - **`/api/ready` says `"context": false`.** `SELECT sys.context_status('<fingerprint>')` (as the owner) tells which part:
   `key` false means the database does not hold the API's key: run the migration again (`docker compose ... up migrate`)
   with the API's `deploy/.env`. `set_config_withdrawn` or `temporary_withdrawn` false means the database was created
@@ -817,13 +943,27 @@ roles, so no statement it runs can rewrite the context or the transaction flags 
 - **Rolling back to a release before 1.49.0.** Those releases set the context without a ticket. After
   `deploy/update.sh --rollback`, a superuser opens a window of at most a day, with a reason:
   `INSERT INTO sys.context_unsigned_window (allowed_until, reason) VALUES (now() + interval '4 hours', 'rollback to 1.48.0: <ticket>')`.
-  While it is open `/api/ready` of a 1.49.0 server reports not ready and `set_config` stays withdrawn. Close it when
+  While it is open `/api/ready` of a 1.49.0 server reports not ready, `set_config` stays withdrawn and, since release
+  1.50.0, the alert `ContextUnsignedWindowOpen` pages at once (`masslak_context_unsigned_window_open`). Close it when
   the platform is back on 1.49.0 or later: `UPDATE sys.context_unsigned_window SET allowed_until = now() WHERE allowed_until > now()`.
-- **What remains.** A person holding the API login's password and a connection to the database could still type
-  `SET app.scope = ...` as a statement of their own (PostgreSQL lets any login set custom settings, and only a server
-  extension can forbid it). In the production profile (section 31) the database accepts the API's login only over TLS,
-  with scram, from the container network it is attached to; the password reaches only the containers that use it
-  (deploy/env-split.sh), never the whole deploy/.env. Keep it in the secret store, never in a shared file.
+- **The settings guard (release 1.50.0).** PostgreSQL lets any login set a custom setting nobody defined, so a person
+  holding the API login's password could type `SET app.scope = ...` as a statement of its own. The database images
+  (`db/guard`, built into `docker-compose.yml`'s database, `deploy/production/db` and `deploy/staging/db`) load the
+  server module `masslak_guard`, which defines the thirteen settings the database trusts (`SELECT sys.guarded_settings()`)
+  so that only a superuser may set them: the platform's own functions, which are SECURITY DEFINER and owned by the
+  superuser that applies the schema. SET, SET LOCAL, RESET, a value in the connection options and `ALTER ROLE ... SET`
+  are refused to every other login (`permission denied to set parameter`). Reading them is not restricted.
+  - Check: `SELECT sys.guard_status()` is true; `SHOW shared_preload_libraries` names `masslak_guard`.
+  - **`/api/ready` says `"settings_guard": false`**, or the alert `SettingsGuardMissing` pages: the database server does
+    not load the module. Either it runs an image older than release 1.50.0 (a database image rolled back on its own:
+    the image's start script adds the module only when the image carries it, so an old image still starts), or a
+    `shared_preload_libraries` given by hand replaced the image's (with two database hosts, `postgresql.parameters`
+    in `deploy/production/db/patroni.yml` names it). Run the release's image, or put `masslak_guard` back in the
+    list, and restart the database server; the readiness check and the alert clear by themselves.
+  - The production preflight refuses to install or update on a server without it; a test server works without it.
+  - In the production profile (section 31) the database also accepts the API's login only over TLS, with scram, from
+    the container network it is attached to, and the password reaches only the containers that use it
+    (deploy/env-split.sh). Keep it in the secret store, never in a shared file.
 - **Telemetry (C-02).** The API's login to the telemetry database appends positions and nothing else; the worker's
   upkeep login drops days, never younger than `tel.policy.min_keep_days` and never while a hold stands (section 22).
 
@@ -846,6 +986,7 @@ The message names each gap. Fixes:
 | `logical decoding plugins other than pgoutput are installed` | The database image is not `deploy/production/db`: rebuild it |
 | `the backup before this update was not copied off the server` | Fix `MASSLAK_BACKUP_OFFSITE` (rclone configuration, reachability) and update again; nothing was changed |
 | `the database's certificate expires within 30 days` | Renew it (below) |
+| `the database server does not load the settings guard` | The database does not run the release's image, or `shared_preload_libraries` was replaced by hand (section 30) |
 
 ### The API or the worker refuses to start: "the production profile is incomplete"
 
@@ -854,6 +995,16 @@ The message names each gap. Fixes:
 * "data keys sit in this process's environment" or "secrets this process must not hold": it was started with the
   whole `deploy/.env`. Run `./deploy/env-split.sh` and start it again.
 * "the data keys must come from the key service": set `MASSLAK_KMS_PROVIDER=vault` (section 1 of the profile document).
+* "MASSLAK_QR_KEYS ... must name a key of its own first" (release 1.50.0): QR codes and document tokens are signed
+  with keys of their own. A server installed before 1.50.0 adds them once, keeping the key derived from the signing
+  secret after its own so the tokens it signed still verify:
+  `MASSLAK_QR_KEYS=q<yyyymm>:<openssl rand -base64 32>,s1` and the same for `MASSLAK_DOCUMENT_KEYS` with `d<yyyymm>`,
+  then `./deploy/env-split.sh` and a restart of the app and the worker. `s1` can leave `MASSLAK_QR_KEYS` a day later.
+* "MASSLAK_EINVOICE_KEYS must name a key of its own first" (release 1.50.0): e-invoices are signed with a key of
+  their own that each document names. Add `MASSLAK_EINVOICE_KEYS=e<yyyymm>:<openssl rand -base64 32>` (a server that
+  already issued e-invoices may add `,e1` after it; documents signed before keep verifying either way, from the public
+  key kept in the database), then `./deploy/env-split.sh` and a restart. Rotation and the public keys:
+  TAXES_AND_EINVOICES.md.
 
 ### The key service
 
@@ -875,6 +1026,37 @@ The message names each gap. Fixes:
 4. Restart: `docker compose --env-file deploy/.env up -d --force-recreate db db-replica pgbouncer`.
 5. Copy the new client certificate to the warehouse server.
 6. Move `ca.key` back offline.
+
+### Rotating the QR and document token keys (yearly, and after any suspected exposure)
+
+Ticket QR codes (`Q1.<key id>....`) and the verification tokens printed on documents (`D2.<key id>....`) name the key
+that signed them. The first key of `MASSLAK_QR_KEYS` and of `MASSLAK_DOCUMENT_KEYS` signs; every key listed verifies.
+
+1. Put a new key first: `MASSLAK_QR_KEYS=q202710:<openssl rand -base64 32>,q202610:<the old key>`, the same for
+   documents.
+2. Run `./deploy/env-split.sh` and restart the app and the worker (`docker compose --env-file deploy/.env up -d app worker`).
+3. QR codes rotate every window, so the old QR key can go after a day. Keep an old document key as long as documents it
+   signed are checked (tickets of past trips: the retention of bookings), unless it was exposed: then remove it at
+   once, and the documents it signed answer `SIGNATURE_INVALID` until printed again.
+4. Tokens issued before release 1.50.0 were signed with the signing secret itself: rotating codes (`T1`) are refused;
+   printed documents (`D1`) are accepted until `MASSLAK_LEGACY_DOCUMENT_TOKENS=refuse`, which a server sets once those
+   documents no longer need checking, and at once if `MASSLAK_SIGNING_SECRET` was exposed.
+
+### Rotating the lookup key (blocklist identifiers and family invite codes)
+
+`MASSLAK_LOOKUP_KEYS` keys the digests of login identifiers (the blocklist, the sign-in and sign-up limits, the audit
+column of failed sign-ins) and of family invite codes. Digests stored before release 1.50.0 are keyed with the signing
+secret, which the list names as `s1`. The first key stores new digests; every key listed matches a lookup.
+
+1. Put a new key first and keep `s1` after it: `MASSLAK_LOOKUP_KEYS=l<yyyymm>:<openssl rand -base64 32>,s1`.
+2. Run `./deploy/env-split.sh` and restart the app and the worker.
+3. Re-enter every active blocklist entry, through the security console, so each is stored under the new key. An entry
+   that is only matched through `s1` still blocks, but it stays keyed with the old secret.
+4. Remove `s1` only after step 3 and after the invitations made before the change have expired (a week). Removing it
+   earlier unblocks the entries not re-entered and makes the pending invite codes invalid.
+
+Blocked values are stored only as digests, so the platform cannot re-key them itself: each active entry is entered
+again in step 3.
 
 ### Rotating the warehouse login's password (yearly, and after any suspected exposure)
 
@@ -903,7 +1085,49 @@ A constraint is still NOT VALID because rows that existed before it break it.
 * **`ScrapeTargetDown`.** Check the target with `docker compose --env-file deploy/.env ps`, then its logs.
 * **Alert drill.** Run `./deploy/monitoring/alert-drill.sh` after installing, after changing a receiver, and monthly.
   The person on call confirms receipt of the drill's identifier. Record the date, the identifier and who confirmed it
-  as launch gate evidence.
+  as launch gate evidence. Leave five minutes between two drills: Alertmanager sends a second drill in the same group only at the
+  group's next interval (`group_interval`), after the drill has stopped waiting.
+
+## 32. Boarding stations: switching on, and switching off (1097)
+
+The boarding stations are off at launch, and nothing in a booking, a boarding or a ticket changes until a station is switched
+on. The platform administrator (permission `boarding.manage`) does this in the order below; each step is an API call, and each
+change is in the activity log.
+
+1. Read the settings: `GET /api/admin/boarding/settings`.
+2. When the authorities fix the check-in window, set both values, minutes before departure. The opening value must be larger
+   than the closing value: `PUT /api/admin/boarding/settings` with `{"key": "boarding.checkin.opens_minutes", "value": 120}`,
+   and the same for `boarding.checkin.closes_minutes`. A station can have its own window (step 4).
+3. Set the references the platform requires, if the rules ask for any: `{"key": "boarding.references.required", "value": ["AGREEMENT"]}`.
+   Carriers see what is missing at `GET /api/carrier/references`.
+4. Per station: `PUT /api/admin/boarding/stations/{station_uid}` with `{"enabled": true, "counter_system": "PLATFORM", "displays": false}`.
+   `GET` on the same station shows `boarding_on_now`, which is true only when the platform switch and the station's switch are on.
+5. Open the counters and bays: `POST /api/admin/boarding/stations/{station_uid}/gates` with `{"gate_type": "COUNTER",
+   "operator_company_uid": "<the operating company>"}`, or `{"gate_type": "BAY"}`. The platform gives the number (`C001`, `B001`
+   and so on). A closed gate keeps its number and the next one takes the next number.
+6. Switch the platform on last: `PUT /api/admin/boarding/settings` with `{"key": "boarding.stations.enabled", "value": true}`.
+
+A station's row sits in project phase 7: while the `tracking_stations` feature is off, the database keeps the station's row
+closed to everyone except the platform, so turn that feature on before step 4.
+
+The rights of the operating company come after step 5, and only while the stations and their mode are on:
+
+- A carrier gives its operating company a right for its own trips, at one station or every station, with
+  `POST /api/carrier/station-operators/grants` (`{"operator_company_uid", "station_uid", "permission"}`, the permission being
+  `BOOKING`, `BOARDING_PASS` or `BOARDING`). The carrier's grant counts only while `boarding.mode.carrier_contracted` is `true`:
+  set it with `PUT /api/admin/boarding/settings`.
+- The platform gives a state-mandated operating company its right with `POST /api/admin/boarding/operator-grants`, with no
+  carrier. It counts only while `boarding.mode.state_mandated` is `true`.
+- A grant is revoked with `POST .../{uid}/revoke`, by the party that gave it (the platform can revoke any grant).
+
+An operating company is onboarded by the platform with `POST /api/admin/boarding/operating-companies` (`{"legal_name",
+"license_no", "owner_name", "owner_email", "owner_password"}`). Its owner signs in to the `STATION` portal, enrols a second
+factor at the first sign-in, and sees the rights the company holds and its counters at `GET /api/station/overview`. Give the
+operating company its counters with step 5 above (`"operator_company_uid"` is the uid the onboarding returned).
+
+To stop boarding everywhere, set `boarding.stations.enabled` to `false`. Nothing is deleted: the stations, their counters, their
+bays and the carriers' reference numbers stay as they are. A carrier retires a reference it no longer holds with
+`POST /api/carrier/references/{uid}/retire`; the number itself is never changed or deleted.
 
 ## Rehearsal schedule
 
@@ -911,7 +1135,7 @@ A constraint is still NOT VALID because rows that existed before it break it.
 |---|---|---|
 | Restore to a point in time | Twice, timed | Monthly |
 | Failover and failure tests | Once per failure mode | Quarterly |
-| Failover drill (`failover_drill.py`) with Patroni and HAProxy | On staging, before the layout carries production traffic | Quarterly |
+| Failover drill (`failover_drill.py`) with Patroni and HAProxy | CI on every push (the installed layout on one runner); on staging, before the layout carries production traffic | Quarterly on staging |
 | Promoting the second site | Once on staging | Yearly |
 | Warehouse copied again (`build.py --resync`) | Once on staging | After each publication change |
 | Key rotation | Once in staging | Yearly, and after any suspected exposure |

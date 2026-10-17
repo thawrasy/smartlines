@@ -1,0 +1,39 @@
+# The telemetry database in the production profile (reviews of release 1.49.0; it was the one database connection
+# without TLS, PRODUCTION_PROFILE.md section 7). deploy/production/init.sh adds this file after
+# deploy/telemetry/docker-compose.telemetry.yml whenever MASSLAK_COMPOSE_EXTRA names that overlay.
+#   * the server runs the production database image: TLS 1.3 only, a certificate the internal authority issued for the
+#     name telemetry (deploy/production/tls/telemetry.crt, from init.sh), pg_hba.conf with hostssl lines only
+#     (deploy/production/db/entry.sh);
+#   * the migration, the API and the worker check that certificate (sslmode=verify-full), as for the primary, and the
+#     API refuses to start in production with a telemetry address that does not (backend/app/profile.py).
+# A telemetry database on a server of its own takes the same settings there: its certificate names its host
+# (MASSLAK_TELEMETRY_TLS_NAMES) and MASSLAK_TELEMETRY_DATABASE_URL keeps sslmode=verify-full.
+# Paths are relative to the repository root (the directory of the first compose file).
+
+services:
+  telemetry:
+    image: masslak-db:${MASSLAK_IMAGE_TAG:?set by deploy/install.sh and deploy/update.sh, the images of the release}
+    command: ["postgres",
+              "-c", "hba_file=/var/lib/postgresql/pg_hba.conf",
+              "-c", "ssl=on", "-c", "ssl_min_protocol_version=TLSv1.3",
+              "-c", "ssl_cert_file=/var/lib/postgresql/tls/server.crt", "-c", "ssl_key_file=/var/lib/postgresql/tls/server.key",
+              "-c", "ssl_ca_file=/var/lib/postgresql/tls/ca.crt", "-c", "password_encryption=scram-sha-256",
+              "-c", "synchronous_commit=off", "-c", "max_wal_size=4GB", "-c", "wal_compression=on"]
+    volumes:
+      # the authority's key never enters a container: only the files this server needs are mounted
+      - ./deploy/production/tls/ca.crt:/tls-src/ca.crt:ro
+      - ./deploy/production/tls/telemetry.crt:/tls-src/server.crt:ro
+      - ./deploy/production/tls/telemetry.key:/tls-src/server.key:ro
+
+  migrate:
+    environment:
+      MASSLAK_TELEMETRY_OWNER_URL: "postgresql://postgres:${MASSLAK_TELEMETRY_OWNER_PASSWORD}@telemetry/masslak_tel?sslmode=verify-full&sslrootcert=/etc/masslak/trust/ca.crt"
+
+  app:
+    environment:
+      MASSLAK_TELEMETRY_DATABASE_URL: "postgresql://masslak_tel:${MASSLAK_TELEMETRY_PASSWORD}@telemetry/masslak_tel?sslmode=verify-full&sslrootcert=/etc/masslak/trust/ca.crt"
+
+  worker:
+    environment:
+      MASSLAK_TELEMETRY_DATABASE_URL: "postgresql://masslak_tel:${MASSLAK_TELEMETRY_PASSWORD}@telemetry/masslak_tel?sslmode=verify-full&sslrootcert=/etc/masslak/trust/ca.crt"
+      MASSLAK_TELEMETRY_UPKEEP_URL: "postgresql://masslak_tel_upkeep:${MASSLAK_TELEMETRY_UPKEEP_PASSWORD}@telemetry/masslak_tel?sslmode=verify-full&sslrootcert=/etc/masslak/trust/ca.crt"

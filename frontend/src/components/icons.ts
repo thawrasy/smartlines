@@ -1,6 +1,33 @@
 // Material Symbols (rounded, Apache-2.0), bundled at build time. Generated list: add a name here to use it.
 
+import i_add_location from "@material-symbols/svg-400/rounded/add_location.svg?raw";
+import i_my_location from "@material-symbols/svg-400/rounded/my_location.svg?raw";
+import i_airport_shuttle from "@material-symbols/svg-400/rounded/airport_shuttle.svg?raw";
+import i_request_quote from "@material-symbols/svg-400/rounded/request_quote.svg?raw";
+import i_tour from "@material-symbols/svg-400/rounded/tour.svg?raw";
+import i_swap_calls from "@material-symbols/svg-400/rounded/swap_calls.svg?raw";
+import i_airline_stops from "@material-symbols/svg-400/rounded/airline_stops.svg?raw";
+import i_multiple_stop from "@material-symbols/svg-400/rounded/multiple_stop.svg?raw";
+import i_groups from "@material-symbols/svg-400/rounded/groups.svg?raw";
+import i_flight_land from "@material-symbols/svg-400/rounded/flight_land.svg?raw";
+import i_flight_takeoff from "@material-symbols/svg-400/rounded/flight_takeoff.svg?raw";
+import i_event_repeat from "@material-symbols/svg-400/rounded/event_repeat.svg?raw";
+import i_policy from "@material-symbols/svg-400/rounded/policy.svg?raw";
+import i_upload_file from "@material-symbols/svg-400/rounded/upload_file.svg?raw";
+import i_pending_actions from "@material-symbols/svg-400/rounded/pending_actions.svg?raw";
+import i_pause_circle from "@material-symbols/svg-400/rounded/pause_circle.svg?raw";
+import i_play_circle from "@material-symbols/svg-400/rounded/play_circle.svg?raw";
+import i_stop_circle from "@material-symbols/svg-400/rounded/stop_circle.svg?raw";
+import i_edit_calendar from "@material-symbols/svg-400/rounded/edit_calendar.svg?raw";
+import i_local_parking from "@material-symbols/svg-400/rounded/local_parking.svg?raw";
+import i_event_busy from "@material-symbols/svg-400/rounded/event_busy.svg?raw";
+import i_image from "@material-symbols/svg-400/rounded/image.svg?raw";
+import i_keyboard from "@material-symbols/svg-400/rounded/keyboard.svg?raw";
 import i_undo from "@material-symbols/svg-400/rounded/undo.svg?raw";
+import i_info from "@material-symbols/svg-400/rounded/info.svg?raw";
+import i_add_business from "@material-symbols/svg-400/rounded/add_business.svg?raw";
+import i_check from "@material-symbols/svg-400/rounded/check.svg?raw";
+import i_open_in_new from "@material-symbols/svg-400/rounded/open_in_new.svg?raw";
 import i_timer_off from "@material-symbols/svg-400/rounded/timer_off.svg?raw";
 import i_lock_clock from "@material-symbols/svg-400/rounded/lock_clock.svg?raw";
 import i_point_of_sale from "@material-symbols/svg-400/rounded/point_of_sale.svg?raw";
@@ -131,7 +158,31 @@ import i_chat from "@material-symbols/svg-400/rounded/chat.svg?raw";
 import i_star from "@material-symbols/svg-400/rounded/star.svg?raw";
 import i_forum from "@material-symbols/svg-400/rounded/forum.svg?raw";
 
+import i_departure_board from "@material-symbols/svg-400/rounded/departure_board.svg?raw";
+import i_no_photography from "@material-symbols/svg-400/rounded/no_photography.svg?raw";
+import i_airline_seat_recline_normal from "@material-symbols/svg-400/rounded/airline_seat_recline_normal.svg?raw";
+import i_key_off from "@material-symbols/svg-400/rounded/key_off.svg?raw";
+import i_location_off from "@material-symbols/svg-400/rounded/location_off.svg?raw";
+import i_tv from "@material-symbols/svg-400/rounded/tv.svg?raw";
+import i_settings from "@material-symbols/svg-400/rounded/settings.svg?raw";
+import i_percent from "@material-symbols/svg-400/rounded/percent.svg?raw";
+import i_door_front from "@material-symbols/svg-400/rounded/door_front.svg?raw";
+import i_login from "@material-symbols/svg-400/rounded/login.svg?raw";
+import i_redeem from "@material-symbols/svg-400/rounded/redeem.svg?raw";
+import i_receipt from "@material-symbols/svg-400/rounded/receipt.svg?raw";
 export const ICONS = {
+  receipt: i_receipt,
+  redeem: i_redeem,
+  login: i_login,
+  door_front: i_door_front,
+  percent: i_percent,
+  settings: i_settings,
+  tv: i_tv,
+  location_off: i_location_off,
+  key_off: i_key_off,
+  airline_seat_recline_normal: i_airline_seat_recline_normal,
+  no_photography: i_no_photography,
+  departure_board: i_departure_board,
   search: i_search,
   swap_horiz: i_swap_horiz,
   directions_bus: i_directions_bus,
@@ -261,6 +312,33 @@ export const ICONS = {
   hourglass_top: i_hourglass_top,
   price_check: i_price_check,
   undo: i_undo,
+  info: i_info,
+  add_business: i_add_business,
+  check: i_check,
+  open_in_new: i_open_in_new,
+  local_parking: i_local_parking,
+  event_busy: i_event_busy,
+  image: i_image,
+  keyboard: i_keyboard,
+  event_repeat: i_event_repeat,
+  pending_actions: i_pending_actions,
+  pause_circle: i_pause_circle,
+  play_circle: i_play_circle,
+  stop_circle: i_stop_circle,
+  edit_calendar: i_edit_calendar,
+  policy: i_policy,
+  upload_file: i_upload_file,
+  airport_shuttle: i_airport_shuttle,
+  request_quote: i_request_quote,
+  tour: i_tour,
+  swap_calls: i_swap_calls,
+  airline_stops: i_airline_stops,
+  multiple_stop: i_multiple_stop,
+  groups: i_groups,
+  flight_land: i_flight_land,
+  flight_takeoff: i_flight_takeoff,
+  add_location: i_add_location,
+  my_location: i_my_location,
 } as const;
 
 export type IconName = keyof typeof ICONS;

@@ -9,6 +9,7 @@ SCOPES = {
     "shipments:read": "Track parcels and shipments",
     "reports:read": "Run catalog reports and export them (JSON, CSV, TXT, XLSX, PDF)",
     "wallet:credit": "Credit passenger wallets with money collected by the partner (banks and e-wallets)",
+    "vouchers:redeem": "Check and honour members' loyalty vouchers at a loyalty partner, and reconcile them",
     "border:read": "Read submitted border manifests (authorities)",
     "border:respond": "Send decisions on border manifests (authorities)",
     "manifests:receive": "Receive and acknowledge the trip manifests routed to the authority, domestic and international",
@@ -19,7 +20,7 @@ SCOPES = {
 KIND_SCOPES = {
     "CARRIER": {"trips:read", "bookings:read", "manifests:read", "shipments:read", "reports:read", "webhooks:manage"},
     "CHANNEL": {"trips:read", "bookings:read", "bookings:write", "shipments:read", "reports:read", "webhooks:manage"},
-    "PARTNER": {"trips:read", "wallet:credit", "webhooks:manage"},
+    "PARTNER": {"trips:read", "wallet:credit", "vouchers:redeem", "webhooks:manage"},
     "AUTHORITY": {"trips:read", "border:read", "border:respond", "manifests:receive", "reports:read", "webhooks:manage"},
     "INTEGRATION": {"bookings:read", "reports:read", "webhooks:manage"},
     "INTERNAL": set(SCOPES),
@@ -59,6 +60,14 @@ EVENTS = {
     "border.manifest_submitted": {"AUTHORITY", "INTERNAL"},
     "manifest.issued": {"CARRIER", "INTEGRATION", "INTERNAL"},
     "manifest.available": {"AUTHORITY", "INTERNAL"},
+    "tracking.signal_lost": {"CARRIER", "INTERNAL"},
+    "tracking.alert_escalated": {"CARRIER", "INTERNAL"},
+    "sos.raised": {"CARRIER", "INTERNAL"},
+    "trip.cancelled": {"CARRIER", "CHANNEL", "INTEGRATION", "INTERNAL"},
+    "trip.cancel_penalty": {"CARRIER", "INTERNAL"},
+    "booking.cancelled_by_carrier": {"CARRIER", "CHANNEL", "INTEGRATION", "INTERNAL"},
+    "incident.reported": {"CARRIER", "INTERNAL"},
+    "screen.unseen": {"INTERNAL"},
     "webhook.ping": set(KIND_SCOPES),
 }
 

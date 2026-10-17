@@ -23,7 +23,9 @@ services:
       - ./deploy/production/ci/s3.json:/etc/s3.json:ro
       - ./deploy/production/ci/s3.crt:/certs/s3.crt:ro
       - ./deploy/production/ci/s3.key:/certs/s3.key:ro
-    networks: [internal]
+    # the database hosts of the layout with two reach it here (job "Production with two database hosts")
+    ports: ["${MASSLAK_CI_S3_PUBLISH:-127.0.0.1:18443}:8443"]
+    networks: [internal, edge]
 
   sink:
     image: caddy:2-alpine@sha256:d8542f48d34a9cf4e4c11a478865229840e87e4c96ea3f439101f31a5d35f75f

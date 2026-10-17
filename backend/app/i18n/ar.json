@@ -9,6 +9,32 @@
     "body": "تم إلغاء حجزك {booking_ref}. المبلغ المسترد: {refund_amount} ل.س.",
     "sms": "مسلك: أُلغي الحجز {booking_ref}. المسترد {refund_amount} ل.س."
   },
+  "booking.cancelled_by_carrier": {
+    "subject": "ألغى الناقل الرحلة {trip_no}",
+    "body": "ألغى الناقل الرحلة {trip_no}. أُلغي حجزك {booking_ref} واستُرد مبلغ {refund_amount} ل.س كاملاً {refund_to}. نعتذر عن الإزعاج.",
+    "sms": "مسلك: ألغى الناقل الرحلة {trip_no}. الحجز {booking_ref}: استُرد {refund_amount} ل.س {refund_to}."
+  },
+  "trip.cancel_penalty": {
+    "subject": "غرامة إلغاء الرحلة {trip_no}",
+    "body": "بموجب قرار الجهة المنظِّمة {legal_ref}، يترتب على إلغاء الرحلة {trip_no} غرامة قدرها {amount} ل.س. تُقتطع من رصيدك، أو من أرباحك التالية عند تحريرها إن لم يكفِ الرصيد."
+  },
+  "refund_to_labels": {
+    "WALLET": "إلى محفظتك في مسلك",
+    "AGENCY": "عن طريق الوكالة التي باعته",
+    "COUNTER": "نقداً من شباك الناقل"
+  },
+  "points.earned": {
+    "subject": "ربحت {points} نقطة",
+    "body": "أكسبتك الرحلة {trip_no} عدد {points} من نقاط الولاء. رصيدك {balance} نقطة؛ حوّلها إلى رصيد في محفظتك أو إلى قسيمة لدى أحد الشركاء من صفحة المحفظة."
+  },
+  "voucher.used": {
+    "subject": "استُخدمت قسيمتك لدى {partner}",
+    "body": "استُخدمت قسيمتك بقيمة {amount} {currency} لدى {partner}."
+  },
+  "voucher.returned": {
+    "subject": "عادت {points} نقطة إلى رصيدك",
+    "body": "انتهت صلاحية قسيمة لم تستخدمها أو أُلغيت، فعادت نقاطها ({points} نقطة) إلى رصيد الولاء."
+  },
   "booking.reserved": {
     "subject": "تم حجز المقاعد {booking_ref}: ادفع قبل {pay_by_local}",
     "body": "مقاعدك في الحجز {booking_ref} محجوزة: من {from_city} إلى {to_city}، الانطلاق {departs_local}، عدد الركاب {passengers}، المبلغ {total_amount} ل.س. ادفع قبل {pay_by_local} وإلا أُلغي الحجز وعادت المقاعد للبيع. تصدر تذاكرك فور الدفع.",
@@ -21,6 +47,41 @@
   "withdrawal.rejected": {
     "subject": "لم تتم الموافقة على سحب {amount} ل.س",
     "body": "لم تتم الموافقة على طلب السحب بقيمة {amount} ل.س: {reason}. عاد المبلغ متاحاً في رصيدك."
+  },
+  "tracking.signal_lost": {
+    "subject": "الرحلة {trip_no}: لا موقع منذ {minutes} دقيقة",
+    "body": "لم ترسل مركبة الرحلة {trip_no} أي موقع منذ {minutes} دقيقة. تواصل مع السائق؛ يُغلق التنبيه عند عودة المواقع."
+  },
+  "tracking.alert_escalated": {
+    "subject": "الرحلة {trip_no}: ما زال لا موقع بعد {minutes} دقيقة",
+    "body": "مركبة الرحلة {trip_no} صامتة منذ {minutes} دقيقة وتم تصعيد التنبيه. تواصل مع السائق الآن وسجّل ما حدث."
+  },
+  "screen.unseen": {
+    "subject": "الشاشة {label} في {station}: غير مرئية منذ {minutes} دقيقة",
+    "body": "لم تقرأ الشاشة {label} في المحطة {station} لوحتها منذ {minutes} دقيقة. تحقق من الكهرباء والشبكة والمتصفح؛ ويزول التنبيه حين تعود إلى قراءة لوحتها."
+  },
+  "sos.raised": {
+    "subject": "استغاثة على الرحلة {trip_no}",
+    "body": "أُطلقت استغاثة على الرحلة {trip_no} (المركبة {plate_no}). الموقع: {where}. اتصل بالسائق وبخدمات الطوارئ الآن، ثم أكّد استلام الإنذار في البوابة.",
+    "sms": "استغاثة مسلك: الرحلة {trip_no}، المركبة {plate_no}، الموقع {where}. تصرّف الآن."
+  },
+  "incident.reported": {
+    "subject": "حادث على الرحلة {trip_no}: {incident_type}، {severity}",
+    "body": "أبلغ سائق الرحلة {trip_no} (المركبة {plate_no}) عن حادث: {incident_type}، {severity}. راجعه في البوابة وقرّر ما يحدث للرحلة."
+  },
+  "incident_type_labels": {
+    "COLLISION": "تصادم",
+    "BREAKDOWN": "عطل",
+    "FIRE": "حريق",
+    "SECURITY": "أمني",
+    "SEIZURE": "حجز",
+    "MEDICAL": "حالة طبية",
+    "OTHER": "أخرى"
+  },
+  "severity_labels": {
+    "MINOR": "بسيط",
+    "MAJOR": "كبير",
+    "SEVERE": "خطير"
   },
   "document.approved": {
     "subject": "اعتُمدت {doc_type}",

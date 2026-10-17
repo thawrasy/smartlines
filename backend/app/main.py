@@ -27,8 +27,20 @@ from .modules.payments import api as payments_api
 from .modules.integration import console as integration_console
 from .modules.integration import v1 as integration_v1
 from .modules.family import api as family_api
+from .modules.photo import api as photo_api
+from .modules.boarding import api as boarding_api
+from .modules.boarding import bays as boarding_bays
+from .modules.boarding import displays as boarding_displays
+from .modules.geo import api as geo_api
+from .modules.sales import charter_api, connections_api, journeys_api
+from .modules.schedules import api as schedules_api
+from .modules.kyc import api as kyc_api
 from .modules.support import api as support_api
 from .modules.manifests import api as manifests_api
+from .modules.boarding import screens as boarding_screens
+from .modules.boarding import station_sales
+from .modules.loyalty import admin as loyalty_admin
+from .modules.loyalty import api as loyalty_api
 from .modules.parcels import api as parcels_api
 from .modules.seo import pages as seo_pages
 from .modules.seo.app_shell import shell as app_shell
@@ -104,10 +116,12 @@ async def security_headers(request: Request, call_next):
     response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
     response.headers.setdefault("X-Frame-Options", "DENY")
     response.headers.setdefault("Permissions-Policy", "camera=(self), geolocation=(self), microphone=()")
+    # no inline style or script anywhere (reviews of release 1.49.0); the landing pages set their own, which names their
+    # stylesheet by its hash (modules/seo/render.py), and frontend/e2e/csp-check.mjs fails on any violation in a browser
     response.headers.setdefault(
         "Content-Security-Policy",
-        "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
-        "font-src 'self' https://fonts.gstatic.com; script-src 'self'; connect-src 'self'; frame-ancestors 'none'")
+        "default-src 'self'; img-src 'self' data:; style-src 'self'; font-src 'self'; script-src 'self'; "
+        "connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'")
     if request.url.path.startswith("/api/"):
         response.headers.setdefault("Cache-Control", "no-store")
         response.headers.setdefault("X-Robots-Tag", "noindex, nofollow")
@@ -119,8 +133,15 @@ for r in (metrics.router, auth.router, public.router, bookings.router, wallet.ro
           fleet_api.router, payouts_api.company, payouts_api.platform,
           documents_api.company, documents_api.platform, notify_api.router,
           account_api.router, account_api.platform, modular_api.router, modular_workflows.router, reports_api.router, payments_api.router,
-          integration_console.router, integration_v1.router, family_api.router, manifests_api.carrier, manifests_api.platform,
-          support_api.router, support_api.admin, cash_api.router, seo_pages.router, parcels_api.customer, parcels_api.carrier):
+          integration_console.router, integration_v1.router, family_api.router, photo_api.platform, boarding_api.platform, boarding_api.carrier, boarding_api.station_operators, boarding_api.station,
+          manifests_api.carrier, manifests_api.platform,
+          support_api.router, support_api.admin, cash_api.router, seo_pages.router, parcels_api.customer, parcels_api.carrier,
+          loyalty_api.router, loyalty_admin.router, station_sales.router, boarding_screens.platform, boarding_screens.carrier,
+          boarding_screens.public, boarding_bays.station, boarding_bays.platform,
+          boarding_displays.station, boarding_displays.platform, boarding_displays.public, schedules_api.carrier, schedules_api.platform,
+          kyc_api.carrier, kyc_api.platform, journeys_api.passenger, journeys_api.agency,
+          charter_api.carrier, charter_api.agency, charter_api.passenger, charter_api.platform,
+          geo_api.public, geo_api.platform, connections_api.carrier, connections_api.platform):
     app.include_router(r)
 
 app.add_middleware(metrics.MetricsMiddleware)   # request counts and latency per route (T3-16)
@@ -132,8 +153,8 @@ app.add_middleware(HeadAsGet)          # added last, so it wraps everything else
 _static = Path(get_settings().static_dir).resolve()
 # top-level paths of the web app (frontend/src/App.tsx; tests/test_api_contract.py keeps the two in step); anything else
 # is a real 404 (no "soft 404" pages for search engines)
-APP_PATHS = {"", "account", "admin", "agency", "booking", "carrier", "driver", "family", "login", "m", "mfa", "parcels", "pay", "register",
-             "regulator", "search", "security", "services", "support", "track", "trip", "trips", "verify", "wallet"}
+APP_PATHS = {"", "account", "admin", "agency", "board", "booking", "carrier", "charter", "driver", "family", "journey", "login", "m", "mfa", "parcels", "pay",
+             "register", "regulator", "screen", "search", "security", "services", "station", "support", "track", "trip", "trips", "verify", "wallet"}
 if (_static / "index.html").exists():
     app.mount("/assets", StaticFiles(directory=_static / "assets"), name="assets")
 

@@ -5,6 +5,15 @@
 	servers {
 		protocols h1 h2 h3
 	}
+	# Caddy's own log, which records the request of an error (an upstream down, a timeout): the same tokens hidden as
+	# in the access log below
+	log default {
+		output stdout
+		format filter {
+			request>uri regexp "(/api/reports/deliveries/)[^/?]+|([?&]token=)[^&]*" "${1}${2}REDACTED"
+			wrap json
+		}
+	}
 }
 
 {$MASSLAK_DOMAIN} {
@@ -28,9 +37,15 @@
 			keepalive 60s
 		}
 	}
+	# the access log keeps no token from a URL (reviews of release 1.49.0, F-03): the token of a report delivery link
+	# (/api/reports/deliveries/<token>) and any token= parameter (the public verification of a ticket or booking) are
+	# replaced; credentials in headers (Cookie, Authorization) are never logged by Caddy unless log_credentials is set
 	log {
 		output stdout
-		format json
+		format filter {
+			request>uri regexp "(/api/reports/deliveries/)[^/?]+|([?&]token=)[^&]*" "${1}${2}REDACTED"
+			wrap json
+		}
 	}
 }
 

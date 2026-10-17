@@ -20,6 +20,7 @@ PORTAL_SCOPE = {
     "AGENCY": "AGENCY",
     "PLATFORM": "PLATFORM",
     "INSPECTOR": "PLATFORM",
+    "STATION": "COMPANY",           # a station's operating company: its own rows, and the grants given to it (1098, 1099)
 }
 
 
@@ -103,7 +104,10 @@ async def load_permissions(conn: asyncpg.Connection, pr: Principal) -> None:
         if "is_owner" in r.keys() and r["is_owner"]:
             pr.is_owner = True
     if pr.is_owner:
-        perms = await conn.fetch("SELECT code FROM iam.permission WHERE scope IN ('COMPANY','BOTH')")
+        # the owner of a station operating company holds the station permissions only, never a carrier's (1099)
+        perms = await conn.fetch(
+            "SELECT code FROM iam.permission WHERE scope IN ('COMPANY','BOTH') AND ($1 <> 'STATION' OR module = 'station')",
+            pr.portal)
         pr.permissions |= {p["code"] for p in perms}
 
 
@@ -139,7 +143,7 @@ async def optional_principal(request: Request) -> Optional[Principal]:
     return pr
 
 
-STAFF_PORTALS = {"OPERATOR", "AGENCY", "PLATFORM", "INSPECTOR", "DRIVER"}
+STAFF_PORTALS = {"OPERATOR", "AGENCY", "PLATFORM", "INSPECTOR", "DRIVER", "STATION"}
 
 
 def mfa_required_for(portal: str, account_requires: bool, has_factor: bool, policy: mfa_policy.Policy) -> bool:

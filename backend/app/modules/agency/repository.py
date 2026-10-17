@@ -39,7 +39,7 @@ async def commission_totals(conn: asyncpg.Connection, agency_id: int) -> asyncpg
 async def bookings(conn: asyncpg.Connection, agency_id: int, query: Optional[str], limit: int = 100) -> list[asyncpg.Record]:
     return await conn.fetch(
         f"""SELECT b.booking_ref, b.status, b.total_amount, b.currency, b.created_at, b.contact_mobile,
-                   t.trip_no, cp.legal_name AS carrier_name, sp.legal_name AS sold_by,
+                   t.trip_no, t.trip_code, cp.legal_name AS carrier_name, sp.legal_name AS sold_by,
                    (b.price_breakdown ->> 'agency_commission')::bigint AS commission,
                    (SELECT count(*) FROM sales.ticket k WHERE k.booking_id = b.id) AS passengers,
                    {JOURNEY_SQL}
@@ -52,8 +52,8 @@ async def bookings(conn: asyncpg.Connection, agency_id: int, query: Optional[str
 
 async def booking(conn: asyncpg.Connection, agency_id: int, ref: str) -> Optional[asyncpg.Record]:
     return await conn.fetchrow(
-        """SELECT b.*, t.trip_no, t.uid AS trip_uid, t.departure_at, t.status AS trip_status,
-                  cp.legal_name AS carrier_name
+        """SELECT b.*, t.trip_no, t.trip_code, t.uid AS trip_uid, t.departure_at, t.status AS trip_status,
+                  cp.legal_name AS carrier_name, cp.uid AS carrier_uid, iam.logo_version(cp.id) AS carrier_logo
              FROM sales.booking b JOIN ops.trip t ON t.id = b.trip_id JOIN iam.party cp ON cp.id = b.company_id
             WHERE b.booking_ref = $1 AND b.agency_id = $2""", ref.upper(), agency_id)
 

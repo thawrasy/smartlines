@@ -5,8 +5,10 @@ use it, so a database restart never takes the web interface offline with it.
 
 GET /api/ready says whether this instance can serve bookings now: the primary (not a standby) answers through the
 application pool, every schema file shipped with this code is applied (the migrate service has finished), the audit
-connection answers, the reports replica answers and is in recovery when one is configured, the request context can be
-signed and not rewritten (1080), and no constraint is left NOT VALID (1082). It answers 200 when every check
+connection answers, the reports replica answers and is in recovery when one is configured (with two database hosts it
+may be the primary while no standby is up), the request context can be
+signed and not rewritten (1080), the server enforces the settings guard on a production server (1084), and no
+constraint is left NOT VALID (1082). It answers 200 when every check
 passes and 503 otherwise, naming only the checks, never an error text. deploy/update.sh waits for it after a
 deployment, and a load balancer with several API instances routes only to instances that are ready.
 
@@ -22,6 +24,7 @@ from pathlib import Path
 from typing import Awaitable, Callable
 
 from . import db, security
+from .config import is_test_server
 
 SCHEMA_DIR = Path(__file__).resolve().parents[2] / "db" / "schema"
 CHECK_SECONDS = 2.0
@@ -61,7 +64,9 @@ async def _replica() -> bool:
     if db._reports_pool is None:
         return True
     async with db.acquire(db._reports_pool) as conn:
-        return bool(await conn.fetchval("SELECT pg_is_in_recovery()"))
+        in_recovery = bool(await conn.fetchval("SELECT pg_is_in_recovery()"))
+    # with two database hosts, db-replica sends reports to the primary while no standby is up (db.reports_may_reach_the_primary)
+    return in_recovery or db.reports_may_reach_the_primary()
 
 
 async def _context() -> bool:
@@ -70,6 +75,17 @@ async def _context() -> bool:
     async with db.raw_connection() as conn:
         status = await conn.fetchval("SELECT sys.context_status($1)::text", security.context_key_fingerprint())
     return all(json.loads(status).values())
+
+
+async def _guard() -> bool:
+    """The database server loads the settings guard (db/guard, 1084), so no login but the platform's own functions can
+    set the request context or the guard flags. Required on a production server; on a test server (sandbox, development,
+    staging) the check passes, since a developer's own PostgreSQL may not have the module (every database image of the
+    repository does)."""
+    if is_test_server():
+        return True
+    async with db.raw_connection() as conn:
+        return await conn.fetchval("SELECT sys.guard_status()") is True
 
 
 async def _constraints() -> bool:
@@ -82,7 +98,7 @@ async def _constraints() -> bool:
 
 CHECKS: dict[str, Callable[[], Awaitable[bool]]] = {
     "database": _database, "schema": _schema, "audit_database": _audit, "reports_replica": _replica, "context": _context,
-    "constraints": _constraints}
+    "settings_guard": _guard, "constraints": _constraints}
 
 
 async def _run(check: Callable[[], Awaitable[bool]]) -> bool:

@@ -1,9 +1,10 @@
 import type { ReactNode } from "react";
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View, type TextInputProps, type ViewStyle } from "react-native";
+import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View, type TextInputProps, type TextStyle, type ViewStyle } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { color, radius, space } from "./theme";
 import { useI18n } from "../i18n";
 import { ApiError } from "../platform/api";
+import { API_URL } from "../platform/config";
 
 export function Screen({ children, scroll = true, padded = true }: { children: ReactNode; scroll?: boolean; padded?: boolean }) {
   const body = <View style={[{ gap: space(4) }, padded && { padding: space(4) }]}>{children}</View>;
@@ -55,6 +56,26 @@ export function Chip({ label, tone = "neutral" }: { label: string; tone?: "neutr
                 red: [color.errorSoft, color.error], blue: [color.primarySoft, color.primary] } as const;
   return <Text style={[s.chip, { backgroundColor: map[tone][0], color: map[tone][1] }]}>{label}</Text>;
 }
+
+/** A carrier's name with its logo beside it, wherever the name is shown (1116). The logo is the carrier's own, added once
+ * by the platform; its version in the address fetches a new logo at once. It is decorative next to the name. */
+export function CarrierName({ name, uid, logo, style }: { name: string; uid?: string | null; logo?: string | null; style?: TextStyle }) {
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexShrink: 1 }}>
+      {logo && uid ? (
+        <View style={st.logo} accessible={false} importantForAccessibility="no-hide-descendants">
+          <Image source={{ uri: `${API_URL}/api/public/companies/${uid}/logo?v=${logo}` }} style={st.logoImage} resizeMode="contain" />
+        </View>
+      ) : null}
+      <Text style={[s.small, style]} numberOfLines={1}>{name}</Text>
+    </View>
+  );
+}
+
+const st = StyleSheet.create({
+  logo: { backgroundColor: "#FFFFFF", borderWidth: 1, borderColor: color.outline, borderRadius: 5, paddingHorizontal: 4, paddingVertical: 2 },
+  logoImage: { height: 18, width: 54 },
+});
 
 export function ErrorText({ error }: { error: unknown }) {
   const { t } = useI18n();

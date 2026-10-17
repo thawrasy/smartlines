@@ -21,6 +21,8 @@ export default function PassengerLayout() {
       <Tabs.Screen name="wallet" options={{ title: t("tabs.wallet"), tabBarIcon: glyph("◈") }} />
       <Tabs.Screen name="account" options={{ title: t("tabs.account"), tabBarIcon: glyph("◉") }} />
       <Tabs.Screen name="results" options={{ href: null }} />
+      <Tabs.Screen name="journey" options={{ href: null }} />
+      <Tabs.Screen name="svc/charter" options={{ href: null }} />
       <Tabs.Screen name="trip/[uid]" options={{ href: null }} />
       <Tabs.Screen name="booking/[ref]" options={{ href: null }} />
       <Tabs.Screen name="ticket/[uid]" options={{ href: null }} />

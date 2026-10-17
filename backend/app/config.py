@@ -1,4 +1,5 @@
 """Runtime configuration, read from environment variables (see deploy/.env.example)."""
+import os
 from functools import lru_cache
 from typing import Optional
 
@@ -14,6 +15,9 @@ class Settings(BaseSettings):
     audit_database_url: str = "postgresql://masslak_audit:masslak_audit@localhost:5432/masslak"
     # Optional read replica for reports, so heavy queries never load the booking database (empty: use the main pool)
     reports_database_url: str = ""
+    # where the database runs (H-01): "ha" on two hosts behind HAProxy, whose db-replica sends reports to the primary
+    # while no standby is up; "single" otherwise
+    db_layout: str = "single"
     # Optional telemetry database for the history of vehicle positions (review stage D2, db/telemetry/schema.sql); empty:
     # positions stay in ops.geo_event on the primary
     telemetry_database_url: str = ""
@@ -75,6 +79,9 @@ class Settings(BaseSettings):
     max_upload_bytes: int = 4 * 1024 * 1024
     platform_fee: int = 100000            # flat platform fee per booking, minor units (SYP 1,000.00)
     qr_window_seconds: int = 90
+    # When the offline ticket credential opens, in hours before departure (the proposal of 10 October 2026: three). Test
+    # servers open it far ahead (MASSLAK_TICKET_OPENS_HOURS) so that tests of boarding need no clock changes.
+    ticket_opens_hours: int = 3
     # Requests per minute (token buckets, see ratelimit.py). Sign-in, registration and password requests share
     # buckets in the database across every process: one per account identifier (strict) and one per client address
     # (high, because mobile networks put many subscribers behind one address). The other two are per address and
@@ -90,8 +97,33 @@ class Settings(BaseSettings):
     db_acquire_timeout: float = 5.0
 
 
+def declared_production() -> bool:
+    """The server declares itself production: its environment says so, or it runs the production profile that
+    deploy/production/docker-compose.production.yml sets (MASSLAK_PROFILE)."""
+    return get_settings().environment.strip().lower() == "production" or os.environ.get("MASSLAK_PROFILE", "").strip() == "production"
+
+
+def declaration_conflicts() -> list[str]:
+    """What contradicts a production declaration. With the sandbox on, the simulated payment gateway and the development
+    fallbacks would run on production data; with a test environment declared, the production checks would be skipped.
+    Such a server does not start (reviews of the 1.50.0 release: the sandbox and environment bypass)."""
+    if not declared_production():
+        return []
+    st = get_settings()
+    environment = st.environment.strip().lower()
+    found = []
+    if st.sandbox:
+        found.append("the sandbox is on (MASSLAK_SANDBOX=true) on a server that declares production")
+    if environment in ("development", "staging"):
+        found.append(f"the environment is {environment} (MASSLAK_ENVIRONMENT) on a server that runs the production profile")
+    return found
+
+
 def is_test_server() -> bool:
-    """A sandbox, or a server declared development or staging; anything else is treated as production."""
+    """A sandbox, or a server declared development or staging; anything else is treated as production. A server that
+    declares production is never a test server, so no other setting can switch its checks off."""
+    if declared_production():
+        return False
     st = get_settings()
     return st.sandbox or st.environment.strip().lower() in ("development", "staging")
 

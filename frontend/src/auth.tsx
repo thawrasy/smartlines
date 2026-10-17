@@ -66,6 +66,7 @@ export function homeFor(me: Me): string {
       return me.permissions.includes("sale.cash") && !me.permissions.includes("trip.publish") ? "/carrier/counter" : "/carrier";
     case "DRIVER": return "/driver";
     case "AGENCY": return "/agency";
+    case "STATION": return "/station";
     case "PLATFORM":
       if (me.permissions.includes("company.approve")) return "/admin";
       if (me.permissions.includes("security.ip_rules") || me.permissions.includes("audit.view")) return "/security";

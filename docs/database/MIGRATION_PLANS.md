@@ -91,7 +91,7 @@ rewrite (`ADD COLUMN ... NULL` or a constant default), triggers and functions; 1
 split it into its own file if it exceeds the criteria); 1079 reads the catalog and writes about 500 small rows. This is a
 development rehearsal: the launch gate (`LAUNCH_GATES.md`, gate 4) still needs the same run on a production-size copy.
 
-## Release 1.49.0 (1080 to 1082)
+## Release 1.49.0 (1080 to 1083)
 
 No file changes a business table's rows or structure:
 
@@ -102,8 +102,11 @@ No file changes a business table's rows or structure:
   transaction (`CALL sys.validate_constraints()`). VALIDATE takes a SHARE UPDATE EXCLUSIVE lock, so reads and writes
   go on, but it scans the table. On a fresh database this is instant. On a server whose old rows break one, the
   constraint stays NOT VALID and is named, and `/api/ready` reports `"constraints": false` (RUNBOOKS.md, section 31).
+* **1083** adds a setting and four functions, and replaces the three partition upkeep functions. It moves no row
+  itself: a default partition that holds a large late period on the day of the upgrade is emptied afterwards by the
+  worker, one period per transaction.
 
-Both take catalog locks for milliseconds, so they were not rehearsed with the tool.
+They take catalog locks for milliseconds, so they were not rehearsed with the tool.
 
 One point needs care. From 1080 on, the database refuses a context without the API's ticket. A 1.48.0 API process
 still serving between the migration and its own restart has its requests refused: the gap lasts as long as the
@@ -117,6 +120,123 @@ A server that must not refuse those requests:
    `UPDATE sys.context_unsigned_window SET allowed_until = now() WHERE allowed_until > now()`.
 
 While the window is open, readiness reports not ready (RUNBOOKS.md, section 30).
+
+## Release 1.50.0 (1084, 1085)
+
+**1084** adds four functions and replaces two (`sys.tg_remember_new_row`, `sys.created_here`). It changes no table and
+moves no row, so it takes catalog locks for milliseconds and was not rehearsed with the tool. The list of rows a
+transaction created moves from one setting per table to the one setting `app.new_rows`; the two functions are replaced
+in the same transaction, so a transaction that started before the swap finds its rows the old way until it ends.
+
+What needs care is the database server, not the file: the settings guard is a server module (`db/guard`), loaded when
+the server starts. `deploy/update.sh` runs the release's database image, which recreates the database container: the
+server restarts once, for the seconds it takes to start (with two database hosts, `install-db-host.sh` with the new
+bundle on the standby's host first, then on the primary's, which hands the role over before it restarts:
+HIGH_AVAILABILITY.md). Until it has restarted, `sys.guard_status()` is false and `/api/ready` of
+a production server reports `"settings_guard": false`; the preflight of the next update refuses a server where it stays
+false (RUNBOOKS.md, section 30).
+
+**1085** changes two check constraints and no row: the status `DEACTIVATED` of `iam.app_user` and two sign-in audit events
+(`ACCOUNT_DEACTIVATED`, `ACCOUNT_REACTIVATED`). Each `ALTER` takes an access-exclusive lock on its table while it
+replaces the check constraint, for a moment. It was not rehearsed with the tool, for the same reason as 1084. Existing
+accounts keep their status; no row is rewritten.
+
+**1086** creates one table, `iam.party_photo` (one row per person: the encrypted file, who took it and when), with its
+row-level policy, its phase, class and lifecycle rows, and three functions: `iam.set_party_photo` (takes or replaces the photo,
+checking that the caller is the person or the head of their family), and `gov.erase_party_photo` (removes the photo in an
+erasure). It changes no existing table and no existing row, so it takes no lock on the party table. The photos themselves are
+written by the API, not by the migration. Nothing refers to the new table, so it adds no reference cycle. An erasure deletes the
+file row in the same transaction; the store deletes the bytes after its 24-hour grace period.
+
+**1087** adds the boarding photo policy and its replacement: two tables (`iam.photo_rule`, `iam.photo_change_request`), both
+platform-only under row-level security, and functions that write them with four eyes (a proposer, an approver and a retirer
+are different people; the database checks it, the API answers first with `FOUR_EYES`). It widens two existing checks, which
+is the only change to existing objects: `iam.party_photo.taken_by` may now be `PLATFORM`, and `sales.boarding_event.result` may
+now be `PHOTO_REQUIRED`. The constraint changes take a short lock on those two tables, and no data is rewritten. `gov.erase_party_photo`
+is redefined to remove the evidence and candidate photos of the person's requests. Nothing refers to the two new tables, so the
+schema dependency check stays at its baseline. Applied on a fresh database; a live database applies it in a maintenance window
+because the two constraint changes validate the existing rows.
+
+**1088** makes the documents accepted for a change of the boarding photo a platform setting. It adds `iam.photo_evidence_kind`
+(three kinds seeded: civil registry extract, national identity card, passport; each on or off), replaces the fixed check on
+the request's evidence kind by a reference to it, and redefines `iam.request_photo_change` to refuse a kind that is off. It
+changes no existing row. The constraint change validates the existing requests, which all carry one of the three kinds.
+
+**1089** makes a change to the accepted documents, and to the age rule for the national identity card, need two people. It adds
+two tables (`iam.photo_policy_change`, `iam.photo_policy_approval`), platform-only under row-level security, and five functions
+that write them. It drops the one-person switch of 1088, which had not been released, and redefines
+`iam.request_photo_change` to check the evidence through `iam.evidence_accepted`. It adds two `sys.setting` keys with
+their defaults (`photo.policy_min_approvals` = 2, `photo.identity_card_min_age` = null, meaning no age rule). It changes no
+existing request, and the approval count cannot be set below two.
+
+**1090** completes the list of documents accepted nationally for a photo change: it adds two kinds (the travel document
+issued by a Syrian mission abroad, for Syrian citizens only; and the temporary identity document of the first phase), adds
+a flag to mark the kinds under the age rule of the identity card (the national identity card and the temporary identity
+document), and redefines `iam.evidence_accepted` to apply the nationality condition. It changes no existing request, and no
+table is added.
+
+**1091** makes the approval stages a platform setting and snapshots them with each change. A change to the photo on file,
+to the accepted documents, to the age rule, or to a required data item passes the stages: one person per stage, never the
+one who asked, and never the same person twice. It replaces the two-person approvals of 1089 with one table
+(`iam.photo_approval`) and drops the 1089 table, which had not been released. It sets the age default to 18, adds the table
+of required data items (`iam.data_requirement`) with four seeded items, all optional, and redefines the request and the
+approval functions to use them. It replaces the photo change's single approver of 1087 with the staged approval. The
+stages are not a fixed number of people: the platform sets them, and the function never accepts fewer than two.
+
+**1092** applies the approval stages to the photo rules. A proposal is in force when its stages are passed; a proposal not
+yet in force is withdrawn; a rule in force is retired through its own stages, and it stays in force until they are passed.
+The retirement has its own approval subject (a value from a sequence), so approvals of a rejected retirement never count for
+a later one. The rule table gains the stage snapshots and the retirement fields, with a check that a retirement has them; the
+status set gains `RETIRING`; the approval table takes the subjects `RULE` and `RULE_RETIREMENT`, and the registry and the JSON
+contracts know them. `iam.photo_requirement` counts a rule being retired as in force. The one-person functions of 1087 for
+approving, retiring and withdrawing a rule are replaced; the rule table had no release. No row is changed.
+
+**1093** applies the owner's decision on retirements: the person who proposed a photo rule does not approve its retirement.
+It redefines `iam.approve_photo_rule_retirement` with that check; the proposer may still ask for the retirement. No row is
+changed, and no table is added.
+
+**1094** switches the boarding photo off at launch. The switch is the setting `photo.enabled` (false), read by
+`iam.photo_enabled()`. A change to it is a policy change with a legal basis (`legal_basis`, at least ten characters) that
+passes the approval stages like the others; applying it sets the setting. `iam.set_party_photo` refuses a photo while the
+switch is off. Existing rows are unchanged; one switch change may wait for approval at a time.
+
+**1095** makes the approval stages of the photo policy a setting the platform changes: at least two stages, the final
+approval always last, and no stage forced (a security or third-party check is one choice). A change keeps the stages it was
+asked with. The approval takes an optional legal document number, recorded on the change. No table is added.
+
+**1096** makes the rest of the photo's switches platform settings, each changed through the approval stages: who may see the photo and when (`photo.view_access`), the date the rules are enforced from (`photo.enforce_from`), how often a person is checked (`photo.verify_every_days`) and the identity provider (`photo.identity_provider`, NONE until one is connected). The database checks each new value and reads only these keys. No table is added.
+
+**1097** builds the boarding stations, off at launch (`docs/operations/BOARDING_STATIONS.md`). The platform settings are off or empty and are changed through `net.set_boarding_setting`, which checks each key. Two tables are added: `net.station_boarding` (each station's switch, counter system, screens and check-in window, phase 7 and so closed while the stations switch is off) and `net.operation_reference` (a carrier's agreement and licence numbers, phase 1A). One column is added to `net.station_gate` (`operator_company_id`, required for a counter only). The migration is fast on a live database: the column is nullable and the table is small. The platform numbers the counters and bays per station (`net.open_station_gate`), and no number is reused. Two permissions are added, `boarding.manage` for the platform administrator and `boarding.references` for the carrier's operations role. Each new table has its classification (`sys.table_class`) and dataset (`gov.dataset_member`).
+
+**1098** adds what an operating company may do at a station, for which carrier (step 2 of the boarding stations). One table is added, `net.station_operator_grant`: a carrier grants a right (`BOOKING`, `BOARDING_PASS`, `BOARDING`) for its own trips at one station or every station; the platform grants a state-mandated operator the same rights with no carrier. Rows are revoked, never changed or deleted; the carrier's rows are written only by the carrier, the platform's only by the platform, and each party sees the grants it gave or received. The decision `net.operator_may` reads the station's switch and the mode that gave the grant, so nothing acts at launch. Phase 7, like the station switch. One permission is added, `boarding.operators`, for the carrier's operations role. The migration is fast: the table is new and empty.
+
+**1099** opens the station portal (`STATION`) for station operating companies, the owner's option A. It changes three rules and adds rows: sessions may open the new portal, a company may be of the type `STATION_OPERATOR`, and the party role of that name exists; the permission `station.counter` and the role template `STATION_COUNTER` are added. On a live server the session rule is added `NOT VALID` and then validated, which reads the table without blocking sign-ins; the company rule checks a small table. The two-factor policy requires the new portal only where it already requires the carrier portal, so a policy the security officers changed is kept. No table is added.
+
+**1100** lets the platform open tracking alerts. It adds two settings and two functions; no table and no rule changes. The worker calls `ops.raise_tracking_alerts()` once a minute. The function reads only departed trips, one row each from `ops.vehicle_position` (the latest position per vehicle) and the trip's stops, so its cost follows the trips on the road, not the history of positions. A server that upgrades starts opening alerts on the next minute for trips already silent; the carrier's owners receive one notice per trip, not one per minute, because an open alert stops a second one.
+
+**1101** lets the apps raise an SOS and report incidents. It adds one nullable column (`ops.incident.description`, with a length rule on new rows only), three functions and one trigger on `ops.trip`. The trigger reads `fleet.vehicle_service_status` only when a trip is created or its vehicle changes, through the vehicle's index, so trip updates that keep the vehicle cost nothing more. On a live server the column is added without rewriting the table. A vehicle already in an open out-of-service or impound period cannot be given to a new trip after the upgrade; trips that already have it keep it, and the carrier sees them in its incident and vehicle screens.
+
+**1102** lets a carrier cancel a trip. It adds a permission, one nullable column on `ops.trip_disruption` with two rules (the cancellation rule is added `NOT VALID` and validated by the upgrade; the table holds few rows), and replaces the read rule of `ops.trip`. The new rule adds one case, for cancelled trips only, that looks up the caller's bookings on the trip through the booking's trip index; reads of trips on sale are unchanged. Owners of carriers hold it at once, and so does every role named `CARRIER_OPERATIONS`, the template and the carriers' copies of it; a carrier that should not let its operations staff cancel removes it from its role.
+
+**1103** moves loyalty points. It adds one wallet per platform currency (the loyalty expense wallet, which may go negative), four functions and one reference kind; no table and no rule changes. Points are earned only for trips completed after the upgrade: trips completed before it are not looked at again, so no member receives points in bulk on the day of the upgrade. A programme earns nothing until the platform adds an `EARN` rule, and takes no redemption until it adds a `BURN` rule. The daily expiry reads only accounts with a balance and an earning past its expiry.
+
+**1104** turns on the issuing of e-invoices. It adds two settings, one function and one partial index on `acct.einvoice_document` (built on a table that is empty until the first unit is onboarded). Nothing is issued until a seller has an active issuing unit and a valid tax profile; from then on the worker issues for bookings paid within `einvoice.issue_window_days` (30), so onboarding a carrier also invoices its bookings of the last month, at most 100 per minute. Set the window to 0 before onboarding to start from new sales only. A server in production should set `MASSLAK_EINVOICE_SIGNING_KEY`; without it the key is derived from the ticket signing seed, like the manifest key.
+
+**1105** adds the counter check of the boarding stations. It adds one table (`brd.station_checkin`, empty until a station is switched on), one sequence and seven functions; no rule on an existing table changes, and the driver's scan is unchanged. The table belongs to phase 7 with the other station tables. Nothing is checked in until the platform switches boarding on, a station on, and a carrier or the platform grants an operating company the `BOARDING_PASS` right there. Setting `boarding.references.required` now refuses check-ins of carriers that lack a listed reference; set it only after the carriers have recorded theirs (`GET /api/carrier/references` lists what each one misses).
+
+**1106** adds the penalty on a carrier that cancels a trip. It adds one setting (`trip.cancel_penalty`, off), one function and one table (`ops.trip_cancel_penalty`, empty); no rule on an existing table changes and the full refund of a cancelled trip is unchanged. Nothing is charged until the platform turns the setting on with the regulator's decision; a penalty the carrier's balance does not cover stays `DUE` and is set off when it next completes a trip.
+
+**1107** adds partner redemption. It adds three tables (`pricing.loyalty_agreement`, `pricing.loyalty_settlement`, `pricing.loyalty_settlement_line`, all empty), columns on vouchers, partner redemptions and partners (all empty or null on existing rows), the `PARTNER` wallet type and eight functions; `pricing.expire_points` now counts points given back by a voucher as not spent. The partner tables move from phase 9 to 1B, and the switch `loyalty_partners` no longer opens phase 9. Nothing changes for members until the platform records an active agreement with an active partner and turns the switch on.
+
+**1108** adds the taxes of e-invoices and their signing keys. It adds two tables (`acct.einvoice_line_tax`, `acct.einvoice_signing_key`, both empty), two columns on e-invoice documents (`canonical_version` 1 and `signing_kid` empty on existing rows, which stay verifiable as issued), checks on tax rules (existing tax tables are empty at launch) and triggers that freeze an active scheme's rules; it deletes the setting `einvoice.tax_rate_pct`. Before upgrading a production server, set `MASSLAK_EINVOICE_KEYS` (the API and the worker refuse to start without a key of their own). Nothing is taxed until the platform activates a tax scheme.
+
+**1109** replaces one function (`brd.station_trips`); no table changes.
+
+**1110** adds selling at station counters. It adds one table (`brd.station_sale`, empty), one sales channel, two functions, replaces the booking isolation policy (one clause added for station sales) and moves five station tables from phase 7 to 1B; nothing is sold until the platform switches boarding stations on and a carrier grants the `BOOKING` right.
+
+**1111** adds the counter's photo role, off, to the photo view access setting, and replaces two photo functions; the photo stays off until a change approved with a legal document number turns it on.
+
+**1112** adds one function (`brd.station_board`), the public departure board; no table changes.
 
 ## 1064_partitioned_bookings.sql on a live database (R-06)
 

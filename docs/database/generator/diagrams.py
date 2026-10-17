@@ -77,10 +77,10 @@ GROUPS = [
       "fleet.field_check_log", "fleet.truck_unit", "fleet.trailer", "fleet.truck_combination"]),
     ("E08", "Trips and seat inventory", "4.5, 4.12, 7.9", "trip",
      "A trip is generated from a template on a route; its stops define segments, and each seat is sold per segment. Seat locks, "
-     "crew, changes, vehicle swaps, family zones, stop events and delays belong to the trip. Each driver's download of a trip's offline boarding pack, which bounds offline scan times (1075).",
+     "crew, changes, vehicle swaps, family zones, stop events and delays belong to the trip. Each driver's download of a trip's offline boarding pack, which bounds offline scan times (1075). The penalty charged to a carrier that cancels a trip, only where the regulators impose one (1106).",
      ["ops.trip_template", "ops.trip", "ops.trip_stop", "ops.trip_pair_fare", "ops.seat_segment", "ops.standing_segment",
       "ops.seat_lock", "ops.crew_assignment", "ops.trip_change", "ops.vehicle_swap", "ops.family_zone", "ops.trip_stop_event",
-      "ops.trip_delay", "ops.offline_pack_download"]),
+      "ops.trip_delay", "ops.offline_pack_download", "ops.trip_cancel_penalty"]),
     ("E09", "Tracking, incidents and border crossings", "7.8, 7.10, 11.3, D.1", "trip",
      "Positions, tracking state and alerts, driver notices, route adherence and permission events; incidents with evidence and "
      "external links; the crossing plan, crossing events and the transit reconciliation. Positions waiting on the primary while the telemetry database is down (1075).",
@@ -116,11 +116,13 @@ GROUPS = [
      ["pricing.campaign", "pricing.promo_code", "pricing.sponsor_account", "pricing.bin_range", "pricing.override_policy"]),
     ("E15", "Loyalty, rewards and partners", "5.13", "money",
      "The loyalty program with tiers and rules, points accounts and their ledger, transfers and liability, loyalty partners, "
-     "the reward catalog, redemption channels, tokens, vouchers, partner redemptions and award seats.",
+     "the reward catalog, redemption channels, tokens, vouchers, partner redemptions and award seats. The agreements under which a "
+     "partner honours vouchers at the platform's cost, approved by another person, and the partner's statements with their lines (1107).",
      ["pricing.loyalty_program", "pricing.loyalty_tier", "pricing.loyalty_rule", "pricing.points_account",
       "pricing.points_ledger", "pricing.points_transfer", "pricing.points_liability", "pricing.loyalty_partner",
       "pricing.reward_catalog", "pricing.redemption_channel", "pricing.redemption_token", "pricing.reward_voucher",
-      "pricing.partner_redemption", "pricing.award_seat_rule"]),
+      "pricing.partner_redemption", "pricing.award_seat_rule", "pricing.loyalty_agreement", "pricing.loyalty_settlement",
+      "pricing.loyalty_settlement_line"]),
     ("E16", "Wallets, ledger and payments", "6.1-6.5", "money",
      "Wallets and the double-entry ledger, payment providers (card gateway, partner e-wallet, bank transfer, agency cash, partner API), "
      "payments and their signed notifications, refunds to the source, bank transfer references matched from imported bank statements, "
@@ -146,11 +148,12 @@ GROUPS = [
       "acct.cash_session", "acct.cash_receipt", "acct.cash_payment"]),
     ("E20", "E-invoicing and tax profiles", "13.11-13.13", "money",
      "Tax authorities and activation, invoice templates and units, e-invoice documents with lines and submissions, tax profiles "
-     "with dynamic fields, registrations, returns, collections without a tax file and tax payments.",
+     "with dynamic fields, registrations, returns, collections without a tax file and tax payments. Each tax on each invoice line, "
+     "written once, and the public keys that sign the invoices, each named by its key id (1108).",
      ["acct.tax_authority", "acct.einvoice_activation", "acct.einvoice_template", "acct.einvoice_unit",
       "acct.einvoice_document", "acct.einvoice_line", "acct.einvoice_submission", "acct.tax_profile", "acct.tax_profile_field",
       "acct.tax_profile_value", "acct.tax_registration", "acct.tax_return", "acct.tax_return_line",
-      "acct.tax_collection_no_file", "acct.tax_payment"]),
+      "acct.tax_collection_no_file", "acct.tax_payment", "acct.einvoice_line_tax", "acct.einvoice_signing_key"]),
     ("E21", "Accounting system integration", "13.10", "money",
      "Connections to external accounting systems, account mappings, sync jobs and items, conflicts and file exports.",
      ["acct.accounting_connection", "acct.account_mapping", "acct.sync_job", "acct.sync_item", "acct.sync_conflict",
@@ -274,6 +277,19 @@ GROUPS = [
      "request contexts with the rollback windows that accepted contexts without a ticket (1080).",
      ["sys.release_manifest", "sys.backup_run", "sys.failover_probe", "sys.app_delete_grant", "sys.context_key",
       "sys.context_unsigned_window"]),
+    ("E43", "Boarding photo and its policy", "Owner decisions (1086 to 1096)", "security",
+     "The photo of a person for boarding, encrypted, at most one on file; the rules that require it per market, trip scope and "
+     "traveller class with their legal basis; every change to the policy, the switch and the settings, decided in the approval "
+     "stages it was asked with; changes to a photo on file with their evidence; the kinds of evidence accepted; and the data "
+     "items the platform requires or leaves optional.",
+     ["iam.party_photo", "iam.photo_rule", "iam.photo_policy_change", "iam.photo_approval", "iam.photo_change_request",
+      "iam.photo_evidence_kind", "iam.data_requirement"]),
+    ("E44", "Boarding stations and operating companies", "Owner decisions (1097 to 1112)", "asset",
+     "Each station's own boarding switch, counter system, check-in window and screens; the rights an operating company holds at a "
+     "station, given by a carrier for its trips or by the platform for a state-mandated operator, revoked and never changed; "
+     "the carrier's agreement and licence reference numbers, retired and never changed; the counter check-ins with their "
+     "boarding passes (1105) and the tickets sold at a station counter under the carrier's BOOKING right (1110), never edited.",
+     ["net.station_boarding", "net.station_operator_grant", "net.operation_reference", "brd.station_checkin", "brd.station_sale"]),
 ]
 
 # Focus diagrams: one business rule across modules; tables keep their own module colour (family None)
@@ -317,6 +333,12 @@ DATA_STORES = [
     ("D15", "Cases and notifications", ["E22", "E23"], []),
     ("D16", "Audit logs", [], ["audit.auth_event", "audit.activity_log", "audit.data_access_log", "audit.row_change", "audit.log_seal", "audit.ddl_event"]),
     ("D17", "Channels and agencies", ["E12"], []),
+    ("D18", "Boarding settings and stations", [], ["net.station_boarding", "net.station_gate"]),
+    ("D19", "Operator grants", [], ["net.station_operator_grant"]),
+    ("D20", "Operation references", [], ["net.operation_reference"]),
+    ("D21", "Boarding photos", [], ["iam.party_photo", "iam.photo_change_request"]),
+    ("D22", "Photo policy", ["E43"], []),
+    ("D23", "Check-ins and station sales", [], ["brd.station_checkin", "brd.station_sale"]),
 ]
 
 SCHEMA_TITLE = {
@@ -326,6 +348,6 @@ SCHEMA_TITLE = {
     "rail": "Rail", "taxi": "Taxis", "rent": "Car rental",
     "sales": "Bookings, tickets, channels", "pricing": "Fares, tax, loyalty", "fin": "Wallets, ledger",
     "acct": "Books, e-invoicing", "bill": "Carrier billing", "crm": "Cases, AI, calls", "ptn": "Fuel, rest stops",
-    "sec": "Security hub", "brd": "Border manifest", "gov": "Data protection", "audit": "Audit logs", "rpt": "Reports",
+    "sec": "Security hub", "brd": "Border manifests and station boarding", "gov": "Data protection", "audit": "Audit logs", "rpt": "Reports",
     "sch": "School transport", "gis": "PostGIS reference",
 }

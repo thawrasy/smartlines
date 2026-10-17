@@ -40,6 +40,10 @@ const CarrierRoutes = lazyNamed(() => import("./pages/carrier/Carrier"), "Carrie
 const CarrierTrips = lazyNamed(() => import("./pages/carrier/Carrier"), "CarrierTrips");
 const CarrierVehicles = lazyNamed(() => import("./pages/carrier/Carrier"), "CarrierVehicles");
 const CarrierLayouts = lazyNamed(() => import("./pages/carrier/Layouts"), "CarrierLayouts");
+const CarrierSchedules = lazyNamed(() => import("./pages/carrier/Schedules"), "CarrierSchedules");
+const AdminSchedules = lazyNamed(() => import("./pages/admin/Schedules"), "AdminSchedules");
+const CarrierKyc = lazyNamed(() => import("./pages/carrier/Kyc"), "CarrierKyc");
+const AdminKyc = lazyNamed(() => import("./pages/admin/Kyc"), "AdminKyc");
 const CounterDashboard = lazyNamed(() => import("./pages/carrier/Counter"), "CounterDashboard");
 const CounterReport = lazyNamed(() => import("./pages/carrier/Counter"), "CounterReport");
 const CounterSell = lazyNamed(() => import("./pages/carrier/Counter"), "CounterSell");
@@ -73,6 +77,23 @@ const Statements = lazy(() => import("./pages/security/Statements"));
 const Parcels = lazy(() => import("./pages/passenger/Parcels"));
 const CarrierParcels = lazy(() => import("./pages/carrier/Parcels"));
 const Regulator = lazy(() => import("./pages/regulator/Regulator"));
+const StationHome = lazyNamed(() => import("./pages/station/Station"), "StationHome");
+const StationTrips = lazyNamed(() => import("./pages/station/Station"), "StationTrips");
+const StationCheckin = lazyNamed(() => import("./pages/station/Station"), "StationCheckin");
+const StationBoarding = lazyNamed(() => import("./pages/station/Station"), "StationBoarding");
+const StationSales = lazyNamed(() => import("./pages/station/Station"), "StationSales");
+const StationBays = lazyNamed(() => import("./pages/station/Bays"), "StationBays");
+const StationScreens = lazyNamed(() => import("./pages/station/Screens"), "StationScreens");
+const DepartureBoard = lazy(() => import("./pages/station/DepartureBoard"));
+const ScreenPair = lazy(() => import("./pages/station/ScreenPair"));
+const Journey = lazy(() => import("./pages/passenger/Journey"));
+const CustomerCharter = lazyNamed(() => import("./pages/charter/Charter"), "CustomerCharter");
+const CarrierCharter = lazyNamed(() => import("./pages/charter/Charter"), "CarrierCharter");
+const AdminBookingRules = lazyNamed(() => import("./pages/charter/Charter"), "AdminBookingRules");
+const AdminGeography = lazyNamed(() => import("./pages/admin/Geography"), "AdminGeography");
+const AdminPhotoPolicy = lazyNamed(() => import("./pages/admin/PhotoPolicy"), "AdminPhotoPolicy");
+const StationOps = lazy(() => import("./pages/carrier/StationOps"));
+const AdminBoarding = lazy(() => import("./pages/admin/Boarding"));
 
 /** Menu entries for the switched-on modules the signed-in user can open. */
 function useModuleNav(base: string): NavItem[] {
@@ -108,9 +129,18 @@ function PlatformShell() {
       { to: "/admin", end: true, icon: "dashboard", label: t("admin.overview"), show: can("company.approve", "station.approve") },
       { to: "/admin/companies", icon: "apartment", label: t("admin.companies"), show: can("company.approve") },
       { to: "/admin/documents", icon: "fact_check", label: t("documents.review"), show: can("company.approve") },
+      // KYC files: compliance, finance and tax reviewers, staff who capture files, and government authorities' members
+      { to: "/admin/kyc", icon: "policy", label: t("kycadm.nav"), show: can("kyc.view", "kyc.settings", "regulator.dashboard") },
       { to: "/admin/agencies", icon: "store", label: t("admin.agencies"), show: can("company.approve", "cash.remittance") },
       { to: "/admin/finance", icon: "payments", label: t("finance.desk"), show: can("withdrawal.approve", "payout.run") },
       { to: "/admin/stations", icon: "location_on", label: t("admin.stations"), show: can("station.approve") },
+      { to: "/admin/boarding", icon: "departure_board", label: t("brdadm.nav"), show: can("boarding.manage", "payout.run") },
+      // regular trips: the platform's stages (schedule.approve), and the members of government authorities (regulators)
+      { to: "/admin/schedules", icon: "event_repeat", label: t("schedadm.nav"), show: can("schedule.approve", "schedule.settings", "regulator.dashboard") },
+      // seats booked at once (1122) and charter (1123)
+      { to: "/admin/booking", icon: "airport_shuttle", label: t("rules.nav"), show: can("policy.matrix", "report.platform") },
+      // governorates to neighbourhoods from the United Nations P-codes, and places opened for routes (1124)
+      { to: "/admin/geography", icon: "map", label: t("geo.nav"), show: can("geo.manage") },
       { to: "/security", end: true, icon: "shield", label: t("security.title"), show: can("audit.view", "security.ip_rules") },
       { to: "/security/rules", icon: "block", label: t("security.rules"), show: can("security.ip_rules") },
       { to: "/security/auth", icon: "lock", label: t("security.authEvents"), show: can("audit.view", "security.ip_rules") },
@@ -118,9 +148,10 @@ function PlatformShell() {
       { to: "/security/mfa", icon: "password", label: t("security.mfaNav"), show: can("security.console") },
       { to: "/security/statements", icon: "monitoring", label: t("security.stmt.nav"), show: can("security.console") },
       { to: "/admin/privacy", icon: "privacy_tip", label: t("account.privacyRequests"), show: can("privacy.manage") },
+      { to: "/admin/photo", icon: "badge", label: t("photo.nav"), show: can("privacy.manage") },
       { to: "/regulator", icon: "gavel", label: t("nav.regulator"), show: can("regulator.dashboard", "report.platform") },
       { to: "/admin/reports", icon: "summarize", label: t("rpt.nav"), show: can("report.platform") },
-      { to: "/admin/payments", icon: "account_balance", label: t("pay.nav"), show: can("ledger.reconcile", "payment.fee_policy", "compensation.pay", "payment.methods", "cash.remittance", "cash.credit_limit") },
+      { to: "/admin/payments", icon: "account_balance", label: t("pay.nav"), show: can("ledger.reconcile", "payment.fee_policy", "compensation.pay", "payment.methods", "cash.remittance", "cash.credit_limit", "policy.matrix", "loyalty.manage") },
       { to: "/admin/integrations", icon: "api", label: t("api.nav"), show: can("security.api_clients") },
       { to: "/admin/modules", icon: "apps", label: t("modules.title"), show: can("modules.manage") },
       ...mods,
@@ -137,11 +168,15 @@ function CarrierShell() {
       { to: "/carrier", end: true, icon: "dashboard", label: t("carrier.dashboard") },
       { to: "/carrier/counter", icon: "point_of_sale", label: t("counter.nav"), show: can("sale.cash") },
       { to: "/carrier/trips", icon: "directions_bus", label: t("carrier.trips") },
+      { to: "/carrier/schedules", icon: "event_repeat", label: t("sched.nav"), show: can("trip.publish") },
       { to: "/carrier/routes", icon: "route", label: t("carrier.routes") },
       { to: "/carrier/vehicles", icon: "directions_car", label: t("carrier.vehicles") },
       { to: "/carrier/layouts", icon: "event_seat", label: t("layout.title") },
       { to: "/carrier/crew", icon: "badge", label: t("carrier.crew") },
+      { to: "/carrier/stations", icon: "storefront", label: t("stops.nav"), show: can("boarding.operators", "boarding.references") },
       { to: "/carrier/parcels", icon: "local_shipping", label: t("parcel.carrierNav"), show: can("parcels.tariffs", "shipping.operate") },
+      { to: "/carrier/charter", icon: "airport_shuttle", label: t("chr.carrierNav"), show: can("charter.manage") },
+      { to: "/carrier/kyc", icon: "policy", label: t("kyc.nav"), show: can("company.kyc") },
       { to: "/carrier/documents", icon: "fact_check", label: t("documents.title"), show: can("company.staff", "vehicle.manage", "company.billing") },
       { to: "/carrier/finance", icon: "payments", label: t("finance.title") },
       { to: "/carrier/reports", icon: "summarize", label: t("rpt.nav"), show: can("report.company") },
@@ -159,6 +194,7 @@ function AgencyShell() {
     <PortalShell title={t("nav.agency")} items={[
       { to: "/agency", end: true, icon: "dashboard", label: t("agency.dashboard") },
       { to: "/agency/search", icon: "search", label: t("agency.sell"), show: can("booking.on_behalf") },
+      { to: "/agency/charter", icon: "airport_shuttle", label: t("chr.nav"), show: can("booking.on_behalf") },
       { to: "/agency/bookings", icon: "confirmation_number", label: t("agency.bookings") },
       { to: "/agency/statement", icon: "receipt_long", label: t("agency.statement"), show: can("report.company", "company.billing", "booking.on_behalf") },
       { to: "/agency/staff", icon: "badge", label: t("agency.staff"), show: can("company.staff") },
@@ -168,6 +204,24 @@ function AgencyShell() {
       { to: "/agency/reports", icon: "summarize", label: t("rpt.nav"), show: can("report.company") },
       { to: "/agency/integrations", icon: "api", label: t("api.nav"), show: can("company.api_keys") },
       ...mods,
+    ]} />
+  );
+}
+
+function StationShell() {
+  const { t } = useI18n();
+  const { can } = useAuth();
+  return (
+    <PortalShell title={t("nav.station")} items={[
+      { to: "/station", end: true, icon: "dashboard", label: t("st.home") },
+      { to: "/station/trips", icon: "directions_bus", label: t("st.trips") },
+      { to: "/station/checkin", icon: "how_to_reg", label: t("st.checkin") },
+      { to: "/station/boarding", icon: "qr_code_scanner", label: t("st.boarding") },
+      { to: "/station/sales", icon: "point_of_sale", label: t("st.sales") },
+      // the bays, for the station's administration (1115): its owner, or staff holding station.bays
+      ...(can("station.bays") ? [{ to: "/station/bays", icon: "local_parking" as const, label: t("bays.nav") }] : []),
+      // the display screens, for the station's administration (1120): its owner, or staff holding station.screens
+      ...(can("station.screens") ? [{ to: "/station/screens", icon: "tv" as const, label: t("scr.nav") }] : []),
     ]} />
   );
 }
@@ -191,6 +245,8 @@ export default function App() {
           <Route index element={<Home />} />
           <Route path="search" element={<Results />} />
           <Route path="trip/:uid" element={<Book />} />
+          <Route path="journey" element={<RequirePortal portal="PASSENGER"><Journey /></RequirePortal>} />
+          <Route path="charter" element={<RequirePortal portal="PASSENGER"><CustomerCharter who="traveller" /></RequirePortal>} />
           <Route path="booking/:ref" element={<RequirePortal portal="PASSENGER"><Booking /></RequirePortal>} />
           <Route path="trips" element={<RequirePortal portal="PASSENGER"><MyTrips /></RequirePortal>} />
           <Route path="wallet" element={<RequirePortal portal="PASSENGER"><Wallet /></RequirePortal>} />
@@ -212,13 +268,17 @@ export default function App() {
         <Route element={<RequirePortal portal="OPERATOR"><CarrierShell /></RequirePortal>}>
           <Route path="carrier" element={<CarrierDashboard />} />
           <Route path="carrier/trips" element={<CarrierTrips />} />
+          <Route path="carrier/schedules" element={<CarrierSchedules />} />
+          <Route path="carrier/kyc" element={<CarrierKyc />} />
           <Route path="carrier/routes" element={<CarrierRoutes />} />
           <Route path="carrier/vehicles" element={<CarrierVehicles />} />
           <Route path="carrier/layouts" element={<CarrierLayouts />} />
           <Route path="carrier/finance" element={<CompanyFinance />} />
           <Route path="carrier/documents" element={<CompanyDocuments />} />
           <Route path="carrier/crew" element={<CarrierCrew />} />
+          <Route path="carrier/stations" element={<StationOps />} />
           <Route path="carrier/parcels" element={<CarrierParcels />} />
+          <Route path="carrier/charter" element={<CarrierCharter />} />
           <Route path="carrier/m/:module" element={<ModulePage />} />
           <Route path="carrier/reports" element={<ReportsPage />} />
           <Route path="carrier/integrations" element={<IntegrationsPage />} />
@@ -232,6 +292,8 @@ export default function App() {
           <Route path="agency" element={<AgencyDashboard />} />
           <Route path="agency/search" element={<AgencySell />} />
           <Route path="agency/trip/:uid" element={<Book />} />
+          <Route path="agency/journey" element={<Journey />} />
+          <Route path="agency/charter" element={<CustomerCharter who="agency" />} />
           <Route path="agency/booking/:ref" element={<Booking />} />
           <Route path="agency/bookings" element={<AgencyBookings />} />
           <Route path="agency/statement" element={<AgencyStatement />} />
@@ -243,6 +305,20 @@ export default function App() {
           <Route path="agency/topup" element={<AgencyTopup />} />
           <Route path="agency/integrations" element={<IntegrationsPage />} />
         </Route>
+        <Route element={<RequirePortal portal="STATION"><StationShell /></RequirePortal>}>
+          <Route path="station" element={<StationHome />} />
+          <Route path="station/trips" element={<StationTrips />} />
+          <Route path="station/checkin" element={<StationCheckin />} />
+          <Route path="station/boarding" element={<StationBoarding />} />
+          <Route path="station/sales" element={<StationSales />} />
+          <Route path="station/bays" element={<StationBays />} />
+          <Route path="station/screens" element={<StationScreens />} />
+          <Route path="station/trip/:uid" element={<Book />} />
+          <Route path="station/booking/:ref" element={<Booking />} />
+        </Route>
+        <Route path="board/:uid" element={<DepartureBoard />} />
+        <Route path="screen/pair" element={<ScreenPair />} />
+        <Route path="screen/:uid" element={<DepartureBoard screen />} />
         <Route element={<RequirePortal portal="DRIVER"><DriverLayout /></RequirePortal>}>
           <Route path="driver" element={<DriverTrips />} />
           <Route path="driver/trip/:uid" element={<DriverTrip />} />
@@ -255,6 +331,12 @@ export default function App() {
           <Route path="admin/documents" element={<AdminDocuments />} />
           <Route path="admin/privacy" element={<AdminPrivacy />} />
           <Route path="admin/stations" element={<AdminStations />} />
+          <Route path="admin/boarding" element={<AdminBoarding />} />
+          <Route path="admin/schedules" element={<AdminSchedules />} />
+          <Route path="admin/booking" element={<AdminBookingRules />} />
+          <Route path="admin/geography" element={<AdminGeography />} />
+          <Route path="admin/photo" element={<AdminPhotoPolicy />} />
+          <Route path="admin/kyc" element={<AdminKyc />} />
           <Route path="admin/modules" element={<AdminModules />} />
           <Route path="admin/m/:module" element={<ModulePage />} />
           <Route path="admin/reports" element={<ReportsPage />} />

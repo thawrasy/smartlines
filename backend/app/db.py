@@ -3,11 +3,13 @@
 Every request runs in one transaction on the masslak_app role. The transaction starts with
 sys.set_context() so that row-level security and the audit triggers know who is acting.
 """
+import logging
 import os
 import sys
 import time
 from collections import Counter
 from contextlib import asynccontextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass
 from typing import AsyncIterator, Optional
 import uuid
@@ -129,6 +131,29 @@ async def apply_context(conn: asyncpg.Connection, ctx: Context, scope: Optional[
     )
 
 
+# Work done outside the database for the current transaction, undone when the transaction does not commit: a file
+# written to the store before its row (reviews of October 2026, M-04). Each transaction() has its own list.
+_ROLLBACK: ContextVar[Optional[list]] = ContextVar("masslak_rollback", default=None)
+
+
+def on_rollback(undo) -> bool:
+    """Runs `undo` (an async callable) if the current transaction rolls back or fails to commit. Returns False
+    outside a transaction, where nothing can roll back."""
+    hooks = _ROLLBACK.get()
+    if hooks is None:
+        return False
+    hooks.append(undo)
+    return True
+
+
+async def _undo(hooks: list) -> None:
+    for undo in reversed(hooks):
+        try:
+            await undo()
+        except Exception:                      # noqa: BLE001 - an undo never hides the error that caused it
+            logging.getLogger("masslak.db").exception("could not undo work of a rolled-back transaction")
+
+
 @asynccontextmanager
 async def transaction(ctx: Context) -> AsyncIterator[asyncpg.Connection]:
     assert _pool is not None, "database pool not initialised"
@@ -137,11 +162,17 @@ async def transaction(ctx: Context) -> AsyncIterator[asyncpg.Connection]:
         got = time.monotonic()
         _acquired(got - asked)
         logs.timed("pool_wait", got - asked)
+        hooks: list = []
+        token = _ROLLBACK.set(hooks)
         try:
             async with conn.transaction():
                 await apply_context(conn, ctx)
                 yield conn
+        except BaseException:
+            await _undo(hooks)                 # the transaction rolled back, or its commit failed
+            raise
         finally:
+            _ROLLBACK.reset(token)
             logs.timed("db", time.monotonic() - got)
 
 
@@ -180,6 +211,13 @@ async def system_scope(conn: asyncpg.Connection, ctx: Context) -> AsyncIterator[
     await apply_context(conn, ctx)
 
 
+def reports_may_reach_the_primary() -> bool:
+    """With two database hosts (H-01) the reports connection goes through HAProxy's db-replica, which sends it to the
+    primary while no standby is up (a failover, a host being replaced): reports slow the primary for that time rather
+    than stop, and the alerts NoSynchronousStandby and NoFailoverCandidate page about the missing standby."""
+    return get_settings().db_layout.strip() == "ha"
+
+
 async def require_reports_replica() -> None:
     """Production reads reports from a streaming replica only (architecture review of design 3.9): heavy queries must
     never slow bookings and payments. The sandbox may use the main pool."""
@@ -189,7 +227,7 @@ async def require_reports_replica() -> None:
         raise RuntimeError("MASSLAK_REPORTS_DATABASE_URL is required outside the sandbox: reports read the replica, "
                            "never the primary (docker-compose.yml, service db-replica)")
     async with acquire(_reports_pool) as conn:
-        if not await conn.fetchval("SELECT pg_is_in_recovery()"):
+        if not await conn.fetchval("SELECT pg_is_in_recovery()") and not reports_may_reach_the_primary():
             raise RuntimeError("MASSLAK_REPORTS_DATABASE_URL points at a primary: it must be a read replica (hot standby)")
 
 

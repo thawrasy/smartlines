@@ -141,6 +141,9 @@ def test_counter_sells_for_cash(counter, company, trip):
     assert detail["booking"]["counter_sale"] and detail["booking"]["refundable_here"]
     assert all(t["status"] == "ISSUED" for t in detail["tickets"])
     assert counter.get(f"/api/carrier/counter/tickets/{detail['tickets'][0]['uid']}/qr").status_code == 200
+    # the printed ticket carries the signed code that stays the same (design review of the station screens)
+    paper = counter.get(f"/api/carrier/counter/tickets/{detail['tickets'][0]['uid']}/offline")
+    assert paper.status_code == 200 and paper.json()["credential"].startswith("T2."), paper.text
     found = counter.get("/api/carrier/counter/bookings", params={"q": "+963944000222"}).json()["bookings"]
     assert any(b["booking_ref"] == out["booking_ref"] for b in found)
     report = counter.get("/api/carrier/counter/report").json()

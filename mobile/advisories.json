@@ -1,0 +1,46 @@
+{
+  "about": "Every advisory npm audit reports for the mobile apps, classed by where the code runs (reviews of October 2026, M-11). build: tooling on the build machine (Metro, the Expo CLI, config plugins), never in the app; CI checks that no build-classed package appears in the bundles' source maps. runtime: shipped inside the app. scripts/mobile_advisories.py fails CI on a high or critical advisory missing here, on a runtime one at high or above unless accepted with a date, and on any entry past its review date. The upgrade that clears them: Expo SDK 58 (expo-router 58, Metro and the CLI with fixed micromatch, node-forge and uuid), once it is the stable SDK; until then the entries are reviewed at review_by.",
+  "advisories": [
+    {
+      "id": "GHSA-vfj7-8cjw-p6xm",
+      "package": "braces",
+      "severity": "high",
+      "class": "build",
+      "where": "micromatch in Metro's file map (metro-file-map, @expo/metro-file-map): the bundler's file watcher on the build machine",
+      "risk": "a deeply nested brace pattern exhausts the stack of the bundler; patterns come from the project's own configuration, not from users",
+      "fix": "Expo SDK 58 (Metro with micromatch on a fixed braces)",
+      "review_by": "2027-01-31"
+    },
+    {
+      "id": "GHSA-86w9-cpqp-85rv",
+      "package": "node-forge",
+      "severity": "high",
+      "class": "build",
+      "where": "@expo/code-signing-certificates in the Expo CLI: signing of over-the-air updates, which these apps do not use (they ship only store builds)",
+      "risk": "a forged RSA PKCS#1 v1.5 signature could pass verification in the CLI; the apps neither carry node-forge nor verify update signatures with it",
+      "fix": "Expo SDK 58 (the CLI on node-forge 1.4.1 or later)",
+      "review_by": "2027-01-31"
+    },
+    {
+      "id": "GHSA-w5hq-g745-h8pq",
+      "package": "uuid",
+      "severity": "moderate",
+      "class": "build",
+      "where": "xcode in @expo/config-plugins: writing the iOS project during prebuild on the build machine",
+      "risk": "a missing bounds check when a caller passes its own buffer; the config plugins never do",
+      "fix": "Expo SDK 58",
+      "review_by": "2027-01-31"
+    },
+    {
+      "id": "GHSA-vcc3-ghjq-m6fr",
+      "package": "decode-uri-component",
+      "severity": "moderate",
+      "class": "runtime",
+      "where": "query-string in expo-router: parsing the query of a deep link opened in the app",
+      "risk": "a malformed percent-encoded link makes the app spend time decoding it: the app on the one device that opened the link stalls; no data is exposed",
+      "fix": "expo-router 58 (query-string on decode-uri-component 0.5); forcing 0.5 under query-string 7 breaks it (0.5 is an ES module, query-string 7 requires it)",
+      "accepted_by": "mobile lead, 2026-10-10: moderate, device-local, until Expo SDK 58 is the stable SDK",
+      "review_by": "2026-12-31"
+    }
+  ]
+}

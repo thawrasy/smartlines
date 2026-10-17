@@ -5,11 +5,11 @@ import { useI18n } from "../../i18n";
 import { useAuth, homeFor } from "../../auth";
 import { ErrorBox, Field, Icon } from "../../components/ui";
 
-const PORTALS: Portal[] = ["PASSENGER", "OPERATOR", "DRIVER", "AGENCY", "PLATFORM"];
+const PORTALS: Portal[] = ["PASSENGER", "OPERATOR", "DRIVER", "AGENCY", "STATION", "PLATFORM"];
 // Demo accounts are listed only in the test environment build
 const DEMO: Record<Portal, string[]> = {
   PASSENGER: ["passenger@masslak.test"], OPERATOR: ["owner@carrier.test"], DRIVER: ["driver@carrier.test", "driver2@carrier.test", "driver3@carrier.test"],
-  AGENCY: ["agency@agency.test"], PLATFORM: ["admin@masslak.test", "regulator@masslak.test"],
+  AGENCY: ["agency@agency.test"], PLATFORM: ["admin@masslak.test", "regulator@masslak.test"], STATION: [],
 };
 const SHOW_DEMO = import.meta.env.VITE_SHOW_DEMO !== "false";
 
@@ -81,7 +81,7 @@ export default function Login() {
           </Field>
           <button className="btn large block" disabled={busy}>{t("auth.loginTitle")}</button>
           {portal === "PASSENGER" && <p className="center small">{t("auth.noAccount")} <Link to="/register">{t("nav.register")}</Link></p>}
-          {SHOW_DEMO && (
+          {SHOW_DEMO && DEMO[portal].length > 0 && (
             <div className="alert info small" style={{ flexDirection: "column", gap: 6 }}>
               <strong>{t("common.demoAccounts")}</strong>
               <div className="row" style={{ gap: 6 }}>
