@@ -62,4 +62,8 @@ pack; `check_delivery.py`). The follow-up report answers the review point by poi
 |---|---|---|---|
 | 2 | 18 October 2026 | `921369d872757ecae2d659b54ad28de6b36df73b` (tested; the documents are of `71def24`, documentation only since) | Follow-up report on the independent review 1.0 (Word and PDF), database design and ERD 3.18, readiness register 2.4 (Word and PDF), evidence pack reviewer edition (`masslak-evidence-reviewer-921369d.tar.gz`, `cba0e3dd10eaf93cd96bb2790d93af2c637b0ab3d362b0c63d04916753fb9aa4`); archive `Masslak_Independent_Review_Delivery2_921369d.zip`, `05c55c7ff4c4c22c682b797c419023077bdf7bdab9c76b8dea108832a473602a`. Tests of that commit: 924 database checks passed, 773 API tests passed and 11 skipped, the live event contract check 5 of 5; critical controls 142 of 142 passed, none skipped. `check_delivery.py`: 0 problems |
 
+Delivery 2 also exists as a complete edition, `Masslak_Independent_Review_Complete_921369d.zip` (SHA-256
+`7e6a4853f3739685bea4a07d4cdd694ade37c559052fdea6abcdc7124d673987`): the same files, plus study 3.9 (English and Arabic) and
+the reply to the four evaluations 1.1 in `earlier_documents/`, which keep the figures of the commits they were measured at.
+
 The reviewer may study delivery 2 again and compare the two reviews.
