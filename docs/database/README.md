@@ -18,7 +18,7 @@ Regenerate after a schema change (needs graphviz, Pillow and the `docx` npm pack
 createdb masslak_doc && ./db/build.sh masslak_doc
 cd docs/database/generator
 python3 render.py masslak_doc
-python3 trace.py ../../Masslak_Analysis_and_Design_EN_v3.7.docx
+python3 trace.py ../../Masslak_Analysis_and_Design_EN_v3.8.docx
 # the console output of the same build's test runs (db/tests/run.sh and pytest -q)
 python3 verification.py masslak_doc --db-log db-tests.log --api-log api-tests.log
 node build.js
