@@ -1,6 +1,6 @@
 Masslak ("the way through") is one platform for booking intercity trips, riding shuttle lines, sending shipments and running carrier, station, agency and government portals in Syria. The interface is light, calm and exact: Material 3 structure with the restraint of Apple's platforms and the confidence of leading Gulf government-tech products. Deep navy carries authority, a clear blue carries action, and a green destination stop, taken from the Syrian flag green, marks arrival and success. English (LTR) is the working and default language of the product; a complete Arabic (RTL) interface ships as a translation and can be made the default by configuration. Later locales (Turkish, French, Spanish) reuse the same tokens. Code, data and documentation are English only.
 
-Read this page first, then `Experience` (journeys and information architecture) and `Platforms` (web, Android and iOS rules). Every value below is a token in `tokens.json`; never paste raw hex or pixel values into product code.
+The identity version, its change rules and the decisions awaiting the owner are in `IDENTITY.md` (1.0 release candidate). Read this page first, then `Experience` (journeys and information architecture) and `Platforms` (web, Android and iOS rules). Every value below is a token in `tokens.json`; never paste raw hex or pixel values into product code.
 
 ## Brand essence
 
