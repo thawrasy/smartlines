@@ -192,7 +192,8 @@ jobs:
       - name: Every event the suite produced matches its published contract (docs/integration/events, systems review of study 3.8)
         working-directory: backend
         env: { MASSLAK_EVENT_CONTRACTS_LIVE: "1" }
-        run: python -m pytest tests/test_event_contracts.py -q
+        # its own JUnit report: the suite skips this check, so the evidence pack takes its result from here
+        run: python -m pytest tests/test_event_contracts.py -q --junitxml=../junit_events.xml
       - name: A station counter for the browser checks, boarding stations switched on at one station (design review of the station screens)
         working-directory: backend
         run: python tests/ui_station_setup.py ../station-ui.json
@@ -281,6 +282,7 @@ jobs:
           path: |
             api_tests.log
             junit.xml
+            junit_events.xml
             backend/coverage.json
           retention-days: 30
       - name: API log on failure
@@ -316,7 +318,7 @@ jobs:
           for edition in full reviewer; do
             flag=""; [ "$edition" = reviewer ] && flag="--reviewer"
             db/tools/evidence_pack.sh evidence "$RUNNER_TEMP/masslak-evidence-$edition-$sha" --db-log "$L/db_tests.log" \
-              --api-log "$L/api_tests.log" --junit "$L/junit.xml" --coverage "$L/backend/coverage.json" $flag -h localhost -U postgres
+              --api-log "$L/api_tests.log" --junit "$L/junit.xml" --junit "$L/junit_events.xml" --coverage "$L/backend/coverage.json" $flag -h localhost -U postgres
           done
           cat "$RUNNER_TEMP/masslak-evidence-full-$sha/critical/CRITICAL_CONTROLS.md" | grep -E '^## |^Tests' >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2

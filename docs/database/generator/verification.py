@@ -3,7 +3,11 @@ that came from the run itself (audit T3-17): the test counts, the source commit,
 the schema, and the server and extension versions.
 
 Usage (from this directory):
-    python3 verification.py <database> --db-log <db tests output> --api-log <pytest output> [psql connection args...]
+    python3 verification.py <database> --db-log <db tests output> --api-log <pytest output> [--commit <tested commit>]
+                            [--out <file>] [psql connection args...]
+
+--commit names the commit the logs come from when it is not HEAD (an evidence pack built on a later, documentation-only
+commit); --out writes elsewhere than ../build/verification.json (the evidence pack writes its own).
 
 The logs are the console output of db/tests/run.sh ("=== ALL TESTS PASSED (N checks) ===") and of pytest -q ("N passed");
 in CI they are the job logs of the same commit.
@@ -40,13 +44,13 @@ def main():
     db, rest, opts = argv[0], [], {}
     i = 1
     while i < len(argv):
-        if argv[i] in ("--db-log", "--api-log"):
+        if argv[i] in ("--db-log", "--api-log", "--commit", "--out"):
             opts[argv[i]] = argv[i + 1]
             i += 2
         else:
             rest.append(argv[i])
             i += 1
-    if set(opts) != {"--db-log", "--api-log"}:
+    if not {"--db-log", "--api-log"} <= set(opts):
         sys.exit(__doc__)
     if re.search(r"FAIL|TESTS FAILED", open(opts["--db-log"], encoding="utf-8").read()):
         sys.exit("the database test log reports failures")
@@ -60,8 +64,8 @@ def main():
     v = {
         "db_checks": count(opts["--db-log"], r"ALL TESTS PASSED \((\d+) checks\)", "database check"),
         "api_tests": count(opts["--api-log"], r"(\d+) passed", "pytest"),
-        "source_commit": subprocess.run(["git", "-C", ROOT, "rev-parse", "--short=12", "HEAD"], check=True, capture_output=True,
-                                        text=True).stdout.strip(),
+        "source_commit": subprocess.run(["git", "-C", ROOT, "rev-parse", "--short=12", opts.get("--commit", "HEAD")], check=True,
+                                        capture_output=True, text=True).stdout.strip(),
         "migration": psql(db, rest, "SELECT version FROM sys.schema_migration ORDER BY string_to_array(version, '.')::int[] DESC LIMIT 1"),
         "last_schema_file": files[-1],
         "schema_files": len(files),
@@ -70,8 +74,9 @@ def main():
         "postgis": psql(db, rest, "SELECT extversion FROM pg_extension WHERE extname = 'postgis'") or None,
         "generated_at": dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
     }
-    os.makedirs(BUILD, exist_ok=True)
-    json.dump(v, open(os.path.join(BUILD, "verification.json"), "w"), indent=1)
+    out = opts.get("--out") or os.path.join(BUILD, "verification.json")
+    os.makedirs(os.path.dirname(os.path.abspath(out)), exist_ok=True)
+    json.dump(v, open(out, "w"), indent=1)
     print(json.dumps(v, indent=1))
 
 

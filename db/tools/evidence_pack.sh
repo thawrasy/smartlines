@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Raw evidence for the auditors (audit T3 recheck): everything they need to verify the candidate build themselves.
 #   db/tools/evidence_pack.sh <database> <output dir> --db-log <db tests output> --api-log <pytest output> \
-#                             [--tested <commit the logs come from>] [--junit <JUnit report>] [--coverage <coverage.json>]
+#                             [--tested <commit the logs come from>] [--junit <JUnit report>]... [--coverage <coverage.json>]
 #                             [--reviewer] [psql connection args]
 # The pack holds:
 #   source/       the commit, its tree hash and whether the working tree was clean; TESTED.txt proves the test logs belong to
@@ -21,13 +21,13 @@
 # test names and results, the logs and the measurements stay.
 set -euo pipefail
 DB="${1:?database}"; OUT="${2:?output directory}"; shift 2
-DB_LOG=""; API_LOG=""; TESTED=""; JUNIT=""; COVERAGE=""; REVIEWER=0; ARGS=()
+DB_LOG=""; API_LOG=""; TESTED=""; JUNITS=(); COVERAGE=""; REVIEWER=0; ARGS=()
 while [ $# -gt 0 ]; do
   case "$1" in
     --db-log) DB_LOG="$2"; shift 2 ;;
     --api-log) API_LOG="$2"; shift 2 ;;
     --tested) TESTED="$2"; shift 2 ;;
-    --junit) JUNIT="$2"; shift 2 ;;
+    --junit) JUNITS+=("$2"); shift 2 ;;   # repeatable: the suite, and the steps that run after it (live event contracts)
     --coverage) COVERAGE="$2"; shift 2 ;;
     --reviewer) REVIEWER=1; shift ;;
     *) ARGS+=("$1"); shift ;;
@@ -76,16 +76,21 @@ if [ "$REVIEWER" = 0 ]; then
 fi
 grep -c '^PASS ' "$DB_LOG" > "$OUT/tests/db_checks_passed.txt" || true
 # every API test with its result, and the coverage of this run
-if [ -n "$JUNIT" ] && [ -f "$JUNIT" ]; then
-  cp "$JUNIT" "$OUT/tests/api_junit.xml"
-  python3 - "$JUNIT" "$OUT/tests/api_results.csv" <<'PY'
+if [ "${#JUNITS[@]}" -gt 0 ]; then
+  for i in "${!JUNITS[@]}"; do cp "${JUNITS[$i]}" "$OUT/tests/api_junit$([ "$i" = 0 ] || echo "_$i").xml"; done
+  # one row per test; a test skipped in the suite and run by a later step (MASSLAK_EVENT_CONTRACTS_LIVE) counts once, as run
+  python3 - "$OUT/tests/api_results.csv" "${JUNITS[@]}" <<'PY'
 import csv, sys, xml.etree.ElementTree as ET
-rows = []
-for c in ET.parse(sys.argv[1]).getroot().iter("testcase"):
-    status = "failed" if c.find("failure") is not None or c.find("error") is not None else "skipped" if c.find("skipped") is not None else "passed"
-    rows.append((c.get("classname"), c.get("name"), status, c.get("time")))
-with open(sys.argv[2], "w", newline="") as f:
-    w = csv.writer(f); w.writerow(["file", "test", "result", "seconds"]); w.writerows(rows)
+rows = {}
+for path in sys.argv[2:]:
+    for c in ET.parse(path).getroot().iter("testcase"):
+        status = "failed" if c.find("failure") is not None or c.find("error") is not None else "skipped" if c.find("skipped") is not None else "passed"
+        key = (c.get("classname"), c.get("name"))
+        if key not in rows or rows[key][0] == "skipped":
+            rows[key] = (status, c.get("time"))
+with open(sys.argv[1], "w", newline="") as f:
+    w = csv.writer(f); w.writerow(["file", "test", "result", "seconds"])
+    w.writerows((k[0], k[1], v[0], v[1]) for k, v in rows.items())
 PY
 fi
 if [ -n "$COVERAGE" ] && [ -f "$COVERAGE" ]; then
@@ -94,11 +99,14 @@ if [ -n "$COVERAGE" ] && [ -f "$COVERAGE" ]; then
 fi
 
 # the critical controls: their code as it is in this commit, and the result of the tests that prove each
-python3 "$ROOT/db/tools/critical_excerpts.py" --out "$OUT/critical" --db-log "$DB_LOG" ${JUNIT:+--junit "$JUNIT"}
+JARGS=(); for j in "${JUNITS[@]}"; do JARGS+=(--junit "$j"); done
+python3 "$ROOT/db/tools/critical_excerpts.py" --out "$OUT/critical" --db-log "$DB_LOG" --commit "$TESTED_C" "${JARGS[@]}"
 
 # measurements
 cp "$ROOT"/docs/operations/evidence/*.json "$OUT/evidence/"
-[ -f "$ROOT/docs/database/build/verification.json" ] && cp "$ROOT/docs/database/build/verification.json" "$OUT/evidence/"
+# the verification summary of this build, made now from this database and these logs (never a file left by an earlier build)
+python3 "$ROOT/docs/database/generator/verification.py" "$DB" --db-log "$DB_LOG" --api-log "$API_LOG" --commit "$TESTED_C" \
+  --out "$OUT/evidence/verification.json" "${ARGS[@]}" > /dev/null
 
 # monitoring: rules, their unit tests, and promtool's verdict when promtool is installed
 cp "$ROOT"/deploy/monitoring/*.yml "$ROOT"/deploy/monitoring/*.json "$OUT/monitoring/"
@@ -112,7 +120,7 @@ for f in docs/database/DESIGN_AUDIT_T3.md docs/database/DESIGN_AUDIT_T3_RECHECK.
          docs/operations/PERFORMANCE_BASELINE.md docs/operations/RELEASE_MAP.md docs/integration/EVENTS.md \
          docs/architecture/AI_ASSISTANT_THREAT_MODEL_DPIA.md docs/operations/LAUNCH_GATES.md docs/operations/STAGING.md docs/operations/CAPACITY_MODEL.md \
          docs/security/PENETRATION_TEST_SCOPE.md docs/database/ARCHITECTURE_REVIEW_RESPONSE.md \
-         docs/database/SCHEMA_DEPENDENCIES.md db/schema_dependencies.json deploy/egress/squid.conf deploy/pitr/postgresql.pitr.conf deploy/pitr/pgbackrest.conf \
+         docs/database/SCHEMA_DEPENDENCIES.md docs/database/SHARDING_STUDY.md db/schema_dependencies.json deploy/egress/squid.conf deploy/pitr/postgresql.pitr.conf deploy/pitr/pgbackrest.conf \
          deploy/staging/docker-compose.staging.yml deploy/staging/alertmanager.yml; do
   [ -f "$ROOT/$f" ] && cp "$ROOT/$f" "$OUT/docs/"
 done

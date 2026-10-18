@@ -2,13 +2,15 @@
 R-15): every claim that a control is closed comes with the code that enforces it and the result of the tests that prove
 it, from the same commit, instead of a file path alone.
 
-    python3 db/tools/critical_excerpts.py --out <dir> [--junit junit.xml] [--db-log db_tests.log]
+    python3 db/tools/critical_excerpts.py --out <dir> [--junit junit.xml]... [--db-log db_tests.log] [--commit <tested commit>]
 
 The controls are listed in docs/operations/evidence/critical_controls.json. A Python function is quoted from its file
 (ast); a SQL function from the last schema file that defines it. A test reference is either "<file>::" (every test of a
 backend test file, results from the JUnit report) or "db:<prefix>" (every database check whose name starts so, results
-from the db/tests output). Writes CRITICAL_CONTROLS.md and critical_controls.json; exits 1 when a quoted symbol is
-missing or a listed test failed.
+from the db/tests output). Several JUnit reports may be given: a test the suite skips and a later step runs (the live
+event contract check, MASSLAK_EVENT_CONTRACTS_LIVE) counts once, as run. Writes CRITICAL_CONTROLS.md and
+critical_controls.json with passed, skipped and failed per control; exits 1 when a quoted symbol is missing or a test of
+a critical control failed or was skipped (independent review of 18 October 2026: a skipped test proves nothing).
 """
 from __future__ import annotations
 
@@ -50,15 +52,18 @@ def sql_excerpt(name: str) -> tuple[str, str]:
     return found
 
 
-def junit_results(path: Path | None) -> dict[str, str]:
-    if not path or not path.exists():
-        return {}
-    out = {}
-    for case in ET.parse(path).getroot().iter("testcase"):  # noqa: S314
-        file = (case.get("file") or case.get("classname", "").replace(".", "/") + ".py").split("/")[-1]
-        status = "failed" if case.find("failure") is not None or case.find("error") is not None else \
-            "skipped" if case.find("skipped") is not None else "passed"
-        out[f"{file}::{case.get('name')}"] = status
+def junit_results(paths: list[Path]) -> dict[str, str]:
+    out: dict[str, str] = {}
+    for path in paths:
+        if not path.exists():
+            continue
+        for case in ET.parse(path).getroot().iter("testcase"):  # noqa: S314
+            file = (case.get("file") or case.get("classname", "").replace(".", "/") + ".py").split("/")[-1]
+            status = "failed" if case.find("failure") is not None or case.find("error") is not None else \
+                "skipped" if case.find("skipped") is not None else "passed"
+            key = f"{file}::{case.get('name')}"
+            if out.get(key) in (None, "skipped"):
+                out[key] = status
     return out
 
 
@@ -76,14 +81,15 @@ def db_results(path: Path | None) -> dict[str, str]:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", required=True)
-    ap.add_argument("--junit")
+    ap.add_argument("--junit", action="append", default=[])
     ap.add_argument("--db-log")
+    ap.add_argument("--commit", default="HEAD", help="the commit the test results come from")
     a = ap.parse_args()
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
-    junit = junit_results(Path(a.junit) if a.junit else None)
+    junit = junit_results([Path(j) for j in a.junit])
     dbr = db_results(Path(a.db_log) if a.db_log else None)
-    commit = subprocess.run(["git", "-C", str(ROOT), "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
+    commit = subprocess.run(["git", "-C", str(ROOT), "rev-parse", a.commit], capture_output=True, text=True).stdout.strip()
     spec = json.loads(CONTROLS.read_text(encoding="utf-8"))
     md = [f"# Critical controls: code and tests at commit {commit}", "",
           "Each control is quoted from the code of this commit, with the tests that prove it and their result in this run.", ""]
@@ -108,14 +114,17 @@ def main() -> int:
             else:
                 tests.update({k: v for k, v in junit.items() if k.startswith(t)})
         failed = [k for k, v in tests.items() if v == "failed"]
+        skipped = [k for k, v in tests.items() if v == "skipped"]
         if junit and dbr and not tests:
             problems.append(f"{c['id']}: no test result in this run for {', '.join(c['tests'])}")
         problems += [f"{c['id']}: test failed: {k}" for k in failed]
-        md += [f"Tests ({len(tests)}, {sum(v == 'passed' for v in tests.values())} passed"
-               + (f", {len(failed)} failed" if failed else "") + "):", ""]
+        problems += [f"{c['id']}: test skipped: {k}" for k in skipped]
+        passed = sum(v == "passed" for v in tests.values())
+        md += [f"Tests ({len(tests)}: {passed} passed, {len(skipped)} skipped, {len(failed)} failed):", ""]
         md += [f"- {'PASS' if v == 'passed' else v.upper()} `{k}`" for k, v in sorted(tests.items())] or ["- (no result in this run)"]
         md.append("")
-        summary.append({"id": c["id"], "control": c["control"], "tests": len(tests), "failed": failed})
+        summary.append({"id": c["id"], "control": c["control"], "tests": len(tests), "passed": passed, "skipped": skipped,
+                        "failed": failed})
     (out / "CRITICAL_CONTROLS.md").write_text("\n".join(md) + "\n", encoding="utf-8")
     (out / "critical_controls.json").write_text(json.dumps({"commit": commit, "controls": summary, "problems": problems},
                                                            indent=1) + "\n", encoding="utf-8")

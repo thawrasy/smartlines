@@ -19,18 +19,25 @@ The reviewer edition (`db/tools/evidence_pack.sh --reviewer`) holds:
 - `critical/CRITICAL_CONTROLS.md`: the nine critical controls of `docs/operations/evidence/critical_controls.json`, each
   quoted from the code of the commit (Python functions through `ast`, SQL functions from the last schema file that
   defines them), with the names of the tests that prove it and their result in the same run
-  (`db/tools/critical_excerpts.py`). The pack fails to build if a quoted function is missing or one of its tests failed.
+  (`db/tools/critical_excerpts.py`), counted as passed, skipped and failed. The pack fails to build if a quoted function
+  is missing or one of its tests failed or was skipped; a test the suite skips and a later CI step runs (the live event
+  contract check) is taken from that step's own JUnit report.
 - `tests/`: the console output of the database checks and the API tests, every API test with its result
   (`api_results.csv`) and the coverage summary. The test sources and the database checks' script are left out, and so
   is `audit_pack/` (the schema, grants, policies and function bodies of the built database), by the owner's decision.
 - `evidence/`, `monitoring/`, `docs/`: measurements, alert rules with their tests, runbooks, SLOs and audit responses.
+- `evidence/verification.json`: the figures of this build (commit, database checks, API tests, schema files, schema
+  hash), made by the pack from the same database and logs; the pack never copies one left by an earlier build.
 - `SHA256SUMS` over every file, and the commit and tree hash it was built from.
 
 ## Procedure
 
 1. Build the pack from the commit being delivered: the `evidence` job of `ci.yml` does it on every push; a release adds
    it to its signed assets.
-2. Check `SHA256SUMS`, then hand the documents and the pack to the reviewer. Record the date and the commit.
+2. Check `SHA256SUMS`, then run `python3 db/tools/check_delivery.py <unpacked pack> <each .docx of the delivery>`: every
+   document must name the pack's commit and its database check, API test and schema file counts, and the pack's
+   verification and critical controls must be of the same commit (independent review of 18 October 2026). Hand the
+   documents and the pack to the reviewer only when it passes. Record the date and the commit.
 3. The reviewer's questions are answered from the pack, or with a further excerpt added to `critical_controls.json`, so
    the next pack carries it with its tests.
 4. The reviewer's report is answered point by point in a follow-up report, against the same commit or a later one that
