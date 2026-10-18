@@ -20,6 +20,9 @@ x-trust: &trust ./deploy/production/trust:/etc/masslak/trust:ro
 
 services:
   db:
+    # an init process as PID 1 reaps what pgBackRest leaves behind (its archive-push and check helpers); with postgres
+    # as PID 1 the postmaster reaped them, took an unknown child's exit 103 for a crashed backend and restarted
+    init: true
     # the images of a production server are the ones a release built and signed (deploy/images.sh pull), named by the
     # tag deploy/install.sh writes; a missing tag stops compose instead of falling back to whatever "latest" holds
     build:
@@ -46,6 +49,7 @@ services:
       - ./deploy/production/tls/server.key:/tls-src/server.key:ro
 
   db-replica:
+    init: true                                  # as the primary: orphans of pgBackRest are reaped by the init
     build: !reset null                          # the signed database image, never one built here (docker-compose.yml builds db/guard)
     image: masslak-db:${MASSLAK_IMAGE_TAG:?set by deploy/install.sh and deploy/update.sh, the images of the release}
     user: root                                  # masslak-db-entry installs the TLS files, then runs replica.sh as postgres
