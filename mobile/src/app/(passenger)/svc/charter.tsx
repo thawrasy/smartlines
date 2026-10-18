@@ -1,11 +1,12 @@
 import { useRef, useState } from "react";
-import { Pressable, ScrollView, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { router } from "expo-router";
 import { randomUUID } from "expo-crypto";
 import { useI18n, zone } from "../../../i18n";
 import { api } from "../../../platform/api";
-import { Button, Card, CarrierName, Chip, ErrorText, Field, Loading, Notice, Screen, Title, s } from "../../../ui/kit";
-import { color } from "../../../ui/theme";
+import { Button, Card, CarrierName, Chip, Empty, ErrorText, Field, Loading, Notice, Pill, Screen, SvcHeader, s } from "../../../ui/kit";
+import { TripLine } from "../../../ui/brand";
+import { color, font, radius } from "../../../ui/theme";
 import { useLoad } from "../../../ui/useLoad";
 
 // Hiring a bus or a whole trip by special request (owner's request, October 2026; 1123): the carriers' offers open to
@@ -33,11 +34,7 @@ function Pills({ items, value, onChange }: { items: { key: string; label: string
   return (
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
       {items.map((i) => (
-        <Pressable key={i.key} onPress={() => onChange(i.key)} accessibilityRole="button" accessibilityState={{ selected: value === i.key }}
-                   style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, borderWidth: 1,
-                            borderColor: value === i.key ? color.primary : color.outline, backgroundColor: value === i.key ? color.primarySoft : color.surface }}>
-          <Text style={{ color: value === i.key ? color.primary : color.text }}>{i.label}</Text>
-        </Pressable>
+        <Pill key={i.key} on={value === i.key} label={i.label} onPress={() => onChange(i.key)} />
       ))}
     </ScrollView>
   );
@@ -63,19 +60,25 @@ export default function Charter() {
   if (asking) return <Ask offer={asking} cities={(ref.data?.cities ?? []).map((c) => c.code)} onDone={() => { setAsking(null); mine.reload(); }} />;
   return (
     <Screen>
-      <Title sub={t("chr.sub")}>{t("chr.title")}</Title>
-      <Button kind="text" label={t("common.back")} onPress={() => router.back()} />
+      <SvcHeader icon="bus" title={t("chr.title")} sub={t("chr.sub")} onBack={() => router.back()} />
       <ErrorText error={error} />
-      <Text style={s.h2}>{t("chr.mine")}</Text>
+      <Text style={s.section}>{t("chr.mine")}</Text>
       {mine.loading && !mine.data ? <Loading /> : null}
-      {mine.data && mine.data.length === 0 ? <Text style={s.muted}>{t("chr.noRequests")}</Text> : null}
+      {mine.data && mine.data.length === 0 ? <Empty icon="bus" text={t("chr.noRequests")} /> : null}
       {mine.data?.map((r) => (
         <Card key={r.uid}>
-          <View style={s.between}><Text style={s.h2}>{r.ref}</Text><Chip tone={r.status === "CONFIRMED" ? "green" : r.status === "QUOTED" ? "blue" : "neutral"} label={t(`chr.status.${r.status}`)} /></View>
+          <View style={s.between}><Text style={[s.mono, { fontSize: 16, color: color.navy, letterSpacing: 1 }]}>{r.ref}</Text><Chip tone={r.status === "CONFIRMED" ? "green" : r.status === "QUOTED" ? "blue" : "neutral"} label={t(`chr.status.${r.status}`)} /></View>
+          {r.kind === "VEHICLE" && r.from_city && r.to_city ? (
+            <View style={[s.between, { paddingVertical: 2 }]}>
+              <Text style={cs.city}>{t(`city.${r.from_city}`)}</Text>
+              <TripLine width={80} height={16} />
+              <Text style={cs.city}>{t(`city.${r.to_city}`)}</Text>
+            </View>
+          ) : null}
           <Text style={s.muted}>{r.carrier_name}</Text>
-          <Text style={s.small}>{r.kind === "VEHICLE" ? `${t(`city.${r.from_city}`)} → ${t(`city.${r.to_city}`)} · ${r.starts_at ? `${date(r.starts_at)} ${time(r.starts_at)}` : ""}`
+          <Text style={s.small}>{r.kind === "VEHICLE" ? (r.starts_at ? `${date(r.starts_at)} ${time(r.starts_at)}` : "")
             : `${r.trip_code ?? r.trip_no} · ${r.trip_departs_at ? `${date(r.trip_departs_at)} ${time(r.trip_departs_at)}` : ""} · ${r.whole ? t("chr.wholeTrip") : t("chr.seatsN", { n: r.seats ?? 0 })}`}</Text>
-          <Text style={s.h2}>{r.price != null ? money(r.price) : r.estimate != null ? `≈ ${money(r.estimate)}` : t("chr.onRequest")}</Text>
+          <Text style={s.price}>{r.price != null ? money(r.price) : r.estimate != null ? `≈ ${money(r.estimate)}` : t("chr.onRequest")}</Text>
           {r.quote_note ? <Text style={s.small}>{r.quote_note}</Text> : null}
           {r.status === "QUOTED" && r.valid_until ? <Text style={s.small}>{t("chr.validUntil", { at: `${date(r.valid_until)} ${time(r.valid_until)}` })}</Text> : null}
           {r.status === "QUOTED" && r.price != null && (r.terms.deposit_pct ?? 0) > 0
@@ -98,9 +101,9 @@ export default function Charter() {
           ) : null}
         </Card>
       ))}
-      <Text style={s.h2}>{t("chr.offers")}</Text>
+      <Text style={s.section}>{t("chr.offers")}</Text>
       {offers.loading && !offers.data ? <Loading /> : <ErrorText error={offers.error} />}
-      {offers.data && offers.data.length === 0 ? <Text style={s.muted}>{t("chr.noOffers")}</Text> : null}
+      {offers.data && offers.data.length === 0 ? <Empty icon="bus" text={t("chr.noOffers")} /> : null}
       {offers.data?.map((o) => (
         <Card key={o.uid}>
           <CarrierName name={o.carrier_name} uid={o.carrier_uid} logo={o.carrier_logo} />
@@ -109,7 +112,7 @@ export default function Charter() {
             <Chip tone="blue" label={t(`chr.kind.${o.kind}`)} />
             {o.vehicle_type ? <Chip label={`${t(`chr.vehicle.${o.vehicle_type}`)} · ${t("chr.seatsN", { n: o.seats ?? 0 })}`} /> : null}
           </View>
-          <Text style={s.small}>{o.price != null ? `${money(o.price)} ${t(`chr.per.${o.price_basis}`)}` : t("chr.onRequest")}</Text>
+          <Text style={s.price}>{o.price != null ? `${money(o.price)} ${t(`chr.per.${o.price_basis}`)}` : t("chr.onRequest")}</Text>
           <Text style={s.small}>{t("chr.refundRule", { pct: o.cancel_refund_pct, h: o.cancel_before_hours })}</Text>
           {o.deposit_pct ? <Text style={s.small}>{t("chr.depositRule", { pct: o.deposit_pct, h: o.balance_hours ?? 48 })}</Text> : null}
           <Text style={s.small}>{o.policy}</Text>
@@ -156,8 +159,7 @@ function Ask({ offer, cities, onDone }: { offer: Offer; cities: string[]; onDone
   };
   return (
     <Screen>
-      <Title sub={offer.carrier_name}>{offer.title}</Title>
-      <Button kind="text" label={t("common.back")} onPress={onDone} />
+      <SvcHeader icon="bus" title={offer.title} sub={offer.carrier_name} onBack={onDone} />
       <Card>
         <Text style={s.label}>{t("common.from")}</Text>
         <Pills items={cityPills} value={f.from} onChange={(v) => set({ from: v })} />
@@ -225,16 +227,15 @@ function Travellers({ r, onDone }: { r: Request; onDone: () => void }) {
   const seats = list.data?.seats ?? [];
   return (
     <Screen>
-      <Title sub={t("chr.travellersHint")}>{t("chr.travellersOf", { ref: r.ref })}</Title>
-      <Button kind="text" label={t("common.back")} onPress={onDone} />
+      <SvcHeader icon="people" title={t("chr.travellersOf", { ref: r.ref })} sub={t("chr.travellersHint")} onBack={onDone} />
       <ErrorText error={error ?? list.error} />
       {list.loading && !list.data ? <Loading /> : null}
       {list.data ? <Text style={s.muted}>{t("chr.namedOf", { n: list.data.named, of: seats.length })}</Text> : null}
       {seats.map((x) => (
         <Card key={x.seat_no}>
           <View style={s.between}>
-            <Text style={s.h2}>{t("chr.seat")} {x.seat_no}</Text>
-            {x.ticket_no ? <Text style={s.small}>{x.ticket_no}</Text> : null}
+            <View style={cs.seat}><Text style={cs.seatLabel}>{t("chr.seat")}</Text><Text style={cs.seatNo}>{x.seat_no}</Text></View>
+            {x.ticket_no ? <Text style={s.mono}>{x.ticket_no}</Text> : null}
           </View>
           <Text style={x.full_name ? s.h2 : s.muted}>{x.full_name ?? t("chr.unnamed")}</Text>
           {x.ticket_no && x.ticket_status === "ISSUED" ? <Button kind="text" label={t("chr.takeOff")} onPress={() => remove(x.ticket_no!)} /> : null}
@@ -254,3 +255,10 @@ function Travellers({ r, onDone }: { r: Request; onDone: () => void }) {
   );
 }
 
+
+const cs = StyleSheet.create({
+  city: { fontFamily: font.displayBold, fontSize: 18, color: color.navy },
+  seat: { flexDirection: "row", alignItems: "baseline", gap: 6, backgroundColor: color.greenSoft, paddingHorizontal: 12, paddingVertical: 4, borderRadius: radius.sm },
+  seatLabel: { fontFamily: font.body, fontSize: 12, color: color.green },
+  seatNo: { fontFamily: font.displayBold, fontSize: 18, color: "#00391F" },
+});

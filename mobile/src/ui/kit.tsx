@@ -5,7 +5,7 @@ import { color, font, radius, space } from "./theme";
 import { useI18n } from "../i18n";
 import { ApiError } from "../platform/api";
 import { API_URL } from "../platform/config";
-import { Icon } from "./brand";
+import { Icon, type IconName } from "./brand";
 
 export function Screen({ children, scroll = true, padded = true }: { children: ReactNode; scroll?: boolean; padded?: boolean }) {
   const body = <View style={[{ gap: space(4) }, padded && { padding: space(4) }]}>{children}</View>;
@@ -106,9 +106,12 @@ export const s = StyleSheet.create({
   chip: { alignSelf: "flex-start", flexShrink: 0, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, fontSize: 13, fontFamily: font.semibold, overflow: "hidden" },
   row: { flexDirection: "row", alignItems: "center", gap: space(2) },
   between: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: space(2) },
+  section: { fontSize: 18, fontFamily: font.display, color: color.navy, marginTop: space(1) },
+  price: { fontSize: 18, fontFamily: font.display, color: color.primary },
+  mono: { fontFamily: font.mono, letterSpacing: 0.5, color: color.text },
 });
 
-/** One choice among a few: wrapped chips (cities, services, durations). */
+/** One choice among a few: wrapped chips (cities, services, durations), the chosen one in the soft blue of the pills. */
 export function Choice<T extends string | number>({ label, options, value, onChange }: {
   label?: string; options: { value: T; label: string }[]; value: T | null; onChange: (v: T) => void;
 }) {
@@ -121,8 +124,8 @@ export function Choice<T extends string | number>({ label, options, value, onCha
           return (
             <Pressable key={String(o.value)} accessibilityRole="button" accessibilityState={{ selected: on }} onPress={() => onChange(o.value)}
                        style={{ paddingHorizontal: 14, paddingVertical: 9, borderRadius: 999, borderWidth: 1,
-                                borderColor: on ? color.primary : color.outline, backgroundColor: on ? color.primary : color.surface }}>
-              <Text style={{ color: on ? "#fff" : color.text, fontFamily: on ? font.semibold : font.body }}>{o.label}</Text>
+                                borderColor: on ? color.primary : color.outline, backgroundColor: on ? color.primarySoft : color.surface }}>
+              <Text style={{ color: on ? color.primary : color.text, fontFamily: on ? font.semibold : font.body, fontSize: 14 }}>{o.label}</Text>
             </Pressable>
           );
         })}
@@ -209,6 +212,54 @@ const k = StyleSheet.create({
   pillOn: { borderColor: color.primary, backgroundColor: color.primarySoft },
   pillText: { fontFamily: font.body, fontSize: 14, color: color.text },
   pillTextOn: { fontFamily: font.semibold, color: color.primary },
+  svcIcon: { width: 52, height: 52, borderRadius: 26, backgroundColor: color.primarySoft, alignItems: "center", justifyContent: "center" },
   bar: { backgroundColor: color.surface, paddingHorizontal: 16, paddingTop: 12, gap: 10, borderTopWidth: 1, borderColor: color.outline,
          shadowColor: "#0F1B2D", shadowOpacity: 0.08, shadowRadius: 12, shadowOffset: { width: 0, height: -4 }, elevation: 8 },
 });
+
+/** The head of a service screen: back, the service's icon in its tinted circle (as on the services grid), title and hint. */
+export function SvcHeader({ icon, title, sub, onBack }: { icon: IconName; title: string; sub?: string; onBack?: () => void }) {
+  const { t } = useI18n();
+  return (
+    <View style={{ gap: 12 }}>
+      {onBack ? (
+        <Pressable onPress={onBack} accessibilityRole="button" accessibilityLabel={t("common.back")} hitSlop={12} style={{ alignSelf: "flex-start" }}>
+          <Icon name="back" size={26} tint={color.primary} mirror />
+        </Pressable>
+      ) : null}
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
+        <View style={k.svcIcon}><Icon name={icon} size={28} tint={color.primary} /></View>
+        <View style={{ flex: 1, gap: 2 }}>
+          <Text style={[s.title, { fontSize: 24 }]} accessibilityRole="header">{title}</Text>
+          {sub ? <Text style={s.small}>{sub}</Text> : null}
+        </View>
+      </View>
+    </View>
+  );
+}
+
+/** One record in a list (a parcel, a case, a request): a card with a title, a line under it, a status and a chevron. */
+export function ListCard({ title, sub, right, onPress, children }: { title: string; sub?: string; right?: ReactNode; onPress?: () => void; children?: ReactNode }) {
+  return (
+    <Pressable accessibilityRole={onPress ? "button" : undefined} disabled={!onPress} onPress={onPress}
+               style={({ pressed }) => [s.card, { gap: 8 }, pressed && { opacity: 0.85 }]}>
+      <View style={s.between}>
+        <Text style={[s.label, { flex: 1, fontFamily: font.semibold, fontSize: 15 }]} numberOfLines={2}>{title}</Text>
+        {right}
+        {onPress ? <Icon name="forward" size={18} tint={color.muted} mirror /> : null}
+      </View>
+      {sub ? <Text style={s.small}>{sub}</Text> : null}
+      {children}
+    </Pressable>
+  );
+}
+
+/** Nothing here yet: the icon of the place, faded, over a short line. */
+export function Empty({ icon, text }: { icon: IconName; text: string }) {
+  return (
+    <View style={{ alignItems: "center", gap: 8, paddingVertical: 18 }}>
+      <View style={[k.svcIcon, { backgroundColor: color.background, borderWidth: 1, borderColor: color.outline }]}><Icon name={icon} size={26} tint={color.muted} /></View>
+      <Text style={[s.muted, { textAlign: "center" }]}>{text}</Text>
+    </View>
+  );
+}

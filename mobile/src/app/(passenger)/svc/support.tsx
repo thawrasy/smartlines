@@ -1,9 +1,11 @@
 import { useState } from "react";
-import { Pressable, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import { router } from "expo-router";
 import { useI18n } from "../../../i18n";
 import { api } from "../../../platform/api";
-import { Button, Card, CarrierName, Chip, Choice, ErrorText, Field, Loading, Notice, Row, Screen, Title, s } from "../../../ui/kit";
-import { color } from "../../../ui/theme";
+import { Button, Card, CarrierName, Chip, Choice, Empty, ErrorText, Field, ListCard, Loading, Notice, Screen, SvcHeader, s } from "../../../ui/kit";
+import { Icon } from "../../../ui/brand";
+import { color, font } from "../../../ui/theme";
 import { useLoad } from "../../../ui/useLoad";
 
 interface Case { uid: string; ref: string; kind: string; category: string; status: string; subject: string; booking_ref: string | null;
@@ -20,7 +22,7 @@ function Stars({ value, onChange }: { value: number; onChange: (n: number) => vo
     <View style={{ flexDirection: "row", gap: 6 }}>
       {[1, 2, 3, 4, 5].map((n) => (
         <Pressable key={n} accessibilityRole="button" accessibilityLabel={`${n}`} onPress={() => onChange(n)} hitSlop={8}>
-          <Text style={{ fontSize: 28, color: n <= value ? "#C9A227" : color.muted }}>★</Text>
+          <Text style={{ fontSize: 30, color: n <= value ? "#C9A227" : color.outline }}>★</Text>
         </Pressable>
       ))}
     </View>
@@ -37,14 +39,16 @@ export default function Support() {
   if (mode !== "list") return <Thread uid={mode} back={() => { setMode("list"); cases.reload(); }} />;
   return (
     <Screen>
-      <Title sub={t("svc.support.sub")}>{t("svc.support.title")}</Title>
-      <Button label={t("svc.support.new")} onPress={() => setMode("new")} />
+      <SvcHeader icon="chat" title={t("svc.support.title")} sub={t("svc.support.sub")} onBack={() => router.back()} />
+      <Button label={t("svc.support.new")} icon={<Icon name="plus" size={20} tint="#fff" />} onPress={() => setMode("new")} />
       {(ratable.data?.tickets ?? []).map((tk) => <RateTrip key={tk.ticket_uid} trip={tk} done={ratable.reload} />)}
       {cases.loading && !cases.data ? <Loading /> : <ErrorText error={cases.error} />}
-      {cases.data && cases.data.cases.length === 0 ? <Text style={s.muted}>{t("svc.support.none")}</Text> : null}
+      {cases.data && cases.data.cases.length === 0 ? <Empty icon="chat" text={t("svc.support.none")} /> : null}
       {(cases.data?.cases ?? []).map((c) => (
-        <Row key={c.uid} title={c.subject} sub={`${c.ref} · ${t(`svc.support.kind.${c.kind}`)}${c.replies ? ` · ${t("svc.support.replies", { n: c.replies })}` : ""}`}
-             right={<Chip label={t(`status.${c.status}`)} tone={tone(c.status)} />} onPress={() => setMode(c.uid)} />
+        <ListCard key={c.uid} title={c.subject} sub={`${t(`svc.support.kind.${c.kind}`)}${c.replies ? ` · ${t("svc.support.replies", { n: c.replies })}` : ""}`}
+                  right={<Chip label={t(`status.${c.status}`)} tone={tone(c.status)} />} onPress={() => setMode(c.uid)}>
+          <Text style={s.mono}>{c.ref}</Text>
+        </ListCard>
       ))}
     </Screen>
   );
@@ -58,7 +62,7 @@ function RateTrip({ trip, done }: { trip: Ratable; done: () => void }) {
   const [busy, setBusy] = useState(false);
   return (
     <Card>
-      <Text style={s.h2}>{t("svc.support.rate", { from: trip.origin, to: trip.destination })}</Text>
+      <View style={s.row}><Icon name="ticket" size={20} tint={color.primary} /><Text style={[s.h2, { flex: 1 }]}>{t("svc.support.rate", { from: trip.origin, to: trip.destination })}</Text></View>
       <CarrierName name={trip.carrier_name} uid={trip.carrier_uid} logo={trip.carrier_logo} />
       <Stars value={stars} onChange={setStars} />
       {stars > 0 ? (
@@ -88,7 +92,7 @@ function NewCase({ done }: { done: () => void }) {
   const [busy, setBusy] = useState(false);
   return (
     <Screen>
-      <Title sub={t(`svc.support.kindHint.${kind}`)}>{t("svc.support.new")}</Title>
+      <SvcHeader icon="chat" title={t("svc.support.new")} sub={t(`svc.support.kindHint.${kind}`)} onBack={done} />
       <Choice label={t("svc.support.kindLabel")} options={KINDS.map((k) => ({ value: k, label: t(`svc.support.kind.${k}`) }))}
               value={kind} onChange={setKind} />
       <Choice label={t("svc.support.category")} options={CATS.map((c) => ({ value: c, label: t(`svc.support.cat.${c}`) }))}
@@ -127,15 +131,15 @@ function Thread({ uid, back }: { uid: string; back: () => void }) {
   const c = v.data?.case;
   return (
     <Screen>
-      <Title sub={c ? `${c.ref} · ${t(`svc.support.kind.${c.kind}`)}` : undefined}>{c?.subject ?? ""}</Title>
+      <SvcHeader icon="chat" title={c?.subject ?? ""} sub={c ? `${c.ref} · ${t(`svc.support.kind.${c.kind}`)}` : undefined} onBack={back} />
       <ErrorText error={error ?? v.error} />
       {c ? <Chip label={t(`status.${c.status}`)} tone={tone(c.status)} /> : null}
       {(v.data?.messages ?? []).length === 0 ? <Notice text={t("svc.support.noReplies")} /> : null}
       {(v.data?.messages ?? []).map((m, i) => (
-        <Card key={i} style={{ alignSelf: m.mine ? "flex-end" : "flex-start", maxWidth: "90%" }}>
-          <Text style={s.small}>{m.mine ? t("svc.support.you") : t("svc.support.team")}</Text>
-          <Text>{m.body}</Text>
-        </Card>
+        <View key={i} style={[ss.bubble, m.mine ? ss.mine : ss.team]}>
+          <Text style={[ss.who, m.mine && { color: "#DCE7FD" }]}>{m.mine ? t("svc.support.you") : t("svc.support.team")}</Text>
+          <Text style={[ss.body, m.mine && { color: "#fff" }]}>{m.body}</Text>
+        </View>
       ))}
       {c && !["CLOSED", "REJECTED"].includes(c.status) ? (
         <>
@@ -150,7 +154,14 @@ function Thread({ uid, back }: { uid: string; back: () => void }) {
           <Stars value={c.csat ?? 0} onChange={(n) => run(() => api.post(`/api/support/cases/${uid}/satisfaction`, { score: n }))} />
         </Card>
       ) : null}
-      <Button kind="text" label={t("svc.support.back")} onPress={back} />
     </Screen>
   );
 }
+
+const ss = StyleSheet.create({
+  bubble: { maxWidth: "86%", paddingHorizontal: 14, paddingVertical: 10, gap: 2 },
+  mine: { alignSelf: "flex-end", backgroundColor: color.primary, borderRadius: 18, borderBottomRightRadius: 4 },
+  team: { alignSelf: "flex-start", backgroundColor: color.surface, borderRadius: 18, borderBottomLeftRadius: 4, borderWidth: 1, borderColor: color.outline },
+  who: { fontFamily: font.medium, fontSize: 12, color: color.muted },
+  body: { fontFamily: font.body, fontSize: 15, color: color.text, lineHeight: 22 },
+});
