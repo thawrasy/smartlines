@@ -1,33 +1,246 @@
 {
  "_note": "The controls whose code and tests every evidence pack quotes (evaluation reports of October 2026, TEM R-15; db/tools/critical_excerpts.py). Each names the code that enforces it (a Python function or a SQL function, quoted as it is in the commit) and the tests that prove it, with their result in the pack's test run.",
  "controls": [
-  {"id": "C-01", "control": "A production declaration cannot be lowered by the sandbox or a test environment (R-05)",
-   "code": [{"python": "backend/app/config.py", "symbol": "declaration_conflicts"}, {"python": "backend/app/config.py", "symbol": "is_test_server"},
-            {"python": "backend/app/profile.py", "symbol": "require_in_production"}],
-   "tests": ["test_production_declaration.py::"]},
-  {"id": "C-02", "control": "A production server does not start on a schema that differs from its release manifest",
-   "code": [{"python": "backend/app/release.py", "symbol": "check"}],
-   "tests": ["test_release_check.py::"]},
-  {"id": "C-03", "control": "The request context is accepted only with a signed ticket; the context settings are protected",
-   "code": [{"sql": "sys.set_context"}],
-   "tests": ["test_verified_context.py::", "db:Context (", "db:Guard ("]},
-  {"id": "C-04", "control": "Row-level security isolates companies, for reads and for writes",
-   "code": [{"sql": "sys.tenant_visible"}],
-   "tests": ["test_isolation.py::", "db:Isolation"]},
-  {"id": "C-05", "control": "Sensitive operations need a recent second factor (step-up, 1136)",
-   "code": [{"python": "backend/app/deps.py", "symbol": "require_step_up"}],
-   "tests": ["test_step_up.py::"]},
-  {"id": "C-06", "control": "The AI assistant's tools are authorised by the database, whatever the model asks (1134, hardened in 1137)",
-   "code": [{"sql": "crm.ai_tool_refusal"}, {"sql": "crm.ai_authorize_tool"}],
-   "tests": ["db:AI tools (1134)", "db:AI tools (1137)"]},
-  {"id": "C-07", "control": "No SECURITY DEFINER function is executable by PUBLIC (1135)",
+  {
+   "id": "C-01",
+   "control": "A production declaration cannot be lowered by the sandbox or a test environment (R-05)",
+   "code": [
+    {
+     "python": "backend/app/config.py",
+     "symbol": "declaration_conflicts"
+    },
+    {
+     "python": "backend/app/config.py",
+     "symbol": "is_test_server"
+    },
+    {
+     "python": "backend/app/profile.py",
+     "symbol": "require_in_production"
+    }
+   ],
+   "tests": [
+    "test_production_declaration.py::"
+   ]
+  },
+  {
+   "id": "C-02",
+   "control": "A production server does not start on a schema that differs from its release manifest",
+   "code": [
+    {
+     "python": "backend/app/release.py",
+     "symbol": "check"
+    }
+   ],
+   "tests": [
+    "test_release_check.py::"
+   ]
+  },
+  {
+   "id": "C-03",
+   "control": "The request context is accepted only with a signed ticket; the context settings are protected",
+   "code": [
+    {
+     "sql": "sys.set_context"
+    }
+   ],
+   "tests": [
+    "test_verified_context.py::",
+    "db:Context (",
+    "db:Guard ("
+   ]
+  },
+  {
+   "id": "C-04",
+   "control": "Row-level security isolates companies, for reads and for writes",
+   "code": [
+    {
+     "sql": "sys.tenant_visible"
+    }
+   ],
+   "tests": [
+    "test_isolation.py::",
+    "db:Isolation"
+   ]
+  },
+  {
+   "id": "C-05",
+   "control": "Sensitive operations need a recent second factor (step-up, 1136)",
+   "code": [
+    {
+     "python": "backend/app/deps.py",
+     "symbol": "require_step_up"
+    }
+   ],
+   "tests": [
+    "test_step_up.py::"
+   ]
+  },
+  {
+   "id": "C-06",
+   "control": "The AI assistant's tools are authorised by the database, whatever the model asks (1134, hardened in 1137)",
+   "code": [
+    {
+     "sql": "crm.ai_tool_refusal"
+    },
+    {
+     "sql": "crm.ai_authorize_tool"
+    }
+   ],
+   "tests": [
+    "db:AI tools (1134)",
+    "db:AI tools (1137)"
+   ]
+  },
+  {
+   "id": "C-07",
+   "control": "No SECURITY DEFINER function is executable by PUBLIC (1135)",
    "code": [],
-   "tests": ["db:Definer functions (1135)"]},
-  {"id": "C-08", "control": "Published event contracts: every event matches its schema, versions only grow",
-   "code": [{"python": "backend/app/modules/integration/webhooks.py", "symbol": "envelope"}],
-   "tests": ["test_event_contracts.py::"]},
-  {"id": "C-09", "control": "A production server requires TLS to the database, the key service and no owner secret",
-   "code": [{"python": "backend/app/profile.py", "symbol": "problems"}],
-   "tests": ["test_production_profile.py::"]}
+   "tests": [
+    "db:Definer functions (1135)"
+   ]
+  },
+  {
+   "id": "C-08",
+   "control": "Published event contracts: every event matches its schema, versions only grow",
+   "code": [
+    {
+     "python": "backend/app/modules/integration/webhooks.py",
+     "symbol": "envelope"
+    }
+   ],
+   "tests": [
+    "test_event_contracts.py::"
+   ]
+  },
+  {
+   "id": "C-09",
+   "control": "A production server requires TLS to the database, the key service and no owner secret",
+   "code": [
+    {
+     "python": "backend/app/profile.py",
+     "symbol": "problems"
+    }
+   ],
+   "tests": [
+    "test_production_profile.py::"
+   ]
+  },
+  {
+   "id": "C-10",
+   "control": "Every outbound call goes through the egress proxy; internal, private and unlisted targets are refused (gate G2)",
+   "code": [
+    {
+     "python": "backend/app/egress.py",
+     "symbol": "urlopen"
+    },
+    {
+     "python": "backend/app/egress.py",
+     "symbol": "tunnel"
+    }
+   ],
+   "tests": [
+    "test_ssrf.py::",
+    "test_webhook_egress.py::"
+   ]
+  },
+  {
+   "id": "C-11",
+   "control": "An uploaded file is served only after a clean scan; while the scanner is down files stay unserved (fail closed, gate G7)",
+   "code": [
+    {
+     "python": "backend/app/modules/documents/scanner.py",
+     "symbol": "scan"
+    },
+    {
+     "python": "backend/app/modules/documents/scanner.py",
+     "symbol": "scan_file"
+    }
+   ],
+   "tests": [
+    "test_scanner_outage.py::",
+    "test_design_audit_t3.py::test_a_dangerous_file_is_rejected",
+    "test_design_audit_t3.py::test_a_file_waiting_for_its_scan_is_not_served"
+   ]
+  },
+  {
+   "id": "C-12",
+   "control": "The audit log leaves the database in signed, chained batches; a changed or missing batch is detected (gate G6)",
+   "code": [
+    {
+     "python": "backend/app/tools/audit_export.py",
+     "symbol": "export"
+    },
+    {
+     "python": "backend/app/tools/audit_export.py",
+     "symbol": "record"
+    }
+   ],
+   "tests": [
+    "test_audit_export.py::",
+    "test_audit_pipeline.py::"
+   ]
+  },
+  {
+   "id": "C-13",
+   "control": "Identity numbers and personal fields are sealed under the active key of their purpose; nothing new is written under an inactive key",
+   "code": [
+    {
+     "python": "backend/app/crypto.py",
+     "symbol": "encrypt"
+    },
+    {
+     "python": "backend/app/security.py",
+     "symbol": "require_keys_in_production"
+    }
+   ],
+   "tests": [
+    "test_crypto.py::"
+   ]
+  },
+  {
+   "id": "C-14",
+   "control": "Sign-in, sign-up and public request rates are limited across all processes and servers, by address and by account",
+   "code": [
+    {
+     "python": "backend/app/ratelimit.py",
+     "symbol": "take_shared"
+    },
+    {
+     "python": "backend/app/ratelimit.py",
+     "symbol": "check_identifier"
+    }
+   ],
+   "tests": [
+    "test_shared_limits.py::",
+    "test_ratelimit.py::"
+   ]
+  },
+  {
+   "id": "C-15",
+   "control": "Emergency (break-glass) access needs an approver or a declared emergency, cannot outlast its maximum and ends without any job",
+   "code": [
+    {
+     "sql": "sec.tg_break_glass_rules"
+    },
+    {
+     "sql": "sec.break_glass_active"
+    }
+   ],
+   "tests": [
+    "db:Audit T3-03: break-glass"
+   ]
+  },
+  {
+   "id": "C-16",
+   "control": "A delivery that gave up names its destination and owner, so the right partner is told (1138)",
+   "code": [
+    {
+     "sql": "sys.dead_delivery_metrics"
+    }
+   ],
+   "tests": [
+    "db:Dead deliveries (1138)"
+   ]
+  }
  ]
 }

@@ -54,6 +54,11 @@ groups:
         expr: increase(masslak_webhook_deliveries{status="DEAD"}[1h]) > 0 or masslak_webhook_deliveries{status="DEAD"} > 20
         labels: { severity: ticket }
         annotations: { summary: "Partner webhook deliveries gave up after eight attempts", runbook: "../integration/EVENTS.md#replays" }
+      - alert: WebhookEndpointDead
+        # one alert per partner endpoint, naming the client and company to tell (1138, independent review round 8, T-08)
+        expr: masslak_webhook_dead_by_endpoint > 0
+        labels: { severity: ticket }
+        annotations: { summary: "{{ $value }} delivery(ies) to {{ $labels.host }} ({{ $labels.client }}, {{ $labels.company }}) gave up in the last 7 days: {{ $labels.event_types }}", runbook: "RUNBOOKS.md#33-dead-deliveries-who-is-told-and-who-resends" }
       - alert: FilesWaitingForScan
         expr: masslak_files_oldest_pending_scan_seconds > 900
         for: 5m

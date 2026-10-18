@@ -81,6 +81,24 @@ credit one carrier wallet; the other half debit the gateway clearing wallet. Mea
   This must be confirmed with `EXPLAIN (ANALYZE, BUFFERS)` on staging data. If it does not switch, the remedy is a
   `SECURITY DEFINER` visibility function on the trip, keyed by the trip id; the policy stays and only its plan changes.
 
+**Measured at 200,530 trips (independent review, round 8):** `python -m loadtest.rls_plans --trips 200000 --seats 44
+--scratch` adds synthetic trips to a scratch copy (8.9 million seat rows), then runs each query with `EXPLAIN (ANALYZE,
+BUFFERS)` through the API's login in a carrier's context (`evidence/rls_plans_2026-10-18.json`).
+
+| Query | Trip access | Execution ms (second run) | Planning ms (new connection) |
+|---|---|---|---|
+| Seat map of one trip | Index Scan on trip | 1.2 | 13.4 |
+| Seats of five trips | Index Scan on trip (Seq Scan at 530 trips) | 2.3 | 7.1 |
+| Tickets of five trips | through the booking, by index | 0.9 | 3.8 |
+| Trip search, next 7 days | Index Scan on trip | 10.1 | 2.2 |
+
+- **The planner switches as expected:** at 530 trips it scans the visible trips for "seats of five trips"; at 200,530 it
+  looks each trip up by its key. No query that names trips reads `ops.trip` or `ops.seat_segment` sequentially, so the
+  visibility function is not needed. The tool fails when one does, and is re-run on staging with production volume
+  (gate G3).
+- **Planning cost:** the policies make planning the larger part on a new connection; the API's prepared statements plan
+  once per connection.
+
 ## End to end: booking, payment, refund, tracking and reports (T3-09)
 
 `python -m loadtest.run --levels 10,25,50 --seconds 20 --mix full --owner-dsn ...`:

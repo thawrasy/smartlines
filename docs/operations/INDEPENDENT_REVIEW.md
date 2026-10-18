@@ -8,24 +8,30 @@ document pack built from one commit, and a follow-up report answers the reviewer
 
 | Item | Source |
 |---|---|
-| Analysis and design study 3.10 (English and Arabic) | `docs/Masslak_Analysis_and_Design_EN_v3.10.docx` and its Arabic edition |
-| Database design and ERD 3.19 | `docs/database/` |
+| Analysis and design study 3.11 (English and Arabic) | `docs/Masslak_Analysis_and_Design_EN_v3.11.docx` and its Arabic edition |
+| Database design and ERD 3.20 | `docs/database/` |
 | Readiness document register | the latest register edition |
 | The follow-up reports on the reviewer's reports | delivered with the pack |
 | Evidence pack, reviewer edition | `evidence-pack-reviewer` artifact of the CI run of the delivered commit; attached to every release as `masslak-<tag>-evidence.tar.gz`, inside the signed checksums |
 
 The reviewer edition (`db/tools/evidence_pack.sh --reviewer`) holds:
 
-- `critical/CRITICAL_CONTROLS.md`: the nine critical controls of `docs/operations/evidence/critical_controls.json`, each
+- `critical/CRITICAL_CONTROLS.md`: the critical controls of `docs/operations/evidence/critical_controls.json`, each
   quoted from the code of the commit (Python functions through `ast`, SQL functions from the last schema file that
   defines them), with the names of the tests that prove it and their result in the same run
   (`db/tools/critical_excerpts.py`), counted as passed, skipped and failed. The pack fails to build if a quoted function
   is missing or one of its tests failed or was skipped; a test the suite skips and a later CI step runs (the live event
   contract check) is taken from that step's own JUnit report.
+- `critical/THREAT_CONTROL_MAP.md`: each threat of `docs/operations/evidence/threat_control_map.json` with its controls
+  and their passing tests, or the launch gate that closes it. The pack fails to build if a threat has neither, or a
+  control it names has no passing test (independent review, round 8, T-04).
 - `tests/`: the console output of the database checks and the API tests, every API test with its result
   (`api_results.csv`) and the coverage summary. The test sources and the database checks' script are left out, and so
   is `audit_pack/` (the schema, grants, policies and function bodies of the built database), by the owner's decision.
 - `evidence/`, `monitoring/`, `docs/`: measurements, alert rules with their tests, runbooks, SLOs and audit responses.
+- `evidence/settings_guard.txt`: `shared_preload_libraries`, `sys.guard_status()` and the protected settings of the
+  database the tests ran on, with the SHA-256 of the guard's source and build files (`db/guard`); the pack fails to
+  build if the guard is not loaded (round 8, T-06).
 - `evidence/verification.json`: the figures of this build (commit, database checks, API tests, schema files, schema
   hash), made by the pack from the same database and logs; the pack never copies one left by an earlier build.
 - `SHA256SUMS` over every file, and the commit and tree hash it was built from.
@@ -40,7 +46,11 @@ The reviewer edition (`db/tools/evidence_pack.sh --reviewer`) holds:
    to its signed assets.
 2. Check `SHA256SUMS`, then run `python3 db/tools/check_delivery.py <unpacked pack> <each .docx of the delivery>`: every
    document must name the pack's commit and its database check, API test and schema file counts, and the pack's
-   verification and critical controls must be of the same commit (independent review of 18 October 2026). Hand the
+   verification and critical controls must be of the same commit (independent review of 18 October 2026). A current
+   figure (schema files, tables, database checks, API tests, interface operations) that differs from the pack is a
+   problem, unless it stands in a historical chapter (an earlier "Changes in version" chapter, or one opening with
+   "Historical record") or in a paragraph that dates it by schema file, commit, release, version or delivery (round 8,
+   T-01 to T-03). Hand the
    documents and the pack to the reviewer only when it passes. Record the date and the commit.
 3. The reviewer's questions are answered from the pack, or with a further excerpt added to `critical_controls.json`, so
    the next pack carries it with its tests.

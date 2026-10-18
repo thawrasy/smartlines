@@ -15,8 +15,8 @@ supporting index, except references to lookup lists and to the staff member who 
 | Engine | PostgreSQL 16 with PostGIS 3 (extensions: pgcrypto, citext, btree_gist, pg_trgm, postgis in schema `gis`; Docker and CI image `postgis/postgis:16-3.4`, Ubuntu package `postgresql-16-postgis-3`) |
 | Schemas | 26 separate schemas, each with its own privileges |
 | Tables | 560 tables (8 partitioned), 5,922 columns, 1,667 foreign keys |
-| Security | row-level security on 560 of 560 tables, 1,023 policies; 488 triggers, 500 functions |
-| Tests | 936 automated checks against a freshly built database (`db/tests/run.sh`) |
+| Security | row-level security on 560 of 560 tables, 1,023 policies; 488 triggers, 501 functions |
+| Tests | 943 automated checks against a freshly built database (`db/tests/run.sh`) |
 | Design | [Database design and ERD document](../docs/database/) with diagrams in the study's colors |
 | Docs | [Data dictionary](DATA_DICTIONARY.md) · [ERD diagrams](ERD.md) (both generated from the database) |
 <!-- stats:end -->
@@ -194,6 +194,8 @@ PostGIS in `gis`. Until 9 October 2026 a first start of the Docker stack stopped
 | `1135_definer_execute.sql` | No SECURITY DEFINER function executable by PUBLIC (evaluation reports of October 2026, MANU; owner's approval): each callable one is granted to the roles that use its schema, then `EXECUTE` is revoked from `PUBLIC`; trigger functions need no grant. A later file that forgets `REVOKE ... FROM PUBLIC` fails the check "Definer functions (1135)" |
 | `1136_step_up.sql` | Step-up authentication (evaluation reports of October 2026, GP): `iam.user_session.mfa_at` records when the session last passed its second factor; `auth.mfa.step_up_minutes` (10 by default, 5 to 60) is how recent it must be before money out, wider access, data out or API keys (`require_step_up`, `POST /api/auth/mfa/step-up`) |
 | `1137_ai_tool_guard_hardening.sql` | The assistant's tool guard hardened (independent review of 18 October 2026, plan item B2): the policy's limits must be numbers and a currency code (`ai_policy_limits_ck`), so a limit written as text can no longer be silently off; an amount must be above zero and in the policy's currency; a request names an existing conversation (`AI_CONVERSATION_UNKNOWN`); a conversation once ended stays ended. The injection test set grew from 13 to 51 checks, each assuming a model that obeys the injected instruction |
+| `1138_dead_delivery_owner.sql` | A delivery that gave up names its destination and owner (independent review, round 8, T-08): `sys.dead_delivery_metrics()` gives one series per partner endpoint with a dead delivery in the last 7 days (endpoint, host only, API client, company, event types) and dead outbox events per type; alert `WebhookEndpointDead` and RUNBOOKS.md section 33 say who is told and who resends |
+| `1139_company_report_schedules.sql` | The scheduler sees the schedules of companies (independent review, round 8, T-07): the policy of `rpt.report_schedule` let the SYSTEM context see platform schedules only, so a company's scheduled report was never sent; now SYSTEM sees every schedule, platform staff the platform's and a company member their own |
 
 ## Design rules (study 29.1)
 

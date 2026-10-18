@@ -1132,6 +1132,26 @@ To stop boarding everywhere, set `boarding.stations.enabled` to `false`. Nothing
 bays and the carriers' reference numbers stay as they are. A carrier retires a reference it no longer holds with
 `POST /api/carrier/references/{uid}/retire`; the number itself is never changed or deleted.
 
+## 33. Dead deliveries: who is told and who resends
+
+A delivery gives up after eight attempts (`docs/integration/EVENTS.md`). Two alerts say which, and to whom (1138):
+
+- **`WebhookEndpointDead`:** one alert per partner endpoint, with the endpoint, its host, the API client and company that
+  own it, and the event types that died (`masslak_webhook_dead_by_endpoint`, the last 7 days). The URL's path and query
+  are never shown: a path can hold a token.
+- **`OutboxEventsFailed`:** events the worker itself gave up on (section 16); `masslak_outbox_dead_by_type` says which
+  event types.
+
+| Who | What they do |
+|---|---|
+| Integration on-call (operations) | Within the working day: reads the cause with the read-only role (`SELECT delivery_uid, event_type, http_status, last_error FROM sys.webhook_delivery WHERE status = 'DEAD' AND endpoint_id = (SELECT id FROM sys.webhook_endpoint WHERE uid::text LIKE '<endpoint>%')`), tells the partner named in the alert through the contact of its API client (`iam.api_client.owner_party_id`), and records the ticket |
+| The partner | Fixes its side (certificate, address, firewall, 5xx) and retries from the integration console or `POST /api/v1/webhooks/deliveries/{uid}/retry`: the same event `id` and body are sent |
+| A second person (`events.replay_approve`) | Approves a retry of a money, authority, manifest or cancellation event (section 16); confirms with the partner first that the event was not applied |
+| Integration on-call | Pauses an endpoint that keeps failing (status `PAUSED`) so its deliveries wait instead of dying, and resumes it when the partner confirms |
+
+The alert clears by itself once no delivery of that endpoint died in the last 7 days. A dead delivery is never deleted:
+it stays as the record of what the partner did not receive.
+
 ## Rehearsal schedule
 
 | Procedure | Before launch | After launch |

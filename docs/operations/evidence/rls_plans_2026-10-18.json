@@ -1,0 +1,160 @@
+{
+ "tool": "python -m loadtest.rls_plans --trips 200000 --seats 44 --scratch, then once more without --trips",
+ "date": "2026-10-18",
+ "host": "development host, 4 vCPU, one PostgreSQL 16.15 for everything; a scratch copy of the test database",
+ "note": "Independent review round 8, T-09: the trip-visibility condition of seat and ticket policies at many trips. Synthetic trips are clones of the seeded published trips over a year, 44 seats each.",
+ "first_run": {
+  "trips": 200530,
+  "seat_rows": 8866387,
+  "added_trips": 200000,
+  "company": 4,
+  "queries": [
+   {
+    "query": "seat map of one trip",
+    "names_trips": "one",
+    "execution_ms": 6.793,
+    "planning_ms": 43.202,
+    "shared_buffers": 560,
+    "scans": [
+     "Bitmap Heap Scan booking_p0000",
+     "Index Scan seat_segment",
+     "Index Scan trip",
+     "Seq Scan booking_p0001",
+     "Seq Scan booking_p0002",
+     "Seq Scan channel"
+    ],
+    "sequential_on_trip_or_seats": [],
+    "ok": true
+   },
+   {
+    "query": "tickets of five trips",
+    "names_trips": "five",
+    "execution_ms": 0.934,
+    "planning_ms": 3.663,
+    "shared_buffers": 351,
+    "scans": [
+     "Bitmap Heap Scan ticket",
+     "Index Scan booking_p0000",
+     "Index Scan passenger",
+     "Seq Scan booking_p0000",
+     "Seq Scan booking_p0001",
+     "Seq Scan booking_p0002",
+     "Seq Scan channel"
+    ],
+    "sequential_on_trip_or_seats": [],
+    "ok": true
+   },
+   {
+    "query": "seats of five trips",
+    "names_trips": "five",
+    "execution_ms": 4.679,
+    "planning_ms": 5.967,
+    "shared_buffers": 2733,
+    "scans": [
+     "Bitmap Heap Scan booking_p0000",
+     "Index Scan seat_segment",
+     "Index Scan trip",
+     "Seq Scan booking_p0001",
+     "Seq Scan booking_p0002",
+     "Seq Scan channel"
+    ],
+    "sequential_on_trip_or_seats": [],
+    "ok": true
+   },
+   {
+    "query": "trip search, next 7 days",
+    "names_trips": "none",
+    "execution_ms": 12.965,
+    "planning_ms": 1.658,
+    "shared_buffers": 4959,
+    "scans": [
+     "Bitmap Heap Scan booking_p0000",
+     "Index Scan trip",
+     "Seq Scan booking_p0001",
+     "Seq Scan booking_p0002",
+     "Seq Scan channel"
+    ],
+    "sequential_on_trip_or_seats": [],
+    "ok": true
+   }
+  ],
+  "verdict": "PASS"
+ },
+ "second_run": {
+  "trips": 200530,
+  "seat_rows": 8866387,
+  "added_trips": 0,
+  "company": 4,
+  "queries": [
+   {
+    "query": "seat map of one trip",
+    "names_trips": "one",
+    "execution_ms": 1.237,
+    "planning_ms": 13.442,
+    "shared_buffers": 560,
+    "scans": [
+     "Bitmap Heap Scan booking_p0000",
+     "Index Scan seat_segment",
+     "Index Scan trip",
+     "Seq Scan booking_p0001",
+     "Seq Scan booking_p0002",
+     "Seq Scan channel"
+    ],
+    "sequential_on_trip_or_seats": [],
+    "ok": true
+   },
+   {
+    "query": "tickets of five trips",
+    "names_trips": "five",
+    "execution_ms": 0.855,
+    "planning_ms": 3.75,
+    "shared_buffers": 351,
+    "scans": [
+     "Bitmap Heap Scan ticket",
+     "Index Scan booking_p0000",
+     "Index Scan passenger",
+     "Seq Scan booking_p0000",
+     "Seq Scan booking_p0001",
+     "Seq Scan booking_p0002",
+     "Seq Scan channel"
+    ],
+    "sequential_on_trip_or_seats": [],
+    "ok": true
+   },
+   {
+    "query": "seats of five trips",
+    "names_trips": "five",
+    "execution_ms": 2.326,
+    "planning_ms": 7.111,
+    "shared_buffers": 2733,
+    "scans": [
+     "Bitmap Heap Scan booking_p0000",
+     "Index Scan seat_segment",
+     "Index Scan trip",
+     "Seq Scan booking_p0001",
+     "Seq Scan booking_p0002",
+     "Seq Scan channel"
+    ],
+    "sequential_on_trip_or_seats": [],
+    "ok": true
+   },
+   {
+    "query": "trip search, next 7 days",
+    "names_trips": "none",
+    "execution_ms": 10.131,
+    "planning_ms": 2.186,
+    "shared_buffers": 4957,
+    "scans": [
+     "Bitmap Heap Scan booking_p0000",
+     "Index Scan trip",
+     "Seq Scan booking_p0001",
+     "Seq Scan booking_p0002",
+     "Seq Scan channel"
+    ],
+    "sequential_on_trip_or_seats": [],
+    "ok": true
+   }
+  ],
+  "verdict": "PASS"
+ }
+}

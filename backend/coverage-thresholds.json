@@ -29,7 +29,10 @@
   "app/modules/payments/fees.py": 89,
   "app/modules/payments/service.py": 81,
   "app/modules/payouts/service.py": 85,
-  "app/modules/sales/service.py": 90
+  "app/modules/sales/service.py": 90,
+  "app/modules/reports/scheduler.py": 70,
+  "app/modules/notify/worker.py": 70,
+  "app/modules/einvoice/service.py": 70
  },
  "exceptions": [
   {"file": "app/modules/payments/adapters.py", "minimum": 66, "owner": "Payments lead", "until": "2027-01-31",

@@ -1693,6 +1693,54 @@ SELECT pg_temp.ok(to_regclass('sys.outbox_event_' || to_char(current_date - 35, 
 ROLLBACK;
 SET ROLE masslak_app;
 
+-- a dead delivery names its destination and its owner (1138): one series per endpoint, the host only, no path or query
+RESET ROLE;
+BEGIN;
+INSERT INTO sys.webhook_endpoint (owner_kind, url, events, secret_enc, enc_key_id)
+SELECT 'INTEGRATION', 'https://dead-test.example:8443/hook/SECRET-TOKEN?k=1', '{booking.confirmed}', '\x00', (SELECT min(id) FROM sec.key_registry)
+RETURNING id AS dd_ep \gset
+INSERT INTO sys.outbox_event (event_type, aggregate_type, aggregate_id, payload, status) VALUES
+  ('dead.test', 'booking', 1, '{}', 'FAILED') RETURNING id AS dd_ev \gset
+INSERT INTO sys.webhook_delivery (endpoint_id, outbox_event_id, event_type, status) VALUES (:dd_ep, :dd_ev, 'booking.confirmed', 'DEAD');
+SELECT pg_temp.ok((SELECT value = 1 AND labels ->> 'host' = 'dead-test.example' AND labels ->> 'client' = 'platform integration'
+                          AND labels ->> 'event_types' = 'booking.confirmed' AND labels::text NOT LIKE '%SECRET-TOKEN%'
+                     FROM sys.dead_delivery_metrics()
+                    WHERE metric = 'masslak_webhook_dead_by_endpoint'
+                      AND labels ->> 'endpoint' = left((SELECT uid::text FROM sys.webhook_endpoint WHERE id = :dd_ep), 8)),
+  'Dead deliveries (1138): an endpoint with a dead delivery is its own series, with its host and owner and no URL path');
+SELECT pg_temp.ok((SELECT value FROM sys.dead_delivery_metrics() WHERE metric = 'masslak_outbox_dead_by_type'
+                    AND labels ->> 'event_type' = 'dead.test') = 1,
+  'Dead deliveries (1138): a dead outbox event is counted under its event type');
+UPDATE sys.webhook_delivery SET created_at = now() - interval '8 days' WHERE endpoint_id = :dd_ep;
+SELECT pg_temp.ok(NOT EXISTS (SELECT 1 FROM sys.dead_delivery_metrics() WHERE metric = 'masslak_webhook_dead_by_endpoint'
+                               AND labels ->> 'host' = 'dead-test.example'),
+  'Dead deliveries (1138): a dead delivery older than 7 days leaves the per-endpoint series');
+ROLLBACK;
+SELECT pg_temp.ok(NOT has_function_privilege('public', 'sys.dead_delivery_metrics()', 'EXECUTE')
+                  AND has_function_privilege('masslak_app', 'sys.dead_delivery_metrics()', 'EXECUTE'),
+  'Dead deliveries (1138): the metrics function is the application''s, not PUBLIC''s');
+SET ROLE masslak_app;
+
+-- the scheduler sees the schedules of companies (1139): SYSTEM sees them, platform staff do not, the owner does
+RESET ROLE;
+BEGIN;
+SELECT :ua AS rs_user, :ca AS rs_co \gset
+INSERT INTO rpt.report_schedule (report_code, owner_user_id, company_id, portal, frequency, format, locale, recipients, next_run_at)
+VALUES ('ops.trips_by_status', :rs_user, :rs_co, 'OPERATOR', 'DAILY', 'CSV', 'en', '{probe@company.test}', now() - interval '1 minute')
+RETURNING id AS rs_id \gset
+SET LOCAL ROLE masslak_app;
+SELECT sys.set_context(:uadmin, NULL, 'SYSTEM');
+SELECT pg_temp.ok(EXISTS (SELECT 1 FROM rpt.report_schedule WHERE id = :rs_id AND active AND next_run_at <= now()),
+  'Report schedules (1139): the scheduler (SYSTEM) sees a company''s due schedule');
+SELECT sys.set_context(:uadmin, NULL, 'PLATFORM');
+SELECT pg_temp.ok(NOT EXISTS (SELECT 1 FROM rpt.report_schedule WHERE id = :rs_id),
+  'Report schedules (1139): platform staff do not see a company''s schedule');
+SELECT sys.set_context(:rs_user, :rs_co, 'COMPANY');
+SELECT pg_temp.ok(EXISTS (SELECT 1 FROM rpt.report_schedule WHERE id = :rs_id),
+  'Report schedules (1139): the owner sees their own schedule');
+ROLLBACK;
+SET ROLE masslak_app;
+
 -- =====================================================================
 -- Launch completeness (1054)
 -- =====================================================================

@@ -25,6 +25,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 CONTROLS = ROOT / "docs" / "operations" / "evidence" / "critical_controls.json"
+THREATS = ROOT / "docs" / "operations" / "evidence" / "threat_control_map.json"
 
 
 def python_excerpt(rel: str, symbol: str) -> tuple[str, int, int]:
@@ -78,6 +79,34 @@ def db_results(path: Path | None) -> dict[str, str]:
     return out
 
 
+def threat_map(out: Path, results: dict[str, dict], commit: str) -> list[str]:
+    """critical/THREAT_CONTROL_MAP.md: each threat with the controls that answer it and their test results in this run
+    (independent review, round 8, T-04). A threat with neither a control nor a launch gate, an unknown control, or a
+    control none of whose tests passed is a problem."""
+    if not THREATS.exists():
+        return []
+    spec = json.loads(THREATS.read_text(encoding="utf-8"))
+    md = [f"# Threats and the controls that answer them, at commit {commit}", "",
+          "From docs/operations/evidence/threat_control_map.json; the test counts are those of CRITICAL_CONTROLS.md.", "",
+          "| Threat | Controls (tests passed of run) | Gate |", "|---|---|---|"]
+    problems = []
+    for t in spec["threats"]:
+        cells = []
+        for cid in t["controls"]:
+            r = results.get(cid)
+            if r is None:
+                problems.append(f"{t['id']}: unknown control {cid}")
+                continue
+            cells.append(f"{cid} ({r['passed']} of {r['tests']})")
+            if not r["passed"]:
+                problems.append(f"{t['id']}: control {cid} has no passing test")
+        if not t["controls"] and not t.get("gate"):
+            problems.append(f"{t['id']}: no control and no launch gate")
+        md.append(f"| {t['id']} {t['threat']} | {', '.join(cells) or '-'} | {t.get('gate', '')} |")
+    (out / "THREAT_CONTROL_MAP.md").write_text("\n".join(md) + "\n", encoding="utf-8")
+    return problems
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", required=True)
@@ -126,6 +155,7 @@ def main() -> int:
         summary.append({"id": c["id"], "control": c["control"], "tests": len(tests), "passed": passed, "skipped": skipped,
                         "failed": failed})
     (out / "CRITICAL_CONTROLS.md").write_text("\n".join(md) + "\n", encoding="utf-8")
+    problems += threat_map(out, {c["id"]: c for c in summary}, commit)
     (out / "critical_controls.json").write_text(json.dumps({"commit": commit, "controls": summary, "problems": problems},
                                                            indent=1) + "\n", encoding="utf-8")
     for p in problems:

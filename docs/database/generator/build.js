@@ -14,7 +14,7 @@ const PNG = path.join(HERE, "..", "erd", "png");
 // numbers of the verification run that built this document (verification.py), never typed by hand (audit T3-17)
 const V = JSON.parse(fs.readFileSync(path.join(HERE, "..", "build", "verification.json"), "utf8"));
 const lastFile = V.last_schema_file.split("_")[0];
-const VERSION = "3.19";
+const VERSION = "3.20";
 const DATE = "18 October 2026";
 const FONT = "Arial";
 const C = { navy: "1F3A5F", blue: "2E74B5", blue2: "1F4D78", grid: "B7C3D0", alt: "F2F6FA", grey: "595959" };
@@ -110,9 +110,9 @@ front.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 16
 front.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 1200 },
   children: [run(`Complete relational model of the Analysis and Design Study v3.0: ${tableCount} tables, ${fkCount} relationships`, { color: "7F7F7F" })] }));
 front.push(table(["Item", "Details"], [
-  ["Version", `${VERSION} (the database after schema file ${lastFile}; the assistant's tool guard hardened after the independent reviewer's detailed reply; its figures and verification come from the commit of the third delivery to the independent reviewer, the commit CI built the evidence pack from; replaces version 3.18)`],
+  ["Version", `${VERSION} (the database after schema file ${lastFile}; a dead delivery names its destination and owner, the chapters of earlier versions are marked as historical records, after the independent reviewer's eighth round; its figures and verification come from the commit of the fourth delivery to the independent reviewer, the commit CI built the evidence pack from; replaces version 3.19)`],
   ["Date", DATE],
-  ["Basis", "Analysis and Design Study v3.0 (English), the Use Case and Data Flow Diagrams v1.0, the Database Architecture Review v1.0, the Strategic Database Review and its relationship audit register, the Third-Party Technical Audit, the Technical Audit of design document 3.7, its re-audit of 3.8 and follow-up of 3.9, the architecture review of 3.9, the expert review and code review of October 2026, and the three reviews of release 1.47.0 with the owner's five decisions, the use case review of October 2026 and the owner's decisions that followed it, and the owner's requests of October 2026 up to truck transport (study 3.8), and the systems review of study 3.8 of October 2026, and the four evaluation reports of October 2026 (TEM, GP, GIMI, MANU) with the owner's decisions on them, and the independent review of the first two deliveries (18 October 2026)"],
+  ["Basis", "Analysis and Design Study v3.0 (English), the Use Case and Data Flow Diagrams v1.0, the Database Architecture Review v1.0, the Strategic Database Review and its relationship audit register, the Third-Party Technical Audit, the Technical Audit of design document 3.7, its re-audit of 3.8 and follow-up of 3.9, the architecture review of 3.9, the expert review and code review of October 2026, and the three reviews of release 1.47.0 with the owner's five decisions, the use case review of October 2026 and the owner's decisions that followed it, and the owner's requests of October 2026 up to truck transport (study 3.8), and the systems review of study 3.8 of October 2026, and the four evaluation reports of October 2026 (TEM, GP, GIMI, MANU) with the owner's decisions on them, and the independent review of the first three deliveries (18 October 2026)"],
   ["Scope", `${schemas.length} schemas, ${tableCount} tables, ${colCount} columns, ${fkCount} foreign keys; all phases 1 to 15`],
   ["Application", "Python 3.12 with FastAPI, asyncpg and Pydantic (backend/app); the website in React 19 with TypeScript and Vite (frontend); the apps in React Native with Expo (mobile); all in the same repository as this schema"],
   ["Engine", `PostgreSQL ${V.postgres} with row-level security on every table; PostGIS ${V.postgis} in schema gis; ${V.schema_files} schema files, db/schema/000 to ${lastFile}`],
@@ -121,7 +121,7 @@ front.push(table(["Item", "Details"], [
 ], [2800, 6946]));
 
 const toc = [H(HeadingLevel.HEADING_1, "Contents", { pageBreak: true })];
-const tocLines = ["Changes in version 3.19", "Changes in version 3.18", "Changes in version 3.17", "Changes in version 3.16", "Changes in version 3.15", "Changes in version 3.14", "Changes in version 3.13", "Changes in version 3.12", "Changes in version 3.11", "Changes in version 3.10", "Changes in version 3.9", "Changes in version 3.8", "Changes in version 3.7", "Changes in version 3.6", "Changes in version 3.5", "Changes in version 3.4", "Changes in version 3.3", "Changes in version 3.2", "Changes in version 3.1", "Changes in version 3.0", "1. Introduction", "2. Database architecture", "3. Design rules", "4. Security model in the database",
+const tocLines = ["Changes in version 3.20", "Changes in version 3.19", "Changes in version 3.18", "Changes in version 3.17", "Changes in version 3.16", "Changes in version 3.15", "Changes in version 3.14", "Changes in version 3.13", "Changes in version 3.12", "Changes in version 3.11", "Changes in version 3.10", "Changes in version 3.9", "Changes in version 3.8", "Changes in version 3.7", "Changes in version 3.6", "Changes in version 3.5", "Changes in version 3.4", "Changes in version 3.3", "Changes in version 3.2", "Changes in version 3.1", "Changes in version 3.0", "1. Introduction", "2. Database architecture", "3. Design rules", "4. Security model in the database",
   "5. Data stores of the data flow diagrams", "6. Entity-relationship diagrams by module",
   ...model.groups.map((g, i) => `      6.${i + 1} ${g[0]} ${g[1]}`), `      6.${model.groups.length + 1} Focus diagrams: rules that span modules`,
   "7. Table definitions", "8. Traceability to the study", "9. Verification",
@@ -165,9 +165,48 @@ const changes38 = [H(HeadingLevel.HEADING_2, "b. Hardening after the third-party
     + "the earlier wording is clarified accordingly. db/tools/audit_pack.sh builds the evidence pack for the second phase of the audit."),
 ];
 
+// ------------------------------ changes in 3.20 (the independent reviewer's eighth round) ------------------------------
+const changes3_20 = [H(HeadingLevel.HEADING_1, "Changes in version 3.20", { pageBreak: true }),
+  P(`Version 3.20 describes the database after schema file ${lastFile}. The independent reviewer's eighth round (90.5 of 100) read `
+    + "two figures of the chapter on version 3.3 (445 tables under row-level security, 188 database checks) as the present database. "
+    + "They are that version's figures; the chapter did not say so. Each chapter on an earlier version now opens with a line that marks "
+    + "it as a historical record, and db/tools/check_delivery.py refuses a delivery in which a figure that differs from the evidence "
+    + "pack stands outside such a chapter without naming the schema file, commit or version it was measured at."),
+  H(HeadingLevel.HEADING_2, "a. Schema files 1138 and 1139"),
+  table(["Object", "What it does"], [
+    ["sys.dead_delivery_metrics()", "One series per partner endpoint with a delivery that gave up in the last 7 days, labelled with the endpoint, its host (never the URL path or query, which can hold a token), the API client and company that own it and the event types; and dead outbox events per event type. Executable by the application and read-only roles, not by PUBLIC."],
+    ["Alert WebhookEndpointDead", "Names the client and company to tell; RUNBOOKS.md section 33 says who tells the partner, who retries and who approves a retry of a money or authority event."],
+  ], [3200, 6546], { boldFirst: true }),
+  P("The database checks \"Dead deliveries (1138)\" prove the series, the host without its path, the event type count, the 7-day "
+    + "window and that PUBLIC cannot execute the function (critical control C-16)."),
+  P("Schema file 1139 corrects the policy of rpt.report_schedule. The scheduler reads due schedules in the SYSTEM context, which "
+    + "counts as the platform, and the policy of file 1034 let the platform see only platform schedules: a company's scheduled report "
+    + "was never sent. The test written to measure the scheduler's coverage (round 8, T-07) found it. The SYSTEM context now sees every "
+    + "schedule; platform staff still see only the platform's and a company member only their own (checks \"Report schedules (1139)\")."),
+  H(HeadingLevel.HEADING_2, "b. Row-level security at 200,530 trips"),
+  P("The seat and ticket policies reach their trip through an EXISTS on ops.trip. Measured with python -m loadtest.rls_plans on a scratch "
+    + "copy with 200,530 trips and 8.9 million seat rows, through the API's login in a carrier's context: every query that names its "
+    + "trips reads ops.trip by its key (Index Scan), the seat map of a trip executes in 1.2 ms; at 530 trips the planner scans the "
+    + "visible trips instead. The visibility function kept in reserve is not needed (docs/operations/PERFORMANCE_BASELINE.md, "
+    + "evidence/rls_plans_2026-10-18.json); the measurement is repeated on staging with production volume (gate G3)."),
+  H(HeadingLevel.HEADING_2, "c. Counts"),
+  table(["Measure", "Version 3.19", "Version 3.20"], [
+    ["Schema files", "150 (000 to 1137)", `${V.schema_files} (000 to ${lastFile})`],
+    ["Tables", "560", String(tableCount)],
+    ["Database checks", "962", String(V.db_checks)],
+    ["API tests", "773", String(V.api_tests)],
+    ["Commit", "6857d7a", V.source_commit.slice(0, 7)],
+  ], [3200, 3273, 3273], { boldFirst: true }),
+];
+
+// a chapter on an earlier version keeps that version's figures: it says so before anything else (independent review, round 8)
+const historical = (chapter, version) => [chapter[0],
+  P(`Historical record: this chapter keeps what changed in version ${version} and the figures of that version. They are not the `
+    + "current database: the current figures are on the title page and in chapter 9 (verification)."), ...chapter.slice(1)];
+
 // ------------------------------ changes in 3.19 (the independent reviewer's detailed reply) ------------------------------
 const changes3_19 = [H(HeadingLevel.HEADING_1, "Changes in version 3.19", { pageBreak: true }),
-  P(`Version 3.19 describes the database after schema file ${lastFile}. The independent reviewer asked for a wider prompt-injection `
+  P("Version 3.19 described the database after schema file 1137. The independent reviewer asked for a wider prompt-injection "
     + "set for the AI assistant (40 checks or more). Widening it to tool arguments, units, tool names, chained tools and the policy "
     + "itself found four gaps in file 1134, closed by file 1137. No table was added, so the diagrams are unchanged."),
   H(HeadingLevel.HEADING_2, "a. Schema file 1137"),
@@ -182,11 +221,11 @@ const changes3_19 = [H(HeadingLevel.HEADING_1, "Changes in version 3.19", { page
     + "injected instruction and expects the database to refuse it (critical control C-06)."),
   H(HeadingLevel.HEADING_2, "b. Counts"),
   table(["Measure", "Version 3.18", "Version 3.19"], [
-    ["Schema files", "149 (000 to 1136)", `${V.schema_files} (000 to ${lastFile})`],
-    ["Tables", "560", String(tableCount)],
-    ["Database checks", "924", String(V.db_checks)],
-    ["API tests", "773", String(V.api_tests)],
-    ["Commit", "921369d", V.source_commit.slice(0, 7)],
+    ["Schema files", "149 (000 to 1136)", "150 (000 to 1137)"],
+    ["Tables", "560", "560"],
+    ["Database checks", "924", "962"],
+    ["API tests", "773", "773"],
+    ["Commit", "921369d", "6857d7a"],
   ], [3200, 3273, 3273], { boldFirst: true }),
 ];
 
@@ -1183,7 +1222,7 @@ const doc = new Document({
   numbering: { config: [{ reference: "bullets", levels: [{ level: 0, format: LevelFormat.BULLET, text: "•", alignment: AlignmentType.LEFT,
     style: { paragraph: { indent: { left: 540, hanging: 270 } } } }] }] },
   sections: [
-    section(PORTRAIT, [...front, ...toc, ...changes3_19, ...changes3_18, ...changes3_17, ...changes3_16, ...changes3_15, ...changes3_14, ...changes3_13, ...changes3_12, ...changes3_11, ...changes3_10, ...changes3_9, ...changes3_8, ...changes37, ...changes38, ...changes39, ...changes36, ...changes35, ...changes34, ...changes33, ...changes32, ...changes31, ...changes, ...intro, ...arch, ...rules, ...security, ...stores]),
+    section(PORTRAIT, [...front, ...toc, ...changes3_20, ...historical(changes3_19, "3.19"), ...historical(changes3_18, "3.18"), ...historical(changes3_17, "3.17"), ...historical(changes3_16, "3.16"), ...historical(changes3_15, "3.15"), ...historical(changes3_14, "3.14"), ...historical(changes3_13, "3.13"), ...historical(changes3_12, "3.12"), ...historical(changes3_11, "3.11"), ...historical(changes3_10, "3.10"), ...historical(changes3_9, "3.9"), ...historical(changes3_8, "3.8"), ...historical(changes37, "3.7"), ...changes38, ...changes39, ...historical(changes36, "3.6"), ...historical(changes35, "3.5"), ...historical(changes34, "3.4"), ...historical(changes33, "3.3"), ...historical(changes32, "3.2"), ...historical(changes31, "3.1"), ...historical(changes, "3.0"), ...intro, ...arch, ...rules, ...security, ...stores]),
     ...erdSections,
     section(PORTRAIT, [...defs, ...trace, ...verify, ...flags, ...gens, ...appC]),
   ],

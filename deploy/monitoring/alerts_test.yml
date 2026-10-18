@@ -563,3 +563,17 @@ tests:
         exp_alerts:
           - exp_labels: { severity: page }
             exp_annotations: { summary: "The database server does not load the settings guard: a login could set the request context the row rules trust", runbook: "RUNBOOKS.md#30-the-request-context-and-its-ticket-reviews-of-october-2026-c-01-and-c-02" }
+  # a dead delivery names its destination and owner (1138, independent review round 8, T-08)
+  - interval: 1m
+    input_series:
+      - series: 'masslak_webhook_dead_by_endpoint{endpoint="1a2b3c4d",host="erp.partner.example",kind="PARTNER",client="Partner ERP",company="Partner Co",event_types="booking.confirmed"}'
+        values: "0x3 2x5"
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: WebhookEndpointDead
+        exp_alerts: []
+      - eval_time: 6m
+        alertname: WebhookEndpointDead
+        exp_alerts:
+          - exp_labels: { severity: ticket, endpoint: "1a2b3c4d", host: "erp.partner.example", kind: "PARTNER", client: "Partner ERP", company: "Partner Co", event_types: "booking.confirmed" }
+            exp_annotations: { summary: "2 delivery(ies) to erp.partner.example (Partner ERP, Partner Co) gave up in the last 7 days: booking.confirmed", runbook: "RUNBOOKS.md#33-dead-deliveries-who-is-told-and-who-resends" }

@@ -69,6 +69,10 @@ def main():
         "migration": psql(db, rest, "SELECT version FROM sys.schema_migration ORDER BY string_to_array(version, '.')::int[] DESC LIMIT 1"),
         "last_schema_file": files[-1],
         "schema_files": len(files),
+        # tables of the application's schemas, a partitioned table counted once (as the design document counts them)
+        "tables": int(psql(db, rest, "SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace "
+                                     "WHERE c.relkind IN ('r', 'p') AND NOT c.relispartition "
+                                     "AND n.nspname NOT IN ('pg_catalog', 'information_schema', 'public') AND n.nspname NOT LIKE 'pg\\_%'")),
         "schema_sha256": hashlib.sha256(schema.encode()).hexdigest(),
         "postgres": psql(db, rest, "SHOW server_version").split()[0],
         "postgis": psql(db, rest, "SELECT extversion FROM pg_extension WHERE extname = 'postgis'") or None,

@@ -115,6 +115,18 @@ cp "$ROOT"/docs/operations/evidence/*.json "$OUT/evidence/"
 # the verification summary of this build, made now from this database and these logs (never a file left by an earlier build)
 python3 "$ROOT/docs/database/generator/verification.py" "$DB" --db-log "$DB_LOG" --api-log "$API_LOG" --commit "$TESTED_C" \
   --out "$OUT/evidence/verification.json" "${ARGS[@]}" > /dev/null
+# the settings guard (db/guard, 1084) as this database runs it: loaded, and the settings it protects settable by a
+# superuser only; the source stays out of the reviewer edition, its digests name the exact files (independent review,
+# round 8, T-06)
+{
+  echo "settings guard of the database the pack was built from (db/guard, schema file 1084)"
+  echo "shared_preload_libraries: $(psql "${ARGS[@]}" -d "$DB" -Atc 'SHOW shared_preload_libraries')"
+  echo "sys.guard_status(): $(psql "${ARGS[@]}" -d "$DB" -Atc 'SELECT sys.guard_status()')"
+  echo "protected settings (superuser only): $(psql "${ARGS[@]}" -d "$DB" -Atc "SELECT string_agg(name || '=' || context, ', ' ORDER BY name) FROM pg_settings WHERE name = ANY (sys.guarded_settings())")"
+  echo "source files (SHA-256):"
+  (cd "$ROOT" && sha256sum db/guard/masslak_guard.c db/guard/Makefile db/guard/Dockerfile)
+} > "$OUT/evidence/settings_guard.txt"
+grep -q '^sys.guard_status(): t$' "$OUT/evidence/settings_guard.txt" || { echo "the settings guard is not loaded in $DB" >&2; exit 1; }
 
 # monitoring: rules, their unit tests, and promtool's verdict when promtool is installed
 cp "$ROOT"/deploy/monitoring/*.yml "$ROOT"/deploy/monitoring/*.json "$OUT/monitoring/"

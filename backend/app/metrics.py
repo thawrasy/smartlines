@@ -262,7 +262,8 @@ async def render_database(g: dict | None = None) -> list[str]:
                                 "UNION ALL SELECT metric, labels, value FROM ops.position_backlog_metrics() "
                                 "UNION ALL SELECT metric, labels, value FROM sys.durability_metrics() "
                                 "UNION ALL SELECT metric, labels, value FROM sys.statement_metrics() "
-                                "UNION ALL SELECT metric, labels, value FROM sys.security_metrics()")
+                                "UNION ALL SELECT metric, labels, value FROM sys.security_metrics() "
+                                "UNION ALL SELECT metric, labels, value FROM sys.dead_delivery_metrics()")
     pool = g["pool"]
     for r in rows:
         name = r["metric"]
