@@ -10,7 +10,7 @@
 | يعتمد على | DOC-F04 (ربط المهمة بالمشترك، DQ-F04-4)، DOC-F05 (المؤقتات الزمنية للمشترك)، DOC-F10 وDOC-F11 (مصادر الأحداث)، DOC-B03 (NFR-OPS وNFR-I18N)، DOC-B10 (اللغة)، DOC-S01 (التهديدات)، DOC-S08 (حسابات القاعدة)، DOC-S12 (السجلات والمراقبة) |
 | المصادر | db/model/10-platform.model، db/model/15-workflow-notifications.model، db/generated/tsql/005_delete_grants.sql، db/generated/tsql/007_table_grants.sql، docs/10-detailed-analysis/10-m0-m1-platform-organization.md، docs/10-detailed-analysis/13-m6-workflow-engine-notifications.md، docs/10-detailed-analysis/14-m7-m8-letters-of-credit.md، docs/21-data-dictionary.md، docs/20-database-design.md، docs/review/design-review-2026-10-11.json |
 
-> **تحديث التنفيذ (2026-10-12):** قائمة JobKey المغلقة (DQ-F17-2) جدول `cfg.JobDefinition` مبذور بالمهام التسع والعشرين في §5.2 ومعها JOB-PLT-ONBOARD، ثم JOB-PLT-EXPORT (ADR 0008)، ثم JOB-PLT-RECONCILE (ADR 0011، DR-44؛ 32 مهمة)، بنطاق كل مهمة وحالات المشترك المسموحة، و`sec.usp_SetJobContext` يرفض غيرها (docs/adr/0004-platform-access-jobs-and-onboarding.md، db/static/037_job_context.sql؛ الاختبارات J1 إلى J6). ومهمتا JOB-PLT-TRIAL-EXPIRE وJOB-PLT-ARCHIVE تستدعيان `plat.usp_RunTenantTransitions`.
+> **تحديث التنفيذ (2026-10-12):** قائمة JobKey المغلقة (DQ-F17-2) جدول `cfg.JobDefinition` مبذور بالمهام التسع والعشرين في §5.2 ومعها JOB-PLT-ONBOARD، ثم JOB-PLT-EXPORT (ADR 0008)، ثم JOB-PLT-RECONCILE (ADR 0011، DR-44؛ 32 مهمة)، بنطاق كل مهمة وحالات المشترك المسموحة، و`sec.usp_SetJobContext` يرفض غيرها (docs/adr/0004-platform-access-jobs-and-onboarding.md، db/static/037_job_context.sql؛ الاختبارات J1 إلى J7، وJ7 تدقيق الربط). ومهمتا JOB-PLT-TRIAL-EXPIRE وJOB-PLT-ARCHIVE تستدعيان `plat.usp_RunTenantTransitions`.
 
 ## 1. الغرض والنطاق
 
@@ -162,7 +162,7 @@ stateDiagram-v2
 1. JobKey قائمة مغلقة هي معرّفات JOB-* في §5.2. الإجراء يرفض غيرها (DQ-F17-2).
 2. المهام نوعان: مهام مشترك تربط بالمشترك وتكتب جداوله، ومهام منصة لا تربط وتستدعي إجراءات منصة (§5.6).
 3. المجدول يمر على المشتركين كل دقيقة، ويحسب لكل مشترك الموعد بتوقيته (10.model:40؛ 13-m6:633)، ويشغّل المهام المستحقة.
-4. حالة المشترك تحدد المهام المسموحة بمصفوفة DOC-F04 §7.4: كل المهام في TRIAL وACTIVE؛ التصدير وتنظيف الجلسات فقط في SUSPENDED وCLOSED خلال 30 يومًا. فأحداث Outbox لمشترك معلّق تبقى PENDING حتى يعود نشطًا (DQ-F17-12).
+4. حالة المشترك تحدد المهام المسموحة بمصفوفة DOC-F04 §7.4: كل المهام في TRIAL وACTIVE؛ والتصدير وحده في SUSPENDED وCLOSED خلال 30 يومًا: JOB-PLT-EXPORT وJOB-PLT-EXPORT-EXPIRE (`RunsInStatuses` في db/seed/100_platform_global.sql). ولا مهمة لتنظيف الجلسات: الجلسة تنتهي بمهلتيها عند استعمالها، وتغيير الحالة يسحب الربوط بالقادح (db/static/030_session_context.sql). فأحداث Outbox لمشترك معلّق تبقى PENDING حتى يعود نشطًا (DQ-F17-12).
 
 ### 5.2 كتالوج المهام
 
@@ -247,8 +247,8 @@ stateDiagram-v2
 
 | الانتقال | المهمة | كيف تعمل | المصدر |
 |---|---|---|---|
-| TRIAL إلى SUSPENDED بعد TrialEndsOn | JOB-PLT-TRIAL-EXPIRE | مهمة منصة تستدعي `plat.usp_SetTenantStatus` المقترح؛ الانتقال يسحب كل الربوط بالقادح القائم | DOC-F05 §6.3؛ db/static/030_session_context.sql:285-296 |
-| CLOSED إلى ARCHIVED_READ_ONLY بعد 30 يومًا | JOB-PLT-ARCHIVE | الإجراء نفسه | DOC-F05 §6.3؛ BR-PLT-002، 10-m0-m1:228 |
+| TRIAL إلى SUSPENDED بعد TrialEndsOn | JOB-PLT-TRIAL-EXPIRE | مهمة منصة تستدعي `plat.usp_RunTenantTransitions` (db/static/038_tenant_onboarding.sql)، لا `plat.usp_SetTenantStatus` الذي يشترط مدير مشغّلين بتحقق MFA حديث؛ والإجراءان يمرّان بـ `plat.usp_ApplyTenantStatus`، والانتقال يسحب كل الربوط بالقادح القائم | DOC-F05 §6.3؛ db/static/030_session_context.sql:285-296 |
+| CLOSED إلى ARCHIVED_READ_ONLY بعد 30 يومًا | JOB-PLT-ARCHIVE | الإجراء نفسه، `plat.usp_RunTenantTransitions` | DOC-F05 §6.3؛ BR-PLT-002، 10-m0-m1:228 |
 
 مهام المنصة لا تكتب cfg.JobRun لأنه جدول مشترك. تُسجَّل في aud.AuditLog (DQ-F05-6)، ونقترح جدول منصة لتشغيلاتها على نمط DQ-B05-1.
 

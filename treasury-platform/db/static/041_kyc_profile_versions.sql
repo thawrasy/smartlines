@@ -34,7 +34,7 @@ BEGIN
     SET NOCOUNT ON;
     IF EXISTS (SELECT 1
                FROM (SELECT TenantId, ProfileId FROM inserted UNION SELECT TenantId, ProfileId FROM deleted) AS r
-               JOIN pty.KycProfile AS p ON p.TenantId = r.TenantId AND p.KycProfileId = r.ProfileId
+               JOIN pty.KycProfile AS p WITH (UPDLOCK, HOLDLOCK) ON p.TenantId = r.TenantId AND p.KycProfileId = r.ProfileId
                WHERE p.Status <> 'DRAFT')
         THROW 50033, 'The items of an active or retired KYC profile do not change; create a new version', 1;
 END;
@@ -49,7 +49,7 @@ BEGIN
     IF EXISTS (SELECT 1
                FROM (SELECT TenantId, KycProfileItemId FROM inserted UNION SELECT TenantId, KycProfileItemId FROM deleted) AS r
                JOIN pty.KycProfileItem AS it ON it.TenantId = r.TenantId AND it.KycProfileItemId = r.KycProfileItemId
-               JOIN pty.KycProfile AS p ON p.TenantId = it.TenantId AND p.KycProfileId = it.ProfileId
+               JOIN pty.KycProfile AS p WITH (UPDLOCK, HOLDLOCK) ON p.TenantId = it.TenantId AND p.KycProfileId = it.ProfileId
                WHERE p.Status <> 'DRAFT')
         THROW 50033, 'The item conditions of an active or retired KYC profile do not change; create a new version', 1;
 END;

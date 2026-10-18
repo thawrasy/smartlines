@@ -62,11 +62,11 @@ DECLARE @unfiltered INT, @disabled INT, @allowed INT, @tm INT;
 DECLARE @other UNIQUEIDENTIFIER;
 -- Session tokens held by the "application" in these tests, and a well-formed Argon2id PHC string for user 1
 DECLARE @tok1 VARBINARY(64) = CRYPT_GEN_RANDOM(32), @tok1x VARBINARY(64) = CRYPT_GEN_RANDOM(32), @tok2 VARBINARY(64) = CRYPT_GEN_RANDOM(32),
-        @tokIdle VARBINARY(64) = CRYPT_GEN_RANDOM(32), @tokEnded VARBINARY(64) = CRYPT_GEN_RANDOM(32),
+        @tokIdle VARBINARY(64) = CRYPT_GEN_RANDOM(32), @tokEnded VARBINARY(64) = CRYPT_GEN_RANDOM(32), @tokAbs VARBINARY(64) = CRYPT_GEN_RANDOM(32),
         @tokBad VARBINARY(64) = CRYPT_GEN_RANDOM(32), @tokNew VARBINARY(64) = CRYPT_GEN_RANDOM(32),
         @tok1b VARBINARY(64) = CRYPT_GEN_RANDOM(32), @tokNoMfa VARBINARY(64) = CRYPT_GEN_RANDOM(32);
 DECLARE @phc VARCHAR(255) = '$argon2id$v=19$m=65536,t=3,p=4$c2FsdHNhbHRzYWx0c2FsdA$aGFzaGhhc2hoYXNoaGFzaGhhc2hoYXNoaGFzaGhhc2g';
-DECLARE @params VARCHAR(255), @params2 VARCHAR(255), @outUser BIGINT, @mfaReq BIT, @err3 INT, @i INT, @uctx BIGINT;
+DECLARE @params VARCHAR(255), @params2 VARCHAR(255), @outUser BIGINT, @mfaReq BIT, @err3 INT, @err4 INT, @i INT, @uctx BIGINT;
 
 -- Seed: three tenants (two open, one closed)
 INSERT plat.Tenant (Code, NameAr, NameEn, PlanId, HomeCountryId, Status, TimeZone, ClosedAt)
@@ -103,10 +103,12 @@ VALUES (@t1, @u1,  HASHBYTES('SHA2_256', @tok1),     DATEADD(MINUTE, 30, SYSUTCD
        (@t1, @u1x, HASHBYTES('SHA2_256', @tok1x),    DATEADD(MINUTE, 30, SYSUTCDATETIME()), DATEADD(HOUR, 12, SYSUTCDATETIME()), NULL, NULL, SYSUTCDATETIME()),
        (@t1, @u1b, HASHBYTES('SHA2_256', @tok1b),    DATEADD(MINUTE, 30, SYSUTCDATETIME()), DATEADD(HOUR, 12, SYSUTCDATETIME()), NULL, NULL, SYSUTCDATETIME()),
        (@t1, @u1,  HASHBYTES('SHA2_256', @tokNoMfa), DATEADD(MINUTE, 30, SYSUTCDATETIME()), DATEADD(HOUR, 12, SYSUTCDATETIME()), NULL, NULL, NULL);
-INSERT sec.UserSession (TenantId, UserId, TokenHash, IdleExpiresAt, AbsoluteExpiresAt, EndedAt, EndReason)
+-- These carry a recorded MFA check, so each is refused for its own reason: idle expiry, absolute expiry, or its end.
+INSERT sec.UserSession (TenantId, UserId, TokenHash, IdleExpiresAt, AbsoluteExpiresAt, EndedAt, EndReason, MfaVerifiedAt)
 VALUES
-       (@t1, @u1,  HASHBYTES('SHA2_256', @tokIdle),  DATEADD(MINUTE, -1, SYSUTCDATETIME()), DATEADD(HOUR, 11, SYSUTCDATETIME()), NULL, NULL),
-       (@t1, @u1,  HASHBYTES('SHA2_256', @tokEnded), DATEADD(MINUTE, 30, SYSUTCDATETIME()), DATEADD(HOUR, 12, SYSUTCDATETIME()), SYSUTCDATETIME(), 'LOGOUT');
+       (@t1, @u1,  HASHBYTES('SHA2_256', @tokIdle),  DATEADD(MINUTE, -1, SYSUTCDATETIME()), DATEADD(HOUR, 11, SYSUTCDATETIME()), NULL, NULL, SYSUTCDATETIME()),
+       (@t1, @u1,  HASHBYTES('SHA2_256', @tokAbs),   DATEADD(MINUTE, 30, SYSUTCDATETIME()), DATEADD(MINUTE, -1, SYSUTCDATETIME()), NULL, NULL, SYSUTCDATETIME()),
+       (@t1, @u1,  HASHBYTES('SHA2_256', @tokEnded), DATEADD(MINUTE, 30, SYSUTCDATETIME()), DATEADD(HOUR, 12, SYSUTCDATETIME()), SYSUTCDATETIME(), 'LOGOUT', SYSUTCDATETIME());
 
 -- Seed: tenant 2 (a user, a facility, a non-working day)
 EXEC #Bind @t2;
@@ -470,9 +472,10 @@ IF @err = 50003 AND @err2 = 50003 PRINT 'PASS T18: a session binds only its own 
 ELSE PRINT 'FAIL T18: a session bound another tenant, or a disabled user''s session was accepted';
 ROLLBACK TRANSACTION sp_t18;
 
-/* T32: a wrong token, an idle-expired session and an ended session bind nothing (50003). */
+/* T32: a wrong token, an idle-expired session, a session past its absolute expiry and an ended session bind nothing
+   (50003). Each of the last three has a recorded MFA check, so the refusal is for its own reason. */
 SAVE TRANSACTION sp_t32;
-SET @err = NULL; SET @err2 = NULL; SET @err3 = NULL;
+SET @err = NULL; SET @err2 = NULL; SET @err3 = NULL; SET @err4 = NULL;
 EXECUTE AS USER = N'tp_test_app';
 BEGIN TRY EXEC sec.usp_SetSessionContext @TenantId = @t1, @SessionToken = @tokBad; END TRY
 BEGIN CATCH SET @err = ERROR_NUMBER(); END CATCH;
@@ -480,9 +483,12 @@ BEGIN TRY EXEC sec.usp_SetSessionContext @TenantId = @t1, @SessionToken = @tokId
 BEGIN CATCH SET @err2 = ERROR_NUMBER(); END CATCH;
 BEGIN TRY EXEC sec.usp_SetSessionContext @TenantId = @t1, @SessionToken = @tokEnded; END TRY
 BEGIN CATCH SET @err3 = ERROR_NUMBER(); END CATCH;
+BEGIN TRY EXEC sec.usp_SetSessionContext @TenantId = @t1, @SessionToken = @tokAbs; END TRY
+BEGIN CATCH SET @err4 = ERROR_NUMBER(); END CATCH;
 REVERT;
-IF @err = 50003 AND @err2 = 50003 AND @err3 = 50003 PRINT 'PASS T32: a wrong token, an idle-expired session and an ended session bind nothing';
-ELSE PRINT 'FAIL T32: a wrong, expired or ended session was accepted';
+IF @err = 50003 AND @err2 = 50003 AND @err3 = 50003 AND @err4 = 50003
+    PRINT 'PASS T32: a wrong token, an idle-expired session, an absolutely expired session and an ended session bind nothing';
+ELSE PRINT CONCAT('FAIL T32: a wrong, expired or ended session was accepted (wrong ', @err, ', idle ', @err2, ', ended ', @err3, ', absolute ', @err4, ')');
 ROLLBACK TRANSACTION sp_t32;
 
 /* T33: login. The parameters come back without the hash; a wrong hash is refused with the one message (50005) and
@@ -541,7 +547,7 @@ ROLLBACK TRANSACTION sp_t34;
 
 /* T35: the application role cannot read stored password hashes (230), create sessions (229), or change a session at
    all: not its token and not its 12-hour absolute expiry (229, ADR 0003). */
-DECLARE @err4 INT;
+-- @err4 is declared with the other result variables at the top.
 SAVE TRANSACTION sp_t35;
 SET @err = NULL; SET @err2 = NULL; SET @err3 = NULL; SET @err4 = NULL;
 EXECUTE AS USER = N'tp_test_app';

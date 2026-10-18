@@ -317,6 +317,7 @@ erDiagram
   Facility ||--o{ OutstandingSnapshot : "FacilityId"
   Facility ||--o{ ProductLineTerm : "FacilityId"
   Facility ||--o{ Utilization : "FacilityId"
+  Facility ||--o{ Utilization : "TransferredToFacilityId"
   Facility ||--o{ ValueConflict : "FacilityId"
   Limit ||--o{ LimitCompanyRule : "LimitId"
   Limit ||--o{ LimitProductLine : "LimitId"
@@ -497,6 +498,7 @@ erDiagram
 | Obligation | ScopeProductLineId | fac.LimitProductLine |
 | Obligation | SourceDocumentId | doc.Document |
 | Obligation | VerifiedBy | sec.AppUser |
+| ObligationBreach | WaiverApprovedBy | sec.AppUser |
 | ObligationBreach | WaiverBankContactId | ins.Contact |
 | ObligationBreach | WaiverDocumentId | doc.Document |
 | ObligationCompany | CompanyId | org.Company |
@@ -683,6 +685,7 @@ erDiagram
 | LcAmendment | CompanyId | org.Company |
 | LcAmendment | CurrencyId | ref.Currency |
 | LcAmendment | RequestId | wfl.Request |
+| LcAmendment | WithdrawalDocumentId | doc.Document |
 | LcDiscrepancy | DecidedBy | sec.AppUser |
 | LcDocumentClause | InstitutionId | ins.Institution |
 | LcDocumentClauseUcpRef | UcpArticleId | ref.UcpArticle |

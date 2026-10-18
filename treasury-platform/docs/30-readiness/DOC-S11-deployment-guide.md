@@ -24,19 +24,19 @@
 
 | البند | السلوك | المصدر |
 |---|---|---|
-| الغلاف | ينتقل إلى `db/` ثم يشغّل `sqlcmd` بالخيارين `-I -b` و`SQLCMD_OPTS` على `deploy.sql` | tools/deploy/deploy.sh:14-15، :28-29 |
+| الغلاف | ينتقل إلى `db/` ثم يشغّل `sqlcmd` بالخيارين `-I -b` و`SQLCMD_OPTS` على `deploy.sql`. ✅ اليوم: يشغّل فحص ما قبل النشر و`deploy.sql` في جلسة واحدة، و`deploy.sql` يتوقف (50146) إن لم يمر الفحص فيها (المراجعة الذاتية E5) | tools/deploy/deploy.sh:14-15، :28-29 |
 | الخادم | `localhost,1433` افتراضيًا | tools/deploy/deploy.sh:16 |
-| الحساب | `sa` افتراضيًا؛ القيمة الفارغة تعني مصادقة Windows (`-E`) وتحتاج تذكرة Kerberos | tools/deploy/deploy.sh:7، :17، :21-26 |
+| الحساب | `sa` افتراضيًا؛ القيمة الفارغة تعني مصادقة Windows (`-E`) وتحتاج تذكرة Kerberos. ✅ اليوم: `bankfas_migrator` افتراضيًا، ويرفض الفحص `sa` وأي عضو دور خادم أو صاحب CONTROL SERVER أو ALTER ANY LOGIN (50140) | tools/deploy/deploy.sh:7، :17، :21-26 |
 | كلمة المرور | من `SQLCMDPASSWORD`، وإلزامية مع حساب SQL | tools/deploy/deploy.sh:8، :22 |
-| التحقق من الشهادة | `-C` افتراضيًا، أي الثقة بأي شهادة | tools/deploy/deploy.sh:10-11، :19 |
-| صفحة الترميز | بلا `-f 65001`، بينما يمرّرها غلاف Windows ويذكرها مثال `deploy.sql` | tools/deploy/deploy.sh:29؛ tools/deploy/deploy.ps1:37؛ db/deploy.sql:10 |
+| التحقق من الشهادة | `-C` افتراضيًا، أي الثقة بأي شهادة. ✅ اليوم: بلا `-C` (ADR 0013)، و`SQLCMD_OPTS` لا يقبل إلا `-l` و`-t` و`-N s|m`، و`-C` في CI وحده (E7) | tools/deploy/deploy.sh:10-11، :19 |
+| صفحة الترميز | بلا `-f 65001`، بينما يمرّرها غلاف Windows ويذكرها مثال `deploy.sql`. ✅ النص العربي يصل سليمًا بلا `-f`، ويطابق CI في الخطوة 4b بصمة SHA-256 لأسماء الدول العربية الـ249 بالبذرة (المراجعة الذاتية D3)؛ وقائمة الخيارات لا تقبل `-f` | tools/deploy/deploy.sh:29؛ tools/deploy/deploy.ps1:37؛ db/deploy.sql:10 |
 | اسم القاعدة | ثابت `BankFas` بـ `:setvar`، ولا يمرّره الغلاف | db/deploy.sql:1 |
 | التوقف | عند أول خطأ | db/deploy.sql:16 |
-| الإنشاء | `CREATE DATABASE` بترتيب `Arabic_100_CI_AS_SC` إن لم تكن القاعدة موجودة، بلا مسارات ملفات ولا نموذج استرداد | db/deploy.sql:17-18 |
-| الترتيب | 000 إلى 004، ثم 020، ثم 005 إلى 007، ثم 010 و025 و030 و050، في جلسة واحدة لأن 010 يقرأ جدولًا مؤقتًا من 004 | db/deploy.sql:13-14، :22-34 |
-| قاعدة موجودة | المخططات محمية بفحص وجود، وأول `CREATE TABLE` يفشل فيتوقف النشر دون تغيير | db/generated/tsql/000_schemas.sql:6؛ db/generated/tsql/001_tables.sql:8 |
-| CI | يحذف القاعدة ثم ينشر بـ `sa` بالغلاف نفسه، ثم يقارن ويختبر | tools/ci/db_ci.sh:52-57 |
-| فحص ما بعد النشر | ✅ منذ ADR 0013: عشرة فحوص (أعداد الكتالوج مقابل DDL المولَّد، وسياسات الأمن، والإجراءات بصفة `tp_auth_exec`، والترتيب) بحساب المراقبة `bankfas_monitor` وبلا `-C` | tools/dbgen/check_deployed.py |
+| الإنشاء | `CREATE DATABASE` بترتيب `Arabic_100_CI_AS_SC` إن لم تكن القاعدة موجودة، بلا مسارات ملفات ولا نموذج استرداد. ✅ اليوم: لا ينشئ `deploy.sql` القاعدة، بل يتوقف (50141)؛ ينشئها DBA بـ `prepare_database.sh prepare` مع RECURSIVE_TRIGGERS OFF (E5، A7) | db/deploy.sql:17-18 |
+| الترتيب | 000 إلى 004، ثم 020، ثم 005 إلى 007، ثم 010 و025 و030 و050، في جلسة واحدة لأن 010 يقرأ جدولًا مؤقتًا من 004. ✅ اليوم: 000 إلى 004، ثم 020، ثم 005 إلى 007، ثم 010 و025 و028 و029 و030 و035 إلى 039 و041 إلى 044 و050 و090، ثم البذور 100 إلى 103 | db/deploy.sql:13-14، :22-34 |
+| قاعدة موجودة | المخططات محمية بفحص وجود، وأول `CREATE TABLE` يفشل فيتوقف النشر دون تغيير. ✅ اليوم: يرفض فحص ما قبل النشر قبل أي تغيير قاعدةً فيها جدول أو كائن أو مشغّل قاعدة أو مخطط أو مستخدم غير `bankfas_migrator` أو مفتاح أو مواصفة تدقيق أو اتصال guest (50142، E4) | db/generated/tsql/000_schemas.sql:6؛ db/generated/tsql/001_tables.sql:8 |
+| CI | يحذف القاعدة ثم ينشر بـ `sa` بالغلاف نفسه، ثم يقارن ويختبر. ✅ اليوم: يحضّرها بـ `prepare_database.sh` وينشر بـ `bankfas_migrator`، ولا يعمل إلا على خادم محلي (E8) | tools/ci/db_ci.sh:52-57 |
+| فحص ما بعد النشر | ✅ منذ ADR 0013: أربعة عشر فحصًا منذ المراجعة الذاتية C6 وE3 (أعداد الكتالوج مقابل DDL المولَّد، وسياسات الأمن، والإجراءات بصفة `tp_auth_exec`، والمشغّلات الـ63 ولا مشغّل معطّل، ولا دالة داخلية يقرؤها `tp_readonly`، و`bankfas_migrator` معطّل، والترتيب) بحساب المراقبة `bankfas_monitor` وبلا `-C`، بعد إغلاق النافذة | tools/dbgen/check_deployed.py |
 | الترحيل بين الإصدارات | لا يوجد | docs/20-database-design.md:452، :530 |
 
 **الترميز اليوم.** في الملفات التي ينشرها `deploy.sql` لا تظهر حروف غير ASCII إلا في التعليقات (فحص هذه المراجعة للملفات تحت db/generated/tsql وdb/static). الاستثناء نص عربي في db/static/040_fulltext_optional.sql:11، وهذا الملف لا يدخل `deploy.sql` (db/deploy.sql:22-34). فغياب `-f 65001` لا يغيّر شيئًا اليوم، ويصير مؤثرًا حين تدخل البذور بأسماء عربية (DOC-B05 §4.3؛ DQ-S11-3).
@@ -111,8 +111,8 @@ cd /opt/bankfas/releases/vX.Y.Z                    # حزمة الوسم الم�
 export SQL_SERVER="<db-cert-name>,1433"
 export SQL_USER="bankfas_migrator"
 export SQLCMD="/opt/mssql-tools18/bin/sqlcmd"
-export SQLCMD_OPTS=""                              # بلا -C؛ و"-f 65001" بعد DQ-S11-3
-export SQLCMDPASSWORD="$(sudo cat /etc/bankfas/secrets/migrator.pw)"   # DOC-S08 §5
+export SQLCMD_OPTS=""                              # بلا -C؛ والأدوات لا تقبل فيه إلا -l و-t و-N s|m (المراجعة الذاتية E7)
+export SQLCMDPASSWORD="$(cat /etc/bankfas/db-secrets/bankfas_migrator.secret)"   # ملف DBA نفسه، صلاحيته 600 أو 400 (DOC-S08 §5)
 set -o pipefail
 bash tools/deploy/deploy.sh 2>&1 | tee "/var/log/bankfas/deploy-$(date -u +%Y%m%dT%H%M%SZ).log"
 echo "exit=$?"
@@ -133,7 +133,8 @@ unset SQLCMDPASSWORD
   5. `server_audit.sh apply`، فتُضاف مواصفة القاعدة على جداول التدقيق؛
   6. `provision_logins.sh`؛
   7. `provision_monitor.sh` (ADR 0013)؛
-  8. `prepare_database.sh close`.
+  8. `prepare_database.sh close`، ثم فحوص §8.2 بحساب المراقبة، وأولها يتحقق أن `bankfas_migrator` معطّل؛
+  9. تدوير سر `bankfas_migrator`: يكتب DBA سرًا جديدًا في `bankfas_migrator.secret` (أو يحذف الملف ويستعمل `--generate`) ثم يعيد `prepare_database.sh prepare`، فيأخذ الحساب السر الجديد ويبقى الباقي كما هو (db/ops/prepare_database.sql؛ DOC-S08 §6).
 
   بعد الإغلاق يشغّل SEC `server_audit.sh alerts <بداية النافذة>`، والمتوقع صفر تنبيه. ويرفق `server_audit.sh windows` بسجل النشر.
 
@@ -206,7 +207,7 @@ unset SQLCMDPASSWORD
 
 | الفحص | الأمر | النتيجة المطلوبة |
 |---|---|---|
-| الأعداد مقابل DDL، والسياسات، والإجراءات بصفة `tp_auth_exec`، والترتيب | `SQL_USER=bankfas_monitor SQLCMDPASSWORD="$(cat <ملف سر المراقبة>)" python3 tools/dbgen/check_deployed.py --sqlcmd "$SQLCMD" --server "$SQL_SERVER" --database BankFas` (ADR 0013) | الأسطر العشرة كلها `ok`، ورمز خروج 0 |
+| الأعداد مقابل DDL، والسياسات، والإجراءات بصفة `tp_auth_exec`، والمشغّلات، ومنع الدوال الداخلية، وتعطيل حساب الترحيل، والترتيب | `SQL_USER=bankfas_monitor SQLCMDPASSWORD="$(cat <ملف سر المراقبة>)" python3 tools/dbgen/check_deployed.py --sqlcmd "$SQLCMD" --server "$SQL_SERVER" --database BankFas` (ADR 0013)، بعد `prepare_database.sh close` | الأسطر الأربعة عشر كلها `ok`، ورمز خروج 0 |
 | السياسات | الاستعلام أدناه | لا سياسة معطّلة |
 | محظورات 030 | الاستعلام أدناه | سبعة صفوف: عمود القراءة، والإدراج، وخمسة أعمدة للتحديث (db/static/030_session_context.sql:237-239) |
 | الإجراءات | الاستعلام أدناه | أربعة إجراءات تعمل بصفة `tp_auth_exec` (db/static/030_session_context.sql:27، :48، :148، :170) |

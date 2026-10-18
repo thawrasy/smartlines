@@ -29,12 +29,12 @@
 ## 2. الوضع اليوم 🟢
 
 - خمسة أدوار تُنشأ بلا تسجيل دخول: `tp_app` و`tp_platform` و`tp_readonly` و`tp_migrator` و`tp_auth` (db/static/020_roles_and_grants.sql:16-30). ومستخدم واحد بلا تسجيل دخول `tp_auth_exec` عضو في `tp_auth` (db/static/020_roles_and_grants.sql:35-36).
-- لا يوجد `CREATE LOGIN` في `db/` ولا في `tools/`. لا حساب دخول لتطبيق أو منصة أو تقارير.
-- المخططات كلها يملكها `dbo` (db/generated/tsql/000_schemas.sql:6-45). دور `tp_migrator` بلا منح (db/static/020_roles_and_grants.sql:9)، والنشر يعمل بحساب مالك القاعدة (docs/20-database-design.md:271).
-- سكربت النشر يستعمل `sa` افتراضيًا (tools/deploy/deploy.sh:17)، ويقرأ كلمة المرور من المتغير `SQLCMDPASSWORD` (tools/deploy/deploy.sh:8، :22)، ويثق بشهادة الخادم بالخيار `-C` إلى أن تُحسم O-08 (tools/deploy/deploy.sh:10-11، :19).
-- مثال النشر في رأس `deploy.sql` يمرر كلمة المرور في سطر الأوامر (db/deploy.sql:9).
+- لا يوجد `CREATE LOGIN` في `db/` ولا في `tools/`. لا حساب دخول لتطبيق أو منصة أو تقارير. ✅ تغيّر: حسابات الخدمة والترحيل والمراقبة منفّذة (db/ops/، ADR 0009 و0010 و0013).
+- المخططات كلها يملكها `dbo` (db/generated/tsql/000_schemas.sql:6-45). دور `tp_migrator` بلا منح (db/static/020_roles_and_grants.sql:9)، والنشر يعمل بحساب مالك القاعدة (docs/20-database-design.md:271). ✅ تغيّر: النشر بـ `bankfas_migrator` عضو `db_owner` وحده، والمالك `bankfas_owner` معطّل (ADR 0010).
+- سكربت النشر يستعمل `sa` افتراضيًا (tools/deploy/deploy.sh:17)، ويقرأ كلمة المرور من المتغير `SQLCMDPASSWORD` (tools/deploy/deploy.sh:8، :22)، ويثق بشهادة الخادم بالخيار `-C` إلى أن تُحسم O-08 (tools/deploy/deploy.sh:10-11، :19). ✅ تغيّر: الحساب الافتراضي `bankfas_migrator` (ADR 0010)، وفحص ما قبل النشر يرفض `sa` وأي عضو دور خادم أو صاحب صلاحية خادم (50140، ADR 0014، E9)، ولا `-C` إلا في CI (ADR 0013، E7).
+- مثال النشر في رأس `deploy.sql` يمرر كلمة المرور في سطر الأوامر (db/deploy.sql:9). ✅ أُزيل: لا مثال يدوي، وdeploy.sql يرفض العمل بلا فحص ما قبل النشر في الجلسة نفسها (50146، E5).
 - CI يعمل على حاوية مؤقتة بحساب `sa` (tools/ci/db_ci.sh:14، :21، :54)، ويمر في حاوية التطوير وعلى GitHub منذ 2026-10-12: ملف سير العمل في جذر المستودع (../.github/workflows/treasury-db-ci.yml) لأن GitHub يقرأ سير العمل من هناك وحده (O-02 (erd_open_items)). كلمة المرور نص صريح في ملف سير العمل لحاوية لا يصل إليها غير هذه المهمة (../.github/workflows/treasury-db-ci.yml:41-46). ولا يستعمل سير العمل أي سر من GitHub، وصلاحيته قراءة المحتوى فقط (../.github/workflows/treasury-db-ci.yml:23-24).
-- غلاف Windows `deploy.ps1` غير مختبر وليس مسار الإنتاج (docs/adr/0001-schema-work-on-linux.md:20).
+- غلاف Windows `deploy.ps1` غير مختبر وليس مسار الإنتاج (docs/adr/0001-schema-work-on-linux.md:20). ✅ ويشغّل اليوم فحص ما قبل النشر نفسه ويرفض `-TrustServerCertificate` خارج CI (E5).
 - الاختبارات تنشئ مستخدمين بلا تسجيل دخول وتعمل بـ`EXECUTE AS` (db/tests/tenant_isolation_tests.sql:21-26).
 - لا أسرار في النماذج (docs/20-database-design.md:220). ومدير القاعدة لا يملك المفتاح الرئيسي (docs/10-detailed-analysis/10-m0-m1-platform-organization.md:583).
 - طبقة التطبيق على Windows Server وفق 01 §13، ومطروحة للمراجعة بعد ADR 0001 (docs/10-detailed-analysis/00-overview-and-cross-cutting.md:126، :226؛ FR-PLT-045 في docs/10-detailed-analysis/10-m0-m1-platform-organization.md:147).
@@ -86,6 +86,7 @@ flowchart LR
 - حساب لكل عملية، لا حساب مشترك بين الواجهة والعامل ولوحة المشغّل. فإن تسرب سر واحد لم يمنح صلاحيات الآخرين، ولا يصل خادم الواجهة إلى ربط المهام (DOC-F04 §5.2).
 - كل حساب خدمة بلا أدوار خادم، وقاعدته الافتراضية `BankFas`، ولا يملك إلا مستخدمه في هذه القاعدة.
 - لا يُمنح أي مستخدم صلاحية `IMPERSONATE` على `tp_auth_exec`، لأن انتحاله يتجاوز دوال الصفوف (db/static/010_rls.sql:11-12). والقاعدة نفسها لكل مستخدم جديد بلا تسجيل دخول، مثل مستخدم بذر المنصة المقترح في DOC-B05 §4.3.
+- خطر باقٍ مقبول (المراجعة الذاتية E10): `bankfas_monitor` يملك `VIEW SERVER PERFORMANCE STATE` (db/ops/monitor_login.sql)، فيقرأ نص الاستعلامات الجارية والمخزّنة في الذاكرة (`sys.dm_exec_requests` و`sys.dm_exec_sql_text`)، وفيه قيم المعاملات حين تُكتب في النص. لا يقرأ صفًا من الجداول (MN3)، لكن نص الاستعلام قد يحمل بيانات. الضوابط: التطبيق يرسل استعلامات بمعاملات لا قيمًا ملصوقة في النص، ولا سر ولا رقم هوية ولا IBAN في نص SQL، والإجراءات تأخذ القيم معاملات؛ وسر حساب المراقبة لا يصل إليه إلا مضيف المراقبة، ويُدوَّر كل 90 يومًا (§6).
 
 ## 4. المصادقة
 
@@ -98,7 +99,7 @@ flowchart LR
 
 قواعد حسابات SQL 🟡:
 - كلمة مرور عشوائية لا تقل عن 32 حرفًا، يولّدها مولّد آمن، ولا يكتبها إنسان.
-- الاتصال مشفّر بالخادم. إسقاط الخيار `-C` ينتظر شهادة موثوقة (O-08 في tools/dbgen/erd_open_items.py:55-60، DOC-S05).
+- الاتصال مشفّر بالخادم، وشهادته يُتحقق منها: أدوات النشر لا تمرّر `-C` (ADR 0013)، وترفضه قبل الاتصال إلا في CI بـ `BANKFAS_ALLOW_TRUST_CERT=1`، ولا تقبل في `SQLCMD_OPTS` إلا `-l` و`-t` و`-N s|m` (المراجعة الذاتية E7؛ PF3 وPF7). الشهادة الموثوقة نفسها من DOC-S05 (O-08 في tools/dbgen/erd_open_items.py:55-60).
 - منفذ SQL Server لا يُفتح إلا لمضيف طبقة التطبيق وللخادم نفسه. المدير يصل عبر نفق SSH لا عبر منفذ مفتوح (DOC-S10).
 
 ## 5. حفظ الأسرار
@@ -106,7 +107,7 @@ flowchart LR
 | السر | مكان الحفظ 🟡 | من يقرؤه | ملاحظات |
 |---|---|---|---|
 | كلمات مرور `bankfas_app` و`bankfas_jobs` و`bankfas_platform` و`bankfas_support` | مخزن أسرار نظام التشغيل على مضيف طبقة التطبيق، لكل عملية سرها | العملية المعنية وحدها | يُحسم شكل المخزن مع قرار نظام تشغيل طبقة التطبيق. لا يوضع السر في ملف إعداد داخل المستودع ولا في صورة البناء |
-| كلمة مرور `bankfas_migrator` | ملف على خادم القاعدة يملكه الجذر وصلاحيته 0600، يُقرأ إلى `SQLCMDPASSWORD` لحظة النشر | مهندس النشر عبر `sudo` | لا تمرَّر في سطر الأوامر كما في db/deploy.sql:9، فتبقى في تاريخ الصدفة وقائمة العمليات |
+| كلمة مرور `bankfas_migrator` | الملف `bankfas_migrator.secret` في مجلد الأسرار على خادم القاعدة (`BANKFAS_SECRETS_DIR`)، يملكه DBA الذي يشغّل السكربتات وصلاحيته 600 أو 400؛ يرفض `prepare_database.sh` غير ذلك. يقرؤه السكربت، ويُقرأ إلى `SQLCMDPASSWORD` لحظة `deploy.sh` | DBA بحسابه الشخصي | لا تمرَّر في سطر الأوامر أبدًا، فتبقى في تاريخ الصدفة وقائمة العمليات؛ ولم يعد في رأس db/deploy.sql مثال يدوي (E5) |
 | كلمات مرور حسابات المديرين الشخصية | مدير كلمات مرور شخصي | صاحبها | الوصول نفسه يمر عبر SSH بمفتاح شخصي |
 | كلمة مرور `breakglass` | نصفان في ظرفين مختومين عند أمينين مستقلين | الأمينان معًا | على نمط حفظ المفتاح الرئيسي (Q-PLT-12، docs/10-detailed-analysis/10-m0-m1-platform-organization.md:624) |
 | كلمة مرور `sa` | لا تُحفظ: عشوائية عند التثبيت ثم يُعطَّل الحساب | لا أحد | §9 |
@@ -121,7 +122,7 @@ flowchart LR
 | الحساب | الدورية | التدوير الفوري عند |
 |---|---|---|
 | حسابات الخدمة الأربعة | كل 90 يومًا | ترك موظف يعرف السر، أو اشتباه تسرب، أو استعمال حساب الطوارئ |
-| `bankfas_migrator` | بعد كل نافذة نشر | الاشتباه نفسه |
+| `bankfas_migrator` | بعد كل نافذة نشر: سر جديد في ملفه ثم `prepare_database.sh prepare` مرة أخرى، فيأخذه الحساب ويبقى الباقي (DOC-S11 §5) | الاشتباه نفسه |
 | `bankfas_monitor` | كل 90 يومًا، بإعادة `provision_monitor.sh` بسر جديد (حساب واحد: دقيقة بلا مراقبة مقبولة) | الاشتباه نفسه |
 | حسابات المديرين الشخصية | كل 90 يومًا | ترك صاحبها العمل: يُعطَّل الحساب في اليوم نفسه |
 | `breakglass` | بعد كل استعمال، وسنويًا | فتح الظرف لأي سبب |
@@ -151,7 +152,7 @@ sequenceDiagram
 |---|---|---|---|
 | `tp_app` | منح جدولية صريحة (db/generated/tsql/007_table_grants.sql، 190 سطرًا)، وحذف على الجداول القابلة للحذف (db/generated/tsql/005_delete_grants.sql:8-43)، و`EXECUTE` على إجراءات الجلسة الأربعة (db/static/030_session_context.sql:229-232)، وقراءة مخطط `rls` (db/static/010_rls.sql:19) والعرضين (db/static/025_tenant_views.sql:17، :29) | لا كتابة على العالمي، ولا شيء على `noapp` (tools/dbgen/check_grants.py:5-6)، ولا قراءة بصمات كلمات المرور ولا إنشاء جلسات (db/static/030_session_context.sql:237-239)، ولا تعديل التدقيق أو حذفه (db/static/020_roles_and_grants.sql:65) | ما زال يحدّث `PasswordHash` ومهلة الخمول (O-24). ويملك حذف `sec.LoginAttempt` (db/generated/tsql/005_delete_grants.sql:11)، والأثر الدائم للمحاولات ليس في `aud.AuditLog` كما يقول القاموس (docs/21-data-dictionary.md:345) بل في `sec.LoginAttempt` وحده (db/static/030_session_context.sql:124-129). المقترح: نزع الحذف أو كتابة الأثر في التدقيق (DQ-S08-8) |
 | `tp_platform` | قراءة وإدراج وتحديث على الجداول العالمية و`plat` والمختلطة، وقراءة وإدراج على `aud.AuditLog` (db/generated/tsql/007_table_grants.sql:9-20، :29، :55، :66، :83، :142، :145، :360، :363)، وتجاوز دوال الصفوف (db/static/010_rls.sql:48) | لا منح على جداول المشترك (docs/20-database-design.md:117)، ولا قراءة للربط (db/static/020_roles_and_grants.sql:60)، ولا حذف | يقرأ `PasswordHash` و`MfaSecretEnc` للمشغّلين (db/generated/tsql/007_table_grants.sql:18). المقترح: `DENY` على العمودين بعد 007 وإجراء دخول للمشغّل على نمط `usp_StartSession` (DQ-S08-7). ويحدّث حالة المشترك مباشرة (DQ-F05-5). أما قراءته تدقيق كل المشتركين (DQ-F04-7) فصُحّحت في 1f0f0af: لا يقرأ إلا أحداث المنصة (`TenantId` فارغ، db/static/010_rls.sql:83، T38) |
-| `tp_readonly` | قراءة كل المخططات (db/static/020_roles_and_grants.sql:41-53) دون 29 عمودًا مقيّدًا (db/generated/tsql/006_sensitive_columns.sql:7-35) | لا قراءة لسجل المشتركين والوحدات والمشغّلين والربط (db/static/020_roles_and_grants.sql:55-63) | يخضع لـRLS ولا يملك `EXECUTE` على إجراء الربط، فلا يرى اليوم أي صف مشترك، بل الصفوف العالمية فقط. لا يُنشأ له حساب حتى تُحسم حالة استعمال (DQ-S08-6) |
+| `tp_readonly` | قراءة كل المخططات (db/static/020_roles_and_grants.sql:41-53) دون 31 عمودًا مقيّدًا (db/generated/tsql/006_sensitive_columns.sql)، ودون الدوال الداخلية في rls وsec وplat وcfg و`lc.BeneficiaryIbanChange` (db/static/090_readonly_denies.sql، المراجعة الذاتية A5، SR7) | لا قراءة لسجل المشتركين والوحدات والمشغّلين والربط (db/static/020_roles_and_grants.sql:55-63) | يخضع لـRLS ولا يملك `EXECUTE` على إجراء الربط، فلا يرى اليوم أي صف مشترك، بل الصفوف العالمية فقط. لا يُنشأ له حساب حتى تُحسم حالة استعمال (DQ-S08-6) |
 | `tp_migrator` | دور فارغ (db/static/020_roles_and_grants.sql:9) | كل شيء | المقترح: حساب الترحيل عضو في `db_owner` أثناء النشر فقط، لأن `deploy.sql` ينشئ القاعدة والأدوار والمستخدمين والسياسات (db/deploy.sql:17-34). يُعطَّل خارج النافذة. أداة الترحيل بين الإصدارات قرار مفتوح (O-2 في docs/20-database-design.md:530) |
 | `tp_auth` و`tp_auth_exec` | قراءة المستخدم والمشترك، وتحديث المستخدم، وكتابة الجلسات ومحاولات الدخول والربط (db/static/020_roles_and_grants.sql:38-39، :59، :67-69) | لا تسجيل دخول | يحتاج قراءة `sec.UserRole` و`sec.Role` إن اعتُمد DQ-F04-1. والقاعدة R6 تحصر منحه في هذه الجداول الخمسة ويشغّلها CI منذ e5ea45e (tools/dbgen/check_grants.py:81-87، tools/ci/db_ci.sh:49)؛ وصفها في رأس الملف ما زال قديمًا (§12) |
 | `tp_jobs` و`tp_support` | ✅ منشآن (ADR 0004) | db/static/036 و037 | `tp_jobs` عضو في `tp_app` مع `EXECUTE` على ربط المهام وقائمة المشتركين والانتقالات والدعوة الأولى؛ `tp_support` عضو في `tp_readonly` مع `EXECUTE` على ربط الدعم فقط |
@@ -231,7 +232,7 @@ sequenceDiagram
 2. db/static/020_roles_and_grants.sql:9 يصف `tp_migrator` بأنه «مالك مخطط النشر»، والمخططات يملكها `dbo` (db/generated/tsql/000_schemas.sql:6-45) والدور بلا منح.
 3. docs/20-database-design.md:267 ما زال يصف منح `tp_app` قبل 1944f8c («`EXECUTE` على `sec.usp_SetSessionContext` فقط»)، والمنفّذ يمنح الإجراءات الأربعة (db/static/030_session_context.sql:229-232). صف `tp_auth` في :269 صُحّح (التفصيل في DOC-F04 §9).
 4. docs/21-data-dictionary.md:345 يقول إن الأثر الدائم لمحاولات الدخول في `aud.AuditLog`، والإجراء يكتبها في `sec.LoginAttempt` فقط (db/static/030_session_context.sql:124-129)، و`tp_app` يستطيع حذفها (db/generated/tsql/005_delete_grants.sql:11).
-5. db/deploy.sql:9 يمرر كلمة المرور في سطر الأوامر في مثاله، وهذا يخالف القاعدة في §5.
+5. ✅ صُحّح: كان db/deploy.sql:9 يمرر كلمة المرور في سطر الأوامر في مثاله. لم يعد فيه مثال يدوي: deploy.sql لا يعمل إلا عبر tools/deploy/deploy.sh بعد فحص ما قبل النشر في الجلسة نفسها (50146، المراجعة الذاتية E5)، وكلمة المرور من `SQLCMDPASSWORD`.
 
 ## 13. التتبع
 

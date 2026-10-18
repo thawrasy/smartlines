@@ -63,10 +63,10 @@ health="$(as_monitor "SET NOCOUNT ON; USE [BankFas];
 SELECT CONCAT((SELECT COUNT(*) FROM sys.dm_db_log_space_usage), '/', SIGN((SELECT COUNT(*) FROM sys.dm_exec_sessions)), '/',
               (SELECT COUNT(*) FROM msdb.dbo.backupset WHERE 1 = 0), '/',
               (SELECT COUNT(*) FROM sys.dm_server_audit_status WHERE name = N'BankFas_Audit' AND status_desc = N'STARTED'));" | tail -n 1 || true)"
-if ! grep -q '^DIFF' <<< "$post" && [ "$(grep -c '^ok ' <<< "$post")" -eq 10 ] \
+if ! grep -q '^DIFF' <<< "$post" && [ "$(grep -c '^ok ' <<< "$post")" -eq 14 ] \
    && [[ "$audit_check" == "audit in place and writing"* ]] && grep -q '^AL-18 alerts since' <<< "$audit_alerts" \
    && [ "$health" = "1/1/0/1" ]; then
-    echo "PASS MN2: the monitoring login runs the post-deployment check (10 checks), the audit check and alerts, and the health queries"
+    echo "PASS MN2: the monitoring login runs the post-deployment check (14 checks), the audit check and alerts, and the health queries"
 else
     echo "FAIL MN2: post-deployment [$post], audit check [$audit_check], alerts [$(tail -n 1 <<< "$audit_alerts")], health [$health]"
 fi
@@ -85,16 +85,18 @@ else
     echo "FAIL MN3: $refused of 6 refused, logins/hashes seen $hashes"
 fi
 
-# MN4: the post-deployment check it runs finds a disabled security policy, and passes again once it is enabled.
+# MN4: the post-deployment check it runs finds a disabled security policy and a disabled trigger (self-review C6), and
+# passes again once both are enabled.
 policy="$(sa_run "SET NOCOUNT ON; USE [BankFas]; SELECT TOP 1 QUOTENAME(SCHEMA_NAME(schema_id)) + '.' + QUOTENAME(name) FROM sys.security_policies ORDER BY name;" | tail -n 1)"
-sa_run "USE [BankFas]; ALTER SECURITY POLICY $policy WITH (STATE = OFF);" >/dev/null
+sa_run "USE [BankFas]; ALTER SECURITY POLICY $policy WITH (STATE = OFF); ALTER TABLE fac.Limit DISABLE TRIGGER TR_Limit_ApprovedFrozen;" >/dev/null
 rc_off=0; off="$(deployed_check)" || rc_off=$?
-sa_run "USE [BankFas]; ALTER SECURITY POLICY $policy WITH (STATE = ON);" >/dev/null
+sa_run "USE [BankFas]; ALTER SECURITY POLICY $policy WITH (STATE = ON); ALTER TABLE fac.Limit ENABLE TRIGGER TR_Limit_ApprovedFrozen;" >/dev/null
 rc_on=0; deployed_check >/dev/null || rc_on=$?
-if [ "$rc_off" -eq 1 ] && grep -q '^DIFF disabled policies .*deployed=    1' <<< "$off" && [ "$rc_on" -eq 0 ]; then
-    echo "PASS MN4: the post-deployment check finds a disabled security policy and passes once it is enabled again"
+if [ "$rc_off" -eq 1 ] && grep -q '^DIFF disabled policies .*deployed=    1' <<< "$off" \
+   && grep -q '^DIFF disabled triggers .*deployed=    1' <<< "$off" && [ "$rc_on" -eq 0 ]; then
+    echo "PASS MN4: the post-deployment check finds a disabled security policy and a disabled trigger, and passes once they are enabled again"
 else
-    echo "FAIL MN4: with the policy off exit $rc_off [$(grep 'policies' <<< "$off" | tr '\n' ' ')], after enabling exit $rc_on"
+    echo "FAIL MN4: with the policy and the trigger off exit $rc_off [$(grep 'disabled' <<< "$off" | tr '\n' ' ')], after enabling exit $rc_on"
 fi
 
 # MN5: a right added by hand stops the next provisioning: a row right in BankFas (50131), a server role or a broader

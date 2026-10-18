@@ -42,8 +42,8 @@
 
 ## 3. وسوم الحساسية في النموذج
 
-- **المقيّد:** 29 عمودًا. لكل منها `DENY SELECT` لـ`tp_readonly` (db/generated/tsql/006_sensitive_columns.sql:7-35). الفحص R7 يطابق العددين (tools/dbgen/check_grants.py:92-96)، والاختبار T21 يثبت الرفض (db/tests/tenant_isolation_tests.sql:704-711).
-- **السرّي:** 23 عمودًا موسومًا، **بلا DENY** لأي دور. `tp_readonly` يقرؤها متى رأى الصف (DQ-F02-3).
+- **المقيّد:** 31 عمودًا (2026-10-18). لكل منها `DENY SELECT` لـ`tp_readonly` (db/generated/tsql/006_sensitive_columns.sql). الفحص R7 يطابق العددين (tools/dbgen/check_grants.py:92-96)، والاختبار T21 يثبت الرفض (db/tests/tenant_isolation_tests.sql:704-711).
+- **السرّي:** 42 عمودًا موسومًا في قاموس البيانات (2026-10-18، ومنها `OriginalText` لكل جدول بختم مصدر)، **بلا DENY** لأي دور. `tp_readonly` يقرؤها متى رأى الصف (DQ-F02-3).
 - **التطبيق `tp_app` يقرأ كل المقيّد في جداول المشترك عدا `sec.AppUser.PasswordHash`** (db/static/030_session_context.sql:237؛ الاختبار T35)، ولا يصل إلى `plat.PlatformOperator` لأنه `noapp`. القيم المقيّدة في الأعمدة نص مشفّر أو تجزئة، فالقراءة وحدها لا تكشفها دون مفتاح البيانات.
 - **استثناء خطر:** `tp_app` يقرأ `sec.UserPasswordHistory.PasswordHash` (db/generated/tsql/007_table_grants.sql:46) بلا DENY. إن كتب التطبيق التجزئة الحالية في السجل، أمكن اتصالًا مربوطًا قراءتها وتمريرها إلى `usp_StartSession`، فيسقط شرط «لا إعادة تشغيل للتجزئة» في docs/adr/0002-login-and-session-bound-context.md:24. المعالجة مع O-24 (erd_open_items) في DOC-S01.
 

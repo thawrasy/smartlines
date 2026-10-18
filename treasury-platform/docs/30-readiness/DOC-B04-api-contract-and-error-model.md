@@ -27,7 +27,7 @@
 | Idempotency | 14 ورودًا في 13 و14 (Idempotency-Key وIdempotencyKey): 13-m6…:156، :249، :254، :309، :310، :344، :675؛ 14-m7-m8…:187، :278، :313، :654 | docs/10-detailed-analysis/ |
 | حالة التعارض | «التعارض 409 مع الحالة الحالية»، والمفتاح يُخزَّن 24 ساعة ويعيد الاستجابة نفسها 🟢 | 13-m6…:156، :254، :550؛ 14-m7-m8…:187 |
 | PublicId | يضيفه المولّد لكل جدول بعلامة public؛ 38 جدولًا؛ لا يُعرَّض BIGINT عبر API | tools/dbgen/README.md:39؛ docs/20-database-design.md:137 |
-| RowVersion في القاعدة | عمود ROWVERSION لكل جدول مملوك للمشترك إلا append وnorv وnoaudit؛ 160 جدولًا في DDL | tools/dbgen/dbgen.py:493؛ db/generated/tsql/001_tables.sql |
+| RowVersion في القاعدة | عمود ROWVERSION لكل جدول مملوك للمشترك إلا append وnorv وnoaudit؛ 159 جدولًا في DDL (2026-10-18) | tools/dbgen/dbgen.py:493؛ db/generated/tsql/001_tables.sql |
 | رموز التحقق | 95 رمزًا V-XXX-nn بشدة E أو W؛ لا رموز لـ PLT وORG وPTY | §9 في 11-m2-m4…:488، 12-m5…:481، 13-m6…:542، 14-m7-m8…:549؛ 10-m0-m1…:497 |
 | أخطاء القاعدة | 50001 إلى 50005 في 030، و50071 و50072 في 050، و33504 من RLS | db/static/030_session_context.sql:54-202؛ db/static/050_fac_share_rule.sql:57، :92؛ db/tests/tenant_isolation_tests.sql:152-164 |
 | مبدأ عام | أخطاء الأعمال تُعاد رموزًا ثابتة للـ API لا نصوص SQL 🟢 | docs/20-database-design.md:242 |

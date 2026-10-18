@@ -508,6 +508,7 @@ table lc.LcAmendment  # Amendment to an issued or received letter of credit (FR-
   AppliedBy               ->sec.AppUser noidx
   ReservationDeltaApplied money            # فرق الحجز/الاستغلال المطبَّق فعلًا على 12
   Reason                  str(1000)
+  WithdrawalDocumentId    ->doc.Document   # تأكيد البنك المكتوب لسحب تعديل بعد إصداره (DQ-F12-7، B7e)
   unique LcId,AmendmentNo where AmendmentNo IS NOT NULL   # فريد (LcId, AmendmentNo) حين يوجد الرقم
   unique RequestId where RequestId IS NOT NULL
   unique TermsId
@@ -521,6 +522,7 @@ table lc.LcAmendment  # Amendment to an issued or received letter of credit (FR-
   check  Status = 'DRAFT' OR (ChangeKinds NOT LIKE '%INCREASE_AMOUNT%' AND ChangeKinds NOT LIKE '%DECREASE_AMOUNT%') OR NewAmount IS NOT NULL
   check  Status = 'DRAFT' OR ChangeKinds NOT LIKE '%EXTEND_EXPIRY%' OR NewExpiryDate IS NOT NULL
   check  NewAmount IS NULL OR NewAmount > 0
+  check  Status <> 'WITHDRAWN' OR BankIssuedOn IS NULL OR (WithdrawalDocumentId IS NOT NULL AND Reason IS NOT NULL)   # السحب بعد إصدار البنك بتأكيده وسبب (DQ-F12-7)
   check  Status NOT IN ('BANK_ISSUED','APPLIED') OR (AmendmentNo IS NOT NULL AND BankIssuedOn IS NOT NULL)   # التسجيل عند صدور البنك
   check  Status <> 'APPLIED' OR (BeneficiaryResponse = 'ACCEPTED' AND AppliedOn IS NOT NULL AND AppliedBy IS NOT NULL)   # التطبيق عند القبول فقط (BR-LCI-012)
   check  BeneficiaryResponse IS NULL OR BeneficiaryResponse = 'PENDING' OR RespondedOn IS NOT NULL

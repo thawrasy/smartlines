@@ -14,11 +14,15 @@
                  It ends at the next 1104 of the same login, which the scripts write even when they fail, or after
                  one hour.
    A window silences the GRANT, AUDIT and SCHEMA rules only for the login that declared it, and a deployment window
-   also for bankfas_migrator; changes by anyone else in the same hour still alert. A declaration from a service login
-   does not count. Each one carries its administrator and change reference, and the monthly review matches them with
+   also for bankfas_migrator; changes by anyone else in the same hour still alert. sys.sp_audit_write is open to every
+   login, so a declaration proves nothing by itself (self-review E1): a deployment window counts only when the login
+   that declared it enabled bankfas_migrator within a minute after, which needs ALTER ANY LOGIN and is audited
+   itself; and no declaration from a service login, bankfas_migrator or bankfas_monitor counts. A declaration that
+   does not count raises WINDOW. Each one carries its administrator and change reference, and the monthly review matches them with
    the deployment log (DOC-S11 section 10): the windows report lists them.
 
    Rules, all A1 (AL-18 in DOC-S12 section 6):
+     WINDOW         a window declared by a login whose declaration does not count (above)           any time
      BREAKGLASS     a login with breakglass, successful or failed                                    any time
      SA             a change to the sa login (principal 1), except disabling it                    any time
      SERVER_RIGHTS  a server role member added or dropped, or a server permission changed          any time
@@ -30,7 +34,13 @@
      GRANT          a permission granted, denied or revoked, a database role member added or dropped, an ownership
                     taken, or a security policy created, altered or dropped                       outside its login's window
      AUDIT          the audit or one of its specifications altered or dropped (creating one adds
-                    records)                                                                      outside its login's window
+                    records)                       outside its login's window, and never silenced for bankfas_migrator:
+                                                   no deployment touches the audit (self-review E2)
+     LOGINS         a login renamed (a renamed breakglass would escape BREAKGLASS)                 any time
+                    a login created or dropped                                                    outside its login's window
+     SERVER_CONFIG  a server setting changed (RECONFIGURE), a credential or a linked server created, altered or
+                    dropped, or an object created, altered or dropped in master or msdb           outside its login's window
+                    (self-review E6)
      SCHEMA         BankFas or one of its objects created, altered or dropped, except index and statistics
                     maintenance                                                                   outside its login's window
    Errors: 50122 the report is not ALERTS or WINDOWS.
@@ -65,7 +75,11 @@ OUTER APPLY (SELECT MIN(e.event_time) AS closed
                AND ((o.user_defined_event_id = 1101 AND e.user_defined_event_id = 1102)
                     OR (o.user_defined_event_id = 1103 AND e.user_defined_event_id = 1104 AND e.who = o.who))) AS c
 WHERE o.action_id = 'UDAU' AND o.user_defined_event_id IN (1101, 1103) AND o.succeeded = 1
-  AND o.who NOT IN (SELECT name FROM @svc);
+  AND o.who NOT IN (SELECT name FROM @svc) AND o.who NOT IN (N'bankfas_migrator', N'bankfas_monitor')
+  AND (o.user_defined_event_id = 1103
+       OR EXISTS (SELECT 1 FROM #a AS g
+                  WHERE g.action_id = 'LGEA' AND g.class_type = 'SL' AND g.object_name = N'bankfas_migrator' AND g.succeeded = 1
+                    AND g.who = o.who AND g.event_time BETWEEN o.event_time AND DATEADD(MINUTE, 1, o.event_time)));
 
 IF '$(BANKFAS_ALERTS_REPORT)' = 'WINDOWS'
 BEGIN
@@ -89,6 +103,9 @@ WITH e AS (
 ), r AS (
     SELECT e.*,
            CASE
+             WHEN action_id = 'UDAU' AND user_defined_event_id IN (1101, 1103)
+                  AND NOT EXISTS (SELECT 1 FROM #w AS w WHERE w.opened = e.event_time AND w.opened_by = e.who
+                                                          AND w.kind = e.user_defined_event_id) THEN 'WINDOW'
              WHEN action_id IN ('LGIS', 'LGIF') AND server_principal_name = N'breakglass' THEN 'BREAKGLASS'
              WHEN class_type = 'SL' AND object_id = 1 AND action_id <> 'LGDA' THEN 'SA'
              WHEN (class_type = 'SG' AND action_id IN ('APRL', 'DPRL'))
@@ -105,7 +122,12 @@ WITH e AS (
              WHEN in_window = 0
                   AND (action_id IN ('G', 'GWG', 'D', 'R', 'APRL', 'DPRL', 'TO')
                        OR (class_type = 'SP' AND action_id IN ('CR', 'AL', 'DR'))) THEN 'GRANT'
-             WHEN in_window = 0 AND class_type IN ('A', 'SA', 'DA') AND action_id IN ('AL', 'DR') THEN 'AUDIT'
+             WHEN (in_window = 0 OR who = N'bankfas_migrator') AND class_type IN ('A', 'SA', 'DA') AND action_id IN ('AL', 'DR') THEN 'AUDIT'
+             WHEN class_type = 'SL' AND (action_id = 'LGNM' OR (action_id IN ('CR', 'DR') AND in_window = 0)) THEN 'LOGINS'
+             WHEN in_window = 0
+                  AND (action_id = 'ALST'
+                       OR (class_type IN ('CD', 'SR') AND action_id IN ('CR', 'AL', 'DR'))
+                       OR (database_name IN (N'master', N'msdb') AND action_id IN ('CR', 'AL', 'DR') AND class_type NOT IN ('SL', 'DB'))) THEN 'SERVER_CONFIG'
              WHEN in_window = 0 AND action_id IN ('CR', 'AL', 'DR')
                   AND ((database_name = N'BankFas' AND class_type <> 'DB') OR (class_type = 'DB' AND object_name = N'BankFas'))
                   AND NOT (class_type = 'U' AND action_id = 'AL'

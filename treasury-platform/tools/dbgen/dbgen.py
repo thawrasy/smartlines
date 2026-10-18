@@ -235,6 +235,10 @@ def expand(tables):
             if c.redact:
                 t.checks.append((f"{c.name} IS NULL OR ({c.name} COLLATE Arabic_100_BIN2 NOT LIKE '%[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]%'"
                                  f" AND {c.name} COLLATE Arabic_100_BIN2 NOT LIKE '%[A-Za-z][A-Za-z][0-9][0-9] [0-9][0-9][0-9][0-9] [0-9][0-9][0-9][0-9] [0-9][0-9][0-9][0-9]%')", w))
+        # BR-FAC-018 (self-review B7b): a value entered without a source document carries the reason why.
+        if 'src' in f:
+            # NoSourceReason IS NOT NULL first: a CHECK passes when it evaluates to UNKNOWN, as LEN(NULL) > 0 does.
+            t.checks.append(('SourceDocumentId IS NOT NULL OR (NoSourceReason IS NOT NULL AND LEN(LTRIM(RTRIM(NoSourceReason))) > 0)', w))
         # public id
         if 'public' in f and 'PublicId' not in t.colmap:
             c = mkcol('PublicId','guid',w,True,'NEWSEQUENTIALID()'); t.cols.append(c); t.colmap['PublicId'] = c

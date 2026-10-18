@@ -24,11 +24,11 @@
 
 | البند | الحالة | المصدر |
 |---|---|---|
-| حالات العزل | 41 حالة: T1 إلى T38 مع T8b وT16b وT16c، بصفة tp_app وtp_readonly وtp_platform، في معاملة واحدة تُلغى | db/tests/tenant_isolation_tests.sql:1-19، :21-27 |
-| حالات قاعدة الحصص | 6 حالات للمحفّز V-FAC-02، سلامة أعمال لا أمن | db/tests/fac_share_rule_tests.sql:2، :47-150 |
+| حالات العزل | 48 حالة: T1 إلى T38 مع T8b وT16b وT16c، وT40 إلى T46، بصفة tp_app وtp_readonly وtp_platform، في معاملة واحدة تُلغى؛ وT32 يجرب أربعة رموز: خاطئ، ومنتهٍ بالخمول، ومنتهٍ بالحد المطلق، ولجلسة منتهية (المراجعة الذاتية C1) | db/tests/tenant_isolation_tests.sql:1-19، :21-27 |
+| حالات قاعدة الحصص | 7 حالات للمحفّز V-FAC-02 (T1 إلى T6 وT2b)، سلامة أعمال لا أمن | db/tests/fac_share_rule_tests.sql:2، :47-150 |
 | قواعد المنح الثابتة | R1 إلى R10 بلا SQL Server | tools/dbgen/check_grants.py:4-16 |
-| CI | الخطوة 3 للمنح، و6 للحصص (6 PASS بالضبط)، و7 للعزل (41 PASS بالضبط) | tools/ci/db_ci.sh:47-49، :59-74، :75-92 |
-| خط GitHub | في جذر المستودع، يعمل عند تغيّر db/ أو tools/dbgen/ أو tools/ci/؛ أول تشغيل أخضر في 2026-10-12 بـ 6 و41 حالة | ../.github/workflows/treasury-db-ci.yml (جذر المستودع):7-21؛ O-02 (tools/dbgen/erd_open_items.py:22) |
+| CI | الخطوة 3 للمنح، و6 للحصص (7 PASS بالضبط)، و7 للعزل (48 PASS بالضبط)، و19 لإصلاحات المراجعة ومنها SR7: دور التقارير لا يقرأ دالة داخلية (43 PASS)، و23 لما تركته الاختبارات | tools/ci/db_ci.sh:47-49، :59-74، :75-92 |
+| خط GitHub | في جذر المستودع، يعمل عند تغيّر db/ أو tools/dbgen/ أو tools/ci/؛ أول تشغيل أخضر في 2026-10-12 بـ 6 و41 حالة يومها | ../.github/workflows/treasury-db-ci.yml (جذر المستودع):7-21؛ O-02 (tools/dbgen/erd_open_items.py:22) |
 | اختبارات API والمتصفح | لا توجد، لأن التطبيق غير موجود | O-09 (erd_open_items، tools/dbgen/erd_open_items.py:62-66) |
 | المطلوب في المواصفات | «اختبار آلي لكل نقطة API ضد IDOR وضد عبور المشتركين» | docs/10-detailed-analysis/13-m6-workflow-engine-notifications.md:687؛ docs/10-detailed-analysis/14-m7-m8-letters-of-credit.md:666 |
 | الهدف الأمني | ASVS المستوى 2، واختبار اختراق قبل التجربة (S5) | docs/10-detailed-analysis/00-overview-and-cross-cutting.md:140؛ docs/10-detailed-analysis/10-m0-m1-platform-organization.md:591 |

@@ -14,6 +14,9 @@ on:
       - 'treasury-platform/tools/ci/**'
       - 'treasury-platform/tools/deploy/**'
       - 'treasury-platform/versions.json'
+      # the permission seed is generated from the readiness documents and the specs' role matrices (step 2)
+      - 'treasury-platform/docs/30-readiness/**'
+      - 'treasury-platform/docs/10-detailed-analysis/**'
       - '.github/workflows/treasury-db-ci.yml'
   pull_request:
     paths:
@@ -22,6 +25,9 @@ on:
       - 'treasury-platform/tools/ci/**'
       - 'treasury-platform/tools/deploy/**'
       - 'treasury-platform/versions.json'
+      # the permission seed is generated from the readiness documents and the specs' role matrices (step 2)
+      - 'treasury-platform/docs/30-readiness/**'
+      - 'treasury-platform/docs/10-detailed-analysis/**'
       - '.github/workflows/treasury-db-ci.yml'
   workflow_dispatch:
 
@@ -40,8 +46,9 @@ jobs:
       sqlserver:
         # The SQL Server build of the release register treasury-platform/versions.json, on Ubuntu 24.04 like the
         # production VPS (ADR 0001, DQ-B01-2). db_ci.sh step 3 fails when the two differ, and the deployment preflight
-        # (gate G4, ADR 0014) refuses a server of another build.
-        image: mcr.microsoft.com/mssql/server:2025-CU9-GDR1-ubuntu-24.04
+        # (gate G4, ADR 0014) refuses a server of another build. The digest fixes the image itself, not only its tag
+        # (self-review E13); step 3 compares it with versions.json too.
+        image: mcr.microsoft.com/mssql/server:2025-CU9-GDR1-ubuntu-24.04@sha256:742481d1b1186cccc81220a1eaacef244ca8d0f7d19c8e5c70df8ae541ffbab2
         env:
           ACCEPT_EULA: 'Y'
           MSSQL_PID: Developer
@@ -52,12 +59,16 @@ jobs:
     env:
       SA_PASSWORD: 'CiOnly-Ephemeral-Passw0rd!'
       SQL_SERVER: 'localhost,1433'
+    # The actions are pinned to their commits (actions/checkout v4.4.0, actions/setup-python v5.6.0): a moved tag
+    # cannot change what runs here (self-review E13).
     steps:
       - name: Check out the repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
           python-version: '3.12'
 

@@ -76,7 +76,8 @@
 
 | الرمز | الأدوار الافتراضية | الإجراء الذي يسده | المصدر | حالة الاستخدام |
 |---|---|---|---|---|
-| `fac.status.manage` | TM، FO | حسم «السريان غير المؤكد»، وتعليق التسهيل وإعادته وإنهاؤه | 12-m5:115، :451 | UC-FAC-07 |
+| `fac.lifecycle.manage` | TM، FO | حسم «السريان غير المؤكد» وإنهاء التسهيل (✅ DQ-F14-1) | 12-m5:115، :451 | UC-FAC-07 |
+| `fac.lifecycle.suspend` | TM | تعليق التسهيل ورفع التعليق، لمدير الخزينة وحده (✅ DQ-F14-1) | 12-m5:451 | UC-FAC-07 |
 | `cmp.term.propose` | FO، TM | اقتراح مفتاح شرط جديد وترقية OTHER | 12-m5:224، :71 | UC-CMP-01 |
 | `acc.signature.image.view` 🔒 | TM، FO | عرض صورة نموذج التوقيع وتنزيلها | 11-m2-m4:158، :621 | UC-ACC-04 |
 | `wfl.request.migrate` | TM، TA | نقل طلب جارٍ إلى نسخة قالب أحدث | 13-m6:153 | UC-WFL-18 |
@@ -1089,7 +1090,7 @@ flowchart LR
 
 ### UC-FAC-07 — السريان: التنبيه والحسم والتعليق
 
-- **الفاعل · الشريحة · الصلاحية:** النظام (JOB-FAC-VALIDITY)؛ FO أو TM للحسم والتعليق · S2 · `fac.status.manage` 🟡
+- **الفاعل · الشريحة · الصلاحية:** النظام (JOB-FAC-VALIDITY)؛ FO أو TM للحسم والإنهاء بـ `fac.lifecycle.manage`، وTM وحده للتعليق ورفعه بـ `fac.lifecycle.suspend` · S2 ✅ DQ-F14-1
 - **قبل:** تسهيل ACTIVE أو SUSPENDED.
 - **بعد:** المؤشر محسوب يوميًا؛ أو LifecycleStatus في SUSPENDED أو EXPIRED أو TERMINATED بسبب (db/model/13-facilities-pricing-terms.model:65)، أو تمديد بمراجعة.
 - **يغطي:** FR-FAC-007، FR-FAC-008، BR-FAC-005، NTF-FAC-01، NTF-FAC-02 · **القبول:** AC-FAC-6
@@ -2607,7 +2608,7 @@ flowchart LR
 1. إقفال الطلب: القاعدة BR-WFL-027 والصلاحية `req.treasury.close` في docs/20-database-design.md:396-403، والحالة AWAITING_CLOSE وقيد الإقفال في db/model/15-workflow-notifications.model:257 و:325؛ أما 13-m6 فتنهي الطلب COMPLETED عند آخر مرحلة (13-m6:521) ولا متطلب FR للإقفال. يحسمه DOC-F08 وDQ-F09-2.
 2. إعادة فتح العلاقة: المصفوفة تعطي `ins.deactivate` لـ TA وTM (11-m2-m4:50)، وجدول الحالات يقصرها على TM (11-m2-m4:451). DQ-F09-3.
 3. FR-ACC-022 في S1 (11-m2-m4:158)، والحقل SpecimenDocumentId على سجل المفوّض وهو S1-ب (11-m2-m4:281)؛ وDOC-B02 يسجّل AC-ACC-6 «S1، ويُنفَّذ بعد S1-ب» (docs/30-readiness/DOC-B02-acceptance-criteria-register-s0-s1.md:88). DQ-F09-5.
-4. حسم «السريان غير المؤكد» لـ FO وTM (12-m5:115) والتعليق لـ TM (12-m5:451) بلا رمز صلاحية في المصفوفة (12-m5:48-71). المقترح `fac.status.manage` (§3.2).
+4. حسم «السريان غير المؤكد» لـ FO وTM (12-m5:115) والتعليق لـ TM (12-m5:451) بلا رمز صلاحية في المصفوفة (12-m5:48-71). ✅ اعتُمد `fac.lifecycle.manage` لـ TM وFO و`fac.lifecycle.suspend` لـ TM وحده (DQ-F14-1، §3.2).
 5. الفك اليدوي للحجز: سبب MANUAL في BR-FAC-015 (12-m5:253) والحدث `released_externally` (13-m6:311)، ولا فاعل ولا صلاحية ولا إجراء شاشة له في 12-m5:48-71 و:412. DQ-F09-4.
 6. ترقية OTHER: FR-CMP-004 «اقتراح FO» (12-m5:224)، والمصفوفة تعطي FO قراءة فقط على `cmp.manage` (12-m5:71). المقترح `cmp.term.propose` (§3.2).
 7. FR-WFL-032 «بصلاحية» بلا رمز (13-m6:153). المقترح `wfl.request.migrate` (§3.2).

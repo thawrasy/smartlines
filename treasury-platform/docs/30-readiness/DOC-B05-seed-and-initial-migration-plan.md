@@ -96,7 +96,7 @@ flowchart TD
 |---|---|---|---|---|
 | CORE.ROLES | sec.Role، sec.RolePermission | أدوار النظام TA وTM وFO وTE وFA وRQ وAU، بـ IsSystem=1 وSeedKey | 12-m5…:46؛ 10-m0-m1…:39-70؛ db/model/10-platform.model:156-167 | S0 |
 | CORE.NUMBERING | cfg.NumberSequenceDefinition | REQUEST وPROFORMA وغيرهما، بـ GapPolicy، وغير مفعّلة حتى يفعّلها TA 🟡 | db/model/10-platform.model:443-453؛ BR-ORG-001 | S0 |
-| CAT.DOCTYPES | cat.DocumentType | 42 نوعًا بأعلامها، ويُضاف النوع النظامي `DATA_EXPORT_PACKAGE` (عام، حساس، مقفل) لحزم التصدير، فتصير 43 (ADR 0008) | 11-m2-m4…:330؛ FR-CAT-018 (:181) | S0، لأن مخزن المستندات FR-PLT-028 في S0 |
+| CAT.DOCTYPES | cat.DocumentType | 42 نوعًا بأعلامها، ويُضاف النوع النظامي `DATA_EXPORT_PACKAGE` (عام، حساس، مقفل) لحزم التصدير، فتصير 43 (ADR 0008). ✅ وحزمة نوعٍ حساس تُكتب RESTRICTED ولو خلت من البيانات المقيّدة، كما يشترط 043 لوثائق الأنواع الحساسة (db/static/042_data_export.sql، المراجعة الذاتية A10، X7) | 11-m2-m4…:330؛ FR-CAT-018 (:181) | S0، لأن مخزن المستندات FR-PLT-028 في S0 |
 | CORE.DEPARTMENTS | org.Department | إدارة لكل Function: TREASURY وPROCUREMENT وSALES وFINANCE 🟡 | FR-PLT-008؛ FR-ORG-014 (10-m0-m1…:168)؛ 11-organization-party.model:56-68 | S1 |
 | CORE.EXPIRY | cfg.ExpiryAlertRule | قواعد الجدول §9.2 | 10-m0-m1…:517-526؛ db/model/10-platform.model:482-491 | S1 |
 | CAT.ORG | cat.LegalEntityType، cat.Position، cat.PowerType | 7 أشكال (5 🟢 و2 🟡)، 12 منصبًا، 10 أنواع صلاحية | 11-m2-m4…:326، :328-329، :351-380؛ Q-CAT-03؛ Q-ORG-10 | S1 |

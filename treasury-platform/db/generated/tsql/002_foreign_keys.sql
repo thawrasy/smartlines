@@ -375,6 +375,8 @@ ALTER TABLE [fac].[Utilization] ADD CONSTRAINT [FK_Utilization_LimitProductLineI
 ALTER TABLE [fac].[Utilization] ADD CONSTRAINT [FK_Utilization_CompanyId] FOREIGN KEY ([TenantId], [CompanyId]) REFERENCES [org].[Company] ([TenantId], [CompanyId]);
 ALTER TABLE [fac].[Utilization] ADD CONSTRAINT [FK_Utilization_CurrencyId] FOREIGN KEY ([CurrencyId]) REFERENCES [ref].[Currency] ([CurrencyId]);
 ALTER TABLE [fac].[Utilization] ADD CONSTRAINT [FK_Utilization_SourceRequestId] FOREIGN KEY ([TenantId], [CompanyId], [SourceRequestId]) REFERENCES [wfl].[Request] ([TenantId], [CompanyId], [RequestId]);
+ALTER TABLE [fac].[Utilization] ADD CONSTRAINT [FK_Utilization_TransferredToFacilityId] FOREIGN KEY ([TenantId], [FacilityId], [TransferredToFacilityId]) REFERENCES [fac].[Facility] ([TenantId], [PreviousFacilityId], [FacilityId]);
+ALTER TABLE [fac].[Utilization] ADD CONSTRAINT [FK_Utilization_TransferredToId] FOREIGN KEY ([TenantId], [TransferredToFacilityId], [TransferredToId]) REFERENCES [fac].[Utilization] ([TenantId], [FacilityId], [UtilizationId]);
 ALTER TABLE [fac].[LimitReservation] ADD CONSTRAINT [FK_LimitReservation_Tenant] FOREIGN KEY ([TenantId]) REFERENCES [plat].[Tenant] ([TenantId]);
 ALTER TABLE [fac].[LimitReservation] ADD CONSTRAINT [FK_LimitReservation_FacilityId] FOREIGN KEY ([TenantId], [FacilityId]) REFERENCES [fac].[Facility] ([TenantId], [FacilityId]);
 ALTER TABLE [fac].[LimitReservation] ADD CONSTRAINT [FK_LimitReservation_LimitId] FOREIGN KEY ([TenantId], [FacilityId], [LimitId]) REFERENCES [fac].[Limit] ([TenantId], [FacilityId], [LimitId]);
@@ -495,7 +497,7 @@ ALTER TABLE [obl].[ReportingObligation] ADD CONSTRAINT [FK_ReportingObligation_O
 ALTER TABLE [obl].[ReportingObligation] ADD CONSTRAINT [FK_ReportingObligation_SubmissionChannelId] FOREIGN KEY ([TenantId], [SubmissionChannelId]) REFERENCES [cat].[LookupItem] ([TenantId], [LookupItemId]);
 ALTER TABLE [obl].[ReportingObligation] ADD CONSTRAINT [FK_ReportingObligation_SupersedesId] FOREIGN KEY ([TenantId], [InheritedRootId], [SupersedesId]) REFERENCES [obl].[ReportingObligation] ([TenantId], [RootId], [ReportingObligationId]);
 ALTER TABLE [obl].[ReportingInstance] ADD CONSTRAINT [FK_ReportingInstance_Tenant] FOREIGN KEY ([TenantId]) REFERENCES [plat].[Tenant] ([TenantId]);
-ALTER TABLE [obl].[ReportingInstance] ADD CONSTRAINT [FK_ReportingInstance_ReportingObligationId] FOREIGN KEY ([TenantId], [ReportingObligationId]) REFERENCES [obl].[ReportingObligation] ([TenantId], [ReportingObligationId]);
+ALTER TABLE [obl].[ReportingInstance] ADD CONSTRAINT [FK_ReportingInstance_ReportingObligationId] FOREIGN KEY ([TenantId], [ReportingObligationRootId], [ReportingObligationId]) REFERENCES [obl].[ReportingObligation] ([TenantId], [RootId], [ReportingObligationId]);
 ALTER TABLE [obl].[ReportingInstance] ADD CONSTRAINT [FK_ReportingInstance_SubmissionChannelUsedId] FOREIGN KEY ([TenantId], [SubmissionChannelUsedId]) REFERENCES [cat].[LookupItem] ([TenantId], [LookupItemId]);
 ALTER TABLE [obl].[ReportingInstance] ADD CONSTRAINT [FK_ReportingInstance_EvidenceDocumentId] FOREIGN KEY ([TenantId], [EvidenceDocumentId]) REFERENCES [doc].[Document] ([TenantId], [DocumentId]);
 ALTER TABLE [obl].[ReportingInstance] ADD CONSTRAINT [FK_ReportingInstance_CurrencyId] FOREIGN KEY ([CurrencyId]) REFERENCES [ref].[Currency] ([CurrencyId]);
@@ -509,17 +511,18 @@ ALTER TABLE [obl].[CovenantAccount] ADD CONSTRAINT [FK_CovenantAccount_Tenant] F
 ALTER TABLE [obl].[CovenantAccount] ADD CONSTRAINT [FK_CovenantAccount_CovenantId] FOREIGN KEY ([TenantId], [CovenantId]) REFERENCES [obl].[Covenant] ([TenantId], [CovenantId]);
 ALTER TABLE [obl].[CovenantAccount] ADD CONSTRAINT [FK_CovenantAccount_BankAccountId] FOREIGN KEY ([TenantId], [BankAccountId]) REFERENCES [acc].[BankAccount] ([TenantId], [BankAccountId]);
 ALTER TABLE [obl].[CovenantTest] ADD CONSTRAINT [FK_CovenantTest_Tenant] FOREIGN KEY ([TenantId]) REFERENCES [plat].[Tenant] ([TenantId]);
-ALTER TABLE [obl].[CovenantTest] ADD CONSTRAINT [FK_CovenantTest_CovenantId] FOREIGN KEY ([TenantId], [CovenantId]) REFERENCES [obl].[Covenant] ([TenantId], [CovenantId]);
+ALTER TABLE [obl].[CovenantTest] ADD CONSTRAINT [FK_CovenantTest_CovenantId] FOREIGN KEY ([TenantId], [CovenantRootId], [CovenantId]) REFERENCES [obl].[Covenant] ([TenantId], [RootId], [CovenantId]);
 ALTER TABLE [obl].[CovenantTest] ADD CONSTRAINT [FK_CovenantTest_FormulaId] FOREIGN KEY ([TenantId], [FormulaId]) REFERENCES [fin].[MeasureFormula] ([TenantId], [MeasureFormulaId]);
 ALTER TABLE [obl].[CovenantTest] ADD CONSTRAINT [FK_CovenantTest_EvaluatedBy] FOREIGN KEY ([TenantId], [EvaluatedBy]) REFERENCES [sec].[AppUser] ([TenantId], [AppUserId]);
 ALTER TABLE [obl].[CovenantTest] ADD CONSTRAINT [FK_CovenantTest_EvidenceDocumentId] FOREIGN KEY ([TenantId], [EvidenceDocumentId]) REFERENCES [doc].[Document] ([TenantId], [DocumentId]);
 ALTER TABLE [obl].[CovenantTest] ADD CONSTRAINT [FK_CovenantTest_ReviewedBy] FOREIGN KEY ([TenantId], [ReviewedBy]) REFERENCES [sec].[AppUser] ([TenantId], [AppUserId]);
 ALTER TABLE [obl].[ObligationBreach] ADD CONSTRAINT [FK_ObligationBreach_Tenant] FOREIGN KEY ([TenantId]) REFERENCES [plat].[Tenant] ([TenantId]);
-ALTER TABLE [obl].[ObligationBreach] ADD CONSTRAINT [FK_ObligationBreach_ObligationId] FOREIGN KEY ([TenantId], [ObligationId]) REFERENCES [obl].[Obligation] ([TenantId], [ObligationId]);
-ALTER TABLE [obl].[ObligationBreach] ADD CONSTRAINT [FK_ObligationBreach_CovenantTestId] FOREIGN KEY ([TenantId], [CovenantTestId]) REFERENCES [obl].[CovenantTest] ([TenantId], [CovenantTestId]);
+ALTER TABLE [obl].[ObligationBreach] ADD CONSTRAINT [FK_ObligationBreach_ObligationId] FOREIGN KEY ([TenantId], [ObligationRootId], [ObligationId]) REFERENCES [obl].[Obligation] ([TenantId], [RootId], [ObligationId]);
+ALTER TABLE [obl].[ObligationBreach] ADD CONSTRAINT [FK_ObligationBreach_CovenantTestId] FOREIGN KEY ([TenantId], [CovenantRootId], [TestPeriodEnd], [CovenantTestId]) REFERENCES [obl].[CovenantTest] ([TenantId], [CovenantRootId], [PeriodEnd], [CovenantTestId]);
 ALTER TABLE [obl].[ObligationBreach] ADD CONSTRAINT [FK_ObligationBreach_ReportingInstanceId] FOREIGN KEY ([TenantId], [ReportingInstanceId]) REFERENCES [obl].[ReportingInstance] ([TenantId], [ReportingInstanceId]);
 ALTER TABLE [obl].[ObligationBreach] ADD CONSTRAINT [FK_ObligationBreach_WaiverBankContactId] FOREIGN KEY ([TenantId], [WaiverBankContactId]) REFERENCES [ins].[Contact] ([TenantId], [ContactId]);
 ALTER TABLE [obl].[ObligationBreach] ADD CONSTRAINT [FK_ObligationBreach_WaiverDocumentId] FOREIGN KEY ([TenantId], [WaiverDocumentId]) REFERENCES [doc].[Document] ([TenantId], [DocumentId]);
+ALTER TABLE [obl].[ObligationBreach] ADD CONSTRAINT [FK_ObligationBreach_WaiverApprovedBy] FOREIGN KEY ([TenantId], [WaiverApprovedBy]) REFERENCES [sec].[AppUser] ([TenantId], [AppUserId]);
 ALTER TABLE [fin].[LineCatalogItem] ADD CONSTRAINT [FK_LineCatalogItem_Tenant] FOREIGN KEY ([TenantId]) REFERENCES [plat].[Tenant] ([TenantId]);
 ALTER TABLE [fin].[LineCatalogItemAlias] ADD CONSTRAINT [FK_LineCatalogItemAlias_Tenant] FOREIGN KEY ([TenantId]) REFERENCES [plat].[Tenant] ([TenantId]);
 ALTER TABLE [fin].[LineCatalogItemAlias] ADD CONSTRAINT [FK_LineCatalogItemAlias_LineCatalogItemId] FOREIGN KEY ([TenantId], [LineCatalogItemId]) REFERENCES [fin].[LineCatalogItem] ([TenantId], [LineCatalogItemId]);
@@ -738,6 +741,7 @@ ALTER TABLE [lc].[LcAmendment] ADD CONSTRAINT [FK_LcAmendment_RequestId] FOREIGN
 ALTER TABLE [lc].[LcAmendment] ADD CONSTRAINT [FK_LcAmendment_TermsId] FOREIGN KEY ([TenantId], [TermsPurpose], [CurrencyId], [TermsId]) REFERENCES [lc].[LcTerms] ([TenantId], [Purpose], [CurrencyId], [LcTermsId]);
 ALTER TABLE [lc].[LcAmendment] ADD CONSTRAINT [FK_LcAmendment_CurrencyId] FOREIGN KEY ([CurrencyId]) REFERENCES [ref].[Currency] ([CurrencyId]);
 ALTER TABLE [lc].[LcAmendment] ADD CONSTRAINT [FK_LcAmendment_AppliedBy] FOREIGN KEY ([TenantId], [AppliedBy]) REFERENCES [sec].[AppUser] ([TenantId], [AppUserId]);
+ALTER TABLE [lc].[LcAmendment] ADD CONSTRAINT [FK_LcAmendment_WithdrawalDocumentId] FOREIGN KEY ([TenantId], [WithdrawalDocumentId]) REFERENCES [doc].[Document] ([TenantId], [DocumentId]);
 ALTER TABLE [lc].[LcDrawing] ADD CONSTRAINT [FK_LcDrawing_Tenant] FOREIGN KEY ([TenantId]) REFERENCES [plat].[Tenant] ([TenantId]);
 ALTER TABLE [lc].[LcDrawing] ADD CONSTRAINT [FK_LcDrawing_CompanyId] FOREIGN KEY ([TenantId], [CompanyId]) REFERENCES [org].[Company] ([TenantId], [CompanyId]);
 ALTER TABLE [lc].[LcDrawing] ADD CONSTRAINT [FK_LcDrawing_LcId] FOREIGN KEY ([TenantId], [CurrencyId], [LcId]) REFERENCES [lc].[LetterOfCredit] ([TenantId], [CurrencyId], [LetterOfCreditId]);

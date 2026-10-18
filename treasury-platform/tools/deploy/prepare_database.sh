@@ -87,15 +87,26 @@ ALTER LOGIN [bankfas_migrator] ENABLE;"
     echo "deployment window open: bankfas_migrator enabled"
     ;;
 close)
+    # The login is disabled first, so no session starts after it; a session that ends by itself between the list
+    # and its KILL is no error (self-review E3). The close is declared even when a step fails, so the window never
+    # outlives the run, and the run fails when a session of the deployment login is left.
+    rc=0
     run "SET NOCOUNT ON;
 ALTER LOGIN [bankfas_migrator] DISABLE;
 DECLARE @s INT, @sql NVARCHAR(40);
 DECLARE c CURSOR LOCAL FAST_FORWARD FOR SELECT session_id FROM sys.dm_exec_sessions WHERE login_name = N'bankfas_migrator';
 OPEN c; FETCH NEXT FROM c INTO @s;
-WHILE @@FETCH_STATUS = 0 BEGIN SET @sql = CONCAT(N'KILL ', @s); EXEC (@sql); FETCH NEXT FROM c INTO @s; END;
+WHILE @@FETCH_STATUS = 0
+BEGIN
+    SET @sql = CONCAT(N'KILL ', @s);
+    BEGIN TRY EXEC (@sql); END TRY BEGIN CATCH IF ERROR_NUMBER() <> 6106 THROW; END CATCH;   -- 6106: the session has ended
+    FETCH NEXT FROM c INTO @s;
+END;
 CLOSE c; DEALLOCATE c;
-GO
-$(declare_sql 1102 "deployment window closed")"
+IF EXISTS (SELECT 1 FROM sys.server_principals WHERE name = N'bankfas_migrator' AND is_disabled = 0)
+    THROW 50112, 'bankfas_migrator is still enabled after the close', 1;" || rc=$?
+    run "$(declare_sql 1102 "deployment window closed")" >/dev/null || rc=$?
+    [ "$rc" -eq 0 ] || exit "$rc"
     echo "deployment window closed: bankfas_migrator disabled"
     ;;
 *)

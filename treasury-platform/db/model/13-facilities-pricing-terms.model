@@ -253,9 +253,12 @@ table fac.Utilization public  # Active utilisation item: manual or linked to a l
   MaturityDate        date
   SourceType          enum{MANUAL,LC,OTHER_REQUEST} req =MANUAL
   SourceRequestId     ->wfl.Request via=CompanyId   # OTHER_REQUEST: الطلب العام لشركة البند نفسها. بند LC يربطه lc.LetterOfCredit.UtilizationId وحده (DQ-F12-14، DR-26)
-  Status              enum{ACTIVE,RELEASED} req =ACTIVE   # RELEASED نهائية (§8)
+  Status              enum{ACTIVE,RELEASED,TRANSFERRED} req =ACTIVE   # RELEASED وTRANSFERRED نهائيتان (§8)؛ TRANSFERRED: نُقل إلى اللاحق عند التجديد (DQ-F14-5، B6)
   ReleasedOn          date
   ReleaseReason       str(500)
+  TransferredToFacilityId ->fac.Facility via=FacilityId>PreviousFacilityId   # التسهيل اللاحق لهذا التسهيل نفسه (BR-FAC-006)
+  TransferredToId     ->fac.Utilization via=TransferredToFacilityId>FacilityId   # البند الجديد في اللاحق، في العقدة بالرمز نفسه (يتحقق التطبيق)
+  TransferredOn       date
   unique PublicId
   unique SourceRequestId where SourceRequestId IS NOT NULL    # DUPLICATE_SOURCE (BR-FAC-020)؛ وللاعتماد: unique UtilizationId في lc.LetterOfCredit
   index  FacilityId,LimitId,Status include Amount,CurrencyId,RateToFacilityCcy,CompanyId,LimitProductLineId   # حساب Used(n) (BR-FAC-013)
@@ -269,6 +272,8 @@ table fac.Utilization public  # Active utilisation item: manual or linked to a l
   check  MaturityDate IS NULL OR MaturityDate >= StartDate
   check  Status <> 'RELEASED' OR (ReleasedOn IS NOT NULL AND ReleaseReason IS NOT NULL)
   check  Status = 'RELEASED' OR (ReleasedOn IS NULL AND ReleaseReason IS NULL)
+  check  (Status = 'TRANSFERRED' AND TransferredToFacilityId IS NOT NULL AND TransferredToId IS NOT NULL AND TransferredOn IS NOT NULL) OR (Status <> 'TRANSFERRED' AND TransferredToFacilityId IS NULL AND TransferredToId IS NULL AND TransferredOn IS NULL)   # DQ-F14-5
+  unique TransferredToId where TransferredToId IS NOT NULL   # بند جديد واحد لكل منقول
 
 table fac.LimitReservation  # Amount reserved for a request, equal to ExposureAmount (FR-FAC-017/018/020, BR-FAC-015)
   FacilityId              ->fac.Facility req
@@ -307,7 +312,7 @@ table fac.LimitMovement append  # Movement record on a reservation or usage; no 
   LimitReservationId  ->fac.LimitReservation via=FacilityId   # بدل TargetId متعدد الأشكال لضمان السلامة المرجعية
   UtilizationId       ->fac.Utilization via=FacilityId
   calc TargetId bigint =CASE WHEN LimitReservationId IS NOT NULL THEN LimitReservationId ELSE UtilizationId END   # مشتق: مطابق لـ TargetId في المواصفة
-  OpKind              enum{CREATE,ADJUST,CONVERT,RELEASE} req
+  OpKind              enum{CREATE,ADJUST,CONVERT,RELEASE,TRANSFER} req   # TRANSFER: البند نُقل إلى اللاحق عند التجديد (DQ-F14-5، B6)
   CurrencyId          ->ref.Currency req   # إضافة: عملة المبالغ أدناه (عملة الهدف)
   RequestedDelta      money
   AppliedDelta        money
@@ -323,6 +328,7 @@ table fac.LimitMovement append  # Movement record on a reservation or usage; no 
   check  AmountAfter IS NULL OR AmountAfter >= 0   # لا يهبط الرصيد تحت الصفر (BR-FAC-020)
   check  AppliedDelta IS NULL OR RequestedDelta IS NULL OR ABS(AppliedDelta) <= ABS(RequestedDelta)   # المطبَّق لا يتجاوز المطلوب
   check  OpKind <> 'ADJUST' OR AmountBefore IS NULL OR AmountAfter IS NULL OR AppliedDelta IS NULL OR AmountAfter = AmountBefore + AppliedDelta
+  check  OpKind <> 'TRANSFER' OR (TargetKind = 'UTILIZATION' AND Reason IS NOT NULL)   # حركة مدققة بسبب (DQ-F14-5)
 
 table fac.ValueConflict  # Conflict between two values of one field, and its resolution (FR-FAC-026, BR-FAC-019, BR-FAC-008)
   FacilityId                  ->fac.Facility   # مفتاح النطاق؛ إلزامي إلا لهدف بلا تسهيل: ضمان أو بند تعرفة أو قالب معادلة (قرار المالك 2026-10-13، DR-27)

@@ -7,7 +7,34 @@ import os, re, sys
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..')
 G = os.path.join(ROOT, 'db', 'generated', 'tsql')
 S = os.path.join(ROOT, 'db', 'static')
-read = lambda p: open(p, encoding='utf-8').read()
+
+
+def strip_comments(sql):
+    """The SQL without its -- and /* */ comments, string literals kept, so that a check cannot pass on a comment
+    that only names what it looks for (self-review C7)."""
+    out, i, n = [], 0, len(sql)
+    while i < n:
+        c = sql[i]
+        if c == "'":
+            j = i + 1
+            while j < n and not (sql[j] == "'" and (j + 1 >= n or sql[j + 1] != "'")):
+                j += 2 if sql[j] == "'" else 1
+            out.append(sql[i:j + 1]); i = j + 1
+        elif sql.startswith('--', i):
+            j = sql.find('\n', i); i = n if j < 0 else j
+        elif sql.startswith('/*', i):
+            depth, j = 1, i + 2
+            while j < n and depth:
+                if sql.startswith('/*', j): depth, j = depth + 1, j + 2
+                elif sql.startswith('*/', j): depth, j = depth - 1, j + 2
+                else: j += 1
+            out.append(' '); i = j
+        else:
+            out.append(c); i += 1
+    return ''.join(out)
+
+
+read = lambda p: strip_comments(open(p, encoding='utf-8').read())
 fk = read(os.path.join(G, '002_foreign_keys.sql'))
 tb = read(os.path.join(G, '001_tables.sql'))
 sens = read(os.path.join(G, '006_sensitive_columns.sql'))
@@ -160,5 +187,5 @@ checks['DR-50 state evidence: rejection reason, publisher, locker, delegation, n
 
 bad = [k for k, v in checks.items() if not v]
 for k, v in checks.items(): print(('PASS ' if v else 'FAIL ') + k)
-print(f'review fixes: {len(checks) - len(bad)}/{len(checks)} verified')
+print(f'review fixes: {len(checks) - len(bad)} of {len(checks)} checks pass (comments are not read)')
 sys.exit(1 if bad else 0)

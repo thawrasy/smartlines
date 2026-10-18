@@ -52,8 +52,11 @@ AFTER INSERT, UPDATE
 AS
 BEGIN
     SET NOCOUNT ON;
+    -- Only an open path is checked: a closed path stays editable history after its intermediate became a company
+    -- (self-review A8), and reopening one sets EffectiveTo to NULL, so it is checked again.
     IF EXISTS (SELECT 1 FROM inserted AS i
-               JOIN org.Company AS c ON c.TenantId = i.TenantId AND c.PartyId = i.IntermediatePartyId)
+               JOIN org.Company AS c WITH (UPDLOCK, HOLDLOCK) ON c.TenantId = i.TenantId AND c.PartyId = i.IntermediatePartyId
+               WHERE i.EffectiveTo IS NULL)
         THROW 50047, 'An indirect path does not pass through a company of the tenant: it follows from that company''s own holdings (BR-ORG-008)', 1;
 END;
 GO
@@ -64,23 +67,31 @@ BEGIN
     SET NOCOUNT ON;
     IF EXISTS (SELECT 1 FROM inserted AS c
                LEFT JOIN deleted AS d ON d.TenantId = c.TenantId AND d.CompanyId = c.CompanyId
-               JOIN org.Shareholding AS s ON s.TenantId = c.TenantId AND s.IntermediatePartyId = c.PartyId
+               JOIN org.Shareholding AS s WITH (UPDLOCK, HOLDLOCK) ON s.TenantId = c.TenantId AND s.IntermediatePartyId = c.PartyId
                WHERE s.EffectiveTo IS NULL AND (d.CompanyId IS NULL OR d.PartyId <> c.PartyId))
         THROW 50047, 'This party is the intermediate of an open indirect holding: close those paths before it becomes a company of the tenant (BR-ORG-008)', 1;
 END;
 GO
 /* DR-28 */
-CREATE OR ALTER TRIGGER fac.TR_FacilityRevision_ApprovedFinal ON fac.FacilityRevision
-AFTER UPDATE
+-- An approved revision row is final in every column, and it is not deleted (self-review A1, 2026-10-18).
+DECLARE @fi NVARCHAR(MAX), @fd NVARCHAR(MAX), @sql NVARCHAR(MAX);
+SELECT @fi = STRING_AGG(CONVERT(NVARCHAR(MAX), N'i.' + QUOTENAME(c.name)), N', ') WITHIN GROUP (ORDER BY c.column_id),
+       @fd = STRING_AGG(CONVERT(NVARCHAR(MAX), N'd.' + QUOTENAME(c.name)), N', ') WITHIN GROUP (ORDER BY c.column_id)
+FROM sys.columns AS c
+WHERE c.object_id = OBJECT_ID(N'fac.FacilityRevision') AND c.is_computed = 0 AND TYPE_NAME(c.system_type_id) <> N'timestamp'
+  AND c.name NOT IN (N'UpdatedAt', N'UpdatedBy');
+SET @sql = N'CREATE OR ALTER TRIGGER fac.TR_FacilityRevision_ApprovedFinal ON fac.FacilityRevision
+AFTER UPDATE, DELETE
 AS
 BEGIN
     SET NOCOUNT ON;
     IF EXISTS (SELECT 1 FROM deleted AS d
-               JOIN inserted AS i ON i.TenantId = d.TenantId AND i.FacilityRevisionId = d.FacilityRevisionId
-               WHERE d.Status = 'APPROVED'
-                 AND (i.Status <> 'APPROVED' OR i.RevisionNo <> d.RevisionNo OR i.FacilityId <> d.FacilityId))
-        THROW 50049, 'An approved facility revision stays approved; a change is a new revision (BR-FAC-003)', 1;
-END;
+               LEFT JOIN inserted AS i ON i.FacilityRevisionId = d.FacilityRevisionId
+               WHERE d.Status = ''APPROVED''
+                 AND (i.FacilityRevisionId IS NULL OR EXISTS (SELECT ' + @fi + N' EXCEPT SELECT ' + @fd + N')))
+        THROW 50049, ''An approved facility revision stays as approved; a change is a new revision (BR-FAC-003)'', 1;
+END;';
+EXEC sys.sp_executesql @sql;
 GO
 CREATE OR ALTER TRIGGER fac.TR_Facility_RevisionIntegrity ON fac.Facility
 AFTER INSERT, UPDATE
@@ -228,6 +239,101 @@ BEGIN
     END;
 END;
 GO
+/* Self-review A1 (2026-10-18): the rows of an approved revision are final. A row of a revisioned table with
+   FromRevision <= its facility's ApprovedRevisionNo is approved content: it is not inserted, deleted or changed, but
+   for its ToRevision, which may move between NULL and revisions after the approved one (a draft revision closes it,
+   a discarded draft reopens it). Rows of a later revision are drafts and change freely, as long as they stay after
+   the approved revision. The junction rows of an obligation's companies and a covenant's accounts follow their parent
+   row. The facility row is read under an update lock, so an approval and a write to its rows do not interleave
+   (self-review A2). The triggers are built from each table's columns, like the LC terms trigger. */
+DECLARE @t TABLE (Sch SYSNAME, Tab SYSNAME, Pk SYSNAME, ViaObligation BIT, PRIMARY KEY (Sch, Tab));
+INSERT @t VALUES (N'fac', N'FacilityDocument', N'FacilityDocumentId', 0), (N'fac', N'FacilityLender', N'FacilityLenderId', 0),
+                 (N'fac', N'Limit', N'LimitId', 0), (N'fac', N'LimitProductLine', N'LimitProductLineId', 0),
+                 (N'fac', N'LimitCompanyRule', N'LimitCompanyRuleId', 0), (N'fac', N'ProductLineTerm', N'ProductLineTermId', 0),
+                 (N'prc', N'PricingRule', N'PricingRuleId', 0), (N'prc', N'PricingTier', N'PricingTierId', 0),
+                 (N'cmp', N'TermValue', N'TermValueId', 0), (N'col', N'CollateralLink', N'CollateralLinkId', 0),
+                 (N'obl', N'Obligation', N'ObligationId', 0), (N'obl', N'ReportingObligation', N'ReportingObligationId', 1),
+                 (N'obl', N'Covenant', N'CovenantId', 1);
+DECLARE @sch SYSNAME, @tab SYSNAME, @pk SYSNAME, @via BIT, @fi NVARCHAR(MAX), @fd NVARCHAR(MAX), @sql NVARCHAR(MAX),
+        @fjoinI NVARCHAR(600), @fjoinD NVARCHAR(600);
+DECLARE c CURSOR LOCAL FAST_FORWARD FOR SELECT Sch, Tab, Pk, ViaObligation FROM @t;
+OPEN c; FETCH NEXT FROM c INTO @sch, @tab, @pk, @via;
+WHILE @@FETCH_STATUS = 0
+BEGIN
+    SELECT @fi = STRING_AGG(CONVERT(NVARCHAR(MAX), N'i.' + QUOTENAME(col.name)), N', ') WITHIN GROUP (ORDER BY col.column_id),
+           @fd = STRING_AGG(CONVERT(NVARCHAR(MAX), N'd.' + QUOTENAME(col.name)), N', ') WITHIN GROUP (ORDER BY col.column_id)
+    FROM sys.columns AS col
+    WHERE col.object_id = OBJECT_ID(QUOTENAME(@sch) + N'.' + QUOTENAME(@tab)) AND col.is_computed = 0
+      AND TYPE_NAME(col.system_type_id) <> N'timestamp' AND col.name NOT IN (N'ToRevision', N'UpdatedAt', N'UpdatedBy');
+    IF @via = 1
+        SELECT @fjoinI = N'LEFT JOIN obl.Obligation AS oi ON oi.TenantId = i.TenantId AND oi.ObligationId = i.ObligationId
+               LEFT JOIN fac.Facility AS fi WITH (UPDLOCK, HOLDLOCK) ON fi.TenantId = oi.TenantId AND fi.FacilityId = oi.FacilityId',
+               @fjoinD = N'LEFT JOIN obl.Obligation AS od ON od.TenantId = d.TenantId AND od.ObligationId = d.ObligationId
+               LEFT JOIN fac.Facility AS fd WITH (UPDLOCK, HOLDLOCK) ON fd.TenantId = od.TenantId AND fd.FacilityId = od.FacilityId';
+    ELSE
+        SELECT @fjoinI = N'LEFT JOIN fac.Facility AS fi WITH (UPDLOCK, HOLDLOCK) ON fi.TenantId = i.TenantId AND fi.FacilityId = i.FacilityId',
+               @fjoinD = N'LEFT JOIN fac.Facility AS fd WITH (UPDLOCK, HOLDLOCK) ON fd.TenantId = d.TenantId AND fd.FacilityId = d.FacilityId';
+    SET @sql = N'CREATE OR ALTER TRIGGER ' + QUOTENAME(@sch) + N'.' + QUOTENAME(N'TR_' + @tab + N'_ApprovedFrozen') + N' ON '
+             + QUOTENAME(@sch) + N'.' + QUOTENAME(@tab) + N'
+AFTER INSERT, UPDATE, DELETE
+AS
+BEGIN
+    SET NOCOUNT ON;
+    IF NOT EXISTS (SELECT 1 FROM inserted) AND NOT EXISTS (SELECT 1 FROM deleted) RETURN;
+    -- Approved rows before the statement: kept whole, but for ToRevision after the approved revision.
+    IF EXISTS (SELECT 1
+               FROM deleted AS d
+               ' + @fjoinD + N'
+               LEFT JOIN inserted AS i ON i.' + QUOTENAME(@pk) + N' = d.' + QUOTENAME(@pk) + N'
+               WHERE d.FromRevision <= ISNULL(fd.ApprovedRevisionNo, 0)
+                 AND (i.' + QUOTENAME(@pk) + N' IS NULL
+                      OR EXISTS (SELECT ' + @fi + N' EXCEPT SELECT ' + @fd + N')
+                      OR (i.ToRevision IS DISTINCT FROM d.ToRevision
+                          AND NOT ((d.ToRevision IS NULL OR d.ToRevision > fd.ApprovedRevisionNo)
+                                   AND (i.ToRevision IS NULL OR i.ToRevision > fd.ApprovedRevisionNo)))))
+        THROW 50049, ''A row of an approved facility revision does not change; a change is a row of a new revision (BR-FAC-003)'', 1;
+    -- Rows after the statement: a new or draft row stays after the approved revision.
+    IF EXISTS (SELECT 1
+               FROM inserted AS i
+               ' + @fjoinI + N'
+               LEFT JOIN deleted AS d ON d.' + QUOTENAME(@pk) + N' = i.' + QUOTENAME(@pk) + N'
+               WHERE i.FromRevision <= ISNULL(fi.ApprovedRevisionNo, 0)
+                 AND (d.' + QUOTENAME(@pk) + N' IS NULL OR EXISTS (SELECT ' + @fi + N' EXCEPT SELECT ' + @fd + N')))
+        THROW 50049, ''A row written for a facility revision belongs to a revision after the approved one (BR-FAC-003)'', 1;
+END;';
+    EXEC sys.sp_executesql @sql;
+    FETCH NEXT FROM c INTO @sch, @tab, @pk, @via;
+END;
+CLOSE c; DEALLOCATE c;
+GO
+-- The junction rows of an approved obligation (its companies) or covenant (its accounts) follow their parent row.
+CREATE OR ALTER TRIGGER obl.TR_ObligationCompany_ApprovedFrozen ON obl.ObligationCompany
+AFTER INSERT, UPDATE, DELETE
+AS
+BEGIN
+    SET NOCOUNT ON;
+    IF EXISTS (SELECT 1
+               FROM (SELECT TenantId, ObligationId FROM inserted UNION SELECT TenantId, ObligationId FROM deleted) AS r
+               JOIN obl.Obligation AS o ON o.TenantId = r.TenantId AND o.ObligationId = r.ObligationId
+               JOIN fac.Facility AS f WITH (UPDLOCK, HOLDLOCK) ON f.TenantId = o.TenantId AND f.FacilityId = o.FacilityId
+               WHERE o.FromRevision <= f.ApprovedRevisionNo)
+        THROW 50049, 'The companies of an approved obligation do not change; a change is a row of a new revision (BR-FAC-003)', 1;
+END;
+GO
+CREATE OR ALTER TRIGGER obl.TR_CovenantAccount_ApprovedFrozen ON obl.CovenantAccount
+AFTER INSERT, UPDATE, DELETE
+AS
+BEGIN
+    SET NOCOUNT ON;
+    IF EXISTS (SELECT 1
+               FROM (SELECT TenantId, CovenantId FROM inserted UNION SELECT TenantId, CovenantId FROM deleted) AS r
+               JOIN obl.Covenant AS v ON v.TenantId = r.TenantId AND v.CovenantId = r.CovenantId
+               JOIN obl.Obligation AS o ON o.TenantId = v.TenantId AND o.ObligationId = v.ObligationId
+               JOIN fac.Facility AS f WITH (UPDLOCK, HOLDLOCK) ON f.TenantId = o.TenantId AND f.FacilityId = o.FacilityId
+               WHERE v.FromRevision <= f.ApprovedRevisionNo)
+        THROW 50049, 'The accounts of an approved covenant do not change; a change is a row of a new revision (BR-FAC-003)', 1;
+END;
+GO
 /* DR-27 */
 CREATE OR ALTER TRIGGER fac.TR_ValueConflict_Target ON fac.ValueConflict
 AFTER INSERT, UPDATE
@@ -273,7 +379,8 @@ END;
 GO
 /* DR-39: an evaluated covenant test changes only by its review. Its result, its inputs, the formula version and the
    covenant it was evaluated for stay as stored; EVALUATED may become REVIEWED once, with the reviewer's note, and
-   only NextReviewOn changes after that. A new evaluation is a new row with the next EvaluationNo (BR-OBL-011). */
+   only NextReviewOn changes after that. A new evaluation is a new row with the next EvaluationNo (BR-OBL-011). A
+   CANCELLED test (one taken off the schedule, with its reason; DQ-F15-2, self-review B3) is final as well. */
 CREATE OR ALTER TRIGGER obl.TR_CovenantTest_Frozen ON obl.CovenantTest
 AFTER UPDATE, DELETE
 AS
@@ -282,16 +389,18 @@ BEGIN
     IF EXISTS (SELECT 1
                FROM deleted AS d
                LEFT JOIN inserted AS i ON i.CovenantTestId = d.CovenantTestId
-               WHERE d.State IN ('EVALUATED','REVIEWED')
+               WHERE d.State IN ('EVALUATED','REVIEWED','CANCELLED')
                  AND (i.CovenantTestId IS NULL
                       OR NOT (i.State = d.State OR (d.State = 'EVALUATED' AND i.State = 'REVIEWED'))
-                      OR EXISTS (SELECT i.TenantId, i.PublicId, i.CovenantId, i.PeriodStart, i.PeriodEnd, i.DueDate, i.EvaluationNo,
-                                        i.Result, i.Method, i.ActualValue, i.ThresholdApplied, i.OperatorApplied, i.Headroom,
-                                        i.HeadroomPct, i.InputsSnapshot, i.FormulaId, i.EvaluatedAt, i.EvaluatedBy, i.EvidenceDocumentId
+                      OR EXISTS (SELECT i.TenantId, i.PublicId, i.CovenantId, i.CovenantRootId, i.PeriodStart, i.PeriodEnd, i.DueDate,
+                                        i.EvaluationNo, i.Result, i.Method, i.ActualValue, i.ThresholdApplied, i.OperatorApplied,
+                                        i.Headroom, i.HeadroomPct, i.InputsSnapshot, i.FormulaId, i.EvaluatedAt, i.EvaluatedBy,
+                                        i.EvidenceDocumentId, i.CancelReason
                                  EXCEPT
-                                 SELECT d.TenantId, d.PublicId, d.CovenantId, d.PeriodStart, d.PeriodEnd, d.DueDate, d.EvaluationNo,
-                                        d.Result, d.Method, d.ActualValue, d.ThresholdApplied, d.OperatorApplied, d.Headroom,
-                                        d.HeadroomPct, d.InputsSnapshot, d.FormulaId, d.EvaluatedAt, d.EvaluatedBy, d.EvidenceDocumentId)
+                                 SELECT d.TenantId, d.PublicId, d.CovenantId, d.CovenantRootId, d.PeriodStart, d.PeriodEnd, d.DueDate,
+                                        d.EvaluationNo, d.Result, d.Method, d.ActualValue, d.ThresholdApplied, d.OperatorApplied,
+                                        d.Headroom, d.HeadroomPct, d.InputsSnapshot, d.FormulaId, d.EvaluatedAt, d.EvaluatedBy,
+                                        d.EvidenceDocumentId, d.CancelReason)
                       OR (d.State = 'REVIEWED'
                           AND EXISTS (SELECT i.ReviewNote, i.ReviewedBy, i.ReviewedOn EXCEPT SELECT d.ReviewNote, d.ReviewedBy, d.ReviewedOn))))
         THROW 50053, 'An evaluated covenant test changes only by its review; a new evaluation is a new row with the next EvaluationNo (BR-OBL-011)', 1;
@@ -313,6 +422,22 @@ AFTER INSERT, UPDATE
 AS
 BEGIN
     SET NOCOUNT ON;
+    IF NOT EXISTS (SELECT 1 FROM inserted WHERE State IN ('EVALUATED','REVIEWED') AND Method IN ('AUTO','MANUAL_VALUE')) RETURN;
+    -- A judged evaluation (automatic or on a manual value) applies the covenant's own threshold and operator. A covenant
+    -- with a SET threshold is never NOT_ASSESSED_NO_THRESHOLD, and one without a SET threshold is never judged
+    -- (BR-OBL-006). Otherwise an evaluation could hide a breach as "no threshold" (self-review A3).
+    IF EXISTS (
+        SELECT 1
+        FROM inserted AS i
+        LEFT JOIN deleted AS d ON d.CovenantTestId = i.CovenantTestId
+        JOIN obl.Covenant AS c ON c.TenantId = i.TenantId AND c.CovenantId = i.CovenantId
+        WHERE i.State IN ('EVALUATED','REVIEWED') AND i.Method IN ('AUTO','MANUAL_VALUE')
+          AND (d.CovenantTestId IS NULL OR d.State NOT IN ('EVALUATED','REVIEWED'))
+          AND (   (c.ThresholdState = 'SET' AND i.Result = 'NOT_ASSESSED_NO_THRESHOLD')
+               OR (c.ThresholdState <> 'SET' AND (i.Result IN ('COMPLIANT','WARNING','BREACH') OR i.ThresholdApplied IS NOT NULL))
+               OR (i.ThresholdApplied IS NOT NULL
+                   AND (i.ThresholdApplied IS DISTINCT FROM c.ThresholdValue OR i.OperatorApplied IS DISTINCT FROM c.Operator))))
+        THROW 50054, 'An evaluation applies the covenant''s own threshold and operator, and a covenant with a set threshold is always judged on it (BR-OBL-006)', 1;
     IF NOT EXISTS (SELECT 1 FROM inserted WHERE State IN ('EVALUATED','REVIEWED') AND Method = 'AUTO') RETURN;
     IF EXISTS (
         SELECT 1
@@ -337,9 +462,7 @@ BEGIN
                         OR TRY_CAST(JSON_VALUE(i.InputsSnapshot, '$.formula.version') AS INT) IS DISTINCT FROM tf.VersionNo))
                OR (i.ThresholdApplied IS NOT NULL
                    AND (TRY_CAST(JSON_VALUE(i.InputsSnapshot, '$.threshold.value') AS DECIMAL(19,6)) IS DISTINCT FROM i.ThresholdApplied
-                        OR JSON_VALUE(i.InputsSnapshot, '$.threshold.operator') IS DISTINCT FROM i.OperatorApplied
-                        OR i.ThresholdApplied IS DISTINCT FROM c.ThresholdValue
-                        OR i.OperatorApplied IS DISTINCT FROM c.Operator))
+                        OR JSON_VALUE(i.InputsSnapshot, '$.threshold.operator') IS DISTINCT FROM i.OperatorApplied))
                OR (k.Kinds LIKE '%STATEMENT%'
                    AND (ISNULL(ISJSON(JSON_QUERY(i.InputsSnapshot, '$.statements'), ARRAY), 0) = 0
                         OR (k.NeedRows = 1 AND NOT EXISTS (SELECT 1 FROM OPENJSON(i.InputsSnapshot, '$.statements')))
@@ -449,7 +572,7 @@ BEGIN
     SET NOCOUNT ON;
     IF EXISTS (SELECT 1
                FROM (SELECT TenantId, LcTermsId FROM inserted UNION SELECT TenantId, LcTermsId FROM deleted) AS r
-               JOIN lc.LcTerms AS t ON t.TenantId = r.TenantId AND t.LcTermsId = r.LcTermsId
+               JOIN lc.LcTerms AS t WITH (UPDLOCK, HOLDLOCK) ON t.TenantId = r.TenantId AND t.LcTermsId = r.LcTermsId
                WHERE t.Status <> 'DRAFT')
         THROW 50056, 'The document clauses of locked terms do not change; create a new version (BR-LCT-012, BR-LCT-019)', 1;
 END;
@@ -461,7 +584,7 @@ BEGIN
     SET NOCOUNT ON;
     IF EXISTS (SELECT 1
                FROM (SELECT TenantId, LcTermsId FROM inserted UNION SELECT TenantId, LcTermsId FROM deleted) AS r
-               JOIN lc.LcTerms AS t ON t.TenantId = r.TenantId AND t.LcTermsId = r.LcTermsId
+               JOIN lc.LcTerms AS t WITH (UPDLOCK, HOLDLOCK) ON t.TenantId = r.TenantId AND t.LcTermsId = r.LcTermsId
                WHERE t.Status <> 'DRAFT')
         THROW 50056, 'The charges of locked terms do not change; create a new version (BR-LCT-014, BR-LCT-019)', 1;
 END;
@@ -498,7 +621,7 @@ BEGIN
                       OR EXISTS (SELECT ' + @fi + N' EXCEPT SELECT ' + @fd + N')))
         THROW 50057, ''A published template version only retires; any change is a new version (BR-WFL-019, AC-WFL-6)'', 1;
     IF EXISTS (SELECT 1 FROM inserted AS i
-               JOIN wfl.WorkflowTemplate AS o ON o.TenantId = i.TenantId AND o.TemplateKey = i.TemplateKey AND o.RequestTypeId <> i.RequestTypeId)
+               JOIN wfl.WorkflowTemplate AS o WITH (UPDLOCK, HOLDLOCK) ON o.TenantId = i.TenantId AND o.TemplateKey = i.TemplateKey AND o.RequestTypeId <> i.RequestTypeId)
         THROW 50057, ''The versions of a template key belong to one request type (DR-49)'', 1;
 END;';
 EXEC sys.sp_executesql @sql;
@@ -522,9 +645,9 @@ BEGIN
                FROM (SELECT TenantId, ' + CASE WHEN @via = 1 THEN N'StageId' ELSE N'TemplateId' END + N' AS k FROM inserted
                      UNION SELECT TenantId, ' + CASE WHEN @via = 1 THEN N'StageId' ELSE N'TemplateId' END + N' FROM deleted) AS r
                ' + CASE WHEN @via = 1
-                        THEN N'JOIN wfl.WorkflowStage AS s ON s.TenantId = r.TenantId AND s.WorkflowStageId = r.k
-               JOIN wfl.WorkflowTemplate AS t ON t.TenantId = s.TenantId AND t.WorkflowTemplateId = s.TemplateId'
-                        ELSE N'JOIN wfl.WorkflowTemplate AS t ON t.TenantId = r.TenantId AND t.WorkflowTemplateId = r.k' END + N'
+                        THEN N'JOIN wfl.WorkflowStage AS s WITH (UPDLOCK, HOLDLOCK) ON s.TenantId = r.TenantId AND s.WorkflowStageId = r.k
+               JOIN wfl.WorkflowTemplate AS t WITH (UPDLOCK, HOLDLOCK) ON t.TenantId = s.TenantId AND t.WorkflowTemplateId = s.TemplateId'
+                        ELSE N'JOIN wfl.WorkflowTemplate AS t WITH (UPDLOCK, HOLDLOCK) ON t.TenantId = r.TenantId AND t.WorkflowTemplateId = r.k' END + N'
                WHERE t.Status <> ''DRAFT'')
         THROW 50057, ''The parts of a published or retired template version do not change; create a new version (BR-WFL-019)'', 1;
 END;';
@@ -546,6 +669,9 @@ AFTER INSERT, UPDATE
 AS
 BEGIN
     SET NOCOUNT ON;
+    -- An AFTER trigger fires for a statement that touches no row too; returning then keeps the copy triggers from
+    -- calling each other without end if RECURSIVE_TRIGGERS were ever on (self-review A7).
+    IF NOT EXISTS (SELECT 1 FROM inserted) RETURN;
     UPDATE r
     SET CurrentStageId = s.StageId, AssigneeUserId = s.AssigneeUserId, QueueEnteredAt = s.QueuedAt, ClaimedAt = s.ClaimedAt,
         DueAt = s.DueAt, SlaState = s.SlaState
@@ -560,25 +686,41 @@ AFTER INSERT, UPDATE
 AS
 BEGIN
     SET NOCOUNT ON;
+    IF NOT EXISTS (SELECT 1 FROM inserted) RETURN;
+    -- One source row per request: its ACTIVE reservation if the statement wrote one, else the row it points to.
+    -- A statement that releases one reservation and writes the next (a MERGE) thus copies the new one (self-review A6).
+    WITH src AS (
+        SELECT lr.*, ROW_NUMBER() OVER (PARTITION BY lr.TenantId, lr.RequestId
+                                        ORDER BY CASE WHEN lr.Status = 'ACTIVE' THEN 0 ELSE 1 END, lr.LimitReservationId DESC) AS rn
+        FROM inserted AS lr
+        JOIN wfl.Request AS r0 ON r0.TenantId = lr.TenantId AND r0.RequestId = lr.RequestId
+        WHERE lr.Status = 'ACTIVE' OR lr.LimitReservationId = r0.ReservationId)
     UPDATE r
     SET ReservationId = lr.LimitReservationId, ReservedAmount = lr.Amount,
         ReservationState = CASE lr.Status WHEN 'ACTIVE' THEN 'RESERVED' WHEN 'CONVERTED' THEN 'CONVERTED'
                                 ELSE CASE WHEN lr.ReleaseReason IN ('EXPIRED','MANUAL') THEN 'LOST' ELSE 'RELEASED' END END
     FROM wfl.Request AS r
-    JOIN inserted AS lr ON lr.TenantId = r.TenantId AND lr.RequestId = r.RequestId
-                       AND (lr.Status = 'ACTIVE' OR lr.LimitReservationId = r.ReservationId)
+    JOIN src AS lr ON lr.TenantId = r.TenantId AND lr.RequestId = r.RequestId AND lr.rn = 1
     WHERE EXISTS (SELECT r.ReservationId, r.ReservedAmount, r.ReservationState
                   EXCEPT SELECT lr.LimitReservationId, lr.Amount,
                                 CASE lr.Status WHEN 'ACTIVE' THEN 'RESERVED' WHEN 'CONVERTED' THEN 'CONVERTED'
                                      ELSE CASE WHEN lr.ReleaseReason IN ('EXPIRED','MANUAL') THEN 'LOST' ELSE 'RELEASED' END END);
 END;
 GO
--- A write to the request itself (a new current instance, or any other change) takes the copies again from their sources.
+-- A new request, a new pointer to a stage instance or reservation, or a write to the copies themselves takes the copies
+-- again from their sources. Other updates of the request do not read the stage instance, so a claim or an SLA update of
+-- the instance and an edit of the request cannot deadlock on each other (self-review A2).
 CREATE OR ALTER TRIGGER wfl.TR_Request_Copies ON wfl.Request
 AFTER INSERT, UPDATE
 AS
 BEGIN
     SET NOCOUNT ON;
+    IF NOT EXISTS (SELECT 1 FROM inserted) RETURN;
+    IF EXISTS (SELECT 1 FROM deleted)
+       AND NOT (UPDATE(CurrentStageInstanceId) OR UPDATE(ReservationId) OR UPDATE(TemplateId) OR UPDATE(CurrentStageId)
+                OR UPDATE(AssigneeUserId) OR UPDATE(QueueEnteredAt) OR UPDATE(ClaimedAt) OR UPDATE(DueAt) OR UPDATE(SlaState)
+                OR UPDATE(ReservedAmount) OR UPDATE(ReservationState))
+        RETURN;
     UPDATE r
     SET CurrentStageId = s.StageId, AssigneeUserId = s.AssigneeUserId, QueueEnteredAt = s.QueuedAt, ClaimedAt = s.ClaimedAt,
         DueAt = s.DueAt, SlaState = ISNULL(s.SlaState, 'NONE'),
@@ -600,30 +742,28 @@ GO
 DENY UPDATE ON wfl.Request (CurrentStageId, AssigneeUserId, QueueEnteredAt, ClaimedAt, DueAt, SlaState, ReservationId, ReservedAmount,
                             ReservationState) TO [tp_app];
 GO
+-- A request is listed when a copy differs from its source, or when it does not point to its own ACTIVE reservation
+-- (self-review A6: the last condition was unreachable before).
 CREATE OR ALTER VIEW wfl.RequestCopyDrift
 AS
-SELECT r.TenantId, r.RequestId, r.Status,
-       CAST(CASE WHEN EXISTS (SELECT r.CurrentStageId, r.AssigneeUserId, r.QueueEnteredAt, r.ClaimedAt, r.DueAt, r.SlaState
-                              EXCEPT SELECT s.StageId, s.AssigneeUserId, s.QueuedAt, s.ClaimedAt, s.DueAt, ISNULL(s.SlaState, 'NONE'))
-                 THEN 1 ELSE 0 END AS BIT) AS StageDrift,
-       CAST(CASE WHEN EXISTS (SELECT r.ReservedAmount, r.ReservationState
-                              EXCEPT SELECT lr.Amount,
-                                            CASE WHEN lr.LimitReservationId IS NULL THEN 'NONE' WHEN lr.Status = 'ACTIVE' THEN 'RESERVED'
-                                                 WHEN lr.Status = 'CONVERTED' THEN 'CONVERTED'
-                                                 WHEN lr.ReleaseReason IN ('EXPIRED','MANUAL') THEN 'LOST' ELSE 'RELEASED' END)
-                      OR (lr.Status = 'ACTIVE' AND lr.LimitReservationId IS NOT NULL
-                          AND EXISTS (SELECT 1 FROM fac.LimitReservation AS a
-                                      WHERE a.TenantId = r.TenantId AND a.RequestId = r.RequestId AND a.Status = 'ACTIVE'
-                                        AND a.LimitReservationId <> lr.LimitReservationId))
-                 THEN 1 ELSE 0 END AS BIT) AS ReservationDrift
+SELECT r.TenantId, r.RequestId, r.Status, x.StageDrift, x.ReservationDrift
 FROM wfl.Request AS r
 LEFT JOIN wfl.RequestStageInstance AS s ON s.TenantId = r.TenantId AND s.RequestStageInstanceId = r.CurrentStageInstanceId
 LEFT JOIN fac.LimitReservation AS lr ON lr.TenantId = r.TenantId AND lr.LimitReservationId = r.ReservationId
-WHERE EXISTS (SELECT r.CurrentStageId, r.AssigneeUserId, r.QueueEnteredAt, r.ClaimedAt, r.DueAt, r.SlaState, r.ReservedAmount, r.ReservationState
-              EXCEPT SELECT s.StageId, s.AssigneeUserId, s.QueuedAt, s.ClaimedAt, s.DueAt, ISNULL(s.SlaState, 'NONE'), lr.Amount,
-                            CASE WHEN lr.LimitReservationId IS NULL THEN 'NONE' WHEN lr.Status = 'ACTIVE' THEN 'RESERVED'
-                                 WHEN lr.Status = 'CONVERTED' THEN 'CONVERTED'
-                                 WHEN lr.ReleaseReason IN ('EXPIRED','MANUAL') THEN 'LOST' ELSE 'RELEASED' END);
+CROSS APPLY (SELECT
+    CAST(CASE WHEN EXISTS (SELECT r.CurrentStageId, r.AssigneeUserId, r.QueueEnteredAt, r.ClaimedAt, r.DueAt, r.SlaState
+                           EXCEPT SELECT s.StageId, s.AssigneeUserId, s.QueuedAt, s.ClaimedAt, s.DueAt, ISNULL(s.SlaState, 'NONE'))
+              THEN 1 ELSE 0 END AS BIT) AS StageDrift,
+    CAST(CASE WHEN EXISTS (SELECT r.ReservedAmount, r.ReservationState
+                           EXCEPT SELECT lr.Amount,
+                                         CASE WHEN lr.LimitReservationId IS NULL THEN 'NONE' WHEN lr.Status = 'ACTIVE' THEN 'RESERVED'
+                                              WHEN lr.Status = 'CONVERTED' THEN 'CONVERTED'
+                                              WHEN lr.ReleaseReason IN ('EXPIRED','MANUAL') THEN 'LOST' ELSE 'RELEASED' END)
+                   OR EXISTS (SELECT 1 FROM fac.LimitReservation AS a
+                              WHERE a.TenantId = r.TenantId AND a.RequestId = r.RequestId AND a.Status = 'ACTIVE'
+                                AND a.LimitReservationId IS DISTINCT FROM r.ReservationId)
+              THEN 1 ELSE 0 END AS BIT) AS ReservationDrift) AS x
+WHERE x.StageDrift = 1 OR x.ReservationDrift = 1;
 GO
 GRANT SELECT ON wfl.RequestCopyDrift TO [tp_app];
 GO
@@ -648,15 +788,55 @@ AFTER INSERT, UPDATE
 AS
 BEGIN
     SET NOCOUNT ON;
+    -- Every top-level key is read, duplicates included, keys match field keys without regard to case, and a value of
+    -- any length is seen (OPENJSON, not JSON_VALUE): a restricted key holds the string "CHANGED" only (self-review A4).
     IF EXISTS (SELECT 1 FROM inserted AS i
                WHERE i.ChangedFieldsJson IS NOT NULL
                  AND (ISNULL(ISJSON(i.ChangedFieldsJson, OBJECT), 0) = 0
-                      OR EXISTS (SELECT 1 FROM lc.LcFieldDefinition AS f
-                                 CROSS APPLY (SELECT CONCAT(N'$."', f.FieldKey, N'"') AS p) AS k
-                                 WHERE f.TenantId = i.TenantId AND f.Sensitivity = 'RESTRICTED'
-                                   AND (JSON_QUERY(i.ChangedFieldsJson, k.p) IS NOT NULL
-                                        OR JSON_VALUE(i.ChangedFieldsJson, k.p) <> N'CHANGED'))))
+                      OR EXISTS (SELECT 1 FROM OPENJSON(i.ChangedFieldsJson) AS j
+                                 JOIN lc.LcFieldDefinition AS f ON f.TenantId = i.TenantId AND f.Sensitivity = 'RESTRICTED'
+                                  AND f.FieldKey = j.[key] COLLATE Arabic_100_CI_AS_SC
+                                 WHERE NOT (j.[type] = 1 AND j.[value] = N'CHANGED'))))
         THROW 50058, 'An amendment''s ChangedFieldsJson is an object keyed by field key, and a restricted field holds only "CHANGED" (DR-46)', 1;
+END;
+GO
+/* A field raised to RESTRICTED takes its values out of the copies already written: comparison lines keep their verdict
+   and lose their values, and amendments keep the marker "CHANGED" for the key (self-review A4; as 043 raises the
+   documents of a type made sensitive). */
+CREATE OR ALTER TRIGGER lc.TR_LcFieldDefinition_RestrictedScrub ON lc.LcFieldDefinition
+AFTER UPDATE
+AS
+BEGIN
+    SET NOCOUNT ON;
+    IF NOT EXISTS (SELECT 1 FROM inserted AS i JOIN deleted AS d ON d.LcFieldDefinitionId = i.LcFieldDefinitionId
+                   WHERE i.Sensitivity = 'RESTRICTED' AND d.Sensitivity <> 'RESTRICTED') RETURN;
+    UPDATE l SET BaselineValue = NULL, ReceivedValue = NULL
+    FROM lc.LcTermsComparisonLine AS l
+    JOIN inserted AS i ON i.TenantId = l.TenantId AND i.FieldKey = l.FieldKey
+    JOIN deleted AS d ON d.LcFieldDefinitionId = i.LcFieldDefinitionId
+    WHERE i.Sensitivity = 'RESTRICTED' AND d.Sensitivity <> 'RESTRICTED'
+      AND (l.BaselineValue IS NOT NULL OR l.ReceivedValue IS NOT NULL);
+    -- The object is written again from its members, so a key that appears twice is replaced in every occurrence
+    -- (JSON_MODIFY changes only the first one).
+    UPDATE a
+    SET ChangedFieldsJson = x.Json
+    FROM lc.LcAmendment AS a
+    CROSS APPLY (SELECT N'{' + STRING_AGG(CONVERT(NVARCHAR(MAX), N'"' + STRING_ESCAPE(j.[key], 'json') + N'":'
+                        + CASE WHEN rf.Restricted = 1 THEN N'"CHANGED"'
+                               WHEN j.[type] = 0 THEN N'null'
+                               WHEN j.[type] = 1 THEN N'"' + STRING_ESCAPE(j.[value], 'json') + N'"'
+                               ELSE j.[value] END), N',') + N'}' AS Json
+                 FROM OPENJSON(a.ChangedFieldsJson) AS j
+                 OUTER APPLY (SELECT TOP (1) 1 AS Restricted FROM lc.LcFieldDefinition AS f
+                              WHERE f.TenantId = a.TenantId AND f.Sensitivity = 'RESTRICTED'
+                                AND f.FieldKey = j.[key] COLLATE Arabic_100_CI_AS_SC) AS rf) AS x
+    WHERE ISJSON(a.ChangedFieldsJson, OBJECT) = 1
+      AND EXISTS (SELECT 1
+                  FROM OPENJSON(a.ChangedFieldsJson) AS j
+                  JOIN inserted AS i ON i.TenantId = a.TenantId AND i.FieldKey = j.[key] COLLATE Arabic_100_CI_AS_SC
+                  JOIN deleted AS d ON d.LcFieldDefinitionId = i.LcFieldDefinitionId
+                  WHERE i.Sensitivity = 'RESTRICTED' AND d.Sensitivity <> 'RESTRICTED'
+                    AND NOT (j.[type] = 1 AND j.[value] = N'CHANGED'));
 END;
 GO
 CREATE OR ALTER FUNCTION lc.BeneficiaryIbanChange (@BaselineTermsId BIGINT, @ReceivedTermsId BIGINT)
@@ -674,7 +854,8 @@ GO
 GRANT SELECT ON lc.BeneficiaryIbanChange TO [tp_app];
 GO
 /* DR-41 (S4): a proforma's lines are written once, in one statement, after its header; each line total is
-   round(Qty x UnitPrice, d), the subtotal is their sum, and the VAT is round(Subtotal x Rate / 100, d), d being the
+   round(Qty x UnitPrice, d), computed exactly (DECIMAL(19,4) x DECIMAL(18,4) keeps all eight decimals before the
+   rounding; self-review A9), the subtotal is their sum, and the VAT is round(Subtotal x Rate / 100, d), d being the
    currency's decimals and the rounding away from zero (BR-LCE-001). Total = Subtotal + VAT is a check on the header,
    and the header's totals cannot be updated by tp_app (043). A header still without lines is listed by
    lc.ProformaTotalsDrift, for JOB-PLT-RECONCILE. */
@@ -685,10 +866,10 @@ BEGIN
     SET NOCOUNT ON;
     IF EXISTS (SELECT 1
                FROM (SELECT TenantId, ProformaId, COUNT(*) AS NewLines FROM inserted GROUP BY TenantId, ProformaId) AS n
-               JOIN lc.ProformaInvoice AS p ON p.TenantId = n.TenantId AND p.ProformaInvoiceId = n.ProformaId
+               JOIN lc.ProformaInvoice AS p WITH (UPDLOCK, HOLDLOCK) ON p.TenantId = n.TenantId AND p.ProformaInvoiceId = n.ProformaId
                JOIN ref.Currency AS cur ON cur.CurrencyId = p.CurrencyId
                CROSS APPLY (SELECT COUNT(*) AS Lines, SUM(l.LineTotal) AS Subtotal,
-                                   SUM(CASE WHEN l.LineTotal <> ROUND(l.Qty * l.UnitPrice, lcur.Decimals) THEN 1 ELSE 0 END) AS BadLines
+                                   SUM(CASE WHEN l.LineTotal <> ROUND(CAST(l.Qty AS DECIMAL(19,4)) * CAST(l.UnitPrice AS DECIMAL(18,4)), lcur.Decimals) THEN 1 ELSE 0 END) AS BadLines
                             FROM lc.ProformaLine AS l
                             JOIN ref.Currency AS lcur ON lcur.CurrencyId = l.CurrencyId   -- the proforma's currency (composite key)
                             WHERE l.TenantId = p.TenantId AND l.ProformaId = p.ProformaInvoiceId) AS s

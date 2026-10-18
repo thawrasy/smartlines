@@ -46,8 +46,9 @@ sql="$(cat "$DB_DIR/ops/deploy_preflight.sql")"
 sql="${sql//\$(BANKFAS_EXPECT_VERSION)/$expect_version}"
 sql="${sql//\$(BANKFAS_EXPECT_OS)/$expect_os}"
 printf '%s\n' "$sql" > "$WORK/preflight.sql"
-"$SQLCMD" -S "$SQL_SERVER" "${AUTH[@]}" -I -b $SQLCMD_OPTS -i "$WORK/preflight.sql"
+# One session: deploy.sql starts only after the mark the preflight sets in it (50146, self-review E5).
+printf ':r "%s"\nGO\n:r "%s"\n' "$WORK/preflight.sql" "$DB_DIR/deploy.sql" > "$WORK/run.sql"
 
 cd "$DB_DIR"
-"$SQLCMD" -S "$SQL_SERVER" "${AUTH[@]}" -I -b $SQLCMD_OPTS -i deploy.sql
+"$SQLCMD" -S "$SQL_SERVER" "${AUTH[@]}" -I -b $SQLCMD_OPTS -i "$WORK/run.sql"
 echo "deployment finished"

@@ -63,7 +63,8 @@ END CATCH;
 ROLLBACK TRANSACTION;
 GO
 
-/* T2: approved at revision 1 with 60 + 40; a third lender at 5 (total 105) is rejected. */
+/* T2: approved at revision 1 with 60 + 40; a third lender at 5 for revision 1 is rejected: the rows of an approved
+   revision do not change (044, self-review A1). */
 BEGIN TRANSACTION;
 EXEC sys.sp_set_session_context @key = N'TenantId', @value = 1;
 DECLARE @f BIGINT;
@@ -78,8 +79,31 @@ BEGIN TRY
     PRINT 'FAIL T2: a total of 105 was accepted';
 END TRY
 BEGIN CATCH
-    IF ERROR_NUMBER() = 50071 PRINT 'PASS T2: a total of 105 on the approved revision is rejected';
+    IF ERROR_NUMBER() = 50049 PRINT 'PASS T2: a lender added to the approved revision is rejected (50049)';
     ELSE PRINT 'FAIL T2: ' + ERROR_MESSAGE();
+END CATCH;
+ROLLBACK TRANSACTION;
+GO
+
+/* T2b: the share rule on its own: with the freeze of 044 switched off inside the transaction, a third lender at 5
+   (total 105) on the approved revision is rejected by this trigger (50071). */
+BEGIN TRANSACTION;
+EXEC sys.sp_set_session_context @key = N'TenantId', @value = 1;
+DECLARE @f BIGINT;
+INSERT fac.Facility (TenantId, FacilityNo, BorrowerCompanyId, FacilityTypeId, CurrencyId, TotalAmount, PrecedenceLanguage, EffectiveFrom, ExpiryDate)
+VALUES (1, N'TEST-T2B', 1, 1, 1, 1000, 'EN', '2026-01-01', '2027-01-01');
+SET @f = SCOPE_IDENTITY();
+INSERT fac.FacilityLender (TenantId, FacilityId, InstitutionId, Roles, SharePct, FromRevision) VALUES (1, @f, 1, 'LEAD', 60, 1);
+INSERT fac.FacilityLender (TenantId, FacilityId, InstitutionId, Roles, SharePct, FromRevision) VALUES (1, @f, 2, 'PARTICIPANT', 40, 1);
+EXEC #Approve @f, 1;
+DISABLE TRIGGER fac.TR_FacilityLender_ApprovedFrozen ON fac.FacilityLender;
+BEGIN TRY
+    INSERT fac.FacilityLender (TenantId, FacilityId, InstitutionId, Roles, SharePct, FromRevision) VALUES (1, @f, 3, 'PARTICIPANT', 5, 1);
+    PRINT 'FAIL T2b: a total of 105 was accepted';
+END TRY
+BEGIN CATCH
+    IF ERROR_NUMBER() = 50071 PRINT 'PASS T2b: a total of 105 on the approved revision is rejected (50071)';
+    ELSE PRINT 'FAIL T2b: ' + ERROR_MESSAGE();
 END CATCH;
 ROLLBACK TRANSACTION;
 GO

@@ -9,7 +9,8 @@
       "kb": "KB5126967",
       "product_version": "17.0.5015.4"
     },
-    "ci_image": "mcr.microsoft.com/mssql/server:2025-CU9-GDR1-ubuntu-24.04"
+    "ci_image": "mcr.microsoft.com/mssql/server:2025-CU9-GDR1-ubuntu-24.04",
+    "ci_image_digest": "sha256:742481d1b1186cccc81220a1eaacef244ca8d0f7d19c8e5c70df8ae541ffbab2"
   },
   "reviews": [
     {

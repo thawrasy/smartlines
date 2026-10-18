@@ -5,7 +5,8 @@
    Run once per server, before the first db/deploy.sql, by an administrator who may create databases and logins.
    tools/deploy/prepare_database.sh fills the $(...) values in a private temporary copy and deletes it afterwards.
      - BankFas, empty, in the collation the Arabic search needs (Arabic_100_CI_AS_SC), with its files in the given
-       folders when they are given. An existing database in another collation stops the run (50110).
+       folders when they are given, and RECURSIVE_TRIGGERS OFF. An existing database in another collation stops the
+       run (50110).
      - bankfas_owner: the owner of the database (dbo), a login nobody uses. Its random password is made here and kept
        nowhere, and the login stays disabled, so no person is dbo.
      - bankfas_migrator: the deployment login, a member of db_owner in BankFas and of no server role. It is left
@@ -30,6 +31,9 @@ BEGIN
 END
 ELSE IF CAST(DATABASEPROPERTYEX(N'BankFas', 'Collation') AS NVARCHAR(128)) <> N'Arabic_100_CI_AS_SC'
     THROW 50110, 'BankFas exists in another collation; the Arabic search needs Arabic_100_CI_AS_SC', 1;
+-- The copy triggers of 044 hold only while a trigger does not fire itself again (self-review A7; preflight 50145).
+IF EXISTS (SELECT 1 FROM sys.databases WHERE name = N'BankFas' AND is_recursive_triggers_on = 1)
+    ALTER DATABASE [BankFas] SET RECURSIVE_TRIGGERS OFF;
 GO
 -- The owner: a login nobody can use.
 IF SUSER_ID(N'bankfas_owner') IS NULL

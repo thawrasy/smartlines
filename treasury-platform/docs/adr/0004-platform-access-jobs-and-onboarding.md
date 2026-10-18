@@ -87,7 +87,7 @@ Every procedure that writes takes a savepoint when its caller already holds a tr
 - **Tests.** Every case passes in CI (`tools/ci/db_ci.sh` steps 4b and 8 to 11):
   - S1 to S6 in `db/tests/auth_flow_tests.sql`;
   - P1 to P10 in `db/tests/operator_support_tests.sql`;
-  - J1 to J6 in `db/tests/job_context_tests.sql`;
+  - J1 to J7 in `db/tests/job_context_tests.sql`;
   - O1 to O5 in `db/tests/tenant_onboarding_tests.sql`;
   - the seed check, which runs the platform seed twice and expects nothing to change.
 - **Deployment.** It must create the first operator with `plat.usp_BootstrapOperator` and send its link. The worker and the support connection need their own logins, in `tp_jobs` and `tp_support`, whose secrets the web server never holds (DOC-S08); built in ADR 0009 (`tools/deploy/provision_logins.sh`).

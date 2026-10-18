@@ -61,7 +61,7 @@
 
 | المعرّف | المخزن | ما فيه | الحماية القائمة |
 |---|---|---|---|
-| D-01 | قاعدة SQL Server `BankFas` | 194 جدولًا (tools/dbgen/erd_open_items.py:22)؛ الأعمدة المقيّدة مشفّرة بالتطبيق (docs/20-database-design.md:174-186) | RLS (db/static/010_rls.sql)، منح جدولية (db/generated/tsql/007_table_grants.sql)، DENY (db/generated/tsql/006_sensitive_columns.sql؛ db/static/030_session_context.sql:237-239). TDE غير منفّذ: لا كائن TDE في `db/` (DOC-S02) |
+| D-01 | قاعدة SQL Server `BankFas` | 199 جدولًا (`dbgen.py check`، 2026-10-18)؛ الأعمدة المقيّدة مشفّرة بالتطبيق (docs/20-database-design.md:174-186) | RLS (db/static/010_rls.sql)، منح جدولية (db/generated/tsql/007_table_grants.sql)، DENY (db/generated/tsql/006_sensitive_columns.sql؛ db/static/030_session_context.sql:237-239). TDE غير منفّذ: لا كائن TDE في `db/` (DOC-S02) |
 | D-02 | `cfg.OutboxEvent` | أحداث للتسليم مرة على الأقل داخل القاعدة نفسها (db/model/10-platform.model:532-552) | الحمولة معرّفات بلا مقيّد (FR-PLT-042) بقاعدة تطبيق |
 | D-03 | مخزن الملفات المشفّر | صور الهويات والاتفاقيات وحزم التصدير؛ المرجع في `doc.DocumentVersion` (db/model/10-platform.model:386-408) | تشفير بمفتاح `FILE` (:395)، بصمة `Sha256` (:393)، فحص `ScanStatus` (:396). الموقع غير محسوم (DQ-F01-4) |
 | D-04 | سجلات التطبيق | أحداث تشغيلية | بلا أرقام هويات أو كلمات مرور أو رموز 🟢 (docs/10-detailed-analysis/10-m0-m1-platform-organization.md:586)؛ مكانها في DOC-S12 |
@@ -120,7 +120,7 @@ flowchart LR
 | TB-3 التطبيق ← القاعدة بدور `tp_app` | TDS | دخول عضو في `tp_app`، ثم ربط الاتصال برمز الجلسة (db/static/030_session_context.sql:165-227) | RLS بربط الاتصال (db/static/010_rls.sql:22-57)؛ منح جدولية (db/generated/tsql/007_table_grants.sql)؛ DENY (db/static/030_session_context.sql:237-239)؛ اختبارات العزل (41 حالة، T1-T38) | TLS للاتصال 🟡؛ هوية المهام (DOC-F04) | DOC-F04، DOC-S08 |
 | TB-4 داخل القاعدة: `tp_app` ← `tp_auth_exec` | `EXECUTE AS` في الإجراءات والقوادح (db/static/030_session_context.sql:27، :48، :148، :170، :246) | `tp_auth_exec` مستخدم بلا دخول عضو في `tp_auth` (db/static/020_roles_and_grants.sql:35-36) | تجاوز RLS لـ`tp_auth` (db/static/010_rls.sql:48، :56)؛ منحه محصورة (db/static/020_roles_and_grants.sql:38-39، :59، :67-69) | لا SQL ديناميكي في وحدات `EXECUTE AS` 🟡 | DOC-F03، DOC-F04 |
 | TB-5 لوحة المشغّل ← القاعدة بدور `tp_platform` | TDS | دخول عضو في `tp_platform` | منح على العالمي والمختلط فقط (db/generated/tsql/007_table_grants.sql:9-20، :29، :55)؛ تجاوز RLS (db/static/010_rls.sql:48، :56، :65، :73، :92)، عدا قراءة `aud.AuditLog`: صفوف المنصة فقط (:83؛ T38) | DQ-F01-2 | DOC-S08، DOC-F05 |
-| TB-6 التقارير ← القاعدة بدور `tp_readonly` | TDS | دخول عضو في `tp_readonly` | قراءة المخططات (db/static/020_roles_and_grants.sql:49) مع DENY لـ29 عمودًا مقيّدًا (db/generated/tsql/006_sensitive_columns.sql:7-35) | مسار ربط للتقارير (DQ-F01-5) | DOC-S08 |
+| TB-6 التقارير ← القاعدة بدور `tp_readonly` | TDS | دخول عضو في `tp_readonly` | قراءة المخططات (db/static/020_roles_and_grants.sql:49) مع DENY لـ31 عمودًا مقيّدًا (db/generated/tsql/006_sensitive_columns.sql)، ولكل دالة داخلية في rls وsec وplat وcfg (db/static/090_readonly_denies.sql) | مسار ربط للتقارير (DQ-F01-5) | DOC-S08 |
 | TB-7 النشر ← القاعدة | `sqlcmd` بحساب `sa` وخيار `-C` (tools/deploy/deploy.sh:17-19، :29) | مالك القاعدة؛ `tp_migrator` دور بلا منح (db/static/020_roles_and_grants.sql:9) | CI يقارن المنشور بالمولَّد (tools/ci/db_ci.sh:56-57) | حساب نشر منفصل وشهادة موثوقة 🟡 | DOC-S08، DOC-S11، DOC-B11 |
 | TB-8 التطبيق ← مخزن الملفات | غير محدد 🟡 | هوية خدمة التطبيق | تشفير بمفتاح `FILE` ومسار لكل مشترك (FR-PLT-027) | DQ-F01-4 | DOC-S02، DOC-S09 |
 | TB-9 التطبيق ← مخزن المفاتيح | غير محدد 🟡 | هوية خدمة التطبيق | `WrappedKey` و`MasterKeyRef` (db/model/10-platform.model:281-282) | اختيار المخزن والحفظ | DOC-S02 |
@@ -210,7 +210,7 @@ flowchart TB
 ## 9. قواعد استعمال الحدود
 
 1. كل تدفق جديد يسمّي حده من هذا المستند، وكل حد جديد يُضاف هنا قبل التنفيذ.
-2. لا يحمل مكوّن واحد في Z1 أسرار حدين بامتيازين مختلفين: تطبيق المشترك لا يحمل دخول `tp_platform`، ولوحة المشغّل لا تحمل دخول `tp_app` إلا لمسار الدعم (DQ-F01-2، DQ-F01-7) 🟡.
+2. لا يحمل مكوّن واحد في Z1 أسرار حدين بامتيازين مختلفين: تطبيق المشترك لا يحمل دخول `tp_platform`، ولوحة المشغّل لا تحمل دخول `tp_app`. ومسار الدعم دخول ثالث في `tp_support`، وصفه الواحد في DQ-F01-7 أدناه (DQ-F01-2، DQ-F04-6) ✅.
 3. كل عبور لـ TB-1 وTB-2 يحمل معرّف ارتباط ينتقل إلى `@CorrelationId` (db/static/030_session_context.sql:169) ثم إلى التدقيق (db/model/10-platform.model:317).
 4. عنوان IP العميل يُؤخذ عند TB-1 من مصدر موثوق ثم يُمرَّر في `@ClientIp` (db/static/030_session_context.sql:168). المصدر يحدده DOC-S03.
 5. لا قيمة مقيّدة تعبر TB-10 أو TB-11 🟢 (FR-PLT-042، FR-NTF-013). DOC-F02 يتتبع ذلك.
@@ -227,7 +227,7 @@ flowchart TB
 |---|---|---|---|
 | G-01 | لا مسار قبل الدخول يحوّل العنوان الفرعي إلى `TenantId`: `plat.Tenant` محجوب عن `tp_app`، والعرض يتطلب ربطًا، و`usp_GetPasswordParams` يأخذ `@TenantId` رقمًا | db/generated/tsql/007_table_grants.sql:13-14؛ db/static/025_tenant_views.sql:14؛ db/static/030_session_context.sql:23-26 | DOC-F03 |
 | G-02 | لا مسار ربط للمهام الخلفية: مستخدم الخدمة بلا كلمة مرور، و`usp_StartSession` يرفض من لا تجزئة له | db/model/10-platform.model:150؛ db/static/030_session_context.sql:85-86 | DOC-F04 |
-| G-03 | وصول الدعم غير منفّذ: لا إجراء يتحقق من `plat.SupportAccessGrant` | docs/20-database-design.md:118 | DOC-F04 (O-12 في 20-database-design) |
+| G-03 | ✅ مغلقة: وصول الدعم منفّذ كما في DQ-F01-7 أدناه | docs/20-database-design.md:118؛ db/static/036_operator_and_support.sql:486 | DOC-F04 §6.2 (O-12 في 20-database-design) |
 | G-04 | `tp_readonly` بلا مسار ربط، فلا تقارير على بيانات المشترك | db/static/030_session_context.sql:229-232؛ db/static/010_rls.sql:52-57 | DQ-F01-5 |
 | G-05 | دخول المشغّل لا يمر بإجراء في القاعدة، و`tp_platform` يقرأ `PasswordHash` للمشغّلين | db/generated/tsql/007_table_grants.sql:18؛ db/generated/tsql/006_sensitive_columns.sql:7 يحجبه عن `tp_readonly` فقط | DQ-F01-3 |
 | G-06 | `tp_platform` يكتب صف تدقيق لأي مشترك. ✅ القراءة صُحّحت (1f0f0af): يقرأ صفوف المنصة فقط (T38) | db/static/010_rls.sql:83، :92؛ db/generated/tsql/007_table_grants.sql:55 | DOC-S01 |
@@ -243,7 +243,7 @@ flowchart TB
 | DQ-F01-4 | أين يقع مخزن الملفات؟ | قرص منفصل على VPS نفسه 🟡؛ الملف مشفّر بمفتاح `FILE` قبل الكتابة؛ يُنسخ مع النسخ الاحتياطي | مهندس DevOps | DOC-S09، DOC-S10 |
 | DQ-F01-5 | كيف تقرأ التقارير بيانات المشترك؟ | لا دخول إنتاجي لـ`tp_readonly` حتى يُقرَّر 🟡؛ تقارير المشترك تمر عبر TB-3 باتصال مربوط؛ تقارير المشغّل عدّادات فقط (FR-PLT-005) | معماري قاعدة البيانات | DOC-S08، DOC-B03 |
 | DQ-F01-6 | كيف يصل المسؤولون إلى VPS؟ | SSH بالمفاتيح فقط عبر VPN أو مضيف وسيط 🟡، حسابات مسمّاة، لا دخول مباشر لـroot، وحساب نشر منفصل عن `sa` | مهندس DevOps مع مسؤول الأمن | DOC-S10، DOC-S11، DOC-S08 |
-| DQ-F01-7 | من أين يقرأ الدعم المؤقت بيانات المشترك؟ | ✅ معتمد من المالك (2026-10-12): عبر TB-3 (`tp_app`) بجلسة دعم يتحقق إجراؤها من `plat.SupportAccessGrant`، لا عبر `tp_platform` 🟡 | معماري الأمن مع مالك المنتج | DOC-F04، FR-PLT-007 |
+| DQ-F01-7 | من أين يقرأ الدعم المؤقت بيانات المشترك؟ | ✅ معتمد من المالك (2026-10-12): بجلسة دعم يتحقق إجراؤها من `plat.SupportAccessGrant`، لا عبر `tp_platform`. ✅ منفّذ بصيغة DQ-F04-6 المعتمدة في اليوم نفسه، لا عبر `tp_app`: دخول خاص في `tp_support` (عضو في `tp_readonly`: قراءة بلا الأعمدة المقيّدة ولا كتابة، وتحت مرشحات الصفوف)، يربطه `sec.usp_SetSupportContext` بمشترك واحد بعد التحقق من جلسة المشغّل بـ MFA ومن منحة `plat.SupportAccessGrant` سارية (db/static/036_operator_and_support.sql:23-32؛ DOC-F04 §6.2؛ DQ-F04-6). هذا هو الوصف المرجعي، وتحيل إليه G-03 وTHR-15 (DOC-S01) | معماري الأمن مع مالك المنتج | DOC-F04، FR-PLT-007 |
 
 ## 13. تعارضات وفجوات في المصادر
 

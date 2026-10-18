@@ -76,7 +76,7 @@ Two more gaps:
 - **CI:**
   - Step 3 rejects a tool that adds `-C` by itself.
   - Step 4 provisions the monitoring login inside the window.
-  - Step 5 runs the post-deployment check as `bankfas_monitor`: ten checks, all `ok`.
+  - Step 5 runs the post-deployment check as `bankfas_monitor`: ten checks, all `ok`. (Since ADR 0015 it has 14 rows: the triggers, the disabled triggers, the internal functions open to `tp_readonly` and the deployment login's state were added.)
   - Step 21 (`tools/ci/monitor_login_check.sh`) runs six checks:
 
     | Check | What it shows |

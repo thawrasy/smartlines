@@ -9,16 +9,19 @@
        Linux:    tools/deploy/prepare_database.sh open, then SQL_SERVER=<server> SQL_USER=bankfas_migrator
                  tools/deploy/deploy.sh with SQLCMDPASSWORD read from the secret file, then prepare_database.sh close
                  (DOC-S11 section 5, ADR 0010). Never put the password on the command line.
-   Or by hand:  cd db  then  sqlcmd -S <server> -E -I -f 65001 -b -i deploy.sql
    It needs db_owner in an existing BankFas only: an administrator creates the database first (prepare_database.sh).
+   It does not run by hand: the wrappers run db/ops/deploy_preflight.sql and this script in one session, and the
+   first batch below stops (50146) unless the preflight passed in that session (gate G4, ADR 0014; self-review E5).
 
    Forward slashes in the :r paths work on Windows and Linux alike. -I sets QUOTED_IDENTIFIER ON, which
    the filtered indexes need. The whole script runs in one session, because the temporary table #rls_tables
    created by 004 is used by 010. Files under generated/tsql are produced from the model; do not edit them.
    ============================================================================ */
 :on error exit
+IF SESSION_CONTEXT(N'bankfas.preflight') IS NULL
+    THROW 50146, 'db/deploy.sql runs through tools/deploy/deploy.sh, after the deployment preflight in the same session (gate G4, ADR 0014)', 1;
 IF DB_ID(N'$(DbName)') IS NULL
-    CREATE DATABASE [$(DbName)] COLLATE Arabic_100_CI_AS_SC;
+    THROW 50141, 'BankFas must exist in the collation Arabic_100_CI_AS_SC: an administrator prepares it with tools/deploy/prepare_database.sh prepare', 1;
 GO
 USE [$(DbName)];
 GO
@@ -46,6 +49,7 @@ GO
 :r static/043_review_guards.sql
 :r static/044_entry_guards.sql
 :r static/050_fac_share_rule.sql
+:r static/090_readonly_denies.sql
 :r seed/100_platform_global.sql
 :r seed/101_iso_reference.sql
 :r seed/102_permissions.sql

@@ -29,7 +29,7 @@
 | لا تُحمَّل بيانات حقيقية قبل حسم حفظ المفاتيح وإقامة البيانات والنسخ 🟢 | docs/adr/0001-schema-work-on-linux.md:26 |
 | اختبارات العزل تشترط قاعدة «لا تحوي بيانات حقيقية»، ومشتركوها TST-A وTST-B وTST-C وبريدهم على النطاق test.invalid | db/tests/tenant_isolation_tests.sql:7، :67-70، :78 |
 | قاعدة بيانات الاختبار في التصنيف: العامة تُنسخ، والداخلية مجهّلة 🟡، والسرّية والمقيّدة اصطناعية | docs/30-readiness/DOC-S06-data-classification-standard.md §4 |
-| 29 عمودًا مقيّدًا لها DENY لدور التقارير | db/generated/tsql/006_sensitive_columns.sql:7-35 |
+| 31 عمودًا مقيّدًا لها DENY لدور التقارير | db/generated/tsql/006_sensitive_columns.sql |
 | الاتفاقيات صور ممسوحة بلا نص (81 صفحة)، ولا يُدخل رقم مالي قبل مطابقته بالأصل 🟢 | docs/04-facility-agreements-analysis.md:7، :13 |
 | تحليل الاتفاقيات لا ينقل أسماء الأشخاص ولا أرقام الهويات والسجلات ولا أسماء الشركات، ويسمّيها A إلى D 🟢 | docs/04-facility-agreements-analysis.md:14 |
 | لا مولّد بيانات ولا مجموعة مجهّلة ولا قواعد تجهيل في المستودع | docs/30-readiness-documents.md:383 |

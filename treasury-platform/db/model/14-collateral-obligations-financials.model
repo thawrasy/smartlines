@@ -188,7 +188,7 @@ table obl.Obligation public rev src  # Obligation on a facility (or on a limit, 
   TriggerField        ascii(100)       # حقل الاعتماد المستندي المقيَّم (FR-OBL-009)
   TriggerValues       json             # قيم المشغّل (مصفوفة)
   CheckMode           enum{OFF,WARN,BLOCK}   # فارغ = افتراضي المشترك (FR-OBL-009)
-  Status              enum{ACTIVE,SUSPENDED,ENDED} req =ACTIVE
+  Status              enum{ACTIVE,SUSPENDED} req =ACTIVE   # ENDED مشتقة من ValidTo وحالة التسهيل ولا تُخزَّن (DQ-F15-1، المراجعة الذاتية B7c)
   ValidFrom           date       req
   ValidTo             date
   unique PublicId
@@ -242,7 +242,8 @@ table obl.ReportingObligation rev  # Reporting or notice-due rule, 1:1 with Obli
   check  ToRevision IS NULL OR ToRevision >= FromRevision
 
 table obl.ReportingInstance public  # Agenda item generated or logged for an event (FR-OBL-003..005, BR-OBL-003, section 8); DUE_SOON and OVERDUE are derived; a final status stays (044, DR-39)
-  ReportingObligationId    ->obl.ReportingObligation req
+  ReportingObligationRootId bigint    req   # RootId of the rule: the agenda follows the rule across revisions (DR-28, self-review B1)
+  ReportingObligationId    ->obl.ReportingObligation req via=ReportingObligationRootId>RootId
   PeriodStart              date
   PeriodEnd                date
   EventDate                date
@@ -258,9 +259,9 @@ table obl.ReportingInstance public  # Agenda item generated or logged for an eve
   CurrencyId               ->ref.Currency
   GeneratedBy              enum{JOB,MANUAL_EVENT} req =JOB
   unique PublicId
-  unique ReportingObligationId,PeriodEnd where PeriodEnd IS NOT NULL   # فريد (الالتزام، نهاية الفترة)
-  unique ReportingObligationId,EventDate where PeriodEnd IS NULL AND EventDate IS NOT NULL   # فريد (الالتزام، تاريخ الحدث)
-  unique ReportingObligationId,DueDate where PeriodEnd IS NULL AND EventDate IS NULL   # إضافة: تاريخ ثابت واحد بلا فترة ولا حدث
+  unique ReportingObligationRootId,PeriodEnd where PeriodEnd IS NOT NULL AND Status <> 'CANCELLED'   # فريد (جذر الالتزام، نهاية الفترة): مراجعة جديدة لا تولّد البند مرة ثانية (B1)
+  unique ReportingObligationRootId,EventDate where PeriodEnd IS NULL AND EventDate IS NOT NULL AND Status <> 'CANCELLED'   # فريد (جذر الالتزام، تاريخ الحدث)
+  unique ReportingObligationRootId,DueDate where PeriodEnd IS NULL AND EventDate IS NULL AND Status <> 'CANCELLED'   # إضافة: تاريخ ثابت واحد بلا فترة ولا حدث
   index  DueDate include ReportingObligationId where Status = 'SCHEDULED'   # قادمة ومتأخرة وJOB-OBL-CALENDAR (R-OBL-01/03، NTF-OBL-01/02)
   index  SubmittedOn include DueDate,ReportingObligationId where Status = 'SUBMITTED'   # مقدَّمة بتأخير (R-OBL-01)
   check  PeriodStart IS NULL OR (PeriodEnd IS NOT NULL AND PeriodEnd >= PeriodStart)
@@ -268,6 +269,7 @@ table obl.ReportingInstance public  # Agenda item generated or logged for an eve
   check  Status <> 'SUBMITTED' OR SubmittedOn IS NOT NULL
   check  Status = 'SUBMITTED' OR (SubmittedOn IS NULL AND SubmissionChannelUsedId IS NULL AND SubmissionRef IS NULL)
   check  Status NOT IN ('NOT_APPLICABLE','CANCELLED') OR StatusReason IS NOT NULL   # بسبب (§8)
+  check  Status <> 'WAIVED' OR (StatusReason IS NOT NULL AND EvidenceDocumentId IS NOT NULL)   # التنازل بسبب ووثيقة (DQ-F15-12، B7a)
   check  ReportedAmount IS NULL OR CurrencyId IS NOT NULL
   check  CurrencyId IS NULL OR ReportedAmount IS NOT NULL
 
@@ -319,12 +321,14 @@ table obl.CovenantAccount pk=CovenantId,BankAccountId norv deletable  # Accounts
   BankAccountId  ->acc.BankAccount req
 
 table obl.CovenantTest public  # Covenant test for a period and test version; an evaluated test changes only by its review (044, DR-39) (FR-OBL-011, FR-FIN-012/013, BR-OBL-006/007, section 8)
-  CovenantId         ->obl.Covenant req
+  CovenantRootId     bigint     req   # RootId of the covenant: tests follow the covenant across revisions (DR-28, self-review B1)
+  CovenantId         ->obl.Covenant req via=CovenantRootId>RootId
   PeriodStart        date       req
   PeriodEnd          date       req
   DueDate            date       req   # PeriodEnd + SubmissionLagDays (BR-OBL-005)
   EvaluationNo       int        req =1   # إعادة التقييم تضيف رقمًا ولا تعدّل القديم (BR-OBL-011)
-  State              enum{SCHEDULED,PENDING_DATA,EVALUATED,REVIEWED} req =SCHEDULED
+  State              enum{SCHEDULED,PENDING_DATA,EVALUATED,REVIEWED,CANCELLED} req =SCHEDULED   # CANCELLED: اختبار مجدول خرج من الجدول، بسبب، ونهائي (DQ-F15-2، B3)
+  CancelReason       str(500)
   Result             enum{COMPLIANT,WARNING,BREACH,MISSING_DATA,NOT_ASSESSED_NO_THRESHOLD,NOT_COMPARABLE,MANUAL_COMPLIANT,MANUAL_NON_COMPLIANT,UNDER_REVIEW}
   Method             enum{AUTO,MANUAL_VALUE,MANUAL_STATUS} req
   ActualValue        dec(19,6)
@@ -342,14 +346,16 @@ table obl.CovenantTest public  # Covenant test for a period and test version; an
   ReviewedOn         ts
   NextReviewOn       date             # المراجعة الفائتة = مراجعة متأخرة (FR-OBL-007، BR-OBL-008)
   unique PublicId
-  unique CovenantId,PeriodEnd,EvaluationNo
+  unique CovenantRootId,PeriodEnd,EvaluationNo   # رقم التقييم لكل جذر وفترة: مراجعة التعهد لا تبدأ العد من جديد (B1)
   index  DueDate include CovenantId,State where State IN ('SCHEDULED','PENDING_DATA')   # JOB-FIN-EVAL وبيانات ناقصة (NTF-OBL-05)
   index  Result,PeriodEnd include CovenantId,State   # نتائج التعهدات والهامش والإنذار (R-OBL-02)
   index  NextReviewOn include CovenantId where NextReviewOn IS NOT NULL   # مراجعة وصفية متأخرة (NTF-OBL-06)
   check  EvaluationNo >= 1
   check  PeriodEnd >= PeriodStart
   check  DueDate >= PeriodEnd              # BR-OBL-005: SubmissionLagDays >= 0
-  check  State <> 'SCHEDULED' OR (Result IS NULL AND EvaluatedAt IS NULL)
+  check  State NOT IN ('SCHEDULED','CANCELLED') OR (Result IS NULL AND EvaluatedAt IS NULL)
+  check  State <> 'CANCELLED' OR CancelReason IS NOT NULL   # B3
+  check  CancelReason IS NULL OR State = 'CANCELLED'
   check  State NOT IN ('EVALUATED','REVIEWED') OR (Result IS NOT NULL AND EvaluatedAt IS NOT NULL AND InputsSnapshot IS NOT NULL)   # FR-FIN-013
   check  State <> 'REVIEWED' OR (ReviewedBy IS NOT NULL AND ReviewedOn IS NOT NULL)   # §8
   check  Result NOT IN ('COMPLIANT','WARNING','BREACH') OR (ActualValue IS NOT NULL AND ThresholdApplied IS NOT NULL AND OperatorApplied IS NOT NULL)   # الحكم بعتبة (BR-OBL-006)
@@ -361,9 +367,12 @@ table obl.CovenantTest public  # Covenant test for a period and test version; an
   check  Method <> 'MANUAL_STATUS' OR Result IS NULL OR Result IN ('MANUAL_COMPLIANT','MANUAL_NON_COMPLIANT','UNDER_REVIEW')
 
 table obl.ObligationBreach public  # Breach record, its remedy and any waiver (FR-OBL-012, BR-OBL-009/011, section 8)
-  ObligationId          ->obl.Obligation req
+  ObligationRootId      bigint     req   # RootId of the obligation: the breach register follows it across revisions (DR-28, self-review B1)
+  ObligationId          ->obl.Obligation req via=ObligationRootId>RootId
   Kind                  enum{COVENANT_BREACH,LATE_REPORT,RESTRICTION_VIOLATION,OTHER} req
-  CovenantTestId        ->obl.CovenantTest   # اتساق اختبار الخرق مع الالتزام يتحقق منه التطبيق
+  CovenantRootId        bigint           # نسخة من الاختبار: جذر التعهد (B1)
+  TestPeriodEnd         date             # نسخة من الاختبار: نهاية الفترة (B1)
+  CovenantTestId        ->obl.CovenantTest via=CovenantRootId,TestPeriodEnd>PeriodEnd   # اتساق اختبار الخرق مع الالتزام يتحقق منه التطبيق
   ReportingInstanceId   ->obl.ReportingInstance
   DetectedOn            date       req
   Description           str(2000)
@@ -376,24 +385,28 @@ table obl.ObligationBreach public  # Breach record, its remedy and any waiver (F
   WaiverConditions      str(2000)
   WaiverValidUntil      date
   WaiverDocumentId      ->doc.Document
+  WaiverApprovedBy      ->sec.AppUser    # اعتماد TM للتنازل؛ حقول التنازل تُسجَّل في OPEN وIN_CURE قبله (DQ-F15-9، B2)
+  WaiverApprovedOn      ts
   ConsequenceApplied    str(1000)
   ResolvedOn            date
   NeedsReview           bool       req =0   # تعليم إعادة العرض لا يغيّر الحالة (BR-OBL-011)
   unique PublicId
-  unique CovenantTestId where CovenantTestId IS NOT NULL AND Status IN ('OPEN','IN_CURE')   # خرق مفتوح واحد لكل اختبار
+  unique CovenantRootId,TestPeriodEnd where CovenantTestId IS NOT NULL AND Status IN ('OPEN','IN_CURE')   # خرق مفتوح واحد لكل تعهد وفترة، ولو أعيد التقييم: يُعلَّم القائم NeedsReview (DQ-F15-11، B1)
   unique ReportingInstanceId where ReportingInstanceId IS NOT NULL AND Status IN ('OPEN','IN_CURE')   # إضافة: منع تكرار خرق التأخير من المهمة الليلية
-  index  ObligationId,Status include DetectedOn,Kind,NeedsReview   # سجل الخروقات ولوحة الامتثال (R-OBL-02/04)
+  index  ObligationRootId,Status include DetectedOn,Kind,NeedsReview   # سجل الخروقات عبر المراجعات ولوحة الامتثال (R-OBL-02/04)
   index  CureDeadline include ObligationId where Status IN ('OPEN','IN_CURE') AND CureDeadline IS NOT NULL   # إنذار قبل 7 أيام من نهاية العلاج (NTF-OBL-06)
   index  DetectedOn include ObligationId where NeedsReview = 1   # خروقات تحتاج مراجعة (BR-OBL-011)
   check  CovenantTestId IS NULL OR Kind = 'COVENANT_BREACH'
+  check  (CovenantTestId IS NULL AND CovenantRootId IS NULL AND TestPeriodEnd IS NULL) OR (CovenantTestId IS NOT NULL AND CovenantRootId IS NOT NULL AND TestPeriodEnd IS NOT NULL)
   check  ReportingInstanceId IS NULL OR Kind = 'LATE_REPORT'
   check  CureDeadline IS NULL OR CureDeadline >= DetectedOn
   check  Status <> 'IN_CURE' OR CureDeadline IS NOT NULL
   check  Status NOT IN ('CURED','WAIVED','CLOSED_NO_ACTION') OR ResolvedOn IS NOT NULL
   check  Status IN ('CURED','WAIVED','CLOSED_NO_ACTION') OR ResolvedOn IS NULL
   check  ResolvedOn IS NULL OR ResolvedOn >= DetectedOn
-  check  Status <> 'WAIVED' OR (WaiverRef IS NOT NULL AND WaiverDate IS NOT NULL AND WaiverBankContactId IS NOT NULL)   # BR-OBL-009، V-OBL-01
-  check  Status = 'WAIVED' OR (WaiverRef IS NULL AND WaiverDate IS NULL AND WaiverBankContactId IS NULL AND WaiverConditions IS NULL AND WaiverValidUntil IS NULL AND WaiverDocumentId IS NULL)
+  check  Status <> 'WAIVED' OR (WaiverRef IS NOT NULL AND WaiverDate IS NOT NULL AND WaiverBankContactId IS NOT NULL AND WaiverApprovedBy IS NOT NULL AND WaiverApprovedOn IS NOT NULL)   # BR-OBL-009، V-OBL-01، DQ-F15-9
+  check  Status IN ('WAIVED','OPEN','IN_CURE') OR (WaiverRef IS NULL AND WaiverDate IS NULL AND WaiverBankContactId IS NULL AND WaiverConditions IS NULL AND WaiverValidUntil IS NULL AND WaiverDocumentId IS NULL)   # التنازل المنتظر يُسجَّل قبل اعتماده (DQ-F15-9)
+  check  (WaiverApprovedBy IS NULL AND WaiverApprovedOn IS NULL) OR (Status = 'WAIVED' AND WaiverApprovedBy IS NOT NULL AND WaiverApprovedOn IS NOT NULL)   # الاعتماد هو الانتقال إلى WAIVED
   check  WaiverValidUntil IS NULL OR WaiverDate IS NULL OR WaiverValidUntil >= WaiverDate
 
 # ============================== المخطط fin: البيانات المالية ==============================

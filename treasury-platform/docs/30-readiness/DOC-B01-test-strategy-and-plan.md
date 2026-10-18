@@ -22,7 +22,7 @@
 
 ### 2.1 خط CI لقاعدة البيانات
 
-ملف الخط في جذر المستودع، ../.github/workflows/treasury-db-ci.yml، لأن GitHub يقرأ الخطوط من الجذر فقط. يعمل على كل دفع إلى main وclaude/** وعلى كل طلب دمج، ولكن فقط عند تغيّر treasury-platform/db/ أو tools/dbgen/ أو tools/ci/ أو ملف الخط نفسه (السطور 7-20)، ويمكن تشغيله يدويًا (السطر 21)، وينفّذ أوامره داخل treasury-platform/ (السطور 26-28)، على ubuntu-24.04 (السطر 32) مع حاوية mcr.microsoft.com/mssql/server:2025-latest (السطر 37). يثبّت Pillow (pillow==12.3.0، السطور 57-59) لأن check_fk_indexes.py يستورد erd_layout.py الذي يستورد PIL. **يعمل على GitHub ويمر** 🟢: أول تشغيل أخضر في 2026-10-12 (https://github.com/thawrasy/smartlines/actions/runs/38283663041) نفّذ الخطوات الثماني كلها، 6 حالات للمشغّلات و41 حالة عزل؛ والتشغيل الذي سبقه، قبل خطوة Pillow، فشل في الخطوة 3 (التشغيل 38267525934) (O-02، tools/dbgen/erd_open_items.py:22؛ docs/adr/0001-schema-work-on-linux.md:11). والسكربت tools/ci/db_ci.sh نفسه يمر كاملًا في حاوية التطوير أيضًا.
+ملف الخط في جذر المستودع، ../.github/workflows/treasury-db-ci.yml، لأن GitHub يقرأ الخطوط من الجذر فقط. يعمل على كل دفع إلى main وclaude/** وعلى كل طلب دمج، ولكن فقط عند تغيّر treasury-platform/db/ أو tools/dbgen/ أو tools/ci/ أو tools/deploy/ أو versions.json أو مستندات الجاهزية والتحليل التفصيلي التي تُولَّد منها بذرة الصلاحيات، أو ملف الخط نفسه، ويمكن تشغيله يدويًا، وينفّذ أوامره داخل treasury-platform/، على ubuntu-24.04 مع حاوية mcr.microsoft.com/mssql/server:2025-CU9-GDR1-ubuntu-24.04 مثبّتة ببصمتها (sha256، من versions.json؛ تطابقها الخطوة 3)، والإجراءات مثبّتة بإيداعاتها، والسحب بلا حفظ بيانات الاعتماد (المراجعة الذاتية E13). يثبّت Pillow (pillow==12.3.0) لأن check_fk_indexes.py يستورد erd_layout.py الذي يستورد PIL. **يعمل على GitHub ويمر** 🟢: أول تشغيل أخضر في 2026-10-12 (https://github.com/thawrasy/smartlines/actions/runs/38283663041) نفّذ الخطوات الثماني يومها، 6 حالات للمشغّلات و41 حالة عزل؛ والتشغيل الذي سبقه، قبل خطوة Pillow، فشل في الخطوة 3 (التشغيل 38267525934) (O-02، tools/dbgen/erd_open_items.py:22؛ docs/adr/0001-schema-work-on-linux.md:11). واليوم 25 خطوة (0 إلى 23 و4b، الجدول أدناه)، والسكربت tools/ci/db_ci.sh نفسه يمر كاملًا في حاوية التطوير أيضًا. وتُطابق كل خطوة سطور PASS وFAIL في أي موضع من السطر، وتعدّ كل حالة مرة واحدة (المراجعة الذاتية C9).
 
 | الخطوة | ما تفعله | الموضع |
 |---|---|---|
@@ -32,13 +32,17 @@
 | 3 | كل مفتاح أجنبي مفهرس أو موسوم noidx، وقواعد المنح R1-R10 | tools/ci/db_ci.sh:47-49 |
 | 4 | نشر db/deploy.sql على قاعدة جديدة عبر deploy.sh | tools/ci/db_ci.sh:51-54 |
 | 5 | مطابقة الكائنات المنشورة مع DDL المولَّد | tools/ci/db_ci.sh:56-57 |
-| 6 | اختبارات المشغّلات: 6 سطور PASS بالضبط | tools/ci/db_ci.sh:59-74 |
-| 7 | اختبارات العزل: 41 سطر PASS بالضبط | tools/ci/db_ci.sh:75-92 |
+| 6 | اختبارات المشغّلات: 7 حالات PASS بالضبط (T1 إلى T6 وT2b) | tools/ci/db_ci.sh |
+| 7 | اختبارات العزل: 48 حالة PASS بالضبط | tools/ci/db_ci.sh |
+| 8 إلى 18 | أمن الحساب (20)، المشغّل والدعم (11)، ربط المهام (7، J1 إلى J7)، تهيئة المشترك (5)، الترقيم (8، ومع اتصالات متزامنة 2)، تاريخ KYC (4)، البيانات المرجعية (4)، التدقيق (7)، التصدير (7، X1 إلى X7)، دخولات الخدمة (6) | tools/ci/db_ci.sh |
+| 19 | إصلاحات المراجعة: RF1 إلى RF34 وSR1 إلى SR9 (43) | db/tests/review_fixes_tests.sql |
+| 20 إلى 22 | SQL Server Audit (SA1 إلى SA9)، دخول المراقبة (MN1 إلى MN6)، فحوص ما قبل النشر (PF1 إلى PF8) | tools/ci/*_check.sh |
+| 23 | لا قيد غير موثوق ولا مشغّل معطّل ولا مرشح صفوف معطّل ولا مستخدم اختبار ولا مشترك متروك | tools/ci/db_ci.sh |
 
 ### 2.2 اختبارات قاعدة البيانات
 
-- db/tests/tenant_isolation_tests.sql: 41 حالة (T1 إلى T38 مع T8b وT16b وT16c، tools/ci/db_ci.sh:87-88). تُنفَّذ بصفة الدورين tp_app وtp_readonly عبر EXECUTE AS، والتشغيل كله معاملة واحدة تُلغى في النهاية (db/tests/tenant_isolation_tests.sql:2-11).
-- db/tests/fac_share_rule_tests.sql: 6 حالات لقاعدة حصص المقرضين V-FAC-02 (السطور 47 و70 و93 و113 و135 و150)، كل حالة في معاملتها (السطور 5-7).
+- db/tests/tenant_isolation_tests.sql: 48 حالة (T1 إلى T38 مع T8b وT16b وT16c، وT40 إلى T46؛ لا T39). تُنفَّذ بصفة الدورين tp_app وtp_readonly عبر EXECUTE AS، والتشغيل كله معاملة واحدة تُلغى في النهاية (db/tests/tenant_isolation_tests.sql:2-11).
+- db/tests/fac_share_rule_tests.sql: 7 حالات لقاعدة حصص المقرضين V-FAC-02، كل حالة في معاملتها: T1 إلى T6، وT2b للقاعدة نفسها والتجميد معطّل داخل المعاملة؛ فمنذ المراجعة الذاتية A1 يرفض تجميد المراجعة المعتمدة (50049، db/static/044_entry_guards.sql) إضافة مقرض إليها قبل القاعدة (T2).
 
 | مجموعة حالات العزل | ما تثبته | الموضع |
 |---|---|---|

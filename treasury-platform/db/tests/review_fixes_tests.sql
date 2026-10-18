@@ -48,6 +48,18 @@
    RF33 a restricted LC field is never copied into a comparison or an amendment, and its change is read from the keyed
         hash (DR-46, DQ-F12-11, S3; 044)
    RF34 a proforma's lines are written once and its totals follow them (DR-41, BR-LCE-001, S4; 044)
+   The guards of the self-review of 2026-10-18 (docs/34-self-review-2026-10-18.md):
+   SR1  the rows of an approved facility revision do not change, and draft rows do (A1, C4; 044)
+   SR2  an evaluation applies the covenant's own threshold, and an automatic one names its formula and stores every
+        input it read (A3, C5; 044)
+   SR3  a restricted LC field is found in an amendment whatever its form, and a field made restricted is taken out
+        of the copies (A4; 044)
+   SR4  the request takes the active reservation a statement writes, and the drift view finds a stale pointer (A6,
+        A7; 044)
+   SR5  a closed indirect path stays editable history, and reopening it is checked again (A8; 044)
+   SR6  a proforma line total is rounded once, from the exact product (A9; 044)
+   SR7  the reporting role reads its tenant's rows and the reporting views, never an internal function (A5; 090)
+   SR8  the transitions, attachment rules and hooks of a published template version do not change (C2; 044)
    The other declarative fixes of S2 to S4 (keys and checks) are verified on the generated DDL by
    tools/dbgen/check_review_fixes.py, CI step 3.
 
@@ -561,11 +573,11 @@ EXEC #Bind @t1, @u1;
 INSERT cat.CollateralType (TenantId, Code, NameAr, StructureKind) VALUES (@t1, 'GUAR', N'كفالة', 'GUARANTEE'), (@t1, 'PROPERTY', N'عقار', 'REAL_ESTATE');
 SELECT @tg = CollateralTypeId FROM cat.CollateralType WHERE TenantId = @t1 AND Code = 'GUAR';
 SELECT @tr = CollateralTypeId FROM cat.CollateralType WHERE TenantId = @t1 AND Code = 'PROPERTY';
-BEGIN TRY INSERT col.Collateral (TenantId, StructureKind, CollateralTypeId, TitleAr) VALUES (@t1, 'GUARANTEE', @tr, N'ضمان'); END TRY
+BEGIN TRY INSERT col.Collateral (TenantId, StructureKind, CollateralTypeId, TitleAr, NoSourceReason) VALUES (@t1, 'GUARANTEE', @tr, N'ضمان', N'test fixture'); END TRY
 BEGIN CATCH SET @e1 = ERROR_NUMBER(); END CATCH;
-INSERT col.Collateral (TenantId, StructureKind, CollateralTypeId, TitleAr) VALUES (@t1, 'GUARANTEE', @tg, N'كفالة');
+INSERT col.Collateral (TenantId, StructureKind, CollateralTypeId, TitleAr, NoSourceReason) VALUES (@t1, 'GUARANTEE', @tg, N'كفالة', N'test fixture');
 SET @cg = SCOPE_IDENTITY();
-INSERT col.Collateral (TenantId, StructureKind, CollateralTypeId, TitleAr) VALUES (@t1, 'REAL_ESTATE', @tr, N'عقار');
+INSERT col.Collateral (TenantId, StructureKind, CollateralTypeId, TitleAr, NoSourceReason) VALUES (@t1, 'REAL_ESTATE', @tr, N'عقار', N'test fixture');
 SET @cr = SCOPE_IDENTITY();
 ALTER TABLE col.Guarantee NOCHECK CONSTRAINT FK_Guarantee_GuarantorPartyId;
 BEGIN TRY INSERT col.Guarantee (TenantId, CollateralId, GuarantorPartyId, GuaranteeForm, IsJointSeveral, AmountMode)
@@ -758,10 +770,24 @@ ELSE PRINT CONCAT('FAIL RF22: two paths and a direct row ', @ok, ', same path tw
                   ', direct with one ', @e2, ', owner as intermediate ', @e3, ', path through a tenant company ', @e4,
                   ', intermediate becoming a company ', @e5);
 GO
+/* Approves revision 1 of the fixture's facility: its APPROVED row first, then the facility's ApprovedRevisionNo. */
+CREATE PROCEDURE #Approve1
+AS
+BEGIN
+    SET NOCOUNT ON;
+    DECLARE @t1 INT, @u1 BIGINT, @f BIGINT;
+    SELECT @t1 = v FROM #F WHERE k = 't1'; SELECT @u1 = v FROM #F WHERE k = 'u1'; SELECT @f = v FROM #F WHERE k = 'f';
+    INSERT fac.FacilityRevision (TenantId, FacilityId, RevisionNo, ReasonKind, Status, EffectiveOn, SubmittedBy, SubmittedOn, ApprovedBy, ApprovedOn)
+    VALUES (@t1, @f, 1, 'INITIAL', 'APPROVED', '2026-01-01', @u1, SYSUTCDATETIME(), @u1, SYSUTCDATETIME());
+    UPDATE fac.Facility SET ApprovedRevisionNo = 1 WHERE FacilityId = @f;
+END;
+GO
 /* The S2 fixture: in tenant 1, a company, a facility with one lender at 100 percent, a root limit and its child at
-   revision 1, revision 1 approved. Runs inside the caller's transaction; #F holds 'f', 'l', 'lc', 'co', 'cur'.
+   revision 1, revision 1 approved unless @Approve = 0. The rows of an approved revision do not change (044,
+   self-review A1), so a test that adds rows to revision 1 takes the draft and approves it with #Approve1 when its
+   rows are written. Runs inside the caller's transaction; #F holds 'f', 'l', 'lc', 'co', 'cur'.
    Catalogue and lender references are switched off for these rows (the transaction rolls the switch back). */
-CREATE PROCEDURE #S2
+CREATE PROCEDURE #S2 @Approve BIT = 1
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -784,16 +810,14 @@ BEGIN
     VALUES (@t1, 'FAC-26-001', @co, 1, @cur, 1000000, 'EN', '2026-01-01', '2027-01-01');
     SET @f = SCOPE_IDENTITY();
     INSERT fac.FacilityLender (TenantId, FacilityId, InstitutionId, Roles, SharePct, FromRevision) VALUES (@t1, @f, 1, 'LEAD', 100, 1);
-    INSERT fac.Limit (TenantId, FacilityId, LimitTypeId, Code, NameAr, AmountBasis, Amount, IsRevolving, FromRevision)
-    VALUES (@t1, @f, 1, 'L1', N'حد', 'ABSOLUTE', 800000, 1, 1);
+    INSERT fac.Limit (TenantId, FacilityId, LimitTypeId, Code, NameAr, AmountBasis, Amount, IsRevolving, FromRevision, NoSourceReason)
+    VALUES (@t1, @f, 1, 'L1', N'حد', 'ABSOLUTE', 800000, 1, 1, N'test fixture');
     SET @l = SCOPE_IDENTITY();
-    INSERT fac.Limit (TenantId, FacilityId, ParentLimitId, LimitTypeId, Code, NameAr, AmountBasis, Amount, IsRevolving, FromRevision)
-    VALUES (@t1, @f, @l, 1, 'L1A', N'حد فرعي', 'ABSOLUTE', 300000, 1, 1);
+    INSERT fac.Limit (TenantId, FacilityId, ParentLimitId, LimitTypeId, Code, NameAr, AmountBasis, Amount, IsRevolving, FromRevision, NoSourceReason)
+    VALUES (@t1, @f, @l, 1, 'L1A', N'حد فرعي', 'ABSOLUTE', 300000, 1, 1, N'test fixture');
     SET @lc = SCOPE_IDENTITY();
-    INSERT fac.FacilityRevision (TenantId, FacilityId, RevisionNo, ReasonKind, Status, EffectiveOn, SubmittedBy, SubmittedOn, ApprovedBy, ApprovedOn)
-    VALUES (@t1, @f, 1, 'INITIAL', 'APPROVED', '2026-01-01', @u1, SYSUTCDATETIME(), @u1, SYSUTCDATETIME());
-    UPDATE fac.Facility SET ApprovedRevisionNo = 1 WHERE FacilityId = @f;
     INSERT #F (k, v) VALUES ('f', @f), ('l', @l), ('lc', @lc), ('co', @co), ('cur', @cur);
+    IF @Approve = 1 EXEC #Approve1;
 END;
 GO
 /* RF23 (DR-27, S2): a conflict names an existing target and carries its facility: on a limit of facility 1 with
@@ -805,7 +829,7 @@ EXEC #S2;
 SELECT @t1 = v FROM #F WHERE k = 't1'; SELECT @f = v FROM #F WHERE k = 'f'; SELECT @l = v FROM #F WHERE k = 'l';
 INSERT cat.CollateralType (TenantId, Code, NameAr, StructureKind) VALUES (@t1, 'GUAR', N'كفالة', 'GUARANTEE');
 SET @tg = SCOPE_IDENTITY();
-INSERT col.Collateral (TenantId, StructureKind, CollateralTypeId, TitleAr) VALUES (@t1, 'GUARANTEE', @tg, N'كفالة');
+INSERT col.Collateral (TenantId, StructureKind, CollateralTypeId, TitleAr, NoSourceReason) VALUES (@t1, 'GUARANTEE', @tg, N'كفالة', N'test fixture');
 SET @c = SCOPE_IDENTITY();
 BEGIN TRY
     INSERT fac.ValueConflict (TenantId, FacilityId, TargetEntity, TargetId, FieldName, CandidateAValue, CandidateBValue)
@@ -859,8 +883,8 @@ SELECT @l = v FROM #F WHERE k = 'l';
 EXEC sys.sp_executesql @newRevision, N'@t INT, @f BIGINT, @u BIGINT', @t = @t1, @f = @f, @u = @u1;
 SET @root = (SELECT RootId FROM fac.Limit WHERE LimitId = @l);
 UPDATE fac.Limit SET ToRevision = 2 WHERE LimitId = @l;
-INSERT fac.Limit (TenantId, FacilityId, LimitTypeId, Code, NameAr, AmountBasis, Amount, IsRevolving, FromRevision, SupersedesId, InheritedRootId)
-VALUES (@t1, @f, 1, 'L1', N'حد', 'ABSOLUTE', 900000, 1, 2, @l, @root);
+INSERT fac.Limit (TenantId, FacilityId, LimitTypeId, Code, NameAr, AmountBasis, Amount, IsRevolving, FromRevision, SupersedesId, InheritedRootId, NoSourceReason)
+VALUES (@t1, @f, 1, 'L1', N'حد', 'ABSOLUTE', 900000, 1, 2, @l, @root, N'test fixture');
 BEGIN TRY UPDATE fac.Facility SET ApprovedRevisionNo = 2 WHERE FacilityId = @f; END TRY
 BEGIN CATCH SET @e2 = ERROR_NUMBER(); IF XACT_STATE() <> 0 ROLLBACK TRANSACTION; END CATCH;
 WHILE @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
@@ -872,11 +896,11 @@ SELECT @l = v FROM #F WHERE k = 'l'; SELECT @lc = v FROM #F WHERE k = 'lc';
 EXEC sys.sp_executesql @newRevision, N'@t INT, @f BIGINT, @u BIGINT', @t = @t1, @f = @f, @u = @u1;
 SET @root = (SELECT RootId FROM fac.Limit WHERE LimitId = @l); SET @lcroot = (SELECT RootId FROM fac.Limit WHERE LimitId = @lc);
 UPDATE fac.Limit SET ToRevision = 2 WHERE LimitId IN (@l, @lc);
-INSERT fac.Limit (TenantId, FacilityId, LimitTypeId, Code, NameAr, AmountBasis, Amount, IsRevolving, FromRevision, SupersedesId, InheritedRootId)
-VALUES (@t1, @f, 1, 'L1', N'حد', 'ABSOLUTE', 900000, 1, 2, @l, @root);
+INSERT fac.Limit (TenantId, FacilityId, LimitTypeId, Code, NameAr, AmountBasis, Amount, IsRevolving, FromRevision, SupersedesId, InheritedRootId, NoSourceReason)
+VALUES (@t1, @f, 1, 'L1', N'حد', 'ABSOLUTE', 900000, 1, 2, @l, @root, N'test fixture');
 SET @l2 = SCOPE_IDENTITY();
-INSERT fac.Limit (TenantId, FacilityId, ParentLimitId, LimitTypeId, Code, NameAr, AmountBasis, Amount, IsRevolving, FromRevision, SupersedesId, InheritedRootId)
-VALUES (@t1, @f, @l2, 1, 'L1A', N'حد فرعي', 'ABSOLUTE', 300000, 1, 2, @lc, @lcroot);
+INSERT fac.Limit (TenantId, FacilityId, ParentLimitId, LimitTypeId, Code, NameAr, AmountBasis, Amount, IsRevolving, FromRevision, SupersedesId, InheritedRootId, NoSourceReason)
+VALUES (@t1, @f, @l2, 1, 'L1A', N'حد فرعي', 'ABSOLUTE', 300000, 1, 2, @lc, @lcroot, N'test fixture');
 BEGIN TRY UPDATE fac.Facility SET ApprovedRevisionNo = 2 WHERE FacilityId = @f; SET @ok = @@ROWCOUNT; END TRY
 BEGIN CATCH SET @ok = -ERROR_NUMBER(); IF XACT_STATE() <> 0 ROLLBACK TRANSACTION; END CATCH;
 IF @@TRANCOUNT > 0
@@ -890,13 +914,13 @@ SELECT @t1 = v FROM #F WHERE k = 't1'; SELECT @u1 = v FROM #F WHERE k = 'u1'; SE
 SELECT @l = v FROM #F WHERE k = 'l'; SELECT @lc = v FROM #F WHERE k = 'lc';
 EXEC sys.sp_executesql @newRevision, N'@t INT, @f BIGINT, @u BIGINT', @t = @t1, @f = @f, @u = @u1;
 SET @root = (SELECT RootId FROM fac.Limit WHERE LimitId = @l);
-BEGIN TRY INSERT fac.Limit (TenantId, FacilityId, LimitTypeId, Code, NameAr, AmountBasis, Amount, IsRevolving, FromRevision, SupersedesId, InheritedRootId)
-          VALUES (@t1, @f, 1, 'L1B', N'حد', 'ABSOLUTE', 900000, 1, 2, @l, @root); END TRY BEGIN CATCH SET @e4 = ERROR_NUMBER(); END CATCH;
-BEGIN TRY INSERT fac.Limit (TenantId, FacilityId, LimitTypeId, Code, NameAr, AmountBasis, Amount, IsRevolving, FromRevision, SupersedesId, InheritedRootId)
-          VALUES (@t1, @f, 1, 'L1C', N'حد', 'ABSOLUTE', 900000, 1, 2, @l, @root + 100000); END TRY BEGIN CATCH SET @e5 = ERROR_NUMBER(); END CATCH;
+BEGIN TRY INSERT fac.Limit (TenantId, FacilityId, LimitTypeId, Code, NameAr, AmountBasis, Amount, IsRevolving, FromRevision, SupersedesId, InheritedRootId, NoSourceReason)
+          VALUES (@t1, @f, 1, 'L1B', N'حد', 'ABSOLUTE', 900000, 1, 2, @l, @root, N'test fixture'); END TRY BEGIN CATCH SET @e4 = ERROR_NUMBER(); END CATCH;
+BEGIN TRY INSERT fac.Limit (TenantId, FacilityId, LimitTypeId, Code, NameAr, AmountBasis, Amount, IsRevolving, FromRevision, SupersedesId, InheritedRootId, NoSourceReason)
+          VALUES (@t1, @f, 1, 'L1C', N'حد', 'ABSOLUTE', 900000, 1, 2, @l, @root + 100000, N'test fixture'); END TRY BEGIN CATCH SET @e5 = ERROR_NUMBER(); END CATCH;
 UPDATE fac.Limit SET ToRevision = 3 WHERE LimitId = @l;
-INSERT fac.Limit (TenantId, FacilityId, LimitTypeId, Code, NameAr, AmountBasis, Amount, IsRevolving, FromRevision, SupersedesId, InheritedRootId)
-VALUES (@t1, @f, 1, 'L1', N'حد', 'ABSOLUTE', 900000, 1, 2, @l, @root);
+INSERT fac.Limit (TenantId, FacilityId, LimitTypeId, Code, NameAr, AmountBasis, Amount, IsRevolving, FromRevision, SupersedesId, InheritedRootId, NoSourceReason)
+VALUES (@t1, @f, 1, 'L1', N'حد', 'ABSOLUTE', 900000, 1, 2, @l, @root, N'test fixture');
 BEGIN TRY UPDATE fac.Facility SET ApprovedRevisionNo = 2 WHERE FacilityId = @f; END TRY
 BEGIN CATCH SET @e6 = ERROR_NUMBER(); IF XACT_STATE() <> 0 ROLLBACK TRANSACTION; END CATCH;
 WHILE @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
@@ -922,7 +946,7 @@ GO
    are refused (547) in a limit's source text and a conflict's candidate text; the masked form is accepted. */
 DECLARE @t1 INT, @f BIGINT, @l BIGINT, @e1 INT, @e2 INT, @e3 INT, @e4 INT, @ok INT = 0;
 BEGIN TRANSACTION;
-EXEC #S2;
+EXEC #S2 @Approve = 0;
 SELECT @t1 = v FROM #F WHERE k = 't1'; SELECT @f = v FROM #F WHERE k = 'f'; SELECT @l = v FROM #F WHERE k = 'l';
 BEGIN TRY UPDATE fac.Limit SET OriginalText = N'Proceeds to IBAN SA5099000000000000123456' WHERE LimitId = @l; END TRY BEGIN CATCH SET @e1 = ERROR_NUMBER(); END CATCH;
 BEGIN TRY UPDATE fac.Limit SET OriginalText = N'Proceeds to IBAN SA50 9900 0000 0000 0012 3456' WHERE LimitId = @l; END TRY BEGIN CATCH SET @e2 = ERROR_NUMBER(); END CATCH;
@@ -942,28 +966,28 @@ GO
 DECLARE @t1 INT, @u1 BIGINT, @f BIGINT, @tg INT, @v1 BIGINT, @v2 BIGINT, @v3 BIGINT, @e1 INT, @e2 INT, @e3 INT, @e4 INT,
         @e5 INT, @e6 INT, @e7 INT, @ok1 INT = 0, @ok2 INT = 0, @ok3 INT = 0;
 BEGIN TRANSACTION;
-EXEC #S2;
+EXEC #S2 @Approve = 0;
 SELECT @t1 = v FROM #F WHERE k = 't1'; SELECT @u1 = v FROM #F WHERE k = 'u1'; SELECT @f = v FROM #F WHERE k = 'f';
 INSERT cat.CollateralType (TenantId, Code, NameAr, StructureKind) VALUES (@t1, 'GUAR', N'كفالة', 'GUARANTEE');
 SET @tg = SCOPE_IDENTITY();
-INSERT col.Collateral (TenantId, StructureKind, CollateralTypeId, TitleAr) VALUES (@t1, 'GUARANTEE', @tg, N'كفالة');
+INSERT col.Collateral (TenantId, StructureKind, CollateralTypeId, TitleAr, NoSourceReason) VALUES (@t1, 'GUARANTEE', @tg, N'كفالة', N'test fixture');
 SET @v1 = SCOPE_IDENTITY();
 UPDATE col.Collateral SET ApprovalState = 'APPROVED', Status = 'ACTIVE', ApprovedBy = @u1, ApprovedOn = SYSUTCDATETIME() WHERE CollateralId = @v1;
-BEGIN TRY INSERT col.Collateral (TenantId, StructureKind, CollateralTypeId, TitleAr, SupersedesId, InheritedRootId)
-          VALUES (@t1, 'GUARANTEE', @tg, N'كفالة', @v1, @v1 + 1000); END TRY BEGIN CATCH SET @e1 = ERROR_NUMBER(); END CATCH;
-INSERT col.Collateral (TenantId, StructureKind, CollateralTypeId, TitleAr, SupersedesId, InheritedRootId)
-VALUES (@t1, 'GUARANTEE', @tg, N'كفالة معدلة', @v1, @v1);
+BEGIN TRY INSERT col.Collateral (TenantId, StructureKind, CollateralTypeId, TitleAr, SupersedesId, InheritedRootId, NoSourceReason)
+          VALUES (@t1, 'GUARANTEE', @tg, N'كفالة', @v1, @v1 + 1000, N'test fixture'); END TRY BEGIN CATCH SET @e1 = ERROR_NUMBER(); END CATCH;
+INSERT col.Collateral (TenantId, StructureKind, CollateralTypeId, TitleAr, SupersedesId, InheritedRootId, NoSourceReason)
+VALUES (@t1, 'GUARANTEE', @tg, N'كفالة معدلة', @v1, @v1, N'test fixture');
 SET @v2 = SCOPE_IDENTITY();
-BEGIN TRY INSERT col.Collateral (TenantId, StructureKind, CollateralTypeId, TitleAr, SupersedesId, InheritedRootId)
-          VALUES (@t1, 'GUARANTEE', @tg, N'مسودة ثانية', @v1, @v1); END TRY BEGIN CATCH SET @e2 = ERROR_NUMBER(); END CATCH;
+BEGIN TRY INSERT col.Collateral (TenantId, StructureKind, CollateralTypeId, TitleAr, SupersedesId, InheritedRootId, NoSourceReason)
+          VALUES (@t1, 'GUARANTEE', @tg, N'مسودة ثانية', @v1, @v1, N'test fixture'); END TRY BEGIN CATCH SET @e2 = ERROR_NUMBER(); END CATCH;
 BEGIN TRY UPDATE col.Collateral SET ApprovalState = 'APPROVED', Status = 'ACTIVE', ApprovedBy = @u1, ApprovedOn = SYSUTCDATETIME() WHERE CollateralId = @v2; END TRY
 BEGIN CATCH SET @e3 = ERROR_NUMBER(); END CATCH;
 UPDATE col.Collateral SET Status = 'SUPERSEDED' WHERE CollateralId = @v1;
 BEGIN TRY UPDATE col.Collateral SET ApprovalState = 'APPROVED', Status = 'ACTIVE', ApprovedBy = @u1, ApprovedOn = SYSUTCDATETIME() WHERE CollateralId = @v2;
           SET @ok1 = @@ROWCOUNT; END TRY BEGIN CATCH SET @ok1 = -ERROR_NUMBER(); END CATCH;
 BEGIN TRY UPDATE col.Collateral SET Status = 'DISCARDED' WHERE CollateralId = @v2; END TRY BEGIN CATCH SET @e4 = ERROR_NUMBER(); END CATCH;
-INSERT col.Collateral (TenantId, StructureKind, CollateralTypeId, TitleAr, SupersedesId, InheritedRootId)
-VALUES (@t1, 'GUARANTEE', @tg, N'مسودة متروكة', @v2, @v1);
+INSERT col.Collateral (TenantId, StructureKind, CollateralTypeId, TitleAr, SupersedesId, InheritedRootId, NoSourceReason)
+VALUES (@t1, 'GUARANTEE', @tg, N'مسودة متروكة', @v2, @v1, N'test fixture');
 SET @v3 = SCOPE_IDENTITY();
 BEGIN TRY UPDATE col.Collateral SET Status = 'DISCARDED' WHERE CollateralId = @v3; SET @ok2 = @@ROWCOUNT; END TRY BEGIN CATCH SET @ok2 = -ERROR_NUMBER(); END CATCH;
 BEGIN TRY UPDATE col.Collateral SET Status = 'RELEASED', ReleasedOn = '2026-09-01', ReleaseReason = N'سداد' WHERE CollateralId = @v2; END TRY
@@ -990,15 +1014,15 @@ DECLARE @cov NVARCHAR(MAX) = N'INSERT obl.Covenant (TenantId, ObligationId, Meas
             DATEADD(DAY, (SELECT COUNT(*) FROM obl.Covenant WHERE ObligationId = @ob), ''2026-01-01''))';
 DECLARE @p NVARCHAR(400) = N'@t INT, @ob BIGINT, @kind VARCHAR(30), @formula BIGINT, @unitCopy VARCHAR(10), @stmtCopy BIT, @unit VARCHAR(10), @cur INT, @basis VARCHAR(20), @assurance VARCHAR(20), @co BIGINT';
 BEGIN TRANSACTION;
-EXEC #S2;
+EXEC #S2 @Approve = 0;
 SELECT @t1 = v FROM #F WHERE k = 't1'; SELECT @f = v FROM #F WHERE k = 'f'; SELECT @co = v FROM #F WHERE k = 'co'; SELECT @cur = v FROM #F WHERE k = 'cur';
 INSERT cat.ObligationType (TenantId, Code, NameAr, Family, MeasureKind) VALUES (@t1, 'COV', N'تعهد', 'COVENANT', 'RATIO');
 SET @ot = SCOPE_IDENTITY();
-INSERT obl.Obligation (TenantId, FacilityId, Family, ObligationTypeId, TitleAr, ValidFrom) VALUES (@t1, @f, 'COVENANT', @ot, N'نسبة التداول', '2026-01-01');
+INSERT obl.Obligation (TenantId, FacilityId, Family, ObligationTypeId, TitleAr, ValidFrom, NoSourceReason) VALUES (@t1, @f, 'COVENANT', @ot, N'نسبة التداول', '2026-01-01', N'test fixture');
 SET @ob = SCOPE_IDENTITY();
-INSERT fin.MeasureFormula (TenantId, Code, NameAr, Scope, Expression, InputKinds, ResultUnit) VALUES (@t1, 'CURRENT_RATIO', N'نسبة التداول', 'TEMPLATE', 'CA / CL', 'STATEMENT', 'RATIO');
+INSERT fin.MeasureFormula (TenantId, Code, NameAr, Scope, Expression, InputKinds, ResultUnit, NoSourceReason) VALUES (@t1, 'CURRENT_RATIO', N'نسبة التداول', 'TEMPLATE', 'CA / CL', 'STATEMENT', 'RATIO', N'test fixture');
 SET @fr = SCOPE_IDENTITY();
-INSERT fin.MeasureFormula (TenantId, Code, NameAr, Scope, Expression, InputKinds, ResultUnit) VALUES (@t1, 'AVG_BALANCE', N'متوسط الرصيد', 'TEMPLATE', 'AVG(B)', 'ACCOUNT_STATS', 'AMOUNT');
+INSERT fin.MeasureFormula (TenantId, Code, NameAr, Scope, Expression, InputKinds, ResultUnit, NoSourceReason) VALUES (@t1, 'AVG_BALANCE', N'متوسط الرصيد', 'TEMPLATE', 'AVG(B)', 'ACCOUNT_STATS', 'AMOUNT', N'test fixture');
 SET @fa = SCOPE_IDENTITY();
 BEGIN TRY EXEC sys.sp_executesql @cov, @p, @t = @t1, @ob = @ob, @kind = 'RATIO', @formula = @fr, @unitCopy = 'RATIO', @stmtCopy = 1, @unit = 'RATIO',
           @cur = NULL, @basis = 'STANDALONE', @assurance = 'AUDITED_ONLY', @co = @co; SET @ok1 = 1; END TRY BEGIN CATCH SET @ok1 = -ERROR_NUMBER(); END CATCH;
@@ -1022,25 +1046,25 @@ ELSE PRINT CONCAT('FAIL RF27: ratio covenant ', @ok1, ', wrong unit copy ', @e1,
                   ', statements without basis ', @e4, ', average balance ', @ok2, ', used formula''s unit changed ', @e5,
                   ', formula without its copies ', @e6);
 GO
-/* The S2-b fixture: #S2, a current ratio covenant on the approved formula version 1 (a draft version 2 exists), the
-   borrower's audited statement for 2025, and a scheduled test of 2025. */
+/* The S2-b fixture: #S2, a current ratio covenant of revision 1 on the approved formula version 1 (a draft version 2
+   exists), revision 1 approved, the borrower's audited statement for 2025, and a scheduled test of 2025. */
 CREATE PROCEDURE #Cov
 AS
 BEGIN
     SET NOCOUNT ON;
     DECLARE @t1 INT, @u1 BIGINT, @f BIGINT, @co BIGINT, @cur INT, @ot INT, @ob BIGINT, @fr BIGINT, @frd BIGINT, @fs BIGINT, @cv BIGINT, @ct BIGINT;
-    EXEC #S2;
+    EXEC #S2 @Approve = 0;
     SELECT @t1 = v FROM #F WHERE k = 't1'; SELECT @u1 = v FROM #F WHERE k = 'u1'; SELECT @f = v FROM #F WHERE k = 'f';
     SELECT @co = v FROM #F WHERE k = 'co'; SELECT @cur = v FROM #F WHERE k = 'cur';
     INSERT cat.ObligationType (TenantId, Code, NameAr, Family, MeasureKind) VALUES (@t1, 'COV', N'COV', 'COVENANT', 'RATIO');
     SET @ot = SCOPE_IDENTITY();
-    INSERT obl.Obligation (TenantId, FacilityId, Family, ObligationTypeId, TitleAr, ValidFrom) VALUES (@t1, @f, 'COVENANT', @ot, N'Current ratio', '2026-01-01');
+    INSERT obl.Obligation (TenantId, FacilityId, Family, ObligationTypeId, TitleAr, ValidFrom, NoSourceReason) VALUES (@t1, @f, 'COVENANT', @ot, N'Current ratio', '2026-01-01', N'test fixture');
     SET @ob = SCOPE_IDENTITY();
-    INSERT fin.MeasureFormula (TenantId, Code, NameAr, Scope, FacilityId, Expression, InputKinds, ResultUnit, VersionNo, Status, ApprovedBy, ApprovedOn)
-    VALUES (@t1, 'CURRENT_RATIO', N'Current ratio', 'FACILITY_COPY', @f, 'CA / CL', 'STATEMENT', 'RATIO', 1, 'APPROVED', @u1, SYSUTCDATETIME());
+    INSERT fin.MeasureFormula (TenantId, Code, NameAr, Scope, FacilityId, Expression, InputKinds, ResultUnit, VersionNo, Status, ApprovedBy, ApprovedOn, NoSourceReason)
+    VALUES (@t1, 'CURRENT_RATIO', N'Current ratio', 'FACILITY_COPY', @f, 'CA / CL', 'STATEMENT', 'RATIO', 1, 'APPROVED', @u1, SYSUTCDATETIME(), N'test fixture');
     SET @fr = SCOPE_IDENTITY();
-    INSERT fin.MeasureFormula (TenantId, Code, NameAr, Scope, FacilityId, Expression, InputKinds, ResultUnit, VersionNo, Status)
-    VALUES (@t1, 'CURRENT_RATIO', N'Current ratio', 'FACILITY_COPY', @f, 'CA / (CL + 1)', 'STATEMENT', 'RATIO', 2, 'DRAFT');
+    INSERT fin.MeasureFormula (TenantId, Code, NameAr, Scope, FacilityId, Expression, InputKinds, ResultUnit, VersionNo, Status, NoSourceReason)
+    VALUES (@t1, 'CURRENT_RATIO', N'Current ratio', 'FACILITY_COPY', @f, 'CA / (CL + 1)', 'STATEMENT', 'RATIO', 2, 'DRAFT', N'test fixture');
     SET @frd = SCOPE_IDENTITY();
     INSERT fin.FinancialStatement (TenantId, CompanyId, PeriodType, PeriodEnd, FiscalYear, Basis, Assurance, CurrencyId, EntryMethod)
     VALUES (@t1, @co, 'ANNUAL', '2025-12-31', 2025, 'STANDALONE', 'AUDITED', @cur, 'MANUAL');
@@ -1049,7 +1073,8 @@ BEGIN
                          ThresholdValue, ThresholdUnit, TestFrequency, StatementBasis, RequiredAssurance, TestedCompanyId, FirstTestPeriodEnd, ValidFrom)
     VALUES (@t1, @ob, 'RATIO', @fr, 'RATIO', 1, 'GE', 'SET', 1.2, 'RATIO', 'ANNUAL', 'STANDALONE', 'AUDITED_ONLY', @co, '2025-12-31', '2025-01-01');
     SET @cv = SCOPE_IDENTITY();
-    INSERT obl.CovenantTest (TenantId, CovenantId, PeriodStart, PeriodEnd, DueDate, Method) VALUES (@t1, @cv, '2025-01-01', '2025-12-31', '2026-01-30', 'AUTO');
+    EXEC #Approve1;
+    INSERT obl.CovenantTest (TenantId, CovenantId, PeriodStart, PeriodEnd, DueDate, Method, CovenantRootId) VALUES (@t1, @cv, '2025-01-01', '2025-12-31', '2026-01-30', 'AUTO', (SELECT RootId FROM obl.Covenant WHERE CovenantId = @cv));
     SET @ct = SCOPE_IDENTITY();
     INSERT #F (k, v) VALUES ('ob', @ob), ('fr', @fr), ('frd', @frd), ('fs', @fs), ('cv', @cv), ('ct', @ct);
 END;
@@ -1098,10 +1123,10 @@ BEGIN
     IF @Case = 7
     BEGIN
         INSERT obl.Covenant (TenantId, ObligationId, MeasureKind, FormulaId, FormulaResultUnit, FormulaUsesStatements, Operator, ThresholdState,
-                             ThresholdValue, ThresholdUnit, TestFrequency, StatementBasis, RequiredAssurance, TestedCompanyId, FirstTestPeriodEnd, ValidFrom)
-        VALUES (@t1, @ob, 'RATIO', @fr, 'RATIO', 1, 'GE', 'SET', 1.0, 'RATIO', 'ANNUAL', 'STANDALONE', 'AUDITED_ONLY', @co, '2026-12-31', '2026-01-01');
+                             ThresholdValue, ThresholdUnit, TestFrequency, StatementBasis, RequiredAssurance, TestedCompanyId, FirstTestPeriodEnd, ValidFrom, FromRevision)
+        VALUES (@t1, @ob, 'RATIO', @fr, 'RATIO', 1, 'GE', 'SET', 1.0, 'RATIO', 'ANNUAL', 'STANDALONE', 'AUDITED_ONLY', @co, '2026-12-31', '2026-01-01', 2);
         SET @cv2 = SCOPE_IDENTITY();
-        UPDATE obl.CovenantTest SET CovenantId = @cv2 WHERE CovenantTestId = @ct;
+        UPDATE obl.CovenantTest SET CovenantId = @cv2, CovenantRootId = (SELECT RootId FROM obl.Covenant WHERE CovenantId = @cv2) WHERE CovenantTestId = @ct;
     END;
 END;
 GO
@@ -1128,30 +1153,32 @@ IF @got = '1:0 2:50053 3:50053 4:50053 5:50053 6:50053 7:50053 8:50054 9:50054 1
 ELSE PRINT CONCAT('FAIL RF28: case:error ', @got, ' (expected 1:0 2-7:50053 8-12:50054 13:0)');
 GO
 /* RF29 (DR-39, S2-b): an agenda item that left SCHEDULED keeps its status, obligation and period and is not deleted
-   (50055); a submission's reference may be corrected, and a waived item may gain its evidence once. A scheduled item
-   moves its due date with a reason. */
+   (50055); a submission's reference may be corrected, and a waived item keeps the reason and document it was waived
+   with (DQ-F15-12). A scheduled item moves its due date with a reason. */
 CREATE PROCEDURE #Agenda
 AS
 BEGIN
     SET NOCOUNT ON;
     DECLARE @t1 INT, @f BIGINT, @ot INT, @ob BIGINT, @ro BIGINT, @ri BIGINT, @rw BIGINT;
-    EXEC #S2;
+    EXEC #S2 @Approve = 0;
     SELECT @t1 = v FROM #F WHERE k = 't1'; SELECT @f = v FROM #F WHERE k = 'f';
     ALTER TABLE obl.ReportingInstance NOCHECK CONSTRAINT FK_ReportingInstance_EvidenceDocumentId;
     INSERT cat.ObligationType (TenantId, Code, NameAr, Family) VALUES (@t1, 'FS_AUDITED', N'FS', 'REPORTING');
     SET @ot = SCOPE_IDENTITY();
-    INSERT obl.Obligation (TenantId, FacilityId, Family, ObligationTypeId, TitleAr, ValidFrom) VALUES (@t1, @f, 'REPORTING', @ot, N'Audited statements', '2026-01-01');
+    INSERT obl.Obligation (TenantId, FacilityId, Family, ObligationTypeId, TitleAr, ValidFrom, NoSourceReason) VALUES (@t1, @f, 'REPORTING', @ot, N'Audited statements', '2026-01-01', N'test fixture');
     SET @ob = SCOPE_IDENTITY();
     INSERT obl.ReportingObligation (TenantId, ObligationId, Frequency, AnchorKind, OffsetValue, Direction, DocumentBasis, ExpectsEvidence)
     VALUES (@t1, @ob, 'ANNUAL', 'AFTER_FISCAL_YEAR_END', 120, 'WE_SUBMIT', 'AUDITED', 0);
     SET @ro = SCOPE_IDENTITY();
-    INSERT obl.ReportingInstance (TenantId, ReportingObligationId, PeriodStart, PeriodEnd, DueDate) VALUES (@t1, @ro, '2025-01-01', '2025-12-31', '2026-04-30');
+    EXEC #Approve1;
+    INSERT obl.ReportingInstance (TenantId, ReportingObligationId, PeriodStart, PeriodEnd, DueDate, ReportingObligationRootId) VALUES (@t1, @ro, '2025-01-01', '2025-12-31', '2026-04-30', (SELECT RootId FROM obl.ReportingObligation WHERE ReportingObligationId = @ro));
     SET @ri = SCOPE_IDENTITY();
-    INSERT obl.ReportingInstance (TenantId, ReportingObligationId, PeriodStart, PeriodEnd, DueDate) VALUES (@t1, @ro, '2024-01-01', '2024-12-31', '2025-04-30');
+    INSERT obl.ReportingInstance (TenantId, ReportingObligationId, PeriodStart, PeriodEnd, DueDate, ReportingObligationRootId) VALUES (@t1, @ro, '2024-01-01', '2024-12-31', '2025-04-30', (SELECT RootId FROM obl.ReportingObligation WHERE ReportingObligationId = @ro));
     SET @rw = SCOPE_IDENTITY();
     UPDATE obl.ReportingInstance SET DueDate = '2026-05-15', DueDateOverrideReason = N'Extension letter' WHERE ReportingInstanceId = @ri;
     UPDATE obl.ReportingInstance SET Status = 'SUBMITTED', SubmittedOn = '2026-05-10', SubmissionRef = N'REF-1' WHERE ReportingInstanceId = @ri;
-    UPDATE obl.ReportingInstance SET Status = 'WAIVED', StatusReason = N'Waived by the bank' WHERE ReportingInstanceId = @rw;
+    -- A waived item has its reason and its document (DQ-F15-12, self-review B7a).
+    UPDATE obl.ReportingInstance SET Status = 'WAIVED', StatusReason = N'Waived by the bank', EvidenceDocumentId = 1 WHERE ReportingInstanceId = @rw;
     INSERT #F (k, v) VALUES ('ri', @ri), ('rw', @rw);
 END;
 GO
@@ -1550,4 +1577,548 @@ EXEC #Cases '#S3', '#ProformaCase', 1, 7, @got OUTPUT;
 IF @got = '1:0 2:50059 3:50059 4:50059 5:50059 6:0 7:0'
     PRINT 'PASS RF34: a proforma''s lines are written once and its totals follow them (BR-LCE-001)';
 ELSE PRINT CONCAT('FAIL RF34: case:error ', @got, ' (expected 1:0 2-5:50059 6:0 7:0)');
+GO
+/* ============================================================================
+   Self-review of 2026-10-18 (docs/34-self-review-2026-10-18.md). The findings whose guards are code are tested here;
+   each case runs in its own transaction on a new fixture, like RF28 to RF34.
+   ============================================================================ */
+/* SR1 cases (A1, C4): #Cov holds revision 1 approved: the limits 'l' and 'lc', the obligation 'ob' and its covenant
+   'cv'. Rows of later revisions are drafts. */
+CREATE PROCEDURE #FrozenCase @Case INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    DECLARE @t1 INT, @u1 BIGINT, @f BIGINT, @l BIGINT, @lc BIGINT, @ob BIGINT, @cv BIGINT, @co BIGINT, @cur INT, @ot INT, @x BIGINT, @ob2 BIGINT;
+    SELECT @t1 = v FROM #F WHERE k = 't1'; SELECT @u1 = v FROM #F WHERE k = 'u1'; SELECT @f = v FROM #F WHERE k = 'f';
+    SELECT @l = v FROM #F WHERE k = 'l'; SELECT @lc = v FROM #F WHERE k = 'lc'; SELECT @ob = v FROM #F WHERE k = 'ob';
+    SELECT @cv = v FROM #F WHERE k = 'cv'; SELECT @co = v FROM #F WHERE k = 'co'; SELECT @cur = v FROM #F WHERE k = 'cur';
+    IF @Case = 1 UPDATE fac.Limit SET Amount = 850000 WHERE LimitId = @l;
+    IF @Case = 2 UPDATE fac.Limit SET UpdatedAt = SYSUTCDATETIME(), UpdatedBy = @u1 WHERE LimitId = @l;
+    IF @Case = 3 DELETE fac.Limit WHERE LimitId = @lc;
+    IF @Case = 4 INSERT fac.Limit (TenantId, FacilityId, LimitTypeId, Code, NameAr, AmountBasis, Amount, IsRevolving, FromRevision, NoSourceReason)
+                 VALUES (@t1, @f, 1, 'L2', N'حد', 'ABSOLUTE', 100000, 1, 1, N'test fixture');
+    IF @Case = 5
+    BEGIN
+        UPDATE fac.Limit SET ToRevision = 2 WHERE LimitId = @l;      -- a draft of revision 2 closes it
+        UPDATE fac.Limit SET ToRevision = NULL WHERE LimitId = @l;   -- the draft is discarded
+    END;
+    IF @Case = 6 UPDATE fac.Limit SET ToRevision = 1 WHERE LimitId = @l;
+    IF @Case = 7
+    BEGIN
+        INSERT fac.Limit (TenantId, FacilityId, LimitTypeId, Code, NameAr, AmountBasis, Amount, IsRevolving, FromRevision, NoSourceReason)
+        VALUES (@t1, @f, 1, 'L2', N'حد', 'ABSOLUTE', 100000, 1, 2, N'test fixture');
+        SET @x = SCOPE_IDENTITY();
+        UPDATE fac.Limit SET Amount = 120000 WHERE LimitId = @x;
+        DELETE fac.Limit WHERE LimitId = @x;
+    END;
+    IF @Case = 8
+    BEGIN
+        INSERT fac.Limit (TenantId, FacilityId, LimitTypeId, Code, NameAr, AmountBasis, Amount, IsRevolving, FromRevision, NoSourceReason)
+        VALUES (@t1, @f, 1, 'L2', N'حد', 'ABSOLUTE', 100000, 1, 2, N'test fixture');
+        SET @x = SCOPE_IDENTITY();
+        UPDATE fac.Limit SET FromRevision = 1 WHERE LimitId = @x;
+    END;
+    IF @Case = 9 UPDATE fac.FacilityRevision SET EffectiveOn = '2026-02-01' WHERE FacilityId = @f AND RevisionNo = 1;
+    IF @Case = 10 DELETE fac.FacilityRevision WHERE FacilityId = @f AND RevisionNo = 1;
+    IF @Case = 11 UPDATE fac.FacilityRevision SET ApprovedOn = DATEADD(DAY, -1, ApprovedOn) WHERE FacilityId = @f AND RevisionNo = 1;
+    IF @Case = 12
+    BEGIN
+        INSERT fac.FacilityRevision (TenantId, FacilityId, RevisionNo, ReasonKind, Status, EffectiveOn)
+        VALUES (@t1, @f, 2, 'AMENDMENT', 'DRAFT', '2026-06-01');
+        UPDATE fac.FacilityRevision SET EffectiveOn = '2026-07-01', ReasonKind = 'CORRECTION' WHERE FacilityId = @f AND RevisionNo = 2;
+    END;
+    IF @Case = 13 INSERT obl.ObligationCompany (TenantId, ObligationId, CompanyId) VALUES (@t1, @ob, @co);
+    IF @Case = 14 UPDATE obl.Covenant SET ThresholdValue = 1.1 WHERE CovenantId = @cv;
+    IF @Case = 15
+    BEGIN
+        ALTER TABLE obl.CovenantAccount NOCHECK CONSTRAINT FK_CovenantAccount_BankAccountId;
+        INSERT obl.CovenantAccount (TenantId, CovenantId, BankAccountId) VALUES (@t1, @cv, 1);
+    END;
+    IF @Case = 16 INSERT fac.Facility (TenantId, FacilityNo, BorrowerCompanyId, FacilityTypeId, CurrencyId, TotalAmount, PrecedenceLanguage,
+                                       EffectiveFrom, ExpiryDate, ApprovedRevisionNo)
+                  VALUES (@t1, 'FAC-26-009', @co, 1, @cur, 1000, 'EN', '2026-01-01', '2027-01-01', 1);
+    IF @Case = 17
+    BEGIN
+        SET @ot = (SELECT ObligationTypeId FROM cat.ObligationType WHERE TenantId = @t1 AND Code = 'COV');
+        INSERT obl.Obligation (TenantId, FacilityId, Family, ObligationTypeId, TitleAr, ValidFrom, FromRevision, NoSourceReason)
+        VALUES (@t1, @f, 'COVENANT', @ot, N'Leverage', '2026-06-01', 2, N'test fixture');
+        SET @ob2 = SCOPE_IDENTITY();
+        INSERT obl.ObligationCompany (TenantId, ObligationId, CompanyId) VALUES (@t1, @ob2, @co);
+        DELETE obl.ObligationCompany WHERE ObligationId = @ob2;
+    END;
+END;
+GO
+/* SR1 (A1, C4): the rows of an approved revision do not change (50049): not a limit's amount, not a deletion, not a
+   new row of the approved revision, not a closing inside it, not a draft row moved into it, not the approved
+   revision row itself (its dates, its approval, a deletion), not the companies of an approved obligation, not an
+   approved covenant (read through its obligation) or its accounts, and no facility inserted as approved. The audit
+   columns change, ToRevision moves to a later revision and back, a draft row changes freely, and so does a draft
+   revision row and the companies of a draft obligation. */
+DECLARE @got NVARCHAR(800);
+EXEC #Cases '#Cov', '#FrozenCase', 1, 17, @got OUTPUT;
+IF @got = '1:50049 2:0 3:50049 4:50049 5:0 6:50049 7:0 8:50049 9:50049 10:50049 11:50049 12:0 13:50049 14:50049 15:50049 16:50049 17:0'
+    PRINT 'PASS SR1: the rows of an approved facility revision do not change, and draft rows do';
+ELSE PRINT CONCAT('FAIL SR1: case:error ', @got, ' (expected 1:50049 2:0 3-4:50049 5:0 6:50049 7:0 8-11:50049 12:0 13-16:50049 17:0)');
+GO
+/* SR2 cases (A3, C5): #Cov holds the approved covenant 'cv' (current ratio GE 1.2 on the formula 'fr', version 1) and
+   its scheduled automatic test 'ct'. Further covenants are rows of a draft revision 2, each with its own test. */
+CREATE PROCEDURE #ThresholdCase @Case INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    DECLARE @t1 INT, @u1 BIGINT, @f BIGINT, @ob BIGINT, @fr BIGINT, @frd BIGINT, @fs BIGINT, @cv BIGINT, @ct BIGINT, @co BIGINT, @cur INT,
+            @test BIGINT, @cvx BIGINT, @fo BIGINT, @p BIGINT, @co2 BIGINT, @fs2 BIGINT, @country INT,
+            @method VARCHAR(20) = 'AUTO', @result VARCHAR(30) = 'COMPLIANT', @actual DECIMAL(19,6) = 1.5, @thr DECIMAL(19,6) = 1.2,
+            @op VARCHAR(2) = 'GE', @formula BIGINT, @snap NVARCHAR(MAX), @statements NVARCHAR(MAX);
+    SELECT @t1 = v FROM #F WHERE k = 't1'; SELECT @u1 = v FROM #F WHERE k = 'u1'; SELECT @f = v FROM #F WHERE k = 'f';
+    SELECT @ob = v FROM #F WHERE k = 'ob'; SELECT @fr = v FROM #F WHERE k = 'fr'; SELECT @frd = v FROM #F WHERE k = 'frd';
+    SELECT @fs = v FROM #F WHERE k = 'fs'; SELECT @cv = v FROM #F WHERE k = 'cv'; SELECT @ct = v FROM #F WHERE k = 'ct';
+    SELECT @co = v FROM #F WHERE k = 'co'; SELECT @cur = v FROM #F WHERE k = 'cur';
+    SELECT @test = @ct, @formula = @fr;
+    SET @statements = CONCAT(N'"statements":[{"statementId":', @fs, N',"version":1,"basis":"STANDALONE"}]');
+    SET @snap = CONCAT(N'{"formula":{"id":', @fr, N',"version":1},"threshold":{"value":1.2,"operator":"GE"},', @statements, N'}');
+    IF @Case = 1 SELECT @result = 'NOT_ASSESSED_NO_THRESHOLD', @thr = NULL, @op = NULL,
+                        @snap = CONCAT(N'{"formula":{"id":', @fr, N',"version":1},', @statements, N'}');
+    IF @Case IN (2, 3, 4) SELECT @method = 'MANUAL_VALUE', @snap = N'{"enteredBy":"user"}', @formula = NULL;
+    IF @Case = 2 SET @thr = 1.1;
+    IF @Case = 3 SET @op = 'GT';
+    IF @Case IN (5, 6)
+    BEGIN
+        INSERT obl.Covenant (TenantId, ObligationId, MeasureKind, FormulaId, FormulaResultUnit, FormulaUsesStatements, ThresholdState,
+                             TestFrequency, StatementBasis, RequiredAssurance, TestedCompanyId, FirstTestPeriodEnd, ValidFrom, FromRevision)
+        VALUES (@t1, @ob, 'RATIO', @fr, 'RATIO', 1, 'TO_BE_DETERMINED', 'ANNUAL', 'STANDALONE', 'AUDITED_ONLY', @co, '2025-12-31', '2027-01-01', 2);
+        SET @cvx = SCOPE_IDENTITY();
+        INSERT obl.CovenantTest (TenantId, CovenantId, PeriodStart, PeriodEnd, DueDate, Method, CovenantRootId) VALUES (@t1, @cvx, '2025-01-01', '2025-12-31', '2026-01-30', 'AUTO', (SELECT RootId FROM obl.Covenant WHERE CovenantId = @cvx));
+        SET @test = SCOPE_IDENTITY();
+    END;
+    IF @Case = 6 SELECT @result = 'NOT_ASSESSED_NO_THRESHOLD', @thr = NULL, @op = NULL,
+                        @snap = CONCAT(N'{"formula":{"id":', @fr, N',"version":1},', @statements, N'}');
+    IF @Case IN (7, 21)
+    BEGIN
+        INSERT obl.CovenantTest (TenantId, CovenantId, PeriodStart, PeriodEnd, DueDate, EvaluationNo, State, Result, Method, ActualValue,
+                                 ThresholdApplied, OperatorApplied, InputsSnapshot, FormulaId, EvaluatedAt, CovenantRootId)
+        VALUES (@t1, @cv, '2025-01-01', '2025-12-31', '2026-01-30', 2, 'EVALUATED', 'COMPLIANT', 'AUTO', 1.5, 1.2, 'GE',
+                CASE WHEN @Case = 7 THEN CONCAT(N'{"formula":{"id":', @fr, N',"version":1},"threshold":{"value":1.2,"operator":"GE"}}') ELSE @snap END,
+                @fr, SYSUTCDATETIME(), (SELECT RootId FROM obl.Covenant WHERE CovenantId = @cv));
+        RETURN;
+    END;
+    IF @Case = 8 SET @snap = CONCAT(N'[{"formula":{"id":', @fr, N',"version":1}}]');
+    IF @Case = 9
+    BEGIN
+        INSERT fin.MeasureFormula (TenantId, Code, NameAr, Scope, FacilityId, Expression, InputKinds, ResultUnit, VersionNo, Status, ApprovedBy, ApprovedOn, NoSourceReason)
+        VALUES (@t1, 'QUICK_RATIO', N'Quick ratio', 'FACILITY_COPY', @f, '(CA - INV) / CL', 'STATEMENT', 'RATIO', 1, 'APPROVED', @u1, SYSUTCDATETIME(), N'test fixture');
+        SET @fo = SCOPE_IDENTITY();
+        SELECT @formula = @fo, @snap = CONCAT(N'{"formula":{"id":', @fo, N',"version":1},"threshold":{"value":1.2,"operator":"GE"},', @statements, N'}');
+    END;
+    IF @Case = 10 SET @snap = CONCAT(N'{"formula":{"id":', @frd, N',"version":1},"threshold":{"value":1.2,"operator":"GE"},', @statements, N'}');
+    IF @Case = 11
+    BEGIN
+        SET @country = (SELECT CountryId FROM ref.Country WHERE Iso2 = 'SA');
+        INSERT pty.Party (TenantId, PartyCode, Kind, NameEn) VALUES (@t1, 'P-CO2', 'ORGANIZATION', N'Sister');
+        SET @p = SCOPE_IDENTITY();
+        INSERT org.Company (TenantId, CompanyCode, NameAr, NameEn, PartyId, LegalEntityTypeId, CountryId, FiscalYearEndMonth)
+        VALUES (@t1, 'CO2', N'شركة', N'Sister', @p, 1, @country, 12);
+        SET @co2 = SCOPE_IDENTITY();
+        INSERT fin.FinancialStatement (TenantId, CompanyId, PeriodType, PeriodEnd, FiscalYear, Basis, Assurance, CurrencyId, EntryMethod)
+        VALUES (@t1, @co2, 'ANNUAL', '2025-12-31', 2025, 'STANDALONE', 'AUDITED', @cur, 'MANUAL');
+        SET @fs2 = SCOPE_IDENTITY();
+        SET @snap = CONCAT(N'{"formula":{"id":', @fr, N',"version":1},"threshold":{"value":1.2,"operator":"GE"},"statements":[{"statementId":', @fs2,
+                           N',"version":1,"basis":"STANDALONE"}]}');
+    END;
+    IF @Case = 12 SET @snap = CONCAT(N'{"formula":{"id":', @fr, N',"version":1},"threshold":{"value":1.2,"operator":"GE"},"statements":[{"statementId":', @fs,
+                                     N',"version":1,"basis":"CONSOLIDATED"}]}');
+    IF @Case = 13 SET @snap = CONCAT(N'{"formula":{"id":', @fr, N',"version":1},"threshold":{"value":1.2,"operator":"GE"},"statements":[]}');
+    IF @Case BETWEEN 14 AND 19
+    BEGIN
+        INSERT obl.Covenant (TenantId, ObligationId, MeasureKind, Operator, ThresholdState, ThresholdValue, ThresholdUnit, CurrencyId,
+                             TestFrequency, TestedCompanyId, FirstTestPeriodEnd, ValidFrom, FromRevision)
+        VALUES (@t1, @ob, CASE WHEN @Case <= 17 THEN 'AVERAGE_BALANCE' ELSE 'FLOW_VOLUME' END, 'GE', 'SET', 1000000, 'AMOUNT', @cur,
+                'ANNUAL', @co, '2025-12-31', '2027-01-01', 2);
+        SET @cvx = SCOPE_IDENTITY();
+        INSERT obl.CovenantTest (TenantId, CovenantId, PeriodStart, PeriodEnd, DueDate, Method, CovenantRootId) VALUES (@t1, @cvx, '2025-01-01', '2025-12-31', '2026-01-30', 'AUTO', (SELECT RootId FROM obl.Covenant WHERE CovenantId = @cvx));
+        SELECT @test = SCOPE_IDENTITY(), @formula = NULL, @actual = 1500000, @thr = 1000000;
+        SET @snap = CONCAT(N'{"threshold":{"value":1000000,"operator":"GE"},',
+                           CASE @Case WHEN 15 THEN N'"note":"no accounts"'
+                                      WHEN 16 THEN N'"accounts":[{"accountId":1,"value":1500000}]'
+                                      WHEN 18 THEN N'"flows":[{"entryId":1,"amount":"one million"}]'
+                                      WHEN 19 THEN N'"flows":[{"entryId":1,"amount":1500000}]'
+                                      ELSE N'"accounts":[{"accountId":1,"month":"2025-12","value":1500000}]' END, N'}');
+        IF @Case = 14 SET @formula = @fr;
+    END;
+    IF @Case = 20 SET @snap = CONCAT(N'{"formula":{"id":', @fr, N',"version":1},"threshold":{"value":1.2,"operator":"LE"},', @statements, N'}');
+    UPDATE obl.CovenantTest
+    SET State = 'EVALUATED', Method = @method, Result = @result, ActualValue = @actual, ThresholdApplied = @thr, OperatorApplied = @op,
+        InputsSnapshot = @snap, FormulaId = @formula, EvaluatedAt = SYSUTCDATETIME()
+    WHERE CovenantTestId = @test;
+END;
+GO
+/* SR2 (A3, C5): an evaluation, automatic or on a manual value, applies the covenant's own threshold and operator; a
+   covenant with a set threshold is never "no threshold" and one without is never judged (50054). An automatic one
+   names a version of the covenant's own formula, and none when the covenant has no formula; its snapshot is an
+   object with the formula version, the threshold and operator applied, and every input it read: the statements of
+   the tested company in their basis, the account figures of an average balance, the flows of a flow volume, and an
+   empty list only for MISSING_DATA (50054). The same holds for a test inserted already evaluated. */
+DECLARE @got NVARCHAR(800);
+EXEC #Cases '#Cov', '#ThresholdCase', 1, 21, @got OUTPUT;
+IF @got = '1:50054 2:50054 3:50054 4:0 5:50054 6:0 7:50054 8:50054 9:50054 10:50054 11:50054 12:50054 13:50054 14:50054 15:50054 16:50054 17:0 18:50054 19:0 20:50054 21:0'
+    PRINT 'PASS SR2: an evaluation applies the covenant''s own threshold, and an automatic one names its formula and stores every input it read';
+ELSE PRINT CONCAT('FAIL SR2: case:error ', @got, ' (expected 1-3:50054 4:0 5:50054 6:0 7-16:50054 17:0 18:50054 19:0 20:50054 21:0)');
+GO
+/* SR3 cases (A4): the IBAN field is restricted, the collection account and the amount are not (yet). */
+CREATE PROCEDURE #AmendmentCase @Case INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    DECLARE @t1 INT, @co BIGINT, @cur INT, @a BIGINT, @b BIGINT, @c BIGINT, @cmp BIGINT, @am BIGINT, @json NVARCHAR(MAX);
+    SELECT @t1 = v FROM #F WHERE k = 't1'; SELECT @co = v FROM #F WHERE k = 'co'; SELECT @cur = v FROM #F WHERE k = 'cur';
+    INSERT lc.LcFieldDefinition (TenantId, FieldKey, SectionKey, LabelAr, LabelEn, DataType, ApplicabilityJson, Sensitivity)
+    VALUES (@t1, 'beneficiaryAccountIban', 'PARTIES', N'IBAN', N'IBAN', 'STRING', N'{}', 'RESTRICTED'),
+           (@t1, 'collectionAccount', 'PARTIES', N'Account', N'Account', 'STRING', N'{}', 'NORMAL'),
+           (@t1, 'amount', 'AMOUNT', N'Amount', N'Amount', 'DECIMAL', N'{}', 'NORMAL');
+    INSERT lc.LcTerms (TenantId, OwnerType, Purpose, LcClass, Scope, CurrencyId) VALUES (@t1, 'AMENDMENT', 'AMENDMENT', 'PURCHASE', 'DOMESTIC', @cur);
+    SET @c = SCOPE_IDENTITY();
+    SET @json = CASE @Case
+        WHEN 1 THEN N'{"beneficiaryAccountIban":"CHANGED","beneficiaryAccountIban":"SA5099000000000000123456"}'
+        WHEN 2 THEN N'{"BENEFICIARYACCOUNTIBAN":"SA5099000000000000123456"}'
+        WHEN 3 THEN CONCAT(N'{"beneficiaryAccountIban":"', REPLICATE(CONVERT(NVARCHAR(MAX), N'9'), 5000), N'"}')
+        WHEN 4 THEN N'{"beneficiaryAccountIban":{"value":"CHANGED"}}'
+        WHEN 5 THEN N'{"amount":{"old":"100000","new":"120000"},"beneficiaryAccountIban":"CHANGED"}'
+        WHEN 6 THEN N'{"collectionAccount":"SA** 3456","collectionAccount":"SA** 3457","amount":"5"}'
+        ELSE N'{"amount":{"old":"100000","new":"120000"}}' END;
+    INSERT lc.LcAmendment (TenantId, CompanyId, LcId, Origin, ChangeKinds, TermsId, ChangedFieldsJson, CurrencyId, AmountDelta)
+    VALUES (@t1, @co, 1, 'OUR_REQUEST', 'CHANGE_TERMS', @c, @json, @cur, 0);
+    SET @am = SCOPE_IDENTITY();
+    -- B7e (DQ-F12-7): an amendment the bank issued is withdrawn only with the bank's written confirmation and a reason.
+    IF @Case IN (7, 8)
+    BEGIN
+        ALTER TABLE lc.LcAmendment NOCHECK CONSTRAINT FK_LcAmendment_WithdrawalDocumentId;
+        UPDATE lc.LcAmendment SET Status = 'WITHDRAWN', AmendmentNo = 1, BankIssuedOn = '2026-10-01', Reason = N'Withdrawn with the bank''s consent',
+                                  WithdrawalDocumentId = CASE WHEN @Case = 8 THEN 1 END
+        WHERE LcAmendmentId = @am;
+    END;
+    IF @Case = 6
+    BEGIN
+        INSERT lc.LcTerms (TenantId, OwnerType, Purpose, LcClass, Scope, CurrencyId) VALUES (@t1, 'PROFORMA', 'PROFORMA', 'SALES', 'DOMESTIC', @cur);
+        SET @a = SCOPE_IDENTITY();
+        INSERT lc.LcTerms (TenantId, OwnerType, Purpose, LcClass, Scope, CurrencyId) VALUES (@t1, 'PROFORMA', 'PROFORMA', 'SALES', 'DOMESTIC', @cur);
+        SET @b = SCOPE_IDENTITY();
+        INSERT lc.LcTermsComparison (TenantId, BaselineTermsId, ReceivedTermsId, RunAt) VALUES (@t1, @a, @b, SYSUTCDATETIME());
+        SET @cmp = SCOPE_IDENTITY();
+        INSERT lc.LcTermsComparisonLine (TenantId, ComparisonId, FieldKey, BaselineValue, ReceivedValue, Verdict)
+        VALUES (@t1, @cmp, 'collectionAccount', N'SA** 3456', N'SA** 3457', 'REVIEW'), (@t1, @cmp, 'amount', N'1', N'2', 'MORE_FAVOURABLE');
+        UPDATE lc.LcFieldDefinition SET Sensitivity = 'RESTRICTED' WHERE TenantId = @t1 AND FieldKey = 'collectionAccount';
+        IF EXISTS (SELECT 1 FROM lc.LcTermsComparisonLine WHERE ComparisonId = @cmp AND FieldKey = 'collectionAccount'
+                   AND (BaselineValue IS NOT NULL OR ReceivedValue IS NOT NULL OR Verdict <> 'REVIEW'))
+            OR NOT EXISTS (SELECT 1 FROM lc.LcTermsComparisonLine WHERE ComparisonId = @cmp AND FieldKey = 'amount' AND BaselineValue = N'1')
+            THROW 50990, 'the comparison lines were not scrubbed as they should be', 1;
+        -- Text read from JSON is compared under an explicit collation: a temporary procedure's own collation is tempdb's.
+        IF (SELECT COUNT(*) FROM lc.LcAmendment AS x CROSS APPLY OPENJSON(x.ChangedFieldsJson) AS j
+            WHERE x.LcAmendmentId = @am AND j.[key] COLLATE Arabic_100_CI_AS_SC = N'collectionAccount'
+              AND j.[value] COLLATE Arabic_100_CI_AS_SC = N'CHANGED' AND j.[type] = 1) <> 2
+            OR (SELECT COUNT(*) FROM lc.LcAmendment AS x CROSS APPLY OPENJSON(x.ChangedFieldsJson) AS j
+                WHERE x.LcAmendmentId = @am AND j.[key] COLLATE Arabic_100_CI_AS_SC = N'collectionAccount') <> 2
+            OR NOT EXISTS (SELECT 1 FROM lc.LcAmendment AS x
+                           WHERE x.LcAmendmentId = @am AND JSON_VALUE(x.ChangedFieldsJson, '$.amount') COLLATE Arabic_100_CI_AS_SC = N'5')
+            THROW 50990, 'the amendment was not scrubbed in every occurrence of the key', 1;
+    END;
+END;
+GO
+/* SR3 (A4, B7e): a restricted field in an amendment holds only "CHANGED", whatever the case of its key, a second
+   occurrence of the key or the length of its value, and not inside an object (50058); a field raised to RESTRICTED
+   takes its values out of the comparison lines and of every occurrence in the amendments, and the rest stays. An
+   amendment the bank issued is withdrawn only with the bank's written confirmation and a reason (547; DQ-F12-7). */
+DECLARE @got NVARCHAR(800);
+EXEC #Cases '#S3', '#AmendmentCase', 1, 8, @got OUTPUT;
+IF @got = '1:50058 2:50058 3:50058 4:50058 5:0 6:0 7:547 8:0'
+    PRINT 'PASS SR3: a restricted LC field is found in an amendment whatever its form, a field made restricted is taken out of the copies, and an issued amendment is withdrawn with the bank''s confirmation';
+ELSE PRINT CONCAT('FAIL SR3: case:error ', @got, ' (expected 1-4:50058 5:0 6:0 7:547 8:0)');
+GO
+/* SR4 cases (A6, A7): the fixture's draft request 'r' and its reservations. */
+CREATE PROCEDURE #ReservationCase @Case INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    DECLARE @t1 INT, @co BIGINT, @cur INT, @f BIGINT, @l BIGINT, @r BIGINT, @lr1 BIGINT, @lr2 BIGINT;
+    SELECT @t1 = v FROM #F WHERE k = 't1'; SELECT @co = v FROM #F WHERE k = 'co'; SELECT @cur = v FROM #F WHERE k = 'cur';
+    SELECT @f = v FROM #F WHERE k = 'f'; SELECT @l = v FROM #F WHERE k = 'l'; SELECT @r = v FROM #F WHERE k = 'r';
+    INSERT fac.LimitReservation (TenantId, FacilityId, LimitId, CompanyId, RequestId, Amount, CurrencyId, IdempotencyKey)
+    VALUES (@t1, @f, @l, @co, @r, 50000, @cur, CONCAT('req-', @r));
+    SET @lr1 = SCOPE_IDENTITY();
+    IF @Case = 1
+    BEGIN
+        -- One statement releases the reservation and writes the next one.
+        MERGE fac.LimitReservation AS t
+        USING (VALUES (@lr1), (CAST(0 AS BIGINT))) AS s (Id)
+           ON t.TenantId = @t1 AND t.LimitReservationId = s.Id
+        WHEN MATCHED THEN UPDATE SET Status = 'RELEASED', ReleasedOn = '2026-10-13', ReleaseReason = 'SUPERSEDED'
+        WHEN NOT MATCHED THEN INSERT (TenantId, FacilityId, LimitId, CompanyId, RequestId, Amount, CurrencyId, IdempotencyKey)
+                              VALUES (@t1, @f, @l, @co, @r, 60000, @cur, CONCAT('req-', @r, '-2'));
+        SET @lr2 = (SELECT LimitReservationId FROM fac.LimitReservation WHERE RequestId = @r AND Status = 'ACTIVE');
+        IF NOT EXISTS (SELECT 1 FROM wfl.Request WHERE RequestId = @r AND ReservationId = @lr2 AND ReservedAmount = 60000 AND ReservationState = 'RESERVED')
+            THROW 50990, 'the request did not take the reservation the statement wrote', 1;
+        IF EXISTS (SELECT 1 FROM wfl.RequestCopyDrift WHERE RequestId = @r) THROW 50990, 'drift reported without a difference', 1;
+    END;
+    IF @Case = 2
+    BEGIN
+        UPDATE fac.LimitReservation SET Status = 'RELEASED', ReleasedOn = '2026-10-13', ReleaseReason = 'CANCELLED' WHERE LimitReservationId = @lr1;
+        ALTER TABLE fac.LimitReservation DISABLE TRIGGER TR_LimitReservation_RequestCopy;
+        INSERT fac.LimitReservation (TenantId, FacilityId, LimitId, CompanyId, RequestId, Amount, CurrencyId, IdempotencyKey)
+        VALUES (@t1, @f, @l, @co, @r, 70000, @cur, CONCAT('req-', @r, '-3'));
+        IF NOT EXISTS (SELECT 1 FROM wfl.RequestCopyDrift WHERE RequestId = @r AND ReservationDrift = 1 AND StageDrift = 0)
+            THROW 50990, 'the drift view missed a request that does not point to its active reservation', 1;
+    END;
+    IF @Case = 3
+    BEGIN
+        UPDATE wfl.RequestStageInstance SET DueAt = DueAt WHERE 1 = 0;
+        UPDATE fac.LimitReservation SET Amount = Amount WHERE 1 = 0;
+        UPDATE wfl.Request SET Title = Title WHERE 1 = 0;
+    END;
+END;
+GO
+/* SR4 (A6, A7): a statement that releases a reservation and writes the next makes the request take the new one; a
+   request that does not point to its active reservation is reported by wfl.RequestCopyDrift; statements that touch
+   no row pass through the copy triggers. */
+DECLARE @got NVARCHAR(800);
+EXEC #Cases '#S3', '#ReservationCase', 1, 3, @got OUTPUT;
+IF @got = '1:0 2:0 3:0'
+    PRINT 'PASS SR4: the request takes the active reservation a statement writes, and the drift view finds a stale pointer';
+ELSE PRINT CONCAT('FAIL SR4: case:error ', @got, ' (expected 1:0 2:0 3:0)');
+GO
+/* SR5 (A8): a closed indirect path stays editable history after its intermediate became a company of the tenant;
+   reopening it is checked again (50047). */
+DECLARE @t1 INT, @u1 BIGINT, @country INT, @pc BIGINT, @c BIGINT, @h BIGINT, @x BIGINT, @s BIGINT,
+        @ok1 INT = 0, @ok2 INT = 0, @ok3 INT = 0, @e1 INT;
+SET @country = (SELECT CountryId FROM ref.Country WHERE Iso2 = 'SA');
+BEGIN TRANSACTION;
+EXEC #Fixture;
+SELECT @t1 = v FROM #F WHERE k = 't1'; SELECT @u1 = v FROM #F WHERE k = 'u1';
+ALTER TABLE org.Company NOCHECK CONSTRAINT FK_Company_LegalEntityTypeId;
+EXEC #Bind @t1, @u1;
+INSERT pty.Party (TenantId, PartyCode, Kind, NameEn)
+VALUES (@t1, 'P-C', 'ORGANIZATION', N'Company C'), (@t1, 'P-H', 'INDIVIDUAL', N'Holder'), (@t1, 'P-X', 'ORGANIZATION', N'Intermediate X');
+SELECT @pc = PartyId FROM pty.Party WHERE TenantId = @t1 AND PartyCode = 'P-C';
+SELECT @h = PartyId FROM pty.Party WHERE TenantId = @t1 AND PartyCode = 'P-H';
+SELECT @x = PartyId FROM pty.Party WHERE TenantId = @t1 AND PartyCode = 'P-X';
+INSERT org.Company (TenantId, CompanyCode, NameAr, NameEn, PartyId, LegalEntityTypeId, CountryId, FiscalYearEndMonth)
+VALUES (@t1, 'C', N'شركة', N'Company C', @pc, 1, @country, 12);
+SET @c = SCOPE_IDENTITY();
+INSERT org.Shareholding (TenantId, CompanyId, HolderPartyId, SharePercent, Layer, IntermediatePartyId, EffectiveFrom)
+VALUES (@t1, @c, @h, 30, 2, @x, '2026-01-01');
+SET @s = SCOPE_IDENTITY();
+BEGIN TRY UPDATE org.Shareholding SET EffectiveTo = '2026-06-30' WHERE ShareholdingId = @s; SET @ok1 = @@ROWCOUNT; END TRY
+BEGIN CATCH SET @ok1 = -ERROR_NUMBER(); END CATCH;
+BEGIN TRY INSERT org.Company (TenantId, CompanyCode, NameAr, NameEn, PartyId, LegalEntityTypeId, CountryId, FiscalYearEndMonth)
+          VALUES (@t1, 'X', N'شركة', N'Company X', @x, 1, @country, 12); SET @ok2 = @@ROWCOUNT; END TRY
+BEGIN CATCH SET @ok2 = -ERROR_NUMBER(); END CATCH;
+BEGIN TRY UPDATE org.Shareholding SET SharePercent = 31 WHERE ShareholdingId = @s; SET @ok3 = @@ROWCOUNT; END TRY
+BEGIN CATCH SET @ok3 = -ERROR_NUMBER(); END CATCH;
+IF XACT_STATE() = 1
+BEGIN TRY UPDATE org.Shareholding SET EffectiveTo = NULL WHERE ShareholdingId = @s; END TRY
+BEGIN CATCH SET @e1 = ERROR_NUMBER(); END CATCH;
+WHILE @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
+IF @ok1 = 1 AND @ok2 = 1 AND @ok3 = 1 AND @e1 = 50047
+    PRINT 'PASS SR5: a closed indirect path stays editable history, and reopening it is checked again';
+ELSE PRINT CONCAT('FAIL SR5: close ', @ok1, ', intermediate becomes a company ', @ok2, ', closed path edited ', @ok3, ', reopened ', @e1);
+GO
+/* SR6 cases (A9): a line of 0.0005 x 2009.9999 = 1.00499995 is 1.00 at two decimals; rounding the product to seven
+   decimals first would give 1.0050000 and then 1.01. */
+CREATE PROCEDURE #RoundingCase @Case INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    DECLARE @t1 INT, @co BIGINT, @cur INT, @cp BIGINT, @r BIGINT, @lt BIGINT, @p BIGINT,
+            @line DECIMAL(19,4) = CASE WHEN @Case = 1 THEN 1.00 ELSE 1.01 END;
+    SELECT @t1 = v FROM #F WHERE k = 't1'; SELECT @co = v FROM #F WHERE k = 'co'; SELECT @cur = v FROM #F WHERE k = 'cur';
+    SELECT @cp = v FROM #F WHERE k = 'cp'; SELECT @r = v FROM #F WHERE k = 'r';
+    INSERT lc.LcTerms (TenantId, OwnerType, OwnerId, Purpose, LcClass, Scope, CurrencyId) VALUES (@t1, 'REQUEST', @r, 'PROFORMA', 'SALES', 'DOMESTIC', @cur);
+    SET @lt = SCOPE_IDENTITY();
+    INSERT lc.ProformaInvoice (TenantId, CompanyId, ProformaNo, NumberYear, NumberSeq, RequestId, ErpCompanyCodeSnapshot, CustomerId, CustomerSnapshotJson,
+                               IssueDate, CurrencyId, Subtotal, VatRatePct, VatAmount, Total, TermsId, ProceedsAccountId, DocumentId)
+    VALUES (@t1, @co, '001-ERP1-26', 2026, 1, @r, 'ERP1', @cp, N'{}', '2026-10-13', @cur, @line, 15, 0.15, @line + 0.15, @lt, 1, 1);
+    SET @p = SCOPE_IDENTITY();
+    INSERT lc.ProformaLine (TenantId, ProformaId, [LineNo], Description, Qty, UnitCode, UnitPrice, LineTotal, CurrencyId)
+    VALUES (@t1, @p, 1, N'Sample', 0.0005, 'KG', 2009.9999, @line, @cur);
+END;
+GO
+/* SR6 (A9): a line total is round(Qty x UnitPrice) of the exact product: 1.00 is accepted and 1.01 refused (50059). */
+DECLARE @got NVARCHAR(800);
+EXEC #Cases '#S3', '#RoundingCase', 1, 2, @got OUTPUT;
+IF @got = '1:0 2:50059'
+    PRINT 'PASS SR6: a proforma line total is rounded once, from the exact product';
+ELSE PRINT CONCAT('FAIL SR6: case:error ', @got, ' (expected 1:0 2:50059)');
+GO
+/* SR7 (A5): the reporting role reads the tenant's rows and the reporting views, never an internal function (229):
+   not sec.fn_TenantOpen, not sec.fn_JobAllowed, not lc.BeneficiaryIbanChange; every inline, table and scalar function
+   of rls, sec, plat and cfg is denied to it, and its row filters still apply. */
+DECLARE @t1 INT, @t2 INT, @u1 BIGINT, @e1 INT, @e2 INT, @e3 INT, @n INT = -1, @v INT = -1, @missing INT;
+BEGIN TRANSACTION;
+EXEC #Fixture;
+SELECT @t1 = v FROM #F WHERE k = 't1'; SELECT @t2 = v FROM #F WHERE k = 't2'; SELECT @u1 = v FROM #F WHERE k = 'u1';
+EXEC #Bind @t1, @u1;
+EXECUTE AS USER = N'tp_test_rfread';
+BEGIN TRY SELECT @n = COUNT(*) FROM sec.fn_TenantOpen(@t2); END TRY BEGIN CATCH SET @e1 = ERROR_NUMBER(); END CATCH;
+BEGIN TRY SELECT @n = COUNT(*) FROM sec.fn_JobAllowed(@t2, 'JOB-PLT-EXPORT'); END TRY BEGIN CATCH SET @e2 = ERROR_NUMBER(); END CATCH;
+BEGIN TRY SELECT @n = COUNT(*) FROM lc.BeneficiaryIbanChange(1, 2); END TRY BEGIN CATCH SET @e3 = ERROR_NUMBER(); END CATCH;
+SELECT @n = COUNT(*) FROM cat.DocumentType;
+SELECT @v = COUNT(*) FROM plat.v_CurrentTenant;
+REVERT;
+WHILE @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
+SELECT @missing = COUNT(*)
+FROM sys.objects AS o
+WHERE o.type IN ('IF', 'TF', 'FN')
+  AND (SCHEMA_NAME(o.schema_id) IN (N'rls', N'sec', N'plat', N'cfg') OR o.object_id = OBJECT_ID(N'lc.BeneficiaryIbanChange'))
+  AND NOT EXISTS (SELECT 1 FROM sys.database_permissions AS p
+                  WHERE p.major_id = o.object_id AND p.grantee_principal_id = DATABASE_PRINCIPAL_ID(N'tp_readonly') AND p.state = 'D'
+                    AND p.permission_name = CASE WHEN o.type = 'FN' THEN 'EXECUTE' ELSE 'SELECT' END);
+IF @e1 = 229 AND @e2 = 229 AND @e3 = 229 AND @n = 2 AND @v = 1 AND @missing = 0
+    PRINT 'PASS SR7: the reporting role reads its tenant''s rows and the reporting views, never an internal function';
+ELSE PRINT CONCAT('FAIL SR7: tenant status ', @e1, ', job rule ', @e2, ', IBAN change ', @e3, ', rows ', @n, ' (expected 2), view ', @v,
+                  ', functions without the deny ', @missing);
+GO
+/* SR8 cases (C2): the fixture's template version is published. */
+CREATE PROCEDURE #PartCase @Case INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    DECLARE @t1 INT, @rt INT, @tpl INT, @s1 INT, @s2 INT, @plain INT, @tpl2 INT, @a INT, @b INT;
+    SELECT @t1 = v FROM #F WHERE k = 't1'; SELECT @rt = v FROM #F WHERE k = 'rt'; SELECT @tpl = v FROM #F WHERE k = 'tpl';
+    SELECT @s1 = v FROM #F WHERE k = 's1'; SELECT @s2 = v FROM #F WHERE k = 's2'; SELECT @plain = v FROM #F WHERE k = 'plain1';
+    IF @Case = 4
+    BEGIN
+        INSERT wfl.WorkflowTemplate (TenantId, RequestTypeId, TemplateKey, VersionNo, NameEn) VALUES (@t1, @rt, 'PURCHASE_LC', 2, N'Purchase LC v2');
+        SET @tpl2 = SCOPE_IDENTITY();
+        INSERT wfl.WorkflowStage (TenantId, TemplateId, StageKey, NameAr, NameEn, Kind, SeqNo, ExternalPhaseId)
+        VALUES (@t1, @tpl2, 'DRAFT', N'Draft', N'Draft', 'DRAFT', 1, 1);
+        SET @a = SCOPE_IDENTITY();
+        INSERT wfl.WorkflowStage (TenantId, TemplateId, StageKey, NameAr, NameEn, Kind, SeqNo, ExternalPhaseId, AssigneeRule)
+        VALUES (@t1, @tpl2, 'PREPARE', N'Prepare', N'Prepare', 'TASK', 2, 1, 'REQUESTER');
+        SET @b = SCOPE_IDENTITY();
+        SELECT @tpl = @tpl2, @s1 = @a, @s2 = @b;
+    END;
+    IF @Case IN (1, 4) INSERT wfl.WorkflowTransition (TenantId, TemplateId, FromStageId, Action, ToStageId) VALUES (@t1, @tpl, @s1, 'SUBMIT', @s2);
+    IF @Case IN (2, 4) INSERT wfl.TemplateAttachmentRule (TenantId, TemplateId, SlotKey, LabelEn, DocumentTypeId) VALUES (@t1, @tpl, 'SIGNED', N'Signed', @plain);
+    IF @Case IN (3, 4) INSERT wfl.WorkflowStageHook (TenantId, StageId, TriggerKind, HookKey) VALUES (@t1, @s2, 'ON_ENTER', 'ntf.emit');
+    IF @Case = 4
+    BEGIN
+        UPDATE wfl.WorkflowTransition SET Priority = 2 WHERE TemplateId = @tpl;
+        DELETE wfl.WorkflowStageHook WHERE StageId = @s2;
+        DELETE wfl.TemplateAttachmentRule WHERE TemplateId = @tpl;
+    END;
+END;
+GO
+/* SR8 (C2): a published template version takes no new transition, attachment rule or stage hook (50057); a draft
+   version takes, changes and loses them. */
+DECLARE @got NVARCHAR(800);
+EXEC #Cases '#S3', '#PartCase', 1, 4, @got OUTPUT;
+IF @got = '1:50057 2:50057 3:50057 4:0'
+    PRINT 'PASS SR8: the transitions, attachment rules and hooks of a published template version do not change';
+ELSE PRINT CONCAT('FAIL SR8: case:error ', @got, ' (expected 1-3:50057 4:0)');
+GO
+/* SR9 cases (B1-B3, B6, B7a-c): #Cov holds the approved covenant 'cv' and its scheduled test 'ct' of 2025. */
+CREATE PROCEDURE #ModelCase @Case INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    DECLARE @t1 INT, @u1 BIGINT, @f BIGINT, @l BIGINT, @ob BIGINT, @fr BIGINT, @cv BIGINT, @ct BIGINT, @co BIGINT, @cur INT, @root BIGINT,
+            @obroot BIGINT, @cv2 BIGINT, @ct2 BIGINT, @b BIGINT, @ot INT, @ob2 BIGINT, @ro BIGINT, @ri BIGINT, @f2 BIGINT, @l2 BIGINT,
+            @ut1 BIGINT, @ut2 BIGINT;
+    SELECT @t1 = v FROM #F WHERE k = 't1'; SELECT @u1 = v FROM #F WHERE k = 'u1'; SELECT @f = v FROM #F WHERE k = 'f';
+    SELECT @l = v FROM #F WHERE k = 'l'; SELECT @ob = v FROM #F WHERE k = 'ob'; SELECT @fr = v FROM #F WHERE k = 'fr';
+    SELECT @cv = v FROM #F WHERE k = 'cv'; SELECT @ct = v FROM #F WHERE k = 'ct'; SELECT @co = v FROM #F WHERE k = 'co';
+    SELECT @cur = v FROM #F WHERE k = 'cur';
+    SELECT @root = RootId FROM obl.Covenant WHERE CovenantId = @cv;
+    SELECT @obroot = RootId FROM obl.Obligation WHERE ObligationId = @ob;
+    IF @Case = 1   -- a revision 2 row of the covenant, same root: its test of 2025 is the same test (duplicate key)
+    BEGIN
+        UPDATE obl.Covenant SET ToRevision = 2 WHERE CovenantId = @cv;
+        INSERT obl.Covenant (TenantId, ObligationId, MeasureKind, FormulaId, FormulaResultUnit, FormulaUsesStatements, Operator, ThresholdState,
+                             ThresholdValue, ThresholdUnit, TestFrequency, StatementBasis, RequiredAssurance, TestedCompanyId, FirstTestPeriodEnd, ValidFrom,
+                             FromRevision, SupersedesId, InheritedRootId)
+        VALUES (@t1, @ob, 'RATIO', @fr, 'RATIO', 1, 'GE', 'SET', 1.3, 'RATIO', 'ANNUAL', 'STANDALONE', 'AUDITED_ONLY', @co, '2025-12-31', '2025-01-01',
+                2, @cv, @root);
+        SET @cv2 = SCOPE_IDENTITY();
+        INSERT obl.CovenantTest (TenantId, CovenantId, CovenantRootId, PeriodStart, PeriodEnd, DueDate, Method)
+        VALUES (@t1, @cv2, @root, '2025-01-01', '2025-12-31', '2026-01-30', 'AUTO');
+    END;
+    IF @Case = 2 INSERT obl.CovenantTest (TenantId, CovenantId, CovenantRootId, PeriodStart, PeriodEnd, DueDate, Method, EvaluationNo)
+                 VALUES (@t1, @cv, @root + 1000, '2025-01-01', '2025-12-31', '2026-01-30', 'AUTO', 2);
+    IF @Case IN (3, 5) UPDATE obl.CovenantTest SET State = 'CANCELLED', CancelReason = N'The covenant was waived for 2025' WHERE CovenantTestId = @ct;
+    IF @Case = 4 UPDATE obl.CovenantTest SET State = 'CANCELLED' WHERE CovenantTestId = @ct;
+    IF @Case = 5 UPDATE obl.CovenantTest SET CancelReason = N'Another reason' WHERE CovenantTestId = @ct;
+    IF @Case BETWEEN 6 AND 10
+    BEGIN
+        ALTER TABLE obl.ObligationBreach NOCHECK CONSTRAINT FK_ObligationBreach_WaiverBankContactId;
+        INSERT obl.ObligationBreach (TenantId, ObligationId, ObligationRootId, Kind, CovenantTestId, CovenantRootId, TestPeriodEnd, DetectedOn)
+        VALUES (@t1, @ob, @obroot, 'COVENANT_BREACH', @ct, @root, '2025-12-31', '2026-02-01');
+        SET @b = SCOPE_IDENTITY();
+        IF @Case IN (6, 7, 9)   -- the waiver is recorded while the breach is open, before its approval (DQ-F15-9)
+            UPDATE obl.ObligationBreach SET WaiverRef = N'W-1', WaiverDate = '2026-02-10', WaiverBankContactId = 1 WHERE ObligationBreachId = @b;
+        IF @Case = 7 UPDATE obl.ObligationBreach SET Status = 'WAIVED', ResolvedOn = '2026-02-11' WHERE ObligationBreachId = @b;
+        IF @Case = 8 UPDATE obl.ObligationBreach SET WaiverApprovedBy = @u1, WaiverApprovedOn = SYSUTCDATETIME() WHERE ObligationBreachId = @b;
+        IF @Case = 9 UPDATE obl.ObligationBreach SET Status = 'WAIVED', ResolvedOn = '2026-02-11', WaiverApprovedBy = @u1, WaiverApprovedOn = SYSUTCDATETIME()
+                     WHERE ObligationBreachId = @b;
+        IF @Case = 10   -- a second evaluation of the same period gives BREACH again: no second open breach (DQ-F15-11)
+        BEGIN
+            INSERT obl.CovenantTest (TenantId, CovenantId, CovenantRootId, PeriodStart, PeriodEnd, DueDate, Method, EvaluationNo)
+            VALUES (@t1, @cv, @root, '2025-01-01', '2025-12-31', '2026-01-30', 'AUTO', 2);
+            SET @ct2 = SCOPE_IDENTITY();
+            INSERT obl.ObligationBreach (TenantId, ObligationId, ObligationRootId, Kind, CovenantTestId, CovenantRootId, TestPeriodEnd, DetectedOn)
+            VALUES (@t1, @ob, @obroot, 'COVENANT_BREACH', @ct2, @root, '2025-12-31', '2026-03-01');
+        END;
+    END;
+    IF @Case = 11   -- a waived agenda item without its document (DQ-F15-12)
+    BEGIN
+        INSERT cat.ObligationType (TenantId, Code, NameAr, Family) VALUES (@t1, 'FS', N'FS', 'REPORTING');
+        SET @ot = SCOPE_IDENTITY();
+        INSERT obl.Obligation (TenantId, FacilityId, Family, ObligationTypeId, TitleAr, ValidFrom, FromRevision, NoSourceReason)
+        VALUES (@t1, @f, 'REPORTING', @ot, N'Statements', '2026-01-01', 2, N'test fixture');
+        SET @ob2 = SCOPE_IDENTITY();
+        INSERT obl.ReportingObligation (TenantId, ObligationId, Frequency, AnchorKind, OffsetValue, Direction, DocumentBasis, ExpectsEvidence, FromRevision)
+        VALUES (@t1, @ob2, 'ANNUAL', 'AFTER_FISCAL_YEAR_END', 120, 'WE_SUBMIT', 'AUDITED', 0, 2);
+        SET @ro = SCOPE_IDENTITY();
+        INSERT obl.ReportingInstance (TenantId, ReportingObligationId, ReportingObligationRootId, PeriodStart, PeriodEnd, DueDate)
+        VALUES (@t1, @ro, (SELECT RootId FROM obl.ReportingObligation WHERE ReportingObligationId = @ro), '2025-01-01', '2025-12-31', '2026-04-30');
+        SET @ri = SCOPE_IDENTITY();
+        UPDATE obl.ReportingInstance SET Status = 'WAIVED', StatusReason = N'Waived by the bank' WHERE ReportingInstanceId = @ri;
+    END;
+    IF @Case = 12 INSERT fac.Limit (TenantId, FacilityId, LimitTypeId, Code, NameAr, AmountBasis, Amount, IsRevolving, FromRevision)
+                  VALUES (@t1, @f, 1, 'L9', N'حد', 'ABSOLUTE', 100000, 1, 2);
+    IF @Case = 13 INSERT obl.Obligation (TenantId, FacilityId, Family, ObligationTypeId, TitleAr, ValidFrom, FromRevision, NoSourceReason, Status)
+                  VALUES (@t1, @f, 'COVENANT', (SELECT ObligationTypeId FROM cat.ObligationType WHERE TenantId = @t1 AND Code = 'COV'), N'Ended',
+                          '2026-06-01', 2, N'test fixture', 'ENDED');
+    IF @Case BETWEEN 14 AND 16   -- renewal: the utilisation moves to the successor facility (DQ-F14-5)
+    BEGIN
+        INSERT fac.Facility (TenantId, FacilityNo, BorrowerCompanyId, FacilityTypeId, CurrencyId, TotalAmount, PrecedenceLanguage, EffectiveFrom, ExpiryDate,
+                             PreviousFacilityId)
+        VALUES (@t1, 'FAC-27-001', @co, 1, @cur, 1000000, 'EN', '2027-01-01', '2028-01-01', CASE WHEN @Case = 15 THEN NULL ELSE @f END);
+        SET @f2 = SCOPE_IDENTITY();
+        INSERT fac.Limit (TenantId, FacilityId, LimitTypeId, Code, NameAr, AmountBasis, Amount, IsRevolving, FromRevision, NoSourceReason)
+        VALUES (@t1, @f2, 1, 'L1', N'حد', 'ABSOLUTE', 800000, 1, 1, N'test fixture');
+        SET @l2 = SCOPE_IDENTITY();
+        INSERT fac.Utilization (TenantId, FacilityId, LimitId, CompanyId, Reference, Amount, CurrencyId, StartDate)
+        VALUES (@t1, @f, @l, @co, N'LC-1', 50000, @cur, '2026-03-01');
+        SET @ut1 = SCOPE_IDENTITY();
+        INSERT fac.Utilization (TenantId, FacilityId, LimitId, CompanyId, Reference, Amount, CurrencyId, StartDate)
+        VALUES (@t1, @f2, @l2, @co, N'LC-1', 50000, @cur, '2027-01-01');
+        SET @ut2 = SCOPE_IDENTITY();
+        IF @Case IN (14, 15)
+            UPDATE fac.Utilization SET Status = 'TRANSFERRED', TransferredToFacilityId = @f2, TransferredToId = @ut2, TransferredOn = '2027-01-01'
+            WHERE UtilizationId = @ut1;
+        IF @Case = 16 INSERT fac.LimitMovement (TenantId, FacilityId, TargetKind, UtilizationId, OpKind, CurrencyId, AppliedDelta, IdempotencyKey, ActorUserId)
+                      VALUES (@t1, @f, 'UTILIZATION', @ut1, 'TRANSFER', @cur, -50000, CONCAT('transfer-', @ut1), @u1);
+    END;
+END;
+GO
+/* SR9 (B1-B3, B6, B7a-c): a covenant's tests, an obligation's breaches and a rule's agenda follow their root across
+   revisions: a revised covenant does not get a second test of a period (2627), a test names its covenant's own root
+   (547), and a second evaluation of a period opens no second breach (2601). A scheduled test is cancelled with its
+   reason and stays cancelled (547, 50053). A waiver is recorded on the open breach and approved by the move to
+   WAIVED (547 without the approval, or with an approval but no WAIVED). A waived agenda item has its document, a value
+   entered without a document has its reason, and ENDED is not stored (547). A utilisation moves at renewal to a row of
+   the successor facility only (547 for another facility), and its TRANSFER movement has a reason (547). */
+DECLARE @got NVARCHAR(800);
+EXEC #Cases '#Cov', '#ModelCase', 1, 16, @got OUTPUT;
+IF @got = '1:2627 2:547 3:0 4:547 5:50053 6:0 7:547 8:547 9:0 10:2601 11:547 12:547 13:547 14:0 15:547 16:547'
+    PRINT 'PASS SR9: tests, breaches and agenda items follow their root, a test is cancelled with its reason, a waiver is approved, and a renewal moves utilisations to the successor';
+ELSE PRINT CONCAT('FAIL SR9: case:error ', @got, ' (expected 1:2627 2:547 3:0 4:547 5:50053 6:0 7-8:547 9:0 10:2601 11-13:547 14:0 15-16:547)');
 GO

@@ -3,7 +3,9 @@
 # DOC-S08 section 10, DOC-S12 section 3.5): the audit is in place and a second apply changes nothing; the deployment of
 # step 4 is recorded inside its window and raises no alert; a service login is recorded only when it fails; dbo and
 # sysadmin are recorded on the audit tables; each AL-18 rule fires outside a window; a reader needs no administrator;
-# a stopped audit is alerted and restarted. Prints PASS or FAIL lines like the .sql tests. The logins and the
+# a stopped audit is alerted and restarted; a window declared by a login that cannot open one does not count; server
+# settings, credentials, linked servers, master objects and renamed logins are alerted, and so is the deployment login
+# stopping the database audit specification inside its window. Prints PASS or FAIL lines like the .sql tests. The logins and the
 # database it creates are dropped at the end.
 #
 # Environment: SQLCMDPASSWORD (sa), SQL_SERVER (default localhost,1433), SQLCMD (default sqlcmd),
@@ -48,6 +50,10 @@ IF DB_ID(N'BankFasAuditProbe') IS NOT NULL DROP DATABASE [BankFasAuditProbe];
 IF SUSER_ID(N'breakglass') IS NOT NULL DROP LOGIN [breakglass];
 IF EXISTS (SELECT 1 FROM BankFas.sys.database_principals WHERE name = N'ci_audit_reader') EXEC (N'USE [BankFas]; DROP USER [ci_audit_reader];');
 IF SUSER_ID(N'ci_audit_reader') IS NOT NULL DROP LOGIN [ci_audit_reader];
+IF SUSER_ID(N'ci_audit_reader2') IS NOT NULL DROP LOGIN [ci_audit_reader2];
+IF EXISTS (SELECT 1 FROM sys.credentials WHERE name = N'ci_probe_cred') DROP CREDENTIAL [ci_probe_cred];
+IF EXISTS (SELECT 1 FROM sys.servers WHERE name = N'CI_PROBE_LINK') EXEC sp_dropserver N'CI_PROBE_LINK';
+IF OBJECT_ID(N'master.dbo.ci_probe') IS NOT NULL DROP TABLE master.dbo.ci_probe;
 IF EXISTS (SELECT 1 FROM BankFas.sys.database_principals WHERE name = N'ci_audit_probe') EXEC (N'USE [BankFas]; DROP ROLE [ci_audit_probe];');
 USE [BankFas];
 DECLARE @n SYSNAME, @sql NVARCHAR(300);
@@ -168,10 +174,10 @@ sa_run "ALTER LOGIN [bankfas_migrator] DISABLE;" >/dev/null
 written
 alerts "$t5"
 maintenance=$(grep -c '|ALTER INDEX\||UPDATE STATISTICS' "$TMP/alerts.out" || true)
-expected="BREAKGLASS DROP_DB GRANT MIGRATOR SA SCHEMA SERVER_RIGHTS"
+expected="BREAKGLASS DROP_DB GRANT LOGINS MIGRATOR SA SCHEMA SERVER_RIGHTS"
 if [ "$(rules)" = "$expected" ] && [ "$maintenance" -eq 0 ] \
    && [ "$(grep -c '^MIGRATOR|' "$TMP/alerts.out")" -eq 2 ] && [ "$(grep -c '^GRANT|' "$TMP/alerts.out")" -ge 3 ]; then
-    echo "PASS SA5: outside a window, breakglass, sa, the migrator, server roles, grants, policies, triggers and a dropped database each raise their alert; maintenance does not"
+    echo "PASS SA5: outside a window, breakglass, sa, the migrator, new logins, server roles, grants, policies, triggers and a dropped database each raise their alert; maintenance does not"
 else
     echo "FAIL SA5: rules [$(rules)] (expected [$expected]), maintenance alerts $maintenance"; cat "$TMP/act.out" "$TMP/alerts.out"
 fi
@@ -209,6 +215,51 @@ if [[ "$stopped" == *"Msg 50121"*"not started"* ]] && [[ "$restarted" == "server
     echo "PASS SA7: stopping the audit is alerted, check fails while it is stopped, and apply starts it again"
 else
     echo "FAIL SA7: check while stopped [$stopped], apply [$restarted], rules [$(rules)]"; cat "$TMP/alerts.out"
+fi
+
+# SA8: a deployment window declared by a login that cannot enable bankfas_migrator does not count (self-review E1):
+# the declaration raises WINDOW, and the migrator's activity in the same minutes still raises MIGRATOR.
+t8="$(now)"
+as_login ci_audit_reader "$READER_PW" "EXEC sys.sp_audit_write @user_defined_event_id = 1101, @succeeded = 1, @user_defined_information = N'not a deployment';" >/dev/null || true
+act "ALTER LOGIN [bankfas_migrator] ENABLE;"
+as_login bankfas_migrator "$(cat "$MIGRATOR_SECRET")" "SELECT 1;" >/dev/null || true
+sa_run "ALTER LOGIN [bankfas_migrator] DISABLE;" >/dev/null
+written
+alerts "$t8"
+windows8="$(audit windows "$t8" 2>&1 || true)"
+if [ "$(rules)" = "MIGRATOR WINDOW" ] && [ "$(grep -c '^MIGRATOR|' "$TMP/alerts.out")" -eq 2 ] \
+   && [ "$(grep -c '^WINDOW|' "$TMP/alerts.out")" -eq 1 ] && ! grep -q 'not a deployment' <<< "$windows8"; then
+    echo "PASS SA8: a deployment window declared by a login that cannot enable the deployment login does not count and is alerted"
+else
+    echo "FAIL SA8: rules [$(rules)] (expected [MIGRATOR WINDOW]), windows [$windows8]"; cat "$TMP/act.out" "$TMP/alerts.out"
+fi
+
+# SA9: server settings, a credential, a linked server, an object in master and a renamed login raise their alerts
+# outside a window (self-review E6), and the deployment login stopping the database audit specification is alerted
+# even inside a deployment window (E2).
+t9="$(now)"
+act "SET NOCOUNT ON;
+EXEC sp_configure 'show advanced options', 1; RECONFIGURE;
+EXEC sp_configure 'show advanced options', 0; RECONFIGURE;
+CREATE CREDENTIAL [ci_probe_cred] WITH IDENTITY = N'probe', SECRET = N'not-a-secret';
+DROP CREDENTIAL [ci_probe_cred];
+EXEC sp_addlinkedserver @server = N'CI_PROBE_LINK', @srvproduct = N'', @provider = N'SQLNCLI', @datasrc = N'nowhere.invalid';
+EXEC sp_dropserver N'CI_PROBE_LINK';
+CREATE TABLE master.dbo.ci_probe (i INT); DROP TABLE master.dbo.ci_probe;
+ALTER LOGIN [ci_audit_reader] WITH NAME = [ci_audit_reader2];
+ALTER LOGIN [ci_audit_reader2] WITH NAME = [ci_audit_reader];"
+window_open() { SQLCMDPASSWORD="$SA_PW" SQL_USER=sa BANKFAS_CHANGE_REF=CI-audit bash "$ROOT/tools/deploy/prepare_database.sh" "$1" >/dev/null; }
+window_open open
+as_login bankfas_migrator "$(cat "$MIGRATOR_SECRET")" "USE [BankFas]; ALTER DATABASE AUDIT SPECIFICATION [BankFas_Audit_Database] WITH (STATE = OFF);
+ALTER DATABASE AUDIT SPECIFICATION [BankFas_Audit_Database] WITH (STATE = ON);" > "$TMP/spec.out" 2>&1 || true
+window_open close
+written
+alerts "$t9"
+if [ "$(rules)" = "AUDIT LOGINS SERVER_CONFIG" ] && [ "$(grep -c '^LOGINS|' "$TMP/alerts.out")" -eq 2 ] \
+   && [ "$(grep -c '^SERVER_CONFIG|' "$TMP/alerts.out")" -ge 7 ] && grep -q '^AUDIT|.*bankfas_migrator' "$TMP/alerts.out"; then
+    echo "PASS SA9: server settings, credentials, linked servers, master objects and a renamed login are alerted, and so is the deployment login stopping the audit inside its window"
+else
+    echo "FAIL SA9: rules [$(rules)] (expected [AUDIT LOGINS SERVER_CONFIG])"; cat "$TMP/act.out" "$TMP/spec.out" "$TMP/alerts.out"
 fi
 
 sa_run "$cleanup_sql" >/dev/null

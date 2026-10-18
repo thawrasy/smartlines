@@ -305,6 +305,34 @@ IF @e1 = 50034 AND @n = 1 AND @n2 = 0 AND @st = 'EXPIRED' AND @n3 = 1 AND @n4 = 
 ELSE PRINT CONCAT('FAIL X6: ', @e1, '/', @n, '/', @n2, '/', @st, '/', @n3, '/', @n4, '/', @n5);
 ROLLBACK TRANSACTION x6;
 
+/* X7 (self-review A10): a tenant that marked the package type sensitive still gets its package: an export without
+   restricted data is RESTRICTED like its type, as 043 requires of a document of a sensitive type (50045 otherwise). */
+SAVE TRANSACTION x7;
+SELECT @e1 = NULL, @id = NULL, @st = NULL, @n = NULL, @x = NULL, @doc = NULL;
+DECLARE @k6 VARCHAR(300) = @pre + '/exports/6.zip';
+EXECUTE AS USER = N'tp_test_xread';
+UPDATE cat.DocumentType SET IsSensitive = 1 WHERE TenantId = @t AND Code = 'DATA_EXPORT_PACKAGE';
+REVERT;
+EXEC #Bind @t, @ta;
+EXECUTE AS USER = N'tp_test_xapp';
+EXEC cfg.usp_RequestDataExport @TenantId = @t, @DataExportJobId = @id OUTPUT;
+REVERT;
+EXEC #Bind @t, @svc, 'JOB', 'JOB-PLT-EXPORT';
+EXECUTE AS USER = N'tp_test_xjob';
+INSERT @scope EXEC cfg.usp_StartDataExport;
+BEGIN TRY EXEC cfg.usp_FinishDataExport @DataExportJobId = @id, @StorageKey = @k6, @FileName = N'export-6.zip',
+               @SizeBytes = 10, @Sha256 = @sha; END TRY
+BEGIN CATCH SET @e1 = ERROR_NUMBER(); END CATCH;
+REVERT;
+EXECUTE AS USER = N'tp_test_xread';
+SELECT @st = Status, @doc = PackageDocumentId, @x = CAST(IncludesRestricted AS INT) FROM cfg.DataExportJob WHERE DataExportJobId = @id;
+SELECT @n = COUNT(*) FROM doc.Document WHERE DocumentId = @doc AND Sensitivity = 'RESTRICTED';
+REVERT;
+IF @e1 IS NULL AND @st = 'READY' AND @x = 0 AND @n = 1
+    PRINT 'PASS X7: a package of a type the tenant marked sensitive is RESTRICTED, even without restricted data';
+ELSE PRINT CONCAT('FAIL X7: ', @e1, '/', @st, '/', @x, '/', @n);
+ROLLBACK TRANSACTION x7;
+
 ROLLBACK TRANSACTION;
 GO
 DELETE FROM sec.SessionBinding WHERE SessionId = @@SPID;

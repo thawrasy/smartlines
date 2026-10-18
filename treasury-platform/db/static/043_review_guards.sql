@@ -85,7 +85,7 @@ AS
 BEGIN
     SET NOCOUNT ON;
     IF EXISTS (SELECT 1 FROM inserted AS i
-               JOIN cat.DocumentType AS t ON t.TenantId = i.TenantId AND t.DocumentTypeId = i.DocumentTypeId
+               JOIN cat.DocumentType AS t WITH (UPDLOCK, HOLDLOCK) ON t.TenantId = i.TenantId AND t.DocumentTypeId = i.DocumentTypeId
                WHERE t.IsSensitive = 1 AND i.Sensitivity <> 'RESTRICTED')
         THROW 50045, 'A document of a sensitive type is RESTRICTED (DOC-S06)', 1;
 END;

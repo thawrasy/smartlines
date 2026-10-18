@@ -2743,6 +2743,7 @@ CREATE TABLE "fac"."Facility" (
   "UpdatedBy" bigint NULL,
   PRIMARY KEY ("FacilityId"),
   CONSTRAINT "UQ_Facility_Tenant" UNIQUE ("TenantId", "FacilityId"),
+  CONSTRAINT "UQ_Facility_Scope_PreviousFacilityId" UNIQUE ("TenantId", "PreviousFacilityId", "FacilityId"),
   CONSTRAINT "UQ_Facility_PublicId" UNIQUE ("PublicId"),
   CONSTRAINT "UQ_Facility_FacilityNo" UNIQUE ("TenantId", "FacilityNo"),
   CONSTRAINT "CK_Facility_1" CHECK ("ExpiryDate" >= "EffectiveFrom"),
@@ -2888,6 +2889,7 @@ CREATE TABLE "fac"."OutstandingSnapshot" (
   CONSTRAINT "CK_OutstandingSnapshot_3" CHECK ("SourceDocumentId" IS NOT NULL AND "SourcePage" IS NOT NULL OR ("SourceDocumentId" IS NULL AND "Confidence" = 'ENTERED_NO_DOCUMENT')),
   CONSTRAINT "CK_OutstandingSnapshot_4" CHECK ("Confidence" <> 'CONFIRMED_AGAINST_ORIGINAL' OR ("VerifiedBy" IS NOT NULL AND "VerifiedOn" IS NOT NULL)),
   CONSTRAINT "CK_OutstandingSnapshot_5" CHECK ("OriginalText" IS NULL OR ("OriginalText" NOT LIKE '%[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]%' AND "OriginalText" NOT LIKE '%[A-Za-z][A-Za-z][0-9][0-9] [0-9][0-9][0-9][0-9] [0-9][0-9][0-9][0-9] [0-9][0-9][0-9][0-9]%')),
+  CONSTRAINT "CK_OutstandingSnapshot_6" CHECK ("SourceDocumentId" IS NOT NULL OR ("NoSourceReason" IS NOT NULL AND length(ltrim(rtrim("NoSourceReason"))) > 0)),
   CONSTRAINT "CK_OutstandingSnapshot_SourceKind" CHECK ("SourceKind" IS NULL OR "SourceKind" IN ('RENEWAL_ACKNOWLEDGEMENT', 'BANK_STATEMENT', 'INTERNAL')),
   CONSTRAINT "CK_OutstandingSnapshot_Confidence" CHECK ("Confidence" IS NULL OR "Confidence" IN ('CONFIRMED_AGAINST_ORIGINAL', 'READ_FROM_SCAN_UNVERIFIED', 'ENTERED_NO_DOCUMENT'))
 );
@@ -2949,6 +2951,7 @@ CREATE TABLE "fac"."Limit" (
   CONSTRAINT "CK_Limit_9" CHECK ("Confidence" <> 'CONFIRMED_AGAINST_ORIGINAL' OR ("VerifiedBy" IS NOT NULL AND "VerifiedOn" IS NOT NULL)),
   CONSTRAINT "CK_Limit_10" CHECK (("SupersedesId" IS NULL AND "InheritedRootId" IS NULL) OR ("SupersedesId" IS NOT NULL AND "InheritedRootId" IS NOT NULL)),
   CONSTRAINT "CK_Limit_11" CHECK ("OriginalText" IS NULL OR ("OriginalText" NOT LIKE '%[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]%' AND "OriginalText" NOT LIKE '%[A-Za-z][A-Za-z][0-9][0-9] [0-9][0-9][0-9][0-9] [0-9][0-9][0-9][0-9] [0-9][0-9][0-9][0-9]%')),
+  CONSTRAINT "CK_Limit_12" CHECK ("SourceDocumentId" IS NOT NULL OR ("NoSourceReason" IS NOT NULL AND length(ltrim(rtrim("NoSourceReason"))) > 0)),
   CONSTRAINT "CK_Limit_AmountBasis" CHECK ("AmountBasis" IS NULL OR "AmountBasis" IN ('ABSOLUTE', 'PCT_OF_PARENT')),
   CONSTRAINT "CK_Limit_DistributionMode" CHECK ("DistributionMode" IS NULL OR "DistributionMode" IN ('SHARED_CAP', 'PARTITION', 'OUTSIDE_TOTAL')),
   CONSTRAINT "CK_Limit_PricingMode" CHECK ("PricingMode" IS NULL OR "PricingMode" IN ('INHERIT', 'OWN')),
@@ -3002,6 +3005,7 @@ CREATE TABLE "fac"."LimitProductLine" (
   CONSTRAINT "CK_LimitProductLine_6" CHECK ("Confidence" <> 'CONFIRMED_AGAINST_ORIGINAL' OR ("VerifiedBy" IS NOT NULL AND "VerifiedOn" IS NOT NULL)),
   CONSTRAINT "CK_LimitProductLine_7" CHECK (("SupersedesId" IS NULL AND "InheritedRootId" IS NULL) OR ("SupersedesId" IS NOT NULL AND "InheritedRootId" IS NOT NULL)),
   CONSTRAINT "CK_LimitProductLine_8" CHECK ("OriginalText" IS NULL OR ("OriginalText" NOT LIKE '%[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]%' AND "OriginalText" NOT LIKE '%[A-Za-z][A-Za-z][0-9][0-9] [0-9][0-9][0-9][0-9] [0-9][0-9][0-9][0-9] [0-9][0-9][0-9][0-9]%')),
+  CONSTRAINT "CK_LimitProductLine_9" CHECK ("SourceDocumentId" IS NOT NULL OR ("NoSourceReason" IS NOT NULL AND length(ltrim(rtrim("NoSourceReason"))) > 0)),
   CONSTRAINT "CK_LimitProductLine_AmountBasis" CHECK ("AmountBasis" IS NULL OR "AmountBasis" IN ('ABSOLUTE', 'PCT_OF_PARENT')),
   CONSTRAINT "CK_LimitProductLine_Confidence" CHECK ("Confidence" IS NULL OR "Confidence" IN ('CONFIRMED_AGAINST_ORIGINAL', 'READ_FROM_SCAN_UNVERIFIED', 'ENTERED_NO_DOCUMENT'))
 );
@@ -3049,6 +3053,7 @@ CREATE TABLE "fac"."LimitCompanyRule" (
   CONSTRAINT "CK_LimitCompanyRule_8" CHECK ("Confidence" <> 'CONFIRMED_AGAINST_ORIGINAL' OR ("VerifiedBy" IS NOT NULL AND "VerifiedOn" IS NOT NULL)),
   CONSTRAINT "CK_LimitCompanyRule_9" CHECK (("SupersedesId" IS NULL AND "InheritedRootId" IS NULL) OR ("SupersedesId" IS NOT NULL AND "InheritedRootId" IS NOT NULL)),
   CONSTRAINT "CK_LimitCompanyRule_10" CHECK ("OriginalText" IS NULL OR ("OriginalText" NOT LIKE '%[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]%' AND "OriginalText" NOT LIKE '%[A-Za-z][A-Za-z][0-9][0-9] [0-9][0-9][0-9][0-9] [0-9][0-9][0-9][0-9] [0-9][0-9][0-9][0-9]%')),
+  CONSTRAINT "CK_LimitCompanyRule_11" CHECK ("SourceDocumentId" IS NOT NULL OR ("NoSourceReason" IS NOT NULL AND length(ltrim(rtrim("NoSourceReason"))) > 0)),
   CONSTRAINT "CK_LimitCompanyRule_RuleKind" CHECK ("RuleKind" IS NULL OR "RuleKind" IN ('ALLOWED', 'EXCLUDED', 'ALLOCATION')),
   CONSTRAINT "CK_LimitCompanyRule_Confidence" CHECK ("Confidence" IS NULL OR "Confidence" IN ('CONFIRMED_AGAINST_ORIGINAL', 'READ_FROM_SCAN_UNVERIFIED', 'ENTERED_NO_DOCUMENT'))
 );
@@ -3103,6 +3108,7 @@ CREATE TABLE "fac"."ProductLineTerm" (
   CONSTRAINT "CK_ProductLineTerm_11" CHECK ("Confidence" <> 'CONFIRMED_AGAINST_ORIGINAL' OR ("VerifiedBy" IS NOT NULL AND "VerifiedOn" IS NOT NULL)),
   CONSTRAINT "CK_ProductLineTerm_12" CHECK (("SupersedesId" IS NULL AND "InheritedRootId" IS NULL) OR ("SupersedesId" IS NOT NULL AND "InheritedRootId" IS NOT NULL)),
   CONSTRAINT "CK_ProductLineTerm_13" CHECK ("OriginalText" IS NULL OR ("OriginalText" NOT LIKE '%[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]%' AND "OriginalText" NOT LIKE '%[A-Za-z][A-Za-z][0-9][0-9] [0-9][0-9][0-9][0-9] [0-9][0-9][0-9][0-9] [0-9][0-9][0-9][0-9]%')),
+  CONSTRAINT "CK_ProductLineTerm_14" CHECK ("SourceDocumentId" IS NOT NULL OR ("NoSourceReason" IS NOT NULL AND length(ltrim(rtrim("NoSourceReason"))) > 0)),
   CONSTRAINT "CK_ProductLineTerm_AdvanceNoticeUnit" CHECK ("AdvanceNoticeUnit" IS NULL OR "AdvanceNoticeUnit" IN ('BUSINESS', 'CALENDAR')),
   CONSTRAINT "CK_ProductLineTerm_CheckMode" CHECK ("CheckMode" IS NULL OR "CheckMode" IN ('OFF', 'WARN', 'BLOCK')),
   CONSTRAINT "CK_ProductLineTerm_Confidence" CHECK ("Confidence" IS NULL OR "Confidence" IN ('CONFIRMED_AGAINST_ORIGINAL', 'READ_FROM_SCAN_UNVERIFIED', 'ENTERED_NO_DOCUMENT'))
@@ -3123,9 +3129,12 @@ CREATE TABLE "fac"."Utilization" (
   "MaturityDate" date NULL,
   "SourceType" varchar(13) NOT NULL DEFAULT 'MANUAL',
   "SourceRequestId" bigint NULL,
-  "Status" varchar(10) NOT NULL DEFAULT 'ACTIVE',
+  "Status" varchar(11) NOT NULL DEFAULT 'ACTIVE',
   "ReleasedOn" date NULL,
   "ReleaseReason" varchar(500) NULL,
+  "TransferredToFacilityId" bigint NULL,
+  "TransferredToId" bigint NULL,
+  "TransferredOn" date NULL,
   "PublicId" uuid NOT NULL DEFAULT gen_random_uuid(),
   "CreatedAt" timestamp(3) NOT NULL DEFAULT (now() at time zone 'utc'),
   "CreatedBy" bigint NULL,
@@ -3143,8 +3152,9 @@ CREATE TABLE "fac"."Utilization" (
   CONSTRAINT "CK_Utilization_5" CHECK ("MaturityDate" IS NULL OR "MaturityDate" >= "StartDate"),
   CONSTRAINT "CK_Utilization_6" CHECK ("Status" <> 'RELEASED' OR ("ReleasedOn" IS NOT NULL AND "ReleaseReason" IS NOT NULL)),
   CONSTRAINT "CK_Utilization_7" CHECK ("Status" = 'RELEASED' OR ("ReleasedOn" IS NULL AND "ReleaseReason" IS NULL)),
+  CONSTRAINT "CK_Utilization_8" CHECK (("Status" = 'TRANSFERRED' AND "TransferredToFacilityId" IS NOT NULL AND "TransferredToId" IS NOT NULL AND "TransferredOn" IS NOT NULL) OR ("Status" <> 'TRANSFERRED' AND "TransferredToFacilityId" IS NULL AND "TransferredToId" IS NULL AND "TransferredOn" IS NULL)),
   CONSTRAINT "CK_Utilization_SourceType" CHECK ("SourceType" IS NULL OR "SourceType" IN ('MANUAL', 'LC', 'OTHER_REQUEST')),
-  CONSTRAINT "CK_Utilization_Status" CHECK ("Status" IS NULL OR "Status" IN ('ACTIVE', 'RELEASED'))
+  CONSTRAINT "CK_Utilization_Status" CHECK ("Status" IS NULL OR "Status" IN ('ACTIVE', 'RELEASED', 'TRANSFERRED'))
 );
 CREATE TABLE "fac"."LimitReservation" (
   "TenantId" integer NOT NULL,
@@ -3213,8 +3223,9 @@ CREATE TABLE "fac"."LimitMovement" (
   CONSTRAINT "CK_LimitMovement_2" CHECK ("AmountAfter" IS NULL OR "AmountAfter" >= 0),
   CONSTRAINT "CK_LimitMovement_3" CHECK ("AppliedDelta" IS NULL OR "RequestedDelta" IS NULL OR abs("AppliedDelta") <= abs("RequestedDelta")),
   CONSTRAINT "CK_LimitMovement_4" CHECK ("OpKind" <> 'ADJUST' OR "AmountBefore" IS NULL OR "AmountAfter" IS NULL OR "AppliedDelta" IS NULL OR "AmountAfter" = "AmountBefore" + "AppliedDelta"),
+  CONSTRAINT "CK_LimitMovement_5" CHECK ("OpKind" <> 'TRANSFER' OR ("TargetKind" = 'UTILIZATION' AND "Reason" IS NOT NULL)),
   CONSTRAINT "CK_LimitMovement_TargetKind" CHECK ("TargetKind" IS NULL OR "TargetKind" IN ('RESERVATION', 'UTILIZATION')),
-  CONSTRAINT "CK_LimitMovement_OpKind" CHECK ("OpKind" IS NULL OR "OpKind" IN ('CREATE', 'ADJUST', 'CONVERT', 'RELEASE'))
+  CONSTRAINT "CK_LimitMovement_OpKind" CHECK ("OpKind" IS NULL OR "OpKind" IN ('CREATE', 'ADJUST', 'CONVERT', 'RELEASE', 'TRANSFER'))
 );
 CREATE TABLE "fac"."ValueConflict" (
   "TenantId" integer NOT NULL,
@@ -3342,6 +3353,7 @@ CREATE TABLE "prc"."TariffItem" (
   CONSTRAINT "CK_TariffItem_10" CHECK ("SourceDocumentId" IS NOT NULL AND "SourcePage" IS NOT NULL OR ("SourceDocumentId" IS NULL AND "Confidence" = 'ENTERED_NO_DOCUMENT')),
   CONSTRAINT "CK_TariffItem_11" CHECK ("Confidence" <> 'CONFIRMED_AGAINST_ORIGINAL' OR ("VerifiedBy" IS NOT NULL AND "VerifiedOn" IS NOT NULL)),
   CONSTRAINT "CK_TariffItem_12" CHECK ("OriginalText" IS NULL OR ("OriginalText" NOT LIKE '%[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]%' AND "OriginalText" NOT LIKE '%[A-Za-z][A-Za-z][0-9][0-9] [0-9][0-9][0-9][0-9] [0-9][0-9][0-9][0-9] [0-9][0-9][0-9][0-9]%')),
+  CONSTRAINT "CK_TariffItem_13" CHECK ("SourceDocumentId" IS NOT NULL OR ("NoSourceReason" IS NOT NULL AND length(ltrim(rtrim("NoSourceReason"))) > 0)),
   CONSTRAINT "CK_TariffItem_ChargeKind" CHECK ("ChargeKind" IS NULL OR "ChargeKind" IN ('PERCENT', 'FIXED', 'PER_MILLION', 'TIERED')),
   CONSTRAINT "CK_TariffItem_PeriodBasis" CHECK ("PeriodBasis" IS NULL OR "PeriodBasis" IN ('FLAT', 'PER_ANNUM', 'PER_PERIOD_OR_PART')),
   CONSTRAINT "CK_TariffItem_Locality" CHECK ("Locality" IS NULL OR "Locality" IN ('ANY', 'INSIDE_BANK', 'OUTSIDE_BANK')),
@@ -3486,6 +3498,7 @@ CREATE TABLE "prc"."PricingRule" (
   CONSTRAINT "CK_PricingRule_38" CHECK ("Confidence" <> 'CONFIRMED_AGAINST_ORIGINAL' OR ("VerifiedBy" IS NOT NULL AND "VerifiedOn" IS NOT NULL)),
   CONSTRAINT "CK_PricingRule_39" CHECK (("SupersedesId" IS NULL AND "InheritedRootId" IS NULL) OR ("SupersedesId" IS NOT NULL AND "InheritedRootId" IS NOT NULL)),
   CONSTRAINT "CK_PricingRule_40" CHECK ("OriginalText" IS NULL OR ("OriginalText" NOT LIKE '%[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]%' AND "OriginalText" NOT LIKE '%[A-Za-z][A-Za-z][0-9][0-9] [0-9][0-9][0-9][0-9] [0-9][0-9][0-9][0-9] [0-9][0-9][0-9][0-9]%')),
+  CONSTRAINT "CK_PricingRule_41" CHECK ("SourceDocumentId" IS NOT NULL OR ("NoSourceReason" IS NOT NULL AND length(ltrim(rtrim("NoSourceReason"))) > 0)),
   CONSTRAINT "CK_PricingRule_ComponentKind" CHECK ("ComponentKind" IS NULL OR "ComponentKind" IN ('FEE', 'FINANCING_RETURN', 'PENALTY_NON_INCOME')),
   CONSTRAINT "CK_PricingRule_RateState" CHECK ("RateState" IS NULL OR "RateState" IN ('SET', 'NOT_SPECIFIED_IN_AGREEMENT')),
   CONSTRAINT "CK_PricingRule_Method" CHECK ("Method" IS NULL OR "Method" IN ('TARIFF_AS_IS', 'TARIFF_PLUS_ADDON', 'BASE_PLUS_MARGIN', 'PERCENT_OF_AMOUNT', 'FIXED_AMOUNT', 'PER_MILLION', 'TIERED')),
@@ -3633,6 +3646,7 @@ CREATE TABLE "cmp"."TermValue" (
   CONSTRAINT "CK_TermValue_10" CHECK ("Confidence" <> 'CONFIRMED_AGAINST_ORIGINAL' OR ("VerifiedBy" IS NOT NULL AND "VerifiedOn" IS NOT NULL)),
   CONSTRAINT "CK_TermValue_11" CHECK (("SupersedesId" IS NULL AND "InheritedRootId" IS NULL) OR ("SupersedesId" IS NOT NULL AND "InheritedRootId" IS NOT NULL)),
   CONSTRAINT "CK_TermValue_12" CHECK ("OriginalText" IS NULL OR ("OriginalText" NOT LIKE '%[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]%' AND "OriginalText" NOT LIKE '%[A-Za-z][A-Za-z][0-9][0-9] [0-9][0-9][0-9][0-9] [0-9][0-9][0-9][0-9] [0-9][0-9][0-9][0-9]%')),
+  CONSTRAINT "CK_TermValue_13" CHECK ("SourceDocumentId" IS NOT NULL OR ("NoSourceReason" IS NOT NULL AND length(ltrim(rtrim("NoSourceReason"))) > 0)),
   CONSTRAINT "CK_TermValue_ValueState" CHECK ("ValueState" IS NULL OR "ValueState" IN ('SPECIFIED', 'NOT_SPECIFIED_IN_AGREEMENT', 'NOT_APPLICABLE', 'UNKNOWN')),
   CONSTRAINT "CK_TermValue_Bound" CHECK ("Bound" IS NULL OR "Bound" IN ('EXACT', 'MAX', 'MIN')),
   CONSTRAINT "CK_TermValue_Origin" CHECK ("Origin" IS NULL OR "Origin" IN ('ENTERED', 'PROJECTED')),
@@ -3690,6 +3704,7 @@ CREATE TABLE "col"."Collateral" (
   CONSTRAINT "CK_Collateral_9" CHECK ("Confidence" <> 'CONFIRMED_AGAINST_ORIGINAL' OR ("VerifiedBy" IS NOT NULL AND "VerifiedOn" IS NOT NULL)),
   CONSTRAINT "CK_Collateral_10" CHECK (("SupersedesId" IS NULL AND "InheritedRootId" IS NULL) OR ("SupersedesId" IS NOT NULL AND "InheritedRootId" IS NOT NULL)),
   CONSTRAINT "CK_Collateral_11" CHECK ("OriginalText" IS NULL OR ("OriginalText" NOT LIKE '%[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]%' AND "OriginalText" NOT LIKE '%[A-Za-z][A-Za-z][0-9][0-9] [0-9][0-9][0-9][0-9] [0-9][0-9][0-9][0-9] [0-9][0-9][0-9][0-9]%')),
+  CONSTRAINT "CK_Collateral_12" CHECK ("SourceDocumentId" IS NOT NULL OR ("NoSourceReason" IS NOT NULL AND length(ltrim(rtrim("NoSourceReason"))) > 0)),
   CONSTRAINT "CK_Collateral_StructureKind" CHECK ("StructureKind" IS NULL OR "StructureKind" IN ('GUARANTEE', 'PROMISSORY_NOTE', 'INSURANCE_ASSIGNMENT', 'CASH_MARGIN', 'REAL_ESTATE', 'SET_OFF', 'NEGATIVE_PLEDGE', 'GENERIC')),
   CONSTRAINT "CK_Collateral_Status" CHECK ("Status" IS NULL OR "Status" IN ('DRAFT', 'ACTIVE', 'RELEASED', 'EXPIRED', 'SUPERSEDED', 'DISCARDED')),
   CONSTRAINT "CK_Collateral_ApprovalState" CHECK ("ApprovalState" IS NULL OR "ApprovalState" IN ('DRAFT', 'APPROVED')),
@@ -3923,11 +3938,12 @@ CREATE TABLE "obl"."Obligation" (
   CONSTRAINT "CK_Obligation_13" CHECK (("SupersedesId" IS NULL AND "InheritedRootId" IS NULL) OR ("SupersedesId" IS NOT NULL AND "InheritedRootId" IS NOT NULL)),
   CONSTRAINT "CK_Obligation_14" CHECK ("ClauseText" IS NULL OR ("ClauseText" NOT LIKE '%[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]%' AND "ClauseText" NOT LIKE '%[A-Za-z][A-Za-z][0-9][0-9] [0-9][0-9][0-9][0-9] [0-9][0-9][0-9][0-9] [0-9][0-9][0-9][0-9]%')),
   CONSTRAINT "CK_Obligation_15" CHECK ("OriginalText" IS NULL OR ("OriginalText" NOT LIKE '%[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]%' AND "OriginalText" NOT LIKE '%[A-Za-z][A-Za-z][0-9][0-9] [0-9][0-9][0-9][0-9] [0-9][0-9][0-9][0-9] [0-9][0-9][0-9][0-9]%')),
+  CONSTRAINT "CK_Obligation_16" CHECK ("SourceDocumentId" IS NOT NULL OR ("NoSourceReason" IS NOT NULL AND length(ltrim(rtrim("NoSourceReason"))) > 0)),
   CONSTRAINT "CK_Obligation_Family" CHECK ("Family" IS NULL OR "Family" IN ('REPORTING', 'COVENANT', 'TRANSACTION_RESTRICTION', 'STATIC_CLAUSE')),
   CONSTRAINT "CK_Obligation_Phase" CHECK ("Phase" IS NULL OR "Phase" IN ('PRECEDENT', 'ONGOING', 'SUBSEQUENT')),
   CONSTRAINT "CK_Obligation_ParamUnit" CHECK ("ParamUnit" IS NULL OR "ParamUnit" IN ('DAYS', 'BUSINESS_DAYS', 'MONTHS', 'PCT', 'AMOUNT')),
   CONSTRAINT "CK_Obligation_CheckMode" CHECK ("CheckMode" IS NULL OR "CheckMode" IN ('OFF', 'WARN', 'BLOCK')),
-  CONSTRAINT "CK_Obligation_Status" CHECK ("Status" IS NULL OR "Status" IN ('ACTIVE', 'SUSPENDED', 'ENDED')),
+  CONSTRAINT "CK_Obligation_Status" CHECK ("Status" IS NULL OR "Status" IN ('ACTIVE', 'SUSPENDED')),
   CONSTRAINT "CK_Obligation_Confidence" CHECK ("Confidence" IS NULL OR "Confidence" IN ('CONFIRMED_AGAINST_ORIGINAL', 'READ_FROM_SCAN_UNVERIFIED', 'ENTERED_NO_DOCUMENT'))
 );
 CREATE TABLE "obl"."ObligationCompany" (
@@ -3995,6 +4011,7 @@ CREATE TABLE "obl"."ReportingObligation" (
 CREATE TABLE "obl"."ReportingInstance" (
   "TenantId" integer NOT NULL,
   "ReportingInstanceId" bigint GENERATED BY DEFAULT AS IDENTITY NOT NULL,
+  "ReportingObligationRootId" bigint NOT NULL,
   "ReportingObligationId" bigint NOT NULL,
   "PeriodStart" date NULL,
   "PeriodEnd" date NULL,
@@ -4023,8 +4040,9 @@ CREATE TABLE "obl"."ReportingInstance" (
   CONSTRAINT "CK_ReportingInstance_3" CHECK ("Status" <> 'SUBMITTED' OR "SubmittedOn" IS NOT NULL),
   CONSTRAINT "CK_ReportingInstance_4" CHECK ("Status" = 'SUBMITTED' OR ("SubmittedOn" IS NULL AND "SubmissionChannelUsedId" IS NULL AND "SubmissionRef" IS NULL)),
   CONSTRAINT "CK_ReportingInstance_5" CHECK ("Status" NOT IN ('NOT_APPLICABLE','CANCELLED') OR "StatusReason" IS NOT NULL),
-  CONSTRAINT "CK_ReportingInstance_6" CHECK ("ReportedAmount" IS NULL OR "CurrencyId" IS NOT NULL),
-  CONSTRAINT "CK_ReportingInstance_7" CHECK ("CurrencyId" IS NULL OR "ReportedAmount" IS NOT NULL),
+  CONSTRAINT "CK_ReportingInstance_6" CHECK ("Status" <> 'WAIVED' OR ("StatusReason" IS NOT NULL AND "EvidenceDocumentId" IS NOT NULL)),
+  CONSTRAINT "CK_ReportingInstance_7" CHECK ("ReportedAmount" IS NULL OR "CurrencyId" IS NOT NULL),
+  CONSTRAINT "CK_ReportingInstance_8" CHECK ("CurrencyId" IS NULL OR "ReportedAmount" IS NOT NULL),
   CONSTRAINT "CK_ReportingInstance_Status" CHECK ("Status" IS NULL OR "Status" IN ('SCHEDULED', 'SUBMITTED', 'WAIVED', 'NOT_APPLICABLE', 'CANCELLED')),
   CONSTRAINT "CK_ReportingInstance_GeneratedBy" CHECK ("GeneratedBy" IS NULL OR "GeneratedBy" IN ('JOB', 'MANUAL_EVENT'))
 );
@@ -4111,12 +4129,14 @@ CREATE TABLE "obl"."CovenantAccount" (
 CREATE TABLE "obl"."CovenantTest" (
   "TenantId" integer NOT NULL,
   "CovenantTestId" bigint GENERATED BY DEFAULT AS IDENTITY NOT NULL,
+  "CovenantRootId" bigint NOT NULL,
   "CovenantId" bigint NOT NULL,
   "PeriodStart" date NOT NULL,
   "PeriodEnd" date NOT NULL,
   "DueDate" date NOT NULL,
   "EvaluationNo" integer NOT NULL DEFAULT 1,
   "State" varchar(12) NOT NULL DEFAULT 'SCHEDULED',
+  "CancelReason" varchar(500) NULL,
   "Result" varchar(25) NULL,
   "Method" varchar(13) NOT NULL,
   "ActualValue" numeric(19,6) NULL,
@@ -4140,22 +4160,25 @@ CREATE TABLE "obl"."CovenantTest" (
   "UpdatedBy" bigint NULL,
   PRIMARY KEY ("CovenantTestId"),
   CONSTRAINT "UQ_CovenantTest_Tenant" UNIQUE ("TenantId", "CovenantTestId"),
+  CONSTRAINT "UQ_CovenantTest_Scope_CovenantRootId_PeriodEnd" UNIQUE ("TenantId", "CovenantRootId", "PeriodEnd", "CovenantTestId"),
   CONSTRAINT "UQ_CovenantTest_PublicId" UNIQUE ("PublicId"),
-  CONSTRAINT "UQ_CovenantTest_CovenantId_PeriodEnd_EvaluationNo" UNIQUE ("TenantId", "CovenantId", "PeriodEnd", "EvaluationNo"),
+  CONSTRAINT "UQ_CovenantTest_CovenantRootId_PeriodEnd_EvaluationNo" UNIQUE ("TenantId", "CovenantRootId", "PeriodEnd", "EvaluationNo"),
   CONSTRAINT "CK_CovenantTest_1" CHECK ("EvaluationNo" >= 1),
   CONSTRAINT "CK_CovenantTest_2" CHECK ("PeriodEnd" >= "PeriodStart"),
   CONSTRAINT "CK_CovenantTest_3" CHECK ("DueDate" >= "PeriodEnd"),
-  CONSTRAINT "CK_CovenantTest_4" CHECK ("State" <> 'SCHEDULED' OR ("Result" IS NULL AND "EvaluatedAt" IS NULL)),
-  CONSTRAINT "CK_CovenantTest_5" CHECK ("State" NOT IN ('EVALUATED','REVIEWED') OR ("Result" IS NOT NULL AND "EvaluatedAt" IS NOT NULL AND "InputsSnapshot" IS NOT NULL)),
-  CONSTRAINT "CK_CovenantTest_6" CHECK ("State" <> 'REVIEWED' OR ("ReviewedBy" IS NOT NULL AND "ReviewedOn" IS NOT NULL)),
-  CONSTRAINT "CK_CovenantTest_7" CHECK ("Result" NOT IN ('COMPLIANT','WARNING','BREACH') OR ("ActualValue" IS NOT NULL AND "ThresholdApplied" IS NOT NULL AND "OperatorApplied" IS NOT NULL)),
-  CONSTRAINT "CK_CovenantTest_8" CHECK ("Result" <> 'NOT_ASSESSED_NO_THRESHOLD' OR "ThresholdApplied" IS NULL),
-  CONSTRAINT "CK_CovenantTest_9" CHECK ("ThresholdApplied" IS NULL OR "OperatorApplied" IS NOT NULL),
-  CONSTRAINT "CK_CovenantTest_10" CHECK ("Headroom" IS NULL OR ("ActualValue" IS NOT NULL AND "ThresholdApplied" IS NOT NULL)),
-  CONSTRAINT "CK_CovenantTest_11" CHECK ("HeadroomPct" IS NULL OR "Headroom" IS NOT NULL),
-  CONSTRAINT "CK_CovenantTest_12" CHECK ("Result" NOT IN ('MANUAL_COMPLIANT','MANUAL_NON_COMPLIANT','UNDER_REVIEW') OR "Method" = 'MANUAL_STATUS'),
-  CONSTRAINT "CK_CovenantTest_13" CHECK ("Method" <> 'MANUAL_STATUS' OR "Result" IS NULL OR "Result" IN ('MANUAL_COMPLIANT','MANUAL_NON_COMPLIANT','UNDER_REVIEW')),
-  CONSTRAINT "CK_CovenantTest_State" CHECK ("State" IS NULL OR "State" IN ('SCHEDULED', 'PENDING_DATA', 'EVALUATED', 'REVIEWED')),
+  CONSTRAINT "CK_CovenantTest_4" CHECK ("State" NOT IN ('SCHEDULED','CANCELLED') OR ("Result" IS NULL AND "EvaluatedAt" IS NULL)),
+  CONSTRAINT "CK_CovenantTest_5" CHECK ("State" <> 'CANCELLED' OR "CancelReason" IS NOT NULL),
+  CONSTRAINT "CK_CovenantTest_6" CHECK ("CancelReason" IS NULL OR "State" = 'CANCELLED'),
+  CONSTRAINT "CK_CovenantTest_7" CHECK ("State" NOT IN ('EVALUATED','REVIEWED') OR ("Result" IS NOT NULL AND "EvaluatedAt" IS NOT NULL AND "InputsSnapshot" IS NOT NULL)),
+  CONSTRAINT "CK_CovenantTest_8" CHECK ("State" <> 'REVIEWED' OR ("ReviewedBy" IS NOT NULL AND "ReviewedOn" IS NOT NULL)),
+  CONSTRAINT "CK_CovenantTest_9" CHECK ("Result" NOT IN ('COMPLIANT','WARNING','BREACH') OR ("ActualValue" IS NOT NULL AND "ThresholdApplied" IS NOT NULL AND "OperatorApplied" IS NOT NULL)),
+  CONSTRAINT "CK_CovenantTest_10" CHECK ("Result" <> 'NOT_ASSESSED_NO_THRESHOLD' OR "ThresholdApplied" IS NULL),
+  CONSTRAINT "CK_CovenantTest_11" CHECK ("ThresholdApplied" IS NULL OR "OperatorApplied" IS NOT NULL),
+  CONSTRAINT "CK_CovenantTest_12" CHECK ("Headroom" IS NULL OR ("ActualValue" IS NOT NULL AND "ThresholdApplied" IS NOT NULL)),
+  CONSTRAINT "CK_CovenantTest_13" CHECK ("HeadroomPct" IS NULL OR "Headroom" IS NOT NULL),
+  CONSTRAINT "CK_CovenantTest_14" CHECK ("Result" NOT IN ('MANUAL_COMPLIANT','MANUAL_NON_COMPLIANT','UNDER_REVIEW') OR "Method" = 'MANUAL_STATUS'),
+  CONSTRAINT "CK_CovenantTest_15" CHECK ("Method" <> 'MANUAL_STATUS' OR "Result" IS NULL OR "Result" IN ('MANUAL_COMPLIANT','MANUAL_NON_COMPLIANT','UNDER_REVIEW')),
+  CONSTRAINT "CK_CovenantTest_State" CHECK ("State" IS NULL OR "State" IN ('SCHEDULED', 'PENDING_DATA', 'EVALUATED', 'REVIEWED', 'CANCELLED')),
   CONSTRAINT "CK_CovenantTest_Result" CHECK ("Result" IS NULL OR "Result" IN ('COMPLIANT', 'WARNING', 'BREACH', 'MISSING_DATA', 'NOT_ASSESSED_NO_THRESHOLD', 'NOT_COMPARABLE', 'MANUAL_COMPLIANT', 'MANUAL_NON_COMPLIANT', 'UNDER_REVIEW')),
   CONSTRAINT "CK_CovenantTest_Method" CHECK ("Method" IS NULL OR "Method" IN ('AUTO', 'MANUAL_VALUE', 'MANUAL_STATUS')),
   CONSTRAINT "CK_CovenantTest_OperatorApplied" CHECK ("OperatorApplied" IS NULL OR "OperatorApplied" IN ('GE', 'LE', 'GT', 'LT', 'EQ'))
@@ -4163,8 +4186,11 @@ CREATE TABLE "obl"."CovenantTest" (
 CREATE TABLE "obl"."ObligationBreach" (
   "TenantId" integer NOT NULL,
   "ObligationBreachId" bigint GENERATED BY DEFAULT AS IDENTITY NOT NULL,
+  "ObligationRootId" bigint NOT NULL,
   "ObligationId" bigint NOT NULL,
   "Kind" varchar(21) NOT NULL,
+  "CovenantRootId" bigint NULL,
+  "TestPeriodEnd" date NULL,
   "CovenantTestId" bigint NULL,
   "ReportingInstanceId" bigint NULL,
   "DetectedOn" date NOT NULL,
@@ -4178,6 +4204,8 @@ CREATE TABLE "obl"."ObligationBreach" (
   "WaiverConditions" varchar(2000) NULL,
   "WaiverValidUntil" date NULL,
   "WaiverDocumentId" bigint NULL,
+  "WaiverApprovedBy" bigint NULL,
+  "WaiverApprovedOn" timestamp(3) NULL,
   "ConsequenceApplied" varchar(1000) NULL,
   "ResolvedOn" date NULL,
   "NeedsReview" smallint NOT NULL DEFAULT 0,
@@ -4191,15 +4219,17 @@ CREATE TABLE "obl"."ObligationBreach" (
   CONSTRAINT "UQ_ObligationBreach_Tenant" UNIQUE ("TenantId", "ObligationBreachId"),
   CONSTRAINT "UQ_ObligationBreach_PublicId" UNIQUE ("PublicId"),
   CONSTRAINT "CK_ObligationBreach_1" CHECK ("CovenantTestId" IS NULL OR "Kind" = 'COVENANT_BREACH'),
-  CONSTRAINT "CK_ObligationBreach_2" CHECK ("ReportingInstanceId" IS NULL OR "Kind" = 'LATE_REPORT'),
-  CONSTRAINT "CK_ObligationBreach_3" CHECK ("CureDeadline" IS NULL OR "CureDeadline" >= "DetectedOn"),
-  CONSTRAINT "CK_ObligationBreach_4" CHECK ("Status" <> 'IN_CURE' OR "CureDeadline" IS NOT NULL),
-  CONSTRAINT "CK_ObligationBreach_5" CHECK ("Status" NOT IN ('CURED','WAIVED','CLOSED_NO_ACTION') OR "ResolvedOn" IS NOT NULL),
-  CONSTRAINT "CK_ObligationBreach_6" CHECK ("Status" IN ('CURED','WAIVED','CLOSED_NO_ACTION') OR "ResolvedOn" IS NULL),
-  CONSTRAINT "CK_ObligationBreach_7" CHECK ("ResolvedOn" IS NULL OR "ResolvedOn" >= "DetectedOn"),
-  CONSTRAINT "CK_ObligationBreach_8" CHECK ("Status" <> 'WAIVED' OR ("WaiverRef" IS NOT NULL AND "WaiverDate" IS NOT NULL AND "WaiverBankContactId" IS NOT NULL)),
-  CONSTRAINT "CK_ObligationBreach_9" CHECK ("Status" = 'WAIVED' OR ("WaiverRef" IS NULL AND "WaiverDate" IS NULL AND "WaiverBankContactId" IS NULL AND "WaiverConditions" IS NULL AND "WaiverValidUntil" IS NULL AND "WaiverDocumentId" IS NULL)),
-  CONSTRAINT "CK_ObligationBreach_10" CHECK ("WaiverValidUntil" IS NULL OR "WaiverDate" IS NULL OR "WaiverValidUntil" >= "WaiverDate"),
+  CONSTRAINT "CK_ObligationBreach_2" CHECK (("CovenantTestId" IS NULL AND "CovenantRootId" IS NULL AND "TestPeriodEnd" IS NULL) OR ("CovenantTestId" IS NOT NULL AND "CovenantRootId" IS NOT NULL AND "TestPeriodEnd" IS NOT NULL)),
+  CONSTRAINT "CK_ObligationBreach_3" CHECK ("ReportingInstanceId" IS NULL OR "Kind" = 'LATE_REPORT'),
+  CONSTRAINT "CK_ObligationBreach_4" CHECK ("CureDeadline" IS NULL OR "CureDeadline" >= "DetectedOn"),
+  CONSTRAINT "CK_ObligationBreach_5" CHECK ("Status" <> 'IN_CURE' OR "CureDeadline" IS NOT NULL),
+  CONSTRAINT "CK_ObligationBreach_6" CHECK ("Status" NOT IN ('CURED','WAIVED','CLOSED_NO_ACTION') OR "ResolvedOn" IS NOT NULL),
+  CONSTRAINT "CK_ObligationBreach_7" CHECK ("Status" IN ('CURED','WAIVED','CLOSED_NO_ACTION') OR "ResolvedOn" IS NULL),
+  CONSTRAINT "CK_ObligationBreach_8" CHECK ("ResolvedOn" IS NULL OR "ResolvedOn" >= "DetectedOn"),
+  CONSTRAINT "CK_ObligationBreach_9" CHECK ("Status" <> 'WAIVED' OR ("WaiverRef" IS NOT NULL AND "WaiverDate" IS NOT NULL AND "WaiverBankContactId" IS NOT NULL AND "WaiverApprovedBy" IS NOT NULL AND "WaiverApprovedOn" IS NOT NULL)),
+  CONSTRAINT "CK_ObligationBreach_10" CHECK ("Status" IN ('WAIVED','OPEN','IN_CURE') OR ("WaiverRef" IS NULL AND "WaiverDate" IS NULL AND "WaiverBankContactId" IS NULL AND "WaiverConditions" IS NULL AND "WaiverValidUntil" IS NULL AND "WaiverDocumentId" IS NULL)),
+  CONSTRAINT "CK_ObligationBreach_11" CHECK (("WaiverApprovedBy" IS NULL AND "WaiverApprovedOn" IS NULL) OR ("Status" = 'WAIVED' AND "WaiverApprovedBy" IS NOT NULL AND "WaiverApprovedOn" IS NOT NULL)),
+  CONSTRAINT "CK_ObligationBreach_12" CHECK ("WaiverValidUntil" IS NULL OR "WaiverDate" IS NULL OR "WaiverValidUntil" >= "WaiverDate"),
   CONSTRAINT "CK_ObligationBreach_Kind" CHECK ("Kind" IS NULL OR "Kind" IN ('COVENANT_BREACH', 'LATE_REPORT', 'RESTRICTION_VIOLATION', 'OTHER')),
   CONSTRAINT "CK_ObligationBreach_Status" CHECK ("Status" IS NULL OR "Status" IN ('OPEN', 'IN_CURE', 'CURED', 'WAIVED', 'CLOSED_NO_ACTION'))
 );
@@ -4414,6 +4444,7 @@ CREATE TABLE "fin"."MeasureFormula" (
   CONSTRAINT "CK_MeasureFormula_9" CHECK ("SourceDocumentId" IS NOT NULL AND "SourcePage" IS NOT NULL OR ("SourceDocumentId" IS NULL AND "Confidence" = 'ENTERED_NO_DOCUMENT')),
   CONSTRAINT "CK_MeasureFormula_10" CHECK ("Confidence" <> 'CONFIRMED_AGAINST_ORIGINAL' OR ("VerifiedBy" IS NOT NULL AND "VerifiedOn" IS NOT NULL)),
   CONSTRAINT "CK_MeasureFormula_11" CHECK ("OriginalText" IS NULL OR ("OriginalText" NOT LIKE '%[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]%' AND "OriginalText" NOT LIKE '%[A-Za-z][A-Za-z][0-9][0-9] [0-9][0-9][0-9][0-9] [0-9][0-9][0-9][0-9] [0-9][0-9][0-9][0-9]%')),
+  CONSTRAINT "CK_MeasureFormula_12" CHECK ("SourceDocumentId" IS NOT NULL OR ("NoSourceReason" IS NOT NULL AND length(ltrim(rtrim("NoSourceReason"))) > 0)),
   CONSTRAINT "CK_MeasureFormula_Scope" CHECK ("Scope" IS NULL OR "Scope" IN ('TEMPLATE', 'FACILITY_COPY')),
   CONSTRAINT "CK_MeasureFormula_InputKinds" CHECK ("InputKinds" IS NULL OR length("InputKinds") + 1 = CASE WHEN position(',STATEMENT,' in ',' || "InputKinds" || ',') > 0 THEN 10 ELSE 0 END + CASE WHEN position(',ACCOUNT_STATS,' in ',' || "InputKinds" || ',') > 0 THEN 14 ELSE 0 END + CASE WHEN position(',BANK_FLOWS,' in ',' || "InputKinds" || ',') > 0 THEN 11 ELSE 0 END),
   CONSTRAINT "CK_MeasureFormula_ResultUnit" CHECK ("ResultUnit" IS NULL OR "ResultUnit" IN ('RATIO', 'AMOUNT', 'PERCENT')),
@@ -5926,6 +5957,7 @@ CREATE TABLE "lc"."LcAmendment" (
   "AppliedBy" bigint NULL,
   "ReservationDeltaApplied" numeric(19,4) NULL,
   "Reason" varchar(1000) NULL,
+  "WithdrawalDocumentId" bigint NULL,
   "CreatedAt" timestamp(3) NOT NULL DEFAULT (now() at time zone 'utc'),
   "CreatedBy" bigint NULL,
   "UpdatedAt" timestamp(3) NULL,
@@ -5941,9 +5973,10 @@ CREATE TABLE "lc"."LcAmendment" (
   CONSTRAINT "CK_LcAmendment_6" CHECK ("Status" = 'DRAFT' OR ("ChangeKinds" NOT LIKE '%INCREASE_AMOUNT%' AND "ChangeKinds" NOT LIKE '%DECREASE_AMOUNT%') OR "NewAmount" IS NOT NULL),
   CONSTRAINT "CK_LcAmendment_7" CHECK ("Status" = 'DRAFT' OR "ChangeKinds" NOT LIKE '%EXTEND_EXPIRY%' OR "NewExpiryDate" IS NOT NULL),
   CONSTRAINT "CK_LcAmendment_8" CHECK ("NewAmount" IS NULL OR "NewAmount" > 0),
-  CONSTRAINT "CK_LcAmendment_9" CHECK ("Status" NOT IN ('BANK_ISSUED','APPLIED') OR ("AmendmentNo" IS NOT NULL AND "BankIssuedOn" IS NOT NULL)),
-  CONSTRAINT "CK_LcAmendment_10" CHECK ("Status" <> 'APPLIED' OR ("BeneficiaryResponse" = 'ACCEPTED' AND "AppliedOn" IS NOT NULL AND "AppliedBy" IS NOT NULL)),
-  CONSTRAINT "CK_LcAmendment_11" CHECK ("BeneficiaryResponse" IS NULL OR "BeneficiaryResponse" = 'PENDING' OR "RespondedOn" IS NOT NULL),
+  CONSTRAINT "CK_LcAmendment_9" CHECK ("Status" <> 'WITHDRAWN' OR "BankIssuedOn" IS NULL OR ("WithdrawalDocumentId" IS NOT NULL AND "Reason" IS NOT NULL)),
+  CONSTRAINT "CK_LcAmendment_10" CHECK ("Status" NOT IN ('BANK_ISSUED','APPLIED') OR ("AmendmentNo" IS NOT NULL AND "BankIssuedOn" IS NOT NULL)),
+  CONSTRAINT "CK_LcAmendment_11" CHECK ("Status" <> 'APPLIED' OR ("BeneficiaryResponse" = 'ACCEPTED' AND "AppliedOn" IS NOT NULL AND "AppliedBy" IS NOT NULL)),
+  CONSTRAINT "CK_LcAmendment_12" CHECK ("BeneficiaryResponse" IS NULL OR "BeneficiaryResponse" = 'PENDING' OR "RespondedOn" IS NOT NULL),
   CONSTRAINT "CK_LcAmendment_Origin" CHECK ("Origin" IS NULL OR "Origin" IN ('OUR_REQUEST', 'RECEIVED_FROM_CUSTOMER')),
   CONSTRAINT "CK_LcAmendment_ChangeKinds" CHECK ("ChangeKinds" IS NULL OR length("ChangeKinds") + 1 = CASE WHEN position(',INCREASE_AMOUNT,' in ',' || "ChangeKinds" || ',') > 0 THEN 16 ELSE 0 END + CASE WHEN position(',DECREASE_AMOUNT,' in ',' || "ChangeKinds" || ',') > 0 THEN 16 ELSE 0 END + CASE WHEN position(',EXTEND_EXPIRY,' in ',' || "ChangeKinds" || ',') > 0 THEN 14 ELSE 0 END + CASE WHEN position(',CHANGE_SHIPMENT_DATE,' in ',' || "ChangeKinds" || ',') > 0 THEN 21 ELSE 0 END + CASE WHEN position(',CHANGE_TERMS,' in ',' || "ChangeKinds" || ',') > 0 THEN 13 ELSE 0 END + CASE WHEN position(',CANCEL,' in ',' || "ChangeKinds" || ',') > 0 THEN 7 ELSE 0 END),
   CONSTRAINT "CK_LcAmendment_TermsPurpose" CHECK ("TermsPurpose" IS NULL OR "TermsPurpose" IN ('AMENDMENT')),
@@ -6559,6 +6592,8 @@ ALTER TABLE "fac"."Utilization" ADD CONSTRAINT "FK_Utilization_LimitProductLineI
 ALTER TABLE "fac"."Utilization" ADD CONSTRAINT "FK_Utilization_CompanyId" FOREIGN KEY ("TenantId", "CompanyId") REFERENCES "org"."Company" ("TenantId", "CompanyId");
 ALTER TABLE "fac"."Utilization" ADD CONSTRAINT "FK_Utilization_CurrencyId" FOREIGN KEY ("CurrencyId") REFERENCES "ref"."Currency" ("CurrencyId");
 ALTER TABLE "fac"."Utilization" ADD CONSTRAINT "FK_Utilization_SourceRequestId" FOREIGN KEY ("TenantId", "CompanyId", "SourceRequestId") REFERENCES "wfl"."Request" ("TenantId", "CompanyId", "RequestId");
+ALTER TABLE "fac"."Utilization" ADD CONSTRAINT "FK_Utilization_TransferredToFacilityId" FOREIGN KEY ("TenantId", "FacilityId", "TransferredToFacilityId") REFERENCES "fac"."Facility" ("TenantId", "PreviousFacilityId", "FacilityId");
+ALTER TABLE "fac"."Utilization" ADD CONSTRAINT "FK_Utilization_TransferredToId" FOREIGN KEY ("TenantId", "TransferredToFacilityId", "TransferredToId") REFERENCES "fac"."Utilization" ("TenantId", "FacilityId", "UtilizationId");
 ALTER TABLE "fac"."LimitReservation" ADD CONSTRAINT "FK_LimitReservation_Tenant" FOREIGN KEY ("TenantId") REFERENCES "plat"."Tenant" ("TenantId");
 ALTER TABLE "fac"."LimitReservation" ADD CONSTRAINT "FK_LimitReservation_FacilityId" FOREIGN KEY ("TenantId", "FacilityId") REFERENCES "fac"."Facility" ("TenantId", "FacilityId");
 ALTER TABLE "fac"."LimitReservation" ADD CONSTRAINT "FK_LimitReservation_LimitId" FOREIGN KEY ("TenantId", "FacilityId", "LimitId") REFERENCES "fac"."Limit" ("TenantId", "FacilityId", "LimitId");
@@ -6679,7 +6714,7 @@ ALTER TABLE "obl"."ReportingObligation" ADD CONSTRAINT "FK_ReportingObligation_O
 ALTER TABLE "obl"."ReportingObligation" ADD CONSTRAINT "FK_ReportingObligation_SubmissionChannelId" FOREIGN KEY ("TenantId", "SubmissionChannelId") REFERENCES "cat"."LookupItem" ("TenantId", "LookupItemId");
 ALTER TABLE "obl"."ReportingObligation" ADD CONSTRAINT "FK_ReportingObligation_SupersedesId" FOREIGN KEY ("TenantId", "InheritedRootId", "SupersedesId") REFERENCES "obl"."ReportingObligation" ("TenantId", "RootId", "ReportingObligationId");
 ALTER TABLE "obl"."ReportingInstance" ADD CONSTRAINT "FK_ReportingInstance_Tenant" FOREIGN KEY ("TenantId") REFERENCES "plat"."Tenant" ("TenantId");
-ALTER TABLE "obl"."ReportingInstance" ADD CONSTRAINT "FK_ReportingInstance_ReportingObligationId" FOREIGN KEY ("TenantId", "ReportingObligationId") REFERENCES "obl"."ReportingObligation" ("TenantId", "ReportingObligationId");
+ALTER TABLE "obl"."ReportingInstance" ADD CONSTRAINT "FK_ReportingInstance_ReportingObligationId" FOREIGN KEY ("TenantId", "ReportingObligationRootId", "ReportingObligationId") REFERENCES "obl"."ReportingObligation" ("TenantId", "RootId", "ReportingObligationId");
 ALTER TABLE "obl"."ReportingInstance" ADD CONSTRAINT "FK_ReportingInstance_SubmissionChannelUsedId" FOREIGN KEY ("TenantId", "SubmissionChannelUsedId") REFERENCES "cat"."LookupItem" ("TenantId", "LookupItemId");
 ALTER TABLE "obl"."ReportingInstance" ADD CONSTRAINT "FK_ReportingInstance_EvidenceDocumentId" FOREIGN KEY ("TenantId", "EvidenceDocumentId") REFERENCES "doc"."Document" ("TenantId", "DocumentId");
 ALTER TABLE "obl"."ReportingInstance" ADD CONSTRAINT "FK_ReportingInstance_CurrencyId" FOREIGN KEY ("CurrencyId") REFERENCES "ref"."Currency" ("CurrencyId");
@@ -6693,17 +6728,18 @@ ALTER TABLE "obl"."CovenantAccount" ADD CONSTRAINT "FK_CovenantAccount_Tenant" F
 ALTER TABLE "obl"."CovenantAccount" ADD CONSTRAINT "FK_CovenantAccount_CovenantId" FOREIGN KEY ("TenantId", "CovenantId") REFERENCES "obl"."Covenant" ("TenantId", "CovenantId");
 ALTER TABLE "obl"."CovenantAccount" ADD CONSTRAINT "FK_CovenantAccount_BankAccountId" FOREIGN KEY ("TenantId", "BankAccountId") REFERENCES "acc"."BankAccount" ("TenantId", "BankAccountId");
 ALTER TABLE "obl"."CovenantTest" ADD CONSTRAINT "FK_CovenantTest_Tenant" FOREIGN KEY ("TenantId") REFERENCES "plat"."Tenant" ("TenantId");
-ALTER TABLE "obl"."CovenantTest" ADD CONSTRAINT "FK_CovenantTest_CovenantId" FOREIGN KEY ("TenantId", "CovenantId") REFERENCES "obl"."Covenant" ("TenantId", "CovenantId");
+ALTER TABLE "obl"."CovenantTest" ADD CONSTRAINT "FK_CovenantTest_CovenantId" FOREIGN KEY ("TenantId", "CovenantRootId", "CovenantId") REFERENCES "obl"."Covenant" ("TenantId", "RootId", "CovenantId");
 ALTER TABLE "obl"."CovenantTest" ADD CONSTRAINT "FK_CovenantTest_FormulaId" FOREIGN KEY ("TenantId", "FormulaId") REFERENCES "fin"."MeasureFormula" ("TenantId", "MeasureFormulaId");
 ALTER TABLE "obl"."CovenantTest" ADD CONSTRAINT "FK_CovenantTest_EvaluatedBy" FOREIGN KEY ("TenantId", "EvaluatedBy") REFERENCES "sec"."AppUser" ("TenantId", "AppUserId");
 ALTER TABLE "obl"."CovenantTest" ADD CONSTRAINT "FK_CovenantTest_EvidenceDocumentId" FOREIGN KEY ("TenantId", "EvidenceDocumentId") REFERENCES "doc"."Document" ("TenantId", "DocumentId");
 ALTER TABLE "obl"."CovenantTest" ADD CONSTRAINT "FK_CovenantTest_ReviewedBy" FOREIGN KEY ("TenantId", "ReviewedBy") REFERENCES "sec"."AppUser" ("TenantId", "AppUserId");
 ALTER TABLE "obl"."ObligationBreach" ADD CONSTRAINT "FK_ObligationBreach_Tenant" FOREIGN KEY ("TenantId") REFERENCES "plat"."Tenant" ("TenantId");
-ALTER TABLE "obl"."ObligationBreach" ADD CONSTRAINT "FK_ObligationBreach_ObligationId" FOREIGN KEY ("TenantId", "ObligationId") REFERENCES "obl"."Obligation" ("TenantId", "ObligationId");
-ALTER TABLE "obl"."ObligationBreach" ADD CONSTRAINT "FK_ObligationBreach_CovenantTestId" FOREIGN KEY ("TenantId", "CovenantTestId") REFERENCES "obl"."CovenantTest" ("TenantId", "CovenantTestId");
+ALTER TABLE "obl"."ObligationBreach" ADD CONSTRAINT "FK_ObligationBreach_ObligationId" FOREIGN KEY ("TenantId", "ObligationRootId", "ObligationId") REFERENCES "obl"."Obligation" ("TenantId", "RootId", "ObligationId");
+ALTER TABLE "obl"."ObligationBreach" ADD CONSTRAINT "FK_ObligationBreach_CovenantTestId" FOREIGN KEY ("TenantId", "CovenantRootId", "TestPeriodEnd", "CovenantTestId") REFERENCES "obl"."CovenantTest" ("TenantId", "CovenantRootId", "PeriodEnd", "CovenantTestId");
 ALTER TABLE "obl"."ObligationBreach" ADD CONSTRAINT "FK_ObligationBreach_ReportingInstanceId" FOREIGN KEY ("TenantId", "ReportingInstanceId") REFERENCES "obl"."ReportingInstance" ("TenantId", "ReportingInstanceId");
 ALTER TABLE "obl"."ObligationBreach" ADD CONSTRAINT "FK_ObligationBreach_WaiverBankContactId" FOREIGN KEY ("TenantId", "WaiverBankContactId") REFERENCES "ins"."Contact" ("TenantId", "ContactId");
 ALTER TABLE "obl"."ObligationBreach" ADD CONSTRAINT "FK_ObligationBreach_WaiverDocumentId" FOREIGN KEY ("TenantId", "WaiverDocumentId") REFERENCES "doc"."Document" ("TenantId", "DocumentId");
+ALTER TABLE "obl"."ObligationBreach" ADD CONSTRAINT "FK_ObligationBreach_WaiverApprovedBy" FOREIGN KEY ("TenantId", "WaiverApprovedBy") REFERENCES "sec"."AppUser" ("TenantId", "AppUserId");
 ALTER TABLE "fin"."LineCatalogItem" ADD CONSTRAINT "FK_LineCatalogItem_Tenant" FOREIGN KEY ("TenantId") REFERENCES "plat"."Tenant" ("TenantId");
 ALTER TABLE "fin"."LineCatalogItemAlias" ADD CONSTRAINT "FK_LineCatalogItemAlias_Tenant" FOREIGN KEY ("TenantId") REFERENCES "plat"."Tenant" ("TenantId");
 ALTER TABLE "fin"."LineCatalogItemAlias" ADD CONSTRAINT "FK_LineCatalogItemAlias_LineCatalogItemId" FOREIGN KEY ("TenantId", "LineCatalogItemId") REFERENCES "fin"."LineCatalogItem" ("TenantId", "LineCatalogItemId");
@@ -6922,6 +6958,7 @@ ALTER TABLE "lc"."LcAmendment" ADD CONSTRAINT "FK_LcAmendment_RequestId" FOREIGN
 ALTER TABLE "lc"."LcAmendment" ADD CONSTRAINT "FK_LcAmendment_TermsId" FOREIGN KEY ("TenantId", "TermsPurpose", "CurrencyId", "TermsId") REFERENCES "lc"."LcTerms" ("TenantId", "Purpose", "CurrencyId", "LcTermsId");
 ALTER TABLE "lc"."LcAmendment" ADD CONSTRAINT "FK_LcAmendment_CurrencyId" FOREIGN KEY ("CurrencyId") REFERENCES "ref"."Currency" ("CurrencyId");
 ALTER TABLE "lc"."LcAmendment" ADD CONSTRAINT "FK_LcAmendment_AppliedBy" FOREIGN KEY ("TenantId", "AppliedBy") REFERENCES "sec"."AppUser" ("TenantId", "AppUserId");
+ALTER TABLE "lc"."LcAmendment" ADD CONSTRAINT "FK_LcAmendment_WithdrawalDocumentId" FOREIGN KEY ("TenantId", "WithdrawalDocumentId") REFERENCES "doc"."Document" ("TenantId", "DocumentId");
 ALTER TABLE "lc"."LcDrawing" ADD CONSTRAINT "FK_LcDrawing_Tenant" FOREIGN KEY ("TenantId") REFERENCES "plat"."Tenant" ("TenantId");
 ALTER TABLE "lc"."LcDrawing" ADD CONSTRAINT "FK_LcDrawing_CompanyId" FOREIGN KEY ("TenantId", "CompanyId") REFERENCES "org"."Company" ("TenantId", "CompanyId");
 ALTER TABLE "lc"."LcDrawing" ADD CONSTRAINT "FK_LcDrawing_LcId" FOREIGN KEY ("TenantId", "CurrencyId", "LcId") REFERENCES "lc"."LetterOfCredit" ("TenantId", "CurrencyId", "LetterOfCreditId");
@@ -7325,6 +7362,7 @@ CREATE INDEX "IX_ProductLineTerm_SourceDocumentId" ON "fac"."ProductLineTerm" ("
 CREATE INDEX "IX_ProductLineTerm_VerifiedBy" ON "fac"."ProductLineTerm" ("TenantId", "VerifiedBy");
 CREATE INDEX "IX_ProductLineTerm_ConflictId" ON "fac"."ProductLineTerm" ("TenantId", "ConflictId");
 CREATE UNIQUE INDEX "UQ_Utilization_SourceRequestId" ON "fac"."Utilization" ("TenantId", "SourceRequestId") WHERE "SourceRequestId" IS NOT NULL;
+CREATE UNIQUE INDEX "UQ_Utilization_TransferredToId" ON "fac"."Utilization" ("TenantId", "TransferredToId") WHERE "TransferredToId" IS NOT NULL;
 CREATE INDEX "IX_Utilization_FacilityId_LimitId_Status" ON "fac"."Utilization" ("TenantId", "FacilityId", "LimitId", "Status");
 CREATE INDEX "IX_Utilization_Reference" ON "fac"."Utilization" ("TenantId", "Reference");
 CREATE INDEX "IX_Utilization_MaturityDate" ON "fac"."Utilization" ("TenantId", "MaturityDate") WHERE "Status" = 'ACTIVE' AND "MaturityDate" IS NOT NULL;
@@ -7333,6 +7371,8 @@ CREATE INDEX "IX_Utilization_LimitProductLineId" ON "fac"."Utilization" ("Tenant
 CREATE INDEX "IX_Utilization_CompanyId" ON "fac"."Utilization" ("TenantId", "CompanyId");
 CREATE INDEX "IX_Utilization_CurrencyId" ON "fac"."Utilization" ("TenantId", "CurrencyId");
 CREATE INDEX "IX_Utilization_SourceRequestId" ON "fac"."Utilization" ("TenantId", "CompanyId", "SourceRequestId");
+CREATE INDEX "IX_Utilization_TransferredToFacilityId" ON "fac"."Utilization" ("TenantId", "FacilityId", "TransferredToFacilityId");
+CREATE INDEX "IX_Utilization_TransferredToId" ON "fac"."Utilization" ("TenantId", "TransferredToFacilityId", "TransferredToId");
 CREATE UNIQUE INDEX "UQ_LimitReservation_RequestId" ON "fac"."LimitReservation" ("TenantId", "RequestId") WHERE "Status" = 'ACTIVE';
 CREATE UNIQUE INDEX "UQ_LimitReservation_ConvertedUtilizationId" ON "fac"."LimitReservation" ("TenantId", "ConvertedUtilizationId") WHERE "ConvertedUtilizationId" IS NOT NULL;
 CREATE INDEX "IX_LimitReservation_FacilityId_LimitId_Status" ON "fac"."LimitReservation" ("TenantId", "FacilityId", "LimitId", "Status");
@@ -7456,11 +7496,12 @@ CREATE UNIQUE INDEX "UQ_ReportingObligation_RootId" ON "obl"."ReportingObligatio
 CREATE INDEX "IX_ReportingObligation_ObligationId" ON "obl"."ReportingObligation" ("TenantId", "Family", "ObligationId");
 CREATE INDEX "IX_ReportingObligation_SubmissionChannelId" ON "obl"."ReportingObligation" ("TenantId", "SubmissionChannelId");
 CREATE INDEX "IX_ReportingObligation_SupersedesId" ON "obl"."ReportingObligation" ("TenantId", "InheritedRootId", "SupersedesId");
-CREATE UNIQUE INDEX "UQ_ReportingInstance_ReportingObligationId_PeriodEnd" ON "obl"."ReportingInstance" ("TenantId", "ReportingObligationId", "PeriodEnd") WHERE "PeriodEnd" IS NOT NULL;
-CREATE UNIQUE INDEX "UQ_ReportingInstance_ReportingObligationId_EventDate" ON "obl"."ReportingInstance" ("TenantId", "ReportingObligationId", "EventDate") WHERE "PeriodEnd" IS NULL AND "EventDate" IS NOT NULL;
-CREATE UNIQUE INDEX "UQ_ReportingInstance_ReportingObligationId_DueDate" ON "obl"."ReportingInstance" ("TenantId", "ReportingObligationId", "DueDate") WHERE "PeriodEnd" IS NULL AND "EventDate" IS NULL;
+CREATE UNIQUE INDEX "UQ_ReportingInstance_ReportingObligationRootId_PeriodEnd" ON "obl"."ReportingInstance" ("TenantId", "ReportingObligationRootId", "PeriodEnd") WHERE "PeriodEnd" IS NOT NULL AND "Status" <> 'CANCELLED';
+CREATE UNIQUE INDEX "UQ_ReportingInstance_ReportingObligationRootId_EventDate" ON "obl"."ReportingInstance" ("TenantId", "ReportingObligationRootId", "EventDate") WHERE "PeriodEnd" IS NULL AND "EventDate" IS NOT NULL AND "Status" <> 'CANCELLED';
+CREATE UNIQUE INDEX "UQ_ReportingInstance_ReportingObligationRootId_DueDate" ON "obl"."ReportingInstance" ("TenantId", "ReportingObligationRootId", "DueDate") WHERE "PeriodEnd" IS NULL AND "EventDate" IS NULL AND "Status" <> 'CANCELLED';
 CREATE INDEX "IX_ReportingInstance_DueDate" ON "obl"."ReportingInstance" ("TenantId", "DueDate") WHERE "Status" = 'SCHEDULED';
 CREATE INDEX "IX_ReportingInstance_SubmittedOn" ON "obl"."ReportingInstance" ("TenantId", "SubmittedOn") WHERE "Status" = 'SUBMITTED';
+CREATE INDEX "IX_ReportingInstance_ReportingObligationId" ON "obl"."ReportingInstance" ("TenantId", "ReportingObligationRootId", "ReportingObligationId");
 CREATE INDEX "IX_ReportingInstance_SubmissionChannelUsedId" ON "obl"."ReportingInstance" ("TenantId", "SubmissionChannelUsedId");
 CREATE INDEX "IX_ReportingInstance_EvidenceDocumentId" ON "obl"."ReportingInstance" ("TenantId", "EvidenceDocumentId");
 CREATE INDEX "IX_ReportingInstance_CurrencyId" ON "obl"."ReportingInstance" ("TenantId", "CurrencyId");
@@ -7475,17 +7516,21 @@ CREATE INDEX "IX_CovenantAccount_BankAccountId" ON "obl"."CovenantAccount" ("Ten
 CREATE INDEX "IX_CovenantTest_DueDate" ON "obl"."CovenantTest" ("TenantId", "DueDate") WHERE "State" IN ('SCHEDULED','PENDING_DATA');
 CREATE INDEX "IX_CovenantTest_Result_PeriodEnd" ON "obl"."CovenantTest" ("TenantId", "Result", "PeriodEnd");
 CREATE INDEX "IX_CovenantTest_NextReviewOn" ON "obl"."CovenantTest" ("TenantId", "NextReviewOn") WHERE "NextReviewOn" IS NOT NULL;
+CREATE INDEX "IX_CovenantTest_CovenantId" ON "obl"."CovenantTest" ("TenantId", "CovenantRootId", "CovenantId");
 CREATE INDEX "IX_CovenantTest_FormulaId" ON "obl"."CovenantTest" ("TenantId", "FormulaId");
 CREATE INDEX "IX_CovenantTest_EvaluatedBy" ON "obl"."CovenantTest" ("TenantId", "EvaluatedBy");
 CREATE INDEX "IX_CovenantTest_EvidenceDocumentId" ON "obl"."CovenantTest" ("TenantId", "EvidenceDocumentId");
 CREATE INDEX "IX_CovenantTest_ReviewedBy" ON "obl"."CovenantTest" ("TenantId", "ReviewedBy");
-CREATE UNIQUE INDEX "UQ_ObligationBreach_CovenantTestId" ON "obl"."ObligationBreach" ("TenantId", "CovenantTestId") WHERE "CovenantTestId" IS NOT NULL AND "Status" IN ('OPEN','IN_CURE');
+CREATE UNIQUE INDEX "UQ_ObligationBreach_CovenantRootId_TestPeriodEnd" ON "obl"."ObligationBreach" ("TenantId", "CovenantRootId", "TestPeriodEnd") WHERE "CovenantTestId" IS NOT NULL AND "Status" IN ('OPEN','IN_CURE');
 CREATE UNIQUE INDEX "UQ_ObligationBreach_ReportingInstanceId" ON "obl"."ObligationBreach" ("TenantId", "ReportingInstanceId") WHERE "ReportingInstanceId" IS NOT NULL AND "Status" IN ('OPEN','IN_CURE');
-CREATE INDEX "IX_ObligationBreach_ObligationId_Status" ON "obl"."ObligationBreach" ("TenantId", "ObligationId", "Status");
+CREATE INDEX "IX_ObligationBreach_ObligationRootId_Status" ON "obl"."ObligationBreach" ("TenantId", "ObligationRootId", "Status");
 CREATE INDEX "IX_ObligationBreach_CureDeadline" ON "obl"."ObligationBreach" ("TenantId", "CureDeadline") WHERE "Status" IN ('OPEN','IN_CURE') AND "CureDeadline" IS NOT NULL;
 CREATE INDEX "IX_ObligationBreach_DetectedOn" ON "obl"."ObligationBreach" ("TenantId", "DetectedOn") WHERE "NeedsReview" = 1;
+CREATE INDEX "IX_ObligationBreach_ObligationId" ON "obl"."ObligationBreach" ("TenantId", "ObligationRootId", "ObligationId");
+CREATE INDEX "IX_ObligationBreach_CovenantTestId" ON "obl"."ObligationBreach" ("TenantId", "CovenantRootId", "TestPeriodEnd", "CovenantTestId");
 CREATE INDEX "IX_ObligationBreach_WaiverBankContactId" ON "obl"."ObligationBreach" ("TenantId", "WaiverBankContactId");
 CREATE INDEX "IX_ObligationBreach_WaiverDocumentId" ON "obl"."ObligationBreach" ("TenantId", "WaiverDocumentId");
+CREATE INDEX "IX_ObligationBreach_WaiverApprovedBy" ON "obl"."ObligationBreach" ("TenantId", "WaiverApprovedBy");
 CREATE UNIQUE INDEX "UQ_LineCatalogItem_SeedKey" ON "fin"."LineCatalogItem" ("TenantId", "SeedKey") WHERE "SeedKey" IS NOT NULL;
 CREATE INDEX "IX_LineCatalogItem_Section_SortOrder" ON "fin"."LineCatalogItem" ("TenantId", "Section", "SortOrder");
 CREATE INDEX "IX_LineCatalogItemAlias_LineCatalogItemId" ON "fin"."LineCatalogItemAlias" ("TenantId", "LineCatalogItemId");
@@ -7675,6 +7720,7 @@ CREATE INDEX "IX_LcAmendment_Status_BankIssuedOn" ON "lc"."LcAmendment" ("Tenant
 CREATE INDEX "IX_LcAmendment_CompanyId" ON "lc"."LcAmendment" ("TenantId", "CompanyId");
 CREATE INDEX "IX_LcAmendment_RequestId" ON "lc"."LcAmendment" ("TenantId", "CompanyId", "RequestId");
 CREATE INDEX "IX_LcAmendment_TermsId" ON "lc"."LcAmendment" ("TenantId", "TermsPurpose", "CurrencyId", "TermsId");
+CREATE INDEX "IX_LcAmendment_WithdrawalDocumentId" ON "lc"."LcAmendment" ("TenantId", "WithdrawalDocumentId");
 CREATE UNIQUE INDEX "UQ_LcDrawing_RequestId" ON "lc"."LcDrawing" ("TenantId", "RequestId") WHERE "RequestId" IS NOT NULL;
 CREATE INDEX "IX_LcDrawing_MaturityDate" ON "lc"."LcDrawing" ("TenantId", "MaturityDate") WHERE "MaturityDate" IS NOT NULL AND "Status" IN ('PRESENTED','DISCREPANT','ACCEPTED');
 CREATE INDEX "IX_LcDrawing_ExaminationDeadline" ON "lc"."LcDrawing" ("TenantId", "ExaminationDeadline") WHERE "ExaminationDeadline" IS NOT NULL AND "Status" IN ('PRESENTED','DISCREPANT');
