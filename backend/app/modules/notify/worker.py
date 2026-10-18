@@ -98,6 +98,8 @@ async def maintenance() -> dict:
         # partner vouchers past their date give their points back (1107)
         out["vouchers_released"] = json.loads(await conn.fetchval("SELECT pricing.release_vouchers()::text"))
         keep = await conn.fetchrow("SELECT * FROM ops.position_retention()")
+        # the shield's traffic samples (7 days) and firewall hits (30 days) (1142)
+        out["shield"] = json.loads(await conn.fetchval("SELECT sec.shield_upkeep()::text"))
     # positions in the telemetry database (review stage D2): partitions ahead, the primary's retention and legal holds
     from ... import telemetry
     if telemetry.enabled():
@@ -190,6 +192,8 @@ async def main(once: bool) -> None:
                         await conn.execute("SELECT ops.raise_tracking_alerts()")
                         # station screens that stopped reading their board are reported to the administration (1129)
                         await conn.execute("SELECT net.raise_screen_alerts()")
+                        # the platform shield's traffic watch: the last minute against the usual (1142)
+                        await conn.execute("SELECT sec.evaluate_traffic()")
                     # connections held after their trip was completed are released when the change window ends (1132)
                     from ..sales.connections import release_due_holds
                     hold_ctx = _ctx()

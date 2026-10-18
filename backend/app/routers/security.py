@@ -1,4 +1,5 @@
-"""Security console: IP and range rules, login events, the activity log and the two-factor sign-in policy.
+"""Security console: IP and range rules, login events, the activity log, the two-factor sign-in policy and the platform
+shield (1142: firewall, traffic watch, shield level, one session per portal).
 
 IP rules are managed through the application role (platform scope). The logs are read through a
 separate connection on the masslak_auditor role, because the application role can only append to them.
@@ -7,6 +8,7 @@ import ipaddress
 import json
 from typing import Literal, Optional
 
+import asyncpg
 from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel, Field
 
@@ -216,3 +218,128 @@ async def reset_statements(request: Request, pr: Principal = Depends(can_policy)
         raise ApiError(409, "STATEMENT_STATS_OFF", "statement statistics are not collected on this server")
     request.state.audit = {"action": "security.statements_reset", "object_type": "setting", "object_id": None}
     return {"reset": True}
+
+
+# ------------------------------------------------------------------ the platform shield (1142)
+PORTALS = ("PASSENGER", "PLATFORM", "OPERATOR", "AGENCY", "STATION", "DRIVER", "INSPECTOR")
+
+
+@router.get("/shield")
+async def shield_view(request: Request, pr: Principal = Depends(can_policy)):
+    """The shield in force, the last hour of traffic per minute, the alerts, the latest firewall hits, the busiest
+    addresses of the last ten minutes and the history of levels."""
+    async with db.transaction(context_for(request, pr)) as conn:
+        state = json.loads(await conn.fetchval("SELECT sec.shield_view()::text"))
+        setter = await conn.fetchrow(
+            """SELECT s.set_at, p.legal_name AS set_by FROM sec.shield_state s
+                 LEFT JOIN iam.app_user u ON u.id = s.set_by LEFT JOIN iam.party p ON p.id = u.party_id WHERE s.id = 1""")
+        minutes = await conn.fetch(
+            """SELECT date_trunc('minute', window_start) AS minute, sum(requests)::int AS requests, sum(err_4xx)::int AS err_4xx,
+                      sum(err_5xx)::int AS err_5xx, sum(blocked)::int AS blocked, sum(limited)::int AS limited,
+                      sum(waf_hits)::int AS waf, sum(auth_failures)::int AS auth_failures
+                 FROM sec.traffic_sample WHERE window_start > now() - interval '60 minutes' GROUP BY 1 ORDER BY 1""")
+        alerts = await conn.fetch(
+            """SELECT id, alert_key, kind, severity, status, opened_at, last_seen_at, metrics, actions, ack_at, resolved_at, note
+                 FROM sec.traffic_alert WHERE status <> 'RESOLVED' OR opened_at > now() - interval '7 days'
+                ORDER BY (status = 'RESOLVED'), opened_at DESC LIMIT 50""")
+        hits = await conn.fetch(
+            """SELECT at, host(ip) AS ip, method, path, rule, location, sample, action FROM sec.waf_hit ORDER BY at DESC LIMIT 50""")
+        top = await conn.fetch(
+            """SELECT k AS ip, sum(v::int)::int AS requests,
+                      EXISTS (SELECT 1 FROM sec.ip_decision(k::inet, 'ALL') d WHERE d.action = 'BLOCK') AS blocked
+                 FROM sec.traffic_sample, jsonb_each_text(top) e(k, v)
+                WHERE window_start > now() - interval '10 minutes' GROUP BY k ORDER BY 2 DESC LIMIT 15""")
+        events = await conn.fetch(
+            """SELECT e.at, e.level, e.previous, e.reason, e.auto, e.until, p.legal_name AS set_by
+                 FROM sec.shield_event e LEFT JOIN iam.app_user u ON u.id = e.set_by LEFT JOIN iam.party p ON p.id = u.party_id
+                ORDER BY e.at DESC LIMIT 20""")
+    return {"state": {**state, **row_dict(setter)}, "minutes": rows(minutes), "alerts": rows(alerts), "waf_hits": rows(hits),
+            "top_addresses": rows(top), "events": rows(events)}
+
+
+class ShieldLevelIn(BaseModel):
+    level: Literal["NORMAL", "ELEVATED", "LOCKDOWN"]
+    reason: str = Field(min_length=3, max_length=300)
+    minutes: Optional[int] = Field(default=None, ge=5, le=7 * 24 * 60, description="end the raised level on its own after this")
+
+
+@router.put("/shield/level")
+async def set_shield_level(body: ShieldLevelIn, request: Request, pr: Principal = Depends(can_policy)):
+    """Raises or lowers the shield. LOCKDOWN stops the platform's traffic (except the console, sign-in, payment notices
+    and allowed addresses) until it is lowered or its end time comes; every API process follows within seconds."""
+    require_step_up(pr)                 # a sensitive operation: a recent second factor (1136)
+    if body.level == "NORMAL" and body.minutes:
+        raise ApiError(422, "INVALID_UNTIL", "a normal level takes no end time")
+    async with db.transaction(context_for(request, pr)) as conn:
+        try:
+            out = await conn.fetchval("SELECT sec.set_shield($1, $2, CASE WHEN $3::int IS NULL THEN NULL ELSE now() + make_interval(mins => $3::int) END)::text",
+                                      body.level, body.reason, body.minutes)
+        except asyncpg.RaiseError as exc:
+            raise ApiError(422, str(exc).split(":", 1)[0], str(exc))
+    from .. import shield
+    shield.load(json.loads(out))        # this process at once; the others within REFRESH_SECONDS
+    request.state.audit = {"action": "security.shield.level", "object_type": "shield", "object_id": 1,
+                           "reason": f"{body.level}: {body.reason}"}
+    return json.loads(out)
+
+
+class ShieldPolicyIn(BaseModel):
+    waf_mode: Literal["OFF", "DETECT", "BLOCK"]
+    waf_strikes: int = Field(ge=1, le=100)
+    waf_window_min: int = Field(ge=1, le=1440)
+    waf_block_min: int = Field(ge=1, le=43200)
+    alert_rpm: int = Field(ge=100, le=10_000_000)
+    alert_ip_rpm: int = Field(ge=30, le=1_000_000)
+    spike_factor: float = Field(ge=1.5, le=100)
+    spike_min_rpm: int = Field(ge=10, le=10_000_000)
+    alert_error_pct: float = Field(ge=1, le=100)
+    alert_waf_per_min: int = Field(ge=1, le=1_000_000)
+    alert_auth_fail_per_min: int = Field(ge=1, le=1_000_000)
+    auto_block_heavy: bool
+    auto_elevate: bool
+    auto_elevate_min: int = Field(ge=5, le=1440)
+    elevated_rate_factor: float = Field(default=0.5, ge=0.1, le=1)
+    lockdown_allow_signed_in: bool
+    session_policy: dict[str, Literal["SINGLE", "MULTI"]]
+
+
+@router.put("/shield/policy")
+async def set_shield_policy(body: ShieldPolicyIn, request: Request, pr: Principal = Depends(can_policy)):
+    """The firewall mode, the alert thresholds, the automatic actions and the one-session rule per portal."""
+    require_step_up(pr)
+    if set(body.session_policy) - set(PORTALS):
+        raise ApiError(422, "UNKNOWN_PORTAL", "the session rule names portals that do not exist")
+    policy = body.model_dump(exclude={"session_policy"})
+    sessions = {p: body.session_policy.get(p, "SINGLE") for p in PORTALS}
+    async with db.transaction(context_for(request, pr)) as conn:
+        await conn.execute("UPDATE sec.shield_state SET policy = $1::jsonb, session_policy = $2::jsonb, updated_at = now() WHERE id = 1",
+                           json.dumps(policy), json.dumps(sessions))
+        from ..modules.notify.outbox import emit
+        await emit(conn, "security.shield_policy_changed", "shield", 1, {"policy": policy, "session_policy": sessions, "changed_by": pr.user_id})
+        out = json.loads(await conn.fetchval("SELECT sec.shield_view()::text"))
+    from .. import shield
+    shield.load(out)
+    request.state.audit = {"action": "security.shield.policy", "object_type": "shield", "object_id": 1,
+                           "reason": f"waf={body.waf_mode} sessions={','.join(f'{k}:{v}' for k, v in sessions.items())}"}
+    return out
+
+
+class AlertNoteIn(BaseModel):
+    note: Optional[str] = Field(default=None, max_length=500)
+
+
+@router.post("/shield/alerts/{alert_id}/{step}")
+async def shield_alert_step(alert_id: int, step: Literal["acknowledge", "resolve"], body: AlertNoteIn, request: Request,
+                            pr: Principal = Depends(can_policy)):
+    async with db.transaction(context_for(request, pr)) as conn:
+        if step == "acknowledge":
+            n = await conn.execute("""UPDATE sec.traffic_alert SET status = 'ACKNOWLEDGED', ack_by = $2, ack_at = now(), note = coalesce($3, note)
+                                       WHERE id = $1 AND status = 'OPEN'""", alert_id, pr.user_id, body.note)
+        else:
+            n = await conn.execute("""UPDATE sec.traffic_alert SET status = 'RESOLVED', resolved_by = $2, resolved_at = now(), note = coalesce($3, note)
+                                       WHERE id = $1 AND status <> 'RESOLVED'""", alert_id, pr.user_id, body.note)
+    if n.endswith(" 0"):
+        raise not_found("open alert")
+    request.state.audit = {"action": f"security.shield.alert.{step}", "object_type": "traffic_alert", "object_id": alert_id,
+                           "reason": body.note}
+    return {"ok": True}

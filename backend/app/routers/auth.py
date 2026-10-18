@@ -9,9 +9,9 @@ from typing import Literal, Optional
 from fastapi import APIRouter, Depends, Request, Response
 from pydantic import BaseModel, EmailStr, Field
 
-from .. import crypto, db, markets, metrics, mfa, mfa_policy, ratelimit
+from .. import crypto, db, markets, metrics, mfa, mfa_policy, ratelimit, shield
 from ..config import get_settings
-from ..deps import SESSION_COOKIE, Principal, base_context, mfa_required_for, require_session, require_user
+from ..deps import REPLACED, SESSION_COOKIE, Principal, base_context, mfa_required_for, require_session, require_user
 from ..errors import ApiError
 from ..security import (hash_password, identifier_blocked, identifier_hash, new_token, password_needs_rehash, password_problem, token_hash,
                         verify_password)
@@ -250,6 +250,20 @@ async def login(body: LoginIn, request: Request, response: Response):
             user["id"], request.state.client_ip, rehashed)
         await _auth_event(conn, request, "LOGIN_SUCCESS", "SUCCESS", user_id=user["id"], portal=body.portal,
                           company_id=company_id, session_id=session_id)
+        # one active session per account and portal (1142): this sign-in ends the others, and the holder is told
+        if shield.session_mode(body.portal) == "SINGLE":
+            ended = await conn.fetch(
+                """UPDATE iam.user_session SET revoked_at = now(), revoke_reason = $4
+                    WHERE user_id = $1 AND portal = $2 AND id <> $3 AND revoked_at IS NULL AND expires_at > now()
+                RETURNING id, client""", user["id"], body.portal, session_id, REPLACED)
+            if ended:
+                await _auth_event(conn, request, "SESSION_REVOKED", "SUCCESS", user_id=user["id"], portal=body.portal,
+                                  company_id=company_id, session_id=session_id, reason=f"{REPLACED}: {len(ended)}")
+                await conn.execute(
+                    """INSERT INTO sys.outbox_event (event_type, aggregate_type, aggregate_id, payload)
+                       VALUES ('account.signed_in_elsewhere', 'user', $1, $2::jsonb)""",
+                    user["id"], json.dumps({"user_id": user["id"], "portal": body.portal, "client": client,
+                                            "ended": len(ended)}))
     factors = list(user["mfa_factors"])
     needs = mfa_required_for(body.portal, user["mfa_required"], bool(factors), policy)
     enrolled = mfa_policy.enrolled(factors, policy)

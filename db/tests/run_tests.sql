@@ -1956,8 +1956,8 @@ SELECT pg_temp.ok(NOT EXISTS (
      WHERE c.relkind IN ('r', 'p') AND NOT c.relispartition AND n.nspname NOT IN ('pg_catalog', 'information_schema', 'public', 'gis')
        AND has_table_privilege('masslak_app', c.oid, 'DELETE') <> EXISTS (SELECT 1 FROM sys.app_delete_grant g
                                                                            WHERE g.table_name = n.nspname || '.' || c.relname))
-  AND (SELECT count(*) FROM sys.app_delete_grant) = 39,
-  'Narrower grants: DELETE for the application on exactly the 39 listed tables (36 in 1059, the approval matrix''s two in 1074, the vehicles of a hire in 1128)');
+  AND (SELECT count(*) FROM sys.app_delete_grant) = 41,
+  'Narrower grants: DELETE for the application on exactly the 41 listed tables (36 in 1059, the approval matrix''s two in 1074, the vehicles of a hire in 1128, the shield''s samples and hits in 1142)');
 SET ROLE masslak_app;
 SELECT pg_temp.expect_error($$DELETE FROM sales.passenger WHERE id = -1$$, 'permission denied',
   'Narrower grants: the application cannot delete a business record, even one row-level security would show it');
@@ -4379,5 +4379,75 @@ SELECT pg_temp.ok(EXISTS (SELECT 1 FROM information_schema.columns WHERE table_s
   'Step-up (1136): a session records when its second factor was passed');
 SELECT pg_temp.ok((SELECT (value ->> 'step_up_minutes')::int FROM sys.setting WHERE key = 'auth.mfa') BETWEEN 5 AND 60,
   'Step-up (1136): the window of a recent second factor is a setting, 10 minutes by default');
+
+-- The platform shield (1142): firewall hits block a repeating address, the traffic watch alerts and acts, the level
+-- is a platform control with a reason, and every table is platform-only
+RESET ROLE;
+BEGIN;
+SET LOCAL app.scope = 'TENANT';
+SET LOCAL ROLE masslak_app;
+SELECT pg_temp.ok((SELECT count(*) FROM sec.shield_state) = 0 AND (SELECT count(*) FROM sec.traffic_alert) = 0,
+  'Shield (1142): a company scope sees no shield row');
+RESET ROLE;
+SELECT pg_temp.expect_error($$SELECT sec.set_shield('LOCKDOWN', 'test lockdown')$$, 'FORBIDDEN',
+  'Shield (1142): only the platform changes the level');
+SELECT set_config('app.scope', 'PLATFORM', true), set_config('app.user_id', :'uadmin', true);
+SELECT pg_temp.ok(sec.shield_view() ->> 'level' = 'NORMAL' AND sec.shield_view() #>> '{session_policy,PASSENGER}' = 'SINGLE',
+  'Shield (1142): normal level and one session per portal by default');
+SELECT pg_temp.expect_error($$SELECT sec.set_shield('LOCKDOWN', '')$$, 'REASON_REQUIRED',
+  'Shield (1142): a level change names its reason');
+SELECT pg_temp.expect_error($$SELECT sec.set_shield('NORMAL', 'back to normal', now() + interval '1 hour')$$, 'INVALID_UNTIL',
+  'Shield (1142): only a raised level takes an end time');
+SELECT sec.set_shield('LOCKDOWN', 'checking abnormal traffic', now() + interval '1 hour') IS NOT NULL AS locked \gset
+SELECT pg_temp.ok(sec.shield_view() ->> 'level' = 'LOCKDOWN'
+                  AND EXISTS (SELECT 1 FROM sec.shield_event WHERE level = 'LOCKDOWN' AND previous = 'NORMAL' AND set_by = :uadmin)
+                  AND EXISTS (SELECT 1 FROM sys.outbox_event WHERE event_type = 'security.shield_changed' AND payload ->> 'level' = 'LOCKDOWN'),
+  'Shield (1142): a lockdown is recorded with who set it and notifies the security staff');
+SELECT pg_temp.expect_error($$UPDATE sec.shield_event SET reason = 'rewritten'$$, 'IMMUTABLE_RECORD',
+  'Shield (1142): the history of levels is never rewritten');
+UPDATE sec.shield_state SET until = now() - interval '1 second';
+SELECT pg_temp.ok(sec.shield_view() ->> 'level' = 'NORMAL', 'Shield (1142): an ended level counts as normal at once');
+SELECT sec.evaluate_traffic() ->> 'level' AS ev0 \gset
+SELECT pg_temp.ok(:'ev0' = 'NORMAL' AND EXISTS (SELECT 1 FROM sec.shield_event WHERE level = 'NORMAL' AND auto),
+  'Shield (1142): the watch records the return to normal when a raised level ends');
+-- firewall: the fifth hit within the window blocks the address
+SELECT sec.waf_strike('100.64.77.66', 'GET', '/api/trips', 'sql_injection', 'QUERY', 'union select', 'sqlmap', true) FROM generate_series(1, 4);
+SELECT pg_temp.ok(NOT EXISTS (SELECT 1 FROM sec.ip_decision('100.64.77.66', 'PASSENGER')),
+  'Shield (1142): four firewall hits do not block yet');
+SELECT sec.waf_strike('100.64.77.66', 'GET', '/api/trips', 'sql_injection', 'QUERY', 'union select', 'sqlmap', true) AS hits \gset
+SELECT pg_temp.ok(:hits = 5 AND (SELECT action FROM sec.ip_decision('100.64.77.66', 'PASSENGER')) = 'BLOCK'
+                  AND EXISTS (SELECT 1 FROM sec.ip_rule WHERE source = 'WAF' AND cidr = '100.64.77.66/32' AND expires_at > now()),
+  'Shield (1142): the fifth hit in the window blocks the address for a while');
+SELECT sec.waf_strike('100.64.77.67', 'GET', '/api/trips', 'xss', 'QUERY', '<script', 'curl', false) FROM generate_series(1, 6);
+SELECT pg_temp.ok((SELECT action FROM sec.ip_decision('100.64.77.67', 'PASSENGER')) IS NULL,
+  'Shield (1142): in detect mode hits are noted, never blocked');
+-- traffic watch: a heavy minute opens one alert per kind, blocks the address far above the rest, raises the level
+SELECT sec.add_traffic_sample(date_trunc('minute', now()) - interval '1 minute', 'api-1', 25000, 10, 5, 0, 0, 0, 0, '{"198.51.100.9": 7000, "198.51.100.10": 1500}');
+SELECT sec.add_traffic_sample(date_trunc('minute', now()) - interval '1 minute', 'api-1', 100, 0, 0, 0, 0, 0, 0, '{"198.51.100.9": 100}');
+SELECT pg_temp.ok((SELECT requests FROM sec.traffic_sample WHERE instance = 'api-1' AND window_start = date_trunc('minute', now()) - interval '1 minute') = 25100
+                  AND (SELECT (top ->> '198.51.100.9')::int FROM sec.traffic_sample WHERE instance = 'api-1' AND window_start = date_trunc('minute', now()) - interval '1 minute') = 7100,
+  'Shield (1142): two flushes of one window add up, addresses included');
+SELECT sec.evaluate_traffic() AS ev \gset
+SELECT pg_temp.ok(EXISTS (SELECT 1 FROM sec.traffic_alert WHERE alert_key = 'VOLUME' AND severity = 'CRITICAL' AND status = 'OPEN')
+                  AND EXISTS (SELECT 1 FROM sec.traffic_alert WHERE kind = 'HEAVY_ADDRESS' AND alert_key = 'ADDRESS:198.51.100.9')
+                  AND NOT EXISTS (SELECT 1 FROM sec.traffic_alert WHERE alert_key = 'ADDRESS:198.51.100.10'),
+  'Shield (1142): an abnormal minute opens a volume alert and one for the address far above the rest (not for a busy one under the line)');
+SELECT pg_temp.ok((SELECT action FROM sec.ip_decision('198.51.100.9', 'PASSENGER')) = 'BLOCK'
+                  AND sec.shield_view() ->> 'level' = 'ELEVATED' AND (sec.shield_view() ->> 'auto')::boolean,
+  'Shield (1142): the heavy address is blocked and the level raised to elevated, never to lockdown');
+SELECT pg_temp.ok((SELECT count(*) FROM sys.outbox_event WHERE event_type = 'security.traffic_alert') = 2,
+  'Shield (1142): each new alert notifies the security staff once');
+SELECT sec.evaluate_traffic() AS ev2 \gset
+SELECT pg_temp.ok((SELECT count(*) FROM sec.traffic_alert WHERE status <> 'RESOLVED') = 2
+                  AND (SELECT count(*) FROM sys.outbox_event WHERE event_type = 'security.traffic_alert') = 2,
+  'Shield (1142): a lasting abnormal minute updates its alert instead of opening another');
+SET LOCAL ROLE masslak_app;
+SELECT pg_temp.expect_error($$DELETE FROM sec.traffic_alert$$, 'permission denied', 'Shield (1142): the application cannot delete alerts');
+SELECT pg_temp.expect_error($$UPDATE sec.traffic_alert SET kind = 'WAF'$$, 'permission denied', 'Shield (1142): an alert''s kind is never rewritten');
+UPDATE sec.traffic_alert SET status = 'RESOLVED', resolved_at = now(), resolved_by = :uadmin WHERE alert_key = 'VOLUME';
+SELECT pg_temp.ok(EXISTS (SELECT 1 FROM sec.traffic_alert WHERE alert_key = 'VOLUME' AND status = 'RESOLVED'),
+  'Shield (1142): platform staff resolve an alert');
+RESET ROLE;
+ROLLBACK;
 
 \echo '=== ALL TESTS PASSED ==='

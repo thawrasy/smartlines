@@ -2,7 +2,7 @@
 
 > Generated from the built database (`db/tools/gen_docs.py`); do not edit by hand.
 
-**560 tables, 5922 columns, in 26 schemas.**
+**565 tables, 5974 columns, in 26 schemas.**
 
 Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant isolation (RLS) · 🧩 partitioned monthly · 🔒 append-only / change-protected
 
@@ -21,7 +21,7 @@ Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant i
 - [`bill` — Carrier subscriptions, metering and platform invoices](#bill) (7 tables)
 - [`crm` — Complaints, ratings, notifications, the AI assistant and the contact center](#crm) (19 tables)
 - [`gov` — Governance, obligations and data protection](#gov) (15 tables)
-- [`sec` — Security: IP rules, risk, signing, the security hub and government adapters](#sec) (27 tables)
+- [`sec` — Security: IP rules, risk, signing, the security hub and government adapters](#sec) (32 tables)
 - [`ptn` — Service partners: fuel stations, rest stops and maintenance](#ptn) (14 tables)
 - [`ship` — Shipments and the integrated shipping network](#ship) (57 tables)
 - [`frt` — Trucking, heavy transport and transit freight](#frt) (31 tables)
@@ -6882,6 +6882,38 @@ Security events for the SOC and detection rules (16.20)
 | `ip_rule_id` | `bigint` | 🔗 `sec.ip_rule`  |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
+### `sec.shield_event` 🛡️
+
+Every change of the shield level, by whom or by the platform, and why (1142); never rewritten
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `at` | `timestamp with time zone` | ✱ | `now()` |
+| `level` | `text` | ✱ |  |
+| `previous` | `text` | ✱ |  |
+| `reason` | `text` | ✱ |  |
+| `set_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `auto` | `boolean` | ✱ |  |
+| `until` | `timestamp with time zone` |  |  |
+
+### `sec.shield_state` 🛡️
+
+The platform shield: level (normal, elevated, lockdown), thresholds and automatic actions, one-session rule per portal (1142)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `smallint` | 🔑 ✱ | `1` |
+| `level` | `text` | ✱ | `'NORMAL'::text` |
+| `reason` | `text` |  |  |
+| `set_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `set_at` | `timestamp with time zone` | ✱ | `now()` |
+| `until` | `timestamp with time zone` |  |  |
+| `auto` | `boolean` | ✱ | `false` |
+| `policy` | `jsonb` | ✱ | `'{"waf_mode": "BLOCK", "alert_rpm": 2...` |
+| `session_policy` | `jsonb` | ✱ | `'{"AGENCY": "SINGLE", "DRIVER": "SING...` |
+| `updated_at` | `timestamp with time zone` | ✱ | `now()` |
+
 ### `sec.sos_event` 🛡️
 
 
@@ -6914,6 +6946,44 @@ Attempts to submit values that contradict the server-side computation (price, da
 | `server_value` | `text` |  |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
+### `sec.traffic_alert` 🛡️
+
+An abnormal minute of traffic, open until staff resolve it; one live alert per kind or address (1142)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `alert_key` | `text` | ✱ |  |
+| `kind` | `text` | ✱ |  |
+| `severity` | `text` | ✱ |  |
+| `status` | `text` | ✱ | `'OPEN'::text` |
+| `opened_at` | `timestamp with time zone` | ✱ | `now()` |
+| `last_seen_at` | `timestamp with time zone` | ✱ | `now()` |
+| `metrics` | `jsonb` | ✱ |  |
+| `actions` | `jsonb` | ✱ | `'[]'::jsonb` |
+| `ack_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `ack_at` | `timestamp with time zone` |  |  |
+| `resolved_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `resolved_at` | `timestamp with time zone` |  |  |
+| `note` | `text` |  |  |
+
+### `sec.traffic_sample` 🛡️
+
+Requests each API process saw in a 10-second window, with refusals, errors and its busiest addresses (1142); kept 7 days
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `window_start` | `timestamp with time zone` | 🔑 ✱ |  |
+| `instance` | `text` | 🔑 ✱ |  |
+| `requests` | `integer` | ✱ | `0` |
+| `err_4xx` | `integer` | ✱ | `0` |
+| `err_5xx` | `integer` | ✱ | `0` |
+| `blocked` | `integer` | ✱ | `0` |
+| `limited` | `integer` | ✱ | `0` |
+| `waf_hits` | `integer` | ✱ | `0` |
+| `auth_failures` | `integer` | ✱ | `0` |
+| `top` | `jsonb` | ✱ | `'{}'::jsonb` |
+
 ### `sec.verification_job` 🛡️
 
 
@@ -6936,6 +7006,23 @@ Attempts to submit values that contradict the server-side computation (price, da
 | `subject_license_id` | `bigint` | 🔗 `fleet.license_record`  |  |
 | `subject_vehicle_id` | `bigint` | 🔗 `fleet.vehicle`  |  |
 | `subject_document_id` | `bigint` | 🔗 `iam.document`  |  |
+
+### `sec.waf_hit` 🛡️
+
+A request the application firewall stopped (or noted, in detect mode): rule, where it matched, a short sample (1142); kept 30 days
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `at` | `timestamp with time zone` | ✱ | `now()` |
+| `ip` | `inet` | ✱ |  |
+| `method` | `text` | ✱ |  |
+| `path` | `text` | ✱ |  |
+| `rule` | `text` | ✱ |  |
+| `location` | `text` | ✱ |  |
+| `sample` | `text` |  |  |
+| `user_agent` | `text` |  |  |
+| `action` | `text` | ✱ |  |
 
 ### `sec.watchlist_entry` 🛡️
 

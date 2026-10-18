@@ -137,7 +137,7 @@ flowchart LR
   sec -->|6| fin
   sec -->|5| fleet
   sec -->|1| gov
-  sec -->|29| iam
+  sec -->|32| iam
   sec -->|6| ops
   sec -->|5| sales
   ship -->|1| crm
@@ -3944,6 +3944,14 @@ erDiagram
     bigint id PK
     bigint ip_rule_id FK
   }
+  sec_shield_event {
+    bigint id PK
+    bigint set_by FK
+  }
+  sec_shield_state {
+    smallint id PK
+    bigint set_by FK
+  }
   sec_sos_event {
     bigint id PK
     bigint trip_id FK
@@ -3953,6 +3961,16 @@ erDiagram
   }
   sec_tamper_event {
     bigint id PK
+  }
+  sec_traffic_alert {
+    bigint id PK
+    text status
+    bigint ack_by FK
+    bigint resolved_by FK
+  }
+  sec_traffic_sample {
+    timestamp_with_time_zone window_start PK
+    text instance PK
   }
   sec_verification_job {
     bigint id PK
@@ -3964,6 +3982,9 @@ erDiagram
     bigint subject_license_id FK
     bigint subject_vehicle_id FK
     bigint subject_document_id FK
+  }
+  sec_waf_hit {
+    bigint id PK
   }
   sec_watchlist_entry {
     bigint id PK
@@ -4045,8 +4066,11 @@ erDiagram
   sec_sos_event }o..o| iam_app_user : "triggered_by"
   sec_external_access_grant }o--|| iam_app_user : "user_id"
   sec_policy_decision }o..o| iam_app_user : "user_id"
+  sec_shield_state }o..o| iam_app_user : "set_by"
+  sec_shield_event }o..o| iam_app_user : "set_by"
   sec_risk_assessment }o..o| iam_app_user : "subject_user_id"
   sec_fraud_case }o..o| iam_app_user : "subject_user_id"
+  sec_traffic_alert }o..o| iam_app_user : "ack_by"
   sec_authority_order }o..o| iam_app_user : "target_user_id"
   sec_key_registry }o..o| iam_company : "company_id"
   sec_policy_decision }o..o| iam_company : "company_id"

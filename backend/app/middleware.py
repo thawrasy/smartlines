@@ -7,10 +7,10 @@ import uuid
 from typing import Optional
 
 from fastapi import Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, PlainTextResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from . import db, logs, ratelimit
+from . import db, logs, ratelimit, shield
 from .config import get_settings
 from .errors import pool_busy_handler
 
@@ -118,6 +118,13 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
         path = request.url.path
         started = time.monotonic()
         if not path.startswith("/api/"):
+            # the web pages: probes for files no route serves, scanners and odd methods are refused here too (1142)
+            hit = shield.inspect_line(request.method, path, request.url.query, dict(request.headers)) \
+                if shield.waf_mode() != "OFF" else None
+            if hit:
+                refused = await self._waf_refused(request, path, hit, started, page=True)
+                if refused is not None:
+                    return refused
             return await call_next(request)
         try:
             response = await self._api(request, call_next, path, started)
@@ -135,30 +142,62 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
     async def _api(self, request: Request, call_next, path: str, started: float):
         scope = portal_scope_for_path(path)
         bucket = ratelimit.bucket_for(path)
-        ctx = db.Context(request_id=request.state.request_id, ip=request.state.client_ip, scope="SYSTEM")
+        ip = request.state.client_ip
+        # the application firewall reads the request before anything else does (1142)
+        hit = None
+        if shield.waf_mode() != "OFF":
+            hit = shield.inspect_line(request.method, path, request.url.query, dict(request.headers))
+            if hit is None and request.method in MUTATING:
+                length = request.headers.get("content-length")
+                if length is None or (length.isdigit() and int(length) <= shield.MAX_BODY_INSPECT):
+                    hit = shield.inspect_body(path, request.headers.get("content-type", ""), await request.body())
+        elevated = shield.level() == "ELEVATED"
+        ctx = db.Context(request_id=request.state.request_id, ip=ip, scope="SYSTEM")
         try:
             async with db.transaction(ctx) as conn:
-                decision = await conn.fetchrow("SELECT action, rule_id FROM sec.ip_decision($1::inet, $2)",
-                                               request.state.client_ip, scope)
-                # sign-in and public endpoints: the address's bucket is shared by every process (1068), in this round trip
+                if shield.stale():
+                    shield.load(await conn.fetchval("SELECT sec.shield_view()"))
+                decision = await conn.fetchrow("SELECT action, rule_id FROM sec.ip_decision($1::inet, $2)", ip, scope)
+                blocked = bool(decision and decision["action"] == "BLOCK")
+                if hit and not blocked:
+                    await shield.strike(conn, ip, request.method, path, hit, request.headers.get("user-agent", ""),
+                                        shield.waf_mode() == "BLOCK")
+                # sign-in and public endpoints: the address's bucket is shared by every process (1068), in this round
+                # trip; a raised shield takes two tokens a request, halving the limits
                 wait = 0.0
-                if bucket == "auth":
-                    wait = await ratelimit.check_address(conn, ratelimit.client_key(request.state.client_ip))
-                elif bucket == "public":
-                    wait = await ratelimit.check_public(conn, ratelimit.client_key(request.state.client_ip))
+                if not blocked and not (hit and shield.waf_mode() == "BLOCK"):
+                    for _ in range(2 if elevated else 1):
+                        if bucket == "auth":
+                            wait = wait or await ratelimit.check_address(conn, ratelimit.client_key(ip))
+                        elif bucket == "public":
+                            wait = wait or await ratelimit.check_public(conn, ratelimit.client_key(ip))
         except db.PoolBusy:
             # raised outside the routes, so the application's exception handlers would not see it
             return await pool_busy_handler(request, db.PoolBusy())
-        if decision and decision["action"] == "BLOCK":
+        if blocked:
             request.state.error_code = "IP_BLOCKED"
+            shield.traffic.record(ip, 403, "blocked")
             await self._log(request, scope, "request.blocked", "BLOCKED", 403, started,
                             reason=f"ip_rule {decision['rule_id']}")
             return JSONResponse({"error": {"code": "IP_BLOCKED", "message": "access from this address is blocked"}},
                                 status_code=403)
+        if hit and shield.waf_mode() == "BLOCK":
+            return await self._waf_refused(request, path, hit, started, scope=scope, recorded=True)
+        if shield.level() == "LOCKDOWN" and not shield.lockdown_allows(
+                path, scope, decision["action"] if decision else None,
+                bool(request.cookies.get("msk_session") or request.headers.get("authorization"))):
+            request.state.error_code = "SHIELD_LOCKDOWN"
+            shield.traffic.record(ip, 503, "blocked")
+            return JSONResponse({"error": {"code": "SHIELD_LOCKDOWN",
+                                           "message": "the platform is paused for a security check; try again shortly"}},
+                                status_code=503, headers={"Retry-After": "60"})
 
         if bucket == "api":
-            wait = ratelimit.limiter().check(request.state.client_ip, bucket)
+            wait = ratelimit.limiter().check(ip, bucket)
+            if not wait and elevated:
+                wait = ratelimit.limiter().check(ip, bucket)
         if wait:
+            shield.traffic.record(ip, 429, "limited")
             request.state.error_code = "RATE_LIMITED"
             await self._log(request, scope, "request.rate_limited", "BLOCKED", 429, started, reason="rate limit")
             return JSONResponse({"error": {"code": "RATE_LIMITED", "message": "too many requests, try again shortly"}},
@@ -173,6 +212,8 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
                                 status_code=400)
 
         response = await call_next(request)
+        shield.traffic.record(ip, response.status_code,
+                              "auth_fail" if bucket == "auth" and response.status_code in (401, 423) else None)
         if request.state.api_client_id:
             from .modules.integration.auth import record_usage
             await record_usage(request.state.api_client_id, response.status_code >= 400)
@@ -181,6 +222,28 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
             await self._log(request, scope, None, result, response.status_code, started)
         response.headers["X-Request-Id"] = str(request.state.request_id)
         return response
+
+    async def _waf_refused(self, request: Request, path: str, hit, started: float, *, scope: str = "PASSENGER",
+                           page: bool = False, recorded: bool = False):
+        """A request the firewall refused: recorded (its address blocked at the policy's number of hits), counted, and
+        answered without saying which rule matched. On the web pages a probe looks like a page that does not exist."""
+        ip = request.state.client_ip
+        blocking = shield.waf_mode() == "BLOCK"
+        if not recorded:
+            try:
+                async with db.transaction(db.Context(request_id=request.state.request_id, ip=ip, scope="SYSTEM")) as conn:
+                    await shield.strike(conn, ip, request.method, path, hit, request.headers.get("user-agent", ""), blocking)
+            except Exception:                  # noqa: BLE001 - a failed record must not open the door
+                logging.getLogger("masslak.shield").warning("firewall hit not recorded", exc_info=True)
+        if page and not blocking:
+            return None                        # detect mode: noted, the page is served
+        shield.traffic.record(ip, 404 if page else 403, "waf")
+        if page:
+            return PlainTextResponse("Not found", status_code=404)
+        request.state.error_code = "REQUEST_REJECTED"
+        await self._log(request, scope, "request.firewall", "BLOCKED", 403, started, reason=f"waf {hit.rule} in {hit.location}")
+        return JSONResponse({"error": {"code": "REQUEST_REJECTED", "message": "the request was rejected by the platform firewall"}},
+                            status_code=403)
 
     async def _log(self, request: Request, scope: str, action, result: str, status: int, started: float, reason=None):
         pr = request.state.principal

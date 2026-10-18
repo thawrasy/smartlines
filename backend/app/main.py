@@ -79,7 +79,10 @@ async def lifespan(_: FastAPI):
     # the durability the owner chose (decision 1): compared by the monitoring with what the database does
     metrics.gauge("masslak_zero_data_loss_configured", 1.0 if get_settings().zero_data_loss else 0.0)
     publishing = asyncio.create_task(metrics.publisher()) if metrics._processes() > 1 else None
+    from . import shield
+    counting = asyncio.create_task(shield.publisher())   # the traffic watch's samples, every 10 seconds (1142)
     yield
+    counting.cancel()
     if publishing:
         publishing.cancel()
         metrics.publish()                 # the last figures of this process stay in the instance's totals
@@ -116,7 +119,11 @@ async def security_headers(request: Request, call_next):
     response.headers.setdefault("X-Content-Type-Options", "nosniff")
     response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
     response.headers.setdefault("X-Frame-Options", "DENY")
-    response.headers.setdefault("Permissions-Policy", "camera=(self), geolocation=(self), microphone=()")
+    response.headers.setdefault("Permissions-Policy", "camera=(self), geolocation=(self), microphone=(), payment=(), usb=(), interest-cohort=()")
+    # the pages and their scripts stay in their own browsing context, readable by no other site (1142)
+    response.headers.setdefault("Cross-Origin-Opener-Policy", "same-origin")
+    response.headers.setdefault("Cross-Origin-Resource-Policy", "same-origin")
+    response.headers.setdefault("X-Permitted-Cross-Domain-Policies", "none")
     # no inline style or script anywhere (reviews of release 1.49.0); the landing pages set their own, which names their
     # stylesheet by its hash (modules/seo/render.py), and frontend/e2e/csp-check.mjs fails on any violation in a browser
     response.headers.setdefault(

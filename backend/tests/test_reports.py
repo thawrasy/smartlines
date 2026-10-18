@@ -83,8 +83,11 @@ def test_company_sees_only_its_own_rows(owner):
     assert carriers <= {name}, (carriers, name)
     # a platform dataset is refused, and so is a column that is not in the dataset
     assert owner.post("/api/reports/run", json={"dataset": "payments", "spec": {"columns": ["amount"]}}).status_code == 403
-    r = owner.post("/api/reports/run", json={"dataset": "trips", "spec": {"columns": ["trip_no", "1; DROP TABLE ops.trip"]}})
+    r = owner.post("/api/reports/run", json={"dataset": "trips", "spec": {"columns": ["trip_no", "not_a_real_column"]}})
     assert r.status_code == 422 and r.json()["error"]["code"] == "REPORT_UNKNOWN_COLUMN"
+    # a column name written as an SQL statement is stopped by the application firewall before the column validator (1142)
+    r = owner.post("/api/reports/run", json={"dataset": "trips", "spec": {"columns": ["trip_no", "1; DROP TABLE ops.trip"]}})
+    assert r.status_code == 403 and r.json()["error"]["code"] == "REQUEST_REJECTED", r.text
     r = owner.post("/api/reports/run", json={"dataset": "trips", "spec": {"columns": ["trip_no"], "filters": [["trip_no", "union", "x"]]}})
     assert r.status_code == 422
     # filter values travel as parameters: quotes and percent signs are just text

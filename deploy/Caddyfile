@@ -22,10 +22,29 @@
 		max_size 6MB
 	}
 	header {
-		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+		# defence in depth: the API sets these too, but the edge carries them even for a cached asset or an error page
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		X-Frame-Options DENY
+		Cross-Origin-Opener-Policy same-origin
+		Cross-Origin-Resource-Policy same-origin
 		-Server
 		-Via
+		-X-Powered-By
 	}
+	# The platform serves no HTTP methods beyond these; anything else (the WebDAV and debug verbs scanners try) is
+	# refused at the edge before it reaches the API (1142)
+	@bad_method not method GET HEAD POST PUT PATCH DELETE OPTIONS
+	respond @bad_method 405
+	# Probes for files no route serves (the firewall records them in the API; blocking the obvious ones here saves a
+	# round trip and keeps the logs clean). A real path under these names does not exist in this application.
+	@probes path /.env* /.git/* /.aws/* /.ssh/* /wp-admin* /wp-login* /wp-content/* /xmlrpc.php /phpmyadmin* /vendor/* /.well-known/../*
+	respond @probes 404
+	# No source maps are built (frontend/vite.config.ts); refuse any *.map request at the edge so the browser
+	# source cannot be reconstructed, even if a map were ever served by mistake (owner's request, October 2026)
+	@sourcemap path *.map
+	respond @sourcemap 404
 	# Built assets carry a content hash in their name, so they can be cached for a year
 	@assets path /assets/*
 	header @assets Cache-Control "public, max-age=31536000, immutable"
@@ -35,6 +54,9 @@
 		# idle connections to the API close here before the API closes them (it keeps them 75 s, Dockerfile)
 		transport http {
 			keepalive 60s
+			# a slow upstream does not tie an edge worker up forever; a stuck request is cut (defence against slow reads)
+			dial_timeout 5s
+			response_header_timeout 60s
 		}
 	}
 	# the access log keeps no token from a URL (reviews of release 1.49.0, F-03): the token of a report delivery link

@@ -35,6 +35,15 @@ def render(template: str, channel: str, locale: str, values: dict) -> tuple[str,
         elif k in ("incident_type", "severity", "refund_to"):   # codes become words (1101, 1102)
             v = words.get(k + "_labels", {}).get(v, v)
         vals[k] = v
+    if template.startswith("security.") or template == "account.signed_in_elsewhere":   # the shield (1142)
+        lab = words.get("shield_labels", {})
+        for k in ("kind", "severity", "level", "previous", "client"):
+            if k in values:
+                vals[k + "_label"] = lab.get(str(values[k]), str(values[k]))
+        vals["by_label"] = lab.get("AUTO" if values.get("auto") else "STAFF", "")
+        vals["metrics_text"] = ", ".join(f"{k} {v}" for k, v in (values.get("metrics") or {}).items())
+        vals["actions_text"] = ", ".join(lab.get(a.get("action", ""), a.get("action", "")) for a in (values.get("actions") or [])) \
+            or lab.get("NONE", "")
     if vals.get("trip_code") is None and "trip_no" in vals:   # the trip number passengers read (1114), else the reference
         vals["trip_code"] = vals["trip_no"]
     def fill(s: str) -> str:

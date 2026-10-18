@@ -74,6 +74,7 @@ const PaymentsDesk = lazyNamed(() => import("./pages/finance/Payments"), "Paymen
 const IntegrationsPage = lazyNamed(() => import("./pages/integrations/Integrations"), "IntegrationsPage");
 const MfaPolicy = lazy(() => import("./pages/security/MfaPolicy"));
 const Statements = lazy(() => import("./pages/security/Statements"));
+const Shield = lazy(() => import("./pages/security/Shield"));
 const Parcels = lazy(() => import("./pages/passenger/Parcels"));
 const CarrierParcels = lazy(() => import("./pages/carrier/Parcels"));
 const Regulator = lazy(() => import("./pages/regulator/Regulator"));
@@ -145,6 +146,7 @@ function PlatformShell() {
       { to: "/security/rules", icon: "block", label: t("security.rules"), show: can("security.ip_rules") },
       { to: "/security/auth", icon: "lock", label: t("security.authEvents"), show: can("audit.view", "security.ip_rules") },
       { to: "/security/activity", icon: "history", label: t("security.activity"), show: can("audit.view", "security.ip_rules") },
+      { to: "/security/shield", icon: "shield", label: t("shield.nav"), show: can("security.console") },
       { to: "/security/mfa", icon: "password", label: t("security.mfaNav"), show: can("security.console") },
       { to: "/security/statements", icon: "monitoring", label: t("security.stmt.nav"), show: can("security.console") },
       { to: "/admin/privacy", icon: "privacy_tip", label: t("account.privacyRequests"), show: can("privacy.manage") },
@@ -346,6 +348,7 @@ export default function App() {
           <Route path="security/rules" element={<SecurityRules />} />
           <Route path="security/auth" element={<SecurityAuthLog />} />
           <Route path="security/activity" element={<SecurityActivity />} />
+          <Route path="security/shield" element={<Shield />} />
           <Route path="security/mfa" element={<MfaPolicy />} />
           <Route path="security/statements" element={<Statements />} />
           <Route path="regulator" element={<Regulator />} />

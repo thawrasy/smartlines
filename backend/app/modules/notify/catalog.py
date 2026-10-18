@@ -81,6 +81,13 @@ async def deliveries(conn: asyncpg.Connection, event: asyncpg.Record, payload: d
         if payload.get("platform"):
             out += await _platform_staff(conn, "security.console", kind, ["IN_APP", "EMAIL"], payload)
         return out
+    if kind in ("security.traffic_alert", "security.shield_changed"):   # the platform shield (1142): its security staff
+        channels = ["IN_APP", "EMAIL", "SMS"] if payload.get("severity") == "CRITICAL" or payload.get("level") == "LOCKDOWN" \
+            else ["IN_APP", "EMAIL"]
+        return await _platform_staff(conn, "security.console", kind, channels, payload)
+    if kind == "account.signed_in_elsewhere" and payload.get("user_id"):   # one session per portal (1142)
+        d = await _user(conn, payload["user_id"], kind, ["IN_APP", "EMAIL"], payload)
+        return [d] if d else []
     if kind in ("document.approved", "document.rejected"):
         d = await _user(conn, payload["uploaded_by"], kind, ["IN_APP", "EMAIL"], payload)
         return [d] if d else []

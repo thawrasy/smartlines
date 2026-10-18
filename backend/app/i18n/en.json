@@ -1281,5 +1281,40 @@
     "subject": "Masslak sign-in code",
     "body": "Your Masslak sign-in code is {code}. It expires in {minutes} minutes. Do not share it with anyone.",
     "sms": "Masslak code: {code} (valid {minutes} min). Never share it."
+  },
+  "security.traffic_alert": {
+    "subject": "Security alert: {kind_label} ({severity_label})",
+    "body": "The platform's traffic watch opened an alert: {kind_label}. Figures: {metrics_text}. Automatic action: {actions_text}. Open the shield in the security console to check it, block addresses or pause the platform.",
+    "sms": "Masslak security: {kind_label}. {metrics_text}. Check the shield in the console now."
+  },
+  "security.shield_changed": {
+    "subject": "Platform shield: {level_label}",
+    "body": "The platform shield is now {level_label} (it was {previous_label}). Reason: {reason}. Set by: {by_label}. Review it in the security console.",
+    "sms": "Masslak shield: {level_label}. Reason: {reason}."
+  },
+  "account.signed_in_elsewhere": {
+    "subject": "Your account was signed in on another device",
+    "body": "Your Masslak account was just signed in on another device ({client_label}). For your safety only one device stays signed in, so the other device was signed out. If this was not you, change your password now and contact support."
+  },
+  "shield_labels": {
+    "VOLUME": "abnormal traffic volume",
+    "SPIKE": "a sudden spike over the usual traffic",
+    "ERRORS": "many server errors",
+    "WAF": "many requests stopped by the firewall",
+    "AUTH_FLOOD": "a flood of failed sign-ins",
+    "HEAVY_ADDRESS": "one address far above the rest",
+    "WARNING": "warning",
+    "CRITICAL": "critical",
+    "NORMAL": "normal",
+    "ELEVATED": "elevated",
+    "LOCKDOWN": "lockdown (traffic paused)",
+    "AUTO": "the platform itself",
+    "STAFF": "a member of the security staff",
+    "NONE": "none",
+    "ADDRESS_BLOCKED": "the address was blocked for a while",
+    "LEVEL_ELEVATED": "the shield was raised to elevated",
+    "web": "a web browser",
+    "android": "the Android app",
+    "ios": "the iPhone app"
   }
 }

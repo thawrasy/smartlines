@@ -175,5 +175,10 @@ def test_a_payment_provider_address_follows_the_same_rules():
     provider = next(p for p in admin.get("/api/admin/payments/providers").json()["providers"] if p["adapter"] == "HOSTED_CARD")
     body = {"status": provider["status"], "min_amount": provider["min_amount"], "max_amount": provider["max_amount"],
             "fee_pct": provider["fee_pct"], "fee_borne_by": provider["fee_borne_by"]}
-    r = admin.put(f"/api/admin/payments/providers/{provider['code']}", json={**body, "config": {"base_url": "https://169.254.169.254/"}})
+    # a private address that is not the cloud metadata one reaches the SSRF check (the metadata address is stopped a
+    # layer earlier by the application firewall, below)
+    r = admin.put(f"/api/admin/payments/providers/{provider['code']}", json={**body, "config": {"base_url": "https://10.1.2.3:8080/pay"}})
     assert r.status_code == 422 and r.json()["error"]["code"] == "CONFIG_URL_NOT_PUBLIC", r.text
+    # the cloud metadata address is an attack pattern the firewall stops before the SSRF check (1142)
+    r = admin.put(f"/api/admin/payments/providers/{provider['code']}", json={**body, "config": {"base_url": "https://169.254.169.254/"}})
+    assert r.status_code == 403 and r.json()["error"]["code"] == "REQUEST_REJECTED", r.text

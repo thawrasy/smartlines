@@ -312,6 +312,12 @@ async def main():
         sys.exit("refusing to load demo data: this database belongs to a production server")
     async with conn.transaction():
         await conn.execute("SELECT sys.set_context(NULL, NULL, 'SYSTEM')")
+        # the demo accounts are shared by everyone trying the platform and by the tests, so they keep several
+        # sessions, and many of them share one address (an office, the test runner): the watch alerts on such an address
+        # but does not block it; a real server keeps one session per account and portal and blocks floods (1142)
+        await conn.execute("""UPDATE sec.shield_state SET session_policy =
+                                (SELECT jsonb_object_agg(k, 'MULTI') FROM jsonb_object_keys(session_policy) k),
+                              policy = policy || '{"auto_block_heavy": false}' WHERE id = 1""")
         if await conn.fetchval("SELECT 1 FROM iam.app_user WHERE email = 'admin@masslak.test'"):
             added = [what for what, done in (("agency", await seed_agency(conn)), ("seat layouts", await seed_layouts(conn)),
                                                     ("finance user", await seed_finance(conn)),

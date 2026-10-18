@@ -12,6 +12,7 @@ from .errors import ApiError, forbidden
 from .security import token_hash
 
 SESSION_COOKIE = "msk_session"
+REPLACED = "replaced by a new sign-in"   # revoke_reason of a session a later sign-in ended (1142)
 
 # Portal -> RLS scope
 PORTAL_SCOPE = {
@@ -142,6 +143,10 @@ async def optional_principal(request: Request) -> Optional[Principal]:
         pr = await load_principal(conn, token)
         if pr:
             await conn.execute("UPDATE iam.user_session SET last_seen_at = now() WHERE id = $1", pr.session_id)
+        else:
+            # ended by a sign-in on another device (one session per portal, 1142): said so, not just "sign in"
+            request.state.session_replaced = bool(await conn.fetchval(
+                "SELECT revoke_reason = $2 FROM iam.user_session WHERE token_hash = $1", token_hash(token), REPLACED))
     if pr:
         request.state.principal = pr
     return pr
@@ -161,9 +166,11 @@ def mfa_required_for(portal: str, account_requires: bool, has_factor: bool, poli
     return account_requires or policy.requires(portal)
 
 
-async def require_session(principal: Optional[Principal] = Depends(optional_principal)) -> Principal:
+async def require_session(request: Request, principal: Optional[Principal] = Depends(optional_principal)) -> Principal:
     """A valid session, even one that still owes its second factor (used by the MFA endpoints)."""
     if principal is None:
+        if getattr(request.state, "session_replaced", False):
+            raise ApiError(401, "SESSION_REPLACED", "this account signed in on another device; sign in again to continue here")
         raise ApiError(401, "AUTH_REQUIRED", "login required")
     return principal
 
